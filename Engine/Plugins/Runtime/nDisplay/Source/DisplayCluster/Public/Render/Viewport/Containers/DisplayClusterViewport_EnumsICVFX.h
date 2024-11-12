@@ -25,13 +25,25 @@ enum class EDisplayClusterViewportICVFXFlags : uint8
 
 	// Disable lightcard render to this viewport
 	DisableLightcard = 1 << 4,
+
+	// lightcard render always under the InCamera
+	LightcardAlwaysUnder = 1 << 5,
+
+	// lightcard render always over the InCamera
+	LightcardAlwaysOver = 1 << 6,
+
+	// Lightcard rendering mode is determined from the stage settings.
+	LightcardUseStageSettings = 1 << 7,
+
+	// Mask that get only flags that define the light card render mode.
+	LightcardRenderModeMask = LightcardAlwaysUnder | LightcardAlwaysOver | LightcardUseStageSettings,
 };
 ENUM_CLASS_FLAGS(EDisplayClusterViewportICVFXFlags);
 
 /**
  * This flag raised only from icvfx manager.
 */
-enum class EDisplayClusterViewportRuntimeICVFXFlags: uint8
+enum class EDisplayClusterViewportRuntimeICVFXFlags: uint16
 {
 	None = 0,
 
@@ -44,10 +56,14 @@ enum class EDisplayClusterViewportRuntimeICVFXFlags: uint8
 	Lightcard   = 1 << 3,
 	UVLightcard = 1 << 4,
 
-	// This viewport used as internal icvfx composing resource (created and deleted inside icvfx logic)
-	InternalResource = 1 << 5,
+	// Additional flags marking the position of the viewport relative to the in-frustum.
+	OverInFrustum = 1 << 5,
+	UnderInFrustum = 1 << 6,
+
+	// This viewport used as internal icvfx compositing resource (created and deleted inside icvfx logic)
+	InternalResource = 1 << 14,
 
 	// Mark unused icvfx dynamic viewports
-	Unused = 1 << 6,
+	Unused = 1 << 15,
 };
 ENUM_CLASS_FLAGS(EDisplayClusterViewportRuntimeICVFXFlags);

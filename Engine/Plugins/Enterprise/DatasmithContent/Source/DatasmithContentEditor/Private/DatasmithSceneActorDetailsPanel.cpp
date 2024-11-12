@@ -38,7 +38,7 @@ void FDatasmithSceneActorDetailsPanel::CustomizeDetails(IDetailLayoutBuilder& De
 {
 	SelectedObjectsList = DetailLayoutBuilder.GetSelectedObjects();
 
-	TSharedRef<SWrapBox> WrapBox = SNew(SWrapBox).UseAllottedWidth(true);
+	TSharedRef<SWrapBox> WrapBox = SNew(SWrapBox).UseAllottedSize(true);
 
 	FString CategoryName = TEXT("Datasmith");
 	IDetailCategoryBuilder& ActionsCategory = DetailLayoutBuilder.EditCategory(*CategoryName);

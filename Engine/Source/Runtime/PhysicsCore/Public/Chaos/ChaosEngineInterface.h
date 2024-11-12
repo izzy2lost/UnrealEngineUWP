@@ -8,6 +8,7 @@
 #include "PhysicsInterfaceDeclaresCore.h"
 #include "PhysicsInterfaceWrapperShared.h"
 #include "PhysicsInterfaceTypesCore.h"
+#include "Chaos/Evolution/IterationSettings.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxyFwd.h"
 #include "ChaosEngineInterface.generated.h"
 
@@ -173,7 +174,7 @@ enum EConstraintPlasticityType : int
 	/** */
 	CCPT_Free	UMETA(DisplayName = "Free"),
 	/** */
-	CCPT_Shrink	UMETA(DisplayName = "Shirnk"),
+	CCPT_Shrink	UMETA(DisplayName = "Shrink"),
 	/** */
 	CCPT_Grow	UMETA(DisplayName = "Grow"),
 
@@ -407,6 +408,9 @@ public:
 	static PHYSICSCORE_API void SetIsKinematic_AssumesLocked(const FPhysicsActorHandle& InActorReference,bool bIsKinematic);
 	static PHYSICSCORE_API void SetCcdEnabled_AssumesLocked(const FPhysicsActorHandle& InActorReference,bool bIsCcdEnabled);
 	static PHYSICSCORE_API void SetMACDEnabled_AssumesLocked(const FPhysicsActorHandle& InActorReference, bool bIsMACDEnabled);
+	static PHYSICSCORE_API void SetPositionSolverIterationCount_AssumesLocked(const FPhysicsActorHandle& InActorReference, uint8 PositionSolverIterationCount);
+	static PHYSICSCORE_API void SetVelocitySolverIterationCount_AssumesLocked(const FPhysicsActorHandle& InActorReference, uint8 VelocitySolverIterationCount);
+	static PHYSICSCORE_API void SetProjectionSolverIterationCount_AssumesLocked(const FPhysicsActorHandle& InActorReference, uint8 ProjectionSolverIterationCount);
 	static PHYSICSCORE_API void SetIgnoreAnalyticCollisions_AssumesLocked(const FPhysicsActorHandle& InActorReference,bool bIsCcdEnabled);
 
 	static PHYSICSCORE_API FTransform GetGlobalPose_AssumesLocked(const FPhysicsActorHandle& InActorReference);
@@ -438,6 +442,7 @@ public:
 	static PHYSICSCORE_API FVector GetLocalInertiaTensor_AssumesLocked(const FPhysicsActorHandle& InActorReference);
 	static PHYSICSCORE_API FBox GetBounds_AssumesLocked(const FPhysicsActorHandle& InActorReference);
 	static PHYSICSCORE_API FBox GetBounds_AssumesLocked(const FPhysicsActorHandle& InActorReference, const FTransform& InTransform);
+	static PHYSICSCORE_API FBox GetBoundsLocal_AssumesLocked(const FPhysicsActorHandle& InActorReference);
 
 	static PHYSICSCORE_API void SetLinearDamping_AssumesLocked(const FPhysicsActorHandle& InActorReference,float InDamping);
 	static PHYSICSCORE_API void SetAngularDamping_AssumesLocked(const FPhysicsActorHandle& InActorReference,float InDamping);
@@ -457,6 +462,8 @@ public:
 
 	static PHYSICSCORE_API bool IsGravityEnabled_AssumesLocked(const FPhysicsActorHandle& InActorReference);
 	static PHYSICSCORE_API void SetGravityEnabled_AssumesLocked(const FPhysicsActorHandle& InActorReference,bool bEnabled);
+	static PHYSICSCORE_API int32 GetGravityGroupIndex_AssumesLocked(const FPhysicsActorHandle& InActorReference);
+	static PHYSICSCORE_API void SetGravityGroupIndex_AssumesLocked(const FPhysicsActorHandle& InActorReference, uint32 Index);
 
 	static PHYSICSCORE_API bool GetUpdateKinematicFromSimulation_AssumesLocked(const FPhysicsActorHandle& InActorReference);
 	static PHYSICSCORE_API void SetUpdateKinematicFromSimulation_AssumesLocked(const FPhysicsActorHandle& InActorReference, bool bUpdateKinematicFromSimulation);
@@ -477,10 +484,9 @@ public:
 
 	static PHYSICSCORE_API float GetStabilizationEnergyThreshold_AssumesLocked(const FPhysicsActorHandle& InHandle);
 	static PHYSICSCORE_API void SetStabilizationEnergyThreshold_AssumesLocked(const FPhysicsActorHandle& InHandle,float InThreshold);
-	static PHYSICSCORE_API uint32 GetSolverPositionIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle);
 	static PHYSICSCORE_API void SetSolverPositionIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle,uint32 InSolverIterationCount);
-	static PHYSICSCORE_API uint32 GetSolverVelocityIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle);
 	static PHYSICSCORE_API void SetSolverVelocityIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle,uint32 InSolverIterationCount);
+	static PHYSICSCORE_API void SetSolverProjectionIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle, uint32 InSolverIterationCount);
 	static PHYSICSCORE_API float GetWakeCounter_AssumesLocked(const FPhysicsActorHandle& InHandle);
 	static PHYSICSCORE_API void SetWakeCounter_AssumesLocked(const FPhysicsActorHandle& InHandle,float InWakeCounter);
 
@@ -514,6 +520,7 @@ public:
 	static PHYSICSCORE_API void SetParentDominates_AssumesLocked(const FPhysicsConstraintHandle& InConstraintRef, bool bInParentDominates);
 	static PHYSICSCORE_API void SetMassConditioningEnabled_AssumesLocked(const FPhysicsConstraintHandle& InConstraintRef, bool bInMassConditioningEnabled);
 	static PHYSICSCORE_API void SetBreakForces_AssumesLocked(const FPhysicsConstraintHandle& InConstraintRef,float InLinearBreakForce,float InAngularBreakForce);
+	static PHYSICSCORE_API void SetViolationCallbackThresholds_AssumesLocked(const FPhysicsConstraintHandle& InConstraintRef,float InLinearBreakViolation,float InAngularBreakViolation);
 	static PHYSICSCORE_API void SetPlasticityLimits_AssumesLocked(const FPhysicsConstraintHandle& InConstraintRef, float InLinearPlasticityLimit, float InAngularPlasticityLimit, EConstraintPlasticityType InLinearPlasticityType);
 	static PHYSICSCORE_API void SetContactTransferScale_AssumesLocked(const FPhysicsConstraintHandle& InConstraintRef, float InContactTransferScale);
 	static PHYSICSCORE_API void SetLocalPose(const FPhysicsConstraintHandle& InConstraintRef, const FTransform& InPose, EConstraintFrame::Type InFrame);

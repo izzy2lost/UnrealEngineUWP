@@ -59,6 +59,11 @@ public:
 		return UserValue;
 	}
 
+	EOutputType GetOutputType() const
+	{
+		return EOutputType::Output;
+	}
+
 	int32 GetWidth() const override
 	{
 		return ImageWidth;
@@ -1015,9 +1020,9 @@ int32 FVideoDecoderAvidDNxHDElectra::FDecoderHandle::GetNumberOfOutputColorBitsP
 			return 8;
 		case DNX_ComponentType_t::DNX_CT_USHORT_10_6:	// 10 bit
 		case DNX_ComponentType_t::DNX_CT_10Bit_2_8:		// 10 bit in 2_8 format. Byte ordering is fixed. This is to be used with 10-bit 4:2:2 YCbCr components.
-		case DNX_ComponentType_t::DNX_CT_V210:			// Apple's V210 
+		case DNX_ComponentType_t::DNX_CT_V210:			// Apple's V210
 			return 10;
-		case DNX_ComponentType_t::DNX_CT_SHORT_2_14:	// Fixed point 
+		case DNX_ComponentType_t::DNX_CT_SHORT_2_14:	// Fixed point
 		case DNX_ComponentType_t::DNX_CT_SHORT:			// 16 bit. Premultiplied by 257. Byte ordering is machine dependent.
 			return 16;
 		case DNX_ComponentType_t::DNX_CT_USHORT_12_4:	// 12 bit

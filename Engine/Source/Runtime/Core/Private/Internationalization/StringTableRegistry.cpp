@@ -154,7 +154,7 @@ void FStringTableRegistry::LogMissingStringTableEntry(const FName InTableId, con
 	FLocKeySet& LoggedMissingKeys = LoggedMissingEntries.FindOrAdd(InTableId);
 	LoggedMissingKeys.Add(InKey);
 
-	UE_LOG(LogStringTable, Warning, TEXT("Failed to find string table entry for '%s' '%s'. Did you forget to add a string table redirector?"), *InTableId.ToString(), InKey.GetChars());
+	UE_LOG(LogStringTable, Warning, TEXT("Failed to find string table entry for '%s' '%s'. Did you forget to add a string table redirector?"), *InTableId.ToString(), *InKey.ToString());
 }
 
 #if WITH_EDITOR
@@ -183,7 +183,7 @@ void FStringTableRegistry::OnDirectoryChanged(const TArray<FFileChangeData>& InF
 }
 #endif // WITH_EDITOR
 
-void FStringTableRegistry::Internal_NewLocTable(const FName InTableId, const FString& InNamespace)
+void FStringTableRegistry::Internal_NewLocTable(const FName InTableId, const FTextKey& InNamespace)
 {
 	FStringTableRef StringTable = FStringTable::NewStringTable();
 	StringTable->SetNamespace(InNamespace);
@@ -191,7 +191,7 @@ void FStringTableRegistry::Internal_NewLocTable(const FName InTableId, const FSt
 	RegisterStringTable(InTableId, StringTable);
 }
 
-void FStringTableRegistry::Internal_LocTableFromFile(const FName InTableId, const FString& InNamespace, const FString& InFilePath, const FString& InRootPath)
+void FStringTableRegistry::Internal_LocTableFromFile(const FName InTableId, const FTextKey& InNamespace, const FString& InFilePath, const FString& InRootPath)
 {
 	FStringTableRef StringTable = FStringTable::NewStringTable();
 	StringTable->SetNamespace(InNamespace);
@@ -212,7 +212,7 @@ void FStringTableRegistry::Internal_LocTableFromFile(const FName InTableId, cons
 #endif // WITH_EDITOR
 }
 
-void FStringTableRegistry::Internal_SetLocTableEntry(const FName InTableId, const FString& InKey, const FString& InSourceString)
+void FStringTableRegistry::Internal_SetLocTableEntry(const FName InTableId, const FTextKey& InKey, const FString& InSourceString)
 {
 	FStringTablePtr StringTable = FindMutableStringTable(InTableId);
 	checkf(StringTable.IsValid(), TEXT("Attempting to add a string table entry to the unknown string table '%s'"), *InTableId.ToString());
@@ -220,7 +220,7 @@ void FStringTableRegistry::Internal_SetLocTableEntry(const FName InTableId, cons
 	StringTable->SetSourceString(InKey, InSourceString);
 }
 
-void FStringTableRegistry::Internal_SetLocTableEntryMetaData(const FName InTableId, const FString& InKey, const FName InMetaDataId, const FString& InMetaData)
+void FStringTableRegistry::Internal_SetLocTableEntryMetaData(const FName InTableId, const FTextKey& InKey, const FName InMetaDataId, const FString& InMetaData)
 {
 	FStringTablePtr StringTable = FindMutableStringTable(InTableId);
 	checkf(StringTable.IsValid(), TEXT("Attempting to add string table entry meta-data to the unknown string table '%s'"), *InTableId.ToString());
@@ -228,7 +228,7 @@ void FStringTableRegistry::Internal_SetLocTableEntryMetaData(const FName InTable
 	StringTable->SetMetaData(InKey, InMetaDataId, InMetaData);
 }
 
-FText FStringTableRegistry::Internal_FindLocTableEntry(const FName InTableId, const FString& InKey, const EStringTableLoadingPolicy InLoadingPolicy) const
+FText FStringTableRegistry::Internal_FindLocTableEntry(const FName InTableId, const FTextKey& InKey, const EStringTableLoadingPolicy InLoadingPolicy) const
 {
 	return FText(InTableId, InKey, InLoadingPolicy);
 }

@@ -923,6 +923,8 @@ public:
 
 	UReplicationGraph();
 
+	virtual void BeginDestroy() override;
+
 	/** The per-connection manager class to instantiate. This will be read off the instantiated UNetReplicationManager. */
 	UPROPERTY(Config)
 	TSubclassOf<UNetReplicationGraphConnection> ReplicationConnectionManagerClass;
@@ -1137,7 +1139,8 @@ protected:
 	FGlobalActorReplicationInfoMap GlobalActorReplicationInfoMap;
 
 	/** The authoritative set of "what actors are in the graph" */
-	TSet<AActor*> ActiveNetworkActors;
+	UPROPERTY()
+	TSet<TObjectPtr<AActor>> ActiveNetworkActors;
 
 	/** Special case handling of specific RPCs. Currently supports immediate send/flush for multicasts */
 	TMap<FObjectKey /** UFunction* */, FRPCSendPolicyInfo> RPCSendPolicyMap;
@@ -1220,6 +1223,9 @@ private:
 	UNetReplicationGraphConnection* CreateClientConnectionManagerInternal(UNetConnection* Connection);
 
 	friend class AReplicationGraphDebugActor;
+
+	/** Delegate to remove all network actors when a world is cleaned up. */
+	FDelegateHandle WorldCleanupDelegateHandle;
 };
 
 // --------------------------------------------------------------------------------------------------------------------------------------------
@@ -1512,7 +1518,7 @@ public:
 	AReplicationGraphDebugActor()
 	{
 		bReplicates = true; // must be set for RPCs to be sent
-		NetUpdateFrequency = 10.0f;
+		SetNetUpdateFrequency(10.0f);
 	}
 
 	// To prevent demo netdriver from replicating.

@@ -140,7 +140,12 @@ void ULevelStreamingLevelInstanceEditor::Unload(ULevelStreamingLevelInstanceEdit
 		if (ULevel* LoadedLevel = LevelStreaming->GetLoadedLevel())
 		{
 			LoadedLevel->OnLoadedActorAddedToLevelPreEvent.RemoveAll(LevelStreaming);
-			LevelInstanceSubsystem->RemoveLevelsFromWorld({ LoadedLevel });
+			
+			// Not needed if world is being cleaned up
+			if (!LevelStreaming->GetWorld()->IsBeingCleanedUp())
+			{
+				LevelInstanceSubsystem->RemoveLevelsFromWorld({ LoadedLevel });
+			}
 		}
 	}
 }
@@ -157,9 +162,8 @@ void ULevelStreamingLevelInstanceEditor::OnLevelActorAdded(AActor* InActor)
 {
 	if (InActor && InActor->GetLevel() == LoadedLevel)
 	{
-		const bool bIsEditing = true;
-		FSetActorIsInLevelInstance SetIsInLevelInstance(InActor, bIsEditing);
-		InActor->PushLevelInstanceEditingStateToProxies(bIsEditing);
+		FSetActorIsInLevelInstance SetIsInLevelInstance(InActor, ELevelInstanceType::LevelInstanceEdit);
+		InActor->PushLevelInstanceEditingStateToProxies(true);
 	}
 }
 

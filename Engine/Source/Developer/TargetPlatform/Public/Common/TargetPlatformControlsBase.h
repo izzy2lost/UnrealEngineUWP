@@ -157,11 +157,8 @@ public:
 		static const FName NAME_MeshBuilder(TEXT("MeshBuilder"));
 		return NAME_MeshBuilder;
 	}
-
-	virtual void GetShaderFormatModuleHints(TArray<FName>& OutModuleNames) const override
-	{
-	}
-
+	
+	// beware this is duplicated between TargetPlatformBase and TargetPlatformControlsBase
 	virtual void GetTextureFormatModuleHints(TArray<FName>& OutModuleNames) const override
 	{
 		// these are the default texture format modules, since many platforms 
@@ -182,12 +179,25 @@ public:
 	TARGETPLATFORM_API virtual void GetAllWaveFormats(TArray<FName>& OutFormats) const override;
 
 	TARGETPLATFORM_API virtual void GetWaveFormatModuleHints(TArray<FName>& OutModuleNames) const override;
+	
+	static TARGETPLATFORM_API void GetTextureSizeLimitsDefault(FConfigCacheIni* ConfigSystem,uint64 & OutMaximumSurfaceBytes, uint64 & OutMaximumPackageBytes);
+	
+	// beware this is duplicated between TargetPlatformBase and TargetPlatformControlsBase
+	TARGETPLATFORM_API virtual void GetTextureSizeLimits(uint64 & OutMaximumSurfaceBytes, uint64 & OutMaximumPackageBytes) const override
+	{
+		GetTextureSizeLimitsDefault(TargetPlatformSettings->GetConfigSystem(),OutMaximumSurfaceBytes,OutMaximumPackageBytes);
+	}
 
 #endif
 
 	virtual bool CopyFileToTarget(const FString& TargetAddress, const FString& HostFilename, const FString& TargetFilename, const TMap<FString, FString>& CustomPlatformData) override
 	{
 		return false;
+	}
+
+	virtual void InitializeForCook() override
+	{
+
 	}
 
 	virtual void GetExtraPackagesToCook(TArray<FName>& PackageNames) const override
@@ -247,6 +257,22 @@ public:
 	{
 		// HasEditorOnlyData and RequiresCookedData are mutually exclusive.
 		check(TPlatformProperties::HasEditorOnlyData() != TPlatformProperties::RequiresCookedData());
+	}
+
+	/**
+	 * Constructor that makes a TPCI based solely on TPlatformProperties
+	 */
+	TTargetPlatformControlsBase(ITargetPlatformSettings* TargetPlatformSettings)
+		: TTargetPlatformControlsBase(new PlatformInfo::FTargetPlatformInfo(
+			TPlatformProperties::IniPlatformName(),
+			TPlatformProperties::HasEditorOnlyData() ? EBuildTargetType::Editor :
+			TPlatformProperties::IsServerOnly() ? EBuildTargetType::Server :
+			TPlatformProperties::IsClientOnly() ? EBuildTargetType::Client :
+			EBuildTargetType::Game,
+			TEXT("")),
+			TargetPlatformSettings
+		)
+	{
 	}
 
 	virtual bool HasEditorOnlyData() const override

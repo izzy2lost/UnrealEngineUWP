@@ -11,7 +11,7 @@
 #include "UObject/LinkerPlaceholderExportObject.h"
 #include "UObject/LinkerPlaceholderClass.h"
 #include "UObject/ObjectHandleTracking.h"
-#include "LowLevelTestsRunner/WarnFilterScope.h"
+#include "Tests/WarnFilterScope.h"
 #include "ObjectRefTrackingTestBase.h"
 
 TEST_CASE("UE::CoreUObject::FClassProperty::Identical")

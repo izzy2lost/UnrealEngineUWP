@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
+#include "Filters/CurveEditorSmartReduceFilter.h"
 #include "BakeToControlRigSettings.generated.h"
 
 UCLASS(BlueprintType, config = EditorSettings)
@@ -18,8 +19,12 @@ public:
 	bool bReduceKeys = false;
 
 	/** Reduce Keys Tolerance*/
-	UPROPERTY(EditAnywhere, Category = "Reduce Keys")
+	UE_DEPRECATED(5.5, "Use the SmartReduce parameter instead.")
+	UPROPERTY()
 	float Tolerance = 0.001f;
+
+	UPROPERTY(EditAnywhere, Category = "Reduce Keys", meta = (EditCondition = "bReduceKeys"))
+	FSmartReduceParams SmartReduce;
 
 	/** Reset controls to initial value on every frame */
 	UPROPERTY(EditAnywhere, Category = "Reset Controls")

@@ -3,9 +3,14 @@
 #pragma once
 
 #include "Async/TaskGraphInterfaces.h"
-#include "D3D12RHICommon.h"
-#include "Templates/RefCounting.h"
 #include "D3D12BindlessDescriptors.h"
+#include "D3D12Query.h"
+#include "D3D12Queue.h"
+#include "D3D12RHICommon.h"
+#include "Templates/Function.h"
+#include "Templates/RefCounting.h"
+#include "RHIBreadcrumbs.h"
+#include "GPUProfiler.h"
 
 enum class ED3D12QueueType;
 
@@ -36,18 +41,18 @@ enum class ED3D12SyncPointType
 struct FD3D12Fence
 {
 	TRefCountPtr<ID3D12Fence> D3DFence;
-	uint64 LastSignaledValue = 0;
+	uint64 NextCompletionValue = 0;
+	std::atomic<uint64> LastSignaledValue = 0;
 	bool bInterruptAwaited = false;
 };
 
 // Used by FD3D12SyncPoint and the submission thread to fix up signaled fence values at the end-of-pipe
 struct FD3D12ResolvedFence
 {
-	FD3D12Fence* Fence;
+	FD3D12Fence& Fence;
 	uint64 Value = 0;
 
-	FD3D12ResolvedFence() = default;
-	FD3D12ResolvedFence(FD3D12Fence* Fence, uint64 Value)
+	FD3D12ResolvedFence(FD3D12Fence& Fence, uint64 Value)
 		: Fence(Fence)
 		, Value(Value)
 	{}
@@ -130,93 +135,38 @@ public:
 	}
 };
 
-enum class ED3D12QueryType
-{
-	None,
-	CommandListBegin,
-	CommandListEnd,
-	PipelineStats,
-	IdleBegin,
-	IdleEnd,
-	AdjustedMicroseconds,
-	AdjustedRaw,
-	Occlusion
-};
-
-// The location of a single (timestamp or occlusion) query result.
-struct FD3D12QueryLocation
-{
-	// The heap in which the result is contained.
-	FD3D12QueryHeap* Heap = nullptr;
-
-	// The index of the query within the heap.
-	uint32 Index = 0;
-
-	ED3D12QueryType Type = ED3D12QueryType::None;
-
-	// The location into which the result is written by the interrupt thread.
-	void* Target = nullptr;
-
-	// Reads the query result from the heap
-	inline void CopyResultTo(void* Dst) const;
-
-	template <typename TValueType>
-	inline TValueType GetResult() const;
-
-	FD3D12QueryLocation() = default;
-	FD3D12QueryLocation(FD3D12QueryHeap* Heap, uint32 Index, ED3D12QueryType Type, void* Target)
-		: Heap	(Heap  )
-		, Index	(Index )
-		, Type	(Type  )
-		, Target(Target)
-	{}
-
-	operator bool() const { return Heap != nullptr; }
-};
-
-struct FBreadcrumbStack
-{
-	struct FScope
-	{
-		uint32 NameCRC;
-		uint32 MarkerIndex;
-		uint32 Child;
-		uint32 Sibling;
-	};
-
-	FD3D12Queue* Queue = nullptr;
-	uint32 NextIdx{ 0 };
-	int32 ContextId;
-	uint32 MaxMarkers{ 0 };
-	D3D12_GPU_VIRTUAL_ADDRESS WriteAddress;
-	void* CPUAddress;
-
-	TArray<FScope> Scopes;
-	TArray<uint32> ScopeStack;
-	bool bTopIsOpen{ false };
-
-	FBreadcrumbStack();
-	~FBreadcrumbStack();
-
-	void Initialize(TUniquePtr<struct FD3D12DiagnosticBuffer>& DiagnosticBuffer);
-};
-
-struct FD3D12QueryRange
-{
-	TRefCountPtr<FD3D12QueryHeap> Heap;
-	uint32 Start = 0, End = 0;
-
-	inline bool IsFull() const;
-};
-
 struct FD3D12CommitReservedResourceDesc
 {
 	FD3D12Resource* Resource = nullptr;
 	uint64 CommitSizeInBytes = 0;
 };
 
+struct FD3D12BatchedPayloadObjects
+{
+	TArray<FD3D12QueryLocation> TimestampQueries;
+	TArray<FD3D12QueryLocation> OcclusionQueries;
+	TArray<FD3D12QueryLocation> PipelineStatsQueries;
+	TMap<TRefCountPtr<FD3D12QueryHeap>, TArray<FD3D12QueryRange>> QueryRanges;
+
+	bool IsEmpty() const
+	{
+		return
+			   TimestampQueries    .Num() == 0
+			&& OcclusionQueries    .Num() == 0
+			&& PipelineStatsQueries.Num() == 0
+			&& QueryRanges         .Num() == 0
+		;
+	}
+};
+
+// Hacky base class to avoid 8 bytes of padding after the vtable
+struct FD3D12PayloadBaseFixLayout
+{
+	virtual ~FD3D12PayloadBaseFixLayout() = default;
+};
+
 // A single unit of work (specific to a single GPU node and queue type) to be processed by the submission thread.
-struct FD3D12PayloadBase
+struct FD3D12PayloadBase : public FD3D12PayloadBaseFixLayout
 {
 	// Used to signal FD3D12ManualFence instances on the submission thread.
 	struct FManualFence
@@ -246,45 +196,84 @@ struct FD3D12PayloadBase
 
 	} SyncPointsToWait;
 
-	virtual void PreExecute();
+	struct FQueueFence
+	{
+		FD3D12Fence& Fence;
+		uint64 Value;
+	};
+	TArray<FQueueFence, TInlineAllocator<GD3D12MaxNumQueues>> QueueFencesToWait;
+	TArray<FManualFence> ManualFencesToWait;
 
-	// Wait
-	TArray<FManualFence> FencesToWait;
+	void AddQueueFenceWait(FD3D12Fence& Fence, uint64 Value);
 
 	// UpdateReservedResources
 	TArray<FD3D12CommitReservedResourceDesc> ReservedResourcesToCommit;
+
+	// Flags.
+	bool bAlwaysSignal = false;
+	std::atomic<bool> bSubmitted { false };
+
+	// Used by RHIRunOnQueue
+	TFunction<void(ID3D12CommandQueue*)> PreExecuteCallback;
 
 	// Execute
 	TArray<FD3D12CommandList*> CommandListsToExecute;
 
 	// Signal
-	TArray<FManualFence> FencesToSignal;
-	TOptional<FD3D12Timing*> Timing;
+	TArray<FManualFence> ManualFencesToSignal;
 	TArray<FD3D12SyncPointRef> SyncPointsToSignal;
 	uint64 CompletionFenceValue = 0;
+
 	FGraphEventRef SubmissionEvent;
 	TOptional<uint64> SubmissionTime;
 
-	// Flags.
-	bool bAlwaysSignal = false;
+	TOptional<FD3D12Timing*> Timing;
 
 	// Cleanup
 	TArray<FD3D12CommandAllocator*> AllocatorsToRelease;
-	TArray<FD3D12QueryLocation> TimestampQueries;
-	TArray<FD3D12QueryLocation> OcclusionQueries;
-	TArray<FD3D12QueryLocation> PipelineStatsQueries;
-	TArray<FD3D12QueryRange> QueryRanges;
 
-	// GPU crash breadcrumbs stack
-	TArray<TSharedPtr<FBreadcrumbStack>> BreadcrumbStacks;
+	FD3D12BatchedPayloadObjects BatchedObjects;
+
+#if WITH_RHI_BREADCRUMBS
+	FRHIBreadcrumbRange BreadcrumbRange {};
+	TSharedPtr<FRHIBreadcrumbAllocatorArray> BreadcrumbAllocators {};
+#endif
+
+#if RHI_NEW_GPU_PROFILER
+	UE::RHI::GPUProfiler::FEventStream EventStream;
+#endif
 
 	virtual ~FD3D12PayloadBase();
 
-	// Used by RHIRunOnQueue
-	TFunction<void(ID3D12CommandQueue*)> PreExecuteCallback;
+	virtual void PreExecute();
+
+	virtual bool HasPreExecuteWork() const
+	{
+		return PreExecuteCallback != nullptr;
+	}
+
+	virtual bool RequiresQueueFenceSignal() const
+	{
+		return bAlwaysSignal || SyncPointsToSignal.Num() > 0 || HasPreExecuteWork();
+	}
+
+	virtual bool HasWaitWork() const
+	{
+		return ManualFencesToWait.Num() > 0 || QueueFencesToWait.Num() > 0;
+	}
+
+	virtual bool HasUpdateReservedResourcesWork() const
+	{
+		return ReservedResourcesToCommit.Num() > 0;
+	}
+
+	virtual bool HasSignalWork() const
+	{
+		return RequiresQueueFenceSignal() || ManualFencesToSignal.Num() > 0 || SubmissionEvent != nullptr;
+	}
 
 protected:
-	FD3D12PayloadBase(FD3D12Device* Device, ED3D12QueueType QueueType);
+	FD3D12PayloadBase(FD3D12Queue& Queue);
 };
 
 #include COMPILED_PLATFORM_HEADER(D3D12Submission.h)

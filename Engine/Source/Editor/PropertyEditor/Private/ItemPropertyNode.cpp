@@ -70,7 +70,7 @@ uint8* FItemPropertyNode::GetValueBaseAddress(uint8* StartAddress, bool bIsSpars
 		}
 		else
 		{
-			uint8* ValueAddress = ParentNode->GetValueAddress(StartAddress, bIsSparseData, bIsStruct);
+			uint8* ValueAddress = ValueBaseAddress;
 			if (ValueAddress != nullptr && ParentNode->GetProperty() != MyProperty)
 			{
 				// if this is not a fixed size array (in which the parent property and this property are the same), we need to offset from the property (otherwise, the parent already did that for us)
@@ -124,24 +124,6 @@ TSharedPtr<FPropertyNode>& FItemPropertyNode::GetOrCreateOptionalValueNode(void)
 					InitParams.bAllowChildren = true;
 					InitParams.bForceHiddenPropertyVisibility = !!HasNodeFlags(EPropertyNodeFlags::ShouldShowHiddenProperties);
 					InitParams.bCreateDisableEditOnInstanceNodes = !!HasNodeFlags(EPropertyNodeFlags::ShouldShowDisableEditOnInstance);
-
-					OptionalValueNode->OnRebuildChildren().AddLambda([this]() {
-						CachedReadAddresses.Reset();
-						bool bDestroySelf = false;
-						DestroyTree(bDestroySelf);
-
-						for (int i = 0; i < OptionalValueNode->GetNumChildNodes(); i++)
-						{
-							AddChildNode(OptionalValueNode->GetChildNode(i));
-						}
-
-						// Children have been rebuilt, clear any pending rebuild requests
-						bRebuildChildrenRequested = false;
-						bChildrenRebuilt = true;
-
-						// Notify any listener that children have been rebuilt
-						OnRebuildChildrenEvent.Broadcast();
-					});
 
 					OptionalValueNode->InitNode(InitParams);
 				}
@@ -218,7 +200,7 @@ void FItemPropertyNode::InitChildNodes()
 				FPropertyNodeInitParams InitParams;
 				InitParams.ParentNode = SharedThis(this);
 				InitParams.Property = MyProperty;
-				InitParams.ArrayOffset = Index*MyProperty->ElementSize;
+				InitParams.ArrayOffset = Index*MyProperty->GetElementSize();
 				InitParams.ArrayIndex = Index;
 				InitParams.bAllowChildren = true;
 				InitParams.bForceHiddenPropertyVisibility = bShouldShowHiddenProperties;
@@ -248,7 +230,7 @@ void FItemPropertyNode::InitChildNodes()
 				FPropertyNodeInitParams InitParams;
 				InitParams.ParentNode = SharedThis(this);
 				InitParams.Property = ArrayProperty->Inner;
-				InitParams.ArrayOffset = Index * ArrayProperty->Inner->ElementSize;
+				InitParams.ArrayOffset = Index * ArrayProperty->Inner->GetElementSize();
 				InitParams.ArrayIndex = Index;
 				InitParams.bAllowChildren = true;
 				InitParams.bForceHiddenPropertyVisibility = bShouldShowHiddenProperties;

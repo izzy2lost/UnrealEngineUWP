@@ -30,7 +30,7 @@ public:
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Broadcast", meta = (DisplayName = "Show All Media Output Classes"))
 	bool bBroadcastShowAllMediaOutputClasses = false;
-	
+
 	UPROPERTY(Config, EditAnywhere, Category = "Playback", meta = (DisplayName = "Default Node Color"))
 	FLinearColor PlaybackDefaultNodeColor;
 

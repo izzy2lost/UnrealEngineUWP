@@ -8,44 +8,48 @@
 #include "Modules/ModuleManager.h"
 #include "Misc/Optional.h"
 
-static TOptional<Metasound::FMetasoundGeneratorInitParams> CreateInitParams(UMetaSoundSource* InMetaSound, const FSoundGeneratorInitParams& InParams)
+namespace Metasound::OperatorCachePrivate
 {
-	using namespace Metasound;
-	using namespace Metasound::Frontend;
-	using namespace Metasound::Engine;
-	using namespace Metasound::SourcePrivate;
+	static bool bOperatorPrecacheEnabled = true;
+	static FAutoConsoleVariableRef CVarOperatorPrecacheEnabled(
+		TEXT("au.MetaSound.OperatorCache.EnablePrecache"),
+		bOperatorPrecacheEnabled,
+		TEXT("If precaching metasound operators via the UMetaSoundCacheSubsystem is enabled.")
+	);
 
-	// InMetaSound was null
-	if (!ensure(InMetaSound))
+	TOptional<FMetasoundGeneratorInitParams> CreateInitParams(UMetaSoundSource& InMetaSound, const FSoundGeneratorInitParams& InParams)
 	{
-		return {};
+		using namespace Metasound::Frontend;
+		using namespace Metasound::Engine;
+		using namespace Metasound::SourcePrivate;
+
+		// Dynamic MetaSounds cannot be precached
+		if (InMetaSound.IsDynamic())
+		{
+			return { };
+		}
+
+		FOperatorSettings InSettings = InMetaSound.GetOperatorSettings(static_cast<FSampleRate>(InParams.SampleRate));
+		FMetasoundEnvironment Environment = InMetaSound.CreateEnvironment(InParams);
+
+		FOperatorBuilderSettings BuilderSettings = FOperatorBuilderSettings::GetDefaultSettings();
+		// Graph analyzer currently only enabled for preview sounds (but can theoretically be supported for all sounds)
+		BuilderSettings.bPopulateInternalDataReferences = InParams.bIsPreviewSound;
+
+		return FMetasoundGeneratorInitParams
+		{
+			InSettings,
+			MoveTemp(BuilderSettings),
+			{}, // Graph, retrieved from the FrontEnd Registry in FOperatorPool::BuildAndAddOperator()
+			Environment,
+			InMetaSound.GetName(),
+			InMetaSound.GetOutputAudioChannelOrder(),
+			{}, // DefaultParameters
+			true, // bBuildSynchronous
+			{} // DataChannel
+		};
 	}
-	// we cannot precache dynamic metasounds
-	if (!ensure(!InMetaSound->IsDynamic()))
-	{
-		return {};
-	}
-
-	FOperatorSettings InSettings = InMetaSound->GetOperatorSettings(static_cast<FSampleRate>(InParams.SampleRate));
-	FMetasoundEnvironment Environment = InMetaSound->CreateEnvironment(InParams);
-
-	FOperatorBuilderSettings BuilderSettings = FOperatorBuilderSettings::GetDefaultSettings();
-	// Graph analyzer currently only enabled for preview sounds (but can theoretically be supported for all sounds)
-	BuilderSettings.bPopulateInternalDataReferences = InParams.bIsPreviewSound;
-
-	return FMetasoundGeneratorInitParams
-	{
-		InSettings,
-		MoveTemp(BuilderSettings),
-		{}, // Graph, retrieved from the FrontEnd Registry in FOperatorPool::BuildAndAddOperator()
-		Environment,
-		InMetaSound->GetName(),
-		InMetaSound->GetOutputAudioChannelOrder(),
-		{}, // DefaultParameters
-		true, // bBuildSynchronous
-		{} // DataChannel
-	};
-}
+} // namespace Metasound::OperatorCachePrivate
 
 bool UMetaSoundCacheSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
@@ -81,22 +85,25 @@ void UMetaSoundCacheSubsystem::Update()
 #endif // #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 }
 
-void UMetaSoundCacheSubsystem::PrecacheMetaSound(UMetaSoundSource* InMetaSound, int32 InNumInstances)
+void UMetaSoundCacheSubsystem::PrecacheMetaSoundInternal(UMetaSoundSource* InMetaSound, int32 InNumInstances, bool bTouchExisting)
 {
 	using namespace Audio;
 	using namespace Metasound;
 
-	TSharedPtr<FOperatorPool> OperatorPool;
+	if (!OperatorCachePrivate::bOperatorPrecacheEnabled)
+	{
+		UE_LOG(LogMetaSound, Log, TEXT("Ignoring PrecacheMetaSound request since au.MetaSound.OperatorCache.EnablePrecache is false."));
+		return;
+	}
+
 	IMetasoundGeneratorModule* Module = FModuleManager::GetModulePtr<IMetasoundGeneratorModule>("MetasoundGenerator");
 	if (!ensure(Module))
 	{
 		return;
 	}
 
-	OperatorPool = Module->GetOperatorPool();
-	const FMixerDevice* MixerDevice = GetMixerDevice();
-
-	if (!ensure(MixerDevice && OperatorPool))
+	TSharedPtr<FOperatorPool> OperatorPool = Module->GetOperatorPool();
+	if (!ensure(OperatorPool))
 	{
 		return;
 	}
@@ -109,69 +116,52 @@ void UMetaSoundCacheSubsystem::PrecacheMetaSound(UMetaSoundSource* InMetaSound, 
 
 	if (InNumInstances < 1)
 	{
-		UE_LOG(LogMetaSound, Error, TEXT("PrecacheMetaSound called with invaled NumInstances %i, ignoring request"), InNumInstances);
+		UE_LOG(LogMetaSound, Error, TEXT("PrecacheMetaSound called with invalid NumInstances %i, ignoring request"), InNumInstances);
 		return;
 	}
 
 	InMetaSound->InitResources();
+
 	BuildParams.GraphName = InMetaSound->GetOwningAssetName();
-
-	if (InMetaSound->IsDynamic())
-	{
-		return;
-	}
-
-	TOptional<FMetasoundGeneratorInitParams> InitParams = CreateInitParams(InMetaSound, BuildParams);
+	TOptional<FMetasoundGeneratorInitParams> InitParams = OperatorCachePrivate::CreateInitParams(*InMetaSound, BuildParams);
 	if (!InitParams.IsSet())
 	{
 		return;
 	}
-	
+
+	// Graph inflation may interact with cache. Need to find the same graph registry key
+	// that is found when a MetaSound generator is created. 
+	const UMetaSoundSource&	NoninflatableSource = InMetaSound->FindFirstNoninflatableSource(InitParams->Environment, [](const UMetaSoundSource&){});
 
 	TUniquePtr<FOperatorBuildData> Data = MakeUnique<FOperatorBuildData>(
 		  MoveTemp(InitParams.GetValue())
-		, InMetaSound->GetGraphRegistryKey()
+		, NoninflatableSource.GetGraphRegistryKey()
 		, InMetaSound->AssetClassID
 		, InNumInstances
+		, bTouchExisting
 	);
 
 	OperatorPool->BuildAndAddOperator(MoveTemp(Data));
 }
 
+void UMetaSoundCacheSubsystem::PrecacheMetaSound(UMetaSoundSource* InMetaSound, int32 InNumInstances)
+{
+	constexpr bool bTouchExisting = false;
+	PrecacheMetaSoundInternal(InMetaSound, InNumInstances, bTouchExisting);
+}
+
 void UMetaSoundCacheSubsystem::TouchOrPrecacheMetaSound(UMetaSoundSource* InMetaSound, int32 InNumInstances)
 {
-	using namespace Metasound;
-
-	TSharedPtr<FOperatorPool> OperatorPool;
-	IMetasoundGeneratorModule* Module = FModuleManager::GetModulePtr<IMetasoundGeneratorModule>("MetasoundGenerator");
-	if (!ensure(Module))
-	{
-		return;
-	}
-
-	OperatorPool = Module->GetOperatorPool();
-	if (!ensure(OperatorPool))
-	{
-		return;
-	}
-
-	// get the number of instances already in the cache
-	const int32 NumInCache = OperatorPool->GetNumCachedOperatorsWithAssetClassID(InMetaSound->AssetClassID);
-
-	// move pre-existing to the top of the cache
-	OperatorPool->TouchOperatorsViaAssetClassID(InMetaSound->AssetClassID, FMath::Min(NumInCache, InNumInstances));
-
-	// build the difference (InNumInstances - existing)
-	const int32 NumToBuild = InNumInstances - NumInCache;
-	if (NumToBuild > 0)
-	{
-		PrecacheMetaSound(InMetaSound, NumToBuild);
-	}
+	constexpr bool bTouchExisting = true;
+	PrecacheMetaSoundInternal(InMetaSound, InNumInstances, bTouchExisting);
 }
 
 void UMetaSoundCacheSubsystem::RemoveCachedOperatorsForMetaSound(UMetaSoundSource* InMetaSound)
 {
 	using namespace Metasound;
+
+	// Note: we're not checking the bOperatorPrecacheEnabled cvar here in case it was disable after some sounds had already been cached.
+	// If nothing is cached this will do very little.
 
 	if (!InMetaSound)
 	{

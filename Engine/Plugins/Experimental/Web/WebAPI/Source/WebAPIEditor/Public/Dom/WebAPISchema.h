@@ -326,13 +326,13 @@ public:
 
 	/** Add and return a reference to a new Model */
 	template <typename ModelType>
-	TObjectPtr<ModelType> AddModel(const TObjectPtr<UWebAPITypeInfo>& InTypeInfo = {});
+	ModelType* AddModel(const TObjectPtr<UWebAPITypeInfo>& InTypeInfo = {});
 
 	/** Add and return a reference to a new Enum. */
-	TObjectPtr<class UWebAPIEnum> AddEnum(const TObjectPtr<UWebAPITypeInfo>& InTypeInfo = {});
+	class UWebAPIEnum* AddEnum(const TObjectPtr<UWebAPITypeInfo>& InTypeInfo = {});
 
 	/** Add and return a reference to a new Parameter. These can be referenced by operations rather than defining them inline. */
-	TObjectPtr<class UWebAPIParameter> AddParameter(const TObjectPtr<UWebAPITypeInfo>& InTypeInfo);
+	class UWebAPIParameter* AddParameter(const TObjectPtr<UWebAPITypeInfo>& InTypeInfo);
 
 	/** Find/Add and return a reference to an existing/new Service. */
 	TObjectPtr<class UWebAPIService> GetOrMakeService(const FString& InName);
@@ -359,7 +359,7 @@ public:
 };
 
 template <typename ModelType>
-TObjectPtr<ModelType> UWebAPISchema::AddModel(const TObjectPtr<UWebAPITypeInfo>& InTypeInfo)
+ModelType* UWebAPISchema::AddModel(const TObjectPtr<UWebAPITypeInfo>& InTypeInfo)
 {
 	static_assert(TIsDerivedFrom<ModelType, UWebAPIModelBase>::Value, "Type is not derived from UWebAPIModelBase.");
 	

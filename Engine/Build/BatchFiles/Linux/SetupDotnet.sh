@@ -35,7 +35,11 @@ if [ $IS_DOTNET_INSTALLED -eq 0 ]; then
 	# If this flag isn't set to 0, dotnet crashes during GenerateProjectFiles.sh on Ubuntu 20.04 
 	export DOTNET_gcServer=0
 
-	export UE_DOTNET_DIR="$CUR_DIR/../../../Binaries/ThirdParty/DotNet/6.0.302/linux"
+	# Select the preferred architecture for the current system
+	ARCH=x64
+	[ $(uname -m) == "arm64" ] && ARCH=arm64 
+
+	export UE_DOTNET_DIR="$CUR_DIR/../../../Binaries/ThirdParty/DotNet/8.0.300/linux-$ARCH"
 	chmod u+x "$UE_DOTNET_DIR/dotnet"
 	export PATH="$UE_DOTNET_DIR:$PATH"
 	export DOTNET_ROOT="$UE_DOTNET_DIR"
@@ -51,6 +55,17 @@ if [ $IS_DOTNET_INSTALLED -eq 0 ]; then
 	export LD_LIBRARY_PATH="$CUR_DIR/../../../Binaries/ThirdParty/ICU/icu4c-64_1/lib/Unix/x86_64-unknown-linux-gnu:$LD_LIBRARY_PATH"
 else
 	export IS_DOTNET_INSTALLED=$IS_DOTNET_INSTALLED
+fi
+
+# this is the current assumed location for now
+# We use FUnixPlatformProcess::ApplicationSettingsDir() from c++ and
+# and for C# it uses Environment.GetFolderPath(SpecialFolder.ApplicationData)
+# for this location, so lets share this as our "place to put an AutoSDK file"
+AUTO_SDK_PATH_FILE="$HOME/.config/.autosdk"
+
+# if the file exists and we dont currently have a $UE_SDKS_ROOT set, lets setup UE_SDKS_ROOT to our files location path
+if [ -f "$AUTO_SDK_PATH_FILE" ] && [ -z "$UE_SDKS_ROOT" ]; then
+	export UE_SDKS_ROOT="$(cat $AUTO_SDK_PATH_FILE)"
 fi
 
 cd "$START_DIR"

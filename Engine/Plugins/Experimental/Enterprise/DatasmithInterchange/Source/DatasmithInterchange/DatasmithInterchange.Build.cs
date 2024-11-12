@@ -23,6 +23,7 @@ namespace UnrealBuildTool.Rules
 					"InterchangeImport",
 					"InterchangePipelines",
 					"MeshDescription",
+					"ParametricSurface",
 					"StaticMeshDescription"
 				}
 			);
@@ -36,6 +37,7 @@ namespace UnrealBuildTool.Rules
 						"DesktopPlatform",
 						"InputCore",
 						"InterchangeEditorPipelines",
+						"PropertyEditor",
 						"Slate",
 						"SlateCore",
 						"ToolMenus",

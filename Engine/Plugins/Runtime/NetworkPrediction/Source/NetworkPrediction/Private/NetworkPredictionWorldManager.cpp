@@ -81,7 +81,10 @@ void UNetworkPredictionWorldManager::OnWorldPreTick(UWorld* InWorld, ELevelTick 
 
 	UE_NP_TRACE_WORLD_FRAME_START(InWorld->GetGameInstance(), InDeltaSeconds);
 
-	OnWorldPreTick_Internal(InDeltaSeconds, GEngine->FixedFrameRate);
+	// Defer to the engine ticking rate, if fixed. Otherwise use NPP's setting.
+	const float FixedTickFrameRate = (GEngine && GEngine->bUseFixedFrameRate) ? GEngine->FixedFrameRate : Settings.FixedTickFrameRate;
+
+	OnWorldPreTick_Internal(InDeltaSeconds, FixedTickFrameRate);
 
 	// Instantiate replicated manager on server
 	if (!ReplicatedManager && InWorld->GetNetMode() != NM_Client)
@@ -344,6 +347,14 @@ void UNetworkPredictionWorldManager::BeginNewSimulationFrame_Internal(float Delt
 				Ptr->Tick(Step, ServiceStep);
 			}
 			
+			if (Settings.bEnableFixedTickSmoothing)
+			{
+				for (TUniquePtr<IFixedSmoothingService>& Ptr : Services.FixedSmoothing.Array)
+				{
+					Ptr->UpdateSmoothing(ServiceStep, &FixedTickState);
+				}
+			}
+
 			if (bSingleTick)
 			{
 				FixedTickState.UnspentTimeMS = 0.f;
@@ -552,6 +563,14 @@ void UNetworkPredictionWorldManager::BeginNewSimulationFrame_Internal(float Delt
 		for (TUniquePtr<IFinalizeService>& Ptr : Services.FixedFinalize.Array)
 		{
 			Ptr->FinalizeFrame(DeltaTimeSeconds, FixedServerFrame, FixedTotalSimTimeMS, FixedTickState.FixedStepMS);
+		}
+
+		if (Settings.bEnableFixedTickSmoothing)
+		{
+			for (TUniquePtr<IFixedSmoothingService>& Ptr : Services.FixedSmoothing.Array)
+			{
+				Ptr->FinalizeSmoothingFrame(&FixedTickState);
+			}
 		}
 
 		const int32 IndependentTotalSimTimeMS = VariableTickState.Frames[VariableTickState.PendingFrame].TotalMS;

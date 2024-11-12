@@ -21,6 +21,7 @@ struct FEOSSDKPlatformConfig
 	FString ClientId;
 	FString ClientSecret;
 	FString EncryptionKey;
+	FString RelyingPartyURI;
 	FString OverrideCountryCode;
 	FString OverrideLocaleCode;
 	FString DeploymentId;
@@ -38,7 +39,12 @@ struct FEOSSDKPlatformConfig
 	TArray<FString> OptionalConfig;
 };
 
+// This callback lets you modify the options struct
 DECLARE_MULTICAST_DELEGATE_OneParam(FEOSSDKManagerOnPreInitializeSDK, EOS_InitializeOptions& Options);
+// This callback lets you modify or replace the options struct
+DECLARE_MULTICAST_DELEGATE_OneParam(FEOSSDKManagerOnPreInitializeSDK2, EOS_InitializeOptions*& InOutOptions);
+
+DECLARE_MULTICAST_DELEGATE_OneParam(FEOSSDKManagerOnPostInitializeSDK, EOS_EResult Result);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FEOSSDKManagerOnDefaultPlatformConfigNameChanged, const FString& NewName, const FString& OldName);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FEOSSDKManagerOnPreCreateNamedPlatform, const FEOSSDKPlatformConfig& Config, EOS_Platform_Options& Options);
 DECLARE_MULTICAST_DELEGATE_OneParam(FEOSSDKManagerOnPreCreatePlatform, EOS_Platform_Options& Options);
@@ -74,6 +80,9 @@ protected:
 using IEOSPlatformHandlePtr = TSharedPtr<IEOSPlatformHandle, ESPMode::ThreadSafe>;
 using IEOSPlatformHandleWeakPtr = TWeakPtr<IEOSPlatformHandle, ESPMode::ThreadSafe>;
 
+DECLARE_MULTICAST_DELEGATE_OneParam(FEOSSDKManagerOnPlatformCreated, const IEOSPlatformHandlePtr& PlatformHandle);
+DECLARE_MULTICAST_DELEGATE_OneParam(FEOSSDKManagerOnPreReleasePlatform, const EOS_HPlatform& PlatformHandle);
+
 class IEOSSDKManager : public IModularFeature
 {
 public:
@@ -94,12 +103,10 @@ public:
 
 	virtual ~IEOSSDKManager() = default;
 
-	UE_DEPRECATED(5.3, "Initialize is now called automatically when the EOSShared module is started. User code should instead check IsInitialized to see whether the EOSSDK was successfully started.")
-	virtual EOS_EResult Initialize() = 0;
 	virtual bool IsInitialized() const = 0;
 
 	virtual const FEOSSDKPlatformConfig* GetPlatformConfig(const FString& PlatformConfigName, bool bLoadIfMissing = false) = 0;
-	virtual bool AddPlatformConfig(const FEOSSDKPlatformConfig& PlatformConfig) = 0;
+	virtual bool AddPlatformConfig(const FEOSSDKPlatformConfig& PlatformConfig, bool bOverwriteExistingConfig = false) = 0;
 	virtual const FString& GetDefaultPlatformConfigName() = 0;
 	virtual void SetDefaultPlatformConfigName(const FString& PlatformConfigName) = 0;
 
@@ -133,9 +140,13 @@ public:
 	virtual void AddCallbackObject(TUniquePtr<class FCallbackBase> CallbackObj) = 0;
 
 	FEOSSDKManagerOnPreInitializeSDK OnPreInitializeSDK;
+	FEOSSDKManagerOnPreInitializeSDK2 OnPreInitializeSDK2;
+	FEOSSDKManagerOnPostInitializeSDK OnPostInitializeSDK;
 	FEOSSDKManagerOnDefaultPlatformConfigNameChanged OnDefaultPlatformConfigNameChanged;
 	FEOSSDKManagerOnPreCreateNamedPlatform OnPreCreateNamedPlatform;
 	FEOSSDKManagerOnPreCreatePlatform OnPreCreatePlatform;
+	FEOSSDKManagerOnPlatformCreated OnPlatformCreated;
+	FEOSSDKManagerOnPreReleasePlatform OnPreReleasePlatform;
 };
 
 #endif // WITH_EOS_SDK

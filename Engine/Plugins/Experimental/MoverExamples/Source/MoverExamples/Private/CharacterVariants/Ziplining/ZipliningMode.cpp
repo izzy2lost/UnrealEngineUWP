@@ -88,10 +88,8 @@ void UZipliningMode::OnSimulationTick(const FSimulationTickParams& Params, FMove
 	FMoverDefaultSyncState& OutputSyncState = OutputState.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
 	FZipliningState& OutZipState            = OutputState.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FZipliningState>();
 
-
-	UMoverComponent* MoverComp = Params.MoverComponent;
-	USceneComponent* UpdatedComponent = Params.UpdatedComponent;
-	UPrimitiveComponent* UpdatedPrimitive = Params.UpdatedPrimitive;
+	USceneComponent* UpdatedComponent = Params.MovingComps.UpdatedComponent.Get();
+	UMoverComponent* MoverComp = Params.MovingComps.MoverComponent.Get();
 	AActor* MoverActor = MoverComp->GetOwner();
 
 	USceneComponent* StartPoint = nullptr;
@@ -214,7 +212,7 @@ void UZipliningMode::OnSimulationTick(const FSimulationTickParams& Params, FMove
 		
 		FHitResult Hit(1.f);
 
-		UMovementUtils::TrySafeMoveUpdatedComponent(UpdatedComponent, UpdatedPrimitive, MoveDelta, FlatFacingDir.ToOrientationQuat(), true, Hit, ETeleportType::None, MoveRecord);
+		UMovementUtils::TrySafeMoveUpdatedComponent(Params.MovingComps, MoveDelta, FlatFacingDir.ToOrientationQuat(), true, Hit, ETeleportType::None, MoveRecord);
 	}
 
 

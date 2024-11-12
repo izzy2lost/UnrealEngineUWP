@@ -14,7 +14,7 @@ uint32 GetRaytracingMaterialPayloadSizeFullySimplified()
 	if (Substrate::IsSubstrateEnabled())
 	{
 		// All the data from FPackedMaterialClosestHitPayload except FSubstrateRaytracingPayload (see RayTracingCommon.ush)
-		uint32 PayloadSizeBytes = 6 * sizeof(uint32);
+		uint32 PayloadSizeBytes = 7 * sizeof(uint32);
 
 		// The remaining data from FSubstrateRaytracingPayload.
 		const bool bFullySimplifiedMaterial = true;	// This is needed because ERayTracingPayloadType::RayTracingMaterial will be fully simplified, see FShaderType::ModifyCompilationEnvironment.

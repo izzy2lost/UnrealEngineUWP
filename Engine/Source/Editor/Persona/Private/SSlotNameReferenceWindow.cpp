@@ -307,7 +307,6 @@ TSharedRef<SWidget> SSlotNameReferenceWindow::GetContent()
 			[
 				// List of montages
 				SNew(SMontageReferenceList)
-				.ItemHeight(20.0f)
 				.ListItemsSource(&ReferencingMontages)
 				.OnGenerateRow(this, &SSlotNameReferenceWindow::HandleGenerateMontageReferenceRow)
 				.SelectionMode(ESelectionMode::None)
@@ -339,7 +338,6 @@ TSharedRef<SWidget> SSlotNameReferenceWindow::GetContent()
 			[
 				// List of montages
 				SNew(SBlueprintReferenceList)
-				.ItemHeight(20.0f)
 				.ListItemsSource(&ReferencingNodes)
 				.OnGenerateRow(this, &SSlotNameReferenceWindow::HandleGenerateBlueprintReferenceRow)
 				.SelectionMode(ESelectionMode::None)

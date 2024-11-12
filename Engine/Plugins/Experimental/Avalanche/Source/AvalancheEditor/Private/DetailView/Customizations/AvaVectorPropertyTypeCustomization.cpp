@@ -10,12 +10,10 @@
 #include "DynamicMeshes/AvaShape2DDynMeshBase.h"
 #include "DynamicMeshes/AvaShape3DDynMeshBase.h"
 #include "Editor.h"
-#include "IDetailChildrenBuilder.h"
 #include "Viewport/AvaViewportExtension.h"
 #include "ViewportClient/IAvaViewportClient.h"
-#include "Widgets/Input/SButton.h"
-#include "Widgets/Input/SComboButton.h"
-#include "Widgets/Input/STextComboBox.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Input/SComboBox.h"
 #include "Widgets/Layout/SScaleBox.h"
 
 #define LOCTEXT_NAMESPACE "AvaVectorPropertyTypeCustomization"
@@ -37,14 +35,13 @@ void FAvaVectorPropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHa
 		// All outer objects should have the same world? So just use the first
 		if (OuterObjects.Num() > 0)
 		{
-			UAvaEditorSubsystem* AvaEditorSubsystem = UAvaEditorSubsystem::Get(OuterObjects[0]);
-			if (AvaEditorSubsystem)
+			if (UAvaEditorSubsystem* AvaEditorSubsystem = UAvaEditorSubsystem::Get(OuterObjects[0]))
 			{
-				TSharedPtr<FAvaViewportExtension> ViewportExtension = AvaEditorSubsystem->FindExtension<FAvaViewportExtension>();
-				if (ViewportExtension.IsValid())
+				if (TSharedPtr<FAvaViewportExtension> ViewportExtension = AvaEditorSubsystem->FindExtension<FAvaViewportExtension>())
 				{
 					TArray<TSharedPtr<IAvaViewportClient>> ViewportClients = ViewportExtension->GetViewportClients();
-					if (ViewportClients.Num() > 0)
+
+					if (!ViewportClients.IsEmpty())
 					{
 						ViewportClient = ViewportClients[0];
 					}
@@ -53,127 +50,55 @@ void FAvaVectorPropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHa
 		}
 	}
 
-	bool bPreserveRatio = false;
-	if (StructPropertyHandle->HasMetaData("AllowPreserveRatio"))
-	{
-		bPreserveRatio = true;
-		
-		static const FVector2D ImageSize(16.f);
+	// Assign Name Widget
+	HeaderRow.NameContent()[StructPropertyHandle->CreatePropertyNameWidget()];
 
-		// fill available space
-		HeaderRow.NameWidget.HorizontalAlignment = EHorizontalAlignment::HAlign_Fill;
-		HeaderRow.NameWidget.VerticalAlignment = EVerticalAlignment::VAlign_Fill;
-
-		auto ComboBoxButtonBuilder = [this](const ERatioMode ButtonMode)->TSharedRef<SButton>
-		{
-			const FSlateBrush* ButtonImage = GetComboButtonBrush(ButtonMode);
-			const FText& ButtonText = GetComboButtonText(ButtonMode);
-			
-			return SNew(SButton)
-					.HAlign(EHorizontalAlignment::HAlign_Fill)
-					.VAlign(EVerticalAlignment::VAlign_Fill)
-					.Cursor(EMouseCursor::Hand)
-					.OnClicked(this, &FAvaVectorPropertyTypeCustomization::OnComboButtonClicked, ButtonMode)
-					.ContentPadding(0.f)
-					[
-						SNew(SHorizontalBox)
-						+ SHorizontalBox::Slot()
-						.FillWidth(0.25f)
-						[
-							SNew(SScaleBox)
-							[
-								SNew(SImage)
-								.DesiredSizeOverride(ImageSize)
-								.Image(ButtonImage)
-							]
-						]
-						+ SHorizontalBox::Slot()
-						.FillWidth(1.f)
-						[
-							SNew(STextBlock)
-							.Justification(ETextJustify::Center)
-							.Text(ButtonText)
-							.Margin(FMargin(5.f, 0.f))
-						]
-					];
-		};
-
-		TArray<ERatioMode> RatioModes {
-			ERatioMode::None,
-			ERatioMode::PreserveXY
-		};
-		
-		if (bIsVector3d)
-		{
-			RatioModes.Add(ERatioMode::PreserveYZ);
-			RatioModes.Add(ERatioMode::PreserveXZ);
-			RatioModes.Add(ERatioMode::PreserveXYZ);
-		}
-
-		const TSharedRef<SVerticalBox> ButtonVerticalBox = SNew(SVerticalBox);
-		for (const ERatioMode& Mode : RatioModes)
-		{
-			ButtonVerticalBox->AddSlot()
-			.Padding(0.f)
-			[
-				ComboBoxButtonBuilder(Mode)
-			];
-		}
-		
-		HeaderRow.NameContent()[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.FillWidth(1.f)
-			[
-				StructPropertyHandle->CreatePropertyNameWidget()
-			]
-			+ SHorizontalBox::Slot()
-			.FillWidth(1.f)
-			[
-				SAssignNew(ComboButton, SComboButton)
-				.HAlign(EHorizontalAlignment::HAlign_Fill)
-				.VAlign(EVerticalAlignment::VAlign_Center)
-				.Cursor(EMouseCursor::Hand)
-				.Method(EPopupMethod::UseCurrentWindow)
-				.ButtonContent()
-				[
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					[
-						SNew(SScaleBox)
-						[
-							SNew(SImage)
-							.DesiredSizeOverride(ImageSize)
-							.Image(this, &FAvaVectorPropertyTypeCustomization::GetCurrentComboButtonBrush)
-						]
-					]
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					[
-						SNew(STextBlock)
-						.Justification(ETextJustify::Center)
-						.Text(this, &FAvaVectorPropertyTypeCustomization::GetCurrentComboButtonText)
-						.Margin(FMargin(5.f, 0.f))
-					]
-				]
-				.MenuContent()
-				[
-					ButtonVerticalBox
-				]
-			]
-		];
-	}
-	else
-	{
-		HeaderRow.NameContent()[StructPropertyHandle->CreatePropertyNameWidget()];
-	}
-
-	// fill available space
+	// Fill available space
 	HeaderRow.ValueWidget.HorizontalAlignment = EHorizontalAlignment::HAlign_Fill;
 	HeaderRow.ValueWidget.VerticalAlignment = EVerticalAlignment::VAlign_Fill;
-	RatioMode = ERatioMode::None;
-	
+
+	FName RatioNone(TEXT("Ratio"));
+	RatioNone.SetNumber(static_cast<int32>(ERatioMode::None));
+	RatioModes.Add(RatioNone);
+
+	FName RatioXY(TEXT("Ratio"));
+	RatioXY.SetNumber(static_cast<int32>(ERatioMode::PreserveXY));
+	RatioModes.Add(RatioXY);
+
+	if (bIsVector3d)
+	{
+		FName RatioXZ(TEXT("Ratio"));
+		RatioXZ.SetNumber(static_cast<int32>(ERatioMode::PreserveXZ));
+		RatioModes.Add(RatioXZ);
+
+		FName RatioYZ(TEXT("Ratio"));
+		RatioYZ.SetNumber(static_cast<int32>(ERatioMode::PreserveYZ));
+		RatioModes.Add(RatioYZ);
+
+		FName RatioXYZ(TEXT("Ratio"));
+		RatioXYZ.SetNumber(static_cast<int32>(ERatioMode::PreserveXYZ));
+		RatioModes.Add(RatioXYZ);
+	}
+
+	const TSharedPtr<SWidget> PreserveRatioWidget = SNew(SBox)
+		.MinDesiredWidth(60.f)
+		.Visibility(this, &FAvaVectorPropertyTypeCustomization::GetRatioWidgetVisibility)
+		[
+			SNew(SComboBox<FName>)
+			.ComboBoxStyle(&FAppStyle::Get().GetWidgetStyle<FComboBoxStyle>(TEXT("ComboBox")))
+			.OptionsSource(&RatioModes)
+			.HasDownArrow(false)
+			.InitiallySelectedItem(GetRatioCurrentItem())
+			.ToolTipText(LOCTEXT("PreserveRatioTooltip", "Select the ratio mode to lock for the component axis"))
+			.ContentPadding(0.f)
+			.OnGenerateWidget(this, &FAvaVectorPropertyTypeCustomization::OnGenerateRatioWidget)
+			.OnSelectionChanged(this, &FAvaVectorPropertyTypeCustomization::OnRatioSelectionChanged)
+			.Content()
+			[
+				OnGenerateRatioWidget(NAME_None)
+			]
+		];
+
 	if (bIsVector3d)
 	{
 		bPixelSizeProperty = VectorPropertyHandle->GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAvaShape3DDynMeshBase, PixelSize3D);
@@ -181,23 +106,11 @@ void FAvaVectorPropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHa
 		YPropertyHandle = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FVector, Y));
 		ZPropertyHandle = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FVector, Z));
 
-		if (bPreserveRatio)
-		{
-			if (const FString& Value = VectorPropertyHandle->GetMetaDataProperty()->GetMetaData(FName("VectorRatioMode")); !Value.IsEmpty())
-			{
-				RatioMode = static_cast<ERatioMode>(FCString::Atoi(*Value));
-			}
-			else
-			{
-				RatioMode = ERatioMode::PreserveXYZ;
-			}
-		}
-		
 		if (StructPropertyHandle->HasMetaData("ClampMin"))
 		{
 			MinVectorClamp = FVector(StructPropertyHandle->GetFloatMetaData("ClampMin"));
 		}
-		
+
 		if (StructPropertyHandle->HasMetaData("ClampMax"))
 		{
 			MaxVectorClamp = FVector(StructPropertyHandle->GetFloatMetaData("ClampMax"));
@@ -213,15 +126,27 @@ void FAvaVectorPropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHa
 		{
 			SpinDelta = (MaxVectorClamp->X - MinVectorClamp->X) / 100.f;
 		}
-		
+
 		HeaderRow.ValueContent()
 		[
-			SNew(SNumericVectorInputBox3D)
+			SNew(SHorizontalBox)
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(0.f, 0.f, 2.f, 0.f)
+			[
+				PreserveRatioWidget.ToSharedRef()
+			]
+
+			+ SHorizontalBox::Slot()
+			.FillWidth(1.f)
+			[
+				SNew(SNumericVectorInputBox3D)
 				.Font(IDetailLayoutBuilder::GetDetailFont())
 				.X(this, &FAvaVectorPropertyTypeCustomization::GetVectorComponent,  static_cast<uint8>(0)) // X
 				.Y(this, &FAvaVectorPropertyTypeCustomization::GetVectorComponent,  static_cast<uint8>(1)) // Y
 				.Z(this, &FAvaVectorPropertyTypeCustomization::GetVectorComponent,  static_cast<uint8>(2)) // Z
-				.bColorAxisLabels(bPreserveRatio)
+				.bColorAxisLabels(true)
 				.MinVector(MinVectorClamp)
 				.MaxVector(MaxVectorClamp)
 				.MinSliderVector(MinVectorClamp)
@@ -237,6 +162,7 @@ void FAvaVectorPropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHa
 				.IsEnabled(this, &FAvaVectorPropertyTypeCustomization::CanEditValue)
 				.OnBeginSliderMovement(this, &FAvaVectorPropertyTypeCustomization::OnBeginSliderMovement)
 				.OnEndSliderMovement(this, &FAvaVectorPropertyTypeCustomization::OnEndSliderMovement)
+			]
 		];
 	}
 	else
@@ -245,23 +171,11 @@ void FAvaVectorPropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHa
 		XPropertyHandle = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FVector2D, X));
 		YPropertyHandle = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FVector2D, Y));
 
-		if (bPreserveRatio)
-		{
-			if (const FString& Value = VectorPropertyHandle->GetMetaDataProperty()->GetMetaData(FName("VectorRatioMode")); !Value.IsEmpty())
-			{
-				RatioMode = static_cast<ERatioMode>(FCString::Atoi(*Value));
-			}
-			else
-			{
-				RatioMode = ERatioMode::PreserveXY;
-			}
-		}
-		
 		if (StructPropertyHandle->HasMetaData("ClampMin"))
 		{
 			MinVector2DClamp = FVector2D(StructPropertyHandle->GetFloatMetaData("ClampMin"));
 		}
-		
+
 		if (StructPropertyHandle->HasMetaData("ClampMax"))
 		{
 			MaxVector2DClamp = FVector2D(StructPropertyHandle->GetFloatMetaData("ClampMax"));
@@ -280,11 +194,23 @@ void FAvaVectorPropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHa
 
 		HeaderRow.ValueContent()
 		[
-			SNew(SNumericVectorInputBox2D)
+			SNew(SHorizontalBox)
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(0.f, 0.f, 2.f, 0.f)
+			[
+				PreserveRatioWidget.ToSharedRef()
+			]
+
+			+ SHorizontalBox::Slot()
+			.FillWidth(1.f)
+			[
+				SNew(SNumericVectorInputBox2D)
 				.Font(IDetailLayoutBuilder::GetDetailFont())
 				.X(this, &FAvaVectorPropertyTypeCustomization::GetVectorComponent, static_cast<uint8>(0)) // X
 				.Y(this, &FAvaVectorPropertyTypeCustomization::GetVectorComponent,  static_cast<uint8>(1)) // Y
-				.bColorAxisLabels(bPreserveRatio)
+				.bColorAxisLabels(true)
 				.MinVector(MinVector2DClamp)
 				.MaxVector(MaxVector2DClamp)
 				.MinSliderVector(MinVector2DClamp)
@@ -298,6 +224,7 @@ void FAvaVectorPropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHa
 				.IsEnabled(this, &FAvaVectorPropertyTypeCustomization::CanEditValue)
 				.OnBeginSliderMovement(this, &FAvaVectorPropertyTypeCustomization::OnBeginSliderMovement)
 				.OnEndSliderMovement(this, &FAvaVectorPropertyTypeCustomization::OnEndSliderMovement)
+			]
 		];
 	}
 }
@@ -307,71 +234,132 @@ void FAvaVectorPropertyTypeCustomization::CustomizeChildren(TSharedRef<IProperty
 {
 }
 
-FReply FAvaVectorPropertyTypeCustomization::OnComboButtonClicked(const ERatioMode NewMode)
+const FSlateBrush* FAvaVectorPropertyTypeCustomization::GetRatioModeBrush(const ERatioMode InMode) const
 {
-	RatioMode = NewMode;
-	const FString MetaData = FString::FromInt(static_cast<int32>(RatioMode));
-	VectorPropertyHandle->GetMetaDataProperty()->SetMetaData(FName("VectorRatioMode"), *MetaData);
-	ComboButton->SetIsOpen(false);
-	return FReply::Handled();
-}
-
-const FSlateBrush* FAvaVectorPropertyTypeCustomization::GetComboButtonBrush(const ERatioMode Mode) const
-{
-	if (Mode == ERatioMode::None)
+	if (InMode == ERatioMode::None)
 	{
 		return FAvaEditorStyle::Get().GetBrush("Icons.Unlock");
 	}
-	else if (Mode == ERatioMode::PreserveXY || Mode == ERatioMode::PreserveXZ || Mode == ERatioMode::PreserveYZ)
+
+	if (InMode == ERatioMode::PreserveXY || InMode == ERatioMode::PreserveXZ || InMode == ERatioMode::PreserveYZ)
 	{
 		return FAvaEditorStyle::Get().GetBrush("Icons.Lock2d");
 	}
-	else
-	{
-		return FAvaEditorStyle::Get().GetBrush("Icons.Lock3d");
-	}
+
+	return FAvaEditorStyle::Get().GetBrush("Icons.Lock3d");
 }
 
-FText FAvaVectorPropertyTypeCustomization::GetComboButtonText(const ERatioMode Mode) const
+FText FAvaVectorPropertyTypeCustomization::GetRatioModeDisplayText(const ERatioMode InMode) const
 {
-	switch (Mode)
+	FText DisplayText = FText::GetEmpty();
+
+	switch (InMode)
 	{
-		case(ERatioMode::PreserveXY):
-			return FText::FromString("XY ");
+		case ERatioMode::PreserveXY:
+			DisplayText = FText::FromString("XY ");
 			break;
-		case(ERatioMode::PreserveYZ):
-			return FText::FromString("YZ ");
+		case ERatioMode::PreserveYZ:
+			DisplayText = FText::FromString("YZ ");
 			break;
-		case(ERatioMode::PreserveXZ):
-			return FText::FromString("XZ ");
+		case ERatioMode::PreserveXZ:
+			DisplayText = FText::FromString("XZ ");
 			break;
-		case(ERatioMode::PreserveXYZ):
-			return FText::FromString("XYZ");
+		case ERatioMode::PreserveXYZ:
+			DisplayText = FText::FromString("XYZ");
 			break;
 		default:
-			return FText::FromString("Free");
+			DisplayText = FText::FromString("Free");
 			break;
+	}
+
+	return DisplayText;
+}
+
+const FSlateBrush* FAvaVectorPropertyTypeCustomization::GetCurrentRatioModeBrush() const
+{
+	return GetRatioModeBrush(GetRatioModeMetadata());
+}
+
+FText FAvaVectorPropertyTypeCustomization::GetCurrentRatioModeDisplayText() const
+{
+	return GetRatioModeDisplayText(GetRatioModeMetadata());
+}
+
+ERatioMode FAvaVectorPropertyTypeCustomization::GetRatioModeMetadata() const
+{
+	ERatioMode RatioMode = ERatioMode::None;
+
+	if (VectorPropertyHandle.IsValid() && VectorPropertyHandle->IsValidHandle())
+	{
+		const FString& MetadataValue = VectorPropertyHandle->GetMetaData(PropertyMetadata);
+
+		if (MetadataValue.Contains(TEXT("X")))
+		{
+			RatioMode |= ERatioMode::X;
+		}
+
+		if (MetadataValue.Contains(TEXT("Y")))
+		{
+			RatioMode |= ERatioMode::Y;
+		}
+
+		if (bIsVector3d && MetadataValue.Contains(TEXT("Z")))
+		{
+			RatioMode |= ERatioMode::Z;
+		}
+	}
+
+	return RatioMode;
+}
+
+void FAvaVectorPropertyTypeCustomization::SetRatioModeMetadata(ERatioMode InMode) const
+{
+	if (VectorPropertyHandle.IsValid() && VectorPropertyHandle->IsValidHandle())
+	{
+		FProperty* VectorProperty = VectorPropertyHandle->GetProperty();
+
+		FString NewMetadataValue = TEXT("");
+
+		if ((InMode & ERatioMode::X) != ERatioMode::None)
+		{
+			NewMetadataValue += TEXT("X");
+		}
+
+		if ((InMode & ERatioMode::Y) != ERatioMode::None)
+		{
+			NewMetadataValue += TEXT("Y");
+		}
+
+		if (bIsVector3d && (InMode & ERatioMode::Z) != ERatioMode::None)
+		{
+			NewMetadataValue += TEXT("Z");
+		}
+
+		VectorProperty->SetMetaData(PropertyMetadata, *NewMetadataValue);
 	}
 }
 
-const FSlateBrush* FAvaVectorPropertyTypeCustomization::GetCurrentComboButtonBrush() const
+EVisibility FAvaVectorPropertyTypeCustomization::GetRatioWidgetVisibility() const
 {
-	return GetComboButtonBrush(RatioMode);
+	if (VectorPropertyHandle.IsValid() && VectorPropertyHandle->IsValidHandle())
+	{
+		// Only show preserve ratio widget if AllowPreserveRatio is set
+		return VectorPropertyHandle->HasMetaData(PropertyMetadata)
+			? EVisibility::Visible
+			: EVisibility::Collapsed;
+	}
+
+	return EVisibility::Collapsed;
 }
 
-FText FAvaVectorPropertyTypeCustomization::GetCurrentComboButtonText() const
-{
-	return GetComboButtonText(RatioMode);
-}
-
-TOptional<double> FAvaVectorPropertyTypeCustomization::GetVectorComponent(const uint8 Component) const
+TOptional<double> FAvaVectorPropertyTypeCustomization::GetVectorComponent(const uint8 InComponent) const
 {
 	if (!VectorPropertyHandle.IsValid() || SelectedObjectNum == 0)
 	{
 		return TOptional<double>();
 	}
 	double OutValue = 0.f;
-	switch(Component)
+	switch(InComponent)
 	{
 		case 0:
 			if (XPropertyHandle->GetValue(OutValue) != FPropertyAccess::Success)
@@ -393,31 +381,29 @@ TOptional<double> FAvaVectorPropertyTypeCustomization::GetVectorComponent(const 
 		break;
 		default:
 			return TOptional<double>();
-		break;
 	}
+
 	// handle specific case
 	if (bPixelSizeProperty)
 	{
 		return MeshSizeToPixelSize(OutValue);
 	}
-	else
-	{
-		return OutValue;
-	}
+
+	return OutValue;
 }
 
-void FAvaVectorPropertyTypeCustomization::SetVectorComponent(double NewValue, const uint8 Component)
+void FAvaVectorPropertyTypeCustomization::SetVectorComponent(double InNewValue, const uint8 InComponent)
 {
 	if (bMovingSlider)
 	{
-		SetVectorComponent(NewValue, ETextCommit::Default, Component);
+		SetVectorComponent(InNewValue, ETextCommit::Default, InComponent);
 	}
 }
 
-void FAvaVectorPropertyTypeCustomization::SetVectorComponent(double NewValue, ETextCommit::Type CommitType, const uint8 Component)
+void FAvaVectorPropertyTypeCustomization::SetVectorComponent(double InNewValue, ETextCommit::Type InCommitType, const uint8 InComponent)
 {
-	const bool bFinalCommit = CommitType == ETextCommit::OnEnter || CommitType == ETextCommit::OnUserMovedFocus;
-	if (!bFinalCommit && CommitType != ETextCommit::Default)
+	const bool bFinalCommit = InCommitType == ETextCommit::OnEnter || InCommitType == ETextCommit::OnUserMovedFocus;
+	if (!bFinalCommit && InCommitType != ETextCommit::Default)
 	{
 		return;
 	}
@@ -436,7 +422,7 @@ void FAvaVectorPropertyTypeCustomization::SetVectorComponent(double NewValue, ET
 		return;
 	}
 	// handle interactive debounce to avoid slow behaviour
-	LastComponentValueSet = Component;
+	LastComponentValueSet = InComponent;
 	if (DebounceValueSet > 0 && !bFinalCommit)
 	{
 		DebounceValueSet--;
@@ -446,7 +432,7 @@ void FAvaVectorPropertyTypeCustomization::SetVectorComponent(double NewValue, ET
 	// handle specific case for pixel size property
 	if (bPixelSizeProperty)
 	{
-		NewValue = PixelSizeToMeshSize(NewValue);
+		InNewValue = PixelSizeToMeshSize(InNewValue);
 	}
 	if (!bMovingSlider)
 	{
@@ -454,7 +440,7 @@ void FAvaVectorPropertyTypeCustomization::SetVectorComponent(double NewValue, ET
 	}
 	// update objects value for property, we handle transaction ourselves to batch properties changes together
 	const EPropertyValueSetFlags::Type Flags = bMovingSlider ? EPropertyValueSetFlags::InteractiveChange : EPropertyValueSetFlags::NotTransactable;
-	SetComponentValue(NewValue, Component, Flags);
+	SetComponentValue(InNewValue, InComponent, Flags);
 	if (!bMovingSlider)
 	{
 		GEditor->EndTransaction();
@@ -471,14 +457,14 @@ void FAvaVectorPropertyTypeCustomization::OnBeginSliderMovement()
 	GEditor->BeginTransaction(VectorPropertyHandle->GetPropertyDisplayName());
 }
 
-void FAvaVectorPropertyTypeCustomization::OnEndSliderMovement(double NewValue)
+void FAvaVectorPropertyTypeCustomization::OnEndSliderMovement(double InNewValue)
 {
 	DebounceValueSet = 0;
 	bMovingSlider = false;
 	// set final value like enter pressed
 	if (LastComponentValueSet != INVALID_COMPONENT_IDX)
 	{
-		SetVectorComponent(NewValue, ETextCommit::OnEnter, LastComponentValueSet);
+		SetVectorComponent(InNewValue, ETextCommit::OnEnter, LastComponentValueSet);
 	}
 	// end started transactions during process
 	while(GEditor->IsTransactionActive())
@@ -488,13 +474,88 @@ void FAvaVectorPropertyTypeCustomization::OnEndSliderMovement(double NewValue)
 	ResetVectorValuesForRatio();
 }
 
+TSharedRef<SWidget> FAvaVectorPropertyTypeCustomization::OnGenerateRatioWidget(FName InRatioMode)
+{
+	TSharedPtr<SImage> ImageWidget;
+	TSharedPtr<STextBlock> TextWidget;
+
+	const FVector2d ImageSize(16.f);
+
+	if (InRatioMode.IsNone())
+	{
+		ImageWidget = SNew(SImage)
+			.ColorAndOpacity(FAppStyle::GetSlateColor("SelectionColor"))
+			.DesiredSizeOverride(ImageSize)
+			.Image(this, &FAvaVectorPropertyTypeCustomization::GetCurrentRatioModeBrush);
+
+		TextWidget = SNew(STextBlock)
+			.Justification(ETextJustify::Right)
+			.Font(FAppStyle::Get().GetFontStyle("SmallFont"))
+			.Text(this, &FAvaVectorPropertyTypeCustomization::GetCurrentRatioModeDisplayText);
+	}
+	else
+	{
+		const ERatioMode RatioMode = static_cast<ERatioMode>(InRatioMode.GetNumber());
+
+		ImageWidget = SNew(SImage)
+			.ColorAndOpacity(FAppStyle::GetSlateColor("SelectionColor"))
+			.DesiredSizeOverride(ImageSize)
+			.Image(GetRatioModeBrush(RatioMode));
+
+		TextWidget = SNew(STextBlock)
+			.Justification(ETextJustify::Center)
+			.Font(FAppStyle::Get().GetFontStyle("SmallFont"))
+			.Text(GetRatioModeDisplayText(RatioMode));
+	}
+
+	return SNew(SHorizontalBox)
+		.Visibility(EVisibility::Visible)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(0.f)
+		[
+			SNew(SScaleBox)
+			.Visibility(EVisibility::HitTestInvisible)
+			.Stretch(EStretch::UserSpecified)
+			.UserSpecifiedScale(1.f)
+			[
+				ImageWidget.ToSharedRef()
+			]
+		]
+		+ SHorizontalBox::Slot()
+		.FillWidth(1.f)
+		.Padding(8.f, 0.f, 0.f, 0.f)
+		.HAlign(EHorizontalAlignment::HAlign_Fill)
+		.VAlign(EVerticalAlignment::VAlign_Center)
+		[
+			TextWidget.ToSharedRef()
+		];
+}
+
+void FAvaVectorPropertyTypeCustomization::OnRatioSelectionChanged(FName InRatioMode, ESelectInfo::Type InSelectInfo) const
+{
+	if (!InRatioMode.IsNone())
+	{
+		const ERatioMode RatioMode = static_cast<ERatioMode>(InRatioMode.GetNumber());
+		SetRatioModeMetadata(RatioMode);
+	}
+}
+
+FName FAvaVectorPropertyTypeCustomization::GetRatioCurrentItem() const
+{
+	const ERatioMode CurrentRatioMode = GetRatioModeMetadata();
+	FName RatioName(TEXT("Ratio"));
+	RatioName.SetNumber(static_cast<int32>(CurrentRatioMode));
+	return RatioName;
+}
+
 bool FAvaVectorPropertyTypeCustomization::CanEditValue() const
 {
 	if (!VectorPropertyHandle.IsValid())
 	{
 		return false;
 	}
-	
+
 	if (bPixelSizeProperty && SelectedObjectNum > 0 && ViewportClient.IsValid())
 	{
 		if (FAvaViewportUtils::IsValidViewportSize(ViewportClient.Pin()->GetVirtualViewportSize()))
@@ -504,7 +565,7 @@ bool FAvaVectorPropertyTypeCustomization::CanEditValue() const
 
 		return false;
 	}
-	
+
 	return VectorPropertyHandle->IsEditable();
 }
 
@@ -512,11 +573,11 @@ void FAvaVectorPropertyTypeCustomization::InitVectorValuesForRatio()
 {
 	Begin2DValues.Empty();
 	Begin3DValues.Empty();
-	
+
 	TArray<FString> OutValues;
 	VectorPropertyHandle->GetPerObjectValues(OutValues);
 	SelectedObjectNum = VectorPropertyHandle->GetNumPerObjectValues();
-	
+
 	if (SelectedObjectNum > 0)
 	{
 		for (const FString& Val : OutValues)
@@ -557,11 +618,13 @@ void FAvaVectorPropertyTypeCustomization::ResetVectorValuesForRatio()
 	Begin3DValues.Empty();
 }
 
-void FAvaVectorPropertyTypeCustomization::SetComponentValue(const double NewValue, const uint8 Component, const EPropertyValueSetFlags::Type Flags)
+void FAvaVectorPropertyTypeCustomization::SetComponentValue(const double InNewValue, const uint8 InComponent, const EPropertyValueSetFlags::Type InFlags)
 {
+	const ERatioMode RatioMode = GetRatioModeMetadata();
+
 	// check if we are preserving ratio for current component change
 	bool bPreserveRatio = false;
-	switch (Component)
+	switch (InComponent)
 	{
 		case 0:
 			bPreserveRatio = ((RatioMode & ERatioMode::X) != ERatioMode::None);
@@ -594,35 +657,35 @@ void FAvaVectorPropertyTypeCustomization::SetComponentValue(const double NewValu
 			continue;
 		}
 		// compute clamped ratio for value change
-		const double ClampedRatio = GetClampedRatioValueChange(ObjIdx, NewValue, Component, PreserveRatios);
+		const double ClampedRatio = GetClampedRatioValueChange(ObjIdx, InNewValue, InComponent, PreserveRatios);
 		// loop for each component (X,Y,Z)
 		for (uint8 ComponentIdx = 0; ComponentIdx < MaxComponentCount; ComponentIdx++)
 		{
 			// only assign value to specific component, skip others
-			if (!bPreserveRatio && ComponentIdx != Component)
+			if (!bPreserveRatio && ComponentIdx != InComponent)
 			{
 				continue;
 			}
 			// compute new component value
-			const double NewComponentValue = GetClampedComponentValue(ObjIdx, NewValue, ClampedRatio, ComponentIdx, Component);
+			const double NewComponentValue = GetClampedComponentValue(ObjIdx, InNewValue, ClampedRatio, ComponentIdx, InComponent);
 			switch(ComponentIdx)
 			{
 				case 0:
-					if (PreserveRatios[0] || ComponentIdx == Component)
+					if (PreserveRatios[0] || ComponentIdx == InComponent)
 					{
-						XPropertyHandle->SetPerObjectValue(ObjIdx, FString::SanitizeFloat(NewComponentValue), Flags);
+						XPropertyHandle->SetPerObjectValue(ObjIdx, FString::SanitizeFloat(NewComponentValue), InFlags);
 					}
 					break;
 				case 1:
-					if (PreserveRatios[1] || ComponentIdx == Component)
+					if (PreserveRatios[1] || ComponentIdx == InComponent)
 					{
-						YPropertyHandle->SetPerObjectValue(ObjIdx, FString::SanitizeFloat(NewComponentValue), Flags);
+						YPropertyHandle->SetPerObjectValue(ObjIdx, FString::SanitizeFloat(NewComponentValue), InFlags);
 					}
 					break;
 				case 2:
-					if (PreserveRatios[2] || ComponentIdx == Component)
+					if (PreserveRatios[2] || ComponentIdx == InComponent)
 					{
-						ZPropertyHandle->SetPerObjectValue(ObjIdx, FString::SanitizeFloat(NewComponentValue), Flags);
+						ZPropertyHandle->SetPerObjectValue(ObjIdx, FString::SanitizeFloat(NewComponentValue), InFlags);
 					}
 					break;
 				default:;
@@ -631,23 +694,23 @@ void FAvaVectorPropertyTypeCustomization::SetComponentValue(const double NewValu
 	}
 }
 
-double FAvaVectorPropertyTypeCustomization::GetClampedRatioValueChange(const int32 ObjectIdx, const double NewValue, const uint8 Component, const TArray<bool>& PreserveRatios) const
+double FAvaVectorPropertyTypeCustomization::GetClampedRatioValueChange(const int32 InObjectIdx, const double InNewValue, const uint8 InComponent, const TArray<bool>& InPreserveRatios) const
 {
 	double Ratio = 1;
 	// get pre change value for this component
 	if (bIsVector3d)
 	{
-		FVector BeginValue = Begin3DValues[ObjectIdx].GetValue();
-		if (BeginValue[Component] != 0)
+		FVector BeginValue = Begin3DValues[InObjectIdx].GetValue();
+		if (BeginValue[InComponent] != 0)
 		{
-			Ratio = NewValue / BeginValue[Component];
+			Ratio = InNewValue / BeginValue[InComponent];
 		}
 		// apply min/max clamp
 		if (MinVectorClamp.IsSet() || MaxVectorClamp.IsSet())
 		{
 			for (int32 ComponentIdx = 0; ComponentIdx < 3; ComponentIdx++)
 			{
-				if (PreserveRatios[ComponentIdx] || ComponentIdx == Component)
+				if (InPreserveRatios[ComponentIdx] || ComponentIdx == InComponent)
 				{
 					const double EndValue = BeginValue[ComponentIdx] * Ratio;
 					if (MinVectorClamp.IsSet())
@@ -667,22 +730,22 @@ double FAvaVectorPropertyTypeCustomization::GetClampedRatioValueChange(const int
 						}
 					}
 				}
-			}	
+			}
 		}
 	}
 	else
 	{
-		FVector2D BeginValue = Begin2DValues[ObjectIdx].GetValue();
-		if (BeginValue[Component] != 0)
+		FVector2D BeginValue = Begin2DValues[InObjectIdx].GetValue();
+		if (BeginValue[InComponent] != 0)
 		{
-			Ratio = NewValue / BeginValue[Component];
+			Ratio = InNewValue / BeginValue[InComponent];
 		}
 		// apply min/max clamp
 		if (MinVector2DClamp.IsSet() || MaxVector2DClamp.IsSet())
 		{
 			for (int32 ComponentIdx = 0; ComponentIdx < 2; ComponentIdx++)
 			{
-				if (PreserveRatios[ComponentIdx] || ComponentIdx == Component)
+				if (InPreserveRatios[ComponentIdx] || ComponentIdx == InComponent)
 				{
 					const double EndValue = BeginValue[ComponentIdx] * Ratio;
 					if (MinVector2DClamp.IsSet())
@@ -708,67 +771,67 @@ double FAvaVectorPropertyTypeCustomization::GetClampedRatioValueChange(const int
 	return Ratio;
 }
 
-double FAvaVectorPropertyTypeCustomization::GetClampedComponentValue(const int32 ObjectIdx, double NewValue, const double Ratio, const uint8 ComponentIdx, const uint8 OriginalComponent)
+double FAvaVectorPropertyTypeCustomization::GetClampedComponentValue(const int32 InObjectIdx, double InNewValue, const double InRatio, const uint8 InComponentIdx, const uint8 InOriginalComponent)
 {
-	const double OldValue = (bIsVector3d ? Begin3DValues[ObjectIdx].GetValue()[ComponentIdx] : Begin2DValues[ObjectIdx].GetValue()[ComponentIdx]);
-	const double SliderOriginalValue = (bIsVector3d ? Begin3DValues[ObjectIdx].GetValue()[OriginalComponent] : Begin2DValues[ObjectIdx].GetValue()[OriginalComponent]);
+	const double OldValue = (bIsVector3d ? Begin3DValues[InObjectIdx].GetValue()[InComponentIdx] : Begin2DValues[InObjectIdx].GetValue()[InComponentIdx]);
+	const double SliderOriginalValue = (bIsVector3d ? Begin3DValues[InObjectIdx].GetValue()[InOriginalComponent] : Begin2DValues[InObjectIdx].GetValue()[InOriginalComponent]);
 	if (SliderOriginalValue == 0 && OldValue == 0)
 	{
 		if (bIsVector3d)
 		{
 			if (MinVectorClamp.IsSet())
 			{
-				NewValue = FMath::Max(NewValue, MinVectorClamp.GetValue()[ComponentIdx]);
+				InNewValue = FMath::Max(InNewValue, MinVectorClamp.GetValue()[InComponentIdx]);
 			}
 			if (MaxVectorClamp.IsSet())
 			{
-				NewValue = FMath::Min(NewValue, MaxVectorClamp.GetValue()[ComponentIdx]);
+				InNewValue = FMath::Min(InNewValue, MaxVectorClamp.GetValue()[InComponentIdx]);
 			}
 		}
 		else
 		{
 			if (MinVector2DClamp.IsSet())
 			{
-				NewValue = FMath::Max(NewValue, MinVector2DClamp.GetValue()[ComponentIdx]);
+				InNewValue = FMath::Max(InNewValue, MinVector2DClamp.GetValue()[InComponentIdx]);
 			}
 			if (MaxVector2DClamp.IsSet())
 			{
-				NewValue = FMath::Min(NewValue, MaxVector2DClamp.GetValue()[ComponentIdx]);
+				InNewValue = FMath::Min(InNewValue, MaxVector2DClamp.GetValue()[InComponentIdx]);
 			}
 		}
-		return NewValue;
+		return InNewValue;
 	}
-	return OldValue * Ratio;
+	return OldValue * InRatio;
 }
 
-double FAvaVectorPropertyTypeCustomization::MeshSizeToPixelSize(double MeshSize) const
+double FAvaVectorPropertyTypeCustomization::MeshSizeToPixelSize(double InMeshSize) const
 {
 	if (ViewportClient.IsValid())
 	{
 		double PixelSize;
 
-		if (FAvaEditorViewportUtils::MeshSizeToPixelSize(ViewportClient.Pin().ToSharedRef(), MeshSize, PixelSize))
+		if (FAvaEditorViewportUtils::MeshSizeToPixelSize(ViewportClient.Pin().ToSharedRef(), InMeshSize, PixelSize))
 		{
 			return PixelSize;
 		}
 	}
 
-	return MeshSize;
+	return InMeshSize;
 }
 
-double FAvaVectorPropertyTypeCustomization::PixelSizeToMeshSize(double PixelSize) const
+double FAvaVectorPropertyTypeCustomization::PixelSizeToMeshSize(double InPixelSize) const
 {
 	if (ViewportClient.IsValid())
 	{
 		double MeshSize;
 
-		if (FAvaEditorViewportUtils::PixelSizeToMeshSize(ViewportClient.Pin().ToSharedRef(), PixelSize, MeshSize))
+		if (FAvaEditorViewportUtils::PixelSizeToMeshSize(ViewportClient.Pin().ToSharedRef(), InPixelSize, MeshSize))
 		{
 			return MeshSize;
 		}
 	}
 
-	return PixelSize;
+	return InPixelSize;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -29,6 +29,21 @@ void FRecvMulti::CountBytes(FArchive& Ar) const
 // FSocket stats implementation
 //
 
+FSocket::FSocket() :
+	SocketType(SOCKTYPE_Unknown),
+	SocketDescription(TEXT("")),
+	SocketProtocol(NAME_None)
+{ }
+
+FSocket::FSocket(ESocketType InSocketType, const FString& InSocketDescription, const FName& InSocketProtocol) :
+	SocketType(InSocketType),
+	SocketDescription(InSocketDescription),
+	SocketProtocol(InSocketProtocol)
+{ }
+
+/** Virtual destructor. */
+FSocket::~FSocket() = default;
+
 bool FSocket::SendTo(const uint8* Data, int32 Count, int32& BytesSent, const FInternetAddr& Destination)
 {
 //	NETWORK_PROFILER(GNetworkProfiler.TrackSocketSendTo(this,Data,BytesSent,Destination));

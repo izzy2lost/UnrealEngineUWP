@@ -160,4 +160,15 @@ namespace MediaPlayerOptionValues
 	{ static FName OptName(TEXT("Sequencer")); return OptName; }
 	inline const FName& Environment_Preview() 
 	{ static FName OptName(TEXT("Preview")); return OptName; }
+
+	inline const FName& ImgMediaSmartCacheEnabled() 
+	{ static FName OptName(TEXT("ImgMediaSmartCacheEnabled")); return OptName; }
+	inline const FName& ImgMediaSmartCacheTimeToLookAhead() 
+	{ static FName OptName(TEXT("ImgMediaSmartCacheTimeToLookAhead")); return OptName; }
+
+	/**
+	 * Requests parsing timecode meta data if available. 
+	 */
+	inline const FName& ParseTimecodeInfo()
+	{ static FName OptName(TEXT("ParseTimecodeInfo")); return OptName; }
 }

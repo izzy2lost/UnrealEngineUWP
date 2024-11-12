@@ -146,9 +146,6 @@ void UFractureToolPlaneCut::Setup(TWeakPtr<FFractureEditorModeToolkit> InToolkit
 	GizmoSettings->Setup(this);
 	PlaneCutSettings->bCanCutWithMultiplePlanes = !GizmoSettings->bUseGizmo;
 	NotifyOfPropertyChangeByTool(PlaneCutSettings);
-	CutterSettings->bDrawSitesToggleEnabled = false;
-	CutterSettings->bNoisePreviewHasScale = true;
-	CutterSettings->bDrawNoisePreview = true; // default-enable the plane noise preview
 
 	// Initialize the background compute object for the noise preview
 	if (GEditor && !NoisePreview)
@@ -379,11 +376,12 @@ public:
 	int Seed;
 	FTransform Transform;
 	UE::Geometry::FDynamicMesh3 CuttingMesh;
+	bool bSplitIslands = true;
 
 	// TGenericDataOperator interface:
 	virtual void CalculateResult(FProgressCancel* Progress) override
 	{
-		ResultGeometryIndex = CutMultipleWithMultiplePlanes(CuttingPlanes, InternalSurfaceMaterials, *CollectionCopy, Selection, Grout, PointSpacing, Seed, Transform, true, Progress);
+		ResultGeometryIndex = CutMultipleWithMultiplePlanes(CuttingPlanes, InternalSurfaceMaterials, *CollectionCopy, Selection, Grout, PointSpacing, Seed, Transform, true, Progress, bSplitIslands);
 
 		if (Progress && Progress->Cancelled())
 		{
@@ -404,6 +402,7 @@ int32 UFractureToolPlaneCut::ExecuteFracture(const FFractureToolContext& Fractur
 		PlaneCutOp->PointSpacing = CollisionSettings->GetPointSpacing();
 		PlaneCutOp->Seed = FractureContext.GetSeed();
 		PlaneCutOp->Transform = FractureContext.GetTransform();
+		PlaneCutOp->bSplitIslands = CutterSettings->bSplitIslands;
 
 		if (GizmoSettings->IsGizmoEnabled())
 		{

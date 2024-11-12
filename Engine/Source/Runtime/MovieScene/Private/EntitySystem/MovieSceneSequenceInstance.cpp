@@ -15,6 +15,7 @@
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedStateExtension.h"
 
 #include "IMovieScenePlayer.h"
+#include "Misc/AssertionMacros.h"
 #include "MovieSceneSequence.h"
 #include "MovieSceneSequencePlayer.h"
 #include "MovieSceneTimeHelpers.h"
@@ -117,14 +118,11 @@ void FSequenceInstance::Initialize()
 
 FSequenceInstance::~FSequenceInstance()
 {
-	if (RootInstanceHandle == InstanceHandle && !SharedPlaybackState.IsUnique())
-	{
-#if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
-		UE_LOG(LogMovieScene, Error, TEXT("References to SharedPlaybackState should not be held past the lifetime of its root sequence instance (%s)"), *RootSequenceName);
-#else
-		UE_LOG(LogMovieScene, Error, TEXT("References to SharedPlaybackState should not be held past the lifetime of its root sequence instance (<no sequence info>)"));
-#endif
-	}
+	const int32 RefCount = SharedPlaybackState.GetSharedReferenceCount();
+	ensureAlwaysMsgf(
+			RootInstanceHandle != InstanceHandle || RefCount == 1,
+			TEXT("References to SharedPlaybackState should not be held past the lifetime of its root sequence instance. SharedPlaybackState has %d references."),
+			RefCount);
 }
 
 FSequenceInstance::FSequenceInstance(FSequenceInstance&&) = default;
@@ -143,32 +141,36 @@ uint16 FSequenceInstance::GetPlayerIndex() const
 
 void FSequenceInstance::InitializeLegacyEvaluator()
 {
-	IMovieScenePlayer* Player = GetPlayer();
-	check(Player);
-
 	UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
 	const FMovieSceneCompiledDataID RootCompiledDataID = SharedPlaybackState->GetRootCompiledDataID();
 	const FMovieSceneCompiledDataEntry& CompiledEntry   = CompiledDataManager->GetEntryRef(RootCompiledDataID);
 
 	if (EnumHasAnyFlags(CompiledEntry.AccumulatedMask, EMovieSceneSequenceCompilerMask::EvaluationTemplate))
 	{
-		UpdateFlags |= ESequenceInstanceUpdateFlags::HasLegacyTemplates;
-
-		if (!LegacyEvaluator)
+		IMovieScenePlayer* Player = FPlayerIndexPlaybackCapability::GetPlayer(SharedPlaybackState);
+		if (ensureMsgf(Player, TEXT("Sequence has legacy templates but no player! Legacy tracks will be disabled!")))
 		{
-			LegacyEvaluator = MakeUnique<FMovieSceneTrackEvaluator>(CompiledEntry.GetSequence(), RootCompiledDataID, CompiledDataManager);
+			UpdateFlags |= ESequenceInstanceUpdateFlags::HasLegacyTemplates;
+
+			if (!LegacyEvaluator)
+			{
+				LegacyEvaluator = MakeUnique<FMovieSceneTrackEvaluator>(CompiledEntry.GetSequence(), RootCompiledDataID, CompiledDataManager);
+			}
 		}
 	}
 	else if (LegacyEvaluator)
 	{
-		LegacyEvaluator->Finish(*Player);
-		LegacyEvaluator = nullptr;
-
+		IMovieScenePlayer* Player = FPlayerIndexPlaybackCapability::GetPlayer(SharedPlaybackState);
+		if (ensureMsgf(Player, TEXT("Sequence needs to teardown legacy evaluator, but has no player! Legacy track evaluators will leak!")))
+		{
+			LegacyEvaluator->Finish(*Player);
+			LegacyEvaluator = nullptr;
+		}
 		UpdateFlags &= ~ESequenceInstanceUpdateFlags::HasLegacyTemplates;
 	}
 }
 
-void FSequenceInstance::InvalidateCachedData()
+void FSequenceInstance::InvalidateCachedData(ESequenceInstanceInvalidationType InvalidationType)
 {
 	ensureMsgf(bInitialized, TEXT("Sequence instance hasn't been initialized yet!"));
 
@@ -227,7 +229,7 @@ void FSequenceInstance::InvalidateCachedData()
 
 		ISequenceUpdater::FactoryInstance(SequenceUpdater, CompiledDataManager, RootCompiledDataID);
 
-		SequenceUpdater->InvalidateCachedData(SharedPlaybackState);
+		SequenceUpdater->InvalidateCachedData(SharedPlaybackState, InvalidationType);
 		SequenceUpdater->PopulateUpdateFlags(SharedPlaybackState, UpdateFlags);
 
 		if (LegacyEvaluator)
@@ -254,7 +256,7 @@ bool FSequenceInstance::ConditionalRecompile()
 	{
 		if (VolatilityManager->ConditionalRecompile())
 		{
-			InvalidateCachedData();
+			InvalidateCachedData(ESequenceInstanceInvalidationType::DataChanged);
 			return true;
 		}
 	}
@@ -289,7 +291,7 @@ void FSequenceInstance::Start(const FMovieSceneContext& InContext)
 void FSequenceInstance::Update(const FMovieSceneContext& InContext)
 {
 	SCOPE_CYCLE_COUNTER(MovieSceneEval_SequenceInstanceUpdate);
-	SCOPE_CYCLE_UOBJECT(ContextScope, GetPlayer()->AsUObject());
+	SCOPE_CYCLE_UOBJECT(ContextScope, SharedPlaybackState->GetRootSequence());
 
 	ensureMsgf(bInitialized, TEXT("This instance hasn't been initialized yet!"));
 
@@ -368,8 +370,8 @@ void FSequenceInstance::PreEvaluation()
 
 	if (IsRootSequence())
 	{
-		IMovieScenePlayer* Player = GetPlayer();
-		if (ensure(Player))
+		IMovieScenePlayer* Player = FPlayerIndexPlaybackCapability::GetPlayer(SharedPlaybackState);
+		if (Player)
 		{
 			Player->PreEvaluation(Context);
 		}
@@ -381,7 +383,7 @@ void FSequenceInstance::RunLegacyTrackTemplates()
 	if (LegacyEvaluator)
 	{
 		IMovieScenePlayer* Player = FPlayerIndexPlaybackCapability::GetPlayer(SharedPlaybackState);
-		if (ensure(Player))
+		if (Player)
 		{
 			if (bFinished)
 			{
@@ -399,8 +401,8 @@ void FSequenceInstance::PostEvaluation()
 {
 	if (IsRootSequence() && EnumHasAnyFlags(UpdateFlags, ESequenceInstanceUpdateFlags::NeedsPostEvaluation))
 	{
-		IMovieScenePlayer* Player = GetPlayer();
-		if (ensure(Player))
+		IMovieScenePlayer* Player = FPlayerIndexPlaybackCapability::GetPlayer(SharedPlaybackState);
+		if (Player)
 		{
 			SCOPE_CYCLE_COUNTER(MovieSceneEval_SequenceInstancePostUpdate);
 
@@ -458,6 +460,15 @@ void FSequenceInstance::OverrideRootSequence(FMovieSceneSequenceID NewRootSequen
 	RootOverrideSequenceID = NewRootSequenceID;
 }
 
+bool FSequenceInstance::EvaluateCondition(const FGuid& BindingID, const FMovieSceneSequenceID& InSequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject) const
+{
+	if (SequenceUpdater)
+	{
+		return SequenceUpdater->EvaluateCondition(BindingID, InSequenceID, Condition, ConditionOwnerObject, SharedPlaybackState);
+	}
+	return true;
+}
+
 FInstanceHandle FSequenceInstance::FindSubInstance(FMovieSceneSequenceID SubSequenceID) const
 {
 	return SequenceUpdater ? SequenceUpdater->FindSubInstance(SubSequenceID) : FInstanceHandle();
@@ -475,7 +486,7 @@ void FSequenceInstance::FindEntities(UObject* Owner, TArray<FMovieSceneEntityID>
 
 FSubSequencePath FSequenceInstance::GetSubSequencePath() const
 {
-	return FSubSequencePath(SequenceID, *GetPlayer());
+	return FSubSequencePath(SequenceID, SharedPlaybackState);
 }
 
 bool FSequenceInstance::ConditionalRecompile(UMovieSceneEntitySystemLinker* Linker)

@@ -27,9 +27,6 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (IsEditorWidget())
 	{
 		WidgetStyle = UE::Slate::Private::FDefaultStyleCache::GetEditor().GetCheckboxStyle();
-
-		// The CDO isn't an editor widget and thus won't use the editor style, call post edit change to mark difference from CDO
-		PostEditChange();
 	}
 #endif // WITH_EDITOR
 
@@ -297,6 +294,10 @@ const FText UCheckBox::GetPaletteCategory()
 
 #endif
 
+FWidgetStateBitfield UWidgetCheckedStateRegistration::Unchecked;
+FWidgetStateBitfield UWidgetCheckedStateRegistration::Checked;
+FWidgetStateBitfield UWidgetCheckedStateRegistration::Undetermined;
+
 FName UWidgetCheckedStateRegistration::GetStateName() const
 {
 	return StateName;
@@ -329,9 +330,11 @@ const FWidgetStateBitfield& UWidgetCheckedStateRegistration::GetBitfieldFromValu
 
 void UWidgetCheckedStateRegistration::InitializeStaticBitfields() const
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Unchecked = FWidgetStateBitfield(GetStateName(), (uint8)ECheckBoxState::Unchecked);
 	Checked = FWidgetStateBitfield(GetStateName(), (uint8)ECheckBoxState::Checked);
 	Undetermined = FWidgetStateBitfield(GetStateName(), (uint8)ECheckBoxState::Undetermined);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 /////////////////////////////////////////////////////

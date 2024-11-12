@@ -7,7 +7,8 @@
 #include "ShaderCore.h"
 #include "ShaderParameterMacros.h"
 
-struct FRHIShaderBundleDispatch;
+struct FRHIShaderBundleComputeDispatch;
+struct FRHIShaderBundleGraphicsDispatch;
 
 namespace UE
 {
@@ -21,16 +22,30 @@ extern RHICORE_API void SetupShaderDiagnosticData(FRHIShader* RHIShader, class F
 extern RHICORE_API void RegisterDiagnosticMessages(const TArray<FShaderDiagnosticData>& In);
 extern RHICORE_API const FString* GetDiagnosticMessage(uint32 MessageID);
 
-/** Common implementation of dispatch shader bundle emulation shared by RHIs */
+/** Common implementations of dispatch shader bundle emulation shared by RHIs */
+
 extern RHICORE_API void DispatchShaderBundleEmulation(
 	FRHIComputeCommandList& InRHICmdList,
 	FRHIShaderBundle* ShaderBundle,
 	FRHIBuffer* ArgumentBuffer,
-	TConstArrayView<FRHIShaderBundleDispatch> Dispatches
+	TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
+	TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches
 );
 
-inline void InitStaticUniformBufferSlots(TArray<FUniformBufferStaticSlot>& StaticSlots, const FShaderResourceTable& ShaderResourceTable)
+extern RHICORE_API void DispatchShaderBundleEmulation(
+	FRHICommandList& InRHICmdList,
+	FRHIShaderBundle* ShaderBundle,
+	FRHIBuffer* ArgumentBuffer,
+	const FRHIShaderBundleGraphicsState& BundleState,
+	TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
+	TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches
+);
+
+inline void InitStaticUniformBufferSlots(FRHIShaderData* ShaderData)
 {
+	TArray<FUniformBufferStaticSlot>& StaticSlots = ShaderData->StaticSlots;
+	const FShaderResourceTable& ShaderResourceTable = ShaderData->GetShaderResourceTable();
+
 	StaticSlots.Reserve(ShaderResourceTable.ResourceTableLayoutHashes.Num());
 
 	for (uint32 LayoutHash : ShaderResourceTable.ResourceTableLayoutHashes)
@@ -49,12 +64,13 @@ inline void InitStaticUniformBufferSlots(TArray<FUniformBufferStaticSlot>& Stati
 template <typename TApplyFunction>
 void ApplyStaticUniformBuffers(
 	FRHIShader* Shader,
-	const TArray<FUniformBufferStaticSlot>& Slots,
-	const TArray<uint32>& LayoutHashes,
 	const TArray<FRHIUniformBuffer*>& UniformBuffers,
 	TApplyFunction&& ApplyFunction
 )
 {
+	const TArray<uint32>& LayoutHashes = Shader->GetShaderResourceTable().ResourceTableLayoutHashes;
+	const TArray<FUniformBufferStaticSlot>& Slots = Shader->GetStaticSlots();
+
 	checkf(LayoutHashes.Num() == Slots.Num(), TEXT("Shader %s, LayoutHashes %d, Slots %d"),
 		Shader->GetShaderName(), LayoutHashes.Num(), Slots.Num());
 
@@ -79,11 +95,9 @@ template <typename TRHIContext, typename TRHIShader>
 void ApplyStaticUniformBuffers(
 	TRHIContext* CommandContext,
 	TRHIShader* Shader,
-	const TArray<FUniformBufferStaticSlot>& Slots,
-	const TArray<uint32>& LayoutHashes,
 	const TArray<FRHIUniformBuffer*>& UniformBuffers)
 {
-	ApplyStaticUniformBuffers(Shader, Slots, LayoutHashes, UniformBuffers,
+	ApplyStaticUniformBuffers(Shader, UniformBuffers,
 		[CommandContext, Shader](int32 BufferIndex, FRHIUniformBuffer* Buffer)
 		{
 			CommandContext->RHISetShaderUniformBuffer(Shader, BufferIndex, Buffer);
@@ -95,9 +109,10 @@ template<> struct TResourceTypeStr<FRHISamplerState       > { static constexpr T
 template<> struct TResourceTypeStr<FRHITexture            > { static constexpr TCHAR String[] = TEXT("Texture"); };
 template<> struct TResourceTypeStr<FRHIShaderResourceView > { static constexpr TCHAR String[] = TEXT("Shader Resource View"); };
 template<> struct TResourceTypeStr<FRHIUnorderedAccessView> { static constexpr TCHAR String[] = TEXT("Unordered Access View"); };
+template<> struct TResourceTypeStr<FRHIResourceCollection>  { static constexpr TCHAR String[] = TEXT("Resource Collection"); };
 
 template <typename TResourceType, typename TCallback>
-inline void EnumerateUniformBufferResources(FRHIUniformBuffer* RESTRICT Buffer, int32 BufferIndex, const uint32* RESTRICT ResourceMap, TCallback&& Callback)
+inline void EnumerateUniformBufferResources(const FRHIUniformBuffer* RESTRICT Buffer, int32 BufferIndex, const uint32* RESTRICT ResourceMap, TCallback&& Callback)
 {
 	const TRefCountPtr<FRHIResource>* RESTRICT Resources = Buffer->GetResourceTable().GetData();
 
@@ -129,17 +144,42 @@ inline void EnumerateUniformBufferResources(FRHIUniformBuffer* RESTRICT Buffer, 
 	}
 }
 
-template <typename TBinder, typename TUniformBufferArrayType, typename TBitMaskType>
-void SetResourcesFromTables(TBinder&& Binder, FRHIShader const& Shader, FShaderResourceTable const& SRT, TBitMaskType& DirtyUniformBuffers, TUniformBufferArrayType const& BoundUniformBuffers
+template <typename TBinder, typename TUniformBufferArrayType, typename TBitMaskType, bool bFullyBindless = false>
+void SetResourcesFromTables(TBinder&& Binder, FRHIShader const& Shader, TBitMaskType& DirtyUniformBuffers, TUniformBufferArrayType const& BoundUniformBuffers
 #if ENABLE_RHI_VALIDATION
 	, RHIValidation::FTracker* Tracker
 #endif
 )
 {
 	float CurrentTimeForTextureTimes = FApp::GetCurrentTime();
+	FShaderResourceTable const& SRT = Shader.GetShaderResourceTable();
 
 	// Mask the dirty bits by those buffers from which the shader has bound resources.
 	uint32 DirtyBits = SRT.ResourceTableBits & DirtyUniformBuffers;
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING && !ENABLE_RHI_VALIDATION
+	if constexpr (bFullyBindless)
+	{
+		while (DirtyBits)
+		{
+			// Scan for the lowest set bit, compute its index, clear it in the set of dirty bits.
+			const uint32 LowestBitMask = (DirtyBits) & (-(int32)DirtyBits);
+			const int32 BufferIndex = FMath::CountTrailingZeros(LowestBitMask); // todo: This has a branch on zero, we know it could never be zero...
+			DirtyBits ^= LowestBitMask;
+
+			EnumerateUniformBufferResources<FRHITexture>(BoundUniformBuffers[BufferIndex], BufferIndex, SRT.TextureMap.GetData(),
+				[&](FRHITexture* Texture, uint8 Index)
+				{
+					Texture->SetLastRenderTime(CurrentTimeForTextureTimes);
+				});
+		}
+
+		DirtyUniformBuffers = TBitMaskType(0);
+
+		return;
+	}
+#endif
+
 	while (DirtyBits)
 	{
 		// Scan for the lowest set bit, compute its index, clear it in the set of dirty bits.
@@ -204,7 +244,9 @@ void SetResourcesFromTables(TBinder&& Binder, FRHIShader const& Shader, FShaderR
 				{
 					ERHIAccess Access = IsComputeShaderFrequency(Shader.GetFrequency())
 						? ERHIAccess::SRVCompute
-						: ERHIAccess::SRVGraphics;
+						: Shader.GetFrequency() == SF_Pixel
+							? ERHIAccess::SRVGraphicsPixel
+							: ERHIAccess::SRVGraphicsNonPixel;
 
 					// Textures bound here only have their "common" plane accessible. Stencil etc is ignored.
 					// (i.e. only access the color plane of a color texture, or depth plane of a depth texture)
@@ -224,7 +266,9 @@ void SetResourcesFromTables(TBinder&& Binder, FRHIShader const& Shader, FShaderR
 				{
 					ERHIAccess Access = IsComputeShaderFrequency(Shader.GetFrequency())
 						? ERHIAccess::SRVCompute
-						: ERHIAccess::SRVGraphics;
+						: Shader.GetFrequency() == SF_Pixel
+							? ERHIAccess::SRVGraphicsPixel
+							: ERHIAccess::SRVGraphicsNonPixel;
 
 					Tracker->Assert(SRV->GetViewIdentity(), Access);
 				}
@@ -235,6 +279,17 @@ void SetResourcesFromTables(TBinder&& Binder, FRHIShader const& Shader, FShaderR
 #endif
 				Binder.SetSRV(SRV, Index);
 			});
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+		EnumerateUniformBufferResources<FRHIResourceCollection>(Buffer, BufferIndex, SRT.ResourceCollectionMap.GetData(),
+			[&](FRHIResourceCollection* ResourceCollection, uint8 Index)
+			{
+#if ENABLE_RHI_VALIDATION
+				// todo: christopher.waters - ResourceCollection validation
+#endif
+				Binder.SetResourceCollection(ResourceCollection, Index);
+			});
+#endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
 		// Samplers
 		EnumerateUniformBufferResources<FRHISamplerState>(Buffer, BufferIndex, SRT.SamplerMap.GetData(),
@@ -262,6 +317,25 @@ void SetResourcesFromTables(TBinder&& Binder, FRHIShader const& Shader, FShaderR
 	}
 
 	DirtyUniformBuffers = TBitMaskType(0);
+}
+
+
+template <typename TBinder, typename TUniformBufferArrayType, typename TBitMaskType>
+void SetFullyBindlessResourcesFromTables(TBinder&& Binder, const FRHIShader& Shader, TBitMaskType& DirtyUniformBuffers, const TUniformBufferArrayType& BoundUniformBuffers
+#if ENABLE_RHI_VALIDATION
+	, RHIValidation::FTracker* Tracker
+#endif
+)
+{
+	SetResourcesFromTables<TBinder, TUniformBufferArrayType, TBitMaskType, true>(
+		MoveTemp(Binder)
+		, Shader
+		, DirtyUniformBuffers
+		, BoundUniformBuffers
+#if ENABLE_RHI_VALIDATION
+		, Tracker
+#endif
+	);
 }
 
 } //! RHICore

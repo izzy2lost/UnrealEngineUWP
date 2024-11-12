@@ -17,8 +17,7 @@ enum class ESoundwaveSampleRateSettings : uint8
 	High,
 	Medium,
 	Low,
-	Min,
-	MatchDevice_DEPRECATED
+	Min
 };
 
 /************************************************************************/

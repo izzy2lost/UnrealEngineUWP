@@ -135,6 +135,12 @@ public:
 		return Result;
 	}
 
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+	{
+		// concurrent reads won't be cached yet
+		return FileHandle->ReadAt(Destination, BytesToRead, Offset);
+	}
+
 	virtual bool		Write(const uint8* Source, int64 BytesToWrite) override
 	{
 		if (!bWritable || BytesToWrite < 0)
@@ -285,7 +291,9 @@ public:
 #define PLATFORM_PROVIDES_FILE_CACHE 0
 #endif
 		// Default to false on platforms that already do platform file level caching
-		bool bResult = !PLATFORM_PROVIDES_FILE_CACHE && !PLATFORM_WINDOWS && FPlatformProperties::RequiresCookedData();
+		bool bPlatformProvidesFileCache = PLATFORM_PROVIDES_FILE_CACHE;
+		bool bPlatformWindows = PLATFORM_WINDOWS;
+		bool bResult = !bPlatformProvidesFileCache && !bPlatformWindows && FPlatformProperties::RequiresCookedData();
 
 		// Allow a choice between shorter load times or less memory on desktop platforms.
 		// Note: this cannot be in config since they aren't read at that point.

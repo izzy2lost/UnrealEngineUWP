@@ -52,6 +52,9 @@ private:
 	/** Handles selection change in the subjects view. */
 	void OnSubjectSelectionChanged(const FLiveLinkSubjectKey& SubjectKey);
 
+	/** If the source panel should prevent source editing. */
+	bool IsSourcePanelReadOnly() const;
+
 private:
 	/** Holds the livelink panel controller responsible for creating sources and subjects tabs. */
 	TSharedPtr<class FLiveLinkPanelController> PanelController;

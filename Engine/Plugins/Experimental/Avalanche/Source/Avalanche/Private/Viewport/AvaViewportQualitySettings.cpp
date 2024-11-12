@@ -35,7 +35,7 @@ FAvaViewportQualitySettings::FAvaViewportQualitySettings(const FEngineShowFlags&
 			continue;
 		}
 
-		Feature.Enabled = InShowFlags.GetSingleFlag(FeatureIndex);
+		Feature.bEnabled = InShowFlags.GetSingleFlag(FeatureIndex);
 	}
 
 	SortFeaturesByDisplayText();
@@ -48,6 +48,26 @@ FAvaViewportQualitySettings::FAvaViewportQualitySettings(const TArray<FAvaViewpo
 	Features = InFeatures;
 
 	SortFeaturesByDisplayText();
+}
+
+bool FAvaViewportQualitySettings::operator==(const FAvaViewportQualitySettings& InOther) const
+{
+	// All features must exist and match the same value in the other struct to be equal
+	for (const FAvaViewportQualitySettingsFeature& Feature : Features)
+	{
+		const FAvaViewportQualitySettingsFeature* const FoundFeaturePtr = FindFeatureByName(InOther.Features, Feature.Name);
+		if (!FoundFeaturePtr || FoundFeaturePtr->bEnabled != Feature.bEnabled)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool FAvaViewportQualitySettings::operator!=(const FAvaViewportQualitySettings& InOther) const
+{
+	return !(*this == InOther);
 }
 
 TArray<FAvaViewportQualitySettingsFeature> FAvaViewportQualitySettings::DefaultFeatures()
@@ -104,7 +124,7 @@ TArray<FAvaViewportQualitySettingsFeature> FAvaViewportQualitySettings::AllFeatu
 
 	for (FAvaViewportQualitySettingsFeature& Feature : AllDefaultFeatures)
 	{
-		Feature.Enabled = bUseAllFeatures;
+		Feature.bEnabled = bUseAllFeatures;
 	}
 
 	SortFeaturesByDisplayText(AllDefaultFeatures);
@@ -163,7 +183,7 @@ FAvaViewportQualitySettings FAvaViewportQualitySettings::All(const bool bUseAllF
 	FAvaViewportQualitySettings DefaultSettings = Default();
 	for (FAvaViewportQualitySettingsFeature& Feature : DefaultSettings.Features)
 	{
-		Feature.Enabled = bUseAllFeatures;
+		Feature.bEnabled = bUseAllFeatures;
 	}
 	return DefaultSettings;
 }
@@ -177,7 +197,7 @@ void FAvaViewportQualitySettings::Apply(FEngineShowFlags& InFlags)
 		const int32 FeatureIndex = InFlags.FindIndexByName(*Feature.Name);
 		if (FeatureIndex != INDEX_NONE)
 		{
-			InFlags.SetSingleFlag(FeatureIndex, Feature.Enabled);
+			InFlags.SetSingleFlag(FeatureIndex, Feature.bEnabled);
 		}
 	}
 }
@@ -237,12 +257,11 @@ void FAvaViewportQualitySettings::EnableFeaturesByName(const bool bInEnabled, co
 	for (const FString& FeatureName : InFeatureNames)
 	{
 		const FAvaViewportQualitySettingsFeature* DefaultFeature = FindFeatureByName(AllDefaultFeatures, FeatureName);
-		const bool bExistsInDefaults = DefaultFeature != nullptr;
-		if (bExistsInDefaults)
+		if (DefaultFeature)
 		{
 			if (FAvaViewportQualitySettingsFeature* Feature = FindFeatureByName(Features, FeatureName))
 			{
-				Feature->Enabled = bInEnabled;
+				Feature->bEnabled = bInEnabled;
 			}
 		}
 	}
@@ -250,7 +269,15 @@ void FAvaViewportQualitySettings::EnableFeaturesByName(const bool bInEnabled, co
 
 FAvaViewportQualitySettingsFeature* FAvaViewportQualitySettings::FindFeatureByName(TArray<FAvaViewportQualitySettingsFeature>& InFeatures, const FString& InFeatureName)
 {
-	return InFeatures.FindByPredicate([&InFeatureName](const FAvaViewportQualitySettingsFeature& InFeature)
+	return InFeatures.FindByPredicate([&InFeatureName](FAvaViewportQualitySettingsFeature& InFeature)
+		{
+			return InFeature.Name.Equals(InFeatureName);
+		});
+}
+
+const FAvaViewportQualitySettingsFeature* FAvaViewportQualitySettings::FindFeatureByName(const TArray<FAvaViewportQualitySettingsFeature>& InFeatures, const FString& InFeatureName)
+{
+	return InFeatures.FindByPredicate([&InFeatureName](FAvaViewportQualitySettingsFeature& InFeature)
 		{
 			return InFeature.Name.Equals(InFeatureName);
 		});

@@ -10,7 +10,6 @@
 
 #define LOCTEXT_NAMESPACE "AvaFontSearchSettingsMenu"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SAvaFontSearchSettingsMenu::Construct(const FArguments& InArgs)
 {
 	FontSelector = InArgs._AvaFontSelector;
@@ -54,7 +53,6 @@ void SAvaFontSearchSettingsMenu::Construct(const FArguments& InArgs)
 		]
 	];
 }
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 TSharedRef<SWidget> SAvaFontSearchSettingsMenu::CreateSettingsMenu() const
 {

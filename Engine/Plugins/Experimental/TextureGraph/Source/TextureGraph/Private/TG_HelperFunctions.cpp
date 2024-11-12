@@ -10,8 +10,10 @@
 #include "Expressions/Output/TG_Expression_Output.h"
 #include "Expressions/TG_Expression.h"
 #include "Model/Mix/MixManager.h"
-#include "Expressions/TG_Expression.h"
 #include "Transform/Expressions/T_FlatColorTexture.h"
+#include "Logging/MessageLog.h"
+#include "Misc/FileHelper.h"
+#include "TextureGraph.h"
 
 TArray<BlobPtr> FTG_HelperFunctions::GetTexturedOutputs(const UTG_Node* Node, FTG_EvaluationContext* TextureConversionContext /*= nullptr*/)
 
@@ -43,9 +45,11 @@ TArray<BlobPtr> FTG_HelperFunctions::GetTexturedOutputs(const UTG_Node* Node, FT
 					BufferDescriptor DesiredDesc = OutputExpression->Output.EditTexture().GetBufferDescriptor();
 					if (DesiredDesc.Width == 0 || DesiredDesc.Height == 0)
 					{
+						FTG_OutputSettings& OutputSetting = OutputExpression->OutputSettings;
+				
 						DesiredDesc = T_FlatColorTexture::GetFlatColorDesc("Output");
-						DesiredDesc.Width = (uint32)EResolution::Resolution256;
-						DesiredDesc.Height = (uint32)EResolution::Resolution256;
+						DesiredDesc.Width = (uint32)OutputSetting.Width;
+						DesiredDesc.Height = (uint32)OutputSetting.Height;
 					}
 
 					// OutputExpression->Output.EditTexture() =
@@ -90,11 +94,13 @@ void FTG_HelperFunctions::EnsureOutputIsTexture(MixUpdateCyclePtr Cycle, UTG_Nod
 	}
 }
 
-AsyncBool FTG_HelperFunctions::ExportAsync(UTextureGraph* InTextureGraph, FString ExportPath, FString AssetName, FExportSettings& TargetExportSettings, bool OverrideExportPath, bool OverwriteTextures /*= true*/, bool ExportAllOutputs /*= false*/)
+JobBatchPtr FTG_HelperFunctions::InitExportBatch(UTextureGraph* InTextureGraph, FString ExportPath, FString AssetName, FExportSettings& TargetExportSettings,
+	bool OverrideExportPath, bool OverwriteTextures, bool ExportAllOutputs, bool bSave)
 {
 	FString ErrorMessage = "";
+	bool AnyValidExport = false;
 	TargetExportSettings.Reset();
-	
+
 	FInvalidationDetails Details;
 	Details.All();
 	Details.Mix = InTextureGraph;
@@ -103,82 +109,122 @@ AsyncBool FTG_HelperFunctions::ExportAsync(UTextureGraph* InTextureGraph, FStrin
 	/// Update the mix so that the rendering Cycle gets populated
 	MixUpdateCyclePtr Cycle = Batch->GetCycle();
 	InTextureGraph->Update(Cycle);
-	
-	InTextureGraph->Graph()->ForEachNodes([=,&TargetExportSettings](const UTG_Node* Node, uint32 Index)
-	{
-		UTG_Expression_Output* TargetExpression = Cast<UTG_Expression_Output>(Node->GetExpression());
-		if (TargetExpression)
+
+	InTextureGraph->Graph()->ForEachNodes([=,&TargetExportSettings, &ErrorMessage , &AnyValidExport](const UTG_Node* Node, uint32 Index)
 		{
-			FTG_OutputSettings& OutputSetting = TargetExpression->OutputSettings;
-
-			if (OutputSetting.bExport || ExportAllOutputs)
+			UTG_Expression_Output* TargetExpression = Cast<UTG_Expression_Output>(Node->GetExpression());
+			if (TargetExpression)
 			{
-				FTG_EvaluationContext EvaluationContext;
-				EvaluationContext.Cycle = Batch->GetCycle();
+				FTG_OutputSettings& OutputSettings = TargetExpression->OutputSettings;
 
-				auto ExportBlobs = FTG_HelperFunctions::GetTexturedOutputs(Node, &EvaluationContext);
-
-				FString Path = OutputSetting.FolderPath.ToString();
-				if (OverrideExportPath)
+				if (TargetExpression->GetShouldExport() || ExportAllOutputs)
 				{
-					Path = ExportPath;
-				}
+					FTG_EvaluationContext EvaluationContext;
+					EvaluationContext.Cycle = Batch->GetCycle();
 
-				FString Name = AssetName.IsEmpty() ? OutputSetting.GetFullOutputName() : AssetName;
+					auto ExportBlobs = FTG_HelperFunctions::GetTexturedOutputs(Node, &EvaluationContext);
 
-				bool IsNameValid = TextureExporter::IsPackageNameValid(Path, Name);
-
-				bool HasOutputs = ExportBlobs.Num() > 0;
-
-				if (HasOutputs && IsNameValid)
-				{
-					TiledBlobPtr Output = std::static_pointer_cast<TiledBlob>(ExportBlobs[0]);//Dealing with one output per Node for now
-					FExportMapSettings MapSettings = TextureExporter::GetExportSettingsForTarget(TargetExportSettings, std::static_pointer_cast<TiledBlob>(Output), *Name);
-					MapSettings.Name = FName(*Name);
-					MapSettings.Path = Path;
-					MapSettings.UseOverridePath = OverrideExportPath;
-					MapSettings.OverwriteTextures = OverwriteTextures;
-					MapSettings.LODGroup = OutputSetting.LODGroup;
-					MapSettings.Compression = OutputSetting.Compression;
-					MapSettings.IsSRGB = OutputSetting.bSRGB;
-					TargetExportSettings.ExportPreset.push_back(std::pair<FName, FExportMapSettings>{ MapSettings.Name, MapSettings });
-				}
-				else
-				{
-					//Log Error to Error System
-					if (!HasOutputs)
+					FString Path = OutputSettings.FolderPath.ToString();
+					if (OverrideExportPath)
 					{
-						auto ErrorType = static_cast<int32>(ETextureGraphErrorType::UNSUPPORTED_TYPE);
-						TextureGraphEngine::GetErrorReporter(InTextureGraph)->ReportError(ErrorType, FString::Format(TEXT("Texture Export Error : No valid output found for OutputSetting {0}"), { OutputSetting.OutputName.ToString() }), nullptr);
+						Path = ExportPath;
 					}
-					if (!IsNameValid)
+
+					FString FileName = AssetName.IsEmpty() ? OutputSettings.GetFullOutputName() : AssetName;
+
+					FString PathErrors;
+					bool IsPathValid = TextureExporter::IsFilePathValid(FName(*FileName), FName(*Path), PathErrors);
+					bool IsPackageValid = TextureExporter::IsPackageNameValid(Path, FileName);
+					
+					bool HasOutputs = ExportBlobs.Num() > 0;
+
+					if (HasOutputs && IsPathValid && IsPackageValid)
 					{
-						auto ErrorType = static_cast<int32>(ETextureGraphErrorType::UNSUPPORTED_TYPE);
-						TextureGraphEngine::GetErrorReporter(InTextureGraph)->ReportError(ErrorType, FString::Format(TEXT("Texture Export Error : Invalid path set for OutputSetting {0}"), { OutputSetting.OutputName.ToString() }), nullptr);
+						TiledBlobPtr Output = std::static_pointer_cast<TiledBlob>(ExportBlobs[0]);//Dealing with one output per Node for now
+						FExportMapSettings MapSettings = TextureExporter::GetExportSettingsForTarget(TargetExportSettings, std::static_pointer_cast<TiledBlob>(Output), *FileName);
+						MapSettings.Name = FName(*FileName);
+						MapSettings.Path = Path;
+						MapSettings.UseOverridePath = OverrideExportPath;
+						MapSettings.OverwriteTextures = OverwriteTextures;
+						MapSettings.LODGroup = OutputSettings.LODGroup;
+						MapSettings.Compression = OutputSettings.Compression;
+						MapSettings.IsSRGB = OutputSettings.bSRGB;
+						MapSettings.Width = (int32)OutputSettings.Width;
+						MapSettings.Height = (int32)OutputSettings.Height;
+						MapSettings.bSave = bSave;
+						TargetExportSettings.ExportPreset.push_back(std::pair<FName, FExportMapSettings>{ MapSettings.Name, MapSettings });
+						AnyValidExport = true;
+					}
+					else
+					{
+						//Log Error to Error System
+						if (!HasOutputs)
+						{
+							ErrorMessage += FString::Format(TEXT("Texture Export Error : No valid output found for OutputSetting {0}"), { OutputSettings.OutputName.ToString() });
+							ErrorMessage += "\n";
+						}
+						if (!IsPathValid)
+						{
+							ErrorMessage += FString::Format(TEXT("Texture Export Error : {0} OutputSettings Node: {1}"), { PathErrors, OutputSettings.OutputName.ToString() });
+							ErrorMessage += "\n";
+						}
+						if (!IsPackageValid)
+						{
+							FString Error = "Invalid Package name";
+							ErrorMessage += FString::Format(TEXT("Texture Export Error : {0} OutputSettings Node: {1}"), { Error, OutputSettings.OutputName.ToString() });
+							ErrorMessage += "\n";
+						}
 					}
 				}
 			}
+		});
+
+	if (!ErrorMessage.IsEmpty())
+	{
+		ErrorMessage = ErrorMessage.LeftChop(1);
+		auto ErrorType = static_cast<int32>(ETextureGraphErrorType::UNSUPPORTED_TYPE);
+		TextureGraphEngine::GetErrorReporter(InTextureGraph)->ReportError(ErrorType, ErrorMessage, nullptr);
+
+		FMessageLog("PIE").Error()
+			->AddToken(FTextToken::Create(FText::FromString(ErrorMessage)));
+
+		if (!AnyValidExport)
+		{
+			return nullptr;
 		}
-	});
+	}
+
+	return Batch;
+}
+
+AsyncBool FTG_HelperFunctions::ExportAsync(UTextureGraph* InTextureGraph, FString ExportPath, FString AssetName, FExportSettings& TargetExportSettings, bool OverrideExportPath, bool OverwriteTextures /*= true*/, bool ExportAllOutputs /*= false*/,bool bSave /*= true*/)
+{
+	JobBatchPtr Batch = InitExportBatch(InTextureGraph, ExportPath, AssetName, TargetExportSettings, OverrideExportPath, OverwriteTextures, ExportAllOutputs, bSave);
+
+	if (!Batch)
+		return cti::make_ready_continuable<bool>(false);
 
 	return RenderAsync(InTextureGraph, Batch)
-	.then([InTextureGraph, &TargetExportSettings, ExportPath](auto result) 
-	{
-		return TextureExporter::ExportAsUAsset(InTextureGraph, TargetExportSettings, ExportPath);
-	})
-	.then([InTextureGraph, &TargetExportSettings]()
-	{
-		// Add analytics tag
-		if (FEngineAnalytics::IsAvailable())
+		.then([InTextureGraph, &TargetExportSettings, ExportPath](auto result) 
 		{
-			TArray<FAnalyticsEventAttribute> Attributes;
-			Attributes.Add(FAnalyticsEventAttribute(TEXT("NumExports"),  TargetExportSettings.MapsExported));
+			return TextureExporter::ExportAsUAsset(InTextureGraph, TargetExportSettings, ExportPath);
+		})
+		.then([InTextureGraph, &TargetExportSettings]()
+		{
+			InTextureGraph->InvalidateAll();
+
+			// Add analytics tag
+			if (FEngineAnalytics::IsAvailable())
+			{
+				TArray<FAnalyticsEventAttribute> Attributes;
+				Attributes.Add(FAnalyticsEventAttribute(TEXT("NumExports"),  TargetExportSettings.MapsExported));
 					
-			// Send Analytics event 
-			FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.TextureGraph.Export"), Attributes);
-		}
-		return cti::make_ready_continuable(true);
-	});
+				// Send Analytics event 
+				FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.TextureGraph.Export"), Attributes);
+			}
+
+			return true;
+		});
 }
 
 void FTG_HelperFunctions::InitTargets(UTextureGraph* InTextureGraph)
@@ -208,7 +254,7 @@ void FTG_HelperFunctions::InitTargets(UTextureGraph* InTextureGraph)
 	}
 }
 
-AsyncBool FTG_HelperFunctions::RenderAsync(UTextureGraph* InTextureGraph, JobBatchPtr ExistingBatch /* = nullptr */)
+JobBatchPtr FTG_HelperFunctions::InitRenderBatch(UTextureGraph* InTextureGraph, JobBatchPtr ExistingBatch /* = nullptr */)
 {
 	/// Now run the update Cycle
 	JobBatchPtr NewBatch = nullptr;
@@ -222,12 +268,19 @@ AsyncBool FTG_HelperFunctions::RenderAsync(UTextureGraph* InTextureGraph, JobBat
 
 		NewBatch = JobBatch::Create(Details);
 		MixUpdateCyclePtr Cycle = NewBatch->GetCycle();
-		
+
 		/// Update the mix so that the rendering Cycle gets populated
 		InTextureGraph->Update(Cycle);
 
 		Batch = NewBatch;
 	}
+
+	return Batch;
+}
+
+AsyncBool FTG_HelperFunctions::RenderAsync(UTextureGraph* InTextureGraph, JobBatchPtr ExistingBatch /* = nullptr */)
+{
+	JobBatchPtr Batch = InitRenderBatch(InTextureGraph, ExistingBatch);
 
 	if (!Batch)
 	{

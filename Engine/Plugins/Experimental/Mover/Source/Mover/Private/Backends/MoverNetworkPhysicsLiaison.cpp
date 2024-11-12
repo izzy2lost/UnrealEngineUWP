@@ -19,6 +19,12 @@
 #include "PhysicsMover/PhysicsMoverManager.h"
 #include "PhysicsProxy/CharacterGroundConstraintProxy.h"
 
+#if WITH_EDITOR
+#include "Misc/DataValidation.h"
+#endif
+
+#define LOCTEXT_NAMESPACE "Mover"
+
 //////////////////////////////////////////////////////////////////////////
 
 extern FPhysicsDrivenMotionDebugParams GPhysicsDrivenMotionDebugParams;
@@ -124,6 +130,15 @@ void FNetworkPhysicsMoverInputs::ValidateData(const UActorComponent* NetworkComp
 	}
 }
 
+const FString FNetworkPhysicsMoverInputs::DebugData()
+{
+	const FCharacterDefaultInputs Input = InputCmdContext.InputCollection.FindOrAddDataByType<FCharacterDefaultInputs>();
+
+	return FString::Printf(TEXT("FNetworkPhysicsMoverInputs | MoveInput = %s OrientationInput = %s"),
+			*Input.GetMoveInput_WorldSpace().ToString(),
+			*Input.GetOrientationIntentDir_WorldSpace().ToString());
+}
+
 //////////////////////////////////////////////////////////////////////////
 // FNetworkPhysicsMoverState
 
@@ -174,6 +189,16 @@ void FNetworkPhysicsMoverState::InterpolateData(const FNetworkPhysicsData& MinDa
 
 	const float LerpFactor = (LocalFrame - MinState.LocalFrame) / (MaxState.LocalFrame - MinState.LocalFrame);
 	SyncStateContext.Interpolate(&MinState.SyncStateContext, &MaxState.SyncStateContext, LerpFactor);
+}
+
+const FString FNetworkPhysicsMoverState::DebugData()
+{
+	const FMoverDefaultSyncState SyncState = SyncStateContext.SyncStateCollection.FindOrAddDataByType<FMoverDefaultSyncState>();
+
+	return FString::Printf(TEXT("FNetworkPhysicsMoverState | Location = %s Velocity = %s MovementBase = %s"),
+			*SyncState.GetLocation_WorldSpace().ToString(),
+			*SyncState.GetVelocity_WorldSpace().ToString(),
+			*SyncState.GetMovementBase()->GetName());
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -234,12 +259,6 @@ UMoverNetworkPhysicsLiaisonComponent::UMoverNetworkPhysicsLiaisonComponent()
 			MyActor->SetReplicatingMovement(true);
 			MyActor->SetReplicateMovement(true);
 		}
-
-		NetworkPhysicsComponent = CreateDefaultSubobject<UNetworkPhysicsComponent>(TEXT("PhysMover_NetworkPhysicsComponent"));
-		NetworkPhysicsComponent->SetNetAddressable(); // Make DSO components net addressable
-		NetworkPhysicsComponent->SetIsReplicated(true);
-		NetworkPhysicsComponent->RegisterComponent();
-		NetworkPhysicsComponent->InitializeComponent();
 	}
 }
 
@@ -271,6 +290,24 @@ int32 UMoverNetworkPhysicsLiaisonComponent::GetCurrentSimFrame()
 
 	return 0;
 }
+
+#if WITH_EDITOR
+EDataValidationResult UMoverNetworkPhysicsLiaisonComponent::ValidateData(FDataValidationContext& Context, const UMoverComponent& ValidationMoverComp) const
+{
+	if (const AActor* OwnerActor = ValidationMoverComp.GetOwner())
+	{
+		if (!OwnerActor->IsReplicatingMovement())
+		{
+			Context.AddError(FText::Format(LOCTEXT("RequiresReplicateMovementProperty", "The owning actor ({0}) does not have the ReplicateMovement property enabled. This is required for use with Chaos Networked Physics and poor quality movement with occur without it. Please enable it."),
+				FText::FromString(GetNameSafe(OwnerActor))));
+
+			return EDataValidationResult::Invalid;
+		}
+	}
+
+	return EDataValidationResult::Valid;
+}
+#endif // WITH_EDITOR
 
 //////////////////////////////////////////////////////////////////////////
 // UMoverNetworkPhysicsLiaisonComponent UObject interface
@@ -386,10 +423,20 @@ void UMoverNetworkPhysicsLiaisonComponent::InitializeComponent()
 		MoverComp->ModeFSM->SetModeImmediately(MoverComp->StartingMovementMode);
 	}
 
-	// Register network data for recording and rewind/resim
-	if (NetworkPhysicsComponent)
+	if (Chaos::FPhysicsSolverBase::IsNetworkPhysicsPredictionEnabled())
 	{
-		NetworkPhysicsComponent->CreateDataHistory<FNetworkPhysicsMoverTraits>(this);
+		NetworkPhysicsComponent = NewObject<UNetworkPhysicsComponent>(GetOwner(), TEXT("PhysMover_NetworkPhysicsComponent"));
+		if (NetworkPhysicsComponent)
+		{
+			NetworkPhysicsComponent->SetNetAddressable(); // Make DSO components net addressable
+			NetworkPhysicsComponent->SetIsReplicated(true);
+			NetworkPhysicsComponent->RegisterComponent();
+			NetworkPhysicsComponent->InitializeComponent();
+			NetworkPhysicsComponent->Activate(true);
+
+			// Register network data for recording and rewind/resim
+			NetworkPhysicsComponent->CreateDataHistory<FNetworkPhysicsMoverTraits>(this);
+		}
 	}
 }
 
@@ -398,6 +445,7 @@ void UMoverNetworkPhysicsLiaisonComponent::UninitializeComponent()
 	if (NetworkPhysicsComponent)
 	{
 		NetworkPhysicsComponent->RemoveDataHistory();
+		NetworkPhysicsComponent->DestroyComponent();
 	}
 
 	Super::UninitializeComponent();
@@ -633,6 +681,11 @@ void UMoverNetworkPhysicsLiaisonComponent::ProduceInput_External(float DeltaSeco
 		APawn* PawnOwner = Cast<APawn>(GetOwner());
 		bool bProduceInput = PawnOwner ? PawnOwner->IsLocallyControlled() : false;
 
+		if (PawnOwner && !PawnOwner->IsPlayerControlled() && !NetworkPhysicsComponent->GetIsRelayingLocalInputs() && NetworkPhysicsComponent->HasServerWorld())
+		{
+			NetworkPhysicsComponent->SetIsRelayingLocalInputs(true);
+		}
+
 		if (bProduceInput)
 		{
 			if (!bCachedInputIsValid)
@@ -804,7 +857,9 @@ void UMoverNetworkPhysicsLiaisonComponent::ProcessInputs_Internal(int32 PhysicsS
 				// Rollback mover state if on the first resimulation frame
 				if (bLocalPlayer && bIsSolverResim && bIsFirstResimFrame)
 				{
+					FMoverAuxStateContext UnusedInvalidAuxState;
 					FMoverAuxStateContext UnusedAuxState;
+					MoverComp->OnSimulationPreRollback(&NetSyncState, &Input.SyncState, &UnusedInvalidAuxState, &UnusedAuxState);
 					MoverComp->OnSimulationRollback(&Input.SyncState, &UnusedAuxState);
 				}
 			}
@@ -876,13 +931,19 @@ void UMoverNetworkPhysicsLiaisonComponent::OnPreSimulate_Internal(const FPhysics
 			if (Blackboard->TryGet(CommonBlackboard::LastFloorResult, LastFloorResult))
 			{
 				LocalGroundVelocity = UPhysicsMovementUtils::ComputeGroundVelocityFromHitResult(CharacterParticle->GetX(), LastFloorResult.HitResult, TickParams.DeltaTimeSeconds);
-				LocalGroundVelocity -= LocalGroundVelocity.ProjectOnToNormal(LastFloorResult.HitResult.ImpactNormal);
 			}
 		}
 	}
 
+	// Add AI Move if it exists
+	FVector AIMoveVelocity = FVector::ZeroVector;
+	if (const FMoverAIInputs* MoverAIInputs = Input.InputCmd.InputCollection.FindDataByType<FMoverAIInputs>())
+	{
+		AIMoveVelocity = MoverAIInputs->RVOVelocityDelta;
+	}
+
 	FMoverDefaultSyncState& SyncState = Input.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
-	SyncState.SetTransforms_WorldSpace(CharacterParticle->GetX(), FRotator(CharacterParticle->GetR()), CharacterParticle->GetV() - LocalGroundVelocity);
+	SyncState.SetTransforms_WorldSpace(CharacterParticle->GetX(), FRotator(CharacterParticle->GetR()), CharacterParticle->GetV() - LocalGroundVelocity + AIMoveVelocity);
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Update the simulation
@@ -1091,3 +1152,5 @@ void UMoverNetworkPhysicsLiaisonComponent::OnContactModification_Internal(const 
 		}
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

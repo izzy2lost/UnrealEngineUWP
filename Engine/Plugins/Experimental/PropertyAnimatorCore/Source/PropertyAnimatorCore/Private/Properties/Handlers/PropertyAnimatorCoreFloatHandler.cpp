@@ -4,6 +4,11 @@
 
 bool UPropertyAnimatorCoreFloatHandler::IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData) const
 {
+	if (InPropertyData.GetMemberPropertyTypeName() == NAME_Rotator)
+	{
+		return false;	
+	}
+	
 	if (InPropertyData.IsA<FFloatProperty>())
 	{
 		return true;

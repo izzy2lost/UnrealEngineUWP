@@ -2,6 +2,7 @@
 
 using UnrealBuildTool;
 using System;
+using EpicGames.Core;
 
 public class RHI : ModuleRules
 {
@@ -11,21 +12,22 @@ public class RHI : ModuleRules
 		PrivateDependencyModuleNames.Add("TraceLog");
 		PrivateDependencyModuleNames.Add("ApplicationCore");
 
+		// @todo - new gpu profiler. This is experimental.
+		PublicDefinitions.Add("RHI_NEW_GPU_PROFILER=0");
+
+		PublicDefinitions.AddDefinition("WITH_MGPU", Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) && Target.Platform.IsInGroup(UnrealPlatformGroup.Desktop));
+
 		if (Target.bCompileAgainstEngine)
 		{
 			DynamicallyLoadedModuleNames.Add("NullDrv");
 
 			if (Target.Type != TargetRules.TargetType.Server)   // Dedicated servers should skip loading everything but NullDrv
 			{
-				if (Target.Platform.IsInGroup(UnrealPlatformGroup.Desktop))
-                {
-					PublicDefinitions.Add("RHI_WANT_BREADCRUMB_EVENTS=1");
-				}
-
-				if (Target.Configuration != UnrealTargetConfiguration.Shipping && Target.Configuration != UnrealTargetConfiguration.Test)
-                {
+				// Always disable for Shipping builds. Disable by default in Test builds but allow the target to force enable it.
+				if (Target.Configuration != UnrealTargetConfiguration.Shipping && (Target.Configuration != UnrealTargetConfiguration.Test || Target.bTrackRHIResourceInfoForTest))
+				{
 					PublicDefinitions.Add("RHI_WANT_RESOURCE_INFO=1");
-                }
+				}
 
 				// UEBuildAndroid.cs adds VulkanRHI for Android builds if it is enabled
 				if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))

@@ -3,18 +3,16 @@
 #include "Customizations/DMXLibraryDetails.h"
 
 #include "DMXEditorStyle.h"
+#include "DMXSubsystem.h"
 #include "Library/DMXLibrary.h"
-
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
-#include "EditorFontGlyphs.h"
 #include "ISettingsModule.h"
 #include "Modules/ModuleManager.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
-
 
 #define LOCTEXT_NAMESPACE "DMXLibraryDetails"
 
@@ -71,6 +69,13 @@ void FDMXLibraryDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 	DetailCategoryBuilder
 		.AddProperty(PortReferencesHandle.ToSharedRef())
 		.ShouldAutoExpand(true);
+
+	PortReferencesHandle->SetOnChildPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXLibraryDetails::OnPortReferencesChanged));
+}
+
+void FDMXLibraryDetails::OnPortReferencesChanged()
+{
+	UDMXSubsystem::ClearDMXBuffers();
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -10,7 +10,6 @@
 #include "CurveKeyEditors/SequencerKeyEditor.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Styling/AppStyle.h"
-#include "CurveKeyEditors/SequencerKeyEditor.h"
 #include "NumericPropertyParams.h"
 
 #define LOCTEXT_NAMESPACE "NumericKeyEditor"
@@ -32,23 +31,32 @@ struct SNonThrottledSpinBox : SSpinBox<T>
 /**
  * A widget for editing a curve representing integer keys.
  */
-template<typename ChannelType, typename NumericType>
-class SNumericKeyEditor : public SCompoundWidget
+template<typename NumericType>
+class SNumericKeyEditorWidget : public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SNumericKeyEditor){}
+	SLATE_BEGIN_ARGS(SNumericKeyEditorWidget){}
 	SLATE_END_ARGS()
 
+	template<typename ChannelType>
 	void Construct(const FArguments& InArgs, const TSequencerKeyEditor<ChannelType, NumericType>& InKeyEditor)
+	{
+		TSharedRef<TSequencerKeyEditorWrapper<ChannelType, NumericType>> KeyEditorWrapper =
+			MakeShared<TSequencerKeyEditorWrapper<ChannelType, NumericType>>(InKeyEditor);
+
+		Construct(InArgs, KeyEditorWrapper);
+	}
+
+	void Construct(const FArguments& InArgs, const TSharedRef<ISequencerKeyEditor<NumericType>>& InKeyEditor)
 	{
 		KeyEditor = InKeyEditor;
 
 		const FProperty* Property = nullptr;
-		ISequencer* Sequencer = InKeyEditor.GetSequencer();
-		FTrackInstancePropertyBindings* PropertyBindings = InKeyEditor.GetPropertyBindings();
+		ISequencer* Sequencer = InKeyEditor->GetSequencer();
+		FTrackInstancePropertyBindings* PropertyBindings = InKeyEditor->GetPropertyBindings();
 		if (Sequencer && PropertyBindings)
 		{
-			for (TWeakObjectPtr<> WeakObject : Sequencer->FindBoundObjects(InKeyEditor.GetObjectBindingID(), Sequencer->GetFocusedTemplateID()))
+			for (TWeakObjectPtr<> WeakObject : Sequencer->FindBoundObjects(InKeyEditor->GetObjectBindingID(), Sequencer->GetFocusedTemplateID()))
 			{
 				if (UObject* Object = WeakObject.Get())
 				{
@@ -63,7 +71,7 @@ public:
 
 		const typename TNumericPropertyParams<NumericType>::FMetaDataGetter MetaDataGetter = TNumericPropertyParams<NumericType>::FMetaDataGetter::CreateLambda([&](const FName& Key)
 		{
-			return InKeyEditor.GetMetaData(Key);
+			return InKeyEditor->GetMetaData(Key);
 		});
 
 		TNumericPropertyParams<NumericType> NumericPropertyParams(Property, MetaDataGetter);
@@ -75,6 +83,7 @@ public:
 			.Font(FAppStyle::GetFontStyle("Sequencer.AnimationOutliner.RegularFont"))
 			.MinValue(NumericPropertyParams.MinValue)
 			.MaxValue(NumericPropertyParams.MaxValue)
+			.TypeInterface(InKeyEditor->GetNumericTypeInterface())
 			.MinSliderValue(NumericPropertyParams.MinSliderValue)
 			.MaxSliderValue(NumericPropertyParams.MaxSliderValue)
 			.SliderExponent(NumericPropertyParams.SliderExponent)
@@ -82,15 +91,27 @@ public:
 			// LinearDeltaSensitivity needs to be left unset if not provided, rather than being set to some default
 			.LinearDeltaSensitivity(NumericPropertyParams.GetLinearDeltaSensitivityAttribute())
 			.WheelStep(NumericPropertyParams.WheelStep)
-			.Value_Raw(&KeyEditor, &decltype(KeyEditor)::GetCurrentValue)
-			.OnValueChanged(this, &SNumericKeyEditor::OnValueChanged)
-			.OnValueCommitted(this, &SNumericKeyEditor::OnValueCommitted)
-			.OnBeginSliderMovement(this, &SNumericKeyEditor::OnBeginSliderMovement)
-			.OnEndSliderMovement(this, &SNumericKeyEditor::OnEndSliderMovement)
+			.Value_Raw(KeyEditor.Get(), &ISequencerKeyEditor<NumericType>::GetCurrentValue)
+			.OnValueChanged(this, &SNumericKeyEditorWidget::OnValueChanged)
+			.OnValueCommitted(this, &SNumericKeyEditorWidget::OnValueCommitted)
+			.OnBeginSliderMovement(this, &SNumericKeyEditorWidget::OnBeginSliderMovement)
+			.OnEndSliderMovement(this, &SNumericKeyEditorWidget::OnEndSliderMovement)
 		];
 	}
 
 private:
+
+	virtual FSlateColor GetForegroundColor() const override
+	{
+		if (KeyEditor->GetEditingKeySelection())
+		{
+			return FLinearColor::Yellow;
+		}
+		else
+		{
+			return FSlateColor::UseForeground();
+		}
+	}
 
 	void OnBeginSliderMovement()
 	{
@@ -101,14 +122,18 @@ private:
 	{
 		if (GEditor->IsTransactionActive())
 		{
-			KeyEditor.SetValue(Value);
+			KeyEditor->SetValue(Value);
 			GEditor->EndTransaction();
 		}
 	}
 
 	void OnValueChanged(NumericType Value)
 	{
-		KeyEditor.SetValueWithNotify(Value, EMovieSceneDataChangeType::TrackValueChanged);
+		if (!bCommitted)
+		{
+			KeyEditor->SetValueWithNotify(Value, EMovieSceneDataChangeType::TrackValueChanged);
+		}
+		bCommitted = false;
 	}
 
 	void OnValueCommitted(NumericType Value, ETextCommit::Type CommitInfo)
@@ -116,13 +141,18 @@ private:
 		if (CommitInfo == ETextCommit::OnEnter)
 		{
 			const FScopedTransaction Transaction( LOCTEXT("SetNumericKey", "Set Key Value") );
-			KeyEditor.SetValueWithNotify(Value, EMovieSceneDataChangeType::TrackValueChangedRefreshImmediately);
+			KeyEditor->SetValueWithNotify(Value, EMovieSceneDataChangeType::TrackValueChangedRefreshImmediately);
+			bCommitted = true;
 		}
 	}
 
 private:
 
-	TSequencerKeyEditor<ChannelType, NumericType> KeyEditor;
+	TSharedPtr<ISequencerKeyEditor<NumericType>> KeyEditor;
+	bool bCommitted = false;
 };
+
+template<typename ChannelType, typename NumericType>
+using SNumericKeyEditor = SNumericKeyEditorWidget<NumericType>;
 
 #undef LOCTEXT_NAMESPACE

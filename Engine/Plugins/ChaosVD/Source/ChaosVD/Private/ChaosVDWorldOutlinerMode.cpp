@@ -5,13 +5,24 @@
 #include "ActorTreeItem.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDParticleActor.h"
+#include "ChaosVDPlaybackController.h"
 #include "ChaosVDScene.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
 
-static FAutoConsoleVariable CVarChaosVDQueueAndCombineSceneOutlinerEvents(
+namespace Chaos::VisualDebugger::Cvars
+{
+static bool bQueueAndCombineSceneOutlinerEvent = true;
+static FAutoConsoleVariableRef CVarChaosVDQueueAndCombineSceneOutlinerEvents(
 	TEXT("p.Chaos.VD.Tool.QueueAndCombineSceneOutlinerEvents"),
-	true,
+	bQueueAndCombineSceneOutlinerEvent,
 	TEXT("If set to true, scene outliner events will be queued and sent once per frame. If there was a unprocessed event for an item, the las queued event will replace it"));
+
+static bool bPurgeInvalidOutlinerItemsBeforeBroadcast = true;
+static FAutoConsoleVariableRef CVarChaosVDPurgeInvalidOutlinerItemsBeforeBroadcast(
+	TEXT("p.Chaos.VD.Tool.PurgeInvalidOutlinerItemsBeforeBroadcast"),
+	bPurgeInvalidOutlinerItemsBeforeBroadcast,
+	TEXT("If set to true, scene outliner events will evaluated and any invalid outliner event in them will be removed before broadcasting the hierarchy change."));
+}
 
 const FSceneOutlinerTreeItemType FChaosVDActorTreeItem::Type(&FActorTreeItem::Type);
 
@@ -89,6 +100,22 @@ void FChaosVDActorTreeItem::OnVisibilityChanged(const bool bNewVisibility)
 	}
 }
 
+void FChaosVDActorTreeItem::UpdateDisplayString()
+{
+	if (AChaosVDParticleActor* CVDActor = Cast<AChaosVDParticleActor>(Actor.Get()))
+	{
+		if (TSharedPtr<const FChaosVDParticleDataWrapper> ParticleData = CVDActor->GetParticleData())
+		{
+			const bool bHasDebugName = !ParticleData->DebugName.IsEmpty();
+			DisplayString = bHasDebugName ? ParticleData->DebugName : TEXT("Unnamed Particle - ID : ") + FString::FromInt(ParticleData->ParticleIndex);
+		}
+	}
+	else
+	{
+		FActorTreeItem::UpdateDisplayString();
+	}
+}
+
 TUniquePtr<FChaosVDOutlinerHierarchy> FChaosVDOutlinerHierarchy::Create(ISceneOutlinerMode* Mode, const TWeakObjectPtr<UWorld>& World)
 {
 	FChaosVDOutlinerHierarchy* Hierarchy = new FChaosVDOutlinerHierarchy(Mode, World);
@@ -104,9 +131,10 @@ FSceneOutlinerTreeItemPtr FChaosVDOutlinerHierarchy::CreateItemForActor(AActor* 
 	return Mode->CreateItemFor<FChaosVDActorTreeItem>(InActor, bForce);
 }
 
-FChaosVDWorldOutlinerMode::FChaosVDWorldOutlinerMode(const FActorModeParams& InModeParams, TWeakPtr<FChaosVDScene> InScene)
+FChaosVDWorldOutlinerMode::FChaosVDWorldOutlinerMode(const FActorModeParams& InModeParams, TWeakPtr<FChaosVDScene> InScene, TWeakPtr<FChaosVDPlaybackController> InPlaybackController)
 	: FActorMode(InModeParams),
-	CVDScene(InScene)
+	CVDScene(InScene),
+	PlaybackController(InPlaybackController)
 {
 	TSharedPtr<FChaosVDScene> ScenePtr = CVDScene.Pin();
 	if (!ensure(ScenePtr.IsValid()))
@@ -115,24 +143,27 @@ FChaosVDWorldOutlinerMode::FChaosVDWorldOutlinerMode(const FActorModeParams& InM
 	}
 
 	ScenePtr->OnActorActiveStateChanged().AddRaw(this, &FChaosVDWorldOutlinerMode::HandleActorActiveStateChanged);
+	ScenePtr->OnActorLabelChanged().AddRaw(this, &FChaosVDWorldOutlinerMode::HandleActorLabelChanged);
 
 	RegisterSelectionSetObject(ScenePtr->GetElementSelectionSet());
-
-	ActorLabelChangedDelegateHandle = FCoreDelegates::OnActorLabelChanged.AddRaw(this, &FChaosVDWorldOutlinerMode::HandleActorLabelChanged);
 }
 
 FChaosVDWorldOutlinerMode::~FChaosVDWorldOutlinerMode()
 {
-	FCoreDelegates::OnActorLabelChanged.Remove(ActorLabelChangedDelegateHandle);
-
 	if (TSharedPtr<FChaosVDScene> ScenePtr = CVDScene.Pin())
 	{
 		ScenePtr->OnActorActiveStateChanged().RemoveAll(this);
+		ScenePtr->OnActorLabelChanged().RemoveAll(this);
 	}
 }
 
 void FChaosVDWorldOutlinerMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr Item, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection)
 {
+	if (SelectionType == ESelectInfo::Direct)
+	{
+		return;
+	}
+
 	TSharedPtr<FChaosVDScene> ScenePtr = CVDScene.Pin();
 	if (!ScenePtr.IsValid())
 	{
@@ -165,19 +196,46 @@ void FChaosVDWorldOutlinerMode::OnItemDoubleClick(FSceneOutlinerTreeItemPtr Item
 	{
 		if (AActor* Actor = ActorItem->Actor.Get())
 		{
-			ScenePtr->OnObjectFocused().Broadcast(Actor);
+			ScenePtr->OnFocusRequest().Broadcast(Actor->GetComponentsBoundingBox(false));
 		}
 	}
 }
 
 void FChaosVDWorldOutlinerMode::ProcessPendingHierarchyEvents()
 {
-	for (const TPair<FSceneOutlinerTreeItemID, FSceneOutlinerHierarchyChangedData>& PendingEvent : PendingOutlinerEventsMap)
-	{
-		Hierarchy->OnHierarchyChanged().Broadcast(PendingEvent.Value);
-	}
+	const double StartTimeSeconds = FPlatformTime::Seconds();
+	double CurrentTimeSpentSeconds = 0.0;
+	int32 CurrentEventProcessedNum = 0;
 
-	PendingOutlinerEventsMap.Reset();
+	constexpr double MaxUpdateBudgetSeconds = 0.002;
+
+	for (TMap<FSceneOutlinerTreeItemID, FSceneOutlinerHierarchyChangedData>::TIterator RemoveIterator = PendingOutlinerEventsMap.CreateIterator(); RemoveIterator; ++RemoveIterator)
+	{
+		if (CurrentTimeSpentSeconds > MaxUpdateBudgetSeconds)
+		{
+			return;
+		}
+
+		// Only check the budget every 5 tasks as Getting the current time is a syscall and it is not free
+		if (CurrentEventProcessedNum % 5 == 0)
+		{
+			CurrentTimeSpentSeconds += FPlatformTime::Seconds() - StartTimeSeconds;
+		}
+
+		FSceneOutlinerHierarchyChangedData& HierarchyChangedData = RemoveIterator->Value;
+
+		if (Chaos::VisualDebugger::Cvars::bPurgeInvalidOutlinerItemsBeforeBroadcast && HierarchyChangedData.Type == FSceneOutlinerHierarchyChangedData::Added)
+		{ 
+			HierarchyChangedData.Items.RemoveAllSwap([](const FSceneOutlinerTreeItemPtr& SceneOutlinerItemPtr)
+			{
+				return !SceneOutlinerItemPtr || !SceneOutlinerItemPtr->IsValid();
+			});
+		}
+
+		Hierarchy->OnHierarchyChanged().Broadcast(HierarchyChangedData);
+		RemoveIterator.RemoveCurrent();
+		CurrentEventProcessedNum++;
+	}
 }
 
 bool FChaosVDWorldOutlinerMode::Tick(float DeltaTime)
@@ -199,6 +257,25 @@ TUniquePtr<ISceneOutlinerHierarchy> FChaosVDWorldOutlinerMode::CreateHierarchy()
 	return ActorHierarchy;
 }
 
+bool FChaosVDWorldOutlinerMode::CanInteract(const ISceneOutlinerTreeItem& Item) const
+{
+	// This option is not supported in CVD yet
+	ensure(!bCanInteractWithSelectableActorsOnly);
+
+	return true;
+}
+
+bool FChaosVDWorldOutlinerMode::CanPopulate() const
+{
+	if (TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
+	{
+		// Updating the scene outliner during playback it is very expensive and can tank framerate,
+		// as it need to re-build the hierarchy when things are added in ad removed. So if we are playing we want to pause any updates to the outliner
+		return !PlaybackControllerPtr->IsPlaying();
+	}
+	return true;
+}
+
 void FChaosVDWorldOutlinerMode::EnqueueAndCombineHierarchyEvent(const FSceneOutlinerTreeItemID& ItemID, const FSceneOutlinerHierarchyChangedData& EnventToProcess)
 {
 	if (FSceneOutlinerHierarchyChangedData* EventData = PendingOutlinerEventsMap.Find(ItemID))
@@ -210,7 +287,7 @@ void FChaosVDWorldOutlinerMode::EnqueueAndCombineHierarchyEvent(const FSceneOutl
 		PendingOutlinerEventsMap.Add(ItemID, EnventToProcess);
 	}	
 }
-void FChaosVDWorldOutlinerMode::HandleActorLabelChanged(AActor* ChangedActor)
+void FChaosVDWorldOutlinerMode::HandleActorLabelChanged(AChaosVDParticleActor* ChangedActor)
 {
 	if (!ensure(ChangedActor))
 	{
@@ -253,7 +330,7 @@ void FChaosVDWorldOutlinerMode::HandleActorActiveStateChanged(AChaosVDParticleAc
 		// (UE-193877). As our current use case is fairly simple, as a workaround we can just queue the events and process them once per frame
 		// Only taking into account only the last requested event for each item.
 		// Keeping this behind a cvar enabled by default so when the Scene Outliner bug is fixed, we can test it easily.
-		if (CVarChaosVDQueueAndCombineSceneOutlinerEvents->GetBool())
+		if (Chaos::VisualDebugger::Cvars::bQueueAndCombineSceneOutlinerEvent)
 		{
 			EnqueueAndCombineHierarchyEvent(ChangedActor, EventData);
 		}
@@ -277,7 +354,7 @@ void FChaosVDWorldOutlinerMode::HandlePostSelectionChange(const UTypedElementSel
 		if (FSceneOutlinerTreeItemPtr TreeItem = SceneOutliner->GetTreeItem(SelectedActor, false))
 		{
 			SceneOutliner->ScrollItemIntoView(TreeItem);
-			SceneOutliner->SetItemSelection(TreeItem, true, ESelectInfo::OnMouseClick);
+			SceneOutliner->SetItemSelection(TreeItem, true, ESelectInfo::Direct);
 		}
 		else
 		{

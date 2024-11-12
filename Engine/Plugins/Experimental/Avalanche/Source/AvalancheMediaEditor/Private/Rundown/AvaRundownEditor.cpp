@@ -24,8 +24,6 @@
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPagePlayer.h"
 #include "Rundown/AvaRundownPlaybackUtils.h"
-#include "Rundown/Factories/Filters/AvaRundownFactoriesUtils.h"
-#include "Rundown/Filters/AvaRundownPageTextFilter.h"
 #include "Rundown/Pages/PageViews/IAvaRundownPageView.h"
 #include "Rundown/Pages/Slate/SAvaRundownPageList.h"
 #include "ScopedTransaction.h"
@@ -183,8 +181,6 @@ private:
 };
 
 FAvaRundownEditor::FAvaRundownEditor()
-	: TextFilterTemplatePage(MakeShared<FAvaRundownPageTextFilter>())
-	, TextFilterInstancedPage(MakeShared<FAvaRundownPageTextFilter>())
 {}
 
 FAvaRundownEditor::~FAvaRundownEditor()
@@ -194,12 +190,17 @@ FAvaRundownEditor::~FAvaRundownEditor()
 	if (IsValid(Rundown))
 	{
 		Rundown->GetOnActiveListChanged().RemoveAll(this);
+		Rundown->GetOnPageListChanged().RemoveAll(this);
 		Rundown->GetOnPagePlayerAdded().RemoveAll(this);
-		
-		const bool bStopPages = bStopPagesOnCloseOverride.IsSet() ?
-			bStopPagesOnCloseOverride.GetValue() : UE::AvaRundownEditor::Private::ShouldStopPagesOnClose();
+		Rundown->GetOnCanClosePlaybackContext().RemoveAll(this);
 
-		Rundown->ClosePlaybackContext(bStopPages);
+		if (Rundown->CanClosePlaybackContext())
+		{
+			const bool bStopPages = bStopPagesOnCloseOverride.IsSet() ?
+				bStopPagesOnCloseOverride.GetValue() : UE::AvaRundownEditor::Private::ShouldStopPagesOnClose();
+
+			Rundown->ClosePlaybackContext(bStopPages);
+		}
 	}
 
 	if (InputProcessor.IsValid() && FSlateApplication::IsInitialized())
@@ -229,18 +230,14 @@ void FAvaRundownEditor::InitRundownEditor(const EToolkitMode::Type InMode
 
 	AvaRundown = InRundown;
 
-	InitVisibilityTemplatePages();
-	InitVisibilityInstancedPages();
-
-	TextFilterTemplatePage->OnChanged().AddSP(this, &FAvaRundownEditor::OnTemplateFilterChanged);
-	TextFilterInstancedPage->OnChanged().AddSP(this, &FAvaRundownEditor::OnInstancedFilterChanged);
-
 	CreateRundownCommands();
 
 	if (IsValid(InRundown))
 	{
-		InRundown->GetOnActiveListChanged().AddSP(this, &FAvaRundownEditor::OnActiveSubListChanged);
+		InRundown->GetOnActiveListChanged().AddSP(this, &FAvaRundownEditor::OnActiveListChanged);
+		InRundown->GetOnPageListChanged().AddSP(this, &FAvaRundownEditor::OnPageListChanged);
 		InRundown->GetOnPagePlayerAdded().AddSP(this, &FAvaRundownEditor::HandleOnPagePlayerAdded);
+		InRundown->GetOnCanClosePlaybackContext().AddSP(this, &FAvaRundownEditor::OnCanClosePlaybackContext);
 		InRundown->InitializePlaybackContext();
 	}
 
@@ -258,8 +255,6 @@ void FAvaRundownEditor::InitRundownEditor(const EToolkitMode::Type InMode
 
 	RegisterApplicationModes();
 	FSharedConsoleCommands::RegisterEditor(SharedThis(this));
-
-	CreateSubListTabs();
 }
 
 bool FAvaRundownEditor::IsKeyRelevant(const FKeyEvent& InKeyEvent) const
@@ -332,7 +327,7 @@ TSharedPtr<SAvaRundownPageList> FAvaRundownEditor::GetListWidget(const FAvaRundo
 		return GetListWidget(FAvaRundownInstancedPageListTabFactory::TabID);
 	}
 
-	return GetListWidget(FAvaRundownSubListDocumentTabFactory::GetTabId(InPageListReference.SubListIndex));
+	return GetListWidget(FAvaRundownSubListDocumentTabFactory::GetTabId(InPageListReference));
 }
 
 TSharedPtr<SAvaRundownPageList> FAvaRundownEditor::GetListWidget(const FName& InTabId) const
@@ -381,7 +376,7 @@ TSharedPtr<SAvaRundownInstancedPageList> FAvaRundownEditor::GetActiveListWidget(
 	}
 	else if (ActiveList.Type == EAvaRundownPageListType::View)
 	{
-		PageList = GetListWidget(FAvaRundownSubListDocumentTabFactory::GetTabId(ActiveList.SubListIndex));
+		PageList = GetListWidget(FAvaRundownSubListDocumentTabFactory::GetTabId(ActiveList));
 	}
 
 	if (PageList.IsValid() && PageList->GetWidgetClass().GetWidgetType() == SAvaRundownInstancedPageList::StaticWidgetClass().GetWidgetType())
@@ -450,13 +445,11 @@ TConstArrayView<int32> FAvaRundownEditor::GetSelectedPagesOnFocusedWidget() cons
 
 bool FAvaRundownEditor::CanAddTemplate() const
 {
-	UAvaRundown* Rundown = AvaRundown.Get();
-
+	const UAvaRundown* Rundown = AvaRundown.Get();
 	if (IsValid(Rundown))
 	{
 		return Rundown->CanAddPage();
 	}
-
 	return false;
 }
 
@@ -756,7 +749,7 @@ void FAvaRundownEditor::CreateInstancesFromSelectedTemplates()
 
 		if (PageListWidget.IsValid() && PageListWidget->GetPageListReference().Type == EAvaRundownPageListType::View)
 		{
-			Rundown->AddPagesToSubList(PageListWidget->GetPageListReference().SubListIndex, AddedPages);
+			Rundown->AddPagesToSubList(PageListWidget->GetPageListReference(), AddedPages);
 		}
 	}
 	else
@@ -804,64 +797,37 @@ void FAvaRundownEditor::RemoveSelectedPages()
 	}
 }
 
-void FAvaRundownEditor::RefreshTemplateVisibility()
+void FAvaRundownEditor::RefreshSubListTabs()
 {
-	VisibleTemplatePageIds.Reset();
-
-	if (AvaRundown.IsValid())
+	const UAvaRundown* Rundown = AvaRundown.Get();
+	if (IsValid(Rundown))
 	{
-		for (const FAvaRundownPage& Page : AvaRundown->GetTemplatePages().Pages)
+		for (const FAvaRundownSubList& SubList : Rundown->GetSubLists())
 		{
-			TextFilterTemplatePage->SetItem(Page, AvaRundown.Get(), EAvaRundownSearchListType::Template);
-			if (TextFilterTemplatePage->PassesFilter(Page))
-			{
-				VisibleTemplatePageIds.Add(Page.GetPageId());
-			}
+			RefreshSubListTab(UAvaRundown::CreateSubListReference(SubList), /*bInSetActive*/false);
 		}
 	}
 }
 
-void FAvaRundownEditor::RefreshInstancedVisibility()
+bool FAvaRundownEditor::RequestCloseDocumentTab(const FName& InDocumentTabId)
 {
-	VisibleInstancedPageIds.Reset();
-
-	if (AvaRundown.IsValid())
+	if (TabManager)
 	{
-		for (const FAvaRundownPage& Page : AvaRundown->GetInstancedPages().Pages)
+		if (const TSharedPtr<SDockTab> DocumentTab = TabManager->FindExistingLiveTab(InDocumentTabId))
 		{
-			TextFilterInstancedPage->SetItem(Page, AvaRundown.Get(), EAvaRundownSearchListType::Instanced);
-			if (TextFilterInstancedPage->PassesFilter(Page))
-			{
-				VisibleInstancedPageIds.Add(Page.GetPageId());
-			}
+			return DocumentTab->RequestCloseTab();
 		}
 	}
+	return false;
 }
 
-bool FAvaRundownEditor::IsTemplatePageVisible(const FAvaRundownPage& InPage) const
+void FAvaRundownEditor::UnregisterDocumentTabFactory(const FName& InDocumentTabId)
 {
-	return VisibleTemplatePageIds.Contains(InPage.GetPageId());
-}
-
-bool FAvaRundownEditor::IsInstancedPageVisible(const FAvaRundownPage& InPage) const
-{
-	return VisibleInstancedPageIds.Contains(InPage.GetPageId());
-}
-
-void FAvaRundownEditor::SetSearchText(const FText& InText, EAvaRundownSearchListType& InPageListType)
-{
-	switch (InPageListType)
+	const TSharedPtr<FApplicationMode> AppMode = GetCurrentModePtr();
+	if (AppMode.IsValid())
 	{
-	case EAvaRundownSearchListType::Template:
-		SetTemplateSearchText(InText);
-		break;
-	case EAvaRundownSearchListType::Instanced:
-		SetInstancedSearchText(InText);
-		break;
-
-	case EAvaRundownSearchListType::None:
-	default:
-		break;
+		const TSharedRef<FAvaRundownAppMode> RundownAppMode = StaticCastSharedRef<FAvaRundownAppMode>(AppMode.ToSharedRef());
+		RundownAppMode->UnregisterDocumentTabFactory(InDocumentTabId, TabManager);
 	}
 }
 
@@ -978,44 +944,38 @@ UAvaRundown* FAvaRundownEditor::GetRundown() const
 	return AvaRundown.Get();
 }
 
-void FAvaRundownEditor::MarkAsModified()
+void FAvaRundownEditor::BeginModify()
 {
 	if (AvaRundown.IsValid())
 	{
-		AvaRundown->Modify();
+		AvaRundown->Modify(/*bAlwaysMarkDirty*/false);
 	}
 }
 
-void FAvaRundownEditor::OnActiveSubListChanged()
+void FAvaRundownEditor::MarkAsModified()
 {
-	UAvaRundown* Rundown = AvaRundown.Get();
+	if (AvaRundown.IsValid() && AvaRundown->CanModify())
+	{
+		AvaRundown->MarkPackageDirty();
+	}
+}
 
+void FAvaRundownEditor::OnPageListChanged(const FAvaRundownPageListChangeParams& InParams)
+{
+	// Undo Support - Create missing Page View Tabs.
+	RefreshSubListTab(InParams.PageListReference);
+}
+
+void FAvaRundownEditor::OnActiveListChanged()
+{
+	const UAvaRundown* Rundown = AvaRundown.Get();
 	if (!IsValid(Rundown))
 	{
 		return;
 	}
 
 	const FAvaRundownPageListReference& ActiveList = Rundown->GetActivePageListReference();
-
-	if (ActiveList.Type != EAvaRundownPageListType::View)
-	{
-		return;
-	}
-
-	const FName TabId = FAvaRundownSubListDocumentTabFactory::GetTabId(ActiveList.SubListIndex);
-
-	TSharedPtr<SDockTab> SubListTab = TabManager->FindExistingLiveTab(TabId);
-
-	if (!SubListTab.IsValid())
-	{
-		SubListTab = CreateSubListTab(ActiveList.SubListIndex);
-	}
-
-	if (SubListTab.IsValid())
-	{
-		SubListTab->ActivateInParent(ETabActivationCause::SetDirectly);
-		SubListTab->DrawAttention();
-	}
+	RefreshSubListTab(ActiveList, /*bInSetActive*/true);
 }
 
 void FAvaRundownEditor::HandleOnPagePlayerAdded(UAvaRundown* InRundown, UAvaRundownPagePlayer* InPagePlayer)
@@ -1035,50 +995,74 @@ void FAvaRundownEditor::HandleOnPagePlayerAdded(UAvaRundown* InRundown, UAvaRund
 	}
 }
 
-TSharedPtr<SDockTab> FAvaRundownEditor::CreateSubListTab(int32 InSubListIndex)
+void FAvaRundownEditor::OnCanClosePlaybackContext(const UAvaRundown* InRundown, bool& bOutResult) const
 {
-	TSharedPtr<FApplicationMode> AppMode = GetCurrentModePtr();
+	const UAvaRundown* Rundown = AvaRundown.Get();
+	if (Rundown != nullptr && InRundown == Rundown)
+	{
+		bOutResult = false;
+	}
+}
+
+TSharedPtr<SDockTab> FAvaRundownEditor::CreateSubListTab(const FAvaRundownPageListReference& InSubListReference)
+{
+	const TSharedPtr<FApplicationMode> AppMode = GetCurrentModePtr();
 
 	if (AppMode.IsValid())
 	{
-		const FName TabId = FAvaRundownSubListDocumentTabFactory::GetTabId(InSubListIndex);
-		TSharedRef<FAvaRundownAppMode> RundownAppMode = StaticCastSharedRef<FAvaRundownAppMode>(AppMode.ToSharedRef());
-		TSharedPtr<FDocumentTabFactory> DocTabFactory = RundownAppMode->GetDocumentTabFactory(FAvaRundownSubListDocumentTabFactory::FactoryId);
+		const FName TabId = FAvaRundownSubListDocumentTabFactory::GetTabId(InSubListReference);
+		const TSharedRef<FAvaRundownAppMode> RundownAppMode = StaticCastSharedRef<FAvaRundownAppMode>(AppMode.ToSharedRef());
+		TSharedPtr<FDocumentTabFactory> DocTabFactory = RundownAppMode->GetDocumentTabFactory(TabId);
 
-		if (DocTabFactory.IsValid())
+		if (!DocTabFactory.IsValid())
 		{
-			TSharedRef<FAvaRundownSubListDocumentTabFactory> SubListTabFactory = StaticCastSharedRef<FAvaRundownSubListDocumentTabFactory>(DocTabFactory.ToSharedRef());
-
-			FWorkflowTabSpawnInfo Info;
-			Info.TabManager = TabManager;
-			Info.Payload = nullptr;
-			Info.TabInfo = nullptr;
-
-			TSharedPtr<SDockTab> SubListTab = SubListTabFactory->SpawnSubListTab(Info, InSubListIndex);
-
-			if (SubListTab.IsValid())
-			{
-				TabManager->InsertNewDocumentTab(FAvaRundownSubListTabFactory::TabID, TabId, FTabManager::FLiveTabSearch(TabId), SubListTab.ToSharedRef());
-				return SubListTab;
-			}
+			DocTabFactory = MakeShared<FAvaRundownSubListDocumentTabFactory>(InSubListReference, SharedThis(this));
+			RundownAppMode->RegisterDocumentTabFactory(DocTabFactory, TabManager);
 		}
+
+		return TabManager->TryInvokeTab(TabId);
 	}
 
 	return nullptr;
 }
 
-void FAvaRundownEditor::CreateSubListTabs()
+void FAvaRundownEditor::RefreshSubListTab(const FAvaRundownPageListReference& InSubListReference, bool bInSetActive)
 {
-	UAvaRundown* Rundown = AvaRundown.Get();
+	if (InSubListReference.Type != EAvaRundownPageListType::View)
+	{
+		return;
+	}
 
+	const UAvaRundown* Rundown = AvaRundown.Get();
 	if (!IsValid(Rundown))
 	{
 		return;
 	}
 
-	for (int32 SubListIndex = 0; SubListIndex < Rundown->GetSubLists().Num(); ++SubListIndex)
+	const FName TabId = FAvaRundownSubListDocumentTabFactory::GetTabId(InSubListReference);
+
+	TSharedPtr<SDockTab> SubListTab = TabManager->FindExistingLiveTab(TabId);
+
+	if (Rundown->IsValidSubList(InSubListReference))
 	{
-		CreateSubListTab(SubListIndex);
+		if (!SubListTab.IsValid())
+		{
+			SubListTab = CreateSubListTab(InSubListReference);
+		}
+
+		if (SubListTab.IsValid() && bInSetActive)
+		{
+			SubListTab->ActivateInParent(ETabActivationCause::SetDirectly);
+			SubListTab->DrawAttention();
+		}
+	}
+	else
+	{
+		if (SubListTab.IsValid())
+		{
+			SubListTab->RequestCloseTab();
+			UnregisterDocumentTabFactory(TabId);
+		}
 	}
 }
 
@@ -1183,7 +1167,7 @@ TSharedRef<SWidget> FAvaRundownEditor::MakeProfileComboButton()
 	for (FName ProfileName : ProfileNames)
 	{
 		MenuBuilder.AddMenuEntry(FText::FromName(ProfileName)
-			, FText()
+			, FText::GetEmpty()
 			, FSlateIcon()
 			, FUIAction(FExecuteAction::CreateLambda([ProfileName](){ UAvaBroadcast::Get().SetCurrentProfile(ProfileName);}))
 		);
@@ -1534,58 +1518,6 @@ const FAvaRundownEditor::FBindableMacroCommands& FAvaRundownEditor::GetBindableM
 		BindableMacroCommands.Add(GetName(EAvaRundownEditorMacroCommand::StopChannel), [this](const TArray<FString>& InArgs){StopChannelCommand(InArgs);});
 	}
 	return BindableMacroCommands;
-}
-
-void FAvaRundownEditor::SetTemplateSearchText(const FText& InText)
-{
-	TextFilterTemplatePage->SetFilterText(InText);
-}
-
-void FAvaRundownEditor::SetInstancedSearchText(const FText& InText)
-{
-	TextFilterInstancedPage->SetFilterText(InText);
-}
-
-void FAvaRundownEditor::OnTemplateFilterChanged()
-{
-	RefreshTemplateVisibility();
-
-	if (GetTemplateListWidget().IsValid())
-	{
-		GetTemplateListWidget()->Refresh();
-	}
-}
-
-void FAvaRundownEditor::OnInstancedFilterChanged()
-{
-	RefreshInstancedVisibility();
-
-	if (GetInstanceListWidget().IsValid())
-	{
-		GetInstanceListWidget()->Refresh();
-	}
-}
-
-void FAvaRundownEditor::InitVisibilityTemplatePages()
-{
-	if (const UAvaRundown* Rundown = GetRundown())
-	{
-		for (const FAvaRundownPage& Page : Rundown->GetTemplatePages().Pages)
-		{
-			VisibleTemplatePageIds.Add(Page.GetPageId());
-		}
-	}
-}
-
-void FAvaRundownEditor::InitVisibilityInstancedPages()
-{
-	if (const UAvaRundown* Rundown = GetRundown())
-	{
-		for (const FAvaRundownPage& Page : Rundown->GetInstancedPages().Pages)
-		{
-			VisibleInstancedPageIds.Add(Page.GetPageId());
-		}
-	}
 }
 
 FAvaRundownEditor::FAutoPlayTicker::FAutoPlayTicker(TWeakPtr<FAvaRundownEditor> InRundownEditorWeak, double InTickInterval)

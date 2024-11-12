@@ -46,9 +46,6 @@
 #define LOCTEXT_NAMESPACE "ControlRigBlueprint"
 
 TArray<UControlRigBlueprint*> UControlRigBlueprint::sCurrentlyOpenedRigBlueprints;
-#if WITH_EDITOR
-const FName UControlRigBlueprint::ControlRigPanelNodeFactoryName(TEXT("FControlRigGraphPanelPinFactory"));
-#endif
 
 UControlRigBlueprint::UControlRigBlueprint(const FObjectInitializer& ObjectInitializer)
 	: URigVMBlueprint(ObjectInitializer)
@@ -947,6 +944,7 @@ void UControlRigBlueprint::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	{
 		ControlRigType = EControlRigType::RigModule;
 		ItemTypeDisplayName = TEXT("Rig Module");
+		CustomThumbnail = RigModuleSettings.Icon.ToString();
 	}
 	else if (GetControlRigClass()->IsChildOf(UModularRig::StaticClass()))
 	{
@@ -958,6 +956,164 @@ void UControlRigBlueprint::PreSave(FObjectPreSaveContext ObjectSaveContext)
 		ControlRigType = EControlRigType::IndependentRig;
 		ItemTypeDisplayName = TEXT("Control Rig");
 	}
+
+	if (IsModularRig())
+	{
+		ModuleReferenceData = GetModuleReferenceData();
+		IAssetRegistry::GetChecked().AssetTagsFinalized(*this);
+	}
+}
+
+TArray<FModuleReferenceData> UControlRigBlueprint::FindReferencesToModule() const
+{
+	TArray<FModuleReferenceData> Result;
+	if (!IsControlRigModule())
+	{
+		return Result;
+	}
+
+	const UClass* RigModuleClass = GetControlRigClass();
+	if (!RigModuleClass)
+	{
+		return Result;
+	}
+
+	// Load the asset registry module
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+
+	// Collect a full list of assets with the control rig class
+	TArray<FAssetData> AssetDataList;
+	AssetRegistryModule.Get().GetAssetsByClass(UControlRigBlueprint::StaticClass()->GetClassPathName(), AssetDataList, true);
+
+	static const FLazyName ModuleReferenceDataName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ModuleReferenceData));
+	FArrayProperty* ModuleReferenceDataProperty = CastField<FArrayProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ModuleReferenceDataName));
+
+	for(const FAssetData& AssetData : AssetDataList)
+	{
+		// Check only modular rigs
+		if (UControlRigBlueprint::GetRigType(AssetData) != EControlRigType::ModularRig)
+		{
+			continue;
+		}
+		
+		const FString ModularRigDataString = AssetData.GetTagValueRef<FString>(ModuleReferenceDataName);
+		if (ModularRigDataString.IsEmpty())
+		{
+			continue;
+		}
+
+		TArray<FModuleReferenceData> Modules;
+		ModuleReferenceDataProperty->ImportText_Direct(*ModularRigDataString, &Modules, nullptr, EPropertyPortFlags::PPF_None);
+
+		for (FModuleReferenceData& Module : Modules)
+		{
+			if (Module.ReferencedModule == RigModuleClass)
+			{
+				Result.Add(Module);
+			}
+		}
+	}
+
+	return Result;
+}
+
+EControlRigType UControlRigBlueprint::GetRigType(const FAssetData& InAsset)
+{
+	EControlRigType Result = EControlRigType::MAX;
+	static const FLazyName ControlRigTypeName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ControlRigType));
+	FProperty* ControlRigTypeProperty = CastField<FProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ControlRigTypeName));
+	const FString ControlRigTypeString = InAsset.GetTagValueRef<FString>(ControlRigTypeName);
+	if (ControlRigTypeString.IsEmpty())
+	{
+		return Result;
+	}
+
+	EControlRigType RigType;
+	ControlRigTypeProperty->ImportText_Direct(*ControlRigTypeString, &RigType, nullptr, EPropertyPortFlags::PPF_None);
+	return RigType;
+}
+
+TArray<FSoftObjectPath> UControlRigBlueprint::GetReferencesToRigModule(const FAssetData& InModuleAsset)
+{
+	TArray<FSoftObjectPath> Result;
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+	IAssetRegistry& AssetRegistry = AssetRegistryModule.GetRegistry();
+	
+	TArray<FName> PackageDependencies;
+	AssetRegistry.GetReferencers(InModuleAsset.PackageName, PackageDependencies);
+
+	for (FName& DependencyPath : PackageDependencies)
+	{
+		TArray<FAssetData> Assets;
+		AssetRegistry.GetAssetsByPackageName(DependencyPath, Assets);
+
+		for (const FAssetData& DependencyData : Assets)
+		{
+			if (DependencyData.IsAssetLoaded())
+			{
+				if (UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(DependencyData.GetAsset()))
+				{
+					if (Blueprint->IsModularRig())
+					{
+						TArray<const FRigModuleReference*> Modules = Blueprint->ModularRigModel.FindModuleInstancesOfClass(InModuleAsset);
+						for (const FRigModuleReference* Module : Modules)
+						{
+							FSoftObjectPath ModulePath = DependencyData.GetSoftObjectPath();
+							ModulePath.SetSubPathString(Module->GetPath());
+							Result.Add(ModulePath);
+						}
+					}
+				}
+			}
+			else
+			{
+				// Check only modular rigs
+				if (UControlRigBlueprint::GetRigType(DependencyData) != EControlRigType::ModularRig)
+				{
+					continue;
+				}
+
+				static const FLazyName ModuleReferenceDataName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ModuleReferenceData));
+				FArrayProperty* ModuleReferenceDataProperty = CastField<FArrayProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ModuleReferenceDataName));
+				const FString ModularRigDataString = DependencyData.GetTagValueRef<FString>(ModuleReferenceDataName);
+				if (ModularRigDataString.IsEmpty())
+				{
+					continue;
+				}
+
+				TArray<FModuleReferenceData> Modules;
+				ModuleReferenceDataProperty->ImportText_Direct(*ModularRigDataString, &Modules, nullptr, EPropertyPortFlags::PPF_None);
+
+				for (const FModuleReferenceData& Module : Modules)
+				{
+					FTopLevelAssetPath ModulePath = Module.ReferencedModule.GetAssetPath();
+					FString AssetName = ModulePath.GetAssetName().ToString();
+					AssetName.RemoveFromEnd(TEXT("_C"));
+					ModulePath = FTopLevelAssetPath(ModulePath.GetPackageName(), *AssetName);
+					if (ModulePath == InModuleAsset.GetSoftObjectPath().GetAssetPath())
+					{
+						FSoftObjectPath ResultModulePath = DependencyData.GetSoftObjectPath();
+						ResultModulePath.SetSubPathString(Module.ModulePath);
+						Result.Add(ResultModulePath);
+					}
+				}
+			}
+		}
+	}
+	
+	return Result;
+}
+
+TArray<FModuleReferenceData> UControlRigBlueprint::GetModuleReferenceData() const
+{
+	TArray<FModuleReferenceData> Result;
+	Result.Reserve(ModularRigModel.Modules.Num());
+	ModularRigModel.ForEachModule([&Result](const FRigModuleReference* Module) -> bool
+	{
+		Result.Add(Module);
+		return true;
+	});
+	return Result;
 }
 
 void UControlRigBlueprint::UpdateExposedModuleConnectors() const
@@ -1124,6 +1280,7 @@ void UControlRigBlueprint::PostLoad()
 							if(URigVMController* Controller = GetController(GraphToValidate))
 							{
 								FRigVMControllerNotifGuard NotifGuard(Controller, true);
+								FRigVMDefaultValueTypeGuard _(Controller, ERigVMPinDefaultValueType::Override);
 								Controller->SetPinDefaultValue(Pin->GetPinPath(), TEXT("Null"), false, false, false);
 							}
 						}
@@ -1273,6 +1430,32 @@ void UControlRigBlueprint::HandleConfigureRigVMController(const FRigVMClient* In
 
 #endif
 
+void UControlRigBlueprint::UpdateConnectionMapAfterRename(const FString& InOldNameSpace)
+{
+	const FString OldNameSpace = InOldNameSpace + UModularRig::NamespaceSeparator;
+	const FString NewNameSpace = RigModuleSettings.Identifier.Name + UModularRig::NamespaceSeparator;
+	
+	TMap<FRigElementKey, FRigElementKey> FixedConnectionMap;
+	for(const TPair<FRigElementKey, FRigElementKey>& Pair : ConnectionMap)
+	{
+		auto FixUpConnectionMap = [OldNameSpace, NewNameSpace](const FRigElementKey& InKey) -> FRigElementKey
+		{
+			const FString NameString = InKey.Name.ToString();
+			if(NameString.StartsWith(OldNameSpace, ESearchCase::CaseSensitive))
+			{
+				return FRigElementKey(*(NewNameSpace + NameString.Mid(OldNameSpace.Len())), InKey.Type);
+			}
+			return InKey;
+		};
+
+		const FRigElementKey Key = FixUpConnectionMap(Pair.Key);
+		const FRigElementKey Value = FixUpConnectionMap(Pair.Value);
+		FixedConnectionMap.FindOrAdd(Key) = Value;
+	}
+
+	Swap(ConnectionMap, FixedConnectionMap);
+}
+
 UClass* UControlRigBlueprint::GetRigVMEdGraphNodeClass() const
 {
 	return UControlRigGraphNode::StaticClass();
@@ -1304,7 +1487,7 @@ void UControlRigBlueprint::GetPreloadDependencies(TArray<UObject*>& OutDeps)
 }
 
 #if WITH_EDITOR
-const FName& UControlRigBlueprint::GetPanelPinFactoryName() const
+const FLazyName& UControlRigBlueprint::GetPanelPinFactoryName() const
 {
 	return ControlRigPanelNodeFactoryName;
 }
@@ -1428,7 +1611,9 @@ void UControlRigBlueprint::PostDuplicate(bool bDuplicateForPIE)
 	// update the rig module identifier after save-as or duplicate asset
 	if(IsControlRigModule())
 	{
+		const FString OldNameSpace = RigModuleSettings.Identifier.Name;
 		RigModuleSettings.Identifier.Name = URigHierarchy::GetSanitizedName(FRigName(GetName())).ToString();
+		UpdateConnectionMapAfterRename(OldNameSpace);
 	}
 
 	ModularRigModel.UpdateCachedChildren();
@@ -1442,7 +1627,9 @@ void UControlRigBlueprint::PostRename(UObject* OldOuter, const FName OldName)
 	// update the rig module identifier after renaming the asset
 	if(IsControlRigModule())
 	{
+		const FString OldNameSpace = RigModuleSettings.Identifier.Name; 
 		RigModuleSettings.Identifier.Name = URigHierarchy::GetSanitizedName(FRigName(GetName())).ToString();
+		UpdateConnectionMapAfterRename(OldNameSpace);
 	}
 }
 
@@ -1616,6 +1803,33 @@ FName UControlRigBlueprint::RemoveTransientControl(const FRigElementKey& InEleme
 
 void UControlRigBlueprint::ClearTransientControls()
 {
+	bool bHasAnyTransientControls = false;
+	
+	if (URigVMBlueprintGeneratedClass* RigClass = GetRigVMBlueprintGeneratedClass())
+	{
+		UControlRig* CDO = Cast<UControlRig>(RigClass->GetDefaultObject(true /* create if needed */));
+
+		TArray<UObject*> ArchetypeInstances;
+		CDO->GetArchetypeInstances(ArchetypeInstances);
+		for (UObject* ArchetypeInstance : ArchetypeInstances)
+		{
+			UControlRig* InstancedControlRig = Cast<UControlRig>(ArchetypeInstance);
+			if (InstancedControlRig)
+			{
+				if(!InstancedControlRig->GetHierarchy()->GetTransientControls().IsEmpty())
+				{
+					bHasAnyTransientControls = true;
+					break;
+				}
+			}
+		}
+	}
+
+	if(!bHasAnyTransientControls)
+	{
+		return;
+	}
+
 	TUniquePtr<FControlValueScope> ValueScope;
 	if (!UControlRigEditorSettings::Get()->bResetControlsOnPinValueInteraction) // if we need to retain the controls
 	{
@@ -1726,6 +1940,7 @@ void UControlRigBlueprint::PatchRigElementKeyCacheOnLoad()
 								FCachedRigElement DefaultValueElement(Key, Hierarchy);
 								FString Result;
 								TBaseStructure<FCachedRigElement>::Get()->ExportText(Result, &DefaultValueElement, nullptr, nullptr, PPF_None, nullptr);								
+								FRigVMDefaultValueTypeGuard _(Controller, ERigVMPinDefaultValueType::Override);
 								Controller->SetPinDefaultValue(Pin->GetPinPath(), Result, true, false, false);
 								MarkDirtyDuringLoad();
 							}							
@@ -1817,16 +2032,10 @@ void UControlRigBlueprint::PatchPropagateToChildren()
 	}
 }
 
-void UControlRigBlueprint::PatchFunctionsOnLoad()
+void UControlRigBlueprint::GetBackwardsCompatibilityPublicFunctions(TArray<FName>& BackwardsCompatiblePublicFunctions, TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader>& OldHeaders)
 {
 	URigVMBlueprintGeneratedClass* CRGeneratedClass = GetRigVMBlueprintGeneratedClass();
 	FRigVMGraphFunctionStore& Store = CRGeneratedClass->GraphFunctionStore;
-	const URigVMFunctionLibrary* Library = GetLocalFunctionLibrary();
-
-	TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader> OldHeaders;
-
-	// Backwards compatibility. Store public access in the model
-	TArray<FName> BackwardsCompatiblePublicFunctions;
 	if (GetLinkerCustomVersion(FControlRigObjectVersion::GUID) < FControlRigObjectVersion::StoreFunctionsInGeneratedClass)
 	{
 		for (const FRigVMOldPublicFunctionData& OldPublicFunction : PublicFunctions_DEPRECATED)
@@ -1841,7 +2050,7 @@ void UControlRigBlueprint::PatchFunctionsOnLoad()
 			for (const FRigVMGraphFunctionData& FunctionData : Store.PublicFunctions)
 			{
 				BackwardsCompatiblePublicFunctions.Add(FunctionData.Header.Name);
-				URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(FunctionData.Header.LibraryPointer.LibraryNode.ResolveObject());
+				URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(FunctionData.Header.LibraryPointer.GetNodeSoftPath().ResolveObject());
 				OldHeaders.Add(LibraryNode, FunctionData.Header);
 			}
 		}
@@ -1858,42 +2067,6 @@ void UControlRigBlueprint::PatchFunctionsOnLoad()
 				BackwardsCompatiblePublicFunctions.Add(PublicHeader.Name);
 			}
 		}
-	}
-
-	// Lets rebuild the FunctionStore from the model
-	if (FunctionLibrary)
-	{
-		Store.PublicFunctions.Reset();
-		Store.PrivateFunctions.Reset();
-
-		for (URigVMLibraryNode* LibraryNode : FunctionLibrary->GetFunctions())
-		{
-			bool bIsPublic = FunctionLibrary->IsFunctionPublic(LibraryNode->GetFName());
-			if (!bIsPublic)
-			{
-				bIsPublic = BackwardsCompatiblePublicFunctions.Contains(LibraryNode->GetFName());
-				if (bIsPublic)
-				{
-					FunctionLibrary->PublicFunctionNames.Add(LibraryNode->GetFName());
-				}
-			}
-
-			FRigVMGraphFunctionHeader Header = LibraryNode->GetFunctionHeader(CRGeneratedClass);
-			if (FRigVMGraphFunctionHeader* OldHeader = OldHeaders.Find(LibraryNode))
-			{				
-				Header.ExternalVariables = OldHeader->ExternalVariables;
-				Header.Dependencies = OldHeader->Dependencies;
-			}
-			Store.AddFunction(Header, bIsPublic);
-			
-		}
-	}
-
-	// Update dependencies and external variables if needed
-	for (URigVMLibraryNode* LibraryNode : Library->GetFunctions())
-	{
-		GetRigVMClient()->UpdateExternalVariablesForFunction(LibraryNode);
-		GetRigVMClient()->UpdateDependenciesForFunction(LibraryNode);
 	}
 }
 
@@ -2374,69 +2547,7 @@ void UControlRigBlueprint::RefreshModuleVariables()
 
 	if (UModularRigController* Controller = GetModularRigController())
 	{
-		ModularRigModel.ForEachModule([this, Controller](const FRigModuleReference* Element) -> bool
-	   {
-		   TGuardValue<bool> NotificationsGuard(Controller->bSuspendNotifications, true);
-		   RefreshModuleVariables(Element);
-		   return true;
-	   });
-	}
-}
-
-void UControlRigBlueprint::RefreshModuleVariables(const FRigModuleReference* InModule)
-{
-	if(!IsModularRig())
-	{
-		return;
-	}
-
-	// avoid dead class pointers
-	const UClass* ModuleClass = InModule->Class.Get();
-	if(ModuleClass == nullptr)
-	{
-		return;
-	}
-
-	// Make sure the provided module belongs to our ModularRigModel
-	const FString& ModulePath = InModule->GetPath();
-	FRigModuleReference* Module = ModularRigModel.FindModule(ModulePath);
-	if (Module != InModule)
-	{
-		return;
-	}
-
-	Modify();
-
-	for (TFieldIterator<FProperty> PropertyIt(ModuleClass); PropertyIt; ++PropertyIt)
-	{
-		const FProperty* Property = *PropertyIt;
-		
-		// remove advanced, private or not editable properties
-		const bool bIsAdvanced = Property->HasAnyPropertyFlags(CPF_AdvancedDisplay);
-		const bool bIsPublic = Property->HasAnyPropertyFlags(CPF_Edit | CPF_EditConst);
-		const bool bIsInstanceEditable = !Property->HasAnyPropertyFlags(CPF_DisableEditOnInstance);
-		if (bIsAdvanced || !bIsPublic || !bIsInstanceEditable)
-		{
-			Module->ConfigValues.Remove(Property->GetFName());
-			Module->Bindings.Remove(Property->GetFName());
-		}
-	}
-
-	// Make sure all the types are valid
-	if (UModularRigController* Controller = GetModularRigController())
-	{
-		const TMap<FName, FString> ConfigValues = Module->ConfigValues;
-		const TMap<FName, FString> Bindings = Module->Bindings;
-		Module->ConfigValues.Reset();
-		Module->Bindings.Reset();
-		for (const TPair<FName, FString>& Pair : ConfigValues)
-		{
-			Controller->SetConfigValueInModule(ModulePath, Pair.Key, Pair.Value, false);
-		}
-		for (const TPair<FName, FString>& Pair : Bindings)
-		{
-			Controller->BindModuleVariable(ModulePath, Pair.Key, Pair.Value, false);
-		}
+		Controller->RefreshModuleVariables(false);
 	}
 }
 
@@ -2452,13 +2563,15 @@ void UControlRigBlueprint::RefreshModuleConnectors()
 		TGuardValue<bool> NotificationsGuard(Controller->bSuspendNotifications, true);
 		ModularRigModel.ForEachModule([this](const FRigModuleReference* Element) -> bool
 		{
-			RefreshModuleConnectors(Element);
+			RefreshModuleConnectors(Element, false);
 			return true;
 		});
 	}
+
+	PropagateHierarchyFromBPToInstances();
 }
 
-void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* InModule)
+void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* InModule, bool bPropagateHierarchy)
 {
 	if(!IsModularRig())
 	{
@@ -2477,9 +2590,6 @@ void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* In
 	{
 		if (UControlRig* CDO = GetControlRigClass()->GetDefaultObject<UControlRig>())
 		{
-			Hierarchy->Modify();
-			bool bAnyModification = false;
-
 			const FString Namespace = InModule->GetNamespace();
 			const TArray<FRigElementKey> AllConnectors = Hierarchy->GetKeysOfType<FRigConnectorElement>();
 			const TArray<FRigElementKey> ExistingConnectors = AllConnectors.FilterByPredicate([Namespace](const FRigElementKey& ConnectorKey) -> bool
@@ -2513,7 +2623,7 @@ void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* In
 				
 				if(bRemoveAllConnectors || !bConnectorExpected)
 				{
-					bAnyModification = true;
+					Hierarchy->Modify();
 					(void)Controller->RemoveElement(Connector);
 					ConnectionMap.Remove(Connector);
 				}
@@ -2529,9 +2639,9 @@ void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* In
 					const FRigElementKey ConnectorKeyWithNameSpace(ConnectorNameWithNameSpace, ERigElementType::Connector);
 					if(!Hierarchy->Contains(ConnectorKeyWithNameSpace))
 					{
-						bAnyModification = true;
 						FRigHierarchyExecuteContextBracket HierarchyContextGuard(Hierarchy, &Context);
 						FControlRigExecuteContextRigModuleGuard RigModuleGuard(PublicContext, InModule->GetNamespace());
+						Hierarchy->Modify();
 						(void)Controller->AddConnector(ConnectorName, Connector.Settings);
 					}
 					else
@@ -2543,7 +2653,7 @@ void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* In
 				}
 			}
 
-			if (bAnyModification)
+			if (bPropagateHierarchy)
 			{
 				PropagateHierarchyFromBPToInstances();
 			}
@@ -2760,6 +2870,15 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 			HierarchyModifiedEvent.Broadcast(ERigHierarchyNotification::HierarchyReset, Hierarchy, nullptr);
 			break;
 		}
+		case EModularRigNotification::ModuleClassChanged:
+		{
+			if (InModule)
+			{
+				RefreshModuleConnectors(InModule);
+				UpdateConnectionMapFromModel();
+			}
+			break;
+		}
 		case EModularRigNotification::ModuleShortNameChanged:
 		{
 			bRecompile = false;
@@ -2782,6 +2901,12 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 		{
 			ModulesRecompilationBracket--;
 			break;
+		}
+		case EModularRigNotification::ModuleSelected:
+		case EModularRigNotification::ModuleDeselected:
+		{
+			// don't do anything during selection
+			return;
 		}
 		default:
 		{

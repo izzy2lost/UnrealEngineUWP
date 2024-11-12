@@ -1322,10 +1322,10 @@ void SDataprepEditorViewport::LoadDefaultSettings()
 			}
 
 			// Good to go, update the profile's related parameters
-			if( Cast<UTextureCube>( LoadedObject ) != nullptr )
+			if( UTextureCube* LoadedTextureCube = Cast<UTextureCube>( LoadedObject ) )
 			{
 				DataprepViewportSettingProfile.EnvironmentCubeMapPath = EnvironmentCubeMapPath;
-				DataprepViewportSettingProfile.EnvironmentCubeMap = LoadedObject;
+				DataprepViewportSettingProfile.EnvironmentCubeMap = LoadedTextureCube;
 			}
 		}
 	}

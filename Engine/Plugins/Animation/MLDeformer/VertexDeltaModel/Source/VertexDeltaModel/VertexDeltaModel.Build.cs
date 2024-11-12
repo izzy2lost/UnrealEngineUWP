@@ -39,7 +39,7 @@ public class VertexDeltaModel : ModuleRules
 				"Engine",
 				"GeometryCache",
 				"NNE",
-				"NNERuntimeRDG",
+				"NNERuntimeORT",
 				"OptimusCore",
 				"Projects",
 				"RenderCore",

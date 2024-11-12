@@ -168,6 +168,43 @@ bool FRHIReservedResourceTests::Test_ReservedResource_CreateTexture(FRHICommandL
 	return true;
 }
 
+bool FRHIReservedResourceTests::Test_ReservedResource_CreateTextureWithMips(FRHICommandListImmediate& RHICmdList)
+{
+	if (!GRHIGlobals.ReservedResources.Supported)
+	{
+		return true;
+	}
+
+	// Try to create a 2D texture array with mips
+
+	{
+		FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create2DArray(TEXT("TestReservedTextureArray2DWithMips"));
+		Desc.SetFlags(TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_ReservedResource | TexCreate_ImmediateCommit)
+			.SetExtent(FIntPoint(1024, 1024))
+			.SetArraySize(2)
+			.SetNumMips(3)
+			.SetFormat(PF_R8)
+			.SetInitialState(ERHIAccess::SRVCompute);
+
+		FTextureRHIRef Texture = RHICreateTexture(Desc);
+	}
+
+	// Try to create a 2D texture with mips
+
+	{
+		FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create2D(TEXT("TestReservedTexture2DWithMips"));
+		Desc.SetFlags(TexCreate_ShaderResource | TexCreate_ReservedResource | TexCreate_ImmediateCommit)
+			.SetExtent(FIntPoint(128, 128))
+			.SetNumMips(8) // full mip chain down to 1x1
+			.SetFormat(PF_A32B32G32R32F)
+			.SetInitialState(ERHIAccess::SRVCompute);
+
+		FTextureRHIRef Texture = RHICreateTexture(Desc);
+	}
+
+	return true;
+}
+
 bool FRHIReservedResourceTests::Test_ReservedResource_CreateBuffer(FRHICommandListImmediate& RHICmdList)
 {
 	if (!GRHIGlobals.ReservedResources.Supported)

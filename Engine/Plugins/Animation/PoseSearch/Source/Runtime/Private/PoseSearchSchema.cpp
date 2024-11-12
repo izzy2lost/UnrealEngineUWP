@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PoseSearch/PoseSearchSchema.h"
+#include "Animation/MirrorDataTable.h"
 #include "AnimationRuntime.h"
 #include "PoseSearch/PoseSearchContext.h"
 #include "PoseSearch/PoseSearchDefines.h"
@@ -72,6 +73,7 @@ void UPoseSearchSchema::AddDefaultChannels()
 	// defaulting UPoseSearchSchema for a meaningful locomotion setup
 	AddChannel(NewObject<UPoseSearchFeatureChannel_Trajectory>(this, NAME_None, RF_Transactional));
 	AddChannel(NewObject<UPoseSearchFeatureChannel_Pose>(this, NAME_None, RF_Transactional));
+	Finalize();
 }
 
 void UPoseSearchSchema::InitBoneContainersFromRoledSkeleton(TMap<FName, FBoneContainer>& RoledBoneContainers) const
@@ -81,7 +83,11 @@ void UPoseSearchSchema::InitBoneContainersFromRoledSkeleton(TMap<FName, FBoneCon
 
 	for (const FPoseSearchRoledSkeleton& RoledSkeleton : Skeletons)
 	{
-		RoledBoneContainers.Add(RoledSkeleton.Role).InitializeTo(RoledSkeleton.BoneIndicesWithParents, UE::Anim::FCurveFilterSettings(UE::Anim::ECurveFilterMode::DisallowAll), *RoledSkeleton.Skeleton);
+		FBoneContainer& RoledBoneContainer = RoledBoneContainers.Add(RoledSkeleton.Role);
+		// Add a curve filter to our bone container to only eval curves actually used by the schema.
+		const UE::Anim::FCurveFilterSettings CurveFilterSettings(UE::Anim::ECurveFilterMode::AllowOnlyFiltered, &RoledSkeleton.RequiredCurves);
+
+		RoledBoneContainer.InitializeTo(RoledSkeleton.BoneIndicesWithParents, CurveFilterSettings, *RoledSkeleton.Skeleton);
 	}
 }
 
@@ -200,6 +206,31 @@ int8 UPoseSearchSchema::AddBoneReference(const FBoneReference& BoneReference, co
 	return int8(SchemaBoneIdx);
 }
 
+int8 UPoseSearchSchema::AddCurveReference(const FName& CurveReference, const UE::PoseSearch::FRole& Role)
+{
+	using namespace UE::PoseSearch;
+
+	FPoseSearchRoledSkeleton* RoledSkeleton = GetRoledSkeleton(Role);
+	if (!RoledSkeleton)
+	{
+		UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchSchema::AddCurveReference: couldn't find data for the requested Role '%s' in UPoseSearchSchema '%s'"), *Role.ToString(), *GetNameSafe(this));
+		return -1;
+	}
+
+	int32 SchemaBoneIdx = 0;
+	const USkeleton* Skeleton = RoledSkeleton->Skeleton;
+	if (!Skeleton)
+	{
+		UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchSchema::AddCurveReference: couldn't find Skeleton with Role '%s' in UPoseSearchSchema '%s'"), *Role.ToString(), *GetNameSafe(this));
+		return -1;
+	}
+
+	// Curves are loosely bound, so there's no guarantee this curve will ever exist in any of the assets indexed by the database.
+	const int32 CurveIdx = RoledSkeleton->RequiredCurves.AddUnique(CurveReference);
+	check(CurveIdx >= 0 && CurveIdx < 128);
+	return int8(CurveIdx);
+}
+
 void UPoseSearchSchema::ResetFinalize()
 {
 	for (FPoseSearchRoledSkeleton& RoledSkeleton : Skeletons)
@@ -300,7 +331,23 @@ void UPoseSearchSchema::Finalize()
 		for (FBoneReference& BoneRef : RoledSkeleton.BoneReferences)
 		{
 			check(BoneRef.HasValidSetup());
-			RoledSkeleton.BoneIndicesWithParents.Add(BoneRef.BoneIndex);
+			RoledSkeleton.BoneIndicesWithParents.AddUnique(BoneRef.BoneIndex);
+
+			if (RoledSkeleton.MirrorDataTable)
+			{
+				if (RoledSkeleton.MirrorDataTable->BoneToMirrorBoneIndex.IsValidIndex(BoneRef.BoneIndex))
+				{
+					const FSkeletonPoseBoneIndex MirroredBoneIndex = RoledSkeleton.MirrorDataTable->BoneToMirrorBoneIndex[BoneRef.BoneIndex];
+					if (MirroredBoneIndex.IsValid())
+					{
+						RoledSkeleton.BoneIndicesWithParents.AddUnique(MirroredBoneIndex.GetInt());
+					}
+				}
+				else
+				{
+					UE_LOG(LogPoseSearch, Warning, TEXT("UPoseSearchSchema::Finalize: couldn't Finalize '%s' because bone index doest not exist in mirror table or mirrot table is empty."), *GetNameSafe(this));
+				}
+			}
 		}
 
 		// Build separate index array with parent indices guaranteed to be present. Sort for EnsureParentsPresent.
@@ -308,12 +355,6 @@ void UPoseSearchSchema::Finalize()
 		RoledSkeleton.BoneIndicesWithParents.Sort();
 		FAnimationRuntime::EnsureParentsPresent(RoledSkeleton.BoneIndicesWithParents, RoledSkeleton.Skeleton->GetReferenceSkeleton());
 	}
-}
-
-void UPoseSearchSchema::PreSave(FObjectPreSaveContext ObjectSaveContext)
-{
-	Finalize();
-	Super::PreSave(ObjectSaveContext);
 }
 
 void UPoseSearchSchema::PostLoad()
@@ -337,6 +378,16 @@ void UPoseSearchSchema::PostLoad()
 			Skeletons[0].MirrorDataTable = MirrorDataTable_DEPRECATED;
 		}
 		MirrorDataTable_DEPRECATED = nullptr;
+	}
+
+	for (FPoseSearchRoledSkeleton& Skeleton : Skeletons)
+	{
+		if (Skeleton.MirrorDataTable)
+		{
+			// adding a ConditionalPostLoad dependency to UMirrorDataTable, that via UMirrorDataTable::FillMirrorArrays
+			// populates UMirrorDataTable::BoneToMirrorBoneIndex used in UPoseSearchSchema::Finalize 
+			Skeleton.MirrorDataTable->ConditionalPostLoad();
+		}
 	}
 
 	Finalize();

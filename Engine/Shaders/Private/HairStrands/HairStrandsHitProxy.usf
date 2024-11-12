@@ -20,6 +20,8 @@ void EmitPS(
 	out float4 OutHitProxyId : SV_Target0,
 	out float OutDepth : SV_Depth)
 {
+	OutHitProxyId = 0;
+	OutDepth = 0;
 	const uint2 PixelCoord = (uint2)In.Position.xy;
 
 	// Take the first sample
@@ -65,7 +67,7 @@ void EmitPS(
 	in float4 InPosition : SV_POSITION,
 	out float OutDepth : SV_Depth)
 {
-
+	OutDepth = 0;
 	const float2 UV = InPosition.xy * InvViewportResolution;
 	const uint2 PixelCoord = UV * View.ViewSizeAndInvSize.xy;
 	const bool bValid = HairOnlyDepthTexture.Load(uint3(PixelCoord, 0)) > 0;

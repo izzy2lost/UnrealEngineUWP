@@ -234,11 +234,14 @@ void UAnimGraphNode_Base::PostPasteNode()
 
 void UAnimGraphNode_Base::DestroyNode()
 {
-	// This node may have been the last using its extension, so refresh
-	GetAnimBlueprint()->RequestRefreshExtensions();
-	
-	// Cleanup the pose watch if one exists on this node
-	AnimationEditorUtils::RemovePoseWatchFromNode(this, GetAnimBlueprint());
+	if(HasValidBlueprint())
+	{
+		// This node may have been the last using its extension, so refresh
+		GetAnimBlueprint()->RequestRefreshExtensions();
+		
+		// Cleanup the pose watch if one exists on this node
+		AnimationEditorUtils::RemovePoseWatchFromNode(this, GetAnimBlueprint());
+	}
 
 	Super::DestroyNode();
 }
@@ -304,7 +307,7 @@ void UAnimGraphNode_Base::GetBoundFunctionsInfo(TArray<TPair<FName, FName>>& InO
 void UAnimGraphNode_Base::ValidateAnimNodeDuringCompilation(USkeleton* ForSkeleton, FCompilerResultsLog& MessageLog)
 {
 	// Validate any bone references we have
-	for(const TPair<FStructProperty*, const void*>& PropertyValuePair : TPropertyValueRange<FStructProperty>(GetClass(), this))
+	for(const TPair<const FStructProperty*, const void*>& PropertyValuePair : TPropertyValueRange<FStructProperty>(GetClass(), this))
 	{
 		if(PropertyValuePair.Key->Struct == FBoneReference::StaticStruct())
 		{

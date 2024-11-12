@@ -192,7 +192,7 @@ const DocPanel: React.FC<{ docName: string }> = observer(({ docName }) => {
       // This timeout is horrible, though scrollIntoView is inaccurate until the rendering has "settled"
       // I tried quite a few approaches to this, and had to move on, this works
       setTimeout(() => {         
-         if (anchor === window.location.hash?.split("?")[0]?.slice(1) ?? "") {
+         if (anchor === (window.location.hash?.split("?")[0]?.slice(1) ?? "")) {
             const element = document.getElementById(anchor);
             element?.scrollIntoView();   
          }

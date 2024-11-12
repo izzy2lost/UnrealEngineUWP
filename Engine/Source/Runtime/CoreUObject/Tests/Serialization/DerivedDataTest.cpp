@@ -13,9 +13,9 @@
 #include "TestHarness.h"
 
 #if WITH_EDITORONLY_DATA
+#include "Containers/SharedString.h"
 #include "DerivedDataCache.h"
 #include "DerivedDataRequestOwner.h"
-#include "DerivedDataSharedString.h"
 #include "DerivedDataValue.h"
 #endif
 

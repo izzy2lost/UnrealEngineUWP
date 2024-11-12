@@ -41,7 +41,8 @@ void AWaterLandscapeBrush::AddActorInternal(AActor* Actor, const UWorld* ThisWor
 		!Actor->IsUnreachable() &&
 		Actor->GetLevel() != nullptr &&
 		!Actor->GetLevel()->bIsBeingRemoved &&
-		ThisWorld == Actor->GetWorld())
+		ThisWorld == Actor->GetWorld() &&
+		!ActorsAffectingLandscape.Contains(Cast<IWaterBrushActorInterface>(Actor)))
 	{
 		if (bModify)
 		{
@@ -163,15 +164,14 @@ void AWaterLandscapeBrush::UpdateActors(bool bInTriggerEvents)
 void AWaterLandscapeBrush::OnWaterBrushActorChanged(const IWaterBrushActorInterface::FWaterBrushActorChangedEventParams& InParams)
 {
 	AActor* Actor = CastChecked<AActor>(InParams.WaterBrushActor);
-	bool bAffectsLandscape = InParams.WaterBrushActor->AffectsLandscape();
-	bool bAffectsWaterMesh = InParams.WaterBrushActor->AffectsWaterMesh();
+	const bool bAffectsLandscape = InParams.WaterBrushActor->AffectsLandscape();
+	const bool bAffectsWaterMesh = InParams.WaterBrushActor->AffectsWaterMesh();
 
-	int32 ActorIndex = ActorsAffectingLandscape.IndexOfByKey(InParams.WaterBrushActor);
+	const bool bActorAlreadyAffectingLandscape = ActorsAffectingLandscape.Contains(InParams.WaterBrushActor);
 	// if the actor went from affecting landscape to non-affecting landscape (and vice versa), update the brush
 	bool bForceUpdateBrush = false;
-	bool bForceUpdateWaterMesh = false;
 	
-	if (bAffectsLandscape != (ActorIndex != INDEX_NONE))
+	if (bAffectsLandscape != bActorAlreadyAffectingLandscape)
 	{
 		if (bAffectsLandscape)
 		{
@@ -182,8 +182,6 @@ void AWaterLandscapeBrush::OnWaterBrushActorChanged(const IWaterBrushActorInterf
 			RemoveActorInternal(Actor);
 		}
 
-		// Force rebuild the mesh if a water body actor has been added or removed (islands don't affect the water mesh so it's not necessary for them): 
-		bForceUpdateWaterMesh = InParams.WaterBrushActor->CanEverAffectWaterMesh();
 		bForceUpdateBrush = true;
 	}
 
@@ -197,7 +195,7 @@ void AWaterLandscapeBrush::OnWaterBrushActorChanged(const IWaterBrushActorInterf
 	const UWaterEditorSettings* WaterEditorSettings = GetDefault<UWaterEditorSettings>();
 	check(WaterEditorSettings != nullptr);
 
-	const bool bAllowLandscapeUpdate = (InParams.PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive) || WaterEditorSettings->GetUpdateLandscapeDuringInteractiveChanges();
+	const bool bAllowLandscapeUpdate = (InParams.PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive) || WaterEditorSettings->GetShouldUpdateLandscapeDuringInteractiveChanges();
 	if (bForceUpdateBrush || (bAffectsLandscape && bAllowLandscapeUpdate))
 	{
 		RequestLandscapeUpdate(/* bInUserTriggered = */ InParams.bUserTriggered);
@@ -240,7 +238,7 @@ void AWaterLandscapeBrush::RegisterDelegates()
 				&& (Level != nullptr)
 				&& Algo::AnyOf(Level->Actors, [this](AActor* Actor) { return IsActorAffectingLandscape(Actor); })))
 			{
-				UpdateActors(!GIsEditorLoadingPackage);
+				UpdateActors(!UE::GetIsEditorLoadingPackage());
 			}
 		});
 
@@ -251,7 +249,7 @@ void AWaterLandscapeBrush::RegisterDelegates()
 				&& (Level != nullptr)
 				&& Algo::AnyOf(Level->Actors, [this](AActor* Actor) { return IsActorAffectingLandscape(Actor); })))
 			{
-				UpdateActors(!GIsEditorLoadingPackage);
+				UpdateActors(!UE::GetIsEditorLoadingPackage());
 			}
 		});
 
@@ -404,6 +402,21 @@ void AWaterLandscapeBrush::AddReferencedObjects(UObject* InThis, FReferenceColle
 	}
 }
 
+#if WITH_EDITOR
+TArray<UE::Landscape::EditLayers::FEditLayerRenderItem> AWaterLandscapeBrush::GetRenderItems(const ULandscapeInfo* InLandscapeInfo) const
+{
+	using namespace UE::Landscape::EditLayers; 
+
+	TArray<FEditLayerRenderItem> RenderItems = Super::GetRenderItems(InLandscapeInfo);
+	check(RenderItems.Num() == 1);
+
+	// For now, this brush requires the entire landscape to be loaded to work deterministically, so we force the input area to be "infinite" : 
+	RenderItems[0].SetInputWorldArea(FInputWorldArea::CreateInfinite());
+
+	return RenderItems;
+}
+#endif // WITH_EDITOR
+
 void AWaterLandscapeBrush::GetWaterBodies(TSubclassOf<AWaterBody> WaterBodyClass, TArray<AWaterBody*>& OutWaterBodies) const
 {
 	FGetActorsOfType<AWaterBody>()(this, WaterBodyClass, OutWaterBodies);
@@ -484,8 +497,13 @@ void AWaterLandscapeBrush::SetTargetLandscape(ALandscape* InTargetLandscape)
 #endif // WITH_EDITOR
 }
 
-void AWaterLandscapeBrush::OnFullHeightmapRenderDone(UTextureRenderTarget2D* InHeightmapRenderTarget)
+void AWaterLandscapeBrush::OnEditLayersMerged(const FOnLandscapeEditLayersMergedParams& InParams)
 {
+	if (!InParams.bIsHeightmapMerge)
+	{
+		return;
+	}
+
 	// #todo_water [roey]: This needs to be changed when the WaterZone can maintain it's own list of "ground actors" so that we don't needlessly update all water zones.
 	if (UWaterSubsystem* WaterSubsystem = UWaterSubsystem::GetWaterSubsystem(GetWorld()))
 	{
@@ -497,14 +515,14 @@ void AWaterLandscapeBrush::SetOwningLandscape(ALandscape* InOwningLandscape)
 {
 	if (OwningLandscape != nullptr)
 	{
-		OwningLandscape->OnFullHeightmapRenderDoneDelegate().RemoveAll(this);
+		OwningLandscape->OnEditLayersMerged().RemoveAll(this);
 	}
 
 	Super::SetOwningLandscape(InOwningLandscape);
 
 	if (OwningLandscape != nullptr)
 	{
-		OwningLandscape->OnFullHeightmapRenderDoneDelegate().AddUObject(this, &AWaterLandscapeBrush::OnFullHeightmapRenderDone);
+		OwningLandscape->OnEditLayersMerged().AddUObject(this, &AWaterLandscapeBrush::OnEditLayersMerged);
 	}
 }
 
@@ -528,11 +546,6 @@ void AWaterLandscapeBrush::ForceUpdate()
 
 
 void AWaterLandscapeBrush::BlueprintOnRenderTargetTexturesUpdated_Implementation(UTexture2D* VelocityTexture)
-{
-	// Deprecated
-}
-
-void AWaterLandscapeBrush::ForceWaterTextureUpdate()
 {
 	// Deprecated
 }

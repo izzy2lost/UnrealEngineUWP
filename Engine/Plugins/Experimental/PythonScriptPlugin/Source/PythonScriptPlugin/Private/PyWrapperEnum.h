@@ -85,8 +85,8 @@ struct FPyWrapperEnumMetaData : public FPyWrapperBaseMetaData
 	/** Check to see if the enum is finalized */
 	static bool IsEnumFinalized(FPyWrapperEnum* Instance);
 
-	/** Add object references from the given Python object to the given collector */
-	virtual void AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector) override;
+	/** Add object references from this type meta-data to the given collector */
+	virtual void AddTypeReferencedObjects(FReferenceCollector& Collector) override;
 
 	/** Get the reflection meta data type object associated with this wrapper type if there is one or nullptr if not. */
 	virtual const UField* GetMetaType() const override
@@ -113,7 +113,7 @@ typedef TPyPtr<FPyWrapperEnum> FPyWrapperEnumPtr;
 
 /** An Unreal enum that was generated from a Python type */
 UCLASS()
-class UPythonGeneratedEnum : public UEnum, public IPythonResourceOwner
+class UPythonGeneratedEnum final : public UEnum, public IPythonResourceOwner
 {
 	GENERATED_BODY()
 
@@ -122,9 +122,16 @@ class UPythonGeneratedEnum : public UEnum, public IPythonResourceOwner
 public:
 	//~ UObject interface
 	virtual void BeginDestroy() override;
+	virtual bool IsAsset() const override
+	{
+		return false;
+	}
 
 	//~ IPythonResourceOwner interface
 	virtual void ReleasePythonResources() override;
+
+	/** Unregister this type from FPyWrapperTypeRegistry */
+	void UnregisterGeneratedType();
 
 	/** Generate an Unreal enum from the given Python type */
 	static UPythonGeneratedEnum* GenerateEnum(PyTypeObject* InPyType);

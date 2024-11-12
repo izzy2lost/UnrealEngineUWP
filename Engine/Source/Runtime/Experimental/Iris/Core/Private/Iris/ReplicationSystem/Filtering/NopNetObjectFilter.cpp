@@ -2,7 +2,7 @@
 
 #include "Iris/ReplicationSystem/Filtering/NopNetObjectFilter.h"
 
-void UNopNetObjectFilter::OnInit(FNetObjectFilterInitParams& Params)
+void UNopNetObjectFilter::OnInit(const FNetObjectFilterInitParams& Params)
 {
 }
 
@@ -12,10 +12,6 @@ bool UNopNetObjectFilter::AddObject(uint32 ObjectIndex, FNetObjectFilterAddObjec
 }
 
 void UNopNetObjectFilter::RemoveObject(uint32 ObjectIndex, const FNetObjectFilteringInfo& Info)
-{
-}
-
-void UNopNetObjectFilter::UpdateObjects(FNetObjectFilterUpdateParams& Params)
 {
 }
 

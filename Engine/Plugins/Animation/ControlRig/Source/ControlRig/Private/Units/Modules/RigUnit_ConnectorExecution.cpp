@@ -5,8 +5,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnit_ConnectorExecution)
 
-FName FRigUnit_ConnectorExecution::EventName = TEXT("Connector");
-
 FRigUnit_ConnectorExecution_Execute()
 {
     DECLARE_SCOPE_HIERARCHICAL_COUNTER_RIGUNIT()

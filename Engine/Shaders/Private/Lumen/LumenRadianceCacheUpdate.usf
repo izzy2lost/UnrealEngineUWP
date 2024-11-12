@@ -36,6 +36,8 @@ RWBuffer<uint> RWProbeTraceAllocator;
 Buffer<uint> ProbeTraceAllocator;
 RWBuffer<float4> RWProbeTraceData;
 
+#ifdef ClearRadianceCacheUpdateResourcesCS
+
 /**
  * Batch clear all resources required for the subsequent radiance cache probe update pass
  */
@@ -71,6 +73,8 @@ void ClearRadianceCacheUpdateResourcesCS(
 	}
 }
 
+#endif
+
 uint GetPriorityBucketIndex(uint LastTracedFrameIndex, uint LastUsedFrameIndex, uint ClipmapIndex)
 {
 	uint BucketIndex = 0;
@@ -93,6 +97,8 @@ uint GetPriorityBucketIndex(uint LastTracedFrameIndex, uint LastUsedFrameIndex, 
 	return BucketIndex;
 }
 
+#ifdef AllocateUsedProbesCS
+
 /** 
  * Allocate used probes and build their update priority histogram
  */
@@ -108,7 +114,6 @@ void AllocateUsedProbesCS(
 	if (ClipmapIndex < NumRadianceProbeClipmaps && all(ProbeCoord < RadianceProbeClipmapResolution))
 	{
 		uint ProbeUsedMarker = RWRadianceProbeIndirectionTexture[DispatchThreadId];
-		float3 ProbeWorldPosition = ProbeCoord * GetRadianceProbeCoordToWorldPositionScale(ClipmapIndex) + GetRadianceProbeCoordToWorldPositionBias(ClipmapIndex);
 
 		if (ProbeUsedMarker != INVALID_PROBE_INDEX)
 		{
@@ -156,6 +161,7 @@ void AllocateUsedProbesCS(
 			{
 				// Update histogram
 				const uint PriorityBucketIndex = GetPriorityBucketIndex(LastTracedFrameIndex, LastUsedFrameIndex, ClipmapIndex);
+				const float3 ProbeWorldPosition = GetProbeTranslatedWorldPositionNoOffset(ProbeCoord, ClipmapIndex) - DFHackToFloat(PrimaryView.PreViewTranslation);
 				uint ProbeTraceCost = GetProbeTraceCost(ProbeWorldPosition);
 				InterlockedAdd(RWPriorityHistogram[PriorityBucketIndex], ProbeTraceCost);
 
@@ -168,6 +174,10 @@ void AllocateUsedProbesCS(
 		}
 	}
 }
+
+#endif
+
+#ifdef SelectMaxPriorityBucketCS
 
 /** 
  * Compute max bucket histogram to update and how many tiles should be updated in that last bucket 
@@ -203,6 +213,10 @@ void SelectMaxPriorityBucketCS(
 	}
 }
 
+#endif
+
+#ifdef AllocateProbeTracesCS
+
 /**
  * Iterate again over all probes and update them based on the histogram priority max update bucket
  */
@@ -218,7 +232,7 @@ void AllocateProbeTracesCS(
 	if (ClipmapIndex < NumRadianceProbeClipmaps && all(ProbeCoord < RadianceProbeClipmapResolution))
 	{
 		const uint ProbeIndex = RadianceProbeIndirectionTexture[DispatchThreadId];
-		float3 ProbeWorldPosition = ProbeCoord * GetRadianceProbeCoordToWorldPositionScale(ClipmapIndex) + GetRadianceProbeCoordToWorldPositionBias(ClipmapIndex);
+		float3 ProbeWorldPosition = GetProbeTranslatedWorldPositionNoOffset(ProbeCoord, ClipmapIndex) - DFHackToFloat(PrimaryView.PreViewTranslation);
 
 		if (ProbeIndex < MaxNumProbes)
 		{
@@ -268,6 +282,10 @@ void AllocateProbeTracesCS(
 	}
 }
 
+#endif
+
+#ifdef ClearProbeFreeListCS
+
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void ClearProbeFreeListCS(
 	uint3 GroupId : SV_GroupID,
@@ -289,10 +307,24 @@ void ClearProbeFreeListCS(
 	}
 }
 
+#endif
+
 Buffer<uint> ProbeAllocator;
 Texture3D<uint> LastFrameRadianceProbeIndirectionTexture;
-float4 PackedLastFrameRadianceProbeCoordToWorldPosition[RADIANCE_PROBE_MAX_CLIPMAPS];
+float4 LastFrameClipmapCornerTWSAndCellSize[RADIANCE_PROBE_MAX_CLIPMAPS];
 uint NumFramesToKeepCachedProbes;
+
+float3 GetLastFrameProbeTranslatedWorldPosition(uint3 LastFrameProbeCoord, uint ClipmapIndex)
+{
+	float3 CornerTranslatedWorldSpace = LastFrameClipmapCornerTWSAndCellSize[ClipmapIndex].xyz;
+	float CellSize = LastFrameClipmapCornerTWSAndCellSize[ClipmapIndex].w;
+
+	const float3 CornerToProbe = (LastFrameProbeCoord + 0.5) * CellSize;
+	return CornerTranslatedWorldSpace + CornerToProbe;
+}
+
+
+#ifdef UpdateCacheForUsedProbesCS
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, THREADGROUP_SIZE)]
 void UpdateCacheForUsedProbesCS(
@@ -310,8 +342,8 @@ void UpdateCacheForUsedProbesCS(
 
 		if (LastFrameProbeIndex != INVALID_PROBE_INDEX)
 		{
-			float3 ProbeWorldPosition = LastFrameProbeCoord * PackedLastFrameRadianceProbeCoordToWorldPosition[ClipmapIndex].w + PackedLastFrameRadianceProbeCoordToWorldPosition[ClipmapIndex].xyz;
-			int3 ProbeCoord = GetRadianceProbeCoord(ProbeWorldPosition, ClipmapIndex);
+			float3 ProbeTranslatedWorldPosition = GetLastFrameProbeTranslatedWorldPosition(LastFrameProbeCoord, ClipmapIndex);
+			int3 ProbeCoord = GetRadianceProbeCoord(ProbeTranslatedWorldPosition - DFHackToFloat(PrimaryView.PrevPreViewTranslation), ClipmapIndex);
 
 			bool bReused = false;
 
@@ -352,3 +384,5 @@ void UpdateCacheForUsedProbesCS(
 		}
 	}
 }
+
+#endif

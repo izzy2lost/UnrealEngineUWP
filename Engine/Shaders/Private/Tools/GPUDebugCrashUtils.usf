@@ -24,6 +24,11 @@ void MainCS(uint3 ThreadID : SV_DispatchThreadID)
 	{
 		PageFaultUAV[index1] = what;
 	}
+
+#if ASSERT_REQUESTED && PLATFORM_SUPPORTS_DIAGNOSTIC_BUFFER
+	UEReportAssertWithPayload(0xBE4A3F32, uint4(1, 2, 3, 4));
+#endif
+
 #if  HANG_REQUESTED
 	// Try to trigger a crash (timeout) using a deliberate infinite loop
 	for (;;)

@@ -7,10 +7,17 @@
 #include "PostProcess/PostProcessLocalExposure.h"
 #include "PostProcess/PostProcessEyeAdaptation.h"
 #include "PostProcess/PostProcessWeightedSampleSum.h"
+#include "PostProcess/PostProcessDownsample.h"
 #include "Curves/CurveFloat.h"
 #include "SceneRendering.h"
 #include "ShaderCompilerCore.h"
 #include "DataDrivenShaderPlatformInfo.h"
+
+static TAutoConsoleVariable<float> CVarExposureFusionTargetLuminance(
+	TEXT("r.LocalExposure.ExposureFusion.TargetLuminance"),
+	0.5f,
+	TEXT("Target Luminance used to determine the weight of each exposure."),
+	ECVF_RenderThreadSafe);
 
 namespace
 {
@@ -91,6 +98,97 @@ public:
 
 IMPLEMENT_GLOBAL_SHADER(FApplyLocalExposureCS, "/Engine/Private/PostProcessLocalExposure.usf", "ApplyLocalExposureCS", SF_Compute);
 
+class FFusionSetupCS : public FGlobalShader
+{
+public:
+	// Changing these numbers requires LocalExposure.usf to be recompiled
+	static const uint32 ThreadGroupSizeX = 8;
+	static const uint32 ThreadGroupSizeY = 8;
+
+	DECLARE_GLOBAL_SHADER(FFusionSetupCS);
+	SHADER_USE_PARAMETER_STRUCT(FFusionSetupCS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
+
+		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Input)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputTexture)
+
+		SHADER_PARAMETER_STRUCT(FEyeAdaptationParameters, EyeAdaptation)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, EyeAdaptationBuffer)
+
+		SHADER_PARAMETER_STRUCT(FLocalExposureParameters, LocalExposure)
+
+		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Output)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputFloat4)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputFloat4_1)
+
+		SHADER_PARAMETER(float, TargetLuminance)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEX"), ThreadGroupSizeX);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEY"), ThreadGroupSizeY);
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FFusionSetupCS, "/Engine/Private/PostProcessLocalExposure.usf", "FusionSetupCS", SF_Compute);
+
+class FFusionBlendCS : public FGlobalShader
+{
+public:
+	// Changing these numbers requires LocalExposure.usf to be recompiled
+	static const uint32 ThreadGroupSizeX = 8;
+	static const uint32 ThreadGroupSizeY = 8;
+
+	DECLARE_GLOBAL_SHADER(FFusionBlendCS);
+	SHADER_USE_PARAMETER_STRUCT(FFusionBlendCS, FGlobalShader);
+
+	class FLaplacianDim : SHADER_PERMUTATION_BOOL("LAPLACIAN");
+	using FPermutationDomain = TShaderPermutationDomain<FLaplacianDim>;
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
+		SHADER_PARAMETER_STRUCT(FEyeAdaptationParameters, EyeAdaptation)
+
+		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Input)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, WeightTexture)
+
+		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, CoarserMip)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, CoarserMipTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, PrevResultTexture)
+
+		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Output)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, OutputFloat)
+
+		SHADER_PARAMETER_SAMPLER(SamplerState, TextureSampler)
+
+		SHADER_PARAMETER(FScreenTransform, DispatchThreadToCoarseMipUV)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEX"), ThreadGroupSizeX);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEY"), ThreadGroupSizeY);
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FFusionBlendCS, "/Engine/Private/PostProcessLocalExposure.usf", "FusionBlendCS", SF_Compute);
+
 } //! namespace
 
 FVector2f GetLocalExposureBilateralGridUVScale(const FIntPoint ViewRectSize);
@@ -130,6 +228,15 @@ FLocalExposureParameters GetLocalExposureParameters(const FViewInfo& View, FIntP
 		{
 			ShadowContrast *= Settings.LocalExposureShadowContrastCurve->GetFloatValue(LuminanceEV100);
 		}
+	}
+
+	if (View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Fusion)
+	{
+		const float HighlightEV = FMath::Lerp<float>(10, 0, HighlightContrast);
+		HighlightContrast = FMath::Pow(2, -HighlightEV);
+
+		const float ShadowEV = FMath::Lerp<float>(10, 0, ShadowContrast);
+		ShadowContrast = FMath::Pow(2, ShadowEV);
 	}
 
 	FLocalExposureParameters Parameters;
@@ -242,7 +349,7 @@ void AddApplyLocalExposurePass(
 	PassParameters->LumBilateralGrid = LocalExposureTexture;
 	PassParameters->BlurredLogLum = BlurredLogLuminanceTexture;
 
-	PassParameters->TextureSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();;
+	PassParameters->TextureSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
 	FComputeShaderUtils::AddPass(
 		GraphBuilder,
@@ -251,4 +358,128 @@ void AddApplyLocalExposurePass(
 		View.ShaderMap->GetShader<FApplyLocalExposureCS>(),
 		PassParameters,
 		FComputeShaderUtils::GetGroupCount(Output.ViewRect.Size(), FIntPoint(FApplyLocalExposureCS::ThreadGroupSizeX, FApplyLocalExposureCS::ThreadGroupSizeY)));
+}
+
+FScreenPassTexture AddLocalExposureFusionPass(
+	FRDGBuilder& GraphBuilder,
+	const FViewInfo& View,
+	const FEyeAdaptationParameters& EyeAdaptationParameters,
+	FRDGBufferRef EyeAdaptationBuffer,
+	const FLocalExposureParameters& LocalExposureParamaters,
+	FScreenPassTextureSlice Input)
+{
+	check(Input.IsValid());
+
+	RDG_EVENT_SCOPE(GraphBuilder, "LocalExposure - Fusion");
+
+	FScreenPassTexture LumTexture;
+	FScreenPassTexture WeightTexture;
+
+	{
+		const FRDGTextureDesc& InputDesc = Input.TextureSRV->GetParent()->Desc;
+
+		const FRDGTextureDesc TextureDesc = FRDGTextureDesc::Create2D(
+			InputDesc.Extent,
+			PF_FloatRGB,
+			FClearValueBinding::None,
+			TexCreate_UAV | TexCreate_ShaderResource);
+
+		// output uses same viewport as input
+		LumTexture = FScreenPassTexture(GraphBuilder.CreateTexture(TextureDesc, TEXT("LocalExposureLumTexture")), Input.ViewRect);
+		WeightTexture = FScreenPassTexture(GraphBuilder.CreateTexture(TextureDesc, TEXT("LocalExposureWeightTexture")), Input.ViewRect);
+
+		auto* PassParameters = GraphBuilder.AllocParameters<FFusionSetupCS::FParameters>();
+		PassParameters->View = View.ViewUniformBuffer;
+		PassParameters->EyeAdaptation = EyeAdaptationParameters;
+		PassParameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(EyeAdaptationBuffer);
+		PassParameters->LocalExposure = LocalExposureParamaters;
+		PassParameters->Input = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(Input));
+		PassParameters->InputTexture = Input.TextureSRV;
+		PassParameters->Output = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(LumTexture));
+		PassParameters->OutputFloat4 = GraphBuilder.CreateUAV(LumTexture.Texture);
+		PassParameters->OutputFloat4_1 = GraphBuilder.CreateUAV(WeightTexture.Texture);
+		PassParameters->TargetLuminance = CVarExposureFusionTargetLuminance.GetValueOnRenderThread();
+
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("FusionSetup %dx%d", Input.ViewRect.Width(), Input.ViewRect.Height()),
+			ERDGPassFlags::Compute,
+			View.ShaderMap->GetShader<FFusionSetupCS>(),
+			PassParameters,
+			FComputeShaderUtils::GetGroupCount(Input.ViewRect.Size(), FIntPoint(FFusionSetupCS::ThreadGroupSizeX, FFusionSetupCS::ThreadGroupSizeY)));
+	}
+
+	const bool bLogLumaInAlpha = false;
+
+	FSceneDownsampleChain LumChain;
+	LumChain.Init(
+		GraphBuilder, View,
+		EyeAdaptationParameters,
+		FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, LumTexture),
+		EDownsampleQuality::High,
+		bLogLumaInAlpha);
+
+	FSceneDownsampleChain WeightChain;
+	WeightChain.Init(
+		GraphBuilder, View,
+		EyeAdaptationParameters,
+		FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, WeightTexture),
+		EDownsampleQuality::High,
+		bLogLumaInAlpha);
+
+	FScreenPassTexture Output;
+
+	FScreenPassTextureSlice CoarserMip;
+
+	for(int32 Index = FSceneDownsampleChain::StageCount - 1; Index >= 0; --Index)
+	{
+		FScreenPassTextureSlice CurrentLum = LumChain.GetTexture(Index);
+		FScreenPassTextureSlice CurrentWeight = WeightChain.GetTexture(Index);
+
+		FRDGTextureSRVRef PrevResult = Output.IsValid() ? GraphBuilder.CreateSRV(Output.Texture) : nullptr;
+
+		{
+			FRDGTextureDesc OutputDesc = CurrentLum.TextureSRV->GetParent()->Desc;
+			OutputDesc.Reset();
+			OutputDesc.Flags |= TexCreate_UAV;
+
+			// output uses same viewport as mip
+			Output = FScreenPassTexture(GraphBuilder.CreateTexture(OutputDesc, TEXT("LocalExposureResult")), CurrentLum.ViewRect);
+		}
+
+		auto* PassParameters = GraphBuilder.AllocParameters<FFusionBlendCS::FParameters>();
+		PassParameters->View = View.ViewUniformBuffer;
+		PassParameters->EyeAdaptation = EyeAdaptationParameters;
+		PassParameters->InputTexture = CurrentLum.TextureSRV;
+		PassParameters->WeightTexture = CurrentWeight.TextureSRV;
+		if (CoarserMip.IsValid())
+		{
+			PassParameters->DispatchThreadToCoarseMipUV =
+				FScreenTransform::DispatchThreadIdToViewportUV(Output.ViewRect) *
+				FScreenTransform::ChangeTextureBasisFromTo(FScreenPassTextureViewport(CoarserMip), FScreenTransform::ETextureBasis::ViewportUV, FScreenTransform::ETextureBasis::TextureUV);
+			PassParameters->CoarserMip = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(CoarserMip));
+			PassParameters->CoarserMipTexture = CoarserMip.TextureSRV;
+		}
+		PassParameters->PrevResultTexture = PrevResult;
+		PassParameters->Output = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(Output));
+		PassParameters->OutputFloat = GraphBuilder.CreateUAV(Output.Texture);
+		PassParameters->TextureSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+
+		FFusionBlendCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FFusionBlendCS::FLaplacianDim>(PrevResult != nullptr);
+
+		auto ComputeShader = View.ShaderMap->GetShader<FFusionBlendCS>(PermutationVector);
+
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("FusionBlend %dx%d", Output.ViewRect.Width(), Output.ViewRect.Height()),
+			ERDGPassFlags::Compute,
+			ComputeShader,
+			PassParameters,
+			FComputeShaderUtils::GetGroupCount(Output.ViewRect.Size(), FIntPoint(FFusionBlendCS::ThreadGroupSizeX, FFusionBlendCS::ThreadGroupSizeY)));
+
+		CoarserMip = CurrentLum;
+	}
+
+	return MoveTemp(Output);
 }

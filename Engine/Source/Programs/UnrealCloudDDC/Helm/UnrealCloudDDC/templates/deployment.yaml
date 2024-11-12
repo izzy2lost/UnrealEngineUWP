@@ -15,10 +15,13 @@ spec:
       {{- include "common.tplvalues.render" ( dict "value" .Values.podLabels "context" $ ) | nindent 8 }}
       {{- end }}
 
-      {{- if .Values.podAnnotations }}
+      {{- if or .Values.podAnnotations .Values.restartPodOnConfigMapChange }}
       annotations:
         {{- if .Values.podAnnotations }}
         {{- include "common.tplvalues.render" (dict "value" .Values.podAnnotations "context" $) | nindent 8 }}
+        {{- end }}
+        {{- if .Values.restartPodOnConfigMapChange }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         {{- end }}
       {{- end }}
     spec:
@@ -37,6 +40,10 @@ spec:
         podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "context" $) | nindent 10 }}
         podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "context" $) | nindent 10 }}
         nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset.values) | nindent 10 }}
+      {{- end }}
+      {{- if .Values.securityContext.enabled }}
+      {{ $securityContext := unset .Values.securityContext "enabled" }}
+      securityContext: {{- include "common.tplvalues.render" (dict "value" $securityContext "context" $) | nindent 8 }}
       {{- end }}
       {{- if .Values.nodeSelector }}
       nodeSelector: {{- include "common.tplvalues.render" (dict "value" .Values.nodeSelector "context" $) | nindent 8 }}
@@ -84,9 +91,6 @@ spec:
               fieldPath: metadata.namespace
         {{- if .Values.env }}
         {{- include "common.tplvalues.render" ( dict "value" .Values.env "context" $ ) | nindent 8 }}
-        {{- end }}
-        {{- if .Values.securityContext }}
-        securityContext: {{- include "common.tplvalues.render" (dict "value" .Values.securityContext "context" $) | nindent 8 }}
         {{- end }}
         ports:
         - name: http
@@ -160,11 +164,14 @@ spec:
         volumeMounts:
           - name: diagnostics
             mountPath: /tmp
+        resources:
+          requests: 
+            cpu: 50m
     {{- end }}
     {{- if .Values.nginx.enabled }}
       - name: nginx
         image: nginx:1.25.4
-        {{- if .Values.nginx.env }}
+        {{- if .Values.nginx.env }} 
         env:
         {{- include "common.tplvalues.render" ( dict "value" .Values.nginx.env "context" $ ) | nindent 8 }}
         {{- end }}
@@ -210,6 +217,9 @@ spec:
               # Load balancers can be slow to deregister instances, this can be used to introduce a delay to provide zero downtime
               - "sleep"
               - "{{ .Values.preStopHookDelay }}"
+        {{- end }}
+        {{- if .Values.nginx.resources }}
+        resources: {{- toYaml .Values.nginx.resources | nindent 12 }}
         {{- end }}
         volumeMounts:
           - name: nginx

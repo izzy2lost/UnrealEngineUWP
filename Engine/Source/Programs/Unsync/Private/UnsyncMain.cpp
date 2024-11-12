@@ -10,6 +10,7 @@
 #include "UnsyncCmdPush.h"
 #include "UnsyncCmdQuery.h"
 #include "UnsyncCmdSync.h"
+#include "UnsyncCmdInfo.h"
 #include "UnsyncCore.h"
 #include "UnsyncFile.h"
 #include "UnsyncMemory.h"
@@ -17,6 +18,11 @@
 #include "UnsyncTest.h"
 #include "UnsyncThread.h"
 #include "UnsyncUtil.h"
+#include "UnsyncScheduler.h"
+#include "UnsyncVersion.h"
+#include "UnsyncSource.h"
+#include "UnsyncFilter.h"
+#include "UnsyncHorde.h"
 
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #if UNSYNC_PLATFORM_WINDOWS
@@ -72,7 +78,7 @@ InnerMain(int Argc, char** Argv)
 	std::string				 PresetUtf8		= "all";
 	std::string				 ChunkModeUtf8;
 	std::string				 CacertFilenameUtf8;
-	std::string				 ProtocolName = "jupiter";
+	std::string				 ProtocolName;
 	std::string				 HttpHeaderFilenameUtf8;
 	std::string				 QueryStringUtf8;
 	std::vector<std::string> QueryArgsUtf8;
@@ -84,7 +90,7 @@ InnerMain(int Argc, char** Argv)
 	bool					 bRunP4Have			 = false;
 	bool					 bForceOperation	 = false;
 	bool					 bAllowInsecureTls	 = false;
-	bool					 bUseTls			 = false;
+	bool					 bRequireTls		 = false;
 	bool					 bUseDebugMode		 = false;
 	bool					 bIncrementalMode	 = false;
 	bool					 bNoOutputValidation = false;
@@ -104,10 +110,17 @@ InnerMain(int Argc, char** Argv)
 	bool					 bNoSocketTimeout	 = false;
 	bool					 bNoOutputFiles  	 = false;
 	bool					 bNoOutputRevisions  = false;
+	bool					 bPackOnlySmallFiles = false;
+	bool					 bPackFiles		     = false;
+	bool					 bNoCompression		 = false;
 	int32					 CompressionLevel	 = 3;
 	uint32					 DiffBlockSize		 = uint32(4_KB);
 	uint32					 HashOrSyncBlockSize = uint32(64_KB);
 	uint32					 BackgroundTaskMemoryBudgetGB = 2;
+
+	const std::string HiddenGroupId;  // CLI11 uses an empty string group name to mark arguments that should be hidden
+	const std::string ExperimentalGroupId = "Experimental";
+	const std::string DangerousGroupId	  = "Dangerous";
 
 	struct FDeprecatedOptions
 	{
@@ -116,21 +129,27 @@ InnerMain(int Argc, char** Argv)
 		bool bQuickSourceValidation = false;
 	} DeprecatedOptions;
 
-	const std::string HiddenGroupId;  // CLI11 uses an empty string group name to mark arguments that should be hidden
-
-	auto AddTlsOptions = [&CacertFilenameUtf8, &bUseTls, &bAllowInsecureTls](CLI::App* App) {
+	auto AddTlsOptions = [&CacertFilenameUtf8, &bRequireTls, &bAllowInsecureTls, &DangerousGroupId](CLI::App* App)
+	{
 		App->add_option("--cacert", CacertFilenameUtf8, "Certificate authority file to use for TLS validation (.pem)");
-		App->add_flag("--tls", bUseTls, "Use TLS when connecting to remote server");
-		App->add_flag("--insecure", bAllowInsecureTls, "Skip remote server TLS certificate validation");
+		App->add_flag("--tls", bRequireTls, "Force TLS when connecting to remote server");
+		App->add_flag("--insecure", bAllowInsecureTls, "Skip remote server TLS certificate validation")->group(DangerousGroupId);
 	};
 
-	auto AddProxyOptions = [&RemoteAddressUtf8, &bNoProxySelect](CLI::App* App) {
+	auto AddProxyOptions = [&RemoteAddressUtf8, &ProtocolName, &bNoProxySelect, &bNoCompression](CLI::App* App)
+	{
 		App->add_option("--proxy, --remote, --server",
 						RemoteAddressUtf8,
-						"Download server address ([transport://]address[:port][/request][#namespace])");
+						"Download server address ([protocol+][transport://]address[:port][/request][#namespace])");
 		App->add_flag("--no-proxy-select",
 					  bNoProxySelect,
 					  "Skip automatic server selection and use the exact one specified by command line or environment variable");
+		App->add_flag("--no-compression",
+					  bNoCompression,
+					  "Disable compression when downloading blocks from the server, if possible (intended for debugging)");
+		App->add_option("--protocol", ProtocolName, "Explicitly specify server protocol instead of inferring it from URL")
+			->required(false)
+			->check(CLI::IsMember({"unsync", "jupiter", "horde"}));
 	};
 
 	// Configure hash
@@ -157,6 +176,16 @@ InnerMain(int Argc, char** Argv)
 		"--update",
 		bIncrementalMode,
 		"Create a directory manifest incrementally, by updating an existing manifest if one exists (only process changed files)");
+	SubHash->add_flag(
+		"--pack-small-files",
+		bPackOnlySmallFiles,
+		"Small files will be copied to compressed pack files during manifest generation and stored next to the manifest. "
+		"This can make syncing more efficient by reducing the number of remote file handles that must be opened. Implies --pack. "
+		"Files less than 4MB in size are considered small.");
+	SubHash->add_flag(
+		"--pack",
+		bPackFiles,
+		"Input files will be copied to compressed pack files during manifest generation and stored next to the manifest file.");
 	SubCommands.push_back(SubHash);
 
 	// Configure pack
@@ -165,7 +194,7 @@ InnerMain(int Argc, char** Argv)
 	{
 		SubPack =
 			Cli.add_subcommand("pack",
-							   "EXPERIMENTAL: Generate manifest for a directory and store all referenced data in a compressed pack file");
+							   "EXPERIMENTAL: Generate manifest for a directory and store all referenced data in a compressed pack file")->group(HiddenGroupId);
 
 		SubPack->add_option("Input", InputFilenameUtf8, "Input directory path")->required();
 
@@ -186,7 +215,7 @@ InnerMain(int Argc, char** Argv)
 
 	CLI::App* SubUnpack = nullptr;
 	{
-		SubUnpack = Cli.add_subcommand("unpack", "EXPERIMENTAL: Sync directory based on package snapshot");
+		SubUnpack = Cli.add_subcommand("unpack", "EXPERIMENTAL: Sync directory based on package snapshot")->group(HiddenGroupId);
 
 		SubUnpack->add_option("Output", OutputFilenameUtf8, "Output directory path")->required();
 
@@ -229,6 +258,7 @@ InnerMain(int Argc, char** Argv)
 	SubInfo->add_option("--exclude",
 						ExcludeFilterArrayUtf8,
 						"Exclude filenames that contain specified words (comma separated). Filter is run after --include.");
+	SubInfo->add_flag("--decode", bDecode, "Decode binary manifest into json");
 	SubCommands.push_back(SubInfo);
 
 	// Configure diff
@@ -252,7 +282,7 @@ InnerMain(int Argc, char** Argv)
 	SubSync->add_option("Target", TargetFilenameUtf8, "Target path")->required();
 	SubSync->add_option("-m, --manifest", SourceManifestFilenameUtf8, "Override manifest path for Source");
 	AddProxyOptions(SubSync);
-	SubSync->add_option("--dfs", PreferredDfsUtf8, "Preferred DFS mirror (matched by sub-string)");
+	SubSync->add_option("--dfs", PreferredDfsUtf8, "DEPRECATED: Preferred DFS mirror (matched by sub-string)")->group(HiddenGroupId);
 	SubSync->add_option(
 		"--overlay",
 		OverlayArrayUtf8,
@@ -307,12 +337,15 @@ InnerMain(int Argc, char** Argv)
 					  "the manifest. This is an extra precaution that will detect any missing or invalid remote files before running the "
 					  "sync process, however this can be very slow when dealing with large numbers of files and directories.");
 
-	SubSync->add_flag("--no-output-validation", bNoOutputValidation, "Skip final patched file block hash validation (DANGEROUS)");
-	SubSync->add_flag("--no-space-validation", bNoSpaceValidation, "Skip checking available disk space before sync (DANGEROUS)");
-	SubSync->add_option("--scavenge", ScavengeRootUtf8, "Search for unsync manifests and reusable blocks in this directory (EXPERIMENTAL)");
+	SubSync->add_flag("--no-output-validation", bNoOutputValidation, "Skip final patched file block hash validation (DANGEROUS)")
+		->group(DangerousGroupId);
+	SubSync->add_flag("--no-space-validation", bNoSpaceValidation, "Skip checking available disk space before sync (DANGEROUS)")
+		->group(DangerousGroupId);
+	SubSync->add_option("--scavenge", ScavengeRootUtf8, "Search for unsync manifests and reusable blocks in this directory (EXPERIMENTAL)")
+		->group(ExperimentalGroupId);
 	SubSync->add_flag("--login", bShouldLogin, "Use user authentication when accessing unsync server");
 	SubSync->add_option("--token", AuthTokenPathUtf8, "Explicit path to the authentication token file to use");
-	SubSync->add_flag("--no-timeout", bNoSocketTimeout, "Disable the default 60 second timeout on network socket operations");
+	SubSync->add_flag("--no-timeout", bNoSocketTimeout, "Disable the default 15 minute timeout on network socket operations");
 
 	CLI::Option* BackgroundMemoryBudgetOption = SubSync->add_option("--background-task-memory",
 															BackgroundTaskMemoryBudgetGB,
@@ -356,7 +389,7 @@ InnerMain(int Argc, char** Argv)
 
 	// Configure mount
 
-	CLI::App* SubMount = Cli.add_subcommand("mount", "Mount directory manifest as a virtual file system (EXPERIMENTAL)");
+	CLI::App* SubMount = Cli.add_subcommand("mount", "Mount directory manifest as a virtual file system (EXPERIMENTAL)")->group(HiddenGroupId);
 	SubMount
 		->add_option("Source",
 					 SourceFilenameUtf8,
@@ -375,6 +408,7 @@ InnerMain(int Argc, char** Argv)
 		Subcommand->add_option("--threads", GMaxThreads, "Limit worker threads to specified number");
 		Subcommand->add_flag("--buffered-files", GForceBufferedFiles, "Always use buffered file IO");
 		Subcommand->add_flag("--debug", bUseDebugMode, "Enable extra debugging features, such as extra memory safety validation");
+		Subcommand->add_flag("--experimental", GExperimental, "Enable experimental code paths")->group(HiddenGroupId);
 
 		SilentFlag->excludes(VerboseFlag);
 		SilentFlag->excludes(VeryVerboseFlag);
@@ -396,6 +430,11 @@ InnerMain(int Argc, char** Argv)
 		return ReturnCode;
 	}
 
+	if (bPackOnlySmallFiles)
+	{
+		bPackFiles = true;
+	}
+
 	if (Cli.get_subcommands().size() == 0)
 	{
 		wprintf(L"%hs", Cli.help().c_str());
@@ -409,6 +448,10 @@ InnerMain(int Argc, char** Argv)
 	if (Cli.got_subcommand(SubQuery) || Cli.got_subcommand(SubLogin))
 	{
 		GLogMachineReadable = true;
+	}
+	else if (Cli.got_subcommand(SubInfo))
+	{
+		GLogMachineReadable = bDecode;
 	}
 
 	UNSYNC_VERBOSE(L"UNSYNC v%hs", GetVersionString().c_str());
@@ -536,21 +579,43 @@ InnerMain(int Argc, char** Argv)
 	FRemoteDesc RemoteDesc;
 	FAuthDesc	AuthDesc;
 
-	if (RemoteAddressUtf8.empty())
+	bool bFilesystemSource = true;
+
+	std::string_view PossibleUrl;
+
+	if (Cli.got_subcommand(SubSync))
 	{
-		// Derive remote server address from source name if explicit --proxy or --remote option is not provided for sync command.
+		PossibleUrl = SourceFilenameUtf8;
+	}
+	else if (Cli.got_subcommand(SubQuery) && !QueryArgsUtf8.empty())
+	{
+		PossibleUrl = QueryArgsUtf8[0];
+	}
 
-		if (Cli.got_subcommand(SubSync) && !PathExists(SourceFilenameUtf8))
+	
+	EProtocolFlavor ProtocolFlavorHint = EProtocolFlavor::Unknown;
+	if (!ProtocolName.empty())
+	{
+		ProtocolFlavorHint = ProtocolFlavorFromString(ProtocolName);
+	}
+
+	if (RemoteAddressUtf8.empty() && LooksLikeUrl(PossibleUrl) && (Cli.got_subcommand(SubSync) || Cli.got_subcommand(SubQuery)))
+	{
+		// Derive remote server address from source name if explicit --proxy or --remote option is not provided for sync or query
+
+		TResult<FRemoteDesc> ParsedRemoteDesc = FRemoteDesc::FromUrl(PossibleUrl, ProtocolFlavorHint);
+
+		if (ParsedRemoteDesc.IsOk())
 		{
-			TResult<FRemoteDesc> ParsedRemoteDesc = FRemoteDesc::FromUrl(SourceFilenameUtf8);
-			if (ParsedRemoteDesc.IsOk())
-			{
-				RemoteDesc = *ParsedRemoteDesc;
+			RemoteDesc = *ParsedRemoteDesc;
+			bFilesystemSource = false;
 
+			if (RemoteDesc.Protocol == EProtocolFlavor::Jupiter)
+			{
 				size_t SlashPos = RemoteDesc.StorageNamespace.find_first_of('/');
 				if (SlashPos == std::string::npos)
 				{
-					UNSYNC_ERROR(L"URL source is expected to follow [transport://]address[:port]#namespace/object format");
+					UNSYNC_ERROR(L"Jupiter URL source is expected to follow [transport://]address[:port]#namespace/object format");
 					return 1;
 				}
 				else
@@ -559,18 +624,32 @@ InnerMain(int Argc, char** Argv)
 					RemoteDesc.StorageNamespace = RemoteDesc.StorageNamespace.substr(0, SlashPos);
 				}
 			}
-			else
+			else if (RemoteDesc.Protocol == EProtocolFlavor::Unsync || RemoteDesc.Protocol == EProtocolFlavor::Horde)
 			{
-				UNSYNC_ERROR(L"Failed to parse remote address '%hs': %ls",
-							 RemoteAddressUtf8.c_str(),
-							 ParsedRemoteDesc.TryError()->Context.c_str());
-				return 1;
+				bShouldLogin = true; // Try to authenticate by default when source is a valid URL
+
+				if (Cli.got_subcommand(SubQuery))
+				{
+					QueryArgsUtf8[0] = RemoteDesc.RequestPath;
+				}
+				else if (Cli.got_subcommand(SubSync))
+				{
+					SourceFilenameUtf8 = RemoteDesc.RequestPath;
+				}
 			}
+		}
+		else
+		{
+			UNSYNC_ERROR(L"Failed to parse remote address '%hs': %ls",
+							RemoteAddressUtf8.c_str(),
+							ParsedRemoteDesc.TryError()->Context.c_str());
+			return 1;
 		}
 	}
 	else
 	{
-		TResult<FRemoteDesc> ParsedRemoteDesc = FRemoteDesc::FromUrl(RemoteAddressUtf8);
+		TResult<FRemoteDesc> ParsedRemoteDesc = FRemoteDesc::FromUrl(RemoteAddressUtf8, ProtocolFlavorHint);
+
 		if (ParsedRemoteDesc.IsOk())
 		{
 			RemoteDesc = *ParsedRemoteDesc;
@@ -584,15 +663,80 @@ InnerMain(int Argc, char** Argv)
 		}
 	}
 
+	// Derive artifact request path when syncing from Horde, if it wasn't specified via URL source syntax
+	if (RemoteDesc.Protocol == EProtocolFlavor::Horde && Cli.got_subcommand(SubSync))
+	{
+		bFilesystemSource = false;
+
+		auto ResolveHordeArtifactPath = [](const std::string& PathUtf8)
+		{
+			TResult<FHordeArtifactQuery> Query = FHordeArtifactQuery::FromString(PathUtf8);
+			if (Query.IsError())
+			{
+				LogError(Query.GetError(), L"Could not parse sync source path");
+				return std::string();
+			}
+
+			if (Query->Id.empty())
+			{
+				UNSYNC_ERROR(L"Could not parse sync source path. Artifact ID is expected, i.e. '#123456abcdef'.");
+				return std::string();
+			}
+
+			return std::string("api/v2/artifacts/") + Query->Id;
+		};
+
+		if (RemoteDesc.RequestPath.empty())
+		{
+			TResult<FHordeArtifactQuery> Query = FHordeArtifactQuery::FromString(SourceFilenameUtf8);
+			if (Query.IsError())
+			{
+				LogError(Query.GetError(), L"Could not parse sync source path");
+				return 1;
+			}
+
+			if (Query->Id.empty())
+			{
+				UNSYNC_ERROR(L"Could not parse sync source path. Artifact ID is expected, i.e. '#123456abcdef'.");
+				return 1;
+			}
+
+			SourceFilenameUtf8	   = ResolveHordeArtifactPath(SourceFilenameUtf8);
+			RemoteDesc.RequestPath = SourceFilenameUtf8;
+		}
+
+		for (std::string& OverlayPath : OverlayArrayUtf8)
+		{
+			OverlayPath = ResolveHordeArtifactPath(OverlayPath);
+		}
+	}
+
+	if (bNoCompression)
+	{
+		UNSYNC_VERBOSE(L"Uncompressed data transfer is preferred");
+		RemoteDesc.bPreferCompression = false;
+	}
+
 	FPath InputFilename			 = NormalizeFilenameUtf8(InputFilenameUtf8);
 	FPath InputFilename2		 = NormalizeFilenameUtf8(InputFilename2Utf8);
 	FPath OutputFilename		 = NormalizeFilenameUtf8(OutputFilenameUtf8);
 	FPath BaseFilename			 = NormalizeFilenameUtf8(BaseFilenameUtf8);
-	FPath SourceFilename		 = NormalizeFilenameUtf8(SourceFilenameUtf8);
 	FPath TargetFilename		 = NormalizeFilenameUtf8(TargetFilenameUtf8);
 	FPath PatchFilename			 = NormalizeFilenameUtf8(PatchFilenameUtf8);
 	FPath ScavengeRoot			 = NormalizeFilenameUtf8(ScavengeRootUtf8);
 	FPath SourceManifestFilename = NormalizeFilenameUtf8(SourceManifestFilenameUtf8);
+
+	FPath SourceFilename = bFilesystemSource ? NormalizeFilenameUtf8(SourceFilenameUtf8) : FPath(SourceFilenameUtf8);
+
+	if (GDryRun)
+	{
+		UNSYNC_LOG(L">>> DRY RUN <<<");
+	}
+
+	if (GExperimental)
+	{
+		UNSYNC_LOG(L">>> EXPERIMENTAL MODE <<<");
+	}
 
 	if (GLogVeryVerbose)
 	{
@@ -603,19 +747,21 @@ InnerMain(int Argc, char** Argv)
 		UNSYNC_LOG(L"Verbose logging is enabled");
 	}
 
-	if (GDryRun)
-	{
-		UNSYNC_LOG(L">>> DRY RUN <<<");
-	}
-
 	if (GForceBufferedFiles)
 	{
 		UNSYNC_VERBOSE(L"Using buffered file IO");
 	}
 
 	GMaxThreads = std::max(1u, GMaxThreads);
-	UNSYNC_VERBOSE2(L"Using threads: %d", GMaxThreads);
-	FConcurrencyPolicyScope ConcurrencyLimitScope(GMaxThreads);
+	UNSYNC_VERBOSE(L"Using threads: %d", GMaxThreads);
+
+	// Don't count the main thread when starting the thread pool
+	const uint32 NumWorkerThreads = GMaxThreads - 1;
+
+	static FScheduler MainScheduler(NumWorkerThreads);
+
+	UNSYNC_ASSERT(GScheduler == nullptr);
+	GScheduler = &MainScheduler;
 
 	if (Cli.got_subcommand(SubHash) || Cli.got_subcommand(SubPack))
 	{
@@ -719,9 +865,9 @@ InnerMain(int Argc, char** Argv)
 		}
 	}
 
-	if (bUseTls)
+	if (bRequireTls)
 	{
-		RemoteDesc.bTlsEnable = true;
+		RemoteDesc.TlsRequirement = ETlsRequirement::Required;
 	}
 
 	if (bAllowInsecureTls)
@@ -770,7 +916,8 @@ InnerMain(int Argc, char** Argv)
 
 	if (bShouldLogin)
 	{
-		RemoteDesc.PrimaryHost = RemoteDesc.Host;
+		RemoteDesc.PrimaryHost			   = RemoteDesc.Host;
+		RemoteDesc.bAuthenticationRequired = true;
 	}
 
 	FRemoteDesc RootRemoteDesc = RemoteDesc;
@@ -787,6 +934,15 @@ InnerMain(int Argc, char** Argv)
 
 			RemoteDesc.Host.Address = Mirror->Address;
 			RemoteDesc.Host.Port	= Mirror->Port;
+			
+			if (Mirror->Port == 443)
+			{
+				RemoteDesc.TlsRequirement = ETlsRequirement::Required;
+			}
+			else if (RemoteDesc.TlsRequirement < ETlsRequirement::Required)
+			{
+				RemoteDesc.TlsRequirement = ETlsRequirement::Preferred;
+			}
 		}
 		else
 		{
@@ -800,12 +956,18 @@ InnerMain(int Argc, char** Argv)
 	{
 		FCmdHashOptions HashOptions;
 
-		HashOptions.Input		 = InputFilename;
-		HashOptions.Output		 = OutputFilename;
-		HashOptions.BlockSize	 = HashOrSyncBlockSize;
-		HashOptions.Algorithm	 = Algorithm;
-		HashOptions.bForce		 = bForceOperation;
-		HashOptions.bIncremental = bIncrementalMode;
+		HashOptions.Input			= InputFilename;
+		HashOptions.Output			= OutputFilename;
+		HashOptions.BlockSize		= HashOrSyncBlockSize;
+		HashOptions.Algorithm		= Algorithm;
+		HashOptions.bForce			= bForceOperation;
+		HashOptions.bIncremental	= bIncrementalMode;
+		HashOptions.bPackFiles		= bPackFiles;
+
+		if (bPackOnlySmallFiles)
+		{
+			HashOptions.MaxFileSizeToPack = 4_MB;
+		}
 
 		return CmdHash(HashOptions);
 	}
@@ -873,7 +1035,7 @@ InnerMain(int Argc, char** Argv)
 
 				// Note: since tokens can expire during a long operation,
 				// we can only save the auth descriptor and re-authenticate later if necessary
-				TResult<FAuthToken> AuthTokenResult = Authenticate(AuthDesc, 5 * 60);
+				TResult<FAuthToken> AuthTokenResult = Authenticate(AuthDesc);
 
 				if (AuthTokenResult.IsError())
 				{
@@ -883,7 +1045,7 @@ InnerMain(int Argc, char** Argv)
 				}
 
 				// Authentication requires encrypted connection
-				RemoteDesc.bTlsEnable			   = true;
+				RemoteDesc.TlsRequirement		   = ETlsRequirement::Required;
 				RemoteDesc.bAuthenticationRequired = true;
 
 				UNSYNC_LOG(L"Authentication enabled")
@@ -896,7 +1058,7 @@ InnerMain(int Argc, char** Argv)
 		}
 		else
 		{
-			RemoteDesc.RecvTimeoutSeconds = 60;
+			RemoteDesc.RecvTimeoutSeconds = 15 * 60;
 		}
 
 		// Try to derive default memory budget
@@ -942,7 +1104,14 @@ InnerMain(int Argc, char** Argv)
 
 		for (const std::string& Entry : OverlayArrayUtf8)
 		{
-			SyncOptions.Overlays.push_back(NormalizeFilenameUtf8(Entry));
+			if (bFilesystemSource)
+			{
+				SyncOptions.Overlays.push_back(NormalizeFilenameUtf8(Entry));
+			}
+			else
+			{
+				SyncOptions.Overlays.push_back(FPath(Entry));
+			}
 		}
 
 		return CmdSync(SyncOptions);
@@ -977,6 +1146,7 @@ InnerMain(int Argc, char** Argv)
 		Options.InputB	   = InputFilename2;
 		Options.bListFiles = bInfoFiles;
 		Options.SyncFilter = &SyncFilter;
+		Options.bDecode	   = bDecode;
 		return CmdInfo(Options);
 	}
 	else if (Cli.got_subcommand(SubQuery))
@@ -1136,4 +1306,4 @@ main(int argc, char** argv)
 	}
 
 	return 1;
-}
+ }

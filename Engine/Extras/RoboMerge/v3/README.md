@@ -98,7 +98,6 @@ for both node and edge.
 |`depot`                    |n |**required**| |Depot, e.g. UE4                          |Flag currently called `defaultStreamDepot`|
 |`rootPath`                 |n |from stream | |P4 depot full path                       | |
 |`streamSubpath`            |n |`/...`      | |P4 depot sub-path                        | |
-|`workspaceNameOverride`    |n |            | |Used specified workspace name for commits| |
 |`enabled`                  |ne|`true`      | |If false, pretends node/edge doesn't exist| |
 |`forcePause`               |ne|            | |If flag set, pause - applies each restart| |
 |`additionalSlackChannelForBlockages` |e |  | |Single extra Slack channel               | |
@@ -113,7 +112,7 @@ for both node and edge.
 |`isDefaultBot`             |e |`false`     | |Run plain #robomerge commands? Should be `false` for streams monitored by multiple bots| |
 |`lastGoodCLPath`           |e |            | |'Gate' file to read to find CIS-approved CL| |
 |`waitingForCISLink`        |e |            | |URL to link to for waiting for CIS messages| |
-|`maxFilesPerIntegration`   |e |`-1`        | |Reject integrations with more files than this| |
+|`workspaceNameOverride`    |e |            | |User specified workspace name for commits| |
 |`notify`                   |e |            | |Additional people to email on blockages  |Also `globalNotify`|
 |`resolver`                 |e |            | |Single designated resolver               |Currently applies to both source and target nodes|
 

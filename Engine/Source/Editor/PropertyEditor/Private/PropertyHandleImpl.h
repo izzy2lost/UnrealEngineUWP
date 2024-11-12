@@ -279,6 +279,16 @@ public:
 	 * @return true if the property  is edit const and cannot be changed
 	 */
 	bool IsEditConst() const;
+	
+	/**
+	 * @return Whether or not the property is expanded
+	 */
+	bool IsExpanded() const;
+
+	/**
+	* Set the expanded flag
+	*/
+	void SetExpanded(bool bExpanded);
 
 	/**
 	 * @return The label to use for displaying reset to default values
@@ -287,8 +297,9 @@ public:
 
 	/**
 	 * Adds a child to the property node (container properties only)
+	 * @return The logical index of the added child.
 	 */
-	void AddChild();
+	int32 AddChild();
 
 	/**
 	 * Removes all children from the property node (container properties only)
@@ -435,6 +446,8 @@ public:
 	virtual void CreateDefaultPropertyCopyPasteActions(FUIAction& OutCopyAction, FUIAction& OutPasteAction) const override;
 	virtual bool IsEditConst() const override;
 	virtual bool IsEditable() const override;
+	virtual bool IsExpanded() const override;
+	virtual void SetExpanded(bool bExpanded) override;
 	virtual void SetOnPropertyValueChanged( const FSimpleDelegate& InOnPropertyValueChanged ) override;
 	virtual void SetOnPropertyValueChangedWithData(const TDelegate<void(const FPropertyChangedEvent&)>& InOnPropertyValueChanged) override;
 	virtual void SetOnChildPropertyValueChanged( const FSimpleDelegate& InOnPropertyValueChanged ) override;
@@ -494,6 +507,7 @@ public:
 	virtual FPropertyAccess::Result SetPerObjectValue( const int32 ObjectIndex, const FString& ObjectValue, EPropertyValueSetFlags::Type Flags = EPropertyValueSetFlags::DefaultFlags ) override;
 	virtual FPropertyAccess::Result GetPerObjectValue( const int32 ObjectIndex, FString& OutObjectValue ) const override;
 	virtual bool GeneratePossibleValues(TArray< TSharedPtr<FString> >& OutOptionStrings, TArray< FText >& OutToolTips, TArray<bool>& OutRestrictedItems) override;
+	virtual bool GeneratePossibleValues(TArray<FString>& OutOptionStrings, TArray< FText >& OutToolTips, TArray<bool>& OutRestrictedItems, TArray<FText>* OutDisplayNames) override;
 	virtual FPropertyAccess::Result SetObjectValueFromSelection() override;
 	virtual void NotifyPreChange() override;
 	virtual void NotifyPostChange(EPropertyChangeType::Type ChangeType) override;
@@ -741,6 +755,10 @@ public:
 
 	virtual FPropertyAccess::Result SetValue(const FString& InValue, EPropertyValueSetFlags::Type Flags = EPropertyValueSetFlags::DefaultFlags) override;
 	virtual FPropertyAccess::Result SetValue(const TCHAR* InValue, EPropertyValueSetFlags::Type Flags = EPropertyValueSetFlags::DefaultFlags) override;
+	virtual FPropertyAccess::Result SetValueFromFormattedString(const FString& InValue, EPropertyValueSetFlags::Type Flags = EPropertyValueSetFlags::DefaultFlags) override;
+
+private:
+	FPropertyAccess::Result ImportFormattedTextString(const FString& InValue, EPropertyValueSetFlags::Type Flags);
 };
 
 class FPropertyHandleSet : public FPropertyHandleBase, public IPropertyHandleSet

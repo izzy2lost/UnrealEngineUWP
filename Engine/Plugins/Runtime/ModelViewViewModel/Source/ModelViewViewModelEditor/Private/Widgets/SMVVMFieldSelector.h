@@ -28,13 +28,15 @@ public:
 		{
 		}
 		SLATE_STYLE_ARGUMENT(FTextBlockStyle, TextStyle)
-		SLATE_ARGUMENT_DEFAULT(bool, ShowContext) { true };
-		SLATE_ARGUMENT_DEFAULT(bool, IsBindingToEvent) { false };
+		SLATE_ARGUMENT_DEFAULT(bool, ShowContext) = true;
+		SLATE_ARGUMENT_DEFAULT(bool, IsBindingToEvent) = false;
+		SLATE_ARGUMENT_DEFAULT(bool, ShowFieldNotify) = true;
 		SLATE_EVENT(SFieldDisplay::FOnGetLinkedPinValue, OnGetLinkedValue)
-		SLATE_EVENT(FOnLinkedValueSelectionChanged, OnSelectionChanged)
+		SLATE_EVENT(SFieldSelectorMenu::FOnLinkedValueSelected, OnSelectionChanged)
 		SLATE_EVENT(FOnGetSelectionContext, OnGetSelectionContext)
 		SLATE_EVENT(FOnDrop, OnDrop)
 		SLATE_EVENT(FOnDragEnter, OnDragEnter)
+		SLATE_ARGUMENT_DEFAULT(bool, CanCreateEvent) = false;
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, const UWidgetBlueprint* InWidgetBlueprint);
@@ -46,7 +48,7 @@ private:
 	TSharedRef<SWidget> CreateSourcePanel();
 	TSharedRef<SWidget> HandleGetMenuContent();
 
-	void HandleFieldSelectionChanged(FMVVMLinkedPinValue NewValue);
+	void HandleFieldSelectionChanged(FMVVMLinkedPinValue NewValue, SFieldSelectorMenu::ESelectionType SelectionType);
 	void HandleMenuClosed();
 
 private:
@@ -54,11 +56,12 @@ private:
 	TSharedPtr<SComboButton> ComboButton;
 	TSharedPtr<SFieldDisplay> FieldDisplay;
 	TWeakObjectPtr<const UWidgetBlueprint> WidgetBlueprint;
-	FOnLinkedValueSelectionChanged OnSelectionChanged;
+	SFieldSelectorMenu::FOnLinkedValueSelected OnSelectionChanged;
 	FOnGetSelectionContext OnGetSelectionContext;
 	FOnDrop OnDropEvent;
 	FOnDragEnter OnDragEnterEvent;
 	bool bIsBindingToEvent = false;
+	bool bCanCreateEvent = false;
 }; 
 
 } // namespace UE::MVVM

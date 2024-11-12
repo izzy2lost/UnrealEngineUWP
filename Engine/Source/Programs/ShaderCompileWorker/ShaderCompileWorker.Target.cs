@@ -12,6 +12,7 @@ public class ShaderCompileWorkerTarget : TargetRules
 		Type = TargetType.Program;
 		LinkType = TargetLinkType.Modular;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
+		BuildEnvironment = TargetBuildEnvironment.UniqueIfNeeded;
 
 		LaunchModuleName = "ShaderCompileWorker";
 
@@ -19,8 +20,8 @@ public class ShaderCompileWorkerTarget : TargetRules
         {
             // The interception interface in XGE requires that the parent and child processes have different filenames on disk.
             // To avoid building an entire separate worker just for this, we duplicate the ShaderCompileWorker in a post build step.
-            const string SrcPath  = "$(EngineDir)\\Binaries\\$(TargetPlatform)\\$(TargetName).exe";
-            const string DestPath = "$(EngineDir)\\Binaries\\$(TargetPlatform)\\XGEControlWorker.exe";
+            const string SrcPath  = "$(BinaryDir)\\$(TargetName).exe";
+            const string DestPath = "$(BinaryDir)\\XGEControlWorker.exe";
 
             PostBuildSteps.Add(string.Format("echo Copying {0} to {1}", SrcPath, DestPath));
             PostBuildSteps.Add(string.Format("copy /Y /B \"{0}\" /B \"{1}\" >nul:", SrcPath, DestPath));
@@ -50,6 +51,11 @@ public class ShaderCompileWorkerTarget : TargetRules
 
 		// Disable logging, as the workers are spawned often and logging will just slow them down
 		GlobalDefinitions.Add("ALLOW_LOG_FILE=0");
+
+		// Allow logging everything to memory so we can decide to dump everything to file when SCW crashed.
+		// This still requires the commandline argument -LogToMemory, so the shader compiling manager can decide to enable/disable it at runtime.
+		bLoggingToMemoryEnabled = true;
+		bUseLoggingInShipping = true;
 
 		// Linking against wer.lib/wer.dll causes XGE to bail when the worker is run on a Windows 8 machine, so turn this off.
 		GlobalDefinitions.Add("ALLOW_WINDOWS_ERROR_REPORT_LIB=0");

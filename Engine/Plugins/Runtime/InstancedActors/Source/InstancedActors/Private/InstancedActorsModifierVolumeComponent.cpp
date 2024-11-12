@@ -30,7 +30,7 @@ void UInstancedActorsModifierVolumeComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	TRACE_CPUPROFILER_EVENT_SCOPE("UInstancedActorsModifierVolumeComponent BeginPlay");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("UInstancedActorsModifierVolumeComponent BeginPlay");
 
 	// Make sure bounds are up to date e.g: on clients we will have only just received Extent replication
 	// but not updated bounds via any of the normal component init mechanisms.
@@ -73,7 +73,7 @@ void UInstancedActorsModifierVolumeComponent::EndPlay(EEndPlayReason::Type Reaso
 {
 	Super::EndPlay(Reason);
 
-	TRACE_CPUPROFILER_EVENT_SCOPE("UInstancedActorsModifierVolumeComponent EndPlay");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("UInstancedActorsModifierVolumeComponent EndPlay");
 
 	UInstancedActorsSubsystem* InstancedActorSubsystem = UInstancedActorsSubsystem::Get(this);
 	if (ensure(InstancedActorSubsystem))
@@ -125,7 +125,7 @@ void UInstancedActorsModifierVolumeComponent::OnRemovedFromManager(AInstancedAct
 
 bool UInstancedActorsModifierVolumeComponent::TryRunPendingModifiers(AInstancedActorsManager& Manager, TBitArray<>& InOutPendingModifiers)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("UInstancedActorsModifierVolumeComponent ModifyInstances");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("UInstancedActorsModifierVolumeComponent ModifyInstances");
 
 #if WITH_EDITOR
 	// Need to do this or the PIE experience is not a valid representation of the cooked game.

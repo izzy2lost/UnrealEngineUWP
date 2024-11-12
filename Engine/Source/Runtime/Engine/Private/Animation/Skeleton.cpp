@@ -120,6 +120,11 @@ namespace VirtualBoneNameHelpers
 	{
 		return FName(SkipPrefix(InName));
 	}
+
+	bool CheckVirtualBonePrefix(const FString& InName)
+	{
+		return InName.StartsWith(VirtualBonePrefix);
+	}
 }
 
 #if WITH_EDITORONLY_DATA
@@ -298,7 +303,7 @@ bool USkeleton::IsCompatibleSkeletonByAssetString(const FString& SkeletonAssetSt
 
 void USkeleton::AddCompatibleSkeleton(const USkeleton* SourceSkeleton)
 {
-	CompatibleSkeletons.AddUnique(SourceSkeleton);
+	CompatibleSkeletons.AddUnique(const_cast<USkeleton*>(SourceSkeleton));
 }
 
 void USkeleton::AddCompatibleSkeletonSoft(const TSoftObjectPtr<USkeleton>& SourceSkeleton)
@@ -308,7 +313,7 @@ void USkeleton::AddCompatibleSkeletonSoft(const TSoftObjectPtr<USkeleton>& Sourc
 
 void USkeleton::RemoveCompatibleSkeleton(const USkeleton* SourceSkeleton)
 {
-	CompatibleSkeletons.Remove(SourceSkeleton);
+	CompatibleSkeletons.Remove(const_cast<USkeleton*>(SourceSkeleton));
 }
 
 void USkeleton::RemoveCompatibleSkeleton(const TSoftObjectPtr<USkeleton>& SourceSkeleton)
@@ -329,6 +334,10 @@ USkeleton::USkeleton(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	CachedSoftObjectPtr = TSoftObjectPtr<USkeleton>(this);
+
+#if WITH_EDITORONLY_DATA
+	PreviewForwardAxis = EAxis::Y;
+#endif
 
 	if (HasAnyFlags(RF_ClassDefaultObject))
 	{
@@ -745,7 +754,7 @@ bool USkeleton::IsCompatibleMesh(const USkinnedAsset* InSkinnedAsset, bool bDoPa
 void USkeleton::ClearCacheData()
 {
 	{
-		FRWScopeLock Lock(SkinnedAssetLinkupCacheLock, SLT_Write);
+		FTransactionallySafeWriteScopeLock Lock(SkinnedAssetLinkupCacheLock);
 		SkinnedAssetLinkupCache.Empty();
 	}
 
@@ -762,7 +771,7 @@ const FSkeletonToMeshLinkup& USkeleton::FindOrAddMeshLinkupData(const USkinnedAs
 	const TUniquePtr<FSkeletonToMeshLinkup>* SkeletonToMeshLinkupPtr = nullptr;
 
 	{
-		FRWScopeLock Lock(SkinnedAssetLinkupCacheLock, SLT_ReadOnly);
+		FTransactionallySafeReadScopeLock Lock(SkinnedAssetLinkupCacheLock);
 		SkeletonToMeshLinkupPtr = SkinnedAssetLinkupCache.Find(InSkinnedAsset);
 	}
 
@@ -777,7 +786,7 @@ const FSkeletonToMeshLinkup& USkeleton::AddMeshLinkupData(const USkinnedAsset* I
 	BuildLinkupData(InSkinnedAsset, *TmpLinkup.Get());
 
 	{
-		FRWScopeLock Lock(SkinnedAssetLinkupCacheLock, SLT_Write);
+		FTransactionallySafeWriteScopeLock Lock(SkinnedAssetLinkupCacheLock);
 		return *SkinnedAssetLinkupCache.Add(TObjectKey<USkinnedAsset>(InSkinnedAsset), MoveTemp(TmpLinkup)).Get();
 	}
 }
@@ -818,7 +827,7 @@ int32 USkeleton::GetMeshLinkupIndex(const USkinnedAsset* InSkinnedAsset)
 void USkeleton::RemoveLinkup(const USkinnedAsset* InSkinnedAsset)
 {
 	{
-		FRWScopeLock Lock(SkinnedAssetLinkupCacheLock, SLT_Write);
+		FTransactionallySafeWriteScopeLock Lock(SkinnedAssetLinkupCacheLock);
 		SkinnedAssetLinkupCache.Remove(InSkinnedAsset);
 	}
 
@@ -1766,10 +1775,10 @@ void USkeleton::RenameSlotName(const FName& OldName, const FName& NewName)
 	SetSlotGroupName(NewName, GroupName);
 }
 
-bool USkeleton::AddCurveMetaData(FName CurveName)
+bool USkeleton::AddCurveMetaData(FName CurveName, bool bTransact)
 {
 	UAnimCurveMetaData* AnimCurveMetaData = GetOrCreateCurveMetaDataObject();
-	return AnimCurveMetaData->AddCurveMetaData(CurveName);
+	return AnimCurveMetaData->AddCurveMetaData(CurveName, bTransact);
 }
 
 #if WITH_EDITOR
@@ -1933,6 +1942,32 @@ bool USkeleton::AddNewVirtualBone(const FName SourceBoneName, const FName Target
 	return true;
 }
 
+bool USkeleton::AddNewNamedVirtualBone(const FName SourceBoneName, const FName TargetBoneName, const FName VirtualBoneName)
+{
+	if (!VirtualBoneNameHelpers::CheckVirtualBonePrefix(VirtualBoneName.ToString()))
+	{
+		return false;
+	}
+
+	for (const FVirtualBone& SSBone : VirtualBones)
+	{
+		if ((SSBone.SourceBoneName == SourceBoneName && SSBone.TargetBoneName == TargetBoneName) ||
+			SSBone.VirtualBoneName == VirtualBoneName)
+		{
+			return false;
+		}
+	}
+
+	Modify();
+
+	VirtualBones.Emplace(SourceBoneName, TargetBoneName, VirtualBoneName);
+
+	RegenerateVirtualBoneGuid();
+	HandleVirtualBoneChanges();
+
+	return true;
+}
+
 int32 FindBoneByName(const FName& BoneName, TArray<FVirtualBone>& Bones)
 {
 	for (int32 Idx = 0; Idx < Bones.Num(); ++Idx)
@@ -1961,7 +1996,7 @@ void USkeleton::RemoveVirtualBones(const TArray<FName>& BonesToRemove)
 					VB.SourceBoneName = Parent;
 				}
 			}
-			VirtualBones.RemoveAt(Idx,1,EAllowShrinking::No);
+			VirtualBones.RemoveAt(Idx,EAllowShrinking::No);
 
 			// @todo: This might be a slow operation if there's a large amount of blend profiles and entries
 			int32 BoneIdx = GetReferenceSkeleton().FindBoneIndex(BoneName);
@@ -2032,11 +2067,15 @@ void USkeleton::RenameVirtualBone(const FName OriginalBoneName, const FName NewB
 
 void USkeleton::HandleVirtualBoneChanges()
 {
-	const bool bRebuildNameMap = false;
+	constexpr bool bRebuildNameMap = false;
 	ReferenceSkeleton.RebuildRefSkeleton(this, bRebuildNameMap);
 
 	UE::Anim::FSkeletonRemappingRegistry::Get().RefreshMappings(this);
 
+	// store skeletal meshes that are also transacting to avoid re-registering the component here
+	// as it will be done later in USkeletalMesh::PostEditUndo()
+	TArray<USkeletalMesh*> SkeletalMeshTransacting;
+	
 	for (TObjectIterator<USkeletalMesh> ItMesh; ItMesh; ++ItMesh)
 	{
 		USkeletalMesh* SkelMesh = *ItMesh;
@@ -2045,23 +2084,43 @@ void USkeleton::HandleVirtualBoneChanges()
 			// also have to update retarget base pose
 			SkelMesh->GetRefSkeleton().RebuildRefSkeleton(this, bRebuildNameMap);
 			RebuildLinkup(SkelMesh);
+
 #if WITH_EDITOR
-			// whole bone count has changed, so it has to recalculate retarget base pose
-			SkelMesh->ReallocateRetargetBasePose();
-#endif // #if WITH_EDITOR
+			if (SkelMesh->IsTransacting())
+			{
+				SkeletalMeshTransacting.Add(SkelMesh);
+			}
+#endif
 		}
 	}
 
 	// refresh curve meta data that contains joint info
 	RefreshSkeletonMetaData();
 
+	auto NeedsReRegistration = [this, &SkeletalMeshTransacting](const USkinnedMeshComponent* InMeshComponent)
+	{
+		if (!InMeshComponent || InMeshComponent->IsTemplate())
+		{
+			return false;
+		}
+
+		USkinnedAsset* SkinnedAsset = InMeshComponent->GetSkinnedAsset();
+		if (!SkinnedAsset || SkinnedAsset->GetSkeleton() != this)
+		{
+			return false;
+		}
+
+#if WITH_EDITOR
+		return !SkeletalMeshTransacting.Contains(SkinnedAsset);
+#else
+		return true;
+#endif
+	};
+	
 	for (TObjectIterator<USkinnedMeshComponent> It; It; ++It)
 	{
 		USkinnedMeshComponent* MeshComponent = *It;
-		if (MeshComponent &&
-			MeshComponent->GetSkinnedAsset() &&
-			MeshComponent->GetSkinnedAsset()->GetSkeleton() == this &&
-			!MeshComponent->IsTemplate())
+		if (NeedsReRegistration(MeshComponent))
 		{
 			FComponentReregisterContext Context(MeshComponent);
 		}

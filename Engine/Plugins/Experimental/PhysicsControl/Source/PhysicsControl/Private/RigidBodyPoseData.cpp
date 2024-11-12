@@ -4,7 +4,9 @@
 #include "Animation/AnimNodeBase.h"
 #include "Animation/AnimInstanceProxy.h"
 
-namespace RigidBodyWithControl
+namespace UE
+{
+namespace PhysicsControl
 {
 
 //======================================================================================================================
@@ -24,27 +26,32 @@ void FRigidBodyPoseData::Update(
 	const FTransform BaseBoneTM = ComponentSpacePoseContext.Pose.GetComponentSpaceTransform(
 		BaseBoneRef.GetCompactPoseIndex(BoneContainer));
 
-	if (BoneTMs.Num() == OutputBoneData.Num())
+	for (const FOutputBoneData& OutputData : OutputBoneData)
 	{
-		for (const FOutputBoneData& OutputData : OutputBoneData)
+		// It is very unusual, but possible that BodyIndex is invalid - in particular that it is too
+		// big. This can happen when OutputBoneData has changed in size and we haven't been
+		// reinitialized. In this edge case, we could simply refuse to calculate TMs, but there's no
+		// harm in simply expanding our cache array and continuing to function. See UE-214162
+		const int32 BodyIndex = OutputData.BodyIndex;
+		if (BodyIndex >= 0)
 		{
-			const int32 BodyIndex = OutputData.BodyIndex;
-			const FTransform& ComponentSpaceTM = ComponentSpacePoseContext.Pose.GetComponentSpaceTransform(OutputData.CompactPoseBoneIndex);
-			const FTransform BodyTM = ConvertCSTransformToSimSpace(SimulationSpace, ComponentSpaceTM, CompWorldSpaceTM, BaseBoneTM);
+			if (BodyIndex >= BoneTMs.Num())
+			{
+				// This could cause multiple re-allocations if we keep finding a body index that is
+				// too big, but the situation will be so rare that it's not a significant problem
+				// (and would only happen for one frame).
+				BoneTMs.SetNumUninitialized(BodyIndex + 1);
+			}
+			const FTransform& ComponentSpaceTM = 
+				ComponentSpacePoseContext.Pose.GetComponentSpaceTransform(OutputData.CompactPoseBoneIndex);
+			const FTransform BodyTM = ConvertCSTransformToSimSpace(
+				SimulationSpace, ComponentSpaceTM, CompWorldSpaceTM, BaseBoneTM);
 			BoneTMs[BodyIndex] = BodyTM;
-		}
-	}
-	else
-	{
-		BoneTMs.Empty(OutputBoneData.Num());
-		for (const FOutputBoneData& OutputData : OutputBoneData)
-		{
-			const int32 BodyIndex = OutputData.BodyIndex;
-			const FTransform& ComponentSpaceTM = ComponentSpacePoseContext.Pose.GetComponentSpaceTransform(OutputData.CompactPoseBoneIndex);
-			const FTransform BodyTM = ConvertCSTransformToSimSpace(SimulationSpace, ComponentSpaceTM, CompWorldSpaceTM, BaseBoneTM);
-			BoneTMs.Emplace(BodyTM);
 		}
 	}
 }
 
-}
+} // namespace PhysicsControl
+} // namespace UE
+
+

@@ -106,6 +106,47 @@ public:
 	}
 };
 
+class FBlackFloat4StructuredBufferWithSRV : public FVertexBufferWithSRV
+{
+public:
+	virtual void InitRHI(FRHICommandListBase& RHICmdList) override
+	{
+		// Create the buffer RHI.  		
+		FRHIResourceCreateInfo CreateInfo(TEXT("BlackFloat4StructuredBuffer"));
+
+		const uint32 BufferSize = sizeof(FVector4f);
+		VertexBufferRHI = RHICmdList.CreateStructuredBuffer(sizeof(FVector4f), BufferSize, BUF_Static | BUF_ShaderResource | BUF_UnorderedAccess, ERHIAccess::SRVMask, CreateInfo);
+
+		FVector4f* BufferData = (FVector4f*)RHICmdList.LockBuffer(VertexBufferRHI, 0, sizeof(FVector4f), RLM_WriteOnly);
+		*BufferData = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
+		RHICmdList.UnlockBuffer(VertexBufferRHI);
+
+		// Create a view of the buffer
+		ShaderResourceViewRHI = RHICmdList.CreateShaderResourceView(VertexBufferRHI);
+		UnorderedAccessViewRHI = RHICmdList.CreateUnorderedAccessView(VertexBufferRHI, false, false);
+	}
+};
+
+class FBlackFloat4VertexBuffer : public FVertexBufferWithSRV
+{
+public:
+	virtual void InitRHI(FRHICommandListBase& RHICmdList) override
+	{
+		// Create the texture RHI.  		
+		FRHIResourceCreateInfo CreateInfo(TEXT("BlackFloat4VertexBuffer"));
+
+		VertexBufferRHI = RHICmdList.CreateVertexBuffer(sizeof(FVector4f), BUF_Static | BUF_ShaderResource | BUF_UnorderedAccess, ERHIAccess::SRVMask, CreateInfo);
+
+		FVector4f* BufferData = (FVector4f*)RHICmdList.LockBuffer(VertexBufferRHI, 0, sizeof(FVector4f), RLM_WriteOnly);
+		*BufferData = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
+		RHICmdList.UnlockBuffer(VertexBufferRHI);
+
+		// Create a view of the buffer
+		ShaderResourceViewRHI = RHICmdList.CreateShaderResourceView(VertexBufferRHI, sizeof(FVector4f), PF_A32B32G32R32F);
+		UnorderedAccessViewRHI = RHICmdList.CreateUnorderedAccessView(VertexBufferRHI, PF_A32B32G32R32F);
+	}
+};
+
 class FBlackTextureWithSRV : public FColoredTexture<0, 0, 0, 255>
 {
 public:
@@ -131,6 +172,8 @@ FTexture* GTransparentBlackTexture = GTransparentBlackTextureWithSRV;
 
 FVertexBufferWithSRV* GEmptyVertexBufferWithUAV = new TGlobalResource<FEmptyVertexBuffer, FRenderResource::EInitPhase::Pre>;
 FVertexBufferWithSRV* GEmptyStructuredBufferWithUAV = new TGlobalResource<FEmptyStructuredBuffer, FRenderResource::EInitPhase::Pre>;
+FVertexBufferWithSRV* GBlackFloat4StructuredBufferWithSRV = new TGlobalResource<FBlackFloat4StructuredBufferWithSRV, FRenderResource::EInitPhase::Pre>;
+FVertexBufferWithSRV* GBlackFloat4VertexBufferWithSRV = new TGlobalResource<FBlackFloat4VertexBuffer, FRenderResource::EInitPhase::Pre>;
 
 class FWhiteVertexBuffer : public FVertexBufferWithSRV
 {
@@ -152,6 +195,27 @@ public:
 };
 
 FVertexBufferWithSRV* GWhiteVertexBufferWithSRV = new TGlobalResource<FWhiteVertexBuffer, FRenderResource::EInitPhase::Pre>;
+
+class FBlackVertexBuffer : public FVertexBufferWithSRV
+{
+public:
+	virtual void InitRHI(FRHICommandListBase& RHICmdList) override
+	{
+		// Create the texture RHI.  		
+		FRHIResourceCreateInfo CreateInfo(TEXT("BlackVertexBuffer"));
+
+		VertexBufferRHI = RHICmdList.CreateVertexBuffer(sizeof(FVector4f), BUF_Static | BUF_ShaderResource, CreateInfo);
+
+		FVector4f* BufferData = (FVector4f*)RHICmdList.LockBuffer(VertexBufferRHI, 0, sizeof(FVector4f), RLM_WriteOnly);
+		*BufferData = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
+		RHICmdList.UnlockBuffer(VertexBufferRHI);
+
+		// Create a view of the buffer
+		ShaderResourceViewRHI = RHICmdList.CreateShaderResourceView(VertexBufferRHI, sizeof(FVector4f), PF_A32B32G32R32F);
+	}
+};
+
+FVertexBufferWithSRV* GBlackVertexBufferWithSRV = new TGlobalResource<FBlackVertexBuffer, FRenderResource::EInitPhase::Pre>;
 
 class FWhiteVertexBufferWithRDG : public FBufferWithRDG
 {
@@ -366,7 +430,7 @@ public:
 			.SetFlags(ETextureCreateFlags::ShaderResource)
 			.SetClassName(TEXT("FSolidColorTextureCube"));
 
-		FTextureCubeRHIRef TextureCube = RHICreateTexture(Desc);
+		FTextureRHIRef TextureCube = RHICreateTexture(Desc);
 		TextureRHI = TextureCube;
 
 		// Write the contents of the texture.
@@ -757,7 +821,7 @@ struct TDynamicBufferPool : public FRenderResource
 
 				if (SizeInBytes <= Buffer->BufferSize && Buffer->Stride == Stride)
 				{
-					FreeList.RemoveAt(Index, 1, EAllowShrinking::No);
+					FreeList.RemoveAt(Index, EAllowShrinking::No);
 					FoundBuffer = Buffer;
 					break;
 				}
@@ -818,7 +882,7 @@ struct TDynamicBufferPool : public FRenderResource
 			{
 				TotalAllocatedMemory -= Buffer->BufferSize;
 				Buffer->ReleaseResource();
-				LiveList.RemoveAt(Index, 1, EAllowShrinking::No);
+				LiveList.RemoveAt(Index, EAllowShrinking::No);
 				FreeList.Remove(Buffer);
 				delete Buffer;
 			}

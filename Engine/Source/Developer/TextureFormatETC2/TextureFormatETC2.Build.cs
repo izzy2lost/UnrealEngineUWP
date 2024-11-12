@@ -8,7 +8,6 @@ public class TextureFormatETC2 : ModuleRules
 	{
 		PrivateIncludePathModuleNames.AddRange(new string[]
 		{
-			"DerivedDataCache",
 			"TextureCompressor",
 			"TextureFormat",
 		});
@@ -16,6 +15,7 @@ public class TextureFormatETC2 : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",
+			"DerivedDataCache",
 			"ImageCore",
 			"TextureBuild",
 		});

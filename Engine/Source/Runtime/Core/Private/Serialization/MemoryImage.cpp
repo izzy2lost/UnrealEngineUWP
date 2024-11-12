@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Serialization/MemoryImage.h"
+
+#include "Containers/StringView.h"
 #include "Containers/UnrealString.h"
 #include "Misc/SecureHash.h"
 #include "Misc/StringBuilder.h"
@@ -12,7 +14,12 @@
 #include "Misc/ScopeRWLock.h"
 #include "Misc/DataDrivenPlatformInfoRegistry.h"
 #include "Serialization/Archive.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "Async/ParallelFor.h"
+#if WITH_EDITOR
+#include "Serialization/CompactBinary.h"
+#include "Serialization/CompactBinaryWriter.h"
+#endif
 
 DEFINE_LOG_CATEGORY_STATIC(LogMemoryImage, Log, All);
 
@@ -109,8 +116,53 @@ FArchive& FPlatformTypeLayoutParameters::Serialize(FArchive& Ar)
 
 void FPlatformTypeLayoutParameters::AppendKeyString(FString& KeyString) const
 {
-	KeyString += FString::Printf(TEXT("FL_%08x_MFA_%08x_V_" MEMORYIMAGE_DERIVEDDATA_VER_ANSI), Flags, MaxFieldAlignment);
+	FShaderKeyGenerator KeyGen(KeyString);
+	Append(KeyGen);
 }
+
+void FPlatformTypeLayoutParameters::Append(FShaderKeyGenerator& KeyGen) const
+{
+	if (KeyGen.IsBinary())
+	{
+		KeyGen.BinaryAppend(&Flags, sizeof(Flags));
+		KeyGen.BinaryAppend(&MaxFieldAlignment, sizeof(MaxFieldAlignment));
+		FAnsiStringView VersionText(MEMORYIMAGE_DERIVEDDATA_VER_ANSI);
+		KeyGen.BinaryAppend(VersionText.GetData(), VersionText.Len() * sizeof(VersionText[0]));
+	}
+	else
+	{
+		KeyGen.TextGetResultString() +=
+			FString::Printf(TEXT("FL_%08x_MFA_%08x_V_" MEMORYIMAGE_DERIVEDDATA_VER_ANSI), Flags, MaxFieldAlignment);
+	}
+}
+
+#if WITH_EDITOR
+void FPlatformTypeLayoutParameters::Save(FCbWriter& Writer) const
+{
+	Writer.BeginArray();
+	Writer << MaxFieldAlignment;
+	Writer << Flags;
+	Writer.EndArray();
+}
+
+bool FPlatformTypeLayoutParameters::TryLoad(FCbFieldView Field)
+{
+	*this = FPlatformTypeLayoutParameters();
+
+	FCbFieldViewIterator ElementField(Field.CreateViewIterator());
+	MaxFieldAlignment = ElementField.AsUInt32();
+	if ((ElementField++).HasError()) return false;
+	Flags = ElementField.AsUInt32();
+	if ((ElementField++).HasError()) return false;
+	return true;
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, FPlatformTypeLayoutParameters& OutValue)
+{
+	return OutValue.TryLoad(Field);
+}
+
+#endif
 
 // evaluated during static-initialization, so logging from regular check() macros won't work correctly
 static void InitializeSizeFromFields(FTypeLayoutDesc& TypeLayout, const FPlatformTypeLayoutParameters& PlatformLayoutParams)
@@ -1237,6 +1289,50 @@ FHashedName& FHashedName::operator=(const FHashedName& InName)
 	Swap(Temp, *this);
 	return *this;
 }
+
+#if WITH_EDITOR
+void FHashedName::Save(FCbWriter& Writer) const
+{
+	Writer.BeginArray();
+	Writer << GetHash();
+	FUtf8StringView DebugName;
+	DebugName = GetDebugString().String.Get();
+	Writer << DebugName;
+	Writer.EndArray();
+}
+
+bool FHashedName::TryLoad(FCbFieldView Field)
+{
+	*this = FHashedName();
+	FCbFieldViewIterator ElementField(Field.CreateViewIterator());
+	uint64 LocalHash = ElementField.AsUInt64();
+	if ((ElementField++).HasError())
+	{
+		return false;
+	}
+	FUtf8StringView DebugName = ElementField.AsString();
+	if ((ElementField++).HasError())
+	{
+		return false;
+	}
+
+	if (!DebugName.IsEmpty())
+	{
+		*this = FHashedName(*WriteToString<256>(DebugName));
+		if (GetHash() == LocalHash)
+		{
+			return true;
+		}
+	}
+	*this = FHashedName(LocalHash);
+	return true;
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, FHashedName& OutValue)
+{
+	return OutValue.TryLoad(Field);
+}
+#endif // WITH_EDITOR
 
 void FPointerTableBase::SaveToArchive(FArchive& Ar, const FPlatformTypeLayoutParameters& LayoutParams, const void* FrozenObject) const
 {

@@ -19,6 +19,8 @@ class AWorldSettings;
 class ULevel;
 class AController;
 class UNavAreaBase;
+struct FNavigationElement;
+struct FNavigationElementHandle;
 
 ENGINE_API DECLARE_LOG_CATEGORY_EXTERN(LogNavigation, Warning, All);
 ENGINE_API DECLARE_LOG_CATEGORY_EXTERN(LogNavigationDataBuild, Log, All);
@@ -156,10 +158,15 @@ namespace FNavigationSystem
 	ENGINE_API void UnregisterNavRelevantObject(UObject& Object);
 	ENGINE_API void OnObjectBoundsChanged(UObject& Object, const FBox& NewBounds, TConstArrayView<FBox> DirtyAreas);
 
+	ENGINE_API FNavigationElementHandle AddNavigationElement(UWorld* World, FNavigationElement&& Element);
+	ENGINE_API void UpdateNavigationElement(UWorld* World, FNavigationElementHandle ElementHandle, FNavigationElement&& Element);
+	ENGINE_API void RemoveNavigationElement(UWorld* World, FNavigationElementHandle ElementHandle);
+	ENGINE_API void OnNavigationElementBoundsChanged(UWorld* World, FNavigationElementHandle ElementHandle, const FBox& NewBounds, TConstArrayView<FBox> DirtyAreas);
+
 	ENGINE_API void RemoveActorData(AActor& Actor);
 
 	ENGINE_API bool HasComponentData(UActorComponent& Comp);
-	
+
 	ENGINE_API const FNavDataConfig& GetDefaultSupportedAgent();
 	ENGINE_API const FNavDataConfig& GetBiggestSupportedAgent(const UWorld* World);
 	ENGINE_API double GetWorldPartitionNavigationDataBuilderOverlap(const UWorld& World);
@@ -196,6 +203,11 @@ namespace FNavigationSystem
 	ENGINE_API bool IsFollowingAPath(const AController& Controller);
 	ENGINE_API void StopMovement(const AController& Controller);
 	ENGINE_API IPathFollowingAgentInterface* FindPathFollowingAgentForActor(const AActor& Actor);
+
+	DECLARE_DELEGATE_RetVal_TwoParams(FNavigationElementHandle, FAddNavigationElementSignature, UWorld* /*World*/, FNavigationElement&& /*Element*/);
+	DECLARE_DELEGATE_TwoParams(FRemoveNavigationElementSignature, UWorld* /*World*/, FNavigationElementHandle /*ElementHandle*/);
+	DECLARE_DELEGATE_ThreeParams(FUpdateNavigationElementSignature, UWorld* /*World*/, FNavigationElementHandle /*ElementHandle*/, FNavigationElement&& /*Element*/)
+	DECLARE_DELEGATE_FourParams(FUpdateNavigationElementBoundsSignature, UWorld* /*World*/, FNavigationElementHandle /*ElementHandle*/, const FBox& /*NewBounds*/, TConstArrayView<FBox> /*DirtyAreas*/)
 
 	DECLARE_DELEGATE_OneParam(FObjectBasedSignature, UObject& /*Object*/);
 	DECLARE_DELEGATE_ThreeParams(FObjectBoundsChangedSignature, UObject& /*Object*/, const FBox& /*NewBounds*/, TConstArrayView<FBox> /*DirtyAreas*/)
@@ -271,6 +283,13 @@ public:
 
 	ENGINE_API virtual bool IsWorldInitDone() const PURE_VIRTUAL(UNavigationSystemBase::IsWorldInitDone, return false;);
 
+	/**
+	 * Indicates whether a navigation system instance should be created for a given world.
+	 * @param World The world in which the navigation would be used
+	 * @return whether the navigation system should be created for the specified world or not
+	 */
+	ENGINE_API virtual bool ShouldCreateNavigationSystemInstance(const UWorld* World) const PURE_VIRTUAL(UNavigationSystemBase::ShouldCreateNavigationSystemInstance, return true;);
+
 	static ENGINE_API FNavigationSystem::FOnNavigationInitSignature& OnNavigationInitStartStaticDelegate();
 	static ENGINE_API FNavigationSystem::FOnNavigationInitSignature& OnNavigationInitDoneStaticDelegate();
 	static ENGINE_API FNavigationSystem::FOnNavAreaGenericEvent& OnNavAreaRegisteredDelegate();
@@ -287,6 +306,11 @@ protected:
 	static ENGINE_API void SetDefaultObstacleArea(TSubclassOf<UNavAreaBase> InAreaClass);
 
 	static ENGINE_API void ResetEventDelegates();
+
+	static ENGINE_API FNavigationSystem::FAddNavigationElementSignature& GetAddNavigationElementDelegate();
+	static ENGINE_API FNavigationSystem::FUpdateNavigationElementSignature& GetUpdateNavigationElementDelegate();
+	static ENGINE_API FNavigationSystem::FRemoveNavigationElementSignature& GetRemoveNavigationElementDelegate();
+	static ENGINE_API FNavigationSystem::FUpdateNavigationElementBoundsSignature& GetUpdateNavigationElementBoundsDelegate();
 
 	static ENGINE_API FNavigationSystem::FObjectBasedSignature& RegisterNavRelevantObjectDelegate();
 	static ENGINE_API FNavigationSystem::FObjectBasedSignature& UpdateNavRelevantObjectDelegate();

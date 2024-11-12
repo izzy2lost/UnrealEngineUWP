@@ -8,6 +8,7 @@
 #include "UnsyncUtil.h"
 #include "UnsyncAuth.h"
 #include "UnsyncPool.h"
+#include "UnsyncScheduler.h"
 
 #include <float.h>
 #include <algorithm>
@@ -25,11 +26,27 @@ using FMirrorInfoResult = TResult<std::vector<FMirrorInfo>>;
 static double
 RunHttpPing(std::string_view Address, uint16 Port)
 {
-	FTimePoint		TimeBegin = TimePointNow();
-	FHttpConnection Connection(Address, Port);
+	
+	FTlsClientSettings TlsSettings;
+	TlsSettings.Subject = Address;
+
+	ETlsRequirement TlsRequirement = ETlsRequirement::None;
+
+	if (Port == 443)
+	{
+		TlsRequirement = ETlsRequirement::Preferred;
+	}
+
+	FHttpConnection Connection(Address, Port, TlsRequirement, TlsSettings);
+
 	FHttpRequest	Request;
 	Request.Url				   = "/api/v1/ping";
 	Request.Method			   = EHttpMethod::GET;
+
+	// Don't time the connection handshake, only query time itself
+	Connection.Open();
+
+	FTimePoint	  TimeBegin	   = TimePointNow();
 	FHttpResponse PingResponse = HttpRequest(Connection, Request);
 	FTimePoint	  TimeEnd	   = TimePointNow();
 
@@ -76,6 +93,10 @@ RunQueryMirrors(const FRemoteDesc& RemoteDesc)
 			{
 				Info.Name = Field.second.string_value();
 			}
+			else if (Field.first == "description")
+			{
+				Info.Description = Field.second.string_value();
+			}
 			else if (Field.first == "address")
 			{
 				Info.Address = Field.second.string_value();
@@ -106,7 +127,7 @@ CmdQueryMirrors(const FCmdQueryOptions& Options)
 	FMirrorInfoResult MirrorsResult = RunQueryMirrors(Options.Remote);
 	if (MirrorsResult.IsError())
 	{
-		LogError(MirrorsResult.GetError());
+		LogError(MirrorsResult.GetError(), L"Failed to get mirror list from the server");
 		return 1;
 	}
 
@@ -126,13 +147,16 @@ CmdQueryMirrors(const FCmdQueryOptions& Options)
 	{
 		const FMirrorInfo& Mirror = Mirrors[I];
 
+		int32 PingMs = (Mirror.Ping == 0) ? 0 : std::max(1, int32(Mirror.Ping * 1000.0));
+
 		LogPrintf(ELogLevel::MachineReadable,
-				  L"  {\"address\":\"%hs\", \"port\":%d, \"ok\":%hs, \"ping\":%d, \"name\":\"%hs\"}%hs\n",
+				  L"  {\"address\":\"%hs\", \"port\":%d, \"ok\":%hs, \"ping\":%d, \"name\":\"%hs\", \"description\":\"%hs\"}%hs\n",
 				  StringEscape(Mirror.Address).c_str(),
 				  Mirror.Port,
 				  Mirror.Ping > 0 ? "true" : "false",
-				  int32(Mirror.Ping * 1000.0),
+				  PingMs,
 				  StringEscape(Mirror.Name).c_str(),
+				  StringEscape(Mirror.Description).c_str(),
 				  I + 1 == Mirrors.size() ? "" : ",");
 	}
 
@@ -144,9 +168,9 @@ CmdQueryMirrors(const FCmdQueryOptions& Options)
 int32
 CmdQueryList(const FCmdQueryOptions& Options)
 {
-	FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Options.Remote);
+	FHttpConnection						Connection	  = FHttpConnection::CreateDefaultHttps(Options.Remote);
+	TResult<ProxyQuery::FHelloResponse> HelloResponse = ProxyQuery::Hello(Options.Remote.Protocol, Connection);
 
-	TResult<ProxyQuery::FHelloResponse> HelloResponse = ProxyQuery::Hello(Connection);
 	if (HelloResponse.IsError())
 	{
 		UNSYNC_ERROR("Failed establish a handshake with server '%hs'", Options.Remote.Host.Address.c_str());
@@ -155,41 +179,23 @@ CmdQueryList(const FCmdQueryOptions& Options)
 	}
 	FAuthDesc AuthDesc = FAuthDesc::FromHelloResponse(*HelloResponse);
 
-	TResult<FAuthToken> AuthToken = Authenticate(AuthDesc, 5 * 60);
-
-	if (!AuthToken.IsOk())
-	{
-		LogError(AuthToken.GetError());
-		return -1;
-	}
-
 	if (Options.Args.empty())
 	{
 		UNSYNC_ERROR(L"Path argument is required");
 		return -1;
 	}
 
+	TResult<ProxyQuery::FDirectoryListing> ListingResult = ProxyQuery::ListDirectory(Options.Remote.Protocol, Connection, &AuthDesc, Options.Args[0]);
 
-	std::string Url = fmt::format("/api/v1/list?{}", Options.Args[0]);
-
-	FHttpRequest Request;
-	Request.Url			   = Url;
-	Request.Method		   = EHttpMethod::GET;
-	Request.BearerToken	   = AuthToken->Access;
-	FHttpResponse Response = HttpRequest(Connection, Request);
-
-	Response.Buffer.PushBack(0);
-
-	std::string	 JsonErrorString;
-	json11::Json JsonObject = json11::Json::parse((const char*)Response.Buffer.Data(), JsonErrorString);
-
-	if (!JsonErrorString.empty())
+	if (ListingResult.IsError())
 	{
-		LogError(AppError(fmt::format("JSON error: {}", JsonErrorString.c_str())));
+		LogError(ListingResult.GetError(), L"Failed to list remote directory");
 		return -1;
 	}
 
-	LogPrintf(ELogLevel::MachineReadable, L"%hs\n", Response.Buffer.Data());
+	std::string ListingJson = ListingResult->ToJson();
+
+	LogPrintf(ELogLevel::MachineReadable, L"%hs\n", ListingJson.c_str());
 
 	return 0;
 }
@@ -208,35 +214,27 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 	auto CreateConnection = [Remote = Options.Remote]
 	{
 		FTlsClientSettings TlsSettings = Remote.GetTlsClientSettings();
-		return new FHttpConnection(Remote.Host.Address, Remote.Host.Port, &TlsSettings);
+		return new FHttpConnection(Remote.Host.Address, Remote.Host.Port, Remote.TlsRequirement, TlsSettings);
 	};
 
 	TObjectPool<FHttpConnection> ConnectionPool(CreateConnection);
 
-	std::string BearerToken;
-
+	TResult<ProxyQuery::FHelloResponse> HelloResponse = [&ConnectionPool, &Options]
 	{
 		std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
-		TResult<ProxyQuery::FHelloResponse> HelloResponse = ProxyQuery::Hello(*Connection);
+		TResult<ProxyQuery::FHelloResponse> Result = ProxyQuery::Hello(Options.Remote.Protocol, *Connection);
 		ConnectionPool.Release(std::move(Connection));
-		if (HelloResponse.IsError())
-		{
-			UNSYNC_ERROR("Failed establish a handshake with server '%hs'", Options.Remote.Host.Address.c_str());
-			LogError(HelloResponse.GetError());
-			return -1;
-		}
+		return Result;
+	}();
 
-		FAuthDesc AuthDesc = FAuthDesc::FromHelloResponse(*HelloResponse);
-
-		TResult<FAuthToken> AuthToken = Authenticate(AuthDesc, 5 * 60);
-		if (!AuthToken.IsOk())
-		{
-			LogError(AuthToken.GetError());
-			return -1;
-		}
-
-		BearerToken = std::move(AuthToken->Access);
+	if (HelloResponse.IsError())
+	{
+		UNSYNC_ERROR("Failed establish a handshake with server '%hs'", Options.Remote.Host.Address.c_str());
+		LogError(HelloResponse.GetError());
+		return -1;
 	}
+
+	FAuthDesc AuthDesc = FAuthDesc::FromHelloResponse(*HelloResponse);
 
 	const std::string& RootPath = Options.Args[0];
 	std::vector<std::regex> SubdirPatterns;
@@ -276,65 +274,72 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 
 	struct FTaskContext
 	{
-		std::mutex				  Mutex;
-		FSemaphore				  ConnectionSemaphore = FSemaphore(8);
-		std::vector<FResultEntry> FoundEntries;
-		bool					  bParentThreadVerbose = false;
-		int32					  ParentThreadIndent   = 0;
+		std::mutex						Mutex;
+		std::vector<FResultEntry>		FoundEntries;
+		std::unordered_set<std::string> VisitedDirectories;
+		bool							bParentThreadVerbose = false;
+		int32							ParentThreadIndent	 = 0;
 	};
 
-	FTaskGroup Tasks;
+	FTaskGroup	 Tasks = GScheduler->CreateTaskGroup();
 	FTaskContext Context;
 
 	Context.bParentThreadVerbose = GLogVerbose;
 	Context.ParentThreadIndent	 = GLogIndent;
 
-	std::function<void(std::string, int32)> ExploreDirectory =
-		[&Context, &BearerToken, &ConnectionPool, &ExploreDirectory, &SubdirPatterns, &Tasks](std::string Path, int32 CurrentDepth)
+	std::function<void(std::string, int32, const FDirectoryListing*)> ExploreDirectory =
+		[&Context, &AuthDesc, &ConnectionPool, &ExploreDirectory, &SubdirPatterns, &Tasks, &Options](
+			std::string					   Path,
+			int32						   CurrentDepth,
+			const FDirectoryListing* DirectoryListingPtr)
 	{
 		FLogVerbosityScope VerboseScope(Context.bParentThreadVerbose);
 		FLogIndentScope	   IndentScope(Context.ParentThreadIndent, true);
 
-		UNSYNC_VERBOSE2(L"Listing '%hs'", Path.c_str());
+		FDirectoryListing RemoteDirectoryListing;
 
-		std::string Url = fmt::format("/api/v1/list?{}", Path);
-
-		FHttpRequest Request;
-		Request.Url			= Url;
-		Request.Method		= EHttpMethod::GET;
-		Request.BearerToken = BearerToken;
-
-		Context.ConnectionSemaphore.Acquire();
-
-		std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
-		FHttpResponse					 Response	= HttpRequest(*Connection, Request);
-		ConnectionPool.Release(std::move(Connection));
-
-		Context.ConnectionSemaphore.Release();
-
-		if (!Response.Success())
+		if (!DirectoryListingPtr)
 		{
-			// TODO: report warning
-			return;
+			UNSYNC_VERBOSE2(L"Listing '%hs'", Path.c_str());
+
+			GScheduler->NetworkSemaphore.Acquire(false);
+			std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
+
+			TResult<FDirectoryListing> DirectoryListingResult =
+				ProxyQuery::ListDirectory(Options.Remote.Protocol, *Connection, &AuthDesc, Path);
+
+			ConnectionPool.Release(std::move(Connection));
+			GScheduler->NetworkSemaphore.Release();
+
+			if (DirectoryListingResult.IsError())
+			{
+				LogError(DirectoryListingResult.GetError(), L"Failed to list remote directory");
+				return;
+			}
+
+			std::swap(RemoteDirectoryListing, DirectoryListingResult.GetData());
+			DirectoryListingPtr = &RemoteDirectoryListing;
 		}
 
-		Response.Buffer.PushBack(0);
-
-		TResult<FDirectoryListing> DirectoryListingResult = FDirectoryListing::FromJson((const char*)Response.Buffer.Data());
-		if (DirectoryListingResult.IsError())
-		{
-			// TODO: report warning
-			return;
-		}
-
-		const FDirectoryListing& DirectoryListing = DirectoryListingResult.GetData();
+		const FDirectoryListing& DirectoryListing = *DirectoryListingPtr;
 
 		for (const FDirectoryListingEntry& DirEntry : DirectoryListing.Entries)
 		{
+			std::string DirEntryName = DirEntry.Name;
+
+			// Only include one subdirectory level
+			const size_t SeparatorPos = DirEntryName.find(PATH_SEPARATOR);
+			if (SeparatorPos != std::string::npos)
+			{
+				DirEntryName = DirEntryName.substr(0, PATH_SEPARATOR);
+			}
+
 			FEntry NextEntry;
-			NextEntry.Path	= Path + "\\" + DirEntry.Name;
+			NextEntry.Path	= Path + PATH_SEPARATOR + DirEntryName;
 			NextEntry.Depth = CurrentDepth + 1;
 
+			// Include only leaf directory entries in the final output
+			if (SeparatorPos == std::string::npos)
 			{
 				std::lock_guard<std::mutex> LockGuard(Context.Mutex);
 
@@ -351,15 +356,46 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 				continue;
 			}
 
-			if (DirEntry.bDirectory && std::regex_match(DirEntry.Name, SubdirPatterns[CurrentDepth], std::regex_constants::match_any))
+			if (DirEntry.bDirectory && std::regex_match(DirEntryName, SubdirPatterns[CurrentDepth], std::regex_constants::match_any))
 			{
-				UNSYNC_VERBOSE2(L"Matched: '%hs'", DirEntry.Name.c_str());
-				Tasks.run([ExploreDirectory, NextEntry]() { ExploreDirectory(NextEntry.Path, NextEntry.Depth); });
+				UNSYNC_VERBOSE2(L"Matched: '%hs'", DirEntryName.c_str());
+
+				// Directory listing may already include some child sub-directories, so we can skip some network requests
+				FDirectoryListing SubDirectoryListing;
+				std::string		  RequiredPrefix = DirEntryName + PATH_SEPARATOR;
+
+				for (const FDirectoryListingEntry& DirEntry2 : DirectoryListing.Entries)
+				{
+					if (DirEntry2.Name.starts_with(RequiredPrefix))
+					{
+						FDirectoryListingEntry SubDirEntry = DirEntry2;
+						SubDirEntry.Name				   = SubDirEntry.Name.substr(RequiredPrefix.length());
+						SubDirectoryListing.Entries.push_back(SubDirEntry);
+					}
+				}
+
+				{
+					// Only visit each sub-directory once
+					std::lock_guard<std::mutex> LockGuard(Context.Mutex);
+					if (!Context.VisitedDirectories.insert(NextEntry.Path).second)
+					{
+						continue;
+					}
+				}
+
+				if (SubDirectoryListing.Entries.empty())
+				{
+					Tasks.run([ExploreDirectory, NextEntry]() { ExploreDirectory(NextEntry.Path, NextEntry.Depth, nullptr); });
+				}
+				else
+				{
+					ExploreDirectory(NextEntry.Path, NextEntry.Depth, &SubDirectoryListing);
+				}
 			}
 		}
 	};
 
-	ExploreDirectory(RootPath, 0);
+	ExploreDirectory(RootPath, 0, nullptr);
 	Tasks.wait();
 
 	std::vector<FResultEntry>& ResultEntries = Context.FoundEntries;
@@ -400,8 +436,8 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 	}
 
 	// TODO: use a global connection pool and use it for ProxyQuery::DownloadFile too
-	FHttpConnection HelloConnection = FHttpConnection::CreateDefaultHttps(Options.Remote);
-	TResult<ProxyQuery::FHelloResponse> HelloResponse = ProxyQuery::Hello(HelloConnection);
+	FHttpConnection						HelloConnection = FHttpConnection::CreateDefaultHttps(Options.Remote);
+	TResult<ProxyQuery::FHelloResponse> HelloResponse	= ProxyQuery::Hello(Options.Remote.Protocol, HelloConnection);
 	if (HelloResponse.IsError())
 	{
 		UNSYNC_ERROR("Failed establish a handshake with server '%hs'", Options.Remote.Host.Address.c_str());
@@ -411,11 +447,11 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 	FAuthDesc AuthDesc = FAuthDesc::FromHelloResponse(*HelloResponse);
 	HelloConnection.Close();
 
-	TResult<FAuthToken> AuthToken = Authenticate(AuthDesc, 5 * 60);
+	TResult<FAuthToken> AuthToken = Authenticate(AuthDesc);
 
 	if (!AuthToken.IsOk())
 	{
-		LogError(AuthToken.GetError());
+		LogError(AuthToken.GetError(), L"Failed to authenticate");
 		return -1;
 	}
 
@@ -451,7 +487,8 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 		return *ResultWriter;
 	};
 
-	TResult<> Response = ProxyQuery::DownloadFile(Options.Remote, &AuthDesc, Options.Args[0], OutputCallback);
+	FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Options.Remote);
+	TResult<> Response = ProxyQuery::DownloadFile(Connection, &AuthDesc, Options.Args[0], OutputCallback);
 
 	if (Response.IsOk())
 	{
@@ -459,15 +496,112 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 	}
 	else
 	{
-		LogError(Response.GetError());
+		LogError(Response.GetError(), L"Failed to download file");
 	}
 
 	return 0;
 }
 
 int32
+CmdQueryHttpGet(const FCmdQueryOptions& Options)
+{
+	FHttpConnection HttpConnection = FHttpConnection::CreateDefaultHttps(Options.Remote);
+
+	std::string BearerToken;
+
+	if (Options.Remote.bAuthenticationRequired)
+	{
+		TResult<ProxyQuery::FHelloResponse> HelloResponse = ProxyQuery::Hello(Options.Remote.Protocol, HttpConnection);
+		if (!HelloResponse.IsOk())
+		{
+			LogError(HelloResponse.GetError(), L"Failed to query basic server information");
+			return -1;
+		}
+
+		FAuthDesc			AuthDesc  = FAuthDesc::FromHelloResponse(*HelloResponse);
+		TResult<FAuthToken> AuthToken = Authenticate(AuthDesc);
+
+		if (!AuthToken.IsOk())
+		{
+			LogError(AuthToken.GetError(), L"Failed to authenticate with the server");
+			return -1;
+		}
+
+		BearerToken = AuthToken->Access;
+	}
+
+	// TODO: RequestPath should include leading slash
+	std::string RequestUrl = fmt::format("/{}", Options.Remote.RequestPath);
+
+	FHttpRequest Request;
+	Request.Method		= EHttpMethod::GET;
+	Request.BearerToken = BearerToken;
+	Request.Url			= RequestUrl;
+
+	FHttpResponse Response = HttpRequest(HttpConnection, Request);
+
+	if (!Response.Success())
+	{
+		LogError(HttpError(std::move(RequestUrl), Response.Code));
+		return -1;
+	}
+
+	FPath OutputPath = Options.OutputPath;
+	if (OutputPath.empty())
+	{
+		if (Response.Buffer.Empty())
+		{
+			return 0;
+		}
+		else if (Response.ContentType == EHttpContentType::Application_Json || Response.ContentType == EHttpContentType::Text_Plain ||
+			Response.ContentType == EHttpContentType::Text_Html)
+		{
+			Response.Buffer.PushBack('\n');
+			Response.Buffer.PushBack(0);
+			LogPrintf(ELogLevel::MachineReadable, L"%hs", (const char*)Response.Buffer.Data());
+			return 0;
+		}
+		else
+		{
+			UNSYNC_ERROR(L"Unexpected response content type. Only plain text or json are supported. Use `-o <filename>` command line argument to write response body to a file.");
+			return -1;
+		}
+	}
+	else
+	{
+		UNSYNC_LOG(L"Output file: '%ls'", OutputPath.wstring().c_str());
+		OutputPath = GetAbsoluteNormalPath(OutputPath);
+
+		if (EnsureDirectoryExists(OutputPath.parent_path()))
+		{
+			if (WriteBufferToFile(OutputPath, Response.Buffer))
+			{
+				UNSYNC_VERBOSE(L"Wrote bytes: %llu", llu(Response.Buffer.Size()));
+				return 0;
+			}
+			else
+			{
+				UNSYNC_ERROR(L"Failed to write output file '%ls'", OutputPath.wstring().c_str());
+			}
+		}
+		else
+		{
+			UNSYNC_ERROR(L"Failed to create output directory '%ls'", OutputPath.parent_path().wstring().c_str());
+		}
+
+		return -1;
+	}
+}
+
+int32
 CmdQuery(const FCmdQueryOptions& Options)
 {
+	if (!Options.Remote.IsValid())
+	{
+		UNSYNC_ERROR(L"Server address is not specified or is invalid");
+		return 1;
+	}
+
 	if (Options.Query == "mirrors")
 	{
 		return CmdQueryMirrors(Options);
@@ -476,7 +610,7 @@ CmdQuery(const FCmdQueryOptions& Options)
 	{
 		return CmdQueryList(Options);
 	}
-	else if (Options.Query == "search")
+	else if (Options.Query == "search" || Options.Query == "explore")
 	{
 		return CmdQuerySearch(Options);
 	}
@@ -484,9 +618,13 @@ CmdQuery(const FCmdQueryOptions& Options)
 	{
 		return CmdQueryFile(Options);
 	}
+	if (Options.Query == "http-get")
+	{
+		return CmdQueryHttpGet(Options);
+	}
 	else
 	{
-		UNSYNC_ERROR(L"Unknown query command");
+		UNSYNC_ERROR(L"Unknown query command. Allowed options: mirrors, list, search, file, http-get");
 		return 1;
 	}
 }

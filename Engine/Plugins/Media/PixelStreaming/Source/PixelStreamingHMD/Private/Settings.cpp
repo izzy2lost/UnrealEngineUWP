@@ -47,34 +47,69 @@ namespace UE::PixelStreamingHMD::Settings
 	};
 
 	TAutoConsoleVariable<bool> CVarPixelStreamingEnableHMD(
-			TEXT("PixelStreaming.HMD.Enable"),
-			false,
-			TEXT("Enables HMD specific functionality for Pixel Streaming. Namely input handling and stereoscopic rendering"),
-			ECVF_Default);
+		TEXT("PixelStreaming.HMD.Enable"),
+		false,
+		TEXT("Enables HMD specific functionality for Pixel Streaming. Namely input handling and stereoscopic rendering"),
+		ECVF_Default);
 
 	TAutoConsoleVariable<bool> CVarPixelStreamingHMDMatchAspectRatio(
-			TEXT("PixelStreaming.HMD.MatchAspectRatio"),
-			true,
-			TEXT("If true automatically resize the rendering resolution to match the aspect ratio determined by the HFoV and VFoV"),
-			ECVF_Default);
+		TEXT("PixelStreaming.HMD.MatchAspectRatio"),
+		true,
+		TEXT("If true automatically resize the rendering resolution to match the aspect ratio determined by the HFoV and VFoV"),
+		ECVF_Default);
+
+	TAutoConsoleVariable<bool> CVarPixelStreamingHMDApplyEyePosition(
+		TEXT("PixelStreaming.HMD.ApplyEyePosition"),
+		true,
+		TEXT("If true automatically position each eye's rendering by whatever amount WebXR reports for each left-right XRView. If false do no eye positioning. Default: false"),
+		ECVF_Default);
+
+	TAutoConsoleVariable<bool> CVarPixelStreamingHMDApplyEyeRotation(
+		TEXT("PixelStreaming.HMD.ApplyEyeRotation"),
+		true,
+		TEXT("If true automatically rotate each eye's rendering by whatever amount WebXR reports for each left-right XRView. If false do no eye rotation. Default: false"),
+		ECVF_Default);
 
 	TAutoConsoleVariable<float> CVarPixelStreamingHMDHFOV(
-			TEXT("PixelStreaming.HMD.HFOV"),
-			-1.0f,
-			TEXT("Overrides the horizontal field of view for HMD rendering, values are in degrees and values less than 0.0f disable the override."),
-			ECVF_Default);
+		TEXT("PixelStreaming.HMD.HFOV"),
+		-1.0f,
+		TEXT("Overrides the horizontal field of view for HMD rendering, values are in degrees and values less than 0.0f disable the override."),
+		ECVF_Default);
 
 	TAutoConsoleVariable<float> CVarPixelStreamingHMDVFOV(
-			TEXT("PixelStreaming.HMD.VFOV"),
-			-1.0f,
-			TEXT("Overrides the vertical field of view for HMD rendering, values are in degrees and values less than 0.0f disable the override."),
-			ECVF_Default);
+		TEXT("PixelStreaming.HMD.VFOV"),
+		-1.0f,
+		TEXT("Overrides the vertical field of view for HMD rendering, values are in degrees and values less than 0.0f disable the override."),
+		ECVF_Default);
+
+	TAutoConsoleVariable<float> CVarPixelStreamingHMDIPD(
+		TEXT("PixelStreaming.HMD.IPD"),
+		-1.0f,
+		TEXT("Overrides the HMD IPD (interpupillary distance), values are in centimeters and values less than 0.0f disable the override."),
+		ECVF_Default);
+
+	TAutoConsoleVariable<float> CVarPixelStreamingHMDProjectionOffsetX(
+		TEXT("PixelStreaming.HMD.ProjectionOffsetX"),
+		-1.0f,
+		TEXT("Overrides the left/right eye projection matrix x-offset, values are in clip space and values less than 0.0f disable the override."),
+		ECVF_Default);
+
+	TAutoConsoleVariable<float> CVarPixelStreamingHMDProjectionOffsetY(
+		TEXT("PixelStreaming.HMD.ProjectionOffsetY"),
+		-1.0f,
+		TEXT("Overrides the left-right eye projection matrix y-offset, values are in clip space and values less than 0.0f disable the override."),
+		ECVF_Default);
 
 	void InitialiseSettings()
 	{
 		CommandLineParseOption(TEXT("PixelStreamingEnableHMD"), CVarPixelStreamingEnableHMD);
 		CommandLineParseOption(TEXT("PixelStreamingHMDMatchAspectRatio"), CVarPixelStreamingHMDMatchAspectRatio);
+		CommandLineParseOption(TEXT("PixelStreamingHMDApplyEyeRotation"), CVarPixelStreamingHMDApplyEyeRotation);
+		CommandLineParseOption(TEXT("PixelStreamingHMDApplyEyePosition"), CVarPixelStreamingHMDApplyEyePosition);
 		CommandLineParseValue(TEXT("PixelStreamingHMDHFOV="), CVarPixelStreamingHMDHFOV);
 		CommandLineParseValue(TEXT("PixelStreamingHMDVFOV="), CVarPixelStreamingHMDVFOV);
+		CommandLineParseValue(TEXT("PixelStreamingHMDVIPD="), CVarPixelStreamingHMDIPD);
+		CommandLineParseValue(TEXT("PixelStreamingHMDProjectionOffsetX="), CVarPixelStreamingHMDProjectionOffsetX);
+		CommandLineParseValue(TEXT("PixelStreamingHMDProjectionOffsetY="), CVarPixelStreamingHMDProjectionOffsetY);
 	}
-} // UE::PixelStreamingHMD::Settings
+} // namespace UE::PixelStreamingHMD::Settings

@@ -5,59 +5,81 @@
 #include "CoreMinimal.h"
 #include "IAnimNextRigVMGraphInterface.h"
 #include "AssetRegistry/AssetData.h"
-#include "Param/ParamTypeHandle.h"
+#include "Misc/Build.h"
+#include "Param/ParamType.h"
 #include "RigVMCore/RigVMTemplate.h"
-
+#include "StructUtils/InstancedStruct.h"
+#include "RigVMCore/RigVMGraphFunctionDefinition.h"
 #include "UncookedOnlyUtils.generated.h"
 
-struct FAnimNextParam;
-class UAnimNextSchedule;
-class UAnimNextGraph;
-class UAnimNextGraph_EditorData;
-class UAnimNextGraph_EdGraph;
+struct FAnimNextVariableBindingData;
+struct FEdGraphPinType;
+struct FWorkspaceOutlinerItemExports;
+struct FWorkspaceOutlinerItemExport;
+struct FRigVMGraphFunctionData;
+struct FRigVMCompileSettings;
+struct FRigVMGraphFunctionHeaderArray;
+class UAnimNextModule;
+class UAnimNextModule_EditorData;
+class UAnimNextEdGraph;
 class URigVMController;
 class URigVMGraph;
-class UAnimNextParameterBlock;
-class UAnimNextParameterBlock_EditorData;
-class UAnimNextGraph_EdGraph;
-struct FEdGraphPinType;
+class UAnimNextEdGraph;
 class UAnimNextRigVMAsset;
 class UAnimNextRigVMAssetEditorData;
 class UAnimNextRigVMAssetEntry;
+
 
 namespace UE
 {
 	namespace AnimNext
 	{
-		static const FName ExportsAnimNextAssetRegistryTag = TEXT("AnimNextExports");
+		static const FLazyName ExportsAnimNextAssetRegistryTag = TEXT("AnimNextExports");
+		static const FLazyName AnimNextPublicGraphFunctionsExportsRegistryTag = TEXT("AnimNextPublicGraphFunctions");
+		static const FLazyName ControlRigAssetPublicGraphFunctionsExportsRegistryTag = TEXT("PublicGraphFunctions");
 	}
 }
 
 UENUM()
-enum class EAnimNextParameterFlags
+enum class EAnimNextExportedVariableFlags : uint32
 {
 	NoFlags = 0x0,
-	Private = 0x1,
+	Public = 0x1,
 	Read = 0x02,
 	Write = 0x04,
-	Bound = 0x08,
+	Declared = 0x08,
 	Max
 };
 
-ENUM_CLASS_FLAGS(EAnimNextParameterFlags)
+ENUM_CLASS_FLAGS(EAnimNextExportedVariableFlags)
 
 USTRUCT()
-struct FAnimNextParameterAssetRegistryExportEntry
+struct FAnimNextAssetRegistryExportedVariable
 {
 	GENERATED_BODY()
 
-	FAnimNextParameterAssetRegistryExportEntry() = default;
-	
-	FAnimNextParameterAssetRegistryExportEntry(FName InName, const FAnimNextParamType& InType, EAnimNextParameterFlags InFlags = EAnimNextParameterFlags::NoFlags)
+	FAnimNextAssetRegistryExportedVariable() = default;
+
+	FAnimNextAssetRegistryExportedVariable(FName InName, const FAnimNextParamType& InType, EAnimNextExportedVariableFlags InFlags = EAnimNextExportedVariableFlags::NoFlags)
 		: Name(InName)
 		, Type(InType)
-		, Flags(InFlags) 
+		, Flags((uint32)InFlags) 
 	{}
+
+	bool operator==(const FAnimNextAssetRegistryExportedVariable& Other) const
+	{
+		return Name == Other.Name;
+	}
+
+	friend uint32 GetTypeHash(const FAnimNextAssetRegistryExportedVariable& Entry)
+	{
+		return GetTypeHash(Entry.Name);
+	}
+
+	EAnimNextExportedVariableFlags GetFlags() const
+	{
+		return (EAnimNextExportedVariableFlags)Flags;
+	}
 	
 	UPROPERTY()
 	FName Name;
@@ -65,117 +87,112 @@ struct FAnimNextParameterAssetRegistryExportEntry
 	UPROPERTY()
 	FAnimNextParamType Type;
 
-	// Asset, found first in asset-registry, that references this parameter entry
-	FAssetData ReferencingAsset;
-
 	UPROPERTY()
-	EAnimNextParameterFlags Flags = EAnimNextParameterFlags::NoFlags;
+	uint32 Flags = (int32)EAnimNextExportedVariableFlags::NoFlags;
 };
 
 USTRUCT()
-struct FAnimNextParameterProviderAssetRegistryExports
+struct FAnimNextAssetRegistryExports
 {
 	GENERATED_BODY()
 
 	UPROPERTY()
-	TArray<FAnimNextParameterAssetRegistryExportEntry> Parameters;
+	TArray<FAnimNextAssetRegistryExportedVariable> Variables;
+
+	UPROPERTY()
+	TArray<FRigVMGraphFunctionHeader> PublicHeaders;
 };
 
 namespace UE::AnimNext::UncookedOnly
 {
 
+extern TAutoConsoleVariable<bool> CVarDumpProgrammaticGraphs;
+
 struct ANIMNEXTUNCOOKEDONLY_API FUtils
 {
-	static void Compile(UAnimNextGraph* InGraph);
-	
-	static UAnimNextGraph_EditorData* GetEditorData(const UAnimNextGraph* InAnimNextGraph);
-	
-	static UAnimNextGraph* GetGraph(const UAnimNextGraph_EditorData* InEditorData);
-	
-	static void RecreateVM(UAnimNextGraph* InGraph);
+	static void CompileVariables(UAnimNextRigVMAsset* InAsset);
 
-	/**
-	 * Get an AnimNext parameter type handle from an FEdGraphPinType.
-	 * Note that the returned handle may not be valid, so should be checked using IsValid() before use.
-	 **/
-	static FParamTypeHandle GetParameterHandleFromPin(const FEdGraphPinType& InPinType);
+	static void CompileVariableBindings(const FRigVMCompileSettings& InSettings, UAnimNextRigVMAsset* InAsset, TArray<URigVMGraph*>& OutGraphs);
 
-	static void Compile(UAnimNextParameterBlock* InParameterBlock);
+	static void RecreateVM(UAnimNextRigVMAsset* InAsset);
 
-	static void CompileVM(UAnimNextParameterBlock* InParameterBlock);
-
-	static void CompileStruct(UAnimNextParameterBlock* InParameterBlock);
-	
-	static UAnimNextParameterBlock_EditorData* GetEditorData(const UAnimNextParameterBlock* InParameterBlock);
-
-	static UAnimNextParameterBlock* GetBlock(const UAnimNextParameterBlock_EditorData* InEditorData);
-
-	static FInstancedPropertyBag* GetPropertyBag(UAnimNextParameterBlock* ReferencedBlock);
-
-	static void RecreateVM(UAnimNextParameterBlock* InParameterBlock);
-
+	// Get the corresponding asset from an asset's editor data (casts the outer appropriately)
 	static UAnimNextRigVMAsset* GetAsset(UAnimNextRigVMAssetEditorData* InEditorData);
 
+	template<typename AssetType, typename EditorDataType>
+	static AssetType* GetAsset(EditorDataType* InEditorData)
+	{
+		using NonConstEditorDataType = std::remove_const_t<EditorDataType>;
+		return CastChecked<AssetType>(GetAsset(const_cast<NonConstEditorDataType*>(InEditorData)));
+	}
+
+	// Get the corresponding editor data from an asset (casts the editor data appropriately)
 	static UAnimNextRigVMAssetEditorData* GetEditorData(UAnimNextRigVMAsset* InAsset);
+
+	template<typename EditorDataType, typename AssetType>
+	static EditorDataType* GetEditorData(AssetType* InAsset)
+	{
+		using NonConstAssetType = std::remove_const_t<AssetType>;
+		return CastChecked<EditorDataType>(GetEditorData(const_cast<NonConstAssetType*>(InAsset)));
+	}
 
 	/**
 	 * Get an AnimNext parameter type from an FEdGraphPinType.
 	 * Note that the returned handle may not be valid, so should be checked using IsValid() before use.
 	 **/
-	static FParamTypeHandle GetParamTypeHandleFromPinType(const FEdGraphPinType& InPinType);
 	static FAnimNextParamType GetParamTypeFromPinType(const FEdGraphPinType& InPinType);
 
 	/**
 	 * Get an FEdGraphPinType from an AnimNext parameter type/handle.
 	 * Note that the returned pin type may not be valid.
 	 **/
-	static FEdGraphPinType GetPinTypeFromParamTypeHandle(const FParamTypeHandle& InParamTypeHandle);
 	static FEdGraphPinType GetPinTypeFromParamType(const FAnimNextParamType& InParamType);
 
 	/**
 	 * Get an FRigVMTemplateArgumentType from an AnimNext parameter type/handle.
 	 * Note that the returned pin type may not be valid.
 	 **/
-	static FRigVMTemplateArgumentType GetRigVMArgTypeFromParamTypeHandle(const FParamTypeHandle& InParamTypeHandle);
 	static FRigVMTemplateArgumentType GetRigVMArgTypeFromParamType(const FAnimNextParamType& InParamType);
 
 	/** Set up a simple animation graph */
-	static void SetupAnimGraph(UAnimNextRigVMAssetEntry* InEntry, URigVMController* InController);
+	static void SetupAnimGraph(const FName EntryName, URigVMController* InController);
 	
-	/** Set up a simple parameter graph */
-	static void SetupParameterGraph(URigVMController* InController);
-	
-	/** Converts the Verse-tag-like snake_case_parameter_name to a period-separated display name similar to a gameplay tag */
-	static FText GetParameterDisplayNameText(FName InParameterName);
-	
-	// Gets the parameters that are exported to the asset registry for an asset
-	static bool GetExportedParametersForAsset(const FAssetData& InAsset, FAnimNextParameterProviderAssetRegistryExports& OutExports);
+	/** Set up a simple event graph */
+	static void SetupEventGraph(URigVMController* InController, UScriptStruct* InEventStruct);
 
-	// Gets all the parameters that are exported to the asset registry
-	static bool GetExportedParametersFromAssetRegistry(FAnimNextParameterProviderAssetRegistryExports& OutExports);
+	// Gets the variables that are exported to the asset registry for an asset
+	static bool GetExportedVariablesForAsset(const FAssetData& InAsset, FAnimNextAssetRegistryExports& OutExports);
 
-	// Gets the exported parameters that are used by a RigVM asset
-	static void GetAssetParameters(const UAnimNextRigVMAssetEditorData* EditorData, FAnimNextParameterProviderAssetRegistryExports& OutExports);
+	// Gets all the variables that are exported to the asset registry
+	static bool GetExportedVariablesFromAssetRegistry(TMap<FAssetData, FAnimNextAssetRegistryExports>& OutExports);
 
-	// Gets the exported parameters that are used by a RigVM graph
-	static void GetGraphParameters(const URigVMGraph* Graph, FAnimNextParameterProviderAssetRegistryExports& OutExports);
+	// Gets the functions that are exported to the asset registry for an asset
+	static bool GetExportedFunctionsForAsset(const FAssetData& InAsset, FAnimNextAssetRegistryExports& OutExports);
 
-	// Gets the parameters that are exported to the asset registry by a schedule
-	static void GetScheduleParameters(const UAnimNextSchedule* InSchedule, FAnimNextParameterProviderAssetRegistryExports& OutExports);
+	// Gets all the functions that are exported to the asset registry for the specified Tag
+	static bool GetExportedFunctionsFromAssetRegistry(FName Tag, TMap<FAssetData, FRigVMGraphFunctionHeaderArray>& OutExports);
 
-	// Gets the parameters that are exported to the asset registry by a blueprint
-	static void GetBlueprintParameters(const UBlueprint* InBlueprint, FAnimNextParameterProviderAssetRegistryExports& OutExports);
+	// Gets the exported variables that are used by a RigVM asset
+	static void GetAssetVariables(const UAnimNextRigVMAssetEditorData* EditorData, FAnimNextAssetRegistryExports& OutExports);
+	static void GetAssetVariables(const UAnimNextRigVMAssetEditorData* EditorData, TSet<FAnimNextAssetRegistryExportedVariable>& OutExports);
+
+	// Gets the asset-registry information needed for representing the contained data into the Workspace Outliner
+	static void GetAssetOutlinerItems(const UAnimNextRigVMAssetEditorData* EditorData, FWorkspaceOutlinerItemExports& OutExports);
+	static void CreateSubGraphsOutlinerItemsRecursive(const UAnimNextRigVMAssetEditorData* EditorData, FWorkspaceOutlinerItemExports& OutExports, FWorkspaceOutlinerItemExport& ParentExport, URigVMEdGraph* RigVMEdGraph);
+	static void CreateFunctionLibraryOutlinerItemsRecursive(const UAnimNextRigVMAssetEditorData* EditorData, FWorkspaceOutlinerItemExports& OutExports, FWorkspaceOutlinerItemExport& ParentExport, const TArray<FRigVMGraphFunctionData>& PublicFunctions, const TArray<FRigVMGraphFunctionData>& PrivateFunctions);
+	static void CreateFunctionsOutlinerItemsRecursive(const UAnimNextRigVMAssetEditorData* EditorData, FWorkspaceOutlinerItemExports& OutExports, FWorkspaceOutlinerItemExport& ParentExport, const TArray<FRigVMGraphFunctionData>& Functions, bool bPublicFunctions);
 
 	// Attempts to determine the type from a parameter name
 	// If the name cannot be found, the returned type will be invalid
 	// Note that this is expensive and can query the asset registry
 	static FAnimNextParamType GetParameterTypeFromName(FName InName);
 
-	// Compiles a schedule
-	static void CompileSchedule(UAnimNextSchedule* InSchedule);
+	// Returns an user friendly name for the Function Library
+	static const FText& GetFunctionLibraryDisplayName();
 
-	// Sorts the incoming array of parameters, then generates a hash and returns it.
-	static uint64 SortAndHashParameters(TArray<FAnimNextParam>& InParameters);
+#if WITH_EDITOR
+	static void OpenProgrammaticGraphs(UAnimNextRigVMAssetEditorData* EditorData, const TArray<URigVMGraph*>& ProgrammaticGraphs);
+#endif // WITH_EDITOR
 };
 
 }

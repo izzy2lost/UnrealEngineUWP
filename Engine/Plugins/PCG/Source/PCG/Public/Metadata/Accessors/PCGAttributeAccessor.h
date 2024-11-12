@@ -39,68 +39,135 @@ public:
 
 	bool GetRangeImpl(TArrayView<T> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
 	{
-		TArray<const PCGMetadataEntryKey*, TInlineAllocator<256>> EntryKeys;
-		EntryKeys.SetNumUninitialized(OutValues.Num());
+		TArray<const PCGMetadataEntryKey*, TInlineAllocator<256>> EntryKeyPtrs;
+		EntryKeyPtrs.SetNumUninitialized(OutValues.Num());
 
-		TArrayView<const PCGMetadataEntryKey*> EntryKeysView(EntryKeys);
+		TArrayView<const PCGMetadataEntryKey*> EntryKeysView(EntryKeyPtrs);
 		if (!Keys.GetKeys<PCGMetadataEntryKey>(Index, EntryKeysView))
 		{
 			return false;
 		}
 
-		// TODO: Might be good to hase a "GetValuesFromItemKeys" to try locking less often.
-		for (int32 i = 0; i < OutValues.Num(); ++i)
-		{
-			OutValues[i] = Attribute->GetValueFromItemKey(*EntryKeys[i]);
-		}
+		TArray<PCGMetadataEntryKey, TInlineAllocator<256>> EntryKeys;
+		EntryKeys.Reserve(EntryKeyPtrs.Num());
+		Algo::Transform(EntryKeyPtrs, EntryKeys, [](const PCGMetadataEntryKey* KeyPtr) { return *KeyPtr; });
+
+		Attribute->GetValuesFromItemKeys(TArrayView<PCGMetadataEntryKey>(EntryKeys), OutValues);
 
 		return true;
 	}
 
 	bool SetRangeImpl(TArrayView<const T> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags Flags)
 	{
-		TArray<PCGMetadataEntryKey*, TInlineAllocator<256>> EntryKeys;
+		if (EnumHasAnyFlags(Flags, EPCGAttributeAccessorFlags::AllowSetDefaultValue) && Keys.GetNum() == 1)
+		{
+			PCGMetadataEntryKey* EntryKey = nullptr;
+			Keys.GetKey(EntryKey);
+
+			if (EntryKey && *EntryKey == PCGInvalidEntryKey)
+			{
+				check(!InValues.IsEmpty())
+				Attribute->SetDefaultValue(InValues[0]);
+				return true;
+			}
+		}
+
+		TArray<PCGMetadataEntryKey*, TInlineAllocator<512>> EntryKeys;
 		EntryKeys.SetNumUninitialized(InValues.Num());
 		TArrayView<PCGMetadataEntryKey*> EntryKeysView(EntryKeys);
-		if (!Keys.GetKeys<PCGMetadataEntryKey>(Index, EntryKeysView))
-		{
-			return false;
-		}
 
-		int LastDefaultKeyIndex = INDEX_NONE;
+		int32 Start = Index;
 
-		// Implementation note: this is a stripped down version of UPCGMetadata::InitializeOnSet
-		for(int EntryIndex = 0; EntryIndex < EntryKeys.Num(); ++EntryIndex)
+		if (!bWasPrepared || PCG::Private::MetadataTraits<T>::CompressData)
 		{
-			PCGMetadataEntryKey& EntryKey = *EntryKeys[EntryIndex];
-			if (EntryKey == PCGInvalidEntryKey)
+			if (!Prepare(Keys, InValues.Num(), /*bCanReuseEntryKeys=*/EnumHasAnyFlags(Flags, EPCGAttributeAccessorFlags::AllowReuseMetadataEntryKey), Index, /*bPreallocateValues=*/false, &EntryKeysView, &Start))
 			{
-				if (!(Flags & EPCGAttributeAccessorFlags::AllowSetDefaultValue))
-				{
-					EntryKey = Metadata->AddEntry(); // TODO - replace by AddEntryPlaceholder ?
-				}
-				else
-				{
-					LastDefaultKeyIndex = EntryIndex;
-				}
+				return false;
 			}
-			else if (EntryKey < Metadata->GetItemKeyCountForParent())
+
 			{
-				EntryKey = Metadata->AddEntry(EntryKey);
+				//TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeAccessor::SetRangeImpl::SetValues);
+				Attribute->SetValues(EntryKeys, InValues);
 			}
 		}
-
-		Attribute->SetValues(EntryKeys, InValues);
-
-		if (LastDefaultKeyIndex != INDEX_NONE)
+		else
 		{
-			Attribute->SetDefaultValue(InValues[LastDefaultKeyIndex]);
+			//TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeAccessor::SetRangeImpl::SetValues);
+			Attribute->SetValues_TryLockless(EntryKeysView, InValues, Start);
 		}
 
 		return true;
 	}
 
+	virtual bool IsAttribute() const override { return true; }
+
+	bool Prepare(IPCGAttributeAccessorKeys& Keys, int32 Count, const bool bCanReuseEntryKeys, int32 Index, bool bPreallocateValues, TArrayView<PCGMetadataEntryKey*>* OutEntryKeys = nullptr, int32* OutStartIndex = nullptr)
+	{
+		//TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeAccessor::Prepare);
+
+		check(!OutEntryKeys || OutEntryKeys->Num() == Count);
+
+		TArray<PCGMetadataEntryKey*, TInlineAllocator<512>> EntryKeys;
+		TArrayView<PCGMetadataEntryKey*> EntryKeysView;
+		if (!OutEntryKeys)
+		{
+			EntryKeys.SetNumUninitialized(Count);
+			EntryKeysView = TArrayView<PCGMetadataEntryKey*>(EntryKeys);
+		}
+		else
+		{
+			EntryKeysView = *OutEntryKeys;
+		}
+
+		if (!Keys.GetKeys<PCGMetadataEntryKey>(Index, EntryKeysView))
+		{
+			return false;
+		}
+
+		TArray<PCGMetadataEntryKey*, TInlineAllocator<512>> EntriesToSet;
+		EntriesToSet.Reserve(Count);
+
+		// Implementation note: this is a stripped down version of UPCGMetadata::InitializeOnSet
+		for (int EntryIndex = 0; EntryIndex < EntryKeysView.Num(); ++EntryIndex)
+		{
+			PCGMetadataEntryKey& EntryKey = *EntryKeysView[EntryIndex];
+			if (EntryKey == PCGInvalidEntryKey || (EntryKey < Metadata->GetItemKeyCountForParent() && !bCanReuseEntryKeys))
+			{
+				EntriesToSet.Add(&EntryKey);
+			}
+		}
+
+		if (!EntriesToSet.IsEmpty())
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeAccessor::Prepare::AddEntriesInPlace);
+			Metadata->AddEntriesInPlace(EntriesToSet);
+		}
+
+		if (bPreallocateValues && ensure(!bWasPrepared))
+		{
+			const int32 StartIndex = Attribute->PreallocateValues(EntryKeysView, /*bLockless=*/false);
+			if (OutStartIndex)
+			{
+				*OutStartIndex = StartIndex;
+			}
+		}
+
+		return true;
+	}
+
+	virtual void Prepare(IPCGAttributeAccessorKeys& Keys, int32 Count, const bool bCanReuseEntryKeys) override
+	{
+		if (!ensure(!bWasPrepared))
+		{
+			return;
+		}
+
+		Attribute->Prepare(Count);
+		bWasPrepared = Prepare(Keys, Count, bCanReuseEntryKeys, /*Index=*/0, /*bPreallocateValues=*/true);
+	}
+
 private:
 	FPCGMetadataAttribute<T>* Attribute = nullptr;
 	UPCGMetadata* Metadata = nullptr;
+	bool bWasPrepared = false;
 };

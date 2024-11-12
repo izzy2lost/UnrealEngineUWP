@@ -11,6 +11,7 @@ class URigVMGraph;
 class FUICommandList;
 class UAnimNextRigVMAssetEntry;
 class UAnimNextRigVMAssetEditorData;
+enum class EAnimNextEditorDataNotifType : uint8;
 
 namespace UE::AnimNext::Editor
 {
@@ -20,16 +21,26 @@ struct FRigVMAssetViewEntry;
 class SRigVMAssetView : public SCompoundWidget
 {
 public:
-	DECLARE_DELEGATE_OneParam(FOnSelectionChanged, const TArray<UObject*>& /*InEntries*/);
+	using FOnSelectionChanged = TDelegate<void(const TArray<UObject*>& InEntries)>;
 
-	DECLARE_DELEGATE_OneParam(FOnOpenGraph, URigVMGraph* /*InGraph*/);
+	using FOnOpenGraph = TDelegate<void(URigVMGraph* InGraph)>;
 
-	DECLARE_DELEGATE_OneParam(FOnDeleteEntries, const TArray<UAnimNextRigVMAssetEntry*>& /*InEntries*/);
+	using FOnDeleteEntries = TDelegate<void(const TArray<UAnimNextRigVMAssetEntry*>& InEntries)>;
+
+	enum class EFilterResult
+	{
+		Exclude,
+		Include
+	};
+	
+	using FOnFilterEntry = TDelegate<EFilterResult(const UAnimNextRigVMAssetEntry* InEntry)>;
+
+	using FOnFilterCategory = TDelegate<EFilterResult(FName InCategory)>;
 	
 	SLATE_BEGIN_ARGS(SRigVMAssetView) {}
 
 	SLATE_EVENT(SRigVMAssetView::FOnSelectionChanged, OnSelectionChanged)
-	
+
 	SLATE_EVENT(SRigVMAssetView::FOnOpenGraph, OnOpenGraph)
 
 	SLATE_EVENT(SRigVMAssetView::FOnDeleteEntries, OnDeleteEntries)
@@ -44,6 +55,8 @@ public:
 	static void RegisterCategoryFactory(FName InCategory, FCategoryWidgetFactoryFunction&& InFunction);
 	static void UnregisterCategoryFactory(FName InCategory);
 
+	void ClearSelection();
+	void SetOnSelectionChanged(SRigVMAssetView::FOnSelectionChanged InDelegate);
 private:
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 
@@ -56,8 +69,8 @@ private:
 	// Bind input commands
 	void BindCommands();
 
-	// Handle modifications to the block
-	void HandleBlockModified(UAnimNextRigVMAssetEditorData* InEditorData);
+	// Handle modifications to the asset
+	void HandleAssetModified(UAnimNextRigVMAssetEditorData* InEditorData, EAnimNextEditorDataNotifType InType, UObject* InSubject);
 
 	// Get the content for the context menu
 	TSharedRef<SWidget> HandleGetContextContent();
@@ -113,6 +126,9 @@ private:
 	bool bRefreshRequested = false;
 
 	static TMap<FName, FCategoryWidgetFactoryFunction> CategoryFactories;
+
+	// Map from category name -> display text
+	TMap<FName, FText> CategoryNameMap;
 };
 
 }

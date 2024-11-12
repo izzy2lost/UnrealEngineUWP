@@ -8,6 +8,7 @@
 #include "RigVMCore/RigVM.h"
 #include "RigVMHost.h"
 #include "RigVMModel/RigVMClient.h"
+#include "RigVMModel/RigVMExternalDependency.h"
 #include "RigVMCompiler/RigVMCompiler.h"
 #include "RigVMCore/RigVMGraphFunctionDefinition.h"
 #include "EdGraph/RigVMEdGraph.h"
@@ -26,6 +27,7 @@ class IRigVMEditorModule;
 #endif
 struct FEndLoadPackageContext;
 struct FRigVMMemoryStorageStruct;
+struct FGuardSkipDirtyBlueprintStatus;
 
 DECLARE_EVENT_ThreeParams(URigVMBlueprint, FOnRigVMCompiledEvent, UObject*, URigVM*, FRigVMExtendedExecuteContext&);
 DECLARE_EVENT_OneParam(URigVMBlueprint, FOnRigVMRefreshEditorEvent, URigVMBlueprint*);
@@ -34,7 +36,7 @@ DECLARE_EVENT_OneParam(URigVMBlueprint, FOnRigVMExternalVariablesChanged, const 
 DECLARE_EVENT_TwoParams(URigVMBlueprint, FOnRigVMNodeDoubleClicked, URigVMBlueprint*, URigVMNode*);
 DECLARE_EVENT_OneParam(URigVMBlueprint, FOnRigVMGraphImported, UEdGraph*);
 DECLARE_EVENT_OneParam(URigVMBlueprint, FOnRigVMPostEditChangeChainProperty, FPropertyChangedChainEvent&);
-DECLARE_EVENT_ThreeParams(URigVMBlueprint, FOnRigVMLocalizeFunctionDialogRequested, FRigVMGraphFunctionIdentifier&, URigVMBlueprint*, bool);
+DECLARE_EVENT_FourParams(URigVMBlueprint, FOnRigVMLocalizeFunctionDialogRequested, FRigVMGraphFunctionIdentifier&, URigVMController*, IRigVMGraphFunctionHost*, bool);
 DECLARE_EVENT_ThreeParams(URigVMBlueprint, FOnRigVMReportCompilerMessage, EMessageSeverity::Type, UObject*, const FString&);
 DECLARE_DELEGATE_RetVal_FourParams(FRigVMController_BulkEditResult, FRigVMOnBulkEditDialogRequestedDelegate, URigVMBlueprint*, URigVMController*, URigVMLibraryNode*, ERigVMControllerBulkEditType);
 DECLARE_DELEGATE_RetVal_OneParam(bool, FRigVMOnBreakLinksDialogRequestedDelegate, TArray<URigVMLink*>);
@@ -42,7 +44,6 @@ DECLARE_DELEGATE_RetVal_OneParam(TRigVMTypeIndex, FRigVMOnPinTypeSelectionReques
 DECLARE_EVENT(URigVMBlueprint, FOnRigVMBreakpointAdded);
 DECLARE_EVENT_OneParam(URigVMBlueprint, FOnRigVMRequestInspectObject, const TArray<UObject*>& );
 DECLARE_EVENT_OneParam(URigVMBlueprint, FOnRigVMRequestInspectMemoryStorage, const TArray<FRigVMMemoryStorageStruct*>&);
-//DECLARE_DELEGATE_RetVal(URigVMGraph*, FRigVMBlueprintGetFocusedGraph);
 
 USTRUCT()
 struct RIGVMDEVELOPER_API FRigVMPythonSettings
@@ -52,6 +53,15 @@ struct RIGVMDEVELOPER_API FRigVMPythonSettings
 	FRigVMPythonSettings()
 	{
 	}
+};
+
+UENUM(BlueprintType)
+enum class ERigVMTagDisplayMode : uint8
+{
+	None = 0,
+	All = 0x001,
+	DeprecationOnly = 0x002,
+	Last = DeprecationOnly UMETA(Hidden), 
 };
 
 USTRUCT()
@@ -73,6 +83,7 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphDisplaySettings
 		, LastMaxMicroSeconds(1.0)
 		, MinDurationColor(FLinearColor::Green)
 		, MaxDurationColor(FLinearColor::Red)
+		, TagDisplayMode(ERigVMTagDisplayMode::All)
 	{
 	}
 
@@ -139,6 +150,10 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphDisplaySettings
 	// The color of the slowest instruction / node
 	UPROPERTY(EditAnywhere, Category = "Graph Display Settings")
 	FLinearColor MaxDurationColor;
+
+	// The color of the slowest instruction / node
+	UPROPERTY(EditAnywhere, Category = "Graph Display Settings")
+	ERigVMTagDisplayMode TagDisplayMode;
 
 	void SetTotalMicroSeconds(double InTotalMicroSeconds);
 	void SetLastMinMicroSeconds(double InMinMicroSeconds);
@@ -215,7 +230,7 @@ struct RIGVMDEVELOPER_API FRigVMOldPublicFunctionData
 
 
 UCLASS(BlueprintType, meta=(IgnoreClassThumbnail))
-class RIGVMDEVELOPER_API URigVMBlueprint : public UBlueprint, public IRigVMClientHost
+class RIGVMDEVELOPER_API URigVMBlueprint : public UBlueprint, public IRigVMClientHost, public IRigVMExternalDependencyManager
 {
 	GENERATED_UCLASS_BODY()
 
@@ -235,36 +250,18 @@ public:
 	/** Returns the class used as the super class for all generated classes */
 	virtual UClass* GetRigVMBlueprintGeneratedClassPrototype() const { return URigVMBlueprintGeneratedClass::StaticClass(); }
 
-	/** Returns the expected schema class to use for this blueprint */
-	virtual UClass* GetRigVMSchemaClass() const { return URigVMSchema::StaticClass(); }
-
-	/** Returns the expected execute context struct to use for this blueprint */
-	virtual UScriptStruct* GetRigVMExecuteContextStruct() const { return FRigVMExecuteContext::StaticStruct(); }
-
-	/** Returns the expected ed graph class to use for this blueprint */
-	virtual UClass* GetRigVMEdGraphClass() const { return URigVMEdGraph::StaticClass(); }
-
-	/** Returns the expected ed graph node class to use for this blueprint */
-	virtual UClass* GetRigVMEdGraphNodeClass() const { return URigVMEdGraphNode::StaticClass(); }
-
-	/** Returns the expected ed graph schema class to use for this blueprint */
-	virtual UClass* GetRigVMEdGraphSchemaClass() const { return URigVMEdGraphSchema::StaticClass(); }
-
-	/** Returns the class of the settings to use */
-	virtual UClass* GetRigVMEditorSettingsClass() const { return URigVMEditorSettings::StaticClass(); }
-
 	/** Returns the settings defaults for this blueprint */
 	URigVMEditorSettings* GetRigVMEditorSettings() const;
 
 #if WITH_EDITOR
 	/** Returns true if a given panel node factory is compatible this blueprint */
-	virtual const FName& GetPanelNodeFactoryName() const;
+	virtual const FLazyName& GetPanelNodeFactoryName() const;
 
 	/** Returns true if a given panel pin factory is compatible this blueprint */
-	virtual const FName& GetPanelPinFactoryName() const;
+	virtual const FLazyName& GetPanelPinFactoryName() const;
 
-	static const FName RigVMPanelNodeFactoryName;
-	static const FName RigVMPanelPinFactoryName;
+	static inline const FLazyName RigVMPanelNodeFactoryName = FLazyName(TEXT("FRigVMEdGraphPanelNodeFactory"));
+	static inline const FLazyName RigVMPanelPinFactoryName = FLazyName(TEXT("FRigVMEdGraphPanelPinFactory"));
 
 	/** Returns the editor module to be used for this blueprint */
 	virtual IRigVMEditorModule* GetEditorModule() const;
@@ -321,6 +318,13 @@ public:
 	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 
 	//  --- IRigVMClientHost interface Start---
+	virtual FString GetAssetName() const override { return GetName(); }
+	virtual UClass* GetRigVMSchemaClass() const override { return URigVMSchema::StaticClass(); }
+	virtual UScriptStruct* GetRigVMExecuteContextStruct() const { return FRigVMExecuteContext::StaticStruct(); }
+	virtual UClass* GetRigVMEdGraphClass() const override { return URigVMEdGraph::StaticClass(); }
+	virtual UClass* GetRigVMEdGraphNodeClass() const override { return URigVMEdGraphNode::StaticClass(); }
+	virtual UClass* GetRigVMEdGraphSchemaClass() const override { return URigVMEdGraphSchema::StaticClass(); }
+	virtual UClass* GetRigVMEditorSettingsClass() const override { return URigVMEditorSettings::StaticClass(); }
 	virtual FRigVMClient* GetRigVMClient() override;
 	virtual const FRigVMClient* GetRigVMClient() const override;
 	virtual IRigVMGraphFunctionHost* GetRigVMGraphFunctionHost() override;
@@ -332,6 +336,7 @@ public:
 	virtual void HandleRigVMGraphRenamed(const FRigVMClient* InClient, const FString& InOldNodePath, const FString& InNewNodePath) override;
 	virtual void HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure) override;
 	virtual UObject* ResolveUserDefinedTypeById(const FString& InTypeName) const override;
+
 
 	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
 	virtual void RecompileVM() override;
@@ -374,6 +379,9 @@ public:
 	virtual URigVMFunctionLibrary* GetLocalFunctionLibrary() const override;
 
 	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual URigVMFunctionLibrary* GetOrCreateLocalFunctionLibrary(bool bSetupUndoRedo = true) override;
+
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
 	virtual URigVMGraph* AddModel(FString InName = TEXT("Rig Graph"), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true) override;
 
 	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
@@ -400,7 +408,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
 	virtual TArray<FString> GeneratePythonCommands(const FString InNewBlueprintName) override;
 
+	virtual void SetupPinRedirectorsForBackwardsCompatibility() override {};
+
+	virtual FRigVMGraphModifiedEvent& OnModified() override;
+
+	virtual bool IsFunctionPublic(const FName& InFunctionName) const override;
+	virtual void MarkFunctionPublic(const FName& InFunctionName, bool bIsPublic = true) override;
+
+	virtual void RenameGraph(const FString& InNodePath, const FName& InNewName) override;
+
 	//  --- IRigVMClientHost interface End ---
+
+	//  --- IRigVMExternalDependencyManager interface Start ---
+
+	virtual TArray<FRigVMExternalDependency> GetExternalDependenciesForCategory(const FName& InCategory) const override;
+	
+	//  --- IRigVMExternalDependencyManager interface End ---
 
 
 	FOnRigVMRequestInspectObject& OnRequestInspectObject() { return OnRequestInspectObjectEvent; }
@@ -427,9 +450,6 @@ public:
 	UPROPERTY()
 	TObjectPtr<URigVMEdGraph> FunctionLibraryEdGraph;
 #endif
-
-	bool IsFunctionPublic(const FName& InFunctionName) const;
-	void MarkFunctionPublic(const FName& InFunctionName, bool bIsPublic = true);
 
 	// Returns a list of dependencies of this blueprint.
 	// Dependencies are blueprints that contain functions used in this blueprint
@@ -498,6 +518,10 @@ protected:
 
 #if WITH_EDITORONLY_DATA
 
+	/** Variant information about this asset */
+	UPROPERTY(EditAnywhere, AssetRegistrySearchable, Category = "Variant")
+	FRigVMVariant AssetVariant;
+
 	UPROPERTY(transient, DuplicateTransient)
 	TObjectPtr<URigVMGraph> TemplateModel;
 
@@ -514,13 +538,10 @@ public:
 	TMap<FString, FRigVMOperand> PinToOperandMap;
 
 	bool bSuspendModelNotificationsForSelf;
-	bool bSuspendModelNotificationsForOthers;
 	bool bSuspendAllNotifications;
 
-	virtual void SetupPinRedirectorsForBackwardsCompatibility() {};
 	void RebuildGraphFromModel();
 
-	FRigVMGraphModifiedEvent& OnModified();
 	FOnRigVMCompiledEvent& OnVMCompiled();
 
 	UFUNCTION(BlueprintCallable, Category = "VM")
@@ -550,6 +571,23 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Variables")
 	bool ChangeMemberVariableType(const FName& InName, const FString& InCPPType, bool bIsPublic = false, bool bIsReadOnly = false, FString InDefaultValue = TEXT(""));
+
+	const FRigVMVariant& GetAssetVariant() const { return AssetVariant; }
+
+	UFUNCTION(BlueprintPure, Category = "Variables", meta = (DisplayName = "GetAssetVariant", ScriptName = "GetAssetVariant"))
+	FRigVMVariant GetAssetVariantBP() const;
+
+	/** Resets the asset's guid to a new one and splits it from the former variant set */
+	UFUNCTION(BlueprintCallable, Category = "Variables")
+	bool SplitAssetVariant();
+
+	/** Merges the asset's guid with a provided one to join the variant set */
+	UFUNCTION(BlueprintCallable, Category = "Variables")
+	bool JoinAssetVariant(const FGuid& InGuid);
+
+	UFUNCTION(BlueprintPure, Category = "Variables")
+	TArray<FRigVMVariantRef> GetMatchingVariants() const;
+
 #endif
 
 private:
@@ -569,10 +607,15 @@ private:
 
 	UPROPERTY(transient, DuplicateTransient)
 	int32 VMRecompilationBracket;
+	
+	UPROPERTY(transient, DuplicateTransient)
+    bool bSkipDirtyBlueprintStatus;
 
 	FRigVMGraphModifiedEvent ModifiedEvent;
 	void Notify(ERigVMGraphNotifType InNotifType, UObject* InSubject);
 	void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
+
+	void ReplaceFunctionIdentifiers(const FString& OldAssetPath, const FString& NewAssetPath);
 
 #if WITH_EDITOR
 
@@ -596,13 +639,12 @@ private:
 
 	FOnRigVMCompiledEvent VMCompiledEvent;
 
-	virtual void PatchFunctionReferencesOnLoad();
 	virtual void PathDomainSpecificContentOnLoad() {}
 	virtual void PatchBoundVariables();
 	virtual void PatchVariableNodesWithIncorrectType();
 	virtual void PatchParameterNodesOnLoad() {}
 	virtual void PatchLinksWithCast();
-	virtual void PatchFunctionsOnLoad();
+	virtual void GetBackwardsCompatibilityPublicFunctions(TArray<FName> &BackwardsCompatiblePublicFunctions, TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader>& OldHeaders);
 
 protected:
 
@@ -718,7 +760,6 @@ private:
 	UEdGraph* CreateEdGraph(URigVMGraph* InModel, bool bForce = false);
 	bool RemoveEdGraph(URigVMGraph* InModel);
 	void DestroyObject(UObject* InObject);
-	void RenameGraph(const FString& InNodePath, const FName& InNewName);
 	void CreateEdGraphForCollapseNodeIfNeeded(URigVMCollapseNode* InNode, bool bForce = false);
 	bool RemoveEdGraphForCollapseNode(URigVMCollapseNode* InNode, bool bNotify = false);
 	void HandleReportFromCompiler(EMessageSeverity::Type InSeverity, UObject* InSubject, const FString& InMessage);
@@ -813,6 +854,14 @@ private:
 	friend class FRigVMEditorModule;
 	friend class URigVMEdGraphSchema;
 	friend struct FRigVMEdGraphSchemaAction_PromoteToVariable;
+	friend class URigVMBuildData;
+	friend class FRigVMVariantDetailCustomization;
+	friend class FRigVMTreeAssetVariantFilter;
+	friend class FRigVMTreePackageNode;
+	friend class SRigVMGraphNode;
+	friend struct FGuardSkipDirtyBlueprintStatus;
+	friend class SRigModuleAssetBrowser;
+	friend class FFrontendFilter_ControlRigFilterByAssetTag;
 };
 
 class RIGVMDEVELOPER_API FRigVMBlueprintCompileScope
@@ -834,4 +883,28 @@ public:
 private:
 
 	URigVMBlueprint* Blueprint;
+};
+
+struct FGuardSkipDirtyBlueprintStatus : private FNoncopyable
+{
+	[[nodiscard]] FGuardSkipDirtyBlueprintStatus(TWeakObjectPtr<URigVMBlueprint> InBlueprint, bool bNewValue)
+	{
+		if (InBlueprint.IsValid())
+		{
+			WeakBlueprint = InBlueprint;
+			bOldValue = InBlueprint->bSkipDirtyBlueprintStatus;
+			InBlueprint->bSkipDirtyBlueprintStatus = bNewValue;
+		}
+	}
+	~FGuardSkipDirtyBlueprintStatus()
+	{
+		if (URigVMBlueprint* Blueprint = WeakBlueprint.Get())
+		{
+			Blueprint->bSkipDirtyBlueprintStatus = bOldValue;
+		}
+	}
+
+private:
+	TWeakObjectPtr<URigVMBlueprint> WeakBlueprint;
+	bool bOldValue = false;
 };

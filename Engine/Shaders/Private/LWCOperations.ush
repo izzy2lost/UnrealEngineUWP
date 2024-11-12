@@ -121,6 +121,11 @@ FLWCType LWCLerp(FLWCType Lhs, FLWCType Rhs, FFloatType S)
 	return LWCConstructor(lerp(LWCGetTile(Lhs), LWCGetTile(Rhs), S), lerp(Lhs.Offset, Rhs.Offset, S));
 }
 
+FFloatType LWCModulo(FLWCType Lhs, FFloatType Rhs)
+{
+	return LWCToFloat(LWCSubtract(Lhs, LWCMultiply(LWCTrunc(LWCDivide(Lhs, Rhs)), Rhs)));
+}
+
 FFloatType LWCFmod(FLWCType Lhs, FFloatType Rhs)
 {
 	return LWCToFloat(LWCSubtract(Lhs, LWCMultiply(LWCTrunc(LWCDivide(Lhs, Rhs)), Rhs)));

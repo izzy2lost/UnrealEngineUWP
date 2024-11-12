@@ -5,7 +5,8 @@
 #include "BaseCharacterFXEditorModeToolkit.h"
 
 class UEditorInteractiveToolsContext;
-class SDataflowEditorViewport;
+class SDataflowConstructionViewport;
+class SDataflowSimulationViewport;
 class SBaseCharacterFXEditorViewport;
 
 /**
@@ -20,10 +21,6 @@ class DATAFLOWEDITOR_API FDataflowEditorModeToolkit : public FBaseCharacterFXEdi
 public:
 	void Init(const TSharedPtr<IToolkitHost>& InitToolkitHost, TWeakObjectPtr<UEdMode> InOwningMode);
 
-	// Add buttons to the toolbar with the specified name
-	// Note: Most FModeToolkits would define BuildToolPalette, but we are putting buttons in the top toolbar instead
-	void BuildEditorToolBar(const FName& EditorToolBarName);
-
 	// FBaseCharacterFXEditorModeToolkit interface
 	virtual const FSlateBrush* GetActiveToolIcon(const FString& Identifier) const override;
 
@@ -35,17 +32,17 @@ public:
 	virtual FName GetToolkitFName() const override;
 	virtual FText GetBaseToolkitName() const override;
 
-	void SetRestSpaceViewportWidget(TWeakPtr<SDataflowEditorViewport>);
-	//void SetPreviewViewportWidget(TWeakPtr<SChaosClothAssetEditor3DViewport>);
+	void SetConstructionViewportWidget(TWeakPtr<SDataflowConstructionViewport>);
+	void SetSimulationViewportWidget(TWeakPtr<SDataflowSimulationViewport>);
 
 private:
 
 	// Get the viewport widget associated with the given manager
-	// TODO: This should not be necessary any more as we do not run tools in the Cloth Preview Viewport (JIRA UE-201248)
+	// TODO: This should not be necessary any more as we do not run tools in the Simulation Viewport (JIRA UE-201248)
 	SBaseCharacterFXEditorViewport* GetViewportWidgetForManager(UInteractiveToolManager* Manager);
 
 	UEditorInteractiveToolsContext* GetCurrentToolsContext();
 
-	TWeakPtr<SDataflowEditorViewport> RestSpaceViewportWidget;
-	//TWeakPtr<SChaosClothAssetEditor3DViewport> PreviewViewportWidget;
+	TWeakPtr<SDataflowConstructionViewport> ConstructionViewportWidget;
+	TWeakPtr<SDataflowSimulationViewport> SimulationViewportWidget;
 };

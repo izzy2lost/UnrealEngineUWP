@@ -7,6 +7,10 @@
 #include "../Common.ush"
 #include "VirtualShadowMapPageOverlap.ush"
 #include "VirtualShadowMapProjectionCommon.ush"
+
+// Turn on the logic for culling based on min screen radius (used in NaniteCullingCommon.ush)
+#define NANITE_CULLING_ENABLE_MIN_RADIUS_CULL 1
+
 #include "../Nanite/NaniteCullingCommon.ush"
 #include "../Nanite/NaniteDataDecode.ush"
 #include "../InstanceCulling/InstanceCullingCommon.ush"
@@ -34,11 +38,6 @@ StructuredBuffer<uint> DrawCommandDescs;
 
 RWBuffer<uint> DrawIndirectArgsBufferOut;
 
-StructuredBuffer<uint> PrimitiveRevealedMask;
-uint PrimitiveRevealedNum;
-
-RWStructuredBuffer<uint> OutDirtyPageFlags;
-
 #if USE_HZB_OCCLUSION
 // Mode 1 == previous frame HZB, 
 // Mode 2 == this frame HZB (Nanite only).
@@ -57,21 +56,7 @@ uint GetInclusiveRectArea(uint4 Rect)
 	return 0;
 }
 
-bool WasPrimitiveRevealed(FVSMCullingBatchInfo VSMCullingBatchInfo, uint PersistentPrimitiveId)
-{
-	// Use to filter out transient primitives as well as opting out of the test (if e.g., caching is off)
-	if (PersistentPrimitiveId >= VSMCullingBatchInfo.PrimitiveRevealedNum)
-	{
-		return false;
-	}
-
-	uint PrimitiveIdWordOffset = VSMCullingBatchInfo.PrimitiveRevealedOffset + PersistentPrimitiveId / 32U;
-	uint PrimitiveIdWordMask = 1U << (PersistentPrimitiveId % 32U);
-
-	return (PrimitiveRevealedMask[PrimitiveIdWordOffset] & PrimitiveIdWordMask) != 0U;
-}
-
-void WriteCmd(uint MipViewId, uint InstanceId, uint IndirectArgIndex, uint CullingFlags, bool bStaticPage)
+bool WriteCmd(uint MipViewId, uint InstanceId, uint IndirectArgIndex, uint CullingFlags, bool bStaticPage)
 {
 	FPageInfo PageInfo;
 	PageInfo.ViewId = MipViewId;
@@ -86,8 +71,12 @@ void WriteCmd(uint MipViewId, uint InstanceId, uint IndirectArgIndex, uint Culli
 	WaveInterlockedAddScalar_(VisibleInstanceCountBufferOut[0], 1U, VisibleInstanceOutputOffset);
 	if (VisibleInstanceOutputOffset < VisibleInstancesBufferNum)
 	{
-		// TODO: Flag & feedback on overflow.
 		VisibleInstancesOut[VisibleInstanceOutputOffset] = VisibleInstanceCmd;
+		return true;
+	}
+	else
+	{
+		return false;
 	}
 }
 
@@ -101,8 +90,8 @@ struct FSharedMarkingJob
 	uint MipLevel;
 	bool bMaterialInvalidates;
 	bool bShouldCacheAsStatic;
-	bool bHasMoved;
 	bool bIsViewUncached;
+	bool bAllowWPO;
 };
 
 groupshared uint NumSharedMarkingJobs;
@@ -112,10 +101,10 @@ uint2 PackJob(FSharedMarkingJob Job)
 {
 	uint2 Packed;
 	Packed.x = (Job.RectPages.x << 24U) | (Job.RectPages.y << 16U) | (Job.RectPages.z << 8U) | Job.RectPages.w;
-	Packed.y = (Job.VirtualShadowMapId << 7U) 
+	Packed.y = (Job.VirtualShadowMapId << 8U) 
 		| (Job.MipLevel << 4U) 
-		| (Job.bIsViewUncached ?      (1U << 3) : 0U)
-		| (Job.bHasMoved ?            (1U << 2) : 0U) 
+		| (Job.bAllowWPO ?            (1U << 3) : 0U)
+		| (Job.bIsViewUncached ?      (1U << 2) : 0U)
 		| (Job.bMaterialInvalidates ? (1U << 1) : 0U) 
 		| (Job.bShouldCacheAsStatic ?  1U : 0U);
 	return Packed;
@@ -129,40 +118,32 @@ FSharedMarkingJob UnpackJob(uint2 Packed)
 	Job.RectPages.z = (Packed.x >> 8U) & 0xFF;
 	Job.RectPages.w = Packed.x & 0xFF;
 
-	Job.VirtualShadowMapId = Packed.y >> 7U;
-	Job.MipLevel = (Packed.y >> 4U) & 0x7;
-	Job.bIsViewUncached = (Packed.y & (1U << 3)) != 0U;
-	Job.bHasMoved = (Packed.y & (1U << 2)) != 0U;
+	Job.VirtualShadowMapId = Packed.y >> 8U;
+	Job.MipLevel = (Packed.y >> 4) & 0x7;
+	Job.bAllowWPO = (Packed.y & (1U << 3)) != 0U;
+	Job.bIsViewUncached = (Packed.y & (1U << 2)) != 0U;
 	Job.bMaterialInvalidates = (Packed.y & (1U << 1)) != 0U;
 	Job.bShouldCacheAsStatic = (Packed.y & 0x1) != 0U;
 
 	return Job;
 }
 
-bool MarkPageDirty(FVirtualSMLevelOffset PageTableLevelOffset, uint2 vPage, uint MipLevel, bool bMaterialInvalidates, bool bShouldCacheAsStatic, bool bIsViewUncached, uint PageFlagMask)
+bool MarkPageDirty(
+	FVirtualSMLevelOffset PageTableLevelOffset,
+	uint2 vPage,
+	uint MipLevel,
+	bool bMaterialInvalidates,
+	bool bCacheAsStatic,
+	bool bIsViewUncached,
+	bool bAllowWPO,
+	uint PageFlagMask)
 {
+	// TODO: Do we actually even need this check?
 	uint PageFlagOffset = CalcPageOffset(PageTableLevelOffset, MipLevel, vPage);
 	uint PageFlag = VirtualShadowMap.PageFlags[PageFlagOffset];
-	// TODO: store page flags in the page table entry and only fetch that.
-	if ((PageFlag & PageFlagMask) == PageFlagMask)
+	if ((PageFlag & PageFlagMask) != 0)
 	{
-		FShadowPhysicalPage PhysPage = ShadowGetPhysicalPage(PageFlagOffset);
-		if (PhysPage.bThisLODValid)
-		{
-			// Mark the page dirty so we regenerate HZB, etc.
-			uint PhysPageIndex = VSMPhysicalPageAddressToIndex(PhysPage.PhysicalAddress);
-			if (bShouldCacheAsStatic || bIsViewUncached)
-			{
-				OutDirtyPageFlags[PhysPageIndex] = 1U;
-			}
-			if (bMaterialInvalidates)
-			{
-				uint Offset = VirtualShadowMap.MaxPhysicalPages * (bShouldCacheAsStatic ? 2U : 1U);
-				// Store invalidation flags after the dirty flags.
-				OutDirtyPageFlags[Offset + PhysPageIndex] = 1U;
-			}
-			return true;
-		}
+		return VirtualShadowMapMarkPageDirty(PageFlagOffset, bMaterialInvalidates, bCacheAsStatic, bIsViewUncached, bAllowWPO);
 	}
 	return false;
 }
@@ -191,19 +172,19 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 
 #if ENABLE_BATCH_MODE
 	// Load Instance culling context batch info, indirection per group
-	FContextBatchInfo BatchInfo = BatchInfos[BatchInds[DispatchGroupId]];
+	FContextBatchInfo BatchInfo = LoadBatchInfo(DispatchGroupId);
 	FVSMCullingBatchInfo VSMCullingBatchInfo = VSMCullingBatchInfos[BatchInds[DispatchGroupId]];
 #else // !ENABLE_BATCH_MODE
 	// Single Instance culling context batch in the call, set up batch from the kernel parameters
 	FContextBatchInfo BatchInfo = (FContextBatchInfo)0;
 	BatchInfo.DynamicInstanceIdOffset = DynamicInstanceIdOffset;
 	BatchInfo.DynamicInstanceIdMax = DynamicInstanceIdMax;
+	// Note: for the unbatched case, the permutation will control HZB test, so we set to true
+	BatchInfo.bAllowOcclusionCulling = true;
 
 	FVSMCullingBatchInfo VSMCullingBatchInfo;
 	VSMCullingBatchInfo.FirstPrimaryView = FirstPrimaryView;
 	VSMCullingBatchInfo.NumPrimaryViews = NumPrimaryViews;
-	VSMCullingBatchInfo.PrimitiveRevealedOffset = 0U;
-	VSMCullingBatchInfo.PrimitiveRevealedNum = PrimitiveRevealedNum;
 
 #endif // ENABLE_BATCH_MODE
 
@@ -233,6 +214,9 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 		uint TotalPageArea = 0U;
 		float NumVisibleLevels = 0.0f;
 #endif
+		bool bMarkingJobQueueOverflow = false;
+		bool bVisibleInstancesOverflow = false;
+
 		// Loop over views and output visible instance (i.e., those that overlap a valid page)
 		for (uint PrimaryViewId = VSMCullingBatchInfo.FirstPrimaryView; PrimaryViewId < VSMCullingBatchInfo.FirstPrimaryView + VSMCullingBatchInfo.NumPrimaryViews; ++PrimaryViewId)
 		{
@@ -248,18 +232,23 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 				NaniteView,
 				InstanceData.LocalBoundsCenter,
 				InstanceData.LocalBoundsExtent,
-				InstanceData.NonUniformScale.xyz,
+				InstanceData.NonUniformScale,
 				DynamicData.LocalToTranslatedWorld,
 				DynamicData.PrevLocalToTranslatedWorld );
 
 			Cull.bSkipWPODisableDistance |= DrawCommandDesc.bMaterialAlwaysEvaluatesWorldPositionOffset;
 
-			bEnableWPO = Cull.Distance( PrimitiveData ) && bEnableWPO;
+			Cull.Distance( PrimitiveData );
+			bEnableWPO = bEnableWPO && Cull.bEnableWPO;
 			
 			// NOTE: Doing this for just the primary view (not mip views) is fine for current logic
 			const bool bAllowWPO = VirtualShadowMapIsWPOAllowed(PrimitiveData, NaniteView.TargetLayerIndex);
 			bEnableWPO = bEnableWPO && bAllowWPO;
 			bool bCacheAsStatic = ShouldCacheInstanceAsStatic(InstanceId, (NaniteView.Flags & NANITE_VIEW_FLAG_UNCACHED), bAllowWPO);
+			// Not safe to use the dynamic occlusion for modes other than 2 (because that is approximate occlusion only due to lack of two-pass rendering).
+#if USE_HZB_OCCLUSION
+			bool bUseStaticOcclusion = bCacheAsStatic || HZBMode != 2;
+#endif
 
 			if (!bEnableWPO)
 			{
@@ -271,16 +260,8 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 
 			Cull.GlobalClipPlane();
 
-			const bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, bEnableWPO);
-
-			// A thing is considered to have moved (which causes it to render into cached pages) if:
-			// It was uploaded this frame, OR
-			const bool bHasMoved = GetGPUSceneFrameNumber() == InstanceData.LastUpdateSceneFrameNumber
-				// it has a material that uses WPO OR
-				|| bMaterialInvalidates
-				// the primitive was "revealed" this frame - i.e., transitioned from culled -> visible on CPU
-				|| WasPrimitiveRevealed(VSMCullingBatchInfo, PrimitiveData.PersistentPrimitiveIndex);
-
+			bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, bEnableWPO);
+			
 			FFrustumCullData FrustumCull = (FFrustumCullData)0;
 			BRANCH
 			if( Cull.bIsVisible )
@@ -296,7 +277,7 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 				// Compute estimated footprint in the VSM base level - note that we don't use the actual footprint because it changes under rotation and also with edge clipping which makes it unstable when used for culling.
 				float PixelEstRadius = CalcClipSpaceRadiusEstimate(Cull.bIsOrtho, InstanceData, Cull.LocalToTranslatedWorld, NaniteView.ViewToClip) * float(VSM_VIRTUAL_MAX_RESOLUTION_XY);
 
-				uint BaseFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved);
+				uint FlagMask = GetPageFlagMaskForRendering(bCacheAsStatic);
 
 				// Loop over mip levels and count number of output visible instances
 				for (uint MipLevel = 0U; MipLevel < uint(NaniteView.TargetNumMipLevels); ++MipLevel)
@@ -307,13 +288,13 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 
 					FScreenRect Rect = GetScreenRect(MipView.ViewRect, FrustumCull, 4);
 
-					uint FlagMask = BaseFlagMask | GetDetailGeometryFlagMaskForCulling(bCacheAsStatic, false, PixelEstRadius);
+					bool bDetailGeometry = IsDetailGeometry(bCacheAsStatic, false, PixelEstRadius);
 					// Update for next clip level
 					PixelEstRadius *= 0.5f;
 
-					uint4 RectPages = GetPageRect(Rect, VirtualShadowMapId, MipLevel);
+					uint4 RectPages = VirtualShadowMapGetUncachedPageRect(Rect, VirtualShadowMapId, MipLevel);
 
-					if (OverlapsAnyValidPage(VirtualShadowMapId, MipLevel, RectPages, FlagMask))
+					if (OverlapsAnyValidPage(VirtualShadowMapId, MipLevel, RectPages, FlagMask, bDetailGeometry))
 					{
 #if VSM_GENERATE_STATS
 						TotalPageArea += float(GetInclusiveRectArea(RectPages));
@@ -334,9 +315,8 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 							// In Mode 2 we are using the current-frame HZB and can use any page whether it is cached or not.
 							// TODO: Figure out which flag(s) we actually want here. Also need to check the non-nanite one?
 							// TODO: for mode 1, we need to use the previous view transform and rect.
-							uint VisiblePageMask = HZBMode == 1 ? (VSM_DYNAMIC_UNCACHED_FLAG | VSM_STATIC_UNCACHED_FLAG) : 0U;
-							if (!IsVisibleMaskedHZB(HZBMode == 1 ? MipView.TargetPrevLayerIndex : VirtualShadowMapId, MipLevel, Rect, true, HZBMode == 2, VisiblePageMask))
-
+							uint VisiblePageMask = HZBMode == 1 ? VSM_FLAG_ANY_UNCACHED : 0U;
+							if (!IsVisibleMaskedHZB(HZBMode == 1 ? MipView.TargetPrevLayerIndex : VirtualShadowMapId, MipLevel, Rect, true, HZBMode == 2, VisiblePageMask, 0xFFFFFFFF, bUseStaticOcclusion))
 							{
 								StatsBufferInterlockedInc(VSM_STAT_NON_NANITE_INSTANCES_HZB_CULLED);
 								continue;
@@ -346,9 +326,19 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 
 						uint NumMappedPages = 0U;
 						{
-
 							uint2 RectPagesSize = (RectPages.zw + 1u) - RectPages.xy;
-							if (RectPagesSize.x * RectPagesSize.y <= MAX_SINGLE_THREAD_MARKING_AREA)
+							bool bIsSmallJob = RectPagesSize.x * RectPagesSize.y <= MAX_SINGLE_THREAD_MARKING_AREA;
+
+							uint LargeJobIndex = 0U;
+							if (!bIsSmallJob)
+							{
+								// allocate slot to defer the work and use all threads in group
+								InterlockedAdd(NumSharedMarkingJobs, 1U, LargeJobIndex);
+							}
+
+							bMarkingJobQueueOverflow = bMarkingJobQueueOverflow || LargeJobIndex >= MARKING_JOB_QUEUE_SIZE;
+
+							if (bIsSmallJob || bMarkingJobQueueOverflow)
 							{
 								FVirtualSMLevelOffset PageTableLevelOffset = CalcPageTableLevelOffset(VirtualShadowMapId, MipLevel);
 
@@ -356,7 +346,7 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 								{
 									for (uint X = RectPages.x; X <= RectPages.z; ++X)
 									{
-										if (MarkPageDirty(PageTableLevelOffset, uint2(X, Y), MipLevel, bMaterialInvalidates, bCacheAsStatic, Cull.bIsViewUncached, FlagMask))
+										if (MarkPageDirty(PageTableLevelOffset, uint2(X, Y), MipLevel, bMaterialInvalidates, bCacheAsStatic, Cull.bIsViewUncached, bAllowWPO, FlagMask))
 										{
 											// Count pages if we're touching all of them anyway
 											++NumMappedPages;
@@ -367,31 +357,24 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 							else
 							{
 								// defer the work and use all threads in group
-								uint JobIndex = 0U;
-								InterlockedAdd(NumSharedMarkingJobs, 1U, JobIndex);
 								FSharedMarkingJob Job;
 								Job.RectPages = RectPages;
 								Job.VirtualShadowMapId = VirtualShadowMapId;
 								Job.MipLevel = MipLevel;
+								Job.bAllowWPO = bAllowWPO;
 								Job.bMaterialInvalidates = bMaterialInvalidates;
 								Job.bShouldCacheAsStatic = bCacheAsStatic;
 								Job.bIsViewUncached = Cull.bIsViewUncached;
-								Job.bHasMoved = bHasMoved;
-								if (JobIndex < MARKING_JOB_QUEUE_SIZE)
-								{
-									SharedMarkingJobs[JobIndex] = PackJob(Job);
-								}
+								SharedMarkingJobs[LargeJobIndex] = PackJob(Job);
 								// Must assume we have mapped pages (or defer the cmd write also...)
 								NumMappedPages = 1U;
 							}
-
-							// 
 						}
 
 						if (NumMappedPages > 0U)
 						{
 							++ThreadTotalForAllViews;
-							WriteCmd(MipViewId, InstanceId, Payload.IndirectArgIndex, CullingFlags, bCacheAsStatic);
+							bVisibleInstancesOverflow |= !WriteCmd(MipViewId, InstanceId, Payload.IndirectArgIndex, CullingFlags, bCacheAsStatic);
 						}
 					}
 					else
@@ -405,8 +388,10 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 				StatsBufferInterlockedAdd(VSM_STAT_NON_NANITE_INSTANCES_FRUSTUM_CULLED, NaniteView.TargetNumMipLevels);
 			}
 		}
-
+		
 		StatsBufferInterlockedAdd(VSM_STAT_NON_NANITE_INSTANCES_DRAWN, ThreadTotalForAllViews);
+		StatsBufferInterlockedEnableFlags(VSM_STAT_OVERFLOW_FLAGS, VSM_STAT_OVERFLOW_FLAG_MARKING_JOB_QUEUE, bMarkingJobQueueOverflow, true);
+		StatsBufferInterlockedEnableFlags(VSM_STAT_OVERFLOW_FLAGS, VSM_STAT_OVERFLOW_FLAG_VISIBLE_INSTANCES, bVisibleInstancesOverflow, true);
 
 		// Accumulate total number of instances for each indirect argument, is also used to allocate space and output compact range of instances later
 		InterlockedAdd(DrawIndirectArgsBufferOut[Payload.IndirectArgIndex * INDIRECT_ARGS_NUM_WORDS + 1], ThreadTotalForAllViews);
@@ -418,12 +403,12 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 			{
 				uint PrevArea = 0U;
 				// Store these after the stats slots
-				InterlockedMax(OutStatsBuffer[VSM_NUM_STATS + 2U * Index], TotalPageArea, PrevArea);
+				InterlockedMax(OutStatsBuffer[VSM_STAT_NUM + 2U * Index], TotalPageArea, PrevArea);
 				// If the area was greater then we store the persistent Primitive ID after the area.
 				// This obviously has a data race, so numbers & IDs will only be approximately correct, could use 64-bit atomics instead...
 				if (PrevArea < TotalPageArea)
 				{
-					OutStatsBuffer[VSM_NUM_STATS + 2U * Index + 1U] = PrimitiveData.PersistentPrimitiveIndex;
+					OutStatsBuffer[VSM_STAT_NUM + 2U * Index + 1U] = PrimitiveData.PersistentPrimitiveIndex;
 					break;
 				}
 			}
@@ -441,10 +426,10 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 		{
 			uint LocalPageY = uint(floor((float(Index) + 0.5f) * rcp(RectPagesSize.x)));
 			uint2 vPage = Job.RectPages.xy + uint2(Index - RectPagesSize.x * LocalPageY, LocalPageY);
-			uint FlagMask = GetPageFlagMaskForRendering(Job.bShouldCacheAsStatic, Job.bHasMoved);
+			uint FlagMask = GetPageFlagMaskForRendering(Job.bShouldCacheAsStatic);
 
-			// We don't need to add the correct flag mask here, as we don't look at the VSM_DETAIL_GEOMETRY_FLAG for invalidaiton processing
-			MarkPageDirty(PageTableLevelOffset, vPage, Job.MipLevel, Job.bMaterialInvalidates, Job.bShouldCacheAsStatic, Job.bIsViewUncached, FlagMask);
+			// We don't need to add the correct flag mask here, as we don't look at the VSM_FLAG_DETAIL_GEOMETRY for invalidaiton processing
+			MarkPageDirty(PageTableLevelOffset, vPage, Job.MipLevel, Job.bMaterialInvalidates, Job.bShouldCacheAsStatic, Job.bIsViewUncached, Job.bAllowWPO, FlagMask);
 		}
 	}
 }

@@ -141,6 +141,7 @@ protected:
 	void OnToggleBoundsSetFixedBounds_Emitters();
 	void OnToggleBoundsSetFixedBounds_System();
 
+	bool SupportsStatPerformance() const;
 	void ClearStatPerformance();
 	void ToggleStatPerformance();
 	bool IsStatPerformanceChecked();

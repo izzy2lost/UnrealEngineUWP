@@ -6,7 +6,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowContextOverridesNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterContextOverridesNodes()
 	{
@@ -14,14 +14,14 @@ namespace Dataflow
 	}
 }
 
-void FFloatOverrideDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FFloatOverrideDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ValueOut))
 	{
 		float Value = 0.f;
-		if (const Dataflow::FEngineContext* EngineContext = Context.AsType<Dataflow::FEngineContext>())
+		if (const UE::Dataflow::FEngineContext* EngineContext = Context.AsType<UE::Dataflow::FEngineContext>())
 		{
-			FString Result = Dataflow::Reflection::FindOverrideProperty< FString >(EngineContext->Owner, PropertyName, KeyName);
+			FString Result = UE::Dataflow::Reflection::FindOverrideProperty< FString >(EngineContext->Owner, PropertyName, KeyName);
 			Value = FCString::Atof(*Result);
 		}
 		SetValue(Context, Value, &ValueOut);

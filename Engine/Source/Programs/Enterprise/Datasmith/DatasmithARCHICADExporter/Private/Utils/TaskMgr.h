@@ -78,7 +78,7 @@ class FTaskMgr
 	volatile bool bTerminate;
 
 	// Number of thread waiting
-	volatile int NbTaskWaiting;
+	int NbTaskWaiting;
 
 	// False: tasks to run in main threads, true: Task run in thread
 	bool bThreadingEnabled;

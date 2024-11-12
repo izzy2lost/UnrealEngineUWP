@@ -5,8 +5,8 @@
 #include "Components/DMMaterialStageBlendFunction.h"
 #include "DMMSBDarkenColor.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageBlendDarkenColor : public UDMMaterialStageBlendFunction
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialStageBlendDarkenColor : public UDMMaterialStageBlendFunction
 {
 	GENERATED_BODY()
 

@@ -5,9 +5,9 @@
 #include "CoreMinimal.h"
 #include "MeshDescriptionBaseBulkData.h"
 #include "Engine/EngineTypes.h"
-#include "Engine/MeshMerging.h"
+#include "MeshReductionSettings.h"
 #include "UObject/ObjectMacros.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 
 #include "StaticMeshSourceData.generated.h"
 

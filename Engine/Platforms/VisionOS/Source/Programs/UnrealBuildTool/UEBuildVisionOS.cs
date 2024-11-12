@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
@@ -12,7 +11,7 @@ namespace UnrealBuildTool
 		public override string RuntimeDevices => "7";
 		public override string RuntimeVersion => "1.0";
 
-		public VisionOSProjectSettings(FileReference? ProjectFile, String? Bundle)
+		public VisionOSProjectSettings(FileReference? ProjectFile, string? Bundle)
 			: base(ProjectFile, UnrealTargetPlatform.VisionOS, Bundle)
 		{
 		}
@@ -21,6 +20,9 @@ namespace UnrealBuildTool
 
 	class VisionOSPlatform : IOSPlatform
 	{
+		// Cached VisionOS sdk version from the toolchain, which detects it.
+		private float SDKVersionFloat = 0.0f;
+
 		public VisionOSPlatform(UEBuildPlatformSDK InSDK, ILogger Logger)
 			: base(InSDK, UnrealTargetPlatform.VisionOS, Logger)
 		{
@@ -53,25 +55,32 @@ namespace UnrealBuildTool
 		{
 			base.ModifyModuleRulesForOtherPlatform(ModuleName, Rules, Target);
 
+			bool bIsPlatformAvailableForTarget = UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target, bIgnoreSDKCheck: true);
+			bool bIsPlatformAvailableForTargetWithSDK = UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target);
 			// don't do any target platform stuff if SDK is not available
-			if (!UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target))
+			if (!bIsPlatformAvailableForTarget)
 			{
 				return;
 			}
 
 			if (!Target.bBuildRequiresCookedData)
 			{
-			    if (Target.Platform == UnrealTargetPlatform.Mac || Target.Platform == UnrealTargetPlatform.Win64)
-			    {
-				    if ((ModuleName == "Engine" && Target.bBuildDeveloperTools) ||
-					    (ModuleName == "TargetPlatform" && Target.bForceBuildTargetPlatforms))
-				    {
-					    Rules.DynamicallyLoadedModuleNames.Add("VisionOSTargetPlatform");
-				    }
-			    }
+				if (Target.Platform == UnrealTargetPlatform.Mac || Target.Platform == UnrealTargetPlatform.Win64)
+				{
+					if ((ModuleName == "Engine" && Target.bBuildDeveloperTools) ||
+						(ModuleName == "TargetPlatform" && Target.bForceBuildTargetPlatforms))
+					{
+						Rules.DynamicallyLoadedModuleNames.Add("VisionOSTargetPlatformSettings");
+						if (bIsPlatformAvailableForTargetWithSDK)
+						{
+							Rules.DynamicallyLoadedModuleNames.Add("VisionOSTargetPlatform");
+							Rules.DynamicallyLoadedModuleNames.Add("VisionOSTargetPlatformControls");
+						}
+					}
+				}
 			}
 
-			if (ModuleName == "UnrealEd")
+			if (ModuleName == "UnrealEd" && bIsPlatformAvailableForTargetWithSDK)
 			{
 				Rules.DynamicallyLoadedModuleNames.Add("VisionOSPlatformEditor");
 			}
@@ -88,9 +97,17 @@ namespace UnrealBuildTool
 			base.SetUpEnvironment(Target, CompileEnvironment, LinkEnvironment);
 			CompileEnvironment.Definitions.Add("PLATFORM_VISIONOS=1");
 
+			if (SDKVersionFloat < 2.0)
+			{
+				CompileEnvironment.Definitions.Add("VISIONOS_MAJOR_VERSION=1");
+			}
+			else
+			{
+				CompileEnvironment.Definitions.Add("VISIONOS_MAJOR_VERSION=2");
+			}
+
 			// VisionOS uses only IOS header files, so use it's platform headers
 			CompileEnvironment.Definitions.Add("OVERRIDE_PLATFORM_HEADER_NAME=IOS");
-
 		}
 
 		/// <summary>
@@ -101,7 +118,9 @@ namespace UnrealBuildTool
 		public override UEToolChain CreateToolChain(ReadOnlyTargetRules Target)
 		{
 			VisionOSProjectSettings ProjectSettings = ((VisionOSPlatform)UEBuildPlatform.GetBuildPlatform(UnrealTargetPlatform.VisionOS)).ReadProjectSettings(Target.ProjectFile);
-			return new VisionOSToolChain(Target, ProjectSettings, Logger);
+			VisionOSToolChain NewToolChain = new VisionOSToolChain(Target, ProjectSettings, Logger);
+			SDKVersionFloat = NewToolChain.GetSDKVersionFloat();
+			return NewToolChain;
 		}
 
 		public override void Deploy(TargetReceipt Receipt)
@@ -119,7 +138,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		public override void RegisterBuildPlatforms(ILogger Logger)
 		{
-			ApplePlatformSDK SDK = new ApplePlatformSDK(Logger);
+			ApplePlatformSDK SDK = new(Logger);
 
 			// Register this build platform for IOS
 			UEBuildPlatform.RegisterBuildPlatform(new VisionOSPlatform(SDK, Logger), Logger);

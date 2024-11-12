@@ -105,6 +105,12 @@ public:
 		CachedDevicePackagePair.Add(Device, Package);
 	}
 
+	/**
+	 * Returns best-guess BuildCookRun parameters for the given profile in the format expected by FProjectBuidSettings::BuildCookRunParams
+	 *  Used by the Project custom Build's "import from Project Launcher" menu
+	 */
+	static FString MakeBuildCookRunParamsForProjectCustomBuild(const ILauncherProfileRef& InProfile, const TArray<FString>& InPlatforms);
+
 protected:
 
 	/**
@@ -117,7 +123,7 @@ protected:
 	void OnTaskStarted(const FString& TaskName);
 	void OnTaskCompleted(const FString& TaskName);
 
-	FString CreateUATCommand( const ILauncherProfileRef& InProfile, const TArray<FString>& InPlatforms, TArray<FCommandDesc>& OutCommands, FString& CommandStart );
+	FString CreateUATCommand( const ILauncherProfileRef& InProfile, const TArray<FString>& InPlatforms, TArray<FCommandDesc>& OutCommands, FString& CommandStart, bool bForTurnkeyCustomBuild = false );
 
 	//start listening to the device discovery routine
 	void EnableDeviceDiscoveryListener();
@@ -127,6 +133,9 @@ protected:
 
 	//Cancel the currently running application on all devices
 	bool TerminateLaunchedProcess();
+
+	// just used by MakeBuildCookRunParamsForProjectCustomBuild
+	FLauncherWorker(ENoInit) {};
 
 private:
 

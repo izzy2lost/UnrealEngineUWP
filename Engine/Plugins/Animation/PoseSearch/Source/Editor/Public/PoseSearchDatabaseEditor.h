@@ -18,6 +18,7 @@ namespace UE::PoseSearch
 	class SDatabaseAssetTree;
 	class SDatabaseDataDetails;
 	class SDatabasePreview;
+	class SPoseSearchDatabaseAssetBrowser;
 
 	class FDatabaseEditor : public FAssetEditorToolkit, public FNotifyHook
 	{
@@ -62,6 +63,7 @@ namespace UE::PoseSearch
 		TSharedRef<SDockTab> SpawnTab_SelectionDetails(const FSpawnTabArgs& Args);
 		TSharedRef<SDockTab> SpawnTab_StatisticsOverview(const FSpawnTabArgs& Args) const;
 		TSharedRef<SDockTab> SpawnTab_DataDetails(const FSpawnTabArgs& Args) const;
+		TSharedRef<SDockTab> SpawnTab_AssetBrowser(const FSpawnTabArgs& Args) const;
 		
 		void OnFinishedChangingSelectionProperties(const FPropertyChangedEvent& PropertyChangedEvent);
 		void OnAssetTreeSelectionChanged(
@@ -83,6 +85,8 @@ namespace UE::PoseSearch
 		TSharedPtr<SDatabaseAssetTree> AssetTreeWidget;
 
 		TSharedPtr<SDatabaseDataDetails> DataDetails;
+
+		TSharedPtr<SPoseSearchDatabaseAssetBrowser> AssetBrowserWidget;
 		
 		TSharedPtr<IDetailsView> EditingAssetWidget;
 

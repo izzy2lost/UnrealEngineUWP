@@ -69,6 +69,11 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, Category = Options)
 	TEnumAsByte<ECollisionTraceFlag> CollisionMode = ECollisionTraceFlag::CTF_UseDefault;
+	
+	/** Use the original vertex order found in the source data. This is useful if the inbound mesh was originally non-manifold, and needs to keep
+	 *  the non-manifold structure when re-created. */
+	UPROPERTY(BlueprintReadWrite, Category = Options)
+	bool bUseOriginalVertexOrder = false;
 };
 
 
@@ -89,6 +94,11 @@ public:
 	/** If true, will use the skeleton proportions (if availabale) stored in the dynamic mesh. */
 	UPROPERTY(BlueprintReadWrite, Category = Options)
 	bool bUseMeshBoneProportions = false;
+	
+	/** Use the original vertex order found in the source data. This is useful if the inbound mesh was originally non-manifold, and needs to keep
+	 *  the non-manifold structure when re-created. */
+	UPROPERTY(BlueprintReadWrite, Category = Options)
+	bool bUseOriginalVertexOrder = false;
 };
 
 

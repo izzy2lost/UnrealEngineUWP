@@ -156,7 +156,7 @@ void UAnimSequencerController::ResizeNumberOfFrames(FFrameNumber NewLength, FFra
 		}
 		else if (Model->bPopulated)
 		{
-			ReportWarningf(LOCTEXT("SamePlayLengthWarning", "New play length is same as existing one: {0} frames"), FText::AsNumber(NewLength.Value));
+			Reportf(ELogVerbosity::Display, LOCTEXT("SamePlayLengthWarning", "New play length is same as existing one: {0} frames"), FText::AsNumber(NewLength.Value));
 		}
 	}
 	else
@@ -203,7 +203,7 @@ void UAnimSequencerController::ResizeInFrames(FFrameNumber NewLength, FFrameNumb
 		}
 		else if (Model->bPopulated)
 		{
-			ReportWarningf(LOCTEXT("SameGetPlayLengthWarning", "New play length is same as existing one: {0} frames"), FText::AsNumber(CurrentNumberOFrames));
+			Reportf(ELogVerbosity::Display,LOCTEXT("SameGetPlayLengthWarning", "New play length is same as existing one: {0} frames"), FText::AsNumber(CurrentNumberOFrames));
 		}
 	}
 	else
@@ -3054,7 +3054,7 @@ bool UAnimSequencerController::AddCurveControl(const FName& CurveName) const
 						Settings.ControlType = ERigControlType::Float;
 						Settings.DisplayName = FName(*(CurveKey.Name.ToString() + TEXT(" Curve")));
 								
-						HierarchyController->AddControl(CurveControlKey.Name, FRigElementKey(), Settings, FRigControlValue::Make(CurveElement->Value), FTransform::Identity, FTransform::Identity, false);
+						HierarchyController->AddControl(CurveControlKey.Name, FRigElementKey(), Settings, FRigControlValue::Make(CurveElement->Get()), FTransform::Identity, FTransform::Identity, false);
 
 						const FRigControlElement* ControlElement = Hierarchy->FindChecked<FRigControlElement>(CurveControlKey);
 						ensure(ControlElement);
@@ -3509,7 +3509,7 @@ bool UAnimSequencerController::DuplicateCurveControl(const FName& CurveName, con
 						Settings.ControlType = ERigControlType::Float;
 						Settings.DisplayName = FName(*(NewCurveKey.Name.ToString() + TEXT(" Curve")));
 			
-						HierarchyController->AddControl(NewCurveControlKey.Name, FRigElementKey(), Settings, FRigControlValue::Make(CurveElement->Value), FTransform::Identity, FTransform::Identity, false);
+						HierarchyController->AddControl(NewCurveControlKey.Name, FRigElementKey(), Settings, FRigControlValue::Make(CurveElement->Get()), FTransform::Identity, FTransform::Identity, false);
 			
 						// Rename the curve driving the control value
 						const FScalarParameterNameAndCurve* ParameterCurvePair = Section->GetScalarParameterNamesAndCurves().FindByPredicate([CurveName](const FScalarParameterNameAndCurve& Parameter)

@@ -6,6 +6,7 @@
 #include "Fonts/FontCache.h"
 #include "Fonts/FontCacheFreeType.h"
 #include "Fonts/FontCacheHarfBuzz.h"
+#include "Fonts/FontRasterizationMode.h"
 
 class FCompositeFontCache;
 class FSlateFontRenderer;
@@ -17,20 +18,20 @@ class IBreakIterator;
 class FShapedGlyphFaceData
 {
 public:
-	FShapedGlyphFaceData(TWeakPtr<FFreeTypeFace> InFontFace, const uint32 InGlyphFlags, const float InFontSize, const float InFontScale, const float InFontSkew)
+	FShapedGlyphFaceData(TWeakPtr<FFreeTypeFace> InFontFace, const uint32 InGlyphFlags, const float InFontSize, const float InFontScale, const float InFontSkew, const EFontRasterizationMode InRasterizationMode, const int16 InSdfPpem)
 		: FontFace(MoveTemp(InFontFace))
 		, GlyphFlags(InGlyphFlags)
 		, FontSize(InFontSize)
 		, FontScale(InFontScale)
 		, BitmapRenderScale(1.0f)
 		, FontSkew(InFontSkew)
-		, bSupportsSdf(false)
+		, RasterizationMode(InRasterizationMode)
+		, SdfPpem(InSdfPpem)
 	{
 #if WITH_FREETYPE
 		if (TSharedPtr<FFreeTypeFace> FontFacePin = FontFace.Pin())
 		{
 			BitmapRenderScale = FontFacePin->GetBitmapRenderScale();
-			bSupportsSdf = FontFacePin->SupportsSdf();
 		}
 #endif	// WITH_FREETYPE
 	}
@@ -47,8 +48,11 @@ public:
 	float BitmapRenderScale;
 	/** The skew transform amount for the rendered font */
 	float FontSkew;
-	/** Is the Face eligible for signed distance field rendering */
-	bool bSupportsSdf;
+	/** The glyph rasterization mode (bitmap / distance field) */
+	EFontRasterizationMode RasterizationMode;
+	/** Distance field px/em resolution, not used if RasterizationMode is Bitmap */
+	int16 SdfPpem;
+
 };
 
 

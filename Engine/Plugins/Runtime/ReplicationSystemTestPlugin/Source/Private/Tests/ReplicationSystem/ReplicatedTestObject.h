@@ -258,6 +258,16 @@ public:
 	UPROPERTY(Replicated, Transient)
 	int32 ReplayOnlyInt = 0;
 
+	// Arrays
+	UPROPERTY(Replicated, Transient)
+	TArray<int32> SimulatedOnlyIntArray;
+	UPROPERTY(Replicated, Transient)
+	TArray<int32> AutonomousOnlyIntArray;
+	UPROPERTY(Replicated, Transient)
+	TArray<int32> SimulatedOrPhysicsIntArray;
+	UPROPERTY(Replicated, Transient)
+	TArray<int32> OwnerOnlyIntArray;
+ 
 	// Network data only for test
 	TArray<UE::Net::FReplicationFragment*> ReplicationFragments;
 };
@@ -483,6 +493,37 @@ public:
 };
 
 /**
+ * Replicated object with PushModel properties
+ */
+UCLASS()
+class UTestReplicatedIrisPushModelObject : public UReplicatedTestObject
+{
+	GENERATED_BODY()
+
+public:
+
+	// Network interface must be part of base.
+	virtual void RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext& Fragments, UE::Net::EFragmentRegistrationFlags RegistrationFlags) override;
+
+	void SetIntA(int32 InValue);
+	int32 GetIntA() const;
+
+	void SetIntB(int32 InValue);
+	int32 GetIntB() const;
+
+private:
+	UPROPERTY(Transient, Replicated)
+	int32 IntA;
+
+	UPROPERTY(Transient, Replicated)
+	int32 IntB;
+
+public:
+	// Network data only for test
+	TArray<UE::Net::FReplicationFragment*> ReplicationFragments;
+};
+
+/**
 * Example of type specific ReplicationBridge, it currently only works with UTestReplicationSystem_TestClass
 */
 UCLASS()
@@ -492,21 +533,26 @@ class UReplicatedTestObjectBridge : public UObjectReplicationBridge
 
 public:
 	UReplicatedTestObjectBridge();
+
+	virtual void Initialize(UReplicationSystem* InReplicationSystem) override;
 	
 	void SetCreatedObjectsOnNode(TArray<TStrongObjectPtr<UObject>>* InCreatedObjectsOnNode) { CreatedObjectsOnNode = InCreatedObjectsOnNode; }
 
 	// This is the local Interface, it is up to each bridge implementation to define the interface for that type
 	// In this example we have methods that directly uses UReplicatedTestObject;
 	FNetRefHandle BeginReplication(UReplicatedTestObject* Instance);
-	FNetRefHandle BeginReplication(UReplicatedTestObject* Instance, const UObjectReplicationBridge::FCreateNetRefHandleParams& Params);
+	FNetRefHandle BeginReplication(UReplicatedTestObject* Instance, const UObjectReplicationBridge::FRootObjectReplicationParams& Params);
 	FNetRefHandle BeginReplication(FNetRefHandle OwnerHandle, UReplicatedTestObject* Instance, FNetRefHandle InsertRelativeToSubObjectHandle = FNetRefHandle::GetInvalid(), ESubObjectInsertionOrder InsertionOrder = UReplicationBridge::ESubObjectInsertionOrder::None);
+
+	void EndReplication(UReplicatedTestObject* Instance, EEndReplicationFlags Flags=EEndReplicationFlags::Destroy);
 
 	// For testing we expose some things that normally are not accessible
 	const UE::Net::FReplicationInstanceProtocol* GetReplicationInstanceProtocol(FNetRefHandle Handle) const;
 
 	void SetExternalWorldLocationUpdateFunctor(TFunction<void(FNetRefHandle NetHandle, const UObject* ReplicatedObject, FVector& OutLocation, float& OutCullDistance)> LocUpdateFunctor);
+	TFunction<void(FNetRefHandle, const UObject*, FVector&, float&)> GetExternalWorldLocationUpdateFunctor() const;
 
-	void SetExternalPreUpdateFunctor(TFunction<void(FNetRefHandle, UObject*, const UReplicationBridge*)> PreUpdateFunctor);
+	void SetExternalPreUpdateFunctor(TFunction<void(TArrayView<UObject*>, const UReplicationBridge*)> PreUpdateFunctor);
 
 	float GetMaxTickRate() const { return Super::GetMaxTickRate(); }
 
@@ -529,36 +575,21 @@ public:
 		bool bSuppressCreateInstanceFailedEnsure;
 	};
 
+public:
+
+	TArray<TStrongObjectPtr<UObject>>* CreatedObjectsOnNode;
+
 protected:
 
 	friend FSupressCreateInstanceFailedEnsureScope;
 
-	// Type specifics for serializing creation data this will most likely be made into a separate interface to support different types of header data for different types
-	// But if we can avoid having custom data per type for instantiating remote objects as we would like to be able to fully express the state of a replicated object using the define protocol alone. 
-	// This will probably be specified as a Iris generated struct
-	struct FReplicationTestObjectCreationHeader : public FCreationHeader
-	{
-		FString ArchetypeName;
-		uint32 NumComponentsToSpawn;
-		uint32 NumIrisComponentsToSpawn;
-		uint32 NumDynamicComponentsToSpawn;
-		uint32 NumConnectionFilteredComponentsToSpawn;
-		uint32 NumObjectReferenceComponentsToSpawn;
-		bool bForceFailCreateRemoteInstance;
-	};
-
-	virtual bool WriteCreationHeader(UE::Net::FNetSerializationContext& Context, FNetRefHandle Handle) override;
-	virtual FCreationHeader* ReadCreationHeader(UE::Net::FNetSerializationContext& Context) override;
-
-	virtual FObjectReplicationBridgeInstantiateResult BeginInstantiateFromRemote(FNetRefHandle RootObjectOfSubObject, const UE::Net::FNetObjectResolveContext& ResolveContext, const FCreationHeader* InHeader) override;
-	virtual void EndInstantiateFromRemote(FNetRefHandle Handle) override;
 	virtual void DestroyInstanceFromRemote(const FDestroyInstanceParams& Params) override;
 	virtual bool IsAllowedToDestroyInstance(const UObject* Instance) const override;
 
-	TArray<TStrongObjectPtr<UObject>>* CreatedObjectsOnNode;
-
 	TFunction<void(FNetRefHandle NetHandle, const UObject* ReplicatedObject, FVector& OutLocation, float& OutCullDistance)> WorldLocationUpdateFunc;
 	bool bForceFailCreateRemoteInstance = false;
+
+	UE::Net::FNetObjectFactoryId ReplicatedObjectFactoryId = UE::Net::InvalidNetObjectFactoryId;
 };
 
 extern const UE::Net::FRepTag RepTag_FakeGeneratedReplicationState_IntB;

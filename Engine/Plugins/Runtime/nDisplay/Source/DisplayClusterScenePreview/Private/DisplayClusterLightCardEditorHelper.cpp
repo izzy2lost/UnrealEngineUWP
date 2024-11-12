@@ -9,6 +9,7 @@
 #include "DisplayClusterChromakeyCardActor.h"
 #include "DisplayClusterLightCardActor.h"
 #include "DisplayClusterRootActor.h"
+#include "DisplayClusterRootActorContainers.h"
 #include "Components/DisplayClusterCameraComponent.h"
 
 #include "StageActor/DisplayClusterStageActorTemplate.h"
@@ -230,7 +231,21 @@ void FDisplayClusterLightCardEditorHelper::SetRootActor(ADisplayClusterRootActor
 		return;
 	}
 
-	IDisplayClusterScenePreview::Get().SetRendererRootActor(RendererId, &NewRootActor, false);
+	// Use custom settings for root actor.
+	FDisplayClusterRootActorPropertyOverrides PropertyOverrides;
+	{
+		PropertyOverrides.bPreviewICVFXFrustums = false;
+		PropertyOverrides.bEnablePreviewTechvis = false;
+		PropertyOverrides.bPreviewEnableOverlayMaterial = false;
+		PropertyOverrides.bFreezePreviewRender = false;
+
+		PropertyOverrides.bPreviewEnablePostProcess = true;
+		PropertyOverrides.bPreviewEnable = true;
+
+		PropertyOverrides.PreviewSetttingsSource = EDisplayClusterConfigurationRootActorPreviewSettingsSource::RootActor;
+	}
+
+	IDisplayClusterScenePreview::Get().SetRendererRootActor(RendererId, &NewRootActor, PropertyOverrides);
 }
 
 void FDisplayClusterLightCardEditorHelper::SetLevelInstanceRootActor(ADisplayClusterRootActor& NewRootActor)
@@ -415,7 +430,7 @@ void FDisplayClusterLightCardEditorHelper::DragUVActors(
 
 void FDisplayClusterLightCardEditorHelper::VerifyAndFixActorOrigin(const FDisplayClusterWeakStageActorPtr& Actor)
 {
-	// Center actor on the current view origin, let it keep its current world placement 
+	// Center actor on the current view point, let it keep its current world placement 
 	// (but not its spin/yaw/pitch since that will be happen later using the cache)
 
 	const ADisplayClusterRootActor* RootActor = UpdateRootActor();
@@ -466,7 +481,7 @@ void FDisplayClusterLightCardEditorHelper::VerifyAndFixActorOrigin(const FDispla
 }
 
 bool FDisplayClusterLightCardEditorHelper::CalculateNormalAndPositionInDirection(
-	const FVector& InViewOrigin,
+	const FVector& InOrigin,
 	const FVector& InDirection,
 	FVector& OutWorldPosition,
 	FVector& OutRelativeNormal,
@@ -484,8 +499,8 @@ bool FDisplayClusterLightCardEditorHelper::CalculateNormalAndPositionInDirection
 
 		const float UVProjectionPlaneDistance = ADisplayClusterLightCardActor::UVPlaneDefaultDistance;
 
-		const FPlane UVProjectionPlane(InViewOrigin + FVector::ForwardVector * UVProjectionPlaneDistance, -FVector::ForwardVector);
-		const FVector PlaneIntersection = FMath::RayPlaneIntersection(InViewOrigin, InDirection, UVProjectionPlane);
+		const FPlane UVProjectionPlane(InOrigin + FVector::ForwardVector * UVProjectionPlaneDistance, -FVector::ForwardVector);
+		const FVector PlaneIntersection = FMath::RayPlaneIntersection(InOrigin, InDirection, UVProjectionPlane);
 
 		OutRelativeNormal = UVProjectionPlane.GetNormal();
 		OutWorldPosition = PlaneIntersection;
@@ -498,7 +513,7 @@ bool FDisplayClusterLightCardEditorHelper::CalculateNormalAndPositionInDirection
 		Distance = CalculateFinalLightCardDistance(Distance, InDesiredDistanceFromFlush);
 
 		// Calculate world position
-		OutWorldPosition = InViewOrigin + Distance * InDirection;
+		OutWorldPosition = InOrigin + Distance * InDirection;
 	}
 
 	return true;
@@ -516,13 +531,13 @@ bool FDisplayClusterLightCardEditorHelper::CalculateOriginAndDirectionFromPixelP
 			return false;
 		}
 
-		// For orthogonal projections, PixelToWorld does not return the view origin or a direction from the view origin. Use TraceScreenRay
-		// to find a useful direction away from the view origin to use
+		// For orthogonal projections, PixelToWorld does not return the view point or a direction from the view point. Use TraceScreenRay
+		// to find a useful direction away from the origin to use
 
-		const FVector ViewOrigin = SceneView.ViewLocation;
+		const FVector NewOrigin = SceneView.ViewLocation;
 
-		OutDirection = TraceScreenRay(OutOrigin + OriginOffset, OutDirection, ViewOrigin);
-		OutOrigin = ViewOrigin;
+		OutDirection = TraceScreenRay(OutOrigin + OriginOffset, OutDirection, NewOrigin);
+		OutOrigin = NewOrigin;
 	}
 
 	return true;
@@ -1205,10 +1220,9 @@ void FDisplayClusterLightCardEditorHelper::InternalMoveActorTo(
 #if WITH_EDITOR
 	if (!Actor->IsProxy())
 	{
-		Actor->UpdateEditorGizmos();
-		
 		if (bIsFinalChange)
 		{
+			Actor->UpdateEditorGizmos();
 			PostEditChangePropertiesForMovedActor(Actor);
 		}
 	}
@@ -1379,7 +1393,7 @@ FVector FDisplayClusterLightCardEditorHelper::TraceScreenRay(const FVector& Orth
 	}
 	else
 	{
-		// First, trace against the stage actor to see if the screen ray hits it; if so, simply return the direction from the view origin to this hit point
+		// First, trace against the stage actor to see if the screen ray hits it; if so, simply return the direction from the view point to this hit point
 		FVector HitLocation = FVector::ZeroVector;
 		if (TraceStage(RayStart, RayEnd, HitLocation))
 		{
@@ -1399,7 +1413,7 @@ FVector FDisplayClusterLightCardEditorHelper::TraceScreenRay(const FVector& Orth
 			}
 			else
 			{
-				// If the screen ray does not hit the stage or the normal map mesh, then simply use the closest point on the ray to the view origin
+				// If the screen ray does not hit the stage or the normal map mesh, then simply use the closest point on the ray to the view point
 				const FVector ClosestPoint = OrthogonalOrigin + ((ViewOrigin - OrthogonalOrigin) | OrthogonalDirection) * OrthogonalDirection;
 
 				Direction = (ClosestPoint - ViewOrigin).GetSafeNormal();

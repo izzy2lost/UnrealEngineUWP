@@ -67,160 +67,10 @@ namespace UE::USDLayersTreeViewImpl::Private
 		bool bForce = true;
 		OutputLayer.Save(bForce);
 	}
-}	 // namespace UE::USDLayersTreeViewImpl::Private
 
-class FUsdLayerNameColumn
-	: public FUsdTreeViewColumn
-	, public TSharedFromThis<FUsdLayerNameColumn>
-{
-public:
-	FSlateColor GetForegroundColor(const FUsdLayerViewModelRef TreeItem) const
+	void ToggleMuteOrShowWarning(FUsdLayerViewModelRef LayerItem)
 	{
-		return TreeItem->IsInIsolatedStage() ? FSlateColor::UseForeground() : FSlateColor::UseSubduedForeground();
-	}
-
-	virtual TSharedRef<SWidget> GenerateWidget(const TSharedPtr<IUsdTreeViewItem> InTreeItem, const TSharedPtr<ITableRow> TableRow) override
-	{
-		FUsdLayerViewModelRef TreeItem = StaticCastSharedRef<FUsdLayerViewModel>(InTreeItem.ToSharedRef());
-		TWeakPtr<FUsdLayerViewModel> TreeItemWeak = TreeItem;
-
-		// clang-format off
-		return SNew(SBox)
-			.VAlign(VAlign_Center)
-			[
-				SNew(STextBlock)
-				.Text(TreeItem, &FUsdLayerViewModel::GetDisplayName)
-				.ColorAndOpacity(this, &FUsdLayerNameColumn::GetForegroundColor, TreeItem)
-				.ToolTipText_Lambda([TreeItemWeak]
-				{
-					if (TSharedPtr<FUsdLayerViewModel> PinnedTreeItem = TreeItemWeak.Pin())
-					{
-						return FText::FromString(PinnedTreeItem->LayerIdentifier);
-					}
-
-					return FText::GetEmpty();
-				})
-			];
-		// clang-format on
-	}
-};
-
-class FUsdLayerMutedColumn
-	: public FUsdTreeViewColumn
-	, public TSharedFromThis<FUsdLayerMutedColumn>
-{
-public:
-	FReply OnClicked(const FUsdLayerViewModelRef TreeItem)
-	{
-		ToggleMuteLayer(TreeItem);
-
-		return FReply::Handled();
-	}
-
-	const FSlateBrush* GetBrush(const FUsdLayerViewModelRef TreeItem, const TSharedPtr<SButton> Button) const
-	{
-		const bool bIsButtonHovered = Button.IsValid() && Button->IsHovered();
-
-		if (!CanMuteLayer(TreeItem))
-		{
-			return nullptr;
-		}
-		else if (TreeItem->IsLayerMuted())
-		{
-			return bIsButtonHovered ? FAppStyle::GetBrush("Level.NotVisibleHighlightIcon16x") : FAppStyle::GetBrush("Level.NotVisibleIcon16x");
-		}
-		else
-		{
-			return bIsButtonHovered ? FAppStyle::GetBrush("Level.VisibleHighlightIcon16x") : FAppStyle::GetBrush("Level.VisibleIcon16x");
-		}
-	}
-
-	FSlateColor GetForegroundColor(const FUsdLayerViewModelRef TreeItem, const TSharedPtr<ITableRow> TableRow, const TSharedPtr<SButton> Button) const
-	{
-		if (!TableRow.IsValid() || !Button.IsValid())
-		{
-			return FSlateColor::UseForeground();
-		}
-
-		const bool bIsRowHovered = TableRow->AsWidget()->IsHovered();
-		const bool bIsButtonHovered = Button->IsHovered();
-		const bool bIsRowSelected = TableRow->IsItemSelected();
-		const bool bIsLayerMuted = TreeItem->IsLayerMuted();
-
-		if (!bIsLayerMuted && !bIsRowHovered && !bIsRowSelected)
-		{
-			return FLinearColor::Transparent;
-		}
-		else if (bIsButtonHovered && !bIsRowSelected)
-		{
-			return FAppStyle::GetSlateColor(TEXT("Colors.ForegroundHover"));
-		}
-
-		return FSlateColor::UseForeground();
-	}
-
-	virtual TSharedRef<SWidget> GenerateWidget(const TSharedPtr<IUsdTreeViewItem> InTreeItem, const TSharedPtr<ITableRow> TableRow) override
-	{
-		if (!InTreeItem)
-		{
-			return SNullWidget::NullWidget;
-		}
-
-		FUsdLayerViewModelRef TreeItem = StaticCastSharedRef<FUsdLayerViewModel>(InTreeItem.ToSharedRef());
-		FUsdLayerViewModelWeak TreeItemWeak = TreeItem;
-		const float ItemSize = FUsdStageEditorStyle::Get()->GetFloat("UsdStageEditor.ListItemHeight");
-
-		// clang-format off
-		if (!TreeItem->CanMuteLayer())
-		{
-			return SNew(SBox)
-				.HeightOverride(ItemSize)
-				.WidthOverride(ItemSize)
-				.Visibility(EVisibility::Visible)
-				.ToolTip(SNew(SToolTip).Text(LOCTEXT("CantMuteLayerTooltip", "This layer cannot be muted!")));
-		}
-
-		TSharedPtr<SButton> Button = SNew(SButton)
-			.ContentPadding(0)
-			.IsEnabled_Lambda([TreeItemWeak]()->bool
-			{
-				if (TSharedPtr<FUsdLayerViewModel> PinnedTreeItem = TreeItemWeak.Pin())
-				{
-					return PinnedTreeItem->IsInIsolatedStage();
-				}
-				return false;
-			})
-			.ButtonStyle(FUsdStageEditorStyle::Get(), TEXT("NoBorder"))
-			.OnClicked(this, &FUsdLayerMutedColumn::OnClicked, TreeItem)
-			.ToolTip(SNew(SToolTip).Text(LOCTEXT("MuteLayerTooltip", "Mute or unmute this layer")))
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center);
-
-		TSharedPtr<SImage> Image = SNew(SImage)
-			.Image(this, &FUsdLayerMutedColumn::GetBrush, TreeItem, Button)
-			.ColorAndOpacity(this, &FUsdLayerMutedColumn::GetForegroundColor, TreeItem, TableRow, Button);
-
-		Button->SetContent(Image.ToSharedRef());
-
-		return SNew(SBox)
-			.HeightOverride(ItemSize)
-			.WidthOverride(ItemSize)
-			.Visibility(EVisibility::Visible)
-			[
-				Button.ToSharedRef()
-			];
-		// clang-format on
-	}
-
-protected:
-	bool CanMuteLayer(FUsdLayerViewModelRef LayerItem) const
-	{
-		return LayerItem->IsValid() && LayerItem->CanMuteLayer();
-	}
-
-	void ToggleMuteLayer(FUsdLayerViewModelRef LayerItem)
-	{
-		if (!CanMuteLayer(LayerItem))
+		if (!LayerItem->IsValid() || !LayerItem->CanMuteLayer())
 		{
 			return;
 		}
@@ -234,7 +84,7 @@ protected:
 
 		// Show a warning if the layer is dirty, as muting it will discard changes
 		const UUsdProjectSettings* Settings = GetDefault<UUsdProjectSettings>();
-		if (Settings && Settings->bShowConfirmationWhenMutingDirtyLayers)
+		if (!LayerItem->IsLayerMuted() && Settings && Settings->bShowConfirmationWhenMutingDirtyLayers)
 		{
 			static TWeakPtr<SNotificationItem> Notification;
 
@@ -242,7 +92,7 @@ protected:
 			Toast.SubText = FText::Format(
 				LOCTEXT(
 					"ConfirmMutingLayer_Subtext",
-					"Layer '{0}' has unsaved changes that will be lost if muted.\n\nDo you wish to proceed muting the layer?"
+					"Layer '{0}' has unsaved changes that will be lost if muted.\n\nDo you wish to proceed with muting the layer?"
 				),
 				LayerItem->GetDisplayName()
 			);
@@ -323,6 +173,257 @@ protected:
 			// Don't show prompt, always just mute
 			LayerItem->ToggleMuteLayer();
 		}
+	}
+
+	void ReloadOrShowWarning(FUsdLayerViewModelRef LayerItem)
+	{
+		if (!LayerItem->IsValid() || !LayerItem->CanReload())
+		{
+			return;
+		}
+
+		// If the layer is not dirty we can just mute it without worry and early out
+		if (!LayerItem->IsLayerDirty())
+		{
+			LayerItem->Reload();
+			return;
+		}
+
+		// Show a warning if the layer is dirty, as muting it will discard changes
+		const UUsdProjectSettings* Settings = GetDefault<UUsdProjectSettings>();
+		if (!LayerItem->IsLayerMuted() && Settings && Settings->bShowConfirmationWhenReloadingDirtyLayers)
+		{
+			static TWeakPtr<SNotificationItem> Notification;
+
+			FNotificationInfo Toast(LOCTEXT("ConfirmReloadingDirtyLayer", "Reloading dirty layer"));
+			Toast.SubText = FText::Format(
+				LOCTEXT(
+					"ConfirmReloadingDirtyLayer_Subtext",
+					"Layer '{0}' has unsaved changes that will be lost if reloaded.\n\nDo you wish to proceed with reloading the layer?"
+				),
+				LayerItem->GetDisplayName()
+			);
+			Toast.Image = FCoreStyle::Get().GetBrush(TEXT("MessageLog.Warning"));
+			Toast.bUseLargeFont = false;
+			Toast.bFireAndForget = false;
+			Toast.FadeOutDuration = 0.0f;
+			Toast.ExpireDuration = 0.0f;
+			Toast.bUseThrobber = false;
+			Toast.bUseSuccessFailIcons = false;
+
+			Toast.ButtonDetails.Emplace(
+				LOCTEXT("ConfirmMutingOkAll", "Always proceed"),
+				FText::GetEmpty(),
+				FSimpleDelegate::CreateLambda(
+					[LayerItem]()
+					{
+						if (TSharedPtr<SNotificationItem> PinnedNotification = Notification.Pin())
+						{
+							PinnedNotification->SetCompletionState(SNotificationItem::CS_Success);
+							PinnedNotification->ExpireAndFadeout();
+
+							UUsdProjectSettings* Settings = GetMutableDefault<UUsdProjectSettings>();
+							Settings->bShowConfirmationWhenReloadingDirtyLayers = false;
+							Settings->SaveConfig();
+
+							LayerItem->Reload();
+						}
+					}
+				)
+			);
+
+			Toast.ButtonDetails.Emplace(
+				LOCTEXT("ConfirmMutingOk", "Proceed"),
+				FText::GetEmpty(),
+				FSimpleDelegate::CreateLambda(
+					[LayerItem]()
+					{
+						if (TSharedPtr<SNotificationItem> PinnedNotification = Notification.Pin())
+						{
+							PinnedNotification->SetCompletionState(SNotificationItem::CS_Success);
+							PinnedNotification->ExpireAndFadeout();
+
+							LayerItem->Reload();
+						}
+					}
+				)
+			);
+
+			Toast.ButtonDetails.Emplace(
+				LOCTEXT("ConfirmMutingCancel", "Cancel"),
+				FText::GetEmpty(),
+				FSimpleDelegate::CreateLambda(
+					[]()
+					{
+						if (TSharedPtr<SNotificationItem> PinnedNotification = Notification.Pin())
+						{
+							PinnedNotification->SetCompletionState(SNotificationItem::CS_Fail);
+							PinnedNotification->ExpireAndFadeout();
+						}
+					}
+				)
+			);
+
+			// Only show one at a time
+			if (!Notification.IsValid())
+			{
+				Notification = FSlateNotificationManager::Get().AddNotification(Toast);
+			}
+
+			if (TSharedPtr<SNotificationItem> PinnedNotification = Notification.Pin())
+			{
+				PinnedNotification->SetCompletionState(SNotificationItem::CS_Pending);
+			}
+		}
+		else
+		{
+			// Don't show prompt, always just reload
+			LayerItem->Reload();
+		}
+	}
+}	 // namespace UE::USDLayersTreeViewImpl::Private
+
+class FUsdLayerNameColumn
+	: public FUsdTreeViewColumn
+	, public TSharedFromThis<FUsdLayerNameColumn>
+{
+public:
+	FSlateColor GetForegroundColor(const FUsdLayerViewModelRef TreeItem) const
+	{
+		return TreeItem->IsInIsolatedStage() ? FSlateColor::UseForeground() : FSlateColor::UseSubduedForeground();
+	}
+
+	virtual TSharedRef<SWidget> GenerateWidget(const TSharedPtr<IUsdTreeViewItem> InTreeItem, const TSharedPtr<ITableRow> TableRow) override
+	{
+		FUsdLayerViewModelRef TreeItem = StaticCastSharedRef<FUsdLayerViewModel>(InTreeItem.ToSharedRef());
+		TWeakPtr<FUsdLayerViewModel> TreeItemWeak = TreeItem;
+
+		// clang-format off
+		return SNew(SBox)
+			.VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(TreeItem, &FUsdLayerViewModel::GetDisplayName)
+				.ColorAndOpacity(this, &FUsdLayerNameColumn::GetForegroundColor, TreeItem)
+				.ToolTipText_Lambda([TreeItemWeak]
+				{
+					if (TSharedPtr<FUsdLayerViewModel> PinnedTreeItem = TreeItemWeak.Pin())
+					{
+						return FText::FromString(PinnedTreeItem->LayerIdentifier);
+					}
+
+					return FText::GetEmpty();
+				})
+			];
+		// clang-format on
+	}
+};
+
+class FUsdLayerMutedColumn
+	: public FUsdTreeViewColumn
+	, public TSharedFromThis<FUsdLayerMutedColumn>
+{
+public:
+	FReply OnClicked(const FUsdLayerViewModelRef TreeItem)
+	{
+		UE::USDLayersTreeViewImpl::Private::ToggleMuteOrShowWarning(TreeItem);
+
+		return FReply::Handled();
+	}
+
+	const FSlateBrush* GetBrush(const FUsdLayerViewModelRef TreeItem, const TSharedPtr<SButton> Button) const
+	{
+		const bool bIsButtonHovered = Button.IsValid() && Button->IsHovered();
+
+		if (!TreeItem->CanMuteLayer())
+		{
+			return nullptr;
+		}
+		else if (TreeItem->IsLayerMuted())
+		{
+			return bIsButtonHovered ? FAppStyle::GetBrush("Level.NotVisibleHighlightIcon16x") : FAppStyle::GetBrush("Level.NotVisibleIcon16x");
+		}
+		else
+		{
+			return bIsButtonHovered ? FAppStyle::GetBrush("Level.VisibleHighlightIcon16x") : FAppStyle::GetBrush("Level.VisibleIcon16x");
+		}
+	}
+
+	FSlateColor GetForegroundColor(const FUsdLayerViewModelRef TreeItem, const TSharedPtr<ITableRow> TableRow, const TSharedPtr<SButton> Button) const
+	{
+		if (!TableRow.IsValid() || !Button.IsValid())
+		{
+			return FSlateColor::UseForeground();
+		}
+
+		const bool bIsRowHovered = TableRow->AsWidget()->IsHovered();
+		const bool bIsButtonHovered = Button->IsHovered();
+		const bool bIsRowSelected = TableRow->IsItemSelected();
+		const bool bIsLayerMuted = TreeItem->IsLayerMuted();
+
+		if (!bIsLayerMuted && !bIsRowHovered && !bIsRowSelected)
+		{
+			return FLinearColor::Transparent;
+		}
+		else if (bIsButtonHovered && !bIsRowSelected)
+		{
+			return FAppStyle::GetSlateColor(TEXT("Colors.ForegroundHover"));
+		}
+
+		return FSlateColor::UseForeground();
+	}
+
+	virtual TSharedRef<SWidget> GenerateWidget(const TSharedPtr<IUsdTreeViewItem> InTreeItem, const TSharedPtr<ITableRow> TableRow) override
+	{
+		if (!InTreeItem)
+		{
+			return SNullWidget::NullWidget;
+		}
+
+		FUsdLayerViewModelRef TreeItem = StaticCastSharedRef<FUsdLayerViewModel>(InTreeItem.ToSharedRef());
+		FUsdLayerViewModelWeak TreeItemWeak = TreeItem;
+		const float ItemSize = FUsdStageEditorStyle::Get()->GetFloat("UsdStageEditor.ListItemHeight");
+
+		// clang-format off
+		if (!TreeItem->CanMuteLayer())
+		{
+			return SNew(SBox)
+				.HeightOverride(ItemSize)
+				.WidthOverride(ItemSize)
+				.Visibility(EVisibility::Visible)
+				.ToolTip(SNew(SToolTip).Text(LOCTEXT("CantMuteLayerTooltip", "Cannot mute root layers or edit targets")));
+		}
+
+		TSharedPtr<SButton> Button = SNew(SButton)
+			.ContentPadding(0)
+			.IsEnabled_Lambda([TreeItemWeak]()->bool
+			{
+				if (TSharedPtr<FUsdLayerViewModel> PinnedTreeItem = TreeItemWeak.Pin())
+				{
+					return PinnedTreeItem->IsInIsolatedStage();
+				}
+				return false;
+			})
+			.ButtonStyle(FUsdStageEditorStyle::Get(), TEXT("NoBorder"))
+			.OnClicked(this, &FUsdLayerMutedColumn::OnClicked, TreeItem)
+			.ToolTip(SNew(SToolTip).Text(LOCTEXT("MuteLayerTooltip", "Mute or unmute this layer")))
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center);
+
+		TSharedPtr<SImage> Image = SNew(SImage)
+			.Image(this, &FUsdLayerMutedColumn::GetBrush, TreeItem, Button)
+			.ColorAndOpacity(this, &FUsdLayerMutedColumn::GetForegroundColor, TreeItem, TableRow, Button);
+
+		Button->SetContent(Image.ToSharedRef());
+
+		return SNew(SBox)
+			.HeightOverride(ItemSize)
+			.WidthOverride(ItemSize)
+			.Visibility(EVisibility::Visible)
+			[
+				Button.ToSharedRef()
+			];
+		// clang-format on
 	}
 };
 
@@ -428,6 +529,8 @@ void SUsdLayersTreeView::Construct(const FArguments& InArgs)
 
 void SUsdLayersTreeView::Refresh(const UE::FUsdStageWeak& NewStage, const UE::FUsdStageWeak& InIsolatedStage, bool bResync)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SUsdLayersTreeView::Refresh);
+
 	if (bResync)
 	{
 		bool bShouldResetExpansionStates = false;
@@ -1138,12 +1241,76 @@ TSharedPtr<SWidget> SUsdLayersTreeView::ConstructLayerContextMenu()
 		);
 
 		LayerOptions.AddMenuEntry(
+			TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateLambda(
+				[this]()
+				{
+					bool bAnyIsMuted = false;
+					TArray<FUsdLayerViewModelRef> MySelectedItems = GetSelectedItems();
+					for (const FUsdLayerViewModelRef& SelectedItem : MySelectedItems)
+					{
+						if (SelectedItem->IsLayerMuted())
+						{
+							bAnyIsMuted = true;
+							break;
+						}
+					}
+
+					return bAnyIsMuted ? LOCTEXT("UnmuteLayerRightClick_Text", "Unmute") : LOCTEXT("MuteLayerRightClick_Text", "Mute");
+				}
+			)),
+			TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateLambda(
+				[this]()
+				{
+					const bool bCanMute = CanMuteSelectedLayer();
+
+					bool bAnyIsMuted = false;
+					if (bCanMute)
+					{
+						TArray<FUsdLayerViewModelRef> MySelectedItems = GetSelectedItems();
+						for (const FUsdLayerViewModelRef& SelectedItem : MySelectedItems)
+						{
+							if (SelectedItem->IsLayerMuted())
+							{
+								bAnyIsMuted = true;
+								break;
+							}
+						}
+					}
+
+					return bCanMute
+							   ? (bAnyIsMuted ? LOCTEXT("UnmuteLayerRightClick_ToolTip", "Unmute the selected muted layers")
+											  : LOCTEXT("MuteLayerRightClick_ToolTip", "Mute all selected layers"))
+							   : LOCTEXT("CantMuteLayerRightClick_ToolTip", "Cannot mute root layers or edit targets");
+				}
+			)),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SUsdLayersTreeView::OnMuteSelectedLayer),
+				FCanExecuteAction::CreateSP(this, &SUsdLayersTreeView::CanMuteSelectedLayer)
+			),
+			NAME_None,
+			EUserInterfaceActionType::Button
+		);
+
+		LayerOptions.AddMenuEntry(
 			LOCTEXT("ClearLayer", "Clear"),
 			LOCTEXT("ClearLayer_ToolTip", "Clears this layer of all data"),
 			FSlateIcon(),
 			FUIAction(
 				FExecuteAction::CreateSP(this, &SUsdLayersTreeView::OnClearSelectedLayers),
 				FCanExecuteAction::CreateSP(this, &SUsdLayersTreeView::CanClearSelectedLayers)
+			),
+			NAME_None,
+			EUserInterfaceActionType::Button
+		);
+
+		LayerOptions.AddMenuEntry(
+			LOCTEXT("ReloadLayer", "Reload"),
+			LOCTEXT("ReloadLayer_ToolTip", "Reloads just this layer from disk"),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SUsdLayersTreeView::OnReloadSelectedLayers),
+				FCanExecuteAction::CreateSP(this, &SUsdLayersTreeView::CanReloadSelectedLayers)
 			),
 			NAME_None,
 			EUserInterfaceActionType::Button
@@ -1307,6 +1474,55 @@ void SUsdLayersTreeView::OnEditSelectedLayer()
 	}
 }
 
+bool SUsdLayersTreeView::CanMuteSelectedLayer() const
+{
+	TArray<FUsdLayerViewModelRef> MySelectedItems = GetSelectedItems();
+
+	if (MySelectedItems.Num() < 1)
+	{
+		return false;
+	}
+
+	for (FUsdLayerViewModelRef SelectedItem : MySelectedItems)
+	{
+		if (!SelectedItem->CanMuteLayer())
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void SUsdLayersTreeView::OnMuteSelectedLayer()
+{
+	TArray<FUsdLayerViewModelRef> MySelectedItems = GetSelectedItems();
+	if (MySelectedItems.Num() < 1)
+	{
+		return;
+	}
+
+	bool bAnyIsMuted = false;
+	for (FUsdLayerViewModelRef SelectedItem : MySelectedItems)
+	{
+		if (SelectedItem->IsLayerMuted())
+		{
+			bAnyIsMuted = true;
+			break;
+		}
+	}
+
+	for (FUsdLayerViewModelRef SelectedItem : MySelectedItems)
+	{
+		if ((bAnyIsMuted && SelectedItem->IsLayerMuted()) || !bAnyIsMuted)
+		{
+			UE::USDLayersTreeViewImpl::Private::ToggleMuteOrShowWarning(SelectedItem);
+		}
+	}
+
+	return;
+}
+
 void SUsdLayersTreeView::OnClearSelectedLayers()
 {
 	TArray<FUsdLayerViewModelRef> MySelectedItems = GetSelectedItems();
@@ -1450,6 +1666,31 @@ bool SUsdLayersTreeView::CanClearSelectedLayers() const
 	}
 
 	return false;
+}
+
+void SUsdLayersTreeView::OnReloadSelectedLayers()
+{
+	FScopedTransaction Transaction(LOCTEXT("ReloadLayersTransaction", "Reload selected layers"));
+
+	TArray<FUsdLayerViewModelRef> MySelectedItems = GetSelectedItems();
+	for (FUsdLayerViewModelRef SelectedItem : MySelectedItems)
+	{
+		UE::USDLayersTreeViewImpl::Private::ReloadOrShowWarning(SelectedItem);
+	}
+}
+
+bool SUsdLayersTreeView::CanReloadSelectedLayers() const
+{
+	TArray<FUsdLayerViewModelRef> MySelectedItems = GetSelectedItems();
+	for (FUsdLayerViewModelRef SelectedItem : MySelectedItems)
+	{
+		if (!SelectedItem->CanReload())
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 void SUsdLayersTreeView::OnSaveSelectedLayers()
@@ -1603,6 +1844,8 @@ void SUsdLayersTreeView::OnAddSubLayer()
 		return;
 	}
 
+	FScopedTransaction Transaction(LOCTEXT("AddExistingSublayerTransaction", "Add existing sublayer"));
+
 	TArray<FUsdLayerViewModelRef> MySelectedItems = GetSelectedItems();
 
 	for (FUsdLayerViewModelRef SelectedItem : MySelectedItems)
@@ -1622,6 +1865,8 @@ void SUsdLayersTreeView::OnNewSubLayer()
 	{
 		return;
 	}
+
+	FScopedTransaction Transaction(LOCTEXT("AddNewSublayerTransaction", "Add new sublayer"));
 
 	TArray<FUsdLayerViewModelRef> MySelectedItems = GetSelectedItems();
 	for (FUsdLayerViewModelRef SelectedItem : MySelectedItems)
@@ -1663,6 +1908,8 @@ void SUsdLayersTreeView::OnRemoveSelectedLayers()
 	bool bLayerRemoved = false;
 
 	TArray<FUsdLayerViewModelRef> SelectedLayers = GetSelectedItems();
+
+	FScopedTransaction Transaction(LOCTEXT("RemoveSublayerTransaction", "Remove sublayers"));
 
 	for (FUsdLayerViewModelRef SelectedLayer : SelectedLayers)
 	{

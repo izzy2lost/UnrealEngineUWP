@@ -4,7 +4,7 @@
 #include "DevObjectVersion.h"
 #include "Containers/Map.h"
 
-// Custom serialization version for changes made in the //Fortnite/Main stream
+// Custom serialization version for changes made in the //Fortnite/Release-XX.XX stream
 struct FFortniteReleaseBranchCustomObjectVersion
 {
 	enum Type
@@ -50,6 +50,12 @@ struct FFortniteReleaseBranchCustomObjectVersion
 
 		// UPCGPoint custom serialization
 		PCGPointStructuredSerializer,
+
+		// Deprecation of Nav Movement Properties and moving them to a new struct
+		NavMovementComponentMovingPropertiesToStruct,
+
+		// Add bone serialization for dynamic mesh attributes
+		DynamicMeshAttributesSerializeBones,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

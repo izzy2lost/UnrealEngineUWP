@@ -121,6 +121,8 @@ Map<String, _UnrealTypeConversionData> _typeConverters = {
     },
     dartToJson: (dynamic dartValue, Map<String, dynamic> conversionMetadata) => dartValue.toJson(),
   ),
+  'TSoftObjectPtr<ACineCameraActor>': _noConversion,
+  'TSoftObjectPtr<AActor>': _noConversion,
   unrealEnumTypeName: _noConversion,
 };
 
@@ -135,7 +137,7 @@ bool canConvertUnrealType(String typeName) {
 /// Some conversion functions may also make make use of arbitrary data stored in [conversionMetadata].
 dynamic convertUnrealTypeJsonToDart(String typeName, dynamic data,
     {dynamic previousValue, Map<String, dynamic>? conversionMetadata}) {
-  if (data == null) {
+  if (data == null || (data is String && data.isEmpty)) {
     return null;
   }
 

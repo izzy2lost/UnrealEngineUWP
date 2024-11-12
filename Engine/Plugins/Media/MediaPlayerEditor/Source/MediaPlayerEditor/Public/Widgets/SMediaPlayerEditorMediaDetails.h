@@ -57,4 +57,5 @@ private:
 	TSharedPtr<STextBlock> NumTilesText;
 	TSharedPtr<STextBlock> ResolutionText;
 	TSharedPtr<STextBlock> ResourceSizeText;
+	TSharedPtr<STextBlock> StartTimecodeText;
 };

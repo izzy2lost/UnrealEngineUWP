@@ -6,7 +6,7 @@
 #include "EngineUtils.h"
 #include "Experimental/Containers/HazardPointer.h"
 #include "ProfilingDebugging/LoadTimeTracker.h"
-#include "RHIResourceUpdates.h"
+#include "RHIResourceReplace.h"
 #include "RHI.h"
 
 /**
@@ -80,30 +80,19 @@ FBufferRHIRef FSkeletalMeshVertexClothBuffer::CreateRHIBuffer(FRHICommandListBas
 	return FRenderResource::CreateRHIBuffer(RHICmdList, VertexData, NumVertices, BUF_Static | BUF_ShaderResource, TEXT("FSkeletalMeshVertexClothBuffer"));
 }
 
-FBufferRHIRef FSkeletalMeshVertexClothBuffer::CreateRHIBuffer_RenderThread()
-{
-	return CreateRHIBuffer(FRHICommandListImmediate::Get());
-}
-
-FBufferRHIRef FSkeletalMeshVertexClothBuffer::CreateRHIBuffer_Async()
-{
-	FRHIAsyncCommandList CommandList;
-	return CreateRHIBuffer(*CommandList);
-}
-
-void FSkeletalMeshVertexClothBuffer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher)
+void FSkeletalMeshVertexClothBuffer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceReplaceBatcher& Batcher)
 {
 	if (VertexBufferRHI && IntermediateBuffer)
 	{
-		Batcher.QueueUpdateRequest(VertexBufferRHI, IntermediateBuffer);
+		Batcher.EnqueueReplace(VertexBufferRHI, IntermediateBuffer);
 	}
 }
 
-void FSkeletalMeshVertexClothBuffer::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
+void FSkeletalMeshVertexClothBuffer::ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher)
 {
 	if (VertexBufferRHI)
 	{
-		Batcher.QueueUpdateRequest(VertexBufferRHI, nullptr);
+		Batcher.EnqueueReplace(VertexBufferRHI, nullptr);
 	}
 }
 

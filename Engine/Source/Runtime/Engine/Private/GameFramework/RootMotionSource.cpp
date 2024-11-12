@@ -33,7 +33,7 @@ void RootMotionSourceDebug::PrintOnScreen(const ACharacter& InCharacter, const F
 	// Skip bots, debug player networking.
 	if (InCharacter.IsPlayerControlled())
 	{
-		const FString AdjustedDebugString = FString::Printf(TEXT("[%d] [%s] %s"), (uint64)GFrameCounter, *InCharacter.GetName(), *InString);
+		const FString AdjustedDebugString = FString::Printf(TEXT("[%" UINT64_FMT "] [%s] %s"), (uint64)GFrameCounter, *InCharacter.GetName(), *InString);
 
 		// If on the server, replicate this message to everyone.
 		if (!InCharacter.IsLocallyControlled() && (InCharacter.GetLocalRole() == ROLE_Authority))
@@ -180,11 +180,11 @@ FRootMotionSourceSettings& FRootMotionSourceSettings::operator+=(const FRootMoti
 FRootMotionSource::FRootMotionSource()
 	: Priority(0)
 	, LocalID((uint16)ERootMotionSourceID::Invalid)
-	, AccumulateMode(ERootMotionAccumulateMode::Override)
 	, StartTime(RootMotionSource_InvalidStartTime)
 	, CurrentTime(0.0f)
 	, PreviousTime(0.0f)
 	, Duration(-1.0f)
+	, AccumulateMode(ERootMotionAccumulateMode::Override)
 	, bInLocalSpace(false)
 	, bNeedsSimulatedCatchup(false)
 	, bSimulatedNeedsSmoothing(false)

@@ -10,6 +10,7 @@
 #include "UObject/CoreNet.h"
 #include "EngineLogs.h"
 #include "Net/Core/Trace/NetTraceConfig.h"
+#include "Net/Core/NetToken/NetToken.h"
 
 class UChannel;
 class UNetConnection;
@@ -41,11 +42,13 @@ public:
 	uint8					bPartialFinal:1;			// The final bunch of a partial bunch
 	uint8					bHasPackageMapExports:1;	// This bunch has networkGUID name/id pairs
 	uint8					bHasMustBeMappedGUIDs:1;	// This bunch has guids that must be mapped before we can process this bunch
+	uint8					bPartialCustomExportsFinal:1;	// This bunch marks the end of the CustomExports data that needs to be processed immediately (not queued)
 
 	EChannelCloseReason		CloseReason;
 
 	TArray< FNetworkGUID >	ExportNetGUIDs;			// List of GUIDs that went out on this bunch
 	TArray< uint64 >		NetFieldExports;
+	TArray<UE::Net::FNetToken, TInlineAllocator<4>> NetTokensPendingExport; // List of NetTokens that will be exported if needed with this bunch.
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	FString			DebugString;
@@ -53,7 +56,7 @@ public:
 	{
 			DebugString = DebugStr;
 	}
-	FString	GetDebugString()
+	FString	GetDebugString() const
 	{
 		return DebugString;
 	}
@@ -62,7 +65,7 @@ public:
 	{
 
 	}
-	FORCEINLINE FString	GetDebugString()
+	FORCEINLINE FString	GetDebugString() const
 	{
 		return FString();
 	}
@@ -103,7 +106,8 @@ public:
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		Str += FString::Printf(TEXT("bReliable: %d "), bReliable);
 		Str += FString::Printf(TEXT("bPartial: %d//%d//%d "), bPartial, bPartialInitial, bPartialFinal);
-		Str += FString::Printf( TEXT( "bHasPackageMapExports: %d " ), bHasPackageMapExports );
+		Str += FString::Printf(TEXT("bHasPackageMapExports: %d "), bHasPackageMapExports);
+		Str += FString::Printf(TEXT("NetTokensPendingExport: %d "), NetTokensPendingExport.Num());
 		Str += GetDebugString();
 #else
 		FString Str = FString::Printf(TEXT("Channel[%d]. Seq %d. PacketId: %d"), ChIndex, ChSequence, PacketId);
@@ -112,6 +116,7 @@ public:
 	}
 
 	ENGINE_API virtual void CountMemory(FArchive& Ar) const override;
+	ENGINE_API virtual void Reset() override;
 };
 
 //
@@ -137,6 +142,7 @@ public:
 	uint8				bPartialFinal:1;			// The final bunch of a partial bunch
 	uint8				bHasPackageMapExports:1;	// This bunch has networkGUID name/id pairs
 	uint8				bHasMustBeMappedGUIDs:1;	// This bunch has guids that must be mapped before we can process this bunch
+	uint8				bPartialCustomExportsFinal:1;	// This bunch marks the end of the extensions data that needs to be processed immediately (not queued)
 	uint8				bIgnoreRPCs:1;
 
 	EChannelCloseReason		CloseReason;
@@ -163,6 +169,7 @@ public:
 		Str += FString::Printf(TEXT("bPartial: %d//%d//%d "), bPartial, bPartialInitial, bPartialFinal);
 		Str += FString::Printf(TEXT("bHasPackageMapExports: %d "), bHasPackageMapExports );
 		Str += FString::Printf(TEXT("bHasMustBeMappedGUIDs: %d "), bHasMustBeMappedGUIDs );
+		Str += FString::Printf(TEXT("bPartialCustomExportsFinal: %d "), bPartialCustomExportsFinal);
 		Str += FString::Printf(TEXT("bIgnoreRPCs: %d "), bIgnoreRPCs );
 #else
 		FString Str = FString::Printf(TEXT("Channel[%d]. Seq %d. PacketId: %d"), ChIndex, ChSequence, PacketId);
@@ -207,17 +214,5 @@ struct FControlChannelOutBunch : public FOutBunch
 		return *this;
 	}
 };
-
-/** Helper methods to allow us to instrument different type of BitStreams */
-inline uint32 GetBitStreamPositionForNetTrace(const FBitWriter& Stream) { return (uint32(Stream.IsError()) - 1U) & (uint32)Stream.GetNumBits(); }
-inline uint32 GetBitStreamPositionForNetTrace(const FBitReader& Stream) { return (uint32(Stream.IsError()) - 1U) & (uint32)Stream.GetPosBits(); }
-
-#if UE_NET_TRACE_ENABLED
-inline FNetTraceCollector* GetTraceCollector(FNetBitWriter& BitWriter) { return BitWriter.TraceCollector.Get(); }
-inline void SetTraceCollector(FNetBitWriter& BitWriter, FNetTraceCollector* Collector) { BitWriter.TraceCollector.Set(Collector); }
-#else
-inline FNetTraceCollector* GetTraceCollector(FNetBitWriter& BitWriter) { return nullptr; }
-inline void SetTraceCollector(FNetBitWriter& BitWriter, FNetTraceCollector* Collector) {}
-#endif
 
 

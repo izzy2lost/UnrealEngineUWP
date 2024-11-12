@@ -178,7 +178,7 @@ namespace UnrealBuildTool
 					// CreateTargetRules here needs to have an UnrealArchitectures object, because otherwise with 'null', it will call
 					// back to this function to get the ActiveArchitectures! in this case the arch is unimportant
 					UnrealArchitectures DummyArchitectures = new(UnrealArch.X64);
-					TargetRules? Rules = RulesAsm.CreateTargetRules(TargetName, UnrealTargetPlatform.Mac, UnrealTargetConfiguration.Development, DummyArchitectures, ProjectFile, null, Log.Logger, bSkipValidation:true);
+					TargetRules? Rules = RulesAsm.CreateTargetRules(TargetName, UnrealTargetPlatform.Mac, UnrealTargetConfiguration.Development, DummyArchitectures, ProjectFile, null, Log.Logger, ValidationOptions: TargetRulesValidationOptions.ValidateNothing);
 					bIsEditor = Rules.Type == TargetType.Editor;
 
 					// the projectfile passed in may be a game's uproject file that we are compiling a program in the context of, 
@@ -279,7 +279,7 @@ namespace UnrealBuildTool
 		public override void GetExternalBuildMetadata(FileReference? ProjectFile, StringBuilder Metadata)
 		{
 			base.GetExternalBuildMetadata(ProjectFile, Metadata);
-			
+
 			Metadata.AppendLine("xcode-select: {0}", AppleToolChainSettings.XcodeDeveloperDir);
 		}
 	}
@@ -336,10 +336,7 @@ namespace UnrealBuildTool
 			bool bCompilingForArm = Target.Architectures.Contains(UnrealArch.Arm64);
 			if (bCompilingForArm && Target.Name != "UnrealHeaderTool")
 			{
-				Target.DisablePlugins.AddRange(new string[]
-				{
-					// Currently none need to be disabled, but add names of plugins here that are incompatible with arm64
-				});
+				Target.DisablePlugins.AddRange(Array.Empty<string>());
 			}
 
 			// Needs OS X 10.11 for Metal. The remote toolchain has not been initialized yet, so just assume it's a recent SDK.
@@ -441,10 +438,10 @@ namespace UnrealBuildTool
 			{
 				case UEBuildBinaryType.DynamicLinkLibrary:
 				case UEBuildBinaryType.Executable:
-					return Target.bUsePDBFiles ? new string[] { ".dSYM" } : new string[] { };
+					return Target.bUsePDBFiles ? new string[] { ".dSYM" } : Array.Empty<string>();
 				case UEBuildBinaryType.StaticLibrary:
 				default:
-					return new string[] { };
+					return Array.Empty<string>();
 			}
 		}
 
@@ -458,7 +455,10 @@ namespace UnrealBuildTool
 		public override void ModifyModuleRulesForOtherPlatform(string ModuleName, ModuleRules Rules, ReadOnlyTargetRules Target)
 		{
 			// don't do any target platform stuff if SDK is not available
-			if (!UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target))
+			bool bIsPlatformAvailableForTarget = UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target, bIgnoreSDKCheck: true);
+			bool bIsPlatformAvailableForTargetWithSDK = UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target);
+
+			if (!bIsPlatformAvailableForTarget)
 			{
 				return;
 			}
@@ -468,7 +468,11 @@ namespace UnrealBuildTool
 				// because remote IOS building needs the new XcodeProject Settings to show up in the editor, we bring in the Mac bits that expose it
 				if (ModuleName == "Engine")
 				{
-					Rules.DynamicallyLoadedModuleNames.AddAll("MacTargetPlatform", "MacPlatformEditor");
+					Rules.DynamicallyLoadedModuleNames.Add("MacTargetPlatformSettings");
+					if (bIsPlatformAvailableForTargetWithSDK)
+					{
+						Rules.DynamicallyLoadedModuleNames.AddAll("MacTargetPlatform", "MacTargetPlatformControls", "MacPlatformEditor");
+					}
 				}
 			}
 		}
@@ -530,6 +534,8 @@ namespace UnrealBuildTool
 				if (Target.bForceBuildTargetPlatforms)
 				{
 					Rules.DynamicallyLoadedModuleNames.Add("MacTargetPlatform");
+					Rules.DynamicallyLoadedModuleNames.Add("MacTargetPlatformSettings");
+					Rules.DynamicallyLoadedModuleNames.Add("MacTargetPlatformControls");
 				}
 
 				if (bBuildShaderFormats)
@@ -585,7 +591,7 @@ namespace UnrealBuildTool
 				case UnrealTargetConfiguration.Debug:
 				default:
 					return true;
-			};
+			}
 		}
 
 		/// <summary>

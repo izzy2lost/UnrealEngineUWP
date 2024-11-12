@@ -12,3 +12,11 @@ void UNiagaraAssetBrowserConfig::Initialize()
 		Instance->AddToRoot();
 	}
 }
+
+void UNiagaraAssetBrowserConfig::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	OnPropertyChangedDelegate.Broadcast(PropertyChangedEvent);
+	SaveEditorConfig();
+}

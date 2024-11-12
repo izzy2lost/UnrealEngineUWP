@@ -19,7 +19,7 @@ void UAvaInteractiveToolsActorPointToolBase::OnViewportPlannerUpdate()
 	{
 		if (!PreviewActor)
 		{
- 			PreviewActor = SpawnActor(ActorClass, /* Preview */ true);			
+ 			PreviewActor = SpawnActor(ActorClass, /* Preview */ true);
 		}
 
 		const bool bUseIdentityLocation = UseIdentityLocation();

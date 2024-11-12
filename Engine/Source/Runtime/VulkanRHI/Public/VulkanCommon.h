@@ -20,66 +20,52 @@
 
 namespace ShaderStage
 {
+	// There should be one value for each value in EShaderFrequency.
+	// These values are meant to be used as indices in contexts where values for different bind points can overlap (Graphics/Compute/RayTracing)
+	// like shader arrays in pipeline states or UB binding indices for Graphics (Vertex==0, Pixel==1) that can overlap with Compute (Compute==0). 
+	// IMPORTANT: Adjusting these requires a full shader rebuild (ie modify the GUID in VulkanCommon.usf)
 	enum EStage
 	{
-		// Adjusting these requires a full shader rebuild (ie modify the guid on VulkanCommon.usf)
-		// Keep the values in sync with EShaderFrequency
 		Vertex = 0,
 		Pixel = 1,
-
-#if VULKAN_SUPPORTS_GEOMETRY_SHADERS
 		Geometry = 2,
-#endif
+		Mesh = 3,
+		Task = 4,
 
-#if RHI_RAYTRACING
-		RayGen = 3,
-		RayMiss = 4,
-		RayHitGroup = 5,
-		RayCallable = 6,
-#endif
+		NumGraphicsStages = 5,
 
-#if VULKAN_SUPPORTS_GEOMETRY_SHADERS
-		NumGeometryStages = 1,
-#else
-		NumGeometryStages = 0,
-#endif
+		RayGen = 0,
+		RayMiss = 1,
+		RayHitGroup = 2,
+		RayCallable = 3,
 
-#if RHI_RAYTRACING
 		NumRayTracingStages = 4,
-#else
-		NumRayTracingStages = 0,
-#endif
 
-		NumStages = (2 + NumGeometryStages + NumRayTracingStages),
-
-		// Compute is its own pipeline, so it can all live as set 0
 		Compute = 0,
 
-#if VULKAN_SUPPORTS_GEOMETRY_SHADERS || RHI_RAYTRACING
-		MaxNumSets = 8,
-#else
-		MaxNumSets = 4,
-#endif
+		NumComputeStages = 1,
+
+		MaxNumStages = 6, // work with even count to simplify bindless alignment requirements
 
 		Invalid = -1,
 	};
+
+	static_assert(MaxNumStages >= FMath::Max(NumComputeStages, FMath::Max(NumGraphicsStages, NumRayTracingStages)), "MaxNumStages too small!");
 
 	inline EStage GetStageForFrequency(EShaderFrequency Stage)
 	{
 		switch (Stage)
 		{
-		case SF_Vertex:		return Vertex;
-		case SF_Pixel:		return Pixel;
-#if VULKAN_SUPPORTS_GEOMETRY_SHADERS
-		case SF_Geometry:	return Geometry;
-#endif
-#if RHI_RAYTRACING
+		case SF_Vertex:			return Vertex;
+		case SF_Mesh:			return Mesh;
+		case SF_Amplification:	return Task;
+		case SF_Pixel:			return Pixel;
+		case SF_Geometry:		return Geometry;
 		case SF_RayGen:			return RayGen;
 		case SF_RayMiss:		return RayMiss;
 		case SF_RayHitGroup:	return RayHitGroup;
 		case SF_RayCallable:	return RayCallable;
-#endif // RHI_RAYTRACING
-		case SF_Compute:	return Compute;
+		case SF_Compute:		return Compute;
 		default:
 			checkf(0, TEXT("Invalid shader Stage %d"), (int32)Stage);
 			break;
@@ -94,17 +80,11 @@ namespace ShaderStage
 		{
 		case EStage::Vertex:	return SF_Vertex;
 		case EStage::Pixel:		return SF_Pixel;
-#if VULKAN_SUPPORTS_GEOMETRY_SHADERS
 		case EStage::Geometry:	return SF_Geometry;
-#endif
-#if RHI_RAYTRACING
-		case EStage::RayGen:		return SF_RayGen;
-		case EStage::RayMiss:		return SF_RayMiss;
-		case EStage::RayHitGroup:	return SF_RayHitGroup;
-		case EStage::RayCallable:	return SF_RayCallable;
-#endif //	RHI_RAYTRACING
+		case EStage::Mesh:		return SF_Mesh;
+		case EStage::Task:		return SF_Amplification;
 		default:
-			checkf(0, TEXT("Invalid shader Stage %d"), (int32)Stage);
+			checkf(0, TEXT("Invalid graphic shader stage: %d"), (int32)Stage);
 			break;
 		}
 
@@ -131,64 +111,16 @@ namespace VulkanBindless
 
 		BindlessAccelerationStructureSet,
 
-		BindlessSingleUseUniformBufferSet,  // Keep last
+		// Number of sets reserved for samplers/resources
 		NumBindlessSets,
-		MaxNumSets = NumBindlessSets
+
+		// Index of the descriptor set used for single use ub (like globals)
+		BindlessSingleUseUniformBufferSet = NumBindlessSets,
+
+		// Total number of descriptor sets used in a bindless pipeline
+		MaxNumSets = NumBindlessSets + 1
 	};
 };
-
-namespace EVulkanBindingType
-{
-	enum EType : uint8
-	{
-		PackedUniformBuffer,	//VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-		UniformBuffer,			//VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-
-		CombinedImageSampler,	//VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER	*not used*
-		Sampler,				//VK_DESCRIPTOR_TYPE_SAMPLER				(HLSL: SamplerState/SamplerComparisonState)
-		Image,					//VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE			(HLSL: Texture2D/3D/Cube)
-
-		UniformTexelBuffer,		//VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER	(HLSL: Buffer)
-
-		// A storage image is a descriptor type that is used for load, store, and atomic operations on image memory from within shaders bound to pipelines.
-		StorageImage,			//VK_DESCRIPTOR_TYPE_STORAGE_IMAGE			(HLSL: RWTexture2D/3D/Cube)
-
-		//A storage texel buffer represents a tightly packed array of homogeneous formatted data that is stored in a buffer and is made accessible to shaders. Storage texel buffers differ from uniform texel buffers in that they support stores and atomic operations in shaders, may support a different maximum length, and may have different performance characteristics.
-		StorageTexelBuffer,		//VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER	(HLSL: RWBuffer)
-
-		// A storage buffer is a region of structured storage that supports both read and write access for shaders. In addition to general read and write operations, some members of storage buffers can be used as the target of atomic operations. In general, atomic operations are only supported on members that have unsigned integer formats.
-		StorageBuffer,			//VK_DESCRIPTOR_TYPE_STORAGE_BUFFER			(HLSL: StructuredBuffer/RWStructureBuffer/ByteAddressBuffer/RWByteAddressBuffer)
-
-		InputAttachment,
-
-		AccelerationStructure,	//VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR
-
-		Count,
-	};
-
-	static inline char GetBindingTypeChar(EType Type)
-	{
-		// Make sure these do NOT alias EPackedTypeName*
-		switch (Type)
-		{
-		case UniformBuffer:			return 'b';
-		case CombinedImageSampler:	return 'c';
-		case Sampler:				return 'p';
-		case Image:					return 'w';
-		case UniformTexelBuffer:	return 'x';
-		case StorageImage:			return 'y';
-		case StorageTexelBuffer:	return 'z';
-		case StorageBuffer:			return 'v';
-		case InputAttachment:		return 'a';
-		case AccelerationStructure:	return 'r';
-		default:
-			check(0);
-			break;
-		}
-
-		return 0;
-	}
-}
 
 DECLARE_LOG_CATEGORY_EXTERN(LogVulkan, Display, All);
 

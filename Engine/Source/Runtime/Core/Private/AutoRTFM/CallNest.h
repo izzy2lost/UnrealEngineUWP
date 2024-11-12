@@ -2,6 +2,7 @@
 
 #pragma once
 
+#if (defined(__AUTORTFM) && __AUTORTFM)
 #include "LongJump.h"
 
 namespace AutoRTFM
@@ -27,3 +28,4 @@ public:
 
 
 } // namespace AutoRTFM
+#endif

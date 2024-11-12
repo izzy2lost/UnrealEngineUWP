@@ -8,7 +8,10 @@ public class libpas : ModuleRules
 {
 	public libpas(ReadOnlyTargetRules Target) : base(Target)
 	{
-		BinariesSubFolder = "NotForLicensees";
+		if (!Target.bUseVerseVM)
+		{
+			BinariesSubFolder = "NotForLicensees";
+		}
 
 		// Disable static analysis for now.
 		bDisableStaticAnalysis = true;
@@ -18,7 +21,7 @@ public class libpas : ModuleRules
 		// Relative to the Engine/Source directory.
 		string libpasDirectory = "ThirdParty/libpas";
 
-		if (Target.Platform == UnrealTargetPlatform.Win64 && !Target.bUseAutoRTFMCompiler)
+		if (Target.Platform == UnrealTargetPlatform.Win64 && !Target.WindowsPlatform.Compiler.IsClang())
 		{
 			// Instead of compiling libpas on Windows, just use binaries that were prebuilt with clang-cl.
 			Type = ModuleType.External;
@@ -33,7 +36,9 @@ public class libpas : ModuleRules
                     libpasConfigName = "ReleaseUE";
                     break;
             }
-			PublicAdditionalLibraries.Add(Path.Combine(libpasDirectory, "x64", libpasConfigName, "libpas.lib"));
+
+			string ArchName = Target.Architecture == UnrealArch.Arm64 ? "ARM64" : "x64";
+			PublicAdditionalLibraries.Add(Path.Combine(libpasDirectory, ArchName, libpasConfigName, "libpas.lib"));
 
 			// libpas will always be statically linked on Windows.
 			PublicDefinitions.Add("LIBPAS_API=");
@@ -48,5 +53,7 @@ public class libpas : ModuleRules
 
 		// UE only sees the libpas includes in the ue_include subdirectory.
 		PublicSystemIncludePaths.Add(Path.Combine(libpasDirectory, "src", "libpas", "ue_include"));
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

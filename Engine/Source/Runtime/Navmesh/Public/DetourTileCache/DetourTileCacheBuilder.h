@@ -58,7 +58,7 @@ struct dtTileCacheLayer
 
 struct dtTileCacheContour
 {
-	unsigned short* verts;
+	unsigned short* verts;	///< x, y, z, portal direction.
 	int nverts;
 	unsigned short reg;
 	unsigned char area;
@@ -263,7 +263,7 @@ NAVMESH_API dtStatus dtBuildTileCacheRegionsChunky(dtTileCacheAlloc* alloc,
 
 NAVMESH_API dtStatus dtBuildTileCacheContours(dtTileCacheAlloc* alloc,
 								dtTileCacheLayer& layer,
-								const int walkableClimb, const int maxVerticalMergeError, const dtReal maxError, const dtReal simplificationElevationRatio, // UE
+								const int walkableClimb, const dtReal maxError, const dtReal simplificationElevationRatio, // UE
 								const dtReal cs, const dtReal ch,
 								dtTileCacheContourSet& lcset
 								//@UE BEGIN
@@ -277,7 +277,8 @@ NAVMESH_API dtStatus dtBuildTileCacheContours(dtTileCacheAlloc* alloc,
 NAVMESH_API dtStatus dtBuildTileCachePolyMesh(dtTileCacheAlloc* alloc,
 								dtTileCacheLogContext* ctx,
 								dtTileCacheContourSet& lcset,
-								dtTileCachePolyMesh& mesh);
+								dtTileCachePolyMesh& mesh,
+								const int walkableClimb);
 
 //@UE BEGIN
 NAVMESH_API dtStatus dtBuildTileCachePolyMeshDetail(dtTileCacheAlloc* alloc,

@@ -24,7 +24,7 @@ void FOptimusDataTypeRef::Set(
 	if (InTypeHandle.IsValid())
 	{
 		TypeName = InTypeHandle->TypeName;
-		TypeObject = InTypeHandle->TypeObject;
+		TypeObject = InTypeHandle->TypeObject.Get();
 		checkSlow(FOptimusDataTypeRegistry::Get().FindType(TypeName) != nullptr);
 	}
 	else
@@ -45,7 +45,7 @@ FOptimusDataTypeHandle FOptimusDataTypeRef::Resolve() const
 	// so we have to register these types on demand.
 	if (!TypeHandle.IsValid())
 	{
-		if (TypeObject.IsValid())
+		if (TypeObject.LoadSynchronous())
 		{
 			if (Registry.RegisterStructType(Cast<UScriptStruct>(TypeObject.Get())))
 			{
@@ -66,7 +66,7 @@ void FOptimusDataTypeRef::PostSerialize(const FArchive& Ar)
 		const FOptimusDataTypeHandle TypeHandle = FOptimusDataTypeRegistry::Get().FindType(TypeName);
 		if (TypeHandle.IsValid())
 		{
-			TypeObject = TypeHandle->TypeObject;
+			TypeObject = TypeHandle->TypeObject.Get();
 		}
 	}
 }
@@ -93,7 +93,7 @@ FProperty* FOptimusDataType::CreateProperty(
 
 bool FOptimusDataType::ConvertPropertyValueToShader(
 	TArrayView<const uint8> InValue,
-	FShaderValueType::FValueView OutConvertedValue
+	FShaderValueContainer& OutConvertedValue
 	) const
 {
 	const FOptimusDataTypeRegistry::PropertyValueConvertFuncT PropertyConversionFunc =
@@ -108,9 +108,9 @@ bool FOptimusDataType::ConvertPropertyValueToShader(
 	}
 }
 
-FShaderValueType::FValue FOptimusDataType::MakeShaderValue() const
+FShaderValueContainer FOptimusDataType::MakeShaderValue() const
 {
-	return {ShaderValueSize, GetNumArrays()};
+	return FShaderValueContainer(ShaderValueSize, GetNumArrays());
 }
 
 bool FOptimusDataType::CanCreateProperty() const

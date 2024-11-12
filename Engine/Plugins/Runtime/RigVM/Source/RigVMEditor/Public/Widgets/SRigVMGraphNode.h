@@ -73,7 +73,8 @@ protected:
 
 	FText GetPinLabel(TWeakPtr<SGraphPin> GraphPin) const;
 
-	FSlateColor GetPinTextColor(TWeakPtr<SGraphPin> GraphPin) const;
+	virtual TOptional<FSlateColor> GetHighlightColor(const SGraphPin* InGraphPin) const override;
+	virtual TOptional<const FSlateBrush*> GetPinBorder(const SGraphPin* InGraphPin) const override;
 	FSlateColor GetVariableLabelTextColor(TWeakObjectPtr<URigVMFunctionReferenceNode> FunctionReferenceNode, FName InVariableName) const;
 	FText GetVariableLabelTooltipText(TWeakObjectPtr<URigVMBlueprint> InBlueprint, FName InVariableName) const;
 
@@ -94,6 +95,8 @@ protected:
 	FReply OnExpanderArrowClicked(int32 InPinInfoIndex);
 	void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
 	virtual void UpdatePinTreeView();
+	bool HasUserProvidedValue(const SGraphPin* InGraphPin) const;
+	bool IsCategoryPin(const SGraphPin* InGraphPin) const;
 
 	/** Cached widget title area */
 	TSharedPtr<SOverlay> TitleAreaWidget;
@@ -118,11 +121,12 @@ protected:
 	{
 		int32 Index;
 		int32 ParentIndex;
+		bool bIsCategoryPin;
 		bool bHasChildren;
 		bool bHideInputWidget;
 		bool bIsContainer;
 		int32 Depth;
-		FString ModelPinPath;
+		FString Identifier;
 		TSharedPtr<SGraphPin> InputPinWidget;
 		TSharedPtr<SGraphPin> OutputPinWidget;
 		bool bExpanded;

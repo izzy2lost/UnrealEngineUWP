@@ -5,6 +5,7 @@
 
 #if WITH_EDITOR
 #include "UObject/UE5MainStreamObjectVersion.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 
 FPartitionActorDesc::FPartitionActorDesc()
 	: GridSize(0)
@@ -28,18 +29,26 @@ void FPartitionActorDesc::Init(const AActor* InActor)
 	
 		const FVector ActorLocation = InActor->GetActorLocation();
 		SetGridIndices(ActorLocation.X, ActorLocation.Y, ActorLocation.Z);
+
+		EditorBounds = UActorPartitionSubsystem::FCellCoord::GetCellBounds({ GridIndexX, GridIndexY, GridIndexZ, 0 }, GridSize);
 	}
 }
 
 void FPartitionActorDesc::Serialize(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
 
 	FWorldPartitionActorDesc::Serialize(Ar);
 	
 	if (!bIsDefaultActorDesc)
 	{
 		Ar << GridSize << GridIndexX << GridIndexY << GridIndexZ;
+
+		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WorldPartitionActorDescSerializeEditorBounds)
+		{
+			EditorBounds = UActorPartitionSubsystem::FCellCoord::GetCellBounds({ GridIndexX, GridIndexY, GridIndexZ, 0 }, GridSize);
+		}
 
 		if (Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) >= FUE5MainStreamObjectVersion::PartitionActorDescSerializeGridGuid)
 		{
@@ -63,12 +72,6 @@ bool FPartitionActorDesc::Equals(const FWorldPartitionActorDesc* Other) const
 	}
 
 	return false;
-}
-
-FBox FPartitionActorDesc::GetEditorBounds() const
-{
-	const UActorPartitionSubsystem::FCellCoord CellCoord(GridIndexX, GridIndexY, GridIndexZ, 0);
-	return UActorPartitionSubsystem::FCellCoord::GetCellBounds(CellCoord, GridSize);
 }
 
 void FPartitionActorDesc::TransferWorldData(const FWorldPartitionActorDesc* From)

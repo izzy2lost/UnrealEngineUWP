@@ -70,13 +70,17 @@ void UAsyncTaskDownloadImage::HandleImageRequest(FHttpRequestPtr HttpRequest, FH
 
 		for ( auto ImageWrapper : ImageWrappers )
 		{
-			if ( ImageWrapper.IsValid() && ImageWrapper->SetCompressed(HttpResponse->GetContent().GetData(), HttpResponse->GetContent().Num()) )
+			if ( ImageWrapper.IsValid() && 
+				 ImageWrapper->SetCompressed(HttpResponse->GetContent().GetData(), HttpResponse->GetContent().Num()) &&
+				 ImageWrapper->GetWidth() <= TNumericLimits<int32>::Max() && 
+				 ImageWrapper->GetHeight() <= TNumericLimits<int32>::Max())
 			{
+				
 				TArray64<uint8> RawData;
 				const ERGBFormat InFormat = ERGBFormat::BGRA;
 				if ( ImageWrapper->GetRaw(InFormat, 8, RawData) )
-				{
-					if ( UTexture2DDynamic* Texture = UTexture2DDynamic::Create(ImageWrapper->GetWidth(), ImageWrapper->GetHeight()) )
+				{					
+					if ( UTexture2DDynamic* Texture = UTexture2DDynamic::Create(static_cast<int32>(ImageWrapper->GetWidth()), static_cast<int32>(ImageWrapper->GetHeight())) )
 					{
 						Texture->SRGB = true;
 						Texture->UpdateResource();

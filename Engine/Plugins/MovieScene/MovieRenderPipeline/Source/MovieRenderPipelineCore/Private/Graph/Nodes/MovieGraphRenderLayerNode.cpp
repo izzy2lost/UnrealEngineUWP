@@ -3,6 +3,7 @@
 #include "Graph/Nodes/MovieGraphRenderLayerNode.h"
 
 #include "Graph/MovieGraphConfig.h"
+#include "MoviePipelineTelemetry.h"
 #include "Styling/AppStyle.h"
 
 UMovieGraphRenderLayerNode::UMovieGraphRenderLayerNode()
@@ -53,3 +54,8 @@ void UMovieGraphRenderLayerNode::PostEditChangeProperty(FPropertyChangedEvent& P
 	}
 }
 #endif // WITH_EDITOR
+
+void UMovieGraphRenderLayerNode::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	++InTelemetry->RenderLayerCount;
+}

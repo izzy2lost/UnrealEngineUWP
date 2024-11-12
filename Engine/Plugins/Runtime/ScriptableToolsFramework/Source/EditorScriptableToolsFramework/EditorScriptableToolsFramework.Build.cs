@@ -39,7 +39,8 @@ public class EditorScriptableToolsFramework : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Engine"
+				"Engine",
+				"UnrealEd"
 			}
 			);
 

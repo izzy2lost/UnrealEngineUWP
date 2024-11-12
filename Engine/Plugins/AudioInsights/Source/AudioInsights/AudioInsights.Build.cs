@@ -7,13 +7,15 @@ public class AudioInsights : ModuleRules
 	public AudioInsights(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-		
+
 		PublicDependencyModuleNames.AddRange
 		(
 			new string[]
 			{
 				"Core",
+				"TraceInsights",
 				"TraceServices",
+				"ToolWidgets",
 			}
 		);	
 		
@@ -21,26 +23,26 @@ public class AudioInsights : ModuleRules
 		(
 			new string[]
 			{
-				"CoreUObject",
-				"Engine",
-				"AudioMixer",
 				"AudioMixerCore",
-				"AudioWidgets",
-				"GameplayInsights",
+				"CoreUObject",
 				"InputCore",
-				"LevelEditor",
 				"OutputLog",
-				"SignalProcessing",
+				"SessionServices",
 				"Slate",
 				"SlateCore",
-				"ToolMenus",
-				"ToolWidgets",
-				"TraceLog",
 				"TraceAnalysis",
-				"TraceInsights",
-				"UnrealEd",
-				"WorkspaceMenuStructure"
+				"TraceLog",
 			}
-		);		
+		);
+
+		if (Target.Type == TargetType.Editor)
+		{
+			PrivateDependencyModuleNames.AddRange(
+			new string[]
+			{
+				"Engine",
+				"UnrealEd",
+			});
+		}
 	}
 }

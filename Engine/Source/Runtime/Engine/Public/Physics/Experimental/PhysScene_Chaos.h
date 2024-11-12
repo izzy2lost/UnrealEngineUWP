@@ -14,6 +14,7 @@
 #include "Chaos/ChaosScene.h"
 #include "Chaos/ContactModification.h"
 #include "Chaos/Real.h"
+#include "Chaos/AsyncInitBodyHelper.h"
 #include "UObject/ObjectKey.h"
 
 #ifndef CHAOS_WITH_PAUSABLE_SOLVER
@@ -27,6 +28,7 @@ class UPrimitiveComponent;
 
 class AdvanceOneTimeStepTask;
 class IPhysicsReplication;
+class FPhysicsReplicationCache;
 class FPhysInterface_Chaos;
 class FChaosSolversModule;
 struct FForceFieldProxy;
@@ -79,6 +81,16 @@ struct FConstraintBrokenDelegateWrapper
 	void DispatchOnBroken();
 
 	FOnConstraintBroken OnConstraintBrokenDelegate;
+	int32 ConstraintIndex;
+};
+
+struct FConstraintViolatedDelegateWrapper
+{
+	FConstraintViolatedDelegateWrapper(FConstraintInstanceBase* ConstraintInstance);
+
+	void DispatchOnViolated(float LinearViolation, float AngularViolation);
+
+	FOnConstraintViolated OnConstraintViolatedDelegate;
 	int32 ConstraintIndex;
 };
 
@@ -164,6 +176,7 @@ public:
 	template<class OwnerType>
 	OwnerType* GetOwningComponent(const IPhysicsProxyBase* PhysicsProxy) const
 	{ 
+		UE_CHAOS_ASYNC_INITBODY_READSCOPELOCK(PhysicsProxyComponentMapsLock);
 		auto* CompPtr = PhysicsProxyToComponentMap.Find(PhysicsProxy);
 		return CompPtr ? Cast<OwnerType>(*CompPtr) : nullptr;
 	}
@@ -174,6 +187,7 @@ public:
 	/** Given a component, returns its associated solver objects. */
 	const TArray<IPhysicsProxyBase*>* GetOwnedPhysicsProxies(UPrimitiveComponent* Comp) const
 	{
+		UE_CHAOS_ASYNC_INITBODY_READSCOPELOCK(PhysicsProxyComponentMapsLock);
 		return ComponentToPhysicsProxyMap.Find(Comp);
 	}
 
@@ -255,44 +269,78 @@ public:
 	/** Register a component for physics replication state caching, the component will deregister automatically if cache is not accessed within timelimit set by CVar: np2.ReplicationCache.LingerForNSeconds */
 	ENGINE_API void RegisterForReplicationCache(UPrimitiveComponent* RootComponent);
 
-	/** Populate the replication cache from the list of registered components */
-	ENGINE_API void PopulateReplicationCache(const int32 PhysicsStep);
+	UE_DEPRECATED(5.5, "Deprecated, ReplicationCache has been moved to FPhysicsReplicationCache and it's getting populated automatically. Use GetStateFromReplicationCache() and RegisterForReplicationCache() to use the replication cache. ")
+	ENGINE_API void PopulateReplicationCache(const int32 PhysicsStep) { }
 
-	struct FReplicationCacheData
+	/** Get the FPhysicsReplicationCache */
+	ENGINE_API FPhysicsReplicationCache* GetPhysicsReplicationCache()
 	{
-		FReplicationCacheData(UPrimitiveComponent* InRootComponent, Chaos::FReal InAccessTime);
+		// Create the physics replication cache if not already created
+		CreatePhysicsReplicationCache();
 
-		UPrimitiveComponent* GetRootComponent()	{ return RootComponent.Get(); }
-		FRigidBodyState& GetState()	{ return State; }
+		return PhysicsReplicationCache.Get();
+	}
+
+	/** Create the replication cache if one doesn't exist */
+	ENGINE_API void CreatePhysicsReplicationCache();
+
+	struct UE_DEPRECATED(5.5, "Deprecated, ReplicationCache has been moved to FPhysicsReplicationCache")
+		FReplicationCacheData
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FReplicationCacheData() = default;
+		FReplicationCacheData(UPrimitiveComponent * InRootComponent, Chaos::FReal InAccessTime);
+		~FReplicationCacheData() = default;
+		FReplicationCacheData(const FReplicationCacheData&) = default;
+		FReplicationCacheData(FReplicationCacheData&&) = default;
+		FReplicationCacheData& operator=(const FReplicationCacheData&) = default;
+		FReplicationCacheData& operator=(FReplicationCacheData&&) = default;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		UPrimitiveComponent* GetRootComponent() { return RootComponent.Get(); }
+		FRigidBodyState& GetState() { return State; }
 		void SetAccessTime(Chaos::FReal Time) { AccessTime = Time; }
 		Chaos::FReal GetAccessTime() { return AccessTime; }
 		void SetIsCached(bool InIsCached) { bValidStateCached = InIsCached; }
 		bool IsCached() { return bValidStateCached; }
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	private:
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		TWeakObjectPtr<UPrimitiveComponent> RootComponent;
 		Chaos::FReal AccessTime;
 		bool bValidStateCached;
 		FRigidBodyState State;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	};
 
-	// Storage structure for replication data
-	// probably should just expose read/write API not the structure directly itself like this.
-	struct FPrimitiveComponentReplicationCache
+	struct UE_DEPRECATED(5.5, "Deprecated, ReplicationCache has been moved to FPhysicsReplicationCache")
+		FPrimitiveComponentReplicationCache
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FPrimitiveComponentReplicationCache() = default;
+		~FPrimitiveComponentReplicationCache() = default;
+		FPrimitiveComponentReplicationCache(const FPrimitiveComponentReplicationCache&) = default;
+		FPrimitiveComponentReplicationCache(FPrimitiveComponentReplicationCache&&) = default;
+		FPrimitiveComponentReplicationCache& operator=(const FPrimitiveComponentReplicationCache&) = default;
+		FPrimitiveComponentReplicationCache& operator=(FPrimitiveComponentReplicationCache&&) = default;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		int32 ServerFrame = 0;
 		TMap<FObjectKey, FReplicationCacheData> Map;
-
 		void Reset()
 		{
 			ServerFrame = 0;
 			Map.Reset();
 		}
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	};
 
-	FPrimitiveComponentReplicationCache ReplicationCache;
-
 private:
+	TUniquePtr<FPhysicsReplicationCache> PhysicsReplicationCache;
+
 	TSet<UPrimitiveComponent*> CollisionEventRegistrations;
 	TSet<UPrimitiveComponent*> GlobalCollisionEventRegistrations;
 	TSet<UPrimitiveComponent*> GlobalRemovalEventRegistrations;
@@ -399,6 +447,10 @@ private:
 	TArray<TPair<TWeakObjectPtr<USkeletalMeshComponent>, FDeferredKinematicUpdateInfo>> DeferredKinematicUpdateSkelMeshes;
 
 	TSet<UPrimitiveComponent*> DeferredCreatePhysicsStateComponents;
+
+	// RWLock for for thread safe access to PhysicsProxyToComponentMap and ComponentToPhysicsProxyMap.
+	mutable FRWLock PhysicsProxyComponentMapsLock;
+
 	//Body Instances
 	TUniquePtr<Chaos::TArrayCollectionArray<FBodyInstance*>> BodyInstances;
 	// Temp Interface

@@ -12,7 +12,7 @@ using System.Linq;
 namespace Gauntlet
 {
 
-	public class EditorBuild : IBuild 
+	public class EditorBuild : IBuild
 	{
 		public int PreferenceOrder { get { return 0; } }
 
@@ -21,6 +21,8 @@ namespace Gauntlet
 		public UnrealTargetConfiguration Configuration { get; protected set; }
 
 		public BuildFlags Flags { get { return BuildFlags.CanReplaceCommandLine | BuildFlags.Loose; } }
+
+		public bool SupportsAdditionalFileCopy => true;
 
 		public string Flavor { get { return ""; } }
 
@@ -48,6 +50,8 @@ namespace Gauntlet
 		public BuildFlags Flags { get; protected set; }
 
 		public string Flavor { get; protected set; }
+
+		public bool SupportsAdditionalFileCopy => false;
 
 		public string BuildPath { get; protected set; }
 
@@ -86,6 +90,8 @@ namespace Gauntlet
 
 		public string Flavor { get; protected set; }
 
+		public bool SupportsAdditionalFileCopy { get; }
+
 		public string BuildPath { get; protected set; }
 
 		public string ExecutablePath { get; protected set; }
@@ -108,6 +114,7 @@ namespace Gauntlet
 			ExecutablePath = InExecutablePath;
 			Flags = BuildFlags.CanReplaceCommandLine | BuildFlags.CanReplaceExecutable | BuildFlags.Loose;
 			Flavor = InFlavor;
+			SupportsAdditionalFileCopy = true; // NativeStagedBuilds may want this to be false
 		}
 
 		enum InstallStatus

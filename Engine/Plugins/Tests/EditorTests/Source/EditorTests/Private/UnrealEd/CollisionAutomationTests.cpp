@@ -30,10 +30,10 @@ namespace CollisionAutomationTests
 {
 	FAutomationTestBase* TestBase;
 	// Return the currently active world
-	UWorld* GetAutomationWorld(const int32 TestFlags)
+	UWorld* GetAutomationWorld(const EAutomationTestFlags TestFlags)
  	{
 		UWorld* World = nullptr;
-		if( TestFlags & EAutomationTestFlags::ClientContext)
+		if (!!(TestFlags & EAutomationTestFlags::ClientContext))
 		{
 			check(GEngine->GetWorldContexts().Num() == 1);
 			World = GEngine->GetWorldContexts()[0].World();
@@ -115,7 +115,7 @@ namespace CollisionAutomationTests
 		if (Diff > Tolerance)
 		{
 			//UE_LOG(CollisionAutomationTestLog, Log, TEXT("%d:HitResult=(%s)"), iTest+1, *OutHits[iHits].ToString());
-			TestBase->AddError(FString::Printf(TEXT("Test %d:%s %s mismatch. Should be %df but is actually %f."), TestIndex, *TestName, *ParameterName, ExpectedFloat, ResultFloat));
+			TestBase->AddError(FString::Printf(TEXT("Test %d:%s %s mismatch. Should be %f but is actually %f."), TestIndex, *TestName, *ParameterName, ExpectedFloat, ResultFloat));
 		}
 	}
 

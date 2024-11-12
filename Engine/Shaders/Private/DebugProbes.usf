@@ -161,7 +161,7 @@ void WriteOutMaterial(
 	const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(false /*bForceFullyRough*/, bRoughDiffuse, 0/*PeelLayersAboveDepth*/, false/*bRoughnessTracking*/);
 
 	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelCoord, uint2(ResolvedView.BufferSizeAndInvSize.xy), MaxBytesPerPixel);
-	FRWSubstrateMaterialContainer RWSubstrateMaterialContainer = InitialiseRWSubstrateMaterialContainer(MaterialTextureArrayUAV);
+	FRWSubstrateMaterialContainer RWSubstrateMaterialContainer = InitialiseRWSubstrateMaterialContainer(MaterialTextureArrayUAV, true /*bAllowWrite*/);
 	PackSubstrateOut(
 		RWSubstrateMaterialContainer,
 		MaterialTextureArrayUAV,
@@ -252,8 +252,8 @@ void MainPS(
 	const float Depth = 1000000.0f;
 	float4 TranslatedWorldPos = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, Depth), Depth, 1), View.ScreenToTranslatedWorld);
 
-	const float3 RayDir = normalize(TranslatedWorldPos.xyz - View.TranslatedWorldCameraOrigin);
-	const float3 RayOrig = DFHackToFloat(ResolvedView.WorldCameraOrigin);
+	const float3 RayDir = GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPos.xyz);
+	const float3 RayOrig = DFHackToFloat(GetWorldCameraPosFromView(ResolvedView, SvPosition.xy));
 
 #if PERMUTATION_ILLUMINANCEMETER /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

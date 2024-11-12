@@ -9,9 +9,6 @@
 #include "Engine/TextureStreamingTypes.h"
 #include "Serialization/BulkData.h"
 #include "Templates/RefCounting.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RenderAssetUpdate.h"
-#endif
 #include "Streaming/StreamableRenderResourceState.h"
 #include "PerQualityLevelProperties.h"
 #include "StreamableRenderAsset.generated.h"

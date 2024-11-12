@@ -75,14 +75,7 @@ static void IterateShaderParameterMembersInternal(
 		}
 		else
 		{
-			const bool bParametersAreExpanded =
-				NumElements > 0 &&
-				(BaseType == UBMT_TEXTURE ||
-					BaseType == UBMT_SRV ||
-					BaseType == UBMT_UAV ||
-					BaseType == UBMT_SAMPLER ||
-					IsRDGResourceReferenceShaderParameterType(BaseType));
-
+			const bool bParametersAreExpanded = NumElements > 0 && (IsShaderParameterTypeRHIResource(BaseType) || IsRDGResourceReferenceShaderParameterType(BaseType));
 			if (bParametersAreExpanded)
 			{
 				const uint16 ElementSize = SHADER_PARAMETER_POINTER_ALIGNMENT;
@@ -956,29 +949,27 @@ FString FShaderParameterParser::GenerateBindlessParameterDeclaration(const FPars
 	TStringBuilder<64> FullType;
 	FullType << StorageClass << TypedefName;
 
+	TStringBuilder<64> HeapName;
+
 	if (EnumHasAnyFlags(PlatformConfiguration.Flags, EShaderParameterParserConfigurationFlags::BindlessUsesArrays))
 	{
 		const FStringView HeapPrefix = GetBindlessArrayHeapPrefix(ParsedParameter.BindlessConversionType);
 
+		HeapName << HeapPrefix << TypedefName;
+
 		// Declare a heap for the RewriteType
 		// e.g. `SafeType##Name ResourceDescriptorHeap_SafeType##Name[];`
-		Result << FullType << TEXT(" ") << HeapPrefix << TypedefName << TEXT("[]; ");
+		Result << FullType << TEXT(" ") << HeapName << TEXT("[]; ");
 		// :todo-jn: specify the descriptor set and binding directly in source instead of patching SPIRV
-
-		// e.g. `static const SafeType##Name Name = ResourceDescriptorHeap_SafeType##Name[BindlessResource_##Name];`
-		Result << TEXT("static const ") << FullType << TEXT(" ") << Name << TEXT(" = ") << HeapPrefix << TypedefName << TEXT("[") << IndexString << TEXT("];");
 	}
-	else
-	{
-		const FString BindlessAccess = PlatformConfiguration.GenerateBindlessAccess(ParsedParameter.BindlessConversionType, FullType, IndexString);
 
-		const TCHAR* Kind = bIsSampler ? TEXT("Sampler") : TEXT("Resource");
+	const FString BindlessAccess = PlatformConfiguration.GenerateBindlessAccess(ParsedParameter.BindlessConversionType, FullType, HeapName, IndexString);
+	const TCHAR* FunctionPrefix = bIsSampler ? TEXT("GetBindlessSampler") : TEXT("GetBindlessResource");
 
-		// e.g. `Type GetBindlessResource##Name() { return GetResourceFromHeap(Type, BindlessResource_##Name); } static const Type Name = GetBindlessResource##Name()`
-		// or   `Type GetBindlessSampler##Name() { return GetSamplerFromHeap(Type, BindlessSampler_##Name); } static const Type Name = GetBindlessSampler##Name()`
-		Result << FullType << TEXT(" GetBindless") << Kind << Name << TEXT("() { return ") << BindlessAccess << TEXT("; } ");
-		Result << TEXT("static const ") << FullType << TEXT(" ") << Name << TEXT(" = GetBindless") << Kind << Name << TEXT("();");
-	}
+	// e.g. `Type GetBindlessResource##Name() { return GetResourceFromHeap(Type, BindlessResource_##Name); } static const Type Name = GetBindlessResource##Name()`
+	// or   `Type GetBindlessSampler##Name() { return GetSamplerFromHeap(Type, BindlessSampler_##Name); } static const Type Name = GetBindlessSampler##Name()`
+	Result << FullType << TEXT(" ") << FunctionPrefix << Name << TEXT("() { return ") << BindlessAccess << TEXT("; } ");
+	Result << TEXT("static const ") << FullType << TEXT(" ") << Name << TEXT(" = ") << FunctionPrefix << Name << TEXT("();");
 
 	return Result.ToString();
 }
@@ -997,9 +988,11 @@ void FShaderParameterParser::ApplyBindlessModifications(FString& PreprocessedSha
 		TArray<FShaderCodeModifications> Modifications;
 		Modifications.Reserve(ParsedParameters.Num());
 
+		const bool bReplaceGlobals = EnumHasAnyFlags(PlatformConfiguration.Flags, EShaderParameterParserConfigurationFlags::ReplaceGlobals);
+
 		for (TPair<FString, FParsedShaderParameter>& Itr : ParsedParameters)
 		{
-			FParsedShaderParameter& ParsedParameter = Itr.Value;
+			const FParsedShaderParameter& ParsedParameter = Itr.Value;
 
 			if (!ParsedParameter.IsFound())
 			{
@@ -1014,6 +1007,26 @@ void FShaderParameterParser::ApplyBindlessModifications(FString& PreprocessedSha
 				Modif.Replace = GenerateBindlessParameterDeclaration(ParsedParameter);
 
 				Modifications.Add(Modif);
+			}
+			else if (bReplaceGlobals)
+			{
+				const bool IsGlobalParam = 
+					(ParsedParameter.BaseType == UBMT_INVALID) &&
+					!ParsedParameter.ParsedName.StartsWith(FShaderParameterParser::kBindlessSamplerArrayPrefix) &&
+					!ParsedParameter.ParsedName.StartsWith(FShaderParameterParser::kBindlessSRVArrayPrefix) &&
+					!ParsedParameter.ParsedName.StartsWith(FShaderParameterParser::kBindlessUAVArrayPrefix);
+
+				if (IsGlobalParam)
+				{
+					FShaderCodeModifications Modif;
+					Modif.CharOffsetStart = ParsedParameter.ParsedCharOffsetStart;
+					Modif.CharOffsetEnd = ParsedParameter.ParsedCharOffsetEnd + 1;
+
+					const int32 NumChars = Modif.CharOffsetEnd - Modif.CharOffsetStart;
+					Modif.Replace = PlatformConfiguration.ReplaceGlobal(FStringView(&OriginalParsedShader[Modif.CharOffsetStart], NumChars), ParsedParameter.ParsedName);
+
+					Modifications.Add(Modif);
+				}
 			}
 		}
 
@@ -1167,7 +1180,7 @@ bool FShaderParameterParser::ParseAndModify(const FShaderCompilerInput& Compiler
 
 	const bool bUseStableConstantBuffer = EnumHasAnyFlags(PlatformConfiguration.Flags, EShaderParameterParserConfigurationFlags::UseStableConstantBuffer);
 	const bool bSupportsBindless = EnumHasAnyFlags(PlatformConfiguration.Flags, EShaderParameterParserConfigurationFlags::SupportsBindless);
-
+	const bool bAlwaysParseParams = EnumHasAnyFlags(PlatformConfiguration.Flags, EShaderParameterParserConfigurationFlags::AlwaysParseParams);
 	const bool bHasRootParameters = (CompilerInput.RootParametersStructure != nullptr);
 	const bool bRootParametersModification = bUseStableConstantBuffer && (CompilerInput.IsRayTracingShader() || CompilerInput.ShouldUseStableConstantBuffer());
 	const bool bBindlessModifications = bSupportsBindless && (bBindlessResources || bBindlessSamplers);
@@ -1175,7 +1188,7 @@ bool FShaderParameterParser::ParseAndModify(const FShaderCompilerInput& Compiler
 	const bool bShouldModify = bRootParametersModification || bBindlessModifications;
 
 	// Always parse if we have root parameters since we need that data during reflection validation
-	const bool bShouldParse = bHasRootParameters || bShouldModify;
+	const bool bShouldParse = bHasRootParameters || bShouldModify || bAlwaysParseParams;
 
 	// The shader doesn't have any parameter binding through shader structure, therefore don't do anything.
 	if (!bShouldParse)

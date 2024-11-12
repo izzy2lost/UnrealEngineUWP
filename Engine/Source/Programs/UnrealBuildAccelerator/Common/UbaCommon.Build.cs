@@ -36,6 +36,13 @@ public class UbaCommon : ModuleRules
 			PublicSystemLibraries.Add("dl");
 		}
 
+		if (Target.Platform != UnrealTargetPlatform.Win64)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[] {
+				"OpenSSL",
+			});
+		}
+
 		PrivateDefinitions.AddRange(new string[] {
 			"_CONSOLE",
 		});

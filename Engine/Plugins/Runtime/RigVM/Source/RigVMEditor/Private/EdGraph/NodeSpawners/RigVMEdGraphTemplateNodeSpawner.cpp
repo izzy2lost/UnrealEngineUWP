@@ -174,7 +174,7 @@ UEdGraphNode* URigVMEdGraphTemplateNodeSpawner::Invoke(UEdGraph* ParentGraph, FB
 				const FRigVMExecuteArgument* Argument = Template->GetExecuteArgument(Index, Context);
 				check(Argument);
 				static UScriptStruct* ExecuteScriptStruct = FRigVMExecuteContext::StaticStruct();
-				static const FName ExecuteStructName = *ExecuteScriptStruct->GetStructCPPName();
+				static const FLazyName ExecuteStructName(*ExecuteScriptStruct->GetStructCPPName());
 				Pins.Emplace(Argument->Name, Argument->Direction, ExecuteStructName, ExecuteScriptStruct);
 			}
 
@@ -219,7 +219,7 @@ URigVMEdGraphNode* URigVMEdGraphTemplateNodeSpawner::SpawnNode(UEdGraph* ParentG
 
 	if (RigBlueprint != nullptr && RigGraph != nullptr)
 	{
-		const FName Name = FRigVMBlueprintUtils::ValidateName(RigBlueprint, Template->GetName().ToString());
+		const FName Name = FRigVMBlueprintUtils::ValidateName(RigBlueprint, Template->GetNodeName().ToString());
 		URigVMController* Controller = RigBlueprint->GetController(ParentGraph);
 
 		Controller->OpenUndoBracket(FString::Printf(TEXT("Add '%s' Node"), *Name.ToString()));

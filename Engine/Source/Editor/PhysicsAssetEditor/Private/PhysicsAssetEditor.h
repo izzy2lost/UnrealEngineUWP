@@ -73,7 +73,7 @@ public:
 	TSharedPtr<FPhysicsAssetEditorSharedData> GetSharedData() const;
 
 	/** Handles a group selection change... assigns the proper object to the properties widget and the hierarchy tree view */
-	void HandleViewportSelectionChanged(const TArray<FPhysicsAssetEditorSharedData::FSelection>& InSelectedBodies, const TArray<FPhysicsAssetEditorSharedData::FSelection>& InSelectedConstraints);
+	void HandleViewportSelectionChanged(const TArray<FPhysicsAssetEditorSharedData::FSelection>& InSelectedBodies, const TArray<FPhysicsAssetEditorSharedData::FSelection>& InSelectedConstraints, const TArray<FPhysicsAssetEditorSharedData::FSelection>& InSelectedCoMs);
 
 	/** Repopulates the hierarchy tree view */
 	void RefreshHierachyTree();
@@ -145,6 +145,9 @@ public:
 
 	/** Make the constraint scale widget */
 	TSharedRef<SWidget> MakeConstraintScaleWidget();
+
+	/** Make the Center of Mass marker scale widget */
+	TSharedRef<SWidget> MakeCoMMarkerScaleWidget();
 
 	/** Make the collision opacity widget */
 	TSharedRef<SWidget> MakeCollisionOpacityWidget();
@@ -225,6 +228,8 @@ private:
 	bool CanCopyProperties() const;
 	void OnPasteProperties();
 	bool CanPasteProperties() const;
+	void OnCopyBodyName();
+    bool CanCopyBodyName() const;
 	bool IsSelectedEditMode() const;
 	void OnRepeatLastSimulation();
 	void OnToggleSimulation(bool bInSelected);
@@ -238,6 +243,8 @@ private:
 	bool IsToggleSimulation() const;
 	void OnMeshRenderingMode(EPhysicsAssetEditorMeshViewMode Mode, bool bSimulation);
 	bool IsMeshRenderingMode(EPhysicsAssetEditorMeshViewMode Mode, bool bSimulation) const;
+	void OnCenterOfMassRenderingMode(EPhysicsAssetEditorCenterOfMassViewMode Mode, bool bSimulation);
+	bool IsCenterOfMassRenderingMode(EPhysicsAssetEditorCenterOfMassViewMode Mode, bool bSimulation) const;
 	void OnCollisionRenderingMode(EPhysicsAssetEditorCollisionViewMode Mode, bool bSimulation);
 	bool IsCollisionRenderingMode(EPhysicsAssetEditorCollisionViewMode Mode, bool bSimulation) const;
 	void OnConstraintRenderingMode(EPhysicsAssetEditorConstraintViewMode Mode, bool bSimulation);
@@ -251,9 +258,12 @@ private:
 	void ToggleRenderOnlySelectedSolid();
 	void ToggleHideSimulatedBodies();
 	void ToggleHideKinematicBodies();
+	void ToggleHideBodyMass();
 	bool IsRenderingOnlySelectedSolid() const;
 	bool IsHidingSimulatedBodies() const;
 	bool IsHidingKinematicBodies() const;
+	bool IsHidingBodyMass() const;
+	bool IsDrawingBodyMass() const;
 	void OnToggleMassProperties();
 	bool IsToggleMassProperties() const;
 	void OnSetCollision(bool bEnable);
@@ -360,6 +370,9 @@ private:
 
 	/** show a notification message **/
 	void ShowNotificationMessage(const FText& Message, const SNotificationItem::ECompletionState CompletionState);
+
+	/** Helper function for creating Scale Widgets */
+	template<typename TValueAccessor> TSharedRef<SWidget> MakeScaleWidget(const float MinValue, const float MaxValue, TValueAccessor ValueAccessorFunction, const FName WidgetInteractionText);
 
 private:
 	/** Physics asset properties tab */

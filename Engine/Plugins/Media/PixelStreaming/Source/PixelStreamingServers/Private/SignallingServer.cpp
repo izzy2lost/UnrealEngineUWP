@@ -46,7 +46,18 @@ namespace UE::PixelStreamingServers
 			if (bConnected)
 			{
 				// Close the websocket connection so others can use it
+				Probe->Close();
 				Probe.Reset();
+
+				// Even after closing the client WS of the probe above it will take another tick to remove the connection
+				// so we manually remove the probe connection here to prevent any erroneous number of streamers being reported.
+				uint16 ProbeId = -1;
+				bool   bHasProbe = StreamersWS->GetFirstConnection(ProbeId);
+				if (bHasProbe)
+				{
+					StreamersWS->Close(ProbeId);
+				}
+
 				return true;
 			}
 			else
@@ -115,7 +126,7 @@ namespace UE::PixelStreamingServers
 	TArray<FWebSocketHttpMount> FSignallingServer::GenerateDirectoriesToServe() const
 	{
 		FString ServersDir;
-		bool bServersDirExists = Utils::GetWebServersDir(ServersDir);
+		bool	bServersDirExists = Utils::GetWebServersDir(ServersDir);
 		if (bServersDirExists)
 		{
 			ServersDir = ServersDir / TEXT("SignallingWebServer");
@@ -130,7 +141,7 @@ namespace UE::PixelStreamingServers
 		if (!bServersDirExists)
 		{
 			FString OutResourcesDir;
-			bool bResourcesDirExists = Utils::GetResourcesDir(OutResourcesDir);
+			bool	bResourcesDirExists = Utils::GetResourcesDir(OutResourcesDir);
 			FString NotFoundDir = OutResourcesDir / TEXT("NotFound");
 
 			if (bResourcesDirExists && FPaths::DirectoryExists(NotFoundDir))
@@ -147,7 +158,7 @@ namespace UE::PixelStreamingServers
 
 		// Add /Public
 		FWebSocketHttpMount PublicMount;
-		PublicMount.SetPathOnDisk(ServersDir / TEXT("Public"));
+		PublicMount.SetPathOnDisk(ServersDir / TEXT("www"));
 		PublicMount.SetWebPath(FString(TEXT("/")));
 		PublicMount.SetDefaultFile(FString(TEXT("player.html")));
 		MountsArr.Add(PublicMount);
@@ -214,7 +225,7 @@ namespace UE::PixelStreamingServers
 
 		// We don't want to make the connections shared to prevent someone accidentally holding on to it. So we use it raw here
 		FWebSocketConnection* PlayerWS = (*PlayersWS->GetConnections().Find(PlayerConnectionId)).Get();
-		bool bUESendsOffer = !PlayerWS->GetUrlArgs().Contains(TEXT("OfferToReceive=true"));
+		bool				  bUESendsOffer = !PlayerWS->GetUrlArgs().Contains(TEXT("OfferToReceive=true"));
 
 		// Send "playerConnected" message to streamer which kicks off making a new RTC connection
 		TSharedRef<FJsonObject> OnPlayerConnectedJSON = MakeShared<FJsonObject>();
@@ -271,8 +282,6 @@ namespace UE::PixelStreamingServers
 		TSharedRef<FJsonObject> idJSON = MakeShared<FJsonObject>();
 		idJSON->SetStringField("type", "identify");
 		SendStreamerMessage(ConnectionId, idJSON);
-
-		StreamersWS->NameConnection(ConnectionId, LEGACY_NAME);
 	}
 
 	void FSignallingServer::OnStreamerDisconnected(uint16 ConnectionId)
@@ -295,7 +304,7 @@ namespace UE::PixelStreamingServers
 		const FString Msg = Utils::ToString(Message);
 		UE_LOG(LogPixelStreamingServers, Log, TEXT("From Streamer id=%d: %s"), ConnectionId, *Msg);
 
-		FString MsgType;
+		FString					MsgType;
 		TSharedPtr<FJsonObject> JSONObj = ParseMessage(Msg, MsgType);
 		if (!JSONObj)
 		{
@@ -341,7 +350,7 @@ namespace UE::PixelStreamingServers
 		const FString Msg = Utils::ToString(Message);
 		UE_LOG(LogPixelStreamingServers, Log, TEXT("From Player id=%d: %s"), ConnectionId, *Msg);
 
-		FString MsgType;
+		FString					MsgType;
 		TSharedPtr<FJsonObject> JSONObj = ParseMessage(Msg, MsgType);
 		if (!JSONObj)
 		{
@@ -358,7 +367,7 @@ namespace UE::PixelStreamingServers
 			if (!PlayerSubscriptions.Contains(ConnectionId))
 			{
 				TArray<FString> StreamerConnections = StreamersWS->GetConnectionNames();
-				if(StreamerConnections.Num() == 0)
+				if (StreamerConnections.Num() == 0)
 				{
 					UE_LOG(LogPixelStreamingServers, Error, TEXT("Player %d sent a message, but no streamers were connected"), ConnectionId);
 					return;
@@ -386,7 +395,7 @@ namespace UE::PixelStreamingServers
 
 	void FSignallingServer::OnStreamerPingMessage(uint16 ConnectionId, TSharedPtr<FJsonObject> JSONObj)
 	{
-		const double UnixTime = FDateTime::UtcNow().ToUnixTimestamp();
+		const double			UnixTime = FDateTime::UtcNow().ToUnixTimestamp();
 		TSharedRef<FJsonObject> PongJSON = MakeShared<FJsonObject>();
 		PongJSON->SetStringField("type", "pong");
 		PongJSON->SetNumberField("time", UnixTime);
@@ -409,8 +418,8 @@ namespace UE::PixelStreamingServers
 
 	void FSignallingServer::OnPlayerListStreamersMessage(uint16 ConnectionId, TSharedPtr<FJsonObject> JSONObj)
 	{
-		TSharedRef<FJsonObject> listJSON = MakeShared<FJsonObject>();
-		const TArray<FString> Names = StreamersWS->GetConnectionNames();
+		TSharedRef<FJsonObject>		   listJSON = MakeShared<FJsonObject>();
+		const TArray<FString>		   Names = StreamersWS->GetConnectionNames();
 		TArray<TSharedPtr<FJsonValue>> JsonNames;
 		for (const FString& Name : Names)
 		{
@@ -446,7 +455,7 @@ namespace UE::PixelStreamingServers
 
 	void FSignallingServer::GetNumStreamers(TFunction<void(uint16)> OnNumStreamersReceived)
 	{
-		if(StreamersWS)
+		if (StreamersWS)
 		{
 			OnNumStreamersReceived(StreamersWS->Count());
 		}

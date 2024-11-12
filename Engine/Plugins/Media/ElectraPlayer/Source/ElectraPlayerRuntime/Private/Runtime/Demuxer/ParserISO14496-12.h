@@ -9,6 +9,7 @@
 #include "OptionalValue.h"
 #include "StreamTypes.h"
 #include "ParameterDictionary.h"
+#include "BufferedDataReader.h"
 
 #include "ElectraEncryptedSampleInfo.h"
 
@@ -28,49 +29,6 @@ namespace Electra
 	{
 	public:
 		virtual ~IParserISO14496_12() = default;
-
-		/**
-		 * Interface for reading data from a source.
-		 */
-		class IReader
-		{
-		public:
-			virtual ~IReader() = default;
-			/**
-			 * Read n bytes of data into the provided buffer.
-			 *
-			 * Reading must return the number of bytes asked to get, if necessary by blocking.
-			 * If a read error prevents reading the number of bytes -1 must be returned.
-			 *
-			 * @param IntoBuffer Buffer into which to store the data bytes. If nullptr is passed the data must be skipped over.
-			 * @param NumBytesToRead The number of bytes to read. Must not read more bytes and no less than requested.
-			 * @return The number of bytes read or -1 on a read error.
-			 */
-			virtual int64 ReadData(void* IntoBuffer, int64 NumBytesToRead) = 0;
-
-			/**
-			 * Checks if the data source has reached the End Of File (EOF) and cannot provide any additional data.
-			 *
-			 * @return If EOF has been reached returns true, otherwise false.
-			 */
-			virtual bool HasReachedEOF() const = 0;
-
-			/**
-			 * Checks if reading of the file and therefor parsing has been aborted.
-			 *
-			 * @return true if reading/parsing has been aborted, false otherwise.
-			 */
-			virtual bool HasReadBeenAborted() const = 0;
-
-			/**
-			 * Returns the current read offset.
-			 *
-			 * The first read offset is not necessarily zero. It could be anywhere inside the source.
-			 *
-			 * @return The current byte offset in the source.
-			 */
-			virtual int64 GetCurrentOffset() const = 0;
-		};
 
 		/** Box type is a 32 bit value in an mp4 file. */
 		typedef uint32 FBoxType;
@@ -137,7 +95,7 @@ namespace Electra
 		/**
 		 * Parses the header boxes (all non-MDAT boxes).
 		 */
-		virtual UEMediaError ParseHeader(IReader* DataReader, IBoxCallback* BoxParseCallback, IPlayerSessionServices* PlayerSession, const IParserISO14496_12* OptionalInitSegment) = 0;
+		virtual UEMediaError ParseHeader(IGenericDataReader* DataReader, IBoxCallback* BoxParseCallback, IPlayerSessionServices* PlayerSession, const IParserISO14496_12* OptionalInitSegment) = 0;
 
 
 		/** A brand is a 32 bit value in an mp4 file. */
@@ -156,6 +114,10 @@ namespace Electra
 		class ITrack;
 
 		virtual UEMediaError PrepareTracks(IPlayerSessionServices* PlayerSession, TSharedPtrTS<const IParserISO14496_12> OptionalMP4InitSegment) = 0;
+
+		// Cancellation delegate for potentially slow tasks.
+		DECLARE_DELEGATE_RetVal(bool, FCancellationCheckDelegate);
+		virtual UEMediaError ResolveTimecodeTracks(IPlayerSessionServices* InPlayerSession, FCancellationCheckDelegate InCancellationCheckDelegate) = 0;
 
 		virtual TMediaOptionalValue<FTimeFraction> GetMovieDuration() const = 0;
 
@@ -335,6 +297,8 @@ namespace Electra
 		virtual const IMetadata* GetMetadata(EBaseBoxType InFromBox) const = 0;
 
 		virtual TSharedPtrTS<IAllTrackIterator> CreateAllTrackIteratorByFilePos(int64 InFromFilePos) const = 0;
+
+		virtual TSharedPtrTS<IAllTrackIterator> CreateAllTrackIteratorForTrackIDs(const TArray<uint32>& InTrackIDs) const = 0;
 
 		virtual const ITrack* GetTrackByIndex(int32 Index) const = 0;
 		virtual const ITrack* GetTrackByTrackID(int32 TrackID) const = 0;

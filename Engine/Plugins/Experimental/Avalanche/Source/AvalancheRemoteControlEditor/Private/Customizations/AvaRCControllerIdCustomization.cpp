@@ -3,7 +3,7 @@
 #include "AvaRCControllerIdCustomization.h"
 #include "AvaRCControllerId.h"
 #include "DetailWidgetRow.h"
-#include "Widgets/Layout/SBox.h"
+#include "Widgets/SAvaRCControllerPicker.h"
 #include "Widgets/SBoxPanel.h"
 
 TSharedRef<IPropertyTypeCustomization> FAvaRCControllerIdCustomization::MakeInstance()
@@ -27,13 +27,9 @@ void FAvaRCControllerIdCustomization::CustomizeHeader(TSharedRef<IPropertyHandle
 			+ SHorizontalBox::Slot()
 			.VAlign(VAlign_Center)
 			.HAlign(HAlign_Fill)
+			.FillWidth(1.f)
 			[
-				NamePropertyHandle->CreatePropertyValueWidget(/*bDisplayDefaultPropertyButtons*/false)
-			]
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				InPropertyHandle->CreateDefaultPropertyButtonWidgets()
+				SNew(SAvaRCControllerPicker, InPropertyHandle)
 			]
 		];
 }

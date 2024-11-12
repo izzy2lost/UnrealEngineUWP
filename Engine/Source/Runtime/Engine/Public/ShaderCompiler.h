@@ -27,6 +27,9 @@
 #include "Containers/Deque.h"
 #include "Hash/Blake3.h"
 #include "SceneTypes.h"
+#include "UObject/StrongObjectPtr.h"
+
+#include "ShaderCompiler.generated.h"
 
 class FAsyncCompilationNotification;
 class FCbObjectView;
@@ -35,8 +38,11 @@ class FVertexFactoryType;
 class IDistributedBuildController;
 class FMaterialShaderMap;
 class FShaderCompileJob;
-class FShaderCompilerStats;
+struct FShaderCompilerStats;
+class FShaderKeyGenerator;
 class FShaderPipelineCompileJob;
+class UMaterialInterface;
+class FJsonObject;
 struct FAnalyticsEventAttribute;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogShaderCompilers, Log, All);
@@ -47,6 +53,8 @@ bool AreShaderErrorsFatal();
 
 extern ENGINE_API bool IsShaderJobCacheDDCEnabled();
 extern ENGINE_API bool IsMaterialMapDDCEnabled();
+
+struct FJobObjectLimitationInfo;
 
 struct FShaderJobCacheStoredOutput;
 class FShaderJobCache;
@@ -196,15 +204,29 @@ class FShaderCompileThreadRunnable : public FShaderCompileThreadRunnableBase
 	friend class FShaderCompilingManager;
 private:
 
+	const bool bEstimateCommittedMemory = false; // Must be true on POSIX/Wine where only a small subset of the Job Object functionality is implemented
+
 	/** Information about the active workers that this thread is tracking. */
 	TArray<TUniquePtr<struct FShaderCompileWorkerInfo>> WorkerInfos;
-	FCriticalSection WorkerInfosLock;
+	mutable FCriticalSection WorkerInfosLock;
 
 	/** Tracks the last time that this thread checked if the workers were still active. */
-	double LastCheckForWorkersTime;
+	double LastCheckForWorkersTime = 0.0;
 
 	/** Whether to read/write files for SCW in parallel (can help situations when this takes too long for a number of reasons) */
 	bool bParallelizeIO = false;
+
+	/** List of jobs that have been backlogged when workers had to be closed due to reaching memory limits. These jobs will be picked up first before new jobs are pulled from the manager job queue. */
+	TArray<FShaderCommonCompileJobPtr> BackloggedJobs;
+
+	struct FMemoryMonitoringState
+	{
+		double LastTimeOfMemoryLimitPoll = 0.0;
+		double LastTimeOfSuspeningOrResumingWorkers = 0.0;
+		bool bHasFailedToSuspendWorkers = false;
+		bool bHasSuspendedWorkers = false;
+	}
+	MemoryMonitoringState;
 
 public:
 	/** Initialization constructor. */
@@ -245,6 +267,43 @@ private:
 	virtual void OnMachineResourcesChanged() override;
 
 	void PrintWorkerMemoryUsageWithLockTaken();
+
+	/** Returns the total number of workers this thread is handling. */
+	int32 GetNumberOfWorkers() const;
+
+	/** Returns the number of available workers. Only call inside the critical section WorkerInfosLock. */
+	int32 GetNumberOfAvailableWorkersUnsafe() const;
+	int32 GetNumberOfAvailableWorkers() const;
+
+	/** Returns the number of suspended workers. Only call inside the critical section WorkerInfosLock. */
+	int32 GetNumberOfSuspendedWorkersUnsafe() const;
+
+	/**
+	 * Suspends the specified number of workers and moves all their compile jobs to the backlog queue.
+	 * Returns the number of workers that have been suspended. The last worker cannot be suspended.
+	 */
+	int32 SuspendWorkersAndBacklogJobs(int32 NumWorkers, int32* OutNumBackloggedJobs = nullptr);
+
+	/**
+	 * Makes the specified number of workers available again after they have been suspended.
+	 * Returns the number of workers that have been resumed. If all workers were already available, the return value is 0.
+	 */
+	int32 ResumeSuspendedWorkers(int32 NumWorkers);
+
+	/** Deletes the output file of the specified worker if it exists and discards its content. This is called when a worker output is considered stale because it was previously suspended. */
+	void DiscardWorkerOutputFile(int32 WorkerIndex);
+
+	/** Returns the working directory for the specified shader compile worker. */
+	FString GetWorkingDirectoryForWorker(int32 WorkerIndex, bool bRelativePath = false) const;
+
+	/** Checks it the memory limit for shader compile workers has been exceeded and suspend workers as needed. */
+	void CheckMemoryLimitViolation();
+
+	/** Queries the memory status of all worker processes. Either uses FResourceRestrictedJobObject or QueryEstimatedCommittedMemory() when running on POSIX/Wine. */
+	bool QueryMemoryStatus(FJobObjectLimitationInfo& OutInfo);
+
+	/** Queries the status if the job object for all worker processes has violated the memory limitation. Either uses FResourceRestrictedJobObject or QueryEstimatedCommittedMemory() when running on POSIX/Wine. */
+	bool QueryMemoryLimitViolationStatus(FJobObjectLimitationInfo& OutInfo);
 };
 
 class FShaderCompileUtilities
@@ -264,6 +323,7 @@ public:
 	static ENGINE_API void GenerateBrdfHeaders(const FName& ShaderFormat);
 	static void ApplyDerivedDefines(FShaderCompilerEnvironment& OutEnvironment, FShaderCompilerEnvironment* SharedEnvironment, const EShaderPlatform Platform);
 	static void AppendGBufferDDCKeyString(const EShaderPlatform Platform, FString& KeyString);
+	static void AppendGBufferDDCKey(const EShaderPlatform Platform, FShaderKeyGenerator& KeyGen);
 	static ENGINE_API void WriteGBufferInfoAutogen(EShaderPlatform TargetPlatform, ERHIFeatureLevel::Type FeatureLevel);
 
 	static void ApplyFetchEnvironment(FShaderMaterialPropertyDefines& DefineData, const FShaderCompilerEnvironment& Environment);
@@ -315,89 +375,362 @@ private:
 /** Results for a single compiled and finalized shader map. */
 using FShaderMapFinalizeResults = FShaderMapCompileResults;
 
-class FShaderCompilerStats
+struct FDistributedBuildStats;
+
+USTRUCT()
+struct FShaderCompilerCounters
+{
+	GENERATED_BODY()
+	/** This tracks accumulated wait time from local workers during the lifetime of the stats.
+	 *
+	 * Wait time is only counted for local workers that are alive and not between their invocations
+	 */
+	UPROPERTY()
+	double AccumulatedLocalWorkerIdleTime = 0.0;
+
+	/** How many times we registered idle time? */
+	UPROPERTY()
+	double TimesLocalWorkersWereIdle = 0;
+
+	/** Number of jobs assigned to workers, no matter if they completed or not - used to average pending time. */
+	UPROPERTY()
+	int64 JobsAssigned = 0;
+
+	/** Total number jobs completed. */
+	UPROPERTY()
+	int64 JobsCompleted = 0;
+
+	/** Amount of time a job had to spent in pending queue (i.e. waiting to be assigned to a worker). */
+	UPROPERTY()
+	double AccumulatedPendingTime = 0;
+
+	/** Max amount of time any single job was pending (waiting to be assigned to a worker). */
+	UPROPERTY()
+	double MaxPendingTime = 0;
+
+	/** Amount of time job spent being processed by the worker. */
+	UPROPERTY()
+	double AccumulatedJobExecutionTime = 0;
+
+	/** Max amount of time any single job spent being processed by the worker. */
+	UPROPERTY()
+	double MaxJobExecutionTime = 0;
+
+	/** Amount of time job spent being processed overall. */
+	UPROPERTY()
+	double AccumulatedJobLifeTime = 0;
+
+	/** Max amount of time any single job spent being processed overall. */
+	UPROPERTY()
+	double MaxJobLifeTime = 0;
+
+	/** Time spent in tasks generated in FShaderJobCache::SubmitJobs, plus stall time on mutex locks in those tasks */
+	UPROPERTY()
+	double AccumulatedTaskSubmitJobs = 0.0;
+	UPROPERTY()
+	double AccumulatedTaskSubmitJobsStall = 0.0;
+
+	/** Number of local job batches seen. */
+	UPROPERTY()
+	int64 LocalJobBatchesSeen = 0;
+
+	/** Total jobs in local job batches. */
+	UPROPERTY()
+	int64 TotalJobsReportedInLocalJobBatches = 0;
+
+	/** Number of distributed job batches seen. */
+	UPROPERTY()
+	int64 DistributedJobBatchesSeen = 0;
+
+	/** Total jobs in local job batches. */
+	UPROPERTY()
+	int64 TotalJobsReportedInDistributedJobBatches = 0;
+
+	/** Size of the smallest output shader code. */
+	UPROPERTY()
+	int32 MinShaderCodeSize = 0;
+
+	/** Size of the largest output shader code. */
+	UPROPERTY()
+	int32 MaxShaderCodeSize = 0;
+
+	/** Total accumulated size of all output shader codes. */
+	UPROPERTY()
+	uint64 AccumulatedShaderCodeSize = 0;
+
+	/** Number of accumulated output shader codes. */
+	UPROPERTY()
+	uint64 NumAccumulatedShaderCodes = 0;
+
+	/** Total number of DDC misses on shader maps. */
+	UPROPERTY()
+	uint32 ShaderMapDDCMisses = 0;
+
+	/** Total number of DDC hits on shader maps. */
+	UPROPERTY()
+	uint32 ShaderMapDDCHits = 0;
+
+	/** Total number of job cache query attempts. */
+	UPROPERTY()
+	uint64 TotalCacheSearchAttempts = 0;
+
+	/** Total number of hits in the job cache (i.e. input hashes seen >1 time) */
+	UPROPERTY()
+	uint64 TotalCacheHits = 0;
+
+	/** Total number of duplicate jobs (input hash matches an in-flight job, processed when in-flight job completes) */
+	UPROPERTY()
+	uint32 TotalCacheDuplicates = 0;
+
+	/** Total number of DDC queries in the job cache (per-shader DDC). */
+	UPROPERTY()
+	uint32 TotalCacheDDCQueries = 0;
+
+	/** Total number of DDC hits in the job cache (per shader DDC, as opposed to shader map DDC stats above). */
+	UPROPERTY()
+	uint32 TotalCacheDDCHits = 0;
+
+	/** Total number of unique input hashes seen in job cache queries */
+	UPROPERTY()
+	uint64 UniqueCacheInputHashes = 0;
+
+	/** Total number of unique job outputs stored in the cache.
+	  * Outputs are deduplicated based on a content hash so this number is in practice smaller than UniqueCacheInputHashes.
+	  */
+	UPROPERTY()
+	uint64 UniqueCacheOutputs = 0;
+
+	/** Total amount of memory currently used by the job cache */
+	UPROPERTY()
+	uint64 CacheMemUsed = 0;
+
+	/** Memory budget allocated for the job cache */
+	UPROPERTY()
+	uint64 CacheMemBudget = 0;
+
+	/** Maximum number of remote agents used during compilation. */
+	UPROPERTY()
+	uint32 MaxRemoteAgents = 0;
+
+	/** Maximum number of CPU cores active across all remote agents. */
+	UPROPERTY()
+	uint32 MaxActiveAgentCores = 0;
+
+	FShaderCompilerCounters& operator+=(const FShaderCompilerCounters& Other)
+	{
+		AccumulatedLocalWorkerIdleTime += Other.AccumulatedLocalWorkerIdleTime;
+		TimesLocalWorkersWereIdle += Other.TimesLocalWorkersWereIdle;
+		JobsAssigned += Other.JobsAssigned;
+		JobsCompleted += Other.JobsCompleted;
+		AccumulatedPendingTime += Other.AccumulatedPendingTime;
+		MaxPendingTime = FMath::Max(Other.MaxPendingTime, MaxPendingTime);
+		AccumulatedJobExecutionTime += Other.AccumulatedJobExecutionTime;
+		MaxJobExecutionTime = FMath::Max(Other.MaxJobExecutionTime, MaxJobExecutionTime);
+		AccumulatedJobLifeTime += Other.AccumulatedJobLifeTime;
+		MaxJobLifeTime = FMath::Max(Other.MaxJobLifeTime, MaxJobLifeTime);
+		AccumulatedTaskSubmitJobs += Other.AccumulatedTaskSubmitJobs;
+		AccumulatedTaskSubmitJobsStall += Other.AccumulatedTaskSubmitJobsStall;
+		LocalJobBatchesSeen += Other.LocalJobBatchesSeen;
+		TotalJobsReportedInLocalJobBatches += Other.TotalJobsReportedInLocalJobBatches;
+		DistributedJobBatchesSeen += Other.DistributedJobBatchesSeen;
+		TotalJobsReportedInDistributedJobBatches += Other.TotalJobsReportedInDistributedJobBatches;
+		if (Other.MinShaderCodeSize > 0)
+		{
+			MinShaderCodeSize = (MinShaderCodeSize > 0 ? FMath::Min(MinShaderCodeSize, Other.MinShaderCodeSize) : Other.MinShaderCodeSize);
+		}
+		MaxShaderCodeSize = FMath::Max(Other.MaxShaderCodeSize, MaxShaderCodeSize);
+		AccumulatedShaderCodeSize += Other.AccumulatedShaderCodeSize;
+		NumAccumulatedShaderCodes += Other.NumAccumulatedShaderCodes;
+		ShaderMapDDCMisses += Other.ShaderMapDDCMisses;
+		ShaderMapDDCHits += Other.ShaderMapDDCHits;
+		TotalCacheSearchAttempts += Other.TotalCacheSearchAttempts;
+		TotalCacheHits += Other.TotalCacheHits;
+		TotalCacheDuplicates += Other.TotalCacheDuplicates;
+		TotalCacheDDCQueries += Other.TotalCacheDDCQueries;
+		TotalCacheDDCHits += Other.TotalCacheDDCHits;
+		UniqueCacheInputHashes += Other.UniqueCacheInputHashes;
+		UniqueCacheOutputs += Other.UniqueCacheOutputs;
+		CacheMemUsed += Other.CacheMemUsed;
+		CacheMemBudget += Other.CacheMemBudget;
+		MaxRemoteAgents += Other.MaxRemoteAgents;
+		MaxActiveAgentCores += Other.MaxActiveAgentCores;
+
+		return *this;
+	}
+};
+
+USTRUCT()
+struct FShaderCompilerMaterialCounters
+{
+	GENERATED_BODY()
+	/** The total number of materials cooked.  This corresponds to UMaterialInterface::Presave() */
+	int32 NumMaterialsCooked = 0;
+
+	/** The total number of materials that have been translated.  */
+	UPROPERTY()
+	int32 MaterialTranslateCalls = 0;
+
+	/** The total time in seconds to translate all materials.  */
+	UPROPERTY()
+	double MaterialTranslateTotalTimeSec = 0.0;
+
+	/** The total time spent actually translating materials (rather than for instance accessing the DDC cache). */
+	UPROPERTY()
+	double MaterialTranslateTranslationOnlyTimeSec = 0.0;
+
+	/** The total time spent serializing DDC results. */
+	UPROPERTY()
+	double MaterialTranslateSerializationOnlyTimeSec = 0.0;
+
+	/** The total number times a material translation was skipped because the the results were in the DDC. */
+	UPROPERTY()
+	int32 MaterialCacheHits = 0;
+
+	FShaderCompilerMaterialCounters& operator+=(const FShaderCompilerMaterialCounters& Other)
+	{
+		NumMaterialsCooked += Other.NumMaterialsCooked;
+		MaterialTranslateCalls += Other.MaterialTranslateCalls;
+		MaterialTranslateTotalTimeSec += Other.MaterialTranslateTotalTimeSec;
+		MaterialTranslateTranslationOnlyTimeSec += Other.MaterialTranslateTranslationOnlyTimeSec;
+		MaterialTranslateSerializationOnlyTimeSec += Other.MaterialTranslateSerializationOnlyTimeSec;
+		MaterialCacheHits += Other.MaterialCacheHits;
+
+		return *this;
+	}
+
+	void WriteStatSummary(const TCHAR* AggregatedSuffix);
+	void GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes);
+};
+
+/** Structure used to describe compiling time of a shader type (for all the instances of it that we have seen). */
+USTRUCT()
+struct FShaderTimings
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	float MinCompileTime = 0.0f;
+	UPROPERTY()
+	float MaxCompileTime = 0.0f;
+	UPROPERTY()
+	float TotalCompileTime = 0.0f;
+	UPROPERTY()
+	float TotalPreprocessTime = 0.0f;
+	UPROPERTY()
+	int32 NumCompiled = 0;
+	UPROPERTY()
+	float AverageCompileTime = 0.0f;	// stored explicitly as an optimization
+
+	FShaderTimings& operator+=(const FShaderTimings& Other)
+	{
+		MinCompileTime = FMath::Min(MinCompileTime, Other.MinCompileTime);
+		MaxCompileTime = FMath::Max(MaxCompileTime, Other.MaxCompileTime);
+		TotalCompileTime += Other.TotalCompileTime;
+		TotalPreprocessTime += Other.TotalPreprocessTime;
+		NumCompiled += Other.NumCompiled;
+		if (NumCompiled)
+		{
+			AverageCompileTime = TotalCompileTime / static_cast<float>(NumCompiled);
+		}
+		return *this;
+	}
+};
+
+USTRUCT()
+struct FShaderCompilerSinglePermutationStat
+{
+	GENERATED_BODY()
+
+	FShaderCompilerSinglePermutationStat()
+		: PermutationString()
+		, Compiled(0)
+		, Cooked(0)
+		, CompiledDouble(0)
+		, CookedDouble(0)
+	{}
+
+	FShaderCompilerSinglePermutationStat(FString PermutationString, uint32 Compiled, uint32 Cooked)
+		: PermutationString(PermutationString)
+		, Compiled(Compiled)
+		, Cooked(Cooked)
+		, CompiledDouble(0)
+		, CookedDouble(0)
+
+	{}
+
+	UPROPERTY()
+	FString PermutationString;
+
+	UPROPERTY()
+	uint32 Compiled;
+
+	UPROPERTY()
+	uint32 Cooked;
+
+	UPROPERTY()
+	uint32 CompiledDouble;
+
+	UPROPERTY()
+	uint32 CookedDouble;
+};
+
+USTRUCT()
+struct FShaderStats
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<FShaderCompilerSinglePermutationStat> PermutationCompilations;
+
+	UPROPERTY()
+	uint32 Compiled = 0;
+
+	UPROPERTY()
+	uint32 Cooked = 0;
+
+	UPROPERTY()
+	uint32 CompiledDouble = 0;
+
+	UPROPERTY()
+	uint32 CookedDouble = 0;
+
+	UPROPERTY()
+	float CompileTime = 0.f;
+
+	FShaderStats& operator+=(const FShaderStats& Other)
+	{
+		if (Compiled)
+		{
+			CompiledDouble += Other.Compiled;
+		}
+		else
+		{
+			Compiled += Other.Compiled;
+		}
+
+		if (Cooked)
+		{
+			CookedDouble += Other.Cooked;
+		}
+		else
+		{
+			Cooked += Other.Cooked;
+		}
+
+		CompiledDouble += Other.CompiledDouble;
+		CookedDouble += Other.CookedDouble;
+		CompileTime += Other.CompileTime;
+
+		PermutationCompilations.Append(Other.PermutationCompilations);
+
+		return *this;
+	}
+};
+
+struct FShaderCompilerStats
 {
 public:
-	struct FShaderCompilerSinglePermutationStat
-	{
-		FShaderCompilerSinglePermutationStat(FString PermutationString, uint32 Compiled, uint32 Cooked)
-			: PermutationString(PermutationString)
-			, Compiled(Compiled)
-			, Cooked(Cooked)
-			, CompiledDouble(0)
-			, CookedDouble(0)
-
-		{}
-		FString PermutationString;
-		uint32 Compiled;
-		uint32 Cooked;
-		uint32 CompiledDouble;
-		uint32 CookedDouble;
-	};
-	struct FShaderStats
-	{
-		TArray<FShaderCompilerSinglePermutationStat> PermutationCompilations;
-		uint32 Compiled = 0;
-		uint32 Cooked = 0;
-		uint32 CompiledDouble = 0;
-		uint32 CookedDouble = 0;
-		float CompileTime = 0.f;
-
-		FShaderStats& operator+=(const FShaderStats& Other)
-		{
-			if (Compiled)
-			{
-				CompiledDouble += Other.Compiled;
-			}
-			else
-			{
-				Compiled += Other.Compiled;
-			}
-
-			if (Cooked)
-			{
-				CookedDouble += Other.Cooked;
-			}
-			else
-			{
-				Cooked += Other.Cooked;
-			}
-
-			CompiledDouble += Other.CompiledDouble;
-			CookedDouble += Other.CookedDouble;
-			CompileTime += Other.CompileTime;
-
-			PermutationCompilations.Append(Other.PermutationCompilations);
-
-			return *this;
-		}
-	};
 	using ShaderCompilerStats = TMap<FString, FShaderStats>;
-
-	/** Structure used to describe compiling time of a shader type (for all the instances of it that we have seen). */
-	struct FShaderTimings
-	{
-		float MinCompileTime = 0.0f;
-		float MaxCompileTime = 0.0f;
-		float TotalCompileTime = 0.0f;
-		float TotalPreprocessTime = 0.0f;
-		int32 NumCompiled = 0;
-		float AverageCompileTime = 0.0f;	// stored explicitly as an optimization
-
-		FShaderTimings& operator+=(const FShaderTimings& Other)
-		{
-			MinCompileTime = FMath::Min(MinCompileTime, Other.MinCompileTime);
-			MaxCompileTime = FMath::Max(MaxCompileTime, Other.MaxCompileTime);
-			TotalCompileTime += Other.TotalCompileTime;
-			TotalPreprocessTime += Other.TotalPreprocessTime;
-			NumCompiled += Other.NumCompiled;
-			if (NumCompiled)
-			{
-				AverageCompileTime = TotalCompileTime / static_cast<float>(NumCompiled);
-			}
-			return *this;
-		}
-	};
 
 	void IncrementMaterialCook();
 	void IncrementMaterialTranslated(double InTotalTime, double InTranslationOnlyTime, double InSerializeTime);
@@ -413,6 +746,7 @@ public:
 	ENGINE_API void Aggregate(FShaderCompilerStats& Other);
 	ENGINE_API void WriteToCompactBinary(FCbWriter& Writer);
 	ENGINE_API void ReadFromCompactBinary(FCbObjectView& Reader);
+	ENGINE_API TSharedPtr<FJsonObject> ToJson();
 	inline void SetMultiProcessAggregated() { bMultiProcessAggregated = true; }
 
 	void AddDDCMiss(uint32 NumMisses);
@@ -442,6 +776,9 @@ public:
 	/** Informs statistics about a new job batch, so we can tally up batches. */
 	void RegisterJobBatch(int32 NumJobs, EExecutionType ExecType);
 
+	/** Informs about current distributed build statistics. */
+	void RegisterDistributedBuildStats(const FDistributedBuildStats& InStats);
+
 	ENGINE_API void GatherAnalytics(const FString& BaseName, TArray<FAnalyticsEventAttribute>& Attributes);
 
 private:
@@ -449,184 +786,8 @@ private:
 	FCriticalSection CompileStatsLock;
 	TSparseArray<ShaderCompilerStats> CompileStats;
 
-	struct FCounters
-	{
-		/** This tracks accumulated wait time from local workers during the lifetime of the stats.
-		 *
-		 * Wait time is only counted for local workers that are alive and not between their invocations
-		 */
-		double AccumulatedLocalWorkerIdleTime = 0.0;
-
-		/** How many times we registered idle time? */
-		double TimesLocalWorkersWereIdle = 0;
-
-		/** Number of jobs assigned to workers, no matter if they completed or not - used to average pending time. */
-		int64 JobsAssigned = 0;
-
-		/** Total number jobs completed. */
-		int64 JobsCompleted = 0;
-
-		/** Amount of time a job had to spent in pending queue (i.e. waiting to be assigned to a worker). */
-		double AccumulatedPendingTime = 0;
-
-		/** Max amount of time any single job was pending (waiting to be assigned to a worker). */
-		double MaxPendingTime = 0;
-
-		/** Amount of time job spent being processed by the worker. */
-		double AccumulatedJobExecutionTime = 0;
-
-		/** Max amount of time any single job spent being processed by the worker. */
-		double MaxJobExecutionTime = 0;
-
-		/** Amount of time job spent being processed overall. */
-		double AccumulatedJobLifeTime = 0;
-
-		/** Max amount of time any single job spent being processed overall. */
-		double MaxJobLifeTime = 0;
-
-		/** Time spent in tasks generated in FShaderJobCache::SubmitJobs, plus stall time on mutex locks in those tasks */
-		double AccumulatedTaskSubmitJobs = 0.0;
-		double AccumulatedTaskSubmitJobsStall = 0.0;
-
-		/** Number of local job batches seen. */
-		int64 LocalJobBatchesSeen = 0;
-
-		/** Total jobs in local job batches. */
-		int64 TotalJobsReportedInLocalJobBatches = 0;
-
-		/** Number of distributed job batches seen. */
-		int64 DistributedJobBatchesSeen = 0;
-
-		/** Total jobs in local job batches. */
-		int64 TotalJobsReportedInDistributedJobBatches = 0;
-
-		/** Size of the smallest output shader code. */
-		int32 MinShaderCodeSize = 0;
-
-		/** Size of the largest output shader code. */
-		int32 MaxShaderCodeSize = 0;
-
-		/** Total accumulated size of all output shader codes. */
-		uint64 AccumulatedShaderCodeSize = 0;
-
-		/** Number of accumulated output shader codes. */
-		uint64 NumAccumulatedShaderCodes = 0;
-
-		/** Total number of DDC misses on shader maps. */
-		uint32 ShaderMapDDCMisses = 0;
-
-		/** Total number of DDC hits on shader maps. */
-		uint32 ShaderMapDDCHits = 0;
-
-		/** Total number of job cache query attempts. */
-		uint64 TotalCacheSearchAttempts = 0;
-
-		/** Total number of hits in the job cache (i.e. input hashes seen >1 time) */
-		uint64 TotalCacheHits = 0;
-
-		/** Total number of duplicate jobs (input hash matches an in-flight job, processed when in-flight job completes) */
-		uint32 TotalCacheDuplicates = 0;
-
-		/** Total number of DDC queries in the job cache (per-shader DDC). */
-		uint32 TotalCacheDDCQueries = 0;
-
-		/** Total number of DDC hits in the job cache (per shader DDC, as opposed to shader map DDC stats above). */
-		uint32 TotalCacheDDCHits = 0;
-
-		/** Total number of unique input hashes seen in job cache queries */
-		uint64 UniqueCacheInputHashes = 0;
-
-		/** Total number of unique job outputs stored in the cache.
-		  * Outputs are deduplicated based on a content hash so this number is in practice smaller than UniqueCacheInputHashes.
-		  */
-		uint64 UniqueCacheOutputs = 0;
-
-		/** Total amount of memory currently used by the job cache */
-		uint64 CacheMemUsed = 0;
-
-		/** Memory budget allocated for the job cache */
-		uint64 CacheMemBudget = 0;
-
-		FCounters& operator+=(const FCounters& Other)
-		{
-			AccumulatedLocalWorkerIdleTime += Other.AccumulatedLocalWorkerIdleTime;
-			TimesLocalWorkersWereIdle += Other.TimesLocalWorkersWereIdle;
-			JobsAssigned += Other.JobsAssigned;
-			JobsCompleted += Other.JobsCompleted;
-			AccumulatedPendingTime += Other.AccumulatedPendingTime;
-			MaxPendingTime = FMath::Max(Other.MaxPendingTime, MaxPendingTime);
-			AccumulatedJobExecutionTime += Other.AccumulatedJobExecutionTime;
-			MaxJobExecutionTime = FMath::Max(Other.MaxJobExecutionTime, MaxJobExecutionTime);
-			AccumulatedJobLifeTime += Other.AccumulatedJobLifeTime;
-			MaxJobLifeTime = FMath::Max(Other.MaxJobLifeTime, MaxJobLifeTime);
-			AccumulatedTaskSubmitJobs += Other.AccumulatedTaskSubmitJobs;
-			AccumulatedTaskSubmitJobsStall += Other.AccumulatedTaskSubmitJobsStall;
-			LocalJobBatchesSeen += Other.LocalJobBatchesSeen;
-			TotalJobsReportedInLocalJobBatches += Other.TotalJobsReportedInLocalJobBatches;
-			DistributedJobBatchesSeen += Other.DistributedJobBatchesSeen;
-			TotalJobsReportedInDistributedJobBatches += Other.TotalJobsReportedInDistributedJobBatches;
-			if (Other.MinShaderCodeSize > 0)
-			{
-				MinShaderCodeSize = (MinShaderCodeSize > 0 ? FMath::Min(MinShaderCodeSize, Other.MinShaderCodeSize) : Other.MinShaderCodeSize);
-			}
-			MaxShaderCodeSize = FMath::Max(Other.MaxShaderCodeSize, MaxShaderCodeSize);
-			AccumulatedShaderCodeSize += Other.AccumulatedShaderCodeSize;
-			NumAccumulatedShaderCodes += Other.NumAccumulatedShaderCodes;
-			ShaderMapDDCMisses += Other.ShaderMapDDCMisses;
-			ShaderMapDDCHits += Other.ShaderMapDDCHits;
-			TotalCacheSearchAttempts += Other.TotalCacheSearchAttempts;
-			TotalCacheHits += Other.TotalCacheHits;
-			TotalCacheDuplicates += Other.TotalCacheDuplicates;
-			TotalCacheDDCQueries += Other.TotalCacheDDCQueries;
-			TotalCacheDDCHits += Other.TotalCacheDDCHits;
-			UniqueCacheInputHashes += Other.UniqueCacheInputHashes;
-			UniqueCacheOutputs += Other.UniqueCacheOutputs;
-			CacheMemUsed += Other.CacheMemUsed;
-			CacheMemBudget += Other.CacheMemBudget;
-
-			return *this;
-		}
-	};
-
-	FCounters Counters;
-
-	struct FMaterialCounters
-	{
-		/** The total number of materials cooked.  This corresponds to UMaterialInterface::Presave() */
-		int32 NumMaterialsCooked = 0;
-
-		/** The total number of materials that have been translated.  */
-		int32 MaterialTranslateCalls = 0;
-
-		/** The total time in seconds to translate all materials.  */
-		double MaterialTranslateTotalTimeSec = 0.0;
-
-		/** The total time spent actually translating materials (rather than for instance accessing the DDC cache). */
-		double MaterialTranslateTranslationOnlyTimeSec = 0.0;
-
-		/** The total time spent serializing DDC results. */
-		double MaterialTranslateSerializationOnlyTimeSec = 0.0;
-
-		/** The total number times a material translation was skipped because the the results were in the DDC. */
-		int32 MaterialCacheHits = 0;
-		
-		FMaterialCounters& operator+=(const FMaterialCounters& Other)
-		{
-			NumMaterialsCooked += Other.NumMaterialsCooked;
-			MaterialTranslateCalls += Other.MaterialTranslateCalls;
-			MaterialTranslateTotalTimeSec += Other.MaterialTranslateTotalTimeSec;
-			MaterialTranslateTranslationOnlyTimeSec += Other.MaterialTranslateTranslationOnlyTimeSec;
-			MaterialTranslateSerializationOnlyTimeSec += Other.MaterialTranslateSerializationOnlyTimeSec;
-			MaterialCacheHits += Other.MaterialCacheHits;
-
-			return *this;
-		}
-
-		void WriteStatSummary(const TCHAR* AggregatedSuffix);
-		void GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes);
-	};
-
-	FMaterialCounters MaterialCounters;
+	FShaderCompilerCounters Counters;
+	FShaderCompilerMaterialCounters MaterialCounters;
 
 	/** Accumulates the job lifetimes without overlaps */
 	TArray<TInterval<double>> JobLifeTimeIntervals;
@@ -733,6 +894,8 @@ private:
 	FString ShaderCompileWorkerName;
 	/** Last value of GetNumRemainingAssets */
 	int32 LastNumRemainingAssets = 0;
+	/** If dumping crash logs for workers is enabled and an absolute path is used (i.e. -AbsLog), this contains the base directory path. */
+	FString WorkerCrashLogBaseDirectory;
 
 	/** 
 	 * Tracks the total time that shader compile workers have been busy since startup.  
@@ -1191,7 +1354,8 @@ enum class ODSCRecompileCommand
 	Changed,
 	Global,
 	Material,
-	SingleShader
+	SingleShader,
+	ResetMaterialCache
 };
 
 extern ENGINE_API const TCHAR* ODSCCmdEnumToString(ODSCRecompileCommand Cmd);
@@ -1229,6 +1393,13 @@ struct FShaderRecompileData
 	/** On-demand shader compiler payload.  */
 	TArray<FODSCRequestPayload> ShadersToRecompile;
 
+	/** Optional Array of the loaded materials  */
+	TArray<TStrongObjectPtr<UMaterialInterface>>* LoadedMaterialsToRecompile = nullptr;
+
+#if WITH_EDITOR
+	TFunction<UMaterialInterface*(const FString&)> ODSCCustomLoadMaterial;
+#endif
+
 	/** Default constructor. */
 	FShaderRecompileData() {};
 
@@ -1262,9 +1433,13 @@ extern ENGINE_API void CompileGlobalShaderMap(EShaderPlatform Platform, bool bRe
 extern ENGINE_API void CompileGlobalShaderMap(EShaderPlatform Platform, const ITargetPlatform* TargetPlatform, bool bRefreshShaderMap);
 extern ENGINE_API void ShutdownGlobalShaderMap();
 
+UE_DEPRECATED(5.5, "Use GetGlobalShaderMapDDCGuid")
 extern ENGINE_API const FString& GetGlobalShaderMapDDCKey();
+extern ENGINE_API const FGuid& GetGlobalShaderMapDDCGuid();
 
+UE_DEPRECATED(5.5, "Use GetMaterialShaderMapDDCGuid")
 extern ENGINE_API const FString& GetMaterialShaderMapDDCKey();
+extern ENGINE_API const FGuid& GetMaterialShaderMapDDCGuid();
 
 extern ENGINE_API bool ShouldDumpShaderDDCKeys();
 UE_DEPRECATED(5.4, "DumpShaderDDCKeyToFile now takes DebugGroupName as parameter (these files now go into the ShaderDebugInfo folder alongside other debug artifacts).")

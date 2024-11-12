@@ -263,7 +263,7 @@ bool UAvaPlayableLocalTransition::Start()
 
 	using namespace UE::AvaPlayableTransition::Private;
 
-	FBuilderHelper Helper(GetFullName(), this);
+	FBuilderHelper Helper(GetInstanceName(), this);
 
 	TArray<UAvaPlayable*> EnterPlayables = Pin(EnterPlayablesWeak);
 	TArray<UAvaPlayable*> PlayingPlayables = Pin(PlayingPlayablesWeak);
@@ -277,12 +277,26 @@ bool UAvaPlayableLocalTransition::Start()
 		return false;
 	}
 
+	// Store the Latest Remote Control Values for Playables that are not Enter Playables
+	// as the Enter Playable ones are stored in EnterPlayableValues
+	OtherPlayableValues.Empty(PlayingPlayables.Num() + ExitPlayables.Num());
+
+	for (UAvaPlayable* Playable : PlayingPlayables)
+	{
+		OtherPlayableValues.Add(Playable, Playable->GetLatestRemoteControlValues());
+	}
+
+	for (UAvaPlayable* Playable : ExitPlayables)
+	{
+		OtherPlayableValues.Add(Playable, Playable->GetLatestRemoteControlValues());
+	}
+
 	int32 ArrayIndex = 0;
 	for (UAvaPlayable* Playable : EnterPlayables)
 	{
-		if (EnterPlayableValues.IsValidIndex(ArrayIndex) && EnterPlayableValues[ArrayIndex].IsValid())
+		if (EnterPlayableValues.IsValidIndex(ArrayIndex) && EnterPlayableValues[ArrayIndex].IsValid() && !IsPlayingPlayable(Playable))
 		{
-			Playable->UpdateRemoteControlCommand(EnterPlayableValues[ArrayIndex].ToSharedRef());	
+			Playable->UpdateRemoteControlCommand(EnterPlayableValues[ArrayIndex].ToSharedRef());
 		}
 		
 		if (!Helper.AddTransitionBehaviorInstance(Playable, EAvaPlayableTransitionEntryRole::Enter))
@@ -291,6 +305,9 @@ bool UAvaPlayableLocalTransition::Start()
 			InitializeSequences(Playable);
 			PostExecutorSequencePlayablesWeak.Add(Playable);
 		}
+
+		// Signal that this playable can be shown now that sequences are initialized and RC is injected.
+		UAvaPlayable::OnTransitionEvent().Broadcast(Playable, this, EAvaPlayableTransitionEventFlags::ShowPlayable);
 		++ArrayIndex;
 	}
 
@@ -341,7 +358,7 @@ bool UAvaPlayableLocalTransition::Start()
 		PostTransitionExecutorPhase();
 	}
 
-	// Todo: reconsider if this is needed and if so where it should go. Not used in code for now.
+	// Allows client-side to implement forked/clustered channel state reconciling.
 	UAvaPlayable::OnTransitionEvent().Broadcast(nullptr, this, EAvaPlayableTransitionEventFlags::Starting);
 
 	return true;
@@ -410,7 +427,7 @@ void UAvaPlayableLocalTransition::OnTransitionExecutorEnded()
 
 		TransitionExecutor.Reset();
 		
-		UE_LOG(LogAvaPlayable, Verbose, TEXT("%s Transition Executor \"%s\" ended."), *GetBriefFrameInfo(), *GetFullName());
+		UE_LOG(LogAvaPlayable, Verbose, TEXT("%s Transition Executor \"%s\" ended."), *GetBriefFrameInfo(), *GetInstanceName());
 	}
 
 	PostTransitionExecutorPhase();
@@ -448,7 +465,7 @@ void UAvaPlayableLocalTransition::PostTransitionExecutorPhase()
 void UAvaPlayableLocalTransition::NotifyTransitionFinished()
 {
 	using namespace UE::AvaPlayback::Utils;
-	UE_LOG(LogAvaPlayable, Verbose, TEXT("%s Playable Transition \"%s\" ended."), *GetBriefFrameInfo(), *GetFullName());
+	UE_LOG(LogAvaPlayable, Verbose, TEXT("%s Playable Transition \"%s\" ended."), *GetBriefFrameInfo(), *GetInstanceName());
 
 	// This will indicate the playable transition is completed and can be cleaned up.
 	// Combo templates break the one page one playable rule, so we need a dedicated event to signal the end of the playable transition.
@@ -474,7 +491,7 @@ void UAvaPlayableLocalTransition::FinishWaitOnPostExecutorSequences()
 	UAvaPlayable::OnSequenceEvent().RemoveAll(this);
 }
 
-void UAvaPlayableLocalTransition::OnPlayableSequenceEvent(UAvaPlayable* InPlayable, const FName& SequenceName, EAvaPlayableSequenceEventType InEventType)
+void UAvaPlayableLocalTransition::OnPlayableSequenceEvent(UAvaPlayable* InPlayable, FName InSequenceLabel, EAvaPlayableSequenceEventType InEventType)
 {
 	// Remark: the sequence events are not entirely reliable.
 	// The transitions are also "ticked" to poll this condition.
@@ -489,4 +506,9 @@ void UAvaPlayableLocalTransition::OnPlayableSequenceEvent(UAvaPlayable* InPlayab
 			NotifyTransitionFinished();
 		}
 	}
+}
+
+FString UAvaPlayableLocalTransition::GetInstanceName() const
+{
+	return TransitionId.IsValid() ? TransitionId.ToString() : GetFullName();
 }

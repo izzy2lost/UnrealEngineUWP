@@ -2,18 +2,16 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-// Insights
-#include "Insights/Table/ViewModels/BaseTreeNode.h"
-#include "Insights/Table/ViewModels/TreeNodeGrouping.h"
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/BaseTreeNode.h"
+#include "InsightsCore/Table/ViewModels/TreeNodeGrouping.h"
 
-namespace Insights
+namespace UE::Insights { class IAsyncOperationProgress; }
+
+namespace UE::Insights::MemoryProfiler
 {
-
-class IAsyncOperationProgress;
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class FMemAllocGroupingBySize : public FTreeNodeGrouping
 {
@@ -43,6 +41,4 @@ private:
 	bool bIsPow2; // thresholds are automatically set as power of two
 };
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler

@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGUpsample.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeRDGAttributes.h"
 #include "NNEHlslShadersUpsampleCS.h"
 #include "NNERuntimeRDGHlslHelper.h"
@@ -37,7 +39,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			
 			if (!Scales.HasPreparedData())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Upsample input 'Scale' (name: %s) should be constant for shape inference to succeed, however it is not constant."), *Scales.GetName());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Upsample: Input 'Scale' (name: %s) should be constant for shape inference to succeed, however it is not constant."), *Scales.GetName());
 				return -1;
 			}
 
@@ -45,7 +47,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (ScalesData.Num() != Input.GetShape().Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Upsample input 'Scale' (name: %s) have %d elements. While it should be the same as the rank of input 'X' (name : %s) witch is %d"), *Scales.GetName(), ScalesData.Num(), *Input.GetName(), Input.GetShape().Rank());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Upsample: Input 'Scale' (name: %s) have %d elements. While it should be the same as the rank of input 'X' (name : %s) witch is %d"), *Scales.GetName(), ScalesData.Num(), *Input.GetName(), Input.GetShape().Rank());
 				return -1;
 			}
 
@@ -53,13 +55,13 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			{
 				if (ScalesData[i] < 1.0f)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Upsample input 'Scale' takes values greater than or equal to 1."));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Upsample: Input 'Scale' takes values greater than or equal to 1."));
 					return -1;
 				}
 
 				if (Mode.Equals(AttrValue::Linear) && i < ScalesData.Num() - 3 && ScalesData[i] > 1.0f)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Upsample in 'Linear mode' only support up to trilinear interpolation, meaning input 'Scale' values for the outermost dimensions (Rank - 3) are 1."));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Upsample: 'Linear mode' only support up to trilinear interpolation, meaning input 'Scale' values for the outermost dimensions (Rank - 3) are 1."));
 					return -1;
 				}
 			}
@@ -132,7 +134,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			TShaderMapRef<FUpsampleCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Upsample");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorUpsample, "NNE.Operator.Hlsl.Upsample");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorUpsample);
 
 			FComputeShaderUtils::AddPass(
@@ -156,7 +158,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		FString Mode = AttributeMap.GetValueOrDefault<FString>(AttrName::Mode, AttrValue::Nearest);
 		if (!Mode.Equals(AttrValue::Nearest) && !Mode.Equals(AttrValue::Linear))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Upsample HLSL operator only supports %s or %s as value for attribute %s"), AttrValue::Nearest, AttrValue::Linear, AttrName::Mode);
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Upsample: Only supports %s or %s as value for attribute %s"), AttrValue::Nearest, AttrValue::Linear, AttrName::Mode);
 			return false;
 		}
 

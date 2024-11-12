@@ -31,6 +31,8 @@ private:
 	FStaticMeshBatch(const FStaticMeshBatch& InStaticMesh);
 };
 
+namespace DecalRendering { enum { DecalRenderTargetMode_NumBits = 5	}; }
+
 /**
  * FStaticMeshBatch data which is InitViews specific. Stored separately for cache efficiency.
  */
@@ -38,11 +40,21 @@ class FStaticMeshBatchRelevance
 {
 public:
 
-	FStaticMeshBatchRelevance(const FStaticMeshBatch& StaticMesh, float InScreenSize, bool InbSupportsCachingMeshDrawCommands, bool InbUseSkyMaterial, bool bInUseSingleLayerWaterMaterial, bool bInUseAnisotropy, bool bInSupportsNaniteRendering, bool bInSupportsGPUScene, bool bInUseForWaterInfoTextureDepth, bool bInUseForLumenSceneCapture, ERHIFeatureLevel::Type FeatureLevel);
+	FStaticMeshBatchRelevance(
+		const FStaticMeshBatch& StaticMesh, 
+		float InScreenSize, 
+		bool InbSupportsCachingMeshDrawCommands, 
+		bool InbUseSkyMaterial, 
+		bool bInUseSingleLayerWaterMaterial, 
+		bool bInUseAnisotropy, 
+		bool bInSupportsNaniteRendering, 
+		bool bInSupportsGPUScene, 
+		bool bInUseForWaterInfoTextureDepth, 
+		bool bInUseForLumenSceneCapture, 
+		uint8 InDecalRenderTargetModeMask,
+		ERHIFeatureLevel::Type FeatureLevel);
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	int8 GetLODIndex() const { return LODIndex; }
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	int8 GetLODIndex() const { return bInvalidLODIndex ? -1 : int8(UnsignedLODIndex); }
 
 	/** Starting offset into continuous array of command infos for this mesh in FPrimitiveSceneInfo::CachedMeshDrawCommandInfos. */
 	FMeshPassMask CommandInfosMask;
@@ -59,9 +71,19 @@ public:
 	/* Every bit corresponds to one MeshPass. If bit is set, then FPrimitiveSceneInfo::CachedMeshDrawCommandInfos contains this mesh pass. */
 	uint16 CommandInfosBase;
 
+private:
+
+	/** LOD index of the mesh, used for fading LOD transitions - unsigned and clamped for packing. */
+	uint8 UnsignedLODIndex : 4;
+
+	/** Original LOD index is negative */
+	uint8 bInvalidLODIndex : 1;
+
+public:
+
 	/** LOD index of the mesh, used for fading LOD transitions. */
-	UE_DEPRECATED(5.4, "Public LODIndex member is deprecated, use GetLODIndex() function instead.")
-	int8 LODIndex;
+	UE_DEPRECATED(5.4, "Public LODIndex member is deprecated and doesn't contain valid data anymore! Use GetLODIndex() function instead.")
+	int8 LODIndex : 1;
 
 	/** Whether the mesh batch should apply dithered LOD. */
 	uint8 bDitheredLODTransition : 1;
@@ -98,6 +120,9 @@ public:
 
 	/** Cached from lumen scene card capture */
 	uint8 bUseForLumenSceneCapture : 1;
+
+	/** What decal render target modes this mesh batch should be rendered to */
+	uint8 DecalRenderTargetModeMask : DecalRendering::DecalRenderTargetMode_NumBits;
 
 	/** Computes index of cached mesh draw command in FPrimitiveSceneInfo::CachedMeshDrawCommandInfos, for a given mesh pass. */
 	int32 GetStaticMeshCommandInfoIndex(EMeshPass::Type MeshPass) const;

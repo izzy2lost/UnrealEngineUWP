@@ -7,8 +7,8 @@
 #include "ToolSetupUtil.h"
 #include "ModelingToolTargetUtil.h"
 #include "Engine/SkeletalMesh.h"
-#include "ChaosClothAsset/ClothEditorContextObject.h"
 #include "ContextObjectStore.h"
+#include "Dataflow/DataflowContextObject.h"
 #include "Dataflow/DataflowEdNode.h"
 #include "ChaosClothAsset/TransferSkinWeightsNode.h"
 #include "BaseGizmos/TransformGizmoUtil.h"
@@ -50,7 +50,7 @@ void UClothTransferSkinWeightsTool::Setup()
 {
 	USingleSelectionMeshEditingTool::Setup();
 
-	TransferSkinWeightsNode = ClothEditorContextObject->GetSingleSelectedNodeOfType<FChaosClothAssetTransferSkinWeightsNode>();
+	TransferSkinWeightsNode = DataflowContextObject->GetSelectedNodeOfType<FChaosClothAssetTransferSkinWeightsNode>();
 	checkf(TransferSkinWeightsNode, TEXT("No Transfer Skin Weights Node is currently selected, or more than one node is selected"));
 
 	ToolProperties = NewObject<UClothTransferSkinWeightsToolProperties>(this);
@@ -78,7 +78,9 @@ void UClothTransferSkinWeightsTool::Setup()
 	TargetClothPreview->OnMeshUpdated.AddUObject(this, &UClothTransferSkinWeightsTool::PreviewMeshUpdatedCallback);
 
 	// Set the initial preview mesh before any computation runs
-	UE::Geometry::FDynamicMesh3 InitialPreviewMesh = UE::ToolTarget::GetDynamicMeshCopy(Target, true);
+	static FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = true;
+	UE::Geometry::FDynamicMesh3 InitialPreviewMesh = UE::ToolTarget::GetDynamicMeshCopy(Target, GetMeshParams);
 	TargetClothPreview->PreviewMesh->UpdatePreview(MoveTemp(InitialPreviewMesh));
 
 	TargetClothPreview->SetVisibility(true);
@@ -160,7 +162,7 @@ void UClothTransferSkinWeightsTool::Setup()
 		}
 	});
 
-	SourceMeshTransformGizmo = UE::TransformGizmoUtil::CreateCustomTransformGizmo(GizmoManager, ETransformGizmoSubElements::StandardTranslateRotate, this);
+	SourceMeshTransformGizmo = UE::TransformGizmoUtil::CreateCustomTransformGizmo(GizmoManager, ETransformGizmoSubElements::FullTranslateRotateScale, this);
 	ensure(SourceMeshTransformGizmo);
 
 	SourceMeshTransformGizmo->SetActiveTarget(SourceMeshTransformProxy, GetToolManager());
@@ -248,9 +250,9 @@ TUniquePtr<UE::Geometry::FDynamicMeshOperator> UClothTransferSkinWeightsTool::Ma
 	return TransferOp;
 }
 
-void UClothTransferSkinWeightsTool::SetClothEditorContextObject(TObjectPtr<UClothEditorContextObject> InClothEditorContextObject)
+void UClothTransferSkinWeightsTool::SetDataflowEditorContextObject(TObjectPtr<UDataflowContextObject> InDataflowContextObject)
 {
-	ClothEditorContextObject = InClothEditorContextObject;
+	DataflowContextObject = InDataflowContextObject;
 }
 
 FTransform UClothTransferSkinWeightsTool::TransformFromProperties() const

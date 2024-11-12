@@ -294,7 +294,7 @@ void UMassLODSubsystem::SynchronizeViewers()
 				}
 				else
 				{
-					RegisteredActorViewers.RemoveAtSwap(ActorViewerIndex, 1, EAllowShrinking::No);
+					RegisteredActorViewers.RemoveAtSwap(ActorViewerIndex, EAllowShrinking::No);
 				}
 			}
 		}

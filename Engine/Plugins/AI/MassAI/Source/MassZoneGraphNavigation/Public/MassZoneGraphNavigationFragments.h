@@ -11,7 +11,7 @@
 
 
 USTRUCT()
-struct MASSZONEGRAPHNAVIGATION_API FMassZoneGraphNavigationParameters : public FMassSharedFragment
+struct MASSZONEGRAPHNAVIGATION_API FMassZoneGraphNavigationParameters : public FMassConstSharedFragment
 {
 	GENERATED_BODY()
 

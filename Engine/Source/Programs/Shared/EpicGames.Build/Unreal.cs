@@ -87,36 +87,29 @@ namespace UnrealBuildBase
 			return UnrealBuildToolDllPath;
 		}
 
-		static private string DotnetVersionDirectory = "6.0.302";
+		static private string DotnetVersionDirectory = "8.0.300";
 
 		static private string FindRelativeDotnetDirectory(RuntimePlatform.Type HostPlatform)
 		{
-			string HostDotNetDirectoryName;
+			string platform;
+			string architecture;
+
 			switch (HostPlatform)
 			{
-				case RuntimePlatform.Type.Windows:
-					{
-						HostDotNetDirectoryName = "windows";
-						if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
-						{
-							HostDotNetDirectoryName = "win-arm64";
-						}
-						break;
-					}
-				case RuntimePlatform.Type.Mac:
-					{
-						HostDotNetDirectoryName = "mac-x64";
-						if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
-						{
-							HostDotNetDirectoryName = "mac-arm64";
-						}
-						break;
-					}
-				case RuntimePlatform.Type.Linux: HostDotNetDirectoryName = "linux"; break;
-				default: throw new Exception("Unknown host platform");
+				case RuntimePlatform.Type.Linux: platform = "linux"; break;
+				case RuntimePlatform.Type.Mac: platform = "mac"; break;
+				case RuntimePlatform.Type.Windows: platform = "win"; break;
+				default: throw new Exception($"Unsupported host platform {HostPlatform}");
 			}
 
-			return Path.Combine("Binaries", "ThirdParty", "DotNet", DotnetVersionDirectory, HostDotNetDirectoryName);
+			switch (RuntimeInformation.ProcessArchitecture)
+			{
+				case Architecture.Arm64: architecture = "arm64"; break;
+				case Architecture.X64: architecture = "x64"; break;
+				default: throw new Exception($"Unsupported host architecture {RuntimeInformation.ProcessArchitecture}");
+			}
+
+			return Path.Combine("Binaries", "ThirdParty", "DotNet", DotnetVersionDirectory, $"{platform}-{architecture}");
 		}
 
 		static private string FindRelativeDotnetDirectory() => FindRelativeDotnetDirectory(RuntimePlatform.Current);
@@ -196,6 +189,16 @@ namespace UnrealBuildBase
 		static private bool? bIsEngineInstalled;
 
 		/// <summary>
+		/// Whether we're running with an installed project (ie. a mod kit)
+		/// </summary>
+		static private bool? bIsProjectInstalled;
+
+		/// <summary>
+		/// If we are running with an installed project, specifies the path to it
+		/// </summary>
+		static private FileReference? InstalledProjectFile;
+
+		/// <summary>
 		/// Returns where another platform's Dotnet is located
 		/// </summary>
 		/// <param name="HostPlatform"></param>
@@ -206,7 +209,7 @@ namespace UnrealBuildBase
 		}
 
 		/// <summary>
-		/// Returns true of UnrealBuildTool is running on a build machine
+		/// Returns true if the application is running on a build machine
 		/// </summary>
 		/// <returns>True if running on a build machine</returns>
 		static public bool IsBuildMachine()
@@ -219,7 +222,7 @@ namespace UnrealBuildBase
 		}
 
 		/// <summary>
-		/// Returns true if UnrealBuildTool is running using installed Engine components
+		/// Returns true if the application is running using installed Engine components
 		/// </summary>
 		/// <returns>True if running using installed Engine components</returns>
 		static public bool IsEngineInstalled()
@@ -231,6 +234,56 @@ namespace UnrealBuildBase
 			return bIsEngineInstalled.Value;
 		}
 
+		/// <summary>
+		/// Returns true if the application is running using an installed project (ie. a mod kit)
+		/// </summary>
+		/// <returns>True if running using an installed project</returns>
+		public static bool IsProjectInstalled()
+		{
+			if (!bIsProjectInstalled.HasValue)
+			{
+				FileReference InstalledProjectLocationFile = FileReference.Combine(EngineDirectory, "Build", "InstalledProjectBuild.txt");
+				if (FileReference.Exists(InstalledProjectLocationFile))
+				{
+					InstalledProjectFile = FileReference.Combine(RootDirectory, FileReference.ReadAllText(InstalledProjectLocationFile).Trim());
+					bIsProjectInstalled = true;
+				}
+				else
+				{
+					InstalledProjectFile = null;
+					bIsProjectInstalled = false;
+				}
+			}
+			return bIsProjectInstalled.Value;
+		}
+
+		/// <summary>
+		/// Gets the installed project file
+		/// </summary>
+		/// <returns>Location of the installed project file</returns>
+		public static FileReference? GetInstalledProjectFile()
+		{
+			return IsProjectInstalled() ? InstalledProjectFile : null;
+		}
+
+		/// <summary>
+		/// Checks whether the given file is under an installed directory, and should not be overridden
+		/// </summary>
+		/// <param name="File">File to test</param>
+		/// <returns>True if the file is part of the installed distribution, false otherwise</returns>
+		public static bool IsFileInstalled(FileReference File)
+		{
+			if (IsEngineInstalled() && File.IsUnderDirectory(EngineDirectory))
+			{
+				return true;
+			}
+			if (IsProjectInstalled() && File.IsUnderDirectory(InstalledProjectFile!.Directory))
+			{
+				return true;
+			}
+			return false;
+		}
+
 		public static class LocationOverride
 		{
 			/// <summary>
@@ -239,45 +292,44 @@ namespace UnrealBuildBase
 			public static DirectoryReference? RootDirectory = null;
 		}
 
-
 		// A subset of the functionality in DataDrivenPlatformInfo.GetAllPlatformInfos() - finds the DataDrivenPlatformInfo.ini files and records their existence, but does not parse them
 		// (perhaps DataDrivenPlatformInfo.GetAllPlatformInfos() could be modified to use this data to avoid an additional search through the filesystem)
-		public static HashSet<string>? IniPresentForPlatform = null;
-		private static bool DataDrivenPlatformInfoIniIsPresent(string PlatformName)
+		private static Lazy<HashSet<string>> IniPresentForPlatform = new Lazy<HashSet<string>>(() =>
 		{
-			if (IniPresentForPlatform == null)
+			HashSet<string> Set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			// find all platform directories (skipping NFL/NoRedist)
+			foreach (DirectoryReference EngineConfigDir in GetExtensionDirs(Unreal.EngineDirectory, "Config", bIncludeRestrictedDirectories: false))
 			{
-				IniPresentForPlatform = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-				// find all platform directories (skipping NFL/NoRedist)
-				foreach (DirectoryReference EngineConfigDir in GetExtensionDirs(Unreal.EngineDirectory, "Config", bIncludeRestrictedDirectories: false))
+				// look through all config dirs looking for the data driven ini file
+				foreach (string FilePath in Directory.EnumerateFiles(EngineConfigDir.FullName, "DataDrivenPlatformInfo.ini", SearchOption.AllDirectories))
 				{
-					// look through all config dirs looking for the data driven ini file
-					foreach (string FilePath in Directory.EnumerateFiles(EngineConfigDir.FullName, "DataDrivenPlatformInfo.ini", SearchOption.AllDirectories))
+					FileReference FileRef = new FileReference(FilePath);
+
+					// get the platform name from the path
+					string IniPlatformName;
+					if (FileRef.IsUnderDirectory(DirectoryReference.Combine(Unreal.EngineDirectory, "Config")))
 					{
-						FileReference FileRef = new FileReference(FilePath);
-
-						// get the platform name from the path
-						string IniPlatformName;
-						if (FileRef.IsUnderDirectory(DirectoryReference.Combine(Unreal.EngineDirectory, "Config")))
-						{
-							// Foo/Engine/Config/<Platform>/DataDrivenPlatformInfo.ini
-							IniPlatformName = Path.GetFileName(Path.GetDirectoryName(FilePath))!;
-						}
-						else
-						{
-							// Foo/Engine/Platforms/<Platform>/Config/DataDrivenPlatformInfo.ini
-							IniPlatformName = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(FilePath)))!;
-						}
-
-						// DataDrivenPlatformInfo.GetAllPlatformInfos() checks that [DataDrivenPlatformInfo] section exists as part of validating that the file exists
-						// This code should probably behave the same way.
-
-						IniPresentForPlatform.Add(IniPlatformName);
+						// Foo/Engine/Config/<Platform>/DataDrivenPlatformInfo.ini
+						IniPlatformName = Path.GetFileName(Path.GetDirectoryName(FilePath))!;
 					}
+					else
+					{
+						// Foo/Engine/Platforms/<Platform>/Config/DataDrivenPlatformInfo.ini
+						IniPlatformName = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(FilePath)))!;
+					}
+
+					// DataDrivenPlatformInfo.GetAllPlatformInfos() checks that [DataDrivenPlatformInfo] section exists as part of validating that the file exists
+					// This code should probably behave the same way.
+
+					Set.Add(IniPlatformName);
 				}
 			}
-			return IniPresentForPlatform.Contains(PlatformName);
+
+			return Set;
+		});
+		private static bool DataDrivenPlatformInfoIniIsPresent(string PlatformName)
+		{
+			return IniPresentForPlatform.Value.Contains(PlatformName);
 		}
 
 		// cached dictionary of BaseDir to extension directories

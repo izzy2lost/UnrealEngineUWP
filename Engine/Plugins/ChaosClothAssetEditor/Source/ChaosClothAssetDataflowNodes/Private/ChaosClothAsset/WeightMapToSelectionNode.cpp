@@ -10,7 +10,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WeightMapToSelectionNode)
 #define LOCTEXT_NAMESPACE "FChaosClothAssetWeightMapToSelectionNode"
 
-FChaosClothAssetWeightMapToSelectionNode::FChaosClothAssetWeightMapToSelectionNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetWeightMapToSelectionNode::FChaosClothAssetWeightMapToSelectionNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -19,7 +19,7 @@ FChaosClothAssetWeightMapToSelectionNode::FChaosClothAssetWeightMapToSelectionNo
 	RegisterOutputConnection(&SelectionName);
 }
 
-void FChaosClothAssetWeightMapToSelectionNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetWeightMapToSelectionNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	using namespace UE::Chaos::ClothAsset;
 

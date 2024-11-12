@@ -42,7 +42,7 @@ namespace Metasound
 	DEFINE_METASOUND_ENUM_BEGIN(Audio::Grain::EEnvelope, FEnumGrainDelayEnvelope, "GrainDelayEnvelope")
 		DEFINE_METASOUND_ENUM_ENTRY(Audio::Grain::EEnvelope::Gaussian, "GrainDelayEnvelopeGaussianDescription", "Gaussian", "GrainDelayEnvelopeGaussianDescriptionTT", "A gaussian envelope."),
 		DEFINE_METASOUND_ENUM_ENTRY(Audio::Grain::EEnvelope::Triangle, "GrainDelayEnvelopeTriangleDescription", "Triangle", "GrainDelayEnvelopeTriangleDescriptionTT", "A triangular envelope."),
-		DEFINE_METASOUND_ENUM_ENTRY(Audio::Grain::EEnvelope::DownwardTriangle, "GrainDelayEnvelopeDownwardTriangleDescription", "Downward Triangle", "GrainDelayEnvelopeTriangleDescriptionTT", "A downward triangular envelope."),
+		DEFINE_METASOUND_ENUM_ENTRY(Audio::Grain::EEnvelope::DownwardTriangle, "GrainDelayEnvelopeDownwardTriangleDescription", "Downward Triangle", "GrainDelayEnvelopeDownwardTriangleDescriptionTT", "A downward triangular envelope."),
 		DEFINE_METASOUND_ENUM_ENTRY(Audio::Grain::EEnvelope::UpwardTriangle, "GrainDelayEnvelopeUpwardTriangleDescription", "Upward Triangle", "GrainDelayEnvelopeUpwardTriangleDescriptionTT", "An upward triangular envelope."),
 		DEFINE_METASOUND_ENUM_ENTRY(Audio::Grain::EEnvelope::ExponentialDecay, "GrainDelayEnvelopeExponentialDecayDescription", "Exponential Decay", "GrainDelayEnvelopeExponentialDecayDescriptionTT", "An exponential decay envelope."),
 		DEFINE_METASOUND_ENUM_ENTRY(Audio::Grain::EEnvelope::ExponentialAttack, "GrainDelayEnvelopeExponentialAttackDescription", "Exponential Attack", "GrainDelayEnvelopeExponentialAttackDescriptionTT", "An exponential attack envelope."),

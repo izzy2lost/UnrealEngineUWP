@@ -149,6 +149,10 @@ class SwappyVkBase {
     virtual void recordFrameStart(VkQueue queue, uint32_t image) = 0;
     virtual void clearStats() = 0;
 
+    void resetFramePacing();
+    void enableFramePacing(bool enable);
+    void enableBlockingWait(bool enable);
+
    protected:
     struct VkSync {
         VkFence fence;

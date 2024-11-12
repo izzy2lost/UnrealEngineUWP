@@ -11,7 +11,7 @@
 #include "Templates/PimplPtr.h"
 #include "Templates/UniquePtr.h"
 
-#include "ColorManagementDefines.h"
+#include "ColorManagement/ColorManagementDefines.h"
 
 struct FImageView;
 enum TextureFilter : int;

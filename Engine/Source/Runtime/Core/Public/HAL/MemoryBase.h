@@ -108,6 +108,17 @@ public:
 	 * Free
 	 */
 	virtual void Free( void* Original ) = 0;
+
+	/**
+	 * Malloc zeroed memory
+	 */
+	CORE_API virtual void* MallocZeroed(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
+
+	/**
+	 * TryMalloc - like MallocZeroed(), but may return a nullptr result if the allocation
+	 *             request cannot be satisfied.
+	 */
+	CORE_API virtual void* TryMallocZeroed(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
 		
 	/** 
 	* For some allocators this will return the actual size that should be requested to eliminate
@@ -143,6 +154,20 @@ public:
 	* Set up TLS caches on the current thread. These are the threads that we can trim.
 	*/
 	virtual void SetupTLSCachesOnCurrentThread()
+	{
+	}
+
+	/**
+	* Mark TLS caches for the current thread as used. Thread has woken up to do some processing and needs its TLS caches back.
+	*/
+	virtual void MarkTLSCachesAsUsedOnCurrentThread()
+	{
+	}
+
+	/**
+	* Mark TLS caches for current thread as unused. Typically before going to sleep. These are the threads that we can trim without waking them up.
+	*/
+	virtual void MarkTLSCachesAsUnusedOnCurrentThread()
 	{
 	}
 
@@ -222,6 +247,14 @@ public:
 	 * Notifies the malloc implementation that the process has forked so we can try and avoid dirtying pre-fork pages.
 	 */
 	virtual void OnPostFork() {}
+
+	/**
+	 * Returns the amount of free memory cached by the allocator that can be returned to the system in case of a memory shortage
+	 */
+	virtual uint64 GetFreeCachedMemorySize() const
+	{
+		return 0;
+	}
 
 protected:
 	friend struct FCurrentFrameCalls;

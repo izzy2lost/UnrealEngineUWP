@@ -5,6 +5,7 @@
 #include "SEditorViewport.h"
 #include "SCommonEditorViewportToolbarBase.h"
 
+class FPreviewProfileController;
 class FSmartObjectAssetEditorViewportClient;
 class FSmartObjectAssetToolkit;
 class SSmartObjectViewportToolBar;
@@ -36,6 +37,7 @@ protected:
 	virtual void BindCommands() override;
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;
 	virtual TSharedPtr<SWidget> MakeViewportToolbar() override;
+	virtual TSharedPtr<SWidget> BuildViewportToolbar() override;
 	// ~End of SEditorViewport interface
 
 	/** The viewport toolbar */
@@ -43,6 +45,9 @@ protected:
 
 	/** Viewport client */
 	TSharedPtr<FSmartObjectAssetEditorViewportClient> ViewportClient;
+
+	/** Handles Preview Profiles */
+	TSharedPtr<FPreviewProfileController> PreviewProfileController;
 
 	/** The preview scene that we are viewing */
 	FAdvancedPreviewScene* PreviewScene = nullptr;

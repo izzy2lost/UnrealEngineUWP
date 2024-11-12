@@ -59,9 +59,6 @@ class LEARNINGAGENTS_API ULearningAgentsPolicy : public ULearningAgentsManagerLi
 
 public:
 
-	friend class ULearningAgentsCritic;
-	friend class ULearningAgentsTrainer;
-
 	// These constructors/destructors are needed to make forward declarations happy
 	ULearningAgentsPolicy();
 	ULearningAgentsPolicy(FVTableHelper& Helper);
@@ -91,8 +88,8 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta=(Class = "/Script/LearningAgents.LearningAgentsPolicy", DeterminesOutputType = "Class", AutoCreateRefTerm = "PolicySettings"))
 	static ULearningAgentsPolicy* MakePolicy(
-		ULearningAgentsManager* InManager,
-		ULearningAgentsInteractor* InInteractor,
+		UPARAM(ref) ULearningAgentsManager*& InManager,
+		UPARAM(ref) ULearningAgentsInteractor*& InInteractor,
 		TSubclassOf<ULearningAgentsPolicy> Class,
 		const FName Name = TEXT("Policy"),
 		ULearningAgentsNeuralNetwork* EncoderNeuralNetworkAsset = nullptr,
@@ -126,8 +123,8 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PolicySettings"))
 	void SetupPolicy(
-		ULearningAgentsManager* InManager,
-		ULearningAgentsInteractor* InInteractor,
+		UPARAM(ref) ULearningAgentsManager*& InManager,
+		UPARAM(ref) ULearningAgentsInteractor*& InInteractor,
 		ULearningAgentsNeuralNetwork* EncoderNeuralNetworkAsset = nullptr,
 		ULearningAgentsNeuralNetwork* PolicyNeuralNetworkAsset = nullptr,
 		ULearningAgentsNeuralNetwork* DecoderNeuralNetworkAsset = nullptr,
@@ -222,6 +219,18 @@ public:
 
 	/** Get a reference to this policy's decoder function object. */
 	UE::Learning::FNeuralNetworkFunction& GetDecoderObject();
+
+	/** Get a const view to this policy's pre-evaluation memory state. */
+	TLearningArrayView<2, const float> GetPreEvaluationMemoryState() const;
+
+	/** Get a const view to this policy's memory state. */
+	TLearningArrayView<2, const float> GetMemoryState() const;
+
+	/** Get a const view to this policy's encoded observation vectors. */
+	TLearningArrayView<2, const float> GetObservationVectorsEncoded() const;
+
+	/** Returns true if this policy has encoded observations for the given agent id. Otherwise, false. */
+	bool HasEncodedObservationsForAgent(const int32 AgentId) const;
 
 // ----- Private Data -----
 private:

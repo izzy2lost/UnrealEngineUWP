@@ -14,9 +14,6 @@
 #include "LightmapUniformShaderParameters.h"
 #include "UnifiedBuffer.h"
 #endif
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "UnrealEngine.h"
-#endif
 
 /** 
  * The uniform shader parameters associated with a primitive. 
@@ -65,6 +62,9 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FPrimitiveUniformShaderParameters,ENGINE_AP
 	SHADER_PARAMETER(int32,			PersistentPrimitiveIndex)
 	SHADER_PARAMETER(FVector2f,		InstanceDrawDistanceMinMaxSquared)
 	SHADER_PARAMETER(float,			InstanceWPODisableDistanceSquared)
+	SHADER_PARAMETER(float,			PixelProgrammableDistanceSquared)
+	SHADER_PARAMETER(float,			MaterialDisplacementFadeOutSize)
+	SHADER_PARAMETER(FUintVector2,	MeshPaintTextureDescriptor)
 	SHADER_PARAMETER(uint32,		NaniteRayTracingDataOffset)
 	SHADER_PARAMETER(float,			MaxWPOExtent)
 	SHADER_PARAMETER(uint32,		CustomStencilValueAndMask)

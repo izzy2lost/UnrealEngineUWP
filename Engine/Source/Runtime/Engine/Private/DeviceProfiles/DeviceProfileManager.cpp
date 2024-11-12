@@ -69,9 +69,7 @@ UDeviceProfileManager& UDeviceProfileManager::Get(bool bFromPostCDOContruct)
 		DeviceProfileManagerSingleton = NewObject<UDeviceProfileManager>();
 
 		DeviceProfileManagerSingleton->AddToRoot();
-#if ALLOW_OTHER_PLATFORM_CONFIG
 		DeviceProfileManagerSingleton->LoadProfiles();
-#endif
 
 		// always start with an active profile, even if we create it on the spot
 		UDeviceProfile* ActiveProfile = DeviceProfileManagerSingleton->FindProfile(GetPlatformDeviceProfileName());
@@ -101,6 +99,22 @@ UDeviceProfileManager& UDeviceProfileManager::Get(bool bFromPostCDOContruct)
 
 		// let any other code that needs the DPManager to run now
 		FDelayedAutoRegisterHelper::RunAndClearDelayedAutoRegisterDelegates(EDelayedRegisterRunPhase::DeviceProfileManagerReady);
+		
+		// when we load/unload dynamic configs, we may need to propagate those changes to the active DP
+		UE::DynamicConfig::UpdateDeviceProfiles.AddLambda([](const TSet<FString>& ModifiedSections)
+			{
+				TSet<FString> DeviceProfilesToQuery;
+				int32 DeviceProfilePatternLength = UDeviceProfile::StaticClass()->GetName().Len() + 1;
+				for (const FString& Section : ModifiedSections)
+				{
+					DeviceProfilesToQuery.Add(Section.LeftChop(DeviceProfilePatternLength));
+				}
+
+				if (UDeviceProfileManager::Get().DoActiveProfilesReference(DeviceProfilesToQuery))
+				{
+					UDeviceProfileManager::Get().ReapplyDeviceProfile();
+				}
+			});
 	}
 	return *DeviceProfileManagerSingleton;
 }
@@ -703,6 +717,9 @@ UDeviceProfile* UDeviceProfileManager::CreateProfile(const FString& ProfileName,
 	UDeviceProfile* DeviceProfile = FindObject<UDeviceProfile>( GetTransientPackage(), *ProfileName );
 	if (DeviceProfile == NULL)
 	{
+		// set the config platform if it's confidential - so that we will save to platform specific DP.ini, instead of DefaultDP.ini
+		bool bNeedSaveToPlatformConfig = ConfigPlatform != nullptr && FDataDrivenPlatformInfoRegistry::GetPlatformInfo(FName(ConfigPlatform)).bIsConfidential;
+
 		// use ConfigPlatform ini hierarchy to look in for the parent profile
 		// @todo config: we could likely cache local ini files to speed this up,
 		// along with the ones we load in LoadConfig
@@ -752,6 +769,15 @@ UDeviceProfile* UDeviceProfileManager::CreateProfile(const FString& ProfileName,
 			// if the config needs to come from a platform, set it now, then reload the config
 			DeviceProfile->ConfigPlatform = ConfigPlatform;
 			DeviceProfile->LoadConfig();
+			
+			// when we don't need to save to PlatformDP.ini, we want to save to Project/Config/DefaultDP.ini, otherwise
+			// we want to save to Project/Platforms/Plat/Config/PlatDP.ini, so we keep the COnfigPlatform
+			// around for saving, so it will route to the correct .ini file to save (once it's loaded, the function
+			// UDeviceProfile::GetConfigOverridePlatform() is only needed when saving)
+			if (!bNeedSaveToPlatformConfig)
+			{
+				DeviceProfile->ConfigPlatform = TEXT("");
+			}
 		}
 
 		// make sure the DP has all the LODGroups it needs
@@ -905,19 +931,15 @@ void UDeviceProfileManager::LoadProfiles()
 	{
 		TMap<FString, FString> DeviceProfileToPlatformConfigMap;
 		DeviceProfileToPlatformConfigMap.Add(TEXT("GlobalDefaults,None"), FPlatformProperties::IniPlatformName());
-		TArray<FName> ConfidentialPlatforms = FDataDrivenPlatformInfoRegistry::GetConfidentialPlatforms();
 		
-#if !ALLOW_OTHER_PLATFORM_CONFIG
-		checkf(ConfidentialPlatforms.Contains(FPlatformProperties::IniPlatformName()) == false,
-			TEXT("UDeviceProfileManager::LoadProfiles is called from a confidential platform (%s). Confidential platforms are not expected to be editor/non-cooked builds."), 
-			ANSI_TO_TCHAR(FPlatformProperties::IniPlatformName()));
-#endif
+#if ALLOW_OTHER_PLATFORM_CONFIG
+		TArray<FName> PlatformsToLoad = FDataDrivenPlatformInfoRegistry::GetSortedPlatformNames(EPlatformInfoType::TruePlatformsOnly);
 
 		// go over all the platforms we find, starting with the current platform
-		for (int32 PlatformIndex = 0; PlatformIndex <= ConfidentialPlatforms.Num(); PlatformIndex++)
+		for (int32 PlatformIndex = 0; PlatformIndex <= PlatformsToLoad.Num(); PlatformIndex++)
 		{
 			// which platform's set of ini files should we load from?
-			FString ConfigLoadPlatform = PlatformIndex == 0 ? FString(FPlatformProperties::IniPlatformName()) : ConfidentialPlatforms[PlatformIndex - 1].ToString();
+			FString ConfigLoadPlatform = PlatformIndex == 0 ? FString(FPlatformProperties::IniPlatformName()) : PlatformsToLoad[PlatformIndex - 1].ToString();
 
 			// load the DP.ini files (from current platform and then by the extra confidential platforms)
 			FConfigFile LocalPlatformConfigFile;
@@ -936,7 +958,8 @@ void UDeviceProfileManager::LoadProfiles()
 				}
 			}
 		}
-
+#endif
+		
 		// now that we have gathered all the unique DPs, load them from the proper platform hierarchy
 		for (auto It = DeviceProfileToPlatformConfigMap.CreateIterator(); It; ++It)
 		{
@@ -946,15 +969,7 @@ void UDeviceProfileManager::LoadProfiles()
 
 			if (FindObject<UDeviceProfile>(GetTransientPackage(), *Name) == NULL)
 			{
-				// set the config platform if it's not the current platform
-				if (It.Value() != FPlatformProperties::IniPlatformName())
-				{
-					CreateProfile(Name, DeviceType, TEXT(""), *It.Value());
-				}
-				else
-				{
-					CreateProfile(Name, DeviceType);
-				}
+				CreateProfile(Name, DeviceType, TEXT(""), *It.Value());
 			}
 		}
 
@@ -1338,9 +1353,7 @@ void UDeviceProfileManager::SetActiveDeviceProfile( UDeviceProfile* DeviceProfil
 	const int32 NumTextureLODGroups = ActiveDeviceProfile ? ActiveDeviceProfile->TextureLODGroups.Num() : 0;
 	UE_LOG(LogDeviceProfileManager, Log, TEXT("Active device profile: [%p][%p %d] %s"), ActiveDeviceProfile, TextureLODGroupsAddr, NumTextureLODGroups, ActiveDeviceProfile ? *ActiveDeviceProfile->GetName() : TEXT("None"));
 
-#if CSV_PROFILER
 	CSV_METADATA(TEXT("DeviceProfile"), *GetActiveDeviceProfileName());
-#endif
 
 	ActiveDeviceProfileChangedDelegate.Broadcast();
 
@@ -1428,6 +1441,8 @@ static bool GetCVarForDeviceProfile( FOutputDevice& Ar, FString DPName, FString 
 	return true;
 }
 
+#endif
+
 class FPlatformCVarExec : public FSelfRegisteringExec
 {
 protected:
@@ -1435,6 +1450,7 @@ protected:
 	// FSelfRegisteringExec interface
 	virtual bool Exec_Runtime(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar) override
 	{
+#if ALLOW_OTHER_PLATFORM_CONFIG
 		if (FParse::Command(&Cmd, TEXT("dpcvar")))
 		{
 			FString DPName, CVarName;
@@ -1512,6 +1528,27 @@ protected:
 
 			FConfigCacheIni::ClearOtherPlatformConfigs();
 		}
+#else
+		if (FParse::Command(&Cmd, TEXT("dpdump")))
+		{
+			UDeviceProfile* DeviceProfile = UDeviceProfileManager::Get().FindProfile(Cmd, false);
+			if (DeviceProfile)
+			{
+				Ar.Logf(TEXT("All cvars found for deviceprofile %s"), Cmd);
+				Ar.Logf(TEXT("  CVARS CURRENTLY DISABLED DUE TO ALLOW_OTHER_PLATFORM_CONFIG"), Cmd);
+
+				// log out the LODGroups fully
+				FArrayProperty* LODGroupsProperty = FindFProperty<FArrayProperty>(UDeviceProfile::StaticClass(), GET_MEMBER_NAME_CHECKED(UTextureLODSettings, TextureLODGroups));
+				FScriptArrayHelper_InContainer ArrayHelper(LODGroupsProperty, DeviceProfile);
+				for (int32 Index = 0; Index < ArrayHelper.Num(); Index++)
+				{
+					FString	Buffer;
+					LODGroupsProperty->Inner->ExportTextItem_Direct(Buffer, ArrayHelper.GetRawPtr(Index), ArrayHelper.GetRawPtr(Index), DeviceProfile, 0);
+					Ar.Logf(TEXT("LODGroup[%d]=%s"), Index, *Buffer);
+				}
+			}
+		}
+#endif
 		else if (FParse::Command(&Cmd, TEXT("dpreapply")))
 		{
 			UDeviceProfileManager::Get().ReapplyDeviceProfile();
@@ -1523,5 +1560,3 @@ protected:
 
 } GPlatformCVarExec;
 
-
-#endif

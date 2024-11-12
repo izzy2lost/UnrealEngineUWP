@@ -2,17 +2,18 @@
 
 #include "RewindDebugger.h"
 
-#include "Animation/AnimBlueprint.h"
+#include "DesktopPlatformModule.h"
 #include "Animation/AnimBlueprintGeneratedClass.h"
 #include "Animation/AnimTrace.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Editor.h"
-#include "Engine/PoseWatch.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
+#include "HAL/PlatformFileManager.h"
 #include "IAnimationProvider.h"
+#include "IDesktopPlatform.h"
 #include "IGameplayProvider.h"
 #include "IRewindDebuggerDoubleClickHandler.h"
 #include "IRewindDebuggerExtension.h"
@@ -27,7 +28,9 @@
 #include "RewindDebuggerPlaceholderTrack.h"
 #include "RewindDebuggerSettings.h"
 #include "SLevelViewport.h"
+#include "SModalSessionBrowser.h"
 #include "ToolMenus.h"
+#include "Trace/StoreClient.h"
 #include "TraceServices/Model/Frames.h"
 #include "UObject/UObjectIterator.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -37,6 +40,11 @@
 #include "UnrealEdGlobals.h"
 #include "Editor/UnrealEdEngine.h"
 #include "Kismet2/DebuggerCommands.h"
+#include "RewindDebuggerRuntime/RewindDebuggerRuntime.h"
+#include "TraceServices/AnalysisService.h"
+#include "TraceServices/ITraceServicesModule.h"
+#include "Widgets/Input/SNumericEntryBox.h"
+#include "Misc/MessageDialog.h"
 
 #define LOCTEXT_NAMESPACE "RewindDebugger"
 
@@ -63,20 +71,20 @@ static void TraceSubobjects(UObject* OuterObject)
 	}
 }
 
-FRewindDebugger::FRewindDebugger()  :
-	ControlState(FRewindDebugger::EControlState::Pause),
-	bPIEStarted(false),
-	bPIESimulating(false),
-	bRecording(false),
-	PlaybackRate(1),
-	PreviousTraceTime(-1),
-	CurrentScrubTime(0),
-	CurrentViewRange(0,0),
-	CurrentTraceRange(0,0),
-	RecordingIndex(0),
-	bTargetActorPositionValid(false),
-	bIsDetailsPanelOpen(true)
+FRewindDebugger::FRewindDebugger()
 {
+	if (RewindDebugger::FRewindDebuggerRuntime::Instance() == nullptr)
+	{
+		RewindDebugger::FRewindDebuggerRuntime::Initialize();
+	}
+
+	if (RewindDebugger::FRewindDebuggerRuntime* Runtime = RewindDebugger::FRewindDebuggerRuntime::Instance())
+	{
+		Runtime->ClearRecording.AddRaw(this, &FRewindDebugger::OnClearRecording);
+		Runtime->RecordingStarted.AddRaw(this, &FRewindDebugger::OnRecordingStarted);
+		Runtime->RecordingStarted.AddRaw(this, &FRewindDebugger::OnRecordingStopped);
+	}
+	
 	RewindDebugger::FRewindDebuggerTrackCreators::EnumerateCreators([this](const RewindDebugger::IRewindDebuggerTrackCreator* Creator)
     {
 		Creator->GetTrackTypes(TrackTypes);
@@ -143,6 +151,11 @@ FRewindDebugger::~FRewindDebugger()
 	FEditorDelegates::SingleStepPIE.RemoveAll(this);
 
 	FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
+	
+	if (RewindDebugger::FRewindDebuggerRuntime* Runtime = RewindDebugger::FRewindDebuggerRuntime::Instance())
+	{
+		Runtime->RecordingStarted.RemoveAll(this);
+	}
 }
 
 void FRewindDebugger::Initialize() 
@@ -172,7 +185,7 @@ void FRewindDebugger::OnPIEStarted(bool bSimulating)
 
 	if (ShouldAutoRecordOnPIE())
 	{
-		StartRecording();
+		bQueueStartRecording = true;
 	}
 }
 
@@ -181,7 +194,7 @@ void FRewindDebugger::OnPIEPaused(bool bSimulating)
 	bPIESimulating = false;
 	ControlState = EControlState::Pause;
 	
-	if (bRecording)
+	if (IsRecording())
 	{
     #if OBJECT_TRACE_ENABLED
 		UWorld* World = GetWorldToVisualize();
@@ -208,17 +221,6 @@ void FRewindDebugger::OnPIEResumed(bool bSimulating)
 {
 	bPIESimulating = true;
 
-	// restore all relative transforms of any meshes that may have been moved while scrubbing
-	for (TTuple<uint64, FMeshComponentResetData>& MeshData : MeshComponentsToReset)
-	{
-		if (USkeletalMeshComponent* MeshComponent = MeshData.Value.Component.Get())
-		{
-			MeshComponent->SetRelativeTransform(MeshData.Value.RelativeTransform, false, nullptr, ETeleportType::TeleportPhysics);
-		}
-	}
-
-	MeshComponentsToReset.Empty();
-
 	if (ShouldAutoEject() && FPlayWorldCommandCallbacks::IsInSIE())
 	{
 		GEditor->RequestToggleBetweenPIEandSIE();
@@ -227,18 +229,7 @@ void FRewindDebugger::OnPIEResumed(bool bSimulating)
 
 void FRewindDebugger::OnPIESingleStepped(bool bSimulating)
 {
-	// restore all relative transforms of any meshes that may have been moved while scrubbing
-	for (TTuple<uint64, FMeshComponentResetData>& MeshData : MeshComponentsToReset)
-	{
-		if (USkeletalMeshComponent* MeshComponent = MeshData.Value.Component.Get())
-		{
-			MeshComponent->SetRelativeTransform(MeshData.Value.RelativeTransform, false, nullptr, ETeleportType::TeleportPhysics);
-		}
-	}
-
-	MeshComponentsToReset.Empty();
-
-	if (bRecording)
+	if (IsRecording())
 	{
     #if OBJECT_TRACE_ENABLED
 		UWorld* World = GetWorldToVisualize();
@@ -250,11 +241,20 @@ void FRewindDebugger::OnPIESingleStepped(bool bSimulating)
 
 void FRewindDebugger::OnPIEStopped(bool bSimulating)
 {
+	if (IsRecording() && bPIESimulating)
+	{
+#if OBJECT_TRACE_ENABLED
+		UWorld* World = GetWorldToVisualize();
+		SetCurrentScrubTime(FObjectTrace::GetWorldElapsedTime(World));
+#endif // OBJECT_TRACE_ENABLED
+	}
+	
 	bPIEStarted = false;
 	bPIESimulating = false;
-	MeshComponentsToReset.Empty();
 
 	StopRecording();
+	
+	bDisplayWorldIdValid = false;
 }
 
 bool FRewindDebugger::GetTargetActorPosition(FVector& OutPosition) const
@@ -317,11 +317,14 @@ void FRewindDebugger::GetTargetObjectIds(TArray<uint64>& OutTargetObjectIds) con
 
 	// make sure all the SubObjects of the target actor have been traced
 #if OBJECT_TRACE_ENABLED
-	for (uint64 OutTargetObjectId : TargetObjectIds)
+	if (IsRecording())
 	{
-		if (UObject* TargetObject = FObjectTrace::GetObjectFromId(OutTargetObjectId))
+		for (uint64 OutTargetObjectId : TargetObjectIds)
 		{
-			TraceSubobjects(TargetObject);
+			if (UObject* TargetObject = FObjectTrace::GetObjectFromId(OutTargetObjectId))
+			{
+				TraceSubobjects(TargetObject);
+			}
 		}
 	}
 #endif
@@ -440,31 +443,204 @@ void FRewindDebugger::StartRecording()
 	{
 		return;
 	}
-	
-	// Clear caches
-#if OBJECT_TRACE_ENABLED
-	FObjectTrace::Reset();
-	FAnimTrace::Reset();
-#endif
-	
+
+	if (RewindDebugger::FRewindDebuggerRuntime* Runtime = RewindDebugger::FRewindDebuggerRuntime::Instance())
+	{
+		Runtime->StartRecording();
+	}
+}
+
+void FRewindDebugger::OnClearRecording()
+{
+	ClearTrace();
 	RecordingDuration.Set(0);
-	// RecordingIndex++;
-	bRecording = true;
-
-	// Disable all trace channels, and then enable only the ones needed by RewindDebugger
-	// for systems with RewindDebugger integration, they should enable their channel(s) in an Extension in "RecordingStarted"
-	DisableAllTraceChannels();
-
-	// Clear all buffered data and prevent data from previous recordings from leaking into the new recording
-	FTraceAuxiliary::FOptions Options;
-	Options.bExcludeTail = true;
-
-	FTraceAuxiliary::OnConnection.AddRaw(this, &FRewindDebugger::OnConnection); 
-
-	FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::Network, TEXT("127.0.0.1"), TEXT(""), &Options, LogRewindDebugger);
-	UnrealInsightsModule->StartAnalysisForLastLiveSession(5.0);
-
 	TargetObjectIds.Empty(2);
+	bTargetActorPositionValid = false;
+
+	IterateExtensions([this](IRewindDebuggerExtension* Extension)
+	{
+		Extension->Clear(this);
+	}
+	);
+}
+
+void FRewindDebugger::OnRecordingStarted()
+{
+	IterateExtensions([this](IRewindDebuggerExtension* Extension)
+	{
+		Extension->RecordingStarted(this);
+	}
+	);
+	
+	UnrealInsightsModule->StartAnalysisForLastLiveSession(5.0);
+}
+
+void FRewindDebugger::OnRecordingStopped()
+{
+	IterateExtensions([this](IRewindDebuggerExtension* Extension)
+	{
+		Extension->RecordingStopped(this);
+	}
+	);
+}
+
+bool FRewindDebugger::CanOpenTrace() const
+{
+	return !bPIEStarted;
+}
+
+
+void FRewindDebugger::OpenTrace(const FString& FilePath)
+{ 
+	ClearTrace();
+
+	bDisplayWorldIdValid = false;
+	
+	IUnrealInsightsModule& TraceInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
+	TraceInsightsModule.StartAnalysisForTraceFile(*FilePath);
+
+	// todo: optionally open the map the trace file was recorded in
+}
+
+void FRewindDebugger::OpenTrace()
+{
+	FString FolderPath = "";
+	
+	TArray<FString> OutOpenFilenames;
+	if (IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get())
+	{
+		FString ExtensionStr;
+		ExtensionStr += TEXT("Unreal Trace|*.utrace|");
+	
+		DesktopPlatform->OpenFileDialog(
+			FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
+			LOCTEXT("OpenDialogTitle", "Open Rewind Debugger Recording").ToString(),
+			FolderPath,
+			TEXT(""),
+			*ExtensionStr,
+			EFileDialogFlags::None,
+			OutOpenFilenames
+		);
+	}
+
+	if (OutOpenFilenames.Num() > 0)
+	{
+		if (OutOpenFilenames[0].EndsWith(TEXT("utrace")))
+		{
+			OpenTrace(OutOpenFilenames[0]);
+		}
+	}
+}
+
+
+void FRewindDebugger::AttachToSession()
+{
+	ClearTrace();
+	const TSharedRef<SModalSessionBrowser> SessionBrowserModal = SNew(SModalSessionBrowser);
+
+	if (SessionBrowserModal->ShowModal() != EAppReturnType::Cancel)
+	{
+		bool bSuccess = false;
+		const SModalSessionBrowser::FTraceSessionInfo SessionInfo = SessionBrowserModal->GetSelectedTraceInfo();
+		if (SessionInfo.bIsValid)
+		{
+			const FString SessionAddress = SessionBrowserModal->GetSelectedTraceStoreAddress();
+			IUnrealInsightsModule& TraceInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
+			TraceInsightsModule.StartAnalysisForTrace(SessionInfo.TraceID);
+			bSuccess = TraceInsightsModule.GetAnalysisSession().IsValid();
+		}
+
+		if (!bSuccess)
+		{
+			FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("FailedToConnectToSessionMessage", "Failed to connect to session"));	
+		}
+	}
+}
+
+bool FRewindDebugger::CanClearTrace() const
+{
+	return GetAnalysisSession() != nullptr;
+}
+
+void FRewindDebugger::ClearTrace()
+{
+	StopRecording();
+	RecordingDuration.Set(0);
+	
+	TargetObjectIds.Empty();
+	CurrentTraceRange.SetLowerBoundValue(0);
+	CurrentTraceRange.SetUpperBoundValue(0);
+	RecordingDuration.Set(0.0);
+	SetCurrentScrubTime(0.0);
+
+	ComponentSelectionChanged(nullptr);
+	
+	// update extensions
+	IterateExtensions([this](IRewindDebuggerExtension* Extension)
+		{
+			Extension->Clear(this);
+		}
+	);
+	
+	IUnrealInsightsModule& TraceInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
+	// only way I can find to clear the session is trying to load a name that doesn't exist.
+	TraceInsightsModule.StartAnalysisForTraceFile(TEXT("0"));
+
+	RefreshDebugTracks();
+}
+
+bool FRewindDebugger::CanSaveTrace() const
+{
+	const TraceServices::IAnalysisSession* Session = GetAnalysisSession();
+	return Session != nullptr && Session->IsAnalysisComplete();
+}
+
+void FRewindDebugger::SaveTrace(FString FileName)
+{
+
+	if (const TraceServices::IAnalysisSession* Session = GetAnalysisSession())
+	{
+		if (Session->IsAnalysisComplete())
+		{
+			FString SourceFileName = Session->GetName();
+
+			FPlatformFileManager& FileManager = FPlatformFileManager::Get();
+			IPlatformFile& PlatformFile = FileManager.GetPlatformFile();
+
+			PlatformFile.CopyFile(*FileName, *SourceFileName);
+		}
+		
+	}
+}
+
+void FRewindDebugger::SaveTrace()
+{
+	FString FolderPath = "";
+	
+	TArray<FString> OutFilenames;
+	if (IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get())
+	{
+		FString ExtensionStr;
+		ExtensionStr += TEXT("Rewind Debugger Recording |*.utrace|");
+	
+		DesktopPlatform->SaveFileDialog(
+			FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
+			LOCTEXT("SaveDialogTitle", "Save Rewind Debugger Recording").ToString(),
+			FolderPath,
+			TEXT(""),
+			*ExtensionStr,
+			EFileDialogFlags::None,
+			OutFilenames
+		);
+	}
+
+	if (OutFilenames.Num() > 0)
+	{
+		if (OutFilenames[0].EndsWith(TEXT(".utrace")))
+		{
+			SaveTrace(OutFilenames[0]);
+		}
+	}
 }
 
 bool FRewindDebugger::ShouldAutoRecordOnPIE() const
@@ -495,19 +671,9 @@ void FRewindDebugger::SetShouldAutoEject(bool value)
 
 void FRewindDebugger::StopRecording()
 {
-	if (bRecording)
+	if (RewindDebugger::FRewindDebuggerRuntime* Runtime = RewindDebugger::FRewindDebuggerRuntime::Instance())
 	{
-		// update extensions
-		IterateExtensions([this](IRewindDebuggerExtension* Extension)
-			{
-				Extension->RecordingStopped(this);
-			}
-		);
-
-		bRecording = false;
-		
-		DisableAllTraceChannels();
-		FTraceAuxiliary::Stop();
+		Runtime->StopRecording();
 	}
 }
 
@@ -653,7 +819,6 @@ UWorld* FRewindDebugger::GetWorldToVisualize() const
 
 	UWorld* World = nullptr;
 
-#if WITH_EDITOR
 	UEditorEngine* EditorEngine = Cast<UEditorEngine>(GEngine);
 	if (GIsEditor && EditorEngine != nullptr && World == nullptr)
 	{
@@ -661,13 +826,21 @@ UWorld* FRewindDebugger::GetWorldToVisualize() const
 		World = EditorEngine->PlayWorld != nullptr ? ToRawPtr(EditorEngine->PlayWorld) : EditorEngine->GetEditorWorldContext().World();
 	}
 
-#endif
-	if (!GIsEditor && World == nullptr)
-	{
-		World = GEngine->GetWorld();
-	}
-
 	return World;
+}
+
+bool FRewindDebugger::IsRecording() const
+{
+	if (RewindDebugger::FRewindDebuggerRuntime* Runtime = RewindDebugger::FRewindDebuggerRuntime::Instance())
+	{
+		return Runtime->IsRecording();
+	}
+	return false;
+}
+
+bool FRewindDebugger::IsTraceFileLoaded() const
+{
+	return GetAnalysisSession()!=nullptr && !bPIEStarted;
 }
 
 void FRewindDebugger::SetCurrentViewRange(const TRange<double>& Range)
@@ -832,76 +1005,97 @@ const TraceServices::IAnalysisSession* FRewindDebugger::GetAnalysisSession() con
 	return UnrealInsightsModule ? UnrealInsightsModule->GetAnalysisSession().Get() : nullptr;
 }
 
+const FObjectInfo* FRewindDebugger::FindOwningActorInfo(const IGameplayProvider* GameplayProvider, uint64 ObjectId) const
+{
+	const FClassInfo* ActorClassInfo = GameplayProvider->FindClassInfo(*AActor::StaticClass()->GetPathName());
+	
+	while(true)
+	{
+		const FObjectInfo& ObjectInfo = GameplayProvider->GetObjectInfo(ObjectId);
+		if (GameplayProvider->IsSubClassOf(ObjectInfo.ClassId, ActorClassInfo->Id))
+		{
+			return &ObjectInfo;
+		}
+		else
+		{
+			if (ObjectInfo.OuterId != 0)
+			{
+				ObjectId = ObjectInfo.OuterId;
+			}
+			else
+			{
+				return nullptr;
+			}
+		}
+	}
+}
+
 void FRewindDebugger::Tick(float DeltaTime)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick);
 
-	if (bTraceJustConnected)
+	if (bQueueStartRecording)
 	{
-		bTraceJustConnected = false;
-		
-		UE::Trace::ToggleChannel(TEXT("Object"), true);
-		UE::Trace::ToggleChannel(TEXT("ObjectProperties"), true);
-		UE::Trace::ToggleChannel(TEXT("Animation"), true);
-		UE::Trace::ToggleChannel(TEXT("Frame"), true);
-
-		// update extensions
-		IterateExtensions([this](IRewindDebuggerExtension* Extension)
-			{
-				Extension->RecordingStarted(this);
-			}
-		);
-
-	#if OBJECT_TRACE_ENABLED
-		// trace each play-in-editor world, and all the actors in it.
-		for (TObjectIterator<UWorld> World; World; ++World)
-		{
-			if (World->IsPlayInEditor())
-			{
-				FObjectTrace::ResetWorldElapsedTime(*World);
-				FObjectTrace::SetWorldRecordingIndex(*World, RecordingIndex);
-				
-				TRACE_WORLD(*World);
-					
-				for (TActorIterator<AActor> Iterator(*World); Iterator; ++Iterator)
-				{
-					TRACE_OBJECT_LIFETIME_BEGIN(*Iterator);
-					if (APawn* Pawn = Cast<APawn>(*Iterator))
-					{
-						if (AController* Controller = Pawn->GetController())
-						{
-							TRACE_PAWN_POSSESS(static_cast<UObject*>(Controller), static_cast<UObject*>(Pawn));
-						}
-					}
-				}
-			}
-		}
-	#endif // OBJECT_TRACE_ENABLED
+		StartRecording();
+		bQueueStartRecording = false;
 	}
-	
+
 	if (const TraceServices::IAnalysisSession* Session = GetAnalysisSession())
 	{
-		RefreshDebugTracks();
-		
 		const IAnimationProvider* AnimationProvider = Session->ReadProvider<IAnimationProvider>("AnimationProvider");
 		const IGameplayProvider* GameplayProvider = Session->ReadProvider<IGameplayProvider>("GameplayProvider");
-
+		
 		if (AnimationProvider && GameplayProvider)
 		{
 			TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);
 
-			RecordingDuration.Set(GameplayProvider->GetRecordingDuration());
+			// set a default display world when loading a trace (first client/standalone world)
+			if (IsTraceFileLoaded() && !bDisplayWorldIdValid)
+			{
+				GameplayProvider->EnumerateWorlds([this](const FWorldInfo& WorldInfo)
+           		{
+					if (WorldInfo.Type == FWorldInfo::EType::PIE)
+					{
+						if(WorldInfo.NetMode == FWorldInfo::ENetMode::Client && WorldInfo.PIEInstanceId == 1)
+						{
+							DisplayWorldId = WorldInfo.Id;
+							bDisplayWorldIdValid = true;
+						}
+						if(WorldInfo.NetMode == FWorldInfo::ENetMode::Standalone && WorldInfo.PIEInstanceId == 0)
+						{
+							DisplayWorldId = WorldInfo.Id;
+							bDisplayWorldIdValid = true;
+						}
+					}
+					else if (WorldInfo.Type == FWorldInfo::EType::Game)
+					{
+						DisplayWorldId = WorldInfo.Id;
+						bDisplayWorldIdValid = true;
+					}
+           		});
+			}
+
+			double RecordingDurationValue = GameplayProvider->GetRecordingDuration();
+			if (IsTraceFileLoaded() && RecordingDurationValue > RecordingDuration.Get())
+			{
+				// while trace file is loading up, force the trace range to update.
+				SetCurrentViewRange(GetCurrentViewRange());
+			}
+			RecordingDuration.Set(RecordingDurationValue);
+			
+			RefreshDebugTracks();
 			
 			UWorld* World = GetWorldToVisualize();
 
 			if (bPIESimulating)
 			{
-				if (bRecording)
+				if (IsRecording())
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick_UpdateSimulating);
-					SetCurrentScrubTime(RecordingDuration.Get());
+					SetCurrentScrubTime(RecordingDurationValue);
 					TrackCursorDelegate.ExecuteIfBound(false);
 				}
+				bTargetActorPositionValid = false;
 			}
 			else
 			{
@@ -909,6 +1103,7 @@ void FRewindDebugger::Tick(float DeltaTime)
 				{
 					if (ControlState == EControlState::Play || ControlState == EControlState::PlayReverse)
 					{
+						float PlaybackRate = URewindDebuggerSettings::Get().PlaybackRate;
 						TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick_UpdatePlayback);
 						float Rate = PlaybackRate * (ControlState == EControlState::Play ? 1 : -1);
 						SetCurrentScrubTime(FMath::Clamp(CurrentScrubTime + Rate * DeltaTime, 0.0f, RecordingDuration.Get()));
@@ -926,300 +1121,59 @@ void FRewindDebugger::Tick(float DeltaTime)
 					const double CurrentTraceTime = TraceTime.Get();
 					if (CurrentTraceTime != PreviousTraceTime)
 					{
+						TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick_UpdateActorPosition);
 						PreviousTraceTime = CurrentTraceTime;
-						
+
 						const TraceServices::IFrameProvider& FrameProvider = TraceServices::ReadFrameProvider(*Session);
 						TraceServices::FFrame Frame;
 						if (FrameProvider.GetFrameFromTime(ETraceFrameType::TraceFrameType_Game, CurrentTraceTime, Frame))
 						{
+							bool bNewActor = false;
+							if (!TargetObjectIds.Contains(TargetActorIdForMesh))
 							{
-								TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick_UpdateActorPosition);
-								// until we have actor transforms traced out, the first skeletal mesh component transform on the target actor be used as as the actor position
-
-								for(uint64 TargetActorId : TargetObjectIds)
+								AnimationProvider->EnumerateSkeletalMeshPoseTimelines([this, &bNewActor, GameplayProvider](uint64 ObjectId, const IAnimationProvider::SkeletalMeshPoseTimeline& TimelineData)
 								{
-#if OBJECT_TRACE_ENABLED
-									if(UObject* ObjectInstance = FObjectTrace::GetObjectFromId(TargetActorId))
+									// until we have actor transforms traced out, the first (from a non-server) skeletal mesh component transform on the target actor be used as as the actor position
+
+									if (const FWorldInfo* WorldInfo = GameplayProvider->FindWorldInfoFromObject(ObjectId))
 									{
-										if (AActor* TargetActor = Cast<AActor>(ObjectInstance))
+										if (WorldInfo->NetMode != FWorldInfo::ENetMode::DedicatedServer)
 										{
-											TInlineComponentArray<USkeletalMeshComponent*> SkeletalMeshComponents;
-											TargetActor->GetComponents(SkeletalMeshComponents);
-
-											if (SkeletalMeshComponents.Num() > 0)
+											if (const FObjectInfo* ActorInfo = FindOwningActorInfo(GameplayProvider, ObjectId))
 											{
-												int64 ObjectId = FObjectTrace::GetObjectId(SkeletalMeshComponents[0]);
-
-												AnimationProvider->ReadSkeletalMeshPoseTimeline(ObjectId, [this, Frame, ObjectId, AnimationProvider](const IAnimationProvider::SkeletalMeshPoseTimeline& TimelineData, bool bHasCurves)
+												if (TargetObjectIds.Contains(ActorInfo->Id))
 												{
-													const FSkeletalMeshPoseMessage * PoseMessage = nullptr;
-
-													// Get last pose in frame
-													TimelineData.EnumerateEvents(Frame.StartTime, Frame.EndTime,
-														[&PoseMessage](double InStartTime, double InEndTime, uint32 InDepth, const FSkeletalMeshPoseMessage& InPoseMessage)
-														{
-															PoseMessage = &InPoseMessage;
-															return TraceServices::EEventEnumerate::Continue;
-														});
-
-													// Update position based on pose
-													if (PoseMessage)
-													{
-														bTargetActorPositionValid = true;
-														TargetActorPosition = PoseMessage->ComponentToWorld.GetTranslation();
-													}
-												});
+													bNewActor = true;
+													TargetActorIdForMesh = ActorInfo->Id;
+													TargetActorMeshId = ObjectId;
+												}
 											}
 										}
 									}
-#endif // OBJECT_TRACE_ENABLED
+								});
+							}
+						
+						
+							AnimationProvider->ReadSkeletalMeshPoseTimeline(TargetActorMeshId, [this, &Frame, bNewActor](const IAnimationProvider::SkeletalMeshPoseTimeline& TimelineData, bool bHasCurves)
+							{
+								const FSkeletalMeshPoseMessage * PoseMessage = nullptr;
+
+								// Get last pose in frame
+								TimelineData.EnumerateEvents(Frame.StartTime, Frame.EndTime,
+									[&PoseMessage](double InStartTime, double InEndTime, uint32 InDepth, const FSkeletalMeshPoseMessage& InPoseMessage)
+									{
+										PoseMessage = &InPoseMessage;
+										return TraceServices::EEventEnumerate::Continue;
+									});
+
+								// Update position based on pose
+								if (PoseMessage)
+								{
+									// mark the target position as invalid for a frame when the actor changes, so it will be treated as a teleport by the camera system
+									bTargetActorPositionValid = !bNewActor;
+									TargetActorPosition = PoseMessage->ComponentToWorld.GetTranslation();
 								}
-							}
-							
-							// update pose on all SkeletalMeshComponents:
-							// - enumerate all skeletal mesh pose timelines
-							// - check if the corresponding mesh component still exists
-							// - apply the recorded pose for the current Frame
-							{
-								TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick_UpdatePoses);
-								AnimationProvider->EnumerateSkeletalMeshPoseTimelines([this, &Frame, AnimationProvider, GameplayProvider](uint64 ObjectId, const IAnimationProvider::SkeletalMeshPoseTimeline& TimelineData)
-								{
-#if OBJECT_TRACE_ENABLED
-									if(UObject* ObjectInstance = FObjectTrace::GetObjectFromId(ObjectId))
-									{
-										if(USkeletalMeshComponent* MeshComponent = Cast<USkeletalMeshComponent>(ObjectInstance))
-										{
-											AnimationProvider->ReadSkeletalMeshPoseTimeline(ObjectId, [this, &Frame, ObjectId, MeshComponent, AnimationProvider](const IAnimationProvider::SkeletalMeshPoseTimeline& TimelineData, bool bHasCurves)
-											{
-												const FSkeletalMeshPoseMessage * PoseMessage = nullptr;
-
-												// Get last pose in frame
-												TimelineData.EnumerateEvents(Frame.StartTime, Frame.EndTime,
-													[&PoseMessage](double InStartTime, double InEndTime, uint32 InDepth, const FSkeletalMeshPoseMessage& InPoseMessage)
-													{
-														PoseMessage = &InPoseMessage;
-														return TraceServices::EEventEnumerate::Continue;
-													});
-
-												// Update mesh based on pose
-												if (PoseMessage)
-												{
-													FTransform ComponentWorldTransform;
-													if (const FSkeletalMeshInfo* SkeletalMeshInfo = AnimationProvider->FindSkeletalMeshInfo(PoseMessage->MeshId))
-													{
-														AnimationProvider->GetSkeletalMeshComponentSpacePose(*PoseMessage, *SkeletalMeshInfo, ComponentWorldTransform, MeshComponent->GetEditableComponentSpaceTransforms());
-														MeshComponent->ApplyEditedComponentSpaceTransforms();
-
-														if (MeshComponentsToReset.Find(ObjectId) == nullptr)
-														{
-															FMeshComponentResetData ResetData;
-															ResetData.Component = MeshComponent;
-															ResetData.RelativeTransform = MeshComponent->GetRelativeTransform();
-															MeshComponentsToReset.Add(ObjectId, ResetData);
-														}
-
-														MeshComponent->SetWorldTransform(ComponentWorldTransform, false, nullptr, ETeleportType::TeleportPhysics);
-														MeshComponent->SetForcedLOD(PoseMessage->LodIndex + 1);
-														MeshComponent->UpdateChildTransforms(EUpdateTransformFlags::None, ETeleportType::TeleportPhysics);
-													}
-												}
-											});
-										}
-									}
-#endif // OBJECT_TRACE_ENABLED
-								});
-							}
-
-							{
-								TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick_AnimBlueprintsDebug);
-								// Apply Animation Blueprint Debugging Data:
-								// - enumerate over all anim graph timelines
-								// - check if their instance class still exists and is the debugging target for the Animation Blueprint Editor
-								// - if it is copy that debug data into the class debug data for the blueprint debugger
-								AnimationProvider->EnumerateAnimGraphTimelines([&Frame, AnimationProvider, GameplayProvider](uint64 ObjectId, const IAnimationProvider::AnimGraphTimeline& AnimGraphTimeline)
-								{
-#if OBJECT_TRACE_ENABLED
-									if(UObject* ObjectInstance = FObjectTrace::GetObjectFromId(ObjectId))
-									{
-										if(UAnimInstance* AnimInstance = Cast<UAnimInstance>(ObjectInstance))
-										{
-											if(UAnimBlueprintGeneratedClass* InstanceClass = Cast<UAnimBlueprintGeneratedClass>(AnimInstance->GetClass()))
-											{
-												if(UAnimBlueprint* AnimBlueprint = Cast<UAnimBlueprint>(InstanceClass->ClassGeneratedBy))
-												{
-													// for child Animation Blueprints, we actually want to debug the root blueprint (since the child doesn't contain any anim graphs)
-													if (UAnimBlueprint* RootAnimBP = UAnimBlueprint::FindRootAnimBlueprint(AnimBlueprint))
-													{
-														if (UAnimBlueprintGeneratedClass* RootInstanceClass = Cast<UAnimBlueprintGeneratedClass>(RootAnimBP->GeneratedClass))
-														{
-															AnimBlueprint = RootAnimBP;
-															InstanceClass = RootInstanceClass;
-														}
-													}
-
-													if(AnimBlueprint->IsObjectBeingDebugged(AnimInstance))
-													{
-														TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick_UpdateBlueprintDebug);
-														// update debug info for attached Animation Blueprint editors
-														uint64 Id = FObjectTrace::GetObjectId(AnimInstance);
-														const int32 NodeCount = InstanceClass->GetAnimNodeProperties().Num();
-								
-														FAnimBlueprintDebugData& DebugData = InstanceClass->GetAnimBlueprintDebugData();
-														{
-															TRACE_CPUPROFILER_EVENT_SCOPE(ResetNodeVisitStates);
-															DebugData.ResetNodeVisitSites();
-														}
-														
-														// Anim node values can come from all phases
-														AnimationProvider->ReadAnimNodeValuesTimeline(ObjectId, [&Frame,AnimationProvider, &DebugData](const IAnimationProvider::AnimNodeValuesTimeline& InNodeValuesTimeline)
-														{
-															TRACE_CPUPROFILER_EVENT_SCOPE(AnimGraphNodeValues);
-															InNodeValuesTimeline.EnumerateEvents(Frame.StartTime, Frame.EndTime, [AnimationProvider, &DebugData](double InStartTime, double InEndTime, uint32 InDepth, const FAnimNodeValueMessage& InMessage)
-															{
-																// don't send "Name" Node value for display in the graph
-																if (FPlatformString::Strcmp(InMessage.Key, TEXT("Name")) != 0)
-																{
-																	FText Text = AnimationProvider->FormatNodeKeyValue(InMessage);
-																	DebugData.RecordNodeValue(InMessage.NodeId, Text.ToString());
-																}
-																return TraceServices::EEventEnumerate::Continue;
-															});
-														});
-
-														DebugData.DisableAllPoseWatches();
-							
-														AnimGraphTimeline.EnumerateEvents(Frame.StartTime, Frame.EndTime, [Id, AnimationProvider, GameplayProvider, &DebugData, NodeCount](double InGraphStartTime, double InGraphEndTime, uint32 InDepth, const FAnimGraphMessage& InMessage)
-														{
-															TRACE_CPUPROFILER_EVENT_SCOPE(AnimGraphTimelineEvent);
-																	
-															// Basic verification - check node count is the same
-															// @TODO: could add some form of node hash/CRC to the class to improve this
-															if(InMessage.NodeCount == NodeCount)
-															{
-																// Check for an update phase (which contains weights)
-																if(InMessage.Phase == EAnimGraphPhase::Update)
-																{
-																	AnimationProvider->ReadAnimNodesTimeline(Id, [InGraphStartTime, InGraphEndTime, &DebugData](const IAnimationProvider::AnimNodesTimeline& InNodesTimeline)
-																	{
-																		TRACE_CPUPROFILER_EVENT_SCOPE(AnimGraphDebugNodeVisits);
-																		InNodesTimeline.EnumerateEvents(InGraphStartTime, InGraphEndTime, [&DebugData](double InStartTime, double InEndTime, uint32 InDepth, const FAnimNodeMessage& InMessage)
-																		{
-																			DebugData.RecordNodeVisit(InMessage.NodeId, InMessage.PreviousNodeId, InMessage.Weight);
-																			return TraceServices::EEventEnumerate::Continue;
-																		});
-																	});
-							
-																	AnimationProvider->ReadStateMachinesTimeline(Id, [InGraphStartTime, InGraphEndTime, &DebugData](const IAnimationProvider::StateMachinesTimeline& InStateMachinesTimeline)
-																	{
-																		TRACE_CPUPROFILER_EVENT_SCOPE(AnimGraphDebugStateMachine);
-																		InStateMachinesTimeline.EnumerateEvents(InGraphStartTime, InGraphEndTime, [&DebugData](double InStartTime, double InEndTime, uint32 InDepth, const FAnimStateMachineMessage& InMessage)
-																		{
-																			DebugData.RecordStateData(InMessage.StateMachineIndex, InMessage.StateIndex, InMessage.StateWeight, InMessage.ElapsedTime);
-																			return TraceServices::EEventEnumerate::Continue;
-																		});
-																	});
-							
-																	AnimationProvider->ReadAnimSequencePlayersTimeline(Id, [InGraphStartTime, InGraphEndTime, GameplayProvider, &DebugData](const IAnimationProvider::AnimSequencePlayersTimeline& InSequencePlayersTimeline)
-																	{
-																		TRACE_CPUPROFILER_EVENT_SCOPE(AnimGraphDebugSequencePlayers);
-																		InSequencePlayersTimeline.EnumerateEvents(InGraphStartTime, InGraphEndTime, [&DebugData](double InStartTime, double InEndTime, uint32 InDepth, const FAnimSequencePlayerMessage& InMessage)
-																		{
-																			DebugData.RecordSequencePlayer(InMessage.NodeId, InMessage.Position, InMessage.Length, InMessage.FrameCounter);
-																			return TraceServices::EEventEnumerate::Continue;
-																		});
-																	});
-							
-																	AnimationProvider->ReadAnimBlendSpacePlayersTimeline(Id, [InGraphStartTime, InGraphEndTime, GameplayProvider, &DebugData](const IAnimationProvider::BlendSpacePlayersTimeline& InBlendSpacePlayersTimeline)
-																	{
-																		TRACE_CPUPROFILER_EVENT_SCOPE(AnimGraphBlendSpaces);
-																		InBlendSpacePlayersTimeline.EnumerateEvents(InGraphStartTime, InGraphEndTime, [GameplayProvider, &DebugData](double InStartTime, double InEndTime, uint32 InDepth, const FBlendSpacePlayerMessage& InMessage)
-																		{
-																			UBlendSpace* BlendSpace = nullptr;
-																			const FObjectInfo* BlendSpaceInfo = GameplayProvider->FindObjectInfo(InMessage.BlendSpaceId);
-																			if(BlendSpaceInfo)
-																			{
-																				BlendSpace = TSoftObjectPtr<UBlendSpace>(FSoftObjectPath(BlendSpaceInfo->PathName)).LoadSynchronous();
-																			}
-							
-																			DebugData.RecordBlendSpacePlayer(InMessage.NodeId, BlendSpace, FVector(InMessage.PositionX, InMessage.PositionY, InMessage.PositionZ), FVector(InMessage.FilteredPositionX, InMessage.FilteredPositionY, InMessage.FilteredPositionZ));
-																			return TraceServices::EEventEnumerate::Continue;
-																		});
-																	});
-							
-																	AnimationProvider->ReadAnimSyncTimeline(Id, [InGraphStartTime, InGraphEndTime, AnimationProvider, &DebugData](const IAnimationProvider::AnimSyncTimeline& InAnimSyncTimeline)
-																	{
-																		TRACE_CPUPROFILER_EVENT_SCOPE(AnimGraphAnimSync);
-																		InAnimSyncTimeline.EnumerateEvents(InGraphStartTime, InGraphEndTime, [AnimationProvider, &DebugData](double InStartTime, double InEndTime, uint32 InDepth, const FAnimSyncMessage& InMessage)
-																		{
-																			const TCHAR* GroupName = AnimationProvider->GetName(InMessage.GroupNameId);
-																			if(GroupName)
-																			{
-																				DebugData.RecordNodeSync(InMessage.SourceNodeId, FName(GroupName));
-																			}
-																
-																			return TraceServices::EEventEnumerate::Continue;
-																		});
-																	});
-																}
-							
-																// Some traces come from both update and evaluate phases
-																if(InMessage.Phase == EAnimGraphPhase::Update || InMessage.Phase == EAnimGraphPhase::Evaluate)
-																{
-																	AnimationProvider->ReadAnimAttributesTimeline(Id, [InGraphStartTime, InGraphEndTime, AnimationProvider, &DebugData](const IAnimationProvider::AnimAttributeTimeline& InAnimAttributeTimeline)
-																	{
-																		TRACE_CPUPROFILER_EVENT_SCOPE(AnimGraphAttributes);
-																		InAnimAttributeTimeline.EnumerateEvents(InGraphStartTime, InGraphEndTime, [AnimationProvider, &DebugData](double InStartTime, double InEndTime, uint32 InDepth, const FAnimAttributeMessage& InMessage)
-																		{
-																			const TCHAR* AttributeName = AnimationProvider->GetName(InMessage.AttributeNameId);
-																			if(AttributeName)
-																			{
-																				DebugData.RecordNodeAttribute(InMessage.TargetNodeId, InMessage.SourceNodeId, FName(AttributeName));
-																			}
-																
-																			return TraceServices::EEventEnumerate::Continue;
-																		});
-																	});
-
-																	
-																	AnimationProvider->ReadPoseWatchTimeline(Id, [InGraphStartTime, InGraphEndTime, AnimationProvider, &DebugData](const IAnimationProvider::PoseWatchTimeline& InPoseWatchTimeline)
-																		{
-																			InPoseWatchTimeline.EnumerateEvents(InGraphStartTime, InGraphEndTime, [AnimationProvider, &DebugData](double InStartTime, double InEndTime, uint32 InDepth, const FPoseWatchMessage& InMessage)
-																				{
-#if WITH_EDITOR
-																					for (FAnimNodePoseWatch& PoseWatch : DebugData.AnimNodePoseWatch)
-																					{
-																						if (PoseWatch.NodeID == InMessage.PoseWatchId)
-																						{
-																							TArray<FBoneIndexType> RequiredBones;
-																							TArray<FTransform> BoneTransforms;
-																							AnimationProvider->GetPoseWatchData(InMessage, BoneTransforms, RequiredBones);
-
-																							PoseWatch.SetPose(RequiredBones, BoneTransforms);
-																							PoseWatch.SetWorldTransform(InMessage.WorldTransform);
-
-																							PoseWatch.PoseWatch->SetIsNodeEnabled(true);
-																							break;
-																						}
-																					}
-#endif //WITH_EDITOR
-																					return TraceServices::EEventEnumerate::Continue;
-																				});
-																		});
-
-																}
-							
-															}
-															return TraceServices::EEventEnumerate::Continue;
-														});
-													}
-												}
-											}
-										}
-									}
-#endif // OBJECT_TRACE_ENABLED
-									return TraceServices::EEventEnumerate::Continue;
-								});
-							}
+							});
 						}
 					}
 				}
@@ -1305,6 +1259,152 @@ void FRewindDebugger::RegisterComponentContextMenu()
 	}));
 }
 
+void FRewindDebugger::MakeOtherWorldsMenu(UToolMenu* Menu)
+{
+	FRewindDebugger* RewindDebugger = FRewindDebugger::Instance();
+	
+	FToolMenuSection& Section = Menu->AddSection("Other Worlds", LOCTEXT("Other Worlds", "Other Worlds"));
+
+	if (const TraceServices::IAnalysisSession* Session = RewindDebugger->GetAnalysisSession())
+	{
+		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);
+		const IGameplayProvider* GameplayProvider = Session->ReadProvider<IGameplayProvider>("GameplayProvider");
+
+		GameplayProvider->EnumerateWorlds([GameplayProvider, &Section](const FWorldInfo& WorldInfo)
+		{
+			const FObjectInfo* ObjectInfo = GameplayProvider->FindObjectInfo(WorldInfo.Id);
+			FString Name = ObjectInfo->Name;
+
+			if(WorldInfo.NetMode == FWorldInfo::ENetMode::DedicatedServer)
+			{
+				return;
+			}
+			else if (WorldInfo.Type == FWorldInfo::EType::Game || WorldInfo.Type == FWorldInfo::EType::PIE)
+			{
+				return;
+			}
+			else
+			{
+				if (WorldInfo.Type == FWorldInfo::EType::Editor)
+				{
+					Name = Name + " (Editor)";
+				}
+				else if (WorldInfo.Type == FWorldInfo::EType::Inactive)
+				{
+					Name = Name + " (Editor)";
+				}
+				else if (WorldInfo.Type == FWorldInfo::EType::EditorPreview)
+				{
+					Name = Name + " (Editor Preview)";
+				}
+				else if (WorldInfo.Type == FWorldInfo::EType::GamePreview)
+				{
+					Name = Name + " (Game Preview)";
+				}
+				else if (WorldInfo.Type == FWorldInfo::EType::GameRPC)
+				{
+					Name = Name + " (Game RPC)";
+				}
+			}
+		
+			Section.AddMenuEntry(FName(ObjectInfo->Name,WorldInfo.Id),
+								FText::FromString(Name),
+								FText(),
+								FSlateIcon(),
+								FUIAction( FExecuteAction::CreateLambda([World = WorldInfo.Id]()
+								{
+									FRewindDebugger::Instance()->SetDisplayWorld(World);
+								}),
+								FCanExecuteAction(),
+								FIsActionChecked::CreateLambda([World = WorldInfo.Id]()
+								{
+									return FRewindDebugger::Instance()->DisplayWorldId == World;
+								})),
+								EUserInterfaceActionType::Check
+							);
+		
+		});
+	}
+}
+
+void FRewindDebugger::SetDisplayWorld(uint64 WorldId)
+{
+	DisplayWorldId = WorldId;
+	
+	IterateExtensions([this](IRewindDebuggerExtension* Extension)
+	{
+		Extension->Clear(this);
+		Extension->Update(0.0,this);
+	});
+}
+void FRewindDebugger::MakeWorldsMenu(UToolMenu* Menu)
+{
+	FRewindDebugger* RewindDebugger = FRewindDebugger::Instance();
+	
+	FToolMenuSection& ServerWorldsSection = Menu->AddSection("Server Worlds", LOCTEXT("Server", "Server"));
+	FToolMenuSection& GameWorldsSection = Menu->AddSection("Game Worlds", LOCTEXT("Game Worlds", "Game Worlds"));
+	FToolMenuSection& OtherWorldsSection = Menu->AddSection("Other Worlds", LOCTEXT("Other Worlds", "Other Worlds"));
+
+	OtherWorldsSection.AddSubMenu("Other Worlds",
+		LOCTEXT("Other Worlds", "Other Worlds"),
+		LOCTEXT("Other Worlds Tooltip", "Additional worlds such as  Editor Preview worlds"),
+		FNewToolMenuChoice(
+			FNewToolMenuDelegate::CreateStatic(FRewindDebugger::MakeOtherWorldsMenu)
+			));
+	
+	if (const TraceServices::IAnalysisSession* Session = RewindDebugger->GetAnalysisSession())
+	{
+		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);
+		const IGameplayProvider* GameplayProvider = Session->ReadProvider<IGameplayProvider>("GameplayProvider");
+
+		GameplayProvider->EnumerateWorlds([GameplayProvider,&GameWorldsSection, &OtherWorldsSection, &ServerWorldsSection](const FWorldInfo& WorldInfo)
+		{
+			const FObjectInfo* ObjectInfo = GameplayProvider->FindObjectInfo(WorldInfo.Id);
+			FString Name = ObjectInfo->Name;
+
+			FToolMenuSection* Section = &OtherWorldsSection;
+
+			if(WorldInfo.NetMode == FWorldInfo::ENetMode::DedicatedServer)
+			{
+				Section = &ServerWorldsSection;
+				Name = Name + " (Server)";
+			}
+			else if (WorldInfo.Type == FWorldInfo::EType::Game || WorldInfo.Type == FWorldInfo::EType::PIE)
+			{
+				Section = &GameWorldsSection;
+				if(WorldInfo.NetMode == FWorldInfo::ENetMode::Client && WorldInfo.PIEInstanceId >= 0)
+				{
+					Name = Name + " (Client " + FString::FromInt(WorldInfo.PIEInstanceId) + ")";
+				}
+				if(WorldInfo.NetMode == FWorldInfo::ENetMode::Standalone && WorldInfo.PIEInstanceId >= 0)
+				{
+					Name = Name + " (Standalone " + FString::FromInt(WorldInfo.PIEInstanceId) + ")";
+				}
+			}
+			else
+			{
+				return;
+			}
+			
+			Section->AddMenuEntry(FName(ObjectInfo->Name,WorldInfo.Id),
+								FText::FromString(Name),
+								FText(),
+								FSlateIcon(),
+								FUIAction( FExecuteAction::CreateLambda([World = WorldInfo.Id]()
+								{
+									FRewindDebugger::Instance()->SetDisplayWorld(World);
+								}),
+								FCanExecuteAction(),
+								FIsActionChecked::CreateLambda([World = WorldInfo.Id]()
+								{
+									return FRewindDebugger::Instance()->DisplayWorldId == World;
+								})),
+								EUserInterfaceActionType::Check
+							);
+		});
+	}
+}
+
 void FRewindDebugger::RegisterToolBar()
 {
 	UToolMenu* Menu = UToolMenus::Get()->RegisterMenu("RewindDebugger.ToolBar", NAME_None, EMultiBoxType::ToolBar);
@@ -1313,74 +1413,233 @@ void FRewindDebugger::RegisterToolBar()
 	const FRewindDebuggerCommands& Commands = FRewindDebuggerCommands::Get();
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 			Commands.FirstFrame,
-			LOCTEXT("Blank",""),
+			FText(),
 			TAttribute<FText>(),
 			FSlateIcon("RewindDebuggerStyle", "RewindDebugger.FirstFrame.small")));
 	
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 			Commands.PreviousFrame,
-			LOCTEXT("Blank",""),
+			FText(),
 			TAttribute<FText>(),
 			FSlateIcon("RewindDebuggerStyle", "RewindDebugger.PreviousFrame.small")));
 			
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.ReversePlay,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.ReversePlay.small")));
 	
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.Pause,
-				LOCTEXT("Blank",""),
+				FText(),
 				FText::Format(LOCTEXT("PauseButtonTooltip", "{0} ({1})"), Commands.Pause->GetDescription(), Commands.PauseOrPlay->GetInputText()),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.Pause.small")));
 	
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.Play,
-				LOCTEXT("Blank",""),
+				FText(),
 				FText::Format(LOCTEXT("PlayButtonTooltip", "{0} ({1})"), Commands.Play->GetDescription(), Commands.PauseOrPlay->GetInputText()),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.Play.small")));
 
+	Section.AddEntry(
+    		FToolMenuEntry::InitComboButton(
+    			"PlaybackRate",
+    			FToolUIActionChoice(),
+    			FNewToolMenuChoice(
+    				FNewToolMenuDelegate::CreateLambda([](UToolMenu* InNewToolMenu)
+    				{
+    					FToolMenuSection& Section = InNewToolMenu->AddSection("PlaybackSpeed", LOCTEXT("Playback Speed", "Playback Speed"));
+    					
+						Section.AddEntry(
+							FToolMenuEntry::InitMenuEntry(
+								"001",LOCTEXT("0.1","0.1"), LOCTEXT("Set playback speed to 0.1", "Set playback speed to 0.1"), FSlateIcon(),
+								FUIAction(
+								FExecuteAction::CreateLambda([]()
+									{ 
+										URewindDebuggerSettings::Get().PlaybackRate = 0.1;
+									}),
+									FCanExecuteAction(),
+									FIsActionChecked::CreateLambda([]
+									{
+										return FMath::IsNearlyEqual(URewindDebuggerSettings::Get().PlaybackRate, 0.1);
+									})
+									)
+									, EUserInterfaceActionType::RadioButton
+								)
+    					);
+						Section.AddEntry(
+							FToolMenuEntry::InitMenuEntry(
+								"025",LOCTEXT("0.25","0.25"), LOCTEXT("Set playback speed to 0.25", "Set playback speed to 0.25"), FSlateIcon(),
+								FUIAction(
+								FExecuteAction::CreateLambda([]()
+									{ 
+										URewindDebuggerSettings::Get().PlaybackRate = 0.25;
+									}),
+									FCanExecuteAction(),
+									FIsActionChecked::CreateLambda([]
+									{
+										return FMath::IsNearlyEqual(URewindDebuggerSettings::Get().PlaybackRate, 0.25);
+									})
+									)
+									, EUserInterfaceActionType::RadioButton
+							)
+    					);
+    					Section.AddEntry(
+							FToolMenuEntry::InitMenuEntry(
+								"05",LOCTEXT("0.5","0.5"), LOCTEXT("Set playback speed to 0.5", "Set playback speed to 0.5"), FSlateIcon(),
+								FUIAction(
+								FExecuteAction::CreateLambda([]()
+									{ 
+										URewindDebuggerSettings::Get().PlaybackRate = 0.5;
+									}),
+									FCanExecuteAction(),
+									FIsActionChecked::CreateLambda([]
+									{
+										return FMath::IsNearlyEqual(URewindDebuggerSettings::Get().PlaybackRate, 0.5);
+									})
+									)
+									, EUserInterfaceActionType::RadioButton
+							)
+						);
+
+						Section.AddEntry(
+							FToolMenuEntry::InitMenuEntry(
+								"1",LOCTEXT("1","1"), LOCTEXT("Set playback speed to 1", "Set playback speed to 1"), FSlateIcon(),
+								FUIAction(
+								FExecuteAction::CreateLambda([]()
+									{ 
+										URewindDebuggerSettings::Get().PlaybackRate = 1;
+									}),
+									FCanExecuteAction(),
+									FIsActionChecked::CreateLambda([]
+									{
+										return FMath::IsNearlyEqual(URewindDebuggerSettings::Get().PlaybackRate, 1);
+									})
+									)
+									, EUserInterfaceActionType::RadioButton
+							)
+						);
+    					
+    					Section.AddEntry(
+							FToolMenuEntry::InitMenuEntry(
+								"2",LOCTEXT("2","2"), LOCTEXT("Set playback speed to 2", "Set playback speed to 2"), FSlateIcon(),
+								FUIAction(
+								FExecuteAction::CreateLambda([]()
+									{ 
+										URewindDebuggerSettings::Get().PlaybackRate = 2;
+									}),
+									FCanExecuteAction(),
+									FIsActionChecked::CreateLambda([]
+									{
+										return FMath::IsNearlyEqual(URewindDebuggerSettings::Get().PlaybackRate, 2);
+									})
+									)
+									, EUserInterfaceActionType::RadioButton
+							)
+						);
+
+						Section.AddEntry(
+							FToolMenuEntry::InitWidget(
+								"EditInSequencerMenu", 
+								SNew(SNumericEntryBox<float>)
+									.Value_Lambda([]()
+									{
+										return URewindDebuggerSettings::Get().PlaybackRate;
+									})
+									.OnValueChanged_Lambda([](float Value)
+									{
+										URewindDebuggerSettings::Get().PlaybackRate = Value;
+									}),
+								FText::GetEmpty(),
+								true, false, true
+							)
+						);
+    				})
+    			),
+				FText(),
+    			LOCTEXT("PlaybackRate_Tooltip", "Playback Options"),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "Sequencer.PlaybackOptions")
+    		)
+    	);
+
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.NextFrame,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.NextFrame.small")));
 	
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.LastFrame,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.LastFrame.small")));
 
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.StartRecording,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.StartRecording.small")));
 				
 
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.StopRecording,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.StopRecording.small")));
 
 	Section.AddSeparator(NAME_None);
+
+
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.AttachToSession,
+				FText(),
+				TAttribute<FText>(),
+				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.ConnectToSession")));
+				
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.OpenTrace,
+				FText(),
+				TAttribute<FText>(),
+				 FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.FolderOpen")));
+	
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+    			Commands.SaveTrace,
+				FText(),
+    			TAttribute<FText>(),
+    			 FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Save")));
+				 
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.ClearTrace,
+				FText(),
+				TAttribute<FText>(),
+				 FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Delete")));
+
 	
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.AutoEject,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.AutoEject")));
 					Section.AddSeparator(NAME_None);
                 				
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.AutoRecord,
-				LOCTEXT("Blank",""),
+				FText(),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.AutoRecord")));
+	
+	Section.AddSeparator("NAME_None");
 
+	Section.AddEntry(FToolMenuEntry::InitComboButton(
+		"Display World",
+		FUIAction(
+			FExecuteAction(),
+			FCanExecuteAction::CreateLambda([](){ return FRewindDebugger::Instance()->IsTraceFileLoaded(); })
+			),
+		FNewToolMenuDelegate::CreateStatic(&FRewindDebugger::MakeWorldsMenu),
+		LOCTEXT("Display World", "Display World"),
+		LOCTEXT("Display World Tooltip", "When loading trace files, only the objects (Such as Skeletal Meshes) from the world selected here will be spawned for preview")
+		));
 	
 	Menu->SetStyleSet(&FAppStyle::Get());
 	Menu->StyleName = "PaletteToolBar";

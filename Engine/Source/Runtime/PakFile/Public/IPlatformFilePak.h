@@ -505,15 +505,15 @@ struct FPakEntry
 			{
 				CompressionMethodIndex = 0;
 			}
-			else if (LegacyCompressionMethod & COMPRESS_ZLIB)
+			else if (LegacyCompressionMethod & COMPRESS_ZLIB_DEPRECATED)
 			{
 				CompressionMethodIndex = 1;
 			}
-			else if (LegacyCompressionMethod & COMPRESS_GZIP)
+			else if (LegacyCompressionMethod & COMPRESS_GZIP_DEPRECATED)
 			{
 				CompressionMethodIndex = 2;
 			}
-			else if (LegacyCompressionMethod & COMPRESS_Custom)
+			else if (LegacyCompressionMethod & COMPRESS_Custom_DEPRECATED)
 			{
 				CompressionMethodIndex = 3;
 			}
@@ -1742,7 +1742,7 @@ public:
 		return PakEntry.Size;
 	}
 
-	void Serialize(int64 DesiredPosition, void* V, int64 Length)
+	void Serialize(int64 DesiredPosition, void* V, int64 Length) const
 	{
 		FGuid EncryptionKeyGuid = PakFile.GetInfo().EncryptionKeyGuid;
 		const constexpr int64 Alignment = (int64)EncryptionPolicy::Alignment;
@@ -1856,30 +1856,8 @@ public:
 	}
 	virtual bool Read(uint8* Destination, int64 BytesToRead) override
 	{
-		SCOPE_SECONDS_ACCUMULATOR(STAT_PakFile_Read);
-
-		// Check that the file header is OK
-		if (!Reader.PakEntry.Verified)
+		if (ReadInternal(Destination, BytesToRead, ReadPos))
 		{
-			FPakEntry FileHeader;
-			FSharedPakReader PakReader = Reader.AcquirePakReader();
-			PakReader->Seek(Reader.PakEntry.Offset);
-			FileHeader.Serialize(PakReader.GetArchive(), Reader.PakFile.GetInfo().Version);
-			if (FPakEntry::VerifyPakEntriesMatch(Reader.PakEntry, FileHeader))
-			{
-				Reader.PakEntry.Verified = true;
-			}
-			else
-			{
-				//Header is corrupt, fail the read
-				return false;
-			}
-		}
-		//
-		if (Reader.FileSize() >= (ReadPos + BytesToRead))
-		{
-			// Read directly from Pak.
-			Reader.Serialize(ReadPos, Destination, BytesToRead);
 			ReadPos += BytesToRead;
 			return true;
 		}
@@ -1887,6 +1865,15 @@ public:
 		{
 			return false;
 		}
+	}
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+	{
+		if (BytesToRead < 0 || Offset < 0 || (BytesToRead + Offset) > Reader.FileSize())
+		{
+			return false;
+		}
+
+		return ReadInternal(Destination, BytesToRead, Offset);
 	}
 	virtual bool Write(const uint8* Source, int64 BytesToWrite) override
 	{
@@ -1908,6 +1895,37 @@ public:
 		return false;
 	}
 	///~ End IFileHandle Interface
+private:
+	bool ReadInternal(uint8* Destination, int64 BytesToRead, int64 Offset)
+	{
+		SCOPE_SECONDS_ACCUMULATOR(STAT_PakFile_Read);
+
+		if (!Reader.PakEntry.Verified)
+		{
+			FPakEntry FileHeader;
+			FSharedPakReader PakReader = Reader.AcquirePakReader();
+			PakReader->Seek(Reader.PakEntry.Offset);
+			FileHeader.Serialize(PakReader.GetArchive(), Reader.PakFile.GetInfo().Version);
+			if (FPakEntry::VerifyPakEntriesMatch(Reader.PakEntry, FileHeader))
+			{
+				Reader.PakEntry.Verified = true;
+			}
+			else
+			{
+				return false;
+			}
+		}
+
+		if (Reader.FileSize() >= (Offset + BytesToRead))
+		{
+			Reader.Serialize(Offset, Destination, BytesToRead);
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
 };
 
 /**

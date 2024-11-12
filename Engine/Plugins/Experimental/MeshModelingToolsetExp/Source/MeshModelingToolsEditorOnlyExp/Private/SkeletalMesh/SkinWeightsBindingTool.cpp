@@ -9,6 +9,9 @@
 #include "MeshDescriptionToDynamicMesh.h"
 #include "MeshOpPreviewHelpers.h"
 #include "SkeletalMeshAttributes.h"
+#include "TargetInterfaces/MeshDescriptionProvider.h"
+#include "TargetInterfaces/MeshDescriptionCommitter.h"
+#include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 #include "ToolSetupUtil.h"
 #include "ToolTargetManager.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -40,6 +43,17 @@ UMultiSelectionMeshEditingTool* USkinWeightsBindingToolBuilder::CreateNewTool(co
 	return Tool;
 }
 
+const FToolTargetTypeRequirements& USkinWeightsBindingToolBuilder::GetTargetRequirements() const
+{
+	static FToolTargetTypeRequirements TypeRequirements({
+		UMaterialProvider::StaticClass(),
+		UMeshDescriptionProvider::StaticClass(),
+		UMeshDescriptionCommitter::StaticClass(),
+		UPrimitiveComponentBackedTarget::StaticClass()
+		});
+	return TypeRequirements;
+}
+
 USkinWeightsBindingTool::USkinWeightsBindingTool()
 {
 	Properties = CreateDefaultSubobject<USkinWeightsBindingToolProperties>(TEXT("SkinWeightsBindingProperties"));
@@ -65,6 +79,18 @@ void USkinWeightsBindingTool::Setup()
 	if (ensure(Properties))
 	{
 		Properties->RestoreProperties(this);
+		
+		if (Properties->CurrentBone != NAME_None)
+		{
+			const FName RestoredCurrentBone = Properties->CurrentBone;
+			Properties->CurrentBone = NAME_None;
+			PendingUpdateFunction = [this, RestoredCurrentBone]()
+			{
+				const int32 BoneIndex = ReferenceSkeleton.FindRawBoneIndex(RestoredCurrentBone);
+				Properties->CurrentBone = BoneIndex != INDEX_NONE ? RestoredCurrentBone : NAME_None;
+				UpdateVisualization();
+			};
+		}
 	}
 
 	if (!ensure(Targets.Num() > 0) || !ensure(Targets[0]))
@@ -130,8 +156,9 @@ void USkinWeightsBindingTool::Setup()
 	*EditedMeshDescription = *UE::ToolTarget::GetMeshDescription(Targets[0]); 
 	
 	OriginalMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
-	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert(EditedMeshDescription.Get(), *OriginalMesh);
+	*OriginalMesh = UE::ToolTarget::GetDynamicMeshCopy(Targets[0]);
+
+
 
 	Preview->PreviewMesh->SetTransform((FTransform) UE::ToolTarget::GetLocalToWorldTransform(Targets[0]));
 	Preview->PreviewMesh->SetTangentsMode(EDynamicMeshComponentTangentsMode::AutoCalculated);
@@ -181,6 +208,12 @@ void USkinWeightsBindingTool::OnShutdown(EToolShutdownType ShutdownType)
 void USkinWeightsBindingTool::OnTick(float DeltaTime)
 {
 	Preview->Tick(DeltaTime);
+
+	if (PendingUpdateFunction)
+	{
+		PendingUpdateFunction();
+		PendingUpdateFunction.Reset();
+	}
 }
 
 static void DrawBox(IToolsContextRenderAPI* RenderAPI, const FTransform& Transform, const FBox &Box, const FLinearColor &Color, float LineThickness)
@@ -228,7 +261,7 @@ static void DrawBox(IToolsContextRenderAPI* RenderAPI, const FTransform& Transfo
 void USkinWeightsBindingTool::Render(IToolsContextRenderAPI* RenderAPI)
 {
 	using namespace UE::Geometry;
-
+	
 	if (Occupancy && Properties->bDebugDraw)
 	{
 		constexpr bool bShowInterior = false;
@@ -408,7 +441,13 @@ void USkinWeightsBindingTool::HandleSkeletalMeshModified(const TArray<FName>& In
 		break;
 	case ESkeletalMeshNotifyType::BonesSelected:
 		{
-			Properties->CurrentBone = InBoneNames.IsEmpty() ? NAME_None : InBoneNames[0];
+			const int32 BoneIndex = InBoneNames.IsEmpty() ? INDEX_NONE : ReferenceSkeleton.FindRawBoneIndex(InBoneNames[0]);
+			const FName NewSelectedBone = BoneIndex != INDEX_NONE ? InBoneNames[0] : NAME_None;
+			PendingUpdateFunction = [this, NewSelectedBone]()
+			{
+				Properties->CurrentBone = NewSelectedBone;
+				UpdateVisualization();
+			};
 		}
 		break;
 	case ESkeletalMeshNotifyType::BonesRenamed:

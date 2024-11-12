@@ -48,6 +48,7 @@
 #include "UnrealEdGlobals.h"
 #include "Editor/UnrealEdEngine.h"
 #include "AdvancedPreviewSceneModule.h"
+#include "ContentBrowserModule.h"
 #include "Misc/MessageDialog.h"
 #include "Framework/Commands/UICommandInfo.h"
 #include "Styling/AppStyle.h"
@@ -55,6 +56,9 @@
 #include "MaterialEditingLibrary.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "DebugViewModeHelpers.h"
+#include "IContentBrowserSingleton.h"
+#include "Materials/MaterialFunctionMaterialLayer.h"
+#include "Materials/MaterialFunctionMaterialLayerBlend.h"
 #include "VT/RuntimeVirtualTexture.h"
 #include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "Widgets/Input/SButton.h"
@@ -68,6 +72,7 @@ const FName FMaterialInstanceEditor::PreviewTabId( TEXT( "MaterialInstanceEditor
 const FName FMaterialInstanceEditor::PropertiesTabId( TEXT( "MaterialInstanceEditor_MaterialProperties" ) );
 const FName FMaterialInstanceEditor::LayerPropertiesTabId(TEXT("MaterialInstanceEditor_MaterialLayerProperties"));
 const FName FMaterialInstanceEditor::PreviewSettingsTabId(TEXT("MaterialInstanceEditor_PreviewSettings"));
+const FName FMaterialInstanceEditor::AssetBrowserTabId(TEXT("MaterialInstanceEditor_AssetBrowser"));
 
 extern TAutoConsoleVariable<bool> CVarMaterialEdAllowIgnoringCompilationErrors;
 
@@ -250,7 +255,12 @@ void FMaterialInstanceEditor::RegisterTabSpawners(const TSharedRef<class FTabMan
 	if (!bIsFunctionPreviewMaterial)
 	{
 		InTabManager->RegisterTabSpawner(LayerPropertiesTabId, FOnSpawnTab::CreateSP(this, &FMaterialInstanceEditor::SpawnTab_LayerProperties))
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE		
+			.SetDisplayName(LOCTEXT("MaterialLayersTab", "Material Layers"))
+#else
 			.SetDisplayName(LOCTEXT("LayerPropertiesTab", "Layer Parameters"))
+#endif
+		
 			.SetGroup(WorkspaceMenuCategoryRef)
 			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Layers"));
 	}
@@ -260,6 +270,12 @@ void FMaterialInstanceEditor::RegisterTabSpawners(const TSharedRef<class FTabMan
 		.SetGroup(WorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	InTabManager->RegisterTabSpawner(AssetBrowserTabId, FOnSpawnTab::CreateSP(this, &FMaterialInstanceEditor::SpawnTab_AssetBrowser))
+		.SetDisplayName(LOCTEXT("AssetBrowserTab", "Asset Browser"))
+		.SetGroup(WorkspaceMenuCategoryRef)
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
+#endif
 	MaterialStatsManager->RegisterTabs();
 
 	OnRegisterTabSpawners().Broadcast(InTabManager);
@@ -276,7 +292,9 @@ void FMaterialInstanceEditor::UnregisterTabSpawners(const TSharedRef<class FTabM
 		InTabManager->UnregisterTabSpawner(LayerPropertiesTabId);
 	}
 	InTabManager->UnregisterTabSpawner( PreviewSettingsTabId );
-
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	InTabManager->UnregisterTabSpawner( AssetBrowserTabId );
+#endif
 	MaterialStatsManager->UnregisterTabs();
 
 	OnUnregisterTabSpawners().Broadcast(InTabManager);
@@ -453,7 +471,48 @@ void FMaterialInstanceEditor::InitMaterialInstanceEditor( const EToolkitMode::Ty
 
 	if (!bIsFunctionPreviewMaterial)
 	{
-		StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_MaterialInstanceEditor_Layout_v8")
+		
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+		StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_MaterialInstanceEditor_Layout_v9")
+			->AddArea
+			(
+				FTabManager::NewPrimaryArea()->SetOrientation(Orient_Vertical)
+				->Split
+				(
+					FTabManager::NewSplitter()->SetOrientation(Orient_Horizontal)->SetSizeCoefficient(0.9f)
+					->Split
+					(
+						FTabManager::NewStack()->SetSizeCoefficient(0.70f)->SetHideTabWell(true)
+						->AddTab(PreviewTabId, ETabState::OpenedTab)
+						->AddTab(PreviewSettingsTabId, ETabState::ClosedTab)
+					)
+					->Split
+					(
+						FTabManager::NewSplitter()->SetOrientation(Orient_Vertical)->SetSizeCoefficient(0.7f)
+						->Split
+						(
+					FTabManager::NewSplitter()->SetOrientation(Orient_Horizontal)->SetSizeCoefficient(0.3f)
+							->Split
+							(
+								FTabManager::NewStack()/*->SetSizeCoefficient(0.30f)*/
+								->AddTab(LayerPropertiesTabId, ETabState::OpenedTab)
+							)
+							->Split
+							(
+								FTabManager::NewStack()/*->SetSizeCoefficient(0.30f)*/
+								->AddTab(AssetBrowserTabId, ETabState::OpenedTab)
+							)
+						)
+						->Split
+						(
+						FTabManager::NewStack()->SetSizeCoefficient(0.30f)
+								->AddTab(PropertiesTabId, ETabState::OpenedTab)
+						)
+					)
+				)
+			);
+#else
+			StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_MaterialInstanceEditor_Layout_v8")
 			->AddArea
 			(
 				FTabManager::NewPrimaryArea()->SetOrientation(Orient_Vertical)
@@ -475,8 +534,9 @@ void FMaterialInstanceEditor::InitMaterialInstanceEditor( const EToolkitMode::Ty
 					)
 				)
 			);
+#endif
 		}
-
+	
 	const bool bCreateDefaultStandaloneMenu = true;
 	const bool bCreateDefaultToolbar = true;
 	TArray<UObject*> ObjectsToEdit;
@@ -519,6 +579,9 @@ void FMaterialInstanceEditor::InitMaterialInstanceEditor( const EToolkitMode::Ty
 	}
 
 	Refresh();
+
+	// Notify other editors if this material editor has a post process named output, which may affect their preview
+	NotifyUserSceneTextureLoadOrUnload();
 }
 
 void FMaterialInstanceEditor::ReInitMaterialFunctionProxies()
@@ -530,6 +593,7 @@ void FMaterialInstanceEditor::ReInitMaterialFunctionProxies()
 		TArray<FVectorParameterValue> VectorParameterValues = FunctionInstanceProxy->VectorParameterValues;
 		TArray<FDoubleVectorParameterValue> DoubleVectorParameterValues = FunctionInstanceProxy->DoubleVectorParameterValues;
 		TArray<FTextureParameterValue> TextureParameterValues = FunctionInstanceProxy->TextureParameterValues;
+		TArray<FTextureCollectionParameterValue> TextureCollectionParameterValues = FunctionInstanceProxy->TextureCollectionParameterValues;
 		TArray<FRuntimeVirtualTextureParameterValue> RuntimeVirtualTextureParameterValues = FunctionInstanceProxy->RuntimeVirtualTextureParameterValues;
 		TArray<FSparseVolumeTextureParameterValue> SparseVolumeTextureParameterValues = FunctionInstanceProxy->SparseVolumeTextureParameterValues;
 		TArray<FFontParameterValue> FontParameterValues = FunctionInstanceProxy->FontParameterValues;
@@ -592,6 +656,18 @@ void FMaterialInstanceEditor::ReInitMaterialFunctionProxies()
 			{
 				FunctionInstanceProxy->TextureParameterValues.Add(TextureParameter);
 				FunctionInstanceProxy->TextureParameterValues.Last().ParameterInfo = OutParameterInfo[Index];
+			}
+		}
+
+		FunctionInstanceProxy->GetAllTextureCollectionParameterInfo(OutParameterInfo, Guids);
+		FunctionInstanceProxy->TextureCollectionParameterValues.Empty();
+		for (FTextureCollectionParameterValue& TextureCollectionParameter : TextureCollectionParameterValues)
+		{
+			int32 Index = Guids.Find(TextureCollectionParameter.ExpressionGUID);
+			if (Index != INDEX_NONE)
+			{
+				FunctionInstanceProxy->TextureCollectionParameterValues.Add(TextureCollectionParameter);
+				FunctionInstanceProxy->TextureCollectionParameterValues.Last().ParameterInfo = OutParameterInfo[Index];
 			}
 		}
 
@@ -682,6 +758,11 @@ FMaterialInstanceEditor::FMaterialInstanceEditor()
 
 FMaterialInstanceEditor::~FMaterialInstanceEditor()
 {
+	bDestructing = true;
+
+	// Notify other editors if this material editor has a post process named output, which may affect their preview
+	NotifyUserSceneTextureLoadOrUnload();
+
 	// Broadcast that this editor is going down to all listeners
 	OnMaterialEditorClosed().Broadcast();
 
@@ -827,20 +908,20 @@ void FMaterialInstanceEditor::CreateInternalWidgets()
 
 	auto ValidationLambda = ([](const FRootPropertyNodeList& PropertyNodeList) { return true; });
 	MaterialInstanceDetails->SetCustomValidatePropertyNodesFunction(FOnValidateDetailsViewPropertyNodes::CreateLambda(MoveTemp(ValidationLambda)));
-
-	FOnGetDetailCustomizationInstance LayoutMICDetails = FOnGetDetailCustomizationInstance::CreateStatic( 
-		&FMaterialInstanceParameterDetails::MakeInstance, MaterialEditorInstance.Get(), FGetShowHiddenParameters::CreateSP(this, &FMaterialInstanceEditor::GetShowHiddenParameters) );
-	MaterialInstanceDetails->RegisterInstancedCustomPropertyLayout( UMaterialEditorInstanceConstant::StaticClass(), LayoutMICDetails );
-	MaterialInstanceDetails->SetCustomFilterLabel(LOCTEXT("ShowOverriddenOnly", "Show Only Overridden Parameters"));
-	MaterialInstanceDetails->SetCustomFilterDelegate(FSimpleDelegate::CreateSP(this, &FMaterialInstanceEditor::FilterOverriddenProperties));
-	MaterialEditorInstance->DetailsView = MaterialInstanceDetails;
-
 	if (!bIsFunctionPreviewMaterial)
 	{
 		MaterialLayersFunctionsInstance = SNew(SMaterialLayersFunctionsInstanceWrapper)
 			.InMaterialEditorInstance(MaterialEditorInstance)
 			.InShowHiddenDelegate(FGetShowHiddenParameters::CreateSP(this, &FMaterialInstanceEditor::GetShowHiddenParameters));
 	}
+	FOnGetDetailCustomizationInstance LayoutMICDetails = FOnGetDetailCustomizationInstance::CreateStatic( 
+		&FMaterialInstanceParameterDetails::MakeInstance, MaterialEditorInstance.Get(), MaterialLayersFunctionsInstance.Get(), FGetShowHiddenParameters::CreateSP(this, &FMaterialInstanceEditor::GetShowHiddenParameters) );
+	MaterialInstanceDetails->RegisterInstancedCustomPropertyLayout( UMaterialEditorInstanceConstant::StaticClass(), LayoutMICDetails );
+	MaterialInstanceDetails->SetCustomFilterLabel(LOCTEXT("ShowOverriddenOnly", "Show Only Overridden Parameters"));
+	MaterialInstanceDetails->SetCustomFilterDelegate(FSimpleDelegate::CreateSP(this, &FMaterialInstanceEditor::FilterOverriddenProperties));
+	MaterialEditorInstance->DetailsView = MaterialInstanceDetails;
+
+	
 }
 
 void FMaterialInstanceEditor::FilterOverriddenProperties()
@@ -965,6 +1046,13 @@ void FMaterialInstanceEditor::GenerateInheritanceMenu(UToolMenu* Menu)
 	}
 }
 
+void FMaterialInstanceEditor::RefreshPreviewViewport()
+{
+	if (PreviewVC.IsValid())
+	{
+		PreviewVC->RefreshViewport();
+	}
+}
 
 TSharedRef<SDockTab> FMaterialInstanceEditor::SpawnTab_Preview( const FSpawnTabArgs& Args )
 {	
@@ -1052,6 +1140,86 @@ TSharedRef<SDockTab> FMaterialInstanceEditor::SpawnTab_PreviewSettings(const FSp
 	return SpawnedTab;
 }
 
+TSharedRef<SDockTab> FMaterialInstanceEditor::SpawnTab_AssetBrowser(const FSpawnTabArgs& Args)
+{
+	check(Args.GetTabId() == AssetBrowserTabId);
+
+	// TSharedRef<SWidget> InWidget = SNullWidget::NullWidget;
+	FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
+
+	// Configure filter for asset picker
+	FAssetPickerConfig Config;
+	Config.SelectionMode = ESelectionMode::Single;
+	Config.Filter.ClassPaths.Add(UMaterialFunctionMaterialLayer::StaticClass()->GetClassPathName());
+	Config.Filter.ClassPaths.Add(UMaterialFunctionMaterialLayerInstance::StaticClass()->GetClassPathName());
+	Config.Filter.ClassPaths.Add(UMaterialFunctionMaterialLayerBlend::StaticClass()->GetClassPathName());
+	Config.Filter.ClassPaths.Add(UMaterialFunctionMaterialLayerBlendInstance::StaticClass()->GetClassPathName());
+	Config.bAddFilterUI = true;
+	Config.ThumbnailScale = 0.4f;
+	Config.InitialThumbnailSize = EThumbnailSize::Small;
+	Config.InitialAssetViewType = EAssetViewType::Tile;
+	Config.OnAssetDoubleClicked = FOnAssetDoubleClicked::CreateSP(this, &FMaterialInstanceEditor::OnAssetDoubleClicked);
+	Config.OnGetAssetContextMenu = FOnGetAssetContextMenu::CreateSP(this, &FMaterialInstanceEditor::OnGetAssetContextMenu);
+	Config.bForceShowEngineContent = true;
+	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
+		.Label(LOCTEXT("AssetBrowserTab", "Asset Browser"))
+		[
+			SNew(SBox)
+			[
+				ContentBrowserModule.Get().CreateAssetPicker(Config)
+			]
+		];
+
+	return SpawnedTab;
+}
+
+TSharedPtr<SWidget> FMaterialInstanceEditor::OnGetAssetContextMenu(const TArray<FAssetData>& SelectedAssets) const
+{
+	if (SelectedAssets.Num() <= 0)
+	{
+		return nullptr;
+	}
+
+	UObject* SelectedAsset = SelectedAssets[0].GetAsset();
+	if (SelectedAsset == nullptr)
+	{
+		return nullptr;
+	}
+	
+	FMenuBuilder MenuBuilder(true, MakeShared<FUICommandList>());
+
+	MenuBuilder.BeginSection(TEXT("Asset"), LOCTEXT("AssetSectionLabel", "Asset"));
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("Browse", "Browse to Asset"),
+			LOCTEXT("BrowseTooltip", "Browses to the associated asset and selects it in the most recently used Content Browser (summoning one if necessary)"),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "SystemWideCommands.FindInContentBrowser.Small"),
+			FUIAction(
+				FExecuteAction::CreateLambda([SelectedAsset] ()
+				{
+					if (SelectedAsset)
+					{
+						const TArray<FAssetData>& Assets = { SelectedAsset };
+						const FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+						ContentBrowserModule.Get().SyncBrowserToAssets(Assets);
+					}
+				}),
+				FCanExecuteAction::CreateLambda([] () { return true; })
+			)
+		);
+	}
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+void FMaterialInstanceEditor::OnAssetDoubleClicked(const FAssetData& AssetData)
+{
+	if (UAssetEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
+	{
+		EditorSubsystem->OpenEditorForAsset(AssetData.ToSoftObjectPath());
+	}
+}
 void FMaterialInstanceEditor::AddToSpawnedToolPanels(const FName& TabIdentifier, const TSharedRef<SDockTab>& SpawnedTab)
 {
 	TWeakPtr<SDockTab>* TabSpot = SpawnedToolPanels.Find(TabIdentifier);
@@ -1140,6 +1308,10 @@ void FMaterialInstanceEditor::NotifyPostChange( const FPropertyChangedEvent& Pro
 		RebuildInheritanceList();
 
 		UpdatePropertyWindow();
+
+		// If the parent of this instance changed we need to update the cached state on the stats manager to have the updated parent.
+		MaterialStatsManager->SetMaterial(MaterialEditorInstance->SourceInstance);
+		MaterialStatsManager->Update();
 	}
 	else if(PropertyThatChanged->GetName() == TEXT("PreviewMesh"))
 	{
@@ -1503,7 +1675,6 @@ void FMaterialInstanceEditor::SaveAssetAs_Execute()
 
 void FMaterialInstanceEditor::SaveSettings()
 {
-	GConfig->SetBool(TEXT("MaterialInstanceEditor"), TEXT("bShowGrid"), PreviewVC->IsTogglePreviewGridChecked(), GEditorPerProjectIni);
 	GConfig->SetBool(TEXT("MaterialInstanceEditor"), TEXT("bDrawGrid"), PreviewVC->IsRealtime(), GEditorPerProjectIni);
 	GConfig->SetInt(TEXT("MaterialInstanceEditor"), TEXT("PrimType"), PreviewVC->PreviewPrimType, GEditorPerProjectIni);
 }
@@ -1511,18 +1682,12 @@ void FMaterialInstanceEditor::SaveSettings()
 void FMaterialInstanceEditor::LoadSettings()
 {
 	bool bRealtime=false;
-	bool bShowGrid=false;
 	int32 PrimType=static_cast<EThumbnailPrimType>( TPT_Sphere );
-	GConfig->GetBool(TEXT("MaterialInstanceEditor"), TEXT("bShowGrid"), bShowGrid, GEditorPerProjectIni);
 	GConfig->GetBool(TEXT("MaterialInstanceEditor"), TEXT("bDrawGrid"), bRealtime, GEditorPerProjectIni);
 	GConfig->GetInt(TEXT("MaterialInstanceEditor"), TEXT("PrimType"), PrimType, GEditorPerProjectIni);
 
 	if(PreviewVC.IsValid())
 	{
-		if ( bShowGrid )
-		{
-			PreviewVC->TogglePreviewGrid();
-		}
 		if ( bRealtime )
 		{
 			PreviewVC->OnToggleRealtime();
@@ -1635,6 +1800,28 @@ void FMaterialInstanceEditor::PostRedo( bool bSuccess )
 void FMaterialInstanceEditor::NotifyExternalMaterialChange()
 {
 	MaterialStatsManager->SignalMaterialChanged();
+}
+
+void FMaterialInstanceEditor::NotifyUserSceneTextureLoadOrUnload()
+{
+	if (PreviewVC.IsValid() && PreviewVC->PreviewMaterial)
+	{
+		UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(PreviewVC->PreviewMaterial);
+		if (MaterialInstance)
+		{
+			UMaterial* BaseMaterial = MaterialInstance->GetMaterial();
+			if (BaseMaterial && BaseMaterial->IsPostProcessMaterial())
+			{
+				FName Output = MaterialInstance->GetUserSceneTextureOutput(BaseMaterial);
+
+				// Ignore special SceneColor output name -- this just writes to SceneColor, not a transient UserSceneTexture
+				if (!Output.IsNone() && Output != FName("SceneColor"))
+				{
+					FMaterialEditorUtilities::RefreshPostProcessPreviewMaterials(MaterialInstance);
+				}
+			}
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

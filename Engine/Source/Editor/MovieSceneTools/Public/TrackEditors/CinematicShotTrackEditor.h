@@ -44,29 +44,17 @@ public:
 	 */
 	static TSharedRef<ISequencerTrackEditor> CreateTrackEditor(TSharedRef<ISequencer> OwningSequencer);
 
-	TWeakObjectPtr<AActor> GetCinematicShotCamera() const { return CinematicShotCamera; }
+	UE_DEPRECATED(5.5, "Use FCameraCutPlaybackCapability::LastViewTargetCamera instead.")
+	TWeakObjectPtr<AActor> GetCinematicShotCamera() const;
 
 public:
 
 	// ISequencerTrackEditor interface
-	virtual void OnInitialize() override;
-	virtual void OnRelease() override;
 	virtual TSharedPtr<SWidget> BuildOutlinerColumnWidget(const FBuildColumnWidgetParams& Params, const FName& ColumnName) override;
 	virtual TSharedRef<ISequencerSection> MakeSectionInterface(UMovieSceneSection& SectionObject, UMovieSceneTrack& Track, FGuid ObjectBinding) override;
 	virtual bool SupportsSequence(UMovieSceneSequence* InSequence) const override;
 	virtual void Tick(float DeltaTime) override;
-	virtual void BuildTrackContextMenu( FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track ) override;
-
-	UE_DEPRECATED(5.3, "InsertShot has been deprecated in favor of FSubTrackEditor::InsertSection(UMovieSceneTrack*)")
-	void InsertShot();
-	UE_DEPRECATED(5.3, "DuplicateShot has been deprecated in favor of FSubTrackEditor::DuplicateSection(UMovieSceneSubSection*)")
-	void DuplicateShot(UMovieSceneCinematicShotSection* Section);
-	UE_DEPRECATED(5.3, "RenameShot has been removed because it was unused")
-	void RenameShot(UMovieSceneCinematicShotSection* Section) {}
-	UE_DEPRECATED(5.3, "NewTake has been deprecated in favor of FSubTrackEditor::CreateNewTake(UMovieSceneSubSection*)")
-	void NewTake(UMovieSceneCinematicShotSection* Section);
-	UE_DEPRECATED(5.3, "InsertFiller has been removed because it is obsolete")
-	void InsertFiller() {}
+	virtual void BuildTrackContextMenu(FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track) override;
 
 	/*
 	 * Render shots. 
@@ -88,11 +76,6 @@ public:
 
 protected:
 
-	UE_DEPRECATED(5.3, "HandleAddCinematicShotComboButtonGetMenuContent has been deprecated. Please implement FSubTrackEditor::HandleAddSubSequenceComboButtonGetMenuContent(UMovieSceneTrack*) instead")
-	virtual TSharedRef<SWidget> HandleAddCinematicShotComboButtonGetMenuContent();
-	UE_DEPRECATED(5.3, "FindOrCreateCinematicShotTrack has been deprecated in favor of FSubTrackEditor::FindOrCreateSubTrack(UMovieScene* MovieScene, UMovieSceneTrack*)")
-	virtual UMovieSceneCinematicShotTrack* FindOrCreateCinematicShotTrack();
-
 	virtual bool HandleAddSubTrackMenuEntryCanExecute() const override;
 	virtual bool CanHandleAssetAdded(UMovieSceneSequence* Sequence) const override;
 
@@ -106,9 +89,6 @@ private:
 	
 	/** Delegate for shots button lock tooltip */
 	FText GetLockShotsToolTip() const;
-
-	/** Called when our sequencer wants to switch cameras */
-	void OnUpdateCameraCut(UObject* CameraObject, bool bJumpCut);
 
 	/** Callback for ImportEDL. */
 	void ImportEDL();
@@ -126,10 +106,4 @@ private:
 
 	/** The Thumbnail pool which draws all the viewport thumbnails for the shot track. */
 	TSharedPtr<FTrackEditorThumbnailPool> ThumbnailPool;
-
-	/** The camera actor for the current cut. */
-	TWeakObjectPtr<AActor> CinematicShotCamera;
-
-	/** Delegate binding handle for ISequencer::OnCameraCut */
-	FDelegateHandle OnCameraCutHandle;
 };

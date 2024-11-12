@@ -133,22 +133,13 @@ namespace HarmonixMetasound
 
 	void FMidiStream::Merge(const FMidiStream& From, FMidiStream& To, const FEventFilter& Filter, const FEventTransformer& Transformer)
 	{
-		// We need to make sure that the clocks match, or that one of them doesn't have a clock.
-		// Otherwise a merge is invalid.
-		{
-			const auto FromClock = From.GetClock();
-			const auto ToClock = To.GetClock();
-			
-			if (FromClock.Get() != ToClock.Get() && FromClock.IsValid() && ToClock.IsValid())
-			{
-				return;
-			}
+		const auto FromClock = From.GetClock();
+		const auto ToClock = To.GetClock();
 
-			// If the "to" clock is null, and the "from" clock isn't, overwrite the "to" clock
-			if (FromClock.IsValid() && !ToClock.IsValid())
-			{
-				To.SetClock(*FromClock);
-			}
+		// If the "to" clock is null, and the "from" clock isn't, overwrite the "to" clock
+		if (FromClock.IsValid() && !ToClock.IsValid())
+		{
+			To.SetClock(*FromClock);
 		}
 
 		// Insert the events
@@ -161,6 +152,7 @@ namespace HarmonixMetasound
 		}
 
 		// Merge in the active notes from the other stream
+		// Transform those notes so that the active note matches other events
 		for (const FMidiStreamEvent& ActiveNote : From.ActiveNotes)
 		{
 			check(ActiveNote.MidiMessage.IsNoteOn());
@@ -170,7 +162,7 @@ namespace HarmonixMetasound
 				return ActiveNote.TrackIndex == TrackedEvent.TrackIndex && ActiveNote.VoiceId == TrackedEvent.GetVoiceId();
 			}))
 			{
-				To.ActiveNotes.Add(ActiveNote);
+				To.ActiveNotes.Add(Transformer(ActiveNote));
 			}
 		}
 	}
@@ -182,6 +174,9 @@ namespace HarmonixMetasound
 		const FEventFilter& Filter,
 		const FEventTransformer& Transformer)
 	{
+		// Clear active notes. This unsticks notes when a midi stream is disconnected during live update.
+		To.ActiveNotes.Empty();
+
 		// Merge in stream A
 		Merge(FromA, To, Filter, Transformer);
 

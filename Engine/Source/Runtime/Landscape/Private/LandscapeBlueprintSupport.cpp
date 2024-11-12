@@ -23,7 +23,7 @@ void ALandscapeProxy::EditorApplySpline(USplineComponent* InSplineComponent, flo
 	{
 		if (ALandscape* Landscape = GetLandscapeInfo()->LandscapeActor.Get())
 		{
-			const FLandscapeLayer* Layer = Landscape->GetLayer(EditLayerName);
+			const FLandscapeLayer* Layer = Landscape->GetLayerConst(EditLayerName);
 			if (Landscape->HasLayersContent() && (Layer == nullptr))
 			{
 				UE_LOG(LogLandscape, Error, TEXT("Invalid landscape edit layer name (\"%s\") for Edit Layers-enabled landscape. Cannot apply spline. "), *EditLayerName.ToString());

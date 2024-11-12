@@ -86,7 +86,7 @@ namespace Jupiter.Implementation
 			}
 			catch (Exception e)
 			{
-				_logger.LogError("Error running Refs Cleanup. {Exception}",  e);
+				_logger.LogError("Error running Refs Cleanup. {Exception}", e);
 			}
 		}
 	}

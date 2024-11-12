@@ -14,7 +14,7 @@
 UENUM()
 enum class ENNETensorDataType : uint8
 {
-	None,
+	None,								//!< For empty tensors (ENNEFormatTensorType::Empty)
 	Char,								//!< Character type
 	Boolean,							//!< Boolean type
 	Half,								//!< 16-bit floating number

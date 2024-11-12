@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "UObject/ObjectMacros.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Quartz/AudioMixerClockManager.h"
 #include "Sound/QuartzQuantizationUtilities.h"
@@ -16,15 +15,13 @@ namespace Audio
 {
 	class FMixerDevice;
 	class FQuartzClockManager;
-
-	template<class ListenerType>
-	class TQuartzShareableCommandQueue;
+	class FQuartzShareableCommandQueue;
 
 }
 
 class FQuartzTickableObject;
 class UQuartzClockHandle;
-using MetronomeCommandQueuePtr = TSharedPtr<Audio::TQuartzShareableCommandQueue<FQuartzTickableObject>, ESPMode::ThreadSafe>;
+using MetronomeCommandQueuePtr = TSharedPtr<Audio::FQuartzShareableCommandQueue, ESPMode::ThreadSafe>;
 
 
 
@@ -169,7 +166,6 @@ private:
 	// deletes proxies to clocks that no longer exists
 	AUDIOMIXER_API void PruneStaleProxies();
 	static AUDIOMIXER_API void PruneStaleProxiesInternal(TArray<Audio::FQuartzClockProxy>& ContainerToPrune);
-
 
 	// sharable tickable object manager to allow for non-UObject subscription / un-subscription
 	TSharedPtr<FQuartzTickableObjectsManager> TickableObjectManagerPtr { MakeShared<FQuartzTickableObjectsManager>() };

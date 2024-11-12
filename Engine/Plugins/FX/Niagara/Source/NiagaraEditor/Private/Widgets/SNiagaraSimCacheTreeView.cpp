@@ -165,7 +165,7 @@ bool SSimCacheTreeViewVisibilityWidget::IsItemSelected() const
 
 void SNiagaraSimCacheTreeView::SetupRootEntries()
 {
-	TArray<TSharedRef<FNiagaraSimCacheTreeItem>>* RootEntries = ViewModel->GetCurrentRootEntries();
+	TArray<TSharedRef<FNiagaraSimCacheTreeItem>>* RootEntries = ViewModel->GetSelectedRootEntries();
 
 	if(RootEntries && !RootEntries->IsEmpty())
 	{
@@ -175,8 +175,6 @@ void SNiagaraSimCacheTreeView::SetupRootEntries()
 
 void SNiagaraSimCacheTreeView::Construct(const FArguments& InArgs)
 {
-	constexpr float ItemHeight = 50.0f;
-
 	ViewModel = InArgs._SimCacheViewModel;
 
 	ViewModel->OnBufferChanged().AddSP(this, &SNiagaraSimCacheTreeView::OnBufferChanged);
@@ -185,9 +183,8 @@ void SNiagaraSimCacheTreeView::Construct(const FArguments& InArgs)
 	ViewModel->BuildEntries(SharedThis(this));
 	
 	TreeView = SNew(STreeView<TSharedRef<FNiagaraSimCacheTreeItem>>)
-	.ItemHeight(ItemHeight)
-	.SelectionMode(ESelectionMode::Multi)
-	.TreeItemsSource(ViewModel->GetCurrentRootEntries())
+	.SelectionMode(ESelectionMode::Single)
+	.TreeItemsSource(ViewModel->GetSelectedRootEntries())
 	.OnGenerateRow(this, &SNiagaraSimCacheTreeView::OnGenerateRow)
 	.OnGeneratePinnedRow(this, &SNiagaraSimCacheTreeView::OnGenerateRow)
 	.ShouldStackHierarchyHeaders(true)
@@ -202,16 +199,17 @@ void SNiagaraSimCacheTreeView::Construct(const FArguments& InArgs)
 }
 
 
-TSharedRef<ITableRow> SNiagaraSimCacheTreeView::OnGenerateRow(TSharedRef<FNiagaraSimCacheTreeItem> Item,
-                                                              const TSharedRef<STableViewBase>& OwnerTable)
+TSharedRef<ITableRow> SNiagaraSimCacheTreeView::OnGenerateRow(TSharedRef<FNiagaraSimCacheTreeItem> Item, const TSharedRef<STableViewBase>& OwnerTable)
 {
 	static const char* ItemStyles[] =
 	{
 		"NiagaraEditor.SimCache.SystemItem",
 		"NiagaraEditor.SimCache.EmitterItem",
 		"NiagaraEditor.SimCache.ComponentItem",
-		"NiagaraEditor.SimCache.DataInterfaceItem"
+		"NiagaraEditor.SimCache.DataInterfaceItem",
+		"NiagaraEditor.SimCache.DebugData"
 	};
+	static_assert(UE_ARRAY_COUNT(ItemStyles) == int(ENiagaraSimCacheOverviewItemType::MAX), "Mismatch on style count");
 
 	ENiagaraSimCacheOverviewItemType StyleType = Item->GetType();
 	
@@ -236,7 +234,12 @@ void SNiagaraSimCacheTreeView::OnBufferChanged()
 	SelectionForFilter.Empty();
 	ViewModel->SetComponentFilters(TArray<FString>());
 	SelectAll();
-	TreeView->SetItemExpansion((*ViewModel->GetCurrentRootEntries())[0], true);
+
+	TArray<TSharedRef<FNiagaraSimCacheTreeItem>>* RootEntries = ViewModel->GetSelectedRootEntries();
+	if (RootEntries->Num() > 0)
+	{
+		TreeView->SetItemExpansion((*RootEntries)[0], true);
+	}
 }
 
 void SNiagaraSimCacheTreeView::OnSimCacheChanged()
@@ -330,16 +333,21 @@ void SNiagaraSimCacheTreeView::SelectAll()
 		return;
 	}
 	
-	RecursiveAddToSelectionFilter(*ViewModel->GetCurrentRootEntries());
+	RecursiveAddToSelectionFilter(*ViewModel->GetSelectedRootEntries());
 
 	UpdateStringFilters();
 }
 
-bool SNiagaraSimCacheTreeView::IsDataInterfaceViewActive() const
+bool SNiagaraSimCacheTreeView::ShouldShowComponentView() const
 {
 	if (ViewModel)
 	{
-		return ViewModel->GetActiveDataInterface().IsValid();
+		switch (ViewModel->GetSelectionMode())
+		{
+			case FNiagaraSimCacheViewModel::ESelectionMode::SystemInstance:
+			case FNiagaraSimCacheViewModel::ESelectionMode::Emitter:
+				return true;
+		}
 	}
 	return false;
 }

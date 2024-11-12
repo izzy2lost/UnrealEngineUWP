@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "GameplayTagContainer.h"
 #include "StateTreeIndexTypes.h"
 #include "StateTreeTypes.generated.h"
@@ -14,12 +14,46 @@ STATETREEMODULE_API DECLARE_LOG_CATEGORY_EXTERN(LogStateTree, Warning, All);
 #endif // WITH_STATETREE_DEBUG
 
 class UStateTree;
+struct FStateTreeEvent;
 
 namespace UE::StateTree
 {
+#if WITH_EDITOR
+	UE_DEPRECATED(5.5, "Use MaxExpressionIndent instead.")
 	inline constexpr int32 MaxConditionIndent = 4;
+#endif //WITH_EDITOR
+
+	inline constexpr int32 MaxExpressionIndent = 4;
 
 	inline const FName SchemaTag(TEXT("Schema"));
+
+	inline const FName SchemaCanBeOverridenTag(TEXT("SchemaCanBeOverriden"));
+
+	namespace Colors
+	{
+		// Common and consistent colors to be used with State Tree nodes.
+		extern const STATETREEMODULE_API FColor Grey;
+		extern const STATETREEMODULE_API FColor DarkGrey;
+		extern const STATETREEMODULE_API FColor Red;
+		extern const STATETREEMODULE_API FColor DarkRed;
+		extern const STATETREEMODULE_API FColor Orange;
+		extern const STATETREEMODULE_API FColor DarkOrange;
+		extern const STATETREEMODULE_API FColor Yellow;
+		extern const STATETREEMODULE_API FColor DarkYellow;
+		extern const STATETREEMODULE_API FColor Green;
+		extern const STATETREEMODULE_API FColor DarkGreen;
+		extern const STATETREEMODULE_API FColor Cyan;
+		extern const STATETREEMODULE_API FColor DarkCyan;
+		extern const STATETREEMODULE_API FColor Blue;
+		extern const STATETREEMODULE_API FColor DarkBlue;
+		extern const STATETREEMODULE_API FColor Purple;
+		extern const STATETREEMODULE_API FColor DarkPurple;
+		extern const STATETREEMODULE_API FColor Magenta;
+		extern const STATETREEMODULE_API FColor DarkMagenta;
+		extern const STATETREEMODULE_API FColor Bronze;
+		extern const STATETREEMODULE_API FColor DarkBronze;
+	} // Colors
+
 }; // UE::StateTree
 
 enum class EStateTreeRunStatus : uint8;
@@ -49,9 +83,9 @@ enum class EStateTreeTransitionType : uint8
 	NotSet UE_DEPRECATED(5.0, "Use None instead."),
 };
 
-/** Operand between conditions */
+/** Operand in an expression */
 UENUM()
-enum class EStateTreeConditionOperand : uint8
+enum class EStateTreeExpressionOperand : uint8
 {
 	/** Copy result */
 	Copy UMETA(Hidden),
@@ -62,6 +96,10 @@ enum class EStateTreeConditionOperand : uint8
 	/** Combine results with OR. */
 	Or,
 };
+
+#if WITH_EDITOR
+	using EStateTreeConditionOperand UE_DEPRECATED(5.5, "Use EStateTreeExpressionOperand instead.") = EStateTreeExpressionOperand;
+#endif //WITH_EDITOR
 
 UENUM()
 enum class EStateTreeStateType : uint8
@@ -91,11 +129,24 @@ enum class EStateTreeStateSelectionBehavior : uint8
 	/** When state is considered for selection, it is selected even if it has child states. */
 	TryEnterState UMETA(DisplayName = "Try Enter"),
 
-	/** When state is considered for selection, try to selects the first child state (in order they appear in the child list). If no child states are present, behaves like SelectState. */
+	/** When state is considered for selection, try to select the first child state (in order they appear in the child list). If no child states are present, behaves like SelectState. */
 	TrySelectChildrenInOrder UMETA(DisplayName = "Try Select Children In Order"),
 	
+	/** When state is considered for selection, shuffle the order of child states and try to select the first one. If no child states are present, behaves like SelectState. */
+	TrySelectChildrenAtRandom UMETA(DisplayName = "Try Select Children At Random"),
+	
+	/** When state is considered for selection, try to select the child state with highest utility score. If there is a tie, it will try to select in order. */
+	TrySelectChildrenWithHighestUtility UMETA(DisplayName = "Try Select Children With Highest Utility"),
+
+	/** When state is considered for selection, randomly pick one of its child states. The probability of selecting each child state is its normalized utility score */
+	TrySelectChildrenAtRandomWeightedByUtility UMETA(DisplayName = "Try Select Children At Random Weighted By Utility"),
+
 	/** When state is considered for selection, try to trigger the transitions instead. */
 	TryFollowTransitions UMETA(DisplayName = "Try Follow Transitions"),
+
+	// Olds names that needs to be kept forever to ensure asset serialization to work correctly when UENUM() switched from serializing int to names.
+	TrySelectChildrenAtUniformRandom UE_DEPRECATED(5.5, "Use TrySelectChildrenAtRandom Instead") = TrySelectChildrenAtRandom UMETA(Hidden),
+	TrySelectChildrenBasedOnRelativeUtility UE_DEPRECATED(5.5, "Use TrySelectChildrenAtRandomWeightedByUtility Instead") = TrySelectChildrenAtRandomWeightedByUtility UMETA(Hidden)
 };
 
 
@@ -130,7 +181,10 @@ UENUM(BlueprintType)
 enum class EStateTreeTransitionPriority : uint8
 {
 	None UMETA(Hidden),
-	
+
+	/** Low priority. */
+	Low,
+
 	/** Normal priority. */
 	Normal,
 	
@@ -231,10 +285,10 @@ enum class EStateTreeDataSourceType : uint8
 	/** Active State Tasks */
 	ActiveInstanceDataObject,
 
-	/** Conditions */
+	/** Conditions and Considerations */
 	SharedInstanceData,
 
-	/** Conditions */
+	/** Conditions and Considerations */
 	SharedInstanceDataObject,
 
 	/** Context Data, Tree Parameters */
@@ -251,6 +305,12 @@ enum class EStateTreeDataSourceType : uint8
 
 	/** Parameters for regular and linked states */
 	StateParameterData,
+
+	/** Event used in transition. */
+	TransitionEvent,
+
+	/** Event used in state selection. */
+	StateEvent,
 };
 
 /** Handle to a StateTree data */
@@ -270,7 +330,7 @@ struct STATETREEMODULE_API FStateTreeDataHandle
 
 	friend FORCEINLINE uint32 GetTypeHash(const FStateTreeDataHandle& Handle)
 	{
-		uint32 Hash = GetTypeHash(Handle.Source);
+		uint32 Hash = GetTypeHash(Handle.Index);
 		Hash = HashCombineFast(Hash, GetTypeHash(Handle.Source));
 		Hash = HashCombineFast(Hash, GetTypeHash(Handle.StateHandle));
 		return Hash;
@@ -286,7 +346,7 @@ struct STATETREEMODULE_API FStateTreeDataHandle
 		// Require valid state for active instance data
 		check(Source != EStateTreeDataSourceType::ActiveInstanceData || (Source == EStateTreeDataSourceType::ActiveInstanceData && StateHandle.IsValid()));
 		check(Source != EStateTreeDataSourceType::ActiveInstanceDataObject || (Source == EStateTreeDataSourceType::ActiveInstanceDataObject && StateHandle.IsValid()));
-		check(Source == EStateTreeDataSourceType::GlobalParameterData || InIndex != InvalidIndex);
+		check(Source == EStateTreeDataSourceType::GlobalParameterData || IsValidIndex(InIndex));
 	}
 
 	explicit FStateTreeDataHandle(const EStateTreeDataSourceType InSource, const int32 InIndex, const FStateTreeStateHandle InStateHandle = FStateTreeStateHandle::Invalid)
@@ -446,13 +506,20 @@ struct STATETREEMODULE_API FStateTreeRandomTimeDuration
 	bool IsEmpty() const { return Duration == 0 && RandomVariance == 0; }
 	
 	/** @return Returns random duration around Duration, varied by +-RandomVariation. */
-	float GetRandomDuration() const
+	float GetRandomDuration(const FRandomStream& RandomStream) const
 	{
 		const int32 MinVal = FMath::Max(0, static_cast<int32>(Duration) - static_cast<int32>(RandomVariance));
 		const int32 MaxVal = static_cast<int32>(Duration) + static_cast<int32>(RandomVariance);
-		return static_cast<decltype(Scale)>(FMath::RandRange(MinVal, MaxVal)) / Scale;
+		return static_cast<decltype(Scale)>(RandomStream.RandRange(MinVal, MaxVal)) / Scale;
 	}
-	
+
+	UE_DEPRECATED(5.5, "Use the version with random stream instead.")
+	float GetRandomDuration() const
+	{
+		const FRandomStream RandomStream((int32)FPlatformTime::Cycles());
+		return GetRandomDuration(RandomStream);
+	}
+
 protected:
 
 	static constexpr float Scale = 100.0f;
@@ -481,6 +548,51 @@ enum class EStateTreeSelectionFallback : uint8
 };
 
 /**
+ *  Runtime representation of an event description.
+ */
+USTRUCT()
+struct STATETREEMODULE_API FCompactEventDesc
+{
+	GENERATED_BODY()
+
+	/** Event Payload Struct. */
+	UPROPERTY()
+	TObjectPtr<const UScriptStruct> PayloadStruct = nullptr;
+
+	/** Event Tag. */
+	UPROPERTY()
+	FGameplayTag Tag;
+
+	/** Returns true if describes an event correctly. */
+	bool IsValid() const
+	{
+		return Tag.IsValid() || PayloadStruct;
+	}
+
+	/** Returns true if described events is a subset of events described by another EventDesc. */
+	bool IsSubsetOfAnotherDesc(const FCompactEventDesc& Desc) const
+	{
+		if (Tag.IsValid() && Desc.Tag.IsValid())
+		{
+			if (!Desc.Tag.MatchesTag(Tag) || !Tag.MatchesTag(Desc.Tag))
+			{
+				return false;
+			}
+		}
+
+		if (PayloadStruct && Desc.PayloadStruct)
+		{
+			return PayloadStruct->IsChildOf(Desc.PayloadStruct);
+		}
+
+		return true;
+	}
+
+	/** Returns true provided event matches description. */
+	bool DoesEventMatchDesc(const FStateTreeEvent& Event) const;
+};
+
+/**
  *  Runtime representation of a StateTree transition.
  */
 USTRUCT()
@@ -489,7 +601,6 @@ struct STATETREEMODULE_API FCompactStateTransition
 	GENERATED_BODY()
 
 	explicit FCompactStateTransition()
-		: bTransitionEnabled(true)
 	{
 	}
 
@@ -498,10 +609,10 @@ struct STATETREEMODULE_API FCompactStateTransition
 	{
 		return !Delay.IsEmpty();
 	}
-	
-	/** Transition event tag, used when trigger type is event. */
+
+	/** Event Description */
 	UPROPERTY()
-	FGameplayTag EventTag;
+	FCompactEventDesc RequiredEvent;
 
 	/** Index to first condition to test */
 	UPROPERTY()
@@ -533,7 +644,11 @@ struct STATETREEMODULE_API FCompactStateTransition
 
 	/** Indicates if the transition is enabled and should be considered. */
 	UPROPERTY()
-	uint8 bTransitionEnabled : 1;
+	uint8 bTransitionEnabled : 1 = true;
+
+	/** If set to true, the required event is consumed (later state selection cannot react to it) if state selection can be made. */
+	UPROPERTY()
+	uint8 bConsumeEventOnSelect : 1 = true;
 };
 
 /**
@@ -543,12 +658,6 @@ USTRUCT()
 struct STATETREEMODULE_API FCompactStateTreeState
 {
 	GENERATED_BODY()
-
-	FCompactStateTreeState()
-		: bHasTransitionTasks(false)
-		, bEnabled(true)
-	{
-	}
 	
 	/** @return Index to the next sibling state. */
 	uint16 GetNextSibling() const { return ChildrenEnd; }
@@ -556,17 +665,25 @@ struct STATETREEMODULE_API FCompactStateTreeState
 	/** @return True if the state has any child states */
 	bool HasChildren() const { return ChildrenEnd > ChildrenBegin; }
 
+	/** Description of an event required to enter the state. */
+	UPROPERTY()
+	FCompactEventDesc RequiredEventToEnter;
+
 	/** Name of the State */
 	UPROPERTY()
 	FName Name;
+
+	/** GameplayTag describing the State */
+	UPROPERTY()
+	FGameplayTag Tag;
+
+	UPROPERTY()
+	TObjectPtr<UStateTree> LinkedAsset = nullptr;
 
 	/** Linked state handle if the state type is linked state. */
 	UPROPERTY()
 	FStateTreeStateHandle LinkedState = FStateTreeStateHandle::Invalid; 
 
-	UPROPERTY()
-	TObjectPtr<UStateTree> LinkedAsset = nullptr;
-	
 	/** Parent state handle, invalid if root state. */
 	UPROPERTY()
 	FStateTreeStateHandle Parent = FStateTreeStateHandle::Invalid;
@@ -582,6 +699,10 @@ struct STATETREEMODULE_API FCompactStateTreeState
 	/** Index to first state enter condition */
 	UPROPERTY()
 	uint16 EnterConditionsBegin = 0;
+
+	/** Index to first state utility consideration */
+	UPROPERTY()
+	uint16 UtilityConsiderationsBegin = 0;
 
 	/** Index to first transition */
 	UPROPERTY()
@@ -601,9 +722,16 @@ struct STATETREEMODULE_API FCompactStateTreeState
 	UPROPERTY()
 	FStateTreeIndex16 ParameterBindingsBatch = FStateTreeIndex16::Invalid;
 
+	UPROPERTY()
+	FStateTreeIndex16 EventDataIndex = FStateTreeIndex16::Invalid;
+
 	/** Number of enter conditions */
 	UPROPERTY()
 	uint8 EnterConditionsNum = 0;
+	
+	/** Number of utility considerations */
+	UPROPERTY()
+	uint8 UtilityConsiderationsNum = 0;
 
 	/** Number of transitions */
 	UPROPERTY()
@@ -617,6 +745,10 @@ struct STATETREEMODULE_API FCompactStateTreeState
 	UPROPERTY()
 	uint8 InstanceDataNum = 0;
 
+	/** Distance to root state. */
+	UPROPERTY()
+	uint8 Depth = 0;
+
 	/** Type of the state */
 	UPROPERTY()
 	EStateTreeStateType Type = EStateTreeStateType::State;
@@ -627,11 +759,27 @@ struct STATETREEMODULE_API FCompactStateTreeState
 
 	/** True if the state contains tasks that should be called during transition handling. */
 	UPROPERTY()
-	uint8 bHasTransitionTasks : 1;
+	uint8 bHasTransitionTasks : 1 = false;
+
+	/** True if the state contains conditions which require call to enter/completed/exit state. */
+	UPROPERTY()
+	uint8 bHasStateChangeConditions : 1 = false;
+
+	/** Should state's required event and enter conditions be evaluated when transition leads directly to it's child. */
+	UPROPERTY()
+	uint8 bCheckPrerequisitesWhenActivatingChildDirectly : 1 = false;
+	
+	/** Weight used to scale the normalized final utility score for this state */
+	UPROPERTY()
+	float Weight = 1.f;
 
 	/** True if the state is Enabled (i.e. not explicitly marked as disabled). */
 	UPROPERTY()
-	uint8 bEnabled : 1;
+	uint8 bEnabled : 1 = true;
+
+	/** If set to true, the required event is consumed (later state selection cannot react to it) if state selection can be made. */
+	UPROPERTY()
+	uint8 bConsumeEventOnSelect : 1 = true;
 };
 
 USTRUCT()

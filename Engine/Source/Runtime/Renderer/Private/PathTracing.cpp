@@ -26,36 +26,52 @@ TAutoConsoleVariable<int32> CVarPathTracing(
 #include "RayTracing/RayTracingMaterialHitShaders.h"
 #include "RayTracing/RayTracingDecals.h"
 #include "DecalRenderingCommon.h"
+#include "VolumetricCloudProxy.h"
+#include "MeshPassUtils.h"
 #include "FogRendering.h"
 #include "GenerateMips.h"
 #include "HairStrands/HairStrandsData.h"
 #include "HeterogeneousVolumes/HeterogeneousVolumes.h"
 #include "Modules/ModuleManager.h"
 #include "SkyAtmosphereRendering.h"
-#include <limits>
 #include "PathTracingSpatialTemporalDenoising.h"
 #include "PostProcess/DiaphragmDOF.h"
 #include "EnvironmentComponentsFlags.h"
+#include "LightFunctionRendering.h"
+#include <limits>
 
-TAutoConsoleVariable<int32> CVarPathTracingExperimental(
+TAutoConsoleVariable<bool> CVarPathTracingExperimental(
 	TEXT("r.PathTracing.Experimental"),
-	0,
-	TEXT("Enables some experimental features of the path tracing renderer that require compiling additional permutations of the path tracer."),
+	false,
+	TEXT("Enables some experimental features of the path tracing renderer that require compiling additional permutations of the path tracer. (default: false)"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly
 );
 
+TAutoConsoleVariable<FString> CVarPathTracingDebugVisualize(
+	TEXT("r.PathTracing.DebugVisualize"),
+	TEXT(""),
+	TEXT("Enables a debug mode for the path tracer which can visualize payload fields and perform basic lighting without sample accumulation. (default: "")")
+);
 
-TAutoConsoleVariable<int32> CVarPathTracingCompaction(
-	TEXT("r.PathTracing.Compaction"),
+TAutoConsoleVariable<int32> CVarPathTracingDebugVisualizeLightSamples(
+	TEXT("r.PathTracing.DebugVisualizeLightSamples"),
 	1,
-	TEXT("Enables path compaction to improve GPU occupancy for the path tracer (default: 1 (enabled))"),
+	TEXT("Number of light samples for the path tracing light sampling debug mode (default: 1)"),
 	ECVF_RenderThreadSafe
 );
 
-TAutoConsoleVariable<int32> CVarPathTracingIndirectDispatch(
+
+TAutoConsoleVariable<bool> CVarPathTracingCompaction(
+	TEXT("r.PathTracing.Compaction"),
+	true,
+	TEXT("Enables path compaction to improve GPU occupancy for the path tracer. Requires r.PathTracing.Experimental=true to modify.  (default: true (enabled))"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<bool> CVarPathTracingIndirectDispatch(
 	TEXT("r.PathTracing.IndirectDispatch"),
-	0,
-	TEXT("Enables indirect dispatch (if supported by the hardware) for compacted path tracing (default: 0 (disabled))"),
+	false,
+	TEXT("Enables indirect dispatch (if supported by the hardware) for compacted path tracing (default: false (disabled))"),
 	ECVF_RenderThreadSafe
 );
 
@@ -118,7 +134,7 @@ TAutoConsoleVariable<int32> CVarPathTracingVolumeMISMode(
 
 TAutoConsoleVariable<int32> CVarPathTracingMaxRaymarchSteps(
 	TEXT("r.PathTracing.MaxRaymarchSteps"),
-	256,
+	768,
 	TEXT("Upper limit on the number of ray marching steps in volumes. This limit should not be hit in most cases, but raising it can reduce bias in case it is. (default = 256)."),
 	ECVF_RenderThreadSafe
 );
@@ -192,6 +208,36 @@ TAutoConsoleVariable<int32> CVarPathTracingEnableCameraBackfaceCulling(
 	ECVF_RenderThreadSafe
 );
 
+static int32 GEnableReferenceDOF = -1;
+FAutoConsoleVariableRef CVarPathTracingEnableReferenceDOF(
+	TEXT("r.PathTracing.EnableReferenceDOF"),
+	GEnableReferenceDOF,
+	TEXT("Should the path tracer ray trace the depth-of-field effect instead of the post-processed effect?\n")
+	TEXT("-1: Inherit from PostProcess settings (default)\n")
+	TEXT(" 0: Disabled\n")
+	TEXT(" 1: Enable\n"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarPathTracingEnableReferenceAtmosphere(
+	TEXT("r.PathTracing.EnableReferenceAtmosphere"),
+	-1,
+	TEXT("Should the path tracer use a volumetric calculation to represent the sky atmosphere?\n")
+	TEXT("-1: Inherit from PostProcess settings (default)\n")
+	TEXT(" 0: Disabled\n")
+	TEXT(" 1: Enable\n"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarPathTracingEnableReferenceClouds(
+	TEXT("r.PathTracing.EnableReferenceClouds"),
+	0,
+	TEXT("Should the path tracer use a volumetric calculation to represent volumetric clouds? (This requires Reference Atmosphere to be enabled)\n")
+	TEXT(" 0: Disabled (default)\n")
+	TEXT(" 1: Enable\n"),
+	ECVF_RenderThreadSafe
+);
+
 TAutoConsoleVariable<int32> CVarPathTracingAtmosphereOpticalDepthLutResolution(
 	TEXT("r.PathTracing.AtmosphereOpticalDepthLUTResolution"),
 	512,
@@ -203,6 +249,58 @@ TAutoConsoleVariable<int32> CVarPathTracingAtmosphereOpticalDepthLutNumSamples(
 	TEXT("r.PathTracing.AtmosphereOpticalDepthLUTNumSamples"),
 	16384,
 	TEXT("Number of ray marching samples used when building the transmittance lookup texture used for transmittance calculations by the path tracer in reference atmosphere mode.  (default = 16384)"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarPathTracingCloudAccelerationMapResolution(
+	TEXT("r.PathTracing.CloudAccelerationMapResolution"),
+	512,
+	TEXT("Size of the square texture used to accelerate cloud ray marching for the path tracer in reference atmosphere mode.  (default = 512)"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarPathTracingCloudAccelerationMapNumSamples(
+	TEXT("r.PathTracing.CloudAccelerationMapNumSamples"),
+	64,
+	TEXT("Number of ray marching samples used when building the cloud acceleration map for the path tracer in reference atmosphere mode.  (default = 64)"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<bool> CVarPathTracingCloudAccelerationMapVisualize(
+	TEXT("r.PathTracing.CloudAccelerationMapVisualize"),
+	false,
+	TEXT("If true, replace clouds with a visualization of the acceleration map to help visualize it and fine tune its resolution (default = false)"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<float> CVarPathTracingCloudRoughnessCutoff(
+	TEXT("r.PathTracing.CloudRoughnessCutoff"),
+	0.05f,
+	TEXT("Do not evaluate volumetric clouds beyond this roughness level to improve performance (default=0.05)"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<bool> CVarPathTracingCloudMapEnabled(
+	TEXT("r.PathTracing.CloudMapEnable"),
+	true,
+	TEXT("Controls the use of a texture to cache the cloud material.\n")
+	TEXT(" true : Clouds will be voxelized into a texture for faster evaluation (default)\n")
+	TEXT(" false: Cloud material will be invoked per ray march step via callable shaders (more accurate, but more expensive)\n")
+	TEXT("Requires r.PathTracing.Experimental=true to modify.\n"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarPathTracingCloudMapResolution(
+	TEXT("r.PathTracing.CloudMapResolution"),
+	512,
+	TEXT("Size of the texture used to cache volumetric cloud appearance in reference atmosphere mode.  (default = 512)"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarPathTracingCloudMapDepth(
+	TEXT("r.PathTracing.CloudMapDepth"),
+	64,
+	TEXT("Depth of the texture used to cache volumetric cloud appearance in reference atmosphere mode.  (default = 64)"),
 	ECVF_RenderThreadSafe
 );
 
@@ -242,19 +340,19 @@ TAutoConsoleVariable<bool> CVarPathTracingAdjustMultiGPUPasses(
 );
 #endif  // WITH_MGPU
 
-TAutoConsoleVariable<int32> CVarPathTracingWiperMode(
+TAutoConsoleVariable<bool> CVarPathTracingWiperMode(
 	TEXT("r.PathTracing.WiperMode"),
-	0,
-	TEXT("Enables wiper mode to render using the path tracer only in a region of the screen for debugging purposes (default = 0, wiper mode disabled)"),
+	false,
+	TEXT("Enables wiper mode to render using the path tracer only in a region of the screen for debugging purposes (default = false, wiper mode disabled)"),
 	ECVF_RenderThreadSafe 
 );
 
-TAutoConsoleVariable<int32> CVarPathTracingProgressDisplay(
+TAutoConsoleVariable<bool> CVarPathTracingProgressDisplay(
 	TEXT("r.PathTracing.ProgressDisplay"),
-	1,
-	TEXT("Enables an in-frame display of progress towards the defined sample per pixel limit. The indicator dissapears when the maximum is reached and sample accumulation has stopped (default = 1)\n")
-	TEXT("0: off\n")
-	TEXT("1: on (default)\n"),
+	true,
+	TEXT("Enables an in-frame display of progress towards the defined sample per pixel limit. The indicator dissapears when the maximum is reached and sample accumulation has stopped\n")
+	TEXT(" false: off\n")
+	TEXT(" true : on (default)\n"),
 	ECVF_RenderThreadSafe
 );
 
@@ -272,31 +370,17 @@ TAutoConsoleVariable<int32> CVarPathTracingLightGridMaxCount(
 	ECVF_RenderThreadSafe
 );
 
-TAutoConsoleVariable<int32> CVarPathTracingLightGridVisualize(
-	TEXT("r.PathTracing.LightGridVisualize"),
-	0,
-	TEXT("Enables a visualization mode of the light grid density where red indicates the maximum light count has been reached (default = 0)\n")
-	TEXT("0: off (default)\n")
-	TEXT("1: light count heatmap (red - close to overflow, increase r.PathTracing.LightGridMaxCount)\n")
-	TEXT("2: unique light lists (colors are a function of which lights occupy each cell)\n")
-	TEXT("3: area light visualization (green: point light sources only, blue: some area light sources)\n"),
+TAutoConsoleVariable<int32> CVarPathTracingLightGridAxis(
+	TEXT("r.PathTracing.LightGridAxis"),
+	-1,
+	TEXT("Choose the coordinate axis along which to project the light grid (default = -1, automatic)\n"),
 	ECVF_RenderThreadSafe
 );
 
-TAutoConsoleVariable<int32> CVarPathTracingDecalGridVisualize(
-	TEXT("r.PathTracing.DecalGrid.Visualize"),
-	0,
-	TEXT("Enables a visualization mode of the decal grid density where red indicates the maximum decal count has been reached (default = 0)\n")
-	TEXT("0: off (default)\n")
-	TEXT("1: decal count heatmap (red - close to overflow, increase r.RayTracing.DecalGrid.MaxCount)\n")
-	TEXT("2: unique decal lists (colors are a function of which decals occupy each cell)\n"),
-	ECVF_RenderThreadSafe
-);
-
-TAutoConsoleVariable<int32> CVarPathTracingUseDBuffer(
+TAutoConsoleVariable<bool> CVarPathTracingUseDBuffer(
 	TEXT("r.PathTracing.UseDBuffer"),
-	1,
-	TEXT("Whether to support DBuffer functionality (default=1)"),
+	true,
+	TEXT("Whether to support DBuffer functionality (default=true)"),
 	ECVF_RenderThreadSafe
 );
 
@@ -321,74 +405,65 @@ TAutoConsoleVariable<float> CVarPathTracingMeshDecalBias(
 	ECVF_RenderThreadSafe
 );
 
-TAutoConsoleVariable<int32> CVarPathTracingLightFunctionColor(
+TAutoConsoleVariable<bool> CVarPathTracingLightFunctionColor(
 	TEXT("r.PathTracing.LightFunctionColor"),
-	0,
-	TEXT("Enables light functions to be colored instead of greyscale (default = 0)\n")
+	false,
+	TEXT("Enables light functions to be colored instead of greyscale (default = false)\n")
 	TEXT("0: off (default)\n")
 	TEXT("1: on (light function material output is used directly instead of converting to greyscale)\n"),
 	ECVF_RenderThreadSafe
 );
 
-TAutoConsoleVariable<int32> CVarPathTracingHeterogeneousVolumesRebuildEveryFrame(
+TAutoConsoleVariable<bool> CVarPathTracingHeterogeneousVolumesRebuildEveryFrame(
 	TEXT("r.PathTracing.HeterogeneousVolumes.RebuildEveryFrame"),
-	1,
-	TEXT("Rebuilds volumetric acceleration structures every frame (default = 1)\n"),
+	true,
+	TEXT("Rebuilds volumetric acceleration structures every frame (default = true)\n"),
 	ECVF_RenderThreadSafe
 );
 
-TAutoConsoleVariable<int32> CVarPathTracingCameraMediumTracking(
+TAutoConsoleVariable<bool> CVarPathTracingCameraMediumTracking(
 	TEXT("r.PathTracing.CameraMediumTracking"),
-	1,
-	TEXT("Enables automatic camera medium tracking to detect when a camera starts inside water or solid glass automatically (default = 1)\n")
-	TEXT("0: off\n")
-	TEXT("1: on (default)\n"),
+	true,
+	TEXT("Enables automatic camera medium tracking to detect when a camera starts inside water or solid glass automatically\n")
+	TEXT(" false: off\n")
+	TEXT(" true : on (default)\n"),
 	ECVF_RenderThreadSafe
 );
 
-TAutoConsoleVariable<int32> CVarPathTracingOutputPostProcessResources(
+TAutoConsoleVariable<bool> CVarPathTracingOutputPostProcessResources(
 	TEXT("r.PathTracing.OutputPostProcessResources"),
-	1,
+	true,
 	TEXT("Output the pathtracing resources to the postprocess passes\n")
-	TEXT("0: off\n")
-	TEXT("1: on (Buffers including, raw/denoised radiance, albedo, normal, and variance)\n"),
+	TEXT(" false: off\n")
+	TEXT(" true : on (Buffers including, raw/denoised radiance, albedo, normal, and variance)\n"),
 	ECVF_RenderThreadSafe
 );
 
-TAutoConsoleVariable<int32> CVarPathTracingSubstrateUseSimplifiedMaterial(
+TAutoConsoleVariable<bool> CVarPathTracingSubstrateUseSimplifiedMaterial(
 	TEXT("r.PathTracing.Substrate.UseSimplifiedMaterials"),
-	0,
-	TEXT("Instead of evaluating all layers, use an optimized material in which all slabs have been merged. This is mainly intended for debugging and requires r.PathTracing.Substrate.CompileSimplifiedMaterials to be true.\n")
-	TEXT("0: off (default)\n")
-	TEXT("1: on\n"),
+	false,
+	TEXT("Instead of evaluating all layers, use an optimized material in which all slabs have been merged.\n")
+	TEXT(" false: off (default)\n")
+	TEXT(" true : on\n")
+	TEXT("Requires r.PathTracing.Substrate.CompileSimplifiedMaterials=true to be set.\n"),
 	ECVF_RenderThreadSafe
 );
 
-TAutoConsoleVariable<int32> CVarPathTracingSubstrateCompileSimplifiedMaterial(
+TAutoConsoleVariable<bool> CVarPathTracingSubstrateCompileSimplifiedMaterial(
 	TEXT("r.PathTracing.Substrate.CompileSimplifiedMaterials"),
-	0,
+	false,
 	TEXT("Compile a simplified representation of Substrate materials which merges all slabs into one. This is mainly intended for debugging purposes. Enabling this double the number of path tracing shader permutations.\n")
-	TEXT("0: off (default)\n")
-	TEXT("1: on\n"),
+	TEXT(" false: off (default)\n")
+	TEXT(" true : on\n"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly
 );
 
-TAutoConsoleVariable<int32> CVarpathTracingOverrideDepth(
-	TEXT("r.PathTracing.Override.Depth"),
-	1,
-	TEXT("Override the scene depth z by the path tracing depth z")
-	TEXT("0: off\n")
-	TEXT("1: On (Default, translucent materials have better DOF with the post-process DOF.)\n"),
-	ECVF_RenderThreadSafe
-);
-
-TAutoConsoleVariable<int32> CVarPathTracingUseAnalyticTransmittance(
+TAutoConsoleVariable<bool> CVarPathTracingUseAnalyticTransmittance(
 	TEXT("r.PathTracing.UseAnalyticTransmittance"),
-	-1,
+	true,
 	TEXT("Determines use of analytical or null-tracking estimation when evaluating transmittance\n")
-	TEXT("-1: uses null-tracking estimation if heterogeneous volumes are present, or analytical estimation otherwise (default)\n")
-	TEXT("0: off (uses null-tracking estimation, instead)\n")
-	TEXT("1: on (uses analytical estimation)\n"),
+	TEXT(" false: off (uses null-tracking estimation)\n")
+	TEXT(" true : on (uses analytical estimation when possible) (default)\n"),
 	ECVF_RenderThreadSafe
 );
 
@@ -397,7 +472,8 @@ TAutoConsoleVariable<int32> CVarPathTracingAdaptiveSampling(
 	0,
 	TEXT("Determines if adaptive sampling is enabled. When non-zero, the path tracer will try to skip calculation of pixels below the specified error threshold.\n")
 	TEXT("0: off (uniform sampling - default)\n")
-	TEXT("1: on (adaptive sampling)\n"),
+	TEXT("1: on (adaptive sampling)\n")
+	TEXT("Requires r.PathTracing.Experimental=true to modify.\n"),
 	ECVF_RenderThreadSafe
 );
 
@@ -419,21 +495,36 @@ TAutoConsoleVariable<int32> CVarPathTracingAdaptiveSamplingVisualize(
 	ECVF_RenderThreadSafe
 );
 
+TAutoConsoleVariable<float> CVarPathTracingBackgroundAlpha(
+	TEXT("r.PathTracing.BackgroundAlpha"),
+	0.0f,
+	TEXT("Value of the alpha channel for pixels that do hit anything (default 0.0)\n")
+	TEXT("Note that this refers to the normal interpretation of alpha which the path tracer uses internally, so 0 corresponds to a transparent pixel while 1 refers to a solid pixel."),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarPathTracingDebug(
+	TEXT("r.PathTracing.Debug"),
+	0,
+	TEXT("Enable debug rendering for path tracer. Used for only development and needs to be enabled before starting the engine.\n"),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly
+);
+
 BEGIN_SHADER_PARAMETER_STRUCT(FPathTracingData, )
 	SHADER_PARAMETER(float, BlendFactor)
+	SHADER_PARAMETER(float, BaseExposure)
 	SHADER_PARAMETER(uint32, Iteration)
 	SHADER_PARAMETER(uint32, TemporalSeed)
 	SHADER_PARAMETER(uint32, MaxSamples)
 	SHADER_PARAMETER(uint32, MaxBounces)
 	SHADER_PARAMETER(uint32, MaxSSSBounces)
+	SHADER_PARAMETER(float, BackgroundAlpha)
 	SHADER_PARAMETER(float , SSSGuidingRatio)
 	SHADER_PARAMETER(uint32, MISMode)
 	SHADER_PARAMETER(uint32, VolumeMISMode)
 	SHADER_PARAMETER(uint32, ApproximateCaustics)
 	SHADER_PARAMETER(uint32, EnableCameraBackfaceCulling)
 	SHADER_PARAMETER(uint32, SamplerType)
-	SHADER_PARAMETER(uint32, VisualizeLightGrid)
-	SHADER_PARAMETER(uint32, VisualizeDecalGrid)
 	SHADER_PARAMETER(uint32, EnableDBuffer)
 	SHADER_PARAMETER(uint32, VolumeFlags)
 	SHADER_PARAMETER(uint32, EnabledDirectLightingContributions)   // PATHTRACER_CONTRIBUTION_*
@@ -443,6 +534,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FPathTracingData, )
 	SHADER_PARAMETER(float, MaxPathIntensity)
 	SHADER_PARAMETER(float, MaxNormalBias)
 	SHADER_PARAMETER(float, FilterWidth)
+	SHADER_PARAMETER(float, CloudRoughnessCutoff)
 	SHADER_PARAMETER(float, DecalRoughnessCutoff)
 	SHADER_PARAMETER(float, MeshDecalRoughnessCutoff)
 	SHADER_PARAMETER(float, MeshDecalBias)
@@ -467,6 +559,10 @@ struct FPathTracingConfig
 	bool UseMultiGPU; // NOTE: Requires invalidation because the buffer layout changes
 	int DenoiserMode; // NOTE: does not require path tracing invalidation
 	float AdaptiveSamplingThreshold;
+	int CloudAccelerationMapNumSamples;
+	int CloudAccelerationMapResolution;
+	int CloudMapResolution;
+	int CloudMapDepth;
 
 	bool IsDifferent(const FPathTracingConfig& Other) const
 	{
@@ -474,6 +570,7 @@ struct FPathTracingConfig
 		return
 			PathTracingData.MaxSamples != Other.PathTracingData.MaxSamples ||
 			PathTracingData.MaxBounces != Other.PathTracingData.MaxBounces ||
+			PathTracingData.BackgroundAlpha != Other.PathTracingData.BackgroundAlpha ||
 			PathTracingData.MaxSSSBounces != Other.PathTracingData.MaxSSSBounces ||
 			PathTracingData.SSSGuidingRatio != Other.PathTracingData.SSSGuidingRatio ||
 			PathTracingData.MISMode != Other.PathTracingData.MISMode ||
@@ -481,8 +578,6 @@ struct FPathTracingConfig
 			PathTracingData.SamplerType != Other.PathTracingData.SamplerType ||
 			PathTracingData.ApproximateCaustics != Other.PathTracingData.ApproximateCaustics ||
 			PathTracingData.EnableCameraBackfaceCulling != Other.PathTracingData.EnableCameraBackfaceCulling ||
-			PathTracingData.VisualizeLightGrid != Other.PathTracingData.VisualizeLightGrid ||
-			PathTracingData.VisualizeDecalGrid != Other.PathTracingData.VisualizeDecalGrid ||
 			PathTracingData.EnableDBuffer != Other.PathTracingData.EnableDBuffer ||
 			PathTracingData.MaxPathIntensity != Other.PathTracingData.MaxPathIntensity ||
 			PathTracingData.FilterWidth != Other.PathTracingData.FilterWidth ||
@@ -490,6 +585,7 @@ struct FPathTracingConfig
 			PathTracingData.ApplyDiffuseSpecularOverrides != Other.PathTracingData.ApplyDiffuseSpecularOverrides ||
 			PathTracingData.EnabledDirectLightingContributions != Other.PathTracingData.EnabledDirectLightingContributions ||
 			PathTracingData.EnabledIndirectLightingContributions != Other.PathTracingData.EnabledIndirectLightingContributions ||
+			PathTracingData.CloudRoughnessCutoff != Other.PathTracingData.CloudRoughnessCutoff ||
 			PathTracingData.DecalRoughnessCutoff != Other.PathTracingData.DecalRoughnessCutoff ||
 			PathTracingData.MeshDecalRoughnessCutoff != Other.PathTracingData.MeshDecalRoughnessCutoff ||
 			PathTracingData.MeshDecalBias != Other.PathTracingData.MeshDecalBias ||
@@ -504,7 +600,18 @@ struct FPathTracingConfig
 			UseCameraMediumTracking != Other.UseCameraMediumTracking ||
 			UseAdaptiveSampling != Other.UseAdaptiveSampling ||
 			AdaptiveSamplingThreshold != Other.AdaptiveSamplingThreshold ||
+			CloudAccelerationMapNumSamples != Other.CloudAccelerationMapNumSamples ||
+			CloudAccelerationMapResolution != Other.CloudAccelerationMapResolution ||
+			CloudMapResolution != Other.CloudMapResolution ||
+			CloudMapDepth != Other.CloudMapDepth ||
 			UseMultiGPU != Other.UseMultiGPU;
+	}
+
+	bool IsExposureDifferentEnough(const FPathTracingConfig& Other) const
+	{
+		const float ExposureA = PathTracingData.BaseExposure;
+		const float ExposureB = Other.PathTracingData.BaseExposure;
+		return FMath::Max(ExposureA, ExposureB) > 16.0f * FMath::Min(ExposureA, ExposureB);
 	}
 
 	bool IsDOFDifferent(const FPathTracingConfig& Other) const
@@ -553,20 +660,25 @@ struct FAtmosphereConfig
 	uint32 Resolution;
 };
 
-struct FPathTracingState {
+struct FPathTracingState
+{
 	FPathTracingConfig LastConfig;
 	// Textures holding onto the accumulated frame data
 	TRefCountPtr<IPooledRenderTarget> RadianceRT;
 	TRefCountPtr<IPooledRenderTarget> VarianceRT;
 	TRefCountPtr<IPooledRenderTarget> AlbedoRT;
 	TRefCountPtr<IPooledRenderTarget> NormalRT;
+	TRefCountPtr<IPooledRenderTarget> DepthRT;
 	TRefCountPtr<FRDGPooledBuffer> VarianceBuffer;
+	TRefCountPtr<IPooledRenderTarget> CloudAccelerationMap;
+	TRefCountPtr<IPooledRenderTarget> CloudMap;
 
 	// Cache to improve the stability when frame denoising (SPP=r.pathtracing.SamplesPerPixel) is used in animation rendering
 	TRefCountPtr<IPooledRenderTarget> LastDenoisedRadianceRT;
 	TRefCountPtr<IPooledRenderTarget> LastRadianceRT;
-	TRefCountPtr<IPooledRenderTarget> LastNormalRT;
 	TRefCountPtr<IPooledRenderTarget> LastAlbedoRT;
+	TRefCountPtr<IPooledRenderTarget> LastNormalRT;
+	TRefCountPtr<IPooledRenderTarget> LastDepthRT;
 	TRefCountPtr<FRDGPooledBuffer> LastVarianceBuffer;
 
 	// Volume acceleration structures
@@ -591,23 +703,64 @@ struct FPathTracingState {
 	uint32_t FrameIndex = 0;
 };
 
+int GetPathTracingDebugVisualizationMode() {
+	static TMap<FName, uint32> PathTracingDebugModes;
+	if (PathTracingDebugModes.Num() == 0)
+	{
+		PathTracingDebugModes.Emplace(FName(TEXT("Radiance"))			, PATH_TRACER_DEBUG_VIZ_RADIANCE				);
+		PathTracingDebugModes.Emplace(FName(TEXT("WorldNormal"))		, PATH_TRACER_DEBUG_VIZ_WORLD_NORMAL			);
+		PathTracingDebugModes.Emplace(FName(TEXT("WorldSmoothNormal"))	, PATH_TRACER_DEBUG_VIZ_WORLD_SMOOTH_NORMAL		);
+		PathTracingDebugModes.Emplace(FName(TEXT("WorldGeoNormal"))		, PATH_TRACER_DEBUG_VIZ_WORLD_GEO_NORMAL		);
+		PathTracingDebugModes.Emplace(FName(TEXT("BaseColor"))	    	, PATH_TRACER_DEBUG_VIZ_BASE_COLOR				);
+		PathTracingDebugModes.Emplace(FName(TEXT("DiffuseColor"))	   	, PATH_TRACER_DEBUG_VIZ_DIFFUSE_COLOR			);
+		PathTracingDebugModes.Emplace(FName(TEXT("SpecularColor"))	   	, PATH_TRACER_DEBUG_VIZ_SPECULAR_COLOR			);
+		PathTracingDebugModes.Emplace(FName(TEXT("Opacity"))	     	, PATH_TRACER_DEBUG_VIZ_OPACITY					);
+		PathTracingDebugModes.Emplace(FName(TEXT("Metallic"))	     	, PATH_TRACER_DEBUG_VIZ_METALLIC				);
+		PathTracingDebugModes.Emplace(FName(TEXT("Specular"))	     	, PATH_TRACER_DEBUG_VIZ_SPECULAR				);
+		PathTracingDebugModes.Emplace(FName(TEXT("Roughness"))	     	, PATH_TRACER_DEBUG_VIZ_ROUGHNESS				);
+		PathTracingDebugModes.Emplace(FName(TEXT("IOR"))	    	 	, PATH_TRACER_DEBUG_VIZ_IOR						);
+		PathTracingDebugModes.Emplace(FName(TEXT("ShadingModel"))  	 	, PATH_TRACER_DEBUG_VIZ_SHADING_MODEL			);
+		PathTracingDebugModes.Emplace(FName(TEXT("LightingChannelMask")), PATH_TRACER_DEBUG_VIZ_LIGHTING_CHANNEL_MASK 	);
+		PathTracingDebugModes.Emplace(FName(TEXT("CustomData0"))		, PATH_TRACER_DEBUG_VIZ_CUSTOM_DATA0 			);
+		PathTracingDebugModes.Emplace(FName(TEXT("CustomData1"))		, PATH_TRACER_DEBUG_VIZ_CUSTOM_DATA1 			);
+		PathTracingDebugModes.Emplace(FName(TEXT("WorldPosition"))		, PATH_TRACER_DEBUG_VIZ_WORLD_POSITION 			);
+		PathTracingDebugModes.Emplace(FName(TEXT("PrimaryRays"))		, PATH_TRACER_DEBUG_VIZ_PRIMARY_RAYS 			);
+		PathTracingDebugModes.Emplace(FName(TEXT("WorldTangent"))		, PATH_TRACER_DEBUG_VIZ_WORLD_TANGENT 			);
+		PathTracingDebugModes.Emplace(FName(TEXT("Anisotropy"))	    	, PATH_TRACER_DEBUG_VIZ_ANISOTROPY 				);
+		PathTracingDebugModes.Emplace(FName(TEXT("LightGridCount"))	   	, PATH_TRACER_DEBUG_VIZ_LIGHT_GRID_COUNT		);
+		PathTracingDebugModes.Emplace(FName(TEXT("DecalGridCount"))	   	, PATH_TRACER_DEBUG_VIZ_DECAL_GRID_COUNT		);
+	}
+	FString DebugMode = CVarPathTracingDebugVisualize.GetValueOnRenderThread();
+	if (!DebugMode.IsEmpty())
+	{
+		return PathTracingDebugModes.FindRef(FName(*DebugMode, FNAME_Find), -1);
+	}
+	// not doing debugging
+	return -1;
+}
+
 namespace PathTracing
 {
 	bool UsesDecals(const FSceneViewFamily& ViewFamily)
 	{
 		return ViewFamily.EngineShowFlags.Decals;
 	}
-}
 
-static bool EvalUseAnalyticTransmittance(const FViewInfo& View)
-{
-	int32 UseAnalyticTransmittance = CVarPathTracingUseAnalyticTransmittance.GetValueOnRenderThread();
-	if (UseAnalyticTransmittance < 0)
+	bool UsesReferenceAtmosphere(const FViewInfo& View)
 	{
-		UseAnalyticTransmittance = !ShouldRenderHeterogeneousVolumesForView(View);
+		const int32 EnableReferenceAtmosphereCVar = CVarPathTracingEnableReferenceAtmosphere.GetValueOnRenderThread();
+		return EnableReferenceAtmosphereCVar < 0 ? View.FinalPostProcessSettings.PathTracingEnableReferenceAtmosphere != 0 : EnableReferenceAtmosphereCVar != 0;
 	}
 
-	return UseAnalyticTransmittance != 0;
+	bool UsesReferenceDOF(const FViewInfo& View)
+	{
+		return GEnableReferenceDOF < 0 ? View.FinalPostProcessSettings.PathTracingEnableReferenceDOF != 0 : GEnableReferenceDOF != 0;
+	}
+
+	bool NeedsAntiAliasing(const FViewInfo& View)
+	{
+		return GetPathTracingDebugVisualizationMode() >= 0;
+	}
 }
 
 // This function prepares the portion of shader arguments that may involve invalidating the path traced state
@@ -616,6 +769,9 @@ static void PreparePathTracingData(const FScene* Scene, const FViewInfo& View, F
 	const FFinalPostProcessSettings& PPV = View.FinalPostProcessSettings;
 	const FEngineShowFlags& ShowFlags = View.Family->EngineShowFlags;
 
+	// Capture the current exposure (NOTE: This is overwritten later so we maintain the exposure that was used on the first sample)
+	PathTracingData.BaseExposure = View.PreExposure;
+
 	int32 MaxBounces = CVarPathTracingMaxBounces.GetValueOnRenderThread();
 	if (MaxBounces < 0)
 	{
@@ -623,6 +779,7 @@ static void PreparePathTracingData(const FScene* Scene, const FViewInfo& View, F
 	}
 
 	PathTracingData.MaxBounces = MaxBounces;
+	PathTracingData.BackgroundAlpha = FMath::Clamp(CVarPathTracingBackgroundAlpha.GetValueOnRenderThread(), 0.0f, 1.0f);
 	PathTracingData.MaxSSSBounces = ShowFlags.SubsurfaceScattering ? CVarPathTracingMaxSSSBounces.GetValueOnRenderThread() : 0;
 	PathTracingData.SSSGuidingRatio = FMath::Clamp(CVarPathTracingSSSGuidingRatio.GetValueOnRenderThread(), 0.0f, 1.0f);
 	PathTracingData.MaxNormalBias = GetRaytracingMaxNormalBias();
@@ -631,19 +788,18 @@ static void PreparePathTracingData(const FScene* Scene, const FViewInfo& View, F
 	PathTracingData.MaxPathIntensity = CVarPathTracingMaxPathIntensity.GetValueOnRenderThread();
 	if (PathTracingData.MaxPathIntensity <= 0)
 	{
-		// cvar clamp disabled, use PPV exposure value instad
-		PathTracingData.MaxPathIntensity = FMath::Pow(2.0f, PPV.PathTracingMaxPathExposure);
+		// cvar clamp disabled, use PPV value instad
+		PathTracingData.MaxPathIntensity = PPV.PathTracingMaxPathIntensity;
 	}
+	PathTracingData.MaxPathIntensity = FFloat16(PathTracingData.MaxPathIntensity).GetClampedNonNegativeAndFinite().GetFloat(); // Clip to half precision
 	PathTracingData.ApproximateCaustics = CVarPathTracingApproximateCaustics.GetValueOnRenderThread();
 	PathTracingData.EnableCameraBackfaceCulling = CVarPathTracingEnableCameraBackfaceCulling.GetValueOnRenderThread();
 	PathTracingData.SamplerType = CVarPathTracingSamplerType.GetValueOnRenderThread();
-	PathTracingData.VisualizeLightGrid = CVarPathTracingLightGridVisualize.GetValueOnRenderThread();
-	PathTracingData.VisualizeDecalGrid = CVarPathTracingDecalGridVisualize.GetValueOnRenderThread();
 	PathTracingData.FilterWidth = CVarPathTracingFilterWidth.GetValueOnRenderThread();
 	PathTracingData.CameraFocusDistance = 0;
 	PathTracingData.CameraLensRadius = FVector2f::ZeroVector;
 	if (ShowFlags.DepthOfField &&
-		PPV.PathTracingEnableReferenceDOF &&
+		PathTracing::UsesReferenceDOF(View) &&
 		PPV.DepthOfFieldFocalDistance > 0 &&
 		PPV.DepthOfFieldFstop > 0)
 	{
@@ -653,12 +809,22 @@ static void PreparePathTracingData(const FScene* Scene, const FViewInfo& View, F
 		PathTracingData.CameraLensRadius    = CocModel.GetLensRadius();
 	}
 
+	const bool bUseReferenceAtmosphere = ShouldRenderSkyAtmosphere(Scene, ShowFlags) && 
+		View.SkyAtmosphereUniformShaderParameters != nullptr &&
+		PathTracing::UsesReferenceAtmosphere(View);
+	
+	const FVolumetricCloudRenderSceneInfo* CloudInfo = Scene->GetVolumetricCloudSceneInfo();
+	const bool bExperimental = CVarPathTracingExperimental.GetValueOnRenderThread();
+	const bool bVolumeCloudMapEnabled = !ShouldCompileRayTracingCallableShadersForProject(View.GetShaderPlatform()) || (bExperimental == false || CVarPathTracingCloudMapEnabled.GetValueOnRenderThread());
+	const bool bVolumeCloudsVisible = ShouldRenderVolumetricCloud(Scene, ShowFlags)
+		&& bUseReferenceAtmosphere
+		&& CVarPathTracingEnableReferenceClouds.GetValueOnRenderThread() != 0
+		&& (bVolumeCloudMapEnabled || uint32(View.PathTracingVolumetricCloudCallableShaderIndex) < Scene->RayTracingScene.NumCallableShaderSlots);
+
 	// Merge all volume flags into one uint
 	PathTracingData.VolumeFlags = 0;
-	PathTracingData.VolumeFlags |=
-		ShouldRenderSkyAtmosphere(Scene, ShowFlags) && 
-		View.SkyAtmosphereUniformShaderParameters != nullptr &&
-		PPV.PathTracingEnableReferenceAtmosphere != 0 ? PATH_TRACER_VOLUME_ENABLE_ATMOSPHERE : 0;
+	PathTracingData.VolumeFlags |= bUseReferenceAtmosphere ? PATH_TRACER_VOLUME_ENABLE_ATMOSPHERE : 0;
+	PathTracingData.VolumeFlags |= bVolumeCloudsVisible ? PATH_TRACER_VOLUME_ENABLE_CLOUDS : 0;
 	PathTracingData.VolumeFlags |= ShouldRenderFog(*View.Family)
 		&& Scene->ExponentialFogs.Num() > 0
 		&& Scene->ExponentialFogs[0].bEnableVolumetricFog
@@ -667,15 +833,21 @@ static void PreparePathTracingData(const FScene* Scene, const FViewInfo& View, F
 		&& (Scene->ExponentialFogs[0].FogData[0].Density > 0 ||
 			Scene->ExponentialFogs[0].FogData[1].Density > 0) ? PATH_TRACER_VOLUME_ENABLE_FOG : 0;
 	PathTracingData.VolumeFlags |= ShouldRenderHeterogeneousVolumesForView(View) ? PATH_TRACER_VOLUME_ENABLE_HETEROGENEOUS_VOLUMES : 0;
+	PathTracingData.VolumeFlags |= ShouldRenderHeterogeneousVolumesAsHoldoutForView(View) ? PATH_TRACER_VOLUME_HOLDOUT_HETEROGENEOUS_VOLUMES : 0;
 	PathTracingData.VolumeFlags |= View.SkyAtmosphereUniformShaderParameters != nullptr && IsSkyAtmosphereHoldout(View.CachedViewUniformShaderParameters->EnvironmentComponentsFlags) ? PATH_TRACER_VOLUME_HOLDOUT_ATMOSPHERE : 0;
+	PathTracingData.VolumeFlags |= bVolumeCloudsVisible && IsVolumetricCloudHoldout(View.CachedViewUniformShaderParameters->EnvironmentComponentsFlags) ? PATH_TRACER_VOLUME_HOLDOUT_CLOUDS : 0;
 	PathTracingData.VolumeFlags |= Scene->ExponentialFogs.Num() > 0 && IsExponentialFogHoldout(View.CachedViewUniformShaderParameters->EnvironmentComponentsFlags) ? PATH_TRACER_VOLUME_HOLDOUT_FOG : 0;
-	PathTracingData.VolumeFlags |= EvalUseAnalyticTransmittance(View) ? PATH_TRACER_VOLUME_USE_ANALYTIC_TRANSMITTANCE : 0;
+	PathTracingData.VolumeFlags |= CVarPathTracingUseAnalyticTransmittance.GetValueOnRenderThread() ? PATH_TRACER_VOLUME_USE_ANALYTIC_TRANSMITTANCE : 0;
+	PathTracingData.VolumeFlags |= bVolumeCloudMapEnabled ? PATH_TRACER_VOLUME_USE_CLOUD_MAP : 0;
+	PathTracingData.VolumeFlags |= CVarPathTracingCloudAccelerationMapVisualize.GetValueOnRenderThread() ? PATH_TRACER_VOLUME_VIEW_CLOUD_MAP_ACCEL : 0;
+
+	PathTracingData.CloudRoughnessCutoff = bVolumeCloudsVisible ? CVarPathTracingCloudRoughnessCutoff.GetValueOnRenderThread() : -1.0f;
 
 	PathTracingData.EnableDBuffer = CVarPathTracingUseDBuffer.GetValueOnRenderThread();
 
 	PathTracingData.DecalRoughnessCutoff = PathTracing::UsesDecals(*View.Family) && View.bHasRayTracingDecals ? CVarPathTracingDecalRoughnessCutoff.GetValueOnRenderThread() : -1.0f;
 
-	PathTracingData.MeshDecalRoughnessCutoff = PathTracing::UsesDecals(*View.Family) && Scene->RayTracingScene.GetRHIRayTracingScene()->GetInitializer().NumNativeInstancesPerLayer[(uint32)ERayTracingSceneLayer::Decals] > 0 ? CVarPathTracingMeshDecalRoughnessCutoff.GetValueOnRenderThread() : -1.0f;
+	PathTracingData.MeshDecalRoughnessCutoff = PathTracing::UsesDecals(*View.Family) && Scene->RayTracingScene.GetNumNativeInstances(ERayTracingSceneLayer::Decals) > 0 ? CVarPathTracingMeshDecalRoughnessCutoff.GetValueOnRenderThread() : -1.0f;
 	PathTracingData.MeshDecalBias = CVarPathTracingMeshDecalBias.GetValueOnRenderThread();
 
 	PathTracingData.MaxRaymarchSteps = CVarPathTracingMaxRaymarchSteps.GetValueOnRenderThread();
@@ -886,6 +1058,32 @@ static FPathTracingFogParameters PrepareFogParameters(const FViewInfo& View, con
 	return Parameters;
 }
 
+
+BEGIN_SHADER_PARAMETER_STRUCT(FPathTracingCloudParameters, )
+	// coordinate frame for the cloud acceleration map
+	SHADER_PARAMETER(FVector3f, CloudClipX)	// Right
+	SHADER_PARAMETER(FVector3f, CloudClipY) // Forward
+	SHADER_PARAMETER(FVector3f, CloudClipZ) // Up
+
+	SHADER_PARAMETER(FVector3f, CloudClipCenterKm) // Planet center in Km
+
+	SHADER_PARAMETER(float, CloudLayerBotKm)
+	SHADER_PARAMETER(float, CloudLayerTopKm)
+	SHADER_PARAMETER(float, CloudClipDistKm) // distance in x,y in cloud clip space
+	SHADER_PARAMETER(float, CloudClipRadiusKm) // distance from origin to planet center in Km
+
+	SHADER_PARAMETER(float, CloudTracingMaxDistance) // limit ray lengths (to avoid slowing down when a ray crosses all clouds)
+	SHADER_PARAMETER(int32, CloudAccelMapResolution)
+	SHADER_PARAMETER(int32, CloudCallableShaderId)
+	SHADER_PARAMETER(FIntVector, CloudMapResolution)
+END_SHADER_PARAMETER_STRUCT()
+
+BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FPathTracingCloudParameterGlobals,)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingCloudParameters, CloudParameters)
+END_GLOBAL_SHADER_PARAMETER_STRUCT()
+
+IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FPathTracingCloudParameterGlobals, "PathTracingCloudParameters");
+
 static uint32 GetPathtracingMaterialPayloadSize()
 {
 	// Substrate uses a slightly bigger payload as the basic slab contains more information
@@ -902,12 +1100,13 @@ class FPathTracingRG : public FGlobalShader
 
 	class FCompactionType : SHADER_PERMUTATION_BOOL("PATH_TRACER_USE_COMPACTION");
 	class FAdaptiveSampling : SHADER_PERMUTATION_BOOL("PATH_TRACER_USE_ADAPTIVE_SAMPLING");
+	class FCloudShader : SHADER_PERMUTATION_BOOL("PATH_TRACER_USE_CLOUD_SHADER");
 	class FSubstrateComplexSpecialMaterial : SHADER_PERMUTATION_BOOL("PATH_TRACER_USE_SUBSTRATE_SPECIAL_COMPLEX_MATERIAL");
-	using FPermutationDomain = TShaderPermutationDomain<FCompactionType, FAdaptiveSampling, FSubstrateComplexSpecialMaterial>;
+	using FPermutationDomain = TShaderPermutationDomain<FCompactionType, FAdaptiveSampling, FCloudShader, FSubstrateComplexSpecialMaterial>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		const bool bUseExperimental = CVarPathTracingExperimental.GetValueOnAnyThread() != 0;
+		const bool bUseExperimental = CVarPathTracingExperimental.GetValueOnAnyThread();
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
 		if (bUseExperimental == false)
 		{
@@ -921,6 +1120,22 @@ class FPathTracingRG : public FGlobalShader
 			{
 				// adaptive sampling is experimental
 				return false;
+			}
+			if (PermutationVector.Get<FCloudShader>())
+			{
+				// using the cloud shader via callable shaders is experimental
+				return false;
+			}
+		}
+		else
+		{
+			if (PermutationVector.Get<FCloudShader>())
+			{
+				// the cloud shader version can only be supported if the platform supports callable shaders
+				if (!ShouldCompileRayTracingCallableShadersForProject(Parameters.Platform))
+				{
+					return false;
+				}
 			}
 		}
 		if (!Substrate::IsSubstrateEnabled())
@@ -938,6 +1153,7 @@ class FPathTracingRG : public FGlobalShader
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("USE_RECT_LIGHT_TEXTURES"), 1);
+		OutEnvironment.SetDefine(TEXT("DEBUG_ENABLE"), CVarPathTracingDebug.GetValueOnAnyThread() > 0 ? 1u : 0u);
 		OutEnvironment.CompilerFlags.Add(CFLAG_WarningsAsErrors);
 	}
 
@@ -951,11 +1167,13 @@ class FPathTracingRG : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float2>, VarianceTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, AlbedoTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, NormalTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, DepthTexture)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, TLAS)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, DecalTLAS)
 
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingData, PathTracingData)
+		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrint)
 
 		// scene lights
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FPathTracingLight>, SceneLights)
@@ -972,6 +1190,12 @@ class FPathTracingRG : public FGlobalShader
 		SHADER_PARAMETER_SAMPLER(SamplerState, AtmosphereOpticalDepthLUTSampler)
 		SHADER_PARAMETER(FVector3f, PlanetCenterTranslatedWorldHi)
 		SHADER_PARAMETER(FVector3f, PlanetCenterTranslatedWorldLo)
+
+		// clouds
+		SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingCloudParameters, CloudParameters)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, CloudAccelerationMap)
+		SHADER_PARAMETER_SAMPLER(SamplerState, CloudAccelerationMapSampler)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture3D, CloudMap)
 
 		// exponential height fog
 		SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingFogParameters, FogParameters)
@@ -995,14 +1219,85 @@ class FPathTracingRG : public FGlobalShader
 		// extra parameters required for path compacting kernel
 		SHADER_PARAMETER(int, Bounce)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FPathTracingPackedPathState>, PathStateData)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<int>, ActivePaths)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<int>, NextActivePaths)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<int>, NumPathStates)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, ActivePaths)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, NextActivePaths)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, NumPathStates)
 
 		RDG_BUFFER_ACCESS(PathTracingIndirectArgs, ERHIAccess::IndirectArgs | ERHIAccess::SRVCompute)
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FPathTracingRG, "/Engine/Private/PathTracing/PathTracing.usf", "PathTracingMainRG", SF_RayGen);
+
+class FPathTracingDebugRG : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FPathTracingDebugRG)
+	SHADER_USE_ROOT_PARAMETER_STRUCT(FPathTracingDebugRG, FGlobalShader)
+
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return ShouldCompilePathTracingShadersForProject(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("USE_RECT_LIGHT_TEXTURES"), 1);
+		OutEnvironment.CompilerFlags.Add(CFLAG_WarningsAsErrors);
+	}
+
+	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
+	{
+		return ERayTracingPayloadType::PathTracingMaterial | ERayTracingPayloadType::Decals;
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWSceneColor)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>,  RWSceneDepth)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, TLAS)
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
+		SHADER_PARAMETER(int32, DebugMode)
+
+		// scene lights
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FPathTracingLight>, SceneLights)
+		SHADER_PARAMETER(uint32, SceneLightCount)
+		SHADER_PARAMETER(uint32, SceneVisibleLightCount)
+		SHADER_PARAMETER(uint32, NumLightSamples)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingLightGrid, LightGridParameters)
+	
+		// scene decals
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FRayTracingDecals, DecalParameters)
+
+		// Skylight
+		SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingSkylight, SkylightParameters)
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FPathTracingDebugRG, "/Engine/Private/PathTracing/PathTracingDebug.usf", "PathTracingDebugRG", SF_RayGen);
+
+
+class FPathTracingCopyDepthPS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FPathTracingCopyDepthPS)
+	SHADER_USE_PARAMETER_STRUCT(FPathTracingCopyDepthPS, FGlobalShader)
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return ShouldCompileRayTracingShadersForProject(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		OutEnvironment.CompilerFlags.Add(CFLAG_WarningsAsErrors);
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float>, DepthTexture)
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
+		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_SHADER_TYPE(, FPathTracingCopyDepthPS, TEXT("/Engine/Private/PathTracing/PathTracingCopyDepth.usf"), TEXT("CopyDepth"), SF_Pixel);
+
 
 class FPathTracingInitExtinctionCoefficientRG : public FGlobalShader
 {
@@ -1080,6 +1375,301 @@ class FPathTracingBuildAtmosphereOpticalDepthLUTCS : public FGlobalShader
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_SHADER_TYPE(, FPathTracingBuildAtmosphereOpticalDepthLUTCS, TEXT("/Engine/Private/PathTracing/PathTracingBuildAtmosphereLUT.usf"), TEXT("PathTracingBuildAtmosphereOpticalDepthLUTCS"), SF_Compute);
+
+
+FPathTracingCloudParameters PrepareCloudParameters(const FScene* Scene, const FViewInfo& View, const FPathTracingConfig* Config)
+{
+	check(Scene != nullptr);;
+	check(Scene->GetVolumetricCloudSceneInfo() != nullptr);
+
+
+	const FSkyAtmosphereRenderSceneInfo* SkyInfo = Scene->GetSkyAtmosphereSceneInfo();
+	const FVolumetricCloudRenderSceneInfo* CloudInfo = Scene->GetVolumetricCloudSceneInfo();
+	const FVolumetricCloudSceneProxy& CloudProxy = CloudInfo->GetVolumetricCloudSceneProxy();
+
+	float PlanetRadiusKm = CloudProxy.PlanetRadiusKm;
+	FVector CloudCenterKm = FVector(0, 0, -CloudProxy.PlanetRadiusKm);
+	if (SkyInfo != nullptr)
+	{
+		const FAtmosphereSetup& AtmosphereSetup = SkyInfo->GetSkyAtmosphereSceneProxy().GetAtmosphereSetup();
+		PlanetRadiusKm = AtmosphereSetup.BottomRadiusKm;
+		CloudCenterKm = AtmosphereSetup.PlanetCenterKm;
+	}
+
+	FVector PlanetUp = View.ViewMatrices.GetViewOrigin() - CloudCenterKm * double(FAtmosphereSetup::SkyUnitToCm);
+	double ViewToPlanet = PlanetUp.Length();
+	PlanetUp.Normalize();
+
+	FPathTracingCloudParameters Params = {};
+
+	// Make a coordinate frame for our cloud acceleration map -- we want it to be stable with respect
+	// to camera rotations to minimize aliasing as the camera moves. PlanetUp will generally be quite
+	// stable when moving about the planet surface, so using this as the only input minimizes resampling artifacts
+	// TODO: Figure out a stable scheme for views from space ...
+	// See GetTangentBasis() in MonteCarlo.ush
+	// TODO: Should probably be turned into a utility on TVector?
+	{
+		const FVector TangentZ = PlanetUp;
+		const double Sign = TangentZ.Z >= 0 ? 1 : -1;
+		const double a = -1 / (Sign + TangentZ.Z);
+		const double b = TangentZ.X * TangentZ.Y * a;
+		FVector TangentX = { 1 + Sign * a * (TangentZ.X * TangentZ.X), Sign * b, -Sign * TangentZ.X };
+		FVector TangentY = { b,  Sign + a * (TangentZ.Y * TangentZ.Y), -TangentZ.Y };
+
+		Params.CloudClipX = FVector3f(TangentX);
+		Params.CloudClipY = FVector3f(TangentY);
+		Params.CloudClipZ = FVector3f(TangentZ);
+	}
+	Params.CloudClipCenterKm = FVector3f(CloudCenterKm); // LWC_TODO: Pass this in as high/low for better precision
+
+	Params.CloudLayerBotKm = PlanetRadiusKm + CloudProxy.LayerBottomAltitudeKm;
+	Params.CloudLayerTopKm = Params.CloudLayerBotKm + CloudProxy.LayerHeightKm;
+	if (CloudProxy.TracingMaxDistanceMode == 0)
+	{
+		Params.CloudClipDistKm = FMath::Min(CloudProxy.TracingStartMaxDistance, Params.CloudLayerTopKm);
+		Params.CloudTracingMaxDistance = CloudProxy.TracingMaxDistance * FAtmosphereSetup::SkyUnitToCm;
+	}
+	else
+	{
+		Params.CloudClipDistKm = FMath::Min(FMath::Min(CloudProxy.TracingStartMaxDistance, CloudProxy.TracingMaxDistance), Params.CloudLayerTopKm);
+		Params.CloudTracingMaxDistance = 2 * Params.CloudClipDistKm * FAtmosphereSetup::SkyUnitToCm; // full diagonal for this
+	}
+	
+	Params.CloudClipRadiusKm = float(ViewToPlanet * double(FAtmosphereSetup::CmToSkyUnit));
+	Params.CloudCallableShaderId = -1;
+	if (Config != nullptr)
+	{
+		Params.CloudAccelMapResolution = Config->CloudAccelerationMapResolution;
+		Params.CloudMapResolution = FIntVector(Config->CloudMapResolution, Config->CloudMapResolution, Config->CloudMapDepth);
+	}
+	return Params;
+}
+
+class FPathTracingBuildCloudAccelerationMapCS : public FMeshMaterialShader
+{
+	DECLARE_SHADER_TYPE(FPathTracingBuildCloudAccelerationMapCS, MeshMaterial)
+	SHADER_USE_PARAMETER_STRUCT_WITH_LEGACY_BASE(FPathTracingBuildCloudAccelerationMapCS, FMeshMaterialShader) // TODO: following pattern used in VolumetricCloudRender.cpp -- is there a proper modern alternative?
+
+	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	{
+		return ShouldCompilePathTracingShadersForProject(Parameters.Platform) &&
+			Parameters.MaterialParameters.bIsUsedWithVolumetricCloud &&
+			Parameters.MaterialParameters.MaterialDomain == MD_Volume;
+	}
+
+	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_X"), FComputeShaderUtils::kGolden2DGroupSize);
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Y"), FComputeShaderUtils::kGolden2DGroupSize);
+		OutEnvironment.SetDefine(TEXT("CLOUD_LAYER_PIXEL_SHADER"), 1);
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, NumSamples)
+		SHADER_PARAMETER(uint32, Iteration)
+		SHADER_PARAMETER(uint32, TemporalSeed)
+		SHADER_PARAMETER(int32 , UseCloudMap)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingCloudParameters, CloudParameters)
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, CloudAccelerationMap)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture3D, CloudMap)
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_MATERIAL_SHADER_TYPE(, FPathTracingBuildCloudAccelerationMapCS, TEXT("/Engine/Private/PathTracing/PathTracingBuildCloudAccelerationMap.usf"), TEXT("PathTracingBuildCloudAccelerationMapCS"), SF_Compute);
+
+class FPathTracingBuildCloudCS : public FMeshMaterialShader
+{
+	DECLARE_SHADER_TYPE(FPathTracingBuildCloudCS, MeshMaterial)
+	SHADER_USE_PARAMETER_STRUCT_WITH_LEGACY_BASE(FPathTracingBuildCloudCS, FMeshMaterialShader) // TODO: following pattern used in VolumetricCloudRender.cpp -- is there a proper modern alternative?
+
+	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	{
+		return ShouldCompilePathTracingShadersForProject(Parameters.Platform) &&
+		Parameters.MaterialParameters.bIsUsedWithVolumetricCloud &&
+		Parameters.MaterialParameters.MaterialDomain == MD_Volume;
+	}
+
+	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_X"), 4);
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Y"), 4);
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Z"), 4);
+		OutEnvironment.SetDefine(TEXT("CLOUD_LAYER_PIXEL_SHADER"), 1);
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(float , BlendFactor)
+		SHADER_PARAMETER(uint32, Iteration)
+		SHADER_PARAMETER(uint32, TemporalSeed)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingCloudParameters, CloudParameters)
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D, CloudMap)
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_MATERIAL_SHADER_TYPE(, FPathTracingBuildCloudCS, TEXT("/Engine/Private/PathTracing/PathTracingBuildCloud.usf"), TEXT("PathTracingBuildCloudCS"), SF_Compute);
+
+
+class FPathTracingVolumetricCloudMaterial : public FMaterialShader
+{
+	DECLARE_SHADER_TYPE(FPathTracingVolumetricCloudMaterial, Material);
+public:
+	FPathTracingVolumetricCloudMaterial() = default;
+
+	FPathTracingVolumetricCloudMaterial(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+	: FMaterialShader(Initializer)
+	{
+		CloudParameter.Bind(Initializer.ParameterMap, TEXT("PathTracingCloudParameters"));
+	}
+
+	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
+	{
+		const bool bUseExperimental = CVarPathTracingExperimental.GetValueOnAnyThread();
+
+		return ShouldCompilePathTracingShadersForProject(Parameters.Platform) &&
+			ShouldCompileRayTracingCallableShadersForProject(Parameters.Platform) &&
+			bUseExperimental &&
+			Parameters.MaterialParameters.bIsUsedWithVolumetricCloud &&
+			Parameters.MaterialParameters.MaterialDomain == MD_Volume;
+	}
+
+	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FMeshMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		check(Parameters.MaterialParameters.MaterialDomain == MD_Volume);
+		OutEnvironment.SetDefine(TEXT("CLOUD_LAYER_PIXEL_SHADER"), 1);
+	}
+
+	static bool ValidateCompiledResult(EShaderPlatform Platform, const FShaderParameterMap& ParameterMap, TArray<FString>& OutError)
+	{
+		if (ParameterMap.ContainsParameterAllocation(FSceneTextureUniformParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName()))
+		{
+			OutError.Add(TEXT("Ray tracing callable shaders cannot read from the SceneTexturesStruct."));
+			return false;
+		}
+
+		for (const auto& It : ParameterMap.GetParameterMap())
+		{
+			const FParameterAllocation& ParamAllocation = It.Value;
+			if (ParamAllocation.Type != EShaderParameterType::UniformBuffer
+				&& ParamAllocation.Type != EShaderParameterType::LooseData)
+			{
+				OutError.Add(FString::Printf(TEXT("Invalid ray tracing shader parameter '%s'. Only uniform buffers and loose data parameters are supported."), *(It.Key)));
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
+	{
+		// TODO: This isn't the payload we use, but the logic in RayTracingMaterialHitShaders.cpp needs to assume a consistent payload ID for all callable shaders
+		// The simplest solution is probably to remove FDecalShaderPayload and use the PT payload everywhere
+		return ERayTracingPayloadType::Decals;
+	}
+
+	void GetShaderBindings(
+		const FScene* Scene,
+		ERHIFeatureLevel::Type FeatureLevel,
+		const FMaterialRenderProxy& MaterialRenderProxy,
+		const FMaterial& Material,
+		const FViewInfo& View,
+		const TUniformBufferRef<FPathTracingCloudParameterGlobals>& CloudParameters,
+		FMeshDrawSingleShaderBindings& ShaderBindings) const
+	{
+		FMaterialShader::GetShaderBindings(Scene, FeatureLevel, MaterialRenderProxy, Material, ShaderBindings);
+
+		ShaderBindings.Add(GetUniformBufferParameter<FViewUniformShaderParameters>(), View.ViewUniformBuffer);
+		// Use GIdentityPrimitiveUniformBuffer just like in the decal handling code
+		// We could potentially bind the actual primitive uniform buffer
+		ShaderBindings.Add(GetUniformBufferParameter<FPrimitiveUniformShaderParameters>(), GIdentityPrimitiveUniformBuffer);
+		ShaderBindings.Add(CloudParameter, CloudParameters);
+	}
+
+private:
+	LAYOUT_FIELD(FShaderUniformBufferParameter, CloudParameter);
+};
+IMPLEMENT_SHADER_TYPE(, FPathTracingVolumetricCloudMaterial, TEXT("/Engine/Private/PathTracing/PathTracingVolumetricCloudMaterialShader.usf"), TEXT("PathTracingVolumetricCloudMaterialShader"), SF_RayCallable);
+
+void PreparePathTracingCloudMaterial(FScene* Scene, TArrayView<FViewInfo> Views)
+{
+	// make sure all views have an invalid callable shader index (unless proven otherwise below)
+	for (FViewInfo& View : Views)
+	{
+		View.PathTracingVolumetricCloudCallableShaderIndex = -1;
+	}
+
+	// if we are using reference clouds, or if we are using the cloud map, no need to prepare the callable shader version
+	if (CVarPathTracingEnableReferenceClouds.GetValueOnRenderThread() == 0 ||
+		(CVarPathTracingExperimental.GetValueOnRenderThread() == false || CVarPathTracingCloudMapEnabled.GetValueOnRenderThread()))
+	{
+		return;
+	}
+
+	if (!ShouldCompileRayTracingCallableShadersForProject(Scene->GetShaderPlatform()))
+	{
+		return;
+	}
+
+	FVolumetricCloudRenderSceneInfo* CloudRenderSceneInfo = Scene->GetVolumetricCloudSceneInfo();
+	if (CloudRenderSceneInfo == nullptr)
+	{
+		return;
+	}
+
+	UMaterialInterface* CloudMaterialInterface = CloudRenderSceneInfo->GetVolumetricCloudSceneProxy().GetCloudVolumeMaterial();
+	if (CloudMaterialInterface == nullptr)
+	{
+		return;
+	}
+	const FMaterialRenderProxy* CloudVolumeMaterialProxy = CloudMaterialInterface->GetRenderProxy();
+	if (CloudVolumeMaterialProxy == nullptr)
+	{
+		return;
+	}
+	const FMaterial* MaterialResource = &CloudVolumeMaterialProxy->GetMaterialWithFallback(Scene->GetFeatureLevel(), CloudVolumeMaterialProxy);
+	if (MaterialResource->GetMaterialDomain() != MD_Volume)
+	{
+		return;
+	}
+
+	const FMaterialShaderMap* MaterialShaderMap = MaterialResource->GetRenderingThreadShaderMap();
+	auto CallableShader = MaterialShaderMap->GetShader<FPathTracingVolumetricCloudMaterial>();
+	if (!CallableShader.IsValid())
+	{
+		return;
+	}
+
+	const FVolumetricCloudRenderSceneInfo* CloudInfo = Scene->GetVolumetricCloudSceneInfo();
+
+	for (FViewInfo& View : Views)
+	{
+		uint32 BaseCallableSlotIndex = Scene->RayTracingScene.NumCallableShaderSlots;
+		FRayTracingShaderCommand& Command = Scene->RayTracingScene.CallableCommands.AddDefaulted_GetRef();
+
+		Command.SetShader(CallableShader);
+		Command.SlotInScene = BaseCallableSlotIndex;
+
+		View.PathTracingVolumetricCloudCallableShaderIndex = BaseCallableSlotIndex;
+
+		FPathTracingCloudParameterGlobals Params = {};
+		Params.CloudParameters = PrepareCloudParameters(Scene, View, nullptr);
+		TUniformBufferRef<FPathTracingCloudParameterGlobals> CloudParametersUB = CreateUniformBufferImmediate(
+			Params,
+			EUniformBufferUsage::UniformBuffer_SingleFrame
+		);
+		Scene->RayTracingScene.UniformBuffers.Add(CloudParametersUB); // Hold uniform buffer ref in RayTracingScene since FMeshDrawSingleShaderBindings doesn't
+
+		FMeshDrawSingleShaderBindings SingleShaderBindings = Command.ShaderBindings.GetSingleShaderBindings(SF_RayCallable);
+		CallableShader->GetShaderBindings(Scene, Scene->GetFeatureLevel(), *CloudVolumeMaterialProxy, *MaterialResource, View, CloudParametersUB, SingleShaderBindings);
+
+		Scene->RayTracingScene.NumCallableShaderSlots++;
+	}
+}
 
 
 class FPathTracingBuildAdaptiveErrorTextureCS : public FGlobalShader
@@ -1199,11 +1789,12 @@ FRHIRayTracingShader* GetGPULightmassDefaultMissShader(const FGlobalShaderMap* S
 	return ShaderMap->GetShader<FGPULightmassDefaultMS>().GetRayTracingShader();
 }
 
-void FDeferredShadingSceneRenderer::SetupPathTracingDefaultMissShader(FRHICommandListImmediate& RHICmdList, const FViewInfo& View)
+void FDeferredShadingSceneRenderer::SetupPathTracingDefaultMissShader(FRHICommandList& RHICmdList, const FViewInfo& View)
 {
 	int32 MissShaderPipelineIndex = FindRayTracingMissShaderIndex(View.RayTracingMaterialPipeline, GetPathTracingDefaultMissShader(View.ShaderMap), true);
 
-	RHICmdList.SetRayTracingMissShader(View.GetRayTracingSceneChecked(),
+	RHICmdList.SetRayTracingMissShader(
+		View.RayTracingSBT,
 		RAY_TRACING_MISS_SHADER_SLOT_DEFAULT,
 		View.RayTracingMaterialPipeline,
 		MissShaderPipelineIndex,
@@ -1215,6 +1806,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FLightFunctionParametersPathTracing, )
 	SHADER_PARAMETER(FMatrix44f, LightFunctionTranslatedWorldToLight)
 	SHADER_PARAMETER(FVector4f, LightFunctionParameters)
 	SHADER_PARAMETER(FVector3f, LightFunctionParameters2)
+	SHADER_PARAMETER(FVector3f, CameraRelativeLightPosition)
 	SHADER_PARAMETER(int32    , EnableColoredLightFunctions)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
@@ -1248,6 +1840,8 @@ static TUniformBufferRef<FLightFunctionParametersPathTracing> CreateLightFunctio
 		LightSceneInfo->Proxy->GetLightFunctionFadeDistance(),
 		LightSceneInfo->Proxy->GetLightFunctionDisabledBrightness(),
 		bRenderingPreviewShadowIndicator ? 1.0f : 0.0f);
+
+	LightFunctionParameters.CameraRelativeLightPosition = GetCamRelativeLightPosition(View.ViewMatrices, *LightSceneInfo);
 
 	LightFunctionParameters.EnableColoredLightFunctions = CVarPathTracingLightFunctionColor.GetValueOnRenderThread();
 
@@ -1285,6 +1879,9 @@ public:
 		FMaterialShader::GetShaderBindings(Scene, FeatureLevel, MaterialRenderProxy, Material, ShaderBindings);
 		ShaderBindings.Add(GetUniformBufferParameter<FViewUniformShaderParameters>(), View.ViewUniformBuffer);
 		ShaderBindings.Add(LightMaterialsParameter, LightFunctionParameters);
+
+		// LightFunctions can use primitive data, set identity so we do not crash on a missing binding
+		ShaderBindings.Add(GetUniformBufferParameter<FPrimitiveUniformShaderParameters>(), GIdentityPrimitiveUniformBuffer);
 	}
 
 	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -1311,7 +1908,7 @@ static void BindLightFunction(
 	int32 Index
 )
 {
-	FRHIRayTracingScene* RTScene = View.GetRayTracingSceneChecked();
+	FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 	FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
 	const FMaterialShaderMap* MaterialShaderMap = Material.GetRenderingThreadShaderMap();
 
@@ -1326,7 +1923,7 @@ static void BindLightFunction(
 
 	int32 MissShaderPipelineIndex = FindRayTracingMissShaderIndex(View.RayTracingMaterialPipeline, Shader.GetRayTracingShader(), true);
 
-	ShaderBindings.SetRayTracingShaderBindingsForMissShader(RHICmdList, RTScene, Pipeline, MissShaderPipelineIndex, Index);
+	ShaderBindings.SetRayTracingShaderBindingsForMissShader(RHICmdList, SBT, Index, Pipeline, MissShaderPipelineIndex);
 }
 
 void BindLightFunctionShadersPathTracing(
@@ -1454,7 +2051,7 @@ public:
 		}
 		else
 		{
-			if (SimplifySubstrate && (!Substrate::IsSubstrateEnabled() || CVarPathTracingSubstrateCompileSimplifiedMaterial.GetValueOnAnyThread() == 0))
+			if (SimplifySubstrate && (!Substrate::IsSubstrateEnabled() || CVarPathTracingSubstrateCompileSimplifiedMaterial.GetValueOnAnyThread() == false))
 			{
 				// don't compile the extra Substrate permutation if:
 				//    Substrate is not enabled on this project
@@ -1629,8 +2226,8 @@ bool FRayTracingMeshProcessor::ProcessPathTracing(
 			{
 				// In order to use Substrate simplified materials, Substrate has to be enabled, we have to have _compiled_ the extra permutations _and_ the runtime toggle must be true
 				const bool bUseSimplifiedMaterial = Substrate::IsSubstrateEnabled() &&
-					CVarPathTracingSubstrateCompileSimplifiedMaterial.GetValueOnRenderThread() != 0 &&
-					CVarPathTracingSubstrateUseSimplifiedMaterial.GetValueOnRenderThread() != 0;
+					CVarPathTracingSubstrateCompileSimplifiedMaterial.GetValueOnRenderThread() &&
+					CVarPathTracingSubstrateUseSimplifiedMaterial.GetValueOnRenderThread();
 				if (NeedsAnyHitShader(MaterialResource))
 				{
 					if (bUseSimplifiedMaterial)
@@ -1698,7 +2295,7 @@ bool FRayTracingMeshProcessor::ProcessPathTracing(
 		return false;
 	}
 
-	TBasePassShaderElementData<FUniformLightMapPolicy> ShaderElementData(MeshBatch.LCI);
+	TBasePassShaderElementData<FUniformLightMapPolicy> ShaderElementData(nullptr);
 	ShaderElementData.InitializeMeshMaterialData(ViewIfDynamicMeshCommand, PrimitiveSceneProxy, MeshBatch, -1, true);
 
 	BuildRayTracingMeshCommands(
@@ -1731,7 +2328,7 @@ RENDERER_API void PrepareSkyTexture_Internal(
 {
 	FRDGTextureDesc SkylightTextureDesc = FRDGTextureDesc::Create2D(
 		FIntPoint(Size, Size),
-		PF_A32B32G32R32F, // half precision might be ok?
+		PF_A32B32G32R32F, // Must use float as CubeMap * Color could have float range (could use half if we didn't include Color in the map)
 		FClearValueBinding::None,
 		TexCreate_ShaderResource | TexCreate_UAV);
 
@@ -1739,7 +2336,7 @@ RENDERER_API void PrepareSkyTexture_Internal(
 
 	FRDGTextureDesc SkylightPdfDesc = FRDGTextureDesc::Create2D(
 		FIntPoint(Size, Size),
-		PF_R32_FLOAT, // half precision might be ok?
+		PF_R32_FLOAT, // Must use float as CubeMap * Color could have float range (could use half if we didn't include Color in the map)
 		FClearValueBinding::None,
 		TexCreate_ShaderResource | TexCreate_UAV,
 		FMath::CeilLogTwo(Size) + 1);
@@ -1955,21 +2552,24 @@ RENDERER_API void PrepareLightGrid(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::
 		LightGridParameters->LightGridResolution = Resolution;
 		LightGridParameters->LightGridMaxCount = MaxCount;
 
-		// pick the shortest axis
-		FVector3f Diag = LightGridParameters->SceneLightsTranslatedBoundMax - LightGridParameters->SceneLightsTranslatedBoundMin;
-		if (Diag.X < Diag.Y && Diag.X < Diag.Z)
+		LightGridParameters->LightGridAxis = CVarPathTracingLightGridAxis.GetValueOnRenderThread();
+		if (LightGridParameters->LightGridAxis < 0 || LightGridParameters->LightGridAxis > 2)
 		{
-			LightGridParameters->LightGridAxis = 0;
+			// pick the shortest axis if user did not explicitly pick an axis
+			FVector3f Diag = LightGridParameters->SceneLightsTranslatedBoundMax - LightGridParameters->SceneLightsTranslatedBoundMin;
+			if (Diag.X < Diag.Y && Diag.X < Diag.Z)
+			{
+				LightGridParameters->LightGridAxis = 0;
+			}
+			else if (Diag.Y < Diag.Z)
+			{
+				LightGridParameters->LightGridAxis = 1;
+			}
+			else
+			{
+				LightGridParameters->LightGridAxis = 2;
+			}
 		}
-		else if (Diag.Y < Diag.Z)
-		{
-			LightGridParameters->LightGridAxis = 1;
-		}
-		else
-		{
-			LightGridParameters->LightGridAxis = 2;
-		}
-
 		FPathTracingBuildLightGridCS::FParameters* LightGridPassParameters = GraphBuilder.AllocParameters< FPathTracingBuildLightGridCS::FParameters>();
 
 		FRDGTextureDesc LightGridDesc = FRDGTextureDesc::Create2D(
@@ -2036,9 +2636,27 @@ RENDERER_API void PrepareLightGrid(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::
 	}
 }
 
-void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* PassParameters, FScene* Scene, const FViewInfo& View, bool UseMISCompensation)
+uint32 PackRG16(float In0, float In1);
+
+void SetLightParameters(
+	FRDGBuilder& GraphBuilder,
+	FScene* Scene,
+	const FViewInfo& View,
+	const bool UseMISCompensation,
+	const bool bUseAtmosphere,
+	// output args
+	FPathTracingSkylight* SkylightParameters,
+	FPathTracingLightGrid* LightGridParameters,
+	uint32* SceneVisibleLightCount,
+	uint32* SceneLightCount,
+	FRDGBufferSRVRef* SceneLights
+)
 {
-	PassParameters->SceneVisibleLightCount = 0;
+	check(SkylightParameters != nullptr);
+	check(SceneVisibleLightCount != nullptr);
+	check(SceneLightCount != nullptr);
+	check(SceneLights != nullptr);
+	*SceneVisibleLightCount = 0;
 
 	// Lights
 	uint32 MaxNumLights = 1 + Scene->Lights.Num(); // upper bound
@@ -2048,9 +2666,8 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 
 	// Prepend SkyLight to light buffer since it is not part of the regular light list
 	// skylight should be excluded if we are using the reference atmosphere calculation (don't bother checking again if an atmosphere is present)
-	const bool bUseAtmosphere = (PassParameters->PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_ENABLE_ATMOSPHERE) != 0;
 	const bool bEnableSkydome = !bUseAtmosphere;
-	if (PrepareSkyTexture(GraphBuilder, Scene, View, bEnableSkydome, UseMISCompensation, &PassParameters->SkylightParameters))
+	if (PrepareSkyTexture(GraphBuilder, Scene, View, bEnableSkydome, UseMISCompensation, SkylightParameters))
 	{
 		check(Scene->SkyLight != nullptr);
 		FPathTracingLight& DestLight = Lights[NumLights++];
@@ -2060,7 +2677,7 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 		DestLight.Flags |= PATHTRACING_LIGHT_SKY;
 		DestLight.Flags |= Scene->SkyLight->bCastShadows ? PATHTRACER_FLAG_CAST_SHADOW_MASK : 0;
 		DestLight.Flags |= Scene->SkyLight->bCastVolumetricShadow ? PATHTRACER_FLAG_CAST_VOL_SHADOW_MASK : 0;
-		DestLight.SpecularScale = 1.0f;
+		DestLight.DiffuseSpecularScale = PackRG16(1.f, 1.f);
 		DestLight.VolumetricScatteringIntensity = Scene->SkyLight->VolumetricScatteringIntensity;
 		DestLight.IESAtlasIndex = INDEX_NONE;
 		DestLight.MissShaderIndex = 0;
@@ -2071,7 +2688,14 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 			// The one exception to this case is if the sky atmo has been marked as holdout.
 
 			// Also allow seeing just the sky via a cvar for debugging purposes
-			PassParameters->SceneVisibleLightCount = 1;
+			*SceneVisibleLightCount = 1;
+
+			if (Scene->SkyLight->bRealTimeCaptureEnabled)
+			{
+				// NOTE: this color is already baked into the skylight texture so that importance sampling takes it into account, we pass it in here so that camera rays can factor it out
+				// This is only for the realtime capture case, because otherwise (specified cube map case) we want the displayed texture and lighting to match
+				DestLight.Color = FVector3f(Scene->SkyLight->GetEffectiveLightColor());
+			}
 		}
 	}
 
@@ -2105,6 +2729,7 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 			DestLight.Flags |= LightingChannelMask & PATHTRACER_FLAG_LIGHTING_CHANNEL_MASK;
 			DestLight.Flags |= Light.LightSceneInfo->Proxy->CastsDynamicShadow() ? PATHTRACER_FLAG_CAST_SHADOW_MASK : 0;
 			DestLight.Flags |= Light.LightSceneInfo->Proxy->CastsVolumetricShadow() ? PATHTRACER_FLAG_CAST_VOL_SHADOW_MASK : 0;
+			DestLight.Flags |= Light.LightSceneInfo->Proxy->GetCastCloudShadows() ? PATHTRACER_FLAG_CAST_CLOUD_SHADOW_MASK : 0;
 			DestLight.IESAtlasIndex = INDEX_NONE;
 			DestLight.MissShaderIndex = 0;
 
@@ -2121,10 +2746,9 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 			DestLight.Color = FVector3f(LightParameters.Color) * LightParameters.GetLightExposureScale(View.GetLastEyeAdaptationExposure());
 			DestLight.TranslatedWorldPosition = FVector3f(LightParameters.WorldPosition + View.ViewMatrices.GetPreViewTranslation());
 			DestLight.Normal = -LightParameters.Direction;
-			DestLight.dPdu = FVector3f::CrossProduct(LightParameters.Tangent, LightParameters.Direction);
-			DestLight.dPdv = LightParameters.Tangent;
+			DestLight.Tangent = LightParameters.Tangent;
 			DestLight.Shaping = FVector2f(0.0f, 0.0f);
-			DestLight.SpecularScale = LightParameters.SpecularScale;
+			DestLight.DiffuseSpecularScale = PackRG16(LightParameters.DiffuseScale, LightParameters.SpecularScale);
 			DestLight.Attenuation = LightParameters.InvRadius;
 			DestLight.FalloffExponent = 0;
 			DestLight.VolumetricScatteringIntensity = Light.LightSceneInfo->Proxy->GetVolumetricScatteringIntensity();
@@ -2137,11 +2761,11 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 		}
 	}
 
-	if (bUseAtmosphere)
+	if (bUseAtmosphere && (View.SkyAtmosphereUniformShaderParameters == nullptr ||  !IsSkyAtmosphereHoldout(View.CachedViewUniformShaderParameters->EnvironmentComponentsFlags)))
 	{
-		// show directional lights when atmosphere is enabled
+		// show directional lights when atmosphere is enabled and not marked as holdout
 		// NOTE: there cannot be any skydome in this case
-		PassParameters->SceneVisibleLightCount = NumLights;
+		*SceneVisibleLightCount = NumLights;
 	}
 
 	uint32 NumInfiniteLights = NumLights;
@@ -2178,6 +2802,7 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 		DestLight.Flags |= LightingChannelMask & PATHTRACER_FLAG_LIGHTING_CHANNEL_MASK;
 		DestLight.Flags |= Light.LightSceneInfo->Proxy->CastsDynamicShadow() ? PATHTRACER_FLAG_CAST_SHADOW_MASK : 0;
 		DestLight.Flags |= Light.LightSceneInfo->Proxy->CastsVolumetricShadow() ? PATHTRACER_FLAG_CAST_VOL_SHADOW_MASK : 0;
+		DestLight.Flags |= Light.LightSceneInfo->Proxy->GetCastCloudShadows() ? PATHTRACER_FLAG_CAST_CLOUD_SHADOW_MASK : 0;
 		DestLight.IESAtlasIndex = LightParameters.IESAtlasIndex;
 		DestLight.MissShaderIndex = 0;
 
@@ -2185,10 +2810,9 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 		DestLight.Color = FVector3f(LightParameters.Color) * LightParameters.GetLightExposureScale(View.GetLastEyeAdaptationExposure());
 		DestLight.TranslatedWorldPosition = FVector3f(LightParameters.WorldPosition + View.ViewMatrices.GetPreViewTranslation());
 		DestLight.Normal = -LightParameters.Direction;
-		DestLight.dPdu = FVector3f::CrossProduct(LightParameters.Tangent, LightParameters.Direction);
-		DestLight.dPdv = LightParameters.Tangent;
+		DestLight.Tangent = LightParameters.Tangent;
 		DestLight.Shaping = FVector2f(0.0f, 0.0f);
-		DestLight.SpecularScale = LightParameters.SpecularScale;
+		DestLight.DiffuseSpecularScale = PackRG16(LightParameters.DiffuseScale, LightParameters.SpecularScale);
 		DestLight.Attenuation = LightParameters.InvRadius;
 		DestLight.FalloffExponent = 0;
 		DestLight.VolumetricScatteringIntensity = Light.LightSceneInfo->Proxy->GetVolumetricScatteringIntensity();
@@ -2250,21 +2874,21 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 		}
 	}
 
-	PassParameters->SceneLightCount = NumLights;
+	*SceneLightCount = NumLights;
 	{
 		// Upload the buffer of lights to the GPU
 		uint32 NumCopyLights = FMath::Max(1u, NumLights); // need at least one since zero-sized buffers are not allowed
 		size_t DataSize = sizeof(FPathTracingLight) * NumCopyLights;
-		PassParameters->SceneLights = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(CreateStructuredBuffer(GraphBuilder, TEXT("PathTracer.LightsBuffer"), sizeof(FPathTracingLight), NumCopyLights, Lights, DataSize, ERDGInitialDataFlags::NoCopy)));
+		*SceneLights = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(CreateStructuredBuffer(GraphBuilder, TEXT("PathTracer.LightsBuffer"), sizeof(FPathTracingLight), NumCopyLights, Lights, DataSize, ERDGInitialDataFlags::NoCopy)));
 	}
 
 	if (CVarPathTracingVisibleLights.GetValueOnRenderThread() == 1)
 	{
 		// make all lights in the scene visible
-		PassParameters->SceneVisibleLightCount = PassParameters->SceneLightCount;
+		*SceneVisibleLightCount = *SceneLightCount;
 	}
 
-	PrepareLightGrid(GraphBuilder, View.FeatureLevel, &PassParameters->LightGridParameters, Lights, NumLights, NumInfiniteLights, PassParameters->SceneLights);
+	PrepareLightGrid(GraphBuilder, View.FeatureLevel, LightGridParameters, Lights, NumLights, NumInfiniteLights, *SceneLights);
 }
 
 class FPathTracingCompositorPS : public FGlobalShader
@@ -2286,7 +2910,7 @@ class FPathTracingCompositorPS : public FGlobalShader
 		SHADER_PARAMETER_SAMPLER(SamplerState, VarianceSampler)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float4>, RadianceTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float2>, VarianceTexture)
-		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float4>, NormalDepthTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float>, DepthTexture)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER(uint32, Iteration)
 		SHADER_PARAMETER(uint32, MaxSamples)
@@ -2294,6 +2918,7 @@ class FPathTracingCompositorPS : public FGlobalShader
 		SHADER_PARAMETER(float, AdaptiveSamplingErrorThreshold)
 		SHADER_PARAMETER(int, AdaptiveSamplingVisualize)
 		SHADER_PARAMETER(FIntVector, VarianceTextureDims)
+		SHADER_PARAMETER(float, PreExposure)
 
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
@@ -2302,14 +2927,16 @@ IMPLEMENT_SHADER_TYPE(, FPathTracingCompositorPS, TEXT("/Engine/Private/PathTrac
 
 static FPathTracingRG::FPermutationDomain GetPathTracingRGPermutation(const FScene& Scene)
 {
-	const bool bUseExperimental = CVarPathTracingExperimental.GetValueOnRenderThread() != 0;
-	const bool bUseCompaction = (bUseExperimental == false) || CVarPathTracingCompaction.GetValueOnRenderThread() != 0;
+	const bool bUseExperimental = CVarPathTracingExperimental.GetValueOnRenderThread();
+	const bool bUseCompaction = (bUseExperimental == false) || CVarPathTracingCompaction.GetValueOnRenderThread();
 	const bool bUseAdaptiveSampling = bUseExperimental && CVarPathTracingAdaptiveSampling.GetValueOnRenderThread() != 0;
+	const bool bUseCloudShader = bUseExperimental && ShouldCompileRayTracingCallableShadersForProject(Scene.GetShaderPlatform()) && !CVarPathTracingCloudMapEnabled.GetValueOnRenderThread();
 	const bool bHasComplexSpecialRenderPath = Substrate::IsSubstrateEnabled() && Scene.SubstrateSceneData.bUsesComplexSpecialRenderPath;
 
 	FPathTracingRG::FPermutationDomain Out;
 	Out.Set<FPathTracingRG::FCompactionType>(bUseCompaction);
 	Out.Set<FPathTracingRG::FAdaptiveSampling>(bUseAdaptiveSampling);
+	Out.Set<FPathTracingRG::FCloudShader>(bUseCloudShader);
 	Out.Set<FPathTracingRG::FSubstrateComplexSpecialMaterial>(bHasComplexSpecialRenderPath);
 	return Out;
 }
@@ -2319,17 +2946,25 @@ void FDeferredShadingSceneRenderer::PreparePathTracing(const FSceneViewFamily& V
 	if (ViewFamily.EngineShowFlags.PathTracing
 		&& ShouldCompilePathTracingShadersForProject(ViewFamily.GetShaderPlatform()))
 	{
-		// Declare all RayGen shaders that require material closest hit shaders to be bound
-		FPathTracingRG::FPermutationDomain PermutationVector = GetPathTracingRGPermutation(Scene);
+		if (GetPathTracingDebugVisualizationMode() >= 0)
 		{
-			auto RayGenShader = GetGlobalShaderMap(ViewFamily.GetShaderPlatform())->GetShader<FPathTracingRG>(PermutationVector);
+			auto RayGenShader = GetGlobalShaderMap(ViewFamily.GetShaderPlatform())->GetShader<FPathTracingDebugRG>();
 			OutRayGenShaders.Add(RayGenShader.GetRayTracingShader());
 		}
-
+		else
 		{
-			auto RayGenShader = GetGlobalShaderMap(ViewFamily.GetShaderPlatform())->GetShader<FPathTracingInitExtinctionCoefficientRG>();
-			OutRayGenShaders.Add(RayGenShader.GetRayTracingShader());
-		}		
+			// Declare all RayGen shaders that require material closest hit shaders to be bound
+			FPathTracingRG::FPermutationDomain PermutationVector = GetPathTracingRGPermutation(Scene);
+			{
+				auto RayGenShader = GetGlobalShaderMap(ViewFamily.GetShaderPlatform())->GetShader<FPathTracingRG>(PermutationVector);
+				OutRayGenShaders.Add(RayGenShader.GetRayTracingShader());
+			}
+
+			{
+				auto RayGenShader = GetGlobalShaderMap(ViewFamily.GetShaderPlatform())->GetShader<FPathTracingInitExtinctionCoefficientRG>();
+				OutRayGenShaders.Add(RayGenShader.GetRayTracingShader());
+			}
+		}
 	}
 }
 
@@ -2384,7 +3019,7 @@ void FSceneViewState::PathTracingInvalidate(bool InvalidateAnimationStates)
 	if (State)
 	{
 		
-		if(InvalidateAnimationStates)
+		if (InvalidateAnimationStates)
 		{
 			State->LastDenoisedRadianceRT.SafeRelease();
 			State->LastRadianceRT.SafeRelease();
@@ -2399,7 +3034,10 @@ void FSceneViewState::PathTracingInvalidate(bool InvalidateAnimationStates)
 		State->VarianceRT.SafeRelease();
 		State->AlbedoRT.SafeRelease();
 		State->NormalRT.SafeRelease();
+		State->DepthRT.SafeRelease();
 		State->VarianceBuffer.SafeRelease();
+		State->CloudAccelerationMap.SafeRelease();
+		State->CloudMap.SafeRelease();
 		State->SampleIndex = 0;
 
 		State->AdaptiveFrustumGridParameterCache.TopLevelGridBuffer.SafeRelease();
@@ -2427,8 +3065,9 @@ static void SplitDouble(double x, float* hi, float* lo)
 #if WITH_MGPU
 BEGIN_SHADER_PARAMETER_STRUCT(FMGPUTransferParameters, )
 	RDG_TEXTURE_ACCESS(InputTexture, ERHIAccess::CopySrc)
-	RDG_TEXTURE_ACCESS(InputAlbedo, ERHIAccess::CopySrc)
-	RDG_TEXTURE_ACCESS(InputNormal, ERHIAccess::CopySrc)
+	RDG_TEXTURE_ACCESS(InputAlbedo , ERHIAccess::CopySrc)
+	RDG_TEXTURE_ACCESS(InputNormal , ERHIAccess::CopySrc)
+	RDG_TEXTURE_ACCESS(InputDepth  , ERHIAccess::CopySrc)
 END_SHADER_PARAMETER_STRUCT()
 #endif
 
@@ -2468,6 +3107,92 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		return;
 	}
 
+
+	if (int DebugMode = GetPathTracingDebugVisualizationMode(); DebugMode >= 0)
+	{
+		const int32 DispatchResX = View.ViewRect.Size().X;
+		const int32 DispatchResY = View.ViewRect.Size().Y;
+
+		// simplified pass for debugging purposes
+		RDG_GPU_STAT_SCOPE(GraphBuilder, PathTracing);
+		FRDGTextureDesc DepthDesc = FRDGTextureDesc::Create2D(
+			View.ViewRect.Size(),
+			PF_R32_FLOAT,
+			FClearValueBinding::None,
+			TexCreate_ShaderResource | TexCreate_UAV);
+		FRDGTextureRef DepthTexture    = GraphBuilder.CreateTexture(DepthDesc, TEXT("PathTracer.Depth"));
+
+
+		FPathTracingDebugRG::FParameters* PassParameters = GraphBuilder.AllocParameters<FPathTracingDebugRG::FParameters>();
+		PassParameters->RWSceneColor = GraphBuilder.CreateUAV(SceneColorOutputTexture);
+		PassParameters->RWSceneDepth = GraphBuilder.CreateUAV(DepthTexture);
+		PassParameters->TLAS = Scene->RayTracingScene.GetLayerView(ERayTracingSceneLayer::Base);
+		PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
+		PassParameters->DebugMode = DebugMode;
+
+		PassParameters->NumLightSamples = FMath::Max(CVarPathTracingDebugVisualizeLightSamples.GetValueOnRenderThread(), 1);
+		SetLightParameters(
+			GraphBuilder,
+			Scene,
+			View,
+			true,
+			false,
+			&PassParameters->SkylightParameters,
+			&PassParameters->LightGridParameters,
+			&PassParameters->SceneVisibleLightCount,
+			&PassParameters->SceneLightCount,
+			&PassParameters->SceneLights
+		);
+
+		PassParameters->DecalParameters = View.RayTracingDecalUniformBuffer;
+
+		TShaderMapRef<FPathTracingDebugRG> RayGenShader(View.ShaderMap);
+		ClearUnusedGraphResources(RayGenShader, PassParameters);
+		GraphBuilder.AddPass(
+			RDG_EVENT_NAME("Path Tracing"),
+		  	PassParameters,
+		  	ERDGPassFlags::Compute,
+			[PassParameters, RayGenShader, &View, DispatchResX, DispatchResY](FRHICommandList& RHICmdList)
+			{
+				FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
+				SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
+				RHICmdList.RayTraceDispatch(
+					View.RayTracingMaterialPipeline,
+					RayGenShader.GetRayTracingShader(),
+					View.RayTracingSBT, GlobalResources,
+					DispatchResX, DispatchResY
+				);
+			});
+
+		{
+			FPathTracingCopyDepthPS::FParameters* DisplayParameters = GraphBuilder.AllocParameters<FPathTracingCopyDepthPS::FParameters>();
+			DisplayParameters->ViewUniformBuffer = View.ViewUniformBuffer;
+			DisplayParameters->DepthTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(DepthTexture));
+			//DisplayParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorOutputTexture, ERenderTargetLoadAction::ELoad);
+			DisplayParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthOutputTexture,  ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ENoAction, FExclusiveDepthStencil::DepthWrite_StencilNop);
+			FScreenPassTextureViewport Viewport(SceneColorOutputTexture, View.ViewRect);
+			TShaderMapRef<FPathTracingCopyDepthPS> PixelShader(View.ShaderMap);
+			TShaderMapRef<FScreenPassVS> VertexShader(View.ShaderMap);
+			FRHIBlendState* BlendState = FScreenPassPipelineState::FDefaultBlendState::GetRHI();
+			FRHIDepthStencilState* DepthStencilState = TStaticDepthStencilState<true /* bEnableDepthWrite */, CF_Always>::GetRHI();
+			AddDrawScreenPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("Path Tracer Copy Depth", View.ViewRect.Size().X, View.ViewRect.Size().Y),
+				View,
+				Viewport,
+				Viewport,
+				VertexShader,
+				PixelShader,
+				BlendState,
+				DepthStencilState,
+				DisplayParameters);
+		}
+
+		return;
+	}
+
+
+
 	FPathTracingConfig Config = {};
 
 	// Get current value of MaxSPP and reset render if it has changed
@@ -2476,12 +3201,16 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	uint32 MaxSPP = SamplesPerPixelCVar > -1 ? SamplesPerPixelCVar : View.FinalPostProcessSettings.PathTracingSamplesPerPixel;
 	MaxSPP = FMath::Max(MaxSPP, 1u);
 
-	const bool bUseExperimental = CVarPathTracingExperimental.GetValueOnRenderThread() != 0;
+	const bool bUseExperimental = CVarPathTracingExperimental.GetValueOnRenderThread();
 
 	Config.LockedSamplingPattern = CVarPathTracingFrameIndependentTemporalSeed.GetValueOnRenderThread() == 0;
-	Config.UseCameraMediumTracking = CVarPathTracingCameraMediumTracking.GetValueOnRenderThread() != 0;
+	Config.UseCameraMediumTracking = CVarPathTracingCameraMediumTracking.GetValueOnRenderThread();
 	Config.UseAdaptiveSampling = bUseExperimental && CVarPathTracingAdaptiveSampling.GetValueOnAnyThread() != 0;
 	Config.AdaptiveSamplingThreshold = CVarPathTracingAdaptiveSamplingErrorThreshold.GetValueOnRenderThread();
+	Config.CloudAccelerationMapNumSamples = FMath::Clamp(CVarPathTracingCloudAccelerationMapNumSamples.GetValueOnRenderThread(), 1, 65536);
+	Config.CloudAccelerationMapResolution = FMath::Clamp(CVarPathTracingCloudAccelerationMapResolution.GetValueOnRenderThread(), 1, 4096);
+	Config.CloudMapResolution = FMath::Clamp(CVarPathTracingCloudMapResolution.GetValueOnRenderThread(), 1, 4096);
+	Config.CloudMapDepth = FMath::Clamp(CVarPathTracingCloudMapDepth.GetValueOnRenderThread(), 1, 256);
 
 	// compute an integer code of what show flags and booleans related to lights are currently enabled so we can detect changes
 	Config.LightShowFlags = 0;
@@ -2501,9 +3230,9 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	Config.LightShowFlags |= View.Family->EngineShowFlags.ReflectionOverride         ? 1 << 12 : 0;
 	Config.LightShowFlags |= View.Family->EngineShowFlags.SubsurfaceScattering       ? 1 << 13 : 0;
 	// the following affects which material shaders get used and therefore change the image
-	if (Substrate::IsSubstrateEnabled() && CVarPathTracingSubstrateCompileSimplifiedMaterial.GetValueOnRenderThread() != 0)
+	if (Substrate::IsSubstrateEnabled() && CVarPathTracingSubstrateCompileSimplifiedMaterial.GetValueOnRenderThread())
 	{
-		Config.LightShowFlags |= CVarPathTracingSubstrateUseSimplifiedMaterial.GetValueOnRenderThread() != 0 ? 1 << 14 : 0;
+		Config.LightShowFlags |= CVarPathTracingSubstrateUseSimplifiedMaterial.GetValueOnRenderThread() ? 1 << 14 : 0;
 	}
 
 	PreparePathTracingData(Scene, View, Config.PathTracingData);
@@ -2578,17 +3307,16 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			RDG_EVENT_NAME("Path Tracer Init Sigma"),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[PassParameters, RayGenShader, &View](FRHIRayTracingCommandList& RHICmdList)
+			[PassParameters, RayGenShader, &View](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
-				FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-
-				FRayTracingShaderBindingsWriter GlobalResources;
+				FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 				SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
-				
+
 				RHICmdList.RayTraceDispatch(
 					View.RayTracingMaterialPipeline,
 					RayGenShader.GetRayTracingShader(),
-					RayTracingSceneRHI, GlobalResources,
+					View.RayTracingSBT,
+					GlobalResources,
 					1, 1
 				);
 			});
@@ -2644,6 +3372,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	{
 		AtmosphereOpticalDepthLUT = GraphBuilder.RegisterExternalTexture(GSystemTextures.BlackDummy);
 	}
+
 #if WITH_MGPU
 	Config.UseMultiGPU = CVarPathTracingMultiGPU.GetValueOnRenderThread() != 0;
 	// TODO: Figure out how to support adaptive sampling in multi-gpu cases (this is complicated due to the swizzled layout of the variance texture)
@@ -2658,6 +3387,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	// NOTE: same for DOF changes, these parameters could be animated which should not automatically invalidate a render in progress
 	if (FirstTime ||
 		Config.IsDifferent(PathTracingState->LastConfig) ||
+		(!View.bIsOfflineRender && Config.IsExposureDifferentEnough(PathTracingState->LastConfig)) ||
 		(!View.bIsOfflineRender && Config.IsDOFDifferent(PathTracingState->LastConfig)) ||
 		(!View.bIsOfflineRender && HairStrands::HasPositionsChanged(GraphBuilder, *Scene, View)))
 	{
@@ -2665,6 +3395,8 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		PathTracingState->LastConfig = Config;
 		View.ViewState->PathTracingInvalidate();
 	}
+	// copy the base exposure from last time, so we can have a consistent exposure when we accumulate samples
+	Config.PathTracingData.BaseExposure = PathTracingState->LastConfig.PathTracingData.BaseExposure;
 
 	// Declare heterogeneous volume buffers
 	TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters> OrthoGridUniformBuffer;
@@ -2674,27 +3406,40 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	// Prepare radiance buffer (will be shared with display pass)
 	FRDGTexture* RadianceTexture = nullptr;
 	FRDGTexture* VarianceTexture = nullptr;
-	FRDGTexture* AlbedoTexture = nullptr;
-	FRDGTexture* NormalTexture = nullptr;
+	FRDGTexture* AlbedoTexture   = nullptr;
+	FRDGTexture* NormalTexture   = nullptr;
+	FRDGTexture* DepthTexture    = nullptr;
 	const int NumVarianceMips = FMath::Min(5u, 1 + FMath::FloorLog2(uint32(View.ViewRect.Size().GetMin())));
 	if (PathTracingState->RadianceRT)
 	{
 		// we already have a valid radiance texture, re-use it
 		RadianceTexture = GraphBuilder.RegisterExternalTexture(PathTracingState->RadianceRT, TEXT("PathTracer.Radiance"));
-		AlbedoTexture   = GraphBuilder.RegisterExternalTexture(PathTracingState->AlbedoRT, TEXT("PathTracer.Albedo"));
-		NormalTexture   = GraphBuilder.RegisterExternalTexture(PathTracingState->NormalRT, TEXT("PathTracer.Normal"));
+		AlbedoTexture   = GraphBuilder.RegisterExternalTexture(PathTracingState->AlbedoRT  , TEXT("PathTracer.Albedo"));
+		NormalTexture   = GraphBuilder.RegisterExternalTexture(PathTracingState->NormalRT  , TEXT("PathTracer.Normal"));
+		DepthTexture    = GraphBuilder.RegisterExternalTexture(PathTracingState->DepthRT   , TEXT("PathTracer.Depth"));
 	}
 	else
 	{
 		// First time through, need to make a new texture
-		FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
+		FRDGTextureDesc RadianceDesc = FRDGTextureDesc::Create2D(
 			View.ViewRect.Size(),
-			PF_A32B32G32R32F,
+			PF_A32B32G32R32F, // radiance accumulation must take place in floats to avoid quantization artifacts on smooth gradients
 			FClearValueBinding::None,
 			TexCreate_ShaderResource | TexCreate_UAV | GetExtraTextureCreateFlagsForDenoiser());
-		RadianceTexture = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.Radiance"), ERDGTextureFlags::MultiFrame);
-		AlbedoTexture   = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.Albedo")  , ERDGTextureFlags::MultiFrame);
-		NormalTexture   = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.Normal")  , ERDGTextureFlags::MultiFrame);
+		FRDGTextureDesc AlbedoNormalDesc = FRDGTextureDesc::Create2D(
+			View.ViewRect.Size(),
+			PF_FloatRGBA,
+			FClearValueBinding::None,
+			TexCreate_ShaderResource | TexCreate_UAV | GetExtraTextureCreateFlagsForDenoiser());
+		FRDGTextureDesc DepthDesc = FRDGTextureDesc::Create2D(
+			View.ViewRect.Size(),
+			PF_R32_FLOAT,
+			FClearValueBinding::None,
+			TexCreate_ShaderResource | TexCreate_UAV | GetExtraTextureCreateFlagsForDenoiser());
+		RadianceTexture = GraphBuilder.CreateTexture(RadianceDesc    , TEXT("PathTracer.Radiance"), ERDGTextureFlags::MultiFrame);
+		AlbedoTexture   = GraphBuilder.CreateTexture(AlbedoNormalDesc, TEXT("PathTracer.Albedo")  , ERDGTextureFlags::MultiFrame);
+		NormalTexture   = GraphBuilder.CreateTexture(AlbedoNormalDesc, TEXT("PathTracer.Normal")  , ERDGTextureFlags::MultiFrame);
+		DepthTexture    = GraphBuilder.CreateTexture(DepthDesc       , TEXT("PathTracer.Depth")   , ERDGTextureFlags::MultiFrame);
 	}
 	if (Config.UseAdaptiveSampling)
 	{
@@ -2760,7 +3505,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		if (bNeedsMoreRays)
 		{
 			RDG_EVENT_SCOPE(GraphBuilder, "Path Tracing Compute (%d x %d)", DispatchResX, DispatchResY);
-			bool bForceRebuild = CVarPathTracingHeterogeneousVolumesRebuildEveryFrame.GetValueOnRenderThread() != 0;
+			const bool bForceRebuild = CVarPathTracingHeterogeneousVolumesRebuildEveryFrame.GetValueOnRenderThread();
 			bCreateVolumeGrids = bForceRebuild ||
 				!PathTracingState->AdaptiveFrustumGridParameterCache.TopLevelGridBuffer ||
 				!PathTracingState->AdaptiveOrthoGridParameterCache.TopLevelGridBuffer;
@@ -2783,16 +3528,147 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 				);
 			}
 
+			FRDGTexture* CloudAccelerationMap = nullptr;
+			FRDGTexture* CloudMap = nullptr;
+
+			const bool bEnableClouds   = (Config.PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_ENABLE_CLOUDS) != 0;
+			const bool bEnableCloudMap = (Config.PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_USE_CLOUD_MAP) != 0;
+
+			if (bEnableClouds)
+			{
+				// clouds are enabled, build an accel map (do this every frame as clouds are usually animating)
+				RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
+
+				const int32 NumSamples = Config.CloudAccelerationMapNumSamples;
+				const int32 Resolution = Config.CloudAccelerationMapResolution;
+				if (PathTracingState->CloudAccelerationMap)
+				{
+					// we already have a map from a previous iteration, re-use it
+					CloudAccelerationMap = GraphBuilder.RegisterExternalTexture(PathTracingState->CloudAccelerationMap, TEXT("PathTracer.CloudAccelerationMap"));
+				}
+				else
+				{
+					// need to create a new LUT
+					EPixelFormat CloudAccelerationMapFormat = PF_FloatRGBA; // 16 bit should be good enough for typical density/z ranges
+					FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
+						FIntPoint(Resolution, Resolution),
+						CloudAccelerationMapFormat,
+						FClearValueBinding::None,
+						TexCreate_ShaderResource | TexCreate_UAV);
+					CloudAccelerationMap = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.CloudAccelerationMap"), ERDGTextureFlags::None);
+				}
+				if (bEnableCloudMap)
+				{
+					if (PathTracingState->CloudMap)
+					{
+						CloudMap = GraphBuilder.RegisterExternalTexture(PathTracingState->CloudMap, TEXT("PathTracer.CloudMap"));
+					}
+					else
+					{
+						FRDGTextureDesc Desc = FRDGTextureDesc::Create3D(
+							FIntVector(Config.CloudMapResolution, Config.CloudMapResolution, Config.CloudMapDepth),
+							PF_R32G32B32A32_UINT,
+							FClearValueBinding::None,
+							TexCreate_ShaderResource | TexCreate_UAV);
+						CloudMap = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.CloudMap"), ERDGTextureFlags::None);
+					}
+				}
+				else
+				{
+					CloudMap = GraphBuilder.RegisterExternalTexture(GSystemTextures.VolumetricBlackUintDummy);
+				}
+				FVolumetricCloudRenderSceneInfo* CloudRenderSceneInfo = Scene->GetVolumetricCloudSceneInfo();
+				check(CloudRenderSceneInfo != nullptr);
+				UMaterialInterface* CloudMaterialInterface = CloudRenderSceneInfo->GetVolumetricCloudSceneProxy().GetCloudVolumeMaterial();
+				check(CloudMaterialInterface != nullptr);
+				const FMaterialRenderProxy* CloudVolumeMaterialProxy = CloudMaterialInterface->GetRenderProxy();
+				check(CloudVolumeMaterialProxy != nullptr);
+				const FMaterial* MaterialResource = &CloudVolumeMaterialProxy->GetMaterialWithFallback(Scene->GetFeatureLevel(), CloudVolumeMaterialProxy);
+				
+
+				const FPathTracingCloudParameters CloudParameters = PrepareCloudParameters(Scene, View, &Config);
+				// build cloud map
+				if (bEnableCloudMap)
+				{
+					typename FPathTracingBuildCloudCS::FPermutationDomain PermutationVector;
+					TShaderRef<FPathTracingBuildCloudCS> ComputeShader = MaterialResource->GetShader<FPathTracingBuildCloudCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
+
+					FPathTracingBuildCloudCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FPathTracingBuildCloudCS::FParameters>();
+					PassParameters->BlendFactor = Config.PathTracingData.BlendFactor;;
+					PassParameters->Iteration = Config.PathTracingData.Iteration;
+					PassParameters->TemporalSeed = Config.PathTracingData.TemporalSeed;
+					PassParameters->CloudParameters = CloudParameters;
+					PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
+					PassParameters->CloudMap = GraphBuilder.CreateUAV(CloudMap);
+
+					check(CloudMap->Desc.GetSize() == CloudParameters.CloudMapResolution);
+
+					FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(
+						CloudMap->Desc.GetSize(),
+						FIntVector(4, 4, 4)
+					);
+					GraphBuilder.AddPass(
+						RDG_EVENT_NAME("Path Tracing Cloud Build (%dx%dx%d)", CloudMap->Desc.GetSize().X, CloudMap->Desc.GetSize().Y, CloudMap->Desc.GetSize().Z),
+						PassParameters,
+						ERDGPassFlags::Compute,
+						[Scene = Scene, CloudVolumeMaterialProxy, MaterialResource, PassParameters, ComputeShader, GroupCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
+						{
+							FMeshDrawShaderBindings ShaderBindings;
+							UE::MeshPassUtils::SetupComputeBindings(ComputeShader, Scene, Scene->GetFeatureLevel(), nullptr, *CloudVolumeMaterialProxy, *MaterialResource, ShaderBindings);
+							UE::MeshPassUtils::Dispatch(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, GroupCount);
+						});
+					GraphBuilder.QueueTextureExtraction(CloudMap, &PathTracingState->CloudMap);
+				}
+				// build cloud accel map
+				{
+					typename FPathTracingBuildCloudAccelerationMapCS::FPermutationDomain PermutationVector;
+					TShaderRef<FPathTracingBuildCloudAccelerationMapCS> ComputeShader = MaterialResource->GetShader<FPathTracingBuildCloudAccelerationMapCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
+
+					FPathTracingBuildCloudAccelerationMapCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FPathTracingBuildCloudAccelerationMapCS::FParameters>();
+					PassParameters->NumSamples = NumSamples;
+					PassParameters->Iteration = PathTracingState->SampleIndex;
+					PassParameters->TemporalSeed = PathTracingState->FrameIndex;
+					PassParameters->CloudParameters = CloudParameters;
+					PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
+					PassParameters->CloudAccelerationMap = GraphBuilder.CreateUAV(CloudAccelerationMap);
+					PassParameters->UseCloudMap = bEnableCloudMap;
+					PassParameters->CloudMap = CloudMap;
+
+					FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(
+						FIntPoint(Resolution, Resolution),
+						FIntPoint(FComputeShaderUtils::kGolden2DGroupSize, FComputeShaderUtils::kGolden2DGroupSize));
+					GraphBuilder.AddPass(
+						RDG_EVENT_NAME("Path Tracing Cloud Acceleration Map Build (Resolution=%u, NumSamples=%u)", Resolution, NumSamples),
+						PassParameters,
+						ERDGPassFlags::Compute,
+						[Scene = Scene, CloudVolumeMaterialProxy, MaterialResource, PassParameters, ComputeShader, GroupCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
+						{
+							FMeshDrawShaderBindings ShaderBindings;
+							UE::MeshPassUtils::SetupComputeBindings(ComputeShader, Scene, Scene->GetFeatureLevel(), nullptr, *CloudVolumeMaterialProxy, *MaterialResource, ShaderBindings);
+							UE::MeshPassUtils::Dispatch(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, GroupCount);
+						});
+					GraphBuilder.QueueTextureExtraction(CloudAccelerationMap, &PathTracingState->CloudAccelerationMap);
+				}
+			}
+			if (CloudAccelerationMap == nullptr)
+			{
+				CloudAccelerationMap = GraphBuilder.RegisterExternalTexture(GSystemTextures.BlackDummy);
+			}
+			if (CloudMap == nullptr)
+			{
+				CloudMap = GraphBuilder.RegisterExternalTexture(GSystemTextures.VolumetricBlackUintDummy);
+			}
+
 			// We are writing to the texture, we'll need to extract it...
 			bNeedsTextureExtract = true;
 
 			// should we use path compaction?
 			const bool bUseCompaction = (bUseExperimental == false) || CVarPathTracingCompaction.GetValueOnRenderThread() != 0;
-			const bool bUseIndirectDispatch = GRHISupportsRayTracingDispatchIndirect && CVarPathTracingIndirectDispatch.GetValueOnRenderThread() != 0;
+			const bool bUseIndirectDispatch = GRHISupportsRayTracingDispatchIndirect && CVarPathTracingIndirectDispatch.GetValueOnRenderThread();
 			const int FlushRenderingCommands = CVarPathTracingFlushDispatch.GetValueOnRenderThread();
 
 			FRDGBuffer* ActivePaths[2] = {};
-			FRDGBuffer* NumActivePaths[2] = {};
+			FRDGBuffer* NumActivePaths = nullptr;
 			FRDGBuffer* PathStateData = nullptr;
 			if (bUseCompaction || Config.UseAdaptiveSampling)
 			{
@@ -2802,15 +3678,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 				);
 				ActivePaths[0] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(int32), NumPaths), TEXT("PathTracer.ActivePaths0"));
 				ActivePaths[1] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(int32), NumPaths), TEXT("PathTracer.ActivePaths1"));
-				if (bUseIndirectDispatch)
-				{
-					NumActivePaths[0] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<int32>(3), TEXT("PathTracer.NumActivePaths0"));
-					NumActivePaths[1] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<int32>(3), TEXT("PathTracer.NumActivePaths1"));
-				}
-				else
-				{
-					NumActivePaths[0] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(int32), 3), TEXT("PathTracer.NumActivePaths"));
-				}
+				NumActivePaths = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<uint32>(3 * (Config.PathTracingData.MaxBounces + 1)), TEXT("PathTracer.NumActivePaths"));
 				PathStateData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FPathTracingPackedPathState), NumPaths), TEXT("PathTracer.PathStateData"));
 			}
 
@@ -2823,7 +3691,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			for (int32 GPUIndex : GPUMask)
 			{
 				RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::FromIndex(GPUIndex));
-				RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, NumGPUs > 1, "Path Tracing GPU%d", GPUIndex);
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, PathTracing, "Path Tracing GPU%d", GPUIndex);
 #if WITH_MGPU
 				RDG_GPU_STAT_SCOPE(GraphBuilder, PathTracing);
 #endif
@@ -2854,9 +3722,8 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 							PassParameters->AdaptiveSamplingErrorThreshold = Config.AdaptiveSamplingThreshold;
 							PassParameters->ViewPreExposure = View.PreExposure;
 
-							PassParameters->NextActivePaths = GraphBuilder.CreateUAV(ActivePaths[0], PF_R32_SINT);
-							PassParameters->NumPathStates = GraphBuilder.CreateUAV(NumActivePaths[0], PF_R32_UINT);
-							AddClearUAVPass(GraphBuilder, PassParameters->NextActivePaths, -1); // make sure everything is initialized to -1 since paths that go inactive don't write anything
+							PassParameters->NextActivePaths = GraphBuilder.CreateUAV(ActivePaths[0], PF_R32_UINT);
+							PassParameters->NumPathStates = GraphBuilder.CreateUAV(NumActivePaths, PF_R32_UINT);
 							AddClearUAVPass(GraphBuilder, PassParameters->NumPathStates, 0);
 
 							PassParameters->TileTextureOffset.X = TileX;
@@ -2872,7 +3739,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 						}
 						else if (bUseCompaction)
 						{
-							AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ActivePaths[0], PF_R32_UINT), 0);
+							AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(NumActivePaths, PF_R32_UINT), 0);
 						}
 
 						// When using path compaction, we need to run the path tracer once per bounce
@@ -2889,7 +3756,18 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 							{
 								// upload sky/lights data
 								RDG_GPU_MASK_SCOPE(GraphBuilder, GPUMask); // make sure this happens on all GPUs we will be rendering on
-								SetLightParameters(GraphBuilder, PassParameters, Scene, View, Config.UseMISCompensation);
+								SetLightParameters(
+									GraphBuilder,
+									Scene,
+									View,
+									Config.UseMISCompensation,
+									(Config.PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_ENABLE_ATMOSPHERE) != 0,
+									&PassParameters->SkylightParameters,
+									&PassParameters->LightGridParameters,
+									&PassParameters->SceneVisibleLightCount,
+									&PassParameters->SceneLightCount,
+									&PassParameters->SceneLights
+								);
 							}
 							else
 							{
@@ -2905,6 +3783,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 							PassParameters->RadianceTexture = GraphBuilder.CreateUAV(RadianceTexture);
 							PassParameters->AlbedoTexture = GraphBuilder.CreateUAV(AlbedoTexture);
 							PassParameters->NormalTexture = GraphBuilder.CreateUAV(NormalTexture);
+							PassParameters->DepthTexture = GraphBuilder.CreateUAV(DepthTexture);
 
 							if (Config.UseAdaptiveSampling)
 							{
@@ -2941,6 +3820,22 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 							PassParameters->AtmosphereOpticalDepthLUT = AtmosphereOpticalDepthLUT;
 							PassParameters->AtmosphereOpticalDepthLUTSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
+							if (PreviousPassParameters != nullptr)
+							{
+								PassParameters->CloudParameters = PreviousPassParameters->CloudParameters;
+							} else if ((Config.PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_ENABLE_CLOUDS) != 0)
+							{
+								PassParameters->CloudParameters = PrepareCloudParameters(Scene, View, &Config);
+							}
+							else
+							{
+								PassParameters->CloudParameters = FPathTracingCloudParameters{};
+							}
+							PassParameters->CloudParameters.CloudCallableShaderId = View.PathTracingVolumetricCloudCallableShaderIndex;
+							PassParameters->CloudAccelerationMap = CloudAccelerationMap;
+							PassParameters->CloudAccelerationMapSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+							PassParameters->CloudMap = CloudMap;
+
 							if ((Config.PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_ENABLE_FOG) != 0)
 							{
 								PassParameters->FogParameters = PrepareFogParameters(View, Scene->ExponentialFogs[0]);
@@ -2964,43 +3859,60 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 							PassParameters->Bounce = Bounce;
 							if (bUseCompaction)
 							{
-								PassParameters->ActivePaths = GraphBuilder.CreateSRV(ActivePaths[Bounce & 1], PF_R32_SINT);
-								PassParameters->NextActivePaths = GraphBuilder.CreateUAV(ActivePaths[(Bounce & 1) ^ 1], PF_R32_SINT);
+								PassParameters->ActivePaths = GraphBuilder.CreateUAV(ActivePaths[Bounce & 1], PF_R32_UINT);
+								PassParameters->NextActivePaths = GraphBuilder.CreateUAV(ActivePaths[(Bounce & 1) ^ 1], PF_R32_UINT);
 								PassParameters->PathStateData = GraphBuilder.CreateUAV(PathStateData);
+								PassParameters->NumPathStates = GraphBuilder.CreateUAV(NumActivePaths, PF_R32_UINT);
 								if (bUseIndirectDispatch)
 								{
-									PassParameters->NumPathStates = GraphBuilder.CreateUAV(NumActivePaths[Bounce & 1], PF_R32_UINT);
-									PassParameters->PathTracingIndirectArgs = NumActivePaths[(Bounce & 1) ^ 1];
+									PassParameters->PathTracingIndirectArgs = NumActivePaths;
 								}
-								else
-								{
-									PassParameters->NumPathStates = GraphBuilder.CreateUAV(NumActivePaths[0], PF_R32_UINT);
-									AddClearUAVPass(GraphBuilder, PassParameters->NextActivePaths, -1); // make sure everything is initialized to -1 since paths that go inactive don't write anything
-								}
-								AddClearUAVPass(GraphBuilder, PassParameters->NumPathStates, 0);
 							}
+							else if (Config.UseAdaptiveSampling)
+							{
+								PassParameters->ActivePaths = GraphBuilder.CreateUAV(ActivePaths[0], PF_R32_UINT);
+								PassParameters->NumPathStates = GraphBuilder.CreateUAV(NumActivePaths, PF_R32_UINT);
+							}
+							const bool bEnableDebug = CVarPathTracingDebug.GetValueOnRenderThread() > 0;
+							if (bEnableDebug)
+							{
+								ShaderPrint::SetEnabled(true);
+								ShaderPrint::RequestSpaceForCharacters(1024);
+								ShaderPrint::RequestSpaceForLines(1024);
+								ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, PassParameters->ShaderPrint);
+							}
+
 							ClearUnusedGraphResources(RayGenShader, PassParameters);
 							const bool bFlushRenderingCommands = FlushRenderingCommands == 1 || (FlushRenderingCommands == 2 && Bounce == MaxBounces);
+							const bool bUse1DDispatch = Config.UseAdaptiveSampling || (bUseCompaction && Bounce > 0);
 							GraphBuilder.AddPass(
 								bUseCompaction
 								? RDG_EVENT_NAME("Path Tracer Sample=%d/%d NumLights=%d (Bounce=%d%s)", PathTracingState->SampleIndex, MaxSPP, PassParameters->SceneLightCount, Bounce, bUseIndirectDispatch && Bounce > 0 ? TEXT(" indirect") : TEXT(""))
 								: RDG_EVENT_NAME("Path Tracer Sample=%d/%d NumLights=%d"              , PathTracingState->SampleIndex, MaxSPP, PassParameters->SceneLightCount),
 								PassParameters,
 								ERDGPassFlags::Compute,
-								[PassParameters, RayGenShader, DispatchSizeX, DispatchSizeYLocal, bUseIndirectDispatch, bFlushRenderingCommands, GPUIndex, &View](FRHIRayTracingCommandList& RHICmdList)
+								[PassParameters, RayGenShader, DispatchSizeX, DispatchSizeYLocal, bUseIndirectDispatch, bUse1DDispatch, bFlushRenderingCommands, GPUIndex, &View](FRDGAsyncTask, FRHICommandList& RHICmdList)
 								{
-									FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-
-									FRayTracingShaderBindingsWriter GlobalResources;
+									FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 									SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 									if (bUseIndirectDispatch && PassParameters->Bounce > 0)
 									{
 										PassParameters->PathTracingIndirectArgs->MarkResourceAsUsed();
+
 										RHICmdList.RayTraceDispatchIndirect(
 											View.RayTracingMaterialPipeline,
 											RayGenShader.GetRayTracingShader(),
-											RayTracingSceneRHI, GlobalResources,
-											PassParameters->PathTracingIndirectArgs->GetIndirectRHICallBuffer(), 0
+											View.RayTracingSBT, GlobalResources,
+											PassParameters->PathTracingIndirectArgs->GetIndirectRHICallBuffer(), 3 * PassParameters->Bounce * sizeof(uint32)
+										);
+									}
+									else if (bUse1DDispatch)
+									{
+										RHICmdList.RayTraceDispatch(
+											View.RayTracingMaterialPipeline,
+											RayGenShader.GetRayTracingShader(),
+											View.RayTracingSBT, GlobalResources,
+											DispatchSizeX * DispatchSizeYLocal, 1
 										);
 									}
 									else
@@ -3008,7 +3920,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 										RHICmdList.RayTraceDispatch(
 											View.RayTracingMaterialPipeline,
 											RayGenShader.GetRayTracingShader(),
-											RayTracingSceneRHI, GlobalResources,
+											View.RayTracingSBT, GlobalResources,
 											DispatchSizeX, DispatchSizeYLocal
 										);
 									}
@@ -3063,7 +3975,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 				GraphBuilder.AddPass(
 					RDG_EVENT_NAME("Path Tracer Cross-GPU Signal (%d GPUs)", NumGPUs),
 					ERDGPassFlags::None,
-					[this, LocalCopyFenceDatas = CopyTemp(CopyFenceDatas), SrcGPUMask](FRHICommandListImmediate& RHICmdList)
+					[this, LocalCopyFenceDatas = CopyTemp(CopyFenceDatas), SrcGPUMask](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					RHICmdList.TransferResourceSignal(LocalCopyFenceDatas, SrcGPUMask);
 				});
@@ -3073,14 +3985,16 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			// pay attention to the mask, so it has no effect on behavior.  Technically the work of the copy is done on the second GPU,
 			// and the first GPU stalls waiting on that, so it's useful to show this interval on both GPUs.
 			RDG_GPU_MASK_SCOPE(GraphBuilder, GPUMask);
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, PathTracingCopy, "PathTracingCopy");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, PathTracingCopy);
 
 			FMGPUTransferParameters* Parameters = GraphBuilder.AllocParameters<FMGPUTransferParameters>();
 			Parameters->InputTexture = RadianceTexture;
 			Parameters->InputAlbedo = AlbedoTexture;
 			Parameters->InputNormal = NormalTexture;
+			Parameters->InputDepth = DepthTexture;
 			GraphBuilder.AddPass(RDG_EVENT_NAME("Path Tracer Cross-GPU Transfer (%d GPUs)", NumGPUs), Parameters, ERDGPassFlags::Readback,
-				[Parameters, DispatchResX, DispatchResY, DispatchSize, GPUMask, MainGPUMask = View.GPUMask, LocalCopyFenceDatas = MoveTemp(CopyFenceDatas)](FRHICommandListImmediate& RHICmdList)
+				[Parameters, DispatchResX, DispatchResY, DispatchSize, GPUMask, MainGPUMask = View.GPUMask, CopyFenceDatas = MoveTemp(CopyFenceDatas)](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					const int32 FirstGPUIndex = MainGPUMask.GetFirstIndex();
 					const int32 NumGPUs = GPUMask.GetNumActive();
@@ -3110,9 +4024,10 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 									TileToCopy.Min.Y = TileY + CurrentGPU * DispatchSizeYSplit;
 									TileToCopy.Max.X = TileX + DispatchSizeX;
 									TileToCopy.Max.Y = TileToCopy.Min.Y + DispatchSizeYLocal;
-									TransferParams.Emplace(Parameters->InputTexture->GetRHI(), TileToCopy, GPUIndex, FirstGPUIndex, false, false);
-									TransferParams.Emplace(Parameters->InputAlbedo->GetRHI(), TileToCopy, GPUIndex, FirstGPUIndex, false, false);
-									TransferParams.Emplace(Parameters->InputNormal->GetRHI(), TileToCopy, GPUIndex, FirstGPUIndex, false, false);
+									TransferParams.Emplace(Parameters->InputTexture->GetRHI(), TileToCopy, GPUIndex, FirstGPUIndex, true, true);
+									TransferParams.Emplace(Parameters->InputAlbedo->GetRHI(), TileToCopy, GPUIndex, FirstGPUIndex, true, true);
+									TransferParams.Emplace(Parameters->InputNormal->GetRHI(), TileToCopy, GPUIndex, FirstGPUIndex, true, true);
+									TransferParams.Emplace(Parameters->InputDepth->GetRHI(), TileToCopy, GPUIndex, FirstGPUIndex, true, true);
 								}
 								++CurrentGPU;
 							}
@@ -3120,10 +4035,10 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 					}
 
 					// Include the fences we need to wait on in our list of transfers
-					check(TransferParams.Num() >= LocalCopyFenceDatas.Num());
-					for (int32 FenceIndex = 0; FenceIndex < LocalCopyFenceDatas.Num(); FenceIndex++)
+					check(TransferParams.Num() >= CopyFenceDatas.Num());
+					for (int32 FenceIndex = 0; FenceIndex < CopyFenceDatas.Num(); FenceIndex++)
 					{
-						TransferParams[FenceIndex].PreTransferFence = LocalCopyFenceDatas[FenceIndex];
+						TransferParams[FenceIndex].PreTransferFence = CopyFenceDatas[FenceIndex];
 					}
 
 					RHICmdList.TransferResources(TransferParams);
@@ -3135,6 +4050,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		GraphBuilder.QueueTextureExtraction(RadianceTexture, &PathTracingState->RadianceRT);
 		GraphBuilder.QueueTextureExtraction(AlbedoTexture, &PathTracingState->AlbedoRT);
 		GraphBuilder.QueueTextureExtraction(NormalTexture, &PathTracingState->NormalRT);
+		GraphBuilder.QueueTextureExtraction(DepthTexture, &PathTracingState->DepthRT);
 		if (Config.UseAdaptiveSampling)
 		{
 			check(VarianceTexture != nullptr);
@@ -3149,6 +4065,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	}
 
 	RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, PathTracingPost, "PathTracingPost");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, PathTracingPost);
 
 	// Figure out if the denoiser is enabled and needs to run
@@ -3166,21 +4083,23 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	{
 		// mGPU renders blocks of pixels that need to be mapped back into alternating scanlines
 		// perform this swizzling now with a simple compute shader
+		// NOTE: we only perform this swizzling for albedo/normals if we are going to use them for denoising
 
 		TShaderMapRef<FPathTracingSwizzleScanlinesCS> ComputeShader(GetGlobalShaderMap(View.FeatureLevel));
-		FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
-			View.ViewRect.Size(),
-			PF_A32B32G32R32F,
-			FClearValueBinding::None,
-			TexCreate_ShaderResource | TexCreate_UAV);
-		FRDGTexture* NewRadianceTexture = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.RadianceUnswizzled"));
-		FRDGTexture* NewNormalTexture = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.NormalUnswizzled"));
-		FRDGTexture* NewAlbedoTexture = NeedsDenoise ? GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.AlbedoUnswizzled")) : nullptr;
+		FRDGTexture* NewRadianceTexture = GraphBuilder.CreateTexture(RadianceTexture->Desc, TEXT("PathTracer.RadianceUnswizzled"));
+		FRDGTexture* NewDepthTexture = GraphBuilder.CreateTexture(DepthTexture->Desc, TEXT("PathTracer.DepthUnswizzled"));
+		FRDGTexture* NewNormalTexture = IsDenoiserEnabled ? GraphBuilder.CreateTexture(NormalTexture->Desc, TEXT("PathTracer.NormalUnswizzled")) : nullptr;
+		FRDGTexture* NewAlbedoTexture = IsDenoiserEnabled ? GraphBuilder.CreateTexture(AlbedoTexture->Desc, TEXT("PathTracer.AlbedoUnswizzled")) : nullptr;
 
-		FRDGTexture* InputTextures[3] = { RadianceTexture, NormalTexture, AlbedoTexture};
-		FRDGTexture* OutputTextures[3] = { NewRadianceTexture, NewNormalTexture, NewAlbedoTexture};
-		for (int Index = 0, Num = NeedsDenoise ? 3 : 2; Index < Num; Index++)
+		FRDGTexture* InputTextures[4] = { RadianceTexture, NormalTexture, DepthTexture, AlbedoTexture};
+		FRDGTexture* OutputTextures[4] = { NewRadianceTexture, NewNormalTexture, NewDepthTexture, NewAlbedoTexture};
+		for (int Index = 0; Index < 4; Index++)
 		{
+			if (OutputTextures[Index] == nullptr)
+			{
+				// skip unused textures
+				continue;
+			}
 			FPathTracingSwizzleScanlinesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FPathTracingSwizzleScanlinesCS::FParameters>();
 			PassParameters->DispatchDim.X = DispatchResX;
 			PassParameters->DispatchDim.Y = DispatchResY;
@@ -3200,6 +4119,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		// let the remaining code operate on the unswizzled textures
 		RadianceTexture = NewRadianceTexture;
 		NormalTexture = NewNormalTexture;
+		DepthTexture = NewDepthTexture;
 		AlbedoTexture = NewAlbedoTexture;
 	}
 #endif
@@ -3250,13 +4170,13 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			DenoisingContext.RadianceTexture = RadianceTexture;
 			DenoisingContext.AlbedoTexture = AlbedoTexture;
 			DenoisingContext.NormalTexture = NormalTexture;
+			DenoisingContext.DepthTexture = DepthTexture;
+			DenoisingContext.VarianceBuffer = PathTracingState->VarianceBuffer ? 
+				GraphBuilder.RegisterExternalBuffer(PathTracingState->VarianceBuffer, TEXT("PathTracing.VarianceBuffer")) : nullptr;
+			DenoisingContext.LastVarianceBuffer = PathTracingState->LastVarianceBuffer ?
+				GraphBuilder.RegisterExternalBuffer(PathTracingState->LastVarianceBuffer, TEXT("PathTracing.LastVarianceBuffer")) : nullptr;
 
-			if (PathTracingState->VarianceBuffer)
-			{
-				DenoisingContext.VarianceBuffer = GraphBuilder.RegisterExternalBuffer(PathTracingState->VarianceBuffer, TEXT("PathTracing.VarianceBuffer"));
-			}
-
-			PathTracingSpatialTemporalDenoisingPrePass(GraphBuilder, View, Config.PathTracingData.Iteration, DenoisingContext);
+			PathTracingSpatialTemporalDenoisingPrePass(GraphBuilder, View, Config.PathTracingData.Iteration, MaxSPP, DenoisingContext);
 
 			CurrentVarianceBufer = DenoisingContext.VarianceBuffer;
 		}
@@ -3274,13 +4194,12 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 					GraphBuilder.RegisterExternalTexture(PathTracingState->LastDenoisedRadianceRT, TEXT("PathTracing.LastPreDenoisedRadiance"));
 				DenoisingContext.LastRadianceTexture =
 					GraphBuilder.RegisterExternalTexture(PathTracingState->LastRadianceRT, TEXT("PathTracing.LastRadianceTexture"));
-				DenoisingContext.LastNormalTexture =
-					GraphBuilder.RegisterExternalTexture(PathTracingState->LastNormalRT, TEXT("PathTracing.LastNormalTexture"));
 				DenoisingContext.LastAlbedoTexture =
 					GraphBuilder.RegisterExternalTexture(PathTracingState->LastAlbedoRT, TEXT("PathTracing.LastAlbedoTexture"));
-
-				DenoisingContext.LastVarianceBuffer = PathTracingState->LastVarianceBuffer?
-					GraphBuilder.RegisterExternalBuffer(PathTracingState->LastVarianceBuffer, TEXT("PathTracing.LastVarianceBuffer")) : nullptr;
+				DenoisingContext.LastNormalTexture =
+					GraphBuilder.RegisterExternalTexture(PathTracingState->LastNormalRT, TEXT("PathTracing.LastNormalTexture"));
+				DenoisingContext.LastDepthTexture =
+					GraphBuilder.RegisterExternalTexture(PathTracingState->LastDepthRT, TEXT("PathTracing.LastDepthTexture"));
 			}
 
 			PathTracingSpatialTemporalDenoising(GraphBuilder,
@@ -3290,8 +4209,9 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 				DenoisingContext);
 
 			GraphBuilder.QueueTextureExtraction(DenoisedRadianceTexture, &PathTracingState->LastDenoisedRadianceRT);
-			GraphBuilder.QueueTextureExtraction(NormalTexture, &PathTracingState->LastNormalRT);
 			GraphBuilder.QueueTextureExtraction(AlbedoTexture, &PathTracingState->LastAlbedoRT);
+			GraphBuilder.QueueTextureExtraction(NormalTexture, &PathTracingState->LastNormalRT);
+			GraphBuilder.QueueTextureExtraction(DepthTexture, &PathTracingState->LastDepthRT);
 			GraphBuilder.QueueTextureExtraction(RadianceTexture, &PathTracingState->LastRadianceRT);
 
 			PathTracingState->SpatialTemporalDenoiserHistory = DenoisingContext.SpatialTemporalDenoiserHistory;
@@ -3321,22 +4241,23 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	DisplayParameters->MaxSamples = MaxSPP;
 	DisplayParameters->ProgressDisplayEnabled = CVarPathTracingProgressDisplay.GetValueOnRenderThread();
 	DisplayParameters->AdaptiveSamplingErrorThreshold = Config.AdaptiveSamplingThreshold;
-	DisplayParameters->AdaptiveSamplingVisualize = CVarPathTracingAdaptiveSamplingVisualize.GetValueOnRenderThread();
+	DisplayParameters->AdaptiveSamplingVisualize = Config.UseAdaptiveSampling ? CVarPathTracingAdaptiveSamplingVisualize.GetValueOnRenderThread() : 0;
 	DisplayParameters->VarianceTextureDims = FIntVector(DispatchResX, DispatchResY, NumVarianceMips);
 	DisplayParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 	DisplayParameters->RadianceTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(DenoisedRadianceTexture ? DenoisedRadianceTexture : RadianceTexture));
 	DisplayParameters->VarianceTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(VarianceTexture ? VarianceTexture : GSystemTextures.GetBlackDummy(GraphBuilder)));
-	DisplayParameters->NormalDepthTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(NormalTexture));
+	DisplayParameters->DepthTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(DepthTexture));
 	DisplayParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorOutputTexture, ERenderTargetLoadAction::ELoad);
 	DisplayParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthOutputTexture,  ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ENoAction, FExclusiveDepthStencil::DepthWrite_StencilNop);
 	DisplayParameters->VarianceSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
+	DisplayParameters->PreExposure = View.PreExposure / Config.PathTracingData.BaseExposure;
 
 	FScreenPassTextureViewport Viewport(SceneColorOutputTexture, View.ViewRect);
 
 	const bool IsCursorInsideView = View.CursorPos.X != -1 || View.CursorPos.Y != -1;
 	// wiper mode - reveals the render below the path tracing display
 	// NOTE: we still path trace the full resolution even while wiping the cursor so that rendering does not get out of sync
-	if (CVarPathTracingWiperMode.GetValueOnRenderThread() != 0)
+	if (CVarPathTracingWiperMode.GetValueOnRenderThread())
 	{
 		float DPIScale = FPlatformApplicationMisc::GetDPIScaleFactorAtPoint(View.CursorPos.X, View.CursorPos.Y);
 		
@@ -3353,16 +4274,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	TShaderMapRef<FPathTracingCompositorPS> PixelShader(View.ShaderMap);
 	TShaderMapRef<FScreenPassVS> VertexShader(View.ShaderMap);
 	FRHIBlendState* BlendState = FScreenPassPipelineState::FDefaultBlendState::GetRHI();
-	FRHIDepthStencilState* DepthStencilState = nullptr;
-
-	if (CVarpathTracingOverrideDepth.GetValueOnRenderThread() != 0)
-	{
-		DepthStencilState = TStaticDepthStencilState<true, CF_Always>::GetRHI();
-	}
-	else
-	{
-		DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
-	}
+	FRHIDepthStencilState* DepthStencilState = TStaticDepthStencilState<true /* bEnableDepthWrite */, CF_Always>::GetRHI();
 
 	AddDrawScreenPass(
 		GraphBuilder,
@@ -3377,7 +4289,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		DisplayParameters);
 
 	// Setup the path tracing resources to be used by post process pass.
-	if (CVarPathTracingOutputPostProcessResources.GetValueOnRenderThread() != 0)
+	if (CVarPathTracingOutputPostProcessResources.GetValueOnRenderThread())
 	{
 		PathTracingResources.bPostProcessEnabled = true;
 		PathTracingResources.DenoisedRadiance = DenoisedRadianceTexture ? DenoisedRadianceTexture : RadianceTexture;
@@ -3394,7 +4306,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		Inputs.SceneColor =SceneColorOutputTexture;
 
 		FScreenPassTextureViewport MotionVectorViewport(SceneColorOutputTexture, View.ViewRect);
-		if (CVarPathTracingWiperMode.GetValueOnRenderThread() != 0)
+		if (CVarPathTracingWiperMode.GetValueOnRenderThread())
 		{
 			float DPIScale = FPlatformApplicationMisc::GetDPIScaleFactorAtPoint(View.CursorPos.X, View.CursorPos.Y);
 			if (IsCursorInsideView)
@@ -3414,6 +4326,31 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		Inputs.DenoisedTexture = DenoisedRadianceTexture;
 
 		AddVisualizePathTracingDenoisingPass(GraphBuilder, View, Inputs);
+	}
+}
+
+#else // RHI_RAYTRACING == false
+
+namespace PathTracing
+{
+	bool UsesDecals(const FSceneViewFamily& ViewFamily)
+	{
+		return false;
+	}
+
+	bool UsesReferenceAtmosphere(const FViewInfo& View)
+	{
+		return false;
+	}
+
+	bool UsesReferenceDOF(const FViewInfo& View)
+	{
+		return false;
+	}
+
+	bool NeedsAntiAliasing(const FViewInfo& View)
+	{
+		return false;
 	}
 }
 

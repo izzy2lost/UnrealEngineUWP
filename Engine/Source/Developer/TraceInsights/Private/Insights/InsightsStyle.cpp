@@ -18,11 +18,18 @@ TSharedPtr<FInsightsStyle::FStyle> FInsightsStyle::StyleInstance = nullptr;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+const ISlateStyle& FInsightsStyle::Get()
+{
+	return *StyleInstance;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void FInsightsStyle::Initialize()
 {
 	LLM_SCOPE_BYNAME(TEXT("Insights/Style"));
 
-	// The core style must be initialized before the Insights style
+	// The UE Core style must be initialized before the Insights style
 	FSlateApplication::InitializeCoreStyle();
 
 	if (!StyleInstance.IsValid())
@@ -48,13 +55,6 @@ void FInsightsStyle::Shutdown()
 	FSlateStyleRegistry::UnRegisterSlateStyle(*StyleInstance);
 	ensure(StyleInstance.IsUnique());
 	StyleInstance.Reset();
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-const ISlateStyle& FInsightsStyle::Get()
-{
-	return *StyleInstance;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -99,13 +99,10 @@ void FInsightsStyle::FStyle::SyncParentStyles()
 
 void FInsightsStyle::FStyle::Initialize()
 {
-	SetParentStyleName("CoreStyle");
+	SetParentStyleName("InsightsCoreStyle");
 
 	// Sync styles from the parent style that will be used as templates for styles defined here
 	SyncParentStyles();
-
-	Set("Mono.9", DEFAULT_FONT("Mono", 9));
-	Set("Mono.10", DEFAULT_FONT("Mono", 10));
 
 	SetContentRoot(FPaths::EngineContentDir() / TEXT("Slate/Starship/Insights"));
 	SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Slate"));
@@ -121,46 +118,9 @@ void FInsightsStyle::FStyle::Initialize()
 	Set("AppIconPadding.Small", FMargin(4.0f, 4.0f, 0.0f, 0.0f));
 
 	//////////////////////////////////////////////////
-
-	Set("WhiteBrush", new FSlateColorBrush(FLinearColor::White));
-	Set("DarkGreenBrush", new FSlateColorBrush(FLinearColor(0.0f, 0.25f, 0.0f, 1.0f)));
-
-	Set("SingleBorder", new FSlateBorderBrush(NAME_None, FMargin(1.0f)));
-	Set("DoubleBorder", new FSlateBorderBrush(NAME_None, FMargin(2.0f)));
-
-	Set("EventBorder", new FSlateBorderBrush(NAME_None, FMargin(1.0f)));
-	Set("HoveredEventBorder", new FSlateBorderBrush(NAME_None, FMargin(2.0f)));
-	Set("SelectedEventBorder", new FSlateBorderBrush(NAME_None, FMargin(2.0f)));
-
-	Set("RoundedBackground", new FSlateRoundedBoxBrush(FLinearColor(1.0f, 1.0f, 1.0f, 1.0f), Icon16x16));
-
-	Set("Border.TB", new CORE_BOX_BRUSH("Icons/Profiler/Profiler_Border_TB_16x", FMargin(4.0f / 16.0f)));
-	Set("Border.L", new CORE_BOX_BRUSH("Icons/Profiler/Profiler_Border_L_16x", FMargin(4.0f / 16.0f)));
-	Set("Border.R", new CORE_BOX_BRUSH("Icons/Profiler/Profiler_Border_R_16x", FMargin(4.0f / 16.0f)));
-
-	Set("Graph.Point", new EDITOR_IMAGE_BRUSH("Old/Graph/ExecutionBubble", Icon16x16));
-
-	//////////////////////////////////////////////////
-	// Icons for major components
+	// Session Info
 
 	Set("Icons.SessionInfo", new IMAGE_BRUSH_SVG("Session", Icon16x16));
-
-	//////////////////////////////////////////////////
-	// Trace Store, Connection, Launcher
-
-	Set("Icons.TraceStore", new IMAGE_BRUSH_SVG("TraceStore", Icon16x16));
-	Set("Icons.Expand", new CORE_IMAGE_BRUSH_SVG("Starship/Common/chevron-right", Icon16x16));
-	Set("Icons.Expanded", new CORE_IMAGE_BRUSH_SVG("Starship/Common/chevron-down", Icon16x16));
-	Set("Icons.AddWatchDir", new CORE_IMAGE_BRUSH_SVG("Starship/Common/folder-plus", Icon16x16));
-	Set("Icons.RemoveWatchDir", new CORE_IMAGE_BRUSH_SVG("Starship/Common/delete", Icon16x16));
-	Set("Icons.Connection", new IMAGE_BRUSH_SVG("Connection", Icon16x16));
-	Set("Icons.Online", new CORE_IMAGE_BRUSH_SVG("Starship/Common/check-circle", Icon16x16, FStyleColors::AccentGreen));
-	Set("Icons.Offline", new CORE_IMAGE_BRUSH_SVG("Starship/Common/alert-triangle", Icon16x16, FStyleColors::Warning));
-	Set("Icons.Launcher", new TODO_IMAGE_BRUSH(Icon16x16));
-	Set("Icons.UTrace", new IMAGE_BRUSH_SVG("UTrace", Icon16x16));
-	Set("Icons.UTraceStack", new IMAGE_BRUSH_SVG("UTrace", Icon16x16));
-	Set("Icons.TraceServerStart", new CORE_IMAGE_BRUSH_SVG("Starship/Common/play", Icon16x16, FStyleColors::AccentGreen));
-	Set("Icons.TraceServerStop", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close", Icon16x16, FStyleColors::AccentRed));
 
 	//////////////////////////////////////////////////
 	// Timing Insights
@@ -194,6 +154,9 @@ void FInsightsStyle::FStyle::Initialize()
 	Set("Icons.TasksView", new IMAGE_BRUSH_SVG("Tasks", Icon16x16));
 	Set("Icons.PackagesView", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/Spreadsheet", Icon16x16));
 
+	//////////////////////////////////////////////////
+	// Timing View
+
 	Set("Icons.AllTracksMenu.ToolBar", new IMAGE_BRUSH_SVG("AllTracks_20", Icon20x20));
 	Set("Icons.CpuGpuTracksMenu.ToolBar", new IMAGE_BRUSH_SVG("CpuGpuTracks_20", Icon20x20));
 	Set("Icons.OtherTracksMenu.ToolBar", new IMAGE_BRUSH_SVG("SpecialTracks_20", Icon20x20));
@@ -202,6 +165,22 @@ void FInsightsStyle::FStyle::Initialize()
 
 	Set("Icons.HighlightEvents.ToolBar", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Visualizer", Icon20x20));
 	Set("Icons.ResetHighlight.ToolBar", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Reject", Icon20x20));
+
+	//////////////////////////////////////////////////
+
+	Set("Icons.FindFirst.ToolBar", new IMAGE_BRUSH_SVG("ControlsFirst", Icon20x20));
+	Set("Icons.FindPrevious.ToolBar", new IMAGE_BRUSH_SVG("ControlsPrevious", Icon20x20));
+	Set("Icons.FindNext.ToolBar", new IMAGE_BRUSH_SVG("ControlsNext", Icon20x20));
+	Set("Icons.FindLast.ToolBar", new IMAGE_BRUSH_SVG("ControlsLast", Icon20x20));
+
+	//////////////////////////////////////////////////
+
+	Set("Icons.SizeSmall", new IMAGE_BRUSH_SVG("SizeSmall", Icon16x16));
+	Set("Icons.SizeSmall.ToolBar", new IMAGE_BRUSH_SVG("SizeSmall_20", Icon20x20));
+	Set("Icons.SizeMedium", new IMAGE_BRUSH_SVG("SizeMedium", Icon16x16));
+	Set("Icons.SizeMedium.ToolBar", new IMAGE_BRUSH_SVG("SizeMedium_20", Icon20x20));
+	Set("Icons.SizeLarge", new IMAGE_BRUSH_SVG("SizeLarge", Icon16x16));
+	Set("Icons.SizeLarge.ToolBar", new IMAGE_BRUSH_SVG("SizeLarge_20", Icon20x20));
 
 	//////////////////////////////////////////////////
 	// Asset Loading Insights
@@ -257,62 +236,13 @@ void FInsightsStyle::FStyle::Initialize()
 
 	//////////////////////////////////////////////////
 
-	Set("Icons.FindFirst.ToolBar", new IMAGE_BRUSH_SVG("ControlsFirst", Icon20x20));
-	Set("Icons.FindPrevious.ToolBar", new IMAGE_BRUSH_SVG("ControlsPrevious", Icon20x20));
-	Set("Icons.FindNext.ToolBar", new IMAGE_BRUSH_SVG("ControlsNext", Icon20x20));
-	Set("Icons.FindLast.ToolBar", new IMAGE_BRUSH_SVG("ControlsLast", Icon20x20));
-
-	//////////////////////////////////////////////////
-
-	Set("Icons.SizeSmall", new IMAGE_BRUSH_SVG("SizeSmall", Icon16x16));
-	Set("Icons.SizeSmall.ToolBar", new IMAGE_BRUSH_SVG("SizeSmall_20", Icon20x20));
-	Set("Icons.SizeMedium", new IMAGE_BRUSH_SVG("SizeMedium", Icon16x16));
-	Set("Icons.SizeMedium.ToolBar", new IMAGE_BRUSH_SVG("SizeMedium_20", Icon20x20));
-	Set("Icons.SizeLarge", new IMAGE_BRUSH_SVG("SizeLarge", Icon16x16));
-	Set("Icons.SizeLarge.ToolBar", new IMAGE_BRUSH_SVG("SizeLarge_20", Icon20x20));
-
-	//////////////////////////////////////////////////
-
 	Set("MainFrame.OpenVisualStudio", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/VisualStudio", Icon16x16));
 	Set("MainFrame.OpenSourceCodeEditor", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/SourceCodeEditor", Icon16x16));
 
 	//////////////////////////////////////////////////
 
-	Set("Icons.ResetToDefault", new CORE_IMAGE_BRUSH("Icons/Profiler/profiler_ResetToDefault_32x", Icon16x16));
-	Set("Icons.DiffersFromDefault", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/ResetToDefault", Icon16x16));
-
-	Set("Icons.Console", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Console", Icon16x16));
-	//Set("Icons.Filter", new CORE_IMAGE_BRUSH_SVG("Starship/Common/filter", Icon16x16));	//-> use FAppStyle "Icons.Filter"
-	Set("Icons.Filter.ToolBar", new CORE_IMAGE_BRUSH_SVG("Starship/Common/filter", Icon20x20));
-	Set("Icons.Find", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/TraceDataFiltering", Icon16x16));
-	Set("Icons.FilterAddGroup", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/WorldOutliner", Icon16x16));
-	Set("Icons.ClassicFilter", new IMAGE_BRUSH_SVG("Filter", Icon16x16));
-	Set("Icons.ClassicFilterConfig", new IMAGE_BRUSH_SVG("FilterConfig", Icon16x16));
-
-	Set("Icons.FolderExplore", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/ContentBrowser", Icon16x16));
-	//Set("Icons.FolderOpen", new CORE_IMAGE_BRUSH_SVG("Starship/Common/folder-open", Icon16x16));		//-> use FAppStyle "Icons.FolderOpen"
-	//Set("Icons.FolderClosed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/folder-closed", Icon16x16));	//-> use FAppStyle "Icons.FolderClosed"
-
-	Set("Icons.SortBy", new CORE_IMAGE_BRUSH("Icons/Profiler/profiler_SortBy_32x", Icon16x16));
-	//Set("Icons.SortUp", new CORE_IMAGE_BRUSH_SVG("Starship/Common/SortUp", Icon16x16));		//-> use FAppStyle "Icons.SortUp"
-	//Set("Icons.SortDown", new CORE_IMAGE_BRUSH_SVG("Starship/Common/SortDown", Icon16x16));	//-> use FAppStyle "Icons.SortDown"
-
-	Set("Icons.ViewColumn", new CORE_IMAGE_BRUSH("Icons/Profiler/profiler_ViewColumn_32x", Icon16x16));
-	Set("Icons.ResetColumn", new CORE_IMAGE_BRUSH("Icons/Profiler/profiler_ResetColumn_32x", Icon16x16));
-
-	Set("Icons.ExpandAll", new CORE_IMAGE_BRUSH("Icons/Profiler/profiler_ExpandAll_32x", Icon16x16));
-	Set("Icons.CollapseAll", new CORE_IMAGE_BRUSH("Icons/Profiler/profiler_CollapseAll_32x", Icon16x16));
-	Set("Icons.ExpandSelection", new CORE_IMAGE_BRUSH("Icons/Profiler/profiler_ExpandSelection_32x", Icon16x16));
-	Set("Icons.CollapseSelection", new CORE_IMAGE_BRUSH("Icons/Profiler/profiler_CollapseSelection_32x", Icon16x16));
-
 	Set("Icons.AddGraphSeries", new CORE_IMAGE_BRUSH_SVG("Starship/Common/plus", Icon16x16));
 	Set("Icons.RemoveGraphSeries", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close", Icon16x16));
-
-	Set("Icons.TestAutomation", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/TestAutomation", Icon16x16));
-	Set("Icons.Test", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Test", Icon16x16));
-
-	Set("Icons.Debug", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/bug", Icon16x16));
-	Set("Icons.Debug.ToolBar", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/bug", Icon20x20));
 
 	Set("Icons.AutoScroll", new IMAGE_BRUSH_SVG("AutoScrollRight_20", Icon16x16));
 
@@ -323,10 +253,6 @@ void FInsightsStyle::FStyle::Initialize()
 	Set("Icons.Pinned", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/Pinned", Icon16x16));
 	Set("Icons.Unpinned", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/Unpinned", Icon16x16));
 
-	Set("Icons.Rename", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Rename", Icon16x16));
-	Set("Icons.Delete", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Delete", Icon16x16));
-
-	Set("Icons.ImportTable", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Import", Icon16x16));
 	Set("Icons.SelectEventRange", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/SelectInViewport", Icon16x16));
 
 	Set("Icons.FindInstance", new CORE_IMAGE_BRUSH_SVG("Starship/Common/search", Icon16x16));
@@ -334,14 +260,9 @@ void FInsightsStyle::FStyle::Initialize()
 	Set("Icons.FindMaxInstance", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/Profile", Icon16x16));
 
 	//////////////////////////////////////////////////
+	// Icons for tree/table items
 
-	Set("TreeTable.RowBackground", new EDITOR_IMAGE_BRUSH("Old/White", Icon16x16, FLinearColor(1.0f, 1.0f, 1.0f, 0.25f)));
-	Set("TreeViewBanner.WarningIcon", new CORE_IMAGE_BRUSH_SVG("Starship/Common/alert-circle", Icon20x20, FStyleColors::Warning));
-
-	Set("Icons.Hint.TreeItem", new IMAGE_BRUSH_SVG("InfoTag_12", Icon12x12));
 	Set("Icons.HotPath.TreeItem", new IMAGE_BRUSH_SVG("HotPath_12", Icon12x12));
-	Set("Icons.Group.TreeItem", new CORE_IMAGE_BRUSH_SVG("Starship/Common/folder-closed", Icon12x12));
-	Set("Icons.Leaf.TreeItem", new CORE_IMAGE_BRUSH_SVG("Starship/Common/bullet-point", Icon12x12));
 	Set("Icons.GpuTimer.TreeItem", new TODO_IMAGE_BRUSH(Icon12x12));
 	Set("Icons.CpuTimer.TreeItem", new TODO_IMAGE_BRUSH(Icon12x12));
 	Set("Icons.Counter.TreeItem", new TODO_IMAGE_BRUSH(Icon12x12));
@@ -351,138 +272,10 @@ void FInsightsStyle::FStyle::Initialize()
 	Set("Icons.NetEvent.TreeItem", new TODO_IMAGE_BRUSH(Icon12x12));
 	Set("Icons.MemTag.TreeItem", new TODO_IMAGE_BRUSH(Icon12x12));
 
-	Set("TreeTable.TooltipBold", FTextBlockStyle(NormalText)
-		.SetFont(DEFAULT_FONT("Bold", 8))
-		.SetColorAndOpacity(FLinearColor(0.5f, 0.5f, 0.5f, 1.0f))
-		.SetShadowOffset(FVector2D(1.0f, 1.0f))
-		.SetShadowColorAndOpacity(FLinearColor(0.0f, 0.0f, 0.0f, 0.8f))
-	);
-
-	Set("TreeTable.Tooltip", FTextBlockStyle(NormalText)
-		.SetFont(DEFAULT_FONT("Regular", 8))
-		.SetColorAndOpacity(FLinearColor::White)
-		.SetShadowOffset(FVector2D(1.0f, 1.0f))
-		.SetShadowColorAndOpacity(FLinearColor(0.0f, 0.0f, 0.0f, 0.8f))
-	);
-
-	Set("TreeTable.NameText", FTextBlockStyle(NormalText)
-		.SetColorAndOpacity(FLinearColor::White)
-	);
-
-	Set("TreeTable.NormalText", FTextBlockStyle(NormalText)
-		.SetColorAndOpacity(FLinearColor::White)
-	);
-
 	//////////////////////////////////////////////////
+	// Trace Control
 
-	// NormalEditableTextBox && SearchBox
-	{
-		const FEditableTextBoxStyle& NormalEditableTextBoxStyle = FAppStyle::GetWidgetStyle<FEditableTextBoxStyle>("NormalEditableTextBox");
-		const FTextBlockStyle TextBlockStyle = FTextBlockStyle()
-			.SetColorAndOpacity(NormalEditableTextBoxStyle.ForegroundColor)
-			.SetHighlightColor(NormalEditableTextBoxStyle.FocusedForegroundColor)
-			.SetFont(NormalEditableTextBoxStyle.TextStyle.Font)
-			.SetFontSize(uint16(NormalEditableTextBoxStyle.TextStyle.Font.Size));
-		const FEditableTextBoxStyle EditableTextBoxStyle = FEditableTextBoxStyle(NormalEditableTextBoxStyle)
-			.SetPadding(FMargin(6.0f, 4.0f, 6.0f, 4.0f))
-			.SetTextStyle(TextBlockStyle);
-		Set("NormalEditableTextBox", EditableTextBoxStyle);
-
-		const FSearchBoxStyle& NormalSearchBoxStyle = FAppStyle::GetWidgetStyle<FSearchBoxStyle>("SearchBox");
-		const FSearchBoxStyle SearchBoxStyle = FSearchBoxStyle(NormalSearchBoxStyle)
-			.SetTextBoxStyle(EditableTextBoxStyle);
-		Set("SearchBox", SearchBoxStyle);
-	}
-
-	// PrimaryToolbar
-	{
-		FToolBarStyle PrimaryToolbarStyle = FAppStyle::Get().GetWidgetStyle<FToolBarStyle>("SlimToolBar");
-
-		Set("PrimaryToolbar", PrimaryToolbarStyle);
-
-		Set("PrimaryToolbar.MinUniformToolbarSize", 40.0f);
-		Set("PrimaryToolbar.MaxUniformToolbarSize", 40.0f);
-	}
-
-	// SecondaryToolbar
-	{
-		FToolBarStyle SecondaryToolbarStyle = FAppStyle::Get().GetWidgetStyle<FToolBarStyle>("SlimToolBar");
-
-		SecondaryToolbarStyle.SetBackgroundPadding(         FMargin(4.0f, 4.0f));
-		SecondaryToolbarStyle.SetBlockPadding(              FMargin(2.0f, 0.0f));
-		SecondaryToolbarStyle.SetButtonPadding(             FMargin(0.0f, 0.0f));
-		SecondaryToolbarStyle.SetCheckBoxPadding(           FMargin(2.0f, 0.0f));
-		SecondaryToolbarStyle.SetComboButtonPadding(        FMargin(0.0f, 0.0f));
-		SecondaryToolbarStyle.SetIndentedBlockPadding(      FMargin(2.0f, 0.0f));
-		SecondaryToolbarStyle.SetLabelPadding(              FMargin(2.0f, 0.0f));
-		SecondaryToolbarStyle.SetSeparatorPadding(          FMargin(2.0f, -3.0f));
-
-		SecondaryToolbarStyle.ToggleButton.SetPadding(      FMargin(0.0f, 0.0f));
-
-		SecondaryToolbarStyle.ButtonStyle.SetNormalPadding( FMargin(6.0f, 2.0f, 4.0f, 2.0f));
-		SecondaryToolbarStyle.ButtonStyle.SetPressedPadding(FMargin(6.0f, 2.0f, 4.0f, 2.0f));
-
-		//SecondaryToolbarStyle.IconSize.Set(16.0f, 16.0f);
-
-		Set("SecondaryToolbar", SecondaryToolbarStyle);
-
-		Set("SecondaryToolbar.MinUniformToolbarSize", 32.0f);
-		Set("SecondaryToolbar.MaxUniformToolbarSize", 32.0f);
-	}
-
-	// SecondaryToolbar2 (used by AutoScroll and NetPacketContentView toolbars)
-	{
-		FToolBarStyle SecondaryToolbarStyle = FAppStyle::Get().GetWidgetStyle<FToolBarStyle>("SlimToolBar");
-
-		SecondaryToolbarStyle.SetBackgroundPadding(         FMargin(4.0f, 2.0f));
-		SecondaryToolbarStyle.SetBlockPadding(              FMargin(2.0f, 2.0f));
-		SecondaryToolbarStyle.SetButtonPadding(             FMargin(0.0f, 2.0f));
-		SecondaryToolbarStyle.SetCheckBoxPadding(           FMargin(2.0f, 2.0f));
-		SecondaryToolbarStyle.SetComboButtonPadding(        FMargin(0.0f, 2.0f));
-		SecondaryToolbarStyle.SetIndentedBlockPadding(      FMargin(2.0f, 2.0f));
-		SecondaryToolbarStyle.SetLabelPadding(              FMargin(2.0f, 2.0f));
-		SecondaryToolbarStyle.SetSeparatorPadding(          FMargin(2.0f, -1.0f));
-
-		SecondaryToolbarStyle.ToggleButton.SetPadding(      FMargin(0.0f, 0.0f));
-
-		SecondaryToolbarStyle.ButtonStyle.SetNormalPadding( FMargin(3.0f, 0.0f, -1.0f, 0.0f));
-		SecondaryToolbarStyle.ButtonStyle.SetPressedPadding(FMargin(3.0f, 0.0f, -1.0f, 0.0f));
-
-		//SecondaryToolbarStyle.IconSize.Set(16.0f, 16.0f);
-
-		Set("SecondaryToolbar2", SecondaryToolbarStyle);
-
-		Set("SecondaryToolbar2.MinUniformToolbarSize", 32.0f);
-		Set("SecondaryToolbar2.MaxUniformToolbarSize", 32.0f);
-	}
-
-	// ToggleButton
-	{
-		Set("ToggleButton", FButtonStyle(Button)
-			.SetNormal(FSlateNoResource())
-			.SetHovered(EDITOR_BOX_BRUSH("Common/RoundedSelection_16x", 4.0f / 16.0f, SelectionColor))
-			.SetPressed(EDITOR_BOX_BRUSH("Common/RoundedSelection_16x", 4.0f / 16.0f, SelectionColor_Pressed)));
-	}
-
-	// Common.GotoNativeCodeHyperlink
-	{
-		FTextBlockStyle InheritedFromNativeTextStyle = FTextBlockStyle(NormalText)
-			.SetFont(DEFAULT_FONT("Regular", 10));
-
-		Set("Common.InheritedFromNativeTextStyle", InheritedFromNativeTextStyle);
-
-		// Go to native class hyperlink
-		FButtonStyle EditNativeHyperlinkButton = FButtonStyle()
-			.SetNormal(EDITOR_BORDER_BRUSH("Old/HyperlinkDotted", FMargin(0, 0, 0, 3 / 16.0f)))
-			.SetPressed(FSlateNoResource())
-			.SetHovered(EDITOR_BORDER_BRUSH("Old/HyperlinkUnderline", FMargin(0, 0, 0, 3 / 16.0f)));
-		FHyperlinkStyle EditNativeHyperlinkStyle = FHyperlinkStyle()
-			.SetUnderlineStyle(EditNativeHyperlinkButton)
-			.SetTextStyle(InheritedFromNativeTextStyle)
-			.SetPadding(FMargin(0.0f));
-
-		Set("Common.GotoNativeCodeHyperlink", EditNativeHyperlinkStyle);
-	}
+	Set("Icons.TraceControl", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/TraceDataFiltering", Icon16x16));
 
 	//////////////////////////////////////////////////
 }

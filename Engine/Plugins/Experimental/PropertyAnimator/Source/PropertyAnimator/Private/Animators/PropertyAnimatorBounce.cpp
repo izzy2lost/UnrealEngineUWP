@@ -6,11 +6,6 @@
 #include "Properties/PropertyAnimatorFloatContext.h"
 #include "PropertyAnimatorShared.h"
 
-UPropertyAnimatorBounce::UPropertyAnimatorBounce()
-{
-	SetAnimatorDisplayName(DefaultControllerName);
-}
-
 void UPropertyAnimatorBounce::SetInvertEffect(bool bInvert)
 {
 	if (bInvertEffect == bInvert)
@@ -22,15 +17,26 @@ void UPropertyAnimatorBounce::SetInvertEffect(bool bInvert)
 	OnInvertEffect();
 }
 
-float UPropertyAnimatorBounce::Evaluate(double InTimeElapsed, const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorFloatContext* InOptions) const
+void UPropertyAnimatorBounce::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
 {
-	const float Frequency = InOptions->GetFrequency() * GlobalFrequency;
-	double TimeProgress = FMath::Fmod(InTimeElapsed + InOptions->GetTimeOffset(), 1.f / Frequency);
+	Super::OnAnimatorRegistered(InMetadata);
+
+	InMetadata.Name = TEXT("Bounce");
+}
+
+bool UPropertyAnimatorBounce::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const
+{
+	const float Frequency = InParameters.GetValueDouble(FrequencyParameterName).GetValue();
+	const double TimeElapsed = InParameters.GetValueDouble(TimeElapsedParameterName).GetValue();
+
+	double TimeProgress = FMath::Fmod(TimeElapsed, 1.f / Frequency);
 
 	TimeProgress = bInvertEffect ? TimeProgress : 1 - TimeProgress;
 
 	const double EasingValue = UE::PropertyAnimator::Easing::Bounce(TimeProgress, EPropertyAnimatorEasingType::In);
 
-	// Remap from [0, 1] to user amplitude from [Min, Max]
-	return FMath::GetMappedRangeValueClamped(FVector2D(0, 1), FVector2D(InOptions->GetAmplitudeMin(), InOptions->GetAmplitudeMax()), EasingValue);
+	InParameters.AddProperty(AlphaParameterName, EPropertyBagPropertyType::Float);
+	InParameters.SetValueFloat(AlphaParameterName, EasingValue);
+
+	return InContext->EvaluateProperty(InPropertyData, InParameters, OutEvaluationResult);
 }

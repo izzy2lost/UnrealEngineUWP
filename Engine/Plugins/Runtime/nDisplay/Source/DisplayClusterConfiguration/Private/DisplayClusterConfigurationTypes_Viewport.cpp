@@ -2,62 +2,22 @@
 
 #include "DisplayClusterConfigurationTypes_Viewport.h"
 #include "DisplayClusterConfigurationTypes_ICVFX.h"
+#include "DisplayClusterConfigurationUtils.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////
-// FDisplayClusterConfigurationViewport_ICVFX
+// UDisplayClusterConfigurationViewport
 ///////////////////////////////////////////////////////////////////////////////////////
-EDisplayClusterShaderParametersICVFX_LightCardRenderMode FDisplayClusterConfigurationViewport_ICVFX::GetLightCardRenderMode(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
-{
-	// Note: please check if this rule is valid
-	if (!bAllowICVFX || !InStageSettings.Lightcard.bEnable)
-	{
-		// When ICVFX is disabled we dont render lightcards
-		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::None;
-	}
-
-	if (LightcardRenderMode != EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode::Default)
-	{
-		// Use overridden values from the viewport:
-		switch (LightcardRenderMode)
-		{
-		case EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode::Over:
-			return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Over;
-
-		case EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode::Under:
-			return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Under;
-
-		default:
-			break;
-		}
-
-		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::None;
-	}
-
-	// Use global lightcard settings:
-	switch (InStageSettings.Lightcard.Blendingmode)
-	{
-	case EDisplayClusterConfigurationICVFX_LightcardRenderMode::Under:
-		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Under;
-
-	default:
-		break;
-	};
-
-	// By default lightcard render in 'Over' mode
-	return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Over;
-}
-
-EDisplayClusterViewportICVFXFlags FDisplayClusterConfigurationViewport_ICVFX::GetViewportICVFXFlags(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
+EDisplayClusterViewportICVFXFlags UDisplayClusterConfigurationViewport::GetViewportICVFXFlags(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
 {
 	EDisplayClusterViewportICVFXFlags OutFlags = EDisplayClusterViewportICVFXFlags::None;
-	if (bAllowICVFX)
+	if (ICVFX.bAllowICVFX)
 	{
 		EnumAddFlags(OutFlags, EDisplayClusterViewportICVFXFlags::Enable);
 	}
 
 	// Override camera render mode
-	EDisplayClusterConfigurationICVFX_OverrideCameraRenderMode UsedCameraRenderMode = CameraRenderMode;
-	if (!bAllowInnerFrustum || !InStageSettings.bEnableInnerFrustums)
+	EDisplayClusterConfigurationICVFX_OverrideCameraRenderMode UsedCameraRenderMode = ICVFX.CameraRenderMode;
+	if (!ICVFX.bAllowInnerFrustum || !InStageSettings.bEnableInnerFrustums)
 	{
 		UsedCameraRenderMode = EDisplayClusterConfigurationICVFX_OverrideCameraRenderMode::Disabled;
 	}
@@ -84,11 +44,29 @@ EDisplayClusterViewportICVFXFlags FDisplayClusterConfigurationViewport_ICVFX::Ge
 	}
 
 	// Disable lightcards rendering
-	const EDisplayClusterShaderParametersICVFX_LightCardRenderMode LightCardRenderMode = GetLightCardRenderMode(InStageSettings);
+	const EDisplayClusterShaderParametersICVFX_LightCardRenderMode LightCardRenderMode = InStageSettings.Lightcard.GetLightCardRenderMode(EDisplayClusterConfigurationICVFX_PerLightcardRenderMode::Default, this);
 	if (LightCardRenderMode == EDisplayClusterShaderParametersICVFX_LightCardRenderMode::None)
 	{
 		EnumAddFlags(OutFlags, EDisplayClusterViewportICVFXFlags::DisableLightcard);
 	}
+
+	// Per-viewport lightcard
+	const EDisplayClusterShaderParametersICVFX_LightCardRenderMode LightCardRenderModeOverride = InStageSettings.Lightcard.GetLightCardRenderModeOverride(this);
+	switch (LightCardRenderModeOverride)
+	{
+	case EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Over:
+		EnumAddFlags(OutFlags, EDisplayClusterViewportICVFXFlags::LightcardAlwaysOver);
+		break;
+
+	case EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Under:
+		EnumAddFlags(OutFlags, EDisplayClusterViewportICVFXFlags::LightcardAlwaysUnder);
+		break;
+
+	default:
+		EnumAddFlags(OutFlags, EDisplayClusterViewportICVFXFlags::LightcardUseStageSettings);
+		break;
+	}
+
 
 	return OutFlags;
 }

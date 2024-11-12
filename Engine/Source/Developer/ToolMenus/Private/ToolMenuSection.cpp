@@ -12,14 +12,13 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ToolMenuSection)
 
-FToolMenuSection::FToolMenuSection() :
-	ToolMenuSectionDynamic(nullptr),
-	bIsRegistering(false),
-	bAddedDuringRegister(false)
+FToolMenuSection::FToolMenuSection()
+	: ToolMenuSectionDynamic(nullptr)
+	, Alignment(EToolMenuSectionAlign::Default)
+	, bIsRegistering(false)
+	, bAddedDuringRegister(false)
 {
-
 }
-
 
 void FToolMenuSection::InitSection(const FName InName, const TAttribute< FText >& InLabel, const FToolMenuInsert InPosition)
 {
@@ -35,6 +34,7 @@ void FToolMenuSection::InitGeneratedSectionCopy(const FToolMenuSection& Source, 
 	InsertPosition = Source.InsertPosition;
 	Construct = Source.Construct;
 	Context = InContext;
+	Alignment = Source.Alignment;
 }
 
 bool FToolMenuSection::IsRegistering() const
@@ -102,9 +102,7 @@ FToolMenuEntry& FToolMenuSection::AddMenuEntryWithCommandList(const TSharedPtr< 
 
 FToolMenuEntry& FToolMenuSection::AddDynamicEntry(const FName InName, const FNewToolMenuSectionDelegate& InConstruct)
 {
-	FToolMenuEntry& Entry = AddEntry(FToolMenuEntry(UToolMenus::Get()->CurrentOwner(), InName, EMultiBlockType::MenuEntry));
-	Entry.Construct = InConstruct;
-	return Entry;
+	return AddEntry(FToolMenuEntry::InitDynamicEntry(InName, InConstruct));
 }
 
 FToolMenuEntry& FToolMenuSection::AddDynamicEntry(const FName InName, const FNewToolMenuDelegateLegacy& InConstruct)
@@ -198,15 +196,28 @@ int32 FToolMenuSection::RemoveEntriesByOwner(const FToolMenuOwner InOwner)
 	return 0;
 }
 
+// Note: This function is very similar to UToolMenu::FindInsertIndex.
 int32 FToolMenuSection::FindBlockInsertIndex(const FToolMenuEntry& InBlock) const
 {
 	const FToolMenuInsert InPosition = InBlock.InsertPosition;
 
+	// Insert a Default-positioned entry after all First and Default-positioned entries but before any Last-positioned
+	// entries.
 	if (InPosition.IsDefault())
 	{
+		for (int32 i = 0; i < Blocks.Num(); ++i)
+		{
+			if (Blocks[i].InsertPosition.Position == EToolMenuInsertType::Last)
+			{
+				return i;
+			}
+		}
+
 		return Blocks.Num();
 	}
 
+	// Insert a First-positioned entry after any other First-positioned entries but before all Default and
+	// Last-positioned entries.
 	if (InPosition.Position == EToolMenuInsertType::First)
 	{
 		for (int32 i = 0; i < Blocks.Num(); ++i)
@@ -214,6 +225,20 @@ int32 FToolMenuSection::FindBlockInsertIndex(const FToolMenuEntry& InBlock) cons
 			if (Blocks[i].InsertPosition != InPosition)
 			{
 				return i;
+			}
+		}
+
+		return Blocks.Num();
+	}
+
+	// Insert a Last-positioned entry after all other entries, include other Last-positioned entries.
+	if (InPosition.Position == EToolMenuInsertType::Last)
+	{
+		for (int32 i = Blocks.Num() - 1; i >= 0; --i)
+		{
+			if (Blocks[i].InsertPosition.Position == InPosition.Position)
+			{
+				return i + 1;
 			}
 		}
 

@@ -6,23 +6,23 @@
 bool FWallClockMusicClockDriver::CalculateSongPosWithOffset(float MsOffset, ECalibratedMusicTimebase Timebase, FMidiSongPos& OutResult) const
 {
 	check(IsInGameThread());
-	if (!TempoMap.IsValid())
+	if (!TempoMapMidi.IsValid())
 	{
 		return false;
 	}
 
-	const FSongMaps* Maps = TempoMap->GetSongMaps();
+	const FSongMaps* Maps = TempoMapMidi->GetSongMaps();
 	switch (Timebase)
 	{
 	case ECalibratedMusicTimebase::AudioRenderTime:
-		OutResult.SetByTime((Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset, *Maps);
+		OutResult.SetByTime((ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset, *Maps);
 		break;
 	case ECalibratedMusicTimebase::ExperiencedTime:
-		OutResult.SetByTime((Clock->CurrentPlayerExperiencedSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset, *Maps);
+		OutResult.SetByTime((ClockComponent->CurrentPlayerExperiencedSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset, *Maps);
 		break;
 	case ECalibratedMusicTimebase::VideoRenderTime:
 	default:
-		OutResult.SetByTime((Clock->CurrentVideoRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset, *Maps);
+		OutResult.SetByTime((ClockComponent->CurrentVideoRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset, *Maps);
 		break;
 	}
 
@@ -31,31 +31,31 @@ bool FWallClockMusicClockDriver::CalculateSongPosWithOffset(float MsOffset, ECal
 
 void FWallClockMusicClockDriver::Disconnect()
 {
-	TempoMap = nullptr;
+	TempoMapMidi = nullptr;
 }
 
 bool FWallClockMusicClockDriver::RefreshCurrentSongPos()
 {
 	check(IsInGameThread());
-	check(Clock);
-	check(Clock->GetWorld());
+	check(ClockComponent);
+	check(ClockComponent->GetWorld());
 
-	bool TempoChanged = Clock->CurrentSmoothedAudioRenderSongPos.Tempo != Clock->Tempo;
+	bool TempoChanged = ClockComponent->CurrentSmoothedAudioRenderSongPos.Tempo != ClockComponent->Tempo;
 
-	double RunTime = Clock->GetWorld()->GetTimeSeconds() - StartTimeSecs;
+	double RunTime = ClockComponent->GetWorld()->GetTimeSeconds() - StartTimeSecs;
 
-	const FSongMaps* Maps = GetCurrentSongMaps();
+	const ISongMapEvaluator* Maps = GetCurrentSongMapEvaluator();
 	check(Maps);
 
-	Clock->CurrentSmoothedAudioRenderSongPos.SetByTime((float)(RunTime * 1000.0), *Maps);
-	Clock->CurrentPlayerExperiencedSongPos.SetByTime(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs(), *Maps);
-	Clock->CurrentVideoRenderSongPos.SetByTime(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredVideoToAudioRenderOffsetMs(), *Maps);
+	ClockComponent->CurrentSmoothedAudioRenderSongPos.SetByTime((float)(RunTime * 1000.0), *Maps);
+	ClockComponent->CurrentPlayerExperiencedSongPos.SetByTime(ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs(), *Maps);
+	ClockComponent->CurrentVideoRenderSongPos.SetByTime(ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredVideoToAudioRenderOffsetMs(), *Maps);
 
 	if (TempoChanged)
 	{
-		Clock->Tempo = Clock->CurrentSmoothedAudioRenderSongPos.Tempo;
-		Clock->CurrentBeatDurationSec = (60.0f / Clock->Tempo) / Clock->CurrentClockAdvanceRate;
-		Clock->CurrentBarDurationSec = ((Clock->TimeSignatureNum * Clock->CurrentBeatDurationSec) / (Clock->TimeSignatureDenom / 4.0f)) / Clock->CurrentClockAdvanceRate;
+		ClockComponent->Tempo = ClockComponent->CurrentSmoothedAudioRenderSongPos.Tempo;
+		ClockComponent->CurrentBeatDurationSec = (60.0f / ClockComponent->Tempo) / ClockComponent->CurrentClockAdvanceRate;
+		ClockComponent->CurrentBarDurationSec = ((ClockComponent->TimeSignatureNum * ClockComponent->CurrentBeatDurationSec) / (ClockComponent->TimeSignatureDenom / 4.0f)) / ClockComponent->CurrentClockAdvanceRate;
 	}
 
 	return true;
@@ -65,35 +65,35 @@ bool FWallClockMusicClockDriver::RefreshCurrentSongPos()
 void FWallClockMusicClockDriver::OnStart()
 {
 	check(IsInGameThread());
-	check(Clock);
-	StartTimeSecs = Clock->GetWorld()->GetTimeSeconds();
+	check(ClockComponent);
+	StartTimeSecs = ClockComponent->GetWorld()->GetTimeSeconds();
 	PauseTimeSecs = 0.0;
 }
 
 void FWallClockMusicClockDriver::OnPause()
 {
 	check(IsInGameThread());
-	check(Clock);
-	PauseTimeSecs = Clock->GetWorld()->GetTimeSeconds();
+	check(ClockComponent);
+	PauseTimeSecs = ClockComponent->GetWorld()->GetTimeSeconds();
 }
 
 void FWallClockMusicClockDriver::OnContinue()
 {
 	check(IsInGameThread());
-	check(Clock);
-	double CurrentTime = Clock->GetWorld()->GetTimeSeconds();
+	check(ClockComponent);
+	double CurrentTime = ClockComponent->GetWorld()->GetTimeSeconds();
 	StartTimeSecs += (CurrentTime - PauseTimeSecs);
 	PauseTimeSecs = 0.0;
 	RefreshCurrentSongPos();
 }
 
-const FSongMaps* FWallClockMusicClockDriver::GetCurrentSongMaps() const
+const ISongMapEvaluator* FWallClockMusicClockDriver::GetCurrentSongMapEvaluator() const
 {
-	if (TempoMap.IsValid())
-	{
-		return TempoMap->GetSongMaps();
-	}
 	check(IsInGameThread());
-	check(Clock);
-	return &Clock->DefaultMaps;
+	if (TempoMapMidi.IsValid())
+	{
+		return TempoMapMidi->GetSongMaps();
+	}
+	check(ClockComponent);
+	return &ClockComponent->DefaultMaps;
 }

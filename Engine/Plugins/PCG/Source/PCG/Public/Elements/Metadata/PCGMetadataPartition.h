@@ -19,12 +19,13 @@ public:
 
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
+	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
+
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("AttributePartition")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGMetadataPartitionSettings", "NodeTitle", "Attribute Partition"); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Metadata; }
-	virtual bool HasDynamicPins() const override { return true; }
 #endif
-	
+	virtual bool HasDynamicPins() const override { return true; }
 	virtual FString GetAdditionalTitleInformation() const override;
 
 protected:
@@ -42,11 +43,29 @@ public:
 	UPROPERTY(meta = (PCG_Overridable))
 	FString PartitionAttributeNames;
 
+	/** Enables deprecated behavior using spaces as separators. Disable to update the node to current behavior. */
+	UE_DEPRECATED(5.5, "bTokenizeOnWhiteSpace has been deprecated.")
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (EditCondition = "bTokenizeOnWhiteSpace", EditConditionHides, DeprecationMessage = "bTokenizeOnWhiteSpace has been deprecated."))
+	bool bTokenizeOnWhiteSpace = false;
+
+	/** Assign an index partition as an extra attribute. */
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bAssignIndexPartition = false;
+
+	/** If we assign an index, we can also not partition (and only assign the partition index to the original data). */
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bAssignIndexPartition", EditConditionHides))
+	bool bDoNotPartition = true;
+
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bAssignIndexPartition", EditConditionHides))
+	FName PartitionIndexAttributeName = TEXT("PartitionIndex");
+
 #if WITH_EDITORONLY_DATA
-	UPROPERTY()
+	UE_DEPRECATED(5.5, "PartitionAttribute has been deprecated.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "PartitionAttribute has been deprecated."))
 	FName PartitionAttribute_DEPRECATED = NAME_None;
 
-	UPROPERTY()
+	UE_DEPRECATED(5.5, "PartitionAttributeSource has been deprecated.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "PartitionAttributeSource has been deprecated."))
 	FPCGAttributePropertyInputSelector PartitionAttributeSource_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
 };
@@ -55,4 +74,5 @@ class FPCGMetadataPartitionElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 };

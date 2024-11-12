@@ -205,6 +205,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	/** If RetargetSource is set to Default (None), this is asset for the base pose to use when retargeting. Transform data will be saved in RetargetSourceAssetReferencePose. */
+	UE_DEPRECATED(5.5, "Direct access to RetargetSourceAsset has been deprecated. Please use members GetRetargetSourceAsset & SetRetargetSourceAsset instead.")
 	UPROPERTY(EditAnywhere, AssetRegistrySearchable, Category=Animation, meta = (DisallowedClasses = "/Script/ApexDestruction.DestructibleMesh"))
 	TSoftObjectPtr<USkeletalMesh> RetargetSourceAsset;
 #endif
@@ -421,9 +422,27 @@ private:
 	void UpdateTrackBoneIndices();
 	bool RemoveInvalidTracks();
 
-#if WITH_EDITORONLY_DATA
-	void UpdateRetargetSourceAsset();
+public:
+#if WITH_EDITOR
+	// Assigns the passed skeletal mesh to the retarget source
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	ENGINE_API void SetRetargetSourceAsset(USkeletalMesh* InRetargetSourceAsset);
+
+	// Resets the retarget source asset
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	ENGINE_API void ClearRetargetSourceAsset();
+
+	// Returns the retarget source asset soft object pointer.
+	UFUNCTION(BlueprintPure, Category = "Animation")
+	ENGINE_API const TSoftObjectPtr<USkeletalMesh>& GetRetargetSourceAsset() const;
+
+	// Update the retarget data pose from the source, if it exist, else clears the retarget data pose saved in RetargetSourceAssetReferencePose.
+	// Warning : This function calls LoadSynchronous at the retarget source asset soft object pointer, so it can not be used at PostLoad
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	ENGINE_API void UpdateRetargetSourceAssetData();
 #endif
+
+private:
 	const TArray<FTransform>& GetRetargetTransforms() const;
 	FName GetRetargetTransformsSourceName() const;
 

@@ -11,9 +11,6 @@
 #include "Templates/SubclassOf.h"
 #include "Engine/EngineTypes.h"
 #include "Input/Reply.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/GameViewportClient.h"
-#endif
 #include "Online/CoreOnline.h"
 #include "SceneTypes.h"
 #include "Engine/Player.h"
@@ -354,10 +351,35 @@ public:
 	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of ULocalPlayer
 	 */
 	template <typename TSubsystemClass>
+	UE_DEPRECATED(5.4, "This function is unsafe for re-entrancy and has been deprecated. Use GetSubsystemArrayCopy or ForEachSubsystem instead")
 	const TArray<TSubsystemClass*>& GetSubsystemArray() const
 	{
 		return SubsystemCollection.GetSubsystemArray<TSubsystemClass>(TSubsystemClass::StaticClass());
 	}
+
+	/**
+	 * Get all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 *
+	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of ULocalPlayer
+	 */
+	template <typename TSubsystemClass>
+	TArray<TSubsystemClass*> GetSubsystemArrayCopy() const
+	{
+		return SubsystemCollection.GetSubsystemArrayCopy<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
+
+	/**
+	 * Performs an operation on all all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 */
+	template <typename TSubsystemClass>
+	void ForEachSubsystem(TFunctionRef<void(TSubsystemClass*)> Operation) const
+	{
+		static_assert(TIsDerivedFrom<TSubsystemClass, ULocalPlayerSubsystem>::IsDerived, "TSubsystemClass must be derived from ULocalPlayerSubsystem");
+		return SubsystemCollection.ForEachSubsystem([Operation=MoveTemp(Operation)](ULocalPlayerSubsystem* Subsystem){
+			Operation(CastChecked<TSubsystemClass>(Subsystem));
+		}, TSubsystemClass::StaticClass());
+	}
+
 
 	/**
 	* Calculate the view init settings for drawing from this view actor
@@ -512,12 +534,6 @@ public:
 	 */
 	ENGINE_API FUniqueNetIdRepl GetCachedUniqueNetId() const;
 
-	/** Sets the players current cached unique net id */
-	UE_DEPRECATED(5.0, "Use SetCachedUniqueNetId with FUniqueNetIdRepl")
-	ENGINE_API void SetCachedUniqueNetId(FUniqueNetIdPtr NewUniqueNetId);
-	/** Sets the players current cached unique net id */
-	UE_DEPRECATED(5.0, "Use SetCachedUniqueNetId with FUniqueNetIdRepl")
-	ENGINE_API void SetCachedUniqueNetId(TYPE_OF_NULLPTR);
 	/** Sets the players current cached unique net id */
 	ENGINE_API void SetCachedUniqueNetId(const FUniqueNetIdRepl& NewUniqueNetId);
 

@@ -313,7 +313,7 @@ namespace UnrealGameSync
 
 			List<BadgeInfo> badges = new List<BadgeInfo>();
 
-			SdkItem sdk = (SdkItem)subItem.Tag;
+			SdkItem sdk = (SdkItem)subItem.Tag!;
 
 			foreach (SdkAction action in sdk.Actions)
 			{

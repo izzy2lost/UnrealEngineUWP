@@ -18,20 +18,6 @@ class FVirtualShadowMapArray;
 class FVirtualShadowMapClipmap;
 struct FMinimalSceneTextures;
 
-BEGIN_SHADER_PARAMETER_STRUCT(FVirtualShadowMapSMRTSettings,)
-	SHADER_PARAMETER(float, ScreenRayLength)
-	SHADER_PARAMETER(int32, SMRTRayCount)
-	SHADER_PARAMETER(int32, SMRTSamplesPerRay)
-	SHADER_PARAMETER(float, SMRTRayLengthScale)
-	SHADER_PARAMETER(float, SMRTCotMaxRayAngleFromLight)
-	SHADER_PARAMETER(float, SMRTTexelDitherScale)
-	SHADER_PARAMETER(float, SMRTExtrapolateSlope)
-	SHADER_PARAMETER(float, SMRTMaxSlopeBias)
-	SHADER_PARAMETER(uint32, SMRTAdaptiveRayCount)
-END_SHADER_PARAMETER_STRUCT()
-
-FVirtualShadowMapSMRTSettings GetVirtualShadowMapSMRTSettings(bool bDirectionalLight);
-
 struct FTiledVSMProjection
 {
 	FRDGBufferRef DrawIndirectParametersBuffer;
@@ -98,7 +84,7 @@ void CompositeVirtualShadowMapMask(
 void CompositeVirtualShadowMapFromMaskBits(
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const FIntRect ScissorRect,
 	FVirtualShadowMapArray& VirtualShadowMapArray,
 	EVirtualShadowMapProjectionInputType InputType,

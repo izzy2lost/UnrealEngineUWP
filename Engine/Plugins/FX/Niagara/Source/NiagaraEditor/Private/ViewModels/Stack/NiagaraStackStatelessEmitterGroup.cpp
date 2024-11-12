@@ -4,6 +4,7 @@
 
 #include "IDetailTreeNode.h"
 #include "PropertyHandle.h"
+#include "Stateless/NiagaraEmitterStatePropertyCustomization.h"
 #include "Stateless/NiagaraDistributionPropertyCustomization.h"
 #include "Stateless/NiagaraDistributionIntPropertyCustomization.h"
 #include "Stateless/NiagaraStatelessEmitter.h"
@@ -11,6 +12,17 @@
 #include "ViewModels/Stack/NiagaraStackObject.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraEmitterStatelessGroup"
+
+namespace NiagaraStackStatelessEmitterGroupPrivate
+{
+	bool bShowRawObject = false;
+	FAutoConsoleVariableRef CVarShowRawObject(
+		TEXT("fx.NiagaraStateless.UI.ShowRawObject"),
+		bShowRawObject,
+		TEXT("When enabled we will show the raw object in the stateless emitter UI."),
+		ECVF_Default
+	);
+}
 
 void UNiagaraStackStatelessEmitterGroup::Initialize(FRequiredEntryData InRequiredEntryData, UNiagaraStatelessEmitter* InStatelessEmitter)
 {
@@ -34,20 +46,23 @@ void UNiagaraStackStatelessEmitterGroup::RefreshChildrenInternal(const TArray<UN
 	UNiagaraStatelessEmitter* StatelessEmitter = StatelessEmitterWeak.Get();
 	if (StatelessEmitter != nullptr)
 	{
-		UNiagaraStackStatelessEmitterObjectItem* RawObjectItem = RawObjectItemWeak.Get();
-		if (RawObjectItem == nullptr || RawObjectItem->GetStatelessEmitter() != StatelessEmitter)
+		if ( NiagaraStackStatelessEmitterGroupPrivate::bShowRawObject )
 		{
-			bool bExpandedByDefault = false;
-			RawObjectItem = NewObject<UNiagaraStackStatelessEmitterObjectItem>(this);
-			RawObjectItem->Initialize(
-				CreateDefaultChildRequiredData(),
-				StatelessEmitter,
-				LOCTEXT("EmitterObjectDisplayName", "Raw Object"),
-				bExpandedByDefault,
-				FNiagaraStackObjectShared::FOnFilterDetailNodes());
-			RawObjectItemWeak = RawObjectItem;
+			UNiagaraStackStatelessEmitterObjectItem* RawObjectItem = RawObjectItemWeak.Get();
+			if (RawObjectItem == nullptr || RawObjectItem->GetStatelessEmitter() != StatelessEmitter)
+			{
+				bool bExpandedByDefault = false;
+				RawObjectItem = NewObject<UNiagaraStackStatelessEmitterObjectItem>(this);
+				RawObjectItem->Initialize(
+					CreateDefaultChildRequiredData(),
+					StatelessEmitter,
+					LOCTEXT("EmitterObjectDisplayName", "Raw Object"),
+					bExpandedByDefault,
+					FNiagaraStackObjectShared::FOnFilterDetailNodes());
+				RawObjectItemWeak = RawObjectItem;
+			}
+			NewChildren.Add(RawObjectItem);
 		}
-		NewChildren.Add(RawObjectItem);
 
 		UNiagaraStackStatelessEmitterObjectItem* FilteredObjectItem = FilteredObjectItemWeak.Get();
 		if (FilteredObjectItem == nullptr || FilteredObjectItem->GetStatelessEmitter() != StatelessEmitter)
@@ -115,9 +130,11 @@ void UNiagaraStackStatelessEmitterObjectItem::RefreshChildrenInternal(const TArr
 			bool bHideTopLevelCategories = false;
 			StatelessEmitterStackObject->Initialize(CreateDefaultChildRequiredData(), StatelessEmitter, bIsTopLevelObject, bHideTopLevelCategories, GetStackEditorDataKey());
 			StatelessEmitterStackObject->SetOnFilterDetailNodes(OnFilterDetailNodes, UNiagaraStackObject::EDetailNodeFilterMode::FilterAllNodes);
+			StatelessEmitterStackObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraEmitterStateData::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraEmitterStatePropertyCustomization::MakeInstance));
 			StatelessEmitterStackObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraDistributionFloat::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraDistributionPropertyCustomization::MakeFloatInstance));
 			StatelessEmitterStackObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraDistributionVector2::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraDistributionPropertyCustomization::MakeVector2Instance));
 			StatelessEmitterStackObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraDistributionVector3::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraDistributionPropertyCustomization::MakeVector3Instance));
+			StatelessEmitterStackObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraDistributionPosition::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraDistributionPropertyCustomization::MakePositionInstance));
 			StatelessEmitterStackObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraDistributionColor::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraDistributionPropertyCustomization::MakeColorInstance));
 			StatelessEmitterStackObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraDistributionRangeFloat::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraDistributionPropertyCustomization::MakeFloatInstance));
 			StatelessEmitterStackObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraDistributionRangeVector2::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraDistributionPropertyCustomization::MakeVector2Instance));

@@ -3,6 +3,7 @@
 
 #include "SFilterList.h"
 
+#include "Algo/AnyOf.h"
 #include "AssetRegistry/ARFilter.h"
 #include "ContentBrowserDataFilter.h"
 #include "ContentBrowserDataSource.h"
@@ -12,6 +13,7 @@
 #include "ContentBrowserItemData.h"
 #include "ContentBrowserMenuContexts.h"
 #include "ContentBrowserUtils.h"
+#include "Filters.h"
 #include "Filters/FilterBarConfig.h"
 #include "Filters/SAssetFilterBar.h"
 #include "Framework/Application/MenuStack.h"
@@ -69,13 +71,17 @@ void SFilterList::Construct( const FArguments& InArgs )
 
 	TSharedPtr<FFrontendFilterCategory> DefaultCategory = MakeShareable( new FFrontendFilterCategory(LOCTEXT("FrontendFiltersCategory", "Other Filters"), LOCTEXT("FrontendFiltersCategoryTooltip", "Filter assets by all filters in this category.")) );
 	
+	TSharedRef<FFilter_HideOtherDevelopers> OtherDevelopersFilter = MakeShared<FFilter_HideOtherDevelopers>(DefaultCategory, InArgs._FilterBarIdentifier);
+	// This filter affecst the backend query so we must perform a full refresh when it changes
+	OtherDevelopersFilter->OnChanged().Add(this->OnFilterChanged);
+
 	// Add all built-in frontend filters here
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_CheckedOut(DefaultCategory)) );
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_Modified(DefaultCategory)) );
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_Writable(DefaultCategory)) );
-	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_ShowOtherDevelopers(DefaultCategory)) );
+	AllFrontendFilters_Internal.Add(OtherDevelopersFilter);
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_ReplicatedBlueprint(DefaultCategory)) );
-	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_ShowRedirectors(DefaultCategory)) );
+	AllFrontendFilters_Internal.Add(MakeShared<FFilter_ShowRedirectors>(DefaultCategory));
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_InUseByLoadedLevels(DefaultCategory)) );
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_UsedInAnyLevel(DefaultCategory)) );
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_NotUsedInAnyLevel(DefaultCategory)) );
@@ -181,6 +187,16 @@ TSharedRef<SWidget> SFilterList::ExternalMakeAddFilterMenu()
 	return SAssetFilterBar<FAssetFilterType>::MakeAddFilterMenu();
 }
 
+FARFilter SFilterList::GetCombinedBackendFilter(TArray<TSharedRef<const FPathPermissionList>>& OutPermissionLists) const
+{
+	TSharedPtr<FFilter_HideOtherDevelopers> OtherDevelopersFilter = StaticCastSharedPtr<FFilter_HideOtherDevelopers>(GetFrontendFilter("HideOtherDevelopersBackend"));
+	if (OtherDevelopersFilter->IsActive())
+	{
+		OutPermissionLists.Add(OtherDevelopersFilter->GetPathPermissionList());
+	}
+	return Super::GetCombinedBackendFilter();
+}
+
 void SFilterList::DisableFiltersThatHideItems(TArrayView<const FContentBrowserItem> ItemList)
 {
 	if (HasAnyFilters() && ItemList.Num() > 0)
@@ -196,7 +212,8 @@ void SFilterList::DisableFiltersThatHideItems(TArrayView<const FContentBrowserIt
 
 				FContentBrowserDataFilter DataFilter;
 				DataFilter.bRecursivePaths = true;
-				ContentBrowserUtils::AppendAssetFilterToContentBrowserFilter(GetCombinedBackendFilter(), nullptr, nullptr, DataFilter);
+				TArray<TSharedRef<const FPathPermissionList>> UnusedPermissionLists;
+				ContentBrowserUtils::AppendAssetFilterToContentBrowserFilter(GetCombinedBackendFilter(UnusedPermissionLists), nullptr, nullptr, DataFilter);
 
 				ContentBrowserData->CompileFilter(RootPath, DataFilter, CompiledDataFilter);
 			}
@@ -249,6 +266,51 @@ void SFilterList::DisableFiltersThatHideItems(TArrayView<const FContentBrowserIt
 						}
 					}
 				}
+			}
+		}
+
+		TSharedPtr<FFilter_HideOtherDevelopers> OtherDevelopersFilter = StaticCastSharedPtr<FFilter_HideOtherDevelopers>(GetFrontendFilter("HideOtherDevelopersBackend"));
+		// Special case: if item is hidden because of "hide other developers" filter, disable it
+		if (OtherDevelopersFilter.IsValid() && OtherDevelopersFilter->IsActive())
+		{
+			TSharedRef<const FPathPermissionList> PermissionList = OtherDevelopersFilter->GetPathPermissionList();	
+			for (const FContentBrowserItem& Item : ItemList)
+			{
+				if (PermissionList->PassesStartsWithFilter(WriteToString<256>(Item.GetInternalPath())))
+				{
+					TSharedRef<FFilter_HideOtherDevelopers>	OtherDevelopersFilterAsRef = OtherDevelopersFilter.ToSharedRef();
+					int32 ExistingIndex = Filters.IndexOfByPredicate([OtherDevelopersFilterAsRef](TSharedPtr<SFilter> Filter) { return Filter->GetFrontendFilter() == OtherDevelopersFilterAsRef; });
+					TSharedRef<SFilter> FilterWidget = ExistingIndex == INDEX_NONE ? AddFilterToBar(OtherDevelopersFilterAsRef) : Filters[ExistingIndex];
+					FilterWidget->SetEnabled(false, false);
+					SetFrontendFilterActive(OtherDevelopersFilterAsRef, false);
+					ExecuteOnFilterChanged = true;
+					break;
+				}
+			}
+		}
+
+			auto AddAndActivateInverseFilter = [this, &ExecuteOnFilterChanged](const TSharedRef<FFilterBase<FAssetFilterType>>& InFilter) 
+		{
+			int32 ExistingIndex = Filters.IndexOfByPredicate([InFilter](TSharedPtr<SFilter> Filter) { return Filter->GetFrontendFilter() == InFilter; });
+			TSharedRef<SFilter> FilterWidget = ExistingIndex == INDEX_NONE ? AddFilterToBar(InFilter) : Filters[ExistingIndex];
+			FilterWidget->SetEnabled(true, false);
+			SetFrontendFilterActive(InFilter, true);
+			ExecuteOnFilterChanged = true;
+		};
+
+		// Special case: if the object is a redirector then enable the 'show redirectors' filter - this will also prevent
+		// folders that contain only redirectors from being hidden with the "hide empty folders" setting
+		FString RedirectorClassPath = UObjectRedirector::StaticClass()->GetPathName();
+		const bool bAnyRedirectors = Algo::AnyOf(ItemList, [RedirectorClassPath](const FContentBrowserItem& Item) {
+			FContentBrowserItemDataAttributeValue Attribute = Item.GetItemAttribute(ContentBrowserItemAttributes::ItemTypeName, false);
+			return Attribute.IsValid() && Attribute.GetValueString() == RedirectorClassPath;
+		});
+		if (bAnyRedirectors)
+		{
+			TSharedPtr<FFilter_ShowRedirectors> RedirectorFilter = StaticCastSharedPtr<FFilter_ShowRedirectors>(GetFrontendFilter("ShowRedirectorsBackend"));
+			if (RedirectorFilter.IsValid())
+			{
+				AddAndActivateInverseFilter(RedirectorFilter.ToSharedRef());
 			}
 		}
 
@@ -699,6 +761,12 @@ void SFilterList::SetFilterLayout(EFilterBarLayout InFilterBarLayout)
 // FFilterListCustomTextFilter
 /////////////////////////////////////////
 
+FFrontendFilter_CustomText::FFrontendFilter_CustomText()
+	: FFrontendFilter(nullptr)
+{
+
+}
+
 /** Returns the system name for this filter */
 FString FFrontendFilter_CustomText::GetName() const
 {
@@ -712,7 +780,7 @@ FText FFrontendFilter_CustomText::GetDisplayName() const
 }
 FText FFrontendFilter_CustomText::GetToolTipText() const
 {
-	return GetRawFilterText();
+	return RawFilterText;
 }
 
 FLinearColor FFrontendFilter_CustomText::GetColor() const
@@ -722,16 +790,16 @@ FLinearColor FFrontendFilter_CustomText::GetColor() const
 
 void FFrontendFilter_CustomText::UpdateCustomTextFilterIncludes(const bool InIncludeClassName, const bool InIncludeAssetPath, const bool InIncludeCollectionNames)
 {
-	SetIncludeClassName(InIncludeClassName);
-	SetIncludeAssetPath(InIncludeAssetPath);
-	SetIncludeCollectionNames(InIncludeCollectionNames);
+	bIncludeClassName = InIncludeClassName;
+	bIncludeAssetPath = InIncludeAssetPath;
+	bIncludeCollectionNames = InIncludeCollectionNames;
 }
 
 void FFrontendFilter_CustomText::SetFromCustomTextFilterData(const FCustomTextFilterData& InFilterData)
 {
 	Color = InFilterData.FilterColor;
 	DisplayName = InFilterData.FilterLabel;
-	SetRawFilterText(InFilterData.FilterString);
+	RawFilterText = InFilterData.FilterString;
 }
 
 FCustomTextFilterData FFrontendFilter_CustomText::CreateCustomTextFilterData() const
@@ -740,7 +808,7 @@ FCustomTextFilterData FFrontendFilter_CustomText::CreateCustomTextFilterData() c
 
 	CustomTextFilterData.FilterColor = Color;
 	CustomTextFilterData.FilterLabel = DisplayName;
-	CustomTextFilterData.FilterString = GetRawFilterText();
+	CustomTextFilterData.FilterString = RawFilterText;
 
 	return CustomTextFilterData;
 }
@@ -748,6 +816,11 @@ FCustomTextFilterData FFrontendFilter_CustomText::CreateCustomTextFilterData() c
 TSharedPtr<FFilterBase<FAssetFilterType>> FFrontendFilter_CustomText::GetFilter()
 {
 	return AsShared();
+}
+
+TOptional<FText> FFrontendFilter_CustomText::GetAsCustomTextFilter()
+{
+	return RawFilterText;
 }
 
 #undef LOCTEXT_NAMESPACE

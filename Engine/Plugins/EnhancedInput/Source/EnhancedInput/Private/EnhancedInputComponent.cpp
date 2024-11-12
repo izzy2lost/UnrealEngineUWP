@@ -48,7 +48,7 @@ void UEnhancedInputComponent::ClearBindingsForObject(UObject* InOwner)
 	{
 		if (EnhancedActionEventBindings[Index]->IsBoundToObject(InOwner))
 		{
-			EnhancedActionEventBindings.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			EnhancedActionEventBindings.RemoveAtSwap(Index, EAllowShrinking::No);
 		}
 	}
 }
@@ -58,7 +58,7 @@ bool RemoveBindingByIndex(TArray<T>& Bindings, const int32 BindingIndex)
 {
 	if (BindingIndex >= 0 && BindingIndex < Bindings.Num())
 	{
-		Bindings.RemoveAt(BindingIndex, 1, EAllowShrinking::No);
+		Bindings.RemoveAt(BindingIndex, EAllowShrinking::No);
 		return true;
 	}
 	return false;

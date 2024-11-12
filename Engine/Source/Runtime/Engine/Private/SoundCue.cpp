@@ -83,7 +83,7 @@ void USoundCue::CacheAggregateValues()
 			Duration = NewDuration;
 		}
 
-		MaxDistance = FindMaxDistanceInternal();
+		MaxDistance = ComputeMaxDistance();
 		bHasDelayNode = FirstNode->HasDelayNode();
 		bHasConcatenatorNode = FirstNode->HasConcatenatorNode();
 		bHasPlayWhenSilent = FirstNode->IsPlayWhenSilent();
@@ -360,7 +360,7 @@ void USoundCue::CacheQualityLevel()
 	}
 }
 
-float USoundCue::FindMaxDistanceInternal() const
+float USoundCue::ComputeMaxDistance() const
 {
 	float OutMaxDistance = 0.0f;
 	if (const FSoundAttenuationSettings* Settings = GetAttenuationSettingsToApply())
@@ -599,7 +599,7 @@ float USoundCue::GetMaxDistance() const
 	// Always recalc the max distance when in the editor as it could change
 	// from a referenced attenuation asset being updated without this cue
 	// asset re-caching the aggregate 'MaxDistance' value
-	return GIsEditor ? FindMaxDistanceInternal() : MaxDistance;
+	return GIsEditor ? ComputeMaxDistance() : MaxDistance;
 }
 
 float USoundCue::GetDuration() const

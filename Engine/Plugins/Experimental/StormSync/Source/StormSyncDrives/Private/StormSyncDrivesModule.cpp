@@ -27,7 +27,7 @@ void FStormSyncDrivesModule::StartupModule()
 	LogListing = MessageLogModule.GetLogListing(LogName);
 #endif
 
-	FCoreDelegates::OnFEngineLoopInitComplete.AddRaw(this, &FStormSyncDrivesModule::OnEngineLoopInitComplete);
+	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FStormSyncDrivesModule::OnPostEngineInit);
 
 #if WITH_EDITOR
 	GetMutableDefault<UStormSyncDrivesSettings>()->OnSettingChanged().AddRaw(this, &FStormSyncDrivesModule::OnSettingsChanged);
@@ -45,7 +45,7 @@ void FStormSyncDrivesModule::ShutdownModule()
 	}
 #endif
 
-	FCoreDelegates::OnFEngineLoopInitComplete.RemoveAll(this);
+	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 
 #if WITH_EDITOR
 	if (UObjectInitialized())
@@ -118,9 +118,9 @@ bool FStormSyncDrivesModule::UnregisterMountPoint(const FStormSyncMountPointConf
 	return true;
 }
 
-void FStormSyncDrivesModule::OnEngineLoopInitComplete()
+void FStormSyncDrivesModule::OnPostEngineInit()
 {
-	UE_LOG(LogStormSyncDrives, Display, TEXT("FStormSyncDrivesModule::OnEngineLoopInitComplete ..."));
+	UE_LOG(LogStormSyncDrives, Display, TEXT("FStormSyncDrivesModule::OnPostEngineInit ..."));
 	UE_LOG(LogStormSyncDrives, Display, TEXT("\t Mounting Drives based on config"));
 
 	ResetMountedDrivesFromSettings(GetDefault<UStormSyncDrivesSettings>());

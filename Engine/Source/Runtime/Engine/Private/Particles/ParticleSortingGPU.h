@@ -39,7 +39,7 @@ int32 GenerateParticleSortKeys(
 	FRHICommandListImmediate& RHICmdList,
 	FRHIUnorderedAccessView* KeyBufferUAV,
 	FRHIUnorderedAccessView* SortedVertexBufferUAV,
-	FRHITexture2D* PositionTextureRHI,
+	FRHITexture* PositionTextureRHI,
 	const TArray<FParticleSimulationSortInfo>& SimulationsToSort,
 	ERHIFeatureLevel::Type FeatureLevel,
 	int32 BatchId = INDEX_NONE);

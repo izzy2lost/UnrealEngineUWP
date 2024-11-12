@@ -139,6 +139,10 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "PCG|Node Customization")
 	EPCGSettingsType NodeTypeOverride() const;
 
+	/** If Dynamic Pins is enabled in the BP settings, override this function to provide the type for the given pin. You can use "GetTypeUnionOfIncidentEdges" from the settings to get the union of input types on a given pin. Use the bitwise OR to combine multiple types together.*/
+	UFUNCTION(BlueprintNativeEvent, Category = "PCG|Node Customization")
+	int32 DynamicPinTypesOverride(const UPCGSettings* InSettings, const UPCGPin* InPin) const;
+
 	/** Override for the IsCacheable node property when it depends on the settings in your node. If true, the node will be cached, if not it will always be executed. */
 	UFUNCTION(BlueprintNativeEvent, Category = "PCG|Execution")
 	bool IsCacheableOverride() const;
@@ -186,6 +190,9 @@ public:
 
 	/** Called after the element duplication during execution to be able to get the context easily - internal call only */
 	void SetCurrentContext(FPCGContext* InCurrentContext);
+
+	/** Tries to resolve current Context from thread local BP stack */
+	static FPCGContext* ResolveContext();
 
 #if WITH_EDITOR
 	// ~Begin UObject interface
@@ -247,6 +254,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly, Category = "Settings|Input & Output")
 	bool bHasDefaultOutPin = true;
 
+	/** If enabled, by default, the Out pin type will have the union of In pin types. Default only works if the pins are In and Out. For custom behavior, implement DynamicPinTypesOverride. */
+	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly, Category = "Settings|Input & Output")
+	bool bHasDynamicPins = false;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly, Category = AssetInfo, AssetRegistrySearchable)
 	bool bExposeToLibrary = false;
@@ -273,7 +284,8 @@ public:
 protected:
 #if WITH_EDITOR
 	void OnDependencyChanged(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent);
-	TSet<TObjectPtr<UObject>> DataDependencies;
+	void UpdateDependencies();
+	TSet<TWeakObjectPtr<UObject>> DataDependencies;
 #endif
 
 #if !WITH_EDITORONLY_DATA
@@ -307,6 +319,10 @@ public:
 	virtual TArray<FPCGPreConfiguredSettingsInfo> GetPreconfiguredInfo() const override;
 	virtual bool OnlyExposePreconfiguredSettings() const override;
 #endif
+	virtual bool UseSeed() const override { return true; }
+	virtual bool HasDynamicPins() const override;
+	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
+
 	virtual void ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& InPreconfiguredsInfo) override;
 	virtual FString GetAdditionalTitleInformation() const override;
 	virtual bool HasFlippedTitleLines() const override { return true; }
@@ -398,14 +414,11 @@ public:
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override;
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override;
 	virtual bool ShouldComputeFullOutputDataCrc(FPCGContext* Context) const override;
+	/** Set it to true by default, if there is a performance concern, we can expose a bool in the element class. */
+	virtual bool ShouldVerifyIfOutputsAreUsedMultipleTimes(const UPCGSettings* InSettings) const override { return true; }
 
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual void PostExecuteInternal(FPCGContext* Context) const override;
 	virtual FPCGContext* Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node) override;	
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Data/PCGPointData.h"
-#include "Math/RandomStream.h"
-#include "PCGPoint.h"
-#endif

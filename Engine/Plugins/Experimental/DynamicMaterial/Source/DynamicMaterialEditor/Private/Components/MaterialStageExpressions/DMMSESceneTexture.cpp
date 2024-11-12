@@ -7,7 +7,7 @@
 
 UDMMaterialStageExpressionSceneTexture::UDMMaterialStageExpressionSceneTexture()
 	: UDMMaterialStageExpression(
-		LOCTEXT("SceneTexture", "Scene Texture"),
+		LOCTEXT("SceneTexture", "Post Process"),
 		UDMMaterialStageExpression::FindClass(TEXT("MaterialExpressionSceneTexture"))
 	)
 {

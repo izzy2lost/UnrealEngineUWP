@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "Containers/Set.h"
+#include "Containers/SparseArray.h"
+
 // A handle to an object in a pool which moves and compacts its content.
 class FCompactingObjectHandleBase
 {

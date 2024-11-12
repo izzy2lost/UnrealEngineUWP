@@ -56,6 +56,7 @@ namespace UE
 						}
 					}
 
+					VerifyFiniteMatrix<MatrixType>(UEMatrix);
 					return UEMatrix;
 				}
 
@@ -97,7 +98,7 @@ namespace UE
 					UnrealQuat.Y = -Quaternion[1];
 					UnrealQuat.Z = Quaternion[2];
 					UnrealQuat.W = -Quaternion[3];
-
+					VerifyFiniteQuat<QuatType>(UnrealQuat);
 					return UnrealQuat;
 				}
 
@@ -116,6 +117,7 @@ namespace UE
 					Out[0] = Vector[0];
 					Out[1] = Vector[1];
 					Out[2] = Vector[2];
+					VerifyFiniteVector<VectorType>(Out);
 					return Out;
 				}
 				
@@ -131,14 +133,18 @@ namespace UE
 				template<typename VectorType>
 				static VectorType ConvertPos(const FbxVector4& Vector)
 				{
-					return VectorType(Vector[0], -Vector[1], Vector[2]);
+					VectorType Pos(Vector[0], -Vector[1], Vector[2]);
+					VerifyFiniteVector<VectorType>(Pos);
+					return Pos;
 				}
 
 				/* Return a FVector float or double */
 				template<typename VectorType>
 				static VectorType ConvertDir(const FbxVector4& Vector)
 				{
-					return VectorType(Vector[0], -Vector[1], Vector[2]);
+					VectorType Dir(Vector[0], -Vector[1], Vector[2]);
+					VerifyFiniteVector<VectorType>(Dir);
+					return Dir;
 				}
 
 				static FLinearColor ConvertColor(const FbxDouble3& Color);
@@ -156,7 +162,7 @@ namespace UE
 				/**
 				 * Convert a fbx scene 
 				 */
-				static void ConvertScene(FbxScene* SDKScene, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit);
+				static void ConvertScene(FbxScene* SDKScene, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit, FString& FileSystemDirection, FString& FileUnitSystem, FbxAMatrix& AxisConversionInverseMatrix);
 				
 				/** Scene Conversion API End */
 				//////////////////////////////////////////////////////////////////////////
@@ -175,17 +181,41 @@ namespace UE
 
 			private:
 				
-				//////////////////////////////////////////////////////////////////////////
-				/** Scene Conversion Private Implementation Begin */
+				template<typename ScalarType>
+				static void VerifyFiniteScalar(ScalarType& Value)
+				{
+					if (!FMath::IsFinite(Value))
+					{
+						Value = 0.0f;
+					}
+				}
 
-				/**
-				 * The Unroll filter expects only rotation curves, we need to walk the scene and extract the
-				 * rotation curves from the nodes property. This can become time consuming but we have no choice.
-				 */
-				static void ApplyUnroll(FbxNode* pNode, FbxAnimLayer* pLayer, FbxAnimCurveFilterUnroll* pUnrollFilter);
+				template<typename VectorType>
+				static void VerifyFiniteVector(VectorType& Value)
+				{
+					if (Value.ContainsNaN())
+					{
+						Value.Set(0.0, 0.0, 0.0);
+					}
+				}
 
-				/** Scene Conversion Private Implementation End */
-				//////////////////////////////////////////////////////////////////////////
+				template<typename QuatType>
+				static void VerifyFiniteQuat(QuatType& Value)
+				{
+					if (Value.ContainsNaN())
+					{
+						Value = QuatType::Identity;
+					}
+				}
+
+				template<typename MatrixType>
+				static void VerifyFiniteMatrix(MatrixType& Value)
+				{
+					if (Value.ContainsNaN())
+					{
+						Value.SetIdentity();
+					}
+				}
 			};
 		}//ns Private
 	}//ns Interchange

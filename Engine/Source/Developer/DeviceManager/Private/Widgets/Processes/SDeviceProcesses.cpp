@@ -103,7 +103,6 @@ void SDeviceProcesses::Construct(const FArguments& InArgs, const TSharedRef<FDev
 							.Padding(0.0f)
 							[
 								SAssignNew(ProcessTreeView, STreeView<TSharedPtr<FDeviceProcessesProcessTreeNode>>)
-									.ItemHeight(20.0f)
 									.OnGenerateRow_Lambda(
 										[](TSharedPtr<FDeviceProcessesProcessTreeNode> Item, const TSharedRef<STableViewBase>& OwnerTable) -> TSharedRef<ITableRow> {
 											return SNew(SDeviceProcessesProcessListRow, OwnerTable)
@@ -387,7 +386,7 @@ FReply SDeviceProcesses::HandleTerminateProcessButtonClicked()
 				for (int32 FailedProcessIndex = 0; FailedProcessIndex < FailedProcesses.Num(); ++FailedProcessIndex)
 				{
 					const FTargetDeviceProcessInfo& FailedProcessInfo = FailedProcesses[FailedProcessIndex]->GetProcessInfo();
-					ProcessInfo += FString::Printf(TEXT("%s (PID: %d)\n"), *FailedProcessInfo.Name, FailedProcessInfo.Id);
+					ProcessInfo += FString::Printf(TEXT("%s (PID: %" INT64_FMT ")\n"), *FailedProcessInfo.Name, FailedProcessInfo.Id);
 				}
 
 				const FText ErrorMessage = FText::Format(LOCTEXT("FailedToTerminateProcessesMessage", "The following processes could not be terminated.\nYou may not have the required permissions:\n\n{0}"), FText::FromString(ProcessInfo));

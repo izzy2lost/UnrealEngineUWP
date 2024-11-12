@@ -124,8 +124,14 @@ public:
 	/** Returns the reference count.  A blob is created with reference count zero. */
 	int32 GetRefCount() const { return RefCount; }
 
-	/** Retrieve the object references that need to be exported.  */
-	TArrayView<const FNetObjectReference> CallGetExports() const { return EnumHasAnyFlags(CreationInfo.Flags, ENetBlobFlags::HasExports) ? GetExports() : MakeArrayView<const FNetObjectReference>(nullptr, 0); };
+	/* Returns true if the blob has additional exports to add. */
+	bool HasExports() const { return EnumHasAnyFlags(GetCreationInfo().Flags, ENetBlobFlags::HasExports); }
+
+	/** Retrieve the object references that need to be exported. */
+	TArrayView<const FNetObjectReference> CallGetNetObjectReferenceExports() const { return GetNetObjectReferenceExports(); };
+
+	/** Retrieve NetToken that needs to be exported. */
+	TArrayView<const FNetToken> CallGetNetTokenExports() const { return GetNetTokenExports(); };
 
 protected:
 	FNetBlob(const FNetBlob&) = delete;
@@ -135,7 +141,10 @@ protected:
 	IRISCORE_API virtual ~FNetBlob();
 
 	/** Override to return the object references that need to be exported. */
-	virtual TArrayView<const FNetObjectReference> GetExports() const;
+	virtual TArrayView<const FNetObjectReference> GetNetObjectReferenceExports() const;
+
+	/** Override to return NetTokenExports that need to be exported, mostly relevant for pre-serialized blobs. */
+	virtual TArrayView<const FNetToken> GetNetTokenExports() const;
 
 	/** Serializes the state if there's a valid descriptor and state buffer. */
 	IRISCORE_API void SerializeBlob(FNetSerializationContext& Context) const;

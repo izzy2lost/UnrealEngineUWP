@@ -7,10 +7,12 @@
 #include "Widgets/SCompoundWidget.h"
 
 class FAvaOutlinerView;
+class FText;
 class IAvaOutlinerItemFilter;
 class SAvaOutlinerItemFilters;
 class SBox;
 class SScrollBox;
+struct FSlateBrush;
 
 class SAvaOutlinerItemFilters : public SCompoundWidget
 {
@@ -44,6 +46,9 @@ public:
 	FReply DeselectAll();
 
 private:
+	FText GetFilterItemMenuButtonToolTip() const;
+	const FSlateBrush* GetFilterItemMenuButtonIcon() const;
+
 	TWeakPtr<FAvaOutlinerView> OutlinerViewWeak;
 
 	TSharedPtr<SBox> ItemFilterBox;

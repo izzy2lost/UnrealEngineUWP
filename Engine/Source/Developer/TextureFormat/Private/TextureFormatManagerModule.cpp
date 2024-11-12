@@ -28,18 +28,14 @@ public:
 		GetTextureFormatsDone = 4
 	};
 
-	/** Default constructor. */
 	FTextureFormatManagerModule()
 		: ModuleName(TEXT("TextureFormat"))
 		, bForceCacheUpdate(true)
-		, bModuleChangeCallbackEnabled(false)
 		, TextureFormatsInitPhase(EInitPhase::JustConstructedNotInit)
 	{
-		// Calling a virtual function from a constructor, but with no expectation that a derived implementation of this
-		// method would be called.  This is solely to avoid duplicating code in this implementation, not for polymorphism.
-		FTextureFormatManagerModule::Invalidate();
-		
-		// add AFTER Invalidate :
+		UpdateTextureFormatList();
+
+		// For tracking texture format discovery.
 		FModuleManager::Get().OnModulesChanged().AddRaw(this, &FTextureFormatManagerModule::ModulesChangesCallback);
 	}
 
@@ -51,7 +47,7 @@ public:
 		FModuleManager::Get().OnModulesChanged().RemoveAll(this);
 	}
 
-	virtual const TArray<const ITextureFormat*>& GetTextureFormats() override
+	void UpdateTextureFormatList()
 	{
 		FScopeLock Lock(&ModuleMutex);
 
@@ -63,7 +59,6 @@ public:
 		{
 			// turn off flag immediately so that repeated calls to GetTextureFormats will not come in here again
 			bForceCacheUpdate = false;
-			bModuleChangeCallbackEnabled = false; // don't re-call me from my own module loads
 			TextureFormatsInitPhase = EInitPhase::GetTextureFormatsInProgressDontTouch;
 
 			// note the first time this is done is from FTargetPlatformManagerModule::FTargetPlatformManagerModule()
@@ -79,44 +74,36 @@ public:
 			if (!Modules.Num())
 			{
 				UE_LOG(LogTextureFormatManager, Error, TEXT("No texture formats found!"));
-			}			
-					
+			}
+			
+			// This is all because child formats will do a LoadModule on base formats and expect them to be ready, so
+			// we make sure they are done first.
 			TArray<FTextureFormatMetadata> BaseModules;
 			TArray<FTextureFormatMetadata> ChildModules;
 
+			for (int32 Index = 0; Index < Modules.Num(); Index++)
 			{
-				// unlock the mutex to avoid deadlock during module loading: T0 locks ModuleMutex (M0), loads the module and this broadcasts 
-				// FModuleManager::ModulesChangesEvent thread-safe delegate that locks its internal mutex (M1), while T1 loads a module ->
-				// broadcasts FModuleManager::ModulesChangesEvent (this locks M1) -> FTextureFormatManagerModule::ModulesChangesCallback that
-				// locks M0. at least it's what TSan reports. this can be a false positive, but there's no need to keep the mutex locked anyway, so it's
-				// better than just silencing TSan
-				FScopeUnlock ScopeUnlock(&ModuleMutex);
-
-				for (int32 Index = 0; Index < Modules.Num(); Index++)
+				if (Modules[Index] != ModuleName) // Avoid our own module when going through this list that was gathered by name
 				{
-					if (Modules[Index] != ModuleName) // Avoid our own module when going through this list that was gathered by name
+					ITextureFormatModule* Module = FModuleManager::LoadModulePtr<ITextureFormatModule>(Modules[Index]);
+					if (Module)
 					{
-						ITextureFormatModule* Module = FModuleManager::LoadModulePtr<ITextureFormatModule>(Modules[Index]);
-						if (Module)
+						FTextureFormatMetadata ModuleMeta;
+						ModuleMeta.Module = Module;
+						ModuleMeta.ModuleName = Modules[Index];
+						if (Module->CanCallGetTextureFormats()) // child modules want to call GetTextureFormats
 						{
-							FTextureFormatMetadata ModuleMeta;
-							ModuleMeta.Module = Module;
-							ModuleMeta.ModuleName = Modules[Index];
-							if (Module->CanCallGetTextureFormats())
-							{
-								ChildModules.Add(ModuleMeta);
-							}
-							else
-							{
-								BaseModules.Add(ModuleMeta);
-							}
+							ChildModules.Add(ModuleMeta);
+						}
+						else
+						{
+							BaseModules.Add(ModuleMeta);
 						}
 					}
 				}
 			}
 			
 			// first populate TextureFormats[] with all Base Modules
-			// 
 			for (int32 Index = 0; Index < BaseModules.Num(); Index++)
 			{
 				ITextureFormatModule* Module = BaseModules[Index].Module;
@@ -124,7 +111,6 @@ public:
 				ITextureFormat* Format = Module->GetTextureFormat();
 				if (Format != nullptr)
 				{
-				
 					// I want to see this log by default in Cook+Editor , but not in TBW
 					#ifndef VerboseIfNotEditor
 					#if WITH_EDITOR
@@ -146,6 +132,7 @@ public:
 
 			// run through the Child formats and call GetTextureFormat() on them
 			// this could call back to me and do GetTextureFormats() which will get only the base formats
+			TArray<TPair<ITextureFormat*, int32>, TInlineAllocator<32>> ReadyChildModules;
 			for (int32 Index = 0; Index < ChildModules.Num(); Index++)
 			{
 				ITextureFormatModule* Module = ChildModules[Index].Module;
@@ -155,35 +142,22 @@ public:
 				{
 					UE_LOG(LogTextureFormatManager,VerboseIfNotEditor,TEXT("Loaded Child TextureFormat: %s"),*ChildModules[Index].ModuleName.ToString());
 
-					// do not add me to TextureFormats yet
+					// do not add me to TextureFormats yet'
+					ReadyChildModules.Add({Format, Index});
 				}
+			}
+
+			for (TPair<ITextureFormat*, int32>& ReadyChild : ReadyChildModules)
+			{
+				TextureFormats.Add(ReadyChild.Key);
+				TextureFormatMetadata.Add(ChildModules[ReadyChild.Value]);
 			}
 			
-			// back up phase to 2, no calls to GetTextureFormats() allowed now
-			TextureFormatsInitPhase = EInitPhase::GetTextureFormatsInProgressDontTouch;
-
-			for (int32 Index = 0; Index < ChildModules.Num(); Index++)
-			{
-				ITextureFormatModule* Module = ChildModules[Index].Module;
-
-				// GetTextureFormat was already done so this should just return a stored pointer, no more init
-				ITextureFormat* Format = Module->GetTextureFormat();
-				if (Format != nullptr)
-				{
-					// now add to the list :
-					TextureFormats.Add(Format);
-					TextureFormatMetadata.Add(ChildModules[Index]);
-				}
-			}
-
 			// all done :
 			TextureFormatsInitPhase = EInitPhase::GetTextureFormatsDone;
-			bModuleChangeCallbackEnabled = true;
 		}
 
 		check( (int)TextureFormatsInitPhase >= (int)EInitPhase::GetTextureFormatsPartialOkayToRead );
-
-		return TextureFormats;
 	}
 	
 	virtual const ITextureFormat* FindTextureFormat(FName Name) override
@@ -199,9 +173,6 @@ public:
 		FScopeLock Lock(&ModuleMutex);
 		check( (int)TextureFormatsInitPhase >= (int)EInitPhase::GetTextureFormatsPartialOkayToRead );
 
-		// Called to ensure the arrays are populated
-		// dangerous and not necessary, removed :
-		//GetTextureFormats();
 		check( ! bForceCacheUpdate );
 
 		for (int32 Index = 0; Index < TextureFormats.Num(); Index++)
@@ -225,35 +196,39 @@ public:
 		return nullptr;
 	}
 
-	virtual void Invalidate() override
-	{
-		// don't lock `GetTextureFormats()` as it does own synchronisation
-		{
-			FScopeLock Lock(&ModuleMutex);
-			// this is called from the constructor
-			TextureFormatsInitPhase = EInitPhase::Invalidated;
-			bForceCacheUpdate = true;
-		}
-
-		GetTextureFormats();
-	}
 
 private:
 
 	void ModulesChangesCallback(FName InModuleName, EModuleChangeReason ReasonForChange)
 	{
-		// don't lock `Invalidate()` as it does own synchronisation
-		bool bLocalModuleChangeCallbackEnabled;
+		//
+		// This is complex because this is the only place we can set up our texture format list
+		// from the game thread. The only time we can update "on demand" could be from any thread,
+		// which prevents up from calling LoadModule.
+		//
+		// However, this gets called while we are loading our modules.
+		//
+		// In order to avoid recursion, we only do LoadModules in response to module _discovery_, 
+		// thus ensuring we can't recurse from our Invalidate call.
+		//
+		//
+		if (ReasonForChange != EModuleChangeReason::PluginDirectoryChanged || // only care about discovery
+			(InModuleName == ModuleName) ||  // don't care about _this_ module
+			!InModuleName.ToString().Contains(TEXT("TextureFormat"))) // only care about texture formats.
 		{
-			FScopeLock Lock(&ModuleMutex);
-			bLocalModuleChangeCallbackEnabled = bModuleChangeCallbackEnabled;
+			return;
 		}
 
-		if (bLocalModuleChangeCallbackEnabled && (InModuleName != ModuleName) && InModuleName.ToString().Contains(TEXT("TextureFormat")))
-		{
-			// when a "TextureFormat" module is loaded, rebuild my list
-			Invalidate();
-		}
+		// when a "TextureFormat" module is discovered, rebuild my list.
+
+		// Note... it's unclear but it looks like it _might_ be possible for a LoadModule to 
+		// cause a module that it loads to get discovered, which could cause a recursion. However
+		// texture format modules are pretty straightforward and shouldn't ever get here as they
+		// are discovered on startup.
+
+		// In order to even get here you have to put a texture format in a plugin that gets loaded after
+		// startup. (I think)
+		UpdateTextureFormatList();
 	}
 
 	const FName ModuleName;
@@ -270,9 +245,6 @@ private:
 	// Flag to force reinitialization of all cached data. This is needed to have up-to-date caches
 	// in case of a module reload of a TextureFormat-Module.
 	bool bForceCacheUpdate;
-
-	// Flag to avoid redunant reloads
-	bool bModuleChangeCallbackEnabled;
 
 	// Track tricky initialization progress
 	EInitPhase TextureFormatsInitPhase;

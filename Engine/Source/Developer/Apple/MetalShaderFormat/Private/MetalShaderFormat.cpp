@@ -26,8 +26,15 @@ DEFINE_LOG_CATEGORY(LogMetalShaderCompiler)
 
 #define WRITE_METAL_SHADER_SOURCE_ARCHIVE 0
 
-// Set this define to get additional logging information about Metal toolchain setup.
-#define CHECK_METAL_COMPILER_TOOLCHAIN_SETUP 0
+// Set this cvar to get additional logging information about Metal toolchain setup.
+static int32 GCheckCompilerToolChainSetup = 0;
+static FAutoConsoleVariableRef CVarCheckCompilerToolChainSetup(
+	TEXT("Metal.CheckCompilerToolChainSetup"),
+	GCheckCompilerToolChainSetup,
+	TEXT("Should we check the Metal Compiler ToolChain Setup."),
+	ECVF_Default
+);
+
 
 extern bool PreprocessMetalShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput);
 extern void CompileMetalShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& InPreprocessOutput, FShaderCompilerOutput& Output);
@@ -38,7 +45,7 @@ extern uint64 AppendShader_Metal(class FString const& ArchivePath, const FSHAHas
 extern bool FinalizeLibrary_Metal(class FName const& Format, class FString const& ArchivePath, class FString const& LibraryPath, TSet<uint64> const& Shaders, class FString const& DebugOutputDir);
 
 /** Version for shader format, this becomes part of the DDC key. */
-static const FGuid UE_SHADER_METAL_VER = FGuid("282D7BF5-C5F8-47B7-B065-E165D60FC17B");
+static const FGuid UE_SHADER_METAL_VER = FGuid("B0DC25EF-C34D-437A-94E5-5E5146AF1B9A");
 
 class FMetalShaderFormat : public IShaderFormat
 {
@@ -168,10 +175,11 @@ public:
 		const FString& OutputDir,
 		const FString& DebugOutputDir,
 		const FSerializedShaderArchive& InSerializedShaders,
-		const TArray<TArray<uint8>>& ShaderCode,
+		const TArray<FSharedBuffer>& ShaderCode,
 		TArray<FString>* OutputFiles) const override final
 	{
-		const int32 NumShadersPerLibrary = 10000;
+		int32 NumShadersPerLibrary = 10000;
+		
 		check(LibraryName.Len() > 0);
 
 		TArray<FString> Components;
@@ -182,6 +190,12 @@ public:
 
 		check(ShaderFormatName == NAME_SF_METAL || ShaderFormatName == NAME_SF_METAL_MRT || ShaderFormatName == NAME_SF_METAL_TVOS || ShaderFormatName == NAME_SF_METAL_MRT_TVOS || ShaderFormatName == NAME_SF_METAL_SM5 || ShaderFormatName == NAME_SF_METAL_SM6 || ShaderFormatName == NAME_SF_METAL_SIM || ShaderFormatName == NAME_SF_METAL_MACES3_1 || ShaderFormatName == NAME_SF_METAL_MRT_MAC);
 
+		// SM6 needs a lower limit of shaders per library as the packing process takes a significant amount of RAM
+		if(ShaderFormatName == NAME_SF_METAL_SM6)
+		{
+			NumShadersPerLibrary = 2000;
+		}
+		
 		const FString ArchivePath = (WorkingDirectory / ShaderFormatAndShaderPlatformName.GetPlainNameString());
 		IFileManager::Get().DeleteDirectory(*ArchivePath, false, true);
 		IFileManager::Get().MakeDirectory(*ArchivePath);
@@ -338,7 +352,6 @@ public:
 	virtual void ModifyShaderCompilerInput(FShaderCompilerInput& Input) const override
 	{
 		// Work out which standard we need, this is dependent on the shader platform.
-		// TODO: Read from toolchain class
 		const bool bIsMobile = FMetalCompilerToolchain::Get()->IsMobile((EShaderPlatform)Input.Target.Platform);
 		if (bIsMobile)
 		{
@@ -370,12 +383,10 @@ public:
 		else if (Input.ShaderFormat == NAME_SF_METAL_SM5)
 		{
 			Input.Environment.SetDefine(TEXT("METAL_SM5_PROFILE"), 1);
-			Input.Environment.SetDefine(TEXT("USING_VERTEX_SHADER_LAYER"), 1);
 		}
 		else if (Input.ShaderFormat == NAME_SF_METAL_SM6)
 		{
 			Input.Environment.SetDefine(TEXT("METAL_SM6_PROFILE"), 1);
-			Input.Environment.SetDefine(TEXT("USING_VERTEX_SHADER_LAYER"), 1);
 		}
 		else if (Input.ShaderFormat == NAME_SF_METAL_MRT_MAC)
 		{
@@ -611,7 +622,7 @@ FString FMetalCompilerToolchain::XcrunPath(TEXT("/usr/bin/xcrun"));
 FString FMetalCompilerToolchain::MetalMacSDK(TEXT("macosx"));
 FString FMetalCompilerToolchain::MetalMobileSDK(TEXT("iphoneos"));
 
-FString FMetalCompilerToolchain::DefaultWindowsToolchainPath(TEXT("c:/Program Files/Metal Developer Tools"));
+FString FMetalCompilerToolchain::WindowsToolchainVersion(TEXT("4.1"));
 
 // Static methods
 
@@ -687,9 +698,10 @@ void FMetalCompilerToolchain::Init()
 
 	if (Result != EMetalToolchainStatus::Success)
 	{
-#if CHECK_METAL_COMPILER_TOOLCHAIN_SETUP
-		UE_LOG(LogMetalCompilerSetup, Warning, TEXT("Metal compiler not found. Shaders will be stored as text."));
-#endif
+		if (GCheckCompilerToolChainSetup > 0)
+		{
+			UE_LOG(LogMetalCompilerSetup, Warning, TEXT("Metal compiler not found. Shaders will be stored as text."));
+		}
 		bToolchainAvailable = false;
 	}
 	else
@@ -719,28 +731,29 @@ void FMetalCompilerToolchain::Init()
 		bToolchainAvailable = true;
 	}
 
-#if CHECK_METAL_COMPILER_TOOLCHAIN_SETUP
-	if (Result == EMetalToolchainStatus::Success)
+	if (GCheckCompilerToolChainSetup > 0)
 	{
-		check(IsCompilerAvailable());
-		UE_LOG(LogMetalCompilerSetup, Log, TEXT("Metal toolchain setup complete."));
-		UE_LOG(LogMetalCompilerSetup, Log, TEXT("Using Local Metal compiler"));
-		if (!MetalFrontendBinaryCommand[AppleSDKMac].IsEmpty())
+		if (Result == EMetalToolchainStatus::Success)
 		{
-			UE_LOG(LogMetalCompilerSetup, Log, TEXT("Mac metalfe found at %s"), *MetalFrontendBinaryCommand[AppleSDKMac]);
+			check(IsCompilerAvailable());
+			UE_LOG(LogMetalCompilerSetup, Log, TEXT("Metal toolchain setup complete."));
+			UE_LOG(LogMetalCompilerSetup, Log, TEXT("Using Local Metal compiler"));
+			if (!MetalFrontendBinaryCommand[AppleSDKMac].IsEmpty())
+			{
+				UE_LOG(LogMetalCompilerSetup, Log, TEXT("Mac metalfe found at %s"), *MetalFrontendBinaryCommand[AppleSDKMac]);
+			}
+			if (!MetalFrontendBinaryCommand[AppleSDKMobile].IsEmpty())
+			{
+				UE_LOG(LogMetalCompilerSetup, Log, TEXT("Mobile metalfe found at %s"), *MetalFrontendBinaryCommand[AppleSDKMobile]);
+			}
+			UE_LOG(LogMetalCompilerSetup, Log, TEXT("Mac metalfe version %s"), *MetalCompilerVersionString[AppleSDKMac]);
+			UE_LOG(LogMetalCompilerSetup, Log, TEXT("Mobile metalfe version %s"), *MetalCompilerVersionString[AppleSDKMobile]);
 		}
-		if (!MetalFrontendBinaryCommand[AppleSDKMobile].IsEmpty())
+		else
 		{
-			UE_LOG(LogMetalCompilerSetup, Log, TEXT("Mobile metalfe found at %s"), *MetalFrontendBinaryCommand[AppleSDKMobile]);
+			UE_LOG(LogMetalCompilerSetup, Warning, TEXT("Failed to set up Metal toolchain. See log above. Shaders will not be compiled offline."));
 		}
-		UE_LOG(LogMetalCompilerSetup, Log, TEXT("Mac metalfe version %s"), *MetalCompilerVersionString[AppleSDKMac]);
-		UE_LOG(LogMetalCompilerSetup, Log, TEXT("Mobile metalfe version %s"), *MetalCompilerVersionString[AppleSDKMobile]);
 	}
-	else
-	{
-		 UE_LOG(LogMetalCompilerSetup, Warning, TEXT("Failed to set up Metal toolchain. See log above. Shaders will not be compiled offline."));
-	}
-#endif
 }
 
 void FMetalCompilerToolchain::Teardown()
@@ -912,36 +925,51 @@ FMetalCompilerToolchain::EMetalToolchainStatus FMetalCompilerToolchain::DoWindow
 	int32 Result = 0;
 	
 	FString ToolchainBase;
-	GConfig->GetString(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("WindowsMetalToolchainOverride"), ToolchainBase, GEngineIni);
 
-	const bool bUseOverride = (!ToolchainBase.IsEmpty() && FPaths::DirectoryExists(ToolchainBase));
-	if (!bUseOverride)
+	static const FString SDKRootEnvFar(TEXT("UE_SDKS_ROOT"));
+	FString SDKPath = FPlatformMisc::GetEnvironmentVariable(*SDKRootEnvFar);
+	FString ProgramFilesPath = FPlatformMisc::GetEnvironmentVariable(TEXT("ProgramFiles"));;
+
+	if (SDKPath.Len() != 0)
 	{
-		ToolchainBase = DefaultWindowsToolchainPath;
+		FString HostPlatform(TEXT("HostWin64"));
+		ToolchainBase = FPaths::Combine(*SDKPath, *HostPlatform, TEXT("Win64"), TEXT("MetalDeveloperTools"), WindowsToolchainVersion);
 	}
+	
+	const bool bUseAutoSDK = (!ToolchainBase.IsEmpty() && FPaths::DirectoryExists(ToolchainBase));
+	if(!bUseAutoSDK)
+	{
+		GConfig->GetString(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("WindowsMetalToolchainOverride"), ToolchainBase, GEngineIni);
 
+		const bool bUseOverride = (!ToolchainBase.IsEmpty() && FPaths::DirectoryExists(ToolchainBase));
+		if (!bUseOverride)
+		{
+			ToolchainBase = FPaths::Combine(*ProgramFilesPath, TEXT("Metal Developer Tools"));;
+		}
+	}
 	// Look for the windows native toolchain
-	MetalFrontendBinaryCommand[AppleSDKMac] = ToolchainBase / TEXT("macos") / TEXT("bin") / MetalFrontendBinary;
-	MetalFrontendBinaryCommand[AppleSDKMobile] = ToolchainBase / TEXT("ios") / TEXT("bin") / MetalFrontendBinary;
+	MetalFrontendBinaryCommand[AppleSDKMac] = ToolchainBase / TEXT("metal") / TEXT("macos") / TEXT("bin") / MetalFrontendBinary;
+	MetalFrontendBinaryCommand[AppleSDKMobile] = ToolchainBase / TEXT("metal") / TEXT("ios") / TEXT("bin") / MetalFrontendBinary;
 
 	bool bUseLocalMetalToolchain = FPaths::FileExists(MetalFrontendBinaryCommand[AppleSDKMac]) && FPaths::FileExists(MetalFrontendBinaryCommand[AppleSDKMobile]);
 	if (!bUseLocalMetalToolchain)
 	{
-#if CHECK_METAL_COMPILER_TOOLCHAIN_SETUP
-		UE_LOG(LogMetalCompilerSetup, Display, TEXT("Searching for Metal toolchain, but it doesn't appear to be installed."));
-		UE_LOG(LogMetalCompilerSetup, Display, TEXT("Searched for %s and %s"), *MetalFrontendBinaryCommand[AppleSDKMac], *MetalFrontendBinaryCommand[AppleSDKMobile]);
-#endif
+		if (GCheckCompilerToolChainSetup > 0)
+		{
+			UE_LOG(LogMetalCompilerSetup, Display, TEXT("Searching for Metal toolchain, but it doesn't appear to be installed."));
+			UE_LOG(LogMetalCompilerSetup, Display, TEXT("Searched for %s and %s"), *MetalFrontendBinaryCommand[AppleSDKMac], *MetalFrontendBinaryCommand[AppleSDKMobile]);
+		}
 		return EMetalToolchainStatus::ToolchainNotFound;
 	}
 
-	MetalArBinaryCommand[AppleSDKMac] = ToolchainBase / TEXT("macos") / TEXT("bin") / MetalArBinary;
-	MetalArBinaryCommand[AppleSDKMobile] = ToolchainBase / TEXT("ios") / TEXT("bin") / MetalArBinary;
+	MetalArBinaryCommand[AppleSDKMac] = ToolchainBase / TEXT("metal") / TEXT("macos") / TEXT("bin") / MetalArBinary;
+	MetalArBinaryCommand[AppleSDKMobile] = ToolchainBase / TEXT("metal") / TEXT("ios") / TEXT("bin") / MetalArBinary;
 
-	MetalLibBinaryCommand[AppleSDKMac] = ToolchainBase / TEXT("macos") / TEXT("bin") / MetalLibraryBinary;
-	MetalLibBinaryCommand[AppleSDKMobile] = ToolchainBase / TEXT("ios") / TEXT("bin") / MetalLibraryBinary;
+	MetalLibBinaryCommand[AppleSDKMac] = ToolchainBase / TEXT("metal") / TEXT("macos") / TEXT("bin") / MetalLibraryBinary;
+	MetalLibBinaryCommand[AppleSDKMobile] = ToolchainBase / TEXT("metal") / TEXT("ios") / TEXT("bin") / MetalLibraryBinary;
 
-	AirPackBinaryCommand[AppleSDKMac] = ToolchainBase / TEXT("macos") / TEXT("bin") / AirPackBinary;
-    AirPackBinaryCommand[AppleSDKMobile] = ToolchainBase / TEXT("ios") / TEXT("bin") / AirPackBinary;
+	AirPackBinaryCommand[AppleSDKMac] = ToolchainBase / TEXT("metal") / TEXT("macos") / TEXT("bin") / AirPackBinary;
+    AirPackBinaryCommand[AppleSDKMobile] = ToolchainBase / TEXT("metal") / TEXT("ios") / TEXT("bin") / AirPackBinary;
     
 	if (!FPaths::FileExists(MetalArBinaryCommand[AppleSDKMac]) ||
 		!FPaths::FileExists(MetalArBinaryCommand[AppleSDKMobile]) ||
@@ -950,9 +978,10 @@ FMetalCompilerToolchain::EMetalToolchainStatus FMetalCompilerToolchain::DoWindow
         !FPaths::FileExists(AirPackBinaryCommand[AppleSDKMac]) ||
         !FPaths::FileExists(AirPackBinaryCommand[AppleSDKMobile]))
 	{
-#if CHECK_METAL_COMPILER_TOOLCHAIN_SETUP
-		UE_LOG(LogMetalCompilerSetup, Warning, TEXT("Missing toolchain binaries."))
-#endif
+		if (GCheckCompilerToolChainSetup > 0)
+		{
+			UE_LOG(LogMetalCompilerSetup, Warning, TEXT("Missing toolchain binaries."))
+		}
 		return EMetalToolchainStatus::ToolchainNotFound;
 	}
 
@@ -1026,7 +1055,7 @@ bool FMetalCompilerToolchain::ExecMetalAr(EAppleSDKType SDK, const TCHAR* Script
 	bool bSuccess = ExecGenericCommand(TEXT("/bin/sh"), *Command, OutReturnCode, OutStdOut, OutStdErr);
 #else
 	FString Command = FString::Printf(TEXT("/C type \"%s\" | \"%s\" -M"), ScriptFile, *this->MetalArBinaryCommand[SDK]);
-	bool bSuccess = ExecGenericCommand(TEXT("cmd.exe"), *Command, OutReturnCode, OutStdOut, OutStdErr);
+	bool bSuccess = ExecGenericCommand(TEXT("cmd.exe"), *Command, OutReturnCode, OutStdOut, OutStdErr, true /*bIsConsoleApp*/);
 #endif
 	if (!bSuccess)
 	{
@@ -1036,9 +1065,10 @@ bool FMetalCompilerToolchain::ExecMetalAr(EAppleSDKType SDK, const TCHAR* Script
 	return bSuccess;
 }
 
-bool FMetalCompilerToolchain::ExecGenericCommand(const TCHAR* Command, const TCHAR* Params, int32* OutReturnCode, FString* OutStdOut, FString* OutStdErr) const
+bool FMetalCompilerToolchain::ExecGenericCommand(const TCHAR* Command, const TCHAR* Params, int32* OutReturnCode, FString* OutStdOut, FString* OutStdErr, bool bIsConsoleApp) const
 {
 #if PLATFORM_WINDOWS
+	if(bIsConsoleApp)
 	{
 		// Why do we have our own implementation here? Because metal.exe wants to create a console window. 
 		// So if we don't specify the options to CreateProc we end up with tons and tons of windows appearing and disappearing during a cook.
@@ -1069,10 +1099,12 @@ bool FMetalCompilerToolchain::ExecGenericCommand(const TCHAR* Command, const TCH
 
 		return RC == 0;
 	}
-#else
-	// Otherwise use the API
-	return FPlatformProcess::ExecProcess(Command, Params, OutReturnCode, OutStdOut, OutStdErr);
+	else
 #endif
+	{
+		// Otherwise use the API
+		return FPlatformProcess::ExecProcess(Command, Params, OutReturnCode, OutStdOut, OutStdErr);
+	}
 }
 
 bool FMetalCompilerToolchain::CompileMetalShader(FMetalShaderBytecodeJob& Job, FMetalShaderBytecode& Output) const
@@ -1089,6 +1121,11 @@ bool FMetalCompilerToolchain::CompileMetalShader(FMetalShaderBytecodeJob& Job, F
 	{
 		// Invoke the metal frontend.
 		FString MetalParams = FString::Printf(TEXT("%s %s %s %s -Wno-null-character -fbracket-depth=1024 %s %s %s %s %s -o %s"), *Job.MinOSVersion, *Job.PreserveInvariance, *Job.DebugInfo, *Job.MathMode, TEXT("-c"), *Job.Standard, *Job.Defines, *IncludeArgs, *LocalInputMetalFilePath, *LocalOutputMetalAIRFilePath);
+		if (Job.bOptimizeForSize)
+		{
+			MetalParams += TEXT(" -Os");
+		}
+
 		bool bSuccess = this->ExecMetalFrontend(SDK, *MetalParams, &Job.ReturnCode, &Job.Results, &Job.Errors);
 
 		if (!bSuccess || (Job.ReturnCode != 0))

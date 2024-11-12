@@ -289,6 +289,11 @@ private:
 	TFunction<void()> PendingFunction;
 
 	TUniquePtr<UE::Geometry::FTriangleGroupTopology> Topology = nullptr;
+
+	// Defer pending function on tick to allow other external notification to be handled. 
+	bool bDeferUntilFocused = false;
+
+	TWeakObjectPtr<USkeletalMesh> WeakMesh = nullptr;
 };
 
 ENUM_CLASS_FLAGS(USkeletonEditingTool::EBoneSelectionMode);

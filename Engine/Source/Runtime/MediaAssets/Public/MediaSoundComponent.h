@@ -78,6 +78,7 @@ public:
 		int32 NumChannels = 0;
 
 		TSharedPtr<FMediaAudioSampleQueue, ESPMode::ThreadSafe> SampleQueue;
+		uint32 PreviousSampleQueueFlushCount = 0;
 
 		bool bSpectralAnalysisEnabled = false;
 		bool bEnvelopeFollowingEnabled = false;
@@ -249,7 +250,7 @@ public:
 	/** Turns on spectral analysis of the audio generated in the media sound component. */
 	UFUNCTION(BlueprintCallable, Category = "Media|MediaSoundComponent")
 	MEDIAASSETS_API void SetEnableSpectralAnalysis(bool bInSpectralAnalysisEnabled);
-	
+
 	/** Sets the settings to use for spectral analysis. */
 	UFUNCTION(BlueprintCallable, Category = "Media|MediaSoundComponent")
 	MEDIAASSETS_API void SetSpectralAnalysisSettings(TArray<float> InFrequenciesToAnalyze, EMediaSoundComponentFFTSize InFFTSize = EMediaSoundComponentFFTSize::Medium_512);

@@ -209,6 +209,15 @@ public:
 	 */
 	bool IsUsingWorkingMaterial();
 
+	// Configure the maximum allowed number of background tasks
+	void SetMaxActiveBackgroundTasks(int32 NewMaxTasks);
+
+	// Configure maximum allowed number of background tasks heuristically from the input triangle count
+	void SetMaxActiveBackgroundTasksFromMeshSizeHeuristic(int32 InputMeshTriangleCount, int32 MaxSimultaneousTrianglesToProcess = 10000000, int32 MaxShouldNotExceed = 20)
+	{
+		SetMaxActiveBackgroundTasks(FMath::Clamp(MaxSimultaneousTrianglesToProcess / FMath::Max(1, InputMeshTriangleCount), 1, MaxShouldNotExceed));
+	}
+
 
 	//
 	// Change notification
@@ -276,6 +285,10 @@ protected:
 	// update the PreviewMesh if a new result is available from BackgroundCompute
 	void UpdateResults();
 
+private:
+
+	int32 MaxActiveBackgroundTasks = 5;
+	bool bWaitingForBackgroundTasks = false;
 };
 
 

@@ -26,6 +26,7 @@ FPCGEditorStyle::FPCGEditorStyle() : FSlateStyleSet("PCGEditorStyle")
 {
 	static const FVector2D Icon16x16(16.0f, 16.0f);
 	static const FVector2D Icon20x20(20.0f, 20.0f);
+	static const FVector2D Icon32x32(32.0f, 32.0f);
 	static const FVector2D Icon64x64(64.0f, 64.0f);
 	static const FVector2D Icon128x128(128.0f, 128.0f);
 	
@@ -89,6 +90,14 @@ FPCGEditorStyle::FPCGEditorStyle() : FSlateStyleSet("PCGEditorStyle")
 		FLinearColor::Black,
 		PCGEditorStyleConstants::Node_Overlay_GridSizeLabel_BorderStroke));
 
+	// Styles related to additional tokens on nodes (GPU, ...)
+	FTextBlockStyle AdditionalOverlayWidgetTextStyle = FTextBlockStyle(FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText"))
+		.SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 8))
+		.SetColorAndOpacity(FLinearColor(218.0f / 255.0f, 218.0f / 255.0f, 218.0f / 255.0f))
+		.SetShadowOffset(FVector2D::ZeroVector)
+		.SetShadowColorAndOpacity(FLinearColor(0.f, 0.f, 0.f, 0.7f));
+	Set("PCG.Node.AdditionalOverlayWidgetText", AdditionalOverlayWidgetTextStyle);
+
 	// Plugin icon/editor/component icons
 	Set("ClassIcon.PCGComponent", new IMAGE_BRUSH_SVG("Icons/PCG_16", Icon16x16));
 	Set("ClassThumbnail.PCGComponent", new IMAGE_BRUSH_SVG("Icons/PCG_64", Icon64x64));
@@ -123,7 +132,21 @@ FPCGEditorStyle::FPCGEditorStyle() : FSlateStyleSet("PCGEditorStyle")
 	Set("PCG.Command.GraphSettings", new IMAGE_BRUSH_SVG("Style/PCG_Command_GraphSettings", Icon20x20));
 	Set("PCG.Command.OpenDebugTreeTab", new IMAGE_BRUSH_SVG("Style/PCG_Command_OpenDebugTreeTab", Icon20x20));
 	Set("PCG.Command.RunDeterminismTest", new IMAGE_BRUSH_SVG("Style/PCG_Command_RunDeterminismTest", Icon20x20));
-	
+
+	Set("PCG.Editor.CopyToClipboard", new IMAGE_BRUSH("Style/PCG_Editor_CopyToClipboard", Icon32x32));
+	Set("PCG.Editor.ZoomToSelection", new IMAGE_BRUSH_SVG("Style/PCG_Editor_ZoomToSelection", Icon16x16));
+	Set("PCG.Editor.Pause", new IMAGE_BRUSH_SVG("Icons/PCG_16", Icon16x16));
+	Set("PCG.Editor.AlternatePause", new IMAGE_BRUSH_SVG("Style/PCG_Editor_AlternatePause", Icon16x16));
+
+	// Text editor styles
+	{
+		Set("TextEditor.Border", new BOX_BRUSH("Images/TextEditorBorder", FMargin(4.0f / 16.0f), FLinearColor(0.02f, 0.02f, 0.02f, 1)));
+
+		FSearchBoxStyle SearchBoxStyle = FCoreStyle::Get().GetWidgetStyle<FSearchBoxStyle>("SearchBox");
+		SearchBoxStyle.SetLeftAlignGlassImageAndClearButton(true);
+		SearchBoxStyle.SetLeftAlignSearchResultButtons(false);
+		Set("TextEditor.SearchBoxStyle", SearchBoxStyle);
+	}
 }
 
 const FPCGEditorStyle& FPCGEditorStyle::Get()

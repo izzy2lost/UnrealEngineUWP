@@ -2,12 +2,19 @@
 
 #include "Chaos/ChaosMarshallingManager.h"
 #include "Chaos/PullPhysicsDataImp.h"
+#include "Chaos/AsyncInitBodyHelper.h"
 
 namespace Chaos
 {
 
 int32 SimDelay = 0;
 FAutoConsoleVariableRef CVarSimDelay(TEXT("p.simDelay"),SimDelay,TEXT(""));
+
+bool bCachePushDataDirtyProxies = true;
+FAutoConsoleVariableRef CVarCachePushDataDirtyProxies(TEXT("p.Resim.CachePushDataDirtyProxies"), bCachePushDataDirtyProxies, TEXT("Default = false. Set true to enable resim caching dirty proxies in the push data from game thread to physics thread. This will make physics proxy changes from GT play out during a resimulation."));
+
+bool bCachePushDataAsyncInputs = true;
+FAutoConsoleVariableRef CVarCachePushDataAsyncInputs(TEXT("p.Resim.CachePushDataAsyncInputs"), bCachePushDataAsyncInputs, TEXT("Default = false. Set true to enable resim caching of async inputs in the push data from game thread to physics thread. This will make async inputs available again during a resimulation."));
 
 FChaosMarshallingManager::FChaosMarshallingManager()
 : ExternalTime_External(0)
@@ -48,6 +55,7 @@ void FChaosMarshallingManager::PreparePullData()
 
 void FChaosMarshallingManager::PrepareExternalQueue_External()
 {
+	// Here, we assume that MarshallingManagerLock is locked when p.Chaos.EnableAsyncInitBody is true (see FPBDRigidsSolver::PushPhysicsState)
 	if(!PushDataPool.Dequeue(ProducerData))
 	{
 		BackingBuffer.Add(MakeUnique<FPushPhysicsData>());
@@ -59,6 +67,7 @@ void FChaosMarshallingManager::PrepareExternalQueue_External()
 
 void FChaosMarshallingManager::Step_External(FReal ExternalDT, const int32 NumSteps, bool bInSolverSubstepped)
 {
+	// Here, we assume that MarshallingManagerLock is locked when p.Chaos.EnableAsyncInitBody is true (see FPBDRigidsSolver::PushPhysicsState)
 	ensure(NumSteps > 0);
 
 	FPushPhysicsData* FirstStepData = nullptr;
@@ -97,7 +106,7 @@ void FChaosMarshallingManager::Step_External(FReal ExternalDT, const int32 NumSt
 			ProducerData->CopySubstepData(*FirstStepData);
 		}
 
-		ExternalTime_External += ExternalDT;
+		ExternalTime_External.store(ExternalTime_External.load() + ExternalDT);
 		PrepareExternalQueue_External();
 	}
 
@@ -106,6 +115,7 @@ void FChaosMarshallingManager::Step_External(FReal ExternalDT, const int32 NumSt
 
 FPushPhysicsData* FChaosMarshallingManager::StepInternalTime_External()
 {
+	UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MarshallingManagerLock);
 	if (Delay == 0)
 	{
 		if(ExternalQueue.Num())
@@ -123,16 +133,8 @@ FPushPhysicsData* FChaosMarshallingManager::StepInternalTime_External()
 
 void FChaosMarshallingManager::FreeData_Internal(FPushPhysicsData* PushData)
 {
-	//TODO: we know entire manager is cleared, so we can probably just iterate over its pools and reset
-	//instead of going through dirty proxies. If perf matters fix this
-	FDirtyPropertiesManager* Manager = &PushData->DirtyPropertiesManager;
-	FShapeDirtyData* ShapeDirtyData = PushData->DirtyProxiesDataBuffer.GetShapesDirtyData();
-
-	PushData->DirtyProxiesDataBuffer.ForEachProxy([Manager, ShapeDirtyData](int32 DataIdx, FDirtyProxy& Dirty)
-	{
-		Dirty.Clear(*Manager, DataIdx, ShapeDirtyData);
-	});
-
+	UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MarshallingManagerLock);
+	PushData->ResetDirtyProxiesBuffer();
 	PushData->Reset();
 	PushDataPool.Enqueue(PushData);
 }
@@ -158,7 +160,6 @@ void FPushPhysicsData::Reset()
 
 	DirtyProxiesDataBuffer.Reset();
 	SimCallbackInputs.Reset();
-	SimCallbackObjectsToRemove.Reset();
 	ResetForHistory();
 }
 
@@ -166,6 +167,20 @@ void FPushPhysicsData::ResetForHistory()
 {
 	SimCommands.Reset();
 	SimCallbackObjectsToAdd.Reset();
+	SimCallbackObjectsToRemove.Reset();
+}
+
+void FPushPhysicsData::ResetDirtyProxiesBuffer()
+{
+	//TODO: we know entire manager is cleared, so we can probably just iterate over its pools and reset
+	//instead of going through dirty proxies. If perf matters fix this
+	FDirtyPropertiesManager* Manager = &DirtyPropertiesManager;
+	FShapeDirtyData* ShapeDirtyData = DirtyProxiesDataBuffer.GetShapesDirtyData();
+
+	DirtyProxiesDataBuffer.ForEachProxy([Manager, ShapeDirtyData](int32 DataIdx, FDirtyProxy& Dirty)
+		{
+			Dirty.Clear(*Manager, DataIdx, ShapeDirtyData);
+		});
 }
 
 void FChaosMarshallingManager::FreeDataToHistory_Internal(FPushPhysicsData* PushData)
@@ -176,6 +191,17 @@ void FChaosMarshallingManager::FreeDataToHistory_Internal(FPushPhysicsData* Push
 	}
 	else
 	{
+		if (bCachePushDataDirtyProxies == false)
+		{
+			PushData->ResetDirtyProxiesBuffer();
+			PushData->DirtyProxiesDataBuffer.Reset();
+		}
+
+		if (bCachePushDataAsyncInputs == false)
+		{
+			PushData->SimCallbackInputs.Reset();
+		}
+
 		PushData->ResetForHistory();
 		HistoryQueue_Internal.Insert(PushData, 0);
 		SetHistoryLength_Internal(HistoryLength);

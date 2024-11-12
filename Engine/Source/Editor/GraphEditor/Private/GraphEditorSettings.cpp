@@ -11,6 +11,8 @@
 UGraphEditorSettings::UGraphEditorSettings( const FObjectInitializer& ObjectInitializer )
 	: Super(ObjectInitializer)
 	, PanningMouseButton(EGraphPanningMouseButton::Right)
+	, bUseHighPrecisionMouseMovement(true)
+	, bUseInterpolationWithManualPanning(false)
 	, PaddingAbovePin(4.0f)
 	, PaddingBelowPin(4.0f)
 	, PaddingRightOfInput(10.0f)
@@ -92,7 +94,7 @@ UGraphEditorSettings::UGraphEditorSettings( const FObjectInitializer& ObjectInit
 	ExecBranchNodeTitleColor = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
 	ExecSequenceNodeTitleColor = FLinearColor(0.8f, 0.4f, 0.4f, 1.0f);
 	ResultNodeTitleColor = FLinearColor(1.0f, 0.65f, 0.4f, 1.0f);
-	DefaultCommentNodeTitleColor = FLinearColor::White;
+	DefaultCommentNodeTitleColor = FLinearColor(0.15f, 0.15f, 0.15f, 0.5f);
 	PreviewNodeTitleColor = FLinearColor(0.0f, 0.0f, 1.0f, 1.0f);
 }
 

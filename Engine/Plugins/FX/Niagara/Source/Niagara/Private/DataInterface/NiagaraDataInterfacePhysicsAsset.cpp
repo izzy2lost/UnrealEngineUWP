@@ -11,7 +11,9 @@
 #include "NiagaraShaderParametersBuilder.h"
 #include "NiagaraSystem.h"
 #include "NiagaraSystemInstance.h"
+#include "PhysicsEngine/BodySetup.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "RenderGraphBuilder.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraDataInterfacePhysicsAsset)
@@ -436,10 +438,10 @@ void FNDIPhysicsAssetData::Release()
 {
 	if (AssetBuffer)
 	{
-		BeginReleaseResource(AssetBuffer);
 		ENQUEUE_RENDER_COMMAND(DeleteResource)(
 			[ParamPointerToRelease = AssetBuffer](FRHICommandListImmediate& RHICmdList)
 			{
+				ParamPointerToRelease->ReleaseResource();
 				delete ParamPointerToRelease;
 			});
 		AssetBuffer = nullptr;
@@ -542,7 +544,7 @@ void FNDIPhysicsAssetProxy::DestroyPerInstanceData(const FNiagaraSystemInstanceI
 	SystemInstancesToProxyData.Remove(SystemInstance);
 }
 
-void FNDIPhysicsAssetProxy::PreStage(const FNDIGpuComputePostStageContext& Context)
+void FNDIPhysicsAssetProxy::PreStage(const FNDIGpuComputePreStageContext& Context)
 {
 	using namespace NDIPhysicsAssetLocal;
 

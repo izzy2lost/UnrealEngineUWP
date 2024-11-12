@@ -3,10 +3,14 @@
 #include "ContextSwitchesTimingTrack.h"
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+
+// TraceServices
 #include "TraceServices/Model/ContextSwitches.h"
 
-// Insights
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/ContextSwitches/ViewModels/ContextSwitchesSharedState.h"
 #include "Insights/ContextSwitches/ViewModels/ContextSwitchTimingEvent.h"
 #include "Insights/InsightsManager.h"
@@ -15,9 +19,7 @@
 #include "Insights/ViewModels/TooltipDrawState.h"
 #include "Insights/Widgets/STimingView.h"
 
-#define LOCTEXT_NAMESPACE "FContextSwitchesTimingTrack"
-
-namespace Insights
+namespace UE::Insights::ContextSwitches
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -242,9 +244,10 @@ void FContextSwitchesTimingTrack::InitTooltip(FTooltipDrawState& InOutTooltip, c
 	const FContextSwitchTimingEvent& ContextSwitchEvent = InTooltipEvent.As<FContextSwitchTimingEvent>();
 	InOutTooltip.AddTitle(FString::Printf(TEXT("Core %d"), ContextSwitchEvent.GetCoreNumber()));
 
-	InOutTooltip.AddNameValueTextLine(TEXT("Start Time:"), TimeUtils::FormatTimeAuto(InTooltipEvent.GetStartTime(), 6));
-	InOutTooltip.AddNameValueTextLine(TEXT("End Time:"), TimeUtils::FormatTimeAuto(InTooltipEvent.GetEndTime(), 6));
-	InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), TimeUtils::FormatTimeAuto(InTooltipEvent.GetDuration()));
+	using namespace UE::Insights;
+	InOutTooltip.AddNameValueTextLine(TEXT("Start Time:"), FormatTimeAuto(InTooltipEvent.GetStartTime(), 6));
+	InOutTooltip.AddNameValueTextLine(TEXT("End Time:"), FormatTimeAuto(InTooltipEvent.GetEndTime(), 6));
+	InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), FormatTimeAuto(InTooltipEvent.GetDuration()));
 
 	InOutTooltip.UpdateLayout();
 }
@@ -326,6 +329,4 @@ const TSharedPtr<const ITimingEvent> FContextSwitchesTimingTrack::SearchEvent(co
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
-
-#undef LOCTEXT_NAMESPACE
+} // namespace UE::Insights::ContextSwitches

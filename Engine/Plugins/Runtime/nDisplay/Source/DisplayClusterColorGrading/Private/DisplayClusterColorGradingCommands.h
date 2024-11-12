@@ -20,13 +20,5 @@ public:
 	virtual void RegisterCommands() override;
 
 public:
-	TSharedPtr<FUICommandInfo> SaturationColorWheelVisibility;
-	TSharedPtr<FUICommandInfo> ContrastColorWheelVisibility;
-	TSharedPtr<FUICommandInfo> ColorWheelSliderOrientationHorizontal;
-	TSharedPtr<FUICommandInfo> ColorWheelSliderOrientationVertical;
-
-	TSharedPtr<FUICommandInfo> ColorGradingMode;
-	TSharedPtr<FUICommandInfo> DetailViewMode;
-
 	TSharedPtr<FUICommandInfo> OpenColorGradingDrawer;
 };

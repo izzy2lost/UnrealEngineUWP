@@ -6,9 +6,13 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using DatasmithSolidworks.Names;
 using static DatasmithSolidworks.Addin;
+using SolidWorks.Interop.swconst;
+using static DatasmithSolidworks.FBody;
+using static DatasmithSolidworks.FDocumentTracker;
 
 namespace DatasmithSolidworks
 {
@@ -31,6 +35,28 @@ namespace DatasmithSolidworks
 
 		public uint FaceCounter = 1; // Face Id generator
 
+		// Encapsulates SW PersistentReference of a face
+		public readonly struct FFaceId
+		{
+			public readonly byte[] Value;
+			
+			public FFaceId(byte[] InValue=null)
+			{
+				Value = InValue;
+			}
+			
+			public bool IsValid()
+			{
+				return Value != null;
+			}
+			
+			// Get key to use in a dictionary
+			public string GetKey()
+			{
+				return Convert.ToBase64String(Value);
+			}
+		}
+		
 		protected FDocumentTracker(FDocument InDoc, FDatasmithExporter InExporter)
 		{
 			Doc = InDoc;
@@ -56,21 +82,22 @@ namespace DatasmithSolidworks
 			bDocumentIsDirty = bInDirty;
 		}
 
-		public uint GetFaceId(IFace2 InFace)
+		// Currently, FaceId uses PersistentReference which replaced internal FaceId(GetFaceId/SetFaceId). GetFaceId/SetFaceId was too unstable.
+		// PersistentReference is always defined. But GetOrAssignFaceId is left to identify places in code where Id is used with intent that it has to exist.
+		// Calls to GetFaceId don't expect Id to be defined and can ignore if it's not.
+		public FFaceId GetOrAssignFaceId(IFace2 InFace)
 		{
-			uint FaceId = unchecked((uint)InFace.GetFaceId());
-			if (!IsValidFaceId(FaceId))
-			{
-				uint Count = FaceCounter++;
-				FaceId = unchecked((uint)(0xAA << 24)) | Count;
-				InFace.SetFaceId((int)FaceId);
-			}
-			return FaceId;
+			return new FFaceId(Doc.SwDoc.Extension.GetPersistReference3(InFace));
 		}
-
-		public static bool IsValidFaceId(uint InFaceId)
+		
+		public FFaceId GetFaceId(IFace2 InFace)
 		{
-			return (InFaceId >> 24 == 0xAA);
+			return InFace != null ? new FFaceId(Doc.SwDoc.Extension.GetPersistReference3(InFace)) : new FFaceId();
+		}
+		
+		public static bool IsValidFaceId(FFaceId InFaceId)
+		{
+			return InFaceId.IsValid();
 		}
 
 		public bool IsUpdateInProgress()
@@ -194,7 +221,7 @@ namespace DatasmithSolidworks
 			List<FConfigurationData> Configs = ConfigurationExporter.ExportConfigurations(this);
 			bHasConfigurations = (Configs != null) && (Configs.Count != 0);
 			ExportToDatasmithScene(ConfigurationExporter, new FVariantName(ConfigManager.ActiveConfiguration));
-
+			DatasmithScene.SerializeLevelSequences();
 
 			ExportLights();
 
@@ -224,7 +251,58 @@ namespace DatasmithSolidworks
 		public abstract Dictionary<FComponentName, FObjectMaterials> LoadDocumentMaterials(HashSet<FComponentName> ComponentNamesToExportSet);
 		public abstract void AddComponentMaterials(FComponentName ComponentName, FObjectMaterials Materials);
 		public abstract FObjectMaterials GetComponentMaterials(Component2 Comp);
+		
+		public FMetadata GetComponentMetadata(Component2 InComponent, string CfgName)
+		{
+			ModelDoc2 ModelDoc = (ModelDoc2)InComponent.GetModelDoc2();
+			if (ModelDoc == null)
+			{
+				return new FMetadata(FMetadata.EOwnerType.Actor);
+			}
+			
+			FMetadata Metadata = new FMetadata(FMetadata.EOwnerType.Actor);
+			
+			string Doctype = "";
+			bool bIsPart = false;
+			switch (ModelDoc)
+			{
+				case AssemblyDoc _:
+				{
+					Doctype = "Assembly";
+					break;
+				}
+				case PartDoc _:
+				{
+					Doctype = "Part";
+					bIsPart = true;
+					break;
+				}
+			}
+			Metadata.AddPair("Document_Type", Doctype);
+			Metadata.AddPair("Document_Filename", System.IO.Path.GetFileName(ModelDoc.GetPathName()));
 
+			
+			Metadata.AddPair("Document_Author", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoAuthor]);
+			Metadata.AddPair("Document_Comment", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoComment]);
+			Metadata.AddPair("Document_CreateDate", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoCreateDate]);
+			Metadata.AddPair("Document_CreateDate2", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoCreateDate2]);
+			Metadata.AddPair("Document_Keywords", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoKeywords]);
+			Metadata.AddPair("Document_SaveDate", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoSaveDate]);
+			Metadata.AddPair("Document_SaveDate2", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoSaveDate2]);
+			Metadata.AddPair("Document_SavedBy", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoSavedBy]);
+			Metadata.AddPair("Document_Subject", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoSubject]);
+			Metadata.AddPair("Document_Title", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoTitle]);
+
+			FMetadataManager.ExportCustomProperties(ModelDoc, Metadata);
+			FMetadataManager.ExportCustomProperties(ModelDoc, Metadata, CfgName);
+			if (bIsPart == false)
+			{
+				FMetadataManager.AddAssemblyDisplayStateMetadata(ModelDoc as AssemblyDoc, Metadata);
+			}
+			FMetadataManager.ExportCommentsAndBom(ModelDoc, Metadata);
+			
+			return Metadata;
+		}
 
 		// Record which meshes are used aby a component
 		public abstract void AddMeshForComponent(FComponentName ComponentName, FMeshName MeshName);
@@ -238,18 +316,23 @@ namespace DatasmithSolidworks
 		}
 
 		public abstract FMeshData ExtractComponentMeshData(Component2 Comp);
-
-
+		
 		// Extracts meshes used for the assembly configuration
 		public void ProcessConfigurationMeshes(List<FDatasmithExporter.FMeshExportInfo> MeshExportInfos, FMeshes.FConfiguration MeshesConfiguration)
 		{
-			
+			LogDebug($"ProcessConfigurationMeshes:");
+			LogIndent();
+
 			// Extract meshes data and prepare for parallel datasmith export
 			// note: mesh data need to be extracted from the component when required configuration is active(i.e. can't move it outside of configuration enumeration loop)
-			foreach (Component2 Comp in MeshesConfiguration.EnumerateComponents())
+			// Enumerate components stable
+			foreach (var CP in MeshesConfiguration.EnumerateComponents().Select(Comp => new {Comp, Name=new FComponentName(Comp)} ) .OrderBy(CP => CP.Name.ToString()))
 			{
-				FMeshData MeshData = ExtractComponentMeshData(Comp);
-				FComponentName ComponentName = new FComponentName(Comp);
+				
+				FMeshData MeshData = ExtractComponentMeshData(CP.Comp);
+				FComponentName ComponentName = CP.Name;
+				LogDebug($"{ComponentName}:");
+				LogDebug($"{MeshData}");
 				
 				if (MeshData != null)
 				{
@@ -262,12 +345,14 @@ namespace DatasmithSolidworks
 					});
 				}
 			}
+			LogDedent();
 		}
 
 		public void AssignMaterialsToDatasmithMeshes(List<FDatasmithExporter.FMeshExportInfo> CreatedMeshes)
 		{
 			Exporter.AssignMaterialsToDatasmithMeshes(CreatedMeshes);
 		}
+		
 	};
 
 

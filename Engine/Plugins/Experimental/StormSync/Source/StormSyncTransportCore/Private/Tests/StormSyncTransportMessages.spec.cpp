@@ -6,7 +6,7 @@
 #include "StormSyncTransportMessages.h"
 #include "Engine/Engine.h"
 
-BEGIN_DEFINE_SPEC(FStormSyncTransportMessagesSpec, "StormSync.StormSyncTransportCore.StormSyncTransportMessages", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FStormSyncTransportMessagesSpec, "StormSync.StormSyncTransportCore.StormSyncTransportMessages", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 END_DEFINE_SPEC(FStormSyncTransportMessagesSpec)
 

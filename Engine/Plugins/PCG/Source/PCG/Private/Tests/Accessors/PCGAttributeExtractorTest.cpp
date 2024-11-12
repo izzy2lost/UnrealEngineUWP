@@ -102,7 +102,7 @@ bool FPCGAttributeSingleGetPropertyTest::RunTest(const FString& Parameters)
 
 	bTestPassed &= Verify(double(Struct.FloatValue), PCG_STRUCT_NAME_CHECK(FloatValue));
 	bTestPassed &= Verify(Struct.DoubleValue, PCG_STRUCT_NAME_CHECK(DoubleValue));
-	bTestPassed &= Verify(int64(Struct.Int32Value), PCG_STRUCT_NAME_CHECK(Int32Value));
+	bTestPassed &= Verify(Struct.Int32Value, PCG_STRUCT_NAME_CHECK(Int32Value));
 	bTestPassed &= Verify(Struct.IntValue, PCG_STRUCT_NAME_CHECK(IntValue));
 	bTestPassed &= Verify(Struct.Vector2Value, PCG_STRUCT_NAME_CHECK(Vector2Value));
 	bTestPassed &= Verify(Struct.VectorValue, PCG_STRUCT_NAME_CHECK(VectorValue));

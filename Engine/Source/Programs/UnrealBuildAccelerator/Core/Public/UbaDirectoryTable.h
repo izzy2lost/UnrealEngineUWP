@@ -19,6 +19,8 @@ namespace uba
 		{
 			m_memory = mem;
 			m_lookup.reserve(tableCount + 100);
+			if (m_memoryBlock)
+				m_memoryBlock->ReserveNoLock(tableCount*(sizeof(GrowingUnorderedMap<StringKey, Directory>::value_type)+16), TC(""));
 			ParseDirectoryTable(tableSize);
 		}
 
@@ -246,7 +248,7 @@ namespace uba
 
 		void GetFinalPath(StringBufferBase& out, const tchar* path)
 		{
-			UBA_ASSERT(path[1] == ':');
+			UBA_ASSERT(IsAbsolutePath(path));
 
 			Directory* directory = nullptr;
 			const tchar* prevSlash = TStrchr(path+3, PathSeparator);
@@ -311,7 +313,46 @@ namespace uba
 			}
 		}
 
+#if PLATFORM_WINDOWS
+		template<typename Func>
+		void TraverseFilesRecursiveNoLock(const StringBufferBase& path, const Func& func)
+		{
+			auto findIt = m_lookup.find(ToStringKey(path));
+			if (findIt == m_lookup.end())
+				return;
+			StringKeyHasher hasher;
+			hasher.Update(path.data, path.count);
+			PopulateDirectory(hasher, findIt->second);
+			for (auto& fileKv : findIt->second.files)
+			{
+				DirectoryTable::EntryInformation info;
+				StringBuffer<> fileName(path);
+				fileName.Append(PathSeparator);
+				u32 fileOffset = fileKv.second;
+				GetEntryInformation(info, fileOffset, fileName.data + fileName.count, fileName.capacity - fileName.count);
+				fileName.count = TStrlen(fileName.data);
+				if (CaseInsensitiveFs)
+					fileName.MakeLower();
+				func(info, fileName, fileOffset);
+				TraverseFilesRecursiveNoLock(fileName, func);
+			}
+		}
+
+		template<typename Func>
+		void TraverseAllFilesNoLock(const Func& func)
+		{
+			for (tchar l='a';l!='z'; ++l)
+			{
+				StringBuffer<4> drive;
+				drive.Append(l).Append(':');
+				TraverseFilesRecursiveNoLock(drive, func);
+			}
+		}
+#endif
+
 		DirectoryTable(MemoryBlock* block) : m_memoryBlock(block), m_lookup(block) {}
+		DirectoryTable(const DirectoryTable&) = delete;
+		void operator=(const DirectoryTable&) = delete;
 
 		MemoryBlock* m_memoryBlock;
 		ReaderWriterLock m_lookupLock;

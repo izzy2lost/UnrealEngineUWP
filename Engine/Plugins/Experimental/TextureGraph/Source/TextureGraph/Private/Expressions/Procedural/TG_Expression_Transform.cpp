@@ -30,6 +30,13 @@ void UTG_Expression_Transform::Evaluate(FTG_EvaluationContext* InContext)
 	FVector2f OutCoverage = Coverage;
 	FVector2f OutOffset = Offset;
 
+	// hide debug grid when exporting
+	float ShowDebugGridValue = ShowDebugGrid;
+	if (InContext->Cycle->GetDetails().bExporting)
+	{
+		ShowDebugGridValue = 0.0f;
+	}
+	
 	T_Transform::TransformParameter XformParam{
 		.Coverage = OutCoverage,
 		.Translation = OutOffset,
@@ -51,9 +58,9 @@ void UTG_Expression_Transform::Evaluate(FTG_EvaluationContext* InContext)
 		.WrapFilterMode = WrapMode,
 		.MirrorX = MirrorX,
 		.MirrorY = MirrorY,
-		.ShowDebugGrid = ShowDebugGrid
+		.ShowDebugGrid = ShowDebugGridValue
 	};
-
+	
 	Output = T_Transform::Create(InContext->Cycle, DesiredDescriptor, Input,
 		XformParam, CellParam, ColorParam, InContext->TargetId);
 }

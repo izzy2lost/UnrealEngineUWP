@@ -5,7 +5,6 @@
 #include "TextureGraphEngine.h"
 #include "FxMat/MaterialManager.h"
 #include "Job/JobBatch.h"
-#include "2D/TargetTextureSet.h"
 #include "Model/Mix/MixInterface.h"
 #include "Model/Mix/MixSettings.h"
 
@@ -29,31 +28,30 @@ T_Blend::~T_Blend()
 {
 }
 
-TiledBlobPtr T_Blend::Create(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, TiledBlobPtr InBackgroundTexture,
-	TiledBlobPtr InForeGroundTexture, TiledBlobPtr InMask, float InOpacity, int InTargetId, EBlendModes InBlendMode)
+TiledBlobPtr T_Blend::Create(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, int InTargetId, EBlendModes InBlendMode, const FBlendSettings* InBlendSettings)
 {
 	switch(InBlendMode)
 	{
 		case EBlendModes::Normal:
-			return CreateNormal(InCycle, DesiredDesc, InBackgroundTexture, InForeGroundTexture, InMask, InOpacity, InTargetId);
+			return CreateNormal(InCycle, DesiredDesc, InTargetId, InBlendSettings);
 		case EBlendModes::Add:
-			return CreateAdd(InCycle, DesiredDesc, InBackgroundTexture, InForeGroundTexture, InMask, InOpacity, InTargetId);
+			return CreateAdd(InCycle, DesiredDesc, InTargetId, InBlendSettings);
 		case EBlendModes::Subtract:
-			return CreateSubtract(InCycle, DesiredDesc, InBackgroundTexture, InForeGroundTexture, InMask, InOpacity, InTargetId);
+			return CreateSubtract(InCycle, DesiredDesc, InTargetId, InBlendSettings);
 		case EBlendModes::Multiply:
-			return CreateMultiply(InCycle, DesiredDesc, InBackgroundTexture, InForeGroundTexture, InMask, InOpacity, InTargetId);
+			return CreateMultiply(InCycle, DesiredDesc, InTargetId, InBlendSettings);
 		case EBlendModes::Divide:
-			return CreateDivide(InCycle, DesiredDesc, InBackgroundTexture, InForeGroundTexture, InMask, InOpacity, InTargetId);
+			return CreateDivide(InCycle, DesiredDesc, InTargetId, InBlendSettings);
 		case EBlendModes::Difference:
-			return CreateDifference(InCycle, DesiredDesc, InBackgroundTexture, InForeGroundTexture, InMask, InOpacity, InTargetId);
+			return CreateDifference(InCycle, DesiredDesc, InTargetId, InBlendSettings);
 		case EBlendModes::Max:
-			return CreateMax(InCycle, DesiredDesc, InBackgroundTexture, InForeGroundTexture, InMask, InOpacity, InTargetId);
+			return CreateMax(InCycle, DesiredDesc, InTargetId, InBlendSettings);
 		case EBlendModes::Min:
-			return CreateMin(InCycle, DesiredDesc, InBackgroundTexture, InForeGroundTexture, InMask, InOpacity, InTargetId);
+			return CreateMin(InCycle, DesiredDesc, InTargetId, InBlendSettings);
 		case EBlendModes::Step:
-			return CreateStep(InCycle, DesiredDesc, InBackgroundTexture, InForeGroundTexture, InMask, InOpacity, InTargetId);
+			return CreateStep(InCycle, DesiredDesc, InTargetId, InBlendSettings);
 		case EBlendModes::Overlay:
-			return CreateOverlay(InCycle, DesiredDesc, InBackgroundTexture, InForeGroundTexture, InMask, InOpacity, InTargetId);
+			return CreateOverlay(InCycle, DesiredDesc, InTargetId, InBlendSettings);
 		// case EBlendModes::Distort:
 		// 	return CreateDistort(InCycle, DesiredDesc, InBackgroundTexture, InForeGroundTexture, InMask, InOpacity, InTargetId);
 
@@ -65,34 +63,43 @@ TiledBlobPtr T_Blend::Create(MixUpdateCyclePtr InCycle, BufferDescriptor Desired
 }
 
 template <typename FSH_Type>
-TiledBlobPtr CreateGenericBlend(MixUpdateCyclePtr InCycle, int32 InTargetId, BufferDescriptor DesiredDesc, TiledBlobPtr InBackgroundTexture,
-	TiledBlobPtr InForegroundTexture, TiledBlobPtr InMask, float InOpacity, FString InTransformName)
+TiledBlobPtr CreateGenericBlend(MixUpdateCyclePtr InCycle, int32 InTargetId, BufferDescriptor DesiredDesc,FString InTransformName, const T_Blend::FBlendSettings* InBlendSettings)
 {
-	const RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_Type>(InTransformName);
+	FSH_BlendBase::FPermutationDomain PermutationVector;
+	PermutationVector.Set<FSH_BlendBase::FIgnoreAlpha>(InBlendSettings->bIgnoreAlpha);
+	PermutationVector.Set<FSH_BlendBase::FClamp>(InBlendSettings->bClamp);
+	
+	const RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_Type>(InTransformName, PermutationVector);
 	check(RenderMaterial);
 
-	if (!InBackgroundTexture)
+	TiledBlobPtr BackgroundTexture = InBlendSettings->BackgroundTexture; 
+	TiledBlobPtr ForegroundTexture = InBlendSettings->ForegroundTexture; 
+	TiledBlobPtr MaskTexture = InBlendSettings->Mask; 
+	
+	if (!BackgroundTexture)
 	{
-		InBackgroundTexture = TextureHelper::GetBlack();
+		BackgroundTexture = TextureHelper::GetBlack();
 	}
 	
-	if (!InForegroundTexture)
+	if (!ForegroundTexture)
 	{
-		InForegroundTexture = TextureHelper::GetBlack();
+		ForegroundTexture = TextureHelper::GetBlack();
 	}
 	
-	if(!InMask)
+	if(!MaskTexture)
 	{
-		InMask = TextureHelper::GetWhite();
-	}  
-
+		MaskTexture = TextureHelper::GetWhite();
+	}
+	
 	JobUPtr JobPtr = std::make_unique<Job>(InCycle->GetMix(), InTargetId, std::static_pointer_cast<BlobTransform>(RenderMaterial));
 	
 	JobPtr
-		->AddArg(ARG_BLOB(InBackgroundTexture, "BackgroundTexture"))
-		->AddArg(ARG_BLOB(InForegroundTexture, "ForegroundTexture"))
-		->AddArg(ARG_BLOB(InMask, "MaskTexture"))
-		->AddArg(ARG_FLOAT(InOpacity, "Opacity"))
+		->AddArg(ARG_BLOB(BackgroundTexture, "BackgroundTexture"))
+		->AddArg(ARG_BLOB(ForegroundTexture, "ForegroundTexture"))
+		->AddArg(ARG_BLOB(MaskTexture, "MaskTexture"))
+		->AddArg(ARG_FLOAT(InBlendSettings->Opacity, "Opacity"))
+		->AddArg(WithUnbounded(ARG_BOOL(InBlendSettings->bIgnoreAlpha, "IgnoreAlpha")))
+		->AddArg(WithUnbounded(ARG_BOOL(InBlendSettings->bClamp, "Clamp")))
 		;
 
 	const FString Name = FString::Printf(TEXT("[%llu] - Blend - %s"), InCycle->GetBatch()->GetBatchId(), *InTransformName);
@@ -104,57 +111,57 @@ TiledBlobPtr CreateGenericBlend(MixUpdateCyclePtr InCycle, int32 InTargetId, Buf
 	return Result;
 }
 
-TiledBlobPtr T_Blend::CreateNormal(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, TiledBlobPtr InBackgroundTexture, TiledBlobPtr InForegroundTexture, TiledBlobPtr InMask, float InOpacity, int InTargetId)
+TiledBlobPtr T_Blend::CreateNormal(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, int InTargetId, const FBlendSettings* InBlendSettings)
 {
-	return CreateGenericBlend<FSH_BlendNormal>(InCycle, InTargetId, DesiredDesc, InBackgroundTexture, InForegroundTexture, InMask,InOpacity, "T_BlendNormal");
+	return CreateGenericBlend<FSH_BlendNormal>(InCycle, InTargetId, DesiredDesc, "T_BlendNormal", InBlendSettings);
 }
 
-TiledBlobPtr T_Blend::CreateAdd(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, TiledBlobPtr InBackgroundTexture, TiledBlobPtr InForegroundTexture, TiledBlobPtr InMask, float InOpacity, int InTargetId)
+TiledBlobPtr T_Blend::CreateAdd(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, int InTargetId, const FBlendSettings* InBlendSettings)
 {
-	return CreateGenericBlend<FSH_BlendAdd>(InCycle, InTargetId, DesiredDesc, InBackgroundTexture, InForegroundTexture, InMask,InOpacity, "T_BlendAdd");
+	return CreateGenericBlend<FSH_BlendAdd>(InCycle, InTargetId, DesiredDesc, "T_BlendAdd", InBlendSettings);
 }
 
-TiledBlobPtr T_Blend::CreateSubtract(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, TiledBlobPtr InBackgroundTexture, TiledBlobPtr InForegroundTexture, TiledBlobPtr InMask, float InOpacity, int InTargetId)
+TiledBlobPtr T_Blend::CreateSubtract(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, int InTargetId, const FBlendSettings* InBlendSettings)
 {
-	return CreateGenericBlend<FSH_BlendSubtract>(InCycle, InTargetId, DesiredDesc, InBackgroundTexture, InForegroundTexture, InMask,InOpacity, "T_BlendSubtract");
+	return CreateGenericBlend<FSH_BlendSubtract>(InCycle, InTargetId, DesiredDesc, "T_BlendSubtract", InBlendSettings);
 }
 
-TiledBlobPtr T_Blend::CreateMultiply(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, TiledBlobPtr InBackgroundTexture, TiledBlobPtr InForeGroundTexture, TiledBlobPtr InMask, float InOpacity, int InTargetId)
+TiledBlobPtr T_Blend::CreateMultiply(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, int InTargetId, const FBlendSettings* InBlendSettings)
 {
-	return CreateGenericBlend<FSH_BlendMultiply>(InCycle, InTargetId, DesiredDesc, InBackgroundTexture, InForeGroundTexture, InMask,InOpacity, "T_BlendMultiply");
+	return CreateGenericBlend<FSH_BlendMultiply>(InCycle, InTargetId, DesiredDesc, "T_BlendMultiply", InBlendSettings);
 }
 
-TiledBlobPtr T_Blend::CreateDivide(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, TiledBlobPtr InBackgroundTexture, TiledBlobPtr InForegroundTexture, TiledBlobPtr InMask, float InOpacity, int InTargetId)
+TiledBlobPtr T_Blend::CreateDivide(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, int InTargetId, const FBlendSettings* InBlendSettings)
 {
-	return CreateGenericBlend<FSH_BlendDivide>(InCycle, InTargetId, DesiredDesc, InBackgroundTexture, InForegroundTexture, InMask,InOpacity, "T_BlendDivide");
+	return CreateGenericBlend<FSH_BlendDivide>(InCycle, InTargetId, DesiredDesc, "T_BlendDivide", InBlendSettings);
 }
 
-TiledBlobPtr T_Blend::CreateDifference(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, TiledBlobPtr InBackgroundTexture, TiledBlobPtr InForegroundTexture, TiledBlobPtr InMask, float InOpacity, int InTargetId)
+TiledBlobPtr T_Blend::CreateDifference(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, int InTargetId, const FBlendSettings* InBlendSettings)
 {
-	return CreateGenericBlend<FSH_BlendDifference>(InCycle, InTargetId, DesiredDesc, InBackgroundTexture, InForegroundTexture, InMask,InOpacity, "T_BlendDifference");
+	return CreateGenericBlend<FSH_BlendDifference>(InCycle, InTargetId, DesiredDesc, "T_BlendDifference", InBlendSettings);
 }
 
-TiledBlobPtr T_Blend::CreateMax(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, TiledBlobPtr InBackgroundTexture, TiledBlobPtr InForegroundTexture, TiledBlobPtr InMask, float InOpacity, int InTargetId)
+TiledBlobPtr T_Blend::CreateMax(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc,int InTargetId, const FBlendSettings* InBlendSettings)
 {
-	return CreateGenericBlend<FSH_BlendMax>(InCycle, InTargetId, DesiredDesc, InBackgroundTexture, InForegroundTexture, InMask,InOpacity, "T_BlendMax");
+	return CreateGenericBlend<FSH_BlendMax>(InCycle, InTargetId, DesiredDesc, "T_BlendMax", InBlendSettings);
 }
 
-TiledBlobPtr T_Blend::CreateMin(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, TiledBlobPtr InBackgroundTexture, TiledBlobPtr InForegroundTexture, TiledBlobPtr InMask, float InOpacity, int InTargetId)
+TiledBlobPtr T_Blend::CreateMin(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc,int InTargetId, const FBlendSettings* InBlendSettings)
 {
-	return CreateGenericBlend<FSH_BlendMin>(InCycle, InTargetId, DesiredDesc, InBackgroundTexture, InForegroundTexture, InMask,InOpacity, "T_BlendMin");
+	return CreateGenericBlend<FSH_BlendMin>(InCycle, InTargetId, DesiredDesc, "T_BlendMin", InBlendSettings);
 }
 
-TiledBlobPtr T_Blend::CreateStep(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, TiledBlobPtr InBackgroundTexture, TiledBlobPtr InForegroundTexture, TiledBlobPtr InMask, float InOpacity, int InTargetId)
+TiledBlobPtr T_Blend::CreateStep(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc,int InTargetId, const FBlendSettings* InBlendSettings)
 {
-	return CreateGenericBlend<FSH_BlendStep>(InCycle, InTargetId, DesiredDesc, InBackgroundTexture, InForegroundTexture, InMask,InOpacity, "T_BlendStep");
+	return CreateGenericBlend<FSH_BlendStep>(InCycle, InTargetId, DesiredDesc, "T_BlendStep", InBlendSettings);
 }
 
-TiledBlobPtr T_Blend::CreateOverlay(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, TiledBlobPtr InBackgroundTexture, TiledBlobPtr InForegroundTexture, TiledBlobPtr InMask, float InOpacity, int InTargetId)
+TiledBlobPtr T_Blend::CreateOverlay(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc,int InTargetId, const FBlendSettings* InBlendSettings)
 {
-	return CreateGenericBlend<FSH_BlendOverlay>(InCycle, InTargetId, DesiredDesc, InBackgroundTexture, InForegroundTexture, InMask,InOpacity, "T_BlendOverlay");
+	return CreateGenericBlend<FSH_BlendOverlay>(InCycle, InTargetId, DesiredDesc, "T_BlendOverlay", InBlendSettings);
 }
 
-TiledBlobPtr T_Blend::CreateDistort(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, TiledBlobPtr InBackgroundTexture, TiledBlobPtr InForegroundTexture, TiledBlobPtr InMask, float InOpacity, int InTargetId)
+TiledBlobPtr T_Blend::CreateDistort(MixUpdateCyclePtr InCycle, BufferDescriptor DesiredDesc, int InTargetId, const FBlendSettings* InBlendSettings)
 {
-	return CreateGenericBlend<FSH_BlendDistort>(InCycle, InTargetId, DesiredDesc, InBackgroundTexture, InForegroundTexture, InMask,InOpacity, "T_BlendDistort");
+	return CreateGenericBlend<FSH_BlendDistort>(InCycle, InTargetId, DesiredDesc, "T_BlendDistort", InBlendSettings);
 }

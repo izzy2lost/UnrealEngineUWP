@@ -19,7 +19,6 @@
 #include "WorldPartition/HLOD/Builders/HLODBuilderMeshMerge.h"
 #include "WorldPartition/HLOD/Builders/HLODBuilderMeshSimplify.h"
 #include "WorldPartition/HLOD/Builders/HLODBuilderMeshApproximate.h"
-#include "ActorEditorContext/ScopedActorEditorContextSetExternalDataLayerAsset.h"
 
 #include "AssetCompilingManager.h"
 #include "BodySetupEnums.h"
@@ -47,7 +46,7 @@ static uint32 ComputeHLODHash(AWorldPartitionHLOD* InHLODActor, const TArray<UAc
 	FArchiveCrc32 Ar;
 
 	// Base key, changing this will force a rebuild of all HLODs
-	FString HLODBaseKey = "95D53D3FC3154822BC00C466E8416BDB";
+	FString HLODBaseKey = "0D33837AB1A04CC2AEEB04C5C217DE96";
 	Ar << HLODBaseKey;
 
 	// HLOD Source Actors
@@ -59,17 +58,16 @@ static uint32 ComputeHLODHash(AWorldPartitionHLOD* InHLODActor, const TArray<UAc
 	}
 	
 	// Min Visible Distance
-	uint32 HLODMinVisibleDistanceHash = GetTypeHash(InHLODActor->GetMinVisibleDistance());
-	UE_LOG(LogHLODHash, VeryVerbose, TEXT(" - HLOD Min Visible Distance (%.02f) = %x"), InHLODActor->GetMinVisibleDistance(), HLODMinVisibleDistanceHash);
-	Ar << HLODMinVisibleDistanceHash;
+	double MinVisibleDistance = InHLODActor->GetMinVisibleDistance();
+	UE_LOG(LogHLODHash, VeryVerbose, TEXT(" - HLOD Min Visible Distance = %.02f"), InHLODActor->GetMinVisibleDistance());
+	Ar << MinVisibleDistance;
 
 	// ISM Component Class
 	TSubclassOf<UHLODInstancedStaticMeshComponent> HLODISMComponentClass = UHLODBuilder::GetInstancedStaticMeshComponentClass();
 	if (HLODISMComponentClass != UHLODInstancedStaticMeshComponent::StaticClass())
 	{
-		uint32 HLODISMComponentClassHash = GetTypeHash(HLODISMComponentClass);
-		UE_LOG(LogHLODHash, VeryVerbose, TEXT(" - HLOD ISM Component Class (%s) = %x"), *HLODISMComponentClass->GetName(), HLODISMComponentClassHash);
-		Ar << HLODISMComponentClassHash;
+		UE_LOG(LogHLODHash, VeryVerbose, TEXT(" - HLOD ISM Component Class = %s"), *HLODISMComponentClass->GetName());
+		Ar << HLODISMComponentClass;
 	}
 
 	// Append all components CRCs
@@ -179,12 +177,12 @@ TArray<AWorldPartitionHLOD*> FWorldPartitionHLODUtilities::CreateHLODActors(FHLO
 		{
 			const uint32 HLODLayerNameHash = FCrc::StrCrc32(*HLODLayer->GetName());
 			const uint32 CellGuidHash = GetTypeHash(CellGuid);
-			uint32 HLODActorHash = HashCombine(HLODLayerNameHash, CellGuidHash);
+			uint32 HLODActorHash = HashCombineFast(HLODLayerNameHash, CellGuidHash);
 
 			if (HLODLayer->GetHLODActorClass() != AWorldPartitionHLOD::StaticClass())
 			{
 				const uint32 HLODActorClassHash = FCrc::StrCrc32(*HLODLayer->GetHLODActorClass()->GetPathName());
-				HLODActorHash = HashCombine(HLODActorHash, HLODActorClassHash);
+				HLODActorHash = HashCombineFast(HLODActorHash, HLODActorClassHash);
 			}
 
 			return HLODActorHash;
@@ -205,7 +203,7 @@ TArray<AWorldPartitionHLOD*> FWorldPartitionHLODUtilities::CreateHLODActors(FHLO
 		if (bNewActor)
 		{
 			FContentBundleActivationScope Activationscope(InCreationParams.ContentBundleGuid);
-			FScopedActorEditorContextSetExternalDataLayerAsset EDLScope(InCreationParams.GetExternalDataLayerAsset());
+			FScopedOverrideSpawningLevelMountPointObject EDLScope(InCreationParams.GetExternalDataLayerAsset());
 
 			FActorSpawnParameters SpawnParams;
 			SpawnParams.Name = HLODActorName;
@@ -619,7 +617,22 @@ static TArray<UActorComponent*> GatherHLODRelevantComponents(const TArray<AActor
 			continue;
 		}
 
-		HLODRelevantComponents.Append(Actor->GetHLODRelevantComponents());
+		// Extract components to be used as input for the HLOD generation process
+		for (UActorComponent* HLODRelevantComponentForActor : Actor->GetHLODRelevantComponents())
+		{
+			// Components can return proxy components to be used in their place while building HLODs
+			TArray<UActorComponent*> HLODProxyComponents = HLODRelevantComponentForActor->GetHLODProxyComponents();
+			if (!HLODProxyComponents.IsEmpty())
+			{
+				// Use proxy components
+				HLODRelevantComponents.Append(HLODProxyComponents);
+			}
+			else
+			{
+				// Use the original component
+				HLODRelevantComponents.Add(HLODRelevantComponentForActor);
+			}
+		}
 	}
 
 	return HLODRelevantComponents.Array();
@@ -740,7 +753,7 @@ uint32 FWorldPartitionHLODUtilities::BuildHLOD(AWorldPartitionHLOD* InHLODActor)
 		    // Make sure the old object is not used by anything
 		    Obj->ClearFlags(RF_Standalone | RF_Public);
 		    const FName OldRenamed = MakeUniqueObjectName(GetTransientPackage(), Obj->GetClass(), *FString::Printf(TEXT("OLD_%s"), *Obj->GetName()));
-		    Obj->Rename(*OldRenamed.ToString(), GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+		    Obj->Rename(*OldRenamed.ToString(), GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional);
 	    }
 	}
 
@@ -777,25 +790,25 @@ uint32 FWorldPartitionHLODUtilities::BuildHLOD(AWorldPartitionHLOD* InHLODActor)
 			}
 
 			// Build
-			TArray<UActorComponent*> HLODComponents;
+			FHLODBuildResult BuildResult;
 			{
 				FAutoScopedDurationTimer BuildTimeScope;
-				HLODComponents = HLODBuilder->Build(HLODBuildContext);
+				BuildResult = HLODBuilder->Build(HLODBuildContext);
 				BuildTimeMS = FMath::RoundToInt(BuildTimeScope.GetTime() * 1000);
 			}
 
 			if (HLODModifier)
 			{
-				HLODModifier->EndHLODBuild(HLODComponents);
+				HLODModifier->EndHLODBuild(BuildResult.HLODComponents);
 			}
 
-			if (HLODComponents.IsEmpty())
+			if (BuildResult.HLODComponents.IsEmpty())
 			{
 				UE_LOG(LogHLODBuilder, Warning, TEXT("HLOD generation created no component for %s"), *InHLODActor->GetActorLabel());
 			}
 
 			// Ideally, this should be performed elsewhere, to allow more flexibility in the HLOD generation
-			for (UActorComponent* HLODComponent : HLODComponents)
+			for (UActorComponent* HLODComponent : BuildResult.HLODComponents)
 			{
 				HLODComponent->SetCanEverAffectNavigation(false);
 
@@ -860,7 +873,8 @@ uint32 FWorldPartitionHLODUtilities::BuildHLOD(AWorldPartitionHLOD* InHLODActor)
 				}
 			}
 
-			InHLODActor->SetHLODComponents(HLODComponents);
+			InHLODActor->SetInputStats(BuildResult.InputStats);
+			InHLODActor->SetHLODComponents(BuildResult.HLODComponents);
 		}
 	}
 

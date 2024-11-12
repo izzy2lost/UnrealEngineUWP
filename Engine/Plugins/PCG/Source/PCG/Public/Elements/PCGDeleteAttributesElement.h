@@ -33,13 +33,15 @@ public:
 
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
+	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
+
 	virtual FName GetDefaultNodeName() const override;
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual TArray<FText> GetNodeTitleAliases() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Metadata; }
-	virtual bool HasDynamicPins() const override { return true; }
 #endif
-	
+
+	virtual bool HasDynamicPins() const override { return true; }
 	virtual FString GetAdditionalTitleInformation() const override;
 
 protected:
@@ -55,9 +57,17 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	EPCGAttributeFilterOperation Operation = EPCGAttributeFilterOperation::KeepSelectedAttributes;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	EPCGStringMatchingOperator Operator = EPCGStringMatchingOperator::Equal;
+
 	/** Comma-separated list of attributes to keep or remove from the input data. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FString SelectedAttributes;
+
+	/** Enables deprecated behavior using spaces as separators. Disable to update the node to current behavior. */
+	UE_DEPRECATED(5.5, "bTokenizeOnWhiteSpace has been deprecated.")
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (EditCondition = "bTokenizeOnWhiteSpace", EditConditionHides, DeprecationMessage = "bTokenizeOnWhiteSpace has been deprecated."))
+	bool bTokenizeOnWhiteSpace = false;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
@@ -70,4 +80,5 @@ class FPCGDeleteAttributesElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 };

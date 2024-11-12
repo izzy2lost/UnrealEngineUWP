@@ -4,6 +4,7 @@
 #include "AssetCompilingManager.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "CoreMinimal.h"
+#include "Engine/World.h"
 #include "InterchangeAssetImportData.h"
 #include "InterchangeEngineLogPrivate.h"
 #include "InterchangeFactoryBase.h"
@@ -33,22 +34,16 @@ namespace UE::Interchange::Private
 		const UInterchangeSourceData* SourceData = AsyncHelper.SourceDatas[SourceIndex];
 		check(SourceData);
 		FString NodeDisplayName = FactoryNode->GetAssetName();
-
+		
 		// Set the asset name and the package name
 		OutAssetName = NodeDisplayName;
-		SanitizeObjectName(OutAssetName);
-
-		FString SanitizedPackageBasePath = PackageBasePath;
-		SanitizeObjectPath(SanitizedPackageBasePath);
-
+		UInterchangeManager::GetInterchangeManager().SanitizeNameInline(OutAssetName, ESanitizeNameTypeFlags::ObjectName | ESanitizeNameTypeFlags::ObjectPath | ESanitizeNameTypeFlags::LongPackage);
 		FString SubPath;
-		if (FactoryNode->GetCustomSubPath(SubPath))
-		{
-			SanitizeObjectPath(SubPath);
-		}
-
-		OutPackageName = FPaths::Combine(*SanitizedPackageBasePath, *SubPath, *OutAssetName);
+		FactoryNode->GetCustomSubPath(SubPath);
+		OutPackageName = FPaths::Combine(*PackageBasePath, *SubPath, *OutAssetName);
+		UInterchangeManager::GetInterchangeManager().SanitizeNameInline(OutPackageName, ESanitizeNameTypeFlags::ObjectPath | ESanitizeNameTypeFlags::LongPackage);
 	}
+
 	bool ShouldReimportFactoryNode(UInterchangeFactoryBaseNode* FactoryNode, const UInterchangeBaseNodeContainer* NodeContainer, UObject* ReimportObject)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::Private::ShouldReimportFactoryNode)
@@ -119,12 +114,22 @@ namespace UE::Interchange::Private
 
 
 
-	bool CanImportClass(UE::Interchange::FImportAsyncHelper& AsyncHelper, UInterchangeFactoryBaseNode& FactoryNode, int32 SourceIndex)
+	bool CanImportClass(UE::Interchange::FImportAsyncHelper& AsyncHelper, UInterchangeFactoryBaseNode& FactoryNode, int32 SourceIndex, bool bLogError = false)
 	{
+		if (AsyncHelper.bRuntimeOrPIE && !FactoryNode.IsRuntimeImportAllowed())
+		{
+			if (bLogError)
+			{
+				UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot import %s asset at runtime. This is an editor-only feature."), *FactoryNode.GetTypeName());
+			}
+			return false;
+		}
+
 		if (UClass* Class = FactoryNode.GetObjectClass())
 		{
 			return AsyncHelper.IsClassImportAllowed(Class);
 		}
+		
 		return false;
 	}
 
@@ -160,7 +165,7 @@ namespace UE::Interchange::Private
 		FString AssetName;
 		Private::InternalGetPackageName(*AsyncHelper, SourceIndex, PackageBasePath, FactoryNode, PackageName, AssetName);
 		bool bSkipAsset = false;
-		UObject* ObjectToReimport = UE::Interchange::FFactoryCommon::GetObjectToReimport(AsyncHelper->TaskData.ReimportObject, *FactoryNode, PackageName, AssetName);
+		UObject* ObjectToReimport = UE::Interchange::FFactoryCommon::GetObjectToReimport(Factory, AsyncHelper->TaskData.ReimportObject, *FactoryNode, PackageName, AssetName);
 		if (ObjectToReimport)
 		{
 			UInterchangeBaseNodeContainer* NodeContainer = nullptr;
@@ -245,7 +250,7 @@ namespace UE::Interchange::Private
 	}
 }//ns UE::Interchange::Private
 
-void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+void UE::Interchange::FTaskImportObject_GameThread::Execute()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskImportObject_GameThread::DoTask)
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
@@ -269,8 +274,8 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 		}
 	};
 	
-	//Verify if the task was cancel or class to import is denied
-	if (AsyncHelper->bCancel || !FactoryNode || !Private::CanImportClass(*AsyncHelper, *FactoryNode, SourceIndex))
+	//Verify if the task was cancel
+	if (AsyncHelper->bCancel || !FactoryNode)
 	{
 		return;
 	}
@@ -279,17 +284,17 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 	check(IsInGameThread());
 
 	// Create factory
-	UInterchangeFactoryBase* Factory = NewObject<UInterchangeFactoryBase>(GetTransientPackage(), FactoryClass);
-	Factory->SetResultsContainer(AsyncHelper->AssetImportResult->GetResults());
-
-	AsyncHelper->AddCreatedFactory(FactoryNode->GetUniqueID(), Factory);
+	UInterchangeFactoryBase* Factory = AsyncHelper->GetCreatedFactory(FactoryNode->GetUniqueID());
+	if (!ensure(Factory))
+	{
+		return;
+	}
 
 	UPackage* Pkg = nullptr;
 	FString PackageName;
 	FString AssetName;
 	Private::InternalGetPackageName(*AsyncHelper, SourceIndex, PackageBasePath, FactoryNode, PackageName, AssetName);
-
-	UObject* ObjectToReimport = FFactoryCommon::GetObjectToReimport(AsyncHelper->TaskData.ReimportObject, *FactoryNode, PackageName, AssetName);
+	UObject* ObjectToReimport = FFactoryCommon::GetObjectToReimport(Factory, AsyncHelper->TaskData.ReimportObject, *FactoryNode, PackageName, AssetName);
 	if (!ensure(!IsGarbageCollecting()))
 	{
 		//Skip this asset
@@ -314,13 +319,81 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 		return;
 	}
 	UInterchangeBaseNodeContainer* NodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
+	bool bShouldReimportFactoryNode = ObjectToReimport && Private::ShouldReimportFactoryNode(FactoryNode, NodeContainer, ObjectToReimport);
+
+	//Check if class Import is allowed or not.
+	if (!Private::CanImportClass(*AsyncHelper, *FactoryNode, SourceIndex, !ObjectToReimport || bShouldReimportFactoryNode))
+	{
+		return;
+	}
 
 	bool bSkipObjectNoReplace = false;
 	UObject* ExistingAsset = nullptr;
+
+	auto FollowRedirectorCode = [AsyncHelper, &Pkg, &PackageName, &AssetName]()
+		{
+			if (AsyncHelper->TaskData.bFollowRedirectors)
+			{
+				if (UObjectRedirector* Redirector = FindObject<UObjectRedirector>(Pkg, *AssetName))
+				{
+					if (Redirector->DestinationObject)
+					{
+						Pkg = Redirector->DestinationObject->GetPackage();
+						if (FPackageName::GetLongPackageAssetName(PackageName) == AssetName)
+						{
+							AssetName = FPackageName::GetLongPackageAssetName(Pkg->GetName());
+						}
+					}
+				}
+			}
+		};
+
+	//Check if the node reference a map
+	const bool bRefObjectIsMap = [this]()
+		{
+			FSoftObjectPath Reference;
+			if (FactoryNode->GetCustomReferenceObject(Reference))
+			{
+				if (UObject* RefObj = Reference.TryLoad())
+				{
+					return RefObj->IsA<UWorld>();
+				}
+			}
+			return false;
+		}();
+
+	//If the factory node is disable see if there is an existing UObject for it
+	if (!FactoryNode->IsEnabled())
+	{
+		Private::InternalGetPackageName(*AsyncHelper, SourceIndex, PackageBasePath, FactoryNode, PackageName, AssetName);
+		if (bRefObjectIsMap || !FPackageUtils::IsMapPackageAsset(PackageName))
+		{
+			Pkg = FindPackage(nullptr, *PackageName);
+			if (Pkg)
+			{
+				FollowRedirectorCode();
+				ExistingAsset = StaticFindObject(nullptr, Pkg, *AssetName);
+				if (ExistingAsset)
+				{
+					//Do not call factory for a disabled node but ensure a valid custom reference object for other nodes that depend on this one
+					FSoftObjectPath Reference;
+					if (!FactoryNode->GetCustomReferenceObject(Reference))
+					{
+						FactoryNode->SetCustomReferenceObject(ExistingAsset);
+					}
+				}
+			}
+		}
+		//The node is disabled return now
+		return;
+	}
+
+	UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
+
 	//If we do a reimport no need to create a package
 	if (ObjectToReimport)
 	{
-		if (Private::ShouldReimportFactoryNode(FactoryNode, NodeContainer, ObjectToReimport))
+		if (bShouldReimportFactoryNode)
 		{
 			FactoryNode->SetDisplayLabel(ObjectToReimport->GetName());
 			FactoryNode->SetAssetName(ObjectToReimport->GetName());
@@ -349,7 +422,8 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 
 		Private::InternalGetPackageName(*AsyncHelper, SourceIndex, PackageBasePath, FactoryNode, PackageName, AssetName);
 		// We can not create assets that share the name of a map file in the same location
-		if (FPackageUtils::IsMapPackageAsset(PackageName))
+		//Except if we reference a map
+		if (!bRefObjectIsMap && FPackageUtils::IsMapPackageAsset(PackageName))
 		{
 			//Skip this asset
 			UInterchangeResultError_Generic* Message = Factory->AddMessage<UInterchangeResultError_Generic>();
@@ -388,28 +462,18 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 			return;
 		}
 
-		if (!bPackageWasCreated && AsyncHelper->TaskData.bFollowRedirectors)
+		if (!bPackageWasCreated)
 		{
-			if (UObjectRedirector* Redirector = FindObject<UObjectRedirector>(Pkg, *AssetName))
-			{
-				if (Redirector->DestinationObject)
-				{
-					Pkg = Redirector->DestinationObject->GetPackage();
-					if (FPackageName::GetLongPackageAssetName(PackageName) == AssetName)
-					{
-						AssetName = FPackageName::GetLongPackageAssetName(Pkg->GetName());
-					}
-				}
-			}
+			FollowRedirectorCode();
 		}
 		ExistingAsset = StaticFindObject(nullptr, Pkg, *AssetName);
 		if (!bSkipObjectNoReplace && ExistingAsset && !AsyncHelper->TaskData.bReplaceExisting)
 		{
 			const FString AssetFullName = ExistingAsset->GetFullName();
 			//If the bReplaceExistingAllDialogAnswer was set do not show again the message dialog, simply reuse the previous answer.
-			if (AsyncHelper->TaskData.bReplaceExistingAllDialogAnswer.IsSet())
+			if (InterchangeManager.GetReplaceExistingAlldialogAnswer().IsSet())
 			{
-				bSkipObjectNoReplace = !AsyncHelper->TaskData.bReplaceExistingAllDialogAnswer.GetValue();
+				bSkipObjectNoReplace = !InterchangeManager.GetReplaceExistingAlldialogAnswer().GetValue();
 			}
 			else
 			{
@@ -422,12 +486,12 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 					switch (DialogResult)
 					{
 						case EAppReturnType::YesAll:
-							AsyncHelper->TaskData.bReplaceExistingAllDialogAnswer = true;
+							InterchangeManager.SetReplaceExistingAlldialogAnswer(true);
 						case EAppReturnType::Yes:
 							bSkipObjectNoReplace = false;
 							break;
 						case EAppReturnType::NoAll:
-							AsyncHelper->TaskData.bReplaceExistingAllDialogAnswer = false;
+							InterchangeManager.SetReplaceExistingAlldialogAnswer(false);
 						case EAppReturnType::No:
 							bSkipObjectNoReplace = true;
 					}
@@ -492,7 +556,7 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 			return;
 		}
 
-		if (UInterchangeManager::GetInterchangeManager().IsObjectBeingImported(ExistingAsset))
+		if (InterchangeManager.IsObjectBeingImported(ExistingAsset))
 		{
 			//Skip this node, it is currently being imported by another import task
 			UInterchangeResultError_Generic* Message = Factory->AddMessage<UInterchangeResultError_Generic>();
@@ -556,7 +620,7 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 	}
 }
 
-void UE::Interchange::FTaskImportObject_Async::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+void UE::Interchange::FTaskImportObject_Async::Execute()
 {
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(TaskImportObject_Async)
@@ -565,6 +629,12 @@ void UE::Interchange::FTaskImportObject_Async::DoTask(ENamedThreads::Type Curren
 	LLM_SCOPE_BYNAME(TEXT("Interchange"));
 
 	using namespace UE::Interchange;
+
+	TOptional<FGCScopeGuard> GCScopeGuard;
+	if (!IsInGameThread())
+	{
+		GCScopeGuard.Emplace();
+	}
 
 	TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
 	check(AsyncHelper.IsValid());
@@ -592,7 +662,7 @@ void UE::Interchange::FTaskImportObject_Async::DoTask(ENamedThreads::Type Curren
 		});
 }
 
-void UE::Interchange::FTaskImportObjectFinalize_GameThread::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+void UE::Interchange::FTaskImportObjectFinalize_GameThread::Execute()
 {
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(TaskImportObjectFinalize_GameThread)
@@ -616,6 +686,8 @@ void UE::Interchange::FTaskImportObjectFinalize_GameThread::DoTask(ENamedThreads
 	{
 		return;
 	}
+
+	check(IsInGameThread());
 
 	UInterchangeFactoryBase::FImportAssetResult ImportAssetResult = Private::InternalImportObjectStartup(AsyncHelper
 		, FactoryNode
@@ -647,7 +719,7 @@ void UE::Interchange::FTaskImportObjectFinalize_GameThread::DoTask(ENamedThreads
 
 				const FString PackagePathName = ImportAssetResult.ImportedObject->GetPathName();
 				const FString AssetName = ImportAssetResult.ImportedObject->GetName();
-				const UObject* ObjectToReimport = FFactoryCommon::GetObjectToReimport(AsyncHelper->TaskData.ReimportObject, *FactoryNode, PackagePathName, AssetName);
+				const UObject* ObjectToReimport = FFactoryCommon::GetObjectToReimport(Factory, AsyncHelper->TaskData.ReimportObject, *FactoryNode, PackagePathName, AssetName);
 				AssetInfo.bIsReimport = bool(ObjectToReimport != nullptr);
 			}
 

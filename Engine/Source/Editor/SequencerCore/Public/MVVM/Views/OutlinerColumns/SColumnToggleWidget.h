@@ -40,6 +40,9 @@ public:
 	/** Called when a drag or click ends and can be used to refresh the SequencerTree if necessary. */
 	virtual void OnToggleOperationComplete() {}
 
+	/** Get the color and opacity of the column toggle widget. */
+	virtual FSlateColor GetImageColorAndOpacity() const;
+
 protected:
 
 	/** Returns whether the widget is enabled or not. */
@@ -64,8 +67,6 @@ protected:
 
 protected:
 	
-	/** Get the color and opacity of the column toggle widget. */
-	virtual FSlateColor GetImageColorAndOpacity() const;
 
 	/** Get the image this widget displays. */
 	virtual const FSlateBrush* GetBrush() const;

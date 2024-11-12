@@ -5,36 +5,53 @@
 #include "RemoteControlProtocol.h"
 
 #include "DMXProtocolCommon.h"
-#include "RemoteControlProtocolBinding.h"
 #include "IO/DMXInputPortReference.h"
 #include "Library/DMXEntityFixtureType.h"
+#include "RemoteControlProtocolBinding.h"
 
 #include "RemoteControlProtocolDMX.generated.h"
 
 class FRemoteControlProtocolDMX;
+class URemoteControlDMXLibraryProxy;
+struct FRemoteControlProperty;
 
 /**
- * Using as an inner struct for details customization.
- * Useful to have type customization for the struct
+ * An inner struct holding DMX specific data.
+ * Useful to have type customization for the struct.
  */
 USTRUCT()
 struct FRemoteControlDMXProtocolEntityExtraSetting
 {
 	GENERATED_BODY();
 
+	/** Reference to the fixture patch this binding uses */
+	UPROPERTY()
+	FDMXEntityFixturePatchRef FixturePatchReference;
 
-	/** DMX universe id */
-	UPROPERTY(EditAnywhere, Category = Mapping, Meta = (ClampMin = "0", UIMin = "0"))
-	int32 Universe = 1;
+#if WITH_EDITORONLY_DATA
+	/** If true clears the patch instead of generating one when the outer DMX entity is invalidated */
+	UPROPERTY(Transient)
+	bool bRequestClearPatch = false;
+#endif // WITH_EDITORONLY_DATA
 
-	/** Starting channel */
-	UPROPERTY(EditAnywhere, Category = Mapping, Meta = (ClampMin = "1", ClampMax = "512", UIMin = "1", UIMax = "512"))
-	int32 StartingChannel = 1;
+	/** 
+	 * If true, this entity defines the patch and its fixture type. 
+	 * If false, this entity only follows the patch, but does not update the fixture type.
+	 */
+	UPROPERTY()
+	bool bIsPrimaryPatch = true;
+
+	/** The index of the DMX function to receive */
+	UPROPERTY()
+	int32 FunctionIndex = INDEX_NONE;
+
+	/** The attribute name of this binding */
+	UPROPERTY()
+	FName AttributeName;
 
 	/**
 	 * Least Significant Byte mode makes the individual bytes (channels) of the function be
 	 * interpreted with the first bytes being the lowest part of the number.
-	 * Most Fixtures use MSB (Most Significant Byte).
 	 */
 	UPROPERTY(EditAnywhere, Category = Mapping)
 	bool bUseLSB = false;
@@ -43,13 +60,39 @@ struct FRemoteControlDMXProtocolEntityExtraSetting
 	UPROPERTY(EditAnywhere, Category = Mapping)
 	EDMXFixtureSignalFormat DataType = EDMXFixtureSignalFormat::E8Bit;
 
+public:
+	// Workaround for clang deprecation warnings for deprecated PackageGuid member in implicit constructors	
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FRemoteControlDMXProtocolEntityExtraSetting() = default;
+	FRemoteControlDMXProtocolEntityExtraSetting(const FRemoteControlDMXProtocolEntityExtraSetting&) = default;
+	FRemoteControlDMXProtocolEntityExtraSetting(FRemoteControlDMXProtocolEntityExtraSetting&&) = default;
+	FRemoteControlDMXProtocolEntityExtraSetting& operator=(const FRemoteControlDMXProtocolEntityExtraSetting&) = default;
+	FRemoteControlDMXProtocolEntityExtraSetting& operator=(FRemoteControlDMXProtocolEntityExtraSetting&&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
+
+	//////////////////////////
+	// DEPRECATED PROPERTIES
+
+#if WITH_EDITORONLY_DATA
+	/** The DMX universe of this entity. -1 in auto patch mode. */
+	UPROPERTY()
+	int32 Universe_DEPRECATED = -1;
+
+	/** The starting channel of this entity. -1 in auto patch mode. */
+	UPROPERTY()
+	int32 StartingChannel_DEPRECATED = -1;
+
 	/** If set to true, uses the default input port set in Remote Control Protocol project settings */
-	UPROPERTY(EditAnywhere, Category = Mapping)
-	bool bUseDefaultInputPort = true;
+	UE_DEPRECATED(5.5, "Remote control now uses a DMX Library internally. Please refer to the Fixture Patch ref instead.")
+	UPROPERTY()
+	bool bUseDefaultInputPort_DEPRECATED = true;
 
 	/** Reference of an input DMX port id */
-	UPROPERTY(EditAnywhere, Category = Mapping)
-	FGuid InputPortId;
+	UE_DEPRECATED(5.5, "Remote control now uses a DMX Library internally. Please refer to the Fixture Patch ref instead.")
+	UPROPERTY()
+	FGuid InputPortId_DEPRECATED;
+#endif 
 
 };
 
@@ -61,29 +104,48 @@ struct FRemoteControlDMXProtocolEntity : public FRemoteControlProtocolEntity
 {
 	GENERATED_BODY()
 
-	friend class FRemoteControlProtocolDMX;
-
 public:
+	/** Returns the num DMX channels this setting spans */
+	uint8 GetNumDMXChannels() const;
+
 	//~ Begin FRemoteControlProtocolEntity interface
 	virtual FName GetRangePropertyName() const override { return NAME_UInt32Property; }
 	virtual uint8 GetRangePropertySize() const override;
 	virtual const FString& GetRangePropertyMaxValue() const override;
-
-#if WITH_EDITOR
-
-	/** Register(s) all the widgets of this protocol entity. */
-	virtual void RegisterProperties() override;
-
-#endif // WITH_EDITOR
 	//~ End FRemoteControlProtocolEntity interface
 
-	/** Initialize struct and delegates */
-	void Initialize();
+	/** Invalidates this entity. The entity will be updated on the next tick. */
+	REMOTECONTROLPROTOCOLDMX_API void Invalidate();
 
-	/** Try to get the port ID from dmx protocol settings */
-	void UpdateInputPort();
+	/** Finds remote control protocol DMX entities used by the specified property */
+	REMOTECONTROLPROTOCOLDMX_API static TArray<TSharedRef<TStructOnScope<FRemoteControlProtocolEntity>>> GetAllDMXProtocolEntitiesInPreset(URemoteControlPreset* Preset);
 
-	/** Extra protocol settings. Primary using for customization */
+	/** Finds remote control protocol DMX entities used by the specified property */
+	REMOTECONTROLPROTOCOLDMX_API static TArray<TSharedRef<TStructOnScope<FRemoteControlProtocolEntity>>> FindEntitiesByProperty(const TSharedRef<FRemoteControlProperty>& Property);
+
+	/** Binds this entity to DMX */
+	void BindDMX();
+
+	/** Unbinds this entity from DMX */
+	void UnbindDMX();
+
+#if WITH_EDITOR
+	/** 
+	 * Sets the attribute name of the entity. 
+	 * Use with care, the attribute name needs to exist in the fixture patch's active mode for the entity to be functional.
+	 * 
+	 * @param AttributeName			The DMX attribute name the entity corresponds to.
+	 */
+	REMOTECONTROLPROTOCOLDMX_API void SetAttributeName(const FName& AttributeName);
+#endif // WITH_EDITOR
+
+	/** Called when the struct is serialized */
+	bool Serialize(FArchive& Ar);
+
+	/** Called after the struct is serialized */
+	void PostSerialize(const FArchive& Ar);
+
+	/** Extra protocol settings */
 	UPROPERTY(EditAnywhere, Category = Mapping, meta = (ShowOnlyInnerProperties))
 	FRemoteControlDMXProtocolEntityExtraSetting ExtraSetting;
 
@@ -92,24 +154,16 @@ public:
 	uint32 RangeInputTemplate = 0;
 
 private:
-	/** DMX entity cache buffer. From 1 up to 4 channels, based on DataType */
-	TArray<uint8> CacheDMXBuffer;
-
-	/** A single, generic DMX signal. One universe of raw DMX data received */
-	FDMXSignalSharedPtr LastSignalPtr;
-
-public:
-	/** Called when the struct is serialized */
-	bool Serialize(FArchive& Ar);
-
-	/** Called after the struct is serialized */
-	void PostSerialize(const FArchive& Ar);
+	/** Gets or creates the DMX library proxy */
+	static URemoteControlDMXLibraryProxy* GetDMXLibraryProxy(URemoteControlPreset* Preset);
 
 	// DEPRECATED MEMBERS
+public:
+#if WITH_EDITORONLY_DATA
 	// Deprecated 5.0
 	UPROPERTY(Meta = (DeprecatedProperty, DeprecationMessage = "This Property is deprecated and will be removed in a future release. It was moved to the ExtraSetting struct member so the property can be customized."))
-	int32 Universe_DEPRECATED = 1;
-	
+	int32 Universe_DEPRECATED = 0;
+
 	UPROPERTY(Meta = (DeprecatedProperty, DeprecationMessage = "This Property is deprecated and will be removed in a future release. It was moved to the ExtraSetting struct member so the property can be customized."))
 	bool bUseLSB_DEPRECATED = false;
 
@@ -118,10 +172,12 @@ public:
 
 	UPROPERTY(Meta = (DeprecatedProperty, DeprecationMessage = "This Property is deprecated and will be removed in a future release. It was moved to the ExtraSetting struct member so the property can be customized."))
 	bool bUseDefaultInputPort_DEPRECATED = true;
-	
+
 	UPROPERTY(Meta = (DeprecatedProperty, DeprecationMessage = "This Property is deprecated and will be removed in a future release. It was moved to the ExtraSetting struct member so the property can be customized."))
 	FGuid InputPortId_DEPRECATED;
+#endif
 };
+
 template<>
 struct TStructOpsTypeTraits<FRemoteControlDMXProtocolEntity> : public TStructOpsTypeTraitsBase2<FRemoteControlDMXProtocolEntity>
 {
@@ -143,46 +199,28 @@ public:
 	{}
 	
 	//~ Begin IRemoteControlProtocol interface
-	virtual void Bind(FRemoteControlProtocolEntityPtr InRemoteControlProtocolEntityPtr) override;
-	virtual void Unbind(FRemoteControlProtocolEntityPtr InRemoteControlProtocolEntityPtr) override;
+	virtual void Bind(TSharedPtr<TStructOnScope<FRemoteControlProtocolEntity>> InRemoteControlProtocolEntity) override;
+	virtual void Unbind(TSharedPtr<TStructOnScope<FRemoteControlProtocolEntity>> InRemoteControlProtocolEntity) override;
 	virtual void UnbindAll() override;
 	virtual UScriptStruct* GetProtocolScriptStruct() const override { return FRemoteControlDMXProtocolEntity::StaticStruct(); }
-	virtual void OnEndFrame() override;
 	//~ End IRemoteControlProtocol interface
 
-private:
-	/**
-	 * Apply dmx channel data to the bound property, potentially resize the cache buffer
-	 * @param InSignal				DMX signal buffer pointer
-	 * @param InDMXOffset			Byte offset in signal buffer
-	 * @param InProtocolEntityPtr	Protocol entity pointer
-	 */
-	void ProcessAndApplyProtocolValue(const FDMXSignalSharedPtr& InSignal, int32 InDMXOffset, const FRemoteControlProtocolEntityPtr& InProtocolEntityPtr);
+	/** DMX protocol name */
+	REMOTECONTROLPROTOCOLDMX_API static const FName ProtocolName;
 
 #if WITH_EDITOR
-	/**
-	 * Process the AutoBinding to the Remote Control Entity
-	 * @param InProtocolEntityPtr	Protocol entity pointer
-	 */
-	void ProcessAutoBinding(const FRemoteControlProtocolEntityPtr& InProtocolEntityPtr);
+	REMOTECONTROLPROTOCOLDMX_API static const FName PatchColumnName;
+	REMOTECONTROLPROTOCOLDMX_API static const FName UniverseColumnName;
+	REMOTECONTROLPROTOCOLDMX_API static const FName ChannelColumnName;
+#endif // WITH_EDITOR
 
 protected:
-
+#if WITH_EDITOR
 	/** Populates protocol specific columns. */
 	virtual void RegisterColumns() override;
-
-#endif // WITH_EDITOR
+#endif // WITH_EDIOR
 
 private:
 	/** Binding for the DMX protocol */
-	TArray<FRemoteControlProtocolEntityWeakPtr> ProtocolsBindings;
-
-#if WITH_EDITORONLY_DATA
-	/** DMX universe cache buffer.*/
-	TArray<uint8, TFixedAllocator<DMX_UNIVERSE_SIZE>> CacheUniverseDMXBuffer;
-#endif
-
-public:
-	/** DMX protocol name */
-	static const FName ProtocolName;
+	TArray<FRemoteControlProtocolEntityWeakPtr> WeakProtocolsBindings;
 };

@@ -3,28 +3,33 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Views/SHeaderRow.h"
 #include "Widgets/Views/STableViewBase.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/STreeView.h"
 
-// Insights
+// TraceInsights
 #include "Insights/NetworkingProfiler/ViewModels/NetStatsCounterNodeHelper.h"
 
 class IToolTip;
-class SNetStatsCounterTableRowToolTip;
 
-namespace Insights
+namespace UE::Insights
 {
 	class FTable;
 	class FTableColumn;
 }
 
+namespace UE::Insights::NetworkingProfiler
+{
+
+class SNetStatsCounterTableRowToolTip;
+
 DECLARE_DELEGATE_RetVal_OneParam(bool, FNetStatsCounterNodeShouldBeEnabledDelegate, FNetStatsCounterNodePtr /*NodePtr*/);
 DECLARE_DELEGATE_RetVal_OneParam(bool, FIsColumnVisibleDelegate, const FName /*ColumnId*/);
 DECLARE_DELEGATE_RetVal_OneParam(EHorizontalAlignment, FGetColumnOutlineHAlignmentDelegate, const FName /*ColumnId*/);
-DECLARE_DELEGATE_ThreeParams(FSetHoveredNetStatsCounterTableCell, TSharedPtr<Insights::FTable> /*TablePtr*/, TSharedPtr<Insights::FTableColumn> /*ColumnPtr*/, FNetStatsCounterNodePtr /*NetStatsCounterNodePtr*/);
+DECLARE_DELEGATE_ThreeParams(FSetHoveredNetStatsCounterTableCell, TSharedPtr<FTable> /*TablePtr*/, TSharedPtr<FTableColumn> /*ColumnPtr*/, FNetStatsCounterNodePtr /*NetStatsCounterNodePtr*/);
 
 /** Widget that represents a table row in the tree control. Generates widgets for each column on demand. */
 class SNetStatsCountersTableRow : public SMultiColumnTableRow<FNetStatsCounterNodePtr>
@@ -37,7 +42,7 @@ public:
 		SLATE_EVENT(FSetHoveredNetStatsCounterTableCell, OnSetHoveredCell)
 		SLATE_ATTRIBUTE(FText, HighlightText)
 		SLATE_ATTRIBUTE(FName, HighlightedNodeName)
-		SLATE_ARGUMENT(TSharedPtr<Insights::FTable>, TablePtr)
+		SLATE_ARGUMENT(TSharedPtr<FTable>, TablePtr)
 		SLATE_ARGUMENT(FNetStatsCounterNodePtr, NetStatsCounterNodePtr)
 	SLATE_END_ARGS()
 
@@ -72,11 +77,11 @@ protected:
 	const FSlateBrush* GetOutlineBrush(const FName ColumnId) const;
 	bool HandleShouldBeEnabled() const;
 	EVisibility IsColumnVisible(const FName ColumnId) const;
-	void OnSetHoveredCell(TSharedPtr<Insights::FTable> InTablePtr, TSharedPtr<Insights::FTableColumn> InColumnPtr, FNetStatsCounterNodePtr InNetStatsCounterNodePtr);
+	void OnSetHoveredCell(TSharedPtr<FTable> InTablePtr, TSharedPtr<FTableColumn> InColumnPtr, FNetStatsCounterNodePtr InNetStatsCounterNodePtr);
 
 protected:
 	/** A shared pointer to the table view model. */
-	TSharedPtr<Insights::FTable> TablePtr;
+	TSharedPtr<FTable> TablePtr;
 
 	/** Data context for this table row. */
 	FNetStatsCounterNodePtr NetStatsCounterNodePtr;
@@ -94,3 +99,5 @@ protected:
 
 	TSharedPtr<SNetStatsCounterTableRowToolTip> RowToolTip;
 };
+
+} // namespace UE::Insights::NetworkingProfiler

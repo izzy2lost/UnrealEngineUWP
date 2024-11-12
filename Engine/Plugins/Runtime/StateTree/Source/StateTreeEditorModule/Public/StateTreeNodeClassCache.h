@@ -7,6 +7,7 @@
 enum class EReloadCompleteReason;
 
 struct FAssetData;
+struct FStateTreeNodeBase;
 
 /**
  * Describes a class or struct.
@@ -34,6 +35,8 @@ struct STATETREEEDITORMODULE_API FStateTreeNodeClassData
 		return Cast<UScriptStruct>(GetStruct(bSilent));
 	}
 
+	const UStruct* GetInstanceDataStruct(bool bSilent = false);
+
 private:
 
 	/** Pointer to described struct or class. */
@@ -47,6 +50,9 @@ private:
 
 	/** Package of the asset if it's not loaded yet. */
 	FString ClassPackageName;
+
+	/** Pointer to described node's instance data struct or class. */
+	TWeakObjectPtr<const UStruct> InstanceDataStruct;
 };
 
 /**
@@ -74,16 +80,16 @@ struct STATETREEEDITORMODULE_API FStateTreeNodeClassCache
 	}
 
 	/** Returns know derived Structs based on provided base. If the base Struct is not added as root Struct, nothing is returned. */
-	void GetStructs(UStruct* BaseStruct, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses);
+	void GetStructs(const UStruct* BaseStruct, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses);
 	
 	/** Returns know derived Classes based on provided base. If the base Class is not added as root Class, nothing is returned. */
-	void GetClasses(UStruct* BaseClass, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses)
+	void GetClasses(const UStruct* BaseClass, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses)
 	{
 		GetStructs(BaseClass, AvailableClasses);
 	}
 	
 	/** Returns know derived ScriptStructs based on provided base. If the base struct is not added as root ScriptStruct, nothing is returned. */
-	void GetScripStructs(UScriptStruct* BaseStruct, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses)
+	void GetScripStructs(const UScriptStruct* BaseStruct, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses)
 	{
 		GetStructs(BaseStruct, AvailableClasses);
 	}

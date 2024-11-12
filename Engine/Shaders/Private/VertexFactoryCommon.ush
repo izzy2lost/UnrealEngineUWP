@@ -43,8 +43,12 @@
 	#define VF_GPUSCENE_GET_SHADOWMAP_UV_SCALE_BIAS(VFInput, LightmapDataIndex) \
 		GetLightmapData(LightmapDataIndex, VFInput.DrawInstanceId).ShadowMapCoordinateScaleBias
 
+	#define VF_GPUSCENE_SET_INPUT_FOR_RT(_VFInputOut_, _InstanceId_, _DrawInstanceId_) \
+		_VFInputOut_.InstanceIdOffset = _InstanceId_ - _DrawInstanceId_; \
+		_VFInputOut_.DrawInstanceId = _DrawInstanceId_;
+
 	// GPUCULL_TODO: Makes use of DynamicDraw workaround, should instead refactor VF interfaces and provide the instance ID data directly.
-	#define VF_GPUSCENE_SET_INPUT_FOR_RT(_VFInputOut_, _PrimitiveId_, _DrawInstanceId_) \
+	#define VF_GPUSCENE_SET_INPUT_FOR_HAIR(_VFInputOut_, _PrimitiveId_, _DrawInstanceId_) \
 		_VFInputOut_.InstanceIdOffset = (_PrimitiveId_) | VF_TREAT_INSTANCE_ID_OFFSET_AS_PRIMITIVE_ID_FLAG;	\
 		_VFInputOut_.DrawInstanceId = _DrawInstanceId_;
 
@@ -57,7 +61,8 @@
 	#define VF_GPUSCENE_GET_INTERMEDIATES(VFInput) GetSceneDataIntermediates()
 	#define VF_GPUSCENE_GET_LIGHTMAP_UV_SCALE_BIAS(VFInput, LightmapDataIndex) PrecomputedLightingBuffer.LightMapCoordinateScaleBias
 	#define VF_GPUSCENE_GET_SHADOWMAP_UV_SCALE_BIAS(VFInput, LightmapDataIndex) PrecomputedLightingBuffer.ShadowMapCoordinateScaleBias
-	#define VF_GPUSCENE_SET_INPUT_FOR_RT(_VFInputOut_, _PrimitiveId_, _DrawInstanceId_)
+	#define VF_GPUSCENE_SET_INPUT_FOR_RT(_VFInputOut_, _InstanceId_, _DrawInstanceId_)
+	#define VF_GPUSCENE_SET_INPUT_FOR_HAIR(_VFInputOut_, _PrimitiveId_, _DrawInstanceId_)
 
 	#if INSTANCED_STEREO
 		#define VF_INSTANCED_STEREO_DECLARE_INPUT_BLOCK() \

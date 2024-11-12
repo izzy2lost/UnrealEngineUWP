@@ -7,10 +7,12 @@
 #include "RHIBufferTests.h"
 #include "RHITextureTests.h"
 #include "RHIDrawTests.h"
+#include "RHIClearTextureTests.h"
 #include "RHIReadbackTests.h"
 #include "RHIReservedResourceTests.h"
+#include "RHIGraphicsUAVTests.h"
 
-BEGIN_DEFINE_SPEC(FAutomationRHITest, "Rendering.RHI", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::NonNullRHI)
+BEGIN_DEFINE_SPEC(FAutomationRHITest, "Rendering.RHI", EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::NonNullRHI)
 END_DEFINE_SPEC(FAutomationRHITest)
 void FAutomationRHITest::Define()
 {
@@ -54,7 +56,7 @@ void FAutomationRHITest::Define()
 
 		It("RHI Clear Render Targets", [this]()
 		{
-			bool bResult = RunOnRenderThreadSynchronous(FRHITextureTests::Test_ClearRenderTargets);
+			bool bResult = RunOnRenderThreadSynchronous(FRHIClearTextureTests::Test_ClearTexture);
 			TestEqual("Clear Render Targets failed", bResult, 1);
 		});
 	});
@@ -149,6 +151,12 @@ void FAutomationRHITest::Define()
 			TestEqual("Create Reserved Texture failed", bResult, 1);
 		});
 
+		It("Create Reserved Texture With Mips", [this]()
+		{
+			bool bResult = RunOnRenderThreadSynchronous(FRHIReservedResourceTests::Test_ReservedResource_CreateTextureWithMips);
+			TestEqual("Create Reserved Texture With Mips failed", bResult, 1);
+		});
+
 		It("Create Reserved Buffer", [this]()
 		{
 			bool bResult = RunOnRenderThreadSynchronous(FRHIReservedResourceTests::Test_ReservedResource_CreateBuffer);
@@ -165,6 +173,22 @@ void FAutomationRHITest::Define()
 		{
 			bool bResult = RunOnRenderThreadSynchronous(FRHIReservedResourceTests::Test_ReservedResource_DecommitBuffer);
 			TestEqual("Decommit Reserved Buffer failed", bResult, 1);
+		});
+	});
+
+
+	Describe("Test RHI Graphics UAV Binding", [this]()
+	{
+		It("Pixel shader UAV", [this]()
+		{
+			bool bResult = RunOnRenderThreadSynchronous(FRHIGraphicsUAVTests::Test_GraphicsUAV_PixelShader);
+			TestEqual("Pixel shader UAV failed", bResult, 1);
+		});
+
+		It("Vertex shader UAV", [this]()
+		{
+			bool bResult = RunOnRenderThreadSynchronous(FRHIGraphicsUAVTests::Test_GraphicsUAV_VertexShader);
+			TestEqual("Vixel shader UAV failed", bResult, 1);
 		});
 	});
 }

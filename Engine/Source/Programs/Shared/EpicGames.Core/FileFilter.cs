@@ -74,8 +74,9 @@ namespace EpicGames.Core
 		/// Constructs a file filter from a p4-style filespec. Exclude lines are prefixed with a - character.
 		/// </summary>
 		/// <param name="lines">Lines to parse rules from</param>
-		public FileFilter(IEnumerable<string> lines)
-			: this()
+		/// <param name="defaultType">Default behavior for lines not matched by the filter</param>
+		public FileFilter(IEnumerable<string> lines, FileFilterType defaultType = FileFilterType.Exclude)
+			: this(defaultType)
 		{
 			foreach (string line in lines)
 			{

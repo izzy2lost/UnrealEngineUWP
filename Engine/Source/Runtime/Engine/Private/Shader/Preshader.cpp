@@ -1344,6 +1344,7 @@ FPreshaderValue EvaluatePreshader(const FUniformExpressionSet* UniformExpression
 		case EPreshaderOpcode::LessEqual: EvaluateBinaryOp(Stack, LessEqual); break;
 		case EPreshaderOpcode::GreaterEqual: EvaluateBinaryOp(Stack, GreaterEqual); break;
 		case EPreshaderOpcode::Fmod: EvaluateBinaryOpInPlace(Stack, FmodInPlace, Fmod); break;
+		case EPreshaderOpcode::Modulo: EvaluateBinaryOpInPlace(Stack, ModuloInPlace, Modulo); break;
 		case EPreshaderOpcode::Min: EvaluateBinaryOpInPlace(Stack, MinInPlace, Min); break;
 		case EPreshaderOpcode::Max: EvaluateBinaryOpInPlace(Stack, MaxInPlace, Max); break;
 		case EPreshaderOpcode::Clamp: EvaluateTernaryOp(Stack, Clamp); break;
@@ -1434,6 +1435,7 @@ static void EvaluatePreshaderDebug(const FUniformExpressionSet* UniformExpressio
 		case EPreshaderOpcode::LessEqual: EvaluateBinaryOp(Stack, LessEqual); break;
 		case EPreshaderOpcode::GreaterEqual: EvaluateBinaryOp(Stack, GreaterEqual); break;
 		case EPreshaderOpcode::Fmod: EvaluateBinaryOpInPlace(Stack, FmodInPlace, Fmod); break;
+		case EPreshaderOpcode::Modulo: EvaluateBinaryOpInPlace(Stack, ModuloInPlace, Modulo); break;
 		case EPreshaderOpcode::Min: EvaluateBinaryOpInPlace(Stack, MinInPlace, Min); break;
 		case EPreshaderOpcode::Max: EvaluateBinaryOpInPlace(Stack, MaxInPlace, Max); break;
 		case EPreshaderOpcode::Clamp: EvaluateTernaryOp(Stack, Clamp); break;

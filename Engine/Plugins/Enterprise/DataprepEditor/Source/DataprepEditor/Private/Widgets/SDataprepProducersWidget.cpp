@@ -15,10 +15,12 @@
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
 #include "EditorFontGlyphs.h"
+#include "SPrimaryButton.h"
 #include "UObject/UObjectIterator.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SScrollBox.h"
+
 #define LOCTEXT_NAMESPACE "DataprepProducersWidget"
 
 FContentProducerEntry::FContentProducerEntry(int32 InProducerIndex, UDataprepAssetProducers* InAssetProducersPtr)
@@ -254,10 +256,8 @@ void SDataprepProducersWidget::Construct( const FArguments & InArgs, UDataprepAs
 			.HAlign( HAlign_Center )
 			.Padding(20)
 			[
-				SNew(SButton)
-				.ButtonStyle(FAppStyle::Get(), "FlatButton.Success")
-				.ForegroundColor(FLinearColor::White)
-				.ContentPadding(FMargin(30, 2))
+				SNew(SPrimaryButton)
+				.Text( LOCTEXT( "ImportButton", "Import" ) )
 				.ToolTipText( LOCTEXT( "ImportButtonTooltip", "Load inputs' data into the Dataprep Editor"  ) )
 				.OnClicked(FOnClicked::CreateLambda([this]()
 				{
@@ -272,12 +272,6 @@ void SDataprepProducersWidget::Construct( const FArguments & InArgs, UDataprepAs
 					}
 					return false;
 				})
-				.Content()
-				[
-					SNew( STextBlock )
-					.TextStyle( FAppStyle::Get(), "ContentBrowser.TopBar.Font" )
-					.Text( LOCTEXT( "ImportButton", "Import" ) )
-				]
 			]
 		]
 		+SHorizontalBox::Slot()

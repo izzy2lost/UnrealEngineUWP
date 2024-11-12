@@ -27,7 +27,7 @@ public:
 
 	virtual FXRSwapChainPtr CreateSwapchain(XrSession InSession, uint8 Format, uint8& OutActualFormat, uint32 SizeX, uint32 SizeY, uint32 ArraySize, uint32 NumMips, uint32 NumSamples, ETextureCreateFlags CreateFlags, const FClearValueBinding& ClearValueBinding, ETextureCreateFlags AuxiliaryCreateFlags = ETextureCreateFlags::None) = 0;
 
-	FXRSwapChainPtr CreateSwapchain(XrSession InSession, FRHITexture2D* Template, ETextureCreateFlags CreateFlags)
+	FXRSwapChainPtr CreateSwapchain(XrSession InSession, FRHITexture* Template, ETextureCreateFlags CreateFlags)
 	{
 		if (!Template)
 		{
@@ -48,7 +48,8 @@ public:
 	}
 
 	/** FRHICustomPresent */
-	virtual bool Present(int32& InOutSyncInterval) override;
+	virtual bool Present(IRHICommandContext& RHICmdContext, int32& InOutSyncInterval) override;
+	virtual bool Present(int32& InOutSyncInterval) override { check(false); return false; }
 
 	virtual bool Support10BitSwapchain() const { return false; }
 
@@ -56,7 +57,7 @@ public:
 
 	virtual void SetSkipRate(uint32 SkipRate) {}
 
-	virtual void HMDOnFinishRendering_RHIThread();
+	virtual void HMDOnFinishRendering_RHIThread(IRHICommandContext& RHICmdContext);
 
 protected:
 	XrInstance Instance;

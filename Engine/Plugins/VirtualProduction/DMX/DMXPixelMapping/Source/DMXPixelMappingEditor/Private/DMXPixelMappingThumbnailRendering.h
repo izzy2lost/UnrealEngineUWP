@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ThumbnailRendering/TextureThumbnailRenderer.h"
+
 #include "DMXPixelMappingThumbnailRendering.generated.h"
 
 class UTexture;

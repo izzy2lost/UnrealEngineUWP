@@ -218,11 +218,6 @@ void UInAppPurchaseCallbackProxy2::OnPurchaseComplete()
 	}
 }
 
-EInAppPurchaseStatus UInAppPurchaseCallbackProxy2::PurchaseStatusFromOnlineError(const FOnlineError& OnlineError)
-{
-	return ::PurchaseStatusFromOnlineError(OnlineError);
-}
-
 void UInAppPurchaseCallbackProxy2::OnQueryReceiptsComplete(const FOnlineError& Result)
 {
 		SavedReceipts.Empty();

@@ -2,6 +2,7 @@
 #pragma once
 #include "HarmonixMidi/MidiConstants.h"
 #include "HarmonixMidi/MusicMapBase.h"
+#include <limits>
 
 #include "TempoMap.generated.h"
 
@@ -32,6 +33,8 @@ public:
 	}
 
 	float GetBPM() const { return Harmonix::Midi::Constants::MidiTempoToBPM(MidiTempo); }
+
+	float GetMsPerQuarterNote() const { return (float)MidiTempo / 1000.0f; }
 
 	UPROPERTY()
 	float Ms = 0;        // The time at which the tempo is changing
@@ -68,7 +71,7 @@ public:
 	bool operator==(const FTempoMap& Other) const;
 
 	void Empty();
-	void Copy(const FTempoMap& Other, int32 StartTick = 0, int32 EndTick = -1);
+	void Copy(const FTempoMap& Other, int32 StartTick = 0, int32 EndTick = std::numeric_limits<int32>::max());
 	bool IsEmpty() const;
 
 	/** Called by the midi file importer before map points are added to this map */
@@ -76,13 +79,6 @@ public:
 	{
 		TicksPerQuarterNote = InTicksPerQuarterNote;
 	}
-
-/*
-	template <typename T>
-	float TickToMs(T Tick) const;
-	template <typename T>
-	float TickToSeconds(T Tick) const;
-*/
 
 	/** Get the time (in milliseconds) at a given tick: */
 	float TickToMs(float Tick) const;
@@ -128,6 +124,9 @@ public:
 	/** Get the tempo info point */
 	const FTempoInfoPoint* GetTempoPointAtTick(int32 Tick) const;
 
+	/** Get the tempo info point */
+	int32 GetTempoPointIndexAtTick(int32 Tick) const;
+
 	/** The number of 'tempo events' in the song */
 	int32 GetNumTempoChangePoints() const;
 
@@ -147,6 +146,8 @@ public:
 
 	// Returns the tempo info points for inspection.
 	const TArray<FTempoInfoPoint>& GetTempoPoints() const { return Points; }
+
+	int32 GetTicksPerQuarterNote() const { return TicksPerQuarterNote; }
 
 protected:
 	UPROPERTY()

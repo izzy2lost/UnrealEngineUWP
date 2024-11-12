@@ -37,6 +37,16 @@ class FPaths
 public:
 
 	/**
+	 * @return true if ProjectDir() is allowed to be called
+	 */
+	static CORE_API bool CanGetProjectDir();
+
+	/**
+	  * @return true if the build has been staged and uses the simplified remapped directory structure made when staging
+	 */
+	static CORE_API bool IsStaged();
+	
+	/**
 	 * Should the "saved" directory structures be rooted in the user dir or relative to the "engine/game" 
 	 */
 	static CORE_API bool ShouldSaveToUserDir();
@@ -195,11 +205,13 @@ public:
 		Engine_PlatformExtension,
 		Engine_NotForLicensees,
 		Engine_NoRedist,
+		Engine_LimitedAccess,
 
 		Project_First,
 		Project_PlatformExtension = Project_First,
 		Project_NotForLicensees,
 		Project_NoRedist,
+		Project_LimitedAccess
 	};
 	
 	/**
@@ -414,7 +426,8 @@ public:
 	/**
 	 * Returns a list of cooked editor-specific localization paths
 	 */
-	static CORE_API const TArray<FString>& GetCookedEditorLocalizationPaths();
+	UE_DEPRECATED(5.5, "Cooked editor localization path no longer exist. Cooked editors now load game localization paths.")
+	static TArray<FString> GetCookedEditorLocalizationPaths() { return TArray<FString>(); }
 
 	/** 
 	 * Returns a list of property name localization paths

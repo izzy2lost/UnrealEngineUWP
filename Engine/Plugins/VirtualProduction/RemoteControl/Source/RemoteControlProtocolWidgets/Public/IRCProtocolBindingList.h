@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "UObject/StructOnScope.h"
 
+class URemoteControlPreset;
 struct FRemoteControlProtocolEntity;
 
 /**
@@ -17,6 +18,9 @@ public:
 
 	/** Virtual destructor */
 	virtual ~IRCProtocolBindingList() = default;
+
+	/** Returns the remote control preset for which this list is currently drawn */
+	virtual URemoteControlPreset* GetPreset() const = 0;
 
 	/** Adds a new protocol binding of specified type to the current view model. */
 	virtual void AddProtocolBinding(const FName InProtocolName) = 0;

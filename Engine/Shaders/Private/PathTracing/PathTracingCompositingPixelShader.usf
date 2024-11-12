@@ -12,23 +12,27 @@ uint Iteration;
 uint MaxSamples;
 int ProgressDisplayEnabled;
 Texture2D<float4> RadianceTexture;
-Texture2D<float4> NormalDepthTexture;
-
+Texture2D<float> DepthTexture;
+float PreExposure; // Taken from the view, but adjusted by the base exposure already applied to the Radiance texture
 int AdaptiveSamplingVisualize;
 
 void CompositeMain(
-	in noperspective float2 UV : TEXCOORD0,
+	in noperspective float4 UVAndScreenPos : TEXCOORD0,
 	out float4 OutColor : SV_Target0,
 	out float OutDepth : SV_DEPTH
 )
 {
+	float2 UV = UVAndScreenPos.xy;
 	float2 BufferSize = View.BufferSizeAndInvSize.xy;
 	int3 TexCoord = int3(UV * BufferSize - View.ViewRectMin.xy, 0);
 
 	float4 Radiance = RadianceTexture.Load(TexCoord);
+	Radiance = select(IsFinite(Radiance), Radiance, MaxHalfFloat); // if any component overflowed half precision, clamp it now
 
 	// NOTE: UE has the convention of using 1.0 - Alpha
-	OutColor = float4(Radiance.rgb * View.PreExposure, 1.0 - Radiance.a);
+	// We must saturate the result because the path tracer's alpha is stochastic in the presence of volumetrics
+	// It is important that the clamp happens _after_ averaging, otherwise this can bias the estimate
+	OutColor = float4(Radiance.rgb * PreExposure, saturate(1.0 - Radiance.a));
 
 	if (AdaptiveSamplingVisualize == 1)
 	{
@@ -77,28 +81,6 @@ void CompositeMain(
 		float2 Center = float2(lerp(RectMin.x, RectMax.x, 0.5), RectMax.y) * View.BufferSizeAndInvSize.zz - float2(0, Size * 0.75);
 		P -= Center;
 		float Fraction = saturate(float(Iteration + 1) / float(MaxSamples));
-#if 0
-		// measure progress like a clock
-		float R2 = dot(P, P);
-		float ROuter2 = Square(0.50 * Size);
-		float RInner2 = Square(0.35 * Size);
-
-		float R2f = fwidth(R2);
-
-		// point is on the progress ring
-		if (R2 < ROuter2 + R2f && R2 > RInner2 - R2f)
-		{
-			float Angle = (atan2(-P.x, P.y) + PI) / (2 * PI);
-			// anti-alias progress bar edge
-			float Blend = smoothstep(Fraction - fwidth(Angle), Fraction + fwidth(Angle), Angle);
-			// Grey/Red blend
-			float4 ProgressBarColor = lerp(float4(1.0, 0.1, 0.1, 1), float4(0.5, 0.5, 0.5, 1), Blend);
-			// anti-alias ring edges
-			float BlendOuter = 1 - smoothstep(ROuter2 - R2f, ROuter2 + R2f, R2);
-			float BlendInner =     smoothstep(RInner2 - R2f, RInner2 + R2f, R2);
-			OutColor = lerp(OutColor, ProgressBarColor, 0.75 * BlendInner * BlendOuter);
-		}
-#else
 		// simple linear progress bar
 		float2 ProgressSize = float2(2.0 * Size, 0.15 * Size);
 		if (all(abs(P) < ProgressSize))
@@ -107,11 +89,10 @@ void CompositeMain(
 			P /= ProgressSize * 2;
 			float Blend = smoothstep(Fraction - fwidth(P.x), Fraction + fwidth(P.x), P.x);
 			// Grey/Red blend
-			float4 ProgressBarColor = lerp(float4(1.0, 0.1, 0.1, 1), float4(0.5, 0.5, 0.5, 1), Blend);
-			OutColor = lerp(OutColor, ProgressBarColor, 0.75);
+			float3 ProgressBarColor = lerp(float3(1.0, 0.1, 0.1), float3(0.5, 0.5, 0.5), Blend);
+			OutColor.xyz = lerp(OutColor.xyz, ProgressBarColor, 0.75);
 		}
-#endif
 	}
 
-	OutDepth = NormalDepthTexture.Load(TexCoord).w;
+	OutDepth = DepthTexture.Load(TexCoord);
 }

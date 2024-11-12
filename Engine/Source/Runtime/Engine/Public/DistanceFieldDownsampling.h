@@ -13,7 +13,7 @@ class FRDGBuilder;
 
 struct FDistanceFieldDownsamplingDataTask
 {
-	FTexture3DRHIRef VolumeTextureRHI;
+	FTextureRHIRef VolumeTextureRHI;
 	FVector TexelSrcSize;
 	FIntVector DstSize;
 	FIntVector OffsetInAtlas;

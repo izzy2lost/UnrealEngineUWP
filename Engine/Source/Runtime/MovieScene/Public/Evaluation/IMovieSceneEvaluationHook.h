@@ -16,6 +16,7 @@ namespace UE
 namespace MovieScene
 {
 
+struct FSharedPlaybackState;
 
 enum class EEvaluationHookEvent
 {
@@ -60,11 +61,26 @@ class IMovieSceneEvaluationHook
 {
 public:
 
+	using FSharedPlaybackState = UE::MovieScene::FSharedPlaybackState;
+
 	GENERATED_BODY()
 
+	MOVIESCENE_API virtual void Begin(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const;
+	MOVIESCENE_API virtual void Update(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const;
+	MOVIESCENE_API virtual void End(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const;
+
+	MOVIESCENE_API virtual void Trigger(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const;
+
+protected:
+
+	UE_DEPRECATED(5.5, "Please implement the version that takes a SharedPlaybackState")
 	virtual void Begin(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const {}
+	UE_DEPRECATED(5.5, "Please implement the version that takes a SharedPlaybackState")
 	virtual void Update(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const {}
+	UE_DEPRECATED(5.5, "Please implement the version that takes a SharedPlaybackState")
 	virtual void End(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const {}
 
+	UE_DEPRECATED(5.5, "Please implement the version that takes a SharedPlaybackState")
 	virtual void Trigger(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const {}
 };
+

@@ -28,5 +28,7 @@ public class DynamicMesh : ModuleRules
 			}
 		);
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

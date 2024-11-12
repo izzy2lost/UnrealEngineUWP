@@ -215,4 +215,59 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting", meta = (ScriptMethod))
 	static void SetBlueprintVariableInstanceEditable(UBlueprint* Blueprint, const FName& VariableName, bool bInstanceEditable);
+
+	/**
+	 * Creates a blueprint based on a specific parent, honoring registered custom blueprint types
+	 * 
+	 * @param AssetPath				The full path that the asset should be created with
+	 * @param ParentClass			The parent class that the blueprint should be based on
+	 */
+	 UFUNCTION(BlueprintCallable, Category = "Blueprint Editor")
+	 static UBlueprint* CreateBlueprintAssetWithParent(const FString& AssetPath, UClass* ParentClass);
+
+	/**
+	  * Adds a member variable to the specified blueprint inferring the type from a provided value.
+	  * 
+	  * @return	true if it succeeds, false if it fails.
+	  */
+	UFUNCTION(BlueprintCallable, CustomThunk, Category = "Blueprint Editor", meta=(CustomStructureParam="DefaultValue"))
+	static bool AddMemberVariableWithValue(UBlueprint* Blueprint, FName MemberName, const int32& DefaultValue);
+	static bool Generic_AddMemberVariableWithValue(UBlueprint* Blueprint, FName MemberName, const uint8* DefaultValuePtr, const FProperty* DefaultValueProp);
+	DECLARE_FUNCTION(execAddMemberVariableWithValue);
+	
+	/**
+	  * Adds a member variable to the specified blueprint with the specified type.
+	  * 
+	  * @return	true if it succeeds, false if it fails.
+	  */
+	UFUNCTION(BlueprintCallable, Category = "Blueprint Editor")
+	static bool AddMemberVariable(UBlueprint* Blueprint, FName MemberName, const FEdGraphPinType& VariableType);
+	
+	/** @return a pintype for 'int', 'byte', 'bool', 'real', 'name', 'string' or 'text' - returns 'int' type if invalid type is provided */
+	UFUNCTION(BlueprintCallable, Category = "Blueprint Editor")
+	static FEdGraphPinType GetBasicTypeByName(FName TypeName);
+	
+	/** @return a pintype for the provided struct - returns 'int' type if invalid struct is provided */
+	UFUNCTION(BlueprintCallable, Category = "Blueprint Editor")
+	static FEdGraphPinType GetStructType(const UScriptStruct* StructType);
+	
+	/** @return a class reference pintype for the provided class - returns 'int' type if invalid class is provided */
+	UFUNCTION(BlueprintCallable, Category = "Blueprint Editor")
+	static FEdGraphPinType GetClassReferenceType(const UClass* ClassType);
+	
+	/** @return a object reference pintype for the provided class - returns 'int' type if invalid object type is provided */
+	UFUNCTION(BlueprintCallable, Category = "Blueprint Editor")
+	static FEdGraphPinType GetObjectReferenceType(const UClass* ObjectType);
+	
+	/** @return a array of ContainedType type - returns 'int' type if invalid type is provided */
+	UFUNCTION(BlueprintCallable, Category = "Blueprint Editor")
+	static FEdGraphPinType GetArrayType(const FEdGraphPinType& ContainedType);
+	
+	/** @return a set of ContainedType type - returns 'int' type if invalid type is provided */
+	UFUNCTION(BlueprintCallable, Category = "Blueprint Editor")
+	static FEdGraphPinType GetSetType(const FEdGraphPinType& ContainedType);
+	
+	/** @return a map of KeyType to ValueType type - returns 'int' type if invalid type is provided */
+	UFUNCTION(BlueprintCallable, Category = "Blueprint Editor")
+	static FEdGraphPinType GetMapType(const FEdGraphPinType& KeyType,const FEdGraphPinType& ValueType);
 };

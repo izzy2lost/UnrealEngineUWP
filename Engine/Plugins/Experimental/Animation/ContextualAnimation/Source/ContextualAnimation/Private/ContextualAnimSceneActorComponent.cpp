@@ -100,6 +100,17 @@ void UContextualAnimSceneActorComponent::GetLifetimeReplicatedProps(TArray< FLif
 	DOREPLIFETIME_WITH_PARAMS_FAST(UContextualAnimSceneActorComponent, RepTransitionData, Params);
 }
 
+void UContextualAnimSceneActorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (OwnerAnimInstance.IsValid())
+	{
+		OwnerAnimInstance->OnMontageBlendingOut.RemoveDynamic(this, &UContextualAnimSceneActorComponent::OnMontageBlendingOut);
+		OwnerAnimInstance->OnPlayMontageNotifyBegin.RemoveDynamic(this, &UContextualAnimSceneActorComponent::OnPlayMontageNotifyBegin);
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
 bool UContextualAnimSceneActorComponent::IsOwnerLocallyControlled() const
 {
 	if (const APawn* OwnerPawn = Cast<APawn>(GetOwner()))
@@ -119,8 +130,11 @@ void UContextualAnimSceneActorComponent::PlayAnimation_Internal(UAnimSequenceBas
 {
 	if (UAnimInstance* AnimInstance = UContextualAnimUtilities::TryGetAnimInstance(GetOwner()))
 	{
-		UE_LOG(LogContextualAnim, Log, TEXT("%-21s \t\tUContextualAnimSceneActorComponent::PlayAnimation_Internal Playing Animation. Actor: %s Anim: %s StartTime: %f bSyncPlaybackTime: %d"),
+		UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s \t\tUContextualAnimSceneActorComponent::PlayAnimation_Internal Playing Animation. Actor: %s Anim: %s StartTime: %f bSyncPlaybackTime: %d"),
 			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), *GetNameSafe(Animation), StartTime, bSyncPlaybackTime);
+
+		// Cache AnimInstance so we don't have to look for it in the bindings in subsequent uses.
+		OwnerAnimInstance = AnimInstance;
 
 		//@TODO: Add support for dynamic montage
 		UAnimMontage* AnimMontage = Cast<UAnimMontage>(Animation);
@@ -132,7 +146,6 @@ void UContextualAnimSceneActorComponent::PlayAnimation_Internal(UAnimSequenceBas
 
 		AnimInstance->OnMontageBlendingOut.AddUniqueDynamic(this, &UContextualAnimSceneActorComponent::OnMontageBlendingOut);
 		AnimInstance->OnPlayMontageNotifyBegin.AddUniqueDynamic(this, &UContextualAnimSceneActorComponent::OnPlayMontageNotifyBegin);
-		
 
 		if (bSyncPlaybackTime)
 		{
@@ -202,6 +215,7 @@ void UContextualAnimSceneActorComponent::AddOrUpdateWarpTargets(int32 SectionIdx
 					const FTransform TransformRelativeToWarpPoint = Asset->GetAlignmentTransform(*AnimTrack, WarpPoint.Name, Time);
 					const FTransform WarpTargetTransform = TransformRelativeToWarpPoint * WarpPoint.Transform;
 					MotionWarpComp->AddOrUpdateWarpTargetFromTransform(WarpPoint.Name, WarpTargetTransform);
+					WarpTargetNamesCache.AddUnique(WarpPoint.Name);
 				}
 			}
 		}
@@ -212,6 +226,7 @@ void UContextualAnimSceneActorComponent::AddOrUpdateWarpTargets(int32 SectionIdx
 			if (WarpTarget.Role == Role)
 			{
 				MotionWarpComp->AddOrUpdateWarpTargetFromTransform(WarpTarget.TargetName, FTransform(WarpTarget.TargetRotation, WarpTarget.TargetLocation));
+				WarpTargetNamesCache.AddUnique(WarpTarget.TargetName);
 			}
 		}
 	}
@@ -243,7 +258,7 @@ bool UContextualAnimSceneActorComponent::LateJoinContextualAnimScene(AActor* Act
 		}
 	}
 
-	UE_LOG(LogContextualAnim, Log, TEXT("%-21s UContextualAnimSceneActorComponent::LateJoinContextualAnimScene Owner: %s Bindings Id: %d Section: %d Asset: %s. Requester: %s Role: %s"),
+	UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::LateJoinContextualAnimScene Owner: %s Bindings Id: %d Section: %d Asset: %s. Requester: %s Role: %s"),
 		*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), Bindings.GetID(), Bindings.GetSectionIdx(), *GetNameSafe(Bindings.GetSceneAsset()), *GetNameSafe(Actor), *Role.ToString());
 
 	// Add actor to the bindings
@@ -307,7 +322,7 @@ void UContextualAnimSceneActorComponent::LateJoinScene(const FContextualAnimScen
 
 	if (const FContextualAnimSceneBinding* Binding = InBindings.FindBindingByActor(GetOwner()))
 	{
-		UE_LOG(LogContextualAnim, Log, TEXT("%-21s UContextualAnimSceneActorComponent::LateJoinScene Actor: %s Role: %s Bindings Id: %d Section: %d Asset: %s"),
+		UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::LateJoinScene Actor: %s Role: %s Bindings Id: %d Section: %d Asset: %s"),
 			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), *InBindings.GetRoleFromBinding(*Binding).ToString(), InBindings.GetID(), InBindings.GetSectionIdx(), *GetNameSafe(InBindings.GetSceneAsset()));
 
 		Bindings = InBindings;
@@ -321,9 +336,11 @@ void UContextualAnimSceneActorComponent::LateJoinScene(const FContextualAnimScen
 
 		SetCollisionState(*Binding);
 
-		SetMovementState(*Binding, AnimTrack->MovementMode);
+		SetMovementState(*Binding, AnimTrack->MovementMode, AnimTrack->CustomMovementMode);
 
 		OnLateJoinScene(*Binding, SectionIdx, AnimSetIdx);
+
+		OnJoinedSceneDelegate.Broadcast(this);
 	}
 }
 
@@ -336,7 +353,7 @@ void UContextualAnimSceneActorComponent::OnRep_LateJoinData()
 {
 	// This is received by the leader of the interaction on every remote client
 
-	UE_LOG(LogContextualAnim, Log, TEXT("%-21s UContextualAnimSceneActorComponent::OnRep_LateJoinData Owner: %s Bindings Id: %d Section: %d Asset: %s. Requester: %s Role: %s RepCounter: %d"),
+	UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::OnRep_LateJoinData Owner: %s Bindings Id: %d Section: %d Asset: %s. Requester: %s Role: %s RepCounter: %d"),
 		*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), Bindings.GetID(), Bindings.GetSectionIdx(), *GetNameSafe(Bindings.GetSceneAsset()), *GetNameSafe(RepLateJoinData.Actor), *RepLateJoinData.Role.ToString(), RepLateJoinData.RepCounter);
 
 	if (!RepLateJoinData.IsValid())
@@ -410,7 +427,7 @@ bool UContextualAnimSceneActorComponent::TransitionContextualAnimScene(FName Sec
 		const int32 SectionIdx = Bindings.GetSceneAsset()->GetSectionIndex(SectionName);
 		if (SectionIdx != INDEX_NONE)
 		{
-			UE_LOG(LogContextualAnim, Log, TEXT("%-21s UContextualAnimSceneActorComponent::TransitionTo Actor: %s SectionName: %s"),
+			UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::TransitionTo Actor: %s SectionName: %s"),
 				*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), *SectionName.ToString());
 
 			// Calculate WarpPoints
@@ -498,7 +515,7 @@ void UContextualAnimSceneActorComponent::HandleTransitionSelf(int32 NewSectionId
 	// Play animation
 	const FContextualAnimSceneBinding& Binding = *Bindings.FindBindingByActor(GetOwner());
 	const FContextualAnimTrack& AnimTrack = Bindings.GetAnimTrackFromBinding(Binding);
-	PlayAnimation_Internal(AnimTrack.Animation, 0.f, true);
+	PlayAnimation_Internal(AnimTrack.Animation, 0.f, Bindings.ShouldSyncAnimation());
 
 	AddOrUpdateWarpTargets(NewSectionIdx, NewAnimSetIdx, WarpPoints, ExternalWarpTargets);
 
@@ -552,7 +569,7 @@ bool UContextualAnimSceneActorComponent::TransitionSingleActor(int32 SectionIdx,
 			const FContextualAnimTrack* AnimTrack = Asset->GetAnimTrack(SectionIdx, AnimSetIdx, Bindings.GetRoleFromBinding(*OwnerBinding));
 			if (AnimTrack && AnimTrack->Animation)
 			{
-				UE_LOG(LogContextualAnim, Log, TEXT("%-21s UContextualAnimSceneActorComponent::TransitionSingleActor Actor: %s SectionIdx: %d AnimSetIdx: %d"),
+				UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::TransitionSingleActor Actor: %s SectionIdx: %d AnimSetIdx: %d"),
 					*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), SectionIdx, AnimSetIdx);
 
 				// Calculate WarpPoints
@@ -597,7 +614,7 @@ void UContextualAnimSceneActorComponent::OnTransitionSingleActor(const FContextu
 
 void UContextualAnimSceneActorComponent::OnRep_RepTransitionSingleActor()
 {
-	UE_LOG(LogContextualAnim, Log, TEXT("%-21s UContextualAnimSceneActorComponent::OnRep_RepTransitionSingleActor Owner: %s Id: %d RepCounter: %d SectionIdx: %d AnimSetIdx: %d Current Bindings ID: %d"),
+	UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::OnRep_RepTransitionSingleActor Owner: %s Id: %d RepCounter: %d SectionIdx: %d AnimSetIdx: %d Current Bindings ID: %d"),
 		*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), 
 		RepTransitionSingleActorData.Id, RepTransitionSingleActorData.RepCounter, RepTransitionSingleActorData.SectionIdx, RepTransitionSingleActorData.AnimSetIdx, Bindings.IsValid() ? Bindings.GetID() : -1);
 
@@ -659,6 +676,11 @@ bool UContextualAnimSceneActorComponent::TransitionContextualAnimScene(FName Sec
 {
 	return TransitionContextualAnimScene(SectionName, {});
 }
+
+bool UContextualAnimSceneActorComponent::TransitionContextualAnimSceneToSpecificSet(FName SectionName, int32 AnimSetIdx)
+{
+	return TransitionContextualAnimScene(SectionName, AnimSetIdx, {});
+}
 	
 bool UContextualAnimSceneActorComponent::TransitionSingleActor(int32 SectionIdx, int32 AnimSetIdx)
 {
@@ -667,7 +689,7 @@ bool UContextualAnimSceneActorComponent::TransitionSingleActor(int32 SectionIdx,
 
 bool UContextualAnimSceneActorComponent::StartContextualAnimScene(const FContextualAnimSceneBindings& InBindings, const TArray<FContextualAnimWarpTarget>& ExternalWarpTargets)
 {
-	UE_LOG(LogContextualAnim, Log, TEXT("%-21s UContextualAnimSceneActorComponent::StartContextualAnim Actor: %s"),
+	UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::StartContextualAnim Actor: %s"),
 		*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()));
 
 	const FContextualAnimSceneBinding* OwnerBinding = InBindings.FindBindingByActor(GetOwner());
@@ -731,43 +753,40 @@ void UContextualAnimSceneActorComponent::EarlyOutContextualAnimScene()
 	{
 		const UAnimInstance* AnimInstance = Binding->GetAnimInstance();
 		const UAnimMontage* ActiveMontage = AnimInstance ? AnimInstance->GetCurrentActiveMontage() : nullptr;
-		if (ActiveMontage)
+		UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::EarlyOutContextualAnimScene Actor: %s ActiveMontage: %s"),
+			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), *GetNameSafe(ActiveMontage));
+
+		if (Bindings.GetAnimTrackFromBinding(*Binding).Animation == ActiveMontage)
 		{
-			UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::EarlyOutContextualAnimScene Actor: %s ActiveMontage: %s"),
-				*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), *GetNameSafe(ActiveMontage));
+			const uint8 BindingsId = Bindings.GetID();
 
-			if (Bindings.GetAnimTrackFromBinding(*Binding).Animation == ActiveMontage)
+			// Stop animation.
+			LeaveScene();
+
+			// If we are on the server, rep the event to stop animation on simulated proxies
+			if (GetOwner()->HasAuthority())
 			{
-				const uint8 BindingsId = Bindings.GetID();
+				RepTransitionSingleActorData.Id = BindingsId;
+				RepTransitionSingleActorData.SectionIdx = MAX_uint8;
+				RepTransitionSingleActorData.AnimSetIdx = MAX_uint8;
+				RepTransitionSingleActorData.ExternalWarpTargets.Reset();
+				RepTransitionSingleActorData.IncrementRepCounter();
 
-				// Stop animation.
-				LeaveScene();
+				RepLateJoinData.Reset();
+				RepTransitionData.Reset();
+				RepBindings.Reset();
 
-				// If we are on the server, rep the event to stop animation on simulated proxies
-				if (GetOwner()->HasAuthority())
-				{
-					RepTransitionSingleActorData.Id = BindingsId;
-					RepTransitionSingleActorData.SectionIdx = MAX_uint8;
-					RepTransitionSingleActorData.AnimSetIdx = MAX_uint8;
-					RepTransitionSingleActorData.ExternalWarpTargets.Reset();
-					RepTransitionSingleActorData.IncrementRepCounter();
+				MARK_PROPERTY_DIRTY_FROM_NAME(UContextualAnimSceneActorComponent, RepTransitionSingleActorData, this);
+				MARK_PROPERTY_DIRTY_FROM_NAME(UContextualAnimSceneActorComponent, RepLateJoinData, this);
+				MARK_PROPERTY_DIRTY_FROM_NAME(UContextualAnimSceneActorComponent, RepTransitionData, this);
+				MARK_PROPERTY_DIRTY_FROM_NAME(UContextualAnimSceneActorComponent, RepBindings, this);
 
-					RepLateJoinData.Reset();
-					RepTransitionData.Reset();
-					RepBindings.Reset();
-
-					MARK_PROPERTY_DIRTY_FROM_NAME(UContextualAnimSceneActorComponent, RepTransitionSingleActorData, this);
-					MARK_PROPERTY_DIRTY_FROM_NAME(UContextualAnimSceneActorComponent, RepLateJoinData, this);
-					MARK_PROPERTY_DIRTY_FROM_NAME(UContextualAnimSceneActorComponent, RepTransitionData, this);
-					MARK_PROPERTY_DIRTY_FROM_NAME(UContextualAnimSceneActorComponent, RepBindings, this);
-
-					GetOwner()->ForceNetUpdate();
-				}
-				// If local player, tell the server to stop the animation too
-				else if (GetOwner()->GetLocalRole() == ROLE_AutonomousProxy)
-				{
-					ServerEarlyOutContextualAnimScene();
-				}
+				GetOwner()->ForceNetUpdate();
+			}
+			// If local player, tell the server to stop the animation too
+			else if (GetOwner()->GetLocalRole() == ROLE_AutonomousProxy)
+			{
+				ServerEarlyOutContextualAnimScene();
 			}
 		}
 	}
@@ -785,7 +804,7 @@ bool UContextualAnimSceneActorComponent::ServerEarlyOutContextualAnimScene_Valid
 
 void UContextualAnimSceneActorComponent::OnRep_TransitionData()
 {
-	UE_LOG(LogContextualAnim, Log, TEXT("%-21s UContextualAnimSceneActorComponent::OnRep_TransitionData Actor: %s SectionIdx: %d AnimsetIdx: %d RepCounter: %d"),
+	UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::OnRep_TransitionData Actor: %s SectionIdx: %d AnimsetIdx: %d RepCounter: %d"),
 		*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), RepTransitionData.SectionIdx, RepTransitionData.AnimSetIdx, RepTransitionData.RepCounter);
 
 	if (!RepTransitionData.IsValid())
@@ -806,7 +825,7 @@ void UContextualAnimSceneActorComponent::OnRep_TransitionData()
 
 void UContextualAnimSceneActorComponent::OnRep_Bindings()
 {
-	UE_LOG(LogContextualAnim, Log, TEXT("%-21s UContextualAnimSceneActorComponent::OnRep_Bindings Actor: %s Rep Bindings Id: %d RepCounter: %d Num: %d Current Bindings Id: %d Num: %d"),
+	UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::OnRep_Bindings Actor: %s Rep Bindings Id: %d RepCounter: %d Num: %d Current Bindings Id: %d Num: %d"),
 		*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), RepBindings.Bindings.GetID(), RepBindings.RepCounter, RepBindings.Bindings.Num(), Bindings.GetID(), Bindings.Num());
 
 	if (!RepBindings.IsValid())
@@ -943,7 +962,7 @@ void UContextualAnimSceneActorComponent::JoinScene(const FContextualAnimSceneBin
 
 	if (const FContextualAnimSceneBinding* Binding = InBindings.FindBindingByActor(GetOwner()))
 	{
-		UE_LOG(LogContextualAnim, Log, TEXT("%-21s UContextualAnimSceneActorComponent::JoinScene Actor: %s Role: %s InBindings Id: %d Section: %d Asset: %s"),
+		UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::JoinScene Actor: %s Role: %s InBindings Id: %d Section: %d Asset: %s"),
 			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), *InBindings.GetRoleFromBinding(*Binding).ToString(), InBindings.GetID(), InBindings.GetSectionIdx(), *GetNameSafe(InBindings.GetSceneAsset()));
 
 		AnimsPlayed.Reset();
@@ -951,13 +970,13 @@ void UContextualAnimSceneActorComponent::JoinScene(const FContextualAnimSceneBin
 		Bindings = InBindings;
 
 		const FContextualAnimTrack& AnimTrack = Bindings.GetAnimTrackFromBinding(*Binding);
-		PlayAnimation_Internal(AnimTrack.Animation, 0.f, true);
+		PlayAnimation_Internal(AnimTrack.Animation, 0.f, Bindings.ShouldSyncAnimation());
 
 		AddOrUpdateWarpTargets(AnimTrack.SectionIdx, AnimTrack.AnimSetIdx, WarpPoints, ExternalWarpTargets);
 
 		SetCollisionState(*Binding);
 
-		SetMovementState(*Binding, AnimTrack.MovementMode);
+		SetMovementState(*Binding, AnimTrack.MovementMode, AnimTrack.CustomMovementMode);
 
 		OnJoinScene(*Binding);
 
@@ -974,22 +993,26 @@ void UContextualAnimSceneActorComponent::LeaveScene()
 {
 	if (const FContextualAnimSceneBinding* Binding = Bindings.FindBindingByActor(GetOwner()))
 	{
-		UE_LOG(LogContextualAnim, Log, TEXT("%-21s UContextualAnimSceneActorComponent::LeaveScene Actor: %s Role: %s Current Bindings Id: %d Section: %d Asset: %s"),
+		OnPreLeaveScene(*Binding);
+		
+		UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::LeaveScene Actor: %s Role: %s Current Bindings Id: %d Section: %d Asset: %s"),
 			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), *Bindings.GetRoleFromBinding(*Binding).ToString(),
 			Bindings.GetID(), Bindings.GetSectionIdx(), *GetNameSafe(Bindings.GetSceneAsset()));
 
-		if (UAnimInstance* AnimInstance = Binding->GetAnimInstance())
+		if (OwnerAnimInstance.IsValid())
 		{
-			AnimInstance->OnMontageBlendingOut.RemoveDynamic(this, &UContextualAnimSceneActorComponent::OnMontageBlendingOut);
-			AnimInstance->OnPlayMontageNotifyBegin.RemoveDynamic(this, &UContextualAnimSceneActorComponent::OnPlayMontageNotifyBegin);
+			OwnerAnimInstance->OnMontageBlendingOut.RemoveDynamic(this, &UContextualAnimSceneActorComponent::OnMontageBlendingOut);
+			OwnerAnimInstance->OnPlayMontageNotifyBegin.RemoveDynamic(this, &UContextualAnimSceneActorComponent::OnPlayMontageNotifyBegin);
 
 			//@TODO: Add support for dynamic montage
-			const UAnimMontage* AnimMontage = AnimInstance->GetCurrentActiveMontage();
+			const UAnimMontage* AnimMontage = OwnerAnimInstance->GetCurrentActiveMontage();
 			if (AnimMontage)
 			{
 				UE_LOG(LogContextualAnim, VeryVerbose, TEXT("\t\t Stopping animation (%s) from LeaveScene"), *GetNameSafe(AnimMontage));
-				AnimInstance->Montage_Stop(AnimMontage->GetDefaultBlendOutTime());
+				OwnerAnimInstance->Montage_Stop(AnimMontage->GetDefaultBlendOutTime());
 			}
+
+			OwnerAnimInstance.Reset();
 		}
 
 		// Stop listening to TickPose if we were
@@ -1002,6 +1025,18 @@ void UContextualAnimSceneActorComponent::LeaveScene()
 		RestoreCollisionState(*Binding);
 
 		RestoreMovementState(*Binding);
+
+		if (WarpTargetNamesCache.Num() > 0)
+		{
+			if (UMotionWarpingComponent* MotionWarpComp = Binding->GetMotionWarpingComponent())
+			{
+				MotionWarpComp->RemoveWarpTargets(WarpTargetNamesCache);
+			}
+
+			WarpTargetNamesCache.Reset();
+		}
+
+		IKTargets.Reset();
 
 		// Notify the other actors in the interaction
 		// @TODO: This should be refactored so only the leader of the interaction maintains the full bindings
@@ -1049,42 +1084,66 @@ void UContextualAnimSceneActorComponent::OnLeaveScene(const FContextualAnimScene
 	// For derived classes to override.
 }
 
-void UContextualAnimSceneActorComponent::SetMovementState(const FContextualAnimSceneBinding& Binding, EMovementMode DesiredMoveMode)
+void UContextualAnimSceneActorComponent::SetMovementState(const FContextualAnimSceneBinding& Binding, EMovementMode DesiredMoveMode, uint8 CustomMode)
 {
 	if (UCharacterMovementComponent* MovementComp = Binding.GetCharacterMovementComponent())
 	{
 		// Save movement state before the interaction starts so we can restore it when it ends
-		CharacterPropertiesBackup.bIgnoreClientMovementErrorChecksAndCorrection = MovementComp->bIgnoreClientMovementErrorChecksAndCorrection;
 		CharacterPropertiesBackup.bAllowPhysicsRotationDuringAnimRootMotion = MovementComp->bAllowPhysicsRotationDuringAnimRootMotion;
 		CharacterPropertiesBackup.bUseControllerDesiredRotation = MovementComp->bUseControllerDesiredRotation;
 		CharacterPropertiesBackup.bOrientRotationToMovement = MovementComp->bOrientRotationToMovement;
 		CharacterPropertiesBackup.MovementMode = MovementComp->MovementMode;
+		CharacterPropertiesBackup.bSimulatePhysics = MovementComp->UpdatedPrimitive && MovementComp->UpdatedPrimitive->IsSimulatingPhysics();
 
-		// Disable movement correction.
-		MovementComp->bIgnoreClientMovementErrorChecksAndCorrection = true;
+		// Disable movement correction if needed
+		if (const UContextualAnimSceneAsset* Asset = Bindings.GetSceneAsset())
+		{
+			if (Asset->ShouldIgnoreClientMovementErrorChecksAndCorrection())
+			{
+				CharacterPropertiesBackup.bIgnoreClientMovementErrorChecksAndCorrection = MovementComp->bIgnoreClientMovementErrorChecksAndCorrection;
+				MovementComp->bIgnoreClientMovementErrorChecksAndCorrection = true;
+			}
+		}
 
 		// Prevent physics rotation. During the interaction we want to be fully root motion driven
 		MovementComp->bAllowPhysicsRotationDuringAnimRootMotion = false;
 		MovementComp->bUseControllerDesiredRotation = false;
 		MovementComp->bOrientRotationToMovement = false;
 
+		if (UPrimitiveComponent* const UpdatedPrimitive = MovementComp->UpdatedPrimitive)
+		{
+			UpdatedPrimitive->SetSimulatePhysics(false);
+		}
+
 		if (MovementComp->MovementMode != DesiredMoveMode)
 		{
-			MovementComp->SetMovementMode(DesiredMoveMode);
+			MovementComp->SetMovementMode(DesiredMoveMode, CustomMode);
 		}
 	}
 }
 
 void UContextualAnimSceneActorComponent::RestoreMovementState(const FContextualAnimSceneBinding& Binding)
 {
+	// Restore movement state
 	if (UCharacterMovementComponent* MovementComp = Binding.GetCharacterMovementComponent())
 	{
-		// Restore movement state
-		MovementComp->bIgnoreClientMovementErrorChecksAndCorrection = CharacterPropertiesBackup.bIgnoreClientMovementErrorChecksAndCorrection;
+		// Restore movement correction if needed
+		if (const UContextualAnimSceneAsset* Asset = Bindings.GetSceneAsset())
+		{
+			if (Asset->ShouldIgnoreClientMovementErrorChecksAndCorrection())
+			{
+				MovementComp->bIgnoreClientMovementErrorChecksAndCorrection = CharacterPropertiesBackup.bIgnoreClientMovementErrorChecksAndCorrection;
+			}
+		}
+
 		MovementComp->bAllowPhysicsRotationDuringAnimRootMotion = CharacterPropertiesBackup.bAllowPhysicsRotationDuringAnimRootMotion;
 		MovementComp->bUseControllerDesiredRotation = CharacterPropertiesBackup.bUseControllerDesiredRotation;
 		MovementComp->bOrientRotationToMovement = CharacterPropertiesBackup.bOrientRotationToMovement;
 		MovementComp->SetMovementMode(CharacterPropertiesBackup.MovementMode);
+		if(UPrimitiveComponent* const UpdatedPrimitive = MovementComp->UpdatedPrimitive)
+		{
+			UpdatedPrimitive->SetSimulatePhysics(CharacterPropertiesBackup.bSimulatePhysics);
+		}
 	}
 }
 
@@ -1093,9 +1152,14 @@ bool UContextualAnimSceneActorComponent::CanLeaveScene(const FContextualAnimScen
 	return true;
 }
 
+void UContextualAnimSceneActorComponent::OnPreLeaveScene(const FContextualAnimSceneBinding& Binding)
+{
+	// For derived classes to override.
+}
+
 void UContextualAnimSceneActorComponent::OnMontageBlendingOut(UAnimMontage* Montage, bool bInterrupted)
 {
-	UE_LOG(LogContextualAnim, Log, TEXT("%-21s UContextualAnimSceneActorComponent::OnMontageBlendingOut Actor: %s Montage: %s bInterrupted: %d"),
+	UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::OnMontageBlendingOut Actor: %s Montage: %s bInterrupted: %d"),
 		*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), *GetNameSafe(Montage), bInterrupted);
 
 	if (const FContextualAnimSceneBinding* Binding = Bindings.FindBindingByActor(GetOwner()))
@@ -1103,13 +1167,13 @@ void UContextualAnimSceneActorComponent::OnMontageBlendingOut(UAnimMontage* Mont
 		AnimsPlayed.RemoveSingleSwap(Montage);
 		if (AnimsPlayed.Num() > 0)
 		{
-			UE_LOG(LogContextualAnim, Log, TEXT("%-21s \tUContextualAnimSceneActorComponent::OnMontageBlendingOut AnimsPlayed Num: %d"), *UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), AnimsPlayed.Num());
+			UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s \tUContextualAnimSceneActorComponent::OnMontageBlendingOut AnimsPlayed Num: %d"), *UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), AnimsPlayed.Num());
 			return;
 		}
 
 		if (!CanLeaveScene(*Binding))
 		{
-			UE_LOG(LogContextualAnim, Log, TEXT("%-21s \tUContextualAnimSceneActorComponent::OnMontageBlendingOut CanLeaveScene FALSE"), *UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()));
+			UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s \tUContextualAnimSceneActorComponent::OnMontageBlendingOut CanLeaveScene FALSE"), *UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()));
 			return;
 		}
 
@@ -1152,13 +1216,23 @@ void UContextualAnimSceneActorComponent::OnPlayMontageNotifyBegin(FName NotifyNa
 
 void UContextualAnimSceneActorComponent::OnTickPose(class USkinnedMeshComponent* SkinnedMeshComponent, float DeltaTime, bool bNeedsValidRootMotion)
 {
-	//@TODO: Check for LOD to prevent this update if the actor is too far away
-	UpdateIKTargets();
+	//@TODO: Check for LOD too to prevent this update if the actor is too far away
+	if (GetNetMode() != NM_DedicatedServer)
+	{
+		UpdateIKTargets();
+	}
 }
 
 void UContextualAnimSceneActorComponent::UpdateIKTargets()
 {
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_ContextualAnim_UpdateIKTargets);
+
 	IKTargets.Reset();
+
+	if (!Bindings.IsValid())
+	{
+		return;
+	}
 
 	const FContextualAnimSceneBinding* BindingPtr = Bindings.FindBindingByActor(GetOwner());
 	if (BindingPtr == nullptr)
@@ -1173,9 +1247,31 @@ void UContextualAnimSceneActorComponent::UpdateIKTargets()
 	}
 
 	const TArray<FContextualAnimIKTargetDefinition>& IKTargetDefs = Bindings.GetIKTargetDefContainerFromBinding(*BindingPtr).IKTargetDefs;
+
 	for (const FContextualAnimIKTargetDefinition& IKTargetDef : IKTargetDefs)
 	{
-		float Alpha = UAnimNotifyState_IKWindow::GetIKAlphaValue(IKTargetDef.GoalName, MontageInstance);
+		float Alpha = 0.f;
+
+		const EContextualAnimIKTargetAlphaProvider AlphaProvider = Bindings.GetSceneAsset()->GetIKTargetParams().AlphaProvider;
+		if (AlphaProvider == EContextualAnimIKTargetAlphaProvider::AnimNotifyState)
+		{
+			Alpha = UAnimNotifyState_IKWindow::GetIKAlphaValue(IKTargetDef.GoalName, MontageInstance);
+		}
+		else if (AlphaProvider == EContextualAnimIKTargetAlphaProvider::Curve)
+		{
+			if (const UAnimInstance* AnimInstance = BindingPtr->GetAnimInstance())
+			{
+				Alpha = AnimInstance->GetCurveValue(IKTargetDef.GoalName);
+			}
+		}
+		else if (AlphaProvider == EContextualAnimIKTargetAlphaProvider::None)
+		{
+			Alpha = 1.f;
+		}
+		else
+		{
+			check(false); // Unreachable
+		}
 
 		// @TODO: IKTargetTransform will be off by 1 frame if we tick before target. 
 		// Should we at least add an option to the SceneAsset to setup tick dependencies or should this be entirely up to the user?
@@ -1197,39 +1293,49 @@ void UContextualAnimSceneActorComponent::UpdateIKTargets()
 
 			if (Alpha > 0.f)
 			{
-				if (const USkeletalMeshComponent* TargetSkelMeshComp = TargetBinding->GetSkeletalMeshComponent())
+				if (const UMeshComponent* TargetMeshComp = UContextualAnimUtilities::TryGetMeshComponentWithSocket(TargetBinding->GetActor(), IKTargetDef.TargetBoneName))
 				{
 					if (IKTargetDef.Provider == EContextualAnimIKTargetProvider::Autogenerated)
 					{
-						const FTransform IKTargetParentTransform = TargetSkelMeshComp->GetSocketTransform(IKTargetDef.TargetBoneName);
+						const FTransform IKTargetParentTransform = TargetMeshComp->GetSocketTransform(IKTargetDef.TargetBoneName);
 
 						const float Time = MontageInstance->GetPosition();
 						const FTransform IKTargetTransform = Bindings.GetIKTargetTransformFromBinding(*BindingPtr, IKTargetDef.GoalName, Time) * IKTargetParentTransform;
 
-						IKTargets.Add(FContextualAnimIKTarget(IKTargetDef.GoalName, Alpha, IKTargetTransform));
+						IKTargets.Add(FContextualAnimIKTarget(IKTargetDef.GoalName, IKTargetDef.BoneName, Alpha, IKTargetTransform));
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 						if (CVarContextualAnimIKDebug.GetValueOnGameThread() > 0)
 						{
+							const FColor Color = FColor::MakeRedToGreenColorFromScalar(Alpha);
 							const float DrawDebugDuration = CVarContextualAnimIKDrawDebugLifetime.GetValueOnGameThread();
-							DrawDebugLine(GetWorld(), IKTargetParentTransform.GetLocation(), IKTargetTransform.GetLocation(), FColor::MakeRedToGreenColorFromScalar(Alpha), false, DrawDebugDuration, 0, 0.5f);
+							DrawDebugLine(GetWorld(), IKTargetParentTransform.GetLocation(), IKTargetTransform.GetLocation(), Color, false, DrawDebugDuration, 0, 0.5f);
 							DrawDebugCoordinateSystem(GetWorld(), IKTargetTransform.GetLocation(), IKTargetTransform.Rotator(), 10.f, false, DrawDebugDuration, 0, 0.5f);
+
+							if (const USkeletalMeshComponent* SkelMesh = BindingPtr->GetSkeletalMeshComponent())
+							{
+								DrawDebugDirectionalArrow(GetWorld(), SkelMesh->GetSocketLocation(IKTargetDef.BoneName), IKTargetTransform.GetLocation(), 5.f, Color, false, DrawDebugDuration, 0, 0.5f);
+							}
 						}
 #endif
 					}
 					else if (IKTargetDef.Provider == EContextualAnimIKTargetProvider::Bone)
 					{
-						const FTransform IKTargetTransform = TargetSkelMeshComp->GetSocketTransform(IKTargetDef.TargetBoneName);
+						const FTransform IKTargetTransform = TargetMeshComp->GetSocketTransform(IKTargetDef.TargetBoneName);
 
-						IKTargets.Add(FContextualAnimIKTarget(IKTargetDef.GoalName, Alpha, IKTargetTransform));
+						IKTargets.Add(FContextualAnimIKTarget(IKTargetDef.GoalName, IKTargetDef.BoneName, Alpha, IKTargetTransform));
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 						if (CVarContextualAnimIKDebug.GetValueOnGameThread() > 0)
 						{
+							const FColor Color = FColor::MakeRedToGreenColorFromScalar(Alpha);
 							const float DrawDebugDuration = CVarContextualAnimIKDrawDebugLifetime.GetValueOnGameThread();
-							const FTransform IKTargetParentTransform = TargetSkelMeshComp->GetSocketTransform(TargetSkelMeshComp->GetParentBone(IKTargetDef.TargetBoneName));
-							DrawDebugLine(GetWorld(), IKTargetParentTransform.GetLocation(), IKTargetTransform.GetLocation(), FColor::MakeRedToGreenColorFromScalar(Alpha), false, DrawDebugDuration, 0, 0.5f);
 							DrawDebugCoordinateSystem(GetWorld(), IKTargetTransform.GetLocation(), IKTargetTransform.Rotator(), 10.f, false, DrawDebugDuration, 0, 0.5f);
+
+							if (const USkeletalMeshComponent* SkelMesh = BindingPtr->GetSkeletalMeshComponent())
+							{
+								DrawDebugDirectionalArrow(GetWorld(), SkelMesh->GetSocketLocation(IKTargetDef.BoneName), IKTargetTransform.GetLocation(), 5.f, Color, false, DrawDebugDuration, 0, 0.5f);
+							}
 						}
 #endif
 					}

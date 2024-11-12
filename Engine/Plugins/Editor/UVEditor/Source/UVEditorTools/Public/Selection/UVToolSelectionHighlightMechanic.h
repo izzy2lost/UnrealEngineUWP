@@ -91,6 +91,21 @@ public:
 	 */
 	void SetEnablePairedEdgeHighlights(bool bEnable);
 
+	/**
+	 * Directly set the Color property of the selection line and point set.
+	 */
+	void SetColor(const FColor Color) const;
+
+	/**
+	 * Directly set the Size/Thickness property of the selection line set.
+	 */
+	void SetLineThickness(const float LineSize) const;
+
+	/**
+	 * directly set the Size property of the selection point set.
+	 */
+	void SetPointSize(const float PointSize) const;
+
 protected:
 
 	UPROPERTY()

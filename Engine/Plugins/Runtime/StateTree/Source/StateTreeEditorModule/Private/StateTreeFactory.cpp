@@ -11,6 +11,7 @@
 #include "StateTreeEditor.h"
 #include "StateTreeCompiler.h"
 #include "StateTreeDelegates.h"
+#include "StateTreeEditingSubsystem.h"
 #include "Modules/ModuleManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeFactory)
@@ -103,6 +104,11 @@ bool UStateTreeFactory::ConfigureProperties()
 	return bResult;
 }
 
+void UStateTreeFactory::SetSchemaClass(const TObjectPtr<UClass>& InSchemaClass)
+{
+	StateTreeSchemaClass = InSchemaClass;
+}
+
 UObject* UStateTreeFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
 	if (StateTreeSchemaClass == nullptr)
@@ -120,25 +126,13 @@ UObject* UStateTreeFactory::FactoryCreateNew(UClass* Class, UObject* InParent, F
 	
 	NewStateTree->EditorData = EditorData;
 
-	// Compile the StateTree asset, so that it is valid initially.
-	UE::StateTree::Editor::ValidateAsset(*NewStateTree);
-
 	FStateTreeCompilerLog Log;
 	FStateTreeCompiler Compiler(Log);
 
-	const bool bSuccess = Compiler.Compile(*NewStateTree);
+	const bool bSuccess = UStateTreeEditingSubsystem::CompileStateTree(NewStateTree, Log);
 
-	if (bSuccess)
+	if (!bSuccess)
 	{
-		// Success
-		const uint32 EditorDataHash = UE::StateTree::Editor::CalcAssetHash(*NewStateTree);
-		NewStateTree->LastCompiledEditorDataHash = EditorDataHash;
-		UE::StateTree::Delegates::OnPostCompile.Broadcast(*NewStateTree);
-	}
-	else
-	{
-		// Should not happen.
-		Log.DumpToLog(LogStateTreeEditor);
 		NewStateTree = nullptr;
 	}
 	

@@ -19,6 +19,12 @@ public:
 
 	FAvaRundownPageViewImpl(int32 InPageId, UAvaRundown* InRundown, const TSharedPtr<SAvaRundownPageList>& InPageList);
 
+	// Fast-path for in-place UI refresh. 
+	void RefreshPageId(int32 InPageId)
+	{
+		PageId = InPageId;
+	}
+
 	virtual UAvaRundown* GetRundown() const override;
 	
 	virtual int32 GetPageId() const override;

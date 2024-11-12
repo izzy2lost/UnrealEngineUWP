@@ -306,6 +306,7 @@ public:
 	//~ Begin UObject interface
 public:
 	virtual void PostLoad() override;
+	virtual void Serialize(FArchive& Ar) override;
 
 #if WITH_EDITOR
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
@@ -314,7 +315,7 @@ public:
 
 public:
 	/** IP address of this specific cluster Node */
-	UPROPERTY(EditAnywhere, BlueprintReadonly, Category = "Configuration", meta = (DisplayName = "Host IP Address"))
+	UPROPERTY(EditAnywhere, BlueprintReadonly, Category = "Network", meta = (DisplayName = "Host IP Address"))
 	FString Host;
 	
 	/** Enables or disables sound on nDisplay primary Node */
@@ -358,7 +359,7 @@ public:
 	TMap<FString, FDisplayClusterConfigurationPostprocess> Postprocess;
 
 	// Media settings
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media", ShowOnlyInnerProperties))
 	FDisplayClusterConfigurationMediaNodeBackbuffer MediaSettings;
 
 #if WITH_EDITORONLY_DATA

@@ -22,6 +22,7 @@ import { JobViewIncremental } from './JobViewIncremental';
 import { NewBuild } from './NewBuild';
 import { StreamSummary } from './StreamSummary';
 import { TopNav } from './TopNav';
+import { NewBuildV2 } from './build/NewBuildV2';
 
 export const SummaryPage: React.FC = () => {
 
@@ -110,15 +111,15 @@ class IncrementalState {
       const templateMap = new Map<string, GetTemplateRefResponse>();
       this.project.streams.forEach(s => {
          const tab = s.tabs.find(t => t.title === "Incremental") as GetJobsTabResponse;
-         if (!tab) { 
+         if (!tab) {
             return;
          }
-         
-         if (tab.templates?.length === 1) {            
+
+         if (tab.templates?.length === 1) {
             const template = s.templates.find(t => t.id === tab.templates![0]);
             if (template)
                templateMap.set(s.id, template);
-         }                  
+         }
       })
 
       let incrementals: StreamIncemental[] = [];
@@ -129,10 +130,10 @@ class IncrementalState {
             template: template,
             jobs: [],
             labelState: LabelState.Unspecified,
-            labelOutcome: LabelOutcome.Success            
-         })         
+            labelOutcome: LabelOutcome.Success
+         })
       })
-      
+
       if (!incrementals.length) {
          return;
       }
@@ -148,12 +149,12 @@ class IncrementalState {
 
       while (rincrementals.length) {
 
-         const batch = rincrementals.slice(0, 5);         
+         const batch = rincrementals.slice(0, 5);
 
          await Promise.all(batch.map(b => {
             return backend.getStreamJobs(b.streamId, { template: [b.template.id], count: 5, filter: "id,labels,createTime,streamId,defaultLabel,preflightChange" })
             // eslint-disable-next-line no-loop-func
-         })).then((r) => {            
+         })).then((r) => {
             for (let i = 0; i < r.length; i++) {
                let jobs = r[i];
                // filter out jobs > 3 days
@@ -178,9 +179,9 @@ class IncrementalState {
                   labels.forEach((label, index) => {
 
                      if (label.outcome === LabelOutcome.Failure || label.outcome === LabelOutcome.Warnings) {
-                        labelStatus.push({ index: index, outcome: label.outcome }); 
+                        labelStatus.push({ index: index, outcome: label.outcome });
                      } else if (label.state === LabelState.Complete && label.outcome === LabelOutcome.Success) {
-                        labelStatus.push({ index: index, outcome: label.outcome }); 
+                        labelStatus.push({ index: index, outcome: label.outcome });
                      }
                   });
 
@@ -220,31 +221,30 @@ class IncrementalState {
          let jobs = i.jobs.sort((a, b) => new Date(b.createTime).getTime() - new Date(a.createTime).getTime());
 
          const labelStatus = new Map<number, LabelOutcome>();
-      
+
          for (let x = 0; x < jobs.length; x++) {
 
             const j = jobs[x];
             const status = jobStatus.get(j.id);
-   
+
             if (!status?.length) {
                continue;
             }
 
-            for (let y = 0; y < status.length; y++)
-            {
+            for (let y = 0; y < status.length; y++) {
                const label = status[y];
 
                if (labelStatus.get(label.index)) {
                   continue;
                }
-               
+
                labelStatus.set(label.index, label.outcome);
-            }         
+            }
          }
 
          const error = Array.from(labelStatus.values()).find(outcome => outcome === LabelOutcome.Failure)
          const warning = Array.from(labelStatus.values()).find(outcome => outcome === LabelOutcome.Warnings)
-         
+
          if (!!error) {
             streamOutcome.set(i.streamId, LabelOutcome.Failure);
          } else if (!!warning) {
@@ -282,7 +282,7 @@ const IncrementalPanel: React.FC<{ project: ProjectData }> = observer(({ project
    if (incrementalState.querying) {
       return <Stack key={`Incrementalpanel_spinner_${incrementalState.updated}`} style={{ padding: 32 }} tokens={{ childrenGap: 24 }} >
          <Stack>
-            <Text style={{fontWeight: 600} } variant="medium">Querying Stream Labels</Text>
+            <Text style={{ fontWeight: 600 }} variant="medium">Querying Stream Labels</Text>
          </Stack>
          <Stack>
             <Spinner size={SpinnerSize.large} />
@@ -316,14 +316,14 @@ const IncrementalPanel: React.FC<{ project: ProjectData }> = observer(({ project
 
    if (!items.length) {
       return <Stack key={`Incrementalpanel_${incrementalState.updated}`} style={{ padding: 32 }} tokens={{ childrenGap: 12 }}>
-         <Text style={{fontWeight: 600} }variant='medium'>No Label Issues</Text>
+         <Text style={{ fontWeight: 600 }} variant='medium'>No Label Issues</Text>
       </Stack>
    }
 
 
    return <Stack key={`Incrementalpanel_${incrementalState.updated}`} style={{ padding: 32 }} tokens={{ childrenGap: 18 }}>
       <Stack>
-         <Text style={{fontWeight: 600} } variant='medium'>Label Issues</Text>
+         <Text style={{ fontWeight: 600 }} variant='medium'>Label Issues</Text>
       </Stack>
       <Stack tokens={{ childrenGap: 12 }} >
          {items}
@@ -353,6 +353,9 @@ const StreamViewInner: React.FC = observer(() => {
 
    const stream = projectStore.streamById(streamId);
    const project = stream?.project;
+
+   //let newBuildVersion: string = query.get("newbuildversion") ? query.get("newbuildversion") : "2";
+   const newBuildVersion: string = "2"
 
    if (!stream || !project) {
       console.error("Bad stream or project id in StreamView");
@@ -485,12 +488,11 @@ const StreamViewInner: React.FC = observer(() => {
       filterKeyword: filter
    }
 
-
    return (
       <Stack className={hordeClasses.horde}>
          <TopNav />
          <Breadcrumbs items={crumbItems} title={crumbTitle} />
-         <NewBuild streamId={streamId!} jobKey={newBuildTab!} show={shown} onClose={(newJobId) => {
+         {shown && newBuildVersion == "2" && <NewBuildV2 streamId={streamId!} jobKey={newBuildTab!} show={true} onClose={(newJobId) => {
             setShown(false);
             if (newJobId) {
                navigate(`/job/${newJobId}`);
@@ -499,7 +501,17 @@ const StreamViewInner: React.FC = observer(() => {
                   navigate(`/stream/${streamId}?tab=${queryTab}`, { replace: true });
                }
             }
-         }} />
+         }} />}
+         {shown && newBuildVersion == "1" && <NewBuild streamId={streamId!} jobKey={newBuildTab!} show={true} onClose={(newJobId) => {
+            setShown(false);
+            if (newJobId) {
+               navigate(`/job/${newJobId}`);
+            } else {
+               if (query.get("newbuild")) {
+                  navigate(`/stream/${streamId}?tab=${queryTab}`, { replace: true });
+               }
+            }
+         }} />}
          {findJobsShown && <JobSearchSimpleModal onClose={() => { setFindJobsShown(false) }} streamId={stream.id} />}
          <Stack horizontal style={{ backgroundColor: hordeTheme.horde.neutralBackground }}>
             <div key={`windowsize_streamview_${windowSize.width}_${windowSize.height}`} style={{ width: (vw / 2 - (1440 / 2)) - 12, flexShrink: 0, backgroundColor: modeColors.background }} />
@@ -525,7 +537,7 @@ const StreamViewInner: React.FC = observer(() => {
                      <Stack horizontal verticalAlign="center" horizontalAlign={"end"} tokens={{ childrenGap: 8 }}>
                         <Stack horizontal tokens={{ childrenGap: 18 }}>
                            {!isSwarmTab && <DefaultButton
-                              styles={{ root: { fontFamily: "Horde Open Sans SemiBold !important"  } }}
+                              styles={{ root: { fontFamily: "Horde Open Sans SemiBold !important" } }}
                               text="Search"
                               split={!isSummary}
                               menuProps={!isSummary ? findJobsItems : undefined}

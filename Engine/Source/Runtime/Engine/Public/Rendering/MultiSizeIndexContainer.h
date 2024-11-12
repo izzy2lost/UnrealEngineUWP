@@ -101,13 +101,8 @@ public:
 
 	ENGINE_API FBufferRHIRef CreateRHIBuffer(FRHICommandListBase& RHICmdList);
 
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	ENGINE_API FBufferRHIRef CreateRHIBuffer_RenderThread();
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	ENGINE_API FBufferRHIRef CreateRHIBuffer_Async();
-
-	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher);
-	void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher);
+	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceReplaceBatcher& Batcher);
+	void ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher);
 
 private:
 	/** Size of the index buffer's index type (should be 2 or 4 bytes) */

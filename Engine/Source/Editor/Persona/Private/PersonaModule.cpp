@@ -295,9 +295,9 @@ TSharedRef<class FWorkflowTabFactory> FPersonaModule::CreateCurveMetadataEditorT
 	return MakeShared<FAnimCurveMetadataEditorTabSummoner>(InHostingApp, InMetadataHost, InPreviewScene, InOnObjectsSelected);
 }
 
-TSharedRef<class FWorkflowTabFactory> FPersonaModule::CreateRetargetSourcesTabFactory(const TSharedRef<class FWorkflowCentricApplication>& InHostingApp, const TSharedRef<class IEditableSkeleton>& InEditableSkeleton, const TSharedRef<IPersonaPreviewScene>& InPreviewScene, FSimpleMulticastDelegate& InOnPostUndo) const
+TSharedRef<class FWorkflowTabFactory> FPersonaModule::CreateRetargetSourcesTabFactory(const TSharedRef<class FWorkflowCentricApplication>& InHostingApp, const TSharedRef<class IEditableSkeleton>& InEditableSkeleton, FSimpleMulticastDelegate& InOnPostUndo) const
 {
-	return MakeShareable(new FRetargetSourcesTabSummoner(InHostingApp, InEditableSkeleton, InPreviewScene, InOnPostUndo));
+	return MakeShareable(new FRetargetSourcesTabSummoner(InHostingApp, InEditableSkeleton, InOnPostUndo));
 }
 
 TSharedRef<class FWorkflowTabFactory> FPersonaModule::CreateAdvancedPreviewSceneTabFactory(const TSharedRef<class FWorkflowCentricApplication>& InHostingApp, const TSharedRef<IPersonaPreviewScene>& InPreviewScene) const
@@ -1003,7 +1003,7 @@ namespace UE::Persona::Private
 					PreviewScene->GetPreviewSceneDescription()->SetPreviewController(UPersonaPreviewSceneAnimationController::StaticClass(), &PreviewScene.Get());
 
 					UPersonaPreviewSceneAnimationController* AnimController = CastChecked<UPersonaPreviewSceneAnimationController>(PreviewScene->GetPreviewSceneDescription()->PreviewControllerInstance);
-					AnimController->Animation = AssetData.GetAsset();
+					AnimController->Animation = CastChecked<UAnimationAsset>(AssetData.GetAsset());
 					AnimController->InitializeView(PreviewScene->GetPreviewSceneDescription(), &PreviewScene.Get());
 
 					// Make sure any settings views are updated with the new settings

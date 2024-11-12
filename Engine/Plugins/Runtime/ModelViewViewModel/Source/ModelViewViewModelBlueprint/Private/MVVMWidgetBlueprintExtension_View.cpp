@@ -5,14 +5,15 @@
 #include "Blueprint/WidgetTree.h"
 #include "Extensions/MVVMBlueprintViewExtension.h"
 #include "FindInBlueprintManager.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "Kismet2/KismetEditorUtilities.h"
 #include "MVVMBlueprintInstancedViewModel.h"
 #include "MVVMBlueprintView.h"
 #include "MVVMBlueprintViewModel.h"
 #include "MVVMBlueprintViewConversionFunction.h"
 #include "MVVMViewBlueprintCompiler.h"
+#include "ScopedTransaction.h"
 #include "View/MVVMViewClass.h"
-#include "Kismet2/BlueprintEditorUtils.h"
-#include "Kismet2/KismetEditorUtilities.h"
 
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MVVMWidgetBlueprintExtension_View)
@@ -56,6 +57,11 @@ void UMVVMWidgetBlueprintExtension_View::DestroyBlueprintViewInstance()
 void UMVVMWidgetBlueprintExtension_View::PostLoad()
 {
 	Super::PostLoad();
+
+	if (!HasAnyFlags(RF_Transactional))
+	{
+		SetFlags(RF_Transactional);
+	}
 }
 
 UMVVMBlueprintViewExtension* UMVVMWidgetBlueprintExtension_View::CreateBlueprintWidgetExtension(TSubclassOf<UMVVMBlueprintViewExtension> ExtensionClass, FName WidgetName)
@@ -64,8 +70,10 @@ UMVVMBlueprintViewExtension* UMVVMWidgetBlueprintExtension_View::CreateBlueprint
 	{
 		UObject* ExtensionObj = NewObject<UObject>(this, ExtensionClass.Get(), NAME_None, RF_Transactional);
 		UMVVMBlueprintViewExtension* NewExtension = CastChecked<UMVVMBlueprintViewExtension>(ExtensionObj);
-		NewExtension->Modify();
 
+		const FScopedTransaction Transaction(LOCTEXT("AddViewModelExtension", "Add viewmodel extension"));
+		NewExtension->Modify();
+		Modify();
 		FMVVMExtensionItem ExtensionToAdd;
 		ExtensionToAdd.WidgetName = WidgetName;
 		ExtensionToAdd.ExtensionObj = NewExtension;
@@ -82,7 +90,10 @@ void UMVVMWidgetBlueprintExtension_View::RemoveBlueprintWidgetExtension(UMVVMBlu
 	FMVVMExtensionItem Extension;
 	Extension.WidgetName = WidgetName;
 	Extension.ExtensionObj = ExtensionToRemove;
-	BlueprintExtensions.Remove(Extension);
+
+	const FScopedTransaction Transaction(LOCTEXT("RemoveViewModelExtension", "Remove viewmodel extension"));
+	Modify();
+	BlueprintExtensions.RemoveSingle(Extension);
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(GetWidgetBlueprint());
 }
 
@@ -91,12 +102,29 @@ TArray<UMVVMBlueprintViewExtension*> UMVVMWidgetBlueprintExtension_View::GetBlue
 	TArray<UMVVMBlueprintViewExtension*> ThisWidgetExtensions;
 	for (const FMVVMExtensionItem& Extension : BlueprintExtensions)
 	{
-		if (Extension.WidgetName == WidgetName)
+		if (Extension.WidgetName == WidgetName && Extension.ExtensionObj)
 		{
 			ThisWidgetExtensions.Add(Extension.ExtensionObj);
 		}
 	}
 	return ThisWidgetExtensions;
+}
+
+TArray<UMVVMBlueprintViewExtension*> UMVVMWidgetBlueprintExtension_View::GetAllBlueprintExtensions() const
+{
+	TArray<UMVVMBlueprintViewExtension*> AllExtensions;
+	AllExtensions.Reset(BlueprintExtensions.Num());
+	
+	for (const FMVVMExtensionItem& Extension : BlueprintExtensions)
+	{
+		if (Extension.ExtensionObj)
+		{
+			AllExtensions.Add(Extension.ExtensionObj);
+		}
+	}
+
+	AllExtensions.Shrink();
+	return AllExtensions;
 }
 
 void UMVVMWidgetBlueprintExtension_View::VerifyWidgetExtensions()
@@ -105,34 +133,57 @@ void UMVVMWidgetBlueprintExtension_View::VerifyWidgetExtensions()
 	{
 		if (const UWidgetTree* WidgetTree = WidgetBlueprint->WidgetTree)
 		{
-			TArray <FName, TInlineAllocator<4>> WidgetNamesToRemove;
-			for (const FMVVMExtensionItem& Extension : BlueprintExtensions)
+			bool bModified = false;
+			auto UpdateModify = [&bModified, Self=this]()
 			{
-				if (!Extension.WidgetName.IsNone())
+				if (!bModified)
 				{
-					WidgetNamesToRemove.Add(Extension.WidgetName);
+					bModified = true;
+					Self->Modify();
+				}
+			};
+
+			TArray <FName, TInlineAllocator<4>> WidgetNamesToRemove;
+			for (int32 Index = BlueprintExtensions.Num() - 1; Index >= 0; --Index)
+			{
+				if (BlueprintExtensions[Index].ExtensionObj == nullptr)
+				{
+					UpdateModify();
+					BlueprintExtensions.RemoveAtSwap(Index);
+				}
+				else if (!BlueprintExtensions[Index].WidgetName.IsNone())
+				{
+					WidgetNamesToRemove.Add(BlueprintExtensions[Index].WidgetName);
 				}
 			}
+
 			// Find widgets that are no longer in the tree and delete their extensions.
-			WidgetTree->ForEachWidget([&WidgetNamesToRemove, this](TObjectPtr<UWidget> Widget) {
-				if (Widget)
-				{
-					for (int32 Index = WidgetNamesToRemove.Num() - 1; Index >= 0; Index--)
+			if (WidgetNamesToRemove.Num() > 0)
+			{
+				WidgetTree->ForEachWidget([&WidgetNamesToRemove, this](TObjectPtr<UWidget> Widget) {
+					if (Widget)
 					{
-						const FName WidgetName = WidgetNamesToRemove[Index];
-						if (WidgetName == Widget->GetFName())
+						for (int32 Index = WidgetNamesToRemove.Num() - 1; Index >= 0; Index--)
 						{
-							WidgetNamesToRemove.Remove(WidgetName);
+							const FName WidgetName = WidgetNamesToRemove[Index];
+							if (WidgetName == Widget->GetFName())
+							{
+								WidgetNamesToRemove.RemoveSingleSwap(WidgetName);
+							}
 						}
 					}
-				}
-			});
+					});
+			}
 
-			for (int32 Index = BlueprintExtensions.Num() - 1; Index >= 0; Index--)
+			if (WidgetNamesToRemove.Num() > 0)
 			{
-				if (WidgetNamesToRemove.Contains(BlueprintExtensions[Index].WidgetName))
+				UpdateModify();
+				for (int32 Index = BlueprintExtensions.Num() - 1; Index >= 0; --Index)
 				{
-					BlueprintExtensions.RemoveAt(Index);
+					if (WidgetNamesToRemove.Contains(BlueprintExtensions[Index].WidgetName))
+					{
+						BlueprintExtensions.RemoveAtSwap(Index);
+					}
 				}
 			}
 		}
@@ -145,6 +196,7 @@ void UMVVMWidgetBlueprintExtension_View::RenameWidgetExtensions(FName OldName, F
 	{
 		if (Extension.WidgetName == OldName)
 		{
+			Modify();
 			Extension.WidgetName = NewName;
 			if (Extension.ExtensionObj)
 			{
@@ -200,6 +252,7 @@ void UMVVMWidgetBlueprintExtension_View::HandleBeginCompilation(FWidgetBlueprint
 	}
 
 	CurrentCompilerContext.Reset();
+	GeneratedFunctions.Reset();
 	if (BlueprintView)
 	{
 		BlueprintView->ResetBindingMessages();
@@ -264,7 +317,7 @@ void UMVVMWidgetBlueprintExtension_View::HandleFinishCompilingClass(UWidgetBluep
 			if (UObject* PreviousObj = StaticFindObjectFastInternal(nullptr, Class, ClassName, true))
 			{
 				// Remove previous object.
-				ERenameFlags RenameFlags = REN_ForceNoResetLoaders | REN_NonTransactional | REN_DoNotDirty | REN_DontCreateRedirectors;
+				ERenameFlags RenameFlags = REN_NonTransactional | REN_DoNotDirty | REN_DontCreateRedirectors;
 				FName TrashName = MakeUniqueObjectName(GetTransientPackage(), PreviousObj->GetClass(), *FString::Printf(TEXT("TRASH_%s"), *PreviousObj->GetName()));
 				PreviousObj->Rename(*TrashName.ToString(), GetTransientPackage(), RenameFlags);
 			}
@@ -277,7 +330,7 @@ void UMVVMWidgetBlueprintExtension_View::HandleFinishCompilingClass(UWidgetBluep
 			check(ViewExtension);
 
 			// Does it have any bindings
-			if (ViewExtension->GetBindings().Num() > 0 || ViewExtension->GetEvents().Num() > 0)
+			if (ViewExtension->GetBindings().Num() > 0 || ViewExtension->GetEvents().Num() > 0 || ViewExtension->GetConditions().Num() > 0)
 			{
 				// Test if parent also has a view
 				if (Class->GetExtension<UMVVMViewClass>(true))
@@ -294,6 +347,8 @@ void UMVVMWidgetBlueprintExtension_View::HandleFinishCompilingClass(UWidgetBluep
 		}
 	}
 
+	GeneratedFunctions = CurrentCompilerContext->GetGeneratedFunctions();
+	
 	// If we can't auto-generate function add the transient flags
 	if (UE::MVVM::Private::GAutogeneratedFunctionsAreTransient)
 	{

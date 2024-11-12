@@ -139,7 +139,7 @@ FReply SFbxSkeltonConflictWindow::SetSectionVisible(EFBXCompareSection SectionIn
 
 EVisibility SFbxSkeltonConflictWindow::IsSectionVisible(EFBXCompareSection SectionIndex)
 {
-	return bShowSectionFlag[SectionIndex] ? EVisibility::All : EVisibility::Collapsed;
+	return bShowSectionFlag[SectionIndex] ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 const FSlateBrush* SFbxSkeltonConflictWindow::GetCollapsableArrow(EFBXCompareSection SectionIndex) const
@@ -173,7 +173,6 @@ TSharedPtr<SWidget> SFbxSkeltonConflictWindow::ConstructSkeletonComparison()
 		FText(ResultData->CompSkeleton.bSkeletonFitMesh ? LOCTEXT("SFbxSkeltonConflictWindow_ConstructSkeletonComparison_MatchAndMerge", "The skeleton can be merged") : LOCTEXT("SFbxSkeltonConflictWindow_ConstructSkeletonComparison_CannotMatchAndMerge", "The skeleton must be regenerated, it cannot be merged"));
 	
 	CompareTree = SNew(STreeView< TSharedPtr<FSkeletonCompareData> >)
-		.ItemHeight(24)
 		.SelectionMode(ESelectionMode::None)
 		.TreeItemsSource(&DisplaySkeletonTreeItem)
 		.OnGenerateRow(this, &SFbxSkeltonConflictWindow::OnGenerateRowCompareTreeView)

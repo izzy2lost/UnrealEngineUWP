@@ -423,7 +423,6 @@ TYPED_TEST(T256Test, GreaterThanOrEqual) {
     ASSERT_TRUE(equal(v1 >= v4, m14));
 }
 
-
 TYPED_TEST(T256Test, BitwiseAND) {
     using F256 = typename TestFixture::T256;
     F256 v{1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f};
@@ -767,6 +766,18 @@ TEST(T256Test, AndNotScalar) {
     ASSERT_TRUE(equal(result2, e2));
 }
 
+TEST(T256Test, RsqrtScalar) {
+    trimd::scalar::F256 v{1.0f, 2.0f, 3.0f, 9.0f, 9.0f, 3.0f, 2.0f, 1.0,};
+    v = trimd::scalar::rsqrt(v);
+    trimd::scalar::F256 e{1.0f, 0.70710678f, 0.57735026f, 0.33333333f, 0.33333333f, 0.57735026f, 0.70710678f, 1.0f};
+    #ifdef TRIMD_ENABLE_FAST_INVERSE_SQRT
+    static constexpr float threshold = 0.0004f;
+    #else
+    static constexpr float threshold = 0.0002f;
+    #endif  // TRIMD_ENABLE_FAST_INVERSE_SQRT
+    ASSERT_TRUE(near(v, e, threshold));
+}
+
 #ifdef TRIMD_ENABLE_AVX
     TEST(T256Test, TransposeSquareAVX) {
         trimd::avx::F256 v1{1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f};
@@ -832,6 +843,17 @@ TEST(T256Test, AndNotScalar) {
         ASSERT_TRUE(equal(result2, e2));
     }
 
+    TEST(T256Test, RsqrtAVX) {
+        trimd::avx::F256 v{1.0f, 2.0f, 3.0f, 9.0f, 9.0f, 3.0f, 2.0f, 1.0,};
+        v = trimd::avx::rsqrt(v);
+        trimd::avx::F256 e{1.0f, 0.70710678f, 0.57735026f, 0.33333333f, 0.33333333f, 0.57735026f, 0.70710678f, 1.0f};
+        #ifdef TRIMD_ENABLE_FAST_INVERSE_SQRT
+        static constexpr float threshold = 0.0004f;
+        #else
+        static constexpr float threshold = 0.0003f;
+        #endif  // TRIMD_ENABLE_FAST_INVERSE_SQRT
+        ASSERT_TRUE(near(v, e, threshold));
+    }
 #endif  // TRIMD_ENABLE_AVX
 
 #ifdef TRIMD_ENABLE_F16C

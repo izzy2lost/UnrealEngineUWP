@@ -30,6 +30,17 @@ namespace DistributedShaderCompilerVariables
 		TEXT("Maximum number of seconds we expect to pass between getting distributed controller complete a task (this is used to detect problems with the distribution controllers).")
 	);
 
+	static int32 GDistributedJobDescriptionLevel = 0;
+	static FAutoConsoleVariableRef CVarDistributedJobDescriptionLevel(
+		TEXT("r.ShaderCompiler.DistributedJobDescriptionLevel"),
+		GDistributedJobDescriptionLevel,
+		TEXT("Sets the level of descriptive details for each distributed job batch. The following modes are supported:\n")
+		TEXT(" Mode 0: Disabled.\n")
+		TEXT(" Mode 1: Basic information of the first 20 compile jobs per batch.\n")
+		TEXT(" Mode 2: Additional information of the shader format per compile job.\n")
+		TEXT("This will show up in the UBA trace files. By default 0.")
+	);
+
 }
 
 bool FShaderCompileDistributedThreadRunnable_Interface::IsSupported()
@@ -68,6 +79,59 @@ FShaderCompileDistributedThreadRunnable_Interface::~FShaderCompileDistributedThr
 {
 }
 
+static FString BuildCompactTaskDescriptionForJob(const FShaderCommonCompileJob& Job)
+{
+	FString JobDescription;
+	if (const FShaderCompileJob* SingleJob = Job.GetSingleShaderJob())
+	{
+		JobDescription = SingleJob->Input.DebugGroupName;
+		if (DistributedShaderCompilerVariables::GDistributedJobDescriptionLevel >= 2)
+		{
+			JobDescription += FString::Printf(TEXT("(%s)"), *SingleJob->Input.ShaderFormat.ToString());
+		}
+	}
+	else if (const FShaderPipelineCompileJob* PipelineJob = Job.GetShaderPipelineJob())
+	{
+		JobDescription = TEXT("Stages:");
+		for (int32 StageJobIndex = 0; StageJobIndex < PipelineJob->StageJobs.Num(); ++StageJobIndex)
+		{
+			if (StageJobIndex > 0)
+			{
+				JobDescription += TEXT(",");
+			}
+			JobDescription += BuildCompactTaskDescriptionForJob(*PipelineJob->StageJobs[StageJobIndex]);
+		}
+	}
+	return JobDescription;
+}
+
+// Builds a compact description of the shader compile task that will show up in UBA trace files for instance.
+// It shall contain a brief summary of the shaders being compiled to diagnose issues with overly long remote jobs.
+static FString BuildCompactTaskDescription(const TArray<FShaderCommonCompileJobPtr>& JobsToSerialize)
+{
+	FString Description;
+
+	if (!JobsToSerialize.IsEmpty())
+	{
+		constexpr int32 MaxNumJobsInDescription = 20;
+		const int32 NumJobsInDescription = JobsToSerialize.Num() > MaxNumJobsInDescription ? MaxNumJobsInDescription - 1 : JobsToSerialize.Num();
+		for (int32 JobIndex = 0; JobIndex < NumJobsInDescription; ++JobIndex)
+		{
+			if (JobIndex > 0)
+			{
+				Description += TEXT("\n");
+			}
+			Description += BuildCompactTaskDescriptionForJob(*JobsToSerialize[JobIndex]);
+		}
+		if (JobsToSerialize.Num() > NumJobsInDescription)
+		{
+			Description += FString::Printf(TEXT("\n%d more shaders ...\n"), JobsToSerialize.Num() - NumJobsInDescription);
+		}
+	}
+
+	return Description;
+}
+
 void FShaderCompileDistributedThreadRunnable_Interface::DispatchShaderCompileJobsBatch(TArray<FShaderCommonCompileJobPtr>& JobsToSerialize)
 {
 	const FString BaseFilePath = CachedController.CreateUniqueFilePath();
@@ -93,6 +157,11 @@ void FShaderCompileDistributedThreadRunnable_Interface::DispatchShaderCompileJob
 	TaskCommandData.OutputFileName = OutputFilePath;
 	TaskCommandData.ExtraCommandArgs = FString::Printf(TEXT("%s%s"), *FCommandLine::GetSubprocessCommandline(), GIsBuildMachine ? TEXT(" -buildmachine") : TEXT(""));
 	TaskCommandData.Dependencies = GetDependencyFilesForJobs(JobsToSerialize);
+
+	if (DistributedShaderCompilerVariables::GDistributedJobDescriptionLevel > 0)
+	{
+		TaskCommandData.Description = BuildCompactTaskDescription(JobsToSerialize);
+	}
 	
 	DispatchedTasks.Add(
 		new FDistributedShaderCompilerTask(
@@ -102,6 +171,12 @@ void FShaderCompileDistributedThreadRunnable_Interface::DispatchShaderCompileJob
 			MoveTemp(OutputFilePath)
 		)
 	);
+
+	FDistributedBuildStats Stats;
+	if (CachedController.PollStats(Stats))
+	{
+		GShaderCompilerStats->RegisterDistributedBuildStats(Stats);
+	}
 }
 
 TArray<FString> FShaderCompileDistributedThreadRunnable_Interface::GetDependencyFilesForJobs(

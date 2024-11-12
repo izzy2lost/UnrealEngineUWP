@@ -36,7 +36,6 @@ void SMessagingInterceptors::Construct(const FArguments& InArgs, const TSharedRe
 					[
 						// interceptor list
 						SAssignNew(InterceptorListView, SListView<TSharedPtr<FMessageTracerInterceptorInfo>>)
-							.ItemHeight(24.0f)
 							.ListItemsSource(&InterceptorList)
 							.SelectionMode(ESelectionMode::None)
 							.OnGenerateRow(this, &SMessagingInterceptors::HandleInterceptorListGenerateRow)

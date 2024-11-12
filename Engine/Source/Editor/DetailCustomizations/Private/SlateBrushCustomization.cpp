@@ -1269,7 +1269,7 @@ private:
 			}
 
 			using ImageSizeType = decltype(FSlateBrush::ImageSize);
-			ImageSizeType CachedTextureSize;
+			ImageSizeType CachedTextureSize = {};
 
 			TArray<void*> RawData;
 			ImageSizeProperty->AccessRawData(RawData);

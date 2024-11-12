@@ -54,7 +54,7 @@ class MESHMODELINGTOOLSEXP_API UBakeMeshAttributeMapsToolProperties : public UIn
 public:
 	/** The bake output types to generate */
 	UPROPERTY(EditAnywhere, Category = BakeOutput, meta = (DisplayName = "Output Types", Bitmask, BitmaskEnum = "/Script/MeshModelingToolsExp.EBakeMapType",
-		ValidEnumValues="TangentSpaceNormal, AmbientOcclusion, BentNormal, Curvature, Texture, ObjectSpaceNormal, FaceNormal, Position, MaterialID, PolyGroupID, MultiTexture, VertexColor"))
+		ValidEnumValues="TangentSpaceNormal, AmbientOcclusion, BentNormal, Curvature, Texture, ObjectSpaceNormal, FaceNormal, Position, MaterialID, PolyGroupID, MultiTexture, VertexColor, UVShell"))
 	int32 MapTypes = static_cast<int32>(EBakeMapType::None);
 
 	/** The baked output type used for preview in the viewport */
@@ -123,6 +123,9 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UBakeMeshAttributeMapsResultToolProperties> ResultSettings;
 
+	UPROPERTY()
+	TObjectPtr<UBakeUVShellMapToolProperties> UVShellSettings;
+
 
 	// Begin UBakeMeshAttributeMapsToolBase interface
 	virtual void UpdateResult() override;
@@ -154,6 +157,9 @@ protected:
 	FDetailMeshSettings CachedDetailMeshSettings;
 	TSharedPtr<UE::Geometry::TImageBuilder<FVector4f>, ESPMode::ThreadSafe> CachedDetailNormalMap;
 	EBakeOpState UpdateResult_DetailNormalMap();
+
+	FUVShellMapSettings CachedUVShellMapSettings;
+	EBakeOpState UpdateResult_UVShellMap(const FImageDimensions& Dimensions);
 
 	void SetSourceObjectVisible(bool bState)
 	{

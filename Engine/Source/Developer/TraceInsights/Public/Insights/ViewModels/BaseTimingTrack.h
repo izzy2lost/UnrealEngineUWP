@@ -2,18 +2,31 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+
+#include "Containers/Array.h"
 #include "Input/Events.h"
 #include "Input/Reply.h"
 #include "Misc/EnumClassFlags.h"
+#include "Templates/SharedPointer.h"
 
-#include "Insights/Common/SimpleRtti.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/SimpleRtti.h"
+
+// TraceInsights
+#include "Insights/Config.h"
+
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+#include "Insights/ITimingViewSession.h"
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class FMenuBuilder;
-namespace TraceServices { class IAnalysisSession; };
-namespace Insights { class FFilterConfigurator; }
+struct FGeometry;
+
+namespace UE::Insights { class FDrawContext; }
+namespace UE::Insights { class FFilterConfigurator; }
 
 class FTimingEventSearchParameters;
 class FTimingTrackViewport;
@@ -23,12 +36,9 @@ class ITimingEvent;
 class ITimingEventRelation;
 class ITimingEventFilter;
 
-struct FDrawContext;
-struct FGeometry;
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum class TRACEINSIGHTS_API ETimingTrackLocation : uint32
+enum class ETimingTrackLocation : uint32
 {
 	None         = 0,
 	Scrollable   = (1 << 0),
@@ -41,7 +51,7 @@ ENUM_CLASS_FLAGS(ETimingTrackLocation);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct TRACEINSIGHTS_API FTimingTrackOrder
+struct FTimingTrackOrder
 {
 	static constexpr int32 GroupRange = 100000;
 	static constexpr int32 TimeRuler  = -2 * GroupRange;
@@ -56,7 +66,7 @@ struct TRACEINSIGHTS_API FTimingTrackOrder
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum class TRACEINSIGHTS_API ETimingTrackFlags : uint32
+enum class ETimingTrackFlags : uint32
 {
 	None            = 0,
 	IsVisible       = (1 << 0),
@@ -69,7 +79,7 @@ ENUM_CLASS_FLAGS(ETimingTrackFlags);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum class TRACEINSIGHTS_API EDrawEventMode : uint32
+enum class EDrawEventMode : uint32
 {
 	None = 0,
 
@@ -89,7 +99,7 @@ ENUM_CLASS_FLAGS(EDrawEventMode);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class TRACEINSIGHTS_API ITimingTrackUpdateContext
+class ITimingTrackUpdateContext
 {
 public:
 	virtual const FGeometry& GetGeometry() const = 0;
@@ -105,7 +115,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class TRACEINSIGHTS_API ITimingTrackDrawContext
+class ITimingTrackDrawContext
 {
 public:
 	virtual const FTimingTrackViewport& GetViewport() const = 0;
@@ -113,7 +123,7 @@ public:
 	virtual const TSharedPtr<const ITimingEvent> GetHoveredEvent() const = 0;
 	virtual const TSharedPtr<const ITimingEvent> GetSelectedEvent() const = 0;
 	virtual const TSharedPtr<ITimingEventFilter> GetEventFilter() const = 0;
-	virtual FDrawContext& GetDrawContext() const = 0;
+	virtual UE::Insights::FDrawContext& GetDrawContext() const = 0;
 	virtual const ITimingViewDrawHelper& GetHelper() const = 0;
 };
 
@@ -194,7 +204,7 @@ public:
 	//////////////////////////////////////////////////
 
 	// PreUpdate callback called each frame, but only if the track is visible.
-	// In this update, neither the postion nor the size of the track is yet computed.
+	// In this update, neither the position nor the size of the track is yet computed.
 	// Track should update here its height.
 	virtual void PreUpdate(const ITimingTrackUpdateContext& Context) {}
 
@@ -233,7 +243,7 @@ public:
 	 * @param X The horizontal coordinate of the point tested; in Slate pixels (viewport coordinates).
 	 * @param Y The vertical coordinate of the point tested; in Slate pixels (viewport coordinates).
 	 * @param Viewport The timing viewport used to transform time in viewport coordinates.
-	 * @return The event located at (PosX, PosY) coordinates, if any; nullptr ottherwise.
+	 * @return The event located at (PosX, PosY) coordinates, if any; nullptr otherwise.
 	 */
 	virtual const TSharedPtr<const ITimingEvent> GetEvent(float InPosX, float InPosY, const FTimingTrackViewport& Viewport) const { return nullptr; }
 
@@ -265,7 +275,7 @@ public:
 	TWeakPtr<FBaseTimingTrack> GetParentTrack() const { return ParentTrack; }
 	bool IsChildTrack() const { return ParentTrack.IsValid(); }
 
-	virtual void SetFilterConfigurator(TSharedPtr<Insights::FFilterConfigurator> InFilterConfigurator) {}
+	virtual void SetFilterConfigurator(TSharedPtr<UE::Insights::FFilterConfigurator> InFilterConfigurator) {}
 
 	// Returns number of text lines needed to display the debug string.
 	//TODO: virtual int GetDebugStringLineCount() const { return 0; }

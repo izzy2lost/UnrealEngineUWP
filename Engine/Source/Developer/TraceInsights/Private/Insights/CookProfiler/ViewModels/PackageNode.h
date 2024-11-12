@@ -2,29 +2,21 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-// Insights
+#include "Templates/SharedPointer.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableTreeNode.h"
+
+// TraceInsights
 #include "Insights/CookProfiler/ViewModels/PackageTable.h"
 #include "Insights/CookProfiler/ViewModels/PackageEntry.h"
-#include "Insights/Table/ViewModels/TableTreeNode.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-namespace Insights
+namespace UE::Insights::CookProfiler
 {
-
-enum class EPackageNodeType
-{
-	/** The TaskNode is an allocation node. */
-	Package,
-
-	/** The TaskNode is a group node. */
-	Group,
-
-	/** Invalid enum type, may be used as a number of enumerations. */
-	InvalidOrMax,
-};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -54,21 +46,14 @@ public:
 	/** Initialization constructor for the Task node. */
 	explicit FPackageNode(const FName InName, TWeakPtr<FPackageTable> InParentTable, int32 InRowIndex)
 		: FTableTreeNode(InName, InParentTable, InRowIndex)
-		, Type(EPackageNodeType::Package)
 	{
 	}
 
 	/** Initialization constructor for the group node. */
 	explicit FPackageNode(const FName InGroupName, TWeakPtr<FPackageTable> InParentTable)
 		: FTableTreeNode(InGroupName, InParentTable)
-		, Type(EPackageNodeType::Group)
 	{
 	}
-
-	/**
-	 * @return a type of this Task node or ETaskNodeType::Group for group nodes.
-	 */
-	EPackageNodeType GetType() const { return Type; }
 
 	FPackageTable& GetPackageTableChecked() const
 	{
@@ -80,11 +65,8 @@ public:
 	bool IsValidPackage() const { return GetPackageTableChecked().IsValidRowIndex(GetRowIndex()); }
 	const FPackageEntry* GetPackage() const { return GetPackageTableChecked().GetPackage(GetRowIndex()); }
 	const FPackageEntry& GetPackageChecked() const { return GetPackageTableChecked().GetPackageChecked(GetRowIndex()); }
-
-private:
-	const EPackageNodeType Type;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::CookProfiler

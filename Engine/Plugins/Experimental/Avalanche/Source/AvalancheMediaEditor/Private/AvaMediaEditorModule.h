@@ -3,8 +3,9 @@
 #pragma once
 
 #include "IAvaMediaEditorModule.h"
-#include "Rundown/AvaRundownServer.h"
 #include "Templates/UnrealTypeTraits.h"
+
+#include <type_traits>
 
 class IAvaRundownFilterExpressionFactory;
 class IAvaRundownFilterSuggestionFactory;
@@ -26,9 +27,6 @@ public:
 	virtual TSharedPtr<FExtensibilityManager> GetPlaybackToolBarExtensibilityManager() override;
 	virtual TSharedPtr<FExtensibilityManager> GetRundownToolBarExtensibilityManager() override;
 	virtual TSharedPtr<FExtensibilityManager> GetRundownMenuExtensibilityManager() override;
-	virtual FOnRundownServerStarted& GetOnRundownServerStarted() override { return OnRundownServerStarted; }
-	virtual FOnRundownServerStopped& GetOnRundownServerStopped() override { return OnRundownServerStopped; }
-	virtual TSharedPtr<FAvaRundownServer> GetRundownServer() const override { return RundownServer; }
 	virtual bool CanFilterSupportComparisonOperation(const FName& InFilterKey, ETextFilterComparisonOperation InOperation, EAvaRundownSearchListType InRundownSearchListType) const override;
 	virtual bool FilterExpression(const FName& InFilterKey, const FAvaRundownPage& InItem, const FAvaRundownTextFilterArgs& InArgs) const override;
 	virtual TArray<TSharedPtr<IAvaRundownFilterSuggestionFactory>> GetSimpleSuggestions(EAvaRundownSearchListType InSuggestionType) const override;
@@ -51,26 +49,21 @@ protected:
 	/** Unregister details view customizations. */
 	void UnregisterCustomizations() const;
 
-	void StartRundownServerCommand(const TArray<FString>& Args);
-	void StopRundownServerCommand(const TArray<FString>& Args);
-
 private:
 	void PostEngineInit();
-	void EnginePreExit();
-	void StopAllServices();
 	void HandleMapChanged(UWorld* InWorld, EMapChangeType InMapChangeType);
 	
 	template <
 		typename InRundownFilterExpressionFactoryType,
 		typename... InArgsType
-		UE_REQUIRES(TIsDerivedFrom<InRundownFilterExpressionFactoryType, IAvaRundownFilterExpressionFactory>::Value)
+		UE_REQUIRES(std::is_base_of_v<IAvaRundownFilterExpressionFactory, InRundownFilterExpressionFactoryType>)
 	>
 	void RegisterRundownFilterExpressionFactory(InArgsType&&... InArgs);
 
 	template <
 		typename InRundownSuggestionFactoryType,
 		typename... InArgsType
-		UE_REQUIRES(TIsDerivedFrom<InRundownSuggestionFactoryType, IAvaRundownFilterSuggestionFactory>::Value)
+		UE_REQUIRES(std::is_base_of_v<IAvaRundownFilterSuggestionFactory, InRundownSuggestionFactoryType>)
 	>
 	void RegisterRundownFilterSuggestionFactory(InArgsType&&... InArgs);
 
@@ -85,13 +78,6 @@ private:
 	TSharedPtr<FExtensibilityManager> RundownMenuExtensibility;
 
 	TSharedPtr<FGraphPanelPinConnectionFactory> PlaybackConnectionFactory;
-
-	TSharedPtr<FAvaRundownServer> RundownServer;
-
-	FOnRundownServerStarted OnRundownServerStarted;
-	FOnRundownServerStopped OnRundownServerStopped;
-
-	TArray<IConsoleObject*> ConsoleCmds;
 
 	/** Holds all the RundownFilterExpressionFactory */
 	TMap<FName, TSharedPtr<IAvaRundownFilterExpressionFactory>> FilterExpressionFactories;

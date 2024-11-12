@@ -2,6 +2,7 @@
 
 #include "AjaDeviceProvider.h"
 
+#include "Algo/Sort.h"
 #include "Aja/Aja.h"
 #include "AjaMediaPrivate.h"
 
@@ -577,6 +578,8 @@ TArray<FMediaIOInputConfiguration> FAjaDeviceProvider::GetInputConfigurations() 
 			}
 		}
 	}
+
+	Algo::SortBy(Results, [](const FMediaIOInputConfiguration& Config){ return Config.MediaConfiguration.MediaConnection.Device.DeviceName; }, FNameLexicalLess());
 
 	return Results;
 }

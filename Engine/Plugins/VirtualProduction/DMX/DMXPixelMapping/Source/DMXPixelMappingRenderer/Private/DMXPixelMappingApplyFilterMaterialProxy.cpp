@@ -13,11 +13,14 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialRenderProxy.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Modules/ModuleManager.h"
 #include "RHIStaticStates.h"
 #include "ScreenRendering.h"
 #include "TextureResource.h"
 
+
+#define LOCTEXT_NAMESPACE "DMXPixelMappingApplyFilterMaterialProxy"
 
 namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 {
@@ -189,11 +192,17 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 			
 			const FVector2D InputSize = FVector2D(InputTexture->GetSurfaceWidth(), InputTexture->GetSurfaceHeight());
 
+			const float NumSteps = NumDownsamplePasses;
+			FScopedSlowTask Task(NumSteps, LOCTEXT("UpdateRenderTargets", "Updating Render Targets..."));
+			Task.MakeDialogDelayed(.5f);
+
 			// Create downsample render targets
 			DownsampleRenderTargets.Reset();
 			FVector2D DownsampleSize = InputSize;
 			for (int32 DownsamplePass = 0; DownsamplePass < NumDownsamplePasses; DownsamplePass++)
 			{
+				Task.EnterProgressFrame();
+
 				DownsampleSize /= 2.0;
 				if (DownsampleSize.X <= 1.0 || DownsampleSize.Y <= 1.0)
 				{
@@ -290,3 +299,5 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 			});
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

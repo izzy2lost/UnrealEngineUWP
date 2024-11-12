@@ -174,6 +174,10 @@ namespace Chaos
 		void SetCurrentFrame(const int32 CurrentFrameIn) { CurrentFrame = CurrentFrameIn; }
 		int32& GetCurrentFrame() { return CurrentFrame; }
 
+#if WITH_CHAOS_VISUAL_DEBUGGER
+		virtual int32 GetCVDFrameNumber() const override { return CurrentFrame; }
+#endif
+
 		/**/
 		void SetPositionIterations(const int32 InNumIterations) { GetEvolution()->SetNumPositionIterations(InNumIterations); }
 		void SetVelocityIterations(const int32 InNumIterations) { GetEvolution()->SetNumVelocityIterations(InNumIterations); }
@@ -225,6 +229,8 @@ namespace Chaos
 
 		CHAOS_API void EnableRewindCapture(int32 NumFrames, bool InUseCollisionResimCache, TUniquePtr<IRewindCallback>&& RewindCallback);
 		CHAOS_API void EnableRewindCapture(int32 NumFrames, bool InUseCollisionResimCache);
+		CHAOS_API void EnableRewindCapture(int32 NumFrames);
+		CHAOS_API void EnableRewindCapture();
 
 		/**/
 		FPBDRigidsEvolution* GetEvolution() { return MEvolution.Get(); }
@@ -285,8 +291,10 @@ namespace Chaos
 		/** Copy the simulation material list to the query material list, to be done when the SQ commits an update */
 		CHAOS_API void SyncQueryMaterials_External();
 
+		UE_DEPRECATED(5.5, "Deprecated, use GetUseCollisionResimCache() instead")
+		bool RewindUsesCollisionResimCache() const { return GetUseCollisionResimCache(); }
+
 		CHAOS_API void FinalizeRewindData(const TParticleView<FPBDRigidParticles>& DirtyParticles);
-		bool RewindUsesCollisionResimCache() const { return bUseCollisionResimCache; }
 
 		FPerSolverFieldSystem& GetPerSolverField() { return *PerSolverField; }
 		const FPerSolverFieldSystem& GetPerSolverField() const { return *PerSolverField; }
@@ -359,6 +367,8 @@ namespace Chaos
 		CHAOS_API virtual void PushPhysicsState(const FReal ExternalDt, const int32 NumSteps, const int32 NumExternalSteps) override;
 		CHAOS_API virtual void SetExternalTimestampConsumed_Internal(const int32 Timestamp) override;
 
+		CHAOS_API void ApplyCVars();
+
 		CHAOS_API void UpdateIsDeterministic();
 
 		CHAOS_API void DebugDrawShapes(const bool bShowStatic, const bool bShowKinematic, const bool bShowDynamic) const;
@@ -429,6 +439,17 @@ namespace Chaos
 
 		/** Sets if we are resimming or not */
 		void SetIsResimming(bool bIsResimming);
+
+#if CHAOS_DEBUG_DRAW
+	public:
+		CHAOS_API virtual void SetDebugDrawScene(const ChaosDD::Private::FChaosDDScenePtr& InCDDScene) override final;
+
+	private:
+		// NOTE: A physics frame may consist of multiple sub-steps (ticks) so this debug draw timeline only
+		// captures debug draw that happens outside of the tick(s). See FPBDRigidsEvolutionGBF::SetDebugDrawScene
+		ChaosDD::Private::FChaosDDScenePtr CDDScene;
+		ChaosDD::Private::FChaosDDTimelinePtr CDDFrameTimeline;
+#endif
 	};
 
 	template<>

@@ -59,6 +59,31 @@ namespace UE
 
 				return ParentWindow;
 			}
+
+			TSharedPtr<SWindow> FindParentWindowBehindNotification()
+			{
+				TSharedPtr<SWindow> ParentWindow = FSlateApplication::Get().GetActiveTopLevelWindow();
+				if (!ParentWindow.IsValid())
+				{
+					if (TSharedPtr<SDockTab> ActiveTab = FGlobalTabmanager::Get()->GetActiveTab())
+					{
+						if (TSharedPtr<FTabManager> ActiveTabManager = ActiveTab->GetTabManagerPtr())
+						{
+							if (TSharedPtr<SDockTab> ActiveMajorTab = FGlobalTabmanager::Get()->GetMajorTabForTabManager(ActiveTabManager.ToSharedRef()))
+							{
+								ParentWindow = ActiveMajorTab->GetParentWindow();
+							}
+						}
+					}
+				}
+				else if (ParentWindow->GetType() == EWindowType::Notification)
+				{
+					// Get the parent window directly behind the notification. 
+					ParentWindow = FSlateApplication::Get().GetActiveTopLevelRegularWindow(); 
+				}
+
+				return ParentWindow;
+			}
 		}
 	}
 }
@@ -329,54 +354,27 @@ bool UStatusBarSubsystem::ToggleDebugConsole(TSharedRef<SWindow> ParentWindow, b
 
 bool UStatusBarSubsystem::OpenContentBrowserDrawer()
 {
-	TSharedPtr<SWindow> ParentWindow = UE::StatusBarSubsystem::Private::FindParentWindow();
+	return TriggerContentBrowser(EDrawerTriggerMode::Open);
+}
 
-	if (ParentWindow.IsValid() && ParentWindow->GetType() == EWindowType::Normal)
-	{
-		bool bDrawerIsAlreadyOpened = false;
-		for (const TPair<FName, FStatusBarData>& StatusBar : StatusBars)
-		{
-			if (TSharedPtr<SStatusBar> StatusBarPinned = StatusBar.Value.StatusBarWidget.Pin())
-			{
-				if (StatusBarPinned->IsDrawerOpened(StatusBarDrawerIds::ContentBrowser))
-				{
-					TSharedPtr<SDockTab> ParentTab = StatusBarPinned->GetParentTab();
-					if (ParentTab && ParentTab->IsForeground() && ParentTab->GetParentWindow() == ParentWindow)
-					{
-						bDrawerIsAlreadyOpened = true;
-						break;
-					}
-				}
-			}
-		}
+bool UStatusBarSubsystem::ToggleContentBrowserDrawer()
+{
+	return TriggerContentBrowser(EDrawerTriggerMode::Toggle);
+}
 
-		if (!bDrawerIsAlreadyOpened)
-		{
-			TSharedRef<SWindow> WindowRef = ParentWindow.ToSharedRef();
-			return ToggleContentBrowser(ParentWindow.ToSharedRef());
-		}
-		else
-		{
-			return true;
-		}
-	}
-
-	return false;
+bool UStatusBarSubsystem::DismissContentBrowserDrawer()
+{
+	return TriggerContentBrowser(EDrawerTriggerMode::Dismiss);
 }
 
 bool UStatusBarSubsystem::OpenOutputLogDrawer()
 {
-	TSharedPtr<SWindow> ParentWindow = UE::StatusBarSubsystem::Private::FindParentWindow();
-
-	if (ParentWindow.IsValid() && ParentWindow->GetType() == EWindowType::Notification)
-	{
-		// Get the parent window directly behind the notification. 
-		ParentWindow = FSlateApplication::Get().GetActiveTopLevelRegularWindow(); 
-	}
+	TSharedPtr<SWindow> ParentWindow = UE::StatusBarSubsystem::Private::FindParentWindowBehindNotification();
 	
 	if (ParentWindow.IsValid() && ParentWindow->GetType() == EWindowType::Normal)
 	{
-		return ToggleDebugConsole(ParentWindow.ToSharedRef(), true);
+		constexpr bool bAlwaysToggleDrawer = true;
+		return ToggleDebugConsole(ParentWindow.ToSharedRef(), bAlwaysToggleDrawer);
 	}
 
 	return false;
@@ -386,7 +384,7 @@ bool UStatusBarSubsystem::TryToggleDrawer(const FName DrawerId)
 {
 	bool bToggledSuccessfully = false;
 
-	TSharedPtr<SWindow> ParentWindow = UE::StatusBarSubsystem::Private::FindParentWindow();
+	TSharedPtr<SWindow> ParentWindow = UE::StatusBarSubsystem::Private::FindParentWindowBehindNotification();
 
 	if (ParentWindow.IsValid() && ParentWindow->GetType() == EWindowType::Normal)
 	{
@@ -431,9 +429,16 @@ bool UStatusBarSubsystem::ForceDismissDrawer()
 	return bWasDismissed;
 }
 
-bool UStatusBarSubsystem::ToggleContentBrowser(TSharedRef<SWindow> ParentWindow)
+bool UStatusBarSubsystem::TriggerContentBrowser(EDrawerTriggerMode DrawerTriggerMode)
 {
-	bool bWasDismissed = false;
+	TSharedPtr<SWindow> ParentWindow = UE::StatusBarSubsystem::Private::FindParentWindowBehindNotification();
+
+	if (!ParentWindow)
+	{
+		return false;
+	}
+
+	bool bWasAlreadyOpened = false;
 
 	SNewUserTipNotification::Dismiss();
 
@@ -446,14 +451,18 @@ bool UStatusBarSubsystem::ToggleContentBrowser(TSharedRef<SWindow> ParentWindow)
 				TSharedPtr<SDockTab> ParentTab = StatusBarPinned->GetParentTab();
 				if (ParentTab && ParentTab->IsForeground() && ParentTab->GetParentWindow() == ParentWindow)
 				{
-					StatusBarPinned->DismissDrawer(nullptr);
-					bWasDismissed = true;
+					if (EnumHasAllFlags(DrawerTriggerMode, EDrawerTriggerMode::Dismiss))
+					{
+						StatusBarPinned->DismissDrawer(nullptr);
+					}
+
+					bWasAlreadyOpened = true;
 				}
 			}
 		}
 	}
 
-	if(!bWasDismissed)
+	if(!bWasAlreadyOpened && EnumHasAllFlags(DrawerTriggerMode, EDrawerTriggerMode::Open))
 	{
 		TSharedPtr<SWindow> Window = ParentWindow;
 		GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UStatusBarSubsystem::HandleDeferredOpenContentBrowser, Window));

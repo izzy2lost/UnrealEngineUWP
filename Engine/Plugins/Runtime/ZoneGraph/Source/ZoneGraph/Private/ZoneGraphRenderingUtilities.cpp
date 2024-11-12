@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ZoneGraphRenderingUtilities.h"
-#include "BezierUtilities.h"
+#include "Curves/BezierUtilities.h"
 #include "PrimitiveSceneProxy.h"
 #include "ZoneGraphTypes.h"
 #include "ZoneGraphQuery.h"

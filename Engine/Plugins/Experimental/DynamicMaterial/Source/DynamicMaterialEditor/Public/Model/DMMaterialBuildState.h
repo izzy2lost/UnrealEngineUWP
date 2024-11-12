@@ -9,6 +9,7 @@
 #include "Model/DMMaterialBuildUtils.h"
 
 class UDMMaterialLayerObject;
+class UDMMaterialProperty;
 class UDMMaterialSlot;
 class UDMMaterialStage;
 class UDMMaterialStageInput;
@@ -29,127 +30,135 @@ struct FDMMaterialStageConnection;
  * It is an entirely transient object. It is not meant to be saved outside of the material building processs.
  * It also provides some helper functions for creating UMaterialExpressions.
  */
-struct DYNAMICMATERIALEDITOR_API FDMMaterialBuildState : public IDMMaterialBuildStateInterface, public TSharedFromThis<FDMMaterialBuildState>
+struct FDMMaterialBuildState : public IDMMaterialBuildStateInterface, public TSharedFromThis<FDMMaterialBuildState>
 {
-	FDMMaterialBuildState(UMaterial* InDynamicMaterial, UDynamicMaterialModel* InMaterialModel, bool bInDirtyAssets = true);
+	DYNAMICMATERIALEDITOR_API FDMMaterialBuildState(UMaterial* InDynamicMaterial, UDynamicMaterialModel* InMaterialModel, bool bInDirtyAssets = true);
 
 	virtual ~FDMMaterialBuildState() override;
 
-	virtual UMaterial* GetDynamicMaterial() const override;
+	DYNAMICMATERIALEDITOR_API virtual UMaterial* GetDynamicMaterial() const override;
 
-	virtual UDynamicMaterialModel* GetMaterialModel() const override;
+	DYNAMICMATERIALEDITOR_API virtual UDynamicMaterialModel* GetMaterialModel() const override;
 
+	/**
+	 * The current material property being generated for.
+	 * May be null in the case of global values or global parameters.
+	 */
+	DYNAMICMATERIALEDITOR_API const UDMMaterialProperty* GetCurrentMaterialProperty() const;
+
+	DYNAMICMATERIALEDITOR_API void SetCurrentMaterialProperty(const UDMMaterialProperty* InProperty);
+
+	/** Whether assets can potentially be dirtied by the build process. */
 	bool ShouldDirtyAssets() const { return bDirtyAssets; }
 
-	void SetIgnoreUVs();
-
+	/** If ignoring UVs is on, UV nodes will not be processed. Useful for preview materials. */
 	bool IsIgnoringUVs() const { return bIgnoreUVs; }
 
-	void SetPreviewMaterial();
+	DYNAMICMATERIALEDITOR_API void SetIgnoreUVs();
 
-	bool IsPreviewMaterial() const { return bIsPreviewMaterial; }
+	/** Whether the build state is building a full material or a preview. */
+	UObject* GetPreviewObject() const { return PreviewObject; }
 
-	virtual IDMMaterialBuildUtilsInterface& GetBuildUtils() const override;
+	DYNAMICMATERIALEDITOR_API void SetPreviewObject(UObject* InObject);
 
-	FExpressionInput* GetMaterialProperty(EDMMaterialPropertyType InProperty) const;
+	/** A handy set of tools for creating material expressions. */
+	DYNAMICMATERIALEDITOR_API virtual IDMMaterialBuildUtilsInterface& GetBuildUtils() const override;
+
+	/** Returns the FExpressionInput for the given material property on the material's editor only data. */
+	DYNAMICMATERIALEDITOR_API FExpressionInput* GetMaterialProperty(EDMMaterialPropertyType InProperty) const;
 
 	/** Slots */
-	bool HasSlot(const UDMMaterialSlot* InSlot) const;
+	DYNAMICMATERIALEDITOR_API bool HasSlot(const UDMMaterialSlot* InSlot) const;
 
-	const TArray<UMaterialExpression*>& GetSlotExpressions(const UDMMaterialSlot* InSlot) const;
+	DYNAMICMATERIALEDITOR_API const TArray<UMaterialExpression*>& GetSlotExpressions(const UDMMaterialSlot* InSlot) const;
 
-	UMaterialExpression* GetLastSlotExpression(const UDMMaterialSlot* InSlot) const;
+	DYNAMICMATERIALEDITOR_API UMaterialExpression* GetLastSlotExpression(const UDMMaterialSlot* InSlot) const;
 
-	void AddSlotExpressions(const UDMMaterialSlot* InSlot, const TArray<UMaterialExpression*>& InSlotExpressions);
+	DYNAMICMATERIALEDITOR_API void AddSlotExpressions(const UDMMaterialSlot* InSlot, const TArray<UMaterialExpression*>& InSlotExpressions);
 
-	bool HasSlotProperties(const UDMMaterialSlot* InSlot) const;
+	DYNAMICMATERIALEDITOR_API bool HasSlotProperties(const UDMMaterialSlot* InSlot) const;
 
-	void AddSlotPropertyExpressions(const UDMMaterialSlot* InSlot, const TMap<EDMMaterialPropertyType, 
+	DYNAMICMATERIALEDITOR_API void AddSlotPropertyExpressions(const UDMMaterialSlot* InSlot, const TMap<EDMMaterialPropertyType,
 		TArray<UMaterialExpression*>>& InSlotPropertyExpressions);
 
-	const TMap<EDMMaterialPropertyType, TArray<UMaterialExpression*>>& GetSlotPropertyExpressions(const UDMMaterialSlot* InSlot);
+	DYNAMICMATERIALEDITOR_API const TMap<EDMMaterialPropertyType, TArray<UMaterialExpression*>>& GetSlotPropertyExpressions(const UDMMaterialSlot* InSlot);
 
-	UMaterialExpression* GetLastSlotPropertyExpression(const UDMMaterialSlot* InSlot, EDMMaterialPropertyType InMaterialProperty) const;
+	DYNAMICMATERIALEDITOR_API UMaterialExpression* GetLastSlotPropertyExpression(const UDMMaterialSlot* InSlot, EDMMaterialPropertyType InMaterialProperty) const;
 
-	TArray<const UDMMaterialSlot*> GetSlots() const;
+	DYNAMICMATERIALEDITOR_API TArray<const UDMMaterialSlot*> GetSlots() const;
 
-	const TMap<const UDMMaterialSlot*, TArray<UMaterialExpression*>>& GetSlotMap() const;
+	DYNAMICMATERIALEDITOR_API const TMap<const UDMMaterialSlot*, TArray<UMaterialExpression*>>& GetSlotMap() const;
 
 	/** Layers */
-	bool HasLayer(const UDMMaterialLayerObject* InLayer) const;
+	DYNAMICMATERIALEDITOR_API bool HasLayer(const UDMMaterialLayerObject* InLayer) const;
 
-	const TArray<UMaterialExpression*>& GetLayerExpressions(const UDMMaterialLayerObject* InLayer) const;
+	DYNAMICMATERIALEDITOR_API const TArray<UMaterialExpression*>& GetLayerExpressions(const UDMMaterialLayerObject* InLayer) const;
 
-	UMaterialExpression* GetLastLayerExpression(const UDMMaterialLayerObject* InLayer) const;
+	DYNAMICMATERIALEDITOR_API UMaterialExpression* GetLastLayerExpression(const UDMMaterialLayerObject* InLayer) const;
 
-	void AddLayerExpressions(const UDMMaterialLayerObject* InLayer, const TArray<UMaterialExpression*>& InLayerExpressions);
+	DYNAMICMATERIALEDITOR_API void AddLayerExpressions(const UDMMaterialLayerObject* InLayer, const TArray<UMaterialExpression*>& InLayerExpressions);
 
-	TArray<const UDMMaterialLayerObject*> GetLayers() const;
+	DYNAMICMATERIALEDITOR_API TArray<const UDMMaterialLayerObject*> GetLayers() const;
 
-	const TMap<const UDMMaterialLayerObject*, TArray<UMaterialExpression*>>& GetLayerMap() const;
+	DYNAMICMATERIALEDITOR_API const TMap<const UDMMaterialLayerObject*, TArray<UMaterialExpression*>>& GetLayerMap() const;
 
 	/** Stages */
-	bool HasStage(const UDMMaterialStage* InStage) const;
+	DYNAMICMATERIALEDITOR_API bool HasStage(const UDMMaterialStage* InStage) const;
 
-	const TArray<UMaterialExpression*>& GetStageExpressions(const UDMMaterialStage* InStage) const;
+	DYNAMICMATERIALEDITOR_API const TArray<UMaterialExpression*>& GetStageExpressions(const UDMMaterialStage* InStage) const;
 
-	UMaterialExpression* GetLastStageExpression(const UDMMaterialStage* InStage) const;
+	DYNAMICMATERIALEDITOR_API UMaterialExpression* GetLastStageExpression(const UDMMaterialStage* InStage) const;
 
-	void AddStageExpressions(const UDMMaterialStage* InStage, const TArray<UMaterialExpression*>& InStageExpressions);
+	DYNAMICMATERIALEDITOR_API void AddStageExpressions(const UDMMaterialStage* InStage, const TArray<UMaterialExpression*>& InStageExpressions);
 
-	TArray<const UDMMaterialStage*> GetStages() const;
+	DYNAMICMATERIALEDITOR_API TArray<const UDMMaterialStage*> GetStages() const;
 
-	const TMap<const UDMMaterialStage*, TArray<UMaterialExpression*>>& GetStageMap() const;
+	DYNAMICMATERIALEDITOR_API const TMap<const UDMMaterialStage*, TArray<UMaterialExpression*>>& GetStageMap() const;
 
 	/** Stage Sources */
-	bool HasStageSource(const UDMMaterialStageSource* InStageSource) const;
+	DYNAMICMATERIALEDITOR_API bool HasStageSource(const UDMMaterialStageSource* InStageSource) const;
 
-	const TArray<UMaterialExpression*>& GetStageSourceExpressions(const UDMMaterialStageSource* InStageSource) const;
+	DYNAMICMATERIALEDITOR_API const TArray<UMaterialExpression*>& GetStageSourceExpressions(const UDMMaterialStageSource* InStageSource) const;
 
-	UMaterialExpression* GetLastStageSourceExpression(const UDMMaterialStageSource* InStageSource) const;
+	DYNAMICMATERIALEDITOR_API UMaterialExpression* GetLastStageSourceExpression(const UDMMaterialStageSource* InStageSource) const;
 
-	void AddStageSourceExpressions(const UDMMaterialStageSource* InStageSource, 
+	DYNAMICMATERIALEDITOR_API void AddStageSourceExpressions(const UDMMaterialStageSource* InStageSource,
 		const TArray<UMaterialExpression*>& InStageSourceExpressions);
 
-	TArray<const UDMMaterialStageSource*> GetStageSources() const;
+	DYNAMICMATERIALEDITOR_API TArray<const UDMMaterialStageSource*> GetStageSources() const;
 
-	const TMap<const UDMMaterialStageSource*, TArray<UMaterialExpression*>>& GetStageSourceMap() const;
+	DYNAMICMATERIALEDITOR_API const TMap<const UDMMaterialStageSource*, TArray<UMaterialExpression*>>& GetStageSourceMap() const;
 
 	/** Material Values */
-	virtual bool HasValue(const UDMMaterialValue* InValue) const override;
+	DYNAMICMATERIALEDITOR_API virtual bool HasValue(const UDMMaterialValue* InValue) const override;
 
-	virtual const TArray<UMaterialExpression*>& GetValueExpressions(const UDMMaterialValue* InValue) const override;
+	DYNAMICMATERIALEDITOR_API virtual const TArray<UMaterialExpression*>& GetValueExpressions(const UDMMaterialValue* InValue) const override;
 
-	virtual UMaterialExpression* GetLastValueExpression(const UDMMaterialValue* InValue) const override;
+	DYNAMICMATERIALEDITOR_API virtual UMaterialExpression* GetLastValueExpression(const UDMMaterialValue* InValue) const override;
 
-	virtual void AddValueExpressions(const UDMMaterialValue* InValue, const TArray<UMaterialExpression*>& InValueExpressions) override;
+	DYNAMICMATERIALEDITOR_API virtual void AddValueExpressions(const UDMMaterialValue* InValue, const TArray<UMaterialExpression*>& InValueExpressions) override;
 
-	virtual TArray<const UDMMaterialValue*> GetValues() const override;
+	DYNAMICMATERIALEDITOR_API virtual TArray<const UDMMaterialValue*> GetValues() const override;
 
-	virtual const TMap<const UDMMaterialValue*, TArray<UMaterialExpression*>>& GetValueMap() const override;
-
-	/** Callbacks */
-	bool HasCallback(const UDMMaterialStageSource* InCallback) const;
-
-	const TArray<UDMMaterialStageSource*>& GetCallbackExpressions(const UDMMaterialStageSource* InCallback) const;
-
-	void AddCallbackExpressions(const UDMMaterialStageSource* InCallback, const TArray<UDMMaterialStageSource*>& InCallbackExpressions);
-
-	TArray<const UDMMaterialStageSource*> GetCallbacks() const;
-
-	const TMap<const UDMMaterialStageSource*, TArray<UDMMaterialStageSource*>>& GetCallbackMap() const;
+	DYNAMICMATERIALEDITOR_API virtual const TMap<const UDMMaterialValue*, TArray<UMaterialExpression*>>& GetValueMap() const override;
 
 	/** Other */
-	virtual void AddOtherExpressions(const TArray<UMaterialExpression*>& InOtherExpressions) override;
+	DYNAMICMATERIALEDITOR_API virtual void AddOtherExpressions(const TArray<UMaterialExpression*>& InOtherExpressions) override;
 
-	virtual const TSet<UMaterialExpression*>& GetOtherExpressions() override;
+	DYNAMICMATERIALEDITOR_API virtual const TSet<UMaterialExpression*>& GetOtherExpressions() override;
+
+	/** Global Expressions */
+	DYNAMICMATERIALEDITOR_API UMaterialExpression* GetGlobalExpression(FName InName) const;
+
+	DYNAMICMATERIALEDITOR_API void SetGlobalExpression(FName InName, UMaterialExpression* InExpression);
 
 private:
 	UMaterial* DynamicMaterial = nullptr;
 	UDynamicMaterialModel* MaterialModel = nullptr;
+	const UDMMaterialProperty* CurrentProperty = nullptr;
 	bool bDirtyAssets;
 	bool bIgnoreUVs;
-	bool bIsPreviewMaterial;
+	UObject* PreviewObject = nullptr;
 	TSharedRef<FDMMaterialBuildUtils> Utils;
 
 	TMap<const UDMMaterialValue*, TArray<UMaterialExpression*>> Values;
@@ -158,6 +167,6 @@ private:
 	TMap<const UDMMaterialLayerObject*, TArray<UMaterialExpression*>> Layers;
 	TMap<const UDMMaterialStage*, TArray<UMaterialExpression*>> Stages;
 	TMap<const UDMMaterialStageSource*, TArray<UMaterialExpression*>> StageSources;
-	TMap<const UDMMaterialStageSource*, TArray<UDMMaterialStageSource*>> Callbacks;
 	TSet<UMaterialExpression*> OtherExpressions;
+	TMap<FName, UMaterialExpression*> GlobalExpressions;
 };

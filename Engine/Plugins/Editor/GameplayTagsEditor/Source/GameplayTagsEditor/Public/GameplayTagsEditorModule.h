@@ -49,12 +49,16 @@ public:
 
 	/** Tries to delete a tag from the library. This will pop up special UI or error messages as needed. It will also delete redirectors if that is specified. */
 	GAMEPLAYTAGSEDITOR_API virtual bool DeleteTagFromINI(TSharedPtr<struct FGameplayTagNode> TagNodeToDelete) = 0;
+	GAMEPLAYTAGSEDITOR_API virtual void DeleteTagsFromINI(const TArray<TSharedPtr<struct FGameplayTagNode>>& TagNodesToDelete) = 0;
 
 	/** Tries to rename a tag, leaving a rediretor in the ini, and adding the new tag if it does not exist yet */
 	GAMEPLAYTAGSEDITOR_API virtual bool RenameTagInINI(const FString& TagToRename, const FString& TagToRenameTo) = 0;
 
 	/** Updates info about a tag */
 	GAMEPLAYTAGSEDITOR_API virtual bool UpdateTagInINI(const FString& TagToUpdate, const FString& Comment, bool bIsRestrictedTag, bool bAllowNonRestrictedChildren) = 0;
+
+	/** Tries to move existing tags from each source ini lists to the target source ini list. */
+	GAMEPLAYTAGSEDITOR_API virtual bool MoveTagsBetweenINI(const TArray<FString>& TagsToMove, const FName& TargetTagSource, TArray<FString>& OutTagsMoved, TArray<FString>& OutFailedToMoveTags) = 0;
 
 	/** Adds a transient gameplay tag (only valid for the current editor session) */
 	GAMEPLAYTAGSEDITOR_API virtual bool AddTransientEditorGameplayTag(const FString& NewTransientTag) = 0;
@@ -77,6 +81,9 @@ public:
 	 * @param FilterString		Optional filter string, same format as Categories metadata on tag properties
 	 */
 	GAMEPLAYTAGSEDITOR_API virtual TSharedRef<SWidget> MakeGameplayTagWidget(FOnSetGameplayTag OnSetTag, TSharedPtr<FGameplayTag> GameplayTag, const FString& FilterString = FString()) = 0;
+
+	/** Returns the list of gameplay tags that are not used by content */
+	GAMEPLAYTAGSEDITOR_API virtual void GetUnusedGameplayTags(TArray<TSharedPtr<struct FGameplayTagNode>>& OutUnusedTags) = 0;
 };
 
 /** This is public so that child structs of FGameplayTag can use the details customization */

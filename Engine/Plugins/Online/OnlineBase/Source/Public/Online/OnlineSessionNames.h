@@ -3,6 +3,8 @@
 #pragma once
 
 #include "HAL/Platform.h"
+#include "Misc/CoreMiscDefines.h"
+#include "UObject/NameTypes.h"
 
 /** default beacon port, if not specified by other means */
 #define DEFAULT_BEACON_PORT 15000
@@ -125,8 +127,11 @@
 #define SEARCH_NONEMPTY_SERVERS_ONLY FName(TEXT("NONEMPTYONLY"))
 /** Search for secure servers only (value is true/false) */
 #define SEARCH_SECURE_SERVERS_ONLY FName(TEXT("SECUREONLY"))
+
 /** Search for presence sessions only (value is true/false) */
-#define SEARCH_PRESENCE FName(TEXT("PRESENCESEARCH"))
+UE_DEPRECATED(5.5, "SEARCH_PRESENCE (\"PRESENCESEARCH\") is deprecated and will soon stop being a valid UE-defined key. Please consult upgrade notes for more details")
+const FName SEARCH_PRESENCE = FName(TEXT("PRESENCESEARCH"));
+
 /** Search for a match with min player availability (value is int) */
 #define SEARCH_MINSLOTSAVAILABLE FName(TEXT("MINSLOTSAVAILABLE"))
 /** Exclude all matches where any unique ids in a given array are present (value is string of the form "uniqueid1;uniqueid2;uniqueid3") */
@@ -143,7 +148,7 @@
 #define SEARCH_XBOX_LIVE_SESSION_TEMPLATE_NAME UE_DEPRECATED_MACRO(5.4, "SEARCH_XBOX_LIVE_SESSION_TEMPLATE_NAME has been deprecated. Use SETTING_SESSION_TEMPLATE_NAME instead.")  SETTING_SESSION_TEMPLATE_NAME
 /** Selection method used to determine which match to join when multiple are returned (valid only on Switch) */
 #define SEARCH_SWITCH_SELECTION_METHOD FName(TEXT("SWITCHSELECTIONMETHOD"))
-/** Whether to use lobbies vs sessions */
+/** Whether to search for lobbies instead of sessions */
 #define SEARCH_LOBBIES FName(TEXT("LOBBYSEARCH"))
 
 // User attributes for searching (FSessionMatchmakingUser::Attributes)

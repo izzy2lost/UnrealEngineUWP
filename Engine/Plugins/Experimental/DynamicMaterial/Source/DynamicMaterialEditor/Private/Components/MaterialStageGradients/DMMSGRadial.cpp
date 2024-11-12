@@ -1,38 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/MaterialStageGradients/DMMSGRadial.h"
-#include "DMMaterialFunctionLibrary.h"
+
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
-#include "Model/DMMaterialBuildState.h"
-#include "Model/DMMaterialBuildUtils.h"
+#include "Materials/MaterialFunctionInterface.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageGradientRadial"
+
+TSoftObjectPtr<UMaterialFunctionInterface> UDMMaterialStageGradientRadial::RadialGradientFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FSoftObjectPath(TEXT(
+	"/Script/Engine.MaterialFunction'/DynamicMaterial/MaterialFunctions/Gradients/MF_DM_RadialGradient.MF_DM_RadialGradient'"
+)));
 
 UDMMaterialStageGradientRadial::UDMMaterialStageGradientRadial()
 	: UDMMaterialStageGradient(LOCTEXT("GradientRadial", "Radial Gradient"))
 {
-}
-
-void UDMMaterialStageGradientRadial::GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const
-{
-	if (!IsComponentValid() || !IsComponentAdded())
-	{
-		return;
-	}
-
-	if (InBuildState->HasStageSource(this))
-	{
-		return;
-	}
-
-	UMaterialExpressionMaterialFunctionCall* Radial = FDMMaterialFunctionLibrary::Get().GetRadialGradientExponential(InBuildState->GetDynamicMaterial(), UE_DM_NodeComment_Default);
-	UMaterialExpression* MakeFloat = FDMMaterialFunctionLibrary::Get().GetMakeFloat3(InBuildState->GetDynamicMaterial(), UE_DM_NodeComment_Default);
-
-	Radial->ConnectExpression(MakeFloat->GetInput(0), 0);
-	Radial->ConnectExpression(MakeFloat->GetInput(1), 0);
-	Radial->ConnectExpression(MakeFloat->GetInput(2), 0);
-
-	InBuildState->AddStageSourceExpressions(this, {Radial, MakeFloat});
+	MaterialFunction = RadialGradientFunction.LoadSynchronous();
 }
 
 #undef LOCTEXT_NAMESPACE

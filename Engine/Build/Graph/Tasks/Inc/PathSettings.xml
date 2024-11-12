@@ -22,7 +22,7 @@
 
 		OutOption: PublishBuilds - Publish output from builds to a network share
 		OutOption: PublishHashedStagingData - Publish staged content with hashes for quick syncing
-		OutOption: PublishReports - Publish reports from the build
+		OutOption: PublishReports - Publish automation reports to the network
 
 		OutProperty: ProjectOutputDirectory - Local path to package builds to
 		OutProperty: ShaderSymbolsDirectory - Local path to write shader symbols to
@@ -43,11 +43,14 @@
 	<!-- Publish a hashed staging data that developers can quickly sync to -->
 	<Option Name="PublishHashedStagingData" DefaultValue="false" Restrict="true|false" Description="Create hashes for syncing via Unsync" />
 
-	<!-- Publish automation reports to the network-->
-	<Option Name="PublishReports" DefaultValue="$(IsEpicBuildMachine)" Description="Publish packaged builds to the builds folder on the netwok"/>
+	<!-- Publish automation reports to the network -->
+	<Option Name="PublishReports" DefaultValue="$(IsEpicBuildMachine)" Description="Publish automation reports to the network"/>
 
 	<!-- For pre-generated build -->
 	<Option Name="GeneratedBuildVersion" DefaultValue="" Description="The pre-generated build version"/>
+
+	<!-- Copy test report to a network share -->
+	<Option Name="CopyTestReportOnNetShare" DefaultValue="$(IsBuildMachine)" Description="Copy test report to a network share"/>
 
 	<!-- Where builds are saved to locally -->
 	<Property Name="ProjectOutputDirectory" Value="$(ProjectPath)/Saved/StagedBuilds"/>
@@ -79,7 +82,7 @@
 	<Do If="$(IsEpicBuildMachine) or $(PublishReports)" >
 		<Property Name="AutomationReportOutputDirectory" Value="$(NetworkReportRoot)"/>
 		<Property Name="AutomationReportOutputDirectory" Value="$(AutomationReportOutputDirectory)/$(EscapedBranch)/$(ProjectName)/$(CL-String)"/>
-		<Property Name="AutomationReportUrl" Value="http://automation.epicgames.net/reports/$(EscapedBranch)/$(ProjectName)/$(CL-String)"/>
+		<Property Name="AutomationReportUrl" Value="$(AutomationReportURLBase)/$(EscapedBranch)/$(ProjectName)/$(CL-String)"/>
 	</Do>
 
 	<!-- Network path that can be used for storing reports and logs -->

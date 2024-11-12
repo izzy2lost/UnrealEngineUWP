@@ -132,6 +132,7 @@ void IDisplayClusterStageActor::SetPositionalParams(
 	SetLongitude(InParams.Longitude);
 	SetDistanceFromCenter(InParams.DistanceFromCenter);
 	SetScale(InParams.Scale);
+	SetRadialOffset(InParams.RadialOffset);
 }
 
 FDisplayClusterPositionalParams IDisplayClusterStageActor::GetPositionalParams() const
@@ -145,6 +146,7 @@ FDisplayClusterPositionalParams IDisplayClusterStageActor::GetPositionalParams()
 	Params.Longitude = GetLongitude();
 	Params.DistanceFromCenter = GetDistanceFromCenter();
 	Params.Scale = GetScale();
+	Params.RadialOffset = GetRadialOffset();
 	
 	ClampLatitudeAndLongitude(Params.Latitude, Params.Longitude);
 	

@@ -9,7 +9,7 @@
 #include "AnimGraphNode_DeadBlending.generated.h"
 
 
-UCLASS(Experimental, MinimalAPI)
+UCLASS(MinimalAPI)
 class UAnimGraphNode_DeadBlending : public UAnimGraphNode_Base
 {
 	GENERATED_BODY()

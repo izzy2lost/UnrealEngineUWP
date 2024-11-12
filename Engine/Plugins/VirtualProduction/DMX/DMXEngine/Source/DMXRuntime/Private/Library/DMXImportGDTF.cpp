@@ -2,13 +2,57 @@
 
 #include "Library/DMXImportGDTF.h"
 
+#include "DMXGDTF.h"
+#include "GDTF/DMXGDTFDescription.h"
 #include "Library/DMXGDTFAssetImportData.h"
 
+#if WITH_EDITORONLY_DATA
 #include "EditorFramework/AssetImportData.h"
+#endif 
 
+UDMXImportGDTF::UDMXImportGDTF()
+{
+	GDTFAssetImportData = NewObject<UDMXGDTFAssetImportData>(this, TEXT("GDTFAssetImportData"), RF_Public);
+}
 
+void UDMXImportGDTF::PostLoad()
+{
+	Super::PostLoad();
+
+	// Upgrade so this object always holds asset data.
+	if (!GDTFAssetImportData)
+	{
+		GDTFAssetImportData = NewObject<UDMXGDTFAssetImportData>(this, TEXT("GDTFAssetImportData"));
+	}
+
+#if WITH_EDITORONLY_DATA
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (!SourceFilename_DEPRECATED.IsEmpty())
+	{
+		GDTFAssetImportData->SetSourceFile(SourceFilename_DEPRECATED);
+
+		SourceFilename_DEPRECATED.Empty();
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
+}
+
+UDMXGDTF* UDMXImportGDTF::LoadGDTF() const
+{
+	UDMXGDTF* GDTF = NewObject<UDMXGDTF>();
+	if (GDTFAssetImportData)
+	{
+		GDTF->InitializeFromData(GDTFAssetImportData->GetRawSourceData());
+	}
+
+	return GDTF;
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 bool UDMXImportGDTFAttributeDefinitions::FindFeature(const FString& InQuery, FDMXImportGDTFFeature& OutFeature) const
 {
+	// DEPRECATED 5.4
+
     if (InQuery.IsEmpty())
     {
         return false;
@@ -37,9 +81,13 @@ bool UDMXImportGDTFAttributeDefinitions::FindFeature(const FString& InQuery, FDM
 
     return false;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 bool UDMXImportGDTFAttributeDefinitions::FindAtributeByName(const FName& InName, FDMXImportGDTFAttribute& OutAttribute) const
-{
+{	
+	// DEPRECATED 5.4
+
     if (InName.IsNone())
     {
         return false;
@@ -56,9 +104,13 @@ bool UDMXImportGDTFAttributeDefinitions::FindAtributeByName(const FName& InName,
 
     return false;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 bool UDMXImportGDTFWheels::FindWeelByName(const FName& InName, FDMXImportGDTFWheel& OutWheel) const
-{
+{	
+	// DEPRECATED 5.4
+
 	if (InName.IsNone())
     {
         return false;
@@ -75,9 +127,13 @@ bool UDMXImportGDTFWheels::FindWeelByName(const FName& InName, FDMXImportGDTFWhe
 
     return false;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 bool UDMXImportGDTFPhysicalDescriptions::FindEmitterByName(const FName& InName, FDMXImportGDTFEmitter& OutEmitter) const
 {
+	// DEPRECATED 5.4
+
 	if (InName.IsNone())
     {
 		return false;
@@ -94,11 +150,15 @@ bool UDMXImportGDTFPhysicalDescriptions::FindEmitterByName(const FName& InName, 
 
 	return false;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FDMXImportGDTFDMXValue::FDMXImportGDTFDMXValue(const FString& InDMXValueStr)
     : Value(0)
     , ValueSize(1)
-{
+{	
+	// DEPRECATED 5.4
+
     if (!InDMXValueStr.IsEmpty())
     {
         if (InDMXValueStr.Equals("None"))
@@ -116,9 +176,13 @@ FDMXImportGDTFDMXValue::FDMXImportGDTFDMXValue(const FString& InDMXValueStr)
         }
     }
 };
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 bool FDMXImportGDTFDMXChannel::ParseOffset(const FString& InOffsetStr)
-{
+{	
+	// DEPRECATED 5.4
+
 	if (InOffsetStr.IsEmpty())
 	{
 		return false;
@@ -137,9 +201,13 @@ bool FDMXImportGDTFDMXChannel::ParseOffset(const FString& InOffsetStr)
     
 	return true;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 TArray<FDMXImportGDTFChannelFunction> UDMXImportGDTFDMXModes::GetDMXChannelFunctions(const FDMXImportGDTFDMXMode& InMode)
 {
+	// DEPRECATED 5.4
+
 	TArray<FDMXImportGDTFChannelFunction> Channels;
 	for (const FDMXImportGDTFDMXChannel& ModeChannel : InMode.DMXChannels)
 	{
@@ -147,31 +215,4 @@ TArray<FDMXImportGDTFChannelFunction> UDMXImportGDTFDMXModes::GetDMXChannelFunct
 	}
 	return MoveTemp(Channels);
 };
-
-UDMXImportGDTF::UDMXImportGDTF()
-{
-#if WITH_EDITORONLY_DATA
-	GDTFAssetImportData = NewObject<UDMXGDTFAssetImportData>(this, TEXT("GDTFAssetImportData"), RF_Public);
-#endif
-}
-
-void UDMXImportGDTF::PostLoad()
-{
-	Super::PostLoad();
-
-#if WITH_EDITORONLY_DATA
-	if (!GDTFAssetImportData)
-	{
-		GDTFAssetImportData = NewObject<UDMXGDTFAssetImportData>(this, TEXT("GDTFAssetImportData"));
-	}
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (!SourceFilename_DEPRECATED.IsEmpty())
-	{
-		GDTFAssetImportData->SetSourceFile(SourceFilename_DEPRECATED);
-
-		SourceFilename_DEPRECATED.Empty();
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif
-}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

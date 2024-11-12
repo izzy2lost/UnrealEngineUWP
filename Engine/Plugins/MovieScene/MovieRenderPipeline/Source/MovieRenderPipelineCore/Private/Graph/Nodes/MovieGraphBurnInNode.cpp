@@ -84,11 +84,18 @@ void UMovieGraphBurnInNode::FMovieGraphBurnInPass::Setup(TWeakObjectPtr<UMovieGr
 	FMovieGraphWidgetPass::Setup(InRenderer, InLayer);
 	
 	RenderDataIdentifier.SubResourceName = TEXT("burnin");
+
+	UMovieGraphBurnInNode* ParentNodeOnInitialization = Cast<UMovieGraphBurnInNode>(InLayer.RenderPassNode);
+	if (!ensureMsgf(ParentNodeOnInitialization, TEXT("FMovieGraphBurnInPass shouldn't exist without a parent node in the graph.")))
+	{
+		return;
+	}
+	CachedBurnInWidgetClass = ParentNodeOnInitialization->BurnInClass.TryLoadClass<UMovieGraphBurnInWidget>();
 }
 
-TSharedPtr<SWidget> UMovieGraphBurnInNode::FMovieGraphBurnInPass::GetWidget()
+TSharedPtr<SWidget> UMovieGraphBurnInNode::FMovieGraphBurnInPass::GetWidget(UMovieGraphWidgetRendererBaseNode* InNodeThisFrame)
 {
-	if (const TObjectPtr<UMovieGraphBurnInWidget> BurnInWidget = GetBurnInWidget())
+	if (const TObjectPtr<UMovieGraphBurnInWidget> BurnInWidget = GetBurnInWidget(InNodeThisFrame))
 	{
 		return BurnInWidget->TakeWidget();
 	}
@@ -96,7 +103,7 @@ TSharedPtr<SWidget> UMovieGraphBurnInNode::FMovieGraphBurnInPass::GetWidget()
 	return nullptr;
 }
 
-TObjectPtr<UMovieGraphBurnInWidget> UMovieGraphBurnInNode::FMovieGraphBurnInPass::GetBurnInWidget() const
+TObjectPtr<UMovieGraphBurnInWidget> UMovieGraphBurnInNode::FMovieGraphBurnInPass::GetBurnInWidget(UMovieGraphWidgetRendererBaseNode* InNodeThisFrame) const
 {
 	const UMovieGraphPipeline* Pipeline = Renderer->GetOwningGraph();
 
@@ -108,12 +115,19 @@ TObjectPtr<UMovieGraphBurnInWidget> UMovieGraphBurnInNode::FMovieGraphBurnInPass
 	}
 	
 	// The CDO contains the resources which are shared with all FMovieGraphBurnInPass instances
-	UMovieGraphBurnInNode* BurnInCDO = RenderPassNode->GetClass()->GetDefaultObject<UMovieGraphBurnInNode>();
+	UMovieGraphBurnInNode* BurnInCDO = InNodeThisFrame->GetClass()->GetDefaultObject<UMovieGraphBurnInNode>();
 	const TObjectPtr<UMovieGraphBurnInWidget> BurnInWidget = BurnInCDO->GetOrCreateBurnInWidget(LoadedBurnInClass, Pipeline->GetWorld());
 	if (!BurnInWidget)
 	{
-		const UMovieGraphBurnInNode* BurnInNode = CastChecked<UMovieGraphBurnInNode>(RenderPassNode);
-		UE_LOG(LogMovieRenderPipeline, Error, TEXT("Unable to load burn-in widget at path: %s"), *BurnInNode->BurnInClass.GetAssetPath().ToString());
+		UClass* BurnInWidgetClass = GetBurnInClass();
+		if (BurnInWidgetClass)
+		{
+			UE_LOG(LogMovieRenderPipeline, Error, TEXT("Unable to load burn-in widget at path: %s"), *BurnInWidgetClass->GetPathName());
+		}
+		else
+		{
+			UE_LOG(LogMovieRenderPipeline, Error, TEXT("Unable to load burn-in widget (nullptr)"));
+		}
 		return nullptr;
 	}
 
@@ -122,13 +136,15 @@ TObjectPtr<UMovieGraphBurnInWidget> UMovieGraphBurnInNode::FMovieGraphBurnInPass
 
 void UMovieGraphBurnInNode::FMovieGraphBurnInPass::Render(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData)
 {
+	UMovieGraphWidgetRendererBaseNode* ParentNodeThisFrame = GetParentNode(InTimeData.EvaluatedConfig);
+
 	// Update the widget with the latest frame information
-	if (const TObjectPtr<UMovieGraphBurnInWidget> BurnInWidget = GetBurnInWidget())
+	if (const TObjectPtr<UMovieGraphBurnInWidget> BurnInWidget = GetBurnInWidget(ParentNodeThisFrame))
 	{
 		UMovieGraphPipeline* Pipeline = Renderer->GetOwningGraph();
-		BurnInWidget->UpdateForGraph(Pipeline, Pipeline->GetTimeStepInstance()->GetCalculatedTimeData().EvaluatedConfig);
+		BurnInWidget->UpdateForGraph(Pipeline, Pipeline->GetTimeStepInstance()->GetCalculatedTimeData().EvaluatedConfig, LayerData.CameraIndex, LayerData.CameraName);
 	}
-	
+	 
 	FMovieGraphWidgetPass::Render(InFrameTraversalContext, InTimeData);
 }
 
@@ -140,6 +156,5 @@ int32 UMovieGraphBurnInNode::FMovieGraphBurnInPass::GetCompositingSortOrder() co
 
 UClass* UMovieGraphBurnInNode::FMovieGraphBurnInPass::GetBurnInClass() const
 {
-	const UMovieGraphBurnInNode* BurnInNode = CastChecked<UMovieGraphBurnInNode>(RenderPassNode);
-	return BurnInNode->BurnInClass.TryLoadClass<UMovieGraphBurnInWidget>();
+	return CachedBurnInWidgetClass.Get();
 }

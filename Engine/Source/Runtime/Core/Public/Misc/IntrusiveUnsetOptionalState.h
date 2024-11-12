@@ -7,10 +7,9 @@
  * TOptional's 'unset' state, saving space.  A class in such a state will only ever be
  * compared against FIntrusiveUnsetOptionalState or destructed.
  *
- * A class should implement a constructor taking FIntrusiveUnsetOptionalState, an
- * assignment operator from FIntrusiveUnsetOptionalState, and an equality comparison
- * operator against FIntrusiveUnsetOptionalState, which will put a class instance into
- * the 'unset' state (in the case of the constructor and assignment) and allow testing
+ * A class should implement a constructor taking FIntrusiveUnsetOptionalState, and an 
+ * equality comparison operator against FIntrusiveUnsetOptionalState, which will put a
+  class instance into the 'unset' state (in the case of the constructor) and allow testing
  * of its unset state.
  *
  * A public constexpr static data member of type bool called bHasIntrusiveUnsetOptionalState
@@ -42,13 +41,6 @@
  *     {
  *         // Since negative indices are illegal as per the class invariant, we can use -1
  *         // here as TOptional's 'unset' state, which no legal class instance will have.
- *         Index = -1;
- *     }
- *
- *     // Similarly with this assignment operator.  It need not return a reference to itself
- *     // as most assignment operators do.
- *     void operator=(FIntrusiveUnsetOptionalState)
- *     {
  *         Index = -1;
  *     }
  *

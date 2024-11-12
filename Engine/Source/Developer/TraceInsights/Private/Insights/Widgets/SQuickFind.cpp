@@ -5,18 +5,20 @@
 #include "SlateOptMacros.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Docking/SDockTab.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SScrollBox.h"
-#include "Widgets/Images/SImage.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/STableViewBase.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/Filter/ViewModels/FilterConfigurator.h"
+#include "InsightsCore/Filter/Widgets/SFilterConfigurator.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
-#include "Insights/Widgets/SFilterConfigurator.h"
-#include "Insights/ViewModels/FilterConfigurator.h"
 #include "Insights/ViewModels/QuickFind.h"
 
 #define LOCTEXT_NAMESPACE "SQuickFind"
@@ -59,7 +61,7 @@ void SQuickFind::Construct(const FArguments& InArgs, TSharedPtr<FQuickFind> InQu
 		.FillHeight(1.0f)
 		.Padding(0.0f, 0.0f, 0.0f, 0.0f)
 		[
-			SAssignNew(FilterConfigurator, SFilterConfigurator, InQuickFindViewModel->GetFilterConfigurator())
+			SAssignNew(FilterConfigurator, UE::Insights::SFilterConfigurator, InQuickFindViewModel->GetFilterConfigurator())
 		]
 
 		+ SVerticalBox::Slot()

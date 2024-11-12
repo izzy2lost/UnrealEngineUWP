@@ -3,12 +3,14 @@
 #include "AvaSequencerModule.h"
 #include "AvaSequence.h"
 #include "AvaSequenceEditor.h"
+#include "AvaSequenceName.h"
 #include "AvaSequencer.h"
 #include "AvaSequencerUtils.h"
 #include "Commands/AvaSequencerCommands.h"
 #include "Customization/AvaDisplayRateCustomization.h"
 #include "Customization/AvaMarkSettingCustomization.h"
 #include "Customization/AvaSequenceCustomization.h"
+#include "Customization/AvaSequenceNameCustomization.h"
 #include "Customization/AvaSequenceTimeCustomization.h"
 #include "Director/AvaSequenceDirectorBlueprint.h"
 #include "Director/AvaSequenceDirectorCompiler.h"
@@ -30,7 +32,6 @@
 #include "SequencerCustomizationManager.h"
 #include "SequencerSettings.h"
 #include "Settings/AvaSequencerSettings.h"
-#include "Transition/AvaSequenceTransitionCompiler.h"
 
 #define LOCTEXT_NAMESPACE "AvaSequencerModule"
 
@@ -55,8 +56,6 @@ void FAvaSequencerModule::StartupModule()
 	RegisterCustomLayouts();
 	RegisterDirectorCompiler();
 
-	FAvaSequenceTransitionCompiler::Get().Register();
-
 	EditorInitializedDelegate = FEditorDelegates::OnEditorInitialized.AddRaw(this, &FAvaSequencerModule::OnEditorInitialized);
 }
 
@@ -80,8 +79,6 @@ void FAvaSequencerModule::ShutdownModule()
 
 	UnregisterOutlinerItems();
 	UnregisterCustomLayouts();
-
-	FAvaSequenceTransitionCompiler::Get().Unregister();
 
 	FEditorDelegates::OnEditorInitialized.Remove(EditorInitializedDelegate);
 }
@@ -179,6 +176,7 @@ void FAvaSequencerModule::RegisterCustomLayouts()
 	RegisterCustomPropertyTypeLayout<FAvaSequencerDisplayRate, FAvaDisplayRateCustomization>(PropertyModule);
 	RegisterCustomPropertyTypeLayout<FAvaMarkSetting, FAvaMarkSettingCustomization>(PropertyModule);
 	RegisterCustomPropertyTypeLayout<FAvaSequenceTime, FAvaSequenceTimeCustomization>(PropertyModule);
+	RegisterCustomPropertyTypeLayout<FAvaSequenceName, FAvaSequenceNameCustomization>(PropertyModule);
 }
 
 void FAvaSequencerModule::UnregisterCustomLayouts()

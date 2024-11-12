@@ -47,7 +47,7 @@ namespace UE::EditorPixelStreaming
 		}
 	}
 
-	const FString HashWindow(SWindow& SlateWindow, const FTexture2DRHIRef& FrameBuffer)
+	const FString HashWindow(SWindow& SlateWindow, const FTextureRHIRef& FrameBuffer)
 	{
 		return FString::Printf(TEXT("%s-%s-%dx%d"), ToString(SlateWindow.GetType()), *SlateWindow.GetTitle().ToString(), FrameBuffer->GetSizeXY().X, FrameBuffer->GetSizeXY().Y);
 	}

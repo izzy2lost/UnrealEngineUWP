@@ -3341,7 +3341,7 @@ FString GetFbxPropertyStringValue(const FbxProperty& Property)
 	case eFbxDouble2:
 	{
 		FbxDouble2 Vec = Property.Get<FbxDouble2>();
-		ValueStr = FString::Printf(TEXT("(%f, %f, %f, %f)"), Vec[0], Vec[1]);
+		ValueStr = FString::Printf(TEXT("(%f, %f)"), Vec[0], Vec[1]);
 	}
 	break;
 	case eFbxDouble3:

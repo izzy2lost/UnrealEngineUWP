@@ -37,6 +37,7 @@
 
 #if WITH_EDITORONLY_DATA
 #include "Materials/MaterialExpressionSceneTexture.h"
+#include "Materials/MaterialExpressionUserSceneTexture.h"
 #include "Materials/MaterialExpressionNoise.h"
 #include "Materials/MaterialExpressionFunctionInput.h"
 #include "Materials/MaterialExpressionFunctionOutput.h"
@@ -56,6 +57,7 @@
 
 class Error;
 class FAddUniformExpressionScope;
+class FShaderKeyGenerator;
 
 namespace UE::DerivedData
 {
@@ -188,6 +190,7 @@ struct FMaterialVTStackEntry
 	int32 PreallocatedStackTextureIndex;
 	bool bAdaptive;
 	bool bGenerateFeedback;
+	bool bMeshPaint;
 	float AspectRatio;
 
 	int32 CodeIndex;
@@ -227,6 +230,7 @@ enum class EMaterialCastFlags : uint32
 	ReplicateScalar = (1u << 0),
 	AllowTruncate = (1u << 1),
 	AllowAppendZeroes = (1u << 2),
+	AllowInteger = (1u << 3),
 
 	ValidCast = ReplicateScalar | AllowTruncate,
 };
@@ -237,6 +241,20 @@ enum ESubstrateCompilationContext : uint8
 	SCC_Default = 0u,
 	SCC_FullySimplified = 1u,
 	SCC_MAX = 2u
+};
+
+/** 
+ * Enumerates Translate() results.
+ * If RetryWithoutDDC is returned, the caller should call Translate() again
+ * on a new instance of FHLSLMaterialTranslator forcing DDC query off (i.e. call
+ * Translate(false)). This is because an instance of FHLSLMaterialTranslator
+ * is single use.
+ */
+enum class EHLSLMaterialTranslatorResult
+{
+	Success,
+	Failure,
+	RetryWithoutDDC,
 };
 
 class FHLSLMaterialTranslator : public FMaterialCompiler
@@ -299,6 +317,7 @@ protected:
 	// Uniform expressions used across all material properties
 	TArray<FShaderCodeChunk> UniformExpressions;
 	TArray<TRefCountPtr<FMaterialUniformExpressionTexture> > UniformTextureExpressions[NumMaterialTextureParameterTypes];
+	TArray<TRefCountPtr<FMaterialUniformExpressionTextureCollection>> UniformTextureCollectionExpressions;
 	TArray<TRefCountPtr<FMaterialUniformExpressionExternalTexture>> UniformExternalTextureExpressions;
 	TMap<UE::Shader::FValue, uint32> DefaultUniformValues;
 	uint32 UniformPreshaderOffset = 0u;
@@ -334,8 +353,8 @@ protected:
 	/** Keeps track of which variations of analytic derivative functions are used, and generates the code during translation. **/
 	FMaterialDerivativeAutogen DerivativeAutogen;
 
-	/** Whether the translation succeeded. */
-	uint32 bSuccess : 1;
+	/** The translation result. */
+	EHLSLMaterialTranslatorResult TranslationResult;
 	/** Whether the compute shader material inputs were compiled. */
 	uint32 bCompileForComputeShader : 1;
 	/** Whether the compiled material uses scene depth. */
@@ -390,6 +409,8 @@ protected:
 
 	/** true if the material uses any type of vertex position */
 	uint32 bUsesVertexPosition : 1;
+	/** true if the material potentially manipulates any type of TexCoord for texture sampling */
+	uint32 bPotentiallyManipulateTexCoords : 1;
 
 	uint32 bUsesTransformVector : 1;
 	// True if the current property requires last frame's information
@@ -424,6 +445,9 @@ protected:
 	uint32 bUsesPerInstanceFadeAmount : 1;
 
 	uint32 bCullIntermediateUniformExpressions : 1;
+	
+	/** The generated shader source uses explicit ddx()/ddy() calls */
+	uint32 bUsesExplicitDerivatives : 1;
 
 	/** Incremented and decremented by FAddUniformExpressionScope.  See comments on that class below */
 	int32 AddingUniformExpression;
@@ -575,6 +599,7 @@ public:
 	 * Returns a string representation that identify the translator version. Used to keep shader DDC keys valid when material translation internals change.
 	 */
 	static void AppendVersionString(FString& Output, EShaderPlatform Platform);
+	static void AppendVersion(FShaderKeyGenerator& KeyGen, EShaderPlatform Platform);
 
 	FHLSLMaterialTranslator(FMaterial* InMaterial,
 		FMaterialCompilationOutput& InMaterialCompilationOutput,
@@ -611,7 +636,8 @@ public:
 
 	void ValidateVtPropertyLimits();
 	void ValidateShadingModelsForFeatureLevel(const FMaterialShadingModelField& ShadingModels);
-	bool Translate();
+
+	EHLSLMaterialTranslatorResult Translate(bool bForceDisableDDCQuery);
 
 	void GetMaterialEnvironment(EShaderPlatform InPlatform, FShaderCompilerEnvironment& OutEnvironment);
 	
@@ -703,8 +729,8 @@ public:
 	FString CastValue(const FString& Code, EMaterialValueType SourceType, EMaterialValueType DestType, EMaterialCastFlags Flags);
 
 	// CoerceParameter
-	FString CoerceParameter(int32 Index, EMaterialValueType DestType);
-	FString CoerceValue(const FString& Code, EMaterialValueType SourceType, EMaterialValueType DestType);
+	FString CoerceParameter(int32 Index, EMaterialValueType DestType, EMaterialCastFlags AdditionalCastFlags = EMaterialCastFlags::None);
+	FString CoerceValue(const FString& Code, EMaterialValueType SourceType, EMaterialValueType DestType, EMaterialCastFlags AdditionalCastFlags = EMaterialCastFlags::None);
 
 	int32 CastToNonLWCIfDisabled(int32 Code);
 
@@ -786,6 +812,7 @@ protected:
 	virtual FMaterialUniformExpression* GetParameterUniformExpression(int32 Index) const override;
 
 	virtual bool GetTextureForExpression(int32 Index, int32& OutTextureIndex, EMaterialSamplerType& OutSamplerType, TOptional<FName>& OutParameterName) const override;
+	virtual bool GetTextureCollectionForExpression(int32 Index, int32& OutTextureCollectionIndex, TOptional<FName>& OutParameterName) const override;
 
 	// GetArithmeticResultType
 	EMaterialValueType GetArithmeticResultType(EMaterialValueType TypeA, EMaterialValueType TypeB);
@@ -820,6 +847,8 @@ protected:
 	bool IsExpressionConstantValue(int Code, float ConstantValue);
 
 	int32 GenericSwitch(const TCHAR* Function, int32 IfTrue, int32 IfFalse);
+
+	bool IsConstFloatOfPow2Expression(int32 ExpressionCode);
 
 	FString SubstrateGetCastParameterCode(int32 Index, EMaterialValueType DestType);
 	FString SubstrateGetCastParameterCodeWithDeriv(int32 Index, EMaterialValueType DestType);
@@ -923,6 +952,7 @@ protected:
 	virtual int32 Sign(int32 X) override;
 	virtual int32 Frac(int32 X) override;
 	virtual int32 Fmod(int32 A, int32 B) override;
+	virtual int32 Modulo(int32 A, int32 B) override;
 
 	/**
 	* Creates the new shader code chunk needed for the Abs expression
@@ -960,6 +990,7 @@ protected:
 	virtual int32 ParticleSize() override;
 	virtual int32 ParticleSpriteRotation() override;
 
+	virtual int32 LocalPosition(EPositionIncludedOffsets IncludedOffsets, ELocalPositionOrigin OriginType) override;
 	virtual int32 WorldPosition(EWorldPositionIncludedOffsets WorldPositionIncludedOffsets) override;
 
 	virtual int32 ObjectWorldPosition(EPositionOrigin OriginType) override;
@@ -984,6 +1015,7 @@ protected:
 #endif
 
 	virtual int32 TextureCoordinate(uint32 CoordinateIndex, bool UnMirrorU, bool UnMirrorV) override;
+	virtual void SetPotentiallyManipulateTexCoords() override;
 
 	uint32 AcquireVTStackIndex(
 		ETextureMipValueMode MipValueMode, 
@@ -995,7 +1027,7 @@ protected:
 		const FString& UV_Value,
 		const FString& UV_Ddx,
 		const FString& UV_Ddy,
-		bool bAdaptive, bool bGenerateFeedback);
+		bool bAdaptive, bool bGenerateFeedback, bool bMeshPaint);
 
 	virtual int32 TextureSample(
 		int32 TextureIndex,
@@ -1012,6 +1044,7 @@ protected:
 	) override;
 
 	virtual int32 TextureProperty(int32 TextureIndex, EMaterialExposedTextureProperty Property) override;
+	virtual int32 TextureFromCollection(int32 TextureCollectionCodeIndex, int32 IndexIntoCollection, EMaterialValueType ResultTextureType) override;
 
 	virtual int32 TextureDecalMipmapLevel(int32 TextureSizeInput) override;
 	virtual int32 TextureDecalDerivative(bool bDDY) override;
@@ -1027,9 +1060,11 @@ protected:
 	virtual int32 SceneDepth(int32 Offset, int32 ViewportUV, bool bUseOffset) override;
 	
 	// @param SceneTextureId of type ESceneTextureId e.g. PPI_SubsurfaceColor
-	virtual int32 SceneTextureLookup(int32 ViewportUV, uint32 InSceneTextureId, bool bFiltered) override;
+	virtual int32 SceneTextureLookup(int32 ViewportUV, uint32 InSceneTextureId, bool bFiltered, bool bClamped, bool bUnused) override;
 
 	virtual int32 GetSceneTextureViewSize(int32 SceneTextureId, bool InvProperty) override;
+
+	virtual int32 FindOrAddUserSceneTexture(FName UserSceneTextureName) override;
 
 	virtual int32 DBufferTextureLookup(int32 ViewportUV, uint32 DBufferTextureIndex) override;
 
@@ -1043,6 +1078,10 @@ protected:
 	virtual int32 Switch(int32 SwitchValueInput, int32 DefaultInput, TArray<int32>& CompiledInputs) override;
 	virtual int32 Texture(UTexture* InTexture, int32& TextureReferenceIndex, EMaterialSamplerType SamplerType, ESamplerSourceMode SamplerSource = SSM_FromTextureAsset, ETextureMipValueMode MipValueMode = TMVM_None) override;
 	virtual int32 TextureParameter(FName ParameterName, UTexture* DefaultValue, int32& TextureReferenceIndex, EMaterialSamplerType SamplerType, ESamplerSourceMode SamplerSource = SSM_FromTextureAsset) override;
+	
+	virtual int32 TextureCollection(UTextureCollection* TextureCollection, int32& TextureCollectionReferenceIndex) override;
+	virtual int32 TextureCollectionParameter(FName ParameterName, UTextureCollection* DefaultValue, int32& TextureCollectionReferenceIndex) override;
+	virtual int32 TextureCollectionCount(int32 InTextureCollectionCodeIndex) override;
 
 	virtual int32 VirtualTexture(URuntimeVirtualTexture* InTexture, int32 TextureLayerIndex, int32 PageTableLayerIndex, int32& TextureReferenceIndex, EMaterialSamplerType SamplerType) override;
 	virtual int32 VirtualTextureParameter(FName ParameterName, URuntimeVirtualTexture* DefaultValue, int32 TextureLayerIndex, int32 PageTableLayerIndex, int32& TextureReferenceIndex, EMaterialSamplerType SamplerType) override;
@@ -1063,10 +1102,12 @@ protected:
 	virtual int32 SparseVolumeTextureParameter(FName ParameterName, USparseVolumeTexture* InDefaultTexture, int32& TextureReferenceIndex, EMaterialSamplerType SamplerType) override;
 	virtual int32 SparseVolumeTextureUniform(int32 TextureIndex, int32 VectorIndex, UE::Shader::EValueType Type) override;
 	virtual int32 SparseVolumeTextureUniformParameter(FName ParameterName, int32 TextureIndex, int32 VectorIndex, UE::Shader::EValueType Type) override;
-	virtual int32 SparseVolumeTextureSamplePageTable(int32 SparseVolumeTextureIndex, int32 UVWIndex, int32 MipLevelIndex, ESamplerSourceMode SamplerSource) override;
-	virtual int32 SparseVolumeTextureSamplePhysicalTileData(int32 SparseVolumeTextureIndex, int32 VoxelCoordIndex, int32 PhysicalTileDataIdxIndex) override;
+	virtual int32 SparseVolumeTextureSamplePageTable(int32 SparseVolumeTextureIndex, int32 UVWIndex, int32 MipLevelIndex, ESamplerSourceMode SamplerSource, bool bIsManualLinearMipMapSecondSample) override;
+	virtual int32 SparseVolumeTextureSamplePhysicalTileData(int32 SparseVolumeTextureIndex, int32 VoxelCoordIndex, int32 PhysicalTileDataIdxIndex, bool bIsManualLinearMipMapSecondSample) override;
+	virtual int32 SparseVolumeTextureSample(int32 SparseVolumeTextureIndex, int32 UVWIndex, int32 MipValue0Index, int32 MipValue1Index, int32 PhysicalTileDataIdxIndex, ETextureMipValueMode MipValueMode, ESamplerSourceMode SamplerSource) override;
 
-	virtual UObject* GetReferencedTexture(int32 Index);
+	virtual UObject* GetReferencedTexture(int32 Index) override;
+	virtual UTextureCollection* GetReferencedTextureCollection(int32 Index) override;
 
 	virtual int32 StaticBool(bool bValue) override;
 	virtual int32 StaticBoolParameter(FName ParameterName, bool bDefaultValue) override;
@@ -1078,7 +1119,12 @@ protected:
 
 	virtual int32 StaticTerrainLayerWeight(FName ParameterName, int32 Default, bool bTextureArray = false) override;
 
+	virtual int32 FontSignedDistanceData() override;
+
 	virtual int32 VertexColor() override;
+	virtual int32 MeshPaintTextureCoordinateIndex() override;
+	virtual int32 MeshPaintTextureDescriptor() override;
+	virtual int32 MeshPaintTextureReplace(int32 Invalid, int32 Valid) override;
 
 	virtual int32 PreSkinnedPosition() override;
 	virtual int32 PreSkinnedNormal() override;
@@ -1117,6 +1163,9 @@ protected:
 	
 	virtual int32 TransformVector(EMaterialCommonBasis SourceCoordBasis, EMaterialCommonBasis DestCoordBasis, int32 A) override;
 	virtual int32 TransformPosition(EMaterialCommonBasis SourceCoordBasis, EMaterialCommonBasis DestCoordBasis, int32 A) override;
+	int32 CalculatePeriodicWorldPositionOrigin(int TileScaleIdx);
+	virtual int32 TransformFromPeriodicWorldPosition(EMaterialCommonBasis DestCoordBasis, int TileScaleIdx, int32 A) override;
+	virtual int32 TransformToPeriodicWorldPosition(EMaterialCommonBasis SourceCoordBasis, int TileScaleIdx, int32 A) override;
 	virtual int32 TransformNormalFromRequestedBasisToWorld(int32 NormalCodeChunk) override;
 	virtual int32 DynamicParameter(FLinearColor& DefaultValue, uint32 ParameterIndex = 0) override;
 	virtual int32 LightmapUVs() override;
@@ -1141,13 +1190,20 @@ protected:
 	virtual int32 VertexNormal() override;
 	virtual int32 VertexTangent() override;
 	virtual int32 PixelNormalWS() override;
+
 	virtual int32 DDX(int32 A) override;
 	virtual int32 DDY(int32 A) override;
 
-	int32 Derivative(int32 A, const TCHAR* Component);
+	enum class EDervativeComponent
+	{
+		X, 
+		Y,
+	};
+	int32 Derivative(int32 A, EDervativeComponent Component);
 
 	virtual int32 AntialiasedTextureMask(int32 Tex, int32 UV, float Threshold, uint8 Channel) override;
 	virtual int32 DepthOfFieldFunction(int32 Depth, int32 FunctionValueIndex) override;
+	virtual int32 PostVolumeUserFlagTestFunction(int32 Input) override;
 	virtual int32 Sobol(int32 Cell, int32 Index, int32 Seed) override;
 	virtual int32 TemporalSobol(int32 Index, int32 Seed) override;
 	virtual int32 Noise(int32 Position, EPositionOrigin PositionOrigin, float Scale, int32 Quality, uint8 NoiseFunction, bool bTurbulence, int32 Levels, float OutputMin, float OutputMax, float LevelScale, int32 FilterWidth, bool bTiling, uint32 RepeatSize) override;
@@ -1251,15 +1307,17 @@ protected:
 		int32 ClearCoat, int32 ClearCoatRoughness,
 		int32 EmissiveColor,
 		int32 Opacity,
-		int32 TransmittanceColor,
+		int32 ThinTranslucentTransmittanceColor,
+		int32 ThinTranslucentSurfaceCoverage,
 		int32 WaterScatteringCoefficients, int32 WaterAbsorptionCoefficients, int32 WaterPhaseG, int32 ColorScaleBehindWater,
 		int32 ShadingModel,
 		int32 Normal, int32 Tangent, const FString& SharedLocalBasisIndexMacro,
 		int32 ClearCoat_Normal, int32 ClearCoat_Tangent, const FString& ClearCoat_SharedLocalBasisIndexMacro, 
 		int32 CustomTangent_Tangent,
 		FSubstrateOperator* PromoteToOperator) override;
-	virtual int32 SubstrateVolumetricFogCloudBSDF(int32 Albedo, int32 Extinction, int32 EmissiveColor, int32 AmbientOcclusion) override;
+	virtual int32 SubstrateVolumetricFogCloudBSDF(int32 Albedo, int32 Extinction, int32 EmissiveColor, int32 AmbientOcclusion, bool bEmissiveOnly) override;
 	virtual int32 SubstrateUnlitBSDF(int32 EmissiveColor, int32 TransmittanceColor, int32 Normal, FSubstrateOperator* PromoteToOperator) override;
+	virtual int32 SubstrateUIBSDF(int32 EmissiveColor, int32 Opacity, FSubstrateOperator* PromoteToOperator) override;
 	virtual int32 SubstrateHairBSDF(int32 BaseColor, int32 Scatter, int32 Specular, int32 Roughness, int32 Backlit, int32 EmissiveColor, int32 Tangent, const FString& SharedLocalBasisIndexMacro, FSubstrateOperator* PromoteToOperator) override;
 	virtual int32 SubstrateEyeBSDF(int32 DiffuseColor, int32 Roughness, int32 IrisMask, int32 IrisDistance, int32 EmissiveColor, int32 CorneaNormal, int32 IrisNormal, int32 IrisPlaneNormal, int32 SSSProfileId, const FString& SharedLocalBasisIndexMacro, FSubstrateOperator* PromoteToOperator) override;
 	virtual int32 SubstrateSingleLayerWaterBSDF(
@@ -1358,6 +1416,8 @@ protected:
 	/**Experimental access to the EyeAdaptation RT for applying an inverse. */
 	virtual int32 EyeAdaptationInverse(int32 LightValueArg, int32 AlphaArg) override;
 
+	const bool CheckPrimitivePropertyCompatibity(const TCHAR* ExpressionName);
+
 	/**
 	 * To only have one piece of code dealing with error handling if the Primitive constant buffer is not used.
 	 * @param Name e.g. TEXT("ObjectWorldPositionAndRadius.w")
@@ -1370,11 +1430,11 @@ protected:
 	virtual bool IsCurrentlyCompilingForPreviousFrame() const;
 
 	virtual bool IsDevelopmentFeatureEnabled(const FName& FeatureName) const override;
-	
+
 	/**
-	 * EFfectively performs the translation without querying the DDC first.
+	 * Effectively performs the translation without querying the DDC first.
 	 */
-	void DoTranslate();
+	void TranslateMaterial();
 
 	/**
 	 * Queries the DDC cache for a cached translation.
@@ -1406,6 +1466,9 @@ protected:
 
 	/** The output material shader defines */
 	TUniquePtr<FEnvironmentDefines> EnvironmentDefines;
+
+	/** Whether the async DDC query was completed (instead of terminating because canceled) */
+	TAtomic<bool> DDCQueryCompleted;
 
 	/** Signals when the async DDC query task has completed AND there was a hit */
 	TAtomic<bool> DDCQueryHit;

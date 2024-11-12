@@ -7,7 +7,9 @@
 #include "Engine/World.h"
 #include "Materials/Material.h"
 #include "Async/Async.h"
+#include "HAL/UESemaphore.h"
 #include "Engine/CollisionProfile.h"
+#include "PhysicsEngine/PhysicsSettings.h"
 
 #include "DynamicMesh/DynamicMeshAttributeSet.h"
 #include "DynamicMesh/MeshNormals.h"
@@ -26,6 +28,16 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DynamicMeshComponent)
 
 using namespace UE::Geometry;
+
+
+static TAutoConsoleVariable<int32> CVarDynamicMeshComponent_MaxComplexCollisionTriCount(
+	TEXT("geometry.DynamicMesh.MaxComplexCollisionTriCount"),
+	250000,
+	TEXT("If a DynamicMeshCompnent's UDynamicMesh has a larger triangle count than this value, it will not be passed to the Physics system to be used as Complex Collision geometry. A negative value indicates no limit.")
+);
+
+
+
 
 namespace
 {
@@ -79,6 +91,11 @@ UDynamicMeshComponent::UDynamicMeshComponent(const FObjectInitializer& ObjectIni
 
 	MeshObjectChangedHandle = MeshObject->OnMeshChanged().AddUObject(this, &UDynamicMeshComponent::OnMeshObjectChanged);
 
+	DistanceFieldComputeQueue.OnComputeCompleted = [this](TUniquePtr<FDistanceFieldVolumeData> NewData)
+	{
+		OnNewDistanceFieldData_Async(MoveTemp(NewData));
+	};
+
 	ResetProxy();
 }
 
@@ -123,8 +140,24 @@ void UDynamicMeshComponent::PostLoad()
 
 	// make sure BodySetup is created
 	GetBodySetup();
+
+	// Note we don't serialize the distance field, so recompute on load (and below in PostEditImport, on duplicate/copy)
+	// (Note if we do switch to serializing it, it is DDC cache data and not versioned, so must be checked vs its DDC key and potentially invalidated)
+	if (CurrentDistanceField.IsValid() != (DistanceFieldMode != EDynamicMeshComponentDistanceFieldMode::NoDistanceField))
+	{
+		OnNewDistanceFieldMode();
+	}
 }
 
+void UDynamicMeshComponent::PostEditImport()
+{
+	Super::PostEditImport();
+
+	if (CurrentDistanceField.IsValid() != (DistanceFieldMode != EDynamicMeshComponentDistanceFieldMode::NoDistanceField))
+	{
+		OnNewDistanceFieldMode();
+	}
+}
 
 #if WITH_EDITOR
 void UDynamicMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -283,12 +316,16 @@ bool UDynamicMeshComponent::ValidateMaterialSlots(bool bCreateIfMissing, bool bD
 }
 
 
-void UDynamicMeshComponent::ConfigureMaterialSet(const TArray<UMaterialInterface*>& NewMaterialSet)
+void UDynamicMeshComponent::ConfigureMaterialSet(const TArray<UMaterialInterface*>& NewMaterialSet, bool bDeleteExtraSlots)
 {
 	for (int k = 0; k < NewMaterialSet.Num(); ++k)
 	{
 		SetMaterial(k, NewMaterialSet[k]);
 	}	
+	if (bDeleteExtraSlots)
+	{
+		SetNumMaterials(NewMaterialSet.Num());
+	}
 }
 
 
@@ -405,28 +442,28 @@ void UDynamicMeshComponent::FastNotifyColorsUpdated()
 	}
 
 	FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy();
-	if (Proxy)
+	if (Proxy && AllowFastUpdate())
 	{
-		if (HasTriangleColorFunction() && Proxy->bUsePerTriangleColor == false )
+		if (HasTriangleColorFunction() && Proxy->MeshRenderBufferSetConverter.bUsePerTriangleColor == false )
 		{
-			Proxy->bUsePerTriangleColor = true;
-			Proxy->PerTriangleColorFunc = [this](const FDynamicMesh3* MeshIn, int TriangleID) { return GetTriangleColor(MeshIn, TriangleID); };
+			Proxy->MeshRenderBufferSetConverter.bUsePerTriangleColor = true;
+			Proxy->MeshRenderBufferSetConverter.PerTriangleColorFunc = [this](const FDynamicMesh3* MeshIn, int TriangleID) { return GetTriangleColor(MeshIn, TriangleID); };
 		} 
-		else if ( !HasTriangleColorFunction() && Proxy->bUsePerTriangleColor == true)
+		else if ( !HasTriangleColorFunction() && Proxy->MeshRenderBufferSetConverter.bUsePerTriangleColor == true)
 		{
-			Proxy->bUsePerTriangleColor = false;
-			Proxy->PerTriangleColorFunc = nullptr;
+			Proxy->MeshRenderBufferSetConverter.bUsePerTriangleColor = false;
+			Proxy->MeshRenderBufferSetConverter.PerTriangleColorFunc = nullptr;
 		}
 
-		if (HasVertexColorRemappingFunction() && Proxy->bApplyVertexColorRemapping == false)
+		if (HasVertexColorRemappingFunction() && Proxy->MeshRenderBufferSetConverter.bApplyVertexColorRemapping == false)
 		{
-			Proxy->bApplyVertexColorRemapping = true;
-			Proxy->VertexColorRemappingFunc = [this](FVector4f& Color) { RemapVertexColor(Color); };
+			Proxy->MeshRenderBufferSetConverter.bApplyVertexColorRemapping = true;
+			Proxy->MeshRenderBufferSetConverter.VertexColorRemappingFunc = [this](FVector4f& Color) { RemapVertexColor(Color); };
 		}
-		else if (!HasVertexColorRemappingFunction() && Proxy->bApplyVertexColorRemapping == true)
+		else if (!HasVertexColorRemappingFunction() && Proxy->MeshRenderBufferSetConverter.bApplyVertexColorRemapping == true)
 		{
-			Proxy->bApplyVertexColorRemapping = false;
-			Proxy->VertexColorRemappingFunc = nullptr;
+			Proxy->MeshRenderBufferSetConverter.bApplyVertexColorRemapping = false;
+			Proxy->MeshRenderBufferSetConverter.VertexColorRemappingFunc = nullptr;
 		}
 
 		Proxy->FastUpdateVertices(false, false, true, false);
@@ -451,7 +488,7 @@ void UDynamicMeshComponent::FastNotifyPositionsUpdated(bool bNormals, bool bColo
 	}
 
 	FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy();
-	if (Proxy)
+	if (Proxy && AllowFastUpdate())
 	{
 		// calculate bounds while we are updating vertices
 		TFuture<void> UpdateBoundsCalc;
@@ -488,7 +525,7 @@ void UDynamicMeshComponent::FastNotifyVertexAttributesUpdated(bool bNormals, boo
 	}
 
 	FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy();
-	if (Proxy && ensure(bNormals || bColors || bUVs) )
+	if (Proxy && ensure(bNormals || bColors || bUVs) && AllowFastUpdate())
 	{
 		GetCurrentSceneProxy()->FastUpdateVertices(false, bNormals, bColors, bUVs);
 		//MarkRenderDynamicDataDirty();
@@ -514,7 +551,7 @@ void UDynamicMeshComponent::FastNotifyVertexAttributesUpdated(EMeshRenderAttribu
 	}
 
 	FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy();
-	if (Proxy && ensure(UpdatedAttributes != EMeshRenderAttributeFlags::None))
+	if (Proxy && ensure(UpdatedAttributes != EMeshRenderAttributeFlags::None) && AllowFastUpdate())
 	{
 		bool bPositions = (UpdatedAttributes & EMeshRenderAttributeFlags::Positions) != EMeshRenderAttributeFlags::None;
 
@@ -595,7 +632,7 @@ void UDynamicMeshComponent::FastNotifySecondaryTrianglesChanged()
 	}
 
 	FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy();
-	if (Proxy)
+	if (Proxy && AllowFastUpdate())
 	{
 		GetCurrentSceneProxy()->FastUpdateAllIndexBuffers();
 		GetDynamicMesh()->PostRealtimeUpdate();
@@ -621,7 +658,7 @@ void UDynamicMeshComponent::FastNotifyTriangleVerticesUpdated(const TArray<int32
 		((UpdatedAttributes & EMeshRenderAttributeFlags::SecondaryIndexBuffers) != EMeshRenderAttributeFlags::None);
 
 	FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy();
-	if (!Proxy)
+	if (!Proxy || !AllowFastUpdate())
 	{
 		ResetProxy();
 	}
@@ -703,7 +740,7 @@ void UDynamicMeshComponent::FastNotifyTriangleVerticesUpdated(const TSet<int32>&
 		((UpdatedAttributes & EMeshRenderAttributeFlags::SecondaryIndexBuffers) != EMeshRenderAttributeFlags::None);
 
 	FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy();
-	if (!Proxy)
+	if (!Proxy || !AllowFastUpdate())
 	{
 		ResetProxy();
 	}
@@ -816,7 +853,7 @@ TFuture<bool> UDynamicMeshComponent::FastNotifyTriangleVerticesUpdated_TryPrecom
 	TArray<int32>& UpdateSetsOut,
 	FAxisAlignedBox3d& BoundsOut)
 {
-	if ((!!RenderMeshPostProcessor) || (GetCurrentSceneProxy() == nullptr) || (!Decomposition))
+	if ((!!RenderMeshPostProcessor) || (GetCurrentSceneProxy() == nullptr) || (!Decomposition) || !AllowFastUpdate())
 	{
 		// is there a simpler way to do this? cannot seem to just make a TFuture<bool>...
 		return Async(DynamicMeshComponentAsyncExecTarget, []() { return false; });
@@ -874,7 +911,7 @@ void UDynamicMeshComponent::FastNotifyTriangleVerticesUpdated_ApplyPrecompute(
 	Precompute.Wait();
 
 	bool bPrecomputeOK = Precompute.Get();
-	if (bPrecomputeOK == false || GetCurrentSceneProxy() == nullptr )
+	if (bPrecomputeOK == false || GetCurrentSceneProxy() == nullptr || !AllowFastUpdate())
 	{
 		FastNotifyTriangleVerticesUpdated(Triangles, UpdatedAttributes);
 		return;
@@ -928,25 +965,25 @@ FPrimitiveSceneProxy* UDynamicMeshComponent::CreateSceneProxy()
 
 		if (TriangleColorFunc)
 		{
-			NewProxy->bUsePerTriangleColor = true;
-			NewProxy->PerTriangleColorFunc = [this](const FDynamicMesh3* MeshIn, int TriangleID) { return GetTriangleColor(MeshIn, TriangleID); };
+			NewProxy->MeshRenderBufferSetConverter.bUsePerTriangleColor = true;
+			NewProxy->MeshRenderBufferSetConverter.PerTriangleColorFunc = [this](const FDynamicMesh3* MeshIn, int TriangleID) { return GetTriangleColor(MeshIn, TriangleID); };
 		}
 		else if ( GetColorOverrideMode() == EDynamicMeshComponentColorOverrideMode::Polygroups )
 		{
-			NewProxy->bUsePerTriangleColor = true;
-			NewProxy->PerTriangleColorFunc = [this](const FDynamicMesh3* MeshIn, int TriangleID) { return GetGroupColor(MeshIn, TriangleID); };
+			NewProxy->MeshRenderBufferSetConverter.bUsePerTriangleColor = true;
+			NewProxy->MeshRenderBufferSetConverter.PerTriangleColorFunc = [this](const FDynamicMesh3* MeshIn, int TriangleID) { return GetGroupColor(MeshIn, TriangleID); };
 		}
 
 		if (HasVertexColorRemappingFunction())
 		{
-			NewProxy->bApplyVertexColorRemapping = true;
-			NewProxy->VertexColorRemappingFunc = [this](FVector4f& Color) { RemapVertexColor(Color); };
+			NewProxy->MeshRenderBufferSetConverter.bApplyVertexColorRemapping = true;
+			NewProxy->MeshRenderBufferSetConverter.VertexColorRemappingFunc = [this](FVector4f& Color) { RemapVertexColor(Color); };
 		}
 
 		if (SecondaryTriFilterFunc)
 		{
-			NewProxy->bUseSecondaryTriBuffers = true;
-			NewProxy->SecondaryTriFilterFunc = [this](const FDynamicMesh3* MeshIn, int32 TriangleID) 
+			NewProxy->MeshRenderBufferSetConverter.bUseSecondaryTriBuffers = true;
+			NewProxy->MeshRenderBufferSetConverter.SecondaryTriFilterFunc = [this](const FDynamicMesh3* MeshIn, int32 TriangleID)
 			{ 
 				return (SecondaryTriFilterFunc) ? SecondaryTriFilterFunc(MeshIn, TriangleID) : false;
 			};
@@ -959,6 +996,17 @@ FPrimitiveSceneProxy* UDynamicMeshComponent::CreateSceneProxy()
 		else
 		{
 			NewProxy->Initialize();
+		}
+
+		// set new distance field
+		if ( DistanceFieldMode != EDynamicMeshComponentDistanceFieldMode::NoDistanceField )
+		{
+			DistanceFieldLock.Lock();
+			if ( CurrentDistanceField.IsValid() )
+			{
+				NewProxy->SetNewDistanceField(CurrentDistanceField, true);
+			}
+			DistanceFieldLock.Unlock();
 		}
 
 		NewProxy->SetVerifyUsedMaterials(bProxyVerifyUsedMaterials);
@@ -977,6 +1025,108 @@ void UDynamicMeshComponent::NotifyMaterialSetUpdated()
 		GetCurrentSceneProxy()->UpdatedReferencedMaterials();
 	}
 }
+
+
+
+void UDynamicMeshComponent::OnNewDistanceFieldMode()
+{
+	UpdateDistanceField();
+}
+
+
+void UDynamicMeshComponent::UpdateDistanceField()
+{
+	if (DistanceFieldMode == EDynamicMeshComponentDistanceFieldMode::NoDistanceField)
+	{
+		FScopeLock Lock(&DistanceFieldLock);
+		CurrentDistanceField = TSharedPtr<FDistanceFieldVolumeData>();
+		if (GetCurrentSceneProxy() != nullptr)
+		{
+			GetCurrentSceneProxy()->SetNewDistanceField(CurrentDistanceField, false);
+		}
+		return;
+	}
+
+	// For safety, run the distance field compute on a (geometry-only) copy of the mesh
+	FDynamicMesh3 GeoOnlyCopy;
+	// Compute whether the mesh uses mainly two-sided materials before, as this is the only info the distance field compute needs from the mesh attributes
+	bool bMostlyTwoSided = false;
+	ProcessMesh([&](const FDynamicMesh3& ReadMesh)
+	{
+		if (ReadMesh.Attributes() && ReadMesh.Attributes()->GetMaterialID())
+		{
+			TArray<bool> MatIsTwoSided;
+			MatIsTwoSided.SetNumUninitialized(BaseMaterials.Num());
+			for (int32 Idx = 0; Idx < BaseMaterials.Num(); ++Idx)
+			{
+				MatIsTwoSided[Idx] = BaseMaterials[Idx] ? BaseMaterials[Idx]->IsTwoSided() : false;
+			}
+			const FDynamicMeshMaterialAttribute* Materials = ReadMesh.Attributes()->GetMaterialID();
+			int32 TwoSidedTriCount = 0;
+			for (int32 TID : ReadMesh.TriangleIndicesItr())
+			{
+				int32 MID = Materials->GetValue(TID);
+				TwoSidedTriCount += MatIsTwoSided.IsValidIndex(MID) ? (int32)MatIsTwoSided[MID] : 0;
+			}
+			bMostlyTwoSided = TwoSidedTriCount * 2 >= ReadMesh.TriangleCount();
+		}
+
+		GeoOnlyCopy.Copy(ReadMesh, false, false, false, false);
+	});
+	DistanceFieldComputeQueue.LaunchJob(TEXT("DynamicMeshComponentDistanceField"), 
+		[this, MovedGeoOnlyCopy = MoveTemp(GeoOnlyCopy), bMostlyTwoSided](FProgressCancel& Progress)
+		{
+			return ComputeNewDistanceField_TaskFunction(Progress, MovedGeoOnlyCopy, bMostlyTwoSided);
+		});
+}
+
+
+TUniquePtr<FDistanceFieldVolumeData> UDynamicMeshComponent::ComputeNewDistanceField_TaskFunction(FProgressCancel& Progress, const FDynamicMesh3& Mesh, bool bMostlyTwoSided)
+{
+	// todo: consider making the number of concurrent distance field computes configurable
+	constexpr int32 MaxConcurrentComputes = 3;
+	static FSemaphore ComputesCountSemaphore(MaxConcurrentComputes, MaxConcurrentComputes);
+	
+	ComputesCountSemaphore.Acquire();
+	if (Progress.Cancelled())
+	{
+		ComputesCountSemaphore.Release();
+		return nullptr;
+	}
+
+	TUniquePtr<FDistanceFieldVolumeData> NewDistanceField;
+	float DistanceFieldResolutionScale = 1.0f;
+	NewDistanceField =
+		FDynamicMeshSceneProxy::ComputeDistanceFieldForMesh(Mesh, Progress, DistanceFieldResolutionScale, bMostlyTwoSided);
+	ComputesCountSemaphore.Release();
+	return NewDistanceField;
+}
+
+void UDynamicMeshComponent::OnNewDistanceFieldData_Async(TUniquePtr<FDistanceFieldVolumeData> NewData)
+{
+	// WARNING: this function will be called from TAsyncComponentDataComputeQueue background tasks
+
+	TSharedPtr<FDistanceFieldVolumeData> NewDistanceField(NewData.Release());
+
+	DistanceFieldLock.Lock();
+	CurrentDistanceField = NewDistanceField;
+	if (GetCurrentSceneProxy() != nullptr)
+	{
+		// mark render state dirty on the game thread to ensure it updates at a safe time (e.g., cannot update when bPostTickComponentUpdate == true)
+		AsyncTask(
+			ENamedThreads::GameThread,
+			[this]()
+			{
+				// the new distance field will be set when the scene proxy is re-created
+				MarkRenderStateDirty();
+			}
+		);
+	}
+	DistanceFieldLock.Unlock();
+}
+
+
+
 
 
 void UDynamicMeshComponent::SetTriangleColorFunction(
@@ -1184,16 +1334,7 @@ void UDynamicMeshComponent::OnMeshObjectChanged(UDynamicMesh* ChangedMeshObject,
 		OnMeshChanged.Broadcast();
 	}
 
-	// Rebuild body setup. Should this be deferred until proxy creation? Sometimes multiple changes are emitted...
-	// todo: can possibly skip this in some change situations, eg if only changing attributes
-	if (bDeferCollisionUpdates || bTransientDeferCollisionUpdates )
-	{
-		InvalidatePhysicsData();
-	}
-	else
-	{
-		RebuildPhysicsData();
-	}
+	InternalOnMeshUpdated();
 }
 
 
@@ -1211,22 +1352,14 @@ void UDynamicMeshComponent::SetDynamicMesh(UDynamicMesh* NewMesh)
 
 	// set Outer of NewMesh to be this Component, ie transfer ownership. This is done via "renaming", which is
 	// a bit odd, so the flags prevent some standard "renaming" behaviors from happening
-	NewMesh->Rename( nullptr, this, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+	NewMesh->Rename( nullptr, this, REN_DontCreateRedirectors);
 	MeshObject = NewMesh;
 	MeshObjectChangedHandle = MeshObject->OnMeshChanged().AddUObject(this, &UDynamicMeshComponent::OnMeshObjectChanged);
 
 	NotifyMeshUpdated();
 	OnMeshChanged.Broadcast();
 
-	// Rebuild physics data
-	if (bDeferCollisionUpdates || bTransientDeferCollisionUpdates)
-	{
-		InvalidatePhysicsData();
-	}
-	else
-	{
-		RebuildPhysicsData();
-	}
+	InternalOnMeshUpdated();
 }
 
 
@@ -1242,40 +1375,140 @@ void UDynamicMeshComponent::OnChildDetached(USceneComponent* ChildComponent)
 	OnChildAttachmentModified.Broadcast(ChildComponent, false);
 }
 
+void UDynamicMeshComponent::InternalOnMeshUpdated()
+{
+	// Rebuild physics data
+	if (bDeferCollisionUpdates || bTransientDeferCollisionUpdates)
+	{
+		InvalidatePhysicsData();
+	}
+	else
+	{
+		RebuildPhysicsData();
+	}
 
+	UpdateDistanceField();
+}
 
-
+bool UDynamicMeshComponent::GetTriMeshSizeEstimates(struct FTriMeshCollisionDataEstimates& OutTriMeshEstimates, bool bInUseAllTriData) const
+{
+	ProcessMesh([&](const FDynamicMesh3& Mesh)
+		{
+			bool bCopyUVs = UPhysicsSettings::Get()->bSupportUVFromHitResults && Mesh.HasAttributes() && Mesh.Attributes()->NumUVLayers() > 0;
+			if (bCopyUVs)
+			{
+				// conservative estimate
+				OutTriMeshEstimates.VerticeCount = Mesh.TriangleCount() * 3;
+			}
+			else
+			{
+				OutTriMeshEstimates.VerticeCount = Mesh.VertexCount();
+			}
+		}
+	);
+	return true;
+}
 
 bool UDynamicMeshComponent::GetPhysicsTriMeshData(struct FTriMeshCollisionData* CollisionData, bool InUseAllTriData)
 {
-	// todo: support UPhysicsSettings::Get()->bSupportUVFromHitResults
-
 	// this is something we currently assume, if you hit this ensure, we made a mistake
 	ensure(bEnableComplexCollision);
 
 	ProcessMesh([&](const FDynamicMesh3& Mesh)
 	{
+		// See if we should copy UVs
+		const bool bCopyUVs = UPhysicsSettings::Get()->bSupportUVFromHitResults && Mesh.HasAttributes() && Mesh.Attributes()->NumUVLayers() > 0;
+		if (bCopyUVs)
+		{
+			CollisionData->UVs.SetNum(Mesh.Attributes()->NumUVLayers());
+		}
 		const FDynamicMeshMaterialAttribute* MaterialAttrib = Mesh.HasAttributes() && Mesh.Attributes()->HasMaterialID() ? Mesh.Attributes()->GetMaterialID() : nullptr;
 
-		TArray<int32> VertexMap;
-		bool bIsSparseV = !Mesh.IsCompactV();
-		if (bIsSparseV)
-		{
-			VertexMap.SetNum(Mesh.MaxVertexID());
-		}
+		TArray<int32> VertexMap; 
+		const bool bIsSparseV = !Mesh.IsCompactV();
 
 		// copy vertices
-		CollisionData->Vertices.Reserve(Mesh.VertexCount());
-		for (int32 vid : Mesh.VertexIndicesItr())
+		if (!bCopyUVs)
 		{
-			int32 Index = CollisionData->Vertices.Add((FVector3f)Mesh.GetVertex(vid));
 			if (bIsSparseV)
 			{
-				VertexMap[vid] = Index;
+				VertexMap.SetNum(Mesh.MaxVertexID());
 			}
-			else
+			CollisionData->Vertices.Reserve(Mesh.VertexCount());
+			for (int32 vid : Mesh.VertexIndicesItr())
 			{
-				check(vid == Index);
+				int32 Index = CollisionData->Vertices.Add((FVector3f)Mesh.GetVertex(vid));
+				if (bIsSparseV)
+				{
+					VertexMap[vid] = Index;
+				}
+				else
+				{
+					check(vid == Index);
+				}
+			}
+		}
+		else
+		{
+			// map vertices per wedge
+			VertexMap.SetNumZeroed(Mesh.TriangleCount() * 3);
+			// temp array to store the UVs on a vertex (per triangle)
+			TArray<FVector2D> VertUVs;
+			const FDynamicMeshAttributeSet* Attribs = Mesh.Attributes();
+			const int32 NumUVLayers = Attribs->NumUVLayers();
+			for (int32 VID : Mesh.VertexIndicesItr())
+			{
+				FVector3f Pos = (FVector3f)Mesh.GetVertex(VID);
+				int32 VertStart = CollisionData->Vertices.Num();
+				Mesh.EnumerateVertexTriangles(VID, [&](int32 TID)
+				{
+					FIndex3i Tri = Mesh.GetTriangle(TID);
+					int32 VSubIdx = Tri.IndexOf(VID);
+					// Get the UVs on this wedge
+					VertUVs.Reset(8);
+					for (int32 UVIdx = 0; UVIdx < NumUVLayers; ++UVIdx)
+					{
+						const FDynamicMeshUVOverlay* Overlay = Attribs->GetUVLayer(UVIdx);
+						FIndex3i UVTri = Overlay->GetTriangle(TID);
+						int32 ElID = UVTri[VSubIdx];
+						FVector2D UV(0, 0);
+						if (ElID >= 0)
+						{
+							UV = (FVector2D)Overlay->GetElement(ElID);
+						}
+						VertUVs.Add(UV);
+					}
+					// Check if we've already added these UVs via an earlier wedge
+					int32 OutputVIdx = INDEX_NONE;
+					for (int32 VIdx = VertStart; VIdx < CollisionData->Vertices.Num(); ++VIdx)
+					{
+						bool bFound = true;
+						for (int32 UVIdx = 0; UVIdx < NumUVLayers; ++UVIdx)
+						{
+							if (CollisionData->UVs[UVIdx][VIdx] != VertUVs[UVIdx])
+							{
+								bFound = false;
+								break;
+							}
+						}
+						if (bFound)
+						{
+							OutputVIdx = VIdx;
+							break;
+						}
+					}
+					// If not, add the vertex w/ the UVs
+					if (OutputVIdx == INDEX_NONE)
+					{
+						OutputVIdx = CollisionData->Vertices.Add(Pos);
+						for (int32 UVIdx = 0; UVIdx < NumUVLayers; ++UVIdx)
+						{
+							CollisionData->UVs[UVIdx].Add(VertUVs[UVIdx]);
+						}
+					}
+					// Map the wedge to the output vertex
+					VertexMap[TID * 3 + VSubIdx] = OutputVIdx;
+				});
 			}
 		}
 
@@ -1286,9 +1519,25 @@ bool UDynamicMeshComponent::GetPhysicsTriMeshData(struct FTriMeshCollisionData* 
 		{
 			FIndex3i Tri = Mesh.GetTriangle(tid);
 			FTriIndices Triangle;
-			Triangle.v0 = (bIsSparseV) ? VertexMap[Tri.A] : Tri.A;
-			Triangle.v1 = (bIsSparseV) ? VertexMap[Tri.B] : Tri.B;
-			Triangle.v2 = (bIsSparseV) ? VertexMap[Tri.C] : Tri.C;
+			if (bCopyUVs)
+			{
+				// UVs need a wedge-based map
+				Triangle.v0 = VertexMap[tid * 3 + 0];
+				Triangle.v1 = VertexMap[tid * 3 + 1];
+				Triangle.v2 = VertexMap[tid * 3 + 2];
+			}
+			else if (bIsSparseV)
+			{
+				Triangle.v0 = VertexMap[Tri.A];
+				Triangle.v1 = VertexMap[Tri.B];
+				Triangle.v2 = VertexMap[Tri.C];
+			}
+			else
+			{ 
+				Triangle.v0 = Tri.A;
+				Triangle.v1 = Tri.B;
+				Triangle.v2 = Tri.C;
+			}
 
 			// Filter out triangles which will cause physics system to emit degenerate-geometry warnings.
 			// These checks reproduce tests in Chaos::CleanTrimesh
@@ -1322,7 +1571,28 @@ bool UDynamicMeshComponent::GetPhysicsTriMeshData(struct FTriMeshCollisionData* 
 
 bool UDynamicMeshComponent::ContainsPhysicsTriMeshData(bool InUseAllTriData) const
 {
-	return bEnableComplexCollision && ((MeshObject != nullptr) ? (MeshObject->GetTriangleCount() > 0) : false);
+	if (bEnableComplexCollision && (MeshObject != nullptr))
+	{
+		int32 TriangleCount = MeshObject->GetTriangleCount();
+
+		// if the triangle count is too large, skip building complex collision
+		int32 MaxComplexCollisionTriCount = CVarDynamicMeshComponent_MaxComplexCollisionTriCount.GetValueOnAnyThread();
+		if (MaxComplexCollisionTriCount >= 0 && TriangleCount > MaxComplexCollisionTriCount)
+		{
+			static bool bHavePrintedWarningMessage = false;
+			if (!bHavePrintedWarningMessage)
+			{
+				UE_LOG(LogGeometry, Display, TEXT("Ignoring attempt to build Complex Collision for a DynamicMeshComponent with triangle count larger than %d. Increase the geometry.DynamicMesh.MaxComplexCollisionTriCount value if you are certain you want to build Complex Collision for very large meshes."), MaxComplexCollisionTriCount);
+				bHavePrintedWarningMessage = true;
+			}
+			return false;
+		}
+		if (TriangleCount > 0)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 bool UDynamicMeshComponent::WantsNegXTriMesh()
@@ -1451,6 +1721,11 @@ void UDynamicMeshComponent::RebuildPhysicsData()
 		RecreatePhysicsState();
 
 		bCollisionUpdatePending = false;
+	}
+
+	if (FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy())
+	{
+		Proxy->SetCollisionData();
 	}
 }
 

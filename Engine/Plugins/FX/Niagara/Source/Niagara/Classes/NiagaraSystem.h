@@ -17,6 +17,7 @@
 #include "Particles/ParticleSystem.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
+#include "Particles/FXBudget.h"
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "NiagaraBakerSettings.h"
@@ -227,7 +228,7 @@ public:
 	NIAGARA_API ~UNiagaraSystem();
 
 	//~ UObject interface
-	NIAGARA_API void PostInitProperties();
+	NIAGARA_API virtual void PostInitProperties() override;
 	NIAGARA_API virtual void Serialize(FArchive& Ar) override;
 	NIAGARA_API virtual void PostLoad() override;
 	NIAGARA_API virtual void PostDuplicate(bool bDuplicateForPIE) override;
@@ -238,7 +239,7 @@ public:
 #endif
 	NIAGARA_API virtual void BeginDestroy() override;
 	NIAGARA_API virtual bool IsReadyForFinishDestroy() override;
-	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
+	NIAGARA_API virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 #if WITH_EDITOR
 	NIAGARA_API virtual void PostRename(UObject* OldOuter, const FName OldName) override;
 	NIAGARA_API virtual void PreEditChange(FProperty* PropertyThatWillChange)override;
@@ -275,6 +276,13 @@ public:
 	//~ End INiagaraParameterDefinitionsSubscriber interface
 
 	NIAGARA_API virtual bool ChangeEmitterVersion(const FVersionedNiagaraEmitter& Emitter, const FGuid& NewVersion);
+
+	/**
+	 * Append config values or settings that can change how instances of the class are cooked, including especially
+	 * values that determine how version upgraded are conducted. Can also append a unique guid when necessary to
+	 * invalidate previous results because serialization changed and no custom version was updated.
+	 */
+	NIAGARA_API static void AppendToClassSchema(FAppendToClassSchemaContext& Context);
 #endif 
 
 	/** Gets an array of the emitter handles. */
@@ -327,7 +335,7 @@ public:
 		return EmitterHandles[Idx];
 	};
 
-	int GetNumEmitters()
+	int GetNumEmitters() const
 	{
 		return EmitterHandles.Num();
 	}
@@ -421,6 +429,9 @@ public:
 	/** Invalidates any active compilation requests which will ignore their results. */
 	NIAGARA_API void InvalidateActiveCompiles();
 
+	/** Returns true if there are any active compilations. */
+	NIAGARA_API bool HasActiveCompilations() const;
+
 	/** Delegate called when the system's dependencies have all been compiled.*/
 	NIAGARA_API FOnSystemCompiled& OnSystemCompiled();
 
@@ -501,9 +512,8 @@ public:
 
 	FORCEINLINE bool IsInitialOwnerVelocityFromActor() const { return bInitialOwnerVelocityFromActor; }
 
-	NIAGARA_API void ReportAnalyticsData(bool bIsCooking);
-
 #if WITH_EDITORONLY_DATA
+	NIAGARA_API void ReportAnalyticsData(bool bIsCooking);
 	NIAGARA_API bool UsesEmitter(UNiagaraEmitter* Emitter) const;
 	NIAGARA_API bool UsesEmitter(const FVersionedNiagaraEmitter& VersionedEmitter) const;
 	NIAGARA_API bool UsesScript(const UNiagaraScript* Script)const; 
@@ -706,18 +716,23 @@ public:
 	}
 	
 	UPROPERTY(EditAnywhere, Category = "Debug", Transient, AdvancedDisplay)
-	bool bDumpDebugSystemInfo = false;
+	uint8 bDumpDebugSystemInfo: 1 = false;
 
 	UPROPERTY(EditAnywhere, Category = "Debug", Transient, AdvancedDisplay)
-	bool bDumpDebugEmitterInfo = false;
+	uint8 bDumpDebugEmitterInfo: 1  = false;
 
-	bool bFullyLoaded = false;
+	uint8 bFullyLoaded: 1  = false;
 
 	/** When enabled, we follow the settings on the UNiagaraComponent for tick order. When this option is disabled, we ignore any dependencies from data interfaces or other variables and instead fire off the simulation as early in the frame as possible. This greatly
 	reduces overhead and allows the game thread to run faster, but comes at a tradeoff if the dependencies might leave gaps or other visual artifacts.*/
 	UPROPERTY(EditAnywhere, Category = "Performance", AdvancedDisplay)
-	bool bRequireCurrentFrameData = true;
+	uint8 bRequireCurrentFrameData: 1  = true;
 
+protected:
+	UPROPERTY(EditAnywhere, Category = "Scalability", meta=(DisplayInScalabilityContext))
+	uint8 bOverrideScalabilitySettings : 1;
+public:
+	
 	FORCEINLINE bool HasDIsWithPostSimulateTick() const { return bHasDIsWithPostSimulateTick; }
 	FORCEINLINE bool AllDIsPostSimulateCanOverlapFrames() const { return bAllDIsPostSimulateCanOverlapFrames; }
 	FORCEINLINE bool AsyncWorkCanOverlapTickGroups() const { return bAllDIsPostStageCanOverlapTickGroups; }
@@ -740,6 +755,8 @@ public:
 	FORCEINLINE const FNiagaraSystemScalabilitySettings& GetScalabilitySettings()const { return CurrentScalabilitySettings; }
 	NIAGARA_API const FNiagaraSystemScalabilityOverride& GetCurrentOverrideSettings() const;
 	FORCEINLINE bool NeedsSortedSignificanceCull()const{ return bNeedsSortedSignificanceCull; }
+
+	FORCEINLINE void GetMaxInstanceCounts(int32& OutSystemInstanceMax, int32& OutFXTypeInstanceMax, bool bBudgetAdjusted)const;
 	
 	NIAGARA_API FNiagaraPlatformSet& GetScalabilityPlatformSet() { return Platforms; }
 	NIAGARA_API const FNiagaraPlatformSet& GetScalabilityPlatformSet() const { return Platforms; }
@@ -797,11 +814,11 @@ public:
 	bool AllowValidation() const { return bAllowValidation; }
 #endif
 
-	/** Can we run the code only system state path, i.e. we don't need to invoke the VVM / store per instance data set? */
-	bool SystemStateFastPathEnabled() const { return bSystemStateFastPathEnabled && bAllowSystemStateFastPath; }
-
 	/** Access the code system state data. */
 	const FNiagaraSystemStateData& GetSystemStateData() const { return SystemStateData; }
+
+	/** Used for debug HUD / viewport to convey what mode we are running in */
+	NIAGARA_API const TCHAR* GetSystemStateModeString() const;
 
 private:
 #if WITH_EDITORONLY_DATA
@@ -846,9 +863,6 @@ protected:
 	 * This way whole classes of effects can be adjusted at once. */
 	UPROPERTY(EditAnywhere, Category = "System")
 	TObjectPtr<UNiagaraEffectType> EffectType;
-
-	UPROPERTY(EditAnywhere, Category = "Scalability", meta=(DisplayInScalabilityContext))
-	bool bOverrideScalabilitySettings;
 
 	/** Controls whether we should override the Effect Type value for bAllowCullingForLocalPlayers. */
 	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (InlineEditConditionToggle, EditCondition = bOverrideScalabilitySettings))
@@ -928,12 +942,18 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "System", meta = (SkipSystemResetOnChange = "true", EditCondition = "bFixedBounds"))
 	FBox FixedBounds;
 
+	UPROPERTY()
+	bool bNeedsGPUContextInitForDataInterfaces;
+
 	/**
 	When disabled we will generate a RandomSeed per instance on reset which is not deterministic.
 	When enabled we will always use the RandomSeed from the system plus the components RandomSeedOffset, this allows for determinism but variance between components.
 	*/
 	UPROPERTY(EditAnywhere, Category = "System")
 	bool bDeterminism = false;
+	
+	UPROPERTY(EditAnywhere, Category = "System", meta = (InlineEditConditionToggle, DisplayAfter="WarmupTickDelta"))
+	bool bFixedTickDelta = false;
 
 	/** Seed used for system script random number generator. */
 	UPROPERTY(EditAnywhere, Category = "System", meta = (EditCondition = "bDeterminism", EditConditionHides))
@@ -950,9 +970,6 @@ protected:
 	/** Delta time to use for warmup ticks. */
 	UPROPERTY(EditAnywhere, Category = "System", meta = (ForceUnits=s, EditCondition = "WarmupTime > 0.0", EditConditionHides))
 	float WarmupTickDelta = 1.0f / 15.0f;
-
-	UPROPERTY(EditAnywhere, Category = "System", meta = (InlineEditConditionToggle))
-	bool bFixedTickDelta = false;
 
 	/**
 	If activated, the system ticks with a fixed delta time instead of the varying game thread delta time. This leads to much more stable simulations.
@@ -973,9 +990,6 @@ protected:
 	UPROPERTY(Export)
 	TObjectPtr<UNiagaraBakerSettings> BakerGeneratedSettings;
 #endif
-
-	UPROPERTY()
-	bool bNeedsGPUContextInitForDataInterfaces;
 
 	/** Array of emitter indices sorted by execution priority. The emitters will be ticked in this order. Please note that some indices may have the top bit set (kStartNewOverlapGroupBit)
 	* to indicate synchronization points in parallel execution, so mask it out before using the values as indices in the emitters array.
@@ -1028,10 +1042,10 @@ protected:
 
 	//Scalability settings
 	FNiagaraSystemScalabilitySettings& CurrentScalabilitySettings;
-	bool bAllowCullingForLocalPlayers = false;
 
 	mutable FString CrashReporterTag;
 
+	uint32 bAllowCullingForLocalPlayers : 1 = false;
 	uint32 bHasDIsWithPostSimulateTick : 1;
 	uint32 bAllDIsPostSimulateCanOverlapFrames : 1;
 	uint32 bAllDIsPostStageCanOverlapTickGroups : 1;
@@ -1079,4 +1093,27 @@ FORCEINLINE void UNiagaraSystem::RegisterActiveInstance()
 FORCEINLINE void UNiagaraSystem::UnregisterActiveInstance()
 {
 	--ActiveInstances;
+}
+
+
+FORCEINLINE void UNiagaraSystem::GetMaxInstanceCounts(int32& OutSystemInstanceMax, int32& OutFXTypeInstanceMax, bool bBudgetAdjusted)const 
+{
+	OutSystemInstanceMax = CurrentScalabilitySettings.MaxSystemInstances;
+	OutFXTypeInstanceMax = CurrentScalabilitySettings.MaxInstances;
+
+	if (bBudgetAdjusted && (CurrentScalabilitySettings.BudgetScaling.bScaleMaxInstanceCountByGlobalBudgetUse || CurrentScalabilitySettings.BudgetScaling.bScaleSystemInstanceCountByGlobalBudgetUse))
+	{
+		float Usage = FFXBudget::GetWorstAdjustedUsage();
+
+		if (CurrentScalabilitySettings.bCullMaxInstanceCount && CurrentScalabilitySettings.BudgetScaling.bScaleMaxInstanceCountByGlobalBudgetUse)
+		{
+			const float Scale = CurrentScalabilitySettings.BudgetScaling.MaxInstanceCountScaleByGlobalBudgetUse.Evaluate(Usage);
+			OutFXTypeInstanceMax = int32(float(OutFXTypeInstanceMax) * Scale);
+		}
+		if (CurrentScalabilitySettings.bCullPerSystemMaxInstanceCount && CurrentScalabilitySettings.BudgetScaling.bScaleSystemInstanceCountByGlobalBudgetUse)
+		{
+			const float Scale = CurrentScalabilitySettings.BudgetScaling.MaxSystemInstanceCountScaleByGlobalBudgetUse.Evaluate(Usage);
+			OutSystemInstanceMax = int32(float(OutSystemInstanceMax) * Scale);
+		}
+	}
 }

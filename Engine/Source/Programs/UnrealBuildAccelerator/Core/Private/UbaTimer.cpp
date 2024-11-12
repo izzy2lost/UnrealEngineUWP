@@ -8,34 +8,51 @@
 #include <sys/time.h>
 #endif
 
+#define UBA_USE_GETTIMEOFDAY 0
+
 namespace uba
 {
+	#if !PLATFORM_WINDOWS
+	u64 GetMonoticTimeNs()
+	{
+		#if PLATFORM_MAC
+		return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+		#else
+		struct timespec ts;
+		if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1)
+			FatalError(1401, TC("clock_gettime(CLOCK_MONOTONIC) failed"));
+		return u64(ts.tv_sec * 1'000'000'000LL + ts.tv_nsec);
+		#endif
+	}
+	#endif
+
 	u64 GetTime()
 	{
-		#if PLATFORM_WINDOWS
+	#if PLATFORM_WINDOWS
 		LARGE_INTEGER li;
 		QueryPerformanceCounter(&li);
 		return li.QuadPart;
-		//#elif PLATFORM_LINUX
-		//struct timespec tp;
-		//clock_gettime(CLOCK_REALTIME, &tp);
-		//u64 result = u64(tp.tv_sec * 10'000'000LL + tp.tv_nsec/100); // Stored as a 10th of a microsecond
-		//return result;
-		#else
+	#elif UBA_USE_GETTIMEOFDAY
 		timeval tv;
 		gettimeofday(&tv, NULL); // Returns time in microseconds since 1 Jan 1970
 		return u64(tv.tv_sec) * 1'000'000ull + u64(tv.tv_usec);
-		#endif
+	#else
+		return GetMonoticTimeNs();
+	#endif
 	}
 
 	u64 GetFrequency()
 	{
-		#if PLATFORM_WINDOWS
+	#if PLATFORM_WINDOWS
 		static u64 frequency = []() { LARGE_INTEGER li; QueryPerformanceFrequency(&li); return li.QuadPart; }();
 		return frequency;
-		#else
+	#elif UBA_USE_GETTIMEOFDAY
 		return 1000000LL;
-		#endif
+	#else
+		return 1'000'000'000LL;
+		//static u64 frequency = []() { timespec ts; clock_getres(CLOCK_MONOTONIC, &ts); return u64(ts.tv_sec * 1'000'000'000LL + ts.tv_nsec); }();
+		//return frequency;
+	#endif
 	}
 
 	u64 GetSystemTimeUs()
@@ -46,7 +63,9 @@ namespace uba
 		GetSystemTimeAsFileTime(&st);
 		return *(u64*)&st / 10 - (EPOCH_DIFF*1'000'000ull);
 		#else
-		return GetTime();
+		timeval tv;
+		gettimeofday(&tv, NULL); // Returns time in microseconds since 1 Jan 1970
+		return u64(tv.tv_sec) * 1'000'000ull + u64(tv.tv_usec);
 		#endif
 	}
 
@@ -66,7 +85,12 @@ namespace uba
 			u32 totalMin = totalSec / 60;
 			u32 min = totalMin % 60;
 			u32 sec = totalSec % 60;
-			if (u32 hour = totalMin / 60)
+			u32 hour = totalMin / 60;
+			u32 days = hour / 24;
+			hour -= days*24;
+			if (days)
+				TSprintf_s(str, 32, TC("%ud%uh%um"), (unsigned int)days, (unsigned int)hour, (unsigned int)min);
+			else if (hour)
 				TSprintf_s(str, 32, TC("%uh%um%us"), (unsigned int)hour, (unsigned int)min, (unsigned int)sec);
 			else
 				TSprintf_s(str, 32, TC("%um%us"), (unsigned int)min, (unsigned int)sec);

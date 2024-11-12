@@ -387,10 +387,14 @@ namespace UnrealBuildTool
 				}
 				else if (LineSpan.StartsWith("#if"))
 				{
-					if (Line.IndexOf("UE_ENABLE_INCLUDE_ORDER_DEPRECATED_") != -1)
+					if (Line.Contains("UE_ENABLE_INCLUDE_ORDER_DEPRECATED_", StringComparison.CurrentCulture))
 					{
 						++InsideDeprecationScope;
 					}
+				}
+				else if (LineSpan.StartsWith("UE_DEPRECATED_HEADER"))
+				{
+					HeaderFileInfo.UnitType = HeaderUnitType.Skip;
 				}
 				else
 				{
@@ -557,7 +561,8 @@ namespace UnrealBuildTool
 		{
 			SourceFileMetadataCache Cache = Caches.GetOrAdd(Location, _ =>
 			{
-				return new SourceFileMetadataCache(Location, BaseDirectory, Parent, Logger); ;
+				return new SourceFileMetadataCache(Location, BaseDirectory, Parent, Logger);
+				;
 			});
 
 			Debug.Assert(Cache.BaseDirectory == BaseDirectory);
@@ -571,7 +576,13 @@ namespace UnrealBuildTool
 		/// </summary>
 		public static void SaveAll()
 		{
-			Parallel.ForEach(Caches.Values, Cache => { if (Cache.bModified) { Cache.Write(); } });
+			Parallel.ForEach(Caches.Values, Cache =>
+			{
+				if (Cache.bModified)
+				{
+					Cache.Write();
+				}
+			});
 		}
 
 		/// <summary>

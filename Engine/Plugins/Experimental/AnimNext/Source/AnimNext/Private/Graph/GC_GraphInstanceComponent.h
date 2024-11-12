@@ -3,10 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "DecoratorBase/DecoratorPtr.h"
+#include "TraitCore/TraitPtr.h"
 #include "Graph/GraphInstanceComponent.h"
 
-struct FAnimNextGraphInstance;
 class FReferenceCollector;
 
 namespace UE::AnimNext
@@ -20,30 +19,20 @@ namespace UE::AnimNext
 	{
 		DECLARE_ANIM_GRAPH_INSTANCE_COMPONENT(FGCGraphInstanceComponent)
 
-		// Registers the provided decorator with the GC system
-		// Once registered, IGarbageCollection::AddReferencedObjects will be called on it during GC
-		void Register(FAnimNextGraphInstance& GraphInstance, const FWeakDecoratorPtr& DecoratorPtr);
+		explicit FGCGraphInstanceComponent(FAnimNextGraphInstance& InOwnerInstance);
 
-		// Unregisters the provided decorator from the GC system
-		void Unregister(const FWeakDecoratorPtr& DecoratorPtr);
+		// Registers the provided trait with the GC system
+		// Once registered, IGarbageCollection::AddReferencedObjects will be called on it during GC
+		void Register(const FWeakTraitPtr& InTraitPtr);
+
+		// Unregisters the provided trait from the GC system
+		void Unregister(const FWeakTraitPtr& InTraitPtr);
 
 		// Called during garbage collection to collect strong object references
 		void AddReferencedObjects(FReferenceCollector& Collector) const;
 
 	private:
-		struct FEntry
-		{
-			FEntry(FAnimNextGraphInstance& InGraphInstance, const FWeakDecoratorPtr& InDecoratorPtr)
-				: GraphInstance(InGraphInstance)
-				, DecoratorPtr(InDecoratorPtr)
-			{
-			}
-
-			FAnimNextGraphInstance& GraphInstance;
-			FWeakDecoratorPtr DecoratorPtr;
-		};
-
-		// List of decorator handles that contain UObject references and implement IGarbageCollection
-		TArray<FEntry> DecoratorsWithReferences;
+		// List of trait handles that contain UObject references and implement IGarbageCollection
+		TArray<FWeakTraitPtr> TraitsWithReferences;
 	};
 }

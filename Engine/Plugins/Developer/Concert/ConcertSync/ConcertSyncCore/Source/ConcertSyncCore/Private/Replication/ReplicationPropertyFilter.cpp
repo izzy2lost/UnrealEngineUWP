@@ -11,10 +11,9 @@ namespace UE::ConcertSyncCore
 	FReplicationPropertyFilter::FReplicationPropertyFilter(const FConcertPropertySelection& PropertySelection)
 		: PropertySelection(PropertySelection)
 	{
-		for (int32 i = 0; i < PropertySelection.ReplicatedProperties.Num(); ++i)
+		for (const FConcertPropertyChain& Chain : PropertySelection.ReplicatedProperties)
 		{
-			const FConcertPropertyChain& Chain = PropertySelection.ReplicatedProperties[i];
-			LeafToChain.FindOrAdd(Chain.GetLeafProperty()).Add(i);
+			LeafToChain.FindOrAdd(Chain.GetLeafProperty()).Add(&Chain);
 		}
 	}
 
@@ -38,8 +37,8 @@ namespace UE::ConcertSyncCore
 			return true;
 		}
 		
-		const TArray<int32>* IndicesToSearch = LeafToChain.Find(Property.GetFName());
-		if (!IndicesToSearch)
+		const TArray<const FConcertPropertyChain*>* ChainsEndingWithPropertyName = LeafToChain.Find(Property.GetFName());
+		if (!ChainsEndingWithPropertyName)
 		{
 			/* No chain ends with this property so it is not in the selection
 			 * Note: The property selection must also contain every parent property.
@@ -49,10 +48,9 @@ namespace UE::ConcertSyncCore
 			return false;
 		}
 
-		for (const int32 IndexToSearch : *IndicesToSearch)
+		for (const FConcertPropertyChain* ConcertChain : *ChainsEndingWithPropertyName)
 		{
-			const FConcertPropertyChain& ConcertChain = PropertySelection.ReplicatedProperties[IndexToSearch];
-			if (ConcertChain.MatchesExactly(Chain, Property))
+			if (ConcertChain->MatchesExactly(Chain, Property))
 			{
 				return true;
 			}

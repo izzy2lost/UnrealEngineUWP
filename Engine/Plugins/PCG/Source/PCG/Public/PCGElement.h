@@ -12,6 +12,7 @@ struct FPCGCrc;
 struct FPCGDataCollection;
 
 class IPCGElement;
+class IPCGGraphCache;
 class UPCGComponent;
 class UPCGSettings;
 class UPCGNode;
@@ -61,6 +62,34 @@ namespace EPCGElementLogMode
 #define PCGE_LOG_C(Verbosity, LogMode, CustomContext, Message) PCGE_LOG_BASE(Verbosity, CustomContext, Message)
 #endif
 
+enum EPCGElementExecutionLoopMode : uint8
+{
+	/** Not a trivial input -> output mapping, with respect to caching. */
+	NotALoop,
+	/** Loops on (singular) required pin. */
+	SinglePrimaryPin, 
+	/** Loops on matching indices on required pin(s). */
+	MatchingPrimaryPins,
+	/** Cartesian loop on required pins. */
+	// CartesianPins // TODO
+};
+
+enum EPCGCachingStatus : uint8
+{
+	NotCacheable,
+	NotInCache,
+	Cached
+};
+
+namespace PCGElementHelpers
+{
+	/** Breaks down the input data collection (InCollection) in a set of primary inputs (OutPrimaryCollections) and a set of fixed data per-itereation (OutCommonCollection), based on the provided mode. 
+	* This is needed to perform per-data caching in nodes that support it, either in single-primary-pin-loops or in matching-pins loops.
+	* Note that this uses the settings to drive the selection of the "primary" pins by testing if they are required.
+	*/
+	bool PCG_API SplitDataPerPrimaryPin(const UPCGSettings* Settings, const FPCGDataCollection& InCollection, EPCGElementExecutionLoopMode Mode, TArray<FPCGDataCollection>& OutPrimaryCollections, FPCGDataCollection& OutCommonCollection);
+};
+
 /**
 * Base class for the processing bit of a PCG node/settings
 */
@@ -80,6 +109,9 @@ public:
 
 	/** Returns true if the node can be cached (e.g. does not create artifacts & does not depend on untracked data */
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const { return true; }
+	
+	/** Returns true if the node outputs requires to update the output tagged data to detect if the data is used multiple times. */
+	virtual bool ShouldVerifyIfOutputsAreUsedMultipleTimes(const UPCGSettings* InSettings) const { return false; }
 
 	/** Whether to do a 'deep' fine-grained CRC of the output data to pass to downstream nodes. Can be expensive so should be used sparingly. */
 	virtual bool ShouldComputeFullOutputDataCrc(FPCGContext* Context) const { return false; }
@@ -91,6 +123,9 @@ public:
 	 */
 	virtual void GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const;
 
+	/** Gather input data (pre-context creation) and tries to retrieve matching data from the cache if the element is cacheable. */
+	EPCGCachingStatus RetrieveResultsFromCache(IPCGGraphCache* Cache, const UPCGNode* Node, const FPCGDataCollection& Input, UPCGComponent* Component, FPCGDataCollection& Output, FPCGCrc* OutCrc = nullptr) const;
+
 	/** Public function that executes the element on the appropriately created context.
 	* The caller should call the Execute function until it returns true.
 	*/
@@ -99,9 +134,12 @@ public:
 	/** Public function called when an element is cancelled, passing its current context if any. */
 	void Abort(FPCGContext* Context) const;
 
-#if WITH_EDITOR
-	/** Is this element used for marshalling data across higen grids. Used as rudimentary RTTI for element object comparisons (editor only). */
+	/** Is this element used for marshaling data across higen grids. Used as rudimentary RTTI for element object comparisons (editor only). */
 	virtual bool IsGridLinkage() const { return false; }
+
+#if WITH_EDITOR
+	/** Is this element used for dispatching compute graphs. Used as rudimentary RTTI for element object comparisons (editor only). */
+	virtual bool IsComputeGraphElement() const { return false; }
 
 	/** Note: must be called from the main thread. */
 	void DebugDisplay(FPCGContext* Context) const;
@@ -116,6 +154,8 @@ protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const = 0;
 	/** This function will be called once and once only, at the end of an execution */
 	void PostExecute(FPCGContext* Context) const;
+	/** Core post execute method for the given element. */
+	virtual void PostExecuteInternal(FPCGContext* Context) const {}
 	/** This function will be called once and only once if the element is aborted. The Context can be used to retrieve the current phase if needed. */
 	virtual void AbortInternal(FPCGContext* Context) const {};
 
@@ -126,6 +166,15 @@ protected:
 
 	/** Passes through data when the element is Disabled. Can be implemented to override what gets passed through. */
 	virtual void DisabledPassThroughData(FPCGContext* Context) const;
+
+	/** Describes internal execution behavior, which is used to break down inputs/outputs for caching purposes. */
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const { return EPCGElementExecutionLoopMode::NotALoop; }
+
+	/** Implements input breakdown for caching purposes, if the ExecutionLoopMode is set to something else than not a loop. */
+	virtual void PreExecutePrimaryLoopElement(FPCGContext* Context, const UPCGSettings* Settings) const;
+
+	/** Implements output breakdown for caching purposes, if the ExecutionLoopMode is set to something else than not a loop. */
+	virtual void PostExecutePrimaryLoopElement(FPCGContext* Context, const UPCGSettings* Settings) const;
 
 	/** Let each element optionally act as a concrete factory for its own context */
 	virtual FPCGContext* CreateContext();
@@ -142,7 +191,7 @@ private:
 * Convenience class for element with custom context that can be default constructed (need no initialization)
 */
 template <typename ContextType, typename = typename std::enable_if_t<std::is_base_of_v<FPCGContext, ContextType> && std::is_default_constructible_v<ContextType>>>
-class PCG_API IPCGElementWithCustomContext : public IPCGElement
+class IPCGElementWithCustomContext : public IPCGElement
 {
 public:
 	virtual FPCGContext* CreateContext() { return new ContextType(); }
@@ -150,9 +199,3 @@ public:
 
 class UE_DEPRECATED(5.4, "This class has been deprecated. Please inherit from IPCGElement directly.") PCG_API FSimplePCGElement : public IPCGElement
 {};
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Misc/OutputDeviceRedirector.h"
-#include "PCGContext.h"
-#include "PCGData.h"
-#endif

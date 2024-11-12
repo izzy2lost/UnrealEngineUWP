@@ -26,7 +26,7 @@ public:
 	/**
 	 * Initialize this key proxy object by caching the underlying key object, and retrieving the time/value each tick
 	 */
-	void Initialize(FKeyHandle InKeyHandle, TMovieSceneChannelHandle<FMovieSceneDoubleChannel> InChannelHandle, TWeakObjectPtr<UMovieSceneSection> InWeakSection);
+	void Initialize(FKeyHandle InKeyHandle, TMovieSceneChannelHandle<FMovieSceneDoubleChannel> InChannelHandle, TWeakObjectPtr<UMovieSceneSignedObject> InWeakSignedObject);
 
 private:
 
@@ -52,6 +52,6 @@ private:
 	FKeyHandle KeyHandle;
 	/** Cached channel in which the key resides */
 	TMovieSceneChannelHandle<FMovieSceneDoubleChannel> ChannelHandle;
-	/** Cached section in which the channel resides */
-	TWeakObjectPtr<UMovieSceneSection> WeakSection;
+	/** Cached signed object in which the channel resides */
+	TWeakObjectPtr<UMovieSceneSignedObject> WeakSignedObject;
 };

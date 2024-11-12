@@ -9,6 +9,7 @@
 #include "WaterCurveSettings.h"
 #include "WaterBodyStaticMeshSettings.h"
 #include "WaterSplineMetadata.h"
+#include "BakedShallowWaterSimulationComponent.h"
 #include "WaterZoneActor.h"
 #include "WaterBodyTypes.h"
 
@@ -247,7 +248,7 @@ public:
 	UMaterialInstanceDynamic* GetWaterStaticMeshMaterialInstance();
 
 	/** Returns water LOD MID */
-	UE_DEPRECATED(5.3, "GetWaterLODMaterialInstance has been renamed to GetWaterStaticMeshMaterialInstance.")
+	UE_DEPRECATED(all, "GetWaterLODMaterialInstance has been renamed to GetWaterStaticMeshMaterialInstance.")
 	UFUNCTION(BlueprintCallable, Category = Rendering, meta=(DeprecationMessage="GetWaterLODMaterialInstance has been renamed to GetWaterStaticMeshMaterialInstance"))
 	UMaterialInstanceDynamic* GetWaterLODMaterialInstance() { return GetWaterStaticMeshMaterialInstance(); };
 
@@ -365,10 +366,11 @@ public:
 	/** Returns true if the location is within one of this water body's exclusion volumes */
 	bool IsWorldLocationInExclusionVolume(const FVector& InWorldLocation) const;
 
-	/** Updates the bVisible/bHiddenInGame flags on the component and eventually the child renderable components (e.g. custom water body)
-	 - bAllowWaterZoneRebuild : if true, the function will request a rebuild of the water zone (expensive), which is necessary to take into account visibility changes
-	*/
+	UE_DEPRECATED(5.5, "Use UpdateComponentVisibility")
 	virtual void UpdateComponentVisibility(bool bAllowWaterZoneRebuild);
+
+	/** Updates the bVisible/bHiddenInGame flags on the component and eventually the child renderable components (e.g. custom water body) */
+	void UpdateVisibility();
 
 	/** Creates/Destroys/Updates necessary MIDS */
 	virtual void UpdateMaterialInstances();
@@ -420,21 +422,27 @@ public:
 
 	const FWaterBodyStaticMeshSettings& GetWaterBodyStaticMeshSettings() const { return StaticMeshSettings; }
 	
-	UE_DEPRECATED(5.1, "Renamed to CanEverAffectWaterMesh")
-	virtual bool CanAffectWaterMesh() const { return true; }
-
-	UE_DEPRECATED(5.1, "Use the version of this function taking FOnWaterBodyChangedParams in parameter")
-	void UpdateAll(bool bShapeOrPositionChanged) {}
-
-	UE_DEPRECATED(5.2, "Use version which takes FOnWaterBodyChangedParams")
+	UE_DEPRECATED(all, "Use version which takes FOnWaterBodyChangedParams")
 	UFUNCTION(BlueprintCallable, Category=Water, meta=(Deprecated = "5.2"))
-	void OnWaterBodyChanged(bool bShapeOrPositionChanged, bool bWeightmapSettingsChanged = false, bool bUserTriggeredChanged = false);
+	void OnWaterBodyChanged(bool bShapeOrPositionChanged, bool bWeightmapSettingsChanged = false, bool bUserTriggeredChanged = false) {}
 
-	UE_DEPRECATED(5.3, "Renamed to GetWaterStaticMeshMaterial")
-	UMaterialInterface* GetWaterLODMaterial() const { return GetWaterStaticMeshMaterial(); }
+	/** Get the baked shallow water simulation for this water body */
+	UBakedShallowWaterSimulationComponent* GetBakedShallowWaterSimulation() const { return BakedShallowWaterSim.Get(); }
+	
+	/** Set the baked shallow water simulation for this water body */
+	void SetBakedShallowWaterSimulation(TObjectPtr<UBakedShallowWaterSimulationComponent> BakedSim) { BakedShallowWaterSim = BakedSim; }
 
-	UE_DEPRECATED(5.3, "Renamed to SetWaterStaticMeshMaterial")
-	void SetWaterLODMaterial(UMaterialInterface* InMaterial) { SetWaterStaticMeshMaterial(InMaterial); }
+	/** Set toggle to use baked simulations if they are valid */
+	void SetUseBakedSimulationForQueriesAndPhysics(bool bUseBakedSimulation) { bUseBakedSimForQueriesAndPhysics = bUseBakedSimulation;  }
+	
+	/** Query for if the baked simulations is valid for use */
+	bool UseBakedSimulationForQueriesAndPhysics() const { return bUseBakedSimForQueriesAndPhysics && BakedShallowWaterSim.IsValid() && BakedShallowWaterSim->SimulationData.IsValid(); }
+
+	/** 
+	 * Marks the owning water zone for rebuild. 
+	 * If bOnlyWithinWaterBodyBounds is set, updates to the water zone that aren't relevant within the bounds of the water body are suppressed.
+	 */
+	void MarkOwningWaterZoneForRebuild(EWaterZoneRebuildFlags InRebuildFlags, bool bInOnlyWithinWaterBodyBounds = true) const;
 
 protected:
 	//~ Begin UActorComponent interface.
@@ -455,9 +463,6 @@ protected:
 	/** Returns whether the body support a height offset */
 	virtual bool IsHeightOffsetSupported() const;
 
-	UE_DEPRECATED(5.1, "Please use CanEverAffectNavigation() instead.")
-	virtual bool CanAffectNavigation() const { return false; }
-
 	/** Called every time UpdateAll is called on WaterBody (prior to UpdateWaterBody) */
 	virtual void BeginUpdateWaterBody();
 
@@ -465,12 +470,6 @@ protected:
 	virtual void UpdateWaterBody(bool bWithExclusionVolumes);
 
 	virtual void OnUpdateBody(bool bWithExclusionVolumes) {}
-
-	/** 
-	 * Marks the owning water zone for rebuild. 
-	 * If bOnlyWithinWaterBodyBounds is set, updates to the water zone that aren't relevant within the bounds of the water body are suppressed.
-	 */
-	void MarkOwningWaterZoneForRebuild(EWaterZoneRebuildFlags InRebuildFlags, bool bInOnlyWithinWaterBodyBounds = true) const;
 
 	/** Called when the WaterBodyActor has had all its components registered. */
 	virtual void OnPostRegisterAllComponents();
@@ -498,8 +497,6 @@ protected:
 
 #if WITH_EDITOR
 	/** Called by UWaterBodyComponent::PostEditChangeProperty. */
-	UE_DEPRECATED(5.1, "Use the version of the function taking FOnWaterBodyChangedParams")
-	virtual void OnPostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent, bool& bShapeOrPositionChanged, bool& bWeightmapSettingsChanged) {}
 	virtual void OnPostEditChangeProperty(FOnWaterBodyChangedParams& InOutOnWaterBodyChangedParams);
 
 	/** Validates this component's data */
@@ -546,8 +543,6 @@ protected:
 	virtual void PostEditUndo() override;
 	virtual void PostEditImport() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	UE_DEPRECATED(5.1, "Use OnWaterSplineDataChanged")
-	void OnSplineDataChanged() {}
 	void OnWaterSplineDataChanged(const FOnWaterSplineDataChangedParams& InParams);
 	void RegisterOnUpdateWavesData(UWaterWavesBase* InWaterWaves, bool bRegister);
 	void OnWavesDataUpdated(UWaterWavesBase* InWaterWaves, EPropertyChangeType::Type InChangeType);
@@ -562,8 +557,6 @@ protected:
 	virtual TSubclassOf<class UHLODBuilder> GetCustomHLODBuilderClass() const override;
 #endif // WITH_EDITOR
 
-	UE_DEPRECATED(5.2, "This function is no longer called. Instead uses UWaterSubsystem::FindWaterZone to determine the right water zone when no override is provided.")
-	AWaterZone* FindWaterZone() const { return nullptr; }
 public:
 	// INavRelevantInterface start
 	virtual void GetNavigationData(struct FNavigationRelevantData& Data) const override;
@@ -617,10 +610,8 @@ public:
 	UPROPERTY(Category = Terrain, EditAnywhere, BlueprintReadWrite, meta = (EditCondition = "bAffectsLandscape"))
 	FWaterBodyHeightmapSettings WaterHeightmapSettings;
 
-#if WITH_EDITORONLY_DATA
 	UPROPERTY(Category = Terrain, EditAnywhere, BlueprintReadWrite, meta = (EditCondition = "bAffectsLandscape"))
 	TMap<FName, FWaterBodyWeightmapSettings> LayerWeightmapSettings;
-#endif
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Rendering)
 	float ShapeDilation = 4096.0f;
@@ -672,10 +663,10 @@ protected:
 	TObjectPtr<UMaterialInstanceDynamic> WaterInfoMID;
 
 	/** Islands in this water body*/
-	UPROPERTY(Category = Water, VisibleAnywhere, AdvancedDisplay)
+	UPROPERTY(Category = Water, EditAnywhere, AdvancedDisplay)
 	TArray<TSoftObjectPtr<AWaterBodyIsland>> WaterBodyIslands;
 
-	UPROPERTY(Category = Water, VisibleAnywhere, AdvancedDisplay)
+	UPROPERTY(Category = Water, EditAnywhere, AdvancedDisplay)
 	TArray<TSoftObjectPtr<AWaterBodyExclusionVolume>> WaterBodyExclusionVolumes;
 
 	UPROPERTY(Transient)
@@ -697,6 +688,14 @@ protected:
 	/** If the Water Material assigned to this component has Fixed Depth enabled, this is the depth that is passed. */
 	UPROPERTY(Category = Water, EditAnywhere, AdvancedDisplay)
 	double FixedWaterDepth = 512.0;
+
+	/**  Baked simulation data for this water body, owned by a UShallowWaterRiverComponent */
+	UPROPERTY(Category = BakedSimulation, AdvancedDisplay, VisibleAnywhere)
+	TWeakObjectPtr<UBakedShallowWaterSimulationComponent> BakedShallowWaterSim;
+
+	/**  Override to disable use of the baked shallow water simulation for collisons and other uses */
+	UPROPERTY(Category = BakedSimulation, AdvancedDisplay, EditAnywhere)
+	bool bUseBakedSimForQueriesAndPhysics = true;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
@@ -722,4 +721,9 @@ protected:
 	UPROPERTY()
 	bool bOverrideWaterMesh_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
+
+private:
+	/** Boolean to keep track of whether the water body is visible in the water mesh. This avoids unnecessary calls to rebuild the water mesh whenever UpdateComponentVisibility is called */
+	bool bIsRenderedByWaterMeshAndVisible = false;
+
 };

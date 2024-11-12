@@ -30,6 +30,11 @@ class FCbFieldView;
 class FCbWriter;
 #endif
 
+#ifndef USE_MMAPPED_SHADERARCHIVE
+    // If enabled FSerializedShaderArchive will use a mmapping of the on-disk shader archive instead of normal serialization. The on-disk format must match the expected in memory layout.
+   #define USE_MMAPPED_SHADERARCHIVE 0
+#endif
+
 // enable visualization in the desktop Development builds only as it has a memory hit and writes files
 #define UE_SCA_VISUALIZE_SHADER_USAGE			(!WITH_EDITOR && UE_BUILD_DEVELOPMENT && PLATFORM_DESKTOP)
 
@@ -54,6 +59,10 @@ static FArchive& operator <<(FArchive& Ar, FFileCachePreloadEntry& Ref)
 	return Ar << Ref.Offset << Ref.Size;
 }
 
+
+#if USE_MMAPPED_SHADERARCHIVE
+#pragma pack(push, 1)
+#endif
 struct FShaderCodeEntry
 {
 	uint64 Offset = 0;
@@ -71,32 +80,49 @@ struct FShaderCodeEntry
 		return Ar << Ref.Offset << Ref.Size << Ref.UncompressedSize << Ref.Frequency;
 	}
 };
+#if USE_MMAPPED_SHADERARCHIVE
+#pragma pack(pop)
+#endif
 
 // Portion of shader code archive that's serialize to disk
 class FSerializedShaderArchive
 {
 public:
+#if USE_MMAPPED_SHADERARCHIVE
+	template<typename T> using TArrayType = TArrayView<T>;
+	// Ensure use of the const Get functions when mmapping is used.
+	private:
+#else
+	template<typename T> using TArrayType = TArray<T>;
+#endif
 
 	/** Hashes of all shadermaps in the library */
-	TArray<FSHAHash> ShaderMapHashes;
+	TArrayType<FSHAHash> ShaderMapHashes;
 
 	/** Output hashes of all shaders in the library */
-	TArray<FSHAHash> ShaderHashes;
+	TArrayType<FSHAHash> ShaderHashes;
 
 	/** An array of a shadermap descriptors. Each shadermap can reference an arbitrary number of shaders */
-	TArray<FShaderMapEntry> ShaderMapEntries;
+	TArrayType<FShaderMapEntry> ShaderMapEntries;
 
 	/** An array of all shaders descriptors, deduplicated */
-	TArray<FShaderCodeEntry> ShaderEntries;
-
+	TArrayType<FShaderCodeEntry> ShaderEntries;
 	/** An array of entries for the bytes of shadercode that need to be preloaded for a shadermap.
 	  * Each shadermap has a range in this array, beginning of which is stored in FShaderMapEntry.FirstPreloadIndex. */
-	TArray<FFileCachePreloadEntry> PreloadEntries;
+	TArrayType<FFileCachePreloadEntry> PreloadEntries;
 
 	/** Flat array of shaders referenced by all shadermaps. Each shadermap has a range in this array, beginning of which is
 	  * stored as ShaderIndicesOffset in the shadermap's descriptor (FShaderMapEntry).
 	  */
-	TArray<uint32> ShaderIndices;
+	TArrayType<uint32> ShaderIndices;
+
+public:
+	const TArrayView<const uint32> GetShaderIndices() const { return ShaderIndices; }
+	const TArrayView<const FFileCachePreloadEntry> GetPreloadEntries() const { return PreloadEntries; }
+	const TArrayView<const FShaderCodeEntry> GetShaderEntries() const { return ShaderEntries; }
+	const TArrayView<const FShaderMapEntry> GetShaderMapEntries() const { return ShaderMapEntries; }
+	const TArrayView<const FSHAHash> GetShaderHashes() const { return ShaderHashes; }
+	const TArrayView<const FSHAHash> GetShaderMapHashes() const { return ShaderMapHashes; }
 
 	FHashTable ShaderMapHashTable;
 	FHashTable ShaderHashTable;
@@ -154,12 +180,21 @@ public:
 
 	int64 GetAllocatedSize() const
 	{
+#if USE_MMAPPED_SHADERARCHIVE
+		return ShaderHashes.Num() * ShaderHashes.GetTypeSize() +
+			ShaderEntries.Num() * ShaderEntries.GetTypeSize() +
+			ShaderMapHashes.Num() * ShaderMapHashes.GetTypeSize() +
+			ShaderMapEntries.Num() * ShaderMapEntries.GetTypeSize() +
+			PreloadEntries.Num() * PreloadEntries.GetTypeSize() +
+			ShaderIndices.Num() * ShaderIndices.GetTypeSize()
+#else
 		return ShaderHashes.GetAllocatedSize() +
 			ShaderEntries.GetAllocatedSize() +
 			ShaderMapHashes.GetAllocatedSize() +
 			ShaderMapEntries.GetAllocatedSize() +
 			PreloadEntries.GetAllocatedSize() +
 			ShaderIndices.GetAllocatedSize()
+#endif
 #if WITH_EDITOR
 			+ ShaderCodeToAssets.GetAllocatedSize()
 #endif // WITH_EDITOR
@@ -169,18 +204,21 @@ public:
 	void Empty()
 	{
 		EmptyShaderMaps();
-
+#if !USE_MMAPPED_SHADERARCHIVE
 		ShaderHashes.Empty();
 		ShaderEntries.Empty();
+#endif
 		ShaderHashTable.Clear();
 	}
 
 	void EmptyShaderMaps()
 	{
+#if !USE_MMAPPED_SHADERARCHIVE
 		ShaderMapHashes.Empty();
 		ShaderMapEntries.Empty();
 		PreloadEntries.Empty();
 		ShaderIndices.Empty();
+#endif
 		ShaderMapHashTable.Clear();
 #if WITH_EDITOR
 		ShaderCodeToAssets.Empty();
@@ -208,20 +246,28 @@ public:
 
 	RENDERCORE_API int32 FindShaderMapWithKey(const FSHAHash& Hash, uint32 Key) const;
 	RENDERCORE_API int32 FindShaderMap(const FSHAHash& Hash) const;
-	RENDERCORE_API bool FindOrAddShaderMap(const FSHAHash& Hash, int32& OutIndex, const FShaderMapAssetPaths* AssociatedAssets);
-
 	RENDERCORE_API int32 FindShaderWithKey(const FSHAHash& Hash, uint32 Key) const;
 	RENDERCORE_API int32 FindShader(const FSHAHash& Hash) const;
+
+#if !USE_MMAPPED_SHADERARCHIVE
 	RENDERCORE_API bool FindOrAddShader(const FSHAHash& Hash, int32& OutIndex);
+	RENDERCORE_API bool FindOrAddShaderMap(const FSHAHash& Hash, int32& OutIndex, const FShaderMapAssetPaths* AssociatedAssets);
 	RENDERCORE_API void RemoveLastAddedShader();
-
-	RENDERCORE_API void DecompressShader(int32 Index, const TArray<TArray<uint8>>& ShaderCode, TArray<uint8>& OutDecompressedShader) const;
-
 	RENDERCORE_API void Finalize();
+#endif
+
+	UE_DEPRECATED(5.5, "Use overload accepting a TArray<FSharedBuffer> for shader code")
+	RENDERCORE_API void DecompressShader(int32 Index, const TArray<TArray<uint8>>& ShaderCode, TArray<uint8>& OutDecompressedShader) const
+	{
+	}
+
+	RENDERCORE_API void DecompressShader(int32 Index, const TArray<FSharedBuffer>& ShaderCode, TArray<uint8>& OutDecompressedShader) const;
+
 	RENDERCORE_API void Serialize(FArchive& Ar);
 #if WITH_EDITOR
 	RENDERCORE_API void SaveAssetInfo(FArchive& Ar);
 	RENDERCORE_API bool LoadAssetInfo(const FString& Filename);
+	RENDERCORE_API bool LoadAssetInfo(FArchive* Ar);
 	RENDERCORE_API void CreateAsChunkFrom(const FSerializedShaderArchive& Parent, const TSet<FName>& PackagesInChunk, TArray<int32>& OutShaderCodeEntriesNeeded);
 	RENDERCORE_API void CollectStatsAndDebugInfo(FDebugStats& OutDebugStats, FExtendedDebugStats* OutExtendedDebugStats);
 	RENDERCORE_API void DumpContentsInPlaintext(FString& OutText) const;
@@ -320,21 +366,30 @@ public:
 
 	virtual bool IsNativeLibrary() const override { return false; }
 
-	int64 GetSizeBytes() const
+	virtual uint32 GetSizeBytes() const override
 	{
 		return sizeof(*this) +
 			SerializedShaders.GetAllocatedSize() +
 			ShaderPreloads.GetAllocatedSize();
 	}
 
-	virtual int32 GetNumShaders() const override { return SerializedShaders.ShaderEntries.Num(); }
-	virtual int32 GetNumShaderMaps() const override { return SerializedShaders.ShaderMapEntries.Num(); }
-	virtual int32 GetNumShadersForShaderMap(int32 ShaderMapIndex) const override { return SerializedShaders.ShaderMapEntries[ShaderMapIndex].NumShaders; }
+	virtual int32 GetNumShaders() const override { return SerializedShaders.GetShaderEntries().Num(); }
+	virtual int32 GetNumShaderMaps() const override { return SerializedShaders.GetShaderMapEntries().Num(); }
+	virtual int32 GetNumShadersForShaderMap(int32 ShaderMapIndex) const override { return SerializedShaders.GetShaderMapEntries()[ShaderMapIndex].NumShaders; }
 
 	virtual int32 GetShaderIndex(int32 ShaderMapIndex, int32 i) const override
 	{
-		const FShaderMapEntry& ShaderMapEntry = SerializedShaders.ShaderMapEntries[ShaderMapIndex];
-		return SerializedShaders.ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i];
+		const FShaderMapEntry& ShaderMapEntry = SerializedShaders.GetShaderMapEntries()[ShaderMapIndex];
+		return SerializedShaders.GetShaderIndices()[ShaderMapEntry.ShaderIndicesOffset + i];
+	}
+
+	virtual void GetAllShaderIndices(int32 ShaderMapIndex, TArray<int32>& ShaderIndices)
+	{
+		const FShaderMapEntry& ShaderMapEntry = SerializedShaders.GetShaderMapEntries()[ShaderMapIndex];
+		for (uint32 i = 0u; i < ShaderMapEntry.NumShaders; ++i)
+		{
+			ShaderIndices.AddUnique(ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i]);
+		}
 	}
 
 	virtual int32 FindShaderMapIndex(const FSHAHash& Hash) override
@@ -349,7 +404,7 @@ public:
 
 	virtual FSHAHash GetShaderHash(int32 ShaderMapIndex, int32 ShaderIndex) override
 	{
-		return SerializedShaders.ShaderHashes[GetShaderIndex(ShaderMapIndex, ShaderIndex)];
+		return SerializedShaders.GetShaderHashes()[GetShaderIndex(ShaderMapIndex, ShaderIndex)];
 	};
 
 	virtual bool PreloadShader(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents) override;
@@ -358,7 +413,7 @@ public:
 
 	virtual void ReleasePreloadedShader(int32 ShaderIndex) override;
 
-	virtual TRefCountPtr<FRHIShader> CreateShader(int32 Index) override;
+	virtual TRefCountPtr<FRHIShader> CreateShader(int32 Index, bool bRequired = true) override;
 	virtual void Teardown() override;
 
 	void OnShaderPreloadFinished(int32 ShaderIndex, const IMemoryReadStreamRef& PreloadData);
@@ -580,7 +635,7 @@ public:
 
 	virtual bool IsNativeLibrary() const override { return false; }
 
-	uint64 GetSizeBytes() const
+	virtual uint32 GetSizeBytes() const override
 	{
 		return sizeof(*this) +
 			Header.GetAllocatedSize() +
@@ -597,6 +652,15 @@ public:
 		return Header.ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i];
 	}
 
+	virtual void GetAllShaderIndices(int32 ShaderMapIndex, TArray<int32>& ShaderIndices)
+	{
+		const FIoStoreShaderMapEntry& ShaderMapEntry = Header.ShaderMapEntries[ShaderMapIndex];
+		for (uint32 i = 0u; i < ShaderMapEntry.NumShaders; ++i)
+		{
+			ShaderIndices.AddUnique(Header.ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i]);
+		}
+	}
+
 	virtual int32 FindShaderMapIndex(const FSHAHash& Hash) override;
 	virtual int32 FindShaderIndex(const FSHAHash& Hash) override;
 	virtual FSHAHash GetShaderHash(int32 ShaderMapIndex, int32 ShaderIndex) override
@@ -604,11 +668,21 @@ public:
 		return Header.ShaderHashes[GetShaderIndex(ShaderMapIndex, ShaderIndex)];
 	}
 
+	virtual bool IsPreloading(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents) override;
 	virtual bool PreloadShader(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents) override;
+	virtual void AddRefPreloadedShaderGroup(int32 ShaderGroupIndex) override;
+	virtual void ReleasePreloadedShaderGroup(int32 ShaderGroupIndex) override;
+
+	/** Returns the index of shader group that a given shader belongs to. */
+	virtual int32 GetGroupIndexForShader(int32 ShaderIndex) const override
+	{
+		return Header.ShaderEntries[ShaderIndex].ShaderGroupIndex;
+	}
+	
 	virtual bool PreloadShaderMap(int32 ShaderMapIndex, FGraphEventArray& OutCompletionEvents) override;
 	virtual bool PreloadShaderMap(int32 ShaderMapIndex, FCoreDelegates::FAttachShaderReadRequestFunc AttachShaderReadRequestFunc) override;
 	virtual void ReleasePreloadedShader(int32 ShaderIndex) override;
-	virtual TRefCountPtr<FRHIShader> CreateShader(int32 Index) override;
+	virtual TRefCountPtr<FRHIShader> CreateShader(int32 Index, bool bRequired = true) override;
 	virtual void Teardown() override;
 
 private:
@@ -629,6 +703,10 @@ private:
 		FShaderGroupPreloadEntry()
 			: NumRefs(0)
 			, bNeverToBePreloaded(0)
+		{
+		}
+
+		~FShaderGroupPreloadEntry()
 		{
 		}
 	};
@@ -660,12 +738,6 @@ private:
 		, const FString& CallsiteInfo
 #endif
 	);
-
-	/** Returns the index of shader group that a given shader belongs to. */
-	inline int32 GetGroupIndexForShader(int32 ShaderIndex) const
-	{
-		return Header.ShaderEntries[ShaderIndex].ShaderGroupIndex;
-	}
 
 	/** Finds or adds preload info for a shader group. Assumes lock guarding access to the info taken, never returns nullptr (except when new failed and we're already broken beyond repair)*/
 	inline FShaderGroupPreloadEntry* FindOrAddPreloadEntry(int32 ShaderGroupIndex)

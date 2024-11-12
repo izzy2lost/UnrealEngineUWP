@@ -55,6 +55,14 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, ClampMin = "0.0", UIMin = "0.0"))
 	FVector CellSize = FVector(100.0, 100.0, 100.0);
 
+	/** Each PCG point represents a discretized, volumetric region of world space. The points' Steepness value [0.0 to
+	 * 1.0] establishes how "hard" or "soft" that volume will be represented. From 0, it will ramp up linearly
+	 * increasing its influence over the density from the point's center to up to two times the bounds. At 1, it will
+	 * represent a binary box function with the size of the point's bounds.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ClampMin = "0", ClampMax = "1", PCG_Overridable))
+	float PointSteepness = 0.5f;
+
 #if WITH_EDITORONLY_DATA
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/** Sets the points transform to world or local space*/
@@ -81,7 +89,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 class FPCGCreatePointsGridElement : public IPCGElement
 {
+public:
+	virtual void GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const override;
+
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
-	virtual void GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const override;
 };

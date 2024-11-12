@@ -2,7 +2,7 @@
 
 #include "Trace/Config.h"
 
-#if UE_TRACE_ENABLED && PLATFORM_WINDOWS
+#if TRACE_PRIVATE_MINIMAL_ENABLED && PLATFORM_WINDOWS
 
 #include "Windows/AllowWindowsPlatformTypes.h"
 #	define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -302,4 +302,4 @@ bool GetErrorMessage(char* OutBuffer, uint32 BufferSize, int32 ErrorCode)
 
 #pragma warning(pop)
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

@@ -397,7 +397,20 @@ public:
 	// Bone Attributes
 	//
 
+	/** Copy all bone attributes from the given attribute set to this attribute set, removing any values that were there before. 
+	 *  @param Copy The attribute set to copy from. 
+	 */
 	GEOMETRYCORE_API void CopyBoneAttributes(const FDynamicMeshAttributeSet& Copy);
+
+	/** Copy bone attributes from the given attribute set to this attribute set, removing any values that were there before, using
+	 *  the given bone hierarchy map to control which bones are copied, and how parent bone indices should be remapped. 
+	 *  @param Copy The attribute set to copy from.
+	 *  @param BoneHierarchy The hierarchy to use to copy. The key is the bone name to copy and value is the new parent name to
+	 *    assign to it upon copy. The order of the resulting values is the same as in the Copy. A parent name of NAME_None indicates
+	 *    that the bone is a root bone and will have a parent index of INDEX_NONE. If a parent name is not in the list of bones to
+	 *    copy, then that bone's parent index will also be set to INDEX_NONE.
+	 */
+	GEOMETRYCORE_API void CopyBoneAttributesWithRemapping(const FDynamicMeshAttributeSet& Copy, const TMap<FName, FName>& BoneHierarchy); 
 	
 	GEOMETRYCORE_API void EnableMatchingBoneAttributes(const FDynamicMeshAttributeSet& ToMatch, bool bClearExisting, bool bDiscardExtraAttributes);
 
@@ -602,6 +615,7 @@ protected:
 	GEOMETRYCORE_API virtual void OnCollapseEdge(const DynamicMeshInfo::FEdgeCollapseInfo & collapseInfo);
 	GEOMETRYCORE_API virtual void OnPokeTriangle(const DynamicMeshInfo::FPokeTriangleInfo & pokeInfo);
 	GEOMETRYCORE_API virtual void OnMergeEdges(const DynamicMeshInfo::FMergeEdgesInfo & mergeInfo);
+	GEOMETRYCORE_API virtual void OnMergeVertices(const DynamicMeshInfo::FMergeVerticesInfo& mergeInfo);
 	GEOMETRYCORE_API virtual void OnSplitVertex(const DynamicMeshInfo::FVertexSplitInfo& SplitInfo, const TArrayView<const int>& TrianglesToUpdate);
 
 	/**

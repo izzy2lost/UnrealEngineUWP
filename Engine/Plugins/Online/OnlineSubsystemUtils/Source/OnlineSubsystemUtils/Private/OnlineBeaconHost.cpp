@@ -102,11 +102,12 @@ bool AOnlineBeaconHost::InitHost()
 	{
 		if (InitBase() && NetDriver)
 		{
+			NetDriver->SetWorld(GetWorld());
+
 			FString Error;
 			if (NetDriver->InitListen(this, URL, bReuseAddressAndPort, Error))
 			{
 				ListenPort = URL.Port;
-				NetDriver->SetWorld(GetWorld());
 				NetDriver->Notify = this;
 				NetDriver->InitialConnectTimeout = BeaconConnectionInitialTimeout;
 				NetDriver->ConnectionTimeout = BeaconConnectionTimeout;
@@ -314,32 +315,13 @@ bool AOnlineBeaconHost::HandleControlMessage(UNetConnection* Connection, uint8 M
 			// Try to kick off verification for this player.
 			const FString AuthTicket = UGameplayStatics::ParseOption(OptionsURL, TEXT("AuthTicket"));
 
-			bool bStartedAuth = false;
-
-			// Try to start deprecated auth method.
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			bStartedAuth = StartVerifyAuthentication(*UniqueIdRepl, AuthTicket);
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-			if (!bStartedAuth)
+			// Create completion delegate.
+			FOnAuthenticationVerificationCompleteDelegate OnAuthComplete = FOnAuthenticationVerificationCompleteDelegate::CreateWeakLambda(this, [this, WeakConnection = TWeakObjectPtr<UNetConnection>(Connection)](const FOnlineError& OnlineError)
 			{
-				// Create completion delegate.
-				FOnAuthenticationVerificationCompleteDelegate OnAuthComplete = FOnAuthenticationVerificationCompleteDelegate::CreateWeakLambda(this, [this, WeakConnection = TWeakObjectPtr<UNetConnection>(Connection)](const FOnlineError& OnlineError)
-				{
-					OnAuthenticationVerificationComplete(WeakConnection.Get(), OnlineError);
-				});
+				OnAuthenticationVerificationComplete(WeakConnection.Get(), OnlineError);
+			});
 
-				// Try to start deprecated auth method.
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				bStartedAuth = StartVerifyAuthentication(*UniqueIdRepl, AuthTicket, OnAuthComplete);
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-				// Don't start new auth method if deprecated auth is active.
-				if (!bStartedAuth)
-				{
-					bStartedAuth = StartVerifyAuthentication(*UniqueIdRepl, OptionsURL, AuthTicket, OnAuthComplete);
-				}
-			}
+			bool bStartedAuth = StartVerifyAuthentication(*UniqueIdRepl, OptionsURL, AuthTicket, OnAuthComplete);
 
 			if (!bStartedAuth)
 			{
@@ -410,7 +392,7 @@ bool AOnlineBeaconHost::HandleControlMessage(UNetConnection* Connection, uint8 M
 
 				if (!VerifyJoinForBeaconType(*UniqueId, BeaconType))
 				{
-					static const FText AuthErrorText = NSLOCTEXT("NetworkErrors", "BeaconAuthError", "Unable to authenticate for beacon. Verifying auth for beacon type {0} failed for connection owned by {1}");
+					static const FText AuthErrorText = NSLOCTEXT("NetworkErrors", "BeaconAuthVerifyError", "Unable to authenticate for beacon. Verifying auth for beacon type {0} failed for connection owned by {1}");
 
 					SendFailurePacket(Connection, ENetCloseResult::BeaconAuthError,
 										FText::Format(AuthErrorText, FText::FromString(BeaconType),
@@ -445,10 +427,16 @@ bool AOnlineBeaconHost::HandleControlMessage(UNetConnection* Connection, uint8 M
 
 			// spawn the beacon actor for this client
 			AOnlineBeaconClient* NewClientActor = nullptr;
-			FOnBeaconSpawned* OnBeaconSpawnedDelegate = OnBeaconSpawnedMapping.Find(BeaconType);
-			if (OnBeaconSpawnedDelegate && OnBeaconSpawnedDelegate->IsBound())
+			if (FOnBeaconSpawned* OnBeaconSpawnedDelegate = OnBeaconSpawnedMapping.Find(BeaconType);
+				OnBeaconSpawnedDelegate && OnBeaconSpawnedDelegate->IsBound())
 			{
 				NewClientActor = OnBeaconSpawnedDelegate->Execute(Connection);
+			}
+			else
+			{
+				static const FText ErrorTxt = NSLOCTEXT("NetworkErrors", "BeaconSpawnFailureError.UnknownSpawner", "Join failure, Couldn't spawn client beacon actor (unknown beacon spawner).");
+				SendFailurePacket(Connection, ENetCloseResult::BeaconSpawnFailureError, ErrorTxt);
+				return false;
 			}
 
 			// make sure it spawned correctly
@@ -472,6 +460,7 @@ bool AOnlineBeaconHost::HandleControlMessage(UNetConnection* Connection, uint8 M
 			ClientActors.Add(NewClientActor);
 
 			FNetControlMessage<NMT_BeaconAssignGUID>::Send(Connection, NetGUID);
+			Connection->FlushNet(true);
 		}
 		break;
 	case NMT_BeaconNetGUIDAck:
@@ -563,6 +552,8 @@ void AOnlineBeaconHost::FinishHandshake(UNetConnection* Connection, FString Beac
 
 	// Send an RPC to the client to open the actor channel and guarantee RPCs will work
 	ClientActor->ClientOnConnected();
+	Connection->FlushNet(true);
+
 	UE_LOG(LogBeacon, Log, TEXT("%s: Handshake complete."), *GetDebugName(Connection));
 	OnBeaconConnectedDelegate->ExecuteIfBound(ClientActor, Connection);
 }
@@ -647,32 +638,6 @@ void AOnlineBeaconHost::RemoveClientActor(AOnlineBeaconClient* ClientActor)
 			ClientActor->Destroy();
 		}
 	}
-}
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-bool AOnlineBeaconHost::StartVerifyAuthentication(const FUniqueNetId& PlayerId, const FString& AuthenticationToken)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-{
-	return false;
-}
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void AOnlineBeaconHost::OnAuthenticationVerificationComplete(const class FUniqueNetId& PlayerId, const FOnlineError& Error)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-{
-	UNetConnection* Connection = nullptr;
-	FConnectionState* ConnState = nullptr;
-	if (GetConnectionDataForUniqueNetId(PlayerId, Connection, ConnState))
-	{
-		OnAuthenticationVerificationComplete(Connection, Error);
-	}
-}
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-bool AOnlineBeaconHost::StartVerifyAuthentication(const FUniqueNetId& PlayerId, const FString& AuthenticationToken, const FOnAuthenticationVerificationCompleteDelegate& OnComplete)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-{
-	return false;
 }
 
 bool AOnlineBeaconHost::StartVerifyAuthentication(const FUniqueNetId& PlayerId, const FString& LoginOptions, const FString& AuthenticationToken, const FOnAuthenticationVerificationCompleteDelegate& OnComplete)

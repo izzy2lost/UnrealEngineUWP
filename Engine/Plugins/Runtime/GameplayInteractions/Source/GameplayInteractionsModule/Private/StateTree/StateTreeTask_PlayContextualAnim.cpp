@@ -11,6 +11,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeTask_PlayContextualAnim)
 
+#define LOCTEXT_NAMESPACE "GameplayInteractions"
+
 //-----------------------------------------------------
 // FStateTreeTask_PlayContextualAnim
 //-----------------------------------------------------
@@ -355,3 +357,59 @@ void UStateTreeTask_PlayContextualAnim_InstanceData::OnNotifyBeginReceived(FName
 		TimeBeforeStartingNewLoop = FMath::FRandRange(FMath::Max(0.0f, DelayBetweenLoops - RandomDeviationBetweenLoops), (DelayBetweenLoops + RandomDeviationBetweenLoops));
 	}
 }
+
+#if WITH_EDITOR
+FText FStateTreeTask_PlayContextualAnim::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	const UInstanceDataType* InstanceData = InstanceDataView.GetPtr<UInstanceDataType>();
+	check(InstanceData);
+
+	// Asset
+	FText SceneAssetValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(UInstanceDataType, SceneAsset)), Formatting);
+	if (SceneAssetValue.IsEmpty())
+	{
+		SceneAssetValue = FText::FromString(GetNameSafe(InstanceData->SceneAsset));
+	}
+
+	// Section
+	FText SectionNameValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(UInstanceDataType, SectionName)), Formatting);
+	if (SectionNameValue.IsEmpty())
+	{
+		SectionNameValue = FText::FromName(InstanceData->SectionName);
+	}
+
+	// Roles
+	TArray<FText> Roles;
+	const FText PrimaryActorValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(UInstanceDataType, PrimaryActor)), Formatting);
+	if (!PrimaryActorValue.IsEmpty())
+	{
+		Roles.Add(PrimaryActorValue);
+	}
+	const FText SecondaryActorValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(UInstanceDataType, SecondaryActor)), Formatting);
+	if (!SecondaryActorValue.IsEmpty())
+	{
+		Roles.Add(SecondaryActorValue);
+	}
+	const FText TertiaryActorValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(UInstanceDataType, TertiaryActor)), Formatting);
+	if (!TertiaryActorValue.IsEmpty())
+	{
+		Roles.Add(TertiaryActorValue);
+	}
+
+	if (Roles.IsEmpty())
+	{
+		Roles.Add(LOCTEXT("None", "None"));
+	}
+
+	if (Formatting == EStateTreeNodeFormatting::RichText)
+	{
+		// Rich
+		return FText::Format(LOCTEXT("PlayContextualAnimRich", "<b>Play CAS</> {0}/{1} <s>with </>{2}"), SceneAssetValue, SectionNameValue, FText::Join(FText::FromString(", "), Roles));
+	}
+	
+	// Plain
+	return FText::Format(LOCTEXT("PlayContextualAnim", "Play CAS {0}/{1} with {2}"), SceneAssetValue, SectionNameValue, FText::Join(FText::FromString(", "), Roles));
+}
+#endif
+
+#undef LOCTEXT_NAMESPACE

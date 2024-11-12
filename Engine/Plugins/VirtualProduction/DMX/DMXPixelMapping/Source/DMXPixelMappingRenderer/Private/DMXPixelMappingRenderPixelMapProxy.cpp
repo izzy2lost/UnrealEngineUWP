@@ -13,8 +13,8 @@
 
 namespace UE::DMXPixelMapping::Rendering::Private
 {
-	static constexpr auto RenderPassName = TEXT("RenderPixelMapping");
-	static constexpr auto RenderPassHint = TEXT("Render Pixel Mapping");
+	static constexpr TCHAR RenderPassName[] = TEXT("RenderPixelMapping");
+	static constexpr TCHAR RenderPassHint[] = TEXT("Render Pixel Mapping");
 };
 
 DECLARE_GPU_STAT_NAMED(DMXPixelMappingShadersStat, UE::DMXPixelMapping::Rendering::Private::RenderPassHint);
@@ -89,9 +89,9 @@ namespace UE::DMXPixelMapping::Rendering::Private
 		ENQUEUE_RENDER_COMMAND(RenderTargetResource)(
 			[SharedThis = StaticCastSharedRef<FDMXPixelMappingRenderPixelMapProxy>(AsShared()), this, Elements = InElements, Brightness]
 			(FRHICommandListImmediate& RHICmdList)
-			{				
+			{
+				RHI_BREADCRUMB_EVENT_STAT(RHICmdList, DMXPixelMappingShadersStat, "RenderPixelMapping");
 				SCOPED_GPU_STAT(RHICmdList, DMXPixelMappingShadersStat);
-				SCOPED_DRAW_EVENTF(RHICmdList, DMXPixelMappingShadersStat, RenderPassName);
 
 				const FTextureResource* InputTextureResource = InputTexture ? InputTexture->GetResource() : nullptr;
 				const FTextureRenderTargetResource* RenderTargetResource = SharedThis->RenderTarget ? SharedThis->RenderTarget->GetRenderTargetResource() : nullptr;
@@ -127,7 +127,7 @@ namespace UE::DMXPixelMapping::Rendering::Private
 
 						const int32 RenderTargetPoisitionX = PixelIndex % OutputTextureSize.X;
 						const int32 RenderTargetPositionY = PixelIndex / OutputTextureSize.X;
-						
+
 						// Create shader permutations
 						FDMXPixelMappingRendererPS::FPermutationDomain PermutationVector;
 						PermutationVector.Set<FDMXPixelBlendingQualityDimension>(Element->GetParameters().CellBlendingQuality);
@@ -143,7 +143,7 @@ namespace UE::DMXPixelMapping::Rendering::Private
 						RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 						GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
 						GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
-						GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Never>::GetRHI();
+						GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
 						GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
 						GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
 						GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();

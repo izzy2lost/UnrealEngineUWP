@@ -256,6 +256,9 @@ namespace BuildPatchServices
 		virtual void RegisterMessageHandler(FMessageHandler* MessageHandler) override;
 		virtual void UnregisterMessageHandler(FMessageHandler* MessageHandler) override;
 		virtual const FBuildInstallerConfiguration& GetConfiguration() const override;
+#if !UE_BUILD_SHIPPING
+		virtual void GetDebugText(TArray<FString>& Output) override;
+#endif
 		// IBuildInstaller interface end.
 
 		/**

@@ -25,10 +25,12 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"AudioMixer",
+					"AudioMixerCore",
 					"CoreUObject",
 					"DeveloperSettings",
 					"Engine",
-					"SignalProcessing"
+					"SignalProcessing",
+					"TraceLog"
 				}
 			);
 
@@ -64,6 +66,8 @@ namespace UnrealBuildTool.Rules
 			{
 				PublicDefinitions.Add("WITH_AUDIOMODULATION_METASOUND_SUPPORT=0");
 			}
+
+			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }

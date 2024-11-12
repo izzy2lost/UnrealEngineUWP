@@ -52,6 +52,7 @@
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailWidgetRow.h"
+#include "Misc/GameVisibilityColumnToggler.h"
 
 
 #include "Widgets/SConcertBrowser.h"
@@ -624,15 +625,25 @@ public:
 
 		// Boot the client instance
 		MultiUserClient->Startup(ClientConfig, EConcertSyncSessionFlags::Default_MultiUserSession);
-		ReplicationManager = MakeShared<UE::MultiUserClient::FMultiUserReplicationManager>(MultiUserClient.ToSharedRef());
+		ReplicationManager = MakeShared<UE::MultiUserClient::Replication::FMultiUserReplicationManager>(MultiUserClient.ToSharedRef());
 
 		// Hook UI elements in the tool bar (and setup commands).
 		RegisterUI();
 		RegisterLogging();
+#if WITH_EDITOR
+		if (GIsEditor)
+		{
+			VisibilityColumnToggler = MakeUnique<UE::MultiUserClient::FGameVisibilityColumnToggler>(MultiUserClient.ToSharedRef());
+		}
+#endif
 	}
 
 	virtual void ShutdownModule() override
 	{
+#if WITH_EDITOR
+		VisibilityColumnToggler.Reset();
+#endif
+		
 		// Unhook AppPreExit and call it
 		FCoreDelegates::OnPreExit.RemoveAll(this);
 		HandleAppPreExit();
@@ -1054,10 +1065,11 @@ private:
 	 */
 	TSharedRef<SDockTab> SpawnConcertBrowserTab(const FSpawnTabArgs& SpawnTabArgs)
 	{
-		const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
-			.TabRole(NomadTab);
-		DockTab->SetContent(SNew(SConcertBrowser, DockTab, MultiUserClient.ToSharedRef(), ReplicationManager.ToSharedRef()));
-		return DockTab;
+		return SNew(SDockTab)
+			.TabRole(NomadTab)
+			[
+				SNew(SConcertBrowser, MultiUserClient.ToSharedRef(), ReplicationManager.ToSharedRef())
+			];
 	}
 
 	static FString GetConfiguredMultiUserServerExePathname()
@@ -1408,7 +1420,12 @@ private:
 
 	TSharedPtr<IConcertSyncClient> MultiUserClient;
 	/** Interacts with the replication system on behalf of Multi-User. */
-	TSharedPtr<UE::MultiUserClient::FMultiUserReplicationManager> ReplicationManager;
+	TSharedPtr<UE::MultiUserClient::Replication::FMultiUserReplicationManager> ReplicationManager;
+
+#if WITH_EDITOR
+	/** Toggles the game visibility column in the Levels tab when joining & leaving sessions. */
+	TUniquePtr<UE::MultiUserClient::FGameVisibilityColumnToggler> VisibilityColumnToggler;
+#endif
 
 	/** True if the tab spawners have been registered for this module */
 	bool bHasRegisteredTabSpawners = false;

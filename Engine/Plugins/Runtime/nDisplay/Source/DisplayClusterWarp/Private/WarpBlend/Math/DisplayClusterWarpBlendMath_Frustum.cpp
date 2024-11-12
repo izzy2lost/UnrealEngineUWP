@@ -188,7 +188,8 @@ bool FDisplayClusterWarpBlendMath_Frustum::EndCalcFrustum()
 	FMatrix RegionMatrix = GeometryContext.GetRegionMatrix();
 
 	// Apply frustum rotation to fit context size:
-	if (ShouldRotateFrustumToFitContextSize())
+	WarpData.WarpContext.bFrustumRotated = ShouldRotateFrustumToFitContextSize();
+	if (WarpData.WarpContext.bFrustumRotated)
 	{
 		static FQuat PostRotation = FRotator(0, 0, -90).Quaternion();
 

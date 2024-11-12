@@ -118,7 +118,12 @@ private:
 	/** This is just an arbitrary dump of extra text that search will match on, in addition to the description and tooltip, e.g., Add might have the keyword Math. */
 	UPROPERTY()
 	FText Keywords;
-
+	
+#if WITH_EDITORONLY_DATA
+	/** Cached chain of pipe separated categories */
+	UPROPERTY()
+	TArray<FString> CategoryChain;
+#endif
 public:
 	/** This is a priority number for overriding alphabetical order in the action list (higher value  == higher in the list). */
 	UPROPERTY()
@@ -196,6 +201,11 @@ public:
 	// Updates the category of the *action* and refreshes the search text; does not change the persistent backing item
 	// (e.g., it will not actually move a user added variable or function to a new category)
 	ENGINE_API void CosmeticUpdateCategory(FText NewCategory);
+
+#if WITH_EDITOR
+	/** Updates the root category of the action, making any existing categories a subcategory e.g. NewRootCategory|OldRootCategory */
+	ENGINE_API void CosmeticUpdateRootCategory(FText NewRootCategory);
+#endif
 
 	ENGINE_API void UpdateSearchData(FText NewMenuDescription, FText NewToolTipDescription, FText NewCategory, FText NewKeywords);
 
@@ -317,6 +327,10 @@ public:
 	// Can be used to override the tooltip shown in the palette
 	virtual FText GetPaletteToolTip() const { return FText(); }
 
+#if WITH_EDITOR
+	// returns the full list of categories, after any pipe (|) separators have been parsed
+	ENGINE_API const TArray<FString>& GetCategoryChain() const;
+#endif
 private:
 	ENGINE_API void UpdateSearchText();
 };
@@ -455,7 +469,8 @@ struct FGraphActionListBuilderBase
 {
 public:
 	/** A single entry in the list - can contain multiple actions */
-	class ActionGroup
+	class UE_DEPRECATED(5.5, "ActionGroup has been deprecated - operate only on TSharedPtr<FEdGraphSchemaAction> or const FEdGraphSchemaAction& as appropriate") 
+	ActionGroup
 	{
 	public:
 		/** Constructor accepting a single action */
@@ -536,7 +551,7 @@ public:
 private:
 
 	/** All of the action entries */
-	TArray< ActionGroup > Entries;
+	TArray< TSharedPtr<FEdGraphSchemaAction> > Entries;
 
 public:
 
@@ -544,9 +559,12 @@ public:
 	virtual ~FGraphActionListBuilderBase() { }
 
 	/** Adds an action entry containing a single action */
-	ENGINE_API virtual void AddAction( const TSharedPtr<FEdGraphSchemaAction>& NewAction, FString const& Category = FString() );
+	ENGINE_API virtual void AddAction( const TSharedPtr<FEdGraphSchemaAction>& NewAction);
+	UE_DEPRECATED(5.5, "Overriding the schema action category is no longer supported, set the category via CosmeticUpdateRootCategory or CosmeticUpdateCategory")
+	ENGINE_API virtual void AddAction(const TSharedPtr<FEdGraphSchemaAction>& NewAction, FString const& Category);
 
 	/** Adds an action entry containing multiple actions */
+	UE_DEPRECATED(5.5, "Collections of Action lists were ambiguous and unused - make a compound FEdGraphSchemaAction and Add it")
 	ENGINE_API virtual void AddActionList( const TArray<TSharedPtr<FEdGraphSchemaAction> >& NewActions, FString const& Category = FString() );
 
 	/** Appends all the action entries from a different graph action builder */
@@ -556,7 +574,12 @@ public:
 	ENGINE_API int32 GetNumActions() const;
 
 	/** Returns the specified entry */
-	ENGINE_API ActionGroup& GetAction( int32 Index );
+	ENGINE_API TSharedPtr<FEdGraphSchemaAction>& GetSchemaAction(int32 Index);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "FGraphActionListBuilderBase::ActionGroup has been deprecated, access TSharedPtr<FEdGraphSchemaAction> directly using GetSchemaAction")
+	ENGINE_API ActionGroup GetAction(int32 Index);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Clears the action entries */
 	ENGINE_API virtual void Empty();
@@ -584,7 +607,10 @@ public:
 	ENGINE_API FCategorizedGraphActionListBuilder(FString Category = FString());
 
 	// FGraphActionListBuilderBase Interface
-	ENGINE_API virtual void AddAction(const TSharedPtr<FEdGraphSchemaAction>& NewAction, FString const& Category = FString() ) override;
+	ENGINE_API virtual void AddAction(const TSharedPtr<FEdGraphSchemaAction>& NewAction) override;
+	UE_DEPRECATED(5.5, "Overriding the schema action category is no longer supported, specify category via FCategorizedGraphActionListBuilder constructor, or on the FEdGraphSchemaAction")
+	ENGINE_API virtual void AddAction(const TSharedPtr<FEdGraphSchemaAction>& NewAction, FString const& Category) override;
+	UE_DEPRECATED(5.5, "Collections of Action lists were ambiguous and unused - make a compound FEdGraphSchemaAction and Add it")
 	ENGINE_API virtual void AddActionList(const TArray<TSharedPtr<FEdGraphSchemaAction> >& NewActions, FString const& Category = FString()) override;
 	// End of FGraphActionListBuilderBase Interface
 
@@ -679,7 +705,11 @@ struct FGraphSchemaSearchTextDebugInfo
 	float ShorterMatchWeight = 0.0f;	// Weight for the shorter matched words
 
 	/** Print out the debug info about this weight info to the console */
+	ENGINE_API virtual void Print(const TArray<FString>& SearchForKeywords, const FEdGraphSchemaAction& Action) const;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "FGraphActionListBuilderBase::ActionGroup weight calculation was always performed on the first action, provide that if scoring a FGraphActionListBuilderBase::ActionGroup, or just provide the FEdGraphSchemaAction")
 	ENGINE_API virtual void Print(const TArray<FString>& SearchForKeywords, const FGraphActionListBuilderBase::ActionGroup& Action) const;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 #endif // WITH_EDITORONLY_DATA
 
@@ -918,7 +948,11 @@ class UEdGraphSchema : public UObject
 	 * @param InSanitizedFilterTerms		Sanitized search filters in all caps with no symbols or spaces
 	 * @param DraggedFromPins				Any pins that this action was dragged off of
 	 */
+	ENGINE_API virtual float GetActionFilteredWeight(const FEdGraphSchemaAction& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "FGraphActionListBuilderBase::ActionGroup weight calculation was always performed on the first action, provide that if scoring a FGraphActionListBuilderBase::ActionGroup, or just provide the FEdGraphSchemaAction")
 	ENGINE_API virtual float GetActionFilteredWeight(const FGraphActionListBuilderBase::ActionGroup& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Get the weight modifiers from the console variable settings */
 	ENGINE_API virtual FGraphSchemaSearchWeightModifiers GetSearchWeightModifiers() const;
@@ -1152,6 +1186,9 @@ class UEdGraphSchema : public UObject
 	/* Duplicate a given graph return the duplicate graph */
 	virtual UEdGraph* DuplicateGraph(UEdGraph* GraphToDuplicate) const { return nullptr;}
 
+	/* Indicates whether variants of functions are allowed */
+	virtual bool AllowsFunctionVariants() const { return false; }
+
 	/* returns new FConnectionDrawingPolicy from this schema */
 	virtual class FConnectionDrawingPolicy* CreateConnectionDrawingPolicy(int32 InBackLayerID, int32 InFrontLayerID, float InZoomFactor, const FSlateRect& InClippingRect, class FSlateWindowElementList& InDrawElements, class UEdGraph* InGraphObj) const { return nullptr; }
 
@@ -1338,9 +1375,18 @@ class UEdGraphSchema : public UObject
 #if WITH_EDITORONLY_DATA
 protected:
 	/** Build an array containing all search types, return the index of the first non-localized entry. */
+	ENGINE_API int32 CollectSearchTextWeightInfo(const FEdGraphSchemaAction& InCurrentAction, const FGraphSchemaSearchWeightModifiers& InWeightModifiers,
+		TArray<FGraphSchemaSearchTextWeightInfo>& OutWeightedArrayList, FGraphSchemaSearchTextDebugInfo* InDebugInfo) const;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "FGraphActionListBuilderBase::ActionGroup weight calculation was always performed on the first action, provide that if scoring a FGraphActionListBuilderBase::ActionGroup, or just provide the FEdGraphSchemaAction")
 	ENGINE_API int32 CollectSearchTextWeightInfo(const FGraphActionListBuilderBase::ActionGroup& InCurrentAction, const FGraphSchemaSearchWeightModifiers& InWeightModifiers,
 		TArray<FGraphSchemaSearchTextWeightInfo>& OutWeightedArrayList, FGraphSchemaSearchTextDebugInfo* InDebugInfo) const;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+	ENGINE_API void PrintSearchTextDebugInfo(const TArray<FString>& InFilterTerms, const FEdGraphSchemaAction& InCurrentAction, const FGraphSchemaSearchTextDebugInfo* InDebugInfo) const;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "Only the first entry in the action group has ever been used, provide it to PrintSearchTextDebugInfo")
 	ENGINE_API void PrintSearchTextDebugInfo(const TArray<FString>& InFilterTerms, const FGraphActionListBuilderBase::ActionGroup& InCurrentAction, const FGraphSchemaSearchTextDebugInfo* InDebugInfo) const;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif // WITH_EDITORONLY_DATA
 };

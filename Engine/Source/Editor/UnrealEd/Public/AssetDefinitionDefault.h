@@ -16,6 +16,9 @@ public:
 	// UAssetDefinition Begin
 	UNREALED_API virtual EAssetCommandResult OpenAssets(const FAssetOpenArgs& OpenArgs) const override;
 	UNREALED_API virtual EAssetCommandResult PerformAssetDiff(const FAssetDiffArgs& DiffArgs) const override;
+#if UE_CONTENTBROWSER_NEW_STYLE
+	UNREALED_API virtual void GetAssetStatusInfo(const TSharedPtr<IAssetStatusInfoProvider>& InAssetStatusInfoProvider, TArray<FAssetDisplayInfo>& OutStatusInfo) const override;
+#endif
 	// UAssetDefinition End
 };
 

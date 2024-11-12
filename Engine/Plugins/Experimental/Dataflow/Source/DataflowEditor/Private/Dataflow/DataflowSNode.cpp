@@ -8,6 +8,7 @@
 #include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowNodeFactory.h"
 #include "Dataflow/DataflowObject.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Logging/LogMacros.h"
 #include "SourceCodeNavigation.h"
 #include "Styling/SlateTypes.h"
@@ -15,11 +16,37 @@
 #include "Styling/AppStyle.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/SBoxPanel.h"
 #include "Editor/Transactor.h"
+#include "GraphEditorSettings.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowSNode)
 
 #define LOCTEXT_NAMESPACE "SDataflowEdNode"
+
+//
+// SDataflowOutputPin
+//
+
+void SDataflowOutputPin::Construct(const FArguments& InArgs, UEdGraphPin* InPin)
+{
+	const bool bIsPinInvalid = InArgs._IsPinInvalid.Get();
+	const FText InvalidPinDisplayText = bIsPinInvalid ? NSLOCTEXT("DataflowGraph", "DataflowOutputPinInvalidText", "*") : NSLOCTEXT("DataflowGraph", "DataflowOutputPinValidText", " ");
+
+	SGraphPin::Construct(SGraphPin::FArguments(), InPin);
+
+	GetLabelAndValue()->AddSlot()
+		.Padding(2.0f, 0.0f, 0.0f, 0.0f)
+		[
+			SNew(STextBlock)
+			.Text_Lambda([InvalidPinDisplayText]()
+				{
+					return InvalidPinDisplayText;
+				})
+		.MinDesiredWidth(5)
+		];
+}
+
 //
 // SDataflowEdNode
 //
@@ -28,6 +55,8 @@ void SDataflowEdNode::Construct(const FArguments& InArgs, UDataflowEdNode* InNod
 {
 	GraphNode = InNode;
 	DataflowGraphNode = Cast<UDataflowEdNode>(InNode);
+	DataflowInterface = InArgs._DataflowInterface;
+
 	UpdateGraphNode();
 
 	
@@ -51,7 +80,7 @@ void SDataflowEdNode::Construct(const FArguments& InArgs, UDataflowEdNode* InNod
 		.Style(&CheckBoxStyle)
 		.IsChecked_Lambda([this]()-> ECheckBoxState
 			{
-				if (DataflowGraphNode && DataflowGraphNode->DoAssetRender())
+				if (DataflowGraphNode && DataflowGraphNode->ShouldWireframeRenderNode())
 				{
 					return ECheckBoxState::Checked;
 				}
@@ -62,10 +91,18 @@ void SDataflowEdNode::Construct(const FArguments& InArgs, UDataflowEdNode* InNod
 				if (DataflowGraphNode)
 				{
 					if (NewState == ECheckBoxState::Checked)
-						DataflowGraphNode->SetAssetRender(true);
+						DataflowGraphNode->SetShouldWireframeRenderNode(true);
 					else
-						DataflowGraphNode->SetAssetRender(false);
+						DataflowGraphNode->SetShouldWireframeRenderNode(false);
 				}
+			})
+		.IsEnabled_Lambda([this]()->bool
+			{
+				if (DataflowGraphNode)
+				{
+					return DataflowGraphNode->CanEnableWireframeRenderNode();
+				}
+				return false;
 			});
 
 
@@ -100,11 +137,50 @@ void SDataflowEdNode::Construct(const FArguments& InArgs, UDataflowEdNode* InNod
 	*/
 }
 
+TSharedPtr<SGraphPin> SDataflowEdNode::CreatePinWidget(UEdGraphPin* Pin) const
+{
+	if (Pin->Direction == EEdGraphPinDirection::EGPD_Output)
+	{
+		if (DataflowGraphNode)
+		{
+			if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraphNode->GetDataflowNode())
+			{
+				if (FDataflowOutput* Output = DataflowNode->FindOutput(Pin->GetFName()))
+				{
+					if (const TSharedPtr<UE::Dataflow::FContext> DataflowContext = DataflowInterface->GetDataflowContext())
+					{
+						TSet<UE::Dataflow::FContextCacheKey> CacheKeys;
+						const int32 NumKeys = DataflowContext->GetKeys(CacheKeys);
+
+						//
+						// DataStore is empty or 
+						// CacheKey is not in DataStore or
+						// Node's Timestamp is invalid or
+						// Node's Timestamp is greater than CacheKey's Timestamp -> Pin is invalid
+						//
+						const bool bIsOutputInvalid = !NumKeys ||
+							!CacheKeys.Contains(Output->CacheKey()) ||
+PRAGMA_DISABLE_DEPRECATION_WARNINGS  // Until LastModifiedTimestamp becomes private
+							DataflowNode->LastModifiedTimestamp.IsInvalid() || 
+							!DataflowContext->IsCacheEntryAfterTimestamp(Output->CacheKey(), DataflowNode->LastModifiedTimestamp);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+						return SNew(SDataflowOutputPin, Pin)
+								.IsPinInvalid(bIsOutputInvalid);
+					}
+				}
+			}
+		}
+	}
+
+	return SGraphNode::CreatePinWidget(Pin);
+}
+
 TArray<FOverlayWidgetInfo> SDataflowEdNode::GetOverlayWidgets(bool bSelected, const FVector2D& WidgetSize) const
 {
 	TArray<FOverlayWidgetInfo> Widgets = SGraphNode::GetOverlayWidgets(bSelected, WidgetSize);
 
-	if (DataflowGraphNode && DataflowGraphNode->GetDataflowNode() && DataflowGraphNode->GetDataflowNode()->GetRenderParameters().Num())
+	if (DataflowGraphNode && DataflowInterface->NodesHaveToggleWidget() && DataflowGraphNode->GetDataflowNode() && DataflowGraphNode->GetDataflowNode()->GetRenderParameters().Num())
 	{
 		const FVector2D ImageSize = RenderCheckBoxWidget->GetDesiredSize();
 
@@ -131,19 +207,18 @@ TArray<FOverlayWidgetInfo> SDataflowEdNode::GetOverlayWidgets(bool bSelected, co
 	return Widgets;
 }
 
-
 void SDataflowEdNode::UpdateErrorInfo()
 {
 	if (DataflowGraphNode)
 	{
 		if (const TSharedPtr<FDataflowNode> DataflowNode = DataflowGraphNode->GetDataflowNode())
 		{
-			if (DataflowNode->IsExperimental())
+			if (UE::Dataflow::FNodeFactory::IsNodeExperimental(DataflowNode->GetType()))
 			{
 				ErrorMsg = FString(TEXT("Experimental"));
 				ErrorColor = FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor");
 			} 
-			else if (DataflowNode->IsDeprecated())
+			if (UE::Dataflow::FNodeFactory::IsNodeDeprecated(DataflowNode->GetType()))
 			{
 				ErrorMsg = FString(TEXT("Deprecated"));
 				ErrorColor = FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor");
@@ -153,14 +228,13 @@ void SDataflowEdNode::UpdateErrorInfo()
 	
 }
 
-
 FReply SDataflowEdNode::OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
 {
 	if (GraphNode)
 	{
 		if (UDataflowEdNode* DataflowNode = Cast<UDataflowEdNode>(GraphNode))
 		{
-			if (TSharedPtr<Dataflow::FGraph> Graph = DataflowNode->GetDataflowGraph())
+			if (TSharedPtr<UE::Dataflow::FGraph> Graph = DataflowNode->GetDataflowGraph())
 			{
 				if (TSharedPtr<FDataflowNode> Node = Graph->FindBaseNode(DataflowNode->GetDataflowNodeGuid()))
 				{
@@ -187,24 +261,122 @@ void SDataflowEdNode::AddReferencedObjects(FReferenceCollector& Collector)
 	}
 }
 
+void SDataflowEdNode::CreateInputSideAddButton(TSharedPtr<SVerticalBox> InputBox)
+{
+	TSharedRef<SWidget> AddPinButton = AddPinButtonContent(
+		LOCTEXT("AddPinInputButton", "Show/Hide Inputs"),
+		LOCTEXT("AddPinInputButton_Tooltip", "Show/Hide input pins."),
+		false
+	);
+
+	FMargin AddPinPadding = Settings->GetOutputPinPadding();
+	AddPinPadding.Top += 6.0f;
+
+	InputBox->AddSlot()
+		.AutoHeight()
+		.VAlign(VAlign_Center)
+		.Padding(AddPinPadding)
+		[
+			AddPinButton
+		];
+}
+
+FReply SDataflowEdNode::OnAddPin()
+{
+	if (DataflowGraphNode)
+	{
+		FMenuBuilder MenuBuilder(false, nullptr);
+		if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraphNode->GetDataflowNode())
+		{
+			if (DataflowNode->HasHideableInputs())
+			{
+				MenuBuilder.AddMenuEntry(LOCTEXT("HideAllInputs", "Hide all"), LOCTEXT("HideAllInputsTooltip", "Hide all hideable input pins"), FSlateIcon(),
+					FUIAction(
+						FExecuteAction::CreateUObject(DataflowGraphNode, &UDataflowEdNode::HideAllInputPins)));
+				MenuBuilder.AddMenuEntry(LOCTEXT("UnhideAllInputs", "Show all"), LOCTEXT("UnhideAllInputsTooltip", "Show all hideable input pins"), FSlateIcon(),
+					FUIAction(
+						FExecuteAction::CreateUObject(DataflowGraphNode, &UDataflowEdNode::ShowAllInputPins)));
+
+
+				TArray<FDataflowInput*> Inputs = DataflowNode->GetInputs();
+				for (FDataflowInput* Input : Inputs)
+				{
+					if (Input->GetCanHidePin())
+					{
+						MenuBuilder.AddMenuEntry(FText::FromName(Input->GetName()), LOCTEXT("UnhidePinTooltip", "Show/Hide pin"), FSlateIcon(),
+							FUIAction(
+								FExecuteAction::CreateUObject(DataflowGraphNode, &UDataflowEdNode::ToggleHideInputPin, Input->GetName()),
+								FCanExecuteAction::CreateUObject(DataflowGraphNode, &UDataflowEdNode::CanToggleHideInputPin, Input->GetName()),
+								FIsActionChecked::CreateUObject(DataflowGraphNode, &UDataflowEdNode::IsInputPinShown, Input->GetName())),
+							NAME_None, EUserInterfaceActionType::ToggleButton);
+					}
+				}
+			}
+		}
+		FSlateApplication::Get().PushMenu(AsShared(),
+			FWidgetPath(),
+			MenuBuilder.MakeWidget(),
+			FSlateApplication::Get().GetCursorPos(),
+			FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu)
+		);
+		return FReply::Handled();
+	}
+	return FReply::Unhandled();
+}
+
+EVisibility SDataflowEdNode::IsAddPinButtonVisible() const
+{
+	EVisibility Visibility = Super::IsAddPinButtonVisible();
+	if (Visibility == EVisibility::Collapsed)
+	{
+		return Visibility;
+	}
+
+	if (DataflowGraphNode)
+	{
+		if (const TSharedPtr<FDataflowNode> DataflowNode = DataflowGraphNode->GetDataflowNode())
+		{
+			if (DataflowNode->HasHideableInputs())
+			{
+				return Visibility;
+			}
+		}
+	}
+
+	return EVisibility::Collapsed;
+}
 
 //
 // Add a menu option to create a graph node.
 //
-TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(UEdGraph* ParentGraph, const FName & InNodeTypeName)
+TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(const UEdGraph* ParentGraph, const FName & InNodeTypeName, const FName& InOverrideNodeName)
 {
-	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+	if (const UDataflow* Dataflow = Cast<UDataflow>(ParentGraph))
 	{
-		const Dataflow::FFactoryParameters& Param = Factory->GetParameters(InNodeTypeName);
-		if (Param.IsValid())
+		if (UE::Dataflow::FNodeFactory* Factory = UE::Dataflow::FNodeFactory::GetInstance())
 		{
-			const FText ToolTip = FText::FromString(Param.ToolTip.IsEmpty() ? FString("Add a Dataflow node.") : Param.ToolTip);
-			const FText NodeName = FText::FromString(Param.DisplayName.ToString());
-			const FText Category = FText::FromString(Param.Category.ToString().IsEmpty() ? FString("Dataflow") : Param.Category.ToString());
-			const FText Tags = FText::FromString(Param.Tags);
-			TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> NewNodeAction(
-				new FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode(InNodeTypeName, Category, NodeName, ToolTip, Tags));
-			return NewNodeAction;
+			const UE::Dataflow::FFactoryParameters& Param = Factory->GetParameters(InNodeTypeName);
+			if (Param.IsValid())
+			{
+				const bool bIsSimulationNode = Param.Tags.Contains(UDataflow::SimulationTag);
+				const bool bIsSimulationGraph = (Dataflow->Type == EDataflowType::Simulation);
+				
+				if((bIsSimulationGraph && bIsSimulationNode) || (!bIsSimulationGraph && !bIsSimulationNode))
+				{
+					const FText ToolTip = FText::FromString(Param.ToolTip.IsEmpty() ? FString("Add a Dataflow node.") : Param.ToolTip);
+					FText NodeName = FText::FromString(Param.DisplayName.ToString());
+					if (!InOverrideNodeName.IsNone())
+					{
+						NodeName = FText::FromName(InOverrideNodeName);
+					}
+				
+					const FText Category = FText::FromString(Param.Category.ToString().IsEmpty() ? FString("Dataflow") : Param.Category.ToString());
+					const FText Tags = FText::FromString(Param.Tags);
+					TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> NewNodeAction(
+						new FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode(InNodeTypeName, Category, NodeName, ToolTip, Tags));
+					return NewNodeAction;
+				}
+			}
 		}
 	}
 	return TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode>(nullptr);
@@ -250,7 +422,7 @@ void SDataflowEdNode::CopyDataflowNodeSettings(TSharedPtr<FDataflowNode> SourceD
 
 static UDataflowEdNode* CreateNode(UDataflow* Dataflow, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode, const FName NodeUniqueName, const FName NodeTypeName, TSharedPtr<FDataflowNode> DataflowNodeToDuplicate, bool bCopySettings = false)
 {
-	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+	if (UE::Dataflow::FNodeFactory* Factory = UE::Dataflow::FNodeFactory::GetInstance())
 	{
 		if (TSharedPtr<FDataflowNode> DataflowNode =
 			Factory->NewNodeFromRegisteredType(
@@ -330,9 +502,9 @@ UEdGraphNode* FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::PerformActi
 //
 TSharedPtr<FAssetSchemaAction_Dataflow_DuplicateNode_DataflowEdNode> FAssetSchemaAction_Dataflow_DuplicateNode_DataflowEdNode::CreateAction(UEdGraph* ParentGraph, const FName& InNodeTypeName)
 {
-	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+	if (UE::Dataflow::FNodeFactory* Factory = UE::Dataflow::FNodeFactory::GetInstance())
 	{
-		const Dataflow::FFactoryParameters& Param = Factory->GetParameters(InNodeTypeName);
+		const UE::Dataflow::FFactoryParameters& Param = Factory->GetParameters(InNodeTypeName);
 		if (Param.IsValid())
 		{
 			const FText ToolTip = FText::FromString(Param.ToolTip.IsEmpty() ? FString("Add a Dataflow node.") : Param.ToolTip);
@@ -370,9 +542,9 @@ UEdGraphNode* FAssetSchemaAction_Dataflow_DuplicateNode_DataflowEdNode::PerformA
 //
 TSharedPtr<FAssetSchemaAction_Dataflow_PasteNode_DataflowEdNode> FAssetSchemaAction_Dataflow_PasteNode_DataflowEdNode::CreateAction(UEdGraph* ParentGraph, const FName& InNodeTypeName)
 {
-	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+	if (UE::Dataflow::FNodeFactory* Factory = UE::Dataflow::FNodeFactory::GetInstance())
 	{
-		const Dataflow::FFactoryParameters& Param = Factory->GetParameters(InNodeTypeName);
+		const UE::Dataflow::FFactoryParameters& Param = Factory->GetParameters(InNodeTypeName);
 		if (Param.IsValid())
 		{
 			const FText ToolTip = FText::FromString(Param.ToolTip.IsEmpty() ? FString("Add a Dataflow node.") : Param.ToolTip);
@@ -389,7 +561,7 @@ TSharedPtr<FAssetSchemaAction_Dataflow_PasteNode_DataflowEdNode> FAssetSchemaAct
 
 static UDataflowEdNode* CreateNodeFromPaste(UDataflow* Dataflow, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode, const FName NodeUniqueName, const FName NodeTypeName, FString NodeProperties)
 {
-	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+	if (UE::Dataflow::FNodeFactory* Factory = UE::Dataflow::FNodeFactory::GetInstance())
 	{
 		if (TSharedPtr<FDataflowNode> DataflowNode =
 			Factory->NewNodeFromRegisteredType(
@@ -407,6 +579,10 @@ static UDataflowEdNode* CreateNodeFromPaste(UDataflow* Dataflow, UEdGraphPin* Fr
 				{
 					DataflowNode->TypedScriptStruct()->ImportText(*NodeProperties, DataflowNode.Get(), nullptr, EPropertyPortFlags::PPF_None, nullptr, DataflowNode->TypedScriptStruct()->GetName(), true);
 				}
+				// Do any post-import fixup.
+				FArchive Ar;
+				Ar.SetIsLoading(true);
+				DataflowNode->PostSerialize(Ar);
 
 				EdNode->CreateNewGuid();
 				EdNode->PostPlacedNewNode();

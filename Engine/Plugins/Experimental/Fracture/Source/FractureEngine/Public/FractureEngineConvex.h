@@ -6,6 +6,7 @@
 #include "CompGeom/ConvexDecomposition3.h"
 #include "DynamicMesh/DynamicMesh3.h"
 #include "UObject/ObjectMacros.h"
+#include "FractureEngineConvex.generated.h"
 
 namespace Chaos { class FConvex; }
 struct FManagedArrayCollection;

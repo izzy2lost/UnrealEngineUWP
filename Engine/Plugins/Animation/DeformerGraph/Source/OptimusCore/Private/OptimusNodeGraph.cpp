@@ -152,18 +152,6 @@ void UOptimusNodeGraph::PostDuplicate(EDuplicateMode::Type DuplicateMode)
 			}
 		}	
 	}
-
-	// Similarly, Attribute Nodes also use objects with generated class that need to be recreated
-	// if the duplication took place at the asset level
-	{
-		for (UOptimusNode* Node : Nodes)
-		{
-			if (UOptimusNode_AnimAttributeDataInterface* AttributeNode = Cast<UOptimusNode_AnimAttributeDataInterface>(Node))
-			{
-				AttributeNode->RecreateValueContainers();
-			}
-		}	
-	}
 }
 
 void UOptimusNodeGraph::PostLoad()
@@ -184,6 +172,8 @@ void UOptimusNodeGraph::PostLoad()
 	{
 		Link->ConditionalPostLoad();
 	}
+
+	PostLoadReplaceAnimAttributeDataInterfaceNodeWithGenericDataInterfaceNode();
 }
 
 UOptimusNodeGraph* UOptimusNodeGraph::GetParentGraph() const
@@ -549,15 +539,6 @@ UOptimusNode* UOptimusNodeGraph::AddDataInterfaceNode(
 	const FVector2D& InPosition
 	)
 {
-	if (InDataInterfaceClass == UOptimusAnimAttributeDataInterface::StaticClass())
-	{
-		return AddNodeInternal(UOptimusNode_AnimAttributeDataInterface::StaticClass(), InPosition,
-			[InDataInterfaceClass](UOptimusNode *InNode)
-			{
-				Cast<UOptimusNode_AnimAttributeDataInterface>(InNode)->SetDataInterfaceClass(InDataInterfaceClass);		
-			});
-	}
-
 	return AddNodeInternal(UOptimusNode_DataInterface::StaticClass(), InPosition,
 		[InDataInterfaceClass](UOptimusNode *InNode)
 		{
@@ -3081,6 +3062,73 @@ FString UOptimusNodeGraph::ConstructSubGraphPath(const FString& InGraphOwnerPath
 	FString SubGraphPath = InGraphOwnerPath + TEXT("/") + InSubGraphName;
 
 	return SubGraphPath;	
+}
+
+void UOptimusNodeGraph::PostLoadReplaceAnimAttributeDataInterfaceNodeWithGenericDataInterfaceNode()
+{
+	TArray<UOptimusNode_AnimAttributeDataInterface*> DeprecatedAnimAtttributeNodes;
+	
+	for (UOptimusNode* Node : Nodes)
+	{
+		if (UOptimusNode_AnimAttributeDataInterface* DeprecatedAnimAtttributeNode = Cast<UOptimusNode_AnimAttributeDataInterface>(Node))
+		{
+			DeprecatedAnimAtttributeNodes.Add(DeprecatedAnimAtttributeNode);
+		}
+	}
+	
+	for (UOptimusNode_AnimAttributeDataInterface* Node : DeprecatedAnimAtttributeNodes)
+	{
+		// Save pin connections
+		TArrayView<UOptimusNodePin* const> Pins = Node->GetPins();
+
+		TMap<FName, TArray<UOptimusNodePin*>> ConnectedPinsMap;
+		
+		for (UOptimusNodePin* Pin : Pins)
+		{
+			ConnectedPinsMap.Add(Pin->GetFName(), Pin->GetConnectedPins());
+		}
+
+		FVector2D Position = Node->GetGraphPosition();
+		// Assign to the graph temporarily
+		UOptimusComputeDataInterface* NewDataInterfaceData = Node->GetDataInterface(this);
+		
+		RemoveNodeDirect(Node, false /* remove all links as well */);
+
+		auto BootstrapNodeFunc = [NewDataInterfaceData, Position](UOptimusNode* InNode) -> bool
+		{
+			UOptimusNode_DataInterface* DataInterfaceNode = Cast<UOptimusNode_DataInterface>(InNode);
+			DataInterfaceNode->SetDataInterfaceClass(UOptimusAnimAttributeDataInterface::StaticClass());
+
+			// Replace the data interface
+			Optimus::RenameObject(NewDataInterfaceData, nullptr, DataInterfaceNode);
+			DataInterfaceNode->DataInterfaceData = NewDataInterfaceData;
+			
+			InNode->SetGraphPositionDirect(Position);	
+			return true;
+		};
+		
+		FName NodeName = Optimus::GetUniqueNameForScope(this, UOptimusNode_DataInterface::StaticClass()->GetFName());	
+		UOptimusNode* NewNode = CreateNodeDirect(UOptimusNode_DataInterface::StaticClass(), NodeName, BootstrapNodeFunc);
+
+		// Recover links
+		for (UOptimusNodePin* Pin : NewNode->GetPins())
+		{
+			if (TArray<UOptimusNodePin*>* ConnectedPins = ConnectedPinsMap.Find(Pin->GetFName()))
+			{
+				for (UOptimusNodePin* ConnectedPin : *ConnectedPins)
+				{
+					if (Pin->GetDirection() == EOptimusNodePinDirection::Input)
+					{
+						AddLinkDirect(ConnectedPin, Pin);
+					}
+					else if (Pin->GetDirection() == EOptimusNodePinDirection::Output)
+					{
+						AddLinkDirect(Pin, ConnectedPin);
+					}
+				}
+			}
+		}
+	}	
 }
 
 

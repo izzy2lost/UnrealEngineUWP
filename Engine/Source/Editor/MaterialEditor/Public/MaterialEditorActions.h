@@ -74,9 +74,6 @@ public:
 	/** Sets the preview mesh to the current selection in the level editor */
 	TSharedPtr< FUICommandInfo > SetPreviewMeshFromSelection;
 	
-	/** Toggles the preview pane's grid */
-	TSharedPtr< FUICommandInfo > TogglePreviewGrid;
-	
 	/** Toggles the preview pane's background */
 	TSharedPtr< FUICommandInfo > TogglePreviewBackground;
 

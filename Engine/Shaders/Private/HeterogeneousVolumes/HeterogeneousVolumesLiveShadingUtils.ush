@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+// Change this to force recompilation of all shaders referencing this file.
+#pragma message("UESHADERMETADATA_VERSION 80584AA0-BFD9-4021-BE67-273077B48601")
+
 FPrimitiveSceneData GetPrimitiveData(
 	uint PrimitiveId,
 	float4x4 LocalToWorld,
@@ -11,8 +14,8 @@ FPrimitiveSceneData GetPrimitiveData(
 	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(PrimitiveId);
 
 	// Replace local-space transforms..
-	PrimitiveData.LocalToWorld = MakeDFMatrix(PrimitiveData.PositionHigh, LocalToWorld);
-	PrimitiveData.WorldToLocal = MakeDFInverseMatrix(PrimitiveData.PositionHigh, WorldToLocal);
+	PrimitiveData.LocalToWorld = DFPromote(LocalToWorld);
+	PrimitiveData.WorldToLocal = DFPromoteInverse(WorldToLocal);
 	PrimitiveData.LocalObjectBoundsMin = LocalBoundsOrigin - LocalBoundsExtent;
 	PrimitiveData.LocalObjectBoundsMax = LocalBoundsOrigin + LocalBoundsExtent;
 
@@ -35,7 +38,7 @@ float3 SampleExtinctionCoefficients(in FPixelMaterialInputs PixelMaterialInputs)
 	float3 Extinction = 0.0f;
 #if SUBSTRATE_ENABLED
 	FSubstrateBSDF BSDF = PixelMaterialInputs.FrontMaterial.InlinedBSDF;
-	Extinction = VOLUMETRICFOGCLOUD_EXTINCTION(BSDF).r;
+	Extinction = VOLUMETRICFOGCLOUD_EXTINCTION(BSDF).rgb;
 #else
 #if !MATERIAL_SHADINGMODEL_UNLIT
 	Extinction = GetMaterialSubsurfaceDataRaw(PixelMaterialInputs).rgb;

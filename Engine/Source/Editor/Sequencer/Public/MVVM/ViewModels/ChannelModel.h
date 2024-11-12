@@ -46,6 +46,7 @@ namespace Sequencer
 
 class FSectionModel;
 class FSequenceModel;
+class FChannelGroupOutlinerModel;
 
 /**
  * Model for a single channel inside a section.
@@ -72,6 +73,9 @@ public:
 	/** Returns the section object that owns the associated channel */
 	UMovieSceneSection* GetSection() const;
 
+	/** Returns the object that owns the associated channel. May return the same as GetSection(). */
+	UObject* GetOwningObject() const;
+
 	/** Returns the associated channel object */
 	FMovieSceneChannel* GetChannel() const;
 
@@ -83,9 +87,6 @@ public:
 
 	/** Returns the key area for the channel */
 	TSharedPtr<IKeyArea> GetKeyArea() const { return KeyArea; }
-
-	/** Create the curve editor model for the associated channel */
-	void CreateCurveModels(TArray<TUniquePtr<FCurveModel>>& OutCurveModels);
 
 	/** Returns the desired sizing for the track area row */
 	FOutlinerSizing GetDesiredSizing() const;
@@ -105,6 +106,10 @@ public:
 	void DrawKeys(TArrayView<const FKeyHandle> InKeyHandles, TArrayView<FKeyDrawParams> OutKeyDrawParams) override;
 	TUniquePtr<FCurveModel> CreateCurveModel() override;
 
+	/*~ Begin virtual interface */
+	virtual void BuildContextMenu(FMenuBuilder& MenuBuilder, TViewModelPtr<FChannelGroupOutlinerModel> GroupOwner) {}
+	virtual TSharedPtr<SWidget> CreateOutlinerViewForColumn(const FCreateOutlinerViewParams& InParams, const FName& InColumnName) { return nullptr; }
+	/*~ End virtual interface */
 private:
 
 	FLinearColor GetKeyBarColor() const;
@@ -193,6 +198,10 @@ public:
 
 protected:
 
+	void UpdateMutability();
+
+protected:
+
 	TArray<TWeakViewModelPtr<FChannelModel>> Channels;
 	uint32 ChannelsSerialNumber;
 	FName ChannelName;
@@ -239,6 +248,9 @@ public:
 	/*~ ICurveEditorTreeItemExtension */
 	bool HasCurves() const override;
 	void BuildContextMenu(FMenuBuilder& MenuBuilder) override;
+	
+	void OnUpdated();
+	
 	TOptional<FString> GetUniquePathName() const override;
 
 private:
@@ -248,6 +260,7 @@ private:
 private:
 
 	FOutlinerSizing ComputedSizing;
+	TWeakViewModelPtr<FChannelModel> WeakCommonChannelModel;
 };
 
 

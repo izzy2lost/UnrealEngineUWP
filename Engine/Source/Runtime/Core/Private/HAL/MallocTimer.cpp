@@ -32,7 +32,6 @@ void FScopedVirtualMallocTimer::UpdateStats()
 				TotalSeconds += 1000.0f * float(FPlatformTime::GetSecondsPerCycle64()) * float(TotalCycles[Comp][PlatformType]);
 			}
 		}
-#if CSV_PROFILER
 #if 1	// extra detail
 		CSV_CUSTOM_STAT(VirtualMemory, Reserve_OrdinaryCPU, 1000.0f * float(FPlatformTime::GetSecondsPerCycle64()) * float(TotalCycles[0][0]), ECsvCustomStatOp::Set);
 		CSV_CUSTOM_STAT(VirtualMemory, Reserve_GPU_WriteCombine, 1000.0f * float(FPlatformTime::GetSecondsPerCycle64()) * float(TotalCycles[0][1]), ECsvCustomStatOp::Set);
@@ -86,7 +85,6 @@ void FScopedVirtualMallocTimer::UpdateStats()
 		CSV_CUSTOM_STAT(VirtualMemory, FreeCount_GPU_WriteCombineRenderTarget, float(GTotalCounts[4][3]), ECsvCustomStatOp::Set);
 #endif
 		CSV_CUSTOM_STAT(VirtualMemory, TotalInSeconds, TotalSeconds, ECsvCustomStatOp::Set);
-#endif	// CSV_PROFILER
 	}
 }
 #endif

@@ -81,12 +81,6 @@ enum class EColorPropertyType : uint8
 	Color,
 };
 
-#if UE_MOVIESCENE_ENTITY_DEBUG
-
-template<> struct TComponentDebugType<EColorPropertyType> { static const EComponentDebugType Type = EComponentDebugType::Uint8;   };
-
-#endif
-
 /** Intermediate type for the color property system that lets us store what kind of color type we should use */
 struct FIntermediateColor
 {
@@ -129,13 +123,13 @@ struct FIntermediateColor
 	FColor GetColor() const
 	{
 		const bool bConvertBackToSRgb = true;
-		const FColor SRgbColor = FLinearColor(R, G, B, A).ToFColor(bConvertBackToSRgb);
+		const FColor SRgbColor = GetLinearColor().ToFColor(bConvertBackToSRgb);
 		return SRgbColor;
 	}
 
 	FLinearColor GetLinearColor() const
 	{
-		return FLinearColor(R, G, B, A);
+		return FLinearColor(static_cast<float>(R), static_cast<float>(G), static_cast<float>(B), static_cast<float>(A));
 	}
 
 	FSlateColor GetSlateColor() const

@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using SolidWorks.Interop.sldworks;
 using System.Diagnostics;
+using static DatasmithSolidworks.Addin;
 
 namespace DatasmithSolidworks
 {
@@ -492,11 +493,13 @@ namespace DatasmithSolidworks
 		public FMaterial()
 		{
 		}
-
+		
 		public FMaterial(RenderMaterial InRenderMat, IModelDocExtension InExt)
 		{
 			if (InRenderMat != null)
 			{
+				LogDebug($"Construct FMaterial from {GetRenderMaterialDebugString(InRenderMat)}");
+				
 				Source = InRenderMat;
 
 				Type = Source.IlluminationShaderType;
@@ -801,6 +804,7 @@ namespace DatasmithSolidworks
 					}
 				}
 			}
+			LogDebug($"Constructed {GetMaterialDebugString()}");
 		}
 
 		public void SetAppearance(IAppearanceSetting InSetting)
@@ -808,6 +812,7 @@ namespace DatasmithSolidworks
 			if (InSetting != null)
 			{
 				Appearance = InSetting;
+				LogDebug($"FMaterial::SetAppearance Color={Appearance.Color:X8}");
 
 				double ADiffuse, AEmission, AReflectivity, ASpecular, ASpecularSpread, ATransparency;
 				int LSpecularColor, LPrimaryColor;
@@ -1092,6 +1097,16 @@ namespace DatasmithSolidworks
 			}
 
 			return true;
+		}
+		
+		public static string GetRenderMaterialDebugString(RenderMaterial InRenderMat)
+		{
+			return $@"RenderMaterial(FileName='{InRenderMat.FileName}', IlluminationShaderType={InRenderMat.IlluminationShaderType}, PrimaryColor={InRenderMat.PrimaryColor:X8}, TextureFilename='{InRenderMat.TextureFilename}')";
+		}
+		
+		public string GetMaterialDebugString()
+		{
+			return $"FMaterial(Name='{Name}', FileName='{FileName}', Type={Type}, PrimaryColor={PrimaryColor})";
 		}
 	}
 }

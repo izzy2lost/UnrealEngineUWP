@@ -1,9 +1,6 @@
 # Copyright Epic Games, Inc. All Rights Reserved.
 
-import re
-import sys
 import shutil
-import marshal
 import flow.cmd
 import textwrap
 import importlib
@@ -35,8 +32,7 @@ class Help(flow.cmd.Cmd):
                 try:
                     command_class = node.get_command_class()
                     command_class = command_class.get_class_type()
-                    if hasattr(command_class, "get_desc"):
-                        yield path, command_class.get_desc().strip()
+                    yield path, command_class
                 except Exception as e:
                     yield path, "LOAD_ERROR: " + str(e)
 
@@ -47,23 +43,20 @@ class Help(flow.cmd.Cmd):
         output.sort(key=lambda x: x[0])
 
         name_len = max(len(x[0]) for x in output) + 4
-        whitespace = re.compile(r"\s+")
+        lead_dot = "." * (name_len - 2)
+        lead_spc = " " * name_len
         desc_width = right_column - name_len
-        for name, desc in output:
-            dots = "." * (name_len - len(name) - 3)
-            initial_prefix = flow.cmd.text.light_cyan(name) + " " + flow.cmd.text.grey(dots)
-
-            desc = whitespace.sub(" ", desc)
-            desc_lines = textwrap.wrap(desc, desc_width)
-
-            first_line = 0
-            for line in desc_lines:
-                prefix = initial_prefix if not first_line else (" " * (name_len - 2))
-                first_line += 1
-                print("", prefix, line)
-
-            if first_line > 1:
-                print()
+        for name, cmd_class in output:
+            dots = lead_dot[len(name):]
+            leader = flow.cmd.text.light_cyan(name) + " " + flow.cmd.text.grey(dots)
+            if isinstance(cmd_class, str):
+                desc = cmd_class
+            else:
+                desc = cmd_class.get_desc(pretty=desc_width)
+                desc = desc.replace("\n", "\n" + lead_spc)
+            print(" ", leader, sep="", end="")
+            print(desc)
+            print()
 
 
 

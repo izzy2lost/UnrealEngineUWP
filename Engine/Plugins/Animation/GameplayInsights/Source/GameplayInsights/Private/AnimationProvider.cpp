@@ -28,13 +28,10 @@ void FAnimationProvider::EnumerateSkeletalMeshPoseTimelines(TFunctionRef<void(ui
 	
 	for(auto& IndexMapping : ObjectIdToSkeletalMeshPoseTimelines)
 	{
-		for (const TSharedRef<TraceServices::TIntervalTimeline<FAnimGraphMessage>>& Timeline : AnimGraphTimelines)
+		const TSharedPtr<FSkeletalMeshTimelineStorage>& TimelineStorage = SkeletalMeshPoseTimelineStorage[IndexMapping.Value];
+		if (TimelineStorage->Timeline.IsValid())
 		{
-			const TSharedPtr<FSkeletalMeshTimelineStorage>& TimelineStorage = SkeletalMeshPoseTimelineStorage[IndexMapping.Value];
-			if (TimelineStorage->Timeline.IsValid())
-			{
-				Callback(IndexMapping.Key, *TimelineStorage->Timeline);
-			}
+			Callback(IndexMapping.Key, *TimelineStorage->Timeline);
 		}
 	}
 }
@@ -636,7 +633,7 @@ void FAnimationProvider::AppendTickRecord(uint64 InAnimInstanceId, double InProf
 	Session.UpdateDurationSeconds(InProfileTime);
 }
 
-void FAnimationProvider::AppendSkeletalMesh(uint64 InObjectId, const TArrayView<const int32>& InParentIndices)
+void FAnimationProvider::AppendSkeletalMesh(uint64 InObjectId, uint64 SkeletonId, const TArrayView<const int32>& InParentIndices)
 {
 	Session.WriteAccessCheck();
 
@@ -648,6 +645,7 @@ void FAnimationProvider::AppendSkeletalMesh(uint64 InObjectId, const TArrayView<
 		NewSkeletalMeshInfo.Id = InObjectId;
 		NewSkeletalMeshInfo.BoneCount = (uint32)InParentIndices.Num();
 		NewSkeletalMeshInfo.ParentIndicesStartIndex = SkeletalMeshParentIndices.Num();
+		NewSkeletalMeshInfo.SkeletonId = SkeletonId;
 
 		for(const int32& ParentIndex : InParentIndices)
 		{
@@ -867,6 +865,7 @@ void FAnimationProvider::AppendSkeletalMeshComponent(
 	double InRecordingTime,
 	uint16 InLodIndex,
 	uint16 InFrameCounter,
+	bool bInIsVisible,
 	const TArrayView<const float>& InComponentToWorldRaw,
 	const TArrayView<const float>& InPoseRaw,
 	const TArrayView<const uint32>& InCurveIds,
@@ -923,6 +922,7 @@ void FAnimationProvider::AppendSkeletalMeshComponent(
 
 	FSkeletalMeshPoseMessage Message;
 	Message.RecordingTime = InRecordingTime;
+	Message.bIsVisible = bInIsVisible;
 	Message.ComponentToWorld = ComponentToWorld;
 	Message.TransformStartIndex = SkeletalMeshPoseTransforms.Num();
 	Message.CurveStartIndex = SkeletalMeshCurves.Num();

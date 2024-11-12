@@ -295,4 +295,11 @@ public:
 	 * @return	Pointer to value widget if custom property widget already exists, nullptr otherwise
 	 */
 	virtual FDetailWidgetDecl* CustomValueWidget() = 0;
+
+	/**
+	 * Gives a non-owning pointer to reset to default widget on existing custom property widget if it exists.
+	 *
+	 * @return	Pointer to reset to default widget if custom property widget already exists, nullptr otherwise
+	 */
+	virtual FDetailWidgetDecl* CustomResetToDefaultWidget() = 0;
 };

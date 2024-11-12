@@ -62,7 +62,7 @@ void UPCGDataTableRowToParamDataSettings::PostLoad()
 #if WITH_EDITOR
 	if (!PathOverride_DEPRECATED.IsEmpty())
 	{
-		DataTable = TSoftObjectPtr<UDataTable>(PathOverride_DEPRECATED);
+		DataTable = TSoftObjectPtr<UDataTable>(FSoftObjectPath(PathOverride_DEPRECATED));
 		PathOverride_DEPRECATED.Empty();
 	}
 #endif // WITH_EDITOR
@@ -126,7 +126,7 @@ bool FPCGDataTableRowToParamData::ExecuteInternal(FPCGContext* Context) const
 	}
 
 	// From there, we should be able to create the data.
-	UPCGParamData* ParamData = NewObject<UPCGParamData>();
+	UPCGParamData* ParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 	UPCGMetadata* Metadata = ParamData->MutableMetadata();
 	check(Metadata);
 	PCGMetadataEntryKey EntryKey = Metadata->AddEntry();

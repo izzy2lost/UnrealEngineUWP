@@ -37,6 +37,7 @@ public:
 
 public:
 	GEOMETRYCORE_API FFlatTriangulationMeshGenerator();
+	GEOMETRYCORE_API ~FFlatTriangulationMeshGenerator();
 
 	/** Generate the triangulation */
 	GEOMETRYCORE_API virtual FMeshShapeGenerator& Generate() override;

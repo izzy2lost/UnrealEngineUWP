@@ -2,15 +2,15 @@
 /**
 	@file		timecodeburn.h
 	@brief		Declares the AJATimeCodeBurn class.
-	@copyright	(C) 2012-2021 AJA Video Systems, Inc.  All rights reserved.
+	@copyright	(C) 2012-2022 AJA Video Systems, Inc.  All rights reserved.
 **/
 
 #ifndef AJA_TIMECODEBURN_H
 #define AJA_TIMECODEBURN_H
 
-#include "public.h"
-//#include "ajabase/common/types.h"
+#include "ajabase/common/export.h"
 #include "ajabase/common/videotypes.h"
+#include <string>
 
 /**
  *	Class to support burning a simple timecode over raster.
@@ -64,6 +64,6 @@ private:
 	int					_charPositionX;		// offset (in bytes) from left side of screen to first burn-in character
 	int					_charPositionY;		// offset (in lines) from top of screen to top of burn-in characters
 	int					_rowBytes;
-
 };
-#endif
+
+#endif	//	AJA_TIMECODEBURN_H

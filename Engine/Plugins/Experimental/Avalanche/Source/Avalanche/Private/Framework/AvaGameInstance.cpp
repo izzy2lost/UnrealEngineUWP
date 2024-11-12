@@ -2,6 +2,7 @@
 
 #include "Framework/AvaGameInstance.h"
 #include "AudioDevice.h"
+#include "AvaLog.h"
 #include "AvaRemoteControlRebind.h"
 #include "Components/ReflectionCaptureComponent.h"
 #include "Components/SkyLightComponent.h"
@@ -12,7 +13,6 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Misc/TimeGuard.h"
 #include "Slate/SceneViewport.h"
-#include "Viewport/AvaCameraManager.h"
 #include "Viewport/AvaViewportQualitySettings.h"
 
 namespace UE::AvaGameInstance::Private
@@ -81,10 +81,11 @@ bool UAvaGameInstance::CreateWorld()
 		TRACE_CPUPROFILER_EVENT_SCOPE(UAvaGameInstance::LoadInstance::InitWorld);
 		
 		const FName MotionDesignWorldName = MakeUniqueObjectName(GetOuter(), UWorld::StaticClass(), TEXT("AvaGameInstanceWorld"));
-		
+
 		PlayWorld = NewObject<UWorld>(this, MotionDesignWorldName, RF_Transient);
 		check(PlayWorld);
 		PlayWorld->WorldType = WorldType;
+
 		PlayWorld->InitializeNewWorld(UWorld::InitializationValues()
 			.AllowAudioPlayback(true)
 			.CreatePhysicsScene(true)
@@ -124,9 +125,11 @@ bool UAvaGameInstance::BeginPlayWorld(const FAvaInstancePlaySettings& InWorldPla
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(UAvaGameInstance::BeginPlay);
 	TRACE_BOOKMARK(TEXT("UAvaGameInstance::BeginPlay"));
-	
+
 	ViewportClient = NewObject<UAvaGameViewportClient>(GEngine, NAME_None, RF_Transient);
 	check(ViewportClient);
+
+	WorldContext->GameViewport = ViewportClient;
 
 	// Note: UGameViewportClient::Init ignores "bCreateNewAudioDevice" parameter and always create a device for the world. 
 	ViewportClient->Init(*WorldContext, this);
@@ -145,10 +148,25 @@ bool UAvaGameInstance::BeginPlayWorld(const FAvaInstancePlaySettings& InWorldPla
 	TSharedPtr<SViewport> ViewportWidget;
 	Viewport = MakeShareable(ViewportClient->CreateGameViewport(ViewportWidget));
 	Viewport->SetInitialSize(InWorldPlaySettings.ViewportSize);
+	ViewportClient->Viewport = Viewport.Get();
+
+	// Attempt to initialize a Local Player.
+	FString Error;
+	LocalPlayer = ViewportClient->SetupInitialLocalPlayer(Error);
+	if (!LocalPlayer)
+	{
+		UE_LOG(LogAva, Error, TEXT("Couldn't create initial local player: %s"), *Error);
+	}
 
 	PlayWorld->InitializeActorsForPlay(PlayWorld->URL);
+
+	if (!LocalPlayer->SpawnPlayActor(TEXT(""), Error, PlayWorld))
+	{
+		UE_LOG(LogAva, Error, TEXT("Couldn't spawn play actor: %s"), *Error);
+	}
+
 	PlayWorld->BeginPlay();
-	
+
 	FCoreDelegates::OnEndFrame.AddUObject(this, &UAvaGameInstance::OnEndFrameTick);
 
 	bWorldPlaying = true;
@@ -177,7 +195,7 @@ void UAvaGameInstance::RequestUnloadWorld(bool bForceImmediate)
 	{
 		if (bForceImmediate)
 		{
-			UnloadWorld();
+			UnloadWorld(/*bShutdown*/true);
 		}
 		else
 		{
@@ -300,11 +318,11 @@ void UAvaGameInstance::Tick(float DeltaSeconds)
 	}
 	if (bRequestUnloadWorld)
 	{
-		UnloadWorld();
+		UnloadWorld(/*bShutdown*/true);
 	}
 }
 
-void UAvaGameInstance::UnloadWorld()
+void UAvaGameInstance::UnloadWorld(bool bInShutdown)
 {
 	if (bWorldPlaying)
 	{
@@ -329,6 +347,11 @@ void UAvaGameInstance::UnloadWorld()
 		PlayWorld->DestroyWorld(true);
 	}
 
+	if (bInShutdown)
+	{
+		Shutdown();
+	}
+
 	PlayWorld = nullptr;
 	WorldContext = nullptr;
 }
@@ -342,6 +365,11 @@ void UAvaGameInstance::EndPlayWorld()
 
 	OnEndPlay.Broadcast(this, PlayingChannelName);
 	PlayingChannelName = NAME_None;
+
+	if (PlayWorld)
+	{
+		PlayWorld->EndPlay(EEndPlayReason::LevelTransition);
+	}
 
 	Viewport.Reset();
 	RenderTargetFence.Reset();
@@ -387,13 +415,41 @@ void UAvaGameInstance::OnEnginePreExit()
 	}
 }
 
+ULocalPlayer* UAvaGameInstance::CreateInitialPlayer(FString& OutError)
+{
+	if (!GetGameViewportClient())
+	{
+		if (ensure(IsDedicatedServerInstance()))
+		{
+			OutError = FString::Printf(TEXT("Dedicated servers cannot have local players"));
+			return nullptr;
+		}
+	}
+
+	const FPlatformUserId UserId = IPlatformInputDeviceMapper::Get().GetPrimaryPlatformUser();
+
+	if (ULocalPlayer* ExistingLocalPlayer = FindLocalPlayerFromPlatformUserId(UserId))
+	{
+		return ExistingLocalPlayer;
+	}
+
+	if (LocalPlayers.IsEmpty())
+	{
+		ULocalPlayer* NewLocalPlayer = NewObject<ULocalPlayer>(GEngine, GEngine->LocalPlayerClass);
+		AddLocalPlayer(NewLocalPlayer, UserId);
+		return NewLocalPlayer;
+	}
+
+	return LocalPlayers[0];
+}
+
 void UAvaGameInstance::BeginDestroy()
 {
 	FCoreDelegates::OnEnginePreExit.Remove(EnginePreExitHandle);
 	EnginePreExitHandle.Reset();
-	
+
 	EndPlayWorld();
-	UnloadWorld();
-	
+	UnloadWorld(/*bShutdown*/false);
+
 	Super::BeginDestroy();
 }

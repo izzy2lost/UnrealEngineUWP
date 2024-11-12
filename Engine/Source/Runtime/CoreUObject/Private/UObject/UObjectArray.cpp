@@ -5,12 +5,15 @@
 =============================================================================*/
 
 #include "UObject/UObjectArray.h"
+#include "AutoRTFM/AutoRTFM.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/LowLevelMemStats.h"
 #include "Misc/ScopeLock.h"
-#include "ProfilingDebugging/AssetMetadataTrace.h"
+#include "ProfilingDebugging/MetadataTrace.h"
+#include "Misc/TransactionallySafeScopeLock.h"
 #include "UObject/UObjectAllocator.h"
 #include "UObject/Class.h"
+#include "UObject/GarbageCollectionInternalFlags.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/ReachabilityAnalysisState.h"
 
@@ -69,10 +72,24 @@ void FUObjectItem::CreateStatID() const
 	const auto& ConversionData = StringCast<PROFILER_CHAR>(*LongName);
 	const int32 NumStorageChars = (ConversionData.Length() + 1);	//length doesn't include null terminator
 
-	PROFILER_CHAR* StoragePtr = new PROFILER_CHAR[NumStorageChars];
+	PROFILER_CHAR* const StoragePtr = new PROFILER_CHAR[NumStorageChars];
 	FMemory::Memcpy(StoragePtr, ConversionData.Get(), NumStorageChars * sizeof(PROFILER_CHAR));
 
-	if (FPlatformAtomics::InterlockedCompareExchangePointer((void**)&StatIDStringStorage, StoragePtr, nullptr) != nullptr)
+	bool bExchanged = AutoRTFM::Open([&]
+	{ 
+		return FPlatformAtomics::InterlockedCompareExchangePointer((void**)&StatIDStringStorage, StoragePtr, nullptr) == nullptr;
+	});
+
+	if (bExchanged)
+	{
+		// If we abort, then StoragePtr will be freed so reset StatIDStringStorage.
+		// This is abort handler is popped in the destructor.
+		AutoRTFM::PushOnAbortHandler(StoragePtr, [this, StoragePtr]
+		{
+			FPlatformAtomics::InterlockedCompareExchangePointer((void**)&StatIDStringStorage, nullptr, StoragePtr);
+		});
+	}
+	else
 	{
 		delete[] StoragePtr;
 	}
@@ -124,7 +141,7 @@ void FUObjectArray::OpenDisregardForGC()
 void FUObjectArray::CloseDisregardForGC()
 {
 #if THREADSAFE_UOBJECTS
-	FScopeLock ObjObjectsLock(&ObjObjectsCritical);
+	FTransactionallySafeScopeLock ObjObjectsLock(&ObjObjectsCritical);
 #else
 	// Disregard from GC pool is only available from the game thread, at least for now
 	check(IsInGameThread());
@@ -178,12 +195,17 @@ void FUObjectArray::CloseDisregardForGC()
 
 	OpenForDisregardForGC = false;
 	GIsInitialLoad = false;
+
+	checkf(!DisregardForGCEnabled() || !GIsEditor, TEXT("Disregard For GC Set can't be enabled when running the editor"));
+	checkf(DisregardForGCEnabled() || (ObjFirstGCIndex == 0 && ObjLastNonGCIndex == -1), TEXT("Disregard for GC Set is not properly disabled (FirstGCIndex = %d, LastNonGCIndex = %d"), ObjFirstGCIndex, ObjLastNonGCIndex);
 }
 
 void FUObjectArray::DisableDisregardForGC()
 {
 	if (!GExitPurge && (ObjFirstGCIndex > 0 || DisregardForGCEnabled()))
 	{
+		checkf(!IsAsyncLoading(), TEXT("Disregard for GC Set can't be safely disabled while async loading. Consider calling FlushAsyncLoading() first or using gc.MaxObjectsNotConsideredByGC=0 ini setting instead."));
+
 		void OnDisregardForGCSetDisabled(int32 NumObjects);
 		// If disregard for GC was already closed then ObjFirstGCIndex is the number of objects we need to scan, otherwise disregard for GC is still open and we need to scan all objects
 		int32 NumDisregardForGCObjects = ObjFirstGCIndex > 0 ? ObjFirstGCIndex : GetObjectArrayNum();
@@ -194,7 +216,9 @@ void FUObjectArray::DisableDisregardForGC()
 	}
 
 	MaxObjectsNotConsideredByGC = 0;
+	GUObjectAllocator.DisablePersistentAllocator();
 	ObjFirstGCIndex = 0;
+	ObjLastNonGCIndex = -1;
 	if (IsOpenForDisregardForGC())
 	{
 		CloseDisregardForGC();
@@ -205,9 +229,9 @@ void FUObjectArray::AllocateUObjectIndex(UObjectBase* Object, EInternalObjectFla
 {
 	LLM_SCOPE(ELLMTag::UObject);
 	// Clear asset scopes
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FName{NAME_Default}, ELLMTagSet::Assets);
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FName{NAME_Default}, ELLMTagSet::AssetClasses);
-	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(NAME_None, NAME_None, NAME_None);
+	LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::Assets);
+	LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::AssetClasses);
+	UE_TRACE_METADATA_CLEAR_SCOPE();
 
 	int32 Index = INDEX_NONE;
 	check(Object->InternalIndex == INDEX_NONE);
@@ -257,8 +281,11 @@ void FUObjectArray::AllocateUObjectIndex(UObjectBase* Object, EInternalObjectFla
 	ObjectItem->Flags = (int32)EInternalObjectFlags::PendingConstruction;
 	if (!(IsOpenForDisregardForGC() & GUObjectArray.DisregardForGCEnabled())) //-V792
 	{
-		ObjectItem->Flags |= (int32)UE::GC::GReachableObjectFlag;
+		// It's safe to access FGCFlags::GetReachableFlagValue_ForGC() here because creating new objects is being performed 
+		// under the same UObjectArray lock as swapping reachability flags inside of GC, see FGCFlags::SwapReachableAndMaybeUnreachable()
+		ObjectItem->Flags |= (int32)UE::GC::Private::FGCFlags::GetReachableFlagValue_ForGC();
 	}
+	ObjectItem->RefCount = 0;
 	ObjectItem->ClusterRootIndex = 0;
 	ObjectItem->SerialNumber = SerialNumber;
 	Object->InternalIndex = Index;
@@ -299,7 +326,7 @@ void FUObjectArray::ResetSerialNumber(UObjectBase* Object)
 void FUObjectArray::RemoveObjectFromDeleteListeners(UObjectBase* Object)
 {
 #if THREADSAFE_UOBJECTS
-	FScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
+	FTransactionallySafeScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
 #endif
 	int32 Index = Object->InternalIndex;
 	check(Index >= 0);
@@ -320,13 +347,20 @@ void FUObjectArray::FreeUObjectIndex(UObjectBase* Object)
 	LLM_SCOPE(ELLMTag::UObject);
 
 	// This should only be happening on the game thread (GC runs only on game thread when it's freeing objects)
-	check(IsInGameThread() || IsInGarbageCollectorThread());
+	check(IsInGameThread());
 
 	// No need to call LockInternalArray(); here as it should already be locked by GC
+
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	UE::CoreUObject::Private::FreeObjectHandle(Object);
+#endif 	
 
 	int32 Index = Object->InternalIndex;
 	FUObjectItem* ObjectItem = IndexToObject(Index);
 	UE_CLOG(ObjectItem->Object != Object, LogUObjectArray, Fatal, TEXT("Removing object (0x%016llx) at index %d but the index points to a different object (0x%016llx)!"), (int64)(PTRINT)Object, Index, (int64)(PTRINT)ObjectItem->Object);
+
+	// Can't destroy a refcounted object
+	check((ObjectItem->RefCount == 0 && (ObjectItem->GetFlags() & EInternalObjectFlags::RefCounted) == EInternalObjectFlags::None) || GExitPurge);
 
 	// Clear root flags to remove this object's index from UE::GC::Private::GRoots array 
 	if ((ObjectItem->Flags & (int32)EInternalObjectFlags_RootFlags) != 0)
@@ -336,8 +370,10 @@ void FUObjectArray::FreeUObjectIndex(UObjectBase* Object)
 
 	ObjectItem->Object = nullptr;
 	ObjectItem->Flags = 0;
+	ObjectItem->RefCount = 0;
 	ObjectItem->ClusterRootIndex = 0;
 	ObjectItem->SerialNumber = 0;
+	Object->InternalIndex = INDEX_NONE;
 
 	// You cannot safely recycle indicies in the non-GC range
 	// No point in filling this list when doing exit purge. Nothing should be allocated afterwards anyway.
@@ -377,7 +413,7 @@ void FUObjectArray::RemoveUObjectCreateListener(FUObjectCreateListener* Listener
 void FUObjectArray::AddUObjectDeleteListener(FUObjectDeleteListener* Listener)
 {
 #if THREADSAFE_UOBJECTS
-	FScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
+	FTransactionallySafeScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
 #endif
 	check(!UObjectDeleteListeners.Contains(Listener));
 	UObjectDeleteListeners.Add(Listener);
@@ -391,7 +427,7 @@ void FUObjectArray::AddUObjectDeleteListener(FUObjectDeleteListener* Listener)
 void FUObjectArray::RemoveUObjectDeleteListener(FUObjectDeleteListener* Listener)
 {
 #if THREADSAFE_UOBJECTS
-	FScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
+	FTransactionallySafeScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
 #endif
 	UObjectDeleteListeners.RemoveSingleSwap(Listener);
 }
@@ -441,7 +477,7 @@ int32 FUObjectArray::AllocateSerialNumber(int32 Index)
 	if (!SerialNumber)
 	{
 		// Open around PrimarySerialNumber as if we fail/abort a transaction we dont need to undo this, simply allow it to grow for the next use
-		UE_AUTORTFM_OPEN({
+		UE_AUTORTFM_OPEN{
 			SerialNumber = PrimarySerialNumber.Increment();
 			UE_CLOG(SerialNumber <= START_SERIAL_NUMBER, LogUObjectArray, Fatal, TEXT("UObject serial numbers overflowed (trying to allocate serial number %d)."), SerialNumber);
 			int32 ValueWas = FPlatformAtomics::InterlockedCompareExchange((int32*)SerialNumberPtr, SerialNumber, 0);
@@ -450,7 +486,7 @@ int32 FUObjectArray::AllocateSerialNumber(int32 Index)
 				// someone else go it first, use their value
 				SerialNumber = ValueWas;
 			}
-		});
+		};
 	}
 	checkSlow(SerialNumber > START_SERIAL_NUMBER);
 	return SerialNumber;
@@ -463,7 +499,7 @@ void FUObjectArray::ShutdownUObjectArray()
 {
 	{
 #if THREADSAFE_UOBJECTS
-		FScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
+		FTransactionallySafeScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
 #endif
 		for (int32 Index = UObjectDeleteListeners.Num() - 1; Index >= 0; --Index)
 		{
@@ -574,4 +610,18 @@ void UE::UObjectArrayPrivate::FailMaxUObjectCountExceeded(const int32 MaxUObject
 		GUObjectArray.DumpUObjectCountsToLog();
 	}
 	UE_LOG(LogUObjectArray, Fatal, TEXT("Maximum number of UObjects (%d) exceeded when trying to add %d object(s), make sure you update MaxObjectsInGame/MaxObjectsInEditor/MaxObjectsInProgram in project settings."), MaxUObjects, NewUObjectCount);
+}
+
+bool verse::CanAllocateUObjects()
+{
+	// NOTE: This is an arbitrary limit. If we have less than ~10k `UObject`s available for allocation left
+	// we're probably in a bad spot anyway. This just makes sure that there is some slack available before the
+	// limit gets hit.
+	// (The `FName` space requirement of 5MB, out of a maximum of 1GB, is chosen to match the ratio of 10k to
+	// the default maximum of 2M `UObject`s. It is checked separately because we have observed islands running
+	// out of `FName` space before hitting this `UObject` limit.)
+	static constexpr int32 MinAvailableObjectCount = 10 * 1024;
+	static constexpr int32 MinAvailableNameEntrySize = 5 * 1024 * 1024;
+	return GUObjectArray.GetObjectArrayEstimatedAvailable() >= MinAvailableObjectCount &&
+		FName::GetNameEntryMemoryEstimatedAvailable() >= MinAvailableNameEntrySize;
 }

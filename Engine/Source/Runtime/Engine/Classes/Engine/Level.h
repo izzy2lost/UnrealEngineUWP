@@ -64,7 +64,7 @@ private:
 
 // Actor container class used to duplicate actors during cells streaming in PIE
 UCLASS()
-class UActorContainer : public UObject
+class ENGINE_API UActorContainer : public UObject
 {
 	GENERATED_BODY()
 
@@ -413,6 +413,9 @@ public:
 	/** Array of actors to be exposed to GC in this level. All other actors will be referenced through ULevelActorContainer */
 	TArray<TObjectPtr<AActor>> ActorsForGC;
 
+	/** Add actor to list */
+	ENGINE_API bool TryAddActorToList(AActor* InActor, bool bAddUnique);
+
 #if WITH_EDITORONLY_DATA
 	AActor* PlayFromHereActor;
 
@@ -538,6 +541,9 @@ public:
 	UPROPERTY()
 	FIntVector LightBuildLevelOffset;
 
+	/** The volumetric lightmap grid manager for this map */
+	class FVolumetricLightmapGridManager* VolumetricLightmapGridManager = nullptr;
+
 	/** 
 	 * Whether the level is a lighting scenario.  Lighting is built separately for each lighting scenario level with all other scenario levels hidden. 
 	 * Only one lighting scenario level should be visible at a time for correct rendering, and lightmaps from that level will be used on the rest of the world.
@@ -588,6 +594,9 @@ public:
 private:
 	/** Whether the level is set not to be reusable after unload (editor-only) */
 	uint8										bForceCantReuseUnloadedButStillAround:1;
+
+	/** Whether the level will force trash its packages in CleanupLevel (including object packages of objects outered to the level) (editor-only) */
+	uint8										bForcePackageTrashingAtCleanup:1;
 #endif
 	
 public:
@@ -715,6 +724,9 @@ public:
 
 	ENGINE_API static bool GetIsLevelUsingExternalActorsFromAsset(const FAssetData& Asset);
 	ENGINE_API static bool GetIsLevelUsingExternalActorsFromPackage(FName LevelPackage);
+
+	ENGINE_API static bool GetIsLevelUsingActorsDescsFromAsset(const FAssetData& Asset);
+	ENGINE_API static bool GetIsLevelUsingActorsDescsFromPackage(FName LevelPackage);
 
 	ENGINE_API static bool GetIsUsingActorFoldersFromAsset(const FAssetData& Asset);
 	ENGINE_API static bool GetIsUsingActorFoldersFromPackage(FName LevelPackage);
@@ -1110,6 +1122,8 @@ public:
 
 	ENGINE_API UMapBuildDataRegistry* GetOrCreateMapBuildData();
 
+	ENGINE_API bool IsMapBuildDataOwner() const;
+
 	/** Sets whether this level is a lighting scenario and handles propagating the change. */
 	ENGINE_API void SetLightingScenario(bool bNewIsLightingScenario);
 
@@ -1375,6 +1389,8 @@ public:
 	static ENGINE_API FDelegateHandle RegisterLevelMountPointResolver(const FLevelMountPointResolverDelegate& Resolver);
 	/** Unregisters a level mount point resolver */
 	static ENGINE_API void UnregisterLevelMountPointResolver(const FDelegateHandle& ResolverDelegateHandle);
+	/** Returns override spawning level mount point object */
+	static ENGINE_API const UObject* GetOverrideSpawningLevelMountPointObject() { return ULevel::OverrideSpawningLevelMountPointObject.Get(); }
 #endif
 
 private:
@@ -1388,6 +1404,9 @@ private:
 
 	/** Array of registered delegates used by GetExternalActorsPaths. */
 	static TArray<FLevelMountPointResolverDelegate> LevelMountPointResolvers;
+
+	/** Override spawning Level Mount Point object used when spawning an actor using external packaging */
+	static ENGINE_API TWeakObjectPtr<const UObject> OverrideSpawningLevelMountPointObject;
 private:
 	/**
 	 * Potentially defer the running of an actor's construction script on load
@@ -1415,6 +1434,7 @@ private:
 	/** Returns unreferenced actor folders that are marked as deleted. */
 	TSet<FGuid> GetDeletedAndUnreferencedActorFolders() const;
 
+	friend struct FScopedOverrideSpawningLevelMountPointObject;
 	friend struct FLevelActorFoldersHelper;
 	friend struct FSetWorldPartitionRuntimeCell;
 	friend class FWorldPartitionLevelHelper;
@@ -1436,6 +1456,21 @@ private:
 };
 
 #if WITH_EDITOR
+struct ENGINE_API FScopedOverrideSpawningLevelMountPointObject
+{
+	FScopedOverrideSpawningLevelMountPointObject(const UObject* InObject)
+	{
+		PreviousValue = ULevel::OverrideSpawningLevelMountPointObject;
+		ULevel::OverrideSpawningLevelMountPointObject = InObject;
+	}
+	~FScopedOverrideSpawningLevelMountPointObject()
+	{
+		ULevel::OverrideSpawningLevelMountPointObject = PreviousValue;
+	}
+private:
+	TWeakObjectPtr<const UObject> PreviousValue;
+};
+
 struct FSetWorldPartitionRuntimeCell
 {
 private:

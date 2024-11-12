@@ -27,6 +27,7 @@ public class AvalancheModifiers : ModuleRules
 				"Avalanche",
 				"AvalancheSceneTree",
 				"AvalancheShapes",
+				"ClonerEffectorMeshBuilder",
 				"DynamicMaterial",
 				"GeometryAlgorithms",
 				"GeometryFramework",
@@ -36,7 +37,6 @@ public class AvalancheModifiers : ModuleRules
 				"ModelingComponents",
 				"ModelingOperators",
 				"ProceduralMeshComponent",
-				"StructUtils",
 				"Text3D"
 			}
 		);

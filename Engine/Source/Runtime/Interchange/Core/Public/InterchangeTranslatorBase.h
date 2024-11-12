@@ -29,8 +29,10 @@ class UInterchangeTranslatorSettings : public UObject
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category = "Interchange")
 	INTERCHANGECORE_API void LoadSettings();
 
+	UFUNCTION(BlueprintCallable, Category = "Interchange")
 	INTERCHANGECORE_API void SaveSettings();
 };
 

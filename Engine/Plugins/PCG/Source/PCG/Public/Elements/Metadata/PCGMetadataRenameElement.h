@@ -17,9 +17,9 @@ public:
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("AttributeRename")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGMetadataRenameSettings", "NodeTitle", "Attribute Rename"); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Metadata; }
-	virtual bool HasDynamicPins() const override { return true; }
 #endif
-	
+
+	virtual bool HasDynamicPins() const override { return true; }
 	virtual FString GetAdditionalTitleInformation() const override;
 
 protected:
@@ -39,4 +39,5 @@ class FPCGMetadataRenameElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 };

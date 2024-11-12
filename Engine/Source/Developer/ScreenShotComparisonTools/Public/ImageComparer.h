@@ -309,6 +309,12 @@ public:
 	FString ScreenshotPath;
 
 	/*
+		Id of the comparison request
+	*/
+	UPROPERTY()
+	FGuid ComparisonId;
+
+	/*
 		Whether to skip saving and attaching images to the report for this test
 	*/
 	UPROPERTY()

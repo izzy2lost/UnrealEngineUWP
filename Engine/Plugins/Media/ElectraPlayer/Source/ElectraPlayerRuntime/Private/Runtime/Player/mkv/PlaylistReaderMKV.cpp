@@ -29,7 +29,7 @@ namespace Electra
 /**
  * This class is responsible for downloading the mkv non-mdat boxes and parsing them.
  */
-class FPlaylistReaderMKV : public IPlaylistReaderMKV, public IParserMKV::IReader, public FMediaThread
+class FPlaylistReaderMKV : public IPlaylistReaderMKV, public IGenericDataReader, public FMediaThread
 {
 public:
 	FPlaylistReaderMKV();
@@ -76,12 +76,17 @@ public:
 
 private:
 	// Methods from IParserMKV::IReader
-	bool MKVHasReadBeenAborted() const override;
-	int64 MKVReadData(void* IntoBuffer, int64 NumBytesToRead, int64 InFromOffset) override;
-	int64 MKVGetCurrentFileOffset() const override;
-	int64 MKVGetTotalSize() override
+	bool HasReadBeenAborted() const override;
+	int64 ReadData(void* IntoBuffer, int64 NumBytesToRead, int64 InFromOffset) override;
+	int64 GetCurrentOffset() const override;
+	int64 GetTotalSize() const override
 	{
 		return FileSize;
+	}
+	bool HasReachedEOF() const override
+	{
+		check(!"this should not be called");
+		return false;
 	}
 
 	void StartWorkerThread();
@@ -114,7 +119,7 @@ private:
 
 	FCriticalSection Lock;
 	TSharedPtrTS<IElectraHttpManager::FRequest> Request;
-	TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ReceiveBuffer;
+	TSharedPtrTS<FWaitableBuffer> ReceiveBuffer;
 	TSharedPtrTS<IElectraHttpManager::FProgressListener> ProgressListener;
 	HTTP::FConnectionInfo ConnectionInfo;
 	FMediaEvent RequestFinished;
@@ -300,8 +305,8 @@ void FPlaylistReaderMKV::ReadChunk(uint8* DestinationBuffer, int64 InFromOffset,
 	ProgressListener->CompletionDelegate = IElectraHttpManager::FProgressListener::FCompletionDelegate::CreateRaw(this, &FPlaylistReaderMKV::HTTPCompletionCallback);
 	ProgressListener->ProgressDelegate   = IElectraHttpManager::FProgressListener::FProgressDelegate::CreateRaw(this, &FPlaylistReaderMKV::HTTPProgressCallback);
 
-	ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
-	ReceiveBuffer->Buffer.SetExternalBuffer(DestinationBuffer, ChunkSize);
+	ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
+	ReceiveBuffer->SetExternalBuffer(DestinationBuffer, ChunkSize);
 
 	Request = MakeSharedTS<IElectraHttpManager::FRequest>();
 	Request->Parameters.URL = PlaylistURL;
@@ -331,7 +336,7 @@ void FPlaylistReaderMKV::WorkerThread()
 	LastErrorDetail = MKVParser->ParseHeader(this, IParserMKV::EParserFlags::ParseFlag_Default);
 	ClearRequest();
 
-	if (!MKVHasReadBeenAborted())
+	if (!HasReadBeenAborted())
 	{
 		// Notify the download of the "master playlist". This indicates the download only, not the parsing thereof.
 		PlayerSessionServices->SendMessageToPlayer(IPlaylistReader::PlaylistDownloadMessage::Create(&ConnectionInfo, Playlist::EListType::Master, Playlist::ELoadType::Initial));
@@ -388,12 +393,12 @@ void FPlaylistReaderMKV::WorkerThread()
  * @param NumBytesToRead The number of bytes to read. Must not read more bytes and no less than requested.
  * @return The number of bytes read or -1 on a read error.
  */
-int64 FPlaylistReaderMKV::MKVReadData(void* IntoBuffer, int64 NumBytesToRead, int64 InFromOffset)
+int64 FPlaylistReaderMKV::ReadData(void* IntoBuffer, int64 NumBytesToRead, int64 InFromOffset)
 {
 	ReadChunk(reinterpret_cast<uint8*>(IntoBuffer), InFromOffset, NumBytesToRead);
 	while(1)
 	{
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> rb = ReceiveBuffer;
+		TSharedPtrTS<FWaitableBuffer> rb = ReceiveBuffer;
 		if (bHasErrored || bAbort || !rb.IsValid())
 		{
 			return -1;
@@ -407,7 +412,7 @@ int64 FPlaylistReaderMKV::MKVReadData(void* IntoBuffer, int64 NumBytesToRead, in
 	return NumBytesToRead;
 }
 
-int64 FPlaylistReaderMKV::MKVGetCurrentFileOffset() const
+int64 FPlaylistReaderMKV::GetCurrentOffset() const
 {
 	check(!"This is not expected to be called using a buffered reader");
 	return -1;
@@ -418,7 +423,7 @@ int64 FPlaylistReaderMKV::MKVGetCurrentFileOffset() const
  *
  * @return true if reading/parsing has been aborted, false otherwise.
  */
-bool FPlaylistReaderMKV::MKVHasReadBeenAborted() const
+bool FPlaylistReaderMKV::HasReadBeenAborted() const
 {
 	return bAbort;
 }

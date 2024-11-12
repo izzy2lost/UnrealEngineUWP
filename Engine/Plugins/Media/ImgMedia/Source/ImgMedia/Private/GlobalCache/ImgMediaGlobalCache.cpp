@@ -60,13 +60,13 @@ void FImgMediaGlobalCache::Shutdown()
 #endif // WITH_EDITOR
 }
 
-void FImgMediaGlobalCache::AddFrame(const FString& FileName, const FName& Sequence, int32 Index, const TSharedPtr<FImgMediaFrame, ESPMode::ThreadSafe>& Frame, bool HasMipMaps)
+void FImgMediaGlobalCache::AddFrame(const FString& FileName, const FName& Sequence, int32 Index, const TSharedPtr<FImgMediaFrame, ESPMode::ThreadSafe>& Frame, bool bAdjustSizeForMipMaps)
 {
 	FScopeLock Lock(&CriticalSection);
 
 	// Make sure we have enough space in the cache to add this new frame.
 	SIZE_T FrameSize = Frame->GetUncompressedSize();
-	if (HasMipMaps)
+	if (bAdjustSizeForMipMaps)
 	{
 		FrameSize = (FrameSize * 4) / 3;
 	}

@@ -74,7 +74,7 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode
 		{
 			using namespace Metasound;
 
-			static const Harmonix::Midi::Ops::FPulseGenerator PulseGeneratorForDefaults;
+			static const Harmonix::Midi::Ops::FMidiPulseGenerator PulseGeneratorForDefaults;
 			const auto DefaultInterval = PulseGeneratorForDefaults.GetInterval();
 
 			static const FVertexInterface Interface
@@ -159,7 +159,7 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode
 
 		void Reset(const FResetParams&)
 		{
-			PulseGenerator.SetClock(Inputs.Clock->AsShared());
+			PulseGenerator.Reset();
 			ApplyParameters();
 		}
 
@@ -175,7 +175,7 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode
 			InVertexData.BindReadVertex(Inputs::MidiNoteNumberName, Inputs.NoteNumber);
 			InVertexData.BindReadVertex(Inputs::MidiVelocityName, Inputs.Velocity);
 
-			PulseGenerator.SetClock(Inputs.Clock->AsShared());
+			PulseGenerator.Reset();
 			ApplyParameters();
 		}
 
@@ -188,7 +188,7 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode
 		{
 			ApplyParameters();
 			
-			PulseGenerator.Process(*Outputs.MidiStream);
+			PulseGenerator.Process(*Inputs.Clock, *Outputs.MidiStream);
 		}
 	private:
 		void ApplyParameters()
@@ -208,7 +208,7 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode
 		
 		FInputs Inputs;
 		FOutputs Outputs;
-		Harmonix::Midi::Ops::FPulseGenerator PulseGenerator;
+		Harmonix::Midi::Ops::FMidiPulseGenerator PulseGenerator;
 	};
 
 	class FMidiPulseGeneratorNode final : public Metasound::FNodeFacade

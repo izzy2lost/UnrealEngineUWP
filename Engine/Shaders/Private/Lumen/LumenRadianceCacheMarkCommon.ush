@@ -17,25 +17,19 @@
 #define INVALID_PROBE_INDEX 0xFFFFFFFF
 
 #if IS_MATERIAL_SHADER
-
-	#define WorldPositionToRadianceProbeCoordScaleForMark(index)  RadianceCacheMark.PackedWorldPositionToRadianceProbeCoord[index].w
-	#define WorldPositionToRadianceProbeCoordBiasForMark(index)   RadianceCacheMark.PackedWorldPositionToRadianceProbeCoord[index].xyz
-	#define RadianceProbeCoordToWorldPositionScaleForMark(index)  RadianceCacheMark.PackedRadianceProbeCoordToWorldPosition[index].w
-	#define RadianceProbeCoordToWorldPositionBiasForMark(index)   RadianceCacheMark.PackedRadianceProbeCoordToWorldPosition[index].xyz
+	#define GetRadianceProbeClipmapCornerTWSForMark(index) RadianceCacheMark.ClipmapCornerTWSAndCellSizeForMark[index].xyz
+	#define GetRadianceProbeClipmapCellSizeForMark(index) RadianceCacheMark.ClipmapCornerTWSAndCellSizeForMark[index].w
 
 	#define NumRadianceProbeClipmapsForMark  RadianceCacheMark.NumRadianceProbeClipmapsForMark
 	#define RadianceProbeClipmapResolutionForMark  RadianceCacheMark.RadianceProbeClipmapResolutionForMark
 	#define InvClipmapFadeSizeForMark	RadianceCacheMark.InvClipmapFadeSizeForMark
 
 #else
+	float4 ClipmapCornerTWSAndCellSizeForMark[RADIANCE_PROBE_MAX_CLIPMAPS];
 
-	float4 PackedWorldPositionToRadianceProbeCoord[RADIANCE_PROBE_MAX_CLIPMAPS];
-	float4 PackedRadianceProbeCoordToWorldPosition[RADIANCE_PROBE_MAX_CLIPMAPS];
+	#define GetRadianceProbeClipmapCornerTWSForMark(index) ClipmapCornerTWSAndCellSizeForMark[index].xyz
+	#define GetRadianceProbeClipmapCellSizeForMark(index) ClipmapCornerTWSAndCellSizeForMark[index].w
 
-	#define WorldPositionToRadianceProbeCoordScaleForMark(index)  PackedWorldPositionToRadianceProbeCoord[index].w
-	#define WorldPositionToRadianceProbeCoordBiasForMark(index)   PackedWorldPositionToRadianceProbeCoord[index].xyz
-	#define RadianceProbeCoordToWorldPositionScaleForMark(index)  PackedRadianceProbeCoordToWorldPosition[index].w
-	#define RadianceProbeCoordToWorldPositionBiasForMark(index)   PackedRadianceProbeCoordToWorldPosition[index].xyz
 
 	uint NumRadianceProbeClipmapsForMark;
 	uint RadianceProbeClipmapResolutionForMark;
@@ -55,7 +49,17 @@ bool IsValidRadianceCacheClipmapForMark(uint InClipmapIndex)
 	return InClipmapIndex < NumRadianceProbeClipmapsForMark;
 }
 
-FRadianceProbeCoord GetRadianceProbeCoord(float3 WorldSpacePosition, float ClipmapDitherRandom)
+float3 GetRadianceProbeCoordFloatForMark(float3 ProbeWorldPosition, uint ClipmapIndex)
+{
+	const float3 ProbeTranslatedWorldPosition = ProbeWorldPosition + DFHackToFloat(PrimaryView.PreViewTranslation); // LUMEN_LWC_TODO
+	
+	const float3 CornerTranslatedWorldPosition = GetRadianceProbeClipmapCornerTWSForMark(ClipmapIndex);
+	const float3 CornerToProbe = ProbeTranslatedWorldPosition - CornerTranslatedWorldPosition;
+	const float CellSize = GetRadianceProbeClipmapCellSizeForMark(ClipmapIndex);
+	return CornerToProbe / CellSize;
+}
+
+FRadianceProbeCoord GetRadianceProbeCoord(float3 WorldPosition, float ClipmapDitherRandom)
 {
 	FRadianceProbeCoord Out = (FRadianceProbeCoord)0;
 	Out.ClipmapIndex = NumRadianceProbeClipmapsForMark;
@@ -63,7 +67,7 @@ FRadianceProbeCoord GetRadianceProbeCoord(float3 WorldSpacePosition, float Clipm
 	uint ClipmapIndex = 0;
 	for (; ClipmapIndex < NumRadianceProbeClipmapsForMark; ++ClipmapIndex)
 	{
-		float3 ProbeCoordFloat = WorldSpacePosition * WorldPositionToRadianceProbeCoordScaleForMark(ClipmapIndex) + WorldPositionToRadianceProbeCoordBiasForMark(ClipmapIndex);
+		float3 ProbeCoordFloat = GetRadianceProbeCoordFloatForMark(WorldPosition, ClipmapIndex);
 		float3 BottomEdgeFades = saturate((ProbeCoordFloat - .5f) * InvClipmapFadeSizeForMark);
 		float3 TopEdgeFades = saturate(((float3)RadianceProbeClipmapResolutionForMark - .5f - ProbeCoordFloat) * InvClipmapFadeSizeForMark);
 		float EdgeFade = min(min3(BottomEdgeFades.x, BottomEdgeFades.y, BottomEdgeFades.z), min3(TopEdgeFades.x, TopEdgeFades.y, TopEdgeFades.z));
@@ -86,15 +90,15 @@ FRadianceProbeCoord GetRadianceProbeCoord(float3 WorldSpacePosition, float Clipm
 	return Out;
 }
 
-uint GetRadianceProbeClipmapForMark(float3 WorldSpacePosition, float ClipmapDitherRandom)
+uint GetRadianceProbeClipmapForMark(float3 WorldPosition, float ClipmapDitherRandom)
 {
-	FRadianceProbeCoord Cell = GetRadianceProbeCoord(WorldSpacePosition, ClipmapDitherRandom);
+	FRadianceProbeCoord Cell = GetRadianceProbeCoord(WorldPosition, ClipmapDitherRandom);
 	return Cell.ClipmapIndex;
 }
 
-uint GetRadianceProbeClipmapForMark(float3 WorldSpacePosition)
+uint GetRadianceProbeClipmapForMark(float3 WorldPosition)
 {
-	return GetRadianceProbeClipmapForMark(WorldSpacePosition, .01f);
+	return GetRadianceProbeClipmapForMark(WorldPosition, .01f);
 }
 
 void MarkProbeIndirectionTextureCoord(int3 ProbeCoord, uint ClipmapIndex)
@@ -108,7 +112,7 @@ void MarkProbeIndirectionTextureCoord(int3 ProbeCoord, uint ClipmapIndex)
 
 void MarkPositionUsedInIndirectionTexture(float3 WorldPosition, uint ClipmapIndex)
 {
-	float3 ProbeCoordFloat = WorldPosition * WorldPositionToRadianceProbeCoordScaleForMark(ClipmapIndex) + WorldPositionToRadianceProbeCoordBiasForMark(ClipmapIndex);
+	float3 ProbeCoordFloat = GetRadianceProbeCoordFloatForMark(WorldPosition, ClipmapIndex);
 	int3 BottomCornerProbeCoord = floor(ProbeCoordFloat - 0.5f);
 
 	MarkProbeIndirectionTextureCoord(BottomCornerProbeCoord + int3(0, 0, 0), ClipmapIndex);

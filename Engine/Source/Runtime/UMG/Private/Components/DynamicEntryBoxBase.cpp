@@ -92,7 +92,7 @@ const FRadialBoxSettings& UDynamicEntryBoxBase::GetRadialBoxSettings() const
 	return RadialBoxSettings;
 }
 
-void UDynamicEntryBoxBase::RemoveEntryInternal(UUserWidget* EntryWidget)
+void UDynamicEntryBoxBase::RemoveEntryInternal(UUserWidget* EntryWidget, bool bReleaseSlate)
 {
 	if (EntryWidget)
 	{
@@ -120,13 +120,14 @@ void UDynamicEntryBoxBase::RemoveEntryInternal(UUserWidget* EntryWidget)
 				}
 			}
 		}
-		EntryWidgetPool.Release(EntryWidget);
+		EntryWidgetPool.Release(EntryWidget, bReleaseSlate);
 	}
 }
 
 void UDynamicEntryBoxBase::SetEntrySpacing(const FVector2D& InEntrySpacing)
 {
 	EntrySpacing = InEntrySpacing;
+	FVector2f Spacing = UE::Slate::CastToVector2f(EntrySpacing);
 
 	if (MyPanelWidget.IsValid())
 	{
@@ -143,13 +144,14 @@ void UDynamicEntryBoxBase::SetEntrySpacing(const FVector2D& InEntrySpacing)
 				FMargin Padding;
 				if (SpacingPattern.Num() > 0)
 				{
-					FVector2D Spacing(0.f, 0.f);
+					// Initialize to no spacing
+					Spacing = FVector2f(0.f, 0.f);
 
 					// First establish the starting location
 					for (int32 CountIdx = 0; CountIdx < ChildIdx; ++CountIdx)
 					{
 						int32 PatternIdx = CountIdx % SpacingPattern.Num();
-						Spacing += SpacingPattern[PatternIdx];
+						Spacing += UE::Slate::CastToVector2f(SpacingPattern[PatternIdx]);
 					}
 					// Negative padding is no good, so negative spacing is expressed as positive spacing on the opposite side
 					if (Spacing.X >= 0.f)
@@ -160,6 +162,8 @@ void UDynamicEntryBoxBase::SetEntrySpacing(const FVector2D& InEntrySpacing)
 					{
 						Padding.Right = -Spacing.X;
 					}
+
+					// Negative padding is no good, so negative spacing is expressed as positive spacing on the opposite side
 					if (Spacing.Y >= 0.f)
 					{
 						Padding.Top = Spacing.Y;
@@ -171,22 +175,24 @@ void UDynamicEntryBoxBase::SetEntrySpacing(const FVector2D& InEntrySpacing)
 				}
 				else
 				{
-					if (EntrySpacing.X >= 0.f)
+					// Negative padding is no good, so negative spacing is expressed as positive spacing on the opposite side
+					if (Spacing.X >= 0.f)
 					{
-						Padding.Left = ChildIdx * EntrySpacing.X;
+						Padding.Left = ChildIdx * Spacing.X;
 					}
 					else
 					{
-						Padding.Right = ChildIdx * -EntrySpacing.X;
+						Padding.Right = ChildIdx * -Spacing.X;
 					}
 
-					if (EntrySpacing.Y >= 0.f)
+					// Negative padding is no good, so negative spacing is expressed as positive spacing on the opposite side
+					if (Spacing.Y >= 0.f)
 					{
-						Padding.Top = ChildIdx * EntrySpacing.Y;
+						Padding.Top = ChildIdx * Spacing.Y;
 					}
 					else
 					{
-						Padding.Bottom = ChildIdx * -EntrySpacing.Y;
+						Padding.Bottom = ChildIdx * -Spacing.Y;
 					}
 				}
 				SOverlay::FOverlaySlot& OverlaySlot = (*OverlayChildren)[ChildIdx];
@@ -203,8 +209,8 @@ void UDynamicEntryBoxBase::SetEntrySpacing(const FVector2D& InEntrySpacing)
 				const bool bIsFirstChild = ChildIdx == 0;
 
 				FMargin Padding;
-				Padding.Top = bIsHBox || bIsFirstChild ? 0.f : EntrySpacing.Y;
-				Padding.Left = bIsHBox && !bIsFirstChild ? EntrySpacing.X : 0.f;
+				Padding.Top = bIsHBox || bIsFirstChild ? 0.f : Spacing.Y;
+				Padding.Left = bIsHBox && !bIsFirstChild ? Spacing.X : 0.f;
 				SBoxPanel::FSlot& BoxSlot = (*BoxChildren)[ChildIdx];
 				BoxSlot.SetPadding(Padding);
 			}
@@ -377,7 +383,7 @@ UUserWidget* UDynamicEntryBoxBase::CreateEntryInternal(TSubclassOf<UUserWidget> 
 	DynamicEntryBoxBaseCreateEntryInternal::RecursiveDetection.Push(InEntryClass);
 
 	UUserWidget* NewEntryWidget = EntryWidgetPool.GetOrCreateInstance(InEntryClass);
-	if (MyPanelWidget.IsValid())
+	if (MyPanelWidget.IsValid() && NewEntryWidget != nullptr)
 	{
 		// If we've already been constructed, immediately add the child to our panel widget
 		AddEntryChild(*NewEntryWidget);
@@ -387,9 +393,10 @@ UUserWidget* UDynamicEntryBoxBase::CreateEntryInternal(TSubclassOf<UUserWidget> 
 	return NewEntryWidget;
 }
 
-FMargin UDynamicEntryBoxBase::BuildEntryPadding(const FVector2D& DesiredSpacing)
+FMargin UDynamicEntryBoxBase::BuildEntryPadding(const FVector2D& InDesiredSpacing)
 {
 	FMargin EntryPadding;
+	const FVector2f DesiredSpacing = UE::Slate::CastToVector2f(InDesiredSpacing);
 	if (DesiredSpacing.X >= 0.f)
 	{
 		EntryPadding.Left = DesiredSpacing.X;
@@ -472,9 +479,10 @@ void UDynamicEntryBoxBase::AddEntryChild(UUserWidget& ChildWidget)
 			const bool bIsHBox = EntryBoxType == EDynamicBoxType::Horizontal;
 			const bool bIsFirstChild = MyPanelWidget->GetChildren()->Num() == 0;
 
+			const FVector2f Spacing = UE::Slate::CastToVector2f(EntrySpacing);
 			FMargin Padding;
-			Padding.Top = bIsHBox || bIsFirstChild ? 0.f : EntrySpacing.Y;
-			Padding.Left = bIsHBox && !bIsFirstChild ? EntrySpacing.X : 0.f;
+			Padding.Top = bIsHBox || bIsFirstChild ? 0.f : Spacing.Y;
+			Padding.Left = bIsHBox && !bIsFirstChild ? Spacing.X : 0.f;
 
 			if (bIsHBox)
 			{

@@ -76,7 +76,9 @@ public:
 	bool bCutWithBoolean = true;
 
 	/** Automatically attempt to fill any open boundaries left by CSG (e.g. due to numerical errors) */
-	UPROPERTY(EditAnywhere, Category = Operation, meta = (EditCondition = "bCutWithBoolean && Operation == EEmbeddedPolygonOpMethod::CutThrough || bCutWithBoolean && Operation == EEmbeddedPolygonOpMethod::InsertPolygon", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = Operation, meta = (EditCondition = 
+		"bCutWithBoolean && (Operation == EEmbeddedPolygonOpMethod::CutThrough || Operation == EEmbeddedPolygonOpMethod::CutOutside || Operation == EEmbeddedPolygonOpMethod::InsertPolygon)",
+		EditConditionHides))
 	bool bTryToFixHoles = false;
 
 	// TODO: re-add if/when extrude is added as a supported operation

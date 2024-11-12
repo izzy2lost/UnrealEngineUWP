@@ -29,6 +29,8 @@ namespace UnrealBuildTool.Rules
 					"MeshDescription",
                 }
                 );
+
+			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }

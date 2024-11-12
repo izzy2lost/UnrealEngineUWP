@@ -236,6 +236,22 @@ FTransform ExtractRootMotionFromAnimationAsset(const UAnimationAsset* Animation,
 
 FTransform ExtractRootTransformFromAnimationAsset(const UAnimationAsset* Animation, float Time)
 {
+	const FVector DefaultScale(1.f);
+	bool bUseNormalizedRootMotionScale = false;
+
+	FTransform RootTransformRefPose = FTransform::Identity;
+	if (Animation)
+	{
+		if (const USkeleton* MySkeleton = Animation->GetSkeleton())
+		{
+			const FReferenceSkeleton& RefSkeleton = MySkeleton->GetReferenceSkeleton();
+			if (RefSkeleton.GetNum() > 0)
+			{
+				RootTransformRefPose = RefSkeleton.GetRefBonePose()[0];
+			}
+		}
+	}
+
 	FTransform Result = FTransform::Identity;
 	if (const UAnimMontage* AnimMontage = Cast<UAnimMontage>(Animation))
 	{
@@ -245,13 +261,37 @@ FTransform ExtractRootTransformFromAnimationAsset(const UAnimationAsset* Animati
 			{
 				const float AnimSequenceTime = Segment->ConvertTrackPosToAnimPos(Time);
 				Result = AnimSequence->ExtractRootTrackTransform(AnimSequenceTime, nullptr);
+				bUseNormalizedRootMotionScale = AnimSequence->bUseNormalizedRootMotionScale;
 			}	
 		}
+	}
+	else if (const UAnimComposite* AnimComposite = Cast<UAnimComposite>(Animation))
+	{
+		Result = AnimComposite->ExtractRootTrackTransform(Time, nullptr);
 	}
 	else if (const UAnimSequence* AnimSequence = Cast<UAnimSequence>(Animation))
 	{
 		Result = AnimSequence->ExtractRootTrackTransform(Time, nullptr);
+		bUseNormalizedRootMotionScale = AnimSequence->bUseNormalizedRootMotionScale;
 	}
+
+	// Use old calculation if needed.
+	if (bUseNormalizedRootMotionScale)
+	{
+		//Clear scale as it will muck up GetRelativeTransform
+		Result.SetScale3D(FVector(1.f));
+	}
+	else if (Animation)
+	{
+		if (Animation->IsValidAdditive())
+		{
+			Result.SetScale3D(Result.GetScale3D() + DefaultScale);
+		}
+	}
+
+	// Transform to Component Space
+	const FTransform RootToComponent = RootTransformRefPose.Inverse();
+	Result = RootToComponent * Result;
 
 	return Result;
 }
@@ -428,7 +468,7 @@ bool CopyNotifies(const UAnimSequenceBase* SourceAnimSeq, UAnimSequenceBase* Des
 
 #endif // WITH_EDITOR
 
-bool Compression::CompressAnimationDataTracks(TArray<FRawAnimSequenceTrack>& RawAnimationData, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff /*= 0.0001f*/, float MaxAngleDiff /*= 0.0003f*/)
+bool Compression::CompressAnimationDataTracks(TArray<FRawAnimSequenceTrack>& RawAnimationData, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff /*= 0.0001f*/, float MaxAngleDiff /*= 0.0003f*/, float MaxScaleDiff)
 {
 	bool bRemovedKeys = false;
 
@@ -438,44 +478,14 @@ bool Compression::CompressAnimationDataTracks(TArray<FRawAnimSequenceTrack>& Raw
 		// This removes trivial keys, and this has to happen before the removing tracks
 		for (int32 TrackIndex = 0; TrackIndex < RawAnimationData.Num(); TrackIndex++)
 		{
-			bRemovedKeys |= CompressRawAnimSequenceTrack(RawAnimationData[TrackIndex], NumberOfKeys, ErrorName, MaxPosDiff, MaxAngleDiff);
-		}
-
-		bool bCompressScaleKeys = false;
-		// go through remove keys if not needed
-		for (int32 TrackIndex = 0; TrackIndex < RawAnimationData.Num(); TrackIndex++)
-		{
-			FRawAnimSequenceTrack const& RawData = RawAnimationData[TrackIndex];
-			if (RawData.ScaleKeys.Num() > 0)
-			{
-				// if scale key exists, see if we can just empty it
-				const bool bHaveMultipleKeys = RawData.ScaleKeys.Num() > 1;
-				const bool bHaveNonIdentityKey = !RawData.ScaleKeys[0].Equals(FVector3f::OneVector);
-				if (bHaveMultipleKeys|| bHaveNonIdentityKey)
-				{
-					bCompressScaleKeys = true;
-					break;
-				}
-			}
-		}
-
-		// if we don't have scale, we should delete all scale keys
-		// if you have one track that has scale, we still should support scale, so compress scale
-		if (!bCompressScaleKeys)
-		{
-			// then remove all scale keys
-			for (int32 TrackIndex = 0; TrackIndex < RawAnimationData.Num(); TrackIndex++)
-			{
-				FRawAnimSequenceTrack& RawData = RawAnimationData[TrackIndex];
-				RawData.ScaleKeys.Empty();
-			}
+			bRemovedKeys |= CompressRawAnimSequenceTrack(RawAnimationData[TrackIndex], NumberOfKeys, ErrorName, MaxPosDiff, MaxAngleDiff, MaxScaleDiff);
 		}
 	}
 #endif
 	return bRemovedKeys;
 }
 
-bool Compression::CompressAnimationDataTracks(const USkeleton* Skeleton, const TArray<FTrackToSkeletonMap>& TrackToSkeleton, TArray<FRawAnimSequenceTrack>& RawAnimationData, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff /*= 0.0001f*/, float MaxAngleDiff /*= 0.0003f*/)
+bool Compression::CompressAnimationDataTracks(const USkeleton* Skeleton, const TArray<FTrackToSkeletonMap>& TrackToSkeleton, TArray<FRawAnimSequenceTrack>& RawAnimationData, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff, float MaxAngleDiff, float MaxScaleDiff)
 {
 	bool bRemovedKeys = false;
 
@@ -485,48 +495,19 @@ bool Compression::CompressAnimationDataTracks(const USkeleton* Skeleton, const T
 		// This removes trivial keys, and this has to happen before the removing tracks
 		for (int32 TrackIndex = 0; TrackIndex < RawAnimationData.Num(); TrackIndex++)
 		{
-			bRemovedKeys |= CompressRawAnimSequenceTrack(RawAnimationData[TrackIndex], NumberOfKeys, ErrorName, MaxPosDiff, MaxAngleDiff);
-		}
-
-		bool bCompressScaleKeys = false;
-		// go through remove keys if not needed
-		for (int32 TrackIndex = 0; TrackIndex < RawAnimationData.Num(); TrackIndex++)
-		{
-			FRawAnimSequenceTrack const& RawData = RawAnimationData[TrackIndex];
-			if (RawData.ScaleKeys.Num() > 0)
-			{
-				// if scale key exists, see if we can just empty it
-				const bool bHaveMultipleKeys = RawData.ScaleKeys.Num() > 1;
-				const bool bHaveNonIdentityKey = !RawData.ScaleKeys[0].Equals(FVector3f::OneVector);
-				const FReferenceSkeleton& ReferenceSkeleton = Skeleton->GetReferenceSkeleton();
-				const int32 TrackBoneIndex = TrackToSkeleton[TrackIndex].BoneTreeIndex;				
-				const bool bHaveNonRefPoseKey = ReferenceSkeleton.IsValidIndex(TrackBoneIndex) && !RawData.ScaleKeys[0].Equals(FVector3f(ReferenceSkeleton.GetRefBonePose()[TrackBoneIndex].GetScale3D()));
-				if (bHaveMultipleKeys|| bHaveNonIdentityKey || bHaveNonRefPoseKey)
-				{
-					bCompressScaleKeys = true;
-					break;
-				}
-			}
-		}
-
-		// if we don't have scale, we should delete all scale keys
-		// if you have one track that has scale, we still should support scale, so compress scale
-		if (!bCompressScaleKeys)
-		{
-			// then remove all scale keys
-			for (int32 TrackIndex = 0; TrackIndex < RawAnimationData.Num(); TrackIndex++)
-			{
-				FRawAnimSequenceTrack& RawData = RawAnimationData[TrackIndex];
-				RawData.ScaleKeys.Empty();
-			}
+			bRemovedKeys |= CompressRawAnimSequenceTrack(RawAnimationData[TrackIndex], NumberOfKeys, ErrorName, MaxPosDiff, MaxAngleDiff, MaxScaleDiff);
 		}
 	}
 #endif
 	return bRemovedKeys;
 }
-
 
 bool Compression::CompressRawAnimSequenceTrack(FRawAnimSequenceTrack& RawTrack, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff, float MaxAngleDiff)
+{
+	return CompressRawAnimSequenceTrack(RawTrack, NumberOfKeys, ErrorName, MaxPosDiff, MaxAngleDiff, 0.0001f);
+}
+
+bool Compression::CompressRawAnimSequenceTrack(FRawAnimSequenceTrack& RawTrack, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff, float MaxAngleDiff, float MaxScaleDiff)
 {
 	bool bRemovedKeys = false;
 
@@ -609,8 +590,6 @@ bool Compression::CompressRawAnimSequenceTrack(FRawAnimSequenceTrack& RawTrack, 
 			check(RawTrack.RotKeys.Num() == 1);
 		}
 	}
-
-	float MaxScaleDiff = 0.0001f;
 
 	// Check variation of Scaleition keys
 	if ((RawTrack.ScaleKeys.Num() > 1) && (MaxScaleDiff >= 0.0f))

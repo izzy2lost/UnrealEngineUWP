@@ -36,6 +36,7 @@ class IClassViewerFilter;
 class IDetailCustomization;
 class IDetailKeyframeHandler;
 class IDetailPropertyExtensionHandler;
+class IDetailPropertyChildrenCustomizationHandler;
 class IPropertyGenerationUtilities;
 class IPropertyUtilities;
 class SDetailNameArea;
@@ -109,6 +110,8 @@ public:
 	virtual TSharedPtr<IDetailKeyframeHandler> GetKeyframeHandler() const override { return KeyframeHandler; }
 	virtual void SetExtensionHandler(TSharedPtr<IDetailPropertyExtensionHandler> InExtensionHandler) override;
 	virtual TSharedPtr<IDetailPropertyExtensionHandler> GetExtensionHandler() const override { return ExtensionHandler; }
+	virtual void SetChildrenCustomizationHandler(TSharedPtr<IDetailPropertyChildrenCustomizationHandler> InChildrenHandler) override;
+	virtual TSharedPtr<IDetailPropertyChildrenCustomizationHandler> GetChildrenCustomizationHandler() const override { return ChildrenCustomizationHandler; }
 	virtual bool IsPropertyVisible(const struct FPropertyAndParent& PropertyAndParent) const override;
 	virtual bool IsPropertyReadOnly(const struct FPropertyAndParent& PropertyAndParent) const override;
 	virtual bool IsCustomRowVisible(FName InRowName, FName InParentName) const override;
@@ -145,6 +148,7 @@ public:
 	virtual const FCustomPropertyTypeLayoutMap& GetCustomPropertyTypeLayoutMap() const { return InstancedTypeToLayoutMap; }
 	virtual void SaveExpandedItems( TSharedRef<FPropertyNode> StartNode ) override;
 	virtual void RestoreExpandedItems(TSharedRef<FPropertyNode> StartNode) override;
+	virtual void RestoreExpandedItems(TSharedRef<FPropertyNode> StartNode, TMap<UStruct*, FStringPrefixTree>* OptionalExpansionStates);
 	virtual void MarkNodeAnimating(TSharedPtr<FPropertyNode> InNode, float InAnimationDuration, TOptional<FGuid> InAnimationBatchId) override;
 	virtual bool IsNodeAnimating(TSharedPtr<FPropertyNode> InNode) override;
 	virtual FDetailColumnSizeData& GetColumnSizeData() override { return ColumnSizeData; }
@@ -180,7 +184,7 @@ public:
 	virtual void EnqueueDeferredAction(FSimpleDelegate& DeferredAction) override;
 
 	/** Restore all expanded items in root nodes and external root nodes. */
-	void RestoreAllExpandedItems();
+	void RestoreAllExpandedItems(TMap<UStruct*, FStringPrefixTree>* OptionalExpansionStates = nullptr);
 
 	/**
 	 * Returns a @code TSharedPtr @endcode to the @code FDetailsDisplayManager @endcode for this
@@ -481,6 +485,8 @@ protected:
 	TSharedPtr<IDetailKeyframeHandler> KeyframeHandler;
 	/** Property extension handler returns additional UI to apply after the customization is applied to the property. */
 	TSharedPtr<IDetailPropertyExtensionHandler> ExtensionHandler;
+	/** Property children customization handler allows to customize property's children. */
+	TSharedPtr<IDetailPropertyChildrenCustomizationHandler> ChildrenCustomizationHandler;
 	/** The tree node that is currently highlighted, may be none. */
 	TWeakPtr<FDetailTreeNode> CurrentlyHighlightedNode;
 	/** The list of nodes whose widgets should be animating. */

@@ -18,6 +18,7 @@ class UPCGParamData;
 class UPCGSettings;
 class UPCGSettingsInterface;
 class UPCGSpatialData;
+struct FPCGContext;
 
 /**
 * Base class for any "data" class in the PCG framework.
@@ -50,11 +51,15 @@ public:
 	virtual FPCGAttributePropertyInputSelector GetCachedLastSelector() const { return FPCGAttributePropertyInputSelector{}; }
 	virtual void SetLastSelector(const FPCGAttributePropertySelector& InSelector) {};
 
-	/** Return a copy of the data, with Metadata inheritence for spatial data. */
+	UE_DEPRECATED(5.5, "Call/Implement version with FPCGContext parameter")
 	virtual UPCGData* DuplicateData(bool bInitializeMetadata = true) const;
+
+	/** Return a copy of the data, with Metadata inheritence for spatial data. */
+	virtual UPCGData* DuplicateData(FPCGContext* Context, bool bInitializeMetadata = true) const;
 
 	// ~Begin UObject interface
 	virtual void PostDuplicate(bool bDuplicateForPIE) override { InitUID(); }
+	virtual void PostEditImport() override;
 	// ~End UObject interface
 
 	// Metadata ops, to be implemented if data supports Metadata
@@ -99,6 +104,21 @@ struct PCG_API FPCGTaggedData
 	// Special flag for data that are forwarded to other nodes, but without a pin. Useful for internal data.
 	UPROPERTY()
 	bool bPinlessData = false;
+	
+	/**
+	* Special flag to be modified by execution when a data is used multiple times (in this node or other nodes),
+	* to enable optimization when they are not. Always assume that it is true by default.
+	*/
+	UPROPERTY(BlueprintReadOnly, Transient, Category = Data)
+	bool bIsUsedMultipleTimes = true;
+
+#if !UE_BUILD_SHIPPING
+	// For debug tracking.
+	TWeakObjectPtr<const UPCGNode> OriginatingNode;
+#endif // !UE_BUILD_SHIPPING
+
+	// Used to re-order elements when using per-data caching
+	int32 OriginalIndex = INDEX_NONE;
 
 	bool operator==(const FPCGTaggedData& Other) const;
 	bool operator!=(const FPCGTaggedData& Other) const;
@@ -143,7 +163,11 @@ struct PCG_API FPCGDataCollection
 	/** Gets number of spatial data items on a given pin */
 	int32 GetSpatialInputCountByPin(const FName& InPinLabel) const;
 	/** Returns spatial union of all data on a given pin, returns null if no such data exists. bOutUnionDataCreated indicates if new data created that may need rooting. */
+	const UPCGSpatialData* GetSpatialUnionOfInputsByPin(FPCGContext* InContext, const FName& InPinLabel, bool& bOutUnionDataCreated) const;
+
+	UE_DEPRECATED(5.5, "Use version with FPCGContext param")
 	const UPCGSpatialData* GetSpatialUnionOfInputsByPin(const FName& InPinLabel, bool& bOutUnionDataCreated) const;
+
 	/** Returns all spatial data in the collection with the given tag */
 	TArray<FPCGTaggedData> GetTaggedInputs(const FString& InTag) const;
 	/** Returns all settings in the collection */
@@ -158,10 +182,6 @@ struct PCG_API FPCGDataCollection
 	/** Returns all data in the collection with the given tag and given type */
 	template <typename PCGDataType>
 	TArray<FPCGTaggedData> GetTaggedTypedInputs(const FString& InTag) const;
-
-	UE_DEPRECATED(5.2, "GetParams is deprecated, please use GetParamsByPin or GetFirstParamsOnParamsPin.")
-	/** Returns the first params found in the collection */
-	UPCGParamData* GetParams() const;
 
 	// Only used as a temporary solution for old graph with nodes that didn't have params pins.
 	// Should NOT be used with new nodes.
@@ -189,6 +209,8 @@ struct PCG_API FPCGDataCollection
 	/** Computes CRCs for all data items. */
 	void ComputeCrcs(bool bFullDataCrc);
 
+	/** Add data and CRC to collection. */
+	void AddData(const FPCGTaggedData& InData, const FPCGCrc& InDataCrc);
 	/** Add data and CRCs to collection. */
 	void AddData(const TConstArrayView<FPCGTaggedData>& InData, const TConstArrayView<FPCGCrc>& InDataCrcs);
 	/** Add data and CRCs to collection with pin label combined into the CRC. */
@@ -286,8 +308,3 @@ public:
 protected:
 	static TArray<UPCGData*> GetInputsByPredicate(const FPCGDataCollection& InCollection, TArray<FPCGTaggedData>& OutTaggedData, TFunctionRef<bool(const FPCGTaggedData&)> InPredicate);
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "PCGModule.h"
-#endif

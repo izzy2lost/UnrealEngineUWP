@@ -235,10 +235,10 @@ void RenderDebugViewMode(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> Views,
 			{},
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&View, PassParameters](FRHICommandList& RHICmdList)
+			[&View, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1);
-			View.ParallelMeshDrawCommandPasses[EMeshPass::DebugViewMode].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+			View.ParallelMeshDrawCommandPasses[EMeshPass::DebugViewMode].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 		});
 	}
 }
@@ -326,6 +326,8 @@ void FDebugViewModePS::GetElementShaderBindings(
 			VisualizeElementIndex,
 			ShaderElementData.NumVSInstructions,
 			ShaderElementData.NumPSInstructions,
+			ShaderElementData.LWCComplexityVS,
+			ShaderElementData.LWCComplexityPS,
 			ShaderElementData.ViewModeParam,
 			ShaderElementData.ViewModeParamName,
 			ShaderBindings
@@ -465,16 +467,18 @@ void FDebugViewModeMeshProcessor::UpdateInstructionCount(FDebugViewModeShaderEle
 
 				OutShaderElementData.NumVSInstructions = FMath::Max<int32>(0, OutShaderElementData.NumVSInstructions);
 				OutShaderElementData.NumPSInstructions = FMath::Max<int32>(0, OutShaderElementData.NumPSInstructions);
+				OutShaderElementData.NumCSInstructions = 0;
 			}
 		}
 		else // EShadingPath::Mobile
 		{
 			TShaderRef<TMobileBasePassVSPolicyParamType<FUniformLightMapPolicy>> MobileVS;
 			TShaderRef<TMobileBasePassPSPolicyParamType<FUniformLightMapPolicy>> MobilePS;
-			if (MobileBasePass::GetShaders(LMP_NO_LIGHTMAP, EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED, *InBatchMaterial, InVertexFactoryType, false, MobileVS, MobilePS))
+			if (MobileBasePass::GetShaders(LMP_NO_LIGHTMAP, EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED, *InBatchMaterial, InVertexFactoryType, MobileVS, MobilePS))
 			{
 				OutShaderElementData.NumVSInstructions = MobileVS.IsValid() ? MobileVS->GetNumInstructions() : 0;
 				OutShaderElementData.NumPSInstructions = MobilePS.IsValid() ? MobilePS->GetNumInstructions() : 0;
+				OutShaderElementData.NumCSInstructions = 0;
 			}
 
 			const EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(InBatchMaterial->GetFeatureLevel());
@@ -483,6 +487,11 @@ void FDebugViewModeMeshProcessor::UpdateInstructionCount(FDebugViewModeShaderEle
 				OutShaderElementData.NumPSInstructions *= GShaderComplexityMobileMaskedCostMultiplier;
 			}
 		}
+		
+#if WITH_EDITOR
+		InBatchMaterial->GetRenderingThreadShaderMap()->GetEstimatedLWCFuncUsageComplexity(
+			OutShaderElementData.LWCComplexityVS, OutShaderElementData.LWCComplexityPS, OutShaderElementData.LWCComplexityCS);
+#endif
 	}
 }
 
@@ -493,6 +502,12 @@ void FDebugViewModeImplementation::AddShaderTypes(ERHIFeatureLevel::Type InFeatu
 	OutShaderTypes.AddShaderType<FDebugViewModeVS>();
 	OutShaderTypes.AddShaderType<FDebugViewModePS>();
 }
+
+float GMaxLWCComplexity = 40000.0f; // Arbitrary, chosen to make contrast visible
+static FAutoConsoleVariableRef CVarMaxLWCComplexity(
+	TEXT("r.ShaderComplexity.MaxLWCComplexity"),
+	GMaxLWCComplexity,
+	TEXT("Value used for scaling the material LWC usage visualization"));
 
 void FDebugViewModeImplementation::GetDebugViewModeShaderBindings(
 	const FDebugViewModePS& Shader,
@@ -506,6 +521,8 @@ void FDebugViewModeImplementation::GetDebugViewModeShaderBindings(
 	int32 VisualizeElementIndex,
 	int32 NumVSInstructions,
 	int32 NumPSInstructions,
+	int32 LWCComplexityVS,
+	int32 LWCComplexityPS,
 	int32 ViewModeParam,
 	FName ViewModeParamName,
 	FMeshDrawSingleShaderBindings& ShaderBindings) const
@@ -616,6 +633,14 @@ void FDebugViewModeImplementation::GetDebugViewModeShaderBindings(
 	{
 		NormalizedComplexityValue = FVector4f(NormalizedQuadComplexityValue);
 		bShowQuadOverdraw = true;
+	}
+	else if (DebugViewMode == DVSM_LWCComplexity)
+	{
+		// Set minimum complexity to 1, to differentiate between 0 cost and missing data
+		LWCComplexityPS++;
+		LWCComplexityVS++;
+		NormalizedComplexityValue = FVector4f(LWCComplexityPS, LWCComplexityVS, 0.f, 0.f) / GMaxLWCComplexity;
+		bShowQuadOverdraw = false;
 	}
 	else
 	{

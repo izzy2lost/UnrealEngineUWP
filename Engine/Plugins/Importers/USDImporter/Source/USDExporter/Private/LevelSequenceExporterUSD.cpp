@@ -9,8 +9,10 @@
 #include "USDConversionUtils.h"
 #include "USDErrorUtils.h"
 #include "USDExporterModule.h"
+#include "USDGeomMeshConversion.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDOptionsWindow.h"
 #include "USDPrimConversion.h"
 #include "USDStageActor.h"
@@ -22,9 +24,13 @@
 #include "UsdWrappers/UsdStage.h"
 
 #include "AssetExportTask.h"
+#include "Bindings/MovieSceneReplaceableDirectorBlueprintBinding.h"
+#include "Bindings/MovieSceneSpawnableDirectorBlueprintBinding.h"
+#include "CameraRig_Rail.h"
 #include "Compilation/MovieSceneCompiledDataManager.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Editor.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/SphereReflectionCapture.h"
 #include "EngineAnalytics.h"
 #include "Evaluation/MovieSceneSequenceHierarchy.h"
@@ -38,11 +44,13 @@
 #include "MovieSceneSpawnRegister.h"
 #include "MovieSceneTimeHelpers.h"
 #include "MovieSceneTrack.h"
+#include "Sections/MovieSceneAudioSection.h"
 #include "Sections/MovieSceneSubSection.h"
 #include "Selection.h"
 #include "Sequencer/MovieSceneControlRigParameterTrack.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Tracks/MovieScene3DAttachTrack.h"
+#include "Tracks/MovieSceneAudioTrack.h"
 #include "Tracks/MovieScenePropertyTrack.h"
 #include "Tracks/MovieSceneSkeletalAnimationTrack.h"
 #include "Tracks/MovieSceneSpawnTrack.h"
@@ -50,6 +58,15 @@
 #include "UObject/UObjectGlobals.h"
 
 #define LOCTEXT_NAMESPACE "LevelSequenceExporterUSD"
+
+static bool bExportAnimationsFromAllComponents = true;
+static FAutoConsoleVariableRef CVarExportAnimationsFromAllComponents(
+	TEXT("USD.ExportAnimationsFromAllComponents"),
+	bExportAnimationsFromAllComponents,
+	TEXT(
+		"If true it means that whenever we export LevelSequences to USD we may try exporting transforms and skeletal animations from all components of actors bound to the Sequence, even if those components aren't directly bound themselves. This is useful when using attach sockets or animation blueprints"
+	)
+);
 
 namespace UE::LevelSequenceExporterUSD::Private
 {
@@ -91,6 +108,9 @@ namespace UE::LevelSequenceExporterUSD::Private
 	}
 
 #if USE_USD_SDK
+
+	using FSpawnedInstanceKey = TPair<FGuid, int32>;
+
 	// Custom spawn register so that when DestroySpawnedObject is called while bDestroyingJustHides is true we
 	// actually just hide the objects, so that we can keep a live reference to components within the bakers.
 	// We're going to convert the spawnable tracks into visibility tracks when exporting to USD, which
@@ -98,19 +118,27 @@ namespace UE::LevelSequenceExporterUSD::Private
 	class FLevelSequenceHidingSpawnRegister : public FLevelSequenceEditorSpawnRegister
 	{
 	public:
+
 		bool bDestroyingJustHides = true;
+		bool bExportSeparatePrimsPerSpawnableInstance = true;
 
 		virtual UObject* SpawnObject(
-			FMovieSceneSpawnable& Spawnable,
+			const FGuid& Guid,
+			UMovieScene& MovieScene,
 			FMovieSceneSequenceIDRef TemplateID,
-			TSharedRef<const FSharedPlaybackState> SharedPlaybackState
+			TSharedRef<const FSharedPlaybackState> SharedPlaybackState,
+			int32 BindingIndex
 		) override
 		{
+			FSpawnedInstanceKey InstanceKey(Guid, BindingIndex);
+
 			// Never spawn ASphereReflectionCapture actors. These are useless in USD anyway, and we run into
 			// trouble after we're done exporting them because on the tick where they're destroyed the editor
 			// will still attempt to update their captures and some downstream code doesn't like that their
 			// components are pending kill (check UE-167593 for more info)
-			if (const ASphereReflectionCapture* ReflectionCapture = Cast<const ASphereReflectionCapture>(Spawnable.GetObjectTemplate()))
+			if (Cast<ASphereReflectionCapture>(
+					MovieSceneHelpers::GetObjectTemplate(MovieScene.GetTypedOuter<UMovieSceneSequence>(), Guid, SharedPlaybackState)
+				))
 			{
 				return nullptr;
 			}
@@ -123,17 +151,14 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 			UObject* Object = nullptr;
 
-			const FGuid& Guid = Spawnable.GetGuid();
+			TArray<UObject*>& ExistingInstancesForGuid = SpawnableInstances.FindOrAdd(InstanceKey);
 
-			TArray<UObject*>& ExistingInstancesForGuid = SpawnableInstances.FindOrAdd(Guid);
-
-			TMap<FMovieSceneSequenceID, TMap<FGuid, int32>>& SequenceInstanceToSpawnableIndices = RootSequenceToSpawnableInstanceIndices.FindOrAdd(
-				RootSequence
-			);
-			TMap<FGuid, int32>& SpawnableIndices = SequenceInstanceToSpawnableIndices.FindOrAdd(TemplateID);
+			TMap<FMovieSceneSequenceID, TMap<FSpawnedInstanceKey, int32>>& SequenceInstanceToSpawnableIndices = RootSequenceToSpawnableInstanceIndices
+																													.FindOrAdd(RootSequence);
+			TMap<FSpawnedInstanceKey, int32>& SpawnableIndices = SequenceInstanceToSpawnableIndices.FindOrAdd(TemplateID);
 
 			// Already have an instance of this spawnable for this movie scene sequence instance
-			if (int32* ExistingIndex = SpawnableIndices.Find(Guid))
+			if (int32* ExistingIndex = SpawnableIndices.Find(InstanceKey))
 			{
 				Object = ExistingInstancesForGuid[*ExistingIndex];
 
@@ -149,6 +174,11 @@ namespace UE::LevelSequenceExporterUSD::Private
 					*ExistingIndex
 				);
 			}
+			else if (!bExportSeparatePrimsPerSpawnableInstance && ExistingInstancesForGuid.Num() > 0)
+			{
+				Object = ExistingInstancesForGuid[0];
+				SpawnableIndices.Add(InstanceKey, 0);
+			}
 
 			// We don't have an instance of the spawnable spawned for this exact movie sequence ID, but try to see if we can
 			// reuse any of the existing spawns for it.
@@ -161,9 +191,9 @@ namespace UE::LevelSequenceExporterUSD::Private
 				TArray<bool> UsedIndices;
 				UsedIndices.SetNumZeroed(ExistingInstancesForGuid.Num());
 
-				for (const TPair<FMovieSceneSequenceID, TMap<FGuid, int32>>& Pair : SequenceInstanceToSpawnableIndices)
+				for (const TPair<FMovieSceneSequenceID, TMap<FSpawnedInstanceKey, int32>>& Pair : SequenceInstanceToSpawnableIndices)
 				{
-					if (const int32* UsedIndex = Pair.Value.Find(Guid))
+					if (const int32* UsedIndex = Pair.Value.Find(InstanceKey))
 					{
 						UsedIndices[*UsedIndex] = true;
 					}
@@ -182,7 +212,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 				if (IndexToReuse != INDEX_NONE)
 				{
 					Object = ExistingInstancesForGuid[IndexToReuse];
-					SpawnableIndices.Add(Guid, IndexToReuse);
+					SpawnableIndices.Add(InstanceKey, IndexToReuse);
 
 					UE_LOG(
 						LogUsd,
@@ -198,10 +228,19 @@ namespace UE::LevelSequenceExporterUSD::Private
 				}
 			}
 
-			// Don't even have anything we can reuse: We need to spawn a brand new instance of this spawnable
-			if (!Object)
+			// We keep track of spawned objects here on our derived class, but the base classes expect the Register to have
+			// an entry while the spawnable is spawned, and to not have one when it is not spawned, so here we must synchronize it
+			if (Object)
 			{
-				Object = FLevelSequenceEditorSpawnRegister::SpawnObject(Spawnable, TemplateID, SharedPlaybackState);
+				ESpawnOwnership SpawnOwnership = ESpawnOwnership::InnerSequence;
+				FMovieSceneSpawnRegisterKey Key(TemplateID, Guid, BindingIndex);
+				Register.Add(Key, FSpawnedObject(Guid, *Object, SpawnOwnership));
+			}
+			// Don't even have anything we can reuse: We need to spawn a brand new instance of this spawnable
+			else
+			{
+				// SpawnObject will add an entry into the Register for us
+				Object = FMovieSceneSpawnRegister::SpawnObject(Guid, MovieScene, TemplateID, SharedPlaybackState, BindingIndex);
 				UE_LOG(
 					LogUsd,
 					VeryVerbose,
@@ -213,21 +252,8 @@ namespace UE::LevelSequenceExporterUSD::Private
 					*Guid.ToString()
 				);
 
-				if (AActor* SpawnedActor = Cast<AActor>(Object))
-				{
-					// Rename the spawn to a unique name or else in case of name collisions they will overwrite each other when writing
-					// animation data. The level exporter will rename actors to unique prims by itself though.
-					FString NewLabel = UsdUtils::GetUniqueName(SpawnedActor->GetActorLabel(), UsedActorLabels);
-					if (NewLabel != SpawnedActor->GetActorLabel())
-					{
-						const bool bMarkDirty = false;
-						SpawnedActor->SetActorLabel(NewLabel, bMarkDirty);
-					}
-					UsedActorLabels.Add(NewLabel);
-				}
-
 				ExistingInstancesForGuid.Add(Object);
-				SpawnableIndices.Add(Guid, ExistingInstancesForGuid.Num() - 1);
+				SpawnableIndices.Add(InstanceKey, ExistingInstancesForGuid.Num() - 1);
 			}
 
 			if (Object)
@@ -256,20 +282,22 @@ namespace UE::LevelSequenceExporterUSD::Private
 			return Object;
 		}
 
-		virtual void PreDestroyObject(UObject& Object, const FGuid& BindingId, FMovieSceneSequenceIDRef TemplateID) override
+		virtual void PreDestroyObject(UObject& Object, const FGuid& BindingId, int32 BindingIndex, FMovieSceneSequenceIDRef TemplateID) override
 		{
 			// Don't let the FLevelSequenceEditorSpawnRegister's overload run as it will mess with our editor selection
 			if (bDestroyingJustHides)
 			{
-				FLevelSequenceSpawnRegister::PreDestroyObject(Object, BindingId, TemplateID);
+				FLevelSequenceSpawnRegister::PreDestroyObject(Object, BindingId, BindingIndex, TemplateID);
 				return;
 			}
 
-			FLevelSequenceEditorSpawnRegister::PreDestroyObject(Object, BindingId, TemplateID);
+			FLevelSequenceEditorSpawnRegister::PreDestroyObject(Object, BindingId, BindingIndex, TemplateID);
 		}
 
-		virtual void DestroySpawnedObject(UObject& Object) override
+		virtual void DestroySpawnedObject(UObject& Object, UMovieSceneSpawnableBindingBase* CustomSpawnableBinding) override
 		{
+			// We don't have to clean up the Register here, the caller to DestroySpawnedObject will do that
+
 			if (bDestroyingJustHides)
 			{
 				USceneComponent* Component = nullptr;
@@ -299,9 +327,9 @@ namespace UE::LevelSequenceExporterUSD::Private
 			{
 				// We shouldn't need to do this because we only ever fully delete when we're cleaning up,
 				// and by then we'll delete all of these maps anyway
-				for (TPair<FGuid, TArray<UObject*>>& Pair : SpawnableInstances)
+				for (TPair<FSpawnedInstanceKey, TArray<UObject*>>& Pair : SpawnableInstances)
 				{
-					const FGuid& Guid = Pair.Key;
+					const FSpawnedInstanceKey& InstanceKey = Pair.Key;
 					TArray<UObject*>& InstancesForGuid = Pair.Value;
 
 					int32 IndexToDelete = INDEX_NONE;
@@ -316,17 +344,17 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 					if (IndexToDelete != INDEX_NONE)
 					{
-						for (TPair<const UMovieSceneSequence*, TMap<FMovieSceneSequenceID, TMap<FGuid, int32>>>& RootSequencePair :
+						for (TPair<const UMovieSceneSequence*, TMap<FMovieSceneSequenceID, TMap<FSpawnedInstanceKey, int32>>>& RootSequencePair :
 							 RootSequenceToSpawnableInstanceIndices)
 						{
-							for (TPair<FMovieSceneSequenceID, TMap<FGuid, int32>>& SequenceIDPair : RootSequencePair.Value)
+							for (TPair<FMovieSceneSequenceID, TMap<FSpawnedInstanceKey, int32>>& SequenceIDPair : RootSequencePair.Value)
 							{
-								TMap<FGuid, int32>& GuidToInstance = SequenceIDPair.Value;
-								if (int32* InstanceIndex = GuidToInstance.Find(Guid))
+								TMap<FSpawnedInstanceKey, int32>& GuidToInstance = SequenceIDPair.Value;
+								if (int32* InstanceIndex = GuidToInstance.Find(InstanceKey))
 								{
 									if (*InstanceIndex == IndexToDelete)
 									{
-										GuidToInstance.Remove(Guid);
+										GuidToInstance.Remove(InstanceKey);
 									}
 								}
 							}
@@ -337,13 +365,13 @@ namespace UE::LevelSequenceExporterUSD::Private
 					}
 				}
 
-				FLevelSequenceEditorSpawnRegister::DestroySpawnedObject(Object);
+				FLevelSequenceEditorSpawnRegister::DestroySpawnedObject(Object, CustomSpawnableBinding);
 			}
 		}
 
-		bool HasSpawnedObject(const FGuid& BindingGuid) const
+		bool HasSpawnedObject(const FSpawnedInstanceKey& InstanceKey) const
 		{
-			return SpawnableInstances.Contains(BindingGuid);
+			return SpawnableInstances.Contains(InstanceKey);
 		}
 
 		void DeleteSpawns(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
@@ -358,7 +386,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 			// alive when bDestroyingJustHides=true. Because of this we must explicitly clean up these "abandoned" spawns here,
 			// which resynchronizes us with Register:
 			TArray<UObject*> ObjectsToDelete;
-			for (TPair<FGuid, TArray<UObject*>>& Pair : SpawnableInstances)
+			for (TPair<FSpawnedInstanceKey, TArray<UObject*>>& Pair : SpawnableInstances)
 			{
 				ObjectsToDelete.Append(Pair.Value);
 			}
@@ -366,51 +394,24 @@ namespace UE::LevelSequenceExporterUSD::Private
 			{
 				if (Object)
 				{
-					DestroySpawnedObject(*Object);
+					// TODO: I think this will likely be fine for most cases, but I could see it potentially being problematic in all cases to destroy
+					// an object in the default way this way. However, to do this 'correctly' would also involve storing the UCustomBinding object in
+					// this process, which I'm skipping for now.
+					DestroySpawnedObject(*Object, nullptr);
 				}
 			}
-		}
-
-		// FLevelSequenceHidingSpawnRegister is a bit of a hack and just hides it's spawned actors instead
-		// of deleting them (when we want it to do so). Unfortunately, the base FMovieSceneSpawnRegister part
-		// will still nevertheless clear it's Register entry for the spawnable when deleting (even if just hiding),
-		// and there's nothing we can do to prevent it. This means we can't call FindSpawnedObject and must use our
-		// own GetExistingSpawn and data members
-		UObject* GetExistingSpawn(const UMovieSceneSequence& RootSequence, FMovieSceneSequenceID SequenceID, const FGuid& SpawnableGuid)
-		{
-			int32 SpawnableIndex = INDEX_NONE;
-			if (TMap<FMovieSceneSequenceID, TMap<FGuid, int32>>* SequenceIDsToSpawns = RootSequenceToSpawnableInstanceIndices.Find(&RootSequence))
-			{
-				if (TMap<FGuid, int32>* Spawns = SequenceIDsToSpawns->Find(SequenceID))
-				{
-					if (int32* Index = Spawns->Find(SpawnableGuid))
-					{
-						SpawnableIndex = *Index;
-					}
-				}
-			}
-
-			if (SpawnableIndex != INDEX_NONE)
-			{
-				if (TArray<UObject*>* Instances = SpawnableInstances.Find(SpawnableGuid))
-				{
-					return (*Instances)[SpawnableIndex];
-				}
-			}
-
-			return nullptr;
 		}
 
 	private:
 		// Ensures all of our new spawns have unique names
 		TSet<FString> UsedActorLabels;
 
-		// Tracks all instances we created for a given spawnable guid
-		TMap<FGuid, TArray<UObject*>> SpawnableInstances;
+		// Tracks all instances we created for a given spawnable guid and binding index
+		TMap<FSpawnedInstanceKey, TArray<UObject*>> SpawnableInstances;
 
 		// Tracks the indices into SpawnableInstances for each spawnable guid, used by each sequence ID, in the hierarchy of each root
 		// sequence
-		TMap<const UMovieSceneSequence*, TMap<FMovieSceneSequenceID, TMap<FGuid, int32>>> RootSequenceToSpawnableInstanceIndices;
+		TMap<const UMovieSceneSequence*, TMap<FMovieSceneSequenceID, TMap<FSpawnedInstanceKey, int32>>> RootSequenceToSpawnableInstanceIndices;
 	};
 
 	// Contain all of the baker lambda functions for a given component. Only one baker per baking type is allowed.
@@ -499,15 +500,18 @@ namespace UE::LevelSequenceExporterUSD::Private
 		return false;
 	}
 
-	TMap<UMovieSceneSequence*, TArray<FMovieSceneSequenceID>> GetSequenceHierarchyInstances(UMovieSceneSequence& Sequence, ISequencer& Sequencer)
+	TMap<UMovieSceneSequence*, TArray<FMovieSceneSequenceID>> GetSequenceHierarchyInstances(
+		UMovieSceneSequence& Sequence,
+		ISequencer& Sequencer,
+		FMovieSceneSequenceHierarchy& InOutHierarchyCache
+	)
 	{
 		TMap<UMovieSceneSequence*, TArray<FMovieSceneSequenceID>> SequenceInstances;
 
-		FMovieSceneSequenceHierarchy SequenceHierarchyCache;
-		UMovieSceneCompiledDataManager::CompileHierarchy(&Sequence, &SequenceHierarchyCache, EMovieSceneServerClientMask::All);
+		UMovieSceneCompiledDataManager::CompileHierarchy(&Sequence, &InOutHierarchyCache, EMovieSceneServerClientMask::All);
 
 		SequenceInstances.FindOrAdd(&Sequence).Add(Sequencer.GetRootTemplateID());
-		for (const TTuple<FMovieSceneSequenceID, FMovieSceneSubSequenceData>& Pair : SequenceHierarchyCache.AllSubSequenceData())
+		for (const TTuple<FMovieSceneSequenceID, FMovieSceneSubSequenceData>& Pair : InOutHierarchyCache.AllSubSequenceData())
 		{
 			if (ULevelSequence* SubSequence = Cast<ULevelSequence>(Pair.Value.GetSequence()))
 			{
@@ -524,9 +528,13 @@ namespace UE::LevelSequenceExporterUSD::Private
 		UMovieSceneSequence& RootSequence
 	)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ULevelSequenceExporterUsd::PreSpawnSpawnables);
+
+		FMovieSceneSequenceHierarchy HierarchyCache;
 		TMap<UMovieSceneSequence*, TArray<FMovieSceneSequenceID>> SequenceInstances = GetSequenceHierarchyInstances(
 			RootSequence,
-			Context.Sequencer.Get()
+			Context.Sequencer.Get(),
+			HierarchyCache
 		);
 
 		UMovieSceneSequence* OrigRootSequence = Context.Sequencer->GetRootMovieSceneSequence();
@@ -550,14 +558,30 @@ namespace UE::LevelSequenceExporterUSD::Private
 			// Spawn everything for this instance
 			for (FMovieSceneSequenceID SequenceInstance : SequenceInstancePair.Value)
 			{
-				int32 NumSpawnables = MovieScene->GetSpawnableCount();
-				for (int32 Index = 0; Index < NumSpawnables; ++Index)
+				if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
 				{
-					const FMovieSceneSpawnable& Spawnable = MovieScene->GetSpawnable(Index);
-					const FGuid& Guid = Spawnable.GetGuid();
-
-					StaticCastSharedRef<FMovieSceneSpawnRegister>(Context.SpawnRegister)
-						->SpawnObject(Guid, *MovieScene, SequenceInstance, *Context.Sequencer);
+					int32 BindingIndex = 0;
+					FGuid LastGuid;
+					for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetAllReferences())
+					{
+						if (LastGuid != BindingReference.ID)
+						{
+							LastGuid = BindingReference.ID;
+							BindingIndex = 0;
+						}
+						if (BindingReference.CustomBinding
+							&& BindingReference.CustomBinding->WillSpawnObject(Context.Sequencer->GetSharedPlaybackState()))
+						{
+							StaticCastSharedRef<FMovieSceneSpawnRegister>(Context.SpawnRegister)
+								->SpawnObject(
+									BindingReference.ID,
+									*MovieScene,
+									SequenceInstance,
+									Context.Sequencer->GetSharedPlaybackState(),
+									BindingIndex++
+								);
+						}
+					}
 				}
 			}
 		}
@@ -628,7 +652,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 						// Using the spawn register is an easy way of telling if a Guid is a spawnable or not,
 						// but it's more appropriate because we really only ever care about the spawnables that
 						// we have spawned on our TempSequencer
-						const bool bIsSpawnable = SpawnRegister.HasSpawnedObject(Binding.GetGuid());
+						const bool bIsSpawnable = SpawnRegister.HasSpawnedObject(FSpawnedInstanceKey(Binding.GetGuid(), 0));
 						if (!bIsSpawnable)
 						{
 							continue;
@@ -737,6 +761,70 @@ namespace UE::LevelSequenceExporterUSD::Private
 		ActorSelection->EndBatchSelectOperation(bNotify);
 	}
 
+	// Export the provided AudioTrack to Prim as UsdMediaSpatialAudio attributes
+	//
+	// Exporting this track type takes a different approach because unlike all other animation types, there is no actual
+	// change on the component on the level while the LevelSequence plays audio. This means that reading the "final output"
+	// of the sequence on the component every EvalFrame with a baker (like all other track cases do) doesn't really do
+	// anything for us, and we actually need to traverse the Sequencer tracks themselves.
+	//
+	// Of course, we won't get the benefit of the previous approach here: If we have multiple audio tracks for the same
+	// actor/component, even if they're placed within different Subsequences, they *will* conflict on the USD files.
+	// There is not much we can do about that at this point other than to emit a warning, but hopefully having multiple
+	// audio tracks on the same audio component is something that doesn't happen very often in practice anyway. If that
+	// is ever requested, in the future we could handle it by creating a separate UsdMediaSpatialAudio prim per audio section,
+	// but that will make a bit of a mess and harm roundtripping, so for now we only handle one section.
+	void ExportAudioTrack(
+		const UMovieSceneAudioTrack& AudioTrack,
+		const FMovieSceneSequenceTransform& SequenceTransform,
+		UE::FUsdPrim& Prim,
+		TMap<FString, int32>& AudioTracksPerPrim
+	)
+	{
+		FString PrimPath = Prim.GetPrimPath().GetString();
+
+		const TArray<UMovieSceneSection*>& Sections = AudioTrack.GetAudioSections();
+		if (Sections.Num() > 1)
+		{
+			// We only support one audio section per track because we need a full UsdMediaSpatialAudio prim for each
+			// section. If we tried exporting another section here we'd need a fully separate prim for it, which opens
+			// a can of worms as we so far only had one prim per binding. Furthermore we'd need to pay attention to this
+			// split when opening the stage as well, otherwise we'd roundtrip the audio track incorrectly
+			UE_LOG(
+				LogUsd,
+				Warning,
+				TEXT("The audio track '%s' has %d sections, but only the first audio section of an audio track can be written out to USD for now"),
+				*AudioTrack.GetPathName(),
+				Sections.Num()
+			);
+		}
+
+		if (Sections.Num() > 0)
+		{
+			if (UMovieSceneAudioSection* AudioSection = Cast<UMovieSceneAudioSection>(Sections[0]))
+			{
+				UnrealToUsd::ConvertAudioSection(*AudioSection, SequenceTransform, Prim);
+				AudioTracksPerPrim.FindOrAdd(PrimPath) += 1;
+			}
+		}
+
+		if (int32* SourceTracksForPrim = AudioTracksPerPrim.Find(PrimPath))
+		{
+			if (*SourceTracksForPrim > 1)
+			{
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT(
+						"Exporting multiple audio tracks (like '%s') to the same prim ('%s') is currently not supported and may lead to incorrect output"
+					),
+					*AudioTrack.GetPathName(),
+					*PrimPath
+				);
+			}
+		}
+	}
+
 	// Appends to InOutComponentBakers all of the component bakers for all components bound to MovieSceneSequence.
 	// In the process it will generate the output prims for each of these components, and keep track of them
 	// within the bakers themselves
@@ -744,10 +832,13 @@ namespace UE::LevelSequenceExporterUSD::Private
 		FLevelSequenceExportContext& Context,
 		UMovieSceneSequence& MovieSceneSequence,
 		const TMap<UMovieSceneSequence*, TArray<FMovieSceneSequenceID>>& SequenceInstances,
+		const FMovieSceneSequenceHierarchy& HierarchyCache,
 		UE::FUsdStage& UsdStage,
 		TMap<USceneComponent*, FCombinedComponentBakers>& InOutComponentBakers
 	)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ULevelSequenceExporterUsd::GenerateBakersForMovieScene);
+
 		UMovieScene* MovieScene = MovieSceneSequence.GetMovieScene();
 		if (!MovieScene)
 		{
@@ -758,14 +849,14 @@ namespace UE::LevelSequenceExporterUSD::Private
 		// bound to root components but also separate tracks bound directly to the actors, and we want to
 		// capture both.
 		// Index from UObject to FGuid because we may have multiple spawned objects for a given spawnable Guid
-		TMap<UObject*, FGuid> BoundObjects;
+		TMap<UObject*, FSpawnedInstanceKey> BoundObjects;
 
 		// Collect any USD-related DynamicBinding. The idea being that if we find any, we're likely looking at a
 		// loaded USD Stage that's going to be exported, and the possessable is one of the transient actors and
 		// components. It that's the case, we don't want to just come up with a random name for the prim based on
 		// the actor/component path, but instead want to use the prim path that it has been given on the dynamic binding,
 		// if any
-		TMap<FGuid, const FMovieSceneDynamicBinding*> DynamicBindings;
+		TMap<FSpawnedInstanceKey, const FMovieSceneDynamicBinding*> DynamicBindings;
 
 		const TArray<FMovieSceneSequenceID>* InstancesOfThisSequence = SequenceInstances.Find(&MovieSceneSequence);
 		if (!InstancesOfThisSequence)
@@ -796,18 +887,66 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 				UObject* BoundObject = nullptr;
 
+				// We need to check for custom spawnables here as well.
+				// Note: Now all sequencer bindings are possessables, even the old spawnables. This is why we loop
+				// over all binding references here, and will attempt to use the SpawnRegister even for possessables
+				if (const FMovieSceneBindingReferences* BindingReferences = MovieSceneSequence.GetBindingReferences())
+				{
+					int32 BindingIndex = 0;
+					FGuid LastGuid;
+					for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetAllReferences())
+					{
+						if (LastGuid != BindingReference.ID)
+						{
+							LastGuid = BindingReference.ID;
+							BindingIndex = 0;
+						}
+						if (BindingReference.CustomBinding)
+						{
+							if (BindingReference.CustomBinding->WillSpawnObject(Context.Sequencer->GetSharedPlaybackState()))
+							{
+								BoundObject = Context.SpawnRegister->FindSpawnedObject(Guid, SequenceInstance, BindingIndex++).Get();
+								if (!BoundObject)
+								{
+									continue;
+								}
+
+								if (BoundObject && (BoundObject->IsA<USceneComponent>() || BoundObject->IsA<AActor>()))
+								{
+									BoundObjects.Add(BoundObject, FSpawnedInstanceKey(Guid, BindingIndex));
+								}
+							}
+
+							if (UMovieSceneSpawnableDirectorBlueprintBinding* SpawnableDirectorBlueprintBinding = Cast<
+									UMovieSceneSpawnableDirectorBlueprintBinding>(
+									BindingReference.CustomBinding->AsSpawnable(Context.Sequencer->GetSharedPlaybackState())
+								))
+							{
+								if (SpawnableDirectorBlueprintBinding->DynamicBinding.Function)
+								{
+									DynamicBindings.Add(FSpawnedInstanceKey(Guid, BindingIndex), &SpawnableDirectorBlueprintBinding->DynamicBinding);
+								}
+							}
+
+							if (UMovieSceneReplaceableDirectorBlueprintBinding* ReplaceableDirectorBlueprintBinding = Cast<
+									UMovieSceneReplaceableDirectorBlueprintBinding>(BindingReference.CustomBinding))
+							{
+								if (ReplaceableDirectorBlueprintBinding->DynamicBinding.Function)
+								{
+									DynamicBindings.Add(
+										FSpawnedInstanceKey(Guid, BindingIndex),
+										&ReplaceableDirectorBlueprintBinding->DynamicBinding
+									);
+								}
+							}
+						}
+					}
+				}
+
 				// Go through FMovieSceneObjectCache and FindBoundObjects because that will also evaluate DynamicBindings.
-				// Note that we need to make sure that PreSpawnSpawnables has been called above this (at all, but also at
-				// least once *after* Context.SpawnRegister->CleanUp(), if that has been called). The idea here is that FindBoundObjects
-				// will manage to find the binding even it their "parent context" is a spawnable (e.g. if it's a possessable component of
-				// a spawnable) and also uses DynamicBindings, which is great! For it to be able to find our spawns however, the
-				// spawnables must be *currently* spawned.
-				// It doesn't help at all that our custom spawn register only hides stuff instead of destroying them, because even if the
-				// UObject itself still exists and is just hidden, having been "despawned" means the spawnable has been removed from the
-				// "Register" member of FMovieSceneSpawnRegister, and so the base part of the spawn register "doesn't know about it".
-				// For reference, check how FMovieSceneObjectCache::UpdateBindings (called by FindBoundObjects) will end up calling
-				// "Player.GetSpawnRegister().FindSpawnedObject", and observe how that in turn just checks the "Register" member...
-				// Ideally we could tweak a bit how the "Register" member is used, but that is part of the base FMovieSceneSpawnRegister.
+				// The idea here is that FindBoundObjects will manage to find the binding even it their "parent context" is
+				// a spawnable (e.g. if it's a possessable component of a spawnable) and also uses DynamicBindings, which is great!
+				// For it to be able to find our spawns however, the spawnables must be *currently* spawned.
 				TArrayView<TWeakObjectPtr<UObject>> ObjectWeakPtrs = ObjectCache.FindBoundObjects(Guid, *Context.Sequencer);
 				if (ObjectWeakPtrs.Num() > 0)
 				{
@@ -816,55 +955,51 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 				if (BoundObject && (BoundObject->IsA<USceneComponent>() || BoundObject->IsA<AActor>()))
 				{
-					BoundObjects.Add(BoundObject, Guid);
-
-					if (Possessable.DynamicBinding.Function)
-					{
-						DynamicBindings.Add(Guid, &Possessable.DynamicBinding);
-					}
-				}
-			}
-
-			// Spawnables
-			int32 NumSpawnables = MovieScene->GetSpawnableCount();
-			for (int32 Index = 0; Index < NumSpawnables; ++Index)
-			{
-				FMovieSceneSpawnable& Spawnable = MovieScene->GetSpawnable(Index);
-				const FGuid& Guid = Spawnable.GetGuid();
-
-				// We won't have spawned ASphereReflectionCapture here.
-				// See the comment inside FLevelSequenceHidingSpawnRegister::SpawnObject and UE-167593 for more info
-				if (ASphereReflectionCapture* ReflectionCapture = Cast<ASphereReflectionCapture>(Spawnable.GetObjectTemplate()))
-				{
-					continue;
-				}
-
-				UObject* BoundObject = Context.SpawnRegister->GetExistingSpawn(*RootSequence, SequenceInstance, Guid);
-				if (!BoundObject)
-				{
-					// This should never happen as we preemptively spawn everything:
-					// At this point all our spawns should be spawned, but invisible
-					UE_LOG(LogUsd, Warning, TEXT("Failed to find spawned object for spawnable with Guid '%s'"), *Guid.ToString());
-					continue;
-				}
-
-				if (BoundObject && (BoundObject->IsA<USceneComponent>() || BoundObject->IsA<AActor>()))
-				{
-					BoundObjects.Add(BoundObject, Guid);
-
-					if (Spawnable.DynamicBinding.Function)
-					{
-						DynamicBindings.Add(Guid, &Spawnable.DynamicBinding);
-					}
+					BoundObjects.Add(BoundObject, FSpawnedInstanceKey(Guid, 0));
 				}
 			}
 		}
 
+		// Expand BoundObjects to include all components of all of its bound actors (even those without any binding to the LevelSequence).
+		// The idea here is that even if these don't have any tracks, the attach socket and AnimBlueprint fallbacks at the bottom of the
+		// loop below will still be triggered, letting us automatically capture the animations of these components that are "indirectly
+		// animated"
+		if (bExportAnimationsFromAllComponents)
+		{
+			TMap<UObject*, FSpawnedInstanceKey> NewEntries;
+			for (const TPair<UObject*, FSpawnedInstanceKey>& Pair : BoundObjects)
+			{
+				if (AActor* Actor = Cast<AActor>(Pair.Key))
+				{
+					if (USceneComponent* Root = Actor->GetRootComponent())
+					{
+						const bool bIncludeAllDescendants = true;
+						TArray<USceneComponent*> Children;
+						Root->GetChildrenComponents(bIncludeAllDescendants, Children);
+
+						for (USceneComponent* Child : Children)
+						{
+							// Skip hidden billboards/arrows/camera mesh components, etc.
+							if (!Child || !Child->IsVisibleInEditor() || Child->IsVisualizationComponent())
+							{
+								continue;
+							}
+
+							NewEntries.Add(Child, FSpawnedInstanceKey{});
+						}
+					}
+				}
+			}
+			NewEntries.Append(BoundObjects);	// Prefer values from BoundObjects
+			NewEntries.Remove(nullptr);
+			Swap(NewEntries, BoundObjects);
+		}
+
 		// Generate bakers
-		for (const TPair<UObject*, FGuid>& Pair : BoundObjects)
+		for (const TPair<UObject*, FSpawnedInstanceKey>& Pair : BoundObjects)
 		{
 			UObject* BoundObject = Pair.Key;
-			const FGuid& Guid = Pair.Value;
+			const FSpawnedInstanceKey& InstanceKey = Pair.Value;
 
 			// We always use components here because when exporting actors and components to USD we basically
 			// just ignore actors altogether and export the component attachment hierarchy instead
@@ -903,10 +1038,9 @@ namespace UE::LevelSequenceExporterUSD::Private
 			// If this binding has one of our dynamic bindings set up pointing to a valid prim path, let's use that path
 			// instead of using our generated PrimPath, as that one will better match the prim paths that we'll get when
 			// opening a referenced stage via an exported UsdStageActor
-			if (const FMovieSceneDynamicBinding* DynamicBinding = DynamicBindings.FindRef(Guid))
+			if (const FMovieSceneDynamicBinding* DynamicBinding = DynamicBindings.FindRef(InstanceKey))
 			{
-				if (const FMovieSceneDynamicBindingPayloadVariable* FoundPrimPathPayload = DynamicBinding->PayloadVariables.Find(TEXT("PrimPa"
-																																	  "th")))
+				if (const FMovieSceneDynamicBindingPayloadVariable* FoundPrimPathPayload = DynamicBinding->PayloadVariables.Find(TEXT("PrimPath")))
 				{
 					FString PrimPathInSourceStage = FoundPrimPathPayload->Value;
 					if (!PrimPathInSourceStage.IsEmpty())
@@ -955,10 +1089,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 										FText::Format(
 											LOCTEXT(
 												"NonIdealComposition",
-												"Exported animation for prim '{0}' may not compose correctly with the prims from referenced "
-												"layer '{1}' on the exported stage for the LevelSequence '{2}'. For best results, make sure "
-												"the referenced layer is saved to disk (i.e. not anonymous), has a defaultPrim setup, and "
-												"that the animation tracks are only bound to prims that are descendents of the defaultPrim."
+												"Exported animation for prim '{0}' may not compose correctly with the prims from referenced layer '{1}' on the exported stage for the LevelSequence '{2}'. For best results, make sure the referenced layer is saved to disk (i.e. not anonymous), has a defaultPrim setup, and that the animation tracks are only bound to prims that are descendents of the defaultPrim."
 											),
 											FText::FromString(PrimPathInSourceStage),
 											FText::FromString(LoadedStage.GetRootLayer().GetIdentifier()),
@@ -972,22 +1103,108 @@ namespace UE::LevelSequenceExporterUSD::Private
 				}
 			}
 
-			FString SchemaName = UsdUtils::GetSchemaNameForComponent(*BoundComponent);
-			if (SchemaName.IsEmpty())
+			auto GetPrimForComponent = [&Context, &UsdStage](const USceneComponent& Component, FString* PrimPathStr = nullptr) -> UE::FUsdPrim
 			{
-				continue;
-			}
+				FString PrimPath = PrimPathStr ? *PrimPathStr
+											   : UsdUtils::GetPrimPathForObject(
+												   &Component,
+												   TEXT(""),
+												   Context.ExportOptions && Context.ExportOptions->LevelExportOptions.bExportActorFolders
+											   );
+				if (PrimPath.IsEmpty())
+				{
+					return {};
+				}
 
-			// We will define a prim here so that we can apply schemas and use the shortcut CreateXAttribute functions,
-			// and not have to worry about attribute names and types. Later on we will convert these prims back into just 'overs' though
-			UE::FUsdPrim Prim = UsdStage.DefinePrim(UE::FSdfPath{*PrimPath}, *SchemaName);
+				FString SchemaName = UsdUtils::GetSchemaNameForComponent(Component);
+				if (SchemaName.IsEmpty())
+				{
+					return {};
+				}
+
+				// We will define a prim here so that we can apply schemas and use the shortcut CreateXAttribute functions,
+				// and not have to worry about attribute names and types. Later on we will convert these prims back into just 'overs' though
+				return UsdStage.DefinePrim(UE::FSdfPath{*PrimPath}, *SchemaName);
+			};
+
+			UE::FUsdPrim Prim = GetPrimForComponent(*BoundComponent, &PrimPath);
 			if (!Prim)
 			{
 				continue;
 			}
 
+			TFunction<void(UnrealToUsd::FComponentBaker&)> AddBaker = [&InOutComponentBakers, &BoundComponent](UnrealToUsd::FComponentBaker& Baker)
+			{
+				// If we made a baker and we don't have one of this type for this component yet, add its lambda to the array
+				FCombinedComponentBakers& ExistingBakers = InOutComponentBakers.FindOrAdd(BoundComponent);
+				if (Baker.BakerType != UnrealToUsd::EBakingType::None && !EnumHasAnyFlags(ExistingBakers.CombinedBakingType, Baker.BakerType))
+				{
+					ExistingBakers.Bakers.Add(Baker);
+					ExistingBakers.CombinedBakingType |= Baker.BakerType;
+				}
+			};
+
+			const bool bBakeAsSkeletal = !Context.ExportOptions->LevelExportOptions.AssetOptions.bConvertSkeletalToNonSkeletal;
+			TFunction<void(UnrealToUsd::FComponentBaker&)> GenerateSkeletalBaker =
+				[&UsdStage, &BoundComponent, &PrimPath, &Prim, bBakeAsSkeletal](UnrealToUsd::FComponentBaker& InOutBaker)
+			{
+				if (USkeletalMeshComponent* SkeletalBoundComponent = Cast<USkeletalMeshComponent>(BoundComponent))
+				{
+					if (bBakeAsSkeletal)
+					{
+						UE::FUsdPrim SkelAnimPrim = UsdStage.DefinePrim(UE::FSdfPath{*PrimPath}.AppendChild(TEXT("Anim")), TEXT("SkelAnimation"));
+
+						UE::FUsdPrim SkeletonPrim = UsdStage.DefinePrim(
+							UE::FSdfPath{*PrimPath}.AppendChild(UnrealIdentifiers::ExportedSkeletonPrimName),
+							TEXT("Skeleton")
+						);
+
+						if (SkelAnimPrim && SkeletonPrim)
+						{
+							UnrealToUsd::CreateSkeletalAnimationBaker(SkeletonPrim, SkelAnimPrim, *SkeletalBoundComponent, InOutBaker);
+						}
+						else
+						{
+							UE_LOG(
+								LogUsd,
+								Warning,
+								TEXT("Failed to generate Skeleton or SkelAnimation prim when baking out SkelRoot '%s'"),
+								*PrimPath
+							);
+						}
+					}
+					else
+					{
+						// Convert the prim for the skeletal mesh component from SkelRoot to Mesh
+						Prim.SetTypeName(TEXT("Mesh"));
+						UnrealToUsd::CreateSkeletalAnimationToMeshBaker(Prim, *SkeletalBoundComponent, InOutBaker);
+					}
+				}
+			};
+
 			bool bHasTransformBaker = false;
-			if (const FMovieSceneBinding* Binding = MovieScene->FindBinding(Guid))
+			bool bHasSkeletalBaker = false;
+
+			if (ACameraRig_Rail* RailActor = Cast<ACameraRig_Rail>(BoundObject))
+			{
+				// In the case of a CameraRig_Rail, what we want to bake is the transform animation of its
+				// RailMountComponent since that is where children camera will be attached to.
+				const static FString TransformPropertyPath = UnrealIdentifiers::TransformPropertyName.ToString();
+				USceneComponent* RailMountComponent = RailActor->GetDefaultAttachComponent();
+				UE::FUsdPrim RailMountPrim = GetPrimForComponent(*RailMountComponent);
+				if (RailMountPrim)
+				{
+					UnrealToUsd::FComponentBaker Baker;
+					if (UnrealToUsd::CreateComponentPropertyBaker(RailMountPrim, *RailMountComponent, TransformPropertyPath, Baker))
+					{
+						AddBaker(Baker);
+						bHasTransformBaker = true;
+					}
+				}
+			}
+
+			TMap<FString, int32> AudioTracksPerPrim;
+			if (const FMovieSceneBinding* Binding = MovieScene->FindBinding(InstanceKey.Key))
 			{
 				for (const UMovieSceneTrack* Track : Binding->GetTracks())
 				{
@@ -1010,53 +1227,54 @@ namespace UE::LevelSequenceExporterUSD::Private
 						// Just handle spawnable tracks as if they're visibility tracks, and hide the prim when not "spawned"
 						// Remember that our spawn register just hides the spawnables when they're not spawned anyway, so this
 						// is essentially the same
-						const FString PropertyPath = TEXT("bHidden");
+						const static FString PropertyPath = UnrealIdentifiers::HiddenPropertyName.ToString();
 						UnrealToUsd::CreateComponentPropertyBaker(Prim, *BoundComponent, PropertyPath, Baker);
 					}
 					// Check for the control rig tracks too, because if the user did "Bake to Control Rig" the controlrig code will silently
 					// set the original skeletal animation track sections as disabled, so they'd fail the "IsTrackAnimated" check above
 					else if (Track->IsA<UMovieSceneSkeletalAnimationTrack>() || Track->IsA<UMovieSceneControlRigParameterTrack>())
 					{
-						if (USkeletalMeshComponent* SkeletalBoundComponent = Cast<USkeletalMeshComponent>(BoundComponent))
-						{
-							UE::FUsdPrim SkelAnimPrim = UsdStage.DefinePrim(UE::FSdfPath{*PrimPath}.AppendChild(TEXT("Anim")), TEXT("SkelAnimation"));
-
-							UE::FUsdPrim SkeletonPrim = UsdStage.DefinePrim(
-								UE::FSdfPath{*PrimPath}.AppendChild(UnrealIdentifiers::ExportedSkeletonPrimName),
-								TEXT("Skeleton")
-							);
-
-							if (!SkelAnimPrim || !SkeletonPrim)
-							{
-								UE_LOG(
-									LogUsd,
-									Warning,
-									TEXT("Failed to generate Skeleton or SkelAnimation prim when baking out SkelRoot '%s'"),
-									*PrimPath
-								);
-								continue;
-							}
-							UnrealToUsd::CreateSkeletalAnimationBaker(SkeletonPrim, SkelAnimPrim, *SkeletalBoundComponent, Baker);
-						}
+						GenerateSkeletalBaker(Baker);
 					}
 					// If we have an attach track that attaches the object to somewhere else, then we'll need to bake in that transform
 					// change, as we can't export "hierarchy changes" otherwise
 					else if (Track->IsA<UMovieScene3DAttachTrack>())
 					{
-						UnrealToUsd::CreateComponentPropertyBaker(Prim, *BoundComponent, TEXT("Transform"), Baker);
+						const static FString PropertyPath = UnrealIdentifiers::TransformPropertyName.ToString();
+						UnrealToUsd::CreateComponentPropertyBaker(Prim, *BoundComponent, PropertyPath, Baker);
+					}
+					else if (const UMovieSceneAudioTrack* AudioTrack = Cast<UMovieSceneAudioTrack>(Track))
+					{
+						FMovieSceneSequenceID InstanceID = Context.Sequencer->GetRootTemplateID();
+						if (InstancesOfThisSequence && InstancesOfThisSequence->Num() > 0)
+						{
+							InstanceID = (*InstancesOfThisSequence)[0];
+						}
+
+						FMovieSceneSequenceTransform SequenceTransform;
+						if (const FMovieSceneSubSequenceData* SubSequenceData = HierarchyCache.FindSubData(InstanceID))
+						{
+							SequenceTransform = SubSequenceData->RootToSequenceTransform;
+						}
+
+						// This is awkwardly handled here within GenerateBakersForMovieScene (even though it doesn't generate a baker) for two
+						// reasons:
+						//  - It's the first place you'd go do in order to search for how audio is exported, since literally every other type
+						//    of track we support goes through here
+						//  - Getting the Prim to export the audio track *to* is very much non-trivial and requires looking into
+						//    DynamicBindings and etc., which this function already does
+						ExportAudioTrack(*AudioTrack, SequenceTransform, Prim, AudioTracksPerPrim);
 					}
 
-					// If we made a baker and we don't have one of this type for this component yet, add its lambda to the array
-					FCombinedComponentBakers& ExistingBakers = InOutComponentBakers.FindOrAdd(BoundComponent);
-					if (Baker.BakerType != UnrealToUsd::EBakingType::None && !EnumHasAnyFlags(ExistingBakers.CombinedBakingType, Baker.BakerType))
-					{
-						ExistingBakers.Bakers.Add(Baker);
-						ExistingBakers.CombinedBakingType |= Baker.BakerType;
-					}
+					AddBaker(Baker);
 
 					if (Baker.BakerType == UnrealToUsd::EBakingType::Transform)
 					{
 						bHasTransformBaker = true;
+					}
+					else if (Baker.BakerType == UnrealToUsd::EBakingType::Skeletal)
+					{
+						bHasSkeletalBaker = true;
 					}
 				}
 			}
@@ -1067,17 +1285,62 @@ namespace UE::LevelSequenceExporterUSD::Private
 			// would cause the parent prim's skeletal animation to also affect its child prims.
 			// Ideally we'd actually search through the tracks to know for sure whether our parent has a SkeletalAnimation section,
 			// but it's probably safer to just do this in case it is hidden behind N subsequences or some obscure feature
-			if (!bHasTransformBaker && BoundComponent->GetAttachSocketName() != NAME_None)
+			if (!bHasTransformBaker)
 			{
-				UnrealToUsd::FComponentBaker Baker;
-				const FString PropertyPath = TEXT("Transform");
-				UnrealToUsd::CreateComponentPropertyBaker(Prim, *BoundComponent, PropertyPath, Baker);
-
-				FCombinedComponentBakers& ExistingBakers = InOutComponentBakers.FindOrAdd(BoundComponent);
-				if (Baker.BakerType != UnrealToUsd::EBakingType::None && !EnumHasAnyFlags(ExistingBakers.CombinedBakingType, Baker.BakerType))
+				// If any ancestor component has an attach socket, we may need to bake our transform
+				bool bHasSocketAttachment = false;
+				USceneComponent* Iterator = BoundComponent;
+				while (Iterator)
 				{
-					ExistingBakers.Bakers.Add(Baker);
-					ExistingBakers.CombinedBakingType |= Baker.BakerType;
+					if (Iterator->GetAttachSocketName() != NAME_None)
+					{
+						bHasSocketAttachment = true;
+						break;
+					}
+
+					if (AActor* OwnerActor = Iterator->GetOwner())
+					{
+						if (OwnerActor->GetRootComponent() == Iterator)
+						{
+							// Don't climb out of the actor
+							break;
+						}
+					}
+
+					Iterator = Iterator->GetAttachParent();
+				}
+
+				if (bHasSocketAttachment)
+				{
+					UnrealToUsd::FComponentBaker Baker;
+
+					const static FString PropertyPath = UnrealIdentifiers::TransformPropertyName.ToString();
+					UnrealToUsd::CreateComponentPropertyBaker(Prim, *BoundComponent, PropertyPath, Baker);
+
+					AddBaker(Baker);
+				}
+			}
+
+			// There are many different ways in which SkeletalMeshComponents may animate their joints without having any Sequencer track
+			// or even any binding, and this check here tries filling in that gap and generating a skeletal baker if needed.
+			// (Search for bExportAnimationsFromAllComponents in this file to see how we can get in here without having a binding)
+			if (!bHasSkeletalBaker)
+			{
+				if (USkeletalMeshComponent* SkeletalBoundComponent = Cast<USkeletalMeshComponent>(BoundComponent))
+				{
+					const bool bNeedsSkeletalBaker = SkeletalBoundComponent->HasValidAnimationInstance()
+													 || SkeletalBoundComponent->LeaderPoseComponent.IsValid()
+													 || (SkeletalBoundComponent->GetAnimationMode() == EAnimationMode::AnimationBlueprint
+														 && SkeletalBoundComponent->AnimClass);
+
+					if (bNeedsSkeletalBaker)
+					{
+						UnrealToUsd::FComponentBaker Baker;
+
+						GenerateSkeletalBaker(Baker);
+
+						AddBaker(Baker);
+					}
 				}
 			}
 		}
@@ -1111,7 +1374,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 					continue;
 				}
 
-				GenerateBakersForMovieScene(Context, *SubSequence, SequenceInstances, UsdStage, InOutComponentBakers);
+				GenerateBakersForMovieScene(Context, *SubSequence, SequenceInstances, HierarchyCache, UsdStage, InOutComponentBakers);
 			}
 		}
 	}
@@ -1124,6 +1387,8 @@ namespace UE::LevelSequenceExporterUSD::Private
 		const TMap<USceneComponent*, FCombinedComponentBakers>& ComponentBakers
 	)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ULevelSequenceExporterUsd::BakeMovieSceneSequence);
+
 		UMovieScene* MovieScene = MovieSceneSequence.GetMovieScene();
 		if (!MovieScene)
 		{
@@ -1200,21 +1465,25 @@ namespace UE::LevelSequenceExporterUSD::Private
 			}
 		);
 
-		for (FFrameTime EvalTime = StartFrame; EvalTime <= EndFrame; EvalTime += Interval)
 		{
-			Context.Sequencer->SetLocalTimeDirectly(EvalTime);
-			Context.Sequencer->ForceEvaluate();
+			TRACE_CPUPROFILER_EVENT_SCOPE(PlaySequence);
 
-			// Evaluate constraints (these run on tick in the editor, so here we must trigger them manually)
-			// Can't iterate through a pre-sorted list since the parenting of the constraints can change between frames
-			Controller.EvaluateAllConstraints();
-
-			FFrameTime KeyTime = FFrameRate::Snap(EvalTime, Resolution, DisplayRate).FloorToFrame();
-			double UsdTimeCode = FFrameRate::TransformTime(KeyTime, Resolution, StageFrameRate).AsDecimal();
-
-			for (const UnrealToUsd::FComponentBaker& Baker : SortedBakers)
+			for (FFrameTime EvalTime = StartFrame; EvalTime <= EndFrame; EvalTime += Interval)
 			{
-				Baker.BakerFunction(UsdTimeCode);
+				Context.Sequencer->SetLocalTimeDirectly(EvalTime);
+				Context.Sequencer->ForceEvaluate();
+
+				// Evaluate constraints (these run on tick in the editor, so here we must trigger them manually)
+				// Can't iterate through a pre-sorted list since the parenting of the constraints can change between frames
+				Controller.EvaluateAllConstraints();
+
+				FFrameTime KeyTime = FFrameRate::Snap(EvalTime, Resolution, DisplayRate).FloorToFrame();
+				double UsdTimeCode = FFrameRate::TransformTime(KeyTime, Resolution, StageFrameRate).AsDecimal();
+
+				for (const UnrealToUsd::FComponentBaker& Baker : SortedBakers)
+				{
+					Baker.BakerFunction(UsdTimeCode);
+				}
 			}
 		}
 
@@ -1246,6 +1515,8 @@ namespace UE::LevelSequenceExporterUSD::Private
 		TArray<UE::FUsdStage>& InOutExportedStages
 	)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ULevelSequenceExporterUsd::ExportMovieSceneSequence);
+
 		if (FilePath.IsEmpty() || Context.ExportedMovieScenes.Contains(&MovieSceneSequence))
 		{
 			return;
@@ -1259,7 +1530,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 		// Make sure we don't overwrite a file we just wrote *during this export*.
 		// Overwriting other files is OK, as we want to allow a "repeatedly export over the same files" workflow
-		FString UniqueFilePath = UsdUtils::GetUniqueName(FilePath, Context.UsedFilePaths);
+		FString UniqueFilePath = UsdUnreal::ObjectUtils::GetUniqueName(FilePath, Context.UsedFilePaths);
 
 		// Try exporting subsequences if needed
 		if (Context.ExportOptions)
@@ -1416,13 +1687,15 @@ namespace UE::LevelSequenceExporterUSD::Private
 		// same result as if we had exported that subsequence's LevelSequence by itself
 		Context.Sequencer->ResetToNewRootSequence(MovieSceneSequence);
 
+		FMovieSceneSequenceHierarchy HierarchyCache;
 		TMap<UMovieSceneSequence*, TArray<FMovieSceneSequenceID>> SequenceInstances = GetSequenceHierarchyInstances(
 			MovieSceneSequence,
-			Context.Sequencer.Get()
+			Context.Sequencer.Get(),
+			HierarchyCache
 		);
 
 		TMap<USceneComponent*, FCombinedComponentBakers> Bakers;
-		GenerateBakersForMovieScene(Context, MovieSceneSequence, SequenceInstances, UsdStage, Bakers);
+		GenerateBakersForMovieScene(Context, MovieSceneSequence, SequenceInstances, HierarchyCache, UsdStage, Bakers);
 
 		// Bake this MovieScene
 		// We bake each MovieScene individually instead of doing one large simultaneous bake because this way
@@ -1458,7 +1731,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 			if (Context.ExportOptions->LevelExportOptions.MetadataOptions.bExportAssetMetadata)
 			{
-				if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(Cast<ULevelSequence>(&MovieSceneSequence)))
+				if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetAssetUserData(Cast<ULevelSequence>(&MovieSceneSequence)))
 				{
 					UnrealToUsd::ConvertMetadata(
 						UserData,
@@ -1473,7 +1746,10 @@ namespace UE::LevelSequenceExporterUSD::Private
 		Context.ExportedMovieScenes.Add(&MovieSceneSequence, UniqueFilePath);
 		Context.UsedFilePaths.Add(UniqueFilePath);
 
-		UsdStage.GetRootLayer().Save();
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(Save);
+			UsdStage.GetRootLayer().Save();
+		}
 
 		InOutExportedStages.Add(UsdStage);
 	}
@@ -1500,6 +1776,8 @@ bool ULevelSequenceExporterUsd::ExportBinary(
 {
 	namespace LevelSequenceExporterImpl = UE::LevelSequenceExporterUSD::Private;
 
+	TRACE_CPUPROFILER_EVENT_SCOPE(ULevelSequenceExporterUsd::ExportBinary);
+
 #if USE_USD_SDK
 	ULevelSequence* LevelSequence = Cast<ULevelSequence>(Object);
 	if (!GEditor || !GIsEditor || !LevelSequence)
@@ -1521,6 +1799,12 @@ bool ULevelSequenceExporterUsd::ExportBinary(
 	if (!Options)
 	{
 		Options = GetMutableDefault<ULevelSequenceExporterUsdOptions>();
+
+		// Prefill the level to export with the current level
+		if (!Options->Level.Get())
+		{
+			Options->Level = IUsdClassesModule::GetCurrentWorld();
+		}
 
 		// Prompt with an options dialog if we can
 		if (Options && (!ExportTask || !ExportTask->bAutomated))
@@ -1590,6 +1874,7 @@ bool ULevelSequenceExporterUsd::ExportBinary(
 	TempSequencer->SetPlaybackStatus(EMovieScenePlayerStatus::Playing);
 
 	SpawnRegister->SetSequencer(TempSequencer);
+	SpawnRegister->bExportSeparatePrimsPerSpawnableInstance = Options->bExportSeparatePrimsPerSpawnableInstance;
 
 	LevelSequenceExporterImpl::FLevelSequenceExportContext Context{*LevelSequence, TempSequencer.ToSharedRef(), SpawnRegister.ToSharedRef()};
 	Context.ExportOptions = Options;
@@ -1599,7 +1884,7 @@ bool ULevelSequenceExporterUsd::ExportBinary(
 	// Spawn (but hide) all spawnables so that they will also show up on the level export if we need them to.
 	// We have to traverse the template IDs when spawning spawnables, because we'll want to force each individual spawnable of each
 	// FMovieSceneSequenceID to spawn a separate object, so that they can become separate prims. Without doing this, if we used the same
-	// subsequence with spawnables multiple times within a parent sequence we'd only get one prim out, as the FMovieSceneSpawnable objects
+	// subsequence with spawnables multiple times within a parent sequence we'd only get one prim out, as the spawnable bindings
 	// would be the exact same between all instances of the child sequence (same FGuid)
 	LevelSequenceExporterImpl::PreSpawnSpawnables(Context, *LevelSequence);
 
@@ -1642,7 +1927,7 @@ bool ULevelSequenceExporterUsd::ExportBinary(
 	UAssetEditorSubsystem* AssetEditorSubsystem = nullptr;
 	{
 		AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-		if (AssetEditorSubsystem)
+		if (AssetEditorSubsystem && !IsEngineExitRequested())
 		{
 			for (const TWeakPtr<ISequencer>& Sequencer : FLevelEditorSequencerIntegration::Get().GetSequencers())
 			{
@@ -1671,6 +1956,8 @@ bool ULevelSequenceExporterUsd::ExportBinary(
 	{
 		if (UWorld* WorldToExport = Options->Level.Get())
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(ULevelSequenceExporterUsd::LevelExport);
+
 			// Come up with a file path for the level
 			FString Directory;
 			FString Filename;

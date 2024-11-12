@@ -37,11 +37,10 @@ namespace PlatformInfo
 class ITargetPlatform : public ITargetPlatformSettings, public ITargetPlatformControls
 {
 public:
-	const ITargetPlatformSettings& GetPlatformSettings() const{ return *this; }
-	const ITargetPlatformControls& GetPlatformControls() const  { return *this; }
-
+	const ITargetPlatformControls* GetTargetPlatformControls() const  { return this; }
 
 public:
+	ITargetPlatform() :ITargetPlatformControls(this){}
 	/**
 	 * Given a platform ordinal number, returns the corresponding ITargetPlatform instance
 	 */

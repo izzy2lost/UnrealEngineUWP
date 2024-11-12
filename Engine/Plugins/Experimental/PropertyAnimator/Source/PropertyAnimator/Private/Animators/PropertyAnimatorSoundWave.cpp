@@ -9,7 +9,7 @@
 
 UPropertyAnimatorSoundWave::UPropertyAnimatorSoundWave()
 {
-	SetAnimatorDisplayName(DefaultControllerName);
+	CycleMode = EPropertyAnimatorCycleMode::None;
 }
 
 void UPropertyAnimatorSoundWave::SetSampledSoundWave(USoundWave* InSoundWave)
@@ -59,14 +59,18 @@ void UPropertyAnimatorSoundWave::OnSampledSoundWaveChanged()
 #endif
 }
 
-float UPropertyAnimatorSoundWave::Evaluate(double InTimeElapsed, const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorFloatContext* InOptions) const
+void UPropertyAnimatorSoundWave::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
 {
-	float Loudness = 0.f;
+	Super::OnAnimatorRegistered(InMetadata);
 
-	if (AudioAnalyzer
-		&& AudioAnalyzer->DurationInSeconds > 0)
+	InMetadata.Name = TEXT("SoundWave");
+}
+
+bool UPropertyAnimatorSoundWave::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const
+{
+	if (AudioAnalyzer && AudioAnalyzer->DurationInSeconds > 0)
 	{
-		float SampleTime = InTimeElapsed + InOptions->GetTimeOffset();
+		double SampleTime = InParameters.GetValueDouble(TimeElapsedParameterName).GetValue();
 
 		if ((SampleTime >= 0 && SampleTime <= AudioAnalyzer->DurationInSeconds) || bLoop)
 		{
@@ -77,10 +81,58 @@ float UPropertyAnimatorSoundWave::Evaluate(double InTimeElapsed, const FProperty
 				SampleTime = AudioAnalyzer->DurationInSeconds + SampleTime;
 			}
 
-			AudioAnalyzer->GetNormalizedLoudnessAtTime(SampleTime, Loudness);
+			float NormalizedLoudness = 0.f;
+			AudioAnalyzer->GetNormalizedLoudnessAtTime(SampleTime, NormalizedLoudness);
+
+			InParameters.AddProperty(AlphaParameterName, EPropertyBagPropertyType::Float);
+			InParameters.SetValueFloat(AlphaParameterName, NormalizedLoudness);
+
+			return InContext->EvaluateProperty(InPropertyData, InParameters, OutEvaluationResult);
 		}
 	}
 
-	// Remap from [0, 1] to user amplitude from [Min, Max]
-	return FMath::GetMappedRangeValueClamped(FVector2D(0, 1), FVector2D(InOptions->GetAmplitudeMin(), InOptions->GetAmplitudeMax()), Loudness);
+	return false;
+}
+
+bool UPropertyAnimatorSoundWave::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue)
+{
+	if (Super::ImportPreset(InPreset, InValue) && InValue->IsObject())
+	{
+		const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> AnimatorArchive = InValue->AsMutableObject();
+
+		FString SoundWaveValue;
+		AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorSoundWave, SampledSoundWave), SoundWaveValue);
+
+		if (USoundWave* SoundWave = LoadObject<USoundWave>(nullptr, *SoundWaveValue))
+		{
+			SetSampledSoundWave(SoundWave);
+		}
+
+		bool bLoopValue = bLoop;
+		AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorSoundWave, bLoop), bLoop);
+		SetLoop(bLoopValue);
+
+		return true;
+	}
+
+	return false;
+}
+
+bool UPropertyAnimatorSoundWave::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const
+{
+	if (Super::ExportPreset(InPreset, OutValue) && OutValue->IsObject())
+	{
+		const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> AnimatorArchive = OutValue->AsMutableObject();
+
+		if (SampledSoundWave)
+		{
+			AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorSoundWave, SampledSoundWave), SampledSoundWave.GetPath());
+		}
+
+		AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorSoundWave, bLoop), bLoop);
+
+		return true;
+	}
+
+	return false;
 }

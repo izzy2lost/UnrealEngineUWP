@@ -253,19 +253,19 @@ public:
 		// Add new queued items.
 		if (OutAddedHandles)
 		{
-			while (FAddRequest* AddRequest = AddRequests.Peek())
+			FAddRequest AddRequest;
+			while (AddRequests.Dequeue(AddRequest))
 			{
-				OutAddedHandles->Add(AddImpl(AddRequest->Handle, MoveTemp(AddRequest->Data)));
-				AddRequests.Pop();
+				OutAddedHandles->Add(AddImpl(AddRequest.Handle, MoveTemp(AddRequest.Data)));
 				++NumChanges;
 			}
 		}
 		else
 		{
-			while (FAddRequest* AddRequest = AddRequests.Peek())
+			FAddRequest AddRequest;
+			while (AddRequests.Dequeue(AddRequest))
 			{
-				AddImpl(AddRequest->Handle, MoveTemp(AddRequest->Data));
-				AddRequests.Pop();
+				AddImpl(AddRequest.Handle, MoveTemp(AddRequest.Data));
 				++NumChanges;
 			}
 		}
@@ -273,19 +273,19 @@ public:
 		// Remove queued items.
 		if (OutRemovedHandles)
 		{
-			while (FRemoveRequest* RemoveRequest = RemoveRequests.Peek())
+			FRemoveRequest RemoveRequest;
+			while (RemoveRequests.Dequeue(RemoveRequest))
 			{
-				OutRemovedHandles->Add(RemoveImpl(RemoveRequest->Handle, RemoveRequest->OnComplete));
-				RemoveRequests.Pop();
+				OutRemovedHandles->Add(RemoveImpl(RemoveRequest.Handle, RemoveRequest.OnComplete));
 				++NumChanges;
 			}
 		}
 		else
 		{
-			while (FRemoveRequest* RemoveRequest = RemoveRequests.Peek())
+			FRemoveRequest RemoveRequest;
+			while (RemoveRequests.Dequeue(RemoveRequest))
 			{
-				RemoveImpl(RemoveRequest->Handle, RemoveRequest->OnComplete);
-				RemoveRequests.Pop();
+				RemoveImpl(RemoveRequest.Handle, RemoveRequest.OnComplete);
 				++NumChanges;
 			}
 		}

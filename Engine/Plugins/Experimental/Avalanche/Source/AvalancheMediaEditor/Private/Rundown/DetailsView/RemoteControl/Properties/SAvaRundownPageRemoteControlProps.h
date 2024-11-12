@@ -5,15 +5,18 @@
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "Containers/Set.h"
+#include "Misc/NotifyHook.h"
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
-#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/ITableRow.h"
+#include "Widgets/Views/SListView.h"
 
 class FAvaRundownEditor;
 class FAvaRundownManagedInstance;
+class FAvaRundownPagePropertyContextMenu;
 class FAvaRundownRCPropertyItem;
 class FName;
+class FUICommandList;
 class ITableRow;
 class SAvaRundownPageRemoteControlProps;
 class STableViewBase;
@@ -30,6 +33,20 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FAvaRundownRCPropertyHeaderRowExtensionDele
 	TSharedRef<SHeaderRow>& HeaderRow)
 DECLARE_DELEGATE_ThreeParams(FAvaRundownRCPropertyTableRowExtensionDelegate, TSharedRef<SAvaRundownPageRemoteControlProps> Panel,
 	TSharedRef<const FAvaRundownRCPropertyItem> ItemPtr, TSharedPtr<SWidget>& CurrentWidget)
+
+/**
+ * Note:
+ *  Making a separate object for notify hook to break the SharedPtr circular dependency:
+ *  PanelWidget ->(strong) ItemWidget -> (strong) Hook -> (weak) PanelWidget
+ *  The ItemWidget has a weak ptr on the PanelWidget, but the Hook needs to be strong to match
+ *  ownership with the PropertyRowGenerator that is using the Hook.
+ */
+class FAvaRundownPageRCPropsNotifyHook : public FNotifyHook
+{
+public:
+	// Need to define a virtual destructor because FNotifyHook doesn't.
+	virtual ~FAvaRundownPageRCPropsNotifyHook() = default;
+};
 
 /**
  * The page props implementation for remote control fields.
@@ -55,6 +72,10 @@ public:
 	/** Refreshes the content of this widget. */
 	void Refresh(const TArray<int32>& InSelectedPageIds);
 
+	const TArray<FAvaRundownRCPropertyItemPtr> GetSelectedPropertyItems() const;
+	
+	TSharedPtr<FAvaRundownPageRCPropsNotifyHook> GetNotifyHook() const;
+
 private:
 	static FAvaRundownRCPropertyHeaderRowExtensionDelegate HeaderRowExtensionDelegate;
 	static TMap<FName, TArray<FAvaRundownRCPropertyTableRowExtensionDelegate>> TableRowExtensionDelegates;
@@ -64,6 +85,8 @@ private:
 	void OnRemoteControlEntitiesUpdated(URemoteControlPreset* InPreset, const TSet<FGuid>& InModifiedEntities) { UpdateDefaultValuesAndRefresh({GetActivePageId()}); }
 	void OnRemoteControlExposedPropertiesModified(URemoteControlPreset* InPreset, const TSet<FGuid>& InModifiedProperties);
 	void OnRemoteControlControllerModified(URemoteControlPreset* InPreset, const TSet<FGuid>& InModifiedControllerIds);
+
+	void OnPostPropertyChanged(FProperty* InPropertyThatChanged);
 
 	void BindRemoteControlDelegates(URemoteControlPreset* InPreset);
 
@@ -91,6 +114,8 @@ private:
 
 	void RefreshTable(const TSet<FGuid>& InEntityIds = TSet<FGuid>());
 
+	TSharedPtr<SWidget> GetContextMenuContent();
+
 	TWeakPtr<FAvaRundownEditor> RundownEditorWeak;
 	
 	TArray<TSharedPtr<FAvaRundownManagedInstance>> ManagedInstances;
@@ -102,4 +127,12 @@ private:
 	TArray<FAvaRundownRCPropertyItemPtr> PropertyItems;
 
 	int32 ActivePageId = -1;
+
+	TSharedPtr<FUICommandList> CommandList;
+
+	TSharedPtr<FAvaRundownPagePropertyContextMenu> ContextMenu;
+
+	TSharedPtr<FAvaRundownPageRCPropsNotifyHook> NotifyHook;
+
+	friend class FAvaRundownPageRCPropsNotifyHookImpl;
 };

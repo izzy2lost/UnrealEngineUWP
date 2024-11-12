@@ -130,15 +130,12 @@ FIntRect FDisplayClusterViewportHelpers::GetValidViewportRect(const FIntRect& In
 
 	FIntRect OutRect(InRect.Min, InRect.Min + FIntPoint(Width, Height));
 
-	float RectScale = 1;
 
 	// Make sure the rect doesn't exceed the maximum resolution, and preserve its aspect ratio if it needs to be clamped
-	int32 RectMaxSize = OutRect.Max.GetMax();
-	if (RectMaxSize > MaxTextureSize)
-	{
-		RectScale = float(MaxTextureSize) / RectMaxSize;
-		UE_LOG(LogDisplayClusterViewport, Error, TEXT("The viewport '%s' rect '%s' size %dx%d clamped: max texture dimensions is %d"), *InViewportId, (InResourceName == nullptr) ? TEXT("none") : InResourceName, InRect.Max.X, InRect.Max.Y, MaxTextureSize);
-	}
+	const int32 RectMaxSize = OutRect.Max.GetMax();
+	const float RectScale = (RectMaxSize > MaxTextureSize)
+		? float(MaxTextureSize) / RectMaxSize
+		: 1.f;
 
 	OutRect.Min.X = FMath::Min(OutRect.Min.X, MaxTextureSize);
 	OutRect.Min.Y = FMath::Min(OutRect.Min.Y, MaxTextureSize);
@@ -147,6 +144,42 @@ FIntRect FDisplayClusterViewportHelpers::GetValidViewportRect(const FIntRect& In
 
 	OutRect.Max.X = FMath::Clamp(ScaledRectMax.X, OutRect.Min.X, MaxTextureSize);
 	OutRect.Max.Y = FMath::Clamp(ScaledRectMax.Y, OutRect.Min.Y, MaxTextureSize);
+
+	// It's a temporary solution.
+	// It does not work properly for multiple DCRAs with the same viewport names.
+	static TMap<FString, bool> CachedLogMessages;
+	const FString UniqueLogMessageId = FString::Printf(TEXT("%s.%s"), *InViewportId, (InResourceName == nullptr) ? TEXT("none") : InResourceName);
+	bool* const LogMessageStatePtr = CachedLogMessages.Find(UniqueLogMessageId);
+
+	if (InRect != OutRect)
+	{
+		if (LogMessageStatePtr == nullptr || *LogMessageStatePtr == false)
+		{
+			UE_LOG(LogDisplayClusterViewport, Error,
+				TEXT("The '%s' %s has been clamped %dx%d->%dx%d (max texture dimensions is %d)"),
+				*InViewportId,
+				(InResourceName == nullptr) ? TEXT("none") : InResourceName,
+				InRect.Width(), InRect.Height(),
+				OutRect.Width(), OutRect.Height(),
+				MaxTextureSize);
+
+			// Raise the flag to show the log message once
+			if (LogMessageStatePtr)
+			{
+				*LogMessageStatePtr = true;
+			}
+			else
+			{
+				CachedLogMessages.Emplace(UniqueLogMessageId, true);
+			}
+		}
+	}
+	else if (LogMessageStatePtr)
+	{
+		// Reset flag
+		*LogMessageStatePtr = false;
+	}
+
 
 	return OutRect;
 }
@@ -226,4 +259,60 @@ EPixelFormat FDisplayClusterViewportHelpers::GetPreviewDefaultPixelFormat()
 EPixelFormat FDisplayClusterViewportHelpers::GetDefaultPixelFormat()
 {
 	return EPixelFormat::PF_FloatRGBA;
+}
+
+bool FDisplayClusterViewportHelpers::GetValidResourceRectsForResolve(
+	const FRHITexture* InSourceTexture,
+	const FRHITexture* InDestTexture,
+	FIntRect& InOutSourceRect,
+	FIntRect& InOutDestRect)
+{
+	if (!InSourceTexture || !InDestTexture)
+	{
+		return false;
+	}
+
+	FIntRect SrcRect(InOutSourceRect);
+	FIntRect DestRect(InOutDestRect);
+
+	const FIntPoint& InputResourceSize = InSourceTexture->GetDesc().Extent;
+	const FIntPoint& OutputResourceSize = InDestTexture->GetDesc().Extent;
+
+	// If SrcRect or DestRect exceeds the texture size, RHI will crash. Let's adjust it to the texture size.
+	{
+		SrcRect.Min.X = FMath::Clamp(SrcRect.Min.X, 0, InputResourceSize.X);
+		SrcRect.Min.Y = FMath::Clamp(SrcRect.Min.Y, 0, InputResourceSize.Y);
+		SrcRect.Max.X = FMath::Clamp(SrcRect.Max.X, 0, InputResourceSize.X);
+		SrcRect.Max.Y = FMath::Clamp(SrcRect.Max.Y, 0, InputResourceSize.Y);
+
+		DestRect.Min.X = FMath::Clamp(DestRect.Min.X, 0, OutputResourceSize.X);
+		DestRect.Min.Y = FMath::Clamp(DestRect.Min.Y, 0, OutputResourceSize.Y);
+		DestRect.Max.X = FMath::Clamp(DestRect.Max.X, 0, OutputResourceSize.X);
+		DestRect.Max.Y = FMath::Clamp(DestRect.Max.Y, 0, OutputResourceSize.Y);
+	}
+
+	// if InputRect.Min<0, also adjust the DestRect.Min
+	DestRect.Min += FIntPoint(
+		FMath::Max(0, -InOutSourceRect.Min.X),
+		FMath::Max(0, -InOutSourceRect.Min.Y));
+
+	// if OutputRect.Min<0, also adjust the SrcRect.Min
+	SrcRect.Min += FIntPoint(
+		FMath::Max(0, -InOutDestRect.Min.X),
+		FMath::Max(0, -InOutDestRect.Min.Y));
+
+	// SrcRect.Min and DestRect.Min always > 0
+
+	// Check the SrcRect and DestRect
+	if (SrcRect.Size().GetMin() <= 0 || DestRect.Size().GetMin() <= 0)
+	{
+		// The SrcRect or DestRect is invalid.
+		return false;
+	}
+
+	// Can be resolved
+	InOutSourceRect = SrcRect;
+	InOutDestRect = DestRect;
+
+	return true;
 }

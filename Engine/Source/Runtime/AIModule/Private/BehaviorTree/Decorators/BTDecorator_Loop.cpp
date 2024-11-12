@@ -29,7 +29,7 @@ void UBTDecorator_Loop::OnNodeActivation(FBehaviorTreeSearchData& SearchData)
 		(!bIsSpecialNode && ParentMemory->CurrentChild != ChildIndex))
 	{
 		// initialize counter if it's first activation
-		DecoratorMemory->RemainingExecutions = IntCastChecked<uint8>(NumLoops);
+		DecoratorMemory->RemainingExecutions = IntCastChecked<uint8>(NumLoops.GetValue(SearchData.OwnerComp));
 		DecoratorMemory->TimeStarted = GetWorld()->GetTimeSeconds();
 	}
 
@@ -39,7 +39,8 @@ void UBTDecorator_Loop::OnNodeActivation(FBehaviorTreeSearchData& SearchData)
 		// protect from truly infinite loop within single search
 		if (SearchData.SearchId != DecoratorMemory->SearchId)
 		{
-			if ((InfiniteLoopTimeoutTime < 0.f) || ((DecoratorMemory->TimeStarted + InfiniteLoopTimeoutTime) > GetWorld()->GetTimeSeconds()))
+			const float Timeout = InfiniteLoopTimeoutTime.GetValue(SearchData.OwnerComp);
+			if ((Timeout < 0.f) || ((DecoratorMemory->TimeStarted + Timeout) > GetWorld()->GetTimeSeconds()))
 			{
 				bShouldLoop = true;
 			}
@@ -69,18 +70,18 @@ FString UBTDecorator_Loop::GetStaticDescription() const
 	// basic info: infinite / num loops
 	if (bInfiniteLoop)
 	{
-		if (InfiniteLoopTimeoutTime < 0.f)
+		if (InfiniteLoopTimeoutTime.GetKey().IsNone() && InfiniteLoopTimeoutTime.GetValue(static_cast<const UBehaviorTreeComponent*>(nullptr)) <= 0.f)
 		{
 			return FString::Printf(TEXT("%s: infinite"), *Super::GetStaticDescription());
 		}
 		else
 		{
-			return FString::Printf(TEXT("%s: loop for %s seconds"), *Super::GetStaticDescription(), *FString::SanitizeFloat(InfiniteLoopTimeoutTime));
+			return FString::Printf(TEXT("%s: loop for %s seconds"), *Super::GetStaticDescription(), *InfiniteLoopTimeoutTime.ToString());
 		}
 	}
 	else
 	{
-		return FString::Printf(TEXT("%s: %d loops"), *Super::GetStaticDescription(), NumLoops);
+		return FString::Printf(TEXT("%s: %s loops"), *Super::GetStaticDescription(), *NumLoops.ToString());
 	}
 }
 
@@ -88,16 +89,17 @@ void UBTDecorator_Loop::DescribeRuntimeValues(const UBehaviorTreeComponent& Owne
 {
 	Super::DescribeRuntimeValues(OwnerComp, NodeMemory, Verbosity, Values);
 
+	const float Timeout = InfiniteLoopTimeoutTime.GetValue(OwnerComp);
 	if (!bInfiniteLoop)
 	{
 		FBTLoopDecoratorMemory* DecoratorMemory = (FBTLoopDecoratorMemory*)NodeMemory;
 		Values.Add(FString::Printf(TEXT("loops remaining: %d"), DecoratorMemory->RemainingExecutions));
 	}
-	else if (InfiniteLoopTimeoutTime > 0.f)
+	else if (Timeout > 0.f)
 	{
 		FBTLoopDecoratorMemory* DecoratorMemory = (FBTLoopDecoratorMemory*)NodeMemory;
 
-		const double TimeRemaining = FMath::Max(InfiniteLoopTimeoutTime - (GetWorld()->GetTimeSeconds() - DecoratorMemory->TimeStarted), 0.f);
+		const double TimeRemaining = FMath::Max(Timeout - (GetWorld()->GetTimeSeconds() - DecoratorMemory->TimeStarted), 0.f);
 		Values.Add(FString::Printf(TEXT("time remaining: %s"), *FString::SanitizeFloat(TimeRemaining)));
 	}
 }

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ISequencerChannelInterface.h"
 #include "Channels/MovieSceneChannelHandle.h"
 #include "Containers/ArrayView.h"
 #include "Misc/NotifyHook.h"
@@ -11,7 +12,7 @@
 class FMenuBuilder;
 class UMovieSceneSection;
 
-class FPropertyAnimatorEditorCurveSectionMenuExtension : public TSharedFromThis<FPropertyAnimatorEditorCurveSectionMenuExtension>
+class FPropertyAnimatorEditorCurveSectionMenuExtension : public TSharedFromThis<FPropertyAnimatorEditorCurveSectionMenuExtension>, public ISidebarChannelExtension
 {
 	struct FChannelNotifyHook : FNotifyHook
 	{
@@ -30,13 +31,12 @@ class FPropertyAnimatorEditorCurveSectionMenuExtension : public TSharedFromThis<
 	};
 
 public:
-	FPropertyAnimatorEditorCurveSectionMenuExtension(TConstArrayView<FMovieSceneChannelHandle> InChannelHandles, TConstArrayView<UMovieSceneSection*> InSections);
-
+	FPropertyAnimatorEditorCurveSectionMenuExtension(TConstArrayView<FMovieSceneChannelHandle> InChannelHandles, const TConstArrayView<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections);
 	virtual ~FPropertyAnimatorEditorCurveSectionMenuExtension() = default;
 
 	virtual bool GetParameterStructData(FMovieSceneChannelHandle InChannelHandle, UStruct*& OutStruct, uint8*& OutData) const = 0;
 
-	void ExtendMenu(FMenuBuilder& InMenuBuilder);
+	virtual TSharedPtr<ISidebarChannelExtension> ExtendMenu(FMenuBuilder& InMenuBuilder, const bool bInSubMenu) override;
 
 private:
 	void Initialize();
@@ -49,7 +49,7 @@ private:
 
 	TArray<int32> ChannelHandleSectionIndexes;
 
-	TArray<UMovieSceneSection*> Sections;
+	TArray<TWeakObjectPtr<UMovieSceneSection>> WeakSections;
 
 	TArray<FChannelNotifyHook> NotifyHooks;
 };
@@ -58,8 +58,8 @@ template<typename InChannelType>
 class TPropertyAnimatorEditorCurveSectionMenuExtension : public FPropertyAnimatorEditorCurveSectionMenuExtension
 {
 public:
-	TPropertyAnimatorEditorCurveSectionMenuExtension(const TConstArrayView<FMovieSceneChannelHandle>& InChannelHandles, const TConstArrayView<UMovieSceneSection*>& InSections)
-		: FPropertyAnimatorEditorCurveSectionMenuExtension(InChannelHandles, InSections)
+	TPropertyAnimatorEditorCurveSectionMenuExtension(const TConstArrayView<FMovieSceneChannelHandle>& InChannelHandles, const TConstArrayView<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections)
+		: FPropertyAnimatorEditorCurveSectionMenuExtension(InChannelHandles, InWeakSections)
 	{
 	}
 

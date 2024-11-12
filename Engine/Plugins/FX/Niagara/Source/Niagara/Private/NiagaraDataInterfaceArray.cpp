@@ -96,8 +96,7 @@ void UNiagaraDataInterfaceArray::SetShaderParameters(const FNiagaraDataInterface
 
 UObject* UNiagaraDataInterfaceArray::SimCacheBeginWrite(UObject* SimCache, FNiagaraSystemInstance* NiagaraSystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const
 {
-	UNDIArraySimCacheData* CacheData = NewObject<UNDIArraySimCacheData>(SimCache);
-	return CacheData;
+	return OptionalPerInstanceData ? NewObject<UNDIArraySimCacheData>(SimCache) : nullptr;
 }
 
 bool UNiagaraDataInterfaceArray::SimCacheWriteFrame(UObject* StorageObject, int FrameIndex, FNiagaraSystemInstance* SystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const
@@ -118,10 +117,10 @@ bool UNiagaraDataInterfaceArray::SimCacheReadFrame(UObject* StorageObject, int F
 	return ArrayProxy->SimCacheReadFrame(CacheData, FrameA, SystemInstance);
 }
 
-bool UNiagaraDataInterfaceArray::SimCacheCompareFrame(UObject* LhsStorageObject, UObject* RhsStorageObject, int FrameIndex, TOptional<float> InTolerance, FString& OutErrors) const
+bool UNiagaraDataInterfaceArray::SimCacheCompareFrame(const UObject* LhsStorageObject, const UObject* RhsStorageObject, int FrameIndex, TOptional<float> InTolerance, FString& OutErrors) const
 {
-	UNDIArraySimCacheData* LhsCacheData = CastChecked<UNDIArraySimCacheData>(LhsStorageObject);
-	UNDIArraySimCacheData* RhsCacheData = CastChecked<UNDIArraySimCacheData>(RhsStorageObject);
+	const UNDIArraySimCacheData* LhsCacheData = CastChecked<const UNDIArraySimCacheData>(LhsStorageObject);
+	const UNDIArraySimCacheData* RhsCacheData = CastChecked<const UNDIArraySimCacheData>(RhsStorageObject);
 
 	if (!LhsCacheData->CpuFrameData.IsValidIndex(FrameIndex) || !RhsCacheData->CpuFrameData.IsValidIndex(FrameIndex) ||
 		!LhsCacheData->GpuFrameData.IsValidIndex(FrameIndex) || !RhsCacheData->GpuFrameData.IsValidIndex(FrameIndex) )

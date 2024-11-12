@@ -12,7 +12,7 @@ StereoRenderTargetManager.h: Abstract interface returned from IStereoRendering t
 class FRHITexture;
 enum class ETextureCreateFlags : uint64;
 enum EShaderPlatform : uint16;
-typedef TRefCountPtr<FRHITexture> FTexture2DRHIRef;
+typedef TRefCountPtr<FRHITexture> FTextureRHIRef;
 
 /** 
  * The IStereoRenderTargetManager can be returned from IStereoRendering::GetRenderTargetManager() implementations.
@@ -74,7 +74,7 @@ public:
 	 * @return				true, if texture was allocated; false, if the default texture allocation should be used.
 	 */
 	UE_DEPRECATED(5.2, "Implement AllocateRenderTargetTextures to allocate all textures at once")
-	virtual bool AllocateRenderTargetTexture(uint32 Index, uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, ETextureCreateFlags TargetableTextureFlags, FTexture2DRHIRef& OutTargetableTexture, FTexture2DRHIRef& OutShaderResourceTexture, uint32 NumSamples = 1) { return false; }
+	virtual bool AllocateRenderTargetTexture(uint32 Index, uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, ETextureCreateFlags TargetableTextureFlags, FTextureRHIRef& OutTargetableTexture, FTextureRHIRef& OutShaderResourceTexture, uint32 NumSamples = 1) { return false; }
 
 	/**
 	 * Allocates the render target textures, which includes the color textures and optionally other textures like depth.
@@ -82,7 +82,7 @@ public:
 	 *
 	 * @return				true, if textures were allocated; false, if the default texture allocation should be used.
 	 */
-	virtual bool AllocateRenderTargetTextures(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumLayers, ETextureCreateFlags Flags, ETextureCreateFlags TargetableTextureFlags, TArray<FTexture2DRHIRef>& OutTargetableTextures, TArray<FTexture2DRHIRef>& OutShaderResourceTextures, uint32 NumSamples = 1) { return false; }
+	virtual bool AllocateRenderTargetTextures(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumLayers, ETextureCreateFlags Flags, ETextureCreateFlags TargetableTextureFlags, TArray<FTextureRHIRef>& OutTargetableTextures, TArray<FTextureRHIRef>& OutShaderResourceTextures, uint32 NumSamples = 1) { return false; }
 
 	/**
 	 * Returns pixel format that the device created its swapchain with (which can be different than what was requested in AllocateRenderTargetTexture)
@@ -95,6 +95,13 @@ public:
 	 * @return				the index of the texture in the array returned by AllocateRenderTargetTexture.
 	 */
 	virtual int32 AcquireColorTexture() { return -1; }
+	
+	/**
+	 * Acquires the next available depth texture.
+	 * 
+	 * @return				the index of the texture in the array returned by AllocateRenderTargetTexture.
+	 */
+	virtual int32 AcquireDepthTexture() { return -1; }
 
 	/**
 	 * Allocates a depth texture.
@@ -102,7 +109,7 @@ public:
 	 * @param Index			(in) index of the buffer, changing from 0 to GetNumberOfBufferedFrames()
 	 * @return				true, if texture was allocated; false, if the default texture allocation should be used.
 	 */
-	virtual bool AllocateDepthTexture(uint32 Index, uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, ETextureCreateFlags TargetableTextureFlags, FTexture2DRHIRef& OutTargetableTexture, FTexture2DRHIRef& OutShaderResourceTexture, uint32 NumSamples = 1) { return false; }
+	virtual bool AllocateDepthTexture(uint32 Index, uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, ETextureCreateFlags TargetableTextureFlags, FTextureRHIRef& OutTargetableTexture, FTextureRHIRef& OutShaderResourceTexture, uint32 NumSamples = 1) { return false; }
 
 	/**
 	 * Allocates a shading rate texture.
@@ -111,7 +118,7 @@ public:
 	 * @param Index			(in) index of the buffer, changing from 0 to GetNumberOfBufferedFrames()
 	 * @return				true, if texture was allocated; false, if the default texture allocation should be used.
 	 */
-	virtual bool AllocateShadingRateTexture(uint32 Index, uint32 RenderSizeX, uint32 RenderSizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, ETextureCreateFlags TargetableTextureFlags, FTexture2DRHIRef& OutTexture, FIntPoint& OutTextureSize) { return false; }
+	virtual bool AllocateShadingRateTexture(uint32 Index, uint32 RenderSizeX, uint32 RenderSizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, ETextureCreateFlags TargetableTextureFlags, FTextureRHIRef& OutTexture, FIntPoint& OutTextureSize) { return false; }
 
 	/**
 	 * Retrieves HDR information about the stereo device, if any is available.

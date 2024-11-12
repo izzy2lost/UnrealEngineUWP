@@ -30,25 +30,28 @@ enum class EDMExpressionMenu : uint8
 };
 
 /**
- * A node which directly represents an material expression (or function).
+ * A node which directly represents a material expression (or function).
  */
-UCLASS(Abstract, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage Expression"))
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageExpression : public UDMMaterialStageThroughput
+UCLASS(MinimalAPI, Abstract, BlueprintType, Blueprintable, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage Expression"))
+class UDMMaterialStageExpression : public UDMMaterialStageThroughput
 {
 	GENERATED_BODY()
 
 public:
 	static TSet<FName> BlockedMaterialExpressionClasses;
 
-	static UDMMaterialStage* CreateStage(TSubclassOf<UDMMaterialStageExpression> InMaterialStageExpressionClass, UDMMaterialLayerObject* InLayer = nullptr);
+	DYNAMICMATERIALEDITOR_API static UDMMaterialStage* CreateStage(TSubclassOf<UDMMaterialStageExpression> InMaterialStageExpressionClass, 
+		UDMMaterialLayerObject* InLayer = nullptr);
 
 	/** Some expressions are either exported or not at random. Use this to find ones that aren't. */
-	static TSubclassOf<UMaterialExpression> FindClass(FString InClassName);
+	DYNAMICMATERIALEDITOR_API static TSubclassOf<UMaterialExpression> FindClass(FString InClassName);
+
+	UDMMaterialStageExpression();
 
 	static const TArray<TStrongObjectPtr<UClass>>& GetAvailableSourceExpressions();
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageExpression* ChangeStageSource_Expression(UDMMaterialStage* InStage,
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageExpression* ChangeStageSource_Expression(UDMMaterialStage* InStage,
 		TSubclassOf<UDMMaterialStageExpression> InExpressionClass);
 
 	template<typename InExpressionClass>
@@ -63,21 +66,22 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	const TArray<EDMExpressionMenu>& GetMenus() const { return Menus; }
 
-	virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
+	//~ Begin UDMMaterialStageSource
+	DYNAMICMATERIALEDITOR_API virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
+	//~ End UDMMaterialStageSource
 
 protected:
 	static TArray<TStrongObjectPtr<UClass>> SourceExpressions;
 
 	static void GenerateExpressionList();
 
-	UDMMaterialStageExpression();
-	UDMMaterialStageExpression(const FText& InName, TSubclassOf<UMaterialExpression> InClass);
-
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	TSubclassOf<UMaterialExpression> MaterialExpressionClass;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	TArray<EDMExpressionMenu> Menus;
+
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageExpression(const FText& InName, TSubclassOf<UMaterialExpression> InClass);
 };
 
 

@@ -49,10 +49,8 @@ RWTexture3D<float4> RWVBufferA;
 RWTexture3D<float4> RWVBufferB;
 #endif
 
-#ifndef USE_CLOUD_TRANSMITTANCE
-#define USE_CLOUD_TRANSMITTANCE 0
-#endif
-#if USE_CLOUD_TRANSMITTANCE
+#if !SHADING_PATH_MOBILE
+#define USE_CLOUD_TRANSMITTANCE 1
 #include "VolumetricCloudCommon.ush"
 #endif
 
@@ -70,7 +68,7 @@ float3 ComputeCellTranslatedWorldPosition(uint3 GridCoordinate, float3 CellOffse
 	float2 VolumeUV = (GridCoordinate.xy + CellOffset.xy) / VolumetricFog.ViewGridSize.xy;
 	float2 VolumeNDC = (VolumeUV * 2 - 1) * float2(1, -1);
 
-	SceneDepth = ComputeDepthFromZSlice(GridCoordinate.z + CellOffset.z);
+	SceneDepth = ComputeDepthFromZSlice(max(GridCoordinate.z + CellOffset.z, 0.0f));
 
 	float TileDeviceZ = ConvertToDeviceZ(SceneDepth);
 	float4 CenterPosition = mul(float4(VolumeNDC, TileDeviceZ, 1), UnjitteredClipToTranslatedWorld);
@@ -81,17 +79,6 @@ float3 ComputeCellTranslatedWorldPosition(uint3 GridCoordinate, float3 CellOffse
 {
 	float Unused;
 	return ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, Unused);
-}
-
-float3 ComputeCellWorldPosition(uint3 GridCoordinate, float3 CellOffset, out float SceneDepth)
-{
-	return ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, SceneDepth) - DFHackToFloat(PrimaryView.PreViewTranslation);
-}
-
-float3 ComputeCellWorldPosition(uint3 GridCoordinate, float3 CellOffset)
-{
-	float Unused;
-	return ComputeCellWorldPosition(GridCoordinate, CellOffset, Unused);
 }
 
 float3 RaleighScattering()
@@ -131,6 +118,7 @@ float GlobalExtinctionScale;
 #define THREADGROUP_SIZE_Z THREADGROUP_SIZE
 #endif
 
+#ifdef MaterialSetupCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, THREADGROUP_SIZE)]
 void MaterialSetupCS( 
 	uint3 GroupId : SV_GroupID,
@@ -142,7 +130,7 @@ void MaterialSetupCS(
 	// Center of the voxel
 	float VoxelOffset = .5f;
 	 
-	float3 WorldPosition = ComputeCellWorldPosition(GridCoordinate, VoxelOffset);
+	float3 WorldPosition = ComputeCellTranslatedWorldPosition(GridCoordinate, VoxelOffset) - DFHackToFloat(PrimaryView.PreViewTranslation);
 
 	float GlobalDensityFirst = FogStruct.ExponentialFogParameters3.x * exp2(-FogStruct.ExponentialFogParameters.y * (WorldPosition.z - FogStruct.ExponentialFogParameters3.y));
 	float GlobalDensitySecond = FogStruct.ExponentialFogParameters2.z * exp2(-FogStruct.ExponentialFogParameters2.y * (WorldPosition.z - FogStruct.ExponentialFogParameters2.w));
@@ -152,7 +140,8 @@ void MaterialSetupCS(
 
 	// Exponential height fog interprets density differently, match its behavior
 	float MatchHeightFogFactor = .5f;
-	float Extinction = max(GlobalDensity * GlobalExtinctionScale * MatchHeightFogFactor, 0);
+	GlobalDensity *= MatchHeightFogFactor;
+	float Extinction = max(GlobalDensity * GlobalExtinctionScale, 0);
 
 	float3 Scattering = Albedo * Extinction;
 	float Absorption = max(Extinction - Luminance(Scattering), 0.0f);
@@ -163,12 +152,8 @@ void MaterialSetupCS(
 	float CellOffset = .5f;
 	float SceneDepth;
 	float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, SceneDepth);
-	if(length(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin) > LFVGlobalStartDistance)
+	if(GetDistanceToCameraFromViewVector(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin) > LFVGlobalStartDistance)
 	{
-		float3 CamRayTranslatedWorldOrigin = PrimaryView.TranslatedWorldCameraOrigin;
-		float3 PreViewTranslation = DFHackToFloat(PrimaryView.PreViewTranslation);
-		//float3 TranslatedWorldPosition = WorldPosition + PreViewTranslation;
-
 
 		float4 VertexClipSpacePosition = mul(float4(TranslatedWorldPosition.xyz, 1), PrimaryView.TranslatedWorldToClip);
 		float2 SvPosition = (VertexClipSpacePosition.xy / VertexClipSpacePosition.w * float2(.5f, -.5f) + .5f) * PrimaryView.ViewSizeAndInvSize.xy;
@@ -176,18 +161,14 @@ void MaterialSetupCS(
 
 		uint LFVCount = LFVTileDataTex[uint3(TilePos, 0)];
 
-		for (int LFVIndex = 0; LFVIndex < LFVCount; ++LFVIndex)
+		for (uint LFVIndex = 0; LFVIndex < LFVCount; ++LFVIndex)
 		{
 			uint InstanceIndex = LFVTileDataTex[uint3(TilePos, 1 + LFVIndex)];
-
-			float3 CamRayWorldOrigin = CamRayTranslatedWorldOrigin - PreViewTranslation;
-			float3 CamRayTranslatedWorldDir = normalize(TranslatedWorldPosition - CamRayTranslatedWorldOrigin);
-			float3 CamRayWorldDir = CamRayTranslatedWorldDir;
 
 			// LFV_TODO skip if out of sphere of influence
 			FLocalFogVolumeGPUInstanceData FogInstance = GetLocalFogVolumeGPUInstanceData(InstanceIndex);
 
-			float3 UnitSpacePos = mul(float4(WorldPosition, 1.0), FogInstance.InvTransform).xyz;
+			float3 UnitSpacePos = mul(TranslatedWorldPosition - FogInstance.TranslatedWorlPos, FogInstance.PreTranslatedInvTransform);
 
 			float DistToCenter = length(UnitSpacePos - float3(0.0f, 0.0f, 0.0f));
 			float SphereFade = saturate(1.0f - DistToCenter);
@@ -250,10 +231,15 @@ void MaterialSetupCS(
 	{
 		RWVBufferA[GridCoordinate] = float4(Scattering, Absorption);
 #if USE_EMISSIVE
-		RWVBufferB[GridCoordinate] = float4(GlobalEmissive.rgb + AdditionalEmissive, 0);
+		float3 HeightFogEmissive = GlobalEmissive.rgb;
+	#if PROJECT_EXPFOG_MATCHES_VFOG
+		HeightFogEmissive.rgb *= GlobalDensity; // Emissive needs to follow the height fog density for a better match
+	#endif 
+		RWVBufferB[GridCoordinate] = float4(HeightFogEmissive.rgb + AdditionalEmissive, 0);
 #endif
 	}
 }
+#endif
 
 // Positive g = forward scattering
 // Zero g = isotropic
@@ -396,6 +382,7 @@ float4 InjectShadowedLocalLightCommon(uint3 GridCoordinate)
 		NumSuperSamples = HistoryAlpha < .001f ? HistoryMissSuperSampleCount : 1;
 
 #endif
+		const bool bSoftFadeEnabled = VolumetricFog.LightSoftFading > 0;
 
 		for (uint SampleIndex = 0; SampleIndex < NumSuperSamples; SampleIndex++)
 		{
@@ -404,10 +391,11 @@ float4 InjectShadowedLocalLightCommon(uint3 GridCoordinate)
 
 			float SceneDepth;
 			float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, SceneDepth);
-			float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation);
-			float3 CameraVector = normalize(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin);
+			float3 CameraVector = GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 
 			float CellRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(GridCoordinate + uint3(1, 1, 1), CellOffset));
+			float Cell2DRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(GridCoordinate + uint3(1, 1, 0), CellOffset));
+			float LightVolumetricSoftFadeDistance = VolumetricFog.LightSoftFading * Cell2DRadius;
 			// Bias the inverse squared light falloff based on voxel size to prevent aliasing near the light source
 			float DistanceBias = max(CellRadius * InverseSquaredLightDistanceBiasScale, 1);
 
@@ -419,7 +407,15 @@ float4 InjectShadowedLocalLightCommon(uint3 GridCoordinate)
 			{
 				FRect Rect = GetRect(ToLight, LightData);
 
-				Lighting = IntegrateLight(Rect);
+				float SoftFade = 1.0f;
+#if USE_LIGHT_SOFT_FADING
+				if (bSoftFadeEnabled)
+				{
+					SoftFade = GetRectLightVolumetricSoftFading(LightData, Rect, LightVolumetricSoftFadeDistance, ToLight);
+				}
+#endif // USE_LIGHT_SOFT_FADING
+
+				Lighting = SoftFade * IntegrateLight(Rect);
 
 #if USE_RECT_LIGHT_TEXTURE
 				if (IsRectVisible(Rect))
@@ -435,7 +431,15 @@ float4 InjectShadowedLocalLightCommon(uint3 GridCoordinate)
 				FCapsuleLight Capsule = GetCapsule(ToLight, LightData);
 				Capsule.DistBiasSqr = Pow2(DistanceBias);
 
-				Lighting = IntegrateLight(Capsule, LightData.bInverseSquared);
+				float SoftFade = 1.0f;
+#if USE_LIGHT_SOFT_FADING
+				if (LightData.bSpotLight && bSoftFadeEnabled)
+				{
+					SoftFade = GetSpotLightVolumetricSoftFading(LightData, LightVolumetricSoftFadeDistance, ToLight);
+				}
+#endif // USE_LIGHT_SOFT_FADING
+
+				Lighting = SoftFade * IntegrateLight(Capsule, LightData.bInverseSquared);
 			}
 
 			float CombinedAttenuation = Lighting * LightMask;
@@ -679,7 +683,76 @@ float3 MobileDirectionalLightDirection;
 #endif
 
 Texture3D<float> RaytracedShadowsVolume;
+Texture3D<float3> MegaLightsVolume;
 
+// Modify UV used to sample LightScatteringHistory to avoid cells that were occluded last frame
+float2 FixupHistoryUV(float2 UV, float2 Size, float PrevCellNDCPositionZ, out bool bHasValidHistory)
+{
+	float2 FullResUV = UV * Size;
+
+	uint2 ScreenCoord = floor(FullResUV - 0.5f);
+	float2 BilinearWeights = frac(FullResUV - 0.5f);
+	float2 GatherUV = (ScreenCoord + 1.0f) / Size;
+
+	float2 FullResOffset = FullResUV - ScreenCoord;
+
+	const float2 PrevConservativeDepthGatherUV = GatherUV / (PrimaryView.VolumetricFogViewGridUVToPrevViewRectUV.xy * PrimaryView.VolumetricFogPrevViewGridRectUVToResourceUV.xy);
+	const float4 PrevSceneDepths = PrevConservativeDepthTexture.Gather(LightScatteringHistorySampler, PrevConservativeDepthGatherUV);
+	const bool4 ValidSamples = PrevSceneDepths < PrevCellNDCPositionZ;
+	
+	bHasValidHistory = true;
+
+	if (all(ValidSamples))
+	{
+		return UV;
+	}
+	
+	// Gather pattern:
+    // wz
+    // xy
+	
+	if (all(ValidSamples.wz))
+	{
+		return (ScreenCoord + float2(FullResOffset.x, 0.5f)) / Size;
+	}
+	if (all(ValidSamples.xy))
+	{
+		return (ScreenCoord + float2(FullResOffset.x, 1.5f)) / Size;
+	}
+	if (all(ValidSamples.wx))
+	{
+		return (ScreenCoord + float2(0.5f, FullResOffset.y)) / Size;
+	}
+	if (all(ValidSamples.zy))
+	{
+		return (ScreenCoord + float2(1.5f, FullResOffset.y)) / Size;
+	}
+
+	if (ValidSamples.x)
+	{
+		return (ScreenCoord + float2(0.5f, 1.5f)) / Size;
+	}
+
+	if (ValidSamples.y)
+	{
+		return (ScreenCoord + float2(1.5f, 1.5f)) / Size;
+	}
+
+	if (ValidSamples.w)
+	{
+		return (ScreenCoord + float2(0.5f, 0.5f)) / Size;
+	}
+
+	if (ValidSamples.z)
+	{
+		return (ScreenCoord + float2(1.5f, 0.5f)) / Size;
+	}
+
+	bHasValidHistory = false;
+	return UV;
+}
+
+#ifdef LightScatteringCS
 [numthreads(THREADGROUP_SIZE_X, THREADGROUP_SIZE_Y, THREADGROUP_SIZE_Z)]
 void LightScatteringCS(
 	uint3 GroupId : SV_GroupID,
@@ -690,11 +763,16 @@ void LightScatteringCS(
 	float3 LightScattering = 0;
 	uint NumSuperSamples = 1;
 
+#if USE_TEMPORAL_REPROJECTION
+	float3 HistoryUV = ComputeHistoryVolumeUV_DEPRECATED(ComputeCellTranslatedWorldPosition(GridCoordinate, .5f), UnjitteredPrevTranslatedWorldToClip);
+	bool bHasValidHistory = true;
+#endif
+
 	// If the froxel is behind front depth, do not evaluate any lighting.
-	bool CellWasOccluded = false;
 	if (UseConservativeDepthTexture > 0)
 	{
-		const float3 FarDepthOffset = float3(0.5f, 0.5f, -1.0f);
+		// expand by half voxel towards the camera to support bilinear filtering
+		const float3 FarDepthOffset = float3(0.5f, 0.5f, -0.5f);
 		float3 CellTranslatedWorldPosition = ComputeCellTranslatedWorldPosition(GridCoordinate, FarDepthOffset);
 
 		float4 CellNDCPosition = mul(float4(CellTranslatedWorldPosition, 1), PrimaryView.TranslatedWorldToClip);
@@ -709,23 +787,22 @@ void LightScatteringCS(
 			return;
 		}
 
+#if USE_TEMPORAL_REPROJECTION
+		// TODO: investigate whether using CellTranslatedWorldPosition (which is biased towards camera) is correct here
+		// it might be more accurate to transform unbiased translated world position to previous frame clip space and apply bias towards camera in that space?
 		float4 PrevCellNDCPosition = mul(float4(CellTranslatedWorldPosition, 1), UnjitteredPrevTranslatedWorldToClip);
 		PrevCellNDCPosition.xyz /= PrevCellNDCPosition.w;
-		float2 PrevUVs = PrevCellNDCPosition.xy * float2(0.5f, -0.5f) + 0.5f;
-		const float PrevSceneDepth = PrevConservativeDepthTexture.Load(uint3(PrevConservativeDepthTextureSize * PrevUVs, 0));
-		if (PrevSceneDepth > CellNDCPosition.z)
-		{
-			CellWasOccluded = true;
-		}
+
+		HistoryUV.xy = FixupHistoryUV(HistoryUV.xy, View.VolumetricFogPrevResourceGridSize.xy, PrevCellNDCPosition.z, bHasValidHistory);
+#endif
 	}
 
 #if USE_TEMPORAL_REPROJECTION
-	float3 HistoryUV = ComputeHistoryVolumeUV_DEPRECATED(ComputeCellTranslatedWorldPosition(GridCoordinate, .5f), UnjitteredPrevTranslatedWorldToClip);
 	float HistoryAlpha = HistoryWeight;
 
 	// We need to test with View.VolumetricFogPrevUVMaxForTemporalBlend for HistoryUV because that is what we clamp with in ComputeHistoryVolumeUV_DEPRECATED.
 	FLATTEN
-	if (any(HistoryUV < 0) || any(HistoryUV >= float3(View.VolumetricFogPrevUVMaxForTemporalBlend, 1.0f)) || CellWasOccluded)
+	if (any(HistoryUV < 0) || any(HistoryUV >= float3(View.VolumetricFogPrevUVMaxForTemporalBlend, 1.0f)) || !bHasValidHistory)
 	{
 		HistoryAlpha = 0;
 	}
@@ -745,8 +822,8 @@ void LightScatteringCS(
 		float SceneDepth;
 		float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, SceneDepth);
 		float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation); // LWC_TODO
-		float CameraVectorLength = length(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin);
-		float3 CameraVector = (TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin) / CameraVectorLength;
+		float CameraVectorLength = GetDistanceToCameraFromViewVector(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin);
+		float3 CameraVector = GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 		
 	#if SHADING_PATH_MOBILE
 		const bool	 bHasDirectionalLight		= MobileHasDirectionalLight > 0;
@@ -777,9 +854,12 @@ void LightScatteringCS(
 				ShadowFactor *= RaytracedShadowsVolume[GridCoordinate];
 #endif
 
-#if USE_CLOUD_TRANSMITTANCE
-				float OutOpticalDepth = 0.0f; 
-				ShadowFactor *= lerp(1.0f, GetCloudVolumetricShadow(TranslatedWorldPosition, CloudShadowmapTranslatedWorldToLightClipMatrix, CloudShadowmapFarDepthKm, CloudShadowmapTexture, CloudShadowmapSampler, OutOpticalDepth), CloudShadowmapStrength);
+#if !SHADING_PATH_MOBILE
+				if (CloudShadowmapStrength > 0.0f)
+				{
+					float OutOpticalDepth = 0.0f;
+					ShadowFactor *= lerp(1.0f, GetCloudVolumetricShadow(TranslatedWorldPosition, CloudShadowmapTranslatedWorldToLightClipMatrix, CloudShadowmapFarDepthKm, CloudShadowmapTexture, CloudShadowmapSampler, OutOpticalDepth), CloudShadowmapStrength);
+				}
 #endif
 			}
 
@@ -797,7 +877,7 @@ void LightScatteringCS(
 		}
 
 		FTwoBandSHVector RotatedHGZonalHarmonic;
-		RotatedHGZonalHarmonic.V = float4(1.0f, CameraVector.y, CameraVector.z, CameraVector.x) * float4(1.0f, PhaseG, PhaseG, PhaseG);
+		RotatedHGZonalHarmonic.V = float4(1.0f, CameraVector.y, CameraVector.z, CameraVector.x) * float4(1.0f, PhaseG, PhaseG, PhaseG); // Note: I believe PhaseG here hsould be negated to match the sky & environment.
 
 		float3 BrickTextureUVs = 0;
 
@@ -834,6 +914,7 @@ void LightScatteringCS(
 			}
 			else
 			{
+				// NOTE it should be CameraVector * PhaseG. But we keep it like that for backward compatibility for now. (visible when r.Lumen.TranslucencyVolume.Enable 0)
 				SkyLighting = SampleSkyLightDiffuseEnvMap > 0 ? View.SkyLightColor.rgb * GetSkySHDiffuseSimple(CameraVector * -PhaseG) : 0.0f.xxx;
 			}
 
@@ -853,23 +934,37 @@ void LightScatteringCS(
 #endif
 
 		uint GridIndex = ComputeLightGridCellIndex(GridCoordinate.xy * VolumetricFog.FogGridToPixelXY, SceneDepth, 0);
-		const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, 0);
+		const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, 0);
 
 		float CellRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(GridCoordinate + uint3(1, 1, 1), CellOffset));
+		float Cell2DRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(GridCoordinate + uint3(1, 1, 0), CellOffset));
+		float LightVolumetricSoftFadeDistance = VolumetricFog.LightSoftFading * Cell2DRadius;
 		// Bias the inverse squared light falloff based on voxel size to prevent aliasing near the light source
 		float DistanceBiasSqr = max(CellRadius * InverseSquaredLightDistanceBiasScale, 1);
 		DistanceBiasSqr *= DistanceBiasSqr;
 
+#if USE_MEGA_LIGHTS
+		// when using Mega Lights Volume only need to apply "non-mega" lights here
+		const uint NumLights = CulledLightsGridHeader.NumLights - CulledLightsGridHeader.NumMegaLights;
+#else
+		const uint NumLights = CulledLightsGridHeader.NumLights;
+#endif
+
 		// Forward lighting of unshadowed point and spot lights
 		LOOP
-		for (uint GridLightListIndex = 0; GridLightListIndex < CulledLightsGrid.NumLights; GridLightListIndex++)
+		for (uint GridLightListIndex = 0; GridLightListIndex < NumLights; GridLightListIndex++)
 		{
-			const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + GridLightListIndex, 0);
+			const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGridHeader.DataStartIndex + GridLightListIndex, 0);
+#if USE_MEGA_LIGHTS
+			checkSlow(!LocalLight.bMegaLightsSupported);
+#endif
 
 			const float VolumetricScatteringIntensity = UnpackVolumetricScatteringIntensity(LocalLight);
 
 			if (VolumetricScatteringIntensity > 0)
 			{
+				const bool bSoftFadeEnabled = VolumetricFog.LightSoftFading > 0;
+
 				const FDeferredLightData LightData = ConvertToDeferredLight(LocalLight);
 
 				float3 L = 0;
@@ -881,14 +976,30 @@ void LightScatteringCS(
 				{
 					FRect Rect = GetRect( ToLight, LightData );
 
-					Lighting = IntegrateLight(Rect);
+					float SofFade = 1.0f;
+#if USE_LIGHT_SOFT_FADING
+					if (bSoftFadeEnabled)
+					{
+						SofFade = GetRectLightVolumetricSoftFading(LightData, Rect, LightVolumetricSoftFadeDistance, ToLight);
+					}
+#endif // USE_LIGHT_SOFT_FADING
+
+					Lighting = SofFade * IntegrateLight(Rect);
 				}
 				else
 				{
 					FCapsuleLight Capsule = GetCapsule(ToLight, LightData);
 					Capsule.DistBiasSqr = DistanceBiasSqr;
 
-					Lighting = IntegrateLight(Capsule, LightData.bInverseSquared);
+					float SofFade = 1.0f;
+#if USE_LIGHT_SOFT_FADING
+					if (LightData.bSpotLight && bSoftFadeEnabled)
+					{
+						SofFade = GetSpotLightVolumetricSoftFading(LightData, LightVolumetricSoftFadeDistance, ToLight);
+					}
+#endif // USE_LIGHT_SOFT_FADING
+
+					Lighting = SofFade * IntegrateLight(Capsule, LightData.bInverseSquared);
 				}
 
 				float CombinedAttenuation = Lighting * LightMask;
@@ -912,6 +1023,13 @@ void LightScatteringCS(
 	// Note: this texture was pre-exposed from InjectShadowedLocalLightPS, se we revert pre-exposure.
 	LightScattering += View.OneOverPreExposure * LocalShadowedLightScattering[GridCoordinate].xyz;
 
+	#if USE_MEGA_LIGHTS
+	{
+		// Inject MegaLights which were computed earlier. This texture was already pre-exposed, so need to rever it here.
+		LightScattering += MegaLightsVolume[GridCoordinate] * View.OneOverPreExposure;
+	}
+	#endif
+
 	float4 MaterialScatteringAndAbsorption = VBufferA[GridCoordinate];
 	float Extinction = MaterialScatteringAndAbsorption.w + Luminance(MaterialScatteringAndAbsorption.xyz);
 	float3 MaterialEmissive = 0.0f;
@@ -933,18 +1051,28 @@ void LightScatteringCS(
 	
 #endif
 
+	// Visualize history rejection for debugging purposes
+#if 0 && USE_TEMPORAL_REPROJECTION
+	if (HistoryAlpha < 0.001f)
+	{
+		PreExposedScatteringAndExtinction = float4(View.PreExposure * float3(1,0,0), Extinction);
+	}
+#endif
+
 	if (all(int3(GridCoordinate) < VolumetricFog.ResourceGridSizeInt))
 	{
 		PreExposedScatteringAndExtinction = MakePositiveFinite(PreExposedScatteringAndExtinction);
 		RWLightScattering[GridCoordinate] = PreExposedScatteringAndExtinction;
 	}
 }
+#endif
 
 Texture3D<float4> LightScattering;
 RWTexture3D<float4> RWIntegratedLightScattering;
 
 float VolumetricFogNearFadeInDistanceInv;
 
+#ifdef FinalIntegrationCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void FinalIntegrationCS(
 	uint3 GroupId : SV_GroupID,
@@ -987,3 +1115,4 @@ void FinalIntegrationCS(
 		RWIntegratedLightScattering[LayerCoordinate] = float4(AccumulatedLighting, AccumulatedTransmittance);
 	}
 }
+#endif

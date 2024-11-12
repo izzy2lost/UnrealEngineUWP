@@ -23,6 +23,7 @@ class AnimatedMapsOutputInstance {
     public:
         virtual ~AnimatedMapsOutputInstance();
         virtual ArrayView<float> getOutputBuffer() = 0;
+        virtual void resetOutputBuffer() = 0;
 
 };
 

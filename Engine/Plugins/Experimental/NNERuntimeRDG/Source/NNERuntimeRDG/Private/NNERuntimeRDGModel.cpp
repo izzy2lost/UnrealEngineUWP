@@ -2,6 +2,7 @@
 
 #include "NNERuntimeRDGModel.h"
 
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeFormat.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
@@ -16,7 +17,8 @@ bool FModelInstanceRDG::LoadModel(TConstArrayView<uint8> ModelData, FNNERuntimeF
 {
 	TConstArrayView<uint8> ModelBuffer = { &(ModelData.GetData()[GuidAndVersionSize]), ModelData.Num() - GuidAndVersionSize };
 
-	FMemoryReaderView Reader(ModelBuffer);
+	FMemoryReaderView Reader(ModelBuffer, /*bIsPersitent =*/ true);
+	Reader.SetIsPersistent(true);
 
 	Format.Serialize(Reader);
 
@@ -30,6 +32,7 @@ bool FModelInstanceRDG::LoadModel(TConstArrayView<uint8> ModelData, FNNERuntimeF
 	WeightTensorIndices.Empty();
 	InputTensorIndices.Empty();
 	OutputTensorIndices.Empty();
+	EmptyTensorIndices.Empty();
 	OperatorInputTensorIndices.Empty();
 	OperatorOutputTensorIndices.Empty();
 
@@ -43,12 +46,19 @@ bool FModelInstanceRDG::LoadModel(TConstArrayView<uint8> ModelData, FNNERuntimeF
 		const NNE::FSymbolicTensorShape SymbolicShape = NNE::FSymbolicTensorShape::Make(FormatTensorDesc.Shape);
 		const NNE::FTensorDesc SymbolicTensor = NNE::FTensorDesc::Make(FormatTensorDesc.Name, SymbolicShape, FormatTensorDesc.DataType);
 
-		if (Format.Tensors[Idx].Type != ENNEFormatTensorType::Empty)
+		if (FormatTensorDesc.Type != ENNEFormatTensorType::Empty && FormatTensorDesc.DataType == ENNETensorDataType::None)
 		{
-			AllSymbolicTensorDescs.Emplace(Idx, SymbolicTensor);
+			UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Tensor %s has invalid format: Data type None is reserved for empty tensors."), *SymbolicTensor.GetName());
+			return false;
 		}
 
-		if (FormatTensorDesc.Type == ENNEFormatTensorType::Input)
+		AllSymbolicTensorDescs.Emplace(Idx, SymbolicTensor);
+
+		if (FormatTensorDesc.Type == ENNEFormatTensorType::Empty)
+		{
+			EmptyTensorIndices.Emplace(Idx);
+		}
+		else if (FormatTensorDesc.Type == ENNEFormatTensorType::Input)
 		{
 			InputTensorIndices.Emplace(Idx);
 			InputSymbolicTensors.Emplace(SymbolicTensor);
@@ -67,7 +77,7 @@ bool FModelInstanceRDG::LoadModel(TConstArrayView<uint8> ModelData, FNNERuntimeF
 			WeightTensorIndices.Emplace(Idx);
 			if (!SymbolicTensor.GetShape().IsConcrete())
 			{
-				UE_LOG(LogNNE, Error, TEXT("Weight tensor %s should have a concrete shape"), *SymbolicTensor.GetName());
+				UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Weight tensor %s should have a concrete shape"), *SymbolicTensor.GetName());
 				return false;
 			}
 
@@ -76,7 +86,7 @@ bool FModelInstanceRDG::LoadModel(TConstArrayView<uint8> ModelData, FNNERuntimeF
 
 			if (WeightRDG.GetDataSize() != FormatTensorDesc.DataSize)
 			{
-				UE_LOG(LogNNE, Error, TEXT("Weight %s has incorrect size. Expected %d bytes, got %d"), *SymbolicTensor.GetName(), FormatTensorDesc.DataSize, WeightRDG.GetDataSize());
+				UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Weight %s has incorrect size. Expected %d bytes, got %d"), *SymbolicTensor.GetName(), FormatTensorDesc.DataSize, WeightRDG.GetDataSize());
 				return false;
 			}
 
@@ -153,6 +163,17 @@ FModelInstanceRDG::ESetInputTensorShapesStatus FModelInstanceRDG::SetInputTensor
 		AllTensorRDGRefs.Emplace(Idx, &OutputTensorRDGs[i]);
 	}
 
+	EmptyTensorRDGs.Reset(EmptyTensorIndices.Num());
+	for (int32 i = 0; i < EmptyTensorIndices.Num(); ++i)
+	{
+		const int32 Idx = EmptyTensorIndices[i];
+		const NNE::FTensorDesc& TensorDesc = AllSymbolicTensorDescs[Idx];
+		const NNE::FTensorShape TensorShape = NNE::FTensorShape::MakeFromSymbolic(TensorDesc.GetShape());
+
+		EmptyTensorRDGs.Emplace(FTensorRDG::Make(TensorDesc, TensorShape, nullptr));
+		AllTensorRDGRefs.Emplace(Idx, &EmptyTensorRDGs[i]);
+	}
+
 	checkCode(
 		checkf(AllTensorRDGRefs.Num() == AllSymbolicTensorDescs.Num(), TEXT("Some tensor was not allocated for model preparation."));
 	);
@@ -176,7 +197,7 @@ FModelInstanceRDG::ESetInputTensorShapesStatus FModelInstanceRDG::SetInputTensor
 		OutputTensorShapes.Emplace(AllTensorRDGRefs[OutputIndices]->GetShape());
 	}
 
-	check(InputTensorIndices.Num() + OutputTensorIndices.Num() + WeightTensorIndices.Num() + IntermediateTensorIndices.Num() == AllTensorRDGRefs.Num());
+	check(InputTensorIndices.Num() + OutputTensorIndices.Num() + WeightTensorIndices.Num() + IntermediateTensorIndices.Num() + EmptyTensorIndices.Num() == AllTensorRDGRefs.Num());
 	check(InputTensorShapes.Num() == InputSymbolicTensors.Num());
 	check(OutputTensorShapes.Num() == OutputSymbolicTensors.Num());
 	check(WeightTensorIndices.Num() == WeightTensorRDGs.Num());
@@ -185,10 +206,15 @@ FModelInstanceRDG::ESetInputTensorShapesStatus FModelInstanceRDG::SetInputTensor
 	return ESetInputTensorShapesStatus::Ok;
 }
 
-FRDGBufferDesc CreateRDGBufferDescForTensorRDG(const FTensorRDG& Tensor)
+FRDGBufferDesc FModelInstanceRDG::CreateRDGBufferDescForTensorRDG(const FTensorRDG& Tensor)
 {
-	FRDGBufferDesc Desc = FRDGBufferDesc::CreateBufferDesc(Tensor.GetElementByteSize(), Tensor.GetVolume());
+	const uint32 ElementByteSize = Tensor.GetElementByteSize();
+	const uint32 TotalByteCount = ElementByteSize * Tensor.GetVolume();
 
+	//Round up to next multiple of BUFFER_LENGTH_ALIGNMENT
+	const uint32 TargetByteCount = FMath::DivideAndRoundUp(TotalByteCount, (uint32)NNERUNTIMERDGHLSL_BUFFER_LENGTH_ALIGNMENT) * NNERUNTIMERDGHLSL_BUFFER_LENGTH_ALIGNMENT;
+	
+	const FRDGBufferDesc Desc = FRDGBufferDesc::CreateBufferDesc(ElementByteSize, TargetByteCount / ElementByteSize);
 	return Desc;
 }
 
@@ -204,21 +230,21 @@ FModelInstanceRDG::EEnqueueRDGStatus FModelInstanceRDG::EnqueueRDG(FRDGBuilder& 
 	// Verify the model inputs were prepared
 	if (InputTensorShapes.Num() == 0)
 	{
-		UE_LOG(LogNNE, Error, TEXT("EnqueueRDG(): Input shapes are not set, please call SetInputTensorShapes."));
+		UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("Input shapes are not set, please call SetInputTensorShapes."));
 		return EEnqueueRDGStatus::Fail;
 	}
 
 	Res = SetTensors(RDGBuilder, InputTensorRDGs, InInputBindings);
 	if (Res != -1)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Invalid buffer (was nullptr) for input tensor binding at index %d"), Res);
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Invalid buffer for input tensor binding at index %d"), Res);
 		return EEnqueueRDGStatus::Fail;
 	}
 
 	Res = SetTensors(RDGBuilder, OutputTensorRDGs, InOutputBindings);
 	if (Res != -1)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Invalid buffer (was nullptr) for output tensor binding at index %d"), Res);
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Invalid buffer for output tensor binding at index %d"), Res);
 		return EEnqueueRDGStatus::Fail;
 	}
 
@@ -229,7 +255,7 @@ FModelInstanceRDG::EEnqueueRDGStatus FModelInstanceRDG::EnqueueRDG(FRDGBuilder& 
 	//Create temporary buffers for NOT const intermediate tensors
 	for (FTensorRDG& TensorRDG : IntermediateTensorRDGs)
 	{
-		if (!TensorRDG.HasPreparedData())
+		if (!TensorRDG.IsConstant())
 		{
 			const FRDGBufferDesc BufferDesc = CreateRDGBufferDescForTensorRDG(TensorRDG);
 			const FRDGBufferRef TensorBuffer = RDGBuilder.CreateBuffer(BufferDesc, TEXT("NNE.Tensor.Intermediate"), ERDGBufferFlags::None);
@@ -245,7 +271,7 @@ FModelInstanceRDG::EEnqueueRDGStatus FModelInstanceRDG::EnqueueRDG(FRDGBuilder& 
 		checkCode(
 			for (const TPair<int32, FTensorRDGRef>& TensorRDG : AllTensorRDGRefs) 
 			{ 
-				check(TensorRDG.Value->GetBuffer() != nullptr); 
+				check(TensorRDG.Value->IsValid()); 
 			}
 		);
 	}
@@ -266,6 +292,12 @@ int32 FModelInstanceRDG::SetTensors(FRDGBuilder& GraphBuilder, FTensorRDGArray& 
 		const NNE::FTensorBindingRDG& Binding = InBindings[Idx];
 		if (Binding.Buffer == nullptr)
 		{
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("nullptr buffer encountered."));
+			return Idx;
+		}
+		if (Binding.Buffer->GetSize() % NNERUNTIMERDGHLSL_BUFFER_LENGTH_ALIGNMENT != 0)
+		{
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Buffer has size %i which is not a multiple of %i"), Binding.Buffer->GetSize(), NNERUNTIMERDGHLSL_BUFFER_LENGTH_ALIGNMENT);
 			return Idx;
 		}
 		TensorRDG.SetBuffer(Binding.Buffer);

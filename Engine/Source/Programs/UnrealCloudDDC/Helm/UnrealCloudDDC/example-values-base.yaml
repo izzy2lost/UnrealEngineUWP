@@ -79,3 +79,16 @@ global:
       #    - WriteObject
       #    claims: 
       #    - group=app-ddc-storage-user
+
+      # This is an example of a namespace used for oplog storage
+      #ue.oplog:
+      #  acls:
+      #  - actions: 
+      #    - ReadObject
+      #    - WriteObject
+      #    claims: 
+      #    - group=app-ddc-storage-user
+      #  storagePool: "oplog"
+      #  UseBlobIndexForExists: true # Enabling blob index usage witin oplogs as a experiment
+      #  GcMethod: TTL # use TTL (time to live) GC instead of last access tracking
+      #  OnDemandReplication: true # replicate blobs on demand

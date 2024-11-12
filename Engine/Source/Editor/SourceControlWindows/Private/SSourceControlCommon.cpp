@@ -8,6 +8,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "ActorFolder.h"
 #include "ActorFolderDesc.h"
+#include "AssetDefinitionRegistry.h"
 #include "AssetToolsModule.h"
 #include "Styling/AppStyle.h"
 #include "ISourceControlModule.h"
@@ -22,6 +23,7 @@
 #include "Framework/Docking/TabManager.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Logging/MessageLog.h"
+#include "Misc/PathViews.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Modules/ModuleManager.h"
 #include "Editor.h"
@@ -105,19 +107,40 @@ static FString RetrieveAssetPath(const FAssetData& InAssetData)
 	return Path;
 }
 
-static void RefreshAssetInformationInternal(const TArray<FAssetData>& Assets, const FString& InFilename, FString& OutAssetName, FString& OutAssetPath, FString& OutAssetType, FText& OutPackageName, FColor& OutAssetTypeColor)
+static FString RetrieveAssetTypeName(const FAssetData& InAssetData)
+{
+	if (UAssetDefinitionRegistry* AssetDefinitionRegistry = UAssetDefinitionRegistry::Get())
+	{
+		const UAssetDefinition* AssetDefinition = AssetDefinitionRegistry->GetAssetDefinitionForAsset(InAssetData);
+		if (AssetDefinition)
+		{
+			return AssetDefinition->GetAssetDisplayName().ToString();
+		}
+	}
+
+	return InAssetData.AssetClassPath.ToString();
+}
+
+static void RefreshAssetInformationInternal(const TArray<FAssetData>& Assets, const FString& InFilename, FString& OutAssetName, FString& OutAssetPath, FString& OutAssetType, FString& OutAssetTypeName, FText& OutPackageName, FColor& OutAssetTypeColor)
 {
 	// Initialize display-related members
 	FString Filename = InFilename;
+	FString Extension = FPaths::GetExtension(Filename);
 	FString TempAssetName = SSourceControlCommon::GetDefaultAssetName().ToString();
 	FString TempAssetPath = Filename;
 	FString TempAssetType = SSourceControlCommon::GetDefaultAssetType().ToString();
+	FString TempAssetTypeName = SSourceControlCommon::GetDefaultAssetType().ToString();
 	FString TempPackageName = Filename;
 	FColor TempAssetColor = FColor(		// Copied from ContentBrowserCLR.cpp
 		127 + FColor::Red.R / 2,	// Desaturate the colors a bit (GB colors were too.. much)
 		127 + FColor::Red.G / 2,
 		127 + FColor::Red.B / 2,
 		200); // Opacity
+
+
+	bool bIsPackageExtension = 
+		FPackageName::IsPackageExtension(*Extension) ||
+		FPackageName::IsVerseExtension(*Extension);
 
 	if (Assets.Num() > 0)
 	{
@@ -131,6 +154,7 @@ static void RefreshAssetInformationInternal(const TArray<FAssetData>& Assets, co
 			TempAssetName = RetrieveAssetName(AssetData);
 			TempAssetPath = RetrieveAssetPath(AssetData);
 			TempAssetType = AssetData.AssetClassPath.ToString();
+			TempAssetTypeName = RetrieveAssetTypeName(AssetData);
 
 			const FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
 			const TSharedPtr<IAssetTypeActions> AssetTypeActions = AssetToolsModule.Get().GetAssetTypeActionsForClass(AssetData.GetClass()).Pin();
@@ -148,6 +172,7 @@ static void RefreshAssetInformationInternal(const TArray<FAssetData>& Assets, co
 		{
 			TempAssetName = RetrieveAssetName(Assets[0]);
 			TempAssetPath = RetrieveAssetPath(Assets[0]);
+			TempAssetTypeName = RetrieveAssetTypeName(Assets[0]);
 
 			for (int32 i = 1; i < Assets.Num(); ++i)
 			{
@@ -161,7 +186,7 @@ static void RefreshAssetInformationInternal(const TArray<FAssetData>& Assets, co
 		// Beautify the package name
 		TempPackageName = TempAssetPath + "." + TempAssetName;
 	}
-	else if (FPackageName::TryConvertFilenameToLongPackageName(Filename, TempPackageName))
+	else if (bIsPackageExtension && FPackageName::TryConvertFilenameToLongPackageName(Filename, TempPackageName))
 	{
 		// Fake asset name, asset path from the package name
 		TempAssetPath = TempPackageName;
@@ -176,14 +201,28 @@ static void RefreshAssetInformationInternal(const TArray<FAssetData>& Assets, co
 	else
 	{
 		TempAssetName = FPaths::GetCleanFilename(Filename);
-		TempPackageName = Filename; // put back original package name if the try failed
+		TempPackageName = Filename; // Put back original package name if the try failed
 		TempAssetType = FText::Format(SSourceControlCommon::GetDefaultUnknownAssetType(), FText::FromString(FPaths::GetExtension(Filename).ToUpper())).ToString();
+		TempAssetTypeName = TempAssetType;
+
+		// Attempt to make package name relative to one of the project roots instead of a full absolute path
+		TArray<FSourceControlProjectInfo> CustomProjects = ISourceControlModule::Get().GetCustomProjects();
+		for (const FSourceControlProjectInfo& ProjectInfo : CustomProjects)
+		{
+			FStringView RelativePackageName;
+			if (FPathViews::TryMakeChildPathRelativeTo(TempPackageName, ProjectInfo.ProjectDirectory, RelativePackageName))
+			{
+				TempPackageName = FPaths::Combine(TEXT("/"), FPaths::GetBaseFilename(ProjectInfo.ProjectDirectory), RelativePackageName);
+				break;
+			}
+		}
 	}
 
 	// Finally, assign the temp variables to the member variables
 	OutAssetName = TempAssetName;
 	OutAssetPath = TempAssetPath;
 	OutAssetType = TempAssetType;
+	OutAssetTypeName = TempAssetTypeName;
 	OutAssetTypeColor = TempAssetColor;
 	OutPackageName = FText::FromString(TempPackageName);
 }
@@ -269,10 +308,11 @@ void FFileTreeItem::RefreshAssetInformation()
 {
 	// Initialize display-related members
 	static TArray<FAssetData> NoAssets;
-	RefreshAssetInformationInternal(Assets.IsValid() ? *Assets : NoAssets, FileState->GetFilename(), AssetNameStr, AssetPathStr, AssetTypeStr, PackageName, AssetTypeColor);
+	RefreshAssetInformationInternal(Assets.IsValid() ? *Assets : NoAssets, FileState->GetFilename(), AssetNameStr, AssetPathStr, AssetTypeStr, AssetTypeNameStr, PackageName, AssetTypeColor);
 	AssetName = FText::FromString(AssetNameStr);
 	AssetPath = FText::FromString(AssetPathStr);
 	AssetType = FText::FromString(AssetTypeStr);
+	AssetTypeName = FText::FromString(AssetTypeNameStr);
 }
 
 FText FFileTreeItem::GetAssetName() const
@@ -327,10 +367,11 @@ FOfflineFileTreeItem::FOfflineFileTreeItem(const FString& InFilename)
 
 void FOfflineFileTreeItem::RefreshAssetInformation()
 {
-	RefreshAssetInformationInternal(Assets, Filename, AssetNameStr, AssetPathStr, AssetTypeStr, PackageName, AssetTypeColor);
+	RefreshAssetInformationInternal(Assets, Filename, AssetNameStr, AssetPathStr, AssetTypeStr, AssetTypeNameStr, PackageName, AssetTypeColor);
 	AssetName = FText::FromString(AssetNameStr);
 	AssetPath = FText::FromString(AssetPathStr);
 	AssetType = FText::FromString(AssetTypeStr);
+	AssetTypeName = FText::FromString(AssetTypeNameStr);
 }
 
 //////////////////////////////////////////////////////////////////////////

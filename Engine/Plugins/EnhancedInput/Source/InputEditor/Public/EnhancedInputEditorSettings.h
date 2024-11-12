@@ -45,11 +45,11 @@ public:
 	 * If true then the Enhanced Input Editor subsystem will log all input that is being processed by it (keypresses, analog values, etc)
 	 * Note: This can produce A LOT of logs, so only use this if you are debugging something.
 	 */
-	UPROPERTY(config, EditAnywhere, Category = Logging, meta=(ConsoleVariable="EnhancedEditorInput.bShouldLogAllInputs"))
+	UPROPERTY(config, EditAnywhere, Category = Logging)
 	uint8 bLogAllInput : 1;
 	
 	/** If true, then the UEnhancedInputEditorSubsystem will be started when it is initalized */
-	UPROPERTY(config, EditAnywhere, Category = Editor, meta=(ConsoleVariable="EnhancedEditorInput.bAutomaticallyStartConsumingInput"))
+	UPROPERTY(config, EditAnywhere, Category = Editor)
 	uint8 bAutomaticallyStartConsumingInput : 1;
 
 	/** A bitmask of what event pins are visible when you place an Input Action event node in blueprints.  */

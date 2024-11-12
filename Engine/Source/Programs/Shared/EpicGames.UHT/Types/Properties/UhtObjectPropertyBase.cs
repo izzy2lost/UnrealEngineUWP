@@ -241,11 +241,11 @@ namespace EpicGames.UHT.Types
 				return;
 			}
 
-			UhtPackage package = propertySettings.Outer.Package;
+			UhtModule module = propertySettings.Outer.Module;
 			UhtIssueBehavior behavior = nonEngineBehavior;
-			if (package.IsPartOfEngine)
+			if (module.IsPartOfEngine)
 			{
-				if (package.IsPlugin)
+				if (module.IsPlugin)
 				{
 					behavior = enginePluginBehavior;
 				}

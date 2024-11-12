@@ -8,6 +8,7 @@
 #include "Shader.h"
 #include "GlobalShader.h"
 #include "RenderGraphUtils.h"
+#include "RHIResourceUtils.h"
 #include "DataDrivenShaderPlatformInfo.h"
 
 // Uploads use a storage buffers which are at least 128m elements
@@ -410,7 +411,7 @@ void MemsetResource(FRDGBuilder& GraphBuilder, FRDGUnorderedAccessView* UAV, con
 		RDG_EVENT_NAME("MemsetResource (%s)", Resource->Name),
 		ComputeShader,
 		PassParameters,
-		FIntVector(FMath::DivideAndRoundUp(Params.Count / Divisor, 64u), 1, 1));
+		FComputeShaderUtils::GetGroupCountWrapped(Params.Count / Divisor, 64));
 }
 
 void MemsetResource(FRDGBuilder& GraphBuilder, FRDGBufferUAV* UAV, const FMemsetResourceParams& Params)
@@ -1481,7 +1482,7 @@ RENDERCORE_API bool ResizeResourceSOAIfNeeded(FRDGBuilder& GraphBuilder, FRWBuff
 		NewBuffer.Initialize(GraphBuilder.RHICmdList, DebugName, BytesPerElement, NumElements);
 
 		AddPass(GraphBuilder, RDG_EVENT_NAME("ResizeResourceSOAIfNeeded"), 
-			[OldBuffer, NewBuffer, NumElements, NumElementsOld, Params](FRHICommandListImmediate& RHICmdList)
+			[OldBuffer, NewBuffer, NumElements, NumElementsOld, Params](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.Transition({
 				FRHITransitionInfo(OldBuffer.UAV, ERHIAccess::Unknown, ERHIAccess::SRVCompute),
@@ -1517,7 +1518,7 @@ template <typename FBufferType>
 void AddCopyBufferPass(FRDGBuilder& GraphBuilder, const FBufferType &NewBuffer, const FBufferType &OldBuffer, uint32 ElementSize)
 {
 	AddPass(GraphBuilder, RDG_EVENT_NAME("ResizeResourceIfNeeded-Copy"), 
-		[OldBuffer, NewBuffer, ElementSize](FRHICommandListImmediate& RHICmdList)
+		[OldBuffer, NewBuffer, ElementSize](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		RHICmdList.Transition({
 			FRHITransitionInfo(OldBuffer.UAV, ERHIAccess::Unknown, ERHIAccess::SRVCompute),
@@ -1687,28 +1688,6 @@ void FScatterUploadBuffer::InitPreSized(uint32 NumElements, uint32 InNumBytesPer
 	NumScatters = NumElements;
 }
 
-// Helper type used to initialize the buffer data on creation
-struct FScatterUploadBufferResourceArray : public FResourceArrayInterface
-{
-	const void* const DataPtr;
-	const int32 DataSize;
-
-	FScatterUploadBufferResourceArray(void* InDataPtr, int32 InDataSize)
-		: DataPtr(InDataPtr)
-		, DataSize(InDataSize)
-	{
-	}
-
-	const void* GetResourceData() const override { return DataPtr; }
-	uint32 GetResourceDataSize() const override { return DataSize; }
-
-	// Not necessary for our purposes
-	void Discard() override { }
-	bool IsStatic() const override { return false; }
-	bool GetAllowCPUAccess() const override { return true; }
-	void SetAllowCPUAccess(bool bInNeedsCPUAccess) override { }
-};
-
 template<typename ResourceType>
 void FScatterUploadBuffer::ResourceUploadTo(FRHICommandList& RHICmdList, const ResourceType& DstBuffer, bool bFlush)
 {
@@ -1723,18 +1702,14 @@ void FScatterUploadBuffer::ResourceUploadTo(FRHICommandList& RHICmdList, const R
 		UploadBuffer.NumBytes = UploadDataSize;
 
 		const uint32 TypeSize = bFloat4Buffer ? 16 : 4;
-		const EBufferUsageFlags Usage = bFloat4Buffer ? BUF_None : BUF_ByteAddressBuffer;
+		const EBufferUsageFlags Usage = EBufferUsageFlags::StructuredBuffer | EBufferUsageFlags::ShaderResource | EBufferUsageFlags::Volatile | (bFloat4Buffer ? EBufferUsageFlags::None : EBufferUsageFlags::ByteAddressBuffer);
 
 		{
-			FScatterUploadBufferResourceArray ScatterResourceArray(ScatterData, ScatterDataSize);
-			FRHIResourceCreateInfo CreateInfo(TEXT("ScatterResourceArray"), &ScatterResourceArray);
-			ScatterBuffer.Buffer = RHICmdList.CreateStructuredBuffer(sizeof(uint32), ScatterDataSize, BUF_ShaderResource | BUF_Volatile | Usage, CreateInfo);
+			ScatterBuffer.Buffer = UE::RHIResourceUtils::CreateBufferFromArray(RHICmdList, TEXT("ScatterResourceArray"), Usage, sizeof(uint32), ScatterData, ScatterDataSize);
 			ScatterBuffer.SRV = RHICmdList.CreateShaderResourceView(ScatterBuffer.Buffer);
 		}
 		{
-			FScatterUploadBufferResourceArray UploadResourceArray(UploadData, UploadDataSize);
-			FRHIResourceCreateInfo CreateInfo(TEXT("ScatterUploadBuffer"), &UploadResourceArray);
-			UploadBuffer.Buffer = RHICmdList.CreateStructuredBuffer(TypeSize, UploadDataSize, BUF_ShaderResource | BUF_Volatile | Usage, CreateInfo);
+			UploadBuffer.Buffer = UE::RHIResourceUtils::CreateBufferFromArray(RHICmdList, TEXT("ScatterUploadBuffer"), Usage, TypeSize, UploadData, UploadDataSize);
 			UploadBuffer.SRV = RHICmdList.CreateShaderResourceView(UploadBuffer.Buffer);
 		}
 	}

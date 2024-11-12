@@ -146,7 +146,7 @@ struct FVectorFieldVisualizationUserData : public FOneFrameResource
 	FVectorFieldVisualizationBufferRef UniformBuffer;
 
 	/** Texture containing the vector field. */
-	FTexture3DRHIRef VectorFieldTextureRHI;
+	FTextureRHIRef VectorFieldTextureRHI;
 };
 
 void FVectorFieldVisualizationVertexFactoryShaderParameters::GetElementShaderBindings(
@@ -243,11 +243,12 @@ void GetVectorFieldMesh(
 		Collector.RegisterOneFrameMaterialProxy(VisualizationMaterial);
 
 		// Set up parameters.
-		const FLargeWorldRenderPosition VolumeToWorldOrigin(VectorFieldInstance->VolumeToWorld.GetOrigin()); //DF_TODO
+		const FDFVector3 VolumeToWorldOriginDF(VectorFieldInstance->VolumeToWorld.GetOrigin());
+		const FDFMatrix VolumeToWorldDF = FDFMatrix::MakeToRelativeWorldMatrix(VolumeToWorldOriginDF.High, VectorFieldInstance->VolumeToWorld);
 
 		FVectorFieldVisualizationParameters UniformParameters;
-		UniformParameters.VolumeToWorldTile = VolumeToWorldOrigin.GetTile();
-		UniformParameters.VolumeToWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(VolumeToWorldOrigin.GetTileOffset(), VectorFieldInstance->VolumeToWorld);
+		UniformParameters.VolumeToWorldHigh = VolumeToWorldDF.PostTranslation;
+		UniformParameters.RelativeVolumeToWorld = VolumeToWorldDF.M;
 		UniformParameters.VolumeToWorldNoScale = FMatrix44f(VectorFieldInstance->VolumeToWorldNoScale);
 		UniformParameters.VoxelSize = FVector3f( 1.0f / Resource->SizeX, 1.0f / Resource->SizeY, 1.0f / Resource->SizeZ );
 		UniformParameters.Scale = VectorFieldInstance->Intensity * Resource->Intensity;

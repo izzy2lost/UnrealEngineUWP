@@ -12,28 +12,34 @@
 #include "Engine/SkinnedAssetCommon.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/Actor.h"
+#include "GeometryCollection/Facades/CollectionInstancedMeshFacade.h"
+#include "GeometryCollection/Facades/CollectionTransformFacade.h"
 #include "GeometryCollection/Facades/CollectionTransformSourceFacade.h"
 #include "GeometryCollection/GeometryCollection.h"
 #include "GeometryCollection/GeometryCollectionActor.h"
 #include "GeometryCollection/GeometryCollectionAlgo.h"
 #include "GeometryCollection/GeometryCollectionComponent.h"
 #include "GeometryCollection/GeometryCollectionClusteringUtility.h"
-#include "GeometryCollectionProxyData.h"
+#include "GeometryCollection/GeometryCollectionEngineUtility.h"
 #include "GeometryCollection/GeometryCollectionUtility.h"
+#include "GeometryCollectionProxyData.h"
+#include "IndexTypes.h"
 #include "Logging/LogMacros.h"
 #include "MaterialDomain.h"
 #include "Materials/Material.h"
-#include "Rendering/SkeletalMeshRenderData.h"
 #include "MeshDescription.h"
+#include "MeshDescriptionBuilder.h"
 #include "Misc/ScopedSlowTask.h"
-#include "StaticMeshAttributes.h"
-#include "StaticMeshOperations.h"
 #include "Physics/Experimental/ChaosInterfaceUtils.h"
 #include "PhysicsEngine/BodySetup.h"
-#include "MeshDescriptionBuilder.h"
+#include "Rendering/SkeletalMeshRenderData.h"
+#include "ReferenceSkeleton.h"
+#include "SkeletalMeshAttributes.h"
+#include "StaticMeshAttributes.h"
+#include "StaticMeshOperations.h"
 #include "VertexConnectedComponents.h"
-#include "GeometryCollection/Facades/CollectionInstancedMeshFacade.h"
-
+#include "Util/ColorConstants.h"
+#include "GeometryCollection/Facades/CollectionVertexBoneWeightsFacade.h"
 
 DEFINE_LOG_CATEGORY_STATIC(UGeometryCollectionConversionLogging, Log, All);
 
@@ -1128,200 +1134,295 @@ void FGeometryCollectionEngineConversion::AppendGeometryCollection(const UGeomet
 }
 
 
-bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh* SkeletalMesh, int32 MaterialStartIndex, const FTransform& SkeletalMeshTransform, FManagedArrayCollection* InCollection, bool bReindexMaterials)
+
+
+bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh* InSkeletalMesh, int32 MaterialStartIndex, const FTransform& SkeletalMeshTransform, 
+	FManagedArrayCollection* InManagedArrayCollection, bool bReindexMaterials, bool bImportTransformOnly)
 {
 	//UE_LOG(UGeometryCollectionConversionLogging, Log, TEXT("FGeometryCollectionEngineConversion::AppendSkeletalMesh()"));
-	if (!InCollection)
+#if WITH_EDITOR
+	int LODIndex = 0;
+	if (!InManagedArrayCollection)
 	{
 		return false;
 	}
-	FGeometryCollection::DefineGeometrySchema(*InCollection);
 
-	const FSkeletalMeshLODRenderData* MeshLODData = GetSkeletalMeshLOD(SkeletalMesh, 0);
-	if (!MeshLODData)
+	FGeometryCollection GeometryCollection;
+
+	// Transform Attributes
+	TManagedArray<FTransform3f>& LocalSpaceTransform = GeometryCollection.ModifyAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
+	TManagedArray<int32>& Parent = GeometryCollection.ModifyAttribute<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
+	TManagedArray<TSet<int32>>& Children = GeometryCollection.ModifyAttribute<TSet<int32>>(FTransformCollection::ChildrenAttribute, FTransformCollection::TransformGroup);
+	TManagedArray<FLinearColor>& BoneColor = GeometryCollection.ModifyAttribute<FLinearColor>("BoneColor", FTransformCollection::TransformGroup);
+	TManagedArray<FString>& BoneName = GeometryCollection.ModifyAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
+	TManagedArray<int32>& SimulationType = GeometryCollection.ModifyAttribute<int32>("SimulationType", FTransformCollection::TransformGroup);
+
+	//
+	// Convert the transform hierarchy
+	//
+	int32 RootIndex = INDEX_NONE;
+	int32 TransformBaseIndex = INDEX_NONE;
+	const USkeleton* Skeleton = InSkeletalMesh->GetSkeleton();
+	const TArray<FTransform>& RestArray = Skeleton->GetRefLocalPoses();
+	const FReferenceSkeleton& ReferenceSkeleton = InSkeletalMesh->GetRefSkeleton();
+
+	if (ReferenceSkeleton.GetNum())
 	{
-		return false;
-	}
-		
-	const FSkeletalMeshLODRenderData& SkeletalMeshLODRenderData = *MeshLODData;
-	const FSkinWeightVertexBuffer& SkinWeightVertexBuffer = *SkeletalMeshLODRenderData.GetSkinWeightVertexBuffer();
-	const FStaticMeshVertexBuffers& VertexBuffers = SkeletalMeshLODRenderData.StaticVertexBuffers;
-	const FPositionVertexBuffer& PositionVertexBuffer = VertexBuffers.PositionVertexBuffer;
-	const int32 VertexCount = PositionVertexBuffer.GetNumVertices();
-	// Check that all vertex weightings are rigid. 
-	for (int32 VertexIndex = 0; VertexIndex < VertexCount; VertexIndex++)
-	{
-		int32 SkeletalBoneIndex = -1;
-		if (!SkinWeightVertexBuffer.GetRigidWeightBone(VertexIndex, SkeletalBoneIndex))
+		TransformBaseIndex = GeometryCollection.AddElements(ReferenceSkeleton.GetNum(), FGeometryCollection::TransformGroup);
+		RootIndex = TransformBaseIndex;
+
+		for (int32 BoneIndex = 0; BoneIndex < ReferenceSkeleton.GetNum(); BoneIndex++)
 		{
-			UE_LOG(UGeometryCollectionConversionLogging, Error, TEXT("Non-rigid weighting found on vertex %d: Cannot convert to GeometryCollection."), VertexIndex);
-			return false;
+			// For validation against the component space position use
+			// FTransform ComponentSpaceTransform =FAnimationRuntime::GetComponentSpaceTransformRefPose(ReferenceSkeleton, SkeletalBoneMap[BoneIndex]);
+
+			LocalSpaceTransform[TransformBaseIndex + BoneIndex] = FTransform3f(RestArray[BoneIndex]);
+			BoneName[TransformBaseIndex + BoneIndex] = ReferenceSkeleton.GetRefBoneInfo()[BoneIndex].Name.ToString();
+			Parent[TransformBaseIndex + BoneIndex] = ReferenceSkeleton.GetRefBoneInfo()[BoneIndex].ParentIndex;
+
+			TArray<int32> ChildrenArr;
+			if (ReferenceSkeleton.GetDirectChildBones(BoneIndex, ChildrenArr))
+			{
+				Children[TransformBaseIndex + BoneIndex].Append(ChildrenArr);
+			}
+
+			SimulationType[TransformBaseIndex + BoneIndex] = FGeometryCollection::ESimulationTypes::FST_None;
+			BoneColor[TransformBaseIndex + BoneIndex] = FLinearColor::MakeRandomColor();
+
+			if (Parent[TransformBaseIndex + BoneIndex] == INDEX_NONE)
+			{
+				RootIndex = TransformBaseIndex + BoneIndex;
+			}
 		}
+		GeometryCollection::Facades::FTransformSource TransformSourceFacade(*InManagedArrayCollection);
+		TSet<int32> Roots;
+		Roots.Add(RootIndex);
+		TransformSourceFacade.AddTransformSource(Skeleton->GetName(), Skeleton->GetGuid().ToString(), Roots);
 	}
-	const FSkelMeshRenderSection& RenderSection = SkeletalMeshLODRenderData.RenderSections[0];
-	const TArray<FBoneIndexType>& SkeletalBoneMap = RenderSection.BoneMap;
 
-	//
-	// The Component transform for each Mesh will become the FTransform that drives
-	// its associated VerticesGroup. The Skeleton will contain a nested transform hierarchy
-	// that is evaluated using the GetComponentSpaceTransformRefPose. The resulting
-	// Transforms array stored in the GeometryCollection will be the same size as
-	// the SkeletalBoneMap. Note the @todo: the SkeletalBoneMap is pulled from only
-	// the first render section, this will need to be expanded to include all render
-	// sections.
-	//
-	const USkeleton* Skeleton = SkeletalMesh->GetSkeleton();
-	TManagedArray<FTransform>& Transform = InCollection->ModifyAttribute<FTransform>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
-	int32 TransformBaseIndex = InCollection->AddElements(SkeletalBoneMap.Num(), FGeometryCollection::TransformGroup);
-	const FReferenceSkeleton & ReferenceSkeletion = Skeleton->GetReferenceSkeleton();
-	const TArray<FTransform> & RestArray = Skeleton->GetRefLocalPoses();
-	for (int32 BoneIndex = 0; BoneIndex < SkeletalBoneMap.Num(); BoneIndex++)
+	if (bImportTransformOnly)
 	{
-		FTransform BoneTransform = FAnimationRuntime::GetComponentSpaceTransformRefPose(ReferenceSkeletion, SkeletalBoneMap[BoneIndex]);
-		Transform[TransformBaseIndex + BoneIndex] = BoneTransform;
+		GeometryCollection.CopyTo(InManagedArrayCollection);
+		return true;
 	}
 
-
-	//
-	// The Triangle Indices
-	//
-	TManagedArray<FIntVector>& Indices = InCollection->ModifyAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup);
-	TManagedArray<bool>& Visible = InCollection->ModifyAttribute<bool>("Visible", FGeometryCollection::FacesGroup);
-	TManagedArray<int32>& MaterialIndex = InCollection->ModifyAttribute<int32>("MaterialIndex", FGeometryCollection::FacesGroup); 
-	TManagedArray<int32>& MaterialID = InCollection->ModifyAttribute<int32>("MaterialID", FGeometryCollection::FacesGroup);
-
-	TArray<uint32> IndexBuffer;
-	SkeletalMeshLODRenderData.MultiSizeIndexContainer.GetIndexBuffer(IndexBuffer);
-
-	const int32 IndicesCount = IndexBuffer.Num() / 3;
-	int NumVertices = InCollection->NumElements(FGeometryCollection::VerticesGroup);
-	int InitialNumIndices = InCollection->NumElements(FGeometryCollection::FacesGroup);
-	int IndicesBaseIndex = InCollection->AddElements(IndicesCount, FGeometryCollection::FacesGroup);
-	for (int32 IndicesIndex = 0, StaticIndex = 0; IndicesIndex < IndicesCount; IndicesIndex++, StaticIndex += 3)
+	FMeshDescription MeshDescription;
+	if (!InSkeletalMesh->CloneMeshDescription(LODIndex, MeshDescription))
 	{
-		int32 IndicesOffset = IndicesBaseIndex + IndicesIndex;
-		Indices[IndicesOffset] = FIntVector(
-			IndexBuffer[StaticIndex] + NumVertices,
-			IndexBuffer[StaticIndex + 1] + NumVertices,
-			IndexBuffer[StaticIndex + 2] + NumVertices);
-		Visible[IndicesOffset] = true;
-		MaterialID[IndicesOffset] = 0;
-		MaterialIndex[IndicesOffset] = IndicesOffset;
+		return false;
 	}
+
+	// Vertices Attributes
+	TManagedArray<FVector3f>& Vertex = GeometryCollection.ModifyAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
+	TManagedArray<FVector3f>& Normal = GeometryCollection.ModifyAttribute<FVector3f>("Normal", FGeometryCollection::VerticesGroup);
+	TManagedArray<FLinearColor>& Color = GeometryCollection.ModifyAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup);
+	TManagedArray<FVector3f>& TangentU = GeometryCollection.ModifyAttribute<FVector3f>("TangentU", FGeometryCollection::VerticesGroup);
+	TManagedArray<FVector3f>& TangentV = GeometryCollection.ModifyAttribute<FVector3f>("TangentV", FGeometryCollection::VerticesGroup);
+	TManagedArray<int32>& BoneMap = GeometryCollection.ModifyAttribute<int32>("BoneMap", FGeometryCollection::VerticesGroup);
+	// Index Attributes
+	TManagedArray<FIntVector>& Indices = GeometryCollection.ModifyAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup);
+	TManagedArray<bool>& Visible = GeometryCollection.ModifyAttribute<bool>("Visible", FGeometryCollection::FacesGroup);
+	TManagedArray<int32>& MaterialIndex = GeometryCollection.ModifyAttribute<int32>("MaterialIndex", FGeometryCollection::FacesGroup);
+	TManagedArray<int32>& MaterialID = GeometryCollection.ModifyAttribute<int32>("MaterialID", FGeometryCollection::FacesGroup);
+
+	//
+	// Identify disconnected geoemtry
+	//
+	int32 VertexCount = 0, TriangleCount = 0;
+	TArray<int32> SourceVertexToComponentMap;				// Map from mesh vertex index to target vertex index
+	TArray<TArray<FIntVector>> ComponentsSourceIndices;		// Mesh triangle indices of each component.
+	TArray<TArray<FIntVector2>> SourceToTargetTriangleMap;	// Mesh triangle index of each triangle in the component. 
+	GeometryCollectionEngineUtility::GenerateConnectedComponents(InSkeletalMesh, ComponentsSourceIndices,
+		SourceToTargetTriangleMap, SourceVertexToComponentMap, TriangleCount, VertexCount);
 
 	//
 	// Vertex Attributes
 	//
-	TManagedArray<FVector3f>& Vertex = InCollection->ModifyAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
-	TManagedArray<FVector3f>& Normal = InCollection->ModifyAttribute<FVector3f>("Normal", FGeometryCollection::VerticesGroup);
-	TManagedArray<FLinearColor>& Color = InCollection->ModifyAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup);
-	TManagedArray<FVector3f>& TangentU = InCollection->ModifyAttribute<FVector3f>("TangentU", FGeometryCollection::VerticesGroup);
-	TManagedArray<FVector3f>& TangentV = InCollection->ModifyAttribute<FVector3f>("TangentV", FGeometryCollection::VerticesGroup);
-	TManagedArray<int32>& BoneMap = InCollection->ModifyAttribute<int32>("BoneMap", FGeometryCollection::VerticesGroup);
-	TManagedArray<FLinearColor>& BoneColor = InCollection->ModifyAttribute<FLinearColor>("BoneColor", FTransformCollection::TransformGroup);
-	TManagedArray<FString>& BoneName = InCollection->ModifyAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
+	int VertexBaseIndex = GeometryCollection.AddElements(VertexCount, FGeometryCollection::VerticesGroup);
+	int NumTargetVertices = GeometryCollection.NumElements(FGeometryCollection::VerticesGroup);
+
+
 
 	// 
 	// Transform Attributes 
 	// 
-	TManagedArray<int32>& Parent = InCollection->ModifyAttribute<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
-	TManagedArray<int32>& SimulationType = InCollection->ModifyAttribute<int32>("SimulationType", FTransformCollection::TransformGroup);
-	int InitialNumVertices = InCollection->NumElements(FGeometryCollection::VerticesGroup);
-	int VertexBaseIndex = InCollection->AddElements(VertexCount, FGeometryCollection::VerticesGroup);
-	const int32 NumUVLayers = VertexBuffers.StaticMeshVertexBuffer.GetNumTexCoords();
-	GeometryCollection::UV::SetNumUVLayers(*InCollection, NumUVLayers);
-	GeometryCollection::UV::FUVLayers UVLayers = GeometryCollection::UV::FindActiveUVLayers(*InCollection);
-	for (int32 VertexIndex = 0; VertexIndex < VertexCount; VertexIndex++)
+	auto MakeUnique = [&BoneName](FString& NewName, int32& CurrentIndex)
 	{
-		int VertexOffset = VertexBaseIndex + VertexIndex;
-		BoneMap[VertexOffset] = -1;
-		int32 SkeletalBoneIndex = -1;
-		SkinWeightVertexBuffer.GetRigidWeightBone(VertexIndex, SkeletalBoneIndex);
-		if (SkeletalBoneIndex > -1)
+		FString TestName = FString::Printf(TEXT("%s%d"), *NewName, CurrentIndex);
+		while (BoneName.Contains(TestName))
 		{
-			BoneMap[VertexOffset] = SkeletalBoneIndex + TransformBaseIndex;
-			Vertex[VertexOffset] = (FVector4f)Transform[BoneMap[VertexOffset]].ToInverseMatrixWithScale().TransformPosition((FVector)PositionVertexBuffer.VertexPosition(VertexIndex));
+			TestName = FString::Printf(TEXT("%s%d"), *NewName, CurrentIndex);
+			CurrentIndex++;
 		}
-		check(BoneMap[VertexOffset] != -1);
-		TangentU[VertexOffset] = VertexBuffers.StaticMeshVertexBuffer.VertexTangentX(VertexIndex);
-		TangentV[VertexOffset] = VertexBuffers.StaticMeshVertexBuffer.VertexTangentY(VertexIndex);
-		Normal[VertexOffset] = VertexBuffers.StaticMeshVertexBuffer.VertexTangentZ(VertexIndex);
+		return TestName;
+	};
 
-		for (int32 UVLayerIdx = 0; UVLayerIdx < NumUVLayers; ++UVLayerIdx)
+	// add transforms for the separated geometry components. 
+	int32 SplitMeshIndex = 1;
+	TArray<int32> ComponentToTransformGroupIndex;
+	ComponentToTransformGroupIndex.Init(INDEX_NONE, ComponentsSourceIndices.Num());
+	int32 ComponentTransformBaseIndex = GeometryCollection.AddElements(ComponentsSourceIndices.Num(), FTransformCollection::TransformGroup);
+	for (int ComponentIndex = 0; ComponentIndex < ComponentsSourceIndices.Num(); ComponentIndex++)
+	{
+		FString BaseName("SplitMesh");
+
+		int32 ComponentTransformIndex = ComponentTransformBaseIndex + ComponentIndex;
+		Parent[ComponentTransformIndex] = RootIndex;
+		if (RootIndex != INDEX_NONE)
 		{
-			UVLayers[UVLayerIdx][VertexOffset] = VertexBuffers.StaticMeshVertexBuffer.GetVertexUV(VertexIndex, UVLayerIdx);
+			Children[RootIndex].Add(ComponentTransformIndex);
+			BaseName = FString::Printf(TEXT("%s_SplitMesh"), *BoneName[RootIndex]);
 		}
 
-		if (VertexBuffers.ColorVertexBuffer.GetNumVertices() == VertexCount)
-			Color[VertexOffset] = VertexBuffers.ColorVertexBuffer.VertexColor(VertexIndex);
-		else
-			Color[VertexOffset] = FLinearColor::White;
+		BoneName[ComponentTransformIndex] = MakeUnique(BaseName, SplitMeshIndex);
+		LocalSpaceTransform[ComponentTransformIndex] = FTransform3f::Identity;
+		SimulationType[ComponentTransformIndex] = FGeometryCollection::ESimulationTypes::FST_None;
+		BoneColor[ComponentTransformIndex] = FLinearColor::MakeRandomColor();
+		ComponentToTransformGroupIndex[ComponentIndex] = ComponentTransformIndex;
+		SplitMeshIndex++;
 	}
 
-	int32 InitialIndex = -1;
-	int32 LastParentIndex = -1;
-	int32 CurrentLevel = 0;
-	for (int32 BoneIndex = 0; BoneIndex < SkeletalBoneMap.Num(); BoneIndex++)
+	TArray<FTransform> ComponentTransform;
+	GeometryCollectionAlgo::GlobalMatrices(LocalSpaceTransform, Parent, ComponentTransform);
+
+	bool bHasVertexColors = false;
+	FLinearColor DefaultColor = FLinearColor::White;
+	FSkeletalMeshConstAttributes SkeletalMeshConstAttributes(MeshDescription);
+	TVertexInstanceAttributesConstRef<FVector4f> InstanceColors = SkeletalMeshConstAttributes.GetVertexInstanceColors();
+	if (InstanceColors.IsValid())
 	{
-		// transform based on position of the actor. 
-		Transform[TransformBaseIndex + BoneIndex] = SkeletalMeshTransform * Transform[TransformBaseIndex + BoneIndex];
+		bHasVertexColors = true;
+		DefaultColor = InstanceColors.GetDefaultValue();
+	}
 
-		// bone attributes
-		BoneName[TransformBaseIndex + BoneIndex] = ReferenceSkeletion.GetBoneName(SkeletalBoneMap[BoneIndex]).ToString();
-		const FColor RandBoneColor(FMath::Rand() % 100 + 5, FMath::Rand() % 100 + 5, FMath::Rand() % 100 + 5, 255);
-		BoneColor[TransformBaseIndex + BoneIndex] = FLinearColor(RandBoneColor);
-
-		// Bone Hierarchy - Added at root with no common parent
-		int32 ParentIndex = ReferenceSkeletion.GetParentIndex(SkeletalBoneMap[BoneIndex]);
-		int32 UseParentIndex = ParentIndex + InitialIndex;
-		if (LastParentIndex != UseParentIndex)
+	// @todo(GeometryCollectionConversion) : Add support for UV's, Normals  
+	//const int32 NumUVLayers = VertexBuffers.StaticMeshVertexBuffer.GetNumTexCoords();
+	//GeometryCollection::UV::SetNumUVLayers(*GeometryCollection, NumUVLayers);
+	//GeometryCollection::UV::FUVLayers UVLayers = GeometryCollection::UV::FindActiveUVLayers(*GeometryCollection);
+	TArray<bool> TargetVertexVisited; TargetVertexVisited.Init(false, NumTargetVertices);
+	for (int ComponentIndex = 0;ComponentIndex<ComponentsSourceIndices.Num();ComponentIndex++)
+	{
+		for (int32 TriangleIndex = 0; TriangleIndex < ComponentsSourceIndices[ComponentIndex].Num(); TriangleIndex++)
 		{
-			LastParentIndex = UseParentIndex;
+			int32 SourceTriangleIndex = SourceToTargetTriangleMap[ComponentIndex][TriangleIndex][0];
+			FIntVector& Triangle = ComponentsSourceIndices[ComponentIndex][TriangleIndex];
+			for (int k = 0; k < 3; k++)
+			{
+				int SourceVertexIndex = Triangle[k];
+				if (ensure(0 <= SourceVertexIndex && SourceVertexIndex < SourceVertexToComponentMap.Num()))
+				{
+					int TargetVertexIndex = SourceVertexToComponentMap[SourceVertexIndex] + VertexBaseIndex;
+					if (ensure(VertexBaseIndex <= TargetVertexIndex && TargetVertexIndex < TargetVertexVisited.Num()))
+					{
+						if (!TargetVertexVisited[TargetVertexIndex])
+						{
+							// Vertex position
+							//  @todo(Skin Wieghts) : Currently its a static pose in component space. 
+							BoneMap[TargetVertexIndex] = ComponentToTransformGroupIndex[ComponentIndex];
+
+							FVector SourceVertex = (FVector)MeshDescription.GetVertexPosition(SourceVertexIndex);
+							FMatrix M = ComponentTransform[BoneMap[TargetVertexIndex]].ToInverseMatrixWithScale();
+							Vertex[TargetVertexIndex] = (FVector4f)M.TransformPosition(SourceVertex);
+
+							TargetVertexVisited[TargetVertexIndex] = true;
+
+							// transfer color
+							Color[TargetVertexIndex] = DefaultColor;
+							if (bHasVertexColors)
+							{
+								TArrayView<const FVertexInstanceID> SourceInstanceTri = MeshDescription.GetTriangleVertexInstances(SourceTriangleIndex);
+								FVector4f InstColor = InstanceColors[SourceInstanceTri[k]];
+								UE::Geometry::LinearColors::SRGBToLinear(InstColor);
+								Color[TargetVertexIndex] = FLinearColor(InstColor);
+							}
+
+							// @todo(GeometryCollectionConversion) : Add support for UV's, Normals  
+							//TangentU[VertexOffset] = VertexBuffers.StaticMeshVertexBuffer.VertexTangentX(VertexIndex);
+							//TangentV[VertexOffset] = VertexBuffers.StaticMeshVertexBuffer.VertexTangentY(VertexIndex);
+							//Normal[VertexOffset] = VertexBuffers.StaticMeshVertexBuffer.VertexTangentZ(VertexIndex);
+							//for (int32 UVLayerIdx = 0; UVLayerIdx < NumUVLayers; ++UVLayerIdx)
+							//{
+							//	UVLayers[UVLayerIdx][VertexOffset] = VertexBuffers.StaticMeshVertexBuffer.GetVertexUV(VertexIndex, UVLayerIdx);
+							//}
+						}
+					}
+				}
+			}
 		}
-		Parent[TransformBaseIndex + BoneIndex] = UseParentIndex;
-		SimulationType[TransformBaseIndex + BoneIndex] = FGeometryCollection::ESimulationTypes::FST_Rigid;
+	}
+
+	//
+	// Add the Triangles to the Geometry Collection
+	//.. ensure all component vertices are contigious in the array 
+	//
+	int IndicesBaseIndex = GeometryCollection.AddElements(TriangleCount, FGeometryCollection::FacesGroup);
+
+	int CurrentIndex = IndicesBaseIndex;
+	for (int ComponentIndex = 0; ComponentIndex < ComponentsSourceIndices.Num(); ComponentIndex++)
+	{
+		for (int32 TriangleIndex = 0; TriangleIndex < ComponentsSourceIndices[ComponentIndex].Num(); TriangleIndex++)
+		{
+			SourceToTargetTriangleMap[ComponentIndex][TriangleIndex][1] = CurrentIndex;
+
+			FIntVector& Triangle = ComponentsSourceIndices[ComponentIndex][TriangleIndex];
+			for (int k = 0; k < 3; k++)
+			{
+				Indices[CurrentIndex][k] = SourceVertexToComponentMap[Triangle[k]] + VertexBaseIndex;
+			}
+
+			Visible[CurrentIndex] = true;
+			MaterialID[CurrentIndex] = 0;
+			MaterialIndex[CurrentIndex] = CurrentIndex;
+			CurrentIndex++;
+		}
 	}
 
 	// Geometry Group
 	TArray<int32> GeometryIndices;
-	GeometryCollectionAlgo::ContiguousArray(GeometryIndices, InCollection->NumElements(FGeometryCollection::GeometryGroup));
-	InCollection->RemoveDependencyFor(FGeometryCollection::GeometryGroup);
-	InCollection->RemoveElements(FGeometryCollection::GeometryGroup, GeometryIndices);
-	::GeometryCollection::AddGeometryProperties(InCollection);
+	FGeometryCollection::DefineGeometrySchema(GeometryCollection);
+	GeometryCollectionAlgo::ContiguousArray(GeometryIndices, GeometryCollection.NumElements(FGeometryCollection::GeometryGroup));
+	GeometryCollection.RemoveDependencyFor(FGeometryCollection::GeometryGroup);
+	GeometryCollection.RemoveElements(FGeometryCollection::GeometryGroup, GeometryIndices);
+	::GeometryCollection::AddGeometryProperties(&GeometryCollection);
 
-	const TArray<FSkelMeshRenderSection> &StaticMeshSections = SkeletalMesh->GetResourceForRendering()->LODRenderData[0].RenderSections;
-
-	TManagedArray<FGeometryCollectionSection> & Sections = InCollection->ModifyAttribute<FGeometryCollectionSection>("Sections", FGeometryCollection::MaterialGroup);
-
-	for (const FSkelMeshRenderSection &CurrSection : StaticMeshSections)
+	//Extract skin weights
+	int32 NumVertices = GeometryCollection.NumElements(FGeometryCollection::VerticesGroup);
+	FSkeletalMeshRenderData* RenderData = InSkeletalMesh->GetResourceForRendering();
+	if (RenderData->LODRenderData.Num())
 	{
-		// create new section
-		int32 SectionIndex = InCollection->AddElements(1, FGeometryCollection::MaterialGroup);
-						
-		Sections[SectionIndex].MaterialID = MaterialStartIndex + CurrSection.MaterialIndex;
+		FSkeletalMeshLODRenderData* LODRenderData = &RenderData->LODRenderData[LODIndex];
+		const FSkinWeightVertexBuffer* SkinWeightVertexBuffer = LODRenderData->GetSkinWeightVertexBuffer();
 
-		Sections[SectionIndex].FirstIndex = IndicesBaseIndex * 3 + CurrSection.BaseIndex;
-		Sections[SectionIndex].MinVertexIndex = VertexBaseIndex + CurrSection.BaseVertexIndex;
-
-		Sections[SectionIndex].NumTriangles = CurrSection.NumTriangles;
-
-		// #todo(dmp): what should we set this to?  SkeletalMesh sections are different
-		// but we are resetting this when the re indexing happens
-		Sections[SectionIndex].MaxVertexIndex = VertexBaseIndex + CurrSection.NumVertices;
-
-		// set the materialid for all of the faces
-		for (int32 i = Sections[SectionIndex].FirstIndex / 3; i < Sections[SectionIndex].FirstIndex / 3 + Sections[SectionIndex].NumTriangles; ++i)
+		TArray<int32> BlendedSkeletalMeshVertices;
+		TArray<TArray<float>> Weights;
+		Weights.SetNum(SkinWeightVertexBuffer->GetNumVertices());
+		FSkeletalMeshAttributes MeshAttribs(MeshDescription);
+		FSkinWeightsVertexAttributesRef VertexSkinWeights = MeshAttribs.GetVertexSkinWeights();
+		if (ensure(NumVertices == MeshDescription.Vertices().Num()))
 		{
-			MaterialID[i] = SectionIndex;
+			GeometryCollection::Facades::FVertexBoneWeightsFacade VertexBoneWeightsFacade(GeometryCollection);
+			for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
+			{
+				FVertexBoneWeights BoneWeights = VertexSkinWeights.Get(FVertexID(VertexIndex));
+				const int32 InfluenceCount = BoneWeights.Num();
+				TArray<int32> VertexBoneIndex;
+				TArray<float> VertexBoneWeight;
+				VertexBoneIndex.SetNum(InfluenceCount);
+				VertexBoneWeight.SetNum(InfluenceCount);
+				for (int32 InfluenceIndex = 0; InfluenceIndex < InfluenceCount; ++InfluenceIndex)
+				{
+					VertexBoneIndex[InfluenceIndex] = BoneWeights[InfluenceIndex].GetBoneIndex();
+					VertexBoneWeight[InfluenceIndex] = BoneWeights[InfluenceIndex].GetWeight();
+				}
+				VertexBoneWeightsFacade.ModifyBoneWeight(SourceVertexToComponentMap[VertexIndex], VertexBoneIndex, VertexBoneWeight);
+			}
 		}
 	}
-
-	if (bReindexMaterials)
-	{
-		FGeometryCollection::ReindexMaterials(*InCollection);
-	}
-
+	GeometryCollection.CopyTo(InManagedArrayCollection);
 	return true;
+#else
+	return false;
+#endif
 }
 
 void FGeometryCollectionEngineConversion::AppendSkeleton(const USkeleton* InSkeleton, const FTransform& SkeletalMeshTransform, FManagedArrayCollection* InCollection)
@@ -1395,7 +1496,8 @@ void FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh
 		if (FGeometryCollection* GeometryCollection = GeometryCollectionPtr.Get())
 		{
 			int32 MaterialStart = GeometryCollectionObject->Materials.Num();
-			if (AppendSkeletalMesh(SkeletalMesh, MaterialStart, SkeletalMeshTransform, GeometryCollection, bReindexMaterials))
+			constexpr bool bImportTransformOnly = false;
+			if (AppendSkeletalMesh(SkeletalMesh, MaterialStart, SkeletalMeshTransform, GeometryCollection, bReindexMaterials, bImportTransformOnly))
 			{
 				AppendSkeletalMeshMaterials(SkeletalMesh, SkeletalMeshComponent, GeometryCollectionObject);
 			}
@@ -1426,12 +1528,24 @@ int32 FGeometryCollectionEngineConversion::AppendSkeletalMeshMaterials(const USk
 
 void FGeometryCollectionEngineConversion::AppendGeometryCollectionSource(const FGeometryCollectionSource& GeometryCollectionSource, FGeometryCollection& GeometryCollectionInOut, TArray<UMaterial*>& MaterialsInOut, bool ReindexMaterials)
 {
+	const int32 StartMaterialIndex = MaterialsInOut.Num();
+	if (AppendGeometryCollectionSourceNoMaterial(GeometryCollectionSource, GeometryCollectionInOut, StartMaterialIndex, ReindexMaterials))
+	{
+		MaterialsInOut.Append(GeometryCollectionSource.SourceMaterial);
+	}
+}
+void FGeometryCollectionEngineConversion::AppendGeometryCollectionSource(const FGeometryCollectionSource& GeometryCollectionSource, FGeometryCollection& GeometryCollectionInOut, TArray<UMaterialInterface*>& MaterialInstancesInOut, bool ReindexMaterials)
+{
+	const int32 StartMaterialIndex = MaterialInstancesInOut.Num();
+	if (AppendGeometryCollectionSourceNoMaterial(GeometryCollectionSource, GeometryCollectionInOut, StartMaterialIndex, ReindexMaterials))
+	{
+		MaterialInstancesInOut.Append(GeometryCollectionSource.SourceMaterial);
+	}
+}
+bool FGeometryCollectionEngineConversion::AppendGeometryCollectionSourceNoMaterial(const FGeometryCollectionSource& GeometryCollectionSource, FGeometryCollection& GeometryCollectionInOut, int32 StartMaterialIndex, bool ReindexMaterials)
+{
 	if (const UObject* SourceObject = GeometryCollectionSource.SourceGeometryObject.TryLoad())
 	{
-		const int32 StartMaterialIndex = MaterialsInOut.Num();
-
-		MaterialsInOut.Append(GeometryCollectionSource.SourceMaterial);
-
 		if (const UStaticMesh* SourceStaticMesh = Cast<UStaticMesh>(SourceObject))
 		{
 			bool bLegacyAddInternal = GeometryCollectionSource.bAddInternalMaterials;
@@ -1445,6 +1559,7 @@ void FGeometryCollectionEngineConversion::AppendGeometryCollectionSource(const F
 				GeometryCollectionSource.bSplitComponents,
 				GeometryCollectionSource.bSetInternalFromMaterialIndex
 				);
+			return true;
 		}
 		else if (const USkeletalMesh* SourceSkeletalMesh = Cast<USkeletalMesh>(SourceObject))
 		{
@@ -1453,8 +1568,10 @@ void FGeometryCollectionEngineConversion::AppendGeometryCollectionSource(const F
 				StartMaterialIndex,
 				GeometryCollectionSource.LocalTransform,
 				&GeometryCollectionInOut,
-				ReindexMaterials
+				ReindexMaterials,
+				false
 				);
+			return true;
 		}
 		else if (const UGeometryCollection* SourceGeometryCollection = Cast<UGeometryCollection>(SourceObject))
 		{
@@ -1465,19 +1582,31 @@ void FGeometryCollectionEngineConversion::AppendGeometryCollectionSource(const F
 				&GeometryCollectionInOut,
 				ReindexMaterials
 				);
+			return true;
 		}
 	}
+	return false;
 }
 
 void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(const TObjectPtr<UStaticMesh> StaticMesh, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSetInternalFromMaterialIndex, bool bSplitComponents)
+{
+	TArray<TObjectPtr<UMaterialInterface>> OutMaterialInstances;
+	ConvertStaticMeshToGeometryCollection(StaticMesh, OutCollection, OutMaterialInstances, OutInstancedMeshes, bSetInternalFromMaterialIndex, bSplitComponents);
+	GetMaterialsFromInstances(OutMaterialInstances, OutMaterials);
+}
+
+void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(const TObjectPtr<UStaticMesh> StaticMesh, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterialInterface>>& OutMaterialInstances, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSetInternalFromMaterialIndex, bool bSplitComponents)
+{
+	ConvertStaticMeshToGeometryCollection(StaticMesh, FTransform::Identity, OutCollection, OutMaterialInstances, OutInstancedMeshes, bSetInternalFromMaterialIndex, bSplitComponents);
+}
+
+void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(const TObjectPtr<UStaticMesh> StaticMesh, const FTransform& MeshTransform, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterialInterface>>& OutMaterialInstances, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSetInternalFromMaterialIndex, bool bSplitComponents)
 {
 #if WITH_EDITORONLY_DATA
 	if (UGeometryCollection* NewGeometryCollection = NewObject<UGeometryCollection>())
 	{
 		// If any of the static meshes have Nanite enabled, also enable on the new geometry collection asset for convenience.
 		NewGeometryCollection->EnableNanite |= StaticMesh->IsNaniteEnabled();
-
-		FTransform ComponentTransform = FTransform::Identity;
 
 		// Record the contributing source on the asset.
 		FSoftObjectPath SourceSoftObjectPath(StaticMesh);
@@ -1496,23 +1625,227 @@ void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(
 		NewInstanceMesh.Materials = SourceMaterials;
 		OutInstancedMeshes.Emplace(NewInstanceMesh);
 
-		bool bAddInternalMaterials = true;
+		bool bAddInternalMaterials = false;
 
-		NewGeometryCollection->GeometrySource.Emplace(SourceSoftObjectPath, ComponentTransform, SourceMaterials, bSplitComponents, bSetInternalFromMaterialIndex);
-		FGeometryCollectionEngineConversion::AppendStaticMesh(StaticMesh, SourceMaterials, ComponentTransform, NewGeometryCollection, false, bAddInternalMaterials, bSplitComponents, bSetInternalFromMaterialIndex);
+		NewGeometryCollection->GeometrySource.Emplace(SourceSoftObjectPath, MeshTransform, SourceMaterials, bSplitComponents, bSetInternalFromMaterialIndex);
+		FGeometryCollectionEngineConversion::AppendStaticMesh(StaticMesh, SourceMaterials, MeshTransform, NewGeometryCollection, false, bAddInternalMaterials, bSplitComponents, bSetInternalFromMaterialIndex);
+
+		// make sure we have only one root if we split components
+		TSharedPtr<FGeometryCollection> OutCollectionPtr = NewGeometryCollection->GetGeometryCollection();
+		if (bSplitComponents && FGeometryCollectionClusteringUtility::ContainsMultipleRootBones(OutCollectionPtr.Get()))
+		{
+			FGeometryCollectionClusteringUtility::ClusterAllBonesUnderNewRoot(OutCollectionPtr.Get());
+		}
 
 		NewGeometryCollection->InitializeMaterials();
 
 		// Materials
-		for (auto& Material : NewGeometryCollection->Materials)
+		OutMaterialInstances.Append(NewGeometryCollection->Materials);
+
+		OutCollectionPtr->CopyTo(&OutCollection);
+	}
+#endif //WITH_EDITORONLY_DATA
+}
+
+void FGeometryCollectionEngineConversion::ConvertGeometryCollectionToGeometryCollection(const TObjectPtr<UGeometryCollection> InGeometryCollectionAssetPtr, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes)
+{
+	TArray<TObjectPtr<UMaterialInterface>> OutMaterialInstances;
+	ConvertGeometryCollectionToGeometryCollection(InGeometryCollectionAssetPtr, OutCollection, OutMaterialInstances, OutInstancedMeshes);
+	GetMaterialsFromInstances(OutMaterialInstances, OutMaterials);
+}
+
+void FGeometryCollectionEngineConversion::ConvertGeometryCollectionToGeometryCollection(const TObjectPtr<UGeometryCollection> InGeometryCollectionAssetPtr, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterialInterface>>& OutMaterialInstances, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes)
+{
+	if (InGeometryCollectionAssetPtr)
+	{
+		const TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> NewGeometryCollectionPtr = InGeometryCollectionAssetPtr->GetGeometryCollection();
+
+		// Materials
+		OutMaterialInstances = InGeometryCollectionAssetPtr->Materials;
+
+		// InstanceMeshes
+		OutInstancedMeshes = InGeometryCollectionAssetPtr->AutoInstanceMeshes;
+			
+		if (NewGeometryCollectionPtr)
 		{
-			OutMaterials.Emplace(Material->GetMaterial());
+			NewGeometryCollectionPtr->CopyTo(&OutCollection);
 		}
+	}
+}
+
+
+void FGeometryCollectionEngineConversion::ConvertActorToGeometryCollection(const AActor* Actor, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, const FSkeletalMeshToCollectionConversionParameters& ConversionParameters, bool bSplitComponents)
+{
+	TArray<TObjectPtr<UMaterialInterface>> OutMaterialInstances;
+	ConvertActorToGeometryCollection(Actor, OutCollection, OutMaterialInstances, OutInstancedMeshes, ConversionParameters, bSplitComponents);
+	GetMaterialsFromInstances(OutMaterialInstances, OutMaterials);
+}
+
+void FGeometryCollectionEngineConversion::ConvertActorToGeometryCollection(const AActor* Actor, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterialInterface>>& OutMaterialInstances, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, const FSkeletalMeshToCollectionConversionParameters& ConversionParameters, bool bSplitComponents)
+{
+#if WITH_EDITORONLY_DATA
+	const FTransform ActorTransform(Actor->GetTransform());
+
+	if (UGeometryCollection* NewGeometryCollection = NewObject<UGeometryCollection>())
+	{
+		TInlineComponentArray<UStaticMeshComponent*> StaticMeshComponents(Actor);
+		for (UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
+		{
+			if (StaticMeshComponent)
+			{
+				if (const UStaticMesh* ComponentStaticMesh = StaticMeshComponent->GetStaticMesh())
+				{
+					NewGeometryCollection->EnableNanite |= ComponentStaticMesh->IsNaniteEnabled();
+
+					FTransform ComponentTransform(StaticMeshComponent->GetComponentTransform());
+					ComponentTransform.SetTranslation((ComponentTransform.GetTranslation() - ActorTransform.GetTranslation()));
+
+					// Record the contributing source on the asset.
+					FSoftObjectPath SourceSoftObjectPath(ComponentStaticMesh);
+					TArray<TObjectPtr<UMaterialInterface>> SourceMaterials(StaticMeshComponent->GetMaterials());
+
+					NewGeometryCollection->GeometrySource.Emplace(SourceSoftObjectPath, ComponentTransform, SourceMaterials, bSplitComponents, true/*bSetInternalFromMaterialIndex*/);
+
+					FGeometryCollectionEngineConversion::AppendStaticMesh(ComponentStaticMesh, SourceMaterials, ComponentTransform, NewGeometryCollection, false/*bReindexMaterials*/, false/*bAddInternalMaterials*/, bSplitComponents, true/*bSetInternalFromMaterialIndex*/);
+				}
+			}
+		}
+
+		TInlineComponentArray<UGeometryCollectionComponent*> GeometryCollectionComponents(Actor);
+		for (UGeometryCollectionComponent* GeometryCollectionComponent : GeometryCollectionComponents)
+		{
+			if (GeometryCollectionComponent)
+			{
+				if (const UGeometryCollection* RestCollection = GeometryCollectionComponent->GetRestCollection())
+				{
+					NewGeometryCollection->EnableNanite |= RestCollection->EnableNanite;
+
+					FTransform ComponentTransform(GeometryCollectionComponent->GetComponentTransform());
+					ComponentTransform.SetTranslation((ComponentTransform.GetTranslation() - ActorTransform.GetTranslation()));
+
+					// Record the contributing source on the asset.
+					FSoftObjectPath SourceSoftObjectPath(RestCollection);
+
+					int32 NumMaterials = GeometryCollectionComponent->GetNumMaterials();
+					TArray<TObjectPtr<UMaterialInterface>> SourceMaterials;
+					SourceMaterials.SetNum(NumMaterials);
+					for (int32 MaterialIndex = 0; MaterialIndex < NumMaterials; ++MaterialIndex)
+					{
+						SourceMaterials[MaterialIndex] = GeometryCollectionComponent->GetMaterial(MaterialIndex);
+					}
+					NewGeometryCollection->GeometrySource.Emplace(SourceSoftObjectPath, ComponentTransform, SourceMaterials, bSplitComponents, true/*bSetInternalFromMaterialIndex*/);
+
+					FGeometryCollectionEngineConversion::AppendGeometryCollection(RestCollection, GeometryCollectionComponent, ComponentTransform, NewGeometryCollection, false /*bReindexMaterials*/);
+				}
+			}
+		}
+
+		NewGeometryCollection->InitializeMaterials();
+
+		if (ConversionParameters.bParentAllBonesUnderNewRoot && FGeometryCollectionClusteringUtility::ContainsMultipleRootBones(NewGeometryCollection->GetGeometryCollection().Get()))
+		{
+			UE_LOG(UGeometryCollectionConversionLogging, Log, TEXT("FGeometryCollectionEngineConversion::ConvertActorToGeometryCollection() - All bones were parented under new root."));
+
+			FGeometryCollectionClusteringUtility::ClusterAllBonesUnderNewRoot(NewGeometryCollection->GetGeometryCollection().Get(), FName("root"), false);
+		}
+
+		// InstanceMeshes
+		OutInstancedMeshes.Append(NewGeometryCollection->AutoInstanceMeshes);
+
+		// Materials
+		OutMaterialInstances = NewGeometryCollection->Materials;
 
 		TSharedPtr<FGeometryCollection> OutCollectionPtr = NewGeometryCollection->GetGeometryCollection();
 		OutCollectionPtr->CopyTo(&OutCollection);
 	}
 #endif //WITH_EDITORONLY_DATA
+}
+
+
+void FGeometryCollectionEngineConversion::ConvertCollectionToSkeleton(const FManagedArrayCollection& InCollection, USkeleton* OutSkeleton, TArray<int32>& OutIndexRemap)
+{
+	FManagedArrayCollection LocalCollection = InCollection;
+	GeometryCollection::Facades::FCollectionTransformFacade Transforms(LocalCollection);
+	if (Transforms.IsValid() && Transforms.HasBoneNameAttribute() && OutSkeleton)
+	{
+		Transforms.EnforceSingleRoot("root");
+
+		OutIndexRemap.Init(INDEX_NONE, Transforms.Num());
+		auto AddMapping = [&OutIndexRemap](int32 A, int32 B)
+		{
+			OutIndexRemap[A] = B;
+		};
+
+		auto AddChildren = [&Transforms, &OutSkeleton, &AddMapping](const TArray<int32>& CollectionChildren)
+		{
+			TQueue<int32> Children;
+			auto Enqueue = [&Children](const TArray<int32>& List)
+			{
+				for (int32 Elem : List)
+					Children.Enqueue(Elem);
+			};
+
+			int CurrentIndex = INDEX_NONE;
+			Enqueue(CollectionChildren);
+			while (!Children.IsEmpty())
+			{
+				Children.Dequeue(CurrentIndex);
+
+				int32 CollectionParentIndex = (*Transforms.GetParents())[CurrentIndex];
+				int32 SkeletionParentIndex = OutSkeleton->GetReferenceSkeleton().FindBoneIndex(FName((*Transforms.FindBoneNames())[CollectionParentIndex]));
+
+				FName BoneName = FName((*Transforms.FindBoneNames())[CurrentIndex]);
+				FTransform Transform = FTransform((*Transforms.FindTransforms())[CurrentIndex]);
+				FMeshBoneInfo Info(BoneName, BoneName.ToString(), SkeletionParentIndex);
+				{
+					FReferenceSkeletonModifier Edit(OutSkeleton);
+					Edit.Add(Info, Transform, true /*bAllowMultipleRoots*/);
+				}
+				AddMapping(CurrentIndex, OutSkeleton->GetReferenceSkeleton().GetRawBoneNum());
+
+				Enqueue((*Transforms.FindChildren())[CurrentIndex].Array());
+			}
+		};
+
+
+		// must insert in decending order from parent to child. 
+		TArray<FString> BoneNameStrings = Transforms.FindBoneNames()->GetConstArray();
+		for (int i = 0; i < Transforms.GetParents()->Num(); i++)
+		{
+			if ((*Transforms.GetParents())[i] == INDEX_NONE) // No parent
+			{
+				FName BoneName = FName((*Transforms.FindBoneNames())[i]);
+				FTransform Transform = FTransform((*Transforms.FindTransforms())[i]);
+				FMeshBoneInfo Info(BoneName, BoneName.ToString(), INDEX_NONE);
+				{
+					FReferenceSkeletonModifier Edit(OutSkeleton);
+					Edit.Add(Info, Transform, true /*bAllowMultipleRoots*/);
+				}
+				AddMapping(i,OutSkeleton->GetReferenceSkeleton().GetNum());
+
+				if ((*Transforms.FindChildren())[i].Num())
+				{
+					AddChildren((*Transforms.FindChildren())[i].Array());
+				}
+			}
+		}
+
+		Transforms.EnforceSingleRoot("root");
+		UE_LOG(UGeometryCollectionConversionLogging, Log, TEXT("FGeometryCollectionEngineConversion::ConvertCollectionToSkeleton(NumTransforms:%d)"), OutSkeleton->GetReferenceSkeleton().GetRawBoneNum());
+	}
+}
+
+void FGeometryCollectionEngineConversion::GetMaterialsFromInstances(const TArray<TObjectPtr<UMaterialInterface>>& MaterialInstances, TArray<TObjectPtr<UMaterial>>& OutMaterials)
+{
+	// somehow append does not like appending to a TArray<ObjectPtr<>>
+	// so we need to store in a array of raw pointers and then transfer over 
+	TArray<UMaterial*> MaterialArray;
+	MaterialArray.Append(MaterialInstances);
+	OutMaterials.Reserve(MaterialInstances.Num());
+	for (UMaterial* Material : MaterialArray)
+	{
+		OutMaterials.Add(Material);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE 

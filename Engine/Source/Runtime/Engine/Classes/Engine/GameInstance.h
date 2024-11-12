@@ -10,19 +10,10 @@
 #include "Templates/SubclassOf.h"
 #include "Engine/EngineBaseTypes.h"
 #include "Engine/NetworkDelegates.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHIDefinitions.h"
-#endif
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Subsystems/SubsystemCollection.h"
 #include "GameFramework/OnlineReplStructs.h"
 #include "ReplayTypes.h"
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#if WITH_EDITOR
-#include "Settings/LevelEditorPlaySettings.h"
-#endif 
-#endif
 
 #include "GameInstance.generated.h"
 
@@ -35,6 +26,7 @@ class ULocalPlayer;
 class UOnlineSession;
 enum EPlayNetMode : int;
 struct FLatentActionManager;
+struct FNetDriverReplicationSystemConfig;
 class ULevelEditorPlaySettings;
 class IAnalyticsProvider;
 namespace ERHIFeatureLevel { enum Type : int; }
@@ -302,8 +294,8 @@ public:
 	struct FWorldContext* GetWorldContext() const { return WorldContext; };
 	ENGINE_API class UGameViewportClient* GetGameViewportClient() const;
 
-	/** Callback from the world context when the world changes */
-	virtual void OnWorldChanged(UWorld* OldWorld, UWorld* NewWorld) {}
+	/** Callback from the world context when the world changes, this ensure the world context is set properly */
+	ENGINE_API virtual void OnWorldChanged(UWorld* OldWorld, UWorld* NewWorld);
 
 	/** Starts the GameInstance state machine running */
 	ENGINE_API virtual void StartGameInstance();
@@ -417,14 +409,6 @@ public:
 	 *
 	 * @return the unique id of the primary player on this machine
 	 */
-	UE_DEPRECATED(5.0, "Use GetPrimaryPlayerUniqueIdRepl.")
-	ENGINE_API FUniqueNetIdPtr GetPrimaryPlayerUniqueId() const;
-
-	/**
-	 * Get the unique id for the primary player on this machine (others are splitscreen children)
-	 *
-	 * @return the unique id of the primary player on this machine
-	 */
 	ENGINE_API FUniqueNetIdRepl GetPrimaryPlayerUniqueIdRepl() const;
 
 	ENGINE_API void CleanupGameViewport();
@@ -484,9 +468,33 @@ public:
 	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of UGameInstance
 	 */
 	template <typename TSubsystemClass>
+	UE_DEPRECATED(5.4, "This function is unsafe for re-entrancy and has been deprecated. Use GetSubsystemArrayCopy or ForEachSubsystem instead")
 	const TArray<TSubsystemClass*>& GetSubsystemArray() const
 	{
 		return SubsystemCollection.GetSubsystemArray<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
+
+	/**
+	 * Get all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 *
+	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of UGameInstance
+	 */
+	template <typename TSubsystemClass>
+	TArray<TSubsystemClass*> GetSubsystemArrayCopy() const
+	{
+		return SubsystemCollection.GetSubsystemArrayCopy<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
+
+	/**
+	 * Performs an operation on all all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 */
+	template <typename TSubsystemClass>
+	void ForEachSubsystem(TFunctionRef<void(TSubsystemClass*)> Operation) const
+	{
+		static_assert(TIsDerivedFrom<TSubsystemClass, UGameInstanceSubsystem>::IsDerived, "TSubsystemClass must be derived from UGameInstanceSubsystem");
+		return SubsystemCollection.ForEachSubsystem([Operation=MoveTemp(Operation)](UGameInstanceSubsystem* Subsystem){
+			Operation(CastChecked<TSubsystemClass>(Subsystem));
+		}, TSubsystemClass::StaticClass());
 	}
 
 	/**
@@ -648,6 +656,9 @@ public:
 
 	/** Allows a GameInstance to override the default configured replication system for it's specific conditions. Return Default to use the configured replication system. */
 	ENGINE_API virtual EReplicationSystem GetDesiredReplicationSystem(FName InNetDriverDefinition) const;
+
+	/** Allows a GameInstance to override the default configuration of the Iris replication system. For instance if specific game modes require different settings. */
+	ENGINE_API virtual void OverrideIrisReplicationSystemConfig(FNetDriverReplicationSystemConfig& OutConfig, bool bIsServer) const {}
 
 protected:
 	/** Non-virtual dispatch for OnStart, also calls the associated global OnStartGameInstance. */

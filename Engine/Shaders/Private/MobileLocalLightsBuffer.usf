@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #define SUPPORT_CONTACT_SHADOWS 0
+#define ALLOW_LOCAL_LIGHT_DISTANCE_ATTENUATION 1
 #define MAX_UINT 4294967295
 
 #if !COMPUTE_SHADER
@@ -43,9 +44,9 @@ void MainCS(
 	for (int SliceIt = 0; SliceIt < GridData.CulledGridSize.z; SliceIt++)
 	{
 		const uint GridIndex = ComputeLightGridCellIndex(uint3(GridX, GridY, SliceIt), EyeIndex);
-		const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, EyeIndex);
+		const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 		
-		NumLightsInGridCell = CulledLightsGrid.NumLights;
+		NumLightsInGridCell = CulledLightsGridHeader.NumLights;
 
 		if(NumLightsInGridCell > 0)
 		{
@@ -107,13 +108,13 @@ void Main(float4 SvPosition : SV_POSITION
 	float3 CameraVector = normalize(TranslatedWorldPosition);
 
 	uint GridIndex = ComputeLightGridCellIndex(uint2(PixelPos.x, PixelPos.y), SceneDepth);
-	const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
+	const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 
 	float3 MergedLightColor = uint3(0.f, 0.f , 0.f);
 	float3 MergedLightL = float3(0,0,0);
 	float MergedSpecularScale = 0.f;
 	float MergedTotalWeight = 0;
-	MergeLocalLights(CulledLightGridData, TranslatedWorldPosition, EyeIndex, true, MergedLightColor, MergedLightL, MergedSpecularScale, MergedTotalWeight);
+	MergeLocalLights(CulledLightsGridHeader, TranslatedWorldPosition, EyeIndex, true, MergedLightColor, MergedLightL, MergedSpecularScale, MergedTotalWeight);
 
 	if (MergedTotalWeight > 0)
 	{

@@ -2,19 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "IDetailCustomization.h"
 #include "Input/Reply.h"
 
 class ADMXMVRSceneActor;
-class UDMXEntityFixturePatch;
-class UDMXEntityFixtureType;
-class UDMXImportGDTF;
-
-enum class ECheckBoxState : uint8;
 class IPropertyHandle;
 class IPropertyUtilities;
-
+class UDMXEntityFixturePatch;
+class UDMXEntityFixtureType;
+enum class ECheckBoxState : uint8;
 
 /** Details customization for the 'FixtureType FunctionProperties' details view */
 class FDMXMVRSceneActorDetails
@@ -30,17 +26,23 @@ protected:
 	//~ End IDetailCustomization interface
 
 private:
-	/** Creates the section where the user can refresh the MVR scene from a changed DMX Library */
-	void CreateRefreshMVRSceneSection(IDetailLayoutBuilder& DetailBuilder);
+	/** Creates the DMX Library related section */
+	void CreateDMXLibrarySection(IDetailLayoutBuilder& DetailBuilder);
 
-	/** Creates the section where the user can select an actor class for each GDTF in the MVR Scene */
-	void CreateGDTFToActorClassSection(IDetailLayoutBuilder& DetailBuilder);
+	/** Creates the section where the user can select an actor class for each Fixture Type in the MVR Scene */
+	void CreateFixtureTypeToActorClassSection(IDetailLayoutBuilder& DetailBuilder);
+
+	/** Returns the Fixture Patch from an Actor, or nullptr if the Actor has no Fixture Patch set */
+	UDMXEntityFixturePatch* GetFixturePatchFromActor(AActor* Actor) const;
 
 	/** Called when the Refresh Actors from DMX Library button was clicked */
 	FReply OnRefreshActorsFromDMXLibraryClicked();
 
-	/** Called when a GDTF to Actor Class Group was clicked */
-	FReply OnSelectGDTFToActorClassGroupClicked(UObject* GDTFObject);
+	/** Called when the Write Transforms To DMX Library button was clicked */
+	FReply OnWriteTransformsToDMXLibraryClicked();
+
+	/** Called when a Fixture Type to Actor Class Group was selected */
+	FReply OnFixtureTypeToActorClassGroupSelected(UObject* FixtureTypeObject);
 
 	/** Called when a Fixture Patch changed */
 	void OnFixturePatchChanged(const UDMXEntityFixturePatch* FixturePatch);
@@ -54,20 +56,14 @@ private:
 	/** Called when an actor got deleted in editor */
 	void OnActorDeleted(AActor* DeletedActor);
 
-	/** Called before an Actor Class changed in the GDTFToActorClasses member of the Actor */
-	void OnPreEditChangeActorClassInGDTFToActorClasses();
+	/** Called before an Actor Class changed in the FixtureTypeToActorClasses member of the Actor */
+	void OnPreEditChangeActorClassInFixtureTypeToActorClasses();
 
-	/** Called after an Actor Class changed in the GDTFToActorClasses member of the Actor */
-	void OnPostEditChangeActorClassInGDTFToActorClasses();
-
-	/** Returns true if any actor in the current level makes use of the specified GDTF */
-	bool IsAnyActorUsingGDTF(const UDMXImportGDTF* GDTF) const;
+	/** Called after an Actor Class changed in the FixtureTypeToActorClasses member of the Actor */
+	void OnPostEditChangeActorClassInFixtureTypeToActorClasses();
 
 	/** Requests this Details Customization to refresh */
 	void RequestRefresh();
-
-	/** Handle to the Actor Class Property in the GDTFToDefaultActorClasses struct */
-	TSharedPtr<IPropertyHandle> DefaultActorClassHandle;
 
 	/** The Actors being customized in this Detais Customization */
 	TArray<TWeakObjectPtr<ADMXMVRSceneActor>> OuterSceneActors;

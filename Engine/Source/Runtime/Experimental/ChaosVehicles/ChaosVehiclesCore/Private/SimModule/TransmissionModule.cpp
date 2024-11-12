@@ -6,18 +6,27 @@
 #include "VehicleUtility.h"
 
 #if VEHICLE_DEBUGGING_ENABLED
-UE_DISABLE_OPTIMIZATION
+UE_DISABLE_OPTIMIZATION_SHIP
 #endif
 
 namespace Chaos
 {
+	FTransmissionSimModule::FTransmissionSimModule(const FTransmissionSettings& Settings)
+		: TSimModuleSettings<FTransmissionSettings>(Settings)
+		, CurrentGear(1)
+		, TargetGear(1)
+		, CurrentGearChangeTime(0.f)
+		, AllowedToChangeGear(true)
+		, GearHysteresisTimer(0.f)
+	{
+	}
 
 	void FTransmissionSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
 	{
 
 		if (Setup().AutoReverse)
 		{
-			if (Inputs.ControlInputs.IsReversing)
+			if (Inputs.GetControls().GetMagnitude(ReverseControlName))
 			{
 				// if reversing change to reverse gear if currently in a forwards gear
 				if (TargetGear > 0)
@@ -37,6 +46,14 @@ namespace Chaos
 
 		if (Setup().TransmissionType == FTransmissionSettings::ETransType::AutomaticType)
 		{
+			if (AllowedToChangeGear == false)
+			{
+				GearHysteresisTimer -= DeltaTime;
+				if (GearHysteresisTimer <= 0.0f)
+				{
+					AllowedToChangeGear = true;
+				}
+			}
 			// not currently changing gear, also don't want to change up because the wheels are spinning up due to having no load
 			if (!IsCurrentlyChangingGear() && AllowedToChangeGear)
 			{
@@ -53,6 +70,8 @@ namespace Chaos
 					if (CurrentGear > 0)
 					{
 						ChangeUp();
+						AllowedToChangeGear = false;
+						GearHysteresisTimer = Setup().GearHysteresisTime;
 					}
 					else
 					{
@@ -74,17 +93,13 @@ namespace Chaos
 		}
 		else
 		{
-			if (Inputs.ControlInputs.ChangeUp)
+			if (Inputs.GetControls().GetMagnitude(ChangeUpControlName))
 			{
 				ChangeUp();
 			}
-			else if (Inputs.ControlInputs.ChangeDown)
+			else if (Inputs.GetControls().GetMagnitude(ChangeDownControlName))
 			{
 				ChangeDown();
-			}
-			else if (Inputs.ControlInputs.GearNumber)
-			{
-				TargetGear = Inputs.ControlInputs.GearNumber;
 			}
 		}
 
@@ -155,10 +170,9 @@ namespace Chaos
 		return true;
 	}
 
-	void FTransmissionSimModuleDatas::FillSimState(ISimulationModuleBase* SimModule)
+	void FTransmissionSimModuleData::FillSimState(ISimulationModuleBase* SimModule)
 	{
-		check(SimModule->GetSimType() == eSimType::Transmission);
-		if (FTransmissionSimModule* Sim = static_cast<FTransmissionSimModule*>(SimModule))
+		if (FTransmissionSimModule* Sim = SimModule->Cast<FTransmissionSimModule>())
 		{
 			Sim->CurrentGear = CurrentGear;
 			Sim->TargetGear = TargetGear;
@@ -166,10 +180,9 @@ namespace Chaos
 		}
 	}
 
-	void FTransmissionSimModuleDatas::FillNetState(const ISimulationModuleBase* SimModule)
+	void FTransmissionSimModuleData::FillNetState(const ISimulationModuleBase* SimModule)
 	{
-		check(SimModule->GetSimType() == eSimType::Transmission);
-		if (const FTransmissionSimModule* Sim = static_cast<const FTransmissionSimModule*>(SimModule))
+		if (const FTransmissionSimModule* Sim = SimModule->Cast<const FTransmissionSimModule>())
 		{
 			CurrentGear = Sim->CurrentGear;
 			TargetGear = Sim->TargetGear;
@@ -177,10 +190,10 @@ namespace Chaos
 		}
 	}
 
-	void FTransmissionSimModuleDatas::Lerp(const float LerpFactor, const FModuleNetData& Min, const FModuleNetData& Max)
+	void FTransmissionSimModuleData::Lerp(const float LerpFactor, const FModuleNetData& Min, const FModuleNetData& Max)
 	{
-		const FTransmissionSimModuleDatas& MinData = static_cast<const FTransmissionSimModuleDatas&>(Min);
-		const FTransmissionSimModuleDatas& MaxData = static_cast<const FTransmissionSimModuleDatas&>(Max);
+		const FTransmissionSimModuleData& MinData = static_cast<const FTransmissionSimModuleData&>(Min);
+		const FTransmissionSimModuleData& MaxData = static_cast<const FTransmissionSimModuleData&>(Max);
 
 		CurrentGear = LerpFactor < 0.5 ? MinData.CurrentGear : MaxData.CurrentGear;
 		TargetGear = LerpFactor < 0.5 ? MinData.TargetGear : MaxData.TargetGear;
@@ -188,7 +201,7 @@ namespace Chaos
 	}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	FString FTransmissionSimModuleDatas::ToString() const
+	FString FTransmissionSimModuleData::ToString() const
 	{
 		return FString::Printf(TEXT("Module:%s CurrentGear:%d TargetGear:%d CurrentGearChangeTime:%f"),
 			*DebugString, CurrentGear, TargetGear, CurrentGearChangeTime);
@@ -197,11 +210,9 @@ namespace Chaos
 
 	void FTransmissionOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
 	{
-		check(SimModule->GetSimType() == eSimType::Transmission);
-
 		FSimOutputData::FillOutputState(SimModule);
 
-		if (const FTransmissionSimModule* Sim = static_cast<const FTransmissionSimModule*>(SimModule))
+		if (const FTransmissionSimModule* Sim = SimModule->Cast<const FTransmissionSimModule>())
 		{
 			CurrentGear = Sim->CurrentGear;
 		}
@@ -226,5 +237,5 @@ namespace Chaos
 } // namespace Chaos
 
 #if VEHICLE_DEBUGGING_ENABLED
-UE_ENABLE_OPTIMIZATION
+UE_ENABLE_OPTIMIZATION_SHIP
 #endif

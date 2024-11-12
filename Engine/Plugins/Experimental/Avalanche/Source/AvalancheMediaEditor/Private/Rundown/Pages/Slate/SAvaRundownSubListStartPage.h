@@ -19,4 +19,5 @@ protected:
 	TWeakPtr<FAvaRundownEditor> RundownEditorWeak;
 
 	FReply OnCreateSubListClicked();
+	FReply OnShowAllSubListsClicked();
 };

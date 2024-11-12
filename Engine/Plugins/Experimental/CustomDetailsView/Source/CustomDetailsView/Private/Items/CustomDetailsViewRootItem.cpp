@@ -9,7 +9,7 @@
 #define UE_CUSTOM_DETAILS_ROOT_ITEM_NO_ENTRY() checkf(0, TEXT("%s shouldn't be called on Root Item"), StringCast<TCHAR>(__FUNCTION__).Get())
 
 FCustomDetailsViewRootItem::FCustomDetailsViewRootItem(const TSharedRef<SCustomDetailsView>& InCustomDetailsView)
-	: FCustomDetailsViewItem(InCustomDetailsView, nullptr, nullptr)
+	: FCustomDetailsViewDetailTreeNodeItem(InCustomDetailsView, nullptr, nullptr)
 {
 	FPropertyEditorModule& PropertyEditor = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
 
@@ -50,8 +50,7 @@ void FCustomDetailsViewRootItem::RefreshChildren(TSharedPtr<ICustomDetailsViewIt
 	// Don't need to do anything about this, it will not affect anything. Passing in a parent is an error, though.
 	ensure(!InParentOverride.IsValid());
 
-	const TArray<TSharedRef<IDetailTreeNode>>& RootTreeNodes = PropertyRowGenerator->GetRootTreeNodes();
-	Children = GenerateChildren(AsShared(), RootTreeNodes);
+	Children = GenerateChildren(AsShared());
 }
 
 TSharedRef<SWidget> FCustomDetailsViewRootItem::MakeWidget(const TSharedPtr<SWidget>& InPrependWidget
@@ -102,6 +101,18 @@ bool FCustomDetailsViewRootItem::FilterItems(const TArray<FString>& InFilterStri
 
 	// If all rows are hidden, nothing passed filters
 	return IsWidgetVisible();
+}
+
+void FCustomDetailsViewRootItem::GenerateCustomChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem, TArray<TSharedPtr<ICustomDetailsViewItem>>& OutChildren)
+{
+	if (!CustomDetailsViewWeak.IsValid() || !PropertyRowGenerator.IsValid())
+	{
+		return;
+	}
+
+	const TArray<TSharedRef<IDetailTreeNode>>& RootTreeNodes = PropertyRowGenerator->GetRootTreeNodes();
+
+	AddChildDetailsTreeNodes(InParentItem, ECustomDetailsViewNodePropertyFlag::None, RootTreeNodes, OutChildren);
 }
 
 #undef UE_CUSTOM_DETAILS_ROOT_ITEM_NO_ENTRY

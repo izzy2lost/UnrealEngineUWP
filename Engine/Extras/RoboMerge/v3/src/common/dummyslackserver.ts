@@ -44,23 +44,7 @@ export class DummySlackApp implements AppInterface {
 			return { dataObj }
 		}
 
-		if (command === "conversations.invite") {
-			return { ok: true }
-		}
-		else if (command === "conversations.open") {
-			const dataResult = getData()
-			if (dataResult.error) {
-				return dataResult
-			}
-			const dataObj = dataResult.dataObj
-			return { ok: true, channel: {id: `${dataObj.users}`} }
-		}
-		else if (command === "chat.update") {
-			// Not going to handle updating the stored messages on the dummy server
-			// until we have a reason to do so 
-			return { ok: true }
-		}
-		else if (command === "chat.postMessage") {
+		if (command === "chat.postMessage") {
 			if (!data) {
 				throw new Error('Nothing to post!')
 			}
@@ -101,6 +85,26 @@ export class DummySlackApp implements AppInterface {
 					return { error: "cl or edge not found"}
 				}
 			}
+		}		
+		else if (command === "chat.update") {
+			// Not going to handle updating the stored messages on the dummy server
+			// until we have a reason to do so 
+			return { ok: true }
+		}
+		else if (command === "conversations.invite") {
+			return { ok: true }
+		}
+		else if (command === "conversations.open") {
+			const dataResult = getData()
+			if (dataResult.error) {
+				return dataResult
+			}
+			const dataObj = dataResult.dataObj
+			return { ok: true, channel: {id: `${dataObj.users}`} }
+		}
+		else if (command === "files.upload") {
+			// Not going to store files until we have a reason to do so
+			return { ok: true }
 		}
 		else {
 			console.error(`dummy-slack POST: unsupported command '${command}'`)
@@ -115,7 +119,11 @@ export class DummySlackApp implements AppInterface {
 
 	@Handler('GET', '/api/*')
 	get(command: string) {
-		if (command.startsWith("users.lookupByEmail"))
+		if (command === "chat.getPermalink") {
+			// We don't need the permalink for any functional tests
+			return { ok: true }
+		}
+		else if (command.startsWith("users.lookupByEmail"))
 		{
 			return { ok: true, user: { id: `${this.req.url.searchParams.get('email')}` } }
 		}

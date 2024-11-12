@@ -291,8 +291,13 @@ export class IPC {
 							}
 						}
 					}
-					if (edge.flags.has('automatic')) {
-						hasAutomergeTarget = true
+					if (!hasAutomergeTarget && edge.flags.has('automatic')) {
+						if (typeof changeToConsider.node === 'string') {
+							hasAutomergeTarget = edge.source.stream == changeToConsider.node
+						}
+						else {
+							hasAutomergeTarget = edge.source.stream == changeToConsider.node.stream
+						}
 					}
 					if (includeInResults && hasAutomergeTarget) {
 						break
@@ -349,8 +354,17 @@ export class IPC {
 							(RobomergeMethodStrings as readonly string[]).includes(mergeMethod)) {
 					// If we only have 1 entry and we didn't get integration info off of it
 					// and the graph suggests we are expecting there could be other changes
-					// get the full describe results
-					changeToConsider.desc = await this.robo.p4.describe(clToConsider)
+					// get more of the files. If the path is a root directory try and get a sampling 
+					// of files, otherwise just get an additional block to evaluate
+					if (changeToConsider.desc.path.endsWith("/...")) {
+						const dirs = await this.robo.p4.dirs(`${changeToConsider.desc.path.slice(0,-3)}*@=${clToConsider}`)
+						for (const dir of dirs) {
+							changeToConsider.desc.entries.push(...(await this.robo.p4.files(`${dir}/...@=${clToConsider}`, 1)))
+						}
+					}
+					else {
+						changeToConsider.desc = await this.robo.p4.describe(clToConsider, 100)
+					}
 				}
 			}
 			clsToConsider = clsToConsider.concat(changeToConsider.destCLs)
@@ -589,6 +603,23 @@ export class IPC {
 			let prevCl = generalOpTarget.forceSetLastClWithContext(cl, query.who, query.reason, true)
 
 			this.ipcLogger.info(`Forcing last CL=${cl} on ${botname} : ${branch.name} (was CL ${prevCl}), ` +
+														`requested by ${query.who} (Reason: ${query.reason})`)
+			return OPERATION_SUCCESS
+
+		case 'set_gate_cl':
+			if (!edgeName) {
+				return {statusCode: 400, message: 'Only valid to call for an edge'}
+			}
+
+			cl = parseInt(query.cl)
+
+			if (isNaN(cl)) {
+				return {statusCode: 400, message: 'Invalid CL parameter: ' + cl}
+			}
+
+			let prevGateCl = await generalOpTarget.setGateCl(cl, query.who, query.reason)
+
+			this.ipcLogger.info(`Setting gate CL=${cl} on ${botname} : ${branch.name} (was CL ${prevGateCl}), ` +
 														`requested by ${query.who} (Reason: ${query.reason})`)
 			return OPERATION_SUCCESS
 

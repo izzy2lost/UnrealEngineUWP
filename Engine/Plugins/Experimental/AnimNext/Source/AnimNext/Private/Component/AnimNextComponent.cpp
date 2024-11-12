@@ -2,57 +2,11 @@
 
 #include "Component/AnimNextComponent.h"
 
+#include "AnimNextComponentWorldSubsystem.h"
 #include "Blueprint/BlueprintExceptionInfo.h"
-#include "Param/ParamUtils.h"
-#include "Scheduler/Scheduler.h"
-#include "Scheduler/ScheduleContext.h"
-#include "Param/PropertyBagProxy.h"
-
-namespace UE::AnimNext::Private
-{
-
-static void SetValuesInScopeHelper(FScheduleInstanceData& InInstanceData, FName InScope, EAnimNextParameterScopeOrdering InOrdering, TConstArrayView<FPropertyBagProxy::FPropertyAndValue> InPropertiesAndValues)
-{
-	// apply to root
-	if(InScope == NAME_None)
-	{
-		if(!InInstanceData.RootUserScope.IsValid())
-		{
-			InInstanceData.RootUserScope = MakeUnique<FPropertyBagProxy>();
-		}
-
-		InInstanceData.RootUserScope->AddPropertiesAndValues(InPropertiesAndValues);
-	}
-	else // apply to specified scope
-	{
-		FScheduleInstanceData::FUserScope& ScopeSource = InInstanceData.UserScopes.FindOrAdd(InScope);
-		TUniquePtr<FPropertyBagProxy>* ProxyToUse = nullptr;
-		switch(InOrdering)
-		{
-		default:
-		case EAnimNextParameterScopeOrdering::Before:
-			if(!ScopeSource.BeforeSource.IsValid())
-			{
-				ScopeSource.BeforeSource = MakeUnique<FPropertyBagProxy>();
-			}
-			ProxyToUse = &ScopeSource.BeforeSource;
-			break;
-		case EAnimNextParameterScopeOrdering::After:
-			if(!ScopeSource.AfterSource.IsValid())
-			{
-				ScopeSource.AfterSource = MakeUnique<FPropertyBagProxy>();
-			}
-			ProxyToUse = &ScopeSource.AfterSource;
-			break;
-		}
-
-		check(ProxyToUse && ProxyToUse->IsValid());
-
-		(*ProxyToUse)->AddPropertiesAndValues(InPropertiesAndValues);
-	}
-}
-
-}
+#include "Engine/World.h"
+#include "Module/ModuleTaskContext.h"
+#include "Module/ProxyVariablesContext.h"
 
 void UAnimNextComponent::OnRegister()
 {
@@ -60,61 +14,85 @@ void UAnimNextComponent::OnRegister()
 
 	Super::OnRegister();
 
-	if (Schedule)
+	Subsystem = GetWorld()->GetSubsystem<UAnimNextComponentWorldSubsystem>();
+
+	if (Subsystem && Module)
 	{
-		// Initialization callback to set up any persistent external parameters
-		auto Initialize = [this](const FScheduleContext& InContext)
-		{
-			FScheduleInstanceData& InstanceData = InContext.GetInstanceData();
+		check(!ModuleHandle.IsValid());
 
-			// First group params into scopes
-			TMap<FName, TArray<UAnimNextComponentParameter*, TInlineAllocator<4>>, TInlineSetAllocator<4>> ParamsByScope;
-			for(UAnimNextComponentParameter* Parameter : Parameters)
-			{
-				if(Parameter && Parameter->IsValid())
-				{
-					ParamsByScope.FindOrAdd(Parameter->Scope).Add(Parameter);
-				}
-			}
-
-			// Now apply to each scope
-			for(const TPair<FName, TArray<UAnimNextComponentParameter*, TInlineAllocator<4>>>& ParamPair : ParamsByScope)
-			{
-				TArray<FPropertyBagProxy::FPropertyAndValue, TInlineAllocator<16>> PropertiesAndValues;
-				PropertiesAndValues.Reserve(ParamPair.Value.Num());
-				for(UAnimNextComponentParameter* Parameter : ParamPair.Value)
-				{
-					FPropertyBagProxy::FPropertyAndValue& PropertyAndValue = PropertiesAndValues.AddDefaulted_GetRef();
-					PropertyAndValue.ContainerPtr = Parameter;
-					Parameter->GetParamInfo(PropertyAndValue.Name, PropertyAndValue.Property);
-				}
-
-				// NOTE: Layer is always applied 'before' currently. If we have a use case for 'After' we can add it to UAnimNextComponentParameter
-				Private::SetValuesInScopeHelper(InContext.GetInstanceData(), ParamPair.Key, EAnimNextParameterScopeOrdering::Before, PropertiesAndValues);
-			}
-		};
-
-		check(!SchedulerHandle.IsValid());
-		SchedulerHandle = FScheduler::AcquireHandle(this, Schedule, InitMethod, MoveTemp(Initialize));
+		CreatePublicVariablesProxy();
+		Subsystem->Register(this);
 	}
 }
 
 void UAnimNextComponent::OnUnregister()
 {
-	using namespace UE::AnimNext;
-
 	Super::OnUnregister();
 
-	FScheduler::ReleaseHandle(this, SchedulerHandle);
-	SchedulerHandle.Invalidate();
+	if(Subsystem)
+	{
+		Subsystem->Unregister(this);
+		Subsystem = nullptr;
+		DestroyPublicVariablesProxy();
+	}
 }
 
-void UAnimNextComponent::SetParameterInScope(FName Scope, EAnimNextParameterScopeOrdering Ordering, FName Name, int32 Value)
+void UAnimNextComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	SetEnabled(true);
+}
+
+void UAnimNextComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+
+	SetEnabled(false);
+}
+
+#if WITH_EDITOR
+void UAnimNextComponent::OnModuleCompiled()
+{
+	CreatePublicVariablesProxy();
+}
+#endif
+
+void UAnimNextComponent::CreatePublicVariablesProxy()
+{
+	PublicVariablesProxyMap.Reset();
+	PublicVariablesProxy.Reset();
+	if(Module && Module->GetPublicVariableDefaults().GetPropertyBagStruct())
+	{
+		PublicVariablesProxy.Data = Module->GetPublicVariableDefaults();
+		TConstArrayView<FPropertyBagPropertyDesc> ProxyDescs = PublicVariablesProxy.Data.GetPropertyBagStruct()->GetPropertyDescs();
+		PublicVariablesProxyMap.Reserve(ProxyDescs.Num());
+		for(int32 DescIndex = 0; DescIndex < ProxyDescs.Num(); ++DescIndex)
+		{
+			PublicVariablesProxyMap.Add(ProxyDescs[DescIndex].Name, DescIndex);
+		}
+		PublicVariablesProxy.DirtyFlags.SetNum(ProxyDescs.Num(), false);
+	}
+}
+
+void UAnimNextComponent::DestroyPublicVariablesProxy()
+{
+	PublicVariablesProxyMap.Empty();
+	PublicVariablesProxy.Empty();
+}
+
+void UAnimNextComponent::FlipPublicVariablesProxy(const UE::AnimNext::FProxyVariablesContext& InContext)
+{
+	FRWScopeLock Lock(PublicVariablesLock, SLT_Write);
+	Swap(InContext.GetPublicVariablesProxy(), PublicVariablesProxy);
+}
+
+void UAnimNextComponent::SetVariable(FName Name, int32 Value)
 {
 	checkNoEntry();
 }
 
-DEFINE_FUNCTION(UAnimNextComponent::execSetParameterInScope)
+DEFINE_FUNCTION(UAnimNextComponent::execSetVariable)
 {
 	using namespace UE::AnimNext;
 
@@ -122,8 +100,6 @@ DEFINE_FUNCTION(UAnimNextComponent::execSetParameterInScope)
 	Stack.MostRecentPropertyAddress = nullptr;
 	Stack.MostRecentPropertyContainer = nullptr;
 
-	P_GET_PROPERTY(FNameProperty, Scope);
-	P_GET_ENUM(EAnimNextParameterScopeOrdering, Ordering);
 	P_GET_PROPERTY(FNameProperty, Name);
 
 	Stack.StepCompiledIn<FProperty>(nullptr);
@@ -136,7 +112,7 @@ DEFINE_FUNCTION(UAnimNextComponent::execSetParameterInScope)
 	{
 		FBlueprintExceptionInfo ExceptionInfo(
 			EBlueprintExceptionType::AbortExecution,
-			NSLOCTEXT("AnimNextComponent", "AnimNextComponent_SetParameterInScopeError", "Failed to resolve the Value for Set Parameter In Scope")
+			NSLOCTEXT("AnimNextComponent", "AnimNextComponent_SetVariableError", "Failed to resolve the Value for Set Variable")
 		);
 
 		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
@@ -147,7 +123,19 @@ DEFINE_FUNCTION(UAnimNextComponent::execSetParameterInScope)
 	{
 		FBlueprintExceptionInfo ExceptionInfo(
 			EBlueprintExceptionType::NonFatalError,
-			NSLOCTEXT("AnimNextComponent", "AnimNextComponent_SetParameterInScopeWarning", "Invalid parameter name supplied to Set Parameter In Scope")
+			NSLOCTEXT("AnimNextComponent", "AnimNextComponent_SetVariableInvalidWarning", "Invalid variable name supplied to Set Variable")
+		);
+
+		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+		return;
+	}
+
+	int32* IndexPtr = P_THIS->PublicVariablesProxyMap.Find(Name);
+	if (IndexPtr == nullptr)
+	{
+		FBlueprintExceptionInfo ExceptionInfo(
+			EBlueprintExceptionType::NonFatalError,
+			FText::Format(NSLOCTEXT("AnimNextComponent", "AnimNextComponent_SetVariableNotFoundWarning", "Unknown variable name '{0}' supplied to Set Variable"), FText::FromName(Name))
 		);
 
 		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
@@ -156,25 +144,36 @@ DEFINE_FUNCTION(UAnimNextComponent::execSetParameterInScope)
 
 	P_NATIVE_BEGIN;
 
-	TUniquePtr<FInstancedPropertyBag> PropertyBag = MakeUnique<FInstancedPropertyBag>();
-	PropertyBag->AddProperty(Name, ValueProp);
-	const FProperty* NewProperty = PropertyBag->GetPropertyBagStruct()->GetPropertyDescs()[0].CachedProperty;
-	const void* ValuePtr = ValueProp->ContainerPtrToValuePtr<void>(ContainerPtr);
-	NewProperty->SetValue_InContainer(PropertyBag->GetMutableValue().GetMemory(), ValuePtr);
-
-	FScheduler::QueueTask(P_THIS, P_THIS->SchedulerHandle, Scope, [Scope, Name, NewProperty, PropertyBag = MoveTemp(PropertyBag), Ordering](const FScheduleContext& InContext) mutable
 	{
-		FPropertyBagProxy::FPropertyAndValue PropertyAndValue;
-		PropertyAndValue.Name = Name;
-		PropertyAndValue.Property = NewProperty;
-		PropertyAndValue.ContainerPtr = PropertyBag->GetValue().GetMemory();
-		Private::SetValuesInScopeHelper(InContext.GetInstanceData(), Scope, Ordering, { PropertyAndValue });
-	});
+		FRWScopeLock Lock(P_THIS->PublicVariablesLock, SLT_Write);
+		TConstArrayView<FPropertyBagPropertyDesc> ProxyDescs = P_THIS->PublicVariablesProxy.Data.GetPropertyBagStruct()->GetPropertyDescs();
+		const void* ValuePtr = ValueProp->ContainerPtrToValuePtr<void>(ContainerPtr);
+		ProxyDescs[*IndexPtr].CachedProperty->SetValue_InContainer(P_THIS->PublicVariablesProxy.Data.GetMutableValue().GetMemory(), ValuePtr);
+		P_THIS->PublicVariablesProxy.DirtyFlags[*IndexPtr] = true;
+		P_THIS->PublicVariablesProxy.bIsDirty = true;
+	}
 
 	P_NATIVE_END;
 }
 
-void UAnimNextComponent::Enable(bool bEnabled)
+void UAnimNextComponent::SetEnabled(bool bEnabled)
 {
-	UE::AnimNext::FScheduler::EnableHandle(this, SchedulerHandle, bEnabled);
+	if(Subsystem)
+	{
+		Subsystem->SetEnabled(this, bEnabled);
+	}
+}
+
+void UAnimNextComponent::QueueInputTraitEvent(FAnimNextTraitEventPtr Event)
+{
+	using namespace UE::AnimNext;
+
+	if(Subsystem)
+	{
+		Subsystem->QueueTask(this, NAME_None, [Event = MoveTemp(Event)](const FModuleTaskContext& InContext)
+		{
+			InContext.QueueInputTraitEvent(Event);
+		},
+		ETaskRunLocation::After);
+	}
 }

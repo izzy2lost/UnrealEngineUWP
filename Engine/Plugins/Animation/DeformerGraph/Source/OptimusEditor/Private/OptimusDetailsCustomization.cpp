@@ -6,7 +6,7 @@
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
 #include "Engine/SCS_Node.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "IDetailChildrenBuilder.h"
 #include "IOptimusExecutionDomainProvider.h"
 #include "IOptimusParameterBindingProvider.h"
@@ -28,6 +28,8 @@
 #include "OptimusValidatedName.h"
 #include "OptimusValueContainer.h"
 #include "OptimusExecutionDomain.h"
+#include "OptimusValueContainerStruct.h"
+#include "PropertyBagDetails.h"
 #include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateIconFinder.h"
@@ -83,6 +85,14 @@ void FOptimusDataTypeRefCustomization::CustomizeHeader(
 		if (InPropertyHandle->HasMetaData(FName(TEXT("UseInAnimAttribute"))))
 		{
 			UsageMask |= EOptimusDataTypeUsageFlags::AnimAttributes;
+		}
+		if (InPropertyHandle->HasMetaData(FName(TEXT("UseInPerBoneAnimAttribute"))))
+		{
+			UsageMask |= EOptimusDataTypeUsageFlags::PerBoneAnimAttribute;
+		}
+		if (InPropertyHandle->HasMetaData(FName(TEXT("UseInProperty"))))
+		{
+			UsageMask |= EOptimusDataTypeUsageFlags::Property;
 		}
 
 		return UsageMask;
@@ -299,6 +309,18 @@ void FOptimusExecutionDomainCustomization::CustomizeHeader(
 					}
 
 					return LOCTEXT("MultipleValues", "Multiple Values");
+				})
+				.ColorAndOpacity_Lambda([InPropertyHandle, this]()
+				{
+					if (TOptional<FOptimusExecutionDomain> ExecutionDomain = TryGetSingleExecutionDomain(InPropertyHandle))
+					{
+						if (!ExecutionDomain->IsDefined())
+						{
+							return FSlateColor(FLinearColor::Red);
+						}
+					}
+
+					return FSlateColor::UseStyle();
 				})
 			]
 		]
@@ -1533,11 +1555,12 @@ void FOptimusParameterBindingArrayCustomization::CustomizeChildren(TSharedRef<IP
 	InChildBuilder.AddCustomBuilder(ArrayBuilder.ToSharedRef());
 }
 
-FOptimusValueContainerCustomization::FOptimusValueContainerCustomization()
+FOptimusValueContainerStructCustomization::FOptimusValueContainerStructCustomization()
 {
+	PropertyBagCustomization = FPropertyBagDetails::MakeInstance();
 }
 
-void FOptimusValueContainerCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> InPropertyHandle,
+void FOptimusValueContainerStructCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> InPropertyHandle,
 	FDetailWidgetRow& InHeaderRow, IPropertyTypeCustomizationUtils& InCustomizationUtils)
 {
 	uint32 NumChildren = 0;
@@ -1546,33 +1569,18 @@ void FOptimusValueContainerCustomization::CustomizeHeader(TSharedRef<IPropertyHa
 	// During reordering, we may have zero children temporarily
 	if (NumChildren > 0)
 	{
-		InnerPropertyHandle = InPropertyHandle->GetChildHandle(UOptimusValueContainerGeneratorClass::ValuePropertyName, true);
+		InnerPropertyHandle = InPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FOptimusValueContainerStruct, Value));
 
-		if (ensure(InnerPropertyHandle.IsValid()))
-		{
-			InHeaderRow.NameContent()
-			[
-				InPropertyHandle->CreatePropertyNameWidget()
-			]
-			.ValueContent()
-			[
-				InnerPropertyHandle->CreatePropertyValueWidget()
-			];
-		}
+		PropertyBagCustomization->CustomizeHeader(InnerPropertyHandle.ToSharedRef(), InHeaderRow, InCustomizationUtils);
 	}
 }
 
-void FOptimusValueContainerCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle,
+void FOptimusValueContainerStructCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle,
 	IDetailChildrenBuilder& InChildBuilder, IPropertyTypeCustomizationUtils& InCustomizationUtils)
 {
 	if (InnerPropertyHandle)
 	{
-		uint32 NumChildren = 0;
-		InnerPropertyHandle->GetNumChildren(NumChildren)	;
-		for (uint32 Index = 0; Index < NumChildren; Index++)
-		{
-			InChildBuilder.AddProperty(InnerPropertyHandle->GetChildHandle(Index).ToSharedRef());
-		}
+		PropertyBagCustomization->CustomizeChildren(InnerPropertyHandle.ToSharedRef(), InChildBuilder, InCustomizationUtils);
 	}
 }
 
@@ -1657,12 +1665,11 @@ void FOptimusSourceDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& 
 	}
 
 	TSharedRef<IPropertyHandle> SourcePropertyHandle = DetailBuilder.GetProperty(TEXT("SourceText"));
+	DetailBuilder.GetDetailsView()->HideFilterArea(true);
 	DetailBuilder.EditDefaultProperty(SourcePropertyHandle)->CustomWidget()
-	.WholeRowContent()
 	[
-		SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
-		.FillHeight(1.0f)
+		SNew(SBox)
+		.HeightOverride(500)
 		[
 			SAssignNew(SourceTextBox, SOptimusShaderTextDocumentTextBox)
 			.Text(this, &FOptimusSourceDetailsCustomization::GetText)

@@ -12,6 +12,8 @@
 #include "Rendering/Texture2DResource.h"
 #include "RenderGraphResources.h"
 #include "RenderGraphBuilder.h"
+#include "SubstrateDefinitions.h"
+#include "ShaderCompilerCore.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SpecularProfile)
 
@@ -46,6 +48,11 @@ static bool ForceUpdateSpecularProfile()
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+static bool IsSpecularProfileSupport(EShaderPlatform InShaderPlatform)
+{
+	return !IsMobilePlatform(InShaderPlatform) && IsFeatureLevelSupported(InShaderPlatform, ERHIFeatureLevel::SM5);
+}
+
 class FSpecularProfileCopyCS : public FGlobalShader
 {
 public:
@@ -69,11 +76,49 @@ public:
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return true;
+		return IsSpecularProfileSupport(Parameters.Platform);
+	}
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("SHADER_COPY"), 1);
 	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FSpecularProfileCopyCS, "/Engine/Private/SpecularProfile.usf", "MainCS", SF_Compute);
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+class FSpecularProfileConvolveCS : public FGlobalShader
+{
+public:
+	DECLARE_GLOBAL_SHADER(FSpecularProfileConvolveCS);
+	SHADER_USE_PARAMETER_STRUCT(FSpecularProfileConvolveCS, FGlobalShader);
+
+	using FPermutationDomain = TShaderPermutationDomain<>;
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, SampleCount)
+		SHADER_PARAMETER(FIntPoint, Resolution)
+		SHADER_PARAMETER(uint32, ProfileCount)
+		SHADER_PARAMETER_SAMPLER(SamplerState, TargetSampler)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, TargetTexture)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer, ProfileSignBuffer)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return IsSpecularProfileSupport(Parameters.Platform);
+	}
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("SHADER_CONVOLVE"), 1);
+		OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);		
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FSpecularProfileConvolveCS, "/Engine/Private/SpecularProfile.usf", "MainCS", SF_Compute);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // FSpecularProfileTextureManager
@@ -144,16 +189,6 @@ TGlobalResource<FSpecularProfileTextureManager> GSpecularProfileTextureManager;
 
 // SpecularProfile atlas storing several texture profiles or 0 if there is no user
 static TRefCountPtr<IPooledRenderTarget> GSpecularProfileTextureAtlas;
-
-static FName CreateSpecularProfileParameterName(const FGuid& InGuid)
-{
-	return FName(TEXT("__SpecularProfile") + InGuid.ToString());
-}
-
-FName CreateSpecularProfileParameterName(USpecularProfile* InProfile)
-{
-	return InProfile ? CreateSpecularProfileParameterName(InProfile->Guid) : FName();
-}
 
 FSpecularProfileTextureManager::FSpecularProfileTextureManager()
 {
@@ -287,7 +322,7 @@ IPooledRenderTarget* FSpecularProfileTextureManager::GetAtlasTexture()
 
 IPooledRenderTarget* FSpecularProfileTextureManager::GetAtlasTexture(FRDGBuilder& GraphBuilder, EShaderPlatform ShaderPlatform)
 {
-	if (!Substrate::IsSubstrateEnabled())
+	if (!Substrate::IsSubstrateEnabled() || !Substrate::IsSpecularProfileEnabled() || !IsSpecularProfileSupport(ShaderPlatform))
 	{
 		return nullptr;
 	}
@@ -323,14 +358,16 @@ IPooledRenderTarget* FSpecularProfileTextureManager::GetAtlasTexture(FRDGBuilder
 		const uint32 Resolution = CVarSpecularProfileResolution.GetValueOnRenderThread();
 		check(LayerCount);
 
+		RDG_EVENT_SCOPE(GraphBuilder, "SpecularProfile");
+
 		// 1. Create atlas texture
-		FPooledRenderTargetDesc Desc(FPooledRenderTargetDesc::Create2DArrayDesc(FIntPoint(Resolution, Resolution), PF_FloatR11G11B10, FClearValueBinding::None, TexCreate_None, TexCreate_UAV | TexCreate_ShaderResource, false, LayerCount));
+		FPooledRenderTargetDesc Desc(FPooledRenderTargetDesc::Create2DArrayDesc(FIntPoint(Resolution, Resolution), PF_FloatR11G11B10, FClearValueBinding::None, TexCreate_None, TexCreate_UAV | TexCreate_ShaderResource, false, LayerCount * SUBSTRATE_SPECULAR_PROFILE_ENTRY_COUNT));
 		GRenderTargetPool.FindFreeElement(RHICmdList, Desc, GSpecularProfileTextureAtlas, TEXT("SpecularProfileTexture"));
 
 		// 2. Fill in profiles
 		const auto GlobalShaderMap = GetGlobalShaderMap(ShaderPlatform);
 		FRDGTextureRef SpecularProfileTexture = GraphBuilder.RegisterExternalTexture(GSpecularProfileTextureAtlas, TEXT("SpecularProfileTexture"));
-		FRDGTextureUAVRef SpecularProfileUAV = GraphBuilder.CreateUAV(SpecularProfileTexture);
+		FRDGTextureUAVRef SpecularProfileUAVSkipBarrier = GraphBuilder.CreateUAV(SpecularProfileTexture, ERDGUnorderedAccessViewFlags::SkipBarrier);
 		for (uint32 LayerIt = 0; LayerIt < LayerCount; ++LayerIt)
 		{
 			const FSpecularProfileStruct Data = SpecularProfileEntries[LayerIt].Settings;
@@ -342,7 +379,7 @@ IPooledRenderTarget* FSpecularProfileTextureManager::GetAtlasTexture(FRDGBuilder
 			PassParameters->SourceSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 			PassParameters->SourceResolution = SpecularProfileTexture->Desc.Extent;
 			PassParameters->TargetResolution = SpecularProfileTexture->Desc.Extent;
-			PassParameters->TargetTexture = SpecularProfileUAV;
+			PassParameters->TargetTexture = SpecularProfileUAVSkipBarrier;
 			PassParameters->TargetIndex = LayerIt;
 
 			struct FLinearColor16 
@@ -377,12 +414,40 @@ IPooledRenderTarget* FSpecularProfileTextureManager::GetAtlasTexture(FRDGBuilder
 			PermutationVector.Set<FSpecularProfileCopyCS::FProcedural>(Data.IsProcedural());
 			TShaderMapRef<FSpecularProfileCopyCS> Shader(GlobalShaderMap, PermutationVector);
 			FComputeShaderUtils::AddPass(GraphBuilder, 
-										RDG_EVENT_NAME("SpecularProfile::CopyTexture"), 
-										Shader, 
-										PassParameters, 
-										FIntVector(FMath::DivideAndRoundUp(PassParameters->TargetResolution.X, 8), FMath::DivideAndRoundUp(PassParameters->TargetResolution.Y, 8), 1));
+				RDG_EVENT_NAME("SpecularProfile::CopyTexture"), 
+				Shader, 
+				PassParameters, 
+				FIntVector(FMath::DivideAndRoundUp(PassParameters->TargetResolution.X, 8), FMath::DivideAndRoundUp(PassParameters->TargetResolution.Y, 8), 1));
 
 			SpecularProfileEntries[LayerIt].CachedResolution = Texture ? Texture->TextureReferenceRHI->GetDesc().Extent : FIntPoint(0,0);
+		}
+
+		// Convolve all the profiles
+		if (LayerCount > 0)
+		{
+			TArray<float> ProfileSign;
+			ProfileSign.SetNum(LayerCount);
+			for (uint32 LayerIt=0; LayerIt < LayerCount; ++LayerIt)
+			{
+				ProfileSign[LayerIt] = GetParameterizationSign(LayerIt);
+			}
+			FRDGBufferRef ProfileSignBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(float), LayerCount), TEXT("SpecularProfileData"), ERDGBufferFlags::MultiFrame);
+			GraphBuilder.QueueBufferUpload(ProfileSignBuffer, ProfileSign.GetData(), sizeof(float)*ProfileSign.Num(), ERDGInitialDataFlags::None);
+
+			FSpecularProfileConvolveCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSpecularProfileConvolveCS::FParameters>();
+			PassParameters->SampleCount = 64u;
+			PassParameters->ProfileCount = LayerCount;
+			PassParameters->Resolution = SpecularProfileTexture->Desc.Extent;
+			PassParameters->ProfileSignBuffer = GraphBuilder.CreateSRV(ProfileSignBuffer);
+			PassParameters->TargetSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();;
+			PassParameters->TargetTexture = GraphBuilder.CreateUAV(SpecularProfileTexture);
+
+			TShaderMapRef<FSpecularProfileConvolveCS> Shader(GlobalShaderMap);
+			FComputeShaderUtils::AddPass(GraphBuilder, 
+				RDG_EVENT_NAME("SpecularProfile::Convolve"), 
+				Shader, 
+				PassParameters, 
+				FIntVector(FMath::DivideAndRoundUp(PassParameters->Resolution.X, 8), FMath::DivideAndRoundUp(PassParameters->Resolution.Y, 8), LayerCount));
 		}
 
 		// Transit texture to SRV for letting the non-RDG resource to be bound later by the various passes
@@ -474,10 +539,18 @@ void USpecularProfile::PostEditChangeProperty(struct FPropertyChangedEvent& Prop
 	});
 }
 
+void USpecularProfile::PostDuplicate(EDuplicateMode::Type DuplicateMode)
+{
+	Super::PostDuplicate(DuplicateMode);
+
+	// When a Specular Profile asset is duplicated/copied pasted (e.g. from the asset browser), we want the guid to be regenerated.
+	Guid = FGuid::NewGuid();
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Public API
 
-namespace SpecularProfileAtlas
+namespace SpecularProfile
 {
 	FName GetSpecularProfileParameterName(const USpecularProfile* In)
 	{
@@ -516,4 +589,14 @@ namespace SpecularProfileAtlas
 		GSpecularProfileTextureManager.GetAtlasTexture(GraphBuilder, ShaderPlatform);
 	}
 
-} // namespace SpecularProfileAtlas
+	
+	static FName CreateSpecularProfileParameterName(const FGuid& InGuid)
+	{
+		return FName(TEXT("__SpecularProfile") + InGuid.ToString());
+	}
+
+	FName CreateSpecularProfileParameterName(USpecularProfile* InProfile)
+	{
+		return InProfile ? CreateSpecularProfileParameterName(InProfile->Guid) : FName();
+	}
+} // namespace SpecularProfile

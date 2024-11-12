@@ -5,12 +5,12 @@
 #include "Replication/ChangeOperationTypes.h"
 #include "Replication/Submission/Data/AuthoritySubmission.h"
 #include "Replication/Submission/Data/StreamSubmission.h"
-#include "Replication/Util/StreamRequestUtils.h"
+#include "Replication/Misc/Util/StreamRequestUtils.h"
 
 #include "Algo/RemoveIf.h"
 #include "Misc/Guid.h"
 
-namespace UE::MultiUserClient::ClientChangeConversionUtils
+namespace UE::MultiUserClient::Replication::ClientChangeConversionUtils
 {
 	namespace Private
 	{
@@ -25,7 +25,7 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 			if (ExistingObjectInfo)
 			{
 				FConcertReplicatedObjectInfo NewObjectInfo = FConcertReplicatedObjectInfo::Make(Object);
-				TArray<FConcertPropertyChain>& ReplicatedProperties = NewObjectInfo.PropertySelection.ReplicatedProperties;
+				TSet<FConcertPropertyChain>& ReplicatedProperties = NewObjectInfo.PropertySelection.ReplicatedProperties;
 				switch (PropertyChange.ChangeType)
 				{
 				case EPropertyChangeType::Put:
@@ -35,10 +35,10 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 					ReplicatedProperties.Append(PropertyChange.Properties);
 					break;
 				case EPropertyChangeType::Remove:
-					ReplicatedProperties.SetNum(Algo::RemoveIf(ReplicatedProperties, [&PropertyChange](const FConcertPropertyChain& Property)
+					for (const FConcertPropertyChain& Property : PropertyChange.Properties)
 					{
-						return PropertyChange.Properties.Contains(Property);
-					}));
+						ReplicatedProperties.Remove(Property);
+					}
 					break;
 				default: checkNoEntry(); break;
 				}
@@ -47,7 +47,7 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 			else
 			{
 				FConcertReplicatedObjectInfo NewObjectInfo = FConcertReplicatedObjectInfo::Make(Object);
-				TArray<FConcertPropertyChain>& ReplicatedProperties = NewObjectInfo.PropertySelection.ReplicatedProperties;
+				TSet<FConcertPropertyChain>& ReplicatedProperties = NewObjectInfo.PropertySelection.ReplicatedProperties;
 				switch (PropertyChange.ChangeType)
 				{
 				case EPropertyChangeType::Put:

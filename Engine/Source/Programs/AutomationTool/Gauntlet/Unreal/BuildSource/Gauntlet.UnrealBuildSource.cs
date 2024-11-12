@@ -203,6 +203,34 @@ namespace Gauntlet
 				string BinariesPath = Path.Combine(ProjectPath.Directory.FullName, "Binaries");
 				OutBuildPaths = Directory.Exists(BinariesPath) ? new string[] { StagedPath, BinariesPath } : new string[] { StagedPath };
 			}
+			else if (BuildDir.Name.Equals("LatestGood", StringComparison.OrdinalIgnoreCase)
+				|| BuildDir.Name.Equals("LKG", StringComparison.OrdinalIgnoreCase))
+			{
+				string RequestedValidator = Globals.Params.ParseValue("BuildValidator", null);
+				IBuildValidator Validator = Utils.InterfaceHelpers.FindImplementations<IBuildValidator>(true)
+					.Where(Validator => Validator.CanSupportProject(ProjectName))
+					.Where(Validator => string.IsNullOrEmpty(RequestedValidator) || Validator.Name.Equals(RequestedValidator, StringComparison.OrdinalIgnoreCase))
+					.FirstOrDefault();
+
+				if(Validator == null)
+				{
+					Log.Error("No build validator that can support project {ProjectName} was found.", ProjectName);
+					return false;
+				}
+
+				string LatestGoodBuild = Validator.GetLatestGoodBuild();
+				if(string.IsNullOrEmpty(LatestGoodBuild))
+				{
+					Log.Error("No latest good build was able to be found!");
+					return false;
+				}
+
+				OutBuildPaths = new[] { LatestGoodBuild };
+				OutBuildName = Path.GetFileName(LatestGoodBuild);
+
+				Log.Info("{Validator} selected {Build} as the latest good build. Proceeding with this build", Validator.GetType().Name, OutBuildName);
+				return true;
+			}
 			else
 			{
 				// todo - make this more generic
@@ -247,7 +275,6 @@ namespace Gauntlet
 		/// <summary>
 		/// Adds the provided build to our list (calls ShouldMakeBuildAvailable to verify).
 		/// </summary>
-		/// <param name="InPlatform"></param>
 		/// <param name="NewBuild"></param>
 		virtual protected void AddBuild(IBuild NewBuild)
 		{
@@ -278,6 +305,7 @@ namespace Gauntlet
 		/// Adds an Editor build to our list of available builds if one exists
 		/// </summary>
 		/// <param name="InUnrealPath"></param>
+		/// <param name="InConfiguration"></param>
 		virtual protected IBuild CreateEditorBuild(DirectoryReference InUnrealPath, UnrealTargetConfiguration InConfiguration = UnrealTargetConfiguration.Development)
 		{
 			if (InUnrealPath != null)
@@ -320,6 +348,7 @@ namespace Gauntlet
 		/// for the provided platform
 		/// </summary>
 		/// <param name="InPlatform"></param>
+		/// <param name="InConfiguration"></param>
 		virtual protected void DiscoverBuilds(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration = UnrealTargetConfiguration.Development)
 		{
 			if (!HaveDiscoveredBuilds(InPlatform))
@@ -514,15 +543,24 @@ namespace Gauntlet
 			// new system of retrieving and encapsulating the info needed to install/launch. Android & Mac
 			Config.Build = GetMatchingBuilds(Role.RoleType, Role.Platform, Role.Configuration, Role.RequiredBuildFlags, Role.RequiredFlavor).OrderBy(B => B.PreferenceOrder).FirstOrDefault();
 
-			if (Config.Build == null && Role.IsNullRole() == false)
+			if (Config.Build == null)
 			{
-				var SupportedBuilds = String.Join("\n", DiscoveredBuilds.Select(B => B.ToString()));
+				if (Role.IsNullRole())
+				{
+					Log.Warning("No supported build found, however role is Null and not configure to run anything.");
+				}
+				else
+				{
+					var SupportedBuilds = String.Join("\n", DiscoveredBuilds.Select(B => B.ToString()));
 
-				Log.Info("Available builds:\n{0}", SupportedBuilds);
-				throw new AutomationException("No build found that can support a role of {0}.", Role);
+					Log.Info("Available builds:\n{0}", SupportedBuilds);
+					throw new AutomationException("No build found that can support a role of {0}.", Role);
+				}
 			}
-
-			Log.Info("Selected build {Build} for test run.", Config.Build.ToString());
+			else
+			{
+				Log.Info("Selected build {Build} for test run.", Config.Build.ToString());
+			}
 
 			if (Role.Options != null)
 			{
@@ -560,11 +598,31 @@ namespace Gauntlet
 				Config.CommandLineParams.Project = ProjectParam;
 			}
 
+			// Detect json log line output
+			if (Config.CommandLineParams.HasParam("JsonStdOut")
+				|| (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("UE_LOG_JSON_TO_STDOUT"))
+					&& (Role.Platform == BuildHostPlatform.Current.Platform || CanRunPlatformVirtualized(Role.Platform))))
+			{
+				Config.FilterLoggingDelegate = (string M, bool IsErr) => UnrealLogParser.SanitizeJsonOutputLine(M);
+			}
+
             if (Role.FilesToCopy != null)
             {
                 Config.FilesToCopy = Role.FilesToCopy;
             }
+
+			if(Globals.IsRunningDev)
+			{
+				Config.OverlayExecutable = new OverlayExecutable(Role, Config.ProjectName);
+			}
+
 			return Config;
+		}
+
+		private bool CanRunPlatformVirtualized(UnrealTargetPlatform? Platform)
+		{
+			return Utils.InterfaceHelpers.FindImplementations<IVirtualLocalDevice>()
+				.Any(F => F.GetPlatform() == Platform && F.CanRunVirtualFromPlatform(BuildHostPlatform.Current.Platform));
 		}
 
 		/// <summary>
@@ -578,7 +636,7 @@ namespace Gauntlet
 			// Break down Commandline into individual tokens 
 			Dictionary<string, string> CommandlineTokens = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 			// turn Name(p1,etc) into a collection of Name|(p1,etc) groups
-			MatchCollection Matches = Regex.Matches(InCommandLine, "(?<option>\\-?[\\w\\d.:!\\[\\]\\/\\\\\\?]+)(=(?<value>(\"([^\"]*)\")|(\\S+)))?");
+			MatchCollection Matches = Regex.Matches(InCommandLine, @"(?<option>-?[\w\d.:!\[\]\/\\?-]+)(=(?<value>(""([^""]*)"")|(\S+)))?");
 
 			foreach (Match M in Matches)
 			{
@@ -682,8 +740,8 @@ namespace Gauntlet
 					ExePath = EditorExe.FullName;
 					if (!string.IsNullOrEmpty(Globals.Params.ParseValue("EditorDir", null)))
 					{
-						/// Trim the Editor absolute path from what the target file provided as the editor dir is being overriden
-						/// https://regex101.com/r/7BttxH/1
+						// Trim the Editor absolute path from what the target file provided as the editor dir is being overriden
+						// https://regex101.com/r/7BttxH/1
 						ExePath = Regex.Replace(ExePath, @"(.+?)[/\\]((Engine[/\\])?Binaries[/\\].+)", "$2");
 					}
 				}
@@ -720,9 +778,8 @@ namespace Gauntlet
 					}
 				}
 
-				bool IsRunningDev = Globals.Params.ParseParam("dev");
-
 				// Turn FooGame into Foo
+				bool IsRunningDev = Globals.IsRunningDev;
 				string ExeBase = ProjectName.Replace("Game", "");
 
 				if (TargetPlatform == UnrealTargetPlatform.Android)
@@ -756,24 +813,31 @@ namespace Gauntlet
 					{
 						throw new AutomationException("No suitable build for {0} found at {1}", TargetPlatform, string.Join(",", BuildPaths));
 					}
-
-					//ExePath = AndroidSource.SourceApkPath;			
 				}
 				else
 				{
 					string ExeFileName = string.Format("{0}{1}", ExeBase, BuildType);
+					string ExeFileName2 = ProjectName;
 
 					if (TargetConfiguration != UnrealTargetConfiguration.Development)
 					{
 						ExeFileName += string.Format("-{0}-{1}", TargetPlatform.ToString(), TargetConfiguration.ToString());
+						ExeFileName2 += string.Format("-{0}-{1}", TargetPlatform.ToString(), TargetConfiguration.ToString());
 					}
 
-					ExeFileName += Platform.GetExeExtension(TargetPlatform);
+					if (TargetPlatform != UnrealTargetPlatform.IOS)
+					{
+						ExeFileName += Platform.GetExeExtension(TargetPlatform);
+						ExeFileName2 += Platform.GetExeExtension(TargetPlatform);
+					}
 
 					string BasePath = GetPlatformPath(TargetRole, TargetPlatform);
 					string ProjectBinary = string.Format("{0}\\Binaries\\{1}\\{2}", ProjectName, TargetPlatform.ToString(), ExeFileName);
+					string ProjectBinary2 = string.Format("{0}\\Binaries\\{1}\\{2}", ExeBase, TargetPlatform.ToString(), ExeFileName2);
 					string StubBinary = Path.Combine(BasePath, ExeFileName);
+					string StubBinary2 = Path.Combine(BasePath, ExeFileName2);
 					string DevBinary = Path.Combine(Environment.CurrentDirectory, ProjectBinary);
+					string DevBinary2 = Path.Combine(Environment.CurrentDirectory, ProjectBinary2);
 
 					string NonCodeProjectName = "UnrealGame" + Platform.GetExeExtension(TargetPlatform);
 					string NonCodeProjectBinary = Path.Combine(BasePath, "Engine", "Binaries", TargetPlatform.ToString());
@@ -796,12 +860,25 @@ namespace Gauntlet
 					{
 						ExePath = NonCodeProjectBinary;
 					}
+					else if (File.Exists(Path.Combine(BasePath, ProjectBinary2)))
+					{
+						ExePath = Path.Combine(BasePath, ProjectBinary2);
+					}
+					else if (File.Exists(StubBinary2))
+					{
+						ExePath = Path.Combine(BasePath, ExeFileName2);
+					}
+					else if (IsRunningDev && File.Exists(DevBinary2))
+					{
+						ExePath = DevBinary2;
+					}
 					else
 					{
-						List<string> CheckedFiles = new List<String>() { Path.Combine(BasePath, ProjectBinary), StubBinary, NonCodeProjectBinary };
+						List<string> CheckedFiles = new List<String>() { Path.Combine(BasePath, ProjectBinary), StubBinary, NonCodeProjectBinary, Path.Combine(BasePath, ProjectBinary2), StubBinary2 };
 						if (IsRunningDev)
 						{
 							CheckedFiles.Add(DevBinary);
+							CheckedFiles.Add(DevBinary2);
 						}
 
 						throw new AutomationException("Executable not found, upstream compile job may have failed.  Could not find executable {0} within {1}, binaries checked: {2}", ExeFileName, BasePath, String.Join(" - ", CheckedFiles));

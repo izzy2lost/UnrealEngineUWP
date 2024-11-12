@@ -15,7 +15,6 @@ public class AvalancheMask : ModuleRules
 				"Core",
                 "CoreUObject",
                 "GeometryMask",
-                "StructUtils",
             });
 
 		PrivateDependencyModuleNames.AddRange(

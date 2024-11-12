@@ -354,7 +354,7 @@ void GenerateImportanceSamplingRays(
 			FScreenProbeComputeLightingProbabilityDensityFunctionCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FScreenProbeComputeLightingProbabilityDensityFunctionCS::FThreadGroupSize>(ComputeLightingPDFGroupSize);
 			PermutationVector.Set<FScreenProbeComputeLightingProbabilityDensityFunctionCS::FProbeRadianceHistory>(bUseProbeRadianceHistory);
-			PermutationVector.Set<FScreenProbeComputeLightingProbabilityDensityFunctionCS::FRadianceCache>(LumenScreenProbeGather::UseRadianceCache(View));
+			PermutationVector.Set<FScreenProbeComputeLightingProbabilityDensityFunctionCS::FRadianceCache>(LumenScreenProbeGather::UseRadianceCache());
 			auto ComputeShader = View.ShaderMap->GetShader<FScreenProbeComputeLightingProbabilityDensityFunctionCS>(PermutationVector);
 
 			FComputeShaderUtils::AddPass(

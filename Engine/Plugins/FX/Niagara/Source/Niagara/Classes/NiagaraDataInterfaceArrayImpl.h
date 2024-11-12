@@ -566,12 +566,19 @@ struct FNDIArrayProxyImpl : public INDIArrayProxyBase
 		}
 		else
 		{
-			ensure(PerInstanceData_GameThread.Num() == 1);
-			FNDIArrayInstanceData_GameThread<TArrayType>* InstanceData = PerInstanceData_GameThread.CreateConstIterator().Value();
-			FWriteScopeLock	ScopeLock(InstanceData->ArrayRWGuard);
-			InstanceData->bIsModified = false;
-			InstanceData->bIsRenderDirty |= bShouldSyncToGpu;
-			InstanceData->ArrayData.Empty();
+			// Note: Can be called from PostEditChangeProperty where we can expect to the have > 1 data interface.  For BP user parameters we can expect this to be 1 exactly.
+		#if WITH_EDITORONLY_DATA
+			ensure(GIsTransacting || PerInstanceData_GameThread.Num() == 1);
+		#endif
+
+			for (auto It=PerInstanceData_GameThread.CreateConstIterator(); It; ++It)
+			{
+				FNDIArrayInstanceData_GameThread<TArrayType>* InstanceData = It.Value();
+				FWriteScopeLock	ScopeLock(InstanceData->ArrayRWGuard);
+				InstanceData->bIsModified = false;
+				InstanceData->bIsRenderDirty |= bShouldSyncToGpu;
+				InstanceData->ArrayData.Empty();
+			}
 			Owner->GetArrayReference().SetNum(InArrayData.Num());
 			FNDIArrayImplHelper<TArrayType>::CopyCpuToCpuMemory(Owner->GetArrayReference().GetData(), InArrayData.GetData(), InArrayData.Num());
 		}
@@ -1070,9 +1077,9 @@ struct FNDIArrayProxyImpl : public INDIArrayProxyBase
 							}
 							if ( FrameData.NumElements > 0 )
 							{
-								TArray<TArrayType> ArrayData;
+								TArray<TVMArrayType> ArrayData;
 								ArrayData.AddUninitialized(FrameData.NumElements);
-								FNDIArrayImplHelper<TArrayType>::CopyGpuToCpuMemory(ArrayData.GetData(), reinterpret_cast<const TVMArrayType*>(ReadbackData[0].Key), FrameData.NumElements);
+								FNDIArrayImplHelper<TArrayType>::CopyGpuToCpuMemory(ArrayData.GetData(), ReadbackData[0].Key, FrameData.NumElements);
 
 								FrameData.DataOffset = CacheData->FindOrAddData(
 									MakeArrayView(

@@ -5,6 +5,7 @@
 #include "Styling/SlateStyle.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "Styling/SlateStyleMacros.h"
+#include "Styling/SlateTypes.h"
 #include "Styling/StyleColors.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 
@@ -63,6 +64,11 @@ public:
 			Set("ClassIcon.ControlRigPose", new IMAGE_BRUSH("Slate/ControlRigPose_16", Icon16x16));
 		}
 
+		// Editor Icons
+		{
+			Set("ControlRig.Editor.TabIcon", new IMAGE_BRUSH_SVG("Slate/ControlRigEditorTabIcon_16x", Icon16x16));
+		}
+
 		// Sequencer styles
 		{
 			Set("ControlRig.ExportAnimSequence", new IMAGE_BRUSH("Slate/ExportAnimSequence_24x", Icon24x24));
@@ -84,8 +90,11 @@ public:
 			Set("ControlRig.TweenTool", new IMAGE_BRUSH_SVG("Slate/AnimationTweens", Icon16x16));
 			Set("ControlRig.EditableMotionTrails", new IMAGE_BRUSH_SVG("Slate/EditableMotionTrails", Icon16x16));
 			Set("ControlRig.TemporaryPivot", new IMAGE_BRUSH_SVG("Slate/TemporaryPivot", Icon16x16));
-		}
+			Set("ControlRig.AnimLayerSelected", new IMAGE_BRUSH_SVG("Slate/AnimLayerSelected", Icon16x16));
+			Set("ControlRig.FilterAnimLayerSelected", new IMAGE_BRUSH_SVG("Slate/FilterAnimLayerSelected", Icon16x16));
+			Set("ControlRig.AnimLayers", new IMAGE_BRUSH_SVG("Slate/AnimLayers", Icon16x16));
 
+		}
 		// Control Rig Editor styles
 		{
 			// tab icons

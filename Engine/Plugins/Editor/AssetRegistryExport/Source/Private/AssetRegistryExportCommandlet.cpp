@@ -256,16 +256,18 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 		// Find all the assets that are of the requested primary asset types. These we'll use as roots for the 
 		// dependency listing.
 		TArray<const FAssetData*> PrimaryAssets;
-		const TArray<const FAssetData*>& AssetsWithPrimaryAssetType = AssetRegistry.GetAssetsByTagName(FPrimaryAssetId::PrimaryAssetTypeTag);
-		for (const FAssetData* GFD : AssetsWithPrimaryAssetType)
-		{
-			FName PrimaryAssetType;
-			if (GFD->GetTagValue(FPrimaryAssetId::PrimaryAssetTypeTag, PrimaryAssetType) &&
-				DependencyListAssetTypeNames.Contains(PrimaryAssetType))
+		AssetRegistry.EnumerateAssetsByTagName(FPrimaryAssetId::PrimaryAssetTypeTag, 
+			[&DependencyListAssetTypeNames, &PrimaryAssets](const FAssetData* GFD)
 			{
-				PrimaryAssets.Add(GFD);
-			}
-		}
+				FName PrimaryAssetType;
+				if (GFD->GetTagValue(FPrimaryAssetId::PrimaryAssetTypeTag, PrimaryAssetType) &&
+					DependencyListAssetTypeNames.Contains(PrimaryAssetType))
+				{
+					PrimaryAssets.Add(GFD);
+				}
+
+				return true;
+			});
 
 		
 		UE_LOG(LogAssetRegistryExport, Display, TEXT("ListDependencies matching PrimaryAssets discovered %s"), *NumberString(PrimaryAssets.Num()));
@@ -274,16 +276,18 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 		TSet<const FAssetData*> RemainingAssetsWithSize;
 		uint64 TotalCompressedBytes = 0;
 		{
-			const TArray<const FAssetData*>& AssetsWithSize = AssetRegistry.GetAssetsByTagName(UE::AssetRegistry::Stage_ChunkCompressedSizeFName);
-			for (const FAssetData* AD : AssetsWithSize)
-			{
-				uint64 CompressedSize = 0;
-				if (AD->GetTagValue(UE::AssetRegistry::Stage_ChunkCompressedSizeFName, CompressedSize))
+			AssetRegistry.EnumerateAssetsByTagName(UE::AssetRegistry::Stage_ChunkCompressedSizeFName,
+				[&RemainingAssetsWithSize, &TotalCompressedBytes](const FAssetData* AD)
 				{
-					TotalCompressedBytes += CompressedSize;
-					RemainingAssetsWithSize.Add(AD);
-				}
-			}
+					uint64 CompressedSize = 0;
+					if (AD->GetTagValue(UE::AssetRegistry::Stage_ChunkCompressedSizeFName, CompressedSize))
+					{
+						TotalCompressedBytes += CompressedSize;
+						RemainingAssetsWithSize.Add(AD);
+					}
+
+					return true;
+				});
 		}
 
 		const TMap<FName, const FAssetPackageData*>& AllPackages = AssetRegistry.GetAssetPackageDataMap();
@@ -330,7 +334,7 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 					FName PackageName;
 					while (PackageQueue.Dequeue(PackageName))
 					{
-						TArrayView<const FAssetData* const> AssetDataList = AssetRegistry.GetAssetsByPackageName(PackageName);
+						TArray<const FAssetData*> AssetDataList = AssetRegistry.CopyAssetsByPackageName(PackageName);
 
 						TArray<FAssetIdentifier> PackageDependencies;
 						AssetRegistry.GetDependencies(FAssetIdentifier(PackageName), PackageDependencies);
@@ -362,7 +366,9 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 					Line << PrimaryAsset->GetObjectPathString() << ",";
 					Line << PackageDependency.ToString() << ",";
 
-					const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(AssetRegistry.GetAssetsByPackageName(PackageDependency), UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+					const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(
+						AssetRegistry.CopyAssetsByPackageName(PackageDependency),
+						UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
 					if (UseAsClassData)
 					{
 						Line << UseAsClassData->AssetClassPath.ToString() << ",";
@@ -424,7 +430,9 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 						Pair.Value.UniquePackageDependencies.Add(PackageDependency);
 						UnionUniqueDependencies.Add(PackageDependency);
 
-						const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(AssetRegistry.GetAssetsByPackageName(PackageDependency), UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+						const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(
+							AssetRegistry.CopyAssetsByPackageName(PackageDependency),
+							UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
 						if (UseAsClassData)
 						{
 							uint64 CompressedSize = 0;
@@ -457,7 +465,9 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 					Line << "Unassigned,";
 					Line << Package.Key.ToString() << ",";
 
-					const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(AssetRegistry.GetAssetsByPackageName(Package.Key), UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+					const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(
+						AssetRegistry.CopyAssetsByPackageName(Package.Key),
+						UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
 					if (UseAsClassData)
 					{
 						Line << UseAsClassData->AssetClassPath.ToString() << ",";
@@ -498,7 +508,9 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 					Line << "Shared,";
 					Line << Package.Key.ToString() << ",";
 
-					const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(AssetRegistry.GetAssetsByPackageName(Package.Key), UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+					const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(
+						AssetRegistry.CopyAssetsByPackageName(Package.Key),
+						UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
 					if (UseAsClassData)
 					{
 						Line << UseAsClassData->AssetClassPath.ToString() << ",";
@@ -611,7 +623,7 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 
 				UE_LOG(LogAssetRegistryExport, Warning, TEXT("...Orphaned: %s (%s bytes, in packagemap: %s"), *LD->PackageName.ToString(), *NumberString(value), *LexToString(AllPackages.Contains(LD->PackageName)));
 
-				TArrayView<const FAssetData* const> PackageAssets = AssetRegistry.GetAssetsByPackageName(LD->PackageName);
+				TArray<const FAssetData*> PackageAssets = AssetRegistry.CopyAssetsByPackageName(LD->PackageName);
 				for (const FAssetData* AD : PackageAssets)
 				{
 					uint64 blah = 0;
@@ -872,7 +884,6 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 	{
 		UE_LOG(LogAssetRegistryExport, Display, TEXT("Asset registry didn't have size metadata written back, CompressedSize DB column will be NULL."));
 		UE_LOG(LogAssetRegistryExport, Display, TEXT("Metadata can be written back via ProjectSettings/Packaging/WriteBackMetadataToAssetRegistry"));
-		UE_LOG(LogAssetRegistryExport, Display, TEXT("or after staging with iostore -AssetRegistryWriteback."));
 	}
 
 	if (bCSV == false)

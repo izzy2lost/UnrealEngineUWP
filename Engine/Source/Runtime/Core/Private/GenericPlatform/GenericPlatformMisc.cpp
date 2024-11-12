@@ -42,6 +42,7 @@
 #include "Internationalization/Culture.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "Misc/CoreDelegates.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #if UE_ENABLE_ICU
 	THIRD_PARTY_INCLUDES_START
@@ -56,7 +57,7 @@
 DEFINE_LOG_CATEGORY_STATIC(LogGenericPlatformMisc, Log, All);
 
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 bool GTrackCsvNamedEvents = false;
 static FAutoConsoleVariableRef CVarTrackCsvNamedEvents(
 	TEXT("r.TrackCsvNamedEvents"),
@@ -740,7 +741,7 @@ void FGenericPlatformMisc::RaiseException(uint32 ExceptionCode)
 template<typename CharType>
 void FGenericPlatformMisc::StatNamedEvent(const CharType* Text)
 {
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 	if (GTrackCsvNamedEvents)
 	{
 		++GNamedEventMarkers;
@@ -757,7 +758,7 @@ template CORE_API void FGenericPlatformMisc::StatNamedEvent<TCHAR>(const TCHAR* 
 
 void FGenericPlatformMisc::TickStatNamedEvents()
 {
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 	if (GTrackCsvNamedEvents)
 	{
 		int32 NamedEventCount = GNamedEventMarkers.exchange(0);
@@ -1140,6 +1141,17 @@ TArray<FString> FGenericPlatformMisc::GetAdditionalRootDirectories()
 	return TLazySingleton<FStaticData>::Get().AdditionalRootDirectories;
 }
 
+
+const FString FGenericPlatformMisc::VersionCheckPlatformName()
+{
+	FString OverrideVersionCheckPlatformName;
+	if (!GConfig->GetString(TEXT("PatchConfig"), TEXT("PlatformOverrideName"), OverrideVersionCheckPlatformName, GEngineIni))
+	{
+		return ANSI_TO_TCHAR(FPlatformProperties::IniPlatformName());
+	}
+	return OverrideVersionCheckPlatformName;
+}
+
 void FGenericPlatformMisc::AddAdditionalRootDirectory(const FString& RootDir)
 {
 	FRWScopeLock Lock(TLazySingleton<FStaticData>::Get().AdditionalRootDirectoriesLock, SLT_Write);
@@ -1219,7 +1231,14 @@ const TCHAR* FGenericPlatformMisc::LaunchDir()
 
 const TCHAR* FGenericPlatformMisc::GetNullRHIShaderFormat()
 {
-	return TEXT("PCD3D_SM5");
+	if (FParse::Param(FCommandLine::Get(), TEXT("sm5")))
+	{
+		return TEXT("PCD3D_SM5");
+	}
+	else
+	{
+		return TEXT("PCD3D_SM6");
+	}
 }
 
 IPlatformChunkInstall* FGenericPlatformMisc::GetPlatformChunkInstall()
@@ -1247,6 +1266,10 @@ void GenericPlatformMisc_GetProjectFilePathProjectDir(FString& OutGameDir)
 const TCHAR* FGenericPlatformMisc::ProjectDir()
 {
 	FString& ProjectDir = TLazySingleton<FStaticData>::Get().ProjectDir;
+
+	// always call this at ProjectDir() time and cache it (internally) because there could be pak file interaction that can disable
+	// ini file loading
+	bool bIsStaged = FPaths::IsStaged();
 
 	// track if last time we called this function the .ini was ready and had fixed the GameName case
 	static bool bWasIniReady = false;
@@ -1277,13 +1300,15 @@ const TCHAR* FGenericPlatformMisc::ProjectDir()
 		ProjectDir.Reserve(FPlatformMisc::GetMaxPathLength());
 		if (FPlatformProperties::IsProgram())
 		{
-			// monolithic, game-agnostic executables, the ini is in Engine/Config/Platform
-			ProjectDir = FString::Printf(TEXT("../../../Engine/Programs/%s/"), FApp::GetProjectName());
-
-			// however, if it was staged, that directory won't exist, so look in the normal staged location
-			if (!FPlatformFileManager::Get().GetPlatformFile().DirectoryExists(*ProjectDir))
+			if (bIsStaged)
 			{
+				// if staged, use the remapped location
 				ProjectDir = FString::Printf(TEXT("../../../%s/"), FApp::GetProjectName());
+			}
+			else
+			{
+				// monolithic, game-agnostic executables
+				ProjectDir = FString::Printf(TEXT("../../../Engine/Programs/%s/"), FApp::GetProjectName());
 			}
 		}
 		else
@@ -1312,10 +1337,6 @@ const TCHAR* FGenericPlatformMisc::ProjectDir()
 							// We found a project folder for the game
 							FPaths::SetProjectFilePath(GameProjectFile);
 							ProjectDir = FPaths::GetPath(GameProjectFile);
-							if (ProjectDir.EndsWith(TEXT("/")) == false)
-							{
-								ProjectDir += TEXT("/");
-							}
 						}
 					}
 				}
@@ -1347,11 +1368,6 @@ const TCHAR* FGenericPlatformMisc::ProjectDir()
 					{
 						ProjectDir = LocalProjectDir;
 					}
-
-					if (ProjectDir.EndsWith(TEXT("/")) == false)
-					{
-						ProjectDir += TEXT("/");
-					}
 #endif
 				}
 			}
@@ -1361,8 +1377,11 @@ const TCHAR* FGenericPlatformMisc::ProjectDir()
 				ProjectDir = FPaths::EngineUserDir();
 				FPaths::NormalizeFilename(ProjectDir);
 				ProjectDir = FFileManagerGeneric::DefaultConvertToRelativePath(*ProjectDir);
-				if(!ProjectDir.EndsWith(TEXT("/"))) ProjectDir += TEXT("/");
 			}
+		}
+		if (!ProjectDir.EndsWith(TEXT("/")))
+		{
+			ProjectDir += TEXT("/");
 		}
 	}
 
@@ -1636,8 +1655,7 @@ int32 FGenericPlatformMisc::NumberOfWorkerThreadsToSpawn()
 {
 	static int32 MaxGameThreads = 4;
 
-	extern CORE_API int32 GUseNewTaskBackend;
-	int32 MaxThreads = GUseNewTaskBackend ? INT32_MAX : 16;
+	int32 MaxThreads = INT32_MAX;
 
 	int32 NumberOfCores = FPlatformMisc::NumberOfCores();
 	int32 MaxWorkerThreadsWanted = (IsRunningGame() || IsRunningDedicatedServer() || IsRunningClientOnly()) ? MaxGameThreads : MaxThreads;
@@ -1715,6 +1733,7 @@ namespace GenericPlatformMisc
 	bool GEnsureSettingsEverUpdated = false;
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 bool FGenericPlatformMisc::IsEnsureAllowed()
 {
 	// not all targets call FEngineLoop::Tick() or we might be here early
@@ -1776,7 +1795,7 @@ EDeviceScreenOrientation FGenericPlatformMisc::GetDeviceOrientation()
 
 void FGenericPlatformMisc::SetDeviceOrientation(EDeviceScreenOrientation NewDeviceOrientation)
 {
-	SetAllowedDeviceOrientation(NewDeviceOrientation);
+	FPlatformMisc::SetAllowedDeviceOrientation(NewDeviceOrientation);
 }
 
 EDeviceScreenOrientation FGenericPlatformMisc::GetAllowedDeviceOrientation()
@@ -1913,40 +1932,11 @@ bool FGenericPlatformMisc::RequestDeviceCheckToken(TFunction<void(const TArray<u
 	return false;
 }
 
-TArray<FCustomChunk> FGenericPlatformMisc::GetOnDemandChunksForPakchunkIndices(const TArray<int32>& PakchunkIndices)
-{
-	return TArray<FCustomChunk>();
-}
-
-TArray<FCustomChunk> FGenericPlatformMisc::GetAllOnDemandChunks()
-{
-	return TArray<FCustomChunk>();
-}
-
-TArray<FCustomChunk> FGenericPlatformMisc::GetAllLanguageChunks()
-{
-	return TArray<FCustomChunk>();
-}
-
-TArray<FCustomChunk> FGenericPlatformMisc::GetCustomChunksByType(ECustomChunkType DesiredChunkType)
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (DesiredChunkType == ECustomChunkType::OnDemandChunk)
-	{
-		return GetAllOnDemandChunks();
-	}
-	else
-	{
-		return GetAllLanguageChunks();
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-}
-
 FString FGenericPlatformMisc::LoadTextFileFromPlatformPackage(const FString& RelativePath)
 {
 	FString Path = RootDir() / RelativePath;
 	FString Result;
-	if (FFileHelper::LoadFileToString(Result, &IPlatformFile::GetPlatformPhysical(), *Path))
+	if (FFileHelper::LoadFileToString(Result, &FPlatformFileManager::Get().GetPlatformPhysical(), *Path))
 	{
 		return Result;
 	}
@@ -2007,7 +1997,7 @@ int32 FGenericPlatformMisc::GetPakchunkIndexFromPakFile(FStringView InFilename)
 			DigitCount++;
 		}
 
-		if (DigitCount > 0 && (StartOfNumber + DigitCount) < BaseFilename.Len())
+		if (DigitCount > 0 && (StartOfNumber + DigitCount) <= BaseFilename.Len())
 		{
 			// FromString can't take a view
 			TStringBuilder<16> ChunkNumberString = WriteToString<16>(BaseFilename.Mid(StartOfNumber, DigitCount));
@@ -2038,12 +2028,8 @@ bool FGenericPlatformMisc::IsPGIActive()
 
 int FGenericPlatformMisc::GetMobilePropagateAlphaSetting()
 {
-	static int PropagateAlpha = -1;
-	if (PropagateAlpha < 0)
-	{
-		GConfig->GetInt(TEXT("/Script/Engine.RendererSettings"), TEXT("r.Mobile.PropagateAlpha"), PropagateAlpha, GEngineIni);
-	}
-	return PropagateAlpha;
+	static auto* PropagateAlphaCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.PropagateAlpha"));
+	return PropagateAlphaCVar ? PropagateAlphaCVar->GetInt() : 0;
 }
 
 void FGenericPlatformMisc::ShowConsoleWindow()

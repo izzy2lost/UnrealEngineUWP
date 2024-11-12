@@ -10,8 +10,10 @@ class AActor;
 class AActorModifierCoreSharedActor;
 class UClass;
 class UActorModifierCoreBase;
+class UActorModifierCoreBlueprintBase;
 class UActorModifierCoreSharedObject;
 class UActorModifierCoreStack;
+struct FAssetData;
 
 /** This subsystem handle all modifiers stack active in the engine and allows to create modifiers with registered metadata */
 UCLASS()
@@ -25,37 +27,46 @@ class UActorModifierCoreSubsystem : public UEngineSubsystem
 	friend struct FActorModifierCoreMetadata;
 
 public:
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnModifierClassRegistered, const FActorModifierCoreMetadata& /* ModifierMetadata */)
+	static constexpr const TCHAR* BlueprintClass = TEXT("/Script/ActorModifierCoreBlueprint.ActorModifierCoreBlueprint");
 
-	/** Called when a modifier class is registered */
-	ACTORMODIFIERCORE_API static FOnModifierClassRegistered OnModifierClassRegisteredDelegate;
-
-	/** Called when a modifier class is unregistered */
-	ACTORMODIFIERCORE_API static FOnModifierClassRegistered OnModifierClassUnregisteredDelegate;
-
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnModifierClassRegistered, const FActorModifierCoreMetadata& /** ModifierMetadata */)
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnModifierStackRegistered, const UActorModifierCoreStack* /** ActorRootStack */)
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnModifierReplaced, UActorModifierCoreBlueprintBase* /** PreviousModifier */, UActorModifierCoreBlueprintBase* /** ReplacementModifier */)
 
-	/** Called when an actor modifier stack is registered */
-	static FOnModifierStackRegistered OnModifierStackRegisteredDelegate;
+	static FOnModifierClassRegistered::RegistrationType& OnModifierClassRegistered()
+	{
+		return OnModifierClassRegisteredDelegate;
+	}
 
-	/** Called when an actor modifier stack is unregistered */
-	static FOnModifierStackRegistered OnModifierStackUnregisteredDelegate;
+	static FOnModifierClassRegistered::RegistrationType& OnModifierClassUnregistered()
+	{
+		return OnModifierClassUnregisteredDelegate;
+	}
 
-	UActorModifierCoreSubsystem();
+	static FOnModifierReplaced::RegistrationType& OnModifierReplaced()
+	{
+		return OnModifierReplacedDelegate;
+	}
 
 	ACTORMODIFIERCORE_API static UActorModifierCoreSubsystem* Get();
+
+	UActorModifierCoreSubsystem();
 
 	/** Register a modifier class or override an already existing one */
 	ACTORMODIFIERCORE_API bool RegisterModifierClass(const UClass* InModifierClass, bool bInOverrideIfExists = false);
 	ACTORMODIFIERCORE_API bool UnregisterModifierClass(const FName& InName);
+	ACTORMODIFIERCORE_API bool UnregisterModifierClass(const UClass* InModifierClass);
 	ACTORMODIFIERCORE_API bool IsRegisteredModifierClass(const FName& InName) const;
 	ACTORMODIFIERCORE_API bool IsRegisteredModifierClass(const UClass* InClass) const;
 
 	/** Return the modifier name or none from the modifier class provided */
 	ACTORMODIFIERCORE_API FName GetRegisteredModifierName(const UClass* InModifierClass) const;
 
+	/** Return the modifier class from the modifier name provided */
+	ACTORMODIFIERCORE_API TSubclassOf<UActorModifierCoreBase> GetRegisteredModifierClass(FName InModifierName) const;
+
 	/** Return a set of class for all modifiers registered */
-	TSet<const UClass*> GetRegisteredModifierClasses() const;
+	TSet<TSubclassOf<UActorModifierCoreBase>> GetRegisteredModifierClasses() const;
 
 	/** Returns the name of modifiers that are currently registered */
 	ACTORMODIFIERCORE_API TSet<FName> GetRegisteredModifiers() const;
@@ -110,6 +121,9 @@ public:
 	/** Remove modifiers from different actors or stacks, will update the original array and perform a transaction if wanted */
 	ACTORMODIFIERCORE_API bool RemoveModifiers(const TSet<UActorModifierCoreBase*>& InModifiers, FActorModifierCoreStackRemoveOp& InRemoveOp) const;
 
+	/** Removes modifier components and modifier stacks */
+	ACTORMODIFIERCORE_API bool RemoveModifierStacks(const TSet<UActorModifierCoreStack*>& InStacks, bool bInShouldTransact = false) const;
+
 	/** Insert a modifier in a stack before or after another modifier, will perform a transaction if wanted */
 	ACTORMODIFIERCORE_API UActorModifierCoreBase* InsertModifier(UActorModifierCoreStack* InStack, FActorModifierCoreStackInsertOp& InInsertOp) const;
 
@@ -126,6 +140,21 @@ public:
 	ACTORMODIFIERCORE_API void GetSortedModifiers(const TSet<UActorModifierCoreBase*>& InModifiers, AActor* InTargetActor, UActorModifierCoreBase* InTargetModifier, EActorModifierCoreStackPosition InPosition, TArray<UActorModifierCoreBase*>& OutMoveModifiers, TArray<UActorModifierCoreBase*>& OutCloneModifiers) const;
 
 protected:
+	/** Called when a modifier class is registered */
+	ACTORMODIFIERCORE_API static FOnModifierClassRegistered OnModifierClassRegisteredDelegate;
+
+	/** Called when a modifier class is unregistered */
+	ACTORMODIFIERCORE_API static FOnModifierClassRegistered OnModifierClassUnregisteredDelegate;
+
+	/** Called when an actor modifier stack is registered */
+	static FOnModifierStackRegistered OnModifierStackRegisteredDelegate;
+
+	/** Called when an actor modifier stack is unregistered */
+	static FOnModifierStackRegistered OnModifierStackUnregisteredDelegate;
+
+	/** Called when a blueprint modifier gets replaced */
+	static FOnModifierReplaced OnModifierReplacedDelegate;
+
 	//~ Begin UEngineSubsystem
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
@@ -160,6 +189,16 @@ protected:
 	/** Done only once at subsystem initialization */
 	void ScanForModifiers();
 
+	void OnAssetRegistryFilesLoaded();
+	void OnAssetRegistryAssetAdded(const FAssetData& InAssetData);
+	void OnAssetRegistryAssetUpdated(const FAssetData& InAssetData);
+	void OnAssetRegistryAssetRemoved(const FAssetData& InAssetData);
+
+	void OnBlueprintObjectsReplaced(const TMap<UObject*, UObject*>& InReplacements);
+
+	void RegisterModifierAsset(const FAssetData& InAssetData);
+	void UnregisterModifierAsset(const FAssetData& InAssetData);
+
 	/** Registers a modifier shared provider actor for a world */
 	bool RegisterModifierSharedProvider(AActorModifierCoreSharedActor* InSharedActor) const;
 
@@ -177,4 +216,7 @@ protected:
 
 	/** Stores modifiers providers per world/level, there should be only one provider per level */
 	TMap<TWeakObjectPtr<const ULevel>, TWeakObjectPtr<AActorModifierCoreSharedActor>> ModifierSharedProviders;
+
+	/** Asset Registry files loaded */
+	bool bFilesLoaded = false;
 };

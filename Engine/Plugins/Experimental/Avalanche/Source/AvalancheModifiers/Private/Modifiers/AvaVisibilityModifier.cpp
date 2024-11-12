@@ -12,23 +12,29 @@
 void UAvaVisibilityModifier::Apply()
 {
 	AActor* const ModifyActor = GetModifiedActor();
-	
+
 	// Early exit if the modify actor is NOT being isolated. The outliner will manage the visibility for the actor and it's children.
 	if (FAvaModifiersActorUtils::IsActorNotIsolated(ModifyActor))
 	{
 		Next();
 		return;
 	}
-	
+
 	const FAvaSceneTreeUpdateModifierExtension* SceneExtension = GetExtension<FAvaSceneTreeUpdateModifierExtension>();
 	if (!SceneExtension)
 	{
 		Fail(LOCTEXT("InvalidSceneExtension", "Scene extension could not be found"));
 		return;
 	}
-	
+
 	const TArray<TWeakObjectPtr<AActor>> AttachedActors = SceneExtension->GetDirectChildrenActor(ModifyActor);
 	UAvaVisibilityModifierShared* VisibilityShared = GetShared<UAvaVisibilityModifierShared>(true);
+
+#if WITH_EDITOR
+	const bool bHiddenInEditor = ModifyActor->IsTemporarilyHiddenInEditor(/** IncludeParent */false);
+#else
+	const bool bHiddenInEditor = false;
+#endif
 
 	// Top most modifier in tree has priority over this one if it is hiding current one
 	bool bIsNestedVisibilityModifier = false;
@@ -40,7 +46,13 @@ void UAvaVisibilityModifier::Apply()
 			bIsNestedVisibilityModifier = true;
 		}
 	}
-	
+	// We are the top root modifier, if this actor is hidden, do not handle children actors
+	else if (bSkipWhenHidden && (ModifyActor->IsHidden() || bHiddenInEditor))
+	{
+		Next();
+		return;
+	}
+
 	TSet<TWeakObjectPtr<AActor>> NewChildrenActorsWeak;
 	for (int32 ChildIndex = 0; ChildIndex < AttachedActors.Num(); ++ChildIndex)
 	{
@@ -50,7 +62,7 @@ void UAvaVisibilityModifier::Apply()
 		{
 			continue;
 		}
-		
+
 		// No need to handle nested children actor, only direct children, visibility will propagate
 		if (AttachedActor->GetAttachParentActor() != ModifyActor)
 		{
@@ -58,7 +70,7 @@ void UAvaVisibilityModifier::Apply()
 		}
 
 		bool bHideActor = false;
-		
+
 		if (!bTreatAsRange)
 		{
 			bHideActor = ChildIndex == Index;
@@ -67,10 +79,10 @@ void UAvaVisibilityModifier::Apply()
 		{
 			bHideActor = ChildIndex <= Index;
 		}
-		
+
 		bHideActor = bInvertVisibility ? bHideActor : !bHideActor;
 		DirectChildrenActorsWeak.Add(AttachedActor, bHideActor);
-		
+
 		TArray<AActor*> AttachedChildActors {AttachedActor};
 		AttachedActor->GetAttachedActors(AttachedChildActors, false, true);
 		for (AActor* AttachedChildActor : AttachedChildActors)
@@ -86,12 +98,12 @@ void UAvaVisibilityModifier::Apply()
 					continue;
 				}
 			}
-			
+
 			if (!bIsNestedVisibilityModifier)
 			{
 				VisibilityShared->SetActorVisibility(this, AttachedChildActor, bHideActor, false);
 			}
-			
+
 			NewChildrenActorsWeak.Add(AttachedActor);
 		}
 	}
@@ -100,6 +112,9 @@ void UAvaVisibilityModifier::Apply()
 	VisibilityShared->RestoreActorsState(this, ChildrenActorsWeak.Difference(NewChildrenActorsWeak));
 
 	ChildrenActorsWeak = NewChildrenActorsWeak;
+
+	FAvaRenderStateUpdateModifierExtension* RenderStateExtension = GetExtension<FAvaRenderStateUpdateModifierExtension>();
+	RenderStateExtension->SetTrackedActorsVisibility(ChildrenActorsWeak);
 
 	Next();
 }
@@ -114,7 +129,7 @@ void UAvaVisibilityModifier::PostEditChangeProperty(FPropertyChangedEvent& Prope
 	static const FName IndexPropertyName = GET_MEMBER_NAME_CHECKED(UAvaVisibilityModifier, Index);
 	static const FName InvertVisibilityPropertyName = GET_MEMBER_NAME_CHECKED(UAvaVisibilityModifier, bInvertVisibility);
 	static const FName TreatAsRangePropertyName = GET_MEMBER_NAME_CHECKED(UAvaVisibilityModifier, bTreatAsRange);
-	
+
 	if (PropertyName == IndexPropertyName
 		|| PropertyName == TreatAsRangePropertyName
 		|| PropertyName == InvertVisibilityPropertyName)
@@ -124,7 +139,7 @@ void UAvaVisibilityModifier::PostEditChangeProperty(FPropertyChangedEvent& Prope
 }
 #endif // WITH_EDITOR
 
-void UAvaVisibilityModifier::SetTreatAsRange(const bool bInTreatAsRange)
+void UAvaVisibilityModifier::SetTreatAsRange(bool bInTreatAsRange)
 {
 	if (bTreatAsRange == bInTreatAsRange)
 	{
@@ -132,6 +147,17 @@ void UAvaVisibilityModifier::SetTreatAsRange(const bool bInTreatAsRange)
 	}
 
 	bTreatAsRange = bInTreatAsRange;
+	MarkModifierDirty();
+}
+
+void UAvaVisibilityModifier::SetSkipWhenHidden(bool bInSkip)
+{
+	if (bSkipWhenHidden == bInSkip)
+	{
+		return;
+	}
+
+	bSkipWhenHidden = bInSkip;
 	MarkModifierDirty();
 }
 
@@ -146,25 +172,50 @@ void UAvaVisibilityModifier::OnModifierCDOSetup(FActorModifierCoreMetadata& InMe
 #endif
 }
 
-void UAvaVisibilityModifier::OnRenderStateUpdated(AActor* InActor, UActorComponent* InComponent)
+void UAvaVisibilityModifier::OnModifiedActorTransformed()
 {
-	Super::OnRenderStateUpdated(InActor, InComponent);
+	// Overwrite parent class behaviour don't do anything when moved
+}
 
-	const AActor* ActorModified = GetModifiedActor();
+void UAvaVisibilityModifier::OnActorVisibilityChanged(AActor* InActor)
+{
+	Super::OnActorVisibilityChanged(InActor);
 
-	if (!IsValid(ActorModified)
-		|| !InActor->IsAttachedTo(ActorModified))
+	AActor* ActorModified = GetModifiedActor();
+
+	if (!IsValid(ActorModified))
 	{
 		return;
 	}
-	
+
+	// Only handle what is linked to us
+	const bool bThisActorUpdated = InActor == ActorModified;
+	const bool bActorAttachedToThisUpdated = InActor->IsAttachedTo(ActorModified);
+
+	if (!bThisActorUpdated && !bActorAttachedToThisUpdated)
+	{
+		return;
+	}
+
+	// If no modifier is found above us, then we handle this case otherwise let the other modifier handle it
+	const UAvaVisibilityModifier* Modifier = GetFirstModifierAbove(ActorModified);
+
+	if (bThisActorUpdated && Modifier)
+	{
+		return;
+	}
+
 	MarkModifierDirty();
 }
 
-void UAvaVisibilityModifier::SetInvertVisibility(const bool bNewInvertVisibility)
+void UAvaVisibilityModifier::SetInvertVisibility(bool bInInvertVisibility)
 {
-	bInvertVisibility = bNewInvertVisibility;
+	if (bInvertVisibility == bInInvertVisibility)
+	{
+		return;
+	}
 
+	bInvertVisibility = bInInvertVisibility;
 	MarkModifierDirty();
 }
 
@@ -202,7 +253,7 @@ bool UAvaVisibilityModifier::IsChildActorHidden(AActor* InActor) const
 
 		return *DirectChildrenActorsWeak.Find(InActor);
 	}
-	
+
 	return false;
 }
 
@@ -210,12 +261,12 @@ UAvaVisibilityModifier* UAvaVisibilityModifier::GetFirstModifierAbove(AActor* In
 {
 	UAvaVisibilityModifierShared* VisibilityShared = GetShared<UAvaVisibilityModifierShared>(false);
 	UAvaVisibilityModifier* FirstModifierAbove = nullptr;
-	
+
 	if (!InActor || !VisibilityShared)
 	{
 		return FirstModifierAbove;
 	}
-	
+
 	if (FAvaVisibilitySharedActorState* ActorState = VisibilityShared->FindActorState(InActor))
 	{
 		for (const FAvaVisibilitySharedModifierState& ModifierState : ActorState->ModifierStates)
@@ -261,12 +312,12 @@ AActor* UAvaVisibilityModifier::GetDirectChildren(AActor* InParentActor, AActor*
 	{
 		return nullptr;
 	}
-	
+
 	if (InChildActor && InChildActor->GetAttachParentActor() == InParentActor)
 	{
 		return InChildActor;
 	}
-	
+
 	return GetDirectChildren(InParentActor, InChildActor->GetAttachParentActor());
 }
 

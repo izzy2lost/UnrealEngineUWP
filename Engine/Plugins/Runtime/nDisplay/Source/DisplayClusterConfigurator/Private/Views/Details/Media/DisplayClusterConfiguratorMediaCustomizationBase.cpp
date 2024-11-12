@@ -15,18 +15,22 @@
 #include "IDetailChildrenBuilder.h"
 #include "IPropertyUtilities.h"
 #include "PropertyHandle.h"
+#include "ScopedTransaction.h"
+
+
+#define LOCTEXT_NAMESPACE "FDisplayClusterConfiguratorMediaFullFrameCustomizationBase"
 
 
 FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::FDisplayClusterConfiguratorMediaFullFrameCustomizationBase()
 {
 	// Subscribe for auto-configure event
-	FDisplayClusterConfiguratorMediaUtils::Get().OnMediaAutoConfiguration().AddRaw(this, &FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::OnAutoConfigureRequested);
+	FDisplayClusterConfiguratorMediaUtils::Get().OnMediaResetToDefaults().AddRaw(this, &FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::OnAutoConfigureRequested);
 }
 
 FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::~FDisplayClusterConfiguratorMediaFullFrameCustomizationBase()
 {
 	// Unsubscribe from auto-configure event
-	FDisplayClusterConfiguratorMediaUtils::Get().OnMediaAutoConfiguration().RemoveAll(this);
+	FDisplayClusterConfiguratorMediaUtils::Get().OnMediaResetToDefaults().RemoveAll(this);
 }
 
 void FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& InChildBuilder, IPropertyTypeCustomizationUtils& InCustomizationUtils)
@@ -34,16 +38,16 @@ void FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::CustomizeChildr
 	if (CVarMediaAutoInitializationEnabled.GetValueOnGameThread())
 	{
 		// Subscribe for change callbacks
-		if (MediaSubjectHandle->IsValidHandle())
+		if (MediaObjectHandle->IsValidHandle())
 		{
-			MediaSubjectHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::OnMediaSubjectChanged));
+			MediaObjectHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::OnMediaObjectChanged));
 		}
 	}
 
 	FDisplayClusterConfiguratorBaseTypeCustomization::CustomizeChildren(InPropertyHandle, InChildBuilder, InCustomizationUtils);
 }
 
-void FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::ModifyMediaSubjectParameters()
+void FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::ModifyMediaObjectParameters()
 {
 	// Nothing to do if disabled by a CVar
 	if (!CVarMediaAutoInitializationEnabled.GetValueOnGameThread())
@@ -58,19 +62,19 @@ void FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::ModifyMediaSubj
 	}
 
 	UObject* Owner = EditingObject.Get();
-	if (!MediaSubjectHandle->IsValidHandle() || !Owner)
+	if (!MediaObjectHandle->IsValidHandle() || !Owner)
 	{
 		return;
 	}
 
-	// Get media subject
-	UObject* NewMediaSubject = nullptr;
-	if (MediaSubjectHandle->GetValue(NewMediaSubject) != FPropertyAccess::Success)
+	// Get media object
+	UObject* NewMediaObject = nullptr;
+	if (MediaObjectHandle->GetValue(NewMediaObject) != FPropertyAccess::Success)
 	{
 		return;
 	}
 
-	if (!NewMediaSubject)
+	if (!NewMediaObject)
 	{
 		return;
 	}
@@ -79,33 +83,34 @@ void FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::ModifyMediaSubj
 	const TArray<IDisplayClusterModularFeatureMediaInitializer*> MediaInitializers = FDisplayClusterConfiguratorMediaUtils::Get().GetMediaInitializers();
 	for (IDisplayClusterModularFeatureMediaInitializer* Initializer : MediaInitializers)
 	{
-		if (Initializer && Initializer->IsMediaSubjectSupported(NewMediaSubject))
+		if (Initializer && Initializer->IsMediaObjectSupported(NewMediaObject))
 		{
-			if (PerformMediaInitialization(Owner, NewMediaSubject, Initializer))
-			{
-				ModifyBlueprint();
-			}
+			FScopedTransaction Transaction(LOCTEXT("ResetMediaSettings", "Reset Media Settings"));
+
+			NewMediaObject->Modify();
+
+			PerformMediaInitialization(Owner, NewMediaObject, Initializer);
 
 			break;
 		}
 	}
 }
 
-bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::PerformMediaInitialization(UObject* Owner, UObject* MediaSubject, IDisplayClusterModularFeatureMediaInitializer* Initializer)
+bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::PerformMediaInitialization(UObject* Owner, UObject* MediaObject, IDisplayClusterModularFeatureMediaInitializer* Initializer)
 {
-	IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo OwnerInfo;
+	FMediaObjectOwnerInfo OwnerInfo;
 	const bool bGotOwnerData = GetOwnerData(Owner, OwnerInfo);
 
 	if (bGotOwnerData && Initializer)
 	{
-		Initializer->InitializeMediaSubjectForFullFrame(MediaSubject, OwnerInfo);
+		Initializer->InitializeMediaObjectForFullFrame(MediaObject, OwnerInfo);
 		return true;
 	}
 
 	return false;
 }
 
-bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwnerData(const UObject* Owner, IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo& OutOwnerInfo) const
+bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwnerData(const UObject* Owner, FMediaObjectOwnerInfo& OutOwnerInfo) const
 {
 	if (const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent = Cast<UDisplayClusterICVFXCameraComponent>(Owner))
 	{
@@ -127,7 +132,7 @@ bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwnerData(co
 	return false;
 }
 
-bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwnerData(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo& OutOwnerInfo) const
+bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwnerData(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, FMediaObjectOwnerInfo& OutOwnerInfo) const
 {
 	if (const AActor* const OwningActor = GetOwningActor())
 	{
@@ -138,17 +143,11 @@ bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwnerData(co
 		const int32 CamerasAmount = ICVFXCameras.Num();
 		if (CamerasAmount > 0)
 		{
-			// Camera sort predicate
-			struct FCameraSortPredicate
-			{
-				bool operator()(UDisplayClusterICVFXCameraComponent& LHS, UDisplayClusterICVFXCameraComponent& RHS) const
+			// Sort by name to always keep the same ABC-order
+			ICVFXCameras.Sort([](const UDisplayClusterICVFXCameraComponent& LHS, const UDisplayClusterICVFXCameraComponent& RHS)
 				{
 					return LHS.GetName().Compare(RHS.GetName(), ESearchCase::IgnoreCase) < 0;
-				}
-			};
-
-			// Sort by name to always keep the same ABC-order
-			ICVFXCameras.Sort(FCameraSortPredicate());
+				});
 
 			FString OrigCameraName = ICVFXCameraComponent->GetName();
 			OrigCameraName.RemoveFromEnd(TEXT("_GEN_VARIABLE"));
@@ -158,7 +157,7 @@ bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwnerData(co
 			{
 				if (ICVFXCameras[CameraIdx]->GetName().Equals(OrigCameraName, ESearchCase::IgnoreCase))
 				{
-					OutOwnerInfo.OwnerType = IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo::EMediaSubjectOwnerType::ICVFXCamera;
+					OutOwnerInfo.OwnerType = FMediaObjectOwnerInfo::EMediaObjectOwnerType::ICVFXCamera;
 					OutOwnerInfo.OwnerName = OrigCameraName;
 					OutOwnerInfo.OwnerUniqueIdx = CameraIdx;
 
@@ -171,7 +170,7 @@ bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwnerData(co
 	return false;
 }
 
-bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwnerData(const UDisplayClusterConfigurationViewport* ViewportCfg, IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo& OutOwnerInfo) const
+bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwnerData(const UDisplayClusterConfigurationViewport* ViewportCfg, FMediaObjectOwnerInfo& OutOwnerInfo) const
 {
 	// Get cluster node that holds the viewport requested
 	if (const UDisplayClusterConfigurationClusterNode* const ClusterNodeCfg = ViewportCfg->GetTypedOuter<UDisplayClusterConfigurationClusterNode>())
@@ -193,13 +192,13 @@ bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwnerData(co
 					{
 						checkSlow(ViewportIdx < TNumericLimits<uint8>::Max());
 
-						OutOwnerInfo.OwnerType = IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo::EMediaSubjectOwnerType::Viewport;
+						OutOwnerInfo.OwnerType = FMediaObjectOwnerInfo::EMediaObjectOwnerType::Viewport;
 						OutOwnerInfo.OwnerName = ViewportIt.Key;
 						OutOwnerInfo.OwnerUniqueIdx = static_cast<uint8>(ViewportIdx);
 
 						// Here we leverage cluster node data provider to get unique cluster node index
 						{
-							IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo TempNodeInfo;
+							FMediaObjectOwnerInfo TempNodeInfo;
 							if (GetOwnerData(ClusterNodeCfg, TempNodeInfo))
 							{
 								OutOwnerInfo.ClusterNodeUniqueIdx = TempNodeInfo.ClusterNodeUniqueIdx;
@@ -216,7 +215,7 @@ bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwnerData(co
 	return false;
 }
 
-bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwnerData(const UDisplayClusterConfigurationClusterNode* NodeCfg, IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo& OutOwnerInfo) const
+bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwnerData(const UDisplayClusterConfigurationClusterNode* NodeCfg, FMediaObjectOwnerInfo& OutOwnerInfo) const
 {
 	// Get cluster object holding the node requested
 	if (const UDisplayClusterConfigurationCluster* const ClusterCfg = NodeCfg->GetTypedOuter<UDisplayClusterConfigurationCluster>())
@@ -238,7 +237,7 @@ bool FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwnerData(co
 					{
 						checkSlow(NodeIdx < TNumericLimits<uint8>::Max());
 
-						OutOwnerInfo.OwnerType = IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo::EMediaSubjectOwnerType::Backbuffer;
+						OutOwnerInfo.OwnerType = FMediaObjectOwnerInfo::EMediaObjectOwnerType::Backbuffer;
 						OutOwnerInfo.OwnerName = NodeIt.Key;
 						OutOwnerInfo.OwnerUniqueIdx = static_cast<uint8>(NodeIdx);
 						OutOwnerInfo.ClusterNodeUniqueIdx = static_cast<uint8>(NodeIdx);
@@ -257,14 +256,12 @@ AActor* FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwningAct
 {
 	if (UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent = Cast<UDisplayClusterICVFXCameraComponent>(EditingObject))
 	{
-		if (AActor* Actor1 = ICVFXCameraComponent->GetOwner())
+		// For instances
+		if (AActor* Actor = ICVFXCameraComponent->GetOwner())
 		{
-			return Actor1;
+			return Actor;
 		}
-		else if (AActor* Actor2 = Cast<AActor>(FindRootActor()))
-		{
-			return Actor2;
-		}
+		// For DCRA configurator
 		else if (FDisplayClusterConfiguratorBlueprintEditor* BlueprintEditor = FDisplayClusterConfiguratorUtils::GetBlueprintEditorForObject(ICVFXCameraComponent))
 		{
 			return BlueprintEditor->GetPreviewActor();
@@ -274,17 +271,14 @@ AActor* FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::GetOwningAct
 	return nullptr;
 }
 
-void FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::OnMediaSubjectChanged()
+void FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::OnMediaObjectChanged()
 {
-	ModifyMediaSubjectParameters();
+	ModifyMediaObjectParameters();
 }
 
 void FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::OnAutoConfigureRequested(UObject* InEditingObject)
 {
-	if (EditingObject == InEditingObject)
-	{
-		ModifyMediaSubjectParameters();
-	}
+	ModifyMediaObjectParameters();
 }
 
 
@@ -307,9 +301,9 @@ void FDisplayClusterConfiguratorMediaTileCustomizationBase::CustomizeChildren(TS
 	FDisplayClusterConfiguratorMediaFullFrameCustomizationBase::CustomizeChildren(InPropertyHandle, InChildBuilder, InCustomizationUtils);
 }
 
-bool FDisplayClusterConfiguratorMediaTileCustomizationBase::PerformMediaInitialization(UObject* Owner, UObject* MediaSubject, IDisplayClusterModularFeatureMediaInitializer* Initializer)
+bool FDisplayClusterConfiguratorMediaTileCustomizationBase::PerformMediaInitialization(UObject* Owner, UObject* MediaObject, IDisplayClusterModularFeatureMediaInitializer* Initializer)
 {
-	IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo OwnerInfo;
+	FMediaObjectOwnerInfo OwnerInfo;
 	const bool bGotOwnerData = GetOwnerData(Owner, OwnerInfo);
 
 	if (bGotOwnerData)
@@ -320,7 +314,7 @@ bool FDisplayClusterConfiguratorMediaTileCustomizationBase::PerformMediaInitiali
 		{
 			if (Initializer)
 			{
-				Initializer->InitializeMediaSubjectForTile(MediaSubject, OwnerInfo, TilePos);
+				Initializer->InitializeMediaObjectForTile(MediaObject, OwnerInfo, TilePos);
 				return true;
 			}
 		}
@@ -342,5 +336,7 @@ FIntPoint FDisplayClusterConfiguratorMediaTileCustomizationBase::GetEditedTilePo
 
 void FDisplayClusterConfiguratorMediaTileCustomizationBase::OnTilePositionChanged()
 {
-	ModifyMediaSubjectParameters();
+	ModifyMediaObjectParameters();
 }
+
+#undef LOCTEXT_NAMESPACE

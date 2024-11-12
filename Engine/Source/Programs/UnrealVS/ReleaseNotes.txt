@@ -1,5 +1,27 @@
-1.84.3.6
+1.84.7.0
+* Fix exception for older VS versions
+
+1.84.7.0
+* Update NuGet packages
+* Remove VS2019 support
+
+1.84.5.0
+* Added UbaVisualizer panel. If open solution is under UE engine path this panel will launch UbaVisualizer.exe embedded and listen to uba traces spawned by vs instance
+
+1.84.4.0
+* Fixed a race condition at initialization time that would make Visual Studio unresponsive.
+
+1.84.3.9
+* Fixed issues with compile single file with profile. Did not work if selected project was a c# project. Should now also work with non-ue projects
+
+1.84.3.8
+* Fixed issues with context menu items.
+
+1.84.3.7
 * Prefix encrypted Perforce server port address with "ssl:"
+
+1.84.3.6
+* Fix P4 checkout queue causing hang if p4.exe is not found in path.
 
 1.84.3.5
 * Fix null reference exception when setting command line for C# project without a Properties directory

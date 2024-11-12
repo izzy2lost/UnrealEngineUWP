@@ -91,7 +91,8 @@ public:
 		uint32 InStackSize = 0,
 		EThreadPriority InThreadPri = TPri_Normal,
 		uint64 InThreadAffinityMask = FPlatformAffinity::GetNoAffinityMask(),
-		EThreadCreateFlags InCreateFlags = EThreadCreateFlags::None
+		EThreadCreateFlags InCreateFlags = EThreadCreateFlags::None,
+		bool bAllowPreFork = false
 	);
 
 	/**

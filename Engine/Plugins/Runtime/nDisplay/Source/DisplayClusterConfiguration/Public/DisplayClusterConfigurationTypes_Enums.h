@@ -84,6 +84,7 @@ enum class EDisplayClusterConfigurationICVFX_ChromakeySource : uint8
 	ChromakeyRenderTexture UMETA(DisplayName = "Chromakey Render Texture"),
 };
 
+/** How to render Light Cards in relation to the inner frustum. */
 UENUM()
 enum class EDisplayClusterConfigurationICVFX_LightcardRenderMode : uint8
 {
@@ -94,6 +95,21 @@ enum class EDisplayClusterConfigurationICVFX_LightcardRenderMode : uint8
 	Under   UMETA(DisplayName = "Lightcard Under Frustum"),
 };
 
+/** How to render a Light Card Actor in relation to the inner frustum. */
+UENUM()
+enum class EDisplayClusterConfigurationICVFX_PerLightcardRenderMode : uint8
+{
+	/** It is determined by nDisplay settings. */
+	Default UMETA(DisplayName = "Default"),
+
+	/** Render Light Card Actor over the inner frustum.  Light Card Actor can be directly visible in camera. */
+	Over    UMETA(DisplayName = "Lightcard Over Frustum"),
+
+	/** Render Light Card Actor under the inner frustum. Light Card Actor will not be directly visible in camera. */
+	Under   UMETA(DisplayName = "Lightcard Under Frustum"),
+};
+
+/** Override the lightcard rendering order for the viewport. */
 UENUM()
 enum class EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode : uint8
 {
@@ -103,10 +119,10 @@ enum class EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode : uint8
 	// Disable lightcard rendering for this viewport
 	Disabled    UMETA(DisplayName = "Disabled"),
 
-	// Render incamera frame over lightcard for this viewport
+	/** Always render the In-Camera frame over lightcards for this viewport. */
 	Over    UMETA(DisplayName = "Lightcard Over Frustum"),
 
-	// Over lightcard over incamera frame  for this viewport
+	/** Always render the In-Camera frame under lightcards for this viewport. */
 	Under   UMETA(DisplayName = "Lightcard Under Frustum"),
 };
 

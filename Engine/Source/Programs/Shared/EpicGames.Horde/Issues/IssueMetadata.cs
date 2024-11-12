@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace EpicGames.Horde.Issues
 {
@@ -23,6 +24,7 @@ namespace EpicGames.Horde.Issues
 		/// <summary>
 		/// Constructor
 		/// </summary>
+		[JsonConstructor]
 		public IssueMetadata(string key, string value)
 		{
 			Key = key;

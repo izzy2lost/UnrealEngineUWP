@@ -36,12 +36,12 @@
 		},
 		{
 			"Name": "StageDataProvider",
-			"Type": "UncookedOnly",
+			"Type": "Runtime",
 			"LoadingPhase": "Default"
 		},
 		{
 			"Name": "StageMonitorCommon",
-			"Type": "UncookedOnly",
+			"Type": "Runtime",
 			"LoadingPhase": "Default"
 		}
 	]

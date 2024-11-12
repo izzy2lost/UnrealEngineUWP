@@ -9,14 +9,12 @@ public class CoreUObject : ModuleRules
 	{
 		// If using the new VM either by default or directly, then add in a dependency to 
 		// the core VerseVM which contains special compile flags not compatible with CoreUObject
-		if (!Target.bUseVerseBPVM || Target.GlobalDefinitions.Contains("WITH_VERSE_VM=1")
-			|| Target.GlobalDefinitions.Contains("WITH_VERSE_VM=WITH_COREUOBJECT"))
+		if (Target.bUseVerseVM)
 		{
 			Rules.PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
 					"libpas",
-					"CoreVerseVM",
 				}
 			);
 		}
@@ -43,6 +41,7 @@ public class CoreUObject : ModuleRules
 			{
 				"Core",
 				"TraceLog",
+				"CorePreciseFP",
 			}
 		);
 
@@ -56,6 +55,15 @@ public class CoreUObject : ModuleRules
 
 		AddVerseVMDependencies(this, Target);
 
+		if (Target.bBuildWithEditorOnlyData || Target.Type == TargetType.Server)
+		{
+			PublicDefinitions.Add("WITH_VERSE_COMPILER=1");
+		}
+		else
+		{
+			PublicDefinitions.Add("WITH_VERSE_COMPILER=0");
+		}
+
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 
 		if (Target.bBuildWithEditorOnlyData)
@@ -64,7 +72,5 @@ public class CoreUObject : ModuleRules
 		}
 
 		PrivateDefinitions.Add("UE_DEFINE_LEGACY_MATH_CONSTANT_MACRO_NAMES=0");
-
-		bAllowAutoRTFMInstrumentation = true;
 	}
 }

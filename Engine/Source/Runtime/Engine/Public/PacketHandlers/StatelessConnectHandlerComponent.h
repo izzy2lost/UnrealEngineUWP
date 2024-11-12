@@ -173,7 +173,7 @@ private:
 	 *
 	 * @param HandshakeVersion	The handshake format version to use when sending
 	 */
-	ENGINE_API void SendInitialPacket(EHandshakeVersion HandshakeVersion);
+	void SendInitialPacket(EHandshakeVersion HandshakeVersion);
 
 	/**
 	 * Constructs and sends the server response to the initial connect packet, from the server to the client.
@@ -181,7 +181,7 @@ private:
 	 * @param CommonParams						Common parameters for 'Send*' functions to clients
 	 * @param ClientSentHandshakePacketCount	The number of handshake packets the client has sent (for debugging/packet-analysis)
 	 */
-	ENGINE_API void SendConnectChallenge(FCommonSendToClientParams CommonParams, uint8 ClientSentHandshakePacketCount);
+	void SendConnectChallenge(FCommonSendToClientParams CommonParams, uint8 ClientSentHandshakePacketCount);
 
 	/**
 	 * Constructs and sends the handshake challenge response packet, from the client to the server
@@ -191,7 +191,7 @@ private:
 	 * @param InTimestamp		The timestamp value to send
 	 * @param InCookie			The cookie value to send
 	 */
-	ENGINE_API void SendChallengeResponse(EHandshakeVersion HandshakeVersion, uint8 InSecretId, double InTimestamp, uint8 InCookie[COOKIE_BYTE_SIZE]);
+	void SendChallengeResponse(EHandshakeVersion HandshakeVersion, uint8 InSecretId, double InTimestamp, uint8 InCookie[COOKIE_BYTE_SIZE]);
 
 	/**
 	 * Constructs and sends the server ack to a successful challenge response, from the server to the client.
@@ -200,21 +200,21 @@ private:
 	 * @param ClientSentHandshakePacketCount	The number of handshake packets the client has sent (for debugging/packet-analysis)
 	 * @param InCookie							The cookie value to send
 	 */
-	ENGINE_API void SendChallengeAck(FCommonSendToClientParams CommonParams, uint8 ClientSentHandshakePacketCount, uint8 InCookie[COOKIE_BYTE_SIZE]);
+	void SendChallengeAck(FCommonSendToClientParams CommonParams, uint8 ClientSentHandshakePacketCount, uint8 InCookie[COOKIE_BYTE_SIZE]);
 
 	/**
 	 * Constructs and sends a request to resend the cookie, from the server to the client.
 	 *
 	 * @param CommonParams	Common parameters for 'Send*' functions to clients
 	 */
-	ENGINE_API void SendRestartHandshakeRequest(FCommonSendToClientParams CommonParams);
+	void SendRestartHandshakeRequest(FCommonSendToClientParams CommonParams);
 
 	/**
 	 * Constructs and sends a stateless handshake level NMT_Upgrade message
 	 *
 	 * @param CommonParams	Common parameters for 'Send*' functions to clients
 	 */
-	ENGINE_API void SendVersionUpgradeMessage(FCommonSendToClientParams CommonParams);
+	void SendVersionUpgradeMessage(FCommonSendToClientParams CommonParams);
 
 
 	/**
@@ -227,7 +227,7 @@ private:
 	 * @param ClientID									The client-specified connection id.
 	 * @param HandshakePacketModifier					Flags/modifiers affecting how the packet will be handled.
 	 */
-	ENGINE_API void BeginHandshakePacket(FBitWriter& HandshakePacket, EHandshakePacketType HandshakePacketType, EHandshakeVersion HandshakeVersion,
+	void BeginHandshakePacket(FBitWriter& HandshakePacket, EHandshakePacketType HandshakePacketType, EHandshakeVersion HandshakeVersion,
 								uint8 SentHandshakePacketCount_LocalOrRemote, uint32 ClientID,
 								EHandshakePacketModifier HandshakePacketModifier=EHandshakePacketModifier::None);
 
@@ -239,7 +239,7 @@ private:
 	 * @param PacketType			The type of handshake packet.
 	 * @param Packet				The handshake packet being written.
 	 */
-	ENGINE_API void SendToServer(EHandshakeVersion HandshakeVersion, EHandshakePacketType PacketType, FBitWriter& Packet);
+	void SendToServer(EHandshakeVersion HandshakeVersion, EHandshakePacketType PacketType, FBitWriter& Packet);
 
 	/**
 	 * Sends a packet from the server to a client.
@@ -248,7 +248,7 @@ private:
 	 * @param PacketType			The type of handshake packet.
 	 * @param Packet				The handshake packet being written.
 	 */
-	ENGINE_API void SendToClient(FCommonSendToClientParams CommonParams, EHandshakePacketType PacketType, FBitWriter& Packet);
+	void SendToClient(FCommonSendToClientParams CommonParams, EHandshakePacketType PacketType, FBitWriter& Packet);
 
 
 	/**
@@ -257,7 +257,7 @@ private:
 	 * @param HandshakePacket	The handshake packet to be aligned.
 	 * @param HandshakeVersion	The handshake format version to use when sending
 	 */
-	ENGINE_API void CapHandshakePacket(FBitWriter& HandshakePacket, EHandshakeVersion HandshakeVersion);
+	void CapHandshakePacket(FBitWriter& HandshakePacket, EHandshakeVersion HandshakeVersion);
 
 public:
 	/**
@@ -389,9 +389,9 @@ private:
 	 * @param OutResult		The parsed handshake data, if successful
 	 * @return				Whether or not the handshake packet was parsed successfully
 	 */
-	ENGINE_API bool ParseHandshakePacket(FBitReader& Packet, FParsedHandshakeData& OutResult) const;
+	bool ParseHandshakePacket(FBitReader& Packet, FParsedHandshakeData& OutResult) const;
 
-	ENGINE_API bool ParseHandshakePacketOriginal(FBitReader& Packet, FParsedHandshakeData& OutResult) const;
+	bool ParseHandshakePacketOriginal(FBitReader& Packet, FParsedHandshakeData& OutResult) const;
 
 	/**
 	 * Checks the handshake protocol version and Network CL version for incoming handshake packets, serverside
@@ -400,7 +400,7 @@ private:
 	 * @param OutTargetVersion	The target handshake protocol version to use, for the new connection
 	 * @return					Whether or not the checks successfully validated that the version is correct, and that communication can continue
 	 */
-	ENGINE_API bool CheckVersion(const FParsedHandshakeData& HandshakeData, EHandshakeVersion& OutTargetVersion) const;
+	bool CheckVersion(const FParsedHandshakeData& HandshakeData, EHandshakeVersion& OutTargetVersion) const;
 
 	/**
 	 * Takes the client address plus server timestamp, and outputs a deterministic cookie value
@@ -410,17 +410,17 @@ private:
 	 * @param TimeStamp			The serverside timestamp
 	 * @param OutCookie			Outputs the generated cookie value.
 	 */
-	ENGINE_API void GenerateCookie(const TSharedPtr<const FInternetAddr>& ClientAddress, uint8 SecretId, double Timestamp, uint8 (&OutCookie)[COOKIE_BYTE_SIZE]) const;
+	void GenerateCookie(const TSharedPtr<const FInternetAddr>& ClientAddress, uint8 SecretId, double Timestamp, uint8 (&OutCookie)[COOKIE_BYTE_SIZE]) const;
 
 	/**
 	 * Generates a new HandshakeSecret value
 	 */
-	ENGINE_API void UpdateSecret();
+	void UpdateSecret();
 
 	/**
 	 * Calculate the adjusted predefined packet size, based on MagicHeader
 	 */
-	ENGINE_API int32 GetAdjustedSizeBits(int32 InSizeBits, EHandshakeVersion HandshakeVersion) const;
+	int32 GetAdjustedSizeBits(int32 InSizeBits, EHandshakeVersion HandshakeVersion) const;
 
 #if !UE_BUILD_SHIPPING
 	/**
@@ -428,7 +428,7 @@ private:
 	 *
 	 * @return		Whether or not logging is currently allowed
 	 */
-	ENGINE_API bool TrackValidationLogs();
+	bool TrackValidationLogs();
 #endif
 
 

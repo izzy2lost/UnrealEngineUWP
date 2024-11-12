@@ -3,7 +3,9 @@
 #include "MeshMergeUtilities.h"
 
 #include "Engine/MapBuildDataRegistry.h"
-#include "Engine/MeshMerging.h"
+#include "MeshMerge/MeshInstancingSettings.h"
+#include "MeshMerge/MeshMergingSettings.h"
+#include "MeshMerge/MeshProxySettings.h"
 #include "Engine/StaticMeshSocket.h"
 
 #include "MaterialOptions.h"
@@ -23,6 +25,7 @@
 #include "UObject/UObjectBaseUtility.h"
 #include "UObject/Package.h"
 #include "Materials/Material.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Modules/ModuleManager.h"
 #include "HierarchicalLODUtilitiesModule.h"
@@ -84,6 +87,8 @@
 #include "ISMPartition/ISMComponentDescriptor.h"
 
 #include "UObject/GCObjectScopeGuard.h"
+
+#include "Algo/RemoveIf.h"
 
 #define LOCTEXT_NAMESPACE "MeshMergeUtils"
 
@@ -459,6 +464,11 @@ void FMeshMergeUtilities::BakeMaterialsForComponent(TArray<TWeakObjectPtr<UObjec
 
 void FMeshMergeUtilities::BakeMaterialsForComponent(USkeletalMeshComponent* SkeletalMeshComponent) const
 {
+	if (!SkeletalMeshComponent || !SkeletalMeshComponent->GetSkeletalMeshAsset())
+	{
+		return;
+	}
+
 	// Retrieve settings object
 	UMaterialOptions* MaterialOptions = DuplicateObject(GetMutableDefault<UMaterialOptions>(), GetTransientPackage());
 	UAssetBakeOptions* AssetOptions = GetMutableDefault<UAssetBakeOptions>();
@@ -481,6 +491,11 @@ void FMeshMergeUtilities::BakeMaterialsForComponent(USkeletalMeshComponent* Skel
 
 void FMeshMergeUtilities::BakeMaterialsForComponent(UStaticMeshComponent* StaticMeshComponent) const
 {
+	if (!StaticMeshComponent || !StaticMeshComponent->GetStaticMesh())
+	{
+		return;
+	}
+
 	// Retrieve settings object
 	UMaterialOptions* MaterialOptions = DuplicateObject(GetMutableDefault<UMaterialOptions>(), GetTransientPackage());
 	UAssetBakeOptions* AssetOptions = GetMutableDefault<UAssetBakeOptions>();
@@ -502,6 +517,11 @@ void FMeshMergeUtilities::BakeMaterialsForComponent(UStaticMeshComponent* Static
 
 void FMeshMergeUtilities::BakeMaterialsForMesh(UStaticMesh* StaticMesh) const
 {
+	if (!StaticMesh)
+	{
+		return;
+	}
+
 	// Retrieve settings object
 	UMaterialOptions* MaterialOptions = DuplicateObject(GetMutableDefault<UMaterialOptions>(), GetTransientPackage());
 	UAssetBakeOptions* AssetOptions = GetMutableDefault<UAssetBakeOptions>();
@@ -1157,7 +1177,6 @@ public:
 		, LightMapIndex(INDEX_NONE)
 	{
 		ISMDescriptor.InitFrom(StaticMeshComponent, false);
-		ISMDescriptor.ComputeHash();
 
 		// Retrieve lightmap for usage of lightmap data
 		if (StaticMeshComponent->LODData.IsValidIndex(0))
@@ -1170,16 +1189,14 @@ public:
 				LightMapIndex = StaticMeshComponent->GetStaticMesh()->GetLightMapCoordinateIndex();
 			}
 		}
-
 		
 		Hash = ISMDescriptor.ComputeHash();
-
-		FCrc::TypeCrc32(LODIndex, Hash);
+		Hash = FCrc::TypeCrc32(LODIndex, Hash);
 
 		if (LightMapIndex != INDEX_NONE)
 		{
-			FCrc::TypeCrc32(LightMap.GetReference(), Hash);
-			FCrc::TypeCrc32(LightMapIndex, Hash);
+			Hash = FCrc::TypeCrc32(LightMap.GetReference(), Hash);
+			Hash = FCrc::TypeCrc32(LightMapIndex, Hash);
 		}
 	}
 
@@ -1411,20 +1428,24 @@ TArray<FMeshData> PrepareBakingMeshes(const struct FMeshProxySettings& InMeshPro
 	TArray<FMeshData> MeshData;
 	MeshData.SetNum(InDescriptors.Num());
 
-	// Parallel step
+	// GetLightMap() must be called from the game thread
+	check(IsInGameThread());
+	for (int32 MeshIndex = 0; MeshIndex < InDescriptors.Num(); ++MeshIndex)
+	{
+		if (InDescriptors[MeshIndex].GetLightMapIndex() != INDEX_NONE)
+		{
+			MeshData[MeshIndex].LightMap = InDescriptors[MeshIndex].GetLightMap();
+			MeshData[MeshIndex].LightMapIndex = InDescriptors[MeshIndex].GetLightMapIndex();
+		}
+	}
+
+	// Parallel step - fetching custom (unwrapped) texture coordinates is the slowest part here
 	ParallelFor(InDescriptors.Num(), [&MeshData, &InDescriptors, &InMeshDescriptionData, &InMeshProxySettings](uint32 MeshIndex)
 	{
 		const FProxyMeshDescriptor& MeshDescriptor = InDescriptors[MeshIndex];
 
 		FMeshData& MeshSettings = MeshData[MeshIndex];
 		MeshSettings.TextureCoordinateBox = FBox2D(FVector2D(0.0f, 0.0f), FVector2D(1.0f, 1.0f));
-
-
-		if (MeshDescriptor.GetLightMapIndex() != INDEX_NONE)
-		{
-			MeshSettings.LightMap = MeshDescriptor.GetLightMap();
-			MeshSettings.LightMapIndex = MeshDescriptor.GetLightMapIndex();
-		}
 
 		if (InMeshProxySettings.bGroupIdenticalMeshesForBaking)
 		{
@@ -2471,6 +2492,13 @@ void FMeshMergeUtilities::MergeComponentsToStaticMesh(const TArray<UPrimitiveCom
 	//
 	//Create merged mesh asset
 	//
+
+	MergedRawMeshes.SetNum(Algo::RemoveIf(MergedRawMeshes, [](const FMeshDescription& MeshDescription) { return MeshDescription.IsEmpty(); }));
+
+	const bool bContainsImposters = !ImposterComponents.IsEmpty();
+	const bool bContainsMergedMeshes = !MergedRawMeshes.IsEmpty();
+
+	if (bContainsMergedMeshes || bContainsImposters)
 	{
 		FString AssetName;
 		FString PackageName;
@@ -2538,7 +2566,6 @@ void FMeshMergeUtilities::MergeComponentsToStaticMesh(const TArray<UPrimitiveCom
 		// Ray tracing support
 		StaticMesh->bSupportRayTracing = InSettings.bSupportRayTracing;
 
-		const bool bContainsImposters = ImposterComponents.Num() > 0;
 		TArray<UMaterialInterface*> ImposterMaterials;
 		FBox ImposterBounds(EForceInit::ForceInit);
 		for (int32 LODIndex = 0; LODIndex < MergedRawMeshes.Num(); ++LODIndex)
@@ -2554,6 +2581,7 @@ void FMeshMergeUtilities::MergeComponentsToStaticMesh(const TArray<UPrimitiveCom
 				SrcModel.BuildSettings.bRemoveDegenerates = false;
 				SrcModel.BuildSettings.bUseHighPrecisionTangentBasis = false;
 				SrcModel.BuildSettings.bUseFullPrecisionUVs = false;
+				SrcModel.BuildSettings.bBuildReversedIndexBuffer = false;
 				SrcModel.BuildSettings.bGenerateLightmapUVs = LightMapUVChannel != INDEX_NONE;
 				SrcModel.BuildSettings.MinLightmapResolution = InSettings.bComputedLightMapResolution ? DataTracker.GetLightMapDimension() : InSettings.TargetLightMapResolution;
 				SrcModel.BuildSettings.SrcLightmapIndex = 0;
@@ -2607,8 +2635,17 @@ void FMeshMergeUtilities::MergeComponentsToStaticMesh(const TArray<UPrimitiveCom
 		{
 			if (Material && (!Material->IsAsset() && InOuter != GetTransientPackage()))
 			{
-				Material = nullptr; // do not save non-asset materials
+				// MIDs are not assets, duplicate them and outer them to the static mesh.
+				if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(Material))
+				{
+					Material = DuplicateObject<UMaterialInstanceDynamic>(MID, StaticMesh);
+				}
+				else
+				{
+					Material = nullptr; // do not save non-asset materials
+				}
 			}
+
 			//Make sure we have unique slot name here
 			FName MaterialSlotName = DataTracker.GetMaterialSlotName(Material);
 			int32 Counter = 1;
@@ -2699,6 +2736,10 @@ void FMeshMergeUtilities::MergeComponentsToStaticMesh(const TArray<UPrimitiveCom
 
 		OutAssetsToSync.Add(StaticMesh);
 		OutMergedActorLocation = MergedAssetPivot;
+	}
+	else
+	{
+		UE_LOG(LogMeshMerging, Display, TEXT("MergeComponentsToStaticMesh: Skipped creation of a static mesh asset as no input meshes were provided"));
 	}
 }
 
@@ -2930,10 +2971,19 @@ void FMeshMergeUtilities::CreateMergedMaterial(FMeshMergeDataTracker& InDataTrac
 
 	if (bGloballyRemapUVs)
 	{
-		// We must keep vertex data in order to properly generate unique UVs
+		// Adjust merge settings when merging for the unique UV/material baking pass
+		// The final merged mesh will use the original settings
 		FMeshMergingSettings RemapUVMergeSettings = InSettings;
+		
+		// Keep vertex data in order to properly generate unique UVs
 		RemapUVMergeSettings.bBakeVertexDataToMesh = true;
 
+		// Keep all UVs as some channels might be needed to properly bake the material
+		for (EUVOutput& OutputUV : RemapUVMergeSettings.OutputUVs)
+		{
+			OutputUV = EUVOutput::OutputChannel;
+		}
+		
 		TArray<FMeshDescription> MergedRawMeshes;
 		CreateMergedRawMeshes(InDataTracker, RemapUVMergeSettings, InStaticMeshComponentsToMerge, InUniqueMaterials, InCollapsedMaterialMap, InOutputMaterialsMap, false, false, InMergedAssetPivot, MergedRawMeshes);
 

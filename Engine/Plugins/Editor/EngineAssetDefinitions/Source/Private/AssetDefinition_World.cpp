@@ -2,8 +2,12 @@
 
 #include "AssetDefinition_World.h"
 
+#include "AssetToolsModule.h"
 #include "FileHelpers.h"
+#include "HAL/FileManager.h"
+#include "JsonObjectGraph/Stringify.h"
 #include "Misc/PackageName.h"
+#include "Settings/EditorLoadingSavingSettings.h"
 #include "ThumbnailRendering/WorldThumbnailInfo.h"
 #include "Misc/MessageDialog.h"
 #include "Engine/Level.h"
@@ -67,6 +71,56 @@ EAssetCommandResult UAssetDefinition_World::OpenAssets(const FAssetOpenArgs& Ope
 	}
 
 	return EAssetCommandResult::Unhandled;
+}
+
+EAssetCommandResult UAssetDefinition_World::PerformAssetDiff(const FAssetDiffArgs& DiffArgs) const
+{
+	if (DiffArgs.OldAsset == nullptr && DiffArgs.NewAsset == nullptr)
+	{
+		return EAssetCommandResult::Unhandled;
+	}
+
+	// The caller has loaded our assets and classified them, create a useful text representation for display:
+	const FUtf8String OldAssetJSON = DiffArgs.OldAsset ? UE::JsonObjectGraph::Stringify({DiffArgs.OldAsset->GetPackage()}) : FUtf8String();
+	const FUtf8String NewAssetJSON = DiffArgs.NewAsset ? UE::JsonObjectGraph::Stringify({DiffArgs.NewAsset->GetPackage()}) : FUtf8String();
+
+	// Write the JSON to a file, so the TextDiffTool can consume it:
+	const auto GetFilename = [](UObject* Asset, const FString& Revision)
+	{
+		static int32 ID = 0; // ensure subsequent diffs within a session don't stomp eachother, matching UAssetToolsImpl::DumpAssetToTempFile
+		FString AssetName = Asset? Asset->GetName() : TEXT("empty");
+		FString RelTempFileName = FString::Printf(TEXT("%sJsonDiff%s-%s-%d.txt"), *FPaths::DiffDir(), *AssetName, *Revision, ID++);
+		FString AbsoluteTempFileName = FPaths::ConvertRelativePathToFull(RelTempFileName);
+		return AbsoluteTempFileName ;
+	};
+
+	const FString OldFilename = GetFilename(DiffArgs.OldAsset, DiffArgs.OldRevision.Revision);
+	const FString NewFilename = GetFilename(DiffArgs.NewAsset, DiffArgs.NewRevision.Revision);
+
+	const auto WriteUtf8StringToFile = [](const FString& Filename, const FUtf8String& String)
+	{
+		TUniquePtr<FArchive> FileArchive(IFileManager::Get().CreateDebugFileWriter(*Filename));
+		if(FileArchive)
+		{
+			FileArchive->Serialize((void*)String.GetCharArray().GetData(), FMath::Max(String.GetCharArray().Num() - 1, 0));
+			// FileArchive closed by ~FArchiveFileWriterGeneric
+			return true;
+		}
+		return false;
+	};
+	if( !WriteUtf8StringToFile(OldFilename, OldAssetJSON) ||
+		!WriteUtf8StringToFile(NewFilename, NewAssetJSON) )
+	{
+		// we failed to write the files - we won't be able to perform a meaningful diff:
+		return EAssetCommandResult::Unhandled;
+	}
+	
+	// launch external diff process, ala UAssetDefinitionDefault::PerformAssetDiff
+	IAssetTools& AssetTools = FAssetToolsModule::GetModule().Get();
+	const FString DiffCommand = GetDefault<UEditorLoadingSavingSettings>()->TextDiffToolPath.FilePath;
+	AssetTools.CreateDiffProcess(DiffCommand, OldFilename, NewFilename);
+
+	return EAssetCommandResult::Handled;
 }
 
 UThumbnailInfo* UAssetDefinition_World::LoadThumbnailInfo(const FAssetData& InAsset) const

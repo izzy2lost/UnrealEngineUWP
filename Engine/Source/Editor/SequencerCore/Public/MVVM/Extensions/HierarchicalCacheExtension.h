@@ -15,6 +15,12 @@ namespace UE::Sequencer
 
 class IHierarchicalCache;
 
+template<typename EnumType>
+EnumType CombinePropagatedChildFlags(EnumType ParentFlags, EnumType CombinedChildFlags)
+{
+	return ParentFlags | CombinedChildFlags;
+}
+
 DECLARE_MULTICAST_DELEGATE_OneParam(FPreUpdateCachesEvent, FViewModelPtr);
 
 class SEQUENCERCORE_API IHierarchicalCache
@@ -111,7 +117,7 @@ protected:
 		FlagsType ThisModelFlags              = IndividualItemFlags.Pop();
 		FlagsType FlagsPropagatedFromChildren = AccumulatedChildFlags.Pop();
 
-		ThisModelFlags |= FlagsPropagatedFromChildren;
+		ThisModelFlags = CombinePropagatedChildFlags(ThisModelFlags, FlagsPropagatedFromChildren);
 		PostComputeChildrenFlags(ViewModel, ThisModelFlags, AccumulatedChildFlags.Last());
 
 		AccumulatedChildFlags.Last() |= (ThisModelFlags & FlagsType::InheritedFromChildren);

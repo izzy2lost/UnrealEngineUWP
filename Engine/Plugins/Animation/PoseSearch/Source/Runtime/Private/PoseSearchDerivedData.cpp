@@ -11,15 +11,17 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "DerivedDataCache.h"
 #include "DerivedDataRequestOwner.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Misc/CoreDelegates.h"
+#if ENABLE_ANIM_DEBUG
+#include "Misc/FileHelper.h"
+#endif //ENABLE_ANIM_DEBUG
 #include "PoseSearch/PoseSearchAnimNotifies.h"
 #include "PoseSearch/PoseSearchAssetIndexer.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearch/PoseSearchDefines.h"
 #include "PoseSearch/PoseSearchDerivedDataKey.h"
 #include "PoseSearch/PoseSearchFeatureChannel.h"
-#include "PoseSearch/PoseSearchMultiSequence.h"
 #include "PoseSearch/PoseSearchNormalizationSet.h"
 #include "PoseSearch/PoseSearchSchema.h"
 #include "PoseSearchEigenHelper.h"
@@ -75,11 +77,26 @@ enum EMotionMatchTestFlags
 
 	// validating SynchronizeWithExternalDependencies doesn't alter the database AnimationAssets order
 	ValidateSynchronizeWithExternalDependenciesDeterminism = 1 << 11,
+
+	// test FAnimationAssetSampler determinism
+	TestAssetSamplerDeterminism = 1 << 12,
+
+	// test FAnimationAssetSampler determinism across multiple editro executions. It'll store some bin files in \Engine\TestAssetSamplerDeterminism
+	TestAssetSamplerDeterminismFromPreviousExecution = 1 << 13,
+
+	// test DDC key generation determinism
+	TestDDCKeyDeterminism = 1 << 14,
 };
 static TAutoConsoleVariable<int32> CVarMotionMatchTestFlags(TEXT("a.MotionMatch.TestFlags"), EMotionMatchTestFlags::None, TEXT("Test Motion Matching using EMotionMatchTestFlags"));
 static TAutoConsoleVariable<int32> CVarMotionMatchTestNumIterations(TEXT("a.MotionMatch.TestNumIterations"), 10, TEXT("Test Motion Matching Num Iterations"));
 static bool AnyTestFlags(int32 Flags) { return (CVarMotionMatchTestFlags.GetValueOnAnyThread() & Flags) != 0; }
 #endif // ENABLE_ANIM_DEBUG
+
+static TAutoConsoleVariable<bool> CVarMotionMatchReindexCancelledDatabases(TEXT("a.MotionMatch.ReindexCancelledDatabases"), false, TEXT("Reindex Cancelled Databases"));
+// Experimental, this feature might be removed without warning, not for production use
+static TAutoConsoleVariable<bool> CVarMotionMatchReindexAllReferencedDatabases(TEXT("a.MotionMatch.ReindexAllReferencedDatabases"), true, TEXT("Reindex All Referenced Databases"));
+// Experimental, this feature might be removed without warning, not for production use
+static TAutoConsoleVariable<int32> CVarMotionMatchPartialKeyHashesMode(TEXT("a.MotionMatch.PartialKeyHashesMode"), 0, TEXT("0: use partial key hashes, 1: do not use partial key hashes, 2: do not use and validate partial key hashes"));
 
 static const UE::DerivedData::FValueId Id(UE::DerivedData::FValueId::FromName("Data"));
 static const UE::DerivedData::FCacheBucket Bucket("PoseSearchDatabase");
@@ -91,6 +108,28 @@ static FCookStatsManager::FAutoRegisterCallback RegisterCookStats([](FCookStatsM
 		UsageStats.LogStats(AddStat, TEXT("MotionMatching.Usage"), TEXT(""));
 	});
 #endif // ENABLE_COOK_STATS
+
+typedef TSet<const UPoseSearchDatabase*, DefaultKeyFuncs<const UPoseSearchDatabase*>, TInlineSetAllocator<256>> FDatabaseSet;
+
+static void RecursivePopulateDependentDatabases(const UPoseSearchDatabase* Database, FDatabaseSet& DatabaseSet)
+{
+	if (Database)
+	{
+		bool bIsAlreadyInSet = false;
+		DatabaseSet.Add(Database, &bIsAlreadyInSet);
+
+		if (!bIsAlreadyInSet)
+		{
+			if (const UPoseSearchNormalizationSet* NormalizationSet = Database->NormalizationSet)
+			{
+				for (const UPoseSearchDatabase* DependentDatabase : NormalizationSet->Databases)
+				{
+					RecursivePopulateDependentDatabases(DependentDatabase, DatabaseSet);
+				}
+			}
+		}
+	}
+}
 
 // helper struct to calculate mean deviations
 struct FMeanDeviationCalculator
@@ -269,67 +308,129 @@ public:
 	}
 };
 
-static void FindValidSequenceIntervals(const UAnimSequenceBase* SequenceBase, FFloatInterval SamplingRange, bool bIsLooping,
-	const FFloatInterval& ExcludeFromDatabaseParameters, TArray<FFloatRange>& ValidRanges)
+static void FindValidBlendSpaceIntervals(const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace, const TArray<FBlendSampleData>& BlendSamples, const FFloatInterval& ExcludeFromDatabaseParameters, TArray<FFloatRange>& ValidRanges)
 {
-	check(SequenceBase);
+	check(DatabaseBlendSpace);
 
-	const float SequenceLength = SequenceBase->GetPlayLength();
+	const float PlayLength = DatabaseBlendSpace->BlendSpace->GetAnimationLengthFromSampleData(BlendSamples);
 
-	const FFloatInterval EffectiveSamplingInterval = FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(SequenceBase, SamplingRange);
+	const bool bIsLooping = DatabaseBlendSpace->IsLooping();
+
+	// scaling blend space SamplingRange from the space [0, 1] to [0, PlayLength] with PlayLength calculated from the BlendSamples
+	FFloatInterval ScaledSamplingRange = DatabaseBlendSpace->GetSamplingRange();
+	ScaledSamplingRange.Min *= PlayLength;
+	ScaledSamplingRange.Max *= PlayLength;
+
+	const FFloatInterval EffectiveSamplingInterval = FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(PlayLength, ScaledSamplingRange);
 	FFloatRange EffectiveSamplingRange = FFloatRange::Inclusive(EffectiveSamplingInterval.Min, EffectiveSamplingInterval.Max);
 	if (!bIsLooping)
 	{
-		const FFloatRange ExcludeFromDatabaseRange(ExcludeFromDatabaseParameters.Min, SequenceLength + ExcludeFromDatabaseParameters.Max);
+		const FFloatRange ExcludeFromDatabaseRange(ExcludeFromDatabaseParameters.Min, PlayLength + ExcludeFromDatabaseParameters.Max);
 		EffectiveSamplingRange = FFloatRange::Intersection(EffectiveSamplingRange, ExcludeFromDatabaseRange);
 	}
 
 	// start from a single interval defined by the database sequence sampling range
-	ValidRanges.Empty();
+	ValidRanges.Reset();
 	ValidRanges.Add(EffectiveSamplingRange);
 
-	FAnimNotifyContext NotifyContext;
-	SequenceBase->GetAnimNotifies(0.0f, SequenceLength, NotifyContext);
+	// @todo: evaluate eventual UAnimNotifyState_PoseSearchExcludeFromDatabase(s) like in FindValidSequenceIntervals if necessary
+}
 
-	for (const FAnimNotifyEventReference& EventReference : NotifyContext.ActiveNotifies)
+static void FindValidSequenceIntervals(const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset, const FFloatInterval& ExcludeFromDatabaseParameters, TArray<FFloatRange>& ValidRanges)
+{
+	check(DatabaseAsset);
+
+	const bool bIsLooping = DatabaseAsset->IsLooping();
+	const float PlayLength = DatabaseAsset->GetPlayLength();
+
+	const FFloatInterval EffectiveSamplingInterval = DatabaseAsset->GetEffectiveSamplingRange();
+	FFloatRange EffectiveSamplingRange = FFloatRange::Inclusive(EffectiveSamplingInterval.Min, EffectiveSamplingInterval.Max);
+	if (!bIsLooping)
 	{
-		if (const FAnimNotifyEvent* NotifyEvent = EventReference.GetNotify())
+		const FFloatRange ExcludeFromDatabaseRange(ExcludeFromDatabaseParameters.Min, PlayLength + ExcludeFromDatabaseParameters.Max);
+		EffectiveSamplingRange = FFloatRange::Intersection(EffectiveSamplingRange, ExcludeFromDatabaseRange);
+	}
+
+	// start from a single interval defined by the database sequence sampling range
+	ValidRanges.Reset();
+	ValidRanges.Add(EffectiveSamplingRange);
+
+	for (int32 RoleIndex = 0; RoleIndex < DatabaseAsset->GetNumRoles(); ++RoleIndex)
+	{
+		const FRole Role = DatabaseAsset->GetRole(RoleIndex);
+		if (UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(DatabaseAsset->GetAnimationAssetForRole(Role)))
 		{
-			if (const UAnimNotifyState_PoseSearchExcludeFromDatabase* ExclusionNotifyState = Cast<const UAnimNotifyState_PoseSearchExcludeFromDatabase>(NotifyEvent->NotifyStateClass))
+			FAnimNotifyContext NotifyContext;
+			SequenceBase->GetAnimNotifies(0.0f, PlayLength, NotifyContext);
+
+			for (const FAnimNotifyEventReference& EventReference : NotifyContext.ActiveNotifies)
 			{
-				FFloatRange ExclusionRange = FFloatRange::Inclusive(NotifyEvent->GetTime(), NotifyEvent->GetTime() + NotifyEvent->GetDuration());
-
-				// Split every valid range based on the exclusion range just found. Because this might increase the 
-				// number of ranges in ValidRanges, the algorithm iterates from end to start.
-				for (int32 RangeIdx = ValidRanges.Num() - 1; RangeIdx >= 0; --RangeIdx)
+				if (const FAnimNotifyEvent* NotifyEvent = EventReference.GetNotify())
 				{
-					FFloatRange EvaluatedRange = ValidRanges[RangeIdx];
-					ValidRanges.RemoveAt(RangeIdx);
+					if (const UAnimNotifyState_PoseSearchExcludeFromDatabase* ExclusionNotifyState = Cast<const UAnimNotifyState_PoseSearchExcludeFromDatabase>(NotifyEvent->NotifyStateClass))
+					{
+						FFloatRange ExclusionRange = FFloatRange::Inclusive(NotifyEvent->GetTime(), NotifyEvent->GetTime() + NotifyEvent->GetDuration());
 
-					TArray<FFloatRange> Diff = FFloatRange::Difference(EvaluatedRange, ExclusionRange);
-					ValidRanges.Append(Diff);
+						// Split every valid range based on the exclusion range just found. Because this might increase the 
+						// number of ranges in ValidRanges, the algorithm iterates from end to start.
+						for (int32 RangeIdx = ValidRanges.Num() - 1; RangeIdx >= 0; --RangeIdx)
+						{
+							FFloatRange EvaluatedRange = ValidRanges[RangeIdx];
+							ValidRanges.RemoveAt(RangeIdx);
+
+							TArray<FFloatRange> Diff = FFloatRange::Difference(EvaluatedRange, ExclusionRange);
+							ValidRanges.Append(Diff);
+						}
+					}
 				}
 			}
 		}
 	}
 }
 
-static void InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FInstancedStruct>& DatabaseAnimationAssets, const UPoseSearchSchema* Schema, const FFloatInterval& ExcludeFromDatabaseParameters)
+// returns false in case of errors
+static bool InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const UPoseSearchDatabase* DatabaseToLookForAssets, const UPoseSearchSchema* Schema, const FFloatInterval& ExcludeFromDatabaseParameters)
 {
 	using namespace UE::PoseSearch;
 
-	SearchIndex.Assets.Empty();
+	check(Schema);
+
+	SearchIndex.Assets.Reset();
 	TArray<FFloatRange> ValidRanges;
 	TArray<FBlendSampleData> BlendSamples;
 
+	bool bAnyErrors = false;
+
 	int32 TotalPoses = 0;
-	for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < DatabaseAnimationAssets.Num(); ++AnimationAssetIndex)
+	for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < DatabaseToLookForAssets->GetNumAnimationAssets(); ++AnimationAssetIndex)
 	{
-		const FInstancedStruct& DatabaseAssetStruct = DatabaseAnimationAssets[AnimationAssetIndex];
-		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = DatabaseToLookForAssets->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AnimationAssetIndex))
 		{
 			if (!DatabaseAsset->IsEnabled() || !DatabaseAsset->GetAnimationAsset())
 			{
+				continue;
+			}
+
+			if (DatabaseAsset->GetNumRoles() != Schema->GetRoledSkeletons().Num())
+			{
+				UE_LOG(LogPoseSearch, Error, TEXT("DatabaseAsset '%s' Roles don't match Schema '%s' Skeletons Roles"), *DatabaseAsset->GetAnimationAsset()->GetName(), *Schema->GetName());
+				bAnyErrors = true;
+				continue;
+			}
+
+			// checking for valid roles in DatabaseMultiAnimAsset against the Schema
+			bool bAreAllRolesSupported = true;
+			for (const FPoseSearchRoledSkeleton& RoledSkeleton : Schema->GetRoledSkeletons())
+			{
+				if (!DatabaseAsset->GetAnimationAssetForRole(RoledSkeleton.Role))
+				{
+					UE_LOG(LogPoseSearch, Error, TEXT("DatabaseAsset '%s' doesn't support Role '%s' required by Schema '%s' Skeletons"), *DatabaseAsset->GetAnimationAsset()->GetName(), *RoledSkeleton.Role.ToString(), *Schema->GetName());
+					bAreAllRolesSupported = false;
+				}
+			}
+			if (!bAreAllRolesSupported)
+			{
+				bAnyErrors = true;
 				continue;
 			}
 
@@ -338,7 +439,7 @@ static void InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FI
 			const bool bIsLooping = DatabaseAsset->IsLooping();
 			const bool bDisableReselection = DatabaseAsset->IsDisableReselection();
 
-			if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseBlendSpace>())
+			if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseToLookForAssets->GetDatabaseAnimationAsset<FPoseSearchDatabaseBlendSpace>(AnimationAssetIndex))
 			{
 				int32 HorizontalBlendNum, VerticalBlendNum;
 				DatabaseBlendSpace->GetBlendSpaceParameterSampleRanges(HorizontalBlendNum, VerticalBlendNum);
@@ -354,79 +455,55 @@ static void InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FI
 						int32 TriangulationIndex = 0;
 						DatabaseBlendSpace->BlendSpace->GetSamplesFromBlendInput(BlendParameters, BlendSamples, TriangulationIndex, true);
 
-						const float PlayLength = DatabaseBlendSpace->BlendSpace->GetAnimationLengthFromSampleData(BlendSamples);
+						FindValidBlendSpaceIntervals(DatabaseBlendSpace, BlendSamples, ExcludeFromDatabaseParameters, ValidRanges);
 
-						for (int32 PermutationIdx = 0; PermutationIdx < Schema->NumberOfPermutations; ++PermutationIdx)
+						for (const FFloatRange& Range : ValidRanges)
 						{
-							if (bAddUnmirrored)
+							for (int32 PermutationIdx = 0; PermutationIdx < Schema->NumberOfPermutations; ++PermutationIdx)
 							{
-								const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, false, bIsLooping, 
-									bDisableReselection, FFloatInterval(0.f, PlayLength), Schema->SampleRate, PermutationIdx, BlendParameters);
-								if (PoseSearchIndexAsset.GetNumPoses() > 0)
-								{
-									SearchIndex.Assets.Add(PoseSearchIndexAsset);
-									TotalPoses += PoseSearchIndexAsset.GetNumPoses();
-								}
-							}
+								const FFloatInterval RangeInterval(Range.GetLowerBoundValue(), Range.GetUpperBoundValue());
 
-							if (bAddMirrored)
-							{
-								const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, true, bIsLooping,
-									bDisableReselection, FFloatInterval(0.f, PlayLength), Schema->SampleRate, PermutationIdx, BlendParameters);
-								if (PoseSearchIndexAsset.GetNumPoses() > 0)
+								if (bAddUnmirrored)
 								{
-									SearchIndex.Assets.Add(PoseSearchIndexAsset);
-									TotalPoses += PoseSearchIndexAsset.GetNumPoses();
+									const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, false, bIsLooping,
+										bDisableReselection, RangeInterval, Schema->SampleRate, PermutationIdx, BlendParameters);
+									if (PoseSearchIndexAsset.GetNumPoses() > 0)
+									{
+										SearchIndex.Assets.Add(PoseSearchIndexAsset);
+										TotalPoses += PoseSearchIndexAsset.GetNumPoses();
+									}
+								}
+
+								if (bAddMirrored)
+								{
+									const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, true, bIsLooping,
+										bDisableReselection, RangeInterval, Schema->SampleRate, PermutationIdx, BlendParameters);
+									if (PoseSearchIndexAsset.GetNumPoses() > 0)
+									{
+										SearchIndex.Assets.Add(PoseSearchIndexAsset);
+										TotalPoses += PoseSearchIndexAsset.GetNumPoses();
+									}
 								}
 							}
 						}
 					}
 				}
 			}
-			else if (const FPoseSearchDatabaseMultiSequence* DatabaseMultiSequence = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseMultiSequence>())
+			// support for FPoseSearchDatabaseSequence, FPoseSearchDatabaseAnimComposite, FPoseSearchDatabaseAnimMontage, FPoseSearchDatabaseMultiAnimAsset
+			else
 			{
-				// @todo: support FindValidSequenceIntervals(SequenceBase, DatabaseAsset->GetSamplingRange(), bIsLooping, Database->ExcludeFromDatabaseParameters, ValidRanges);
-				const float PlayLength = DatabaseMultiSequence->GetPlayLength();
+				FindValidSequenceIntervals(DatabaseAsset, ExcludeFromDatabaseParameters, ValidRanges);
 
-				for (int32 PermutationIdx = 0; PermutationIdx < Schema->NumberOfPermutations; ++PermutationIdx)
-				{
-					if (bAddUnmirrored)
-					{
-						const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, false, bIsLooping, 
-							bDisableReselection, FFloatInterval(0.f, PlayLength), Schema->SampleRate, PermutationIdx);
-						if (PoseSearchIndexAsset.GetNumPoses() > 0)
-						{
-							SearchIndex.Assets.Add(PoseSearchIndexAsset);
-							TotalPoses += PoseSearchIndexAsset.GetNumPoses();
-						}
-					}
-
-					if (bAddMirrored)
-					{
-						const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, true, bIsLooping,
-							bDisableReselection, FFloatInterval(0.f, PlayLength), Schema->SampleRate, PermutationIdx);
-						if (PoseSearchIndexAsset.GetNumPoses() > 0)
-						{
-							SearchIndex.Assets.Add(PoseSearchIndexAsset);
-							TotalPoses += PoseSearchIndexAsset.GetNumPoses();
-						}
-					}
-				}
-			}
-			// support for FPoseSearchDatabaseSequence, FPoseSearchDatabaseAnimComposite, FPoseSearchDatabaseAnimMontage
-			else if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(DatabaseAsset->GetAnimationAsset()))
-			{
-				ValidRanges.Reset();
-
-				FindValidSequenceIntervals(SequenceBase, DatabaseAsset->GetSamplingRange(), bIsLooping, ExcludeFromDatabaseParameters, ValidRanges);
 				for (const FFloatRange& Range : ValidRanges)
 				{
 					for (int32 PermutationIdx = 0; PermutationIdx < Schema->NumberOfPermutations; ++PermutationIdx)
 					{
+						const FFloatInterval RangeInterval(Range.GetLowerBoundValue(), Range.GetUpperBoundValue());
+
 						if (bAddUnmirrored)
 						{
 							const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, false, bIsLooping,
-								bDisableReselection, FFloatInterval(Range.GetLowerBoundValue(), Range.GetUpperBoundValue()), Schema->SampleRate, PermutationIdx);
+								bDisableReselection, RangeInterval, Schema->SampleRate, PermutationIdx);
 							if (PoseSearchIndexAsset.GetNumPoses() > 0)
 							{
 								SearchIndex.Assets.Add(PoseSearchIndexAsset);
@@ -437,7 +514,7 @@ static void InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FI
 						if (bAddMirrored)
 						{
 							const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, true, bIsLooping,
-								bDisableReselection, FFloatInterval(Range.GetLowerBoundValue(), Range.GetUpperBoundValue()), Schema->SampleRate, PermutationIdx);
+								bDisableReselection, RangeInterval, Schema->SampleRate, PermutationIdx);
 							if (PoseSearchIndexAsset.GetNumPoses() > 0)
 							{
 								SearchIndex.Assets.Add(PoseSearchIndexAsset);
@@ -447,12 +524,10 @@ static void InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FI
 					}
 				}
 			}
-			else
-			{
-				checkNoEntry();
-			}
 		}
 	}
+
+	return !bAnyErrors;
 }
 
 static void PreprocessSearchIndexWeights(FSearchIndex& SearchIndex, const UPoseSearchSchema* Schema, TConstArrayView<float> Deviation)
@@ -496,6 +571,28 @@ static void PreprocessSearchIndexWeights(FSearchIndex& SearchIndex, const UPoseS
 // it calculates Mean, PCAValues, and PCAProjectionMatrix
 static Eigen::ComputationInfo PreprocessSearchIndexPCAData(FSearchIndex& SearchIndex, int32 NumDimensions, int32 NumberOfPrincipalComponents, EPoseSearchMode PoseSearchMode)
 {
+#if ENABLE_ANIM_DEBUG
+	if (AnyTestFlags(EMotionMatchTestFlags::ValidateKDTreeConstruct))
+	{
+		// @todo: move this into a unit test.
+		// this code will fail with nanoflann 1.5.5
+
+		int NumPoses = 61;
+		int DataCardinality = 8;
+		TArray<float> Values;
+		Values.SetNumZeroed(NumPoses * DataCardinality);
+
+		for (int PoseIndex = 0; PoseIndex < NumPoses; ++PoseIndex)
+		{
+			Values[PoseIndex * DataCardinality + 0] = -5.54383405e-07;
+			Values[PoseIndex * DataCardinality + 1] = 2.77555756e-16;
+		}
+
+		FKDTree KDTree(NumPoses, DataCardinality, Values.GetData());
+	}
+#endif // ENABLE_ANIM_DEBUG
+
+
 	// binding SearchIndex.Values and SearchIndex.PCAValues Eigen row major matrix maps
 	const int32 NumPoses = SearchIndex.GetNumPoses();
 
@@ -663,14 +760,14 @@ static void PreprocessSearchIndexKDTree(FSearchIndex& SearchIndex, const UPoseSe
 
 			TArray<int32> ResultIndexes;
 			TArray<float> ResultDistanceSqr;
-			ResultIndexes.SetNum(NumPCAValuesVectors + 1);
-			ResultDistanceSqr.SetNum(NumPCAValuesVectors + 1);
+			ResultIndexes.SetNum(KDTreeQueryNumNeighbors + 1);
+			ResultDistanceSqr.SetNum(KDTreeQueryNumNeighbors + 1);
 
 			int32 MaxNumNeighborToFindAPoint = 0;
 			for (int32 PointIndex = 0; PointIndex < NumPCAValuesVectors; ++PointIndex)
 			{
 				// searching the kdtree for PointIndex
-				FKDTree::FRadiusResultSet ResultSet(UE_SMALL_NUMBER, NumPCAValuesVectors, ResultIndexes, ResultDistanceSqr);
+				FKDTree::FRadiusResultSet ResultSet(UE_SMALL_NUMBER, KDTreeQueryNumNeighbors, ResultIndexes, ResultDistanceSqr);
 				SearchIndex.KDTree.FindNeighbors(ResultSet, MakeArrayView(&SearchIndex.PCAValues[PointIndex * NumberOfPrincipalComponents], NumberOfPrincipalComponents));
 
 				bool bFound = false;
@@ -840,7 +937,7 @@ struct FSamplerMapKey
 	FVector BlendParameters = FVector::ZeroVector;
 };
 
-static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInstancedStruct>& DatabaseAnimationAssets, const UPoseSearchSchema* Schema, const FAssetSamplingContext& SamplingContext, const FFloatInterval& AdditionalExtrapolationTime, UE::DerivedData::FRequestOwner& Owner)
+static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const UPoseSearchDatabase* DatabaseToLookForAssets, const UPoseSearchSchema* Schema, const FAssetSamplingContext& SamplingContext, const FFloatInterval& AdditionalExtrapolationTime, UE::DerivedData::FRequestOwner& Owner)
 {
 	if (!ensure(Schema))
 	{
@@ -854,10 +951,9 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInsta
 	TMap<FSamplerMapKey, int32> SamplerMap;
 	SamplerMap.Reserve(256);
 
-	for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < DatabaseAnimationAssets.Num(); ++AnimationAssetIndex)
+	for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < DatabaseToLookForAssets->GetNumAnimationAssets(); ++AnimationAssetIndex)
 	{
-		const FInstancedStruct& DatabaseAssetStruct = DatabaseAnimationAssets[AnimationAssetIndex];
-		if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseBlendSpace>())
+		if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseToLookForAssets->GetDatabaseAnimationAsset<FPoseSearchDatabaseBlendSpace>(AnimationAssetIndex))
 		{
 			if (DatabaseBlendSpace->BlendSpace)
 			{
@@ -871,18 +967,18 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInsta
 						const FVector BlendParameters = DatabaseBlendSpace->BlendParameterForSampleRanges(HorizontalIndex, VerticalIndex);
 
 						check(DatabaseBlendSpace->GetNumRoles() == 1);
-						const FTransform& RootTransformOrigin = DatabaseBlendSpace->GetRootTransformOriginForRole(DatabaseBlendSpace->GetRole(0));
+						const FTransform RootTransformOrigin = DatabaseBlendSpace->GetRootTransformOriginForRole(DatabaseBlendSpace->GetRole(0));
 						const FSamplerMapKey SamplerMapKey(DatabaseBlendSpace->BlendSpace, RootTransformOrigin, BlendParameters);
 						if (!SamplerMap.Contains(SamplerMapKey))
 						{
 							SamplerMap.Add(SamplerMapKey, Samplers.Num());
-							Samplers.Emplace(DatabaseBlendSpace->BlendSpace, RootTransformOrigin, BlendParameters);
+							Samplers.Emplace(DatabaseBlendSpace->BlendSpace, RootTransformOrigin, BlendParameters, FAnimationAssetSampler::DefaultRootTransformSamplingRate, false);
 						}
 					}
 				}
 			}
 		}
-		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = DatabaseToLookForAssets->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AnimationAssetIndex))
 		{
 			if (const UObject* AnimationAssetObject = DatabaseAnimationAssetBase->GetAnimationAsset())
 			{
@@ -891,12 +987,12 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInsta
 				{
 					const FRole& Role = DatabaseAnimationAssetBase->GetRole(RoleIndex);
 					const UAnimationAsset* AnimationAsset = DatabaseAnimationAssetBase->GetAnimationAssetForRole(Role);
-					const FTransform& RootTransformOrigin = DatabaseAnimationAssetBase->GetRootTransformOriginForRole(Role);
+					const FTransform RootTransformOrigin = DatabaseAnimationAssetBase->GetRootTransformOriginForRole(Role);
 					const FSamplerMapKey SamplerMapKey(AnimationAsset, RootTransformOrigin);
 					if (!SamplerMap.Contains(SamplerMapKey))
 					{
 						SamplerMap.Add(SamplerMapKey, Samplers.Num());
-						Samplers.Emplace(AnimationAsset, RootTransformOrigin);
+						Samplers.Emplace(AnimationAsset, RootTransformOrigin, FVector::ZeroVector, FAnimationAssetSampler::DefaultRootTransformSamplingRate, false);
 					}
 				}
 			}
@@ -925,7 +1021,7 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInsta
 	}
 
 	FAnimationAssetSamplers TempAssetSamplers;
-	TArray<FBoneContainer> TempBoneContainers;
+	TArray<FBoneContainer, TInlineAllocator<PreallocatedRolesNum>> TempBoneContainers;
 	FRoleToIndex TempRoleToIndex;
 
 	int32 TotalPoses = 0;
@@ -934,8 +1030,7 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInsta
 		FSearchIndexAsset& SearchIndexAsset = SearchIndexBase.Assets[AssetIdx];
 		check(SearchIndexAsset.GetFirstPoseIdx() == TotalPoses);
 
-		const FInstancedStruct& DatabaseAssetStruct = DatabaseAnimationAssets[SearchIndexAsset.GetSourceAssetIdx()];
-		const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseAnimationAssetBase>();
+		const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = DatabaseToLookForAssets->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SearchIndexAsset.GetSourceAssetIdx());
 		check(DatabaseAnimationAssetBase);
 
 		TempAssetSamplers.Reset();
@@ -949,7 +1044,7 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInsta
 			if (const FMirrorDataCache* MirrorDataCache = RoledMirrorDataCaches.Find(Role))
 			{
 				UAnimationAsset* AnimationAsset = DatabaseAnimationAssetBase->GetAnimationAssetForRole(Role);
-				const FTransform& RootTransformOrigin = DatabaseAnimationAssetBase->GetRootTransformOriginForRole(Role);
+				const FTransform RootTransformOrigin = DatabaseAnimationAssetBase->GetRootTransformOriginForRole(Role);
 				const FVector BlendParameters = SearchIndexAsset.GetBlendParameters();
 				const int32 SamplerIndex = SamplerMap[{ AnimationAsset, RootTransformOrigin, BlendParameters }];
 				TempAssetSamplers.AnimationAssetSamplers.Emplace(&Samplers[SamplerIndex]);
@@ -1110,8 +1205,8 @@ static void CompareSearchIndexBase(const FSearchIndexBase& A, const FSearchIndex
 		const int32 NumValuePoses = A.Values.Num() / Schema->SchemaCardinality;
 		for (int32 ValuePoseIndex = 0; ValuePoseIndex < NumValuePoses; ++ValuePoseIndex)
 		{
-			const TConstArrayView<float> PoseA = MakeArrayView(A.Values.GetData() + ValuePoseIndex * Schema->SchemaCardinality, Schema->SchemaCardinality);
-			const TConstArrayView<float> PoseB = MakeArrayView(B.Values.GetData() + ValuePoseIndex * Schema->SchemaCardinality, Schema->SchemaCardinality);
+			const TConstArrayView<float> PoseA = MakeArrayView(A.Values).Slice(ValuePoseIndex * Schema->SchemaCardinality, Schema->SchemaCardinality);
+			const TConstArrayView<float> PoseB = MakeArrayView(B.Values).Slice(ValuePoseIndex * Schema->SchemaCardinality, Schema->SchemaCardinality);
 			CompareChannelValues(0, ValuePoseIndex, PoseA, PoseB, Schema->GetChannels(), StringBuilder);
 		}
 	}
@@ -1208,9 +1303,9 @@ struct FPoseSearchDatabaseAsyncCacheTask
 		Failed		// the task has ended unsuccessfully
 	};
 
-	FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, bool bPerformConditionalPostLoadIfRequired);
-	void StartNewRequestIfNeeded(bool bPerformConditionalPostLoadIfRequired);
-	void Update(FCriticalSection& OuterMutex);
+	FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, bool bPerformConditionalPostLoadIfRequired, FPartialKeyHashes& PartialKeyHashes);
+	void StartNewRequestIfNeeded(bool bPerformConditionalPostLoadIfRequired, FPartialKeyHashes& PartialKeyHashes);
+	void Update(FCriticalSection& OuterMutex, FPartialKeyHashes& PartialKeyHashes);
 	void Wait(FCriticalSection& OuterMutex);
 	void PreCancelIfDependsOn(const UObject* Object);
 	void Cancel();
@@ -1254,7 +1349,7 @@ private:
 
 class FPoseSearchDatabaseAsyncCacheTasks : public TArray<TUniquePtr<FPoseSearchDatabaseAsyncCacheTask>> {};
 
-FPoseSearchDatabaseAsyncCacheTask::FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, bool bPerformConditionalPostLoadIfRequired)
+FPoseSearchDatabaseAsyncCacheTask::FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, bool bPerformConditionalPostLoadIfRequired, FPartialKeyHashes& PartialKeyHashes)
 	: Database(InDatabase)
 	, Owner(UE::DerivedData::EPriority::Normal)
 	, DerivedDataKey(FIoHash::Zero)
@@ -1262,7 +1357,7 @@ FPoseSearchDatabaseAsyncCacheTask::FPoseSearchDatabaseAsyncCacheTask(UPoseSearch
 	if (IsInGameThread())
 	{
 		// it is safe to compose DDC key only on the game thread, since assets can modified in this thread execution
-		StartNewRequestIfNeeded(bPerformConditionalPostLoadIfRequired);
+		StartNewRequestIfNeeded(bPerformConditionalPostLoadIfRequired, PartialKeyHashes);
 	}
 	else
 	{
@@ -1301,7 +1396,7 @@ void FPoseSearchDatabaseAsyncCacheTask::TestSynchronizeWithExternalDependencies(
 }
 #endif //ENABLE_ANIM_DEBUG
 
-void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(bool bPerformConditionalPostLoadIfRequired)
+void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(bool bPerformConditionalPostLoadIfRequired, FPartialKeyHashes& PartialKeyHashes)
 {
 	using namespace UE::DerivedData;
 
@@ -1311,8 +1406,22 @@ void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(bool bPerformCon
 	// Owner.Cancel must be performed before SearchIndex.Reset() in case any task is flying (launched by Owner.LaunchTask)
 	Owner.Cancel();
 
+	FKeyBuilder::EDebugPartialKeyHashesMode DebugPartialKeyHashesMode;
+	switch (CVarMotionMatchPartialKeyHashesMode.GetValueOnAnyThread())
+	{
+	case 0:
+		DebugPartialKeyHashesMode = FKeyBuilder::EDebugPartialKeyHashesMode::Use;
+		break;
+	case 1:
+		DebugPartialKeyHashesMode = FKeyBuilder::EDebugPartialKeyHashesMode::DoNotUse;
+		break;
+	default:
+		DebugPartialKeyHashesMode = FKeyBuilder::EDebugPartialKeyHashesMode::Validate;
+		break;
+	}
+
 	// composing the key
-	const FKeyBuilder KeyBuilder(Database.Get(), true, bPerformConditionalPostLoadIfRequired);
+	const FKeyBuilder KeyBuilder(Database.Get(), true, bPerformConditionalPostLoadIfRequired, &PartialKeyHashes, DebugPartialKeyHashesMode);
 	if (KeyBuilder.AnyAssetNotReady())
 	{
 		DerivedDataKey = FIoHash::Zero;
@@ -1329,6 +1438,7 @@ void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(bool bPerformCon
 			DerivedDataKey = NewDerivedDataKey;
 
 			DatabaseDependencies.Reset();
+			DatabaseDependencies.Reserve(KeyBuilder.GetDependencies().Num());
 			for (const UObject* Dependency : KeyBuilder.GetDependencies())
 			{
 				DatabaseDependencies.Add(Dependency);
@@ -1390,7 +1500,7 @@ void FPoseSearchDatabaseAsyncCacheTask::Cancel()
 	SetState(EState::Cancelled);
 }
 
-void FPoseSearchDatabaseAsyncCacheTask::Update(FCriticalSection& OuterMutex)
+void FPoseSearchDatabaseAsyncCacheTask::Update(FCriticalSection& OuterMutex, FPartialKeyHashes& PartialKeyHashes)
 {
 	check(IsInGameThread());
 
@@ -1398,7 +1508,7 @@ void FPoseSearchDatabaseAsyncCacheTask::Update(FCriticalSection& OuterMutex)
 
 	if (GetState() == EState::Notstarted)
 	{
-		StartNewRequestIfNeeded(false);
+		StartNewRequestIfNeeded(false, PartialKeyHashes);
 	}
 
 	if (GetState() == EState::Prestarted && Poll())
@@ -1565,7 +1675,6 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 					FSearchIndexBase& SearchIndexBase = SearchIndexBases[IndexBaseIdx];
 
 					Schemas[IndexBaseIdx] = DependentDatabaseSchema;
-					const TArray<FInstancedStruct>& DependentDatabaseAnimationAssets = DependentDatabase->GetAnimationAssets();
 					const FAssetSamplingContext DependentSamplingContext(*DependentDatabase);
 					const FFloatInterval& DependentExcludeFromDatabaseParameters = DependentDatabase->ExcludeFromDatabaseParameters;
 					const FFloatInterval& DependentAdditionalExtrapolationTime = DependentDatabase->AdditionalExtrapolationTime;
@@ -1588,9 +1697,9 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 					// validating that the missing MirrorDataTable(s) are not necessary 
 					if (!DependentDatabaseSchema->AllRoledSkeletonHaveMirrorDataTable())
 					{
-						for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < DependentDatabaseAnimationAssets.Num(); ++AnimationAssetIndex)
+						for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < DependentDatabase->GetNumAnimationAssets(); ++AnimationAssetIndex)
 						{
-							if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = DependentDatabaseAnimationAssets[AnimationAssetIndex].GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+							if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = DependentDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AnimationAssetIndex))
 							{
 								if (DatabaseAsset->GetMirrorOption() == EPoseSearchMirrorOption::MirroredOnly || DatabaseAsset->GetMirrorOption() == EPoseSearchMirrorOption::UnmirroredAndMirrored)
 								{
@@ -1611,7 +1720,12 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 					}
 
 					// Building all the related FPoseSearchBaseIndex first
-					InitSearchIndexAssets(SearchIndexBase, DependentDatabaseAnimationAssets, DependentDatabaseSchema, DependentExcludeFromDatabaseParameters);
+					if (!InitSearchIndexAssets(SearchIndexBase, DependentDatabase, DependentDatabaseSchema, DependentExcludeFromDatabaseParameters))
+					{
+						UE_LOG(LogPoseSearch, Error, TEXT("%s - %s BuildIndex Failed becasue of invalid assets"), *LexToString(FullIndexKey.Hash), *MainDatabaseName);
+						ResetSearchIndex();
+						return;
+					}
 
 					if (Owner.IsCanceled())
 					{
@@ -1620,7 +1734,7 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 						return;
 					}
 
-					if (!IndexDatabase(SearchIndexBase, DependentDatabaseAnimationAssets, DependentDatabaseSchema, DependentSamplingContext, DependentAdditionalExtrapolationTime, Owner))
+					if (!IndexDatabase(SearchIndexBase, DependentDatabase, DependentDatabaseSchema, DependentSamplingContext, DependentAdditionalExtrapolationTime, Owner))
 					{
 						UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *MainDatabaseName);
 						ResetSearchIndex();
@@ -1634,7 +1748,7 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 						for (int32 Iteration = 0; Iteration < NumIterations; ++Iteration)
 						{
 							FSearchIndexBase TestSearchIndexBase = SearchIndexBase;
-							if (IndexDatabase(TestSearchIndexBase, DependentDatabaseAnimationAssets, DependentDatabaseSchema, DependentSamplingContext, DependentAdditionalExtrapolationTime, Owner))
+							if (IndexDatabase(TestSearchIndexBase, DependentDatabase, DependentDatabaseSchema, DependentSamplingContext, DependentAdditionalExtrapolationTime, Owner))
 							{
 								if (TestSearchIndexBase != SearchIndexBase)
 								{
@@ -1932,27 +2046,27 @@ void FAsyncPoseSearchDatabasesManagement::SynchronizeDatabases()
 
 	if (!DatabasesToSynchronize.IsEmpty())
 	{
-	// copying DatabasesToSynchronize because modifying the database will call OnObjectModified that could populate DatabasesToSynchronize again
-	const TDatabasesToSynchronize DatabasesToSynchronizeCopy = DatabasesToSynchronize;
-	DatabasesToSynchronize.Reset();
+		// copying DatabasesToSynchronize because modifying the database will call OnObjectModified that could populate DatabasesToSynchronize again
+		const TDatabasesToSynchronize DatabasesToSynchronizeCopy = DatabasesToSynchronize;
+		DatabasesToSynchronize.Reset();
 
-	for (const TDatabasesToSynchronizePair& Pair : DatabasesToSynchronizeCopy)
-	{
-		if (Pair.Key.IsValid())
+		for (const TDatabasesToSynchronizePair& Pair : DatabasesToSynchronizeCopy)
 		{
-			TArray<UAnimSequenceBase*> SequencesBase;
-			for (const TWeakObjectPtr<UAnimSequenceBase>& SequenceBase : Pair.Value)
+			if (Pair.Key.IsValid())
 			{
-				if (SequenceBase.IsValid())
+				TArray<UAnimSequenceBase*> SequencesBase;
+				for (const TWeakObjectPtr<UAnimSequenceBase>& SequenceBase : Pair.Value)
 				{
-					SequencesBase.Add(SequenceBase.Get());
+					if (SequenceBase.IsValid())
+					{
+						SequencesBase.Add(SequenceBase.Get());
+					}
 				}
-			}
 
-			Pair.Key->SynchronizeWithExternalDependencies(SequencesBase);
+				Pair.Key->SynchronizeWithExternalDependencies(SequencesBase);
+			}
 		}
 	}
-}
 }
 
 // we're listening to OnObjectModified to cancel any pending Task indexing databases depending from Object to avoid multi threading issues
@@ -1978,6 +2092,8 @@ void FAsyncPoseSearchDatabasesManagement::PreModified(UObject* Object)
 	check(IsInGameThread());
 
 	FScopeLock Lock(&Mutex);
+
+	PartialKeyHashes.Remove(Object);
 
 	// iterating backwards because of the possible RemoveAtSwap
 	for (int32 TaskIndex = Tasks.Num() - 1; TaskIndex >= 0; --TaskIndex)
@@ -2070,6 +2186,181 @@ void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)
 	check(IsInGameThread());
 
 #if ENABLE_ANIM_DEBUG
+	// testing sampler determinism
+	const bool bTestAssetSamplerDeterminism = AnyTestFlags(EMotionMatchTestFlags::TestAssetSamplerDeterminism);
+	const bool bTestAssetSamplerDeterminismFromPreviousExecution = AnyTestFlags(EMotionMatchTestFlags::TestAssetSamplerDeterminismFromPreviousExecution);
+	if (bTestAssetSamplerDeterminism || bTestAssetSamplerDeterminismFromPreviousExecution)
+	{
+		const int32 NumIterations = CVarMotionMatchTestNumIterations.GetValueOnAnyThread();
+
+		struct FTestSample
+		{
+			FBoneContainer BoneContainer;
+			const UPoseSearchDatabase* Database = nullptr;
+			int32 AnimationAssetIndex = INDEX_NONE;
+			const UAnimationAsset* AnimationAsset = nullptr;
+			int32 SampleIndex = INDEX_NONE;
+			float SampleTime = 0.f;
+
+			TAlignedArray<uint8> SerializedData;
+
+			FString GetFileName() const
+			{
+				return FString::Printf(TEXT("%s//TestAssetSamplerDeterminism//%s_%d_%s_%d.bin"), *FPaths::EngineDir(), *GetNameSafe(Database), AnimationAssetIndex, *GetNameSafe(AnimationAsset), SampleIndex);
+			}
+		};
+
+		TArray<FTestSample> TestSamples;
+		for (const TUniquePtr<FPoseSearchDatabaseAsyncCacheTask>& TaskPtr : Tasks)
+		{
+			if (const UPoseSearchDatabase* Database = TaskPtr->GetDatabase())
+			{
+				if (Database->Schema)
+				{
+					TMap<FRole, FBoneContainer> RoledBoneContainers;
+					Database->Schema->InitBoneContainersFromRoledSkeleton(RoledBoneContainers);
+
+					for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < Database->GetNumAnimationAssets(); ++AnimationAssetIndex)
+					{
+						if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AnimationAssetIndex))
+						{
+							for (int32 RoleIndex = 0; RoleIndex < DatabaseAsset->GetNumRoles(); ++RoleIndex)
+							{
+								const FRole Role = DatabaseAsset->GetRole(RoleIndex);
+								if (const UAnimationAsset* AnimationAsset = DatabaseAsset->GetAnimationAssetForRole(Role))
+								{
+									if (const FBoneContainer* BoneContainer = RoledBoneContainers.Find(Role))
+									{
+										static float SAMPLING_TIME = 1 / 30.f;
+										const float PlayLength = AnimationAsset->GetPlayLength();
+										const int32 NumSamples = FMath::FloorToInt(PlayLength / SAMPLING_TIME);
+
+										for (int32 SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
+										{
+											FTestSample& TestSample = TestSamples.AddDefaulted_GetRef();
+											TestSample.BoneContainer = *BoneContainer;
+											TestSample.Database = Database;
+											TestSample.AnimationAssetIndex = AnimationAssetIndex;
+											TestSample.AnimationAsset = AnimationAsset;
+											TestSample.SampleIndex = SampleIndex;
+											TestSample.SampleTime = SampleIndex * SAMPLING_TIME;
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		ParallelFor(TestSamples.Num(), [&TestSamples, NumIterations, bTestAssetSamplerDeterminism, bTestAssetSamplerDeterminismFromPreviousExecution](int32 TestSampleIndex)
+			{
+				FMemMark Mark(FMemStack::Get());
+
+				FTestSample& TestSample = TestSamples[TestSampleIndex];
+				const FAnimationAssetSampler AssetSampler(TestSample.AnimationAsset);
+
+				FCompactPose Pose;
+				Pose.SetBoneContainer(&TestSample.BoneContainer);
+				AssetSampler.ExtractPose(TestSample.SampleTime, Pose);
+				const FTransform RootTransform = AssetSampler.ExtractRootTransform(TestSample.SampleTime);
+
+				const TConstArrayView<FTransform> Bones = Pose.GetBones();
+
+				if (bTestAssetSamplerDeterminism)
+				{
+					for (int32 IterationIndex = 0; IterationIndex < NumIterations; ++IterationIndex)
+					{
+						FCompactPose TestPose;
+						TestPose.SetBoneContainer(&TestSample.BoneContainer);
+						AssetSampler.ExtractPose(TestSample.SampleTime, TestPose);
+						const FTransform TestRootTransform = AssetSampler.ExtractRootTransform(TestSample.SampleTime);
+
+						if (FMemory::Memcmp(&RootTransform, &TestRootTransform, sizeof(FTransform)) != 0)
+						{
+							UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler - ExtractRootTransform is not deterministic"));
+						}
+
+						const TConstArrayView<FTransform> TestBones = TestPose.GetBones();
+						if (Bones.Num() != TestBones.Num())
+						{
+							UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler - ExtractPose is not deterministic"));
+						}
+						else
+						{
+							for (int32 BoneIndex = 0; BoneIndex < Bones.Num(); ++BoneIndex)
+							{
+								if (FMemory::Memcmp(&Bones[BoneIndex], &TestBones[BoneIndex], sizeof(FTransform)) != 0)
+								{
+									UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler - ExtractPose is not deterministic"));
+								}
+							}
+						}
+					}
+				}
+
+				if (bTestAssetSamplerDeterminismFromPreviousExecution)
+				{
+					const int32 RootTransformSize = sizeof(FTransform);
+					const int32 BonesSize = sizeof(FTransform) * Bones.Num();
+
+					TestSample.SerializedData.Reserve(RootTransformSize + BonesSize);
+					TestSample.SerializedData.Append(reinterpret_cast<const uint8*>(&RootTransform), RootTransformSize);
+					TestSample.SerializedData.Append(reinterpret_cast<const uint8*>(Bones.GetData()), BonesSize);
+				}
+			}, ParallelForFlags);
+
+		if (bTestAssetSamplerDeterminismFromPreviousExecution)
+		{
+			for (const FTestSample& TestSample : TestSamples)
+			{
+				FString FileName = TestSample.GetFileName();
+				TArray<uint8> LoadedData;
+				const bool bLoadedFile = FFileHelper::LoadFileToArray(LoadedData, *FileName, FILEREAD_Silent);
+				if (bLoadedFile)
+				{
+					if (LoadedData.Num() <= 0 || LoadedData.Num() % sizeof(FTransform) != 0)
+					{
+						UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler - Loaded the wrong amount of data!"));
+					}
+					else if (TestSample.SerializedData.Num() != LoadedData.Num())
+					{
+						UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler - Loaded data mismatch expected amount of data!"));
+					}
+					else if (FMemory::Memcmp(TestSample.SerializedData.GetData(), LoadedData.GetData(), TestSample.SerializedData.Num()) != 0)
+					{
+						const int32 NumTransforms = LoadedData.Num() / sizeof(FTransform);
+
+						// copying the data into an aligned buffer, so we can cast it to FTransform
+						TAlignedArray<uint8> LoadedDataAligned(LoadedData.GetData(), LoadedData.Num());
+						TArrayView<const FTransform> LoadedTransforms(reinterpret_cast<const FTransform*>(LoadedDataAligned.GetData()), NumTransforms);
+						TArrayView<const FTransform> SerializedTransforms(reinterpret_cast<const FTransform*>(TestSample.SerializedData.GetData()), NumTransforms);
+
+						for (int32 TransformIndex = 0; TransformIndex < NumTransforms; ++TransformIndex)
+						{
+							if (FMemory::Memcmp(&LoadedTransforms[TransformIndex], &SerializedTransforms[TransformIndex], sizeof(FTransform)) != 0)
+							{
+								// NoTe:	TransformIndex == 0 for the root
+								//			TransformIndex > 0 are the bones, where BoneIndex = TransformIndex - 1
+								const int32 BoneIndex = TransformIndex - 1;
+								UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler - ExtractPose is not deterministic for %s for Bone %d"), *FileName, BoneIndex);
+							}
+						}
+					}
+				}
+				else
+				{
+					bool bSavedFile = FFileHelper::SaveArrayToFile(TestSample.SerializedData, *FileName);
+					if (!bSavedFile)
+					{
+						UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler - Failed to save comparison file!"));
+					}
+				}
+			}
+		}
+	}
+
 	if (AnyTestFlags(EMotionMatchTestFlags::InvalidateCache))
 	{
 		if (AnyTestFlags(EMotionMatchTestFlags::WaitForTaskCompletion))
@@ -2081,7 +2372,7 @@ void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)
 					Tasks[TaskIndex]->GetState() == FPoseSearchDatabaseAsyncCacheTask::EState::Failed)
 				{
 					UE_LOG(LogPoseSearch, Log, TEXT("%s - %s Removed because of InvalidateCache with WaitForTaskCompletion"), *LexToString(Tasks[TaskIndex]->GetDerivedDataKey()), *Tasks[TaskIndex]->GetDatabase()->GetName());
-					Tasks.RemoveAtSwap(TaskIndex, 1, EAllowShrinking::No);
+					Tasks.RemoveAtSwap(TaskIndex, EAllowShrinking::No);
 				}
 			}
 		}
@@ -2105,18 +2396,63 @@ void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)
 
 #endif // ENABLE_ANIM_DEBUG
 	
+	const bool bReindexCancelledDatabases = CVarMotionMatchReindexCancelledDatabases.GetValueOnAnyThread();
+
 	// iterating backwards because of the possible RemoveAtSwap 
 	for (int32 TaskIndex = Tasks.Num() - 1; TaskIndex >= 0; --TaskIndex)
 	{
-		if (!Tasks[TaskIndex]->IsValid() || Tasks[TaskIndex]->GetState() == FPoseSearchDatabaseAsyncCacheTask::EState::Cancelled)
+		if (!Tasks[TaskIndex]->IsValid())
 		{
-			Tasks.RemoveAtSwap(TaskIndex, 1, EAllowShrinking::No);
+			Tasks.RemoveAtSwap(TaskIndex, EAllowShrinking::No);
+		}
+		else if (Tasks[TaskIndex]->GetState() == FPoseSearchDatabaseAsyncCacheTask::EState::Cancelled)
+		{
+			if (bReindexCancelledDatabases)
+			{
+				RequestAsyncBuildIndex(Tasks[TaskIndex]->GetDatabase(), ERequestAsyncBuildFlag::NewRequest);
+				Tasks.RemoveAtSwap(TaskIndex, EAllowShrinking::No);
+			}
+			else
+			{
+				Tasks.RemoveAtSwap(TaskIndex, EAllowShrinking::No);
+			}
 		}
 		else
 		{
-			Tasks[TaskIndex]->Update(Mutex);
+			Tasks[TaskIndex]->Update(Mutex, PartialKeyHashes);
 		}
 	}
+	
+#if ENABLE_ANIM_DEBUG
+	if (AnyTestFlags(EMotionMatchTestFlags::TestDDCKeyDeterminism))
+	{
+		const int32 NumIterations = CVarMotionMatchTestNumIterations.GetValueOnAnyThread();
+		for (int32 TaskIndex = 0; TaskIndex < Tasks.Num(); ++TaskIndex)
+		{
+			if (const UPoseSearchDatabase* Database = Tasks[TaskIndex]->GetDatabase())
+			{
+				const FKeyBuilder KeyBuilder(Database, false, false);
+				const FIoHash IoHash = KeyBuilder.Finalize();
+
+				for (int32 IterationIndex = 0; IterationIndex < NumIterations; ++IterationIndex)
+				{
+					const FKeyBuilder TestKeyBuilder(Database, false, false, &PartialKeyHashes, FKeyBuilder::EDebugPartialKeyHashesMode::Use);
+					const FIoHash TestIoHash = TestKeyBuilder.Finalize();
+
+					if (!KeyBuilder.ValidateAgainst(TestKeyBuilder))
+					{
+						UE_LOG(LogPoseSearch, Error, TEXT("FKeyBuilder - key generation is not deterministic: %s / %s for asset %s"), *LexToString(IoHash), *LexToString(TestIoHash), *Database->GetName());
+					}
+
+					if (IoHash != TestIoHash)
+					{
+						UE_LOG(LogPoseSearch, Error, TEXT("FKeyBuilder - key generation is not deterministic: %s / %s for asset %s"), *LexToString(IoHash), *LexToString(TestIoHash), *Database->GetName());
+					}
+				}
+			}
+		}
+	}
+#endif // ENABLE_ANIM_DEBUG
 }
 
 void FAsyncPoseSearchDatabasesManagement::TickCook(float DeltaTime, bool bCookCompete)
@@ -2139,7 +2475,7 @@ void FAsyncPoseSearchDatabasesManagement::AddReferencedObjects(FReferenceCollect
 	}
 }
 
-EAsyncBuildIndexResult FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSearchDatabase* Database, ERequestAsyncBuildFlag Flag)
+EAsyncBuildIndexResult FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndexInternal(const UPoseSearchDatabase* Database, ERequestAsyncBuildFlag Flag)
 {
 	if (!IsValid(Database))
 	{
@@ -2167,7 +2503,7 @@ EAsyncBuildIndexResult FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildInd
 				{
 					Task->Cancel();
 				}
-				Task->StartNewRequestIfNeeded(bWaitForCompletion);
+				Task->StartNewRequestIfNeeded(bWaitForCompletion, This.PartialKeyHashes);
 			}
 			break;
 		}
@@ -2176,7 +2512,7 @@ EAsyncBuildIndexResult FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildInd
 	if (!Task)
 	{
 		// we didn't find the Task, so we Emplace a new one
-		This.Tasks.Emplace(MakeUnique<FPoseSearchDatabaseAsyncCacheTask>(const_cast<UPoseSearchDatabase*>(Database), bWaitForCompletion));
+		This.Tasks.Emplace(MakeUnique<FPoseSearchDatabaseAsyncCacheTask>(const_cast<UPoseSearchDatabase*>(Database), bWaitForCompletion, This.PartialKeyHashes));
 		Task = This.Tasks.Last().Get();
 	}
 
@@ -2200,6 +2536,26 @@ EAsyncBuildIndexResult FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildInd
 	}
 
 	return EAsyncBuildIndexResult::InProgress;
+}
+
+EAsyncBuildIndexResult FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSearchDatabase* Database, ERequestAsyncBuildFlag Flag)
+{
+	if (CVarMotionMatchReindexAllReferencedDatabases.GetValueOnAnyThread())
+	{
+		FDatabaseSet DatabaseSet;
+		RecursivePopulateDependentDatabases(Database, DatabaseSet);
+
+		for (FDatabaseSet::TConstIterator Iter = DatabaseSet.CreateConstIterator(); Iter; ++Iter)
+		{
+			const UPoseSearchDatabase* DependentDatabase = *Iter;
+			if (DependentDatabase != Database)
+			{
+				RequestAsyncBuildIndexInternal(DependentDatabase, ERequestAsyncBuildFlag::ContinueRequest);
+			}
+		}
+	}
+
+	return RequestAsyncBuildIndexInternal(Database, Flag);
 }
 
 } // namespace UE::PoseSearch

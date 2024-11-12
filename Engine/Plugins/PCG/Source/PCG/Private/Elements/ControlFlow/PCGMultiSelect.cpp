@@ -54,6 +54,15 @@ void UPCGMultiSelectSettings::PostLoad()
 #endif // WITH_EDITOR
 }
 
+void UPCGMultiSelectSettings::OnOverrideSettingsDuplicatedInternal(bool bSkippedPostLoad)
+{
+	Super::OnOverrideSettingsDuplicatedInternal(bSkippedPostLoad);
+	if (bSkippedPostLoad)
+	{
+		CachePinLabels();
+	}
+}
+
 #if WITH_EDITOR
 void UPCGMultiSelectSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {

@@ -382,7 +382,6 @@ namespace Audio
 				Value = (GetReleaseTimeSamples() * Diff) + NormSample;
 			}
 
-			Value = Audio::UnderflowClamp(Value);
 			return Value;
 		}
 
@@ -404,7 +403,6 @@ namespace Audio
 				{
 					Value = (GetReleaseTimeSamples() * Diff) + NormSample;
 				}
-				Value = Audio::UnderflowClamp(Value);
 				OutSamples[SampleIndex] = Value;
 			}
 		}
@@ -433,7 +431,6 @@ namespace Audio
 					{
 						float SampleSquared = InSample * InSample;
 						AnalysisValue = AnalysisFilterBeta * SampleSquared + AnalysisFilterAlpha * AnalysisValue;
-						AnalysisValue = Audio::UnderflowClamp(AnalysisValue);
 						return AnalysisValue;
 					}
 
@@ -442,7 +439,6 @@ namespace Audio
 					{
 						float SampleSquared = InSample * InSample;
 						AnalysisValue = AnalysisFilterBeta * SampleSquared + AnalysisFilterAlpha * AnalysisValue;
-						AnalysisValue = Audio::UnderflowClamp(AnalysisValue);
 						return FMath::Sqrt(AnalysisValue);
 					}
 
@@ -471,7 +467,6 @@ namespace Audio
 				for (int32 SampleIndex = 0; SampleIndex < InNumSamples; ++SampleIndex)
 				{
 					AnalysisValue = AnalysisFilterBeta * OutSamples[SampleIndex] + AnalysisFilterAlpha * AnalysisValue;
-					AnalysisValue = Audio::UnderflowClamp(AnalysisValue);
 					OutSamples[SampleIndex] = AnalysisValue;
 				}
 				return;
@@ -484,7 +479,6 @@ namespace Audio
 				for (int32 SampleIndex = 0; SampleIndex < InNumSamples; ++SampleIndex)
 				{
 					AnalysisValue = AnalysisFilterBeta * OutSamples[SampleIndex] + AnalysisFilterAlpha * AnalysisValue;
-					AnalysisValue = Audio::UnderflowClamp(AnalysisValue);
 					OutSamples[SampleIndex] = AnalysisValue;
 				}
 				ArraySqrtInPlace(Out);

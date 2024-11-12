@@ -43,7 +43,18 @@ protected:
 	virtual EDataValidationResult Compile(FStateTreeDataView InstanceDataView, TArray<FText>& ValidationMessages) override;
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
 	virtual void ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
-
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
+	virtual FName GetIconName() const override
+	{
+		return FName("StateTreeEditorStyle|Node.Sync");
+	}
+	virtual FColor GetIconColor() const override
+	{
+		return UE::StateTree::Colors::Blue;
+	}
+#endif
+	
 	/** The tag to monitor on the target slot. */
 	UPROPERTY(EditAnywhere, Category = "Parameter")
 	FGameplayTag TagToMonitor;

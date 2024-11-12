@@ -9,6 +9,7 @@
 // rewritten.
 
 #include "Async/Fundamental/WaitingQueue.h"
+#include "Async/Fundamental/Scheduler.h"
 #include "Async/TaskTrace.h"
 #include "Logging/LogMacros.h"
 #include "HAL/RunnableThread.h"
@@ -18,6 +19,7 @@
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformProcess.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 #include "Trace/Trace.h"
 #include "Trace/Trace.inl"
 #include "Math/Color.h"
@@ -68,33 +70,110 @@ namespace LowLevelTasks::Impl
 UE_DISABLE_OPTIMIZATION
 #endif
 
+CSV_DECLARE_CATEGORY_EXTERN(Scheduler);
+
 namespace LowLevelTasks::Private
 {
+	namespace WaitingQueueImpl
+	{
+		// State_ layout:
+		// - low kWaiterBits is a stack of waiters committed wait
+		//   (indexes in NodesArray are used as stack elements,
+		//   kStackMask means empty stack).
+		// - next kWaiterBits is count of waiters in prewait state.
+		// - next kWaiterBits is count of pending signals.
+		// - remaining bits are ABA counter for the stack.
+		//   (stored in Waiter node and incremented on push).
+		static constexpr uint64 WaiterBits = 14;
+		static constexpr uint64 StackMask = (1ull << WaiterBits) - 1;
+		static constexpr uint64 WaiterShift = WaiterBits;
+		static constexpr uint64 WaiterMask = ((1ull << WaiterBits) - 1) << WaiterShift;
+		static constexpr uint64 WaiterInc = 1ull << WaiterShift;
+		static constexpr uint64 SignalShift = 2 * WaiterBits;
+		static constexpr uint64 SignalMask = ((1ull << WaiterBits) - 1) << SignalShift;
+		static constexpr uint64 SignalInc = 1ull << SignalShift;
+		static constexpr uint64 EpochShift = 3 * WaiterBits;
+		static constexpr uint64 EpochBits = 64 - EpochShift;
+		static constexpr uint64 EpochMask = ((1ull << EpochBits) - 1) << EpochShift;
+		static constexpr uint64 EpochInc = 1ull << EpochShift;
 
-void FWaitingQueue::Init()
+		// Get the active thread count out of the standby state.
+		uint64 GetActiveThreadCount(uint64 StandbyState)
+		{
+			// The StandbyState stores the active thread count in the waiter bits.
+			return (StandbyState & WaiterMask) >> WaiterShift;
+		}
+
+		void EnterWait(FWaitEvent* Node)
+		{
+			// Flush any open scope before going to sleep so that anything that happened
+			// before appears in UnrealInsights right away. If we don't do this,
+			// the thread buffer will be held to this thread until we wake up and fill it
+			// so it might cause events to appear as missing in UnrealInsights, especially
+			// in case we never wake up again (i.e. deadlock / crash).
+			TRACE_CPUPROFILER_EVENT_FLUSH();
+			Private::FOversubscriptionAllowedScope _(false /* Disallow oversubscription for this wait */);
+
+			// Let the memory manager know we're inactive so it can do whatever it wants with our
+			// thread-local memory cache if we have any.
+			FMemory::MarkTLSCachesAsUnusedOnCurrentThread();
+
+			Node->Event->Wait();
+
+			// Let the memory manager know we're active again and need our
+			// thread-local memory cache back if we have any.
+			FMemory::MarkTLSCachesAsUsedOnCurrentThread();
+		}
+	}
+
+void FWaitingQueue::Init(uint32 InThreadCount, uint32 InMaxThreadCount, TFunction<void()> InCreateThread, uint32 InActiveThreadCount)
 {
-	check(NodesArray.Num() < (1 << WaiterBits) - 1);
-	check(State == StackMask);
+	using namespace WaitingQueueImpl;
+
+	ThreadCount = InThreadCount;
+	MaxThreadCount = InMaxThreadCount;
+	CreateThread = InCreateThread;
+	Oversubscription = 0;
+	bIsShuttingDown = false;
+	State = StackMask;
+
+	// Store the external thread creations in the waiter bits which
+	// represent the number of currently active threads.
+	StandbyState = StackMask | ((uint64(InActiveThreadCount) << WaiterBits) & WaiterMask);
+
+	check(NodesArray.Num() < (1ull << WaiterBits) - 1);
 }
 
-void FWaitingQueue::Shutdown()
+void FWaitingQueue::FinishShutdown()
 {
+	using namespace WaitingQueueImpl;
+
 	check((State & (StackMask | WaiterMask)) == StackMask);
+	check((StandbyState & (StackMask | WaiterMask)) == StackMask);
 }
 
 void FWaitingQueue::PrepareWait(FWaitEvent* Node)
 {
+	using namespace WaitingQueueImpl;
+
 	WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_PrepareWait);
 
 	State.fetch_add(WaiterInc, std::memory_order_relaxed);
 }
 
-void FWaitingQueue::CheckState(uint64_t InState, bool bInIsWaiter)
+bool FWaitingQueue::IsOversubscriptionLimitReached() const
 {
+	return Oversubscription.load(std::memory_order_relaxed) >= MaxThreadCount;
+}
+
+void FWaitingQueue::CheckState(uint64 InState, bool bInIsWaiter)
+{
+	using namespace WaitingQueueImpl;
+
 	static_assert(EpochBits >= 20, "Not enough bits to prevent ABA problem");
 #if WITH_WAITINGQUEUE_CHECK
-	const uint64_t Waiters = (InState & WaiterMask) >> WaiterShift;
-	const uint64_t Signals = (InState & SignalMask) >> SignalShift;
+	const uint64 Waiters = (InState & WaiterMask) >> WaiterShift;
+	const uint64 Signals = (InState & SignalMask) >> SignalShift;
 	check(Waiters >= Signals);
 	check(Waiters < (1 << WaiterBits) - 1);
 	check(!bInIsWaiter || Waiters > 0);
@@ -103,31 +182,46 @@ void FWaitingQueue::CheckState(uint64_t InState, bool bInIsWaiter)
 #endif
 }
 
+void FWaitingQueue::CheckStandbyState(uint64 InState)
+{
+	using namespace WaitingQueueImpl;
+
+#if WITH_WAITINGQUEUE_CHECK
+	const uint64 Index = (InState & StackMask);
+	const uint64 ActiveThreadCount = (InState & WaiterMask) >> WaiterShift;
+	const uint64 Signals = (InState & SignalMask) >> SignalShift;
+	check(Signals == 0); // Unused in this mode
+	check(ActiveThreadCount <= NodesArray.Num());
+	check(Index == StackMask || Index < NodesArray.Num())
+#endif
+}
+
 bool FWaitingQueue::CommitWait(FWaitEvent* Node, FOutOfWork& OutOfWork, int32 SpinCycles, int32 WaitCycles)
 {
+	using namespace WaitingQueueImpl;
+
 	{
 		WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_CommitWait);
 
 		check((Node->Epoch & ~EpochMask) == 0);
 		Node->State.store(EWaitState::NotSignaled, std::memory_order_relaxed);
 
-		const uint64_t Myself = (Node - &NodesArray[0]) | Node->Epoch;
-		uint64_t LocalState = State.load(std::memory_order_relaxed);
+		uint64 LocalState = State.load(std::memory_order_relaxed);
 
 		CheckState(LocalState, true);
-		uint64_t NewState;
+		uint64 NewState;
 		if ((LocalState & SignalMask) != 0)
 		{
 			WAITINGQUEUE_EVENT_SCOPE(CommitWait_TryConsume);
 			// Consume the signal and return immediately.
-			NewState = LocalState - WaiterInc - SignalInc;
+			NewState = LocalState - WaiterInc - SignalInc + EpochInc;
 		}
 		else
 		{
 			WAITINGQUEUE_EVENT_SCOPE(CommitWait_TryCommit);
 			// Remove this thread from pre-wait counter and add to the waiter stack.
-			NewState = ((LocalState & WaiterMask) - WaiterInc) | Myself;
-			Node->Next.store(LocalState & (StackMask | EpochMask), std::memory_order_relaxed);
+			NewState = ((LocalState & (WaiterMask | EpochMask)) - WaiterInc + EpochInc) | (Node - &NodesArray[0]);
+			Node->Next.store(LocalState & StackMask, std::memory_order_relaxed);
 		}
 		CheckState(NewState);
 		if (State.compare_exchange_weak(LocalState, NewState, std::memory_order_acq_rel, std::memory_order_relaxed))
@@ -135,8 +229,6 @@ bool FWaitingQueue::CommitWait(FWaitEvent* Node, FOutOfWork& OutOfWork, int32 Sp
 			if ((LocalState & SignalMask) == 0)
 			{
 				WAITINGQUEUE_EVENT_SCOPE(CommitWait_Success);
-				Node->Epoch += EpochInc;
-
 				// Fallthrough to park but we want to get out of the CommitWait scope first so it doesn't stick
 			}
 			else
@@ -162,9 +254,10 @@ bool FWaitingQueue::CommitWait(FWaitEvent* Node, FOutOfWork& OutOfWork, int32 Sp
 
 bool FWaitingQueue::CancelWait(FWaitEvent* Node)
 {
-	WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_CancelWait);
+	using namespace WaitingQueueImpl;
 
-	uint64_t LocalState = State.load(std::memory_order_relaxed);
+	WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_CancelWait);
+	uint64 LocalState = State.load(std::memory_order_relaxed);
 	for (;;)
 	{
 		bool bConsumedSignal = false;
@@ -207,46 +300,244 @@ bool FWaitingQueue::CancelWait(FWaitEvent* Node)
 	}
 }
 
+void FWaitingQueue::StartShutdown()
+{
+	using namespace WaitingQueueImpl;
+
+	bIsShuttingDown = true;
+
+	// Wake up all workers.
+	NotifyInternal(NodesArray.Num());
+
+	// Notification above doesn't trigger standby threads
+	// during shutdown so trigger them here.
+	uint64 LocalState = StandbyState;
+	while ((LocalState & StackMask) != StackMask)
+	{
+		FWaitEvent* Node = &NodesArray[LocalState & StackMask];
+		Node->Event->Trigger();
+		LocalState = Node->Next;
+	}
+	StandbyState = StackMask;
+}
+
+void FWaitingQueue::PrepareStandby(FWaitEvent* Node)
+{
+	// We store the whole state before going back checking the queue so that we can't possibly
+	// miss an event in-between PrepareStandby and CommitStandby.
+
+	WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_PrepareStandby);
+
+	Node->Epoch = StandbyState;
+}
+
+void FWaitingQueue::ConditionalStandby(FWaitEvent* Node)
+{
+	using namespace WaitingQueueImpl;
+
+	WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_ConditionalStandby);
+
+	if (bIsShuttingDown.load(std::memory_order_relaxed))
+	{
+		return;
+	}
+
+	uint64 LocalState = StandbyState;
+	while (GetActiveThreadCount(LocalState) > ThreadCount + Oversubscription.load(std::memory_order_relaxed))
+	{
+		WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_ConditionalStandby_Iteration);
+
+		CheckStandbyState(LocalState);
+		// We store the active thread count in the waiters slot, so decrement it by 1.
+		const uint64 Waiters  = (LocalState & WaiterMask) - WaiterInc;
+		const uint64 NewEpoch = (LocalState & EpochMask) + EpochInc;
+		const uint64 NewState = (Node - &NodesArray[0]) | NewEpoch | Waiters;
+
+		Node->Next.store(LocalState & StackMask);
+		Node->Event->Reset();
+
+		CheckStandbyState(NewState);
+		if (StandbyState.compare_exchange_weak(LocalState, NewState))
+		{
+			WAITINGQUEUE_EVENT_SCOPE(Standby);
+			EnterWait(Node);
+		}
+		else
+		{
+			WAITINGQUEUE_EVENT_SCOPE(Standby_Fail);
+		}
+	}
+}
+
+bool FWaitingQueue::CommitStandby(FWaitEvent* Node, FOutOfWork& OutOfWork)
+{
+	using namespace WaitingQueueImpl;
+
+	{
+		WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_CommitStandby);
+
+		uint64 LocalState = Node->Epoch;
+		CheckStandbyState(LocalState);
+		// We store the active thread count in the waiters slot, so decrement it by 1.
+		const uint64 Waiters = (LocalState & WaiterMask) - WaiterInc;
+		const uint64 Epoch = (LocalState & EpochMask) + EpochInc;
+		const uint64 NewState = (Node - &NodesArray[0]) | Epoch | Waiters;
+
+		Node->Next.store(LocalState & StackMask);
+		Node->Event->Reset();
+
+		CheckStandbyState(NewState);
+		if (StandbyState.compare_exchange_strong(LocalState, NewState))
+		{
+			// fallthrough to the end of the function where we wait
+		}
+		else
+		{
+			WAITINGQUEUE_EVENT_SCOPE(CommitStandby_Abort);
+			// Update the value before we go back checking if new tasks have been queued.
+			Node->Epoch = LocalState;
+			return false;
+		}
+	}
+
+	OutOfWork.Stop();
+	EnterWait(Node);
+	return true;
+}
+
+void FWaitingQueue::IncrementOversubscription()
+{
+	using namespace WaitingQueueImpl;
+
+	if (++Oversubscription >= MaxThreadCount)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FWaitingQueue::OversubscriptionLimitReached);
+		CSV_CUSTOM_STAT(Scheduler, OversubscriptionLimitReached, 1, ECsvCustomStatOp::Accumulate);
+		OversubscriptionLimitReachedEvent.Broadcast();
+	}
+
+	// This is important that StandbyState is invalidated after Oversubscription is increased so we
+	// can detect stale decisions and reevaluate oversubscription.
+	// Notify -> TryStartNewThread takes care of updating StandbyState for us, but only
+	// when standby threads are actually needed.
+
+	Notify();
+}
+
+void FWaitingQueue::DecrementOversubscription()
+{
+	--Oversubscription;
+}
+
+bool FWaitingQueue::TryStartNewThread()
+{
+	WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_TryStartNewThread);
+	using namespace WaitingQueueImpl;
+
+	// Invalidate the current state by adding an Epoch right away so compare-exchange for other threads can detect
+	// oversubscription has changed which happens in IncrementOversubscription before calling this function.
+	//
+	// Important to always read the StandbyState before the Oversubscription value so that we capture the current epoch to validate
+	// Oversubscription didn't change while we were doing the CAS.
+	uint64 LocalState = StandbyState.fetch_add(EpochInc, std::memory_order_seq_cst) + EpochInc;
+	while (GetActiveThreadCount(LocalState) < MaxThreadCount && GetActiveThreadCount(LocalState) < ThreadCount + Oversubscription.load(std::memory_order_relaxed))
+	{
+		WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_TryStartNewThread_Iteration);
+
+		CheckStandbyState(LocalState);
+
+		// We store the active thread count in the waiters slot, so increment it by 1.
+		const uint64 NewEpoch = (LocalState & EpochMask) + EpochInc;
+		uint64 NewState = NewEpoch | (LocalState & WaiterMask) + WaiterInc;
+		if ((LocalState & StackMask) != StackMask)
+		{
+			WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_TryStartNewThread_FoundNode);
+			FWaitEvent* Node = &NodesArray[LocalState & StackMask];
+			uint64 Next = Node->Next.load(std::memory_order_relaxed);
+			NewState |= Next & StackMask;
+		}
+		else
+		{
+			WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_TryStartNewThread_Empty);
+			NewState |= LocalState & StackMask;
+		}
+
+		CheckStandbyState(NewState);
+		if (StandbyState.compare_exchange_weak(LocalState, NewState, std::memory_order_acq_rel, std::memory_order_relaxed))
+		{
+			if ((LocalState & StackMask) != StackMask)
+			{
+				// We got an existing node, wake it from standby
+				WAITINGQUEUE_EVENT_SCOPE_ALWAYS(FWaitingQueue_SignalStandbyThread);
+				CSV_SCOPED_TIMING_STAT(Scheduler, SignalStandbyThread);
+				FWaitEvent* Node = &NodesArray[LocalState & StackMask];
+				Node->Event->Trigger();
+				return true;
+			}
+			else if (bIsShuttingDown.load(std::memory_order_relaxed) == false)
+			{
+				CSV_SCOPED_TIMING_STAT(Scheduler, CreateThread);
+				WAITINGQUEUE_EVENT_SCOPE_ALWAYS(FWaitingQueue_CreateThread);
+				CreateThread();
+				return true;
+			}
+			else
+			{
+				WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_TryStartNewThread_Backoff);
+				StandbyState -= WaiterInc;
+				return false;
+			}
+		}
+	}
+
+	return false;
+}
+
 int32 FWaitingQueue::NotifyInternal(int32 Count)
 {
+	using namespace WaitingQueueImpl;
+
 	WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_Notify);
 
 	int32 Notifications = 0;
 	while (Count > Notifications)
 	{
-		uint64_t LocalState = State.load(std::memory_order_relaxed);
+		uint64 LocalState = State.load(std::memory_order_relaxed);
 		for (;;)
 		{
 			CheckState(LocalState);
-			const uint64_t Waiters = (LocalState & WaiterMask) >> WaiterShift;
-			const uint64_t Signals = (LocalState & SignalMask) >> SignalShift;
+			const uint64 Waiters  = (LocalState & WaiterMask) >> WaiterShift;
+			const uint64 Signals  = (LocalState & SignalMask) >> SignalShift;
+			const uint64 NewEpoch = (LocalState & EpochMask) + EpochInc;
 			const bool bNotifyAll = Count >= NodesArray.Num();
-			// Easy case: no waiters.
+
+			uint64 NewState;
 			if ((LocalState & StackMask) == StackMask && Waiters == Signals)
 			{
-				WAITINGQUEUE_EVENT_SCOPE(NoMoreWaiter1);
-				return Notifications;
+				// No more waiters, go through the CAS to provide proper ordering
+				// with other threads entering PrepareWait.
+				WAITINGQUEUE_EVENT_SCOPE(TryNoMoreWaiter);
+				NewState = LocalState + EpochInc;
 			}
-			uint64_t NewState;
-			if (bNotifyAll)
+			else if (bNotifyAll)
 			{
 				WAITINGQUEUE_EVENT_SCOPE(TryUnblockAll);
 				// Empty wait stack and set signal to number of pre-wait threads.
-				NewState = (LocalState & WaiterMask) | (Waiters << SignalShift) | StackMask;
+				NewState = (LocalState & WaiterMask) | (Waiters << SignalShift) | StackMask | NewEpoch;
 			}
 			else if (Signals < Waiters)
 			{
 				WAITINGQUEUE_EVENT_SCOPE(TryAbortOnePreWait);
 				// There is a thread in pre-wait state, unblock it.
-				NewState = LocalState + SignalInc;
+				NewState = LocalState + SignalInc + EpochInc;
 			}
 			else
 			{
 				WAITINGQUEUE_EVENT_SCOPE(TryUnparkOne);
 				// Pop a waiter from list and unpark it.
 				FWaitEvent* Node = &NodesArray[LocalState & StackMask];
-				uint64_t Next = Node->Next.load(std::memory_order_relaxed);
-				NewState = (LocalState & (WaiterMask | SignalMask)) | Next;
+				uint64 Next = Node->Next.load(std::memory_order_relaxed);
+				NewState = (LocalState & (WaiterMask | SignalMask)) | (Next & StackMask) | NewEpoch;
 			}
 			CheckState(NewState);
 			if (State.compare_exchange_weak(LocalState, NewState, std::memory_order_acq_rel, std::memory_order_relaxed))
@@ -260,7 +551,12 @@ int32 FWaitingQueue::NotifyInternal(int32 Count)
 
 				if ((LocalState & StackMask) == StackMask)
 				{
-					WAITINGQUEUE_EVENT_SCOPE(NoMoreWaiter2);
+					WAITINGQUEUE_EVENT_SCOPE(NoMoreWaiter);
+					if (TryStartNewThread())
+					{
+						Notifications++;
+						break;
+					}
 					return Notifications;
 				}
 
@@ -287,6 +583,8 @@ int32 FWaitingQueue::NotifyInternal(int32 Count)
 
 void FWaitingQueue::Park(FWaitEvent* Node, FOutOfWork& OutOfWork, int32 SpinCycles, int32 WaitCycles)
 {
+	using namespace WaitingQueueImpl;
+
 	{
 		ON_SCOPE_EXIT { OutOfWork.Stop(); };
 		WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_Park);
@@ -324,25 +622,19 @@ void FWaitingQueue::Park(FWaitEvent* Node, FOutOfWork& OutOfWork, int32 SpinCycl
 		}
 	}
 
-	// Flush any open scope before going to sleep so that anything that happened
-	// before appears in UnrealInsights right away. If we don't do this,
-	// the thread buffer will be held to this thread until we wake up and fill it
-	// so it might cause events to appear as missing in UnrealInsights, especially
-	// in case we never wake up again (i.e. deadlock / crash).
-	#ifdef TRACE_CPUPROFILER_EVENT_FLUSH
-	TRACE_CPUPROFILER_EVENT_FLUSH();
-	#endif
-	Node->Event->Wait();
+	EnterWait(Node);
 }
 
 int32 FWaitingQueue::Unpark(FWaitEvent* Node)
 {
+	using namespace WaitingQueueImpl;
+
 	WAITINGQUEUE_EVENT_SCOPE(FWaitingQueue_Unpark);
 
 	int32 UnparkedCount = 0;
 	for (FWaitEvent* Next; Node; Node = Next)
 	{
-		uint64_t NextNode = Node->Next.load(std::memory_order_relaxed) & StackMask;
+		uint64 NextNode = Node->Next.load(std::memory_order_relaxed) & StackMask;
 		Next = NextNode == StackMask ? nullptr : &NodesArray[(int)NextNode];
 
 		UnparkedCount++;
@@ -351,7 +643,7 @@ int32 FWaitingQueue::Unpark(FWaitEvent* Node)
 		// the event if the other thread was in the waiting state.
 		if (Node->State.exchange(EWaitState::Signaled, std::memory_order_relaxed) == EWaitState::Waiting)
 		{
-			// This one  we actually care about since signaling cost is very expensive.
+			// Always trace this one since signaling cost can be very expensive.
 			WAITINGQUEUE_EVENT_SCOPE_ALWAYS(FWaitingQueue_Unpark_SignalWaitingThread);
 			Node->Event->Trigger();
 		}

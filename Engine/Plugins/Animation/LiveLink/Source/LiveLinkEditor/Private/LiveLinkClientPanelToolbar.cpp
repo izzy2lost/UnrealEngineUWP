@@ -2,6 +2,7 @@
 
 #include "LiveLinkClientPanelToolbar.h"
 
+#include "Algo/Accumulate.h"
 #include "Algo/StableSort.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
@@ -22,6 +23,7 @@
 #include "LiveLinkSourceFactory.h"
 #include "Logging/MessageLog.h"
 #include "LiveLinkSourceSettings.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/FileHelper.h"
 #include "LiveLinkVirtualSubject.h"
 #include "Misc/MessageDialog.h"
@@ -44,10 +46,6 @@
 #include "Widgets/SNullWidget.h"
 #include "Widgets/SWindow.h"
 
-#ifndef WITH_LIVELINK_HUB
-#define WITH_LIVELINK_HUB 0
-#endif
-
 
 #define LOCTEXT_NAMESPACE "LiveLinkClientPanel"
 
@@ -67,12 +65,24 @@ public:
 	void Construct(const FArguments& InArgs)
 	{
 		static const FName DefaultVirtualSubjectName = TEXT("Virtual");
+
 		bOkClicked = false;
 		VirtualSubjectClass = nullptr;
-		VirtualSubjectName = DefaultVirtualSubjectName;
 		LiveLinkClient = InArgs._LiveLinkClient;
 
 		check(LiveLinkClient);
+
+		int32 NumVirtualSubjects = Algo::TransformAccumulate(LiveLinkClient->GetSubjects(true, true), [this](const FLiveLinkSubjectKey& SubjectKey)
+			{
+				return LiveLinkClient->IsVirtualSubject(SubjectKey) ? 1 : 0;
+			}, 0);
+
+		VirtualSubjectName = DefaultVirtualSubjectName;
+
+		if (NumVirtualSubjects > 0)
+		{
+			VirtualSubjectName = *FString::Printf(TEXT("%s %d"), *DefaultVirtualSubjectName.ToString(), NumVirtualSubjects + 1);
+		}
 
 		//Default VirtualSubject Source should always exist
 		TArray<FGuid> Sources = LiveLinkClient->GetVirtualSources();
@@ -256,7 +266,7 @@ private:
 			}
 			else
 			{
-				MenuBuilder.AddWidget(SNullWidget::NullWidget, LOCTEXT("InvalidLiveLink", "Invalid LiveLink Client"), false, false);
+				MenuBuilder.AddWidget(SNullWidget::NullWidget, LOCTEXT("InvalidLiveLink", "Invalid Live Link Client"), false, false);
 			}
 			MenuBuilder.EndSection();
 
@@ -461,7 +471,7 @@ void SLiveLinkClientPanelToolbar::Construct(const FArguments& Args, FLiveLinkCli
 					.OnGetMenuContent(this, &SLiveLinkClientPanelToolbar::OnGenerateSourceMenu)
 					.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
 					.Text(LOCTEXT("AddSource", "Add Source"))
-					.ToolTipText(LOCTEXT("AddSource_ToolTip", "Add a new LiveLink source"))
+					.ToolTipText(LOCTEXT("AddSource_ToolTip", "Add a new Live Link source"))
 				]
 				+ SHorizontalBox::Slot()
 				.Padding(8.f, 0.f, 0.f, 0.f)
@@ -529,7 +539,7 @@ void SLiveLinkClientPanelToolbar::Construct(const FArguments& Args, FLiveLinkCli
 					[
 						SNew(SCheckBox)
 						.Padding(4.f)
-						.ToolTipText(LOCTEXT("ShowUserSettings_Tip", "Show/Hide the general user settings for LiveLink"))
+						.ToolTipText(LOCTEXT("ShowUserSettings_Tip", "Show/Hide the general user settings for Live Link"))
 						.Style(FAppStyle::Get(), "ToggleButtonCheckbox")
 						.ForegroundColor(FSlateColor::UseForeground())
 						.IsChecked_Lambda([]() { return ECheckBoxState::Unchecked; })
@@ -556,7 +566,7 @@ TSharedRef<SWidget> SLiveLinkClientPanelToolbar::OnGenerateSourceMenu()
 	const bool CloseAfterSelection = true;
 	FMenuBuilder MenuBuilder(CloseAfterSelection, NULL);
 
-	MenuBuilder.BeginSection("SourceSection", LOCTEXT("Sources", "LiveLink Sources"));
+	MenuBuilder.BeginSection("SourceSection", LOCTEXT("Sources", "Live Link Sources"));
 
 	for (int32 FactoryIndex = 0; FactoryIndex < Factories.Num(); ++FactoryIndex)
 	{
@@ -603,7 +613,7 @@ TSharedRef<SWidget> SLiveLinkClientPanelToolbar::OnGenerateSourceMenu()
 
 	MenuBuilder.EndSection();
 
-	MenuBuilder.BeginSection("VirtualSourceSection", LOCTEXT("VirtualSources", "LiveLink VirtualSubject Sources"));
+	MenuBuilder.BeginSection("VirtualSourceSection", LOCTEXT("VirtualSources", "Live Link VirtualSubject Sources"));
 
 	//For now, it's not possible to create VirtualSubject Sources from the UI.
 	//Code is present in case it's required in the future.
@@ -613,17 +623,15 @@ TSharedRef<SWidget> SLiveLinkClientPanelToolbar::OnGenerateSourceMenu()
 	//	FNewMenuDelegate::CreateRaw(this, &SLiveLinkClientPanelToolbar::PopulateVirtualSubjectSourceCreationMenu)
 	//);
 
-#if !WITH_LIVELINK_HUB
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("AddVirtualSubject", "Add Virtual Subject"),
-		LOCTEXT("AddVirtualSubject_Tooltip", "Adds a new virtual subject to LiveLink. Instead of coming from a source a virtual subject is a combination of 2 or more real subjects"),
+		LOCTEXT("AddVirtualSubject_Tooltip", "Adds a new virtual subject to Live Link. Instead of coming from a source a virtual subject is a combination of 2 or more real subjects"),
 		FSlateIcon(),
 		FUIAction(
 			FExecuteAction::CreateSP(this, &SLiveLinkClientPanelToolbar::AddVirtualSubject)
 		),
 		NAME_None,
 		EUserInterfaceActionType::Button);
-#endif
 
 	MenuBuilder.EndSection();
 
@@ -798,7 +806,7 @@ static bool OpenSaveDialog(const FString& InDefaultPath, const FString& InNewNam
 		SaveAssetDialogConfig.DefaultAssetName = InNewNameSuggestion;
 		SaveAssetDialogConfig.AssetClassNames.Add(ULiveLinkPreset::StaticClass()->GetClassPathName());
 		SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
-		SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveLiveLinkPresetDialogTitle", "Save LiveLink Preset");
+		SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveLiveLinkPresetDialogTitle", "Save Live Link Preset");
 		SaveAssetDialogConfig.WindowOverride = InParentWindowOverride;
 	}
 
@@ -915,7 +923,7 @@ void SLiveLinkClientPanelToolbar::OnImportPreset(const FAssetData& InPreset)
 	ULiveLinkPreset* ImportedPreset = Cast<ULiveLinkPreset>(PresetAssetData);
 	if (ImportedPreset)
 	{
-		FScopedTransaction Transaction(LOCTEXT("ImportPreset_Transaction", "Import LiveLink Preset"));
+		FScopedTransaction Transaction(LOCTEXT("ImportPreset_Transaction", "Import Live Link Preset"));
 		ImportedPreset->ApplyToClientLatent();
 	}
 	LiveLinkPreset = ImportedPreset;

@@ -36,31 +36,60 @@ DEFINE_LOG_CATEGORY(LogContentBrowserAssetDataSource);
 namespace ContentBrowserAssetData
 {
 
-FContentBrowserItemData CreateAssetFolderItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FName InFolderPath, const bool bIsCookedPath, const bool bIsPlugin)
+FContentBrowserItemData CreateAssetFolderItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	const FName InInternalFolderPath,
+	const bool bIsCookedPath,
+	const bool bIsPlugin)
 {
-	const FString FolderItemName = FPackageName::GetShortName(InFolderPath);
-	FText FolderDisplayNameOverride = ContentBrowserDataUtils::GetFolderItemDisplayNameOverride(InFolderPath, FolderItemName, /*bIsClassesFolder*/ false, bIsCookedPath);
-	return FContentBrowserItemData(InOwnerDataSource,
-		EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Asset | (bIsPlugin ? EContentBrowserItemFlags::Category_Plugin : EContentBrowserItemFlags::None ),
+	const FString FolderItemName = FPackageName::GetShortName(InInternalFolderPath);
+	FText FolderDisplayNameOverride = ContentBrowserDataUtils::GetFolderItemDisplayNameOverride(
+		InInternalFolderPath, FolderItemName, /*bIsClassesFolder*/ false, bIsCookedPath);
+	return FContentBrowserItemData(
+		InOwnerDataSource,
+		EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Asset
+			| (bIsPlugin ? EContentBrowserItemFlags::Category_Plugin : EContentBrowserItemFlags::None),
 		InVirtualPath,
 		*FolderItemName,
 		MoveTemp(FolderDisplayNameOverride),
-		MakeShared<FContentBrowserAssetFolderItemDataPayload>(InFolderPath));
+		MakeShared<FContentBrowserAssetFolderItemDataPayload>(InInternalFolderPath),
+		{ InInternalFolderPath });
 }
 
-FContentBrowserItemData CreateAssetFileItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FAssetData& InAssetData, const bool bIsPluginAsset)
+FContentBrowserItemData CreateAssetFileItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	const FName InInternalPath,
+	const FAssetData& InAssetData,
+	const bool bIsPluginAsset)
 {
-	return FContentBrowserItemData(InOwnerDataSource,
-		EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset | (bIsPluginAsset ? EContentBrowserItemFlags::Category_Plugin : EContentBrowserItemFlags::None),
+	return FContentBrowserItemData(
+		InOwnerDataSource,
+		EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset
+			| (bIsPluginAsset ? EContentBrowserItemFlags::Category_Plugin : EContentBrowserItemFlags::None),
 		InVirtualPath,
 		InAssetData.AssetName,
 		FText(),
-		MakeShared<FContentBrowserAssetFileItemDataPayload>(InAssetData));
+		MakeShared<FContentBrowserAssetFileItemDataPayload>(InAssetData),
+		{ InInternalPath });
 }
 
-FContentBrowserItemData CreateUnsupportedAssetFileItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FAssetData& InAssetData)
+FContentBrowserItemData CreateUnsupportedAssetFileItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	const FName InInternalPath,
+	const FAssetData& InAssetData)
 {
-	return FContentBrowserItemData(InOwnerDataSource, EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset | EContentBrowserItemFlags::Misc_Unsupported, InVirtualPath, InAssetData.AssetName, FText(), MakeShared<FContentBrowserUnsupportedAssetFileItemDataPayload>(InAssetData));
+	return FContentBrowserItemData(
+		InOwnerDataSource,
+		EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset
+			| EContentBrowserItemFlags::Misc_Unsupported,
+		InVirtualPath,
+		InAssetData.AssetName,
+		FText(),
+		MakeShared<FContentBrowserUnsupportedAssetFileItemDataPayload>(InAssetData),
+		{ InInternalPath });
 }
 
 
@@ -1070,7 +1099,9 @@ bool RenameAssetFileItem(IAssetTools* InAssetTools, const FContentBrowserAssetFi
 		const FString PackagePath = FPackageName::GetLongPackagePath(Asset->GetOutermost()->GetName());
 
 		TArray<FAssetRenameData> AssetsAndNames;
-		AssetsAndNames.Emplace(FAssetRenameData(Asset, PackagePath, InNewName));
+		const bool bSoftReferenceOnly = false;
+		const bool bAlsoRenameLocalizedVariants = true;
+		AssetsAndNames.Emplace(FAssetRenameData(Asset, PackagePath, InNewName, bSoftReferenceOnly, bAlsoRenameLocalizedVariants));
 		// Note: This also returns false for Pending results as the rename may yet fail or be canceled, so the change has to be detected later via the asset registry
 		return InAssetTools->RenameAssetsWithDialog(AssetsAndNames) == EAssetRenameResult::Success;
 	}
@@ -1259,8 +1290,26 @@ bool IsItemDirty(const UContentBrowserDataSource* InOwnerDataSource, const FCont
 
 bool IsAssetFileItemDirty(const FContentBrowserAssetFileItemDataPayload& InAssetPayload)
 {
-	UPackage* AssetPackage = InAssetPayload.GetPackage();
-	return AssetPackage && AssetPackage->IsDirty();
+	if (const UPackage* AssetPackage = InAssetPayload.GetPackage())
+	{
+		if (const UAssetDefinition* AssetDefinition = InAssetPayload.GetAssetDefinition())
+		{
+			if (AssetDefinition->ShouldSaveExternalPackages())
+			{
+				for (const UPackage* ExternalPackage : AssetPackage->GetExternalPackages())
+				{
+					if (ExternalPackage && ExternalPackage->IsDirty())
+					{
+						return true;
+					}
+				}
+			}
+		}
+
+		return AssetPackage->IsDirty();
+	}
+	
+	return false;
 }
 
 bool UpdateItemThumbnail(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FAssetThumbnail& InThumbnail)
@@ -1299,6 +1348,46 @@ bool AppendItemReference(IAssetRegistry* InAssetRegistry, const UContentBrowserD
 	return false;
 }
 
+bool AppendItemObjectPath(IAssetRegistry* InAssetRegistry, const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	if (TSharedPtr<const FContentBrowserAssetFolderItemDataPayload> FolderPayload = GetAssetFolderItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendAssetFolderItemReference(InAssetRegistry, *FolderPayload, InOutStr);
+	}
+
+	if (TSharedPtr<const FContentBrowserAssetFileItemDataPayload> AssetPayload = GetAssetFileItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendAssetFileObjectPath(*AssetPayload, InOutStr);
+	}
+
+	if (TSharedPtr<const FContentBrowserUnsupportedAssetFileItemDataPayload> UnsupportedAssetPayload = GetUnsupportedAssetFileItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendUnsupportedAssetFileObjectPath(*UnsupportedAssetPayload, InOutStr);
+	}
+
+	return false;
+}
+
+bool AppendItemPackageName(IAssetRegistry* InAssetRegistry, const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	if (TSharedPtr<const FContentBrowserAssetFolderItemDataPayload> FolderPayload = GetAssetFolderItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendAssetFolderItemReference(InAssetRegistry, *FolderPayload, InOutStr);
+	}
+
+	if (TSharedPtr<const FContentBrowserAssetFileItemDataPayload> AssetPayload = GetAssetFileItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendAssetFilePackageName(*AssetPayload, InOutStr);
+	}
+
+	if (TSharedPtr<const FContentBrowserUnsupportedAssetFileItemDataPayload> UnsupportedAssetPayload = GetUnsupportedAssetFileItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendUnsupportedAssetFilePackageName(*UnsupportedAssetPayload, InOutStr);
+	}
+
+	return false;
+}
+
 void AppendAssetExportText(const FAssetData& AssetData, FString& InOutStr)
 {
 	if (InOutStr.IsEmpty())
@@ -1313,6 +1402,31 @@ void AppendAssetExportText(const FAssetData& AssetData, FString& InOutStr)
 		}
 		InOutStr += AssetData.GetExportTextName();
 	}
+}
+
+void AppendAssetObjectPath(const FAssetData& AssetData, FString& InOutStr)
+{
+	if (InOutStr.IsEmpty())
+	{
+		InOutStr = AssetData.GetObjectPathString();
+	}
+	else
+	{
+		if (InOutStr.Len() > 0)
+		{
+			InOutStr += LINE_TERMINATOR;
+		}
+		InOutStr += AssetData.GetObjectPathString();
+	}
+}
+
+void AppendAssetPackageName(const FAssetData& AssetData, FString& InOutStr)
+{
+	if (!InOutStr.IsEmpty())
+	{
+		InOutStr += LINE_TERMINATOR;
+	}
+	AssetData.PackageName.AppendString(InOutStr);
 }
 
 bool AppendAssetFolderItemReference(IAssetRegistry* InAssetRegistry, const FContentBrowserAssetFolderItemDataPayload& InFolderPayload, FString& InOutStr)
@@ -1338,11 +1452,45 @@ bool AppendAssetFileItemReference(const FContentBrowserAssetFileItemDataPayload&
 	return true;
 }
 
+bool AppendAssetFileObjectPath(const FContentBrowserAssetFileItemDataPayload& InAssetPayload, FString& InOutStr)
+{
+	AppendAssetObjectPath(InAssetPayload.GetAssetData(), InOutStr);
+	return true;
+}
+
+bool AppendAssetFilePackageName(const FContentBrowserAssetFileItemDataPayload& InAssetPayload, FString& InOutStr)
+{
+	AppendAssetPackageName(InAssetPayload.GetAssetData(), InOutStr);
+	return true;
+}
+
 bool AppendUnsupportedAssetFileItemReference(const FContentBrowserUnsupportedAssetFileItemDataPayload& InUnsupportedAssetPayload, FString& InOutStr)
 {
 	if (const FAssetData* AssetData = InUnsupportedAssetPayload.GetAssetDataIfAvailable())
 	{
 		AppendAssetExportText(*AssetData, InOutStr);
+		return true;
+	}
+
+	return false;
+}
+
+bool AppendUnsupportedAssetFileObjectPath(const FContentBrowserUnsupportedAssetFileItemDataPayload& InUnsupportedAssetPayload, FString& InOutStr)
+{
+	if (const FAssetData* AssetData = InUnsupportedAssetPayload.GetAssetDataIfAvailable())
+	{
+		AppendAssetObjectPath(*AssetData, InOutStr);
+		return true;
+	}
+
+	return false;
+}
+
+bool AppendUnsupportedAssetFilePackageName(const FContentBrowserUnsupportedAssetFileItemDataPayload& InUnsupportedAssetPayload, FString& InOutStr)
+{
+	if (const FAssetData* AssetData = InUnsupportedAssetPayload.GetAssetDataIfAvailable())
+	{
+		AppendAssetPackageName(*AssetData, InOutStr);
 		return true;
 	}
 
@@ -1500,7 +1648,7 @@ bool GetVirtualizationItemAttribute(const FAssetData& InAssetData, IAssetRegistr
 	}
 }
 
-void GetGenericItemAttribute(const FName InTagKey, const FString& InTagValue, const FAssetPropertyTagCache::FClassPropertyTagCache& InClassPropertyTagCache, const bool InIncludeMetaData, FContentBrowserItemDataAttributeValue& OutAttributeValue)
+void GetGenericItemAttribute(const FName InTagKey, const FString& InTagValue, const FAssetPropertyTagCache::FClassPropertyTagCache* InClassPropertyTagCache, const bool InIncludeMetaData, FContentBrowserItemDataAttributeValue& OutAttributeValue)
 {
 	check(!InTagKey.IsNone());
 
@@ -1520,7 +1668,8 @@ void GetGenericItemAttribute(const FName InTagKey, const FString& InTagValue, co
 	if (InIncludeMetaData)
 	{
 		FContentBrowserItemDataAttributeMetaData AttributeMetaData;
-		if (const FAssetPropertyTagCache::FPropertyTagCache* PropertyTagCache = InClassPropertyTagCache.GetCacheForTag(InTagKey))
+		const FAssetPropertyTagCache::FPropertyTagCache* PropertyTagCache = InClassPropertyTagCache ? InClassPropertyTagCache->GetCacheForTag(InTagKey) : nullptr;
+		if (PropertyTagCache)
 		{
 			AttributeMetaData.AttributeType = PropertyTagCache->TagType;
 			AttributeMetaData.DisplayFlags = PropertyTagCache->DisplayFlags;
@@ -1756,17 +1905,21 @@ bool GetAssetDataAttribute(const FAssetData& InAssetData, const bool InIncludeMe
 
 	// Generic attribute keys
 	{
-		const FAssetPropertyTagCache::FClassPropertyTagCache& ClassPropertyTagCache = FAssetPropertyTagCache::Get().GetCacheForClass(InAssetData.AssetClassPath);
+		const FAssetPropertyTagCache::FClassPropertyTagCache* ClassPropertyTagCache = FAssetPropertyTagCache::Get().FindCacheForClass(InAssetData.AssetClassPath);
 
 		FName FoundAttributeKey = InAttributeKey;
 		FAssetDataTagMapSharedView::FFindTagResult FoundValue = InAssetData.TagsAndValues.FindTag(FoundAttributeKey);
 		if (!FoundValue.IsSet())
 		{
-			// Check to see if the key we were given resolves as an alias
-			FoundAttributeKey = ClassPropertyTagCache.GetTagNameFromAlias(FoundAttributeKey);
-			if (!FoundAttributeKey.IsNone())
+			//ensureMsgf(ClassPropertyTagCache || (FindObject<UClass>(InAssetData.AssetClassPath) == nullptr), TEXT("FAssetPropertyTagCache not populated for type %s when looking for attribute %s"), *WriteToString<256>(InAssetData.AssetClassPath), *WriteToString<256>(InAttributeKey));
+			if (ClassPropertyTagCache)
 			{
-				FoundValue = InAssetData.TagsAndValues.FindTag(FoundAttributeKey);
+				// Check to see if the key we were given resolves as an alias
+				FoundAttributeKey = ClassPropertyTagCache->GetTagNameFromAlias(FoundAttributeKey);
+				if (!FoundAttributeKey.IsNone())
+				{
+					FoundValue = InAssetData.TagsAndValues.FindTag(FoundAttributeKey);
+				}
 			}
 		}
 		if (FoundValue.IsSet())
@@ -1836,7 +1989,7 @@ bool GetAssetDataAttributes(const FAssetData& InAssetData, const bool InIncludeM
 	static const FTopLevelAssetPath BlueprintAssetClass = FTopLevelAssetPath(TEXT("/Script/Engine"), TEXT("Blueprint"));
 	static const FName ParentClassTag = FName("ParentClass");
 	{
-		const FAssetPropertyTagCache::FClassPropertyTagCache& ClassPropertyTagCache = FAssetPropertyTagCache::Get().GetCacheForClass(InAssetData.AssetClassPath);
+		const FAssetPropertyTagCache::FClassPropertyTagCache* ClassPropertyTagCache = FAssetPropertyTagCache::Get().FindCacheForClass(InAssetData.AssetClassPath);
 		const FAssetPropertyTagCache::FClassPropertyTagCache* ParentClassPropertyTagCache = nullptr;
 
 		if (InAssetData.AssetClassPath == BlueprintAssetClass)
@@ -1848,7 +2001,7 @@ bool GetAssetDataAttributes(const FAssetData& InAssetData, const bool InIncludeM
 				FTopLevelAssetPath ParentClassPathName = UClass::TryConvertShortTypeNameToPathName<UClass>(ParentClassName, ELogVerbosity::Warning, TEXT("GetAssetFileItemAttributes"));
 				if (!ParentClassPathName.IsNull())
 				{
-					ParentClassPropertyTagCache = &FAssetPropertyTagCache::Get().GetCacheForClass(ParentClassPathName);
+					ParentClassPropertyTagCache = FAssetPropertyTagCache::Get().FindCacheForClass(ParentClassPathName);
 				}
 				else
 				{
@@ -1857,6 +2010,9 @@ bool GetAssetDataAttributes(const FAssetData& InAssetData, const bool InIncludeM
 			}
 		}
 
+		/*ensureMsgf(!InIncludeMetaData || ClassPropertyTagCache || (FindObject<UClass>(InAssetData.AssetClassPath) == nullptr), TEXT("FAssetPropertyTagCache not populated for type %s when fetching all attributes"), 
+			*WriteToString<256>(InAssetData.AssetClassPath));*/
+
 		OutAttributeValues.Reserve(OutAttributeValues.Num() + InAssetData.TagsAndValues.Num());
 		for (const auto& TagAndValue : InAssetData.TagsAndValues)
 		{
@@ -1864,7 +2020,7 @@ bool GetAssetDataAttributes(const FAssetData& InAssetData, const bool InIncludeM
 			GetGenericItemAttribute(TagAndValue.Key, TagAndValue.Value.AsString(), ClassPropertyTagCache, InIncludeMetaData, GenericAttributeValue);
 			if (ParentClassPropertyTagCache && ParentClassPropertyTagCache->GetCacheForTag(TagAndValue.Key))
 			{
-				GetGenericItemAttribute(TagAndValue.Key, TagAndValue.Value.AsString(), *ParentClassPropertyTagCache, InIncludeMetaData, GenericAttributeValue);
+				GetGenericItemAttribute(TagAndValue.Key, TagAndValue.Value.AsString(), ParentClassPropertyTagCache, InIncludeMetaData, GenericAttributeValue);
 			}
 		}
 	}
@@ -1931,7 +2087,10 @@ void PopulateAssetFileContextMenu(UContentBrowserDataSource* InOwnerDataSource, 
 				FName VirtualPathToShow;
 				if (OwnerDataSourcePtr->Legacy_TryConvertAssetDataToVirtualPath(AssetToShow, /*bUseFolderPaths*/false, VirtualPathToShow))
 				{
-					ItemsToShow.Emplace(CreateAssetFileItem(OwnerDataSourcePtr, VirtualPathToShow, AssetToShow));
+					PRAGMA_DISABLE_DEPRECATION_WARNINGS
+					ItemsToShow.Emplace(
+						CreateAssetFileItem(OwnerDataSourcePtr, VirtualPathToShow, AssetToShow.ObjectPath, AssetToShow));
+					PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				}
 			}
 			OnShowInPathsView.Execute(ItemsToShow);
@@ -1945,6 +2104,6 @@ void PopulateAssetFileContextMenu(UContentBrowserDataSource* InOwnerDataSource, 
 	);
 }
 
-}
+} // namespace ContentBrowserAssetData
 
 #undef LOCTEXT_NAMESPACE

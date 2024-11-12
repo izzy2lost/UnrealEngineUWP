@@ -388,10 +388,18 @@ struct FHttpResponseStats final
 	double ConnectTime = 0.0;
 	/** Time from the start of the request until the TLS connection was complete, in seconds. */
 	double TlsConnectTime = 0.0;
+	/** Time from the start of the request until the request was sent but before the first byte was received, in seconds. */
+	double PreTransferTime = 0.0;
 	/** Time from the start of the request until the first byte was received, in seconds. */
 	double StartTransferTime = 0.0;
 	/** Time from the start of the request until response was complete, in seconds. */
 	double TotalTime = 0.0;
+
+	/** Time from when the request was sent until the first byte was received, in seconds. If no byte has been received, latency is 0. */
+	double GetLatency() const
+	{
+		return FMath::Max(0.0f, StartTransferTime - PreTransferTime);
+	}
 };
 
 /**

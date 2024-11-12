@@ -202,7 +202,7 @@ FDecodeResult FOpusAudioInfo::Decode(const uint8* CompressedData, const int32 Co
 		const int32 kFrameBytes = NumChannels * sizeof(int16);
 		int32 OutputSizeToGo = OutputPCMDataSize;
 		int32 CompressedSizeToGo = CompressedDataSize;
-		const uint8* InputDataPtr = CompressedData; 
+		const uint8* InputDataPtr = CompressedData;
 		uint8* OutputDataPtr = OutPCMData;
 
 		Result.NumAudioFramesProduced = 0;
@@ -294,6 +294,20 @@ FDecodeResult FOpusAudioInfo::Decode(const uint8* CompressedData, const int32 Co
 					PreviousDecodedUnusedSamples.SetNum(NumPrevNow);
 					CompressedSizeToGo -= ActualChunkSize;
 					InputDataPtr += ActualChunkSize;
+					if (NumRemainingSamplesToSkip)
+					{
+						const int32 NumBytesToSkip = NumRemainingSamplesToSkip * kFrameBytes;
+						if (NumBytesToSkip >= NumPrevNow)
+						{
+							PreviousDecodedUnusedSamples.SetNum(0, EAllowShrinking::No);
+							NumRemainingSamplesToSkip -= NumPrevNow / kFrameBytes;
+						}
+						else
+						{
+							PreviousDecodedUnusedSamples.RemoveAt(0, NumBytesToSkip);
+							NumRemainingSamplesToSkip = 0;
+						}
+					}
 					continue;
 				}
 				else
@@ -382,7 +396,7 @@ void FOpusAudioInfo::SeekToFrame(const uint32 InSeekFrame)
 
 class OPUSAUDIODECODER_API FOpusAudioDecoderModule : public IModuleInterface
 {
-public:	
+public:
 	TUniquePtr<IAudioInfoFactory> Factory;
 
 	virtual void StartupModule() override

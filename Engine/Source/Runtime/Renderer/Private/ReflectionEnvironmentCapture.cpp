@@ -291,7 +291,7 @@ public:
 						RDG_EVENT_NAME("Clear (Mip: %d, Face : %d)", MipIndex, CubeFace),
 						PassParameters,
 						ERDGPassFlags::Raster,
-						[](FRHICommandList&) {});
+						[](FRDGAsyncTask, FRHICommandList&) {});
 				}
 			}
 		}
@@ -519,7 +519,7 @@ void CaptureSceneToScratchCubemap(
 	// update any resources that needed a deferred update
 	FDeferredUpdateResource::UpdateResources(RHICmdList);
 
-	FRDGBuilder GraphBuilder(RHICmdList, RDG_EVENT_NAME("CubeMapCapture"), ERDGBuilderFlags::AllowParallelExecute);
+	FRDGBuilder GraphBuilder(RHICmdList, RDG_EVENT_NAME("CubeMapCapture"), ERDGBuilderFlags::Parallel);
 
 	{
 		RDG_EVENT_SCOPE(GraphBuilder, "CubeMapCapture");
@@ -530,7 +530,7 @@ void CaptureSceneToScratchCubemap(
 		AddPass(GraphBuilder, RDG_EVENT_NAME("FlushGPU"), [](FRHICommandListImmediate& InRHICmdList)
 		{
 			QUICK_SCOPE_CYCLE_COUNTER(STAT_CaptureSceneToScratchCubemap_Flush);
-			FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+			InRHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 
 			// some platforms may not be able to keep enqueueing commands like crazy, this will
 			// allow them to restart their command buffers
@@ -590,7 +590,7 @@ void CaptureSceneToScratchCubemap(
 			RDG_EVENT_NAME("CopySceneToCubeFace"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[EffectiveSize, SceneTextureExtent, FeatureLevel, PassParameters](FRHICommandList& InRHICmdList)
+			[EffectiveSize, SceneTextureExtent, FeatureLevel, PassParameters](FRDGAsyncTask, FRHICommandList& InRHICmdList)
 		{
 			const FIntRect ViewRect(0, 0, EffectiveSize, EffectiveSize);
 			InRHICmdList.SetViewport(0.0f, 0.0f, 0.0f, (float)EffectiveSize, (float)EffectiveSize, 1.0f);
@@ -1241,9 +1241,9 @@ void CaptureSceneIntoScratchCubemap(
 	public:
 		FDummyRenderTarget() = default;
 
-		const FTexture2DRHIRef& GetRenderTargetTexture() const override
+		const FTextureRHIRef& GetRenderTargetTexture() const override
 		{
-			static FTexture2DRHIRef DummyTexture;
+			static FTextureRHIRef DummyTexture;
 			return DummyTexture;
 		}
 
@@ -1267,7 +1267,6 @@ void CaptureSceneIntoScratchCubemap(
 				[](FRHICommandListImmediate& RHICmdList)
 			{
 				GFrameNumberRenderThread++;
-				RHICmdList.BeginFrame();
 			});
 		}
 
@@ -1573,6 +1572,7 @@ void CopyToSkyTexture(FRDGBuilder& GraphBuilder, FScene* Scene, FRDGTexture* Inp
 		CopyInfo.NumMips = GetNumMips(ProcessedTexture->GetSizeX());
 
 		AddCopyTexturePass(GraphBuilder, InputTexture, OutputTexture, CopyInfo);
+		GraphBuilder.UseExternalAccessMode(OutputTexture, ERHIAccess::SRVMask, ERHIPipeline::All);
 	}
 }
 

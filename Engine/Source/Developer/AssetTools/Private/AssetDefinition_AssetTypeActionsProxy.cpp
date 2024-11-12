@@ -237,7 +237,14 @@ const FSlateBrush* UAssetDefinition_AssetTypeActionsProxy::GetIconBrush(const FA
 
 TSharedPtr<SWidget> UAssetDefinition_AssetTypeActionsProxy::GetThumbnailOverlay(const FAssetData& InAssetData) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return AssetType->GetThumbnailOverlay(InAssetData);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+bool UAssetDefinition_AssetTypeActionsProxy::GetThumbnailActionOverlay(const FAssetData& InAssetData, FAssetActionThumbnailOverlayInfo& OutActionOverlayInfo) const
+{
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

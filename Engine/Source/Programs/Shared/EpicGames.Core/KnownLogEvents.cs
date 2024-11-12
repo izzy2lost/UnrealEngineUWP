@@ -41,6 +41,11 @@ namespace EpicGames.Core
 		public static EventId Compiler_Summary { get; } = new EventId(101);
 
 		/// <summary>
+		/// TargetRules or ModuleRules error
+		/// </summary>
+		public static EventId RulesAssembly { get; } = new EventId(102);
+
+		/// <summary>
 		/// UHT compiler message
 		/// </summary>
 		public static EventId UHT { get; } = new EventId(110);
@@ -139,6 +144,11 @@ namespace EpicGames.Core
 		/// UAT: BuildGraph script parsing error
 		/// </summary>
 		public static EventId AutomationTool_BuildGraphScript { get; } = new EventId(407);
+
+		/// <summary>
+		/// UAT: CodeSign message
+		/// </summary>
+		public static EventId AutomationTool_CodeSign { get; } = new EventId(408);
 
 		/// <summary>
 		/// MSBuild: Generic error
@@ -330,6 +340,21 @@ namespace EpicGames.Core
 		/// Maximum code for systemic events. Add new events in the 700-799 range.
 		/// </summary>
 		public static EventId Systemic_Max { get; } = new EventId(799);
+
+		/// <summary>
+		/// Generic Sanitizer Error
+		/// </summary>
+		public static EventId Sanitizer { get; } = new EventId(800);
+
+		/// <summary>
+		/// Thread Sanitizer Error
+		/// </summary>
+		public static EventId Sanitizer_Thread{ get; } = new EventId(801);
+
+		/// <summary>
+		/// Address Sanitizer Error
+		/// </summary>
+		public static EventId Sanitizer_Address { get; } = new EventId(802);
 
 		/// <summary>
 		/// Horde error codes

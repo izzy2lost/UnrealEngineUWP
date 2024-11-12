@@ -51,9 +51,11 @@
 #include "Widgets/Text/SRichTextBlock.h"
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
+#include "SCommonEditorViewportToolbarBase.h"
 #include "Animation/MirrorDataTable.h"
 #include "ScopedTransaction.h"
 #include "SNameComboBox.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 
 #define LOCTEXT_NAMESPACE "AnimViewportToolBar"
 
@@ -255,6 +257,7 @@ protected:
 
 void SAnimViewportToolBar::Construct(const FArguments& InArgs, TSharedPtr<class SAnimationEditorViewportTabBody> InViewport, TSharedPtr<class SEditorViewport> InRealViewport)
 {
+	PreviewProfileController = InArgs._PreviewProfileController;
 	bShowShowMenu = InArgs._ShowShowMenu;
 	bShowCharacterMenu= InArgs._ShowCharacterMenu;
 	bShowLODMenu = InArgs._ShowLODMenu;
@@ -322,6 +325,22 @@ void SAnimViewportToolBar::Construct(const FArguments& InArgs, TSharedPtr<class 
 			.Label(LOCTEXT("ShowMenu", "Show"))
 			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ViewMenuButton")))
 			.OnGetMenuContent(this, &SAnimViewportToolBar::GenerateShowMenu)
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(ToolbarSlotPadding)
+		[
+			SNew(SPreviewSceneProfileSelector).PreviewProfileController(InArgs._PreviewProfileController)
+			.Visibility_Lambda([this]()
+			{
+				// only show this menu if the user has customized it by adding their own profiles
+				// this behavior was requested by UX to match the behavior of the static mesh editor
+				if (PreviewProfileController.IsValid())
+				{
+					return PreviewProfileController->HasAnyUserProfiles() ? EVisibility::Visible : EVisibility::Collapsed;
+				}
+				return EVisibility::Hidden;
+			})
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
@@ -410,6 +429,7 @@ void SAnimViewportToolBar::Construct(const FArguments& InArgs, TSharedPtr<class 
 		[
 			// Display text (e.g., item being previewed)
 			SNew(SRichTextBlock)
+			.Visibility(EVisibility::SelfHitTestInvisible)
 			.DecoratorStyleSet(&FAppStyle::Get())
 			.Text(InViewport.Get(), &SAnimationEditorViewportTabBody::GetDisplayString)
 			.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("AnimViewport.MessageText"))
@@ -714,7 +734,6 @@ TSharedRef<SWidget> SAnimViewportToolBar::GenerateCharacterMenu() const
 				{
 					{
 						FToolMenuSection& Section = InSubMenu->AddSection("AnimViewportMesh", LOCTEXT("CharacterMenu_Actions_Mesh", "Mesh"));
-						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowRetargetBasePose);
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowBound);
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().UseInGameBound);
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().UseFixedBounds);
@@ -750,6 +769,15 @@ TSharedRef<SWidget> SAnimViewportToolBar::GenerateCharacterMenu() const
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().DoNotProcessRootMotion);
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ProcessRootMotionLoop);
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ProcessRootMotionLoopAndReset);
+					}
+
+					{
+						FToolMenuSection& Section = InSubMenu->AddSection("AnimViewportVisualization", LOCTEXT("CharacterMenu_VisualizationsLabel", "Visualizations"));
+						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowNotificationVisualizations);
+						Section.AddMenuEntry(FAnimViewportShowCommands::Get().DoNotVisualizeRootMotion);
+						Section.AddMenuEntry(FAnimViewportShowCommands::Get().VisualizeRootMotionTrajectory);
+						Section.AddMenuEntry(FAnimViewportShowCommands::Get().VisualizeRootMotionTrajectoryAndOrientation);
+						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowAssetUserDataVisualizations);
 					}
 
 					{
@@ -805,6 +833,7 @@ TSharedRef<SWidget> SAnimViewportToolBar::GenerateCharacterMenu() const
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowSockets);
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowAttributes);
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowBoneNames);
+						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowBoneColors);
 					}
 
 					{
@@ -863,6 +892,19 @@ TSharedRef<SWidget> SAnimViewportToolBar::GenerateCharacterMenu() const
 						FNewToolMenuChoice(FNewMenuDelegate::CreateRaw(ContextThis, &SAnimViewportToolBar::FillCharacterAdvancedMenu)));
 				}
 			}));
+
+			Section.AddDynamicEntry("Timecode", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+			{
+				UAnimViewportToolBarToolMenuContext* Context = InSection.FindContext<UAnimViewportToolBarToolMenuContext>();
+				const SAnimViewportToolBar* ContextThis = Context ? Context->AnimViewportToolBar.Pin().Get() : nullptr;
+				if (ContextThis)
+				{
+					InSection.AddSubMenu(TEXT("TimecodeSubMenu"),
+						LOCTEXT("CharacterMenu_TimecodeSubMenu", "Timecode"),
+						LOCTEXT("CharacterMenu_TimecodeSubMenuToolTip", "Timecode options"),
+						FNewToolMenuChoice(FNewMenuDelegate::CreateRaw(ContextThis, &SAnimViewportToolBar::FillCharacterTimecodeMenu)));
+				}
+			}));
 		}
 	}
 
@@ -874,6 +916,16 @@ TSharedRef<SWidget> SAnimViewportToolBar::GenerateCharacterMenu() const
 	AnimViewportContext->AnimViewportToolBar = SharedThis(this);
 	MenuContext.AddObject(AnimViewportContext);
 	return UToolMenus::Get()->GenerateWidget(MenuName, MenuContext);
+}
+
+void SAnimViewportToolBar::FillCharacterTimecodeMenu(FMenuBuilder& MenuBuilder) const
+{
+	const FAnimViewportShowCommands& Actions = FAnimViewportShowCommands::Get();
+	MenuBuilder.BeginSection("Timecode", LOCTEXT("Timecode_Label", "Timecode"));
+	{
+		MenuBuilder.AddMenuEntry( Actions.ShowTimecode );
+	}
+	MenuBuilder.EndSection();
 }
 
 void SAnimViewportToolBar::FillCharacterAdvancedMenu(FMenuBuilder& MenuBuilder) const
@@ -1098,6 +1150,18 @@ TSharedRef<SWidget> SAnimViewportToolBar::GenerateLODMenu() const
 	InMenuBuilder.PushCommandList(Viewport.Pin()->GetCommandList().ToSharedRef());
 	InMenuBuilder.PushExtender(MenuExtender.ToSharedRef());
 
+	const USkeletalMesh* PreviewMesh =  Viewport.Pin()->GetPreviewScene()->GetPreviewMesh();
+	auto IsAutoGenerated = [PreviewMesh](const int32 InLODId) -> bool
+	{
+		if (!PreviewMesh || PreviewMesh->IsCompiling())
+		{
+			return false;
+		}
+		return PreviewMesh->IsValidLODIndex(InLODId) && PreviewMesh->GetLODInfo(InLODId)->bHasBeenSimplified;
+	};
+	static const FText LODFormat = LOCTEXT("LODFmt", "LOD {0}");
+	static const FText GeneratedLODFormat = LOCTEXT("GeneratedLODFmt", "LOD {0} (generated)");
+	
 	{
 		// LOD Models
 		InMenuBuilder.BeginSection("AnimViewportPreviewLODs", LOCTEXT("ShowLOD_PreviewLabel", "Preview LODs") );
@@ -1106,16 +1170,17 @@ TSharedRef<SWidget> SAnimViewportToolBar::GenerateLODMenu() const
 			InMenuBuilder.AddMenuEntry( Actions.LODAuto );
 			InMenuBuilder.AddMenuEntry( Actions.LOD0 );
 
-			int32 LODCount = Viewport.Pin()->GetLODModelCount();
+			const int32 LODCount = Viewport.Pin()->GetLODModelCount();
 			for (int32 LODId = 1; LODId < LODCount; ++LODId)
 			{
-				FString TitleLabel = FString::Printf(TEXT("LOD %d"), LODId);
+				const FText LODNumber = FText::AsNumber(LODId);
+				const FText TitleLabel = IsAutoGenerated(LODId) ? FText::Format(GeneratedLODFormat, LODNumber) : FText::Format(LODFormat, LODNumber); 
 
 				FUIAction Action(FExecuteAction::CreateSP(Viewport.Pin().ToSharedRef(), &SAnimationEditorViewportTabBody::OnSetLODModel, LODId + 1),
 					FCanExecuteAction(),
 					FIsActionChecked::CreateSP(Viewport.Pin().ToSharedRef(), &SAnimationEditorViewportTabBody::IsLODModelSelected, LODId + 1));
 
-				InMenuBuilder.AddMenuEntry(FText::FromString(TitleLabel), FText::GetEmpty(), FSlateIcon(), Action, NAME_None, EUserInterfaceActionType::RadioButton);
+				InMenuBuilder.AddMenuEntry(TitleLabel, FText::GetEmpty(), FSlateIcon(), Action, NAME_None, EUserInterfaceActionType::RadioButton);
 			}
 		}
 		InMenuBuilder.EndSection();
@@ -1292,7 +1357,7 @@ FText SAnimViewportToolBar::GetCameraMenuLabel() const
 	TSharedPtr< SAnimationEditorViewportTabBody > PinnedViewport(Viewport.Pin());
 	if( PinnedViewport.IsValid() )
 	{
-		return GetCameraMenuLabelFromViewportType( PinnedViewport->GetLevelViewportClient().ViewportType );
+		return UE::UnrealEd::GetCameraSubmenuLabelFromViewportType(PinnedViewport->GetLevelViewportClient().ViewportType);
 	}
 
 	return LOCTEXT("Viewport_Default", "Camera");

@@ -1,11 +1,90 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HarmonixMidi/MidiConstants.h"
+#include "HarmonixMidi/SongMaps.h"
 
 DEFINE_LOG_CATEGORY(LogMIDI);
 
 namespace Harmonix::Midi::Constants
 {
+	int32 SubdivisionToMidiTicks(const EMidiClockSubdivisionQuantization Division, const FTimeSignature& TimeSignature, const int32 TicksPerQuarterNote)
+	{
+		switch (Division)
+		{
+		case EMidiClockSubdivisionQuantization::None:                   return 1;
+		case EMidiClockSubdivisionQuantization::Bar: 					return TimeSignature.Numerator * ((TicksPerQuarterNote * 4) / TimeSignature.Denominator);
+		case EMidiClockSubdivisionQuantization::Beat:					return (TicksPerQuarterNote * 4) / TimeSignature.Denominator;
+		case EMidiClockSubdivisionQuantization::ThirtySecondNote:		return TicksPerQuarterNote / 8;
+		case EMidiClockSubdivisionQuantization::SixteenthNote:			return TicksPerQuarterNote / 4;
+		case EMidiClockSubdivisionQuantization::EighthNote:				return TicksPerQuarterNote / 2;
+		case EMidiClockSubdivisionQuantization::QuarterNote:			return TicksPerQuarterNote;
+		case EMidiClockSubdivisionQuantization::HalfNote:				return TicksPerQuarterNote * 2;
+		case EMidiClockSubdivisionQuantization::WholeNote:				return TicksPerQuarterNote * 4;
+		case EMidiClockSubdivisionQuantization::DottedSixteenthNote:	return (TicksPerQuarterNote / 4) + (TicksPerQuarterNote / 8);
+		case EMidiClockSubdivisionQuantization::DottedEighthNote:		return (TicksPerQuarterNote / 2) + (TicksPerQuarterNote / 4);
+		case EMidiClockSubdivisionQuantization::DottedQuarterNote:		return (TicksPerQuarterNote)+(TicksPerQuarterNote / 2);
+		case EMidiClockSubdivisionQuantization::DottedHalfNote:			return (TicksPerQuarterNote * 2) + (TicksPerQuarterNote);
+		case EMidiClockSubdivisionQuantization::DottedWholeNote:		return (TicksPerQuarterNote * 4) + (TicksPerQuarterNote * 2);
+		case EMidiClockSubdivisionQuantization::SixteenthNoteTriplet:   return (TicksPerQuarterNote / 2) / 3;
+		case EMidiClockSubdivisionQuantization::EighthNoteTriplet:		return TicksPerQuarterNote / 3;
+		case EMidiClockSubdivisionQuantization::QuarterNoteTriplet:		return (TicksPerQuarterNote * 2) / 3;
+		case EMidiClockSubdivisionQuantization::HalfNoteTriplet:        return (TicksPerQuarterNote * 4) / 3;
+		default:	                                             		checkNoEntry();	return 1;
+		}
+	}
+
+	float SubdivisionToBeats(EMidiClockSubdivisionQuantization Subdivision, const FTimeSignature& TimeSignature)
+	{
+		// Easy cases first
+		if (Subdivision == EMidiClockSubdivisionQuantization::Bar)
+		{
+			return TimeSignature.Numerator;
+		}
+
+		if (Subdivision == EMidiClockSubdivisionQuantization::Beat)
+		{
+			return 1;
+		}
+
+		const float BeatsPerQuarter = TimeSignature.Denominator / 4.0f;
+
+		switch (Subdivision)
+		{
+		case EMidiClockSubdivisionQuantization::ThirtySecondNote:
+			return BeatsPerQuarter / 8;
+		case EMidiClockSubdivisionQuantization::SixteenthNote:
+			return BeatsPerQuarter / 4;
+		case EMidiClockSubdivisionQuantization::EighthNote:
+			return BeatsPerQuarter / 2;
+		case EMidiClockSubdivisionQuantization::QuarterNote:
+			return BeatsPerQuarter;
+		case EMidiClockSubdivisionQuantization::HalfNote:
+			return BeatsPerQuarter * 2;
+		case EMidiClockSubdivisionQuantization::WholeNote:
+			return BeatsPerQuarter * 4;
+		case EMidiClockSubdivisionQuantization::DottedSixteenthNote:
+			return BeatsPerQuarter / 4 + BeatsPerQuarter / 8;
+		case EMidiClockSubdivisionQuantization::DottedEighthNote:
+			return BeatsPerQuarter / 2 + BeatsPerQuarter / 4;
+		case EMidiClockSubdivisionQuantization::DottedQuarterNote:
+			return BeatsPerQuarter + BeatsPerQuarter / 2;
+		case EMidiClockSubdivisionQuantization::DottedHalfNote:
+			return BeatsPerQuarter * 3;
+		case EMidiClockSubdivisionQuantization::DottedWholeNote:
+			return BeatsPerQuarter * 6;
+		case EMidiClockSubdivisionQuantization::SixteenthNoteTriplet:
+			return (BeatsPerQuarter / 4) * 2 / 3;
+		case EMidiClockSubdivisionQuantization::EighthNoteTriplet:
+			return (BeatsPerQuarter / 2) * 2 / 3;
+		case EMidiClockSubdivisionQuantization::QuarterNoteTriplet:
+			return BeatsPerQuarter * 2 / 3;
+		case EMidiClockSubdivisionQuantization::HalfNoteTriplet:
+			return BeatsPerQuarter * 4 / 3;
+		default:
+			return 0;
+		}
+	}
+
 	FString GetTextTypeName(uint8 TextType)
 	{
 		switch (TextType)

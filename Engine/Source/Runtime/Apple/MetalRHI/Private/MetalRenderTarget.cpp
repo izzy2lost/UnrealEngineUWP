@@ -6,8 +6,10 @@
 
 #include "MetalRHIPrivate.h"
 #include "ScreenRendering.h"
-#include "MetalProfiler.h"
 #include "MetalCommandBuffer.h"
+#include "MetalCommandQueue.h"
+#include "MetalDynamicRHI.h"
+#include "MetalProfiler.h"
 #include "ResolveShader.h"
 #include "PipelineStateCache.h"
 #include "Math/PackedVector.h"
@@ -105,7 +107,7 @@ static void ConvertSurfaceDataToFColor(EPixelFormat Format, uint32 Width, uint32
 	}
 	else if (Format == PF_A16B16G16R16)
 	{
-		ConvertRawR16G16B16A16DataToFColor(Width, Height, In, SrcPitch, Out);
+		ConvertRawR16G16B16A16DataToFColor(Width, Height, In, SrcPitch, Out, bLinearToGamma);
 	}
 	else if (Format == PF_G16R16)
 	{
@@ -147,6 +149,7 @@ void FMetalDynamicRHI::RHIReadSurfaceData(FRHITexture* TextureRHI, FIntRect Rect
     {
         Texture = Surface->GetCurrentTexture();
     }
+	
     if(!Texture)
     {
         UE_LOG(LogRHI, Error, TEXT("Trying to read from an uninitialised texture."));
@@ -157,56 +160,63 @@ void FMetalDynamicRHI::RHIReadSurfaceData(FRHITexture* TextureRHI, FIntRect Rect
 	{
 		SCOPE_CYCLE_COUNTER(STAT_MetalTexturePageOffTime);
 		
+		FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 		MTLTexturePtr TempTexture;
-		if (Texture->storageMode() == MTL::StorageModePrivate)
+		
+		RHICmdList.EnqueueLambda([this, &Texture, &TempTexture, SizeX, SizeY, &Region, Surface, InFlags](FRHICommandListImmediate& RHICmdList)
 		{
+			FMetalRHICommandContext& Context = FMetalRHICommandContext::Get(RHICmdList);
+			
+			if (Texture->storageMode() == MTL::StorageModePrivate)
+			{
 #if PLATFORM_MAC
-			MTL::StorageMode StorageMode = MTL::StorageModeManaged;
+				MTL::StorageMode StorageMode = MTL::StorageModeManaged;
 #else
 #if WITH_IOS_SIMULATOR
-            MTL::StorageMode StorageMode = MTL::StorageModePrivate;
+				MTL::StorageMode StorageMode = MTL::StorageModePrivate;
 #else
-            MTL::StorageMode StorageMode = MTL::StorageModeShared;
+				MTL::StorageMode StorageMode = MTL::StorageModeShared;
 #endif
 #endif
-			MTL::PixelFormat MetalFormat = (MTL::PixelFormat)GPixelFormats[Surface->GetDesc().Format].PlatformFormat;
-			MTL::TextureDescriptor* Desc = MTL::TextureDescriptor::alloc()->init();
-            check(Desc);
-            
-			Desc->setTextureType(Texture->textureType());
-			Desc->setPixelFormat(Texture->pixelFormat());
-			Desc->setWidth(SizeX);
-			Desc->setHeight(SizeY);
-			Desc->setDepth(1);
-			Desc->setMipmapLevelCount(1); // Only consider a single subresource and not the whole texture (like in the other RHIs)
-			Desc->setSampleCount(Texture->sampleCount());
-			Desc->setArrayLength(Texture->arrayLength());
-			
-			MTL::ResourceOptions GeneralResourceOption = (MTL::ResourceOptions)FMetalCommandQueue::GetCompatibleResourceOptions(MTL::ResourceOptions(((NS::UInteger)Texture->cpuCacheMode() << MTL::ResourceCpuCacheModeShift) | ((NS::UInteger)StorageMode << MTL::ResourceStorageModeShift) | MTL::ResourceHazardTrackingModeUntracked));
-			Desc->setResourceOptions(GeneralResourceOption);
-			
-			Desc->setCpuCacheMode(Texture->cpuCacheMode());
-			Desc->setStorageMode(StorageMode);
-			Desc->setUsage(Texture->usage());
-			
-			TempTexture = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newTexture(Desc));
-            Desc->release();
-            
-			ImmediateContext.Context->CopyFromTextureToTexture(Texture.get(), 0, InFlags.GetMip(), MTL::Origin(Region.origin), MTL::Size(Region.size), TempTexture.get(), 0, 0, MTL::Origin(0, 0, 0));
-			
-			Texture = TempTexture;
-			Region = MTL::Region(0, 0, SizeX, SizeY);
-		}
+				MTL::PixelFormat MetalFormat = (MTL::PixelFormat)GPixelFormats[Surface->GetDesc().Format].PlatformFormat;
+				MTL::TextureDescriptor* Desc = MTL::TextureDescriptor::alloc()->init();
+				check(Desc);
+				
+				Desc->setTextureType(Texture->textureType());
+				Desc->setPixelFormat(Texture->pixelFormat());
+				Desc->setWidth(SizeX);
+				Desc->setHeight(SizeY);
+				Desc->setDepth(1);
+				Desc->setMipmapLevelCount(1); // Only consider a single subresource and not the whole texture (like in the other RHIs)
+				Desc->setSampleCount(Texture->sampleCount());
+				Desc->setArrayLength(Texture->arrayLength());
+				
+				MTL::ResourceOptions GeneralResourceOption = (MTL::ResourceOptions)FMetalCommandQueue::GetCompatibleResourceOptions(MTL::ResourceOptions(((NS::UInteger)Texture->cpuCacheMode() << MTL::ResourceCpuCacheModeShift) | ((NS::UInteger)StorageMode << MTL::ResourceStorageModeShift) | MTL::ResourceHazardTrackingModeUntracked));
+				Desc->setResourceOptions(GeneralResourceOption);
+				
+				Desc->setCpuCacheMode(Texture->cpuCacheMode());
+				Desc->setStorageMode(StorageMode);
+				Desc->setUsage(Texture->usage());
+				
+				TempTexture = NS::TransferPtr(Device->GetDevice()->newTexture(Desc));
+				Desc->release();
+				
+				Context.CopyFromTextureToTexture(Texture.get(), 0, InFlags.GetMip(), MTL::Origin(Region.origin), MTL::Size(Region.size), TempTexture.get(), 0, 0, MTL::Origin(0, 0, 0));
+				
+				Texture = TempTexture;
+				Region = MTL::Region(0, 0, SizeX, SizeY);
+			}
 #if PLATFORM_MAC
-		if(Texture->storageMode() == MTL::StorageModeManaged)
-		{
-			// Synchronise the texture with the CPU
-			ImmediateContext.Context->SynchronizeTexture(Texture.get(), 0, InFlags.GetMip());
-		}
+			if(Texture->storageMode() == MTL::StorageModeManaged)
+			{
+				// Synchronise the texture with the CPU
+				Context.SynchronizeTexture(Texture.get(), 0, InFlags.GetMip());
+			}
 #endif
+		});
 
 		//kick the current command buffer.
-		ImmediateContext.Context->SubmitCommandBufferAndWait();
+		RHICmdList.SubmitAndBlockUntilGPUIdle();
 		
 		const uint32 Stride = GPixelFormats[Surface->GetDesc().Format].BlockBytes * SizeX;
 		const uint32 BytesPerImage = Stride * SizeY;
@@ -220,7 +230,7 @@ void FMetalDynamicRHI::RHIReadSurfaceData(FRHITexture* TextureRHI, FIntRect Rect
 		
 		if (TempTexture)
 		{
-			SafeReleaseMetalTexture(TempTexture);
+			FMetalDynamicRHI::Get().DeferredDelete(TempTexture);
 		}
 	}
 	else
@@ -230,33 +240,41 @@ void FMetalDynamicRHI::RHIReadSurfaceData(FRHITexture* TextureRHI, FIntRect Rect
 		const uint32 Alignment = PLATFORM_MAC ? 1u : 64u; // Mac permits natural row alignment (tightly-packed) but iOS does not.
 		const uint32 AlignedStride = ((Stride - 1) & ~(Alignment - 1)) + Alignment;
 		const uint32 BytesPerImage = AlignedStride * SizeY;
-		FMetalBufferPtr Buffer = ((FMetalDeviceContext*)ImmediateContext.Context)->CreatePooledBuffer(FMetalPooledBufferArgs(ImmediateContext.Context->GetDevice(), BytesPerImage, BUF_Dynamic, MTL::StorageModeShared));
+		
+		FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+		
+		FMetalBufferPtr Buffer = Device->CreatePooledBuffer(FMetalPooledBufferArgs(Device, BytesPerImage, BUF_Dynamic, MTL::StorageModeShared));
+		
+		RHICmdList.EnqueueLambda([this, &Buffer, &Texture, &Region, Surface, AlignedStride, BytesPerImage, InFlags](FRHICommandListImmediate& RHICmdList)
 		{
 			// Synchronise the texture with the CPU
 			SCOPE_CYCLE_COUNTER(STAT_MetalTexturePageOffTime);
 			
+			FMetalRHICommandContext& Context = FMetalRHICommandContext::Get(RHICmdList);
+			
 			if (Surface->GetDesc().Format != PF_DepthStencil)
 			{
-				ImmediateContext.Context->CopyFromTextureToBuffer(Texture.get(), 0, InFlags.GetMip(), Region.origin, Region.size, Buffer, 0, AlignedStride, BytesPerImage, MTL::BlitOptionNone);
+				Context.CopyFromTextureToBuffer(Texture.get(), 0, InFlags.GetMip(), Region.origin, Region.size, Buffer, 0, AlignedStride, BytesPerImage, MTL::BlitOptionNone);
 			}
 			else
 			{
 				if (!InFlags.GetOutputStencil())
 				{
-					ImmediateContext.Context->CopyFromTextureToBuffer(Texture.get(), 0, InFlags.GetMip(), Region.origin, Region.size, Buffer, 0, AlignedStride, BytesPerImage, MTL::BlitOptionDepthFromDepthStencil);
+					Context.CopyFromTextureToBuffer(Texture.get(), 0, InFlags.GetMip(), Region.origin, Region.size, Buffer, 0, AlignedStride, BytesPerImage, MTL::BlitOptionDepthFromDepthStencil);
 				}
 				else
 				{
-					ImmediateContext.Context->CopyFromTextureToBuffer(Texture.get(), 0, InFlags.GetMip(), Region.origin, Region.size, Buffer, 0, AlignedStride, BytesPerImage, MTL::BlitOptionStencilFromDepthStencil);
+					Context.CopyFromTextureToBuffer(Texture.get(), 0, InFlags.GetMip(), Region.origin, Region.size, Buffer, 0, AlignedStride, BytesPerImage, MTL::BlitOptionStencilFromDepthStencil);
 				}
 			}
-			
-			//kick the current command buffer.
-			ImmediateContext.Context->SubmitCommandBufferAndWait();
-			
-			ConvertSurfaceDataToFColor(Surface->GetDesc().Format, SizeX, SizeY, (uint8*)Buffer->Contents(), AlignedStride, OutDataPtr, InFlags);
-		}
-		((FMetalDeviceContext*)ImmediateContext.Context)->ReleaseBuffer(Buffer);
+		});
+		
+		//kick the current command buffer.
+		RHICmdList.SubmitAndBlockUntilGPUIdle();
+		
+		ConvertSurfaceDataToFColor(Surface->GetDesc().Format, SizeX, SizeY, (uint8*)Buffer->Contents(), AlignedStride, OutDataPtr, InFlags);
+		
+		FMetalDynamicRHI::Get().DeferredDelete(Buffer);
 	}
 }
 
@@ -264,8 +282,8 @@ void FMetalDynamicRHI::RHIMapStagingSurface(FRHITexture* TextureRHI, FRHIGPUFenc
 {
     MTL_SCOPED_AUTORELEASE_POOL;
     
-	FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-	ImmediateContext.Context->SubmitCommandsHint();
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+	RHICmdList.SubmitAndBlockUntilGPUIdle();
 	
 	if (FenceRHI && !FenceRHI->Poll())
 	{
@@ -287,7 +305,6 @@ void FMetalDynamicRHI::RHIUnmapStagingSurface(FRHITexture* TextureRHI, uint32 GP
     
     FMetalSurface* Surface = GetMetalSurfaceFromRHITexture(TextureRHI);
     Surface->Unlock(0, 0, false);
-	
 }
 
 void FMetalDynamicRHI::RHIReadSurfaceFloatData(FRHITexture* TextureRHI, FIntRect Rect, TArray<FFloat16Color>& OutData, ECubeFace CubeFace,int32 ArrayIndex,int32 MipIndex)
@@ -333,15 +350,24 @@ void FMetalDynamicRHI::RHIReadSurfaceFloatData(FRHITexture* TextureRHI, FIntRect
 	const uint32 AlignedStride = ((Stride - 1) & ~(Alignment - 1)) + Alignment;
 	const uint32 BytesPerImage = AlignedStride  * SizeY;
 	int32 FloatBGRADataSize = BytesPerImage;
-	FMetalBufferPtr Buffer = ((FMetalDeviceContext*)ImmediateContext.Context)->CreatePooledBuffer(FMetalPooledBufferArgs(ImmediateContext.Context->GetDevice(), FloatBGRADataSize, BUF_Dynamic, MTL::StorageModeShared));
+	FMetalBufferPtr Buffer = Device->CreatePooledBuffer(FMetalPooledBufferArgs(Device, FloatBGRADataSize, BUF_Dynamic, MTL::StorageModeShared));
 	{
 		// Synchronise the texture with the CPU
 		SCOPE_CYCLE_COUNTER(STAT_MetalTexturePageOffTime);
 		
-		ImmediateContext.Context->CopyFromTextureToBuffer(Texture.get(), ArrayIndex, MipIndex, Region.origin, Region.size, Buffer, 0, AlignedStride, BytesPerImage, MTL::BlitOptionNone);
-		
-		//kick the current command buffer.
-		ImmediateContext.Context->SubmitCommandBufferAndWait();
+		{
+			FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+
+			// Enqueue an RHI thread command to fully flush the GPU and write back caches
+			RHICmdList.EnqueueLambda([&Texture, ArrayIndex, MipIndex, Region, &Buffer, AlignedStride, BytesPerImage](FRHICommandListImmediate& RHICmdList)
+			{
+				FMetalRHICommandContext& Context = FMetalRHICommandContext::Get(RHICmdList);
+				
+				Context.CopyFromTextureToBuffer(Texture.get(), ArrayIndex, MipIndex, Region.origin, Region.size, Buffer, 0, AlignedStride, BytesPerImage, MTL::BlitOptionNone);
+			});
+
+			RHICmdList.SubmitAndBlockUntilGPUIdle();
+		}
 	}
 	
 	uint8* DataPtr = (uint8*)Buffer->Contents();
@@ -362,7 +388,7 @@ void FMetalDynamicRHI::RHIReadSurfaceFloatData(FRHITexture* TextureRHI, FIntRect
 		FMemory::Memcpy(OutDataPtr, FloatBGRAData, FloatBGRADataSize);
 	}
 	
-	((FMetalDeviceContext*)ImmediateContext.Context)->ReleaseBuffer(Buffer);
+	FMetalDynamicRHI::Get().DeferredDelete(Buffer);
 }
 
 void FMetalDynamicRHI::RHIRead3DSurfaceFloatData(FRHITexture* TextureRHI,FIntRect InRect,FIntPoint ZMinMax,TArray<FFloat16Color>& OutData)
@@ -398,15 +424,22 @@ void FMetalDynamicRHI::RHIRead3DSurfaceFloatData(FRHITexture* TextureRHI,FIntRec
 	const uint32 AlignedStride = ((Stride - 1) & ~(Alignment - 1)) + Alignment;
 	const uint32 BytesPerImage = AlignedStride  * SizeY;
 	int32 FloatBGRADataSize = BytesPerImage * SizeZ;
-	FMetalBufferPtr Buffer = ((FMetalDeviceContext*)ImmediateContext.Context)->CreatePooledBuffer(FMetalPooledBufferArgs(ImmediateContext.Context->GetDevice(), FloatBGRADataSize, BUF_Dynamic, MTL::StorageModeShared));
+	FMetalBufferPtr Buffer = Device->CreatePooledBuffer(FMetalPooledBufferArgs(Device, FloatBGRADataSize, BUF_Dynamic, MTL::StorageModeShared));
+	
 	{
 		// Synchronise the texture with the CPU
 		SCOPE_CYCLE_COUNTER(STAT_MetalTexturePageOffTime);
 		
-		ImmediateContext.Context->CopyFromTextureToBuffer(Texture, 0, 0, Region.origin, Region.size, Buffer, 0, AlignedStride, BytesPerImage, MTL::BlitOptionNone);
+		FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+		
+		RHICmdList.EnqueueLambda([this, &Buffer, &Texture, &Region, Surface, AlignedStride, BytesPerImage](FRHICommandListImmediate& RHICmdList)
+		{
+			FMetalRHICommandContext& Context = FMetalRHICommandContext::Get(RHICmdList);
+			Context.CopyFromTextureToBuffer(Texture, 0, 0, Region.origin, Region.size, Buffer, 0, AlignedStride, BytesPerImage, MTL::BlitOptionNone);
+		});
 		
 		//kick the current command buffer.
-		ImmediateContext.Context->SubmitCommandBufferAndWait();
+		RHICmdList.SubmitAndBlockUntilGPUIdle();
 	}
 	
 	uint8* DataPtr = (uint8*)Buffer->Contents();
@@ -430,5 +463,5 @@ void FMetalDynamicRHI::RHIRead3DSurfaceFloatData(FRHITexture* TextureRHI,FIntRec
 		FMemory::Memcpy(OutDataPtr, FloatBGRAData, FloatBGRADataSize);
 	}
 	
-	((FMetalDeviceContext*)ImmediateContext.Context)->ReleaseBuffer(Buffer);
+	FMetalDynamicRHI::Get().DeferredDelete(Buffer);
 }

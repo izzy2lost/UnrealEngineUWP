@@ -31,6 +31,7 @@ namespace Utilities
 
 enum class ESimCallbackOptions : uint16
 {
+	None					= 0,
 	Presimulate				= 1 << 0,
 	MidPhaseModification	= 1 << 1,
 	CCDModification			= 1 << 2,
@@ -184,9 +185,15 @@ public:
 		return Solver; 
 	}
 
-	// Rewind API
+	UE_DEPRECATED(5.5, "This callback was never called. Instead look at either ISimCallbackObject::ProcessInputs_External or FNetworkPhysicsCallback::InjectInputsExternal.")
 	virtual void InjectInputs_External(int32 PhysicsStep, int32 NumSteps) {}
+
+	/** Called before any sim callbacks are triggered but after async inputs has marshaled over
+	* Register with ESimCallbackOptions::Rewind to get callback */
 	virtual void ProcessInputs_Internal(int32 PhysicsStep) {}
+
+	/** Called before async inputs are marshaled over to the physics thread, only called if an async input is produced to get marshaled 
+	* Register with ESimCallbackOptions::Rewind to get callback */
 	virtual void ProcessInputs_External(int32 PhysicsStep) {}
 	
 	virtual int32 TriggerRewindIfNeeded_Internal(int32 LastCompletedStep)
@@ -260,7 +267,10 @@ private:
 	/**
 	* Called before simulation step (NOTE: not once per sub-step when sub-stepping is enabled)
 	*/
-	virtual void OnPreSimulate_Internal() = 0;
+	virtual void OnPreSimulate_Internal()
+	{
+		check(false);
+	}
 
 	/**
 	* Called once per simulation sub-step, before Integrate. Can be used to modify particle positions, velocities etc.
@@ -420,13 +430,17 @@ public:
 		: Func(MoveTemp(InFunc))
 		, Func2(nullptr)
 		, bFuncHasTimeParameters(false)
-	{}
+	{
+		ensureMsgf(Func, TEXT("Created a sim callback object with an unbound function. This command will not be executed."));
+	}
 
 	FSimCallbackCommandObject(TUniqueFunction<void(FReal DeltaTime, FReal SimTime)>&& InFunc)
 		: Func(nullptr)
 		, Func2(MoveTemp(InFunc))
 		, bFuncHasTimeParameters(true)
-	{}
+	{
+		ensureMsgf(Func2, TEXT("Created a sim callback object with an unbound function. This command will not be executed."));
+	}
 
 	virtual void FreeOutputData_External(FSimCallbackOutput* Output)
 	{
@@ -458,12 +472,18 @@ private:
 	virtual void OnPreSimulate_Internal() override
 	{
 		if (!bFuncHasTimeParameters)
-		{ 
-			Func();
+		{
+			if (ensureMsgf(Func, TEXT("The function of this sim callback object became unbound. This should not happen. This command will not be executed.")))
+			{
+				Func();
+			}
 		}
 		else
 		{
-			Func2(GetDeltaTime_Internal(), GetSimTime_Internal());
+			if (ensureMsgf(Func2, TEXT("The function of this sim callback object became unbound. This should not happen. This command will not be executed.")))
+			{
+				Func2(GetDeltaTime_Internal(), GetSimTime_Internal());
+			}
 		}
 		
 	}
@@ -556,6 +576,15 @@ public:
 		TOutputType* Output = CurrentOutput_External;
 		CurrentOutput_External = nullptr;
 		return TSimCallbackOutputHandle<TOutputType>(Output, this);
+	}
+
+	/**
+	* Check if the output queue is empty of data
+	* Can be used while iterating the queue through PopOutputData_External and PopFutureOutputData_External to check if the current data is the last data.
+	*/
+	bool IsOutputQueueEmpty_External()
+	{
+		return OutputQueue.IsEmpty();
 	}
 
 	/**

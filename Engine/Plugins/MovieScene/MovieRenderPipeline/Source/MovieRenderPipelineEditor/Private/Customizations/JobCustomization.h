@@ -128,13 +128,13 @@ protected:
 			SelectedJob->OnJobGraphPresetChanged.AddSP(this, &FJobDetailsCustomization::RefreshLayout);
 		}
 
-		// Set up the categories for variable assignments. Set as "Uncommon" priority to push variables down below the other properties.
+		// Set up the categories for variable assignments.
 		IDetailCategoryBuilder& PrimaryGraphVariablesCategory = InDetailBuilder.EditCategory(
-			"PrimaryGraphVariables", LOCTEXT("PrimaryGraphVariablesCategory", "Primary Graph Variables"), ECategoryPriority::Uncommon);
+			"PrimaryGraphVariables", LOCTEXT("PrimaryGraphVariablesCategory", "Primary Graph Variables"));
 		IDetailCategoryBuilder& PrimaryGraphVariablesShotOverridesCategory = InDetailBuilder.EditCategory(
-			"PrimaryGraphVariablesShotOverrides", LOCTEXT("PrimaryGraphVariablesShotOverridesCategory", "Primary Graph Variables (shot overrides)"), ECategoryPriority::Uncommon);
+			"PrimaryGraphVariablesShotOverrides", LOCTEXT("PrimaryGraphVariablesShotOverridesCategory", "Primary Graph Variables (shot overrides)"));
 		IDetailCategoryBuilder& ShotGraphVariablesCategory = InDetailBuilder.EditCategory(
-			"ShotGraphVariables", LOCTEXT("ShotGraphVariablesCategory", "Shot Graph Variables"), ECategoryPriority::Uncommon);
+			"ShotGraphVariables", LOCTEXT("ShotGraphVariablesCategory", "Shot Graph Variables"));
 
 		// Set all categories as hidden by default. Individual categories will be made visible if variables are added under them.
 		PrimaryGraphVariablesCategory.SetCategoryVisibility(false);
@@ -150,6 +150,20 @@ protected:
 		{
 			AddVariableAssignments(SelectedJob->GetGraphVariableAssignments(), PrimaryGraphVariablesCategory);
 		}
+
+		IDetailCategoryBuilder& MovieRenderPipelineCategory = InDetailBuilder.EditCategory("Movie Render Pipeline");
+
+		// The Console Variable Overrides category should be collapsed by default. It's considered advanced, and most people won't need to use it.
+		IDetailCategoryBuilder& ConsoleVariableOverridesCategory = InDetailBuilder.EditCategory("Console Variable Overrides");
+		ConsoleVariableOverridesCategory.InitiallyCollapsed(true);
+
+		// Give the categories a specific ordering.
+		int32 SortOrder = 0;
+		MovieRenderPipelineCategory.SetSortOrder(SortOrder);
+		PrimaryGraphVariablesCategory.SetSortOrder(++SortOrder);
+		PrimaryGraphVariablesShotOverridesCategory.SetSortOrder(++SortOrder);
+		ShotGraphVariablesCategory.SetSortOrder(++SortOrder);
+		ConsoleVariableOverridesCategory.SetSortOrder(++SortOrder);
 	}
 	//~ End IDetailCustomization interface
 

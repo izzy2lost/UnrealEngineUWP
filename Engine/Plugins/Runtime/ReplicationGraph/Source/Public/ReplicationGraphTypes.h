@@ -7,7 +7,12 @@
 #include "Net/DataBunch.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "Templates/Greater.h"
+#include "Templates/Requires.h"
 #include "UObject/Package.h"
+#include "UObject/WeakObjectPtr.h"
+
+#include <type_traits>
+
 #include "ReplicationGraphTypes.generated.h"
 
 class AActor;
@@ -77,18 +82,29 @@ LLM_DECLARE_TAG_API(NetRepGraph, REPLICATIONGRAPH_API);
 
 #if !UE_ACTOR_REPLIST_TYPE_EXTRA_SAFETY
 typedef AActor* FActorRepListType;
-FORCEINLINE bool DoesActorPointerLookValid(const AActor* In)
+#else // UE_ACTOR_REPLIST_TYPE_EXTRA_SAFETY
+
+namespace UE::Net::RepGraph
 {
-	return ((uint64)(In) & 0x0F) == 0;
+	// Whether to store weak pointers in actor replication lists and validate them on use.
+	// When false, raw pointers are used instead.
+	inline bool bUseWeakPointers = false;
 }
-#else
+
 struct FActorRepListType
 {
-	/** Actual load-bearing payload */
-	AActor* ActorRaw;
-	/** Validity test */
-	FObjectKey ActorKey;
+private:
+	// Actor pointer (raw or weak).
+	//
+	// Most accesses should be via GetActor() or SetActor().
+	//
+	// Type is set during construction depending on bUseWeakPointers: FWeakObjectPtr when true, AActor* when false. Most functions should depend on
+	// the actual type, only SetActor() depends on bUseWeakPointers so the configuration can change at runtime without breaking extant instances.
+	//
+	// Could be condensed to sizeof(AActor*) aka sizeof(FWeakObjectPtr) by storing the type flag in the high bit and masking it out.
+	TVariant<AActor*, FWeakObjectPtr> ActorUnion;
 
+public:
 	/** More info for debugging - ActorRaw's name */
 	FName ActorName;
 	/** More info for debugging - ActorRaw's Owner name */
@@ -96,17 +112,177 @@ struct FActorRepListType
 	/** More info for debugging - ActorRaw's Outer's package name */
 	FName OuterPackageName;
 
-	inline void SetDebugInfo()
+	FActorRepListType()
+	{
+		SetActor(nullptr);
+	}
+
+	// Permits implicit construction so FActorRepListType can be a drop-in substitute for `AActor*` depending on an ifdef.
+	/*implicit*/ FActorRepListType(AActor* InActor)
+	{
+		SetActor(InActor);
+	}
+
+	// Copies/moves are clones that don't need to validate the object.
+	FActorRepListType(const FActorRepListType& InActor) = default;
+	FActorRepListType(FActorRepListType&& InActor) = default;
+	FActorRepListType& operator=(const FActorRepListType& InActor) = default;
+	FActorRepListType& operator=(FActorRepListType&& InActor) = default;
+
+	// to support conversion from TObjectPtr<ASubclassOfActor>
+	template <
+		typename T
+		UE_REQUIRES(std::is_convertible_v<const T&, AActor*>)
+	>
+	FActorRepListType(const T& InActor)
+	{
+		SetActor(InActor);
+	}
+
+	operator AActor* () const { return GetActor(); }
+	AActor* operator->() const { return GetActor(); }
+	explicit operator uint64() const { return GetTypeHash(); }
+	FActorRepListType& operator=(AActor* InActor)
+	{
+		SetActor(InActor);
+		return *this;
+	}
+	FActorRepListType& operator=(TObjectPtr<AActor> InActor)
+	{
+		SetActor(InActor.Get());
+		return *this;
+	}
+
+	friend bool operator==(const FActorRepListType& Left, const FActorRepListType& Right)
+	{
+		// Avoid FWeakObjectPtr::operator==() because it resolves both weak pointers if they don't match.
+		if (const FWeakObjectPtr* LeftPtr = Left.ActorUnion.TryGet<FWeakObjectPtr>(), *RightPtr = Right.ActorUnion.TryGet<FWeakObjectPtr>();
+			LeftPtr && RightPtr)
+		{
+			return LeftPtr->HasSameIndexAndSerialNumber(*RightPtr);
+		}
+
+		// Differing types or both raw pointers; weak pointer must be resolved.
+		return Left.GetActor() == Right.GetActor();
+	}
+	friend bool operator!=(const FActorRepListType& Left, const FActorRepListType& Right)
+	{
+		return !(Left == Right);
+	}
+
+	friend bool operator==(const FActorRepListType& RepListActor, AActor* RawActor)
+	{
+		return RepListActor.GetActor() == RawActor;
+	}
+	friend bool operator!=(const FActorRepListType& RepListActor, AActor* RawActor)
+	{
+		return !(RepListActor == RawActor);
+	}
+
+	friend bool operator==(AActor* RawActor, const FActorRepListType& RepListActor)
+	{
+		return RawActor == RepListActor.GetActor();
+	}
+	friend bool operator!=(AActor* RawActor, const FActorRepListType& RepListActor)
+	{
+		return !(RepListActor == RawActor);
+	}
+
+	// comparison with nullptr without resolving weak pointer or implicitly constructing a new FActorRepListType(nullptr).
+	friend bool operator==(const FActorRepListType& RepListActor, nullptr_t)
+	{
+		if (const FWeakObjectPtr* WeakPtrPtr = RepListActor.ActorUnion.TryGet<FWeakObjectPtr>(); WeakPtrPtr)
+		{
+			return WeakPtrPtr->IsExplicitlyNull();
+		}
+
+		AActor* const* RawActorPtr = RepListActor.ActorUnion.TryGet<AActor*>();
+		return ensure(RawActorPtr) && *RawActorPtr == nullptr;
+	}
+	friend bool operator!=(const FActorRepListType& RepListActor, nullptr_t)
+	{
+		return !(RepListActor == nullptr);
+	}
+	friend bool operator==(nullptr_t, const FActorRepListType& RepListActor)
+	{
+		return RepListActor == nullptr;
+	}
+	friend bool operator!=(nullptr_t, const FActorRepListType& RepListActor)
+	{
+		return !(RepListActor == nullptr);
+	}
+
+	bool IsValid() const
+	{
+		if (ActorUnion.IsType<AActor*>())
+		{
+			return ActorUnion.Get<AActor*>() != nullptr;
+		}
+
+		return ActorUnion.Get<FWeakObjectPtr>().IsValid();
+	}
+
+	inline AActor* GetActor() const
+	{
+		if (ActorUnion.IsType<AActor*>())
+		{
+			return ActorUnion.Get<AActor*>();
+		}
+
+		const FWeakObjectPtr& WeakActor = ActorUnion.Get<FWeakObjectPtr>();
+
+		if (WeakActor.IsExplicitlyNull())
+		{
+			return nullptr;
+		}
+
+		// Permit pointers to objects marked for destruction but not destroyed yet.
+		constexpr bool bPermitGarbage = true;
+		AActor* Actor = Cast<AActor>(WeakActor.Get(bPermitGarbage));
+		ensureMsgf(
+			Actor,
+			TEXT("RepGraph contains a destroyed actor (already gone): Name=%s Owner=%s Package=%s"),
+			*ActorName.ToString(),
+			*OwnerName.ToString(),
+			*OuterPackageName.ToString());
+
+		return Actor;
+	}
+
+	// Get hash. Prefer this be a member function than standalone to avoid implicit conversions to FActorRepListType.
+	uint32 GetTypeHash() const
+	{
+		// Must resolve the pointer to ensure hashing produces identical results regardless of whether the stored pointer is weak or raw.
+		// (Hashing FWeakObjectPtr::ObjectIndex for weak or UObjectBase::InternalIndex for raw would be OK, but both are inaccessible.)
+		return ::GetTypeHash(GetActor());
+	}
+
+private:
+	void SetActor(AActor* Actor)
+	{
+		if (UE::Net::RepGraph::bUseWeakPointers)
+		{
+			ActorUnion.Emplace<FWeakObjectPtr>(Actor);
+		}
+		else
+		{
+			ActorUnion.Emplace<AActor*>(Actor);
+		}
+
+		SetDebugInfo();
+	}
+
+	void SetDebugInfo()
 	{
 		ActorName = OwnerName = OuterPackageName = NAME_None;
-		if (LIKELY(ActorRaw))
+		if (AActor* Actor = GetActor(); LIKELY(Actor))
 		{
-			ActorName = ActorRaw->GetFName();
-			OwnerName = ActorRaw->GetOwner() ? ActorRaw->GetOwner()->GetFName() : NAME_None;
-			if (LIKELY(ActorRaw->GetOuter()))
+			ActorName = Actor->GetFName();
+			OwnerName = Actor->GetOwner() ? Actor->GetOwner()->GetFName() : NAME_None;
+			if (LIKELY(Actor->GetOuter()))
 			{
 				// judging by the implementation GetPackage() cannot return nullptr, but play it safe
-				UPackage* Pkg = ActorRaw->GetOuter()->GetPackage();
+				UPackage* Pkg = Actor->GetOuter()->GetPackage();
 				if (LIKELY(Pkg))
 				{
 					OuterPackageName = Pkg->GetFName();
@@ -114,72 +290,15 @@ struct FActorRepListType
 			}
 		}
 	}
-
-	FActorRepListType() = default;
-
-	FActorRepListType(AActor* InActor)
-		: ActorRaw(InActor)
-		, ActorKey(InActor)
-	{
-		SetDebugInfo();
-	}
-
-	// to support conversion from TObjectPtr<ASubclassOfActor>
-	template <
-		typename T,
-		decltype(ImplicitConv<AActor*>(std::declval<const T&>())) = nullptr
-	>
-	FActorRepListType(const T& InActor)
-		: ActorRaw(InActor)
-		, ActorKey(InActor)
-	{
-		SetDebugInfo();
-	}
-
-	operator AActor*() { return ActorRaw; }
-	operator AActor*() const { return ActorRaw; }
-	AActor* operator->() { return ActorRaw; }
-	AActor* operator->() const { return ActorRaw; }
-	operator uint64() const { return reinterpret_cast<uint64>(ActorRaw); }
-	FActorRepListType& operator=(FActorRepListType const& InActor) = default;
-	FActorRepListType& operator=(AActor* InActor)
-	{
-		ActorRaw = InActor;
-		ActorKey = InActor;
-		SetDebugInfo();
-		return *this;
-	}
-	FActorRepListType& operator=(TObjectPtr<AActor> InActor)
-	{
-		ActorRaw = InActor;
-		ActorKey = InActor;
-		SetDebugInfo();
-		return *this;
-	}
-	bool operator==(FActorRepListType const& Other) const
-	{
-		return ActorRaw == Other.ActorRaw;
-	}
-	bool operator==(AActor* Other) const
-	{
-		return ActorRaw == Other;
-	}
-	bool IsValid() const
-	{
-		UObject const* Object = ActorKey.ResolveObjectPtr();
-		return Object && Object == static_cast<UObject const*>(ActorRaw);
-	}
 };
-template< class T > FORCEINLINE T* Cast(const FActorRepListType& Src) { return Cast<T>(Src.ActorRaw); }
-template< class T > FORCEINLINE T* ExactCast(const FActorRepListType& Src) { return ExactCast<T>(Src.ActorRaw); }
-template< class T > FORCEINLINE T* CastChecked(const FActorRepListType& Src, ECastCheckedType::Type CheckType = ECastCheckedType::NullChecked) { return CastChecked<T>(Src.ActorRaw, CheckType); }
 
-
-FORCEINLINE bool DoesActorPointerLookValid(const FActorRepListType& In)
+template< class T > FORCEINLINE T* Cast(const FActorRepListType& Src) { return Cast<T>(Src.GetActor()); }
+template< class T > FORCEINLINE T* ExactCast(const FActorRepListType& Src) { return ExactCast<T>(Src.GetActor()); }
+template< class T > FORCEINLINE T* CastChecked(const FActorRepListType& Src, ECastCheckedType::Type CheckType = ECastCheckedType::NullChecked)
 {
-	return In.IsValid();
+	return CastChecked<T>(Src.GetActor(), CheckType);
 }
-#endif
+#endif // UE_ACTOR_REPLIST_TYPE_EXTRA_SAFETY
 
 FORCEINLINE FString GetActorRepListTypeDebugString(const FActorRepListType& In) { return GetNameSafe(In); }
 FORCEINLINE UClass* GetActorRepListTypeClass(const FActorRepListType& In) { return In->GetClass(); }
@@ -193,10 +312,15 @@ enum class EActorRepListTypeFlags : uint8
 };
 
 // Tests if an actor is valid for replication: not pending kill, etc. Says nothing about wanting to replicate or should replicate, etc.
-FORCEINLINE bool IsActorValidForReplication(const FActorRepListType& In)
-{ 
-	return DoesActorPointerLookValid(In) && !In->IsActorBeingDestroyed() && IsValidChecked(In) && !In->IsUnreachable(); 
+FORCEINLINE bool IsActorValidForReplication(const AActor* Actor)
+{
+	return Actor && !Actor->IsActorBeingDestroyed() && IsValidChecked(Actor) && !Actor->IsUnreachable(); 
 }
+FORCEINLINE bool IsActorValidForReplication(const FActorRepListType& In)
+{
+	return IsActorValidForReplication(static_cast<const AActor*>(In));
+}
+
 REPLICATIONGRAPH_API void LogMoreInfoOnIsActorValidFailure(const FActorRepListType& In);
 FORCEINLINE bool IsActorValidForReplication_LogMoreInfo(const FActorRepListType& In)
 { 
@@ -211,29 +335,29 @@ FORCEINLINE bool IsActorValidForReplication_LogMoreInfo(const FActorRepListType&
 
 // Tests if an actor is valid for replication gathering. Meaning, it can be gathered from the replication graph and considered for replication.
 FORCEINLINE bool IsActorValidForReplicationGather(const FActorRepListType& In)
-{ 
-	if (In == nullptr)
-	{
-		return false;
-	}
+{
+	const AActor* Actor = In;
 
-	if (!IsActorValidForReplication(In))
+	if (!Actor)
 		return false;
 
-	if (In->GetIsReplicated() == false)
+	if (!IsActorValidForReplication(Actor))
 		return false;
 
-	if (In->GetTearOff())
+	if (Actor->GetIsReplicated() == false)
 		return false;
 
-	if (In->NetDormancy == DORM_Initial && In->IsNetStartupActor())
+	if (Actor->GetTearOff())
+		return false;
+
+	if (Actor->NetDormancy == DORM_Initial && Actor->IsNetStartupActor())
 		return false;
 
 /*
 	These checks were done in legacy code and we would like to avoid them.
 
 	// Actors should finish initialization outside of the replication loop. Maybe some weird multi frame delayed case?
-	if (!In->IsActorInitialized())
+	if (!Actor->IsActorInitialized())
 		return false;
 
 	// This check is slow and is not needed unless you are streaming levels on the server. If needed this should be opt in globally some how.
@@ -484,9 +608,12 @@ private:
 /**
  * Gives temporary read-only access to a FActorRepListRefView by holding a reference to it.
  */
-struct REPLICATIONGRAPH_API FActorRepListConstView
+struct
+REPLICATIONGRAPH_API 
+UE_DEPRECATED(5.5, "Use TArrayView<const FActorRepListType> instead")
+FActorRepListConstView
 {
-	FActorRepListConstView(const FActorRepListRefView& InListReferenced) :
+	explicit FActorRepListConstView(const FActorRepListRefView& InListReferenced) :
 		ListReferenced(InListReferenced)
 	{}
 
@@ -507,8 +634,6 @@ private:
 	const FActorRepListRefView& ListReferenced;
 };
 
-/** A read only, non owning (ref counting) view to an actor replication list: essentially a raw pointer and the category of the list. These are only created *from* FActorRepListRefView */
-
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	// Intended to be called from immediate mode window while debugging
 	extern "C" DLLEXPORT void PrintRepListDetails(int32 PoolSize, int32 BlockIdx, int32 ListIdx);
@@ -524,7 +649,7 @@ private:
 // --------------------------------------------------------------------------------------------------------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------------
 
-// This represents "the list of gathered lists". This is what we push down the Replication Graph and nodes will either Push/Pop List Categories or will add their Replication Lists.
+// This represents "the list of gathered actors". This is what we push down the Replication Graph and nodes will either Push/Pop List Categories or will add their Replication Lists.
 struct REPLICATIONGRAPH_API FGatheredReplicationActorLists
 {
 	void AddReplicationActorList(const FActorRepListRefView& List, EActorRepListTypeFlags Flags = EActorRepListTypeFlags::Default)
@@ -533,11 +658,7 @@ struct REPLICATIONGRAPH_API FGatheredReplicationActorLists
 		if (CVar_RepGraph_Verify)
 			List.VerifyContents_Slow();
 #endif
-		if (List.Num() > 0)
-		{
-			ReplicationLists[(uint32)Flags].Emplace(FActorRepListConstView(List));
-			CachedNum++;
-		}
+		List.AppendToTArray(ReplicationLists[(uint32)Flags]);
 	}
 
 	FORCEINLINE void Reset()
@@ -546,17 +667,22 @@ struct REPLICATIONGRAPH_API FGatheredReplicationActorLists
 		{
 			ReplicationLists[i].Reset();
 		}
-		CachedNum = 0;
 	}
 	FORCEINLINE int32 NumLists() const
 	{
-		return CachedNum;
+		return ReplicationLists.Num();
 	}
 
-	FORCEINLINE const TArray<FActorRepListConstView>& GetLists(EActorRepListTypeFlags ListFlags) const
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "Use ViewActors() instead")
+	FORCEINLINE const TArray<FActorRepListConstView>& GetLists(EActorRepListTypeFlags ListFlags) const;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	FORCEINLINE TArrayView<const FActorRepListType> ViewActors(EActorRepListTypeFlags ListFlags) const
 	{
 		return ReplicationLists[(uint32)ListFlags];
 	}
+
 	FORCEINLINE bool ContainsLists(EActorRepListTypeFlags Flags) const
 	{
 		return ReplicationLists[(uint32)Flags].Num() > 0;
@@ -564,8 +690,7 @@ struct REPLICATIONGRAPH_API FGatheredReplicationActorLists
 
 private:
 
-	TStaticArray< TArray<FActorRepListConstView>, (uint32)EActorRepListTypeFlags::Max > ReplicationLists;
-	int32 CachedNum = 0;
+	TStaticArray< TArray<FActorRepListType>, (uint32)EActorRepListTypeFlags::Max > ReplicationLists;
 };
 
 // --------------------------------------------------------------------------------------------------------------------------------------------
@@ -1221,20 +1346,17 @@ struct FGlobalActorReplicationInfoMap
 		FGatheredReplicationActorLists ListContainer;
 		MainActorInfo->DependentActorList.AppendAllLists(ListContainer);
 
-		// Remove the actor from his child dependents
-		const TArray<FActorRepListConstView>& DependentActorLists = ListContainer.GetLists(EActorRepListTypeFlags::Default);
-		for (const FActorRepListConstView& DependentActorList : DependentActorLists)
+		// Remove the actor from its child dependents
+		const TArrayView<const FActorRepListType> DependentActorsList = ListContainer.ViewActors(EActorRepListTypeFlags::Default);
+		for (AActor* DependentActor : DependentActorsList)
 		{
-			for (AActor* DependentActor : DependentActorList)
+			if (FGlobalActorReplicationInfo* ChildInfo = Find(DependentActor))
 			{
-				if (FGlobalActorReplicationInfo* ChildInfo = Find(DependentActor))
-				{
-					ChildInfo->ParentActorList.RemoveSingleSwap(MainActor);
-				}
+				ChildInfo->ParentActorList.RemoveSingleSwap(MainActor);
 			}
 		}
 
-		// Remove the actor from his parents
+		// Remove the actor from its parents
 		FNewReplicatedActorInfo LevelActorInfo(MainActor);
 
 		for (AActor* ParentActor : MainActorInfo->ParentActorList)
@@ -1472,8 +1594,11 @@ struct FReplicationGraphGlobalData
 /** Stores "full debug details" about how an actor was prioritized. This is not used in the actual replication code, just saved off for logging/debugging.  */
 struct FPrioritizedActorFullDebugDetails
 {
-	FPrioritizedActorFullDebugDetails(FActorRepListType InActor) : Actor(InActor) { }
-	bool operator==(const FActorRepListType& InActor) const { return Actor == InActor; }
+	explicit FPrioritizedActorFullDebugDetails(FActorRepListType InActor) : Actor(InActor) { }
+	friend bool operator==(const FPrioritizedActorFullDebugDetails& Details, const FActorRepListType& InActor)
+	{
+		return Details.Actor == InActor;
+	}
 
 	FActorRepListType Actor;
 	FVector::FReal DistanceSq = 0.f;
@@ -1502,7 +1627,7 @@ struct FPrioritizedActorFullDebugDetails
 /** Debug data about an actor that was skipped during the prioritization phase */
 struct FSkippedActorFullDebugDetails
 {
-	FSkippedActorFullDebugDetails(FActorRepListType InActor) : Actor(InActor) { }
+	explicit FSkippedActorFullDebugDetails(FActorRepListType InActor) : Actor(InActor) { }
 	FActorRepListType Actor;
 	bool bWasDormant = false; // If set, was skipped because it is dormant on this connection
 	float DistanceCulled = 0.f; // If set, was skipped due to distance culling
@@ -1512,8 +1637,8 @@ struct FSkippedActorFullDebugDetails
 /** Prioritized List of actors to replicate. This is what we actually use to replicate actors. */
 struct FPrioritizedRepList
 {
-	FPrioritizedRepList() { }
-	FPrioritizedRepList(const FPrioritizedRepList& Other) { Items = Other.Items; }
+	FPrioritizedRepList() = default;
+	explicit FPrioritizedRepList(const FPrioritizedRepList& Other) { Items = Other.Items; }
 
 	struct FItem
 	{
@@ -1775,7 +1900,7 @@ CSV_DECLARE_CATEGORY_EXTERN(ReplicationGraphCleanNumReps);
 CSV_DECLARE_CATEGORY_EXTERN(ReplicationGraphRedundantMS);
 
 #ifndef REPGRAPH_CSV_TRACKER
-#define REPGRAPH_CSV_TRACKER (CSV_PROFILER && WITH_SERVER_CODE)
+#define REPGRAPH_CSV_TRACKER (CSV_PROFILER_STATS && WITH_SERVER_CODE)
 #endif
 
 /** Helper struct for tracking finer grained ReplicationGraph stats through the CSV profiler. Intention is that it is setup/configured in the UReplicationGraph subclasses */

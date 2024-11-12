@@ -159,7 +159,7 @@ void PlanarReflectionPS(
 	BRANCH
 	if (!bNoMaterial)
 	{
-		OutColor = ComputePlanarReflections(TranslatedWorldPosition, WorldNormal, Roughness, PlanarReflectionStruct.PlanarReflectionSampler);
+		OutColor = ComputePlanarReflections(TranslatedWorldPosition, WorldNormal, Roughness);
 
 		OutColor.xyz *= View.PreExposure;
 	}
@@ -168,13 +168,13 @@ void PlanarReflectionPS(
 
 	FGBufferData GBuffer = GetGBufferDataFromSceneTextures(BufferUV);
 
-	float3 TranslatedWorldPosition = ResolvedView.TranslatedWorldCameraOrigin + ScreenVector * GBuffer.Depth;
+	float3 TranslatedWorldPosition = GetTranslatedWorldCameraPosFromView(SVPos.xy) + ScreenVector * GBuffer.Depth;
 
 	// Skip unlit pixels (skybox)
 	BRANCH
 	if (GBuffer.ShadingModelID != SHADINGMODELID_UNLIT)
 	{
-		OutColor = ComputePlanarReflections(TranslatedWorldPosition, GBuffer.WorldNormal, GBuffer.Roughness, PlanarReflectionStruct.PlanarReflectionSampler);
+		OutColor = ComputePlanarReflections(TranslatedWorldPosition, GBuffer.WorldNormal, GBuffer.Roughness);
 
 		OutColor.xyz *= View.PreExposure;
 	}

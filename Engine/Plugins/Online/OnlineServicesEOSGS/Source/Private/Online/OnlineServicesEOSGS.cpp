@@ -23,22 +23,15 @@
 
 namespace UE::Online {
 
-FOnlineServicesEOSGS::FOnlineServicesEOSGS(FName InInstanceName)
-	: Super(GetConfigNameStatic(), InInstanceName)
+FOnlineServicesEOSGS::FOnlineServicesEOSGS(FName InInstanceName, FName InInstanceConfigName)
+	: Super(GetServiceConfigNameStatic(), InInstanceName, InInstanceConfigName)
 {
 }
 
 void FOnlineServicesEOSGS::Init()
 {
 	FOnlineServicesEOSGSPlatformFactory& PlatformFactory = FOnlineServicesEOSGSPlatformFactory::Get();
-	if (InstanceName.IsNone())
-	{
-		EOSPlatformHandle = PlatformFactory.GetDefaultPlatform();
-	}
-	else
-	{
-		EOSPlatformHandle = PlatformFactory.CreatePlatform(InstanceName);
-	}
+	EOSPlatformHandle = PlatformFactory.CreatePlatform(InstanceName, InstanceConfigName);
 	if (EOSPlatformHandle)
 	{
 #if WITH_ENGINE

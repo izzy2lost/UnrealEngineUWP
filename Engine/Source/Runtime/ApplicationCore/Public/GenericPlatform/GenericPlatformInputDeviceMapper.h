@@ -68,6 +68,15 @@ public:
 	APPLICATIONCORE_API virtual int32 GetAllActiveUsers(TArray<FPlatformUserId>& OutUsers) const;
 
 	/**
+	 * Finds the first FPlatformUserId which was already allocated with no input devices.
+	 * 
+	 * Returns PLATFORMUSERID_NONE if every current platform user has a valid input device mapped to it.
+	 * 
+	 * Will not return the Unpaired platform user.
+	 */
+	APPLICATIONCORE_API virtual FPlatformUserId GetFirstPlatformUserWithNoInputDevice() const;
+
+	/**
 	 * Returns the platform user id that is being used for unmapped input devices.
 	 * Will be PLATFORMUSERID_NONE if platform does not support this (this is the default behavior)
 	 */
@@ -138,6 +147,13 @@ public:
 	 * @return				True if the device was successfully remapped
 	 */
 	APPLICATIONCORE_API virtual bool Internal_ChangeInputDeviceUserMapping(FInputDeviceId DeviceId, FPlatformUserId NewUserId, FPlatformUserId OldUserId);
+
+	/**
+	* Returns the max allowed number of platform users this platform can have.
+	* 
+	* By default, this will return the value specified in the input settings ini file
+	*/
+	APPLICATIONCORE_API virtual int32 GetMaxPlatformUserCount() const;
 
 	//////////////////////////////////////////////////////////////////////////////
 	// Delegates for listening to input device changes
@@ -269,6 +285,9 @@ protected:
 
 	/** Highest used input device id. Incremented in AllocateNewInputDeviceId and Internal_MapInputDeviceToUser by default. */
 	FInputDeviceId LastInputDeviceId = INPUTDEVICEID_NONE;
+
+	/** Keeps track of any allocated platform user ID's by this device mapper. */
+	TArray<FPlatformUserId> AllocatedPlatformUserIds;
 };
 
 /**
@@ -312,5 +331,5 @@ protected:
 	const bool bShouldBroadcastLegacyDelegates = true;
 
 	/** Additional functionality that specializations can customize */
-	bool bUnpairInputDevicesWhenLoggingOut = true;
+	bool bUnpairInputDevicesWhenLoggingOut = false;
 };

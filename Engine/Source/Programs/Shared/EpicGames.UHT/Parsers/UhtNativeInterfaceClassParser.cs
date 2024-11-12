@@ -105,7 +105,7 @@ namespace EpicGames.UHT.Parsers
 		{
 			IUhtTokenReader tokenReader = parentScope.TokenReader;
 
-			UhtClass classObj = new(parentScope.ScopeType, token.InputLine);
+			UhtClass classObj = new(parentScope.HeaderFile, parentScope.ScopeType, token.InputLine);
 			classObj.ClassType = UhtClassType.NativeInterface;
 			classObj.SourceName = sourceName.Value.ToString();
 			classObj.ClassFlags |= EClassFlags.Native | EClassFlags.Interface;
@@ -126,16 +126,13 @@ namespace EpicGames.UHT.Parsers
 			//TODO - C++ UHT compatibility - When we know for sure that we have a native interface, then we should error out.  Due to the lack of a symbol table,
 			// we can't do this 100% reliably.  However, if we find a U class, we can assume we have a native interface.
 			bool logUnhandledKeywords = false;
-			if (classObj.Outer != null) 
+			string interfaceName = "U" + classObj.EngineName;
+			foreach (UhtType outerChild in parentScope.HeaderFile.Children)
 			{
-				string interfaceName = "U" + classObj.EngineName;
-				foreach (UhtType outerChild in classObj.Outer.Children)
+				if (outerChild.SourceName == interfaceName && outerChild is UhtClass outerChildClass && outerChildClass.ClassType == UhtClassType.Interface)
 				{
-					if (outerChild.SourceName == interfaceName && outerChild is UhtClass outerChildClass && outerChildClass.ClassType == UhtClassType.Interface)
-					{
-						logUnhandledKeywords = true;
-						break;
-					}
+					logUnhandledKeywords = true;
+					break;
 				}
 			}
 

@@ -2,15 +2,11 @@
 
 #include "SRCPanelExposedEntitiesList.h"
 
-#include "Algo/ForEach.h"
 #include "Commands/RemoteControlCommands.h"
 #include "Editor.h"
-#include "Editor/EditorEngine.h"
-#include "EditorFontGlyphs.h"
 #include "Engine/Selection.h"
 #include "Filters/SRCPanelFilter.h"
 #include "GameFramework/Actor.h"
-#include "ISettingsModule.h"
 #include "Input/DragAndDrop.h"
 #include "IRemoteControlProtocolModule.h"
 #include "IRemoteControlProtocolWidgetsModule.h"
@@ -19,7 +15,6 @@
 #include "Misc/MessageDialog.h"
 #include "PropertyPath.h"
 #include "RCPanelWidgetRegistry.h"
-#include "RemoteControlPropertyIdRegistry.h"
 #include "RemoteControlPanelStyle.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlSettings.h"
@@ -28,23 +23,21 @@
 #include "SRCHeaderRow.h"
 #include "SRCModeSwitcher.h"
 #include "SRCPanelExposedEntitiesGroup.h"
-#include "SRCPanelFieldGroup.h"
 #include "SRCPanelExposedField.h"
+#include "SRCPanelFieldGroup.h"
+#include "SRCPanelPerPresetProtocolSettings.h"
 #include "SSearchToggleButton.h"
 #include "Styling/RemoteControlStyles.h"
+#include "UI/IRCExposedEntitiesPanelExtender.h"
+#include "UI/IRCPanelExposedEntitiesListSettingsForProtocol.h"
 #include "UI/Panels/SRCDockPanel.h"
 #include "UObject/Object.h"
 #include "Widgets/Input/SButton.h"
-#include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SSearchBox.h"
-#include "Widgets/Layout/SSeparator.h"
-#include "Widgets/Layout/SSpacer.h"
-#include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/STreeView.h"
-
 
 #define LOCTEXT_NAMESPACE "RemoteControlPanelEntitiesList"
 
@@ -64,7 +57,7 @@ public:
 
 	SLATE_BEGIN_ARGS(SEntityRow)
 	{}
-	
+		
 		SLATE_ATTRIBUTE(FName, ActiveProtocol)
 		SLATE_ARGUMENT(TSharedPtr<SRCPanelTreeNode>, Entity)
 
@@ -84,41 +77,34 @@ public:
 		ActiveProtocol = InArgs._ActiveProtocol;
 		Entity = InArgs._Entity;
 
-		FSuperRowType::FArguments SuperArgs = FSuperRowType::FArguments();
-
-		SuperArgs.OnCanAcceptDrop_Lambda([this] (const FDragDropEvent& InDragDropEvent, EItemDropZone InDropZone, TSharedPtr<SRCPanelTreeNode> Node)
-		{
-			return InDropZone;
-		});
-
-		SuperArgs.OnAcceptDrop(InArgs._OnAcceptDrop);
-		SuperArgs.OnDragDetected(InArgs._OnDragDetected);
-		SuperArgs.OnDragEnter(InArgs._OnDragEnter);
-		SuperArgs.OnDragLeave(InArgs._OnDragLeave);
-
-		SuperArgs.ExpanderStyleSet(&FCoreStyle::Get());
-		SuperArgs.Padding(InArgs._Padding);
-		SuperArgs.ShowWires(false);
-		SuperArgs.Style(InArgs._Style);
+		FSuperRowType::FArguments SuperArgs = FSuperRowType::FArguments()
+			.OnCanAcceptDrop_Lambda(
+				[](const FDragDropEvent& InDragDropEvent, EItemDropZone InDropZone, TSharedPtr<SRCPanelTreeNode> Node)
+				{
+					return InDropZone;
+				})
+			.OnAcceptDrop(InArgs._OnAcceptDrop)
+			.OnDragDetected(InArgs._OnDragDetected)
+			.OnDragEnter(InArgs._OnDragEnter)
+			.OnDragLeave(InArgs._OnDragLeave)
+			.ExpanderStyleSet(&FCoreStyle::Get())
+			.Padding(InArgs._Padding)
+			.ShowWires(false)
+			.Style(InArgs._Style);
 
 		FSuperRowType::Construct(SuperArgs, OwnerTableView);
 	}
 
 	TSharedRef<SWidget> GenerateWidgetForColumn(const FName& InColumnName) override
 	{
-		const FName& ActiveProtocolName = ActiveProtocol.Get(NAME_None);
-
 		if (Entity.IsValid())
 		{
-			if (Entity->HasChildren() && InColumnName == RemoteControlPresetColumns::Description)
-			{
-				// -- Row is for TreeView --
-				SHorizontalBox::FSlot* InnerContentSlotNativePtr = nullptr;
+			TSharedRef<SHorizontalBox> HorizontalBox = SNew(SHorizontalBox)
+				.Clipping(EWidgetClipping::OnDemand);
 
-				TSharedRef<SWidget> TreeNode = SNew(SHorizontalBox)
-					.Clipping(EWidgetClipping::OnDemand)
-					
-					+ SHorizontalBox::Slot()
+			if (InColumnName == RemoteControlPresetColumns::OwnerName)
+			{
+				HorizontalBox->AddSlot()
 					.AutoWidth()
 					.HAlign(HAlign_Right)
 					.VAlign(VAlign_Fill)
@@ -126,35 +112,30 @@ public:
 						SAssignNew(ExpanderArrowWidget, SExpanderArrow, SharedThis(this))
 						.StyleSet(ExpanderStyleSet)
 						.ShouldDrawWires(false)
-					]
-
-					+ SHorizontalBox::Slot()
-					.FillWidth(1)
-					.Expose(InnerContentSlotNativePtr)
-					.Padding(8.f, 2.f)
-					[
-						Entity->GetWidget(InColumnName, ActiveProtocolName)
 					];
-
-				InnerContentSlot = InnerContentSlotNativePtr;
-
-				return TreeNode;
-
 			}
-			else
+
+			// todo: this alignment should be handled by the generated widgets for each column themselves
+			EHorizontalAlignment HorizontalAlignment = HAlign_Fill;
+			if (InColumnName == RemoteControlPresetColumns::Status || InColumnName == RemoteControlPresetColumns::BindingStatus)
 			{
-				const bool bAlignCenter = InColumnName == RemoteControlPresetColumns::Status || InColumnName == RemoteControlPresetColumns::BindingStatus;
-				
-				const bool bAlignLeft = InColumnName == RemoteControlPresetColumns::Mask;
-
-				return SNew(SBox)
-					.Padding(FMargin(4.f, 2.f))
-					.HAlign(bAlignCenter ? HAlign_Center : bAlignLeft ? HAlign_Left : HAlign_Fill)
-					.VAlign(VAlign_Center)
-					[
-						Entity->GetWidget(InColumnName, ActiveProtocolName)
-					];
+				HorizontalAlignment = HAlign_Center;
 			}
+			else if (InColumnName == RemoteControlPresetColumns::Mask)
+			{
+				HorizontalAlignment = HAlign_Left;
+			}
+
+			HorizontalBox->AddSlot()
+				.FillWidth(1.f)
+				.Padding(2.f, 0.f)
+				.HAlign(HorizontalAlignment)
+				.VAlign(VAlign_Center)
+				[
+					Entity->GetWidget(InColumnName, ActiveProtocol.Get(NAME_None))
+				];
+
+			return HorizontalBox;
 		}
 
 		return SNullWidget::NullWidget;
@@ -278,6 +259,8 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 	bFilterApplicationRequested = false;
 	bSearchRequested = false;
 	
+	RecallListSettings();
+
 	// Setup search filter.
 	SearchTextFilter = MakeShared<TTextFilter<const SRCPanelTreeNode&>>(TTextFilter<const SRCPanelTreeNode&>::FItemToStringArray::CreateSP(this, &SRCPanelExposedEntitiesList::PopulateSearchStrings));
 	SearchedText = MakeShared<FText>(FText::GetEmpty());
@@ -304,7 +287,6 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 
 	// Groups List
 	SAssignNew(GroupsListView, SListView<TSharedPtr<SRCPanelTreeNode>>)
-		.ItemHeight(24.f)
 		.SelectionMode(ESelectionMode::Single)
 		.ListItemsSource(reinterpret_cast<TArray<TSharedPtr<SRCPanelTreeNode>>*>(&FieldGroups))
 		.ClearSelectionOnClick(true)
@@ -347,7 +329,6 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 
 	// Fields List
 	SAssignNew(FieldsListView, STreeView<TSharedPtr<SRCPanelTreeNode>>)
-		.ItemHeight(24.f)
 		.OnGenerateRow(this, &SRCPanelExposedEntitiesList::OnGenerateRow)
 		.OnSelectionChanged(this, &SRCPanelExposedEntitiesList::OnSelectionChanged)
 		.SelectionMode(ESelectionMode::Multi)
@@ -369,7 +350,7 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 			+ SRCHeaderRow::Column(RemoteControlPresetColumns::OwnerName)
-			.DefaultLabel(LOCTEXT("RCPresetOwnerNameColumnHeader", "Owner Name"))
+			.DefaultLabel(LOCTEXT("RCPresetOwnerNameColumnHeader", "Owner"))
 			.HAlignHeader(HAlign_Center)
 			.FillWidth(0.1f)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
@@ -393,7 +374,7 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 			+ SRCHeaderRow::Column(RemoteControlPresetColumns::Reset)
-			.DefaultLabel(LOCTEXT("RCPresetResetButtonColumnHeader", ""))
+			.DefaultLabel(FText())
 			.FixedWidth(48.f)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 			.ShouldGenerateWidget(true)
@@ -401,12 +382,39 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 		);
 
 	// Exposed Entities Dock Panel
-	TSharedPtr<SRCMinorPanel> ExposeDockPanel = SNew(SRCMinorPanel)
+	const TSharedRef<SVerticalBox> ExposedEntitiesPanelContent = SNew(SVerticalBox);
+
+	const FRemoteControlUIModule& RemoteControlUIModule = FModuleManager::Get().GetModuleChecked<FRemoteControlUIModule>("RemoteControlUI");
+	for (const TSharedRef<IRCExposedEntitiesPanelExtender>& Extender : RemoteControlUIModule.GetExposedEntitiesPanelExtenders())
+	{
+		// Add extensions
+		IRCExposedEntitiesPanelExtender::FArgs Args;
+		Args.ActiveProtocolAttribute = TAttribute<FName>::CreateLambda([this]()
+			{
+				return bIsInProtocolsMode.Get() ? ActiveProtocol : NAME_None;
+			});
+		const TSharedRef<SWidget> ExtenderWidget = Extender->MakeWidget(Preset.Get(), Args);
+
+		ExposedEntitiesPanelContent->AddSlot()
+			.AutoHeight()
+			[
+				ExtenderWidget
+			];
+	}
+
+
+	ExposedEntitiesPanelContent->AddSlot()
+		.FillHeight(1.f)
+		[
+			FieldsListView.ToSharedRef()
+		];
+
+	const TSharedPtr<SRCMinorPanel> ExposeDockPanel = SNew(SRCMinorPanel)
 		.HeaderLabel(this, &SRCPanelExposedEntitiesList::HandleEntityListHeaderLabel)
 		.Visibility_Lambda([this]() {return bIsInLiveMode.Get() ? EVisibility::Collapsed : EVisibility::Visible; })
 		.EnableFooter(false)
 		[
-			FieldsListView.ToSharedRef()
+			ExposedEntitiesPanelContent
 		];
 
 	// Mode Switcher
@@ -415,6 +423,8 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 			{
 				if (ActiveProtocol != NewMode.ModeId)
 				{
+					StoreListSettings();
+
 					ActiveListMode = EEntitiesListMode::Default; // Hack to trigger mode change via mode switcher.
 
 					ActiveProtocol = NewMode.ModeId;
@@ -515,12 +525,21 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 			GetGroupMenuContentWidget()
 		];
 
+	// Per Preset Protocol Settings
+	const TSharedRef<SRCPanelPerPresetProtocolSettings> PerPresetProtocolSettings =
+		SNew(SRCPanelPerPresetProtocolSettings, Preset.Get())
+		.Visibility_Lambda([this]()
+			{
+				return bIsInProtocolsMode.Get() ? EVisibility::Visible : EVisibility::Collapsed;
+			});
+
 	// Expose Button
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Center, SearchBoxPtr.ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, SNew(SSearchToggleButton, SearchBoxPtr.ToSharedRef()));
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, ComboButtonGroupButton.ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, FilterComboButton.ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, ModeSwitcher.ToSharedRef());
+	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, PerPresetProtocolSettings);
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Left, InArgs._ExposeActorsComboButton.Get().ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Left, InArgs._ExposeFunctionsComboButton.Get().ToSharedRef());
 
@@ -553,6 +572,8 @@ SRCPanelExposedEntitiesList::~SRCPanelExposedEntitiesList()
 
 	UnregisterPresetDelegates();
 	UnregisterEvents();
+
+	StoreListSettings();
 }
 
 void SRCPanelExposedEntitiesList::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
@@ -670,6 +691,8 @@ void SRCPanelExposedEntitiesList::SetBackendFilter(const FRCFilter& InBackendFil
 
 void SRCPanelExposedEntitiesList::RebuildListWithColumns(EEntitiesListMode InListMode)
 {
+	RecallListSettings();
+
 	// Only activate when the active mode changes to different one.
 	// Drop multiple calls to same mode change except for Protocols Mode.
 	if (ActiveListMode != InListMode && !ActiveProtocol.IsNone())
@@ -733,7 +756,7 @@ void SRCPanelExposedEntitiesList::RebuildListWithColumns(EEntitiesListMode InLis
 		if (bShouldAddColumns)
 		{
 			ColumnsToBeAdded = DefaultProtocolColumns.Union(ActiveProtocolColumns);
-		
+
 			for (const FName& ColumnToBeAdded : ColumnsToBeAdded)
 			{
 				InsertColumn(ColumnToBeAdded);
@@ -754,9 +777,9 @@ FText SRCPanelExposedEntitiesList::HandleEntityListHeaderLabel() const
 {
 	const FRemoteControlCommands& Commands = FRemoteControlCommands::Get();
 
-	if (bIsInProtocolsMode.Get() && Commands.ToggleProtocolMappings.IsValid())
+	if (bIsInProtocolsMode.Get() && Commands.ActivateProtocolsMode.IsValid())
 	{
-		return Commands.ToggleProtocolMappings->GetLabel();
+		return Commands.ActivateProtocolsMode->GetLabel();
 	}
 
 	return LOCTEXT("PropertiesLabel", "Properties");
@@ -792,7 +815,7 @@ void SRCPanelExposedEntitiesList::OnPropertyIdRenamed(const FName InNewId, TShar
 		}
 	}
 
-	if (CurrentGroupType == EFieldGroupType::PropertyId)
+	if (CurrentGroupType == ERCFieldGroupType::PropertyId)
 	{
 		CreateFieldGroup();
 		OrderGroups();
@@ -824,18 +847,77 @@ void SRCPanelExposedEntitiesList::OnLabelModified(const FName InOldName, const F
 
 FReply SRCPanelExposedEntitiesList::OnNodeDragDetected(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, TSharedPtr<SRCPanelTreeNode> InNode)
 {
-	if (InNode && InNode->GetRCType() == SRCPanelTreeNode::Field)
+	if (InNode.IsValid())
 	{
-		TArray<FGuid> SelectedIds;
-		Algo::TransformIf(GetSelectedEntities(), SelectedIds
-			, [] (const TSharedPtr<SRCPanelTreeNode>& TreeNode) { return TreeNode->GetRCType() == SRCPanelTreeNode::Field; }
-			, [] (const TSharedPtr<SRCPanelTreeNode>& TreeNode){ return TreeNode->GetRCId(); });
+		const SRCPanelTreeNode::ENodeType FirstNodeType = InNode->GetRCType();
+		if (FirstNodeType == SRCPanelTreeNode::Field || FirstNodeType == SRCPanelTreeNode::FieldGroup)
+		{
+			TArray<TSharedPtr<SRCPanelTreeNode>> SelectedEntities;
+			Algo::TransformIf(GetSelectedEntities(), SelectedEntities
+				, [] (const TSharedPtr<SRCPanelTreeNode>& TreeNode)
+					{
+						const SRCPanelTreeNode::ENodeType NodeType = TreeNode->GetRCType();
+						return NodeType == SRCPanelTreeNode::Field || NodeType == SRCPanelTreeNode::FieldGroup;
+					}
+				, [] (const TSharedPtr<SRCPanelTreeNode>& TreeNode)
+					{
+						return TreeNode;
+					});
 
-		const TSharedRef<FExposedEntityDragDrop> DragDropOp = MakeShared<FExposedEntityDragDrop>(InNode->GetDragAndDropWidget(SelectedIds.Num()), InNode->GetRCId(), SelectedIds);
-		DragDropOp->Construct();
-		return FReply::Handled().BeginDragDrop(DragDropOp);
+			const TSharedRef<FExposedEntityDragDrop> DragDropOp = MakeShared<FExposedEntityDragDrop>(InNode->GetDragAndDropWidget(SelectedEntities.Num()), InNode->GetRCId(), SelectedEntities);
+			DragDropOp->Construct();
+			return FReply::Handled().BeginDragDrop(DragDropOp);
+		}
 	}
 	return FReply::Unhandled();
+}
+
+void SRCPanelExposedEntitiesList::StoreListSettings()
+{
+	const TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>* SettingsPtr = bIsInProtocolsMode.Get() ?
+		FRemoteControlUIModule::Get().GetExposedEntitiesListSettingsForProtocol(ActiveProtocol) :
+		nullptr;
+
+
+	const TOptional<FScopedTransaction> ChangeListSettingsTransaction = !GIsTransacting ?
+		FScopedTransaction(LOCTEXT("ChangeListSettingsTransaction", "Change Remote Control List Order")) :
+		TOptional<FScopedTransaction>{};
+
+	if (SettingsPtr)
+	{
+		FRCPanelExposedEntitiesListSettingsData Settings;
+		Settings.FieldGroupType = CurrentGroupType;
+		Settings.FieldGroupOrder = CurrentGroupSortType;
+
+		(*SettingsPtr)->OnSettingsChanged(Preset.Get(), Settings);
+	}
+	else
+	{
+		CurrentGroupType = DefaultSettings.FieldGroupType;
+		CurrentGroupSortType = DefaultSettings.FieldGroupOrder;
+	}
+}
+
+void SRCPanelExposedEntitiesList::RecallListSettings()
+{
+	const TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>* SettingsPtr = bIsInProtocolsMode.Get() ? 
+		FRemoteControlUIModule::Get().GetExposedEntitiesListSettingsForProtocol(ActiveProtocol) : 
+		nullptr;
+
+	if (SettingsPtr)
+	{
+		const FRCPanelExposedEntitiesListSettingsData Settings = (*SettingsPtr)->GetListSettings(Preset.Get());
+		CurrentGroupType = Settings.FieldGroupType;
+		CurrentGroupSortType = Settings.FieldGroupOrder;
+	}
+	else
+	{
+		CurrentGroupType = DefaultSettings.FieldGroupType;
+		CurrentGroupSortType = DefaultSettings.FieldGroupOrder;
+	}
+
+	CreateFieldGroup();
+	OrderGroups();
 }
 
 void SRCPanelExposedEntitiesList::OnObjectPropertyChange(UObject* InObject, FPropertyChangedEvent& InChangeEvent)
@@ -1154,7 +1236,7 @@ FReply SRCPanelExposedEntitiesList::OnDropOnGroup(const TSharedPtr<FDragDropOper
 	checkSlow(DragTargetGroup);
 
 	// will be changed, for now as long as you have a grouping type active you will not be able to drag fields to re-order them
-	if (DragDropOperation->IsOfType<FExposedEntityDragDrop>() && CurrentGroupType == EFieldGroupType::None)
+	if (DragDropOperation->IsOfType<FExposedEntityDragDrop>() && CurrentGroupType == ERCFieldGroupType::None)
 	{
 		if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = StaticCastSharedPtr<FExposedEntityDragDrop>(DragDropOperation))
 		{
@@ -1163,7 +1245,7 @@ FReply SRCPanelExposedEntitiesList::OnDropOnGroup(const TSharedPtr<FDragDropOper
 				FRemoteControlPresetLayout::FFieldSwapArgs Args;
 				Args.OriginGroupId = GetSelectedGroup()->GetRCId();
 				Args.TargetGroupId = DragTargetGroup->GetRCId();
-				Args.DraggedFieldsIds = DragDropOp->GetSelectedIds();
+				Args.DraggedFieldsIds = DragDropOp->GetSelectedFieldsId();
 
 				if (TargetEntity)
 				{
@@ -1194,7 +1276,7 @@ FReply SRCPanelExposedEntitiesList::OnDropOnGroup(const TSharedPtr<FDragDropOper
 			FRemoteControlPresetLayout::FFieldSwapArgs Args;
 			Args.OriginGroupId = DragOriginGroupId;
 			Args.TargetGroupId = DragTargetGroup->GetRCId();
-			Args.DraggedFieldsIds = DragDropOp->GetSelectedIds();
+			Args.DraggedFieldsIds = DragDropOp->GetSelectedFieldsId();
 
 			if (TargetEntity)
 			{
@@ -1402,13 +1484,24 @@ TSharedRef<SWidget> SRCPanelExposedEntitiesList::GetGroupMenuContentWidget()
 	MenuBuilder.BeginSection(FName(TEXT("RCGroupingType")), LOCTEXT("RCGroupingTypeHeader", "Group by"));
 
 	MenuBuilder.AddMenuEntry(
+		LOCTEXT("RCNoGroupingLabel", "No Grouping"),
+		LOCTEXT("RCNoGroupingTooltip", "No grouping set. Show items as a flat list"),
+		FSlateIcon(),
+		FUIAction(
+		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnCreateFieldGroup, ERCFieldGroupType::None),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSPLambda(this, [this]{ return CurrentGroupType == ERCFieldGroupType::None; })),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton);
+
+	MenuBuilder.AddMenuEntry(
 		LOCTEXT("RCGroupPropertyIdLabel", "Property Id"),
 		LOCTEXT("RCGroupPropertyIdTooltip", "Group by Property Id"),
 		FSlateIcon(),
 		FUIAction(
-		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnCreateFieldGroup, EFieldGroupType::PropertyId),
+		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnCreateFieldGroup, ERCFieldGroupType::PropertyId),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateLambda([this]() { return CurrentGroupType == EFieldGroupType::PropertyId; })
+		FIsActionChecked::CreateSPLambda(this, [this]{ return CurrentGroupType == ERCFieldGroupType::PropertyId; })
 		),
 		NAME_None,
 		EUserInterfaceActionType::RadioButton);
@@ -1418,9 +1511,9 @@ TSharedRef<SWidget> SRCPanelExposedEntitiesList::GetGroupMenuContentWidget()
 		LOCTEXT("RCGroupOwnerTooltip", "Group by Owner"),
 		FSlateIcon(),
 		FUIAction(
-		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnCreateFieldGroup, EFieldGroupType::Owner),
+		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnCreateFieldGroup, ERCFieldGroupType::Owner),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateLambda([this]() { return CurrentGroupType == EFieldGroupType::Owner; })
+		FIsActionChecked::CreateSPLambda(this, [this]{ return CurrentGroupType == ERCFieldGroupType::Owner; })
 		),
 		NAME_None,
 		EUserInterfaceActionType::RadioButton);
@@ -1435,9 +1528,9 @@ TSharedRef<SWidget> SRCPanelExposedEntitiesList::GetGroupMenuContentWidget()
 		LOCTEXT("RCSortAscendingGroupTooltip", "Sort groups ascending"),
 		FSlateIcon(),
 		FUIAction(
-		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnGroupOrderChanged, ERCGroupOrder::Ascending),
+		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnGroupOrderChanged, ERCFieldGroupOrder::Ascending),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateLambda([this] () { return CurrentGroupSortType == ERCGroupOrder::Ascending; })
+		FIsActionChecked::CreateSPLambda(this, [this]{ return CurrentGroupSortType == ERCFieldGroupOrder::Ascending; })
 		),
 		NAME_None,
 		EUserInterfaceActionType::RadioButton);
@@ -1447,9 +1540,9 @@ TSharedRef<SWidget> SRCPanelExposedEntitiesList::GetGroupMenuContentWidget()
 		LOCTEXT("RCSortDescendingGroupTooltip", "Sort groups descending"),
 		FSlateIcon(),
 		FUIAction(
-		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnGroupOrderChanged, ERCGroupOrder::Descending),
+		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnGroupOrderChanged, ERCFieldGroupOrder::Descending),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateLambda([this]() { return CurrentGroupSortType == ERCGroupOrder::Descending; })
+		FIsActionChecked::CreateSPLambda(this, [this]{ return CurrentGroupSortType == ERCFieldGroupOrder::Descending; })
 		),
 		NAME_None,
 		EUserInterfaceActionType::RadioButton);
@@ -1459,18 +1552,20 @@ TSharedRef<SWidget> SRCPanelExposedEntitiesList::GetGroupMenuContentWidget()
 	return MenuBuilder.MakeWidget();
 }
 
-void SRCPanelExposedEntitiesList::OnCreateFieldGroup(EFieldGroupType InFieldGroupType)
+void SRCPanelExposedEntitiesList::OnCreateFieldGroup(ERCFieldGroupType InFieldGroupType)
 {
-	CurrentGroupType = CurrentGroupType == InFieldGroupType? EFieldGroupType::None : InFieldGroupType;
+	CurrentGroupType = InFieldGroupType;
 	CreateFieldGroup();
 	OrderGroups();
+
+	StoreListSettings();
 }
 
 void SRCPanelExposedEntitiesList::CreateFieldGroup()
 {
 	FieldEntitiesGroups.Reset();
 	TSet<FName> GroupKeys;
-	if (CurrentGroupType == EFieldGroupType::PropertyId)
+	if (CurrentGroupType == ERCFieldGroupType::PropertyId)
 	{
 		for (TSharedPtr<SRCPanelTreeNode> Entity : CachedFieldEntities)
 		{
@@ -1489,7 +1584,7 @@ void SRCPanelExposedEntitiesList::CreateFieldGroup()
 			}
 		}
 	}
-	else if (CurrentGroupType == EFieldGroupType::Owner)
+	else if (CurrentGroupType == ERCFieldGroupType::Owner)
 	{
 		for (TSharedPtr<SRCPanelTreeNode> Entity : CachedFieldEntities)
 		{
@@ -1508,7 +1603,8 @@ void SRCPanelExposedEntitiesList::CreateFieldGroup()
 		}
 	}
 
-	if (CurrentGroupType == EFieldGroupType::None)
+	if (CurrentGroupType == ERCFieldGroupType::None &&
+		FieldsListView.IsValid())
 	{
 		FieldEntities = CachedFieldEntities;
 		FieldsListView->RequestTreeRefresh();
@@ -1525,20 +1621,20 @@ void SRCPanelExposedEntitiesList::CreateFieldGroup()
 	}
 }
 
-void SRCPanelExposedEntitiesList::OnGroupOrderChanged(ERCGroupOrder InGroupOrder)
+void SRCPanelExposedEntitiesList::OnGroupOrderChanged(ERCFieldGroupOrder InGroupOrder)
 {
-	CurrentGroupSortType = CurrentGroupSortType == InGroupOrder? ERCGroupOrder::None : InGroupOrder;
+	CurrentGroupSortType = CurrentGroupSortType == InGroupOrder? ERCFieldGroupOrder::None : InGroupOrder;
 	OrderGroups();
 }
 
 void SRCPanelExposedEntitiesList::OrderGroups()
 {
-	if (CurrentGroupType == EFieldGroupType::None)
+	if (CurrentGroupType == ERCFieldGroupType::None)
 	{
 		return;
 	}
 
-	if (CurrentGroupSortType == ERCGroupOrder::Ascending)
+	if (CurrentGroupSortType == ERCFieldGroupOrder::Ascending)
 	{
 		FieldEntities.Sort([](const TSharedPtr<SRCPanelTreeNode>& InFirst, const TSharedPtr<SRCPanelTreeNode>& InSecond)
 		{
@@ -1552,7 +1648,7 @@ void SRCPanelExposedEntitiesList::OrderGroups()
 			return false;
 		});
 	}
-	else if (CurrentGroupSortType == ERCGroupOrder::Descending)
+	else if (CurrentGroupSortType == ERCFieldGroupOrder::Descending)
 	{
 		FieldEntities.Sort([](const TSharedPtr<SRCPanelTreeNode>& InFirst, const TSharedPtr<SRCPanelTreeNode>& InSecond)
 		{
@@ -1602,6 +1698,8 @@ void SRCPanelExposedEntitiesList::CreateGroupsAndSort()
 {
 	CreateFieldGroup();
 	OrderGroups();
+
+	StoreListSettings();
 }
 
 void SRCPanelExposedEntitiesList::RegisterPresetDelegates()
@@ -2064,7 +2162,7 @@ FText SRCPanelExposedEntitiesList::GetColumnLabel(const FName& ForColumn) const
 	}
 	else if (ForColumn == RemoteControlPresetColumns::Status)
 	{
-		return LOCTEXT("RCPresetStatusColumnHeader", "");
+		return FText();
 	}
 	else
 	{

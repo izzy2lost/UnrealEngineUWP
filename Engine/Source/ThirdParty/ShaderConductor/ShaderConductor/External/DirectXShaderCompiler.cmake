@@ -57,15 +57,15 @@ foreach(target
     "ClangDiagnosticSema" "ClangDiagnosticSerialization" "ClangStmtNodes"
     "LLVMAnalysis" "LLVMAsmParser" "LLVMBitReader" "LLVMBitWriter" "LLVMCore" "LLVMDxcSupport" "LLVMDXIL" "LLVMDxilContainer"
     "LLVMDxilPIXPasses" "LLVMDxilRootSignature" "LLVMDxrFallback" "LLVMHLSL" "LLVMInstCombine" "LLVMipa" "LLVMipo" "LLVMIRReader"
-    "LLVMLinker" "LLVMMSSupport" "LLVMOption" "LLVMPasses" "LLVMPassPrinters" "LLVMProfileData" "LLVMScalarOpts" "LLVMSupport"
+    "LLVMLinker" "LLVMLTO" "LLVMMSSupport" "LLVMOption" "LLVMPasses" "LLVMPassPrinters" "LLVMProfileData" "LLVMScalarOpts" "LLVMSupport"
     "LLVMTableGen" "LLVMTarget" "LLVMTransformUtils" "LLVMVectorize"
     "ClangDriverOptions" "DxcEtw" "intrinsics_gen" "TablegenHLSLOptions"
     "clang-tblgen" "llvm-tblgen" "hlsl_dxcversion_autogen" "hlsl_version_autogen")
-    get_target_property(vsFolder ${target} FOLDER)	
-    if(NOT vsFolder)
-        set(vsFolder "")
-    endif()
-    set_target_properties(${target} PROPERTIES FOLDER "External/DirectXShaderCompiler/${vsFolder}")
+#    get_target_property(vsFolder ${target} FOLDER)	
+#    if(NOT vsFolder)
+#        set(vsFolder "")
+#    endif()
+#    set_target_properties(${target} PROPERTIES FOLDER "External/DirectXShaderCompiler/${vsFolder}")
 endforeach()
 if(WIN32)
     foreach(target

@@ -1,12 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SAudioCurveView.h"
+#include "Views/SAudioCurveView.h"
+
 #include "Algo/MaxElement.h"
 #include "Algo/MinElement.h"
-#include "Audio.h"
+#include "AudioInsightsLog.h"
 #include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Rendering/DrawElements.h"
+#include "Styling/AppStyle.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/SToolTip.h"
 
@@ -28,7 +30,7 @@ void SAudioCurveView::Construct( const SAudioCurveView::FArguments& InArgs )
 	Clipping = EWidgetClipping::ClipToBounds;
 	XValueFormattingOptions.MaximumFractionalDigits = 3;
 	LineDrawEffects = ESlateDrawEffect::NoPixelSnapping;
-	LabelFont = FCoreStyle::GetDefaultFontStyle("Regular", 6);
+	LabelFont = FCoreStyle::GetDefaultFontStyle("Bold", 7);
 
 	SetToolTip(CreateCurveTooltip());
 }
@@ -252,18 +254,17 @@ int32 SAudioCurveView::PaintGridLines(const FGeometry& AllottedGeometry, const F
 				GridPoints,
 				LineDrawEffects,
 				GridLineColor.Get(),
-				false
+				true
 			);
 			VerticalLineValue += HorizontalAxisIncrement.Get();
 		}
 	}
 
-	// Draw and label NumHorizontalGridLines horizontal grid lines 
-	const int32 GridLineLabelLayer = LayerId++;
+	// Draw horizontal grid lines 
 	const float MarginBase = YMargin.Get() * Size.Y;
 	const float MarginTop = (1.0f - YMargin.Get()) * Size.Y;
 	const float GridLineYIncrement = (MarginTop - MarginBase) / (NumHorizontalGridLines - 1);
-	const TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+
 	for (uint32 HorizontalLineIndex = 0; HorizontalLineIndex < NumHorizontalGridLines; ++HorizontalLineIndex)
 	{
 		const float WidgetY = GridLineYIncrement * HorizontalLineIndex + MarginBase;
@@ -281,20 +282,44 @@ int32 SAudioCurveView::PaintGridLines(const FGeometry& AllottedGeometry, const F
 			GridLineColor.Get(),
 			false
 		);
+	}
+	return LayerId;
+}
+
+int32 SAudioCurveView::PaintYAxisLabels(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId) const
+{
+	const int32 BackgroundRectangleLayerId = LayerId++;
+	float MaxTextWidth = 0.0f;
+
+	// Draw Y axis labels
+	const FVector2f Size = AllottedGeometry.GetLocalSize();
+
+	const float MarginBase = YMargin.Get() * Size.Y;
+	const float MarginTop  = (1.0f - YMargin.Get()) * Size.Y;
+
+	const float GridLineYIncrement = (MarginTop - MarginBase) / (NumHorizontalGridLines - 1);
+
+	const TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+
+	for (uint32 HorizontalLineIndex = 0; HorizontalLineIndex < NumHorizontalGridLines; ++HorizontalLineIndex)
+	{
+		const float WidgetY = GridLineYIncrement * HorizontalLineIndex + MarginBase;
 
 		// Draw y axis text label every other grid line
 		if (HorizontalLineIndex % 2 == 1)
 		{
-			const float LabelValue = LocalYToValue(Size, WidgetY);
-			FText LabelString = FText::AsNumber(LabelValue, &YValueFormattingOptions);
+			const float LabelValue  = LocalYToValue(Size, WidgetY);
+			const FText LabelString = FText::AsNumber(LabelValue, &YValueFormattingOptions);
 
 			// Position text slightly above the corresponding horizontal line 
 			const FVector2f TextSize = FontMeasureService->Measure(LabelString, LabelFont);
-			FVector2f TextOffset(TextSize.X * 0.5f, WidgetY - TextSize.Y * 0.85f);
+			const FVector2f TextOffset(5.0f, WidgetY - TextSize.Y * 0.85f);
+
+			MaxTextWidth = FMath::Max(MaxTextWidth, TextSize.X);
 
 			FSlateDrawElement::MakeText(
 				OutDrawElements,
-				GridLineLabelLayer,
+				LayerId++,
 				AllottedGeometry.ToPaintGeometry(TextSize, FSlateLayoutTransform(TextOffset)),
 				LabelString,
 				LabelFont,
@@ -303,67 +328,92 @@ int32 SAudioCurveView::PaintGridLines(const FGeometry& AllottedGeometry, const F
 			);
 		}
 	}
+
+	// Draw Background rectangle (with gradient)
+	const float RectanglePadding = MaxTextWidth * 0.6f;
+	const FVector2D RectangleSize(MaxTextWidth + RectanglePadding, AllottedGeometry.GetLocalSize().Y);
+	const FVector2D RectanglePosition(0.0f, 0.0f);
+
+	const TArray<FSlateGradientStop> GradientStops
+	{
+		{FVector2D::ZeroVector,                    FLinearColor(0.0f, 0.0f, 0.0f, 0.8f)},
+		{FVector2D(RectangleSize.X * 0.50f, 0.0f), FLinearColor(0.0f, 0.0f, 0.0f, 0.65f)},
+		{FVector2D(RectangleSize.X * 0.75f, 0.0f), FLinearColor(0.0f, 0.0f, 0.0f, 0.5f)},
+		{FVector2D(RectangleSize.X, 0.0f),         FLinearColor(0.0f, 0.0f, 0.0f, 0.0f)}
+	};
+
+	FSlateDrawElement::MakeGradient(
+		OutDrawElements,
+		BackgroundRectangleLayerId,
+		AllottedGeometry.ToPaintGeometry(RectangleSize, FSlateLayoutTransform(RectanglePosition)),
+		GradientStops,
+		Orient_Vertical,
+		ESlateDrawEffect::None
+	);
+
 	return LayerId;
 }
 
 int32 SAudioCurveView::PaintCurves(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const 
 {
-	static const float LargeFrameTime = 0.25;  // ideally, we could check the recorded frame data for actual frame length
-	
-	const SSimpleTimeSlider::FScrubRangeToScreen RangeToScreen(ViewRange.Get(), AllottedGeometry.GetLocalSize());
-	const FVector2f Size = AllottedGeometry.GetLocalSize();
-
 	// Skip drawing if curve data is not initialized yet
-	if (!PointDataPerCurve || !MetadataPerCurve)
+	if (!PointDataPerCurve.IsValid() || !MetadataPerCurve.IsValid())
 	{
 		return LayerId;
 	}
 
 	if (PointDataPerCurve->Num() != MetadataPerCurve->Num())
 	{
-		UE_LOG(LogAudio, Warning, TEXT("Invalid audio curve view data. Metadata and point curve data nums do not match."))
+		UE_LOG(LogAudioInsights, Warning, TEXT("Invalid audio curve view data. Metadata and point curve data nums do not match."))
 		return LayerId;
 	}
 
+	const SSimpleTimeSlider::FScrubRangeToScreen RangeToScreen(ViewRange.Get(), AllottedGeometry.GetLocalSize());
 	LayerId = PaintGridLines(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled, RangeToScreen);
+	
+	static constexpr float LargeFrameTime = 0.5f; // ideally, we could check the recorded frame data for actual frame length
+	const FVector2f Size = AllottedGeometry.GetLocalSize();
 
 	// Create and draw points per curve
 	for (auto Iter = MetadataPerCurve->CreateConstIterator(); Iter; ++Iter)
 	{
 		const FCurveMetadata& CurveMetadata = Iter->Value;
-		const int32 CurveId = CurveMetadata.CurveId;
-		const TArray<FCurvePoint>* CurvePoints = PointDataPerCurve->Find(CurveId);
-		if (!CurvePoints || CurvePoints->Num() <= 0)
+		const TArray<FCurvePoint>* CurvePointsPtr = PointDataPerCurve->Find(CurveMetadata.CurveId);
+
+		if (!CurvePointsPtr || CurvePointsPtr->IsEmpty())
 		{
 			continue;
 		}
 
-		TArray<FVector2f> Points;
-		Points.Reserve(CurvePoints->Num());
+		const TArray<FCurvePoint>& CurvePoints = (*CurvePointsPtr);
 
-		float PrevX = (*CurvePoints)[0].Key;
-		for (int32 i = 0; i < CurvePoints->Num(); i++)
+		TArray<FVector2f> Points;
+		Points.Reserve(CurvePoints.Num());
+
+		float PrevX = CurvePoints[0].Key;
+		for (const FCurvePoint& Point : CurvePoints)
 		{
-			const FCurvePoint& Point = (*CurvePoints)[i];
-			if (Point.Value - PrevX > LargeFrameTime && Points.Num()>1)
+			if (Point.Key - PrevX > LargeFrameTime && Points.Num() > 1)
 			{
 				// break the line list - data has stopped and started again
 				FSlateDrawElement::MakeLines(
 					OutDrawElements,
-					LayerId++,
+					++LayerId,
 					AllottedGeometry.ToPaintGeometry(),
 					Points,
 					LineDrawEffects,
 					CurveMetadata.CurveColor,
-					false
+					true
 				);
-				Points.SetNum(0, EAllowShrinking::No);
+
+				Points.Reset();
 			}
 
 			const float X = RangeToScreen.InputToLocalX(Point.Key);
-			PrevX = Point.Key;
 			const float Y = ValueToLocalY(Size, Point.Value);
-			Points.Add(FVector2f(X, Y));
+			Points.Emplace(X, Y);
+
+			PrevX = Point.Key;
 		}
 
 		FSlateDrawElement::MakeLines(
@@ -373,9 +423,13 @@ int32 SAudioCurveView::PaintCurves(const FGeometry& AllottedGeometry, const FSla
 			Points,
 			LineDrawEffects,
 			CurveMetadata.CurveColor,
-			false
+			true
 		);
 	}
+
+	// Draw Y axis labels
+	LayerId = PaintYAxisLabels(AllottedGeometry, OutDrawElements, LayerId);
+
 	return LayerId;
 }
 

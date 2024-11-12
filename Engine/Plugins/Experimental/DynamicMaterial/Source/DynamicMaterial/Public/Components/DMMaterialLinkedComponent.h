@@ -5,21 +5,23 @@
 #include "DMMaterialComponent.h"
 #include "DMMaterialLinkedComponent.generated.h"
 
-UCLASS(Abstract, BlueprintType, meta = (DisplayName = "Material Designer Linked Component"))
-class DYNAMICMATERIAL_API UDMMaterialLinkedComponent : public UDMMaterialComponent
+/** A component which links to a specific parent component in the hierarchy instead of its Outer. */
+UCLASS(MinimalAPI, Abstract, BlueprintType, meta = (DisplayName = "Material Designer Linked Component"))
+class UDMMaterialLinkedComponent : public UDMMaterialComponent
 {
 	GENERATED_BODY()
 
 public:
-	UDMMaterialLinkedComponent() = default;
-
 #if WITH_EDITOR
-	virtual UDMMaterialComponent* GetParentComponent() const override;
+	/** Returns the linked parent component. */
+	DYNAMICMATERIAL_API virtual UDMMaterialComponent* GetParentComponent() const override;
 
+	/** Sets the linked parent component. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetParentComponent(UDMMaterialComponent* InParentComponent);
+	DYNAMICMATERIAL_API void SetParentComponent(UDMMaterialComponent* InParentComponent);
 
-	virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
+	/** Sets the parent component to the InParent parameter. */
+	DYNAMICMATERIAL_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 #endif
 
 protected:
@@ -28,4 +30,3 @@ protected:
 	TObjectPtr<UDMMaterialComponent> ParentComponent = nullptr;
 #endif
 };
-

@@ -34,6 +34,7 @@ protected:
 		TArray<FString> ActiveLayeredMoves;
 		TArray<FString> ModeMap;
 		TArray<FString> ActiveTransitions;
+		TArray<FString> ActiveModifiers;
 
 		FRepData() {}
 

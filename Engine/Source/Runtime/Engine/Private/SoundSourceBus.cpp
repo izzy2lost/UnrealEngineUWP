@@ -46,6 +46,7 @@ void USoundSourceBus::Init()
 void USoundSourceBus::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Init();
+	MaxDistance = ComputeMaxDistance();
 }
 #endif
 
@@ -58,5 +59,3 @@ float USoundSourceBus::GetDuration() const
 {
 	return (SourceBusDuration > 0.0f) ? SourceBusDuration : INDEFINITELY_LOOPING_DURATION;
 }
-
-

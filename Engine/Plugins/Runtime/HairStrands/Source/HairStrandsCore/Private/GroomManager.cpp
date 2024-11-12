@@ -32,6 +32,12 @@
 #include "HairStrandsInterface.h"
 #include "ShaderPlatformCachedIniValue.h"
 
+DECLARE_GPU_STAT(HairStrandsInterpolationCurve);
+DECLARE_GPU_STAT(HairGuideInterpolation);
+DECLARE_GPU_STAT(HairStrandsClusterCulling);
+DECLARE_GPU_STAT(HairStrandsInterpolation);
+DECLARE_GPU_STAT(HairCardsInterpolation);
+
 static int32 GHairStrandsMinLOD = 0;
 static FAutoConsoleVariableRef CVarGHairStrandsMinLOD(TEXT("r.HairStrands.MinLOD"), GHairStrandsMinLOD, TEXT("Clamp the min hair LOD to this value, preventing to reach lower/high-quality LOD."), ECVF_Scalability);
 
@@ -66,7 +72,7 @@ bool UseHairStrandsForceAutoLOD()
 
 float GetHairStrandsAutoLODBias()
 {
-	return FMath::Clamp(GHairStrands_AutoLOD_Bias, 0.f, 1.f);
+	return FMath::Clamp(GHairStrands_AutoLOD_Bias, -1.f, 1.f);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -221,8 +227,10 @@ struct FHairGeometryCache
 		FSkeletalMeshLODRenderData* LODData 		= nullptr;
 		FRDGBufferRef PositionBuffer				= nullptr;
 		FRDGBufferRef PreviousPositionBuffer		= nullptr;
+		FRDGBufferRef TangentBuffer					= nullptr;
 		FRDGBufferSRVRef PositionSRV				= nullptr;
 		FRDGBufferSRVRef PreviousPositionSRV		= nullptr;
+		FRDGBufferSRVRef TangentSRV					= nullptr;
 
 		FHairGeometryCacheKey Key;
 		uint32 Hash 				= 0;
@@ -255,7 +263,8 @@ struct FHairGeometryCache
 		uint32 InLODIndex, 
 		const TArray<uint32>& UniqueSections,
 		FRDGBufferSRVRef& Out, 
-		FRDGBufferSRVRef& OutPrev)
+		FRDGBufferSRVRef& OutPrev,
+		FRDGBufferSRVRef& OutTangent)
 	{
 		check(InLODData);
 		check(InMeshObject);
@@ -289,6 +298,21 @@ struct FHairGeometryCache
 			Data.PositionSRV 			= GraphBuilder.CreateSRV(Data.PositionBuffer, PF_R32_FLOAT);
 			Data.PreviousPositionSRV	= bNeedPreviousPosition ? GraphBuilder.CreateSRV(Data.PreviousPositionBuffer, PF_R32_FLOAT) : nullptr;
 
+			// If available create and compute deformed tangents
+			Data.TangentBuffer = nullptr;
+			Data.TangentSRV = nullptr;
+			if (const FRHIShaderResourceView* TangentSRV = InLODData->StaticVertexBuffers.StaticMeshVertexBuffer.GetTangentsSRV())
+			{
+				const uint32 TangentStride = InLODData->StaticVertexBuffers.StaticMeshVertexBuffer.GetUseHighPrecisionTangentBasis() ? 
+					sizeof(TStaticMeshVertexTangentDatum<typename TStaticMeshVertexTangentTypeSelector<EStaticMeshVertexTangentBasisType::HighPrecision>::TangentTypeT>):
+					sizeof(TStaticMeshVertexTangentDatum<typename TStaticMeshVertexTangentTypeSelector<EStaticMeshVertexTangentBasisType::Default>::TangentTypeT>);
+				const EPixelFormat TangentFormat = TangentSRV->GetDesc().Buffer.SRV.Format;
+				const uint32 TangentElementCount = InLODData->StaticVertexBuffers.StaticMeshVertexBuffer.GetNumVertices();
+				check(TangentSRV->GetDesc().Buffer.SRV.BufferType == FRHIViewDesc::EBufferType::Typed);
+				Data.TangentBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(TangentElementCount, TangentStride), TEXT("Hair.SkinnedDeformedTangents"));;
+				Data.TangentSRV = GraphBuilder.CreateSRV(Data.TangentBuffer, TangentFormat);
+			}
+
 			Data.RequestedSections.Reserve(Data.TotalSectionCount);
 			Data.RequestedSectionBits.Init(false, Data.TotalSectionCount);
 		}
@@ -312,8 +336,9 @@ struct FHairGeometryCache
 		}
 
 		// Initialized returned values
-		Out 	= Data.PositionSRV;
-		OutPrev = Data.PreviousPositionSRV;
+		Out 		= Data.PositionSRV;
+		OutPrev 	= Data.PreviousPositionSRV;
+		OutTangent	= Data.TangentSRV;
 	}
 
 	void AddDebug(const FHairGroupInstance* InInstance, const FPrimitiveSceneProxy* InProxy, const FCachedGeometry& InGeom, EHairPositionUpdateType InGeometryType, ECacheType InCacheType, uint32 InTotalSectionCount=0)
@@ -529,7 +554,8 @@ static void GetOrAllocateCachedGeometry(
 	// Create deformed position buffer (output)
 	FRDGBufferSRVRef DeformedPositionSRV = nullptr;
 	FRDGBufferSRVRef DeformedPreviousPositionSRV = nullptr;
-	OutHairGeometryCache.GetOrAdd(GraphBuilder, SkeletalMeshObject, &LODData, LODIndex, UniqueSections, DeformedPositionSRV, DeformedPreviousPositionSRV);
+	FRDGBufferSRVRef DeformedTangentSRV = nullptr;
+	OutHairGeometryCache.GetOrAdd(GraphBuilder, SkeletalMeshObject, &LODData, LODIndex, UniqueSections, DeformedPositionSRV, DeformedPreviousPositionSRV, DeformedTangentSRV);
 
 	// Add reference to be sure the data are not streamed out while they are used
 	LODData.AddRef();
@@ -540,9 +566,11 @@ static void GetOrAllocateCachedGeometry(
 		FCachedGeometry::Section& OutSection= Out.Sections.AddDefaulted_GetRef();
 		OutSection.RDGPositionBuffer 		= DeformedPositionSRV;
 		OutSection.RDGPreviousPositionBuffer= DeformedPreviousPositionSRV;
+		OutSection.RDGTangentBuffer			= DeformedTangentSRV;
 		OutSection.PositionBuffer 			= nullptr; // Do not use the SRV slot, but instead use the RDG buffer created above (DeformedPositionSRV)
 		OutSection.PreviousPositionBuffer 	= nullptr; // Do not use the SRV slot, but instead use the RDG buffer created above (DeformedPositionSRV)
 		OutSection.UVsBuffer 				= LODData.StaticVertexBuffers.StaticMeshVertexBuffer.GetTexCoordsSRV();
+		OutSection.TangentBuffer 			= LODData.StaticVertexBuffers.StaticMeshVertexBuffer.GetTangentsSRV();
 		OutSection.TotalVertexCount 		= LODData.StaticVertexBuffers.PositionVertexBuffer.GetNumVertices();
 		OutSection.IndexBuffer 				= LODData.MultiSizeIndexContainer.GetIndexBuffer()->GetSRV();
 		OutSection.TotalIndexCount 			= LODData.MultiSizeIndexContainer.GetIndexBuffer()->Num();
@@ -740,7 +768,8 @@ static void RunHairBindingSurfaceUpdate(
 			*Data.LODData, 
 			Data.RequestedSections, 
 			Data.PositionBuffer, 
-			Data.PreviousPositionBuffer);
+			Data.PreviousPositionBuffer,
+			Data.TangentBuffer);
 	}
 
 	AddHairSkinCacheDebugPass(GraphBuilder, ShaderMap, View, ShaderPrintData, Instances, HairGeometryCache);
@@ -768,8 +797,7 @@ static void RunHairStrandsInterpolation_Guide(
 {
 	check(IsInRenderingThread());
 
-	DECLARE_GPU_STAT(HairGuideInterpolation);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairGuideInterpolation");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairGuideInterpolation, "HairGuideInterpolation");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairGuideInterpolation);
 
 	// Update dynamic mesh triangles
@@ -1031,10 +1059,14 @@ static void RunHairStrandsInterpolation_Guide(
 					ShaderMap,
 					InstanceData.Instance->RegisteredIndex,
 					InstanceData.Instance->Guides.RestResource->GetPointCount(),
+					InstanceData.Instance->Guides.RestResource->GetCurveCount(),
 					InterpolationFactor,
+					1.f /*MaxHairRadius*/,
 					CacheResources0,
 					CacheResources1,
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PositionBuffer),
+					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->CurveBuffer),
+					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->PointToCurveBuffer),
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::EFrameType::Current)),
 					RegisterAsUAV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current)));
 			}
@@ -1071,8 +1103,7 @@ static void RunHairStrandsInterpolation_Strands(
 	check(IsInRenderingThread());
 	check(View);
 
-	DECLARE_GPU_STAT(HairStrandsInterpolation);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairInterpolation(Strands)");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsInterpolation, "HairInterpolation(Strands)");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsInterpolation);
 
 	struct FInstanceRDGResources
@@ -1246,10 +1277,10 @@ static void RunHairStrandsInterpolation_Strands(
 		// Culling pass
 		if (Views.Num() > 0 && ClusterDatas.HairGroups.Num() > 0)
 		{
-			DECLARE_GPU_STAT(HairStrandsClusterCulling);
-			RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsClusterCulling");
-			TRACE_CPUPROFILER_EVENT_SCOPE(ComputeHairStrandsClustersCulling);
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsClusterCulling, "HairStrandsClusterCulling");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsClusterCulling);
+
+			TRACE_CPUPROFILER_EVENT_SCOPE(ComputeHairStrandsClustersCulling);
 
 			FRDGBufferUAVRef IndirectDispatchArgsUAVWithSkipBarrier = GraphBuilder.CreateUAV(TransientResources.IndirectDispatchArgsBuffer, ERDGUnorderedAccessViewFlags::SkipBarrier);
 			AddClusterCullingPass(
@@ -1386,10 +1417,10 @@ static void RunHairStrandsInterpolation_Strands(
 	}
 
 	{
-		DECLARE_GPU_STAT(HairStrandsInterpolationCurve);
-		RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsInterpolationCurve");
-		TRACE_CPUPROFILER_EVENT_SCOPE(HairStrandsInterpolationCurve);
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsInterpolationCurve, "HairStrandsInterpolationCurve");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsInterpolationCurve);
+
+		TRACE_CPUPROFILER_EVENT_SCOPE(HairStrandsInterpolationCurve);
 
 		TArray<FRDGBufferSRVRef> Transitions;
 		Transitions.Reserve(InstanceDatas.Num());
@@ -1513,10 +1544,14 @@ static void RunHairStrandsInterpolation_Strands(
 					ShaderMap,
 					InstanceData.Instance->RegisteredIndex,
 					InstanceData.ActivePointCount,
+					InstanceData.ActiveCurveCount,
 					InterpolationFactor,
+					InstanceData.Instance->Strands.Modifier.HairWidth * 0.5f /*InMaxHairRadius*/,
 					CacheResources0,
 					CacheResources1,
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->PositionBuffer),
+					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->CurveBuffer),
+					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->PointToCurveBuffer),
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::EFrameType::Current)),
 					InstanceData.RDGResources.PositionUAV);
 			}
@@ -1657,12 +1692,14 @@ static void RunHairStrandsInterpolation_Strands(
 			if (InstanceData.bNeedRaytracing)
 			{
 				// Note: VFInput.Strands.Common.Radius already contains RadiusScale from discrete LOD setup, for backward compatibility.
-				const float CLODScale = InstanceData.Instance->HairGroupPublicData->ContinuousLODCoverageScale;
+				// Only used CLOD scale when the geometry is dynamic
+				const bool bIsDynamicGeometry = InstanceData.Instance->Strands.DeformedResource != nullptr;
+				const float CLODScale = bIsDynamicGeometry ? InstanceData.Instance->HairGroupPublicData->ContinuousLODCoverageScale : 1.f;
 				const float HairRadiusRT = InstanceData.Instance->HairGroupPublicData->VFInput.Strands.Common.RaytracingRadiusScale * InstanceData.Instance->HairGroupPublicData->VFInput.Strands.Common.Radius * CLODScale;
 				const float HairRootScaleRT = InstanceData.Instance->HairGroupPublicData->VFInput.Strands.Common.RootScale;
 				const float HairTipScaleRT = InstanceData.Instance->HairGroupPublicData->VFInput.Strands.Common.TipScale;
 
-				InstanceData.bNeedRaytracingUpdate = InstanceData.Instance->Strands.DeformedResource != nullptr ||
+				InstanceData.bNeedRaytracingUpdate = bIsDynamicGeometry ||
 					InstanceData.Instance->Strands.CachedHairScaledRadius != HairRadiusRT ||
 					InstanceData.Instance->Strands.CachedHairRootScale != HairRootScaleRT ||
 					InstanceData.Instance->Strands.CachedHairTipScale != HairTipScaleRT ||
@@ -1777,8 +1814,7 @@ static void RunHairStrandsInterpolation_Cards(
 	check(IsInRenderingThread());
 	check(View);
 
-	DECLARE_GPU_STAT(HairCardsInterpolation);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairCardsInterpolation");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairCardsInterpolation, "HairCardsInterpolation");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairCardsInterpolation);
 
 	struct FInstanceData
@@ -2424,7 +2460,7 @@ static float ComputeActiveCurveRadiusScale(const FHairStrandsClusterResource* In
 static uint32 ComputeActiveCurveCount(float InScreenSize, float InAutoLODBias, uint32 InCurveCount, uint32 InClusterCount)
 {
 	const float Power = 1.f;  // This could be exposed per asset
-	const float ScreenSizeBias = FMath::Clamp(FMath::Max(InAutoLODBias, GetHairStrandsAutoLODBias()), 0.f, 1.f);
+	const float ScreenSizeBias = FMath::Clamp(InAutoLODBias + GetHairStrandsAutoLODBias(), -1.f, 1.f);
 	uint32 OutCurveCount = InCurveCount * FMath::Pow(FMath::Clamp(InScreenSize + ScreenSizeBias, 0.f, 1.0f), Power);
 	// Ensure there is at least 1 curve per cluster
 	OutCurveCount = FMath::Max(InClusterCount, OutCurveCount);
@@ -3121,6 +3157,11 @@ void ProcessHairStrandsBookmark(
 
 	// Cards interpolation for ShadowView only needs to run when FrustumCulling is enabled
 	if (Bookmark == EHairStrandsBookmark::ProcessCardsAndMeshesInterpolation_ShadowView && !IsInstanceFrustumCullingEnable())
+	{
+		return;
+	}
+
+	if (!Parameters.View || (Parameters.View->Family && !Parameters.View->Family->EngineShowFlags.Hair))
 	{
 		return;
 	}

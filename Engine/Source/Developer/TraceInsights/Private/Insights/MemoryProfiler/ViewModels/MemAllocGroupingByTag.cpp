@@ -2,19 +2,22 @@
 
 #include "MemAllocGroupingByTag.h"
 
-#include "Common/ProviderLock.h" // TraceServices
+// TraceServices
+#include "Common/ProviderLock.h"
 
-// Insights
-#include "Insights/Common/AsyncOperationProgress.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/AsyncOperationProgress.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocNode.h"
 #include "Insights/MemoryProfiler/MemoryProfilerManager.h"
 
-#define LOCTEXT_NAMESPACE "Insights::FMemAllocGroupingByTag"
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::FMemAllocNode"
 
 #define INSIGHTS_MERGE_MEM_TAGS_BY_NAME 1
 
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -39,11 +42,13 @@ FMemAllocGroupingByTag::FMemAllocGroupingByTag(const TraceServices::IAllocations
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FMemAllocGroupingByTag::GroupNodes(const TArray<FTableTreeNodePtr>& Nodes,
-                                        FTableTreeNode& ParentGroup, TWeakPtr<FTable> InParentTable,
-                                        IAsyncOperationProgress& InAsyncOperationProgress) const
+void FMemAllocGroupingByTag::GroupNodes(
+	const TArray<FTableTreeNodePtr>& Nodes,
+	FTableTreeNode& ParentGroup,
+	TWeakPtr<FTable> InParentTable,
+	IAsyncOperationProgress& InAsyncOperationProgress) const
 {
-	using namespace TraceServices;
+	using TagIdType = TraceServices::TagIdType;
 
 	ParentGroup.ClearChildren();
 
@@ -291,7 +296,7 @@ void FMemTagTableTreeNode::UpdateLLMSize() const
 		return;
 	}
 
-	::FMemorySharedState* SharedState = FMemoryProfilerManager::Get()->GetSharedState();
+	FMemorySharedState* SharedState = FMemoryProfilerManager::Get()->GetSharedState();
 	if (!SharedState)
 	{
 		return;
@@ -300,8 +305,8 @@ void FMemTagTableTreeNode::UpdateLLMSize() const
 	TraceServices::FMemoryTrackerId TrackerId = FMemoryTracker::InvalidTrackerId;
 	TraceServices::FMemoryTagId TagId = FMemoryTag::InvalidTagId;
 
-	const Insights::FMemoryTagList& TagList = SharedState->GetTagList();
-	for (const Insights::FMemoryTag* MemTag : TagList.GetTags())
+	const FMemoryTagList& TagList = SharedState->GetTagList();
+	for (const FMemoryTag* MemTag : TagList.GetTags())
 	{
 		if (MemTag)
 		{
@@ -350,7 +355,7 @@ void FMemTagTableTreeNode::UpdateLLMSize() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler
 
 #undef INSIGHTS_MERGE_MEM_TAGS_BY_NAME
 #undef LOCTEXT_NAMESPACE

@@ -619,6 +619,11 @@ public:
 	static UNREALED_API bool CanClassGenerateEvents(const UClass* Class);
 
 	/**
+	 * Returns true if this blueprint can have a child class created based on it
+	 */
+	static UNREALED_API bool CanCreateChildBlueprint(const UBlueprint* BP);
+
+	/**
 	 * If a blueprint is directly tied to a level (level script and anonymous blueprints), this will return a pointer to that level
 	 *
 	 * @return	The level, if any, tied to this blueprint
@@ -1272,8 +1277,11 @@ public:
 	 */
 	static UNREALED_API int32 FindLocalVariableIndex(const UBlueprint* Blueprint, UStruct* VariableScope, const FName& InVariableName);
 
-	/** Change the order of variables in the Blueprint */
+	/** Change the order of variables in the Blueprint by placing a variable before the target variable. */
 	static UNREALED_API bool MoveVariableBeforeVariable(UBlueprint* Blueprint, UStruct* VariableScope, FName VarNameToMove, FName TargetVarName, bool bDontRecompile);
+
+	/** Change the order of variables in the Blueprint by placing a variable after the target variable. */
+	static UNREALED_API bool MoveVariableAfterVariable(UBlueprint* Blueprint, UStruct* VariableScope, FName VarNameToMove, FName TargetVarName, bool bDontRecompile);
 
 	/**
 	 * Find the index of a timeline first declared in this blueprint. Returns INDEX_NONE if not found.
@@ -1932,6 +1940,13 @@ public:
 	 * @param DetailedMessage	(Optional) Instructional text or other details from the owner. If empty, a default message will be used.
 	 */
 	static UNREALED_API FText GetDeprecatedMemberUsageNodeWarning(const FText& MemberName, const FText& DetailedMessage);
+
+	/**
+	 * Returns the severity of a deprecation warning by parsing a string loaded from metadata like DeprecatedFunction="Note"
+	 *
+	 * @param TypeString		(Required) String to parse for a message type
+	 */
+	static UNREALED_API EEdGraphNodeDeprecationMessageType GetDeprecatedMessageType(const FString& TypeString);
 
 	/**
 	 * Remove overridden component templates from instance component handlers when a parent class disables editable when inherited boolean.

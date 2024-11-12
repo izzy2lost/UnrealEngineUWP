@@ -25,6 +25,12 @@
 #include "MetalCompileShaderSPIRV.h"
 #include "MetalCompileShaderMSC.h"
 
+#if PLATFORM_MAC
+THIRD_PARTY_INCLUDES_START
+#include "metal_irconverter.h"
+THIRD_PARTY_INCLUDES_END
+#endif
+
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
 THIRD_PARTY_INCLUDES_START
@@ -232,7 +238,6 @@ static const int32 Str##PrefixLen = FCStringAnsi::Strlen(Str##Prefix)
 void BuildMetalShaderOutput(
 	FShaderCompilerOutput& ShaderOutput,
 	const FShaderCompilerInput& ShaderInput,
-	FSHAHash const& GUIDHash,
 	const ANSICHAR* InShaderSource,
 	uint32 SourceLen,
 	uint32 SourceCRCLen,
@@ -291,6 +296,8 @@ void BuildMetalShaderOutput(
 	}
 
 	FMetalCodeHeader Header;
+	FShaderResourceTable SRT;
+
 	Header.CompileFlags = (ShaderInput.Environment.CompilerFlags.Contains(CFLAG_Debug) ? (1 << CFLAG_Debug) : 0);
 	Header.CompileFlags |= (bNoFastMath ? (1 << CFLAG_NoFastMath) : 0);
 	Header.CompileFlags |= (ShaderInput.Environment.CompilerFlags.Contains(CFLAG_ExtraShaderData) ? (1 << CFLAG_ExtraShaderData) : 0);
@@ -298,13 +305,10 @@ void BuildMetalShaderOutput(
 	Header.CompileFlags |= (ShaderInput.Environment.CompilerFlags.Contains(CFLAG_BoundsChecking) ? (1 << CFLAG_BoundsChecking) : 0);
 	Header.CompileFlags |= (ShaderInput.Environment.CompilerFlags.Contains(CFLAG_Archive) ? (1 << CFLAG_Archive) : 0);
 
-	Header.CompilerVersion = FMetalCompilerToolchain::Get()->GetCompilerVersion((EShaderPlatform)ShaderInput.Target.Platform).Version;
-	Header.CompilerBuild = FMetalCompilerToolchain::Get()->GetTargetVersion((EShaderPlatform)ShaderInput.Target.Platform).Version;
 	Header.Version = Version;
 	Header.SideTable = -1;
 	Header.SourceLen = SourceCRCLen;
 	Header.SourceCRC = SourceCRC;
-	Header.Bindings.bDiscards = false;
 	Header.Bindings.ConstantBuffers = ConstantBuffers;
     
 	FShaderParameterMap& ParameterMap = ShaderOutput.ParameterMap;
@@ -365,7 +369,7 @@ void BuildMetalShaderOutput(
 		// For fragment shaders that discard but don't output anything we need at least a depth-stencil surface, so we need a way to validate this at runtime.
 		if (FCStringAnsi::Strstr(USFSource, "discard_fragment()") != nullptr)
 		{
-			Header.Bindings.bDiscards = true;
+			EnumAddFlags(Header.Bindings.Flags, EMetalBindingsFlags::PixelDiscard);
 		}
 	}
 
@@ -458,9 +462,6 @@ void BuildMetalShaderOutput(
 		Header.Bindings.PackedGlobalArrays.Add(Info);
 	}
 
-	// Setup Packed Uniform Buffers info
-	Header.Bindings.PackedUniformBuffers.Reserve(PackedUniformBuffersSize.Num());
-	
 	// In this mode there should only be 0 or 1 packed UB that contains all the aligned & named global uniform parameters
 	check(PackedUniformBuffersSize.Num() <= 1);
 	for (auto Iterator = PackedUniformBuffersSize.CreateIterator(); Iterator; ++Iterator)
@@ -522,11 +523,14 @@ void BuildMetalShaderOutput(
 #if UE_METAL_USE_METAL_SHADER_CONVERTER
     if (bUseMetalShaderConverter)
     {
-        // Only needed for VS Input (to generate the stage-in function used to convert inputs).
+#if PLATFORM_MAC
+		EnumAddFlags(Header.Bindings.Flags, EMetalBindingsFlags::UseMetalShaderConverter);
+				
+		// Only needed for VS Input (to generate the stage-in function used to convert inputs).
         if (Frequency == SF_Vertex)
         {
             Header.Bindings.IRConverterReflectionJSON = ANSI_TO_TCHAR(ShaderReflectionJSON);
-            //delete ShaderReflectionJSON; // TODO: FIXME: Fails because delete calls the UE's allocator instead of the global one
+			IRShaderReflectionReleaseString(ShaderReflectionJSON);
 			check(ShaderReflectionJSON && Header.Bindings.IRConverterReflectionJSON.Len() > 0);
         }
         else
@@ -535,8 +539,15 @@ void BuildMetalShaderOutput(
         }
 
         Header.Bindings.RSNumCBVs = NumCBVs;
-        Header.Bindings.bDiscards = bUsesDiscard;
         Header.Bindings.OutputSizeVS = OutputSizeVS;
+		if (bUsesDiscard)
+		{
+			EnumAddFlags(Header.Bindings.Flags, EMetalBindingsFlags::PixelDiscard);
+		}
+		else
+		{
+			EnumRemoveFlags(Header.Bindings.Flags, EMetalBindingsFlags::PixelDiscard);
+		}
 
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
         Header.Bindings.MaxInputPrimitivesPerMeshThreadgroupGS = MaxInputPrimitivesPerMeshThreadgroupGS;
@@ -554,6 +565,9 @@ void BuildMetalShaderOutput(
                 }
             }
         }
+#else
+		UE_LOG(LogMetalShaderCompiler, Fatal, TEXT("Attempting to build using MSC on unsupported platform"));
+#endif
     }
 #endif
 
@@ -561,13 +575,12 @@ void BuildMetalShaderOutput(
 	Header.NumThreadsY = CCHeader.NumThreads[1];
 	Header.NumThreadsZ = CCHeader.NumThreads[2];
 	
-	// TODO: Should be for inline RT only.
 	if (Frequency == SF_Compute)
 	{
 		Header.RayTracing.InstanceIndexBuffer = CCHeader.RayTracingInstanceIndexBuffer;
 	}
 
-	Header.bDeviceFunctionConstants = (FCStringAnsi::Strstr(USFSource, "#define __METAL_DEVICE_CONSTANT_INDEX__ 1") != nullptr);
+	Header.bDeviceFunctionConstants = (FCStringAnsi::Strstr(USFSource, "#define __METAL_DEVICE_CONSTANT_INDEX__ 1") != nullptr) ? 1 : 0;
 	Header.SideTable = CCHeader.SideTable;
 	Header.Bindings.ArgumentBufferMasks = CCHeader.ArgumentBuffers;
 	Header.Bindings.ArgumentBuffers = 0;
@@ -583,16 +596,7 @@ void BuildMetalShaderOutput(
 		BuildResourceTableMapping(ShaderInput.Environment.ResourceTableMap, ShaderInput.Environment.UniformBufferMap, UsedUniformBufferSlots, ShaderOutput.ParameterMap, GenericSRT);
 		CullGlobalUniformBuffers(ShaderInput.Environment.UniformBufferMap, ShaderOutput.ParameterMap);
 
-		// Copy over the bits indicating which resource tables are active.
-		Header.Bindings.ShaderResourceTable.ResourceTableBits = GenericSRT.ResourceTableBits;
-
-		Header.Bindings.ShaderResourceTable.ResourceTableLayoutHashes = GenericSRT.ResourceTableLayoutHashes;
-
-		// Now build our token streams.
-		BuildResourceTableTokenStream(GenericSRT.TextureMap, GenericSRT.MaxBoundResourceTable, Header.Bindings.ShaderResourceTable.TextureMap);
-		BuildResourceTableTokenStream(GenericSRT.ShaderResourceViewMap, GenericSRT.MaxBoundResourceTable, Header.Bindings.ShaderResourceTable.ShaderResourceViewMap);
-		BuildResourceTableTokenStream(GenericSRT.SamplerMap, GenericSRT.MaxBoundResourceTable, Header.Bindings.ShaderResourceTable.SamplerMap);
-		BuildResourceTableTokenStream(GenericSRT.UnorderedAccessViewMap, GenericSRT.MaxBoundResourceTable, Header.Bindings.ShaderResourceTable.UnorderedAccessViewMap);
+		UE::ShaderCompilerCommon::BuildShaderResourceTable(GenericSRT, SRT);
 
 		Header.Bindings.NumUniformBuffers = FMath::Max((uint8)GetNumUniformBuffersUsed(GenericSRT), Header.Bindings.NumUniformBuffers);
 	}
@@ -627,7 +631,7 @@ void BuildMetalShaderOutput(
 		FMemoryWriter Ar(ShaderOutput.ShaderCode.GetWriteAccess(), true);
 		uint8 PrecompiledFlag = 0;
 		Ar << PrecompiledFlag;
-		Ar << Header;
+		Header.Serialize(Ar, SRT);
 		Ar.Serialize((void*)USFSource, SourceLen + 1 - (USFSource - InShaderSource));
 		
 		ShaderOutput.ModifiedShaderSource = MetalCode;
@@ -744,7 +748,6 @@ void BuildMetalShaderOutput(
 			FMetalShaderBytecodeJob Job;
 			Job.IncludeDir = TempDir;
 			Job.ShaderFormat = ShaderInput.ShaderFormat;
-			Job.Hash = GUIDHash;
 			Job.TmpFolder = TempDir;
 			Job.InputFile = MetalFileName;
 			Job.OutputFile = MetallibFileName;
@@ -758,6 +761,7 @@ void BuildMetalShaderOutput(
 			Job.SourceCRCLen = SourceCRCLen;
 			Job.SourceCRC = SourceCRC;
 			Job.bRetainObjectFile = ShaderInput.Environment.CompilerFlags.Contains(CFLAG_Archive);
+			Job.bOptimizeForSize = ShaderInput.Environment.GetCompileArgument(TEXT("METAL_OPTIMIZE_FOR_SIZE"), false);
 			Job.bCompileAsPCH = false;
 			Job.ReturnCode = 0;
 
@@ -794,7 +798,7 @@ void BuildMetalShaderOutput(
 			FMemoryWriter Ar(ShaderOutput.ShaderCode.GetWriteAccess(), true);
 			uint8 PrecompiledFlag = 1;
 			Ar << PrecompiledFlag;
-			Ar << Header;
+            Header.Serialize(Ar, SRT);
 
 			// jam it into the output bytes
 			Ar.Serialize(Bytecode.OutputFile.GetData(), Bytecode.OutputFile.Num());
@@ -820,11 +824,6 @@ void BuildMetalShaderOutput(
 					ShaderOutput.ShaderCode.AddOptionalData(EShaderOptionalDataKey::SourceCode, TCHAR_TO_UTF8(*MetalCode));
 					ShaderOutput.ShaderCode.AddOptionalData(EShaderOptionalDataKey::NativePath, TCHAR_TO_UTF8(*Bytecode.NativePath));
 				}
-			}
-			else if (ShaderInput.Environment.CompilerFlags.Contains(CFLAG_Archive))
-			{
-				ShaderOutput.ShaderCode.AddOptionalData(EShaderOptionalDataKey::SourceCode, TCHAR_TO_UTF8(*MetalCode));
-				ShaderOutput.ShaderCode.AddOptionalData(EShaderOptionalDataKey::NativePath, TCHAR_TO_UTF8(*Bytecode.NativePath));
 			}
 			
 			ShaderOutput.NumTextureSamplers = Header.Bindings.NumSamplers;
@@ -907,6 +906,7 @@ void CompileMetalShader(const FShaderCompilerInput& Input, const FShaderPreproce
 
 	FString MinOSVersion;
 	FString StandardVersion;
+	
 	switch (VersionEnum)
 	{
 	case 9:
@@ -1073,31 +1073,17 @@ void CompileMetalShader(const FShaderCompilerInput& Input, const FShaderPreproce
 	}
 
 
-	FSHAHash GUIDHash;
-	if (!EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::CompileFromDebugUSF))
-	{
-		TArray<FString> GUIDFiles;
-		GUIDFiles.Add(FPaths::ConvertRelativePathToFull(TEXT("/Engine/Public/Platform/Metal/MetalCommon.ush")));
-		GUIDFiles.Add(FPaths::ConvertRelativePathToFull(TEXT("/Engine/Public/ShaderVersion.ush")));
-		GUIDHash = GetShaderFilesHash(GUIDFiles, Input.Target.GetPlatform());
-	}
-	else
-	{
-		FGuid Guid = FGuid::NewGuid();
-		FSHA1::HashBuffer(&Guid, sizeof(FGuid), GUIDHash.Hash);
-	}
-
 #if UE_METAL_USE_METAL_SHADER_CONVERTER
 	const bool bBindlessEnabled = (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessResources) || Input.Environment.CompilerFlags.Contains(CFLAG_BindlessSamplers));
 	
 	if(bBindlessEnabled && Input.ShaderFormat == NAME_SF_METAL_SM6)
 	{
-		FMetalCompileShaderMSC::DoCompileMetalShader(Input, Output, PreprocessedSource, GUIDHash, VersionEnum, Semantics, MaxUnrollLoops, (EShaderFrequency)Input.Target.Frequency, bDumpDebugInfo, Standard, MinOSVersion);
+		FMetalCompileShaderMSC::DoCompileMetalShader(Input, Output, PreprocessedSource, VersionEnum, Semantics, MaxUnrollLoops, (EShaderFrequency)Input.Target.Frequency, bDumpDebugInfo, Standard, MinOSVersion);
 	}
 	else
 #endif
 	{
-		FMetalCompileShaderSPIRV::DoCompileMetalShader(Input, Output, PreprocessedSource, GUIDHash, VersionEnum, Semantics, MaxUnrollLoops, (EShaderFrequency)Input.Target.Frequency, bDumpDebugInfo, Standard, MinOSVersion);
+		FMetalCompileShaderSPIRV::DoCompileMetalShader(Input, Output, PreprocessedSource, VersionEnum, Semantics, MaxUnrollLoops, (EShaderFrequency)Input.Target.Frequency, bDumpDebugInfo, Standard, MinOSVersion);
 	}
 	ShaderParameterParser.ValidateShaderParameterTypes(Input, bIsMobile, Output);
 }
@@ -1123,7 +1109,8 @@ bool StripShader_Metal(TArray<uint8>& Code, class FString const& DebugPath, bool
 	{
 		// get the header
 		FMetalCodeHeader Header;
-		Ar << Header;
+        FShaderResourceTable SRT;
+        Header.Serialize(Ar, SRT);
 		
 		const FString ShaderName = ShaderCode.FindOptionalData(FShaderCodeName::Key);
 
@@ -1192,12 +1179,12 @@ bool StripShader_Metal(TArray<uint8>& Code, class FString const& DebugPath, bool
 				FShaderCode NewCode;
 				FMemoryWriter NewAr(NewCode.GetWriteAccess(), true);
 				NewAr << OfflineCompiledFlag;
-				NewAr << Header;
+                Header.Serialize(NewAr, SRT);
 				
 				// jam it into the output bytes
 				NewAr.Serialize(SourceCode.GetData(), SourceCode.Num());
 				
-				Code = NewCode.GetReadAccess();
+				Code = NewCode.GetReadView();
 			}
 		}
 		else
@@ -1231,8 +1218,9 @@ uint64 AppendShader_Metal(FString const& WorkingDir, const FSHAHash& Hash, TArra
 		if (OfflineCompiledFlag == 1)
 		{
 			// get the header
-			FMetalCodeHeader Header;
-			Ar << Header;
+            FMetalCodeHeader Header;
+            FShaderResourceTable SRT;
+            Header.Serialize(Ar, SRT);
 
 			const FString ShaderName = ShaderCode.FindOptionalData(FShaderCodeName::Key);
 
@@ -1288,9 +1276,9 @@ uint64 AppendShader_Metal(FString const& WorkingDir, const FSHAHash& Hash, TArra
 						FShaderCode NewCode;
 						FMemoryWriter NewAr(NewCode.GetWriteAccess(), true);
 						NewAr << OfflineCompiledFlag;
-						NewAr << Header;
+                        Header.Serialize(NewAr, SRT);
 						
-						InShaderCode = NewCode.GetReadAccess();
+						InShaderCode = NewCode.GetReadView();
 						
 						UE_LOG(LogShaders, Verbose, TEXT("Archiving succeeded: shader %s (Len: %0.8x, CRC: %0.8x, SHA: %s)"), *ShaderName, Header.SourceLen, Header.SourceCRC, *Hash.ToString());
 					}
@@ -1569,8 +1557,14 @@ bool FinalizeLibrary_Metal(FName const& Format, FString const& WorkingDir, FStri
 	return bOK;
 }
 
+static void ReplaceString(FAnsiString& Str, int32 Pos, int Len, const FAnsiString& NewStr)
+{
+	Str.RemoveAt(Pos, Len, EAllowShrinking::No);
+	Str.InsertAt(Pos, NewStr);
+}
+
 // Replace the special texture "gl_LastFragData" to a native subpass fetch operation. Returns true if the input source has been modified.
-bool PatchSpecialTextureInHlslSource(std::string& SourceData, uint32* OutSubpassInputsDim, uint32 SubpassInputDimCount)
+bool PatchSpecialTextureInHlslSource(FAnsiString& SourceData, uint32* OutSubpassInputsDim, uint32 SubpassInputDimCount)
 {
 	bool bSourceDataWasModified = false;
 
@@ -1578,13 +1572,13 @@ bool PatchSpecialTextureInHlslSource(std::string& SourceData, uint32* OutSubpass
 	FMemory::Memzero(OutSubpassInputsDim, sizeof(uint32) * SubpassInputDimCount);
 	
 	// Check if special texture is present in the code
-	static const std::string GSpecialTextureLastFragData = "gl_LastFragData";
-	if (SourceData.find(GSpecialTextureLastFragData) != std::string::npos)
+	const char* GSpecialTextureLastFragData = "gl_LastFragData";
+	if (SourceData.Find(GSpecialTextureLastFragData, ESearchCase::CaseSensitive) != INDEX_NONE)
 	{
 		struct FHlslVectorType
 		{
-			std::string TypenameIdent;
-			std::string TypenameSuffix;
+			const char* TypenameIdent;
+			const char* TypenameSuffix;
 			uint32 Dimension;
 		};
 		const FHlslVectorType FragDeclTypes[4] =
@@ -1601,36 +1595,34 @@ bool PatchSpecialTextureInHlslSource(std::string& SourceData, uint32* OutSubpass
 			for (const FHlslVectorType& FragDeclType : FragDeclTypes)
 			{
 				// Try to find "Texture2D<T>" or "Texture2D< T >" (where T is the vector type), because a rewritten HLSL might have changed the formatting.
-				std::string LastFragDataN = GSpecialTextureLastFragData + FragDeclType.TypenameSuffix + "_" + std::to_string(SubpassIndex);
-				std::string FragDecl = "Texture2D<" + FragDeclType.TypenameIdent + "> " + LastFragDataN + ";";
-				size_t FragDeclIncludePos = SourceData.find(FragDecl);
+				FAnsiString LastFragDataN = FAnsiString::Printf("%s%s_%u", GSpecialTextureLastFragData, FragDeclType.TypenameSuffix, SubpassIndex);
+				FAnsiString FragDecl = FAnsiString::Printf("Texture2D<%s> %s;", FragDeclType.TypenameIdent, *LastFragDataN);
+				int32 FragDeclIncludePos = SourceData.Find(FragDecl, ESearchCase::CaseSensitive);
 			
-				if (FragDeclIncludePos == std::string::npos)
+				if (FragDeclIncludePos == INDEX_NONE)
 				{
-					FragDecl = "Texture2D< " + FragDeclType.TypenameIdent + " > " + LastFragDataN + ";";
-					FragDeclIncludePos = SourceData.find(FragDecl);
+					FragDecl = FAnsiString::Printf("Texture2D< %s > %s;", FragDeclType.TypenameIdent, *LastFragDataN);
+					FragDeclIncludePos = SourceData.Find(FragDecl, ESearchCase::CaseSensitive);
 				}
 			
-				if (FragDeclIncludePos != std::string::npos)
+				if (FragDeclIncludePos != INDEX_NONE)
 				{
 					// Replace declaration of Texture2D<T> with SubpassInput<T>
-					SourceData.replace(
+					ReplaceString(SourceData,
 						FragDeclIncludePos,
-						FragDecl.length(),
-						("[[vk::input_attachment_index(" + std::to_string(SubpassIndex) + ")]] SubpassInput<" + FragDeclType.TypenameIdent + "> " + LastFragDataN + ";")
-					);
+						FragDecl.Len(),
+						FAnsiString::Printf("[[vk::input_attachment_index(%d)]] SubpassInput<%s> %s;", SubpassIndex, FragDeclType.TypenameIdent, *LastFragDataN));
 
 					OutSubpassInputsDim[SubpassIndex] = FragDeclType.Dimension;
 
 					// Replace all uses of special texture by 'SubpassLoad' operation
-					std::string FragLoad = LastFragDataN + ".Load(uint3(0, 0, 0), 0)";
-					for (size_t FragLoadIncludePos = 0; (FragLoadIncludePos = SourceData.find(FragLoad, FragLoadIncludePos)) != std::string::npos;)
+					FAnsiString FragLoad = FAnsiString::Printf("%s.Load(uint3(0, 0, 0), 0)", *LastFragDataN);
+					for (int32 FragLoadIncludePos = 0; (FragLoadIncludePos = SourceData.Find(FragLoad, ESearchCase::CaseSensitive, ESearchDir::FromStart, FragLoadIncludePos)) != INDEX_NONE;)
 					{
-						SourceData.replace(
+						ReplaceString(SourceData,
 							FragLoadIncludePos,
-							FragLoad.length(),
-							(LastFragDataN + ".SubpassLoad()")
-						);
+							FragLoad.Len(),
+							FAnsiString::Printf("%s.SubpassLoad()", *LastFragDataN));
 					}
 
 					// Mark source data as being modified

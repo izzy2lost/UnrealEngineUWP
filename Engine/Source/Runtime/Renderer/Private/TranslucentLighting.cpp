@@ -38,6 +38,7 @@
 #include "ClearQuad.h"
 #include "ScenePrivate.h"
 #include "OneColorShader.h"
+#include "LightFunctionRendering.h"
 #include "LightRendering.h"
 #include "ScreenRendering.h"
 #include "AmbientCubemapParameters.h"
@@ -52,6 +53,8 @@
 #include "StaticMeshBatch.h"
 #include "LightFunctionAtlas.h"
 #include "HeterogeneousVolumes/HeterogeneousVolumes.h"
+#include "DeferredShadingRenderer.h"
+#include "BasePassRendering.h"
 
 class FMaterial;
 
@@ -112,6 +115,19 @@ static TAutoConsoleVariable<float> CVarTranslucencyLightingVolumeOuterDistance(
 	TEXT("r.TranslucencyLightingVolumeOuterDistance"),
 	5000.0f,
 	TEXT("Distance from the camera that the second volume cascade should end"),
+	ECVF_RenderThreadSafe | ECVF_Scalability);
+
+static TAutoConsoleVariable<int32> CVarTranslucencyLightingVolumeBatch(
+	TEXT("r.TranslucencyLightingVolume.Batch"),
+	1,
+	TEXT("When enabled, batches supported lights into a single draw call for efficiency"),
+	ECVF_RenderThreadSafe | ECVF_Scalability);
+
+static TAutoConsoleVariable<int32> CVarTranslucencyLightingVolumeAccurateRectLights(
+	TEXT("r.TranslucencyLightingVolume.AccurateRectLights"),
+	1,
+	TEXT("When disabled rect lights are approximated as spot lights in the translucency volume.\n")
+	TEXT("Only accurate rect lights are included in batching, so it is recommended to enable this when batching is used."),
 	ECVF_RenderThreadSafe | ECVF_Scalability);
 
 /** Function returning current translucency lighting volume dimensions. */
@@ -383,7 +399,6 @@ private:
 
 	FMeshPassProcessorRenderState PassDrawRenderState;
 	const FProjectedShadowInfo* ShadowInfo;
-	FShadowDepthType ShadowDepthType;
 	const bool bDirectionalLight;
 };
 
@@ -395,7 +410,6 @@ FTranslucencyDepthPassMeshProcessor::FTranslucencyDepthPassMeshProcessor(const F
 	: FMeshPassProcessor(EMeshPass::Num, Scene, Scene->GetFeatureLevel(), InViewIfDynamicMeshCommand, InDrawListContext)
 	, PassDrawRenderState(InPassDrawRenderState)
 	, ShadowInfo(InShadowInfo)
-	, ShadowDepthType(InShadowInfo->GetShadowDepthType())
 	, bDirectionalLight(InShadowInfo->bDirectionalLight)
 {
 }
@@ -606,7 +620,7 @@ void FProjectedShadowInfo::RenderTranslucencyDepths(FRDGBuilder& GraphBuilder, F
 		RDG_EVENT_NAME("%s", *EventName),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[this, SimpleMeshDrawCommandPass, PassParameters](FRHICommandList& RHICmdList)
+		[this, SimpleMeshDrawCommandPass, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FMeshPassProcessorRenderState DrawRenderState;
 
@@ -675,6 +689,7 @@ class FTranslucentLightingInjectPS : public FMaterialShader
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FAdaptiveVolumetricShadowMapUniformBufferParameters, AVSM)
 		SHADER_PARAMETER(FMatrix44f, LightFunctionTranslatedWorldToLight)
 		SHADER_PARAMETER(FVector4f, LightFunctionParameters)
+		SHADER_PARAMETER(FVector3f, CameraRelativeLightPosition)
 		SHADER_PARAMETER(float, SpotlightMask)
 		SHADER_PARAMETER(uint32, VolumeCascadeIndex)
 		SHADER_PARAMETER(int32, VirtualShadowMapId)
@@ -754,6 +769,54 @@ public:
 
 IMPLEMENT_MATERIAL_SHADER_TYPE(,FTranslucentLightingInjectPS, TEXT("/Engine/Private/TranslucentLightInjectionShaders.usf"), TEXT("InjectMainPS"), SF_Pixel);
 
+/** Shader that adds direct lighting contribution from multiple lights. */
+class FTranslucentLightingInjectBatchPS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FTranslucentLightingInjectBatchPS);
+	SHADER_USE_PARAMETER_STRUCT(FTranslucentLightingInjectBatchPS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FVirtualShadowMapSamplingParameters, VirtualShadowMapSamplingParameters)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, BatchedLocalLights)
+		SHADER_PARAMETER(uint32, MaxBatchedLocalLights)
+		SHADER_PARAMETER(uint32, VolumeCascadeIndex)
+		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+
+	class FVirtualShadowMap : SHADER_PERMUTATION_BOOL("VIRTUAL_SHADOW_MAP");
+	using FPermutationDomain = TShaderPermutationDomain<FVirtualShadowMap>;
+
+public:
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		FVirtualShadowMapArray::SetShaderDefines(OutEnvironment);
+		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+
+		OutEnvironment.SetDefine(TEXT("INJECTION_BATCH_PIXEL_SHADER"), 1);
+	}
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (!DoesPlatformSupportVirtualShadowMaps(Parameters.Platform) && PermutationVector.Get<FVirtualShadowMap>() != 0)
+		{
+			return false;
+		}
+
+		return (IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5) &&
+			(RHISupportsGeometryShaders(Parameters.Platform) || RHISupportsVertexShaderLayer(Parameters.Platform)));
+	}
+};
+
+IMPLEMENT_MATERIAL_SHADER_TYPE(,FTranslucentLightingInjectBatchPS, TEXT("/Engine/Private/TranslucentLightInjectionShaders.usf"), TEXT("InjectBatchMainPS"), SF_Pixel);
+
+
+
 class FClearTranslucentLightingVolumeCS : public FGlobalShader
 {
 public:
@@ -800,8 +863,16 @@ int32 FTranslucencyLightingVolumeTextures::GetIndex(const FViewInfo& View, int32
 
 void FTranslucencyLightingVolumeTextures::Init(FRDGBuilder& GraphBuilder, TArrayView<const FViewInfo> Views, ERDGPassFlags PassFlags)
 {
+	// Skip init/clear if disabled
+	// GetTranslucencyLightingVolumeParameters will return black system textures
+	if (!GUseTranslucentLightingVolumes)
+	{
+		return;
+	}
+
 	check(PassFlags == ERDGPassFlags::Compute || PassFlags == ERDGPassFlags::AsyncCompute);
 
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, TranslucentLighting, "InitTranslucencyLightingVolumeTextures");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, TranslucentLighting);
 
 	VolumeDim = GetTranslucencyLightingVolumeDim();
@@ -831,16 +902,13 @@ void FTranslucencyLightingVolumeTextures::Init(FRDGBuilder& GraphBuilder, TArray
 				const uint32 TextureIndex = FTranslucencyLightingVolumeTextures::GetIndex(Views[ViewIndex], CascadeIndex);
 				check(TextureIndex <= NumViewsWithTextures * TVC_MAX);
 
-				const FRDGEventName& AmbientName = *GraphBuilder.AllocObject<FRDGEventName>(RDG_EVENT_NAME("TranslucentVolumeAmbient%d", TextureIndex));
-				const FRDGEventName& DirectionalName = *GraphBuilder.AllocObject<FRDGEventName>(RDG_EVENT_NAME("TranslucentVolumeDirectional%d", TextureIndex));
-
 				FRDGTextureRef AmbientTexture = GraphBuilder.CreateTexture(
 					FRDGTextureDesc::Create3D(
 						TranslucencyLightingVolumeDim,
 						PF_FloatRGBA,
 						FClearValueBinding::Transparent,
 						TranslucencyTargetFlags),
-					AmbientName.GetTCHAR());
+					TEXT("TranslucentVolumeAmbient"));
 
 				FRDGTextureRef DirectionalTexture = GraphBuilder.CreateTexture(
 					FRDGTextureDesc::Create3D(
@@ -848,7 +916,7 @@ void FTranslucencyLightingVolumeTextures::Init(FRDGBuilder& GraphBuilder, TArray
 						PF_FloatRGBA,
 						FClearValueBinding::Transparent,
 						TranslucencyTargetFlags),
-					DirectionalName.GetTCHAR());
+					TEXT("TranslucentVolumeDirectional"));
 
 				Ambient[TextureIndex] = AmbientTexture;
 				Directional[TextureIndex] = DirectionalTexture;
@@ -927,12 +995,12 @@ void InjectTranslucencyLightingVolumeAmbientCubemap(
 	const TArrayView<const FViewInfo> Views,
 	const FTranslucencyLightingVolumeTextures& Textures)
 {
-	if (!GUseTranslucentLightingVolumes || !GSupportsVolumeTextureRendering)
+	if (!GUseTranslucentLightingVolumes || Views.Num() == 0 || !RHISupportsVolumeTextureRendering(Views[0].GetShaderPlatform()))
 	{
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "InjectAmbientCubemapTranslucentVolumeLighting");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, TranslucentLighting, "InjectAmbientCubemapTranslucentVolumeLighting");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, TranslucentLighting);
 
 	const int32 TranslucencyLightingVolumeDim = Textures.VolumeDim;
@@ -959,7 +1027,7 @@ void InjectTranslucencyLightingVolumeAmbientCubemap(
 					RDG_EVENT_NAME("Cascade %d", VolumeCascadeIndex),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[&View, PassParameters, VolumeBounds, TranslucencyLightingVolumeDim](FRHICommandList& RHICmdList)
+					[&View, PassParameters, VolumeBounds, TranslucencyLightingVolumeDim](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					TShaderMapRef<FWriteToSliceVS> VertexShader(View.ShaderMap);
 					TOptionalShaderMapRef<FWriteToSliceGS> GeometryShader(View.ShaderMap);
@@ -1021,11 +1089,17 @@ FVolumeBounds CalculateLightVolumeBounds(const FSphere& LightBounds, const FView
 
 FTranslucentLightInjectionCollector::FTranslucentLightInjectionCollector(
 	FRDGBuilder& GraphBuilder,
-	TArrayView<const FViewInfo> Views)
+	TArrayView<const FViewInfo> Views,
+	bool bAreLightsInLightGrid)
 	// NOTE: This data is directly referenced inside the render pass lamba, so must be allocated in the graph
-	: InjectionDataPerView(*GraphBuilder.AllocObject<TArray<FInjectionDataArray, SceneRenderingAllocator>>())
+	: InjectionDataPerView(*GraphBuilder.AllocObject<TArray<FPerViewData, SceneRenderingAllocator>>())
 {
 	InjectionDataPerView.SetNum(Views.Num());
+
+	// Static conditions for supporting batching
+	bCollectorSupportsBatching =
+		CVarTranslucencyLightingVolumeBatch.GetValueOnRenderThread() != 0 &&
+		bAreLightsInLightGrid;
 }
 
 /**
@@ -1041,6 +1115,20 @@ void FTranslucentLightInjectionCollector::AddLightForInjection(
 {
 	if (LightSceneInfo.Proxy->AffectsTranslucentLighting())
 	{
+		const uint8 LightType = LightSceneInfo.Proxy->GetLightType();
+
+		FVolumeBounds VolumeBounds[TVC_MAX];
+		bool bAnyBoundsValid = false;
+		for (uint32 VolumeCascadeIndex = 0; VolumeCascadeIndex < TVC_MAX; ++VolumeCascadeIndex)
+		{
+			VolumeBounds[VolumeCascadeIndex] = CalculateLightVolumeBounds(LightSceneInfo.Proxy->GetBoundingSphere(), View, VolumeCascadeIndex, LightType == LightType_Directional);
+			bAnyBoundsValid = bAnyBoundsValid || VolumeBounds->IsValid();
+		}
+		if (!bAnyBoundsValid)
+		{
+			return;
+		}
+
 		const FVisibleLightInfo& VisibleLightInfo = VisibleLightInfos[LightSceneInfo.Id];
 		const ERHIFeatureLevel::Type FeatureLevel = View.FeatureLevel;
 
@@ -1048,19 +1136,87 @@ void FTranslucentLightInjectionCollector::AddLightForInjection(
 			LightSceneInfo.Proxy->GetLightFunctionMaterial() && 
 			LightSceneInfo.Proxy->GetLightFunctionMaterial()->GetIncompleteMaterialWithFallback(FeatureLevel).IsLightFunction());
 
-		const FMaterialRenderProxy* MaterialProxy = bApplyLightFunction ? 
-			LightSceneInfo.Proxy->GetLightFunctionMaterial() : 
-			UMaterial::GetDefaultMaterial(MD_LightFunction)->GetRenderProxy();
+		const int32 VirtualShadowMapId = VisibleLightInfo.GetVirtualShadowMapId(&View);
+		
+		const bool bUseAdaptiveVolumetricShadowMap =
+			LightSceneInfo.Proxy->CastsVolumetricShadow() &&
+			ShouldRenderHeterogeneousVolumesForView(View) &&
+			ShouldHeterogeneousVolumesCastShadows();
 
-		// Skip rendering if the DefaultLightFunctionMaterial isn't compiled yet
-		if (MaterialProxy->GetIncompleteMaterialWithFallback(FeatureLevel).IsLightFunction())
+		const bool bStaticShadowing =
+			LightSceneInfo.Proxy->GetStaticShadowDepthMap() &&
+			LightSceneInfo.Proxy->GetStaticShadowDepthMap()->Data;
+
+		// We only support the "accurate" rect light model through this path since the LightGrid stores them that way
+		// Thus if the spot light approximation is used we have to send them through the unbatched path.
+		const bool bSupportRectLights = CVarTranslucencyLightingVolumeAccurateRectLights.GetValueOnRenderThread() != 0;
+
+		// Lights without certain features can be batched into a single draw (loop in shader) which is more efficient
+		bool bSupportsBatching =
+			bCollectorSupportsBatching &&
+			LightType != LightType_Directional &&
+			(bSupportRectLights || LightType != LightType_Rect) &&
+			!bStaticShadowing &&
+			InProjectedShadowInfo == nullptr &&
+			!bApplyLightFunction &&												// TODO: Support LF atlas
+			!bUseAdaptiveVolumetricShadowMap;
+
+		// If it would otherwise be supported, see if we can find the local light index in the light grid
+		if (bSupportsBatching && View.ForwardLightingResources.ForwardLightUniformBuffer && View.ViewState)
 		{
-			FTranslucentLightInjectionCollector::FInjectionData Data;
-			Data.LightSceneInfo = &LightSceneInfo;
-			Data.ProjectedShadowInfo = InProjectedShadowInfo;
-			Data.bApplyLightFunction = bApplyLightFunction;
-			Data.LightFunctionMaterialProxy = MaterialProxy;
-			InjectionDataPerView[ViewIndex].Add(Data);
+			const int32* Value = View.ViewState->LightSceneIdToLocalLightIndex.Find(LightSceneInfo.Id);
+			if (Value)
+			{
+				const int32 LocalLightIndex = *Value;
+
+				FPerViewData& InjectionData = InjectionDataPerView[ViewIndex];
+				// There shouldn't be any duplication here
+				++InjectionData.BatchedLocalLightCount;
+
+				for (uint32 VolumeCascadeIndex = 0; VolumeCascadeIndex < TVC_MAX; ++VolumeCascadeIndex)
+				{
+					if (VolumeBounds[VolumeCascadeIndex].IsValid())
+					{
+						TBitArray<SceneRenderingAllocator>& Bits = InjectionData.BatchedLocalLights[VolumeCascadeIndex];
+						Bits.PadToNum(LocalLightIndex + 1, false);
+						Bits[LocalLightIndex] = true;
+					}
+				}
+
+				if (VirtualShadowMapId != INDEX_NONE)
+				{
+					// Note if there are any batched lights with VSM for permutation selection later
+					InjectionData.bAnyBatchedLightsWithVirtualShadowMaps = true;
+				}
+			}
+			else
+			{
+				bSupportsBatching = false;
+			}
+		}
+		
+		if (!bSupportsBatching)
+		{
+			// Skip rendering if the DefaultLightFunctionMaterial isn't compiled yet
+			const FMaterialRenderProxy* MaterialProxy = bApplyLightFunction ?
+				LightSceneInfo.Proxy->GetLightFunctionMaterial() :
+				UMaterial::GetDefaultMaterial(MD_LightFunction)->GetRenderProxy();
+
+			if (MaterialProxy->GetIncompleteMaterialWithFallback(FeatureLevel).IsLightFunction())
+			{
+				FTranslucentLightInjectionCollector::FInjectionData Data;
+				Data.LightSceneInfo = &LightSceneInfo;
+				Data.ProjectedShadowInfo = InProjectedShadowInfo;
+				Data.bApplyLightFunction = bApplyLightFunction;
+				Data.LightFunctionMaterialProxy = MaterialProxy;
+				Data.VirtualShadowMapId = VirtualShadowMapId;
+				Data.bUseAdaptiveVolumetricShadowMap = bUseAdaptiveVolumetricShadowMap;
+				for (uint32 VolumeCascadeIndex = 0; VolumeCascadeIndex < TVC_MAX; ++VolumeCascadeIndex)
+				{
+					Data.VolumeBounds[VolumeCascadeIndex] = VolumeBounds[VolumeCascadeIndex];
+				}
+				InjectionDataPerView[ViewIndex].Unbatched.Add(Data);
+			}
 		}
 	}
 }
@@ -1077,6 +1233,110 @@ static FRDGTextureRef GetSkyTransmittanceLutTexture(FRDGBuilder& GraphBuilder, c
 	}
 	return TransmittanceLutTexture;
 }
+
+
+static void SetPSOStateForVolumeInjection(
+	TShaderMapRef<FWriteToSliceVS> VertexShader,
+	TOptionalShaderMapRef<FWriteToSliceGS> GeometryShader,
+	FRHIPixelShader* PixelShaderRHI,
+	FVolumeBounds VolumeBounds,
+	bool bDirectionalLight,
+	FRHICommandList& RHICmdList,
+	FGraphicsPipelineStateInitializer &OutGraphicsPSOInit)
+{
+	RHICmdList.ApplyCachedRenderTargets(OutGraphicsPSOInit);
+
+	OutGraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
+	OutGraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+	OutGraphicsPSOInit.PrimitiveType = PT_TriangleStrip;
+
+	// Accumulate the contribution of multiple lights
+	if (bDirectionalLight)
+	{		
+		// Directional lights write their shadowing into alpha of the ambient texture
+		OutGraphicsPSOInit.BlendState = TStaticBlendState<
+			CW_RGBA, BO_Add, BF_One, BF_One, BO_Add, BF_One, BF_One,
+			CW_RGB, BO_Add, BF_One, BF_One, BO_Add, BF_One, BF_One>::GetRHI();
+	}
+	else
+	{
+		OutGraphicsPSOInit.BlendState = TStaticBlendState<
+			CW_RGB, BO_Add, BF_One, BF_One, BO_Add, BF_Zero, BF_One,
+			CW_RGB, BO_Add, BF_One, BF_One, BO_Add, BF_Zero, BF_One>::GetRHI();
+	}
+
+	OutGraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GScreenVertexDeclaration.VertexDeclarationRHI;
+	OutGraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+	OutGraphicsPSOInit.BoundShaderState.SetGeometryShader(GeometryShader.GetGeometryShader());
+	OutGraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShaderRHI;
+	SetGraphicsPipelineState(RHICmdList, OutGraphicsPSOInit, 0);
+
+	const int32 TranslucencyLightingVolumeDim = GetTranslucencyLightingVolumeDim();
+
+	SetShaderParametersLegacyVS(RHICmdList, VertexShader, VolumeBounds, FIntVector(TranslucencyLightingVolumeDim));
+	if (GeometryShader.IsValid())
+	{
+		SetShaderParametersLegacyGS(RHICmdList, GeometryShader, VolumeBounds.MinZ);
+	}
+}
+
+
+static void InjectTranslucencyLightingVolumeBatch(
+	FRDGBuilder& GraphBuilder,
+	const FViewInfo& View,
+	const uint32 ViewIndex,
+	uint32 MaxBatchedLocalLights,
+	FRDGBufferRef BatchedLocalLightsRDG,
+	bool bSupportVirtualShadowMaps,
+	uint32 VolumeCascadeIndex,
+	FRDGTextureRef VolumeAmbientTexture,
+	FRDGTextureRef VolumeDirectionalTexture,
+	const FSceneRenderer& Renderer)
+{
+	check(MaxBatchedLocalLights > 0);
+	check(BatchedLocalLightsRDG);
+
+	TShaderMapRef<FWriteToSliceVS> VertexShader(View.ShaderMap);
+	TOptionalShaderMapRef<FWriteToSliceGS> GeometryShader(View.ShaderMap);
+
+	FTranslucentLightingInjectBatchPS::FPermutationDomain PermutationVector;
+	PermutationVector.Set< FTranslucentLightingInjectBatchPS::FVirtualShadowMap >(bSupportVirtualShadowMaps);
+	TShaderMapRef<FTranslucentLightingInjectBatchPS> PixelShader(View.ShaderMap, PermutationVector);
+
+	auto* PassParameters = GraphBuilder.AllocParameters<FTranslucentLightingInjectBatchPS::FParameters>();
+	if (bSupportVirtualShadowMaps)
+	{
+		PassParameters->VirtualShadowMapSamplingParameters = Renderer.VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
+	}
+	PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
+	PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
+	PassParameters->BatchedLocalLights = GraphBuilder.CreateSRV(BatchedLocalLightsRDG);
+	PassParameters->MaxBatchedLocalLights = MaxBatchedLocalLights;
+	PassParameters->VolumeCascadeIndex = VolumeCascadeIndex;
+
+	PassParameters->RenderTargets[0] = FRenderTargetBinding(VolumeAmbientTexture, ERenderTargetLoadAction::ELoad);
+	PassParameters->RenderTargets[1] = FRenderTargetBinding(VolumeDirectionalTexture, ERenderTargetLoadAction::ELoad);
+			
+	GraphBuilder.AddPass(
+		RDG_EVENT_NAME("InjectTranslucencyLightingVolumeBatch(VolumeCascade=%d,Max=%d%s)",
+			VolumeCascadeIndex, MaxBatchedLocalLights,
+			bSupportVirtualShadowMaps ? TEXT(",VirtualShadowMap") : TEXT("")),
+		PassParameters,
+		ERDGPassFlags::Raster,
+		[PassParameters, VertexShader, GeometryShader, PixelShader, VolumeCascadeIndex](FRDGAsyncTask, FRHICommandList& RHICmdList)
+	{
+		FGraphicsPipelineStateInitializer GraphicsPSOInit;
+
+		const FVolumeBounds VolumeBounds = FVolumeBounds(GetTranslucencyLightingVolumeDim());
+		SetPSOStateForVolumeInjection(VertexShader, GeometryShader, PixelShader.GetPixelShader(),
+			VolumeBounds, false, RHICmdList, GraphicsPSOInit);
+				
+		SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *PassParameters);
+
+		RasterizeToVolumeTexture(RHICmdList, VolumeBounds);
+	});
+}
+
 
 BEGIN_SHADER_PARAMETER_STRUCT(FInjectTranslucentLightArrayParameters, )
 	SHADER_PARAMETER_STRUCT_INCLUDE(FTranslucentLightingInjectPS::FParameters, PS)
@@ -1096,20 +1356,24 @@ void InjectTranslucencyLightingVolume(
 	const FTranslucencyLightingVolumeTextures& Textures,
 	const FTranslucentLightInjectionCollector& Collector)
 {
-	if (!GUseTranslucentLightingVolumes || !GSupportsVolumeTextureRendering)
+	if (!GUseTranslucentLightingVolumes || !RHISupportsVolumeTextureRendering(View.GetShaderPlatform()))
 	{
 		return;
 	}
 
-	const FTranslucentLightInjectionCollector::FInjectionDataArray& LightInjectionData = Collector.InjectionDataPerView[ViewIndex];
+	const FTranslucentLightInjectionCollector::FPerViewData& LightInjectionData = Collector.InjectionDataPerView[ViewIndex];
 
-	SCOPE_CYCLE_COUNTER(STAT_TranslucentInjectTime);
-	INC_DWORD_STAT_BY(STAT_NumLightsInjectedIntoTranslucency, LightInjectionData.Num());
+	INC_DWORD_STAT_BY(STAT_NumLightsInjectedIntoTranslucencyBatched, LightInjectionData.BatchedLocalLightCount);
+	INC_DWORD_STAT_BY(STAT_NumLightsInjectedIntoTranslucency, LightInjectionData.Unbatched.Num());
 
 	const FVolumetricCloudShadowAOParameters CloudShadowAOParameters = GetCloudShadowAOParameters(GraphBuilder, View, Scene->GetVolumetricCloudSceneInfo());
 	const bool bUseLightFunctionAtlas = View.LightFunctionAtlasViewData.UsesLightFunctionAtlas(LightFunctionAtlas::ELightFunctionAtlasSystem::DeferredLighting);
 
 	FRDGTextureRef TransmittanceLutTexture = GetSkyTransmittanceLutTexture(GraphBuilder, Scene, View);
+
+	// When accurate rect lights is disabled we approximate rect lights as spotlights
+	uint32 DeferredLightParameterFlags = CVarTranslucencyLightingVolumeAccurateRectLights.GetValueOnRenderThread() != 0 ?
+		0U : ELightShaderParameterFlags::RectAsSpotLight;
 
 	// Inject into each volume cascade. Operate on one cascade at a time to reduce render target switches.
 	for (uint32 VolumeCascadeIndex = 0; VolumeCascadeIndex < TVC_MAX; VolumeCascadeIndex++)
@@ -1119,17 +1383,42 @@ void InjectTranslucencyLightingVolume(
 		FRDGTextureRef VolumeAmbientTexture = Textures.Ambient[TextureIndex];
 		FRDGTextureRef VolumeDirectionalTexture = Textures.Directional[TextureIndex];
 
-		for (int32 LightIndex = 0; LightIndex < LightInjectionData.Num(); LightIndex++)
+		// Batched lights
 		{
-			const FTranslucentLightInjectionCollector::FInjectionData& InjectionData = LightInjectionData[LightIndex];
+			TBitArray<SceneRenderingAllocator>& BatchedLocalLights = Collector.InjectionDataPerView[ViewIndex].BatchedLocalLights[VolumeCascadeIndex];
+			if (BatchedLocalLights.Num() > 0)
+			{
+				const uint32 NumUint32Elements = FMath::DivideAndRoundUp(BatchedLocalLights.Num(), 32);
+				const uint32 InitialDataSize = NumUint32Elements * sizeof(uint32);
+				BatchedLocalLights.PadToNum(NumUint32Elements * 32, false);
+
+				FRDGBufferRef BatchedLocalLightsRDG = CreateStructuredBuffer(
+					GraphBuilder,
+					TEXT("TranslucencyLightingVolume.BatchedLocalLights"),
+					sizeof(uint32),
+					NumUint32Elements,
+					BatchedLocalLights.GetData(),
+					InitialDataSize
+				);
+
+				InjectTranslucencyLightingVolumeBatch(GraphBuilder, View, ViewIndex,
+					BatchedLocalLights.Num(), BatchedLocalLightsRDG,
+					Collector.InjectionDataPerView[ViewIndex].bAnyBatchedLightsWithVirtualShadowMaps,
+					VolumeCascadeIndex, VolumeAmbientTexture, VolumeDirectionalTexture,
+					Renderer);
+			}
+		}
+
+		// Unbatched lights
+		for (int32 LightIndex = 0; LightIndex < LightInjectionData.Unbatched.Num(); LightIndex++)
+		{
+			const FTranslucentLightInjectionCollector::FInjectionData& InjectionData = LightInjectionData.Unbatched[LightIndex];
 			const FLightSceneInfo* const LightSceneInfo = InjectionData.LightSceneInfo;
 			const FVisibleLightInfo& VisibleLightInfo = Renderer.VisibleLightInfos[LightSceneInfo->Id];
 			const bool bInverseSquared = LightSceneInfo->Proxy->IsInverseSquared();
 			const bool bDirectionalLight = LightSceneInfo->Proxy->GetLightType() == LightType_Directional;
-			bool bUseVSM = Renderer.VirtualShadowMapArray.IsAllocated();
-			const bool bUseAdaptiveVolumetricShadowMap = LightSceneInfo->Proxy->CastsVolumetricShadow() && ShouldRenderHeterogeneousVolumes(Scene) && ShouldHeterogeneousVolumesCastShadows();
 
-			const FVolumeBounds VolumeBounds = CalculateLightVolumeBounds(LightSceneInfo->Proxy->GetBoundingSphere(), View, VolumeCascadeIndex, bDirectionalLight);
+			const FVolumeBounds VolumeBounds = InjectionData.VolumeBounds[VolumeCascadeIndex];
 			if (VolumeBounds.IsValid())
 			{
 				TShaderMapRef<FWriteToSliceVS> VertexShader(View.ShaderMap);
@@ -1146,24 +1435,19 @@ void InjectTranslucencyLightingVolume(
 				PassParameters->TransmittanceLutTexture = TransmittanceLutTexture;
 				PassParameters->ShadowDepthTexture = ShadowDepthTexture;
 				PassParameters->CloudShadowAO = CloudShadowAOParameters;
-				PassParameters->PS.VirtualShadowMapSamplingParameters = Renderer.VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+				PassParameters->PS.VirtualShadowMapSamplingParameters = Renderer.VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 				PassParameters->RenderTargets[0] = FRenderTargetBinding(VolumeAmbientTexture, ERenderTargetLoadAction::ELoad);
 				PassParameters->RenderTargets[1] = FRenderTargetBinding(VolumeDirectionalTexture, ERenderTargetLoadAction::ELoad);
 
 				PassParameters->PS.ViewUniformBuffer = View.ViewUniformBuffer;
 
 				FDeferredLightUniformStruct* DeferredLightStruct = GraphBuilder.AllocParameters<FDeferredLightUniformStruct>();
-				*DeferredLightStruct = GetDeferredLightParameters(View, *LightSceneInfo, bUseLightFunctionAtlas, ELightShaderParameterFlags::RectAsSpotLight);
+				*DeferredLightStruct = GetDeferredLightParameters(View, *LightSceneInfo, bUseLightFunctionAtlas, DeferredLightParameterFlags);
 				PassParameters->PS.DeferredLight = GraphBuilder.CreateUniformBuffer(DeferredLightStruct);
 
 				GetVolumeShadowingShaderParameters(GraphBuilder, View, LightSceneInfo, InjectionData.ProjectedShadowInfo, PassParameters->PS.VolumeShadowingParameters);
 
-				const int32 VirtualShadowMapId = bUseVSM ? Renderer.VisibleLightInfos[LightSceneInfo->Id].GetVirtualShadowMapId(&View) : INDEX_NONE;
-				
-				// Switch it back off if there's no ID to avoid the FVirtualShadowMap permutation if we don't need it
-				bUseVSM = (VirtualShadowMapId != INDEX_NONE);
-
-				PassParameters->PS.VirtualShadowMapId = VirtualShadowMapId;
+				PassParameters->PS.VirtualShadowMapId = InjectionData.VirtualShadowMapId;
 				PassParameters->PS.LightFunctionParameters = FLightFunctionSharedParameters::GetLightFunctionSharedParameters(LightSceneInfo, 1.0f);
 				PassParameters->PS.VolumeCascadeIndex = VolumeCascadeIndex;
 				PassParameters->PS.AVSM = HeterogeneousVolumes::GetAdaptiveVolumetricShadowMapUniformBuffer(GraphBuilder, View.ViewState, LightSceneInfo);
@@ -1186,65 +1470,35 @@ void InjectTranslucencyLightingVolume(
 
 				PassParameters->PS.AtmospherePerPixelTransmittanceEnabled = IsLightAtmospherePerPixelTransmittanceEnabled(Scene, View, LightSceneInfo);
 
+				PassParameters->PS.CameraRelativeLightPosition = GetCamRelativeLightPosition(View.ViewMatrices, *LightSceneInfo);
+
 				GraphBuilder.AddPass(
 					RDG_EVENT_NAME("InjectTranslucencyLightingVolume(VolumeCascade=%d%s%s%s)",
 						VolumeCascadeIndex,
-						VirtualShadowMapId != INDEX_NONE ? TEXT(",VirtualShadowMap") : TEXT(""),
+						InjectionData.VirtualShadowMapId != INDEX_NONE ? TEXT(",VirtualShadowMap") : TEXT(""),
 						InjectionData.ProjectedShadowInfo != nullptr ? TEXT(",ShadowMap") : TEXT(""),
 						InjectionData.bApplyLightFunction ? TEXT(",LightFunction") : TEXT("")),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[PassParameters, VertexShader, GeometryShader, &View, &Renderer, &InjectionData, LightSceneInfo, bDirectionalLight, bUseVSM, VolumeBounds, VolumeCascadeIndex, bUseAdaptiveVolumetricShadowMap](FRHICommandList& RHICmdList)
+					[PassParameters, VertexShader, GeometryShader, &View, &Renderer, &InjectionData, LightSceneInfo, bDirectionalLight, VolumeBounds, VolumeCascadeIndex](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
-					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
-
-					GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
-					GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
-					GraphicsPSOInit.PrimitiveType = PT_TriangleStrip;
-
-					if (bDirectionalLight)
-					{
-						// Accumulate the contribution of multiple lights
-						// Directional lights write their shadowing into alpha of the ambient texture
-						GraphicsPSOInit.BlendState = TStaticBlendState<
-							CW_RGBA, BO_Add, BF_One, BF_One, BO_Add, BF_One, BF_One,
-							CW_RGB, BO_Add, BF_One, BF_One, BO_Add, BF_One, BF_One>::GetRHI();
-					}
-					else
-					{
-						// Accumulate the contribution of multiple lights
-						GraphicsPSOInit.BlendState = TStaticBlendState<
-							CW_RGB, BO_Add, BF_One, BF_One, BO_Add, BF_Zero, BF_One,
-							CW_RGB, BO_Add, BF_One, BF_One, BO_Add, BF_Zero, BF_One>::GetRHI();
-					}
 
 					const FMaterialRenderProxy* MaterialProxy = InjectionData.LightFunctionMaterialProxy;
 					const FMaterial& Material = MaterialProxy->GetMaterialWithFallback( View.GetFeatureLevel(), MaterialProxy );
 					const FMaterialShaderMap* MaterialShaderMap = Material.GetRenderingThreadShaderMap();
 
 					FTranslucentLightingInjectPS::FPermutationDomain PermutationVector;
-					PermutationVector.Set< FTranslucentLightingInjectPS::FRadialAttenuation >( !bDirectionalLight );
-					PermutationVector.Set< FTranslucentLightingInjectPS::FDynamicallyShadowed >( InjectionData.ProjectedShadowInfo != nullptr );
-					PermutationVector.Set< FTranslucentLightingInjectPS::FLightFunction >( InjectionData.bApplyLightFunction );
-					PermutationVector.Set< FTranslucentLightingInjectPS::FVirtualShadowMap >( bUseVSM );
-					PermutationVector.Set< FTranslucentLightingInjectPS::FAdaptiveVolumetricShadowMap >(bUseAdaptiveVolumetricShadowMap);
+					PermutationVector.Set< FTranslucentLightingInjectPS::FRadialAttenuation >(!bDirectionalLight);
+					PermutationVector.Set< FTranslucentLightingInjectPS::FDynamicallyShadowed >(InjectionData.ProjectedShadowInfo != nullptr);
+					PermutationVector.Set< FTranslucentLightingInjectPS::FLightFunction >(InjectionData.bApplyLightFunction);
+					PermutationVector.Set< FTranslucentLightingInjectPS::FVirtualShadowMap >(InjectionData.VirtualShadowMapId != INDEX_NONE);
+					PermutationVector.Set< FTranslucentLightingInjectPS::FAdaptiveVolumetricShadowMap >(InjectionData.bUseAdaptiveVolumetricShadowMap);
 
 					auto PixelShader = MaterialShaderMap->GetShader< FTranslucentLightingInjectPS >( PermutationVector );
-	
-					GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GScreenVertexDeclaration.VertexDeclarationRHI;
-					GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
-					GraphicsPSOInit.BoundShaderState.SetGeometryShader(GeometryShader.GetGeometryShader());
-					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
-					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 
-					const int32 TranslucencyLightingVolumeDim = GetTranslucencyLightingVolumeDim();
-
-					SetShaderParametersLegacyVS(RHICmdList, VertexShader, VolumeBounds, FIntVector(TranslucencyLightingVolumeDim));
-					if (GeometryShader.IsValid())
-					{
-						SetShaderParametersLegacyGS(RHICmdList, GeometryShader, VolumeBounds.MinZ);
-					}
+					SetPSOStateForVolumeInjection(VertexShader, GeometryShader, PixelShader.GetPixelShader(),
+						VolumeBounds, bDirectionalLight, RHICmdList, GraphicsPSOInit);
 
 					SetShaderParametersLegacyPS(RHICmdList, PixelShader, View, InjectionData.LightFunctionMaterialProxy);
 					SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters->PS);
@@ -1286,8 +1540,6 @@ void InjectSimpleTranslucencyLightingVolumeArray(
 	const FTranslucencyLightingVolumeTextures& Textures,
 	const FSimpleLightArray& SimpleLights)
 {
-	SCOPE_CYCLE_COUNTER(STAT_TranslucentInjectTime);
-
 	int32 NumLightsToInject = 0;
 
 	for (int32 LightIndex = 0; LightIndex < SimpleLights.InstanceData.Num(); LightIndex++)
@@ -1348,30 +1600,13 @@ void InjectSimpleTranslucencyLightingVolumeArray(
 							{},
 							PassParameters,
 							ERDGPassFlags::Raster,
-							[VertexShader, GeometryShader, PixelShader, PassParameters, VolumeBounds, TranslucencyLightingVolumeDim](FRHICommandList& RHICmdList)
+							[VertexShader, GeometryShader, PixelShader, PassParameters, VolumeBounds, TranslucencyLightingVolumeDim](FRDGAsyncTask, FRHICommandList& RHICmdList)
 						{
 							FGraphicsPipelineStateInitializer GraphicsPSOInit;
-							RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+							
+							SetPSOStateForVolumeInjection(VertexShader, GeometryShader, PixelShader.GetPixelShader(),
+								VolumeBounds, false, RHICmdList, GraphicsPSOInit);
 
-							GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
-							GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
-							// Accumulate the contribution of multiple lights
-							GraphicsPSOInit.BlendState = TStaticBlendState<
-								CW_RGB, BO_Add, BF_One, BF_One, BO_Add, BF_Zero, BF_One,
-								CW_RGB, BO_Add, BF_One, BF_One, BO_Add, BF_Zero, BF_One>::GetRHI();
-							GraphicsPSOInit.PrimitiveType = PT_TriangleStrip;
-
-							GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GScreenVertexDeclaration.VertexDeclarationRHI;
-							GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
-							GraphicsPSOInit.BoundShaderState.SetGeometryShader(GeometryShader.GetGeometryShader());
-							GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
-							SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
-
-							SetShaderParametersLegacyVS(RHICmdList, VertexShader, VolumeBounds, FIntVector(TranslucencyLightingVolumeDim));
-							if (GeometryShader.IsValid())
-							{
-								SetShaderParametersLegacyGS(RHICmdList, GeometryShader, VolumeBounds.MinZ);
-							}
 							SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *PassParameters);
 							RasterizeToVolumeTexture(RHICmdList, VolumeBounds);
 						});
@@ -1387,7 +1622,7 @@ void FilterTranslucencyLightingVolume(
 	const TArrayView<const FViewInfo> Views,
 	FTranslucencyLightingVolumeTextures& Textures)
 {
-	if (!GUseTranslucentLightingVolumes || !GSupportsVolumeTextureRendering || !GUseTranslucencyVolumeBlur)
+	if (!GUseTranslucentLightingVolumes || Views.Num() == 0 || !RHISupportsVolumeTextureRendering(Views[0].GetShaderPlatform()) || !GUseTranslucencyVolumeBlur)
 	{
 		return;
 	}
@@ -1395,7 +1630,7 @@ void FilterTranslucencyLightingVolume(
 	FRHISamplerState* SamplerStateRHI = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
 	const int32 TranslucencyLightingVolumeDim = GetTranslucencyLightingVolumeDim();
-	RDG_EVENT_SCOPE(GraphBuilder, "FilterTranslucentVolume %dx%dx%d Cascades:%d", TranslucencyLightingVolumeDim, TranslucencyLightingVolumeDim, TranslucencyLightingVolumeDim, TVC_MAX);
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, TranslucentLighting, "FilterTranslucentVolume %dx%dx%d Cascades:%d", TranslucencyLightingVolumeDim, TranslucencyLightingVolumeDim, TranslucencyLightingVolumeDim, TVC_MAX);
 	RDG_GPU_STAT_SCOPE(GraphBuilder, TranslucentLighting);
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
@@ -1436,7 +1671,7 @@ void FilterTranslucencyLightingVolume(
 				RDG_EVENT_NAME("Cascade%d", VolumeCascadeIndex),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[VertexShader, GeometryShader, PixelShader, PassParameters, VolumeBounds, TranslucencyLightingVolumeDim](FRHICommandList& RHICmdList)
+				[VertexShader, GeometryShader, PixelShader, PassParameters, VolumeBounds, TranslucencyLightingVolumeDim](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FGraphicsPipelineStateInitializer GraphicsPSOInit;
 				RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);

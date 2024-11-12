@@ -12,21 +12,11 @@
 void ULiveLinkLensController::OnEvaluateRegistered()
 {
 	Super::OnEvaluateRegistered();
-	SetupLensComponent();
 }
 
 void ULiveLinkLensController::SetAttachedComponent(UActorComponent* ActorComponent)
 {
 	Super::SetAttachedComponent(ActorComponent);
-	SetupLensComponent();
-}
-
-void ULiveLinkLensController::SetupLensComponent()
-{
-	if (ULensComponent* const LensComponent = Cast<ULensComponent>(GetAttachedComponent()))
-	{
-		LensComponent->SetDistortionSource(EDistortionSource::LiveLinkLensSubject);
-	}
 }
 
 void ULiveLinkLensController::Tick(float DeltaTime, const FLiveLinkSubjectFrameData& SubjectData)
@@ -82,7 +72,6 @@ TSubclassOf<UActorComponent> ULiveLinkLensController::GetDesiredComponentClass()
 {
 	return ULensComponent::StaticClass();
 }
-
 
 void ULiveLinkLensController::PostLoad()
 {

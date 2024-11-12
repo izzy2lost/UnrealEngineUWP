@@ -27,6 +27,8 @@
 #include "ModularRigRuleManager.h"
 #include "ScopedTransaction.h"
 #include "Editor/SRigHierarchyTreeView.h"
+#include "Widgets/SRigVMVariantTagWidget.h"
+#include "Algo/Sort.h"
 
 #define LOCTEXT_NAMESPACE "ControlRigModuleDetails"
 
@@ -236,6 +238,63 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 			.Text(this, &FRigModuleInstanceDetails::GetRigClassPath)
 			.IsEnabled(true)
 		];
+
+		GeneralCategory.AddCustomRow(FText::FromString(TEXT("Variant Tags")))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Text(FText::FromString(TEXT("Variant Tags")))
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.IsEnabled(true)
+		]
+		.ValueContent()
+		[
+			SNew(SRigVMVariantTagWidget)
+			.Orientation(EOrientation::Orient_Horizontal)
+			.CanAddTags(false)
+			.EnableContextMenu(false)
+			.OnGetTags_Lambda([this]() -> TArray<FRigVMTag>
+			{
+				TArray<FRigVMTag> Tags;
+				for (int32 InfoIndex=0; InfoIndex<PerModuleInfos.Num(); ++InfoIndex)
+				{
+					const FPerModuleInfo& ModuleInfo = PerModuleInfos[InfoIndex]; 
+					if(ModuleInfo.Module.IsValid())
+					{
+						if (const FRigModuleInstance* Module = ModuleInfo.GetModule())
+						{
+							if (const UControlRigBlueprint* ModuleBlueprint = Cast<UControlRigBlueprint>(Module->GetRig()->GetClass()->ClassGeneratedBy))
+							{
+								if (InfoIndex == 0)
+								{
+									Tags = ModuleBlueprint->GetAssetVariant().Tags;
+								}
+								else
+								{
+									const TArray<FRigVMTag>& OtherTags = ModuleBlueprint->GetAssetVariant().Tags;
+									bool bSameArray = Tags.Num() == OtherTags.Num();
+									if (bSameArray)
+									{
+										for (const FRigVMTag& OtherTag : OtherTags)
+										{
+											if (!Tags.ContainsByPredicate([OtherTag](const FRigVMTag& Tag) { return OtherTag.Name == Tag.Name; }))
+											{
+												return {};
+											}
+										}
+									}
+									else
+									{
+										return {};
+									}
+								}
+							}
+						}
+					}
+				}
+				return Tags;
+			})
+		];
 	}
 
 	IDetailCategoryBuilder& ConnectionsCategory = DetailBuilder.EditCategory(TEXT("Connections"), LOCTEXT("Connections", "Connections"));
@@ -256,6 +315,13 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 		if (bDisplayConnectors)
 		{
 			TArray<FRigModuleConnector> Connectors = GetConnectors();
+
+			// sort connectors primary first, then secondary, then optional
+			Algo::SortBy(Connectors, [](const FRigModuleConnector& Connector) -> int32
+			{
+				return Connector.IsPrimary() ? 0 : (Connector.IsOptional() ? 2 : 1);
+			});
+			
 			for(const FRigModuleConnector& Connector : Connectors)
 			{
 				const FText Label = FText::FromString(Connector.Name);
@@ -299,12 +365,15 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 				{
 					return PerModuleInfos[0].GetModularRig()->GetHierarchy();
 				});
-				TreeDelegates.OnRigTreeIsItemVisible = FOnRigTreeIsItemVisible::CreateLambda([Matches](const FRigElementKey& InTarget)
+
+				TArray<FRigElementKey> MatchingKeys;
+				for(const FRigElementResolveResult& SingleMatch : Matches)
 				{
-					return Matches.ContainsByPredicate([InTarget](const FRigElementResolveResult& Match)
-					{
-						return Match.GetKey() == InTarget;
-					});
+					MatchingKeys.Add(SingleMatch.GetKey());
+				}
+				TreeDelegates.OnRigTreeIsItemVisible = FOnRigTreeIsItemVisible::CreateLambda([MatchingKeys](const FRigElementKey& InTarget)
+				{
+					return MatchingKeys.Contains(InTarget);
 				});
 				TreeDelegates.OnGetSelection.BindLambda([this, Connector]() -> TArray<FRigElementKey>
 				{
@@ -336,14 +405,41 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 				});
 				TreeDelegates.OnSelectionChanged.BindSP(this, &FRigModuleInstanceDetails::OnConnectorTargetChanged, Connector);
 			
+				static const FSlateBrush* PrimaryBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.ConnectorPrimary");
+				static const FSlateBrush* SecondaryBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.ConnectorSecondary");
+				static const FSlateBrush* OptionalBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.ConnectorOptional");
+
+				const FSlateBrush* IconBrush = Connector.IsPrimary() ? PrimaryBrush : (Connector.IsOptional() ? OptionalBrush : SecondaryBrush);
+				TSharedPtr<SSearchableRigHierarchyTreeView>& SearchableTreeView = ConnectionListBox.FindOrAdd(Connector.Name);
 
 				ConnectionsCategory.AddCustomRow(Label)
 					.NameContent()
 					[
-						SNew(STextBlock)
-						.Text(Label)
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-						.IsEnabled(true)
+						SNew(SHorizontalBox)
+
+						+SHorizontalBox::Slot()
+						.AutoWidth()
+						.Padding(0.f, 0.f, 4.f, 0.f)
+						.HAlign(HAlign_Left)
+						.VAlign(VAlign_Center)
+						[
+							SNew(SImage)
+							.Image(IconBrush)
+							.ColorAndOpacity(FSlateColor::UseForeground())
+							.DesiredSizeOverride(FVector2D(16, 16))
+						]
+						
+						+SHorizontalBox::Slot()
+						.AutoWidth()
+						.Padding(0.f, 0.f, 0.f, 0.f)
+						.HAlign(HAlign_Left)
+						.VAlign(VAlign_Center)
+						[
+							SNew(STextBlock)
+							.Text(Label)
+							.Font(IDetailLayoutBuilder::GetDetailFont())
+							.IsEnabled(true)
+						]
 					]
 					.ValueContent()
 					[
@@ -373,7 +469,7 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 								.Visibility(EVisibility::Visible)
 								.BorderImage(FAppStyle::GetBrush("Menu.Background"))
 								[
-									SAssignNew(ConnectionListBox.FindOrAdd(Connector.Name), SSearchableRigHierarchyTreeView)
+									SAssignNew(SearchableTreeView, SSearchableRigHierarchyTreeView)
 										.RigTreeDelegates(TreeDelegates)
 								]
 							]
@@ -605,7 +701,7 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 					return GetBindingColor(Property);
 				});
 
-				BindingArgs.OnCanBindProperty.BindLambda([](const FProperty* InProperty) -> bool { return true; });
+				BindingArgs.OnCanBindPropertyWithBindingChain.BindLambda([](const FProperty* InProperty, TConstArrayView<FBindingChainElement> InBindingChain) -> bool { return true; });
 				BindingArgs.OnCanBindToClass.BindLambda([](UClass* InClass) -> bool { return false; });
 				BindingArgs.OnCanRemoveBinding.BindRaw(this, &FRigModuleInstanceDetails::CanRemoveBinding);
 				BindingArgs.OnRemoveBinding.BindSP(this, &FRigModuleInstanceDetails::HandleRemoveBinding);
@@ -668,7 +764,7 @@ FText FRigModuleInstanceDetails::GetName() const
 		{
 			if(const FRigModuleInstance* Module = PerModuleInfos[i].GetModule())
 			{
-				if (!Module->Name.IsEqual(FirstValue, ENameCase::CaseSensitive))
+				if (!Module->Name.IsEqual(FirstValue, ENameCase::IgnoreCase))
 				{
 					bSame = false;
 					break;
@@ -747,7 +843,7 @@ FText FRigModuleInstanceDetails::GetShortName() const
 		{
 			if(const FRigModuleInstance* Module = PerModuleInfos[i].GetModule())
 			{
-				if (!Module->GetShortName().Equals(FirstValue, ESearchCase::CaseSensitive))
+				if (!Module->GetShortName().Equals(FirstValue, ESearchCase::IgnoreCase))
 				{
 					bSame = false;
 					break;
@@ -819,7 +915,7 @@ FText FRigModuleInstanceDetails::GetLongName() const
 		{
 			if(const FRigModuleInstance* Module = PerModuleInfos[i].GetModule())
 			{
-				if (!Module->GetLongName().Equals(FirstValue, ESearchCase::CaseSensitive))
+				if (!Module->GetLongName().Equals(FirstValue, ESearchCase::IgnoreCase))
 				{
 					bSame = false;
 					break;
@@ -1109,8 +1205,8 @@ FText FRigModuleInstanceDetails::GetBindingText(const FProperty* InProperty) con
 
 const FSlateBrush* FRigModuleInstanceDetails::GetBindingImage(const FProperty* InProperty) const
 {
-	static FName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
-	static FName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
+	static const FLazyName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
+	static const FLazyName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
 
 	if(CastField<FArrayProperty>(InProperty))
 	{

@@ -20,6 +20,7 @@
 #include "Stats/Stats.h"
 #include "Trace/Trace.h"
 #include "Trace/Trace.inl"
+#include "AutoRTFM/AutoRTFM.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogModuleManager, Log, All);
 
@@ -36,6 +37,62 @@ DEFINE_LOG_CATEGORY_STATIC(LogModuleManager, Log, All);
 	}
 #endif
 
+FModuleInitializerEntry* GFirstModuleInitializerEntry;
+
+FModuleInitializerEntry::FModuleInitializerEntry(const TCHAR* InName, FInitializeModuleFunctionPtr InFunction, const TCHAR* InName2)
+:	Name(InName)
+,	Name2(nullptr)
+,	Function(InFunction)
+{
+	if (FCString::Stricmp(InName, InName2) != 0)
+	{
+		Name2 = InName2;
+	}
+
+	Prev = nullptr;
+	Next = GFirstModuleInitializerEntry;
+
+	if (GFirstModuleInitializerEntry)
+	{
+		GFirstModuleInitializerEntry->Prev = this;
+	}
+
+	GFirstModuleInitializerEntry = this;
+}
+
+FModuleInitializerEntry::~FModuleInitializerEntry()
+{
+	if (Next)
+	{
+		Next->Prev = Prev;
+	}
+
+	if (Prev)
+	{
+		Prev->Next = Next;
+	}
+	else
+	{
+		GFirstModuleInitializerEntry = Next;
+	}
+}
+
+FInitializeModuleFunctionPtr FModuleInitializerEntry::FindModule(const TCHAR* Name)
+{
+	for (FModuleInitializerEntry* Entry = GFirstModuleInitializerEntry; Entry; Entry = Entry->Next)
+	{
+		if (FCString::Stricmp(Name, Entry->Name) == 0)
+		{
+			return Entry->Function;
+		}
+		if (Entry->Name2 && FCString::Stricmp(Name, Entry->Name2) == 0)
+		{
+			return Entry->Function;
+		}
+	}
+	return nullptr;
+}
+
 
 int32 FModuleManager::FModuleInfo::CurrentLoadOrder = 1;
 
@@ -47,6 +104,7 @@ void FModuleManager::WarnIfItWasntSafeToLoadHere(const FName InModuleName)
 	}
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 FModuleManager::ModuleInfoPtr FModuleManager::FindModule(FName InModuleName)
 {
 	FModuleManager::ModuleInfoPtr Result = nullptr;
@@ -91,7 +149,7 @@ FModuleManager::FModuleManager(FPrivateToken)
 {
 	check(IsInGameThread());
 
-#if !IS_MONOLITHIC
+#if !IS_MONOLITHIC && !UE_MERGED_MODULES
 	// Modules bootstrapping is useful to avoid costly directory enumeration by reloading
 	// a serialized state of the module manager. Can only be used when run in the exact
 	// same context multiple times (i.e. starting multiple shader compile workers)
@@ -150,7 +208,7 @@ void FModuleManager::FindModules(const TCHAR* WildcardWithoutExtension, TArray<F
 void FModuleManager::FindModules(const TCHAR* WildcardWithoutExtension, TArray<FModuleDiskInfo>& OutModules) const
 {
 	// @todo plugins: Try to convert existing use cases to use plugins, and get rid of this function
-#if !IS_MONOLITHIC
+#if !IS_MONOLITHIC && !UE_MERGED_MODULES
 
 	TMap<FName, FString> ModulePaths;
 	FindModulePaths(WildcardWithoutExtension, ModulePaths);
@@ -199,7 +257,7 @@ void FModuleManager::FindModules(const TCHAR* WildcardWithoutExtension, TArray<F
 			OutModules.Add(FModuleDiskInfo{ WildcardName, FString() });
 		}
 	}
-#endif
+#endif //  !IS_MONOLITHIC && !UE_MERGED_MODULES
 }
 
 bool FModuleManager::ModuleExists(const TCHAR* ModuleName, FString* OutModuleFilePath) const
@@ -341,6 +399,22 @@ void FModuleManager::AddModule(const FName InModuleName)
 	FModuleManager::Get().AddModuleToModulesList(InModuleName, ModuleInfo);
 }
 
+#if CPUPROFILERTRACE_ENABLED
+
+UE_TRACE_EVENT_BEGIN(Cpu, LoadModule, NoSync)
+UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
+UE_TRACE_EVENT_END()
+
+UE_TRACE_EVENT_BEGIN(Cpu, FPlatformProcess_GetDllHandle, NoSync)
+UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
+UE_TRACE_EVENT_END()
+
+UE_TRACE_EVENT_BEGIN(Cpu, StartupModule, NoSync)
+UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
+UE_TRACE_EVENT_END()
+
+#endif // CPUPROFILERTRACE_ENABLED
+
 #if !IS_MONOLITHIC
 void FModuleManager::RefreshModuleFilenameFromManifestImpl(const FName InModuleName, FModuleInfo& ModuleInfo)
 {
@@ -357,6 +431,15 @@ void FModuleManager::RefreshModuleFilenameFromManifestImpl(const FName InModuleN
 	FString ModuleFilename = MoveTemp(TMap<FName, FString>::TIterator(ModulePathMap).Value());
 
 	const int32 MatchPos = ModuleFilename.Find(ModuleNameString, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+
+	// If modules are merged it is likely that binary name will not match module. TODO: Revisit this to see if we can get this to work with hot reloading etc
+	#if UE_MERGED_MODULES
+	if (MatchPos == INDEX_NONE)
+	{
+		return;
+	}
+	#endif
+
 	if (!ensureMsgf(MatchPos != INDEX_NONE, TEXT("Could not find module name '%s' in module filename '%s'"), *InModuleName.ToString(), *ModuleFilename))
 	{
 		return;
@@ -395,20 +478,114 @@ void FModuleManager::RefreshModuleFilenameFromManifest(const FName InModuleName)
 		this->RefreshModuleFilenameFromManifestImpl(InModuleName, *ModuleInfoPtr);
 	}
 }
+
+void* FModuleManager::InternalLoadLibrary(FName ModuleName, const FString& ModuleFileToLoad)
+{
+	UE_LOG(LogModuleManager, Verbose, TEXT("InternalLoadLibrary: %s"), *ModuleName.ToString());
+
+	void* Handle = nullptr;
+
+#if UE_MERGED_MODULES
+
+	// First, attempt to find a cached library handle
+	FModuleManagerLibraryTracker& LoadedDynamicLibrary = LoadedDynamicLibraries.FindOrAdd(ModuleFileToLoad);
+	if (LoadedDynamicLibrary.Handle != nullptr)
+	{
+		Handle = LoadedDynamicLibrary.Handle;
+	}
+	else
+
+#endif // UE_MERGED_MODULES
+
+	// If no cached handle exists, then just load the library
+	{
+#if CPUPROFILERTRACE_ENABLED
+		UE_TRACE_LOG_SCOPED_T(Cpu, FPlatformProcess_GetDllHandle, CpuChannel)
+			<< FPlatformProcess_GetDllHandle.Name(*ModuleFileToLoad);
+#endif // CPUPROFILERTRACE_ENABLED
+
+		Handle = FPlatformProcess::GetDllHandle(*ModuleFileToLoad);
+	}
+
+#if UE_MERGED_MODULES
+
+	// While using merged modules, update the usage data for the loaded library
+	LoadedDynamicLibrary.Users.AddUnique(ModuleName);
+	if (LoadedDynamicLibrary.Handle == nullptr)
+	{
+		LoadedDynamicLibrary.Handle = Handle;
+		UE_LOG(LogModuleManager, Verbose, TEXT("InternalLoadLibrary: cached library '%s'"), *ModuleFileToLoad);
+	}
+	else
+	{
+		UE_LOG(LogModuleManager, Verbose, TEXT("InternalLoadLibrary: added module to users of '%s'"), *ModuleFileToLoad);
+	}
+
+#endif // UE_MERGED_MODULES
+
+	return Handle;
+}
+
+void FModuleManager::InternalFreeLibrary(FName ModuleName, void* Handle)
+{
+	UE_LOG(LogModuleManager, Verbose, TEXT("InternalFreeLibrary: %s"), *ModuleName.ToString());
+
+#if UE_MERGED_MODULES
+
+	// Find out if we should unload a dynamic library
+	const FString* LibraryToUnload = nullptr;
+	for (TPair<FString, FModuleManagerLibraryTracker>& LibraryNameAndTracker : LoadedDynamicLibraries)
+	{
+		FModuleManagerLibraryTracker& Tracker = LibraryNameAndTracker.Value;
+
+		if (Tracker.Handle == Handle)
+		{
+			Tracker.Users.Remove(ModuleName);
+			if (Tracker.Users.Num() == 0)
+			{
+				LibraryToUnload = &LibraryNameAndTracker.Key;
+			}
+			break;
+		}
+	}
+
+	// Unload the DLL
+	if (LibraryToUnload)
+	{
+		UE_LOG(LogModuleManager, Verbose, TEXT("InternalFreeLibrary: unloading library '%s'"), **LibraryToUnload);
+		LoadedDynamicLibraries.Remove(*LibraryToUnload);
+		FPlatformProcess::FreeDllHandle(Handle);
+	}
+
+#else
+	FPlatformProcess::FreeDllHandle(Handle);
+#endif // UE_MERGED_MODULES
+}
+
 #endif	// !IS_MONOLITHIC
 
 IModuleInterface* FModuleManager::LoadModule(const FName InModuleName, ELoadModuleFlags InLoadModuleFlags)
+{
+	EModuleLoadResult FailureReason = EModuleLoadResult::Success;
+	return GetOrLoadModule(InModuleName, FailureReason, InLoadModuleFlags);
+}
+
+IModuleInterface* FModuleManager::GetOrLoadModule(const FName InModuleName, EModuleLoadResult& OutFailureReason, ELoadModuleFlags InLoadModuleFlags)
 {
 	LLM_SCOPE_BYNAME(TEXT("Modules"));
 	// We allow an already loaded module to be returned in other threads to simplify
 	// parallel processing scenarios but they must have been loaded from the main thread beforehand.
 	if(!IsInGameThread())
 	{
-		return GetModule(InModuleName);
+		IModuleInterface* Module = GetModule(InModuleName);
+		if (!Module)
+		{
+			OutFailureReason = EModuleLoadResult::NotLoadedByGameThread;
+		}
+		return Module;
 	}
 
-	EModuleLoadResult FailureReason;
-	IModuleInterface* Result = LoadModuleWithFailureReason(InModuleName, FailureReason, InLoadModuleFlags);
+	IModuleInterface* Result = LoadModuleWithFailureReason(InModuleName, OutFailureReason, InLoadModuleFlags);
 
 	// This should return a valid pointer only if and only if the module is loaded
 	checkSlow((Result != nullptr) == IsModuleLoaded(InModuleName));
@@ -416,30 +593,32 @@ IModuleInterface* FModuleManager::LoadModule(const FName InModuleName, ELoadModu
 	return Result;
 }
 
+static const TCHAR* LexToString(EModuleLoadResult LoadResult)
+{
+	switch (LoadResult)
+	{
+	case EModuleLoadResult::Success:				return TEXT("Success");
+	case EModuleLoadResult::FileNotFound:			return TEXT("FileNotFound");
+	case EModuleLoadResult::FileIncompatible:		return TEXT("FileIncompatible");
+	case EModuleLoadResult::CouldNotBeLoadedByOS:	return TEXT("CouldNotBeLoadedByOS");
+	case EModuleLoadResult::FailedToInitialize:		return TEXT("FailedToInitialize");
+	case EModuleLoadResult::NotLoadedByGameThread:	return TEXT("NotLoadedByGameThread");
+	default:										return TEXT("<Unknown>");
+	}
+}
 
 IModuleInterface& FModuleManager::LoadModuleChecked( const FName InModuleName )
 {
-	IModuleInterface* Module = LoadModule(InModuleName, ELoadModuleFlags::LogFailures);
-	checkf(Module, TEXT("%s"), *InModuleName.ToString());
+	EModuleLoadResult FailureReason = EModuleLoadResult::Success;
+	IModuleInterface* Module = GetOrLoadModule(InModuleName, FailureReason, ELoadModuleFlags::LogFailures);
+
+	checkf(Module, TEXT("ModuleName=%s, Failure=%s, IsInGameThread=%s"),
+		*InModuleName.ToString(),
+		LexToString(FailureReason),
+		IsInGameThread() ? TEXT("Yes") : TEXT("No"));
 
 	return *Module;
 }
-
-#if CPUPROFILERTRACE_ENABLED
-
-UE_TRACE_EVENT_BEGIN(Cpu, LoadModule, NoSync)
-	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
-UE_TRACE_EVENT_END()
-
-UE_TRACE_EVENT_BEGIN(Cpu, FPlatformProcess_GetDllHandle, NoSync)
-	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
-UE_TRACE_EVENT_END()
-
-UE_TRACE_EVENT_BEGIN(Cpu, StartupModule, NoSync)
-	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
-UE_TRACE_EVENT_END()
-
-#endif // CPUPROFILERTRACE_ENABLED
 
 IModuleInterface* FModuleManager::LoadModuleWithFailureReason(const FName InModuleName, EModuleLoadResult& OutFailureReason, ELoadModuleFlags InLoadModuleFlags)
 {
@@ -623,13 +802,7 @@ IModuleInterface* FModuleManager::LoadModuleWithFailureReason(const FName InModu
 		// Skip this check if file manager has not yet been initialized
 		if (FPaths::FileExists(ModuleFileToLoad))
 		{
-			{
-#if CPUPROFILERTRACE_ENABLED
-				UE_TRACE_LOG_SCOPED_T(Cpu, FPlatformProcess_GetDllHandle, CpuChannel)
-					<< FPlatformProcess_GetDllHandle.Name(*ModuleFileToLoad);
-#endif // CPUPROFILERTRACE_ENABLED
-				ModuleInfo->Handle = FPlatformProcess::GetDllHandle(*ModuleFileToLoad);
-			}
+			ModuleInfo->Handle = InternalLoadLibrary(InModuleName, ModuleFileToLoad);
 			
 			if (ModuleInfo->Handle != nullptr)
 			{
@@ -648,9 +821,16 @@ IModuleInterface* FModuleManager::LoadModuleWithFailureReason(const FName InModu
 					ProcessLoadedObjectsCallback.Broadcast(InModuleName, bCanProcessNewlyLoadedObjects);
 				}
 
-				// Find our "InitializeModule" global function, which must exist for all module DLLs
-				FInitializeModuleFunctionPtr InitializeModuleFunctionPtr =
-					(FInitializeModuleFunctionPtr)FPlatformProcess::GetDllExport(ModuleInfo->Handle, TEXT("InitializeModule"));
+
+				// Find our "Initialize<Name>Module" global function, which must exist for all module DLLs
+				FInitializeModuleFunctionPtr InitializeModuleFunctionPtr = FModuleInitializerEntry::FindModule(*InModuleName.ToString());
+
+				if (!InitializeModuleFunctionPtr)
+				{
+					// If not found this might be some special case module so look for "InitializeModule" global function
+					InitializeModuleFunctionPtr = (FInitializeModuleFunctionPtr)FPlatformProcess::GetDllExport(ModuleInfo->Handle, TEXT("InitializeModule"));
+				}
+
 				if (InitializeModuleFunctionPtr != nullptr)
 				{
 					if ( ModuleInfo->Module.IsValid() )
@@ -691,21 +871,28 @@ IModuleInterface* FModuleManager::LoadModuleWithFailureReason(const FName InModu
 							UE_CLOG((InLoadModuleFlags & ELoadModuleFlags::LogFailures) != ELoadModuleFlags::None,
 								LogModuleManager, Warning, TEXT("ModuleManager: Unable to load module '%s' because InitializeModule function failed (returned nullptr.)"), *ModuleFileToLoad);
 
-							FPlatformProcess::FreeDllHandle(ModuleInfo->Handle);
+							InternalFreeLibrary(InModuleName, ModuleInfo->Handle);
 							ModuleInfo->Handle = nullptr;
 							OutFailureReason = EModuleLoadResult::FailedToInitialize;
 						}
 					}
 				}
+
+#if !UE_MERGED_MODULES
+
+				// This is normal with merged modules, as we don't have a single module for each library
 				else
 				{
 					UE_CLOG((InLoadModuleFlags & ELoadModuleFlags::LogFailures) != ELoadModuleFlags::None,
 						LogModuleManager, Warning, TEXT("ModuleManager: Unable to load module '%s' because InitializeModule function was not found."), *ModuleFileToLoad);
 
-					FPlatformProcess::FreeDllHandle(ModuleInfo->Handle);
+					InternalFreeLibrary(InModuleName, ModuleInfo->Handle);
 					ModuleInfo->Handle = nullptr;
 					OutFailureReason = EModuleLoadResult::FailedToInitialize;
 				}
+
+#endif // !UE_MERGED_MODULES
+
 			}
 			else
 			{
@@ -759,7 +946,7 @@ bool FModuleManager::UnloadModule( const FName InModuleName, bool bIsShutdown, b
 				if( !bIsShutdown && bAllowUnloadCode )
 				{
 					// Unload the DLL
-					FPlatformProcess::FreeDllHandle( ModuleInfo.Handle );
+					InternalFreeLibrary( InModuleName, ModuleInfo.Handle );
 				}
 				ModuleInfo.Handle = nullptr;
 			}
@@ -1372,7 +1559,7 @@ void FModuleManager::AddExtraBinarySearchPaths()
 	if (!bExtraBinarySearchPathsAdded)
 	{
 		// Ensure that dependency dlls can be found in restricted sub directories
-		TArray<FString> RestrictedFolderNames = { TEXT("NoRedist"), TEXT("NotForLicensees"), TEXT("CarefullyRedist") };
+		TArray<FString> RestrictedFolderNames = { TEXT("NoRedist"), TEXT("NotForLicensees"), TEXT("CarefullyRedist"), TEXT("LimitedAccess") };
 		for (FName PlatformName : FDataDrivenPlatformInfoRegistry::GetConfidentialPlatforms())
 		{
 			RestrictedFolderNames.Add(PlatformName.ToString());
@@ -1447,7 +1634,7 @@ void FModuleManager::AddBinariesDirectory(const TCHAR *InDirectory, bool bIsGame
 	FPlatformProcess::AddDllDirectory(InDirectory);
 
 	// Also recurse into restricted sub-folders, if they exist
-	const TCHAR* RestrictedFolderNames[] = { TEXT("NoRedist"), TEXT("NotForLicensees"), TEXT("CarefullyRedist") };
+	const TCHAR* RestrictedFolderNames[] = { TEXT("NoRedist"), TEXT("NotForLicensees"), TEXT("CarefullyRedist"), TEXT("LimitedAccess") };
 	for (const TCHAR* RestrictedFolderName : RestrictedFolderNames)
 	{
 		FString RestrictedFolder = FPaths::Combine(InDirectory, RestrictedFolderName);
@@ -1466,7 +1653,7 @@ void FModuleManager::LoadModuleBinaryOnly(FName ModuleName)
 	if (ModulePaths.Num() == 1)
 	{
 		FString ModuleFilename = MoveTemp(TMap<FName, FString>::TIterator(ModulePaths).Value());
-		FPlatformProcess::GetDllHandle(*ModuleFilename);
+		InternalLoadLibrary(ModuleName, ModuleFilename);
 	}
 #endif
 }

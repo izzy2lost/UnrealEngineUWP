@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Properties/Handlers/PropertyAnimatorCoreTextHandler.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "UObject/TextProperty.h"
 
 bool UPropertyAnimatorCoreTextHandler::IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData) const

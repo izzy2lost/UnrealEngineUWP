@@ -35,6 +35,7 @@ public:
 	typedef FTransformCollection Super;
 
 	CHAOS_API FGeometryCollection(FGeometryCollectionDefaults InDefaults = FGeometryCollectionDefaults() );
+	CHAOS_API ~FGeometryCollection();
 	FGeometryCollection(FGeometryCollection &) = delete;
 	FGeometryCollection& operator=(const FGeometryCollection &) = delete;
 	FGeometryCollection(FGeometryCollection &&) = default;
@@ -105,7 +106,8 @@ public:
 	static CHAOS_API const FName SimulationTypeAttribute;
 	static CHAOS_API const FName StatusFlagsAttribute;
 	static CHAOS_API const FName ExternalCollisionsAttribute;
-	
+	static CHAOS_API const FName ColorAttribute;
+
 	enum ESimulationTypes : uint8
 	{
 		FST_None = 0,
@@ -150,10 +152,10 @@ public:
 		const TManagedArray<int32>& RawStatusFlagsArray,
 		FGeometryCollectionDefaults InDefaults = FGeometryCollectionDefaults());
 
-	//
-	//
-	//
-
+	/**
+	* Append a FGeometryCollection to a FGeometryCollection
+	*/
+	CHAOS_API void AppendCollection(const FGeometryCollection& InCollection);
 
 	/** 
 	* Append a single geometric object to a FGeometryCollection 
@@ -386,12 +388,13 @@ protected:
 		return 10;
 	}
 
+	CHAOS_API virtual void Append(const FManagedArrayCollection& InCollection) override;
 
 public:
 	/* Backwards compatibility */
 	CHAOS_API void UpdateOldAttributeNames();
 
-
+	CHAOS_API TArray<int32> TransformSelectionToGeometryIndices(const TArray<int32>& Transforms);
 };
 
 FORCEINLINE Chaos::FChaosArchive& operator<<(Chaos::FChaosArchive& Ar, FGeometryCollection& Value)

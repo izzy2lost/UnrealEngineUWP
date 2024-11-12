@@ -255,6 +255,11 @@ bool FDisplayClusterViewportProxy::ShouldUsePostProcessPassTonemap() const
 	{
 		return true;
 	}
+	// When capturing with late OCIO pass, PostTonemap is required
+	else if (RenderSettings.HasAnyMediaStates(EDisplayClusterViewportMediaState::CaptureLateOCIO))
+	{
+		return true;
+	}
 
 	return false;
 }

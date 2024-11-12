@@ -52,6 +52,7 @@ namespace NiagaraStateless
 			FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 			OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), ThreadGroupSize);
 			OutEnvironment.SetDefine(TEXT("NIAGARA_MAX_GPU_SPAWN_INFOS"), NiagaraStateless::MaxGpuSpawnInfos);
+			OutEnvironment.SetDefine(TEXT("GPU_SIMULATION"), 1);
 		}
 	};
 }

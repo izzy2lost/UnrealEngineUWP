@@ -153,7 +153,7 @@ public:
 		return LoadAssetDataFromPaths(Paths);
 	}
 
-	/** Load an entire subdirectory of blueprints into this object library. Only loads asset data for blueprints of passed in class. Returns number of asset data loaded loaded */
+	/** Load an entire subdirectory of blueprints into this object library. Only loads asset data for blueprints of passed in class. Returns number of asset data loaded */
 	virtual int32 LoadBlueprintAssetDataFromPaths(const TArray<FString>& Paths, bool bForceSynchronousScan = true);
 
 	virtual int32 LoadBlueprintAssetDataFromPath(const FString& Path)

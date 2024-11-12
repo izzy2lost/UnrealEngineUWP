@@ -146,6 +146,8 @@ protected:
 	mutable double LastEndTime = 0; // mutable because it must be set in CheckStatus, which is const
 	double LastInvalidateTime = 0;
 
+	TSharedPtr<std::atomic<int>> ActiveTaskCount;
+
 	void StartNewCompute();
 
 public:
@@ -153,6 +155,7 @@ public:
 		: OperatorSource(OperatorSourceIn)
 	{
 		TaskState = EBackgroundComputeTaskState::NotActive;
+		ActiveTaskCount = MakeShared<std::atomic<int>>(0);
 	}
 
 	~TBackgroundModelingComputeSource() {}
@@ -191,6 +194,17 @@ public:
 	 */
 	FStatus CheckStatus() const;
 
+	// If waiting for background tasks, returns true, and sets NumTasks to the number of active tasks
+	bool IsWaitingForBackgroundTasks(int32& NumTasks) const
+	{
+		if (bWaitingForActiveTasksToFinish)
+		{
+			NumTasks = *ActiveTaskCount;
+			return NumTasks >= MaxActiveTaskCount;
+		}
+		return false;
+	}
+
 	/**
 	 * @return The last computed Operator. This may only be called once, the caller then owns the Operator.
 	 */
@@ -211,6 +225,11 @@ public:
 public:
 	/** Default wait delay for cancel/restart cycle */
 	double CancelActiveOpDelaySeconds = 0.5;
+	/** Maximum number of active tasks to allow to run in the background until we wait to launch more */
+	int32 MaxActiveTaskCount = 5;
+
+private:
+	bool bWaitingForActiveTasksToFinish = false;
 };
 
 
@@ -232,7 +251,19 @@ void TBackgroundModelingComputeSource<OpType, OpTypeFactory>::Tick(float DeltaTi
 		if ((AccumTime - LastInvalidateTime) > CancelActiveOpDelaySeconds)
 		{
 			CancelActiveCompute();
-			StartNewCompute();
+
+			int Active = *ActiveTaskCount;
+			if (Active < MaxActiveTaskCount)
+			{
+				bWaitingForActiveTasksToFinish = false;
+				StartNewCompute();
+			}
+			else
+			{
+				bWaitingForActiveTasksToFinish = true;
+				// failed to start new task, return to 'waiting to cancel' state
+				TaskState = EBackgroundComputeTaskState::WaitingToCancel;
+			}
 		}
 	}
 }
@@ -255,8 +286,10 @@ void TBackgroundModelingComputeSource<OpType, OpTypeFactory>::StartNewCompute()
 {
 	check(ActiveBackgroundTask == nullptr);
 
+	(*ActiveTaskCount)++;
 	TUniquePtr<OpType> NewOp = OperatorSource->MakeNewOperator();
 	ActiveBackgroundTask = new FAsyncTaskExecuterWithAbort<TModelingOpTask<OpType> >(MoveTemp(NewOp));
+	ActiveBackgroundTask->TaskCounter = ActiveTaskCount;
 	ActiveBackgroundTask->StartBackgroundTask();
 
 	LastStartTime = AccumTime;
@@ -291,7 +324,12 @@ TBackgroundModelingComputeSource<OpType, OpTypeFactory>::CheckStatus() const
 {
 	FStatus Status;
 
-	if (ActiveBackgroundTask == nullptr)
+	if (bWaitingForActiveTasksToFinish)
+	{
+		Status.TaskStatus = EBackgroundComputeTaskStatus::InProgress;
+		Status.ElapsedTime = AccumTime - LastStartTime;
+	}
+	else if (ActiveBackgroundTask == nullptr)
 	{
 		Status.TaskStatus = EBackgroundComputeTaskStatus::NotComputing;
 		Status.ElapsedTime = AccumTime - LastInvalidateTime;

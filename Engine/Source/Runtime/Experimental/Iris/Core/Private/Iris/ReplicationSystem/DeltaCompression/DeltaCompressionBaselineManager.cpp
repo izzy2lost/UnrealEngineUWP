@@ -60,7 +60,6 @@ FDeltaCompressionBaselineManager::FDeltaCompressionBaselineManager()
 
 FDeltaCompressionBaselineManager::~FDeltaCompressionBaselineManager()
 {
-	Deinit();
 }
 
 void FDeltaCompressionBaselineManager::Init(FDeltaCompressionBaselineManagerInitParams& InitParams)
@@ -70,16 +69,16 @@ void FDeltaCompressionBaselineManager::Init(FDeltaCompressionBaselineManagerInit
 	BaselineInvalidationTracker = InitParams.BaselineInvalidationTracker;
 	ReplicationSystem = InitParams.ReplicationSystem;
 	MaxConnectionCount = InitParams.Connections->GetMaxConnectionCount();
-	MaxDeltaCompressedObjectCount = FPlatformMath::Min(InitParams.MaxObjectCount, InitParams.MaxDeltaCompressedObjectCount);
+	MaxDeltaCompressedObjectCount = FPlatformMath::Min(InitParams.MaxNetObjectCount, InitParams.MaxDeltaCompressedObjectCount);
 
-	DeltaCompressionEnabledObjects.Init(InitParams.MaxObjectCount);
+	DeltaCompressionEnabledObjects.Init(InitParams.MaxInternalNetRefIndex);
 
 	// PerObjectInfo initialization
 	{
 		check(MaxDeltaCompressedObjectCount < std::numeric_limits<ObjectInfoIndexType>::max());
 		UsedPerObjectInfos.Init(MaxDeltaCompressedObjectCount + 1U);
 		UsedPerObjectInfos.SetBit(InvalidObjectInfoIndex);
-		ObjectIndexToObjectInfoIndex.SetNumZeroed(InitParams.MaxObjectCount);
+		ObjectIndexToObjectInfoIndex.SetNumZeroed(InitParams.MaxInternalNetRefIndex);
 
 		const uint32 BytesPerConnection = sizeof(FObjectBaselineInfo);
 		// The PerObjectInfo already contains the connection specific data for one connection,
@@ -102,6 +101,13 @@ void FDeltaCompressionBaselineManager::Deinit()
 {
 	// The BaselineStateManager will release all baselines in its destructor.
 	FreeAllPerObjectInfos();
+	BaselineStorage.Deinit();
+}
+
+void FDeltaCompressionBaselineManager::OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex)
+{
+	DeltaCompressionEnabledObjects.SetNumBits(NewMaxInternalIndex);
+	ObjectIndexToObjectInfoIndex.SetNumZeroed(NewMaxInternalIndex);
 }
 
 void FDeltaCompressionBaselineManager::PreSendUpdate(FDeltaCompressionBaselineManagerPreSendUpdateParams& UpdateParams)

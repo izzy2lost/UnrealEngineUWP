@@ -170,27 +170,11 @@ void SFloatingPropertiesViewportWidget::BuildWidget(AActor* InSelectedActor, con
 		ClassPropertyToNode.Add(ClassProperty, Node);
 
 		FieldContainer->AddSlot()
-		.Size_Lambda([WidgetWeak = Node->GetPropertyWidget().ToWeakPtr()]() -> FVector2D
-			{
-				if (TSharedPtr<SFloatingPropertiesPropertyWidget> Widget = WidgetWeak.Pin())
-				{
-					return Widget->GetDesiredSize();
-				}
-
-				return FVector2D::ZeroVector;
-			})
-		.Position_Lambda([NodeWeak = Node.ToWeakPtr()]() -> FVector2D
-			{
-				if (TSharedPtr<FFloatingPropertiesPropertyNode> Node = NodeWeak.Pin())
-				{
-					return static_cast<FVector2D>(Node->GetCachedPosition());
-				}
-
-				return FVector2D::ZeroVector;
-			})
-		[
-			Node->GetPropertyWidget()
-		];
+			.Size(this, &SFloatingPropertiesViewportWidget::GetNodeSize, Node->GetPropertyWidget().ToWeakPtr())
+			.Position(this, &SFloatingPropertiesViewportWidget::GetNodePosition, Node.ToWeakPtr())
+			[
+				Node->GetPropertyWidget()
+			];
 	}
 
 	// Load data
@@ -269,7 +253,9 @@ FVector2f SFloatingPropertiesViewportWidget::GetDraggableArea() const
 {
 	static const FVector2f BorderArea = FVector2f(4.f, 4.f);
 
-	return GetTickSpaceGeometry().GetLocalSize() - BorderArea;
+	const FGeometry& Geometry = GetTickSpaceGeometry();
+
+	return Geometry.GetAbsoluteSize() - BorderArea;
 }
 
 void SFloatingPropertiesViewportWidget::OnArrangeChildren(const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren) const
@@ -525,6 +511,34 @@ void SFloatingPropertiesViewportWidget::EnsurePositions(bool bInInvalidate) cons
 			}
 		}
 	}
+}
+
+FVector2D SFloatingPropertiesViewportWidget::GetNodeSize(TWeakPtr<SFloatingPropertiesPropertyWidget> InNodeWidgetWeak) const
+{
+	if (TSharedPtr<SFloatingPropertiesPropertyWidget> Widget = InNodeWidgetWeak.Pin())
+	{
+		return Widget->GetDesiredSize();
+	}
+
+	return FVector2D::ZeroVector;
+}
+
+FVector2D SFloatingPropertiesViewportWidget::GetNodePosition(TWeakPtr<FFloatingPropertiesPropertyNode> InNodeWeak) const
+{
+	if (TSharedPtr<FFloatingPropertiesPropertyNode> Node = InNodeWeak.Pin())
+	{
+		const FGeometry& TickSpaceGeometry = GetTickSpaceGeometry();
+		const FVector2f LocalSize = TickSpaceGeometry.GetAbsoluteSize();
+
+		if (LocalSize.IsNearlyZero())
+		{
+			return FVector2D::ZeroVector;
+		}
+
+		return static_cast<FVector2D>(Node->GetCachedPosition() * TickSpaceGeometry.GetLocalSize() / LocalSize);
+	}
+
+	return FVector2D::ZeroVector;
 }
 
 #undef LOCTEXT_NAMESPACE

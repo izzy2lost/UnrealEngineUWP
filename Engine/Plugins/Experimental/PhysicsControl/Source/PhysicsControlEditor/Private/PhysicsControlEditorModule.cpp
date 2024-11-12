@@ -3,14 +3,12 @@
 #include "PhysicsControlEditorModule.h"
 #include "PhysicsControlComponent.h"
 #include "PhysicsControlComponentVisualizer.h"
-#include "OperatorEditor/OperatorEditor.h"
-#include "PhysicsControlProfileAssetActions.h"
-#include "PhysicsControlProfileEditorMode.h"
+#include "OperatorViewer/OperatorViewer.h"
+#include "PhysicsControlAssetActions.h"
+#include "PhysicsControlAssetEditorEditMode.h"
 #include "UnrealEdGlobals.h"
 #include "Editor/UnrealEdEngine.h"
 #include "Features/IModularFeatures.h"
-
-static const FName PhysicsControlEditorModule_PhysicsControlEditorInterface("PhysicsControlEditorInterface");
 
 #define LOCTEXT_NAMESPACE "PhysicsControlModule"
 
@@ -18,12 +16,12 @@ static const FName PhysicsControlEditorModule_PhysicsControlEditorInterface("Phy
 void FPhysicsControlEditorModule::StartupModule()
 {
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	PhysicsControlProfileAssetActions = MakeShared<FPhysicsControlProfileAssetActions>();
-	AssetTools.RegisterAssetTypeActions(PhysicsControlProfileAssetActions.ToSharedRef());
-
-	FEditorModeRegistry::Get().RegisterMode<FPhysicsControlProfileEditorMode>(
-		FPhysicsControlProfileEditorMode::ModeName, 
-		LOCTEXT("PhysicsControlProfileEditorMode", "PhysicsControlProfile"), 
+	PhysicsControlAssetActions = MakeShared<FPhysicsControlAssetActions>();
+	AssetTools.RegisterAssetTypeActions(PhysicsControlAssetActions.ToSharedRef());
+	
+	FEditorModeRegistry::Get().RegisterMode<FPhysicsControlAssetEditorEditMode>(
+		FPhysicsControlAssetEditorEditMode::ModeName, 
+		LOCTEXT("PhysicsControlAssetEditorMode", "PhysicsControlAsset"), 
 		FSlateIcon(), false);
 
 	if (GUnrealEd)
@@ -38,13 +36,13 @@ void FPhysicsControlEditorModule::StartupModule()
 
 	if (!EditorInterface)
 	{
-		EditorInterface = new FPhysicsControlOperatorEditor;
+		EditorInterface = new FPhysicsControlOperatorViewer;
 	}
 
 	if (EditorInterface)
 	{
 		EditorInterface->Startup();
-		IModularFeatures::Get().RegisterModularFeature(PhysicsControlEditorModule_PhysicsControlEditorInterface, EditorInterface);
+		IModularFeatures::Get().RegisterModularFeature(IPhysicsControlOperatorViewerInterface::GetModularFeatureName(), EditorInterface);
 	}
 }
 
@@ -54,18 +52,17 @@ void FPhysicsControlEditorModule::ShutdownModule()
 	if (EditorInterface)
 	{
 		EditorInterface->Shutdown();
-		IModularFeatures::Get().UnregisterModularFeature(PhysicsControlEditorModule_PhysicsControlEditorInterface, EditorInterface);
+		IModularFeatures::Get().UnregisterModularFeature(IPhysicsControlOperatorViewerInterface::GetModularFeatureName(), EditorInterface);
 		delete EditorInterface;
 		EditorInterface = nullptr;
 	}
 	
-	// Physics Control Profile editor/asset is disabled for now
-	FEditorModeRegistry::Get().UnregisterMode(FPhysicsControlProfileEditorMode::ModeName);
+	FEditorModeRegistry::Get().UnregisterMode(FPhysicsControlAssetEditorEditMode::ModeName);
 
 	if (FModuleManager::Get().IsModuleLoaded("AssetTools"))
 	{
 		FAssetToolsModule::GetModule().Get().UnregisterAssetTypeActions(
-			PhysicsControlProfileAssetActions.ToSharedRef());
+			PhysicsControlAssetActions.ToSharedRef());
 	}
 
 	if (GUnrealEd)

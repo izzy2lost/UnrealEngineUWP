@@ -27,7 +27,6 @@ FORCEINLINE_DEBUGGABLE FRHICommandListImmediate& FRHICommandListBase::GetAsImmed
 FORCEINLINE_DEBUGGABLE bool FRHICommandListBase::Bypass() const
 {
 #if CAN_TOGGLE_COMMAND_LIST_BYPASS
-	check(!IsImmediate() || IsInRenderingThread() || IsInRHIThread());
 	return GRHICommandList.Bypass() && IsImmediate();
 #else
 	return false;
@@ -69,49 +68,6 @@ inline void FRHIComputeCommandList::SubmitCommandsHint()
 	}
 }
 
-FORCEINLINE_DEBUGGABLE void FRHICommandListImmediate::ImmediateFlush(EImmediateFlushType::Type FlushType)
-{
-	if (FlushType == EImmediateFlushType::WaitForOutstandingTasksOnly)
-	{
-		WaitForTasks();
-	}
-	else
-	{
-		if (FlushType >= EImmediateFlushType::DispatchToRHIThread)
-		{
-			// Execution and initialization are separate functions because initializing the immediate contexts
-			// may enqueue a lambda call to SwitchPipeline, which needs special handling in LatchBypass().
-			const bool bFlushingResources = FlushType >= EImmediateFlushType::FlushRHIThreadFlushResources;
-			ExecuteAndReset(bFlushingResources);
-			InitializeImmediateContexts();
-		}
-
-		if (FlushType >= EImmediateFlushType::FlushRHIThread)
-		{
-			CSV_SCOPED_TIMING_STAT(RHITFlushes, FlushRHIThreadTotal);
-			WaitForRHIThreadTasks();
-		}
-
-		if (FlushType >= EImmediateFlushType::FlushRHIThreadFlushResources)
-		{
-			CSV_SCOPED_TIMING_STAT(RHITFlushes, FlushRHIThreadFlushResourcesTotal);
-
-			// RHIPerFrameRHIFlushComplete was originally called from FlushPendingDeletes, which used to be here, so it was
-			// running as part of the next command list. FlushPendingDeletes now runs as part of the command list being finalized
-			// and submitted by this function, as it should be, but moving RHIPerFrameRHIFlushComplete there is risky, because
-			// the RHIs which use it do weird things in there (e.g. D3D11 does blocking query resolve calls in that function which
-			// happen to not stall because this runs when the next command list is executed, so they have time to be executed).
-			EnqueueLambda([](FRHICommandListImmediate& RHICmdList)
-			{
-				if (GDynamicRHI)
-				{
-					GDynamicRHI->RHIPerFrameRHIFlushComplete();
-				}
-			});
-		}
-	}
-}
-
 // Helper class for traversing a FRHICommandList
 class FRHICommandListIterator
 {
@@ -119,14 +75,14 @@ public:
 	FRHICommandListIterator(FRHICommandListBase& CmdList)
 	{
 		CmdPtr = CmdList.Root;
-#if RHI_COUNT_COMMANDS
+#if DO_CHECK
 		NumCommands = 0;
 		CmdListNumCommands = CmdList.NumCommands;
 #endif
 	}
 	~FRHICommandListIterator()
 	{
-#if RHI_COUNT_COMMANDS
+#if DO_CHECK
 		checkf(CmdListNumCommands == NumCommands, TEXT("Missed %d Commands!"), CmdListNumCommands - NumCommands);
 #endif
 	}
@@ -140,7 +96,7 @@ public:
 	{
 		FRHICommandBase* RHICmd = CmdPtr;
 		CmdPtr = RHICmd->Next;
-#if RHI_COUNT_COMMANDS
+#if DO_CHECK
 		NumCommands++;
 #endif
 		return RHICmd;
@@ -149,7 +105,7 @@ public:
 private:
 	FRHICommandBase* CmdPtr;
 
-#if RHI_COUNT_COMMANDS
+#if DO_CHECK
 	uint32 NumCommands;
 	uint32 CmdListNumCommands;
 #endif
@@ -171,4 +127,100 @@ inline FRHICommandListScopedPipelineGuard::~FRHICommandListScopedPipelineGuard()
 	{
 		RHICmdList.SwitchPipeline(ERHIPipeline::None);
 	}
+}
+
+inline FRHIResourceReplaceBatcher::~FRHIResourceReplaceBatcher()
+{
+	RHICmdList.ReplaceResources(MoveTemp(Infos));
+}
+
+#if WITH_RHI_BREADCRUMBS
+
+	// Top-of-pipe breadcrumb event scope for RHI command lists
+	template<size_t N, typename... TArgs>
+	inline FRHIBreadcrumbEventScope::FRHIBreadcrumbEventScope(FRHIComputeCommandList& InRHICmdList, FRHIBreadcrumbData&& Data, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args)
+		: FRHIBreadcrumbEventScope(InRHICmdList, MoveTemp(Data), InRHICmdList.GetPipeline(), bCondition, FormatString, Forward<TArgs>(Args)...)
+	{}
+
+	// Bottom-of-pipe breadcrumb event scope for RHI contexts
+	template<size_t N, typename... TArgs>
+	inline FRHIBreadcrumbEventScope::FRHIBreadcrumbEventScope(IRHIComputeContext& InRHIContext, FRHIBreadcrumbData&& Data, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args)
+		: FRHIBreadcrumbEventScope(static_cast<FRHIComputeCommandList&>(InRHIContext.GetExecutingCommandList()), MoveTemp(Data), InRHIContext.GetPipeline(), bCondition, FormatString, Forward<TArgs>(Args)...)
+	{}
+
+	template<size_t N, typename... TArgs>
+	inline FRHIBreadcrumbEventScope::FRHIBreadcrumbEventScope(FRHIComputeCommandList& InRHICmdList, FRHIBreadcrumbData&& Data, ERHIPipeline InPipeline, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args)
+		: RHICmdList(InRHICmdList)
+		, Node(bCondition ? RHICmdList.GetBreadcrumbAllocator().AllocBreadcrumb(MoveTemp(Data), FormatString, Forward<TArgs>(Args)...) : nullptr)
+		, Pipeline(InPipeline)
+	{
+		if (Node)
+		{
+			Node->SetParent(RHICmdList.PersistentState.LocalBreadcrumb);
+			RHICmdList.BeginBreadcrumbCPU(Node, true);
+			RHICmdList.BeginBreadcrumbGPU(Node, Pipeline);
+		}
+	}
+
+	inline FRHIBreadcrumbEventScope::~FRHIBreadcrumbEventScope()
+	{
+		if (Node)
+		{
+			RHICmdList.EndBreadcrumbGPU(Node, Pipeline);
+			RHICmdList.EndBreadcrumbCPU(Node, true);
+		}
+	}
+
+	template<size_t N, typename... TArgs>
+	inline FRHIBreadcrumbEventManual::FRHIBreadcrumbEventManual(FRHIComputeCommandList& RHICmdList, FRHIBreadcrumbData&& Data, TCHAR const(&FormatString)[N], TArgs&&... Args)
+		: Node(RHICmdList.GetBreadcrumbAllocator().AllocBreadcrumb(MoveTemp(Data), FormatString, Forward<TArgs>(Args)...))
+	#if DO_CHECK
+		, Pipeline(RHICmdList.GetPipeline())
+		, ThreadId(FPlatformTLS::GetCurrentThreadId())
+	#endif
+	{
+		check(Pipeline != ERHIPipeline::None);
+
+		Node->SetParent(RHICmdList.PersistentState.LocalBreadcrumb);
+		RHICmdList.BeginBreadcrumbCPU(Node.Get(), true);
+		RHICmdList.BeginBreadcrumbGPU(Node.Get(), RHICmdList.GetPipeline());
+	}
+
+	inline void FRHIBreadcrumbEventManual::End(FRHIComputeCommandList& RHICmdList)
+	{
+		checkf(Node, TEXT("Manual breadcrumb was already ended."));
+		checkf(Pipeline == RHICmdList.GetPipeline(), TEXT("Manual breadcrumb was started and ended on different pipelines. Start: %s, End: %s")
+			, *GetRHIPipelineName(Pipeline)
+			, *GetRHIPipelineName(RHICmdList.GetPipeline())
+		);
+
+		checkf(ThreadId == FPlatformTLS::GetCurrentThreadId(), TEXT("Manual breadcrumbs must be started and ended on the same thread."));
+
+		RHICmdList.EndBreadcrumbGPU(Node.Get(), RHICmdList.GetPipeline());
+		RHICmdList.EndBreadcrumbCPU(Node.Get(), true);
+		Node = {};
+	}
+
+	inline FRHIBreadcrumbEventManual::~FRHIBreadcrumbEventManual()
+	{
+		checkf(!Node, TEXT("Manual breadcrumb was destructed before it was ended."));
+	}
+
+#endif // WITH_RHI_BREADCRUMBS
+
+template <typename RHICmdListType, typename LAMBDA>
+inline void TRHILambdaCommandMultiPipe<RHICmdListType, LAMBDA>::ExecuteAndDestruct(FRHICommandListBase& CmdList)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_ON_CHANNEL(Name, RHICommandsChannel);
+
+	FRHIContextArray Contexts { InPlace, nullptr };
+	for (ERHIPipeline Pipeline : MakeFlagsRange(Pipelines))
+	{
+		Contexts[Pipeline] = CmdList.Contexts[Pipeline];
+		check(Contexts[Pipeline]);
+	}
+
+	// Static cast to enforce const type in lambda args
+	Lambda(static_cast<FRHIContextArray const&>(Contexts));
+	Lambda.~LAMBDA();
 }

@@ -44,6 +44,7 @@ public:
 	FPathPermissionList PathPermissionList;
 	TSet<FName> ExcludedPackagePaths;
 	EContentBrowserItemAttributeFilter ItemAttributeFilter = EContentBrowserItemAttributeFilter::IncludeAll;
+	EContentBrowserItemCategoryFilter ItemCategoryFilter = EContentBrowserItemCategoryFilter::IncludeAll;
 	FString VirtualPathToScanOnDemand;
 	// Cached filtering
 	TSet<FName> CachedSubPaths;
@@ -76,40 +77,7 @@ public:
 	FARCompiledFilter ExclusiveFilter;
 };
 
-enum class EContentBrowserFolderAttributes : uint8
-{
-	/**
-	 * No special attributes.
-	 */
-	None = 0,
-
-	/**
-	 * This folder should always be visible, even if it contains no content in the Content Browser view.
-	 * This will include root content folders, and any folders that have been created directly (or indirectly) by a user action.
-	 */
-	AlwaysVisible = 1<<0,
-
-	/**
-	 * This folder has content that will appear in the Content Browser view.
-	 */
-	HasContent = 1<<1,
-
-	/**
-	 * This folder has public content that will appear in the Content Browser view.
-	 */
-	HasPublicContent = 1<<2,
-
-	/**
-	 * This folder has source (uncooked) content that will appear in the Content Browser view.
-	 */
-	HasSourceContent = 1<<3,
-
-	/** 
-	 * This folder is inside a plugin.
-	 */
-	IsInPlugin = 1<<4,
-};
-ENUM_CLASS_FLAGS(EContentBrowserFolderAttributes);
+enum class EContentBrowserFolderAttributes : uint8;
 
 UCLASS()
 class CONTENTBROWSERASSETDATASOURCE_API UContentBrowserAssetDataSource : public UContentBrowserDataSource
@@ -192,6 +160,7 @@ public:
 		bool bIncludeFolders = false;
 		bool bIncludeFiles = false;
 		bool bIncludeAssets = false;
+		bool bIncludeRedirectors = false;
 	};
 
 	typedef TFunctionRef<void(FName, TFunctionRef<bool(FName)>, bool)> FSubPathEnumerationFunc;
@@ -253,7 +222,7 @@ public:
 	 *
 	 * @return 
 	 */
-	static void EnumerateFoldersMatchingFilter(UContentBrowserDataSource* DataSource, const FContentBrowserCompiledAssetDataFilter* AssetDataFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback, FSubPathEnumerationFunc SubPathEnumeration, FCreateFolderItemFunc CreateFolderItem);
+	static void EnumerateFoldersMatchingFilter(UContentBrowserDataSource* DataSource, const FContentBrowserCompiledAssetDataFilter* AssetDataFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink, FSubPathEnumerationFunc SubPathEnumeration, FCreateFolderItemFunc CreateFolderItem);
 	
 /**
 	 * Call in DoesItemPassFilter() to check if a folder passes the compiled asset data filter.
@@ -270,6 +239,7 @@ public:
 	virtual void CompileFilter(const FName InPath, const FContentBrowserDataFilter& InFilter, FContentBrowserDataCompiledFilter& OutCompiledFilter) override;
 
 	virtual void EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback) override;
+	virtual void EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink) override;
 
 	virtual void EnumerateItemsAtPath(const FName InPath, const EContentBrowserItemTypeFilter InItemTypeFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback) override;
 
@@ -279,7 +249,7 @@ public:
 
 	virtual bool PrioritizeSearchPath(const FName InPath) override;
 
-	virtual bool IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags) override;
+	virtual bool IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags, TOptional<FContentBrowserFolderContentsFilter> InContentsFilter) override;
 
 	virtual bool CanCreateFolder(const FName InPath, FText* OutErrorMsg) override;
 
@@ -357,6 +327,10 @@ public:
 
 	virtual bool AppendItemReference(const FContentBrowserItemData& InItem, FString& InOutStr) override;
 
+	virtual bool AppendItemObjectPath(const FContentBrowserItemData& InItem, FString& InOutStr) override;
+
+	virtual bool AppendItemPackageName(const FContentBrowserItemData& InItem, FString& InOutStr) override;
+
 	virtual bool UpdateThumbnail(const FContentBrowserItemData& InItem, FAssetThumbnail& InThumbnail) override;
 
 	virtual bool HandleDragEnterItem(const FContentBrowserItemData& InItem, const FDragDropEvent& InDragDropEvent) override;
@@ -389,11 +363,9 @@ protected:
 private:
 	bool IsKnownContentPath(const FName InPackagePath) const;
 
-	bool IsRootContentPath(const FName InPackagePath) const;
-
 	static bool GetObjectPathsForCollections(ICollectionManager* CollectionManager, TArrayView<const FCollectionNameType> InCollections, const bool bIncludeChildCollections, TArray<FSoftObjectPath>& OutObjectPaths);
 
-	FContentBrowserItemData CreateAssetFolderItem(const FName InFolderPath);
+	FContentBrowserItemData CreateAssetFolderItem(const FName InInternalFolderPath);
 
 	FContentBrowserItemData CreateAssetFileItem(const FAssetData& InAssetData);
 
@@ -409,7 +381,7 @@ private:
 
 	void OnAssetRegistryFileLoadProgress(const IAssetRegistry::FFileLoadProgressUpdateData& InProgressUpdateData);
 
-	void OnAssetAdded(const FAssetData& InAssetData);
+	void OnAssetsAdded(TConstArrayView<FAssetData> InAssets);
 
 	void OnAssetRemoved(const FAssetData& InAssetData);
 
@@ -473,6 +445,10 @@ private:
 
 	FContentBrowserItemData OnFinalizeDuplicateAsset(const FContentBrowserItemData& InItemData, const FString& InProposedName, FText* OutErrorMsg);
 
+	void AddRootContentPathToStateMachine(const FString& InAssetPath);
+
+	void RemoveRootContentPathFromStateMachine(const FString& InAssetPath);
+
 	IAssetRegistry* AssetRegistry;
 
 	IAssetTools* AssetTools;
@@ -490,6 +466,67 @@ private:
 	 * @note These paths include a trailing slash.
 	 */
 	TArray<FString> RootContentPaths;
+
+	struct FCharacterNode;
+
+	struct FCharacterNodePtr
+	{
+		FCharacterNodePtr()
+			: Node(MakeUnique<FCharacterNode>())
+		{
+		}
+
+		FCharacterNodePtr(FCharacterNodePtr&&) = default;
+		FCharacterNodePtr& operator=(FCharacterNodePtr&&) = default;
+
+		FCharacterNodePtr(const FCharacterNodePtr&) = delete;
+		FCharacterNodePtr& operator=(const FCharacterNodePtr&) = delete;
+
+		const FCharacterNode& operator*() const
+		{
+			return Node.operator*();
+		}
+
+		const FCharacterNode* operator->() const
+		{
+			return Node.operator->();
+		}
+
+		FCharacterNode& operator*()
+		{
+			return Node.operator*();
+		}
+
+		FCharacterNode* operator->()
+		{
+			return Node.operator->();
+		}
+ 
+		const FCharacterNode* Get() const
+		{
+			return Node.Get();
+		}
+
+		FCharacterNode* Get()
+		{
+			return Node.Get();
+		}
+
+	private:
+
+		TUniquePtr<FCharacterNode> Node;
+	};
+
+	struct FCharacterNode
+	{
+		// The next characters in the tree and the number of paths beginning with the prefix including that character for use in removing paths.
+		TMap<TCHAR, TPair<FCharacterNodePtr, int32>> NextNodes;
+
+		bool bIsEndOfAMountPoint = false;
+	};
+
+	// Tree of character nodes all in lower case. Used to speed up queries against the RootContentPaths Array.
+	FCharacterNode RootContentPathsTrie;
 
 	/**
 	 * Map of folders that have attributes set.

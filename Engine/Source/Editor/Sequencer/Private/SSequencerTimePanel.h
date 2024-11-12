@@ -10,6 +10,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "MovieSceneFwd.h"
 #include "FrameNumberDisplayFormat.h"
+#include "Misc/FrameRate.h"
 
 class FSequencer;
 class UMovieScene;

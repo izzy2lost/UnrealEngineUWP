@@ -674,32 +674,9 @@ ENGINE_API float GetResolutionQualityFromGPUPerfIndex(float GPUPerfIndex)
 	 return GetRenderScaleLevelFromQualityLevel(ComputeOptionFromPerfIndex(TEXT("ResolutionQuality"), 0, GPUPerfIndex));
 }
 
-FQualityLevels BenchmarkQualityLevels(uint32 WorkScale, float CPUMultiplier, float GPUMultiplier)
+ENGINE_API FQualityLevels ComputeQualityLevelsFromPerfIndex(float CPUPerfIndex, float GPUPerfIndex)
 {
-	ensure((CPUMultiplier > 0.0f) && (GPUMultiplier > 0.0f));
-
-	// benchmark the system
-
 	FQualityLevels Results;
-
-	FSynthBenchmarkResults SynthBenchmark;
-	ISynthBenchmark::Get().Run(SynthBenchmark, true, WorkScale);
-
-	float CPUPerfIndex = SynthBenchmark.ComputeCPUPerfIndex(/*out*/ &Results.CPUBenchmarkSteps) * CPUMultiplier;
-	float GPUPerfIndex = SynthBenchmark.ComputeGPUPerfIndex(/*out*/ &Results.GPUBenchmarkSteps) * GPUMultiplier;
-
-#if !UE_BUILD_SHIPPING
-	if (CVarTestCPUPerfIndexOverride.GetValueOnAnyThread() > 0.0f)
-	{
-		CPUPerfIndex = CVarTestCPUPerfIndexOverride.GetValueOnAnyThread();
-	}
-	if (CVarTestGPUPerfIndexOverride.GetValueOnAnyThread() > 0.0f)
-	{
-		GPUPerfIndex = CVarTestGPUPerfIndexOverride.GetValueOnAnyThread();
-	}
-#endif
-
-	// decide on the actual quality needed
 	Results.ResolutionQuality = GetResolutionQualityFromGPUPerfIndex(GPUPerfIndex);
 	Results.ViewDistanceQuality = ComputeOptionFromPerfIndex(TEXT("ViewDistanceQuality"), CPUPerfIndex, GPUPerfIndex);
 	Results.AntiAliasingQuality = ComputeOptionFromPerfIndex(TEXT("AntiAliasingQuality"), CPUPerfIndex, GPUPerfIndex);
@@ -714,6 +691,39 @@ FQualityLevels BenchmarkQualityLevels(uint32 WorkScale, float CPUMultiplier, flo
 	Results.LandscapeQuality = ComputeOptionFromPerfIndex( TEXT("LandscapeQuality"), CPUPerfIndex, GPUPerfIndex);
 	Results.CPUBenchmarkResults = CPUPerfIndex;
 	Results.GPUBenchmarkResults = GPUPerfIndex;
+	return Results;
+}
+
+FQualityLevels BenchmarkQualityLevels(uint32 WorkScale, float CPUMultiplier, float GPUMultiplier)
+{
+	ensure((CPUMultiplier > 0.0f) && (GPUMultiplier > 0.0f));
+
+	// benchmark the system
+
+	TArray<float> CPUBenchmarkSteps;
+	TArray<float> GPUBenchmarkSteps;
+
+	FSynthBenchmarkResults SynthBenchmark;
+	ISynthBenchmark::Get().Run(SynthBenchmark, true, WorkScale);
+
+	float CPUPerfIndex = SynthBenchmark.ComputeCPUPerfIndex(/*out*/ &CPUBenchmarkSteps) * CPUMultiplier;
+	float GPUPerfIndex = SynthBenchmark.ComputeGPUPerfIndex(/*out*/ &GPUBenchmarkSteps) * GPUMultiplier;
+
+#if !UE_BUILD_SHIPPING
+	if (CVarTestCPUPerfIndexOverride.GetValueOnAnyThread() > 0.0f)
+	{
+		CPUPerfIndex = CVarTestCPUPerfIndexOverride.GetValueOnAnyThread();
+	}
+	if (CVarTestGPUPerfIndexOverride.GetValueOnAnyThread() > 0.0f)
+	{
+		GPUPerfIndex = CVarTestGPUPerfIndexOverride.GetValueOnAnyThread();
+	}
+#endif
+
+	// decide on the actual quality needed
+	FQualityLevels Results = ComputeQualityLevelsFromPerfIndex(CPUPerfIndex, GPUPerfIndex);
+	Results.CPUBenchmarkSteps = MoveTemp(CPUBenchmarkSteps);
+	Results.GPUBenchmarkSteps = MoveTemp(GPUBenchmarkSteps);
 
 	return Results;
 }

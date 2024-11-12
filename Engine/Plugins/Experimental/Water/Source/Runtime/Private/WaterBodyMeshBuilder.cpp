@@ -37,6 +37,11 @@ void FWaterBodyMeshBuilder::BuildWaterInfoMeshes(UWaterBodyComponent* WaterBodyC
 	TRACE_CPUPROFILER_EVENT_SCOPE(FWaterBodyMeshBuilder::BuildWaterInfoMesh);
 	
 	using namespace UE::Geometry;
+	
+	if (!ensureMsgf(WaterInfoMeshComponent != nullptr && WaterInfoDilatedMeshComponent != nullptr, TEXT("BuildWaterInfoMeshes called on a water body with null water info mesh component %s"), *WaterBodyComponent->GetOwner()->GetActorNameOrLabel()))
+	{
+		return;
+	}
 
 	FDynamicMesh3 WaterInfoMesh(EMeshComponents::None);
 	FDynamicMesh3 WaterInfoDilatedMesh(EMeshComponents::None);
@@ -592,7 +597,7 @@ void FWaterBodyMeshBuilder::UpdateStaticMesh(UStaticMesh* WaterMesh, const FMesh
 
 UStaticMesh* FWaterBodyMeshBuilder::CreateUStaticMesh(UObject* Outer, FName MeshName) const
 {
-	UStaticMesh* StaticMesh = NewObject<UStaticMesh>(Outer, MeshName, RF_Transactional | RF_TextExportTransient | RF_NonPIEDuplicateTransient);
+	UStaticMesh* StaticMesh = NewObject<UStaticMesh>(Outer, MeshName, RF_TextExportTransient | RF_NonPIEDuplicateTransient);
 
 	// Disable navigation
 	StaticMesh->MarkAsNotHavingNavigationData();

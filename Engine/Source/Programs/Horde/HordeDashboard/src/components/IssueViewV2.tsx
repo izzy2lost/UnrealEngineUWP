@@ -1330,9 +1330,18 @@ const IssueSummaryPanel: React.FC = () => {
       }
    }
 
+   if (issue.fingerprintDescription) {
+      const components = issue.fingerprintDescription.split(" / ");
+      if (components.length) {
+         items.push({
+            title: "Fingerprint",
+            text: components[0].replace("Type:", "").trim()
+         })
+      }
+   }
+
    if (!items.length && !issue.description) {
       return null;
-
    }
 
    return <Stack style={{ flexBasis: "70px", flexShrink: 0 }}>
@@ -1421,13 +1430,14 @@ export const ErrorPane: React.FC<{ events?: GetLogEventResponse[]; onClose?: () 
          return <div>???</div>;
       }
 
-      const url = `/log/${item.logId}?lineindex=${item.lineIndex}`;
+      const url = `/log/${item.logId}?lineIndex=${item.lineIndex + 1}`;
 
       const lines = item.lines.filter(line => line.message?.trim().length).map(line => <Stack key={`errorpane_line_${item.lineIndex}_${lineKey++}`} styles={{ root: { paddingLeft: 8, paddingRight: 8, lineBreak: "normal", whiteSpace: "pre-wrap", lineHeight: 18, fontSize: 10, fontFamily: "Horde Cousine Regular, monospace, monospace" } }}> <Link style={{ color: modeColors.text }} to={url}>{renderLine(navigate, line, undefined, {})}</Link></Stack>);
 
       return (<Stack className={errorStyles.itemCell} style={{ padding: 8 }}><Stack className={item.severity === EventSeverity.Warning ? errorStyles.gutterWarning : errorStyles.gutter} styles={{ root: { padding: 0, margin: 0 } }}>
          <Stack styles={{ root: { paddingLeft: 14 } }}>
-            {lines}
+            {!!lines.length && lines}
+            {!lines.length && <Text>Missing Log Data</Text>}
          </Stack>
       </Stack>
       </Stack>);
@@ -1527,6 +1537,12 @@ const StepPanel: React.FC<{ streamId: string, hstep: GetIssueStepResponse }> = o
 
       const textSize = "small";
 
+
+      let viewLogURL = `/log/${hstep.logId}`;
+      if (logEvents?.length) {
+         viewLogURL += `?lineIndex=${logEvents[0].lineIndex + 1}`;
+      }
+
       return <div style={{ paddingTop: 8, height: "100%" }}>
          <Stack style={{ flexBasis: "52px", flexShrink: 0 }}>
             <Stack horizontal verticalAlign="center" style={{ backgroundColor: backgroundColor, width: "100%", paddingLeft: 8, padding: 12 }}>
@@ -1552,13 +1568,14 @@ const StepPanel: React.FC<{ streamId: string, hstep: GetIssueStepResponse }> = o
                         <Stack style={{ height: "100%" }}>
                            <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
                               <Icon styles={{ root: { margin: '0px', padding: '0px', paddingTop: "2px", userSelect: "none" } }} iconName="Commit" className={hordeClasses.iconBlue} />
-                              <a href={changeUrl} target="blank">
+                              {!!dashboard.swarmUrl && <a href={changeUrl} target="blank">
                                  <Text variant={textSize} styles={{ root: { margin: '0px', padding: '0px' } }} >{`CL ${hstep.change}`}</Text>
-                              </a>
+                              </a>}
+                              {!dashboard.swarmUrl && <Text variant={textSize} styles={{ root: { margin: '0px', padding: '0px' } }} >{`CL ${hstep.change}`}</Text>}
                            </Stack>
                         </Stack>
                         <Stack style={{ paddingRight: 18 }}>
-                           <Link className={"view-log-link"} to={`/log/${hstep.logId}`} target="_blank">
+                           <Link className={"view-log-link"} to={viewLogURL} target="_blank">
                               <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
                                  <Icon styles={{ root: { margin: '0px', padding: '0px', paddingTop: "2px" } }} iconName="AlignLeft" className={hordeClasses.iconBlue} />
                                  <Text variant={textSize} styles={{ root: { margin: '0px', padding: '0px' } }} className="view-log-link">View Log</Text>
@@ -1921,7 +1938,7 @@ export const IssueModalV2: React.FC<{ popHistoryOnClose: boolean, issueId?: stri
    }
 
    // subscribe
-   if (details.update) { }   
+   if (details.update) { }
 
    if (details.issueError) {
       return <Dialog hidden={false} onDismiss={() => { details.clear(); if (onCloseExternal) { onCloseExternal() } else { onClose() } }} dialogContentProps={{
@@ -1931,10 +1948,10 @@ export const IssueModalV2: React.FC<{ popHistoryOnClose: boolean, issueId?: stri
       }}
          modalProps={{ styles: { main: { width: "640px !important", minWidth: "640px !important", maxWidth: "640px !important" } } }}>
          <DialogFooter>
-            <PrimaryButton onClick={() => { details.clear();  if (onCloseExternal) { onCloseExternal() } else { onClose() } }} text="Ok" />
+            <PrimaryButton onClick={() => { details.clear(); if (onCloseExternal) { onCloseExternal() } else { onClose() } }} text="Ok" />
          </DialogFooter>
       </Dialog>
-   }   
+   }
 
    details.set(parseInt(issueId));
 
@@ -2524,7 +2541,7 @@ const CreateExternalIssueModal: React.FC<{ onClose: () => void }> = ({ onClose }
 
       const project = projects.find(p => p.name === projectName)!;
 
-      let componentName = undefined;
+      let componentName: string | undefined;
       for (let id in project.components) {
          if (project.components[id] === state.componentName) {
             componentName = state.componentName;

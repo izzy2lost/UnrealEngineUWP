@@ -4,9 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "GenericPlatform/HttpResponseCommon.h"
-#include "IHttpThreadedRequest.h"
+#include "GenericPlatform/HttpRequestCommon.h"
 #include "PlatformHttp.h"
 #include "HttpPackage.h"
+#include "Misc/TVariant.h"
 
 /**
  * Delegate invoked when in progress Task completes. It is invoked in an out of our control thread
@@ -17,7 +18,9 @@ DECLARE_DELEGATE(FNewAppleHttpEventDelegate);
 /**
  * Apple implementation of an Http request
  */
-class FAppleHttpRequest : public IHttpThreadedRequest
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+class FAppleHttpRequest : public FHttpRequestCommon
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 public:
 	// implementation friends
@@ -40,12 +43,11 @@ public:
 	virtual void SetContent(TArray<uint8>&& ContentPayload) override;
 	virtual void SetContentAsString(const FString& ContentString) override;
     virtual bool SetContentAsStreamedFile(const FString& Filename) override;
-	virtual bool SetContentFromStream(TSharedRef<FArchive, ESPMode::ThreadSafe> Stream) override;
+	virtual bool SetContentFromStream(TSharedRef<FArchive> Stream) override;
 	virtual void SetHeader(const FString& HeaderName, const FString& HeaderValue) override;
 	virtual void AppendToHeader(const FString& HeaderName, const FString& AdditionalHeaderValue) override;
 	virtual bool ProcessRequest() override;
 	virtual void Tick(float DeltaSeconds) override;
-	virtual float GetElapsedTime() const override;
 	//~ End IHttpRequest Interface
 
 	//~ Begin IHttpRequestThreaded Interface
@@ -68,10 +70,17 @@ public:
 	virtual ~FAppleHttpRequest();
 
 PACKAGE_SCOPE:
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	using FHttpRequestCommon::StartProcessTime;
+	using FHttpRequestCommon::ConnectTime;
 	using FHttpRequestCommon::BroadcastResponseHeadersReceived;
-	using FHttpRequestCommon::TriggerStatusCodeReceivedDelegate;
+	using FHttpRequestCommon::StartActivityTimeoutTimer;
+	using FHttpRequestCommon::ResetActivityTimeoutTimer;
+	using FHttpRequestCommon::StopActivityTimeoutTimer;
+	using FHttpRequestCommon::HandleStatusCodeReceived;
 	using FHttpRequestCommon::SetEffectiveURL;
 	using FHttpRequestCommon::PassReceivedDataToStream;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	bool IsInitializedWithValidStream() const;
 
@@ -87,6 +96,9 @@ private:
 	 * @return true if the request was started
 	 */
 	virtual bool SetupRequest() override;
+
+	virtual FHttpResponsePtr CreateResponse() override;
+	virtual void MockResponseData() override;
 
 	virtual void AbortRequest() override;
 
@@ -105,17 +117,20 @@ private:
 	/** This is the Task associated to the sessionin charge of our request */
 	NSURLSessionTask* Task;
     
-	/** Flag whether the request payload source is a file */
-	bool bIsPayloadFile;
+	struct FAppleHttpStreamFactory;
+	using FNoStreamSource = FEmptyVariantState;
+	/** Source to create stream from
+		FNoStreamedSource: No streamed data
+		FString: Filename set from SetContentAsStreamedFile
+		TSharedRef<FArchive>: Stream set from SetContentFromStream
+	 */
+	TVariant<FNoStreamSource, FString, TSharedRef<FArchive>> StreamedContentSource;
 
 	/** The request payload length in bytes. This must be tracked separately for a file stream */
 	uint64 ContentBytesLength;
 
 	/** Array used to retrieve back content set on the ObjC request when calling GetContent*/
 	mutable TArray<uint8> StorageForGetContent;
-
-	/** Time taken to complete/cancel the request. */
-	float ElapsedTime;
 
 	/** Last reported bytes written */
 	int32 LastReportedBytesWritten;
@@ -129,7 +144,9 @@ private:
 /**
  * Apple implementation of an Http response
  */
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 class FAppleHttpResponse : public FHttpResponseCommon
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 public:
 	//~ Begin IHttpBase Interface
@@ -141,7 +158,6 @@ public:
 	//~ End IHttpBase Interface
 
 	//~ Begin IHttpResponse Interface
-	virtual int32 GetResponseCode() const override;
 	virtual FString GetContentAsString() const override;
 	//~ End IHttpResponse Interface
 

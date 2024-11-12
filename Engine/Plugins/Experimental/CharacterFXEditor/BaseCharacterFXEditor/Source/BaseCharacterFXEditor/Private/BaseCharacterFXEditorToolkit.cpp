@@ -118,10 +118,10 @@ AssetEditorViewportFactoryFunction FBaseCharacterFXEditorToolkit::GetViewportDel
 	return TempViewportDelegate;
 }
 
-void FBaseCharacterFXEditorToolkit::AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget)
+void FBaseCharacterFXEditorToolkit::AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget, int32 ZOrder)
 {
 	TSharedPtr<SBaseCharacterFXEditorViewport> ViewportWidget = StaticCastSharedPtr<SBaseCharacterFXEditorViewport>(ViewportTabContent->GetFirstViewport());
-	ViewportWidget->AddOverlayWidget(InViewportOverlayWidget);
+	ViewportWidget->AddOverlayWidget(InViewportOverlayWidget, ZOrder);
 }
 
 void FBaseCharacterFXEditorToolkit::RemoveViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget)
@@ -189,16 +189,19 @@ void FBaseCharacterFXEditorToolkit::PostInitAssetEditor()
 	// a viewport that will allow our mode to receive ticks.
 	// We don't need to invoke the tool palette tab anymore, since this is handled by
 	// underlying infrastructure.
-	if (!TabManager->FindExistingLiveTab(ViewportTabID))
+	if (!TabManager->FindExistingLiveTab(ViewportTabID) && bForceViewportTab)
 	{
 		TabManager->TryInvokeTab(ViewportTabID);
 	}
 
 	ViewportClient->FocusViewportOnBox(EdMode->SceneBoundingBox());
 
-	// We need the viewport client to start out focused, or else it won't get ticked until
-	// we click inside it.
-	ViewportClient->ReceivedFocus(ViewportClient->Viewport);
+	if(ViewportClient->Viewport)
+	{
+		// We need the viewport client to start out focused, or else it won't get ticked until
+		// we click inside it.
+		ViewportClient->ReceivedFocus(ViewportClient->Viewport);
+	}
 }
 
 void FBaseCharacterFXEditorToolkit::InitializeEdMode(UBaseCharacterFXEditorMode* EdMode)

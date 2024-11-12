@@ -40,6 +40,18 @@ enum class ECurveEditorZoomPosition : uint8
 	MousePosition UMETA(DisplayName = "Mouse Position"),
 };
 
+/** Defines the axis to snap to when dragging. */
+UENUM()
+enum class ECurveEditorSnapAxis : uint8
+{
+	/** Don't snap to any axis when dragging. */
+	CESA_None UMETA(DisplayName = "None"),
+	/* Snap to the x axis when dragging. */
+	CESA_X UMETA(DisplayName = "X Only"),
+	/* Snap to the y axis when dragging. */
+	CESA_Y UMETA(DisplayName = "Y Only")
+};
+
 /** Custom Color Object*/
 USTRUCT()
 struct FCustomColorForChannel
@@ -81,6 +93,7 @@ public:
 	GENERATED_BODY()
 
 	DECLARE_MULTICAST_DELEGATE(FOnCustomColorsChanged);
+	DECLARE_MULTICAST_DELEGATE(FOnAxisSnappingChanged);
 
 	UCurveEditorSettings();
 
@@ -124,6 +137,11 @@ public:
 	/** Set zoom in/out position (mouse position or current time). */
 	void SetZoomPosition(ECurveEditorZoomPosition InZoomPosition);
 
+	/** Get snap axis. */
+	ECurveEditorSnapAxis GetSnapAxis() const;
+	/** Set snap axis. */
+	void SetSnapAxis(ECurveEditorSnapAxis InSnapAxis);
+
 	/** Get whether to snap the time to the currently selected key. */
 	bool GetSnapTimeToSelection() const;
 	/** Set whether to snap the time to the currently selected key. */
@@ -143,6 +161,9 @@ public:
 	
 	/** Gets the multicast delegate which is run whenever custom colors have changed. */
 	FOnCustomColorsChanged& GetOnCustomColorsChanged() { return OnCustomColorsChangedEvent; }
+
+	/** Gets the multicast delegate which is run whenever axis snapping has changed. */
+	FOnAxisSnappingChanged& GetOnAxisSnappingChanged() { return OnAxisSnappingChangedEvent; }
 
 	/** Get custom color for space name. Parent and World are reserved names and will be used instead of the specified control name. */
 	TOptional<FLinearColor> GetSpaceSwitchColor(const FString& InControlName) const;
@@ -186,8 +207,11 @@ protected:
 	UPROPERTY( config, EditAnywhere, Category="Curve Editor" )
 	ECurveEditorTangentVisibility TangentVisibility;
 
-	UPROPERTY( config, EditAnywhere, Category="Curve Editor")
+	UPROPERTY(config, EditAnywhere, Category = "Curve Editor")
 	ECurveEditorZoomPosition ZoomPosition;
+
+	UPROPERTY(config, EditAnywhere, Category = "Curve Editor")
+	ECurveEditorSnapAxis SnapAxis;
 
 	UPROPERTY( config, EditAnywhere, Category="Curve Editor")
 	bool bSnapTimeToSelection;
@@ -212,4 +236,5 @@ protected:
 
 private:
 	FOnCustomColorsChanged OnCustomColorsChangedEvent;
+	FOnAxisSnappingChanged OnAxisSnappingChangedEvent;
 };

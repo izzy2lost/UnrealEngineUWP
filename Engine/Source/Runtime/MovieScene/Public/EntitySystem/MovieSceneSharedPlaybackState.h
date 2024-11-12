@@ -7,10 +7,13 @@
 #include "EntitySystem/MovieSceneSequenceInstanceHandle.h"
 #include "Evaluation/MovieSceneEvaluationOperand.h"
 #include "Evaluation/MovieScenePlaybackCapabilities.h"
+#include "Evaluation/MovieScenePreAnimatedState.h"
 #include "MovieSceneSequenceID.h"
 
+class UMovieSceneSequence;
 class FMovieSceneEntitySystemRunner;
 class UMovieSceneCompiledDataManager;
+class UMovieSceneEntitySystemLinker;
 struct FMovieSceneObjectCache;
 struct FMovieSceneSequenceHierarchy;
 
@@ -24,8 +27,6 @@ struct FSharedPlaybackStateCreateParams
 {
 	/**
 	 * The playback context in which the root sequence will be evaluated.
-	 *
-	 * Requires that RootInstanceHandle and Runner are also set.
 	 */
 	UObject* PlaybackContext = nullptr;
 
@@ -33,18 +34,14 @@ struct FSharedPlaybackStateCreateParams
 	 * The handle of the root sequence instance, if the created playback state
 	 * is meant to relate to an instance that has also been created inside
 	 * a runner/linker's instance registry.
-	 *
-	 * Requires that PlaybackContext and Runner are also set.
 	 */
 	FRootInstanceHandle RootInstanceHandle;
 
 	/**
-	 * The runner that will be evaluating the sequence that the created playback
+	 * The linker that will be evaluating the sequence that the created playback
 	 * state relates to.
-	 *
-	 * Requires that PlaybackContext and RootInstanceHandle are also set.
 	 */
-	TSharedPtr<FMovieSceneEntitySystemRunner> Runner;
+	TObjectPtr<UMovieSceneEntitySystemLinker> Linker;
 
 	/**
 	 * The compiled data manager with which the root sequence was compiled, or
@@ -60,7 +57,7 @@ struct MOVIESCENE_API FSharedPlaybackState : TSharedFromThis<FSharedPlaybackStat
 {
 public:
 
-	FSharedPlaybackState();
+	FSharedPlaybackState(UMovieSceneEntitySystemLinker* InLinker = nullptr);
 	FSharedPlaybackState(
 			UMovieSceneSequence& InRootSequence,
 			const FSharedPlaybackStateCreateParams& CreateParams);
@@ -73,8 +70,8 @@ public:
 	/** Gets the root sequence */
 	UMovieSceneSequence* GetRootSequence() const { return WeakRootSequence.Get(); }
 
-	/** Gets the runner evaluating this root sequence */
-	TSharedPtr<FMovieSceneEntitySystemRunner> GetRunner() const { return WeakRunner.Pin(); }
+	/** Gets the linker evaluating this root sequence */
+	UMovieSceneEntitySystemLinker* GetLinker() const { return WeakLinker.Get(); }
 
 	/** Gets the compiled data manager that contains the data for the root sequence */
 	TObjectPtr<UMovieSceneCompiledDataManager> GetCompiledDataManager() const { return CompiledDataManager; }
@@ -85,14 +82,29 @@ public:
 	/** Gets the compiled data ID for the root sequence */
 	const FMovieSceneCompiledDataID&  GetRootCompiledDataID() const { return RootCompiledDataID; }
 
+	/** Gets the pre-animated state utility for the sequence hierarchy */
+	const FMovieSceneInstancePreAnimatedState& GetPreAnimatedState() const { return PreAnimatedState; }
+
+	/** Gets the pre-animated state utility for the sequence hierarchy */
+	FMovieSceneInstancePreAnimatedState& GetPreAnimatedState() { return PreAnimatedState; }
+
 public:
 
 	// General utility methods
 
-	UMovieSceneEntitySystemLinker* GetLinker() const;
+	/** Gets the runner evaluating this root sequence */
+	TSharedPtr<FMovieSceneEntitySystemRunner> GetRunner() const;
 
+	/** Gets the hierarchy (if any) for this root sequence */
 	const FMovieSceneSequenceHierarchy* GetHierarchy() const;
+	/** Gets a sub-sequence given an ID */
 	UMovieSceneSequence* GetSequence(FMovieSceneSequenceIDRef SequenceID) const;
+
+	/** Finds the bound objects for the given object binding in the given (sub)sequence */
+	TArrayView<TWeakObjectPtr<>> FindBoundObjects(const FGuid& ObjectBindingID, FMovieSceneSequenceIDRef SequenceID) const;
+
+	/** Clears object caches for the entire sequence hierarchy. */
+	void ClearObjectCaches();
 
 public:
 
@@ -296,8 +308,8 @@ private:
 	/** The playback context */
 	TWeakObjectPtr<UObject> WeakPlaybackContext;
 
-	/** The runner evaluating this root sequence */
-	TWeakPtr<FMovieSceneEntitySystemRunner> WeakRunner;
+	/** The linker evaluating this root sequence */
+	TWeakObjectPtr<UMovieSceneEntitySystemLinker> WeakLinker;
 
 	/** The compiled data manager that contains the data for the root sequence */
 	TObjectPtr<UMovieSceneCompiledDataManager> CompiledDataManager;
@@ -310,6 +322,9 @@ private:
 
 	/** Playback capabilities for the root sequence */
 	FPlaybackCapabilities Capabilities;
+
+	/** Pre-animated state utility for the sequence hierarchy */
+	FMovieSceneInstancePreAnimatedState PreAnimatedState;
 };
 
 } // namespace UE::MovieScene

@@ -1,13 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "MiniCurveEditor.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Styling/AppStyle.h"
 #include "SCurveEditor.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Editor.h"
-
 
 void SMiniCurveEditor::Construct(const FArguments& InArgs)
 {
@@ -35,19 +33,27 @@ void SMiniCurveEditor::Construct(const FArguments& InArgs)
 
 	WidgetWindow = InArgs._ParentWindow;
 
-	GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->NotifyAssetOpened(InArgs._OwnerObject, this);
+	bHasOwner = InArgs._OwnerObject != nullptr;
+
+	// Only notify if the Owner is present - it's not when spawned from the DataTable editor, for example
+	if (bHasOwner)
+	{
+		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->NotifyAssetOpened(InArgs._OwnerObject, this);
+	}
 }
 
 SMiniCurveEditor::~SMiniCurveEditor()
 {
-	GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->NotifyEditorClosed(this);
+	if (bHasOwner)
+	{
+		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->NotifyEditorClosed(this);
+	}
 }
 
 float SMiniCurveEditor::GetTimelineLength() const
 {
 	return 0.f;
 }
-
 
 void SMiniCurveEditor::SetInputViewRange(float InViewMinInput, float InViewMaxInput)
 {

@@ -10,6 +10,7 @@
 #include "NetworkPredictionService_Finalize.inl"
 #include "NetworkPredictionService_ServerRPC.inl"
 #include "NetworkPredictionService_Physics.inl"
+#include "NetworkPredictionService_Smooth.inl"
 
 // Services do the actual system work on batches of registered instances. UNetworkPredictionWorldManager orchestrates them.
 //
@@ -171,6 +172,7 @@ public:
 	NP_DECLARE_SERVICE(FixedTick,					ILocalTickService);
 	NP_DECLARE_SERVICE(FixedFinalize,				IFinalizeService);
 	NP_DECLARE_SERVICE(FixedPhysics,				IPhysicsService);
+	NP_DECLARE_SERVICE(FixedSmoothing,				IFixedSmoothingService);
 
 	NP_DECLARE_SERVICE(IndependentRollback,			IIndependentRollbackService);
 	NP_DECLARE_SERVICE(IndependentInterpolate,		IIndependentInterpolateService);
@@ -197,6 +199,7 @@ private:
 			NP_DEFINE_SERVICE_CALL(FixedTick,					TLocalTickService);
 			NP_DEFINE_SERVICE_CALL(FixedFinalize,				TFinalizeService);
 			NP_DEFINE_SERVICE_CALL(FixedPhysics,				TPhysicsService);
+			NP_DEFINE_SERVICE_CALL(FixedSmoothing,				TFixedSmoothingService);
 		}
 		else if (EnumHasAnyFlags(Mask, ENetworkPredictionService::ANY_INDEPENDENT))
 		{

@@ -3,7 +3,7 @@
 #include "DatasmithActorImporter.h"
 
 #include "DatasmithCameraImporter.h"
-#include "DatasmithCloth.h"
+#include "DatasmithCloth.h"  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 #include "DatasmithImportContext.h"
 #include "DatasmithImporterModule.h"
 #include "DatasmithImportOptions.h"
@@ -73,7 +73,7 @@ namespace UE::DatasmithActorImporter
 		const int32 KnownPathLength = Outer.GetFullName().Len() + ExpectedSuffixMaxLength + WarningtextLength + 1;
 		const int32 RemainingLength = FMath::Min(PreventiveMaximumLength - KnownPathLength, 100);
 
-		FString ComputedName(RemainingLength / 2, *DesiredName);
+		FString ComputedName = FString::ConstructFromPtrSize(*DesiredName, RemainingLength / 2);
 		ComputedName += TEXT("---NAME---TRUNCATED---");
 		ComputedName += DesiredName.Right(RemainingLength / 2);
 
@@ -337,7 +337,8 @@ UStaticMeshComponent* FDatasmithActorImporter::ImportStaticMeshComponent( FDatas
 	return StaticMeshComponent;
 }
 
-AActor* FDatasmithActorImporter::ImportClothActor(FDatasmithImportContext& ImportContext, const TSharedRef<IDatasmithClothActorElement>& ClothActorElement)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+AActor* FDatasmithActorImporter::ImportClothActor(FDatasmithImportContext& ImportContext, const TSharedRef<IDatasmithClothActorElement>& ClothActorElement)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	AActor* ImportedActor = ImportActor(AActor::StaticClass(), ClothActorElement, ImportContext, ImportContext.Options->StaticMeshActorImportPolicy);
 
@@ -394,6 +395,7 @@ AActor* FDatasmithActorImporter::ImportClothActor(FDatasmithImportContext& Impor
 	}
 	return ImportedActor;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FDatasmithActorImporter::SetupStaticMeshComponent( FDatasmithImportContext& ImportContext, UStaticMeshComponent* StaticMeshComponent, const TSharedRef< IDatasmithMeshActorElement >& MeshActorElement )
 {
@@ -747,6 +749,10 @@ void FDatasmithActorImporter::SetupActorProperties(AActor* ImportedActor, const 
 
 void FDatasmithActorImporter::SetupSceneComponent( USceneComponent* SceneComponent, const TSharedRef< IDatasmithActorElement >& ActorElement, USceneComponent* Parent )
 {
+	static_assert((uint8)EDatasmithActorMobilityType::Static == (uint8)EComponentMobility::Type::Static, "ENUM_VALUE_HAS_CHANGED");
+	static_assert((uint8)EDatasmithActorMobilityType::Stationary == (uint8)EComponentMobility::Type::Stationary, "ENUM_VALUE_HAS_CHANGED");
+	static_assert((uint8)EDatasmithActorMobilityType::Movable == (uint8)EComponentMobility::Type::Movable, "ENUM_VALUE_HAS_CHANGED");
+
 	if ( !SceneComponent )
 	{
 		return;
@@ -756,7 +762,7 @@ void FDatasmithActorImporter::SetupSceneComponent( USceneComponent* SceneCompone
 	UDatasmithSceneComponentTemplate* SceneComponentTemplate = NewObject< UDatasmithSceneComponentTemplate >(Outer);
 
 	SceneComponentTemplate->RelativeTransform = ActorElement->GetRelativeTransform();
-	SceneComponentTemplate->Mobility = ActorElement->IsA(EDatasmithElementType::Camera) ? EComponentMobility::Movable : EComponentMobility::Static;
+	SceneComponentTemplate->Mobility = (EComponentMobility::Type)ActorElement->GetMobility();
 	SceneComponentTemplate->bVisible = ActorElement->GetVisibility();
 	SceneComponentTemplate->bCastShadow = ActorElement->GetCastShadow();
 	SceneComponentTemplate->AttachParent = Parent;

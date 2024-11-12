@@ -68,6 +68,7 @@ private:
 	ENGINE_API bool IssueLoadRequests();
 	ENGINE_API void FinalizeRuntimeLevel();
 	ENGINE_API void OnCleanupLevel();
+	virtual void OnCurrentStateChanged(ELevelStreamingState InPrevState, ELevelStreamingState InNewState) override;
 
 	ENGINE_API void Initialize(UWorld* OuterWorld, const TArray<FWorldPartitionRuntimeCellObjectMapping>& InPackages);
 

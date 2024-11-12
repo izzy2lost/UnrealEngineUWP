@@ -151,6 +151,8 @@ bool AOnlineBeaconClient::InitClient(FURL& URL)
 	{
 		if (InitBase() && NetDriver)
 		{
+			NetDriver->SetWorld(GetWorld());
+
 			FString Error;
 			if (NetDriver->InitConnect(this, URL, Error))
 			{
@@ -192,7 +194,6 @@ bool AOnlineBeaconClient::InitClient(FURL& URL)
 
 					if (NetDriver)
 					{
-						NetDriver->SetWorld(World);
 						NetDriver->Notify = this;
 						NetDriver->InitialConnectTimeout = BeaconConnectionInitialTimeout;
 						NetDriver->ConnectionTimeout = BeaconConnectionTimeout;
@@ -445,7 +446,7 @@ void AOnlineBeaconClient::NotifyControlMessage(UNetConnection* Connection, uint8
 				// send NMT_Login
 				Connection->ClientResponse = TEXT("0");
 				FNetControlMessage<NMT_Login>::Send(Connection, Connection->ClientResponse, URLString, Connection->PlayerId, OnlinePlatformNameString);
-				NetDriver->ServerConnection->FlushNet();
+				Connection->FlushNet();
 			}
 			else
 			{
@@ -464,7 +465,7 @@ void AOnlineBeaconClient::NotifyControlMessage(UNetConnection* Connection, uint8
 				if (!BeaconType.IsEmpty())
 				{
 					FNetControlMessage<NMT_BeaconJoin>::Send(Connection, BeaconType, Connection->PlayerId);
-					NetDriver->ServerConnection->FlushNet();
+					Connection->FlushNet();
 				}
 				else
 				{
@@ -486,6 +487,7 @@ void AOnlineBeaconClient::NotifyControlMessage(UNetConnection* Connection, uint8
 
 						FString BeaconType = GetBeaconType();
 						FNetControlMessage<NMT_BeaconNetGUIDAck>::Send(Connection, BeaconType);
+						Connection->FlushNet();
 						// Server will send ClientOnConnected() when it gets this control message
 
 						// Fail safe for connection to server but no client connection RPC
@@ -510,12 +512,22 @@ void AOnlineBeaconClient::NotifyControlMessage(UNetConnection* Connection, uint8
 		case NMT_Upgrade:
 			{
 				// Report mismatch.
-				uint32 RemoteNetworkVersion;
+				uint32 RemoteNetworkVersion = 0;
 				EEngineNetworkRuntimeFeatures RemoteNetworkFeatures = EEngineNetworkRuntimeFeatures::None;
 
 				if (FNetControlMessage<NMT_Upgrade>::Receive(Bunch, RemoteNetworkVersion, RemoteNetworkFeatures))
 				{
-					Connection->HandleReceiveNetUpgrade(RemoteNetworkVersion, RemoteNetworkFeatures);
+					const bool bUpgradeSuccess = Connection->HandleReceiveNetUpgrade(RemoteNetworkVersion, RemoteNetworkFeatures);
+
+					if (bUpgradeSuccess)
+					{
+						ensureMsgf(false, TEXT("Beacons don't support any NetworkFeature trait yet. Upgrades shouldn't happen."));
+						//todo: retrigger an handshake via Join message
+					}
+					else
+					{
+						// Should the beacon disconnect here ?
+					}
 				}
 
 				break;
@@ -550,14 +562,6 @@ void AOnlineBeaconClient::NotifyControlMessage(UNetConnection* Connection, uint8
 		}
 	}	
 }
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-FString AOnlineBeaconClient::GetAuthTicket(const FUniqueNetIdRepl& PlayerId)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-{
-	return GetAuthTicketInternal(PlayerId);
-}
-
 
 FString AOnlineBeaconClient::GetAuthTicketInternal(const FUniqueNetIdRepl& PlayerId)
 {

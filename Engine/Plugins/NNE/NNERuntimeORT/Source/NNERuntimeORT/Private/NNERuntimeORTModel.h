@@ -5,106 +5,193 @@
 #include "CoreMinimal.h"
 #include "NNEModelBase.h"
 #include "NNEModelData.h"
+#include "NNEOnnxruntime.h"
 #include "NNERuntimeCPU.h"
+#include "NNERuntimeNPU.h"
 #include "NNERuntimeGPU.h"
+#include "NNERuntimeORTEnv.h"
+#include "NNERuntimeRDG.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
-#include "NNEUtilitiesORTIncludeHelper.h"
 
 namespace UE::NNERuntimeORT::Private
 {
-	struct FRuntimeConf
-	{
-		GraphOptimizationLevel OptimizationLevel = GraphOptimizationLevel::ORT_ENABLE_ALL;
-	};
 
-	template <class ModelInterface, class TensorBinding>
-	class FModelInstanceORTBase : public NNE::Internal::FModelInstanceBase<ModelInterface>
-	{
+struct FRuntimeConf
+{
+	ExecutionMode ExecutionMode = ExecutionMode::ORT_SEQUENTIAL;
+};
 
-	public:
-		FModelInstanceORTBase(const FRuntimeConf& InRuntimeConf, TSharedPtr<Ort::Env> InEnvironment);
-		virtual ~FModelInstanceORTBase() = default;
+template <class ModelInterface, class TensorBinding>
+class FModelInstanceORTBase : public NNE::Internal::FModelInstanceBase<ModelInterface>
+{
 
-		virtual typename ModelInterface::ESetInputTensorShapesStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
+public:
+	FModelInstanceORTBase(const FRuntimeConf& InRuntimeConf, TSharedRef<FEnvironment> InEnvironment);
+	virtual ~FModelInstanceORTBase();
 
-		bool Init(TConstArrayView<uint8> ModelData);
+	virtual typename ModelInterface::ESetInputTensorShapesStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
 
-		typename ModelInterface::ERunSyncStatus RunSync(TConstArrayView<TensorBinding> InInputBindings, TConstArrayView<TensorBinding> InOutputBindings) override;
+	bool Init(TConstArrayView64<uint8> ModelData);
 
-	protected:
+	typename ModelInterface::ERunSyncStatus RunSync(TConstArrayView<TensorBinding> InInputBindings, TConstArrayView<TensorBinding> InOutputBindings) override;
 
-		FRuntimeConf RuntimeConf;
+protected:
+	virtual bool InitializedAndConfigureMembers();
+	bool ConfigureTensors(const bool InIsInput);
 
-		/** ORT-related variables */
-		TSharedPtr<Ort::Env> Environment;
-		TUniquePtr<Ort::Session> Session;
-		TUniquePtr<Ort::AllocatorWithDefaultOptions> Allocator;
-		TUniquePtr<Ort::SessionOptions> SessionOptions;
-		TUniquePtr<Ort::MemoryInfo> AllocatorInfo;
+	FRuntimeConf RuntimeConf;
+	FString TempDirForModelWithExternalData;
 
-		/** IO ORT-related variables */
-		TArray<ONNXTensorElementDataType> InputTensorsORTType;
-		TArray<ONNXTensorElementDataType> OutputTensorsORTType;
+	/** ORT-related variables */
+	TSharedRef<FEnvironment> Environment;
+	TUniquePtr<Ort::Session> Session;
+	TUniquePtr<Ort::AllocatorWithDefaultOptions> Allocator;
+	TUniquePtr<Ort::SessionOptions> SessionOptions;
+	TUniquePtr<Ort::MemoryInfo> MemoryInfo;
 
-		TArray<Ort::AllocatedStringPtr> InputTensorNameValues;
-		TArray<Ort::AllocatedStringPtr> OutputTensorNameValues;
-		TArray<char*> InputTensorNames;
-		TArray<char*> OutputTensorNames;
+	/** IO ORT-related variables */
+	TArray<ONNXTensorElementDataType> InputTensorsORTType;
+	TArray<ONNXTensorElementDataType> OutputTensorsORTType;
 
-		TArray<NNE::Internal::FTensor> InputTensors;
-		TArray<NNE::Internal::FTensor> OutputTensors;
-	
-		virtual bool InitializedAndConfigureMembers();
-		bool ConfigureTensors(const bool InIsInput);
-	};
+	TArray<Ort::AllocatedStringPtr> InputTensorNameValues;
+	TArray<Ort::AllocatedStringPtr> OutputTensorNameValues;
+	TArray<char*> InputTensorNames;
+	TArray<char*> OutputTensorNames;
 
-	class FModelInstanceORTCpu : public FModelInstanceORTBase<NNE::IModelInstanceCPU, NNE::FTensorBindingCPU>
-	{
-	public:
-		FModelInstanceORTCpu(const FRuntimeConf& InRuntimeConf, TSharedPtr<Ort::Env> InEnvironment) : FModelInstanceORTBase(InRuntimeConf, InEnvironment) {}
-		virtual ~FModelInstanceORTCpu() = default;
+	TArray<NNE::Internal::FTensor> InputTensors;
+	TArray<NNE::Internal::FTensor> OutputTensors;
+};
 
-	private:
-		virtual bool InitializedAndConfigureMembers() override;
-	};
+class FModelInstanceORTCpu : public FModelInstanceORTBase<NNE::IModelInstanceCPU, NNE::FTensorBindingCPU>
+{
+public:
+	FModelInstanceORTCpu(const FRuntimeConf& InRuntimeConf, TSharedRef<FEnvironment> InEnvironment) : FModelInstanceORTBase(InRuntimeConf, InEnvironment) {}
+	virtual ~FModelInstanceORTCpu() = default;
 
-	class FModelORTCpu : public NNE::IModelCPU
-	{
-	public:
-		FModelORTCpu(TSharedPtr<Ort::Env> InEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData);
-		virtual ~FModelORTCpu() = default;
+private:
+	virtual bool InitializedAndConfigureMembers() override;
+};
 
-		virtual TSharedPtr<NNE::IModelInstanceCPU> CreateModelInstanceCPU() override;
+class FModelORTCpu : public NNE::IModelCPU
+{
+public:
+	FModelORTCpu(TSharedRef<FEnvironment> InEnvironment, TSharedRef<UE::NNE::FSharedModelData> InModelData);
+	virtual ~FModelORTCpu() = default;
 
-	private:
-		TSharedPtr<Ort::Env> Environment;
-		TSharedPtr<UE::NNE::FSharedModelData> ModelData;
-	};
+	virtual TSharedPtr<NNE::IModelInstanceCPU> CreateModelInstanceCPU() override;
+
+private:
+	TSharedRef<FEnvironment> Environment;
+	TSharedRef<UE::NNE::FSharedModelData> ModelData;
+};
 
 #if PLATFORM_WINDOWS
-	class FModelInstanceORTDml : public FModelInstanceORTBase<NNE::IModelInstanceGPU, NNE::FTensorBindingGPU>
-	{
-	public:
-		FModelInstanceORTDml(const FRuntimeConf& InRuntimeConf, TSharedPtr<Ort::Env> InEnvironment) : FModelInstanceORTBase(InRuntimeConf, InEnvironment) {}
-		virtual ~FModelInstanceORTDml() = default;
+class FModelORTDmlGPU : public NNE::IModelGPU
+{
+public:
+	FModelORTDmlGPU(TSharedRef<FEnvironment> InEnvironment, TSharedRef<UE::NNE::FSharedModelData> InModelData);
+	virtual ~FModelORTDmlGPU() = default;
 
-	private:
-		virtual bool InitializedAndConfigureMembers() override;
-	};
+	virtual TSharedPtr<NNE::IModelInstanceGPU> CreateModelInstanceGPU() override;
 
-	class FModelORTDml : public NNE::IModelGPU
-	{
-	public:
-		FModelORTDml(TSharedPtr<Ort::Env> InEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData);
-		virtual ~FModelORTDml() = default;
+private:
+	TSharedRef<FEnvironment> Environment;
+	TSharedRef<UE::NNE::FSharedModelData> ModelData;
+};
 
-		virtual TSharedPtr<NNE::IModelInstanceGPU> CreateModelInstanceGPU() override;
+class FModelInstanceORTDmlGPU : public FModelInstanceORTBase<NNE::IModelInstanceGPU, NNE::FTensorBindingCPU>
+{
+public:
+	FModelInstanceORTDmlGPU(const FRuntimeConf& InRuntimeConf, TSharedRef<FEnvironment> InEnvironment) : FModelInstanceORTBase(InRuntimeConf, InEnvironment) {}
+	virtual ~FModelInstanceORTDmlGPU() = default;
 
-	private:
-		TSharedPtr<Ort::Env> Environment;
-		TSharedPtr<UE::NNE::FSharedModelData> ModelData;
-	};
+private:
+	virtual bool InitializedAndConfigureMembers() override;
+};
+
+class FModelORTDmlRDG : public NNE::IModelRDG
+{
+public:
+	FModelORTDmlRDG(TSharedRef<FEnvironment> InEnvironment, TSharedRef<UE::NNE::FSharedModelData> InModelData);
+
+	virtual ~FModelORTDmlRDG() = default;
+
+	virtual TSharedPtr<NNE::IModelInstanceRDG> CreateModelInstanceRDG() override;
+
+private:
+	TSharedRef<FEnvironment> Environment;
+	TSharedRef<UE::NNE::FSharedModelData> ModelData;
+};
+
+class FModelInstanceORTDmlRDG : public NNE::Internal::FModelInstanceBase<NNE::IModelInstanceRDG>
+{
+
+public:
+	using ESetInputTensorShapesStatus = NNE::IModelInstanceRDG::ESetInputTensorShapesStatus;
+	using EEnqueueRDGStatus = NNE::IModelInstanceRDG::EEnqueueRDGStatus;
+
+	FModelInstanceORTDmlRDG(TSharedRef<UE::NNE::FSharedModelData> InModelData, const FRuntimeConf& InRuntimeConf, TSharedRef<FEnvironment> InEnvironment);
+
+	virtual ~FModelInstanceORTDmlRDG();
+
+	virtual ESetInputTensorShapesStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
+
+	bool Init();
+
+	EEnqueueRDGStatus EnqueueRDG(FRDGBuilder& GraphBuilder, TConstArrayView<NNE::FTensorBindingRDG> Inputs, TConstArrayView<NNE::FTensorBindingRDG> Outputs) override;
+
+protected:
+	bool ConfigureTensors(const Ort::Session& ActiveSession);
+	bool ConfigureTensors(const Ort::Session& ActiveSession, bool InIsInput);
+
+	TSharedRef<UE::NNE::FSharedModelData> ModelData;
+	FRuntimeConf RuntimeConf;
+	FString TempDirForModelWithExternalData;
+
+	/** ORT-related variables */
+	TSharedRef<FEnvironment> Environment;
+	TUniquePtr<Ort::Session> Session;
+	TUniquePtr<Ort::SessionOptions> SessionOptions;
+	TUniquePtr<Ort::AllocatorWithDefaultOptions> Allocator;
+
+	/** IO ORT-related variables */
+	TArray<ONNXTensorElementDataType> InputTensorsORTType;
+	TArray<ONNXTensorElementDataType> OutputTensorsORTType;
+
+	TArray<Ort::AllocatedStringPtr> InputTensorNameValues;
+	TArray<Ort::AllocatedStringPtr> OutputTensorNameValues;
+	TArray<char*> InputTensorNames;
+	TArray<char*> OutputTensorNames;
+	TArray<TArray<FString>> InputSymbolicDimensionNames;
+	TArray<TArray<FString>> OutputSymbolicDimensionNames;
+
+	TArray<NNE::Internal::FTensor> InputTensors;
+	TArray<NNE::Internal::FTensor> OutputTensors;
+};
+
+class FModelInstanceORTNpu : public FModelInstanceORTBase<NNE::IModelInstanceNPU, NNE::FTensorBindingCPU>
+{
+public:
+	FModelInstanceORTNpu(const FRuntimeConf& InRuntimeConf, TSharedRef<FEnvironment> InEnvironment) : FModelInstanceORTBase(InRuntimeConf, InEnvironment) {}
+	virtual ~FModelInstanceORTNpu() = default;
+
+private:
+	virtual bool InitializedAndConfigureMembers() override;
+};
+
+class FModelORTNpu : public NNE::IModelNPU
+{
+public:
+	FModelORTNpu(TSharedRef<FEnvironment> InEnvironment, TSharedRef<UE::NNE::FSharedModelData> InModelData);
+	virtual ~FModelORTNpu() = default;
+
+	virtual TSharedPtr<NNE::IModelInstanceNPU> CreateModelInstanceNPU() override;
+
+private:
+	TSharedRef<FEnvironment> Environment;
+	TSharedRef<UE::NNE::FSharedModelData> ModelData;
+};
 #endif //PLATFORM_WINDOWS
 	
 } // UE::NNERuntimeORT::Private

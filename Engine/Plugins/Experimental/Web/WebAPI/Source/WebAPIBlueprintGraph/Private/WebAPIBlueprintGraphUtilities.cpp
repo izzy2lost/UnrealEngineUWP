@@ -12,7 +12,7 @@ namespace UE::WebAPI
 	namespace Operation
 	{
 		template <uint32 Index, typename TEnableIf<Index < 2>::Type* = nullptr>
-		FMulticastDelegateProperty* GetOutcomeDelegate(const TSubclassOf<UWebAPIOperationObject>& InOperationClass, FName InOutcomeName)
+		const FMulticastDelegateProperty* GetOutcomeDelegate(const TSubclassOf<UWebAPIOperationObject>& InOperationClass, FName InOutcomeName)
 		{
 			check(InOperationClass);
 
@@ -51,14 +51,14 @@ namespace UE::WebAPI
 			return nullptr;
 		}
 		
-		FMulticastDelegateProperty* GetPositiveOutcomeDelegate(const TSubclassOf<UWebAPIOperationObject>& InOperationClass)
+		const FMulticastDelegateProperty* GetPositiveOutcomeDelegate(const TSubclassOf<UWebAPIOperationObject>& InOperationClass)
 		{
 			check(InOperationClass);
 
 			return GetOutcomeDelegate<0>(InOperationClass, PositiveOutcomeName);
 		}
 
-		FMulticastDelegateProperty* GetNegativeOutcomeDelegate(const TSubclassOf<UWebAPIOperationObject>& InOperationClass)
+		const FMulticastDelegateProperty* GetNegativeOutcomeDelegate(const TSubclassOf<UWebAPIOperationObject>& InOperationClass)
 		{
 			check(InOperationClass);
 

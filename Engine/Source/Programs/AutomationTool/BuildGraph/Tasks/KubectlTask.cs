@@ -1,12 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
+using EpicGames.Core;
 
 namespace AutomationTool.Tasks
 {
@@ -19,13 +16,13 @@ namespace AutomationTool.Tasks
 		/// Command line arguments
 		/// </summary>
 		[TaskParameter]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// Base directory for running the command
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string BaseDir;
+		public string BaseDir { get; set; }
 	}
 
 	/// <summary>
@@ -34,38 +31,35 @@ namespace AutomationTool.Tasks
 	[TaskElement("Kubectl", typeof(KubectlTaskParameters))]
 	public class KubectlTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		KubectlTaskParameters Parameters;
+		readonly KubectlTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a Kubectl task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public KubectlTask(KubectlTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public KubectlTask(KubectlTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			FileReference KubectlExe = CommandUtils.FindToolInPath("kubectl");
-			if (KubectlExe == null)
+			FileReference kubectlExe = CommandUtils.FindToolInPath("kubectl");
+			if (kubectlExe == null)
 			{
 				throw new AutomationException("Unable to find path to Kubectl. Check you have it installed, and it is on your PATH.");
 			}
 
-			IProcessResult Result = CommandUtils.Run(KubectlExe.FullName, Parameters.Arguments, null, WorkingDir: Parameters.BaseDir);
-			if (Result.ExitCode != 0)
+			IProcessResult result = CommandUtils.Run(kubectlExe.FullName, _parameters.Arguments, null, WorkingDir: _parameters.BaseDir);
+			if (result.ExitCode != 0)
 			{
-				throw new AutomationException("Kubectl terminated with an exit code indicating an error ({0})", Result.ExitCode);
+				throw new AutomationException("Kubectl terminated with an exit code indicating an error ({0})", result.ExitCode);
 			}
 
 			return Task.CompletedTask;
@@ -74,9 +68,9 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>

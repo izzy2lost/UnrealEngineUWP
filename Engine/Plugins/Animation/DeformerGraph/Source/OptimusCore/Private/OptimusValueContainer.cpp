@@ -2,6 +2,7 @@
 
 #include "OptimusValueContainer.h"
 #include "OptimusHelpers.h"
+#include "OptimusValueContainerStruct.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusValueContainer)
 
@@ -69,7 +70,7 @@ UClass* UOptimusValueContainerGeneratorClass::RefreshClassForType(UPackage* InPa
 	if (TypeClass)
 	{
 		const FString DeprecatedClassName = FString(TEXT("Deprecated_")) + ClassName + FGuid::NewGuid().ToString();
-		TypeClass->Rename(*DeprecatedClassName, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		TypeClass->Rename(*DeprecatedClassName, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		// Add in the CLASS_NewerVersionExists class flag to this obliterated class. Just so it won't show up in any global class iteration.
 		TypeClass->ClassFlags |= CLASS_NewerVersionExists;
 	}
@@ -96,6 +97,25 @@ UOptimusValueContainer* UOptimusValueContainer::MakeValueContainer(UObject* InOw
 	return NewObject<UOptimusValueContainer>(InOwner, Class);
 }
 
+FOptimusValueContainerStruct UOptimusValueContainer::MakeValueContainerStruct()
+{
+	FOptimusValueContainerStruct OtherContainer;
+	
+	UOptimusValueContainerGeneratorClass* Class = Cast<UOptimusValueContainerGeneratorClass>(GetClass());
+	const FProperty* ValueProperty = Class->PropertyLink;
+	
+	FOptimusDataTypeRef DataType = GetValueType();
+	if (ensure(ValueProperty) && ensure(DataType.IsValid()))
+	{
+		TArrayView<const uint8> ValueData(ValueProperty->ContainerPtrToValuePtr<uint8>(this), ValueProperty->GetSize());
+		
+		OtherContainer.SetType(DataType.Resolve());
+		OtherContainer.SetValue(DataType, ValueData);
+	}
+
+	return OtherContainer;
+}
+
 FOptimusDataTypeRef UOptimusValueContainer::GetValueType() const
 {
 	UOptimusValueContainerGeneratorClass* Class = Cast<UOptimusValueContainerGeneratorClass>(GetClass());
@@ -106,7 +126,7 @@ FOptimusDataTypeRef UOptimusValueContainer::GetValueType() const
 	return {};	
 }
 
-FShaderValueType::FValue UOptimusValueContainer::GetShaderValue() const
+FShaderValueContainer UOptimusValueContainer::GetShaderValue() const
 {
 	UOptimusValueContainerGeneratorClass* Class = Cast<UOptimusValueContainerGeneratorClass>(GetClass());
 	const FProperty* ValueProperty = Class->PropertyLink;
@@ -115,7 +135,7 @@ FShaderValueType::FValue UOptimusValueContainer::GetShaderValue() const
 	if (ensure(ValueProperty) && ensure(DataType.IsValid()))
 	{
 		TArrayView<const uint8> ValueData(ValueProperty->ContainerPtrToValuePtr<uint8>(this), ValueProperty->GetSize());
-		FShaderValueType::FValue ValueResult = DataType->MakeShaderValue();
+		FShaderValueContainer ValueResult = DataType->MakeShaderValue();
 		if (DataType->ConvertPropertyValueToShader(ValueData, ValueResult))
 		{
 			return ValueResult;

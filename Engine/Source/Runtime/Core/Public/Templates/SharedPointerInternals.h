@@ -81,12 +81,12 @@ namespace SharedPointerInternals
 
 				int32 Count = 0;
 
-				UE_AUTORTFM_OPEN(
+				UE_AUTORTFM_OPEN
 					{
 						// This reference count may be accessed by multiple threads
 						Count = SharedReferenceCount.load(std::memory_order_relaxed);
 					}
-				);
+				;
 
 				return Count;
 			}
@@ -111,24 +111,24 @@ namespace SharedPointerInternals
 				// in response to the increment, so there's nothing to order with.
 
 #if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-				UE_AUTORTFM_OPEN(
+				UE_AUTORTFM_OPEN
 				{
 					// We do a regular SC increment here because it maps to an _InterlockedIncrement (lock inc).
 					// The codegen for a relaxed fetch_add is actually much worse under MSVC (lock xadd).
 					++SharedReferenceCount;
-				});
+				};
 #else
-				UE_AUTORTFM_OPEN(
+				UE_AUTORTFM_OPEN
 				{
 					SharedReferenceCount.fetch_add(1, std::memory_order_relaxed);
-				});
+				};
 #endif
 
 				// If the transaction would abort, we need to undo adding the shared reference.
-				UE_AUTORTFM_ONABORT(
+				UE_AUTORTFM_ONABORT(this)
 				{
 					ReleaseSharedReference();
-				});
+				};
 			}
 			else
 			{
@@ -147,7 +147,7 @@ namespace SharedPointerInternals
 			{
 				bool bSucceeded = false;
 
-				UE_AUTORTFM_OPEN(
+				UE_AUTORTFM_OPEN
 				{
 					// See AddSharedReference for the same reasons that std::memory_order_relaxed is used in this function.
 
@@ -182,15 +182,15 @@ namespace SharedPointerInternals
 							break;
 						}
 					}
-				});
+				};
 
 				// If we succeeded in taking a shared reference count, we need to undo that on an abort.
 				if (bSucceeded)
 				{
-					UE_AUTORTFM_ONABORT(
+					UE_AUTORTFM_ONABORT(this)
 					{
 						ReleaseSharedReference();
-					});
+					};
 				}
 
 				return bSucceeded;
@@ -213,7 +213,7 @@ namespace SharedPointerInternals
 		{
 			if constexpr (Mode == ESPMode::ThreadSafe)
 			{
-				AutoRTFM::OnCommit([this]
+				UE_AUTORTFM_ONCOMMIT(this)
 				{
 					// std::memory_order_acq_rel is used here so that, if we do end up executing the destructor, it's not possible
 					// for side effects from executing the destructor end up being visible before we've determined that the shared
@@ -230,7 +230,7 @@ namespace SharedPointerInternals
 						// reference count reaches zero, this object will be deleted.
 						ReleaseWeakReference();
 					}
-				});
+				};
 			}
 			else
 			{
@@ -256,24 +256,24 @@ namespace SharedPointerInternals
 				// See AddSharedReference for the same reasons that std::memory_order_relaxed is used in this function.
 
 #if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-				UE_AUTORTFM_OPEN(
+				UE_AUTORTFM_OPEN
 					{
 						// We do a regular SC increment here because it maps to an _InterlockedIncrement (lock inc).
 						// The codegen for a relaxed fetch_add is actually much worse under MSVC (lock xadd).
 						++WeakReferenceCount;
-					});
+					};
 #else
-				UE_AUTORTFM_OPEN(
+				UE_AUTORTFM_OPEN
 					{
 						WeakReferenceCount.fetch_add(1, std::memory_order_relaxed);
-					});
+					};
 #endif
 
 				// If the transaction would abort, we need to undo adding the reference.
-				UE_AUTORTFM_ONABORT(
+				UE_AUTORTFM_ONABORT(this)
 					{
 						ReleaseWeakReference();
-					});
+					};
 			}
 			else
 			{
@@ -286,7 +286,7 @@ namespace SharedPointerInternals
 		{
 			if constexpr (Mode == ESPMode::ThreadSafe)
 			{
-				AutoRTFM::OnCommit([this]
+				UE_AUTORTFM_ONCOMMIT(this)
 					{
 						// See ReleaseSharedReference for the same reasons that std::memory_order_acq_rel is used in this function.
 
@@ -302,7 +302,7 @@ namespace SharedPointerInternals
 							delete this;
 #endif
 						}
-					});
+					};
 			}
 			else
 			{
@@ -411,7 +411,7 @@ namespace SharedPointerInternals
 			//     // Won't compile if the caller doesn't have access to FMyType::FPrivateToken
 			//     TSharedPtr<FMyType> Val = MakeShared<FMyType>(FMyType::FPrivateToken{}, 5, 3.14f, TEXT("Banana"));
 			//
-			new ((void*)&ObjectStorage) ObjectType(Forward<ArgTypes>(Args)...);
+			::new ((void*)&ObjectStorage) ObjectType(Forward<ArgTypes>(Args)...);
 		}
 
 		ObjectType* GetObjectPtr() const
@@ -833,52 +833,41 @@ namespace SharedPointerInternals
 		/** Pointer to the reference controller for the object a TWeakPtr is referencing */
 		TReferenceControllerBase<Mode>* ReferenceController;
 	};
+}
 
 
+namespace UE::Core::Private
+{
+	// This base class only exists to implement IsDerivedFromSharedFromThis
+	struct FSharedFromThisBase
+	{
+	};
+}
+
+template <typename T>
+constexpr bool IsDerivedFromSharedFromThis()
+{
+	return std::is_base_of_v<UE::Core::Private::FSharedFromThisBase, T>;
+}
+
+
+namespace SharedPointerInternals
+{
 	/** Templated helper function (const) that creates a shared pointer from an object instance */
-	template< class SharedPtrType, class ObjectType, class OtherType, ESPMode Mode >
-	FORCEINLINE void EnableSharedFromThis( TSharedPtr< SharedPtrType, Mode > const* InSharedPtr, ObjectType const* InObject, TSharedFromThis< OtherType, Mode > const* InShareable )
+	template< class SharedPtrType, class ObjectType >
+	FORCEINLINE void EnableSharedFromThis( SharedPtrType* InSharedPtrOrRef, ObjectType const* InObject )
 	{
-		if( InShareable != nullptr )
+		///////////////////////////////////////////////////////////////////////////////////////////////
+		// If you get an 'ambiguous call' compile error in this function, it means you have multiple //
+		// TSharedFromThis bases in your inheritance hierarchy.  This is not supported.              //
+		///////////////////////////////////////////////////////////////////////////////////////////////
+
+		if constexpr (IsDerivedFromSharedFromThis<ObjectType>())
 		{
-			InShareable->UpdateWeakReferenceInternal( InSharedPtr, const_cast< ObjectType* >( InObject ) );
+			if( InObject != nullptr )
+			{
+				InObject->UpdateWeakReferenceInternal( InSharedPtrOrRef, const_cast< ObjectType* >( InObject ) );
+			}
 		}
 	}
-
-
-	/** Templated helper function that creates a shared pointer from an object instance */
-	template< class SharedPtrType, class ObjectType, class OtherType, ESPMode Mode >
-	FORCEINLINE void EnableSharedFromThis( TSharedPtr< SharedPtrType, Mode >* InSharedPtr, ObjectType const* InObject, TSharedFromThis< OtherType, Mode > const* InShareable )
-	{
-		if( InShareable != nullptr )
-		{
-			InShareable->UpdateWeakReferenceInternal( InSharedPtr, const_cast< ObjectType* >( InObject ) );
-		}
-	}
-
-
-	/** Templated helper function (const) that creates a shared reference from an object instance */
-	template< class SharedRefType, class ObjectType, class OtherType, ESPMode Mode >
-	FORCEINLINE void EnableSharedFromThis( TSharedRef< SharedRefType, Mode > const* InSharedRef, ObjectType const* InObject, TSharedFromThis< OtherType, Mode > const* InShareable )
-	{
-		if( InShareable != nullptr )
-		{
-			InShareable->UpdateWeakReferenceInternal( InSharedRef, const_cast< ObjectType* >( InObject ) );
-		}
-	}
-
-
-	/** Templated helper function that creates a shared reference from an object instance */
-	template< class SharedRefType, class ObjectType, class OtherType, ESPMode Mode >
-	FORCEINLINE void EnableSharedFromThis( TSharedRef< SharedRefType, Mode >* InSharedRef, ObjectType const* InObject, TSharedFromThis< OtherType, Mode > const* InShareable )
-	{
-		if( InShareable != nullptr )
-		{
-			InShareable->UpdateWeakReferenceInternal( InSharedRef, const_cast< ObjectType* >( InObject ) );
-		}
-	}
-
-
-	/** Templated helper catch-all function, accomplice to the above helper functions */
-	constexpr void EnableSharedFromThis( ... ) { }
 }

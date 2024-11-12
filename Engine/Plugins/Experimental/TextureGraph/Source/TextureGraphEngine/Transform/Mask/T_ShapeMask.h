@@ -7,6 +7,7 @@
 #include "Model/Mix/MixUpdateCycle.h"
 #include "UObject/NoExportTypes.h"
 #include <DataDrivenShaderPlatformInfo.h>
+#include "T_ShapeMask.generated.h"
 
 UENUM(BlueprintType)
 enum class EShapeMaskType : uint8

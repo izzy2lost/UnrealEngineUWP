@@ -185,8 +185,8 @@ struct FTimelineLinearColorTrack
 USTRUCT()
 struct FTimeline
 {
-	GENERATED_USTRUCT_BODY()
-		
+	GENERATED_BODY()
+	
 private:
 	/** Specified how the timeline determines its own length (e.g. specified length, last keyframe) */
 	UPROPERTY(NotReplicated)
@@ -199,10 +199,23 @@ private:
 	/** If playback should move the current position backwards instead of forwards */
 	UPROPERTY()
 	uint8 bReversePlayback:1;
-
-	/** Are we currently playing (moving Position) */
+	
+	UE_DEPRECATED(5.5, "Use PlayingStateTracker instead")
+	UPROPERTY(Meta = (DeprecatedProperty, DeprecationMessage = "This property is no longer supported. Use PlayingStateTracker instead"))
+	uint8 bPlaying_DEPRECATED:1;
+	
+	/**
+	* If the first bit is set to 1 (PlayingStateTracker & 0x01 == 1), then we are playing
+	* 
+	* The rest of the bits in the uint8 are reserved for keeping track of the "dirty" state,
+	* being incremented when our state is modified. This ensures that the value is replicated
+	* if it changes multiple times in one frame, such as calling "Play From Start" in the resulting
+	* "Finished" delegate.
+	*
+	* You should modify this value using the "ChangeMarkPlayingState" function.
+	*/
 	UPROPERTY()
-	uint8 bPlaying:1;
+	uint8 PlayingStateTracker;
 
 	/** How long the timeline is, will stop or loop at the end */
  	UPROPERTY(NotReplicated)
@@ -255,11 +268,15 @@ private:
 	FProperty* DirectionProperty;
 
 public:
+	
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	
 	FTimeline()
 	: LengthMode( TL_LastKeyFrame )
 	, bLooping( false )
 	, bReversePlayback( false )
-	, bPlaying( false )
+	, bPlaying_DEPRECATED ( false )
+	, PlayingStateTracker( 2 )
 	, Length( 5.f )
 	, PlayRate( 1.f )
 	, Position( 0.0f )	
@@ -267,6 +284,15 @@ public:
 	, DirectionProperty(nullptr)
 	{
 	}
+
+	// Note: We need to explicitly disable warnings on these constructors/operators for clang to be happy with deprecated variables
+	~FTimeline() = default;
+	FTimeline(const FTimeline&) = default;
+	FTimeline(FTimeline&&) = default;
+	FTimeline& operator=(const FTimeline&) = default;
+	FTimeline& operator=(FTimeline&&) = default;
+	
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Helper function to get to the timeline direction enum */
 	ENGINE_API static UEnum* GetTimelineDirectionEnum();
@@ -376,9 +402,30 @@ public:
 
 	/** Get all curves used by the Timeline */
 	void GetAllCurves(TSet<class UCurveBase*>& InOutCurves) const;
+
+	ENGINE_API bool Serialize(FArchive& Ar);
+	ENGINE_API void PostSerialize(const FArchive& Ar);
+	
 private:
 	/** Returns the time value of the last keyframe in any of the timeline's curves */
 	float GetLastKeyframeTime() const;
+
+	/**
+	 * Mark the playing state as the given value
+	 *
+	 * @param bIsPlaying	True if the timeline should be playing, false if it should be stopped.
+	 */
+	void ChangeMarkPlayingState(const bool bIsPlaying);
+};
+
+// Need to customize serialization to safely update the old bPlaying flag to the newer play state tracer
+template<> struct TStructOpsTypeTraits<FTimeline> : public TStructOpsTypeTraitsBase2<FTimeline>
+{
+	enum
+	{
+		WithSerializer = true,
+		WithPostSerialize = true,
+	};
 };
 
 /** 
@@ -392,6 +439,7 @@ class UTimelineComponent : public UActorComponent
 	GENERATED_UCLASS_BODY()
 
 private:
+	
 	/** The actual timeline structure */
 	UPROPERTY(ReplicatedUsing=OnRep_Timeline)
 	FTimeline	TheTimeline;

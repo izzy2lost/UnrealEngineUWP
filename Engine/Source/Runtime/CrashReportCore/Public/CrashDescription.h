@@ -316,6 +316,18 @@ struct FPrimaryCrashProperties
 	 * 
 	 */
 	FCrashProperty CallStack;
+	
+	/**
+	 * An array of FStrings representing the portable callstack of the crash.
+	 *
+	 */
+	FCrashProperty PCallStack;
+	
+	/**
+	 * The hash of PCallStack
+	 *
+	 */
+	FCrashProperty PCallStackHashProperty;
 
 	/**
 	 * An array of FStrings showing the source code around the crash.
@@ -499,8 +511,8 @@ public:
 	/** Sends this crash for analytics (before upload). */
 	void SendPreUploadAnalytics();
 
-	/** Sends this crash for analytics (after successful upload). */
-	void SendPostUploadAnalytics();
+	/** Sends this crash for analytics (after upload) with additional stats about the upload. */
+	void SendPostUploadAnalytics(double Duration, bool bResult, int32 ResponseCode, uint32 PayloadSize, uint32 ReportCount);
 
 	/** Saves the data. */
 	void Save();

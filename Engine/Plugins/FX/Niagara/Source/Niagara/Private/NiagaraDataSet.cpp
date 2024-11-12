@@ -149,9 +149,15 @@ FNiagaraDataSet::~FNiagaraDataSet()
 	GPUNumAllocatedIDs = 0;
 }
 
-void FNiagaraDataSet::Init(const FNiagaraDataSetCompiledData* InDataSetCompiledData)
+void FNiagaraDataSet::Init(const FNiagaraDataSetCompiledData* InDataSetCompiledData, int32 DefaultNumBuffers)
 {
 	CompiledData.Init(InDataSetCompiledData != nullptr ? InDataSetCompiledData : &FNiagaraDataSetCompiledData::DummyCompiledData);
+
+	while(Data.Num() < DefaultNumBuffers)
+	{
+		Data.Add(new FNiagaraDataBuffer(this));
+	}
+
 	if (bInitialized)
 	{
 		Reset();
@@ -243,11 +249,8 @@ void FNiagaraDataSet::ResetBuffersInternal()
 #endif
 }
 
-FNiagaraDataBuffer& FNiagaraDataSet::BeginSimulate(bool bResetDestinationData)
+FNiagaraDataBuffer& FNiagaraDataSet::AllocateBuffer()
 {
-	//CheckCorrectThread();
-	check(DestinationData == nullptr);
-
 	//Find a free buffer we can write into.
 	//Linear search but there should only be 2 or three entries.
 	for (FNiagaraDataBuffer* Buffer : Data)
@@ -255,18 +258,22 @@ FNiagaraDataBuffer& FNiagaraDataSet::BeginSimulate(bool bResetDestinationData)
 		check(Buffer);
 		if (Buffer != CurrentData && Buffer->TryLock())
 		{
-			DestinationData = Buffer;
-			break;
+			return *Buffer;
 		}
 	}
 
-	if (DestinationData == nullptr)
-	{
-		Data.Add(new FNiagaraDataBuffer(this));
-		DestinationData = Data.Last();
-		verifySlow(DestinationData->TryLock());
-		checkSlow(DestinationData->IsBeingWritten());
-	}
+	FNiagaraDataBuffer* Buffer = Data.Add_GetRef(new FNiagaraDataBuffer(this));
+	verify(Buffer->TryLock());
+	check(Buffer->IsBeingWritten());
+	return *Buffer;
+}
+
+FNiagaraDataBuffer& FNiagaraDataSet::BeginSimulate(bool bResetDestinationData)
+{
+	//CheckCorrectThread();
+	check(DestinationData == nullptr);
+
+	DestinationData = &AllocateBuffer();
 
 	if (bResetDestinationData)
 	{
@@ -465,12 +472,14 @@ void FNiagaraDataSet::AllocateGPUFreeIDs(uint32 InNumInstances, FRHICommandList&
 	BufferSizeBytes -= GPUFreeIDs.NumBytes;
 #endif
 
-	SCOPED_DRAW_EVENTF(RHICmdList, NiagaraGPUComputeInitFreeIDs, TEXT("Init Free IDs - %s"), DebugSimName ? DebugSimName : TEXT(""));
+	SCOPED_DRAW_EVENT(RHICmdList, NiagaraGPUComputeInitFreeIDs);
 
-	TCHAR DebugBufferName[128];
-	FCString::Snprintf(DebugBufferName, UE_ARRAY_COUNT(DebugBufferName), TEXT("NiagaraFreeIDList_%s"), DebugSimName ? DebugSimName : TEXT(""));
+	FNameBuilder DebugBufferName;
+	DebugBufferName.Append(TEXT("NiagaraFreeIDList_"));
+	DebugBufferName.Append(DebugSimName);
+
 	FRWBuffer NewFreeIDsBuffer;
-	NewFreeIDsBuffer.Initialize(RHICmdList, DebugBufferName, sizeof(int32), NumIDsToAlloc, EPixelFormat::PF_R32_SINT, BUF_Static);
+	NewFreeIDsBuffer.Initialize(RHICmdList, DebugBufferName.ToString(), sizeof(int32), NumIDsToAlloc, EPixelFormat::PF_R32_SINT, BUF_Static);
 
 	FRHIShaderResourceView* ExistingBuffer = GPUNumAllocatedIDs > 0 ? GPUFreeIDs.SRV.GetReference() : FNiagaraRenderer::GetDummyIntBuffer();
 
@@ -656,6 +665,24 @@ bool FNiagaraDataBuffer::CheckForNaNs()const
 	return bContainsNaNs;
 }
 
+void FNiagaraDataBuffer::ZeroCPUBuffers()
+{
+	if(FloatData.GetData())
+	{
+		FMemory::Memzero(FloatData.GetData(), FloatData.Num());
+	}
+
+	if (Int32Data.GetData())
+	{
+		FMemory::Memzero(Int32Data.GetData(), Int32Data.Num());
+	}
+
+	if (HalfData.GetData())
+	{
+		FMemory::Memzero(HalfData.GetData(), HalfData.Num());
+	}
+}
+
 void FNiagaraDataBuffer::Allocate(uint32 InNumInstances, bool bMaintainExisting)
 {
 	NumInstances = 0;
@@ -772,6 +799,11 @@ void FNiagaraDataBuffer::Allocate(uint32 InNumInstances, bool bMaintainExisting)
 		HalfStride = NewHalfStride;
 		BuildRegisterTable();
 	}
+
+	check(GetNumInstances() <= NumInstancesAllocated);
+	check(FloatData.Num() >= NewFloatNum);
+	check(Int32Data.Num() >= NewInt32Num);
+	check(HalfData.Num() >= NewHalfNum);
 }
 
 void FNiagaraDataBuffer::ReleaseCPU()
@@ -794,7 +826,7 @@ void FNiagaraDataBuffer::ReleaseCPU()
 	HalfData.Empty();
 }
 
-void FNiagaraDataBuffer::AllocateGPU(FRHICommandList& RHICmdList, uint32 InNumInstances, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* DebugSimName)
+void FNiagaraDataBuffer::AllocateGPU(FRHICommandListBase& RHICmdList, uint32 InNumInstances, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* DebugSimName)
 {
 	static constexpr EBufferUsageFlags GPUBufferFlags = BUF_Static | BUF_SourceCopy;
 
@@ -1033,8 +1065,6 @@ void FNiagaraDataBuffer::KillInstance(uint32 InstanceIdx)
 
 void FNiagaraDataBuffer::CopyToUnrelated(FNiagaraDataBuffer& DestBuffer, int32 StartIdx, int32 DestStartIdx, int32 InNumInstances)const
 {
-	CheckUsage(false);
-
 	if (StartIdx < 0 || (uint32)StartIdx >= NumInstances)
 	{
 		return;
@@ -1061,13 +1091,13 @@ void FNiagaraDataBuffer::CopyToUnrelated(FNiagaraDataBuffer& DestBuffer, int32 S
 		const FNiagaraDataSetCompiledData& DestCompiledData = DestBuffer.GetOwner()->GetCompiledData();
 		const FNiagaraDataSetCompiledData& CompiledData = GetOwner()->GetCompiledData();
 
-		for(int32 VarIdx = 0; VarIdx < DestCompiledData.Variables.Num(); ++VarIdx)
+		for (int32 VarIdx = 0; VarIdx < DestCompiledData.Variables.Num(); ++VarIdx)
 		{
 			const FNiagaraVariableBase& DestVar = DestCompiledData.Variables[VarIdx];
 			const FNiagaraVariableLayoutInfo& DestVarLayout = DestCompiledData.VariableLayouts[VarIdx];
 
 			const int32 SrcVarIdx = CompiledData.Variables.IndexOfByKey(DestVar);
-			if(SrcVarIdx != INDEX_NONE)
+			if (SrcVarIdx != INDEX_NONE)
 			{
 				//Found a the variable to copy over.
 				const FNiagaraVariableLayoutInfo& SrcVarLayout = CompiledData.VariableLayouts[SrcVarIdx];
@@ -1132,7 +1162,32 @@ void FNiagaraDataBuffer::CopyToUnrelated(FNiagaraDataBuffer& DestBuffer, int32 S
 						}
 					}
 				}
+			}
+			else
+			{
+				const uint32 FloatComponents = DestVarLayout.GetNumFloatComponents();
+				for (uint32 CompIdx = 0; CompIdx < FloatComponents; ++CompIdx)
+				{
+					const int32 DestCompOffest = DestVarLayout.GetFloatComponentStart() + CompIdx;
+					float* Dst = DestBuffer.GetInstancePtrFloat(DestCompOffest, DestStartIdx);
+					FMemory::Memzero(Dst, InstancesToCopy * sizeof(float));
+				}
 
+				const uint32 IntComponents = DestVarLayout.GetNumInt32Components();
+				for (uint32 CompIdx = 0; CompIdx < IntComponents; ++CompIdx)
+				{
+					const int32 DestCompOffest = DestVarLayout.GetInt32ComponentStart() + CompIdx;
+					int32* Dst = DestBuffer.GetInstancePtrInt32(DestCompOffest, DestStartIdx);
+					FMemory::Memzero(Dst, InstancesToCopy * sizeof(int32));
+				}
+
+				const uint32 HalfComponents = DestVarLayout.GetNumHalfComponents();
+				for (uint32 CompIdx = 0; CompIdx < HalfComponents; ++CompIdx)
+				{
+					const int32 DestCompOffest = DestVarLayout.GetHalfComponentStart() + CompIdx;
+					FFloat16* Dst = DestBuffer.GetInstancePtrHalf(DestCompOffest, DestStartIdx);
+					FMemory::Memzero(Dst, InstancesToCopy * sizeof(FFloat16));
+				}
 			}
 		}
 	}
@@ -1223,13 +1278,13 @@ void FNiagaraDataBuffer::GPUCopyFrom(const float* GPUReadBackFloat, const int* G
 {
 	//CheckUsage(false); //Have to disable this as in this specific case we write to a "CPUSim" from the RT.
 
+	Allocate(InNumInstances);
+	SetNumInstances(InNumInstances);
+
 	if (InNumInstances <= 0)
 	{
 		return;
 	}
-
-	Allocate(InNumInstances);
-	SetNumInstances(InNumInstances);
 
 	if (GPUReadBackFloat)
 	{
@@ -1275,21 +1330,26 @@ void FNiagaraDataBuffer::GPUCopyFrom(const float* GPUReadBackFloat, const int* G
 	}
 }
 
-void FNiagaraDataBuffer::PushCPUBuffersToGPU(const TArray<FNiagaraDataBufferRef>& SourceBuffers, bool bReleaseRef, FRHICommandList& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* DebugSimName)
+void FNiagaraDataBuffer::PushCPUBuffersToGPU(const TArray<FNiagaraDataBufferRef>& SourceBuffers, bool bReleaseRef, FRHICommandList& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* DebugSimName, bool bAllocate)
 {
 	uint32 NewCount = 0;
 	check(GetOwner()->GetSimTarget() == ENiagaraSimTarget::GPUComputeSim);
+	
+	bool bIdenticalLayout = true;
 	for (FNiagaraDataBuffer* Buffer : SourceBuffers)
 	{
 		if (Buffer)
 		{
 			NewCount += Buffer->GetNumInstances();
 
-			checkSlow(Buffer->GetOwner()->GetVariables() == GetOwner()->GetVariables())
+			bIdenticalLayout &= Buffer->GetOwner()->GetCompiledData().GetLayoutHash() == GetOwner()->GetCompiledData().GetLayoutHash();
 		}
 	}
 
-	AllocateGPU(RHICmdList, NewCount, FeatureLevel, DebugSimName);
+	if(bAllocate)
+	{
+		AllocateGPU(RHICmdList, NewCount, FeatureLevel, DebugSimName);
+	}
 	SetNumInstances(NewCount);
 
 	if (NewCount > 0)
@@ -1302,42 +1362,130 @@ void FNiagaraDataBuffer::PushCPUBuffersToGPU(const TArray<FNiagaraDataBufferRef>
 		uint8* MappedBufferInt32 = GPUBufferInt.Buffer ? (uint8*)RHICmdList.LockBuffer(GPUBufferInt.Buffer, 0, IntComponents * Int32Stride, RLM_WriteOnly) : nullptr;
 		uint8* MappedBufferHalf = GPUBufferHalf.Buffer ? (uint8*)RHICmdList.LockBuffer(GPUBufferHalf.Buffer, 0, HalfComponents * HalfStride, RLM_WriteOnly) : nullptr;
 
-		for (uint32 CompIdx = 0; CompIdx < FloatComponents; ++CompIdx)
+		if(bIdenticalLayout)
 		{
-			float* Dest = (float*)MappedBufferFloat;
-			MappedBufferFloat += FloatStride;
-			for (FNiagaraDataBuffer* Buffer : SourceBuffers)
+			//We have identical layout between all src buffers and the dest buffer so we can copy easily without worrying about missing variables.
+			for (uint32 CompIdx = 0; CompIdx < FloatComponents; ++CompIdx)
 			{
-				const float* Src = Buffer->GetInstancePtrFloat(CompIdx, 0);
-				int32 CopyInstances = Buffer->GetNumInstances();
-				FMemory::Memcpy(Dest, Src, CopyInstances * sizeof(float));
-				Dest += CopyInstances;
+				float* Dest = (float*)MappedBufferFloat;
+				MappedBufferFloat += FloatStride;
+				for (FNiagaraDataBuffer* Buffer : SourceBuffers)
+				{
+					const float* Src = Buffer->GetInstancePtrFloat(CompIdx, 0);
+					int32 CopyInstances = Buffer->GetNumInstances();
+					FMemory::Memcpy(Dest, Src, CopyInstances * sizeof(float));
+					Dest += CopyInstances;
+				}
+			}
+
+			for (uint32 CompIdx = 0; CompIdx < IntComponents; ++CompIdx)
+			{
+				int32* Dest = (int32*)MappedBufferInt32;
+				MappedBufferInt32 += Int32Stride;
+				for (FNiagaraDataBuffer* Buffer : SourceBuffers)
+				{
+					const int32* Src = Buffer->GetInstancePtrInt32(CompIdx, 0);
+					int32 CopyInstances = Buffer->GetNumInstances();
+					FMemory::Memcpy(Dest, Src, CopyInstances * sizeof(int32));
+					Dest += CopyInstances;
+				}
+			}
+
+			for (uint32 CompIdx = 0; CompIdx < HalfComponents; ++CompIdx)
+			{
+				FFloat16* Dest = (FFloat16*)MappedBufferHalf;
+				MappedBufferHalf += HalfStride;
+				for (FNiagaraDataBuffer* Buffer : SourceBuffers)
+				{
+					const FFloat16* Src = Buffer->GetInstancePtrHalf(CompIdx, 0);
+					int32 CopyInstances = Buffer->GetNumInstances();
+					FMemory::Memcpy(Dest, Src, CopyInstances * sizeof(FFloat16));
+					Dest += CopyInstances;
+				}
 			}
 		}
-
-		for (uint32 CompIdx = 0; CompIdx < IntComponents; ++CompIdx)
+		else
 		{
-			int32* Dest = (int32*)MappedBufferInt32;
-			MappedBufferInt32 += Int32Stride;
-			for (FNiagaraDataBuffer* Buffer : SourceBuffers)
+			//The layouts between src and dest buffer locations don't perfectly match so we must go variable by variable and copy over those that exist in the src data.
+			//Zeroing any that do not.
+			const FNiagaraDataSetCompiledData& CompiledData = GetOwner()->GetCompiledData();
+			
+			for (int32 VarIdx = 0; VarIdx < CompiledData.Variables.Num(); ++VarIdx)
 			{
-				const int32* Src = Buffer->GetInstancePtrInt32(CompIdx, 0);
-				int32 CopyInstances = Buffer->GetNumInstances();
-				FMemory::Memcpy(Dest, Src, CopyInstances * sizeof(int32));
-				Dest += CopyInstances;
-			}
-		}
+				const FNiagaraVariableBase& DestVar = CompiledData.Variables[VarIdx];
+				const FNiagaraVariableLayoutInfo& DestVarLayout = CompiledData.VariableLayouts[VarIdx];
 
-		for (uint32 CompIdx = 0; CompIdx < HalfComponents; ++CompIdx)
-		{
-			FFloat16* Dest = (FFloat16*)MappedBufferHalf;
-			MappedBufferHalf += HalfStride;
-			for (FNiagaraDataBuffer* Buffer : SourceBuffers)
-			{
-				const FFloat16* Src = Buffer->GetInstancePtrHalf(CompIdx, 0);
-				int32 CopyInstances = Buffer->GetNumInstances();
-				FMemory::Memcpy(Dest, Src, CopyInstances * sizeof(FFloat16));
-				Dest += CopyInstances;
+				uint32 DestInstStart = 0;
+				for (FNiagaraDataBuffer* SrcBuffer : SourceBuffers)
+				{
+					if(SrcBuffer->GetNumInstances() == 0)
+					{
+						continue;
+					}
+
+					const FNiagaraDataSetCompiledData& SrcCompiledData = SrcBuffer->GetOwner()->GetCompiledData();
+
+					const int32 SrcVarIdx = SrcCompiledData.Variables.IndexOfByKey(DestVar);
+					if (SrcVarIdx != INDEX_NONE)
+					{
+						//The variable was found so memcpy from the relevant src->dest buffer locations.
+						const FNiagaraVariableLayoutInfo& SrcVarLayout = SrcCompiledData.VariableLayouts[SrcVarIdx];
+						check(SrcVarLayout.GetNumFloatComponents() == DestVarLayout.GetNumFloatComponents());
+						for (uint32 CompIdx = 0; CompIdx < DestVarLayout.GetNumFloatComponents(); ++CompIdx)
+						{
+							const int32 SrcCompOffset = SrcVarLayout.GetFloatComponentStart() + CompIdx;
+							const int32 DestCompOffest = DestVarLayout.GetFloatComponentStart() + CompIdx;
+							const float* SrcStart = SrcBuffer->GetInstancePtrFloat(SrcCompOffset, 0);
+
+							float* Dst = (float*)(MappedBufferFloat + (DestCompOffest * FloatStride)) + DestInstStart;
+							FMemory::Memcpy(Dst, SrcStart, SrcBuffer->GetNumInstances() * sizeof(float));
+						}
+						check(SrcVarLayout.GetNumInt32Components() == DestVarLayout.GetNumInt32Components());
+						for (uint32 CompIdx = 0; CompIdx < DestVarLayout.GetNumInt32Components(); ++CompIdx)
+						{
+							const int32 SrcCompOffset = SrcVarLayout.GetInt32ComponentStart() + CompIdx;
+							const int32 DestCompOffest = DestVarLayout.GetInt32ComponentStart() + CompIdx;
+							const int32* SrcStart = SrcBuffer->GetInstancePtrInt32(SrcCompOffset, 0);
+
+							int32* Dst = (int32*)(MappedBufferInt32 + (DestCompOffest * Int32Stride)) + DestInstStart;
+							FMemory::Memcpy(Dst, SrcStart, SrcBuffer->GetNumInstances() * sizeof(int32));
+						}
+						check(SrcVarLayout.GetNumHalfComponents() == DestVarLayout.GetNumHalfComponents());
+						for (uint32 CompIdx = 0; CompIdx < DestVarLayout.GetNumHalfComponents(); ++CompIdx)
+						{
+							const int32 SrcCompOffset = SrcVarLayout.GetHalfComponentStart() + CompIdx;
+							const int32 DestCompOffest = DestVarLayout.GetHalfComponentStart() + CompIdx;
+							const FFloat16* SrcStart = SrcBuffer->GetInstancePtrHalf(SrcCompOffset, 0);
+
+							FFloat16* Dst = (FFloat16*)(MappedBufferHalf + (DestCompOffest * HalfStride)) + DestInstStart;
+							FMemory::Memcpy(Dst, SrcStart, SrcBuffer->GetNumInstances() * sizeof(FFloat16));
+						}
+					}
+					else
+					{
+						//This variable is not present in the source buffer so zero this out.
+						for (uint32 CompIdx = 0; CompIdx < DestVarLayout.GetNumFloatComponents(); ++CompIdx)
+						{
+							const int32 DestCompOffest = DestVarLayout.GetFloatComponentStart() + CompIdx;
+							float* Dst = (float*)(MappedBufferFloat + (DestCompOffest * FloatStride)) + DestInstStart;
+							FMemory::Memzero(Dst, SrcBuffer->GetNumInstances() * sizeof(float));
+						}
+						for (uint32 CompIdx = 0; CompIdx < DestVarLayout.GetNumInt32Components(); ++CompIdx)
+						{
+							const int32 DestCompOffest = DestVarLayout.GetInt32ComponentStart() + CompIdx;
+							int32* Dst = (int32*)(MappedBufferInt32 + (DestCompOffest * Int32Stride)) + DestInstStart;
+							FMemory::Memzero(Dst, SrcBuffer->GetNumInstances() * sizeof(int32));
+						}
+						for (uint32 CompIdx = 0; CompIdx < DestVarLayout.GetNumHalfComponents(); ++CompIdx)
+						{
+							const int32 DestCompOffest = DestVarLayout.GetHalfComponentStart() + CompIdx;
+							FFloat16* Dst = (FFloat16*)(MappedBufferHalf + (DestCompOffest * HalfStride)) + DestInstStart;
+							FMemory::Memzero(Dst, SrcBuffer->GetNumInstances() * sizeof(FFloat16));
+						}
+					}
+
+					DestInstStart += SrcBuffer->GetNumInstances();
+				}
 			}
 		}
 
@@ -1355,6 +1503,126 @@ void FNiagaraDataBuffer::PushCPUBuffersToGPU(const TArray<FNiagaraDataBufferRef>
 		{
 			RHICmdList.UnlockBuffer(GPUBufferHalf.Buffer);
 		}
+	}
+}
+
+void FNiagaraDataBuffer::TransferGPUToCPUImmediate(FRHICommandListImmediate& RHICmdList, FNiagaraGpuComputeDispatchInterface* ComputeInterface, FNiagaraDataBuffer* CPUBuffer) const
+{
+	check(GetOwner()->GetCompiledData().GetLayoutHash() == CPUBuffer->GetOwner()->GetCompiledData().GetLayoutHash());
+
+	// No count offset means no data
+	if (GPUInstanceCountBufferOffset == INDEX_NONE)
+	{
+		CPUBuffer->Allocate(0);
+		CPUBuffer->SetNumInstances(0);
+		return;
+	}
+
+	// Enqueue buffers readbacks
+	FStagingBufferRHIRef CountReadbackBuffer = RHICreateStagingBuffer();
+	{
+		FNiagaraGPUInstanceCountManager& CountManager = ComputeInterface->GetGPUInstanceCounterManager();
+		RHICmdList.Transition(FRHITransitionInfo(CountManager.GetInstanceCountBuffer().Buffer, FNiagaraGPUInstanceCountManager::kCountBufferDefaultState, ERHIAccess::CopySrc));
+		RHICmdList.CopyToStagingBuffer(CountManager.GetInstanceCountBuffer().Buffer, CountReadbackBuffer, GPUInstanceCountBufferOffset * sizeof(int32), sizeof(int32));
+		RHICmdList.Transition(FRHITransitionInfo(CountManager.GetInstanceCountBuffer().Buffer, ERHIAccess::CopySrc, FNiagaraGPUInstanceCountManager::kCountBufferDefaultState));
+	}
+
+	FStagingBufferRHIRef FloatReadbackBuffer = nullptr;
+	if (GPUBufferFloat.NumBytes > 0)
+	{
+		FloatReadbackBuffer = RHICreateStagingBuffer();
+		RHICmdList.Transition(FRHITransitionInfo(GPUBufferFloat.Buffer, ERHIAccess::SRVMask, ERHIAccess::CopySrc));
+		RHICmdList.CopyToStagingBuffer(GPUBufferFloat.Buffer, FloatReadbackBuffer, 0, GPUBufferFloat.NumBytes);
+		RHICmdList.Transition(FRHITransitionInfo(GPUBufferFloat.Buffer, ERHIAccess::CopySrc, ERHIAccess::SRVMask));
+	}
+
+	FStagingBufferRHIRef HalfReadbackBuffer = nullptr;
+	if (GPUBufferHalf.NumBytes > 0)
+	{
+		HalfReadbackBuffer = RHICreateStagingBuffer();
+		RHICmdList.Transition(FRHITransitionInfo(GPUBufferHalf.Buffer, ERHIAccess::SRVMask, ERHIAccess::CopySrc));
+		RHICmdList.CopyToStagingBuffer(GPUBufferHalf.Buffer, HalfReadbackBuffer, 0, GPUBufferHalf.NumBytes);
+		RHICmdList.Transition(FRHITransitionInfo(GPUBufferHalf.Buffer, ERHIAccess::CopySrc, ERHIAccess::SRVMask));
+	}
+
+	FStagingBufferRHIRef Int32ReadbackBuffer = nullptr;
+	if (GPUBufferInt.NumBytes > 0)
+	{
+		Int32ReadbackBuffer = RHICreateStagingBuffer();
+		RHICmdList.Transition(FRHITransitionInfo(GPUBufferInt.Buffer, ERHIAccess::SRVMask, ERHIAccess::CopySrc));
+		RHICmdList.CopyToStagingBuffer(GPUBufferInt.Buffer, Int32ReadbackBuffer, 0, GPUBufferInt.NumBytes);
+		RHICmdList.Transition(FRHITransitionInfo(GPUBufferInt.Buffer, ERHIAccess::CopySrc, ERHIAccess::SRVMask));
+	}
+
+	// Ensure all readbacks are submitted and complete
+	RHICmdList.SubmitCommandsAndFlushGPU();
+	RHICmdList.BlockUntilGPUIdle();
+
+	// Read the count and allocato space for results
+	uint32 GPUNumInstances = 0;
+	{
+		const uint32* DataPtr = static_cast<const uint32*>(RHILockStagingBuffer(CountReadbackBuffer, 0, sizeof(int32)));
+		GPUNumInstances = *DataPtr;
+		RHIUnlockStagingBuffer(CountReadbackBuffer);
+	}
+
+	CPUBuffer->Allocate(GPUNumInstances);
+	CPUBuffer->SetNumInstances(GPUNumInstances);
+	if (GPUNumInstances == 0)
+	{
+		return;
+	}
+
+	// Copy out buffers
+	if (FloatReadbackBuffer)
+	{
+		const uint32 GPUStride	= FloatStride;
+		const uint8* GPUData	= reinterpret_cast<uint8*>(RHILockStagingBuffer(FloatReadbackBuffer, 0, GPUBufferFloat.NumBytes));
+
+		const uint32 CPUStride	= CPUBuffer->GetFloatStride();
+		uint8* CPUData			= CPUBuffer->GetComponentPtrFloat(0);
+
+		const int32 NumComponents = CPUBuffer->GetOwner()->GetNumFloatComponents();
+		for (int32 i = 0; i < NumComponents; ++i)
+		{
+			FMemory::Memcpy(CPUData + (CPUStride * i), GPUData + (GPUStride * i), GPUNumInstances * sizeof(float));
+		}
+
+		RHIUnlockStagingBuffer(FloatReadbackBuffer);
+	}
+
+	if (HalfReadbackBuffer)
+	{
+		const uint32 GPUStride = HalfStride;
+		const uint8* GPUData = reinterpret_cast<uint8*>(RHILockStagingBuffer(HalfReadbackBuffer, 0, GPUBufferHalf.NumBytes));
+
+		const uint32 CPUStride = CPUBuffer->GetHalfStride();
+		uint8* CPUData = CPUBuffer->GetComponentPtrHalf(0);
+
+		const int32 NumComponents = CPUBuffer->GetOwner()->GetNumHalfComponents();
+		for (int32 i = 0; i < NumComponents; ++i)
+		{
+			FMemory::Memcpy(CPUData + (CPUStride * i), GPUData + (GPUStride * i), GPUNumInstances * sizeof(FFloat16));
+		}
+
+		RHIUnlockStagingBuffer(HalfReadbackBuffer);
+	}
+
+	if (Int32ReadbackBuffer)
+	{
+		const uint32 GPUStride = Int32Stride;
+		const uint8* GPUData = reinterpret_cast<uint8*>(RHILockStagingBuffer(Int32ReadbackBuffer, 0, GPUBufferInt.NumBytes));
+
+		const uint32 CPUStride = CPUBuffer->GetInt32Stride();
+		uint8* CPUData = CPUBuffer->GetComponentPtrInt32(0);
+
+		const int32 NumComponents = CPUBuffer->GetOwner()->GetNumInt32Components();
+		for (int32 i = 0; i < NumComponents; ++i)
+		{
+			FMemory::Memcpy(CPUData + (CPUStride * i), GPUData + (GPUStride * i), GPUNumInstances * sizeof(int32));
+		}
+
+		RHIUnlockStagingBuffer(Int32ReadbackBuffer);
 	}
 }
 

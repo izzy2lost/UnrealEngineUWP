@@ -6,6 +6,7 @@
 #define PER_WAVE_DATA_SIZE 2
 #define PER_WATERZONE_DATA_SIZE 2
 #define PER_WATERBODY_DATA_SIZE 2
+#define PER_WATERZONEVIEW_DATA_SIZE 1
 
 /** Struct containing the decoded water body data  */	
 struct FWaterBodyData
@@ -44,6 +45,11 @@ struct FWaveParams
 	float Steepness;
 };
 
+struct FWaterZoneViewData
+{
+	float2 Location;
+};
+
 int GetWaterZoneDataOffset()
 {
 	return (int)View.WaterData[0].x;
@@ -52,6 +58,31 @@ int GetWaterZoneDataOffset()
 int GetWaveDataOffset()
 {
 	return (int)View.WaterData[0].y;
+}
+
+int GetWaterZoneViewDataOffset()
+{
+	return (int)View.WaterData[0].z;
+}
+
+int GetNumWaterViewData()
+{
+	return (int)View.WaterData[0].w;
+}
+
+bool IsWaterLocalTessellationEnabled(int InWaterZoneIndex)
+{
+	const int WaterZoneDataBufferOffset = GetWaterZoneDataOffset();
+	const int WaterZoneOffset = WaterZoneDataBufferOffset + (InWaterZoneIndex * PER_WATERZONE_DATA_SIZE);
+
+	return View.WaterData[WaterZoneOffset + 1].y > 0;
+}
+
+int GetWaterInfoTextureViewIndex(int InWaterZoneIndex)
+{
+	int Index = IsWaterLocalTessellationEnabled(InWaterZoneIndex) ? View.WaterInfoTextureViewIndex : 0;
+	
+	return Index;
 }
 
 /** Function to decode the raw data from the water indirection buffer */
@@ -100,15 +131,30 @@ FWaveParams GetWaveDataNew(int InWaveIndex, FWaterBodyData InWaterBodyData)
 	return DecodeWaveParams(Data0, Data1);
 }
 
-FWaterZoneData DecodeWaterZoneData(float4 Data0, float4 Data1)
+FWaterZoneData DecodeWaterZoneData(float2 Location, float4 Data0, float4 Data1)
 {
 	FWaterZoneData OutWaterZoneData = (FWaterZoneData)0;
-	OutWaterZoneData.Location = Data0.xy;
-	OutWaterZoneData.Extent = Data0.zw;
-	OutWaterZoneData.HeightExtent = Data1.xy;
-	OutWaterZoneData.GroundZMin = Data1.z;
+	OutWaterZoneData.Location = Location;
+	OutWaterZoneData.Extent = Data0.xy;
+	OutWaterZoneData.HeightExtent = Data0.zw;
+	OutWaterZoneData.GroundZMin = Data1.x;
 
 	return OutWaterZoneData;
+}
+
+FWaterZoneViewData GetWaterZoneViewData(int InWaterZoneIndex)
+{
+	const int NumViews = GetNumWaterViewData();
+
+	const int ViewIndex = GetWaterInfoTextureViewIndex(InWaterZoneIndex);
+
+	const int WaterZoneViewDataBufferOffset = GetWaterZoneViewDataOffset();
+	const int WaterZoneViewOffset = WaterZoneViewDataBufferOffset + (InWaterZoneIndex * NumViews + ViewIndex) * PER_WATERZONEVIEW_DATA_SIZE;
+
+	FWaterZoneViewData WaterZoneViewData = (FWaterZoneViewData)0;
+	WaterZoneViewData.Location = View.WaterData[WaterZoneViewOffset].xy;
+
+	return WaterZoneViewData;
 }
 
 FWaterZoneData GetWaterZoneData(int InWaterZoneIndex)
@@ -116,10 +162,14 @@ FWaterZoneData GetWaterZoneData(int InWaterZoneIndex)
 	const int WaterZoneDataBufferOffset = GetWaterZoneDataOffset();
 	const int WaterZoneOffset = WaterZoneDataBufferOffset + (InWaterZoneIndex * PER_WATERZONE_DATA_SIZE);
 
+	FWaterZoneViewData WaterZoneViewData = GetWaterZoneViewData(InWaterZoneIndex);
+
+	const float2 ZoneViewLocation = WaterZoneViewData.Location;
+	
 	const float4 Data0 = View.WaterData[WaterZoneOffset];
 	const float4 Data1 = View.WaterData[WaterZoneOffset + 1];
 
-	return DecodeWaterZoneData(Data0, Data1);
+	return DecodeWaterZoneData(ZoneViewLocation, Data0, Data1);
 }
 
 FWaterZoneData GetWaterZoneDataForWaterBody(int InWaterBodyIndex)

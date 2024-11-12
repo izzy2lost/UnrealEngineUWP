@@ -4,6 +4,7 @@
 
 #include "Features/IModularFeatures.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/CommandLine.h"
 #include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
 #include "CoreGlobals.h"
@@ -20,6 +21,13 @@ IMPLEMENT_MODULE(FEOSSharedModule, EOSShared);
 void FEOSSharedModule::StartupModule()
 {
 #if WITH_EOS_SDK
+	const bool bNoEOS = FParse::Param(FCommandLine::Get(), TEXT("NoEOS"));
+	const bool bAlreadyRegistered = IModularFeatures::Get().IsModularFeatureAvailable(IEOSSDKManager::GetModularFeatureName());
+	if (bNoEOS || bAlreadyRegistered)
+	{
+		return;
+	}
+
 	FCoreDelegates::TSOnConfigSectionsChanged().AddRaw(this, &FEOSSharedModule::OnConfigSectionsChanged);
 	LoadConfig();
 
@@ -101,6 +109,7 @@ void FEOSSharedModule::OnConfigSectionsChanged(const FString& IniFilename, const
 void FEOSSharedModule::LoadConfig()
 {
 	GConfig->GetArray(CONFIG_SECTION_NAME, TEXT("SuppressedLogStrings"), SuppressedLogStrings, GEngineIni);
+	GConfig->GetArray(CONFIG_SECTION_NAME, TEXT("SuppressedLogCategories"), SuppressedLogCategories, GEngineIni);
 }
 
 #undef CONFIG_SECTION_NAME

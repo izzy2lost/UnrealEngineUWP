@@ -60,22 +60,22 @@ public:
 public:
 	inline bool IsLightCardOverUsed() const
 	{
-		return LightCard.IsValid() && LightCardMode == EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Over;
+		return LightCardOver.IsValid();
 	}
 
 	inline bool IsLightCardUnderUsed() const
 	{
-		return LightCard.IsValid() && LightCardMode == EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Under;
+		return LightCardUnder.IsValid();
 	}
 
 	inline bool IsUVLightCardOverUsed() const
 	{
-		return UVLightCard.IsValid() && LightCardMode == EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Over;
+		return UVLightCardOver.IsValid();
 	}
 
 	inline bool IsUVLightCardUnderUsed() const
 	{
-		return UVLightCard.IsValid() && LightCardMode == EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Under;
+		return UVLightCardUnder.IsValid();
 	}
 
 	inline bool IsCameraUsed(int32 CameraIndex) const
@@ -93,9 +93,14 @@ public:
 		return Cameras.Num() > 1;
 	}
 
-	inline bool IsValid()
+	inline bool IsValid() const
 	{
-		return LightCard.IsValid() || UVLightCard.IsValid() || IsAnyCameraUsed();
+		if (LightCardOver.IsValid() || UVLightCardOver.IsValid() || LightCardUnder.IsValid() || UVLightCardUnder.IsValid())
+		{
+			return true;
+		}
+
+		return IsAnyCameraUsed();
 	}
 
 public:
@@ -103,9 +108,12 @@ public:
 	{
 		Cameras.Empty();
 
-		UVLightCard.Reset();
-		LightCard.Reset();
+		LightCardUnder.Reset();
+		LightCardOver.Reset();
+		UVLightCardUnder.Reset();
+		UVLightCardOver.Reset();
 
+		OverrideUVLightCardRenderMode = EDisplayClusterShaderParametersICVFX_LightCardRenderMode::None;
 		LightCardGamma = 2.2;
 	}
 
@@ -118,9 +126,13 @@ public:
 
 		CameraOverlappingRenderMode = InParameters.CameraOverlappingRenderMode;
 
-		UVLightCard = InParameters.UVLightCard;
-		LightCard   = InParameters.LightCard;
-		LightCardMode = InParameters.LightCardMode;
+		LightCardUnder = InParameters.LightCardUnder;
+		LightCardOver = InParameters.LightCardOver;
+
+		UVLightCardUnder = InParameters.UVLightCardUnder;
+		UVLightCardOver = InParameters.UVLightCardOver;
+		OverrideUVLightCardRenderMode = InParameters.OverrideUVLightCardRenderMode;
+
 		LightCardGamma = InParameters.LightCardGamma;
 	}
 
@@ -205,7 +217,6 @@ public:
 
 			InnerCameraBorderColor      = InCameraSettings.InnerCameraBorderColor;
 			InnerCameraBorderThickness  = InCameraSettings.InnerCameraBorderThickness;
-			InnerCameraFrameAspectRatio = InCameraSettings.InnerCameraFrameAspectRatio;
 
 			ViewProjection = InCameraSettings.ViewProjection;
 
@@ -234,7 +245,6 @@ public:
 
 		FLinearColor InnerCameraBorderColor = FLinearColor::Black;
 		float InnerCameraBorderThickness = 0.1f;
-		float InnerCameraFrameAspectRatio = 1.0f;
 
 		// Camera view projection data
 		FDisplayClusterShaderParametersICVFX_CameraViewProjection ViewProjection;
@@ -278,14 +288,24 @@ public:
 	template <typename Predicate>
 	void IterateViewportResourcesByPredicate(Predicate Pred)
 	{
-		if (LightCard.IsDefined())
+		if (LightCardUnder.IsDefined())
 		{
-			::Invoke(Pred, LightCard);
+			::Invoke(Pred, LightCardUnder);
 		}
 
-		if (UVLightCard.IsDefined())
+		if (LightCardOver.IsDefined())
 		{
-			::Invoke(Pred, UVLightCard);
+			::Invoke(Pred, LightCardOver);
+		}
+
+		if (UVLightCardUnder.IsDefined())
+		{
+			::Invoke(Pred, UVLightCardUnder);
+		}
+
+		if (UVLightCardOver.IsDefined())
+		{
+			::Invoke(Pred, UVLightCardOver);
 		}
 
 		for (FCameraSettings& CameraIt : Cameras)
@@ -328,10 +348,15 @@ public:
 	// Rendering mode for overlapping areas of camera projections
 	EDisplayClusterShaderParametersICVFX_CameraOverlappingRenderMode CameraOverlappingRenderMode = EDisplayClusterShaderParametersICVFX_CameraOverlappingRenderMode::None;
 
-	// LightCard settings
-	FDisplayClusterShaderParametersICVFX_ViewportResource    UVLightCard;
-	FDisplayClusterShaderParametersICVFX_ViewportResource    LightCard;
-	EDisplayClusterShaderParametersICVFX_LightCardRenderMode LightCardMode = EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Under;
+	// LightCard resources
+	FDisplayClusterShaderParametersICVFX_ViewportResource    LightCardUnder;
+	FDisplayClusterShaderParametersICVFX_ViewportResource    LightCardOver;
+
+	// UV LightCard resources
+	FDisplayClusterShaderParametersICVFX_ViewportResource    UVLightCardUnder;
+	FDisplayClusterShaderParametersICVFX_ViewportResource    UVLightCardOver;
+	// Force UVLC to render merged (per-viewport LC)
+	EDisplayClusterShaderParametersICVFX_LightCardRenderMode OverrideUVLightCardRenderMode = EDisplayClusterShaderParametersICVFX_LightCardRenderMode::None;
 
 	// The gamma that the light card renders have been encoded with, used to linearize during final composite
 	float LightCardGamma = 2.2;

@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -29,7 +28,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		public struct PackageInfo
 		{
 			public string StrippedName { get; set; }
-			public string Api { get; set; }
 		}
 		public PackageInfo[] PackageInfos { get; set; }
 
@@ -42,6 +40,10 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			public bool NeedsPushModelHeaders { get; set; }
 			public bool NeedsFastArrayHeaders { get; set; }
 			public bool NeedsVerseHeaders { get; set; }
+			public bool NeedsVerseClass { get; set; }
+			public bool NeedsVerseStruct { get; set; }
+			public bool NeedsVerseEnum { get; set; }
+			public bool NeedsVerseInterop { get; set; }
 		}
 		public HeaderInfo[] HeaderInfos { get; set; }
 
@@ -49,7 +51,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		{
 			public string RegisteredSingletonName { get; set; }
 			public string UnregisteredSingletonName { get; set; }
-			public string RegsiteredExternalDecl { get; set; }
+			public string RegisteredExternalDecl { get; set; }
 			public string UnregisteredExternalDecl { get; set; }
 			public UhtClass? NativeInterface { get; set; }
 			public UhtProperty? FastArrayProperty { get; set; }
@@ -76,18 +78,19 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			FastArraySerializer = Session.FindType(null, UhtFindOptions.SourceName | UhtFindOptions.ScriptStruct, "FFastArraySerializer") as UhtScriptStruct;
 
 			// Perform some startup initialization to compute things we need over and over again
+			
 			if (Session.GoWide)
 			{
-				Parallel.ForEach(Factory.Session.Packages, package =>
+				Parallel.ForEach(Factory.Session.Modules, module =>
 				{
-					InitPackageInfo(package);
+					InitModuleInfo(module);
 				});
 			}
 			else
 			{
-				foreach (UhtPackage package in Factory.Session.Packages)
+				foreach (UhtModule module in Factory.Session.Modules)
 				{
-					InitPackageInfo(package);
+					InitModuleInfo(module);
 				}
 			}
 
@@ -96,9 +99,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			{
 				if (headerFile.ShouldExport)
 				{
-					UhtPackage package = headerFile.Package;
-					UHTManifest.Module module = package.Module;
-
 					prereqs.Clear();
 					foreach (UhtHeaderFile referenced in headerFile.ReferencedHeadersNoLock)
 					{
@@ -111,66 +111,61 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					HeaderInfos[headerFile.HeaderFileTypeIndex].Task = Factory.CreateTask(prereqs,
 						(IUhtExportFactory factory) =>
 						{
-							new UhtHeaderCodeGeneratorHFile(this, package, headerFile).Generate(factory);
-							new UhtHeaderCodeGeneratorCppFile(this, package, headerFile).Generate(factory);
+							new UhtHeaderCodeGeneratorHFile(this, headerFile).Generate(factory);
+							new UhtHeaderCodeGeneratorCppFile(this, headerFile).Generate(factory);
 						});
 				}
 			}
 
-			// Generate the files for the packages
-			List<Task?> generatedPackages = new(Session.PackageTypeCount);
-			foreach (UhtPackage package in Session.Packages)
+			// Generate the files for the modules
+			List<Task?> generatedModules = new(Session.Modules.Count);
+			foreach (UhtModule module in Session.Modules)
 			{
-				UHTManifest.Module module = package.Module;
-
 				bool writeHeader = false;
 				prereqs.Clear();
-				foreach (UhtType packageChild in package.Children)
+				foreach (UhtHeaderFile headerFile in module.Headers)
 				{
-					if (packageChild is UhtHeaderFile headerFile)
+					prereqs.Add(HeaderInfos[headerFile.HeaderFileTypeIndex].Task);
+					if (!writeHeader)
 					{
-						prereqs.Add(HeaderInfos[headerFile.HeaderFileTypeIndex].Task);
-						if (!writeHeader)
+						foreach (UhtType type in headerFile.Children)
 						{
-							foreach (UhtType type in headerFile.Children)
+							if (type is UhtClass classObj)
 							{
-								if (type is UhtClass classObj)
+								if (classObj.ClassType != UhtClassType.NativeInterface &&
+									classObj.ClassFlags.HasExactFlags(EClassFlags.Native | EClassFlags.Intrinsic, EClassFlags.Native) &&
+									!classObj.ClassExportFlags.HasAllFlags(UhtClassExportFlags.NoExport))
 								{
-									if (classObj.ClassType != UhtClassType.NativeInterface &&
-										classObj.ClassFlags.HasExactFlags(EClassFlags.Native | EClassFlags.Intrinsic, EClassFlags.Native) &&
-										!classObj.ClassExportFlags.HasAllFlags(UhtClassExportFlags.NoExport))
-									{
-										writeHeader = true;
-										break;
-									}
+									writeHeader = true;
+									break;
 								}
 							}
 						}
 					}
 				}
 
-				generatedPackages.Add(Factory.CreateTask(prereqs,
+				generatedModules.Add(Factory.CreateTask(prereqs,
 					(IUhtExportFactory factory) =>
 					{
-						List<UhtHeaderFile> packageSortedHeaders = GetSortedHeaderFiles(package);
+						List<UhtHeaderFile> moduleSortedHeaders = GetSortedHeaderFiles(module);
 						if (writeHeader)
 						{
-							new UhtPackageCodeGeneratorHFile(this, package).Generate(factory, packageSortedHeaders);
+							new UhtPackageCodeGeneratorHFile(this, module).Generate(factory, moduleSortedHeaders);
 						}
-						new UhtPackageCodeGeneratorCppFile(this, package).Generate(factory, packageSortedHeaders);
+						new UhtPackageCodeGeneratorCppFile(this, module).Generate(factory, moduleSortedHeaders);
 					}));
 			}
 
 			// Wait for all the packages to complete
-			List<Task> packageTasks = new(Session.PackageTypeCount);
-			foreach (Task? output in generatedPackages)
+			List<Task> moduleTasks = new(generatedModules.Count);
+			foreach (Task? output in generatedModules)
 			{
 				if (output != null)
 				{
-					packageTasks.Add(output);
+					moduleTasks.Add(output);
 				}
 			}
-			Task.WaitAll(packageTasks.ToArray());
+			Task.WaitAll(moduleTasks.ToArray());
 		}
 
 		#region Utility functions
@@ -208,40 +203,44 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		/// <returns>External declaration</returns>
 		public string GetExternalDecl(int objectIndex, bool registered)
 		{
-			return registered ? ObjectInfos[objectIndex].RegsiteredExternalDecl : ObjectInfos[objectIndex].UnregisteredExternalDecl;
+			return registered ? ObjectInfos[objectIndex].RegisteredExternalDecl : ObjectInfos[objectIndex].UnregisteredExternalDecl;
 		}
 		#endregion
 
 		#region Information initialization
-		private void InitPackageInfo(UhtPackage package)
+		private void InitModuleInfo(UhtModule module)
 		{
 			StringBuilder builder = new();
 
-			ref PackageInfo packageInfo = ref PackageInfos[package.PackageTypeIndex];
-			packageInfo.StrippedName = package.SourceName.Replace('/', '_');
-			packageInfo.Api = $"{package.ShortName.ToString().ToUpper()}_API ";
-
-			// Construct the names used commonly during export
-			ref ObjectInfo objectInfo = ref ObjectInfos[package.ObjectTypeIndex];
-			builder.Append("Z_Construct_UPackage_");
-			builder.Append(packageInfo.StrippedName);
-			objectInfo.UnregisteredSingletonName = objectInfo.RegisteredSingletonName = builder.ToString();
-			objectInfo.UnregisteredExternalDecl = objectInfo.RegsiteredExternalDecl = $"\tUPackage* {objectInfo.RegisteredSingletonName}();\r\n";
-
-			foreach (UhtType packageChild in package.Children)
+			foreach (UhtPackage package in module.Packages)
 			{
-				if (packageChild is UhtHeaderFile headerFile)
-				{
-					InitHeaderInfo(builder, package, ref packageInfo, headerFile);
-				}
+				InitPackageInfo(builder, package);
+			}
+			foreach (UhtHeaderFile headerFile in module.Headers)
+			{
+				InitHeaderInfo(builder, headerFile);
 			}
 		}
 
-		private void InitHeaderInfo(StringBuilder builder, UhtPackage package, ref PackageInfo packageInfo, UhtHeaderFile headerFile)
+		private void InitPackageInfo(StringBuilder builder, UhtPackage package)
+		{
+			ref PackageInfo packageInfo = ref PackageInfos[package.PackageTypeIndex];
+			packageInfo.StrippedName = package.SourceName.Replace('/', '_');
+
+			// Construct the names used commonly during export
+			ref ObjectInfo objectInfo = ref ObjectInfos[package.ObjectTypeIndex];
+			builder.Clear();
+			builder.Append("Z_Construct_UPackage_");
+			builder.Append(packageInfo.StrippedName);
+			objectInfo.UnregisteredSingletonName = objectInfo.RegisteredSingletonName = builder.ToString();
+			objectInfo.UnregisteredExternalDecl = objectInfo.RegisteredExternalDecl = $"\tUPackage* {objectInfo.RegisteredSingletonName}();\r\n";
+		}
+
+		private void InitHeaderInfo(StringBuilder builder, UhtHeaderFile headerFile)
 		{
 			ref HeaderInfo headerInfo = ref HeaderInfos[headerFile.HeaderFileTypeIndex];
 
-			headerInfo.IncludePath = Path.GetRelativePath(package.Module.IncludeBase, headerFile.FilePath).Replace('\\', '/');
+			headerInfo.IncludePath = Path.GetRelativePath(headerFile.Module.Module.IncludeBase, headerFile.FilePath).Replace('\\', '/');
 
 			// Convert the file path to a C identifier
 			string filePath = headerFile.FilePath;
@@ -288,13 +287,21 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			{
 				if (headerFileChild is UhtObject obj)
 				{
-					InitObjectInfo(builder, package, ref packageInfo, ref headerInfo, obj);
+					UhtPackage? package = obj.Outer as UhtPackage;
+					if (package == null)
+					{
+						throw new UhtIceException("Expected type defined in a header to have a package outer");
+					}
+					InitObjectInfo(builder, package, ref headerInfo, obj);
 				}
 			}
+
+			headerInfo.NeedsVerseInterop = headerInfo.NeedsVerseStruct;
 		}
 
-		private void InitObjectInfo(StringBuilder builder, UhtPackage package, ref PackageInfo packageInfo, ref HeaderInfo headerInfo, UhtObject obj)
+		private void InitObjectInfo(StringBuilder builder, UhtPackage package, ref HeaderInfo headerInfo, UhtObject obj)
 		{
+			UhtModule module = package.Module;
 			ref ObjectInfo objectInfo = ref ObjectInfos[obj.ObjectTypeIndex];
 
 			builder.Clear();
@@ -314,6 +321,14 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				{
 					headerInfo.NeedsPushModelHeaders = true;
 				}
+				if (classObj.IsVerseField)
+				{
+					headerInfo.NeedsVerseClass = true;
+				}
+				if (classObj.Children.Any(x => x is UhtVerseValueProperty))
+				{
+					headerInfo.NeedsVerseHeaders = true;
+				}
 				if (classObj.ClassType == UhtClassType.NativeInterface)
 				{
 					if (classObj.AlternateObject != null)
@@ -321,15 +336,30 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						ObjectInfos[classObj.AlternateObject.ObjectTypeIndex].NativeInterface = classObj;
 					}
 				}
-				headerInfo.NeedsVerseHeaders = classObj.Children.Any(x => x is UhtVerseValueProperty);
 			}
-			else if (obj is UhtScriptStruct scriptStruct)
+			else if (obj is UhtScriptStruct scriptStructObj)
 			{
+				if (scriptStructObj.IsVerseField)
+				{
+					headerInfo.NeedsVerseStruct = true;
+				}
+				if (scriptStructObj.Children.Any(x => x is UhtVerseValueProperty))
+				{
+					headerInfo.NeedsVerseHeaders = true;
+				}
+
 				// Check to see if we are a FastArraySerializer and should try to deduce the FastArraySerializerItemType
 				// To fulfill that requirement the struct should be derived from FFastArraySerializer and have a single replicated TArrayProperty
-				if (scriptStruct.IsChildOf(FastArraySerializer))
+				if (scriptStructObj.IsChildOf(FastArraySerializer))
 				{
-					foreach (UhtType child in scriptStruct.Children)
+					// If Super is a valid fastarray we mark this struct as a FastArrayProperty as well
+					if (scriptStructObj.Super != null && ObjectInfos[scriptStructObj.Super.ObjectTypeIndex].FastArrayProperty != null)
+					{
+						objectInfo.FastArrayProperty = ObjectInfos[scriptStructObj.Super.ObjectTypeIndex].FastArrayProperty;
+					}
+
+					// A valid fastarray cannot have any additional replicated properties.
+					foreach (UhtType child in scriptStructObj.Children)
 					{
 						if (child is UhtProperty property)
 						{
@@ -349,12 +379,18 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						headerInfo.NeedsFastArrayHeaders = true;
 					}
 				}
-				headerInfo.NeedsVerseHeaders = scriptStruct.Children.Any(x => x is UhtVerseValueProperty);
 			}
 			else if (obj is UhtFunction)
 			{
 				// The method for EngineClassName returns type specific where in this case we need just the simple return type
 				engineClassName = "Function";
+			}
+			else if (obj is UhtEnum enumObj)
+			{
+				if (enumObj.IsVerseField)
+				{
+					headerInfo.NeedsVerseEnum = true;
+				}
 			}
 
 			if (isNonIntrinsicClass)
@@ -363,13 +399,13 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				builder.Append("_NoRegister");
 				objectInfo.UnregisteredSingletonName = builder.ToString();
 
-				objectInfo.UnregisteredExternalDecl = $"\t{packageInfo.Api}U{engineClassName}* {objectInfo.UnregisteredSingletonName}();\r\n";
-				objectInfo.RegsiteredExternalDecl = $"\t{packageInfo.Api}U{engineClassName}* {objectInfo.RegisteredSingletonName}();\r\n";
+				objectInfo.UnregisteredExternalDecl = $"\t{module.Api}U{engineClassName}* {objectInfo.UnregisteredSingletonName}();\r\n";
+				objectInfo.RegisteredExternalDecl = $"\t{module.Api}U{engineClassName}* {objectInfo.RegisteredSingletonName}();\r\n";
 			}
 			else
 			{
 				objectInfo.UnregisteredSingletonName = objectInfo.RegisteredSingletonName = builder.ToString();
-				objectInfo.UnregisteredExternalDecl = objectInfo.RegsiteredExternalDecl = $"\t{packageInfo.Api}U{engineClassName}* {objectInfo.RegisteredSingletonName}();\r\n";
+				objectInfo.UnregisteredExternalDecl = objectInfo.RegisteredExternalDecl = $"\t{module.Api}U{engineClassName}* {objectInfo.RegisteredSingletonName}();\r\n";
 			}
 
 			// Init the children
@@ -377,7 +413,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			{
 				if (child is UhtObject childObject)
 				{
-					InitObjectInfo(builder, package, ref packageInfo, ref headerInfo, childObject);
+					InitObjectInfo(builder, package, ref headerInfo, childObject);
 				}
 			}
 		}
@@ -385,21 +421,18 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 		#region Utility functions
 		/// <summary>
-		/// Return a package's sorted header file list of all header files that or referenced or have declarations.
+		/// Return a module's sorted header file list of all header files that or referenced or have declarations.
 		/// </summary>
-		/// <param name="package">The package in question</param>
+		/// <param name="module">The module in question</param>
 		/// <returns>Sorted list of the header files</returns>
-		private static List<UhtHeaderFile> GetSortedHeaderFiles(UhtPackage package)
+		private static List<UhtHeaderFile> GetSortedHeaderFiles(UhtModule module)
 		{
-			List<UhtHeaderFile> sortedHeaders = new(package.Children.Count);
-			foreach (UhtType packageChild in package.Children)
+			List<UhtHeaderFile> sortedHeaders = new(module.Headers.Count);
+			foreach (UhtHeaderFile headerFile in module.Headers)
 			{
-				if (packageChild is UhtHeaderFile headerFile)
+				if (headerFile.ShouldExport)
 				{
-					if (headerFile.ShouldExport)
-					{
-						sortedHeaders.Add(headerFile);
-					}
+					sortedHeaders.Add(headerFile);
 				}
 			}
 			sortedHeaders.Sort((lhs, rhs) => { return StringComparerUE.OrdinalIgnoreCase.Compare(lhs.FilePath, rhs.FilePath); });

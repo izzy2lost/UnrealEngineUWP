@@ -2,14 +2,18 @@
 
 #include "SLiveLinkHubStatusBar.h"
 
-#include "OutputLogCreationParams.h"
+#include "LiveLinkHub.h"
+#include "Session/LiveLinkHubSessionManager.h"
 
 #include "Framework/Application/SlateApplication.h"
+#include "Misc/Paths.h"
+#include "OutputLogCreationParams.h"
 #include "OutputLogModule.h"
 #include "SWidgetDrawer.h"
 #include "WidgetDrawerConfig.h"
-#include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "LiveLinkHubStatusBar"
 
@@ -102,10 +106,25 @@ void SLiveLinkHubStatusBar::Construct(const FArguments& InArgs, FName StatusBarI
 {
 	ChildSlot
 	[
-		SNew(SBox)
-		.HeightOverride(FAppStyle::Get().GetFloat("StatusBar.Height"))
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
 		[
-			MakeWidgetDrawer(StatusBarId)
+			SNew(SBox)
+			.VAlign(VAlign_Center)
+			.HeightOverride(FAppStyle::Get().GetFloat("StatusBar.Height"))
+			[
+				MakeWidgetDrawer(StatusBarId)
+			]
+		]
+		+ SHorizontalBox::Slot()
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Center)
+		.Padding(FMargin(4.f, 0.f))
+		[
+			SNew(STextBlock)
+			.Text(this, &SLiveLinkHubStatusBar::GetLoadedConfigText)
 		]
 	];
 }
@@ -141,6 +160,17 @@ TSharedRef<SWidgetDrawer> SLiveLinkHubStatusBar::MakeWidgetDrawer(FName StatusBa
 	WidgetDrawer->RegisterDrawer(MoveTemp(OutputLogDrawer));
 
 	return WidgetDrawer.ToSharedRef();
+}
+
+FText SLiveLinkHubStatusBar::GetLoadedConfigText() const
+{
+	if (TSharedPtr<ILiveLinkHubSessionManager> SessionManager = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub").GetLiveLinkHub()->GetSessionManager())
+	{
+		const FString FileName = FPaths::GetBaseFilename(SessionManager->GetLastConfigPath());
+		return FileName.IsEmpty() ? LOCTEXT("UntitledConfig", "Untitled") : FText::FromString(FileName);
+	}
+
+	return FText::GetEmpty();
 }
 
 #undef LOCTEXT_NAMESPACE

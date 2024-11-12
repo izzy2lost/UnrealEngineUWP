@@ -203,7 +203,9 @@ void UAITask_UseGameplayInteraction::OnDestroy(const bool bInOwnerFinished)
 
 	if (TaskState != EGameplayTaskState::Finished)
 	{
-		if (AbortContext.Reason == EGameplayInteractionAbortReason::Unset && bInteractionCompleted)
+		if (AbortContext.Reason == EGameplayInteractionAbortReason::Unset
+			&& GameplayInteractionContext.GetLastRunStatus() == EStateTreeRunStatus::Succeeded
+			&& bInteractionCompleted)
 		{
 			OnSucceeded.Broadcast();
 		}

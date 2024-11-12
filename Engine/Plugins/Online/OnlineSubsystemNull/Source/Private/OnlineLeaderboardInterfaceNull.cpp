@@ -112,7 +112,7 @@ bool FOnlineLeaderboardsNull::WriteLeaderboards(const FName& SessionName, const 
 
 		for (FStatPropertyArray::TConstIterator It(WriteObject.Properties); It; ++It)
 		{
-			const FName& StatName = It.Key();
+			const FString& StatName = It.Key();
 			const FVariantData& Stat = It.Value();
 			FVariantData* ExistingStat = PlayerRow->Columns.Find(StatName);
 			if (ExistingStat)
@@ -156,7 +156,7 @@ bool FOnlineLeaderboardsNull::WriteLeaderboards(const FName& SessionName, const 
 	return bWasSuccessful;
 }
 
-FOnlineLeaderboardsNull::FLeaderboardNull* FOnlineLeaderboardsNull::FindOrCreateLeaderboard(const FName& LeaderboardName, ELeaderboardSort::Type SortMethod, ELeaderboardFormat::Type DisplayFormat)
+FOnlineLeaderboardsNull::FLeaderboardNull* FOnlineLeaderboardsNull::FindOrCreateLeaderboard(const FString& LeaderboardName, ELeaderboardSort::Type SortMethod, ELeaderboardFormat::Type DisplayFormat)
 {
 	FLeaderboardNull* Existing = Leaderboards.Find(LeaderboardName);
 	if (Existing == NULL)

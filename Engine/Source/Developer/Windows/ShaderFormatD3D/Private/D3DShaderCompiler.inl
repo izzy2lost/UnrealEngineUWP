@@ -2,6 +2,80 @@
 
 #pragma once
 
+#include "D3D12RHI.h"
+#include "RHIShaderBindingLayout.h"
+
+struct FD3DShaderCompileData
+{
+	FD3DShaderCompileData()
+		: UsedUniformBufferSlots(false, 32)
+	{
+	}
+
+	TArray<FShaderCodeVendorExtension> VendorExtensions;
+	TArray<FString> ShaderInputs;
+	TArray<FString> UniformBufferNames;
+	TBitArray<> UsedUniformBufferSlots;
+
+	bool bBindlessResources = false;
+	bool bBindlessSamplers = false;
+	bool bGlobalUniformBufferUsed = false;
+	bool bDiagnosticBufferUsed = false;
+
+	uint32 NumInstructions = 0;
+	uint32 NumSamplers = 0;
+	uint32 NumSRVs = 0;
+	uint32 NumCBs = 0;
+	uint32 NumUAVs = 0;
+
+	uint32 MaxSamplers = 0;
+	uint32 MaxSRVs = 0;
+	uint32 MaxCBs = 0;
+	uint32 MaxUAVs = 0;
+};
+
+template <typename D3D1x_SHADER_INPUT_BIND_DESC>
+EShaderCodeResourceBindingType D3DBindDescToShaderCodeResourceBinding(const D3D1x_SHADER_INPUT_BIND_DESC& Binding)
+{
+	switch (Binding.Type)
+	{
+	case D3D_SIT_SAMPLER:		
+		return EShaderCodeResourceBindingType::SamplerState;
+	case D3D_SIT_TBUFFER:
+	case D3D_SIT_CBUFFER:
+		return EShaderCodeResourceBindingType::Buffer;
+	case D3D_SIT_TEXTURE:
+		switch (Binding.Dimension)
+		{
+		case D3D_SRV_DIMENSION_BUFFER:			return EShaderCodeResourceBindingType::Buffer;
+		case D3D_SRV_DIMENSION_TEXTURE2D:		return EShaderCodeResourceBindingType::Texture2D;
+		case D3D_SRV_DIMENSION_TEXTURE2DARRAY:	return EShaderCodeResourceBindingType::Texture2DArray;
+		case D3D_SRV_DIMENSION_TEXTURE2DMS:		return EShaderCodeResourceBindingType::Texture2DMS;
+		case D3D_SRV_DIMENSION_TEXTURE3D:		return EShaderCodeResourceBindingType::Texture3D;
+		case D3D_SRV_DIMENSION_TEXTURECUBE:		return EShaderCodeResourceBindingType::TextureCube;
+		default:
+			return EShaderCodeResourceBindingType::Invalid;
+		}
+	case D3D_SIT_UAV_RWTYPED:
+		switch (Binding.Dimension)
+		{
+		case D3D_SRV_DIMENSION_BUFFER:			return EShaderCodeResourceBindingType::RWBuffer;
+		case D3D_SRV_DIMENSION_TEXTURE2D:		return EShaderCodeResourceBindingType::RWTexture2D;
+		case D3D_SRV_DIMENSION_TEXTURE2DARRAY:	return EShaderCodeResourceBindingType::RWTexture2DArray;
+		case D3D_SRV_DIMENSION_TEXTURE3D:		return EShaderCodeResourceBindingType::RWTexture3D;
+		case D3D_SRV_DIMENSION_TEXTURECUBE:		return EShaderCodeResourceBindingType::RWTextureCube;
+		default:
+			return EShaderCodeResourceBindingType::Invalid;
+		}
+	case D3D_SIT_STRUCTURED:		return EShaderCodeResourceBindingType::StructuredBuffer;
+	case D3D_SIT_UAV_RWSTRUCTURED:	return EShaderCodeResourceBindingType::RWStructuredBuffer;
+	case D3D_SIT_BYTEADDRESS:		return EShaderCodeResourceBindingType::ByteAddressBuffer;
+	case D3D_SIT_UAV_RWBYTEADDRESS:	return EShaderCodeResourceBindingType::RWByteAddressBuffer;
+	default:
+		return EShaderCodeResourceBindingType::Invalid;
+	}
+}
+
 template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename D3D1x_SHADER_INPUT_BIND_DESC,
 	typename ID3D1xShaderReflectionConstantBuffer, typename D3D1x_SHADER_BUFFER_DESC,
 	typename ID3D1xShaderReflectionVariable, typename D3D1x_SHADER_VARIABLE_DESC>
@@ -10,10 +84,11 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 		const FShaderParameterParser& ShaderParameterParser,
 		uint32 BindingSpace,
 		ID3D1xShaderReflection* Reflector, const D3D1x_SHADER_DESC& ShaderDesc,
-		bool& bGlobalUniformBufferUsed, bool& bDiagnosticBufferUsed, uint32& NumSamplers, uint32& NumSRVs, uint32& NumCBs, uint32& NumUAVs,
-		FShaderCompilerOutput& Output, TArray<FString>& UniformBufferNames, TBitArray<>& UsedUniformBufferSlots, TArray<FShaderCodeVendorExtension>& VendorExtensions)
+		FD3DShaderCompileData& CompileData,
+		FShaderCompilerOutput& Output
+	)
 {
-	const bool bBindlessEnabled = (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessResources) || Input.Environment.CompilerFlags.Contains(CFLAG_BindlessSamplers));
+	const bool bBindlessEnabled = (CompileData.bBindlessResources || CompileData.bBindlessSamplers);
 
 	// Add parameters for shader resources (constant buffers, textures, samplers, etc. */
 	for (uint32 ResourceIndex = 0; ResourceIndex < ShaderDesc.BoundResources; ResourceIndex++)
@@ -32,9 +107,12 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 			ID3D1xShaderReflectionConstantBuffer* ConstantBuffer = Reflector->GetConstantBufferByName(BindDesc.Name);
 			D3D1x_SHADER_BUFFER_DESC CBDesc;
 			ConstantBuffer->GetDesc(&CBDesc);
-			const bool bGlobalCB = (FCStringAnsi::Strcmp(CBDesc.Name, "$Globals") == 0);
-			const bool bRootConstantsCB = (FCStringAnsi::Strcmp(CBDesc.Name, "UERootConstants") == 0);
-			const bool bIsRootCB = FCString::Strcmp(ANSI_TO_TCHAR(CBDesc.Name), FShaderParametersMetadata::kRootUniformBufferBindingName) == 0;
+
+			const FString ConstantBufferName(CBDesc.Name);
+
+			const bool bGlobalCB = (ConstantBufferName == TEXT("$Globals"));
+			const bool bRootConstantsCB = (ConstantBufferName == TEXT("UERootConstants"));
+			const bool bIsRootCB = (ConstantBufferName == FShaderParametersMetadata::kRootUniformBufferBindingName);
 
 			if (bGlobalCB)
 			{
@@ -67,7 +145,7 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 						Variable->GetDesc(&VariableDesc);
 						if (VariableDesc.uFlags & D3D_SVF_USED)
 						{
-							bGlobalUniformBufferUsed = true;
+							CompileData.bGlobalUniformBufferUsed = true;
 
 							HandleReflectedGlobalConstantBufferMember(
 								FString(VariableDesc.Name),
@@ -77,7 +155,7 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 								Output
 							);
 
-							UsedUniformBufferSlots[CBIndex] = true;
+							CompileData.UsedUniformBufferSlots[CBIndex] = true;
 						}
 					}
 				}
@@ -118,8 +196,8 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 					{
 						HandleReflectedRootConstantBuffer(ConstantBufferSize, Output);
 
-						bGlobalUniformBufferUsed = true;
-						UsedUniformBufferSlots[CBIndex] = true;
+						CompileData.bGlobalUniformBufferUsed = true;
+						CompileData.UsedUniformBufferSlots[CBIndex] = true;
 					}
 				}
 				else
@@ -136,14 +214,13 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 			else
 			{
 				// Track just the constant buffer itself.
-				const FString UniformBufferName(CBDesc.Name);
-
 				AddShaderValidationUBSize(CBIndex, CBDesc.Size, Output);
-				HandleReflectedUniformBuffer(UniformBufferName, CBIndex, Output);
+				HandleReflectedUniformBuffer(ConstantBufferName, CBIndex, Output);
 				
-				UsedUniformBufferSlots[CBIndex] = true;
+				CompileData.UsedUniformBufferSlots[CBIndex] = true;
 
-				if (bBindlessEnabled)
+				const EUniformBufferMemberReflectionReason Reason = ShouldReflectUniformBufferMembers(Input, ConstantBufferName);
+				if (Reason != EUniformBufferMemberReflectionReason::None)
 				{
 					for (uint32 ConstantIndex = 0; ConstantIndex < CBDesc.Variables; ConstantIndex++)
 					{
@@ -154,9 +231,13 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 
 						if (VariableDesc.uFlags & D3D_SVF_USED)
 						{
+							const FString MemberName(VariableDesc.Name);
+
 							HandleReflectedUniformBufferConstantBufferMember(
+								Reason,
+								ConstantBufferName,
 								CBIndex,
-								FString(VariableDesc.Name),
+								MemberName,
 								VariableDesc.StartOffset,
 								VariableDesc.Size,
 								Output
@@ -166,13 +247,13 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 				}
 			}
 
-			if (UniformBufferNames.Num() <= (int32)CBIndex)
+			if (CompileData.UniformBufferNames.Num() <= (int32)CBIndex)
 			{
-				UniformBufferNames.AddDefaulted(CBIndex - UniformBufferNames.Num() + 1);
+				CompileData.UniformBufferNames.AddDefaulted(CBIndex - CompileData.UniformBufferNames.Num() + 1);
 			}
-			UniformBufferNames[CBIndex] = UE::ShaderCompilerCommon::RemoveConstantBufferPrefix(FString(CBDesc.Name));
+			CompileData.UniformBufferNames[CBIndex] = UE::ShaderCompilerCommon::RemoveConstantBufferPrefix(ConstantBufferName);
 
-			NumCBs = FMath::Max(NumCBs, BindDesc.BindPoint + BindDesc.BindCount);
+			CompileData.NumCBs = FMath::Max(CompileData.NumCBs, BindDesc.BindPoint + BindDesc.BindCount);
 		}
 		else if (BindDesc.Type == D3D_SIT_TEXTURE || BindDesc.Type == D3D_SIT_SAMPLER)
 		{
@@ -188,20 +269,20 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 
 			if (bIsVendorParameter)
 			{
-				VendorExtensions.Emplace(EGpuVendorId::Amd, 0, BindDesc.BindPoint, BindCount, ParameterType);
+				CompileData.VendorExtensions.Emplace(EGpuVendorId::Amd, 0, BindDesc.BindPoint, BindCount, ParameterType);
 			}
 			else if (ParameterType == EShaderParameterType::Sampler)
 			{
 				HandleReflectedShaderSampler(FString(BindDesc.Name), BindDesc.BindPoint, Output);
-				NumSamplers = FMath::Max(NumSamplers, BindDesc.BindPoint + BindCount);
+				CompileData.NumSamplers = FMath::Max(CompileData.NumSamplers, BindDesc.BindPoint + BindCount);
 			}
 			else
 			{
-				const FShaderParameterParser::FParsedShaderParameter* ParsedParam = ShaderParameterParser.FindParameterInfosUnsafe(BindDesc.Name);
-				AddShaderValidationSRVType(BindDesc.BindPoint, ParsedParam ? ParsedParam->ParsedTypeDecl : EShaderCodeResourceBindingType::Invalid, Output);
+				EShaderCodeResourceBindingType ResourceBindingType = D3DBindDescToShaderCodeResourceBinding(BindDesc);
+				AddShaderValidationSRVType(BindDesc.BindPoint, ResourceBindingType, Output);
 
 				HandleReflectedShaderResource(FString(BindDesc.Name), BindDesc.BindPoint, Output);
-				NumSRVs = FMath::Max(NumSRVs, BindDesc.BindPoint + BindCount);
+				CompileData.NumSRVs = FMath::Max(CompileData.NumSRVs, BindDesc.BindPoint + BindCount);
 			}
 		}
 		else if (BindDesc.Type == D3D_SIT_UAV_RWTYPED || BindDesc.Type == D3D_SIT_UAV_RWSTRUCTURED ||
@@ -235,27 +316,28 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 					(bIsAMDExtensionDX11 || bIsAMDExtensionDX12) ? EGpuVendorId::Amd :
 					bIsIntelExtension ? EGpuVendorId::Intel :
 					EGpuVendorId::Unknown;
-				VendorExtensions.Emplace(VendorId, 0, BindDesc.BindPoint, BindCount, EShaderParameterType::UAV);
+				CompileData.VendorExtensions.Emplace(VendorId, 0, BindDesc.BindPoint, BindCount, EShaderParameterType::UAV);
 			}
 			else if (bIsDiagnosticBufferParameter)
 			{
-				bDiagnosticBufferUsed = true;
+				CompileData.bDiagnosticBufferUsed = true;
 			}
 			else
 			{
-				const FShaderParameterParser::FParsedShaderParameter* ParsedParam = ShaderParameterParser.FindParameterInfosUnsafe(BindDesc.Name);
-				AddShaderValidationUAVType(BindDesc.BindPoint, ParsedParam ? ParsedParam->ParsedTypeDecl : EShaderCodeResourceBindingType::Invalid, Output);
+				EShaderCodeResourceBindingType ResourceBindingType = D3DBindDescToShaderCodeResourceBinding(BindDesc);
+				AddShaderValidationUAVType(BindDesc.BindPoint, ResourceBindingType, Output);
 
 				HandleReflectedShaderUAV(FString(BindDesc.Name), BindDesc.BindPoint, Output);
-				NumUAVs = FMath::Max(NumUAVs, BindDesc.BindPoint + BindCount);
+				CompileData.NumUAVs = FMath::Max(CompileData.NumUAVs, BindDesc.BindPoint + BindCount);
 			}
 		}
 		else if (BindDesc.Type == D3D_SIT_STRUCTURED || BindDesc.Type == D3D_SIT_BYTEADDRESS)
 		{
 			check(BindDesc.BindCount == 1);
 			FString BindDescName(BindDesc.Name);
-			const FShaderParameterParser::FParsedShaderParameter* ParsedParam = ShaderParameterParser.FindParameterInfosUnsafe(BindDesc.Name);
-			AddShaderValidationSRVType(BindDesc.BindPoint, ParsedParam ? ParsedParam->ParsedTypeDecl : EShaderCodeResourceBindingType::Invalid, Output);
+
+			EShaderCodeResourceBindingType ResourceBindingType = D3DBindDescToShaderCodeResourceBinding(BindDesc);
+			AddShaderValidationSRVType(BindDesc.BindPoint, ResourceBindingType, Output);
 
 			HandleReflectedShaderResource(BindDescName, BindDesc.BindPoint, Output);
 
@@ -266,32 +348,110 @@ template <typename ID3D1xShaderReflection, typename D3D1x_SHADER_DESC, typename 
 				UpdateStructuredBufferStride(Input, BindDescName, BindDesc.BindPoint, BindDesc.NumSamples, Output);
 			}
 
-			NumSRVs = FMath::Max(NumSRVs, BindDesc.BindPoint + 1);
+			CompileData.NumSRVs = FMath::Max(CompileData.NumSRVs, BindDesc.BindPoint + 1);
 		}
-		else if (BindDesc.Type == (D3D_SHADER_INPUT_TYPE)(D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER + 1)) // D3D_SIT_RTACCELERATIONSTRUCTURE (12)
+		else if (BindDesc.Type == D3D_SIT_RTACCELERATIONSTRUCTURE)
 		{
 			// Acceleration structure resources are treated as SRVs.
 			check(BindDesc.BindCount == 1);
 
-			const FShaderParameterParser::FParsedShaderParameter* ParsedParam = ShaderParameterParser.FindParameterInfosUnsafe(BindDesc.Name);
-			AddShaderValidationSRVType(BindDesc.BindPoint, ParsedParam ? ParsedParam->ParsedTypeDecl : EShaderCodeResourceBindingType::Invalid, Output);
+			EShaderCodeResourceBindingType ResourceBindingType = D3DBindDescToShaderCodeResourceBinding(BindDesc);
+			AddShaderValidationSRVType(BindDesc.BindPoint, ResourceBindingType, Output);
 
 			HandleReflectedShaderResource(FString(BindDesc.Name), BindDesc.BindPoint, Output);
-			NumSRVs = FMath::Max(NumSRVs, BindDesc.BindPoint + 1);
+			CompileData.NumSRVs = FMath::Max(CompileData.NumSRVs, BindDesc.BindPoint + 1);
 		}
 	}
+
+	CompileData.NumInstructions = ShaderDesc.InstructionCount;
+}
+
+// Validate that we are not going over to maximum amount of resource bindings support by the default root signature on DX12
+// Currently limited for hard-coded root signature setup (see: FD3D12Adapter::StaticGraphicsRootSignature)
+// In theory this limitation is only required for DX12, but we don't want a shader to compile on DX11 while not working on DX12.
+// (DX11 has an API limit on 128 SRVs, 16 Samplers, 8 UAVs and 14 CBs but if you go over these values then the shader won't compile)
+inline bool ValidateResourceCounts(const FD3DShaderCompileData& CompileData, TArray<FString>& OutFilteredErrors)
+{
+	const bool bTooManySRVs     = !CompileData.bBindlessResources && CompileData.NumSRVs     > CompileData.MaxSRVs;
+	const bool bTooManyUAVs     = !CompileData.bBindlessResources && CompileData.NumUAVs     > CompileData.MaxUAVs;
+	const bool bTooManySamplers = !CompileData.bBindlessSamplers && CompileData.NumSamplers  > CompileData.MaxSamplers;
+	const bool bTooManyCBs = CompileData.NumCBs > CompileData.MaxCBs;
+
+	if (bTooManySRVs || bTooManySamplers || bTooManyUAVs || bTooManyCBs)
+	{
+		if (bTooManySRVs)
+		{
+			OutFilteredErrors.Add(FString::Printf(TEXT("Shader is using too many SRVs: %d (only %d supported)"), CompileData.NumSRVs, CompileData.MaxSRVs));
+		}
+
+		if (bTooManySamplers)
+		{
+			OutFilteredErrors.Add(FString::Printf(TEXT("Shader is using too many Samplers: %d (only %d supported)"), CompileData.NumSamplers, CompileData.MaxSamplers));
+		}
+
+		if (bTooManyUAVs)
+		{
+			OutFilteredErrors.Add(FString::Printf(TEXT("Shader is using too many UAVs: %d (only %d supported)"), CompileData.NumUAVs, CompileData.MaxUAVs));
+		}
+
+		if (bTooManyCBs)
+		{
+			OutFilteredErrors.Add(FString::Printf(TEXT("Shader is using too many Constant Buffers: %d (only %d supported)"), CompileData.NumCBs, CompileData.MaxCBs));
+		}
+
+		return false;
+	}
+
+	return true;
+}
+
+inline FShaderCodePackedResourceCounts InitPackedResourceCounts(const FD3DShaderCompileData& CompileData)
+{
+	FShaderCodePackedResourceCounts PackedResourceCounts{};
+
+	if (CompileData.bGlobalUniformBufferUsed)
+	{
+		PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::GlobalUniformBuffer;
+	}
+
+	if (CompileData.bBindlessResources)
+	{
+		PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::BindlessResources;
+	}
+
+	if (CompileData.bBindlessSamplers)
+	{
+		PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::BindlessSamplers;
+	}
+
+	if (CompileData.bDiagnosticBufferUsed)
+	{
+		PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::DiagnosticBuffer;
+	}
+
+	PackedResourceCounts.NumSamplers = static_cast<uint8>(CompileData.NumSamplers);
+	PackedResourceCounts.NumSRVs = static_cast<uint8>(CompileData.NumSRVs);
+	PackedResourceCounts.NumCBs = static_cast<uint8>(CompileData.NumCBs);
+	PackedResourceCounts.NumUAVs = static_cast<uint8>(CompileData.NumUAVs);
+
+	return PackedResourceCounts;
 }
 
 template <typename TBlob>
-inline void GenerateFinalOutput(TRefCountPtr<TBlob>& CompressedData,
-	const FShaderCompilerInput& Input, TArray<FShaderCodeVendorExtension>& VendorExtensions, 
-	TBitArray<>& UsedUniformBufferSlots, TArray<FString>& UniformBufferNames,
-	bool bProcessingSecondTime, const TArray<FString>& ShaderInputs,
-	FShaderCodePackedResourceCounts& PackedResourceCounts, uint32 NumInstructions,
+inline void GenerateFinalOutput(
+	TRefCountPtr<TBlob>& CompressedData,
+	const FShaderCompilerInput& Input,
+	ED3DShaderModel ShaderModel,
+	bool bProcessingSecondTime,
+	FD3DShaderCompileData& CompileData,
+	const FShaderCodePackedResourceCounts& PackedResourceCounts,
 	FShaderCompilerOutput& Output,
 	TFunction<void(FMemoryWriter&)> PostSRTWriterCallback,
 	TFunction<void(FShaderCode&)> AddOptionalDataCallback)
 {
+	const uint32 NumBindlessResources = CompileData.bBindlessResources ? Output.ParameterMap.CountParametersOfType(EShaderParameterType::BindlessSRV) : 0;
+	const uint32 NumBindlessSamplers = CompileData.bBindlessSamplers ? Output.ParameterMap.CountParametersOfType(EShaderParameterType::BindlessSampler) : 0;
+
 	// Build the SRT for this shader.
 	FShaderResourceTable SRT;
 
@@ -300,7 +460,7 @@ inline void GenerateFinalOutput(TRefCountPtr<TBlob>& CompressedData,
 	{	
 		// Build the generic SRT for this shader.
 		FShaderCompilerResourceTable GenericSRT;
-		BuildResourceTableMapping(Input.Environment.ResourceTableMap, Input.Environment.UniformBufferMap, UsedUniformBufferSlots, Output.ParameterMap, GenericSRT);
+		BuildResourceTableMapping(Input.Environment.ResourceTableMap, Input.Environment.UniformBufferMap, CompileData.UsedUniformBufferSlots, Output.ParameterMap, GenericSRT);
 
 		// Ray generation shaders rely on a different binding model that aren't compatible with global uniform buffers.
 		if (Input.Target.Frequency != SF_RayGen)
@@ -308,14 +468,14 @@ inline void GenerateFinalOutput(TRefCountPtr<TBlob>& CompressedData,
 			CullGlobalUniformBuffers(Input.Environment.UniformBufferMap, Output.ParameterMap);
 		}
 
-		if (UniformBufferNames.Num() < GenericSRT.ResourceTableLayoutHashes.Num())
+		if (CompileData.UniformBufferNames.Num() < GenericSRT.ResourceTableLayoutHashes.Num())
 		{
-			UniformBufferNames.AddDefaulted(GenericSRT.ResourceTableLayoutHashes.Num() - UniformBufferNames.Num());
+			CompileData.UniformBufferNames.AddDefaulted(GenericSRT.ResourceTableLayoutHashes.Num() - CompileData.UniformBufferNames.Num());
 		}
 
 		for (int32 Index = 0; Index < GenericSRT.ResourceTableLayoutHashes.Num(); ++Index)
 		{
-			if (GenericSRT.ResourceTableLayoutHashes[Index] != 0 && UniformBufferNames[Index].Len() == 0)
+			if (GenericSRT.ResourceTableLayoutHashes[Index] != 0 && CompileData.UniformBufferNames[Index].Len() == 0)
 			{
 				for (const auto& KeyValue : Input.Environment.UniformBufferMap)
 				{
@@ -323,7 +483,7 @@ inline void GenerateFinalOutput(TRefCountPtr<TBlob>& CompressedData,
 
 					if (UniformBufferEntry.LayoutHash == GenericSRT.ResourceTableLayoutHashes[Index])
 					{
-						UniformBufferNames[Index] = KeyValue.Key;
+						CompileData.UniformBufferNames[Index] = KeyValue.Key;
 						break;
 					}
 				}
@@ -331,25 +491,15 @@ inline void GenerateFinalOutput(TRefCountPtr<TBlob>& CompressedData,
 		}
 
 		FMemoryWriter UniformBufferNameWriter(UniformBufferNameBytes);
-		UniformBufferNameWriter << UniformBufferNames;
+		UniformBufferNameWriter << CompileData.UniformBufferNames;
 
-		// Copy over the bits indicating which resource tables are active.
-		SRT.ResourceTableBits = GenericSRT.ResourceTableBits;
-
-		SRT.ResourceTableLayoutHashes = GenericSRT.ResourceTableLayoutHashes;
-
-		// Now build our token streams.
-		BuildResourceTableTokenStream(GenericSRT.TextureMap, GenericSRT.MaxBoundResourceTable, SRT.TextureMap);
-		BuildResourceTableTokenStream(GenericSRT.ShaderResourceViewMap, GenericSRT.MaxBoundResourceTable, SRT.ShaderResourceViewMap);
-		BuildResourceTableTokenStream(GenericSRT.SamplerMap, GenericSRT.MaxBoundResourceTable, SRT.SamplerMap);
-		BuildResourceTableTokenStream(GenericSRT.UnorderedAccessViewMap, GenericSRT.MaxBoundResourceTable, SRT.UnorderedAccessViewMap);
+		UE::ShaderCompilerCommon::BuildShaderResourceTable(GenericSRT, SRT);
 	}
 
 	if (Input.Environment.CompilerFlags.Contains(CFLAG_ForceRemoveUnusedInterpolators) && Input.Target.Frequency == SF_Pixel && Input.bCompilingForShaderPipeline && bProcessingSecondTime)
-
 	{
 		Output.bSupportsQueryingUsedAttributes = true;
-		Output.UsedAttributes = ShaderInputs;
+		Output.UsedAttributes = CompileData.ShaderInputs;
 	}
 
 	// Generate the final Output
@@ -366,13 +516,26 @@ inline void GenerateFinalOutput(TRefCountPtr<TBlob>& CompressedData,
 		Output.ShaderCode.AddOptionalData(FShaderCodeUniformBuffers::Key, UniformBufferNameBytes.GetData(), UniformBufferNameBytes.Num());
 		AddOptionalDataCallback(Output.ShaderCode);
 	}
+	
+	// Append the shader binding layout hash used for validation
+	{
+		uint32 ShaderBindingLayoutHash = Input.Environment.RHIShaderBindingLayout.GetHash();
+
+		TArray<uint8> WriterBytes;
+		FMemoryWriter Writer(WriterBytes);
+		Writer << ShaderBindingLayoutHash;
+		if (WriterBytes.Num() > 0)
+		{
+			Output.ShaderCode.AddOptionalData(FShaderCodeShaderResourceTableDataDesc::Key, WriterBytes.GetData(), WriterBytes.Num());
+		}
+	}
 
 	// Append information about optional hardware vendor extensions
-	if (VendorExtensions.Num() > 0)
+	if (CompileData.VendorExtensions.Num() > 0)
 	{
 		TArray<uint8> WriterBytes;
 		FMemoryWriter Writer(WriterBytes);
-		Writer << VendorExtensions;
+		Writer << CompileData.VendorExtensions;
 		if (WriterBytes.Num() > 0)
 		{
 			Output.ShaderCode.AddOptionalData(FShaderCodeVendorExtension::Key, WriterBytes.GetData(), WriterBytes.Num());
@@ -388,10 +551,33 @@ inline void GenerateFinalOutput(TRefCountPtr<TBlob>& CompressedData,
 	Output.SerializeShaderDiagnosticData();
 
 	// Set the number of instructions.
-	Output.NumInstructions = NumInstructions;
+	Output.NumInstructions = CompileData.NumInstructions;
 
 	Output.NumTextureSamplers = PackedResourceCounts.NumSamplers;
 
 	// Pass the target through to the output.
 	Output.Target = Input.Target;
+
+	// SRV Limits
+	{
+		if (CompileData.bBindlessResources)
+		{
+			Output.AddStatistic<uint32>(TEXT("Bindless Resources"), NumBindlessResources);
+		}
+		else
+		{
+			Output.AddStatistic<uint32>(TEXT("Resources Used"), CompileData.NumSRVs);
+			Output.AddStatistic<uint32>(TEXT("Resource Limit"), CompileData.MaxSRVs);
+		}
+
+		if (CompileData.bBindlessSamplers)
+		{
+			Output.AddStatistic<uint32>(TEXT("Bindless Samplers"), NumBindlessSamplers);
+		}
+		else
+		{
+			Output.AddStatistic<uint32>(TEXT("Samplers Used"), CompileData.NumSamplers);
+			Output.AddStatistic<uint32>(TEXT("Sampler Limit"), CompileData.MaxSamplers);
+		}
+	}
 }

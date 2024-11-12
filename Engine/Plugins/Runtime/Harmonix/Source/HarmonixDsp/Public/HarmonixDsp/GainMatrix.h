@@ -314,9 +314,9 @@ private:
 	uint8 NumInChannels = HarmonixDsp::FAudioBuffer::kMaxChannelsInAudioBuffer;
 	uint8 NumOutChannels = HarmonixDsp::FAudioBuffer::kMaxChannelsInAudioBuffer;
 
-	uint32 ChannelMask = ESpeakerMask::AllSpeakers;
-
 	EAudioBufferChannelLayout ChannelLayout = EAudioBufferChannelLayout::Raw;
+
+	uint32 ChannelMask = ESpeakerMask::AllSpeakers;
 
 	static int32 SpeakerToStereo(ESpeakerChannelAssignment InChannelAssignment);
 	static int32 SpeakerToStereoPointOne(ESpeakerChannelAssignment InChannelAssignment);

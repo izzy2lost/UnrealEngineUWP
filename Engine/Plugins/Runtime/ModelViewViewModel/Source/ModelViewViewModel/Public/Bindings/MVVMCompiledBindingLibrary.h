@@ -37,14 +37,14 @@ public:
 		return ClassOrScriptStruct ? NumberOfFunctions : 0;
 	}
 
-	FName GetPropertyName(TArrayView<FName> Names, int32 Index) const
+	FName GetPropertyName(const TArrayView<const FName> Names, int32 Index) const
 	{
 		check(Index < NumberOfProperties && Index >= 0);
 		check(Names.IsValidIndex(LibraryStartIndex + Index));
 		return Names[LibraryStartIndex + Index];
 	}
 
-	FName GetFunctionName(TArrayView<FName> Names, int32 Index) const
+	FName GetFunctionName(const TArrayView<const FName> Names, int32 Index) const
 	{
 		check(Index < NumberOfFunctions && Index >= 0);
 		check(Names.IsValidIndex(LibraryStartIndex + NumberOfProperties + Index));
@@ -292,7 +292,7 @@ public:
 	 * Execute a binding, in one direction.
 	 * The ExecutionSource is the View (UserWidget) instance.
 	 * The Source of the binding (ViewModel, UserWidget, Widget, ...) can be provided if already known.
-	 * The Destination or the binding (ViewModel, UserWIdget, Widget, ...) can be provided if already known.
+	 * The Destination or the binding (ViewModel, UserWidget, Widget, ...) can be provided if already known.
 	 */
 	TValueOrError<void, EExecutionFailingReason> Execute(UObject* ExecutionSource, const FMVVMVCompiledBinding& Binding, EConversionFunctionType ConversionType) const;
 	TValueOrError<void, EExecutionFailingReason> ExecuteWithSource(UObject* ExecutionSource, const FMVVMVCompiledBinding& Binding, UObject* Source) const;

@@ -125,6 +125,13 @@ namespace UE::PixelStreaming
 			{
 				UE_LOG(LogPixelStreaming, Error, TEXT("Selected codec was not a supported codec."));
 			}
+
+			// We can still support flex-fec even if we're not negotiating codecs
+			if (Settings::CVarPixelStreamingWebRTCEnableFlexFec.GetValueOnAnyThread())
+			{
+				SupportedFormats.push_back(webrtc::SdpVideoFormat(cricket::kFlexfecCodecName));
+			}
+
 			return SupportedFormats;
 		}
 
@@ -156,6 +163,11 @@ namespace UE::PixelStreaming
 						SupportedFormats.push_back(Format);
 					}
 				}
+			}
+
+			if (Settings::CVarPixelStreamingWebRTCEnableFlexFec.GetValueOnAnyThread())
+			{
+				SupportedFormats.push_back(webrtc::SdpVideoFormat(cricket::kFlexfecCodecName));
 			}
 		}
 

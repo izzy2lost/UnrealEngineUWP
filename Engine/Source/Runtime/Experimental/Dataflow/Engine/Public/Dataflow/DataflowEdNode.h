@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowCore.h"
-#include "Dataflow/DataflowRenderingFactory.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "GeometryCollection/GeometryCollection.h"
@@ -20,7 +19,7 @@
 class FArchive;
 class UEdGraphPin;
 class UObject;
-namespace Dataflow { class FGraph; class FRenderingParameters; }
+namespace UE::Dataflow { class FGraph; class FRenderingParameters; class IDataflowConstructionViewMode;  }
 namespace GeometryCollection::Facades { class FRenderingFacade; }
 
 UCLASS(MinimalAPI)
@@ -29,7 +28,7 @@ class UDataflowEdNode : public UEdGraphNode
 	GENERATED_UCLASS_BODY()
 
 	FGuid DataflowNodeGuid;
-	TSharedPtr<Dataflow::FGraph> DataflowGraph;
+	TSharedPtr<UE::Dataflow::FGraph> DataflowGraph;
 
 public:
 
@@ -40,6 +39,8 @@ public:
 	DATAFLOWENGINE_API virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
 #endif // WITH_EDITOR && !UE_BUILD_SHIPPING
 #if WITH_EDITOR
+	DATAFLOWENGINE_API virtual FSlateIcon GetIconAndTint(FLinearColor& OutColor) const override;
+	DATAFLOWENGINE_API virtual bool ShowPaletteIconOnNode() const override;
 	DATAFLOWENGINE_API virtual FLinearColor GetNodeTitleColor() const override;
 	DATAFLOWENGINE_API virtual FLinearColor GetNodeBodyTintColor() const override;
 	DATAFLOWENGINE_API virtual FText GetTooltipText() const override;
@@ -47,6 +48,8 @@ public:
 	DATAFLOWENGINE_API virtual FText GetPinDisplayName(const UEdGraphPin* Pin) const override;
 	DATAFLOWENGINE_API virtual void AutowireNewNode(UEdGraphPin* FromPin) override;
 	DATAFLOWENGINE_API virtual void OnPinRemoved(UEdGraphPin* InRemovedPin) override;
+	DATAFLOWENGINE_API virtual bool ShouldDrawNodeAsControlPointOnly(int32& OutInputPinIndex, int32& OutOutputPinIndex) const override;
+	DATAFLOWENGINE_API virtual void PostEditUndo() override;
 #endif // WITH_EDITOR
 	// End of UEdGraphNode interface
 
@@ -54,11 +57,11 @@ public:
 	DATAFLOWENGINE_API void Serialize(FArchive& Ar);
 	// End UObject interface
 
-	bool IsBound() { return DataflowGraph && DataflowNodeGuid.IsValid(); }
+	bool IsBound() const { return DataflowGraph && DataflowNodeGuid.IsValid(); }
 
-	TSharedPtr<Dataflow::FGraph> GetDataflowGraph() { return DataflowGraph; }
-	TSharedPtr<const Dataflow::FGraph> GetDataflowGraph() const { return DataflowGraph; }
-	void SetDataflowGraph(TSharedPtr<Dataflow::FGraph> InDataflowGraph) { DataflowGraph = InDataflowGraph; }
+	TSharedPtr<UE::Dataflow::FGraph> GetDataflowGraph() { return DataflowGraph; }
+	TSharedPtr<const UE::Dataflow::FGraph> GetDataflowGraph() const { return DataflowGraph; }
+	void SetDataflowGraph(TSharedPtr<UE::Dataflow::FGraph> InDataflowGraph) { DataflowGraph = InDataflowGraph; }
 
 	DATAFLOWENGINE_API void UpdatePinsFromDataflowNode();
 
@@ -73,16 +76,45 @@ public:
 	/** Remove an option pin if the underlying Dataflow node RemovePin member is overriden. */
 	DATAFLOWENGINE_API void RemoveOptionPin();
 
+	DATAFLOWENGINE_API bool PinIsCompatibleWithType(const UEdGraphPin& Pin, const FEdGraphPinType& PinType) const;
+
+#if WITH_EDITOR
+	// Pin hiding
+	DATAFLOWENGINE_API void HideAllInputPins();
+	DATAFLOWENGINE_API void ShowAllInputPins();
+	DATAFLOWENGINE_API void ToggleHideInputPin(FName PinName);
+	DATAFLOWENGINE_API bool CanToggleHideInputPin(FName PinName) const;
+	DATAFLOWENGINE_API bool IsInputPinShown(FName PinName) const;
+#endif
+
 	//
 	// Node Rendering
 	//
-	DATAFLOWENGINE_API void SetAssetRender(bool bInRender);
-	bool DoAssetRender() { return bRenderInAssetEditor; }
-	DATAFLOWENGINE_API TArray<Dataflow::FRenderingParameter> GetRenderParameters() const;
-	DATAFLOWENGINE_API virtual bool Render(GeometryCollection::Facades::FRenderingFacade& RenderData, const TSharedPtr<Dataflow::FContext> Context) const;
+	DATAFLOWENGINE_API void SetShouldRenderNode(bool bInRender);
+	bool ShouldRenderNode() const { return bRenderInAssetEditor; }
 
-	UPROPERTY()
+	DATAFLOWENGINE_API void SetShouldWireframeRenderNode(bool bInRender);
+	bool ShouldWireframeRenderNode() const { return bRenderWireframeInAssetEditor; }
+
+	DATAFLOWENGINE_API void SetCanEnableWireframeRenderNode(bool bInCanEnable);
+	DATAFLOWENGINE_API bool CanEnableWireframeRenderNode() const;
+
+	DATAFLOWENGINE_API TArray<UE::Dataflow::FRenderingParameter> GetRenderParameters() const;
+
+private:
+
+	UPROPERTY(Transient)
 	bool bRenderInAssetEditor = false;
+
+	UPROPERTY(Transient)
+	bool bRenderWireframeInAssetEditor = false;
+
+	UPROPERTY(Transient)
+	bool bCanEnableRenderWireframe = true;
+
+	void OnPinConnection(const UEdGraphPin& Pin, const FEdGraphPinType& Type);
+	void OnPinDisconnection(const UEdGraphPin& Pin);
+	void SetAnyTypePinsToType(const FEdGraphPinType& Type);
 
 };
 

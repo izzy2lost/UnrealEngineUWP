@@ -269,12 +269,15 @@ public:
 	}
 
 	/**
+	 *  DEPRECATED 5.5
+	 * 
 	 * Should transactions be generated for events received through protocols (ie. MIDI, DMX etc.)
 	 * Disabling transactions improves performance but will prevent events from being transacted to Multi-User
 	 * unless using the Remote Control Interception feature.
 	 */
-	UPROPERTY(config, EditAnywhere, Category = "Remote Control")
-	bool bProtocolsGenerateTransactions = true;
+	UE_DEPRECATED(5.5, "Protocol Generate Transactions is now a per Preset option. See URemoteControlPreset::GetProtocolModifyOperationFlags.")
+	UPROPERTY(config)
+	bool bProtocolsGenerateTransactions_DEPRECATED = true;
 
 	/** The remote control web app bind address. */
 	UPROPERTY(config, EditAnywhere, Category = "Remote Control Web Interface", DisplayName = "Remote Control Web Interface bind address")
@@ -340,9 +343,13 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Remote Control | Security")
 	bool bRestrictServerAccess = false;
 
-	/** Enable remote python execution, enabling this could open you open to vulnerabilities if an outside actor has access to your server. */
+	/** Enable remote python execution, enabling this could open you up to vulnerabilities if an outside actor has access to your server. */
 	UPROPERTY(Config, EditAnywhere, Category = "Remote Control | Security", meta = (editCondition = bRestrictServerAccess))
 	bool bEnableRemotePythonExecution = false;
+
+	/** Enable calling 'ExecuteConsoleCommand' through the web api. Enabling this could open you up to vulnerabilities if an outside actor has access to your server. */
+	UPROPERTY(Config, EditAnywhere, Category = "Remote Control | Security", meta = (editCondition = bRestrictServerAccess))
+	bool bAllowConsoleCommandRemoteExecution = false;
 
 	/** List of IP Addresses that are allowed to access the Web API without authentication. */
 	UPROPERTY(config, EditAnywhere, Category = "Remote Control | Security", DisplayName = "Range of Allowlisted Clients", Meta = (EditCondition = bRestrictServerAccess, EditConditionHides))

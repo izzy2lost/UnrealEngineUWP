@@ -9,12 +9,14 @@
 
 #pragma once
 
+#include "Async/TaskGraphFwd.h"
 #include "Containers/Set.h"
 #include "Misc/CoreDelegates.h"
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
 #include "WorldPartition/WorldPartitionRuntimeHash.h"
 #include "WorldPartition/WorldPartitionStreamingSource.h"
 #include "WorldPartition/WorldPartitionRuntimeContainerResolving.h"
+#include "WorldPartition/DataLayer/WorldDataLayers.h"
 #include "WorldPartitionStreamingPolicy.generated.h"
 
 class UWorldPartition;
@@ -30,6 +32,7 @@ struct FActivatedCells
 	bool Contains(const UWorldPartitionRuntimeCell* InCell) const { return Cells.Contains(InCell); }
 	void OnAddedToWorld(const UWorldPartitionRuntimeCell* InCell);
 	void OnRemovedFromWorld(const UWorldPartitionRuntimeCell* InCell);
+	void Reset();
 
 	const TSet<TObjectPtr<const UWorldPartitionRuntimeCell>>& GetCells() const { return Cells; }
 	const TSet<const UWorldPartitionRuntimeCell*>& GetPendingAddToWorldCells() const { return PendingAddToWorldCells; }
@@ -40,6 +43,49 @@ private:
 	TSet<TObjectPtr<const UWorldPartitionRuntimeCell>> Cells;
 
 	TSet<const UWorldPartitionRuntimeCell*> PendingAddToWorldCells;
+};
+
+USTRUCT()
+struct FWorldPartitionUpdateStreamingTargetState
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<const UWorldPartitionRuntimeCell>> ToLoadCells;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<const UWorldPartitionRuntimeCell>> ToActivateCells;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<const UWorldPartitionRuntimeCell>> ToDeactivateCells;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<const UWorldPartitionRuntimeCell>> ToUnloadCells;
+
+	EWorldPartitionStreamingPerformance StreamingPerformance = EWorldPartitionStreamingPerformance::Good;
+
+	bool bUpdateServerEpoch = false;
+
+	bool IsEmpty() const;
+	void Reset();
+};
+
+USTRUCT()
+struct FWorldPartitionUpdateStreamingCurrentState
+{
+	GENERATED_USTRUCT_BODY()
+
+	// Streaming Sources
+	TArray<FWorldPartitionStreamingSource> StreamingSources;
+
+	UPROPERTY(Transient)
+	TSet<TObjectPtr<const UWorldPartitionRuntimeCell>> LoadedCells;
+
+	UPROPERTY(Transient)
+	FActivatedCells ActivatedCells;
+
+	void Reset();
+	void CopyFrom(const FWorldPartitionUpdateStreamingCurrentState& InCurrentState);
 };
 
 UCLASS(Abstract, Within = WorldPartition)
@@ -86,9 +132,9 @@ public:
 	virtual bool ConvertEditorPathToRuntimePath(const FSoftObjectPath& InPath, FSoftObjectPath& OutPath) const { return false; }
 	virtual UObject* GetSubObject(const TCHAR* SubObjectPath) { return nullptr; }
 
-	const TArray<FWorldPartitionStreamingSource>& GetStreamingSources() const { return StreamingSources; }
+	const TArray<FWorldPartitionStreamingSource>& GetStreamingSources() const { return CurrentState.StreamingSources; }
 
-	EWorldPartitionStreamingPerformance GetStreamingPerformance() const { return StreamingPerformance; }
+	EWorldPartitionStreamingPerformance GetStreamingPerformance() const { return CurrentStreamingPerformance; }
 
 	static bool IsUpdateStreamingOptimEnabled();
 
@@ -100,71 +146,122 @@ public:
 protected:
 	virtual void SetCellStateToLoaded(const UWorldPartitionRuntimeCell* InCell, int32& InOutMaxCellsToLoad);
 	virtual void SetCellStateToActivated(const UWorldPartitionRuntimeCell* InCell, int32& InOutMaxCellsToLoad);
-	virtual void SetCellsStateToUnloaded(const TArray<const UWorldPartitionRuntimeCell*>& ToUnloadCells);
+	virtual void SetCellsStateToUnloaded(const TArray<TObjectPtr<const UWorldPartitionRuntimeCell>>& ToUnloadCells);
 	virtual void GetCellsToUpdate(TArray<const UWorldPartitionRuntimeCell*>& OutToLoadCells, TArray<const UWorldPartitionRuntimeCell*>& OutToActivateCells);
 	virtual void GetCellsToReprioritize(TArray<const UWorldPartitionRuntimeCell*>& OutToLoadCells, TArray<const UWorldPartitionRuntimeCell*>& OutToActivateCells);
 	virtual void UpdateStreamingSources(bool bCanOptimizeUpdate);
-	void UpdateStreamingPerformance(const TSet<const UWorldPartitionRuntimeCell*>& InCells);
-	bool ShouldSkipCellForPerformance(const UWorldPartitionRuntimeCell* Cell) const;
+	void UpdateStreamingPerformance(EWorldPartitionStreamingPerformance NewStreamingPerformance);
 	bool IsInBlockTillLevelStreamingCompleted(bool bIsCausedByBadStreamingPerformance = false) const;
 
+	// Outer World Partition
 	const UWorldPartition* WorldPartition;
-	UPROPERTY(Transient)
-	TSet<TObjectPtr<const UWorldPartitionRuntimeCell>> LoadedCells;
-
-	UPROPERTY(Transient)
-	FActivatedCells ActivatedCells;
-
-	// Streaming Sources
-	TArray<FWorldPartitionStreamingSource> StreamingSources;
-
-	TSet<const UWorldPartitionRuntimeCell*> FrameActivateCells;
-	TSet<const UWorldPartitionRuntimeCell*> FrameLoadCells;
-
-	// Used by UWorldPartitionSubsystem
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<const UWorldPartitionRuntimeCell>> ToActivateCells;
-	
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<const UWorldPartitionRuntimeCell>> ToLoadCells;
-	
-	int32 ProcessedToActivateCells;
-	int32 ProcessedToLoadCells;
 
 private:
+	enum class EAsyncUpdateTaskState
+	{
+		None,
+		Pending,
+		Started
+	};
+
+	struct FUpdateStreamingStateParams
+	{
+		FUpdateStreamingStateParams(UWorldPartitionStreamingPolicy* InPolicy, const FWorldPartitionUpdateStreamingCurrentState& InCurrentState);
+		FUpdateStreamingStateParams& SetRequiredWorldDataLayersEffectiveStatesCopy(bool bInRequiredEffectiveStatesCopy);
+
+		const UWorld* World;
+		const UWorldPartitionRuntimeHash* RuntimeHash;
+		const bool bCanStream;
+		const bool bIsServer;
+		const bool bIsStreamingInEnabled;
+		const bool bIsServerStreamingEnabled;
+		const bool bIsServerStreamingOutEnabled;
+		const bool bIsBlockingCausedByBadStreamingPerformance;
+		const bool bShouldMergeStreamingSourceInfo;
+		const int32 PolicyUpdateStreamingStateEpoch;
+		const EWorldPartitionDataLayersLogicOperator DataLayersLogicOperator;
+		const FTransform WorldPartitionInstanceTransform;
+		const FWorldPartitionUpdateStreamingCurrentState& CurrentState;
+		const TSet<FName>& ServerDisallowedStreamingOutDataLayers;
+		TSet<const UWorldPartitionRuntimeCell*>& FrameActivateCells;
+		TSet<const UWorldPartitionRuntimeCell*>& FrameLoadCells;
+
+		const FWorldDataLayersEffectiveStates& GetWorldDataLayersEffectiveStates() const { return WorldDataLayersEffectiveStatesCopy.Get(WorldDataLayersEffectiveStatesRef); }
+	private:
+		const FWorldDataLayersEffectiveStates& WorldDataLayersEffectiveStatesRef;
+		TOptional<FWorldDataLayersEffectiveStates> WorldDataLayersEffectiveStatesCopy;
+	};
+
 	// Update optimization
 	uint32 ComputeUpdateStreamingHash(bool bCanOptimizeUpdate) const;
 	int32 ComputeServerStreamingEnabledEpoch() const;
 
-	const TSet<FName>& GetServerDisallowedStreamingOutDataLayers();
+	void OnStreamingStateUpdated();
+	void OnPreChangeStreamingContent();
+	bool WaitForAsyncUpdateStreamingState();
+	void PostUpdateStreamingStateInternal_GameThread(FWorldPartitionUpdateStreamingTargetState& InOutTargetState);
+	const TSet<FName>& GetServerDisallowedStreamingOutDataLayers() const;
+	static void UpdateStreamingStateInternal(const FUpdateStreamingStateParams& InParams, FWorldPartitionUpdateStreamingTargetState& OutTargetState);
 
-	// CVars to control update optimization
-	static bool IsUpdateOptimEnabled;
-	static int32 ForceUpdateFrameCount;
-	static FAutoConsoleVariableRef CVarUpdateOptimEnabled;
-	static FAutoConsoleVariableRef CVarForceUpdateFrameCount;
+	// Current streaming state
+	UPROPERTY(Transient)
+	FWorldPartitionUpdateStreamingCurrentState CurrentState;
 
-	bool bCriticalPerformanceRequestedBlockTillOnWorld;
-	
+	// Current streaming performance
+	UPROPERTY(Transient)
+	EWorldPartitionStreamingPerformance CurrentStreamingPerformance;
+
+	// Target state
+	UPROPERTY(Transient)
+	FWorldPartitionUpdateStreamingTargetState TargetState;
+
+	// Asynchronous update task input payload
+	UPROPERTY(Transient)
+	FWorldPartitionUpdateStreamingCurrentState AsyncTaskCurrentState;
+
+	// Asynchronous update task output payload
+	UPROPERTY(Transient)
+	FWorldPartitionUpdateStreamingTargetState AsyncTaskTargetState;
+
 	UPROPERTY()
 	bool bShouldMergeStreamingSourceInfo;
 
+	bool bCriticalPerformanceRequestedBlockTillOnWorld;
 	int32 CriticalPerformanceBlockTillLevelStreamingCompletedEpoch;
+	int32 ProcessedToLoadCells;		// Used to know if last update fully processed ToLoadCells
+	int32 ProcessedToActivateCells; // Used to know if last update fully processed ToActivateCells
 	int32 ServerStreamingStateEpoch;
 	int32 ServerStreamingEnabledEpoch;
 	uint32 UpdateStreamingHash;
 	uint32 UpdateStreamingSourcesHash;
-	uint32 UpdateStreamingStateCalls;
+	uint32 UpdateStreamingStateCounter;
 
-	TOptional<TSet<FName>> CachedServerDisallowStreamingOutDataLayers;
+	// Asynchronous update tasks
+	EAsyncUpdateTaskState AsyncUpdateTaskState;
+	FGraphEventRef AsyncUpdateStreamingStateTask;
+	FGraphEventRef AsyncPostUpdateStreamingStateTask;
+	int32 AsyncShouldSkipUpdateCounter;
 
-	EWorldPartitionStreamingPerformance StreamingPerformance;
+	mutable TOptional<TSet<FName>> CachedServerDisallowStreamingOutDataLayers;
+	// Used internally by UpdateStreamingStateInternal (avoids re-allocations)
+	mutable TSet<const UWorldPartitionRuntimeCell*> FrameActivateCells;
+	mutable TSet<const UWorldPartitionRuntimeCell*> FrameLoadCells;
+
+	// CVars to control update optimization
+	static bool IsUpdateOptimEnabled;
+	static bool IsAsyncUpdateStreamingStateEnabled;
+	static int32 ForceUpdateFrameCount;
+	static FAutoConsoleVariableRef CVarUpdateOptimEnabled;
+	static FAutoConsoleVariableRef CVarAsyncUpdateStreamingStateEnabled;
+	static FAutoConsoleVariableRef CVarForceUpdateFrameCount;
+
 #if !UE_BUILD_SHIPPING
-	void UpdateDebugCellsStreamingPriority(const TSet<const UWorldPartitionRuntimeCell*>& ActivateStreamingCells, const TSet<const UWorldPartitionRuntimeCell*>& LoadStreamingCells);
+	static void UpdateDebugCellsStreamingPriority(const TSet<const UWorldPartitionRuntimeCell*>& InActivateStreamingCells, const TSet<const UWorldPartitionRuntimeCell*>& InLoadStreamingCells, bool bInShouldMergeStreamingSourceInfo);
 
 	double OnScreenMessageStartTime;
 	EWorldPartitionStreamingPerformance  OnScreenMessageStreamingPerformance;
 #endif
 
+	friend class UWorldPartition;
 	friend class UWorldPartitionSubsystem;
 };

@@ -21,6 +21,8 @@ DEFINE_LOG_CATEGORY_STATIC(LogUnixPlatformFile, Log, All);
 // make an FTimeSpan object that represents the "epoch" for time_t (from a stat struct)
 const FDateTime UnixEpoch(1970, 1, 1);
 
+class FFileHandleUnix;
+
 namespace
 {
 	FFileStatData UnixStatToUEFileData(struct stat& FileInfo)
@@ -189,29 +191,12 @@ public:
 
 	virtual bool Read(uint8* Destination, int64 BytesToRead) override
 	{
-		struct FScopedReadTracker
-		{
-			FScopedReadTracker(FFileHandleUnix& InHandle) : Handle(InHandle) 
-			{ 
-				bSuccess = GFileRegistry.TrackStartRead(&Handle);
-			}
-			~FScopedReadTracker() 
-			{
-				if (bSuccess)
-				{
-					GFileRegistry.TrackEndRead(&Handle); 
-				}
-			}
-			FFileHandleUnix& Handle;
-			bool bSuccess = false;
-		};
-
 		check(IsValid());
 		if (!FileOpenAsWrite)
 		{
 			// Handle virtual file handles (only in read mode, write mode doesn't use the file handle registry)
-			FScopedReadTracker ScopedReadTracker(*this);
-			if (!ScopedReadTracker.bSuccess)
+			FFileHandleRegistryReadTracker TrackRead(GFileRegistry, *this, true);
+			if (!TrackRead.IsValid())
 			{
 				return false;
 			}
@@ -232,6 +217,57 @@ public:
 			FScopedDiskUtilizationTracker Tracker(BytesToRead, Tell());
 			return ReadInternal(Destination, BytesToRead) == BytesToRead;
 		}
+	}
+
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+	{
+		if (BytesToRead < 0 || Offset < 0)
+		{
+			return false;
+		}
+
+		if (BytesToRead == 0)
+		{
+			return true;
+		}
+
+		FFileHandleRegistryReadTracker TrackRead(GFileRegistry, *this, true);
+		if (!FileOpenAsWrite && !TrackRead.IsValid())
+		{
+			return false;
+		}
+
+		do
+		{
+			size_t BytesToRead32 = static_cast<size_t>(FMath::Min<int64>(READWRITE_SIZE, BytesToRead));
+			ssize_t BytesRead = pread(FileHandle, Destination, BytesToRead, Offset);
+
+			if (BytesRead == -1 && errno == EFAULT)
+			{
+				// Hacky workaround @see ReadInternal
+				void* TempDest = FMemory::Malloc(BytesToRead);
+				if (TempDest)
+				{
+					BytesRead = pread(FileHandle, TempDest, BytesToRead, Offset);
+					if (BytesRead > 0 && BytesRead <= BytesToRead)
+					{
+						FMemory::Memcpy(Destination, TempDest, BytesRead);
+					}
+					FMemory::Free(TempDest);
+				}
+			}
+
+			if (BytesRead != BytesToRead32)
+			{
+				return false;
+			}
+
+			Offset += BytesRead;
+			BytesToRead -= BytesToRead32;
+
+		} while (BytesToRead > 0);
+
+		return true;
 	}
 
 	virtual bool Write(const uint8* Source, int64 BytesToWrite) override
@@ -833,15 +869,21 @@ FUnixMappedFileRegion::~FUnixMappedFileRegion()
 FString FUnixPlatformFile::NormalizeFilename(const TCHAR* Filename, bool bIsForWriting)
 {
 	FString Result(Filename);
+
+	// If we are already absolute return
+	if (!FPaths::IsRelative(Result))
+	{
+		return Result;
+	}
+
 	FPaths::NormalizeFilename(Result);
 	return FPaths::ConvertRelativePathToFull(Result);
 }
 
 FString FUnixPlatformFile::NormalizeDirectory(const TCHAR* Directory, bool bIsForWriting)
 {
-	FString Result(Directory);
-	FPaths::NormalizeDirectoryName(Result);
-	return FPaths::ConvertRelativePathToFull(Result);
+	// Both these functions do the same thing
+	return NormalizeFilename(Directory, bIsForWriting);
 }
 
 bool FUnixPlatformFile::FileExists(const TCHAR* Filename)

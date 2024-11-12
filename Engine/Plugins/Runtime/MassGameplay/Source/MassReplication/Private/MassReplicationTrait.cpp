@@ -12,7 +12,7 @@
 
 void UMassReplicationTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
-	if (World.IsNetMode(NM_Standalone))
+	if (World.IsNetMode(NM_Standalone) && !BuildContext.IsInspectingData())
 	{
 		return;
 	}
@@ -29,12 +29,20 @@ void UMassReplicationTrait::BuildTemplate(FMassEntityTemplateBuildContext& Build
 	FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(World);
 
 	UMassReplicationSubsystem* ReplicationSubsystem = UWorld::GetSubsystem<UMassReplicationSubsystem>(&World);
-	check(ReplicationSubsystem);
 
 	FConstSharedStruct ParamsFragment = EntityManager.GetOrCreateConstSharedFragment(Params);
 	BuildContext.AddConstSharedFragment(ParamsFragment);
 
-	uint32 ParamsHash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(Params));
-	FSharedStruct SharedFragment = EntityManager.GetOrCreateSharedFragmentByHash<FMassReplicationSharedFragment>(ParamsHash, *ReplicationSubsystem, Params);
-	BuildContext.AddSharedFragment(SharedFragment);
+	if (LIKELY(!BuildContext.IsInspectingData()))
+	{
+		check(ReplicationSubsystem);
+		FSharedStruct SharedFragment = EntityManager.GetOrCreateSharedFragment<FMassReplicationSharedFragment>(FConstStructView::Make(Params), *ReplicationSubsystem, Params);
+		BuildContext.AddSharedFragment(SharedFragment);
+	}
+	else
+	{
+		// in the investigation mode we only care about the fragment type
+		FSharedStruct SharedFragment = EntityManager.GetOrCreateSharedFragment<FMassReplicationSharedFragment>();
+		BuildContext.AddSharedFragment(SharedFragment);
+	}
 }

@@ -32,7 +32,11 @@ public:
 
 	static CORE_API void TearDown();
 
-	static CORE_API FText ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(const TCHAR* InTextLiteral, const TCHAR* InNamespace, const TCHAR* InKey);
+	UE_DEPRECATED(5.5, "FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText is deprecated in favor of FText::AsLocalizable_Advanced (NOTE: FText::AsLocalizable_Advanced takes its arguments in a different order!).")
+	static FORCEINLINE FText ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(const TCHAR* InTextLiteral, const TCHAR* InNamespace, const TCHAR* InKey)
+	{
+		return FText::AsLocalizable_Advanced(InNamespace, InKey, InTextLiteral);
+	}
 
 	/**
 	 * Struct that can be used to capture a snapshot of the active culture state in a way that can be re-applied losslessly.
@@ -288,12 +292,12 @@ namespace UE::Private::LocGen
  * Creates an FText. All parameters must be string literals. All literals will be passed through the localization system.
  * The global LOCTEXT_NAMESPACE macro must be first set to a string literal to specify this localization key's namespace.
  */
-#define LOCTEXT(InKey, InTextLiteral) FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(TEXT(InTextLiteral), TEXT(LOCTEXT_NAMESPACE), TEXT(InKey))
+#define LOCTEXT(InKey, InTextLiteral) FText::AsLocalizable_Advanced(TEXT(LOCTEXT_NAMESPACE), TEXT(InKey), TEXT(InTextLiteral))
 
 /**
  * Creates an FText. All parameters must be string literals. All literals will be passed through the localization system.
  */
-#define NSLOCTEXT(InNamespace, InKey, InTextLiteral) FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(TEXT(InTextLiteral), TEXT(InNamespace), TEXT(InKey))
+#define NSLOCTEXT(InNamespace, InKey, InTextLiteral) FText::AsLocalizable_Advanced(TEXT(InNamespace), TEXT(InKey), TEXT(InTextLiteral))
 
 /**
  * Creates a culture invariant FText from the given string literal.

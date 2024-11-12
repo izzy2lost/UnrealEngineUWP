@@ -15,6 +15,8 @@
 
 class FPackageLocalizationCache;
 
+COREUOBJECT_API DECLARE_LOG_CATEGORY_EXTERN(LogPackageLocalizationCache, Log, All);
+
 /** Package localization cache for a specific culture (may contain a chain of cultures internally based on their priority) */
 class FPackageLocalizationCultureCache
 {
@@ -92,6 +94,9 @@ private:
 	/** An array of culture names that should be scanned, sorted in priority order. */
 	TArray<FString> PrioritizedCultureNames;
 
+	/** An array of culture names and Verse identifiers that should be scanned, sorted in priority order. */
+	TArray<FString> PrioritizedCultureNamesAndVerseIdentifiers;
+
 	/** An array of source paths we should scan on the next call to ConditionalUpdateCache. */
 	TArray<FString> PendingSourceRootPathsToSearch;
 
@@ -112,6 +117,7 @@ public:
 	COREUOBJECT_API virtual ~FPackageLocalizationCache();
 
 	//~ IPackageLocalizationCache interface
+	COREUOBJECT_API virtual void InvalidateRootSourcePath(const FString& InRootPath) override;
 	COREUOBJECT_API virtual void ConditionalUpdateCache() override;
 	COREUOBJECT_API virtual FName FindLocalizedPackageName(const FName InSourcePackageName) override;
 	COREUOBJECT_API virtual FName FindLocalizedPackageNameForCulture(const FName InSourcePackageName, const FString& InCultureName) override;

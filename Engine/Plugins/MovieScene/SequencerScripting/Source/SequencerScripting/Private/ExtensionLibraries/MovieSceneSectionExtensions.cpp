@@ -655,14 +655,18 @@ int32 UMovieSceneSectionExtensions::GetParentSequenceFrame(UMovieSceneSubSection
 
 	TArray<UMovieSceneSubSection*> SubSectionChain;
 	GetSubSectionChain(InSubSection, ParentSequence, SubSectionChain);
-		
+
 	FFrameRate LocalDisplayRate = InSubSection->GetSequence()->GetMovieScene()->GetDisplayRate();
 	FFrameRate LocalTickResolution = InSubSection->GetSequence()->GetMovieScene()->GetTickResolution();
 	FFrameTime LocalFrameTime = ConvertFrameTime(InFrame, LocalDisplayRate, LocalTickResolution);
-		
+
 	for (int32 SectionIndex = 0; SectionIndex < SubSectionChain.Num(); ++SectionIndex)
 	{
-		LocalFrameTime = LocalFrameTime * SubSectionChain[SectionIndex]->OuterToInnerTransform().InverseNoLooping();
+		TOptional<FFrameTime> NewLocalTime = SubSectionChain[SectionIndex]->OuterToInnerTransform().Inverse().TryTransformTime(LocalFrameTime);
+		if (NewLocalTime)
+		{
+			LocalFrameTime = NewLocalTime.GetValue();
+		}
 	}
 
 	FFrameRate ParentDisplayRate = ParentSequence->GetMovieScene()->GetDisplayRate();

@@ -51,6 +51,7 @@ namespace Audio
 		virtual float GetPlaybackPercent() const override;
 		virtual int64 GetNumFramesPlayed() const override;
 		virtual float GetEnvelopeValue() const override;
+		virtual float GetRelativeRenderCost() const override;
 		//~ End FSoundSource Interface
 
 		//~ Begin ISourceListener
@@ -89,6 +90,9 @@ namespace Audio
 		/** Updates the channel map of the sound if its a 3d sound.*/
 		void UpdateChannelMaps();
 
+		/** Updates the relative render cost estimate of the playing sound source. */
+		void UpdateRelativeRenderCost();
+
 #if ENABLE_AUDIO_DEBUG
 		void UpdateCPUCoreUtilization();
 #endif // ENABLE_AUDIO_DEBUG
@@ -124,7 +128,7 @@ namespace Audio
 		float GetInheritedSubmixVolumeModulation() const;
 
 	private:
-		void UpdateSubmixSendLevels(const FSoundSubmixSendInfoBase& InSendInfo, EMixerSourceSubmixSendStage InSendStage);
+		void UpdateSubmixSendLevels(const FSoundSubmixSendInfoBase& InSendInfo, EMixerSourceSubmixSendStage InSendStage, TSet<FMixerSubmixWeakPtr>& OutTouchedSubmixes);
 
 		FMixerDevice* MixerDevice;
 		FMixerBuffer* MixerBuffer;
@@ -180,10 +184,9 @@ namespace Audio
 		// source may need to live-update during its lifespan
 		TArray<FDynamicBusSendInfo> DynamicBusSendInfos;
 
-		// An array of submix sends from previous update. Allows us to clear out submix sends if they are no longer being sent.
-		TArray<FSoundSubmixSendInfo> PreviousSubmixSendSettings;
-		TArray<FAttenuationSubmixSendSettings> PreviousAttenuationSendSettings;
-
+		// An array of submixes from previous update. Allows us to clear out submix sends if they are no longer being sent.
+		TSet<FMixerSubmixWeakPtr> PreviousSubmixSends;
+		
 		// Whether or not we're currently releasing our resources. Prevents recycling the source until release is finished.
 		FThreadSafeBool bIsReleasing;
 

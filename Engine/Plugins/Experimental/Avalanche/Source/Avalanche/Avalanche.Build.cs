@@ -13,6 +13,7 @@ public class Avalanche : ModuleRules
 			{
 				"AvalancheAttribute",
 				"AvalancheCore",
+				"AvalancheRemoteControl",
 				"AvalancheSceneTree",
 				"AvalancheSequence",
 				"AvalancheTag",
@@ -25,7 +26,7 @@ public class Avalanche : ModuleRules
 				"GeometryScriptingCore",
 				"Niagara",
 				"RawMesh",
-				"Text3D", 
+				"Text3D",
 			}
 		);
 
@@ -33,6 +34,8 @@ public class Avalanche : ModuleRules
 			new string[]
 			{
 				"ActorModifierCore",
+				"ApplicationCore",
+				"AvalancheCamera",
 				"AvalancheRemoteControl",
 				"CinematicCamera",
 				"CoreUObject",

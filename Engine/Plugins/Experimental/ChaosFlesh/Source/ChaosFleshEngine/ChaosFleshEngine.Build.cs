@@ -27,6 +27,9 @@ namespace UnrealBuildTool.Rules
 				{
 					"Core",
 					"ProceduralMeshComponent",
+					"DataflowCore",
+					"DataflowEngine",
+					"DataflowSimulation",
 					// ... add other public dependencies that you statically link with here ...
 				}
 				);
@@ -41,6 +44,7 @@ namespace UnrealBuildTool.Rules
 					"ChaosFlesh",
 					"DataflowCore",
 					"DataflowEngine",
+					"DataflowSimulation",
 					"Engine",
 					"FieldSystemEngine",
 					"NetCore",
@@ -83,6 +87,7 @@ namespace UnrealBuildTool.Rules
 			{
 				bUseRTTI = true;
 				PublicDefinitions.Add("DO_USD_CACHING=1");
+				PrivateDefinitions.Add("SUPPRESS_PER_MODULE_INLINE_FILE"); // This module does not use core's standard operator new/delete overloads
 			}
 			else
 			{

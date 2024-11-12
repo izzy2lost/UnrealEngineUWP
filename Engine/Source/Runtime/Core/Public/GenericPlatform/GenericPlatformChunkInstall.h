@@ -111,24 +111,6 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FPlatformNamedChunkInstallMultiDelegate, FN
 DECLARE_DELEGATE_OneParam(FPlatformNamedChunkCompleteDelegate, const FNamedChunkCompleteCallbackParam&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FPlatformNamedChunkCompleteMultiDelegate, const FNamedChunkCompleteCallbackParam&);
 
-enum class ECustomChunkType : uint8
-{
-	OnDemandChunk,
-	LanguageChunk
-};
-
-struct FCustomChunk
-{
-	FString ChunkTag;
-	FString ChunkTag2;
-	uint32	ChunkID;
-	ECustomChunkType ChunkType;
-
-	FCustomChunk(FString InTag, uint32 InID, ECustomChunkType InChunkType, FString InTag2 = TEXT("")) :
-		ChunkTag(InTag), ChunkTag2(InTag2), ChunkID(InID), ChunkType(InChunkType)
-	{}
-};
-
 struct FCustomChunkMapping
 {
 	enum class CustomChunkMappingType : uint8
@@ -169,6 +151,11 @@ public:
 
 	/** Virtual destructor */
 	virtual ~IPlatformChunkInstall() {}
+
+	/** 
+	 * Returns whether chunk installation is available (i.e. we are an installed packaged build etc)
+	 */
+	virtual bool IsAvailable() const = 0;
 
 	/**
 	 * Get the current location of a chunk with pakchunk index.
@@ -240,10 +227,6 @@ public:
 	 * @param Delegate		The delegate to remove.
 	 */
 	virtual void RemoveChunkInstallDelegate( FDelegateHandle Delegate ) = 0;
-
-
-	UE_DEPRECATED(5.2, "Call GetNamedChunksByType instead")
-	virtual TArray<FCustomChunk> GetCustomChunksByType(ECustomChunkType DesiredChunkType) = 0;
 
 
 	/**
@@ -416,6 +399,11 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 class CORE_API FGenericPlatformChunkInstall : public IPlatformChunkInstall
 {
 public:
+	virtual bool IsAvailable() const
+	{
+		return true;
+	}
+
 	virtual EChunkLocation::Type GetPakchunkLocation( int32 PakchunkIndex ) override
 	{
 		return GetChunkLocation(PakchunkIndex);
@@ -478,11 +466,6 @@ public:
 	virtual void RemoveChunkInstallDelegate(FDelegateHandle Delegate) override
 	{
 		InstallDelegate.Remove(Delegate);
-	}
-
-	virtual TArray<FCustomChunk> GetCustomChunksByType(ECustomChunkType DesiredChunkType) override
-	{
-		return TArray<FCustomChunk>();
 	}
 
 	virtual bool SupportsNamedChunkInstall() const override

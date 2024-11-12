@@ -150,6 +150,21 @@ static FVector2D ComputeDesiredSizeForBox( const TPanelChildren<SlotType>& Child
 		{
 			FVector2f CurChildDesiredSize = CurChild.GetWidget()->GetDesiredSize();
 
+			auto ClampMinMax = [&CurChild](float& DesiredSizeToClamp)
+			{
+				if (const float MinSize = CurChild.GetMinSize();
+					MinSize > 0)
+				{
+					DesiredSizeToClamp = FMath::Max(MinSize, DesiredSizeToClamp);
+				}
+
+				if (const float MaxSize = CurChild.GetMaxSize();
+					MaxSize > 0)
+				{
+					DesiredSizeToClamp = FMath::Min(MaxSize, DesiredSizeToClamp);
+				}
+			};
+
 			if (Orientation == Orient_Vertical)
 			{
 				// For a vertical panel, we want to find the maximum desired width (including margin).
@@ -158,11 +173,7 @@ static FVector2D ComputeDesiredSizeForBox( const TPanelChildren<SlotType>& Child
 
 				// Clamp to the max size if it was specified
 				float FinalChildDesiredSize = CurChildDesiredSize.Y;
-				float MaxSize = CurChild.GetMaxSize();
-				if( MaxSize > 0 )
-				{
-					FinalChildDesiredSize = FMath::Min( MaxSize, FinalChildDesiredSize );
-				}
+				ClampMinMax(FinalChildDesiredSize);
 
 				MyDesiredSize.Y += FinalChildDesiredSize + CurChild.GetPadding().template GetTotalSpaceAlong<Orient_Vertical>();
 			}
@@ -174,11 +185,7 @@ static FVector2D ComputeDesiredSizeForBox( const TPanelChildren<SlotType>& Child
 
 				// Clamp to the max size if it was specified
 				float FinalChildDesiredSize = CurChildDesiredSize.X;
-				float MaxSize = CurChild.GetMaxSize();
-				if( MaxSize > 0 )
-				{
-					FinalChildDesiredSize = FMath::Min( MaxSize, FinalChildDesiredSize );
-				}
+				ClampMinMax(FinalChildDesiredSize);
 
 				MyDesiredSize.X += FinalChildDesiredSize + CurChild.GetPadding().template GetTotalSpaceAlong<Orient_Horizontal>();
 			}

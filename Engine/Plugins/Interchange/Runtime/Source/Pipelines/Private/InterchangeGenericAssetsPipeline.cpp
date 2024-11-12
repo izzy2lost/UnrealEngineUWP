@@ -3,6 +3,7 @@
 #include "InterchangeGenericAssetsPipeline.h"
 
 #include "Animation/Skeleton.h"
+#include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "CoreMinimal.h"
@@ -29,6 +30,7 @@
 #include "InterchangeSourceData.h"
 #include "InterchangeStaticMeshFactoryNode.h"
 #include "InterchangeStaticMeshLodDataNode.h"
+#include "InterchangeAssetUserData.h"
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "Nodes/InterchangeBaseNode.h"
@@ -47,6 +49,7 @@
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/STableRow.h"
+#include "GameFramework/Actor.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeGenericAssetsPipeline)
 
@@ -71,9 +74,19 @@ UInterchangeGenericAssetsPipeline::UInterchangeGenericAssetsPipeline()
 
 void UInterchangeGenericAssetsPipeline::PreDialogCleanup(const FName PipelineStackName)
 {
-	check(CommonSkeletalMeshesAndAnimationsProperties)
-	//We always clean the pipeline skeleton when showing the dialog
-	CommonSkeletalMeshesAndAnimationsProperties->Skeleton = nullptr;
+	check(CommonSkeletalMeshesAndAnimationsProperties);
+	//Don't touch the skeleton property if we are a override pipeline or a re-import pipeline
+	if (!IsFromReimportOrOverride())
+	{
+		//Set the pipeline skeleton using what we found in AdjustSettingsForContext
+		CommonSkeletalMeshesAndAnimationsProperties->Skeleton = nullptr;
+		if (ContentPathExistingSkeleton.IsValid())
+		{
+			CommonSkeletalMeshesAndAnimationsProperties->Skeleton = Cast<USkeleton>(ContentPathExistingSkeleton.TryLoad());
+		}
+	}
+
+	CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations = bImportOnlyAnimationAdjusted;
 
 	if (MaterialPipeline)
 	{
@@ -90,7 +103,10 @@ void UInterchangeGenericAssetsPipeline::PreDialogCleanup(const FName PipelineSta
 		AnimationPipeline->PreDialogCleanup(PipelineStackName);
 	}
 	
-	SaveSettings(PipelineStackName);
+	if (IsStandAlonePipeline())
+	{
+		SaveSettings(PipelineStackName);
+	}
 }
 
 bool UInterchangeGenericAssetsPipeline::IsSettingsAreValid(TOptional<FText>& OutInvalidReason) const
@@ -123,24 +139,52 @@ bool UInterchangeGenericAssetsPipeline::IsSettingsAreValid(TOptional<FText>& Out
 	return Super::IsSettingsAreValid(OutInvalidReason);
 }
 
-void UInterchangeGenericAssetsPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
+void UInterchangeGenericAssetsPipeline::AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
+	Super::AdjustSettingsForContext(ContextParams);
+
+	if (ContextParams.ContextType == EInterchangePipelineContext::AssetImport)
+	{
+		if (!CommonSkeletalMeshesAndAnimationsProperties->Skeleton.IsValid())
+		{
+			//Search if there is a valid skeleton in this path
+			FARFilter Filter;
+			Filter.PackagePaths.Add(*ContentImportPath);
+			Filter.ClassPaths.Add(USkeleton::StaticClass()->GetClassPathName());
+
+			IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+			TArray<FAssetData> SkeletonAssets;
+			AssetRegistry.GetAssets(Filter, SkeletonAssets);
+			if (SkeletonAssets.Num() > 0)
+			{
+				CommonSkeletalMeshesAndAnimationsProperties->Skeleton = CastChecked<USkeleton>(SkeletonAssets[0].GetAsset());
+				ContentPathExistingSkeleton = CommonSkeletalMeshesAndAnimationsProperties->Skeleton.Get();
+			}
+		}
+	}
+	else if (ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
+	{
+		bUseSourceNameForAsset = true;
+	}
 
 	if (MaterialPipeline)
 	{
-		MaterialPipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
+		MaterialPipeline->AdjustSettingsForContext(ContextParams);
 	}
 
 	if (MeshPipeline)
 	{
-		MeshPipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
+		MeshPipeline->AdjustSettingsForContext(ContextParams);
 	}
 
 	if (AnimationPipeline)
 	{
-		AnimationPipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
+		AnimationPipeline->AdjustSettingsForContext(ContextParams);
 	}
+
+	//Store the adjusted settings
+	bImportOnlyAnimationAdjusted = CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations;
 }
 
 #if WITH_EDITOR
@@ -161,35 +205,39 @@ void UInterchangeGenericAssetsPipeline::FilterPropertiesFromTranslatedData(UInte
 		MeshPipeline->FilterPropertiesFromTranslatedData(InBaseNodeContainer);
 		AnimationPipeline->FilterPropertiesFromTranslatedData(InBaseNodeContainer);
 
-		UInterchangePipelineMeshesUtilities* PipelineMeshesUtilities = UInterchangeGenericMeshPipeline::CreateMeshPipelineUtilities(InBaseNodeContainer, MeshPipeline, CommonMeshesProperties->bAutoDetectMeshType);
+		UInterchangePipelineMeshesUtilities* PipelineMeshesUtilities = UInterchangeGenericMeshPipeline::CreateMeshPipelineUtilities(InBaseNodeContainer, MeshPipeline);
 
 		TArray<FString> SkeletalMeshes;
-		PipelineMeshesUtilities->GetAllSkinnedMeshInstance(SkeletalMeshes);
-		if(SkeletalMeshes.Num() == 0)
-		{
-			PipelineMeshesUtilities->GetAllSkinnedMeshGeometry(SkeletalMeshes);
-		}
 		TArray<FString> StaticMeshes;
-		PipelineMeshesUtilities->GetAllStaticMeshInstance(StaticMeshes);
-		if(StaticMeshes.Num() == 0)
-		{
-			PipelineMeshesUtilities->GetAllStaticMeshGeometry(StaticMeshes);
-		}
-
 		int32 RawStaticMesh = 0;
 		int32 RawSkeletalMesh = 0;
 		int32 RawMorphTargetShape = 0;
-		InBaseNodeContainer->IterateNodesOfType<UInterchangeMeshNode>([&RawStaticMesh, &RawSkeletalMesh, &RawMorphTargetShape](const FString& NodeUid, UInterchangeMeshNode* MeshNode)
+		if (!CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations)
+		{
+			PipelineMeshesUtilities->GetAllSkinnedMeshInstance(SkeletalMeshes);
+			if (SkeletalMeshes.Num() == 0)
 			{
-				if (MeshNode->IsMorphTarget())
+				PipelineMeshesUtilities->GetAllSkinnedMeshGeometry(SkeletalMeshes);
+			}
+			
+			PipelineMeshesUtilities->GetAllStaticMeshInstance(StaticMeshes);
+			if (StaticMeshes.Num() == 0)
+			{
+				PipelineMeshesUtilities->GetAllStaticMeshGeometry(StaticMeshes);
+			}
+
+			InBaseNodeContainer->IterateNodesOfType<UInterchangeMeshNode>([&RawStaticMesh, &RawSkeletalMesh, &RawMorphTargetShape](const FString& NodeUid, UInterchangeMeshNode* MeshNode)
 				{
-					RawMorphTargetShape++;
-				}
-				else
-				{
-					MeshNode->IsSkinnedMesh() ? RawSkeletalMesh++ : RawStaticMesh++;
-				}
-			});
+					if (MeshNode->IsMorphTarget())
+					{
+						RawMorphTargetShape++;
+					}
+					else
+					{
+						MeshNode->IsSkinnedMesh() ? RawSkeletalMesh++ : RawStaticMesh++;
+					}
+				});
+		}
 
 		int32 RawAnimationNode = 0;
 		InBaseNodeContainer->IterateNodesOfType<UInterchangeAnimationTrackBaseNode>([&RawAnimationNode](const FString& NodeUid, UInterchangeAnimationTrackBaseNode* AnimationNode)
@@ -282,36 +330,64 @@ void UInterchangeGenericAssetsPipeline::FilterPropertiesFromTranslatedData(UInte
 			bHideCommonSkeletalMeshesAndAnimations = true;
 		}
 
+
+		if (CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations)
+		{
+			if (MaterialPipeline)
+			{
+				HideFullCategory(UInterchangeGenericMaterialPipeline::GetPipelineCategory(nullptr), MaterialPipeline);
+				if (MaterialPipeline->TexturePipeline)
+				{
+					HideFullCategory(UInterchangeGenericTexturePipeline::GetPipelineCategory(nullptr), MaterialPipeline->TexturePipeline);
+				}
+			}
+		}
+
 		//Hide the categories
 		if (bHideStaticMeshes)
 		{
-			HideFullCategory(TEXT("Static Meshes"), MeshPipeline);
+			HideFullCategory(UInterchangeGenericMeshPipeline::GetPipelineCategory(UStaticMesh::StaticClass()), MeshPipeline);
 		}
 		if (bHideSkeletalMeshes)
 		{
-			HideFullCategory(TEXT("Skeletal Meshes"), MeshPipeline);
+			HideFullCategory(UInterchangeGenericMeshPipeline::GetPipelineCategory(USkeletalMesh::StaticClass()), MeshPipeline);
 		}
 		if(bHideCommonMeshes)
 		{
-			HideFullCategory(TEXT("Common Meshes"), CommonMeshesProperties);
+			HideFullCategory(UInterchangeGenericCommonMeshesProperties::GetPipelineCategory(nullptr), CommonMeshesProperties);
 		}
 		if (bHideCommonSkeletalMeshesAndAnimations)
 		{
-			HideFullCategory(TEXT("Common Skeletal Meshes and Animations"), CommonSkeletalMeshesAndAnimationsProperties);
+			//We cannot hide common sk and anim if import only animation is true.
+			if (!CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations)
+			{
+				HideFullCategory(UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties::GetPipelineCategory(nullptr), CommonSkeletalMeshesAndAnimationsProperties);
+			}
 		}
 		if (bHideCommonSkeletalMeshesAndAnimations_StaticMesh)
 		{
-			HideFullCategory(TEXT("Static Meshes"), CommonSkeletalMeshesAndAnimationsProperties);
+			HideFullCategory(UInterchangeGenericMeshPipeline::GetPipelineCategory(UStaticMesh::StaticClass()), CommonSkeletalMeshesAndAnimationsProperties);
 		}
 		if (bHideAnimations)
 		{
-			HideFullCategory(TEXT("Animations"), AnimationPipeline);
+			HideFullCategory(UInterchangeGenericAnimationPipeline::GetPipelineCategory(nullptr), AnimationPipeline);
 		}
 	}
 }
 
-bool UInterchangeGenericAssetsPipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent)
+bool UInterchangeGenericAssetsPipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const
 {
+	static const TSet<FName> NeedRefreshProperties =
+	{
+		GET_MEMBER_NAME_CHECKED(UInterchangeGenericAssetsPipeline, bUseSourceNameForAsset),
+		GET_MEMBER_NAME_CHECKED(UInterchangeGenericAssetsPipeline, AssetName)
+	};
+
+	if (NeedRefreshProperties.Contains(PropertyChangedEvent.GetPropertyName()))
+	{
+		return true;
+	}
+
 	if ((CommonMeshesProperties && CommonMeshesProperties->IsPropertyChangeNeedRefresh(PropertyChangedEvent))
 		|| (CommonSkeletalMeshesAndAnimationsProperties && CommonSkeletalMeshesAndAnimationsProperties->IsPropertyChangeNeedRefresh(PropertyChangedEvent))
 		|| (MeshPipeline && MeshPipeline->IsPropertyChangeNeedRefresh(PropertyChangedEvent))
@@ -321,6 +397,22 @@ bool UInterchangeGenericAssetsPipeline::IsPropertyChangeNeedRefresh(const FPrope
 		return true;
 	}
 	return Super::IsPropertyChangeNeedRefresh(PropertyChangedEvent);
+}
+
+void UInterchangeGenericAssetsPipeline::GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const
+{
+	if (MeshPipeline)
+	{
+		MeshPipeline->GetSupportAssetClasses(PipelineSupportAssetClasses);
+	}
+	if (MaterialPipeline)
+	{
+		MaterialPipeline->GetSupportAssetClasses(PipelineSupportAssetClasses);
+	}
+	if (AnimationPipeline)
+	{
+		AnimationPipeline->GetSupportAssetClasses(PipelineSupportAssetClasses);
+	}
 }
 
 bool UInterchangeGenericAssetsPipeline::GetPropertyPossibleValues(const FName PropertyPath, TArray<FString>& PossibleValues)
@@ -431,7 +523,7 @@ void UInterchangeGenericAssetsPipeline::CreateMaterialConflict(UStaticMesh* Stat
 		}
 	}
 	//Compare and cache the results
-	bool bHasConflict = false;
+	bool bHasConflict = MaterialNodePerMaterialSlotName.IsEmpty() && AssetImportMaterialNames.Num() > 1; //If there is no material dependencies for the mesh factory node and we have more then one material in the static mesh, we have a conflict
 	TArray<int32> MatchMaterials;
 	int32 MatchMaterialCount = 0;
 	int32 ImportMaterialIndex = 0;
@@ -474,6 +566,7 @@ void UInterchangeGenericAssetsPipeline::CreateMaterialConflict(UStaticMesh* Stat
 		MaterialConflict.Description = TEXT("There is some unmatched materials");
 		MaterialConflict.Pipeline = this;
 		MaterialConflict.UniqueId = FGuid::NewGuid();
+		MaterialConflict.AffectedAssetClasses.Add(UMaterialInterface::StaticClass());
 
 		//Cache the data so we do not have to redo the works when we will show the conflict
 		MaterialConflictData.ConflictUniqueId = MaterialConflict.UniqueId;
@@ -554,14 +647,14 @@ void UInterchangeGenericAssetsPipeline::InternalRecursiveFillJointsFromNodeConta
 namespace UE::Interchange::Private
 {
 	void SetParentChildConflict(TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> ParentJoint)
+	{
+		TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> ParentJointIter = ParentJoint;
+		while (ParentJointIter.IsValid() && !ParentJointIter->bChildConflict)
 		{
-			TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> ParentJointIter = ParentJoint;
-			while (ParentJointIter.IsValid() && !ParentJointIter->bChildConflict)
-			{
-				ParentJointIter->bChildConflict = true;
-				ParentJointIter = ParentJointIter->Parent;
-			}
-		};
+			ParentJointIter->bChildConflict = true;
+			ParentJointIter = ParentJointIter->Parent;
+		}
+	}
 
 	void RecursivelyFillJointRemoved(TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> AssetJoint
 		, TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> ParentJoint
@@ -826,8 +919,9 @@ void UInterchangeGenericAssetsPipeline::CreateSkeletonConflict(USkeleton* Specif
 		}
 
 		const bool bConvertStaticToSkeletalActive = CommonSkeletalMeshesAndAnimationsProperties->bConvertStaticsWithMorphTargetsToSkeletals || CommonMeshesProperties->ForceAllMeshAsType == EInterchangeForceMeshType::IFMT_SkeletalMesh;
-		//If we have a compatible skeleton we do not need to create a conflict
-		if (UE::Interchange::Private::FSkeletonHelper::IsCompatibleSkeleton(SpecifiedSkeleton ? SpecifiedSkeleton : SkeletalMesh->GetSkeleton(), RootJointNodeId, TransientBaseNodeContainer, bConvertStaticToSkeletalActive))
+		//If we have a compatible skeleton we do not need to create a conflict, for stricter comparisons we check for identical skeletons to report any deviations.
+		constexpr bool bCheckForIdenticalSkeleton = true;
+		if (UE::Interchange::Private::FSkeletonHelper::IsCompatibleSkeleton(SpecifiedSkeleton ? SpecifiedSkeleton : SkeletalMesh->GetSkeleton(), RootJointNodeId, TransientBaseNodeContainer, bConvertStaticToSkeletalActive, bCheckForIdenticalSkeleton))
 		{
 			return;
 		}
@@ -882,6 +976,7 @@ void UInterchangeGenericAssetsPipeline::CreateSkeletonConflict(USkeleton* Specif
 	SkeletonConflict.Description = TEXT("Imported skeleton is incompatible with the asset skeleton");
 	SkeletonConflict.Pipeline = this;
 	SkeletonConflict.UniqueId = FGuid::NewGuid();
+	SkeletonConflict.AffectedAssetClasses.Add(USkeletalMesh::StaticClass());
 
 	SkeletonConflictData.ConflictUniqueId = SkeletonConflict.UniqueId;
 	SkeletonConflictData.ReimportObject = SkeletalMesh;
@@ -923,7 +1018,7 @@ TArray<FInterchangeConflictInfo> UInterchangeGenericAssetsPipeline::GetConflictI
 		CreateMaterialConflict(StaticMesh, SkeletalMesh, TransientBaseNodeContainer);
 	}
 
-	if (SpecifiedSkeleton || SkeletalMesh)
+	if (SpecifiedSkeleton && SkeletalMesh)
 	{
 		CreateSkeletonConflict(SpecifiedSkeleton, SkeletalMesh, TransientBaseNodeContainer);
 	}
@@ -1087,6 +1182,10 @@ void UInterchangeGenericAssetsPipeline::ExecutePipeline(UInterchangeBaseNodeCont
 	//When we import only animation we need to prevent material and physic asset to be created
 	if (CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations)
 	{
+		//We need to turn on ImportAnimation
+		AnimationPipeline->bImportAnimations = true;
+		
+		//Turn off mesh, material, texture, physics
 		MaterialPipeline->bImportMaterials = false;
 		MeshPipeline->bImportStaticMeshes = false;
 		MeshPipeline->bCreatePhysicsAsset = false;
@@ -1121,8 +1220,8 @@ void UInterchangeGenericAssetsPipeline::ExecutePipeline(UInterchangeBaseNodeCont
 		UInterchangeCommonPipelineDataFactoryNode* CommonPipelineDataFactoryNode = UInterchangeCommonPipelineDataFactoryNode::FindOrCreateUniqueInstance(InBaseNodeContainer);
 		CommonPipelineDataFactoryNode->SetCustomGlobalOffsetTransform(InBaseNodeContainer, ImportOffsetTransform);
 
-		// In case all mesh types are forced to Static/Skeletal we bake the scene instance hierarchy transforms
-		CommonPipelineDataFactoryNode->SetBakeMeshes(InBaseNodeContainer, CommonMeshesProperties->ForceAllMeshAsType != EInterchangeForceMeshType::IFMT_None || CommonMeshesProperties->bBakeMeshes);
+		CommonPipelineDataFactoryNode->SetBakeMeshes(CommonMeshesProperties->bBakeMeshes);
+		CommonPipelineDataFactoryNode->SetBakePivotMeshes(CommonMeshesProperties->bBakePivotMeshes);
 	}
 
 	if (MaterialPipeline)
@@ -1177,13 +1276,10 @@ void UInterchangeGenericAssetsPipeline::ExecutePostImportPipeline(const UInterch
 		AnimationPipeline->ScriptedExecutePostImportPipeline(InBaseNodeContainer, NodeKey, CreatedAsset, bIsAReimport);
 	}
 
-#if WITH_EDITORONLY_DATA
-	AddPackageMetaData(CreatedAsset, InBaseNodeContainer->GetNode(NodeKey));
-#endif
+	AddMetaData(CreatedAsset, InBaseNodeContainer->GetNode(NodeKey));
 }
 
-#if WITH_EDITORONLY_DATA
-void UInterchangeGenericAssetsPipeline::AddPackageMetaData(UObject* CreatedAsset, const UInterchangeBaseNode* Node)
+void UInterchangeGenericAssetsPipeline::AddMetaData(UObject* CreatedAsset, const UInterchangeBaseNode* Node)
 {
 	if (!CreatedAsset || !Node)
 	{
@@ -1192,27 +1288,20 @@ void UInterchangeGenericAssetsPipeline::AddPackageMetaData(UObject* CreatedAsset
 
 	const FString InterchangeMetaDataPrefix = TEXT("INTERCHANGE.");
 
-	//Add UObject package meta data
-	if (UMetaData* MetaData = CreatedAsset->GetOutermost()->GetMetaData())
+	bool bAssetIsActor = CreatedAsset->IsA<AActor>();
+#if WITH_EDITORONLY_DATA
+	UMetaData* MetaData = CreatedAsset->GetOutermost()->GetMetaData();
+#endif
+
+	bool bProcessMetaData = 
+#if WITH_EDITORONLY_DATA
+		MetaData ||
+#endif
+		bAssetIsActor;
+
+	TMap<FString, FString> MetaDataMap;
+	if (bProcessMetaData)
 	{
-		//Cleanup existing INTERCHANGE_ prefix metadata name for this object (in case we re-import)
-		{
-			TArray<FName> InterchangeMetaDataKeys;
-			if(TMap<FName, FString>* MetaDataMapPtr = MetaData->GetMapForObject(CreatedAsset))
-			{
-				for (const TPair<FName, FString>& ObjectMetadata : *MetaDataMapPtr)
-				{
-					if (ObjectMetadata.Key.ToString().StartsWith(InterchangeMetaDataPrefix))
-					{
-						InterchangeMetaDataKeys.Add(ObjectMetadata.Key);
-					}
-				}
-				for (const FName& MetaDataKey : InterchangeMetaDataKeys)
-				{
-					MetaData->RemoveValue(CreatedAsset, MetaDataKey);
-				}
-			}
-		}
 		TArray<FInterchangeUserDefinedAttributeInfo> UserAttributeInfos;
 		UInterchangeUserDefinedAttributesAPI::GetUserDefinedAttributeInfos(Node, UserAttributeInfos);
 		//We must convert all different type to String since meta data only support string
@@ -1230,7 +1319,7 @@ void UInterchangeGenericAssetsPipeline::AddPackageMetaData(UObject* CreatedAsset
 				case UE::Interchange::EAttributeTypes::Bool:
 				{
 					bool Value = false;
-					if(UInterchangeUserDefinedAttributesAPI::GetUserDefinedAttribute(Node, UserAttributeInfo.Name, Value, PayloadKey))
+					if (UInterchangeUserDefinedAttributesAPI::GetUserDefinedAttribute(Node, UserAttributeInfo.Name, Value, PayloadKey))
 					{
 						MetaDataValue = UE::Interchange::AttributeValueToString(Value);
 					}
@@ -1401,27 +1490,89 @@ void UInterchangeGenericAssetsPipeline::AddPackageMetaData(UObject* CreatedAsset
 			}
 			if (MetaDataValue.IsSet())
 			{
-				const FString& MetaDataStringValue = MetaDataValue.GetValue();
-				FString MetaDataKeyString = InterchangeMetaDataPrefix + UserAttributeInfo.Name;
-				if (MetaDataKeyString.Len() < NAME_SIZE)
+				FString MetaDataKeyString = UserAttributeInfo.Name;
+				MetaDataMap.Add(MetaDataKeyString, MetaDataValue.GetValue());
+			}
+		}
+	}
+
+	if (bAssetIsActor)
+	{
+		if (AActor* Actor = Cast<AActor>(CreatedAsset))
+		{
+			if (IInterface_AssetUserData* AssetUserData = Cast<IInterface_AssetUserData>(Actor->GetRootComponent()))
+			{
+				UInterchangeAssetUserData* InterchangeUserData = AssetUserData->GetAssetUserData< UInterchangeAssetUserData >();
+
+				if (!InterchangeUserData)
 				{
-					const FName& MetaDataKey = FName(MetaDataKeyString);
-					//SetValue either add the key or set the new value
-					MetaData->SetValue(CreatedAsset, MetaDataKey, *MetaDataStringValue);
+					if (MetaDataMap.Num() > 0)
+					{
+						InterchangeUserData = NewObject<UInterchangeAssetUserData>(Actor->GetRootComponent(), NAME_None, RF_Public | RF_Transactional);
+						AssetUserData->AddAssetUserData(InterchangeUserData);
+					}
 				}
-				else if(!bHasNotify_MetaDataAttributeKeyNameTooLong)
+				else
 				{
-					bHasNotify_MetaDataAttributeKeyNameTooLong = true;
-					//We cannot add this meta data, notify the user the meta attribute key name is too long
-					UInterchangeResultWarning_Generic* Message = AddMessage<UInterchangeResultWarning_Generic>();
-					Message->Text = FText::Format(NSLOCTEXT("UInterchangeGenericAssetsPipeline", "MetadataKeyNameTooLong", "One or more metadata key(s) cannot be added because the name exceeds the maximum length ({0}) allowed by the engine. The metadata is provided by the source file node's custom attributes."),
-						FText::AsNumber(NAME_SIZE));
+					InterchangeUserData->MetaData.Reset();
+				}
+
+				if (InterchangeUserData)
+				{
+					for (const TPair<FString, FString>& MetaDataPair : MetaDataMap)
+					{
+						InterchangeUserData->MetaData.Add(MetaDataPair.Key, MetaDataPair.Value);
+					}
+
+					InterchangeUserData->MetaData.KeySort(TLess<FString>());
 				}
 			}
 		}
 	}
+
+#if WITH_EDITORONLY_DATA
+	//Add UObject package meta data
+	if (MetaData)
+	{
+		//Cleanup existing INTERCHANGE_ prefix metadata name for this object (in case we re-import)
+		{
+			TArray<FName> InterchangeMetaDataKeys;
+			if(TMap<FName, FString>* MetaDataMapPtr = MetaData->GetMapForObject(CreatedAsset))
+			{
+				for (const TPair<FName, FString>& ObjectMetadata : *MetaDataMapPtr)
+				{
+					if (ObjectMetadata.Key.ToString().StartsWith(InterchangeMetaDataPrefix))
+					{
+						InterchangeMetaDataKeys.Add(ObjectMetadata.Key);
+					}
+				}
+				for (const FName& MetaDataKey : InterchangeMetaDataKeys)
+				{
+					MetaData->RemoveValue(CreatedAsset, MetaDataKey);
+				}
+			}
+		}
+		for (const TPair<FString, FString>& MetaDataPair : MetaDataMap)
+		{
+			FString MetaDataKeyStr = InterchangeMetaDataPrefix + MetaDataPair.Key;
+			if (MetaDataKeyStr.Len() < NAME_SIZE)
+			{
+				const FName& MetaDataKey = FName(MetaDataKeyStr);
+				//SetValue either add the key or set the new value
+				MetaData->SetValue(CreatedAsset, MetaDataKey, *MetaDataPair.Value);
+			}
+			else if (!bHasNotify_MetaDataAttributeKeyNameTooLong)
+			{
+				bHasNotify_MetaDataAttributeKeyNameTooLong = true;
+				//We cannot add this meta data, notify the user the meta attribute key name is too long
+				UInterchangeResultWarning_Generic* Message = AddMessage<UInterchangeResultWarning_Generic>();
+				Message->Text = FText::Format(NSLOCTEXT("UInterchangeGenericAssetsPipeline", "MetadataKeyNameTooLong", "One or more metadata key(s) cannot be added because the name exceeds the maximum length ({0}) allowed by the engine. The metadata is provided by the source file node's custom attributes."),
+					FText::AsNumber(NAME_SIZE));
+			}
+		}
+	}
+#endif
 }
-#endif // WITH_EDITORONLY_DATA
 
 void UInterchangeGenericAssetsPipeline::SetReimportSourceIndex(UClass* ReimportObjectClass, const int32 SourceFileIndex)
 {
@@ -1481,7 +1632,12 @@ void UInterchangeGenericAssetsPipeline::ImplementUseSourceNameForAssetOption(UIn
 		if (AnimSequenceNodeUids.Num() == 1)
 		{
 			UInterchangeAnimSequenceFactoryNode* AnimSequenceNode = Cast<UInterchangeAnimSequenceFactoryNode>(InBaseNodeContainer->GetFactoryNode(AnimSequenceNodeUids[0]));
-			const FString DisplayLabelName = (OverrideAssetName.IsEmpty() ? FPaths::GetBaseFilename(InSourceDatas[0]->GetFilename()) : OverrideAssetName) + TEXT("_Anim");
+			FString DisplayLabelName = (OverrideAssetName.IsEmpty() ? FPaths::GetBaseFilename(InSourceDatas[0]->GetFilename()) : OverrideAssetName);
+			const bool bImportOnlyAnimations = CommonSkeletalMeshesAndAnimationsProperties && CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations;
+			if (!bImportOnlyAnimations)
+			{
+				DisplayLabelName += TEXT("_Anim");
+			}
 			AnimSequenceNode->SetDisplayLabel(DisplayLabelName);
 		}
 	}
@@ -1717,32 +1873,25 @@ void SInterchangeGenericAssetSkeletonConflictWidget::Construct(const FArguments&
 	];
 }
 
-FReply SInterchangeGenericAssetSkeletonConflictWidget::SetSectionVisible(EInterchangeSkeletonCompareSection SectionIndex)
-{
-	bShowSectionFlag[SectionIndex] = !bShowSectionFlag[SectionIndex];
-	return FReply::Handled();
-}
-
-EVisibility SInterchangeGenericAssetSkeletonConflictWidget::IsSectionVisible(EInterchangeSkeletonCompareSection SectionIndex)
-{
-	return bShowSectionFlag[SectionIndex] ? EVisibility::All : EVisibility::Collapsed;
-}
-
-const FSlateBrush* SInterchangeGenericAssetSkeletonConflictWidget::GetCollapsableArrow(EInterchangeSkeletonCompareSection SectionIndex) const
-{
-	return bShowSectionFlag[SectionIndex] ? FAppStyle::GetBrush("Symbols.DownArrow") : FAppStyle::GetBrush("Symbols.RightArrow");
-}
-
 namespace UE::Interchange::Private
 {
+	void RecursivelyCollapseTreeItem(TSharedPtr<STreeView<TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint>>> CompareTree
+		, TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> JointItem)
+	{
+		CompareTree->SetItemExpansion(JointItem, false);
+		for (TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> ChildJoint : JointItem->Children)
+		{
+			RecursivelyCollapseTreeItem(CompareTree, ChildJoint);
+		}
+	}
+
 	void RecursivelyExpandTreeItem(TSharedPtr<STreeView<TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint>>> CompareTree
 		, TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> JointItem)
 	{
-		if (JointItem->bInitialAutoExpand || !JointItem->bMatch || !JointItem->bChildConflict)
+		if (!JointItem->bMatch || !JointItem->bChildConflict)
 		{
 			return;
 		}
-		JointItem->bInitialAutoExpand = true;
 		CompareTree->SetItemExpansion(JointItem, true);
 		for (TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> ChildJoint : JointItem->Children)
 		{
@@ -1751,12 +1900,41 @@ namespace UE::Interchange::Private
 	}
 }
 
+FReply SInterchangeGenericAssetSkeletonConflictWidget::OnExpandToConflict()
+{
+	for (TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> Joint : Joints)
+	{
+		UE::Interchange::Private::RecursivelyCollapseTreeItem(CompareTree, Joint);
+	}
+
+	for (TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> Joint : Joints)
+	{
+		UE::Interchange::Private::RecursivelyExpandTreeItem(CompareTree, Joint);
+	}
+	return FReply::Handled();
+}
+
+FReply SInterchangeGenericAssetSkeletonConflictWidget::SetSectionVisible(EInterchangeSkeletonCompareSection SectionIndex)
+{
+	bShowSectionFlag[SectionIndex] = !bShowSectionFlag[SectionIndex];
+	return FReply::Handled();
+}
+
+EVisibility SInterchangeGenericAssetSkeletonConflictWidget::IsSectionVisible(EInterchangeSkeletonCompareSection SectionIndex)
+{
+	return bShowSectionFlag[SectionIndex] ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+const FSlateBrush* SInterchangeGenericAssetSkeletonConflictWidget::GetCollapsableArrow(EInterchangeSkeletonCompareSection SectionIndex) const
+{
+	return bShowSectionFlag[SectionIndex] ? FAppStyle::GetBrush("Symbols.DownArrow") : FAppStyle::GetBrush("Symbols.RightArrow");
+}
+
 TSharedPtr<SWidget> SInterchangeGenericAssetSkeletonConflictWidget::ConstructSkeletonComparison()
 {
 	FText SkeletonStatus = NSLOCTEXT("SInterchangeGenericAssetSkeletonConflictWidget", "ConstructSkeletonComparison_SkeletonStatus", "The skeleton has some conflicts");
 	
 	CompareTree = SNew(STreeView<TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint>>)
-		.ItemHeight(24)
 		.SelectionMode(ESelectionMode::None)
 		.TreeItemsSource(&Joints)
 		.OnGenerateRow(this, &SInterchangeGenericAssetSkeletonConflictWidget::OnGenerateRowCompareTreeView)
@@ -1817,10 +1995,26 @@ TSharedPtr<SWidget> SInterchangeGenericAssetSkeletonConflictWidget::ConstructSke
 						.AutoHeight()
 						.Padding(2)
 						[
-							SNew(STextBlock)
-							.Font(FAppStyle::GetFontStyle("DetailsView.CategoryFontStyle"))
-							.Text(SkeletonStatus)
-							.ColorAndOpacity(SInterchangeGenericAssetMaterialConflictWidget::SlateColorFullConflict)
+							SNew(SHorizontalBox)
+							+SHorizontalBox::Slot()
+							.AutoWidth()
+							[
+								SNew(SButton)
+								.HAlign(HAlign_Center)
+								.Text(NSLOCTEXT("SInterchangeGenericAssetMaterialConflictWidget", "SInterchangeGenericAssetMaterialConflic_ExpandToConflict", "Expand To Conflict"))
+								.OnClicked(this, &SInterchangeGenericAssetSkeletonConflictWidget::OnExpandToConflict)
+							]
+							+SHorizontalBox::Slot()
+							.FillWidth(1.0f)
+							.VAlign(VAlign_Center)
+							.HAlign(HAlign_Left)
+							.Padding(6.0f, 0.0f)
+							[
+								SNew(STextBlock)
+								.Font(FAppStyle::GetFontStyle("DetailsView.CategoryFontStyle"))
+								.Text(SkeletonStatus)
+								.ColorAndOpacity(SInterchangeGenericAssetMaterialConflictWidget::SlateColorFullConflict)
+							]
 						]
 						+SVerticalBox::Slot()
 						.AutoHeight()

@@ -10,6 +10,7 @@
 #include "LumenRadianceCacheCommon.ush"
 #include "LumenScreenProbeCommon.ush"
 #include "LumenScreenProbeTracingCommon.ush"
+#include "LumenFloatQuantization.ush"
 
 #ifndef THREADGROUP_SIZE_2D
 	#define THREADGROUP_SIZE_2D 8
@@ -19,15 +20,20 @@
 	#define THREADGROUP_SIZE_1D THREADGROUP_SIZE_2D * THREADGROUP_SIZE_2D
 #endif
 
+#define RAY_TRACING_PASS_DEFAULT		0
+#define RAY_TRACING_PASS_FAR_FIELD		1
+#define RAY_TRACING_PASS_HIT_LIGHTING	2
+
 RWBuffer<uint> RWHardwareRayTracingIndirectArgs;
 uint2 OutputThreadGroupSize;
 
+#ifdef FLumenScreenProbeHardwareRayTracingIndirectArgsCS
 [numthreads(1, 1, 1)]
 void FLumenScreenProbeHardwareRayTracingIndirectArgsCS()
 {
 	WriteDispatchIndirectArgs(RWHardwareRayTracingIndirectArgs, 0, (CompactedTraceTexelAllocator[0] + OutputThreadGroupSize.x - 1) / OutputThreadGroupSize.x, 1, 1);
 }
-
+#endif
 
 #if LUMEN_HARDWARE_RAYTRACING || LUMEN_HARDWARE_INLINE_RAYTRACING
 
@@ -38,10 +44,13 @@ float3 FarFieldReferencePos;
 RaytracingAccelerationStructure TLAS;
 
 #if LUMEN_HARDWARE_INLINE_RAYTRACING
-StructuredBuffer<FHitGroupRootConstants> HitGroupData;
-StructuredBuffer<FRayTracingSceneMetadataRecord> RayTracingSceneMetadata;
+	StructuredBuffer<FHitGroupRootConstants> HitGroupData;
+	StructuredBuffer<FRayTracingSceneMetadataRecord> RayTracingSceneMetadata;
 #endif // LUMEN_HARDWARE_INLINE_RAYTRACING
 
+uint HitLightingShadowMode;
+uint HitLightingDirectLighting;
+uint HitLightingSkylight;
 float MaxTraceDistance;
 float NearFieldSceneRadius;
 float NearFieldMaxTraceDistance;
@@ -51,8 +60,9 @@ float PullbackBias;
 float NormalBias;
 float AvoidSelfIntersectionTraceDistance;
 float SkipFirstTwoSidedHitDistance;
-uint MaxTraversalIterations;
 float MinTraceDistanceToSampleSurfaceCache;
+uint MaxTraversalIterations;
+uint MeshSectionVisibilityTest;
 
 LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 {
@@ -79,9 +89,12 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 		float SceneDepth = GetScreenProbeDepth(ScreenProbeAtlasCoord);
 		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
 
+		float2 ProbeTexelCenter = GetProbeTexelCenter(ScreenTileCoord);
+		const float Noise = ProbeTexelCenter.y;
+
 		float2 ProbeUV;
 		float ConeHalfAngle;
-		GetProbeTracingUV(ScreenProbeTraceCoord, TraceTexelCoord, GetProbeTexelCenter(ScreenTileCoord), 1, ProbeUV, ConeHalfAngle);
+		GetProbeTracingUV(ScreenProbeTraceCoord, TraceTexelCoord, ProbeTexelCenter, 1, ProbeUV, ConeHalfAngle);
 
 		FRayDesc Ray;
 		Ray.Origin = TranslatedWorldPosition;
@@ -94,21 +107,20 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 		}
 		#endif
 
-		bool bBackfaceRay;
-		float3 ProbeWorldNormalForBiasing = GetScreenProbeNormalForBiasing(ScreenProbeAtlasCoord, Ray.Direction, bBackfaceRay);
+		float3 ProbeWorldNormalForBiasing = GetScreenProbeNormalForBiasing(ScreenProbeAtlasCoord, Ray.Direction);
 		Ray.Origin += NormalBias * ProbeWorldNormalForBiasing;
 
 		FRayCone RayCone = (FRayCone)0;
 		RayCone = PropagateRayCone(RayCone, ConeHalfAngle, 0.0);
 
-		uint CullingMode = 0;
 		FRayTracedLightingContext Context = CreateRayTracedLightingContext(
 			RayCone,
 			ScreenTileCoord,
 			ScreenTileCoord.y * ScreenProbeViewSize.x + ScreenTileCoord.x,
-			CullingMode,
-			MaxTraversalIterations);
-		Context.bCalculateHitVelocity = true;
+			/*CullingMode*/ RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
+			MaxTraversalIterations,
+			MeshSectionVisibilityTest != 0);
+
 		Context.MinTraceDistanceToSampleSurfaceCache = MinTraceDistanceToSampleSurfaceCache;
 
 		#if LUMEN_HARDWARE_INLINE_RAYTRACING
@@ -146,13 +158,29 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 		Context.FarFieldMaxTraceDistance = FarFieldMaxTraceDistance;
 		Context.FarFieldReferencePos = FarFieldReferencePos;
 		
-		FRayTracedLightingResult Result = TraceAndCalculateRayTracedLightingFromSurfaceCache(TLAS, Ray, Context);
+		FRayTracedLightingResult Result = CreateRayTracedLightingResult();
+		#if RAY_TRACING_PASS == RAY_TRACING_PASS_HIT_LIGHTING
+		{
+			Context.bHitLightingDirectLighting = HitLightingDirectLighting != 0;
+			Context.bHitLightingSkylight = HitLightingSkylight != 0;
+			Context.bUseReflectionCaptures = false;
+			Context.HitLightingShadowMode = HitLightingShadowMode;
+			Context.HitLightingShadowMaxTraceDistance = NearFieldMaxTraceDistance;
+			
+			Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context);
+		}
+		#else
+		{
+			Result = TraceAndCalculateRayTracedLightingFromSurfaceCache(TLAS, Ray, Context);
+		}
+		#endif
 
 		bool bMoving = false;
 		if (Result.bIsHit)
 		{
 			float3 HitTranslatedWorldPosition = Ray.Origin + Ray.Direction * Result.TraceHitDistance;
-			bMoving = IsTraceMoving(TranslatedWorldPosition, SceneDepth, ScreenProbeAtlasCoord, HitTranslatedWorldPosition, Result.WorldVelocity);
+			float3 HitWorldVelocity = HitTranslatedWorldPosition - CalcPrevTranslatedWorldPositionFromGPUSceneInstanceIndex(HitTranslatedWorldPosition, Result.SceneInstanceIndex);
+			bMoving = IsTraceMoving(TranslatedWorldPosition, SceneDepth, ScreenProbeAtlasCoord, HitTranslatedWorldPosition, HitWorldVelocity);
 		}
 
 		Result.Radiance += GetSkylightLeaking(Ray.Direction, Result.TraceHitDistance);
@@ -162,10 +190,10 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 		{
 			float3 OriginToCollider = Ray.Direction * Result.TraceHitDistance;
 			float CoverageForFog = 1.0; // There is always something or the sky fallback.
-			Result.Radiance.rgb = GetFogOnLuminance(Result.Radiance.rgb, CoverageForFog, OriginToCollider);
+			Result.Radiance.rgb = GetFogOnLuminance(Result.Radiance.rgb, CoverageForFog, Ray.Origin, Ray.Direction, Result.TraceHitDistance);
 		}
 
-		RWTraceRadiance[ScreenProbeTraceCoord] = Result.Radiance;
+		RWTraceRadiance[ScreenProbeTraceCoord] = QuantizeForFloatRenderTarget(Result.Radiance, Noise);
 		RWTraceHit[ScreenProbeTraceCoord] = EncodeProbeRayDistance(min(Result.TraceHitDistance, MaxTraceDistance), Result.bIsHit, bMoving, bReachedRadianceCache);
 	}
 }

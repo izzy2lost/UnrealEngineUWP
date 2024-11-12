@@ -2,14 +2,18 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+
+#include "Containers/Array.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Math/Color.h"
+#include "Templates/SharedPointer.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct FDrawContext;
 struct FSlateBrush;
+
+namespace UE::Insights { class FDrawContext; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +84,7 @@ public:
 	void SetPosition(const FVector2D& MousePosition, const float MinX, const float MaxX, const float MinY, const float MaxY);
 	void SetPosition(const float PosX, const float PosY) { Position.X = PosX; Position.Y = PosY; }
 
-	void Draw(const FDrawContext& DrawContext) const;
+	void Draw(const UE::Insights::FDrawContext& DrawContext) const;
 
 	void SetFontScale(float InFontScale) { FontScale = InFontScale; }
 	float GetFontScale() const { return FontScale; }

@@ -12,7 +12,8 @@ import { PreviewChangesModal } from './PreviewChanges';
 import { VersionModal } from './VersionModal';
 import { getHordeTheme } from '../styles/theme';
 import { getHordeStyling } from '../styles/Styles';
-
+import { ArtifactQueryState, FindArtifactsModal } from './artifacts/ArtifactsSearch';
+import { getHordePlugins, MountType } from 'hordePlugins';
 
 const getStyles = () => {
 
@@ -419,6 +420,9 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
 
    const divRef = useRef(null);
 
+   const query = new URLSearchParams(window.location.search);
+   const showArtifacts = query.has("showArtifacts");
+
    // subscribe
    if (dashboard.updated) { }
 
@@ -434,13 +438,18 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
 
       const features = dashboard.user?.dashboardFeatures;
 
-      const serviceItems: IContextualMenuItem[] = [];
-      
-      serviceItems.push({
-         key: "admin_analytics",
-         text: "Analytics",
-         link: `/analytics`
-      });
+      let serviceItems: IContextualMenuItem[] = [];
+
+      // get the plugins which mount into the tools bar
+      const plugins = getHordePlugins().filter(p => p.mount?.type === MountType.TopNav);
+
+      plugins.forEach(p => {
+         serviceItems.push({
+            key: `admin_plugin_${p.mount!.text}`,
+            text: p.mount!.text,
+            link: p.mount!.route
+         });   
+      })
 
       if (features?.showTests !== false) {
          serviceItems.push({
@@ -450,6 +459,25 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
          });
       }
 
+      serviceItems.push({
+         key: "job_artifacts",
+         text: "Artifacts",
+         onClick(ev, item) {
+
+            const search = new URLSearchParams(window.location.search);
+            search.append("showArtifacts", "true")
+
+            const url = `${window.location.pathname}?` + search.toString();
+            navigate(url, { replace: true })
+
+         },
+      });
+
+      serviceItems = serviceItems.sort((a, b) => {
+         return (a.text ?? "").localeCompare(b.text ?? "")
+      })
+
+      // Always put downloads at the button for easy navigation
       serviceItems.push({
          key: "software_tools",
          text: "Downloads",
@@ -672,7 +700,7 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
 
    }
 
-   function getInitials(name: string) {      
+   function getInitials(name: string) {
       const nameArray = name.indexOf(".") === -1 ? name.split(" ") : name.split(".");
       if (nameArray.length === 1) {
          return name.toUpperCase().slice(0, 2);
@@ -680,7 +708,7 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
       const firstInitial = nameArray[0].charAt(0).toUpperCase();
       const lastInitial = nameArray[nameArray.length - 1].charAt(0).toUpperCase();
       return firstInitial + lastInitial;
-    }
+   }
 
    let initials = "??";
    try {
@@ -738,6 +766,13 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
 
    return (
       <div style={{ backgroundColor: hordeTheme.horde.topNavBackground }}>
+         {showArtifacts && <FindArtifactsModal onClose={() => {
+            query.delete("showArtifacts");
+            ArtifactQueryState.clearSearch(query);
+            const url = `${window.location.pathname}?` + query.toString();
+            navigate(url, { replace: true })
+
+         }} />}
          {showVersion && <VersionModal show={true} onClose={() => { setShowVersion(false) }} />}
          {showPreviewChanges && <PreviewChangesModal onClose={() => { setShowPreviewChanges(false) }} />}
          <Stack tokens={{ maxWidth: 1440, childrenGap: 0 }} disableShrink={true} styles={{ root: { backgroundColor: hordeTheme.horde.topNavBackground, margin: "auto", width: "100%" } }}>
@@ -789,7 +824,7 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
                      />}
                   </Stack>
 
-                  <Stack style={{width: "32px"}} onMouseEnter={() => setShowMenu(true)}
+                  <Stack style={{ width: "32px" }} onMouseEnter={() => setShowMenu(true)}
                      onMouseLeave={() => { setShowMenu(false) }} >
                      <div ref={divRef}>
                         <Persona styles={{ root: { selectors: { ".ms-Persona-initials": { fontWeight: "unset", fontFamily: "Horde Open Sans SemiBold", cursor: "pointer" } } } }} imageShouldFadeIn={false} imageInitials={initials} imageUrl={dashboard.userImage32} size={PersonaSize.size32}

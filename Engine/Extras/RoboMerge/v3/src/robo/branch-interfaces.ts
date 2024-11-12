@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { BranchSpec, ConflictedResolveNFile, RoboWorkspace } from '../common/perforce';
+import { BranchSpec, ConflictedResolveNFile, EdgeServer } from '../common/perforce';
 // TODO: Remove Circular Dependency on bot-interfaces
 import { NodeBotInterface } from './bot-interfaces';
 import { FailureKind } from './status-types';
@@ -70,7 +70,7 @@ export interface ExclusiveLockUser {
 
 export interface ExclusiveLockInfo {
 	exclusiveLockUsers: ExclusiveLockUser[]
-	lockedFiles: ExclusiveFile[]
+	exclusiveFiles: ExclusiveFile[]
 }
 
 export interface UnlockVerification extends OperationResult {
@@ -96,7 +96,6 @@ export interface BranchGraphInterface {
 export type EditableBranch = BranchBase & {
 	bot?: NodeBotInterface
 	parent: BranchGraphInterface
-	workspace: RoboWorkspace
 
 	branchspec: Map<string, BranchSpec>
 	upperName: string
@@ -143,6 +142,7 @@ export interface TargetInfo {
 	author: string
 
 	targetWorkspaceForShelf?: string // Filled in during the reconsider in case of a createShelf nodeop request
+	targetWorkspaceIsPartialMatch?: boolean // Filled in during the reconsider with whether the workspace match was partial or not
 	sendNoShelfNotification: boolean // Used for internal use shelves, such as stomp changes
 
 	forceStompChanges: boolean
@@ -163,11 +163,8 @@ export interface ChangeInfo extends TargetInfo {
 
 	propagatingNullMerge: boolean
 	forceCreateAShelf: boolean
-	edgeServerToHostShelf?: {
-		id: string
-		address: string
-	}
-	targetWorkspaceOverride?: string
+	edgeServerToHostShelf?: EdgeServer
+	targetWorkspace?: string
 	overriddenCommand: string
 	macros: string[]
 }
@@ -181,7 +178,7 @@ export interface PendingChange {
 export interface Failure {
 	kind: FailureKind		// short description of integration error or conflict
 	description: string		// detailed description (can be very long - don't want to store this)
-	summary?: string
+	details?: string
 	additionalInfo?: any
 }
 
@@ -213,6 +210,8 @@ export interface AlreadyIntegrated {
 
 export interface ForcedCl {
 	nodeOrEdgeName: string
+	sourceBranchUpperName: string
+	targetBranchUpperName: string
 	forcedCl: number
 	previousCl: number
 	culprit: string

@@ -48,6 +48,7 @@ public:
 		SLATE_ARGUMENT(bool, ShowParameterSynchronizingWithLibraryIcon)
 		SLATE_ARGUMENT(bool, ShowParameterSynchronizingWithLibraryIconExternallyReferenced)
 		SLATE_ARGUMENT(bool, ShowParameterReferenceCounter)
+		SLATE_NAMED_SLOT(FArguments, SearchAdjacentWidget)
 	SLATE_END_ARGS();
 
 	NIAGARAEDITOR_API ~SNiagaraParameterPanel();
@@ -59,6 +60,7 @@ public:
 	bool OnCompareCategoriesForEquality(const FNiagaraParameterPanelCategory& CategoryA, const FNiagaraParameterPanelCategory& CategoryB) const;
 	bool OnCompareCategoriesForSorting(const FNiagaraParameterPanelCategory& CategoryA, const FNiagaraParameterPanelCategory& CategoryB) const;
 	const FGuid& OnGetKeyForCategory(const FNiagaraParameterPanelCategory& Category) const;
+	void OnCategoryExpansionChanged(const FNiagaraParameterPanelCategory& Category, bool bIsExpanded);
 	bool OnCompareItemsForEquality(const FNiagaraParameterPanelItem& ItemA, const FNiagaraParameterPanelItem& ItemB) const;
 	bool OnCompareItemsForSorting(const FNiagaraParameterPanelItem& ItemA, const FNiagaraParameterPanelItem& ItemB) const;
 	const FNiagaraVariableBase& OnGetKeyForItem(const FNiagaraParameterPanelItem& Item) const;
@@ -134,7 +136,6 @@ private:
 	void OnSectionChecked(ECheckBoxState CheckState, FText Section);
 
 	FText GetTooltipForSection(FText Section);
-
 private:
 	mutable bool bPendingRefresh;
 	mutable bool bPendingSelectionRestore;

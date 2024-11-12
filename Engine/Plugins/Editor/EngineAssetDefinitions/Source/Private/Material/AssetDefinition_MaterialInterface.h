@@ -19,7 +19,7 @@ public:
 	virtual TSoftClassPtr<UObject> GetAssetClass() const override { return UMaterialInterface::StaticClass(); }
 	virtual TConstArrayView<FAssetCategoryPath> GetAssetCategories() const override
 	{
-		static const auto Categories = { EAssetCategoryPaths::Material };
+		static const auto Categories = { EAssetCategoryPaths::Material / NSLOCTEXT("Material", "MaterialAssetSubMenu_Advanced", "Advanced") };
 		return Categories;
 	}
 	virtual UThumbnailInfo* LoadThumbnailInfo(const FAssetData& InAsset) const override;

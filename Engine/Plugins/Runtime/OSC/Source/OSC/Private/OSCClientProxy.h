@@ -1,40 +1,52 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-
-
 #include "OSCClient.h"
 
+
+// Forward Declarations
 class FInternetAddr;
 class FSocket;
-class IOSCPacket;
 
 
-class OSC_API FOSCClientProxy : public IOSCClientProxy
+namespace UE::OSC
 {
-public:
-	FOSCClientProxy(const FString& InClientName);
-	virtual ~FOSCClientProxy();
+	// Forward Declarations
+	class IPacket;
 
-	void GetSendIPAddress(FString& InIPAddress, int32& Port) const override;
-	bool SetSendIPAddress(const FString& InIPAddress, const int32 Port) override;
+	class FClientProxy : public IClientProxy
+	{
+	public:
+		FClientProxy(const FString& InClientName);
+		virtual ~FClientProxy();
 
-	bool IsActive() const override;
+		UE_DEPRECATED(5.5, "Use GetSendIPEndpoint instead")
+		virtual void GetSendIPAddress(FString& InIPAddress, int32& Port) const { }
 
-	void SendMessage(FOSCMessage& Message) override;
-	void SendBundle(FOSCBundle& Bundle) override;
+		UE_DEPRECATED(5.5, "Use SetSendIPEndpoint instead")
+		virtual bool SetSendIPAddress(const FString& InIPAddress, const int32 Port) { return false; }
 
-	void Stop() override;
+		virtual const FIPv4Endpoint& GetSendIPEndpoint() const override;
+		virtual void SetSendIPEndpoint(const FIPv4Endpoint& InEndpoint) override;
 
-private:
-	void SendPacket(IOSCPacket& Packet);
+		bool IsActive() const override;
 
-	/** Socket used to send the OSC packets. */
-	FSocket* Socket;
+		void SendMessage(const FOSCMessage& Message) override;
+		void SendBundle(const FOSCBundle& Bundle) override;
 
-	/** IP Address used by socket. */
-	TSharedPtr<FInternetAddr> IPAddress;
+		void Stop() override;
 
-	/** Name of client */
-	FString ClientName;
-};
+		void SendPacket(UE::OSC::IPacket& Packet);
+
+	private:
+		/** Socket used to send the OSC packets. */
+		FSocket* Socket = nullptr;
+
+		/** IP Address used by socket. */
+		FIPv4Endpoint IPEndpoint;
+
+#if !UE_BUILD_SHIPPING
+		FString DestroyedSocketDesc;
+#endif // !UE_BUILD_SHIPPING
+	};
+} // namespace UE::OSC

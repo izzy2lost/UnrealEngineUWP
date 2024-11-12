@@ -22,5 +22,7 @@ public class GeometryCore : ModuleRules
 		);
 
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

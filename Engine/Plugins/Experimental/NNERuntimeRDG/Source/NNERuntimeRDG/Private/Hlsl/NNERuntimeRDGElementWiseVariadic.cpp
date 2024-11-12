@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGElementWiseVariadic.h"
+
 #include "NNEHlslShadersElementWiseVariadicCS.h"
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
@@ -119,7 +121,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 					int32 InputValue = InputIndex >= 0 ? InputTensors[InputIdx]->GetShape().GetData()[InputIndex] : 1;
 					if (InputValue != OutputValue && InputValue != 1 && OutputValue != 1)
 					{
-						UE_LOG(LogNNE, Warning, TEXT("Error while computing shape for element wise variadic op, input shapes are not compatible"));
+						UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("ElementWiseVariadic: Could not compute shape for element wise variadic op, input shapes are not compatible"));
 						return -1;
 					}
 					OutputValue = FMath::Max(InputValue, OutputValue);
@@ -147,7 +149,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			check(InOutputTensors.Num() == 1);
 			check(InOutputTensors[0] != nullptr);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.ElementWise.Variadic");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorElementWiseVariadic, "NNE.Operator.Hlsl.ElementWise.Variadic");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorElementWiseVariadic);
 
 			FTensorRDGRef PassInputTensors[FElementWiseVariadicConstants::MAX_NUM_INPUT];
@@ -188,14 +190,14 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 		if (InputTypes.Num() == 0)
 		{
-			UE_LOG(LogNNE, Error, TEXT("Element-wise variadic operator requires at least 1 input"));
+			UE_LOG(LogNNERuntimeRDGHlsl, Error, TEXT("ElementWiseVariadic: Operator requires at least 1 input"));
 			bIsValid = false;
 		}
 		for (int32 i = 0; i < InputTypes.Num(); ++i)
 		{
 			if (InputTypes[i] != ENNETensorDataType::Float)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Element-wise variadic operator input '%d' of type '%d' is not supported, should be float at the moment."), i, int(InputTypes[i]));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("ElementWiseVariadic: Operator input '%d' of type '%d' is not supported, should be float at the moment."), i, int(InputTypes[i]));
 				bIsValid = false;
 			}
 		}

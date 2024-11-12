@@ -8,6 +8,7 @@
 #include "DisplayClusterLightCardOutlinerColumns.h"
 
 #include "IDisplayClusterOperator.h"
+#include "IDisplayClusterOperatorViewModel.h"
 
 #include "DisplayClusterConfigurationTypes.h"
 
@@ -58,7 +59,15 @@ void SDisplayClusterLightCardOutliner::SetRootActor(ADisplayClusterRootActor* Ne
 	{
 		PreviouslySelectedActors = LightCardEditorPtr.Pin()->GetSelectedActorsAs<AActor>();
 	}
-	
+
+	for (TWeakObjectPtr<AActor> Actor : NonOutlinerSelectedActors)
+	{
+		if (Actor.IsValid())
+		{
+			PreviouslySelectedActors.AddUnique(Actor.Get());
+		}
+	}
+
 	RootActor = NewRootActor;
 
 	FillActorList();
@@ -86,17 +95,29 @@ void SDisplayClusterLightCardOutliner::GetSelectedActors(TArray<AActor*>& OutSel
 			OutSelectedActors.Add(MatchingTreeItem->Actor.Get());
 		}
 	}
+
+	for (TWeakObjectPtr<AActor> Actor : NonOutlinerSelectedActors)
+	{
+		if (Actor.IsValid())
+		{
+			OutSelectedActors.Add(Actor.Get());
+		}
+	}
 }
 
 void SDisplayClusterLightCardOutliner::SelectActors(const TArray<AActor*>& ActorsToSelect)
 {
+	NonOutlinerSelectedActors.Empty();
+
 	if (bIsOutlinerChangingSelection)
 	{
-		// Selection change initiated from outliner
+		// Selection change initiated from outliner; assume the selection is already applied and non-outliner actors are deselected
+		IDisplayClusterOperator::Get().GetOperatorViewModel()->OnOutlinerSelectionChanged().Broadcast(ActorsToSelect);
 		return;
 	}
 	
 	TArray<FSceneOutlinerTreeItemPtr> SelectedTreeItems;
+	TArray<AActor*> SelectedActors;
 	CachedOutlinerItems.Reset();
 	
 	for (const TSharedPtr<FStageActorTreeItem>& TreeItem : StageActorTreeItems)
@@ -106,12 +127,23 @@ void SDisplayClusterLightCardOutliner::SelectActors(const TArray<AActor*>& Actor
 			if (FSceneOutlinerTreeItemPtr OutlinerItem = SceneOutliner->GetTreeItem(TreeItem->Actor.Get()))
 			{
 				SelectedTreeItems.Add(OutlinerItem);
+				SelectedActors.Add(TreeItem->Actor.Get());
 			}
+		}
+	}
+
+	for (AActor* Actor : ActorsToSelect)
+	{
+		if (!SelectedActors.Contains(Actor))
+		{
+			NonOutlinerSelectedActors.Add(Actor);
 		}
 	}
 
 	CachedOutlinerItems = SelectedTreeItems;
 	SceneOutliner->SetItemSelection(SelectedTreeItems, true);
+
+	IDisplayClusterOperator::Get().GetOperatorViewModel()->OnOutlinerSelectionChanged().Broadcast(ActorsToSelect);
 }
 
 void SDisplayClusterLightCardOutliner::RestoreCachedSelection()
@@ -134,6 +166,14 @@ void SDisplayClusterLightCardOutliner::RestoreCachedSelection()
 			{
 				AdditionalTreeItemsToSelect.Add(CachedItem);
 			}
+		}
+	}
+
+	for (TWeakObjectPtr<AActor> Actor : NonOutlinerSelectedActors)
+	{
+		if (Actor.IsValid())
+		{
+			ActorsToSelect.Add(Actor.Get());
 		}
 	}
 
@@ -370,6 +410,9 @@ void SDisplayClusterLightCardOutliner::OnOutlinerSelectionChanged(FSceneOutliner
 	ESelectInfo::Type Type)
 {
 	MostRecentSelectedItem = TreeItem;
+	
+	// User made a selection directly in the outliner, so override the non-outliner selection
+	NonOutlinerSelectedActors.Empty();
 
 	if (LightCardEditorPtr.IsValid())
 	{

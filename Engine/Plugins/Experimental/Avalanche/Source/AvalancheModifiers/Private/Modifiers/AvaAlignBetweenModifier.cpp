@@ -123,44 +123,46 @@ TSet<AActor*> UAvaAlignBetweenModifier::GetActors(const bool bEnabledOnly) const
 	return OutActors;
 }
 
-void UAvaAlignBetweenModifier::SetReferenceActors(const TSet<FAvaAlignBetweenWeightedActor>& NewReferenceActors)
+void UAvaAlignBetweenModifier::SetReferenceActors(const TSet<FAvaAlignBetweenWeightedActor>& InReferenceActors)
 {
-	ReferenceActors = NewReferenceActors;
+	ReferenceActors = InReferenceActors;
 	OnReferenceActorsChanged();
 }
 
-void UAvaAlignBetweenModifier::AddReferenceActor(const FAvaAlignBetweenWeightedActor& ReferenceActor)
+bool UAvaAlignBetweenModifier::AddReferenceActor(const FAvaAlignBetweenWeightedActor& InReferenceActor)
 {
 	const AActor* const ModifyActor = GetModifiedActor();
 	if (!IsValid(ModifyActor))
 	{
-		return;
+		return false;
 	}
 
-	if (!ReferenceActor.ActorWeak.IsValid() || ReferenceActor.ActorWeak == ModifyActor)
-	{
-		return;
-	}
-
-	bool bAlreadyInSet = false;
-	ReferenceActors.Add(ReferenceActor, &bAlreadyInSet);
-
-	if (!bAlreadyInSet)
-	{
-		SetTransformExtensionReferenceActors();
-		
-		MarkModifierDirty();
-	}
-}
-
-bool UAvaAlignBetweenModifier::RemoveReferenceActor(AActor* const Actor)
-{
-	if (!IsValid(Actor))
+	if (!InReferenceActor.ActorWeak.IsValid() || InReferenceActor.ActorWeak == ModifyActor)
 	{
 		return false;
 	}
 
-	if (ReferenceActors.Remove(FAvaAlignBetweenWeightedActor(Actor)) > 0)
+	bool bAlreadyInSet = false;
+	ReferenceActors.Add(InReferenceActor, &bAlreadyInSet);
+
+	if (!bAlreadyInSet)
+	{
+		SetTransformExtensionReferenceActors();
+
+		MarkModifierDirty();
+	}
+
+	return !bAlreadyInSet;
+}
+
+bool UAvaAlignBetweenModifier::RemoveReferenceActor(AActor* const InActor)
+{
+	if (!IsValid(InActor))
+	{
+		return false;
+	}
+
+	if (ReferenceActors.Remove(FAvaAlignBetweenWeightedActor(InActor)) > 0)
 	{
 		MarkModifierDirty();
 		

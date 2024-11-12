@@ -3,7 +3,7 @@
 #include "IShotgridModule.h"
 #include "ShotgridSettings.h"
 #include "ShotgridUIManager.h"
-
+#include "Misc/CoreDelegates.h"
 #include "ISettingsModule.h"
 #include "ISettingsSection.h"
 
@@ -12,28 +12,35 @@
 class FShotgridModule : public IShotgridModule
 {
 public:
+
+	static void OnEngineStartupComplete()
+	{
+		RegisterSettings();
+
+		FShotgridUIManager::Initialize();
+	}
+
+	static void OnEnginePreExit()
+	{
+		FShotgridUIManager::Shutdown();
+
+		UnregisterSettings();
+	}
 	virtual void StartupModule() override
 	{
 		if (GIsEditor && !IsRunningCommandlet())
 		{
-			RegisterSettings();
-
-			FShotgridUIManager::Initialize();
+			FCoreDelegates::OnFEngineLoopInitComplete.AddStatic(&OnEngineStartupComplete);
+			FCoreDelegates::OnEnginePreExit.AddStatic(&OnEnginePreExit);
 		}
 	}
 
 	virtual void ShutdownModule() override
 	{
-		if ((GIsEditor && !IsRunningCommandlet()))
-		{
-			FShotgridUIManager::Shutdown();
-
-			UnregisterSettings();
-		}
 	}
 
 protected:
-	void RegisterSettings()
+	static void RegisterSettings()
 	{
 		ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
 		if (SettingsModule != nullptr)
@@ -46,7 +53,7 @@ protected:
 		}
 	}
 
-	void UnregisterSettings()
+	static void UnregisterSettings()
 	{
 		ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
 		if (SettingsModule != nullptr)

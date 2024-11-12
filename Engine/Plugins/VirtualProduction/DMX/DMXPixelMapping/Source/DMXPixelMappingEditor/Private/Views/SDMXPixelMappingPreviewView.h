@@ -2,16 +2,16 @@
 
 #pragma once
 
+#include "EditorUndoClient.h"
 #include "Widgets/SDMXPixelMappingSurface.h"
 
-class FDMXPixelMappingToolkit;
+struct FDMXPixelMappingComponentReference;
 class SDMXPixelMappingPreviewViewport;
+class FDMXPixelMappingToolkit;
 struct FOptionalSize;
 class SBox;
 class SDMXPixelMappingZoomPan;
 class SOverlay;
-class FDMXPixelMappingComponentReference;
-
 
 class SDMXPixelMappingPreviewView
 	: public SDMXPixelMappingSurface

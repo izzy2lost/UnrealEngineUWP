@@ -51,7 +51,6 @@ class UTexture;
 class UTextureLODSettings;
 struct FAndroidDeviceInfo;
 enum class ETargetPlatformFeatures;
-template<typename TPlatformProperties> class TTargetPlatformBase;
 
 static FString GetLicensePath()
 {
@@ -303,6 +302,8 @@ FName FAndroidTargetPlatformControls::FinalizeVirtualTextureLayerFormat(FName Fo
 
 	// code dupe with IOSTargetPlatform
 
+	// @todo Oodle: restrict this so it's only done when needed for RVT, not for all VT that would be better left as ASTC ; UE-212640
+
 	const static FName VTRemap[][2] =
 	{
 		{ { FName(TEXT("ASTC_RGB")) },			{ AndroidTexFormat::NameETC2_RGB } },
@@ -474,12 +475,14 @@ void FAndroidTargetPlatformControls::GetTextureFormats(const UTexture* Texture, 
 
 	// Supported in ES3.2 with ASTC
 	const bool bSupportCompressedVolumeTexture = AndroidTargetPlatformSettings->SupportsTextureFormatCategory(EAndroidTextureFormatCategory::ASTC);
+	// FWIW bSupportCompressedVolumeTexture should be true for Android_DXT but this is setting it to false
+
 	// OpenGL ES has F32 textures but doesn't allow linear filtering unless OES_texture_float_linear
 	const bool bSupportFilteredFloat32Textures = false;
 
 	// optionaly compress landscape weightmaps for a mobile rendering
-	static const auto CompressLandscapeWeightMapsVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.CompressLandscapeWeightMaps"));
-	static const bool bCompressLandscapeWeightMaps = (CompressLandscapeWeightMapsVar && CompressLandscapeWeightMapsVar->GetValueOnAnyThread() != 0);
+	bool bCompressLandscapeWeightMaps = false;
+	GetTargetPlatformSettings()->GetConfigSystem()->GetBool(TEXT("/Script/Engine.RendererSettings"), TEXT("r.Mobile.CompressLandscapeWeightMaps"), bCompressLandscapeWeightMaps, GEngineIni);
 
 	TArray<FName>& LayerFormats = OutFormats.AddDefaulted_GetRef();
 	int32 BlockSize = 1; // this looks wrong? should be 4 for FAndroid_DXTTargetPlatform ? - it is wrong, but BlockSize is ignored

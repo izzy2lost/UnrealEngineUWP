@@ -36,9 +36,13 @@
 #include "MVVM/ViewModels/SectionModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "MVVM/SectionModelStorageExtension.h"
+#include "MVVM/ViewModels/OutlinerViewModel.h"
 #include "MVVM/ViewModels/SequenceModel.h"
 #include "MVVM/ViewModels/TrackAreaViewModel.h"
+#include "MVVM/Extensions/IOutlinerExtension.h"
 #include "MVVM/ViewModels/TrackModel.h"
+#include "MVVM/CurveEditorExtension.h"
+#include "Tree/SCurveEditorTree.h"
 #include "IKeyArea.h"
 #include "SequencerAddKeyOperation.h"
 #include "TransformConstraint.h"
@@ -49,7 +53,6 @@
 #include "Constraints/ControlRigTransformableHandle.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimDetailsProxy)
-
 
 static void KeyTrack(TSharedPtr<ISequencer>& Sequencer, UControlRigControlsProxy* Proxy, UMovieScenePropertyTrack* Track, EControlRigContextChannelToKey ChannelToKey)
 {
@@ -115,6 +118,8 @@ static EAnimDetailSelectionState CachePropertySelection(TWeakPtr<FCurveEditor>& 
 						{
 							++TotalNum;
 							EControlRigContextChannelToKey ChannelToKey = Proxy->GetChannelToKeyFromPropertyName(PropertyName);
+							FText ControlNameText = ControlRig->GetHierarchy()->GetDisplayNameForUI(ControlElement);
+							FString ControlNameString = ControlNameText.ToString();
 							for (const TPair<FCurveModelID, TUniquePtr<FCurveModel>>& Pair : Curves) //horribly slow
 							{
 								FCurveEditorTreeItemID TreeItemID = CurveEditor->GetTreeIDFromCurveID(Pair.Key);
@@ -128,7 +133,7 @@ static EAnimDetailSelectionState CachePropertySelection(TWeakPtr<FCurveEditor>& 
 									}
 									if (UMovieSceneControlRigParameterTrack* Track = Section->GetTypedOuter< UMovieSceneControlRigParameterTrack>())
 									{
-										if (Track->GetSectionToKey() != Section)
+										if (Track->GetSectionToKey(ControlElement->GetFName()) != Section)
 										{
 											continue;
 										}
@@ -144,8 +149,8 @@ static EAnimDetailSelectionState CachePropertySelection(TWeakPtr<FCurveEditor>& 
 									Name.ParseIntoArray(StringArray, TEXT("."));
 									if (StringArray.Num() > 1)
 									{
-										if (StringArray[0] == ControlElement->GetDisplayName() ||
-											StringArray[1] == ControlElement->GetDisplayName()) //nested controls will be 2nd
+										if (StringArray[0] == ControlNameString ||
+											StringArray[1] == ControlNameString) //nested controls will be 2nd
 										{
 											FString ChannelName;
 											if (StringArray.Num() == 3)
@@ -234,6 +239,8 @@ static EAnimDetailSelectionState CachePropertySelection(TWeakPtr<FCurveEditor>& 
 
 void UAnimDetailControlsKeyedProxy::SetKey(TSharedPtr<ISequencer>& Sequencer, const IPropertyHandle& KeyedPropertyHandle)
 {
+	FRigControlModifiedContext NotifyDrivenContext; //always key ever
+	NotifyDrivenContext.SetKey = EControlRigSetKey::Always;
 	for (const TPair<TWeakObjectPtr<UControlRig>, FControlRigProxyItem>& Items : ControlRigItems)
 	{
 		if (UControlRig* ControlRig = Items.Value.ControlRig.Get())
@@ -249,6 +256,7 @@ void UAnimDetailControlsKeyedProxy::SetKey(TSharedPtr<ISequencer>& Sequencer, co
 						FName PropertyName = KeyedPropertyHandle.GetProperty()->GetFName();
 						Context.KeyMask = (uint32)GetChannelToKeyFromPropertyName(PropertyName);
 						SetControlRigElementValueFromCurrent(ControlRig, ControlElement, Context);
+						FControlRigEditMode::NotifyDrivenControls(ControlRig, ControlElement->GetKey(), NotifyDrivenContext);
 					}
 				}
 			}
@@ -750,39 +758,44 @@ EPropertyKeyedStatus UAnimDetailControlsKeyedProxy::GetPropertyKeyedStatus(TShar
 #if WITH_EDITOR
 void UAnimDetailControlsKeyedProxy::PostEditUndo()
 {
-	FRigControlModifiedContext Context;
-	Context.SetKey = EControlRigSetKey::Never;
-	UWorld* World = GCurrentLevelEditingViewportClient ? GCurrentLevelEditingViewportClient->GetWorld() : nullptr;
-	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
-	Controller.EvaluateAllConstraints();
+	if (UWorld* World = GCurrentLevelEditingViewportClient ? GCurrentLevelEditingViewportClient->GetWorld() : nullptr)
+	{
+		const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
+		Controller.EvaluateAllConstraints();
+	}
+
+	static const FRigControlModifiedContext ContextNoKey(EControlRigSetKey::Never);
+	
 	for (const TPair<TWeakObjectPtr<UControlRig>, FControlRigProxyItem>& Items : ControlRigItems)
 	{
-		if (UControlRig* ControlRig = Items.Value.ControlRig.Get())
+		const FControlRigProxyItem& ProxyItem = Items.Value;
+		if (UControlRig* ControlRig = ProxyItem.ControlRig.Get())
 		{
-			for (const FName& CName : Items.Value.ControlElements)
+			for (const FName& CName : ProxyItem.ControlElements)
 			{
-				if (FRigControlElement* ControlElement = Items.Value.GetControlElement(CName))
+				if (FRigControlElement* ControlElement = ProxyItem.GetControlElement(CName))
 				{
-					if (ControlRig->GetHierarchy()->Contains(FRigElementKey(ControlElement->GetKey().Name, ERigElementType::Control)))
-					{
-						ControlRig->SelectControl(ControlElement->GetKey().Name, bSelected);
-						SetControlRigElementValueFromCurrent(ControlRig, ControlElement, Context);
-					}
+					ControlRig->SelectControl(ControlElement->GetKey().Name, bSelected);
+					SetControlRigElementValueFromCurrent(ControlRig, ControlElement, ContextNoKey);
 				}
 			}
 		}
 	}
+	
 	for (TPair <TWeakObjectPtr<UObject>, FSequencerProxyItem>& SItems : SequencerItems)
 	{
 		//we do this backwards so ValueChanged later is set up correctly since that iterates in the other direction
-		if (SItems.Key.IsValid())
+		TWeakObjectPtr<UObject> WeakObject = SItems.Key;
+		if (WeakObject.IsValid())
 		{
+			UObject* Object = WeakObject.Get();
 			for (FBindingAndTrack& Binding : SItems.Value.Bindings)
 			{
-				SetBindingValueFromCurrent(SItems.Key.Get(), Binding.Binding, Context);
+				SetBindingValueFromCurrent(Object, Binding.Binding, ContextNoKey);
 			}
 		}
 	}
+	
 	ValueChanged();
 }
 #endif
@@ -917,7 +930,7 @@ static FEulerTransform GetCurrentValue(UObject* InObject, TSharedPtr<FTrackInsta
 	return EulerTransform;
 }
 
-void UAnimDetailControlsProxyTransform::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, FRigControlModifiedContext& Context, bool bInteractive)
+void UAnimDetailControlsProxyTransform::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, const FRigControlModifiedContext& Context, bool bInteractive)
 {
 	if (InObject && Binding.IsValid())
 	{
@@ -1347,6 +1360,41 @@ bool UAnimDetailControlsProxyTransform::IsMultiple(const FName& PropertyName) co
 	return false;
 }
 
+TMap<FName, int32> UAnimDetailControlsProxyTransform::GetPropertyNames() const
+{
+	TMap<FName, int32> NameToIndex;
+	FName PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyLocation, LX);
+	int32 Index = 0;
+	NameToIndex.Add(PropertyName, Index);
+	PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyLocation, LY);
+	++Index;
+	NameToIndex.Add(PropertyName, Index);
+	PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyLocation, LZ);
+	++Index;
+	NameToIndex.Add(PropertyName, Index);
+
+	PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyRotation, RX);
+	++Index;
+	NameToIndex.Add(PropertyName, Index);
+	PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyRotation, RY);
+	++Index;
+	NameToIndex.Add(PropertyName, Index);
+	PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyRotation, RZ);
+	++Index;
+	NameToIndex.Add(PropertyName, Index);
+
+	PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyScale, SX);
+	++Index;
+	NameToIndex.Add(PropertyName, Index);
+	PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyScale, SY);
+	++Index;
+	NameToIndex.Add(PropertyName, Index);
+	PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyScale, SZ);
+	++Index;
+	NameToIndex.Add(PropertyName, Index);
+	return NameToIndex;
+}
+
 EControlRigContextChannelToKey UAnimDetailControlsProxyTransform::GetChannelToKeyFromPropertyName(const FName& PropertyName) const
 {
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyTransform, Location))
@@ -1584,6 +1632,21 @@ bool UAnimDetailControlsProxyLocation::IsMultiple(const FName& PropertyName) con
 	return false;
 }
 
+TMap<FName, int32> UAnimDetailControlsProxyLocation::GetPropertyNames() const
+{
+	TMap<FName, int32> NameToIndex;
+	FName PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyLocation, LX);
+	int32 Index = 0;
+	NameToIndex.Add(PropertyName, Index);
+	PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyLocation, LY);
+	++Index;
+	NameToIndex.Add(PropertyName, Index);
+	PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyLocation, LZ);
+	++Index;
+	NameToIndex.Add(PropertyName, Index);
+	return NameToIndex;
+}
+
 EControlRigContextChannelToKey UAnimDetailControlsProxyLocation::GetChannelToKeyFromPropertyName(const FName& PropertyName) const
 {
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(FAnimDetailProxyLocation, LX))
@@ -1655,7 +1718,10 @@ void UAnimDetailControlsProxyRotation::SetControlRigElementValueFromCurrent(UCon
 	{
 		FVector3f Val = Rotation.ToVector3f();
 		SetRotationValuesFromContext(ControlRig, ControlElement, Context, Val);
+		FVector EulerAngle(Rotation.ToRotator().Roll, Rotation.ToRotator().Pitch, Rotation.ToRotator().Yaw);
+		ControlRig->GetHierarchy()->SetControlSpecifiedEulerAngle(ControlElement, EulerAngle);
 		ControlRig->SetControlValue<FVector3f>(ControlElement->GetKey().Name, Val, true, Context, false);
+		ControlRig->GetHierarchy()->SetControlSpecifiedEulerAngle(ControlElement, EulerAngle);
 		ControlRig->Evaluate_AnyThread();
 	}
 }
@@ -1748,6 +1814,21 @@ bool UAnimDetailControlsProxyRotation::IsMultiple(const FName& PropertyName) con
 		return Rotation.State.bZMultiple;
 	}
 	return false;
+}
+
+TMap<FName, int32> UAnimDetailControlsProxyRotation::GetPropertyNames() const
+{
+	TMap<FName, int32> NameToIndex;
+	FName PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyRotation, RX);
+	int32 Index = 0;
+	NameToIndex.Add(PropertyName, Index);
+	PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyRotation, RY);
+	++Index;
+	NameToIndex.Add(PropertyName, Index);
+	PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyRotation, RZ);
+	++Index;
+	NameToIndex.Add(PropertyName, Index);
+	return NameToIndex;
 }
 
 EControlRigContextChannelToKey UAnimDetailControlsProxyRotation::GetChannelToKeyFromPropertyName(const FName& PropertyName) const
@@ -1917,6 +1998,21 @@ bool UAnimDetailControlsProxyScale::IsMultiple(const FName& PropertyName) const
 	return false;
 }
 
+TMap<FName, int32> UAnimDetailControlsProxyScale::GetPropertyNames() const
+{
+	TMap<FName, int32> NameToIndex;
+	FName PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyScale, SX);
+	int32 Index = 0;
+	NameToIndex.Add(PropertyName, Index);
+	PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyScale, SY);
+	++Index;
+	NameToIndex.Add(PropertyName, Index);
+	PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyScale, SZ);
+	++Index;
+	NameToIndex.Add(PropertyName, Index);
+	return NameToIndex;
+}
+
 EControlRigContextChannelToKey UAnimDetailControlsProxyScale::GetChannelToKeyFromPropertyName(const FName& PropertyName) const
 {
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(FAnimDetailProxyScale, SX))
@@ -2069,6 +2165,18 @@ bool UAnimDetailControlsProxyVector2D::IsMultiple(const FName& PropertyName) con
 	}
 
 	return false;
+}
+
+TMap<FName, int32> UAnimDetailControlsProxyVector2D::GetPropertyNames() const
+{
+	TMap<FName, int32> NameToIndex;
+	FName PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyVector2D, X);
+	int32 Index = 0;
+	NameToIndex.Add(PropertyName, Index);
+	PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyVector2D, Y);
+	++Index;
+	NameToIndex.Add(PropertyName, Index);
+	return NameToIndex;
 }
 
 EControlRigContextChannelToKey UAnimDetailControlsProxyVector2D::GetChannelToKeyFromPropertyName(const FName& PropertyName) const
@@ -2265,6 +2373,15 @@ bool UAnimDetailControlsProxyFloat::IsMultiple(const FName& PropertyName) const
 	return false;
 }
 
+TMap<FName, int32> UAnimDetailControlsProxyFloat::GetPropertyNames() const
+{
+	TMap<FName, int32> NameToIndex;
+	FName PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyFloat, Float);
+	int32 Index = 0;
+	NameToIndex.Add(PropertyName, Index);
+	return NameToIndex;
+}
+
 EControlRigContextChannelToKey UAnimDetailControlsProxyFloat::GetChannelToKeyFromPropertyName(const FName& PropertyName) const
 {
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(FAnimDetailProxyFloat, Float))
@@ -2298,7 +2415,7 @@ void UAnimDetailControlsProxyFloat::GetChannelSelectionState(TWeakPtr<FCurveEdit
 	LocationSelectionCache.XSelected = CachePropertySelection(CurveEditor, this, GET_MEMBER_NAME_CHECKED(FAnimDetailProxyFloat, Float));
 }
 
-void UAnimDetailControlsProxyFloat::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, FRigControlModifiedContext& Context, bool bInteractive)
+void UAnimDetailControlsProxyFloat::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, const FRigControlModifiedContext& Context, bool bInteractive)
 {
 	if (InObject && Binding.IsValid())
 	{
@@ -2458,6 +2575,15 @@ bool UAnimDetailControlsProxyBool::IsMultiple(const FName& PropertyName) const
 	return false;
 }
 
+TMap<FName, int32> UAnimDetailControlsProxyBool::GetPropertyNames() const
+{
+	TMap<FName, int32> NameToIndex;
+	FName PropertyName = GET_MEMBER_NAME_CHECKED(FAnimDetailProxyBool, Bool);
+	int32 Index = 0;
+	NameToIndex.Add(PropertyName, Index);
+	return NameToIndex;
+}
+
 EControlRigContextChannelToKey UAnimDetailControlsProxyBool::GetChannelToKeyFromPropertyName(const FName& PropertyName) const
 {
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(FAnimDetailProxyBool, Bool))
@@ -2491,7 +2617,7 @@ void UAnimDetailControlsProxyBool::GetChannelSelectionState(TWeakPtr<FCurveEdito
 	LocationSelectionCache.XSelected = CachePropertySelection(CurveEditor, this, GET_MEMBER_NAME_CHECKED(FAnimDetailProxyBool, Bool));
 }
 
-void UAnimDetailControlsProxyBool::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, FRigControlModifiedContext& Context, bool bInteractive)
+void UAnimDetailControlsProxyBool::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, const FRigControlModifiedContext& Context, bool bInteractive)
 {
 	if (InObject && Binding.IsValid())
 	{
@@ -2638,9 +2764,18 @@ bool UAnimDetailControlsProxyInteger::IsMultiple(const FName& PropertyName) cons
 	return false;
 }
 
+TMap<FName, int32> UAnimDetailControlsProxyInteger::GetPropertyNames() const
+{
+	TMap<FName, int32> NameToIndex;
+	FName PropertyName = GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyInteger, Integer);
+	int32 Index = 0;
+	NameToIndex.Add(PropertyName, Index);
+	return NameToIndex;
+}
+
 EControlRigContextChannelToKey UAnimDetailControlsProxyInteger::GetChannelToKeyFromPropertyName(const FName& PropertyName) const
 {
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(FAnimDetailProxyInteger, Integer))
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyInteger, Integer))
 	{
 		return EControlRigContextChannelToKey::TranslationX;
 	}
@@ -2671,7 +2806,7 @@ void UAnimDetailControlsProxyInteger::GetChannelSelectionState(TWeakPtr<FCurveEd
 	LocationSelectionCache.XSelected = CachePropertySelection(CurveEditor, this, GET_MEMBER_NAME_CHECKED(FAnimDetailProxyInteger, Integer));
 }
 
-void UAnimDetailControlsProxyInteger::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, FRigControlModifiedContext& Context, bool bInteractive)
+void UAnimDetailControlsProxyInteger::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, const FRigControlModifiedContext& Context, bool bInteractive)
 {
 	if (InObject && Binding.IsValid())
 	{
@@ -2802,6 +2937,15 @@ bool UAnimDetailControlsProxyEnum::IsMultiple(const FName& PropertyName) const
 	return false;
 }
 
+TMap<FName, int32> UAnimDetailControlsProxyEnum::GetPropertyNames() const
+{
+	TMap<FName, int32> NameToIndex;
+	FName PropertyName = GET_MEMBER_NAME_CHECKED(FControlRigEnumControlProxyValue, EnumIndex);
+	int32 Index = 0;
+	NameToIndex.Add(PropertyName, Index);
+	return NameToIndex;
+}
+
 EControlRigContextChannelToKey UAnimDetailControlsProxyEnum::GetChannelToKeyFromPropertyName(const FName& PropertyName) const
 {
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(FControlRigEnumControlProxyValue, EnumIndex))
@@ -2909,22 +3053,76 @@ void UControlRigDetailPanelControlProxies::ResetSequencerProxies(TMap<ERigContro
 	}
 }
 
-const TArray<UControlRigControlsProxy*> UControlRigDetailPanelControlProxies::GetAllSelectedProxies() const
+const TArray<UControlRigControlsProxy*> UControlRigDetailPanelControlProxies::GetAllSelectedProxies()
 {
 	TArray<UControlRigControlsProxy*> SelectedProxies(SelectedControlRigProxies);
+	TArray<USceneComponent*> BoundCRObjects;
+	TArray<AActor*> BoundCRActors;
+	for (UControlRigControlsProxy* Proxy : SelectedProxies)
+	{
+		if (Proxy && Proxy->OwnerControlRig.IsValid() && Proxy->OwnerControlRig->GetObjectBinding().IsValid())
+		{
+			if (USceneComponent* SceneComponent = Cast<USceneComponent>(Proxy->OwnerControlRig->GetObjectBinding()->GetBoundObject()))
+			{
+				BoundCRObjects.Add(SceneComponent);
+				if (AActor* ParentActor = SceneComponent->GetOwner())
+				{
+					BoundCRActors.Add(ParentActor);
+				}
+			}
+		}
+	}
 	if (SelectedSequencerProxies.Num() > 0)
 	{
-		SelectedProxies.Append(SelectedSequencerProxies);
+		if (SelectedProxies.Num() > 0)
+		{
+			for (int32 Index = SelectedSequencerProxies.Num() - 1; Index >= 0; --Index)
+			{
+				if (UControlRigControlsProxy* Proxy = SelectedSequencerProxies[Index])
+				{
+					if (Proxy->OwnerObject.IsValid())
+					{
+						if (USceneComponent* SceneComponent = Cast<USceneComponent>(Proxy->OwnerObject.Get()))
+						{
+							if (BoundCRObjects.Contains(SceneComponent))
+							{
+								SelectedSequencerProxies.RemoveAt(Index);
+								continue;
+							}
+						}
+						if (AActor* Actor = Cast<AActor>(Proxy->OwnerObject.Get()))
+						{
+							if (BoundCRActors.Contains(Actor))
+							{
+								SelectedSequencerProxies.RemoveAt(Index);
+								continue;
+							}
+						}
+					}
+					SelectedProxies.Add(Proxy);
+				}
+			}
+		}
+		else //no CR selected so just add them all
+		{
+			SelectedProxies.Append(SelectedSequencerProxies);
+		}
 	}
 	return SelectedProxies;
 }
 
 void UControlRigDetailPanelControlProxies::ValuesChanged()
 {
-	//need to do all proxies
-	UWorld* World = GCurrentLevelEditingViewportClient ? GCurrentLevelEditingViewportClient->GetWorld() : nullptr;
-	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
-	Controller.EvaluateAllConstraints();
+	if (SelectedControlRigProxies.IsEmpty() && SelectedSequencerProxies.IsEmpty())
+	{
+		return;
+	}
+	
+	if (UWorld* World = GCurrentLevelEditingViewportClient ? GCurrentLevelEditingViewportClient->GetWorld() : nullptr)
+	{
+		const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
+		Controller.EvaluateAllConstraints();
+	}
 
 	for (UControlRigControlsProxy* P1 : SelectedControlRigProxies)
 	{
@@ -3006,21 +3204,29 @@ UControlRigControlsProxy* UControlRigDetailPanelControlProxies::AddProxy(UObject
 				SequencerOnlyProxies.Add(InObject, NewProxies);
 			}
 		}
-		if (Proxy)
+		if (!Proxy)
 		{
-			Proxy->Type = Type;
-			Proxy->OwnerObject = InObject;
-			Proxy->OwnerBindingAndTrack.WeakTrack = Track;
-			Proxy->OwnerBindingAndTrack.Binding = Binding;
-			Proxy->AddSequencerProxyItem(InObject, Proxy->OwnerBindingAndTrack.WeakTrack, Binding);
-			Proxy->bIsIndividual = false;
-			Proxy->SetFlags(RF_Transactional);
-			Proxy->Modify();
-			UWorld* World = GCurrentLevelEditingViewportClient ? GCurrentLevelEditingViewportClient->GetWorld() : nullptr;
-			const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
-			Controller.EvaluateAllConstraints();
-			Proxy->ValueChanged();
+			return Proxy;
 		}
+		Proxy->Type = Type;
+		Proxy->OwnerObject = InObject;
+		Proxy->OwnerBindingAndTrack.WeakTrack = Track;
+		Proxy->OwnerBindingAndTrack.Binding = Binding;
+		Proxy->AddSequencerProxyItem(InObject, Proxy->OwnerBindingAndTrack.WeakTrack, Binding);
+		if (Type == ERigControlType::Transform || Type == ERigControlType::TransformNoScale || Type == ERigControlType::EulerTransform)
+		{
+			Proxy->bIsIndividual = false;
+		}
+		else
+		{
+			Proxy->bIsIndividual = true;
+		}			
+		Proxy->SetFlags(RF_Transactional);
+		Proxy->Modify();
+		UWorld* World = GCurrentLevelEditingViewportClient ? GCurrentLevelEditingViewportClient->GetWorld() : nullptr;
+		const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
+		Controller.EvaluateAllConstraints();
+		Proxy->ValueChanged();
 	}
 	return Proxy;
 }
@@ -3109,7 +3315,7 @@ void UControlRigDetailPanelControlProxies::RemoveSequencerProxies(UObject* InObj
 				UControlRigControlsProxy* ExistingProxy = Pair.Value;
 				if (ExistingProxy)
 				{
-					ExistingProxy->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders);
+					ExistingProxy->Rename(nullptr, GetTransientPackage());
 					ExistingProxy->MarkAsGarbage();
 				}
 			}
@@ -3128,14 +3334,14 @@ void UControlRigDetailPanelControlProxies::RemoveSequencerProxies(UObject* InObj
 				if (ExistingProxy)
 				{
 					SelectedControlRigProxies.Remove(ExistingProxy);
-					ExistingProxy->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders);
+					ClearSelectedProperty(ExistingProxy);
+					ExistingProxy->Rename(nullptr, GetTransientPackage());
 					ExistingProxy->MarkAsGarbage();
 				}
 			}
 			SequencerOnlyProxies.Remove(InObject);
 		}
 	}
-
 }
 
 void UControlRigDetailPanelControlProxies::RemoveControlRigProxies(UControlRig* ControlRig)
@@ -3150,13 +3356,14 @@ void UControlRigDetailPanelControlProxies::RemoveControlRigProxies(UControlRig* 
 				UControlRigControlsProxy* ExistingProxy = Pair.Value;
 				if (ExistingProxy)
 				{
-					ExistingProxy->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders);
+					ExistingProxy->Rename(nullptr, GetTransientPackage());
 					ExistingProxy->MarkAsGarbage();
 				}
 			}
 		}
 		ControlRigOnlyProxies.Empty();
 		SelectedControlRigProxies.SetNum(0);
+		ClearSelectedProperty();
 	}
 	else
 	{
@@ -3169,7 +3376,8 @@ void UControlRigDetailPanelControlProxies::RemoveControlRigProxies(UControlRig* 
 				if (ExistingProxy)
 				{
 					SelectedControlRigProxies.Remove(ExistingProxy);
-					ExistingProxy->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders);
+					ClearSelectedProperty(ExistingProxy);
+					ExistingProxy->Rename(nullptr, GetTransientPackage());
 					ExistingProxy->MarkAsGarbage();
 				}
 			}
@@ -3224,6 +3432,7 @@ void UControlRigDetailPanelControlProxies::SelectProxy(UControlRig* ControlRig, 
 		}
 		else
 		{
+			ClearSelectedProperty(Proxy);
 			SelectedControlRigProxies.Remove(Proxy);
 		}
 		Proxy->SelectionChanged(bSelected);
@@ -3237,6 +3446,433 @@ bool UControlRigDetailPanelControlProxies::IsSelected(UControlRig* InControlRig,
 		return SelectedControlRigProxies.Contains(Proxy);
 	}
 	return false;
+}
+
+void UControlRigDetailPanelControlProxies::ClearSelectedProperty(UControlRigControlsProxy* Proxy)
+{
+	if (Proxy == nullptr || LastSelection.Key == Proxy)
+	{
+		LastSelection.Key.Reset();
+		LastSelection.Value = NAME_None;
+	}
+}
+
+static TArray<FName> GetPropertyNames(TMap<FName, int32>& NameToIndex, const TOptional<FName>& OptionalPropertyNameFirst, const TOptional<FName>& OptionalPropertyNameSecond,
+	EAnimDetailRangeDirection Direction = EAnimDetailRangeDirection::Down)
+{
+	const int32 MaxNumProperties = NameToIndex.Num();
+	TArray<FName> PropertyNames;
+	//if we have a first name then we either go to the second name or go in direction
+	if (OptionalPropertyNameFirst.IsSet())
+	{
+		int32* FirstLocation = NameToIndex.Find(OptionalPropertyNameFirst.GetValue());
+		if (FirstLocation != nullptr && (*FirstLocation >= 0 && *FirstLocation < MaxNumProperties))
+		{
+			int32 FirstIndex = INDEX_NONE, SecondIndex = INDEX_NONE;
+			if (OptionalPropertyNameSecond.IsSet())
+			{
+				int32* SecondLocation = NameToIndex.Find(OptionalPropertyNameSecond.GetValue());
+				if (SecondLocation != nullptr && (*SecondLocation >= 0 && *SecondLocation < MaxNumProperties))
+				{
+					if (*FirstLocation < *SecondLocation)
+					{
+						FirstIndex = *FirstLocation;
+						SecondIndex = *SecondLocation;
+					}
+					else
+					{
+						FirstIndex = *SecondLocation;
+						SecondIndex = *FirstLocation;
+					}
+				}
+			}
+			else if (Direction == EAnimDetailRangeDirection::Down)
+			{
+				FirstIndex = *FirstLocation;
+				SecondIndex = MaxNumProperties - 1;
+			}
+			else if (Direction == EAnimDetailRangeDirection::Up)
+			{
+				FirstIndex = 0;
+				SecondIndex = *FirstLocation;
+			}
+			if (FirstIndex != INDEX_NONE && SecondIndex != INDEX_NONE)
+			{
+				TArray<FName> AllPropertyNames;
+				NameToIndex.GenerateKeyArray(AllPropertyNames);
+				for (int32 Index = FirstIndex; Index <= SecondIndex; ++Index)
+				{
+					PropertyNames.Add(AllPropertyNames[Index]);
+				}
+			}
+		}
+	}
+	else //no first name we just get all
+	{
+		NameToIndex.GenerateKeyArray(PropertyNames);
+	}
+	return PropertyNames;
+}
+
+TArray<TPair< UControlRigControlsProxy*, FName>> UControlRigDetailPanelControlProxies::GetPropertiesFromLastSelection(UControlRigControlsProxy* Proxy, const FName& PropertyName) const
+{
+	TArray<TPair<UControlRigControlsProxy*, FName>> PropertiesToSelect;
+
+	auto GetPropertiesToSelect = ([&PropertiesToSelect](UControlRigControlsProxy* ProxyToGet, TOptional <FName>& FirstName, TOptional <FName>& SecondName, EAnimDetailRangeDirection Direction)
+	{
+		TMap<FName, int32> NameToIndex = ProxyToGet->GetPropertyNames();
+		TArray<FName> PropertyNames = GetPropertyNames(NameToIndex, FirstName, SecondName, Direction);
+		for (FName& PropName : PropertyNames)
+		{
+			TPair<UControlRigControlsProxy*, FName> Selected(ProxyToGet, PropName);
+			PropertiesToSelect.Add(Selected);
+		}
+	});
+
+	auto SelectChildProxiesFromIndex = ([&GetPropertiesToSelect,&PropertiesToSelect](UControlRigControlsProxy *ParentProxy, const FName& InPropretyName,int32 StartIndex, int32 ChildIndex)
+	{
+			//now we need to select all of the child proxies before this and including this
+			for (int32 Index = StartIndex; Index <= ChildIndex; ++Index)
+			{
+				UControlRigControlsProxy* ChildProxy = ParentProxy->ChildProxies[Index];
+
+				TMap<FName, int32> NameToIndex = ChildProxy->GetPropertyNames();
+				TArray<FName> PropertyNames;
+				NameToIndex.GenerateKeyArray(PropertyNames);
+				TOptional <FName> SecondName; //empty
+				EAnimDetailRangeDirection Direction = EAnimDetailRangeDirection::Down;
+				if (PropertyNames.Num() > 0)
+				{
+					TOptional <FName> FirstName = PropertyNames[0];
+					if (Index != ChildIndex) //not the current one need to select everything
+					{
+						GetPropertiesToSelect(ChildProxy, FirstName, SecondName, Direction);
+					}
+					else  //select from the name up
+					{
+						SecondName = InPropretyName;
+						GetPropertiesToSelect(ChildProxy, FirstName, SecondName, Direction);
+					}
+				}
+
+			}
+	});
+	if (LastSelection.Key.IsValid())
+	{
+		//same proxy so just get names to match.
+		if (Proxy == LastSelection.Key.Get())
+		{
+			TMap<FName, int32> NameToIndex = Proxy->GetPropertyNames();
+			TOptional <FName> FirstName = LastSelection.Value;
+			TOptional <FName> SecondName = PropertyName;
+			EAnimDetailRangeDirection Direction = EAnimDetailRangeDirection::Down;
+			GetPropertiesToSelect(Proxy, FirstName, SecondName, Direction);
+		}
+		else if (Proxy->bIsIndividual) //check to see if last selection is another channel with same parent or parent proxy
+		{
+			if (LastSelection.Key.Get()->bIsIndividual)
+			{
+				bool bFoundSibling = false;
+				UControlRigDetailPanelControlProxies* ProxyOwner = Proxy->GetTypedOuter<UControlRigDetailPanelControlProxies>();
+				if (ProxyOwner)
+				{
+					TArray<UControlRigControlsProxy*> AllProxies = ProxyOwner->GetAllSelectedProxies();
+					for (UControlRigControlsProxy* ParentProxy : AllProxies)
+					{
+						if (ParentProxy->ChildProxies.Num() > 1)
+						{
+							int32 OneIndex = ParentProxy->ChildProxies.Find(Proxy);
+							if (OneIndex != INDEX_NONE)
+							{
+								int32 TwoIndex = ParentProxy->ChildProxies.Find(LastSelection.Key.Get());
+								if(TwoIndex != INDEX_NONE)
+								{
+									bFoundSibling = true;
+									if (OneIndex > TwoIndex)
+									{
+										int32 Swap = TwoIndex;
+										TwoIndex = OneIndex;
+										OneIndex = Swap;
+									}
+									SelectChildProxiesFromIndex(ParentProxy, PropertyName, OneIndex, TwoIndex);
+								}
+							}
+						}
+					}
+				}
+				if (bFoundSibling == false)
+				{
+					TPair<UControlRigControlsProxy*, FName> Selected(Proxy, PropertyName);
+					PropertiesToSelect.Add(Selected);
+				}
+			}
+			else //may be it's parent
+			{
+				UControlRigControlsProxy* ParentProxy = LastSelection.Key.Get();
+				int32 ChildIndex = ParentProxy->ChildProxies.Find(Proxy);
+				if (ChildIndex != INDEX_NONE)
+				{
+					//found child so we need to select all of our properties down to the last one
+					TOptional <FName> FirstName = LastSelection.Value;
+					TOptional <FName> SecondName; //empty
+					EAnimDetailRangeDirection Direction = EAnimDetailRangeDirection::Down;
+					GetPropertiesToSelect(LastSelection.Key.Get(), FirstName, SecondName, Direction);
+					//now we need to select all of the child proxies before this and including this
+					SelectChildProxiesFromIndex(ParentProxy, PropertyName, 0, ChildIndex);
+				}
+				else
+				{
+					TPair<UControlRigControlsProxy*, FName> Selected(Proxy, PropertyName);
+					PropertiesToSelect.Add(Selected);
+				}
+			}	
+		}
+		else if (Proxy->bIsIndividual == false)
+		{
+			if (LastSelection.Key->bIsIndividual) //last may be a child
+			{
+				//select this proxy down
+				TOptional <FName> FirstName = PropertyName;
+				TOptional <FName> SecondName; //empty
+				EAnimDetailRangeDirection Direction = EAnimDetailRangeDirection::Down;
+				GetPropertiesToSelect(Proxy, FirstName, SecondName, Direction);
+				int32 ChildIndex = Proxy->ChildProxies.Find(LastSelection.Key.Get());
+				if (ChildIndex != INDEX_NONE)
+				{
+					SelectChildProxiesFromIndex(Proxy, LastSelection.Value, 0, ChildIndex);
+				}
+			}
+			else
+			{
+				TPair<UControlRigControlsProxy*, FName> Selected(Proxy, PropertyName);
+				PropertiesToSelect.Add(Selected);
+			}
+		}
+	}
+	else //no range set so 
+	{
+		TPair<UControlRigControlsProxy*, FName> Selected(Proxy, PropertyName);
+		PropertiesToSelect.Add(Selected);
+	}
+
+	return PropertiesToSelect;
+}
+
+bool UControlRigDetailPanelControlProxies::IsPropertyEditingEnabled() const
+{
+	return true;
+}
+
+void UControlRigDetailPanelControlProxies::SelectProperty(UControlRigControlsProxy* Proxy, const FName& PropertyName, EAnimDetailPropertySelectionType SelectionType)
+{
+	if (SelectionType == EAnimDetailPropertySelectionType::SelectRange && LastSelection.Key.IsValid())
+	{
+		TArray<TPair<UControlRigControlsProxy*, FName>> PropertiesToSelect = GetPropertiesFromLastSelection(Proxy, PropertyName);
+		for (TPair<UControlRigControlsProxy*, FName>& Selected : PropertiesToSelect)
+		{
+			SelectPropertyInternal(Selected.Key, Selected.Value, SelectionType);
+		}
+		LastSelection.Key = Proxy;
+		LastSelection.Value = PropertyName;
+	}
+	else
+	{
+		if (SelectPropertyInternal(Proxy, PropertyName, SelectionType))
+		{
+			LastSelection.Key = Proxy;
+			LastSelection.Value = PropertyName;
+		}
+	}
+}
+
+//may want this to be under each proxy? need to think about this.
+static bool GetChannelNameForCurve(const TArray<FString>& CurveString, const FRigControlElement* ControlElement, FString& OutChannelName)
+{
+	//if single channel expect one item and the name will match
+	if (ControlElement->Settings.ControlType == ERigControlType::ScaleFloat ||
+		ControlElement->Settings.ControlType == ERigControlType::Float ||
+		ControlElement->Settings.ControlType == ERigControlType::Bool ||
+		ControlElement->Settings.ControlType == ERigControlType::Integer)
+	{
+		if (CurveString[0] == ControlElement->GetKey().Name)
+		{
+			if (ControlElement->Settings.ControlType == ERigControlType::ScaleFloat ||
+				ControlElement->Settings.ControlType == ERigControlType::Float)
+			{
+				OutChannelName = FString("Float");
+				return true;
+			}
+			if (ControlElement->Settings.ControlType == ERigControlType::Bool)
+			{
+				OutChannelName = FString("Bool");
+				return true;
+			}
+			if (ControlElement->Settings.ControlType == ERigControlType::Integer)
+			{
+				OutChannelName = FString("Integer");
+				return true;
+			}
+		}
+	}
+	else if (CurveString.Num() > 1)
+	{
+		if (CurveString[0] == ControlElement->GetKey().Name)
+		{
+			if (CurveString.Num() == 3)
+			{
+				OutChannelName = CurveString[1] + "." + CurveString[2];
+				return true;
+			}
+			else if (CurveString.Num() == 2)
+			{
+				OutChannelName = CurveString[1];
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool UControlRigDetailPanelControlProxies::SelectPropertyInternal(UControlRigControlsProxy* Proxy, const FName& PropertyName, EAnimDetailPropertySelectionType SelectionType)
+{
+	using namespace UE::Sequencer;
+
+	const TSharedPtr<FSequencerEditorViewModel> SequencerViewModel = GetSequencer()->GetViewModel();
+	const FCurveEditorExtension* CurveEditorExtension = SequencerViewModel->CastDynamic<FCurveEditorExtension>();
+	check(CurveEditorExtension);
+	TSharedPtr<FCurveEditor> CurveEditor = CurveEditorExtension->GetCurveEditor();
+	TSharedPtr<SCurveEditorTree>  CurveEditorTreeView = CurveEditorExtension->GetCurveEditorTreeView();
+	TSharedPtr<FOutlinerViewModel> OutlinerViewModel = SequencerViewModel->GetOutliner();
+	bool bIsSelected = false;
+	if (Proxy)
+	{
+		for (const TPair<TWeakObjectPtr<UControlRig>, FControlRigProxyItem>& Items : Proxy->ControlRigItems)
+		{
+			if (UControlRig* ControlRig = Items.Value.ControlRig.Get())
+			{
+				for (const FName& CName : Items.Value.ControlElements)
+				{
+					if (FRigControlElement* ControlElement = Items.Value.GetControlElement(CName))
+					{
+						EControlRigContextChannelToKey ChannelToKey = Proxy->GetChannelToKeyFromPropertyName(PropertyName);
+						TParentFirstChildIterator<IOutlinerExtension> OutlinerExtenstionIt = OutlinerViewModel->GetRootItem()->GetDescendantsOfType<IOutlinerExtension>();
+						for (; OutlinerExtenstionIt; ++OutlinerExtenstionIt)
+						{
+							if (TSharedPtr<FTrackModel> TrackModel = OutlinerExtenstionIt.GetCurrentItem()->FindAncestorOfType<FTrackModel>())
+							{
+								if (UMovieSceneControlRigParameterTrack* Track = Cast<UMovieSceneControlRigParameterTrack>(TrackModel->GetTrack()))
+								{
+									if (Track->GetControlRig() != ControlRig || Track->GetAllSections().Num() < 1)
+									{
+										continue;
+									}
+									UMovieSceneSection* SectionToKey = Track->GetSectionToKey(ControlElement->GetFName()) ? Track->GetSectionToKey(ControlElement->GetFName()) : Track->GetAllSections()[0];
+									if (TViewModelPtr<FChannelGroupOutlinerModel> ChannelModel = CastViewModel<FChannelGroupOutlinerModel>(OutlinerExtenstionIt.GetCurrentItem()))
+									{
+										if (ChannelModel->GetChannel(SectionToKey) == nullptr) //if not section to key we also don't select it.
+										{
+											continue;
+										}
+									}
+									else
+									{
+										continue;
+									}
+									FName ID = OutlinerExtenstionIt->GetIdentifier();
+									FString Name = ID.ToString();
+									TArray<FString> StringArray;
+									Name.ParseIntoArray(StringArray, TEXT("."));
+
+									FString ChannelName;
+									if (GetChannelNameForCurve(StringArray, ControlElement, ChannelName))
+									{
+										EControlRigContextChannelToKey ChannelToKeyFromCurve = Proxy->GetChannelToKeyFromChannelName(ChannelName);
+										if (ChannelToKey == ChannelToKeyFromCurve)
+										{
+											if (TViewModelPtr<ICurveEditorTreeItemExtension> CurveEditorItem = OutlinerExtenstionIt.GetCurrentItem().ImplicitCast())
+											{
+												FCurveEditorTreeItemID CurveEditorTreeItem = CurveEditorItem->GetCurveEditorItemID();
+												if (CurveEditorTreeItem != FCurveEditorTreeItemID::Invalid())
+												{
+													bIsSelected = (SelectionType == EAnimDetailPropertySelectionType::Toggle) ? !CurveEditorTreeView->IsItemSelected(CurveEditorTreeItem) : true;
+													CurveEditorTreeView->SetItemSelection(CurveEditorTreeItem, bIsSelected);
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		for (const TPair<TWeakObjectPtr<UObject>, FSequencerProxyItem>& SItems : Proxy->SequencerItems)
+		{
+			if (UObject* Object = SItems.Key.Get())
+			{
+				for (const FBindingAndTrack& Element : SItems.Value.Bindings)
+				{
+					EControlRigContextChannelToKey ChannelToKey = Proxy->GetChannelToKeyFromPropertyName(PropertyName);
+					TParentFirstChildIterator<IOutlinerExtension> OutlinerExtenstionIt = OutlinerViewModel->GetRootItem()->GetDescendantsOfType<IOutlinerExtension>();
+					for (; OutlinerExtenstionIt; ++OutlinerExtenstionIt)
+					{
+						if (TSharedPtr<FTrackModel> TrackModel = OutlinerExtenstionIt.GetCurrentItem()->FindAncestorOfType<FTrackModel>())
+						{
+							if (TrackModel->GetTrack() == Element.WeakTrack.Get())
+							{
+								if (TrackModel->GetTrack()->GetAllSections().Num() < 1)
+								{
+									continue;
+								}
+								UMovieSceneSection* SectionToKey = TrackModel->GetTrack()->GetSectionToKey() ? TrackModel->GetTrack()->GetSectionToKey() : TrackModel->GetTrack()->GetAllSections()[0];
+								if (TViewModelPtr<FChannelGroupOutlinerModel> ChannelModel = CastViewModel<FChannelGroupOutlinerModel>(OutlinerExtenstionIt.GetCurrentItem()))
+								{
+									if (ChannelModel->GetChannel(SectionToKey) == nullptr) //if not section to key we also don't select it.
+									{
+										continue;
+									}
+								}
+								else
+								{
+									continue;
+								}
+								FName ID = OutlinerExtenstionIt->GetIdentifier();
+								FString Name = ID.ToString();
+								TArray<FString> StringArray;
+								Name.ParseIntoArray(StringArray, TEXT("."));
+
+								FString ChannelName;
+								if (StringArray.Num() == 2)
+								{
+									ChannelName = StringArray[0] + "." + StringArray[1];
+								}
+								else if (StringArray.Num() == 1)
+								{
+									ChannelName = StringArray[0];
+								}
+
+								EControlRigContextChannelToKey ChannelToKeyFromCurve = Proxy->GetChannelToKeyFromChannelName(ChannelName);
+								if (ChannelToKey == ChannelToKeyFromCurve)
+								{
+									if (TViewModelPtr<ICurveEditorTreeItemExtension> CurveEditorItem = OutlinerExtenstionIt.GetCurrentItem().ImplicitCast())
+									{
+										FCurveEditorTreeItemID CurveEditorTreeItem = CurveEditorItem->GetCurveEditorItemID();
+										if (CurveEditorTreeItem != FCurveEditorTreeItemID::Invalid())
+										{
+											bIsSelected = (SelectionType == EAnimDetailPropertySelectionType::Toggle) ? !CurveEditorTreeView->IsItemSelected(CurveEditorTreeItem) : true;
+											CurveEditorTreeView->SetItemSelection(CurveEditorTreeItem, bIsSelected);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return bIsSelected;
 }
 
 void FControlRigEnumControlProxyValueDetails::CustomizeHeader(TSharedRef<IPropertyHandle> InStructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils)

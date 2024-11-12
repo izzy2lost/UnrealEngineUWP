@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-set LLVM_VERSION=16.0.5
+set LLVM_VERSION=18.1.6
 
 Set TREE_ROOT=%~dp0
 Set LLVM_ROOT=%TREE_ROOT%\llvm-%LLVM_VERSION%

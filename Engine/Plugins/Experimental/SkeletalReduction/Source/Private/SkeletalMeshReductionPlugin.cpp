@@ -2324,7 +2324,6 @@ void FQuadricSkeletalMeshReduction::ReduceSkeletalMesh(USkeletalMesh& SkeletalMe
 		}
 		// Flag this LOD as having been simplified.
 		ReducedLODInfoPtr->bHasBeenSimplified = true;
-		SkeletalMesh.SetHasBeenSimplified(true);
 
 		//Restore the user sections data to what it was. It must be done if we want to avoid changing the DDC key. I.E. UserSectionData is part of the key
 		//DDC key cannot be change during the build
@@ -2381,7 +2380,6 @@ void FQuadricSkeletalMeshReduction::ReduceSkeletalMesh(USkeletalMesh& SkeletalMe
 
 		NewModel->RequiredBones.Empty();
 		SkeletalMesh.GetLODInfo(LODIndex)->bHasBeenSimplified = true;
-		SkeletalMesh.SetHasBeenSimplified(true);
 	}
 	
 	if (!bLODModelAdded)

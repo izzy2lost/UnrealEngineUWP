@@ -77,6 +77,11 @@ namespace UnrealBuildTool
 					DirectoryReference ArchOutputDir = new(OutputDir.FullName.Replace(PlatformArchitecturesString, ArchConfig.GetFolderNameForArchitecture(Arch)));
 
 					CppCompileEnvironment ArchEnvironment = new(CompileEnvironment, Arch);
+					if (ArchEnvironment.UserIncludePaths.Contains(OutputDir))
+					{
+						ArchEnvironment.UserIncludePaths.Remove(OutputDir);
+						ArchEnvironment.UserIncludePaths.Add(ArchOutputDir);
+					}
 					CPPOutput ArchResult = CompileCPPFiles(ArchEnvironment, InputFiles, ArchOutputDir, ModuleName, Graph);
 					Result.Merge(ArchResult, Arch);
 				}
@@ -95,19 +100,65 @@ namespace UnrealBuildTool
 			return Result;
 		}
 
-		public virtual CPPOutput CompileISPCFiles(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph)
+		protected abstract CPPOutput CompileISPCFiles(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph);
+
+		public CPPOutput CompileAllISPCFiles(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph)
 		{
-			CPPOutput Result = new CPPOutput();
+			CPPOutput Result;
+
+			UnrealArchitectureConfig ArchConfig = UnrealArchitectureConfig.ForPlatform(CompileEnvironment.Platform);
+			// compile architectures separately if needed
+			if (ArchConfig.Mode == UnrealArchitectureMode.SingleTargetCompileSeparately || ArchConfig.Mode == UnrealArchitectureMode.SingleTargetLinkSeparately)
+			{
+				Result = new CPPOutput();
+				foreach (UnrealArch Arch in CompileEnvironment.Architectures.Architectures)
+				{
+					string PlatformArchitecturesString = ArchConfig.GetFolderNameForArchitectures(CompileEnvironment.Architectures);
+					DirectoryReference ArchOutputDir = new(OutputDir.FullName.Replace(PlatformArchitecturesString, ArchConfig.GetFolderNameForArchitecture(Arch)));
+
+					CppCompileEnvironment ArchEnvironment = new(CompileEnvironment, Arch);
+					CPPOutput ArchResult = CompileISPCFiles(ArchEnvironment, InputFiles, ArchOutputDir, Graph);
+					Result.Merge(ArchResult, Arch);
+				}
+			}
+			else
+			{
+				Result = CompileISPCFiles(CompileEnvironment, InputFiles, OutputDir, Graph);
+			}
+
 			return Result;
 		}
 
-		public virtual CPPOutput GenerateISPCHeaders(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph)
+		protected abstract CPPOutput GenerateISPCHeaders(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph);
+
+		public CPPOutput GenerateAllISPCHeaders(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph)
 		{
-			CPPOutput Result = new CPPOutput();
+			CPPOutput Result;
+
+			UnrealArchitectureConfig ArchConfig = UnrealArchitectureConfig.ForPlatform(CompileEnvironment.Platform);
+			// compile architectures separately if needed
+			if (ArchConfig.Mode == UnrealArchitectureMode.SingleTargetCompileSeparately || ArchConfig.Mode == UnrealArchitectureMode.SingleTargetLinkSeparately)
+			{
+				Result = new CPPOutput();
+				foreach (UnrealArch Arch in CompileEnvironment.Architectures.Architectures)
+				{
+					string PlatformArchitecturesString = ArchConfig.GetFolderNameForArchitectures(CompileEnvironment.Architectures);
+					DirectoryReference ArchOutputDir = new(OutputDir.FullName.Replace(PlatformArchitecturesString, ArchConfig.GetFolderNameForArchitecture(Arch)));
+
+					CppCompileEnvironment ArchEnvironment = new(CompileEnvironment, Arch);
+					CPPOutput ArchResult = GenerateISPCHeaders(ArchEnvironment, InputFiles, ArchOutputDir, Graph);
+					Result.Merge(ArchResult, Arch);
+				}
+			}
+			else
+			{
+				Result = GenerateISPCHeaders(CompileEnvironment, InputFiles, OutputDir, Graph);
+			}
+
 			return Result;
 		}
 
-		public virtual void GenerateTypeLibraryHeader(CppCompileEnvironment CompileEnvironment, ModuleRules.TypeLibrary TypeLibrary, FileReference OutputFile, IActionGraphBuilder Graph)
+		public virtual void GenerateTypeLibraryHeader(CppCompileEnvironment CompileEnvironment, ModuleRules.TypeLibrary TypeLibrary, FileReference OutputFile, FileReference? OutputHeader, IActionGraphBuilder Graph)
 		{
 			throw new NotSupportedException("This platform does not support type libraries.");
 		}
@@ -267,6 +318,15 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// This is the extension of the file that is added as extra link object. It can be an obj file but also a dynamic list.. depends on the platform
+		/// </summary>
+		/// <returns>The extension (without dot)</returns>
+		public virtual string GetExtraLinkFileExtension()
+		{
+			throw new NotSupportedException("This platform does not support merged modules.");
+		}
+
+		/// <summary>
 		/// Runs the provided tool and argument. Returns the output, using a rexex capture if one is provided
 		/// </summary>
 		/// <param name="Command">Full path to the tool to run</param>
@@ -275,7 +335,7 @@ namespace UnrealBuildTool
 		/// <returns></returns>
 		protected string? RunToolAndCaptureOutput(FileReference Command, string ToolArg, string? Expression = null)
 		{
-			string ProcessOutput = Utils.RunLocalProcessAndReturnStdOut(Command.FullName, ToolArg, Logger);
+			string ProcessOutput = Utils.RunLocalProcessAndReturnStdOut(Command.FullName, ToolArg, null);
 
 			if (String.IsNullOrEmpty(Expression))
 			{

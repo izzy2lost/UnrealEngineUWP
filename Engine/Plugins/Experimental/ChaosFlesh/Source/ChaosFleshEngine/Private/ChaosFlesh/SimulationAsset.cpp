@@ -20,7 +20,7 @@ USimulationAsset::USimulationAsset(const FObjectInitializer& ObjectInitializer)
 
 void USimulationAsset::Init()
 {
-	SimulationCollection->AddAttribute<FVector3f>("ObjectState", FGeometryCollection::VerticesGroup);
+	SimulationCollection->AddAttribute<int32>("ObjectState", FGeometryCollection::VerticesGroup);
 }
 
 void USimulationAsset::Reset(const FManagedArrayCollection* InCopyFrom)

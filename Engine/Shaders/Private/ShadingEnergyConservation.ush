@@ -7,10 +7,22 @@
 // * If Substrate is disabled: OFF by default
 #if SUBSTRATE_ENABLED || LEGACY_MATERIAL_ENERGYCONSERVATION
 	#undef USE_ENERGY_CONSERVATION
-	#define USE_ENERGY_CONSERVATION 1
+	#if SUPPORTS_INDEPENDENT_SAMPLERS 
+		#define USE_ENERGY_CONSERVATION 1
+	#else
+		// Platforms that do not support shared sampler will in fact quickly reach the limit of samplers in material pixel shaders.
+		// This is mostly true for OpenGLES. In this case, we enforce disabling energy conservation to be able to compile substrate materials.
+		#define USE_ENERGY_CONSERVATION 0
+	#endif
 #else
 	#undef USE_ENERGY_CONSERVATION
 	#define USE_ENERGY_CONSERVATION 0
+#endif
+
+#if SUPPORTS_INDEPENDENT_SAMPLERS
+	#define SharedShadingEnergySampler			View.SharedBilinearClampedSampler
+#else
+	#define SharedShadingEnergySampler			View.ShadingEnergySampler
 #endif
 
 // Energy compensation/preservation for the various BxDFs. This file provides utility functions to tweak lobe weights
@@ -42,7 +54,7 @@
 float2 GGXEnergyLookup(float Roughness, float NoV)
 {
 #if USE_ENERGY_CONSERVATION == 1
-	return View.ShadingEnergyGGXSpecTexture.SampleLevel(View.ShadingEnergySampler, float2(NoV, Roughness), 0);
+	return View.ShadingEnergyGGXSpecTexture.SampleLevel(SharedShadingEnergySampler, float2(NoV, Roughness), 0);
 #elif USE_ENERGY_CONSERVATION == 2
 	const float r = Roughness;
 	const float c = NoV;
@@ -60,7 +72,7 @@ float GGXEnergyLookup(float Roughness, float NoV, float Eta)
 	// This break reciprocity, but is much simpler than the approach outlined in [1] which requires substantially more computation.
 #if USE_ENERGY_CONSERVATION == 1
 	// NOTE: Eta is encoded for [1,3] range only, energy loss will happens above 3.0 - but this keeps more resolution on the visually significant portion of the range
-	float2 E = View.ShadingEnergyGGXGlassTexture.SampleLevel(View.ShadingEnergySampler, float3(NoV, Roughness, max(Eta, rcp(Eta)) * 0.5 - 0.5), 0);
+	float2 E = View.ShadingEnergyGGXGlassTexture.SampleLevel(SharedShadingEnergySampler, float3(NoV, Roughness, max(Eta, rcp(Eta)) * 0.5 - 0.5), 0);
 	return Eta >= 1.0 ? E.x : E.y;
 #else
 	// TODO: find an analytic fit for this case
@@ -71,7 +83,7 @@ float GGXEnergyLookup(float Roughness, float NoV, float Eta)
 float2 ClothEnergyLookup(float Roughness, float NoV)
 {
 #if USE_ENERGY_CONSERVATION == 1
-	return View.ShadingEnergyClothSpecTexture.SampleLevel(View.ShadingEnergySampler, float2(NoV, Roughness), 0);
+	return View.ShadingEnergyClothSpecTexture.SampleLevel(SharedShadingEnergySampler, float2(NoV, Roughness), 0);
 #elif USE_ENERGY_CONSERVATION == 2
 	// Simple analytical fit (avoids building a table)
 	// NOTE: this fit is not exact near grazing angles for roughness ~0.7
@@ -89,7 +101,7 @@ float2 ClothEnergyLookup(float Roughness, float NoV)
 float DiffuseEnergyLookup(float Roughness, float NoV)
 {
 #if USE_ENERGY_CONSERVATION == 1
-	//return View.ShadingEnergyDiffuseTexture.SampleLevel(View.ShadingEnergySampler, float2(NoV, Roughness), 0);
+	//return View.ShadingEnergyDiffuseTexture.SampleLevel(SharedShadingEnergySampler, float2(NoV, Roughness), 0);
 	// For now we do not apply Chan diffuse energy preservation on diffuse ambiant.
 	// This is because Chan is built for F=0.04 and unfortunately this causes ambient to darken a grazing angles.
 	// SUBSTRATE_TODO Apply the inverse of Fresnel with F=0.04 on Chan when building the table.

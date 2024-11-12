@@ -25,6 +25,7 @@
 #include "K2Node_TemporaryVariable.h"
 #include "K2Node_ExecutionSequence.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "Kismet2/WildcardNodeUtils.h"
 #include "Settings/EditorStyleSettings.h"
 #include "Editor.h"
 #include "Editor/UnrealEdEngine.h"
@@ -48,6 +49,7 @@
 #include "HAL/FileManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "BlueprintNodeStatics.h"
+#include "ObjectTools.h"
 #include "Settings/BlueprintEditorProjectSettings.h"
 #include "ToolMenu.h"
 
@@ -554,19 +556,15 @@ FEdGraphNodeDeprecationResponse UK2Node_CallFunction::GetDeprecationResponse(EEd
 	FEdGraphNodeDeprecationResponse Response = Super::GetDeprecationResponse(DeprecationType);
 	if (DeprecationType == EEdGraphNodeDeprecationType::NodeHasDeprecatedReference)
 	{
-		// TEMP: Do not warn in the case of SpawnActor, as we have a special upgrade path for those nodes
-		if (FunctionReference.GetMemberName() == FName(TEXT("BeginSpawningActorFromBlueprint")))
+		UFunction* Function = GetTargetFunction();
+		if (ensureMsgf(Function != nullptr, TEXT("This node should not be able to report having a deprecated reference if the target function cannot be resolved.")))
 		{
-			Response.MessageType = EEdGraphNodeDeprecationMessageType::None;
-		}
-		else
-		{
-			UFunction* Function = GetTargetFunction();
-			if (ensureMsgf(Function != nullptr, TEXT("This node should not be able to report having a deprecated reference if the target function cannot be resolved.")))
-			{
-				FString DetailedMessage = Function->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage);
-				Response.MessageText = FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(GetUserFacingFunctionName(Function), FText::FromString(DetailedMessage));
-			}
+			// Check the deprecation type to override the severity
+			FString MessageType = Function->GetMetaData(FBlueprintMetadata::MD_DeprecatedFunction);
+			Response.MessageType = FBlueprintEditorUtils::GetDeprecatedMessageType(MessageType);
+
+			FString DetailedMessage = Function->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage);
+			Response.MessageText = FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(ObjectTools::GetUserFacingFunctionName(Function), FText::FromString(DetailedMessage));
 		}
 	}
 	
@@ -608,8 +606,9 @@ FText UK2Node_CallFunction::GetNodeTitle(ENodeTitleType::Type TitleType) const
 
 	if (UFunction* Function = GetTargetFunction())
 	{
+		const bool bAllowFriendlyNames = (TitleType == ENodeTitleType::FullTitle);
 		RPCString = UK2Node_Event::GetLocalizedNetString(Function->FunctionFlags, true);
-		FunctionName = GetUserFacingFunctionName(Function);
+		FunctionName = ObjectTools::GetUserFacingFunctionName(Function, bAllowFriendlyNames);
 		ContextString = GetFunctionContextString();
 	}
 	else
@@ -854,6 +853,11 @@ void UK2Node_CallFunction::ReallocatePinsDuringReconstruction(TArray<UEdGraphPin
 	ReconnectPureExecPins(OldPins);
 }
 
+bool UK2Node_CallFunction::IsNodePure() const
+{
+	return !AreExecPinsVisible();
+}
+
 UEdGraphPin* UK2Node_CallFunction::CreateSelfPin(const UFunction* Function)
 {
 	return FBlueprintNodeStatics::CreateSelfPin(this, Function);
@@ -867,7 +871,7 @@ void UK2Node_CallFunction::CreateExecPinsForFunctionCall(const UFunction* Functi
 	ExpandAsEnumPins.Reset();
 
 	// If not pure, create exec pins
-	if (!bIsPureFunc)
+	if (!IsNodePure())
 	{
 		// If we want enum->exec expansion, and it is not disabled, do it now
 		if (bWantsEnumToExecExpansion)
@@ -938,7 +942,7 @@ void UK2Node_CallFunction::CreateExecPinsForFunctionCall(const UFunction* Functi
 								else
 								{
 									CreatedPin = CreatePin(Direction, UEdGraphSchema_K2::PC_Exec, *NameStr);
-									CreatedPin->PinFriendlyName = FText::FromString(FString::Printf(TEXT("(%s) %s"), *Prop->GetDisplayNameText().ToString(), *NameStr));
+									CreatedPin->PinFriendlyName = FText::AsCultureInvariant(FString::Printf(TEXT("(%s) %s"), *Prop->GetDisplayNameText().ToString(), *NameStr));
 								}
 
 								ExpandAsEnumPins.Add(CreatedPin);
@@ -1124,9 +1128,7 @@ bool UK2Node_CallFunction::CreatePinsForFunctionCall(const UFunction* Function)
 
 	UClass* FunctionOwnerClass = Function->GetOuterUClass();
 
-	bIsInterfaceCall = FunctionOwnerClass->HasAnyClassFlags(CLASS_Interface);
-	bIsPureFunc = (Function->HasAnyFunctionFlags(FUNC_BlueprintPure) != false);
-	bIsConstFunc = (Function->HasAnyFunctionFlags(FUNC_Const) != false);
+	bDefaultsToPureFunc = Function->HasAnyFunctionFlags(FUNC_BlueprintPure);
 	DetermineWantsEnumToExecExpansion(Function);
 
 	// Create input pins
@@ -1140,8 +1142,8 @@ bool UK2Node_CallFunction::CreatePinsForFunctionCall(const UFunction* Function)
 	const bool bIsProtectedFunc = Function->GetBoolMetaData(FBlueprintMetadata::MD_Protected);
 	const bool bIsStaticFunc = Function->HasAllFunctionFlags(FUNC_Static);
 
-	UEdGraph const* const Graph = GetGraph();
-	UBlueprint* BP = FBlueprintEditorUtils::FindBlueprintForGraph(Graph);
+	const UEdGraph* const Graph = GetGraph();
+	const UBlueprint* BP = FBlueprintEditorUtils::FindBlueprintForGraph(Graph);
 	ensure(BP);
 	if (BP != nullptr)
 	{
@@ -1168,8 +1170,11 @@ bool UK2Node_CallFunction::CreatePinsForFunctionCall(const UFunction* Function)
 			}
 			else
 			{
-				// Hide the self pin if the function is compatible with the blueprint class and pure (the !bIsConstFunc portion should be going away soon too hopefully)
-				SelfPin->bHidden = (bIsFunctionCompatibleWithSelf && bIsPureFunc && !bIsConstFunc);
+				const bool bLocalIsConstFunc = (Function->HasAnyFunctionFlags(FUNC_Const) != false);
+
+				// Non-const pure functions are generally compact looking, so we take advantage of that by hiding the self pin if we can.
+				// In this case, if the function belongs to our current class, then "self" is implied.
+				SelfPin->bHidden = (bIsFunctionCompatibleWithSelf && IsNodePure() && !bLocalIsConstFunc);
 			}
 		}
 	}
@@ -1202,7 +1207,7 @@ bool UK2Node_CallFunction::CreatePinsForFunctionCall(const UFunction* Function)
 			const FString& PinDisplayName = Param->GetMetaData(FBlueprintMetadata::MD_DisplayName);
 			if (!PinDisplayName.IsEmpty())
 			{
-				Pin->PinFriendlyName = FText::FromString(PinDisplayName);
+				Pin->PinFriendlyName = FText::AsCultureInvariant(PinDisplayName);
 			}
 			else if (Function->GetReturnProperty() == Param && Function->HasMetaData(FBlueprintMetadata::MD_ReturnDisplayName))
 			{
@@ -1317,6 +1322,18 @@ void UK2Node_CallFunction::PostReconstructNode()
 		// Remove the breakpoint
 		FKismetDebugUtilities::RemoveBreakpointFromNode(this, GetBlueprint());
 	}
+
+	// If the user marked the override as pure, but the underlying function changed to have no outputs,
+	// then we need to reset the override. Nodes can only be pure if they have outputs.
+	const bool bNeedsPurityOverrideReset =
+		(NodePurityOverride == ENodePurityOverride::Pure) &&
+		!FunctionHasOutputs()
+	;
+	
+	if (bNeedsPurityOverrideReset)
+	{
+		NodePurityOverride = ENodePurityOverride::Unset;
+	}
 }
 
 void UK2Node_CallFunction::NotifyPinConnectionListChanged(UEdGraphPin* Pin)
@@ -1380,13 +1397,6 @@ UFunction* UK2Node_CallFunction::GetTargetFunctionFromSkeletonClass() const
 		TargetFunction = SkeletonClass->FindFunctionByName( FunctionReference.GetMemberName() );
 	}
 	return TargetFunction;
-}
-
-UEdGraphPin* UK2Node_CallFunction::GetThenPin() const
-{
-	UEdGraphPin* Pin = FindPin(UEdGraphSchema_K2::PN_Then);
-	check(Pin == nullptr || Pin->Direction == EGPD_Output); // If pin exists, it must be output
-	return Pin;
 }
 
 UEdGraphPin* UK2Node_CallFunction::GetReturnValuePin() const
@@ -1626,7 +1636,7 @@ FText UK2Node_CallFunction::GetTooltipText() const
 	}
 	else if (CachedTooltip.IsOutOfDate(this))
 	{
-		FText BaseTooltip = FText::FromString(GetDefaultTooltipForFunction(Function));
+		FText BaseTooltip = FText::FromString(ObjectTools::GetDefaultTooltipForFunction(Function));
 
 		FFormatNamedArguments Args;
 		Args.Add(TEXT("DefaultTooltip"), BaseTooltip);
@@ -1794,72 +1804,15 @@ void UK2Node_CallFunction::GeneratePinTooltipFromFunction(UEdGraphPin& Pin, cons
 	GetDefault<UEdGraphSchema_K2>()->ConstructBasicPinTooltip(Pin, FText::FromString(Pin.PinToolTip), Pin.PinToolTip);
 }
 
-FText UK2Node_CallFunction::GetUserFacingFunctionName(const UFunction* Function)
+FText UK2Node_CallFunction::GetUserFacingFunctionName(const UFunction* Function, ENodeTitleType::Type NodeTitleType /*= ENodeTitleType::EditableTitle*/)
 {
-	FText ReturnDisplayName;
-
-	if (Function != NULL)
-	{
-		if (GEditor && GetDefault<UEditorStyleSettings>()->bShowFriendlyNames)
-		{
-			ReturnDisplayName = Function->GetDisplayNameText();
-		}
-		else
-		{
-			static const FString Namespace = TEXT("UObjectDisplayNames");
-			const FString Key = Function->GetFullGroupName(false);
-
-			ReturnDisplayName = Function->GetMetaDataText(TEXT("DisplayName"), Namespace, Key);
-		}
-	}
-	return ReturnDisplayName;
+	const bool bAllowFriendlyNames = NodeTitleType == ENodeTitleType::FullTitle;
+	return ObjectTools::GetUserFacingFunctionName(Function, bAllowFriendlyNames);
 }
 
 FString UK2Node_CallFunction::GetDefaultTooltipForFunction(const UFunction* Function)
 {
-	FString Tooltip;
-
-	if (Function != NULL)
-	{
-		Tooltip = Function->GetToolTipText().ToString();
-	}
-
-	if (!Tooltip.IsEmpty())
-	{
-		// Strip off the doxygen nastiness
-		static const FString DoxygenParam(TEXT("@param"));
-		static const FString DoxygenReturn(TEXT("@return"));
-		static const FString DoxygenSee(TEXT("@see"));
-		static const FString TooltipSee(TEXT("See:"));
-		static const FString DoxygenNote(TEXT("@note"));
-		static const FString TooltipNote(TEXT("Note:"));
-
-		Tooltip.Split(DoxygenParam, &Tooltip, nullptr, ESearchCase::IgnoreCase, ESearchDir::FromStart);
-		Tooltip.Split(DoxygenReturn, &Tooltip, nullptr, ESearchCase::IgnoreCase, ESearchDir::FromStart);
-
-		Tooltip.ReplaceInline(*DoxygenSee, *TooltipSee);
-		Tooltip.ReplaceInline(*DoxygenNote, *TooltipNote);
-
-		Tooltip.TrimStartAndEndInline();
-
-		UClass* CurrentSelfClass = (Function != NULL) ? Function->GetOwnerClass() : NULL;
-		UClass const* TrueSelfClass = CurrentSelfClass;
-		if (CurrentSelfClass && CurrentSelfClass->ClassGeneratedBy)
-		{
-			TrueSelfClass = CurrentSelfClass->GetAuthoritativeClass();
-		}
-
-		FText TargetDisplayText = (TrueSelfClass != NULL) ? TrueSelfClass->GetDisplayNameText() : LOCTEXT("None", "None");
-
-		FFormatNamedArguments Args;
-		Args.Add(TEXT("TargetName"), TargetDisplayText);
-		Args.Add(TEXT("Tooltip"), FText::FromString(Tooltip));
-		return FText::Format(LOCTEXT("CallFunction_Tooltip", "{Tooltip}\n\nTarget is {TargetName}"), Args).ToString();
-	}
-	else
-	{
-		return GetUserFacingFunctionName(Function).ToString();
-	}
+	return ObjectTools::GetDefaultTooltipForFunction(Function);
 }
 
 FText UK2Node_CallFunction::GetDefaultCategoryForFunction(const UFunction* Function, const FText& BaseCategory)
@@ -1932,8 +1885,7 @@ void UK2Node_CallFunction::SetFromFunction(const UFunction* Function)
 {
 	if (Function != NULL)
 	{
-		bIsPureFunc = Function->HasAnyFunctionFlags(FUNC_BlueprintPure);
-		bIsConstFunc = Function->HasAnyFunctionFlags(FUNC_Const);
+		bDefaultsToPureFunc = Function->HasAnyFunctionFlags(FUNC_BlueprintPure);
 		DetermineWantsEnumToExecExpansion(Function);
 
 		FunctionReference.SetFromField<UFunction>(Function, GetBlueprintClassFromNode());
@@ -2120,6 +2072,28 @@ void UK2Node_CallFunction::FixupSelfMemberContext()
 	}
 }
 
+bool UK2Node_CallFunction::CanToggleNodePurity() const
+{
+	// If the underlying function defaults to pure, then we can always toggle it.
+	// If not, then we only allow it if enabled in the project settings.
+	// Additionally, only functions with ouputs can be toggled.
+	// Otherwise, you can end up with a pure node with no outputs that's never evaluated.
+
+	const bool bFunctionHasOutputs = FunctionHasOutputs();
+
+	if (bDefaultsToPureFunc)
+	{
+		return bFunctionHasOutputs;
+	}
+	else
+	{
+		const UBlueprintEditorProjectSettings* EditorProjectSettings = GetDefault<UBlueprintEditorProjectSettings>();
+		check(EditorProjectSettings);
+
+		return bFunctionHasOutputs && EditorProjectSettings->bAllowImpureToPureNodeConversion;
+	}
+}
+
 void UK2Node_CallFunction::SuppressDeprecationWarning() const
 {
 	if (UFunction* Function = GetTargetFunction())
@@ -2234,7 +2208,7 @@ void UK2Node_CallFunction::ValidateNodeDuringCompilation(class FCompilerResultsL
 
 	const UBlueprint* Blueprint = GetBlueprint();
 	UFunction *Function = GetTargetFunction();
-	if (Function == NULL)
+	if (Function == nullptr)
 	{
 		FString OwnerName;
 
@@ -2321,7 +2295,7 @@ void UK2Node_CallFunction::ValidateNodeDuringCompilation(class FCompilerResultsL
 				}
 			}
 
-			if ( bNodeIsInConstructionScript )
+			if (bNodeIsInConstructionScript)
 			{
 				MessageLog.Warning(*LOCTEXT("FunctionUnsafeDuringConstruction", "Function '@@' is unsafe to call in a construction script.").ToString(), this);
 			}
@@ -2353,7 +2327,7 @@ void UK2Node_CallFunction::ValidateNodeDuringCompilation(class FCompilerResultsL
 			}
 		}
 
-		if(Blueprint && !FBlueprintEditorUtils::IsNativeSignature(Function))
+		if (Blueprint && !FBlueprintEditorUtils::IsNativeSignature(Function))
 		{
 			// enforce protected function restriction
 			const bool bCanTreatAsError = Blueprint->GetLinkerCustomVersion(FFrameworkObjectVersion::GUID) >= FFrameworkObjectVersion::EnforceBlueprintFunctionVisibility;
@@ -2377,7 +2351,7 @@ void UK2Node_CallFunction::ValidateNodeDuringCompilation(class FCompilerResultsL
 			const bool bFuncBelongsToClass = bFuncBelongsToSubClass && (Blueprint->SkeletonGeneratedClass == Function->GetOuterUClass());
 			if (bIsPrivate && !bFuncBelongsToClass)
 			{
-				if(bCanTreatAsError)
+				if (bCanTreatAsError)
 				{
 					MessageLog.Error(*LOCTEXT("FunctionPrivateAccessed", "Function '@@' is private and can't be accessed outside of its defined class '@@'.").ToString(), this, Function->GetOuterUClass());
 				}
@@ -2386,6 +2360,20 @@ void UK2Node_CallFunction::ValidateNodeDuringCompilation(class FCompilerResultsL
 					MessageLog.Note(*LOCTEXT("FunctionPrivateAccessedNote", "Function '@@' is private and can't be accessed outside of its defined class '@@' - this will be an error if the asset is resaved.").ToString(), this, Function->GetOuterUClass());
 				}
 			}
+		}
+
+		const UBlueprintEditorProjectSettings* EditorProjectSettings = GetDefault<UBlueprintEditorProjectSettings>();
+		check(EditorProjectSettings);
+
+		const bool bHasIllegalPureOverride =
+			!bDefaultsToPureFunc &&
+			(NodePurityOverride == ENodePurityOverride::Pure) &&
+			(!EditorProjectSettings->bAllowImpureToPureNodeConversion)
+		;
+
+		if (bHasIllegalPureOverride)
+		{
+			MessageLog.Warning(*LOCTEXT("IllegalPureNodeOverride", "Function '@@' is not pure and conversions to pure nodes are illegal in this project. Either replace the node or enable pure node conversions in the project settings.").ToString(), this);
 		}
 	}
 
@@ -3147,14 +3135,20 @@ void UK2Node_CallFunction::ConformContainerPins()
 		{
 			if (Pin->HasAnyConnections() || !Pin->DoesDefaultValueMatchAutogenerated() )
 			{
-				bOutPropagated = true;
+				FEdGraphTerminalType TypeToPotentiallyPropagate;
 				if (Pin->LinkedTo.Num() != 0)
 				{
-					TypeToPropagete = Pin->LinkedTo[0]->GetPrimaryTerminalType();
+					TypeToPotentiallyPropagate = Pin->LinkedTo[0]->GetPrimaryTerminalType();
 				}
 				else
 				{
-					TypeToPropagete = Pin->GetPrimaryTerminalType();
+					TypeToPotentiallyPropagate = Pin->GetPrimaryTerminalType();
+				}
+				
+				if (!FWildcardNodeUtils::IsWildcardPin(TypeToPotentiallyPropagate))
+				{
+					bOutPropagated = true;
+					TypeToPropagete = TypeToPotentiallyPropagate;
 				}
 			}
 		}
@@ -3166,14 +3160,16 @@ void UK2Node_CallFunction::ConformContainerPins()
 		{
 			if (Pin->LinkedTo.Num() != 0 || !Pin->DoesDefaultValueMatchAutogenerated())
 			{
-				bOutPropagated = true;
+				const FEdGraphTerminalType* ValueType = &Pin->PinType.PinValueType;
 				if (Pin->LinkedTo.Num() != 0)
 				{
-					TypeToPropagete = Pin->LinkedTo[0]->PinType.PinValueType;
+					ValueType = &(Pin->LinkedTo[0]->PinType.PinValueType);
 				}
-				else
+
+				if (!FWildcardNodeUtils::IsWildcardPin(*ValueType))
 				{
-					TypeToPropagete = Pin->PinType.PinValueType;
+					bOutPropagated = true;
+					TypeToPropagete = *ValueType;
 				}
 			}
 		}
@@ -3301,7 +3297,7 @@ void UK2Node_CallFunction::ConformContainerPins()
 	const FString& MapKeyPinMetaData = TargetFunction->GetMetaData(FBlueprintMetadata::MD_MapKeyParam);
 	const FString& MapValuePinMetaData = TargetFunction->GetMetaData(FBlueprintMetadata::MD_MapValueParam);
 
-	if(!MapPinMetaData.IsEmpty() || !MapKeyPinMetaData.IsEmpty() || !MapValuePinMetaData.IsEmpty() )
+	if (!MapPinMetaData.IsEmpty() || !MapKeyPinMetaData.IsEmpty() || !MapValuePinMetaData.IsEmpty())
 	{
 		// if the map pin has a connection infer from that, otherwise use the information on the key param and value param:
 		bool bReadyToPropagateKeyType = false;
@@ -3324,6 +3320,68 @@ void UK2Node_CallFunction::ConformContainerPins()
 		TryPropagateValueType(MapPin, ValueTypeToPropagate, bReadyToPropagateValueType);
 		TryPropagateType(MapValuePin, ValueTypeToPropagate, bReadyToPropagateValueType);
 	}
+}
+
+bool UK2Node_CallFunction::AreExecPinsVisible() const
+{
+	const bool bAreExecPinsVisible =
+		(NodePurityOverride == ENodePurityOverride::Impure) ||
+		(!bDefaultsToPureFunc && NodePurityOverride != ENodePurityOverride::Pure)
+	;
+
+	return bAreExecPinsVisible;
+}
+
+bool UK2Node_CallFunction::FunctionHasOutputs() const
+{
+	bool bCanToggle = false;
+
+	const UFunction* Function = GetTargetFunction();
+	if (ensure(Function))
+	{
+		for (TFieldIterator<FProperty> PropIt(Function); PropIt && (PropIt->PropertyFlags & CPF_Parm); ++PropIt)
+		{
+			bCanToggle =
+				PropIt->HasAnyPropertyFlags(CPF_ReturnParm) ||
+				PropIt->HasAnyPropertyFlags(CPF_OutParm)
+				;
+
+			if (bCanToggle)
+			{
+				break;
+			}
+		}
+	}
+
+	return bCanToggle;
+}
+
+void UK2Node_CallFunction::ToggleNodePurityOverride()
+{
+	const FText TransactionTitle = AreExecPinsVisible() ? LOCTEXT("HideExecPins", "Hide Exec pins") : LOCTEXT("ShowExecPins", "Show Exec pins");
+	
+	FScopedTransaction Transaction(TransactionTitle);
+	Modify();
+
+	switch (NodePurityOverride)
+	{
+	case ENodePurityOverride::Unset:
+		NodePurityOverride = bDefaultsToPureFunc ? ENodePurityOverride::Impure : ENodePurityOverride::Pure;
+		break;
+
+	case ENodePurityOverride::Pure:
+		NodePurityOverride = ENodePurityOverride::Impure;
+		break;
+
+	case ENodePurityOverride::Impure:
+		NodePurityOverride = ENodePurityOverride::Pure;
+		break;
+
+	default:
+		checkNoEntry();
+	}
+	
+	ReconstructNode();
 }
 
 FText UK2Node_CallFunction::GetToolTipHeading() const
@@ -3663,12 +3721,13 @@ void UK2Node_CallFunction::GetNodeContextMenuActions(class UToolMenu* Menu, clas
 {
 	Super::GetNodeContextMenuActions(Menu, Context);
 
+	FToolMenuSection& Section = Menu->AddSection("K2NodeCallFunction", LOCTEXT("FunctionHeader", "Function"));
+
 	if (HasDeprecatedReference())
 	{
-		FText MenuEntryTitle = LOCTEXT("SuppressFunctionDeprecationWarningTitle", "Suppress Deprecation Warning");
-		FText MenuEntryTooltip = LOCTEXT("SuppressFunctionDeprecationWarningTooltip", "Adds this function to the suppressed deprecation warnings list in the Bluperint Editor Project Settings for this project.");
+		const FText MenuEntryTitle = LOCTEXT("SuppressFunctionDeprecationWarningTitle", "Suppress Deprecation Warning");
+		const FText MenuEntryTooltip = LOCTEXT("SuppressFunctionDeprecationWarningTooltip", "Adds this function to the suppressed deprecation warnings list in the Bluperint Editor Project Settings for this project.");
 
-		FToolMenuSection& Section = Menu->AddSection("K2NodeCallFunction", LOCTEXT("FunctionHeader", "Function"));
 		Section.AddMenuEntry(
 			"SuppressDeprecationWarning",
 			MenuEntryTitle,
@@ -3677,6 +3736,30 @@ void UK2Node_CallFunction::GetNodeContextMenuActions(class UToolMenu* Menu, clas
 			FUIAction(
 				FExecuteAction::CreateUObject(this, &UK2Node_CallFunction::SuppressDeprecationWarning),
 				FCanExecuteAction::CreateUObject(this, &UK2Node_CallFunction::HasDeprecatedReference),
+				FIsActionChecked()
+			)
+		);
+	}
+
+	if (CanToggleNodePurity())
+	{
+		const FText HideExecPinsTitle = LOCTEXT("HideExecPins", "Hide Exec pins");
+		const FText ShowExecPinsTitle = LOCTEXT("ShowExecPins", "Show Exec pins");
+		const FText HideExecPinsTooltip = LOCTEXT("HideExecPinsTooltip", "Hide the node's Exec pins. The node will be Pure and will execute once for each node connected to an output pin.");
+		const FText ShowExecPinsTooltip = LOCTEXT("ShowExecPinsTooltip", "Show the node's Exec pins. The node will not be Pure and will have execution pins that must be connected to the graph. The outputs may also be cached for later use.");
+
+		const bool bAreExecPinsVisible = AreExecPinsVisible();
+		const FText& MenuEntryTitle = bAreExecPinsVisible ? HideExecPinsTitle : ShowExecPinsTitle;
+		const FText& MenuEntryTooltip = bAreExecPinsVisible ? HideExecPinsTooltip : ShowExecPinsTooltip;
+
+		Section.AddMenuEntry(
+			TEXT("ToggleExecPins"),
+			MenuEntryTitle,
+			MenuEntryTooltip,
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateUObject(const_cast<UK2Node_CallFunction*>(this), &UK2Node_CallFunction::ToggleNodePurityOverride),
+				FCanExecuteAction(),
 				FIsActionChecked()
 			)
 		);

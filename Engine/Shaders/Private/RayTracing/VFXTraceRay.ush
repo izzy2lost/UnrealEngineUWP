@@ -12,6 +12,24 @@
 #include "RayTracingCommon.ush"
 #include "RayTracingHitGroupCommon.ush"
 
+#if COMPUTESHADER
+#include "TraceRayInline.ush"
+
+struct FVFXTracePayload
+{
+	float HitT;
+	uint GPUSceneInstanceId;
+	float2 Barycentrics;
+	float3 TranslatedWorldPosition;
+	float3 WorldNormal;
+
+	bool IsMiss() { return HitT < 0; }
+	bool IsHit() { return !IsMiss(); }
+
+	void SetMiss() { HitT = -1; }
+};
+
+#endif
 
 #ifdef OVERRIDE_VFXTRACERAY_USH
 #include "/Platform/Private/VFXTraceRay.ush"
@@ -20,8 +38,7 @@
 void InitVFXTracePayloadFromHitShader(FRayTracingIntersectionAttributes Attributes, out FVFXTracePayload OutPayload)
 {
 	OutPayload.HitT = RayTCurrent();
-	OutPayload.PrimitiveIndex = GetInstanceUserData();
-	OutPayload.InstanceIndex = InstanceIndex() - GetBaseInstanceIndex();
+	OutPayload.GPUSceneInstanceId = GetInstanceUserData();
 	OutPayload.Barycentrics = Attributes.GetBarycentrics();
 
 	//Reconstruct world position.
@@ -54,6 +71,34 @@ void VfxTraceRay(
 	TraceRay(AccelerationStructure, RayFlags, InstanceInclusionMask, RayContributionToHitGroupIndex, MultiplierForGeometryContributionToHitGroupIndex, MissShaderIndex, InRay, Payload);
 }
 
-#endif //#ifndef UE_TRACE_RAY
+#endif //#ifndef OVERRIDE_VFXTRACERAY_USH
+
+#if COMPUTESHADER
+
+void VfxTraceRayInline(
+	RaytracingAccelerationStructure AccelerationStructure,
+	uint RayFlags,
+	uint InstanceInclusionMask,
+	RayDesc InRay,
+
+	inout FVFXTracePayload Payload)
+{
+	FTraceRayInlineContext TraceContext = CreateTraceRayInlineContext();
+	FTraceRayInlineResult TraceResult = TraceRayInline(AccelerationStructure, RayFlags, InstanceInclusionMask, InRay, TraceContext);
+	if (TraceResult.IsHit())
+	{
+		Payload.HitT = TraceResult.HitT;
+		Payload.GPUSceneInstanceId = TraceResult.InstanceID;
+		Payload.Barycentrics = TraceResult.Barycentrics;
+		Payload.WorldNormal = TraceResult.WorldGeometryNormal;
+		Payload.TranslatedWorldPosition = InRay.Origin + InRay.Direction * TraceResult.HitT;
+	}
+	else
+	{
+		Payload.SetMiss();
+	}
+}
+
+#endif
 
 #endif // UE_TRACE_RAY_USH_INCLUDED // Workarround for UE-66460

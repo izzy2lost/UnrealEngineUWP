@@ -2,9 +2,8 @@
 
 #pragma once
 
-// HEADER_UNIT_SKIP - Included by rc files and break if I include proper files
-
-#include "../HAL/PreprocessorHelpers.h"
+#include "HAL/Platform.h"
+#include "HAL/PreprocessorHelpers.h"
 
 // When passed to pragma message will result in clickable warning in VS
 #define WARNING_LOCATION(Line) __FILE__ "(" PREPROCESSOR_TO_STRING(Line) ")"
@@ -29,7 +28,11 @@
 #endif
 
 /** This controls if metadata for compiled in classes is unpacked and setup at boot time. Meta data is not normally used except by the editor. **/
-#define WITH_METADATA (WITH_EDITORONLY_DATA && WITH_EDITOR)
+#ifndef WITH_METADATA
+#define WITH_METADATA WITH_EDITORONLY_DATA
+#elif WITH_EDITORONLY_DATA && !WITH_METADATA
+#error WITH_EDITORONLY_DATA=1 requires WITH_METADATA=1
+#endif
 
 // Option to check for UE_DISABLE_OPTIMIZATION being submitted
 #ifndef UE_CHECK_DISABLE_OPTIMIZATION
@@ -140,6 +143,7 @@ enum EForceInit
 };
 enum ENoInit {NoInit};
 enum EInPlace {InPlace};
+enum EPerElement {PerElement};
 
 #endif // RC_INVOKED
 
@@ -151,8 +155,6 @@ enum EInPlace {InPlace};
 	#define UE_PUSH_MACRO(name) __pragma(push_macro(name))
 	#define UE_POP_MACRO(name) __pragma(pop_macro(name))
 #endif
-#define PUSH_MACRO(name) UE_DEPRECATED_MACRO(5.0, "PUSH_MACRO is deprecated. Use UE_PUSH_MACRO and pass the macro name as a string.") UE_PUSH_MACRO(PREPROCESSOR_TO_STRING(name))
-#define POP_MACRO(name) UE_DEPRECATED_MACRO(5.0, "POP_MACRO is deprecated. Use UE_POP_MACRO and pass the macro name as a string.") UE_POP_MACRO(PREPROCESSOR_TO_STRING(name))
 
 #ifdef __COUNTER__
 	// Created a variable with a unique name
@@ -275,7 +277,11 @@ enum EInPlace {InPlace};
 #endif
 
 #ifndef UE_DEPRECATED_FORGAME
-	#define UE_DEPRECATED_FORGAME(...)
+	#define UE_DEPRECATED_FORGAME PREPROCESSOR_NOTHING_FUNCTION
+#endif
+
+#ifndef UE_DEPRECATED_FORENGINE
+	#define UE_DEPRECATED_FORENGINE UE_DEPRECATED
 #endif
 
 #if UE_VALIDATE_INTERNAL_API
@@ -283,6 +289,24 @@ enum EInPlace {InPlace};
 #else
 	#define UE_INTERNAL
 #endif
+
+
+/**
+ * Macro which can be placed in a header to throw a deprecation warning when it is included.
+ */
+#if defined(UE_DIRECT_HEADER_COMPILE)
+	// Don't warn about the deprecated header when we are directly compiling the header
+	#define UE_DEPRECATED_HEADER(Version, Message)
+#elif defined(_MSC_VER)
+    #if UE_WARNINGS_AS_ERRORS
+    	#define UE_DEPRECATED_HEADER(Version, Message) __pragma(message(__FILE__ "(" PREPROCESSOR_TO_STRING(__LINE__) "): error C4996: " Message " Please update your code to the new API before upgrading to the next release, otherwise your project will no longer compile."))
+    #else
+    	#define UE_DEPRECATED_HEADER(Version, Message) __pragma(message(__FILE__ "(" PREPROCESSOR_TO_STRING(__LINE__) "): warning C4996: " Message " Please update your code to the new API before upgrading to the next release, otherwise your project will no longer compile."))
+    #endif
+#else
+	#define UE_DEPRECATED_HEADER(Version, Message) _Pragma(PREPROCESSOR_TO_STRING(message(Message " Please update your code to the new API before upgrading to the next release, otherwise your project will no longer compile.")))
+#endif
+
 
 /*
  * Macro that can be defined in the target file to strip deprecated properties in objects across the engine that check against this define.

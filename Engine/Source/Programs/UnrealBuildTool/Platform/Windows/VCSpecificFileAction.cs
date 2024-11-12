@@ -64,24 +64,33 @@ namespace UnrealBuildTool
 			}
 			SingleFiles[SourceFile.Name].Add(SourceFile);
 
-			// If it is a header file we need to wrap it from another file.. because otherwise it will fail when there are circular dependencies
-			// (There are a lot of those, very few of the .h files in core can be compiled without errors)
-			if (SourceFile.HasExtension(".h"))
-			{
-				DirectoryReference.CreateDirectory(IntermediateDirectory);
-				FileItem DummyFile = FileItem.GetItemByFileReference(FileReference.Combine(IntermediateDirectory, Filename));
-				Directory.CreateDirectory(DummyFile.Directory.FullName);
-				File.WriteAllText(DummyFile.FullName, $"#include \"{SourceFile.FullName.Replace('\\', '/')}\"");
-				SourceFile = DummyFile;
-			}
-			else if (!SourceFile.HasExtension(".cpp"))
+			if (!SourceFile.HasExtension(".cpp") && !SourceFile.HasExtension(".h"))
 			{
 				return null;
 			}
 
 			DirectoryReference.CreateDirectory(IntermediateDirectory);
 			VCCompileAction Action = new VCCompileAction(BaseAction);
+			Action.ArtifactMode = ArtifactMode.None;
 			Action.SourceFile = SourceFile;
+			if (SourceFile.HasExtension(".h"))
+			{
+				if (BaseAction.CompilerType.IsClang())
+				{
+					ClangWarnings.GetHeaderDisabledWarnings(Action.Arguments);
+				}
+
+				string IncludeFileString = SourceFile.AbsolutePath;
+				if (SourceFile.Location.IsUnderDirectory(Unreal.RootDirectory))
+				{
+					IncludeFileString = SourceFile.Location.MakeRelativeTo(Unreal.EngineSourceDirectory);
+				}
+
+				List<string> GeneratedHeaderCppContents = UEBuildModuleCPP.GenerateHeaderCpp(SourceFile.Name, IncludeFileString);
+				Action.SourceFile = FileItem.GetItemByFileReference(FileReference.Combine(IntermediateDirectory, $"{SourceFile.Name}.cpp"));
+				File.WriteAllLines(Action.SourceFile.FullName, GeneratedHeaderCppContents);
+			}
+			
 			if (bPreprocessOnly)
 			{
 				Action.PreprocessedFile = FileItem.GetItemByFileReference(FileReference.Combine(IntermediateDirectory, $"{Filename}.i"));
@@ -105,6 +114,7 @@ namespace UnrealBuildTool
 			}
 			Action.ResponseFile = FileItem.GetItemByFileReference(FileReference.Combine(IntermediateDirectory, $"{Filename}.rsp"));
 			File.WriteAllLines(Action.ResponseFile.FullName, Action.GetCompilerArguments(Logger));
+			Action.Arguments.Clear();
 
 			return Action;
 		}

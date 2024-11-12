@@ -3,9 +3,9 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMOption.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
+#include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
-#include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMValue.h"
 
 namespace Verse
@@ -17,7 +17,15 @@ TGlobalTrivialEmergentTypePtr<&VOption::StaticCppClassInfo> VOption::GlobalTrivi
 template <typename TVisitor>
 void VOption::VisitReferencesImpl(TVisitor& Visitor)
 {
+	if constexpr (TVisitor::bIsAbstractVisitor)
+	{
+		Visitor.BeginOption();
+	}
 	Visitor.Visit(Value, TEXT("Value"));
+	if constexpr (TVisitor::bIsAbstractVisitor)
+	{
+		Visitor.EndOption();
+	}
 }
 
 uint32 VOption::GetTypeHashImpl()

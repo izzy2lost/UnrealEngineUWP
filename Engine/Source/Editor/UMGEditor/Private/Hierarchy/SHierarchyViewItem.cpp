@@ -188,6 +188,20 @@ TOptional<EItemDropZone> ProcessHierarchyDragDrop(const FDragDropEvent& DragDrop
 	UWidgetBlueprint* Blueprint = BlueprintEditor->GetWidgetBlueprintObj();
 	check( Blueprint != nullptr && Blueprint->WidgetTree != nullptr );
 
+	const auto ShouldPreventDropOnTargetExtensions = [](UWidget* Target, const TSharedPtr<FDecoratedDragDropOp>& DecoratedDragDropOp) -> bool
+		{
+			FText DropOnTargetFailureText = FText::GetEmpty();
+			const bool bShouldPreventDropOnTargetExtensions = FWidgetBlueprintEditorUtils::ShouldPreventDropOnTargetExtensions(Target, DecoratedDragDropOp, DropOnTargetFailureText);
+
+			if (bShouldPreventDropOnTargetExtensions && DecoratedDragDropOp.IsValid())
+			{
+				DecoratedDragDropOp->CurrentIconBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error"));
+				DecoratedDragDropOp->CurrentHoverText = DropOnTargetFailureText;
+			}
+
+			return bShouldPreventDropOnTargetExtensions;
+		};
+
 	// Is this a drag/drop op to create a new widget in the tree?
 	TSharedPtr<FDragDropOperation> DragDropOp = DragDropEvent.GetOperation();
 	if (DragDropOp.IsValid() && !DragDropOp->IsOfType<FHierarchyWidgetDragDropOpImpl>())
@@ -197,6 +211,11 @@ TOptional<EItemDropZone> ProcessHierarchyDragDrop(const FDragDropEvent& DragDrop
 		{
 			DecoratedDragDropOp = StaticCastSharedPtr<FDecoratedDragDropOp>(DragDropOp);
 			DecoratedDragDropOp->ResetToDefaultToolTip();
+		}
+
+		if ( ShouldPreventDropOnTargetExtensions(TargetTemplate, DecoratedDragDropOp) )
+		{
+			return TOptional<EItemDropZone>();
 		}
 
 		// Are we adding to a locked widget?
@@ -337,6 +356,11 @@ TOptional<EItemDropZone> ProcessHierarchyDragDrop(const FDragDropEvent& DragDrop
 			{
 				HierarchyDragDropOp->CurrentIconBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error"));
 				HierarchyDragDropOp->CurrentHoverText = LOCTEXT("CantHaveMultipleChildren", "Widget can't have multiple children.");
+				return TOptional<EItemDropZone>();
+			}
+
+			if (ShouldPreventDropOnTargetExtensions(TargetTemplate, HierarchyDragDropOp))
+			{
 				return TOptional<EItemDropZone>();
 			}
 
@@ -738,8 +762,17 @@ void FHierarchyRoot::GetChildren(TArray< TSharedPtr<FHierarchyModel> >& Children
 	}
 
 	// Grab any exposed named slots from the super classes CDO.  These slots can have content slotted into them by this subclass.
+	TSet<FName> InheritedNamedSlotsWithContentInSameTree = Blueprint->GetInheritedNamedSlotsWithContentInSameTree();
 	for ( const FName& SlotName : Blueprint->GetInheritedAvailableNamedSlots() )
 	{
+		if (InheritedNamedSlotsWithContentInSameTree.Contains(SlotName))
+		{
+			if (!Blueprint->WidgetTree->GetContentForSlot(SlotName))
+			{
+				continue;
+			}
+		}
+
 		TSharedPtr<FNamedSlotModelSubclass> ChildItem = MakeShareable(new FNamedSlotModelSubclass(Blueprint, SlotName, BPEd));
 		Children.Add(ChildItem);
 	}
@@ -1641,11 +1674,32 @@ bool SHierarchyViewItem::ShouldAppearHovered() const
 void SHierarchyViewItem::HandleDragEnter(FDragDropEvent const& DragDropEvent)
 {
 	Model->HandleDragEnter(DragDropEvent);
+	if (DragHoverExpandTimer.IsValid())
+	{
+		UnRegisterActiveTimer(DragHoverExpandTimer.ToSharedRef());
+		DragHoverExpandTimer.Reset();
+	}
+	if (!IsItemExpanded())
+	{
+		DragHoverExpandTimer = RegisterActiveTimer( 0.3f, FWidgetActiveTimerDelegate::CreateLambda([this](double InCurrentTime, float InDeltaTime)
+		{
+			if (!IsItemExpanded())
+			{
+				ToggleExpansion();
+			}
+			return EActiveTimerReturnType::Stop;
+		}));
+	}
 }
 
 void SHierarchyViewItem::HandleDragLeave(const FDragDropEvent& DragDropEvent)
 {
 	Model->HandleDragLeave(DragDropEvent);
+	if (DragHoverExpandTimer.IsValid())
+	{
+		UnRegisterActiveTimer(DragHoverExpandTimer.ToSharedRef());
+		DragHoverExpandTimer.Reset();
+	}
 }
 
 TOptional<EItemDropZone> SHierarchyViewItem::HandleCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FHierarchyModel> TargetItem)

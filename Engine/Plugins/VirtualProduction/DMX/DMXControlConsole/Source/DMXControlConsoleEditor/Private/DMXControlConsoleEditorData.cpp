@@ -69,12 +69,11 @@ void UDMXControlConsoleEditorData::UpdateFilters(UDMXControlConsoleData* Control
 		FiltersCollection.UniverseIDFilterStrings.AddUnique(UniverseIDAsString);
 
 		// Add Fixture ID filters
-		int32 FixtureID;
-		if (FixturePatch->FindFixtureID(FixtureID))
-		{
-			const FString FIDAsString = FString::FromInt(FixtureID);
-			FiltersCollection.FixtureIDFilterStrings.AddUnique(FIDAsString);
-		}
+		const int32 FixtureID = FixturePatch->GetFixtureID();
+
+		const FString FIDAsString = FString::FromInt(FixtureID);
+		FiltersCollection.FixtureIDFilterStrings.AddUnique(FIDAsString);
+
 
 		// Add Attribute Name filters
 		const TMap<FDMXAttributeName, FDMXFixtureFunction> AttributeNameToFixtureFuncionMap = FixturePatch->GetAttributeFunctionsMap();

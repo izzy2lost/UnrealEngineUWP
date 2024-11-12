@@ -92,7 +92,8 @@ public class UnrealEd : ModuleRules
 				"AssetTools", 
 				"WidgetRegistration",
 				"GameplayTasks",
-				"TargetPlatform"
+				"TargetPlatform",
+				"CommonMenuExtensions",
 			}
 		);
 
@@ -184,6 +185,7 @@ public class UnrealEd : ModuleRules
 				"VirtualizationEditor",
 				"GeometryCore",
 				"UniversalObjectLocatorEditor",
+				"Renderer",
 			}
 		);
 
@@ -237,7 +239,8 @@ public class UnrealEd : ModuleRules
 				"CSVtoSVG",
 				"SourceControlWindowExtender",
 				"AnimationSettings",
-				"GameplayDebuggerEditor"
+				"GameplayDebuggerEditor",
+				"StructUtilsTestSuite"
 			}
 		);
 

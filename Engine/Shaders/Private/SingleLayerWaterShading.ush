@@ -57,7 +57,7 @@ WaterVolumeLightingOutput EvaluateWaterVolumeLighting(
 
 	if (WaterVisibility > 0.0f)
 	{
-		float WaterDepth = MaterialParameters.ScreenPosition.w; // Scene depth with Pixel-Depth-Offset taken into account is in ScreenPosition.w already
+		float WaterDepth = GetPixelDepth(MaterialParameters); // Scene depth with Pixel-Depth-Offset taken into account is in ScreenPosition.w already
 #if SINGLE_LAYER_WATER_MOBILE_SHADING
 
 #if SINGLE_LAYER_WATER_SHADING_QUALITY == SINGLE_LAYER_WATER_SHADING_QUALITY_MOBILE_WITH_DEPTH_TEXTURE 
@@ -145,7 +145,7 @@ WaterVolumeLightingOutput EvaluateWaterVolumeLighting(
 #else
 		const float3 ScatteringCoeff = max(0.0f, DFDemote(GetSingleLayerWaterMaterialOutput0(MaterialParameters)));
 		const float3 AbsorptionCoeff = max(0.0f, DFDemote(GetSingleLayerWaterMaterialOutput1(MaterialParameters)));
-		const float PhaseG = clamp(DFDemote(GetSingleLayerWaterMaterialOutput2(MaterialParameters)), -1.0f, 1.0f);
+		const float PhaseG = clamp(DFDemote(GetSingleLayerWaterMaterialOutput2(MaterialParameters).x), -1.0f, 1.0f);
 		//Sample the optional Material Input ColorScaleBehindWater and fade it out at shorelines to avoid hard edge intersections
 		float3 ColorScaleBehindWater = lerp(1.0f, max(0.0f, DFDemote(GetSingleLayerWaterMaterialOutput3(MaterialParameters))), saturate(BehindWaterDeltaDepth * 0.02f));
 		const float3 ExtinctionCoeff = ScatteringCoeff + AbsorptionCoeff;

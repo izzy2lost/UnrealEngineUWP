@@ -11,7 +11,7 @@ public:
 
 	// These allow the toolkit to add an accept/cancel overlay when needed. PopulateViewportOverlays
 	// is not helpful here because that gets called just once.
-	virtual void AddOverlayWidget(TSharedRef<SWidget> OverlaidWidget);
+	virtual void AddOverlayWidget(TSharedRef<SWidget> OverlaidWidget, int32 ZOrder = INDEX_NONE);
 	virtual void RemoveOverlayWidget(TSharedRef<SWidget> OverlaidWidget);
 
 	// SEditorViewport

@@ -5,6 +5,7 @@
 #include "Compression/OodleDataCompression.h"
 #include "Containers/StringConv.h"
 #include "Hash/xxhash.h"
+#include "Misc/ByteSwap.h"
 #include "Serialization/CompactBinary.h"
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryWriter.h"
@@ -60,6 +61,17 @@ FValueId FValueId::FromName(const FUtf8StringView Name)
 FValueId FValueId::FromName(const FWideStringView Name)
 {
 	return FValueId::FromName(FTCHARToUTF8(Name));
+}
+
+FValueId FValueId::MakeIndexed(int32 Index) const
+{
+	alignas(int32) ByteArray IndexedBytes;
+	// Copy the prefix from this ID.
+	FMemoryView Prefix = MakeMemoryView(Bytes).Left(sizeof(ByteArray) - sizeof(int32));
+	FMutableMemoryView IndexView = MakeMemoryView(IndexedBytes).CopyFrom(Prefix);
+	// Copy the index as big endian to ensure an indexed ID is sorted by index.
+	*(int32*)IndexView.GetData() = NETWORK_ORDER32(Index);
+	return FValueId(IndexedBytes);
 }
 
 FCbWriter& operator<<(FCbWriter& Writer, const FValueId& Id)

@@ -1,27 +1,26 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
-#include "HAL/PlatformProcess.h"
+#include "Containers/SharedString.h"
+#include "DerivedDataBuildFunctionFactory.h"
+#include "HAL/IConsoleManager.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformProcess.h"
 #include "Misc/CommandLine.h"
-#include "Misc/FileHelper.h"
-#include "Misc/Paths.h"
-#include "Misc/Guid.h"
 #include "Misc/ConfigCacheIni.h"
-#include "ImageCore.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Guid.h"
+#include "Misc/Paths.h"
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
-#include "Modules/ModuleManager.h"
+#include "ImageCore.h"
 #include "Interfaces/ITextureFormat.h"
 #include "Interfaces/ITextureFormatModule.h"
-#include "TextureCompressorModule.h"
+#include "Modules/ModuleManager.h"
 #include "PixelFormat.h"
 #include "Serialization/CompactBinary.h"
 #include "Serialization/CompactBinaryWriter.h"
 #include "TextureBuildFunction.h"
-#include "DerivedDataBuildFunctionFactory.h"
-#include "DerivedDataSharedString.h"
-#include "HAL/IConsoleManager.h"
+#include "TextureCompressorModule.h"
 
 #include "astcenc.h"
 
@@ -55,14 +54,34 @@ static FAutoConsoleVariableRef CVarASTCCompressor(
 #define MAX_QUALITY_BY_SIZE 4
 #define MAX_QUALITY_BY_SPEED 3
 
+/**
+
+"Quality" in this file is ETextureCompressionQuality-1
+
+so a "3" here == High == 6x6
+
+enum ETextureCompressionQuality : int
+{
+	TCQ_Default = 0		UMETA(DisplayName="Default"),
+	TCQ_Lowest = 1		UMETA(DisplayName="Lowest (ASTC 12x12)"),
+	TCQ_Low = 2			UMETA(DisplayName="Low (ASTC 10x10)"),
+	TCQ_Medium = 3		UMETA(DisplayName="Medium (ASTC 8x8)"),
+	TCQ_High= 4			UMETA(DisplayName="High (ASTC 6x6)"),
+	TCQ_Highest = 5		UMETA(DisplayName="Highest (ASTC 4x4)"),
+	TCQ_MAX,
+};
+
+
+**/
+
 
 DEFINE_LOG_CATEGORY_STATIC(LogTextureFormatASTC, Log, All);
 
 class FASTCTextureBuildFunction final : public FTextureBuildFunction
 {
-	const UE::DerivedData::FUtf8SharedString& GetName() const final
+	const UE::FUtf8SharedString& GetName() const final
 	{
-		static const UE::DerivedData::FUtf8SharedString Name(UTF8TEXTVIEW("ASTCTexture"));
+		static const UE::FUtf8SharedString Name(UTF8TEXTVIEW("ASTCTexture"));
 		return Name;
 	}
 
@@ -144,15 +163,46 @@ static int32 GetDefaultCompressionBySizeValue(FCbObjectView InFormatConfigOverri
 	}
 	else
 	{
-		// default of 0 == 12x12 ?
-		// BaseEngine.ini sets DefaultASTCQualityBySize to 3 == 6x6
+		// default of 3 == 6x6
 
 		auto GetCompressionModeValue = []() {
 			// start at default quality, then lookup in .ini file
-			int32 CompressionModeValue = 0;
+			int32 CompressionModeValue = 3;
 			GConfig->GetInt(TEXT("/Script/UnrealEd.CookerSettings"), TEXT("DefaultASTCQualityBySize"), CompressionModeValue, GEngineIni);
 	
 			FParse::Value(FCommandLine::Get(), TEXT("-astcqualitybysize="), CompressionModeValue);
+			
+			return FMath::Min<uint32>(CompressionModeValue, MAX_QUALITY_BY_SIZE);
+		};
+
+		static int32 CompressionModeValue = GetCompressionModeValue();
+
+		return CompressionModeValue;
+	}
+}
+
+static int32 GetDefaultCompressionBySizeValueHQ(FCbObjectView InFormatConfigOverride)
+{
+	// this is code duped between TextureFormatASTC and TextureFormatISPC
+	if (InFormatConfigOverride)
+	{
+		// If we have an explicit format config, then use it directly
+		FCbFieldView FieldView = InFormatConfigOverride.FindView("DefaultASTCQualityBySizeHQ");
+		checkf(FieldView.HasValue(), TEXT("Missing DefaultASTCQualityBySizeHQ key from FormatConfigOverride"));
+		int32 CompressionModeValue = FieldView.AsInt32();
+		checkf(!FieldView.HasError(), TEXT("Failed to parse DefaultASTCQualityBySizeHQ value from FormatConfigOverride"));
+		return CompressionModeValue;
+	}
+	else
+	{
+		// default of 4 == 4x4
+
+		auto GetCompressionModeValue = []() {
+			// start at default quality, then lookup in .ini file
+			int32 CompressionModeValue = 4;
+			GConfig->GetInt(TEXT("/Script/UnrealEd.CookerSettings"), TEXT("DefaultASTCQualityBySizeHQ"), CompressionModeValue, GEngineIni);
+	
+			FParse::Value(FCommandLine::Get(), TEXT("-astcqualitybysizehq="), CompressionModeValue);
 			
 			return FMath::Min<uint32>(CompressionModeValue, MAX_QUALITY_BY_SIZE);
 		};
@@ -177,11 +227,11 @@ static int32 GetDefaultCompressionBySpeedValue(FCbObjectView InFormatConfigOverr
 	else
 	{
 
-		// default of 0 == "fastest"
+		// default of 2 == ASTCENC_PRE_MEDIUM
 
 		auto GetCompressionModeValue = []() {
 			// start at default quality, then lookup in .ini file
-			int32 CompressionModeValue = 0;
+			int32 CompressionModeValue = 2;
 			GConfig->GetInt(TEXT("/Script/UnrealEd.CookerSettings"), TEXT("DefaultASTCQualityBySpeed"), CompressionModeValue, GEngineIni);
 	
 			FParse::Value(FCommandLine::Get(), TEXT("-astcqualitybyspeed="), CompressionModeValue);
@@ -203,20 +253,20 @@ static EPixelFormat GetQualityFormat(const FTextureBuildSettings& BuildSettings)
 	int32 OverrideSizeValue= BuildSettings.CompressionQuality;
 
 	bool bIsNormalMap = IsNormalMapFormat(BuildSettings.TextureFormatName);
-	bool bIsHQ = BuildSettings.TextureFormatName == GTextureFormatNameASTC_RGBA_HQ;
-	bool bHDRFormat = BuildSettings.TextureFormatName == GTextureFormatNameASTC_RGB_HDR;
 
 	if ( bIsNormalMap )
 	{
+		// normal map hard coded to always use 6x6 currently
+		//	ignores per-texture quality
+
 		if ( BuildSettings.TextureFormatName == GTextureFormatNameASTC_NormalRG_Precise )
 		{
 			return PF_ASTC_6x6_NORM_RG;
 		}
-		return PF_ASTC_6x6;
-	}
-	else if ( bIsHQ )
-	{
-		return PF_ASTC_4x4;
+		else
+		{
+			return PF_ASTC_6x6;
+		}
 	}
 	else if (BuildSettings.bVirtualStreamable)
 	{
@@ -224,12 +274,27 @@ static EPixelFormat GetQualityFormat(const FTextureBuildSettings& BuildSettings)
 	}
 
 	// CompressionQuality value here is ETextureCompressionQuality minus 1
+	
+	bool bIsHQ = BuildSettings.TextureFormatName == GTextureFormatNameASTC_RGBA_HQ;
+	bool bHDRFormat = BuildSettings.TextureFormatName == GTextureFormatNameASTC_RGB_HDR;
+	
+	if ( OverrideSizeValue < 0 )
+	{
+		if ( bIsHQ )
+		{
+			OverrideSizeValue = GetDefaultCompressionBySizeValueHQ(InFormatConfigOverride);
+		}
+		else
+		{
+			OverrideSizeValue = GetDefaultCompressionBySizeValue(InFormatConfigOverride);
+		}
+	}
 
 	// convert to a string
 	EPixelFormat Format = PF_Unknown;
 	if (bHDRFormat)
 	{
-		switch (OverrideSizeValue >= 0 ? OverrideSizeValue : GetDefaultCompressionBySizeValue(InFormatConfigOverride))
+		switch (OverrideSizeValue)
 		{
 			case 0:	Format = PF_ASTC_12x12_HDR; break;
 			case 1:	Format = PF_ASTC_10x10_HDR; break;
@@ -241,7 +306,7 @@ static EPixelFormat GetQualityFormat(const FTextureBuildSettings& BuildSettings)
 	}
 	else
 	{
-		switch (OverrideSizeValue >= 0 ? OverrideSizeValue : GetDefaultCompressionBySizeValue(InFormatConfigOverride))
+		switch (OverrideSizeValue)
 		{
 			case 0:	Format = PF_ASTC_12x12; break;
 			case 1:	Format = PF_ASTC_10x10; break;
@@ -254,6 +319,64 @@ static EPixelFormat GetQualityFormat(const FTextureBuildSettings& BuildSettings)
 	return Format;
 }
 
+static bool IsASTCPixelFormatHDR(EPixelFormat PF)
+{
+	switch (PF)
+	{
+	case PF_ASTC_4x4_HDR:
+	case PF_ASTC_6x6_HDR:
+	case PF_ASTC_8x8_HDR:
+	case PF_ASTC_10x10_HDR:
+	case PF_ASTC_12x12_HDR:
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+
+
+static astcenc_swizzle GetDecodeSwizzleForFormat(EPixelFormat InPixelFormat, FName InTextureFormatName)
+{
+	astcenc_swizzle EncSwizzle{ ASTCENC_SWZ_R, ASTCENC_SWZ_G, ASTCENC_SWZ_B, ASTCENC_SWZ_A };
+
+	if (IsASTCPixelFormatHDR(InPixelFormat))
+	{
+		// BC6H, our compressed HDR format on non-ASTC targets, does not support A
+		EncSwizzle.a = ASTCENC_SWZ_1;
+	}
+	else
+	{
+		// Check for the other variants individually here
+		// set everything up with normal (RGBA) swizzles
+		if (InTextureFormatName == GTextureFormatNameASTC_NormalAG)
+		{
+			EncSwizzle.r = ASTCENC_SWZ_A;
+			EncSwizzle.g = ASTCENC_SWZ_G;
+			EncSwizzle.b = ASTCENC_SWZ_0;
+			EncSwizzle.a = ASTCENC_SWZ_1;
+}
+		else if (InTextureFormatName == GTextureFormatNameASTC_NormalRG)
+		{
+			EncSwizzle.r = ASTCENC_SWZ_R;
+			EncSwizzle.g = ASTCENC_SWZ_G;
+			EncSwizzle.b = ASTCENC_SWZ_0;
+			EncSwizzle.a = ASTCENC_SWZ_1;
+}
+		else if (InTextureFormatName == GTextureFormatNameASTC_NormalLA || InTextureFormatName == GTextureFormatNameASTC_NormalRG_Precise)
+		{
+			EncSwizzle.r = ASTCENC_SWZ_R;
+			EncSwizzle.g = ASTCENC_SWZ_A;
+			EncSwizzle.b = ASTCENC_SWZ_0;
+			EncSwizzle.a = ASTCENC_SWZ_1;
+}
+
+		// Finally, last step, because ASTCEnc produces RGBA channel order and we want BGRA for 8-bit formats:
+		Swap(EncSwizzle.r, EncSwizzle.b);
+	}
+	return EncSwizzle;
+}
 
 static bool ASTCEnc_Compress(
 	const FImage& InImage,
@@ -455,7 +578,7 @@ static bool ASTCEnc_Compress(
 	{
 		OutCompressedImage.SizeX = Image.SizeX;
 		OutCompressedImage.SizeY = Image.SizeY;
-		OutCompressedImage.SizeZ = (BuildSettings.bVolume || BuildSettings.bTextureArray) ? Image.NumSlices : 1;
+		OutCompressedImage.NumSlicesWithDepth = Image.NumSlices;
 		OutCompressedImage.PixelFormat = CompressedPixelFormat;
 		return true;
 	}
@@ -480,6 +603,20 @@ public:
 	{
 		// LoadModule has to be done on Main thread
 		// can't be done on-demand in the Compress call
+	}
+
+	static FGuid GetDecodeBuildFunctionVersionGuid()
+	{
+		static FGuid Version(TEXT("0520C2CC-FD1D-48FE-BDCB-4E6E07E01E5B"));
+		return Version;
+	}
+	static FUtf8StringView GetDecodeBuildFunctionNameStatic()
+	{
+		return UTF8TEXTVIEW("FDecodeTextureFormatASTC");
+	}
+	virtual const FUtf8StringView GetDecodeBuildFunctionName() const override final
+	{
+		return GetDecodeBuildFunctionNameStatic();
 	}
 
 	virtual bool AllowParallelBuild() const override
@@ -515,6 +652,7 @@ public:
 		FCbWriter Writer;
 		Writer.BeginObject("TextureFormatASTCSettings");
 		Writer.AddInteger("DefaultASTCQualityBySize", GetDefaultCompressionBySizeValue(FCbObjectView()));
+		Writer.AddInteger("DefaultASTCQualityBySizeHQ", GetDefaultCompressionBySizeValueHQ(FCbObjectView()));
 		Writer.AddInteger("DefaultASTCQualityBySpeed", GetDefaultCompressionBySpeedValue(FCbObjectView()));
 		Writer.EndObject();
 		return Writer.Save().AsObject();
@@ -563,6 +701,100 @@ public:
 	{
 		return GetQualityFormat(InBuildSettings);
 	}
+
+
+	virtual bool CanDecodeFormat(EPixelFormat InPixelFormat) const
+	{
+		return IsASTCBlockCompressedTextureFormat(InPixelFormat);
+	}
+
+	virtual bool DecodeImage(int32 InSizeX, int32 InSizeY, int32 InNumSlices, EPixelFormat InPixelFormat, bool bInSRGB, const FName& InTextureFormatName, FSharedBuffer InEncodedData, FImage& OutImage, FStringView InTextureName) const
+	{
+		astcenc_swizzle EncSwizzle = GetDecodeSwizzleForFormat(InPixelFormat, InTextureFormatName);
+		bool bHDRImage = IsASTCPixelFormatHDR(InPixelFormat);
+
+		astcenc_profile EncProfile = (bHDRImage ? ASTCENC_PRF_HDR_RGB_LDR_A : (bInSRGB ? ASTCENC_PRF_LDR_SRGB : ASTCENC_PRF_LDR));
+
+		uint32 BlockSizeX = GPixelFormats[InPixelFormat].BlockSizeX;
+		uint32 BlockSizeY = GPixelFormats[InPixelFormat].BlockSizeX;
+		uint32 BlockSizeZ = 1;
+
+		astcenc_config EncConfig;
+		astcenc_error EncStatus = astcenc_config_init(
+			EncProfile,
+			BlockSizeX,
+			BlockSizeX,
+			BlockSizeZ,
+			ASTCENC_PRE_THOROUGH, // shouldn't be used?
+			ASTCENC_FLG_DECOMPRESS_ONLY,
+			&EncConfig);
+
+		if (EncStatus != ASTCENC_SUCCESS)
+		{
+			UE_LOG(LogTextureFormatASTC, Error, TEXT("astcenc_config_init has failed in DecodeImage: %s - texture %.*s"), ANSI_TO_TCHAR(astcenc_get_error_string(EncStatus)), InTextureName.Len(), InTextureName.GetData());
+			return false;
+		}
+
+		astcenc_context* EncContext = nullptr;
+		uint32 EncThreadCount = 1;
+		EncStatus = astcenc_context_alloc(&EncConfig, EncThreadCount, &EncContext);
+		if (EncStatus != ASTCENC_SUCCESS)
+		{
+			UE_LOG(LogTextureFormatASTC, Error, TEXT("astcenc_context_alloc has failed in DecodeImage: %s - texture %.*s"), ANSI_TO_TCHAR(astcenc_get_error_string(EncStatus)), InTextureName.Len(), InTextureName.GetData());
+			return false;
+		}
+
+
+		OutImage.Format = bHDRImage ? ERawImageFormat::RGBA16F : ERawImageFormat::BGRA8;
+		OutImage.GammaSpace = bInSRGB ? EGammaSpace::sRGB : EGammaSpace::Linear;
+		OutImage.SizeX = InSizeX;
+		OutImage.SizeY = InSizeY;
+		OutImage.NumSlices = InNumSlices;
+
+		const FPixelFormatInfo& OutputPF = GPixelFormats[bHDRImage ? PF_FloatRGBA : PF_B8G8R8A8];
+
+		uint64 SliceSizeBytes = OutputPF.Get2DImageSizeInBytes(InSizeX, InSizeY);
+
+		OutImage.RawData.AddUninitialized(SliceSizeBytes * InNumSlices);
+
+		// astc image basically wants views into the image but also wants them as an array of pointers
+		// to each slice.
+		TArray<uint8*, TInlineAllocator<6>> ImageSrcData;
+		ImageSrcData.Reserve(OutImage.NumSlices);
+		for (int32 SliceIdx = 0; SliceIdx < OutImage.NumSlices; SliceIdx++)
+		{
+			FImageView Slice = OutImage.GetSlice(SliceIdx);
+			uint8* SliceData;
+			if (bHDRImage)
+			{
+				SliceData = (uint8*)Slice.AsRGBA16F().GetData();
+			}
+			else
+			{
+				SliceData = (uint8*)Slice.AsBGRA8().GetData();
+			}
+			ImageSrcData.Add(SliceData);
+		}
+
+		astcenc_image DecodedImage;
+		DecodedImage.dim_x = OutImage.SizeX;
+		DecodedImage.dim_y = OutImage.SizeY;
+		DecodedImage.dim_z = OutImage.NumSlices;
+		DecodedImage.data = (void**)ImageSrcData.GetData();
+		DecodedImage.data_type = (bHDRImage ? ASTCENC_TYPE_F16 : ASTCENC_TYPE_U8);
+
+		EncStatus = astcenc_decompress_image(EncContext, (uint8*)InEncodedData.GetData(), InEncodedData.GetSize(), &DecodedImage, &EncSwizzle, 0);
+		astcenc_context_free(EncContext);
+
+		if (EncStatus != ASTCENC_SUCCESS)
+		{
+			UE_LOG(LogTextureFormatASTC, Error, TEXT("astcenc_decompress_image has failed in DecodeImage: %s - texture %.*s"), ANSI_TO_TCHAR(astcenc_get_error_string(EncStatus)), InTextureName.Len(), InTextureName.GetData());
+			return false;
+		}
+
+		return true;
+	}
+
 
 	virtual bool CompressImage(
 			const FImage& InImage,
@@ -637,6 +869,7 @@ public:
 	}
 
 	static inline UE::DerivedData::TBuildFunctionFactory<FASTCTextureBuildFunction> BuildFunctionFactory;
+	static inline UE::DerivedData::TBuildFunctionFactory<FGenericTextureDecodeBuildFunction<FTextureFormatASTC>> DecodeBuildFunctionFactory;
 };
 
 IMPLEMENT_MODULE(FTextureFormatASTCModule, TextureFormatASTC);

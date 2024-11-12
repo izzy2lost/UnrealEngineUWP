@@ -57,6 +57,8 @@ const TCHAR* DebugViewShaderModeToString(EDebugViewShaderMode InShaderMode)
 		return TEXT("DVSM_LODColoration");
 	case DVSM_VisualizeGPUSkinCache:
 		return TEXT("DVSM_VisualizeGPUSkinCache");
+	case DVSM_LWCComplexity:
+		return TEXT("DVSM_LWCComplexity");
 	default:
 		return TEXT("DVSM_None");
 	}
@@ -97,7 +99,7 @@ bool AllowDebugViewShaderMode(EDebugViewShaderMode ShaderMode, EShaderPlatform P
 	case DVSM_ShaderComplexityContainedQuadOverhead:
 	case DVSM_ShaderComplexityBleedingQuadOverhead:
 	case DVSM_QuadComplexity:
-		return (bForceQuadOverdraw || (PlatformSupportsDebugViewShaders(Platform) && !IsMetalPlatform(Platform))); // Last one to fix for Metal then remove this Metal check.
+		return (bForceQuadOverdraw || (PlatformSupportsDebugViewShaders(Platform)));
 	case DVSM_PrimitiveDistanceAccuracy:
 	case DVSM_MeshUVDensityAccuracy:
 		return FeatureLevel >= ERHIFeatureLevel::SM5 && (bForceStreamingAccuracy || PlatformSupportsDebugViewShaders(Platform));
@@ -107,6 +109,7 @@ bool AllowDebugViewShaderMode(EDebugViewShaderMode ShaderMode, EShaderPlatform P
 	case DVSM_VirtualTexturePendingMips:
 		return FeatureLevel >= ERHIFeatureLevel::SM5 && (bForceTextureStreamingBuild || PlatformSupportsDebugViewShaders(Platform));
 	case DVSM_VisualizeGPUSkinCache:
+	case DVSM_LWCComplexity:
 		return PlatformSupportsDebugViewShaders(Platform);
 	default:
 		return false;
@@ -124,11 +127,6 @@ bool ShouldCompileDebugViewModeShader(const FMeshMaterialShaderPermutationParame
 	}
 
 	if (!PlatformSupportsDebugViewShaders(Parameters.Platform))
-	{
-		return false;
-	}
-
-	if (Parameters.MaterialParameters.FeatureLevel < ERHIFeatureLevel::SM5)
 	{
 		return false;
 	}

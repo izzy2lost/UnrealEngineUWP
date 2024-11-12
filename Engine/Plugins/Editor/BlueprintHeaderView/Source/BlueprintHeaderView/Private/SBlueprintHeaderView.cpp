@@ -15,7 +15,7 @@
 #include "PropertyEditorModule.h"
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Framework/Text/SlateTextRun.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -709,7 +709,7 @@ void SBlueprintHeaderView::SortPropertiesForPadding(TArray<const FProperty*>& In
 		}
 
 		SortedProperties.Add(InOutProperties[BestIndex]);
-		InOutProperties.RemoveAt(BestIndex, 1, EAllowShrinking::No);
+		InOutProperties.RemoveAt(BestIndex, EAllowShrinking::No);
 		CurrentOffset += BestPadding + SortedProperties.Last()->GetSize();
 	}
 

@@ -12,6 +12,7 @@
 #include "Playback/AvaPlaybackManager.h"
 #include "RCVirtualProperty.h"
 #include "Rundown/AvaRundown.h"
+#include "Rundown/AvaRundownManagedInstance.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPageAssetUtils.h"
 #include "Rundown/AvaRundownPagePlayer.h"
@@ -204,6 +205,7 @@ bool FAvaRundownPage::UpdateTransitionLogic()
 			const UAvaTransitionTree* TransitionTree = FAvaRundownPageAssetUtils::FindTransitionTree(SceneInterface);
 			bHasTransitionLogic = TransitionTree ? TransitionTree->IsEnabled() : false;
 			TransitionLayerTag = FAvaRundownPageAssetUtils::GetTransitionLayerTag(TransitionTree);
+			TransitionMode = TransitionTree ? TransitionTree->GetInstancingMode() : EAvaTransitionInstancingMode::New;
 		}
 	}
 	return false;
@@ -244,6 +246,31 @@ TArray<FAvaTagHandle> FAvaRundownPage::GetTransitionLayers(const UAvaRundown* In
 	}
 
 	return TransitionLayers;
+}
+
+EAvaTransitionInstancingMode FAvaRundownPage::GetTransitionMode( const UAvaRundown* InRundown, int32 InTemplateIndex) const
+{
+	const FAvaRundownPage& Template = GetTemplate(InRundown, InTemplateIndex);
+	return Template.IsValidPage() ?  Template.TransitionMode : TransitionMode;
+}
+
+TArray<EAvaTransitionInstancingMode> FAvaRundownPage::GetTransitionModes(const UAvaRundown* InRundown) const
+{
+	TArray<EAvaTransitionInstancingMode> TransitionModes;
+
+	const int32 NumTemplates = GetNumTemplates(InRundown);
+	TransitionModes.Reserve(NumTemplates);
+
+	for(int32 TemplateIndex = 0; TemplateIndex < NumTemplates; ++TemplateIndex)
+	{
+		const FAvaRundownPage& Template = GetTemplate(InRundown, TemplateIndex);
+		if (Template.IsValidPage())
+		{
+			TransitionModes.Add(Template.TransitionMode);
+		}
+	}
+
+	return TransitionModes;
 }
 
 int32 FAvaRundownPage::AppendPageProgramStatuses(const UAvaRundown* InParentRundown, TArray<FAvaRundownChannelPageStatus>& OutPageStatuses) const
@@ -539,6 +566,199 @@ void FAvaRundownPage::SetRemoteControlEntityValue(const FGuid& InId, const FAvaP
 void FAvaRundownPage::SetRemoteControlControllerValue(const FGuid& InId, const FAvaPlayableRemoteControlValue& InValue)
 {
 	RemoteControlValues.SetControllerValue(InId, InValue);
+}
+
+bool FAvaRundownPage::GetDefaultRemoteControlValues(const UAvaRundown* InRundown, bool bInUseTemplateValues, FAvaPlayableRemoteControlValues& OutValues) const
+{
+	if (bInUseTemplateValues)
+	{
+		if (!IsTemplate())
+		{
+			const FAvaRundownPage& PageTemplate = ResolveTemplate(InRundown);
+			if (PageTemplate.IsValidPage())
+			{
+				OutValues = PageTemplate.GetRemoteControlValues();
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	FAvaRundownManagedInstanceCache& ManagedInstanceCache = IAvaMediaModule::Get().GetManagedInstanceCache();
+
+	for (const FSoftObjectPath& PageAssetPath : GetAssetPaths(InRundown))
+	{
+		const TSharedPtr<FAvaRundownManagedInstance> ManagedInstance = ManagedInstanceCache.GetOrLoadInstance(PageAssetPath);
+		if (!ManagedInstance)
+		{
+			return false;
+		}
+
+		OutValues.Merge(ManagedInstance->GetDefaultRemoteControlValues());
+	}
+
+	return true;
+}
+
+bool FAvaRundownPage::GetDefaultEntityValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues, FAvaPlayableRemoteControlValue& OutValue) const
+{
+	if (bInUseTemplateValues)
+	{
+		if (!IsTemplate())
+		{
+			const FAvaRundownPage& PageTemplate = ResolveTemplate(InRundown);
+			if (PageTemplate.IsValidPage())
+			{
+				const FAvaPlayableRemoteControlValues& PageValues = PageTemplate.GetRemoteControlValues();
+				if (PageValues.HasEntityValue(InId))
+				{
+					OutValue = *PageValues.GetEntityValue(InId);
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	FAvaRundownManagedInstanceCache& ManagedInstanceCache = IAvaMediaModule::Get().GetManagedInstanceCache();
+
+	for (const FSoftObjectPath& PageAssetPath : GetAssetPaths(InRundown))
+	{
+		const TSharedPtr<FAvaRundownManagedInstance> ManagedInstance = ManagedInstanceCache.GetOrLoadInstance(PageAssetPath);
+		if (!ManagedInstance)
+		{
+			return false;
+		}
+
+		const FAvaPlayableRemoteControlValues& DefaultValues = ManagedInstance->GetDefaultRemoteControlValues();
+		if (DefaultValues.HasEntityValue(InId))
+		{
+			const FAvaPlayableRemoteControlValue* const EntityValue = DefaultValues.GetEntityValue(InId);
+			if (EntityValue)
+			{
+				OutValue = *EntityValue;
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+bool FAvaRundownPage::GetDefaultControllerValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues, FAvaPlayableRemoteControlValue& OutValue) const
+{
+	if (bInUseTemplateValues)
+	{
+		if (!IsTemplate())
+		{
+			const FAvaRundownPage& PageTemplate = ResolveTemplate(InRundown);
+			if (PageTemplate.IsValidPage())
+			{
+				const FAvaPlayableRemoteControlValues& PageValues = PageTemplate.GetRemoteControlValues();
+				if (PageValues.HasControllerValue(InId))
+				{
+					OutValue = *PageValues.GetControllerValue(InId);
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	FAvaRundownManagedInstanceCache& ManagedInstanceCache = IAvaMediaModule::Get().GetManagedInstanceCache();
+
+	for (const FSoftObjectPath& PageAssetPath : GetAssetPaths(InRundown))
+	{
+		const TSharedPtr<FAvaRundownManagedInstance> ManagedInstance = ManagedInstanceCache.GetOrLoadInstance(PageAssetPath);
+		if (!ManagedInstance)
+		{
+			return false;
+		}
+
+		const FAvaPlayableRemoteControlValues& DefaultValues = ManagedInstance->GetDefaultRemoteControlValues();
+		if (DefaultValues.HasControllerValue(InId))
+		{
+			const FAvaPlayableRemoteControlValue* const ControllerValue = DefaultValues.GetControllerValue(InId);
+			if (ControllerValue)
+			{
+				OutValue = *ControllerValue;
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+bool FAvaRundownPage::IsDefaultEntityValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues) const
+{
+	FAvaPlayableRemoteControlValue DefaultValue;
+	if (GetDefaultEntityValue(InRundown, InId, bInUseTemplateValues, DefaultValue))
+	{
+		if (RemoteControlValues.HasEntityValue(InId))
+		{
+			if (const FAvaPlayableRemoteControlValue* Value = RemoteControlValues.GetEntityValue(InId))
+			{
+				if (Value->IsSameValueAs(DefaultValue))
+				{
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+bool FAvaRundownPage::IsDefaultControllerValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues) const
+{
+	FAvaPlayableRemoteControlValue DefaultValue;
+	if (GetDefaultControllerValue(InRundown, InId, bInUseTemplateValues, DefaultValue))
+	{
+		if (RemoteControlValues.HasControllerValue(InId))
+		{
+			if (const FAvaPlayableRemoteControlValue* Value = RemoteControlValues.GetControllerValue(InId))
+			{
+				if (Value->IsSameValueAs(DefaultValue))
+				{
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+EAvaPlayableRemoteControlChanges FAvaRundownPage::ResetRemoteControlValues(const UAvaRundown* InRundown, bool bInUseTemplateValues, bool bInIsDefault)
+{
+	FAvaPlayableRemoteControlValues DefaultValues;
+	if (GetDefaultRemoteControlValues(InRundown, bInUseTemplateValues, DefaultValues))
+	{
+		return RemoteControlValues.ResetRemoteControlValues(DefaultValues, bInIsDefault);
+	}
+	return EAvaPlayableRemoteControlChanges::None;
+}
+
+EAvaPlayableRemoteControlChanges FAvaRundownPage::ResetRemoteControlEntityValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues, bool bInIsDefault)
+{
+	FAvaPlayableRemoteControlValue DefaultValue;
+	if (GetDefaultEntityValue(InRundown, InId, bInUseTemplateValues, DefaultValue))
+	{
+		return RemoteControlValues.ResetRemoteControlEntityValue(InId, DefaultValue, bInIsDefault);
+	}
+	return EAvaPlayableRemoteControlChanges::None;
+}
+
+EAvaPlayableRemoteControlChanges FAvaRundownPage::ResetRemoteControlControllerValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues, bool bInIsDefault)
+{
+	FAvaPlayableRemoteControlValue DefaultValue;
+	if (GetDefaultControllerValue(InRundown, InId, bInUseTemplateValues, DefaultValue))
+	{
+		return RemoteControlValues.ResetRemoteControlControllerValue(InId, DefaultValue, bInIsDefault);
+	}
+	return EAvaPlayableRemoteControlChanges::None;
 }
 
 void FAvaRundownPage::PostLoad()

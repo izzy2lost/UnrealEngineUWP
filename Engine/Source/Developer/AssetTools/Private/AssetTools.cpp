@@ -39,9 +39,9 @@
 #include "AssetTypeActions/AssetTypeActions_AnimBoneCompressionSettings.h"
 #include "AssetTypeActions/AssetTypeActions_AnimCurveCompressionSettings.h"
 #include "AssetTypeActions/AssetTypeActions_VariableFrameStrippingSettings.h"
-#include "AssetTypeActions/AssetTypeActions_ForceFeedbackEffect.h"
 #include "AssetTypeActions/AssetTypeActions_ParticleSystem.h"
 #include "AssetTypeActions/AssetTypeActions_PhysicalMaterialMask.h"
+#include "AssetTypeActions/AssetTypeActions_DeletedObjectPlaceholder.h"
 #include "WorldPartition/WorldPartition.h"
 #include "SDiscoveringAssetsDialog.h"
 #include "AssetFixUpRedirectors.h"
@@ -85,6 +85,7 @@
 #include "Dialogs/Dialogs.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SSpacer.h"
+#include "Dialog/SMessageDialog.h"
 #include "Interfaces/IPluginManager.h"
 #include "Settings/ContentBrowserSettings.h"
 #include "Algo/Count.h"
@@ -97,6 +98,7 @@
 #include "PackageMigrationContext.h"
 #include "ComponentReregisterContext.h"
 #include "AssetViewUtils.h"
+#include "LocalizedAssetTools.h"
 
 #if WITH_EDITOR
 #include "Subsystems/AssetEditorSubsystem.h"
@@ -109,7 +111,7 @@
 #include "DiffUtils.h"
 #include "VirtualTexturingEditorModule.h"
 #include "Algo/AnyOf.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Factories/SceneImportFactory.h"
 #include "Misc/AssetFilterData.h"
 
@@ -119,6 +121,14 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AssetTools)
 
 #define LOCTEXT_NAMESPACE "AssetTools"
+
+namespace UE::Private
+{
+	FText GetInvalidFactoryMessage()
+	{
+		return LOCTEXT("InvalidFactory", "Cannot create the new asset because the supplied factory does not support the supplied class.");
+	} 
+}
 
 class FAssetDefinitionProxy : public FAssetTypeActions_Base
 {
@@ -208,7 +218,7 @@ public:
 	}
 
 private:
-	TArray<FText> SubMenus;
+	mutable TArray<FText> SubMenus;
 	mutable bool SubmenusInitialized = false;
 
 public:
@@ -223,10 +233,7 @@ public:
 			
 			for (const FAssetCategoryPath& Category : AssetDefinitionPtr.Get()->GetAssetCategories())
 			{
-				if (Category.HasSubCategory())
-				{
-					const_cast<FAssetDefinitionProxy*>(this)->SubMenus.Add(Category.GetSubCategoryText());
-				}
+				Category.GetSubCategoriesText(SubMenus);
 			}
 		}
     
@@ -394,7 +401,9 @@ public:
 	/** Optionally returns a custom widget to overlay on top of this assets' thumbnail */
     virtual TSharedPtr<class SWidget> GetThumbnailOverlay(const FAssetData& AssetData) const override
     {
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
     	return AssetDefinitionPtr.Get()->GetThumbnailOverlay(AssetData);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
     }
 	
 	virtual EThumbnailPrimType GetDefaultThumbnailPrimitiveType(UObject* Asset) const override
@@ -512,18 +521,13 @@ namespace UE::AssetTools::Private
 			{
 				TempWritableRootPath = InWritableRootPath;
 
-				if (const FPermissionListOwners* DenyListPtr = WritableFolder->GetDenyList().Find(TempWritableRootPath))
+				if (WritableFolder->ContainsDenyListItem(TempWritableRootPath))
 				{
-					DenyList = *DenyListPtr;
-
-					for (const FName Owner : DenyList)
-					{
-						WritableFolder->RemoveDenyListItem(Owner, TempWritableRootPath);
-					}
+					DenyList = WritableFolder->RemoveDenyListItemAndGetOwners(TempWritableRootPath);
 				}
 
 				// No need to add a permission if the list is empty since everything is permitted (except the deny list)
-				if (!WritableFolder->GetAllowList().IsEmpty())
+				if (WritableFolder->HasAllowListEntries())
 				{
 					WritableFolder->AddAllowListItem(TemporalyPermittedByMigration, TempWritableRootPath);
 				}
@@ -961,7 +965,7 @@ namespace UE::AssetTools::Private
 			}
 		}
 
-		static void CreatePackagesAndSetupLinkers(FPackageMigrationContext& PackageMigrationContext, FPackageMigrationImplContext& MigrationImplContext, TArray<TWeakObjectPtr<UPackage>>& PackagesToClean)
+		static void CreatePackagesAndSetupLinkers(FPackageMigrationContext& PackageMigrationContext, FPackageMigrationImplContext& MigrationImplContext, TArray<FName>& PackagesToClean)
 		{
 			FArchive* ReaderOverride = nullptr;
 
@@ -971,20 +975,25 @@ namespace UE::AssetTools::Private
 				if (MigrationImplContext.SlowTask.ShouldCancel() || MigrationImplContext.bWasCanceled)
 				{
 					MigrationImplContext.bWasCanceled = true;
-					break;
+					PackagesToClean.Add(FName(*MigrationPackageData.GetInstancedPackageName()));
 				}
+				else
+				{
+					UPackage* MigrationPackage = CreatePackage(*MigrationPackageData.GetInstancedPackageName());
 
-				UPackage* MigrationPackage = CreatePackage(*MigrationPackageData.GetInstancedPackageName());
+					/**
+					 * Load_Verify tell the linker to not load the package but it will create the linker if the file exist and is valid.
+					 * LOAD_NoVerify tell the linker to not check the import of the package (in the editor this will avoid loading the hard dependencies of the package)
+					 * 
+					 * This will the package with a pre-created linker that has the right instancing context. Ready to loaded by another call to load package that may not have all that info.
+					 */
+					MigrationPackageData.InstancedPackage = LoadPackage(MigrationPackage, *MigrationPackageData.GetOriginalPackageName(), LOAD_Verify | LOAD_NoVerify, ReaderOverride, &MigrationImplContext.InstancingContext);
 
-				/**
-				 * Load_Verify tell the linker to not load the package but it will create the linker if the file exist and is valid.
-				 * LOAD_NoVerify tell the linker to not check the import of the package (in the editor this will avoid loading the hard dependencies of the package)
-				 * 
-				 * This will the package with a pre-created linker that has the right instancing context. Ready to loaded by another call to load package that may not have all that info.
-				 */
-				MigrationPackageData.InstancedPackage = LoadPackage(MigrationPackage, *MigrationPackageData.GetOriginalPackageName(), LOAD_Verify | LOAD_NoVerify, ReaderOverride, &MigrationImplContext.InstancingContext);
+					// Add the PKG_NewlyCreated flag here to help the engine code that expect the packages without it to have a file associated with it on disk.
+					MigrationPackage->SetPackageFlags(PKG_NewlyCreated);
 
-				PackagesToClean.Add(MigrationPackage);
+					PackagesToClean.Add(MigrationPackage->GetFName());
+				}
 			}
 		}
 
@@ -1122,7 +1131,7 @@ namespace UE::AssetTools::Private
 			}
 		}
 
-		static void CleanInstancedPackages(const TArray<TWeakObjectPtr<UPackage>>& PackagesToClean, FPackageMigrationContext& PackageMigrationContext)
+		static void CleanInstancedPackages(const TArray<FName>& PackagesToClean, FPackageMigrationContext& PackageMigrationContext)
 		{
 			for (FPackageMigrationContext::FMigrationPackageData& MigrationPackageData : PackageMigrationContext.MigrationPackagesData)
 			{
@@ -1160,48 +1169,52 @@ namespace UE::AssetTools::Private
 			// Turn off the components while unloading stuff
 			FGlobalComponentReregisterContext ComponentContext;
 
-			// 1st Force to clean all the worlds so they can shutdown the subsystems properly
-			for (const TWeakObjectPtr<UPackage>& WeakPackage : PackagesToClean)
+
+			TArray<UPackage*> ExistingPackageToClean;
+			ExistingPackageToClean.Reserve(PackagesToClean.Num());
+
+			for (const FName PackageName : PackagesToClean)
 			{
-				if (UPackage* Package = WeakPackage.Get())
+				if (UPackage* Package = FindObjectFast<UPackage>(nullptr, PackageName, true))
 				{
-					if (Package->ContainsMap())
-					{
-						ForEachObjectWithOuter(Package, [](UObject* Object)
+					ExistingPackageToClean.Add(Package);
+				}
+			}
+
+			// 1st Force to clean all the worlds so they can shutdown the subsystems properly
+			for (const UPackage* Package : ExistingPackageToClean)
+			{
+				if (Package->ContainsMap())
+				{
+					ForEachObjectWithOuter(Package, [](UObject* Object)
 						{
 							if (UWorld* World = Cast<UWorld>(Object))
 							{
 								World->CleanupWorld();
 							}
 						});
-					}
 				}
 			}
 
 			TArray<UObject*> ReferenceToNull;
 
+
 			// We do the clean pass of the packages in two loop because the PurgeObject can affect the ability to get the main object from another package.
-			for (const TWeakObjectPtr<UPackage>& WeakPackage : PackagesToClean)
+			for (UPackage* Package : ExistingPackageToClean)
 			{
-				if (UPackage* Package = WeakPackage.Get())
+				if (UObject* Asset = FPackageMigrationImpl::FindAssetInPackage(Package))
 				{
-					if (UObject* Asset = FPackageMigrationImpl::FindAssetInPackage(Package))
-					{
-						AssetRegistry.AssetDeleted(Asset);
-						ReferenceToNull.Add(Asset);
-					}
+					AssetRegistry.AssetDeleted(Asset);
+					ReferenceToNull.Add(Asset);
 				}
 			}
 
-			for (const TWeakObjectPtr<UPackage>& WeakPackage : PackagesToClean)
+			for (UPackage* Package : ExistingPackageToClean)
 			{
-				if (UPackage* Package = WeakPackage.Get())
-				{
-					const ERenameFlags PkgRenameFlags = REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_SkipGeneratedClasses;
-					check(Package->Rename(*MakeUniqueObjectName(nullptr, UPackage::StaticClass(), *FString::Printf(TEXT("%s_DEADFROMMIGRATION"), *Package->GetName())).ToString(), nullptr, PkgRenameFlags));
-					(*PurgeObject)(Package);
-					ForEachObjectWithOuter(Package, *PurgeObject);
-				}
+				const ERenameFlags PkgRenameFlags = REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_SkipGeneratedClasses;
+				check(Package->Rename(*MakeUniqueObjectName(nullptr, UPackage::StaticClass(), *FString::Printf(TEXT("%s_DEADFROMMIGRATION"), *Package->GetName())).ToString(), nullptr, PkgRenameFlags));
+				(*PurgeObject)(Package);
+				ForEachObjectWithOuter(Package, *PurgeObject);
 			}
 
 			// Removing assets from memory is complicated
@@ -1325,6 +1338,7 @@ UAssetTools::UAssetTools(const class FObjectInitializer& ObjectInitializer)
 UAssetToolsImpl::UAssetToolsImpl(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, AssetRenameManager(MakeShareable(new FAssetRenameManager))
+	, LocalizedAssetTools(MakeShareable(new FLocalizedAssetTools))
 	, AssetFixUpRedirectors(MakeShareable(new FAssetFixUpRedirectors))
 	, NextUserCategoryBit(EAssetTypeCategories::FirstUser)
 	, AssetClassPermissionList_DEPRECATED(MakeShared<FNamePermissionList>())
@@ -1393,15 +1407,13 @@ UAssetToolsImpl::UAssetToolsImpl(const FObjectInitializer& ObjectInitializer)
 	AllocatedCategoryBits.Add(TEXT("Texture"), FAdvancedAssetCategory(EAssetTypeCategories::Textures, LOCTEXT("TextureAssetCategory", "Texture")));
 	AllocatedCategoryBits.Add(TEXT("World"), FAdvancedAssetCategory(EAssetTypeCategories::World, LOCTEXT("WorldAssetCategory", "World")));
 
-	EAssetTypeCategories::Type InputCategoryBit = RegisterAdvancedAssetCategory(FName(TEXT("Input")), LOCTEXT("InputAssetsCategory", "Input"));
-	
 	// Register the built-in asset type actions
 	RegisterAssetTypeActions(MakeShareable(new FAssetTypeActions_AnimBoneCompressionSettings));
 	RegisterAssetTypeActions(MakeShareable(new FAssetTypeActions_AnimCurveCompressionSettings));
 	RegisterAssetTypeActions(MakeShareable(new FAssetTypeActions_VariableFrameStrippingSettings));
-	RegisterAssetTypeActions(MakeShareable(new FAssetTypeActions_ForceFeedbackEffect(InputCategoryBit)));
 	RegisterAssetTypeActions(MakeShareable(new FAssetTypeActions_ParticleSystem));
 	RegisterAssetTypeActions(MakeShareable(new FAssetTypeActions_PhysicalMaterialMask));
+	RegisterAssetTypeActions(MakeShareable(new FAssetTypeActions_DeletedObjectPlaceholder));
 
 	// Note: Please don't add any more actions here!  They belong in an editor-only module that is more tightly
 	// coupled to your new system, and you should not create a dependency on your new system from AssetTools.
@@ -1452,14 +1464,15 @@ void UAssetToolsImpl::RegisterAssetTypeActions(const TSharedRef<IAssetTypeAction
 	}
 }
 
-void UAssetToolsImpl::SyncAssetTypesToAssetDefinitions() const
+void UAssetToolsImpl::SyncAssetTypesToAssetDefinitions()
 {
-	static int32 CachedAmount = 0;
-
-	TArray<TObjectPtr<UAssetDefinition>> AssetDefinitions = UAssetDefinitionRegistry::Get()->GetAllAssetDefinitions();
-	if (CachedAmount != AssetDefinitions.Num())
+	uint64 Version = UAssetDefinitionRegistry::Get()->GetAssetDefinitionVersion();
+	if (CachedVersion == 0 || CachedVersion != Version)
 	{
-		CachedAmount = AssetDefinitions.Num();		
+		CachedVersion = Version;
+		
+		TArray<TObjectPtr<UAssetDefinition>> AssetDefinitions = UAssetDefinitionRegistry::Get()->GetAllAssetDefinitions();
+		
 		for (UAssetDefinition* AssetDefinition : AssetDefinitions)
 		{
 			if (!AssetDefinition->IsA<UAssetDefinition_AssetTypeActionsProxy>())
@@ -1472,10 +1485,39 @@ void UAssetToolsImpl::SyncAssetTypesToAssetDefinitions() const
 				{
 					TSharedRef<FAssetDefinitionProxy> Proxy = MakeShared<FAssetDefinitionProxy>(AssetDefinition);
 					// Cache the asset definition proxy.
-					const_cast<UAssetToolsImpl*>(this)->RegisterAssetTypeActions(Proxy);
+					RegisterAssetTypeActions(Proxy);
 				}
 			}
 		}
+
+		// Remove any AssetDefinitionProxy objects that don't have an associated AssetDefinition
+		for (int32 Index = AssetTypeActionsList.Num() - 1, Last = 0; Index >= Last; --Index)
+		{
+			const TSharedRef<IAssetTypeActions>& AssetTypeActions = AssetTypeActionsList[Index];
+			if (AssetTypeActions->IsAssetDefinitionInDisguise())
+			{
+				UClass* AssetTypeActionsSupportedClass = AssetTypeActions->GetSupportedClass();
+				
+				bool bFound = false;
+				// Find it in the AssetDefinitions List
+				for (UAssetDefinition* AssetDefinition : AssetDefinitions)
+				{
+					if (!AssetDefinition->IsA<UAssetDefinition_AssetTypeActionsProxy>())
+					{
+						const TSoftClassPtr<UObject> AssetClass = AssetDefinition->GetAssetClass();
+						if (AssetClass == AssetTypeActionsSupportedClass)
+						{
+							bFound = true;
+							break;
+						}
+					}
+				}
+				if (!bFound)
+				{
+					RemoveAssetTypeActionBySupportedClass(AssetTypeActionsSupportedClass);
+				}
+			}
+		}		
 	}
 }
 
@@ -1500,7 +1542,7 @@ void UAssetToolsImpl::UnregisterAssetTypeActions(const TSharedRef<IAssetTypeActi
 
 void UAssetToolsImpl::GetAssetTypeActionsList( TArray<TWeakPtr<IAssetTypeActions>>& OutAssetTypeActionsList ) const
 {
-	SyncAssetTypesToAssetDefinitions();
+	const_cast<UAssetToolsImpl*>(this)->SyncAssetTypesToAssetDefinitions();
 	for (auto ActionsIt = AssetTypeActionsList.CreateConstIterator(); ActionsIt; ++ActionsIt)
 	{
 		OutAssetTypeActionsList.Add(*ActionsIt);
@@ -1509,7 +1551,7 @@ void UAssetToolsImpl::GetAssetTypeActionsList( TArray<TWeakPtr<IAssetTypeActions
 
 TWeakPtr<IAssetTypeActions> UAssetToolsImpl::GetAssetTypeActionsForClass(const UClass* Class) const
 {
-	SyncAssetTypesToAssetDefinitions();
+	const_cast<UAssetToolsImpl*>(this)->SyncAssetTypesToAssetDefinitions();
 
 	const UClass* CandidateClass = Class;
 	
@@ -1529,21 +1571,14 @@ TWeakPtr<IAssetTypeActions> UAssetToolsImpl::GetAssetTypeActionsForClass(const U
 	return nullptr;
 }
 
+TSharedPtr<ILocalizedAssetTools> UAssetToolsImpl::GetLocalizedAssetTools() const
+{
+	return LocalizedAssetTools;
+}
+
 bool UAssetToolsImpl::CanLocalize(const UClass* Class) const
 {
-	if (const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForClass(Class))
-	{
-		return AssetDefinition->CanLocalize(FAssetData()).IsSupported();
-	}
-	else
-	{
-		if (TSharedPtr<IAssetTypeActions> AssetActions = GetAssetTypeActionsForClass(Class).Pin())
-		{
-			return AssetActions->CanLocalize();
-		}
-	}
-
-	return false;
+	return LocalizedAssetTools->CanLocalize(Class);
 }
 
 TOptional<FLinearColor> UAssetToolsImpl::GetTypeColor(const UClass* Class) const
@@ -1567,7 +1602,7 @@ TArray<TWeakPtr<IAssetTypeActions>> UAssetToolsImpl::GetAssetTypeActionsListForC
 {
 	TArray<TWeakPtr<IAssetTypeActions>> ResultAssetTypeActionsList;
 
-	SyncAssetTypesToAssetDefinitions();
+	const_cast<UAssetToolsImpl*>(this)->SyncAssetTypesToAssetDefinitions();
 	for (int32 TypeActionsIdx = 0; TypeActionsIdx < AssetTypeActionsList.Num(); ++TypeActionsIdx)
 	{
 		TSharedRef<IAssetTypeActions> TypeActions = AssetTypeActionsList[TypeActionsIdx];
@@ -1684,7 +1719,7 @@ UObject* UAssetToolsImpl::CreateAsset(const FString& AssetName, const FString& P
 		((Factory->SupportedClass != nullptr && !ensure(AssetClass->IsChildOf(Factory->GetSupportedClass()))) || 
 		 (Factory->SupportedClass == nullptr && !ensure(Factory->DoesSupportClass(AssetClass)))) )
 	{
-		FMessageDialog::Open( EAppMsgType::Ok, LOCTEXT("InvalidFactory", "The new asset wasn't created because the supplied factory does not support the supplied class.") );
+		FMessageDialog::Open( EAppMsgType::Ok, UE::Private::GetInvalidFactoryMessage());
 		return nullptr;
 	}
 
@@ -1713,7 +1748,7 @@ UObject* UAssetToolsImpl::CreateAsset(const FString& AssetName, const FString& P
 	if( NewObj )
 	{
 
-		Pkg->SetIsExternallyReferenceable(CreateAssetsAsExternallyReferenceable);
+		Pkg->SetIsExternallyReferenceable(ShouldCreateAssetsAsExternallyReferenceableForPath(PackageName));
 
 		// Notify the asset registry
 		FAssetRegistryModule::AssetCreated(NewObj);
@@ -1811,7 +1846,20 @@ UObject* UAssetToolsImpl::CreateAssetWithDialog(const FString& AssetName, const 
 		SaveAssetDialogConfig.DefaultPath = PackagePath;
 		SaveAssetDialogConfig.DefaultAssetName = AssetName;
 		SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
-		SaveAssetDialogConfig.AssetClassNames.Add(Factory->GetSupportedClass()->GetClassPathName());
+		if (Factory->GetSupportedClass() != nullptr)
+		{
+			SaveAssetDialogConfig.AssetClassNames.Add(Factory->GetSupportedClass()->GetClassPathName());
+		}
+		else if(AssetClass && Factory->DoesSupportClass(AssetClass))
+		{
+			SaveAssetDialogConfig.AssetClassNames.Add(AssetClass->GetClassPathName());
+		}
+		else
+		{
+			FMessageDialog::Open(EAppMsgType::Ok, UE::Private::GetInvalidFactoryMessage());
+			return nullptr;
+		}
+		
 
 		FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 		FString SaveObjectPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);
@@ -1938,6 +1986,25 @@ void UAssetToolsImpl::SetCreateAssetsAsExternallyReferenceable(bool bValue)
 bool UAssetToolsImpl::GetCreateAssetsAsExternallyReferenceable()
 {
 	return CreateAssetsAsExternallyReferenceable;
+}
+
+bool UAssetToolsImpl::ShouldCreateAssetsAsExternallyReferenceableForPath(const FStringView AssetPath) const
+{
+	// Allow other systems to control the result
+	TOptional<bool> bExternallyReferenceable;
+	CreateAssetsAsExternallyReferenceableForPathDelegate.Broadcast(AssetPath, bExternallyReferenceable);
+	if (bExternallyReferenceable.IsSet())
+	{
+		return bExternallyReferenceable.GetValue();
+	}
+
+	// If no other systems set a result, then use the global setting applied to all assets
+	return CreateAssetsAsExternallyReferenceable;
+}
+
+UE::AssetTools::FShouldCreateAssetsAsExternallyReferenceableForPath& UAssetToolsImpl::GetOnShouldCreateAssetsAsExternallyReferenceableForPath()
+{
+	return CreateAssetsAsExternallyReferenceableForPathDelegate;
 }
 
 void UAssetToolsImpl::GenerateAdvancedCopyDestinations(FAdvancedCopyParams& InParams, const TArray<FName>& InPackageNamesToCopy, const UAdvancedCopyCustomization* CopyCustomization, TMap<FString, FString>& OutPackagesAndDestinations) const
@@ -2178,110 +2245,6 @@ void UAssetToolsImpl::GetAllAdvancedCopySources(FName SelectedPackage, FAdvanced
 	}
 }
 
-namespace 
-{
-bool IsSlashOrBackslash(TCHAR C) 
-{
-	return C == TEXT('/') || C == TEXT('\\'); 
-}
-	
-TMap<FString, FString> AllSourceAndDestPackages(const TMap<FString, FString>& SourceAndDestPackages)
-{
-	TMap<FString, FString> Result;
-
-	IAssetRegistry& Registry = *IAssetRegistry::Get();
-
-	TArray< TTuple<FString, FString> > ToProcess;
-	Algo::Copy(SourceAndDestPackages, ToProcess);
-
-	while (ToProcess.Num())
-	{
-		TTuple<FString, FString> Package = ToProcess.Pop();
-
-		if (Result.Contains(Package.Key))
-		{
-			continue;
-		}
-
-		// Become a patching name even if it doesn't have a file.
-		Result.Add({ Package.Key, Package.Value });
-
-		TArray<FName> Dependencies;
-
-		if (!Registry.GetDependencies(FName(*Package.Key), Dependencies))
-		{
-			continue;
-		}
-
-		// Making String Views into strings because the String.Replace used inside the loop cannot use the views.
-		FString SrcPackageRoot = FString(FPackageName::SplitPackageNameRoot(Package.Key, nullptr));
-		FString DstPackageRoot = FString(FPackageName::SplitPackageNameRoot(Package.Value, nullptr));
-
-		for (const FName Dependency : Dependencies)
-		{
-			const FString SrcDependencyString = Dependency.ToString();
-			
-			// checking from +1 Dependency has a leading '/' 
-			if (IsSlashOrBackslash(SrcDependencyString[0])
-				&& FStringView(*SrcDependencyString + 1, SrcPackageRoot.Len()) == SrcPackageRoot
-				&& IsSlashOrBackslash(SrcDependencyString[SrcPackageRoot.Len() + 1]))
-			{
-				// if a dep start with the package name, then we are going to copy the asset.
-				// but we need to recurse on this asset as it may have sub dependencies we don't know of yet.
-				const FString DstDependencyString = SrcDependencyString.Replace(*SrcPackageRoot, *DstPackageRoot, ESearchCase::CaseSensitive);
-				ToProcess.Add({ SrcDependencyString , DstDependencyString });
-			}
-		}
-	}
-
-	return Result;
-}
-
-TMap<FString, FString> GenerateAdditionalAssetMappings(const TMap<FString, FString>& SourceAndDestPackages)
-{
-	TMap<FString, FString> Result;
-
-	TCHAR SrcNameBuffer[NAME_SIZE];
-	TCHAR DstNameBuffer[NAME_SIZE];
-	for (const TTuple<FString, FString>& Package : SourceAndDestPackages)
-	{
-		// We make FName's out of our incoming string package names
-		// as on rare occasion some of them have a '_[0-9]+' tail.
-		// Making FNames parse and strip this number on construction
-		// which then makes it consistent with how the are found in the name and import tables.
-		FName SrcName = *Package.Key;
-		int32 SrcNameLen = (int32)SrcName.GetPlainNameString(SrcNameBuffer);
-		FStringView SrcNameView{ SrcNameBuffer, SrcNameLen };
-
-		FName DstName = *Package.Value;
-		int32 DstNameLen = (int32)DstName.GetPlainNameString(DstNameBuffer);
-		FStringView DstNameView{ DstNameBuffer, DstNameLen };		
-
-		if (SrcNameLen != Package.Key.Len())
-		{
-			Result.Add({ FString(SrcNameView), FString(DstNameView) });
-		}
-
-		// FPathViews::GetBaseFilename gives the same result as FPackageName::GetShortName
-		// for a file path, but returns a StringView not a String.
-		FStringView SrcPackageName = FPathViews::GetBaseFilename(SrcNameView);
-		FStringView DstPackageName = FPathViews::GetBaseFilename(DstNameView);
-
-		// Inject Path.ObjectName
-		// NOTE: this would be better to use a string builder.
-		Result.Add({ FString(SrcNameView) + TCHAR('.') + SrcPackageName, FString(DstNameView) + TCHAR('.') + DstPackageName });
-		if (SrcPackageName != DstPackageName)
-		{
-			Result.Add({ FString(SrcPackageName), FString(DstPackageName) });
-			Result.Add({ FString(SrcPackageName) + TEXT("_C"), FString(DstPackageName) + TEXT("_C") }); // catch compiled blueprint names
-			Result.Add({ DEFAULT_OBJECT_PREFIX + FString(SrcPackageName) + TEXT("_C"), DEFAULT_OBJECT_PREFIX + FString(DstPackageName) + TEXT("_C") }); // BPGC default object
-		}
-	}
-
-	return Result;
-}
-}
-
 bool UAssetToolsImpl::AdvancedCopyPackages(
 	const TMap<FString, FString>& SourceAndDestPackages,
 	const bool bForceAutosave,
@@ -2318,72 +2281,20 @@ bool UAssetToolsImpl::AdvancedCopyPackages(
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(AdvancedCopyPackages.HeaderPatching);
 
-			std::atomic<int32> PatchAssetsCompletedCount = 0;
-			UE::Tasks::FTaskEvent PatchAssetsCompletionTask{ UE_SOURCE_LOCATION };
+			FAssetHeaderPatcher::FContext PatcherContext(SourceAndDestPackages);
+			FAssetHeaderPatcher Patcher(MoveTemp(PatcherContext));
 
-			TMap<FString, FString> ToCopyAndPatchPackages = AllSourceAndDestPackages(SourceAndDestPackages);
-			TMap<FString, FString> PatchingPatterns = GenerateAdditionalAssetMappings(SourceAndDestPackages);
-			PatchingPatterns.Append(ToCopyAndPatchPackages);
-
-			// Construct all filenames
-			TMap<FString, FString> ToCopyAndPatchFiles;
-			ToCopyAndPatchFiles.Reserve(ToCopyAndPatchPackages.Num());
-			for (const TTuple<FString, FString>& Package : ToCopyAndPatchPackages)
-			{
-				const FString& PackageName = Package.Key;
-				const FString& DestPackage = Package.Value;
-				FString SrcFilename;
-
-				if (FPackageName::IsVersePackage(PackageName))
-				{
-					// Verse packages are not header patchable.
-					// They are also not Packages as far as DoesPackageExist tells me.
-					// But they are real files that in template copying have already been done, so we dont want a warning message.
-					continue;
-				}
-
-				if (FPackageName::DoesPackageExist(PackageName, &SrcFilename))
-				{
-					FString DestFilename = FPackageName::LongPackageNameToFilename(DestPackage, FString(FPathViews::GetExtension(SrcFilename, true)));
-					ToCopyAndPatchFiles.Add({ MoveTemp(SrcFilename), MoveTemp(DestFilename) });
-				} 
-				else
-				{
-					UE_LOG(LogAssetTools, Warning, TEXT("{%s} package does not exist, and will not be copied."), *PackageName);
-				}
-			}
-
-			LoopProgress = MakeUnique<FScopedSlowTask>(static_cast<float>(ToCopyAndPatchFiles.Num()), LOCTEXT("AdvancedCopyPackages.ReplacingAssetReferences", "Replacing Asset References..."));
+			int32 NumFilesToPatch = 0;
+			int32 PatchAssetsCompletedCount = 0;
+			UE::Tasks::FTask PatchAssetsCompletionTask = Patcher.PatchAsync(&NumFilesToPatch, &PatchAssetsCompletedCount);
+		
+			LoopProgress = MakeUnique<FScopedSlowTask>(static_cast<float>(NumFilesToPatch), LOCTEXT("AdvancedCopyPackages.ReplacingAssetReferences", "Replacing Asset References..."));
 			LoopProgress->MakeDialog();
 
-			TSet<FString> ErroredFiles;
-			FCriticalSection  ErroredFilesLock;
-
-			// Spawn tasks (Scatter)
-			for (const TTuple<FString, FString>& Filename : ToCopyAndPatchFiles)
-			{
-				const FString& SrcFilename = Filename.Key;
-				const FString& DestFilename = Filename.Value;
-
-				UE::Tasks::FTask PatcherTask = UE::Tasks::Launch(UE_SOURCE_LOCATION,
-					[&PatchAssetsCompletedCount, &PatchingPatterns, InSrcFilename = SrcFilename, InDestFilename = DestFilename, &ErroredFilesLock, &ErroredFiles] () 
-					{
-						FAssetHeaderPatcher::EResult Result = FAssetHeaderPatcher::DoPatch(InSrcFilename, InDestFilename, PatchingPatterns, /* bBespokeSearchInUse */false);
-						if (Result != FAssetHeaderPatcher::EResult::Success) 
-						{
-							FScopeLock Lock(&ErroredFilesLock);
-							ErroredFiles.Add(InSrcFilename);
-						}
-						PatchAssetsCompletedCount.fetch_add(1, std::memory_order_relaxed);
-					});
-				PatchAssetsCompletionTask.AddPrerequisites(PatcherTask);
-			}
-
-			// Gather
-			PatchAssetsCompletionTask.Trigger();
 			while (!PatchAssetsCompletionTask.Wait(FTimespan::FromSeconds(0.5)))
 			{
-				LoopProgress->CompletedWork = (float)PatchAssetsCompletedCount.load(std::memory_order_relaxed);
+				// We don't support C++20 in all modules and platforms yet and avoid using atomic_ref as a result
+				LoopProgress->CompletedWork = (float)FPlatformAtomics::AtomicRead_Relaxed((volatile int32*)&PatchAssetsCompletedCount);
 				LoopProgress->TickProgress();
 			}
 
@@ -2391,22 +2302,18 @@ bool UAssetToolsImpl::AdvancedCopyPackages(
 			// And reporting to the user
 			FMessageLog AdvancedCopyLog("AssetTools");
 
-			bool bHasErrors = ErroredFiles.Num() != 0;
-
+			bool bHasErrors = Patcher.HasErrors();
+			TMap<FString, FAssetHeaderPatcher::EResult> ErroredFiles;
 			if (bHasErrors)
 			{
+				ErroredFiles = Patcher.GetErrorFiles();
 				AdvancedCopyLog.NewPage(LOCTEXT("AdvancedCopyPackages_SourceControlErrorsListPage", "Revision Control Errors"));
 			}
 
 			// reporting files with copy errors and filtering successful ones
-			for (const TTuple<FString, FString>& Filename : ToCopyAndPatchFiles)
+			for (const auto& FilenameAndResult : ErroredFiles)
 			{			
-				if (ErroredFiles.Contains(Filename.Key))
-				{
-					AdvancedCopyLog.Error(FText::Format(LOCTEXT("AdvancedCopyPackages_CouldNotProcessError", "{0} could not be processed"), FText::FromString(*Filename.Key)));
-					continue;
-				}
-				SuccessfullyCopiedDestinationFiles.Add(Filename.Value);
+				AdvancedCopyLog.Error(FText::Format(LOCTEXT("AdvancedCopyPackages_CouldNotProcessError", "{0} could not be processed: {1}"), FText::FromString(FilenameAndResult.Key), FText::FromString(*LexToString(FilenameAndResult.Value))));
 			}
 
 			if (SuccessfullyCopiedDestinationFiles.Num() > 0
@@ -2506,7 +2413,6 @@ bool UAssetToolsImpl::AdvancedCopyPackages(
 							{
 								if (UWorldPartition* WorldPartition = World->GetWorldPartition())
 								{
-									check(!WorldPartition->IsStreamingEnabled());
 									if (!WorldPartition->IsInitialized())
 									{
 										WorldPartition->Initialize(World, FTransform::Identity);
@@ -2726,54 +2632,6 @@ bool UAssetToolsImpl::AdvancedCopyPackages(const FAdvancedCopyParams& CopyParams
 	return bResult;
 }
 
-/** Copies a file, patching internal references without performing a de-serialization. This is a blocking operation. returns true on successful copy */
-bool UAssetToolsImpl::PatchCopyPackageFile(const FString& SrcFile, const FString& DstFile, const TMap<FString, FString>& SearchForAndReplace) const
-{
-	FAssetHeaderPatcher::EResult Result = FAssetHeaderPatcher::DoPatch(SrcFile, DstFile, SearchForAndReplace, /* bBespokeSearchInUse */ true);
-	return (Result == FAssetHeaderPatcher::EResult::Success);
-}
-
-TMap<FString, FString> UAssetToolsImpl::GetMappingsForRootPackageRename(
-	const FString& SrcRoot,
-	const FString& DstRoot,
-	const FString& SrcBaseDir,
-	const TArray<TPair<FString, FString>>& SourceAndDestFiles) const
-{
-	TMap<FString, FString> Result;
-	Result.Reserve(3 + SourceAndDestFiles.Num());
-
-	{	// Plugin name patterns
-		FString SrcPath = FPaths::Combine(TEXT("/"), SrcRoot, SrcRoot);
-		FString DstPath = FPaths::Combine(TEXT("/"), DstRoot, SrcRoot);
-
-		Result.Add(SrcPath + TEXT(".") + SrcRoot, DstPath + TEXT(".") + SrcRoot);	// /Src/Src.Src -> /Dst/Src.Src
-		Result.Add(MoveTemp(SrcPath), MoveTemp(DstPath));					// /Src/Src     -> /Dst/Src
-		Result.Add(TEXT("<GameFeatureData.PrimaryAssetName>") + SrcRoot, DstRoot);	// <GameFeatureData.PrimaryAssetName>Src -> Dst (for matching in specific modes)
-	}
-
-	const FString SourceContentPath = FPaths::Combine(SrcBaseDir, TEXT("Content"));
-
-	for (const TTuple<FString, FString>& SourceAndDest : SourceAndDestFiles)
-	{
-		const FString& SrcFileName = SourceAndDest.Key;
-
-		if (FPaths::IsUnderDirectory(SrcFileName, SourceContentPath))
-		{
-			if (FStringView RelativePkgPath; FPathViews::TryMakeChildPathRelativeTo(SrcFileName, SourceContentPath, RelativePkgPath))
-			{
-				RelativePkgPath = FPathViews::GetBaseFilenameWithPath(RelativePkgPath); // chop the extension
-				if (RelativePkgPath.Len() > 0 && !RelativePkgPath.EndsWith(TEXT("/")))
-				{
-					Result.Add(FPaths::Combine(TEXT("/"), SrcRoot, RelativePkgPath),
-						       FPaths::Combine(TEXT("/"), DstRoot, RelativePkgPath));
-				}
-			}
-		}
-	}
-
-	return Result;
-}
-
 bool UAssetToolsImpl::IsDiscoveringAssetsInProgress() const
 {
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
@@ -2911,18 +2769,28 @@ void UAssetToolsImpl::ExportAssets(const TArray<FString>& AssetsToExport, const 
 	}
 
 	const bool bPromptIndividualFilenames = false;
-	ExportAssetsInternal(AssetObjectsToExport, bPromptIndividualFilenames, ExportPath);
+	const bool bExportAsCleanFileName = false;
+	ExportAssetsInternal(AssetObjectsToExport, bPromptIndividualFilenames, bExportAsCleanFileName, ExportPath);
 }
 
 void UAssetToolsImpl::ExportAssets(const TArray<UObject*>& AssetsToExport, const FString& ExportPath) const
 {
 	const bool bPromptIndividualFilenames = false;
-	ExportAssetsInternal(AssetsToExport, bPromptIndividualFilenames, ExportPath);
+	const bool bSaveAsCleanFilename = false;
+	ExportAssetsInternal(AssetsToExport, bPromptIndividualFilenames, bSaveAsCleanFilename, ExportPath);
 }
 
+void UAssetToolsImpl::ExportAssetsWithCleanFilename(const TArray<UObject*>& AssetsToExport, const FString& ExportPath) const
+{
+	const bool bPromptIndividualFilenames = false;
+	const bool bSaveAsCleanFilename = true;
+	ExportAssetsInternal(AssetsToExport, bPromptIndividualFilenames, bSaveAsCleanFilename, ExportPath);
+}
+ 
 void UAssetToolsImpl::ExportAssetsWithDialog(const TArray<UObject*>& AssetsToExport, bool bPromptForIndividualFilenames)
 {
-	ExportAssetsInternal(AssetsToExport, bPromptForIndividualFilenames, TEXT(""));
+	const bool bSaveAsCleanFilename = false;
+	ExportAssetsInternal(AssetsToExport, bPromptForIndividualFilenames, bSaveAsCleanFilename, TEXT(""));
 }
 
 void UAssetToolsImpl::ExportAssetsWithDialog(const TArray<FString>& AssetsToExport, bool bPromptForIndividualFilenames)
@@ -2943,7 +2811,8 @@ void UAssetToolsImpl::ExportAssetsWithDialog(const TArray<FString>& AssetsToExpo
 		}
 	}
 
-	ExportAssetsInternal(AssetObjectsToExport, bPromptForIndividualFilenames, TEXT(""));
+	const bool bSaveAsCleanFilename = false;
+	ExportAssetsInternal(AssetObjectsToExport, bPromptForIndividualFilenames, bSaveAsCleanFilename, TEXT(""));
 }
 
 void UAssetToolsImpl::ExpandDirectories(const TArray<FString>& Files, const FString& DestinationPath, TArray<TPair<FString, FString>>& FilesAndDestinations) const
@@ -3654,8 +3523,6 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 
 	TSharedPtr<FInterchangeImportStatus, ESPMode::ThreadSafe> ImportStatus = MakeShared<FInterchangeImportStatus>(FilesAndDestinations.Num());
 
-	const bool bForceContentBrowserSyncIfOnlyOneMainAsset = (FilesAndDestinations.Num() == 1 && !bAutomatedImport);
-
 	// Now iterate over the input files and use the same factory object for each file with the same extension
 	for(int32 FileIdx = 0; FileIdx < FilesAndDestinations.Num() && !bImportWasCancelled; ++FileIdx)
 	{
@@ -3734,7 +3601,7 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 				
 				TFunction<void(UE::Interchange::FImportResult&)> AppendAndBroadcastImportResultIfNeeded =
 					// Note: ImportStatus captured by value so that the lambda keeps the shared ptr alive
-					[bSceneImport = Params.bSceneImport, ImportStatus, AppendImportResult, bSyncToBrowser, bForceContentBrowserSyncIfOnlyOneMainAsset](UE::Interchange::FImportResult& Result)
+					[bSceneImport = Params.bSceneImport, ImportStatus, AppendImportResult, bSyncToBrowser](UE::Interchange::FImportResult& Result)
 					{
 						AppendImportResult(Result);
 
@@ -3766,9 +3633,17 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 									}
 								}
 							}
+							for (UObject* Object : MainAssets)
+							{
+								if (Object->IsAsset())
+								{
+									FAssetRegistryModule::AssetCreated(Object);
+									GEditor->BroadcastObjectReimported(Object);
+								}
+							}
 
 							//Force browser to sync to the import asset if there is only one asset imported
-							if (bSyncToBrowser || (bForceContentBrowserSyncIfOnlyOneMainAsset && MainAssets.Num() == 1))
+							if (bSyncToBrowser)
 							{
 								UAssetToolsImpl::Get().SyncBrowserToAssets(MainAssets);
 							}
@@ -3812,19 +3687,16 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 							InterchangeManager.ConvertImportData(Params.AssetImportTask->Options, ImportAssetParameters);
 						}
 					}
-					UE::Interchange::FAssetImportResultRef InterchangeResult = (InterchangeManager.ImportAssetAsync(DestinationPath, ScopedSourceData.GetSourceData(), ImportAssetParameters));
+					UE::Interchange::FAssetImportResultRef InterchangeResult = Params.bAllowAsyncImport
+						? (InterchangeManager.ImportAssetAsync(DestinationPath, ScopedSourceData.GetSourceData(), ImportAssetParameters))
+						: (InterchangeManager.ImportAssetWithResult(DestinationPath, ScopedSourceData.GetSourceData(), ImportAssetParameters));
+
+					InterchangeResult->OnDone(AppendAndBroadcastImportResultIfNeeded);
 
 					// If we have an ImportTask, fill out the asynchronous results object here so the caller can see when the results are ready
 					if ( Params.AssetImportTask)
 					{
 						 Params.AssetImportTask->AsyncResults = InterchangeResult;
-					}
-
-					InterchangeResult->OnDone(AppendAndBroadcastImportResultIfNeeded);
-
-					if (!Params.bAllowAsyncImport)
-					{
-						InterchangeResult->WaitUntilDone();
 					}
 				}
 
@@ -4132,7 +4004,7 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 				continue;
 			}
 
-			Pkg->SetIsExternallyReferenceable(CreateAssetsAsExternallyReferenceable);
+			Pkg->SetIsExternallyReferenceable(ShouldCreateAssetsAsExternallyReferenceableForPath(PackageName));
 
 			Factory->SetAutomatedAssetImportData(Params.ImportData);
 			Factory->SetAssetImportTask(Params.AssetImportTask);
@@ -4199,7 +4071,7 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 	}
 
 	// Sync content browser to the newly created assets
-	if(ReturnObjects.Num() && (bSyncToBrowser != false || (ReturnObjects.Num() == 1 && bForceContentBrowserSyncIfOnlyOneMainAsset)))
+	if(ReturnObjects.Num() && bSyncToBrowser)
 	{
 		UAssetToolsImpl::Get().SyncBrowserToAssets(ReturnObjects);
 	}
@@ -4207,7 +4079,7 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 	return ReturnObjects;
 }
 
-void UAssetToolsImpl::ExportAssetsInternal(const TArray<UObject*>& ObjectsToExport, bool bPromptIndividualFilenames, const FString& ExportPath) const
+void UAssetToolsImpl::ExportAssetsInternal(const TArray<UObject*>& ObjectsToExport, bool bPromptIndividualFilenames, bool bSaveAsCleanFilename, const FString& ExportPath) const
 {
 	FString LastExportPath = !ExportPath.IsEmpty() ? ExportPath : FEditorDirectories::Get().GetLastDirectory(ELastDirectory::GENERIC_EXPORT);
 
@@ -4465,7 +4337,8 @@ void UAssetToolsImpl::ExportAssetsInternal(const TArray<UObject*>& ObjectsToExpo
 				}
 
 				FPaths::NormalizeFilename(PackageName);
-				SaveFileName /= PackageName;
+				
+				SaveFileName /= bSaveAsCleanFilename ? FPaths::GetCleanFilename(PackageName) : PackageName;
 			}
 			else
 			{
@@ -4730,13 +4603,21 @@ bool UAssetToolsImpl::CanCreateAsset(const FString& AssetName, const FString& Pa
 	{
 		// Object already exists in either the specified package or another package.  Check to see if the user wants
 		// to replace the object.
-		bool bWantReplace =
-			EAppReturnType::Yes == FMessageDialog::Open(
-				EAppMsgType::YesNo,
-				EAppReturnType::No,
-				FText::Format(
-					NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackage_F", "An object [{0}] of class [{1}] already exists in file [{2}].  Do you want to replace the existing object?  If you click 'Yes', the existing object will be deleted.  Otherwise, click 'No' and choose a unique name for your new object." ),
-					FText::FromString(AssetName), FText::FromString(ExistingObject->GetClass()->GetName()), FText::FromString(PackageName) ) );
+		TSharedRef<SMessageDialog> ConfirmDialog = SNew(SMessageDialog)
+			.Icon(FAppStyle::Get().GetBrush("Icons.WarningWithColor.Large"))
+			.Title(FText(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_Title", "Overwrite Existing Object")))
+			.Message(FText::Format(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_Message", "An object already exists with this name.\n\n\tName: {0}\n\tClass: {1}\n\tAsset path: {2}\n\nOverwrite the existing object?"),
+				FText::FromString(AssetName),
+				FText::FromString(ExistingObject->GetClass()->GetName()),
+				FText::FromString(PackageName)))
+			.Buttons({
+				SCustomDialog::FButton(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_ButtonOverwrite", "Overwrite")).SetPrimary(true),
+				SCustomDialog::FButton(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_ButtonCancel", "Cancel")),
+				})
+			.ContentMinWidth(300.0f);
+		uint32 ConfirmationResult = ConfirmDialog->ShowModal();
+
+		bool bWantReplace = ConfirmationResult == 0;
 
 		if( bWantReplace )
 		{
@@ -5147,7 +5028,7 @@ void UAssetToolsImpl::MigratePackages_ReportConfirmed(TSharedPtr<TArray<ReportPa
 
 
 			// 3) Instanced load
-			TArray<TWeakObjectPtr<UPackage>> PackagesToClean;
+			TArray<FName> PackagesToClean;
 			PackagesToClean.Reserve(PackageMigrationContext.MigrationPackagesData.Num());
 			FPackageMigrationImpl::CreatePackagesAndSetupLinkers(PackageMigrationContext, MigrationImplContext, PackagesToClean);
 
@@ -6424,6 +6305,27 @@ void UAssetToolsImpl::RegisterIsNameAllowedDelegate(const FName OwnerName, FIsNa
 void UAssetToolsImpl::UnregisterIsNameAllowedDelegate(const FName OwnerName)
 {
 	IsNameAllowedDelegates.Remove(OwnerName);
+}
+
+bool UAssetToolsImpl::SanitizeName(FString& NameToSanitize)
+{
+	//Call the delegates
+	for (const TPair<FName, FSanitizeName>& DelegatePair : SanitizeNameDelegates)
+	{
+		DelegatePair.Value.Execute(NameToSanitize);
+	}
+
+	return ensure(IsNameAllowed(NameToSanitize, nullptr));
+}
+
+void UAssetToolsImpl::RegisterSanitizeNameDelegate(const FName OwnerName, FSanitizeName Delegate)
+{
+	SanitizeNameDelegates.Add(OwnerName, Delegate);
+}
+
+void UAssetToolsImpl::UnregisterSanitizeNameDelegate(const FName OwnerName)
+{
+	SanitizeNameDelegates.Remove(OwnerName);
 }
 
 void UAssetToolsImpl::RegisterCanMigrateAsset(const FName OwnerName, UE::AssetTools::FCanMigrateAsset Delegate)

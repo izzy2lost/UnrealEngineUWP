@@ -4,6 +4,7 @@
 
 #include "CoreTypes.h"
 #include "Misc/Crc.h"
+#include "Misc/Parse.h"
 #include "Math/UnrealMathUtility.h"
 #include "Containers/UnrealString.h"
 #include "Serialization/StructuredArchive.h"
@@ -25,13 +26,13 @@ struct TIntVector3
 	{
 		struct
 		{
-			/** Holds the point's x-coordinate. */
+			/** Holds the vector's x-coordinate. */
 			IntType X;
 
-			/** Holds the point's y-coordinate. */
+			/** Holds the vector's y-coordinate. */
 			IntType Y;
 
-			/**  Holds the point's z-coordinate. */
+			/** Holds the vector's z-coordinate. */
 			IntType Z;
 		};
 
@@ -39,10 +40,10 @@ struct TIntVector3
 		IntType XYZ[3];
 	};
 
-	/** An int point with zeroed values. */
+	/** An int vector with zeroed values. */
 	static const TIntVector3 ZeroValue;
 
-	/** An int point with INDEX_NONE values. */
+	/** An int vector with INDEX_NONE values. */
 	static const TIntVector3 NoneValue;
 
 	/**
@@ -57,7 +58,7 @@ struct TIntVector3
 	 * @param InY The y-coordinate.
 	 * @param InZ The z-coordinate.
 	 */
-	TIntVector3(IntType InX, IntType InY, IntType InZ )
+	TIntVector3(IntType InX, IntType InY, IntType InZ)
 		: X(InX)
 		, Y(InY)
 		, Z(InZ)
@@ -69,7 +70,7 @@ struct TIntVector3
 	 *
 	 * @param InValue replicated to all components
 	 */
-	explicit TIntVector3(IntType InValue )
+	explicit TIntVector3(IntType InValue)
 		: X(InValue)
 		, Y(InValue)
 		, Z(InValue)
@@ -81,15 +82,15 @@ struct TIntVector3
 	 *
 	 * @param InVector float vector converted to int
 	 */
-	explicit TIntVector3( FVector InVector  );
+	template <typename FloatType>
+	explicit TIntVector3(TVector<FloatType> InVector);
 
 	/**
 	 * Constructor
 	 *
 	 * @param EForceInit Force init enum
 	 */
-
-	explicit TIntVector3( EForceInit )
+	explicit TIntVector3(EForceInit)
 		: X(0)
 		, Y(0)
 		, Z(0)
@@ -116,9 +117,9 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
-	 * Gets specific component of a point.
+	 * Gets specific component of a vector.
 	 *
-	 * @param ComponentIndex Index of point component.
+	 * @param ComponentIndex Index of vector component.
 	 * @return const reference to component.
 	 */
 	const IntType& operator()(int32 ComponentIndex) const
@@ -129,9 +130,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets specific component of a point.
+	 * Gets specific component of a vector.
 	 *
-	 * @param ComponentIndex Index of point component.
+	 * @param ComponentIndex Index of vector component.
 	 * @return reference to component.
 	 */
 	IntType& operator()(int32 ComponentIndex)
@@ -142,9 +143,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets specific component of a point.
+	 * Gets specific component of a vector.
 	 *
-	 * @param ComponentIndex Index of point component.
+	 * @param ComponentIndex Index of vector component.
 	 * @return const reference to component.
 	 */
 	const IntType& operator[](int32 ComponentIndex) const
@@ -155,9 +156,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets specific component of a point.
+	 * Gets specific component of a vector.
 	 *
-	 * @param ComponentIndex Index of point component.
+	 * @param ComponentIndex Index of vector component.
 	 * @return reference to component.
 	 */
 	IntType& operator[](int32 ComponentIndex)
@@ -168,10 +169,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Compares points for equality.
+	 * Compares vectors for equality.
 	 *
-	 * @param Other The other int point being compared.
-	 * @return true if the points are equal, false otherwise..
+	 * @param Other The other int vector being compared.
+	 * @return true if the vectors are equal, false otherwise..
 	 */
 	bool operator==(const TIntVector3& Other) const
 	{
@@ -179,10 +180,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Compares points for inequality.
+	 * Compares vectors for inequality.
 	 *
-	 * @param Other The other int point being compared.
-	 * @return true if the points are not equal, false otherwise..
+	 * @param Other The other int vector being compared.
+	 * @return true if the vectors are not equal, false otherwise..
 	 */
 	bool operator!=(const TIntVector3& Other) const
 	{
@@ -192,8 +193,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/**
 	 * Multiplies this vector with another vector, using component-wise multiplication.
 	 *
-	 * @param Other The point to multiply with.
-	 * @return Reference to this point after multiplication.
+	 * @param Other The vector to multiply with.
+	 * @return Reference to this vector after multiplication.
 	 */
 	TIntVector3& operator*=(const TIntVector3& Other)
 	{
@@ -205,10 +206,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Scales this point.
+	 * Scales this vector.
 	 *
-	 * @param Scale What to multiply the point by.
-	 * @return Reference to this point after multiplication.
+	 * @param Scale What to multiply the vector by.
+	 * @return Reference to this vector after multiplication.
 	 */
 	TIntVector3& operator*=(IntType Scale)
 	{
@@ -220,10 +221,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Divides this point.
+	 * Divides this vector.
 	 *
-	 * @param Divisor What to divide the point by.
-	 * @return Reference to this point after division.
+	 * @param Divisor What to divide the vector by.
+	 * @return Reference to this vector after division.
 	 */
 	TIntVector3& operator/=(IntType Divisor)
 	{
@@ -235,10 +236,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Remainder of division of this point.
+	 * Remainder of division of this vector.
 	 *
-	 * @param Divisor What to divide the point by.
-	 * @return Reference to this point after remainder.
+	 * @param Divisor What to divide the vector by.
+	 * @return Reference to this vector after remainder.
 	 */
 	TIntVector3& operator%=(IntType Divisor)
 	{
@@ -250,10 +251,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Adds to this point.
+	 * Adds to this vector.
 	 *
-	 * @param Other The point to add to this point.
-	 * @return Reference to this point after addition.
+	 * @param Other The vector to add to this vector.
+	 * @return Reference to this vector after addition.
 	 */
 	TIntVector3& operator+=(const TIntVector3& Other)
 	{
@@ -265,10 +266,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Subtracts from this point.
+	 * Subtracts from this vector.
 	 *
-	 * @param Other The point to subtract from this point.
-	 * @return Reference to this point after subtraction.
+	 * @param Other The vector to subtract from this vector.
+	 * @return Reference to this vector after subtraction.
 	 */
 	TIntVector3& operator-=(const TIntVector3& Other)
 	{
@@ -280,9 +281,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the result of component-wise multiplication of this point by another.
+	 * Gets the result of component-wise multiplication of this vector by another.
 	 *
-	 * @param Other The point to multiply with.
+	 * @param Other The vector to multiply with.
 	 * @return The result of multiplication.
 	 */
 	TIntVector3 operator*(const TIntVector3& Other) const
@@ -291,10 +292,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the result of scaling on this point.
+	 * Gets the result of scaling on this vector.
 	 *
-	 * @param Scale What to multiply the point by.
-	 * @return A new scaled int point.
+	 * @param Scale What to multiply the vector by.
+	 * @return A new scaled int vector.
 	 */
 	TIntVector3 operator*(IntType Scale) const
 	{
@@ -302,10 +303,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the result of division on this point.
+	 * Gets the result of division on this vector.
 	 *
-	 * @param Divisor What to divide the point by.
-	 * @return A new divided int point.
+	 * @param Divisor What to divide the vector by.
+	 * @return A new divided int vector.
 	 */
 	TIntVector3 operator/(IntType Divisor) const
 	{
@@ -313,10 +314,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the remainder of division on this point.
+	 * Gets the remainder of division on this vector.
 	 *
-	 * @param Divisor What to divide the point by.
-	 * @return A new remainder int point.
+	 * @param Divisor What to divide the vector by.
+	 * @return A new remainder int vector.
 	 */
 	TIntVector3 operator%(IntType Divisor) const
 	{
@@ -324,10 +325,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the result of addition on this point.
+	 * Gets the result of addition on this vector.
 	 *
-	 * @param Other The other point to add to this.
-	 * @return A new combined int point.
+	 * @param Other The other vector to add to this.
+	 * @return A new combined int vector.
 	 */
 	TIntVector3 operator+(const TIntVector3& Other) const
 	{
@@ -335,10 +336,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the result of subtraction from this point.
+	 * Gets the result of subtraction from this vector.
 	 *
-	 * @param Other The other point to subtract from this.
-	 * @return A new subtracted int point.
+	 * @param Other The other vector to subtract from this.
+	 * @return A new subtracted int vector.
 	 */
 	TIntVector3 operator-(const TIntVector3& Other) const
 	{
@@ -349,7 +350,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * Shifts all components to the right.
 	 *
 	 * @param Shift The number of bits to shift.
-	 * @return A new shifted int point.
+	 * @return A new shifted int vector.
 	 */
 	TIntVector3 operator>>(IntType Shift) const
 	{
@@ -360,7 +361,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * Shifts all components to the left.
 	 *
 	 * @param Shift The number of bits to shift.
-	 * @return A new shifted int point.
+	 * @return A new shifted int vector.
 	 */
 	TIntVector3 operator<<(IntType Shift) const
 	{
@@ -371,7 +372,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * Component-wise AND.
 	 *
 	 * @param Value Number to AND with the each component.
-	 * @return A new shifted int point.
+	 * @return A new shifted int vector.
 	 */
 	TIntVector3 operator&(IntType Value) const
 	{
@@ -382,7 +383,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * Component-wise OR.
 	 *
 	 * @param Value Number to OR with the each component.
-	 * @return A new shifted int point.
+	 * @return A new shifted int vector.
 	 */
 	TIntVector3 operator|(IntType Value) const
 	{
@@ -393,7 +394,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * Component-wise XOR.
 	 *
 	 * @param Value Number to XOR with the each component.
-	 * @return A new shifted int point.
+	 * @return A new shifted int vector.
 	 */
 	TIntVector3 operator^(IntType Value) const
 	{
@@ -410,9 +411,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the maximum value in the point.
+	 * Gets the maximum value in the vector.
 	 *
-	 * @return The maximum value in the point.
+	 * @return The maximum value in the vector.
 	 */
 	IntType GetMax() const
 	{
@@ -420,9 +421,26 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the minimum value in the point.
+	 * Get the maximum absolute value in the vector.
 	 *
-	 * @return The minimum value in the point.
+	 * @return The maximum absolute value in the vector.
+	 */
+	IntType GetAbsMax() const
+	{
+		if constexpr (std::is_signed_v<IntType>)
+		{
+			return FMath::Max(FMath::Max(FMath::Abs(X), FMath::Abs(Y)), FMath::Abs(Z));
+		}
+		else
+		{
+			return GetMax();
+		}
+	}
+
+	/**
+	 * Gets the minimum value in the vector.
+	 *
+	 * @return The minimum value in the vector.
 	 */
 	IntType GetMin() const
 	{
@@ -430,9 +448,54 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the distance of this point from (0,0,0).
+	 * Get the minimum absolute value in the vector.
 	 *
-	 * @return The distance of this point from (0,0,0).
+	 * @return The minimum absolute value in the vector.
+	 */
+	IntType GetAbsMin() const
+	{
+		if constexpr (std::is_signed_v<IntType>)
+		{
+			return FMath::Min(FMath::Min(FMath::Abs(X), FMath::Abs(Y)), FMath::Abs(Z));
+		}
+		else
+		{
+			return GetMin();
+		}
+	}
+
+	/**
+	 * Get the component-wise max of this vector and the parameter vector.
+	 * 
+	 * @param Other The other vector to compare against.
+	 * @return A vector where each component is the maximum value of the corresponding components of the two vectors.
+	 */
+	TIntVector3 ComponentMax(const TIntVector3& Other) const
+	{
+		return TIntVector3(
+			FMath::Max(X, Other.X),
+			FMath::Max(Y, Other.Y),
+			FMath::Max(Z, Other.Z));
+	}
+
+	/**
+	 * Get the component-wise min of this vector and the parameter vector.
+	 * 
+	 * @param Other The other vector to compare against.
+	 * @return A vector where each component is the minimum value of the corresponding components of the two vectors.
+	 */
+	TIntVector3 ComponentMin(const TIntVector3& Other) const
+	{
+		return TIntVector3(
+			FMath::Min(X, Other.X),
+			FMath::Min(Y, Other.Y),
+			FMath::Min(Z, Other.Z));
+	}
+
+	/**
+	 * Gets the distance of this vector from (0,0,0).
+	 *
+	 * @return The distance of this vector from (0,0,0).
 	 */
 	IntType Size() const
 	{
@@ -443,36 +506,91 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
+	 * Appends a textual representation of this vector to the output string builder.
+	 *
+	 * @param Out The string builder to append to.
+	 */
+	template <typename CharType>
+	void AppendString(TStringBuilderBase<CharType>& Out) const
+	{
+		Out << "X=" << X << " Y=" << Y << " Z=" << Z;
+	}
+
+	/**
+	 * Appends a textual representation of the parameter vector to the output string builder.
+	 *
+	 * @param Builder The string builder to append to.
+	 * @param Vector The vector to append.
+	 */
+	template <typename CharType>
+	friend TStringBuilderBase<CharType>& operator<<(TStringBuilderBase<CharType>& Builder, const TIntVector3& Vector)
+	{
+		Vector.AppendString(Builder);
+		return Builder;
+	}
+
+	/**
+	 * Appends a textual representation of this vector to the output string.
+	 *
+	 * @param Out The string to append to.
+	 */
+	void AppendString(FString& Out) const
+	{
+		TStringBuilder<128> Builder;
+		Builder << *this;
+		Out.Append(Builder);
+	}
+
+	/**
 	 * Get a textual representation of this vector.
 	 *
 	 * @return A string describing the vector.
 	 */
 	FString ToString() const
 	{
-		return FString::Printf(TEXT("X=%s Y=%s Z=%s"), *LexToString(X), *LexToString(Y), *LexToString(Z));
+		FString Out;
+		AppendString(Out);
+		return Out;
 	}
 
 	/**
-	 * Divide an int point and round up the result.
+	 * Initialize this vector based on an FString. The String is expected to contain X=, Y=, Z=
+	 * The vector will be bogus when InitFromString returns false.
 	 *
-	 * @param lhs The int point being divided.
-	 * @param Divisor What to divide the int point by.
-	 * @return A new divided int point.
+	 * @param InSourceString FString containing the color values.
+	 * @return true if the X,Y,Z values were read successfully; false otherwise.
 	 */
-	static TIntVector3 DivideAndRoundUp(TIntVector3 lhs, IntType Divisor)
+	bool InitFromString(const FString& InSourceString)
 	{
-		return TIntVector3(FMath::DivideAndRoundUp(lhs.X, Divisor), FMath::DivideAndRoundUp(lhs.Y, Divisor), FMath::DivideAndRoundUp(lhs.Z, Divisor));
-	}
+		X = Y = Z = 0;
 
-	static TIntVector3 DivideAndRoundUp(TIntVector3 lhs, TIntVector3 Divisor)
-	{
-		return TIntVector3(FMath::DivideAndRoundUp(lhs.X, Divisor.X), FMath::DivideAndRoundUp(lhs.Y, Divisor.Y), FMath::DivideAndRoundUp(lhs.Z, Divisor.Z));
+		// The initialization is only successful if the X, Y and Z values can all be parsed from the string
+		const bool bSuccessful = FParse::Value(*InSourceString, TEXT("X="), X) && FParse::Value(*InSourceString, TEXT("Y="), Y) && FParse::Value(*InSourceString, TEXT("Z="), Z);
+
+		return bSuccessful;
 	}
 
 	/**
-	 * Gets the number of components a point has.
+	 * Divide an int vector and round up the result.
 	 *
-	 * @return Number of components point has.
+	 * @param Lhs The int vector being divided.
+	 * @param Divisor What to divide the int vector by.
+	 * @return A new divided int vector.
+	 */
+	static TIntVector3 DivideAndRoundUp(TIntVector3 Lhs, IntType Divisor)
+	{
+		return TIntVector3(FMath::DivideAndRoundUp(Lhs.X, Divisor), FMath::DivideAndRoundUp(Lhs.Y, Divisor), FMath::DivideAndRoundUp(Lhs.Z, Divisor));
+	}
+
+	static TIntVector3 DivideAndRoundUp(TIntVector3 Lhs, TIntVector3 Divisor)
+	{
+		return TIntVector3(FMath::DivideAndRoundUp(Lhs.X, Divisor.X), FMath::DivideAndRoundUp(Lhs.Y, Divisor.Y), FMath::DivideAndRoundUp(Lhs.Z, Divisor.Z));
+	}
+
+	/**
+	 * Gets the number of components a vector has.
+	 *
+	 * @return Number of components vector has.
 	 */
 	static int32 Num()
 	{
@@ -486,7 +604,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * @param Vector The vector to serialize.
 	 * @return Reference to the Archive after serialization.
 	 */
-	friend FArchive& operator<<( FArchive& Ar, TIntVector3& Vector )
+	friend FArchive& operator<<(FArchive& Ar, TIntVector3& Vector)
 	{
 		return Ar << Vector.X << Vector.Y << Vector.Z;
 	}
@@ -499,7 +617,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		Record << SA_VALUE(TEXT("Z"), Vector.Z);
 	}
 
-	bool Serialize( FArchive& Ar )
+	bool Serialize(FArchive& Ar)
 	{
 		Ar << *this;
 		return true;
@@ -507,54 +625,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	bool SerializeFromMismatchedTag(FName StructTag, FArchive& Ar);
 };
-
-template <>
-inline FString TIntVector3<int64>::ToString() const
-{
-	return FString::Printf(TEXT("X=%lld Y=%lld Z=%lld"), X, Y, Z);
-}
-
-template <>
-inline FString TIntVector3<int32>::ToString() const
-{
-	return FString::Printf(TEXT("X=%d Y=%d Z=%d"), X, Y, Z);
-}
-
-template <>
-inline FString TIntVector3<int16>::ToString() const
-{
-	return FString::Printf(TEXT("X=%d Y=%d Z=%d"), X, Y, Z);
-}
-
-template <>
-inline FString TIntVector3<int8>::ToString() const
-{
-	return FString::Printf(TEXT("X=%d Y=%d Z=%d"), X, Y, Z);
-}
-
-template <>
-inline FString TIntVector3<uint64>::ToString() const
-{
-	return FString::Printf(TEXT("X=%llu Y=%llu Z=%llu"), X, Y, Z);
-}
-
-template <>
-inline FString TIntVector3<uint32>::ToString() const
-{
-	return FString::Printf(TEXT("X=%u Y=%u Z=%u"), X, Y, Z);
-}
-
-template <>
-inline FString TIntVector3<uint16>::ToString() const
-{
-	return FString::Printf(TEXT("X=%u Y=%u Z=%u"), X, Y, Z);
-}
-
-template <>
-inline FString TIntVector3<uint8>::ToString() const
-{
-	return FString::Printf(TEXT("X=%u Y=%u Z=%u"), X, Y, Z);
-}
 
 template <typename IntType>
 const TIntVector3<IntType> TIntVector3<IntType>::ZeroValue(0, 0, 0);
@@ -574,17 +644,21 @@ struct TIntVector2
 	{
 		struct
 		{
-			IntType X, Y;
+			/** Holds the vector's x-coordinate. */
+			IntType X;
+
+			/** Holds the vector's y-coordinate. */
+			IntType Y;
 		};
 
 		UE_DEPRECATED(all, "For internal use only")
 		IntType XY[2];
 	};
 
-	/** An int point with zeroed values. */
+	/** An int vector with zeroed values. */
 	static const TIntVector2 ZeroValue;
 
-	/** An int point with INDEX_NONE values. */
+	/** An int vector with INDEX_NONE values. */
 	static const TIntVector2 NoneValue;
 
 	TIntVector2() = default;
@@ -652,8 +726,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/**
 	 * Multiplies this vector with another vector, using component-wise multiplication.
 	 *
-	 * @param Other The point to multiply with.
-	 * @return Reference to this point after multiplication.
+	 * @param Other The vector to multiply with.
+	 * @return Reference to this vector after multiplication.
 	 */
 	TIntVector2& operator*=(const TIntVector2& Other)
 	{
@@ -664,10 +738,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Scales this point.
+	 * Scales this vector.
 	 *
-	 * @param Scale What to multiply the point by.
-	 * @return Reference to this point after multiplication.
+	 * @param Scale What to multiply the vector by.
+	 * @return Reference to this vector after multiplication.
 	 */
 	TIntVector2& operator*=(IntType Scale)
 	{
@@ -678,10 +752,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Divides this point.
+	 * Divides this vector.
 	 *
-	 * @param Divisor What to divide the point by.
-	 * @return Reference to this point after division.
+	 * @param Divisor What to divide the vector by.
+	 * @return Reference to this vector after division.
 	 */
 	TIntVector2& operator/=(IntType Divisor)
 	{
@@ -692,10 +766,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Remainder of division of this point.
+	 * Remainder of division of this vector.
 	 *
-	 * @param Divisor What to divide the point by.
-	 * @return Reference to this point after remainder.
+	 * @param Divisor What to divide the vector by.
+	 * @return Reference to this vector after remainder.
 	 */
 	TIntVector2& operator%=(IntType Divisor)
 	{
@@ -706,10 +780,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Adds to this point.
+	 * Adds to this vector.
 	 *
-	 * @param Other The point to add to this point.
-	 * @return Reference to this point after addition.
+	 * @param Other The vector to add to this vector.
+	 * @return Reference to this vector after addition.
 	 */
 	TIntVector2& operator+=(const TIntVector2& Other)
 	{
@@ -720,10 +794,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Subtracts from this point.
+	 * Subtracts from this vector.
 	 *
-	 * @param Other The point to subtract from this point.
-	 * @return Reference to this point after subtraction.
+	 * @param Other The vector to subtract from this vector.
+	 * @return Reference to this vector after subtraction.
 	 */
 	TIntVector2& operator-=(const TIntVector2& Other)
 	{
@@ -734,9 +808,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the result of component-wise multiplication of this point by another.
+	 * Gets the result of component-wise multiplication of this vector by another.
 	 *
-	 * @param Other The point to multiply with.
+	 * @param Other The vector to multiply with.
 	 * @return The result of multiplication.
 	 */
 	TIntVector2 operator*(const TIntVector2& Other) const
@@ -745,10 +819,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the result of scaling on this point.
+	 * Gets the result of scaling on this vector.
 	 *
-	 * @param Scale What to multiply the point by.
-	 * @return A new scaled int point.
+	 * @param Scale What to multiply the vector by.
+	 * @return A new scaled int vector.
 	 */
 	TIntVector2 operator*(IntType Scale) const
 	{
@@ -756,10 +830,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the result of division on this point.
+	 * Gets the result of division on this vector.
 	 *
-	 * @param Divisor What to divide the point by.
-	 * @return A new divided int point.
+	 * @param Divisor What to divide the vector by.
+	 * @return A new divided int vector.
 	 */
 	TIntVector2 operator/(IntType Divisor) const
 	{
@@ -767,10 +841,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the remainder of division on this point.
+	 * Gets the remainder of division on this vector.
 	 *
-	 * @param Divisor What to divide the point by.
-	 * @return A new remainder int point.
+	 * @param Divisor What to divide the vector by.
+	 * @return A new remainder int vector.
 	 */
 	TIntVector2 operator%(IntType Divisor) const
 	{
@@ -778,10 +852,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the result of addition on this point.
+	 * Gets the result of addition on this vector.
 	 *
-	 * @param Other The other point to add to this.
-	 * @return A new combined int point.
+	 * @param Other The other vector to add to this.
+	 * @return A new combined int vector.
 	 */
 	TIntVector2 operator+(const TIntVector2& Other) const
 	{
@@ -789,14 +863,195 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the result of subtraction from this point.
+	 * Gets the result of subtraction from this vector.
 	 *
-	 * @param Other The other point to subtract from this.
-	 * @return A new subtracted int point.
+	 * @param Other The other vector to subtract from this.
+	 * @return A new subtracted int vector.
 	 */
 	TIntVector2 operator-(const TIntVector2& Other) const
 	{
 		return TIntVector2(*this) -= Other;
+	}
+
+	/**
+	 * Is vector equal to zero.
+	 * @return is zero
+	*/
+	bool IsZero() const
+	{
+		return *this == ZeroValue;
+	}
+
+	/**
+	 * Gets the maximum value in the vector.
+	 *
+	 * @return The maximum value in the vector.
+	 */
+	IntType GetMax() const
+	{
+		return FMath::Max(X, Y);
+	}
+
+	/**
+	 * Get the maximum absolute value in the vector.
+	 *
+	 * @return The maximum absolute value in the vector.
+	 */
+	IntType GetAbsMax() const
+	{
+		if constexpr (std::is_signed_v<IntType>)
+		{
+			return FMath::Max(FMath::Abs(X), FMath::Abs(Y));
+		}
+		else
+		{
+			return GetMax();
+		}
+	}
+
+	/**
+	 * Gets the minimum value in the vector.
+	 *
+	 * @return The minimum value in the vector.
+	 */
+	IntType GetMin() const
+	{
+		return FMath::Min(X, Y);
+	}
+
+	/**
+	 * Get the minimum absolute value in the vector.
+	 *
+	 * @return The minimum absolute value in the vector.
+	 */
+	IntType GetAbsMin() const
+	{
+		if constexpr (std::is_signed_v<IntType>)
+		{
+			return FMath::Min(FMath::Abs(X), FMath::Abs(Y));
+		}
+		else
+		{
+			return GetMin();
+		}
+	}
+
+	/**
+	 * Get the component-wise max of this vector and the parameter vector.
+	 * 
+	 * @param Other The other vector to compare against.
+	 * @return A vector where each component is the maximum value of the corresponding components of the two vectors.
+	 */
+	TIntVector2 ComponentMax(const TIntVector2& Other) const
+	{
+		return TIntVector2(
+			FMath::Max(X, Other.X),
+			FMath::Max(Y, Other.Y));
+	}
+
+	/**
+	 * Get the component-wise min of this vector and the parameter vector.
+	 * 
+	 * @param Other The other vector to compare against.
+	 * @return A vector where each component is the minimum value of the corresponding components of the two vectors.
+	 */
+	TIntVector2 ComponentMin(const TIntVector2& Other) const
+	{
+		return TIntVector2(
+			FMath::Min(X, Other.X),
+			FMath::Min(Y, Other.Y));
+	}
+
+	/**
+	 * Appends a textual representation of this vector to the output string builder.
+	 *
+	 * @param Out The string builder to append to.
+	 */
+	template <typename CharType>
+	void AppendString(TStringBuilderBase<CharType>& Out) const
+	{
+		Out << "X=" << X << " Y=" << Y;
+	}
+
+	/**
+	 * Appends a textual representation of the parameter vector to the output string builder.
+	 *
+	 * @param Builder The string builder to append to.
+	 * @param Vector The vector to append.
+	 */
+	template <typename CharType>
+	friend TStringBuilderBase<CharType>& operator<<(TStringBuilderBase<CharType>& Builder, const TIntVector2& Vector)
+	{
+		Vector.AppendString(Builder);
+		return Builder;
+	}
+
+	/**
+	 * Appends a textual representation of this vector to the output string.
+	 *
+	 * @param Out The string to append to.
+	 */
+	void AppendString(FString& Out) const
+	{
+		TStringBuilder<128> Builder;
+		Builder << *this;
+		Out.Append(Builder);
+	}
+
+	/**
+	 * Get a textual representation of this vector.
+	 *
+	 * @return A string describing the vector.
+	 */
+	FString ToString() const
+	{
+		FString Out;
+		AppendString(Out);
+		return Out;
+	}
+
+	/**
+	 * Initialize this FIntVector based on an FString. The String is expected to contain X=, Y=
+	 * The FIntVector will be bogus when InitFromString returns false.
+	 *
+	 * @param InSourceString FString containing the color values.
+	 * @return true if the X,Y values were read successfully; false otherwise.
+	 */
+	bool InitFromString(const FString& InSourceString)
+	{
+		X = Y = 0;
+
+		// The initialization is only successful if the X and Y values can all be parsed from the string
+		const bool bSuccessful = FParse::Value(*InSourceString, TEXT("X="), X) && FParse::Value(*InSourceString, TEXT("Y="), Y);
+
+		return bSuccessful;
+	}
+
+	/**
+	 * Divide an int vector and round up the result.
+	 *
+	 * @param Lhs The int vector being divided.
+	 * @param Divisor What to divide the int vector by.
+	 * @return A new divided int vector.
+	 */
+	static TIntVector2 DivideAndRoundUp(TIntVector2 Lhs, IntType Divisor)
+	{
+		return TIntVector2(FMath::DivideAndRoundUp(Lhs.X, Divisor), FMath::DivideAndRoundUp(Lhs.Y, Divisor));
+	}
+
+	static TIntVector2 DivideAndRoundUp(TIntVector2 Lhs, TIntVector2 Divisor)
+	{
+		return TIntVector2(FMath::DivideAndRoundUp(Lhs.X, Divisor.X), FMath::DivideAndRoundUp(Lhs.Y, Divisor.Y));
+	}
+
+	/**
+	 * Gets the number of components a vector has.
+	 *
+	 * @return Number of components vector has.
+	 */
+	static int32 Num()
+	{
+		return 2;
 	}
 
 	/**
@@ -809,6 +1064,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	friend FArchive& operator<<(FArchive& Ar, TIntVector2& Vector)
 	{
 		return Ar << Vector.X << Vector.Y;
+	}
+
+	friend void operator<<(FStructuredArchive::FSlot Slot, TIntVector2& Vector)
+	{
+		FStructuredArchive::FRecord Record = Slot.EnterRecord();
+		Record << SA_VALUE(TEXT("X"), Vector.X);
+		Record << SA_VALUE(TEXT("Y"), Vector.Y);
 	}
 
 	bool Serialize(FArchive& Ar)
@@ -838,12 +1100,28 @@ struct TIntVector4
 	{
 		struct
 		{
-			IntType X, Y, Z, W;
+			/** Holds the vector's x-coordinate. */
+			IntType X;
+
+			/** Holds the vector's y-coordinate. */
+			IntType Y;
+
+			/** Holds the vector's z-coordinate. */
+			IntType Z;
+			
+			/** Holds the vector's w-coordinate. */
+			IntType W;
 		};
 
 		UE_DEPRECATED(all, "For internal use only")
 		IntType XYZW[4];
 	};
+
+	/** An int vector with zeroed values. */
+	static const TIntVector4 ZeroValue;
+
+	/** An int vector with INDEX_NONE values. */
+	static const TIntVector4 NoneValue;
 
 	TIntVector4() = default;
 
@@ -900,9 +1178,9 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
-	 * Gets specific component of a point.
+	 * Gets specific component of a vector.
 	 *
-	 * @param ComponentIndex Index of point component.
+	 * @param ComponentIndex Index of vector component.
 	 * @return const reference to component.
 	 */
 	const IntType& operator()(int32 ComponentIndex) const
@@ -913,9 +1191,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets specific component of a point.
+	 * Gets specific component of a vector.
 	 *
-	 * @param ComponentIndex Index of point component.
+	 * @param ComponentIndex Index of vector component.
 	 * @return reference to component.
 	 */
 	IntType& operator()(int32 ComponentIndex)
@@ -926,9 +1204,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets specific component of a point.
+	 * Gets specific component of a vector.
 	 *
-	 * @param ComponentIndex Index of point component.
+	 * @param ComponentIndex Index of vector component.
 	 * @return const reference to component.
 	 */
 	const IntType& operator[](int32 ComponentIndex) const
@@ -939,9 +1217,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets specific component of a point.
+	 * Gets specific component of a vector.
 	 *
-	 * @param ComponentIndex Index of point component.
+	 * @param ComponentIndex Index of vector component.
 	 * @return reference to component.
 	 */
 	IntType& operator[](int32 ComponentIndex)
@@ -952,10 +1230,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Compares points for equality.
+	 * Compares vectors for equality.
 	 *
-	 * @param Other The other int point being compared.
-	 * @return true if the points are equal, false otherwise..
+	 * @param Other The other int vector being compared.
+	 * @return true if the vectors are equal, false otherwise..
 	 */
 	bool operator==(const TIntVector4& Other) const
 	{
@@ -963,10 +1241,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Compares points for inequality.
+	 * Compares vectors for inequality.
 	 *
-	 * @param Other The other int point being compared.
-	 * @return true if the points are not equal, false otherwise..
+	 * @param Other The other int vector being compared.
+	 * @return true if the vectors are not equal, false otherwise..
 	 */
 	bool operator!=(const TIntVector4& Other) const
 	{
@@ -976,8 +1254,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/**
 	 * Multiplies this vector with another vector, using component-wise multiplication.
 	 *
-	 * @param Other The point to multiply with.
-	 * @return Reference to this point after multiplication.
+	 * @param Other The vector to multiply with.
+	 * @return Reference to this vector after multiplication.
 	 */
 	TIntVector4& operator*=(const TIntVector4& Other)
 	{
@@ -990,10 +1268,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Scales this point.
+	 * Scales this vector.
 	 *
-	 * @param Scale What to multiply the point by.
-	 * @return Reference to this point after multiplication.
+	 * @param Scale What to multiply the vector by.
+	 * @return Reference to this vector after multiplication.
 	 */
 	TIntVector4& operator*=(IntType Scale)
 	{
@@ -1006,10 +1284,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Divides this point.
+	 * Divides this vector.
 	 *
-	 * @param Divisor What to divide the point by.
-	 * @return Reference to this point after division.
+	 * @param Divisor What to divide the vector by.
+	 * @return Reference to this vector after division.
 	 */
 	TIntVector4& operator/=(IntType Divisor)
 	{
@@ -1022,10 +1300,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Remainder of division of this point.
+	 * Remainder of division of this vector.
 	 *
-	 * @param Divisor What to divide the point by.
-	 * @return Reference to this point after remainder.
+	 * @param Divisor What to divide the vector by.
+	 * @return Reference to this vector after remainder.
 	 */
 	TIntVector4& operator%=(IntType Divisor)
 	{
@@ -1038,10 +1316,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Adds to this point.
+	 * Adds to this vector.
 	 *
-	 * @param Other The point to add to this point.
-	 * @return Reference to this point after addition.
+	 * @param Other The vector to add to this vector.
+	 * @return Reference to this vector after addition.
 	 */
 	TIntVector4& operator+=(const TIntVector4& Other)
 	{
@@ -1054,10 +1332,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Subtracts from this point.
+	 * Subtracts from this vector.
 	 *
-	 * @param Other The point to subtract from this point.
-	 * @return Reference to this point after subtraction.
+	 * @param Other The vector to subtract from this vector.
+	 * @return Reference to this vector after subtraction.
 	 */
 	TIntVector4& operator-=(const TIntVector4& Other)
 	{
@@ -1070,9 +1348,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the result of component-wise multiplication of this point by another.
+	 * Gets the result of component-wise multiplication of this vector by another.
 	 *
-	 * @param Other The point to multiply with.
+	 * @param Other The vector to multiply with.
 	 * @return The result of multiplication.
 	 */
 	TIntVector4 operator*(const TIntVector4& Other) const
@@ -1081,10 +1359,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the result of scaling on this point.
+	 * Gets the result of scaling on this vector.
 	 *
-	 * @param Scale What to multiply the point by.
-	 * @return A new scaled int point.
+	 * @param Scale What to multiply the vector by.
+	 * @return A new scaled int vector.
 	 */
 	TIntVector4 operator*(IntType Scale) const
 	{
@@ -1092,10 +1370,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the result of division on this point.
+	 * Gets the result of division on this vector.
 	 *
-	 * @param Divisor What to divide the point by.
-	 * @return A new divided int point.
+	 * @param Divisor What to divide the vector by.
+	 * @return A new divided int vector.
 	 */
 	TIntVector4 operator/(IntType Divisor) const
 	{
@@ -1103,10 +1381,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the remainder of division on this point.
+	 * Gets the remainder of division on this vector.
 	 *
-	 * @param Divisor What to divide the point by.
-	 * @return A new remainder int point.
+	 * @param Divisor What to divide the vector by.
+	 * @return A new remainder int vector.
 	 */
 	TIntVector4 operator%(IntType Divisor) const
 	{
@@ -1114,10 +1392,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the result of addition on this point.
+	 * Gets the result of addition on this vector.
 	 *
-	 * @param Other The other point to add to this.
-	 * @return A new combined int point.
+	 * @param Other The other vector to add to this.
+	 * @return A new combined int vector.
 	 */
 	TIntVector4 operator+(const TIntVector4& Other) const
 	{
@@ -1125,10 +1403,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	 * Gets the result of subtraction from this point.
+	 * Gets the result of subtraction from this vector.
 	 *
-	 * @param Other The other point to subtract from this.
-	 * @return A new subtracted int point.
+	 * @param Other The other vector to subtract from this.
+	 * @return A new subtracted int vector.
 	 */
 	TIntVector4 operator-(const TIntVector4& Other) const
 	{
@@ -1139,7 +1417,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * Shifts all components to the right.
 	 *
 	 * @param Shift The number of bits to shift.
-	 * @return A new shifted int point.
+	 * @return A new shifted int vector.
 	 */
 	TIntVector4 operator>>(IntType Shift) const
 	{
@@ -1150,7 +1428,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * Shifts all components to the left.
 	 *
 	 * @param Shift The number of bits to shift.
-	 * @return A new shifted int point.
+	 * @return A new shifted int vector.
 	 */
 	TIntVector4 operator<<(IntType Shift) const
 	{
@@ -1161,7 +1439,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * Component-wise AND.
 	 *
 	 * @param Value Number to AND with the each component.
-	 * @return A new shifted int point.
+	 * @return A new shifted int vector.
 	 */
 	TIntVector4 operator&(IntType Value) const
 	{
@@ -1172,7 +1450,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * Component-wise OR.
 	 *
 	 * @param Value Number to OR with the each component.
-	 * @return A new shifted int point.
+	 * @return A new shifted int vector.
 	 */
 	TIntVector4 operator|(IntType Value) const
 	{
@@ -1183,7 +1461,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * Component-wise XOR.
 	 *
 	 * @param Value Number to XOR with the each component.
-	 * @return A new shifted int point.
+	 * @return A new shifted int vector.
 	 */
 	TIntVector4 operator^(IntType Value) const
 	{
@@ -1191,12 +1469,205 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**
-	* Serializes the Vector4.
-	*
-	* @param Ar The archive to serialize into.
-	* @param Vector The vector to serialize.
-	* @return Reference to the Archive after serialization.
+	 * Is vector equal to zero.
+	 * @return is zero
 	*/
+	bool IsZero() const
+	{
+		return *this == ZeroValue;
+	}
+
+	/**
+	 * Gets the maximum value in the vector.
+	 *
+	 * @return The maximum value in the vector.
+	 */
+	IntType GetMax() const
+	{
+		return FMath::Max(FMath::Max(FMath::Max(X, Y), Z), W);
+	}
+
+	/**
+	 * Get the maximum absolute value in the vector.
+	 *
+	 * @return The maximum absolute value in the vector.
+	 */
+	IntType GetAbsMax() const
+	{
+		if constexpr (std::is_signed_v<IntType>)
+		{
+			return FMath::Max(FMath::Max(FMath::Max(FMath::Abs(X), FMath::Abs(Y)), FMath::Abs(Z)), FMath::Abs(W));
+		}
+		else
+		{
+			return GetMax();
+		}
+	}
+
+	/**
+	 * Gets the minimum value in the vector.
+	 *
+	 * @return The minimum value in the vector.
+	 */
+	IntType GetMin() const
+	{
+		return FMath::Min(FMath::Min(FMath::Min(X, Y), Z), W);
+	}
+
+	/**
+	 * Get the minimum absolute value in the vector.
+	 *
+	 * @return The minimum absolute value in the vector.
+	 */
+	IntType GetAbsMin() const
+	{
+		if constexpr (std::is_signed_v<IntType>)
+		{
+			return FMath::Min(FMath::Min(FMath::Min(FMath::Abs(X), FMath::Abs(Y)), FMath::Abs(Z)), FMath::Abs(W));
+		}
+		else
+		{
+			return GetMin();
+		}
+	}
+
+	/**
+	 * Get the component-wise max of this vector and the parameter vector.
+	 * 
+	 * @param Other The other vector to compare against.
+	 * @return A vector where each component is the maximum value of the corresponding components of the two vectors.
+	 */
+	TIntVector4 ComponentMax(const TIntVector4& Other) const
+	{
+		return TIntVector4(
+			FMath::Max(X, Other.X),
+			FMath::Max(Y, Other.Y),
+			FMath::Max(Z, Other.Z),
+			FMath::Max(W, Other.W));
+	}
+
+	/**
+	 * Get the component-wise min of this vector and the parameter vector.
+	 * 
+	 * @param Other The other vector to compare against.
+	 * @return A vector where each component is the minimum value of the corresponding components of the two vectors.
+	 */
+	TIntVector4 ComponentMin(const TIntVector4& Other) const
+	{
+		return TIntVector4(
+			FMath::Min(X, Other.X),
+			FMath::Min(Y, Other.Y),
+			FMath::Min(Z, Other.Z),
+			FMath::Min(W, Other.W));
+	}
+
+	/**
+	 * Appends a textual representation of this vector to the output string builder.
+	 *
+	 * @param Out The string builder to append to.
+	 */
+	template <typename CharType>
+	void AppendString(TStringBuilderBase<CharType>& Out) const
+	{
+		Out << "X=" << X << " Y=" << Y << " Z=" << Z << " W=" << W;
+	}
+
+	/**
+	 * Appends a textual representation of the parameter vector to the output string builder.
+	 *
+	 * @param Builder The string builder to append to.
+	 * @param Vector The vector to append.
+	 */
+	template <typename CharType>
+	friend TStringBuilderBase<CharType>& operator<<(TStringBuilderBase<CharType>& Builder, const TIntVector4& Vector)
+	{
+		Vector.AppendString(Builder);
+		return Builder;
+	}
+
+	/**
+	 * Appends a textual representation of this vector to the output string.
+	 *
+	 * @param Out The string to append to.
+	 */
+	void AppendString(FString& Out) const
+	{
+		TStringBuilder<128> Builder;
+		Builder << *this;
+		Out.Append(Builder);
+	}
+
+	/**
+	 * Get a textual representation of this vector.
+	 *
+	 * @return A string describing the vector.
+	 */
+	FString ToString() const
+	{
+		FString Out;
+		AppendString(Out);
+		return Out;
+	}
+
+	/**
+	 * Initialize this vector based on an FString. The String is expected to contain X=, Y=, Z=, W=
+	 * The vector will be bogus when InitFromString returns false.
+	 *
+	 * @param InSourceString FString containing the color values.
+	 * @return true if the X,Y,Z,W values were read successfully; false otherwise.
+	 */
+	bool InitFromString(const FString& InSourceString)
+	{
+		X = Y = Z = W = 0;
+
+		// The initialization is only successful if the X, Y, Z and W values can all be parsed from the string
+		const bool bSuccessful = FParse::Value(*InSourceString, TEXT("X="), X) && FParse::Value(*InSourceString, TEXT("Y="), Y) && FParse::Value(*InSourceString, TEXT("Z="), Z) && FParse::Value(*InSourceString, TEXT("W="), W);
+
+		return bSuccessful;
+	}
+
+	/**
+	 * Divide an int vector and round up the result.
+	 *
+	 * @param Lhs The int vector being divided.
+	 * @param Divisor What to divide the int vector by.
+	 * @return A new divided int vector.
+	 */
+	static TIntVector4 DivideAndRoundUp(TIntVector4 Lhs, IntType Divisor)
+	{
+		return TIntVector4(
+			FMath::DivideAndRoundUp(Lhs.X, Divisor),
+			FMath::DivideAndRoundUp(Lhs.Y, Divisor),
+			FMath::DivideAndRoundUp(Lhs.Z, Divisor),
+			FMath::DivideAndRoundUp(Lhs.W, Divisor));
+	}
+
+	static TIntVector4 DivideAndRoundUp(TIntVector4 Lhs, TIntVector4 Divisor)
+	{
+		return TIntVector4(
+			FMath::DivideAndRoundUp(Lhs.X, Divisor.X),
+			FMath::DivideAndRoundUp(Lhs.Y, Divisor.Y),
+			FMath::DivideAndRoundUp(Lhs.Z, Divisor.Z),
+			FMath::DivideAndRoundUp(Lhs.W, Divisor.W));
+	}
+
+	/**
+	 * Gets the number of components a vector has.
+	 *
+	 * @return Number of components vector has.
+	 */
+	static int32 Num()
+	{
+		return 4;
+	}
+
+	/**
+	 * Serializes the Vector4.
+	 *
+	 * @param Ar The archive to serialize into.
+	 * @param Vector The vector to serialize.
+	 * @return Reference to the Archive after serialization.
+	 */
 	friend FArchive& operator<<(FArchive& Ar, TIntVector4& Vector)
 	{
 		return Ar << Vector.X << Vector.Y << Vector.Z << Vector.W;
@@ -1219,6 +1690,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	bool SerializeFromMismatchedTag(FName StructTag, FArchive& Ar);
 };
+
+template <typename IntType>
+const TIntVector4<IntType> TIntVector4<IntType>::ZeroValue(0, 0, 0, 0);
+
+template <typename IntType>
+const TIntVector4<IntType> TIntVector4<IntType>::NoneValue(INDEX_NONE, INDEX_NONE, INDEX_NONE, INDEX_NONE);
 
 /**
  * Creates a hash value from an IntVector2.

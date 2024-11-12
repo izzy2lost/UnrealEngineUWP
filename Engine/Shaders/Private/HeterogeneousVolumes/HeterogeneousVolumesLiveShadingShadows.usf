@@ -11,6 +11,7 @@
 #define NO_TRANSLUCENCY_AVAILABLE
 
 #include "/Engine/Generated/Material.ush"
+#include "HeterogeneousVolumesStochasticFiltering.ush"
 #include "HeterogeneousVolumesLiveShadingUtils.ush"
 #include "HeterogeneousVolumesTracingUtils.ush"
 #include "HeterogeneousVolumesAdaptiveVolumetricShadowMapUtils.ush"
@@ -47,6 +48,7 @@ float ShadowStepSize;
 float ShadowStepFactor;
 int MaxStepCount;
 int bJitter;
+int StochasticFilteringMode;
 
 // Shadow data
 int NumShadowMatrices;
@@ -135,13 +137,24 @@ float GetMaxShadowTraceDistance()
 	return MaxShadowTraceDistance;
 }
 
+int GetStochasticFilteringMode()
+{
+	return StochasticFilteringMode;
+}
+
 struct FVolumeSampleContext
 {
 	FMaterialPixelParameters MaterialParameters;
 	FPixelMaterialInputs PixelMaterialInputs;
 };
 
-FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 WorldPosition, float MipLevel)
+FVolumeSampleContext CreateVolumeSampleContext(
+	float3 LocalPosition,
+	float3 WorldPosition,
+	float3 WorldPosition_DDX,
+	float3 WorldPosition_DDY,
+	float MipLevel
+)
 {
 	FVolumeSampleContext VolumeSampleContext;
 	VolumeSampleContext.MaterialParameters = MakeInitializedMaterialPixelParameters();
@@ -152,16 +165,71 @@ FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 Worl
 	VolumeSampleContext.MaterialParameters.LWCData.LocalToWorld = WSPromote(GetLocalToWorld());
 	VolumeSampleContext.MaterialParameters.LWCData.WorldToLocal = WSPromoteInverse(GetWorldToLocal());
 
-	// Evaluate Material graph
+#if USE_ANALYTIC_DERIVATIVES
+	VolumeSampleContext.MaterialParameters.WorldPosition_DDX = WorldPosition_DDX;
+	VolumeSampleContext.MaterialParameters.WorldPosition_DDY = WorldPosition_DDY;
+	CalcPixelMaterialInputsAnalyticDerivatives(VolumeSampleContext.MaterialParameters, VolumeSampleContext.PixelMaterialInputs);
+#else
 	CalcPixelMaterialInputs(VolumeSampleContext.MaterialParameters, VolumeSampleContext.PixelMaterialInputs);
+#endif
 
 	return VolumeSampleContext;
+}
+
+FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 WorldPosition, float MipLevel)
+{
+	float3 WorldPosition_DDX = 0.0;
+	float3 WorldPosition_DDY = 0.0;
+
+	return CreateVolumeSampleContext(
+		LocalPosition,
+		WorldPosition,
+		WorldPosition_DDX,
+		WorldPosition_DDY,
+		MipLevel
+	);
+}
+
+FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 WorldPosition, float3 FilterWidth, float MipLevel, float Rand, int StochasticFilteringMode)
+{
+	// TODO: Use FilterWidth determine MipLevel
+	//float3 WorldPosition_DDX = mul(float4(LocalPosition + float3(1.0, 0.0, 0.0), 1.0), GetLocalToWorld()).xyz;
+	//float3 WorldPosition_DDY = mul(float4(LocalPosition + float3(0.0, 1.0, 0.0), 1.0), GetLocalToWorld()).xyz;
+	//float3 WorldPosition_DDZ = mul(float4(LocalPosition + float3(0.0, 0.0, 1.0), 1.0), GetLocalToWorld()).xyz;
+
+	if (StochasticFilteringMode == STOCHASTIC_FILTERING_CONSTANT)
+	{
+		LocalPosition = StochasticFilteringConstant(LocalPosition, Rand);
+	}
+	else if (StochasticFilteringMode == STOCHASTIC_FILTERING_TRILINEAR)
+	{
+		LocalPosition = StochasticFilteringTrilinear(LocalPosition, Rand);
+	}
+	else if (StochasticFilteringMode == STOCHASTIC_FILTERING_TRICUBIC)
+	{
+		LocalPosition = StochasticFilteringTricubic(LocalPosition, Rand);
+	}
+
+	WorldPosition = mul(float4(LocalPosition, 1.0), GetLocalToWorld()).xyz;
+	return CreateVolumeSampleContext(LocalPosition, WorldPosition, MipLevel);
 }
 
 float3 SampleExtinction(inout FVolumeSampleContext Context)
 {
 	float3 Extinction = SampleExtinctionCoefficients(Context.PixelMaterialInputs);
 	return Extinction;
+}
+
+float3 SampleEmission(inout FVolumeSampleContext Context)
+{
+	float3 Emission = SampleEmissive(Context.PixelMaterialInputs);
+	return Emission;
+}
+
+float3 SampleAlbedo(inout FVolumeSampleContext Context)
+{
+	float3 Albedo = SampleAlbedo(Context.PixelMaterialInputs);
+	return Albedo;
 }
 
 uint GetLinearIndex(uint Face, uint2 PixelCoord)
@@ -181,13 +249,13 @@ int FindSampleIndexWithLowestError(
 	float LowestError = 1.0e6;
 	for (int Index = 1; Index < MaxSampleCount - 1; ++Index)
 	{
-		int PrevIndex = AVSM_GetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + Index]);
-		int NextIndex = AVSM_GetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + Index]);
+		int PrevIndex = AVSM_GetLinkedListPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + Index]);
+		int NextIndex = AVSM_GetLinkedListNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + Index]);
 
 		FAVSMSampleData Data[3] = {
-			AVSM_UnpackSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevIndex]),
-			AVSM_UnpackSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + Index]),
-			AVSM_UnpackSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + NextIndex])
+			AVSM_GetLinkedListSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevIndex]),
+			AVSM_GetLinkedListSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + Index]),
+			AVSM_GetLinkedListSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + NextIndex])
 		};
 
 		float Error = abs(
@@ -205,11 +273,11 @@ int FindSampleIndexWithLowestError(
 	return LowestErrorIndex;
 }
 
-void AddSample(FAVSMSampleData Data, int PixelIndex, inout int PrevSampleIndex, inout int SampleIndex)
+void AddSample(FAVSMSampleData SampleData, int PixelIndex, inout int PrevSampleIndex, inout int SampleIndex)
 {
-	RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex].x = AVSM_PackSampleData(Data);
-	AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex], PrevSampleIndex);
-	AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex], SampleIndex + 1);
+	AVSM_SetLinkedListSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex], SampleData);
+	AVSM_SetLinkedListPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex], PrevSampleIndex);
+	AVSM_SetLinkedListNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex], SampleIndex + 1);
 
 	PrevSampleIndex = SampleIndex;
 	SampleIndex = SampleIndex + 1;
@@ -225,21 +293,21 @@ void ReplaceSample(
 {
 	// Remove 
 	{
-		int PrevIndex = AVSM_GetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex]);
-		int NextIndex = AVSM_GetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex]);
+		int PrevIndex = AVSM_GetLinkedListPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex]);
+		int NextIndex = AVSM_GetLinkedListNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex]);
 
-		AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevIndex], NextIndex);
-		AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + NextIndex], PrevIndex);
+		AVSM_SetLinkedListNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevIndex], NextIndex);
+		AVSM_SetLinkedListPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + NextIndex], PrevIndex);
 	}
 
 	// Replace
-	RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex].x = AVSM_PackSampleData(SampleData);
-	AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex], PrevPtrIndex);
-	AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex], NextPtrIndex);
+	AVSM_SetLinkedListSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex], SampleData);
+	AVSM_SetLinkedListPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex], PrevPtrIndex);
+	AVSM_SetLinkedListNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex], NextPtrIndex);
 
 	// Update neighborhood
-	AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + NextPtrIndex], SampleIndex);
-	AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevPtrIndex], SampleIndex);
+	AVSM_SetLinkedListPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + NextPtrIndex], SampleIndex);
+	AVSM_SetLinkedListNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevPtrIndex], SampleIndex);
 }
 
 void AddOrReplaceSample(FAVSMSampleData Data, int PixelIndex, inout int PrevSampleIndex, inout int SampleIndex)
@@ -254,16 +322,16 @@ void AddOrReplaceSample(FAVSMSampleData Data, int PixelIndex, inout int PrevSamp
 	{
 #if USE_AVSM_COMPRESSION
 		// Insert fictious sample at MaxSampleCount - 1 to compute error
-		RWVolumetricShadowLinkedListBuffer[PixelIndex + MaxSampleCount - 1].x = AVSM_PackSampleData(Data);
-		AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevSampleIndex], MaxSampleCount - 1);
-		AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + MaxSampleCount - 1], PrevSampleIndex);
+		AVSM_SetLinkedListSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + MaxSampleCount - 1], Data);
+		AVSM_SetLinkedListNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevSampleIndex], MaxSampleCount - 1);
+		AVSM_SetLinkedListPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + MaxSampleCount - 1], PrevSampleIndex);
 
 		int LowestErrorIndex = FindSampleIndexWithLowestError(PixelIndex);
 		if (LowestErrorIndex > 0)
 		{
 			if (LowestErrorIndex == PrevSampleIndex)
 			{
-				RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevSampleIndex].x = AVSM_PackSampleData(Data);
+				AVSM_SetLinkedListSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevSampleIndex], Data);
 			}
 			else
 			{
@@ -273,13 +341,15 @@ void AddOrReplaceSample(FAVSMSampleData Data, int PixelIndex, inout int PrevSamp
 			PrevSampleIndex = LowestErrorIndex;
 		}
 #else
-		RWVolumetricShadowLinkedListBuffer[PixelIndex + MaxSampleCount - 1].x = AVSM_PackSampleData(Data);
-		AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + MaxSampleCount - 1], PrevSampleIndex);
+		AVSM_SetLinkedListSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + MaxSampleCount - 1], Data);
+		AVSM_SetLinkedListPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + MaxSampleCount - 1], PrevSampleIndex);
 
 		PrevSampleIndex = MaxSampleCount - 1;
 #endif
 	}
 }
+
+int CameraDownsampleFactor;
 
 [numthreads(THREADGROUP_SIZE_2D, THREADGROUP_SIZE_2D, 1)]
 void RenderVolumetricShadowMapForLightWithLiveShadingCS(
@@ -296,11 +366,31 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 	uint Face = DispatchThreadId.z;
 	uint2 PixelCoord = DispatchThreadId.xy;
 	uint LinearIndex = GetLinearIndex(Face, PixelCoord);
-	//int PixelIndex = LinearIndex * MaxSampleCount;
 	int PixelIndex = LinearIndex * MaxSampleCount;
 
 	// Generate a light ray
-	float2 ShadowUV = float2(PixelCoord + 0.5f) / float2(ShadowResolution);
+	float2 ScreenJitter = IS_OFFLINE_RENDER ? BlueNoiseVec2(PixelCoord, View.StateFrameIndex) : View.TemporalAAJitter.xy;
+	//float2 ShadowUV = float2(PixelCoord + 0.5f) / float2(ShadowResolution);
+	float2 ShadowUV = float2(PixelCoord + ScreenJitter) / float2(ShadowResolution);
+
+	float WorldRayLength = GetMaxTraceDistance();
+#if USE_CAMERA_SCENE_DEPTH
+	float2 ViewPixelCoord = (PixelCoord + View.TemporalAAJitter.xy) * CameraDownsampleFactor + View.ViewRectMin.xy / CameraDownsampleFactor;
+	float DeviceZ = SceneDepthTexture.Load(int3(ViewPixelCoord, 0)).r;
+
+	#if HAS_INVERTED_Z_BUFFER
+		DeviceZ = max(0.000000000001, DeviceZ);
+	#endif // HAS_INVERTED_Z_BUFFER
+
+	// Project ray through view transform to trim ray-length by opaque depth
+	FDFVector3 WorldViewRayOrigin = DFFastSubtract(GetTranslatedWorldCameraPosFromView(ViewPixelCoord), PrimaryView.PreViewTranslation);
+	FDFVector3 WorldViewRayEnd = SvPositionToWorld(float4(ViewPixelCoord, DeviceZ, 1));
+	float3 WorldViewRayDirection = DFFastSubtractDemote(WorldViewRayEnd, WorldViewRayOrigin);
+	float WorldViewRayLength = length(WorldViewRayDirection);
+
+	WorldRayLength = min(WorldRayLength, WorldViewRayLength);
+#endif
+
 	const float NearScreenZ = 1.0;
 	const float FarScreenZ = 0.0;
 
@@ -309,14 +399,10 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 	float3 LightRayStart = LightRayStartAsFloat4.xyz * rcp(LightRayStartAsFloat4.w);
 	float3 LightRayEnd = LightRayEndAsFloat4.xyz * rcp(LightRayEndAsFloat4.w);
 
-	// Intersect ray with bounding volume
-	// TODO: LWC integration..
 	float3 WorldRayOrigin = DFFastSubtractDemote(LightRayStart, PrimaryView.PreViewTranslation);
 	float3 WorldRayEnd = DFFastSubtractDemote(LightRayEnd, PrimaryView.PreViewTranslation);
-
-	float3 WorldRayDirection = WorldRayEnd - WorldRayOrigin;
-	float WorldRayLength = length(WorldRayDirection);
-	WorldRayDirection /= WorldRayLength;
+	float3 WorldRayDirection = normalize(WorldRayEnd - WorldRayOrigin);
+	WorldRayEnd = WorldRayOrigin + WorldRayDirection * WorldRayLength;
 
 	float3 LocalRayOrigin = mul(float4(WorldRayOrigin, 1.0), WorldToLocal).xyz;
 	float3 LocalRayEnd = mul(float4(WorldRayEnd, 1.0), WorldToLocal).xyz;
@@ -334,7 +420,8 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 	float HitSpan = HitT.y - HitT.x;
 	if (HitSpan > 0.0)
 	{
-		float Jitter = bJitter ? BlueNoiseScalar(PixelCoord, View.StateFrameIndexMod8) : 0.0;
+		//float Jitter = bJitter ? BlueNoiseScalar(PixelCoord, View.StateFrameIndexMod8) : 0.0;
+		float Jitter = IS_OFFLINE_RENDER ? BlueNoiseScalar(PixelCoord, View.StateFrameIndexMod8) : 0.0;
 		int bApplyEmissionAndTransmittance = 0;
 		int bApplyDirectLighting = 0;
 		int bApplyShadowTransmittance = 0;
@@ -368,21 +455,30 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 		int PrevElementIndex = AVSM_NULL_PTR;
 		int ElementIndex = 0;
 
+		float StepSize = RayMarchingContext.StepSize;
+		float JitterSize = StepSize * RayMarchingContext.Jitter;
+
 		float LocalHitT = HitT.x;
 		float WorldHitT = LocalHitT * RayMarchingContext.LocalToWorldScale;
 		for (uint StepIndex = 0; StepIndex < StepCount; ++StepIndex)
 		{
-			LocalHitT = min(RayMarchingContext.LocalRayTMin + RayMarchingContext.StepSize * (RayMarchingContext.Jitter + StepIndex), RayMarchingContext.LocalRayTMax);
+			LocalHitT = min(RayMarchingContext.LocalRayTMin + StepSize * (RayMarchingContext.Jitter + StepIndex), RayMarchingContext.LocalRayTMax);
+			if (StepIndex == StepCount - 1)
+			{
+				float UnjitteredLocalHitT = LocalHitT - JitterSize;
+				StepSize = RayMarchingContext.LocalRayTMax - UnjitteredLocalHitT;
+			}
+
 			WorldHitT = LocalHitT * RayMarchingContext.LocalToWorldScale;
 			float3 LocalPosition = RayMarchingContext.LocalRayOrigin + RayMarchingContext.LocalRayDirection * LocalHitT;
 			float3 WorldPosition = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection * WorldHitT;
 
 			FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, RayMarchingContext.MipLevel);
 			float3 Extinction = SampleExtinction(SampleContext);
-			Transmittance *= exp(-Extinction * RayMarchingContext.StepSize);
+			Transmittance *= exp(-Extinction * StepSize);
 
 			bool bFirstEntry = (ElementIndex == 0);
-			if (bFirstEntry && any(Extinction > 0.0))
+			if (bFirstEntry)
 			{
 				FAVSMSampleData SampleData = AVSM_CreateSampleData(WorldHitT, Transmittance);
 				AddSample(SampleData, PixelIndex, PrevElementIndex, ElementIndex);
@@ -391,10 +487,10 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 				ExpectedExtinction = Extinction;
 				ExpectedTransmittance = Transmittance;
 			}
-			else if (ElementIndex > 0 && any(Extinction > 0.0))
+			else
 			{
 				// If extrapolated transmittance is beyond relative error tolerance
-				ExpectedTransmittance *= exp(-ExpectedExtinction * RayMarchingContext.StepSize);
+				ExpectedTransmittance *= exp(-ExpectedExtinction * StepSize);
 				float AbsoluteError = length(Transmittance - ExpectedTransmittance);
 				float RelativeError = length((Transmittance - ExpectedTransmittance) / ExpectedTransmittance);
 				if ((AbsoluteError > AbsoluteErrorThreshold) && (RelativeError > RelativeErrorThreshold))
@@ -420,20 +516,20 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 		// Stitch up the previous entry
 		if (PrevElementIndex != AVSM_NULL_PTR)
 		{
-			AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevElementIndex], ElementIndex);
+			AVSM_SetLinkedListNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevElementIndex], ElementIndex);
 
 		}
 
 		// Last Entry
-		RWVolumetricShadowLinkedListBuffer[PixelIndex + ElementIndex].x = AVSM_PackSampleData(WorldHitT, Transmittance);
-		AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + ElementIndex], PrevElementIndex);
-		AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + ElementIndex], AVSM_NULL_PTR);
+		AVSM_SetLinkedListSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + ElementIndex], AVSM_CreateSampleData(WorldHitT, Transmittance));
+		AVSM_SetLinkedListPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + ElementIndex], PrevElementIndex);
+		AVSM_SetLinkedListNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + ElementIndex], AVSM_NULL_PTR);
 	}
 	else
 	{
-		RWVolumetricShadowLinkedListBuffer[PixelIndex].x = AVSM_PackSampleData(0.0, Transmittance);
-		AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex], AVSM_NULL_PTR);
-		AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex], AVSM_NULL_PTR);
+		AVSM_SetLinkedListSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex], AVSM_CreateSampleData(0.0, Transmittance));
+		AVSM_SetLinkedListPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex], AVSM_NULL_PTR);
+		AVSM_SetLinkedListNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex], AVSM_NULL_PTR);
 	}
 
 	if (Face == ShadowDebugTweak)

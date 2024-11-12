@@ -34,7 +34,7 @@ public:
 	// TODO needs an implementation to support projection
 	//virtual bool ProjectPoint(const FTransform& InTransform, const FBox& InBounds, const FPCGProjectionParams& InParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const;
 protected:
-	virtual UPCGSpatialData* CopyInternal() const override;
+	virtual UPCGSpatialData* CopyInternal(FPCGContext* Context) const override;
 	//~End UPCGSpatialData interface
 
 public:

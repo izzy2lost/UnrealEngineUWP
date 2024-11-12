@@ -10,6 +10,7 @@
 #include "MaterialShared.h"
 #include "Materials/Material.h"
 #include "RenderingThread.h"
+#include "RHIResourceUtils.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "BaseMeshReconstructorModule.h"
 #include "MeshReconstructorBase.h"
@@ -50,27 +51,6 @@ static TAutoConsoleVariable<int32> CVarPauseMRMeshBrickCulling(
 	TEXT("MR Mesh brick culling debug state: 0=off, 1=on, 2=paused"));
 #endif //DEBUG_BRICK_CULLING
 
-class FMRMeshVertexResourceArray : public FResourceArrayInterface
-{
-public:
-	FMRMeshVertexResourceArray(const void* InData, uint32 InSize)
-		: Data(InData)
-		, Size(InSize)
-	{
-	}
-
-	virtual const void* GetResourceData() const override { return Data; }
-	virtual uint32 GetResourceDataSize() const override { return Size; }
-	virtual void Discard() override { }
-	virtual bool IsStatic() const override { return false; }
-	virtual bool GetAllowCPUAccess() const override { return false; }
-	virtual void SetAllowCPUAccess(bool bInNeedsCPUAccess) override { }
-
-private:
-	const void* Data;
-	uint32 Size;
-};
-
 /** Support for non-interleaved data streams. */
 template<typename DataType>
 class FMRMeshVertexBuffer : public FVertexBuffer
@@ -80,14 +60,8 @@ public:
 	void InitRHIWith(FRHICommandListBase& RHICmdList, const TArray<DataType>& PerVertexData )
 	{
 		NumVerts = PerVertexData.Num();
-
-		const uint32 SizeInBytes = PerVertexData.Num() * sizeof(DataType);
-
-		FMRMeshVertexResourceArray ResourceArray(PerVertexData.GetData(), SizeInBytes);
-		FRHIResourceCreateInfo CreateInfo(TEXT("FMRMeshVertexBuffer"), &ResourceArray);
-		VertexBufferRHI = RHICmdList.CreateVertexBuffer(SizeInBytes, BUF_Static | BUF_ShaderResource, CreateInfo);
+		VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("FMRMeshVertexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(PerVertexData));
 	}
-
 };
 
 class FMRMeshIndexBuffer : public FIndexBuffer
@@ -97,31 +71,13 @@ public:
 	void InitRHIWith(FRHICommandListBase& RHICmdList, const TArray<uint32>& Indices )
 	{
 		NumIndices = Indices.Num();
-
-		const uint32 Size = Indices.Num() * sizeof(uint32);
-
-		FRHIResourceCreateInfo CreateInfo(TEXT("FMRMeshIndexBuffer"));
-		IndexBufferRHI = RHICmdList.CreateBuffer(Size, BUF_Static | BUF_IndexBuffer, sizeof(uint32), ERHIAccess::VertexOrIndexBuffer, CreateInfo);
-
-		// Write the indices to the index buffer.
-		void* Buffer = RHICmdList.LockBuffer(IndexBufferRHI, 0, Size, RLM_WriteOnly);
-		FMemory::Memcpy(Buffer, Indices.GetData(), Size);
-		RHICmdList.UnlockBuffer(IndexBufferRHI);
+		IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FMRMeshIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 	}
 
 	void InitRHIWith(FRHICommandListBase& RHICmdList, const TArray<uint16>& Indices)
 	{
 		NumIndices = Indices.Num();
-
-		const uint32 Size = Indices.Num() * sizeof(uint16);
-
-		FRHIResourceCreateInfo CreateInfo(TEXT("FMRMeshIndexBuffer"));
-		IndexBufferRHI = RHICmdList.CreateBuffer(Size, BUF_Static | BUF_IndexBuffer, sizeof(uint16), ERHIAccess::VertexOrIndexBuffer, CreateInfo);
-
-		// Write the indices to the index buffer.
-		void* Buffer = RHICmdList.LockBuffer(IndexBufferRHI, 0, Size, RLM_WriteOnly);
-		FMemory::Memcpy(Buffer, Indices.GetData(), Size);
-		RHICmdList.UnlockBuffer(IndexBufferRHI);
+		IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FMRMeshIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 	}
 };
 

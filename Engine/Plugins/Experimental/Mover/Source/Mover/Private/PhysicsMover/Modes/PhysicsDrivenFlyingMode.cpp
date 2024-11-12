@@ -49,9 +49,10 @@ EDataValidationResult UPhysicsDrivenFlyingMode::IsDataValid(FDataValidationConte
 
 void UPhysicsDrivenFlyingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState)
 {
+	const UMoverComponent* MoverComp = GetMoverComponent();
 	const FMoverTickStartData& StartState = Params.StartState;
-	USceneComponent* UpdatedComponent = Params.UpdatedComponent;
-	UPrimitiveComponent* UpdatedPrimitive = Params.UpdatedPrimitive;
+	USceneComponent* UpdatedComponent = Params.MovingComps.UpdatedComponent.Get();
+	UPrimitiveComponent* UpdatedPrimitive = Params.MovingComps.UpdatedPrimitive.Get();
 	FProposedMove ProposedMove = Params.ProposedMove;
 
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
@@ -60,18 +61,11 @@ void UPhysicsDrivenFlyingMode::OnSimulationTick(const FSimulationTickParams& Par
 	FMoverDefaultSyncState& OutputSyncState = OutputState.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
 
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
-	const FVector UpDir = GetMoverComponent()->GetUpDirection();
-
-	// Instantaneous movement changes that are executed and we exit before consuming any time
-	if (ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), *StartingSyncState, OutputState))
-	{
-		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs; 	// Give back all the time
-		return;
-	}
+	const FVector UpDir = MoverComp->GetUpDirection();
 
 	// Don't need a floor query - just invalidate the blackboard to ensure we don't use an old result elsewhere
 
-	if (UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable())
+	if (UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable())
 	{
 		SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);
 		SimBlackboard->Invalidate(CommonBlackboard::LastWaterResult);
@@ -80,7 +74,7 @@ void UPhysicsDrivenFlyingMode::OnSimulationTick(const FSimulationTickParams& Par
 	// In air steering
 
 	FRotator TargetOrient = StartingSyncState->GetOrientation_WorldSpace();
-	if (!ProposedMove.AngularVelocity.IsZero())
+	if (!UMovementUtils::IsAngularVelocityZero(ProposedMove.AngularVelocity))
 	{
 		TargetOrient += (ProposedMove.AngularVelocity * DeltaSeconds);
 	}

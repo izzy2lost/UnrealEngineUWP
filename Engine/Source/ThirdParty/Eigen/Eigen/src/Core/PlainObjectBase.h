@@ -151,7 +151,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE const Scalar& coeff(Index rowId, Index colId) const
     {
-      if(Flags & RowMajorBit)
+      if constexpr (Flags & RowMajorBit)
         return m_storage.data()[colId + rowId * m_storage.cols()];
       else // column-major
         return m_storage.data()[rowId + colId * m_storage.rows()];
@@ -174,7 +174,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Scalar& coeffRef(Index rowId, Index colId)
     {
-      if(Flags & RowMajorBit)
+      if constexpr (Flags & RowMajorBit)
         return m_storage.data()[colId + rowId * m_storage.cols()];
       else // column-major
         return m_storage.data()[rowId + colId * m_storage.rows()];
@@ -195,7 +195,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE const Scalar& coeffRef(Index rowId, Index colId) const
     {
-      if(Flags & RowMajorBit)
+      if constexpr (Flags & RowMajorBit)
         return m_storage.data()[colId + rowId * m_storage.cols()];
       else // column-major
         return m_storage.data()[rowId + colId * m_storage.rows()];
@@ -356,12 +356,12 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
       const OtherDerived& other = _other.derived();
       internal::check_rows_cols_for_overflow<MaxSizeAtCompileTime>::run(other.rows(), other.cols());
       const Index othersize = other.rows()*other.cols();
-      if(RowsAtCompileTime == 1)
+      if constexpr (RowsAtCompileTime == 1)
       {
         eigen_assert(other.rows() == 1 || other.cols() == 1);
         resize(1, othersize);
       }
-      else if(ColsAtCompileTime == 1)
+      else if constexpr (ColsAtCompileTime == 1)
       {
         eigen_assert(other.rows() == 1 || other.cols() == 1);
         resize(othersize, 1);

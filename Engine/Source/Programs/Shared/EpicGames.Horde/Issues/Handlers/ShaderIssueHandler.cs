@@ -9,13 +9,16 @@ namespace EpicGames.Horde.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular shader compile error
 	/// </summary>
-	[IssueHandler(Priority = 10)]
+	[IssueHandler]
 	public class ShaderIssueHandler : IssueHandler
 	{
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
 		static bool IsMatchingEventId(EventId id) => id == KnownLogEvents.Engine_ShaderCompiler;
 		static bool IsMaskedEventId(EventId id) => id == KnownLogEvents.Generic || id == KnownLogEvents.ExitCode || id == KnownLogEvents.Systemic_Xge_BuildFailed || id == KnownLogEvents.Engine_Crash || id == KnownLogEvents.AutomationTool_CrashExitCode || id == KnownLogEvents.Engine_AppError;
+
+		/// <inheritdoc/>
+		public override int Priority => 10;
 
 		/// <inheritdoc/>
 		public override bool HandleEvent(IssueEvent logEvent)

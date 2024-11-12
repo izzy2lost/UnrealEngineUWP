@@ -149,6 +149,8 @@ namespace FHttpRetrySystem
 		/** Move to the next retry domain from our RetryDomains */
 		void MoveToNextRetryDomain();
 
+		void BindAdaptorDelegates();
+
 		EStatus::Type RetryStatus;
 
 		FRetryLimitCountSetting RetryLimitCountOverride;
@@ -169,6 +171,8 @@ namespace FHttpRetrySystem
 
 		/** Exponential backoff curve */
 		FExponentialBackoffCurve RetryExponentialBackoffCurve;
+
+		bool bBoundAdaptorDelegates = false;
 	};
 }
 
@@ -194,7 +198,8 @@ public:
 		const FRetryResponseCodes& InRetryResponseCodes = FRetryResponseCodes(),
 		const FRetryVerbs& InRetryVerbs = FRetryVerbs(),
 		const FRetryDomainsPtr& InRetryDomains = FRetryDomainsPtr(),
-		const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorOverride = FRetryLimitCountSetting()
+		const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorOverride = FRetryLimitCountSetting(),
+		const FExponentialBackoffCurve & InExponentialBackoffCurve = FExponentialBackoffCurve()
 	);
 
 	HTTP_API virtual ~FManager();

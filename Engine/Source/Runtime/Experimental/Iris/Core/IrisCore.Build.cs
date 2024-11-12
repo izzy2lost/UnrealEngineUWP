@@ -30,8 +30,6 @@ namespace UnrealBuildTool.Rules
 				}
 			}
 
-			bAllowAutoRTFMInstrumentation = true;
-
 			UnsafeTypeCastWarningLevel = WarningLevel.Error;
 		}
 	}

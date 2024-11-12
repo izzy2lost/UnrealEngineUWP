@@ -2,7 +2,7 @@
 
 #include "ColorSpace/DMXPixelMappingColorSpace.h"
 
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 

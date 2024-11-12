@@ -11,7 +11,6 @@ namespace UnrealBuildTool.Rules
 					"Core",
 					"Engine",
 					"CoreUObject",
-					"StructUtils",
 				}
 			);
 			
@@ -22,6 +21,7 @@ namespace UnrealBuildTool.Rules
 					"PropertyEditor", 
 					"WorkspaceMenuStructure", 
 					"UnrealEd",
+					"TypedElementFramework"
 				}
 			);
 		}

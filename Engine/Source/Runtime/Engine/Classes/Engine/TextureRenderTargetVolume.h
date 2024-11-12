@@ -48,6 +48,10 @@ class UTextureRenderTargetVolume : public UTextureRenderTarget
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=TextureRenderTargetVolume, AssetRegistrySearchable)
 	uint8 bHDR:1;
 
+	/** Whether this render target can be used as an unordered access view */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=TextureRenderTargetVolume, AssetRegistrySearchable)
+	uint8 bSupportsUAV : 1;
+
 	/** True to force linear gamma space for this render target */
 	UPROPERTY()
 	uint8 bForceLinearGamma:1;

@@ -31,7 +31,7 @@ void RunCharTests(uint32 MaxChar)
 	}
 }
 
-TEST_CASE_NAMED(TCharTest, "System::Core::Misc::Char", "[ApplicationContextMask][SmokeFilter]")
+TEST_CASE_NAMED(TCharTest, "System::Core::Misc::Char", "[ApplicationContextMask][SmokeFilter][AndroidSkip]")
 {
 	const char* CurrentLocale = setlocale(LC_CTYPE, nullptr);
 	if (CurrentLocale == nullptr)

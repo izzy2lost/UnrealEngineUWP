@@ -15,8 +15,8 @@ class UPCGHiGenGridSizeSettings : public UPCGSettings
 	GENERATED_BODY()
 
 public:
-	EPCGHiGenGrid GetGrid() const { return HiGenGridSize; }
-	uint32 GetGridSize() const { return (HiGenGridSize == EPCGHiGenGrid::Unbounded) ? PCGHiGenGrid::UnboundedGridSize() : PCGHiGenGrid::GridToGridSize(HiGenGridSize); }
+	EPCGHiGenGrid GetGrid() const;
+	uint32 GetGridSize() const;
 
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
@@ -24,9 +24,9 @@ public:
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::HierarchicalGeneration; }
-	virtual bool HasDynamicPins() const override { return true; }
 #endif
 	virtual FString GetAdditionalTitleInformation() const override;
+	virtual bool HasDynamicPins() const override { return true; }
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayName = "HiGen Grid Size"))

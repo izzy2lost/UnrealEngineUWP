@@ -21,11 +21,10 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, CreateObjectsInsi
 	FReplicationSystemTestClient* Client = CreateClient();
 
 	// Spawn object on server that is polled late in order to test ForceNetUpdate
-	UObjectReplicationBridge::FCreateNetRefHandleParams Params;
+	UObjectReplicationBridge::FRootObjectReplicationParams Params;
 	const uint32 PollPeriod = 100;
 	const float PollFrequency = Server->ConvertPollPeriodIntoFrequency(PollPeriod);
 	Params.PollFrequency = PollFrequency;
-	Params.bCanReceive = true;
 	Params.bUseClassConfigDynamicFilter = true;
 	Params.bNeedsPreUpdate = true;
 	UTestReplicatedIrisObject* ServerObject = Server->CreateObject(Params);
@@ -39,21 +38,24 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, CreateObjectsInsi
 	UE_NET_ASSERT_NE(ClientObject, nullptr);
 
 	// Add a PreUpdate where we create a new subobject
-	auto PreUpdateObject = [&](FNetRefHandle NetHandle, UObject* ReplicatedObject, const UReplicationBridge* ReplicationBridge)
+	auto PreUpdateObject = [&](TArrayView<UObject*> Instances, const UReplicationBridge* Bridge)
 	{
-		if (ServerObject == ReplicatedObject)
+		for (UObject* ReplicatedObject : Instances)
 		{
-			if (ServerSubObject == nullptr)
+			if (ServerObject == ReplicatedObject)
 			{
-				// Dirty a property
-				ServerObject->IntA = 0xBB;
+				if (ServerSubObject == nullptr)
+				{
+					// Dirty a property
+					ServerObject->IntA = 0xBB;
 
-				// Create a subobject
-				ServerSubObject = Server->CreateSubObject<UTestReplicatedIrisObject>(ServerObject->NetRefHandle);
+					// Create a subobject
+					ServerSubObject = Server->CreateSubObject<UTestReplicatedIrisObject>(ServerObject->NetRefHandle);
 
-				// Dirty this subobject
-				ServerSubObject->IntA = 0xBB;
+					// Dirty this subobject
+					ServerSubObject->IntA = 0xBB;
 
+				}
 			}
 		}
 	};

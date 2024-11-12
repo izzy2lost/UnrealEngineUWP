@@ -5,16 +5,17 @@
 #include "Data/PCGPointData.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "PCGContext.h"
-#include "PCGPin.h"
 
 FPCGElementPtr UPCGNormalToDensitySettings::CreateElement() const
 {
 	return MakeShared<FPCGNormalToDensityElement>();
 }
 
-bool FPCGNormalToDensityElement::ExecuteInternal(FPCGContext* Context) const
+bool FPCGNormalToDensityElement::ExecuteInternal(FPCGContext* InContext) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGNormalToDensityElement::Execute);
+
+	ContextType* Context = static_cast<ContextType*>(InContext);
 
 	const UPCGNormalToDensitySettings* Settings = Context->GetInputSettings<UPCGNormalToDensitySettings>();
 	check(Settings);
@@ -23,9 +24,6 @@ bool FPCGNormalToDensityElement::ExecuteInternal(FPCGContext* Context) const
 	const double Offset = Settings->Offset;
 	const double Strength = Settings->Strength;
 	const PCGNormalToDensityMode DensityMode = Settings->DensityMode;
-
-	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
-	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 
 	const double InvStrength = 1.0/FMath::Max(0.0001, Strength);
 
@@ -37,91 +35,70 @@ bool FPCGNormalToDensityElement::ExecuteInternal(FPCGContext* Context) const
 
 	switch (DensityMode)
 	{
-	case PCGNormalToDensityMode::Set:
-		ProcessPoints(Context, Inputs, Outputs, [CalcValue](const FPCGPoint& InPoint, FPCGPoint& OutPoint)->bool{
+		case PCGNormalToDensityMode::Set:
+			return ExecutePointOperation(Context, [CalcValue](const FPCGPoint& InPoint, FPCGPoint& OutPoint)
+			{
+				OutPoint = InPoint;
 
-			OutPoint = InPoint;
+				OutPoint.Density = CalcValue(InPoint);
 
-			OutPoint.Density = CalcValue(InPoint);
+				return true;
+			});
 
-			return true;
+		case PCGNormalToDensityMode::Minimum:
+			return ExecutePointOperation(Context, [CalcValue](const FPCGPoint& InPoint, FPCGPoint& OutPoint)->bool{
+				OutPoint = InPoint;
 
-		});
-		break;
+				OutPoint.Density = FMath::Min(InPoint.Density, CalcValue(InPoint));
 
-	case PCGNormalToDensityMode::Minimum:
-		ProcessPoints(Context, Inputs, Outputs, [CalcValue](const FPCGPoint& InPoint, FPCGPoint& OutPoint)->bool{
+				return true;
+			});
 
-			OutPoint = InPoint;
+		case PCGNormalToDensityMode::Maximum:
+			return ExecutePointOperation(Context, [CalcValue](const FPCGPoint& InPoint, FPCGPoint& OutPoint)->bool{
+				OutPoint = InPoint;
 
-			OutPoint.Density = FMath::Min(InPoint.Density, CalcValue(InPoint));
+				OutPoint.Density = FMath::Max(InPoint.Density, CalcValue(InPoint));
 
-			return true;
+				return true;
+			});
 
-		});
-		break;
+		case PCGNormalToDensityMode::Add:
+			return ExecutePointOperation(Context, [CalcValue](const FPCGPoint& InPoint, FPCGPoint& OutPoint)->bool{
+				OutPoint = InPoint;
 
-	case PCGNormalToDensityMode::Maximum:
-		ProcessPoints(Context, Inputs, Outputs, [CalcValue](const FPCGPoint& InPoint, FPCGPoint& OutPoint)->bool{
+				OutPoint.Density += CalcValue(InPoint);
 
-			OutPoint = InPoint;
+				return true;
+			});
 
-			OutPoint.Density = FMath::Max(InPoint.Density, CalcValue(InPoint));
+		case PCGNormalToDensityMode::Subtract:
+			return ExecutePointOperation(Context, [CalcValue](const FPCGPoint& InPoint, FPCGPoint& OutPoint)->bool{
+				OutPoint = InPoint;
 
-			return true;
+				OutPoint.Density -= CalcValue(InPoint);
 
-		});
-		break;
+				return true;
+			});
 
-	case PCGNormalToDensityMode::Add:
-		ProcessPoints(Context, Inputs, Outputs, [CalcValue](const FPCGPoint& InPoint, FPCGPoint& OutPoint)->bool{
+		case PCGNormalToDensityMode::Multiply:
+			return ExecutePointOperation(Context, [CalcValue](const FPCGPoint& InPoint, FPCGPoint& OutPoint)->bool{
+				OutPoint = InPoint;
 
-			OutPoint = InPoint;
+				OutPoint.Density *= CalcValue(InPoint);
 
-			OutPoint.Density += CalcValue(InPoint);
+				return true;
+			});
 
-			return true;
+		case PCGNormalToDensityMode::Divide:
+			return ExecutePointOperation(Context, [CalcValue](const FPCGPoint& InPoint, FPCGPoint& OutPoint)->bool{
+				OutPoint = InPoint;
 
-		});
-		break;
+				OutPoint.Density = UKismetMathLibrary::SafeDivide(OutPoint.Density, CalcValue(InPoint));
 
-	case PCGNormalToDensityMode::Subtract:
-		ProcessPoints(Context, Inputs, Outputs, [CalcValue](const FPCGPoint& InPoint, FPCGPoint& OutPoint)->bool{
-
-			OutPoint = InPoint;
-
-			OutPoint.Density -= CalcValue(InPoint);
-
-			return true;
-
-		});
-		break;
-
-	case PCGNormalToDensityMode::Multiply:
-		ProcessPoints(Context, Inputs, Outputs, [CalcValue](const FPCGPoint& InPoint, FPCGPoint& OutPoint)->bool{
-
-			OutPoint = InPoint;
-
-			OutPoint.Density *= CalcValue(InPoint);
-
-			return true;
-
-		});
-		break;
-
-	case PCGNormalToDensityMode::Divide:
-		ProcessPoints(Context, Inputs, Outputs, [CalcValue](const FPCGPoint& InPoint, FPCGPoint& OutPoint)->bool{
-
-			OutPoint = InPoint;
-
-			OutPoint.Density = UKismetMathLibrary::SafeDivide(OutPoint.Density, CalcValue(InPoint));
-
-			return true;
-
-		});
-		break;
+				return true;
+			});
 	}
 
 	return true;
-
 }

@@ -40,16 +40,16 @@ UEnum* GetEnumForByteTrack(TSharedPtr<ISequencer> Sequencer, const FGuid& OwnerO
 			continue;
 		}
 
-		FProperty* Property = PropertyChangedParams.PropertyPath.GetLeafMostProperty().Property.Get();
+		const FProperty* Property = PropertyChangedParams.PropertyPath.GetLeafMostProperty().Property.Get();
 		if (Property != nullptr)
 		{
 			UEnum* Enum = nullptr;
 
-			if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
+			if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
 			{
 				Enum = EnumProperty->GetEnum();
 			}
-			else if (FByteProperty* ByteProperty = CastField<FByteProperty>(Property))
+			else if (const FByteProperty* ByteProperty = CastField<FByteProperty>(Property))
 			{
 				Enum = ByteProperty->Enum;
 			}

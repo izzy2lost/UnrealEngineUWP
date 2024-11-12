@@ -55,16 +55,25 @@ class _Builder(object):
     def read_actions(self):
         platform = self._platform
         variant = self._variant
-        targets = (x.get_name() for x in self._targets)
 
         args = self._args
+        if len(self._targets) > 1:
+            targets = []
+            for target in self._targets:
+                target = f"-Target={target.get_name()} {platform} {variant}"
+                targets.append(target)
+                variant = "development" # \o/
+        else:
+            targets = (x.get_name() for x in self._targets)
+            args = (platform, variant, *args)
+
         projected = any(x.is_project_target() for x in self._targets)
         if self._projected or projected:
             if project := self._ue_context.get_project():
                 args = ("-Project=" + str(project.get_path()), *args)
 
         ubt = self._ue_context.get_engine().get_ubt()
-        yield from ubt.read_actions(*targets, platform, variant, *args)
+        yield from ubt.read_actions(*targets, *args)
 
 
 
@@ -73,7 +82,7 @@ class _PrettyPrinter(prettyprinter.Printer):
     def __init__(self, logger):
         self._source_re = re.compile(r"^(\s+\[[0-9/]+\]\s+|)([^ ]+\.[a-z]+)")
         self._error_re = re.compile("([Ee]rror:|ERROR|Exception: |error LNK|error C)")
-        self._warning_re = re.compile("(warning C|[Ww]arning: |note:)")
+        self._warning_re = re.compile("(warning [CV]|[Ww]arning: |note:)")
         self._progress_re = re.compile(r"^\s*@progress\s+('([^']+)'|\w+)(\s+(\d+))?")
         self._for_target_re = re.compile(r"^\*\* For ([^\s]+) \*\*")
         self._percent = 0
@@ -272,6 +281,13 @@ class _BuildCmd(unrealcmd.Cmd):
                         file_or_module = str(file.resolve())
                         break
 
+        # Lets not accept anything accept files that make translation units
+        for ext in (".cpp", ".c", ".xpp", ".h"):
+            if file_or_module.endswith(ext):
+                break
+        else:
+            raise ValueError(f"{file_or_module} does not appear to be a source file")
+
         builder.add_args("-SingleFile=" + file_or_module)
         builder.add_args("-SkipDeploy")
 
@@ -437,9 +453,7 @@ class Editor(_BuildCmd, unrealcmd.MultiPlatformCmd):
 
         editor_only = self.is_constrained_build() # i.e. single file or module
         editor_only |= bool(self.args.analyze)
-        editor_only |= self.args.variant != "development"
         if not editor_only:
-
             targets_to_add = []
             if not self.args.noscw:
                 targets_to_add.append("ShaderCompileWorker")

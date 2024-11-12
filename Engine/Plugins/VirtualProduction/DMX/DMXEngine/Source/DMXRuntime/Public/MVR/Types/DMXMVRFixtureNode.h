@@ -163,6 +163,17 @@ public:
 	UPROPERTY()
 	FString Name;
 
+	/** 
+	 * The unique identifier of the parent multipatch fixture. When this value is set, you may not define a FixtureID or CustomID for this fixture. 
+	 * The FixtureID and CustomID from the object defined as multi parent also applies to this object. 
+	 */
+	UPROPERTY()
+	FDMXOptionalGuid MultiPatch;
+
+	/** The Class the object belongs to. */
+	UPROPERTY()
+	FDMXOptionalGuid Classing;
+
 	/** The name of the file containing the GDTF information for this light fixture. */
 	UPROPERTY()
 	FString GDTFSpec;

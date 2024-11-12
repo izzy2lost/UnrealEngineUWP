@@ -10,6 +10,7 @@
 
 class SSlider;
 class UMediaPlayer;
+enum class EMediaPlayerTrack : uint8;
 
 /**
  * Implements a scrubber to visualize the current playback position of a Media Player
@@ -28,7 +29,7 @@ public:
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with InArgs */
-	void Construct(const FArguments& InArgs, UMediaPlayer* InMediaPlayer);
+	void Construct(const FArguments& InArgs, const TArrayView<TWeakObjectPtr<UMediaPlayer>> InMediaPlayers);
 
 	//~Begin IMediaPlayerScrubber
 	virtual void SetSliderHandleColor(const FSlateColor& InSliderColor) override;
@@ -47,15 +48,26 @@ private:
 	/** The scrubber visibility when inactive. */
 	EVisibility VisibilityWhenInactive = EVisibility::Hidden;
 
-	/** Pointer to the media player that is being viewed. */
-	TWeakObjectPtr<UMediaPlayer> MediaPlayerWeak;
+	struct FMediaPlayerEntry
+	{
+		/** Pointer to the media players that is are viewed. */
+		TWeakObjectPtr<UMediaPlayer> MediaPlayerWeak;
+		
+		/** The playback rate prior to scrubbing. */
+		float PreScrubRate = 0.0f;
+		/** The value currently being scrubbed to. */
+		float ScrubValue = 0.0f;
+		
+		/** The last value set with media player while scrubbing. */
+		float LastScrubValue = -1.0f;
 
-	/** The playback rate prior to scrubbing. */
-	float PreScrubRate = 0.0f;
+		FMediaPlayerEntry(const TWeakObjectPtr<UMediaPlayer>& InMediaPlayerWeak) : MediaPlayerWeak(InMediaPlayerWeak) { }
+	};
 
+	const FMediaPlayerEntry* FindValidPlayerEntryForTrackType(EMediaPlayerTrack InTrackType) const;
+	
+	TArray<FMediaPlayerEntry> MediaPlayerEntries;
+	
 	/** Holds the scrubber slider. */
 	TSharedPtr<SSlider> ScrubberSlider;
-
-	/** The value currently being scrubbed to. */
-	float ScrubValue = 0.0f;
 };

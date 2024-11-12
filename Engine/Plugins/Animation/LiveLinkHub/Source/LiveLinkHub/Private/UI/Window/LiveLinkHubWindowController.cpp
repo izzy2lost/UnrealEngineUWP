@@ -3,6 +3,7 @@
 #include "LiveLinkHubWindowController.h"
 
 #include "CoreGlobals.h"
+#include "Features/IModularFeatures.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/LayoutService.h"
 #include "Framework/Notifications/NotificationManager.h"
@@ -18,15 +19,21 @@ FLiveLinkHubWindowController::FLiveLinkHubWindowController(const FLiveLinkHubWin
 	: LiveLinkHubLayoutIni(Params.LiveLinkHubLayoutIni)
 	, MainTabController(MakeShared<FLiveLinkHubMainTabController>())
 {
-	LiveLinkHubComponents.Add(MainTabController);
-	
 	ModalWindowManager = InitializeSlateApplication();
 }
 
 FLiveLinkHubWindowController::~FLiveLinkHubWindowController()
 {
 	FGlobalTabmanager::Get()->SaveAllVisualState();
+
+	if (RootWindow)
+	{
+		RootWindow->SetOnWindowClosed(nullptr);
+	}
+
+#if IS_PROGRAM
 	FSlateApplication::Shutdown();
+#endif
 }
 
 TSharedRef<SWindow> FLiveLinkHubWindowController::CreateWindow()
@@ -38,7 +45,7 @@ TSharedRef<SWindow> FLiveLinkHubWindowController::CreateWindow()
 	constexpr bool bEmbedTitleAreaContent = true;
 	const FVector2D ClientSize(1200.0f * DPIScaleFactor, 800.0f * DPIScaleFactor);
 	TSharedRef<SWindow> RootWindowRef = SNew(SWindow)
-		.Title(LOCTEXT("WindowTitle", "LiveLink Hub"))
+		.Title(LOCTEXT("WindowTitle", "Live Link Hub"))
 		.CreateTitleBar(!bEmbedTitleAreaContent)
 		.SupportsMaximize(true)
 		.SupportsMinimize(true)
@@ -97,7 +104,9 @@ void FLiveLinkHubWindowController::RestoreLayout()
 
 TSharedPtr<FModalWindowManager> FLiveLinkHubWindowController::InitializeSlateApplication()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FLiveLinkHubWindowController::InitializeAsStandaloneApplication);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLiveLinkHubWindowController::InitializeSlateApplication);
+
+#if IS_PROGRAM
 	FSlateApplication::InitializeAsStandaloneApplication(GetStandardStandaloneRenderer());
 
 	// @hack This call will silently fail since we're running a commandlet, so pretend like we aren't one for it.
@@ -106,8 +115,9 @@ TSharedPtr<FModalWindowManager> FLiveLinkHubWindowController::InitializeSlateApp
 	PRIVATE_GIsRunningCommandlet = false;
 	FSlateApplication::InitHighDPI(true);
 	PRIVATE_GIsRunningCommandlet = bIsRunningCommandlet;
+#endif
 
-	const FText ApplicationTitle = LOCTEXT("AppTitle", "LiveLink Hub");
+	const FText ApplicationTitle = LOCTEXT("AppTitle", "Live Link Hub");
 	FGlobalTabmanager::Get()->SetApplicationTitle(ApplicationTitle);
 
 	return MakeShared<FModalWindowManager>(CreateWindow());
@@ -115,8 +125,11 @@ TSharedPtr<FModalWindowManager> FLiveLinkHubWindowController::InitializeSlateApp
 
 void FLiveLinkHubWindowController::InitComponents(const TSharedRef<FTabManager::FStack>& MainArea)
 {
-	const FLiveLinkHubComponentInitParams Params { SharedThis(this), MainArea };
-	for (const TSharedRef<ILiveLinkHubComponent>& LiveLinkHubComponent : LiveLinkHubComponents)
+	const FLiveLinkHubComponentInitParams Params { GetRootWindow().ToSharedRef(), MainArea };
+	MainTabController->Init(Params);
+
+	TArray<ILiveLinkHubComponent*> ExternalComponents = IModularFeatures::Get().GetModularFeatureImplementations<ILiveLinkHubComponent>(ILiveLinkHubComponent::ModularFeatureName);
+	for (ILiveLinkHubComponent* LiveLinkHubComponent : ExternalComponents)
 	{
 		LiveLinkHubComponent->Init(Params);
 	}
@@ -126,6 +139,10 @@ void FLiveLinkHubWindowController::OnWindowClosed(const TSharedRef<SWindow>& Win
 {
 	SaveLayout();
 	RootWindow.Reset();
+
+#if !IS_PROGRAM
+	RequestEngineExit(TEXT("FLiveLinkHubWindowController::OnWindowClosed"));
+#endif
 }
 
 void FLiveLinkHubWindowController::SaveLayout() const

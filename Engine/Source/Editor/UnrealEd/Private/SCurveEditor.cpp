@@ -36,6 +36,7 @@
 #include "Widgets/Input/STextEntryPopup.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Framework/Notifications/NotificationManager.h"
+#include "IPropertyUtilities.h"
 
 #define LOCTEXT_NAMESPACE "SCurveEditor"
  
@@ -84,6 +85,9 @@ void SCurveEditor::Construct(const FArguments& InArgs)
 
 	bIsUsingSlider = false;
 	bAllowAutoFrame = true;
+	bRequireFocusToZoom = false;
+
+	bIsPendingRebuilt = false;
 
 	// if editor size is set, use it, otherwise, use default value
 	if (DesiredSize.Get().IsZero())
@@ -467,8 +471,6 @@ void SCurveEditor::Construct(const FArguments& InArgs)
 	}
 
 	FCoreUObjectDelegates::OnObjectPropertyChanged.AddSP(this, &SCurveEditor::OnObjectPropertyChanged);
-
-	bRequireFocusToZoom = false;
 }
 
 FText SCurveEditor::GetIsCurveVisibleToolTip(TSharedPtr<FCurveViewModel> CurveViewModel) const
@@ -3013,6 +3015,11 @@ void SCurveEditor::SetOutputMinMax(float NewMin, float NewMax)
 	}
 }
 
+void SCurveEditor::EmptyAllCurveViewModels()
+{
+	CurveViewModels.Empty();
+}
+
 void SCurveEditor::ClearSelectedCurveViewModels()
 {
 	for(auto CurveViewModel : CurveViewModels)
@@ -3807,16 +3814,37 @@ void SCurveEditor::RedoAction()
 
 void SCurveEditor::OnObjectPropertyChanged(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent)
 {
-	if ( CurveOwner && CurveOwner->GetOwners().Contains(Object) )
+	if (CurveOwner && CurveOwner->GetOwners().Contains(Object))
 	{
-		if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayClear)
+		// CurveEditor will hold dangling references to CurveData and access them in some cases:
+		// - Curve Data is inline allocated, or wrapped by InstancedStruct, in a container. And we do Array Remove/Clear op, or Add that causes resize
+		// - Curve Data is wrapped by InstancedStruct in a Container, and we do undo/redo(will trigger emptying and refilling the container, causing address changed)
+		if (!bIsPendingRebuilt
+			&& (GIsTransacting
+			|| PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayAdd
+			|| PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayRemove
+			|| PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayClear))
 		{
+			bIsPendingRebuilt = true;
+
+			//To clean up dangling references
 			EmptyAllSelection();
+			EmptyAllCurveViewModels();
+			RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateSPLambda(
+				this,
+				[this](double, float)
+				{
+					if(const TSharedPtr<IPropertyUtilities> PropertyUtilities = PropertyUtilitiesWeak.Pin())
+					{
+						//Rebuild the widget so it will reference to the new correct address of Curves, and show things correctly
+						PropertyUtilities->ForceRefresh();
+					}
+					return EActiveTimerReturnType::Stop;
+				}
+				));
 		}
-		else
-		{
-			ValidateSelection();
-		}
+
+		ValidateSelection();
 	}
 }
 

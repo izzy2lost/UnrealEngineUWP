@@ -12,6 +12,7 @@
 #include "Widgets/Notifications/SNotificationList.h"
 #include "MeshDescriptionToDynamicMesh.h"
 #include "MeshUtilities.h"
+#include "PropertyHandle.h"
 #include "ReferenceSkeleton.h"
 #include "SkeletalMeshAttributes.h"
 #include "ToDynamicMesh.h"
@@ -26,7 +27,7 @@ namespace UE::Chaos::ClothAsset
 		// Wrapper for accessing a SkelMeshSection. Implements the interface expected by TToDynamicMesh<>.
 		// This will weld all vertices which are the same.
 		//
-		template<bool bHasNormals = false, bool bHasTangents = false, bool bHasBiTangents = false, bool bHasColors = false>
+		template<bool bHasTangents = false, bool bHasBiTangents = false, bool bHasColors = false>
 		struct FSkelMeshSectionWrapper
 		{
 			typedef int32 TriIDType;
@@ -36,8 +37,9 @@ namespace UE::Chaos::ClothAsset
 			typedef int32 NormalIDType;
 			typedef int32 ColorIDType;
 
-			FSkelMeshSectionWrapper(const FSkeletalMeshLODModel& SkeletalMeshModel, const int32 SectionIndex)
-				: SourceSection(SkeletalMeshModel.Sections[SectionIndex])
+			FSkelMeshSectionWrapper(const FSkeletalMeshLODModel& SkeletalMeshModel, const int32 SectionIndex, bool bInHasNormals)
+				: bHasNormals(bInHasNormals)
+				, SourceSection(SkeletalMeshModel.Sections[SectionIndex])
 				, IndexBuffer(SkeletalMeshModel.IndexBuffer.GetData() + SourceSection.BaseIndex, SourceSection.NumTriangles * 3)
 			{
 				const int32 NumVerts = SourceSection.SoftVertices.Num();
@@ -212,17 +214,28 @@ namespace UE::Chaos::ClothAsset
 
 			const TArray<NormalIDType>& GetNormalIDs() const
 			{
-				return EmptyArray;
+				if (bHasNormals)
+				{
+					return OriginalIndexes;
+				}
+				else
+				{
+					return EmptyArray;
+				}
 			}
 
 			FVector3f GetNormal(NormalIDType ID) const
 			{
-				check(false);
-				return FVector3f();
+				check(bHasNormals);
+				return SourceSection.SoftVertices[ID].TangentZ;
 			}
 
-			bool GetNormalTri(const TriIDType& TID, NormalIDType& NID0, NormalIDType& NID1, NormalIDType& NID2) const
+			bool GetNormalTri(const TriIDType& TriID, NormalIDType& NID0, NormalIDType& NID1, NormalIDType& NID2) const
 			{
+				if (bHasNormals)
+				{
+					return GetTri(TriID, NID0, NID1, NID2);
+				}
 				return false;
 			}
 
@@ -349,7 +362,7 @@ namespace UE::Chaos::ClothAsset
 				return FLinearColor::White;
 			}
 
-
+			const bool bHasNormals;
 			const FSkelMeshSection& SourceSection;
 			const TConstArrayView<uint32> IndexBuffer;
 			TArray<int32> OriginalIndexes; // UniqueIndex -> OrigIndex
@@ -421,13 +434,13 @@ namespace UE::Chaos::ClothAsset
 		ClothPatternFacade.SetRenderMaterialPathName(RenderMaterialPathName);
 	}
 	
-	void FClothDataflowTools::AddSimPatternsFromSkeletalMeshSection(const TSharedRef<FManagedArrayCollection>& ClothCollection, const FSkeletalMeshLODModel& SkeletalMeshModel, const int32 SectionIndex, const int32 UVChannelIndex, const FVector2f& UVScale)
+	void FClothDataflowTools::AddSimPatternsFromSkeletalMeshSection(const TSharedRef<FManagedArrayCollection>& ClothCollection, const FSkeletalMeshLODModel& SkeletalMeshModel, const int32 SectionIndex, const int32 UVChannelIndex, const FVector2f& UVScale, bool bImportNormals)
 	{
 		check(SectionIndex < SkeletalMeshModel.Sections.Num());
 
 		// Convert to DynamicMesh and then use that to create patterns.
 		UE::Geometry::TToDynamicMesh<Private::FSkelMeshSectionWrapper<>> SkelMeshSectionToDynamicMesh;
-		Private::FSkelMeshSectionWrapper<> SectionWrapper(SkeletalMeshModel, SectionIndex);
+		Private::FSkelMeshSectionWrapper<> SectionWrapper(SkeletalMeshModel, SectionIndex, bImportNormals);
 
 		UE::Geometry::FDynamicMesh3 DynamicMesh;
 		DynamicMesh.EnableAttributes();
@@ -454,11 +467,13 @@ namespace UE::Chaos::ClothAsset
 		UE_LOG(LogChaosClothAssetDataflowNodes, Warning, TEXT("%s"), *Text.ToString());
 	}
 
-	void FClothDataflowTools::MakeCollectionName(FString& InOutString)
+	bool FClothDataflowTools::MakeCollectionName(FString& InOutString)
 	{
+		const FString SourceString = InOutString;
 		InOutString = SlugStringForValidName(InOutString, TEXT("_")).Replace(TEXT("\\"), TEXT("_"));
 		bool bCharsWereRemoved;
 		do { InOutString.TrimCharInline(TEXT('_'), &bCharsWereRemoved); } while (bCharsWereRemoved);
+		return InOutString.Equals(SourceString);
 	}
 
 	static void CopyBuildSettings(const FMeshBuildSettings& InStaticMeshBuildSettings, FSkeletalMeshBuildSettings& OutSkeletalMeshBuildSettings)
@@ -526,5 +541,269 @@ namespace UE::Chaos::ClothAsset
 			return false;
 		}
 		return true;
+	}
+
+	FDataflowNode* FClothDataflowTools::GetPropertyOwnerDataflowNode(const TSharedPtr<IPropertyHandle>& PropertyHandle, const UStruct* DataflowNodeStruct)
+	{
+		for (TSharedPtr<IPropertyHandle> OwnerHandle = PropertyHandle->GetParentHandle(); OwnerHandle; OwnerHandle = OwnerHandle->GetParentHandle())
+		{
+			if (const TSharedPtr<IPropertyHandleStruct> OwnerHandleStruct = OwnerHandle->AsStruct())
+			{
+				if (TSharedPtr<FStructOnScope> StructOnScope = OwnerHandleStruct->GetStructData())
+				{
+					if (StructOnScope->GetStruct()->IsChildOf(DataflowNodeStruct))
+					{
+						return reinterpret_cast<FDataflowNode*>(StructOnScope->GetStructMemory());
+					}
+				}
+			}
+		}
+		return nullptr;
+	}
+
+	bool FClothDataflowTools::RemoveDegenerateTriangles(
+		const TArray<FIntVector3>& TriangleToVertexIndex,
+		const TArray<FVector2f>& RestPositions2D,
+		const TArray<FVector3f>& DrapedPositions3D,
+		TArray<FIntVector3>& OutTriangleToVertexIndex,
+		TArray<FVector2f>& OutRestPositions2D,
+		TArray<FVector3f>& OutDrapedPositions3D,
+		TArray<int32>& OutIndices)  // Old to new vertices lookup
+	{
+		bool bHasDegenerateTriangles = false;
+
+		check(RestPositions2D.Num() == DrapedPositions3D.Num());
+		const int32 VertexCount = RestPositions2D.Num();
+		const int32 TriangleCount = TriangleToVertexIndex.Num();
+
+		OutTriangleToVertexIndex.Reset(TriangleCount);
+
+		// Remap[Index] is the index of the first vertex in a group of degenerated triangles to be callapsed.
+		// When two groups of collapsed vertices are merged, the group with the greatest Remap[index] value must adopt the one from the other group.
+		// For Example:
+		// 1. For all i, Remap[i] = i
+		// 2. Finds one degenerated triangle (7, 9, 4) with collapsed edges (7, 9), (9, 4), and (7, 4) -> Remap[4] = 4, Remap[7] = 4, and Remap[9] = 4
+		// 3. Finds another degenerated triangle (2, 3, 4) with collapsed edges (2, 4) -> Remap[2] = 2, Remap[4] = 2, Remap[7] = 2, and Remap[9] = 2
+		TArray<int32> Remap;
+		Remap.SetNumUninitialized(VertexCount);
+
+		for (int32 Index = 0; Index < VertexCount; ++Index)
+		{
+			Remap[Index] = Index;
+		}
+
+		int32 OutVertexCount = VertexCount;
+
+		auto RemapAndPropagateIndex = [&Remap, &OutVertexCount](int32 Index0, int32 Index1)
+			{
+				if (Remap[Index0] != Remap[Index1])
+				{
+					if (Remap[Index0] > Remap[Index1])  // Always remap from the lowest index to ensure the earlier index is always kept
+					{
+						Swap(Index0, Index1);
+					}
+					// Merge groups with this new first index Remap[Index0]
+					const int32 PrevRemapIndex = Remap[Index1];
+					for (int32 Index = PrevRemapIndex; Index < Remap.Num(); ++Index)  // Only need to start from the first index of the group to merge
+					{
+						if (Remap[Index] == PrevRemapIndex)
+						{
+							Remap[Index] = Remap[Index0];
+						}
+					}
+					--OutVertexCount;
+				}
+			};
+
+		for (int32 TriangleIndex = 0; TriangleIndex < TriangleCount; ++TriangleIndex)
+		{
+			const int32 Index0 = TriangleToVertexIndex[TriangleIndex][0];
+			const int32 Index1 = TriangleToVertexIndex[TriangleIndex][1];
+			const int32 Index2 = TriangleToVertexIndex[TriangleIndex][2];
+
+			const FVector3f& P0 = DrapedPositions3D[Index0];
+			const FVector3f& P1 = DrapedPositions3D[Index1];
+			const FVector3f& P2 = DrapedPositions3D[Index2];
+			const FVector3f P0P1 = P1 - P0;
+			const FVector3f P0P2 = P2 - P0;
+
+			const float TriNormSizeSquared = (P0P1 ^ P0P2).SizeSquared();
+			if (TriNormSizeSquared <= UE_SMALL_NUMBER)
+			{
+				const FVector3f P1P2 = P2 - P1;
+
+				if (P0P1.SquaredLength() <= UE_SMALL_NUMBER)
+				{
+					RemapAndPropagateIndex(Index0, Index1);
+				}
+				if (P0P2.SquaredLength() <= UE_SMALL_NUMBER)
+				{
+					RemapAndPropagateIndex(Index0, Index2);
+				}
+				if (P1P2.SquaredLength() <= UE_SMALL_NUMBER)
+				{
+					RemapAndPropagateIndex(Index1, Index2);
+				}
+			}
+			else
+			{
+				OutTriangleToVertexIndex.Emplace(TriangleToVertexIndex[TriangleIndex]);
+			}
+		}
+
+		const int32 OutTriangleCount = OutTriangleToVertexIndex.Num();
+		bHasDegenerateTriangles = (TriangleCount != OutTriangleCount);
+
+		UE_CLOG(bHasDegenerateTriangles, LogChaosClothAssetDataflowNodes, Display,
+			TEXT("USD import found and removed %d degenerated triangles out of %d source triangles."), TriangleCount - OutTriangleCount, TriangleCount);
+
+		OutRestPositions2D.Reset(OutVertexCount);
+		OutDrapedPositions3D.Reset(OutVertexCount);
+		OutIndices.Reset(VertexCount);
+		int32 OutIndex = -1;
+
+		for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+		{
+			if (Remap[VertexIndex] == VertexIndex)
+			{
+				OutRestPositions2D.Add(RestPositions2D[Remap[VertexIndex]]);
+				OutDrapedPositions3D.Add(DrapedPositions3D[Remap[VertexIndex]]);
+				OutIndices.Add(++OutIndex);
+			}
+			else
+			{
+				const int32 OutRemappedIndex = OutIndices[Remap[VertexIndex]];
+				OutIndices.Add(OutRemappedIndex);
+			}
+		}
+		ensure(OutIndex + 1 == OutVertexCount);
+
+		for (int32 TriangleIndex = 0; TriangleIndex < OutTriangleCount; ++TriangleIndex)
+		{
+			int32& Index0 = OutTriangleToVertexIndex[TriangleIndex][0];
+			int32& Index1 = OutTriangleToVertexIndex[TriangleIndex][1];
+			int32& Index2 = OutTriangleToVertexIndex[TriangleIndex][2];
+
+			Index0 = OutIndices[Index0];
+			Index1 = OutIndices[Index1];
+			Index2 = OutIndices[Index2];
+
+			checkSlow(Index0 != Index1);
+			checkSlow(Index0 != Index2);
+			checkSlow(Index1 != Index2);
+			checkSlow((OutDrapedPositions3D[Index0] - OutDrapedPositions3D[Index1]).SquaredLength() > UE_SMALL_NUMBER);
+			checkSlow((OutDrapedPositions3D[Index0] - OutDrapedPositions3D[Index2]).SquaredLength() > UE_SMALL_NUMBER);
+			checkSlow((OutDrapedPositions3D[Index1] - OutDrapedPositions3D[Index2]).SquaredLength() > UE_SMALL_NUMBER);
+		}
+
+		return bHasDegenerateTriangles;
+	}
+
+	bool FClothDataflowTools::RemoveDuplicateTriangles(TArray<FIntVector3>& TriangleToVertexIndex)
+	{
+		bool bHasDuplicatedTriangles = false;
+
+		const int32 TriangleCount = TriangleToVertexIndex.Num();
+
+		TSet<FIntVector3> Triangles;
+		Triangles.Reserve(TriangleCount);
+
+		TArray<FIntVector3> OutTriangleToVertexIndex;
+		OutTriangleToVertexIndex.Reserve(TriangleCount);
+
+		auto GetSortedIndices = [](const FIntVector3& TriangleIndices)->FIntVector3
+			{
+				const int32 Index0 = TriangleIndices[0];
+				const int32 Index1 = TriangleIndices[1];
+				const int32 Index2 = TriangleIndices[2];
+
+				return (Index0 < Index1) ?
+					(Index1 < Index2) ? FIntVector3(Index0, Index1, Index2) : (Index0 < Index2) ? FIntVector3(Index0, Index2, Index1) : FIntVector3(Index2, Index0, Index1) :
+					(Index0 < Index2) ? FIntVector3(Index1, Index0, Index2) : (Index1 < Index2) ? FIntVector3(Index1, Index2, Index0) : FIntVector3(Index2, Index1, Index0);
+			};
+
+		for (int32 Index = 0; Index < TriangleCount; ++Index)
+		{
+			const FIntVector3& TriangleIndices = TriangleToVertexIndex[Index];
+			const FIntVector3 TriangleSortedIndices = GetSortedIndices(TriangleIndices);
+
+			bool bIsAlreadyInSet;
+			Triangles.FindOrAdd(TriangleSortedIndices, &bIsAlreadyInSet);
+
+			if (bIsAlreadyInSet)
+			{
+				bHasDuplicatedTriangles = true;
+			}
+			else
+			{
+				OutTriangleToVertexIndex.Emplace(TriangleIndices);
+			}
+		}
+
+		UE_CLOG(bHasDuplicatedTriangles, LogChaosClothAssetDataflowNodes, Display,
+			TEXT("USD import found and removed %d duplicated triangles out of %d source triangles."), TriangleCount - OutTriangleToVertexIndex.Num(), TriangleCount);
+
+		TriangleToVertexIndex = MoveTemp(OutTriangleToVertexIndex);
+
+		return bHasDuplicatedTriangles;
+	}
+
+	bool FClothDataflowTools::RemoveDuplicateStitches(TArray<TArray<FIntVector2>>& SeamStitches)
+	{
+		bool bHasDuplicateStitches = false;
+
+		const int32 NumSeamStitches = SeamStitches.Num();
+
+		// Calculate the total number of stitches
+		int32 NumStitches = 0;
+		for (const TArray<FIntVector2>& Stitches : SeamStitches)
+		{
+			NumStitches += Stitches.Num();
+		}
+
+		TSet<FIntVector2> StichSet;
+		StichSet.Reserve(NumStitches);
+
+		int32 OutNumStitches = 0;
+		TArray<TArray<FIntVector2>> OutSeamStitches;
+		OutSeamStitches.Reserve(NumSeamStitches);
+
+		for (const TArray<FIntVector2>& Stitches : SeamStitches)
+		{
+			TArray<FIntVector2> OutStitches;
+			OutStitches.Reserve(Stitches.Num());
+
+			for (const FIntVector2& Stitch : Stitches)
+			{
+				const FIntVector2 SortedStitch = Stitch[0] < Stitch[1] ?
+					FIntVector2(Stitch[0], Stitch[1]) :
+					FIntVector2(Stitch[1], Stitch[0]);
+
+				bool bIsAlreadyInSet;
+				StichSet.FindOrAdd(SortedStitch, &bIsAlreadyInSet);
+
+				if (bIsAlreadyInSet)
+				{
+					bHasDuplicateStitches = true;
+				}
+				else
+				{
+					OutStitches.Emplace(Stitch);
+				}
+			}
+
+			if (OutStitches.Num())
+			{
+				OutSeamStitches.Emplace(OutStitches);
+				OutNumStitches += OutStitches.Num();
+			}
+		}
+
+		UE_CLOG(bHasDuplicateStitches, LogChaosClothAssetDataflowNodes, Display,
+			TEXT("USD import found and removed %d duplicated stitches out of %d source stitches."), NumStitches - OutNumStitches, NumStitches);
+
+		SeamStitches = MoveTemp(OutSeamStitches);
+
+		return bHasDuplicateStitches;
 	}
 }  // End namespace UE::Chaos::ClothAsset

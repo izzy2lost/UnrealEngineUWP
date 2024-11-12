@@ -17,6 +17,7 @@
 #include "Misc/DateTime.h"
 #include "Misc/EnumClassFlags.h"
 #include "Templates/Function.h"
+#include "Templates/ValueOrError.h"
 
 class FArchive;
 class IAsyncReadFileHandle;
@@ -31,8 +32,10 @@ enum EAsyncIOPriorityAndFlags
 	AIOP_PRIORITY_MASK = 0x000000ff,
 
 	// Flags - combine with priorities if needed
-	AIOP_FLAG_PRECACHE	=	0x00000100,
-	AIOP_FLAG_DONTCACHE	=	0x00000200,
+	AIOP_FLAG_PRECACHE			= 0x00000100,
+	AIOP_FLAG_DONTCACHE			= 0x00000200,
+	// Use it to specify memory where read from cpu can be slow
+	AIOP_FLAG_HW_TARGET_MEMORY	= 0x00000400,	
 
 	// Priorities
 	AIOP_MIN = 0,
@@ -142,6 +145,8 @@ public:
 	**/
 	virtual bool		Read(uint8* Destination, int64 BytesToRead) = 0;
 
+	virtual bool		ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) = 0;
+
 	/** 
 	 * Write bytes to the file.
 	 * @param Source		Buffer to write, should be at least BytesToWrite in size.
@@ -234,13 +239,13 @@ struct FFileStatData
  * A handle used by the FileJournal API. Platform-specific identifier for which disk journal is being read.
  */
 typedef uint64 FFileJournalId;
-constexpr FFileJournalId FileJournalIdInvalid = static_cast<FFileJournalId>(MAX_uint64);
+inline constexpr FFileJournalId FileJournalIdInvalid = static_cast<FFileJournalId>(MAX_uint64);
 
 /**
  * A handle used by the FileJournal API. Represents an entry for an action on a file in the FileJournal.
  */
 typedef uint64 FFileJournalEntryHandle;
-constexpr FFileJournalEntryHandle FileJournalEntryHandleInvalid = static_cast<FFileJournalEntryHandle>(MAX_uint64);
+inline constexpr FFileJournalEntryHandle FileJournalEntryHandleInvalid = static_cast<FFileJournalEntryHandle>(MAX_uint64);
 
 /**
  * A handle used by the FileJournal API. Uniquely represents a file on disk without needing to use the filename.
@@ -269,6 +274,60 @@ struct FFileJournalData
 	bool bIsDirectory : 1;
 };
 
+/** Stores custom error messages from the engine along with an optional system error code that can provider more detailed infomation */
+class FFileSystemError
+{
+public:
+	FFileSystemError() = delete;
+	UE_NONCOPYABLE(FFileSystemError);
+
+	explicit FFileSystemError(FString&& InErrorMessage, int32 InSystemErrorCode = 0)
+		: ErrorMessage(MoveTemp(InErrorMessage))
+		, SystemErrorCode(InSystemErrorCode)
+	{
+	}
+
+	explicit FFileSystemError(FStringView InErrorMessage, int32 InSystemErrorCode = 0)
+		: ErrorMessage(InErrorMessage)
+		, SystemErrorCode(InSystemErrorCode)
+	{
+	}
+
+	/** Return the error message, if a valid system error code was provided then this will be appended to the end of the message */
+	FString GetMessage()
+	{
+		if (SystemErrorCode != 0)
+		{
+			TCHAR FormattedErrorMsg[MAX_SPRINTF] = { 0 };
+			FPlatformMisc::GetSystemErrorMessage(FormattedErrorMsg, UE_ARRAY_COUNT(FormattedErrorMsg), SystemErrorCode);
+
+			return FString::Printf(TEXT("%s [%s (%d)]"), *ErrorMessage, FormattedErrorMsg, SystemErrorCode);
+		}
+		else
+		{
+			return ErrorMessage;
+		}
+	}
+
+	/** Return the error message, if a valid system error code was provided then this will be appended to the end of the message */
+	template <typename CharType>
+	friend inline TStringBuilderBase<CharType>& operator<<(TStringBuilderBase<CharType>& Builder, const FFileSystemError& Error)
+	{
+		TCHAR FormattedErrorMsg[MAX_SPRINTF] = { 0 };
+		FPlatformMisc::GetSystemErrorMessage(FormattedErrorMsg, UE_ARRAY_COUNT(FormattedErrorMsg), Error.SystemErrorCode);
+
+		Builder << Error.ErrorMessage << TEXT(" [") << FormattedErrorMsg << TEXT(" (") << Error.SystemErrorCode << TEXT(")]");
+		return Builder;
+	}
+
+private:
+	FString ErrorMessage;
+	int32 SystemErrorCode;
+};
+
+/** Data structure returned by calls to IPlatformFile::OpenRead */
+using FFileOpenResult = TValueOrError<TUniquePtr<IFileHandle>, FFileSystemError>;
+
 /**
 * File I/O Interface
 **/
@@ -279,8 +338,9 @@ public:
 	static CORE_API IPlatformFile& GetPlatformPhysical();
 	/** Returns the name of the physical platform file type. */
 	static CORE_API const TCHAR* GetPhysicalTypeName();
-	/** Destructor. */
-	virtual ~IPlatformFile() {}
+	/** Constructor/Destructor. */
+	CORE_API IPlatformFile();
+	CORE_API virtual ~IPlatformFile();
 
 	/**
 	 *	Set whether the sandbox is enabled or not
@@ -424,12 +484,34 @@ public:
 	 */
 	virtual bool SetMarkOfTheWeb(FStringView Filename, bool bNewStatus, const FString* InSourceURL = nullptr) { return false; }
 
-	/** Attempt to open a file for reading.
+	/** Flags to be used when opening a file for reading via IPlatformFile::OpenRead */
+	enum class EOpenReadFlags : uint8
+	{
+		None = 0,
+		/** Allow other handles/processes to write to this file. This flag is needed to open files that are currently being written to as well */
+		AllowWrite	= 1 << 0,
+		/** Allow the file to be deleted or renamed while keeping this handle valid for reading. */
+		AllowDelete = 1 << 1
+	};
+
+	/**
+	 * Open a file handle for reading.
+	 * 
+	 * @param Filename	The file to be opened
+	 * @param Flags		Allows specialization of the open operation, @see EReadFlags
+	 * 
+	 * @return	The return value will either contain the valid file handle or an error message. @see FFileOpenResult
+	 */
+	CORE_API virtual FFileOpenResult OpenRead(const TCHAR* Filename, EOpenReadFlags Flags);
+
+	/**
+	 * Attempt to open a file for reading.
+	 * Please consider using the new overload that takes EReadFlags instead of bools as parameters.
 	 *
 	 * @param Filename file to be opened
 	 * @param bAllowWrite (applies to certain platforms only) whether this file is allowed to be written to by other processes. This flag is needed to open files that are currently being written to as well.
 	 *
-	 * @return If successful will return a non-nullptr pointer. Close the file by delete'ing the handle.
+	 * @return If successful will return a non-nullptr pointer. Close the file by deleting the handle.
 	 */
 	virtual IFileHandle*	OpenRead(const TCHAR* Filename, bool bAllowWrite = false) = 0;
 
@@ -438,8 +520,7 @@ public:
 		return OpenRead(Filename, bAllowWrite);
 	}
 
-
-	/** Attempt to open a file for writing. If successful will return a non-nullptr pointer. Close the file by delete'ing the handle. **/
+	/** Attempt to open a file for writing. If successful will return a non-nullptr pointer. Close the file by deleting the handle. **/
 	virtual IFileHandle*	OpenWrite(const TCHAR* Filename, bool bAppend = false, bool bAllowRead = false) = 0;
 
 	/** Return true if the directory exists. **/
@@ -840,6 +921,12 @@ public:
 	}
 };
 
+class IWrappedFileHandle : public IFileHandle
+{
+public:
+	virtual void SetLowerLevel(IFileHandle* LowerLevelHandle) = 0;
+};
+
 /**
 * Common base for physical platform File I/O Interface
 **/
@@ -915,3 +1002,6 @@ inline FFileJournalData::FFileJournalData()
 	, bIsDirectory(false)
 {
 }
+
+ENUM_CLASS_FLAGS(IPlatformFile::EOpenReadFlags);
+

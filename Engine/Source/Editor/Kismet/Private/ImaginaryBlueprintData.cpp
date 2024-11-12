@@ -646,6 +646,11 @@ bool FImaginaryBlueprint::TrySpecialHandleJsonValue(FText InKey, TSharedPtr< FJs
 		ParseGraph(InJsonValue, FFindInBlueprintSearchTags::FiB_SubGraphs.ToString(), GT_Ubergraph);
 		bResult = true;
 	}
+	else if (!InKey.CompareTo(FFindInBlueprintSearchTags::FiB_ExtensionGraphs))
+	{
+		ParseGraph(InJsonValue, FFindInBlueprintSearchTags::FiB_ExtensionGraphs.ToString(), GT_Ubergraph);
+		bResult = true;
+	}
 	else if(!InKey.CompareTo(FFindInBlueprintSearchTags::FiB_Components))
 	{
 		TArray<TSharedPtr< FJsonValue > > ComponentList = InJsonValue->AsArray();

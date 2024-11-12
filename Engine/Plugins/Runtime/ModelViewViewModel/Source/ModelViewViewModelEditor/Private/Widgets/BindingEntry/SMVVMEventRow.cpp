@@ -89,6 +89,7 @@ TSharedRef<SWidget> SEventRow::BuildRowWidget()
 					.OnDrop(this, &SEventRow::HandleFieldSelectorDrop, true)
 					.OnDragEnter(this, &SEventRow::HandleFieldSelectorDragEnter, true)
 					.ShowContext(false)
+					.CanCreateEvent(true)
 				]
 			]
 
@@ -318,7 +319,7 @@ FMVVMLinkedPinValue SEventRow::GetFieldSelectedValue(bool bEvent) const
 	return FMVVMLinkedPinValue();
 }
 
-void SEventRow::HandleFieldSelectionChanged(FMVVMLinkedPinValue Value, bool bEvent)
+void SEventRow::HandleFieldSelectionChanged(FMVVMLinkedPinValue Value, SFieldSelectorMenu::ESelectionType SelectionType, bool bEvent)
 {
 	UWidgetBlueprint* WidgetBlueprint = GetBlueprint();
 	UMVVMBlueprintViewEvent* Event = GetEvent();
@@ -327,7 +328,8 @@ void SEventRow::HandleFieldSelectionChanged(FMVVMLinkedPinValue Value, bool bEve
 		UMVVMEditorSubsystem* Subsystem = GetEditorSubsystem();
 		if (bEvent)
 		{
-			Subsystem->SetEventPath(Event, Value.IsPropertyPath() ? Value.GetPropertyPath() : FMVVMBlueprintPropertyPath());
+			const bool bRequestBindingConversion = SelectionType == SFieldSelectorMenu::ESelectionType::Binding;
+			Subsystem->SetEventPath(Event, Value.IsPropertyPath() ? Value.GetPropertyPath() : FMVVMBlueprintPropertyPath(), bRequestBindingConversion);
 		}
 		else
 		{
@@ -377,7 +379,7 @@ FReply SEventRow::HandleFieldSelectorDrop(const FGeometry& MyGeometry, const FDr
 
 	if (bEvent)
 	{
-		GetEditorSubsystem()->SetEventPath(Event, PropertyPath.GetValue());
+		GetEditorSubsystem()->SetEventPath(Event, PropertyPath.GetValue(), true);
 	}
 	else
 	{

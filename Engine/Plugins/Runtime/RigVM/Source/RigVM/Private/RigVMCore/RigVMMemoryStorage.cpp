@@ -12,12 +12,6 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const FString FRigVMPropertyDescription::ArrayPrefix = TEXT("TArray<");
-const FString FRigVMPropertyDescription::MapPrefix = TEXT("TMap<");
-const FString FRigVMPropertyDescription::ContainerSuffix = TEXT(">");
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 // Generator class should be parented to the asset object, instead of the package
 // because the engine no longer supports multiple 'assets' per package
 static UObject* GetGeneratorClassOuter(UPackage* InPackage)
@@ -520,7 +514,7 @@ URigVMMemoryStorageGeneratorClass* URigVMMemoryStorageGeneratorClass::CreateStor
 		
 		auto RenameAndMarkGarbage = [](UObject* InObject, FName NewName)
 		{
-			InObject->Rename(*NewName.ToString(), GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			InObject->Rename(*NewName.ToString(), GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			InObject->MarkAsGarbage();
 		};
  
@@ -631,7 +625,7 @@ bool URigVMMemoryStorageGeneratorClass::RemoveStorageClass(UObject* InOuter, ERi
 	if(OldClass)
 	{
 		OldClass->ClassFlags |= CLASS_NewerVersionExists;
-		OldClass->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		OldClass->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		OldClass->MarkAsGarbage();
 		return true;
 	}
@@ -851,8 +845,8 @@ FProperty* URigVMMemoryStorageGeneratorClass::AddProperty(URigVMMemoryStorageGen
 
 		// store some additional meta data,
 		// mainly for inspecting things in the details panel
-		static const FName NAME_DisplayName(TEXT("DisplayName"));
-		static const FName NAME_ToolTipName(TEXT("ToolTip"));
+		static const FLazyName NAME_DisplayName(TEXT("DisplayName"));
+		static const FLazyName NAME_ToolTipName(TEXT("ToolTip"));
 
 		FString DisplayName = Result->GetName();
 		while(DisplayName.ReplaceInline(TEXT("__"), TEXT("_")) > 0)

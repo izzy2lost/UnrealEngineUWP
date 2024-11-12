@@ -19,6 +19,8 @@ void FVisualizeTexture::ParseCommands(const TCHAR* Cmd, FOutputDevice &Ar)
 #if SUPPORTS_VISUALIZE_TEXTURE
 	// Find out what command to do based on first parameter.
 	ECommand Command = ECommand::Unknown;
+	int32 ViewId = 0;
+	FString ViewName;
 	FString ResourceName;
 	TOptional<uint32> ResourceVersion;
 	TOptional<FWildcardString> ResourceListWildCard;
@@ -41,6 +43,33 @@ void FVisualizeTexture::ParseCommands(const TCHAR* Cmd, FOutputDevice &Ar)
 		else if (FirstParameter == TEXT("pool"))
 		{
 			Command = ECommand::DisplayPoolResourceList;
+		}
+		else if (FirstParameter.StartsWith(TEXT("view=")))
+		{
+			if (FirstParameter.Len() == 5)
+			{
+				// Empty payload, reset view ID to zero
+				Command = ECommand::SetViewId;
+				ViewId = 0;
+			}
+			else if (FirstParameter[5] == TEXT('?'))
+			{
+				Command = ECommand::DisplayViewList;
+			}
+			else
+			{
+				Command = ECommand::SetViewId;
+
+				// Supports view ID or string name of view
+				TCHAR* EndOfNumber;
+				ViewId = FCString::Strtoi(&FirstParameter[5], &EndOfNumber, 0);
+				if (EndOfNumber - &FirstParameter[0] != FirstParameter.Len())
+				{
+					// Didn't parse as a number, treat it as a string
+					ViewId = 0;
+					ViewName = FirstParameter.Right(FirstParameter.Len() - 5);
+				}
+			}
 		}
 		else
 		{
@@ -219,7 +248,7 @@ void FVisualizeTexture::ParseCommands(const TCHAR* Cmd, FOutputDevice &Ar)
 
 		DisplayPoolResourceListToLog(SortBy);
 	}
-	else if (Command == ECommand::DisplayResourceList) //-V547
+	else if (Command == ECommand::DisplayResourceList)
 	{
 		bool bListAllocated = false;
 		ESortBy SortBy = ESortBy::Index;
@@ -240,9 +269,24 @@ void FVisualizeTexture::ParseCommands(const TCHAR* Cmd, FOutputDevice &Ar)
 
 		DisplayResourceListToLog(ResourceListWildCard);
 	}
+	else if (Command == ECommand::DisplayViewList)
+	{
+		DisplayViewListToLog();
+	}
+	else if (Command == ECommand::SetViewId) //-V547
+	{
+		Requested.ViewUniqueId = ViewId;
+		Requested.ViewName = ViewName;
+	}
 	else
 	{
 		unimplemented();
+	}
+
+	// Enable tracking when the system is first interacted with
+	if (State == EState::Inactive)
+	{
+		State = EState::TrackResources;
 	}
 #endif
 }
@@ -322,6 +366,9 @@ void FVisualizeTexture::DisplayHelp(FOutputDevice &Ar)
 	Ar.Logf(TEXT("  Shows list of all resources in the pool."));
 	Ar.Logf(TEXT("  BYNAME   = sort pool list by name"));
 	Ar.Logf(TEXT("  BYSIZE   = show pool list by size"));
+	Ar.Logf(TEXT(""));
+	Ar.Logf(TEXT("VisualizeTexture/Vis view=[ID/NAME]"));
+	Ar.Logf(TEXT("  Unique ID or name of view to visualize textures from, \"view=?\" to dump list of available views"));
 	Ar.Logf(TEXT(""));
 }
 
@@ -439,6 +486,13 @@ void FVisualizeTexture::DisplayPoolResourceListToLog(FVisualizeTexture::ESortBy 
 
 void FVisualizeTexture::DisplayResourceListToLog(const TOptional<FWildcardString>& Wildcard)
 {
+	if (!IsActive())
+	{
+		State = EState::DisplayResources;
+		DisplayResourcesParam = Wildcard;
+		return;
+	}
+
 	UE_LOG(LogConsoleResponse, Log, TEXT("RDGResourceName (what was rendered this frame, use <RDGResourceName>@<Version> to get intermediate versions):"));
 
 	TArray<FString> Entries;
@@ -514,6 +568,35 @@ void FVisualizeTexture::DisplayResourceListToLog(const TOptional<FWildcardString
 	}
 
 	UE_LOG(LogConsoleResponse, Log, TEXT(""));
+}
+
+void FVisualizeTexture::DisplayViewListToLog()
+{
+	if (!IsActive())
+	{
+		State = EState::DisplayViews;
+		return;
+	}
+
+	// Display view list sorted by unique ID
+	TArray<FSetElementId> Entries;
+	Entries.Reserve(ViewDescriptionMap.Num());
+	for (auto ViewIt = ViewDescriptionMap.CreateConstIterator(); ViewIt; ++ViewIt)
+	{
+		Entries.Add(ViewIt.GetId());
+	}
+
+	Entries.Sort([ViewDescriptionMap = ViewDescriptionMap](const FSetElementId& A, const FSetElementId& B)
+	{
+		return ViewDescriptionMap.Get(A).Key < ViewDescriptionMap.Get(B).Key;
+	});
+
+	UE_LOG(LogConsoleResponse, Log, TEXT("Visualize Texture available views:"));
+
+	for (FSetElementId ElementId : Entries)
+	{
+		UE_LOG(LogConsoleResponse, Log, TEXT("   %d  %s"), ViewDescriptionMap.Get(ElementId).Key, *ViewDescriptionMap.Get(ElementId).Value);
+	}
 }
 
 static TAutoConsoleVariable<int32> CVarAllowBlinking(
@@ -644,15 +727,47 @@ FRDGTextureRef FVisualizeTexture::AddVisualizeTexturePass(
 	check(!EnumHasAnyFlags(InputTexture->Desc.Flags, TexCreate_CPUReadback));
 
 	const FRDGTextureDesc& InputDesc = InputTexture->Desc;
-	const FIntPoint InputExtent = InputDesc.Extent;
-
+	FIntPoint InputExtent = InputDesc.Extent;
 	FIntPoint OutputExtent = InputExtent;
+
+	// Scene textures are padded and shared across scene renderers, with a given scene renderer using a viewport in the shared buffer.
+	// We only want to visualize the portion actually used by the given scene renderer, as the rest will be blank or garbage.  The info
+	// text will display the actual texture size in addition to the viewport being visualized.
+	FIntPoint VisualizeTextureExtent = InputTexture->GetVisualizeExtent();
+	if ((VisualizeTextureExtent.X > 0) && (VisualizeTextureExtent.Y > 0))
+	{
+		// Clamp extent at actual dimensions of texture
+		OutputExtent.X = FMath::Min(VisualizeTextureExtent.X, OutputExtent.X);
+		OutputExtent.Y = FMath::Min(VisualizeTextureExtent.Y, OutputExtent.Y);
+	}
+
+	if (InputDesc.IsTextureCube())
+	{
+		// For pixel perfect display of cube map, we'll use a 4x3 flat unwrapping of the cube map, rather than a projection.  The visualization
+		// shader detects the 4x3 aspect ratio, and generates a seamless panorama in the middle, with the adjacent floor and sky tiles above
+		// and below.  There will be seams between floor and sky tiles, but the pixels shown will otherwise be exact.
+		if (GVisualizeTexture.Config.InputUVMapping == EInputUVMapping::PixelPerfectCenter)
+		{
+			InputExtent.X *= 4;
+			InputExtent.Y *= 3;
+			OutputExtent.X *= 4;
+			OutputExtent.Y *= 3;
+		}
+		else
+		{
+			// Longitudinal rendered cube maps look better with 2 to 1 aspect ratio (same as how the texture resource viewer displays cube maps)
+			InputExtent.X *= 2;
+			OutputExtent.X *= 2;
+		}
+	}
+
+	GVisualizeTexture.Captured.OutputExtent = OutputExtent;
 
 	// Clamp to reasonable value to prevent crash
 	OutputExtent.X = FMath::Max(OutputExtent.X, 1);
 	OutputExtent.Y = FMath::Max(OutputExtent.Y, 1);
 
-	FRDGTextureRef OutputTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(OutputExtent, PF_B8G8R8A8, FClearValueBinding(FLinearColor(1, 1, 0, 1)), TexCreate_RenderTargetable | TexCreate_ShaderResource), TEXT("VisualizeTexture"));
+	FRDGTextureRef OutputTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(OutputExtent, PF_B8G8R8A8, FClearValueBinding(FLinearColor(1, 1, 0, 1)), TexCreate_RenderTargetable | TexCreate_ShaderResource), InputTexture->Name);
 
 	{
 		const EVisualisePSType VisualizeType = GetVisualizePSType(InputDesc);
@@ -717,7 +832,7 @@ FRDGTextureRef FVisualizeTexture::AddVisualizeTexturePass(
 		TShaderMapRef<FVisualizeTexturePS> PixelShader(ShaderMap, PermutationVector);
 
 		FString ExtendedDrawEvent;
-		if (GetEmitRDGEvents())
+		if (GraphBuilder.ShouldEmitEvents())
 		{
 			if (InputDesc.IsTexture3D())
 			{
@@ -792,6 +907,7 @@ void FVisualizeTexture::CreateContentCapturePass(FRDGBuilder& GraphBuilder, cons
 		Captured.PooledRenderTarget = nullptr;
 		Captured.Texture = OutputTexture;
 		Captured.InputValueMapping = InputValueMapping;
+		Captured.ViewRects = FamilyViewRects;
 
 		GraphBuilder.QueueTextureExtraction(OutputTexture, &Captured.PooledRenderTarget);
 	}
@@ -838,6 +954,69 @@ void FVisualizeTexture::CreateContentCapturePass(FRDGBuilder& GraphBuilder, cons
 	}
 }
 
+void FVisualizeTexture::BeginFrameRenderThread()
+{
+	bAnyViewRendered = false;
+	bIsRequestedView = false;
+	bFoundRequestedView = false;
+}
+
+static bool VisualizeTextureViewNameMatches(const FString& ViewName, const TCHAR* Description)
+{
+	// Description will be of the form "EditorName (FName)" or "Name", with EditorName being user facing.  Match name followed by space or null terminator.
+	int32 ViewNameLen = ViewName.Len();
+	return !FCString::Strnicmp(*ViewName, Description, ViewNameLen) && (Description[ViewNameLen] == ' ' || Description[ViewNameLen] == 0);
+}
+
+void FVisualizeTexture::BeginViewRenderThread(ERHIFeatureLevel::Type InFeatureLevel, int32 UniqueId, const TCHAR* Description, bool bIsSceneCapture)
+{
+	// Only support visualization for views with a unique ID
+	if (State == EState::Inactive || !UniqueId)
+	{
+		return;
+	}
+
+	FeatureLevel = InFeatureLevel;
+
+	if (!bAnyViewRendered)
+	{
+		// Clear list of views out when we encounter the first view on the current frame
+		ViewDescriptionMap.Empty();
+		bAnyViewRendered = true;
+	}
+
+	ViewDescriptionMap.FindOrAdd(UniqueId) = Description;
+
+	if (!Requested.ViewName.IsEmpty() ? VisualizeTextureViewNameMatches(Requested.ViewName, Description) : Requested.ViewUniqueId == UniqueId)
+	{
+		// Found the specific view we requested
+		bIsRequestedView = true;
+		bFoundRequestedView = true;
+	}
+	else if (!bFoundRequestedView)
+	{
+		// If specific requested view hasn't been found, visualize any view that's not a scene capture, so we still get some sort of result
+		bIsRequestedView = !bIsSceneCapture;
+	}
+
+	// Clear outputs when we are processing a requested view
+	if (bIsRequestedView)
+	{
+		VersionCountMap.Empty();
+		Captured = {};
+		Captured.ViewUniqueId = UniqueId;
+	}
+}
+
+void FVisualizeTexture::SetSceneTextures(const TArray<FRDGTextureRef>& InSceneTextures, FIntPoint InFamilySize, const TArray<FIntRect>& InFamilyViewRects)
+{
+	for (FRDGTextureRef Texture : InSceneTextures)
+	{
+		Texture->EncloseVisualizeExtent(InFamilySize);
+	}
+	FamilyViewRects = InFamilyViewRects;
+}
+
 TOptional<uint32> FVisualizeTexture::ShouldCapture(const TCHAR* InName, uint32 InMipIndex)
 {
 	TOptional<uint32> CaptureId;
@@ -851,6 +1030,33 @@ TOptional<uint32> FVisualizeTexture::ShouldCapture(const TCHAR* InName, uint32 I
 	}
 	++VersionCount;
 	return CaptureId;
+}
+
+void FVisualizeTexture::EndViewRenderThread()
+{
+	if (bIsRequestedView)
+	{
+		bIsRequestedView = false;
+		FamilyViewRects.Empty();
+	}
+}
+
+void FVisualizeTexture::EndFrameRenderThread()
+{
+	if (bAnyViewRendered)
+	{
+		if (State == EState::DisplayResources)
+		{
+			DisplayResourceListToLog(DisplayResourcesParam);
+			DisplayResourcesParam.Reset();
+			State = EState::TrackResources;
+		}
+		else if (State == EState::DisplayViews)
+		{
+			DisplayViewListToLog();
+			State = EState::TrackResources;
+		}
+	}
 }
 
 uint32 FVisualizeTexture::GetVersionCount(const TCHAR* InName) const

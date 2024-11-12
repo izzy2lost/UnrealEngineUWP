@@ -40,7 +40,6 @@ namespace UE::PoseSearch
 		void FinalizeTreeChanges(bool bRecoverSelection = false, bool bRefreshView = true);
 
 		void SetSelectedItem(int32 SourceAssetIdx, bool bClearSelection);
-		FDetailColumnSizeData& GetColumnSizeData() { return ColumnSizeData; }
 		
 	protected:
 		TWeakPtr<FDatabaseViewModel> EditorViewModel;
@@ -89,7 +88,7 @@ namespace UE::PoseSearch
 		void OnAddBlendSpace(bool bFinalizeChanges = true);
 		void OnAddAnimComposite(bool bFinalizeChanges = true);
 		void OnAddAnimMontage(bool bFinalizeChanges = true);
-		void OnAddMultiSequence(bool bFinalizeChanges = true);
+		void OnAddMultiAnimAsset(bool bFinalizeChanges = true);
 
 		void OnDeleteAsset(TSharedPtr<FDatabaseAssetTreeNode> Node, bool bFinalizeChanges = true);
 		void CreateCommandList();
@@ -113,12 +112,12 @@ namespace UE::PoseSearch
 		void EnableSelectedNodes(bool bIsEnabled);
 		void OnEnableNodes() { EnableSelectedNodes(true); }
 		void OnDisableNodes() { EnableSelectedNodes(false); }
-
+		void OnSetMirrorOptionForSelectedNodes(EPoseSearchMirrorOption InMirrorOption);
+		void OnSetPoseReselectionForSelectedNodes(bool bIsEnabled);
+		
 		void OnConvertToBranchIn();
 
 		friend SDatabaseAssetListItem;
-
-		FDetailColumnSizeData ColumnSizeData;
 		
 	protected:
 		// Called when an item is selected/deselected

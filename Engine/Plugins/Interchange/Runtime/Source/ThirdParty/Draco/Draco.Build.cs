@@ -15,11 +15,15 @@ public class Draco : ModuleRules
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			string Win64DracoLibsDir = Path.Combine(DracoLibsDir, "Win64");
+			if (Target.Architecture == UnrealArch.Arm64)
+			{
+				Win64DracoLibsDir = Path.Combine(Win64DracoLibsDir, "Arm64");
+			}
 
 			PublicSystemIncludePaths.Add(DracoIncDir);
 			PublicSystemLibraryPaths.Add(Win64DracoLibsDir);
 
-			foreach (string DracoLib in Directory.EnumerateFiles(Win64DracoLibsDir, "*.lib", SearchOption.AllDirectories))
+			foreach (string DracoLib in Directory.EnumerateFiles(Win64DracoLibsDir, "*.lib", SearchOption.TopDirectoryOnly))
 			{
 				PublicAdditionalLibraries.Add(DracoLib);
 			}

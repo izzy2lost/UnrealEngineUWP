@@ -5,6 +5,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/TextureRenderTarget.h"
 #include "NiagaraEmitterInstance.h"
+#include "NiagaraSystemGpuComputeProxy.h"
 #include "NiagaraWorldManager.h"
 
 FNiagaraSystemInstanceController::FNiagaraSystemInstanceController()
@@ -235,6 +236,19 @@ UMaterialInterface* FNiagaraSystemInstanceController::GetMaterialOverride(const 
 	}
 
 	return nullptr;
+}
+
+ENiagaraGpuComputeTickStage::Type FNiagaraSystemInstanceController::GetGpuComputeTickStage() const
+{
+	ENiagaraGpuComputeTickStage::Type TickStage = ENiagaraGpuComputeTickStage::PreInitViews;
+	if (SystemInstance.IsValid())
+	{
+		if (FNiagaraSystemGpuComputeProxy* GpuComputeProxy = SystemInstance->GetSystemGpuComputeProxy())
+		{
+			return GpuComputeProxy->GetComputeTickStage();
+		}
+	}
+	return TickStage;
 }
 
 void FNiagaraSystemInstanceController::DebugDump(bool bFullDump)

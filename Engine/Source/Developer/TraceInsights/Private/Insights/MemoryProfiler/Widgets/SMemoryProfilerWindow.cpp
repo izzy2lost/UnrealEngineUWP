@@ -9,7 +9,7 @@
 #include "SlateOptMacros.h"
 #include "Widgets/Docking/SDockTab.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/MemoryProfiler/MemoryProfilerManager.h"
 #include "Insights/MemoryProfiler/ViewModels/MemorySharedState.h"
@@ -17,12 +17,15 @@
 #include "Insights/MemoryProfiler/Widgets/SMemInvestigationView.h"
 #include "Insights/MemoryProfiler/Widgets/SMemoryProfilerToolbar.h"
 #include "Insights/MemoryProfiler/Widgets/SMemTagTreeView.h"
-#include "Insights/ViewModels/TimeRulerTrack.h"
+#include "Insights/TimingProfiler/Tracks/TimeRulerTrack.h"
+#include "Insights/TimingProfiler/ViewModels/TimeMarker.h"
+#include "Insights/Widgets/SModulesView.h"
 #include "Insights/Widgets/STimingView.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler"
 
-#define LOCTEXT_NAMESPACE "SMemoryProfilerWindow"
+namespace UE::Insights::MemoryProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -97,12 +100,12 @@ TSharedRef<SDockTab> SMemoryProfilerWindow::SpawnTab_TimingView(const FSpawnTabA
 		.ShouldAutosize(false)
 		.TabRole(ETabRole::PanelTab)
 		[
-			SAssignNew(TimingView, STimingView, FInsightsManagerTabs::MemoryProfilerTabId)
+			SAssignNew(TimingView, TimingProfiler::STimingView, FInsightsManagerTabs::MemoryProfilerTabId)
 		];
 
 	SharedState->SetTimingView(TimingView);
 	SharedState->BindCommands();
-	IModularFeatures::Get().RegisterModularFeature(Insights::TimingViewExtenderFeatureName, &SharedState.Get());
+	IModularFeatures::Get().RegisterModularFeature(Timing::TimingViewExtenderFeatureName, &SharedState.Get());
 
 	TimingView->Reset(true);
 	TimingView->OnSelectionChanged().AddSP(this, &SMemoryProfilerWindow::OnTimeSelectionChanged);
@@ -130,7 +133,7 @@ void SMemoryProfilerWindow::OnTimingViewTabClosed(TSharedRef<SDockTab> TabBeingC
 		TimingView = nullptr;
 	}
 
-	IModularFeatures::Get().UnregisterModularFeature(Insights::TimingViewExtenderFeatureName, &SharedState.Get());
+	IModularFeatures::Get().UnregisterModularFeature(Timing::TimingViewExtenderFeatureName, &SharedState.Get());
 	SharedState->SetTimingView(nullptr);
 
 	RemoveOpenTab(TabBeingClosed);
@@ -205,17 +208,17 @@ TSharedRef<SDockTab> SMemoryProfilerWindow::SpawnTab_MemAllocTableTreeView(const
 {
 	//FMemoryProfilerManager::Get()->SetMemAllocTableTreeViewVisible(TabIndex, true);
 
-	TSharedRef<Insights::FMemAllocTable> MemAllocTable = MakeShared<Insights::FMemAllocTable>();
+	TSharedRef<FMemAllocTable> MemAllocTable = MakeShared<FMemAllocTable>();
 	MemAllocTable->Reset();
 	MemAllocTable->SetDisplayName(FText::FromString(TEXT("MemAllocs")));
 
-	TSharedPtr<Insights::SMemAllocTableTreeView> MemAllocTableTreeView;
+	TSharedPtr<SMemAllocTableTreeView> MemAllocTableTreeView;
 
 	const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
 		.ShouldAutosize(false)
 		.TabRole(ETabRole::PanelTab)
 		[
-			SAssignNew(MemAllocTableTreeView, Insights::SMemAllocTableTreeView, MemAllocTable)
+			SAssignNew(MemAllocTableTreeView, SMemAllocTableTreeView, MemAllocTable)
 		];
 
 	MemAllocTableTreeView->SetLogListingName(FMemoryProfilerManager::Get()->GetLogListingName());
@@ -233,13 +236,13 @@ END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 void SMemoryProfilerWindow::OnMemAllocTableTreeViewTabClosed(TSharedRef<SDockTab> TabBeingClosed)
 {
-	TSharedRef<Insights::SMemAllocTableTreeView> MemAllocTableTreeView = StaticCastSharedRef<Insights::SMemAllocTableTreeView>(TabBeingClosed->GetContent());
+	TSharedRef<SMemAllocTableTreeView> MemAllocTableTreeView = StaticCastSharedRef<SMemAllocTableTreeView>(TabBeingClosed->GetContent());
 
 	FName ClosingTabId = FMemoryProfilerTabs::MemAllocTableTreeViewID;
 	ClosingTabId.SetNumber(MemAllocTableTreeView->GetTabIndex());
 
-	TSharedPtr<Insights::FQueryTargetWindowSpec> TargetToDelete;
-	const TArray<TSharedPtr<Insights::FQueryTargetWindowSpec>>& Targets = this->GetSharedState().GetQueryTargets();
+	TSharedPtr<FQueryTargetWindowSpec> TargetToDelete;
+	const TArray<TSharedPtr<FQueryTargetWindowSpec>>& Targets = this->GetSharedState().GetQueryTargets();
 	for (int32 Index = 0; Index < Targets.Num(); ++Index)
 	{
 		if (Targets[Index]->GetName() == ClosingTabId)
@@ -256,7 +259,7 @@ void SMemoryProfilerWindow::OnMemAllocTableTreeViewTabClosed(TSharedRef<SDockTab
 
 	if (Targets.Num() > 0)
 	{
-		TSharedPtr<Insights::FQueryTargetWindowSpec> NewSelection = Targets[0];
+		TSharedPtr<FQueryTargetWindowSpec> NewSelection = Targets[0];
 		this->GetSharedState().SetCurrentQueryTarget(NewSelection);
 		if (MemInvestigationView.IsValid())
 		{
@@ -276,13 +279,13 @@ void SMemoryProfilerWindow::OnMemAllocTableTreeViewTabClosed(TSharedRef<SDockTab
 
 void SMemoryProfilerWindow::CloseMemAllocTableTreeTabs()
 {
-	const TArray<TSharedPtr<Insights::FQueryTargetWindowSpec>>& Targets = this->GetSharedState().GetQueryTargets();
+	const TArray<TSharedPtr<FQueryTargetWindowSpec>>& Targets = this->GetSharedState().GetQueryTargets();
 	while (Targets.Num() > 0)
 	{
 		FName Name = Targets[0]->GetName();
 		this->GetSharedState().RemoveQueryTarget(Targets[0]);
 
-		if (Name != Insights::FQueryTargetWindowSpec::NewWindow)
+		if (Name != FQueryTargetWindowSpec::NewWindow)
 		{
 			HideTab(Name);
 		}
@@ -292,7 +295,7 @@ void SMemoryProfilerWindow::CloseMemAllocTableTreeTabs()
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-TSharedPtr<Insights::SMemAllocTableTreeView> SMemoryProfilerWindow::ShowMemAllocTableTreeViewTab()
+TSharedPtr<SMemAllocTableTreeView> SMemoryProfilerWindow::ShowMemAllocTableTreeViewTab()
 {
 	if (!GetTabManager().IsValid())
 	{
@@ -300,7 +303,7 @@ TSharedPtr<Insights::SMemAllocTableTreeView> SMemoryProfilerWindow::ShowMemAlloc
 	}
 	FTabManager* TabManagerPtr = GetTabManager().Get();
 
-	if (SharedState->GetCurrentQueryTarget()->GetName() == Insights::FQueryTargetWindowSpec::NewWindow)
+	if (SharedState->GetCurrentQueryTarget()->GetName() == FQueryTargetWindowSpec::NewWindow)
 	{
 		++LastMemAllocTableTreeViewIndex;
 		FName TabId = FMemoryProfilerTabs::MemAllocTableTreeViewID;
@@ -315,7 +318,7 @@ TSharedPtr<Insights::SMemAllocTableTreeView> SMemoryProfilerWindow::ShowMemAlloc
 			.SetIcon(FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.MemAllocTableTreeView"))
 			.SetGroup(Group);
 
-		TSharedPtr<Insights::FQueryTargetWindowSpec> NewTarget = MakeShared<Insights::FQueryTargetWindowSpec>(TabId, MemAllocTableTreeViewTabDisplayName);
+		TSharedPtr<FQueryTargetWindowSpec> NewTarget = MakeShared<FQueryTargetWindowSpec>(TabId, MemAllocTableTreeViewTabDisplayName);
 		SharedState->AddQueryTarget(NewTarget);
 		SharedState->SetCurrentQueryTarget(NewTarget);
 		MemInvestigationView->QueryTarget_OnSelectionChanged(NewTarget, ESelectInfo::Type::Direct);
@@ -327,9 +330,9 @@ TSharedPtr<Insights::SMemAllocTableTreeView> SMemoryProfilerWindow::ShowMemAlloc
 		TSharedPtr<SDockTab> Tab = TabManagerPtr->TryInvokeTab(TabId);
 		if (Tab)
 		{
-			TSharedRef<Insights::SMemAllocTableTreeView> MemAllocTableTreeView = StaticCastSharedRef<Insights::SMemAllocTableTreeView>(Tab->GetContent());
+			TSharedRef<SMemAllocTableTreeView> MemAllocTableTreeView = StaticCastSharedRef<SMemAllocTableTreeView>(Tab->GetContent());
 
-			if (SharedState->GetCurrentQueryTarget()->GetName() == Insights::FQueryTargetWindowSpec::NewWindow)
+			if (SharedState->GetCurrentQueryTarget()->GetName() == FQueryTargetWindowSpec::NewWindow)
 			{
 				Tab->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateRaw(this, &SMemoryProfilerWindow::OnMemAllocTableTreeViewTabClosed));
 			}
@@ -352,7 +355,7 @@ TSharedRef<SDockTab> SMemoryProfilerWindow::SpawnTab_ModulesView(const FSpawnTab
 		.ShouldAutosize(false)
 		.TabRole(ETabRole::PanelTab)
 		[
-			SAssignNew(ModulesView, Insights::SModulesView)
+			SAssignNew(ModulesView, SModulesView)
 		];
 
 	DockTab->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateRaw(this, &SMemoryProfilerWindow::OnModulesViewClosed));
@@ -461,9 +464,9 @@ TSharedRef<SWidget> SMemoryProfilerWindow::CreateToolbar(TSharedPtr<FExtender> E
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SMemoryProfilerWindow::OnTimeSelectionChanged(Insights::ETimeChangedFlags InFlags, double InStartTime, double InEndTime)
+void SMemoryProfilerWindow::OnTimeSelectionChanged(Timing::ETimeChangedFlags InFlags, double InStartTime, double InEndTime)
 {
-	if (InFlags != Insights::ETimeChangedFlags::Interactive)
+	if (InFlags != Timing::ETimeChangedFlags::Interactive)
 	{
 		if (InStartTime < InEndTime)
 		{
@@ -507,7 +510,7 @@ void SMemoryProfilerWindow::CreateTimingViewMarkers()
 
 	for (uint32 Index = 0; Index < MaxNumTimeMarkers; ++Index)
 	{
-		TSharedRef<Insights::FTimeMarker> TimeMarker = MakeShared<Insights::FTimeMarker>();
+		TSharedRef<TimingProfiler::FTimeMarker> TimeMarker = MakeShared<TimingProfiler::FTimeMarker>();
 
 		TimeMarkerName[0] = static_cast<TCHAR>(TEXT('A') + Index); // "A", "B", "C", etc.
 		TimeMarker->SetName(TimeMarkerName);
@@ -530,18 +533,18 @@ void SMemoryProfilerWindow::CreateTimingViewMarkers()
 
 void SMemoryProfilerWindow::ResetTimingViewMarkers()
 {
-	TSharedRef<FTimeRulerTrack> TimeRulerTrack = TimingView->GetTimeRulerTrack();
+	TSharedRef<TimingProfiler::FTimeRulerTrack> TimeRulerTrack = TimingView->GetTimeRulerTrack();
 
 	TimeRulerTrack->RemoveAllTimeMarkers();
 
 	// Hide the "Default Time Marker".
-	TSharedRef<Insights::FTimeMarker> DefaultTimeMarker = TimingView->GetDefaultTimeMarker();
+	TSharedRef<TimingProfiler::FTimeMarker> DefaultTimeMarker = TimingView->GetDefaultTimeMarker();
 	DefaultTimeMarker->SetVisibility(false);
 
 	const uint32 NumTimeMarkers = CustomTimeMarkers.Num();
 	for (uint32 Index = 0; Index < NumTimeMarkers; ++Index)
 	{
-		TSharedRef<Insights::FTimeMarker>& TimeMarker = CustomTimeMarkers[Index];
+		TSharedRef<TimingProfiler::FTimeMarker>& TimeMarker = CustomTimeMarkers[Index];
 		TimeMarker->SetTime((Index + 1) * 10.0); // 10s, 20s, 30s, etc.
 		TimeRulerTrack->AddTimeMarker(TimeMarker);
 	}
@@ -560,7 +563,7 @@ void SMemoryProfilerWindow::OnMemoryRuleChanged()
 
 void SMemoryProfilerWindow::UpdateTimingViewMarkers()
 {
-	TSharedPtr<Insights::FMemoryRuleSpec> Rule = SharedState->GetCurrentMemoryRule();
+	TSharedPtr<FMemoryRuleSpec> Rule = SharedState->GetCurrentMemoryRule();
 	const uint32 NumVisibleTimeMarkers = Rule ? Rule->GetNumTimeMarkers() : 0;
 
 	const uint32 NumTimeMarkers = CustomTimeMarkers.Num();
@@ -568,7 +571,7 @@ void SMemoryProfilerWindow::UpdateTimingViewMarkers()
 
 	for (uint32 Index = 0; Index < NumTimeMarkers; ++Index)
 	{
-		TSharedRef<Insights::FTimeMarker>& TimeMarker = CustomTimeMarkers[Index];
+		TSharedRef<TimingProfiler::FTimeMarker>& TimeMarker = CustomTimeMarkers[Index];
 		if (Index < NumVisibleTimeMarkers)
 		{
 			TimeMarker->SetVisibility(true);
@@ -582,7 +585,7 @@ void SMemoryProfilerWindow::UpdateTimingViewMarkers()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SMemoryProfilerWindow::OnTimeMarkerChanged(Insights::ETimeChangedFlags InFlags, TSharedRef<Insights::ITimeMarker> InTimeMarker)
+void SMemoryProfilerWindow::OnTimeMarkerChanged(Timing::ETimeChangedFlags InFlags, TSharedRef<Timing::ITimeMarker> InTimeMarker)
 {
 	const int32 NumTimeMarkers = CustomTimeMarkers.Num();
 
@@ -590,7 +593,7 @@ void SMemoryProfilerWindow::OnTimeMarkerChanged(Insights::ETimeChangedFlags InFl
 	int32 ChangedTimeMarkerIndex = -1;
 	for (int32 Index = 0; Index < NumTimeMarkers; ++Index)
 	{
-		TSharedRef<Insights::FTimeMarker>& TimeMarker = CustomTimeMarkers[Index];
+		TSharedRef<TimingProfiler::FTimeMarker>& TimeMarker = CustomTimeMarkers[Index];
 		if (TimeMarker == InTimeMarker)
 		{
 			ChangedTimeMarkerIndex = Index;
@@ -604,17 +607,17 @@ void SMemoryProfilerWindow::OnTimeMarkerChanged(Insights::ETimeChangedFlags InFl
 		TimingView.IsValid() &&
 		InTimeMarker == TimingView->GetDefaultTimeMarker())
 	{
-		TSharedRef<Insights::FTimeMarker>& TimeMarkerA = CustomTimeMarkers[0];
+		TSharedRef<TimingProfiler::FTimeMarker>& TimeMarkerA = CustomTimeMarkers[0];
 		TimeMarkerA->SetTime(InTimeMarker->GetTime());
 		ChangedTimeMarkerIndex = 0;
 	}
 
-	// Ensure the rest of time markers are orderd by time.
+	// Ensure the rest of time markers are ordered by time.
 	if (ChangedTimeMarkerIndex >= 0)
 	{
 		for (int32 Index = 0; Index < ChangedTimeMarkerIndex; ++Index)
 		{
-			TSharedRef<Insights::FTimeMarker>& TimeMarker = CustomTimeMarkers[Index];
+			TSharedRef<TimingProfiler::FTimeMarker>& TimeMarker = CustomTimeMarkers[Index];
 			if (TimeMarker->GetTime() > InTimeMarker->GetTime())
 			{
 				TimeMarker->SetTime(InTimeMarker->GetTime());
@@ -622,7 +625,7 @@ void SMemoryProfilerWindow::OnTimeMarkerChanged(Insights::ETimeChangedFlags InFl
 		}
 		for (int32 Index = ChangedTimeMarkerIndex + 1; Index < NumTimeMarkers; ++Index)
 		{
-			TSharedRef<Insights::FTimeMarker>& TimeMarker = CustomTimeMarkers[Index];
+			TSharedRef<TimingProfiler::FTimeMarker>& TimeMarker = CustomTimeMarkers[Index];
 			if (TimeMarker->GetTime() < InTimeMarker->GetTime())
 			{
 				TimeMarker->SetTime(InTimeMarker->GetTime());
@@ -632,5 +635,7 @@ void SMemoryProfilerWindow::OnTimeMarkerChanged(Insights::ETimeChangedFlags InFl
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

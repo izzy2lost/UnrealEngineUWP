@@ -135,15 +135,15 @@ public:
 		return Nums[Dimension];
 	}
 
-	SizeType Total() const
+	SIZE_T Total() const
 	{
 		if constexpr (DimNum == 1)
 		{
-			return Nums[0];
+			return (SIZE_T)Nums[0];
 		}
 		else
 		{
-			InSizeType Total = Nums[0];
+			SIZE_T Total = (SIZE_T)Nums[0];
 			for (uint8 Idx = 1; Idx < DimNum; Idx++)
 			{
 				Total *= Nums[Idx];
@@ -710,10 +710,28 @@ public:
 		return DataPtr[Index];
 	}
 
-	/** Implicit cast to TArrayView. */
-	FORCEINLINE operator TArrayView<ElementType, SizeType>() const
+	/** Explicit conversion to TArrayView. */
+	FORCEINLINE TArrayView<ElementType, SizeType> ArrayView()
 	{
-		return TArrayView(DataPtr, ArrayShape[0]);
+		return TArrayView<ElementType, SizeType>(GetData(), Num());
+	}
+
+	/** Explicit conversion to TArrayView. */
+	FORCEINLINE TArrayView<const ElementType, SizeType> ArrayView() const
+	{
+		return TArrayView<const ElementType, SizeType>(GetData(), Num());
+	}
+
+	/** Implicit cast to TArrayView. */
+	FORCEINLINE operator TArrayView<ElementType, SizeType>()
+	{
+		return TArrayView<ElementType, SizeType>(DataPtr, ArrayShape[0]);
+	}
+
+	/** Implicit cast to TArrayView. */
+	FORCEINLINE operator TArrayView<const ElementType, SizeType>() const
+	{
+		return TArrayView<const ElementType, SizeType>(DataPtr, ArrayShape[0]);
 	}
 
 public:

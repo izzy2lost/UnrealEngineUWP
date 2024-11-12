@@ -3,7 +3,7 @@
 #pragma once
 
 #pragma once
-#include "IChaosVDDataProcessor.h"
+#include "ChaosVDDataProcessorBase.h"
 
 struct FChaosVDSolverFrameData;
 struct FChaosVDConstraint;
@@ -11,7 +11,7 @@ struct FChaosVDConstraint;
 /**
  * Data processor implementation that is able to deserialize traced joint constraints
  */
-class FChaosVDJointConstraintDataProcessor final : public IChaosVDDataProcessor
+class FChaosVDJointConstraintDataProcessor final : public FChaosVDDataProcessorBase
 {
 public:
 	explicit FChaosVDJointConstraintDataProcessor();

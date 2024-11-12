@@ -84,7 +84,7 @@ bool FPCGInnerIntersectionElement::ExecuteInternal(FPCGContext* Context) const
 		}
 
 		// Create a new intersection
-		IntersectionData = (IntersectionData ? IntersectionData : FirstSpatialData)->IntersectWith(SpatialData);
+		IntersectionData = (IntersectionData ? IntersectionData : FirstSpatialData)->IntersectWith(Context, SpatialData);
 		// Propagate settings
 		IntersectionData->DensityFunction = DensityFunction;
 		IntersectionData->bKeepZeroDensityPoints = bKeepZeroDensityPoints;

@@ -260,7 +260,7 @@ namespace UnrealGameSync
 
 			if (hordeAuthState != null)
 			{
-				await hordeAuthState.LoginAsync(false, CancellationToken.None);
+				await hordeAuthState.GetAccessTokenAsync(false, CancellationToken.None);
 			}
 		}
 
@@ -278,6 +278,11 @@ namespace UnrealGameSync
 
 		private void OnStartupComplete(List<(UserSelectedProjectSettings, ModalTask<OpenProjectInfo>)> startupTasks)
 		{
+			if (_startupWindow == null)
+			{
+				return;
+			}
+
 			// Close the startup window
 			bool visible = _startupWindow!.Visible;
 			_startupWindow = null;

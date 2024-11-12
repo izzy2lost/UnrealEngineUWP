@@ -28,8 +28,8 @@ public:
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGOuterIntersectionElement", "NodeTitle", "Intersection"); }
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
-	virtual bool HasDynamicPins() const override { return true; }
 #endif // WITH_EDITOR
+	virtual bool HasDynamicPins() const override { return true; }
 	// If node disabled, don't intersect - pass through all primary edges
 	virtual bool OnlyPassThroughOneEdgeWhenDisabled() const override { return false; }
 
@@ -67,4 +67,5 @@ class FPCGOuterIntersectionElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 };

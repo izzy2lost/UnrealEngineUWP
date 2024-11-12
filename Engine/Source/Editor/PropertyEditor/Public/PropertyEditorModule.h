@@ -298,6 +298,21 @@ public:
 	virtual void UnregisterCustomPropertyTypeLayout( FName PropertyTypeName, TSharedPtr<IPropertyTypeIdentifier> InIdentifier = nullptr);
 
 	/**
+	 * Registers a property layout override callback
+	 *
+	 * @param PropertyTypeName Name of the property type (e.g. struct FName) to override
+	 * @param Delegate The delegate to call when we're looking for a property handle's layout override
+	 */
+	virtual FDelegateHandle RegisterPropertyHandleLayoutOverride(FName PropertyTypeName, const FPropertyHandleLayoutOverride& Delegate);
+
+	/**
+	 * Unregisters a property layout override callback
+	 *
+	 * @param DelegateHandle The handle returned by RegisterPropertyHandleLayoutOverride
+	 */
+	virtual void UnregisterPropertyHandleLayoutOverride(FDelegateHandle DelegateHandle);
+
+	/**
 	 * Find an existing section or create a section for a class.
 	 * 
 	 * @param ClassName		The class to add a section mapping for.
@@ -380,6 +395,7 @@ public:
 	virtual TSharedPtr<class ISinglePropertyView> CreateSingleProperty(const TSharedPtr<class IStructureDataProvider>& InStruct, FName InPropertyName, const struct FSinglePropertyParams& InitParams);
 
 	virtual TSharedRef<class IStructureDetailsView> CreateStructureDetailView(const struct FDetailsViewArgs& DetailsViewArgs, const FStructureDetailsViewArgs& StructureDetailsViewArgs, TSharedPtr<class FStructOnScope> StructData, const FText& CustomName = FText::GetEmpty());
+	virtual TSharedRef<class IStructureDetailsView> CreateStructureProviderDetailView(const FDetailsViewArgs& DetailsViewArgs, const FStructureDetailsViewArgs& StructureDetailsViewArgs, TSharedPtr<IStructureDataProvider> StructProvider, const FText& CustomName = FText::GetEmpty());
 
 	virtual TSharedRef<class IPropertyRowGenerator> CreatePropertyRowGenerator(const struct FPropertyRowGeneratorArgs& InArgs);
 
@@ -402,12 +418,12 @@ public:
 		const FSlateFontInfo* InFontPtr = NULL, const TSharedPtr< IPropertyTableCell >& InCell = nullptr);
 
 	/**
-	 * Register a floating struct on scope so that the details panel may use it as a property
+	 * Register a floating struct so that the details panel may use it as a property
 	 *
-	 * @param StructOnScope		The struct to register
+	 * @param StructClass		The struct to register
 	 * @return The struct property that may may be associated with the details panel
  	 */
-	virtual FStructProperty* RegisterStructOnScopeProperty(TSharedRef<FStructOnScope> StructOnScope);
+	virtual FStructProperty* RegisterStructProperty(const UStruct* StructClass);
 
 	/**
 	 *
@@ -418,7 +434,7 @@ public:
 
 	FPropertyTypeLayoutCallback GetPropertyTypeCustomization(const FProperty* InProperty,const IPropertyHandle& PropertyHandle, const FCustomPropertyTypeLayoutMap& InstancedPropertyTypeLayoutMap);
 	FPropertyTypeLayoutCallback FindPropertyTypeLayoutCallback(FName PropertyTypeName, const IPropertyHandle& PropertyHandle, const FCustomPropertyTypeLayoutMap& InstancedPropertyTypeLayoutMapp);
-	bool IsCustomizedStruct(const UStruct* Struct, const FCustomPropertyTypeLayoutMap& InstancePropertyTypeLayoutMap) const;
+	PROPERTYEDITOR_API bool IsCustomizedStruct(const UStruct* Struct, const FCustomPropertyTypeLayoutMap& InstancePropertyTypeLayoutMap) const;
 
 	DECLARE_EVENT(PropertyEditorModule, FPropertyEditorOpenedEvent);
 	virtual FPropertyEditorOpenedEvent& OnPropertyEditorOpened() { return PropertyEditorOpened; }
@@ -451,6 +467,8 @@ private:
 	 */
 	virtual TSharedRef<SPropertyTreeViewImpl> CreatePropertyView( UObject* InObject, bool bAllowFavorites, bool bIsLockable, bool bHiddenPropertyVisibility, bool bAllowSearch, bool ShowTopLevelNodes, FNotifyHook* InNotifyHook, float InNameColumnWidth, FOnPropertySelectionChanged OnPropertySelectionChanged, FOnPropertyClicked OnPropertyMiddleClicked, FConstructExternalColumnHeaders ConstructExternalColumnHeaders, FConstructExternalColumnCell ConstructExternalColumnCell );
 
+	virtual TSharedRef<class IStructureDetailsView> CreateStructureDetailView(const struct FDetailsViewArgs& DetailsViewArgs, const FStructureDetailsViewArgs& StructureDetailsViewArgs, const FText& CustomName = FText::GetEmpty());
+
 	TSharedPtr<FAssetThumbnailPool> GetThumbnailPool();
 
 	void GetAllSectionsHelper(const UStruct* Struct, TArray<TSharedPtr<FPropertySection>>& OutSections, TSet<const UStruct*>& ProcessedStructs) const;
@@ -473,6 +491,8 @@ private:
 	FCustomDetailLayoutNameMap ClassNameToDetailLayoutNameMap;
 	/** A mapping of property names to property type layout delegates, called when querying for custom property layouts */
 	FCustomPropertyTypeLayoutMap GlobalPropertyTypeToLayoutMap;
+	/** Registered list of override callbacks. First one returning non-None is going to be applied (if any). */
+	TMultiMap<FName, FPropertyHandleLayoutOverride> PropertyHandleLayoutOverrides;
 	/** A mapping of class names to section mappings. */
 	TMap<FName, TSharedPtr<FClassSectionMapping>> ClassSectionMappings;
 	/** Event to be called when a property editor is opened */

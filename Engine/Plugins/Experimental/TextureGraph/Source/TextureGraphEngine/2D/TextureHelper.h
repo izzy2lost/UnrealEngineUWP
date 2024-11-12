@@ -82,12 +82,12 @@ struct TEXTUREGRAPHENGINE_API TextureHelper
 
 	static RawBufferPtr					RawFromRT(UTextureRenderTarget2D* RenderTarget, const BufferDescriptor& Desc);
 	static RawBufferPtr					RawFromTexture(UTexture2D* Texture, const BufferDescriptor& Desc);
-	static RawBufferPtr					RawFromResource(const FTexture2DRHIRef& ResourceRHI, const BufferDescriptor& Desc);
+	static RawBufferPtr					RawFromResource(const FTextureRHIRef& ResourceRHI, const BufferDescriptor& Desc);
 	static BufferFormat					FindOptimalSupportedFormat(BufferFormat SrcFormat);
 
 	static void							RawFromRT_Tiled(UTextureRenderTarget2D* RenderTarget, const BufferDescriptor& Desc, size_t TileSizeX, size_t TileSizeY, RawBufferPtrTiles& Tiles);
 	static void							RawFromTexture_Tiled(UTexture2D* Texture, const BufferDescriptor& Desc, size_t TileSizeX, size_t TileSizeY, RawBufferPtrTiles& Tiles);
-	static void							RawFromResource_Tiled(FTexture2DRHIRef ResourceRHI, const BufferDescriptor& Desc, size_t TileSizeX, size_t TileSizeY, RawBufferPtrTiles& Tiles);
+	static void							RawFromResource_Tiled(FTextureRHIRef ResourceRHI, const BufferDescriptor& Desc, size_t TileSizeX, size_t TileSizeY, RawBufferPtrTiles& Tiles);
 	static void							RawFromMem_Tiled(const uint8* SrcData, size_t SrcDataLength, const BufferDescriptor& SrcDesc, size_t TileSizeX, size_t TileSizeY, RawBufferPtrTiles& Tiles);
 	static RawBufferPtr					CombineRaw_Tiles(const RawBufferPtrTiles& Tiles, CHashPtr HashValue = nullptr, bool bIsTransient = false);
 
@@ -95,7 +95,7 @@ struct TEXTUREGRAPHENGINE_API TextureHelper
 	static FLinearColor					GetPixelValueFromRaw(RawBufferPtr RawObj, int32 Width, int32 Height, int32 X, int32 Y);
 	static AsyncBool					ExportRaw(RawBufferPtr RawObj, const FString& CompletePath);
 	static bool							CanSupportTexture(UTexture* Tex);
-	static bool							CanSplitToTiles(UTexture* Texture, int TilesX, int TilesY);
+	static bool							CanSplitToTiles(int Width, int Height, int TilesX, int TilesY);
 	static size_t						RoundUpTo(size_t Size, size_t DesiredRounding);
 
 	//////////////////////////////////////////////////////////////////////////

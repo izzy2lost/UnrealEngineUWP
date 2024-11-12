@@ -44,6 +44,9 @@ struct FWindowTitleBarArgs
 
 	/** The horizontal alignment of the center content. */
 	EHorizontalAlignment CenterContentAlignment;
+
+	/** The text for the tooltip that shows when the user hovers over the Close button. */
+	TAttribute<FText> CloseButtonToolTipText;
 };
 
 /**
@@ -407,18 +410,6 @@ public:
 	/**
 	 * Creates a title bar for the specified window.
 	 *
-	 * @param Window The window to create the title bar for.
-	 * @param CenterContent Optional content for the title bar's center (will override window title).
-	 * @param CenterContentAlignment The horizontal alignment of the center content.
-	 * @param OutTitleBar Will hold a pointer to the title bar's interface.
-	 * @return The new title bar widget.
-	 */
-	UE_DEPRECATED(4.26, "This version of MakeWindowTitleBar has been deprecated. Use the version that takes in an FWindowTitleBarArgs parameter instead.")
-	SLATECORE_API virtual TSharedRef<SWidget> MakeWindowTitleBar(const TSharedRef<SWindow>& Window, const TSharedPtr<SWidget>& CenterContent, EHorizontalAlignment CenterContentAlignment, TSharedPtr<IWindowTitleBar>& OutTitleBar) const;
-
-	/**
-	 * Creates a title bar for the specified window.
-	 *
 	 * @param InArgs	The creation arguments for the titlebar
 	 * @param OutTitleBar Will hold a pointer to the title bar's interface.
 	 * @return The new title bar widget.
@@ -521,7 +512,7 @@ protected:
 	 * Used to determine if any active timer handles are ready to fire.
 	 * Means we need to tick slate even if no user interaction.
 	 */
-	SLATECORE_API bool AnyActiveTimersArePending();
+	SLATECORE_API void UpdateAnyActiveTimersArePending();
 
 public:
 	SLATECORE_API const static uint32 CursorPointerIndex;
@@ -675,5 +666,7 @@ protected:
 
 	/** Safe Zone ratio to override platform settings */
 	FMargin CustomSafeZoneRatio;
-};
 
+	/** Whether any active timers are pending for this Slate tick. Updated once a tick in AnyActiveTimersArePending(). */
+	bool bAnyActiveTimersPending = false;
+};

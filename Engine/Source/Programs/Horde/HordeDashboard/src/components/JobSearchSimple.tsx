@@ -327,7 +327,7 @@ export const JobSearchSimpleModal: React.FC<{ streamId: string, onClose: () => v
                count: maxCount
             }
 
-            jobs = await backend.getJobs(query, false);
+            jobs = await backend.getJobs(query);
 
             const p = searchState.containsParameter?.trim().toLowerCase();
             if (p) {

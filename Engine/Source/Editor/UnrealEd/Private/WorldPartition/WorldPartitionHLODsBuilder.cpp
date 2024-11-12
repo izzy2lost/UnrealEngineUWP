@@ -31,121 +31,9 @@
 #include "WorldPartition/HLOD/HLODActorDesc.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/HLOD/HLODProviderInterface.h"
-#include "WorldPartition/HLOD/HLODRuntimeSubsystem.h"
+#include "WorldPartition/IWorldPartitionEditorModule.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogWorldPartitionHLODsBuilder, All, All);
-
-class FSourceControlHelper : public ISourceControlHelper
-{
-public:
-	FSourceControlHelper(FPackageSourceControlHelper& InPackageHelper, FHLODModifiedFiles& InModifiedFiles)
-		: PackageHelper(InPackageHelper)
-		, ModifiedFiles(InModifiedFiles)
-	{}
-
-	virtual ~FSourceControlHelper()
-	{}
-
-	virtual FString GetFilename(const FString& PackageName) const override
-	{
-		return SourceControlHelpers::PackageFilename(PackageName);
-	}
-
-	virtual FString GetFilename(UPackage* Package) const override
-	{
-		return SourceControlHelpers::PackageFilename(Package);
-	}
-
-	virtual bool Checkout(UPackage* Package) const override
-	{
-		bool bCheckedOut = PackageHelper.Checkout(Package);
-		if (bCheckedOut)
-		{
-			const FString Filename = GetFilename(Package);
-			const bool bAdded = ModifiedFiles.Get(FHLODModifiedFiles::EFileOperation::FileAdded).Contains(Filename);
-			if (!bAdded)
-			{
-				ModifiedFiles.Add(FHLODModifiedFiles::EFileOperation::FileEdited, Filename);
-			}
-		}
-		return bCheckedOut;
-	}
-
-	virtual bool Add(UPackage* Package) const override
-	{
-		bool bAdded = PackageHelper.AddToSourceControl(Package);
-		if (bAdded)
-		{
-			ModifiedFiles.Add(FHLODModifiedFiles::EFileOperation::FileAdded, GetFilename(Package));
-		}
-		return bAdded;
-	}
-
-	virtual bool Delete(const FString& PackageName) const override
-	{
-		bool bDeleted = PackageHelper.Delete(PackageName);
-		if (bDeleted)
-		{
-			ModifiedFiles.Add(FHLODModifiedFiles::EFileOperation::FileDeleted, PackageName);
-		}
-		return bDeleted;
-	}
-
-	virtual bool Delete(UPackage* Package) const override
-	{
-		FString PackageName = GetFilename(Package);
-		bool bDeleted = PackageHelper.Delete(Package);
-		if (bDeleted)
-		{
-			ModifiedFiles.Add(FHLODModifiedFiles::EFileOperation::FileDeleted, PackageName);
-		}
-		return bDeleted;
-	}
-
-	virtual bool Save(UPackage* Package) const override
-	{
-		bool bFileExists = IPlatformFile::GetPlatformPhysical().FileExists(*GetFilename(Package));
-
-		// Checkout package
-		Package->MarkAsFullyLoaded();
-
-		if (bFileExists)
-		{
-			if (!Checkout(Package))
-			{
-				UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Error checking out package %s."), *Package->GetName());
-				return false;
-			}
-		}
-
-		// Save package
-		FString PackageFileName = GetFilename(Package);
-		FSavePackageArgs SaveArgs;
-		SaveArgs.TopLevelFlags = RF_Standalone;
-		SaveArgs.SaveFlags = PackageHelper.UseSourceControl() ? ESaveFlags::SAVE_None : ESaveFlags::SAVE_Async;
-		if (!UPackage::SavePackage(Package, nullptr, *PackageFileName, SaveArgs))
-		{
-			UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Error saving package %s."), *Package->GetName());
-			return false;
-		}
-
-		// Add new package to source control
-		if (!bFileExists)
-		{
-			if (!Add(Package))
-			{
-				UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Error adding package %s to revision control."), *Package->GetName());
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-private:
-	FPackageSourceControlHelper& PackageHelper;
-	FHLODModifiedFiles& ModifiedFiles;
-};
 
 static const FString DistributedBuildWorkingDirName = TEXT("HLODTemp");
 static const FString DistributedBuildManifestName = TEXT("HLODBuildManifest.ini");
@@ -278,8 +166,6 @@ bool UWorldPartitionHLODsBuilder::ShouldProcessWorld(UWorld* InWorld) const
 
 bool UWorldPartitionHLODsBuilder::PreWorldInitialization(UWorld* InWorld, FPackageSourceControlHelper& PackageHelper)
 {
-	ModifiedFiles.Empty();
-
 	if (bDistributedBuild)
 	{
 		DistributedBuildWorkingDir = GetDistributedBuildWorkingDir(InWorld);
@@ -427,12 +313,12 @@ bool UWorldPartitionHLODsBuilder::SetupHLODActors()
 				FWorldPartitionHelpers::DoCollectGarbage();
 			}
 
-			TArray<FHLODModifiedFiles> BuildersFiles;
+			TArray<FBuilderModifiedFiles> BuildersFiles;
 			BuildersFiles.SetNum(BuilderCount);
 
-			for (int32 i = 0; i < FHLODModifiedFiles::EFileOperation::NumFileOperations; i++)
+			for (int32 i = 0; i < FBuilderModifiedFiles::EFileOperation::NumFileOperations; i++)
 			{
-				FHLODModifiedFiles::EFileOperation FileOp = (FHLODModifiedFiles::EFileOperation)i;
+				FBuilderModifiedFiles::EFileOperation FileOp = (FBuilderModifiedFiles::EFileOperation)i;
 				for (const FString& ModifiedFile : ModifiedFiles.Get(FileOp))
 				{
 					int32* Idx = FilesToBuilderMap.Find(ModifiedFile);
@@ -517,31 +403,33 @@ bool UWorldPartitionHLODsBuilder::BuildHLODActors()
 		{
 			TRACE_BOOKMARK(TEXT("BuildHLOD Start - %d"), CurrentActor);
 
-			const FGuid& HLODActorGuid = HLODActorsToBuild[CurrentActor];
-
-			FWorldPartitionReference ActorRef(WorldPartition, HLODActorGuid);
-
-			AWorldPartitionHLOD* HLODActor = CastChecked<AWorldPartitionHLOD>(ActorRef.GetActor());
-
-			UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("[%d / %d] Building HLOD actor %s..."), CurrentActor + 1, HLODActorsToBuild.Num(), *HLODActor->GetActorLabel());
-
-			// Simulate an engine tick to make sure engine & render resources that are queued for deletion are processed.
-			FWorldPartitionHelpers::FakeEngineTick(World);
-
-			HLODActor->BuildHLOD(bForceBuild);
-
-			bool bSaved = SaveHLODActor(HLODActor);
-			if (!bSaved)
 			{
-				return false;
+				const FGuid& HLODActorGuid = HLODActorsToBuild[CurrentActor];
+
+				FWorldPartitionReference ActorRef(WorldPartition, HLODActorGuid);
+
+				AWorldPartitionHLOD* HLODActor = CastChecked<AWorldPartitionHLOD>(ActorRef.GetActor());
+
+				UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("[%d / %d] Building HLOD actor %s..."), CurrentActor + 1, HLODActorsToBuild.Num(), *HLODActor->GetActorLabel());
+
+				// Simulate an engine tick to make sure engine & render resources that are queued for deletion are processed.
+				FWorldPartitionHelpers::FakeEngineTick(World);
+
+				HLODActor->BuildHLOD(bForceBuild);
+
+				bool bSaved = SaveHLODActor(HLODActor);
+				if (!bSaved)
+				{
+					return false;
+				}
 			}
+
+			TRACE_BOOKMARK(TEXT("BuildHLOD End - %d"), CurrentActor);
 
 			if (FWorldPartitionHelpers::ShouldCollectGarbage())
 			{
 				FWorldPartitionHelpers::DoCollectGarbage();
 			}
-
-			TRACE_BOOKMARK(TEXT("BuildHLOD End - %d"), CurrentActor);
 		}
 
 		UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("#### Built %d HLOD actors ####"), HLODActorsToBuild.Num());
@@ -561,21 +449,28 @@ bool UWorldPartitionHLODsBuilder::BuildHLODActors()
 			return bSaved;
 		});
 
-		uint32 NumHLODActors = 0;
+		TArray<IWorldPartitionHLODProvider*> HLODProviders;
+
+		// Gather all HLOD providers
 		for (TActorIterator<AActor> ActorIt(World); ActorIt; ++ActorIt)
 		{
 			if (IWorldPartitionHLODProvider* HLODProvider = Cast<IWorldPartitionHLODProvider>(*ActorIt))
 			{
-				bool bBuildResult = HLODProvider->BuildHLODActor(BuildHLODActorParams);
-				if (!bBuildResult)
-				{
-					return false;
-				}
-
-				NumHLODActors++;
+				HLODProviders.Add(HLODProvider);
 			}
 		}
-		UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("#### Built %d HLOD actor ####"), NumHLODActors);
+
+		// Process them one by one
+		for (IWorldPartitionHLODProvider* HLODProvider : HLODProviders)
+		{
+			bool bBuildResult = HLODProvider->BuildHLODActor(BuildHLODActorParams);
+			if (!bBuildResult)
+			{
+				return false;
+			}
+		}
+
+		UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("#### Built %d HLOD actor ####"), HLODProviders.Num());
 	}
 
 
@@ -590,9 +485,6 @@ bool UWorldPartitionHLODsBuilder::BuildHLODActors()
 			WorldPartition->Uninitialize();
 			FWorldPartitionHelpers::DoCollectGarbage();
 		}
-
-		// Wait for pending async file writes before copying to working dir
-		UPackage::WaitForAsyncFileWrites();
 
 		TArray<FString> BuildProducts;
 
@@ -671,7 +563,12 @@ bool UWorldPartitionHLODsBuilder::SubmitHLODActors()
 bool UWorldPartitionHLODsBuilder::DumpStats()
 {
 	const FString HLODStatsOutputFilename = FPaths::ProjectSavedDir() / TEXT("WorldPartition") / FString::Printf(TEXT("HLODStats-%08x.csv"), FPlatformProcess::GetCurrentProcessId());
-	return UWorldPartitionHLODRuntimeSubsystem::WriteHLODStatsCSV(World, HLODStatsOutputFilename);
+
+	IWorldPartitionEditorModule::FWriteHLODStatsParams StatsParams;
+	StatsParams.Filename = HLODStatsOutputFilename;
+	StatsParams.World = World;
+	StatsParams.StatsType = IWorldPartitionEditorModule::FWriteHLODStatsParams::EStatsType::Default;
+	return IWorldPartitionEditorModule::Get().WriteHLODStats(StatsParams);
 }
 
 bool UWorldPartitionHLODsBuilder::GetHLODActorsToBuild(TArray<FGuid>& HLODActorsToBuild) const
@@ -746,7 +643,15 @@ TArray<TArray<FGuid>> UWorldPartitionHLODsBuilder::GetHLODWorkloads(int32 NumWor
 			continue;
 		}
 
-		HLODParenting.Add(HLODIterator->GetGuid(), HLODActorDesc.GetChildHLODActors());
+		// When requested to build a single HLOD Layer, skip the child actors
+		if (HLODLayerToBuild.IsNone())
+		{
+			HLODParenting.Add(HLODIterator->GetGuid(), HLODActorDesc.GetChildHLODActors());
+		}
+		else
+		{
+			HLODParenting.Add(HLODIterator->GetGuid());
+		}
 	}
 
 	// All child HLODs must be built before their parent HLOD
@@ -821,24 +726,28 @@ bool UWorldPartitionHLODsBuilder::ValidateWorkload(const TArray<FGuid>& Workload
 		const FWorldPartitionActorDescInstance* ActorDescInstance = WorldPartition->GetActorDescInstance(HLODActorGuid);
 		if(!ActorDescInstance)
 		{
-			UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Unknown actor guid found, your HLOD actors are probably out of date. Run with -SetupHLODs to fix this. Exiting..."));
+			UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Unknown actor guid found (\"%s\"), your HLOD actors are probably out of date. Run with -SetupHLODs to fix this. Exiting..."), *HLODActorGuid.ToString());
 			return false;
 		}
 
 		if (!ActorDescInstance->GetActorNativeClass()->IsChildOf<AWorldPartitionHLOD>())
 		{
-			UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Unexpected actor guid found in HLOD workload, exiting..."));
+			UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Unexpected actor guid found in HLOD workload (\"%s\"), exiting..."), *HLODActorGuid.ToString());
 			return false;
 		}
 
-		const FHLODActorDesc* HLODActorDesc = static_cast<const FHLODActorDesc*>(ActorDescInstance->GetActorDesc());
-
-		for (const FGuid& ChildHLODActorGuid : HLODActorDesc->GetChildHLODActors())
+		// When requested to build a single HLOD Layer, do not validate that child actors are included
+		if (HLODLayerToBuild.IsNone())
 		{
-			if (!ProcessedHLOD.Contains(ChildHLODActorGuid))
+			const FHLODActorDesc* HLODActorDesc = static_cast<const FHLODActorDesc*>(ActorDescInstance->GetActorDesc());
+
+			for (const FGuid& ChildHLODActorGuid : HLODActorDesc->GetChildHLODActors())
 			{
-				UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Child HLOD actor missing or out of order in HLOD workload, exiting..."));
-				return false;
+				if (!ProcessedHLOD.Contains(ChildHLODActorGuid))
+				{
+					UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Child HLOD actor (\"%s\") missing or out of order in HLOD workload, exiting..."), *HLODActorGuid.ToString());
+					return false;
+				}
 			}
 		}
 
@@ -941,7 +850,7 @@ const FName FileAction_Add(TEXT("Add"));
 const FName FileAction_Edit(TEXT("Edit"));
 const FName FileAction_Delete(TEXT("Delete"));
 
-bool UWorldPartitionHLODsBuilder::CopyFilesToWorkingDir(const FString& TargetDir, const FHLODModifiedFiles& Files, TArray<FString>& BuildProducts)
+bool UWorldPartitionHLODsBuilder::CopyFilesToWorkingDir(const FString& TargetDir, const FBuilderModifiedFiles& Files, TArray<FString>& BuildProducts)
 {
 	const FString AbsoluteTargetDir = DistributedBuildWorkingDir / TargetDir / TEXT("");
 
@@ -978,9 +887,12 @@ bool UWorldPartitionHLODsBuilder::CopyFilesToWorkingDir(const FString& TargetDir
 		}
 	};
 
-	Algo::ForEach(Files.Get(FHLODModifiedFiles::EFileOperation::FileAdded), [&](const FString& SourceFilename) { CopyFileToWorkingDir(SourceFilename, FileAction_Add); });
-	Algo::ForEach(Files.Get(FHLODModifiedFiles::EFileOperation::FileEdited), [&](const FString& SourceFilename) { CopyFileToWorkingDir(SourceFilename, FileAction_Edit); });
-	Algo::ForEach(Files.Get(FHLODModifiedFiles::EFileOperation::FileDeleted), [&](const FString& SourceFilename) { CopyFileToWorkingDir(SourceFilename, FileAction_Delete); });
+	// Wait for pending async file writes before copying to working dir
+	UPackage::WaitForAsyncFileWrites();
+
+	Algo::ForEach(Files.Get(FBuilderModifiedFiles::EFileOperation::FileAdded), [&](const FString& SourceFilename) { CopyFileToWorkingDir(SourceFilename, FileAction_Add); });
+	Algo::ForEach(Files.Get(FBuilderModifiedFiles::EFileOperation::FileEdited), [&](const FString& SourceFilename) { CopyFileToWorkingDir(SourceFilename, FileAction_Edit); });
+	Algo::ForEach(Files.Get(FBuilderModifiedFiles::EFileOperation::FileDeleted), [&](const FString& SourceFilename) { CopyFileToWorkingDir(SourceFilename, FileAction_Delete); });
 	if (!bSuccess)
 	{
 		return false;
@@ -998,7 +910,7 @@ bool UWorldPartitionHLODsBuilder::CopyFilesToWorkingDir(const FString& TargetDir
 	}
 
 	// Delete files we added
-	for (const FString& FileToDelete : Files.Get(FHLODModifiedFiles::EFileOperation::FileAdded))
+	for (const FString& FileToDelete : Files.Get(FBuilderModifiedFiles::EFileOperation::FileAdded))
 	{
 		if (!IFileManager::Get().Delete(*FileToDelete, false, true))
 		{
@@ -1152,9 +1064,9 @@ bool UWorldPartitionHLODsBuilder::CopyFilesFromWorkingDir(const FString& SourceD
 	}
 
 	// Keep track of all modified files
-	ModifiedFiles.Append(FHLODModifiedFiles::EFileOperation::FileAdded, ToAdd);
-	ModifiedFiles.Append(FHLODModifiedFiles::EFileOperation::FileDeleted, FilesToDelete);
-	ModifiedFiles.Append(FHLODModifiedFiles::EFileOperation::FileEdited, ToEdit);
+	ModifiedFiles.Append(FBuilderModifiedFiles::EFileOperation::FileAdded, ToAdd);
+	ModifiedFiles.Append(FBuilderModifiedFiles::EFileOperation::FileDeleted, FilesToDelete);
+	ModifiedFiles.Append(FBuilderModifiedFiles::EFileOperation::FileEdited, ToEdit);
 
 	// Force a rescan of the updated files
 	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();

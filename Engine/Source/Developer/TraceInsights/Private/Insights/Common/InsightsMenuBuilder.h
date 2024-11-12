@@ -2,13 +2,17 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+
 #include "Framework/Commands/UICommandInfo.h"
 
 class FWorkspaceItem;
 class FMenuBuilder;
 
 struct FUIAction;
+
+namespace UE::Insights
+{
 
 class FInsightsMenuBuilder : public TSharedFromThis<FInsightsMenuBuilder>
 {
@@ -36,3 +40,5 @@ private:
 	TSharedRef<FWorkspaceItem> WindowsGroup;
 #endif
 };
+
+} // namespace UE::Insights

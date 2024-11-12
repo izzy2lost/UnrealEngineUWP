@@ -64,6 +64,11 @@ namespace Gauntlet
 		public ContainerInfo ContainerInfo { get; set; }
 
 		/// <summary>
+		/// Delegate to filter logging output
+		/// </summary>
+		public LongProcessResult.OutputFilterCallbackType FilterLoggingDelegate { get; set; }
+
+		/// <summary>
 		/// Arguments for this instance
 		/// </summary>
 		public string CommandLine
@@ -101,23 +106,14 @@ namespace Gauntlet
 
 		public IBuild Build { get; set; }
 
+		public OverlayExecutable OverlayExecutable{ get; set; }
+
 		// Prevents installing a build on device
-		public bool SkipInstall => ForceSkipInstall.HasValue ? ForceSkipInstall.Value : _SkipInstall;
+		public bool SkipInstall => DevicePool.SkipInstall;
 
 		// Performs a full clean on the device before installing
-		public bool FullClean => ForceFullClean.HasValue ? ForceFullClean.Value : _FullClean;
+		public bool FullClean => DevicePool.FullClean;
 
-		// Force a full clean
-		public static bool? ForceFullClean = null;
-
-		// Force a skip install
-		public static bool? ForceSkipInstall = null;
-		
-		[AutoParamWithNames(false, "SkipInstall", "SkipDeploy", "SkipCopy")]
-		private bool _SkipInstall { get; set; }
-		
-		[AutoParamWithNames(false, "FullClean")]
-		private bool _FullClean { get; set; }
 
 		/// <summary>
 		/// Constructor that sets some required values to defaults
@@ -129,7 +125,7 @@ namespace Gauntlet
 			CommandLine = "";
 			Configuration = UnrealTargetConfiguration.Development;
 			Sandbox = "Gauntlet";
-			AutoParam.ApplyParamsAndDefaults(this, Globals.Params.AllArguments);
+			FilterLoggingDelegate = null;
 		}
 	}
 }

@@ -16,7 +16,7 @@ namespace UnrealBuildTool.Rules
 					"InterchangeCommon",
 					"InterchangeEngine",
 					"InterchangeFactoryNodes",
-					"InterchangeNodes"
+					"InterchangeNodes",
 				}
 			);
 
@@ -31,6 +31,7 @@ namespace UnrealBuildTool.Rules
 					"InputCore",
 					"Slate",
 					"SlateCore",
+					"LevelSequence",
 				}
 			);
 
@@ -46,6 +47,8 @@ namespace UnrealBuildTool.Rules
 					}
 				);
 			}
+
+			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }

@@ -5,7 +5,7 @@
 #include "Containers/UnrealString.h"
 #include "Templates/SharedPointer.h"
 
-struct FLiveLinkHubPersistedSessionData;
+class ULiveLinkHubSessionData;
 class FJsonObject;
 
 namespace UE::LiveLinkHub::FileUtilities::Private
@@ -23,14 +23,28 @@ namespace UE::LiveLinkHub::FileUtilities::Private
 	const FString ConfigDescription = TEXT("Live Link Hub Config");
 
 	/** Save config data to disk. */
-	void SaveConfig(const FLiveLinkHubPersistedSessionData& InConfigData, const FString& InFilePath);
+	void SaveConfig(const ULiveLinkHubSessionData* InConfigData, const FString& InFilePath);
 
 	/** Load config data from disk. */
-	TSharedPtr<FLiveLinkHubPersistedSessionData> LoadConfig(const FString& InFilePath);
+	ULiveLinkHubSessionData* LoadConfig(const FString& InFilePath);
 
 	/** Convert config data to json. */
-	TSharedPtr<FJsonObject> ToJson(const FLiveLinkHubPersistedSessionData& InConfigData);
+	TSharedPtr<FJsonObject> ToJson(const ULiveLinkHubSessionData* InConfigData);
 
 	/** Convert config data from json. */
-	TSharedPtr<FLiveLinkHubPersistedSessionData> FromJson(const TSharedPtr<FJsonObject>& InJsonObject);
+	ULiveLinkHubSessionData* FromJson(const TSharedPtr<FJsonObject>& InJsonObject);
+
+	/** Evaluated results from a template file string. */
+	struct FFilenameTemplateData
+	{
+		/** Full original path with evaluated tokens. */
+		FString FullPath;
+		/** The evaluated folder(s) without the first forward slash or filename. */
+		FString FolderPath;
+		/** The evaluated filename. */
+		FString FileName;
+	};
+
+	/** Parse a filename template for included template tokens and output the computed result. */
+	void ParseFilenameTemplate(const FString& InFilenameTemplate, FFilenameTemplateData& OutTemplateData);
 }

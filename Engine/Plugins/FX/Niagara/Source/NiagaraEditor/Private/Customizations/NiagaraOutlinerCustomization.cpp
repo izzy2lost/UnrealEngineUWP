@@ -191,7 +191,6 @@ void SNiagaraOutlinerTree::Construct(const FArguments& InArgs, TSharedPtr<FNiaga
 		Outliner->OnChangedDelegate.AddSP(this, &SNiagaraOutlinerTree::RequestRefresh);
 
 		TreeView = SNew(STreeView<TSharedRef<FNiagaraOutlinerTreeItem>>)
-			.ItemHeight(20.0f)
 			.SelectionMode(ESelectionMode::Single)
 			.TreeItemsSource(&RootEntries)
 			.OnGenerateRow(this, &SNiagaraOutlinerTree::OnGenerateRow)

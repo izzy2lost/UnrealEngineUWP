@@ -49,7 +49,7 @@ static_assert(sizeof(ispc::FVector3f) == sizeof(FVector3f), "sizeof(ispc::FVecto
 static_assert(sizeof(ispc::FVector) == sizeof(Chaos::FVec3), "sizeof(ispc::FVector) != sizeof(Chaos::FVec3)");
 static_assert(sizeof(ispc::FTransform) == sizeof(Chaos::FRigidTransform3), "sizeof(ispc::FTransform) != sizeof(Chaos::FRigidTransform3)");
 
-bool bChaos_GetSimData_ISPC_Enabled = true;
+bool bChaos_GetSimData_ISPC_Enabled = CHAOS_GET_SIM_DATA_ISPC_ENABLED_DEFAULT;
 FAutoConsoleVariableRef CVarChaosGetSimDataISPCEnabled(TEXT("p.Chaos.GetSimData.ISPC"), bChaos_GetSimData_ISPC_Enabled, TEXT("Whether to use ISPC optimizations when getting simulation data"));
 #endif
 
@@ -71,6 +71,7 @@ namespace ClothingSimulationCVar
 	TAutoConsoleVariable<bool> DebugDrawPhysMeshWired       (TEXT("p.ChaosCloth.DebugDrawPhysMeshWired"       ), false, TEXT("Whether to debug draw the Chaos Cloth wireframe meshes"), ECVF_Cheat);
 	TAutoConsoleVariable<bool> DebugDrawAnimMeshWired       (TEXT("p.ChaosCloth.DebugDrawAnimMeshWired"       ), false, TEXT("Whether to debug draw the animated/kinematic Cloth wireframe meshes"), ECVF_Cheat);
 	TAutoConsoleVariable<bool> DebugDrawAnimNormals         (TEXT("p.ChaosCloth.DebugDrawAmimNormals"         ), false, TEXT("Whether to debug draw the animated/kinematic Cloth normals"), ECVF_Cheat);
+	TAutoConsoleVariable<bool> DebugDrawAnimVelocities      (TEXT("p.ChaosCloth.DebugDrawAnimVelocities"         ), false, TEXT("Whether to debug draw the animated/kinematic Cloth velocities"), ECVF_Cheat);
 	TAutoConsoleVariable<bool> DebugDrawPointNormals        (TEXT("p.ChaosCloth.DebugDrawPointNormals"        ), false, TEXT("Whether to debug draw the Chaos Cloth point normals"), ECVF_Cheat);
 	TAutoConsoleVariable<bool> DebugDrawPointVelocities     (TEXT("p.ChaosCloth.DebugDrawPointVelocities"     ), false, TEXT("Whether to debug draw the Chaos Cloth point velocities"), ECVF_Cheat);
 	TAutoConsoleVariable<bool> DebugDrawFaceNormals         (TEXT("p.ChaosCloth.DebugDrawFaceNormals"         ), false, TEXT("Whether to debug draw the Chaos Cloth face normals"), ECVF_Cheat);
@@ -79,6 +80,7 @@ namespace ClothingSimulationCVar
 	TAutoConsoleVariable<bool> DebugDrawBackstops           (TEXT("p.ChaosCloth.DebugDrawBackstops"           ), false, TEXT("Whether to debug draw the Chaos Cloth backstops"), ECVF_Cheat);
 	TAutoConsoleVariable<bool> DebugDrawBackstopDistances   (TEXT("p.ChaosCloth.DebugDrawBackstopDistances"   ), false, TEXT("Whether to debug draw the Chaos Cloth backstop distances"), ECVF_Cheat);
 	TAutoConsoleVariable<bool> DebugDrawMaxDistances        (TEXT("p.ChaosCloth.DebugDrawMaxDistances"        ), false, TEXT("Whether to debug draw the Chaos Cloth max distances"), ECVF_Cheat);
+	TAutoConsoleVariable<bool> DebugDrawMaxDistanceValues   (TEXT("p.ChaosCloth.DebugDrawMaxDistanceValues"   ), false, TEXT("Whether to debug draw the Chaos Cloth max distances as numbers"), ECVF_Cheat);
 	TAutoConsoleVariable<bool> DebugDrawAnimDrive           (TEXT("p.ChaosCloth.DebugDrawAnimDrive"           ), false, TEXT("Whether to debug draw the Chaos Cloth anim drive"), ECVF_Cheat);
 	TAutoConsoleVariable<bool> DebugDrawEdgeConstraint      (TEXT("p.ChaosCloth.DebugDrawEdgeConstraint"      ), false, TEXT("Whether to debug draw the Chaos Cloth edge constraint"), ECVF_Cheat);
 	TAutoConsoleVariable<bool> DebugDrawBendingConstraint   (TEXT("p.ChaosCloth.DebugDrawBendingConstraint"   ), false, TEXT("Whether to debug draw the Chaos Cloth bending constraint"), ECVF_Cheat);
@@ -86,6 +88,8 @@ namespace ClothingSimulationCVar
 	TAutoConsoleVariable<bool> DebugDrawWindForces          (TEXT("p.ChaosCloth.DebugDrawWindForces"          ), false, TEXT("Whether to debug draw the Chaos Cloth wind forces"), ECVF_Cheat);
 	TAutoConsoleVariable<bool> DebugDrawSelfCollision       (TEXT("p.ChaosCloth.DebugDrawSelfCollision"       ), false, TEXT("Whether to debug draw the Chaos Cloth self collision information"), ECVF_Cheat);
 	TAutoConsoleVariable<bool> DebugDrawSelfIntersection    (TEXT("p.ChaosCloth.DebugDrawSelfIntersection"    ), false, TEXT("Whether to debug draw the Chaos Cloth self intersection information"), ECVF_Cheat);
+	TAutoConsoleVariable<bool> DebugDrawParticleIndices     (TEXT("p.ChaosCloth.DebugDrawParticleIndices"     ), false, TEXT("Whether to debug draw the Chaos Cloth particle indices"), ECVF_Cheat);
+	TAutoConsoleVariable<bool> DebugDrawElementIndices      (TEXT("p.ChaosCloth.DebugDrawElementIndices"      ), false, TEXT("Whether to debug draw the Chaos Cloth element indices"), ECVF_Cheat);
 }
 #endif  // #if CHAOS_DEBUG_DRAW
 
@@ -259,6 +263,7 @@ namespace ChaosClothingSimulationDefault
 	static const FReal MaxDistancesMultipliers = (FReal)1.;
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS  // For Visualization
 FClothingSimulation::FClothingSimulation()
 	: ClothSharedSimConfig(nullptr)
 	, bUseLocalSpaceSimulation(true)
@@ -281,6 +286,7 @@ FClothingSimulation::FClothingSimulation()
 
 FClothingSimulation::~FClothingSimulation()
 {}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FClothingSimulation::Initialize()
 {
@@ -340,6 +346,9 @@ void FClothingSimulation::CreateActor(USkeletalMeshComponent* InOwnerComponent, 
 		const FClothingSimulationContext* const Context = static_cast<const FClothingSimulationContext*>(InOwnerComponent->GetClothingSimulationContext());
 		check(Context);
 		static const bool bReset = true;
+		const FReal WorldToSolverScale = bUseLocalSpaceSimulation ? Context->SolverGeometryScale : 1.;
+		const FReal LocalSpaceScale = 1. / FMath::Max(WorldToSolverScale, UE_SMALL_NUMBER);
+		Solver->SetLocalSpaceScale(LocalSpaceScale, bReset);
 		Solver->SetLocalSpaceLocation(bUseLocalSpaceSimulation ? (FVec3)Context->ComponentToWorld.GetLocation() : FVec3(0.), bReset);
 		Solver->SetLocalSpaceRotation(bUseLocalSpaceSimulation ? (FQuat)Context->ComponentToWorld.GetRotation() : FQuat::Identity);
 	}
@@ -362,9 +371,10 @@ void FClothingSimulation::CreateActor(USkeletalMeshComponent* InOwnerComponent, 
 		InOwnerComponent));
 
 	// Create collider runtime simulation object
+	const FReferenceSkeleton* const ReferenceSkeleton = &CastChecked<USkeletalMesh>(Asset->GetOuter())->GetRefSkeleton();
 	const int32 ColliderIndex = Colliders.Emplace(MakeUnique<FClothingSimulationCollider>(
 		Asset->PhysicsAsset,
-		&CastChecked<USkeletalMesh>(Asset->GetOuter())->GetRefSkeleton()));
+		ReferenceSkeleton));
 
 	// Set the external collision data to get updated at every frame
 	Colliders[ColliderIndex]->SetCollisionData(&ExternalCollisionData);
@@ -377,9 +387,7 @@ void FClothingSimulation::CreateActor(USkeletalMeshComponent* InOwnerComponent, 
 	// Create cloth runtime simulation object
 	const int32 ClothIndex = Cloths.Emplace(MakeUnique<FClothingSimulationCloth>(
 		Configs[ClothConfigIndex].Get(),
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		Meshes[MeshIndex].Get(),
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TArray<FClothingSimulationCollider*>({ Colliders[ColliderIndex].Get() }),
 		InSimDataIndex));
 
@@ -503,9 +511,9 @@ void FClothingSimulation::Simulate(IClothingSimulationContext* InContext)
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		const bool bNeedsReset = (ClothingSimulationConsole::Command && ClothingSimulationConsole::Command->MustReset(ResetCount)) ||
-			Context->TeleportMode == EClothingTeleportMode::TeleportAndReset || PrevSimulationTime == 0.f;
+			Context->TeleportMode >= EClothingTeleportMode::TeleportAndReset || PrevSimulationTime == 0.f;
 #else
-		const bool bNeedsReset = Context->TeleportMode == EClothingTeleportMode::TeleportAndReset || PrevSimulationTime == 0.f;
+		const bool bNeedsReset = Context->TeleportMode >= EClothingTeleportMode::TeleportAndReset || PrevSimulationTime == 0.f;
 #endif
 		const bool bNeedsTeleport = (Context->TeleportMode > EClothingTeleportMode::None);
 		bIsTeleported = bNeedsTeleport;
@@ -535,8 +543,7 @@ void FClothingSimulation::Simulate(IClothingSimulationContext* InContext)
 		}
 
 		// Step the simulation
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS // Supporting deprecated CachedPositions instead of new CacheData
-		if(Solver->GetEnableSolver() || (!Context->CacheData.HasData() && Context->CachedPositions.Num() == 0))
+		if (Solver->GetEnableSolver() || !Context->CacheData.HasData())
 		{
 			Solver->Update(SmoothedDeltaTime);
 
@@ -547,17 +554,8 @@ void FClothingSimulation::Simulate(IClothingSimulationContext* InContext)
 		}
 		else
 		{
-			if (Context->CacheData.HasData())
-			{
-				Solver->UpdateFromCache(Context->CacheData);
-			}
-			else
-			{
-				check(Context->CachedPositions.Num());
-				Solver->UpdateFromCache(Context->CachedPositions, Context->CachedVelocities);
-			}
+			Solver->UpdateFromCache(Context->CacheData);
 		}
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Keep the actual used number of iterations for the stats
 		NumIterations = Solver->GetNumUsedIterations();
@@ -583,11 +581,13 @@ void FClothingSimulation::Simulate(IClothingSimulationContext* InContext)
 	if (ClothingSimulationCVar::DebugDrawAnimMeshWired       .GetValueOnAnyThread()) { DebugDrawAnimMeshWired       (); }
 	if (ClothingSimulationCVar::DebugDrawPointVelocities     .GetValueOnAnyThread()) { DebugDrawPointVelocities     (); }
 	if (ClothingSimulationCVar::DebugDrawAnimNormals         .GetValueOnAnyThread()) { DebugDrawAnimNormals         (); }
+	if (ClothingSimulationCVar::DebugDrawAnimVelocities      .GetValueOnAnyThread()) { DebugDrawAnimVelocities      (); }
 	if (ClothingSimulationCVar::DebugDrawPointNormals        .GetValueOnAnyThread()) { DebugDrawPointNormals        (); }
 	if (ClothingSimulationCVar::DebugDrawCollision           .GetValueOnAnyThread()) { DebugDrawCollision           (); }
 	if (ClothingSimulationCVar::DebugDrawBackstops           .GetValueOnAnyThread()) { DebugDrawBackstops           (); }
 	if (ClothingSimulationCVar::DebugDrawBackstopDistances   .GetValueOnAnyThread()) { DebugDrawBackstopDistances   (); }
 	if (ClothingSimulationCVar::DebugDrawMaxDistances        .GetValueOnAnyThread()) { DebugDrawMaxDistances        (); }
+	if (ClothingSimulationCVar::DebugDrawMaxDistanceValues   .GetValueOnAnyThread()) { DebugDrawMaxDistanceValues   (); }
 	if (ClothingSimulationCVar::DebugDrawAnimDrive           .GetValueOnAnyThread()) { DebugDrawAnimDrive           (); }
 	if (ClothingSimulationCVar::DebugDrawEdgeConstraint      .GetValueOnAnyThread()) { DebugDrawEdgeConstraint      (); }
 	if (ClothingSimulationCVar::DebugDrawBendingConstraint   .GetValueOnAnyThread()) { DebugDrawBendingConstraint   (); }
@@ -620,6 +620,7 @@ void FClothingSimulation::GetSimulationData(
 
 	// Get the solver's local space
 	const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation(); // Note: Since the ReferenceSpaceTransform can be suspended with the simulation, it is important that the suspended local space location is used too in order to get the simulation data back into reference space
+	const FReal LocalSpaceScale = Solver->GetLocalSpaceScale();
 
 	// Retrieve the component transforms
 	const FClothingSimulationContext* const Context = static_cast<const FClothingSimulationContext*>(InOwnerComponent->GetClothingSimulationContext());
@@ -640,9 +641,7 @@ void FClothingSimulation::GetSimulationData(
 		}
 
 		// If the LOD has changed while the simulation is suspended, the cloth still needs to be updated with the correct LOD data
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		const int32 LODIndex = Cloth->GetMesh()->GetLODIndex();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		if (LODIndex != Cloth->GetLODIndex(Solver.Get()))
 		{
 			Solver->Update(FSolverReal(0.));  // Update for LOD switching, but do not simulate
@@ -697,6 +696,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				(ispc::FVector3f*)Data.Normals.GetData(),
 				(ispc::FTransform&)ReferenceSpaceTransform,
 				(ispc::FVector&)LocalSpaceLocation,
+				LocalSpaceScale,
 				Data.Positions.Num());
 		}
 		else
@@ -706,7 +706,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			{
 				using FPositionsType = decltype(Data.Positions)::ElementType;
 				using FNormalsType = decltype(Data.Normals)::ElementType;
-				Data.Positions[Index] = FPositionsType(ReferenceSpaceTransform.InverseTransformPosition(FVec3(Data.Positions[Index]) + LocalSpaceLocation));  // Move into world space first
+				Data.Positions[Index] = FPositionsType(ReferenceSpaceTransform.InverseTransformPosition(LocalSpaceScale * FVec3(Data.Positions[Index]) + LocalSpaceLocation));  // Move into world space first
 				Data.Normals[Index] = FNormalsType(ReferenceSpaceTransform.InverseTransformVector(FVec3(-Data.Normals[Index])));  // Normals are inverted due to how barycentric coordinates are calculated (see GetPointBaryAndDist in ClothingMeshUtils.cpp)
 			}
 		}
@@ -722,9 +722,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Set the current LOD these data apply to, so that the correct deformer mappings can be applied
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		Data.LODIndex = Cloth->GetMesh()->GetOwnerLODIndex(LODIndex);  // The owner component LOD index can be different to the cloth mesh LOD index
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
@@ -737,6 +735,7 @@ FBoxSphereBounds FClothingSimulation::GetBounds(const USkeletalMeshComponent* In
 	{
 		// The component could be moving while the simulation is suspended so getting the bounds
 		// in world space isn't good enough and the bounds origin needs to be continuously updated
+		// Intentionally not applying LocalSpaceScale here because LocalSpaceScale does not match component scale.
 		Bounds = Bounds.TransformBy(FTransform((FQuat)Solver->GetLocalSpaceRotation(), (FVector)Solver->GetLocalSpaceLocation()).Inverse());
 	}
 	else if (InOwnerComponent)
@@ -795,6 +794,9 @@ void FClothingSimulation::RefreshClothConfig(const IClothingSimulationContext* I
 	// Update new space location
 	const FClothingSimulationContext* const Context = static_cast<const FClothingSimulationContext*>(InContext);
 	static const bool bReset = true;
+	const FReal WorldToSolverScale = bUseLocalSpaceSimulation ? Context->SolverGeometryScale : 1.;
+	const FReal LocalSpaceScale = 1. / FMath::Max(WorldToSolverScale, UE_SMALL_NUMBER);
+	Solver->SetLocalSpaceScale(LocalSpaceScale, bReset);
 	Solver->SetLocalSpaceLocation(bUseLocalSpaceSimulation ? (FVec3)Context->ComponentToWorld.GetLocation() : FVec3(0), bReset);
 	Solver->SetLocalSpaceRotation(bUseLocalSpaceSimulation ? (FQuat)Context->ComponentToWorld.GetRotation() : FQuat::Identity);
 
@@ -821,9 +823,7 @@ void FClothingSimulation::RefreshClothConfig(const IClothingSimulationContext* I
 		// Recreate cloth runtime simulation object
 		Cloth = MakeUnique<FClothingSimulationCloth>(
 			Config,
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 			Mesh,
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			MoveTemp(ClothColliders),
 			GroupId);
 

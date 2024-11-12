@@ -4,6 +4,7 @@
 	D3D11RHI.cpp: Unreal D3D RHI library implementation.
 =============================================================================*/
 
+#include "D3D11RHI.h"
 #include "D3D11RHIPrivate.h"
 #include "RHIStaticStates.h"
 #include "StaticBoundShaderState.h"
@@ -28,10 +29,79 @@ extern void UniformBufferBeginFrame();
 // Has to be .exe module to be correctly detected.
 // extern "C" { _declspec(dllexport) uint32 NvOptimusEnablement = 0x00000001; }
 
-void FD3D11DynamicRHI::RHIBeginFrame()
+void FD3D11DynamicRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 {
+	// End Frame
+#if RHI_NEW_GPU_PROFILER
+	{
+		// End GPU work
+		auto& EndWork = EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FEndWork>();
+		InsertProfilerTimestamp(&EndWork.GPUTimestampBOP);
+
+		// Insert frame boundary
+		EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FFrameBoundary>(Args.FrameNumber
+	#if WITH_RHI_BREADCRUMBS
+			, Args.GPUBreadcrumbs[ERHIPipeline::Graphics]
+	#endif
+		);
+
+		// Issue a completion query so we know when to readback these profiler results.
+		{
+			if (Profiler.EventPool.IsEmpty())
+			{
+				D3D11_QUERY_DESC QueryDesc {};
+				QueryDesc.Query = D3D11_QUERY_EVENT;
+				VERIFYD3D11RESULT(Direct3DDevice->CreateQuery(&QueryDesc, Profiler.Current.CompletionQuery.GetInitReference()));
+			}
+			else
+			{
+				Profiler.Current.CompletionQuery = Profiler.EventPool.Pop();
+			}
+
+			Direct3DDeviceIMContext->End(Profiler.Current.CompletionQuery);
+			Profiler.Pending.Enqueue(MakeUnique<FProfiler::FFrame>(MoveTemp(Profiler.Current)));
+		}
+
+		// Attempt to process historic results
+		while (TUniquePtr<FProfiler::FFrame>* PreviousFramePtr = Profiler.Pending.Peek())
+		{
+			TUniquePtr<FProfiler::FFrame>& PreviousFrame = *PreviousFramePtr;
+
+			BOOL EventComplete = false;
+			VERIFYD3D11RESULT(Direct3DDeviceIMContext->GetData(PreviousFrame->CompletionQuery, &EventComplete, sizeof(EventComplete), 0));
+			if (!EventComplete)
+			{
+				// Frame not yet finished on the GPU
+				break;
+			}
+
+			// Ensure we have the latest timestamp data
+			PollQueryResults();
+
+			// Previous frame has completed and the data is available. Publish the profiler events.
+			UE::RHI::GPUProfiler::ProcessEvents(UE::RHI::GPUProfiler::FQueue(UE::RHI::GPUProfiler::FQueue::EType::Graphics, 0, 0), MoveTemp(PreviousFrame->EventStream));
+
+			Profiler.EventPool.Push(MoveTemp(PreviousFrame->CompletionQuery));
+			Profiler.Pending.Pop();
+		}
+
+		// Start the next frame's GPU work
+		auto& BeginWork = EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FBeginWork>(FPlatformTime::Cycles64());
+		InsertProfilerTimestamp(&BeginWork.GPUTimestampTOP);
+	}
+
+#else
+	GPUProfilingData.EndFrame();
+#endif
+
+	UpdateMemoryStats();
+	CurrentComputeShader = nullptr;
+
+	// Begin Frame
 	UniformBufferBeginFrame();
+#if (RHI_NEW_GPU_PROFILER == 0)
 	GPUProfilingData.BeginFrame(this);
+#endif
 }
 
 template <int32 Frequency>
@@ -275,17 +345,13 @@ void FD3D11DynamicRHI::ClearAllShaderResources()
 	ClearAllShaderResourcesForFrequency<SF_Compute>();
 }
 
+#if (RHI_NEW_GPU_PROFILER == 0)
+
 void FD3DGPUProfiler::BeginFrame(FD3D11DynamicRHI* InRHI)
 {
 	CurrentEventNode = NULL;
 	check(!bTrackingEvents);
 	check(!CurrentEventNodeFrame); // this should have already been cleaned up and the end of the previous frame
-
-	static auto* CrashCollectionEnableCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.gpucrash.collectionenable"));
-	static auto* CrashCollectionDataDepth = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.gpucrash.datadepth"));
-
-	bTrackingGPUCrashData = CrashCollectionEnableCvar ? CrashCollectionEnableCvar->GetValueOnRenderThread() != 0 : false;
-	GPUCrashDataDepth = CrashCollectionDataDepth ? CrashCollectionDataDepth->GetValueOnRenderThread() : -1;
 	
 	// latch the bools from the game thread into our private copy
 	bLatchedGProfilingGPU = GTriggerGPUProfile;
@@ -326,26 +392,10 @@ void FD3DGPUProfiler::BeginFrame(FD3D11DynamicRHI* InRHI)
 	bPreviousLatchedGProfilingGPUHitches = bLatchedGProfilingGPUHitches;
 
 	FrameTiming.StartTiming();
-
-	if (GetEmitDrawEvents())
-	{
-		PushEvent(TEXT("FRAME"), FColor(0, 255, 0, 255));
-	}
-}
-
-void FD3D11DynamicRHI::RHIEndFrame()
-{
-	GPUProfilingData.EndFrame();
-	CurrentComputeShader = nullptr;
 }
 
 void FD3DGPUProfiler::EndFrame()
 {
-	if (GetEmitDrawEvents())
-	{
-		PopEvent();
-	}
-
 	FrameTiming.EndTiming();
 
 	if (FrameTiming.IsSupported())
@@ -464,74 +514,19 @@ float FD3D11EventNode::GetTiming()
 	return Result;
 }
 
-void FD3D11DynamicRHI::RHIBeginScene()
-{
-	// Increment the frame counter. INDEX_NONE is a special value meaning "uninitialized", so if
-	// we hit it just wrap around to zero.
-	SceneFrameCounter++;
-	if (SceneFrameCounter == INDEX_NONE)
-	{
-		SceneFrameCounter++;
-	}
-
-	static auto* ResourceTableCachingCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("rhi.ResourceTableCaching"));
-	if (ResourceTableCachingCvar == NULL || ResourceTableCachingCvar->GetValueOnAnyThread() == 1)
-	{
-		ResourceTableFrameCounter = SceneFrameCounter;
-	}
-}
-
-void FD3D11DynamicRHI::RHIEndScene()
-{
-	ResourceTableFrameCounter = INDEX_NONE;
-}
-
-static FString EventDeepString(TEXT("EventTooDeep"));
-static const uint32 EventDeepCRC = FCrc::StrCrc32<TCHAR>(*EventDeepString);
-
-FD3DGPUProfiler::FD3DGPUProfiler(class FD3D11DynamicRHI* InD3DRHI) :
-	FGPUProfiler(),
-	FrameTiming(InD3DRHI, 4),
-	D3D11RHI(InD3DRHI)
+FD3DGPUProfiler::FD3DGPUProfiler(class FD3D11DynamicRHI* InD3DRHI)
+	: FGPUProfiler()
+	, FrameTiming(InD3DRHI, 4)
+	, D3D11RHI(InD3DRHI)
 {
 	// Initialize Buffered timestamp queries 
 	FrameTiming.InitResource(FRHICommandListImmediate::Get());
-	CachedStrings.Emplace(EventDeepCRC, EventDeepString);
+
+	BeginFrame(InD3DRHI);
 }
 
 void FD3DGPUProfiler::PushEvent(const TCHAR* Name, FColor Color)
 {
-#if NV_AFTERMATH
-	if(GDX11NVAfterMathEnabled && bTrackingGPUCrashData && GDX11NVAfterMathMarkers)
-	{
-		uint32 CRC = 0;
-		if (GPUCrashDataDepth < 0 || PushPopStack.Num() < GPUCrashDataDepth)
-		{
-			CRC = FCrc::StrCrc32<TCHAR>(Name);
-
-		if (CachedStrings.Num() > 10000)
-		{
-			CachedStrings.Empty(10000);
-				CachedStrings.Emplace(EventDeepCRC, EventDeepString);
-		}
-
-		if (CachedStrings.Find(CRC) == nullptr)
-		{
-			CachedStrings.Emplace(CRC, FString(Name));
-		}
-				
-		}
-		else
-		{
-			CRC = EventDeepCRC;				
-		}
-		PushPopStack.Push(CRC);
-
-		auto AftermathContext = D3D11RHI->GetNVAftermathContext();
-		GFSDK_Aftermath_SetEventMarker(AftermathContext, &PushPopStack[0], PushPopStack.Num() * sizeof(uint32));
-	}
-#endif
-
 #if WITH_DX_PERF
 	D3DPERF_BeginEvent(Color.DWColor(),Name);
 #endif
@@ -541,96 +536,11 @@ void FD3DGPUProfiler::PushEvent(const TCHAR* Name, FColor Color)
 
 void FD3DGPUProfiler::PopEvent()
 {
-#if NV_AFTERMATH
-	if (GDX11NVAfterMathEnabled && bTrackingGPUCrashData && GDX11NVAfterMathMarkers)
-	{
-		PushPopStack.Pop(EAllowShrinking::No);
-	}
-#endif
-
 #if WITH_DX_PERF
 	D3DPERF_EndEvent();
 #endif
 
 	FGPUProfiler::PopEvent();
-}
-
-extern CORE_API bool GIsGPUCrashed;
-bool FD3DGPUProfiler::CheckGpuHeartbeat(bool bShowActiveStatus) const
-{
-#if NV_AFTERMATH
-#define NVAFTERMATH_ON_ERROR() do { if (D3D11RHI) { D3D11RHI->StopNVAftermath(); GDX11NVAfterMathEnabled = false; } } while (false)
-
-	if (GDX11NVAfterMathEnabled && bTrackingGPUCrashData)
-	{
-		GFSDK_Aftermath_Device_Status Status;
-		GFSDK_Aftermath_Result Result;
-		{
-			FScopedD3D11RHIThreadStaller StallRHIThread;
-			Result = GFSDK_Aftermath_GetDeviceStatus(&Status);
-		}
-		if (Result == GFSDK_Aftermath_Result_Success)
-		{
-			if (Status != GFSDK_Aftermath_Device_Status_Active || bShowActiveStatus)
-			{
-				GIsGPUCrashed = true;
-				const TCHAR* AftermathReason[] = { TEXT("Active"), TEXT("Timeout"), TEXT("OutOfMemory"), TEXT("PageFault"), TEXT("Stopped"), TEXT("Reset"), TEXT("Unknown"), TEXT("DmaFault") };
-				if (Status < UE_ARRAY_COUNT(AftermathReason))
-				{
-					UE_LOG(LogRHI, Error, TEXT("[Aftermath] Status: %s"), AftermathReason[Status]);
-				}
-				else
-				{
-					UE_LOG(LogRHI, Error, TEXT("[Aftermath] Invalid Status result value: %u"), Status);
-				}
-				GFSDK_Aftermath_ContextHandle AftermathContext = D3D11RHI->GetNVAftermathContext();
-
-				if (AftermathContext)
-				{
-					GFSDK_Aftermath_ContextData ContextDataOut;
-					{
-						FScopedD3D11RHIThreadStaller StallRHIThread;
-						Result = GFSDK_Aftermath_GetData(1, &AftermathContext, &ContextDataOut);
-					}
-					if (Result == GFSDK_Aftermath_Result_Success)
-					{
-						UE_LOG(LogRHI, Error, TEXT("[Aftermath] GPU Stack Dump"));
-						uint32 NumCRCs = ContextDataOut.markerSize / sizeof(uint32);
-						uint32* Data = (uint32*)ContextDataOut.markerData;
-						for (uint32 i = 0; i < NumCRCs; i++)
-						{
-							const FString* Frame = CachedStrings.Find(Data[i]);
-							if (Frame != nullptr)
-							{
-								UE_LOG(LogRHI, Error, TEXT("[Aftermath] %i: %s"), i, *(*Frame));
-							}
-						}
-						UE_LOG(LogRHI, Error, TEXT("[Aftermath] GPU Stack Dump"));
-					}
-					else
-					{
-						UE_LOG(LogRHI, Error, TEXT("[Aftermath] GFSDK_Aftermath_GetData failed with result: 0x%08X"), (uint32)Result);
-						NVAFTERMATH_ON_ERROR();
-					}
-				}
-				else
-				{
-					UE_LOG(LogRHI, Error, TEXT("[Aftermath] Invalid context handle"));
-					NVAFTERMATH_ON_ERROR();
-				}
-				GLog->Flush();
-				return false;
-			}
-		}
-		else
-		{
-			UE_LOG(LogRHI, Error, TEXT("[Aftermath] GFSDK_Aftermath_GetDeviceStatus failed with result: 0x%08X"), (uint32)Result);
-			NVAFTERMATH_ON_ERROR();
-		}
-	}
-#undef NVAFTERMATH_ON_ERROR
-#endif
-	return true;
 }
 
 /** Start this frame of per tracking */
@@ -670,6 +580,8 @@ void FD3D11EventNodeFrame::LogDisjointQuery()
 	}
 }
 
+#endif // (RHI_NEW_GPU_PROFILER == 0)
+
 static void D3D11UpdateBufferStatsCommon(ID3D11Buffer* Buffer, int64 BufferSize, bool bAllocating)
 {
 	// this is a work-around on Windows. Due to the fact that there is no way
@@ -705,6 +617,18 @@ void D3D11BufferStats::UpdateBufferStats(FD3D11Buffer& Buffer, bool bAllocating)
 		UE::RHICore::UpdateGlobalBufferStats(BufferDesc, BufferDesc.Size, bAllocating);
 		D3D11UpdateBufferStatsCommon(Resource, BufferDesc.Size, bAllocating);
 	}
+}
+
+void FD3D11DynamicRHI::UpdateMemoryStats()
+{
+#if PLATFORM_WINDOWS && (STATS || CSV_PROFILER_STATS)
+	// Some older drivers don't support querying memory stats, so don't do anything if this fails.
+	FD3DMemoryStats MemoryStats;
+	if (SUCCEEDED(UE::DXGIUtilities::GetD3DMemoryStats(GetAdapter().DXGIAdapter, MemoryStats)))
+	{
+		UpdateD3DMemoryStatsAndCSV(MemoryStats, true);
+	}
+#endif // PLATFORM_WINDOWS && (STATS || CSV_PROFILER_STATS)
 }
 
 ID3D11Device* FD3D11DynamicRHI::RHIGetDevice() const
@@ -773,3 +697,20 @@ void FD3D11DynamicRHI::RHIVerifyResult(ID3D11Device* Device, HRESULT Result, con
 {
 	VerifyD3D11Result(Result, Code, Filename, Line, Device);
 }
+
+#if RHI_NEW_GPU_PROFILER
+void FD3D11DynamicRHI::InsertProfilerTimestamp(uint64* Target)
+{
+	FD3D11RenderQuery* Query;
+	if (Profiler.TimestampPool.IsEmpty())
+	{
+		Query = new FD3D11RenderQuery(FD3D11RenderQuery::EType::Profiler);
+	}
+	else
+	{
+		Query = Profiler.TimestampPool.Pop();
+	}
+
+	Query->End(Direct3DDeviceIMContext, Target);
+}
+#endif // RHI_NEW_GPU_PROFILER

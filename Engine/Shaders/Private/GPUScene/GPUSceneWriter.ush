@@ -246,7 +246,7 @@ void WriteInstanceDynamicDataWS(uint InstanceId, uint PrimitiveId, FDFMatrix Pre
 void WriteInstanceDynamicDataLS(FInstancePayloadDataOffsets PayloadOffsets, uint PrimitiveId, float4x4 PrevLocalToPrimitive)
 {
 	FDFMatrix PrevLocalToWorld = DFMultiply(PrevLocalToPrimitive, GetPrimitiveData(PrimitiveId).PreviousLocalToWorld);
-	return WriteInstanceDynamicDataWS(PayloadOffsets, PrimitiveId, PrevLocalToWorld);
+	WriteInstanceDynamicDataWS(PayloadOffsets, PrimitiveId, PrevLocalToWorld);
 }
 
 void WriteInstanceDynamicDataLS(uint InstanceId, uint PrimitiveId, float4x4 PrevLocalToPrimitive)

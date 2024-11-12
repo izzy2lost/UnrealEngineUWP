@@ -1,13 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaRundownPageDetails.h"
+
 #include "Async/Async.h"
+#include "Framework/Application/SlateApplication.h"
 #include "IAvaMediaModule.h"
 #include "Input/Reply.h"
 #include "Internationalization/Text.h"
 #include "RemoteControl/Controllers/SAvaRundownRCControllerPanel.h"
 #include "Rundown/AvaRundown.h"
 #include "Rundown/AvaRundownEditor.h"
+#include "Rundown/AvaRundownEditorSettings.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPage.h"
 #include "Rundown/DetailsView/RemoteControl/Properties/SAvaRundownPageRemoteControlProps.h"
@@ -23,6 +26,15 @@
 
 #define LOCTEXT_NAMESPACE "SAvaRundownPageDetails"
 
+namespace UE::AvaMedia::RundownEditor::Private
+{
+	bool ShouldPageDetailsShowProperties()
+	{
+		const UAvaRundownEditorSettings* RundownEditorSettings = UAvaRundownEditorSettings::Get();
+		return RundownEditorSettings && RundownEditorSettings->bPageDetailsShowProperties;
+	}
+}
+
 void SAvaRundownPageDetails::Construct(const FArguments& InArgs, const TSharedPtr<FAvaRundownEditor>& InRundownEditor)
 {
 	RundownEditorWeak = InRundownEditor;
@@ -30,6 +42,13 @@ void SAvaRundownPageDetails::Construct(const FArguments& InArgs, const TSharedPt
 
 	InRundownEditor->GetOnPageEvent().AddSP(this, &SAvaRundownPageDetails::OnPageEvent);
 	IAvaMediaModule::Get().GetManagedInstanceCache().OnEntryInvalidated.AddSP(this, &SAvaRundownPageDetails::OnManagedInstanceCacheEntryInvalidated);
+
+	UAvaRundown* const Rundown = InRundownEditor->GetRundown();
+	if (IsValid(Rundown))
+	{
+		Rundown->GetOnPagesChanged().AddSP(this, &SAvaRundownPageDetails::OnPagesChanged);
+		Rundown->GetOnPageListChanged().AddSP(this, &SAvaRundownPageDetails::OnPageListChanged);
+	}
 
 	TSharedRef<SHorizontalBox> AnimationHeader = SNew(SHorizontalBox);
 	{
@@ -144,7 +163,7 @@ void SAvaRundownPageDetails::Construct(const FArguments& InArgs, const TSharedPt
 				[
 					SNew(SButton)
 					.ContentPadding(0)
-					.ButtonStyle(FAppStyle::Get(), "NoBorder")
+					.ButtonStyle(FAppStyle::Get(), TEXT("SimpleButton"))
 					.OnClicked(this, &SAvaRundownPageDetails::ToggleExposedPropertiesVisibility)
 					.ToolTipText(LOCTEXT("VisibilityButtonToolTip", "Toggle Exposed Properties Visibility"))
 					.Content()
@@ -167,12 +186,10 @@ void SAvaRundownPageDetails::Construct(const FArguments& InArgs, const TSharedPt
 			.AutoHeight()
 			[
 				SAssignNew(RemoteControlProps, SAvaRundownPageRemoteControlProps, InRundownEditor)
-				.Visibility(EVisibility::Collapsed)
+				.Visibility(UE::AvaMedia::RundownEditor::Private::ShouldPageDetailsShowProperties() ? EVisibility::Visible : EVisibility::Collapsed)
 			]
 		]
 	];
-
-	OnPageSelectionChanged({});
 }
 
 SAvaRundownPageDetails::~SAvaRundownPageDetails()
@@ -180,8 +197,14 @@ SAvaRundownPageDetails::~SAvaRundownPageDetails()
 	if (const TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin())
 	{
 		RundownEditor->GetOnPageEvent().RemoveAll(this);
+		UAvaRundown* const Rundown = RundownEditor->GetRundown();
+		if (IsValid(Rundown))
+		{
+			Rundown->GetOnPagesChanged().RemoveAll(this);
+			Rundown->GetOnPageListChanged().RemoveAll(this);
+		}
 	}
-	if (IAvaMediaModule::IsModuleLoaded())
+	if (IAvaMediaModule::IsModuleLoaded() && IAvaMediaModule::Get().IsManagedInstanceCacheAvailable())
 	{
 		IAvaMediaModule::Get().GetManagedInstanceCache().OnEntryInvalidated.RemoveAll(this);
 	}
@@ -189,17 +212,21 @@ SAvaRundownPageDetails::~SAvaRundownPageDetails()
 
 void SAvaRundownPageDetails::OnPageEvent(const TArray<int32>& InSelectedPageIds, UE::AvaRundown::EPageEvent InPageEvent)
 {
+	bool bRefreshPanels = false;
 	if (InPageEvent == UE::AvaRundown::EPageEvent::SelectionChanged || InPageEvent == UE::AvaRundown::EPageEvent::ReimportRequest)
 	{
-		OnPageSelectionChanged(InSelectedPageIds);
+		const int32 PreviousActivePageId = ActivePageId;
+		ActivePageId = InSelectedPageIds.IsEmpty() ? FAvaRundownPage::InvalidPageId : InSelectedPageIds[0];
+
+		// Only refresh the panels if the page id changed or if a reimport request (forced refresh).
+		bRefreshPanels = ActivePageId != PreviousActivePageId || InPageEvent == UE::AvaRundown::EPageEvent::ReimportRequest;
+	}
+
+	if (bRefreshPanels)
+	{
 		RemoteControlProps->Refresh(InSelectedPageIds);
 		RCControllerPanel->Refresh(InSelectedPageIds);
 	}
-}
-
-void SAvaRundownPageDetails::OnPageSelectionChanged(const TArray<int32>& InSelectedPageIds)
-{
-	ActivePageId = InSelectedPageIds.IsEmpty() ? FAvaRundownPage::InvalidPageId : InSelectedPageIds[0];
 }
 
 void SAvaRundownPageDetails::OnManagedInstanceCacheEntryInvalidated(const FSoftObjectPath& InAssetPath)
@@ -218,20 +245,10 @@ void SAvaRundownPageDetails::OnManagedInstanceCacheEntryInvalidated(const FSoftO
 				{
 					if (SelectedPage.GetAssetPath(Rundown) == InAssetPath)
 					{
-						bRefreshSelectedPageQueued = true;
 						// Queue a refresh on next tick.
 						// We don't want to refresh immediately to avoid issues with
 						// cascading events within the managed instance cache.
-						TWeakPtr<SWidget> ThisWeak(AsShared());
-						AsyncTask(ENamedThreads::GameThread, [ThisWeak]()
-							{
-								if (const TSharedPtr<SWidget> ThisWidget = ThisWeak.Pin())
-								{
-									SAvaRundownPageDetails* AvaPageDetails = static_cast<SAvaRundownPageDetails*>(ThisWidget.Get());
-									AvaPageDetails->RefreshSelectedPage();
-									AvaPageDetails->bRefreshSelectedPageQueued = false;
-								}
-							});
+						QueueUpdateAndRefreshSelectedPage();
 					}
 				}
 			}
@@ -241,13 +258,19 @@ void SAvaRundownPageDetails::OnManagedInstanceCacheEntryInvalidated(const FSoftO
 
 FReply SAvaRundownPageDetails::ToggleExposedPropertiesVisibility()
 {
-	if (RemoteControlProps->GetVisibility() == EVisibility::Collapsed)
+	if (UAvaRundownEditorSettings* RundownEditorSettings = UAvaRundownEditorSettings::GetMutable())
 	{
-		RemoteControlProps->SetVisibility(EVisibility::SelfHitTestInvisible);
-	}
-	else
-	{
-		RemoteControlProps->SetVisibility(EVisibility::Collapsed);
+		RundownEditorSettings->bPageDetailsShowProperties = !RundownEditorSettings->bPageDetailsShowProperties;
+		RundownEditorSettings->SaveConfig();
+
+		if (RundownEditorSettings->bPageDetailsShowProperties)
+		{
+			RemoteControlProps->SetVisibility(EVisibility::SelfHitTestInvisible);
+		}
+		else
+		{
+			RemoteControlProps->SetVisibility(EVisibility::Collapsed);
+		}
 	}
 
 	return FReply::Handled();
@@ -255,13 +278,13 @@ FReply SAvaRundownPageDetails::ToggleExposedPropertiesVisibility()
 
 const FSlateBrush* SAvaRundownPageDetails::GetExposedPropertiesVisibilityBrush() const
 {
-	if (RemoteControlProps->GetVisibility() == EVisibility::Collapsed)
+	if (UE::AvaMedia::RundownEditor::Private::ShouldPageDetailsShowProperties())
 	{
-		return FAppStyle::GetBrush("Level.NotVisibleHighlightIcon16x");
+		return FAppStyle::GetBrush(TEXT("Level.VisibleHighlightIcon16x"));
 	}
 	else
 	{
-		return FAppStyle::GetBrush("Level.VisibleHighlightIcon16x");
+		return FAppStyle::GetBrush(TEXT("Level.NotVisibleHighlightIcon16x"));
 	}
 }
 
@@ -289,16 +312,46 @@ FAvaRundownPage& SAvaRundownPageDetails::GetMutableSelectedPage() const
 	return FAvaRundownPage::NullPage;
 }
 
-void SAvaRundownPageDetails::RefreshSelectedPage()
+void SAvaRundownPageDetails::QueueRefreshSelectedPage()
 {
-	const FAvaRundownPage& SelectedPage = GetSelectedPage();
-
-	if (SelectedPage.IsValidPage())
+	if (bRefreshSelectedPageQueued)
 	{
-		OnPageSelectionChanged({SelectedPage.GetPageId()});
-		RemoteControlProps->UpdateDefaultValuesAndRefresh({SelectedPage.GetPageId()});
-		RCControllerPanel->Refresh({SelectedPage.GetPageId()});
+		return;
 	}
+	bRefreshSelectedPageQueued = true;
+	
+	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSPLambda(this, [this](float)
+	{
+		const FAvaRundownPage& SelectedPage = GetSelectedPage();
+		if (SelectedPage.IsValidPage())
+		{
+			RemoteControlProps->Refresh({SelectedPage.GetPageId()});
+			RCControllerPanel->Refresh({SelectedPage.GetPageId()});
+		}
+		bRefreshSelectedPageQueued = false;
+		return false;
+	}));
+}
+
+void SAvaRundownPageDetails::QueueUpdateAndRefreshSelectedPage()
+{
+	if (bUpdateAndRefreshSelectedPageQueued)
+	{
+		return;
+	}
+	bUpdateAndRefreshSelectedPageQueued = true;
+
+	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSPLambda(this, [this](float)
+	{
+		const FAvaRundownPage& SelectedPage = GetSelectedPage();
+		if (SelectedPage.IsValidPage())
+		{
+			RemoteControlProps->UpdateDefaultValuesAndRefresh({SelectedPage.GetPageId()});
+			RemoteControlProps->Refresh({SelectedPage.GetPageId()});
+		}
+		bUpdateAndRefreshSelectedPageQueued = true;
+		return false;
+	}));
 }
 
 bool SAvaRundownPageDetails::HasSelectedPage() const
@@ -427,6 +480,26 @@ FReply SAvaRundownPageDetails::DuplicateSelectedPage()
 	PageList->SelectPages(SelectedPages);
 
 	return FReply::Handled();
+}
+
+void SAvaRundownPageDetails::OnPagesChanged(const UAvaRundown* InRundown, const FAvaRundownPage& InPage, const EAvaRundownPageChanges InChanges)
+{
+	// Refreshing the page while the mouse is captured will result in losing the capture
+	// and ending any drag event that is actively changing the value.
+	if (!FSlateApplication::Get().GetMouseCaptureWindow() && InPage.GetPageId() == ActivePageId)
+	{
+		// Queue a refresh on next tick to avoid issues with cascading events.
+		QueueRefreshSelectedPage();
+	}
+}
+
+void SAvaRundownPageDetails::OnPageListChanged(const FAvaRundownPageListChangeParams& InParams)
+{
+	// If the current page is removed, fire off a selection changed immediately.
+	if (InParams.AffectedPages.Contains(ActivePageId) && EnumHasAnyFlags(InParams.ChangeType, EAvaRundownPageListChange::RemovedPages))
+	{
+		OnPageEvent({}, UE::AvaRundown::EPageEvent::SelectionChanged);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

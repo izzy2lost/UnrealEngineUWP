@@ -35,6 +35,7 @@ private:
 		RouteId_HeapUnmarkAlloc,
 		RouteId_MemScopeTag,
 		RouteId_MemScopePtr,
+		RouteId_MemSwapOp,
 	};
 
 public:

@@ -12,10 +12,13 @@
 UFlyingMode::UFlyingMode(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	GameplayTags.AddTag(Mover_IsInAir);
+	GameplayTags.AddTag(Mover_IsFlying);
 }
 
 void UFlyingMode::OnGenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, FProposedMove& OutProposedMove) const
 {
+	const UMoverComponent* MoverComp = GetMoverComponent();
 	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
@@ -26,7 +29,8 @@ void UFlyingMode::OnGenerateMove(const FMoverTickStartData& StartState, const FM
 	if (CharacterInputs)
 	{
 		Params.MoveInputType = CharacterInputs->GetMoveInputType();
-		Params.MoveInput = CharacterInputs->GetMoveInput();
+		const bool bMaintainInputMagnitude = true;
+		Params.MoveInput = UPlanarConstraintUtils::ConstrainDirectionToPlane(MoverComp->GetPlanarConstraint(), CharacterInputs->GetMoveInput_WorldSpace(), bMaintainInputMagnitude);
 	}
 	else
 	{
@@ -60,9 +64,9 @@ void UFlyingMode::OnGenerateMove(const FMoverTickStartData& StartState, const FM
 
 void UFlyingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState)
 {
+	const UMoverComponent* MoverComp = GetMoverComponent();
 	const FMoverTickStartData& StartState = Params.StartState;
-	USceneComponent* UpdatedComponent = Params.UpdatedComponent;
-	UPrimitiveComponent* UpdatedPrimitive = Params.UpdatedPrimitive;
+	USceneComponent* UpdatedComponent = Params.MovingComps.UpdatedComponent.Get();
 	FProposedMove ProposedMove = Params.ProposedMove;
 
 	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
@@ -73,17 +77,10 @@ void UFlyingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTi
 
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
 
-	// Instantaneous movement changes that are executed and we exit before consuming any time
-	if (ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), *StartingSyncState, OutputState))
-	{
-		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs; 	// Give back all the time
-		return;
-	}
-
 	FMovementRecord MoveRecord;
 	MoveRecord.SetDeltaSeconds(DeltaSeconds);
 
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable();
 
 	SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);	// flying = no valid floor
 	SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
@@ -97,7 +94,7 @@ void UFlyingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTi
 	bool bIsOrientationChanging = false;
 
 	// Apply orientation changes (if any)
-	if (!ProposedMove.AngularVelocity.IsZero())
+	if (!UMovementUtils::IsAngularVelocityZero(ProposedMove.AngularVelocity))
 	{
 		TargetOrient += (ProposedMove.AngularVelocity * DeltaSeconds);
 		bIsOrientationChanging = (TargetOrient != StartingOrient);
@@ -109,7 +106,7 @@ void UFlyingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTi
 
 	if (!MoveDelta.IsNearlyZero() || bIsOrientationChanging)
 	{
-		UMovementUtils::TrySafeMoveUpdatedComponent(UpdatedComponent, UpdatedPrimitive, MoveDelta, OrientQuat, true, Hit, ETeleportType::None, MoveRecord);
+		UMovementUtils::TrySafeMoveUpdatedComponent(Params.MovingComps, MoveDelta, OrientQuat, true, Hit, ETeleportType::None, MoveRecord);
 	}
 
 	if (Hit.IsValidBlockingHit())
@@ -118,34 +115,11 @@ void UFlyingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTi
 		FMoverOnImpactParams ImpactParams(DefaultModeNames::Flying, Hit, MoveDelta);
 		MoverComponent->HandleImpact(ImpactParams);
 		// Try to slide the remaining distance along the surface.
-		UMovementUtils::TryMoveToSlideAlongSurface(UpdatedComponent, UpdatedPrimitive, MoverComponent, MoveDelta, 1.f - Hit.Time, OrientQuat, Hit.Normal, Hit, true, MoveRecord);
+		UMovementUtils::TryMoveToSlideAlongSurface(FMovingComponentSet(MoverComponent), MoveDelta, 1.f - Hit.Time, OrientQuat, Hit.Normal, Hit, true, MoveRecord);
 	}
 
 	CaptureFinalState(UpdatedComponent, MoveRecord, *StartingSyncState, OutputSyncState, DeltaSeconds);
 }
-
-
-bool UFlyingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FMoverDefaultSyncState& StartingSyncState, FMoverTickEndData& Output)
-{
-	if (UpdatedComponent->GetOwner()->TeleportTo(TeleportPos, TeleportRot))
-	{
-		FMoverDefaultSyncState& OutputSyncState = Output.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
-
-		OutputSyncState.SetTransforms_WorldSpace( UpdatedComponent->GetComponentLocation(),
-												  UpdatedComponent->GetComponentRotation(),
-												  StartingSyncState.GetVelocity_WorldSpace(),
-												  nullptr); // no movement base
-
-		UpdatedComponent->ComponentVelocity = StartingSyncState.GetVelocity_WorldSpace();
-
-		GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastFloorResult);
-
-		return true;
-	}
-
-	return false;
-}
-
 
 // TODO: replace this function with simply looking at/collapsing the MovementRecord
 void UFlyingMode::CaptureFinalState(USceneComponent* UpdatedComponent, FMovementRecord& Record, const FMoverDefaultSyncState& StartSyncState, FMoverDefaultSyncState& OutputSyncState, const float DeltaSeconds) const

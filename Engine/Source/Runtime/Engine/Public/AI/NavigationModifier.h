@@ -104,6 +104,7 @@ struct FAreaNavModifier : public FNavigationModifier
 	ENGINE_API FAreaNavModifier(const FVector& Extent, const FTransform& LocalToWorld, const TSubclassOf<UNavAreaBase> AreaClass);
 	ENGINE_API FAreaNavModifier(const FBox& Box, const FTransform& LocalToWorld, const TSubclassOf<UNavAreaBase> AreaClass);
 	ENGINE_API FAreaNavModifier(const TArray<FVector>& Points, ENavigationCoordSystem::Type CoordType, const FTransform& LocalToWorld, const TSubclassOf<UNavAreaBase> AreaClass);
+	ENGINE_API FAreaNavModifier(const TConstArrayView<FVector> Points, ENavigationCoordSystem::Type CoordType, const FTransform& LocalToWorld, const TSubclassOf<UNavAreaBase> AreaClass);
 	ENGINE_API FAreaNavModifier(const TArray<FVector>& Points, const int32 FirstIndex, const int32 LastIndex, ENavigationCoordSystem::Type CoordType, const FTransform& LocalToWorld, const TSubclassOf<UNavAreaBase> AreaClass);
 	ENGINE_API FAreaNavModifier(const TNavStatArray<FVector>& Points, const int32 FirstIndex, const int32 LastIndex, ENavigationCoordSystem::Type CoordType, const FTransform& LocalToWorld, const TSubclassOf<UNavAreaBase> AreaClass);
 	UE_DEPRECATED(5.0, "FAreaNavModifier constructor with a UBrushComponent* parameter has been deprecated since it wasn't able to handle concave shapes. Use FCompositeNavModifier::CreateAreaModifiers instead")
@@ -336,7 +337,7 @@ struct FCompositeNavModifier : public FNavigationModifier
 		}
 	}
 
-	ENGINE_API void CreateAreaModifiers(const UPrimitiveComponent* PrimComp, const TSubclassOf<UNavAreaBase> AreaClass);
+	ENGINE_API void CreateAreaModifiers(const UPrimitiveComponent* PrimComp, const TSubclassOf<UNavAreaBase> AreaClass, const TSubclassOf<UNavAreaBase> AreaClassToReplace = {});
 	ENGINE_API void CreateAreaModifiers(const FCollisionShape& CollisionShape, const FTransform& LocalToWorld, const TSubclassOf<UNavAreaBase> AreaClass, const bool bIncludeAgentHeight = false);
 
 	FORCEINLINE const TArray<FAreaNavModifier>& GetAreas() const { return Areas; }
@@ -361,11 +362,11 @@ struct FCompositeNavModifier : public FNavigationModifier
     void MarkAsPerInstanceModifier() { bIsPerInstanceModifier = true; }
 
 	/** returns a copy of Modifier */
-	ENGINE_API FCompositeNavModifier GetInstantiatedMetaModifier(const struct FNavAgentProperties* NavAgent, TWeakObjectPtr<UObject> WeakOwnerPtr) const;
-	ENGINE_API uint32 GetAllocatedSize() const;
+	ENGINE_API FCompositeNavModifier GetInstantiatedMetaModifier(const FNavAgentProperties* NavAgent, const TWeakObjectPtr<const UObject>& WeakOwnerPtr) const;
+	UE_DEPRECATED(5.5, "Use the version taking a const reference instead.")
+	ENGINE_API FCompositeNavModifier GetInstantiatedMetaModifier(const FNavAgentProperties* NavAgent, TWeakObjectPtr<UObject> WeakOwnerPtr) const;
 
-	UE_DEPRECATED(4.24, "This method will be removed in future versions. Use FNavigationRelevantData::HasPerInstanceTransforms instead.")
-	ENGINE_API bool HasPerInstanceTransforms() const;
+	ENGINE_API uint32 GetAllocatedSize() const;
 
 	TArray<FAreaNavModifier>& GetMutableAreas() { return Areas; }
 	TArray<FSimpleLinkNavModifier>& GetSimpleLinks() { return SimpleLinks; }
@@ -391,7 +392,3 @@ private:
 	uint32 bMaskFillCollisionUnderneathForNavmesh : 1;
 	ENavigationDataResolution NavMeshResolution;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

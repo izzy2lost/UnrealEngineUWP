@@ -45,13 +45,15 @@ FRDGViewableResource::FRDGViewableResource(const TCHAR* InName, const ERDGViewab
 	, bSplitFirstTransition(bInSplitFirstTransition)
 	, bQueuedForUpload(0)
 	, bCollectForAllocate(1)
-	, bQueuedForReservedCommit(0)
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	, bHeapAllocatedDebugName(0)
+#endif
 	, TransientExtractionHint(ETransientExtractionHint::None)
 	, ReferenceCount(IsImmediateMode() ? 1 : 0)
 {
 	if (bSkipTracking)
 	{
-		SetExternalAccessMode(ERHIAccess::ReadOnlyExclusiveMask, ERHIPipeline::All);
+		SetExternalAccessMode(ERHIAccess::Mask, ERHIPipeline::All);
 		AccessModeState.bLocked = 1;
 		AccessModeState.ActiveMode = AccessModeState.Mode;
 	}
@@ -145,6 +147,35 @@ bool FRDGSubresourceState::IsTransitionRequired(const FRDGSubresourceState& Prev
 FRDGPooledBuffer::FRDGPooledBuffer(TRefCountPtr<FRHIBuffer> InBuffer, const FRDGBufferDesc& InDesc, uint32 InNumAllocatedElements, const TCHAR* InName)
 	: FRDGPooledBuffer(FRHICommandListImmediate::Get(), MoveTemp(InBuffer), InDesc, InNumAllocatedElements, InName)
 {}
+
+void FRDGPooledBuffer::SetDebugLabelName(FRHICommandListBase& RHICmdList, const TCHAR* InName)
+{
+#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	Name = InName;
+#else
+	// For performance, avoid updating name if it happens to be the same (true 80% of the time in testing)
+	bool bNameUpdated = false;
+	if (!InName || FCString::Strcmp(Name, InName))
+	{
+		// Name changed, need to update it
+		Name = InName;
+
+		RHICmdList.BindDebugLabelName(GetRHI(), InName);
+
+		bNameUpdated = true;
+	}
+
+	// Propagate the debug name to ViewCache if the name was updated, or if any items were added to ViewCache since the debug name was set
+	int32 ViewCacheNum = ViewCache.NumItems();
+	if (bNameUpdated || NameUpdatedViewCacheNum != ViewCacheNum)
+	{
+		NameUpdatedViewCacheNum = ViewCacheNum;
+		ViewCache.SetDebugName(RHICmdList, InName);
+	}
+#endif
+}
+
+FRDGUniformBuffer::~FRDGUniformBuffer() = default;
 
 void FRDGUniformBuffer::InitRHI()
 {

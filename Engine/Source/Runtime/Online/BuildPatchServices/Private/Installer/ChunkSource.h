@@ -45,5 +45,9 @@ namespace BuildPatchServices
 		 * @param Callback          The function to call with the set of chunks no longer still available.
 		 */
 		virtual void SetUnavailableChunksCallback(TFunction<void(TSet<FGuid>)> Callback) = 0;
+
+		// Inform the chunk source(s) that a file has been completed so we can clean up since we know we
+		// won't be going backwards for retries/resumes.
+		virtual void ReportFileCompletion() {}
 	};
 }

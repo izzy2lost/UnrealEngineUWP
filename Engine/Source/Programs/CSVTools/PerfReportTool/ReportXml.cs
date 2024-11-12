@@ -8,6 +8,7 @@ using System.Xml.Linq;
 using CSVStats;
 using PerfSummaries;
 using System.Globalization;
+using System.Text.Json;
 
 namespace PerfReportTool
 {
@@ -268,6 +269,19 @@ namespace PerfReportTool
 				columnFormatInfoList = new SummaryTableColumnFormatInfoCollection(summaryTableColumnInfoListEl);
 			}
 
+			// Read any metadata proxies
+			metadataProxyInfo = new Dictionary<string, string>();
+			XElement metadataProxiesMappingsElement = rootElement.Element("csvMetadataProxies");
+			if (metadataProxiesMappingsElement != null)
+			{
+				foreach (XElement proxy in metadataProxiesMappingsElement.Elements("csvMetadata"))
+				{
+					string key = proxy.FirstAttribute.Value.ToString().ToLower();
+					string value = proxy.Value.ToString().ToLower();
+					metadataProxyInfo[key] = value;
+				}
+			}
+
 			// Read the derived metadata mappings
 			derivedMetadataMappings = new DerivedMetadataMappings();
 			XElement derivedMetadataMappingsElement = rootElement.Element("derivedMetadataMappings");
@@ -302,17 +316,17 @@ namespace PerfReportTool
 			if (summaryTablesElement != null)
 			{
 				// Read the substitutions
-				Dictionary<string, string> substitutionsDict = null;
-				string[] substitutions = summaryTableXmlSubstStr.Split(',');
+				Dictionary<string, List<string>> substitutionsDict = null;
+				string[] substitutions = summaryTableXmlSubstStr.Split(';');
 				if (substitutions.Length>0)
 				{
-					substitutionsDict = new Dictionary<string, string>();
+					substitutionsDict = new Dictionary<string, List<string>>();
 					foreach (string substStr in substitutions)
 					{
 						string [] pair = substStr.Split('=');
 						if (pair.Length == 2)
 						{
-							substitutionsDict[pair[0]] = pair[1];
+							substitutionsDict[pair[0].ToLowerInvariant()] = pair[1].Split(",").ToList();
 						}
 					}
 				}
@@ -428,6 +442,7 @@ namespace PerfReportTool
 			}
 
 			// Load the graphs
+			List<ReportGraph> invalidGraphs = new List<ReportGraph>();
 			foreach (ReportGraph graph in reportTypeInfo.graphs)
 			{
 				if (graph.isInline)
@@ -437,7 +452,17 @@ namespace PerfReportTool
 						GraphSettings parentSettings = null;
 						if (!graphs.TryGetValue(graph.parent.ToLower(), out parentSettings))
 						{
-							throw new Exception("Parent graph with title \"" + graph.parent + "\" was not found in graphs XML");
+							if (bBulkMode)
+							{
+								Console.Error.WriteLine("Parent graph with title \"" + graph.parent + "\" was not found in graphs XML. Skipping.");
+								invalidGraphs.Add(graph);
+								continue;
+							}
+							else
+							{
+								// Fatal in non-bulk mode
+								throw new Exception("Parent graph with title \"" + graph.parent + "\" was not found in graphs XML");
+							}
 						}
 						graph.settings.InheritFrom(parentSettings);
 					}
@@ -446,10 +471,22 @@ namespace PerfReportTool
 				{
 					if (!graphs.TryGetValue(graph.title.ToLower(), out graph.settings))
 					{
-						throw new Exception("Graph with title \"" + graph.title + "\" was not found in graphs XML");
+						if (bBulkMode)
+						{
+							Console.Error.WriteLine("Graph with title \"" + graph.title + "\" was not found in graphs XML. Skipping");
+							invalidGraphs.Add(graph);
+						}
+						else
+						{
+							// Fatal in non-bulk mode
+							throw new Exception("Graph with title \"" + graph.title + "\" was not found in graphs XML");
+						}
 					}
 				}
 			}
+
+			// Strip any invalid graphs
+			reportTypeInfo.graphs.RemoveAll((graph) => invalidGraphs.Contains(graph));
 
 			foreach (Summary summary in reportTypeInfo.summaries)
 			{
@@ -563,6 +600,16 @@ namespace PerfReportTool
 			return summaryTables.Keys.ToList();
 		}
 
+		public string GetMetadataProxyInfo(string key)
+		{
+			string lowerKey = key.ToLower();
+			if (metadataProxyInfo.ContainsKey(lowerKey))
+			{
+				return metadataProxyInfo[lowerKey];
+			}
+			return "";
+		}
+
 		Dictionary<string, SummaryTableInfo> summaryTables;
 
 		XElement reportTypesElement;
@@ -575,6 +622,7 @@ namespace PerfReportTool
 		Dictionary<string, XElement> sharedSummaries;
 		Dictionary<string, GraphSettings> graphs;
 		Dictionary<string, string> statDisplayNameMapping;
+		Dictionary<string, string> metadataProxyInfo;
 		public SummaryTableColumnFormatInfoCollection columnFormatInfoList;
 		string baseXmlDirectory;
 
@@ -621,16 +669,46 @@ namespace PerfReportTool
 				}
 			}
 		}
+		public void SerializeToJson(string Filename, string toMatch, string toIgnore)
+		{
+			string[] keys = vars.Keys.ToArray();
+			List<string> MatchedKeys = new List<string>();
+			foreach (string key in keys)
+			{
+				if (key.Contains(toMatch) && (toIgnore.Length==0 || !key.Contains(toIgnore)))
+				{
+					MatchedKeys.Add(key);
+				}
+			}
+
+			if (MatchedKeys.Any())
+			{
+				MatchedKeys.Sort();
+
+				Dictionary<string, string> MatchedVars = new Dictionary<string, string>();
+				foreach (string key in MatchedKeys)
+				{
+					if (vars.ContainsKey(key) && vars[key].Any())
+					{
+						MatchedVars[key] = vars[key].Replace(", ", ",").Replace(",", ", ");
+					}
+				}
+
+				JsonSerializerOptions options = new JsonSerializerOptions { WriteIndented = true };
+				FileStream createStream = File.Create(Filename);
+				JsonSerializer.Serialize(createStream, MatchedVars, options);
+				createStream.Dispose();
+			}
+		}
 
 		public string ResolveVariables(string attributeValue)
 		{
-			// Remap all variables found in the attribute name
 			if (!attributeValue.Contains('$'))
 			{
 				return attributeValue;
 			}
 
-			// Remap all variables found in the attribute name
+			// Remap all variables found in the attribute value
 			int StringPos = 0;
 			while (StringPos < attributeValue.Length)
 			{
@@ -650,12 +728,14 @@ namespace PerfReportTool
 
 				string FullVariableName = attributeValue.Substring(VarStartIndex+2, VarEndIndex - VarStartIndex-2);
 				string VariableName = FullVariableName;
-				int ArrayIndex = -1;
+
+				string VariableValue = "";
 
 				// Check for an array index
 				int OpenBracketIndex = VariableName.IndexOf('[');
 				if (OpenBracketIndex != -1)
 				{
+					int ArrayIndex = -1;
 					if (FullVariableName.EndsWith("]"))
 					{
 						string ArrayIndexStr = VariableName.Substring(OpenBracketIndex + 1, VariableName.Length - 2 - OpenBracketIndex);
@@ -667,33 +747,42 @@ namespace PerfReportTool
 					if (ArrayIndex < 0)
 					{
 						Console.WriteLine("[Warning] Failed to resolve variable ${" + FullVariableName + "}. Can't read array index");
-						continue;
 					}
-					VariableName = FullVariableName.Substring(0, OpenBracketIndex);
-				}
-
-
-				// Replace the variable if found
-				if (vars.TryGetValue(VariableName, out string VariableValue))
-				{
-					attributeValue = attributeValue.Substring(0,VarStartIndex) + VariableValue + attributeValue.Substring(VarEndIndex+1);
-					if (ArrayIndex >= 0)
+					else
 					{
-						string[] elements = attributeValue.Split(",");
-						if (ArrayIndex >= elements.Length)
+						VariableName = FullVariableName.Substring(0, OpenBracketIndex);
+						if (vars.TryGetValue(VariableName, out VariableValue))
 						{
-							Console.WriteLine("[Warning] Failed to resolve variable ${" + FullVariableName + "}. Array index out of range!");
-							continue;
+							string[] elements = VariableValue.Split(",");
+							if (ArrayIndex < elements.Length)
+							{
+								VariableValue = elements[ArrayIndex];
+							}
+							else
+							{
+								Console.WriteLine("[Warning] Failed to resolve variable ${" + FullVariableName + "}. Array index out of range!");
+							}
 						}
-						attributeValue = elements[ArrayIndex];
+						else
+						{
+							Console.WriteLine("[Warning] Failed to resolve array variable ${" + FullVariableName + "}");
+							VariableValue = "";
+						}
 					}
-					// Adjust stringPos to take into account the replace
-					StringPos = VarStartIndex + VariableValue.Length;
 				}
-				else
+				else 
 				{
-					Console.WriteLine("[Warning] Failed to resolve variable ${" + VariableName + "}");
+					// Read the variable value. Default to empty string and replace anyway if not found
+					if (!vars.TryGetValue(VariableName, out VariableValue))
+					{
+						Console.WriteLine("[Warning] Failed to resolve variable ${" + VariableName + "}");
+						VariableValue = "";
+					}
 				}
+				
+				// Replace the variable name with its value and update StringPos to take into account the replace
+				attributeValue = attributeValue.Substring(0, VarStartIndex) + VariableValue + attributeValue.Substring(VarEndIndex + 1);
+				StringPos = VarStartIndex + VariableValue.Length;
 			}
 			return attributeValue;
 		}
@@ -820,8 +909,10 @@ namespace PerfReportTool
 				}
 			}
 			catch (FormatException e)
-			{
-				Console.WriteLine(string.Format("[Warning] Failed to convert XML attribute '{0}' '{1}' ({2})", attributeName, attributeValue, e.Message));
+			{	
+				// If the attribute value is empty (likely due to failed variable mapping), display the original version
+				string attributeValueToDisplay = attributeValue.Length > 0 ? attributeValue : attribute.Value;
+				Console.WriteLine(string.Format("[Warning] Failed to convert XML attribute '{0}' '{1}' ({2})", attributeName, attributeValueToDisplay, e.Message));
 				return defaultValue;
 			}
 		}

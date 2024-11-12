@@ -27,6 +27,9 @@
 #include "Templates/Atomic.h"
 #include "Trace/Trace.inl"
 
+// Enable to allow memory tracking to be passed through to external tools without the extra overhead of LLM also tracking allocations.
+#define UE_ONLY_USE_PLATFORM_TRACKER 0
+
 #if UE_ENABLE_ARRAY_SLACK_TRACKING
 
 // Specifies whether to generate the whole log file in memory before writing.  Switch uses an async thread for file writing,
@@ -935,7 +938,7 @@ UE_TRACE_EVENT_BEGIN(LLM, TagValue)
 	UE_TRACE_EVENT_FIELD(int64[], Values)
 UE_TRACE_EVENT_END()
 
-#define LLM_CSV_PROFILER_WRITER_ENABLED CSV_PROFILER 
+#define LLM_CSV_PROFILER_WRITER_ENABLED CSV_PROFILER_STATS
 
 #if LLM_CSV_PROFILER_WRITER_ENABLED
 	CSV_DEFINE_CATEGORY(LLM, true);
@@ -950,6 +953,9 @@ TAutoConsoleVariable<int32> CVarLLMWriteInterval(
 	1,
 	TEXT("The number of seconds between each line in the LLM csv (zero to write every frame)")
 );
+
+TAutoConsoleVariable<int32> CVarLLMCsvFlushEveryRow(TEXT("LLM.CsvFlushEveryRow"), 1,
+	TEXT("Whether to flush the CSV with every row written. If disabled we only flush on a crash"));
 
 TAutoConsoleVariable<int32> CVarLLMHeaderMaxSize(
 	TEXT("LLM.LLMHeaderMaxSize"),
@@ -1278,6 +1284,8 @@ public:
 
 	void OnPreFork();
 
+	void FlushOnCrash();
+
 private:
 	void Write(FStringView Text);
 	static const TCHAR* GetTrackerCsvName(ELLMTracker InTracker);
@@ -1295,6 +1303,7 @@ private:
 	double LastWriteTime;
 	int32 WriteCount;
 	ELLMTracker Tracker;
+	bool bRegisteredCrashDelegate;
 };
 
 /** Outputs the LLM tags and sizes to TraceLog events. */
@@ -1568,7 +1577,9 @@ protected:
 	// The total tracked memory when the snapshot was taken
 	int64 TrackedTotalInSnapshot;
 
+#if !UE_ONLY_USE_PLATFORM_TRACKER
 	FLLMAllocMap AllocationMap;
+#endif
 
 	FTrackerTagSizeMap TagSizes;
 
@@ -1695,6 +1706,29 @@ extern const TCHAR* LLMGetTagName(ELLMTag Tag)
 	else
 	{
 		return nullptr;
+	}
+}
+
+extern const FName LLMGetUntaggedTagName(ELLMTagSet TagSet)
+{
+	switch (TagSet)
+	{
+		case ELLMTagSet::None:
+		{
+			return TagName_Untagged;
+		}
+		case ELLMTagSet::Assets:
+		{
+			return TagName_UntaggedAsset;
+		}
+		case ELLMTagSet::AssetClasses:
+		{
+			return TagName_UntaggedAssetClass;
+		}
+		default:
+		{
+			return NAME_None;
+		}
 	}
 }
 
@@ -1892,6 +1926,7 @@ void FLowLevelMemTracker::OnPreFork()
 
 void FLowLevelMemTracker::UpdateStatsPerFrame(const TCHAR* LogName)
 {
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(LLM);
 #if UE_ENABLE_ARRAY_SLACK_TRACKING
 	// Slack tracking, when compiled in, can run even when regular LLM tracking is disabled
 	LlmTrackArrayTick();
@@ -3604,7 +3639,9 @@ const UE::LLMPrivate::FTagData* FLowLevelMemTracker::FindTagData(FName TagName, 
 
 void FLLMScope::Init(ELLMTag TagEnum, bool bInIsStatTag, ELLMTagSet InTagSet, ELLMTracker InTracker, bool bOverride)
 {
-	LLMCheck(!bInIsStatTag && InTagSet == ELLMTagSet::None);
+	// This scope does not support TagSets (use FLLMScopeDynamic instead), except for the special case of
+	// anonymized allocations, which are indicated with a TagSet and ELLMTag::EngineMisc
+	LLMCheck((!bInIsStatTag && InTagSet == ELLMTagSet::None) || (TagEnum == ELLMTag::EngineMisc));
 	// ELLMTag::FMalloc is a special tag expected to only be used by the Platform Tracker (see header where defined).
 	LLMCheck((TagEnum != ELLMTag::FMalloc) || (ELLMTracker::Platform == InTracker));
 
@@ -3866,6 +3903,10 @@ FLLMPauseScope::~FLLMPauseScope()
 	}
 }
 
+FLLMClearScope::FLLMClearScope(ELLMTagSet InTagSet, ELLMTracker InTracker)
+	: FLLMScope(nullptr, false, InTagSet, InTracker)
+{
+}
 
 FLLMScopeFromPtr::FLLMScopeFromPtr(void* Ptr, ELLMTracker InTracker)
 {
@@ -4707,7 +4748,9 @@ void FLLMTracker::Initialise(
 	TraceWriter.SetTracker(InTracker);
 	CsvProfilerWriter.SetTracker(InTracker);
 
+#if !UE_ONLY_USE_PLATFORM_TRACKER
 	AllocationMap.SetAllocator(InAllocator);
+#endif
 }
 
 FLLMThreadState* FLLMTracker::GetOrCreateState()
@@ -4846,6 +4889,7 @@ void FLLMTracker::TrackAllocation(const void* Ptr, int64 Size, const FTagData* A
 	// track on the thread state
 	State->TrackAllocation(Ptr, Size, Tracker, AllocType, ActiveTagData, AssetTagData, AssetClassTagData, bTrackInMemPro);
 
+#if !UE_ONLY_USE_PLATFORM_TRACKER
 	// tracking a nullptr with a Size is allowed, but we don't need to remember it, since we can't free it ever.
 	if (Ptr != nullptr)
 	{
@@ -4862,10 +4906,12 @@ void FLLMTracker::TrackAllocation(const void* Ptr, int64 Size, const FTagData* A
 		PointerKey Key(Ptr, SizeHigh);
 		AllocationMap.Add(Key, SizeLow, AllocInfo);
 	}
+#endif
 }
 
 void FLLMTracker::TrackFree(const void* Ptr, ELLMAllocType AllocType, bool bTrackInMemPro)
 {
+#if !UE_ONLY_USE_PLATFORM_TRACKER
 	// look up the pointer in the tracking map
 	FLLMAllocMap::Values Values;
 	{
@@ -4899,12 +4945,20 @@ void FLLMTracker::TrackFree(const void* Ptr, ELLMAllocType AllocType, bool bTrac
 	const FTagData* AssetTagData = nullptr;
 	const FTagData* AssetClassTagData = nullptr;
 #endif
+#else
+	FLLMThreadState* State = GetOrCreateState();
+	int64 Size = 0;
+	const FTagData* TagData = nullptr;
+	const FTagData* AssetTagData = nullptr;
+	const FTagData* AssetClassTagData = nullptr;
+#endif
 
 	State->TrackFree(Ptr, Size, Tracker, AllocType, TagData, AssetTagData, AssetClassTagData, bTrackInMemPro);
 }
 
 void FLLMTracker::OnAllocMoved(const void* Dest, const void* Source, ELLMAllocType AllocType)
 {
+#if !UE_ONLY_USE_PLATFORM_TRACKER
 	FLLMAllocMap::Values Values;
 	{
 		if (!AllocationMap.Remove(PointerKey(Source), Values))
@@ -4927,7 +4981,11 @@ void FLLMTracker::OnAllocMoved(const void* Dest, const void* Source, ELLMAllocTy
 	int64 Size = (SizeHigh << 32ull) | SizeLow;
 	const FLLMTracker::FLowLevelAllocInfo& AllocInfo = Values.Value2;
 	const FTagData* TagData = AllocInfo.GetTag(LLMRef);
-
+#else
+	// TODO: This loses the memory size of an allocation moved within a larger allocation.
+	int64 Size = 0;
+	const FTagData* TagData = nullptr;
+#endif
 	FLLMThreadState* State = GetOrCreateState();
 	State->TrackMoved(Dest, Source, Size, Tracker, TagData);
 }
@@ -5053,7 +5111,9 @@ void FLLMTracker::Clear()
 	}
 	ThreadStates.Empty();
 
+#if !UE_ONLY_USE_PLATFORM_TRACKER
 	AllocationMap.Clear();
+#endif
 
 	CsvWriter.Clear();
 	TraceWriter.Clear();
@@ -5111,7 +5171,9 @@ void FLLMTracker::Update()
 	{
 		LastTrimTime = CurrentTime;
 		{
+#if !UE_ONLY_USE_PLATFORM_TRACKER
 			AllocationMap.Trim();
+#endif
 		}
 	}
 
@@ -5273,6 +5335,7 @@ bool FLLMTracker::DumpForkedAllocationInfo()
 	}
 
 	CountsPerTag.Reserve(NumTags);
+#if !UE_ONLY_USE_PLATFORM_TRACKER
 	AllocationMap.LockAll();
 	for (const FLLMAllocMap::FTuple& Tuple : AllocationMap)
 	{
@@ -5401,6 +5464,7 @@ bool FLLMTracker::DumpForkedAllocationInfo()
 		}
 	}
 	AllocationMap.UnlockAll();
+#endif // !UE_ONLY_USE_PLATFORM_TRACKER
 
 	CountsPerTag.ValueSort([](const FCounts& A, const FCounts& B)
 	{
@@ -5491,7 +5555,7 @@ void FLLMTracker::PublishCsvProfiler(UE::LLM::ESizeParams SizeParams)
 
 void FLLMTracker::OnTagsResorted(FTagDataArray& OldTagDatas)
 {
-#if LLM_ENABLED_FULL_TAGS
+#if LLM_ENABLED_FULL_TAGS && !UE_ONLY_USE_PLATFORM_TRACKER
 	{
 		// Each allocation references the tag by its index, which we have just remapped.
 		// Remap each allocation's tag index to the new index for the tag.
@@ -5577,31 +5641,27 @@ void FLLMTracker::GetTagsNamesWithAmountFiltered(TMap<FName, uint64>& OutTagsNam
 		FName Name;
 		uint64 Size = 0;
 	};
-#if LLM_ENABLED_FULL_TAGS
-	TMap<int32, FLocalTagData> CompressedTagToTagData;
-#else
-	TMap<ELLMTag, FLocalTagData> CompressedTagToTagData;
-#endif
-	int32 NumTags;
+	TArray<FLocalTagData> TagDataCached;
 	{
 		FReadScopeLock TagDataScopeLock(LLMRef.TagDataLock);
-		NumTags = LLMRef.TagDatas->Num();
-	}
-	CompressedTagToTagData.Reserve(NumTags);
-	{
-		FReadScopeLock TagDataScopeLock(LLMRef.TagDataLock);
+		const int32 NumTags = LLMRef.TagDatas->Num();
+		TagDataCached.Init(FLocalTagData{}, NumTags);
 		for (FTagData* TagData : (*LLMRef.TagDatas))
 		{
 			FLLMTracker::FLowLevelAllocInfo AllocInfo;
 			AllocInfo.SetTag(TagData, LLMRef);
-			FLocalTagData& Data = CompressedTagToTagData.FindOrAdd(AllocInfo.GetCompressedTag());
-			if (Data.Name == NAME_None)
+			int32 CompressedTagIndex = static_cast<int32>(AllocInfo.GetCompressedTag());
+			if(ensure(TagDataCached.IsValidIndex(CompressedTagIndex)))
 			{
-				Data.Name = TagData->GetName();
+				FLocalTagData& Data = TagDataCached[CompressedTagIndex];
+				if (Data.Name == NAME_None)
+				{
+					Data.Name = TagData->GetName();
+				}
 			}
 		}
 	}
-
+#if !UE_ONLY_USE_PLATFORM_TRACKER
 	AllocationMap.LockAll();
 	for (const FLLMAllocMap::FTuple& Tuple : AllocationMap)
 	{
@@ -5610,13 +5670,21 @@ void FLLMTracker::GetTagsNamesWithAmountFiltered(TMap<FName, uint64>& OutTagsNam
 		{
 			FLocalTagData* Data = nullptr;
 #if LLM_ALLOW_ASSETS_TAGS
-			Data = CompressedTagToTagData.Find(Tuple.Value2.GetCompressedTag(Filter.TagSet));
+			int32 CompressedTagIndex = static_cast<int32>(Tuple.Value2.GetCompressedTag(Filter.TagSet));
 #else
-			if (Filter.TagSet == ELLMTagSet::None)
-			{
-				Data = CompressedTagToTagData.Find(Tuple.Value2.GetCompressedTag());
-			}
+			int32 CompressedTagIndex = static_cast<int32>(Tuple.Value2.GetCompressedTag());
 #endif
+			if(TagDataCached.IsValidIndex(CompressedTagIndex))
+			{
+#if LLM_ALLOW_ASSETS_TAGS
+				Data = &TagDataCached[CompressedTagIndex];
+#else
+				if (Filter.TagSet == ELLMTagSet::None)
+				{
+					Data = &TagDataCached[CompressedTagIndex];
+				}
+#endif
+			}
 			if (!Data || Data->Name != Filter.Name)
 			{
 				bIncludeAllocation = false;
@@ -5627,10 +5695,11 @@ void FLLMTracker::GetTagsNamesWithAmountFiltered(TMap<FName, uint64>& OutTagsNam
 		if (bIncludeAllocation)
 		{
 #if LLM_ALLOW_ASSETS_TAGS
-			FLocalTagData* Data = CompressedTagToTagData.Find(Tuple.Value2.GetCompressedTag(TagSet));
+			int32 CompressedTagIndex = Tuple.Value2.GetCompressedTag(TagSet);
 #else
-			FLocalTagData* Data = CompressedTagToTagData.Find(Tuple.Value2.GetCompressedTag());
+			int32 CompressedTagIndex = static_cast<int32>(Tuple.Value2.GetCompressedTag());
 #endif
+			FLocalTagData* Data = TagDataCached.IsValidIndex(CompressedTagIndex) ? &TagDataCached[CompressedTagIndex] : nullptr;
 			if (Data)
 			{
 				Data->Size += Tuple.Value1;
@@ -5638,21 +5707,20 @@ void FLLMTracker::GetTagsNamesWithAmountFiltered(TMap<FName, uint64>& OutTagsNam
 		}
 	}
 	AllocationMap.UnlockAll();
-#if LLM_ENABLED_FULL_TAGS
-	for (TPair<int32, FLocalTagData>& Pair : CompressedTagToTagData)
-#else
-	for (TPair<ELLMTag, FLocalTagData>& Pair : CompressedTagToTagData)
-#endif
+#endif // !UE_ONLY_USE_PLATFORM_TRACKER
+	
+	for (const FLocalTagData& LocalTagData : TagDataCached)
 	{
-		if (Pair.Value.Size != 0)
+		if (LocalTagData.Size != 0)
 		{
-			OutTagsNamesWithAmount.FindOrAdd(Pair.Value.Name, 0) += Pair.Value.Size;
+			OutTagsNamesWithAmount.FindOrAdd(LocalTagData.Name, 0) += LocalTagData.Size;
 		}
 	}
 }
 
 bool FLLMTracker::FindTagsForPtr(void* InPtr, TArray<const FTagData *, TInlineAllocator<static_cast<int32>(ELLMTagSet::Max)>>& OutTags) const
 {
+#if !UE_ONLY_USE_PLATFORM_TRACKER
 	uint32 Size;
 	FLowLevelAllocInfo AllocInfoPtr;
 	PointerKey FoundKey = AllocationMap.Find(PointerKey(InPtr), Size, AllocInfoPtr);
@@ -5672,6 +5740,9 @@ bool FLLMTracker::FindTagsForPtr(void* InPtr, TArray<const FTagData *, TInlineAl
 #endif
 
 	return true;
+#else
+	return false;
+#endif // !UE_ONLY_USE_PLATFORM_TRACKER
 }
 
 int64 FLLMTracker::GetTagAmount(const FTagData* TagData, UE::LLM::ESizeParams SizeParams) const
@@ -5770,7 +5841,10 @@ void FLLMThreadState::TrackAllocation(const void* Ptr, int64 Size, ELLMTracker T
 
 	AllocTypeAmounts[static_cast<int32>(AllocType)] += Size;
 
-	IncrTag(TagData, Size);
+	if (TagData)
+	{
+		IncrTag(TagData, Size);
+	}
 #if LLM_ALLOW_ASSETS_TAGS
 	if (AssetTagData)
 	{
@@ -5782,7 +5856,7 @@ void FLLMThreadState::TrackAllocation(const void* Ptr, int64 Size, ELLMTracker T
 	}
 #endif
 
-	ELLMTag EnumTag = TagData->GetContainingEnum();
+	ELLMTag EnumTag = TagData ? TagData->GetContainingEnum() : ELLMTag(0);
 	if (Tracker == ELLMTracker::Default)
 	{
 		FPlatformMemory::OnLowLevelMemory_Alloc(Ptr, static_cast<uint64>(Size), static_cast<uint64>(EnumTag));
@@ -5802,8 +5876,10 @@ void FLLMThreadState::TrackFree(const void* Ptr, int64 Size, ELLMTracker Tracker
 	FScopeLock Lock(&TagSection);
 
 	AllocTypeAmounts[static_cast<int32>(AllocType)] -= Size;
-
-	IncrTag(TagData, -Size);
+	if (TagData)
+	{
+		IncrTag(TagData, -Size);
+	}
 #if LLM_ALLOW_ASSETS_TAGS
 	if (AssetTagData)
 	{
@@ -5814,7 +5890,8 @@ void FLLMThreadState::TrackFree(const void* Ptr, int64 Size, ELLMTracker Tracker
 		IncrTag(AssetClassTagData, -Size);
 	}
 #endif
-	ELLMTag EnumTag = TagData->GetContainingEnum();
+
+	ELLMTag EnumTag = TagData ? TagData->GetContainingEnum() : ELLMTag(0);
 	if (Tracker == ELLMTracker::Default)
 	{
 		FPlatformMemory::OnLowLevelMemory_Free(Ptr, static_cast<uint64>(Size), static_cast<uint64>(EnumTag));
@@ -5841,7 +5918,7 @@ void FLLMThreadState::TrackMoved(const void* Dest, const void* Source, int64 Siz
 	const FTagData* TagData)
 {
 	// Update external memory trackers (ideally would want a proper 'move' option on these).
-	ELLMTag EnumTag = TagData->GetContainingEnum();
+	ELLMTag EnumTag = TagData ? TagData->GetContainingEnum() : ELLMTag(0);
 	if (Tracker == ELLMTracker::Default)
 	{
 		FPlatformMemory::OnLowLevelMemory_Free(Source, static_cast<uint64>(Size), static_cast<uint64>(EnumTag));
@@ -5968,6 +6045,7 @@ FLLMCsvWriter::FLLMCsvWriter()
 	: Archive(nullptr)
 	, LastWriteTime(FPlatformTime::Seconds())
 	, WriteCount(0)
+	, bRegisteredCrashDelegate(false)
 {
 }
 
@@ -5989,6 +6067,15 @@ void FLLMCsvWriter::OnPreFork()
 		Archive->Flush();
 		delete Archive;
 		Archive = nullptr;
+	}
+}
+
+void FLLMCsvWriter::FlushOnCrash()
+{
+	if (Archive)
+	{
+		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Flushing LLM CSV on crash\n"));
+		Archive->Flush();
 	}
 }
 
@@ -6195,7 +6282,19 @@ void FLLMCsvWriter::AddRow(FLowLevelMemTracker& LLMRef, const FTrackerTagSizeMap
 		UE_LOG(LogHAL, Log, TEXT("Wrote LLM csv line %d"), WriteCount);
 	}
 
-	Archive->Flush();
+	if (CVarLLMCsvFlushEveryRow.GetValueOnAnyThread())
+	{
+		Archive->Flush();
+	}
+	else if (!bRegisteredCrashDelegate)
+	{
+		// If we're not flushing every row, lazily register crash delegates to ensure we flush on a crash
+		// Note: we intentionally leak this since we can't clean it up safely 
+		FCoreDelegates::OnHandleSystemError.AddRaw(this, &FLLMCsvWriter::FlushOnCrash);
+		FCoreDelegates::GetOutOfMemoryDelegate().AddRaw(this, &FLLMCsvWriter::FlushOnCrash);
+		bRegisteredCrashDelegate = true;
+	}
+
 }
 
 // FLLMTraceWriter implementation.

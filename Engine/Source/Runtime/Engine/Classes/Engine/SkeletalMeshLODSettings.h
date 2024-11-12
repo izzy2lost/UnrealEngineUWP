@@ -8,7 +8,7 @@
 #include "Engine/EngineTypes.h"
 #include "SkeletalMeshReductionSettings.h"
 #include "DataAsset.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "PerQualityLevelProperties.h"
 #include "SkeletalMeshLODSettings.generated.h"
 

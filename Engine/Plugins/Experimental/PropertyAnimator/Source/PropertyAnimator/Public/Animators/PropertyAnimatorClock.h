@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorCoreBase.h"
+#include "HAL/Platform.h"
 #include "Misc/Timespan.h"
+#include "PropertyAnimatorTextBase.h"
 #include "PropertyAnimatorClock.generated.h"
 
 /** Mode supported for properties value */
@@ -18,22 +19,18 @@ enum class EPropertyAnimatorClockMode : uint8
 	Stopwatch
 };
 
-/** Animate supported string properties with a clock feature */
+/** Animate supported string properties to display time */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorClock : public UPropertyAnimatorCoreBase
+class UPropertyAnimatorClock : public UPropertyAnimatorTextBase
 {
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* DefaultControllerName = TEXT("Clock");
+	static void RegisterFormat(TCHAR InChar, TFunction<FString(const FDateTime&)> InFormatter);
+	static void UnregisterFormat(TCHAR InChar);
+	static FString FormatDateTime(const FDateTime& InDateTime, const FString& InDisplayFormat);
 
 	UPropertyAnimatorClock();
-
-	PROPERTYANIMATOR_API void SetMode(EPropertyAnimatorClockMode InMode);
-	EPropertyAnimatorClockMode GetMode() const
-	{
-		return Mode;
-	}
 
 	PROPERTYANIMATOR_API void SetDisplayFormat(const FString& InDisplayFormat);
 	const FString& GetDisplayFormat() const
@@ -41,34 +38,13 @@ public:
 		return DisplayFormat;
 	}
 
-	PROPERTYANIMATOR_API void SetCountdownDuration(const FString& InDuration);
-	const FString& GetCountdownDuration() const
-	{
-		return CountdownDuration;
-	}
-
 protected:
-	static FTimespan ParseTime(const FString& InFormat);
-
-	//~ Begin UObject
-	virtual void PostLoad() override;
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
-#endif
-	//~ End UObject
-
 	//~ Begin UPropertyAnimatorCoreBase
-	virtual bool IsPropertyDirectlySupported(const FPropertyAnimatorCoreData& InPropertyData) const override;
-	virtual bool IsPropertyIndirectlySupported(const FPropertyAnimatorCoreData& InPropertyData) const override;
-	virtual void EvaluateProperties(const FPropertyAnimatorCoreEvaluationParameters& InParameters) override;
-	virtual void OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty) override;
+	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
+	virtual void EvaluateProperties(FInstancedPropertyBag& InParameters) override;
+	virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue) override;
+	virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const override;
 	//~ End UPropertyAnimatorCoreBase
-
-	void OnModeChanged();
-
-	/** Mode chosen for this clock animator */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Animator")
-	EPropertyAnimatorClockMode Mode = EPropertyAnimatorClockMode::LocalTime;
 
 	/**
 	 * Display date time format : 
@@ -80,36 +56,25 @@ protected:
 	 * %b - Month, eg) Jan
 	 * %B - Month, eg) January
 	 * %m - Month, 01-12
+	 * %n - Month, 1-12
 	 * %d - Day, 01-31
 	 * %e - Day, 1-31
+	 * %j - Day of the Year, 001-366
+	 * %J - Day of the Year, 1-366
 	 * %l - 12h Hour, 1-12
 	 * %I - 12h Hour, 01-12
 	 * %H - 24h Hour, 00-23
+	 * %h - 24h Hour, 0-23
 	 * %M - Minute, 00-59
+	 * %N - Minute, 0-59
 	 * %S - Second, 00-60
+	 * %s - Second, 0-60
+	 * %f - Millisecond, 000-999
+	 * %F - Millisecond, 0-999
 	 * %p - AM or PM
 	 * %P - am or PM
-	 * %j - Day of the Year, 001-366
+	 * %t - Ticks since midnight, January 1, 0001
 	 */
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Animator")
 	FString DisplayFormat = TEXT("%H:%M:%S");
-
-	/**
-	 * Countdown duration format : 
-	 * 120 = 2 minutes
-	 * 02:00 = 2 minutes
-	 * 00:02:00 = 2 minutes
-	 * 2m = 2 minutes
-	 * 1h = 1 hour
-	 * 120s = 2 minutes
-	 */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Animator", meta=(EditCondition="Mode == EPropertyAnimatorClockMode::Countdown", EditConditionHides))
-	FString CountdownDuration = TEXT("5m");
-
-private:
-	UPROPERTY(Transient)
-	FTimespan ActiveTimeSpan;
-
-	UPROPERTY(Transient)
-	FTimespan ElapsedTimeSpan;
 };

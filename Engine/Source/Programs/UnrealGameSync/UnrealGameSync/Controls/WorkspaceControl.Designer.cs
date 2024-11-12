@@ -29,7 +29,9 @@ namespace UnrealGameSync
 			this.editorPhysXToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.OptionsContextMenu_AutoResolveConflicts = new System.Windows.Forms.ToolStripMenuItem();
 			this.OptionsContextMenu_AlwaysClobberFiles = new System.Windows.Forms.ToolStripMenuItem();
+			this.OptionsContextMenu_AlwaysDeleteFiles = new System.Windows.Forms.ToolStripMenuItem();
 			this.OptionsContextMenu_SyncFilter = new System.Windows.Forms.ToolStripMenuItem();
+			this.OptionsContextMenu_Presets = new System.Windows.Forms.ToolStripMenuItem();
 			this.toolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
 			this.OptionsContextMenu_EditorBuildConfiguration = new System.Windows.Forms.ToolStripMenuItem();
 			this.OptionsContextMenu_BuildConfig_Debug = new System.Windows.Forms.ToolStripMenuItem();
@@ -108,6 +110,8 @@ namespace UnrealGameSync
 			this.AuthorColumn = new System.Windows.Forms.ColumnHeader();
 			this.DescriptionColumn = new System.Windows.Forms.ColumnHeader();
 			this.CISColumn = new System.Windows.Forms.ColumnHeader();
+			this.ReviewerColumn = new System.Windows.Forms.ColumnHeader();
+			this.PreflightColumn = new System.Windows.Forms.ColumnHeader();
 			this.StatusColumn = new System.Windows.Forms.ColumnHeader();
 			this.panel1 = new System.Windows.Forms.Panel();
 			this.SyncLog = new UnrealGameSync.LogControl();
@@ -155,6 +159,7 @@ namespace UnrealGameSync
 			this.BuildHealthContextMenu_MaxSeparator = new System.Windows.Forms.ToolStripSeparator();
 			this.BuildHealthContextMenu_Settings = new System.Windows.Forms.ToolStripMenuItem();
 			this.EditorConfigWatcher = new System.IO.FileSystemWatcher();
+			this.BuildListContextMenu_OpenPreflight = new System.Windows.Forms.ToolStripMenuItem();
 			this.OptionsContextMenu.SuspendLayout();
 			this.BuildListContextMenu.SuspendLayout();
 			this.flowLayoutPanel1.SuspendLayout();
@@ -185,7 +190,9 @@ namespace UnrealGameSync
 			this.OptionsContextMenu_SyncPrecompiledBinaries,
 			this.OptionsContextMenu_AutoResolveConflicts,
 			this.OptionsContextMenu_AlwaysClobberFiles,
+			this.OptionsContextMenu_AlwaysDeleteFiles,
 			this.OptionsContextMenu_SyncFilter,
+			this.OptionsContextMenu_Presets,
 			this.toolStripSeparator3,
 			this.OptionsContextMenu_EditorBuildConfiguration,
 			this.OptionsContextMenu_CustomizeBuildSteps,
@@ -267,12 +274,28 @@ namespace UnrealGameSync
 			OptionsContextMenu_AlwaysClobberFiles.Text = "Always Clobber Files";
 			OptionsContextMenu_AlwaysClobberFiles.Click += OptionsContextMenu_AlwaysClobberFiles_Click;
 			// 
+			// OptionsContextMenu_AlwaysDeleteFiles
+			// 
+			OptionsContextMenu_AlwaysDeleteFiles.Name = "OptionsContextMenu_AlwaysDeleteFiles";
+			OptionsContextMenu_AlwaysDeleteFiles.Size = new Size(261, 22);
+			OptionsContextMenu_AlwaysDeleteFiles.Text = "Always Delete Files";
+			OptionsContextMenu_AlwaysDeleteFiles.Click += OptionsContextMenu_AlwaysDeleteFiles_Click;
+			// 
 			// OptionsContextMenu_SyncFilter
 			// 
 			this.OptionsContextMenu_SyncFilter.Name = "OptionsContextMenu_SyncFilter";
 			this.OptionsContextMenu_SyncFilter.Size = new System.Drawing.Size(261, 22);
 			this.OptionsContextMenu_SyncFilter.Text = "Sync Filter...";
 			this.OptionsContextMenu_SyncFilter.Click += new System.EventHandler(this.OptionsContextMenu_SyncFilter_Click);
+
+			// 
+			// OptionsContextMenu_Presets
+			//
+			this.OptionsContextMenu_Presets.Name = "OptionsContextMenu_Presets";
+			this.OptionsContextMenu_Presets.Size = new System.Drawing.Size(261, 22);
+			this.OptionsContextMenu_Presets.Text = "Presets...";
+			this.OptionsContextMenu_Presets.Click += new System.EventHandler(this.OptionsContextMenu_Presets_Click);
+
 			// 
 			// toolStripSeparator3
 			// 
@@ -497,6 +520,7 @@ namespace UnrealGameSync
 			this.BuildListContextMenu_CustomTool_End,
 			this.BuildListContextMenu_ViewInSwarm,
 			this.BuildListContextMenu_CopyChangelistNumber,
+			this.BuildListContextMenu_OpenPreflight,
 			this.BuildListContextMenu_MoreInfo});
 			this.BuildListContextMenu.Name = "BuildListContextMenu";
 			this.BuildListContextMenu.Size = new System.Drawing.Size(199, 634);
@@ -879,6 +903,8 @@ namespace UnrealGameSync
 			this.AuthorColumn,
 			this.DescriptionColumn,
 			this.CISColumn,
+			this.ReviewerColumn,
+			this.PreflightColumn,
 			this.StatusColumn});
 			this.BuildList.Dock = System.Windows.Forms.DockStyle.Fill;
 			this.BuildList.FullRowSelect = true;
@@ -940,6 +966,17 @@ namespace UnrealGameSync
 			// 
 			this.CISColumn.Text = "CIS";
 			this.CISColumn.Width = 184;
+			// 
+			// ReviewerColumn
+			// 
+			this.ReviewerColumn.Text = "Reviewer";
+			this.ReviewerColumn.Width = 120;
+			// 
+			// PreflightColumn
+			// 
+			this.PreflightColumn.Text = "Preflight";
+			this.PreflightColumn.Width = 120;
+
 			// 
 			// StatusColumn
 			// 
@@ -1288,6 +1325,13 @@ namespace UnrealGameSync
 			this.EditorConfigWatcher.Deleted += new System.IO.FileSystemEventHandler(this.EditorConfigWatcher_Changed);
 			this.EditorConfigWatcher.Renamed += new System.IO.RenamedEventHandler(this.EditorConfigWatcher_Renamed);
 			// 
+			// BuildListContextMenu_OpenPreflight
+			// 
+			this.BuildListContextMenu_OpenPreflight.Name = "BuildListContextMenu_OpenPreflight";
+			this.BuildListContextMenu_OpenPreflight.Size = new Size(198, 22);
+			this.BuildListContextMenu_OpenPreflight.Text = "Open Preflight";
+			this.BuildListContextMenu_OpenPreflight.Click += BuildListContextMenu_OpenPreflight_Click;
+			// 
 			// WorkspaceControl
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
@@ -1299,6 +1343,7 @@ namespace UnrealGameSync
 			this.Size = new System.Drawing.Size(1363, 752);
 			this.Load += new System.EventHandler(this.MainWindow_Load);
 			this.VisibleChanged += new System.EventHandler(this.WorkspaceControl_VisibleChanged);
+			this.DpiChangedAfterParent += WorkspaceControl_DpiChangedAfterParent;
 			this.OptionsContextMenu.ResumeLayout(false);
 			this.BuildListContextMenu.ResumeLayout(false);
 			this.flowLayoutPanel1.ResumeLayout(false);
@@ -1359,6 +1404,7 @@ namespace UnrealGameSync
 		private System.Windows.Forms.ToolTip BuildListToolTip;
 		private System.Windows.Forms.ToolStripMenuItem OptionsContextMenu_AutoResolveConflicts;
 		private System.Windows.Forms.ToolStripMenuItem OptionsContextMenu_AlwaysClobberFiles;
+		private System.Windows.Forms.ToolStripMenuItem OptionsContextMenu_AlwaysDeleteFiles;
 		private System.Windows.Forms.ToolStripMenuItem OptionsContextMenu_EditorArguments;
 		private System.Windows.Forms.ToolStripMenuItem BuildListContextMenu_OpenVisualStudio;
 		private System.Windows.Forms.Panel panel1;
@@ -1398,6 +1444,7 @@ namespace UnrealGameSync
 		private System.Windows.Forms.ToolStripSeparator toolStripSeparator6;
 		private System.Windows.Forms.ToolStripMenuItem OptionsContextMenu_Diagnostics;
 		private System.Windows.Forms.ToolStripMenuItem OptionsContextMenu_SyncFilter;
+		private System.Windows.Forms.ToolStripMenuItem OptionsContextMenu_Presets;
 		private System.Windows.Forms.ToolStripMenuItem BuildListContextMenu_SyncOnlyThisChange;
 		private System.Windows.Forms.ContextMenuStrip SyncContextMenu;
 		private System.Windows.Forms.ToolStripSeparator toolStripSeparator8;
@@ -1464,5 +1511,8 @@ namespace UnrealGameSync
 		private System.IO.FileSystemWatcher EditorConfigWatcher;
 		private System.Windows.Forms.ToolStripMenuItem BuildListContextMenu_ViewInSwarm;
 		private System.Windows.Forms.ToolStripMenuItem BuildListContextMenu_CopyChangelistNumber;
+		private System.Windows.Forms.ColumnHeader ReviewerColumn;
+		private System.Windows.Forms.ColumnHeader PreflightColumn;
+		private System.Windows.Forms.ToolStripMenuItem BuildListContextMenu_OpenPreflight;
 	}
 }

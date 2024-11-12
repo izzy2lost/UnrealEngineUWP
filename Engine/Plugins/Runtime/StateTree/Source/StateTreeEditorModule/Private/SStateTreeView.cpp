@@ -1,16 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SStateTreeView.h"
+#include "Debugger/StateTreeDebuggerTypes.h"
+#include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "Widgets/Layout/SScrollBox.h"
 #include "SPositiveActionButton.h"
 #include "SStateTreeViewRow.h"
-#include "Debugger/StateTreeDebuggerCommands.h"
 #include "StateTreeViewModel.h"
 #include "StateTreeState.h"
 #include "StateTreeEditorCommands.h"
 #include "StateTreeSettings.h"
-#include "Framework/Commands/UICommandList.h"
+#include "Widgets/Layout/SScrollBox.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
@@ -61,11 +61,10 @@ void SStateTreeView::Construct(const FArguments& InArgs, TSharedRef<FStateTreeVi
 		.OnGenerateRow(this, &SStateTreeView::HandleGenerateRow)
 		.OnGetChildren(this, &SStateTreeView::HandleGetChildren)
 		.TreeItemsSource(&Subtrees)
-		.ItemHeight(32)
 		.OnSelectionChanged(this, &SStateTreeView::HandleTreeSelectionChanged)
 		.OnExpansionChanged(this, &SStateTreeView::HandleTreeExpansionChanged)
 		.OnContextMenuOpening(this, &SStateTreeView::HandleContextMenuOpening)
-		.AllowOverscroll(EAllowOverscroll::No)
+		.AllowOverscroll(EAllowOverscroll::Yes)
 		.ExternalScrollbar(VerticalScrollBar);
 
 	ChildSlot
@@ -187,7 +186,7 @@ void SStateTreeView::BindCommands()
 		Commands.EnableStates,
 		FExecuteAction::CreateSP(this, &SStateTreeView::HandleEnableSelectedStates),
 		FCanExecuteAction(),
-		FGetActionCheckState::CreateLambda([this]
+		FGetActionCheckState::CreateSPLambda(this, [this]
 			{
 				const bool bCanEnable = CanEnableStates();
 				const bool bCanDisable = CanDisableStates();
@@ -209,7 +208,54 @@ void SStateTreeView::BindCommands()
 				// Should not happen since action is not visible in this case
 				return ECheckBoxState::Undetermined;
 			}),
-		FIsActionButtonVisible::CreateLambda([this] { return CanEnableStates() || CanDisableStates(); }));
+		FIsActionButtonVisible::CreateSPLambda(this, [this]
+		{
+			return CanEnableStates() || CanDisableStates();
+		}));
+
+#if WITH_STATETREE_TRACE_DEBUGGER
+	CommandList->MapAction(
+		Commands.EnableOnEnterStateBreakpoint,
+		FExecuteAction::CreateSPLambda(this, [this]
+		{
+			if (StateTreeViewModel)
+			{
+				StateTreeViewModel->HandleEnableStateBreakpoint(EStateTreeBreakpointType::OnEnter);
+			}
+		}),
+		FCanExecuteAction(),
+		FGetActionCheckState::CreateSPLambda(this, [this]
+		{
+			return StateTreeViewModel ? StateTreeViewModel->GetStateBreakpointCheckState(EStateTreeBreakpointType::OnEnter) : ECheckBoxState::Unchecked;
+		}),
+		FIsActionButtonVisible::CreateSPLambda(this, [this]
+		{
+			return (StateTreeViewModel)
+				&& (StateTreeViewModel->CanAddStateBreakpoint(EStateTreeBreakpointType::OnEnter)
+					|| StateTreeViewModel->CanRemoveStateBreakpoint(EStateTreeBreakpointType::OnEnter));
+		}));
+
+	CommandList->MapAction(
+		Commands.EnableOnExitStateBreakpoint,
+		FExecuteAction::CreateSPLambda(this, [this]
+		{
+			if (StateTreeViewModel)
+			{
+				StateTreeViewModel->HandleEnableStateBreakpoint(EStateTreeBreakpointType::OnExit);
+			}
+		}),
+		FCanExecuteAction(),
+		FGetActionCheckState::CreateSPLambda(this, [this]
+		{
+			return StateTreeViewModel ? StateTreeViewModel->GetStateBreakpointCheckState(EStateTreeBreakpointType::OnExit) : ECheckBoxState::Unchecked;
+		}),
+		FIsActionButtonVisible::CreateSPLambda(this, [this]
+		{
+			return (StateTreeViewModel)
+				&& (StateTreeViewModel->CanAddStateBreakpoint(EStateTreeBreakpointType::OnExit)
+					|| StateTreeViewModel->CanRemoveStateBreakpoint(EStateTreeBreakpointType::OnExit));
+		}));
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 }
 
 bool SStateTreeView::HasSelection() const
@@ -361,6 +407,14 @@ void SStateTreeView::HandleModelStatesChanged(const TSet<UStateTreeState*>& Affe
 	{
 		bArraysChanged = true;
 	}
+	if (PropertyChangedEvent.MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UStateTreeState, Transitions))
+	{
+		bArraysChanged = true;
+	}
+	if (PropertyChangedEvent.MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UStateTreeState, EnterConditions))
+	{
+		bArraysChanged = true;
+	}
 		
 	if (bArraysChanged)
 	{
@@ -476,11 +530,11 @@ TSharedPtr<SWidget> SStateTreeView::HandleContextMenuOpening()
 	MenuBuilder.AddSeparator();
 	MenuBuilder.AddMenuEntry(FStateTreeEditorCommands::Get().EnableStates);
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	MenuBuilder.AddSeparator();
-	MenuBuilder.AddMenuEntry(FStateTreeDebuggerCommands::Get().EnableOnEnterStateBreakpoint);
-	MenuBuilder.AddMenuEntry(FStateTreeDebuggerCommands::Get().EnableOnExitStateBreakpoint);
-#endif // WITH_STATETREE_DEBUGGER
+	MenuBuilder.AddMenuEntry(FStateTreeEditorCommands::Get().EnableOnEnterStateBreakpoint);
+	MenuBuilder.AddMenuEntry(FStateTreeEditorCommands::Get().EnableOnExitStateBreakpoint);
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 	
 	return MenuBuilder.MakeWidget();
 }
@@ -626,6 +680,29 @@ void SStateTreeView::HandleDisableSelectedStates()
 	{
 		StateTreeViewModel->SetSelectedStatesEnabled(false);
 	}
+}
+
+TSharedPtr<FStateTreeViewModel> SStateTreeView::GetViewModel() const
+{
+	return StateTreeViewModel;
+}
+
+void SStateTreeView::SetSelection(const TArray<TWeakObjectPtr<UStateTreeState>>& SelectedStates) const
+{
+	for (const TWeakObjectPtr<UStateTreeState>& WeakState : SelectedStates)
+	{
+		if (const UStateTreeState* SelectedState = WeakState.Get())
+		{
+			UStateTreeState* ParentState = SelectedState->Parent;
+			while (ParentState)
+			{
+				constexpr bool bShouldExpandItem(true);
+				TreeView->SetItemExpansion(ParentState, bShouldExpandItem);
+				ParentState = ParentState->Parent;
+			}
+		}
+	}
+	StateTreeViewModel->SetSelection(SelectedStates);
 }
 
 #undef LOCTEXT_NAMESPACE

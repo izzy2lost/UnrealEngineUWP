@@ -32,12 +32,12 @@ class UActorModifierCoreEditorStackCustomization : public UOperatorStackEditorSt
 
 public:
 	static inline const FString PropertiesWrapperPrefix = TEXT("ActorModifierCoreEditorPropertiesWrapper");
-	static inline const FString PropertiesWrapperEntry  = TEXT("PropertiesWrapper");
 
 	UActorModifierCoreEditorStackCustomization();
 
 	//~ Begin UOperatorStackEditorStackCustomization
-	virtual bool TransformContextItem(const FOperatorStackEditorItemPtr& InItem, TArray<FOperatorStackEditorItemPtr>& OutTransformedItems) const override;
+	virtual bool GetRootItem(const FOperatorStackEditorContext& InContext, FOperatorStackEditorItemPtr& OutRootItem) const override;
+	virtual bool GetChildrenItem(const FOperatorStackEditorItemPtr& InItem, TArray<FOperatorStackEditorItemPtr>& OutChildrenItems) const override;
 	virtual void CustomizeStackHeader(const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorHeaderBuilder& InHeaderBuilder) override;
 	virtual void CustomizeItemHeader(const FOperatorStackEditorItemPtr& InItem, const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorHeaderBuilder& InHeaderBuilder) override;
 	virtual void CustomizeItemBody(const FOperatorStackEditorItemPtr& InItem, const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorBodyBuilder& InBodyBuilder) override;
@@ -58,25 +58,25 @@ protected:
 	void FillItemContextActionMenu(UToolMenu* InToolMenu) const;
 
 	/** Remove modifier action */
-	bool CanRemoveModifier(UActorModifierCoreBase* InModifier) const;
-	void RemoveModifierAction(UActorModifierCoreBase* InModifier) const;
+	bool CanRemoveModifier(FOperatorStackEditorItemPtr InItem) const;
+	void RemoveModifierAction(FOperatorStackEditorItemPtr InItem) const;
 
 	/** Copy modifier action */
-	bool CanCopyModifier(UActorModifierCoreBase* InModifier) const;
-	void CopyModifierAction(UActorModifierCoreBase* InModifier) const;
+	bool CanCopyModifier(FOperatorStackEditorItemPtr InItem) const;
+	void CopyModifierAction(FOperatorStackEditorItemPtr InItem) const;
 
 	/** Paste modifier action */
-	bool CanPasteModifier(UActorModifierCoreBase* InModifier) const;
-	void PasteModifierAction(UActorModifierCoreBase* InModifier) const;
+	bool CanPasteModifier(FOperatorStackEditorItemPtr InItem) const;
+	void PasteModifierAction(FOperatorStackEditorItemPtr InItem) const;
 
 	/** Toggle the profiling for a whole stack */
-	bool IsModifierProfiling(UActorModifierCoreStack* InStack) const;
-	void ToggleModifierProfilingAction(UActorModifierCoreStack* InStack) const;
+	bool IsModifierProfiling(FOperatorStackEditorItemPtr InItem) const;
+	void ToggleModifierProfilingAction(FOperatorStackEditorItemPtr InItem) const;
 
-	TSharedRef<FUICommandList> CreateModifierCommands(UActorModifierCoreBase* InModifier);
+	TSharedRef<FUICommandList> CreateModifierCommands(FOperatorStackEditorItemPtr InItem);
 
 	bool CreatePropertiesHandlesMapFromModifier(UActorModifierCoreBase* InModifier, TMap<FName, FString>& OutModifierPropertiesHandlesMap) const;
-	bool GetModifierPropertiesWrapperFromClipboard(FActorModifierCoreEditorPropertiesWrapper& OutPropertiesWrapper) const;
+	bool GetModifierPropertiesWrapperFromClipboard(TArray<FActorModifierCoreEditorPropertiesWrapper>& OutModifierProperties) const;
 	bool UpdateModifierFromPropertiesHandlesMap(UActorModifierCoreBase* InModifier, const TMap<FName, FString>& InModifierPropertiesHandlesMap) const;
-	bool AddModifierFromClipboard(TSet<AActor*>& InActors) const;
+	bool AddModifierFromClipboard(const TSet<AActor*>& InActors, FName InModifierName, TArray<UActorModifierCoreBase*>& OutNewModifiers) const;
 };

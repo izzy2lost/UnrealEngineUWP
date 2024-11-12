@@ -27,7 +27,7 @@ struct FTaskInfo
 	// thread - ENamedThreads::AnyThread), task priority, thread priority (in case of a worker thread), and queue index (in case of a named
 	// thread - main queue or local queue). See ENamedThreads to split the info into separate fields
 
-	static constexpr double InvalidTimestamp = 0.0;
+	static constexpr double InvalidTimestamp = -std::numeric_limits<double>::max();
 
 	// some tasks can be created with delayed launch, otherwise "created" and "launched" timestamps and thread IDs are equal
 	double CreatedTimestamp = InvalidTimestamp;

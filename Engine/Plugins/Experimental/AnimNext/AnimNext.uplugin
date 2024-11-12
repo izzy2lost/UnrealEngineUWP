@@ -12,7 +12,7 @@
 	"SupportURL" : "",
 	"EnabledByDefault" : false,
 	"CanContainContent" : false,
-	"IsBetaVersion": true,
+	"IsBetaVersion": false,
 	"IsExperimentalVersion": true,
 	"Installed" : false,
 	"Plugins":
@@ -22,16 +22,21 @@
 			"Enabled": true
 		},
 		{
-			"Name": "StructUtils",
-			"Enabled": true
-		},
-		{
 			"Name": "ContentBrowserFileDataSource",
 			"Enabled": true
 		},
 		{
 			"Name": "PythonScriptPlugin",
 			"Enabled": true
+		},
+		{
+			"Name": "Workspace",
+			"Enabled": true
+		},
+		{
+			"Name": "EditorScriptingUtilities",
+			"Enabled": true,
+			"TargetAllowList": [ "Editor" ]
 		}
 	],
 	"Modules" :

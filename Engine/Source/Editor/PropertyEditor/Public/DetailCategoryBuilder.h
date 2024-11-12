@@ -202,6 +202,16 @@ public:
 	virtual void SetDisplayName(const FText& DisplayName) = 0;
 
 	/**
+	 * Gets the localized tooltip for this category.
+	 */
+	virtual const TOptional<FText>& GetToolTip() const = 0;
+
+	/**
+	 * Sets the localized tooltip for this category.
+	 */
+	virtual void SetToolTip(const FText& ToolTip) = 0;
+
+	/**
 	 * Sets whether or not this category is hidden or shown
 	 * This is designed to be used for dynamic category visibility after construction of the category
 	 */

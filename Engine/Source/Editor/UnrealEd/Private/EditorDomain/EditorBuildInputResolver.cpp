@@ -5,10 +5,10 @@
 #include "Async/Future.h"
 #include <atomic>
 #include "Containers/ArrayView.h"
+#include "Containers/SharedString.h"
 #include "DerivedDataBuildAction.h"
 #include "DerivedDataRequest.h"
 #include "DerivedDataRequestOwner.h"
-#include "DerivedDataSharedString.h"
 #include "HAL/Event.h"
 #include "Misc/StringBuilder.h"
 #include "Serialization/BulkDataRegistry.h"

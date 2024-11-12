@@ -28,14 +28,21 @@
 #include "UserInterface/PropertyEditor/SPropertyEditorStruct.h"
 #include "UserInterface/PropertyEditor/SPropertyEditorInteractiveActorPicker.h"
 #include "UserInterface/PropertyEditor/SPropertyEditorSceneDepthPicker.h"
+#include "UserInterface/PropertyEditor/SPropertyEditorEditInline.h"
 #include "Widgets/Input/SHyperlink.h"
-#include "Widgets/Layout/SWidgetSwitcher.h"
 #include "IDocumentation.h"
-#include "SResetToDefaultPropertyEditor.h"
 #include "EditorFontGlyphs.h"
 #include "DetailCategoryBuilder.h"
 #include "IDetailGroup.h"
 #include "AssetToolsModule.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "ObjectTools.h"
+#include "PropertyPermissionList.h"
+#include "Reflection/FunctionUtils.h"
+#include "ScopedTransaction.h"
+#include "Settings/BlueprintEditorProjectSettings.h"
+#include "Settings/EditorStyleSettings.h"
+#include "Widgets/Layout/SWrapBox.h"
 
 #define LOCTEXT_NAMESPACE "PropertyCustomizationHelpers"
 
@@ -131,6 +138,17 @@ namespace PropertyCustomizationHelpers
 			.IsFocusable( false );
 	}
 
+	TSharedRef<SWidget> MakeEditButton( FSimpleDelegate OnEditClicked, TAttribute<FText> OptionalToolTipText, TAttribute<bool> IsEnabled )
+	{
+		return
+			SNew( SPropertyEditorButton )
+			.Text( OptionalToolTipText.Get().IsEmpty() ? LOCTEXT( "EditButtonToolTipText", "Edit Element") : OptionalToolTipText )
+			.Image( FAppStyle::GetBrush("Icons.Edit") )
+			.OnClickAction( OnEditClicked )
+			.IsEnabled( IsEnabled )
+			.IsFocusable( false );
+	}
+
 	TSharedRef<SWidget> MakeEmptyButton( FSimpleDelegate OnEmptyClicked, TAttribute<FText> OptionalToolTipText, TAttribute<bool> IsEnabled )
 	{
 		return
@@ -208,6 +226,273 @@ namespace PropertyCustomizationHelpers
 			.OnClickAction(OnClearOptionalClicked)
 			.IsEnabled(IsEnabled)
 			.IsFocusable(false);
+	}
+
+	TSharedRef<SWidget> MakeFunctionCallButton(const FPropertyFunctionCallArgs& InArgs)
+	{
+		TSharedRef<SWidget> Widget = SNullWidget::NullWidget;
+		if (const UFunction* Function = InArgs.Function.Get())
+		{
+			const FText Label = InArgs.LabelOverride.Get(Function->GetDisplayNameText());
+			FText ToolTipText = InArgs.ToolTipTextOverride.Get(Function->GetToolTipText());
+			if (ToolTipText.IsEmpty())
+			{
+				ToolTipText = Label;
+			}
+
+			TAttribute<bool> IsEnabled;
+			if (InArgs.OnCanExecute.IsBound())
+			{
+				IsEnabled.Bind(
+					TAttribute<bool>::FGetter::CreateLambda(
+					[WeakFunctionPtr = InArgs.Function, CanExecute = InArgs.OnCanExecute]()
+					{
+						return CanExecute.Execute(WeakFunctionPtr);
+					})
+				);
+			}
+			else
+			{
+				IsEnabled = true;
+			}
+
+			Widget = SNew(SButton)
+				.Text(Label)
+				.OnClicked_Lambda([WeakFunctionPtr = InArgs.Function, OnExecute = InArgs.OnExecute]()
+				{
+					return OnExecute.Execute(WeakFunctionPtr);
+				})
+				.IsEnabled(IsEnabled)
+				.ToolTipText(ToolTipText.IsEmptyOrWhitespace() ? LOCTEXT("CallInEditorTooltip", "Call an event on the selected object(s)") : ToolTipText);
+
+			if (InArgs.SearchText != nullptr)
+			{
+				InArgs.SearchText->AppendLine(Label);
+				InArgs.SearchText->AppendLine(ToolTipText);
+
+				if (Label.ToString() != Function->GetName())
+				{
+					InArgs.SearchText->AppendLine(FText::FromString(Function->GetName()));
+				}
+			}
+		}
+
+		return Widget;
+	}
+
+	struct FCategorizedFunctionCallEntry
+	{
+		FName CategoryName;
+		FName RowTag;
+		TSharedPtr<SWrapBox> WrapBox;
+		FTextBuilder FunctionSearchText;
+
+		FCategorizedFunctionCallEntry(FName InCategoryName)
+			: CategoryName(InCategoryName)
+		{
+			WrapBox = SNew(SWrapBox)
+				// Setting the preferred size here (despite using UseAllottedSize) is a workaround for an issue
+				// when contained in a scroll box: prior to the first tick, the wrap box will use preferred size
+				// instead of allotted, and if preferred size is set small, it will cause the box to wrap a lot and
+				// request too much space from the scroll box. On next tick, SWrapBox is updated but the scroll box
+				// does not realize that it needs to show more elements, until it is scrolled.
+				// Setting a large value here means that the SWrapBox will request too little space prior to tick,
+				// which will cause the scroll box to virtualize more elements at the start, but this is less broken.
+				.PreferredSize(2000)
+				.UseAllottedSize(true);
+		}
+	};
+
+	void GetFunctionCallWidgets(const TArrayView<UFunction*>& InCallInEditorFunctions, const FPropertyFunctionCallDelegates& InArgs, TArray<FCategorizedFunctionCallEntry, TInlineAllocator<8>>& OutCategorizedEntries)
+	{
+		if (InCallInEditorFunctions.IsEmpty())
+		{
+			return;
+		}
+
+		// Build up a set of functions for each category, accumulating search text and buttons in a wrap box
+		FName ActiveCategory;
+
+		const bool bUseDisplayNames = GEditor && GetDefault<UEditorStyleSettings>()->bShowFriendlyNames;
+
+		// FBlueprintMetadata::MD_FunctionCategory
+		static const FName NAME_FunctionCategory(TEXT("Category"));
+
+		FPropertyFunctionCallDelegates::FOnExecute OnExecute = InArgs.OnExecute;
+		FPropertyFunctionCallDelegates::FOnCanExecute OnCanExecute = InArgs.OnCanExecute;
+
+		if (!OnExecute.IsBound() && InArgs.OnGetExecutionContext.IsBound())
+		{
+			// FBlueprintMetadata::MD_WorldContext
+			static const FName NAME_WorldContext(TEXT("WorldContext"));
+
+			OnExecute = FPropertyFunctionCallDelegates::FOnExecute::CreateLambda(
+				[OnGetExecutionContext = InArgs.OnGetExecutionContext](const TWeakObjectPtr<UFunction>& InWeakFunction)
+				{
+					using namespace UE::Reflection;
+					if (UFunction* Function = InWeakFunction.Get())
+					{
+						// @todo: Consider naming the transaction scope after the fully qualified function name for better UX
+						FScopedTransaction Transaction(LOCTEXT("ExecuteCallInEditorMethod", "Call In Editor Action"));
+						TStrongObjectPtr<UFunction> CallingFunction(Function);
+
+						if (Function->HasMetaData(NAME_WorldContext)
+							&& DoesStaticFunctionSignatureMatch<void(TObjectPtr<UObject>)>(Function))
+						{
+							FEditorScriptExecutionGuard ScriptGuard;
+							UEditorEngine* EditorEngine = Cast<UEditorEngine>(GEngine);
+							UObject* WorldContextObject = EditorEngine->GetEditorWorldContext().World();
+							TStrongObjectPtr<UObject> CDO(Function->GetOwnerClass()->ClassDefaultObject);
+							CDO->ProcessEvent(Function, &WorldContextObject);
+						}
+						else
+						{
+							TArray<TWeakObjectPtr<UObject>> WeakExecutionObjects = OnGetExecutionContext.Execute(InWeakFunction);
+							if (!WeakExecutionObjects.IsEmpty())
+							{
+								FEditorScriptExecutionGuard ScriptGuard;
+								for (const TWeakObjectPtr<UObject>& WeakExecutionObject : WeakExecutionObjects)
+								{
+									if (UObject* ExecutionObject = WeakExecutionObject.Get())
+									{
+										ensure(Function->ParmsSize == 0);
+										TStrongObjectPtr<UObject> StrongExecutionObject(ExecutionObject); // Prevent GC during call
+										ExecutionObject->ProcessEvent(Function, nullptr);
+									}
+								}
+							}
+						}
+					}
+
+					return FReply::Handled();
+				});
+		}
+
+		for (UFunction* Function : InCallInEditorFunctions)
+		{
+			if (!Function)
+			{
+				continue;
+			}
+
+			FName FunctionCategoryName(NAME_Default);
+			if (Function->HasMetaData(NAME_FunctionCategory))
+			{
+				FunctionCategoryName = FName(*Function->GetMetaData(NAME_FunctionCategory));
+			}
+
+			if (FunctionCategoryName != ActiveCategory)
+			{
+				ActiveCategory = FunctionCategoryName;
+				OutCategorizedEntries.Emplace(FunctionCategoryName);
+			}
+
+			FCategorizedFunctionCallEntry& CategoryEntry = OutCategorizedEntries.Last();
+
+			FText ButtonLabel = ObjectTools::GetUserFacingFunctionName(Function);
+			FText ButtonToolTip = Function->GetToolTipText();
+			if (ButtonToolTip.IsEmpty())
+			{
+				ButtonToolTip = ButtonLabel;
+			}
+
+			CategoryEntry.WrapBox->AddSlot()
+			.Padding(0.0f, 0.0f, 5.0f, 3.0f)
+			[
+				PropertyCustomizationHelpers::MakeFunctionCallButton(
+					FPropertyFunctionCallArgs(
+						Function,
+						OnExecute,
+						OnCanExecute,
+						ButtonLabel,
+						ButtonToolTip,
+						&CategoryEntry.FunctionSearchText)
+					)
+			];
+
+			CategoryEntry.RowTag = Function->GetFName();
+		}
+	}
+
+	void AddFunctionCallWidgets(IDetailGroup& RootGroup, const TArrayView<UFunction*>& InCallInEditorFunctions, const FPropertyFunctionCallDelegates& InArgs)
+	{
+		TArray<FCategorizedFunctionCallEntry, TInlineAllocator<8>> CategorizedEntries;
+		GetFunctionCallWidgets(InCallInEditorFunctions, InArgs, CategorizedEntries);
+
+		TMap<FName, IDetailGroup*> Groups;
+
+		// Now edit the categories, adding the button strips to the details panel
+		for (FCategorizedFunctionCallEntry& CategoryEntry : CategorizedEntries)
+		{
+			IDetailGroup* Group = nullptr;
+			if (CategoryEntry.CategoryName == NAME_Default)
+			{
+				Group = &RootGroup;
+			}
+			else if (IDetailGroup** ExistingGroup = Groups.Find(CategoryEntry.CategoryName))
+			{
+				Group = *ExistingGroup;
+			}
+			else
+			{
+				Group = Groups.Emplace(
+					CategoryEntry.CategoryName,
+					&RootGroup.AddGroup(
+						CategoryEntry.CategoryName,
+						FText::FromName(CategoryEntry.CategoryName)));
+			}
+
+			Group->AddWidgetRow()
+			.FilterString(CategoryEntry.FunctionSearchText.ToText())
+			.ShouldAutoExpand(true)
+			.RowTag(CategoryEntry.RowTag)
+			[
+				CategoryEntry.WrapBox.ToSharedRef()
+			];
+		}
+	}
+
+	void AddFunctionCallWidgets(IDetailLayoutBuilder& DetailBuilder, const TArrayView<UFunction*>& InCallInEditorFunctions, const FPropertyFunctionCallDelegates& InArgs)
+	{
+		TArray<FCategorizedFunctionCallEntry, TInlineAllocator<8>> CategorizedEntries;
+		GetFunctionCallWidgets(InCallInEditorFunctions, InArgs, CategorizedEntries);
+
+		// Now edit the categories, adding the button strips to the details panel
+		for (FCategorizedFunctionCallEntry& CategoryEntry : CategorizedEntries)
+		{
+			IDetailCategoryBuilder& CategoryBuilder = DetailBuilder.EditCategory(CategoryEntry.CategoryName);
+			CategoryBuilder.AddCustomRow(CategoryEntry.FunctionSearchText.ToText())
+			.RowTag(CategoryEntry.RowTag)
+			[
+				CategoryEntry.WrapBox.ToSharedRef()
+			];
+		}
+	}
+
+	void AddCallInEditorFunctionCallWidgetsForClass(IDetailGroup& RootGroup, const UClass* Class, const FPropertyFunctionCallDelegates& InArgs)
+	{
+		TArray<UFunction*> CallInEditorFunctions;
+		PropertyCustomizationHelpers::GetCallInEditorFunctionsForClass(
+			Class,
+			CallInEditorFunctions);
+
+		if (!CallInEditorFunctions.IsEmpty())
+		{
+			AddFunctionCallWidgets(RootGroup, CallInEditorFunctions, InArgs);
+		}
+	}
+
+	void AddCallInEditorFunctionCallWidgetsForClass(IDetailLayoutBuilder& DetailBuilder, const UClass* Class, const FPropertyFunctionCallDelegates& InArgs)
+	{
+		TArray<UFunction*> CallInEditorFunctions;
+		PropertyCustomizationHelpers::GetCallInEditorFunctionsForClass(
+			Class,
+			CallInEditorFunctions);
+
+		if (!CallInEditorFunctions.IsEmpty())
+		{
+			AddFunctionCallWidgets(DetailBuilder, CallInEditorFunctions, InArgs);
+		}
 	}
 
 	FText GetVisibilityDisplay(TAttribute<bool> bEnabled)
@@ -359,7 +644,7 @@ namespace PropertyCustomizationHelpers
 			.OnUseSelected(OnUseSelected);
 	}
 
-	TSharedRef<SWidget> MakeActorPickerWithMenu(AActor* const InitialActor, const bool AllowClear, const bool AllowPickingLevelInstanceContent, FOnShouldFilterActor ActorFilter, FOnActorSelected OnSet, FSimpleDelegate OnClose, FSimpleDelegate OnUseSelected)
+	TSharedRef<SWidget> MakeActorPickerWithMenu(AActor* const InitialActor, const bool AllowClear, const bool AllowPickingLevelInstanceContent, FOnShouldFilterActor ActorFilter, FOnActorSelected OnSet, FSimpleDelegate OnClose, FSimpleDelegate OnUseSelected, bool bDisplayUseSelected)
 	{
 		return
 			SNew(SPropertyMenuActorPicker)
@@ -369,7 +654,8 @@ namespace PropertyCustomizationHelpers
 			.ActorFilter(ActorFilter)
 			.OnSet(OnSet)
 			.OnClose(OnClose)
-			.OnUseSelected(OnUseSelected);
+			.OnUseSelected(OnUseSelected)
+			.DisplayUseSelected(bDisplayUseSelected);
 	}
 
 	TSharedRef<SWidget> MakeComponentPickerWithMenu( UActorComponent* const InitialComponent, const bool AllowClear, FOnShouldFilterActor ActorFilter, FOnShouldFilterComponent ComponentFilter, FOnComponentSelected OnSet, FSimpleDelegate OnClose )
@@ -384,14 +670,14 @@ namespace PropertyCustomizationHelpers
 			.OnClose(OnClose);
 	}
 
-	TSharedRef<SWidget> MakeInteractiveActorPicker( FOnGetAllowedClasses OnGetAllowedClasses, FOnShouldFilterActor OnShouldFilterActor, FOnActorSelected OnActorSelectedFromPicker )
+	TSharedRef<SWidget> MakeInteractiveActorPicker( FOnGetAllowedClasses OnGetAllowedClasses, FOnShouldFilterActor OnShouldFilterActor, FOnActorSelected OnActorSelectedFromPicker)
 	{
-		return 
-			SNew( SPropertyEditorInteractiveActorPicker )
-			.ToolTipText( LOCTEXT( "PickButtonLabel", "Pick Actor from scene") )
-			.OnGetAllowedClasses( OnGetAllowedClasses )
-			.OnShouldFilterActor( OnShouldFilterActor )
-			.OnActorSelected( OnActorSelectedFromPicker );
+		return
+			SNew(SPropertyEditorInteractiveActorPicker)
+			.ToolTipText(LOCTEXT("PickButtonLabel", "Pick Actor from scene"))
+			.OnGetAllowedClasses(OnGetAllowedClasses)
+			.OnShouldFilterActor(OnShouldFilterActor)
+			.OnActorSelected(OnActorSelectedFromPicker);
 	}
 
 	TSharedRef<SWidget> MakeSceneDepthPicker(FOnSceneDepthLocationSelected OnSceneDepthLocationSelected)
@@ -582,6 +868,7 @@ void SObjectPropertyEntryBox::Construct( const FArguments& InArgs )
 				.ThumbnailSize(ThumbnailSize)
 				.DisplayCompactSize(InArgs._DisplayCompactSize)
 				.OnShouldFilterActor(InArgs._OnShouldFilterActor)
+				.bOnlyRecognizeOnDragEnter(InArgs._bOnlyRecognizeOnDragEnter)
 				.CustomContentSlot()
 				[
 					InArgs._CustomContentSlot.Widget
@@ -658,6 +945,8 @@ void SClassPropertyEntryBox::Construct(const FArguments& InArgs)
 			SAssignNew(PropertyEditorClass, SPropertyEditorClass)
 				.MetaClass(InArgs._MetaClass)
 				.RequiredInterface(InArgs._RequiredInterface)
+				.AllowedClasses(InArgs._AllowedClasses)
+				.DisallowedClasses(InArgs._DisallowedClasses)
 				.AllowAbstract(InArgs._AllowAbstract)
 				.IsBlueprintBaseOnly(InArgs._IsBlueprintBaseOnly)
 				.AllowNone(InArgs._AllowNone)
@@ -906,6 +1195,170 @@ TArray<const UClass*> PropertyCustomizationHelpers::GetClassesFromMetadataString
 	}
 
 	return Classes;
+}
+
+TArray<const UScriptStruct*> PropertyCustomizationHelpers::GetStructsFromMetadataString(const FString& MetadataString)
+{
+	if (MetadataString.IsEmpty())
+	{
+		return TArray<const UScriptStruct*>();
+	}
+
+	auto FindClass = [](const FString& InStructName) -> const UScriptStruct*
+	{
+		const UScriptStruct* Struct = UClass::TryFindTypeSlow<const UScriptStruct>(InStructName, EFindFirstObjectOptions::EnsureIfAmbiguous);
+		if (!Struct)
+		{
+			Struct = LoadObject<const UScriptStruct>(nullptr, *InStructName);
+		}
+		return Struct;
+	};
+		
+	TArray<FString> StructNames;
+	MetadataString.ParseIntoArrayWS(StructNames, TEXT(","), true);
+
+	TArray<const UScriptStruct*> Structs;
+	Structs.Reserve(StructNames.Num());
+
+	for (const FString& StructName : StructNames)
+	{
+		const UScriptStruct* Struct = FindClass(StructName);
+		if (!Struct)
+		{
+			continue;
+		}
+
+		Structs.Add(Struct);
+	}
+
+	return Structs;
+}
+
+
+TSharedRef<SWidget> PropertyCustomizationHelpers::MakeEditInlineObjectClassPicker(TSharedRef<IPropertyHandle> PropertyHandle, FOnClassPicked OnClassPicked, TSharedPtr<IClassViewerFilter> AdditionalClassFilter)
+{
+	return SPropertyEditorEditInline::GenerateClassPicker(PropertyHandle, 
+	FOnClassPicked::CreateLambda([OnClassPicked, PropertyHandle](UClass* ClassPicked)
+		{
+			SPropertyEditorEditInline::OnClassPicked(ClassPicked, PropertyHandle);
+			OnClassPicked.ExecuteIfBound(ClassPicked);
+		}),
+		AdditionalClassFilter);
+}
+
+void PropertyCustomizationHelpers::CreateNewInstanceOfEditInlineObjectClass(TSharedRef<IPropertyHandle> PropertyHandle, UClass* Class, EPropertyValueSetFlags::Type Flags)
+{
+	SPropertyEditorEditInline::OnClassPicked(Class, PropertyHandle, Flags);
+}
+
+namespace PropertyCustomizationHelpers
+{
+	namespace Private
+	{
+		static const FName NAME_CallInEditor(TEXT("CallInEditor"));
+		static const FName NAME_WorldContext(TEXT("WorldContext"));
+
+		static bool CanCallFunctionBasedOnParams(const UFunction* TestFunction)
+		{
+			// If the function only takes a world context object we can use the editor's
+			// world context - but only if the blueprint is editor only and the function
+			// is static:
+			if (UClass* TestFunctionOwnerClass = TestFunction->GetOwnerClass())
+			{
+				if (UBlueprint* Blueprint = Cast<UBlueprint>(TestFunctionOwnerClass->ClassGeneratedBy))
+				{
+					if (FBlueprintEditorUtils::IsEditorUtilityBlueprint(Blueprint) && Blueprint->BlueprintType == BPTYPE_FunctionLibrary)
+					{
+						using namespace UE::Reflection;
+						return TestFunction->HasMetaData(NAME_WorldContext) &&
+							DoesStaticFunctionSignatureMatch<void(TObjectPtr<UObject>)>(TestFunction);
+					}
+				}
+			}
+
+			const bool bCanCall = TestFunction->GetBoolMetaData(NAME_CallInEditor) && (TestFunction->ParmsSize == 0); // no params required, we can call it!
+			return bCanCall;
+		}
+
+		void GetCallInEditorFunctionsForClassInternal(const UClass* InClass, TOptional<TFunctionRef<bool(const UFunction*)>> InFunctionFilter, TArray<UFunction*>& OutCallInEditorFunctions, EFieldIterationFlags InIterationFlags)
+		{
+			// metadata tag for defining sort order of function buttons within a Category
+			static const FName NAME_DisplayPriority("DisplayPriority");
+
+			const bool bDisallowEditorUtilityBlueprintFunctions = GetDefault<UBlueprintEditorProjectSettings>()->bDisallowEditorUtilityBlueprintFunctionsInDetailsView;
+
+			// Get all of the functions we need to display (done ahead of time so we can sort them)
+			for (TFieldIterator<UFunction> FunctionIter(InClass, InIterationFlags); FunctionIter; ++FunctionIter)
+			{
+				const UFunction* TestFunction = *FunctionIter;
+				if (CanCallFunctionBasedOnParams(TestFunction) && (!InFunctionFilter.IsSet() || InFunctionFilter.GetValue()(TestFunction)))
+				{
+					const FName FunctionName = TestFunction->GetFName();
+
+					if (const bool bFunctionIsPermissible = FPropertyEditorPermissionList::Get().DoesPropertyPassFilter(TestFunction->GetOwnerClass(), FunctionName);
+						!bFunctionIsPermissible)
+					{
+						continue;
+					}
+
+					if (const bool bFunctionAlreadyAdded = OutCallInEditorFunctions.ContainsByPredicate([&FunctionName](UFunction*& Func) { return Func->GetFName() == FunctionName; });
+						bFunctionAlreadyAdded)
+					{
+						continue;
+					}
+
+					OutCallInEditorFunctions.Add(*FunctionIter);
+				}
+			}
+
+			if (OutCallInEditorFunctions.IsEmpty())
+			{
+				return;
+			}
+
+
+			// FBlueprintMetadata::MD_FunctionCategory
+			static const FName NAME_FunctionCategory(TEXT("Category"));
+
+			// Sort the functions by category and then by DisplayPriority meta tag, and then by name
+			OutCallInEditorFunctions.Sort([](const UFunction& A, const UFunction& B)
+			{
+				const int32 CategorySort = A.GetMetaData(NAME_FunctionCategory).Compare(B.GetMetaData(NAME_FunctionCategory));
+				if (CategorySort != 0)
+				{
+					return (CategorySort <= 0);
+				}
+				else
+				{
+					const FString DisplayPriorityAStr = A.GetMetaData(NAME_DisplayPriority);
+					int32 DisplayPriorityA = (DisplayPriorityAStr.IsEmpty() ? MAX_int32 : FCString::Atoi(*DisplayPriorityAStr));
+					if (DisplayPriorityA == 0 && !FCString::IsNumeric(*DisplayPriorityAStr))
+					{
+						DisplayPriorityA = MAX_int32;
+					}
+
+					const FString DisplayPriorityBStr = B.GetMetaData(NAME_DisplayPriority);
+					int32 DisplayPriorityB = (DisplayPriorityBStr.IsEmpty() ? MAX_int32 : FCString::Atoi(*DisplayPriorityBStr));
+					if (DisplayPriorityB == 0 && !FCString::IsNumeric(*DisplayPriorityBStr))
+					{
+						DisplayPriorityB = MAX_int32;
+					}
+
+					return (DisplayPriorityA == DisplayPriorityB) ? (A.GetName() <= B.GetName()) : (DisplayPriorityA <= DisplayPriorityB);
+				}
+			});
+		}
+	}
+
+	void GetCallInEditorFunctionsForClass(const UClass* InClass, TArray<UFunction*>& OutCallInEditorFunctions, EFieldIterationFlags InIterationFlags)
+	{
+		return Private::GetCallInEditorFunctionsForClassInternal(InClass, {}, OutCallInEditorFunctions, InIterationFlags);
+	}
+
+	void GetCallInEditorFunctionsForClass(const UClass* InClass, const TFunctionRef<bool(const UFunction*)>& InFunctionFilter,	TArray<UFunction*>& OutCallInEditorFunctions, EFieldIterationFlags InIterationFlags)
+	{
+		return Private::GetCallInEditorFunctionsForClassInternal(InClass, InFunctionFilter, OutCallInEditorFunctions, InIterationFlags);
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////

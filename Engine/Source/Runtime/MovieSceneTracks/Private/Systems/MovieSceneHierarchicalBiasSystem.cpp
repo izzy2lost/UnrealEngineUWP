@@ -3,136 +3,167 @@
 #include "Systems/MovieSceneHierarchicalBiasSystem.h"
 
 #include "EntitySystem/BuiltInComponentTypes.h"
+#include "EntitySystem/MovieSceneEntityMutations.h"
 #include "EntitySystem/MovieSceneEntitySystemTask.h"
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
+#include "EntitySystem/MovieSceneEntityGroupingSystem.h"
 #include "EntitySystem/MovieScenePreAnimatedStateSystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneHierarchicalBiasSystem)
 
 
-namespace UE
+namespace UE::MovieScene
 {
-namespace MovieScene
-{
-
-struct FEntityGroupSequenceKey
-{
-	FRootInstanceHandle RootInstance;
-	FEntityGroupID GroupID;
-	friend uint32 GetTypeHash(const FEntityGroupSequenceKey& In)
+	/** Temporary struct used for collating hbias meta data for each group */
+	struct FHBiasMetaData
 	{
-		return HashCombine(GetTypeHash(In.RootInstance), GetTypeHash(In.GroupID));
-	}
-	friend bool operator==(const FEntityGroupSequenceKey& A, const FEntityGroupSequenceKey& B)
-	{
-		return A.RootInstance == B.RootInstance && A.GroupID == B.GroupID;
-	}
-};
+		UE::MovieScene::FHierarchicalBlendTarget BlendTarget;
+		int16 HBias;
+		uint8 bBlendHierarchicalBias : 1;
+		uint8 bInUse : 1;
 
-struct FHierarchicalBiasTask
-{
-	explicit FHierarchicalBiasTask(UMovieSceneEntitySystemLinker* InLinker)
-		: Linker(InLinker)
-	{}
-
-	void InitializeGroup(FRootInstanceHandle RootInstanceHandle, FEntityGroupID GroupID)
-	{
-		MaxBiasByGroup.FindOrAdd(FEntityGroupSequenceKey{ RootInstanceHandle, GroupID }, MIN_int16);
-	}
-
-	bool HasAnyWork() const
-	{
-		return MaxBiasByGroup.Num() != 0;
-	}
-
-	void ForEachAllocation(FEntityAllocationIteratorItem Iterator, TRead<FMovieSceneEntityID> EntityIDs, TRead<FRootInstanceHandle> RootInstanceHandles, TRead<FEntityGroupID> GroupIDs, TReadOptional<int16> OptHBiases)
-	{
-		const int32 Num = Iterator.GetAllocation()->Num();
-		const FComponentMask& AllocationType = Iterator.GetAllocationType();
-		const bool bIgnoreBias = AllocationType.Contains(FBuiltInComponentTypes::Get()->Tags.IgnoreHierarchicalBias)
-			|| AllocationType.Contains(FBuiltInComponentTypes::Get()->HierarchicalBlendTarget);
-
-		if (bIgnoreBias)
+		FHBiasMetaData()
 		{
+			bBlendHierarchicalBias = false;
+			bInUse = false;
+			HBias = TNumericLimits<int16>::Lowest();
+		}
+	};
+
+	/** Mutation that adds or removes the Ignored tag for entities */
+	struct FToggleIgnoredMutation : IMovieSceneConditionalEntityMutation
+	{
+		TArrayView<const FHBiasMetaData> HBiasMetaData;
+
+		FToggleIgnoredMutation(TArrayView<const FHBiasMetaData> InHBiasMetaData)
+			: HBiasMetaData(InHBiasMetaData)
+		{}
+
+		void MarkAllocation(FEntityAllocation* Allocation, TBitArray<>& OutEntitiesToMutate) const override
+		{
+			FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
+
+			const bool bCurrentlyIgnored = Allocation->HasComponent(BuiltInComponents->Tags.Ignored);
+
+			TComponentReader<FEntityGroupID> GroupComponents = Allocation->ReadComponents(BuiltInComponents->Group);
+			TOptionalComponentReader<int16>  HBiasComponents = Allocation->TryReadComponents(BuiltInComponents->HierarchicalBias);
+
+			const int32 Num = Allocation->Num();
 			for (int32 Index = 0; Index < Num; ++Index)
 			{
-				FEntityGroupSequenceKey Key{ RootInstanceHandles[Index], GroupIDs[Index] };
-				ActiveContributorsByGroup.Add(Key, EntityIDs[Index]);
-			}
-		}
-		else if (OptHBiases)
-		{
-			for (int32 Index = 0; Index < Num; ++Index)
-			{
-				VisitGroup(EntityIDs[Index], RootInstanceHandles[Index], GroupIDs[Index], OptHBiases[Index]);
-			}
-		}
-		else
-		{
-			for (int32 Index = 0; Index < Num; ++Index)
-			{
-				VisitGroup(EntityIDs[Index], RootInstanceHandles[Index], GroupIDs[Index], 0);
-			}
-		}
-	}
+				const int16 HBias = HBiasComponents ? HBiasComponents[Index] : 0;
 
-	void PostTask()
-	{
-		FBuiltInComponentTypes* Components = FBuiltInComponentTypes::Get();
-
-		for (auto It = ActiveContributorsByGroup.CreateIterator(); It; ++It)
-		{
-			Linker->EntityManager.RemoveComponent(It.Value(), Components->Tags.Ignored);
-		}
-
-		for (auto It = InactiveContributorsByGroup.CreateIterator(); It; ++It)
-		{
-			Linker->EntityManager.AddComponent(It.Value(), Components->Tags.Ignored);
-		}
-	}
-
-private:
-
-	void VisitGroup(FMovieSceneEntityID EntityID, FRootInstanceHandle RootInstanceHandle, FEntityGroupID GroupID, int16 HBias)
-	{
-		FEntityGroupSequenceKey Key{ RootInstanceHandle, GroupID };
-
-		// If this group hasn't changed at all (ie InitializeGroup was not called for it) do nothing
-		if (int16* ExistingBias = MaxBiasByGroup.Find(Key))
-		{
-			if (HBias > *ExistingBias)
-			{
-				for (auto It = ActiveContributorsByGroup.CreateKeyIterator(Key); It; ++It)
+				if (!EnumHasAnyFlags(GroupComponents[Index].Flags, EEntityGroupFlags::RemovedFromGroup))
 				{
-					InactiveContributorsByGroup.Add(Key, It.Value());
-					It.RemoveCurrent();
+					const FHBiasMetaData& MetaData = HBiasMetaData[GroupComponents[Index].GroupIndex];
+					const bool bShouldBeIgnored = (!MetaData.bBlendHierarchicalBias && MetaData.HBias > HBias);
+				
+					if (bShouldBeIgnored != bCurrentlyIgnored)
+					{
+						OutEntitiesToMutate.PadToNum(Index + 1, false);
+						OutEntitiesToMutate[Index] = true;
+					}
 				}
-
-				*ExistingBias = HBias;
-				ActiveContributorsByGroup.Add(Key, EntityID);
 			}
-			else if (HBias == *ExistingBias)
+		}
+
+		void CreateMutation(FEntityManager* EntityManager, FComponentMask* InOutEntityComponentTypes) const override
+		{
+			FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
+
+			if (InOutEntityComponentTypes->Contains(BuiltInComponents->Tags.Ignored))
 			{
-				ActiveContributorsByGroup.Add(Key, EntityID);
+				InOutEntityComponentTypes->Remove(BuiltInComponents->Tags.Ignored);
 			}
 			else
 			{
-				InactiveContributorsByGroup.Add(Key, EntityID);
+				InOutEntityComponentTypes->Set(BuiltInComponents->Tags.Ignored);
+			}
+
+			InOutEntityComponentTypes->Set(BuiltInComponents->Tags.NeedsLink);
+		}
+	};
+
+	/** Mutation that adds, removes or assigns the HierarchicalBlendTarget components for entities */
+	struct FBlendTargetMutation : IMovieSceneConditionalEntityMutation
+	{
+		TArrayView<const FHBiasMetaData> HBiasMetaData;
+		FEntityAllocationWriteContext WriteContext;
+
+		FBlendTargetMutation(TArrayView<const FHBiasMetaData> InHBiasMetaData, FEntityAllocationWriteContext InWriteContext)
+			: HBiasMetaData(InHBiasMetaData)
+			, WriteContext(InWriteContext)
+		{}
+
+		void MarkAllocation(FEntityAllocation* Allocation, TBitArray<>& OutEntitiesToMutate) const override
+		{
+			FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
+
+			TOptionalComponentWriter<FHierarchicalBlendTarget> OutBlendTargets = Allocation->TryWriteComponents(BuiltInComponents->HierarchicalBlendTarget, WriteContext);
+			TComponentReader<FEntityGroupID>                   GroupComponents = Allocation->ReadComponents(BuiltInComponents->Group);
+
+			const bool bIsIgnored = Allocation->HasComponent(BuiltInComponents->Tags.Ignored);
+			const bool bHasBlendTarget = !!OutBlendTargets;
+
+			const int32 Num = Allocation->Num();
+			for (int32 Index = 0; Index < Num; ++Index)
+			{
+				if (!EnumHasAnyFlags(GroupComponents[Index].Flags, EEntityGroupFlags::RemovedFromGroup))
+				{
+					const int32  GroupIndex = GroupComponents[Index].GroupIndex;
+					const FHBiasMetaData& MetaData = HBiasMetaData[GroupIndex];
+
+					const bool bNeedsBlendTarget = !bIsIgnored && MetaData.bBlendHierarchicalBias;
+					if (bNeedsBlendTarget != bHasBlendTarget)
+					{
+						OutEntitiesToMutate.PadToNum(Index + 1, false);
+						OutEntitiesToMutate[Index] = true;
+					}
+					else if (OutBlendTargets)
+					{
+						OutBlendTargets[Index] = HBiasMetaData[GroupIndex].BlendTarget;
+					}
+				}
 			}
 		}
-	}
 
-	TMap<FEntityGroupSequenceKey, int16> MaxBiasByGroup;
+		void CreateMutation(FEntityManager* EntityManager, FComponentMask* InOutEntityComponentTypes) const override
+		{
+			FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 
-	TMultiMap<FEntityGroupSequenceKey, FMovieSceneEntityID> InactiveContributorsByGroup;
+			if (InOutEntityComponentTypes->Contains(BuiltInComponents->HierarchicalBlendTarget))
+			{
+				InOutEntityComponentTypes->Remove(BuiltInComponents->HierarchicalBlendTarget);
+			}
+			else
+			{
+				InOutEntityComponentTypes->Set(BuiltInComponents->HierarchicalBlendTarget);
+			}
 
-	TMultiMap<FEntityGroupSequenceKey, FMovieSceneEntityID> ActiveContributorsByGroup;
+			InOutEntityComponentTypes->Set(BuiltInComponents->Tags.NeedsLink);
+		}
 
-	UMovieSceneEntitySystemLinker* Linker;
-};
+		void InitializeEntities(const FEntityRange& EntityRange, const FComponentMask& AllocationType) const override
+		{
+			FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 
-} // namespace MovieScene
-} // namespace UE
+			TOptionalComponentWriter<FHierarchicalBlendTarget> BlendTargets = EntityRange.Allocation->TryWriteComponents(BuiltInComponents->HierarchicalBlendTarget, FEntityAllocationWriteContext::NewAllocation());
+			if (BlendTargets)
+			{
+				TComponentReader<FEntityGroupID> GroupComponents = EntityRange.Allocation->ReadComponents(BuiltInComponents->Group);
+
+				for (int32 Index = 0; Index < EntityRange.Num; ++Index)
+				{
+					const FHBiasMetaData& MetaData = HBiasMetaData[GroupComponents[EntityRange.ComponentStartOffset + Index].GroupIndex];
+
+					BlendTargets[Index] = MetaData.BlendTarget;
+				}
+			}
+		}
+
+	};
+
+} // namespace UE::MovieScene
 
 
 UMovieSceneHierarchicalBiasSystem::UMovieSceneHierarchicalBiasSystem(const FObjectInitializer& ObjInit)
@@ -140,15 +171,16 @@ UMovieSceneHierarchicalBiasSystem::UMovieSceneHierarchicalBiasSystem(const FObje
 {
 	using namespace UE::MovieScene;
 
+	GroupingSystem = nullptr;
 	SystemCategories = EEntitySystemCategory::Core;
 
 	if (HasAnyFlags(RF_ClassDefaultObject))
 	{
-		DefineComponentConsumer(GetClass(), FBuiltInComponentTypes::Get()->Group);
+		FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
+		DefineComponentConsumer(GetClass(), BuiltInComponents->Group);
 
-		// Don't flag things with the Ignore tag (due to hierarchical biases) until all systems have
-		// had a chance to take them into account for pre-animated state.
-		DefineImplicitPrerequisite(UMovieSceneCachePreAnimatedStateSystem::StaticClass(), GetClass());
+		DefineComponentProducer(GetClass(), BuiltInComponents->Tags.Ignored);
+		DefineComponentProducer(GetClass(), BuiltInComponents->HierarchicalBlendTarget);
 	}
 }
 
@@ -160,31 +192,84 @@ bool UMovieSceneHierarchicalBiasSystem::IsRelevantImpl(UMovieSceneEntitySystemLi
 	return InLinker->EntityManager.ContainsAllComponents({ Components->Group, Components->HierarchicalBias });
 }
 
+void UMovieSceneHierarchicalBiasSystem::OnLink()
+{
+	GroupingSystem = Linker->LinkSystem<UMovieSceneEntityGroupingSystem>();
+	Linker->SystemGraph.AddReference(this, GroupingSystem.Get());
+}
+
 void UMovieSceneHierarchicalBiasSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents)
 {
 	using namespace UE::MovieScene;
 
-	FBuiltInComponentTypes* Components = FBuiltInComponentTypes::Get();
+	FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 
-	FHierarchicalBiasTask Task(Linker);
+	TArray<FHBiasMetaData> HBiasMetaData;
+	HBiasMetaData.SetNum(GroupingSystem->NumGroups());
 
-	// First, add all the groups that have changed to the map
-	FEntityTaskBuilder()
-	.Read(Components->RootInstanceHandle)
-	.Read(Components->Group)
-	.FilterAny({ Components->Tags.NeedsLink, Components->Tags.NeedsUnlink })
-	.Iterate_PerEntity(&Linker->EntityManager, [&Task](FRootInstanceHandle RootInstanceHandle, FEntityGroupID GroupID)
-			{ Task.InitializeGroup(RootInstanceHandle, GroupID); });
-
-	if (Task.HasAnyWork())
+	auto GatherHierarchicalMetaData = [&HBiasMetaData, BuiltInComponents](FEntityAllocationIteratorItem Item, const FEntityGroupID* GroupIDs, const int16* OptionalHBias)
 	{
-		FEntityTaskBuilder()
-		.ReadEntityIDs()
-		.Read(Components->RootInstanceHandle)
-		.Read(Components->Group)
-		.ReadOptional(Components->HierarchicalBias)
-		.FilterNone({ Components->Tags.NeedsUnlink })
-		.RunInline_PerAllocation(&Linker->EntityManager, Task);
-	}
+		const FComponentMask& AllocationType = Item.GetAllocationType();
+
+		const int32 Num = Item.GetAllocation()->Num();
+
+		const bool bBlendHBias = AllocationType.Contains(BuiltInComponents->Tags.BlendHierarchicalBias);
+
+		if (AllocationType.Contains(BuiltInComponents->Tags.IgnoreHierarchicalBias))
+		{
+			for (int32 Index = 0; Index < Num; ++Index)
+			{
+				if (!EnumHasAnyFlags(GroupIDs[Index].Flags, EEntityGroupFlags::RemovedFromGroup))
+				{
+					const int32 GroupIndex = GroupIDs[Index].GroupIndex;
+
+					FHBiasMetaData& MetaData = HBiasMetaData[GroupIndex];
+
+					MetaData.bInUse = true;
+					MetaData.bBlendHierarchicalBias |= bBlendHBias;
+				}
+			}
+		}
+		else
+		{
+			for (int32 Index = 0; Index < Num; ++Index)
+			{
+				if (!EnumHasAnyFlags(GroupIDs[Index].Flags, EEntityGroupFlags::RemovedFromGroup))
+				{
+					const int32 GroupIndex = GroupIDs[Index].GroupIndex;
+					const int16 ThisHBias  = OptionalHBias ? OptionalHBias[Index] : 0;
+
+					FHBiasMetaData& MetaData = HBiasMetaData[GroupIndex];
+
+					if (ThisHBias > MetaData.HBias)
+					{
+						MetaData.HBias = ThisHBias;
+					}
+
+					MetaData.bInUse = true;
+					MetaData.bBlendHierarchicalBias |= bBlendHBias;
+					MetaData.BlendTarget.Add(ThisHBias);
+				}
+			}
+		}
+	};
+
+	// --------------------------------------------------------------------------
+	// Step 1: Gather hbias meta-data for each group
+	FEntityTaskBuilder()
+	.Read(BuiltInComponents->Group)
+	.ReadOptional(BuiltInComponents->HierarchicalBias)
+	.Iterate_PerAllocation(&Linker->EntityManager, GatherHierarchicalMetaData);
+
+	// --------------------------------------------------------------------------
+	// Step 2: Toggle non-blended entities that are part of lower-hbias
+	FToggleIgnoredMutation ToggleIgnoredMutation(HBiasMetaData);
+	Linker->EntityManager.MutateConditional(FEntityComponentFilter().All({ BuiltInComponents->Group }), ToggleIgnoredMutation);
+
+	// --------------------------------------------------------------------------
+	// Step 3: Update blend targets on blended entities
+	FBlendTargetMutation ToggleBlendTargetMutation(HBiasMetaData, FEntityAllocationWriteContext(Linker->EntityManager));
+	Linker->EntityManager.MutateConditional(
+		FEntityComponentFilter().Any({ BuiltInComponents->Group, BuiltInComponents->HierarchicalBlendTarget }), ToggleBlendTargetMutation);
 }
 

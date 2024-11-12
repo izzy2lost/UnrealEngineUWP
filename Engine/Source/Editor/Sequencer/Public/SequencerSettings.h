@@ -3,10 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Filters/SequencerFilterBarConfig.h"
+#include "Misc/SequencerThumbnailCaptureSettings.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "UObject/Package.h"
 #include "FrameNumberDisplayFormat.h"
+#include "Sidebar/SidebarState.h"
 #include "SequencerSettings.generated.h"
 
 struct FPropertyChangedEvent;
@@ -52,6 +55,15 @@ enum ESequencerLoopMode : int
 	/** Loop Selection Range. */
 	SLM_LoopSelectionRange UMETA(DisplayName="Loop Selection Range"),
 };
+
+UENUM()
+enum class ESequencerTimeWarpDisplay : uint8
+{
+	UnwarpedTime = 1 UMETA(DisplayName="Unwarped Time"),
+	WarpedTime = 2 UMETA(DisplayName="Warped Time"),
+	Both = UnwarpedTime | WarpedTime UMETA(DisplayName="Both"),
+};
+ENUM_CLASS_FLAGS(ESequencerTimeWarpDisplay)
 
 /** Empty class used to house multiple named USequencerSettings */
 UCLASS()
@@ -277,6 +289,11 @@ public:
 	/** Assign whether we should filter the curve editor tree to only nodes that are relevant to the current sequencer selection */
 	void IsolateCurveEditorToSelection(bool bInIsolateCurveEditorToSelection);
 
+	/** Return true if we should filter the curve editor tree to only nodes that are relevant to the current sequencer selection */
+	bool GetCurveEditorVisible() const { return bCurveEditorVisible; }
+	/** Assign whether we should filter the curve editor tree to only nodes that are relevant to the current sequencer selection */
+	void SetCurveEditorVisible(bool bCurveEditorVisible);
+
 	/** Gets the loop mode. */
 	ESequencerLoopMode GetLoopMode() const;
 	/** Sets the loop mode. */
@@ -306,6 +323,11 @@ public:
 	FFrameNumber GetJumpFrameIncrement() const;
 	/** Set the number of frames to increment when jumping forwards/backwards */
 	void SetJumpFrameIncrement(FFrameNumber InJumpFrameIncrement);
+
+	/** Get the time-warp display mode */
+	ESequencerTimeWarpDisplay GetTimeWarpDisplayMode() const;
+	/** Set the time-warp display mode */
+	void SetTimeWarpDisplayMode(ESequencerTimeWarpDisplay InTimeWarpDisplay);
 
 	/** @return true if showing layer bars */
 	bool GetShowLayerBars() const;
@@ -342,6 +364,11 @@ public:
 	/** Set whether to show sequencer toolbar bar */
 	void SetShowSequencerToolbar(bool bInDrawTickLines);
 
+	/** @return true if showing marked frames */
+	bool GetShowMarkedFrames() const;
+	/** Set whether to show marked frames */
+	void SetShowMarkedFrames(bool bShowMarkedFrames);
+
 	/** @return Whether the given channel has curve extents */
 	bool HasKeyAreaCurveExtents(const FString& ChannelName) const;
 	/** @ Remove curve extents for the given channel */
@@ -370,6 +397,11 @@ public:
 	bool GetDisableSectionsAfterBaking() const;
 	/** Set whether to disable sections when baking, as opposed to deleting */
 	void SetDisableSectionsAfterBaking(bool bInDisableSectionsAfterBaking);
+
+	/** @return the default marked frame color */
+	FLinearColor GetMarkedFrameColor() const;
+	/** Set the default marked frame color */
+	void SetMarkedFrameColor(const FLinearColor& InColor);
 
 	/** @return the section color tints */
 	TArray<FColor> GetSectionColorTints() const;
@@ -464,6 +496,16 @@ public:
 	/** Sets the saved view density */
 	void SetViewDensity(FName InViewDensity);
 
+	/** Gets the asset browser width */
+	float GetAssetBrowserWidth() const { return AssetBrowserWidth; }
+	/** Sets the asset browser width */
+	void SetAssetBrowserWidth(float InAssetBrowserWidth);
+
+	/** Gets the asset browser height */
+	float GetAssetBrowserHeight() const { return AssetBrowserHeight; }
+	/** Sets the asset browser width */
+	void SetAssetBrowserHeight(float InAssetBrowserHeight);
+
 	/** Gets whether the given track filter is enabled */
 	bool IsTrackFilterEnabled(const FString& TrackFilter) const;
 	/** Sets whether the track filter should be enabled/disabled */
@@ -473,6 +515,38 @@ public:
 	TArray<FColumnVisibilitySetting> GetOutlinerColumnSettings() const { return ColumnVisibilitySettings; }
 	/** Sets the visibility of outliner columns in display order */
 	void SetOutlinerColumnVisibility(const TArray<FColumnVisibilitySetting>& InColumnVisibilitySettings);
+
+	/** Gets the last saved sidebar state */
+	FSidebarState& GetSidebarState();
+	/** Sets the sidebar state to be restored on Sequencer initialize */
+	void SetSidebarState(const FSidebarState& InSidebarState);
+
+	FSequencerFilterBarConfig& FindOrAddTrackFilterBar(const FName InIdentifier, const bool bInSaveConfig);
+	FSequencerFilterBarConfig* FindTrackFilterBar(const FName InIdentifier);
+	bool RemoveTrackFilterBar(const FName InIdentifier);
+
+	bool GetIncludePinnedInFilter() const;
+	void SetIncludePinnedInFilter(const bool bInIncludePinned);
+
+	bool GetAutoExpandNodesOnFilterPass() const;
+	void SetAutoExpandNodesOnFilterPass(const bool bInIncludePinned);
+
+	bool GetUseFilterSubmenusForCategories() const;
+	void SetUseFilterSubmenusForCategories(const bool bInUseFilterSubmenusForCategories);
+
+	bool IsFilterBarVisible() const;
+	void SetFilterBarVisible(const bool bInVisible);
+
+	EFilterBarLayout GetFilterBarLayout() const;
+	void SetFilterBarLayout(const EFilterBarLayout InLayout);
+
+	float GetLastFilterBarSizeCoefficient() const;
+	void SetLastFilterBarSizeCoefficient(const float bInSizeCoefficient);
+	
+	/** Gets the settings that determine how the asset thumbnail is captured when the sequence is saved. */
+	const FSequencerThumbnailCaptureSettings& GetThumbnailCaptureSettings() const { return ThumbnailCaptureSettings; }
+	/** Sets how the asset thumbnail is captured when the sequence is saved.  */
+	void SetThumbnailCaptureSettings(const FSequencerThumbnailCaptureSettings& InNewValue);
 
 protected:
 
@@ -595,8 +669,12 @@ protected:
 	bool bSynchronizeCurveEditorSelection;
 
 	/** When enabled, changing the sequencer tree selection will isolate (auto-filter) the selected nodes in the curve editor. */
-	UPROPERTY( config, EditAnywhere, Category=CurveEditor )
+	UPROPERTY(config, EditAnywhere, Category=CurveEditor)
 	bool bIsolateCurveEditorToSelection;
+
+	/** Whether the curve editor is visible */
+	UPROPERTY(config, EditAnywhere, Category=CurveEditor)
+	bool bCurveEditorVisible;
 
 	/** The loop mode of the playback in timeline. */
 	UPROPERTY( config )
@@ -621,6 +699,10 @@ protected:
 	/** The number of frames to jump by when jumping forward or backwards. */
 	UPROPERTY( config, EditAnywhere, Category=Timeline )
 	FFrameNumber JumpFrameIncrement;
+
+	/** Controls how time-warped time is displayed on the timeline. */
+	UPROPERTY( config, EditAnywhere, Category=Timeline )
+	ESequencerTimeWarpDisplay TimeWarpDisplay;
 
 	/** Enable or disable the layer bars to edit keyframes in bulk. */
 	UPROPERTY( config, EditAnywhere, Category=Timeline )
@@ -650,6 +732,10 @@ protected:
 	UPROPERTY(config, EditAnywhere, Category = Timeline)
 	bool bShowSequencerToolbar;
 
+	/** Enable or disable showing marked frames */
+	UPROPERTY(config, EditAnywhere, Category = Timeline)
+	bool bShowMarkedFrames;
+
 	/** The key area curve extents, stored per channel name */
 	UPROPERTY(config, EditAnywhere, Category = Timeline)
 	FString KeyAreaCurveExtents;
@@ -669,6 +755,10 @@ protected:
 	/** Whether to disable sections after baking as opposed to deleting. */
 	UPROPERTY(config, EditAnywhere, Category = Timeline)
 	bool bDisableSectionsAfterBaking;
+	
+	/** Default marked frame color */
+	UPROPERTY(config, EditAnywhere, Category = Timeline)
+	FLinearColor MarkedFrameColor;
 
 	/** Section color tints */
 	UPROPERTY(config, EditAnywhere, Category = General)
@@ -733,6 +823,14 @@ protected:
 	UPROPERTY(config, EditAnywhere, Category = General)
 	FName ViewDensity;
 
+	/** The width for the asset browsers in Sequencer */
+	UPROPERTY(config, EditAnywhere, Category = General)
+	float AssetBrowserWidth;
+
+	/** The height for the asset browsers in Sequencer */
+	UPROPERTY(config, EditAnywhere, Category = General)
+	float AssetBrowserHeight;
+
 	/** The track filters that are enabled */
 	UPROPERTY(config, EditAnywhere, Category = General)
 	TArray<FString> TrackFilters;
@@ -740,6 +838,45 @@ protected:
 	/** List of all columns and their visibility, in the order to be displayed in the outliner view */
 	UPROPERTY(config, EditAnywhere, Category = General)
 	TArray<FColumnVisibilitySetting> ColumnVisibilitySettings;
+
+	/** The state of a sidebar to be restored when each Sequencer type is initialized */
+	UPROPERTY(config)
+	TMap<FName, FSidebarState> SidebarState;
+
+	/** Saved settings for each unique filter bar instance mapped by instance identifier */
+	UPROPERTY(config, EditAnywhere, Category = Filtering)
+	TMap<FName, FSequencerFilterBarConfig> TrackFilterBars;
+
+	/** Apply filtering to pinned tracks that would otherwise ignore filters */
+	UPROPERTY(config, EditAnywhere, Category = Filtering)
+	bool bIncludePinnedInFilter;
+
+	/** Automatically expand tracks that pass filters */
+	UPROPERTY(config, EditAnywhere, Category = Filtering)
+	bool bAutoExpandNodesOnFilterPass;
+
+	/** Display the filter menu categories as submenus instead of sections */
+	UPROPERTY(config, EditAnywhere, Category = Filtering)
+	bool bUseFilterSubmenusForCategories;
+
+	/** Last saved visibility of the filter bar to restore after closed */
+	UPROPERTY(config, EditAnywhere, Category = Filtering)
+	bool bFilterBarVisible;
+
+	/** Last saved layout orientation of the filter bar to restore after closed */
+	UPROPERTY(config, EditAnywhere, Category = Filtering)
+	EFilterBarLayout LastFilterBarLayout;
+
+	/** Last saved size of the filter bar to restore after closed */
+	UPROPERTY(config)
+	float LastFilterBarSizeCoefficient;
+
+	/** Controls how the thumbnail is captured when the sequence is saved. */
+	UPROPERTY(config, EditAnywhere, Category = General, meta = (EditCondition="ShouldShowThumbnailCaptureSettings()", EditConditionHides))
+	FSequencerThumbnailCaptureSettings ThumbnailCaptureSettings;
+
+	UFUNCTION()
+	static bool ShouldShowThumbnailCaptureSettings();
 
 	FOnEvaluateSubSequencesInIsolationChanged OnEvaluateSubSequencesInIsolationChangedEvent;
 	FOnShowSelectedNodesOnlyChanged OnShowSelectedNodesOnlyChangedEvent;

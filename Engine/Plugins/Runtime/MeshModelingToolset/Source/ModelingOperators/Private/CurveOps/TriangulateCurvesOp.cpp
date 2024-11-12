@@ -29,6 +29,17 @@ void FTriangulateCurvesOp::AddSpline(USplineComponent* Spline, double ErrorToler
 	}
 }
 
+void FTriangulateCurvesOp::AddWorldCurve(TArrayView<const FVector3d> WorldSpaceVertices, bool bClosed, const FTransform& ReferenceTransform)
+{
+	FCurvePath& Path = Paths.Emplace_GetRef();
+	Path.Vertices.Append(WorldSpaceVertices);
+	Path.bClosed = bClosed;
+	if (Paths.Num() == 1)
+	{
+		FirstPathTransform = ReferenceTransform;
+	}
+}
+
 void FTriangulateCurvesOp::CalculateResult(FProgressCancel* Progress)
 {
 	if (Progress && Progress->Cancelled())
@@ -47,7 +58,8 @@ void FTriangulateCurvesOp::CalculateResult(FProgressCancel* Progress)
 	{
 		InputBounds.Contain(Path.Vertices);
 	}
-	double UseUVScaleFactor = UVScaleFactor / InputBounds.MaxDim();
+	double UVScaleDenom = bWorldSpaceUVScale ? 100.0 : InputBounds.MaxDim();
+	double UseUVScaleFactor = UVScaleFactor / UVScaleDenom;
 
 	auto AppendTriangles = [this, UseUVScaleFactor](FDynamicMesh3& Mesh, const TArray<FVector3d>& Vertices, const TArray<FIndex3i>& Tris, int32 GroupID, FVector3d PlaneOrigin, FVector3d Normal, bool bFlip) -> void
 	{

@@ -8,7 +8,6 @@
 #include "LandscapeEditorModule.h"
 #include "LandscapeEditorObject.h"
 #include "LandscapeUtils.h"
-#include "LandscapeTiledImage.h"
 #include "LandscapeEditorUtils.h"
 #include "SLandscapeEditor.h"
 
@@ -76,7 +75,7 @@ void FLandscapeEditorStructCustomization_FLandscapeImportLayer::CustomizeChildre
 	FName LayerName;
 	FText LayerNameText;
 	FPropertyAccess::Result Result = PropertyHandle_LayerName->GetValue(LayerName);
-	checkSlow(Result == FPropertyAccess::Success);
+	check(Result != FPropertyAccess::Fail);
 	LayerNameText = FText::FromName(LayerName);
 	if (Result == FPropertyAccess::MultipleValues)
 	{

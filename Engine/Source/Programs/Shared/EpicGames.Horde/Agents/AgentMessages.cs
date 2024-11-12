@@ -76,16 +76,6 @@ namespace EpicGames.Horde.Agents
 	public record GetAgentLeaseResponse(LeaseId Id, LeaseId? ParentId, AgentId? AgentId, double? AgentRate, string Name, LogId? LogId, DateTime StartTime, DateTime? FinishTime, bool Executing, Dictionary<string, string>? Details, LeaseOutcome? Outcome, LeaseState? State);
 
 	/// <summary>
-	/// Information about an agent session
-	/// </summary>
-	/// <param name="Id"> Unique id for this session </param>
-	/// <param name="StartTime"> Start time for this session </param>
-	/// <param name="FinishTime"> Finishing time for this session </param>
-	/// <param name="Properties"> Properties of this agent </param>
-	/// <param name="Version"> Version of the software running during this session </param>
-	public record GetAgentSessionResponse(SessionId Id, DateTime StartTime, DateTime? FinishTime, List<string>? Properties, string? Version);
-
-	/// <summary>
 	/// Information about a workspace synced on an agent
 	/// </summary>
 	/// <param name="Cluster"> The Perforce server and port to connect to </param>
@@ -95,37 +85,49 @@ namespace EpicGames.Horde.Agents
 	/// <param name="View"> Custom view for the workspace </param>
 	/// <param name="BIncremental"> Whether to use an incremental workspace </param>
 	/// <param name="Method"> Method to use when syncing/materializing data from Perforce </param>
-	public record GetAgentWorkspaceResponse(string? Cluster, string? UserName, string Identifier, string Stream, List<string>? View, bool BIncremental, string? Method);
-
+	/// <param name="MinScratchSpace">Minimum disk space that must be available *after* syncing this workspace (in megabytes)</param>
+	/// <param name="ConformDiskFreeSpace">Threshold for when to trigger an automatic conform of agent. Measured in megabytes free on disk</param>
+	public record GetAgentWorkspaceResponse(string? Cluster, string? UserName, string Identifier, string Stream, List<string>? View, bool BIncremental, string? Method, long? MinScratchSpace, long? ConformDiskFreeSpace);
+	
 	/// <summary>
 	/// Information about an agent
 	/// </summary>
-	/// <param name="Id"> The agent's unique ID </param>
-	/// <param name="Name"> Friendly name of the agent </param>
-	/// <param name="Enabled"> Whether the agent is currently enabled </param>
+	/// <param name="Id">The agent's unique ID</param>
+	/// <param name="Name">Friendly name of the agent</param>
+	/// <param name="Enabled">Whether the agent is currently enabled</param>
 	/// <param name="Status">Status of the agent</param>
-	/// <param name="Rate"> Cost estimate per-hour for this agent </param>
-	/// <param name="SessionId"> The current session id </param>
-	/// <param name="Ephemeral"> Whether the agent is ephemeral </param>
-	/// <param name="Online"> Whether the agent is currently online </param>
-	/// <param name="Deleted"> Whether this agent has expired </param>
-	/// <param name="PendingConform"> Whether a conform job is pending </param>
-	/// <param name="PendingFullConform"> Whether a full conform job is pending </param>
-	/// <param name="PendingRestart"> Whether a restart is pending </param>
-	/// <param name="PendingShutdown"> Whether a shutdown is pending </param>
-	/// <param name="LastShutdownReason"> The reason for the last shutdown </param>
-	/// <param name="LastConformTime"> Last time a conform was attempted </param>
-	/// <param name="ConformAttemptCount"> Number of times a conform has been attempted </param>
-	/// <param name="NextConformTime"> Last time a conform was attempted </param>
-	/// <param name="Version"> The current client version </param>
-	/// <param name="Properties"> Properties for the agent </param>
-	/// <param name="Resources"> Resources for the agent </param>
-	/// <param name="UpdateTime"> Last update time of this agent </param>
-	/// <param name="LastStatusChange"> Last time agent's status was changed </param>
-	/// <param name="Pools"> Pools for this agent </param>
-	/// <param name="Capabilities"> Capabilities of this agent </param>
-	/// <param name="Leases"> Array of active leases. </param>
+	/// <param name="Rate">Cost estimate per-hour for this agent</param>
+	/// <param name="SessionId">The current session id</param>
+	/// <param name="Ephemeral">Whether the agent is ephemeral</param>
+	/// <param name="Online">Whether the agent is currently online</param>
+	/// <param name="Deleted">Whether this agent has expired</param>
+	/// <param name="PendingConform">Whether a conform job is pending</param>
+	/// <param name="PendingFullConform">Whether a full conform job is pending</param>
+	/// <param name="PendingRestart">Whether a restart is pending</param>
+	/// <param name="PendingShutdown">Whether a shutdown is pending</param>
+	/// <param name="LastShutdownReason">The reason for the last shutdown</param>
+	/// <param name="LastConformTime">Last time a conform was attempted</param>
+	/// <param name="ConformAttemptCount">Number of times a conform has been attempted</param>
+	/// <param name="NextConformTime">Last time a conform was attempted</param>
+	/// <param name="Version">The current client version</param>
+	/// <param name="Properties">Properties for the agent</param>
+	/// <param name="Resources">Resources for the agent</param>
+	/// <param name="UpdateTime">Last update time of this agent</param>
+	/// <param name="LastOnlineTime">Last time that the agent was online</param>
+	/// <param name="Pools">Pools for this agent</param>
+	/// <param name="Capabilities">Capabilities of this agent</param>
+	/// <param name="Leases">Array of active leases.</param>
 	/// <param name="Workspaces">Current workspaces synced on the agent</param>
-	/// <param name="Comment"> Comment for this agent </param>
-	public record GetAgentResponse(AgentId Id, string Name, bool Enabled, AgentStatus Status, double? Rate, SessionId? SessionId, bool Ephemeral, bool Online, bool Deleted, bool PendingConform, bool PendingFullConform, bool PendingRestart, bool PendingShutdown, string LastShutdownReason, DateTime LastConformTime, int? ConformAttemptCount, DateTime? NextConformTime, string? Version, List<string> Properties, Dictionary<string, int> Resources, DateTime? UpdateTime, DateTime? LastStatusChange, List<string>? Pools, object? Capabilities, List<GetAgentLeaseResponse> Leases, List<GetAgentWorkspaceResponse> Workspaces, string? Comment);
+	/// <param name="Comment">Comment for this agent</param>
+	public record GetAgentResponse(AgentId Id, string Name, bool Enabled, AgentStatus Status, double? Rate, SessionId? SessionId, bool Ephemeral, bool Online, bool Deleted, bool PendingConform, bool PendingFullConform, bool PendingRestart, bool PendingShutdown, string LastShutdownReason, DateTime LastConformTime, int? ConformAttemptCount, DateTime? NextConformTime, string? Version, List<string> Properties, Dictionary<string, int> Resources, DateTime? UpdateTime, DateTime? LastOnlineTime, List<string>? Pools, object? Capabilities, List<GetAgentLeaseResponse> Leases, List<GetAgentWorkspaceResponse> Workspaces, string? Comment);
+
+	/// <summary>
+	/// Telemetry data for an agent
+	/// </summary>
+	public record GetAgentTelemetryResponse(List<GetAgentTelemetrySampleResponse> Samples);
+
+	/// <summary>
+	/// Telemetry data sample
+	/// </summary>
+	public record GetAgentTelemetrySampleResponse(DateTime Time, float UserCpu, float IdleCpu, float SystemCpu, int FreeRam, int UsedRam, int TotalRam, long FreeDisk, long TotalDisk);
 }

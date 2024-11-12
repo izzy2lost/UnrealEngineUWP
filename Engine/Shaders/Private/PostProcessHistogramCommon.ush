@@ -274,3 +274,13 @@ float CalculateLocalExposure(float LogLum, float BaseLogLum, float LogMiddleGrey
 {
 	return exp2(CalculateLogLocalExposure(LogLum, BaseLogLum, LogMiddleGrey, HighlightContrastScale, ShadowContrastScale, DetailStrength));
 }
+
+float ExposureFusionTonemap(float Lum)
+{
+	return Lum / (1 + Lum);
+}
+
+float ExposureFusionInverseTonemap(float Lum)
+{
+	return Lum / (1 - Lum);
+}

@@ -4,7 +4,10 @@
 	MetalRHI.cpp: Metal device RHI implementation.
 =============================================================================*/
 
+#include "MetalRHI.h"
+#include "MetalDynamicRHI.h"
 #include "MetalRHIPrivate.h"
+#include "MetalCommandBuffer.h"
 #include "Misc/MessageDialog.h"
 #include "Modules/ModuleManager.h"
 #include "RenderUtils.h"
@@ -25,6 +28,7 @@
 #include "EngineGlobals.h"
 #include "MetalBindlessDescriptors.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "MetalResourceCollection.h"
  
 DEFINE_LOG_CATEGORY(LogMetal)
 
@@ -42,6 +46,16 @@ static TAutoConsoleVariable<int32> CVarUseIOSRHIThread(
 													ECVF_Default | ECVF_RenderThreadSafe
 													);
 
+// If precaching is active we should not need the file cache.
+// however, precaching and filecache are compatible with each other, there maybe some scenarios in which both could be used.
+static TAutoConsoleVariable<bool> CVarEnableMetalPSOFileCacheWhenPrecachingActive(
+	TEXT("r.Metal.EnablePSOFileCacheWhenPrecachingActive"),
+	false,
+	TEXT("false: If precaching is available (r.PSOPrecaching=1, then disable the PSO filecache. (default)\n")
+	TEXT("true: Allow both PSO file cache and precaching."),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+
+extern int32 GMetalResourcePurgeOnDelete;
 
 static void ValidateTargetedRHIFeatureLevelExists(EShaderPlatform Platform)
 {
@@ -156,8 +170,14 @@ static void VerifyMetalCompiler()
 #endif
 
 FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
-: ImmediateContext(nullptr, FMetalDeviceContext::CreateDeviceContext())
+	: Device(FMetalDevice::CreateDevice())
+	, ImmediateContext(*Device, nullptr)
 {
+	FMetalRHICommandContext* RHICommandContext = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
+	METAL_GPUPROFILE(FMetalProfiler::CreateProfiler(*RHICommandContext));
+	
+	RHICommandContext->ResetContext();
+	
 	check(Singleton == nullptr);
 	Singleton = this;
 
@@ -180,15 +200,14 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	// Metal always needs a render target to render with fragment shaders!
 	GRHIRequiresRenderTargetForPixelShaderUAVs = true;
 
-	//@todo-rco: Query name from API
-	GRHIAdapterName = TEXT("Metal");
+	GRHIAdapterName = NSStringToFString(Device->GetDevice()->name());
 	GRHIVendorId = 1; // non-zero to avoid asserts
 
 	bool const bRequestedFeatureLevel = (RequestedFeatureLevel != ERHIFeatureLevel::Num);
 	bool bSupportsPointLights = false;
 	
 	// get the device to ask about capabilities?
-	MTL::Device* Device = ImmediateContext.Context->GetDevice();
+	MTL::Device* MTLDevice = Device->GetDevice();
 		
 #if PLATFORM_IOS
     bool bSupportAppleA8 = false;
@@ -197,23 +216,23 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
     bool bIsA8FeatureSet = false;
         
 #if PLATFORM_TVOS
-	GRHISupportsDrawIndirect = Device->supportsFeatureSet(MTL::FeatureSet_tvOS_GPUFamily2_v1);
-	GRHISupportsPixelShaderUAVs = Device->supportsFeatureSet(MTL::FeatureSet_tvOS_GPUFamily2_v1);
+	GRHISupportsDrawIndirect = MTLDevice->supportsFeatureSet(MTL::FeatureSet_tvOS_GPUFamily2_v1);
+	GRHISupportsPixelShaderUAVs = MTLDevice->supportsFeatureSet(MTL::FeatureSet_tvOS_GPUFamily2_v1);
         
-    if (!Device->supportsFeatureSet(MTL::FeatureSet_tvOS_GPUFamily2_v1))
+    if (!MTLDevice->supportsFeatureSet(MTL::FeatureSet_tvOS_GPUFamily2_v1))
     {
         bIsA8FeatureSet = true;
     }
         
 #else
-	if (!Device->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily3_v1))
+	if (!MTLDevice->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily3_v1))
 	{
         bIsA8FeatureSet = true;
     }
     
-	GRHISupportsRWTextureBuffers = Device->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily4_v1);
-	GRHISupportsDrawIndirect = Device->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily3_v1);
-	GRHISupportsPixelShaderUAVs = Device->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily3_v1);
+	GRHISupportsRWTextureBuffers = MTLDevice->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily4_v1);
+	GRHISupportsDrawIndirect = MTLDevice->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily3_v1);
+	GRHISupportsPixelShaderUAVs = MTLDevice->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily3_v1);
 
 	const MTL::FeatureSet FeatureSets[] = {
         MTL::FeatureSet_iOS_GPUFamily1_v1,
@@ -232,13 +251,13 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GRHIDeviceId = 0;
 	for (uint32 i = 0; i < 4; i++)
 	{
-		if (FPlatformMisc::IOSVersionCompare(FeatureSetVersions[i][0],FeatureSetVersions[i][1],FeatureSetVersions[i][2]) >= 0 && Device->supportsFeatureSet(FeatureSets[i]))
+		if (FPlatformMisc::IOSVersionCompare(FeatureSetVersions[i][0],FeatureSetVersions[i][1],FeatureSetVersions[i][2]) >= 0 && MTLDevice->supportsFeatureSet(FeatureSets[i]))
 		{
 			GRHIDeviceId++;
 		}
 	}
 		
-	GSupportsVolumeTextureRendering = FMetalCommandQueue::SupportsFeature(EMetalFeaturesLayeredRendering);
+	GSupportsVolumeTextureRendering = Device->SupportsFeature(EMetalFeaturesLayeredRendering);
 	bSupportsPointLights = GSupportsVolumeTextureRendering;
 #endif
 
@@ -294,6 +313,14 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 #endif	// PLATFORM_TVOS
         GMaxRHIFeatureLevel = ERHIFeatureLevel::ES3_1;
 	}
+
+	#if USE_STATIC_SHADER_PLATFORM_ENUMS
+		GMaxRHIShaderPlatform = UE_IOS_STATIC_SHADER_PLATFORM;
+	#endif
+	#if	USE_STATIC_FEATURE_LEVEL_ENUMS
+		GMaxRHIFeatureLevel = UE_IOS_STATIC_FEATURE_LEVEL;
+	#endif
+		
 		
 	FPlatformMemoryStats Stats = FPlatformMemory::GetStats();
 		
@@ -318,7 +345,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 
 #else // PLATFORM_IOS
                 
-	uint32 DeviceIndex = ((FMetalDeviceContext*)ImmediateContext.Context)->GetDeviceIndex();
+	uint32 DeviceIndex = Device->GetDeviceIndex();
 	
 	TArray<FMacPlatformMisc::FGPUDescriptor> const& GPUs = FPlatformMisc::GetGPUDescriptors();
 	check(DeviceIndex < GPUs.Num());
@@ -327,7 +354,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	bool bSupportsD24S8 = false;
 	bool bSupportsD16 = false;
 	
-	GRHIAdapterName = NSStringToFString(Device->name());
+	GRHIAdapterName = NSStringToFString(MTLDevice->name());
 	
 	// However they don't all support other features depending on the version of the OS.
 	bool bSupportsTiledReflections = false;
@@ -383,8 +410,13 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 		GRHISupportsWaveOperations = true;
 		GRHIMinimumWaveSize = 32;
 		GRHIMaximumWaveSize = 32;
-
-		bSupportsSM6 = !GRHIAdapterName.Contains("M1");
+		
+		// Only MacOS 15.0+ can use SM6 with MSC
+		if (@available(macOS 15.0, *))
+		{
+			bSupportsSM6 = !GRHIAdapterName.Contains("M1");
+		}
+		
         if(bSupportsSM6)
         {
             // Int64 atomic support was introduced with M2 devices.
@@ -406,6 +438,18 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	bool const bRequestedSM5 = RequestedFeatureLevel == ERHIFeatureLevel::SM5 ||
                                (!bRequestedFeatureLevel && (FParse::Param(FCommandLine::Get(),TEXT("metalsm5")) || FParse::Param(FCommandLine::Get(),TEXT("metalmrt"))));
                                 
+	if(bRequestedSM6 && !bSupportsSM6)
+	{
+		if(GRHIAdapterName.Contains("Apple") && !GRHIAdapterName.Contains("M1"))
+		{
+			UE_LOG(LogMetal, Warning, TEXT("To use SM6 on this system, please ensure you are running Mac OS 15. Falling back to SM5"));
+		}
+		else
+		{
+			UE_LOG(LogMetal, Warning, TEXT("SM6 is enabled but is not supported on this system, falling back to SM5"));
+		}
+	}
+	
     if(bSupportsSM6 && bRequestedSM6)
     {
         GMaxRHIFeatureLevel = ERHIFeatureLevel::SM6;
@@ -487,7 +531,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	}
 	
 	// Change the support depth format if we can
-	bSupportsD24S8 = Device->depth24Stencil8PixelFormatSupported();
+	bSupportsD24S8 = MTLDevice->depth24Stencil8PixelFormatSupported();
 	
 	// Disable tiled reflections on Mac Metal for some GPU drivers that ignore the lod-level and so render incorrectly.
 	if (!bSupportsTiledReflections && !FParse::Param(FCommandLine::Get(),TEXT("metaltiledreflections")))
@@ -517,13 +561,8 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	
 #endif
 		
-#if PLATFORM_MAC
-    if (Device->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily1_v3))
-#endif
-	{
-		GRHISupportsDynamicResolution = true;
-		GRHISupportsFrameCyclesBubblesRemoval = true;
-	}
+	GRHISupportsDynamicResolution = true;
+	GRHISupportsFrameCyclesBubblesRemoval = true;
 
 	GPoolSizeVRAMPercentage = 0;
 	GTexturePoolSize = 0;
@@ -562,6 +601,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	{
 		GRHISupportsRHIThread = FParse::Param(FCommandLine::Get(),TEXT("rhithread")) || (CVarUseIOSRHIThread.GetValueOnAnyThread() > 0);
 	}
+	GRHISupportsParallelRHIExecute = FParse::Param(FCommandLine::Get(),TEXT("rhiparallel"));
 	
 	if (FPlatformMisc::IsDebuggerPresent() && UE_BUILD_DEBUG)
 	{
@@ -610,7 +650,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	SetEmitDrawEvents(GetEmitDrawEvents() | ENABLE_METAL_GPUEVENTS);
 #endif
 
-	GSupportsShaderFramebufferFetch = !PLATFORM_MAC && GMaxRHIShaderPlatform != SP_METAL_MRT && GMaxRHIShaderPlatform != SP_METAL_MRT_TVOS;
+	GSupportsShaderFramebufferFetch = !PLATFORM_MAC && GMaxRHIShaderPlatform != SP_METAL_MRT && GMaxRHIShaderPlatform != SP_METAL_MRT_TVOS && MobileAllowFramebufferFetch(GMaxRHIShaderPlatform);
 	GSupportsShaderMRTFramebufferFetch = GSupportsShaderFramebufferFetch;
 	GHardwareHiddenSurfaceRemoval = true;
 	GSupportsRenderTargetFormat_PF_G8 = false;
@@ -618,7 +658,8 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GSupportsWideMRT = true;
 	GSupportsSeparateRenderTargetBlendState = (GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5);
 
-	GRHISupportsPipelineFileCache = true;
+	GRHISupportsPSOPrecaching = true;
+	GRHISupportsPipelineFileCache = !GRHISupportsPSOPrecaching || CVarEnableMetalPSOFileCacheWhenPrecachingActive.GetValueOnAnyThread();
 	
 	// Appears to be no queryable value for max texture_buffer size and its not specified in the docs.  However,
 	// current testing across Apple Silicon macs, AMD and iPhone all quote a max value of 268435456 (1 << 28)
@@ -628,7 +669,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GMaxBufferDimensions = 1 << 27;
 
 #if PLATFORM_MAC
-	check(Device->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily1_v1));
+	check(MTLDevice->supportsFamily(MTL::GPUFamilyMac2));
 	GRHISupportsBaseVertexIndex = true;
 	GRHISupportsFirstInstance = true; // Supported on macOS & iOS but not tvOS.
 	GMaxTextureDimensions = 16384;
@@ -636,8 +677,8 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GMaxTextureArrayLayers = 2048;
 	GMaxShadowDepthBufferSizeX = GMaxTextureDimensions;
 	GMaxShadowDepthBufferSizeY = GMaxTextureDimensions;
-    bSupportsD16 = !FParse::Param(FCommandLine::Get(),TEXT("nometalv2")) && Device->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily1_v2);
-    GRHISupportsHDROutput = Device->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily1_v2);
+    bSupportsD16 = true;
+    GRHISupportsHDROutput = true;
 	GRHIHDRDisplayOutputFormat = (GRHISupportsHDROutput) ? PF_PLATFORM_HDR_0 : PF_B8G8R8A8;
 	// Based on the spec below, the maxTotalThreadsPerThreadgroup is not a fixed number but calculated according to the device current ability, so the available threads could less than the maximum number.
 	// For safety and keep the consistency for all platform, reduce the maximum number to half of the device based.
@@ -659,7 +700,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GMaxWorkGroupInvocations = 512;
 #else
 	// Only A9+ can support this, so for now we need to limit this to the desktop-forward renderer only.
-	GRHISupportsBaseVertexIndex = Device->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily3_v1) && (GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5);
+	GRHISupportsBaseVertexIndex = MTLDevice->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily3_v1) && (GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5);
 	GRHISupportsFirstInstance = GRHISupportsBaseVertexIndex;
 	
 	// TODO: Move this into IOSPlatform
@@ -674,7 +715,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	// Based on the spec below, the maxTotalThreadsPerThreadgroup is not a fixed number but calculated according to the device current ability, so the available threads could less than the maximum number.
 	// For safety and keep the consistency for all platform, reduce the maximum number to half of the device based.
 	// https://developer.apple.com/documentation/metal/mtlcomputepipelinedescriptor/2966560-maxtotalthreadsperthreadgroup?language=objc
-	GMaxWorkGroupInvocations = Device->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily4_v1) ? 512 : 256;
+	GMaxWorkGroupInvocations = MTLDevice->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily4_v1) ? 512 : 256;
 #endif
 	GMaxTextureDimensions = 8192;
 	GMaxCubeTextureDimensions = 8192;
@@ -683,8 +724,8 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GMaxShadowDepthBufferSizeY = GMaxTextureDimensions;
 #endif
 
-    if(Device->supportsFamily(MTL::GPUFamilyApple6) ||
-       Device->supportsFamily(MTL::GPUFamilyMac2))
+    if(MTLDevice->supportsFamily(MTL::GPUFamilyApple6) ||
+	   MTLDevice->supportsFamily(MTL::GPUFamilyMac2))
     {
         GRHISupportsArrayIndexFromAnyShader = true;
     }
@@ -751,6 +792,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GMetalBufferFormats[PF_ETC2_RGBA			] = { MTL::PixelFormatInvalid, (uint8)EMetalBufferFormat::Unknown };
 	GMetalBufferFormats[PF_R32G32B32A32_UINT	] = { MTL::PixelFormatRGBA32Uint, (uint8)EMetalBufferFormat::RGBA32Uint };
 	GMetalBufferFormats[PF_R16G16_UINT			] = { MTL::PixelFormatRG16Uint, (uint8)EMetalBufferFormat::RG16Uint };
+	GMetalBufferFormats[PF_R16G16_SINT			] = { MTL::PixelFormatRG16Sint, (uint8)EMetalBufferFormat::RG16Sint };
 	GMetalBufferFormats[PF_R32G32_UINT			] = { MTL::PixelFormatRG32Uint, (uint8)EMetalBufferFormat::RG32Uint };
 	GMetalBufferFormats[PF_ASTC_4x4             ] = { MTL::PixelFormatInvalid, (uint8)EMetalBufferFormat::Unknown };
 	GMetalBufferFormats[PF_ASTC_6x6             ] = { MTL::PixelFormatInvalid, (uint8)EMetalBufferFormat::Unknown };
@@ -794,7 +836,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GMetalBufferFormats[PF_ASTC_8x8_NORM_RG		] = { MTL::PixelFormatInvalid, (uint8)EMetalBufferFormat::Unknown };
 	GMetalBufferFormats[PF_ASTC_10x10_NORM_RG	] = { MTL::PixelFormatInvalid, (uint8)EMetalBufferFormat::Unknown };
 	GMetalBufferFormats[PF_ASTC_12x12_NORM_RG	] = { MTL::PixelFormatInvalid, (uint8)EMetalBufferFormat::Unknown };
-	static_assert(PF_MAX == 92, "Please setup GMetalBufferFormats properly for the new pixel format");
+	static_assert(PF_MAX == 93, "Please setup GMetalBufferFormats properly for the new pixel format");
 
 	// Initialize the platform pixel format map.
 	GPixelFormats[PF_Unknown			].PlatformFormat	= (uint32)MTL::PixelFormatInvalid;
@@ -804,6 +846,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GPixelFormats[PF_G16				].PlatformFormat	= (uint32)MTL::PixelFormatR16Unorm;
 	GPixelFormats[PF_R32G32B32A32_UINT	].PlatformFormat	= (uint32)MTL::PixelFormatRGBA32Uint;
 	GPixelFormats[PF_R16G16_UINT		].PlatformFormat	= (uint32)MTL::PixelFormatRG16Uint;
+	GPixelFormats[PF_R16G16_SINT		].PlatformFormat	= (uint32)MTL::PixelFormatRG16Sint;
 	GPixelFormats[PF_R32G32_UINT		].PlatformFormat	= (uint32)MTL::PixelFormatRG32Uint;
 
 #if PLATFORM_IOS
@@ -839,7 +882,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GPixelFormats[PF_ASTC_12x12			].Supported			= true;
 
 #if !PLATFORM_TVOS
-	if(Device->supportsFamily(MTL::GPUFamilyApple6))
+	if(MTLDevice->supportsFamily(MTL::GPUFamilyApple6))
 	{
 		GPixelFormats[PF_ASTC_4x4_HDR].PlatformFormat = (uint32)MTL::PixelFormatASTC_4x4_HDR;
 		GPixelFormats[PF_ASTC_4x4_HDR].Supported = true;
@@ -873,9 +916,9 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GPixelFormats[PF_PLATFORM_HDR_0		].Supported			= GRHISupportsHDROutput;
 		
 #if PLATFORM_TVOS
-    if (!Device->supportsFeatureSet(MTL::FeatureSet_tvOS_GPUFamily2_v1))
+    if (!MTLDevice->supportsFeatureSet(MTL::FeatureSet_tvOS_GPUFamily2_v1))
 #else
-	if (!Device->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily3_v2))
+	if (!MTLDevice->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily3_v2))
 #endif
 	{
 		GPixelFormats[PF_FloatRGB			].PlatformFormat 	= (uint32)MTL::PixelFormatRGBA16Float;
@@ -983,7 +1026,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	
     GPixelFormats[PF_R32_FLOAT			].PlatformFormat	= (uint32)MTL::PixelFormatR32Float;
 #if PLATFORM_MAC
-    if(Device->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily2_v1))
+    if(MTLDevice->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily2_v1))
     {
         EnumAddFlags(GPixelFormats[PF_R32_FLOAT].Capabilities, EPixelFormatCapabilities::TextureFilterable);
     }
@@ -992,7 +1035,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GPixelFormats[PF_G16R16				].PlatformFormat	= (uint32)MTL::PixelFormatRG16Unorm;
 	GPixelFormats[PF_G16R16				].Supported			= true;
 #if PLATFORM_MAC
-    if(Device->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily2_v1))
+    if(MTLDevice->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily2_v1))
     {
         EnumAddFlags(GPixelFormats[PF_G16R16].Capabilities, EPixelFormatCapabilities::TextureFilterable);
     }
@@ -1060,7 +1103,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 		EnumAddFlags(GPixelFormats[InPixelFormat].Capabilities, EPixelFormatCapabilities::TypedUAVLoad | EPixelFormatCapabilities::TypedUAVStore);
 	};
 
-	switch (Device->readWriteTextureSupport())
+	switch (MTLDevice->readWriteTextureSupport())
 	{
 	case MTL::ReadWriteTextureTier2:
 		AddTypedUAVSupport(PF_A32B32G32R32F);
@@ -1109,8 +1152,6 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	}
 #endif
 
-	((FMetalDeviceContext&)ImmediateContext.GetInternalContext()).Init();
-
 #if METAL_RHI_RAYTRACING
 	if (ImmediateContext.Context->GetDevice().IsRayTracingSupported())
 	{
@@ -1139,11 +1180,15 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GDynamicRHI = this;
 	GIsMetalInitialized = true;
 
-	ImmediateContext.Profiler = nullptr;
+	ImmediateContext.SetProfiler(nullptr);
 #if ENABLE_METAL_GPUPROFILE
-	ImmediateContext.Profiler = FMetalProfiler::CreateProfiler(ImmediateContext.Context);
-	if (ImmediateContext.Profiler)
-		ImmediateContext.Profiler->BeginFrame();
+	FMetalProfiler* Profiler = FMetalProfiler::CreateProfiler(ImmediateContext);
+	ImmediateContext.SetProfiler(Profiler);
+	
+	if (Profiler)
+	{
+		Profiler->BeginFrame();
+	}
 #endif
 
 #if METAL_USE_METAL_SHADER_CONVERTER
@@ -1153,14 +1198,9 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if(GRHIBindlessSupport != ERHIBindlessSupport::Unsupported)
 	{
-		FMetalBindlessDescriptorManager* BindlessDescriptorManager = ImmediateContext.Context->GetBindlessDescriptorManager();
+		FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device->GetBindlessDescriptorManager();
 		BindlessDescriptorManager->Init();
 	}
-#endif
-	
-#if ENABLE_METAL_GPUPROFILE
-    if (ImmediateContext.Profiler)
-		ImmediateContext.Profiler->EndFrame();
 #endif
 }
 
@@ -1193,91 +1233,106 @@ FDynamicRHI::FRHICalcTextureSizeResult FMetalDynamicRHI::RHICalcTexturePlatformS
 
 uint64 FMetalDynamicRHI::RHIGetMinimumAlignmentForBufferBackedSRV(EPixelFormat Format)
 {
-	return ImmediateContext.Context->GetDevice()->minimumLinearTextureAlignmentForPixelFormat((MTL::PixelFormat)GMetalBufferFormats[Format].LinearTextureFormat);
+	return Device->GetDevice()->minimumLinearTextureAlignmentForPixelFormat((MTL::PixelFormat)GMetalBufferFormats[Format].LinearTextureFormat);
 }
 
 void FMetalDynamicRHI::Init()
 {
-	GRHICommandList.GetImmediateCommandList().InitializeImmediateContexts();
-
 	FRenderResource::InitPreRHIResources();
 	GIsRHIInitialized = true;
 }
 
-void FMetalRHIImmediateCommandContext::RHIBeginFrame()
+void FMetalDynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList)
 {
-    MTL_SCOPED_AUTORELEASE_POOL;
+	RHICmdList.EnqueueLambdaMultiPipe(ERHIPipeline::Graphics, FRHICommandListBase::EThreadFence::Enabled, TEXT("Metal EndFrame"),
+		[this](FMetalContextArray const& Contexts)
+	{
+		MTL_SCOPED_AUTORELEASE_POOL;
+
+		FMetalGPUProfiler::ResetFrameBufferTimings();
+		
 #if ENABLE_METAL_GPUPROFILE
-	Profiler->BeginFrame();
+		Contexts[ERHIPipeline::Graphics]->GetProfiler()->EndFrame();
 #endif
-	((FMetalDeviceContext*)Context)->BeginFrame();
-}
 
-void FMetalRHICommandContext::RHIBeginFrame()
-{
-	check(false);
-}
+#if METAL_RHI_RAYTRACING
+		UpdateRayTracing();
+#endif // METAL_RHI_RAYTRACING
+	});
 
-void FMetalRHIImmediateCommandContext::RHIEndFrame()
-{
-    MTL_SCOPED_AUTORELEASE_POOL;
+	FDynamicRHI::RHIEndFrame_RenderThread(RHICmdList);
+
+	RHICmdList.EnqueueLambdaMultiPipe(ERHIPipeline::Graphics, FRHICommandListBase::EThreadFence::Enabled, TEXT("Metal BeginFrame"),
+		[this](FMetalContextArray const& Contexts)
+	{
+		MTL_SCOPED_AUTORELEASE_POOL;
+		
 #if ENABLE_METAL_GPUPROFILE
-	Profiler->EndFrame();
+		Contexts[ERHIPipeline::Graphics]->GetProfiler()->BeginFrame();
 #endif
-	((FMetalDeviceContext*)Context)->EndFrame();
+	});
 }
 
-void FMetalRHICommandContext::RHIEndFrame()
+void FMetalDynamicRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 {
-	check(false);
+	// increment the internal frame counter
+	Device->IncrementFrameRHIThread();
+    Device->GarbageCollect();
 }
 
-void FMetalRHIImmediateCommandContext::RHIBeginScene()
+#if WITH_RHI_BREADCRUMBS
+void FMetalRHICommandContext::RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
 {
-    MTL_SCOPED_AUTORELEASE_POOL;
-	((FMetalDeviceContext*)Context)->BeginScene();
-}
+	const TCHAR* NameStr = nullptr;
+	FRHIBreadcrumb::FBuffer Buffer;
+	auto GetNameStr = [&]()
+	{
+		if (!NameStr)
+		{
+			NameStr = Breadcrumb->Name.GetTCHAR(Buffer);
+		}
+		return NameStr;
+	};
 
-void FMetalRHICommandContext::RHIBeginScene()
-{
-	check(false);
-}
-
-void FMetalRHIImmediateCommandContext::RHIEndScene()
-{
-    MTL_SCOPED_AUTORELEASE_POOL;
-	((FMetalDeviceContext*)Context)->EndScene();
-}
-
-void FMetalRHICommandContext::RHIEndScene()
-{
-	check(false);
-}
-
-void FMetalRHICommandContext::RHIPushEvent(const TCHAR* Name, FColor Color)
-{
+	if (ShouldEmitBreadcrumbs())
+	{
 #if ENABLE_METAL_GPUEVENTS
-    MTL_SCOPED_AUTORELEASE_POOL;
-    FPlatformMisc::BeginNamedEvent(Color, Name);
-#if ENABLE_METAL_GPUPROFILE
-    Profiler->PushEvent(Name, Color);
+		MTL_SCOPED_AUTORELEASE_POOL;
+		{
+			// @todo dev-pr avoid TCHAR -> ANSI conversion
+			CurrentEncoder.PushDebugGroup(NS::String::string(TCHAR_TO_UTF8(GetNameStr()), NS::UTF8StringEncoding));
+		}
 #endif
-    Context->GetCurrentRenderPass().PushDebugGroup(NS::String::string(TCHAR_TO_UTF8(Name), NS::UTF8StringEncoding));
+	}
+
+#if ENABLE_METAL_GPUPROFILE
+	if (Profiler && Profiler->IsProfilingGPU())
+	{
+		Profiler->PushEvent(GetNameStr(), FColor::White);
+	}
 #endif
 }
 
-void FMetalRHICommandContext::RHIPopEvent()
+void FMetalRHICommandContext::RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
 {
-#if ENABLE_METAL_GPUEVENTS
-    MTL_SCOPED_AUTORELEASE_POOL;
-    
-	FPlatformMisc::EndNamedEvent();
-	Context->GetCurrentRenderPass().PopDebugGroup();
 #if ENABLE_METAL_GPUPROFILE
-	Profiler->PopEvent();
+	if (Profiler && Profiler->IsProfilingGPU())
+	{
+		Profiler->PopEvent();
+	}
 #endif
+
+	if (ShouldEmitBreadcrumbs())
+	{
+#if ENABLE_METAL_GPUEVENTS
+		MTL_SCOPED_AUTORELEASE_POOL;
+		{
+			CurrentEncoder.PopDebugGroup();
+		}
 #endif
+	}
 }
+#endif // WITH_RHI_BREADCRUMBS
 
 void FMetalDynamicRHI::RHIGetSupportedResolution( uint32 &Width, uint32 &Height )
 {
@@ -1333,13 +1388,25 @@ bool FMetalDynamicRHI::RHIGetAvailableResolutions(FScreenResolutionArray& Resolu
 					for (int32 CheckIndex = 0; CheckIndex < Resolutions.Num(); CheckIndex++)
 					{
 						FScreenResolutionRHI& CheckResolution = Resolutions[CheckIndex];
-						if ((CheckResolution.Width == Width) &&
-							(CheckResolution.Height == Height))
-						{
-							// Already in the list...
-							bAddIt = false;
-							break;
-						}
+                        if ((CheckResolution.Width == Width) &&
+                            (CheckResolution.Height == Height))
+                        {
+                            // Already in the list...
+                            bAddIt = false;
+                            break;
+                        }
+                        // Filter out unusable resolutions on notched Macs
+                        else if ((CheckResolution.Width == Width) &&
+                                 (CheckResolution.Height != Height))
+                        {
+                            bAddIt = false;
+                            if (Height < CheckResolution.Height)
+                            {
+                                // Only use the shorter (below notch and padding) version
+                                CheckResolution.Height = Height;
+                            }
+                            break;
+                        }
 					}
 				}
 				
@@ -1369,40 +1436,27 @@ bool FMetalDynamicRHI::RHIGetAvailableResolutions(FScreenResolutionArray& Resolu
 void FMetalDynamicRHI::RHIFlushResources()
 {
     MTL_SCOPED_AUTORELEASE_POOL;
-    
-    ((FMetalDeviceContext*)ImmediateContext.Context)->FlushFreeList(false);
-    ImmediateContext.Context->SubmitCommandBufferAndWait();
-    ((FMetalDeviceContext*)ImmediateContext.Context)->ClearFreeList();
-    ((FMetalDeviceContext*)ImmediateContext.Context)->DrainHeap();
-    ImmediateContext.Context->GetCurrentState().Reset();
-}
-
-void FMetalDynamicRHI::RHIAcquireThreadOwnership()
-{
-}
-
-void FMetalDynamicRHI::RHIReleaseThreadOwnership()
-{
+	Device->DrainHeap();
 }
 
 void* FMetalDynamicRHI::RHIGetNativeDevice()
 {
-	return (void*)ImmediateContext.Context->GetDevice();
+	return (void*)Device->GetDevice();
 }
 
 void* FMetalDynamicRHI::RHIGetNativeGraphicsQueue()
 {
-	return ImmediateContext.GetInternalContext().GetCommandQueue().GetQueue();
+	return ImmediateContext.GetCommandQueue().GetQueue();
 }
 
 void* FMetalDynamicRHI::RHIGetNativeComputeQueue()
 {
-	return ImmediateContext.GetInternalContext().GetCommandQueue().GetQueue();
+	return ImmediateContext.GetCommandQueue().GetQueue();
 }
 
 void* FMetalDynamicRHI::RHIGetNativeInstance()
 {
-	return nullptr;
+	return (void*)Device;
 }
 
 uint16 FMetalDynamicRHI::RHIGetPlatformTextureMaxSampleCount()
@@ -1415,10 +1469,7 @@ uint16 FMetalDynamicRHI::RHIGetPlatformTextureMaxSampleCount()
 		int sample = *sampleIt;
 
 #if PLATFORM_IOS || PLATFORM_MAC
-		id<MTLDevice> Device = (id<MTLDevice>)RHIGetNativeDevice();
-		check(Device);
-
-		if (![Device supportsTextureSampleCount : sample])
+		if (!Device->GetDevice()->supportsTextureSampleCount(sample))
 		{
 			break;
 		}
@@ -1430,14 +1481,8 @@ uint16 FMetalDynamicRHI::RHIGetPlatformTextureMaxSampleCount()
 
 void FMetalDynamicRHI::RHIBlockUntilGPUIdle()
 {
-    MTL_SCOPED_AUTORELEASE_POOL;
-	ImmediateContext.Context->SubmitCommandBufferAndWait();
-}
-
-void FMetalDynamicRHI::RHISubmitCommandsAndFlushGPU()
-{
-    MTL_SCOPED_AUTORELEASE_POOL;
-    ImmediateContext.Context->SubmitCommandBufferAndWait();
+	Device->WaitForGPUIdle();
+	ProcessDeferredDeleteQueue();
 }
 
 uint32 FMetalDynamicRHI::RHIGetGPUFrameCycles(uint32 GPUIndex)
@@ -1453,19 +1498,279 @@ IRHICommandContext* FMetalDynamicRHI::RHIGetDefaultContext()
 
 IRHIComputeContext* FMetalDynamicRHI::RHIGetCommandContext(ERHIPipeline Pipeline, FRHIGPUMask GPUMask)
 {
-	UE_LOG(LogRHI, Fatal, TEXT("FMetalDynamicRHI::RHIGetCommandContext should never be called. Metal RHI does not implement parallel command list execution."));
-	return nullptr;
+	check(GRHISupportsParallelRHIExecute);
+	
+	FMetalRHICommandContext* Context = MetalCommandContextPool.Pop();
+	if (!Context)
+	{
+		Context = new FMetalRHICommandContext(*Device, nullptr);
+	}
+	
+	Context->ResetContext();
+	
+	return static_cast<IRHIComputeContext*>(Context);
 }
 
-IRHIPlatformCommandList* FMetalDynamicRHI::RHIFinalizeContext(IRHIComputeContext* Context)
+class FMetalPlatformCommandList final : public IRHIPlatformCommandList
 {
-	// "Context" will always be the default context, since we don't implement parallel execution.
-	// Metal uses an immediate context, there's nothing to do here. Executed commands will have already reached the driver.
+public:
+	~FMetalPlatformCommandList() {};
+	TArray<FMetalCommandBuffer*> CommandBuffers;
+};
 
-	// Returning nullptr indicates that we don't want RHISubmitCommandLists to be called.
-	return nullptr;
-}
+static TLockFreePointerListUnordered<FMetalRHIUploadContext, PLATFORM_CACHE_LINE_SIZE> MetalUploadContextPool;
 
-void FMetalDynamicRHI::RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> CommandLists, bool bFlushResources)
+void FMetalDynamicRHI::ProcessDeferredDeleteQueue()
 {
+	uint32 Index = 0;
+	while(Index < DeferredDeleteQueue.Num())
+	{
+		FDeferredDeleteData& Data = DeferredDeleteQueue[Index];
+		
+		bool bFencesReady = true;
+		for (TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> Fence : Data.WaitFences)
+		{
+			bFencesReady &= Fence->Wait(0);
+		}
+		
+		if(!bFencesReady)
+		{
+			Index++;
+			break;
+		}
+		
+		for(FMetalDeferredDeleteObject& Object : Data.DeferredDeleteObjects)
+		{	
+			switch (Object.Storage.GetIndex())
+			{
+				case FMetalDeferredDeleteObject::TObjectStorage::IndexOfType<NS::Object*>():
+				{
+					Object.Storage.Get<NS::Object*>()->release();
+					break;
+				}
+				case FMetalDeferredDeleteObject::TObjectStorage::IndexOfType<FMetalBufferPtr>():
+				{
+					FMetalBufferPtr Buffer = Object.Storage.Get<FMetalBufferPtr>();
+					
+					Buffer->MarkDeleted();
+					
+#if METAL_DEBUG_OPTIONS
+					MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer();
+					if (GMetalResourcePurgeOnDelete && !MTLBuffer->heap() &&
+						Buffer->GetOffset() == 0 && Buffer->GetLength() == MTLBuffer->length())
+					{
+						MTLBuffer->setPurgeableState(MTL::PurgeableStateEmpty);
+					}
+#endif
+					break;
+				}
+				case FMetalDeferredDeleteObject::TObjectStorage::IndexOfType<MTLTexturePtr>():
+				{
+					MTLTexturePtr Texture = Object.Storage.Get<MTLTexturePtr>();
+					
+					if (!Texture->buffer() && !Texture->parentTexture())
+					{
+#if METAL_DEBUG_OPTIONS
+						if (GMetalResourcePurgeOnDelete && !Texture->heap())
+						{
+							Texture->setPurgeableState(MTL::PurgeableStateEmpty);
+						}
+#endif
+						Device->GetResourceHeap().ReleaseTexture(nullptr, Texture);
+					}
+					break;
+				}
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+				case FMetalDeferredDeleteObject::TObjectStorage::IndexOfType<FRHIDescriptorHandle>():
+				{
+					FRHIDescriptorHandle Handle = Object.Storage.Get<FRHIDescriptorHandle>();
+					
+					FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device->GetBindlessDescriptorManager();
+					check(BindlessDescriptorManager);
+	
+					BindlessDescriptorManager->FreeDescriptor(Handle);
+					
+					break;
+				}
+#endif
+				case FMetalDeferredDeleteObject::TObjectStorage::IndexOfType<FMetalFence*>():
+				{
+					FMetalFence* Fence = Object.Storage.Get<FMetalFence*>();
+					FMetalFencePool::Get().ReleaseFence(Fence);
+					
+					break;
+				}
+				case FMetalDeferredDeleteObject::TObjectStorage::IndexOfType<TUniqueFunction<void()>*>():
+				{
+					TUniqueFunction<void()>* Func = Object.Storage.Get<TUniqueFunction<void()>*>();
+					(*Func)();
+					delete Func;
+					
+					break;
+				}
+				default:
+				{
+					checkNoEntry();
+				}
+			}
+		}
+		
+		DeferredDeleteQueue.RemoveAt(Index, EAllowShrinking::No);
+	}
 }
+
+void FMetalDynamicRHI::RHIProcessDeleteQueue()
+{
+	FDeferredDeleteData NewData;	
+	GatherDeferredDeleteObjects(NewData.DeferredDeleteObjects, NewData.WaitFences);
+	
+	DeferredDeleteQueue.Add(MoveTemp(NewData));
+	
+	ProcessDeferredDeleteQueue();
+}
+
+void FMetalDynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output)
+{
+	MTL_SCOPED_AUTORELEASE_POOL;
+	
+	FMetalRHIUploadContext* UploadContext = static_cast<FMetalRHIUploadContext*>(Args.UploadContext);
+
+	TArray<FMetalCommandBuffer*>* UploadCommandBuffers = nullptr;
+	
+	if(UploadContext)
+	{
+		UploadCommandBuffers = UploadContext->Finalize();
+		MetalUploadContextPool.Push(UploadContext);
+	}
+	
+	for(IRHIComputeContext* Context : Args.Contexts)
+	{
+		FMetalRHICommandContext* CmdContext = static_cast<FMetalRHICommandContext*>(Context);
+
+		FMetalPlatformCommandList* PlatformCmdList = new FMetalPlatformCommandList();
+		
+		if(UploadCommandBuffers)
+		{
+			PlatformCmdList->CommandBuffers.Append(*UploadCommandBuffers);
+			
+			delete UploadCommandBuffers;
+			UploadCommandBuffers = nullptr;
+		}
+		
+		if(!CmdContext->IsInsideRenderPass())
+		{
+			PlatformCmdList->CommandBuffers.Append(CmdContext->Finalize());
+
+			CmdContext->ResetContext();
+			if(GRHISupportsParallelRHIExecute)
+			{
+				if(CmdContext != RHIGetDefaultContext())
+				{
+					MetalCommandContextPool.Push(CmdContext);
+				}
+			}
+		}
+		
+		Output[Context->GetPipeline()] = PlatformCmdList;
+	}
+	
+	check(UploadCommandBuffers == nullptr);
+}
+
+void FMetalDynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
+{
+	for (IRHIPlatformCommandList* Ptr : Args.CommandLists)
+	{
+		FMetalPlatformCommandList* PlatformCmdList = static_cast<FMetalPlatformCommandList*>(Ptr);
+		
+		for(FMetalCommandBuffer* CommandBuffer : PlatformCmdList->CommandBuffers)
+		{
+			if(CommandBuffer)
+			{
+				AddDeferredDeleteFence(CommandBuffer->GetCompletionFence());
+				Device->GetCommandQueue().CommitCommandBuffer(CommandBuffer);
+			}
+		}
+		
+		delete PlatformCmdList;
+	}
+}
+
+IRHIUploadContext* FMetalDynamicRHI::RHIGetUploadContext()
+{
+	FMetalRHIUploadContext* Context = MetalUploadContextPool.Pop();
+	if (!Context)
+	{
+		Context = new FMetalRHIUploadContext(*Device);
+	}
+	
+	return static_cast<IRHIUploadContext*>(Context);
+}
+
+void FMetalDynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos)
+{
+	RHICmdList.EnqueueLambda(TEXT("FMetalDynamicRHI::RHIReplaceResources"),
+		[ReplaceInfos = MoveTemp(ReplaceInfos)](FRHICommandListBase&)
+		{
+			MTL_SCOPED_AUTORELEASE_POOL;
+
+			for (FRHIResourceReplaceInfo const& Info : ReplaceInfos)
+			{
+				switch (Info.GetType())
+				{
+				default:
+					checkNoEntry();
+					break;
+
+				case FRHIResourceReplaceInfo::EType::Buffer:
+					{
+						FMetalRHIBuffer* Dst = ResourceCast(Info.GetBuffer().Dst);
+						FMetalRHIBuffer* Src = ResourceCast(Info.GetBuffer().Src);
+
+						if (Src)
+						{
+							// The source buffer should not have any associated views.
+							check(!Src->HasLinkedViews());
+
+							Dst->TakeOwnership(*Src);
+						}
+						else
+						{
+							Dst->ReleaseOwnership();
+						}
+
+						Dst->UpdateLinkedViews();
+					}
+					break;
+
+#if METAL_RHI_RAYTRACING
+				case FRHIResourceReplaceInfo::EType::RTGeometry:
+					{
+						FMetalRayTracingGeometry* Dst = ResourceCast(Info.GetRTGeometry().Dst);
+						FMetalRayTracingGeometry* Src = ResourceCast(Info.GetRTGeometry().Src);
+
+						if (!Src)
+						{
+							Dst->ReleaseUnderlyingResource();
+						}
+						else
+						{
+							Dst->Swap(*Src);
+						}
+					}
+					break;
+#endif // METAL_RHI_RAYTRACING
+				}
+			}
+		}
+	);
+
+	RHICmdList.RHIThreadFence(true);
+}
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+FRHIResourceCollectionRef FMetalDynamicRHI::RHICreateResourceCollection(FRHICommandListBase& RHICmdList, TConstArrayView<FRHIResourceCollectionMember> InMembers)
+{
+	return new FMetalResourceCollection(RHICmdList, InMembers);
+}
+#endif

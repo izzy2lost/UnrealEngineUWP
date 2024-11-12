@@ -3,12 +3,13 @@
 #include "NiagaraSystemCompilingManager.h"
 
 #include "DataDrivenShaderPlatformInfo.h"
+#include "Interfaces/ITargetPlatformManagerModule.h"
 #include "NiagaraCompilationTasks.h"
 #include "NiagaraEditorModule.h"
 #include "NiagaraShaderType.h"
 #include "ProfilingDebugging/CookStats.h"
 #include "UObject/UObjectIterator.h"
-
+#include "UObject/UObjectThreadContext.h"
 #include "Misc/ScopeRWLock.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraCompilationManager"
@@ -18,6 +19,14 @@ static FAutoConsoleVariableRef CVarNiagaraCompilationMaxActiveTaskCount(
 	TEXT("fx.Niagara.Compilation.MaxActiveTaskCount"),
 	GNiagaraCompilationMaxActiveTaskCount,
 	TEXT("The maximum number of active Niagara system compilations that can be going concurrantly."),
+	ECVF_Default
+);
+
+static float GNiagaraCompilationStalledTaskWarningTime = 10.0f * 60.0f;
+static FAutoConsoleVariableRef CVarNiagaraCompilationStalledTaskWarningTime(
+	TEXT("fx.Niagara.Compilation.StalledTaskWarningTime"),
+	GNiagaraCompilationStalledTaskWarningTime,
+	TEXT("The length of time a task is being processed before warnings are generated."),
 	ECVF_Default
 );
 
@@ -93,6 +102,13 @@ FNiagaraShaderMapId BuildShaderMapId(FNiagaraShaderType* ShaderType, const ITarg
 	return ShaderMapId;
 }
 
+void EnsureTargetPlatformsLoaded(const FNiagaraSystemCompilationTask& CompilationTask)
+{
+	// in order to work around the fact that the target platform API is not thread safe we need to make sure that the target platform and the
+	// various shader formats it handles has been initialized
+	GetTargetPlatformManagerRef().ShaderFormatVersion(TEXT("VVM_1_0"));
+}
+
 };
 
 FNiagaraSystemCompilingManager& FNiagaraSystemCompilingManager::Get()
@@ -121,8 +137,12 @@ int32 FNiagaraSystemCompilingManager::GetNumRemainingAssets() const
 	int32 RemainingAssetCount = 0;
 
 	{
+		// note that we don't worry about including RequestsAwaitingRetrieval because
+		// those tasks do not reflect significant remaining work for the compilation manager.
+		// Additionally, it can cause deadlocks in some scenarios as calling code could wait
+		// for the remaining assets to get to 0 before advancing to polling for results.
 		FReadScopeLock Read(QueueLock);
-		RemainingAssetCount = QueuedRequests.Num() + ActiveTasks.Num() + RequestsAwaitingRetrieval.Num();
+		RemainingAssetCount = QueuedRequests.Num() + ActiveTasks.Num();
 	}
 
 	return RemainingAssetCount;
@@ -161,6 +181,39 @@ void FNiagaraSystemCompilingManager::Shutdown()
 {
 }
 
+void FNiagaraSystemCompilingManager::CheckStalledTask(double CurrentTime, FNiagaraSystemCompilationTask* Task) const
+{
+	const double ElapsedTime = CurrentTime - Task->LaunchStartTime;
+
+	if (ElapsedTime > GNiagaraCompilationStalledTaskWarningTime)
+	{
+		bool bWarn = true;
+
+		if (!Task->bStalled)
+		{
+			Task->LastStallWarningTime = CurrentTime;
+			Task->bStalled = true;
+
+		}
+		else
+		{
+			const double TimeSinceLastWarning = CurrentTime - Task->LastStallWarningTime;
+			if (TimeSinceLastWarning < GNiagaraCompilationStalledTaskWarningTime)
+			{
+				bWarn = false;
+			}
+		}
+
+		if (bWarn)
+		{
+			UE_LOG(LogNiagaraEditor, Log, TEXT("NiagaraSystemCompilingManager - compilation task [%s] stalled for %f seconds.  Status - %s"),
+				*Task->GetDescription(), (float)ElapsedTime, *Task->GetStatusString());
+
+			Task->LastStallWarningTime = CurrentTime;
+		}
+	}
+}
+
 void FNiagaraSystemCompilingManager::ProcessAsyncTasks(bool bLimitExecutionTime)
 {
 	{
@@ -182,12 +235,15 @@ void FNiagaraSystemCompilingManager::ProcessAsyncTasks(bool bLimitExecutionTime)
 		}
 
 		{
+			double CurrentTime = FPlatformTime::Seconds();
+
 			FReadScopeLock ReadScope(QueueLock);
 			for (FNiagaraCompilationTaskHandle TaskHandle : ActiveTasks)
 			{
 				FTaskPtr TaskPtr = SystemRequestMap.FindRef(TaskHandle);
 				if (TaskPtr.IsValid())
 				{
+					CheckStalledTask(CurrentTime, TaskPtr.Get());
 					TaskPtr->Tick();
 				}
 			}
@@ -306,16 +362,18 @@ FNiagaraCompilationTaskHandle FNiagaraSystemCompilingManager::AddSystem(UNiagara
 
 					if (bRequiresCompilation || !Script->IsShaderMapCached(TargetPlatform, ShaderMapId))
 					{
-						FNiagaraSystemCompilationTask::FShaderCompileRequest& Request = ShaderRequests.AddDefaulted_GetRef();
-						Request.ShaderMapId = ShaderMapId;
-						Request.ShaderPlatform = PlatformFeatureLevel.Key;
+						if (Script->ShouldCompile(PlatformFeatureLevel.Key))
+						{
+							FNiagaraSystemCompilationTask::FShaderCompileRequest& Request = ShaderRequests.AddDefaulted_GetRef();
+							Request.ShaderMapId = ShaderMapId;
+							Request.ShaderPlatform = PlatformFeatureLevel.Key;
+						}
 					}
 				}
 
-				if (!ShaderRequests.IsEmpty())
-				{
-					bRequiresCompilation = true;
-				}
+				// for GPU scripts we only need to worry about compilation if we actually have some shaders that are required.  So we
+				// override bRequiresCompilation based on that so platforms that exclude all shaders will not generate a compile request
+				bRequiresCompilation = !ShaderRequests.IsEmpty();
 			}
 
 			bHasCompilation = bHasCompilation || bRequiresCompilation;
@@ -422,6 +480,8 @@ FNiagaraCompilationTaskHandle FNiagaraSystemCompilingManager::AddSystem(UNiagara
 		{
 			CompilationTask->AddScript(ScriptToCompile.EmitterIndex, ScriptToCompile.Script, ScriptToCompile.CompileId, ScriptToCompile.bRequiresCompilation, ScriptToCompile.ShaderRequests);
 		}
+
+		NiagaraSystemCompilingManagerImpl::EnsureTargetPlatformsLoaded(*CompilationTask);
 
 		CompilationTask->QueueStartTime = FPlatformTime::Seconds();
 	}
@@ -532,10 +592,11 @@ void FNiagaraSystemCompilingManager::FindOrAddFeatureLevels(const FCompileOption
 	{
 		if (CompileOptions.TargetPlatform)
 		{
-			TArray<FPlatformFeatureLevelPair>& CachedFeatureLevels = PlatformFeatureLevels.FindOrAdd(CompileOptions.TargetPlatform);
-
-			if (CachedFeatureLevels.IsEmpty())
+			TArray<FPlatformFeatureLevelPair>* CachedFeatureLevels = PlatformFeatureLevels.Find(CompileOptions.TargetPlatform);
+			if (!CachedFeatureLevels)
 			{
+				CachedFeatureLevels = &PlatformFeatureLevels.Add(CompileOptions.TargetPlatform);
+
 				TArray<FName> DesiredShaderFormats;
 				CompileOptions.TargetPlatform->GetAllTargetedShaderFormats(DesiredShaderFormats);
 				for (const FName& ShaderFormat : DesiredShaderFormats)
@@ -545,12 +606,12 @@ void FNiagaraSystemCompilingManager::FindOrAddFeatureLevels(const FCompileOption
 
 					if (NiagaraShaderType->ShouldCompilePermutation(FShaderPermutationParameters(ShaderPlatform)))
 					{
-						CachedFeatureLevels.AddUnique(MakeTuple(ShaderPlatform, TargetFeatureLevel));
+						CachedFeatureLevels->AddUnique(MakeTuple(ShaderPlatform, TargetFeatureLevel));
 					}
 				}
 			}
 
-			FeatureLevels = CachedFeatureLevels;
+			FeatureLevels = *CachedFeatureLevels;
 		}
 		else
 		{
@@ -572,6 +633,11 @@ FNiagaraCompilationTaskHandle FNiagaraEditorModule::RequestCompileSystem(UNiagar
 	ParameterCollectionAssetCache.RefreshCache(!FUObjectThreadContext::Get().IsRoutingPostLoad /*bAllowLoading*/);
 	const TArray<TWeakObjectPtr<UNiagaraParameterCollection>>& Collections = ParameterCollectionAssetCache.Get();
 	CompileOptions.ParameterCollections = ParameterCollectionAssetCache.Get();
+
+	// the issue here is that we aren't strictly allowed to call ComputeVMCompilationId on the worker threads which leaves us in a
+	// state where we could have broken RI parameters.  We ensure that the RI parameters are up to date before we begin.  This is a
+	// costly operation, but sadly seems necessary for some content.
+	System->PrepareRapidIterationParametersForCompilation();
 
 	return FNiagaraSystemCompilingManager::Get().AddSystem(System, CompileOptions);
 }

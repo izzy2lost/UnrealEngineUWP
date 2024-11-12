@@ -10,14 +10,17 @@
 #if DECAL_RENDERTARGETMODE == DECAL_RENDERTARGETMODE_DBUFFER
 	#define MobileSceneTextures DecalPass.MobileSceneTextures
 	#define EyeAdaptationStruct DecalPass
+	#define SubstrateStruct DecalPass.SubstratePublic
 #else
 	// Reroute MobileSceneTextures uniform buffer references to the base pass uniform buffer
 	#define MobileSceneTextures MobileBasePass.SceneTextures
 	#define EyeAdaptationStruct MobileBasePass
+	#define SubstrateStruct MobileBasePass.SubstratePublic
 #endif
 #else
 #define SceneTexturesStruct DecalPass.SceneTextures
 #define EyeAdaptationStruct DecalPass
+#define SubstrateStruct DecalPass.SubstratePublic
 #endif
 
 #if PIXELSHADER
@@ -28,12 +31,20 @@
 #include "Substrate/Substrate.ush"
 #include "DecalCommon.ush"
 
+#if DECAL_RENDERSTAGE == DECAL_RENDERSTAGE_MOBILE
+#include "MobileLightingCommon.ush"
+#endif
+
 #endif // PIXELSHADER
 
 // large world coordinate tile position
 float4 DecalPositionHigh;
 // from SvPosition to decal space (for position), used like this: mul(float4(SvPosition.xyz, 1), SvPositionToDecal);
 float4x4 SvPositionToDecal;
+#if MOBILE_MULTI_VIEW || (INSTANCED_STEREO && MOBILE_MULTI_VIEW)
+// For stereo rendering.
+float4x4 RightEyeSvPositionToDecal;
+#endif
 // to transform position from decal space to world space, for normals use transpose of inverse
 float4x4 DecalToWorld;
 float3 DecalToWorldInvScale;
@@ -49,11 +60,31 @@ float4 DecalColorParam;
 
 // Global decal vertex shader
 void MainVS(
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW // Mobile multi view fallback path
+	in uint InstanceId : SV_InstanceID,
+	out nointerpolation uint EyeIndex : VIEW_ID,
+	out uint LayerIndex : SV_RenderTargetArrayIndex,
+#elif MOBILE_MULTI_VIEW
+	in nointerpolation uint ViewId : SV_ViewID,
+#endif
 	in float4 InPosition : ATTRIBUTE0,
 	out float4 OutPosition : SV_POSITION
 )
 {
-	OutPosition = mul(InPosition, FrustumComponentToClip);
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
+	EyeIndex = GetEyeIndex(InstanceId);
+	LayerIndex = EyeIndex;
+	ResolvedView = ResolveView(EyeIndex);
+#elif MOBILE_MULTI_VIEW
+	ResolvedView = ResolveView(ViewId);
+#endif
+	
+#if MOBILE_MULTI_VIEW || (INSTANCED_STEREO && MOBILE_MULTI_VIEW)
+	float4x4 FrustumToClip = mul(FrustumComponentToClip, ResolvedView.MobileMultiviewDecalTransform);
+#else
+	float4x4 FrustumToClip = FrustumComponentToClip;
+#endif
+	OutPosition = mul(InPosition, FrustumToClip);
 }
 
 #if IS_DECAL && PIXELSHADER
@@ -80,8 +111,8 @@ float4 SvPositionToScreenPosition2(float4 SvPosition)
 
 	float4 Ret;
 
-	Ret.x = ((SvPosition.x - View.ViewRectMin.x) * View.ViewSizeAndInvSize.z) * 2 - 1;
-	Ret.y = ((SvPosition.y - View.ViewRectMin.y) * View.ViewSizeAndInvSize.w) * -2 + 1;
+	Ret.x = ((SvPosition.x - ResolvedView.ViewRectMin.x) * ResolvedView.ViewSizeAndInvSize.z) * 2 - 1;
+	Ret.y = ((SvPosition.y - ResolvedView.ViewRectMin.y) * ResolvedView.ViewSizeAndInvSize.w) * -2 + 1;
 	Ret.z = ConvertFromDeviceZ(SvPosition.z);
 	Ret.w = 1;
 
@@ -94,16 +125,27 @@ float4 SvPositionToScreenPosition2(float4 SvPosition)
 }
 
 // is called in MainPS() from PixelShaderOutputCommon.usf
-void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out)
+void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out, uint ArrayIndex)
 {
+#if (MOBILE_MULTI_VIEW || (INSTANCED_STEREO && MOBILE_MULTI_VIEW))
+	ResolvedView = ResolveView(ArrayIndex);
+#else
 	ResolvedView = ResolveView();
+#endif
 
 	float2 ScreenUV = SvPositionToBufferUV(In.SvPosition);
 
 	// make SvPosition appear to be rasterized with the depth from the depth buffer
+#if (MOBILE_MULTI_VIEW || (INSTANCED_STEREO && MOBILE_MULTI_VIEW))
+	In.SvPosition.z = LookupDeviceZ(ScreenUV, ArrayIndex);
+	float4x4 SvPositionToDecalForSlice = ArrayIndex ? RightEyeSvPositionToDecal : SvPositionToDecal;
+#else
 	In.SvPosition.z = LookupDeviceZ(ScreenUV);
+	float4x4 SvPositionToDecalForSlice = SvPositionToDecal;
+#endif
+	In.SvPosition.w = ConvertFromDeviceZ(In.SvPosition.z);
 
-	float4 DecalVectorHom = mul(float4(In.SvPosition.xyz,1), SvPositionToDecal);
+	float4 DecalVectorHom = mul(float4(In.SvPosition.xyz,1), SvPositionToDecalForSlice);
 	float3 OSPosition = DecalVectorHom.xyz / DecalVectorHom.w;
 
 	// clip content outside the decal
@@ -113,7 +155,7 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 
 	float3 TranslatedWorldPosition = SvPositionToTranslatedWorld(In.SvPosition);
 
-	float3 CameraVector = normalize(PrimaryView.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
+	float3 CameraVector = normalize(ResolvedView.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
 
 	// can be optimized
 	float3 DecalVector = OSPosition * 0.5f + 0.5f;
@@ -135,7 +177,7 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 	MaterialParameters.VertexColor = 1;
 	MaterialParameters.CameraVector = CameraVector;
 	MaterialParameters.SvPosition = In.SvPosition;
-	MaterialParameters.ScreenPosition = SvPositionToScreenPosition(In.SvPosition);
+	MaterialParameters.ScreenPosition = SvPositionToResolvedScreenPosition(In.SvPosition);
 	MaterialParameters.LightVector = SwizzlePos;
 
 	MaterialParameters.AbsoluteWorldPosition = MaterialParameters.WorldPosition_NoOffsets = DFFastSubtract(TranslatedWorldPosition, PrimaryView.PreViewTranslation);
@@ -156,6 +198,7 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 	SubstrateHeader.IrradianceAO.MaterialAO = GetMaterialAmbientOcclusion(PixelMaterialInputs);
 
 	float Coverage = 0.0;
+	FSubstrateDBuffer DBufferData =(FSubstrateDBuffer)0;
 	if (SubstrateHeader.SubstrateTree.BSDFCount > 0)
 	{
 		const float3 V = MaterialParameters.CameraVector;
@@ -171,33 +214,52 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 #endif 
 
 		// Since the Convert-To-Decal node forces parameter blending for the entire Substrate tree, the BSDF we are interested in will be in 0.
-		Coverage = DecalCommonOutput(Out, SubstrateHeader, SubstrateHeader.SubstrateTree.BSDFs[0], DecalFading, CoverageOverBackground);
-
+		DBufferData = DecalCommonOutput(Out, SubstrateHeader, SubstrateHeader.SubstrateTree.BSDFs[0], DecalFading, CoverageOverBackground);
 	}
-	const float Opacity = Coverage;
+	const float Opacity = DBufferData.Coverage;
+	const float3 EmissiveColor = DBufferData.Emissive;
 #else // SUBSTRATE_ENABLED
-	float3 Color = GetMaterialEmissive(PixelMaterialInputs);
+	float3 EmissiveColor = GetMaterialEmissive(PixelMaterialInputs);
 	
 	float Opacity = GetMaterialOpacity(PixelMaterialInputs) * DecalFading;
 
-	FGBufferData GBufferData;
-	GBufferData.WorldNormal = MaterialParameters.WorldNormal;
-	GBufferData.BaseColor = GetMaterialBaseColor(PixelMaterialInputs);
-	GBufferData.Metallic = GetMaterialMetallic(PixelMaterialInputs);
-	GBufferData.Specular = GetMaterialSpecular(PixelMaterialInputs);
-	GBufferData.Roughness = GetMaterialRoughness(PixelMaterialInputs);
-	GBufferData.CustomData = 0;
-	GBufferData.IndirectIrradiance = 0;
-	GBufferData.PrecomputedShadowFactors = 1;
-	GBufferData.GBufferAO = GetMaterialAmbientOcclusion(PixelMaterialInputs);
-	GBufferData.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
-	GBufferData.SelectiveOutputMask = 0;
-	GBufferData.PerObjectGBufferData = 1; 
-	GBufferData.DiffuseIndirectSampleOcclusion = 0;
-	GBufferData.Velocity = 0;
+	FGBufferData DBufferData;
+	DBufferData.WorldNormal = MaterialParameters.WorldNormal;
+	DBufferData.BaseColor = GetMaterialBaseColor(PixelMaterialInputs);
+	DBufferData.Metallic = GetMaterialMetallic(PixelMaterialInputs);
+	DBufferData.Specular = GetMaterialSpecular(PixelMaterialInputs);
+	DBufferData.Roughness = GetMaterialRoughness(PixelMaterialInputs);
+	DBufferData.CustomData = 0;
+	DBufferData.IndirectIrradiance = 0;
+	DBufferData.PrecomputedShadowFactors = 1;
+	DBufferData.GBufferAO = GetMaterialAmbientOcclusion(PixelMaterialInputs);
+	DBufferData.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
+	DBufferData.SelectiveOutputMask = 0;
+	DBufferData.PerObjectGBufferData = 1; 
+	DBufferData.DiffuseIndirectSampleOcclusion = 0;
+	DBufferData.Velocity = 0;
 
-	DecalCommonOutput(In, Out, Color, Opacity, GBufferData);
+	DecalCommonOutput(In, Out, EmissiveColor, Opacity, DBufferData);
 #endif // SUBSTRATE_ENABLED
+
+#if DECAL_RENDERSTAGE == DECAL_RENDERSTAGE_MOBILE
+	#if DECAL_MOBILE_FORWARD_LIT
+		Out.MRT[0].rgb = ForwardDecalLighting(
+			TranslatedWorldPosition, 
+			MaterialParameters.ScreenPosition.xy, 
+			MaterialParameters.ScreenPosition.w,
+			CameraVector, 
+			MaterialParameters.TangentToWorld[2], 
+			ReflectionAboutCustomWorldNormal(MaterialParameters, MaterialParameters.WorldNormal, false),
+			DBufferData.WorldNormal,
+			DBufferData.Specular,
+			DBufferData.BaseColor,
+			DBufferData.Metallic,
+			DBufferData.Roughness,
+			EmissiveColor,
+			Opacity);
+	#endif
+#endif
 
 #if MATERIAL_VIRTUALTEXTURE_FEEDBACK
 	FinalizeVirtualTextureFeedback(
@@ -208,6 +270,11 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 		View.VTFeedbackBuffer
 	);
 #endif
+}
+
+void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out)
+{
+	FPixelShaderInOut_MainPS(In, Out, 0);
 }
 
 //#define PIXELSHADEROUTPUT_MRT0 (DECAL_RENDERTARGET_COUNT > 0)

@@ -39,6 +39,8 @@ public:
 	
 private:
 
+	void UpdateRecentFilesList(const FString& InFilename);
+
 	FGuid InstanceGUID;
 
 	FChaosVDTraceSessionDescriptor CurrentSessionDescriptor;

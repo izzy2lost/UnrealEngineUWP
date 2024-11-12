@@ -11,12 +11,14 @@
 #include "Interfaces/IShaderFormatModule.h"
 #include "DXCWrapper.h"
 
+DEFINE_LOG_CATEGORY(LogD3DShaderCompiler);
+
 static FName NAME_PCD3D_SM6(TEXT("PCD3D_SM6"));
 static FName NAME_PCD3D_SM5(TEXT("PCD3D_SM5"));
 static FName NAME_PCD3D_ES3_1(TEXT("PCD3D_ES31"));
 
-static const FGuid UE_SHADER_PCD3D_SHARED_VER = FGuid("232A2A59-A6D0-4CDB-A374-F3DB028E413E");
-static const FGuid UE_SHADER_PCD3D_SM6_VER    = FGuid("7BDBA1A9-FAEF-42A1-BCF7-1B921FDEAD9E");
+static const FGuid UE_SHADER_PCD3D_SHARED_VER = FGuid("6A25E42A-3266-4692-81C4-35B5690B7578");
+static const FGuid UE_SHADER_PCD3D_SM6_VER    = FGuid("FC317769-CFF7-4007-A045-C1D4CD315BD4");
 static const FGuid UE_SHADER_PCD3D_SM5_VER    = FGuid("5B377D13-C70F-40C5-80C5-C9B228783469");
 static const FGuid UE_SHADER_PCD3D_ES3_1_VER  = FGuid("952939D9-1156-4347-97E9-9FFEA1A9FE14");
 
@@ -111,6 +113,11 @@ public:
 		return ELanguage::Invalid;
 	}
 
+	static bool IsSM68(const FShaderCompilerInput& Input, ELanguage Language)
+	{
+		return IsWorkGraphShaderFrequency(Input.Target.GetFrequency());
+	}
+
 	static bool IsSM66(const FShaderCompilerInput& Input, ELanguage Language)
 	{
 		return Language == ELanguage::SM6 || IsRayTracingShaderFrequency(Input.Target.GetFrequency());
@@ -119,7 +126,8 @@ public:
 	// Do we need any SM6.0 features?
 	static bool RequiresSM6Features(const FShaderCompilerInput& Input, ELanguage Language)
 	{
-		return IsSM66(Input, Language)
+		return IsSM68(Input, Language)
+			|| IsSM66(Input, Language)
 			|| Input.Environment.CompilerFlags.Contains(CFLAG_WaveOperations)
 			// TODO: Forcing DXC should not change platform flags, this needs to be moved to IsSM60 once existing uses are accounted for.
 			|| Input.Environment.CompilerFlags.Contains(CFLAG_ForceDXC)
@@ -130,12 +138,17 @@ public:
 	static bool IsSM60(const FShaderCompilerInput& Input, ELanguage Language)
 	{
 		return RequiresSM6Features(Input, Language)
-			|| Input.Environment.GetIntegerValue(TEXT("PLATFORM_MAX_SAMPLERS")) > 16
+			|| Input.Environment.GetCompileArgument(TEXT("PLATFORM_MAX_SAMPLERS"), 0) > 16
 			;
 	}
 
 	static ED3DShaderModel DetermineShaderModel(const FShaderCompilerInput& Input, ELanguage Language)
 	{
+		if (IsSM68(Input, Language))
+		{
+			return ED3DShaderModel::SM6_8;
+		}
+
 		if (IsSM66(Input, Language))
 		{
 			return ED3DShaderModel::SM6_6;
@@ -155,11 +168,11 @@ public:
 	}
 
 #if WITH_ENGINE
-	virtual void NotifyShaderCompiled(const TConstArrayView<uint8>& PlatformDebugData, FName Format) const override
+	virtual void NotifyShaderCompiled(const TConstArrayView<uint8>& PlatformDebugData, FName Format, const FString& DebugInfo) const override
 	{
 		if (Format == NAME_PCD3D_SM6)
 		{
-			ShaderSymbolExportSM6.NotifyShaderCompiled<FD3DSM6ShaderDebugData>(PlatformDebugData);
+			ShaderSymbolExportSM6.NotifyShaderCompiled<FD3DSM6ShaderDebugData>(PlatformDebugData, DebugInfo);
 		}
 	}
 	virtual void NotifyShaderCompilersShutdown(FName Format) const override
@@ -200,7 +213,6 @@ public:
 		// Assume min. spec HW supports with DX12/SM5
 		Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_ROV"), true);
 
-		const bool bSM66        = IsSM66(Input, Language);
 		const bool bSM6Features = RequiresSM6Features(Input, Language);
 		const bool bDXC         = DoesShaderModelRequireDXC(ShaderModel);
 
@@ -209,17 +221,18 @@ public:
 		Input.Environment.SetDefine(TEXT("COMPILER_DXC"),  bDXC);
 
 		// Do we need SM6.0+ features enabled? This is intentionally disconnected from the ED3DShaderModel to allow SM6.0 to be used without new language features.
-		Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_CONSTANTBUFFER_OBJECT"), bSM6Features);
+		// TODO: enable PLATFORM_SUPPORTS_CONSTANTBUFFER_OBJECT once we can get usage info from the constant buffer struct.
+		//Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_CONSTANTBUFFER_OBJECT"), bSM6Features);
 		Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS"), bSM6Features);
 		Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_DIAGNOSTIC_BUFFER"),     bSM6Features);
 
 		// "profiles" are almost analogous to ERHIFeatureLevel but RT shaders are forcing themselves to SM6
-		Input.Environment.SetDefine(TEXT("SM6_PROFILE"),   bSM66);
+		Input.Environment.SetDefine(TEXT("SM6_PROFILE"),   ShaderModel >= ED3DShaderModel::SM6_6);
 		Input.Environment.SetDefine(TEXT("SM5_PROFILE"),   (Language == ELanguage::SM5));
 		Input.Environment.SetDefine(TEXT("ES3_1_PROFILE"), (Language == ELanguage::ES3_1));
 
 		// Add SM6.6+ specific defines. None of these are intended to be enabled in lower SM's
-		if (bSM66)
+		if (ShaderModel >= ED3DShaderModel::SM6_6)
 		{
 			Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_REAL_TYPES"),         Input.Environment.CompilerFlags.Contains(CFLAG_AllowRealTypes));
 			Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_INLINE_RAY_TRACING"), Input.Environment.CompilerFlags.Contains(CFLAG_InlineRayTracing));
@@ -241,6 +254,15 @@ public:
 		case ED3DShaderModel::SM6_6:
 			AddShaderTargetDefines(Input, 6, 6);
 			break;
+		case ED3DShaderModel::SM6_8:
+			AddShaderTargetDefines(Input, 6, 8);
+			break;
+		}
+
+		// For mobile emulation
+		if (Input.Environment.FullPrecisionInPS || (Input.SharedEnvironment.IsValid() && Input.SharedEnvironment->FullPrecisionInPS))
+		{
+			Input.Environment.SetDefine(TEXT("FORCE_FLOATS"), (uint32)1);
 		}
 	}
 

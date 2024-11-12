@@ -254,7 +254,7 @@ void UEditorLevelLibrary::ReplaceSelectedActors(const FString& InAssetPath)
 
 		if (Factory)
 		{
-			GEditor->ReplaceSelectedActors(Factory, AssetData);
+			UEditorActorSubsystem::ReplaceSelectedActors(Factory, AssetData);
 		}
 	}
 }

@@ -67,7 +67,6 @@ void SMessagingEndpoints::Construct(const FArguments& InArgs, const TSharedRef<F
 					[
 						// message list
 						SAssignNew(EndpointListView, SListView<TSharedPtr<FMessageTracerEndpointInfo>>)
-							.ItemHeight(24.0f)
 							.ListItemsSource(&EndpointList)
 							.SelectionMode(ESelectionMode::Multi)
 							.OnGenerateRow(this, &SMessagingEndpoints::HandleEndpointListGenerateRow)

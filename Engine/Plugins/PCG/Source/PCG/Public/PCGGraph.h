@@ -5,15 +5,17 @@
 #include "PCGCommon.h"
 #include "PCGNode.h"
 #include "PCGSettings.h"
+#include "Compute/PCGCompilerDiagnostic.h"
 #include "Graph/PCGStackContext.h"
 #include "Helpers/PCGGraphParameterExtension.h"
 
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "UObject/ObjectPtr.h"
 
 #include "PCGGraph.generated.h"
 
 class UPCGGraphInterface;
+class UPCGGraphCompilationData;
 #if WITH_EDITOR
 class UPCGEditorGraph;
 struct FEdGraphPinType;
@@ -39,6 +41,7 @@ enum class EPCGGraphParameterEvent
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPCGGraphChanged, UPCGGraphInterface* /*Graph*/, EPCGChangeType /*ChangeType*/);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnPCGGraphStructureChanged, UPCGGraphInterface* /*Graph*/);
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnPCGGraphParametersChanged, UPCGGraphInterface* /*Graph*/, EPCGGraphParameterEvent /*ChangeType*/, FName /*ChangedPropertyName*/);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPCGNodeSourceCompiled, const UPCGNode*, const FPCGCompilerDiagnostics&);
 #endif // WITH_EDITOR
 
 /**
@@ -102,8 +105,8 @@ public:
 
 	virtual const FInstancedPropertyBag* GetUserParametersStruct() const PURE_VIRTUAL(UPCGGraphInterface::GetUserParametersStruct, return nullptr;)
 
-	// Mutable version should not be used outside of testing, since there are callbacks fired when parameters changes.
-	// TODO: Make it safe to change parameters from the outside.
+	// Mutable version - should not be used outside of testing. Use UpdateUserParametersStruct on PCGGraph,
+	// or the different get/set/update functions in PCGGraphInterface instead to have proper callbacks.
 	FInstancedPropertyBag* GetMutableUserParametersStruct_Unsafe() const { return const_cast<FInstancedPropertyBag*>(GetUserParametersStruct()); }
 
 	bool IsInstance() const;
@@ -114,7 +117,39 @@ public:
 #if WITH_EDITOR
 	FOnPCGGraphChanged OnGraphChangedDelegate;
 	FOnPCGGraphParametersChanged OnGraphParametersChangedDelegate;
+	FOnPCGNodeSourceCompiled OnNodeSourceCompiledDelegate;
+
+	virtual TOptional<FText> GetTitleOverride() const { return bOverrideTitle ? Title : TOptional<FText>(); }
+	virtual TOptional<FLinearColor> GetColorOverride() const { return bOverrideColor ? Color : TOptional<FLinearColor>(); }
+protected:
+	/** By default export to library is visible only for graph that are assets, but can be enabled/disabled if needed. */
+	UFUNCTION()
+	virtual bool IsExportToLibraryEnabled() const { return IsAsset(); }
+
+	UFUNCTION()
+	virtual bool AreOverridesEnabled() const { return IsExportToLibraryEnabled() && bExposeToLibrary; }
 #endif // WITH_EDITOR
+
+public:
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable, meta = (EditCondition = "IsExportToLibraryEnabled", EditConditionHides))
+	bool bExposeToLibrary = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable, meta = (EditCondition = "AreOverridesEnabled", EditConditionHides))
+	bool bOverrideTitle = false;
+
+	/** Override of the title for the subgraph node for this graph. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable, meta = (EditCondition = "AreOverridesEnabled && bOverrideTitle", EditConditionHides))
+	FText Title;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, meta = (EditCondition = "AreOverridesEnabled", EditConditionHides))
+	bool bOverrideColor = false;
+
+	/** Override of the color for the subgraph node for this graph. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, meta = (EditCondition = "AreOverridesEnabled && bOverrideColor", EditConditionHides))
+	FLinearColor Color = FLinearColor::White;
+#endif
 
 	template <typename T>
 	TValueOrError<T, EPropertyBagResult> GetGraphParameter(const FName PropertyName) const
@@ -160,6 +195,22 @@ public:
 
 	EPropertyBagResult SetGraphParameter(const FName PropertyName, const uint64 Value, const UEnum* Enum);
 
+	/**
+	 * Allows to manipulate directly FPropertyBagArrayRef, while propagating changes to child instances. 
+	 * @param PropertyName Name of the property to access. Must be an Array.
+	 * @param Callback Callback to call with the FPropertyBagArrayRef. Returns a bool telling if there was a change.
+	 * @returns True if the change succeeded.
+	 */
+	bool UpdateArrayGraphParameter(const FName PropertyName, TFunctionRef<bool(FPropertyBagArrayRef& PropertyBagArrayRef)> Callback);
+
+	/**
+	 * Allows to manipulate directly FPropertyBagSetRef, while propagating changes to child instances. 
+	 * @param PropertyName Name of the property to access. Must be a Set.
+	 * @param Callback Callback to call with the FPropertyBagSetRef. Returns a bool telling if there was a change.
+	 * @returns True if the change succeeded.
+	 */
+	bool UpdateSetGraphParameter(const FName PropertyName, TFunctionRef<bool(FPropertyBagSetRef& PropertyBagSetRef)> Callback);
+
 	virtual void OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName) PURE_VIRTUAL(UPCGGraphInterface::OnGraphParametersChanged, )
 
 protected:
@@ -184,7 +235,9 @@ public:
 	/** ~Begin UObject interface */
 	virtual void PostLoad() override;
 	virtual bool IsEditorOnly() const override;
+
 #if WITH_EDITOR
+	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	static void DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass);
 #endif
 
@@ -206,19 +259,21 @@ public:
 	EPCGHiGenGrid GetDefaultGrid() const { ensure(IsHierarchicalGenerationEnabled()); return HiGenGridSize; }
 	uint32 GetDefaultGridSize() const;
 	bool IsHierarchicalGenerationEnabled() const { return bUseHierarchicalGeneration; }
+	bool Use2DGrid() const { return bUse2DGrid; }
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable)
-	bool bExposeToLibrary = false;
-
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable)
 	FText Category;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable)
 	FText Description;
+
+	/** Marks the graph to be not refreshed automatically when the landscape changes, even if it is used. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Advanced")
+	bool bIgnoreLandscapeTracking = false;
 #endif
 
-	UPROPERTY(EditAnywhere, Category = Settings)
+	UPROPERTY(EditAnywhere, Category = "Settings|Advanced")
 	bool bLandscapeUsesMetadata = true;
 
 	/** Creates a node using the given settings interface. Does not manage ownership - done outside of this method. */
@@ -294,6 +349,15 @@ public:
 	/** Determine the relevant grid sizes by inspecting all HiGenGridSize nodes. */
 	void GetGridSizes(PCGHiGenGrid::FSizeArray& OutGridSizes, bool& bOutHasUnbounded) const;
 
+	/** Returns exponential on grid size, which represents a shift in the grid */
+	uint32 GetGridExponential() const { return HiGenExponential; }
+
+	/** Gets generation radius from grid, considering grid exponential. */
+	double GetGridGenerationRadiusFromGrid(EPCGHiGenGrid Grid) const;
+
+	/** Gets cleanup radius from grid, considering grid exponential. */
+	double GetGridCleanupRadiusFromGrid(EPCGHiGenGrid Grid) const;
+
 #if WITH_EDITOR
 	void DisableNotificationsForEditor();
 	void EnableNotificationsForEditor();
@@ -331,6 +395,9 @@ public:
 
 	/** Size of grid on which this node should be executed. Nodes execute at the minimum of all input grid sizes. */
 	uint32 GetNodeGenerationGridSize(const UPCGNode* InNode, uint32 InDefaultGridSize) const;
+
+	TObjectPtr<UPCGGraphCompilationData> GetCookedCompilationData() { return CookedCompilationData; }
+	const TObjectPtr<UPCGGraphCompilationData> GetCookedCompilationData() const { return CookedCompilationData; }
 
 protected:
 	/** Internal function to react to add/remove nodes. bNotify can be set to false to not notify the world. */
@@ -388,6 +455,13 @@ protected:
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (DisplayName = "HiGen Default Grid Size", EditCondition = "bUseHierarchicalGeneration"))
 	EPCGHiGenGrid HiGenGridSize = EPCGHiGenGrid::Grid256;
 
+	/** Shifts the grid sizes upwards based on the value, which allows to use larger grids. A value of 1 will effectively use the graph's Grid-400 values x 2 for the actual Grid-800 sizes and so on. */
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (ClampMax = "10", DisplayName = "HiGen Grid Size Exponential", EditCondition = "bUseHierarchicalGeneration"))
+	uint32 HiGenExponential = 0;
+
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (DisplayName = "2D Grid"))
+	bool bUse2DGrid = true;
+
 	/** Execution grid size for nodes. */
 	mutable TMap<const UPCGNode*, uint32> NodeToGridSize;
 	mutable FRWLock NodeToGridSizeLock;
@@ -404,6 +478,13 @@ protected:
 	bool bDebugFlagAppliesToIndividualComponents = true;
 #endif // WITH_EDITORONLY_DATA
 
+	/**
+	 * Populated during cook to prewarm graph compiler cache in standalone builds. Also necessary for GPU execution because compiling
+	 * compute graphs is not supported outside of editor.
+	 */
+	UPROPERTY()
+	TObjectPtr<UPCGGraphCompilationData> CookedCompilationData = nullptr;
+
 public:
 	virtual const FInstancedPropertyBag* GetUserParametersStruct() const override { return &UserParameters; }
 
@@ -417,6 +498,9 @@ public:
 	FPCGRuntimeGenerationRadii GenerationRadii;
 
 	virtual void OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName) override;
+
+	// Will call the callback function with a mutable property bag and will trigger the updates when it's done.
+	void UpdateUserParametersStruct(TFunctionRef<void(FInstancedPropertyBag&)> Callback);
 
 #if WITH_EDITOR
 private:
@@ -495,7 +579,7 @@ public:
 	bool IsPropertyOverridden(const FProperty* InProperty) const { return ParametersOverrides.IsPropertyOverridden(InProperty); }
 	bool IsPropertyOverriddenAndNotDefault(const FProperty* InProperty) const;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Instance)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Instance, AssetRegistrySearchable)
 	TObjectPtr<UPCGGraphInterface> Graph;
 
 	UPROPERTY(EditAnywhere, Category = Instance, meta = (NoResetToDefault))
@@ -511,10 +595,30 @@ public:
 	*/
 	bool CanGraphInterfaceBeSet(const UPCGGraphInterface* GraphInterface) const;
 
-private:
+#if WITH_EDITOR
+	virtual TOptional<FText> GetTitleOverride() const override;
+	virtual TOptional<FLinearColor> GetColorOverride() const override;
+#endif // WITH_EDITOR
+
 #if WITH_EDITORONLY_DATA
+private:
 	// Transient, to keep track of the previous graph when it changed.
 	TWeakObjectPtr<UPCGGraphInterface> PreGraphCache = nullptr;
+
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable, meta = (EditCondition = "AreOverridesEnabled", EditConditionHides, DisplayAfter = ColorOverride))
+	bool bOverrideDescription = false;
+
+	/** Can override the description of this instance. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable, meta = (EditCondition = "AreOverridesEnabled && bOverrideDescription", EditConditionHides, DisplayAfter = ColorOverride))
+	FText Description;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable, meta = (EditCondition = "AreOverridesEnabled", EditConditionHides, DisplayAfter = ColorOverride))
+	bool bOverrideCategory = false;
+
+	/** Can override the category of this instance. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable, meta = (EditCondition = "AreOverridesEnabled && bOverrideCategory", EditConditionHides, DisplayAfter = ColorOverride))
+	FText Category;
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -526,7 +630,3 @@ UPCGNode* UPCGGraph::AddNodeOfType(T*& DefaultNodeSettings)
 	DefaultNodeSettings = Cast<T>(TempSettings);
 	return Node;
 }
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

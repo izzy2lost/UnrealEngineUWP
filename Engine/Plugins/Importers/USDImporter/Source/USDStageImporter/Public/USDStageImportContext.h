@@ -13,6 +13,7 @@
 #include "USDStageImportContext.generated.h"
 
 class UUsdAssetCache2;
+class UUsdAssetCache3;
 class UUsdStageImportOptions;
 class FTokenizedMessage;
 
@@ -52,15 +53,24 @@ struct USDSTAGEIMPORTER_API FUsdStageImportContext
 	UPROPERTY()
 	TObjectPtr<UObject> ImportedAsset;
 
+	UPROPERTY()
+	TArray<TObjectPtr<UObject>> ImportedAssets;
+
 	/** Level sequence that will contain the animation data during the import process */
 	FUsdLevelSequenceHelper LevelSequenceHelper;
 
 	UPROPERTY()
+	TObjectPtr<UUsdAssetCache3> UsdAssetCache;
+
+	UE_DEPRECATED(5.5, "Use the 'UsdAssetCache' member instead, which is of the new UUsdAssetCache3 type")
+	UPROPERTY()
 	TObjectPtr<UUsdAssetCache2> AssetCache;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/** Caches various information about prims that are expensive to query */
 	UE_DEPRECATED(5.3, "The import process now always builds its own InfoCache, so this member is no longer used")
 	TSharedPtr<FUsdInfoCache> InfoCache;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Bounding box cache used for the USD stage in case we have to spawn bounds components */
 	TSharedPtr<UE::FUsdGeomBBoxCache> BBoxCache;

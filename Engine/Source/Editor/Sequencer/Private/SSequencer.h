@@ -17,11 +17,12 @@
 #include "ToolMenu.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Widgets/Input/NumericTypeInterface.h"
-#include "Widgets/Input/SSpinBox.h"
+#include "Widgets/Layout/SSplitter.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Sequencer.h"
 #include "SequencerWidgetsDelegates.h"
 #include "STemporarilyFocusedSpinBox.h"
+#include "WidgetFocusUtils.h"
 
 class FActorDragDropOp;
 class FFolderDragDropOp;
@@ -29,18 +30,30 @@ class FAssetDragDropOp;
 class FClassDragDropOp;
 class FMovieSceneClipboard;
 class FSequencerTimeSliderController;
+class FSequencerTrackFilter;
+class FSequencerViewOptionsMenu;
+class ISidebarDrawerContent;
 class SCurveEditorTree;
+class SSequencerFilterBar;
 class SSequencerTransformBox;
 class SSequencerStretchBox;
 class SCurveEditorPanel;
+class SBox;
 class SDockTab;
+class SFilterSearchBox;
+class SGridPanel;
+class SSidebar;
+class SSidebarContainer;
 class SWindow;
 class USequencerSettings;
-class FSequencerTrackFilter;
 class SSequencerGroupManager;
 class SSequencerTreeFilterStatusBar;
+class SFilterSearchBox;
+enum class ESequencerFilterChange : uint8;
 struct FPaintPlaybackRangeArgs;
 struct FSequencerCustomizationInfo;
+struct FSidebarDrawerConfig;
+struct FTimeSliderArgs;
 
 namespace UE
 {
@@ -348,17 +361,8 @@ public:
 	/** Sets the play time for the sequence. Will extend the working range if out of bounds. */
 	void SetPlayTime(double Frame);
 
-	/** Sets the specified track filter to be on or off */
-	void SetTrackFilterEnabled(const FText& InTrackFilterName, bool bEnabled);
-
-	/** Gets whether the specified track filter is on/off */
-	bool IsTrackFilterEnabled(const FText& InTrackFilterName) const;
-
-	/** Reset all enabled filters */
-	void ResetFilters();
-
-	/** Gets all the available track filter names */
-	TArray<FText> GetTrackFilterNames() const;
+	/** Gets the text to search by */
+	FText GetSearchText() const;
 
 	/** Sets the text to search by */
 	void SetSearchText(const FText& InSearchText);
@@ -380,12 +384,23 @@ protected:
 	virtual FReply OnDrop( const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent ) override;
 	virtual FReply OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent ) override;
 	virtual void OnFocusChanging( const FWeakWidgetPath& PreviousFocusPath, const FWidgetPath& NewWidgetPath, const FFocusEvent& InFocusEvent ) override;
+	virtual void OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual void OnMouseLeave(const FPointerEvent& MouseEvent) override;
 
 private:
-	
-	/** Initalizes a list of all track filter objects */
-	void InitializeTrackFilters();
 
+	static constexpr float CommonPadding = 3.f;
+
+	TSharedRef<SWidget> ConstructSidebarContent();
+	TSharedRef<SWidget> ConstructFilterBarContent();
+	TSharedRef<SWidget> ConstructSearchAndFilterRow();
+	TSharedRef<SWidget> ConstructGridOverlayContent();
+	TSharedRef<SGridPanel> ConstructTrackAreaGridPanel(const FArguments& InArgs, const FTimeSliderArgs& InTimeSliderArgs);
+
+	/** Can be called anytime after Construct() to rebuild most of the main content (except for the toolbar). */
+	void RebuildForSidebar();
+	void RebuildFilterBarContent();
+	void RebuildSearchAndFilterRow();
 
 	/** Initializes outliner column list from settings and SequencerCore */
 	void InitializeOutlinerColumns();
@@ -399,9 +414,6 @@ private:
 	/** Empty active timer to ensure Slate ticks during Sequencer playback */
 	EActiveTimerReturnType EnsureSlateTickDuringPlayback(double InCurrentTime, float InDeltaTime);	
 
-	/** Get context menu contents. */
-	void GetContextMenuContent(FMenuBuilder& MenuBuilder);
-
 	TWeakPtr<FSequencer> GetSequencer() { return SequencerPtr; }
 
 	static void PopulateToolBar(UToolMenu* InMenu);
@@ -409,16 +421,8 @@ private:
 	/** Makes the toolbar. */
 	TSharedRef<SWidget> MakeToolBar();
 
-	/** Makes add button. */
-	TSharedRef<SWidget> MakeAddButton();
-
-	/** Makes filter button */
-	TSharedRef<SWidget> MakeFilterButton();
-
 	/** Makes the add menu for the toolbar. */
 	TSharedRef<SWidget> MakeAddMenu();
-
-	TSharedRef<SWidget> MakeFilterMenu();
 
 	/** Makes the actions menu for the toolbar. */
 	TSharedRef<SWidget> MakeActionsMenu();
@@ -478,20 +482,6 @@ public:
 
 private:
 
-	void OnEnableAllFilters();
-	void OnTrackFilterClicked(TSharedRef<FSequencerTrackFilter> TrackFilter);
-	bool IsTrackFilterActive(TSharedRef<FSequencerTrackFilter> TrackFilter) const;
-
-	void OnEnableAllLevelFilters(bool bEnableAll);
-	void OnTrackLevelFilterClicked(const FString LevelName);
-	bool IsTrackLevelFilterActive(const FString LevelName) const;
-
-	void FillLevelFilterMenu(FMenuBuilder& InMenuBarBuilder);
-	void FillNodeGroupsFilterMenu(FMenuBuilder& InMenuBarBuilder);
-
-	void OnEnableAllNodeGroupFilters(bool bEnableAll);
-	void OnNodeGroupFilterClicked(UMovieSceneNodeGroup* NodeGroup);
-
 	/**
 	 * Called when any outliner column's visibily is modified.
 	 * Updates SequencerSettings and visible outliner columns in Outliner View.
@@ -520,7 +510,11 @@ private:
 	/**
 	 * Called when the outliner search terms change                                                              
 	 */
-	void OnOutlinerSearchChanged( const FText& Filter );
+	void OnOutlinerSearchChanged(const FText& InFilter);
+
+	void OnOutlinerSearchCommitted(const FText& InFilter, ETextCommit::Type InCommitInfo);
+	
+	void OnOutlinerSearchSaved(const FText& InFilterText);
 
 	/**
 	 * @return The fill percentage of the animation outliner
@@ -531,33 +525,36 @@ private:
 		return ColumnFillCoefficients[ColumnIndex];
 	}
 
+	void AddFromContentBrowser();
+	bool CanAddFromContentBrowser() const;
+
 	/**
 	 * Called when one or more assets are dropped into the widget
 	 *
 	 * @param	DragDropOp	Information about the asset(s) that were dropped
 	 */
-	void OnAssetsDropped(const FAssetDragDropOp& DragDropOp);
+	void OnAssetsDropped(TSharedPtr<FAssetDragDropOp> DragDropOp);
 	
 	/**
 	 * Called when one or more classes are dropped into the widget
 	 *
 	 * @param	DragDropOp	Information about the class(es) that were dropped
 	 */
-	void OnClassesDropped(const FClassDragDropOp& DragDropOp);
+	void OnClassesDropped(TSharedPtr<FClassDragDropOp> DragDropOp);
 		
 	/**
 	 * Called when one or more actors are dropped into the widget
 	 *
 	 * @param	DragDropOp	Information about the actor(s) that was dropped
 	 */
-	void OnActorsDropped(FActorDragDropOp& DragDropOp); 
+	void OnActorsDropped(TSharedPtr<FActorDragDropOp> DragDropOp);
 
 	/**
 	 * Called when one or more folders are dropped into the widget
 	 *
 	 * @param	DragDropOp	Information about the objects(s) that was dropped
 	 */
-	void OnFolderDropped(FFolderDragDropOp& DragDropOp); 
+	void OnFolderDropped(TSharedPtr<FFolderDragDropOp> DragDropOp);
 
 	/** Called when a breadcrumb is clicked on in the sequencer */
 	void OnCrumbClicked(const FSequencerBreadcrumb& Item);
@@ -643,26 +640,115 @@ public:
 	/** This adds the specified path to the selection set to be restored the next time the tree view is refreshed. */
 	void AddAdditionalPathToSelectionSet(const FString& Path) { AdditionalSelectionsToAdd.Add(Path); }
 
+	/** Adds a node path to be isolated after the tree view is refreshed and the new tracks are created. */
+	void AddNewNodePathsToIsolate(const TSet<FString>& InPaths) { NewNodePathsToIsolate.Append(InPaths); }
+
 	/** Request to rename the given node path. */
 	void RequestRenameNode(const FString& Path) { NodePathToRename = Path; }
 
 	/** Applies dynamic sequencer customizations to this editor. */
 	void ApplySequencerCustomizations(const TArrayView<const FSequencerCustomizationInfo> Customizations);
 
+	/**
+	 * Registers and displays a new drawer in the sidebar.
+	 * 
+	 * @param InDrawerConfig Configuration info for the new drawer
+	 * 
+	 * @return True if the new drawer registration was successful.
+	 */
+	bool RegisterDrawer(FSidebarDrawerConfig&& InDrawerConfig);
+
+	/**
+	 * Unregisters and removes a drawer from the sidebar.
+	 *
+	 * @param InDrawerId Unique drawer Id to unregister
+	 * 
+	 * @return True if the drawer removal was successful.
+	 */
+	bool UnregisterDrawer(const FName InDrawerId);
+
+	/**
+	 * Registers and displays a new drawer section in the sidebar.
+	 * 
+	 * @param InDrawerId Unique drawer Id to register
+	 * @param InSection Drawer content interface for the section
+	 * 
+	 * @return True if the new drawer section registration was successful.
+	 */
+	bool RegisterDrawerSection(const FName InDrawerId, const TSharedPtr<ISidebarDrawerContent>& InSection);
+
+	/**
+	 * Unregisters and removes a drawer section from the sidebar.
+	 * 
+	 * @param InDrawerId Unique drawer Id that contains the section to unregister
+	 * @param InSectionId Unique drawer section Id to unregister
+	 * 
+	 * @return True if the drawer removal was successful.
+	 */
+	bool UnregisterDrawerSection(const FName InDrawerId, const FName InSectionId);
+
+	/** @return True if the sidebar is being displayed. */
+	bool IsSidebarVisible() const;
+
+	/** Set the visibility of the sidebar */
+	void SetSidebarVisible(const bool bInVisible);
+
+	/** Toggle the visibility of the sidebar. */
+	void ToggleSidebarVisible();
+
+	/** Toggles the sidebar "Selection" drawer open or closed. */
+	void ToggleSidebarSelectionDrawerOpen();
+
+	/** Undocks the docked sidebar drawer if docked or docks the sidebar drawer if there is one open and no currently docked drawer. */
+	void ToggleSidebarDrawerDock();
+
+	/** Enable/disable pending focus in sequencer */
+	SEQUENCER_API void EnablePendingFocusOnHovering(const bool InEnabled);
+	
+	TSharedPtr<FSequencerFilterBar> GetFilterBar() const;
+	TSharedPtr<SSequencerFilterBar> GetFilterBarWidget() const;
+
+	bool IsFilterBarVisible() const;
+	void ToggleFilterBarVisibility();
+
+	EFilterBarLayout GetFilterBarLayout() const;
+	void SetFilterBarLayout(const EFilterBarLayout InLayout);
+
 private:
+
+	/** Pending focus handler */
+	FPendingWidgetFocus PendingFocus;
+
+	/** Enable/disable pending focus in the curve editor */
+	void EnableCurveEditorPendingFocusOnHovering(const bool InEnabled) const;
+	
 	/** Applies a single customization. */
 	void ApplySequencerCustomization(const FSequencerCustomizationInfo& Customization);
 
-private:
+	void OnSidebarStateChanged(const FSidebarState& InNewState);
+
+	void OnTrackFiltersChanged(const ESequencerFilterChange InChangeType, const TSharedRef<FSequencerTrackFilter>& InFilter);
+
+	/** This is the main container widget for the Sequencer (minus the toolbar). This is the parent of
+	 * the GridPanel widget below and is used to rebuild content when the sidebar is added/removed. */
+	TSharedPtr<SBox> MainContentContainer;
+
+	/** Grid panel that holds most of the content and contains MainSequencerArea widget below.
+	 * Built once at Sequencer initialize and used when rebuilding the main content container when the sidebar is added/removed. */
+	TSharedPtr<SGridPanel> GridPanel;
+
+	/** Contains the outliner tree and track area. Used by GetPinnedAreaMaxHeight().
+	 * Built once at Sequencer initialize and used when rebuilding the main content container when the sidebar is added/removed. */
+	TSharedPtr<SVerticalBox> MainSequencerArea;
+
+	/** The splitter container that holds the filter bar (if visible). */
+	TSharedPtr<SBox> FilterBarSplitterContainer;
 
 	/** Transform box widget. */
 	TSharedPtr<SSequencerTransformBox> TransformBox;
 
 	/** Stretch box widget. */
 	TSharedPtr<SSequencerStretchBox> StretchBox;
-
-	/** Main Sequencer Area*/
-	TSharedPtr<SVerticalBox> MainSequencerArea;
 
 	/** Filter Status Bar */
 	TSharedPtr<SSequencerTreeFilterStatusBar> SequencerTreeFilterStatusBar;
@@ -680,7 +766,7 @@ private:
 	TSharedPtr<SBreadcrumbTrail<FSequencerBreadcrumb>> BreadcrumbTrail;
 
 	/** The search box for filtering tracks. */
-	TSharedPtr<SSearchBox> SearchBox;
+	TSharedPtr<SFilterSearchBox> SearchBox;
 
 	/** The current playback time display. */
 	TSharedPtr<STemporarilyFocusedSpinBox<double>> PlayTimeDisplay;
@@ -694,6 +780,9 @@ private:
 	/** The sequencer tree view for pinned tracks */
 	TSharedPtr<UE::Sequencer::SOutlinerView> PinnedTreeView;
 
+	TSharedPtr<SScrollBar> ScrollBar;
+	TSharedPtr<SScrollBar> PinnedAreaScrollBar;
+
 	/** Dropdown for selecting breadcrumbs */
 	TSharedPtr<class SComboButton> BreadcrumbPickerButton;
 
@@ -702,6 +791,11 @@ private:
 
 	/** The top time slider widget */
 	TSharedPtr<ITimeSlider> TopTimeSlider;
+
+	/** The bottom time slider widget */
+	TSharedPtr<ITimeSlider> BottomTimeSlider;
+
+	TSharedPtr<ITimeSlider> BottomTimeRange;
 
 	/** Container for the toolbar, so that we can re-create it as needed. */
 	TSharedPtr<SBox> ToolbarContainer;
@@ -728,6 +822,12 @@ private:
 
 	/** Extender to use for the toolbar */
 	TArray<TSharedPtr<FExtender>> ToolbarExtenders;
+
+	/** Extender to use for the actions menu */
+	TArray<TSharedPtr<FExtender>> ActionsMenuExtenders;
+
+	/** Extender to use for the view menu */
+	TArray<TSharedPtr<FExtender>> ViewMenuExtenders;
 
 	/** Numeric type interface used for converting parsing and generating strings from numbers */
 	TSharedPtr<INumericTypeInterface<double>> NumericTypeInterface;
@@ -793,14 +893,28 @@ private:
 
 	FString NodePathToRename;
 
-	TWeakPtr<SWindow> WeakTickResolutionOptionsWindow;
+	/** List of node paths that should be isolated on next tree update */
+	TSet<FString> NewNodePathsToIsolate;
 
-	/** All possible track filter objects */
-	TArray< TSharedRef<FSequencerTrackFilter> > AllTrackFilters;
+	TWeakPtr<SWindow> WeakTickResolutionOptionsWindow;
 
 	TWeakPtr<SWindow> WeakExposedBindingsWindow;
 
 	TWeakPtr<SWindow> WeakNodeGroupWindow;
 
 	TSharedPtr<SSequencerGroupManager> NodeGroupManager;
+
+	TSharedPtr<SSidebarContainer> SidebarContainer;
+	TSharedPtr<SSidebar> DetailsSidebar;
+
+	TSharedPtr<SSequencerFilterBar> FilterBarWidget;
+	TSharedPtr<SComboButton> FilterComboButtonWidget;
+
+	/** The button that displays view options */
+	TSharedPtr<SComboButton> ViewOptionsComboButton;
+	TSharedPtr<FSequencerViewOptionsMenu> ViewOptionsMenu;
+
+	SSplitter::FSlot* FilterSplitterSlot = nullptr;
+
+	TSharedPtr<SVerticalBox> SearchAndFilterRow;
 };

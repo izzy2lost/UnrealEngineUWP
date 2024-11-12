@@ -6,30 +6,30 @@ public class IoStoreUtilities : ModuleRules
 {
 	public IoStoreUtilities (ReadOnlyTargetRules Target) : base(Target)
 	{
-        PrivateIncludePathModuleNames.AddRange(new string[] {
+		PrivateIncludePathModuleNames.AddRange(new string[] {
+			"StorageServerClient",
 			"TargetPlatform",
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {
-            "Core",
-            "CoreUObject",
 			"AssetRegistry",
 			"CookMetadata",
+			"Core",
+			"CoreUObject",
+			"DerivedDataCache",
+			"DeveloperToolSettings",
+			"Json",
+			"PakFile",
 			"Projects",
-			"Zen",
 			"RenderCore",
+			"RSA",
+			"SandboxFile",
 			"Sockets",
+			"Zen",
 		});
 
 		PublicIncludePathModuleNames.AddRange(new string[] {
 			"Zen",
 		});
-
-		PrivateDependencyModuleNames.Add("PakFile");
-        PrivateDependencyModuleNames.Add("Json");
-        PrivateDependencyModuleNames.Add("RSA");
-        PrivateDependencyModuleNames.Add("DeveloperToolSettings");
-        PrivateDependencyModuleNames.Add("SandboxFile");
-        PrivateDependencyModuleNames.Add("IoStoreOnDemand");
 	}
 }

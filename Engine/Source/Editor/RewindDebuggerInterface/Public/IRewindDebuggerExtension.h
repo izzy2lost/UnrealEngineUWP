@@ -26,4 +26,7 @@ public:
 
 	// called when recording has ended
 	virtual void RecordingStopped(IRewindDebugger* RewindDebugger) {};
+	
+	// called when recording is unloaded
+	virtual void Clear(IRewindDebugger* RewindDebugger) {};
 };

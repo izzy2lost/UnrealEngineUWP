@@ -5,6 +5,8 @@
 
 //------------------------------------------------------- INCLUDES
 
+#include "TSRColorSpace.ush"
+#include "TSRSpatialAntiAliasing.ush"
 #include "TSRConvolutionNetworkPass.ush"
 
 
@@ -17,9 +19,8 @@ static const tsr_half FilteringWeight = rcp(tsr_half(1.0 + 4 * 0.5 + 4 * 0.25));
 
 //------------------------------------------------------- PARAMETERS
 
-float PerceptionAdd;
 float FlickeringFramePeriod;
-
+uint bPassthroughAlpha;
 
 //------------------------------------------------------- COMPOSE SEPARATE TRANSLUCENCY
 
@@ -30,7 +31,7 @@ tsr_tensor_halfC ComposeTranslucency(tsr_tensor_halfC Color, tsr_tensor_half4 Tr
 	tsr_tensor_halfC ComposedColor;
 	ComposedColor = Color * tsr_tensor_halfC::Vectorize(Translucency[3]) + ResizeChannels<CONFIG_CHANNEL_COUNT>(Translucency);
 	#if CONFIG_SCENE_COLOR_ALPHA
-		ComposedColor.SetComponent(3, Color[3] * Translucency[3]);
+		ComposedColor.SetComponent(3, select(tsr_tensor_bool::Const(bPassthroughAlpha > 0), Color[3], Color[3] * Translucency[3]));
 	#endif
 	#if CONFIG_SCENE_COLOR_ALPHA
 		ComposedColor = min(ComposedColor, tsr_tensor_halfC::Const(LargestSceneColorRGBA));
@@ -47,12 +48,18 @@ tsr_tensor_halfC ComposeTranslucencyForRejection(tsr_tensor_halfC OriginalOpaque
 	tsr_tensor_half4 BlurInput = OriginalTranslucencyInput;
 
 	{
+		#if CONFIG_SCENE_COLOR_ALPHA
+			const tsr_half4 TransparentSharpInput = tsr_half4(0.0, 0.0, 0.0, 1.0);
+		#else
+			const tsr_half3 TransparentSharpInput = tsr_half(0.0).xxx;
+		#endif
+
 		tsr_tensor_halfC CenterFinalSceneColor = ComposeTranslucency(OriginalOpaqueInput, OriginalTranslucencyInput);
 			
 		tsr_tensor_half4 HasAnimationBlurInput = ResizeChannels<4>(CenterFinalSceneColor);
 			
 		BlurInput  = select(tsr_tensor_bool4::Vectorize(bHasPixelAnimation), HasAnimationBlurInput, BlurInput);
-		SharpInput = select(tsr_tensor_boolC::Vectorize(bHasPixelAnimation), tsr_tensor_halfC::Const(0.0), SharpInput);
+		SharpInput = select(tsr_tensor_boolC::Vectorize(bHasPixelAnimation), tsr_tensor_halfC::Const(TransparentSharpInput), SharpInput);
 	}
 		
 	return ComposeTranslucency(SharpInput, Blur3x3(BlurInput));
@@ -77,12 +84,65 @@ tsr_tensor_halfC AddPerceptionAdd(tsr_tensor_halfC SrcColor, const float DestPer
 	return SrcColor;
 }
 
+
+//------------------------------------------------------- GUIDE COLOR SPACE
+
 CALL_SITE_DEBUGLOC
-tsr_tensor_halfC ChangePerceptionAdd(tsr_tensor_halfC SrcColor, const float SourcePerceptionAdd, const float DestPerceptionAdd)
+tsr_tensor_halfC LinearToGCS(tsr_tensor_halfC SrcColor)
 {
-	SrcColor = RemovePerceptionAdd(SrcColor, SourcePerceptionAdd);
-	SrcColor = AddPerceptionAdd(SrcColor, DestPerceptionAdd);
-	return SrcColor;
+	tsr_tensor_halfC GColor = SrcColor * rcp(SrcColor + tsr_tensor_halfC::Const(tsr_half(0.17)));
+	//SMColor = SMColor * SMColor;
+	#if CONFIG_SCENE_COLOR_ALPHA
+		GColor.SetComponent(3, SrcColor[3]);
+	#endif
+	return GColor;
+}
+
+CALL_SITE_DEBUGLOC
+tsr_tensor_halfC GCSToLinear(tsr_tensor_halfC GColor)
+{
+	//SrcColor = sqrt(SrcColor);
+
+	tsr_tensor_halfC Minus = tsr_tensor_halfC::Const(tsr_half(1.0)) - GColor;
+	tsr_tensor_halfC LDRToLinear = min(tsr_tensor_halfC::Const(tsr_half(0.17)) * rcp(Minus), tsr_tensor_halfC::Const(tsr_half(MaxHalfFloat)));
+
+	tsr_tensor_halfC LinearColor = GColor * LDRToLinear;
+	#if CONFIG_SCENE_COLOR_ALPHA
+		LinearColor.SetComponent(3, GColor[3]);
+	#endif
+	return LinearColor;
+}
+
+//------------------------------------------------------- SHADING MEASUREMENT COLOR SPACE
+
+CALL_SITE_DEBUGLOC
+tsr_tensor_half GCSToSMCS(tsr_tensor_half GColor)
+{
+	tsr_tensor_half SMColor = GColor * GColor;
+	return SMColor;
+}
+
+CALL_SITE_DEBUGLOC
+tsr_tensor_half SMCSToGCS(tsr_tensor_half SMColor)
+{
+	tsr_tensor_half GColor = sqrt(SMColor);
+	return GColor;
+}
+
+CALL_SITE_DEBUGLOC
+tsr_tensor_halfC GCSToSMCS(tsr_tensor_halfC GColor)
+{
+	tsr_tensor_halfC SMColor = GColor * GColor;
+	#if CONFIG_SCENE_COLOR_ALPHA
+		SMColor.SetComponent(3, GColor[3]);
+	#endif
+	return SMColor;
+}
+
+CALL_SITE_DEBUGLOC
+tsr_tensor_halfC LinearToSMCS(tsr_tensor_halfC LinearColor)
+{
+	return GCSToSMCS(LinearToGCS(LinearColor));
 }
 
 
@@ -151,7 +211,7 @@ void ComputeMoireError(
 	const tsr_half TotalVariationCountThreshold = tsr_half(1.0 / (1.0 - pow(1.0 - MinBlendFinal, tsr_half(FlickeringFramePeriod))));
 
 	// Input luminance to monitor flickering from.
-	tsr_tensor_half InputLuma = MoireInput;
+	tsr_tensor_half InputLuma = GCSToSMCS(MoireInput);
 
 	// How much input luminance from the TSRComputeMoireLuma.usf measurement has been modified since for instance with fog, water.
 	tsr_tensor_half InputLumaModification;
@@ -160,16 +220,16 @@ void ComputeMoireError(
 			
 		tsr_tensor_halfC OriginalInput = ComposeTranslucency(OriginalOpaqueInput, OriginalTranslucencyInput);
 
-		OriginalInput       = AddPerceptionAdd(OriginalInput, PerceptionAdd);
-		OriginalOpaqueInput = AddPerceptionAdd(OriginalOpaqueInput, PerceptionAdd);
+		OriginalInput       = LinearToSMCS(OriginalInput);
+		OriginalOpaqueInput = LinearToSMCS(OriginalOpaqueInput);
 
 		tsr_tensor_half SceneColorLuma;
 		tsr_tensor_half TranslucencyChange;
 		UNROLL_N(SIMD_SIZE)
 		for (uint ElementIndex = 0; ElementIndex < SIMD_SIZE; ElementIndex++)
 		{
-			SceneColorLuma.SetElement(ElementIndex, dot(OriginalOpaqueInput.GetElement(ElementIndex).rgb, kMoireLumaWeights));
-			TranslucencyChange.SetElement(ElementIndex, dot(abs(OriginalOpaqueInput.GetElement(ElementIndex).rgb - OriginalInput.GetElement(ElementIndex).rgb), kMoireLumaWeights));
+			SceneColorLuma.SetElement(ElementIndex, dot(OriginalOpaqueInput.GetElement(ElementIndex).rgb, kMoireSMCSWeights));
+			TranslucencyChange.SetElement(ElementIndex, dot(abs(OriginalOpaqueInput.GetElement(ElementIndex).rgb - OriginalInput.GetElement(ElementIndex).rgb), kMoireSMCSWeights));
 		}
 
 		InputLumaModification = tsr_tensor_half::Const(0.0);
@@ -179,7 +239,7 @@ void ComputeMoireError(
 	}
 
 	// Unpack history
-	tsr_tensor_half PrevFlickeringHistory = PrevMoireHistory[0];
+	tsr_tensor_half PrevFlickeringHistory = GCSToSMCS(PrevMoireHistory[0]);
 	tsr_tensor_half PrevGradient = PrevMoireHistory[1] * tsr_half(255.0 / 127.0) - tsr_half(1.0);
 	//tsr_tensor_half PrevTotalVariation = PrevMoireHistory[2] * tsr_tensor_half::Const(1.0 - MinBlendFinal);
 	tsr_tensor_half PrevTotalVariation = PrevMoireHistory[2] * tsr_tensor_half::Const(tsr_half(1.0) - MinBlendFinal);
@@ -194,7 +254,7 @@ void ComputeMoireError(
 	tsr_tensor_half OutRejectionBlendFinal;
 	tsr_tensor_half OutRejectionClampBlend;
 	{
-		tsr_tensor_half BackbufferQuantizationErrorVector = tsr_tensor_half::Const(MoireEncodingError);
+		tsr_tensor_half BackbufferQuantizationErrorVector = tsr_tensor_half::Const(MeasureBackbufferLDRQuantizationError());
 		
 		tsr_tensor_half InputC0 = InputLuma;
 		tsr_tensor_half HistoryC0 = PrevFlickeringHistory;
@@ -272,6 +332,8 @@ void ComputeMoireError(
 
 		CurrentGradient = FinalFlickeringHistory - GhostingHistory;
 	}
+
+	FinalFlickeringHistory = SMCSToGCS(FinalFlickeringHistory);
 
 	// Remove how much luma has changed from luma measurement to final scene color from the gradient.
 	for (uint ElementIndex = 0; ElementIndex < SIMD_SIZE; ElementIndex++)

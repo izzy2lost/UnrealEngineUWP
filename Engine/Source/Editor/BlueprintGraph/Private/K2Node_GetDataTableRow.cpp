@@ -285,15 +285,6 @@ FText UK2Node_GetDataTableRow::GetTooltipText() const
 	return NodeTooltip;
 }
 
-UEdGraphPin* UK2Node_GetDataTableRow::GetThenPin()const
-{
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-
-	UEdGraphPin* Pin = FindPinChecked(UEdGraphSchema_K2::PN_Then);
-	check(Pin->Direction == EGPD_Output);
-	return Pin;
-}
-
 UEdGraphPin* UK2Node_GetDataTableRow::GetDataTablePin(const TArray<UEdGraphPin*>* InPinsToSearch /*= NULL*/) const
 {
 	const TArray<UEdGraphPin*>* PinsToSearch = InPinsToSearch ? InPinsToSearch : &Pins;

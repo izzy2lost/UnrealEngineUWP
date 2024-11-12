@@ -6,10 +6,6 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "Components/PrimitiveComponent.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "PrimitiveSceneProxy.h"
-#include "DynamicMeshBuilder.h"
-#endif
 
 #include "LineBatchComponent.generated.h"
 

@@ -19,6 +19,7 @@
 #include "EditorActorFolders.h"
 #include "ISceneOutlinerMode.h"
 #include "LevelTreeItem.h"
+#include "ObjectMixerEditorSettings.h"
 #include "WorldTreeItem.h"
 #include "Engine/Engine.h"
 #include "Engine/Level.h"
@@ -49,8 +50,7 @@ TUniquePtr<FObjectMixerOutlinerHierarchy> FObjectMixerOutlinerHierarchy::Create(
 	GEngine->OnActorFolderAdded().AddRaw(Hierarchy, &FObjectMixerOutlinerHierarchy::OnActorFolderAdded);
 	GEngine->OnActorFoldersUpdatedEvent().AddRaw(Hierarchy, &FObjectMixerOutlinerHierarchy::OnActorFoldersUpdatedEvent);
 
-	IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	WorldPartitionEditorModule.OnWorldPartitionCreated().AddRaw(Hierarchy, &FObjectMixerOutlinerHierarchy::OnWorldPartitionCreated);
+	IWorldPartitionEditorModule::Get().OnWorldPartitionCreated().AddRaw(Hierarchy, &FObjectMixerOutlinerHierarchy::OnWorldPartitionCreated);
 
 	if (World.IsValid())
 	{
@@ -606,8 +606,9 @@ TArray<FSceneOutlinerTreeItemPtr> FObjectMixerOutlinerHierarchy::ConditionallyCr
 		if (const FSceneOutlinerTreeItemPtr ActorItem =
 			Mode->CreateItemFor<FObjectMixerEditorListRowActor>(
 				FObjectMixerEditorListRowActor(Actor, GetCastedMode()->GetSceneOutliner())))
-		{	
-			if (ComponentRows.Num() == 1) // Create hybrid row
+		{
+			const bool bIsHybridModeEnabled = GetCastedMode()->ShouldAllowHybridRows() && GetDefault<UObjectMixerEditorSettings>()->IsHybridRowModeEnabled();
+			if (bIsHybridModeEnabled && ComponentRows.Num() == 1) // Create hybrid row
 			{
 				if (FObjectMixerEditorListRowActor* AsActorRow = FObjectMixerUtils::AsActorRow(ActorItem))
 				{

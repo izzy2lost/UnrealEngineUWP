@@ -55,6 +55,8 @@ namespace NiagaraSystemCookStats
 
 namespace NiagaraCompilationTasksImpl
 {
+	static const FGuid UE_NIAGARA_ASYNC_TASK_COMPILER_VER = FGuid(0x0E657251, 0xB787406B, 0x8DE09B90, 0x817ABFB9);
+	
 	static UE::DerivedData::FCacheBucket NiagaraDDCBucket("NiagaraScript");
 
 	void GetUsagesToDuplicate(ENiagaraScriptUsage TargetUsage, TArray<ENiagaraScriptUsage>& DuplicateUsages)
@@ -134,14 +136,12 @@ namespace NiagaraCompilationTasksImpl
 
 	static UE::DerivedData::FCacheKey BuildNiagaraDDCCacheKey(const FNiagaraVMExecutableDataId& CompileId, const FString& ScriptPath)
 	{
-		enum { UE_NIAGARASCRIPT_DERIVEDDATA_VER = 2 };
-
 		FString KeyString;
 		KeyString.Reserve(1024);
 
-		KeyString.Appendf(TEXT("%i_%i"),
-			(int32)UE_NIAGARASCRIPT_DERIVEDDATA_VER, GNiagaraSkipVectorVMBackendOptimizations);
-
+		NiagaraCompilationTasksImpl::UE_NIAGARA_ASYNC_TASK_COMPILER_VER.AppendString(KeyString);
+		KeyString.AppendChar(TCHAR('_'));
+		KeyString.Appendf(TEXT("%i"), GNiagaraSkipVectorVMBackendOptimizations);
 		KeyString.AppendChar(TCHAR('_'));
 		KeyString.Append(ScriptPath);
 		KeyString.AppendChar(TCHAR('_'));
@@ -151,7 +151,7 @@ namespace NiagaraCompilationTasksImpl
 		return { NiagaraDDCBucket, FIoHash::HashBuffer(MakeMemoryView(FTCHARToUTF8(KeyString))) };
 	}
 
-	static UE::DerivedData::FCacheKey BuildNiagaraComputeDDCCacheKey(const FNiagaraShaderMapId& ShaderMapId, EShaderPlatform ShaderPlatform)
+	static UE::DerivedData::FCacheKey BuildNiagaraComputeDDCCacheKey(const FNiagaraShaderMapId& ShaderMapId, EShaderPlatform ShaderPlatform, const FString& ScriptPath)
 	{
 		static const FString NIAGARASHADERMAP_DERIVEDDATA_VER = FDevSystemGuids::GetSystemGuid(FDevSystemGuids::Get().NIAGARASHADERMAP_DERIVEDDATA_VER).ToString(EGuidFormats::DigitsWithHyphens);
 
@@ -164,6 +164,8 @@ namespace NiagaraCompilationTasksImpl
 		KeyString.Appendf(TEXT("_%d_"), GetTargetPlatformManagerRef().ShaderFormatVersion(Format));
 		ShaderMapAppendKeyString(ShaderPlatform, KeyString);
 		ShaderMapId.AppendKeyString(KeyString);
+		KeyString.AppendChar(TCHAR('_'));
+		KeyString.Append(ScriptPath);
 		KeyString.AppendChar(TCHAR('_'));
 		KeyString.Append(NIAGARASHADERMAP_DERIVEDDATA_VER);
 
@@ -274,8 +276,9 @@ namespace NiagaraCompilationTasksImpl
 
 		TArray<uint8> BinaryData;
 		FMemoryWriter Ar(BinaryData, true);
-		ShaderMap->Serialize(Ar);
-		
+		FShaderSerializeContext Ctx(Ar);
+		ShaderMap->Serialize(Ctx);
+
 		if (!BinaryData.IsEmpty() && !Ar.IsError())
 		{
 			return MakeSharedBufferFromArray(MoveTemp(BinaryData));
@@ -293,7 +296,8 @@ namespace NiagaraCompilationTasksImpl
 
 		FMemoryReaderView Ar(SharedBuffer.GetView(), true);
 		FNiagaraShaderMapRef ShaderMap = new FNiagaraShaderMap(FNiagaraShaderMap::WorkerThread);
-		ShaderMap->Serialize(Ar);
+		FShaderSerializeContext Ctx(Ar);
+		ShaderMap->Serialize(Ctx);
 
 		if (Ar.IsError())
 		{
@@ -502,6 +506,57 @@ void FNiagaraSystemCompilationTask::Abort()
 {
 	bAborting = true;
 	CompileCompletionEvent.Trigger();
+}
+
+FString FNiagaraSystemCompilationTask::GetDescription() const
+{
+	FString TaskDescription;
+	TaskDescription.Append(SystemInfo.SystemName);
+	if (bCompileForEdit)
+	{
+		TaskDescription.Append(TEXT(" [Edit]"));
+	}
+	return TaskDescription;
+}
+
+FString FNiagaraSystemCompilationTask::GetStatusString() const
+{
+	FString StatusString;
+
+	switch (CompilationState)
+	{
+		case EState::Invalid:
+		{
+			StatusString = TEXT("Invalid");
+			break;
+		}
+
+		case EState::WaitingForProcessing:
+		{
+			StatusString = TEXT("WaitingForProcessing");
+			break;
+		}
+
+		case EState::ResultsProcessed:
+		{
+			StatusString = TEXT("ResultsProcessed");
+			break;
+		}
+
+		case EState::Completed:
+		{
+			StatusString = TEXT("Completed");
+			break;
+		}
+
+		case EState::Aborted:
+		{
+			StatusString = TEXT("Aborted");
+			break;
+		}
+	}
+
+	return StatusString;
 }
 
 const FNiagaraSystemCompilationTask::FEmitterInfo* FNiagaraSystemCompilationTask::FSystemInfo::EmitterInfoBySourceEmitter(int32 InSourceEmitterIndex) const
@@ -865,7 +920,13 @@ void FNiagaraSystemCompilationTask::FCompileTaskInfo::IssueCompileGpu(FNiagaraSy
 		ShaderMapCompiler->AddShaderPlatform(ComputeInfo.ShaderMapId, ComputeInfo.ShaderPlatform);
 	}
 
-	ShaderMapCompiler->CompileScript(CompileId, PrecompileData->SourceName, DebugGroupName, CompileOptions, TranslateResults, TranslateOutput, TranslatedHlsl);
+	TArray<UNiagaraDataInterface*> UniqueDI;
+	for (const auto& It : CompilationCopyData->AggregatedDataInterfaceCDODuplicates)
+	{
+		UniqueDI.AddUnique(It.Value);
+	}
+
+	ShaderMapCompiler->CompileScript(CompileId, PrecompileData->SourceName, DebugGroupName, CompileOptions, TranslateResults, TranslateOutput, TranslatedHlsl, UniqueDI);
 }
 
 TOptional<FNiagaraCompileResults> FNiagaraSystemCompilationTask::FCompileTaskInfo::HandleDeprecatedGpuScriptResults() const
@@ -1132,15 +1193,14 @@ void FNiagaraSystemCompilationTask::FDispatchAndProcessDataCacheGetRequests::Lau
 		FNiagaraSystemCompilationTask::FCompileComputeShaderTaskInfo& ShaderCompileTask = SystemCompileTask->CompileComputeShaderTasks[ShaderCompileTaskIt];
 		if (ShaderCompileTask.IsOutstanding())
 		{
-			const UE::DerivedData::FCacheKey CacheKey = NiagaraCompilationTasksImpl::BuildNiagaraComputeDDCCacheKey(ShaderCompileTask.ShaderMapId, ShaderCompileTask.ShaderPlatform);
+			FNiagaraSystemCompilationTask::FCompileTaskInfo& CompileTask = SystemCompileTask->CompileTasks[ShaderCompileTask.ParentCompileTaskIndex];
+			const UE::DerivedData::FCacheKey CacheKey = NiagaraCompilationTasksImpl::BuildNiagaraComputeDDCCacheKey(ShaderCompileTask.ShaderMapId, ShaderCompileTask.ShaderPlatform, CompileTask.AssetPath);
 
 			if (CacheKey != ShaderCompileTask.DDCTaskInfo.DataCacheGetKey)
 			{
 				FDDCUserData Index;
 				Index.CompileTaskIndex = ShaderCompileTaskIt;
 				Index.bShaderCompileTask = true;
-
-				FNiagaraSystemCompilationTask::FCompileTaskInfo& CompileTask = SystemCompileTask->CompileTasks[ShaderCompileTask.ParentCompileTaskIndex];
 
 				FCacheGetValueRequest& ShaderGetValueRequest = GetRequests.AddDefaulted_GetRef();
 				ShaderGetValueRequest.Name = CompileTask.AssetPath;
@@ -1368,6 +1428,7 @@ void FNiagaraSystemCompilationTask::DigestSystemInfo()
 			if (const UNiagaraEmitter* Emitter = HandleInstance.Emitter)
 			{
 				EmitterInfo.UniqueEmitterName = HandleInstance.Emitter->GetUniqueEmitterName();
+				EmitterInfo.EmitterHandleId = Handle.GetId();
 				EmitterInfo.UniqueInstanceName = Handle.GetUniqueInstanceName();
 				EmitterInfo.Enabled = Handle.GetIsEnabled();
 				EmitterInfo.ConstantResolver = FNiagaraFixedConstantResolver(FCompileConstantResolver(HandleInstance, ENiagaraScriptUsage::EmitterSpawnScript));
@@ -1376,7 +1437,7 @@ void FNiagaraSystemCompilationTask::DigestSystemInfo()
 				EmitterInfo.SourceGraph = DigestDatabase.CreateGraphDigest(EmitterGraph, ChangeIdBuilder);
 
 				// be sure to incorporate our constant resolver into the top level SystemInfo.ConstantResolver
-				SystemInfo.ConstantResolver.AddNamedChildResolver(*EmitterInfo.UniqueEmitterName, EmitterInfo.ConstantResolver);
+				SystemInfo.ConstantResolver.AddChildResolver(EmitterInfo.EmitterHandleId, EmitterInfo.ConstantResolver);
 			}
 
 			{
@@ -1510,15 +1571,12 @@ void FNiagaraSystemCompilationTask::AddScript(int32 SourceEmitterIndex, UNiagara
 					TaskInfo.ComputeShaderTaskIndices.Reserve(ShaderRequests.Num());
 					for (const FShaderCompileRequest& ShaderRequest : ShaderRequests)
 					{
-						if (Script->ShouldCompile(ShaderRequest.ShaderPlatform))
-						{
-							TaskInfo.ComputeShaderTaskIndices.Add(CompileComputeShaderTasks.Num());
-							FCompileComputeShaderTaskInfo& ShaderTaskInfo = CompileComputeShaderTasks.AddDefaulted_GetRef();
+						TaskInfo.ComputeShaderTaskIndices.Add(CompileComputeShaderTasks.Num());
+						FCompileComputeShaderTaskInfo& ShaderTaskInfo = CompileComputeShaderTasks.AddDefaulted_GetRef();
 
-							ShaderTaskInfo.ParentCompileTaskIndex = CompileTaskIndex;
-							ShaderTaskInfo.ShaderMapId = ShaderRequest.ShaderMapId;
-							ShaderTaskInfo.ShaderPlatform = ShaderRequest.ShaderPlatform;
-						}
+						ShaderTaskInfo.ParentCompileTaskIndex = CompileTaskIndex;
+						ShaderTaskInfo.ShaderMapId = ShaderRequest.ShaderMapId;
+						ShaderTaskInfo.ShaderPlatform = ShaderRequest.ShaderPlatform;
 					}
 				}
 			}
@@ -1719,9 +1777,9 @@ void FNiagaraSystemCompilationTask::WaitTillCompileCompletion()
 	const FTimespan WaitTimeout = FTimespan::FromMilliseconds(50.0);
 	while (!CompileCompletionEvent.IsCompleted())
 	{
-		// if the busy wait doesn't complete the task then we need to make sure to poke the
+		// if the wait doesn't complete the task then we need to make sure to poke the
 		// compilation manager since there we may be waiting on it
-		if (!CompileCompletionEvent.BusyWait(WaitTimeout))
+		if (!CompileCompletionEvent.Wait(WaitTimeout))
 		{
 			FAssetCompilingManager::Get().ProcessAsyncTasks();
 		}

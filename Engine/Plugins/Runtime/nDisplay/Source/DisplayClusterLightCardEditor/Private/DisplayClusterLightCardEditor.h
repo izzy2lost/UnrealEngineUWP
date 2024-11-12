@@ -221,6 +221,9 @@ public:
 private:
 	/** Raised when the active Display cluster root actor has been changed in the operator panel */
 	void OnActiveRootActorChanged(ADisplayClusterRootActor* NewRootActor);
+
+	/** Raised when a request to select or deselect actors in the operator panel is raised from outside the panel */
+	void OnActorsSelectedExternally(const TArray<AActor*>& Actors, bool bShouldSelect);
 	
 	/** Registers the light card editor with the global tab manager and adds it to the operator panel's extension tab stack */
 	void RegisterTabSpawners();
@@ -361,6 +364,9 @@ private:
 
 	/** Delegate handle for the OnActiveRootActorChanged delegate */
 	FDelegateHandle ActiveRootActorChangedHandle;
+
+	/** Delegate handle for the OnActorsSelectedExternally delegate */
+	FDelegateHandle ActorsSelectedExternallyHandle;
 
 	/** Delegate handle for when an object is transacted */
 	FDelegateHandle OnObjectTransactedHandle;

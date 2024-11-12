@@ -307,6 +307,12 @@ FString UPCGSubgraphSettings::GetAdditionalTitleInformation() const
 		// Subgraphs with the subgraph override pin connected should not display any asset path.
 		return FString();
 	}
+
+	TOptional<FText> OverrideTitle = SubgraphInstance->GetTitleOverride();
+	if (OverrideTitle.IsSet())
+	{
+		return OverrideTitle.GetValue().ToString();
+	}
 #endif
 
 	if (UPCGGraph* TargetSubgraph = GetSubgraph())
@@ -348,6 +354,20 @@ void UPCGSubgraphSettings::PostEditChangeProperty(struct FPropertyChangedEvent& 
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+FLinearColor UPCGSubgraphSettings::GetNodeTitleColor() const
+{
+	if (!IsDynamicGraph())
+	{
+		TOptional<FLinearColor> OverrideColor = SubgraphInstance->GetColorOverride();
+		if (OverrideColor.IsSet())
+		{
+			return OverrideColor.GetValue();
+		}
+	}
+
+	return Super::GetNodeTitleColor();
 }
 #endif
 
@@ -509,6 +529,22 @@ void FPCGSubgraphContext::UpdateOverridesWithOverriddenGraph()
 	}
 }
 
+void FPCGSubgraphContext::AddToReferencedObjects(const FPCGDataCollection& InDataCollection)
+{
+	for (const FPCGTaggedData& TaggedData : InDataCollection.TaggedData)
+	{
+		if (TaggedData.Data)
+		{
+			ReferencedObjects.Add(TaggedData.Data);
+		}
+	}
+}
+
+void FPCGSubgraphContext::AddExtraStructReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObjects(ReferencedObjects);
+}
+
 FPCGContext* FPCGSubgraphElement::Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node)
 {
 	FPCGSubgraphContext* Context = new FPCGSubgraphContext();
@@ -562,7 +598,7 @@ void FPCGSubgraphElement::PrepareSubgraphUserParameters(const UPCGSubgraphSettin
 	// By construction, there should be one and only one of this data. (Filtering of previous data is done in PrepareSubgraphData)
 	if (const UPCGGraphInterface* SubgraphInterface = Settings->GetSubgraphInterface())
 	{
-		UPCGUserParametersData* UserParamData = NewObject<UPCGUserParametersData>();
+		UPCGUserParametersData* UserParamData = FPCGContext::NewObject_AnyThread<UPCGUserParametersData>(Context);
 
 		if (Context->GraphInstanceParametersOverride.IsValid())
 		{
@@ -576,6 +612,21 @@ void FPCGSubgraphElement::PrepareSubgraphUserParameters(const UPCGSubgraphSettin
 		else
 		{
 			// Do nothing, we still want to have a User Parameter Data to indicate we are in a subgraph context.
+		}
+
+		// Hook up user parameter data from upstream
+		TArray<FPCGTaggedData> UpstreamUserParameterData = Context->InputData.GetTaggedTypedInputs<UPCGUserParametersData>(PCGBaseSubgraphConstants::UserParameterTagData);
+		if (!UpstreamUserParameterData.IsEmpty())
+		{
+#if WITH_EDITOR
+			// Safeguard to make sure we always have one and only one data of this type
+			ensure(UpstreamUserParameterData.Num() == 1);
+#endif
+
+			if (UPCGUserParametersData* UpstreamData = Cast<UPCGUserParametersData>(const_cast<UPCGData*>(UpstreamUserParameterData[0].Data.Get())))
+			{
+				UserParamData->UpstreamData = UpstreamData;
+			}
 		}
 
 		FPCGTaggedData& TaggedData = OutputData.TaggedData.Emplace_GetRef();
@@ -642,9 +693,11 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 				// using this node's task id as additional inputs
 				FPCGDataCollection PreSubgraphInputData;
 				PrepareSubgraphUserParameters(Settings, Context, PreSubgraphInputData);
+				Context->AddToReferencedObjects(PreSubgraphInputData);
 
 				FPCGDataCollection SubgraphInputData;
 				PrepareSubgraphData(Settings, Context, Context->InputData, SubgraphInputData);
+				Context->AddToReferencedObjects(SubgraphInputData);
 
 				// At this point, if we're in a recursive context and we have no input, we must terminate execution
 				if (bIsRecursive && SubgraphInputData.TaggedData.IsEmpty())
@@ -652,9 +705,10 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 					return true;
 				}
 
-				// Prepare the invocation stack - which is the stack up to this node, and then this node
+				// Prepare the invocation stack - which is the stack up to this node, and then this node and the 'not-a-loop index' which we use to differentiate dynamic vs static subgraphs
 				FPCGStack InvocationStack = ensure(Context->Stack) ? *Context->Stack : FPCGStack();
 				InvocationStack.GetStackFramesMutable().Emplace(Context->Node);
+				InvocationStack.GetStackFramesMutable().Emplace(INDEX_NONE); // not a loop index
 
 				// Higen is not allowed in dynamic subgraphs, entire subgraph is executed on the same grid as this subgraph node.
 				FPCGTaskId SubgraphTaskId = Subsystem->ScheduleGraph(
@@ -674,16 +728,22 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 					
 					// add a trivial task after the output task that wakes up this task
 					Subsystem->ScheduleGeneric(
-						[Context]() // Normal execution: Wake up the current task
+						[ContextHandle = Context->GetOrCreateHandle()]() // Normal execution: Wake up the current task
 						{
-							Context->bIsPaused = false;
+							if (FPCGSubgraphContext* ContextPtr = FPCGContext::GetContextFromHandle<FPCGSubgraphContext>(ContextHandle))
+							{
+								ContextPtr->bIsPaused = false;
+							}					
 							return true;
 						}, 
-						[Context]() // On Abort: Wake up and cancel the execution
+						[ContextHandle = Context->GetOrCreateHandle()]() // On Abort: Wake up and cancel the execution
 						{
-							Context->bIsPaused = false;
-							Context->OutputData.bCancelExecution = true;
-							Context->SubgraphTaskIds.Reset();
+							if (FPCGSubgraphContext* ContextPtr = FPCGContext::GetContextFromHandle<FPCGSubgraphContext>(ContextHandle))
+							{
+								ContextPtr->bIsPaused = false;
+								ContextPtr->OutputData.bCancelExecution = true;
+								ContextPtr->SubgraphTaskIds.Reset();
+							}
 							return true;
 						},
 						Context->SourceComponent.Get(), 
@@ -720,7 +780,7 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 		{
 			// when woken up, get the output data from the subgraph
 			// and copy it to the current context output data, and finally return true
-			UPCGSubsystem* Subsystem = Context->SourceComponent->GetSubsystem();
+			UPCGSubsystem* Subsystem = Context->SourceComponent.IsValid() ? Context->SourceComponent->GetSubsystem() : nullptr;
 			if (Subsystem)
 			{
 				if (Context->SubgraphTaskIds.Num() > 0)
@@ -729,7 +789,10 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 					// as we just can call the GetOutputData on a fresh data collection and merge it afterwards in the output data,
 					// but this is not needed here so we will keep the full assignment & benefit from the crc as well.
 					ensure(Context->SubgraphTaskIds.Num() == 1);
-					Subsystem->GetOutputData(Context->SubgraphTaskIds[0], Context->OutputData);
+					if (Subsystem->GetOutputData(Context->SubgraphTaskIds[0], Context->OutputData))
+					{
+						Subsystem->ClearOutputData(Context->SubgraphTaskIds[0]);
+					}
 				}
 			}
 			else
@@ -743,8 +806,7 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 	}
 	else
 	{
-		// This node acts as both the pre-graph node and the input node so it should have both the user parameters & the actual inputs
-		PrepareSubgraphData(Settings, Context, Context->InputData, Context->OutputData);
+		// This node acts as the pre-graph node only.
 		PrepareSubgraphUserParameters(Settings, Context, Context->OutputData);
 		return true;
 	}
@@ -753,29 +815,10 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 FPCGInputForwardingElement::FPCGInputForwardingElement(const FPCGDataCollection& InputToForward)
 	: Input(InputToForward)
 {
-	// Root any previously unrooted data, needed here because the context does not exist yet and we need to ensure that the input is not garbage collected
-	for (const FPCGTaggedData& TaggedData : Input.TaggedData)
-	{
-		if (TaggedData.Data && !TaggedData.Data->IsRooted())
-		{
-			UPCGData* DataToRoot = const_cast<UPCGData*>(TaggedData.Data.Get());
-			DataToRoot->AddToRoot();
-			RootedData.Add(DataToRoot);
-		}
-	}
 }
 
 bool FPCGInputForwardingElement::ExecuteInternal(FPCGContext* Context) const
 {
-	// Remove from rootset during the execution if we had previously done so. After execution, the graph cache will keep track of these references
-	for (UPCGData* DataToUnroot : RootedData)
-	{
-		ensure(DataToUnroot->IsRooted());
-		DataToUnroot->RemoveFromRoot();
-	}
-
-	const_cast<FPCGInputForwardingElement*>(this)->RootedData.Reset();
-
 	Context->OutputData = Input;
 	return true;
 }

@@ -132,6 +132,11 @@ namespace Chaos
 		* Called from the game thread to set rest state from an evaluated time in the cache.
 		*/
 		virtual void SetRestState(UPrimitiveComponent* InComponent, UChaosCache* InCache, const FTransform& InRootTransform, Chaos::FReal InTime) const = 0;
+
+		/**
+		 * Called from the game thread to initialize a component and cache ready to load a cache at a given frame
+		 */
+		virtual void InitializeForLoad(UPrimitiveComponent* InComponent, FObservedComponent& InObserved) {}
 		
 		/**
 		 * Called from the game thread to initialize a component and cache ready to record a cache

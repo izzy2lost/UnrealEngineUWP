@@ -49,18 +49,13 @@ bool UOnlineServicesEngineInterfaceImpl::DoesInstanceExist(FName OnlineIdentifie
 
 void UOnlineServicesEngineInterfaceImpl::ShutdownOnlineSubsystem(FName OnlineIdentifier)
 {
-	// TODO:  Does this need to support multiple online service types?  Other accessors seem to not differentiate and just use the default
-	if (UE::Online::IOnlineServicesPtr OnlineServices = UE::Online::GetServices(UE::Online::EOnlineServices::Default, OnlineIdentifier))
-	{
-		// TODO:  Is this correct?  Or a new shutdown method?
-		OnlineServices->Destroy();
-	}
+	// While using OSS Adaptors, need to destroy OnlineServices instances here instead of shutting down, to 
+	// make sure the shared ptr references to OSSv1 interfaces in oss adaptors are removed
+	UE::Online::DestroyAllServicesWithName(OnlineIdentifier);
 }
 
 void UOnlineServicesEngineInterfaceImpl::DestroyOnlineSubsystem(FName OnlineIdentifier)
 {
-	// TODO:  Does this need to support multiple online service types?  Other accessors seem to not differentiate and just use the default
-	UE::Online::DestroyService(UE::Online::EOnlineServices::Default, OnlineIdentifier);
 }
 
 FName UOnlineServicesEngineInterfaceImpl::GetDefaultOnlineSubsystemName() const

@@ -4,10 +4,40 @@
 
 #include "EntitySystem/MovieSceneEntitySystem.h"
 #include "Math/Transform.h"
+#include "Misc/Build.h"
 
 #include "MovieSceneTransformOriginSystem.generated.h"
 
 struct FMovieSceneAnimTypeID;
+
+// Helper struct to define sorting behavior for parent to child mapping. 
+struct FInstanceToParentPair
+{
+	// In this struct representation the Child represents this sequence.
+	UE::MovieScene::FInstanceHandle Child;
+	UE::MovieScene::FInstanceHandle Parent;
+
+	FInstanceToParentPair(const UE::MovieScene::FInstanceHandle Child, const UE::MovieScene::FInstanceHandle Parent)
+	{
+		this->Child = Child;
+		this->Parent = Parent;
+	}
+
+	bool operator<(const FInstanceToParentPair& Other) const
+	{
+		// If this is the parent of Other, then it should be first in the mapping.
+		if(Child == Other.Parent)
+		{
+			return true;
+		}
+		return false;
+	}
+
+	bool operator==(const FInstanceToParentPair& Other) const
+	{
+		return Child == Other.Child && Parent == Other.Parent; 
+	}
+};
 
 UCLASS(MinimalAPI)
 class UMovieSceneTransformOriginInstantiatorSystem : public UMovieSceneEntitySystem
@@ -43,6 +73,21 @@ private:
 private:
 
 	TSparseArray<FTransform> TransformOriginsByInstanceID;
+	TArray<FInstanceToParentPair> InstanceHandleToParentHandle;
+	UE::MovieScene::FEntityComponentFilter LocationAndRotationFilterResults;
+
+#if WITH_EDITOR
+	TMap<FMovieSceneSequenceID, UE::MovieScene::FInstanceHandle> SequenceIDToInstanceHandle;
+#endif
+	
+
+public:
+	const TSparseArray<FTransform>& GetTransformOriginsByInstanceID() const { return TransformOriginsByInstanceID; }
+
+#if WITH_EDITOR
+	const TMap<FMovieSceneSequenceID, UE::MovieScene::FInstanceHandle>& GetSequenceIDToInstanceHandle() const { return SequenceIDToInstanceHandle; }
+#endif
+	
 };
 
 

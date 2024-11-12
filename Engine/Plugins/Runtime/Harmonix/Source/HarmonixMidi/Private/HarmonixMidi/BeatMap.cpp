@@ -229,3 +229,14 @@ void FBeatMap::Finalize(int32 LastTick)
 	}
 	Bars.Emplace(PulseBarStartTick, PulseBarLength, FirstBeatInBar, LastBeatInBar);
 }
+
+FString HARMONIXMIDI_API MusicalBeatTypeToString(EMusicalBeatType BeatType)
+{
+	switch (BeatType)
+	{
+	case EMusicalBeatType::Downbeat: return TEXT("Downbeat");
+	case EMusicalBeatType::Strong:	 return TEXT("Strong");
+	case EMusicalBeatType::Normal:	 return TEXT("Normal");
+	}
+	return TEXT("<Unrecognized>");
+}

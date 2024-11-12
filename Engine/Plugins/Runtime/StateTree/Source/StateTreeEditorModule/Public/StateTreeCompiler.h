@@ -6,7 +6,7 @@
 
 struct FStructView;
 
-enum class EStateTreeConditionOperand : uint8;
+enum class EStateTreeExpressionOperand : uint8;
 enum class EStateTreePropertyUsage : uint8;
 struct FStateTreeDataView;
 struct FStateTreeStateHandle;
@@ -14,6 +14,7 @@ struct FStateTreeStateHandle;
 class UStateTree;
 class UStateTreeState;
 class UStateTreeEditorData;
+class UStateTreeSchema;
 struct FStateTreeEditorNode;
 struct FStateTreeStateLink;
 struct FStateTreeNodeBase;
@@ -47,13 +48,26 @@ private:
 	bool CreateGlobalTasks();
 	bool CreateStateTasksAndParameters();
 	bool CreateStateTransitions();
+	bool CreateStateConsiderations();
 	
-	bool CreateConditions(UStateTreeState& State, TConstArrayView<FStateTreeEditorNode> Conditions);
-	bool CreateCondition(UStateTreeState& State, const FStateTreeEditorNode& CondNode, const EStateTreeConditionOperand Operand, const int8 DeltaIndent);
+	bool CreateBindingsForNodes(TConstArrayView<FStateTreeEditorNode> EditorNodes, FStateTreeIndex16 NodesBegin, TArrayView<FInstancedStruct> Instances);
+	bool CreateBindingsForStruct(const FStateTreeBindableStructDesc& TargetStruct, FStateTreeDataView TargetValue, FStateTreeIndex16 PropertyFuncsBegin, FStateTreeIndex16 PropertyFuncsEnd, FStateTreeIndex16& OutBatchIndex);
+
+	bool CreatePropertyFunctionsForStruct(FGuid StructID);
+	bool CreatePropertyFunction(const FStateTreeEditorNode& FuncEditorNode);
+	
+	bool CreateConditions(UStateTreeState& State, const FString& StatePath, TConstArrayView<FStateTreeEditorNode> Conditions);
+	bool CreateCondition(UStateTreeState& State, const FString& StatePath, const FStateTreeEditorNode& CondNode, const EStateTreeExpressionOperand Operand, const int8 DeltaIndent);
+	bool CreateConsiderations(UStateTreeState& State, const FString& StatePath, TConstArrayView<FStateTreeEditorNode> Considerations);
+	bool CreateConsideration(UStateTreeState& State, const FString& StatePath, const FStateTreeEditorNode& ConsiderationNode, const EStateTreeExpressionOperand Operand, const int8 DeltaIndent);
+
+	template<class T = FStateTreeNodeBase>
+	T* CreateNodeWithSharedInstanceData(UStateTreeState* State, const FString& StatePath, const FStateTreeEditorNode& EditorNode, EStateTreeBindableStructSource StructSource);
+
 	bool CreateTask(UStateTreeState* State, const FStateTreeEditorNode& TaskNode, const FStateTreeDataHandle TaskDataHandle);
 	bool CreateEvaluator(const FStateTreeEditorNode& EvalNode, const FStateTreeDataHandle EvalDataHandle);
 	bool GetAndValidateBindings(const FStateTreeBindableStructDesc& TargetStruct, FStateTreeDataView TargetValue, TArray<FStateTreePropertyPathBinding>& OutCopyBindings, TArray<FStateTreePropertyPathBinding>& OutReferenceBindings) const;
-	bool IsPropertyOfType(UScriptStruct& Type, const FStateTreeBindableStructDesc& Struct, FStateTreePropertyPath Path) const;
+	bool IsPropertyOfTypeOrChild(UScriptStruct& Type, const FStateTreeBindableStructDesc& Struct, FStateTreePropertyPath Path) const;
 	bool ValidateStructRef(const FStateTreeBindableStructDesc& SourceStruct, FStateTreePropertyPath SourcePath,
 							const FStateTreeBindableStructDesc& TargetStruct, FStateTreePropertyPath TargetPath) const;
 	bool CompileAndValidateNode(const UStateTreeState* SourceState, const FStateTreeBindableStructDesc& NodeDesc, FStructView NodeView, const FStateTreeDataView InstanceData);
@@ -63,6 +77,7 @@ private:
 	FStateTreeCompilerLog& Log;
 	UStateTree* StateTree = nullptr;
 	UStateTreeEditorData* EditorData = nullptr;
+	UStateTreeSchema* Schema = nullptr;
 	TMap<FGuid, int32> IDToNode;
 	TMap<FGuid, int32> IDToState;
 	TMap<FGuid, int32> IDToTransition;

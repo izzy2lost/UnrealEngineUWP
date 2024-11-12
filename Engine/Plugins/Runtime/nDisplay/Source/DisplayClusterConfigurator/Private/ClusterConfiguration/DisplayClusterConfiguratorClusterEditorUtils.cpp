@@ -195,7 +195,7 @@ UDisplayClusterConfigurationClusterNode* UE::DisplayClusterConfiguratorClusterEd
 	}
 
 	// Clean up the template object so that it gets GCed once this schema action has been destroyed
-	NodeTemplate->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+	NodeTemplate->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors);
 	NodeTemplate->SetFlags(RF_Transient);
 
 	return NewNode;
@@ -317,10 +317,18 @@ UDisplayClusterConfigurationViewport* UE::DisplayClusterConfiguratorClusterEdito
 	}
 
 	// Clean up the template object so that it gets GCed once this schema action has been destroyed
-	ViewportTemplate->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+	ViewportTemplate->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors);
 	ViewportTemplate->SetFlags(RF_Transient);
 	
 	return NewViewport;
+}
+
+bool UE::DisplayClusterConfiguratorClusterEditorUtils::CanAddNewViewportToToolkit(const TWeakPtr<FDisplayClusterConfiguratorBlueprintEditor>& InToolkit)
+{
+	check(InToolkit.IsValid());
+	const UDisplayClusterConfigurationData* EditorData = InToolkit.Pin()->GetEditorData();
+	check(EditorData);
+	return EditorData->Cluster && EditorData->Cluster->Nodes.Num() > 0;
 }
 
 void UE::DisplayClusterConfiguratorClusterEditorUtils::ShowNewClusterItemDialogWindow(TSharedRef<SDisplayClusterConfiguratorNewClusterItemDialog> DialogContent, TSharedPtr<SWidget> ParentElement, FText WindowTitle, FVector2D WindowSize)

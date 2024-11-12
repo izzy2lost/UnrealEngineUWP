@@ -7,17 +7,18 @@
 #pragma once 
 
 #include "VulkanResources.h"
+#include "VulkanRHIPrivate.h"
 #include "VulkanGPUProfiler.h"
 
-class FVulkanDevice;
 class FVulkanCommandBufferManager;
+class FVulkanDevice;
+class FVulkanDynamicRHI;
+class FVulkanOcclusionQueryPool;
 class FVulkanPendingGfxState;
 class FVulkanPendingComputeState;
 class FVulkanQueue;
-class FVulkanOcclusionQueryPool;
 class FVulkanSwapChain;
 
-struct FInputAttachmentData;
 
 class FVulkanCommandListContext : public IRHICommandContext
 {
@@ -68,9 +69,15 @@ public:
 	virtual void RHIDrawIndexedIndirect(FRHIBuffer* IndexBufferRHI, FRHIBuffer* ArgumentsBufferRHI, int32 DrawArgumentsIndex, uint32 NumInstances) final override;
 	virtual void RHIDrawIndexedPrimitive(FRHIBuffer* IndexBuffer, int32 BaseVertexIndex, uint32 FirstInstance, uint32 NumVertices, uint32 StartIndex, uint32 NumPrimitives, uint32 NumInstances) final override;
 	virtual void RHIDrawIndexedPrimitiveIndirect(FRHIBuffer* IndexBuffer, FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) final override;
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+	virtual void RHIDispatchMeshShader(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ) final override;
+	virtual void RHIDispatchIndirectMeshShader(FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) final override;
+#endif
 	virtual void RHISetDepthBounds(float MinDepth, float MaxDepth) final override;
-	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) final override;
-	virtual void RHIPopEvent() final override;
+#if WITH_RHI_BREADCRUMBS
+	virtual void RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) final override;
+	virtual void RHIEndBreadcrumbGPU  (FRHIBreadcrumbNode* Breadcrumb) final override;
+#endif
 
 	virtual void RHISetComputePipelineState(FRHIComputePipelineState* ComputePipelineState) final override;
 	virtual void RHIDispatchComputeShader(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ) final override;
@@ -89,67 +96,46 @@ public:
 	// Render time measurement
 	virtual void RHIBeginRenderQuery(FRHIRenderQuery* RenderQuery) final override;
 	virtual void RHIEndRenderQuery(FRHIRenderQuery* RenderQuery) final override;
-	virtual void RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery) final override;
 
-	virtual void RHISubmitCommandsHint() final override;
+#if (RHI_NEW_GPU_PROFILER == 0)
+	virtual void RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery) final override;
+#endif
 
 	virtual void RHIBeginDrawingViewport(FRHIViewport* Viewport, FRHITexture* RenderTargetRHI) final override;
 	virtual void RHIEndDrawingViewport(FRHIViewport* Viewport, bool bPresent, bool bLockToVsync) final override;
-
-	virtual void RHIBeginFrame() final override;
-	virtual void RHIEndFrame() final override;
-
-	virtual void RHIBeginScene() final override;
-	virtual void RHIEndScene() final override;
 
 	virtual void RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, const TCHAR* InName) final override;
 	virtual void RHIEndRenderPass() final override;
 	virtual void RHINextSubpass() final override;
 
-#if VULKAN_RHI_RAYTRACING
 	virtual void RHIClearRayTracingBindings(FRHIRayTracingScene* Scene) final override;
+	virtual void RHICommitRayTracingBindings(FRHIRayTracingScene* Scene) final override;
+	virtual void RHIClearShaderBindingTable(FRHIShaderBindingTable* SBT) final override;
+	virtual void RHICommitShaderBindingTable(FRHIShaderBindingTable* SBT) final override;
 	virtual void RHIBindAccelerationStructureMemory(FRHIRayTracingScene* Scene, FRHIBuffer* Buffer, uint32 BufferOffset) final override;
 	virtual void RHIBuildAccelerationStructures(const TArrayView<const FRayTracingGeometryBuildParams> Params, const FRHIBufferRange& ScratchBufferRange) final override;
 	virtual void RHIBuildAccelerationStructure(const FRayTracingSceneBuildParams& SceneBuildParams) final override;
 
 	virtual void RHIRayTraceDispatch(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
-		FRHIRayTracingScene* Scene,
-		const FRayTracingShaderBindings& GlobalResourceBindings,
+		FRHIShaderBindingTable* SBT, const FRayTracingShaderBindings& GlobalResourceBindings,
 		uint32 Width, uint32 Height) final override;
 	virtual void RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
-		FRHIRayTracingScene* Scene,
-		const FRayTracingShaderBindings& GlobalResourceBindings,
+		FRHIShaderBindingTable* SBT, const FRayTracingShaderBindings& GlobalResourceBindings,
 		FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) final override;
-	virtual void RHISetRayTracingHitGroup(
-		FRHIRayTracingScene* Scene, uint32 InstanceIndex, uint32 SegmentIndex, uint32 ShaderSlot,
-		FRHIRayTracingPipelineState* Pipeline, uint32 HitGroupIndex,
-		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-		uint32 LooseParameterDataSize, const void* LooseParameterData,
-		uint32 UserData) final override;
-	virtual void RHISetRayTracingCallableShader(
-		FRHIRayTracingScene* Scene, uint32 ShaderSlotInScene,
-		FRHIRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline,
-		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-		uint32 UserData) final override;
-	virtual void RHISetRayTracingMissShader(
-		FRHIRayTracingScene* Scene, uint32 ShaderSlotInScene,
-		FRHIRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline,
-		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-		uint32 UserData) final override;
-	virtual void RHISetRayTracingBindings(
-		FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline,
+
+	virtual void RHISetBindingsOnShaderBindingTable(FRHIShaderBindingTable* SBT,
+		FRHIRayTracingPipelineState* Pipeline,
 		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 		ERayTracingBindingType BindingType) final override;
-#endif // VULKAN_RHI_RAYTRACING
 
 	inline FVulkanCommandBufferManager* GetCommandBufferManager()
 	{
 		return CommandBufferManager;
 	}
 
-	inline VulkanRHI::FTempFrameAllocationBuffer& GetTempFrameAllocationBuffer()
+	inline VulkanRHI::FTempBlockAllocator& GetTempBlockAllocator()
 	{
-		return TempFrameAllocationBuffer;
+		return *TempBlockAllocator;
 	}
 
 	inline FVulkanPendingGfxState* GetPendingGfxState()
@@ -191,11 +177,6 @@ public:
 		return FrameCounter;
 	}
 
-	inline FVulkanUniformBufferUploader* GetUniformBufferUploader()
-	{
-		return UniformBufferUploader;
-	}
-
 	inline FVulkanQueue* GetQueue()
 	{
 		return Queue;
@@ -204,12 +185,14 @@ public:
 	void WriteBeginTimestamp(FVulkanCmdBuffer* CmdBuffer);
 	void WriteEndTimestamp(FVulkanCmdBuffer* CmdBuffer);
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	void ReadAndCalculateGPUFrameTime();
 	
 	inline FVulkanGPUProfiler& GetGPUProfiler()
 	{
 		return GpuProfiler;
 	}
+#endif
 
 	inline FVulkanDevice* GetDevice() const
 	{
@@ -232,12 +215,11 @@ protected:
 	FVulkanQueue* Queue;
 	bool bSubmitAtNextSafePoint;
 	bool bUniformBufferUploadRenderPassDirty = true;
-	FVulkanUniformBufferUploader* UniformBufferUploader;
 
 	void BeginOcclusionQueryBatch(FVulkanCmdBuffer* CmdBuffer, uint32 NumQueriesInBatch);
 	void EndOcclusionQueryBatch(FVulkanCmdBuffer* CmdBuffer);
 
-	VulkanRHI::FTempFrameAllocationBuffer TempFrameAllocationBuffer;
+	VulkanRHI::FTempBlockAllocator* TempBlockAllocator = nullptr;
 
 	TArray<FString> EventStack;
 
@@ -267,7 +249,6 @@ protected:
 
 public:
 	bool IsSwapchainImage(FRHITexture* InTexture) const;
-	VkSurfaceTransformFlagBitsKHR GetSwapchainQCOMRenderPassTransform() const;
 	VkFormat GetSwapchainImageFormat() const;
 	FVulkanSwapChain* GetSwapChain() const;
 
@@ -297,8 +278,16 @@ private:
 	// Number of times EndFrame() has been called on this context
 	uint64 FrameCounter;
 
+#if RHI_NEW_GPU_PROFILER
+	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)	{ checkNoEntry(); } // @todo - new gpu profiler
+	void RegisterGPUDispatch(FIntVector GroupCount)	                        { checkNoEntry(); } // @todo - new gpu profiler
+#else
+	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)	{ GpuProfiler.RegisterGPUWork(NumPrimitives, NumVertices); }
+	void RegisterGPUDispatch(FIntVector GroupCount)	                        { GpuProfiler.RegisterGPUDispatch(GroupCount); }
+
 	FVulkanGPUProfiler GpuProfiler;
 	FVulkanGPUTiming* FrameTiming;
+#endif
 
 	template <typename TRHIShader>
 	void ApplyStaticUniformBuffers(TRHIShader* Shader);
@@ -334,7 +323,15 @@ private:
 };
 #endif
 
-inline FVulkanCommandListContextImmediate& FVulkanDevice::GetImmediateContext()
+struct FVulkanContextArray : public TRHIPipelineArray<FVulkanCommandListContext*>
 {
-	return *ImmediateContext;
-}
+	FVulkanContextArray(FRHIContextArray const& Contexts)
+		: TRHIPipelineArray(InPlace, nullptr)
+	{
+		for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
+		{
+			IRHIComputeContext* Context = Contexts[Pipeline];
+			(*this)[Pipeline] = Context ? static_cast<FVulkanCommandListContext*>(&Context->GetLowestLevelContext()) : nullptr;
+		}
+	}
+};

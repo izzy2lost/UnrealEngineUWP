@@ -2,9 +2,14 @@
 
 #pragma once
 
-#include "Insights/ViewModels/Filters.h"
+#include "CoreTypes.h"
 
-namespace Insights
+#include "Internationalization/Text.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Filter/ViewModels/Filters.h"
+
+namespace UE::Insights::ContextSwitches
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -19,4 +24,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::ContextSwitches

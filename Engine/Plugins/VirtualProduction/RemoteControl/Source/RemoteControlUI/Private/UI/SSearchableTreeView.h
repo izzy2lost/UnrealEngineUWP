@@ -47,7 +47,6 @@ public:
 		IsSelectable = InArgs._IsSelectable;
 		
 		TreeView = SNew(STreeView<ItemType>)
-			.ItemHeight(24)
 			.TreeItemsSource(&FilteredItems)
 			.OnGenerateRow(this, &SSearchableTreeView::OnGenerateRow)
 			.OnGetChildren(this, &SSearchableTreeView::OnGetChildren)

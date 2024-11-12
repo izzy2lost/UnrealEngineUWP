@@ -3,16 +3,27 @@
 
 #include "CoreTypes.h"
 #include "Logging/LogMacros.h"
+#include "UObject/NameTypes.h"
 #include "UObject/PropertyPathName.h"
 #include "UObject/PropertyTypeName.h"
 #include "UObject/ScriptDelegateFwd.h"
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/WeakObjectPtrFwd.h"
 
+#include "PropertyHelper.generated.h"
+
+class FProperty;
+class UField;
 class UFunction;
 class UObject;
 
+DECLARE_LOG_CATEGORY_EXTERN(LogEnum, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogProperty, Log, All);
+
+UENUM()
+enum class EFallbackEnum : uint8
+{
+};
 
 /**
  * Advances the character pointer past any spaces or tabs.
@@ -79,6 +90,14 @@ namespace DelegatePropertyTools
 namespace UE
 {
 
+#if WITH_EDITORONLY_DATA
+inline static const FName NAME_OriginalType(ANSITEXTVIEW("OriginalType"));
+const FString* FindOriginalTypeName(const UField* Field);
+const FString* FindOriginalTypeName(const FProperty* Property);
+FPropertyTypeName FindOriginalType(const UField* Field);
+FPropertyTypeName FindOriginalType(const FProperty* Property);
+#endif // WITH_EDITORONLY_DATA
+
 /**
  * Applies core redirects to type names and paths within the property type.
  *
@@ -91,39 +110,31 @@ namespace UE
  */
 FPropertyTypeName ApplyRedirectsToPropertyType(FPropertyTypeName OldTypeName, const FProperty* Property = nullptr);
 
-/** Whether to notify that a property has been serialized when terminating the property path scopes below. */
-enum class ESerializedPropertyPathNotify
-{
-	No,
-	Yes,
-};
-
 /**
  * Pushes a segment to SerializedPropertyPath for the lifetime of this object if path tracking is active.
  */
 class FSerializedPropertyPathScope
 {
 public:
-	[[nodiscard]] FSerializedPropertyPathScope(FUObjectSerializeContext* InContext, const FPropertyPathNameSegment& InSegment, ESerializedPropertyPathNotify InNotify)
+	[[nodiscard]] FSerializedPropertyPathScope(FUObjectSerializeContext* InContext, const FPropertyPathNameSegment& InSegment)
 	{
-		if (InContext && InContext->bTrackSerializedPropertyPath)
+	#if WITH_EDITORONLY_DATA
+		if (InContext->bTrackSerializedPropertyPath)
 		{
 			Context = InContext;
 			Context->SerializedPropertyPath.Push(InSegment);
-			Notify = InNotify;
 		}
+	#endif
 	}
 
 	~FSerializedPropertyPathScope()
 	{
+	#if WITH_EDITORONLY_DATA
 		if (Context)
 		{
-			if (Notify == ESerializedPropertyPathNotify::Yes)
-			{
-				Context->OnTaggedPropertySerialize.Broadcast(*Context);
-			}
 			Context->SerializedPropertyPath.Pop();
 		}
+	#endif
 	}
 
 	FSerializedPropertyPathScope(const FSerializedPropertyPathScope&) = delete;
@@ -131,45 +142,6 @@ public:
 
 private:
 	FUObjectSerializeContext* Context = nullptr;
-	ESerializedPropertyPathNotify Notify = ESerializedPropertyPathNotify::No;
-};
-
-/**
- * Sets the index of the last segment of SerializedPropertyPath for the lifetime of this object if path tracking is active.
- *
- * Resets the index to INDEX_NONE when destructed.
- */
-class FSerializedPropertyPathIndexScope
-{
-public:
-	[[nodiscard]] FSerializedPropertyPathIndexScope(FUObjectSerializeContext* InContext, int32 InIndex, ESerializedPropertyPathNotify InNotify)
-	{
-		if (InContext && InContext->bTrackSerializedPropertyPath)
-		{
-			Context = InContext;
-			Context->SerializedPropertyPath.SetIndex(InIndex);
-			Notify = InNotify;
-		}
-	}
-
-	~FSerializedPropertyPathIndexScope()
-	{
-		if (Context)
-		{
-			if (Notify == ESerializedPropertyPathNotify::Yes)
-			{
-				Context->OnTaggedPropertySerialize.Broadcast(*Context);
-			}
-			Context->SerializedPropertyPath.SetIndex(INDEX_NONE);
-		}
-	}
-
-	FSerializedPropertyPathIndexScope(const FSerializedPropertyPathIndexScope&) = delete;
-	FSerializedPropertyPathIndexScope& operator=(const FSerializedPropertyPathIndexScope&) = delete;
-
-private:
-	FUObjectSerializeContext* Context = nullptr;
-	ESerializedPropertyPathNotify Notify = ESerializedPropertyPathNotify::No;
 };
 
 } // UE

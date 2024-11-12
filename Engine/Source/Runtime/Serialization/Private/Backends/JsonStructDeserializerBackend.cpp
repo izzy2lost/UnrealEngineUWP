@@ -99,59 +99,99 @@ bool FJsonStructDeserializerBackend::ReadProperty( FProperty* Property, FPropert
 	// numeric values
 	case EJsonNotation::Number:
 		{
-			double NumericValue = JsonReader->GetValueAsNumber();
+			const FString& NumericValueString = JsonReader->GetValueAsNumberString();
 
 			if (FByteProperty* ByteProperty = CastField<FByteProperty>(Property))
 			{
-				return StructDeserializerBackendUtilities::SetPropertyValue(ByteProperty, Outer, Data, ArrayIndex, (int8)NumericValue);
+				int8 NumericValue = 0;
+				if (LexTryParseString(NumericValue, *NumericValueString))
+				{
+					return StructDeserializerBackendUtilities::SetPropertyValue(ByteProperty, Outer, Data, ArrayIndex, NumericValue);
+				}
 			}
 
 			if (FDoubleProperty* DoubleProperty = CastField<FDoubleProperty>(Property))
 			{
-				return StructDeserializerBackendUtilities::SetPropertyValue(DoubleProperty, Outer, Data, ArrayIndex, (double)NumericValue);
+				double NumericValue = 0;
+				if (LexTryParseString(NumericValue, *NumericValueString))
+				{
+					return StructDeserializerBackendUtilities::SetPropertyValue(DoubleProperty, Outer, Data, ArrayIndex, NumericValue);
+				}
 			}
 
 			if (FFloatProperty* FloatProperty = CastField<FFloatProperty>(Property))
 			{
-				return StructDeserializerBackendUtilities::SetPropertyValue(FloatProperty, Outer, Data, ArrayIndex, (float)NumericValue);
+				float NumericValue = 0;
+				if (LexTryParseString(NumericValue, *NumericValueString))
+				{
+					return StructDeserializerBackendUtilities::SetPropertyValue(FloatProperty, Outer, Data, ArrayIndex, NumericValue);
+				}
 			}
 
 			if (FIntProperty* IntProperty = CastField<FIntProperty>(Property))
 			{
-				return StructDeserializerBackendUtilities::SetPropertyValue(IntProperty, Outer, Data, ArrayIndex, (int32)NumericValue);
+				int32 NumericValue = 0;
+				if (LexTryParseString(NumericValue, *NumericValueString))
+				{
+					return StructDeserializerBackendUtilities::SetPropertyValue(IntProperty, Outer, Data, ArrayIndex, NumericValue);
+				}
 			}
 
 			if (FUInt32Property* UInt32Property = CastField<FUInt32Property>(Property))
 			{
-				return StructDeserializerBackendUtilities::SetPropertyValue(UInt32Property, Outer, Data, ArrayIndex, (uint32)NumericValue);
+				uint32 NumericValue = 0;
+				if (LexTryParseString(NumericValue, *NumericValueString))
+				{
+					return StructDeserializerBackendUtilities::SetPropertyValue(UInt32Property, Outer, Data, ArrayIndex, NumericValue);
+				}
 			}
 
 			if (FInt16Property* Int16Property = CastField<FInt16Property>(Property))
 			{
-				return StructDeserializerBackendUtilities::SetPropertyValue(Int16Property, Outer, Data, ArrayIndex, (int16)NumericValue);
+				int16 NumericValue = 0;
+				if (LexTryParseString(NumericValue, *NumericValueString))
+				{
+					return StructDeserializerBackendUtilities::SetPropertyValue(Int16Property, Outer, Data, ArrayIndex, NumericValue);
+				}
 			}
 
 			if (FUInt16Property* FInt16Property = CastField<FUInt16Property>(Property))
 			{
-				return StructDeserializerBackendUtilities::SetPropertyValue(FInt16Property, Outer, Data, ArrayIndex, (uint16)NumericValue);
+				uint16 NumericValue = 0;
+				if (LexTryParseString(NumericValue, *NumericValueString))
+				{
+					return StructDeserializerBackendUtilities::SetPropertyValue(FInt16Property, Outer, Data, ArrayIndex, NumericValue);
+				}
 			}
 
 			if (FInt64Property* Int64Property = CastField<FInt64Property>(Property))
 			{
-				return StructDeserializerBackendUtilities::SetPropertyValue(Int64Property, Outer, Data, ArrayIndex, (int64)NumericValue);
+				int64 NumericValue = 0;
+				if (LexTryParseString(NumericValue, *NumericValueString))
+				{
+					return StructDeserializerBackendUtilities::SetPropertyValue(Int64Property, Outer, Data, ArrayIndex, NumericValue);
+				}
 			}
 
 			if (FUInt64Property* FInt64Property = CastField<FUInt64Property>(Property))
 			{
-				return StructDeserializerBackendUtilities::SetPropertyValue(FInt64Property, Outer, Data, ArrayIndex, (uint64)NumericValue);
+				uint64 NumericValue = 0;
+				if (LexTryParseString(NumericValue, *NumericValueString))
+				{
+					return StructDeserializerBackendUtilities::SetPropertyValue(FInt64Property, Outer, Data, ArrayIndex, NumericValue);
+				}
 			}
 
 			if (FInt8Property* Int8Property = CastField<FInt8Property>(Property))
 			{
-				return StructDeserializerBackendUtilities::SetPropertyValue(Int8Property, Outer, Data, ArrayIndex, (int8)NumericValue);
+				int8 NumericValue = 0;
+				if (LexTryParseString(NumericValue, *NumericValueString))
+				{
+					return StructDeserializerBackendUtilities::SetPropertyValue(Int8Property, Outer, Data, ArrayIndex, NumericValue);
+				}
 			}
 
-			UE_LOG(LogSerialization, Verbose, TEXT("Numeric field %s with value '%f' is not supported in FProperty type %s (%s)"), *Property->GetFName().ToString(), NumericValue, *Property->GetClass()->GetName(), *GetDebugString());
+			UE_LOG(LogSerialization, Verbose, TEXT("Numeric field %s with value '%s' is not supported in FProperty type %s (%s)"), *Property->GetFName().ToString(), *NumericValueString, *Property->GetClass()->GetName(), *GetDebugString());
 
 			return false;
 		}

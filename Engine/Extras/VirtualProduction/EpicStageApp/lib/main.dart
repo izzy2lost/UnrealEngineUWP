@@ -28,7 +28,6 @@ import 'models/settings/selected_actor_settings.dart';
 import 'models/settings/stage_map_settings.dart';
 import 'models/unreal_actor_creator.dart';
 import 'models/unreal_actor_manager.dart';
-import 'models/unreal_dockable_tab_manager.dart';
 import 'models/unreal_property_manager.dart';
 import 'models/unreal_transaction_manager.dart';
 import 'routes.dart';
@@ -141,6 +140,10 @@ class _EpicStageAppState extends State<EpicStageApp> with TickerProviderStateMix
       case AppLifecycleState.resumed:
         _log.info('App resumed');
         break;
+
+      case AppLifecycleState.hidden:
+        _log.info('App hidden');
+        break;
     }
   }
 
@@ -166,7 +169,10 @@ class _EpicStageAppState extends State<EpicStageApp> with TickerProviderStateMix
         Provider<PreferencesBundle>(create: (_) => _preferenceBundle),
         Provider<ConnectionSettings>(create: (_) => ConnectionSettings(_preferenceBundle)),
         Provider<SelectedActorSettings>(create: (_) => SelectedActorSettings(_preferenceBundle)),
-        Provider<StageMapSettings>(create: (_) => StageMapSettings(_preferenceBundle)),
+        Provider<StageMapSettings>(
+          create: (context) => StageMapSettings(_preferenceBundle, context),
+          dispose: (_, value) => value.dispose(),
+        ),
         Provider<RecentActorSettings>(create: (_) => RecentActorSettings(_preferenceBundle)),
         Provider<MainScreenSettings>(create: (_) => MainScreenSettings(_preferenceBundle)),
         Provider<DeltaWidgetSettings>(create: (_) => DeltaWidgetSettings(_preferenceBundle)),
@@ -185,10 +191,6 @@ class _EpicStageAppState extends State<EpicStageApp> with TickerProviderStateMix
           create: (context) => UnrealActorCreator(context),
           dispose: (context, value) => value.dispose(),
         ),
-        Provider<UnrealDockableTabManager>(
-          create: (context) => UnrealDockableTabManager(context),
-          dispose: (context, value) => value.dispose(),
-        )
       ],
       child: MaterialApp(
         theme: UnrealTheme.makeThemeData(),

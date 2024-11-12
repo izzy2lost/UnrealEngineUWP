@@ -15,9 +15,11 @@
 #include "Common/SpeedRecorder.h"
 #include "Common/FileSystem.h"
 #include "Installer/ChunkSource.h"
+#include "Installer/ChunkDbChunkSource.h"
 #include "Installer/ChunkReferenceTracker.h"
 #include "Installer/InstallerError.h"
 #include "Installer/InstallerAnalytics.h"
+#include "Installer/InstallerSharedContext.h"
 #include "BuildPatchUtil.h"
 
 using namespace BuildPatchServices;
@@ -65,6 +67,12 @@ namespace FileConstructorHelpers
 				bContinueConstruction = false;
 			}
 		}
+		else
+		{
+			// If we can't get the disk space free then the most likely reason is the drive is no longer around...
+			bContinueConstruction = false;
+		}
+
 		return bContinueConstruction;
 	}
 
@@ -251,7 +259,10 @@ public:
 
 /* FBuildPatchFileConstructor implementation
  *****************************************************************************/
-FBuildPatchFileConstructor::FBuildPatchFileConstructor(FFileConstructorConfig InConfiguration, IFileSystem* InFileSystem, IChunkSource* InChunkSource, IChunkReferenceTracker* InChunkReferenceTracker, IInstallerError* InInstallerError, IInstallerAnalytics* InInstallerAnalytics, IFileConstructorStat* InFileConstructorStat)
+FBuildPatchFileConstructor::FBuildPatchFileConstructor(
+	FFileConstructorConfig InConfiguration, IFileSystem* InFileSystem, IChunkSource* InChunkSource, 
+	IChunkDbChunkSource* InChunkDbChunkSource, IChunkReferenceTracker* InChunkReferenceTracker, IInstallerError* InInstallerError, 
+	IInstallerAnalytics* InInstallerAnalytics, IFileConstructorStat* InFileConstructorStat)
 	: Configuration(MoveTemp(InConfiguration))
 	, bIsDownloadStarted(false)
 	, bInitialDiskSizeCheck(false)
@@ -261,6 +272,7 @@ FBuildPatchFileConstructor::FBuildPatchFileConstructor(FFileConstructorConfig In
 	, ConstructionStack()
 	, FileSystem(InFileSystem)
 	, ChunkSource(InChunkSource)
+	, ChunkDbSource(InChunkDbChunkSource)
 	, ChunkReferenceTracker(InChunkReferenceTracker)
 	, InstallerError(InInstallerError)
 	, InstallerAnalytics(InInstallerAnalytics)
@@ -274,6 +286,11 @@ FBuildPatchFileConstructor::FBuildPatchFileConstructor(FFileConstructorConfig In
 	const int32 ConstructListNum = Configuration.ConstructList.Num();
 	ConstructionStack.Reserve(ConstructListNum);
 	ConstructionStack.AddDefaulted(ConstructListNum);
+
+	// Track when we will complete files in the reference chain.
+	int32 CurrentPosition = 0;
+	FileCompletionPositions.Reserve(ConstructListNum);
+
 	for (int32 ConstructListIdx = 0; ConstructListIdx < ConstructListNum ; ++ConstructListIdx)
 	{
 		const FString& ConstructListElem = Configuration.ConstructList[ConstructListIdx];
@@ -281,13 +298,90 @@ FBuildPatchFileConstructor::FBuildPatchFileConstructor(FFileConstructorConfig In
 		if (FileManifest)
 		{
 			TotalJobSize += FileManifest->FileSize;
+		
+			// We will be advancing the chunk reference tracker by this many chunks.
+			int32 AdvanceCount = FileManifest->ChunkParts.Num();
+			CurrentPosition += AdvanceCount;
+
+			FileCompletionPositions.Add(CurrentPosition);
 		}
+
 		ConstructionStack[(ConstructListNum - 1) - ConstructListIdx] = ConstructListElem;
 	}
+
+	WriteBuffers[0].Reserve(WriteBufferSize);
+	WriteBuffers[1].Reserve(WriteBufferSize);
+
+	WriteJobThread = Configuration.SharedContext->CreateThread();
+	WriteJobCompleteEvent = FPlatformProcess::GetSynchEventFromPool();
+	WriteJobStartEvent = FPlatformProcess::GetSynchEventFromPool();
+	WriteJobThread->RunTask([this]() { WriteJobThreadRun(); });
 }
 
 FBuildPatchFileConstructor::~FBuildPatchFileConstructor()
 {
+	if (bWriteJobRunning)
+	{
+		GLog->Logf(TEXT("FBuildPatchFileConstructor: Write job active during destruction! Very bad."));
+	}
+
+	// Signal background thread to shut down.
+	Abort();
+	WriteJobStartEvent->Trigger();	
+	WriteJobCompleteEvent->Wait();
+
+	FPlatformProcess::ReturnSynchEventToPool(WriteJobCompleteEvent);
+	WriteJobCompleteEvent = nullptr;
+	FPlatformProcess::ReturnSynchEventToPool(WriteJobStartEvent);
+	WriteJobStartEvent = nullptr;
+
+	Configuration.SharedContext->ReleaseThread(WriteJobThread);
+}
+
+
+void FBuildPatchFileConstructor::WriteJobThreadRun()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(WriteJobThread);
+
+	for (;;)
+	{
+		bool bSignalWasFired = WriteJobStartEvent->Wait(100 /* ms */);
+
+		if (bSignalWasFired)
+		{
+			// (got signal) -- they launched a job - init to failed job
+			bWriteJobCompleted = false;
+		}
+
+		if (bShouldAbort) // this is also used for graceful shutdown on completion.
+		{
+			// Leave WriteJobCompleted = false;
+			WriteJobCompleteEvent->Trigger();
+			return;
+		}
+
+		if (!bSignalWasFired)
+		{
+			// We hit the timeout checking for an abort signal, wait agian.
+			continue;
+		}
+
+		FileConstructorStat->OnBeforeWrite();
+		ISpeedRecorder::FRecord ActivityRecord;
+		ActivityRecord.CyclesStart = FStatsCollector::GetCycles();
+		
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(WriteThread_Serialize)
+			WriteJobArchive->Serialize(WriteJobBufferToWrite->GetData(), WriteJobBufferToWrite->Num());
+		}
+
+		ActivityRecord.Size = WriteJobBufferToWrite->Num();
+		ActivityRecord.CyclesEnd = FStatsCollector::GetCycles();
+		FileConstructorStat->OnAfterWrite(ActivityRecord);
+
+		bWriteJobCompleted = true;
+		WriteJobCompleteEvent->Trigger();
+	}
 }
 
 void FBuildPatchFileConstructor::Run()
@@ -415,14 +509,12 @@ void FBuildPatchFileConstructor::Run()
 
 uint64 FBuildPatchFileConstructor::GetRequiredDiskSpace()
 {
-	FScopeLock Lock(&ThreadLock);
-	return RequiredDiskSpace;
+	return RequiredDiskSpace.load(std::memory_order_relaxed);
 }
 
 uint64 FBuildPatchFileConstructor::GetAvailableDiskSpace()
 {
-	FScopeLock Lock(&ThreadLock);
-	return AvailableDiskSpace;
+	return AvailableDiskSpace.load(std::memory_order_relaxed);
 }
 
 FBuildPatchFileConstructor::FOnBeforeDeleteFile& FBuildPatchFileConstructor::OnBeforeDeleteFile()
@@ -453,16 +545,29 @@ int64 FBuildPatchFileConstructor::GetRemainingBytes()
 	return Configuration.ManifestSet->GetTotalNewFileSize(ConstructionStack);
 }
 
-uint64 FBuildPatchFileConstructor::CalculateRequiredDiskSpace(const FFileManifest& InProgressFileManifest, uint64 InProgressFileSize)
+uint64 FBuildPatchFileConstructor::CalculateInProgressDiskSpaceRequired(const FFileManifest& InProgressFileManifest, uint64 InProgressFileAmountWritten)
 {
-	int64 DiskSpaceDeltaPeak = InProgressFileSize;
 	if (Configuration.InstallMode == EInstallMode::DestructiveInstall)
 	{
 		// The simplest method will be to run through each high level file operation, tracking peak disk usage delta.
-		int64 DiskSpaceDelta = InProgressFileSize;
 
-		// Can remove old in progress file.
-		DiskSpaceDelta -= InProgressFileManifest.FileSize;
+		// We know we need enough space to finish writing this file
+		uint64 RemainingThisFileSpace = InProgressFileManifest.FileSize - InProgressFileAmountWritten;
+		
+		int64 DiskSpaceDeltaPeak = RemainingThisFileSpace;
+		int64 DiskSpaceDelta = RemainingThisFileSpace;
+
+		// Then we move this file over.
+		{
+			const FFileManifest* OldFileManifest = Configuration.ManifestSet->GetCurrentFileManifest(InProgressFileManifest.Filename);
+			if (OldFileManifest)
+			{
+				DiskSpaceDelta -= OldFileManifest->FileSize;
+			}
+
+			// We've already accounted for the new file above, so we could be pretty negative if we resumed the file
+			// almost at the end and had an existing file we're deleting.
+		}
 
 		// Loop through all files to be made next, in order.
 		for (int32 ConstructionStackIdx = ConstructionStack.Num() - 1; ConstructionStackIdx >= 0; --ConstructionStackIdx)
@@ -482,17 +587,55 @@ uint64 FBuildPatchFileConstructor::CalculateRequiredDiskSpace(const FFileManifes
 				DiskSpaceDelta -= OldFileManifest->FileSize;
 			}
 		}
+		return DiskSpaceDeltaPeak;
 	}
 	else
 	{
 		// When not destructive, we always stage all new and changed files.
-		DiskSpaceDeltaPeak += Configuration.ManifestSet->GetTotalNewFileSize(ConstructionStack);
+		uint64 RemainingFilesSpace = Configuration.ManifestSet->GetTotalNewFileSize(ConstructionStack);
+		uint64 RemainingThisFileSpace = InProgressFileManifest.FileSize - InProgressFileAmountWritten;
+		return RemainingFilesSpace + RemainingThisFileSpace;
 	}
-	return FMath::Max<int64>(DiskSpaceDeltaPeak, 0);
+}
+
+
+
+uint64 FBuildPatchFileConstructor::CalculateDiskSpaceRequirementsWithDeleteDuringInstall(const TArray<FString>& InBackwardsFilesLeftToConstruct)
+{
+	if (ChunkDbSource == nullptr)
+	{
+		// invalid use.
+		return 0;
+	}
+
+	// These are the sizes at after each file that we _started_ with. This is the size after retirement for the
+	// file at those positions.
+	TArray<uint64> ChunkDbSizesAtPosition;
+	uint64 TotalChunkDbSize = ChunkDbSource->GetChunkDbSizesAtIndexes(FileCompletionPositions, ChunkDbSizesAtPosition);
+
+	// Strip off the files we've completed.
+	int32 CompletedFileCount = Configuration.ConstructList.Num() - InBackwardsFilesLeftToConstruct.Num();
+
+	// Since we are called after the first file is popped (but before it's actually done), we have one less completed.
+	CompletedFileCount--;
+
+	uint64 MaxDiskSize = FBuildPatchUtils::CalculateDiskSpaceRequirementsWithDeleteDuringInstall(
+		Configuration.ConstructList, CompletedFileCount, Configuration.ManifestSet, ChunkDbSizesAtPosition, TotalChunkDbSize);
+
+	// Strip off the data we already have on disk.
+	uint64 PostDlSize = 0;
+	if (MaxDiskSize > TotalChunkDbSize)
+	{
+		PostDlSize = MaxDiskSize - TotalChunkDbSize;
+	}
+
+	return PostDlSize;
 }
 
 bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFilename, const FFileManifest& FileManifest, bool bResumeExisting)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(ConstructFileFromChunks);
+
 	bool bSuccess = true;
 	EConstructionError ConstructionError = EConstructionError::None;
 	uint32 LastError = 0;
@@ -529,8 +672,12 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 			TArray<uint8> ReadBuffer;
 			ReadBuffer.Empty(ReadBufferSize);
 			ReadBuffer.SetNumUninitialized(ReadBufferSize);
-			// Reuse a certain amount of the file
-			StartPosition = FMath::Max<int64>(0, NewFileReader->TotalSize() - NUM_BYTES_RESUME_IGNORE);
+
+			// Reuse the entire file. Previously this truncated to size - 1kb but that's unlikely to catch our actual
+			// issue because its less than a sector size and makes it so that a graceful resume requires potentially retired
+			// chunks.
+			StartPosition = NewFileReader->TotalSize();
+
 			// We'll also find the correct chunkpart to start writing from
 			int64 ByteCounter = 0;
 			for (int32 ChunkPartIdx = StartChunkPart; ChunkPartIdx < FileManifest.ChunkParts.Num() && !bShouldAbort; ++ChunkPartIdx)
@@ -574,22 +721,43 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 		}
 	}
 
-	// If we haven't done so yet, make the initial disk space check
+	// If we haven't done so yet, make the initial disk space check. We do this after resume
+	// so that we know how much to discount from our current file size.
 	if (!bInitialDiskSizeCheck)
 	{
 		bInitialDiskSizeCheck = true;
-		const uint64 RequiredSpace = CalculateRequiredDiskSpace(FileManifest, FileManifest.FileSize - StartPosition);
-		// ThreadLock protects access to members RequiredDiskSpace and AvailableDiskSpace;
-		FScopeLock Lock(&ThreadLock);
-		RequiredDiskSpace = RequiredSpace;
-		if (!FileConstructorHelpers::CheckRemainingDiskSpace(Configuration.InstallDirectory, RequiredSpace, AvailableDiskSpace))
+
+		// Normal operation can just use the classic calculation
+		uint64 LocalDiskSpaceRequired = CalculateInProgressDiskSpaceRequired(FileManifest, StartPosition);
+
+		// If we are delete-during-install this gets more complicated because we'll be freeing up
+		// space as we add.
+		if (Configuration.bDeleteChunkDBFilesAfterUse)
 		{
-			UE_LOG(LogBuildPatchServices, Error, TEXT("Out of HDD space. Needs %llu bytes, Free %llu bytes"), RequiredSpace, AvailableDiskSpace);
+			LocalDiskSpaceRequired = CalculateDiskSpaceRequirementsWithDeleteDuringInstall(ConstructionStack);
+		}
+
+		uint64 LocalDiskSpaceAvailable = 0;
+		{
+			uint64 TotalSize = 0;
+			uint64 AvailableSpace = 0;
+			if (FPlatformMisc::GetDiskTotalAndFreeSpace(Configuration.InstallDirectory, TotalSize, AvailableSpace))
+			{
+				LocalDiskSpaceAvailable = AvailableSpace;
+			}
+		}
+
+		AvailableDiskSpace.store(LocalDiskSpaceAvailable, std::memory_order_release);
+		RequiredDiskSpace.store(LocalDiskSpaceRequired, std::memory_order_release);	
+
+		if (!FileConstructorHelpers::CheckRemainingDiskSpace(Configuration.InstallDirectory, LocalDiskSpaceRequired, LocalDiskSpaceAvailable))
+		{
+			UE_LOG(LogBuildPatchServices, Error, TEXT("Out of HDD space. Needs %llu bytes, Free %llu bytes"), LocalDiskSpaceRequired, LocalDiskSpaceAvailable);
 			InstallerError->SetError(
 				EBuildPatchInstallError::OutOfDiskSpace,
 				DiskSpaceErrorCodes::InitialSpaceCheck,
 				0,
-				BuildPatchServices::GetDiskSpaceMessage(Configuration.InstallDirectory, RequiredSpace, AvailableDiskSpace));
+				BuildPatchServices::GetDiskSpaceMessage(Configuration.InstallDirectory, LocalDiskSpaceRequired, LocalDiskSpaceAvailable));
 			return false;
 		}
 	}
@@ -600,6 +768,59 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 		bIsDownloadStarted = true;
 		FileConstructorStat->OnResumeCompleted();
 	}
+
+	// Returns false if the write failed in some way (almost certainly disk space, could be drive disconnection)
+	auto FlushToAsyncWriter = [this](FArchive& DestinationFile, FSHA1& HashState)
+	{
+		if (bStallWhenFileSystemThrottled)
+		{
+			int64 AvailableBytes = FileSystem->GetAllowedBytesToWriteThrottledStorage(*DestinationFile.GetArchiveName());
+			while (WriteBuffers[CurrentFillBuffer].Num() > AvailableBytes)
+			{
+				UE_LOG(LogBuildPatchServices, Display, TEXT("Avaliable write bytes to write throttled storage exhausted (%s).  Sleeping %ds.  Bytes needed: %u, bytes available: %lld")
+					, *DestinationFile.GetArchiveName(), SleepTimeWhenFileSystemThrottledSeconds, WriteBuffers[CurrentFillBuffer].Num(), AvailableBytes);
+				FPlatformProcess::Sleep(SleepTimeWhenFileSystemThrottledSeconds);
+				AvailableBytes = FileSystem->GetAllowedBytesToWriteThrottledStorage(*DestinationFile.GetArchiveName());
+			}
+		}
+		
+		// Wait for the last write to complete.
+		if (bWriteJobRunning)
+		{
+			// We can potentially wait here a while if we are FS throttled.
+			// \todo old code didn't check for abort during throttling, should we add?
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(ConstructFileFromChunks_WaitForLastWrite);
+				WriteJobCompleteEvent->Wait();
+			}
+			bWriteJobRunning = false;
+
+			if (DestinationFile.IsError())
+			{
+				return false;
+			}
+
+			// !CurrentFillBuffer is now available for use.
+		}
+
+		// Kick off the write on another thread while we hash the data here.
+		WriteJobBufferToWrite = &WriteBuffers[CurrentFillBuffer];
+		WriteJobArchive = &DestinationFile;
+		bWriteJobRunning = true;
+		WriteJobStartEvent->Trigger();
+
+		// Hash the buffer we are writing while it's writing.
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(ConstructFileFromChunks_Hash);
+			HashState.Update(WriteBuffers[CurrentFillBuffer].GetData(), WriteBuffers[CurrentFillBuffer].Num());
+		}
+
+		// Start filling the next buffer.
+		CurrentFillBuffer = !CurrentFillBuffer;
+		WriteBuffers[CurrentFillBuffer].SetNumUninitialized(0, EAllowShrinking::No);
+
+		return true;
+	};
 
 	// Attempt to create the file
 	ISpeedRecorder::FRecord ActivityRecord;
@@ -627,9 +848,26 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 		// For each chunk, load it, and place it's data into the file
 		for (int32 ChunkPartIdx = StartChunkPart; ChunkPartIdx < FileManifest.ChunkParts.Num() && bSuccess && !bShouldAbort; ++ChunkPartIdx)
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(ConstructFileFromChunks_Chunk);
+
 			const FChunkPart& ChunkPart = FileManifest.ChunkParts[ChunkPartIdx];
-			bSuccess = InsertChunkData(ChunkPart, *NewFile, HashState, ConstructionError);
-			FileConstructorStat->OnFileProgress(BuildFilename, NewFile->Tell());
+
+			// If we can't fit in the buffer, flush. Conditional arranged to avoid overflow risk.
+			if (ChunkPart.Size > (WriteBufferSize - WriteBuffers[CurrentFillBuffer].Num()))
+			{
+				if (!FlushToAsyncWriter(*NewFile, HashState))
+				{
+					bSuccess = false;
+					InstallerAnalytics->RecordConstructionError(BuildFilename, INDEX_NONE, TEXT("Serialization Error"));
+					UE_LOG(LogBuildPatchServices, Error, TEXT("FBuildPatchFileConstructor: Failed %s due to serialization error"), *BuildFilename);
+					ConstructionError = EConstructionError::SerializeError;
+					break;
+				}
+			}
+
+			bSuccess = AppendChunkData(ChunkPart, WriteBuffers[CurrentFillBuffer], ConstructionError);
+
+			FileConstructorStat->OnFileProgress(BuildFilename, NewFile->Tell() + WriteBuffers[CurrentFillBuffer].Num());
 			if (bSuccess)
 			{
 				CountBytesProcessed(ChunkPart.Size);
@@ -652,9 +890,33 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 			}
 		}
 
+		if (WriteBuffers[CurrentFillBuffer].Num())
+		{
+			if (!FlushToAsyncWriter(*NewFile, HashState))
+			{
+				bSuccess = false;
+				InstallerAnalytics->RecordConstructionError(BuildFilename, INDEX_NONE, TEXT("Serialization Error"));
+				UE_LOG(LogBuildPatchServices, Error, TEXT("FBuildPatchFileConstructor: Failed %s due to serialization error"), *BuildFilename);
+				ConstructionError = EConstructionError::SerializeError;
+			}
+		}
+
+		// Wait for the last write if there is one
+		if (bWriteJobRunning)
+		{
+			WriteJobCompleteEvent->Wait();
+			bWriteJobRunning = false;
+		}
+
+		bSuccess = !NewFile->IsError();
+
+		// Update this for disk space requirements tracking below on error
+		StartPosition = NewFile->Tell();
+
 		// Close the file writer
 		FileConstructorStat->OnBeforeAdminister();
 		ActivityRecord.CyclesStart = FStatsCollector::GetCycles();
+
 		const bool bArchiveSuccess = NewFile->Close();
 		NewFile.Reset();
 		ActivityRecord.CyclesEnd = FStatsCollector::GetCycles();
@@ -676,33 +938,72 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 	// Check for error state
 	if (!bSuccess)
 	{
-		// Recalculate disk space first
-		int64 InProgressFileSize = FileManifest.FileSize;
-		FileSystem->GetFileSize(*NewFilename, InProgressFileSize);
-		const uint64 RemainingRequiredSpace = CalculateRequiredDiskSpace(FileManifest, FileManifest.FileSize - InProgressFileSize);
-		uint64 RemainingAvailableDiskSpace = 0;
-		if (!FileConstructorHelpers::CheckRemainingDiskSpace(Configuration.InstallDirectory, RemainingRequiredSpace, RemainingAvailableDiskSpace))
+		if (ConstructionError == EConstructionError::SerializeError)
 		{
-			// ThreadLock protects access to members RequiredDiskSpace and AvailableDiskSpace
-			ThreadLock.Lock();
-			RequiredDiskSpace = RemainingRequiredSpace;
-			AvailableDiskSpace = RemainingAvailableDiskSpace;
-			ThreadLock.Unlock();
-			// Convert error to disk space rather than reported.
-			UE_LOG(LogBuildPatchServices, Error, TEXT("Out of HDD space. Needs %llu bytes, Free %llu bytes"), RemainingRequiredSpace, RemainingAvailableDiskSpace);
-			InstallerError->SetError(
-				EBuildPatchInstallError::OutOfDiskSpace,
-				DiskSpaceErrorCodes::DuringInstallation,
-				0,
-				BuildPatchServices::GetDiskSpaceMessage(Configuration.InstallDirectory, RemainingRequiredSpace, RemainingAvailableDiskSpace));
-			ConstructionError = EConstructionError::OutOfDiskSpace;
-		}
-		else
-		{
-			const bool bReportAnalytic = InstallerError->HasError() == false;
-			switch (ConstructionError)
+			// Serialize error is our catchall file error right now. This should probably get
+			// migrated such that it's when we fail to load an existing chunk (i.e. corruption)
+			// but instead that shows up as a missing chunk.
+
+
+			uint64 TotalSize = 0;
+			uint64 FreeSize = 0;
+			if (FPlatformMisc::GetDiskTotalAndFreeSpace(Configuration.InstallDirectory, TotalSize, FreeSize))
 			{
-			case EConstructionError::CannotCreateFile:
+				// We're responding to an actual failure, which would have happened because we literally weren't able
+				// to write our write butter. Because of transient stuff this might not be correct so we double our
+				// write buffer size for this check.
+				if (FreeSize < (2 * WriteBufferSize))
+				{
+					// We've already failed so it makes sense to reevaluate how much extra we need. 
+					// I'm not sure I like using the same error wording for initial and ongoing disk space failure, but whatevs
+					{
+						uint64 LocalDiskSpaceRequired = CalculateInProgressDiskSpaceRequired(FileManifest, StartPosition);
+
+						// If we are delete-during-install this gets more complicated because we'll be freeing up
+						// space as we add.
+						if (Configuration.bDeleteChunkDBFilesAfterUse)
+						{
+							LocalDiskSpaceRequired = CalculateDiskSpaceRequirementsWithDeleteDuringInstall(ConstructionStack);
+						}
+
+						AvailableDiskSpace.store(FreeSize, std::memory_order_release);
+						RequiredDiskSpace.store(LocalDiskSpaceRequired, std::memory_order_release);
+
+					}
+
+					ConstructionError = EConstructionError::OutOfDiskSpace;
+				}
+				else
+				{
+					// If it looks like we had enough disk space to write the last buffer, then 
+					// leave it as serialize.
+				}
+			}
+			else
+			{
+				// If we can't get the free space then likely the disk has disconnected or otherwise had a Bad Error, leave
+				// as serialize.
+			}
+		}
+
+		// \todo not exactly sure why this only reports on a file creation error?
+		const bool bReportAnalytic = InstallerError->HasError() == false;
+		switch (ConstructionError)
+		{
+		case EConstructionError::OutOfDiskSpace:
+			{
+				uint64 LocalAvailableDiskSpace = AvailableDiskSpace.load(std::memory_order_acquire);
+				uint64 LocalRequiredDiskSpace = RequiredDiskSpace.load(std::memory_order_acquire);
+				UE_LOG(LogBuildPatchServices, Error, TEXT("Out of HDD space. Needs %llu bytes, Free %llu bytes"), LocalRequiredDiskSpace, LocalAvailableDiskSpace);
+				InstallerError->SetError(
+					EBuildPatchInstallError::OutOfDiskSpace,
+					DiskSpaceErrorCodes::DuringInstallation,
+					0,
+					BuildPatchServices::GetDiskSpaceMessage(Configuration.InstallDirectory, LocalRequiredDiskSpace, LocalAvailableDiskSpace));
+				break;
+			}
+		case EConstructionError::CannotCreateFile:
+			{
 				if (bReportAnalytic)
 				{
 					InstallerAnalytics->RecordConstructionError(BuildFilename, LastError, TEXT("Could Not Create File"));
@@ -710,13 +1011,19 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 				}
 				InstallerError->SetError(EBuildPatchInstallError::FileConstructionFail, ConstructionErrorCodes::FileCreateFail, LastError);
 				break;
-			case EConstructionError::MissingChunk:
+			}
+		case EConstructionError::MissingChunk:
+			{
 				InstallerError->SetError(EBuildPatchInstallError::FileConstructionFail, ConstructionErrorCodes::MissingChunkData);
 				break;
-			case EConstructionError::SerializeError:
+			}
+		case EConstructionError::SerializeError:
+			{
 				InstallerError->SetError(EBuildPatchInstallError::FileConstructionFail, ConstructionErrorCodes::SerializationError);
 				break;
-			case EConstructionError::TrackingError:
+			}
+		case EConstructionError::TrackingError:
+			{
 				InstallerError->SetError(EBuildPatchInstallError::FileConstructionFail, ConstructionErrorCodes::TrackingError);
 				break;
 			}
@@ -762,6 +1069,11 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 	}
 #endif
 
+	if (bSuccess)
+	{
+		ChunkSource->ReportFileCompletion();
+	}
+
 	// Delete the staging file if unsuccessful by means of any failure that could leave the file in unknown state.
 	if (!bSuccess)
 	{
@@ -782,51 +1094,38 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 	return bSuccess;
 }
 
-bool FBuildPatchFileConstructor::InsertChunkData(const FChunkPart& ChunkPart, FArchive& DestinationFile, FSHA1& HashState, EConstructionError& ConstructionError)
+bool FBuildPatchFileConstructor::AppendChunkData(const FChunkPart& ChunkPart, TArray<uint8>& DestinationBuffer, EConstructionError& ConstructionError)
 {
-	if (bStallWhenFileSystemThrottled)
-	{
-		int64 AvailableBytes = FileSystem->GetAllowedBytesToWriteThrottledStorage(*DestinationFile.GetArchiveName());
-		while (ChunkPart.Size > AvailableBytes)
-		{
-			UE_LOG(LogBuildPatchServices, Display, TEXT("Avaliable write bytes to write throttled storage exhausted (%s).  Sleeping %ds.  Bytes needed: %u, bytes available: %lld")
-				, *DestinationFile.GetArchiveName(), SleepTimeWhenFileSystemThrottledSeconds, ChunkPart.Size, AvailableBytes);
-			FPlatformProcess::Sleep(SleepTimeWhenFileSystemThrottledSeconds);
-			AvailableBytes = FileSystem->GetAllowedBytesToWriteThrottledStorage(*DestinationFile.GetArchiveName());
-		}
-	}
-
-	uint8* Data;
-	uint8* DataStart;
 	ConstructionError = EConstructionError::None;
-	ISpeedRecorder::FRecord ActivityRecord;
+	
 	FileConstructorStat->OnChunkGet(ChunkPart.Guid);
-	IChunkDataAccess* ChunkDataAccess = ChunkSource->Get(ChunkPart.Guid);
+	IChunkDataAccess* ChunkDataAccess = nullptr;
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GetChunkData);
+		ChunkDataAccess = ChunkSource->Get(ChunkPart.Guid);
+	}
 	if (ChunkDataAccess != nullptr)
 	{
+		uint8* Data;
 		ChunkDataAccess->GetDataLock(&Data, nullptr);
-		FileConstructorStat->OnBeforeWrite();
-		ActivityRecord.CyclesStart = FStatsCollector::GetCycles();
-		DataStart = &Data[ChunkPart.Offset];
-		HashState.Update(DataStart, ChunkPart.Size);
-		DestinationFile.Serialize(DataStart, ChunkPart.Size);
-		const bool bSerializeOk = !DestinationFile.IsError();
-		ActivityRecord.Size = ChunkPart.Size;
-		ActivityRecord.CyclesEnd = FStatsCollector::GetCycles();
-		FileConstructorStat->OnAfterWrite(ActivityRecord);
+
+		uint8* DataStart = &Data[ChunkPart.Offset];
+
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(GetChunkData_Copy);
+			DestinationBuffer.Append(DataStart, ChunkPart.Size);
+		}
+
 		ChunkDataAccess->ReleaseDataLock();
 		const bool bPopReferenceOk = ChunkReferenceTracker->PopReference(ChunkPart.Guid);
-		if (!bSerializeOk)
-		{
-			ConstructionError = EConstructionError::SerializeError;
-		}
-		else if (!bPopReferenceOk)
+		if (!bPopReferenceOk)
 		{
 			ConstructionError = EConstructionError::TrackingError;
 		}
 	}
 	else
 	{
+		// We'd really like to know if this was because it's missing or because it failed in some way.
 		ConstructionError = EConstructionError::MissingChunk;
 	}
 	return ConstructionError == EConstructionError::None;

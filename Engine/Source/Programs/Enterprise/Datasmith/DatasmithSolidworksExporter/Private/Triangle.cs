@@ -72,7 +72,7 @@ namespace DatasmithSolidworks
 
 		public override string ToString()
 		{
-			return "" + Index1 + "," + Index2 + "," + Index3;
+			return "" + Index1 + "," + Index2 + "," + Index3 + ";" + MaterialID;
 		}
 	}
 }

@@ -27,6 +27,7 @@ FRigVMExprAST::FRigVMExprAST(EType InType, const FRigVMASTProxy& InProxy)
 	: Name(NAME_None)
 	, Type(InType)
 	, Index(INDEX_NONE)
+	, ParserPtr(nullptr)
 {
 }
 
@@ -105,21 +106,53 @@ const FRigVMExprAST* FRigVMExprAST::GetParent() const
 
 const FRigVMExprAST* FRigVMExprAST::GetFirstParentOfType(EType InExprType) const
 {
+	if(const FRigVMParserAST* Parser = GetParser())
+	{
+		if(FirstParentOfTypeCacheVersion.Get(INDEX_NONE) == Parser->CacheVersion)
+		{
+			if(const FRigVMExprAST* const* ExistingFirstParent = CachedFirstParentOfType.Find(InExprType))
+			{
+				return *ExistingFirstParent;
+			}
+		}
+		else
+		{
+			// if the cache version no longer matches,
+			// clear the map to make sure we re-retrieve the first parent accordingly.
+			CachedFirstParentOfType.Reset();
+		}
+	}
+
+	const FRigVMExprAST* FirstParent = nullptr;
+	
 	for(const FRigVMExprAST* Parent : Parents)
 	{
 		if (Parent->IsA(InExprType))
 		{
-			return Parent;
+			FirstParent = Parent;
+			break;
 		}
 	}
-	for (const FRigVMExprAST* Parent : Parents)
+
+	if(FirstParent == nullptr)
 	{
-		if (const FRigVMExprAST* GrandParent = Parent->GetFirstParentOfType(InExprType))
+		for (const FRigVMExprAST* Parent : Parents)
 		{
-			return GrandParent;
+			if (const FRigVMExprAST* GrandParent = Parent->GetFirstParentOfType(InExprType))
+			{
+				FirstParent = GrandParent;
+				break;
+			}
 		}
 	}
-	return nullptr;
+
+	if(const FRigVMParserAST* Parser = GetParser())
+	{
+		FirstParentOfTypeCacheVersion = Parser->CacheVersion;
+		CachedFirstParentOfType.FindOrAdd(InExprType, nullptr) = FirstParent;
+	}
+
+	return FirstParent;
 }
 
 bool FRigVMExprAST::IsParentedTo(const FRigVMExprAST* InParentExpr) const
@@ -148,21 +181,53 @@ bool FRigVMExprAST::IsParentOf(const FRigVMExprAST* InChildExpr) const
 
 const FRigVMExprAST* FRigVMExprAST::GetFirstChildOfType(EType InExprType) const
 {
+	if(const FRigVMParserAST* Parser = GetParser())
+	{
+		if(FirstChildOfTypeCacheVersion.Get(INDEX_NONE) == Parser->CacheVersion)
+		{
+			if(const FRigVMExprAST* const* ExistingFirstChild = CachedFirstChildOfType.Find(InExprType))
+			{
+				return *ExistingFirstChild;
+			}
+		}
+		else
+		{
+			// if the cache version no longer matches,
+			// clear the map to make sure we re-retrieve the first child accordingly.
+			CachedFirstChildOfType.Reset();
+		}
+	}
+
+	const FRigVMExprAST* FirstChild = nullptr;
+	
 	for (const FRigVMExprAST* Child : Children)
 	{
 		if (Child->IsA(InExprType))
 		{
-			return Child;
+			FirstChild = Child;
+			break;
 		}
 	}
-	for (const FRigVMExprAST* Child : Children)
+
+	if(FirstChild == nullptr)
 	{
-		if (const FRigVMExprAST* GrandChild = Child->GetFirstChildOfType(InExprType))
+		for (const FRigVMExprAST* Child : Children)
 		{
-			return GrandChild;
+			if (const FRigVMExprAST* GrandChild = Child->GetFirstChildOfType(InExprType))
+			{
+				FirstChild = GrandChild;
+				break;
+			}
 		}
 	}
-	return nullptr;
+
+	if(const FRigVMParserAST* Parser = GetParser())
+	{
+		FirstChildOfTypeCacheVersion = Parser->CacheVersion;
+		CachedFirstChildOfType.FindOrAdd(InExprType, nullptr) = FirstChild;
+	}
+
+	return FirstChild;
 }
 
 const FRigVMBlockExprAST* FRigVMExprAST::GetBlock() const
@@ -394,10 +459,30 @@ void FRigVMExprAST::GetBlocksImpl(FRigVMBlockArray& InOutBlocks) const
 		return;
 	}
 	
-	for(int32 ParentIndex = 0; ParentIndex < NumParents(); ParentIndex++)
+	const FRigVMParserAST* Parser = GetParser();
+	check(Parser);
+	
+	if(BlocksCacheVersion.Get(INDEX_NONE) != Parser->CacheVersion)
 	{
-		const FRigVMExprAST* ParentExpression = ParentAt(ParentIndex);
-		ParentExpression->GetBlocksImpl(InOutBlocks);
+		CachedBlocks.Reset();
+		for(int32 ParentIndex = 0; ParentIndex < NumParents(); ParentIndex++)
+		{
+			const FRigVMExprAST* ParentExpression = ParentAt(ParentIndex);
+			ParentExpression->GetBlocksImpl(CachedBlocks);
+		}
+		BlocksCacheVersion = Parser->CacheVersion;
+	}
+
+	if(InOutBlocks.IsEmpty())
+	{
+		InOutBlocks = CachedBlocks;
+	}
+	else
+	{
+		for(const FRigVMBlockExprAST* Block : CachedBlocks)
+		{
+			InOutBlocks.AddUnique(Block);
+		}
 	}
 }
 
@@ -532,8 +617,12 @@ void FRigVMExprAST::ReplaceChild(FRigVMExprAST* InCurrentChild, FRigVMExprAST* I
 			Children[ChildIndex] = InNewChild;
 			InCurrentChild->Parents.Remove(this);
 			InNewChild->Parents.Add(this);
-			InCurrentChild->InvalidateCaches();
-			InNewChild->InvalidateCaches();
+
+			TArray<bool> InvalidateCachesProcessed;
+			InvalidateCachesProcessed.AddZeroed(GetParser()->Expressions.Num());
+			InCurrentChild->InvalidateCachesImpl(InvalidateCachesProcessed);
+			InNewChild->InvalidateCachesImpl(InvalidateCachesProcessed);
+			InvalidateCachesImpl(InvalidateCachesProcessed);
 		}
 	}
 }
@@ -623,8 +712,16 @@ void FRigVMExprAST::InvalidateCachesImpl(TArray<bool>& OutProcessed)
 	}
 	
 	BlockCombinationHash.Reset();
+	BlocksCacheVersion.Reset();
+	FirstChildOfTypeCacheVersion.Reset();
+	FirstParentOfTypeCacheVersion.Reset();
 	MaximumDepth.Reset();
 	OutProcessed[Index] = true;
+
+	if(const FRigVMParserAST* Parser = GetParser())
+	{
+		Parser->IncrementCacheVersion();
+	}
 
 	for(FRigVMExprAST* ChildExpression : Children)
 	{
@@ -927,7 +1024,8 @@ void FRigVMParserASTSettings::Report(EMessageSeverity::Type InSeverity, UObject*
 const TArray<FRigVMASTProxy> FRigVMParserAST::EmptyProxyArray;
 
 FRigVMParserAST::FRigVMParserAST(TArray<URigVMGraph*> InGraphs, URigVMController* InController, const FRigVMParserASTSettings& InSettings, const TArray<FRigVMExternalVariable>& InExternalVariables)
-	: LibraryNodeBeingCompiled(nullptr)
+	: CacheVersion(0)
+	, LibraryNodeBeingCompiled(nullptr)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
@@ -1267,8 +1365,7 @@ FRigVMExprAST* FRigVMParserAST::CreateExpressionForNode(const FRigVMASTProxy& In
 			InNodeProxy.IsA<URigVMVariableNode>() ||
 			InNodeProxy.IsA<URigVMEnumNode>() ||
 			InNodeProxy.IsA<URigVMLibraryNode>() ||
-			InNodeProxy.IsA<URigVMFunctionEntryNode>() ||
-			InNodeProxy.IsA<URigVMFunctionReturnNode>())
+			InNodeProxy.IsA<URigVMFunctionInterfaceNode>())
 		{
 			NodeExpr = MakeExpr<FRigVMNoOpExprAST>(InNodeProxy);
 		}
@@ -1327,8 +1424,8 @@ TArray<FRigVMExprAST*> FRigVMParserAST::TraversePins(const FRigVMASTProxy& InNod
 		{
 			for (URigVMPin* Pin : Node->GetPins())
 			{
-				// We skip decorator pins as we don't want to traverse them
-				if (!Pin->IsDecoratorPin())
+				// We skip trait pins as we don't want to traverse them
+				if (!Pin->IsTraitPin()  || Settings.bSetupTraits)
 				{
 					Pins.AddUnique(Pin);
 				}
@@ -1418,7 +1515,28 @@ FRigVMExprAST* FRigVMParserAST::TraversePin(const FRigVMASTProxy& InPinProxy, FR
 		}
 	}
 
-	if ((Pin->GetDirection() == ERigVMPinDirection::Input ||
+	if(Pin->IsTraitPin())
+	{
+		PinExpr = MakeExpr<FRigVMVarExprAST>(FRigVMExprAST::EType::Var, InPinProxy);
+
+		if(Settings.bSetupTraits)
+		{
+			// Traits can generate their own programmatic pins via FRigVMTrait::GetProgrammaticPins. We account for these as additional expressions if the
+			// pin is not part of the set of sub-pins exposed on the struct
+			for(URigVMPin* SubPin : Pin->SubPins)
+			{
+				if(SubPin->IsProgrammaticPin())
+				{
+					// Not a pin from the struct - add a synthetic var for this parent too
+					FRigVMASTProxy SubPinProxy = InPinProxy.GetSibling(SubPin);
+					FRigVMExprAST* SubPinExpr = TraversePin(SubPinProxy, InParentExpr);
+					const int32 ChildIndex = InParentExpr->Children.Find(SubPinExpr);
+					InParentExpr->PinNameToChildIndex.FindOrAdd(SubPinExpr->GetName()) = ChildIndex;
+				}
+			}
+		}
+	}
+	else if ((Pin->GetDirection() == ERigVMPinDirection::Input ||
 		Pin->GetDirection() == ERigVMPinDirection::Visible) &&
 		LinkIndices.Num() == 0)
 	{
@@ -1478,7 +1596,8 @@ FRigVMExprAST* FRigVMParserAST::TraversePin(const FRigVMASTProxy& InPinProxy, FR
 
 		if (!bHasSourceLinkToRoot && 
 			GetSourceLinkIndices(InPinProxy, false).Num() == 0 &&
-			(Pin->GetDirection() == ERigVMPinDirection::IO || LinkIndices.Num() > 0))
+			(Pin->GetDirection() == ERigVMPinDirection::IO ||
+			(LinkIndices.Num() > 0 && (Pin->IsArray() || Pin->GetNode()->IsA<URigVMVariableNode>()))))
 		{
 			FRigVMLiteralExprAST* LiteralExpr = MakeExpr<FRigVMLiteralExprAST>(InPinProxy);
 			const FRigVMASTLinkDescription LiteralLink(InPinProxy, InPinProxy, FString());
@@ -1608,6 +1727,15 @@ FRigVMExprAST* FRigVMParserAST::TraverseLink(int32 InLinkIndex, FRigVMExprAST* I
 		// Due to the unpredictability of lazy branches, we need to make sure that non-lazy pins are not
 		// affected by the execution of lazy evaluation.
 		if (!TargetRootPin->IsLazy() && TargetRootPin->GetNode()->HasLazyPin(true))
+		{
+			bRequiresCopy = true;
+		}
+	}
+
+	if (!bRequiresCopy)
+	{
+		// Programmatic pins always require a copy
+		if(TargetPin->IsProgrammaticPin())
 		{
 			bRequiresCopy = true;
 		}
@@ -1918,6 +2046,12 @@ void FRigVMParserAST::FoldAssignments()
 			}
 		}
 
+		// Skip folding for programmatic pins as we expect them to always exist in work memory
+		if(TargetPin->IsProgrammaticPin())
+		{
+			continue;
+		}
+		
 		FRigVMExprAST* Parent = AssignExpr->Parents[0];
 		if (!Parent->IsA(FRigVMExprAST::EType::Var))
 		{
@@ -2757,6 +2891,7 @@ void FRigVMParserAST::RemoveExpressions(TArray<FRigVMExprAST*> InExprs)
 	}
 
 	RefreshExprIndices();
+	IncrementCacheVersion();
 }
 
 void FRigVMParserAST::TraverseParents(const FRigVMExprAST* InExpr, TFunctionRef<bool(const FRigVMExprAST*)> InContinuePredicate)
@@ -2808,8 +2943,13 @@ TArray<int32> FRigVMParserAST::GetLinkIndices(const FRigVMASTProxy& InPinProxy, 
 		URigVMPin* Pin = InPinProxy.GetSubjectChecked<URigVMPin>();
 		for (URigVMPin* SubPin : Pin->GetSubPins())
 		{
-			FRigVMASTProxy SubPinProxy = InPinProxy.GetSibling(SubPin);
-			LinkIndices.Append(GetLinkIndices(SubPinProxy, bGetSource, true));
+			// We dont get links to programmatic pins as links are traversed manually in TraversePin rather than
+			// using links from parent traits. This ensures we dont double-up on programmatic pin traversal.
+			if(!SubPin->IsProgrammaticPin())
+			{
+				FRigVMASTProxy SubPinProxy = InPinProxy.GetSibling(SubPin);
+				LinkIndices.Append(GetLinkIndices(SubPinProxy, bGetSource, true));
+			}
 		}
 	}
 
@@ -2829,7 +2969,10 @@ void FRigVMParserAST::Inline(const TArray<URigVMGraph*>& InGraphs)
 	{
 		for (URigVMNode* LocalNode : Graph->GetNodes())
 		{
-			LocalNodeProxies.Add(FRigVMASTProxy::MakeFromUObject(LocalNode));
+			if (IsValid(LocalNode))
+			{
+				LocalNodeProxies.Add(FRigVMASTProxy::MakeFromUObject(LocalNode));
+			}
 		}
 	}
 	Inline(InGraphs, LocalNodeProxies);
@@ -2862,8 +3005,7 @@ void FRigVMParserAST::Inline(const TArray<URigVMGraph*>& InGraphs, const TArray<
 			// If its an interface node of the library we are compiling, don't recurse
 			if (OutTraversalInfo.LibraryNodeBeingCompiled != nullptr)
 			{
-				if (Node->IsA<URigVMFunctionEntryNode>() ||
-					Node->IsA<URigVMFunctionReturnNode>())
+				if (Node->IsA<URigVMFunctionInterfaceNode>())
 				{
 					if (Node->GetTypedOuter<URigVMLibraryNode>() == OutTraversalInfo.LibraryNodeBeingCompiled)
 					{
@@ -2884,8 +3026,7 @@ void FRigVMParserAST::Inline(const TArray<URigVMGraph*>& InGraphs, const TArray<
 			}
 			
 			return Node->IsA<URigVMLibraryNode>() ||
-				Node->IsA<URigVMFunctionEntryNode>() ||
-				Node->IsA<URigVMFunctionReturnNode>();
+				Node->IsA<URigVMFunctionInterfaceNode>();
 		}
 
 		static bool IsValidPinForAST(const FRigVMASTProxy& InPinProxy, LocalPinTraversalInfo& OutTraversalInfo)
@@ -3283,8 +3424,7 @@ void FRigVMParserAST::Inline(const TArray<URigVMGraph*>& InGraphs, const TArray<
 			const bool bIsCompilingFunction = OutTraversalInfo.LibraryNodeBeingCompiled != nullptr;
 			if (bIsCompilingFunction)
 			{
-				if (InNodeProxy.IsA<URigVMFunctionEntryNode>() ||
-				   InNodeProxy.IsA<URigVMFunctionReturnNode>())
+				if (InNodeProxy.IsA<URigVMFunctionInterfaceNode>())
 				{
 					URigVMNode* Node = InNodeProxy.GetSubjectChecked<URigVMNode>();
 					if (Node->GetTypedOuter<URigVMLibraryNode>() != OutTraversalInfo.LibraryNodeBeingCompiled)
@@ -3295,8 +3435,7 @@ void FRigVMParserAST::Inline(const TArray<URigVMGraph*>& InGraphs, const TArray<
 			}
 			else
 			{
-				if (InNodeProxy.IsA<URigVMFunctionEntryNode>() ||
-				   InNodeProxy.IsA<URigVMFunctionReturnNode>())
+				if (InNodeProxy.IsA<URigVMFunctionInterfaceNode>())
 				{
 					return;
 				}
@@ -3429,4 +3568,9 @@ FString FRigVMParserAST::GetLinkAsString(const FRigVMASTLinkDescription& InLink)
 	return URigVMLink::GetPinPathRepresentation(SourcePin->GetPinPath(), 
 		 FString::Printf(TEXT("%s%s%s"), *TargetPin->GetPinPath(),
 			*(InLink.SegmentPath.IsEmpty() ? EmptyString : PeriodString), *InLink.SegmentPath));
+}
+
+void FRigVMParserAST::IncrementCacheVersion() const
+{
+	CacheVersion++;
 }

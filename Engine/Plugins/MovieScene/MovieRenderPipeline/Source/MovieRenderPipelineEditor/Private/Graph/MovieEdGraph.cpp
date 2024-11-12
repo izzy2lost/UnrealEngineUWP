@@ -27,26 +27,44 @@ UMovieGraphConfig* UMoviePipelineEdGraph::GetPipelineGraph() const
 
 void UMoviePipelineEdGraph::InitFromRuntimeGraph(UMovieGraphConfig* InGraph)
 {
-	// Don't allow reinitialization of an existing graph
-	check(InGraph && !bInitialized);
+	check(InGraph);
 
 	TMap<UMovieGraphNode*, UMoviePipelineEdGraphNodeBase*> NodeLookup;
 
 	// Input
 	{
 		UMovieGraphNode* InputNode = InGraph->GetInputNode();
-		NodeLookup.Add(InputNode, CreateNodeFromRuntimeNode<UMoviePipelineEdGraphNodeInput>(InputNode));
+		UMoviePipelineEdGraphNodeBase* EdInputNode = Cast<UMoviePipelineEdGraphNodeBase>(InputNode->GraphNode);
+		if (!EdInputNode)
+		{
+			EdInputNode = CreateNodeFromRuntimeNode<UMoviePipelineEdGraphNodeInput>(InputNode);
+		}
+		
+		NodeLookup.Add(InputNode, EdInputNode);
 	}
 
 	// Output
 	{
 		UMovieGraphNode* OutputNode = InGraph->GetOutputNode();
-		NodeLookup.Add(OutputNode, CreateNodeFromRuntimeNode<UMoviePipelineEdGraphNodeOutput>(OutputNode));
+		UMoviePipelineEdGraphNodeBase* EdOutputNode = Cast<UMoviePipelineEdGraphNodeBase>(OutputNode->GraphNode);
+		if (!EdOutputNode)
+		{
+			EdOutputNode = CreateNodeFromRuntimeNode<UMoviePipelineEdGraphNodeOutput>(OutputNode);
+		}
+		
+		NodeLookup.Add(OutputNode, EdOutputNode);
 	}
 
 	// Create the rest of the nodes in the graph
 	for (const TObjectPtr<UMovieGraphNode>& RuntimeNode : InGraph->GetNodes())
 	{
+		// Don't re-create the editor node if it already exists
+		if (RuntimeNode->GraphNode)
+		{
+			NodeLookup.Add(RuntimeNode, Cast<UMoviePipelineEdGraphNodeBase>(RuntimeNode->GraphNode));
+			continue;
+		}
+		
 		if (RuntimeNode->IsA<UMovieGraphVariableNode>())
 		{
 			NodeLookup.Add(RuntimeNode, CreateNodeFromRuntimeNode<UMoviePipelineEdGraphVariableNode>(RuntimeNode));
@@ -63,24 +81,27 @@ void UMoviePipelineEdGraph::InitFromRuntimeGraph(UMovieGraphConfig* InGraph)
 
 	// Now that we've added an Editor Graph representation for every runtime node in the graph, link
 	// the editor nodes together to match the Runtime Layout.
-	for (const TPair< UMovieGraphNode*, UMoviePipelineEdGraphNodeBase*> Pair : NodeLookup)
+	for (const TPair<UMovieGraphNode*, UMoviePipelineEdGraphNodeBase*>& Pair : NodeLookup)
 	{
-		const bool bCreateInboundLinks = false;
-		const bool bCreateOutboundLinks = true;
+		constexpr bool bCreateInboundLinks = false;
+		constexpr bool bCreateOutboundLinks = true;
 		CreateLinks(Pair.Value, bCreateInboundLinks, bCreateOutboundLinks, NodeLookup);
 	}
 
-	// Restore editor-only nodes, which have no runtime node equivalent
-	for (const TObjectPtr<UObject>& EditorOnlyNodeObject : InGraph->GetEditorOnlyNodes())
-	{
-		if (const UEdGraphNode* EdGraphNode = Cast<UEdGraphNode>(EditorOnlyNodeObject))
-		{
-			UEdGraphNode* NewEdGraphNode = DuplicateObject(EdGraphNode, /*Outer=*/this);
-			const bool bIsUserAction = false;
-			const bool bSelectNewNode = false;
-			AddNode(NewEdGraphNode, bIsUserAction, bSelectNewNode);
-		}
-	}
+	// NOTE: Commented-out because the runtime graph has been updated to persist an editor graph, so editor-only nodes do not need to be
+	// restored anymore. If the runtime graph is updated to not persist the editor graph in the future, the below code will need to be run again.
+	//
+	// Restore editor-only nodes, which have no runtime node equivalent.
+	// for (const TObjectPtr<UObject>& EditorOnlyNodeObject : InGraph->GetEditorOnlyNodes())
+	// {
+	// 	if (const UEdGraphNode* EdGraphNode = Cast<UEdGraphNode>(EditorOnlyNodeObject))
+	// 	{
+	// 		UEdGraphNode* NewEdGraphNode = DuplicateObject(EdGraphNode, /*Outer=*/this);
+	// 		const bool bIsUserAction = false;
+	// 		const bool bSelectNewNode = false;
+	// 		AddNode(NewEdGraphNode, bIsUserAction, bSelectNewNode);
+	// 	}
+	// }
 
 	RegisterDelegates(InGraph);
 
@@ -89,8 +110,15 @@ void UMoviePipelineEdGraph::InitFromRuntimeGraph(UMovieGraphConfig* InGraph)
 
 void UMoviePipelineEdGraph::RegisterDelegates(UMovieGraphConfig* InGraph)
 {
-	InGraph->OnGraphChangedDelegate.AddUObject(this, &UMoviePipelineEdGraph::OnGraphConfigChanged);
-	InGraph->OnGraphNodesDeletedDelegate.AddUObject(this, &UMoviePipelineEdGraph::OnGraphNodesDeleted);
+	if (!InGraph->OnGraphChangedDelegate.IsBoundToObject(this))
+	{
+		InGraph->OnGraphChangedDelegate.AddUObject(this, &UMoviePipelineEdGraph::OnGraphConfigChanged);
+	}
+
+	if (!InGraph->OnGraphNodesDeletedDelegate.IsBoundToObject(this))
+	{
+		InGraph->OnGraphNodesDeletedDelegate.AddUObject(this, &UMoviePipelineEdGraph::OnGraphNodesDeleted);
+	}
 }
 
 void UMoviePipelineEdGraph::CreateLinks(UMoviePipelineEdGraphNodeBase* InGraphNode, bool bCreateInboundLinks, bool bCreateOutboundLinks)
@@ -123,7 +151,7 @@ void UMoviePipelineEdGraph::CreateLinks(UMoviePipelineEdGraphNodeBase* InGraphNo
 	const UMovieGraphNode* RuntimeNode = InGraphNode->GetRuntimeNode();
 	check(RuntimeNode);
 
-	auto CreateLinks = [&](const TArray<TObjectPtr<UMovieGraphPin>>& Pins, EEdGraphPinDirection PrimaryDirection)
+	auto CreateLinks = [&](const TArray<UMovieGraphPin*>& Pins, EEdGraphPinDirection PrimaryDirection)
 	{
 		for (const UMovieGraphPin* Pin : Pins)
 		{

@@ -208,10 +208,16 @@ struct FParticleEmitterBuildInfo
 	FParticleEmitterBuildInfo();
 };
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+struct FParticleEmitterInstanceFixLayout
+{
+	virtual ~FParticleEmitterInstanceFixLayout() = default;
+};
+
 /*-----------------------------------------------------------------------------
 	FParticleEmitterInstance
 -----------------------------------------------------------------------------*/
-struct FParticleEmitterInstance
+struct FParticleEmitterInstance : FParticleEmitterInstanceFixLayout
 {
 public:
 	/** The maximum DeltaTime allowed for updating PeakActiveParticle tracking.
@@ -223,10 +229,10 @@ public:
 	UParticleEmitter* SpriteTemplate;
 	/** The component who owns it.										*/
 	UParticleSystemComponent* Component;
-	/** The index of the currently set LOD level.						*/
-	int32 CurrentLODLevelIndex;
 	/** The currently set LOD level.									*/
 	UParticleLODLevel* CurrentLODLevel;
+	/** The index of the currently set LOD level.						*/
+	int32 CurrentLODLevelIndex;
 	/** The offset to the TypeData payload in the particle data.		*/
 	int32 TypeDataOffset;
 	/** The offset to the TypeData instance payload.					*/
@@ -242,6 +248,8 @@ public:
 	int32 OrbitModuleOffset;
 	/** The offset to the Camera payload in the particle data.			*/
 	int32 CameraPayloadOffset;
+	/** The offset to the particle data.								*/
+	int32 PayloadOffset;
 	/** The location of the emitter instance							*/
 	FVector Location;
 	/** Transform from emitter local space to simulation space.			*/
@@ -249,27 +257,29 @@ public:
 	/** Transform from simulation space to world space.					*/
 	FMatrix SimulationToWorld;
 	/** Component can disable Tick and Rendering of this emitter. */
-	uint32 bEnabled : 1;
+	uint8 bEnabled : 1;
 	/** If true, kill this emitter instance when it is deactivated.		*/
-	uint32 bKillOnDeactivate:1;
+	uint8 bKillOnDeactivate:1;
 	/** if true, kill this emitter instance when it has completed.		*/
-	uint32 bKillOnCompleted:1;
+	uint8 bKillOnCompleted:1;
 	/** Whether this emitter requires sorting as specified by artist.	*/
-	uint32 bRequiresSorting:1;
+	uint8 bRequiresSorting:1;
 	/** If true, halt spawning for this instance.						*/
-	uint32 bHaltSpawning : 1;
+	uint8 bHaltSpawning : 1;
 	/** If true, this emitter has been disabled by game code and some systems to re-enable are not allowed. */
-	uint32 bHaltSpawningExternal : 1;
+	uint8 bHaltSpawningExternal : 1;
 	/** If true, the emitter has modules that require loop notification.*/
-	uint32 bRequiresLoopNotification:1;
+	uint8 bRequiresLoopNotification:1;
 	/** If true, the emitter ignores the component's scale. (Mesh emitters only). */
-	uint32 bIgnoreComponentScale:1;
+	uint8 bIgnoreComponentScale:1;
 	/** Hack: Make sure this is a Beam type to avoid casting from/to wrong types. */
-	uint32 bIsBeam:1;
+	uint8 bIsBeam:1;
 	/** Whether axis lock is enabled, cached here to avoid finding it from the module each frame */
-	uint32 bAxisLockEnabled : 1;
+	uint8 bAxisLockEnabled : 1;
 	/** When true and spawning is supressed, the bursts will be faked so that when spawning is enabled again, the bursts don't fire late. */
-	uint32 bFakeBurstsWhenSpawningSupressed : 1;
+	uint8 bFakeBurstsWhenSpawningSupressed : 1;
+	/** true if the emitter has no active particles and will no longer spawn any in the future */
+	uint8 bEmitterIsDone:1;
 	/** Axis lock flags, cached here to avoid finding it from the module each frame */
 	TEnumAsByte<EParticleAxisLock> LockAxisFlags;
 	/** The sort mode to use for this emitter as specified by artist.	*/
@@ -282,8 +292,6 @@ public:
 	uint8* InstanceData;
 	/** The size of the Instance data array.							*/
 	int32 InstancePayloadSize;
-	/** The offset to the particle data.								*/
-	int32 PayloadOffset;
 	/** The total size of a particle (in bytes).						*/
 	int32 ParticleSize;
 	/** The stride between particles in the ParticleData array.			*/
@@ -326,8 +334,6 @@ public:
 	TArray<float> EmitterDurations;
 	/** The emitter's delay for the current loop		*/
 	float CurrentDelay;
-	/** true if the emitter has no active particles and will no longer spawn any in the future */
-	bool bEmitterIsDone;
 
 	/** The number of triangles to render								*/
 	int32	TrianglesToRender;

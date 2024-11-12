@@ -9,18 +9,19 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
-using Jupiter.Controllers;
-using Jupiter.Implementation.Blob;
 using Jupiter.Common;
 using Jupiter.Common.Implementation;
+using Jupiter.Controllers;
+using Jupiter.Implementation.Blob;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
 namespace Jupiter.Implementation;
@@ -30,6 +31,7 @@ public class BlobService : IBlobService
 	private List<IBlobStore> _blobStores;
 	private readonly IOptionsMonitor<UnrealCloudDDCSettings> _settings;
 	private readonly IBlobIndex _blobIndex;
+	private readonly IReplicationLog _replicationLog;
 	private readonly IPeerStatusService _peerStatusService;
 	private readonly IHttpClientFactory _httpClientFactory;
 	private readonly IServiceCredentials _serviceCredentials;
@@ -49,11 +51,12 @@ public class BlobService : IBlobService
 		set => _blobStores = value.ToList();
 	}
 
-	public BlobService(IServiceProvider provider, IOptionsMonitor<UnrealCloudDDCSettings> settings, IOptionsMonitor<JupiterSettings> jupiterSettings, IBlobIndex blobIndex, IPeerStatusService peerStatusService, IHttpClientFactory httpClientFactory, IServiceCredentials serviceCredentials, INamespacePolicyResolver namespacePolicyResolver, IHttpContextAccessor httpContextAccessor, IRequestHelper? requestHelper, Tracer tracer, BufferedPayloadFactory bufferedPayloadFactory, ILogger<BlobService> logger, Meter? meter)
+	public BlobService(IServiceProvider provider, IOptionsMonitor<UnrealCloudDDCSettings> settings, IOptionsMonitor<JupiterSettings> jupiterSettings, IBlobIndex blobIndex, IReplicationLog replicationLog, IPeerStatusService peerStatusService, IHttpClientFactory httpClientFactory, IServiceCredentials serviceCredentials, INamespacePolicyResolver namespacePolicyResolver, IHttpContextAccessor httpContextAccessor, IRequestHelper? requestHelper, Tracer tracer, BufferedPayloadFactory bufferedPayloadFactory, ILogger<BlobService> logger, Meter? meter)
 	{
 		_blobStores = GetBlobStores(provider, settings).ToList();
 		_settings = settings;
 		_blobIndex = blobIndex;
+		_replicationLog = replicationLog;
 		_peerStatusService = peerStatusService;
 		_httpClientFactory = httpClientFactory;
 		_serviceCredentials = serviceCredentials;
@@ -95,12 +98,12 @@ public class BlobService : IBlobService
 		return store;
 	}
 
-	public async Task<ContentHash> VerifyContentMatchesHashAsync(Stream content, ContentHash identifier)
+	public async Task<ContentHash> VerifyContentMatchesHashAsync(Stream content, ContentHash identifier, CancellationToken cancellationToken = default)
 	{
 		ContentHash blobHash;
 		{
 			using TelemetrySpan _ = _tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash");
-			blobHash = await BlobId.FromStreamAsync(content);
+			blobHash = await BlobId.FromStreamAsync(content, cancellationToken);
 		}
 
 		if (!identifier.Equals(blobHash))
@@ -111,7 +114,7 @@ public class BlobService : IBlobService
 		return identifier;
 	}
 
-	public async Task<BlobId> PutObjectAsync(NamespaceId ns, IBufferedPayload payload, BlobId identifier)
+	public async Task<BlobId> PutObjectAsync(NamespaceId ns, IBufferedPayload payload, BlobId identifier, BucketId? bucketHint = null, CancellationToken cancellationToken = default)
 	{
 		bool useContentAddressedStorage = _namespacePolicyResolver.GetPoliciesForNs(ns).UseContentAddressedStorage;
 		using TelemetrySpan scope = _tracer.StartActiveSpan("put_blob")
@@ -120,16 +123,16 @@ public class BlobService : IBlobService
 			.SetAttribute("Content-Length", payload.Length.ToString());
 
 		await using Stream hashStream = payload.GetStream();
-		BlobId id = useContentAddressedStorage ? BlobId.FromContentHash(await VerifyContentMatchesHashAsync(hashStream, identifier)) : identifier;
+		BlobId id = useContentAddressedStorage ? BlobId.FromContentHash(await VerifyContentMatchesHashAsync(hashStream, identifier, cancellationToken)) : identifier;
 
-		BlobId objectStoreIdentifier = await PutObjectToStoresAsync(ns, payload, id);
-		await _blobIndex.AddBlobToIndexAsync(ns, id);
+		BlobId objectStoreIdentifier = await PutObjectToStoresAsync(ns, payload, id, bucketHint,cancellationToken);
+		await _blobIndex.AddBlobToIndexAsync(ns, id, cancellationToken: cancellationToken);
 
 		return objectStoreIdentifier;
 
 	}
 
-	public async Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] payload, BlobId identifier)
+	public async Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] payload, BlobId identifier, BucketId? bucketHint = null, CancellationToken cancellationToken = default)
 	{
 		bool useContentAddressedStorage = _namespacePolicyResolver.GetPoliciesForNs(ns).UseContentAddressedStorage;
 		using TelemetrySpan scope = _tracer.StartActiveSpan("put_blob")
@@ -139,15 +142,15 @@ public class BlobService : IBlobService
 			;
 
 		await using Stream hashStream = new MemoryStream(payload);
-		BlobId id = useContentAddressedStorage ? BlobId.FromContentHash(await VerifyContentMatchesHashAsync(hashStream, identifier)) : identifier;
+		BlobId id = useContentAddressedStorage ? BlobId.FromContentHash(await VerifyContentMatchesHashAsync(hashStream, identifier, cancellationToken)) : identifier;
 
-		BlobId objectStoreIdentifier = await PutObjectToStoresAsync(ns, payload, id);
-		await _blobIndex.AddBlobToIndexAsync(ns, id);
+		BlobId objectStoreIdentifier = await PutObjectToStoresAsync(ns, payload, id, bucketHint: bucketHint, cancellationToken: cancellationToken);
+		await _blobIndex.AddBlobToIndexAsync(ns, id, cancellationToken: cancellationToken);
 
 		return objectStoreIdentifier;
 	}
 
-	public async Task<Uri?> MaybePutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier)
+	public async Task<Uri?> MaybePutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier, BucketId? bucketHint = null, CancellationToken cancellationToken = default)
 	{
 		bool allowRedirectUris = _namespacePolicyResolver.GetPoliciesForNs(ns).AllowRedirectUris;
 		if (!allowRedirectUris)
@@ -173,6 +176,9 @@ public class BlobService : IBlobService
 			Uri? redirectUri = await store.PutObjectWithRedirectAsync(ns, identifier);
 			if (redirectUri != null)
 			{
+				// assumes that the blob is inserted successfully so we add this event now
+				await _replicationLog.InsertAddBlobEventAsync(ns, identifier, DateTime.UtcNow.ToReplicationBucket(), bucketHint);
+
 				return redirectUri;
 			}
 		}
@@ -181,7 +187,7 @@ public class BlobService : IBlobService
 		return null;
 	}
 
-	public async Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, IBufferedPayload content, BlobId identifier)
+	public async Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, IBufferedPayload content, BlobId identifier, BucketId? bucketHint, CancellationToken cancellationToken = default)
 	{
 		using TelemetrySpan scope = _tracer.StartActiveSpan("put_blob")
 			.SetAttribute("operation.name", "put_blob")
@@ -189,13 +195,13 @@ public class BlobService : IBlobService
 			.SetAttribute("Content-Length", content.Length.ToString())
 			;
 
-		BlobId objectStoreIdentifier = await PutObjectToStoresAsync(ns, content, identifier);
-		await _blobIndex.AddBlobToIndexAsync(ns, identifier);
+		BlobId objectStoreIdentifier = await PutObjectToStoresAsync(ns, content, identifier, bucketHint, cancellationToken);
+		await _blobIndex.AddBlobToIndexAsync(ns, identifier, cancellationToken: cancellationToken);
 
 		return objectStoreIdentifier;
 	}
 
-	private async Task<BlobId> PutObjectToStoresAsync(NamespaceId ns, IBufferedPayload bufferedPayload, BlobId identifier)
+	private async Task<BlobId> PutObjectToStoresAsync(NamespaceId ns, IBufferedPayload bufferedPayload, BlobId identifier, BucketId? bucketHint, CancellationToken cancellationToken = default)
 	{
 		IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
 
@@ -213,16 +219,20 @@ public class BlobService : IBlobService
 			await using Stream s = bufferedPayload.GetStream();
 			await store.PutObjectAsync(ns, s, identifier);
 		}
+		Task insertToReplicationLogTask = _replicationLog.InsertAddBlobEventAsync(ns, identifier, DateTime.UtcNow.ToReplicationBucket(), bucketHint: bucketHint);
+
 		NamespacePolicy policy = _namespacePolicyResolver.GetPoliciesForNs(ns);
 		if (policy.PopulateFallbackNamespaceOnUpload && policy.FallbackNamespace.HasValue)
 		{
-			await PutObjectToStoresAsync(policy.FallbackNamespace.Value, bufferedPayload, identifier);
-			await _blobIndex.AddBlobToIndexAsync(policy.FallbackNamespace.Value, identifier);
+			await PutObjectToStoresAsync(policy.FallbackNamespace.Value, bufferedPayload, identifier, bucketHint, cancellationToken);
+			await _blobIndex.AddBlobToIndexAsync(policy.FallbackNamespace.Value, identifier, cancellationToken: cancellationToken);
 		}
+
+		await insertToReplicationLogTask;
 		return identifier;
 	}
 
-	private async Task<BlobId> PutObjectToStoresAsync(NamespaceId ns, byte[] payload, BlobId identifier)
+	private async Task<BlobId> PutObjectToStoresAsync(NamespaceId ns, byte[] payload, BlobId identifier, BucketId? bucketHint = null, CancellationToken cancellationToken = default)
 	{
 		foreach (IBlobStore store in _blobStores)
 		{
@@ -232,17 +242,17 @@ public class BlobService : IBlobService
 		NamespacePolicy policy = _namespacePolicyResolver.GetPoliciesForNs(ns);
 		if (policy.PopulateFallbackNamespaceOnUpload && policy.FallbackNamespace.HasValue)
 		{
-			await PutObjectToStoresAsync(policy.FallbackNamespace.Value, payload, identifier);
-			await _blobIndex.AddBlobToIndexAsync(policy.FallbackNamespace.Value, identifier);
+			await PutObjectToStoresAsync(policy.FallbackNamespace.Value, payload, identifier, bucketHint: bucketHint, cancellationToken: cancellationToken);
+			await _blobIndex.AddBlobToIndexAsync(policy.FallbackNamespace.Value, identifier, cancellationToken: cancellationToken);
 		}
 		return identifier;
 	}
 
-	public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false, bool allowOndemandReplication = true)
+	public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false, bool allowOndemandReplication = true, BucketId? bucketHint = null, CancellationToken cancellationToken = default)
 	{
 		try
 		{
-			return await GetObjectFromStoresAsync(ns, blob, storageLayers, supportsRedirectUri);
+			return await GetObjectFromStoresAsync(ns, blob, storageLayers, supportsRedirectUri, cancellationToken);
 		}
 		catch (BlobNotFoundException)
 		{
@@ -265,7 +275,7 @@ public class BlobService : IBlobService
 					throw;
 				}
 
-				ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(user, request, policy.FallbackNamespace.Value, new [] { JupiterAclAction.ReadObject });
+				ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(user, request, policy.FallbackNamespace.Value, new[] { JupiterAclAction.ReadObject });
 				if (result != null)
 				{
 					_logger.LogInformation("Authorization error when attempting to fallback to namespace {FallbackNamespace}. This may be confusing for users that as they had access to original namespace {Namespace}", policy.FallbackNamespace.Value, ns);
@@ -277,18 +287,18 @@ public class BlobService : IBlobService
 					IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
 
 					// read the content from the fallback namespace
-					BlobContents fallbackContent = await GetObjectFromStoresAsync(policy.FallbackNamespace.Value, blob, storageLayers);
-					
+					BlobContents fallbackContent = await GetObjectFromStoresAsync(policy.FallbackNamespace.Value, blob, storageLayers, cancellationToken: cancellationToken);
+
 					// populate the primary namespace with the content
 					using TelemetrySpan _ = _tracer.StartActiveSpan("HierarchicalStore.Populate").SetAttribute("operation.name", "HierarchicalStore.Populate");
 					using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope($"blob.populate", "Populating caches with blob contents");
 
 					await using MemoryStream tempStream = new MemoryStream();
-					await fallbackContent.Stream.CopyToAsync(tempStream);
+					await fallbackContent.Stream.CopyToAsync(tempStream, cancellationToken);
 					byte[] data = tempStream.ToArray();
 
-					await PutObjectAsync(ns, data, blob);
-					return await GetObjectAsync(ns, blob);
+					await PutObjectAsync(ns, data, blob, bucketHint: null, cancellationToken);
+					return await GetObjectAsync(ns, blob, cancellationToken: cancellationToken);
 				}
 				catch (BlobNotFoundException)
 				{
@@ -300,7 +310,7 @@ public class BlobService : IBlobService
 			{
 				try
 				{
-					return await ReplicateObjectAsync(ns, blob);
+					return await ReplicateObjectAsync(ns, blob, bucketHint: bucketHint, cancellationToken: cancellationToken);
 				}
 				catch (BlobNotFoundException)
 				{
@@ -313,7 +323,7 @@ public class BlobService : IBlobService
 			{
 				try
 				{
-					return await ReplicateObjectAsync(policy.FallbackNamespace.Value, blob);
+					return await ReplicateObjectAsync(policy.FallbackNamespace.Value, blob, bucketHint: bucketHint, cancellationToken: cancellationToken);
 				}
 				catch (BlobNotFoundException)
 				{
@@ -326,7 +336,7 @@ public class BlobService : IBlobService
 		}
 	}
 
-	private async Task<BlobContents> GetObjectFromStoresAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
+	private async Task<BlobContents> GetObjectFromStoresAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false, CancellationToken cancellationToken = default)
 	{
 		bool seenBlobNotFound = false;
 		bool seenNamespaceNotFound = false;
@@ -359,7 +369,7 @@ public class BlobService : IBlobService
 
 			using TelemetrySpan scope = _tracer.StartActiveSpan("HierarchicalStore.GetObject")
 				.SetAttribute("operation.name", "HierarchicalStore.GetObject")
-				.SetAttribute("resource.name",  blob.ToString())
+				.SetAttribute("resource.name", blob.ToString())
 				.SetAttribute("BlobStore", store.GetType().ToString())
 				.SetAttribute("ObjectFound", false.ToString())
 				;
@@ -414,7 +424,7 @@ public class BlobService : IBlobService
 			using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope($"blob.populate", "Populating caches with blob contents");
 
 			// not using using as the blob contents will take ownership of this buffered payload and dispose it when the contents is disposed
-			IBufferedPayload bufferedPayload = await _bufferedPayloadFactory.CreateFromStreamAsync(blobContents.Stream, blobContents.Length);
+			IBufferedPayload bufferedPayload = await _bufferedPayloadFactory.CreateFromStreamAsync(blobContents.Stream, blobContents.Length, cancellationToken);
 
 			// Don't populate the last store, as that is where we got the hit
 			for (int i = 0; i < numStoreMisses; i++)
@@ -432,11 +442,11 @@ public class BlobService : IBlobService
 			blobContents = new BlobContents(bufferedPayload);
 #pragma warning restore CA2000 // Dispose objects before losing scope
 		}
-		
+
 		return blobContents;
 	}
 
-	public async Task<Uri?> GetObjectWithRedirectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null)
+	public async Task<Uri?> GetObjectWithRedirectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, CancellationToken cancellationToken = default)
 	{
 		bool seenBlobNotFound = false;
 		bool seenNamespaceNotFound = false;
@@ -469,7 +479,7 @@ public class BlobService : IBlobService
 
 			using TelemetrySpan scope = _tracer.StartActiveSpan("HierarchicalStore.GetObjectRedirect")
 				.SetAttribute("operation.name", "HierarchicalStore.GetObject")
-				.SetAttribute("resource.name",  blob.ToString())
+				.SetAttribute("resource.name", blob.ToString())
 				.SetAttribute("BlobStore", store.GetType().ToString())
 				.SetAttribute("ObjectFound", false.ToString())
 				;
@@ -513,7 +523,7 @@ public class BlobService : IBlobService
 		return redirectUri;
 	}
 
-	public async Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId blobId)
+	public async Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId blobId, CancellationToken cancellationToken)
 	{
 		bool seenBlobNotFound = false;
 		bool seenNamespaceNotFound = false;
@@ -562,7 +572,7 @@ public class BlobService : IBlobService
 		throw new BlobNotFoundException(ns, blobId);
 	}
 
-	public async Task<BlobContents> ReplicateObjectAsync(NamespaceId ns, BlobId blob, bool force = false)
+	public async Task<BlobContents> ReplicateObjectAsync(NamespaceId ns, BlobId blob, bool force = false, BucketId? bucketHint = null, CancellationToken cancellationToken = default)
 	{
 		if (!force && !ShouldFetchBlobOnDemand(ns))
 		{
@@ -573,7 +583,7 @@ public class BlobService : IBlobService
 
 		using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("blob.replicate", "Replicating blob from remote instances");
 
-		List<string> regions = await _blobIndex.GetBlobRegionsAsync(ns, blob);
+		List<string> regions = await _blobIndex.GetBlobRegionsAsync(ns, blob, cancellationToken);
 
 		if (!regions.Any())
 		{
@@ -602,7 +612,7 @@ public class BlobService : IBlobService
 				url += "/";
 			}
 			using HttpRequestMessage blobRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"{url}api/v1/blobs/{ns}/{blob}?allowOndemandReplication=false"));
-			HttpResponseMessage blobResponse = await httpClient.SendAsync(blobRequest, HttpCompletionOption.ResponseHeadersRead);
+			HttpResponseMessage blobResponse = await httpClient.SendAsync(blobRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
 			if (blobResponse.StatusCode == HttpStatusCode.NotFound)
 			{
@@ -612,22 +622,25 @@ public class BlobService : IBlobService
 
 			if (blobResponse.StatusCode != HttpStatusCode.OK)
 			{
+				_logger.LogWarning("Failed to replicate {Blob} in {Namespace} from region {Region} due to bad http status code {StatusCode}.", blob, ns, region, blobResponse.StatusCode);
 				throw new BlobReplicationException(ns, blob, $"Failed to replicate {blob} in {ns} from region {region} due to bad http status code {blobResponse.StatusCode}.");
 			}
 
-			await using Stream s = await blobResponse.Content.ReadAsStreamAsync();
-			using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFilesystemBufferedPayloadAsync(s);
-			await PutObjectAsync(ns, payload, blob);
+			await using Stream s = await blobResponse.Content.ReadAsStreamAsync(cancellationToken);
+			using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFilesystemBufferedPayloadAsync(s, cancellationToken);
+			await PutObjectAsync(ns, payload, blob, bucketHint: bucketHint, cancellationToken);
 			replicated = true;
 			break;
 		}
 
 		if (!replicated)
 		{
+			_logger.LogWarning("Failed to replicate {Blob} in {Namespace} due to it not existing in any region", blob, ns);
+
 			throw new BlobReplicationException(ns, blob, $"Failed to replicate {blob} in {ns} due to it not existing in any region");
 		}
 
-		return await GetObjectAsync(ns, blob);
+		return await GetObjectAsync(ns, blob, bucketHint: bucketHint, cancellationToken: cancellationToken);
 	}
 
 	public bool ShouldFetchBlobOnDemand(NamespaceId ns)
@@ -647,9 +660,9 @@ public class BlobService : IBlobService
 		return request;
 	}
 
-	public async Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null)
+	public async Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, CancellationToken cancellationToken = default)
 	{
-		bool exists = await ExistsInStoresAsync(ns, blob, storageLayers);
+		bool exists = await ExistsInStoresAsync(ns, blob, storageLayers, cancellationToken);
 		if (exists)
 		{
 			return exists;
@@ -658,18 +671,18 @@ public class BlobService : IBlobService
 		NamespacePolicy policy = _namespacePolicyResolver.GetPoliciesForNs(ns);
 		if (policy.FallbackNamespace != null)
 		{
-			return await ExistsInStoresAsync(policy.FallbackNamespace.Value, blob, storageLayers);
+			return await ExistsInStoresAsync(policy.FallbackNamespace.Value, blob, storageLayers, cancellationToken);
 		}
 
 		if (ShouldFetchBlobOnDemand(ns))
 		{
-			return await ExistsInRemoteAsync(ns, blob);
+			return await ExistsInRemoteAsync(ns, blob, cancellationToken);
 		}
 
 		return false;
 	}
 
-	private async Task<bool> ExistsInStoresAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null)
+	private async Task<bool> ExistsInStoresAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, CancellationToken cancellationToken = default)
 	{
 		bool useBlobIndex = _namespacePolicyResolver.GetPoliciesForNs(ns).UseBlobIndexForExists;
 		if (useBlobIndex)
@@ -679,7 +692,7 @@ public class BlobService : IBlobService
 				.SetAttribute("resource.name", blob.ToString())
 				.SetAttribute("BlobStore", "BlobIndex")
 				;
-			bool exists = await _blobIndex.BlobExistsInRegionAsync(ns, blob);
+			bool exists = await _blobIndex.BlobExistsInRegionAsync(ns, blob, cancellationToken: cancellationToken);
 			if (exists)
 			{
 				scope.SetAttribute("ObjectFound", true.ToString());
@@ -730,14 +743,16 @@ public class BlobService : IBlobService
 		}
 	}
 
-	public async Task<bool> ExistsInRemoteAsync(NamespaceId ns, BlobId blob)
+	public async Task<bool> ExistsInRemoteAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken)
 	{
 		IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
-		using TelemetrySpan scope = _tracer.StartActiveSpan("HierarchicalStore.ExistsRemote").SetAttribute("operation.name", "HierarchicalStore.ExistsRemote");
+		using TelemetrySpan scope = _tracer.StartActiveSpan("HierarchicalStore.ExistsRemote")
+			.SetAttribute("operation.name", "HierarchicalStore.ExistsRemote")
+			.SetAttribute("resource.name", blob.ToString());
 
 		using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("blob.exists-remote", "Verify if blob exists in remotes");
 
-		List<string> regions = await _blobIndex.GetBlobRegionsAsync(ns, blob);
+		List<string> regions = await _blobIndex.GetBlobRegionsAsync(ns, blob, cancellationToken);
 
 		// we do not actually verify that the blob exists remotely as that would take a lot of time
 		// instead we simply check if there are any regions were the blob exists that is not our current region
@@ -745,18 +760,21 @@ public class BlobService : IBlobService
 		// if it exists in more then one region, we are sure it exists somewhere that is not here
 		if (regions.Count > 1)
 		{
+			scope.SetAttribute("ObjectFound", true.ToString());
 			return true;
 		}
 
 		if (regions.Any(region => !string.Equals(region, _currentSite, StringComparison.OrdinalIgnoreCase)))
 		{
+			scope.SetAttribute("ObjectFound", true.ToString());
 			return true;
 		}
 
+		scope.SetAttribute("ObjectFound", false.ToString());
 		return false;
 	}
 
-	public async Task<bool> ExistsInRootStoreAsync(NamespaceId ns, BlobId blob)
+	public async Task<bool> ExistsInRootStoreAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken = default)
 	{
 		IBlobStore store = _blobStores.Last();
 
@@ -774,7 +792,7 @@ public class BlobService : IBlobService
 		return false;
 	}
 
-	public async Task DeleteObjectAsync(NamespaceId ns, BlobId blob)
+	public async Task DeleteObjectAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken = default)
 	{
 		bool blobNotFound = false;
 		bool deletedAtLeastOnce = false;
@@ -782,8 +800,8 @@ public class BlobService : IBlobService
 		// remove the object from the tracking first, if this times out we do not want to end up with a inconsistent blob index
 		// if the blob store delete fails on the other hand we will still run a delete again during GC (as the blob is still orphaned at that point)
 		// this assumes that blob gc is based on scanning the root blob store
-		await _blobIndex.RemoveBlobFromRegionAsync(ns, blob);
-		await _blobIndex.RemoveReferencesAsync(ns, blob, null);
+		await _blobIndex.RemoveBlobFromRegionAsync(ns, blob, cancellationToken: cancellationToken);
+		await _blobIndex.RemoveReferencesAsync(ns, blob, null, cancellationToken);
 
 		foreach (IBlobStore store in _blobStores)
 		{
@@ -821,7 +839,32 @@ public class BlobService : IBlobService
 		throw new NamespaceNotFoundException(ns);
 	}
 
-	public async Task DeleteNamespaceAsync(NamespaceId ns)
+	public async Task DeleteObjectAsync(List<NamespaceId> namespaces, BlobId blob, CancellationToken cancellationToken = default)
+	{
+		// remove the object from the tracking first, if this times out we do not want to end up with a inconsistent blob index
+		// if the blob store delete fails on the other hand we will still run a delete again during GC (as the blob is still orphaned at that point)
+		// this assumes that blob gc is based on scanning the root blob store
+
+		await Parallel.ForEachAsync(namespaces, cancellationToken, async (ns, token) =>
+		{
+			await _blobIndex.RemoveBlobFromRegionAsync(ns, blob, cancellationToken: cancellationToken);
+			await _blobIndex.RemoveReferencesAsync(ns, blob, null, cancellationToken);
+		});
+
+		// let each blob store figure out how it could effectively clear a storage pool
+		foreach (IBlobStore store in _blobStores)
+		{
+			using TelemetrySpan scope = _tracer.StartActiveSpan("HierarchicalStore.DeleteObjectFromStoragePool")
+					.SetAttribute("operation.name", "HierarchicalStore.DeleteObjectFromStoragePool")
+					.SetAttribute("resource.name", blob.ToString())
+					.SetAttribute("BlobStore", store.GetType().Name)
+				;
+
+			await store.DeleteObjectAsync(namespaces, blob);
+		}
+	}
+
+	public async Task DeleteNamespaceAsync(NamespaceId ns, CancellationToken cancellationToken = default)
 	{
 		bool deletedAtLeastOnce = false;
 		foreach (IBlobStore store in _blobStores)
@@ -850,18 +893,18 @@ public class BlobService : IBlobService
 		throw new NamespaceNotFoundException(ns);
 	}
 
-	public IAsyncEnumerable<(BlobId,DateTime)> ListObjectsAsync(NamespaceId ns)
+	public IAsyncEnumerable<(BlobId, DateTime)> ListObjectsAsync(NamespaceId ns, CancellationToken cancellationToken)
 	{
 		// as this is a hierarchy of blob stores the last blob store should contain the superset of all stores
 		return _blobStores.Last().ListObjectsAsync(ns);
 	}
 
-	public async Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobs)
+	public async Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobs, CancellationToken cancellationToken)
 	{
 		List<(BlobId, Task<bool>)> existTasks = new();
 		foreach (BlobId blob in blobs)
 		{
-			existTasks.Add((blob, ExistsAsync(ns, blob)));
+			existTasks.Add((blob, ExistsAsync(ns, blob, cancellationToken: cancellationToken)));
 		}
 
 		List<BlobId> missingBlobs = new();
@@ -878,15 +921,15 @@ public class BlobService : IBlobService
 		return missingBlobs.ToArray();
 	}
 
-	public async Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IAsyncEnumerable<BlobId> blobs)
+	public async Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IAsyncEnumerable<BlobId> blobs, CancellationToken cancellationToken)
 	{
 		ConcurrentBag<BlobId> missingBlobs = new ConcurrentBag<BlobId>();
 
 		try
 		{
-			await Parallel.ForEachAsync(blobs, async (identifier, ctx) =>
+			await Parallel.ForEachAsync(blobs, cancellationToken, async (identifier, ctx) =>
 			{
-				bool exists = await ExistsAsync(ns, identifier);
+				bool exists = await ExistsAsync(ns, identifier, cancellationToken: ctx);
 
 				if (!exists)
 				{
@@ -907,13 +950,13 @@ public class BlobService : IBlobService
 		return missingBlobs.ToArray();
 	}
 
-	public async Task<BlobContents> GetObjectsAsync(NamespaceId ns, BlobId[] blobs)
+	public async Task<BlobContents> GetObjectsAsync(NamespaceId ns, BlobId[] blobs, CancellationToken cancellationToken)
 	{
 		using TelemetrySpan _ = _tracer.StartActiveSpan("blob.combine").SetAttribute("operation.name", "blob.combine");
 		Task<BlobContents>[] tasks = new Task<BlobContents>[blobs.Length];
 		for (int i = 0; i < blobs.Length; i++)
 		{
-			tasks[i] = GetObjectAsync(ns, blobs[i]);
+			tasks[i] = GetObjectAsync(ns, blobs[i], cancellationToken: cancellationToken);
 		}
 
 		MemoryStream ms = new MemoryStream();
@@ -921,7 +964,7 @@ public class BlobService : IBlobService
 		{
 			BlobContents blob = await task;
 			await using Stream s = blob.Stream;
-			await s.CopyToAsync(ms);
+			await s.CopyToAsync(ms, cancellationToken);
 		}
 
 		ms.Seek(0, SeekOrigin.Begin);

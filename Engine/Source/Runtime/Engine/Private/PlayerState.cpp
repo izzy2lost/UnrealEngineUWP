@@ -15,7 +15,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PlayerState)
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 APlayerState::APlayerState(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer
 		.DoNotCreateDefaultSubobject(TEXT("Sprite")) )
@@ -24,7 +23,7 @@ APlayerState::APlayerState(const FObjectInitializer& ObjectInitializer)
 	bReplicates = true;
 	bAlwaysRelevant = true;
 	SetReplicatingMovement(false);
-	NetUpdateFrequency = 1;
+	SetNetUpdateFrequency(1);
 
 	// Note: this is very important to set to false. Though all replication infos are spawned at run time, during seamless travel
 	// they are held on to and brought over into the new world. In ULevel::InitializeActors, these PlayerStates may be treated as map/startup actors
@@ -38,13 +37,6 @@ APlayerState::APlayerState(const FObjectInitializer& ObjectInitializer)
 	bShouldUpdateReplicatedPing = true; // Preserved behavior before bShouldUpdateReplicatedPing was added
 	bUseCustomPlayerNames = false;
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-APlayerState::~APlayerState()
-{
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void APlayerState::UpdatePing(float InPing)
 {
@@ -400,12 +392,6 @@ void APlayerState::SeamlessTravelTo(APlayerState* NewPlayerState)
 	NewPlayerState->SetIsOnlyASpectator(IsOnlyASpectator());
 }
 
-
-bool APlayerState::IsPrimaryPlayer() const
-{
-	return true;
-}
-
 void APlayerState::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -431,7 +417,6 @@ void APlayerState::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutL
 }
 
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void APlayerState::SetScore(const float NewScore)
 {
 	MARK_PROPERTY_DIRTY_FROM_NAME(APlayerState, Score, this);
@@ -548,4 +533,3 @@ void APlayerState::OnPawnPrivateDestroyed(AActor* InActor)
 	}
 }
 
-PRAGMA_ENABLE_DEPRECATION_WARNINGS

@@ -34,7 +34,7 @@ ALyraCharacter::ALyraCharacter(const FObjectInitializer& ObjectInitializer)
 	PrimaryActorTick.bCanEverTick = false;
 	PrimaryActorTick.bStartWithTickEnabled = false;
 
-	NetCullDistanceSquared = 900000000.0f;
+	SetNetCullDistanceSquared(900000000.0f);
 
 	UCapsuleComponent* CapsuleComp = GetCapsuleComponent();
 	check(CapsuleComp);

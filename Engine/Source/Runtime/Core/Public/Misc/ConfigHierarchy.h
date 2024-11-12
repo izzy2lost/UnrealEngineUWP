@@ -64,6 +64,17 @@ inline FConfigLayer GPluginLayers[] =
 	{ TEXT("ProjectDefault"),			TEXT("{PROJECT}/Config/{PLATFORM}/{PLATFORM}{TYPE}.ini") },
 };
 
+/// <summary>
+/// These are for the modifications to existing config files (for instance Plugin/Config/Engine.ini
+/// </summary>
+inline FConfigLayer GPluginModificationLayers[] =
+{
+	// Plugin/*.ini, can be plugin name, or say Engine.ini
+	{ TEXT("PluginMod"),				TEXT("{PLUGIN}/Config/{TYPE}.ini") },
+	// Plugin/Platform/Platform*.ini
+	{ TEXT("PluginMModPlatform"),		TEXT("{PLUGIN}/Config/{PLATFORM}/{PLATFORM}{TYPE}.ini") },
+};
+
 
 
 /**************************************************
@@ -85,6 +96,11 @@ inline FConfigLayerExpansion GConfigExpansions[] =
 		TEXT("{ENGINE}/"),						TEXT("{ENGINE}/Restricted/NoRedist/"),			
 		TEXT("{PROJECT}/Config/"),				TEXT("{RESTRICTEDPROJECT_NR}/Config/"),
 		EConfigExpansionFlags::ForUncooked 
+	},
+	{ 
+		TEXT("{ENGINE}/"),						TEXT("{ENGINE}/Restricted/LimitedAccess/"),			
+		TEXT("{PROJECT}/Config/"),				TEXT("{RESTRICTEDPROJECT_LA}/Config/"),
+		EConfigExpansionFlags::ForUncooked | EConfigExpansionFlags::ForCooked
 	},
 
 	// Platform Extensions
@@ -115,6 +131,11 @@ inline FConfigLayerExpansion GConfigExpansions[] =
 		TEXT("{ENGINE}/Config/{PLATFORM}/"),	TEXT("{ENGINE}/Restricted/NoRedist/Platforms/{PLATFORM}/{OPT_SUBDIR}Config/"),
 		TEXT("{PROJECT}/Config/{PLATFORM}/"),	TEXT("{RESTRICTEDPROJECT_NR}/Platforms/{PLATFORM}/{OPT_SUBDIR}Config/"), 
 		EConfigExpansionFlags::ForUncooked // | EConfigExpansionFlags::ForPlugin
+	},
+	{
+		TEXT("{ENGINE}/Config/{PLATFORM}/"),	TEXT("{ENGINE}/Restricted/LimitedAccess/Platforms/{PLATFORM}/{OPT_SUBDIR}Config/"),
+		TEXT("{PROJECT}/Config/{PLATFORM}/"),	TEXT("{RESTRICTEDPROJECT_LA}/Platforms/{PLATFORM}/{OPT_SUBDIR}Config/"), 
+		EConfigExpansionFlags::ForUncooked | EConfigExpansionFlags::ForCooked // | EConfigExpansionFlags::ForPlugin
 	},
 };
 

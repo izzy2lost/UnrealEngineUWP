@@ -28,11 +28,6 @@ public:
 	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TWeakPtr<FConsoleVariablesEditorListRow> InRow);
 
 	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& InColumnName) override;
-
-	// Begin SWidget
-	virtual void OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
-	virtual void OnMouseLeave(const FPointerEvent& MouseEvent) override;
-	// End SWidget
 	
 	virtual ~SConsoleVariablesEditorListRow() override;	
 
@@ -42,7 +37,8 @@ public:
 	FReply HandleAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, FConsoleVariablesEditorListRowPtr TargetItem);
 	
 	void FlashRow();
-	
+
+	EVisibility GetHoverableWidgetsVisibility() const;
 	EVisibility GetFlashImageVisibility() const;
 	FSlateColor GetFlashImageColorAndOpacity() const;
 
@@ -85,9 +81,7 @@ private:
 	const FLinearColor FlashColor = FLinearColor::White;
 
 	/** The offset applied to text widgets so that the text aligns with the column header text */
-	float TextBlockLeftPadding = 3.0f;
-	
-	bool bIsHovered = false;
+	float TextBlockLeftPadding = 5.0f;
 };
 
 class SConsoleVariablesEditorListRowHoverWidgets : public SCompoundWidget
@@ -101,18 +95,13 @@ public:
 	
 	void Construct(const FArguments& InArgs, const TWeakPtr<FConsoleVariablesEditorListRow> InRow);
 
-	void DetermineButtonImageAndTooltip();
-
-	virtual void OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
-
-	virtual void OnMouseLeave(const FPointerEvent& MouseEvent) override;
-
 	virtual ~SConsoleVariablesEditorListRowHoverWidgets() override;
 
 private:
+
+	FSlateColor GetActionButtonColorAndOpacity() const;
+	const FSlateBrush* GetButtonImage() const;
+	FText GetButtonTooltip() const;
 	
 	TWeakPtr<FConsoleVariablesEditorListRow> Item;
-	
-	TSharedPtr<SButton> ActionButtonPtr;
-	TSharedPtr<SImage> ActionButtonImage;
 };

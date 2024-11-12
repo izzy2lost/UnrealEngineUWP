@@ -2,7 +2,7 @@
 
 #include "Insights/ViewModels/GraphTrackBuilder.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/GraphSeries.h"
 #include "Insights/ViewModels/GraphTrack.h"
 #include "Insights/ViewModels/GraphTrackEvent.h"

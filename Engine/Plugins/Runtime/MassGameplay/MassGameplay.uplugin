@@ -25,6 +25,10 @@
 			"Type": "Runtime"
 		},
 		{
+			"Name": "MassEQS",
+			"Type": "Runtime"
+		},
+		{
 			"Name": "MassSignals",
 			"Type": "Runtime"
 		},
@@ -81,14 +85,6 @@
 	],
 	"Plugins": [
 		{
-			"Name": "StructUtils",
-			"Enabled": true
-		},
-		{
-			"Name": "MassEntity",
-			"Enabled": true
-		},
-		{
 			"Name": "ZoneGraph",
 			"Enabled": true
 		},
@@ -102,6 +98,10 @@
 		},
 		{
 			"Name": "StateTree",
+			"Enabled": true
+		},
+		{
+			"Name": "DataValidation",
 			"Enabled": true
 		}
 	]

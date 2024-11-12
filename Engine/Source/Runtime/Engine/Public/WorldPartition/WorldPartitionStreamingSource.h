@@ -17,17 +17,26 @@ public:
 		: Center(ForceInit)
 		, Radius(0.0f)
 		, Axis(ForceInit)
-	{
-		SetAsSphere();
-	}
+		, Angle(360.0f)
+	{}
 
 	/** Creates and initializes a spherical sector using given parameters. */
-	FSphericalSector(FVector InCenter, FReal InRadius, FVector InAxis = FVector::ForwardVector, FReal InAngle = 0)
+	FSphericalSector(const FVector& InCenter, FReal InRadius)
 		: Center(InCenter)
 		, Radius(InRadius)
+		, Axis(FVector::ForwardVector)
+		, Angle(360.0f)
+	{}
+
+	/** Creates and initializes a spherical sector using given parameters. */
+	FSphericalSector(const FVector& InCenter, FReal InRadius, const FVector& InAxis, FReal InAngle)
+		: Center(InCenter)
+		, Radius(InRadius)
+		, Axis(InAxis)
+		, Angle(InAngle)
 	{
-		SetAngle(InAngle);
-		SetAxis(InAxis);
+		check(InAxis.IsNormalized());
+		check(InAngle >= 0 && InAngle <= 360);
 	}
 
 	void SetCenter(const FVector& InCenter) { Center = InCenter; }
@@ -43,7 +52,7 @@ public:
 	FVector GetAxis() const { return Axis; }
 	FVector GetScaledAxis() const { return Axis * Radius; }
 
-	void SetAsSphere() { SetAngle(360.0f); }
+	void SetAsSphere() { Angle = 360.0f; }
 	bool IsSphere() const { return FMath::IsNearlyEqual(Angle, (FReal)360.0); }
 
 	bool IsNearlyZero() const { return FMath::IsNearlyZero(Radius) || Axis.IsNearlyZero() || FMath::IsNearlyZero(Angle); }
@@ -58,8 +67,7 @@ public:
 	/** Get result of Transforming spherical sector with transform. */
 	FSphericalSector TransformBy(const FTransform& M) const
 	{
-		FSphericalSector Result(M.TransformPosition(Center), M.GetMaximumAxisScale() * Radius, M.TransformVector(Axis), Angle);
-		return Result;
+		return FSphericalSector(M.TransformPosition(Center), M.GetMaximumAxisScale() * Radius, M.TransformVector(Axis), Angle);
 	}
 
 	/** Helper method that builds a list of debug display segments */
@@ -130,14 +138,16 @@ struct FStreamingSourceShape
 	friend uint32 GetTypeHash(const FStreamingSourceShape& InShape)
 	{
 		uint32 Hash = GetTypeHash(InShape.bUseGridLoadingRange);
-		Hash = HashCombine(Hash, GetTypeHash(InShape.LoadingRangeScale));
-		Hash = HashCombine(Hash, GetTypeHash(InShape.Radius));
-		Hash = HashCombine(Hash, GetTypeHash(InShape.bIsSector));
-		Hash = HashCombine(Hash, GetTypeHash(InShape.SectorAngle));
-		Hash = HashCombine(Hash, GetTypeHash(InShape.Location));
-		Hash = HashCombine(Hash, GetTypeHash(InShape.Rotation.Pitch));
-		Hash = HashCombine(Hash, GetTypeHash(InShape.Rotation.Yaw));
-		Hash = HashCombine(Hash, GetTypeHash(InShape.Rotation.Roll));
+		Hash = HashCombineFast(Hash, GetTypeHash(InShape.LoadingRangeScale));
+		Hash = HashCombineFast(Hash, GetTypeHash(InShape.Radius));
+		Hash = HashCombineFast(Hash, GetTypeHash(InShape.bIsSector));
+		Hash = HashCombineFast(Hash, GetTypeHash(InShape.SectorAngle));
+		Hash = HashCombineFast(Hash, GetTypeHash(InShape.Location.X));
+		Hash = HashCombineFast(Hash, GetTypeHash(InShape.Location.Y));
+		Hash = HashCombineFast(Hash, GetTypeHash(InShape.Location.Z));
+		Hash = HashCombineFast(Hash, GetTypeHash(InShape.Rotation.Pitch));
+		Hash = HashCombineFast(Hash, GetTypeHash(InShape.Rotation.Yaw));
+		Hash = HashCombineFast(Hash, GetTypeHash(InShape.Rotation.Roll));
 		return Hash;
 	}
 };
@@ -173,9 +183,11 @@ public:
 		const FTransform Transform(bInProjectIn2D ? FRotator(0, InRotation.Yaw, 0) : InRotation, InLocation);
 		if (InShapes.IsEmpty())
 		{
-			FSphericalSector LocalShape(FVector::ZeroVector, InDefaultRadius + InExtraRadius);
-			if (LocalShape.IsValid())
+			if ((InDefaultRadius + InExtraRadius) > 0)
 			{
+				const FSphericalSector LocalShape(FVector::ZeroVector, InDefaultRadius + InExtraRadius);
+				check(LocalShape.IsValid()); // Radius, axis and angle should be all valid here
+
 				InOperation(LocalShape.TransformBy(Transform));
 			}
 		}
@@ -184,9 +196,11 @@ public:
 			for (const FStreamingSourceShape& Shape : InShapes)
 			{
 				const FVector::FReal ShapeRadius = (Shape.bUseGridLoadingRange ? (InGridLoadingRange * Shape.LoadingRangeScale) : Shape.Radius) + InExtraRadius;
-				const FVector::FReal ShapeAngle = Shape.bIsSector ? (Shape.SectorAngle + InExtraAngle) : 360.0f;
-				const FVector ShapeAxis = bInProjectIn2D ? FRotator(0, Shape.Rotation.Yaw, 0).Vector() : Shape.Rotation.Vector();
-				FSphericalSector LocalShape(bInProjectIn2D ? FVector(Shape.Location.X, Shape.Location.Y, 0) : Shape.Location, ShapeRadius, ShapeAxis, ShapeAngle);
+				const FVector::FReal ShapeAngle = Shape.bIsSector ? FMath::Min(Shape.SectorAngle + InExtraAngle, 360.0f) : 360.0f;
+				const FRotator ShapeRotation = bInProjectIn2D ? FRotator(0, Shape.Rotation.Yaw, 0) : Shape.Rotation;
+				const FVector ShapeAxis = ShapeRotation.IsNearlyZero() ? FVector::ForwardVector : ShapeRotation.Vector();
+				const FSphericalSector LocalShape(bInProjectIn2D ? FVector(Shape.Location.X, Shape.Location.Y, 0) : Shape.Location, ShapeRadius, ShapeAxis, ShapeAngle);
+				
 				if (LocalShape.IsValid())
 				{
 					InOperation(LocalShape.TransformBy(Transform));
@@ -246,26 +260,12 @@ struct FWorldPartitionStreamingQuerySource
 		, TargetBehavior(EStreamingSourceTargetBehavior::Include)
 	{}
 
-	// Define Copy Constructor to avoid deprecation warnings
-	FWorldPartitionStreamingQuerySource(const FWorldPartitionStreamingQuerySource& Other)
-	{
-		*this = Other;
-	}
-
-	FWorldPartitionStreamingQuerySource& operator=(const FWorldPartitionStreamingQuerySource& Other)
-	{
-		Location = Other.Location;
-		Radius = Other.Radius;
-		bUseGridLoadingRange = Other.bUseGridLoadingRange;
-		DataLayers = Other.DataLayers;
-		bDataLayersOnly = Other.bDataLayersOnly;
-		bSpatialQuery = Other.bSpatialQuery;
-		Rotation = Other.Rotation;
-		TargetBehavior = Other.TargetBehavior;
-		TargetGrids = Other.TargetGrids;
-		Shapes = Other.Shapes;
-		return *this;
-	}
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FWorldPartitionStreamingQuerySource(const FWorldPartitionStreamingQuerySource& Other) = default;
+	FWorldPartitionStreamingQuerySource& operator=(const FWorldPartitionStreamingQuerySource& Other) = default;
+	FWorldPartitionStreamingQuerySource(FWorldPartitionStreamingQuerySource&& Other) = default;
+	FWorldPartitionStreamingQuerySource& operator=(FWorldPartitionStreamingQuerySource&& Other) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/* Location to query. (not used if bSpatialQuery is false) */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Query")
@@ -346,10 +346,11 @@ struct FWorldPartitionStreamingSource
 		, TargetBehavior(EStreamingSourceTargetBehavior::Include)
 		, bReplay(false)
 		, bRemote(false)
+		, bForce2D(false)
 		, Hash2D(0)
 		, Hash3D(0)
-		, OldLocation(FVector::ZeroVector)
-		, OldRotation(FRotator::ZeroRotator)
+		, QuantizedLocation(FVector::ZeroVector)
+		, QuantizedRotation(FRotator::ZeroRotator)
 		, ExtraRadius(0)
 		, ExtraAngle(0)
 	{}
@@ -367,45 +368,22 @@ struct FWorldPartitionStreamingSource
 		, TargetBehavior(EStreamingSourceTargetBehavior::Include)
 		, bReplay(false)
 		, bRemote(bRemote)
+		, bForce2D(false)
 		, Hash2D(0)
 		, Hash3D(0)
-		, OldLocation(InLocation)
-		, OldRotation(InRotation)
+		, QuantizedLocation(InLocation)
+		, QuantizedRotation(InRotation)
 		, ExtraRadius(0)
 		, ExtraAngle(0)
 	{}
 
-	// Define Copy Constructor to avoid deprecation warnings
-	FWorldPartitionStreamingSource(const FWorldPartitionStreamingSource& Other)
-	{
-		*this = Other;
-	}
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FWorldPartitionStreamingSource(const FWorldPartitionStreamingSource& Other) = default;
+	FWorldPartitionStreamingSource& operator=(const FWorldPartitionStreamingSource& Other) = default;
+	FWorldPartitionStreamingSource(FWorldPartitionStreamingSource&& Other) = default;
+	FWorldPartitionStreamingSource& operator=(FWorldPartitionStreamingSource&& Other) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	FWorldPartitionStreamingSource& operator=(const FWorldPartitionStreamingSource& Other)
-	{
-		Name = Other.Name;
-		Location = Other.Location;
-		Rotation = Other.Rotation;
-		TargetState = Other.TargetState;
-		bBlockOnSlowLoading = Other.bBlockOnSlowLoading;
-		Priority = Other.Priority;
-		bUseVelocityContributionToCellsSorting = Other.bUseVelocityContributionToCellsSorting;
-		Velocity = Other.Velocity;
-		DebugColor = Other.DebugColor;
-		TargetBehavior = Other.TargetBehavior;
-		TargetGrids = Other.TargetGrids;
-		Shapes = Other.Shapes;
-		bReplay = Other.bReplay;
-		bRemote = Other.bRemote;
-		Hash2D = Other.Hash2D;
-		Hash3D = Other.Hash3D;
-		OldLocation = Other.OldLocation;
-		OldRotation = Other.OldRotation;
-		ExtraRadius = Other.ExtraRadius;
-		ExtraAngle = Other.ExtraAngle;
-		return *this;
-	}
-	
 	FColor GetDebugColor() const
 	{
 		if (!DebugColor.ToPackedBGRA())
@@ -465,8 +443,11 @@ struct FWorldPartitionStreamingSource
 	/** If true, this streaming source is from a remote session */
 	bool bRemote;
 
+	/** If true, this streaming source will force intersecting cells in 2D */
+	bool bForce2D;
+
 	/** Returns a box encapsulating all shapes. */
-	FBox CalcBounds(float InGridLoadingRange, FName InGridName, bool bCalcIn2D = false) const
+	inline FBox CalcBounds(float InGridLoadingRange, FName InGridName, bool bCalcIn2D = false) const
 	{
 		FBox OutBounds(ForceInit);
 		ForEachShape(InGridLoadingRange, InGridName, bCalcIn2D, [&OutBounds](const FSphericalSector& Sector)
@@ -477,7 +458,13 @@ struct FWorldPartitionStreamingSource
 	}
 
 	/** Helper method that iterates over all shapes. If none is provided, it will still pass a sphere shape using grid's loading range. */
-	void ForEachShape(float InGridLoadingRange, FName InGridName, bool bInProjectIn2D, TFunctionRef<void(const FSphericalSector&)> InOperation) const
+	inline void ForEachShape(float InGridLoadingRange, bool bInProjectIn2D, TFunctionRef<void(const FSphericalSector&)> InOperation) const
+	{
+		FStreamingSourceShapeHelper::ForEachShape(InGridLoadingRange, InGridLoadingRange, bInProjectIn2D, Location, Rotation, Shapes, InOperation, ExtraRadius, ExtraAngle);
+	}
+
+	/** Helper method that iterates over all shapes affecting a specific grid. If none is provided, it will still pass a sphere shape using grid's loading range. */
+	inline void ForEachShape(float InGridLoadingRange, FName InGridName, bool bInProjectIn2D, TFunctionRef<void(const FSphericalSector&)> InOperation) const
 	{
 		if (FStreamingSourceShapeHelper::IsSourceAffectingGrid(TargetGrids, TargetBehavior, InGridName))
 		{
@@ -501,8 +488,8 @@ private:
 	uint32 Hash3D;
 
 	/** Source values used for hash computations. */
-	FVector OldLocation;
-	FRotator OldRotation;
+	FVector QuantizedLocation;
+	FRotator QuantizedRotation;
 
 	/** Used internally for server streaming */
 	float ExtraRadius;
@@ -555,7 +542,7 @@ struct IWorldPartitionStreamingSourceProvider
 		FWorldPartitionStreamingSource StreamingSource;
 		if (GetStreamingSource(StreamingSource))
 		{
-			StreamingSources.Add(StreamingSource);
+			StreamingSources.Add(MoveTemp(StreamingSource));
 			return true;
 		}
 		return false;
@@ -563,7 +550,3 @@ struct IWorldPartitionStreamingSourceProvider
 
 	virtual const UObject* GetStreamingSourceOwner() const { return nullptr; }
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

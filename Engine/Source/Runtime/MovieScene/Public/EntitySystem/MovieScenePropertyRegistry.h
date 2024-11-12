@@ -18,7 +18,6 @@
 #include "Misc/TVariant.h"
 #include "Stats/Stats.h"
 #include "Stats/Stats2.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 #include "Templates/UnrealTypeTraits.h"
@@ -258,8 +257,10 @@ private:
 	{
 		using StorageType = typename PropertyTraits::StorageType;
 
-		const int32 CompositeOffset = CompositeDefinitions.Num();
-		checkf(CompositeOffset <= MAX_uint16, TEXT("Maximum number of composite definitions reached"));
+		const int32 CompositeOffsetInt32 = CompositeDefinitions.Num();
+		checkf(CompositeOffsetInt32 <= MAX_uint16, TEXT("Maximum number of composite definitions reached"));
+
+		const uint16 CompositeOffset = static_cast<uint16>(CompositeOffsetInt32);
 
 		TStatId StatID;
 
@@ -308,7 +309,6 @@ private:
 } // namespace MovieScene
 } // namespace UE
 
-
-
-
-
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
+#endif

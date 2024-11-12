@@ -51,6 +51,8 @@ REGISTER_NAME(33,CoreUObject)
 // More class properties
 REGISTER_NAME(34,EnumProperty)
 REGISTER_NAME(35,OptionalProperty)
+REGISTER_NAME(36,Utf8StrProperty)
+REGISTER_NAME(37,AnsiStrProperty)
 
 
 // Special types.
@@ -202,6 +204,7 @@ REGISTER_NAME(258, Gzip)
 REGISTER_NAME(259, LZ4)
 REGISTER_NAME(260, Mobile)
 REGISTER_NAME(261, Oodle)
+REGISTER_NAME(262, TrashedPackage)
 
 // Online
 REGISTER_NAME(280,DGram)

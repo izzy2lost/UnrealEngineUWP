@@ -9,7 +9,7 @@
 
 class SBox;
 	
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/** Shared base class for rejection notifications. Builds the general UI structure. */
 	class SBaseRejectionNotification : public SCompoundWidget, public INotificationWidget

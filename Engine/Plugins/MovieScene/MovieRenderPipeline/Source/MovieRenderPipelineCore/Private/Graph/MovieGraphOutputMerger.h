@@ -5,6 +5,7 @@
 #include "Graph/MovieGraphDataTypes.h"
 #include "Containers/Queue.h"
 
+class IImageWriteQueue;
 class UMovieGraphPipeline;
 
 namespace UE::MovieGraph
@@ -37,6 +38,7 @@ namespace UE::MovieGraph
 		* All frames in the queue are processed on the next Game Thread tick and moved onto the output containers.
 		*/
 		TQueue<UE::MovieGraph::FMovieGraphOutputMergerFrame> FinishedFrames;
+
 	private:
 		/** The Movie Pipeline that owns us. */
 		TWeakObjectPtr<UMovieGraphPipeline> WeakMoviePipeline;
@@ -46,5 +48,8 @@ namespace UE::MovieGraph
 
 		/** Mutex that protects adding/updating/removing from PendingData */
 		FCriticalSection PendingDataMutex;
+
+		/** A debug image sequence writer (EXR-only). Typically used for writing out individual samples, bypassing accumulation and output containers. */
+		IImageWriteQueue* Debug_ImageWriteQueue;
 	};
 }

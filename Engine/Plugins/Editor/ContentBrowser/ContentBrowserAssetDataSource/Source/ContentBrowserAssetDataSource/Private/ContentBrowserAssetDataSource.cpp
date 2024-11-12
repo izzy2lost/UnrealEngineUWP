@@ -1,6 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ContentBrowserAssetDataSource.h"
+
+#include "Algo/Transform.h"
+#include "AssetPropertyTagCache.h"
+#include "Async/ParallelFor.h"
 #include "ContentBrowserAssetDataCore.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
@@ -17,6 +21,7 @@
 #include "Editor.h"
 #include "IAssetTools.h"
 #include "ToolMenus.h"
+#include "Misc/Char.h"
 #include "Misc/PackageName.h"
 #include "Misc/PathViews.h"
 #include "NewAssetContextMenu.h"
@@ -31,15 +36,116 @@
 #include "Widgets/Input/SButton.h"
 #include "Subsystems/ImportSubsystem.h"
 #include "Widgets/Images/SImage.h"
+#include "Tasks/Task.h"
 #include "ToolMenu.h"
 #include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
+#if UE_CONTENTBROWSER_NEW_STYLE
+#include "SActionButton.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ContentBrowserAssetDataSource)
 
 #define LOCTEXT_NAMESPACE "ContentBrowserAssetDataSource"
+
+namespace AssetDataSource
+{
+	bool bAllowInternalParallelism = true;
+	FAutoConsoleVariableRef CVarAllowInternalParallelism(
+		TEXT("AssetDataSource.AllowInternalParallelism"),
+		bAllowInternalParallelism,
+		TEXT("Set to 0 to disable internal parallelism inside data source in case of threading issues."),
+		ECVF_Default
+	);
+
+	bool bOptimizeEnumerateInMemoryAssets = true;
+	FAutoConsoleVariableRef CVarOptimizeEnumerateInMemoryAssets(
+		TEXT("AssetDataSource.OptimizeEnumerateInMemoryAssets"),
+		bOptimizeEnumerateInMemoryAssets ,
+		TEXT("1: Explicitly fetch fresh asset data for only new/dirty assets. 0: Fetch fresh asset data for all loaded assets."),
+		ECVF_Default
+	);
+}
+
+enum class EContentBrowserFolderAttributes : uint8
+{
+	/**
+	 * No special attributes.
+	 */
+	None = 0,
+
+	/**
+	 * This folder should always be visible, even if it contains no content in the Content Browser view.
+	 * This will include root content folders, and any folders that have been created directly (or indirectly) by a user action.
+	 */
+	AlwaysVisible = 1 << 0,
+
+	/**
+	 * This folder has non-redirector assets that will appear in the Content Browser view.
+	 */
+	HasAssets = 1 << 1,
+
+	/**
+	 * This folder has public content that will appear in the Content Browser view.
+	 */
+	HasPublicContent = 1 << 2,
+
+	/**
+	 * This folder has source (uncooked) content that will appear in the Content Browser view.
+	 */
+	HasSourceContent = 1 << 3,
+
+	/**
+	 * This folder is inside a plugin.
+	 */
+	IsInPlugin = 1 << 4,
+
+	/**
+	 * This folder has redirector assets that will appear in the Content Browser view if the UI wishes to display them
+	 */
+	HasRedirectors = 1 << 5,
+};
+ENUM_CLASS_FLAGS(EContentBrowserFolderAttributes);
+
+// Produce a string of flags |'d together for logging
+FStringBuilderBase& operator<<(FStringBuilderBase& Builder, EContentBrowserFolderAttributes Attribs)
+{
+	bool bFirst = true;
+	for (EContentBrowserFolderAttributes Flag : MakeFlagsRange(Attribs))
+	{
+		if (!bFirst)
+		{
+			Builder << TEXTVIEW("|");
+		}
+		switch (Flag)
+		{
+			case EContentBrowserFolderAttributes::AlwaysVisible:
+				Builder << TEXTVIEW("AlwaysVisible");
+				break;
+			case EContentBrowserFolderAttributes::HasAssets:
+				Builder << TEXTVIEW("HasAssets");
+				break;
+			case EContentBrowserFolderAttributes::HasPublicContent:
+				Builder << TEXTVIEW("HasPublicContent");
+				break;
+			case EContentBrowserFolderAttributes::HasSourceContent:
+				Builder << TEXTVIEW("HasSourceContent");
+				break;
+			case EContentBrowserFolderAttributes::IsInPlugin:
+				Builder << TEXTVIEW("IsInPlugin");
+				break;
+			case EContentBrowserFolderAttributes::HasRedirectors:
+				Builder << TEXTVIEW("HasRedirectors");
+				break;
+			default:
+				Builder << TEXTVIEW("Unknown");
+				break;
+		}
+	}
+	return Builder;
+}
 
 UContentBrowserAssetDataSource::FOnAssetDataSourcePathAdded UContentBrowserAssetDataSource::OnAssetPathAddedDelegate;
 UContentBrowserAssetDataSource::FOnAssetDataSourcePathRemoved UContentBrowserAssetDataSource::OnAssetPathRemovedDelegate;
@@ -61,7 +167,7 @@ void UContentBrowserAssetDataSource::Initialize(const bool InAutoRegister)
 	CollectionManager = &FCollectionManagerModule::GetModule().Get();
 
 	// Listen for asset registry updates
-	AssetRegistry->OnAssetAdded().AddUObject(this, &UContentBrowserAssetDataSource::OnAssetAdded);
+	AssetRegistry->OnAssetsAdded().AddUObject(this, &UContentBrowserAssetDataSource::OnAssetsAdded);
 	AssetRegistry->OnAssetRemoved().AddUObject(this, &UContentBrowserAssetDataSource::OnAssetRemoved);
 	AssetRegistry->OnAssetRenamed().AddUObject(this, &UContentBrowserAssetDataSource::OnAssetRenamed);
 	AssetRegistry->OnAssetUpdated().AddUObject(this, &UContentBrowserAssetDataSource::OnAssetUpdated);
@@ -74,6 +180,19 @@ void UContentBrowserAssetDataSource::Initialize(const bool InAutoRegister)
 	
 	// Listen for when assets are saved, listerns are notified in time despite presave because we queue updates for later processing 
 	FCoreUObjectDelegates::OnObjectPreSave.AddUObject(this, &UContentBrowserAssetDataSource::OnObjectPreSave);
+
+	// Listen for module initialization to update FAssetPropertyTagCache
+	FCoreUObjectDelegates::CompiledInUObjectsRegisteredDelegate.AddWeakLambda(this, [](FName, ECompiledInUObjectsRegisteredStatus){
+		FAssetPropertyTagCache::Get().CachePendingClasses();
+	});
+
+	// Listen for classes being loaded 
+	FCoreUObjectDelegates::OnAssetLoaded.AddWeakLambda(this, [](UObject* Object){
+		if (UClass* Class = Cast<UClass>(Object))
+		{
+			FAssetPropertyTagCache::Get().TryCacheClass(FTopLevelAssetPath(Class));
+		}
+	});
 
 	// Listen for new mount roots
 	FPackageName::OnContentPathMounted().AddUObject(this, &UContentBrowserAssetDataSource::OnContentPathMounted);
@@ -151,6 +270,8 @@ void UContentBrowserAssetDataSource::Initialize(const bool InAutoRegister)
 
 	DiscoveryStatusText = LOCTEXT("InitializingAssetDiscovery", "Initializing Asset Discovery...");
 
+	FAssetPropertyTagCache& PropertyTagCache = FAssetPropertyTagCache::Get();
+
 	// Populate the initial set of folder attributes
 	// This will be updated as the scan finds more content
 	AssetRegistry->EnumerateAllCachedPaths([this](FName PathName) { 
@@ -158,21 +279,28 @@ void UContentBrowserAssetDataSource::Initialize(const bool InAutoRegister)
 		OnPathsAdded({NameBuilder.ToView()});
 		return true; 
 	});
-	AssetRegistry->EnumerateAllAssets([this](const FAssetData& InAssetData)
+	AssetRegistry->EnumerateAllAssets([this, &PropertyTagCache ](const FAssetData& InAssetData)
 		{
+			if (InAssetData.GetOptionalOuterPathName().IsNone())
+			{
+				PropertyTagCache.TryCacheClass(InAssetData.AssetClassPath);
+			}
 			OnPathPopulated(InAssetData);
 			return true;
-		}, /*bIncludeOnlyOnDiskAssets*/true);
+		}, UE::AssetRegistry::EEnumerateAssetsFlags::OnlyOnDiskAssets);
 	RecentlyPopulatedAssetFolders.Empty();
 
 	FPackageName::QueryRootContentPaths(RootContentPaths);
 
 	BuildRootPathVirtualTree();
 
-	// Mount roots are always visible
 	for (const FString& RootContentPath : RootContentPaths)
 	{
+		// Mount roots are always visible
 		OnAlwaysShowPath(RootContentPath);
+		
+		// Populate the acceleration structure
+		AddRootContentPathToStateMachine(RootContentPath);
 	}
 }
 
@@ -183,6 +311,9 @@ void UContentBrowserAssetDataSource::Shutdown()
 	AssetTools = nullptr;
 	AssetRegistry = nullptr;
 
+	RootContentPaths.Empty();
+	RootContentPathsTrie.NextNodes.Empty();
+
 	if (FAssetRegistryModule* AssetRegistryModule = FModuleManager::GetModulePtr<FAssetRegistryModule>(AssetRegistryConstants::ModuleName))
 	{
 		IAssetRegistry* AssetRegistryMaybe = AssetRegistryModule->TryGet();
@@ -190,7 +321,7 @@ void UContentBrowserAssetDataSource::Shutdown()
 		{
 			AssetRegistryMaybe->OnFileLoadProgressUpdated().RemoveAll(this);
 
-			AssetRegistryMaybe->OnAssetAdded().RemoveAll(this);
+			AssetRegistryMaybe->OnAssetsAdded().RemoveAll(this);
 			AssetRegistryMaybe->OnAssetRemoved().RemoveAll(this);
 			AssetRegistryMaybe->OnAssetRenamed().RemoveAll(this);
 			AssetRegistryMaybe->OnAssetUpdated().RemoveAll(this);
@@ -219,9 +350,16 @@ bool UContentBrowserAssetDataSource::PopulateAssetFilterInputParams(FAssetFilter
 	Params.bIncludeFolders = EnumHasAnyFlags(InFilter.ItemTypeFilter, EContentBrowserItemTypeFilter::IncludeFolders);
 	Params.bIncludeFiles = EnumHasAnyFlags(InFilter.ItemTypeFilter, EContentBrowserItemTypeFilter::IncludeFiles);
 	Params.bIncludeAssets = EnumHasAnyFlags(InFilter.ItemCategoryFilter, EContentBrowserItemCategoryFilter::IncludeAssets);
+	Params.bIncludeRedirectors = EnumHasAnyFlags(InFilter.ItemCategoryFilter, EContentBrowserItemCategoryFilter::IncludeRedirectors);
 
-	// If we aren't including anything, then we can just bail now
-	if (!Params.bIncludeAssets || (!Params.bIncludeFolders && !Params.bIncludeFiles))
+	// Everything this data source tracks is either an asset or a redirector
+	if (!Params.bIncludeAssets && !Params.bIncludeRedirectors)
+	{
+		return false;
+	}
+
+	// Everything this data source tracks is either a file or a folder
+	if (!Params.bIncludeFolders && !Params.bIncludeFiles)
 	{
 		return false;
 	}
@@ -252,6 +390,7 @@ bool UContentBrowserAssetDataSource::PopulateAssetFilterInputParams(FAssetFilter
 	Params.AssetDataFilter = &Params.FilterList->FindOrAddFilter<FContentBrowserCompiledAssetDataFilter>();
 	Params.AssetDataFilter->bFilterExcludesAllAssets = true;
 	Params.AssetDataFilter->ItemAttributeFilter = InFilter.ItemAttributeFilter;
+	Params.AssetDataFilter->ItemCategoryFilter = InFilter.ItemCategoryFilter;
 	Params.InternalPaths.Reset();
 
 	Params.UnsupportedClassFilter = InFilter.ExtraFilters.FindFilter<FContentBrowserDataUnsupportedClassFilter>();
@@ -681,14 +820,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Remove any inclusive paths that aren't in the explicit AllowList set
-		if (Params.PathPermissionList && Params.PathPermissionList->GetAllowList().Num() > 0)
+		if (Params.PathPermissionList && Params.PathPermissionList->HasAllowListEntries())
 		{
 			FARCompiledFilter CompiledPathFilterAllowList;
 			{
-				CompiledPathFilterAllowList.PackagePaths.Reserve(Params.PathPermissionList->GetAllowList().Num());
-				for (const auto& AllowListPair : Params.PathPermissionList->GetAllowList())
+				TArray<FString> AllowList = Params.PathPermissionList->GetAllowListEntries();
+				CompiledPathFilterAllowList.PackagePaths.Reserve(AllowList.Num());
+				for (const FString& AllowListEntry : AllowList)
 				{
-					FName PackageName = *AllowListPair.Key;
+					FName PackageName{AllowListEntry};
 					CompiledPathFilterAllowList.PackagePaths.Add(PackageName);
 
 					constexpr bool bIsRecursive = true;
@@ -720,14 +860,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Remove any inclusive classes that aren't in the explicit allow list set
-		if (Params.ClassPermissionList && Params.ClassPermissionList->GetAllowList().Num() > 0)
+		if (Params.ClassPermissionList && Params.ClassPermissionList->HasAllowListEntries())
 		{
 			FARCompiledFilter CompiledClassFilterAllowList;
 			{
 				FARFilter AllowListClassFilter;
-				for (const auto& AllowListPair : Params.ClassPermissionList->GetAllowList())
+				TArray<FString> AllowList = Params.ClassPermissionList->GetAllowListEntries();
+				for (const FString& Path : AllowList)
 				{
-					AllowListClassFilter.ClassPaths.Add(FTopLevelAssetPath(AllowListPair.Key));
+					AllowListClassFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 				}
 				Params.AssetRegistry->CompileFilter(AllowListClassFilter, CompiledClassFilterAllowList);
 			}
@@ -787,16 +928,22 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				ExclusiveFilter.bRecursiveClasses |= Params.ClassFilter->bRecursiveClassNamesToExclude;
 			}
 
+			if (!Params.bIncludeRedirectors)
+			{
+				ExclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(UObjectRedirector::StaticClass()));
+			}
+
 			Params.AssetRegistry->CompileFilter(ExclusiveFilter, CompiledExclusiveFilter);
 		}
 
 		// Add any exclusive paths that are in the explicit DenyList set
-		if (Params.PathPermissionList && Params.PathPermissionList->GetDenyList().Num() > 0)
+		if (Params.PathPermissionList && Params.PathPermissionList->HasDenyListEntries())
 		{
-			CompiledExclusiveFilter.PackagePaths.Reserve(Params.PathPermissionList->GetDenyList().Num());
-			for (const auto& FilterPair : Params.PathPermissionList->GetDenyList())
+			TArray<FString> DenyListEntries = Params.PathPermissionList->GetDenyListEntries();
+			CompiledExclusiveFilter.PackagePaths.Reserve(DenyListEntries.Num());
+			for (const FString& PathString : DenyListEntries)
 			{
-				FName Path = *FilterPair.Key;
+				FName Path{PathString};
 				CompiledExclusiveFilter.PackagePaths.Add(Path);
 
 				constexpr bool bIsRecursive = true;
@@ -810,14 +957,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Add any exclusive classes that are in the explicit DenyList set
-		if (Params.ClassPermissionList && Params.ClassPermissionList->GetDenyList().Num() > 0)
+		if (Params.ClassPermissionList && Params.ClassPermissionList->HasDenyListEntries())
 		{
 			FARCompiledFilter CompiledClassFilter;
 			{
 				FARFilter ClassFilter;
-				for (const auto& FilterPair : Params.ClassPermissionList->GetDenyList())
+				for (const FString& Path : Params.ClassPermissionList->GetDenyListEntries())
 				{
-					ClassFilter.ClassPaths.Add(FTopLevelAssetPath(FilterPair.Key));
+					ClassFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 				}
 				Params.AssetRegistry->CompileFilter(ClassFilter, CompiledClassFilter);
 			}
@@ -935,10 +1082,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 							ShowInclusiveFilter.bRecursivePaths = true;
 
-							ShowInclusiveFilter.PackagePaths.Reserve(FolderPermissionList->GetAllowList().Num());
-							for (const auto& AllowListPair : ClassPermissionList->GetAllowList())
+							TArray<FString> AllowList = ClassPermissionList->GetAllowListEntries();
+							ShowInclusiveFilter.PackagePaths.Reserve(AllowList.Num());
+							for (const FString& Path : AllowList)
 							{
-								ShowInclusiveFilter.PackagePaths.Add(*(AllowListPair.Key));
+								ShowInclusiveFilter.PackagePaths.Emplace(Path);
 							}
 
 							Params.AssetRegistry->CompileFilter(ShowInclusiveFilter, CompiledShowInclusiveFilter);
@@ -981,10 +1129,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 							ShowExclusiveFilter.bRecursivePaths = true;
 
-							ShowExclusiveFilter.PackagePaths.Reserve(FolderPermissionList->GetDenyList().Num());
-							for (const auto& DenyListPair : ClassPermissionList->GetDenyList())
+							TArray<FString> DenyList = ClassPermissionList->GetDenyListEntries();
+							ShowExclusiveFilter.PackagePaths.Reserve(DenyList.Num());
+							for (const FString& Path : DenyList)
 							{
-								ShowExclusiveFilter.PackagePaths.Add(*(DenyListPair.Key));
+								ShowExclusiveFilter.PackagePaths.Add(FName(Path));
 							}
 
 							Params.AssetRegistry->CompileFilter(ShowExclusiveFilter, CompiledShowExclusiveFilter);
@@ -1004,16 +1153,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
 					// Compile the convert if fail inclusive filter
-					if (!ClassPermissionList->GetAllowList().IsEmpty())
+					if (ClassPermissionList->HasAllowListEntries())
 					{
 						FARCompiledFilter CompiledConvertIfFailInclusiveFilter;
 						FARFilter ConvertIfFailInclusiveFilter;
 
 						// Remove any inclusive classes that aren't in the explicit allow list set
-						ConvertIfFailInclusiveFilter.ClassPaths.Reserve(ClassPermissionList->GetAllowList().Num());
-						for (const auto& AllowListPair : ClassPermissionList->GetAllowList())
+						TArray<FString> AllowList = ClassPermissionList->GetAllowListEntries();
+						ConvertIfFailInclusiveFilter.ClassPaths.Reserve(AllowList.Num());
+						for (const FString& Path : AllowList)
 						{
-							ConvertIfFailInclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(AllowListPair.Key));
+							ConvertIfFailInclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 						}
 
 						Params.AssetRegistry->CompileFilter(ConvertIfFailInclusiveFilter, CompiledConvertIfFailInclusiveFilter);
@@ -1033,16 +1183,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					}
 
 					// Compile the convert if fail exclusive filter
-					if (!ClassPermissionList->GetDenyList().IsEmpty())
+					if (ClassPermissionList->HasDenyListEntries())
 					{
 						FARCompiledFilter CompiledConvertIfFailExclusiveFilter;
 						FARFilter ConvertIfFailExclusiveFilter;
 
 						// Add any exclusive classes that are in the explicit DenyList set
-						ConvertIfFailExclusiveFilter.ClassPaths.Reserve(ClassPermissionList->GetDenyList().Num());
-						for (const auto& FilterPair : ClassPermissionList->GetDenyList())
+						TArray<FString> DenyList = ClassPermissionList->GetDenyListEntries();
+						ConvertIfFailExclusiveFilter.ClassPaths.Reserve(DenyList.Num());
+						for (const FString& Path : DenyList)
 						{
-							ConvertIfFailExclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(FilterPair.Key));
+							ConvertIfFailExclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 						}
 
 
@@ -1058,6 +1209,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return true;
 }
 
+// Note that this function is deprecated and is no longer maintained, see declaration
 bool UContentBrowserAssetDataSource::CreateAssetFilter(FAssetFilterInputParams& Params, FName InPath, const FContentBrowserDataFilter& InFilter, FContentBrowserDataCompiledFilter& OutCompiledFilter, FCompileARFilterFunc CreateCompiledFilter)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UContentBrowserAssetDataSource::LegacyCreateAssetFilter);
@@ -1230,14 +1382,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Remove any inclusive paths that aren't in the explicit AllowList set
-		if (Params.PathPermissionList && Params.PathPermissionList->GetAllowList().Num() > 0)
+		if (Params.PathPermissionList && Params.PathPermissionList->HasAllowListEntries())
 		{
 			FARCompiledFilter CompiledPathFilterAllowList;
 			{
 				FARFilter AllowListPathFilter;
-				for (const auto& AllowListPair : Params.PathPermissionList->GetAllowList())
+				TArray<FString> AllowList = Params.PathPermissionList->GetAllowListEntries();
+				AllowListPathFilter.PackagePaths.Reserve(AllowList.Num());
+				for (const FString& Path : AllowList)
 				{
-					AllowListPathFilter.PackagePaths.Add(*AllowListPair.Key);
+					AllowListPathFilter.PackagePaths.Emplace(Path);
 				}
 				AllowListPathFilter.bRecursivePaths = true;
 				CreateCompiledFilter(AllowListPathFilter, CompiledPathFilterAllowList);
@@ -1261,14 +1415,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Remove any inclusive classes that aren't in the explicit allow list set
-		if (Params.ClassPermissionList && Params.ClassPermissionList->GetAllowList().Num() > 0)
+		if (Params.ClassPermissionList && Params.ClassPermissionList->HasAllowListEntries())
 		{
 			FARCompiledFilter CompiledClassFilterAllowList;
 			{
 				FARFilter AllowListClassFilter;
-				for (const auto& AllowListPair : Params.ClassPermissionList->GetAllowList())
+				TArray<FString> AllowList = Params.ClassPermissionList->GetAllowListEntries();
+				for (const FString& Path : AllowList)
 				{
-					AllowListClassFilter.ClassPaths.Add(FTopLevelAssetPath(AllowListPair.Key));
+					AllowListClassFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 				}
 				Params.AssetRegistry->CompileFilter(AllowListClassFilter, CompiledClassFilterAllowList);
 			}
@@ -1320,14 +1475,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Add any exclusive paths that are in the explicit DenyList set
-		if (Params.PathPermissionList && Params.PathPermissionList->GetDenyList().Num() > 0)
+		if (Params.PathPermissionList && Params.PathPermissionList->HasDenyListEntries())
 		{
 			FARCompiledFilter CompiledClassFilter;
 			{
 				FARFilter ClassFilter;
-				for (const auto& FilterPair : Params.PathPermissionList->GetDenyList())
+				for (const FString& Path : Params.PathPermissionList->GetDenyListEntries())
 				{
-					ClassFilter.PackagePaths.Add(*FilterPair.Key);
+					ClassFilter.PackagePaths.Add(FName(Path));
 				}
 				ClassFilter.bRecursivePaths = true;
 				CreateCompiledFilter(ClassFilter, CompiledClassFilter);
@@ -1337,14 +1492,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Add any exclusive classes that are in the explicit DenyList set
-		if (Params.ClassPermissionList && Params.ClassPermissionList->GetDenyList().Num() > 0)
+		if (Params.ClassPermissionList && Params.ClassPermissionList->HasDenyListEntries())
 		{
 			FARCompiledFilter CompiledClassFilter;
 			{
 				FARFilter ClassFilter;
-				for (const auto& FilterPair : Params.ClassPermissionList->GetDenyList())
+				for (const FString& Path : Params.ClassPermissionList->GetDenyListEntries())
 				{
-					ClassFilter.ClassPaths.Add(FTopLevelAssetPath(FilterPair.Key));
+					ClassFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 				}
 				Params.AssetRegistry->CompileFilter(ClassFilter, CompiledClassFilter);
 			}
@@ -1462,10 +1617,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 							ShowInclusiveFilter.bRecursivePaths = true;
 
-							ShowInclusiveFilter.PackagePaths.Reserve(FolderPermissionList->GetAllowList().Num());
-							for (const auto& AllowListPair : ClassPermissionList->GetAllowList())
+							TArray<FString> AllowList = ClassPermissionList->GetAllowListEntries();
+							ShowInclusiveFilter.PackagePaths.Reserve(AllowList.Num());
+							for (const FString& Path : AllowList)
 							{
-								ShowInclusiveFilter.PackagePaths.Add(*(AllowListPair.Key));
+								ShowInclusiveFilter.PackagePaths.Emplace(Path);
 							}
 
 							Params.AssetRegistry->CompileFilter(ShowInclusiveFilter, CompiledShowInclusiveFilter);
@@ -1508,10 +1664,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 							ShowExclusiveFilter.bRecursivePaths = true;
 
-							ShowExclusiveFilter.PackagePaths.Reserve(FolderPermissionList->GetDenyList().Num());
-							for (const auto& DenyListPair : ClassPermissionList->GetDenyList())
+							TArray<FString> DenyList = ClassPermissionList->GetDenyListEntries();
+							ShowExclusiveFilter.PackagePaths.Reserve(DenyList.Num());
+							for (const FString& Path : DenyList)
 							{
-								ShowExclusiveFilter.PackagePaths.Add(*(DenyListPair.Key));
+								ShowExclusiveFilter.PackagePaths.Add(FName(Path));
 							}
 
 							Params.AssetRegistry->CompileFilter(ShowExclusiveFilter, CompiledShowExclusiveFilter);
@@ -1531,16 +1688,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
 					// Compile the convert if fail inclusive filter
-					if (!ClassPermissionList->GetAllowList().IsEmpty())
+					if (ClassPermissionList->HasAllowListEntries())
 					{
 						FARCompiledFilter CompiledConvertIfFailInclusiveFilter;
 						FARFilter ConvertIfFailInclusiveFilter;
 
 						// Remove any inclusive classes that aren't in the explicit allow list set
-						ConvertIfFailInclusiveFilter.ClassPaths.Reserve(ClassPermissionList->GetAllowList().Num());
-						for (const auto& AllowListPair : ClassPermissionList->GetAllowList())
+						TArray<FString> AllowList = ClassPermissionList->GetAllowListEntries();
+						ConvertIfFailInclusiveFilter.ClassPaths.Reserve(AllowList.Num());
+						for (const FString& Path : AllowList)
 						{
-							ConvertIfFailInclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(AllowListPair.Key));
+							ConvertIfFailInclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 						}
 
 						Params.AssetRegistry->CompileFilter(ConvertIfFailInclusiveFilter, CompiledConvertIfFailInclusiveFilter);
@@ -1560,16 +1718,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					}
 
 					// Compile the convert if fail exclusive filter
-					if (!ClassPermissionList->GetDenyList().IsEmpty())
+					if (ClassPermissionList->HasDenyListEntries())
 					{
 						FARCompiledFilter CompiledConvertIfFailExclusiveFilter;
 						FARFilter ConvertIfFailExclusiveFilter;
 
 						// Add any exclusive classes that are in the explicit DenyList set
-						ConvertIfFailExclusiveFilter.ClassPaths.Reserve(ClassPermissionList->GetDenyList().Num());
-						for (const auto& FilterPair : ClassPermissionList->GetDenyList())
+						TArray<FString> DenyList = ClassPermissionList->GetDenyListEntries();
+						ConvertIfFailExclusiveFilter.ClassPaths.Reserve(DenyList.Num());
+						for (const FString& Path : DenyList) 
 						{
-							ConvertIfFailExclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(FilterPair.Key));
+							ConvertIfFailExclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 						}
 
 
@@ -1634,30 +1793,138 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
-void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(UContentBrowserDataSource* DataSource, const FContentBrowserCompiledAssetDataFilter* AssetDataFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback, FSubPathEnumerationFunc SubPathEnumeration, FCreateFolderItemFunc CreateFolderItem)
+enum class EFolderFilterState
+{
+	None = 0, // Check all filters
+	SkipPathInclude = 0x1,
+	SkipPathExclude = 0x2,
+	SkipPermissionList = 0x3,
+};
+ENUM_CLASS_FLAGS(EFolderFilterState);
+
+// Possible outcomes of the filtering here
+//  Failure - do not visit this path or its children
+//	Success - visit this path and it's children
+//	Additional info for success - whether we need to check any more path filters - or which ones we still need to check
+// return value: success or failure
+// InOutFilterState - bitmask of which filters have passed recursively and can be skipped in future
+bool PathPassesCompiledDataFilterRecursive(const FContentBrowserCompiledAssetDataFilter& InFilter,
+	const FName InInternalPath,
+	EFolderFilterState& InOutFilterState)
+{
+	if (InFilter.ExcludedPackagePaths.Contains(InInternalPath)) // PassesExcludedPathsFilter
+	{
+		return false;
+	}
+
+	FNameBuilder PathStr(InInternalPath);
+	FStringView Path(PathStr);
+	if (!ContentBrowserDataUtils::PathPassesAttributeFilter(Path, 0, InFilter.ItemAttributeFilter))
+	{
+		return false;
+	}
+
+	auto UpdateFilterState = [&InOutFilterState](EPathPermissionPrefixResult Result, EFolderFilterState Flag) -> bool {
+		switch (Result)
+		{
+			case EPathPermissionPrefixResult::Fail:
+			case EPathPermissionPrefixResult::FailRecursive:
+				return false;
+			case EPathPermissionPrefixResult::PassRecursive:
+				InOutFilterState |= Flag;
+				return true;
+			case EPathPermissionPrefixResult::Pass:
+			default:
+				return true;
+		}
+	};
+
+	if (!EnumHasAnyFlags(InOutFilterState, EFolderFilterState::SkipPathInclude))
+	{
+		if (InFilter.bRecursivePackagePathsToInclude)
+		{
+			EPathPermissionPrefixResult IncludeResult =
+				InFilter.PackagePathsToInclude.PassesStartsWithFilterRecursive(Path);
+			if (!UpdateFilterState(IncludeResult, EFolderFilterState::SkipPathInclude))
+			{
+				return false;
+			}
+		}
+		else
+		{
+			if (!InFilter.PackagePathsToInclude.PassesFilter(Path))
+			{
+				return false;
+			}
+			// No info on recursive pass/fail for exact matches, can't update flags
+		}
+	}
+
+	if (!EnumHasAnyFlags(InOutFilterState, EFolderFilterState::SkipPathExclude))
+	{
+		if (InFilter.bRecursivePackagePathsToExclude)
+		{
+			EPathPermissionPrefixResult ExcludeResult =
+				InFilter.PackagePathsToExclude.PassesStartsWithFilterRecursive(Path);
+			if (!UpdateFilterState(ExcludeResult, EFolderFilterState::SkipPathExclude))
+			{
+				return false;
+			}
+		}
+		else
+		{
+			if (!InFilter.PackagePathsToExclude.PassesFilter(Path))
+			{
+				return false;
+			}
+			// No info on recursive pass/fail for exact matches, can't update flags
+		}
+	}
+
+	if (!EnumHasAnyFlags(InOutFilterState, EFolderFilterState::SkipPermissionList))
+	{
+		EPathPermissionPrefixResult PermissionResult =
+			InFilter.PathPermissionList.PassesStartsWithFilterRecursive(Path, /*bAllowParentPaths*/ true);
+		if (!UpdateFilterState(PermissionResult, EFolderFilterState::SkipPermissionList))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(
+	UContentBrowserDataSource* DataSource, const FContentBrowserCompiledAssetDataFilter* AssetDataFilter, 
+	const TGetOrEnumerateSink<FContentBrowserItemData>& InSink, FSubPathEnumerationFunc SubPathEnumeration, FCreateFolderItemFunc CreateFolderItem)
 {
 	if (AssetDataFilter->bRunFolderQueryOnDemand)
 	{
-		auto HandleInternalPath = [&DataSource, &InCallback, &AssetDataFilter, &SubPathEnumeration, &CreateFolderItem](const FName InInternalPath)
-		{
-			TArray<FName, TInlineAllocator<16>> PathsToScan;
-			PathsToScan.Add(InInternalPath);
+		auto HandleInternalPath = [&DataSource, &InSink, &AssetDataFilter, &SubPathEnumeration, &CreateFolderItem](
+									  const FName InInternalPath) {
+			TArray<TPair<FName, EFolderFilterState>, TInlineAllocator<16>> PathsToScan;
+			PathsToScan.Add({ InInternalPath, EFolderFilterState::None });
 			while (PathsToScan.Num() > 0)
 			{
-				const FName PathToScan = PathsToScan.Pop(EAllowShrinking::No);
-				SubPathEnumeration(PathToScan, [&DataSource, &InCallback, &AssetDataFilter, &PathsToScan, &CreateFolderItem](FName SubPath)
-				{
-					if (UContentBrowserAssetDataSource::PathPassesCompiledDataFilter(*AssetDataFilter, SubPath))
-					{
-						if (!InCallback(CreateFolderItem(SubPath)))
+				TPair<FName, EFolderFilterState> PathToScan = PathsToScan.Pop(EAllowShrinking::No);
+				EFolderFilterState ParentFilterState = PathToScan.Value;
+				SubPathEnumeration(
+					PathToScan.Key,
+					[&DataSource, &InSink, &AssetDataFilter, &PathsToScan, &CreateFolderItem, ParentFilterState](
+						FName SubPath) -> bool {
+						EFolderFilterState FilterState = ParentFilterState;
+						if (PathPassesCompiledDataFilterRecursive(*AssetDataFilter, SubPath, FilterState))
 						{
-							return false;
-						}
+							if (!InSink.ProduceItem(CreateFolderItem(SubPath)))
+							{
+								return false;
+							}
 
-						PathsToScan.Add(SubPath);
-					}
-					return true;
-				}, false);
+							PathsToScan.Add({ SubPath, FilterState });
+						}
+						return true;
+					},
+					false);
 			}
 		};
 
@@ -1667,6 +1934,8 @@ void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(UContentBrow
 
 		if (bStartingPathIsFullyVirtual)
 		{
+			IAssetRegistry::FPauseBackgroundProcessingScope PauseBackgroundProcessingScope;
+
 			// Virtual paths not supported by PathPassesCompiledDataFilter, enumerate internal paths in hierarchy and propagate results to virtual parents
 			TSet<FName> VirtualPathsPassedFilter;
 			VirtualPathsPassedFilter.Reserve(DataSource->GetRootPathVirtualTree().NumPaths());
@@ -1694,13 +1963,13 @@ void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(UContentBrow
 			while (PathsToScan.Num() > 0)
 			{
 				const FName PathToScan = PathsToScan.Pop(EAllowShrinking::No);
-				DataSource->GetRootPathVirtualTree().EnumerateSubPaths(PathToScan, [&DataSource, &InCallback, &AssetDataFilter, &VirtualPathsPassedFilter, &PathsToScan, &HandleInternalPath, &CreateFolderItem](FName VirtualSubPath, FName InternalPath)
+				DataSource->GetRootPathVirtualTree().EnumerateSubPaths(PathToScan, [&DataSource, &InSink, &AssetDataFilter, &VirtualPathsPassedFilter, &PathsToScan, &HandleInternalPath, &CreateFolderItem](FName VirtualSubPath, FName InternalPath)
 				{
 					if (VirtualPathsPassedFilter.Contains(VirtualSubPath))
 					{
 						if (!InternalPath.IsNone())
 						{
-							if (!InCallback(CreateFolderItem(InternalPath)))
+							if (!InSink.ProduceItem(CreateFolderItem(InternalPath)))
 							{
 								return false;
 							}
@@ -1709,7 +1978,7 @@ void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(UContentBrow
 						}
 						else
 						{
-							if (!InCallback(DataSource->CreateVirtualFolderItem(VirtualSubPath)))
+							if (!InSink.ProduceItem(DataSource->CreateVirtualFolderItem(VirtualSubPath)))
 							{
 								return false;
 							}
@@ -1734,7 +2003,7 @@ void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(UContentBrow
 	{
 		for (const FName& SubPath : AssetDataFilter->CachedSubPaths)
 		{
-			if (!InCallback(CreateFolderItem(SubPath)))
+			if (!InSink.ProduceItem(CreateFolderItem(SubPath)))
 			{
 				return;
 			}
@@ -1743,6 +2012,12 @@ void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(UContentBrow
 }
 
 void UContentBrowserAssetDataSource::EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback)
+{
+	EnumerateItemsMatchingFilter(InFilter, TGetOrEnumerateSink<FContentBrowserItemData>(MoveTemp(InCallback)));
+}
+
+
+void UContentBrowserAssetDataSource::EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink)
 {
 	const FContentBrowserDataFilterList* FilterList = InFilter.CompiledFilters.Find(this);
 	if (!FilterList)
@@ -1766,14 +2041,14 @@ void UContentBrowserAssetDataSource::EnumerateItemsMatchingFilter(const FContent
 		{
 			return CreateAssetFolderItem(Path);
 		};
-		EnumerateFoldersMatchingFilter(this, AssetDataFilter, InCallback, EnumerateSubPaths, CreateFolderItem);
+		EnumerateFoldersMatchingFilter(this, AssetDataFilter, InSink, EnumerateSubPaths, CreateFolderItem);
 	}
 
 	if (EnumHasAnyFlags(InFilter.ItemTypeFilter, EContentBrowserItemTypeFilter::IncludeFiles) && !AssetDataFilter->bFilterExcludesAllAssets)
 	{
 		for (const FAssetData& CustomSourceAsset : AssetDataFilter->CustomSourceAssets)
 		{
-			if (!InCallback(CreateAssetFileItem(CustomSourceAsset)))
+			if (!InSink.ProduceItem(CreateAssetFileItem(CustomSourceAsset)))
 			{
 				return;
 			}
@@ -1781,46 +2056,153 @@ void UContentBrowserAssetDataSource::EnumerateItemsMatchingFilter(const FContent
 
 		if (const FContentBrowserCompiledUnsupportedAssetDataFilter* UnsupportedAssetDataFilter = FilterList->FindFilter<FContentBrowserCompiledUnsupportedAssetDataFilter>())
 		{
+			const TSharedPtr<FPathPermissionList>& ShowPrivateContentPermissionList = IContentBrowserSingleton::Get().GetShowPrivateContentPermissionList();
+
 			// Using the show unsupported asset filter
-			AssetRegistry->EnumerateAssets(UnsupportedAssetDataFilter->InclusiveFilter, [this, &InCallback, &AssetDataFilter, UnsupportedAssetDataFilter](const FAssetData& AssetData)
+			AssetRegistry->EnumerateAssets(UnsupportedAssetDataFilter->InclusiveFilter, [this, &InSink, &AssetDataFilter, UnsupportedAssetDataFilter, &ShowPrivateContentPermissionList](const FAssetData& AssetData)
 			{
 				if (ContentBrowserAssetData::IsPrimaryAsset(AssetData) && AssetData.GetOptionalOuterPathName().IsNone())
 				{
 					const bool bPassesExclusiveFilter = UnsupportedAssetDataFilter->ExclusiveFilter.IsEmpty() || !AssetRegistry->IsAssetIncludedByFilter(AssetData, UnsupportedAssetDataFilter->ExclusiveFilter);
 					if (bPassesExclusiveFilter)
 					{
+						// Exclude private assets that do not pass ShowPrivateContentPermissionList
+						if (AssetData.HasAnyPackageFlags(PKG_NotExternallyReferenceable))
+						{
+							if (!ShowPrivateContentPermissionList->PassesStartsWithFilter(FNameBuilder(AssetData.PackageName)))
+							{
+								return true;
+							}
+						}
+
 						// Should this asset be presented as unsupported
 						if (!(AssetRegistry->IsAssetIncludedByFilter(AssetData, UnsupportedAssetDataFilter->ConvertIfFailInclusiveFilter) && (UnsupportedAssetDataFilter->ConvertIfFailExclusiveFilter.IsEmpty() || AssetRegistry->IsAssetExcludedByFilter(AssetData, UnsupportedAssetDataFilter->ConvertIfFailExclusiveFilter))) // Do we fail the supported filter?
 							&& (AssetRegistry->IsAssetIncludedByFilter(AssetData, UnsupportedAssetDataFilter->ShowInclusiveFilter) && (UnsupportedAssetDataFilter->ShowExclusiveFilter.IsEmpty() || AssetRegistry->IsAssetExcludedByFilter(AssetData, UnsupportedAssetDataFilter->ShowExclusiveFilter)))) // Do we pass the show filter for the unsupported asset?
 						{
-							return InCallback(CreateUnsupportedAssetFileItem(AssetData));
+							return InSink.ProduceItem(CreateUnsupportedAssetFileItem(AssetData));
 						}
 
 						// Normal item test it against the class filter
 						if ((AssetDataFilter->InclusiveFilter.ClassPaths.IsEmpty() || AssetDataFilter->InclusiveFilter.ClassPaths.Contains(AssetData.AssetClassPath)) && !AssetDataFilter->ExclusiveFilter.ClassPaths.Contains(AssetData.AssetClassPath))
 						{
-							return InCallback(CreateAssetFileItem(AssetData));
+							return InSink.ProduceItem(CreateAssetFileItem(AssetData));
 						}
 					}
 				}
 				return true;
 			});
+			return;
+		}
+
+		auto ProduceAssets = [&AssetDataFilter, &InSink, this](TArray<FAssetData>& Assets, const TSet<FName>& IgnorePackageNames) {
+			InSink.ReserveMore(Assets.Num());
+			
+			FAssetPropertyTagCache& TagCache = FAssetPropertyTagCache::Get();
+			for (const FAssetData& AssetData : Assets)
+			{
+				TagCache.TryCacheClass(AssetData.AssetClassPath);
+			}
+			
+			for (FAssetData& AssetData : Assets)
+			{
+				if (IgnorePackageNames.Contains(AssetData.PackageName))
+				{
+					AssetData = FAssetData{};
+				}
+			}
+
+			if (!AssetDataFilter->ExclusiveFilter.IsEmpty())
+			{
+				for (FAssetData& AssetData : Assets)
+				{
+					if (AssetRegistry->IsAssetIncludedByFilter(AssetData, AssetDataFilter->ExclusiveFilter))
+					{
+						AssetData = FAssetData{};
+					}
+				}
+			}
+			
+			// For batches above some arbitrary threshold, run conversion in parallel
+			if (AssetDataSource::bAllowInternalParallelism && Assets.Num() > 1024 * 16)
+			{
+				TArray<FContentBrowserItemData> Converted;
+				Converted.Reserve(Assets.Num());
+				Converted.AddUninitialized(Assets.Num());
+				ParallelFor(TEXT("ConvertAssetsToContentBrowserItems"), Assets.Num(), 1024 * 16, [&Assets, &Converted, this](int32 Index) {
+					if (Assets[Index].IsValid() && ContentBrowserAssetData::IsPrimaryAsset(Assets[Index]))
+					{
+						new (&Converted[Index]) FContentBrowserItemData(CreateAssetFileItem(MoveTemp(Assets[Index])));
+					}
+					else
+					{
+						new (&Converted[Index]) FContentBrowserItemData();
+					}
+				});
+				for (FContentBrowserItemData& Item : Converted)
+				{
+					if (Item.IsValid())
+					{
+						InSink.ProduceItem(MoveTemp(Item));
+					}
+				}
+			}
+			else
+			{
+				for (FAssetData& AssetData : Assets)
+				{
+					if (AssetData.IsValid() && ContentBrowserAssetData::IsPrimaryAsset(AssetData))
+					{
+						InSink.ProduceItem(CreateAssetFileItem(MoveTemp(AssetData)));
+					}
+				}
+			}
+		};
+
+		UE::Tasks::TTask<TArray<FAssetData>> DiskTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [AssetRegistry=AssetRegistry, &AssetDataFilter]() {
+			TArray<FAssetData> Assets;
+			FARCompiledFilter OnDiskFilter = AssetDataFilter->InclusiveFilter;
+			OnDiskFilter.bIncludeOnlyOnDiskAssets = true;
+			AssetRegistry->GetAssets(OnDiskFilter, Assets);
+			return MoveTemp(Assets);
+		});
+
+		TSet<FName> IgnorePackages;
+		if (AssetDataFilter->InclusiveFilter.PackageNames.Num() != 0 || !AssetDataSource::bOptimizeEnumerateInMemoryAssets) 
+		{
+			TArray<FAssetData> InMemoryAssets;
+			AssetRegistry->GetInMemoryAssets(AssetDataFilter->InclusiveFilter, InMemoryAssets);
+			ProduceAssets(InMemoryAssets, IgnorePackages);
+			Algo::Transform(InMemoryAssets, IgnorePackages, [](const FAssetData& AssetData) { return AssetData.PackageName; });
 		}
 		else
 		{
-			AssetRegistry->EnumerateAssets(AssetDataFilter->InclusiveFilter, [this, &InCallback, &AssetDataFilter](const FAssetData& AssetData)
+			TArray<FAssetData> InMemoryAssets;
+			FARCompiledFilter InMemoryFilter = AssetDataFilter->InclusiveFilter;
+			ForEachObjectOfClass(UPackage::StaticClass(), [&InMemoryFilter](UObject* Object)
+			{
+				UPackage* Package = CastChecked<UPackage>(Object);
+				if (Package->HasAnyFlags(RF_ClassDefaultObject))
 				{
-					if (ContentBrowserAssetData::IsPrimaryAsset(AssetData))
-					{
-						const bool bPassesExclusiveFilter = AssetDataFilter->ExclusiveFilter.IsEmpty() || !AssetRegistry->IsAssetIncludedByFilter(AssetData, AssetDataFilter->ExclusiveFilter);
-						if (bPassesExclusiveFilter)
-						{
-							return InCallback(CreateAssetFileItem(AssetData));
-						}
-					}
-					return true;
-				});
+					return;
+				}
+
+				if (Package->IsDirty() || Package->HasAnyPackageFlags(PKG_NewlyCreated))
+				{
+					InMemoryFilter.PackageNames.Add(Package->GetFName());
+				}
+			});
+			if (InMemoryFilter.PackageNames.Num() > 0)
+			{
+				AssetRegistry->GetInMemoryAssets(InMemoryFilter, InMemoryAssets);
+
+				ProduceAssets(InMemoryAssets, IgnorePackages);
+				Algo::Transform(InMemoryAssets, IgnorePackages, [](const FAssetData& AssetData) { return AssetData.PackageName; });
+			}
 		}
+
+		DiskTask.Wait();
+		TArray<FAssetData> DiskAssets = MoveTemp(DiskTask.GetResult());
+		ProduceAssets(DiskAssets, IgnorePackages);
 	}
 }
 
@@ -1932,8 +2314,48 @@ bool UContentBrowserAssetDataSource::PrioritizeSearchPath(const FName InPath)
 	return true;
 }
 
-bool UContentBrowserAssetDataSource::IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags)
+bool UContentBrowserAssetDataSource::IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags, TOptional<FContentBrowserFolderContentsFilter> InContentsFilter)
 {
+	const TSharedPtr<FPathPermissionList>& ShowPrivateContentPermissionList = IContentBrowserSingleton::Get().GetShowPrivateContentPermissionList();
+
+	auto IsInternalFolderVisible = [this, InContentsFilter, &ShowPrivateContentPermissionList](FName InternalFolderPath) {
+		const EContentBrowserFolderAttributes FolderAttributes = GetAssetFolderAttributes(InternalFolderPath);
+		if (EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::AlwaysVisible))
+		{
+			return true;
+		}
+
+		// Hide folders that only contain cooked private content
+		if (EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasAssets | EContentBrowserFolderAttributes::HasRedirectors))
+		{
+			if (!EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasPublicContent))
+			{
+				FNameBuilder InternalFolderPathBuilder(InternalFolderPath);
+				if (!ShowPrivateContentPermissionList->PassesStartsWithFilter(InternalFolderPathBuilder))
+				{
+					return false;
+				}
+			}
+		}
+
+		if (InContentsFilter.IsSet())
+		{
+			if (EnumHasAnyFlags(InContentsFilter->ItemCategoryFilter, EContentBrowserItemCategoryFilter::IncludeAssets)
+				&& EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasAssets))
+			{
+				return true;
+			}
+			if (EnumHasAnyFlags(InContentsFilter->ItemCategoryFilter, EContentBrowserItemCategoryFilter::IncludeRedirectors)
+				&& EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasRedirectors))
+			{
+				return true;
+			}
+			return false;
+		}
+
+		return true;
+	};
+
 	FName ConvertedPath;
 	const EContentBrowserPathType ConvertedPathType = TryConvertVirtualPath(InPath, ConvertedPath);
 	if (ConvertedPathType == EContentBrowserPathType::Internal)
@@ -1942,30 +2364,28 @@ bool UContentBrowserAssetDataSource::IsFolderVisible(const FName InPath, const E
 		{
 			return false;
 		}
+		return IsInternalFolderVisible(ConvertedPath);
 	}
 	else if (ConvertedPathType == EContentBrowserPathType::Virtual)
 	{
+		bool bAnyVisible = false;
+		// Make virtual folders visible if any of their child folders will be visible
+		RootPathVirtualTree.EnumerateSubPaths(
+			ConvertedPath,
+			[this, &bAnyVisible, &IsInternalFolderVisible](FName ChildVirtualPath, FName ChildInternalPath) -> bool {
+				if (!ChildInternalPath.IsNone())
+				{
+					bAnyVisible = IsInternalFolderVisible(ChildInternalPath);
+				}
+				return !bAnyVisible;
+			},
+			true);
 		return true;
 	}
 	else
 	{
 		return false;
 	}
-
-	const EContentBrowserFolderAttributes FolderAttributes = GetAssetFolderAttributes(ConvertedPath);
-	if (EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::AlwaysVisible))
-	{
-		return true;
-	}
-
-	// Hide folders that only contain cooked private content
-	if (EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasContent) && !EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasPublicContent | EContentBrowserFolderAttributes::HasSourceContent))
-	{
-		return false;
-	}
-
-	return !EnumHasAnyFlags(InFlags, EContentBrowserIsFolderVisibleFlags::HideEmptyFolders)
-		|| EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasContent);
 }
 
 bool UContentBrowserAssetDataSource::CanCreateFolder(const FName InPath, FText* OutErrorMsg)
@@ -2002,7 +2422,8 @@ bool UContentBrowserAssetDataSource::CreateFolder(const FName InPath, FContentBr
 		InPath,
 		*FolderItemName,
 		FText::AsCultureInvariant(FolderItemName),
-		MakeShared<FContentBrowserAssetFolderItemDataPayload>(*InternalPathString)
+		MakeShared<FContentBrowserAssetFolderItemDataPayload>(*InternalPathString),
+		FName(InternalPathString)
 		);
 
 	OutPendingItem = FContentBrowserItemDataTemporaryContext(
@@ -2161,6 +2582,15 @@ bool UContentBrowserAssetDataSource::ConvertItemForFilter(FContentBrowserItemDat
 				if (!(AssetRegistry->IsAssetIncludedByFilter(AssetData, UnsupportedAssetDataFilter->ConvertIfFailInclusiveFilter) && (UnsupportedAssetDataFilter->ConvertIfFailExclusiveFilter.IsEmpty() || AssetRegistry->IsAssetExcludedByFilter(AssetData, UnsupportedAssetDataFilter->ConvertIfFailExclusiveFilter))) // Do we fail the supported filter?
 					&& (AssetRegistry->IsAssetIncludedByFilter(AssetData, UnsupportedAssetDataFilter->ShowInclusiveFilter) && (UnsupportedAssetDataFilter->ShowExclusiveFilter.IsEmpty() || AssetRegistry->IsAssetExcludedByFilter(AssetData, UnsupportedAssetDataFilter->ShowExclusiveFilter)))) // Do we pass the show filter for the unsupported asset?
 				{
+					// Exclude private assets that do not pass ShowPrivateContentPermissionList
+					if (AssetData.HasAnyPackageFlags(PKG_NotExternallyReferenceable))
+					{
+						if (!IContentBrowserSingleton::Get().GetShowPrivateContentPermissionList()->PassesStartsWithFilter(FNameBuilder(AssetData.PackageName)))
+						{
+							return false;
+						}
+					}
+
 					Item = CreateUnsupportedAssetFileItem(AssetData);
 					return true;
 				}
@@ -2248,24 +2678,27 @@ bool UContentBrowserAssetDataSource::DuplicateItem(const FContentBrowserItemData
 	if (ContentBrowserAssetData::DuplicateItem(AssetTools, this, InItem, SourceAsset, NewAssetData))
 	{
 		FName VirtualizedPath;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		TryConvertInternalPathToVirtual(NewAssetData.ObjectPath, VirtualizedPath);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FName InternalPath = NewAssetData.ObjectPath;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		TryConvertInternalPathToVirtual(InternalPath, VirtualizedPath);
 
 		FContentBrowserItemData NewItemData(
 			this,
-			EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset | EContentBrowserItemFlags::Temporary_Duplication,
+			EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset
+				| EContentBrowserItemFlags::Temporary_Duplication,
 			VirtualizedPath,
 			NewAssetData.AssetName,
 			FText::AsCultureInvariant(NewAssetData.AssetName.ToString()),
-			MakeShared<FContentBrowserAssetFileItemDataPayload_Duplication>(MoveTemp(NewAssetData), SourceAsset)
-			);
+			MakeShared<FContentBrowserAssetFileItemDataPayload_Duplication>(MoveTemp(NewAssetData), SourceAsset),
+			{ InternalPath });
 
 		OutPendingItem = FContentBrowserItemDataTemporaryContext(
 			MoveTemp(NewItemData),
-			FContentBrowserItemDataTemporaryContext::FOnValidateItem::CreateUObject(this, &UContentBrowserAssetDataSource::OnValidateItemName),
-			FContentBrowserItemDataTemporaryContext::FOnFinalizeItem::CreateUObject(this, &UContentBrowserAssetDataSource::OnFinalizeDuplicateAsset)
-			);
+			FContentBrowserItemDataTemporaryContext::FOnValidateItem::CreateUObject(
+				this, &UContentBrowserAssetDataSource::OnValidateItemName),
+			FContentBrowserItemDataTemporaryContext::FOnFinalizeItem::CreateUObject(
+				this, &UContentBrowserAssetDataSource::OnFinalizeDuplicateAsset));
 
 		return true;
 	}
@@ -2514,6 +2947,16 @@ bool UContentBrowserAssetDataSource::AppendItemReference(const FContentBrowserIt
 	return ContentBrowserAssetData::AppendItemReference(AssetRegistry, this, InItem, InOutStr);
 }
 
+bool UContentBrowserAssetDataSource::AppendItemObjectPath(const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	return ContentBrowserAssetData::AppendItemObjectPath(AssetRegistry, this, InItem, InOutStr);
+}
+
+bool UContentBrowserAssetDataSource::AppendItemPackageName(const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	return ContentBrowserAssetData::AppendItemPackageName(AssetRegistry, this, InItem, InOutStr);
+}
+
 bool UContentBrowserAssetDataSource::UpdateThumbnail(const FContentBrowserItemData& InItem, FAssetThumbnail& InThumbnail)
 {
 	return ContentBrowserAssetData::UpdateItemThumbnail(this, InItem, InThumbnail);
@@ -2654,28 +3097,36 @@ bool UContentBrowserAssetDataSource::IsKnownContentPath(const FName InPackagePat
 {
 	FNameBuilder PackagePathStr(InPackagePath);
 	const FStringView PackagePathStrView = PackagePathStr;
-	for (const FString& RootContentPath : RootContentPaths)
+
+	const FCharacterNode* CurrentNode = &RootContentPathsTrie;
+
+	for (const TCHAR& Character : PackagePathStrView)
 	{
-		const FStringView RootContentPathNoSlash = FStringView(RootContentPath).LeftChop(1);
-		if (PackagePathStrView.StartsWith(RootContentPath, ESearchCase::IgnoreCase) || PackagePathStrView.Equals(RootContentPathNoSlash, ESearchCase::IgnoreCase))
+		const TPair<FCharacterNodePtr, int32>* NextNodePair = CurrentNode->NextNodes.Find(TChar<TCHAR>::ToLower(Character));
+
+		if (!NextNodePair)
 		{
+			// This text start with no root content path
+			return false;
+		}
+		 
+		const FCharacterNode* NextNode = NextNodePair->Key.Get();
+
+		// Is the next node terminal
+		if (NextNode->bIsEndOfAMountPoint)
+		{
+			// The package path start with a root content path
 			return true;
 		}
+
+		CurrentNode = NextNode;
 	}
-
-	return false;
-}
-
-bool UContentBrowserAssetDataSource::IsRootContentPath(const FName InPackagePath) const
-{
-	FNameBuilder PackagePathStr(InPackagePath);
-	PackagePathStr << TEXT('/'); // RootContentPaths have a trailing slash
-
-	const FStringView PackagePathStrView = PackagePathStr;
-	return RootContentPaths.ContainsByPredicate([&PackagePathStrView](const FString& InRootContentPath)
-	{
-		return PackagePathStrView == InRootContentPath;
-	});
+	
+	/**
+	 * Test if the folder is a root folder here like / Game.
+	 * Where the only thing missing is the last '/'.
+	 */
+	return CurrentNode->NextNodes.Contains(TEXT('/'));
 }
 
 bool UContentBrowserAssetDataSource::GetObjectPathsForCollections(ICollectionManager* CollectionManager, TArrayView<const FCollectionNameType> InCollections, const bool bIncludeChildCollections, TArray<FSoftObjectPath>& OutObjectPaths)
@@ -2695,40 +3146,47 @@ bool UContentBrowserAssetDataSource::GetObjectPathsForCollections(ICollectionMan
 	return false;
 }
 
-FContentBrowserItemData UContentBrowserAssetDataSource::CreateAssetFolderItem(const FName InFolderPath)
+FContentBrowserItemData UContentBrowserAssetDataSource::CreateAssetFolderItem(const FName InInternalFolderPath)
 {
 	FName VirtualizedPath;
-	TryConvertInternalPathToVirtual(InFolderPath, VirtualizedPath);
+	TryConvertInternalPathToVirtual(InInternalFolderPath, VirtualizedPath);
 
-	const EContentBrowserFolderAttributes FolderAttributes = GetAssetFolderAttributes(InFolderPath);
-	const bool bIsCookedPath = EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasContent) && !EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasSourceContent);
+	const EContentBrowserFolderAttributes FolderAttributes = GetAssetFolderAttributes(InInternalFolderPath);
+	const bool bIsCookedPath =
+		EnumHasAnyFlags(
+			FolderAttributes, EContentBrowserFolderAttributes::HasAssets | EContentBrowserFolderAttributes::HasRedirectors)
+		&& !EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasSourceContent);
 	const bool bIsPlugin = EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::IsInPlugin);
-	return ContentBrowserAssetData::CreateAssetFolderItem(this, VirtualizedPath, InFolderPath, bIsCookedPath, bIsPlugin);
+	return ContentBrowserAssetData::CreateAssetFolderItem(
+		this, VirtualizedPath, InInternalFolderPath, bIsCookedPath, bIsPlugin);
 }
 
 FContentBrowserItemData UContentBrowserAssetDataSource::CreateAssetFileItem(const FAssetData& InAssetData)
 {
 	FName VirtualizedPath;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	TryConvertInternalPathToVirtual(InAssetData.ObjectPath, VirtualizedPath);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FName InternalPath = InAssetData.ObjectPath;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	TryConvertInternalPathToVirtual(InternalPath, VirtualizedPath);
 
 	const EContentBrowserFolderAttributes FolderAttributes = GetAssetFolderAttributes(InAssetData.PackagePath);
 	const bool bIsPlugin = EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::IsInPlugin);
-	return ContentBrowserAssetData::CreateAssetFileItem(this, VirtualizedPath, InAssetData, bIsPlugin);
+	return ContentBrowserAssetData::CreateAssetFileItem(this, VirtualizedPath, InternalPath, InAssetData, bIsPlugin);
 }
 
 FContentBrowserItemData UContentBrowserAssetDataSource::CreateUnsupportedAssetFileItem(const FAssetData& InAssetData)
 {
 	FName VirtualizedPath;
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		TryConvertInternalPathToVirtual(InAssetData.ObjectPath, VirtualizedPath);
+	FName InternalPath = InAssetData.ObjectPath;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	TryConvertInternalPathToVirtual(InternalPath, VirtualizedPath);
 
-	return ContentBrowserAssetData::CreateUnsupportedAssetFileItem(this, VirtualizedPath, InAssetData);
+	return ContentBrowserAssetData::CreateUnsupportedAssetFileItem(this, VirtualizedPath, InternalPath, InAssetData);
 }
 
-TSharedPtr<const FContentBrowserAssetFolderItemDataPayload> UContentBrowserAssetDataSource::GetAssetFolderItemPayload(const FContentBrowserItemData& InItem) const
+TSharedPtr<const FContentBrowserAssetFolderItemDataPayload> UContentBrowserAssetDataSource::GetAssetFolderItemPayload(
+	const FContentBrowserItemData& InItem) const
 {
 	return ContentBrowserAssetData::GetAssetFolderItemPayload(this, InItem);
 }
@@ -2776,29 +3234,50 @@ void UContentBrowserAssetDataSource::OnAssetRegistryFileLoadProgress(const IAsse
 	}
 }
 
-void UContentBrowserAssetDataSource::OnAssetAdded(const FAssetData& InAssetData)
+void UContentBrowserAssetDataSource::OnAssetsAdded(TConstArrayView<FAssetData> InAssets)
 {
-	if (ContentBrowserAssetData::IsPrimaryAsset(InAssetData))
-	{
-		// The owner folder of this asset is no longer considered empty
-		OnPathPopulated(InAssetData);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UContentBrowserAssetDataSource::OnAssetAdded);
+	LLM_SCOPE_BYNAME(TEXT("UContentBrowserAssetDataSource"))
 
-		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemAddedUpdate(CreateAssetFileItem(InAssetData)));
+	FAssetPropertyTagCache& Cache = FAssetPropertyTagCache::Get();
+	for (const FAssetData& InAssetData : InAssets)
+	{
+		UE_LOG(LogContentBrowserAssetDataSource, VeryVerbose, TEXT("OnAssetsAdded: %s"), *WriteToString<256>(InAssetData.GetSoftObjectPath()));
+
+		if (InAssetData.GetOptionalOuterPathName().IsNone())
+		{
+			Cache.TryCacheClass(InAssetData.AssetClassPath);
+		}
+
+		if (ContentBrowserAssetData::IsPrimaryAsset(InAssetData))
+		{
+			// The owner folder of this asset is no longer considered empty
+			OnPathPopulated(InAssetData);
+
+			QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemAddedUpdate(CreateAssetFileItem(InAssetData)));
+		}
 	}
 }
 
 void UContentBrowserAssetDataSource::OnAssetRemoved(const FAssetData& InAssetData)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UContentBrowserAssetDataSource::OnAssetRemoved);
+	LLM_SCOPE_BYNAME(TEXT("UContentBrowserAssetDataSource"))
 	if (ContentBrowserAssetData::IsPrimaryAsset(InAssetData))
 	{
+		UE_LOG(LogContentBrowserAssetDataSource, VeryVerbose, TEXT("OnAssetRemoved: %s"), *WriteToString<256>(InAssetData.GetSoftObjectPath()));
 		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemRemovedUpdate(CreateAssetFileItem(InAssetData)));
 	}
 }
 
 void UContentBrowserAssetDataSource::OnAssetRenamed(const FAssetData& InAssetData, const FString& InOldObjectPath)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UContentBrowserAssetDataSource::OnAssetRenamed);
+	LLM_SCOPE_BYNAME(TEXT("UContentBrowserAssetDataSource"))
 	if (ContentBrowserAssetData::IsPrimaryAsset(InAssetData))
 	{
+		UE_LOG(LogContentBrowserAssetDataSource, VeryVerbose, TEXT("OnAssetRenamed: %s"), *WriteToString<256>(InAssetData.GetSoftObjectPath()));
+
 		// The owner folder of this asset is no longer considered empty
 		OnPathPopulated(InAssetData);
 
@@ -2811,40 +3290,58 @@ void UContentBrowserAssetDataSource::OnAssetRenamed(const FAssetData& InAssetDat
 
 void UContentBrowserAssetDataSource::OnAssetUpdated(const FAssetData& InAssetData)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UContentBrowserAssetDataSource::OnAssetUpdated);
+	LLM_SCOPE_BYNAME(TEXT("UContentBrowserAssetDataSource"))
 	if (ContentBrowserAssetData::IsPrimaryAsset(InAssetData))
 	{
+		UE_LOG(LogContentBrowserAssetDataSource, VeryVerbose, TEXT("OnAssetUpdated: %s"), *WriteToString<256>(InAssetData.GetSoftObjectPath()));
+
+		FAssetPropertyTagCache::Get().TryCacheClass(InAssetData.AssetClassPath);
 		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemModifiedUpdate(CreateAssetFileItem(InAssetData)));
 	}
 }
 
 void UContentBrowserAssetDataSource::OnAssetUpdatedOnDisk(const FAssetData& InAssetData)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UContentBrowserAssetDataSource::OnAssetUpdatedOnDisk);
+
 	if (ContentBrowserAssetData::IsPrimaryAsset(InAssetData))
 	{
+		UE_LOG(LogContentBrowserAssetDataSource, VeryVerbose, TEXT("OnAssetUpdatedOnDisk: %s"), *WriteToString<256>(InAssetData.GetSoftObjectPath()));
+
+		FAssetPropertyTagCache::Get().TryCacheClass(InAssetData.AssetClassPath);
 		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemModifiedUpdate(CreateAssetFileItem(InAssetData)));
 	}
 }
 
 void UContentBrowserAssetDataSource::OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UContentBrowserAssetDataSource::OnObjectPropertyChanged);
+	LLM_SCOPE_BYNAME(TEXT("UContentBrowserAssetDataSource"))
 	if (InObject && InObject->IsAsset() && ContentBrowserAssetData::IsPrimaryAsset(InObject))
 	{
 		FAssetData AssetData(InObject);
+		FAssetPropertyTagCache::Get().TryCacheClass(AssetData.AssetClassPath);
 		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemModifiedUpdate(CreateAssetFileItem(AssetData)));
 	}
 }
 
 void UContentBrowserAssetDataSource::OnObjectPreSave(UObject* InObject, FObjectPreSaveContext InObjectPreSaveContext)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UContentBrowserAssetDataSource::OnObjectPreSave);
+	LLM_SCOPE_BYNAME(TEXT("UContentBrowserAssetDataSource"))
 	if (InObject && InObject->IsAsset() && ContentBrowserAssetData::IsPrimaryAsset(InObject))
 	{
 		FAssetData AssetData(InObject);
+		FAssetPropertyTagCache::Get().TryCacheClass(AssetData.AssetClassPath);
 		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemModifiedUpdate(CreateAssetFileItem(AssetData)));
 	}
 }
 
 void UContentBrowserAssetDataSource::OnPathsAdded(TConstArrayView<FStringView> Paths)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UContentBrowserAssetDataSource::OnPathsAdded);
+	LLM_SCOPE_BYNAME(TEXT("UContentBrowserAssetDataSource"))
 	RecentlyPopulatedAssetFolders.Empty();
 	for (FStringView InPath : Paths)
 	{
@@ -2879,6 +3376,8 @@ void UContentBrowserAssetDataSource::OnPathsAdded(TConstArrayView<FStringView> P
 
 void UContentBrowserAssetDataSource::OnPathsRemoved(TConstArrayView<FStringView> Paths)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UContentBrowserAssetDataSource::OnPathsRemoved);
+	LLM_SCOPE_BYNAME(TEXT("UContentBrowserAssetDataSource"))
 	for (FStringView InPath : Paths)
 	{
 		// Deleted paths are no longer relevant for tracking
@@ -2894,10 +3393,10 @@ void UContentBrowserAssetDataSource::OnPathsRemoved(TConstArrayView<FStringView>
 
 void UContentBrowserAssetDataSource::OnPathPopulated(const FAssetData& InAssetData)
 {
-	const EContentBrowserFolderAttributes FolderAttributes 
-		= EContentBrowserFolderAttributes::HasContent
-		| (InAssetData.PackageFlags & PKG_Cooked ? EContentBrowserFolderAttributes::None : EContentBrowserFolderAttributes::HasSourceContent)
-		| (InAssetData.PackageFlags & PKG_NotExternallyReferenceable ? EContentBrowserFolderAttributes::None : EContentBrowserFolderAttributes::HasPublicContent);
+	EContentBrowserFolderAttributes FolderAttributes =
+		InAssetData.IsRedirector() ? EContentBrowserFolderAttributes::HasRedirectors : EContentBrowserFolderAttributes::HasAssets;
+	FolderAttributes |= (InAssetData.PackageFlags & PKG_Cooked ? EContentBrowserFolderAttributes::None : EContentBrowserFolderAttributes::HasSourceContent);
+	FolderAttributes |= (InAssetData.PackageFlags & PKG_NotExternallyReferenceable ? EContentBrowserFolderAttributes::None : EContentBrowserFolderAttributes::HasPublicContent);
 
 	OnPathPopulated(FNameBuilder(InAssetData.PackagePath), FolderAttributes);
 }
@@ -2984,7 +3483,8 @@ void UContentBrowserAssetDataSource::BuildRootPathVirtualTree()
 
 void UContentBrowserAssetDataSource::OnContentPathMounted(const FString& InAssetPath, const FString& InFileSystemPath)
 {
-	RootContentPaths.AddUnique(InAssetPath);
+	RootContentPaths.Add(InAssetPath);
+	AddRootContentPathToStateMachine(InAssetPath);
 
 	RootPathAdded(InAssetPath);
 
@@ -2996,6 +3496,7 @@ void UContentBrowserAssetDataSource::OnContentPathDismounted(const FString& InAs
 {
 	RootPathRemoved(InAssetPath);
 
+	RemoveRootContentPathFromStateMachine(InAssetPath);
 	RootContentPaths.Remove(InAssetPath);
 }
 
@@ -3017,6 +3518,11 @@ bool UContentBrowserAssetDataSource::SetAssetFolderAttributes(const FName InPath
 		EnumAddFlags(FolderAttributes, InAttributesToSet);
 
 		const bool bHasChanged = FolderAttributes != PreviousAttributes;
+		if (bHasChanged)
+		{
+			const EContentBrowserFolderAttributes NewAttributes = InAttributesToSet & ~(PreviousAttributes);
+			UE_LOG(LogContentBrowserAssetDataSource, Verbose, TEXT("Updated folder attributes: %s %s"), *WriteToString<256>(InPath), *WriteToString<256>(NewAttributes));
+		}
 		return bHasChanged;
 	}
 
@@ -3085,7 +3591,16 @@ void UContentBrowserAssetDataSource::PopulateContentBrowserToolBar(UToolMenu* In
 	const UContentBrowserToolbarMenuContext* ContextObject = InMenu->FindContext<UContentBrowserToolbarMenuContext>();
 	checkf(ContextObject, TEXT("Required context UContentBrowserToolbarMenuContext was missing!"));
 
-	TSharedRef<SWidget> ImportButton = 
+#if UE_CONTENTBROWSER_NEW_STYLE
+	TSharedRef<SWidget> ImportButton =
+		SNew(SActionButton)
+		.ToolTipText(LOCTEXT("ImportTooltip", "Import assets from files to the currently selected folder"))
+		.OnClicked_UObject(this, &UContentBrowserAssetDataSource::OnImportClicked, ContextObject)
+		.IsEnabled_UObject(this, &UContentBrowserAssetDataSource::IsImportEnabled, ContextObject)
+		.Icon(FAppStyle::Get().GetBrush("Icons.Import"))
+		.Text(LOCTEXT("Import", "Import"));
+#else
+	TSharedRef<SWidget> ImportButton =
 		SNew(SButton)
 		.ButtonStyle(FAppStyle::Get(), "SimpleButton")
 		.ToolTipText(LOCTEXT("ImportTooltip", "Import assets from files to the currently selected folder"))
@@ -3113,6 +3628,7 @@ void UContentBrowserAssetDataSource::PopulateContentBrowserToolBar(UToolMenu* In
 				.Text(LOCTEXT("Import", "Import"))
 			]
 		];
+#endif
 
 	FToolMenuSection& Section = InMenu->FindOrAddSection("New");
 
@@ -3251,6 +3767,8 @@ void UContentBrowserAssetDataSource::OnBeginCreateAsset(const FName InDefaultAss
 		return;
 	}
 
+	FAssetPropertyTagCache::Get().TryCacheClass(FTopLevelAssetPath(ClassToUse));
+
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().GetModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 	FContentBrowserItemPath AssetPathToUse = ContentBrowserModule.Get().GetInitialPathToSaveAsset(FContentBrowserItemPath(InPackagePath, EContentBrowserPathType::Internal));
 
@@ -3266,24 +3784,27 @@ void UContentBrowserAssetDataSource::OnBeginCreateAsset(const FName InDefaultAss
 		FAssetData NewAssetData(*(InPackagePath.ToString() / InDefaultAssetName.ToString()), InPackagePath, InDefaultAssetName, ClassToUse->GetClassPathName());
 
 		FName VirtualizedPath;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		TryConvertInternalPathToVirtual(NewAssetData.ObjectPath, VirtualizedPath);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FName InternalPath = NewAssetData.ObjectPath;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		TryConvertInternalPathToVirtual(InternalPath, VirtualizedPath);
 
 		FContentBrowserItemData NewItemData(
-			this, 
-			EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset | EContentBrowserItemFlags::Temporary_Creation,
-			VirtualizedPath, 
+			this,
+			EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset
+				| EContentBrowserItemFlags::Temporary_Creation,
+			VirtualizedPath,
 			NewAssetData.AssetName,
 			FText::AsCultureInvariant(NewAssetData.AssetName.ToString()),
-			MakeShared<FContentBrowserAssetFileItemDataPayload_Creation>(MoveTemp(NewAssetData), InAssetClass, InFactory)
-			);
+			MakeShared<FContentBrowserAssetFileItemDataPayload_Creation>(MoveTemp(NewAssetData), InAssetClass, InFactory),
+			{ InternalPath });
 
 		InOnBeginItemCreation.Execute(FContentBrowserItemDataTemporaryContext(
-			MoveTemp(NewItemData), 
-			FContentBrowserItemDataTemporaryContext::FOnValidateItem::CreateUObject(this, &UContentBrowserAssetDataSource::OnValidateItemName),
-			FContentBrowserItemDataTemporaryContext::FOnFinalizeItem::CreateUObject(this, &UContentBrowserAssetDataSource::OnFinalizeCreateAsset)
-			));
+			MoveTemp(NewItemData),
+			FContentBrowserItemDataTemporaryContext::FOnValidateItem::CreateUObject(
+				this, &UContentBrowserAssetDataSource::OnValidateItemName),
+			FContentBrowserItemDataTemporaryContext::FOnFinalizeItem::CreateUObject(
+				this, &UContentBrowserAssetDataSource::OnFinalizeCreateAsset)));
 	}
 }
 
@@ -3385,9 +3906,56 @@ FContentBrowserItemData UContentBrowserAssetDataSource::OnFinalizeDuplicateAsset
 	return CreateAssetFileItem(FAssetData(Asset));
 }
 
-bool UContentBrowserAssetDataSource::PathPassesCompiledDataFilter(const FContentBrowserCompiledAssetDataFilter& InFilter, const FName InPath)
+void UContentBrowserAssetDataSource::AddRootContentPathToStateMachine(const FString& InAssetPath)
 {
-	FNameBuilder PathStr(InPath);
+	FCharacterNode* CurrentNode = &RootContentPathsTrie;
+
+	for (const TCHAR& Character : InAssetPath)
+	{
+		TPair<FCharacterNodePtr,int32>& NextNode = CurrentNode->NextNodes.FindOrAdd(TChar<TCHAR>::ToLower(Character));
+		++NextNode.Value;
+		CurrentNode = NextNode.Key.Get();
+	}
+
+	CurrentNode->bIsEndOfAMountPoint = true;
+}
+
+void UContentBrowserAssetDataSource::RemoveRootContentPathFromStateMachine(const FString& InAssetPath)
+{
+	FCharacterNode* CurrentNode = &RootContentPathsTrie;
+
+	for (const TCHAR& Character : InAssetPath)
+	{
+		const TCHAR LoweredCharacter = TChar<TCHAR>::ToLower(Character);
+		uint32 Hash = GetTypeHash(LoweredCharacter);
+		TPair<FCharacterNodePtr,int32>* NextNode = CurrentNode->NextNodes.FindByHash(Hash,LoweredCharacter);
+
+		if (!NextNode)
+		{
+			return;
+		}
+
+		--NextNode->Value;
+		if (NextNode->Value == 0)
+		{
+			CurrentNode->NextNodes.RemoveByHash(Hash,LoweredCharacter);
+			return;
+		}
+
+		CurrentNode = NextNode->Key.Get();
+	}
+
+	CurrentNode->bIsEndOfAMountPoint = false;
+}
+
+bool UContentBrowserAssetDataSource::PathPassesCompiledDataFilter(const FContentBrowserCompiledAssetDataFilter& InFilter, const FName InInternalPath)
+{
+	if (InFilter.ExcludedPackagePaths.Contains(InInternalPath)) // PassesExcludedPathsFilter
+	{
+		return false;
+	}
+
+	FNameBuilder PathStr(InInternalPath);
 	FStringView Path(PathStr);
 
 	auto PathPassesFilter = [Path](const FPathPermissionList& InPathFilter, const bool InRecursive)
@@ -3397,8 +3965,7 @@ bool UContentBrowserAssetDataSource::PathPassesCompiledDataFilter(const FContent
 
 	return PathPassesFilter(InFilter.PackagePathsToInclude, InFilter.bRecursivePackagePathsToInclude)
 		&& PathPassesFilter(InFilter.PackagePathsToExclude, InFilter.bRecursivePackagePathsToExclude)
-		&& PathPassesFilter(InFilter.PathPermissionList, /*bRecursive*/true) // PassesPathFilter
-		&& !InFilter.ExcludedPackagePaths.Contains(InPath) // PassesExcludedPathsFilter
+		&& PathPassesFilter(InFilter.PathPermissionList, /*bRecursive*/ true)                         // PassesPathFilter
 		&& ContentBrowserDataUtils::PathPassesAttributeFilter(Path, 0, InFilter.ItemAttributeFilter); // PassesAttributeFilter
 }
 

@@ -33,6 +33,6 @@ namespace PCGGeneratedResourcesLogging
 
 	void LogManagedResourceSoftRelease(UPCGManagedResource* InResource);
 	void LogManagedResourceHardRelease(UPCGManagedResource* InResource);
-	void LogManagedComponentHidden(UPCGManagedComponent* InResource);
-	void LogManagedComponentDeleteNull(UPCGManagedComponent* InResource);
+	void LogManagedComponentHidden(UPCGManagedResource* InResource);
+	void LogManagedComponentDeleteNull(UPCGManagedResource* InResource);
 }

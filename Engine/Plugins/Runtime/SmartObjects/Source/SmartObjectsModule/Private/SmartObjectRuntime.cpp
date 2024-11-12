@@ -23,7 +23,7 @@ uint16 GetMaskForEnabledReasonTag(const FGameplayTag Tag)
 
 		Index = GEnabledReasonTags.Add(Tag);
 	}
-	return (uint16)1 << Index;
+	return static_cast<uint16>(1 << Index);
 }
 }
 
@@ -116,7 +116,7 @@ FString FSmartObjectRuntime::DebugGetDisableFlagsString() const
 	FStringBuilderBase DisableFlagsStringBuilder;
 	for (int TagIndex = 0; TagIndex < MaxNumDisableFlags; ++TagIndex)
 	{
-		const uint16 TagMask = (uint16)1 << TagIndex;
+		const uint16 TagMask = (uint16)(1 << TagIndex);
 		if (!!(DisableFlags & TagMask))
 		{
 			check(UE::SmartObject::GEnabledReasonTags.IsValidIndex(TagIndex));

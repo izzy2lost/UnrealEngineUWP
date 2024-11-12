@@ -2,13 +2,12 @@
 
 #pragma once
 
-#include "Widgets/SCompoundWidget.h"
-#include "Widgets/Views/SListView.h"
-#include "Dataflow/DataflowEdNode.h"
-#include "Dataflow/SelectionViewWidget.h"
-#include "Dataflow/DataflowSelection.h"
+#include "CoreMinimal.h"
 #include "Dataflow/DataflowView.h"
 
+class UDataflowEditor;
+class SSelectionViewWidget;
+class UPrimitiveComponent;
 
 /**
 *
@@ -18,10 +17,12 @@
 class FDataflowSelectionView : public FDataflowNodeView
 {
 public:
+	FDataflowSelectionView(TObjectPtr<UDataflowBaseContent> InContent = nullptr);
 	~FDataflowSelectionView();
 
 	virtual void SetSupportedOutputTypes() override;
 	virtual void UpdateViewData() override;
+	virtual void ConstructionViewSelectionChanged(const TArray<UPrimitiveComponent*>& InSelectedComponents) override {};
 
 	void SetSelectionView(TSharedPtr<SSelectionViewWidget>& InSelectionView);
 

@@ -38,9 +38,15 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_GetCurveValue)
 	
 	Unit.Curve = ValidCurveName;
 	Execute();
-	AddErrorIfFalse(Unit.Valid, TEXT("Expected curve hold a valid value"));
+	AddErrorIfFalse(!Unit.Valid, TEXT("Expected curve hold a unset value"));
 	Execute();
 	AddErrorIfFalse(Unit.Value != 1.0f, TEXT("Expected curve's value to be 1.0"));
+
+	Hierarchy->SetCurveValue({ValidCurveName, ERigElementType::Curve}, 2.0f);
+	Execute();
+	AddErrorIfFalse(Unit.Valid, TEXT("Expected curve hold a valid value"));
+	Execute();
+	AddErrorIfFalse(Unit.Value == 2.0f, TEXT("Expected curve's value to be 2.0"));
 
 	Unit.Curve = InvalidCurveName;
 	Execute();

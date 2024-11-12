@@ -21,6 +21,7 @@ struct FActiveSkeletalAnimation
 {
 	const UMovieSceneSkeletalAnimationSection* AnimSection;
 	FMovieSceneContext Context;
+	FFrameTime EvalFrameTime;
 	FMovieSceneEntityID EntityID;
 	FRootInstanceHandle RootInstanceHandle;
 	double BlendWeight;
@@ -93,6 +94,8 @@ public:
 	GENERATED_BODY()
 
 	UMovieSceneSkeletalAnimationSystem(const FObjectInitializer& ObjInit);
+
+	static UObject* ResolveSkeletalMeshComponentBinding(UObject* InObject);
 
 private:
 

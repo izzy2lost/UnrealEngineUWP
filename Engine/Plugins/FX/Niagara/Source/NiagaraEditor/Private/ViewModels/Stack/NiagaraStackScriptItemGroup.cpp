@@ -17,6 +17,7 @@
 #include "ScopedTransaction.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "Framework/Notifications/NotificationManager.h"
+#include "Interfaces/IMainFrameModule.h"
 #include "Internationalization/Internationalization.h"
 #include "Modules/ModuleManager.h"
 #include "Toolkits/NiagaraSystemToolkit.h"
@@ -31,10 +32,15 @@
 #include "ViewModels/Stack/NiagaraStackModuleItem.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Toolkits/SystemToolkitModes/NiagaraSystemToolkitModeBase.h"
+#include "ViewModels/Stack/NiagaraStackViewModel.h"
+#include "Widgets/DataChannel/NiagaraDataChannelWizard.h"
+#include "Widgets/Wizard/SNiagaraModuleWizard.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraStackScriptItemGroup)
 
 #define LOCTEXT_NAMESPACE "UNiagaraStackScriptItemGroup"
+
+using namespace UE::Niagara::Wizard;
 
 class FScriptGroupAddAction : public INiagaraStackItemGroupAddAction
 {
@@ -123,6 +129,13 @@ public:
 		return MakeShareable(new FScriptGroupAddAction( DisplayName, {}, Description, FText(), true, true, FNiagaraVariable(), false, FAssetData(), nullptr, false, true));
 	}
 
+	static TSharedRef<FScriptGroupAddAction> CreateWizardAction(const FModuleWizardGenerator::FAction& Action)
+	{
+		TSharedRef<FScriptGroupAddAction> AddAction = MakeShareable(new FScriptGroupAddAction( Action.DisplayName, {}, Action.Description, Action.Keywords, Action.bSuggestedAction, true, FNiagaraVariable(), false, FAssetData(), nullptr, false, true));
+		AddAction->ModuleWizardModel = Action.WizardModel;
+		return AddAction;
+	}
+
 	virtual TArray<FString> GetCategories() const override
 	{
 		return Categories;
@@ -178,14 +191,25 @@ public:
 		return ModuleScript;
 	}
 
-	bool GetIsNewScratchModuleAction() const
+	bool IsNewScratchModuleAction() const
 	{
 		return bIsNewScratchModuleAction;
 	}
 
-	bool GetIsNewSetSpecificModuleAction() const
+	bool IsNewSetSpecificModuleAction() const
 	{
 		return bIsNewSetSpecificModuleAction;
+	}
+
+	bool HasWizardWidget() const
+	{
+		return ModuleWizardModel.IsValid();
+	}
+
+	TSharedRef<SNiagaraModuleWizard> CreateWizard() const
+	{
+		check(HasWizardWidget());
+		return SNew(SNiagaraModuleWizard, ModuleWizardModel.ToSharedRef());
 	}
 
 private:
@@ -223,6 +247,7 @@ private:
 	bool bIsNewScratchModuleAction;
 	bool bIsNewSetSpecificModuleAction;
 	FNiagaraActionSourceData SourceData;
+	TSharedPtr<FModuleWizardModel> ModuleWizardModel;
 };
 
 class FScriptItemGroupAddUtilities : public TNiagaraStackItemGroupAddUtilities<UNiagaraNodeFunctionCall*>
@@ -253,9 +278,10 @@ public:
 
 		// Generate actions for adding script asset modules.
 		TArray<FAssetData> ModuleAssets;
+		ENiagaraScriptUsage TargetUsage = OutputNode->GetUsage();
 		FNiagaraEditorUtilities::FGetFilteredScriptAssetsOptions ModuleScriptFilterOptions;
 		ModuleScriptFilterOptions.ScriptUsageToInclude = ENiagaraScriptUsage::Module;
-		ModuleScriptFilterOptions.TargetUsageToMatch = OutputNode->GetUsage();
+		ModuleScriptFilterOptions.TargetUsageToMatch = TargetUsage;
 		ModuleScriptFilterOptions.bIncludeDeprecatedScripts = AddProperties.bIncludeDeprecated;
 		ModuleScriptFilterOptions.bIncludeNonLibraryScripts = AddProperties.bIncludeNonLibrary;
 		FNiagaraEditorUtilities::GetFilteredScriptAssets(ModuleScriptFilterOptions, ModuleAssets);
@@ -271,7 +297,7 @@ public:
 			if (ScratchPadScript->Usage == ENiagaraScriptUsage::Module)
 			{
 				TArray<ENiagaraScriptUsage> SupportedUsages = ScratchPadScript->GetLatestScriptData()->GetSupportedUsageContexts();
-				if (SupportedUsages.Contains(OutputNode->GetUsage()))
+				if (SupportedUsages.Contains(TargetUsage))
 				{
 					OutAddActions.Add(FScriptGroupAddAction::CreateModuleActionFromScratchPadScript(ScratchPadScript));
 				}
@@ -280,6 +306,16 @@ public:
 
 		OutAddActions.Add(FScriptGroupAddAction::CreateNewScratchModuleAction());
 		OutAddActions.Add(FScriptGroupAddAction::CreateNewSetSpecificModuleAction());
+
+		// Generate wizard actions
+		FNiagaraEditorModule& NiagaraEditorModule = FModuleManager::GetModuleChecked<FNiagaraEditorModule>("NiagaraEditor");
+		for (TSharedRef<FModuleWizardGenerator> WizardGenerator : NiagaraEditorModule.GetModuleWizards())
+		{
+			for (const FModuleWizardGenerator::FAction& Action : WizardGenerator->CreateWizardActions(TargetUsage))
+			{
+				OutAddActions.Add(FScriptGroupAddAction::CreateWizardAction(Action));
+			}
+		}
 	}
 
 	virtual void ExecuteAddAction(TSharedRef<INiagaraStackItemGroupAddAction> AddAction, int32 TargetIndex) override
@@ -308,7 +344,57 @@ public:
 		{
 			NewModuleNode = FNiagaraStackGraphUtilities::AddScriptModuleToStack(ScriptGroupAddAction->GetModuleScript(), *OutputNode, TargetIndex);
 		}
-		else if (ScriptGroupAddAction->GetIsNewScratchModuleAction())
+		else if (ScriptGroupAddAction->HasWizardWidget())
+		{
+			// create the wizard widget
+			TSharedRef<SNiagaraModuleWizard> ModuleWizard = ScriptGroupAddAction->CreateWizard();
+			ModuleWizard->Model->TargetUsage = FNiagaraStackGraphUtilities::GetOutputNodeUsage(*OutputNode);
+			ModuleWizard->OnCreateModule = FSimpleDelegate::CreateLambda([TargetIndex, ModuleWizard = ModuleWizard.ToSharedPtr(), SystemViewModel = SystemViewModel, EmitterViewModel = EmitterViewModel, OutputNode = TWeakObjectPtr<UNiagaraNodeOutput>(OutputNode), StackEditorData = TWeakObjectPtr<UNiagaraStackEditorData>(&StackEditorData)]()
+			{
+				if (SystemViewModel.IsValid() && OutputNode.IsValid() && StackEditorData.IsValid())
+				{
+					// create the module and add it to the stack
+					FScopedTransaction AddModuleTransaction(LOCTEXT("AddWizardModuleTransaction", "Add module via wizard"));
+					TSharedPtr<FNiagaraSystemViewModel> SystemModel = SystemViewModel.Pin();
+					SystemModel->GetSelectionViewModel()->EmptySelection();
+					TArray<const UNiagaraNodeFunctionCall*> AddedModules = ModuleWizard->AddModulesToStack(SystemModel, OutputNode.Get(), TargetIndex, EmitterViewModel.Pin(), StackEditorData.Get());
+					for (const UNiagaraNodeFunctionCall* ModuleNode : AddedModules)
+					{
+						SystemModel->GetSelectionViewModel()->AddEntryToSelectionByDisplayedObjectDeferred(ModuleNode);
+					}
+
+					if(EmitterViewModel.IsValid())
+					{
+						if(TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel = SystemModel->GetEmitterHandleViewModelForEmitter(EmitterViewModel.Pin()->GetEmitter()))
+						{
+							EmitterHandleViewModel->GetEmitterStackViewModel()->RequestRefreshDeferred();
+						}
+					}
+					else
+					{
+						SystemModel->GetSystemStackViewModel()->RequestRefreshDeferred();
+					}
+				}
+			});
+
+			// create a new window with the wizard
+			const FVector2D CursorPos = FSlateApplication::Get().GetCursorPos();
+			const TSharedRef<SWindow> AddModuleWindow = SNew(SWindow)
+				.Title(LOCTEXT("Wizard_Title", "Add new module"))
+				.CreateTitleBar(true)
+				.ScreenPosition(CursorPos)
+				.FocusWhenFirstShown(true)
+				.ClientSize(FVector2D(700, 500))
+				[
+					ModuleWizard
+				];
+
+			const IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>(TEXT("MainFrame"));
+			const TSharedPtr<SWindow> ParentWindow = MainFrameModule.GetParentWindow();
+			FSlateApplication::Get().AddModalWindow(AddModuleWindow, ParentWindow);
+			return;
+		}
+		else if (ScriptGroupAddAction->IsNewScratchModuleAction())
 		{
 			TSharedPtr<FNiagaraScratchPadScriptViewModel> ScratchPadScriptViewModel = SystemViewModel.Pin()->GetScriptScratchPadViewModel()->CreateNewScript(ENiagaraScriptUsage::Module, OutputNode->GetUsage(), FNiagaraTypeDefinition());
 			if (ScratchPadScriptViewModel.IsValid())
@@ -319,7 +405,7 @@ public:
 				ScratchPadScriptViewModel->SetIsPendingRename(true);
 			}
 		}
-		else if (ScriptGroupAddAction->GetIsNewSetSpecificModuleAction())
+		else if (ScriptGroupAddAction->IsNewSetSpecificModuleAction())
 		{
 			NewModuleNode = AddParameterModule(FNiagaraVariable(), false, TargetIndex);
 		}
@@ -543,6 +629,8 @@ void UNiagaraStackScriptItemGroup::Paste(const UNiagaraClipboardContent* Clipboa
 		GetUnfilteredChildrenOfType(ModuleItems);
 		int32 PasteIndex = ModuleItems.Num() > 0 ? ModuleItems.Last()->GetModuleIndex() + 1 : 0;
 		PasteModules(ClipboardContent, PasteIndex, OutPasteWarning);
+
+		OnCopyPasteDelegate.ExecuteIfBound();
 	}
 }
 
@@ -1001,8 +1089,6 @@ TOptional<UNiagaraStackEntry::FDropRequestResponse> UNiagaraStackScriptItemGroup
 TOptional<UNiagaraStackEntry::FDropRequestResponse> UNiagaraStackScriptItemGroup::CanDropScriptsOnTarget(const UNiagaraStackEntry& TargetEntry, const FDropRequest& DropRequest)
 {
 	TSharedRef<const FNiagaraScriptDragOperation> DragDropOp = StaticCastSharedRef<const FNiagaraScriptDragOperation>(DropRequest.DragDropOperation);
-	const UEnum* NiagaraScriptUsageEnum = FindObjectChecked<UEnum>(nullptr, TEXT("/Script/Niagara.ENiagaraScriptUsage"), true);
-
 	if (&TargetEntry != this && TargetEntry.IsA<UNiagaraStackModuleItem>() == false)
 	{
 		// Only handle drops onto this script group, or child drop requests from module items.

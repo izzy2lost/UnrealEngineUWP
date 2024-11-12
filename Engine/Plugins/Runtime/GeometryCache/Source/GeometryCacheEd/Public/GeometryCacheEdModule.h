@@ -36,7 +36,6 @@ public:
 		return FModuleManager::Get().IsModuleLoaded( "GeometryCacheEd" );
 	}
 private:
-	class FAssetTypeActions_GeometryCache* AssetAction;
 	class FGeometryCacheAssetBroker* AssetBroker;
 };
 

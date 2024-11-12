@@ -106,19 +106,25 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	virtual void PostLoad() override;
+	virtual void PostInitProperties() override;
+	virtual void PostReinitProperties() override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif // WITH_EDITOR
-
 	//~ End USceneComponent Interface.
 
 	//~ Begin UPrimitiveComponent Interface.
 	virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
-	virtual int32 GetNumMaterials() const override { return 1; }
 	virtual bool ShouldRenderSelected() const override { return true; }
-	virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials = false) const override;
-	virtual void SetMaterial(int32 ElementIndex, class UMaterialInterface* Material) override;
+	virtual bool IsMaterialSlotNameValid(FName MaterialSlotName) const override;
 	//~ End UPrimitiveComponent Interface.
+
+	//~ Begin UMeshComponent Interface.
+	virtual int32 GetNumMaterials() const override { return 1; }
+	virtual int32 GetMaterialIndex(FName MaterialSlotName) const override;
+	virtual void SetMaterial(int32 ElementIndex, class UMaterialInterface* Material) override;
+	virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials = false) const override;
+	//~ End UMeshComponent Interface.
 
 private:
 	const USparseVolumeTexture* PreviousSVT;

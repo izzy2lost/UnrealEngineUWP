@@ -43,6 +43,12 @@ static TAutoConsoleVariable<bool> CVarUnderwaterFogWhenCameraIsAboveWater(
 	TEXT("Renders height fog behind the water surface even when the camera is above water. This avoids artifacts when entering and exiting the water with strong height fog in the scene but causes artifacts when looking at the water surface from a distance."),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<bool> CVarOrthoFogHeightAdjustment(
+	TEXT("r.Ortho.FogHeightAdjustment"),
+	true,
+	TEXT("When enabled, uses the Ortho camera height to determine the fog cutoff height"),
+	ECVF_RenderThreadSafe);
+
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FFogUniformParameters, "FogStruct");
 
 void SetupFogUniformParameters(FRDGBuilder& GraphBuilder, const FViewInfo& View, FFogUniformParameters& OutParameters)
@@ -68,6 +74,7 @@ void SetupFogUniformParameters(FRDGBuilder& GraphBuilder, const FViewInfo& View,
 		OutParameters.DirectionalInscatteringColor = FVector4f(FVector3f(View.DirectionalInscatteringColor), FMath::Clamp(View.DirectionalInscatteringExponent, 0.000001f, 1000.0f));
 		OutParameters.FogInscatteringColorCubemap = Cubemap->TextureRHI;
 		OutParameters.FogInscatteringColorSampler = TStaticSamplerState<SF_Trilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		OutParameters.EndDistance = View.FogEndDistance;
 	}
 
 	// Volumetric Fog
@@ -86,6 +93,8 @@ void SetupFogUniformParameters(FRDGBuilder& GraphBuilder, const FViewInfo& View,
 		OutParameters.IntegratedLightScatteringSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 		OutParameters.VolumetricFogStartDistance = View.VolumetricFogStartDistance;
 		OutParameters.VolumetricFogNearFadeInDistanceInv = View.VolumetricFogNearFadeInDistanceInv;
+		OutParameters.VolumetricFogPhaseG = View.VolumetricFogPhaseG;
+		OutParameters.VolumetricFogAlbedo = View.VolumetricFogAlbedo;
 	}
 }
 
@@ -137,6 +146,7 @@ class FExponentialHeightFogPS : public FGlobalShader
 		SHADER_PARAMETER_SAMPLER(SamplerState, WaterDepthSampler)
 		SHADER_PARAMETER(float, bOnlyOnRenderedOpaque)
 		SHADER_PARAMETER(uint32, bUseWaterDepthTexture)
+		SHADER_PARAMETER(uint32, bPropagateAlpha)
 		SHADER_PARAMETER(float, UpsampleJitterMultiplier)
 		SHADER_PARAMETER(FVector4f, WaterDepthTextureMinMaxUV)
 		SHADER_PARAMETER(FVector4f, OcclusionTextureMinMaxUV)
@@ -181,6 +191,8 @@ TGlobalResource<FFogVertexDeclaration> GFogVertexDeclaration;
 
 void FSceneRenderer::InitFogConstants()
 {
+	const bool bExpFogMatchesVolumetricFog = DoesProjectSupportExpFogMatchesVolumetricFog();
+
 	for(int32 ViewIndex = 0;ViewIndex < Views.Num();ViewIndex++)
 	{
 		FViewInfo& View = Views[ViewIndex];
@@ -192,8 +204,16 @@ void FSceneRenderer::InitFogConstants()
 			{
 				const FExponentialHeightFogSceneInfo& FogInfo = Scene->ExponentialFogs[0];
 				float CollapsedFogParameter[FExponentialHeightFogSceneInfo::NumFogs];
-				static constexpr float MaxObserverHeightDifference = 65536.0f;
+				float MaxObserverHeightDifference = 65536.0f;
 				float MaxObserverHeight = FLT_MAX;
+
+				const bool bUsingOrthoHeightAdjustment = !View.IsPerspectiveProjection() && CVarOrthoFogHeightAdjustment.GetValueOnRenderThread();				
+				if (bUsingOrthoHeightAdjustment)
+				{
+					FVector ViewForward = View.ViewMatrices.GetViewMatrix().GetColumn(2);
+					MaxObserverHeightDifference = FMath::Max(View.ViewMatrices.GetViewOrigin().Z, View.ViewMatrices.GetCameraToViewTarget().Length() * FMath::Abs(ViewForward.Z));
+				}
+
 				for (int i = 0; i < FExponentialHeightFogSceneInfo::NumFogs; i++)
 				{
 					// Only limit the observer height to fog if it has any density
@@ -204,7 +224,7 @@ void FSceneRenderer::InitFogConstants()
 				}
 				
 				// Clamping the observer height to avoid numerical precision issues in the height fog equation. The max observer height is relative to the fog height.
-				const float ObserverHeight = FMath::Min<float>(View.ViewMatrices.GetViewOrigin().Z, MaxObserverHeight);
+				const float ObserverHeight = bUsingOrthoHeightAdjustment ? MaxObserverHeight : FMath::Min<float>(View.ViewMatrices.GetViewOrigin().Z, MaxObserverHeight);
 
 				for (int i = 0; i < FExponentialHeightFogSceneInfo::NumFogs; i++)
 				{
@@ -227,6 +247,7 @@ void FSceneRenderer::InitFogConstants()
 				const float InvRange = 1.0f / FMath::Max(FogInfo.FullyDirectionalInscatteringColorDistance - FogInfo.NonDirectionalInscatteringColorDistance, .00001f);
 				float NumMips = 1.0f;
 
+				View.FogEndDistance = FogInfo.EndDistance;
 				View.SkyAtmosphereAmbientContributionColorScale = FogInfo.SkyAtmosphereAmbientContributionColorScale;
 
 				if (FogInfo.InscatteringColorCubemap)
@@ -249,6 +270,18 @@ void FSceneRenderer::InitFogConstants()
 				View.bEnableVolumetricFog = FogInfo.bEnableVolumetricFog;
 				View.VolumetricFogStartDistance = FogInfo.VolumetricFogStartDistance;
 				View.VolumetricFogNearFadeInDistanceInv = FogInfo.VolumetricFogNearFadeInDistance > 0.0f ? (1.0f / FogInfo.VolumetricFogNearFadeInDistance) : 100000000.0f;
+				View.VolumetricFogPhaseG = FogInfo.VolumetricFogScatteringDistribution;
+
+				View.VolumetricFogAlbedo = FVector3f::Zero(); // unused by default
+				if (bExpFogMatchesVolumetricFog)
+				{
+					// We make everything we can to get a good match between height fog and volumetric fog
+					View.DirectionalInscatteringStartDistance = 0.0f;						// No start distance for ExpFog as for VFog
+					View.DirectionalInscatteringExponent = 1.0f;							// Exponent is ununsed in this case
+					View.ExponentialFogColor = FVector3f(FogInfo.VolumetricFogEmissive);	// Emisive from ExpFog matches the VFog ExponentialFogColorParameter
+					View.VolumetricFogAlbedo = FVector3f(FogInfo.VolumetricFogAlbedo);		// Albedo is now supported by ExpFog and matches the VFog
+					View.DirectionalInscatteringColor = FLinearColor::Black;				// Directional scattering is only impacted by the atmospheric light to match
+				}
 			}
 		}
 	}
@@ -286,6 +319,7 @@ static FFogPassParameters* CreateDefaultFogPassParameters(
 	PassParameters->PS.UpsampleJitterMultiplier = CVarUpsampleJitterMultiplier.GetValueOnRenderThread() * GVolumetricFogGridPixelSize;
 	PassParameters->PS.bOnlyOnRenderedOpaque = View.bFogOnlyOnRenderedOpaque;
 	PassParameters->PS.bUseWaterDepthTexture = false;
+	PassParameters->PS.bPropagateAlpha = IsPostProcessingWithAlphaChannelSupported();
 
 	PassParameters->PS.SrcCloudDepthTexture = GSystemTextures.GetWhiteDummy(GraphBuilder);
 	PassParameters->PS.SrcCloudDepthSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
@@ -414,48 +448,44 @@ void RenderFogOnClouds(
 {
 	if (Scene->ExponentialFogs.Num() > 0)
 	{
-		RDG_EVENT_SCOPE(GraphBuilder, "ExponentialHeightFog on Clouds");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, Fog, "ExponentialHeightFog on Clouds");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, Fog);
+		RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
 
-		if (View.IsPerspectiveProjection())
-		{
-			RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
+		TRDGUniformBufferRef<FFogUniformParameters> FogUniformBuffer = CreateFogUniformBuffer(GraphBuilder, View);
 
-			TRDGUniformBufferRef<FFogUniformParameters> FogUniformBuffer = CreateFogUniformBuffer(GraphBuilder, View);
+		// Light shaft is not accounted for in this case
+		const FScreenPassTextureViewportParameters LightShaftParameters;
+		// Local fog volume are not accounted for in this case
+		const bool bFogComposeLocalFogVolumes = false;
 
-			// Light shaft is not accounted for in this case
-			const FScreenPassTextureViewportParameters LightShaftParameters;
-			// Local fog volume are not accounted for in this case
-			const bool bFogComposeLocalFogVolumes = false;
+		FFogPassParameters* PassParameters = CreateDefaultFogPassParameters(
+			GraphBuilder, View, 
+			CreateSceneTextureUniformBuffer(GraphBuilder,View, ESceneTextureSetupMode::None),
+			FogUniformBuffer, nullptr /*LightShaftOcclusionTexture*/, LightShaftParameters);
 
-			FFogPassParameters* PassParameters = CreateDefaultFogPassParameters(
-				GraphBuilder, View, 
-				CreateSceneTextureUniformBuffer(GraphBuilder,View, ESceneTextureSetupMode::None),
-				FogUniformBuffer, nullptr /*LightShaftOcclusionTexture*/, LightShaftParameters);
+		// Patch the pass parameter for it to work on clouds
+		PassParameters->VS.ViewUniformBuffer = GetShaderBinding(bUseVolumetricRenderTarget ? View.VolumetricRenderTargetViewUniformBuffer : View.ViewUniformBuffer);
+		PassParameters->PS.ViewUniformBuffer = GetShaderBinding(bUseVolumetricRenderTarget ? View.VolumetricRenderTargetViewUniformBuffer : View.ViewUniformBuffer);
+		PassParameters->PS.bOnlyOnRenderedOpaque = false;
 
-			// Patch the pass parameter for it to work on clouds
-			PassParameters->VS.ViewUniformBuffer = GetShaderBinding(bUseVolumetricRenderTarget ? View.VolumetricRenderTargetViewUniformBuffer : View.ViewUniformBuffer);
-			PassParameters->PS.ViewUniformBuffer = GetShaderBinding(bUseVolumetricRenderTarget ? View.VolumetricRenderTargetViewUniformBuffer : View.ViewUniformBuffer);
-			PassParameters->PS.bOnlyOnRenderedOpaque = false;
+		PassParameters->PS.SrcCloudDepthTexture = SrcCloudDepth;
+		PassParameters->PS.SrcCloudViewTexture = SrcCloudView;
 
-			PassParameters->PS.SrcCloudDepthTexture = SrcCloudDepth;
-			PassParameters->PS.SrcCloudViewTexture = SrcCloudView;
+		PassParameters->RenderTargets[0] = FRenderTargetBinding(DstCloudView, ERenderTargetLoadAction::ENoAction);
+		// No depth target
 
-			PassParameters->RenderTargets[0] = FRenderTargetBinding(DstCloudView, ERenderTargetLoadAction::ENoAction);
-			// No depth target
+		// We enable the blending when volumetric render target is not enabled. Because in this case, the fog pass is compositing directly over the scene.
+		const bool bEnableBlending = !bUseVolumetricRenderTarget;
 
-			// We enable the blending when volumetric render target is not enabled. Because in this case, the fog pass is compositing directly over the scene.
-			const bool bEnableBlending = !bUseVolumetricRenderTarget;
-
-			FIntRect ViewRect(0, 0, SrcCloudView->Desc.Extent.X, SrcCloudView->Desc.Extent.Y);
-			GraphBuilder.AddPass(RDG_EVENT_NAME("Fog"), PassParameters, ERDGPassFlags::Raster,
-				[&View, ViewRect, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes, bEnableBlending](FRHICommandList& RHICmdList)
-				{
-					const bool bSampleFogOnClouds = true;
-					RenderViewFog(RHICmdList, View, ViewRect, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes, bSampleFogOnClouds, bEnableBlending);
-				});
-		}
-	}
+		FIntRect ViewRect(0, 0, SrcCloudView->Desc.Extent.X, SrcCloudView->Desc.Extent.Y);
+		GraphBuilder.AddPass(RDG_EVENT_NAME("Fog"), PassParameters, ERDGPassFlags::Raster,
+			[&View, ViewRect, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes, bEnableBlending](FRDGAsyncTask, FRHICommandList& RHICmdList)
+			{
+				const bool bSampleFogOnClouds = true;
+				RenderViewFog(RHICmdList, View, ViewRect, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes, bSampleFogOnClouds, bEnableBlending);
+			});
+}
 }
 
 void FDeferredShadingSceneRenderer::RenderFog(
@@ -468,7 +498,7 @@ void FDeferredShadingSceneRenderer::RenderFog(
 		// Fog must be done in the base pass for MSAA to work
 		&& !IsForwardShadingEnabled(ShaderPlatform))
 	{
-		RDG_EVENT_SCOPE(GraphBuilder, "ExponentialHeightFog");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, Fog, "ExponentialHeightFog");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, Fog);
 
 		const bool bShouldRenderVolumetricFog = ShouldRenderVolumetricFog();
@@ -476,27 +506,24 @@ void FDeferredShadingSceneRenderer::RenderFog(
 		for(int32 ViewIndex = 0;ViewIndex < Views.Num();ViewIndex++)
 		{
 			const FViewInfo& View = Views[ViewIndex];
-			if (View.IsPerspectiveProjection())
-			{
-				RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Views.Num() > 1, "View%d", ViewIndex);
-				RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
+			RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Views.Num() > 1, "View%d", ViewIndex);
+			RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
 
-				TRDGUniformBufferRef<FFogUniformParameters> FogUniformBuffer = CreateFogUniformBuffer(GraphBuilder, View);
+			TRDGUniformBufferRef<FFogUniformParameters> FogUniformBuffer = CreateFogUniformBuffer(GraphBuilder, View);
 
-				const FScreenPassTextureViewport SceneViewport(SceneTextures.Config.Extent, View.ViewRect);
-				const FScreenPassTextureViewport OutputViewport(GetDownscaledViewport(SceneViewport, GetLightShaftDownsampleFactor()));
-				const FScreenPassTextureViewportParameters LightShaftParameters = GetScreenPassTextureViewportParameters(OutputViewport);
+			const FScreenPassTextureViewport SceneViewport(SceneTextures.Config.Extent, View.ViewRect);
+			const FScreenPassTextureViewport OutputViewport(GetDownscaledViewport(SceneViewport, GetLightShaftDownsampleFactor()));
+			const FScreenPassTextureViewportParameters LightShaftParameters = GetScreenPassTextureViewportParameters(OutputViewport);
 
-				FFogPassParameters* PassParameters = CreateDefaultFogPassParameters(GraphBuilder, View, SceneTextures.UniformBuffer, FogUniformBuffer, LightShaftOcclusionTexture, LightShaftParameters);
-				PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneTextures.Color.Target, ERenderTargetLoadAction::ELoad);
-				PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneTextures.Depth.Target, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilWrite);
+			FFogPassParameters* PassParameters = CreateDefaultFogPassParameters(GraphBuilder, View, SceneTextures.UniformBuffer, FogUniformBuffer, LightShaftOcclusionTexture, LightShaftParameters);
+			PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneTextures.Color.Target, ERenderTargetLoadAction::ELoad);
+			PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneTextures.Depth.Target, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilWrite);
 
-				GraphBuilder.AddPass(RDG_EVENT_NAME("Fog"), PassParameters, ERDGPassFlags::Raster, 
-					[this, &View, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes](FRHICommandList& RHICmdList)
+			GraphBuilder.AddPass(RDG_EVENT_NAME("Fog"), PassParameters, ERDGPassFlags::Raster,
+				[this, &View, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					RenderViewFog(RHICmdList, View, View.ViewRect, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes);
 				});
-			}
 		}
 	}
 }
@@ -510,7 +537,7 @@ void FDeferredShadingSceneRenderer::RenderUnderWaterFog(
 		// Fog must be done in the base pass for MSAA to work
 		&& !IsForwardShadingEnabled(ShaderPlatform))
 	{
-		RDG_EVENT_SCOPE(GraphBuilder, "SLW::ExponentialHeightFog");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, Fog, "SLW::ExponentialHeightFog");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, Fog);
 
 		FRDGTextureRef WaterDepthTexture = SceneWithoutWaterTextures.DepthTexture;
@@ -521,7 +548,7 @@ void FDeferredShadingSceneRenderer::RenderUnderWaterFog(
 		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 		{
 			const FViewInfo& View = Views[ViewIndex];
-			if (View.IsPerspectiveProjection() && (View.IsUnderwater() || CVarUnderwaterFogWhenCameraIsAboveWater.GetValueOnRenderThread()))
+			if (View.IsUnderwater() || CVarUnderwaterFogWhenCameraIsAboveWater.GetValueOnRenderThread())
 			{
 				RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Views.Num() > 1, "View%d", ViewIndex);
 				RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
@@ -542,7 +569,7 @@ void FDeferredShadingSceneRenderer::RenderUnderWaterFog(
 				// No depth/stencil bound so depth bound clip will not work. If we enable this at some point, we will have to check LocalFogVolume to disable depth bound. Or have a start depth for it.
 
 				const bool bFogComposeLocalFogVolumes = ShouldRenderLocalFogVolume(Scene, ViewFamily); // Always render LFV as part of underwater fog, if present, to see them through the water.
-				GraphBuilder.AddPass(RDG_EVENT_NAME("FogBehindWater"), PassParameters, ERDGPassFlags::Raster, [this, &View, SceneWithoutWaterView, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes](FRHICommandList& RHICmdList)
+				GraphBuilder.AddPass(RDG_EVENT_NAME("FogBehindWater"), PassParameters, ERDGPassFlags::Raster, [this, &View, SceneWithoutWaterView, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					RenderViewFog(RHICmdList, View, SceneWithoutWaterView.ViewRect, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes);
 				});

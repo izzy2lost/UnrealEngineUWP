@@ -4,13 +4,37 @@
 
 #include "ConcertLogGlobal.h"
 #include "IConcertSyncClient.h"
+#include "Misc/AnalyticsHandler.h"
 #include "Replication/ChangeOperationTypes.h"
 #include "Replication/IConcertClientReplicationManager.h"
+#include "Replication/IOfflineReplicationClient.h"
+#include "Replication/Misc/StreamAndAuthorityPredictionUtils.h"
 
 #include "Containers/Ticker.h"
 #include "UObject/Package.h"
 
-namespace UE::MultiUserClient
+#define LOCTEXT_NAMESPACE "FMultiUserReplicationManager"
+
+namespace UE::MultiUserClient::Replication::PrivateReplicationManager
+{
+	class FOfflineClientAdapter : public IOfflineReplicationClient
+	{
+		const FOfflineClient& Client;
+	public:
+		
+		FOfflineClientAdapter(const FOfflineClient& Client)
+			: Client(Client)
+		{}
+
+		//~ Begin IOfflineReplicationClient Interface
+		virtual const FConcertClientInfo& GetClientInfo() const override { return Client.GetClientInfo(); }
+		virtual const FGuid& GetLastAssociatedEndpoint() const override { return Client.GetLastAssociatedEndpoint(); }
+		virtual const FConcertBaseStreamInfo& GetPredictedStream() const override { return Client.GetPredictedStream(); }
+		//~ End IOfflineReplicationClient Interface
+	};
+}
+
+namespace UE::MultiUserClient::Replication
 {
 	FMultiUserReplicationManager::FMultiUserReplicationManager(TSharedRef<IConcertSyncClient> InClient)
 		: Client(MoveTemp(InClient))
@@ -36,7 +60,6 @@ namespace UE::MultiUserClient
 		}
 
 		ConnectionState = EMultiUserReplicationConnectionState::Connecting;
-		// For now we join without any initial data - this will likely change in the future (5.5+)
 		Manager->JoinReplicationSession({})
 			.Next([WeakThis = AsWeak()](ConcertSyncClient::Replication::FJoinReplicatedSessionResult&& JoinSessionResult)
 			{
@@ -75,9 +98,9 @@ namespace UE::MultiUserClient
 
 	void FMultiUserReplicationManager::OnLeaveSession(IConcertClientSession&)
 	{
-		// This clears the UI. The clients' IEditableReplicationStreamModels should no longer be referenced by anyone.
+		// This destroys the UI and tells any other potential system to stop referencing anything in ConnectedState (such as shared ptrs)...
 		SetConnectionStateAndBroadcast(EMultiUserReplicationConnectionState::Disconnected);
-		// Keep in mind the IEditableReplicationStreamModels were referenced by the UI so call this after clearing the UI.
+		// ... so now it is safe to destroy ConnectedState.
 		ConnectedState.Reset();
 	}
 
@@ -89,6 +112,9 @@ namespace UE::MultiUserClient
 			ConnectedState.Emplace(Client, DiscoveryContainer);
 			SetupClientConnectionEvents();
 			SetConnectionStateAndBroadcast(EMultiUserReplicationConnectionState::Connected);
+
+			// For convenience, the client should attempt to restore the content when they last left.
+			RestoreContentFromLastTime();
 		}
 		else
 		{
@@ -102,11 +128,30 @@ namespace UE::MultiUserClient
 		OnReplicationConnectionStateChangedDelegate.Broadcast(ConnectionState);
 	}
 
+	void FMultiUserReplicationManager::RestoreContentFromLastTime()
+	{
+		Client->GetReplicationManager()->RestoreContent(
+			{
+				.Flags = EConcertReplicationRestoreContentFlags::All | EConcertReplicationRestoreContentFlags::ValidateUniqueClient
+			}
+		);
+	}
+
 	void FMultiUserReplicationManager::SetupClientConnectionEvents()
 	{
-		FReplicationClientManager& ClientManager = ConnectedState->ClientManager;
-		ClientManager.ForEachClient([this](FReplicationClient& InClient){ SetupClientDelegates(InClient); return EBreakBehavior::Continue; });
-		ClientManager.OnPostRemoteClientAdded().AddRaw(this, &FMultiUserReplicationManager::OnReplicationClientConnected);
+		FOnlineClientManager& OnlineClientManager = ConnectedState->OnlineClientManager;
+		OnlineClientManager.ForEachClient([this](FOnlineClient& InClient){ SetupClientDelegates(InClient); return EBreakBehavior::Continue; });
+		OnlineClientManager.OnPostRemoteClientAdded().AddRaw(this, &FMultiUserReplicationManager::OnReplicationClientConnected);
+
+		FOfflineClientManager& OfflineClientManager = ConnectedState->OfflineClientManager;
+		OfflineClientManager.OnClientsChanged().AddRaw(this, &FMultiUserReplicationManager::OnInternalOfflineClientsChanged);
+		OfflineClientManager.OnClientContentChanged().AddRaw(this, &FMultiUserReplicationManager::OnInternalOfflineClientContentChanged);
+	}
+
+	void FMultiUserReplicationManager::SetupClientDelegates(FOnlineClient& InClient) const
+	{
+		InClient.GetStreamSynchronizer().OnServerStreamChanged().AddRaw(this, &FMultiUserReplicationManager::OnClientStreamServerStateChanged, InClient.GetEndpointId());
+		InClient.GetAuthoritySynchronizer().OnServerAuthorityChanged().AddRaw(this, &FMultiUserReplicationManager::OnClientAuthorityServerStateChanged, InClient.GetEndpointId());
 	}
 
 	void FMultiUserReplicationManager::OnClientStreamServerStateChanged(const FGuid EndpointId) const
@@ -117,26 +162,27 @@ namespace UE::MultiUserClient
 
 	void FMultiUserReplicationManager::OnClientAuthorityServerStateChanged(const FGuid EndpointId) const
 	{
-		
 		UE_LOG(LogConcert, Verbose, TEXT("Client %s authority changed"), *EndpointId.ToString());
 		OnAuthorityServerStateChangedDelegate.Broadcast(EndpointId);
-	}
-
-	void FMultiUserReplicationManager::SetupClientDelegates(FReplicationClient& InClient) const
-	{
-		InClient.GetStreamSynchronizer().OnServerStateChanged().AddRaw(this, &FMultiUserReplicationManager::OnClientStreamServerStateChanged, InClient.GetEndpointId());
-		InClient.GetAuthoritySynchronizer().OnServerStateChanged().AddRaw(this, &FMultiUserReplicationManager::OnClientAuthorityServerStateChanged, InClient.GetEndpointId());
 	}
 
 	const FConcertObjectReplicationMap* FMultiUserReplicationManager::FindReplicationMapForClient(const FGuid& ClientId) const
 	{
 		if (ConnectedState && ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
 		{
-			const FReplicationClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
-			return ReplicationClient
-				? &ReplicationClient->GetStreamSynchronizer().GetServerState()
-				: nullptr;
+			if (const FOnlineClient* OnlineClient = ConnectedState->OnlineClientManager.FindClient(ClientId))
+			{
+				return &OnlineClient->GetStreamSynchronizer().GetServerState();
+			}
+
+			if (const FOfflineClient* OfflineClient = ConnectedState->OfflineClientManager.FindClient(ClientId))
+			{
+				return &OfflineClient->GetPredictedStream().ReplicationMap;
+			}
+
+			return nullptr;
 		}
+		
 		return nullptr;
 	}
 
@@ -144,10 +190,17 @@ namespace UE::MultiUserClient
 	{
 		if (ConnectedState && ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
 		{
-			const FReplicationClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
-			return ReplicationClient
-				? &ReplicationClient->GetStreamSynchronizer().GetFrequencySettings()
-				: nullptr;
+			if (const FOnlineClient* OnlineClient = ConnectedState->OnlineClientManager.FindClient(ClientId))
+			{
+				return &OnlineClient->GetStreamSynchronizer().GetFrequencySettings();
+			}
+
+			if (const FOfflineClient* OfflineClient = ConnectedState->OfflineClientManager.FindClient(ClientId))
+			{
+				return &OfflineClient->GetPredictedStream().FrequencySettings;
+			}
+
+			return nullptr;
 		}
 		return nullptr;
 	}
@@ -156,7 +209,7 @@ namespace UE::MultiUserClient
 	{
 		if (ConnectedState && ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
 		{
-			const FReplicationClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
+			const FOnlineClient* ReplicationClient = ConnectedState->OnlineClientManager.FindClient(ClientId);
 			return ReplicationClient && ReplicationClient->GetAuthoritySynchronizer().HasAuthorityOver(ObjectPath);
 		}
 		return false;
@@ -187,16 +240,67 @@ namespace UE::MultiUserClient
 		
 		if (ConnectedState)
 		{
-			FReplicationClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
+			FOnlineClient* ReplicationClient = ConnectedState->OnlineClientManager.FindClient(ClientId);
 			return ReplicationClient
 				? ReplicationClient->GetExternalRequestHandler().HandleRequest(MoveTemp(SubmissionParams))
 				: FExternalClientChangeRequestHandler::MakeFailedOperation(EChangeStreamOperationResult::UnknownClient, EChangeAuthorityOperationResult::UnknownClient);
 		}
 		return FExternalClientChangeRequestHandler::MakeFailedOperation(EChangeStreamOperationResult::NotInSession, EChangeAuthorityOperationResult::NotInSession);
 	}
+	
+	void FMultiUserReplicationManager::ForEachOfflineClient(TFunctionRef<EBreakBehavior(const IOfflineReplicationClient&)> Callback) const
+	{
+		if (ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed."))
+			&& ConnectedState)
+		{
+			ConnectedState->OfflineClientManager.ForEachClient([&Callback](const FOfflineClient& OfflineClient)
+			{
+				const PrivateReplicationManager::FOfflineClientAdapter OfflineClientAdapter(OfflineClient);
+				return Callback(OfflineClientAdapter);
+			});
+		}
+	}
 
-	FMultiUserReplicationManager::FConnectedState::FConnectedState(TSharedRef<IConcertSyncClient> InClient, FReplicationDiscoveryContainer& InDiscoveryContainer)
-		: ClientManager(InClient, InClient->GetConcertClient()->GetCurrentSession().ToSharedRef(), InDiscoveryContainer)
-		, ChangeLevelHandler(ClientManager.GetLocalClient().GetClientEditModel().Get())
+	bool FMultiUserReplicationManager::FindOfflineClient(const FGuid& ClientId, TFunctionRef<void(const IOfflineReplicationClient&)> Callback) const
+	{
+		if (!ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed."))
+			|| !ConnectedState)
+		{
+			return false;
+		}
+
+		const FOfflineClient* OfflineClient = ConnectedState->OfflineClientManager.FindClient(ClientId);
+		if (OfflineClient)
+		{
+			Callback(PrivateReplicationManager::FOfflineClientAdapter(*OfflineClient));
+			return true;
+		}
+		
+		return false;
+	}
+
+	FMultiUserReplicationManager::FConnectedState::FConnectedState(
+		TSharedRef<IConcertSyncClient> InClient, FReplicationDiscoveryContainer& InDiscoveryContainer
+	)
+		: Client(InClient)
+		, QueryService(*InClient)
+		, OnlineClientManager(
+			  InClient,
+			  InClient->GetConcertClient()->GetCurrentSession().ToSharedRef(),
+			  InDiscoveryContainer,
+			  QueryService.GetStreamAndAuthorityQueryService()
+		  )
+		, OfflineClientManager(*InClient, OnlineClientManager)
+		, UnifiedClientView(*InClient, OnlineClientManager, OfflineClientManager)
+		, MuteManager(*InClient, QueryService.GetMuteStateQueryService(), OnlineClientManager.GetAuthorityCache())
+		, PresetManager(*InClient, OnlineClientManager, MuteManager.GetSynchronizer())
+		, PropertySelector(OnlineClientManager, OfflineClientManager)
+		, AutoPropertyOwnershipTaker(PropertySelector, OnlineClientManager.GetLocalClient(), OnlineClientManager.GetAuthorityCache())
+		, ChangeLevelHandler(*InClient, OnlineClientManager.GetLocalClient().GetClientEditModel().Get())
+		, PreventReplicatedPropertyTransaction(*InClient, OnlineClientManager, MuteManager)
+		, UserNotifier(*InClient->GetConcertClient(), OnlineClientManager, MuteManager)
+		, AnalyticsHandler(*InClient->GetConcertClient(), OnlineClientManager)
 	{}
 }
+
+#undef LOCTEXT_NAMESPACE

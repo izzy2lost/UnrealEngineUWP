@@ -12,9 +12,6 @@
 #include "RenderUtils.h"
 #include "LocalVertexFactory.h"
 #include "RenderMath.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "SceneManagement.h"
-#endif
 
 class FMaterialRenderProxy;
 class FMeshBuilderOneFrameResources;

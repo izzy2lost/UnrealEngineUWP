@@ -3,6 +3,7 @@
 #include "Engine/UserInterfaceSettings.h"
 
 #include "Logging/MessageLog.h"
+#include "Fonts/FontCache.h"
 
 #include "Engine/DPICustomScalingRule.h"
 
@@ -21,6 +22,7 @@ UUserInterfaceSettings::UUserInterfaceSettings(const FObjectInitializer& ObjectI
 	, FontDPIPreset(ConvertToEFontDPI(CustomFontDPI))
 	, bUseCustomFontDPI(false)
 #endif
+	, bEnableDistanceFieldFontRasterization(false)
 {
 	SectionName = TEXT("UI");
 }
@@ -272,5 +274,9 @@ void UUserInterfaceSettings::ForceLoadResources(bool bForceLoadEverything)
 	}
 }
 
-#undef LOCTEXT_NAMESPACE
+bool UUserInterfaceSettings::ShouldDisplayDistanceFieldFontSettings()
+{
+	return IsSlateSdfTextFeatureEnabled();
+}
 
+#undef LOCTEXT_NAMESPACE

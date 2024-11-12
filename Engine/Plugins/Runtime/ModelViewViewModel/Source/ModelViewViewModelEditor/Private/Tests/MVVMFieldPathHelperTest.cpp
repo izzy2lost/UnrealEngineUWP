@@ -15,7 +15,7 @@
 
 #define LOCTEXT_NAMESPACE "MVVMBindingHelperTest"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMVVMFieldPathHelperTestGenerateFieldPathList, "System.Plugins.MVVM.GetNotifyBindingInfoFromFieldPath", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMVVMFieldPathHelperTestGenerateFieldPathList, "System.Plugins.MVVM.GetNotifyBindingInfoFromFieldPath", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 bool FMVVMFieldPathHelperTestGenerateFieldPathList::RunTest(const FString& Parameters)
 {

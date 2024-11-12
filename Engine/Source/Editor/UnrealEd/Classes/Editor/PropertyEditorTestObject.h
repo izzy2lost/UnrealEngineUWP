@@ -14,7 +14,7 @@
 #include "Engine/EngineTypes.h"
 
 #include "Curves/RichCurve.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 
 #include "PropertyEditorTestObject.generated.h"
 

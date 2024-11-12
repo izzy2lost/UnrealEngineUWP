@@ -37,11 +37,13 @@ SHOWFLAG_ALWAYS_ACCESSIBLE(EyeAdaptation, SFG_PostProcess, NSLOCTEXT("UnrealEd",
 /** Display a histogram of the scene HDR color */
 SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeHDR, SFG_Visualize, NSLOCTEXT("UnrealEd", "VisualizeHDRSF", "HDR (Eye Adaptation)"))
 /** Display the illuminance debug view for the skylight */
-SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeSkyLightIlluminance, SFG_Visualize, NSLOCTEXT("UnrealEd", "VisualizeSkyLightIlluminance", "Visualize SkyLight Illuminance"))
+SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeSkyLightIlluminance, SFG_Visualize, NSLOCTEXT("UnrealEd", "VisualizeSkyLightIlluminance", "SkyLight Illuminance"))
 /** Helper to tweak local expsoure settings */
 SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeLocalExposure, SFG_Visualize, NSLOCTEXT("UnrealEd", "VisualizeLocalExposureSF", "Local Exposure"))
 /** Image based lens flares (Simulate artifact of reflections within a camera system) */
 SHOWFLAG_FIXED_IN_SHIPPING(1, LensFlares, SFG_PostProcess, NSLOCTEXT("UnrealEd", "LensFlaresSF", "Lens Flares"))
+/** Lens distortion (Simulate the distortion of light through the lens onto the filmback) */
+SHOWFLAG_FIXED_IN_SHIPPING(1, LensDistortion, SFG_PostProcess, NSLOCTEXT("UnrealEd", "LensDistortionSF", "Lens Distortion"))
 /** show indirect lighting component, for now SHOWFLAG_ALWAYS_ACCESSIBLE because it's needed by r.GBuffer */
 SHOWFLAG_ALWAYS_ACCESSIBLE(GlobalIllumination, SFG_LightingComponents, NSLOCTEXT("UnrealEd", "GlobalIlluminationSF", "Global Illumination"))
 /** Darkens the screen borders (Camera artifact and artistic effect) */
@@ -128,6 +130,8 @@ SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeReprojection, SFG_Visualize, NSLOCTEXT("U
 SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeTemporalUpscaler, SFG_Visualize, NSLOCTEXT("UnrealEd", "VisualizeTemporalUpscalerSF", "Temporal Upscaler I/O (TSR, TAAU or third party plugins)"))
 /** Helper to diagnose the internals of TSR. */
 SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeTSR, SFG_Visualize, NSLOCTEXT("UnrealEd", "VisualizeTSRSF", "Temporal Super Resolution"))
+/** Whether to display the MegaLights feature, which replaces deferred direct lighting and Ray Traced Shadows with a stochastic sampling and denoising algorithm */
+SHOWFLAG_ALWAYS_ACCESSIBLE(MegaLights, SFG_LightingFeatures, NSLOCTEXT("UnrealEd", "MegaLightsSF", "MegaLights"))
 /** Whether to display the Reflection Environment feature, which has local reflections from Reflection Capture actors, for now SHOWFLAG_ALWAYS_ACCESSIBLE because it's exposed in SceneCapture */
 SHOWFLAG_ALWAYS_ACCESSIBLE(ReflectionEnvironment, SFG_LightingFeatures, NSLOCTEXT("UnrealEd", "ReflectionEnvironmentSF", "Reflection Environment"))
 /** Visualize pixels that are outside of their object's bounding box (content error). */
@@ -138,13 +142,6 @@ SHOWFLAG_FIXED_IN_SHIPPING(1, Diffuse, SFG_LightingComponents, NSLOCTEXT("Unreal
 SHOWFLAG_ALWAYS_ACCESSIBLE(Specular, SFG_LightingComponents, NSLOCTEXT("UnrealEd", "SpecularSF", "Specular"))
 /** Outline around selected objects in the editor */
 SHOWFLAG_FIXED_IN_SHIPPING(0, SelectionOutline, SFG_Hidden, NSLOCTEXT("UnrealEd", "SelectionOutlineSF", "Selection Outline"))
-/** Outline custom colors in the editor */
-SHOWFLAG_FIXED_IN_SHIPPING(0, SelectionOutlineColor0, SFG_Hidden, NSLOCTEXT("UnrealEd", "SelectionOutlineColor0", "Selection Outline Color 0"))
-SHOWFLAG_FIXED_IN_SHIPPING(0, SelectionOutlineColor1, SFG_Hidden, NSLOCTEXT("UnrealEd", "SelectionOutlineColor1", "Selection Outline Color 1"))
-SHOWFLAG_FIXED_IN_SHIPPING(0, SelectionOutlineColor2, SFG_Hidden, NSLOCTEXT("UnrealEd", "SelectionOutlineColor2", "Selection Outline Color 2"))
-SHOWFLAG_FIXED_IN_SHIPPING(0, SelectionOutlineColor3, SFG_Hidden, NSLOCTEXT("UnrealEd", "SelectionOutlineColor3", "Selection Outline Color 3"))
-SHOWFLAG_FIXED_IN_SHIPPING(0, SelectionOutlineColor4, SFG_Hidden, NSLOCTEXT("UnrealEd", "SelectionOutlineColor4", "Selection Outline Color 4"))
-SHOWFLAG_FIXED_IN_SHIPPING(0, SelectionOutlineColor5, SFG_Hidden, NSLOCTEXT("UnrealEd", "SelectionOutlineColor5", "Selection Outline Color 5"))
 /** If screen space reflections are enabled, for now SHOWFLAG_ALWAYS_ACCESSIBLE because it's exposed in SceneCapture */
 SHOWFLAG_ALWAYS_ACCESSIBLE(ScreenSpaceReflections, SFG_LightingFeatures, NSLOCTEXT("UnrealEd", "ScreenSpaceReflectionsSF", "Screen Space Reflections"))
 SHOWFLAG_ALWAYS_ACCESSIBLE(LumenReflections, SFG_LightingFeatures, NSLOCTEXT("UnrealEd", "LumenReflectionsSF", "Lumen Reflections"))
@@ -298,8 +295,8 @@ SHOWFLAG_ALWAYS_ACCESSIBLE(LightShafts, SFG_LightingFeatures, NSLOCTEXT("UnrealE
 SHOWFLAG_FIXED_IN_SHIPPING(1, PostProcessMaterial, SFG_PostProcess, NSLOCTEXT("UnrealEd", "PostProcessMaterialSF", "Post Process Material"))
 /** Render Sky and Atmospheric lighting, for now SHOWFLAG_ALWAYS_ACCESSIBLE because it's exposed in SceneCapture */
 SHOWFLAG_ALWAYS_ACCESSIBLE(Atmosphere, SFG_Normal, NSLOCTEXT("UnrealEd", "AtmosphereSF", "Atmosphere"))
-/** Render Cloud */
-SHOWFLAG_FIXED_IN_SHIPPING(1, Cloud, SFG_Normal, NSLOCTEXT("UnrealEd", "CloudSF", "Cloud"))
+/** Render Cloud, for now SHOWFLAG_ALWAYS_ACCESSIBLE because it's exposed in SceneCapture */
+SHOWFLAG_ALWAYS_ACCESSIBLE(Cloud, SFG_Normal, NSLOCTEXT("UnrealEd", "CloudSF", "Cloud"))
 /** Render safe frames bars*/
 SHOWFLAG_FIXED_IN_SHIPPING(0, CameraAspectRatioBars, SFG_Advanced, NSLOCTEXT("UnrealEd", "CameraAspectRatioBarsSF", "Camera Aspect Ratio Bars"))
 /** Render safe frames */
@@ -341,7 +338,7 @@ SHOWFLAG_FIXED_IN_SHIPPING(0, PhysicsField, SFG_Visualize, NSLOCTEXT("UnrealEd",
 /** Global Distance field */
 SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeGlobalDistanceField, SFG_Visualize, NSLOCTEXT("UnrealEd", "GlobalDistanceFieldSF", "Global DistanceField"))
 /** Enable the debug visualization of diffuse/specular lighting (direct and indirect) using probes */
-SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeLightingOnProbes, SFG_Visualize, NSLOCTEXT("UnrealEd", "VisualizeLightingOnProbesSF", "Visualize Lighting on Probes"))
+SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeLightingOnProbes, SFG_Visualize, NSLOCTEXT("UnrealEd", "VisualizeLightingOnProbesSF", "Debug Lighting on Probes"))
 /** Screen space AO, for now SHOWFLAG_ALWAYS_ACCESSIBLE because r.GBuffer need that */
 SHOWFLAG_ALWAYS_ACCESSIBLE(ScreenSpaceAO, SFG_LightingFeatures, NSLOCTEXT("UnrealEd", "ScreenSpaceAOSF", "Screen Space Ambient Occlusion"))
 /** Distance field AO, for now SHOWFLAG_ALWAYS_ACCESSIBLE because it's exposed in SceneCapture */
@@ -401,7 +398,7 @@ SHOWFLAG_FIXED_IN_SHIPPING(0, RayTracingDebug, SFG_Hidden, NSLOCTEXT("UnrealEd",
 /** Enable the SkyAtmosphere visualization to be drawn on screen */
 SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeSkyAtmosphere, SFG_Visualize, NSLOCTEXT("UnrealEd", "VisualizeSkyAtmosphereSF", "Sky Atmosphere"))
 /** Enable the light function atlas debug visualization to be drawn on screen */
-SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeLightFunctionAtlas, SFG_Visualize, NSLOCTEXT("UnrealEd", "VisualizeLightFunctionAtlasSF", "Visualize Light Function Atlas"))
+SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeLightFunctionAtlas, SFG_Visualize, NSLOCTEXT("UnrealEd", "VisualizeLightFunctionAtlasSF", "Light Function Atlas"))
 /** Shows a full-screen calibration color post process material defined in renderer config  */
 SHOWFLAG_ALWAYS_ACCESSIBLE(VisualizeCalibrationColor, SFG_Developer, NSLOCTEXT("UnrealEd", "VisualizeCalibrationColorSF", "Visualize Calibration Color"))
 /** Shows a full-screen calibration grayscale post process material defined in renderer config  */
@@ -409,7 +406,7 @@ SHOWFLAG_ALWAYS_ACCESSIBLE(VisualizeCalibrationGrayscale, SFG_Developer, NSLOCTE
 /** Shows a full-screen calibration custom post process material defined in renderer config  */
 SHOWFLAG_ALWAYS_ACCESSIBLE(VisualizeCalibrationCustom, SFG_Developer, NSLOCTEXT("UnrealEd", "VisualizeCalibrationCustomSF", "Visualize Calibration Custom"))
 /** Visualise information about the post processes stacked on screen */
-SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizePostProcessStack, SFG_Visualize, NSLOCTEXT("UnrealEd", "VisualizePostProcessStackSF", "Visualize Post Process Stack"))
+SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizePostProcessStack, SFG_Visualize, NSLOCTEXT("UnrealEd", "VisualizePostProcessStackSF", "Post Process Stack"))
 
 /** Draw in the main pass the primitives that would normally only contribute to runtime virtual textures. */
 SHOWFLAG_FIXED_IN_SHIPPING(0, VirtualTexturePrimitives, SFG_Developer, NSLOCTEXT("UnrealEd", "VirtualTexturePrimitivesSF", "Virtual Texture Primitives"))
@@ -451,8 +448,19 @@ SHOWFLAG_ALWAYS_ACCESSIBLE(NaniteStreamingGeometry, SFG_Nanite, NSLOCTEXT("Unrea
 /** Visualize Skin Cache */
 SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeGPUSkinCache, SFG_Hidden, NSLOCTEXT("UnrealEd", "VisualizeGPUSkinCache", "Visualize GPU Skin Cache"))
 
+SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeLWCComplexity, SFG_Hidden, NSLOCTEXT("UnrealEd", "VisualizeLWCComplexity", "Visualize Material LWC Fumction Usage"))
+
 /** Enables ShaderPrint functionality that is used for debug printing from shaders (e.g. 'Nanitestats' command). Disable this for certain editor rendering (e.g. thumbnail rendering) */
 SHOWFLAG_ALWAYS_ACCESSIBLE(ShaderPrint, SFG_Developer, NSLOCTEXT("UnrealEd", "ShaderPrint", "Shader Print"))
+
+/** If true, scene depth is copied to the scene capture output depth texture. If false, other depth sources like editor primitives depth are still copied. */
+SHOWFLAG_ALWAYS_ACCESSIBLE(SceneCaptureCopySceneDepth, SFG_Hidden, NSLOCTEXT("UnrealEd", "SceneCaptureCopySceneDepth", "Copy Scene Depth To Scene Capture"))
+
+/** If false, camera's are not shown in the viewport (but are enabled and available for use). */
+SHOWFLAG_ALWAYS_ACCESSIBLE(Cameras, SFG_Normal, NSLOCTEXT("UnrealEd", "CamerasSF", "Cameras"))
+
+/** If false, hair geometry won't be rendered. */
+SHOWFLAG_ALWAYS_ACCESSIBLE(Hair, SFG_Normal, NSLOCTEXT("UnrealEd", "HairSF", "Hair"))
 
 #undef SHOWFLAG_ALWAYS_ACCESSIBLE
 #undef SHOWFLAG_FIXED_IN_SHIPPING

@@ -40,7 +40,7 @@ void SRigSpacePickerWidget::Construct(const FArguments& InArgs)
 	bAllowReorder = InArgs._AllowReorder;
 	bAllowDelete = InArgs._AllowDelete;
 	bAllowAdd = InArgs._AllowAdd;
-	bShowBakeButton = InArgs._ShowBakeButton;
+	bShowBakeAndCompensateButton = InArgs._ShowBakeAndCompensateButton;
 	GetActiveSpaceDelegate = InArgs._GetActiveSpace;
 	GetControlCustomizationDelegate = InArgs._GetControlCustomization;
 	GetAdditionalSpacesDelegate = InArgs._GetAdditionalSpaces;
@@ -132,7 +132,7 @@ void SRigSpacePickerWidget::Construct(const FArguments& InArgs)
 		]
 	];
 
-	if(bAllowAdd || bShowBakeButton)
+	if(bAllowAdd || bShowBakeAndCompensateButton)
 	{
 		TopLevelListBox->AddSlot()
 		.AutoHeight()
@@ -175,8 +175,40 @@ void SRigSpacePickerWidget::Construct(const FArguments& InArgs)
 			SNew(SSpacer)
 		];
 
-		if(bShowBakeButton)
+		if(bShowBakeAndCompensateButton)
 		{
+			BottomButtonsListBox->AddSlot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Left)
+			.Padding(0.f)
+			[
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "FlatButton.Default")
+				.Text(LOCTEXT("CompensateKeyButton", "Comp Key"))
+				.OnClicked(InArgs._OnCompensateKeyButtonClicked)
+				.IsEnabled_Lambda([this]()
+				{
+					return (ControlKeys.Num() > 0);
+				})
+				.ToolTipText(LOCTEXT("CompensateKeyTooltip", "Compensate key at the current time."))
+			];
+			BottomButtonsListBox->AddSlot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Left)
+			.Padding(0.f)
+			[
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "FlatButton.Default")
+				.Text(LOCTEXT("CompensateAllButton", "Comp All"))
+				.OnClicked(InArgs._OnCompensateAllButtonClicked)
+				.IsEnabled_Lambda([this]()
+				{
+					return (ControlKeys.Num() > 0);
+				})
+				.ToolTipText(LOCTEXT("CompensateAllTooltip", "Compensate all space switch keys."))
+			];
 			BottomButtonsListBox->AddSlot()
 			.AutoWidth()
 			.VAlign(VAlign_Center)
@@ -666,7 +698,12 @@ void SRigSpacePickerWidget::HandleSpaceDelete(FRigElementKey InKey)
 
 FReply SRigSpacePickerWidget::HandleAddElementClicked()
 {
+	HierarchyDisplaySettings.bShowConnectors = false;
+	HierarchyDisplaySettings.bShowSockets = false;
+	HierarchyDisplaySettings.bShowPhysics = false;
+	
 	FRigTreeDelegates TreeDelegates;
+	TreeDelegates.OnGetDisplaySettings = FOnGetRigTreeDisplaySettings::CreateSP(this, &SRigSpacePickerWidget::GetHierarchyDisplaySettings); 
 	TreeDelegates.OnGetHierarchy = FOnGetRigTreeHierarchy::CreateSP(this, &SRigSpacePickerWidget::GetHierarchyConst);
 	TreeDelegates.OnMouseButtonClick = FOnRigTreeMouseButtonClick::CreateLambda([this](TSharedPtr<FRigTreeElement> InItem)
 	{
@@ -1166,7 +1203,7 @@ void SRigSpacePickerBakeWidget::Construct(const FArguments& InArgs)
 				.AllowDelete(false)
 				.AllowReorder(false)
 				.AllowAdd(true)
-				.ShowBakeButton(false)
+				.ShowBakeAndCompensateButton(false)
 				.GetControlCustomization_Lambda([this] (URigHierarchy*, const FRigElementKey)
 				{
 					return &Customization;

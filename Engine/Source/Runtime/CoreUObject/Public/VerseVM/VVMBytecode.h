@@ -8,6 +8,8 @@
 #include "Misc/AssertionMacros.h"
 #include "Templates/TypeCompatibleBytes.h"
 #include "VVMBytecodeOps.h"
+#include "VVMLocation.h"
+#include "VVMMarkStackVisitor.h"
 
 namespace Verse
 {
@@ -46,45 +48,74 @@ struct alignas(8) FOp
 
 struct FRegisterIndex
 {
+	static constexpr uint32 UNINITIALIZED = INT32_MAX;
+
+	/// These are hardcoded register indices that we will always place the operands in by convention.
+	static constexpr uint32 SELF = 0;  // for `Self`.
+	static constexpr uint32 SCOPE = 1; // for `(super:)` and other generic captures in the future.
+	static constexpr uint32 PARAMETER_START = 2;
+
+	// Unsigned, but must be less than INT32_MAX
 	uint32 Index;
+
+	friend bool operator==(FRegisterIndex Left, FRegisterIndex Right)
+	{
+		return Left.Index == Right.Index;
+	}
+
+	friend bool operator!=(FRegisterIndex Left, FRegisterIndex Right)
+	{
+		return Left.Index != Right.Index;
+	}
 };
+
+template <>
+void Visit(FAbstractVisitor&, FRegisterIndex&, const TCHAR* ElementName);
+
+template <>
+inline void Visit(FMarkStackVisitor& Visitor, const FRegisterIndex& Value, FMarkStackVisitor::ConsumeElementName ElementName)
+{
+}
 
 struct FConstantIndex
 {
+	// Unsigned, but must be less than or equal to INT32_MAX
 	uint32 Index;
 };
 
 struct FValueOperand
 {
-	int32 Index = INT32_MIN;
+	static constexpr uint32 UNINITIALIZED = INT32_MAX;
+
+	uint32 Index{UNINITIALIZED};
 
 	FValueOperand() = default;
 
-	FValueOperand(FConstantIndex Constant)
-		: Index(-1 - Constant.Index)
-	{
-		check(Constant.Index <= INT32_MAX);
-		check(IsConstant());
-	}
 	FValueOperand(FRegisterIndex Register)
 		: Index(Register.Index)
 	{
-		check(Register.Index <= INT32_MAX);
-		check(!IsConstant());
+		check(Register.Index < UNINITIALIZED);
+		check(IsRegister());
+	}
+	FValueOperand(FConstantIndex Constant)
+		: Index{~Constant.Index}
+	{
+		check(Constant.Index <= UNINITIALIZED);
+		check(IsConstant());
 	}
 
-	bool IsConstant() const { return Index < 0; }
-	bool IsRegister() const { return Index >= 0; }
+	bool IsRegister() const { return Index < UNINITIALIZED; }
+	bool IsConstant() const { return UNINITIALIZED < Index; }
 
 	FRegisterIndex AsRegister() const
 	{
 		checkSlow(IsRegister());
-		return FRegisterIndex{static_cast<uint32>(Index)};
+		return FRegisterIndex{Index};
 	}
 	FConstantIndex AsConstant() const
 	{
 		checkSlow(IsConstant());
-		return FConstantIndex{static_cast<uint32>(-Index) - 1};
+		return FConstantIndex{~Index};
 	}
 };
 
@@ -97,5 +128,84 @@ struct FLabelOffset
 		return const_cast<FOp*>(BitCast<const FOp*>(BitCast<const uint8*>(this) + Offset));
 	}
 };
+
+template <typename OperandType>
+struct TOperandRange
+{
+	int32 Index;
+	int32 Num;
+};
+
+// A range of opcode bytes, with a target label for unwinding from calls within that range.
+// VProcedure holds a sorted array of non-overlapping unwind edges.
+struct FUnwindEdge
+{
+	int32 Begin;
+	int32 End;
+	FLabelOffset OnUnwind;
+};
+
+// Mapping from an opcode offset to a location.  VProcedure holds a sorted array of such
+// mappings where an op's location is the latest entry with an equal or lesser offset.
+struct FOpLocation
+{
+	int32 Begin;
+	FLocation Location;
+};
+
+const FLocation* GetLocation(FOpLocation* First, FOpLocation* Last, uint32 OpOffset);
+
+template <>
+void Visit(FAbstractVisitor&, FOpLocation&, const TCHAR* ElementName);
+
+template <>
+inline void Visit(FMarkStackVisitor&, const FOpLocation&, FMarkStackVisitor::ConsumeElementName)
+{
+}
+
+// Mapping of a named parameter to its corresponding register. VProcedures hold an array of such mappings.
+struct FNamedParam
+{
+	FNamedParam() = default;
+	FNamedParam(FRegisterIndex InIndex, FAccessContext InContext, VUniqueString& InName)
+		: Index(InIndex)
+		, Name(InContext, InName)
+	{
+	}
+
+	FRegisterIndex Index;
+	TWriteBarrier<VUniqueString> Name;
+};
+
+template <>
+void Visit(FAbstractVisitor&, FNamedParam&, const TCHAR* ElementName);
+
+template <>
+inline void Visit(FMarkStackVisitor& Visitor, const FNamedParam& Value, FMarkStackVisitor::ConsumeElementName)
+{
+	Visit(Visitor, Value.Name, TEXT(""));
+}
+
+// Mapping from register index to name. VProcedures hold an array of such mappings.
+struct FRegisterName
+{
+	FRegisterName(FRegisterIndex InIndex, FAccessContext InContext, VUniqueString& InName)
+		: Index(InIndex)
+		, Name(InContext, InName)
+	{
+	}
+
+	FRegisterIndex Index;
+	TWriteBarrier<VUniqueString> Name;
+};
+
+template <>
+void Visit(FAbstractVisitor&, FRegisterName&, const TCHAR* ElementName);
+
+template <>
+inline void Visit(FMarkStackVisitor& Visitor, const FRegisterName& Value, FMarkStackVisitor::ConsumeElementName)
+{
+	Visit(Visitor, Value.Name, TEXT(""));
+}
 } // namespace Verse
 #endif // WITH_VERSE_VM

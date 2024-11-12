@@ -73,7 +73,7 @@ public:
 	bool CompileMetalShader(struct FMetalShaderBytecodeJob& Job, struct FMetalShaderBytecode& Output) const;
 	
 	// Executes 'Command' on the local machine
-	bool ExecGenericCommand(const TCHAR* Command, const TCHAR* Params, int32* OutReturnCode, FString* OutStdOut, FString* OutStdErr) const;
+	bool ExecGenericCommand(const TCHAR* Command, const TCHAR* Params, int32* OutReturnCode, FString* OutStdOut, FString* OutStdErr, bool bIsConsoleApp = false) const;
 	// Executes the metal frontend compiler for 'SDK' on the local or remote machine, depending on the current configuration
 	bool ExecMetalFrontend(EAppleSDKType SDK, const TCHAR* Parameters, int32* OutReturnCode, FString* OutStdOut, FString* OutStdErr) const;
 	// Executes metallib for 'SDK' on the local or remote machine, depending on configuration
@@ -208,8 +208,8 @@ public:
 	static FString MetalMacSDK;
 	// The string xcrun expects for the mobile SDKs - iphoneos
 	static FString MetalMobileSDK;
-	// The default installation directory of the windows native metal compiler
-	static FString DefaultWindowsToolchainPath;
+	// The version of the windows native metal compiler
+	static FString WindowsToolchainVersion;
 
 private:
 	// Members

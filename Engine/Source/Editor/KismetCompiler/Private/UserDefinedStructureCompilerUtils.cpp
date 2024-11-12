@@ -15,7 +15,7 @@
 #include "EdMode.h"
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "GameFramework/Actor.h"
 #include "HAL/PlatformCrt.h"
 #include "HAL/PlatformMath.h"
@@ -285,6 +285,7 @@ struct FUserDefinedStructureCompilerInner
 			}
 			VarProperty->SetMetaData(TEXT("DisplayName"), *VarDesc.FriendlyName);
 			VarProperty->SetMetaData(FBlueprintMetadata::MD_Tooltip, *VarDesc.ToolTip);
+			VarProperty->AppendMetaData(VarDesc.MetaData);
 			VarProperty->RepNotifyFunc = NAME_None;
 
 			if (!VarDesc.DefaultValue.IsEmpty())

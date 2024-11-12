@@ -3,10 +3,10 @@
 #include "TextureDerivedDataBuildUtils.h"
 
 #if WITH_EDITOR
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
+#include "Containers/SharedString.h"
 #include "DerivedDataBuild.h"
 #include "DerivedDataBuildFunctionRegistry.h"
-#include "DerivedDataSharedString.h"
 #include "Engine/Texture.h"
 #include "Interfaces/ITextureFormat.h"
 #include "Misc/ScopeRWLock.h"
@@ -258,7 +258,6 @@ static void WriteSource(FCbWriter& Writer, const UTexture& Texture, int32 LayerI
 
 	Writer.BeginObject();
 
-	Writer.AddInteger("CompressionFormat", Source.GetSourceCompression());
 	Writer.AddInteger("SourceFormat", Source.GetFormat(LayerIndex));
 	Writer.AddInteger("GammaSpace", static_cast<uint8>(Source.GetGammaSpace(LayerIndex)));
 	Writer.AddInteger("NumSlices", (BuildSettings.bCubemap || BuildSettings.bTextureArray || BuildSettings.bVolume) ? Source.GetNumSlices() : 1);
@@ -282,15 +281,15 @@ static void WriteSource(FCbWriter& Writer, const UTexture& Texture, int32 LayerI
 }
 
 static FRWLock GTextureBuildFunctionLock;
-static TMap<FName, UE::DerivedData::FUtf8SharedString> GTextureBuildFunctionMap;
+static TMap<FName, UE::FUtf8SharedString> GTextureBuildFunctionMap;
 
-UE::DerivedData::FUtf8SharedString FindTextureBuildFunction(const FName TextureFormatName)
+UE::FUtf8SharedString FindTextureBuildFunction(const FName TextureFormatName)
 {
 	using namespace UE::DerivedData;
 
 	{
 		FReadScopeLock Lock(GTextureBuildFunctionLock);
-		if (const FUtf8SharedString* Function = GTextureBuildFunctionMap.Find(TextureFormatName))
+		if (const UE::FUtf8SharedString* Function = GTextureBuildFunctionMap.Find(TextureFormatName))
 		{
 			return *Function;
 		}
@@ -327,7 +326,7 @@ UE::DerivedData::FUtf8SharedString FindTextureBuildFunction(const FName TextureF
 	}
 
 	FWriteScopeLock Lock(GTextureBuildFunctionLock);
-	FUtf8SharedString& Function = GTextureBuildFunctionMap.FindOrAdd(TextureFormatName);
+	UE::FUtf8SharedString& Function = GTextureBuildFunctionMap.FindOrAdd(TextureFormatName);
 	if (Function.IsEmpty())
 	{
 		Function = FunctionNameUtf8;
@@ -335,7 +334,7 @@ UE::DerivedData::FUtf8SharedString FindTextureBuildFunction(const FName TextureF
 	return Function;
 }
 
-FCbObject SaveTextureBuildSettings(const UTexture& Texture, const FTextureBuildSettings& BuildSettings, int32 LayerIndex, bool bUseCompositeTexture, int64 RequiredMemoryEstimate)
+FCbObject SaveTextureBuildSettings(const UTexture& Texture, const FTextureBuildSettings& BuildSettings, int32 LayerIndex, bool bUseCompositeTexture)
 {
 	const ITextureFormat* TextureFormat = nullptr;
 	if (ITextureFormatManagerModule* TFM = GetTextureFormatManager())
@@ -364,8 +363,6 @@ FCbObject SaveTextureBuildSettings(const UTexture& Texture, const FTextureBuildS
 		// Not actually read by the worker - just used to make a different key
 		Writer.AddUuid("CompressionCacheId", Texture.CompressionCacheId);
 	}
-
-	Writer.AddInteger("RequiredMemoryEstimate", RequiredMemoryEstimate);
 
 	if (uint16 TextureFormatVersion = TextureFormat->GetVersion(BuildSettings.TextureFormatName, &BuildSettings))
 	{

@@ -90,7 +90,21 @@ public:
 		const bool bInAdditionalViewFamily
 	) const override;
 
-	virtual void ConfigureViewFamily(const FDisplayClusterRenderFrameTarget& InFrameTarget, const FDisplayClusterRenderFrameTargetViewFamily& InFrameViewFamily, FSceneViewFamilyContext& InOutViewFamily) override;
+	virtual void ConfigureViewFamily(
+		const FDisplayClusterRenderFrameTarget& InFrameTarget,
+		const FDisplayClusterRenderFrameTargetViewFamily& InFrameViewFamily,
+		FSceneViewFamilyContext& InOutViewFamily
+	) override;
+
+	virtual void PostConfigureViewFamily(
+		const FDisplayClusterRenderFrameTarget& InFrameTarget,
+		const FDisplayClusterRenderFrameTargetViewFamily& InFrameViewFamily,
+		FSceneViewFamilyContext& InOutViewFamily,
+		const TArray<FSceneView*>& InOutViews,
+		const EDisplayClusterViewportRenderingFlags InRenderingFlags = EDisplayClusterViewportRenderingFlags::None,
+		const float InDPIScale = 1.f
+	) override;
+
 	virtual void RenderFrame(FViewport* InViewport) override;
 
 private:

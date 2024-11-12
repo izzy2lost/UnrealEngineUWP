@@ -6,6 +6,7 @@
 
 #include "Http.h"
 
+#include "HAL/IConsoleManager.h"
 #include "HAL/ThreadSafeCounter.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/PlatformProcess.h"
@@ -243,7 +244,7 @@ private:
 	void OnProcessRequestComplete(FHttpRequestPtr InSourceHttpRequest, FHttpResponsePtr InHttpResponse, bool bInSucceeded);
 	void OnHeaderReceived(FHttpRequestPtr InSourceHttpRequest, const FString& InHeaderName, const FString& InHeaderValue);
 	void OnStatusCodeReceived(FHttpRequestPtr InSourceHttpRequest, int32 InHttpStatusCode);
-	bool OnProcessRequestStream(void *InDataPtr, int64 InLength);
+	void OnProcessRequestStream(void *InDataPtr, int64& InLength);
 
 	// Owner to be notified on activity.
 	TWeakPtr<FElectraHTTPStreamGeneric, ESPMode::ThreadSafe> Owner;
@@ -325,9 +326,9 @@ bool FElectraHTTPStreamRequestGeneric::Setup()
 	RequestHandle->OnHeaderReceived().BindThreadSafeSP(AsShared(), &FElectraHTTPStreamRequestGeneric::OnHeaderReceived);
 	RequestHandle->OnStatusCodeReceived().BindThreadSafeSP(AsShared(), &FElectraHTTPStreamRequestGeneric::OnStatusCodeReceived);
 
-	FHttpRequestStreamDelegate StreamDelegate;
+	FHttpRequestStreamDelegateV2 StreamDelegate;
 	StreamDelegate.BindThreadSafeSP(AsShared(), &FElectraHTTPStreamRequestGeneric::OnProcessRequestStream);
-	bool bOk = RequestHandle->SetResponseBodyReceiveStreamDelegate(StreamDelegate);
+	bool bOk = RequestHandle->SetResponseBodyReceiveStreamDelegateV2(StreamDelegate);
 	(void)bOk; check(bOk);
 
 	// We set the user agent manually. For simplicities sake we add it to the list of additional headers.
@@ -491,6 +492,16 @@ void FElectraHTTPStreamRequestGeneric::SetFinished()
 
 void FElectraHTTPStreamRequestGeneric::OnProcessRequestComplete(FHttpRequestPtr InSourceHttpRequest, FHttpResponsePtr InHttpResponse, bool bInSucceeded)
 {
+	// If we did not receive any response body data bytes yet (because this is a HEAD request or due to some problem), process the headers.
+	if (CurrentState < EState::ReadingResponseData)
+	{
+		double Now = FPlatformTime::Seconds();
+		CurrentState = EState::ReadingResponseData;
+		Response->TimeUntilFirstByte = Now - Response->StartTime;
+		// Parse the headers and report them.
+		ParseResponseHeaders();
+	}
+
 	if (InHttpResponse.IsValid())
 	{
 		EffectiveURL = InHttpResponse->GetEffectiveURL();
@@ -501,7 +512,14 @@ void FElectraHTTPStreamRequestGeneric::OnProcessRequestComplete(FHttpRequestPtr 
 	{
 		if (Response->HTTPResponseCode)
 		{
-			Response->SetErrorMessage(FString::Printf(TEXT("Failed with HTTP status %d"), Response->HTTPResponseCode));
+			if (Response->HTTPResponseCode >= 400)
+			{
+				Response->SetErrorMessage(FString::Printf(TEXT("Failed with HTTP status %d"), Response->HTTPResponseCode));
+			}
+			else
+			{
+				Response->SetErrorMessage(FString::Printf(TEXT("Failed due to connection error")));
+			}
 		}
 		else
 		{
@@ -560,25 +578,32 @@ void FElectraHTTPStreamRequestGeneric::OnHeaderReceived(FHttpRequestPtr InSource
 
 void FElectraHTTPStreamRequestGeneric::OnStatusCodeReceived(FHttpRequestPtr InSourceHttpRequest, int32 InHttpStatusCode)
 {
-	ReceivedHttpStatusCode = InHttpStatusCode;
+	if (InHttpStatusCode)
+	{
+		ReceivedHttpStatusCode = InHttpStatusCode;
+	}
 	if (WasCanceled())
 	{
 		return;
 	}
-	// For the lack of better knowledge pretend this is a 1.1 transfer.
-	FString HeaderValue = FString::Printf(TEXT("HTTP/1.1 %d"), InHttpStatusCode);
-	OnHeaderReceived(InSourceHttpRequest, FString(), HeaderValue);
+	if (InHttpStatusCode)
+	{
+		// For the lack of better knowledge pretend this is a 1.1 transfer.
+		FString HeaderValue = FString::Printf(TEXT("HTTP/1.1 %d"), InHttpStatusCode);
+		OnHeaderReceived(InSourceHttpRequest, FString(), HeaderValue);
+	}
 }
 
-bool FElectraHTTPStreamRequestGeneric::OnProcessRequestStream(void *InDataPtr, int64 InLength)
+void FElectraHTTPStreamRequestGeneric::OnProcessRequestStream(void *InDataPtr, int64& InOutLength)
 {
-	if (InDataPtr == nullptr || InLength < 0)
+	if (InDataPtr == nullptr || InOutLength < 0)
 	{
-		return false;
+		InOutLength = 0;
+		return;
 	}
 	if (WasCanceled())
 	{
-		return true;
+		return;
 	}
 	double Now = FPlatformTime::Seconds();
 	if (CurrentState < EState::ReadingResponseData)
@@ -588,15 +613,16 @@ bool FElectraHTTPStreamRequestGeneric::OnProcessRequestStream(void *InDataPtr, i
 		// Parse the headers and report them.
 		if (!ParseResponseHeaders())
 		{
-			return false;
+			InOutLength = 0;
+			return;
 		}
 	}
 
 	// Add the data to the response.
-	TConstArrayView<const uint8> Data(static_cast<const uint8*>(InDataPtr), (int32)InLength);
+	TConstArrayView<const uint8> Data(static_cast<const uint8*>(InDataPtr), (int32)InOutLength);
 	Response->AddResponseData(Data);
 	// Notify amount of new data available.
-	NotifyCallback(EElectraHTTPStreamNotificationReason::ReadData, InLength);
+	NotifyCallback(EElectraHTTPStreamNotificationReason::ReadData, InOutLength);
 
 	Response->TimeOfMostRecentReceive = Now;
 
@@ -605,7 +631,6 @@ bool FElectraHTTPStreamRequestGeneric::OnProcessRequestStream(void *InDataPtr, i
 	{
 		PinnedOwner->TriggerWorkSignal();
 	}
-	return true;
 }
 
 

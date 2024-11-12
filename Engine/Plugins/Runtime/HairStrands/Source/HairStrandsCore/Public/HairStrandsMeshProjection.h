@@ -93,7 +93,8 @@ void AddSkinUpdatePass(
 	FSkeletalMeshLODRenderData& RenderData,
 	const TArray<FSkinUpdateSection>& Sections,
 	FRDGBufferRef OutDeformedPositionBuffer,
-	FRDGBufferRef OutPrevDeformedPositionBuffer);
+	FRDGBufferRef OutPrevDeformedPositionBuffer,
+	FRDGBufferRef OutTangentBuffer);
 
 void AddHairMeshesRBFInterpolationPass(
 	FRDGBuilder& GraphBuilder,

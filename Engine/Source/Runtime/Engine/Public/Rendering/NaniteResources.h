@@ -105,11 +105,16 @@ struct FPackedCluster
 	uint32		Flags;
 
 	// Members needed by materials
-	uint32		AttributeOffset_BitsPerAttribute;				// AttributeOffset: 22, BitsPerAttribute: 10
-	uint32		DecodeInfoOffset_HasTangents_NumUVs_ColorMode;	// DecodeInfoOffset: 22, bHasTangents: 1, NumUVs: 3, ColorMode: 2
-	uint32		UVBitOffsets;									// Bit offsets of UV sets relative to beginning of UV data.
-																// UV0 Offset: 8, UV1 Offset: 8, UV2 Offset: 8, UV3 Offset: 8
+	uint32		AttributeOffset_BitsPerAttribute;						// AttributeOffset: 22, BitsPerAttribute: 10
+	uint32		DecodeInfoOffset_HasTangents_Skinning_NumUVs_ColorMode;	// DecodeInfoOffset: 22, bTangents: 1, bSkinning: 1, NumUVs: 3, ColorMode: 2
+	uint32		UVBitOffsets;											// Bit offsets of UV sets relative to beginning of UV data.
+																		// UV0 Offset: 8, UV1 Offset: 8, UV2 Offset: 8, UV3 Offset: 8
 	uint32		PackedMaterialInfo;
+
+	uint32		ExtendedDataOffset_Num;									// ExtendedDataOffset: 22, Num: 10
+	uint32		Dummy0;
+	uint32		Dummy1;
+	uint32		Dummy2;
 
 	uint32		VertReuseBatchInfo[4];
 
@@ -147,10 +152,11 @@ struct FPackedCluster
 	void		SetAttributeOffset(uint32 Offset)		{ SetBits(AttributeOffset_BitsPerAttribute, Offset, 22, 0); }
 	void		SetBitsPerAttribute(uint32 Bits)		{ SetBits(AttributeOffset_BitsPerAttribute, Bits, 10, 22); }
 
-	void		SetDecodeInfoOffset(uint32 Offset)		{ SetBits(DecodeInfoOffset_HasTangents_NumUVs_ColorMode, Offset, 22, 0); }
-	void		SetHasTangents(bool bHasTangents)		{ SetBits(DecodeInfoOffset_HasTangents_NumUVs_ColorMode, bHasTangents, 1, 22); }
-	void		SetNumUVs(uint32 Num)					{ SetBits(DecodeInfoOffset_HasTangents_NumUVs_ColorMode, Num, 3, 23); }
-	void		SetColorMode(uint32 Mode)				{ SetBits(DecodeInfoOffset_HasTangents_NumUVs_ColorMode, Mode, 1, 26); }
+	void		SetDecodeInfoOffset(uint32 Offset)		{ SetBits(DecodeInfoOffset_HasTangents_Skinning_NumUVs_ColorMode, Offset, 22, 0); }
+	void		SetHasTangents(bool bHasTangents)		{ SetBits(DecodeInfoOffset_HasTangents_Skinning_NumUVs_ColorMode, bHasTangents, 1, 22); }
+	void		SetHasSkinning(bool bSkinning)			{ SetBits(DecodeInfoOffset_HasTangents_Skinning_NumUVs_ColorMode, bSkinning, 1, 23); }
+	void		SetNumUVs(uint32 Num)					{ SetBits(DecodeInfoOffset_HasTangents_Skinning_NumUVs_ColorMode, Num, 3, 24); }
+	void		SetColorMode(uint32 Mode)				{ SetBits(DecodeInfoOffset_HasTangents_Skinning_NumUVs_ColorMode, Mode, 1, 27); }
 
 	void		SetColorBitsR(uint32 NumBits)			{ SetBits(ColorBits_GroupIndex, NumBits, 4, 0); }
 	void		SetColorBitsG(uint32 NumBits)			{ SetBits(ColorBits_GroupIndex, NumBits, 4, 4); }
@@ -310,10 +316,15 @@ private:
 	enum class EDDCRebuildState : uint8
 	{
 		Initial,
+		InitialAfterFailed,
 		Pending,
 		Succeeded,
 		Failed,
 	};
+	static bool IsInitialState(EDDCRebuildState State)
+	{
+		return State == EDDCRebuildState::Initial || State == EDDCRebuildState::InitialAfterFailed;
+	}
 
 	struct FDDCRebuildState
 	{
@@ -321,7 +332,7 @@ private:
 
 		FDDCRebuildState() = default;
 		FDDCRebuildState(const FDDCRebuildState&) {}
-		FDDCRebuildState& operator=(const FDDCRebuildState&) { check(State == EDDCRebuildState::Initial); return *this; }
+		FDDCRebuildState& operator=(const FDDCRebuildState&) { check(IsInitialState(EDDCRebuildState::Initial)); return *this; }
 	};
 
 	FDDCRebuildState		DDCRebuildState;
@@ -335,6 +346,9 @@ public:
 
 	UE_DEPRECATED(5.1, "Use RebuildBulkDataFromCacheAsync instead.")
 	ENGINE_API void RebuildBulkDataFromDDC(const UObject* Owner);
+
+	ENGINE_API bool HasBuildFromDDCError() const;
+	ENGINE_API void SetHasBuildFromDDCError(bool bHasError);
 
 	/** Requests (or polls) an async operation that rebuilds the streaming bulk data from the cache.
 		If a rebuild is already in progress, the call will just poll the pending operation.
@@ -352,26 +366,9 @@ public:
 
 	void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) const;
 	bool IsRootPage(uint32 PageIndex) const { return PageIndex < NumRootPages; }
-};
 
-class FVertexFactory final : public ::FVertexFactory
-{
-	DECLARE_VERTEX_FACTORY_TYPE_API(FVertexFactory, ENGINE_API);
-
-public:
-	FVertexFactory(ERHIFeatureLevel::Type FeatureLevel) : ::FVertexFactory(FeatureLevel)
-	{
-	}
-	~FVertexFactory()
-	{
-		ReleaseResource();
-	}
-
-	ENGINE_API virtual void InitRHI(FRHICommandListBase& RHICmdList) override final;
-
-	static ENGINE_API bool ShouldCompilePermutation(const FVertexFactoryShaderPermutationParameters& Parameters);
-	static ENGINE_API void ModifyCompilationEnvironment(const FVertexFactoryShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
-	static ENGINE_API void GetPSOPrecacheVertexFetchElements(EVertexInputStreamType VertexInputStreamType, FVertexDeclarationElementList& Elements);
+private:
+	ENGINE_API void SerializeInternal(FArchive& Ar, UObject* Owner, bool bCooked);
 };
 
 class FVertexFactoryResource : public FRenderResource
@@ -380,15 +377,10 @@ public:
 	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
 	virtual void ReleaseRHI() override;
 
-	FVertexFactory* GetVertexFactory() { return VertexFactory; }
-	FNaniteVertexFactory* GetVertexFactory2() { return VertexFactory2; }
+	FNaniteVertexFactory* GetVertexFactory() { return VertexFactory; }
 
 private:
-	// TODO: Work in progress / experimental (having two factories is temporary).
-	// VertexFactory is the legacy VS/PS shading path.
-	// VertexFactory2 is the new compute shader path.
-	class FVertexFactory* VertexFactory = nullptr;
-	class FNaniteVertexFactory* VertexFactory2 = nullptr;
+	class FNaniteVertexFactory* VertexFactory = nullptr;
 };
 
 } // namespace Nanite

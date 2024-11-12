@@ -11,7 +11,7 @@
 
 #include "InterchangePipelineConfigurationBase.generated.h"
 
-UENUM(BlueprintType, Experimental)
+UENUM(BlueprintType)
 enum class EInterchangePipelineConfigurationDialogResult : uint8
 {
 	Cancel		UMETA(DisplayName = "Cancel"),
@@ -31,7 +31,7 @@ struct FInterchangeStackInfo
 	TArray<TObjectPtr<UInterchangePipelineBase>> Pipelines;
 };
 
-UCLASS(BlueprintType, Blueprintable, Experimental, MinimalAPI)
+UCLASS(BlueprintType, Blueprintable, MinimalAPI)
 class UInterchangePipelineConfigurationBase : public UObject
 {
 	GENERATED_BODY()

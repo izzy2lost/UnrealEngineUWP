@@ -2,14 +2,17 @@
 
 #include "MetasoundDynamicGraphAlgo.h"
 
+#include "Algo/IsSorted.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "MetasoundDataReference.h"
+#include "MetasoundGraphAlgo.h"
 #include "MetasoundGraphAlgoPrivate.h"
 #include "MetasoundLog.h"
 #include "MetasoundTrace.h"
 #include "MetasoundVertex.h"
 #include "MetasoundVertexData.h"
+
 
 namespace Metasound
 {
@@ -17,22 +20,103 @@ namespace Metasound
 	{
 		namespace DynamicGraphAlgoPrivate
 		{
+			template<typename EntryType>
+			struct TGetOrdinal
+			{
+				int32 operator()(const EntryType& InEntry) const
+				{
+					return InEntry.Ordinal;
+				}
+			};
+
+			template<typename EntryType>
+			void SortExecutionTable(TArrayView<EntryType> InTable)
+			{
+				Algo::SortBy(InTable, TGetOrdinal<EntryType>());
+			}
+
+			template<typename EntryType>
+			void SetOrdinalsAndSortTable(const TMap<FOperatorID, int32>& InOrdinals, TArray<EntryType>& InOutTable)
+			{
+				// Assign new ordinals to all entries
+				for (EntryType& Entry : InOutTable)
+				{
+					if (const int32* Ordinal = InOrdinals.Find(Entry.OperatorID))
+					{
+						Entry.Ordinal = *Ordinal;
+					}
+					else
+					{
+						Entry.Ordinal = ORDINAL_NONE;
+					}
+				}
+
+				// Sort table by ordinal
+				SortExecutionTable<EntryType>(InOutTable);
+
+				// Remove entries without an ordinal
+				InOutTable.RemoveAll([](const EntryType& InEntry) { return InEntry.Ordinal == ORDINAL_NONE; });
+			}
+
+			template<typename EntryType>
+			void SwapOrdinalsAndSortTable(int32 InMinOrdinal, int32 InMaxOrdinal, const TArray<FOrdinalSwap>& InSwaps, TArray<EntryType>& InOutTable)
+			{
+				int32 StartTableIndex = Algo::LowerBoundBy(InOutTable, InMinOrdinal, TGetOrdinal<EntryType>());
+				int32 EndTableIndex = Algo::UpperBoundBy(InOutTable, InMaxOrdinal, TGetOrdinal<EntryType>());
+
+				if ((StartTableIndex >= InOutTable.Num()) || (EndTableIndex <= StartTableIndex))
+				{
+					// No entries exist in the table which match the swaps. There
+					// is nothing to update.
+					return;
+				}
+
+				const FOrdinalSwap* SwapPtr = InSwaps.GetData();
+				const FOrdinalSwap* const EndSwapPtr = SwapPtr + InSwaps.Num();
+				EntryType* EntryPtr = InOutTable.GetData() + StartTableIndex;
+				EntryType* const EndEntryPtr = InOutTable.GetData() + EndTableIndex;
+
+				// Iterate through swaps and entries until we've worked through all the
+				// swaps or all the table entries in the range.
+				while ((SwapPtr != EndSwapPtr) && (EntryPtr != EndEntryPtr))
+				{
+					if (SwapPtr->OriginalOrdinal == EntryPtr->Ordinal)
+					{
+						// Found a match. Update ordinal and increment both pointers. 
+						EntryPtr->Ordinal = SwapPtr->NewOrdinal;
+						EntryPtr++;
+						SwapPtr++;
+					}
+					else if (SwapPtr->OriginalOrdinal < EntryPtr->Ordinal)
+					{
+						SwapPtr++;
+					}
+					else // if (EntryPtr->Ordinal < SwapPtr->OriginalOrdinal) <-- assumed because of earlier logic checks.
+					{
+						EntryPtr++;
+					}
+				}
+
+				// Sort the entries by ordinal. Only update table entries in the given range. 
+				SortExecutionTable(TArrayView<const EntryType>(InOutTable.GetData() + StartTableIndex, EndTableIndex - StartTableIndex));
+			}
+
 			template<typename EntryType, typename FunctionType>
-			void UpdateTableEntry(const TArray<FOperatorID>& InOperatorOrder, const FOperatorID& InOperatorID, IOperator* InOperator, TArray<EntryType>& InOutTable, FunctionType InFunction)
+			void UpdateTableEntry(const FOperatorID& InOperatorID, FOperatorInfo& InOperatorInfo, TArray<EntryType>& InOutTable, FunctionType InFunction)
 			{
 				using namespace DirectedGraphAlgo;
 
-				int32 EntryIndex = InOutTable.IndexOfByPredicate([&](const EntryType& InEntry) { return InEntry.OperatorID == InOperatorID; });
+				int32 OperatorOrdinal = InOperatorInfo.Ordinal;
+				int32 EntryIndex = Algo::BinarySearchBy(InOutTable, OperatorOrdinal, TGetOrdinal<EntryType>());
 
-				int32 OperatorIndex = InOperatorOrder.Find(InOperatorID);
-				bool bEntryShouldExist = (nullptr != InOperator) && (nullptr != InFunction) && (INDEX_NONE != OperatorIndex); // Remove operators if they have no function for this table, or if they or not in the operator execution order. 
+				bool bEntryShouldExist = (nullptr != InFunction); // Remove operators if they have no function for this table
 				bool bEntryCurrentlyExists = (EntryIndex != INDEX_NONE);
 
 				if (bEntryCurrentlyExists && bEntryShouldExist)
 				{
 					// Update the existing entry
 					InOutTable[EntryIndex].Function = InFunction;
-					InOutTable[EntryIndex].Operator = InOperator;
+					InOutTable[EntryIndex].Operator = InOperatorInfo.Operator.Get();
 				}
 				else if (bEntryCurrentlyExists)
 				{
@@ -41,37 +125,105 @@ namespace Metasound
 				}
 				else if (bEntryShouldExist)
 				{
-					check(InOperator);
-					// Add new entry
-					int32 PreceedingOperatorIndex = OperatorIndex - 1;
-					int32 InsertLocation = 0; // Default to inserting at the beginning
-					while (PreceedingOperatorIndex >= 0)
-					{
-						FOperatorID PreceedingOperatorID = InOperatorOrder[PreceedingOperatorIndex];
-						PreceedingOperatorIndex--;
+					check(InOperatorInfo.Operator.IsValid());
 
-						int32 PreceedingEntryIndex = InOutTable.IndexOfByPredicate([&](const EntryType& InEntry) { return InEntry.OperatorID == PreceedingOperatorID; });
-						if (PreceedingEntryIndex != INDEX_NONE)
-						{
-							InsertLocation = PreceedingEntryIndex + 1;
-							break;
-						}
-					}
-
-					InOutTable.Insert(EntryType{InOperatorID, *InOperator, InFunction}, InsertLocation);
+					// Add missing entry
+					int32 InsertLocation = Algo::UpperBoundBy(InOutTable, OperatorOrdinal, TGetOrdinal<EntryType>());
+					InOutTable.Insert(EntryType{OperatorOrdinal, InOperatorID, *InOperatorInfo.Operator, InFunction}, InsertLocation);
 				}
 			}
 
+			void UpdateGraphRuntimeTableEntries(const FOperatorID& InOperatorID, FOperatorInfo& InOperatorInfo, FDynamicGraphOperatorData& InOutGraphOperatorData)
+			{
+				using namespace DynamicGraphAlgoPrivate;
+				METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::DynamicGraphAlgo::UpdateOperatorRuntimeTableEntries)
+				IOperator* Operator = InOperatorInfo.Operator.Get();
+
+				UpdateTableEntry(InOperatorID, InOperatorInfo, InOutGraphOperatorData.ExecuteTable, Operator ? Operator->GetExecuteFunction() : nullptr);
+				UpdateTableEntry(InOperatorID, InOperatorInfo, InOutGraphOperatorData.PostExecuteTable, Operator ? Operator->GetPostExecuteFunction() : nullptr);
+				UpdateTableEntry(InOperatorID, InOperatorInfo, InOutGraphOperatorData.ResetTable, Operator ? Operator->GetResetFunction() : nullptr);
+			}
+
+			void SetOutputVertexData(FDynamicGraphOperatorData& InOutGraphOperatorData)
+			{
+				using namespace DirectedGraphAlgo;
+
+				// Iterate through the output operators and force their output data references
+				// to be reflected in the graph's FOutputVertexInterfaceData
+				for (const TPair<FVertexName, FOperatorID>& OutputVertexInfo : InOutGraphOperatorData.OutputVertexMap)
+				{
+					const FVertexName& VertexName = OutputVertexInfo.Get<0>();
+					const FOperatorID& OperatorID = OutputVertexInfo.Get<1>();
+
+					if (const FGraphOperatorData::FOperatorInfo* OperatorInfo = InOutGraphOperatorData.OperatorMap.Find(OperatorID))
+					{
+						if (const FAnyDataReference* Ref = OperatorInfo->VertexData.GetOutputs().FindDataReference(OutputVertexInfo.Get<0>()))
+						{
+							InOutGraphOperatorData.VertexData.GetOutputs().SetVertex(VertexName, *Ref);
+						}
+						else if (InOutGraphOperatorData.VertexData.GetOutputs().IsVertexBound(VertexName))
+						{
+							UE_LOG(LogMetaSound, Error, TEXT("Output vertex (%s) lost data reference after rebinding graph"), *VertexName.ToString());
+						}
+					}
+					else
+					{
+						UE_LOG(LogMetaSound, Error, TEXT("Failed to update graph operator outputs. Could not find output operator info with ID %s for vertex %s"), *LexToString(OperatorID), *VertexName.ToString());
+					}
+				}
+			}
 		} // namespace DynamicGraphAlgoPrivate
 
-		void UpdateGraphRuntimeTableEntries(const FOperatorID& InOperatorID, IOperator* InOperator, FDynamicGraphOperatorData& InOutGraphOperatorData)
+		void SetOrdinalsAndSort(const TMap<FOperatorID, int32>& InOrdinals, FDynamicGraphOperatorData& InOutGraphOperatorData)
 		{
 			using namespace DynamicGraphAlgoPrivate;
-			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::DynamicGraphAlgo::UpdateOperatorRuntimeTableEntries)
 
-			UpdateTableEntry(InOutGraphOperatorData.OperatorOrder, InOperatorID, InOperator, InOutGraphOperatorData.ExecuteTable, InOperator ? InOperator->GetExecuteFunction() : nullptr);
-			UpdateTableEntry(InOutGraphOperatorData.OperatorOrder, InOperatorID, InOperator, InOutGraphOperatorData.PostExecuteTable, InOperator ? InOperator->GetPostExecuteFunction() : nullptr);
-			UpdateTableEntry(InOutGraphOperatorData.OperatorOrder, InOperatorID, InOperator, InOutGraphOperatorData.ResetTable, InOperator ? InOperator->GetResetFunction() : nullptr);
+			// Assign ordinals to operator map
+			for (TPair<FOperatorID, FOperatorInfo>& Pair : InOutGraphOperatorData.OperatorMap)
+			{
+				if (const int32* Ordinal = InOrdinals.Find(Pair.Key))
+				{
+					Pair.Value.Ordinal = *Ordinal;
+				}
+				else
+				{
+					Pair.Value.Ordinal = ORDINAL_NONE;
+				}
+			}
+
+			// set ordinals to on execution tables. 
+			SetOrdinalsAndSortTable(InOrdinals, InOutGraphOperatorData.ExecuteTable);
+			SetOrdinalsAndSortTable(InOrdinals, InOutGraphOperatorData.PostExecuteTable);
+			SetOrdinalsAndSortTable(InOrdinals, InOutGraphOperatorData.ResetTable);
+		}
+
+		void SwapOrdinalsAndSort(const TArray<FOrdinalSwap>& InSwaps, FDynamicGraphOperatorData& InOutGraphOperatorData)
+		{
+			using namespace DynamicGraphAlgoPrivate;
+
+			checkf(Algo::IsSorted(InSwaps, FOrdinalSwap::OriginalOrdinalLessThan), TEXT("Dynamic MetaSound ordinal swaps must be presorted by the original ordinal."));
+
+			if (InSwaps.Num() < 1)
+			{
+				return;
+			}
+
+			const int32 MinOrdinal = InSwaps[0].OriginalOrdinal;
+			const int32 MaxOrdinal = InSwaps.Last().OriginalOrdinal;
+			
+			// Update operator map
+			for (const FOrdinalSwap& Swap : InSwaps)
+			{
+				if (FOperatorInfo* OpInfo = InOutGraphOperatorData.OperatorMap.Find(Swap.OperatorID))
+				{
+					OpInfo->Ordinal = Swap.NewOrdinal;
+				}
+			}
+
+			// Update execution tables
+			SwapOrdinalsAndSortTable(MinOrdinal, MaxOrdinal, InSwaps, InOutGraphOperatorData.ExecuteTable);
+			SwapOrdinalsAndSortTable(MinOrdinal, MaxOrdinal, InSwaps, InOutGraphOperatorData.PostExecuteTable);
+			SwapOrdinalsAndSortTable(MinOrdinal, MaxOrdinal, InSwaps, InOutGraphOperatorData.ResetTable);
 		}
 
 		// Apply updates to data references through all the operators by following connections described in the FOperatorInfo map.
@@ -113,7 +265,7 @@ namespace Metasound
 					Operator.BindOutputs(OpInfo->VertexData.GetOutputs());
 
 					// Update execute/postexecute/reset tables in case those have changed after rebinding.
-					UpdateGraphRuntimeTableEntries(Current.OperatorID, &Operator, InOutGraphOperatorData);
+					UpdateGraphRuntimeTableEntries(Current.OperatorID, *OpInfo, InOutGraphOperatorData);
 
 					// See if binding altered the outputs. 
 					OutputUpdates.Reset();
@@ -141,22 +293,25 @@ namespace Metasound
 			}
 		}
 
-		FExecuteEntry::FExecuteEntry(DirectedGraphAlgo::FOperatorID InOperatorID, IOperator& InOperator, IOperator::FExecuteFunction InFunc)
-		: OperatorID(InOperatorID)
+		FExecuteEntry::FExecuteEntry(int32 InOrdinal, DirectedGraphAlgo::FOperatorID InOperatorID, IOperator& InOperator, IOperator::FExecuteFunction InFunc)
+		: Ordinal(InOrdinal)
+		, OperatorID(InOperatorID)
 		, Operator(&InOperator)
 		, Function(InFunc)
 		{
 		}
 
-		FPostExecuteEntry::FPostExecuteEntry(DirectedGraphAlgo::FOperatorID InOperatorID, IOperator& InOperator, IOperator::FPostExecuteFunction InFunc)
-		: OperatorID(InOperatorID)
+		FPostExecuteEntry::FPostExecuteEntry(int32 InOrdinal, DirectedGraphAlgo::FOperatorID InOperatorID, IOperator& InOperator, IOperator::FPostExecuteFunction InFunc)
+		: Ordinal(InOrdinal)
+		, OperatorID(InOperatorID)
 		, Operator(&InOperator)
 		, Function(InFunc)
 		{
 		}
 
-		FResetEntry::FResetEntry(DirectedGraphAlgo::FOperatorID InOperatorID, IOperator& InOperator, IOperator::FResetFunction InFunc)
-		: OperatorID(InOperatorID)
+		FResetEntry::FResetEntry(int32 InOrdinal, DirectedGraphAlgo::FOperatorID InOperatorID, IOperator& InOperator, IOperator::FResetFunction InFunc)
+		: Ordinal(InOrdinal)
+		, OperatorID(InOperatorID)
 		, Operator(&InOperator)
 		, Function(InFunc)
 		{
@@ -167,79 +322,81 @@ namespace Metasound
 		{
 		}
 
-		FDynamicGraphOperatorData::FDynamicGraphOperatorData(DirectedGraphAlgo::FGraphOperatorData&& InGraphOperatorData)
-		: DirectedGraphAlgo::FGraphOperatorData(MoveTemp(InGraphOperatorData))
-		{
-			InitTables();
-		}
 
-		FDynamicGraphOperatorData::FDynamicGraphOperatorData(DirectedGraphAlgo::FGraphOperatorData&& InGraphOperatorData, const FDynamicOperatorUpdateCallbacks& InCallbacks)
-		: DirectedGraphAlgo::FGraphOperatorData(MoveTemp(InGraphOperatorData))
+		FDynamicGraphOperatorData::FDynamicGraphOperatorData(const FOperatorSettings& InSettings, const FDynamicOperatorUpdateCallbacks& InCallbacks)
+		: DirectedGraphAlgo::FGraphOperatorData(InSettings)
 		, OperatorUpdateCallbacks(InCallbacks)
 		{
-			InitTables();
 		}
 
 		void FDynamicGraphOperatorData::InitTables()
 		{
 			// Populate execute/postexecute/reset stacks
-			for (const FOperatorID& OperatorID : OperatorOrder)
+			for (TPair<FOperatorID, FOperatorInfo>& Pair : OperatorMap)
 			{
-				if (FOperatorInfo* OperatorInfo = OperatorMap.Find(OperatorID))
+				const FOperatorID OperatorID = Pair.Key;
+				FOperatorInfo& OperatorInfo = Pair.Value;
+
+				check(OperatorInfo.Operator.IsValid());
+				IOperator& Operator = *OperatorInfo.Operator;
+
+				if (IOperator::FExecuteFunction ExecuteFunc = Operator.GetExecuteFunction())
 				{
-					check(OperatorInfo->Operator.IsValid());
-					IOperator& Operator = *(OperatorInfo->Operator);
+					ExecuteTable.Emplace(FExecuteEntry{OperatorInfo.Ordinal, OperatorID, Operator, ExecuteFunc});
+				}
 
-					if (IOperator::FExecuteFunction ExecuteFunc = Operator.GetExecuteFunction())
-					{
-						ExecuteTable.Emplace(FExecuteEntry{OperatorID, Operator, ExecuteFunc});
-					}
+				if (IOperator::FPostExecuteFunction PostExecuteFunc = Operator.GetPostExecuteFunction())
+				{
+					PostExecuteTable.Emplace(FPostExecuteEntry{OperatorInfo.Ordinal, OperatorID, Operator, PostExecuteFunc});
+				}
 
-					if (IOperator::FPostExecuteFunction PostExecuteFunc = Operator.GetPostExecuteFunction())
-					{
-						PostExecuteTable.Emplace(FPostExecuteEntry{OperatorID, Operator, PostExecuteFunc});
-					}
-
-					if (IOperator::FResetFunction ResetFunc = Operator.GetResetFunction())
-					{
-						ResetTable.Emplace(FResetEntry{OperatorID, Operator, ResetFunc});
-					}
+				if (IOperator::FResetFunction ResetFunc = Operator.GetResetFunction())
+				{
+					ResetTable.Emplace(FResetEntry{OperatorInfo.Ordinal, OperatorID, Operator, ResetFunc});
 				}
 			}
+
+			// Sort execution stacks
+			DynamicGraphAlgoPrivate::SortExecutionTable<FExecuteEntry>(ExecuteTable);
+			DynamicGraphAlgoPrivate::SortExecutionTable<FPostExecuteEntry>(PostExecuteTable);
+			DynamicGraphAlgoPrivate::SortExecutionTable<FResetEntry>(ResetTable);
 		}
 
 		void UpdateOutputVertexData(FDynamicGraphOperatorData& InOutGraphOperatorData)
 		{
 			using namespace DirectedGraphAlgo;
+			using namespace DynamicGraphAlgoPrivate;
+
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::DynamicGraphAlgo::UpdateOutputVertexData)
 
-			// Iterate through the output operators and force their output data references
-			// to be reflected in the graph's FOutputVertexInterfaceData
-			for (const TPair<FVertexName, FOperatorID>& OutputVertexInfo : InOutGraphOperatorData.OutputVertexMap)
+			// If we have operator updates to call out to, we need to check for
+			// any changes to the output vertex data.
+			if (InOutGraphOperatorData.OperatorUpdateCallbacks.OnOutputUpdated)
 			{
-				const FVertexName& VertexName = OutputVertexInfo.Get<0>();
-				const FOperatorID& OperatorID = OutputVertexInfo.Get<1>();
 
-				if (const FGraphOperatorData::FOperatorInfo* OperatorInfo = InOutGraphOperatorData.OperatorMap.Find(OperatorID))
-				{
-					if (const FAnyDataReference* Ref = OperatorInfo->VertexData.GetOutputs().FindDataReference(OutputVertexInfo.Get<0>()))
-					{
-						InOutGraphOperatorData.VertexData.GetOutputs().SetVertex(VertexName, *Ref);
+				// Cache current graph output vertex data state. 	
+				TArray<FVertexDataState> OriginalOutputVertexState;
+				GetVertexInterfaceDataState(InOutGraphOperatorData.VertexData.GetOutputs(), OriginalOutputVertexState);
 
-						if (InOutGraphOperatorData.OperatorUpdateCallbacks.OnOutputUpdated)
-						{
-							InOutGraphOperatorData.OperatorUpdateCallbacks.OnOutputUpdated(VertexName, InOutGraphOperatorData.VertexData.GetOutputs());
-						}
-					}
-					else if (InOutGraphOperatorData.VertexData.GetOutputs().IsVertexBound(VertexName))
-					{
-						UE_LOG(LogMetaSound, Error, TEXT("Output vertex (%s) lost data reference after rebinding graph"), *VertexName.ToString());
-					}
-				}
-				else
+				// Force updates
+				SetOutputVertexData(InOutGraphOperatorData);
+
+				// Check for any changes to the output vertex data state. 
+				TSortedVertexNameMap<FAnyDataReference> OutputVertexUpdates;
+				CompareVertexInterfaceDataToPriorState(InOutGraphOperatorData.VertexData.GetOutputs(), OriginalOutputVertexState, OutputVertexUpdates);
+
+				// Report any updates. 
+				for (const TPair<FVertexName, FAnyDataReference>& Updates : OutputVertexUpdates)
 				{
-					UE_LOG(LogMetaSound, Error, TEXT("Failed to update graph operator outputs. Could not find output operator info with ID %s for vertex %s"), *LexToString(OperatorID), *VertexName.ToString());
+					InOutGraphOperatorData.OperatorUpdateCallbacks.OnOutputUpdated(Updates.Key, InOutGraphOperatorData.VertexData.GetOutputs());
 				}
+				
+			}
+			else
+			{
+				// Force updates on output. No need to update outside callers if
+				// there is no callback set. 
+				SetOutputVertexData(InOutGraphOperatorData);
 			}
 		}
 
@@ -263,7 +420,7 @@ namespace Metasound
 			InOperatorInfo.Operator->BindOutputs(InOperatorInfo.VertexData.GetOutputs());
 
 			// Update any execution tables that need updating after wrapping
-			UpdateGraphRuntimeTableEntries(InOperatorID, InOperatorInfo.Operator.Get(), InOutGraphOperatorData);
+			UpdateGraphRuntimeTableEntries(InOperatorID, InOperatorInfo, InOutGraphOperatorData);
 
 			// Determine if there have been changes to `OutputVertexData`. 
 			TSortedVertexNameMap<FAnyDataReference> OutputsToUpdate;
@@ -282,7 +439,6 @@ namespace Metasound
 					for (const FGraphOperatorData::FVertexDestination& Destination : *Destinations)
 					{
 						PropagateBindUpdate(Destination.OperatorID, Destination.VertexName, OutputToUpdate.Get<1>(), InOutGraphOperatorData);
-						
 					}
 				}
 			}
@@ -341,6 +497,115 @@ namespace Metasound
 			// Output rebinding does not alter data references in an operator. Here we can get away with
 			// simply reading the latest values.
 			InOutVertexData.Bind(InOutGraphOperatorData.VertexData.GetOutputs());
+		}
+
+		void InsertOperator(FOperatorID InOperatorID, FOperatorInfo InOperatorInfo, FDynamicGraphOperatorData& InOutGraphOperatorData)
+		{
+			using namespace DynamicGraphAlgoPrivate;
+
+			IOperator* Operator = InOperatorInfo.Operator.Get();
+			if (nullptr == Operator)
+			{
+				return;
+			}
+
+			if (FOperatorInfo* ExistingInfo = InOutGraphOperatorData.OperatorMap.Find(InOperatorID))
+			{
+				// The options here are not good. The prior operator will be 
+				// removed and replaced with this new operator.
+				// Another option would be to leave the existing operator unchanged. 
+				// Neither option is satisfactory.
+				UE_LOG(LogMetaSound, Warning, TEXT("Overriding existing operator with the same operator ID %d. Duplicate operator IDs will lead to undefined behavior. Remove existing operators before adding a new one with the same ID"), InOperatorID);
+
+				TArray<FOperatorID> ConnectionsToRemove;
+				RemoveOperator(InOperatorID, ConnectionsToRemove, InOutGraphOperatorData);
+			}
+
+			// insert operator to execution tables
+			if (InOperatorInfo.Ordinal != ORDINAL_NONE)
+			{
+				if (IOperator::FExecuteFunction ExecuteFunc = Operator->GetExecuteFunction())
+				{
+					int32 InsertLocation = Algo::UpperBoundBy(InOutGraphOperatorData.ExecuteTable, InOperatorInfo.Ordinal, TGetOrdinal<FExecuteEntry>());
+					InOutGraphOperatorData.ExecuteTable.Insert(FExecuteEntry(InOperatorInfo.Ordinal, InOperatorID, *Operator, ExecuteFunc), InsertLocation);
+				}
+
+				if (IOperator::FPostExecuteFunction PostExecuteFunc = Operator->GetPostExecuteFunction())
+				{
+					int32 InsertLocation = Algo::UpperBoundBy(InOutGraphOperatorData.PostExecuteTable, InOperatorInfo.Ordinal, TGetOrdinal<FPostExecuteEntry>());
+					InOutGraphOperatorData.PostExecuteTable.Insert(FPostExecuteEntry(InOperatorInfo.Ordinal, InOperatorID, *Operator, PostExecuteFunc), InsertLocation);
+				}
+
+				if (IOperator::FResetFunction ResetFunc = Operator->GetResetFunction())
+				{
+					int32 InsertLocation = Algo::UpperBoundBy(InOutGraphOperatorData.ResetTable, InOperatorInfo.Ordinal, TGetOrdinal<FResetEntry>());
+					InOutGraphOperatorData.ResetTable.Insert(FResetEntry(InOperatorInfo.Ordinal, InOperatorID, *Operator, ResetFunc), InsertLocation);
+				}
+			}
+
+			// Move operator info to local map.
+			InOutGraphOperatorData.OperatorMap.Add(InOperatorID, MoveTemp(InOperatorInfo));
+		}
+
+		void RemoveOperator(FOperatorID InOperatorID, const TArray<FOperatorID>& InOperatorsConnectedToInput, FDynamicGraphOperatorData& InOutGraphOperatorData)
+		{
+			using namespace DirectedGraphAlgo;
+
+			// Remove any other nodes connected to this node. 
+			for (const FOperatorID& ConnectedOperatorID : InOperatorsConnectedToInput)
+			{
+				if (FOperatorInfo* ConnectedOperatorInfo = InOutGraphOperatorData.OperatorMap.Find(ConnectedOperatorID))
+				{
+					for (TPair<FVertexName, TArray<FGraphOperatorData::FVertexDestination>>& VertexDestinations : ConnectedOperatorInfo->OutputConnections)
+					{
+						VertexDestinations.Value.RemoveAllSwap([&InOperatorID](const FGraphOperatorData::FVertexDestination& Destination) { return Destination.OperatorID == InOperatorID; });
+					}
+				}
+			}
+
+			// remove from map of operators
+			InOutGraphOperatorData.OperatorMap.Remove(InOperatorID);
+
+			// Update execution tables
+			InOutGraphOperatorData.ExecuteTable.RemoveAll([&InOperatorID](const FExecuteEntry& InEntry) { return InEntry.OperatorID == InOperatorID; });
+			InOutGraphOperatorData.PostExecuteTable.RemoveAll([&InOperatorID](const FPostExecuteEntry& InEntry) { return InEntry.OperatorID == InOperatorID; });
+			InOutGraphOperatorData.ResetTable.RemoveAll([&InOperatorID](const FResetEntry& InEntry) { return InEntry.OperatorID == InOperatorID; });
+		}
+
+		namespace Debug
+		{
+			template<typename EntryType>
+			void EnsureIfDynamicGraphOperatorDataTableIsCorrupt(const FDynamicGraphOperatorData& InData, const TArray<EntryType>& InTable)
+			{
+				TSet<FOperatorID> OperatorIDs;
+				TSet<const IOperator*> Operators;
+				TSet<int32> Ordinals;
+
+				for (const EntryType& Entry : InTable)
+				{
+					bool bIsAlreadyInSet = false;
+
+					Ordinals.Add(Entry.Ordinal, &bIsAlreadyInSet);
+					ensure(!bIsAlreadyInSet);
+					OperatorIDs.Add(Entry.OperatorID, &bIsAlreadyInSet);
+					ensure(!bIsAlreadyInSet);
+					Operators.Add(Entry.Operator, &bIsAlreadyInSet);
+					ensure(!bIsAlreadyInSet);
+					ensure(nullptr != Entry.Function);
+
+					ensure(InData.OperatorMap.Contains(Entry.OperatorID));
+					const FOperatorInfo& Info = InData.OperatorMap[Entry.OperatorID];
+					ensure(Info.Ordinal == Entry.Ordinal);
+					ensure(Info.Operator.Get() == Entry.Operator);
+				}
+			}
+
+			void EnsureIfDynamicGraphOperatorDataIsCorrupt(const FDynamicGraphOperatorData& InData)
+			{
+				EnsureIfDynamicGraphOperatorDataTableIsCorrupt<FExecuteEntry>(InData, InData.ExecuteTable);
+				EnsureIfDynamicGraphOperatorDataTableIsCorrupt<FPostExecuteEntry>(InData, InData.PostExecuteTable);
+				EnsureIfDynamicGraphOperatorDataTableIsCorrupt<FResetEntry>(InData, InData.ResetTable);
+			}
 		}
 	}
 }

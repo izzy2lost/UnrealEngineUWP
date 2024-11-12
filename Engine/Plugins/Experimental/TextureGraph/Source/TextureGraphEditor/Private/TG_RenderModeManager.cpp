@@ -13,10 +13,8 @@
 #include "Materials/Material.h"
 #include "Model/Mix/ViewportSettings.h"
 
-TG_RenderModeManager::TG_RenderModeManager(UTextureGraph* InTextureGraph) :
-	TextureGraph(InTextureGraph)
+TG_RenderModeManager::TG_RenderModeManager()
 {
-	check(InTextureGraph);
 }
 
 TG_RenderModeManager::~TG_RenderModeManager()
@@ -24,25 +22,26 @@ TG_RenderModeManager::~TG_RenderModeManager()
 	
 }
 
-void TG_RenderModeManager::ChangeRenderMode(FName NewRenderMode)
+void TG_RenderModeManager::ChangeRenderMode(FName NewRenderMode, UTextureGraph* TextureGraph)
 {
 	_lastRenderMode = _currentRenderMode;
 	_currentRenderMode = NewRenderMode;
-	UpdateRenderMode();
+	UpdateRenderMode(TextureGraph);
 }
 
-void TG_RenderModeManager::UpdateRenderMode()
+void TG_RenderModeManager::UpdateRenderMode(UTextureGraph* TextureGraph)
 {
 	UMixSettings* settings = TextureGraph->GetSettings();
-	size_t numTargets = settings->NumTargets();
+	size_t NumTargets = settings->NumTargets();
 	const FName MaterialName = settings->GetViewportSettings().GetMaterialName();
+	const int32 NumRenderModeMappings = _renderModeMaterials.Num();
 	
-	if (numTargets != _renderModeMaterials.Num())
+	if (NumTargets != NumRenderModeMappings)
 	{
-		InitializeDefaultMaterials(numTargets);
+		InitializeDefaultMaterials(NumTargets, TextureGraph);
 	}
 
-	for (size_t ti = 0; ti < numTargets; ti++)
+	for (size_t ti = 0; ti < NumTargets; ti++)
 	{
 		RenderMaterial_BPPtr renderMaterial = GetTargetRenderModeMaterial(ti,_currentRenderMode);
 		renderMaterial->Instance()->ClearParameterValues();
@@ -93,7 +92,7 @@ bool TG_RenderModeManager::IsCurrentRenderModelLit(int targetId /* = 0*/)
 }
 
 
-void TG_RenderModeManager::InitializeDefaultMaterials(int totalTargets)
+void TG_RenderModeManager::InitializeDefaultMaterials(int totalTargets, UTextureGraph* TextureGraph)
 {
 	_renderModeMaterials.Empty();
 

@@ -750,19 +750,19 @@ void FOpenGLDynamicRHI::RHIReadSurfaceData(FRHITexture* TextureRHI,FIntRect Rect
 		return;
 	}
 
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 	
-	RHITHREAD_GLCOMMAND_PROLOGUE();
-	TArray<uint8> Temp;
+	RHICmdList.EnqueueLambda([&](FRHICommandListImmediate&)
+		{
+			TArray<uint8> Temp;
 
-	FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
-	if (&ContextState != &InvalidContextState)
-	{
-		ReadSurfaceDataRaw(ContextState, TextureRHI, Rect, Temp, InFlags);
+			FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
 
-		FMemory::Memcpy(OutData.GetData(), Temp.GetData(), Size * sizeof(FColor));
-	}
-	RHITHREAD_GLCOMMAND_EPILOGUE();
+			ReadSurfaceDataRaw(ContextState, TextureRHI, Rect, Temp, InFlags);
+			FMemory::Memcpy(OutData.GetData(), Temp.GetData(), Size * sizeof(FColor));
+		});
+	RHITHREAD_GLTRACE_BLOCKING;
+	RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 }
 
 void FOpenGLDynamicRHI::RHIReadSurfaceData(FRHITexture* TextureRHI, FIntRect Rect, TArray<FLinearColor>& OutData, FReadSurfaceDataFlags InFlags)
@@ -774,41 +774,43 @@ void FOpenGLDynamicRHI::RHIReadSurfaceData(FRHITexture* TextureRHI, FIntRect Rec
 		return;
 	}
 	
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 	
-	RHITHREAD_GLCOMMAND_PROLOGUE();
-	VERIFY_GL_SCOPE();
-
-	FOpenGLTexture* Texture = ResourceCast(TextureRHI);
-	if (!ensure(Texture))
+	RHICmdList.EnqueueLambda([&](FRHICommandListImmediate&)
 	{
-		return;
-	}
+		VERIFY_GL_SCOPE();
 
-	// Get framebuffer for texture
-	const uint32 MipmapLevel = InFlags.GetMip();
-	GLuint SourceFramebuffer = GetOpenGLFramebuffer(1, &Texture, NULL, &MipmapLevel, NULL);
+		FOpenGLTexture* Texture = ResourceCast(TextureRHI);
+		if (!ensure(Texture))
+		{
+			return;
+		}
 
-	uint32 SizeX = Rect.Width();
-	uint32 SizeY = Rect.Height();
+		// Get framebuffer for texture
+		const uint32 MipmapLevel = InFlags.GetMip();
+		GLuint SourceFramebuffer = GetOpenGLFramebuffer(1, &Texture, NULL, &MipmapLevel, NULL);
 
-	// Initialize output
-	OutData.SetNumUninitialized(SizeX * SizeY);
+		uint32 SizeX = Rect.Width();
+		uint32 SizeY = Rect.Height();
 
-	// Bind the framebuffer
-	// @TODO: Do we need to worry about multisampling?
-	glBindFramebuffer(UGL_READ_FRAMEBUFFER, SourceFramebuffer);
-	FOpenGL::ReadBuffer(SourceFramebuffer == 0 ? GL_BACK : GL_COLOR_ATTACHMENT0);
+		// Initialize output
+		OutData.SetNumUninitialized(SizeX * SizeY);
 
-	// Read the float data from the buffer directly into the output data
-	// @TODO: Do we need to support BGRA?
-	glPixelStorei(GL_PACK_ALIGNMENT, 1);
-	glReadPixels(Rect.Min.X, Rect.Min.Y, SizeX, SizeY, GL_RGBA, GL_FLOAT, OutData.GetData());
-	glPixelStorei(GL_PACK_ALIGNMENT, 4);
+		// Bind the framebuffer
+		// @TODO: Do we need to worry about multisampling?
+		glBindFramebuffer(UGL_READ_FRAMEBUFFER, SourceFramebuffer);
+		FOpenGL::ReadBuffer(SourceFramebuffer == 0 ? GL_BACK : GL_COLOR_ATTACHMENT0);
 
-	GetContextStateForCurrentContext().Framebuffer = (GLuint)-1;
-	
-	RHITHREAD_GLCOMMAND_EPILOGUE();
+		// Read the float data from the buffer directly into the output data
+		// @TODO: Do we need to support BGRA?
+		glPixelStorei(GL_PACK_ALIGNMENT, 1);
+		glReadPixels(Rect.Min.X, Rect.Min.Y, SizeX, SizeY, GL_RGBA, GL_FLOAT, OutData.GetData());
+		glPixelStorei(GL_PACK_ALIGNMENT, 4);
+
+		GetContextStateForCurrentContext().Framebuffer = (GLuint)-1;	
+	});
+	RHITHREAD_GLTRACE_BLOCKING;
+	RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 }
 
 void FOpenGLDynamicRHI::RHIMapStagingSurface_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* TextureRHI, uint32 GPUIndex, FRHIGPUFence* Fence, void*& OutData, int32& OutWidth, int32& OutHeight)
@@ -816,25 +818,27 @@ void FOpenGLDynamicRHI::RHIMapStagingSurface_RenderThread(class FRHICommandListI
 	// Fence is not important, GL driver handles synchonization
 	RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 
-	RHITHREAD_GLCOMMAND_PROLOGUE();
+	RHICmdList.EnqueueLambda([&](FRHICommandListImmediate&)
+	{
+		VERIFY_GL_SCOPE();
 
-	VERIFY_GL_SCOPE();
+		FOpenGLTexture* Texture = ResourceCast(TextureRHI->GetTexture2D());
+		check(Texture);
+		check(EnumHasAnyFlags(Texture->GetDesc().Flags, TexCreate_CPUReadback));
 
-	FOpenGLTexture* Texture = ResourceCast(TextureRHI->GetTexture2D());
-	check(Texture);
-	check(EnumHasAnyFlags(Texture->GetDesc().Flags, TexCreate_CPUReadback));
+		OutWidth = Texture->GetSizeX();
+		OutHeight = Texture->GetSizeY();
 
-	OutWidth = Texture->GetSizeX();
-	OutHeight = Texture->GetSizeY();
-
-	uint32 Stride = 0;
-	OutData = Texture->Lock( 0, 0, RLM_ReadOnly, Stride );
-	RHITHREAD_GLCOMMAND_EPILOGUE();
+		uint32 Stride = 0;
+		OutData = Texture->Lock( 0, 0, RLM_ReadOnly, Stride );
+	});
+	RHITHREAD_GLTRACE_BLOCKING;
+	RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 }
 
 void FOpenGLDynamicRHI::RHIUnmapStagingSurface_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* TextureRHI, uint32 GPUIndex)
 {
-	RunOnGLRenderContextThread([TextureRHI = TextureRHI]()
+	RHICmdList.EnqueueLambda([TextureRHI = TextureRHI](FRHICommandListImmediate&)
 	{
 		VERIFY_GL_SCOPE();
 		FOpenGLTexture* Texture = ResourceCast(TextureRHI->GetTexture2D());
@@ -857,137 +861,140 @@ void FOpenGLDynamicRHI::RHIUnmapStagingSurface(FRHITexture* TextureRHI, uint32 G
 
 void FOpenGLDynamicRHI::RHIReadSurfaceFloatData(FRHITexture* TextureRHI,FIntRect Rect,TArray<FFloat16Color>& OutData,ECubeFace CubeFace,int32 ArrayIndex,int32 MipIndex)
 {
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
-	RHITHREAD_GLCOMMAND_PROLOGUE();
-
-	VERIFY_GL_SCOPE();	
-
-	//reading from arrays only supported on SM5 and up.
-	check(FOpenGL::SupportsFloatReadSurface() && (ArrayIndex == 0 || GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5));	
-	FOpenGLTexture* Texture = ResourceCast(TextureRHI);
-	check(TextureRHI->GetFormat() == PF_FloatRGBA);
-
-	const uint32 MipmapLevel = MipIndex;
-
-	// Temp FBO is introduced to prevent a ballooning of FBO objects, which can have a detrimental
-	// impact on object management performance in the driver, only for CubeMapArray presently
-	// as it is the target that really drives  FBO permutations
-	const bool bTempFBO = Texture->Target == GL_TEXTURE_CUBE_MAP_ARRAY;
-	uint32 Index = uint32(CubeFace) + ( (Texture->Target == GL_TEXTURE_CUBE_MAP_ARRAY) ? 6 : 1) * ArrayIndex;
-
-	GLuint SourceFramebuffer = 0;
-
-	if (bTempFBO)
+	RHICmdList.EnqueueLambda([&](FRHICommandListImmediate&)
 	{
-		glGenFramebuffers( 1, &SourceFramebuffer);
+		VERIFY_GL_SCOPE();	
+
+		//reading from arrays only supported on SM5 and up.
+		check(FOpenGL::SupportsFloatReadSurface() && (ArrayIndex == 0 || GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5));	
+		FOpenGLTexture* Texture = ResourceCast(TextureRHI);
+		check(TextureRHI->GetFormat() == PF_FloatRGBA);
+
+		const uint32 MipmapLevel = MipIndex;
+
+		// Temp FBO is introduced to prevent a ballooning of FBO objects, which can have a detrimental
+		// impact on object management performance in the driver, only for CubeMapArray presently
+		// as it is the target that really drives  FBO permutations
+		const bool bTempFBO = Texture->Target == GL_TEXTURE_CUBE_MAP_ARRAY;
+		uint32 Index = uint32(CubeFace) + ( (Texture->Target == GL_TEXTURE_CUBE_MAP_ARRAY) ? 6 : 1) * ArrayIndex;
+
+		GLuint SourceFramebuffer = 0;
+
+		if (bTempFBO)
+		{
+			glGenFramebuffers( 1, &SourceFramebuffer);
+
+			glBindFramebuffer(UGL_READ_FRAMEBUFFER, SourceFramebuffer);
+
+			FOpenGL::FramebufferTextureLayer(UGL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, Texture->GetResource(), MipmapLevel, Index);
+		}
+		else
+		{
+			SourceFramebuffer = GetOpenGLFramebuffer(1, &Texture, &Index, &MipmapLevel, NULL);
+		}
+
+		uint32 SizeX = Rect.Width();
+		uint32 SizeY = Rect.Height();
+
+		OutData.SetNumUninitialized(SizeX * SizeY);
 
 		glBindFramebuffer(UGL_READ_FRAMEBUFFER, SourceFramebuffer);
+		FOpenGL::ReadBuffer(SourceFramebuffer == 0 ? GL_BACK : GL_COLOR_ATTACHMENT0);
+		glPixelStorei(GL_PACK_ALIGNMENT, 1);	
 
-		FOpenGL::FramebufferTextureLayer(UGL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, Texture->GetResource(), MipmapLevel, Index);
-	}
-	else
-	{
-		SourceFramebuffer = GetOpenGLFramebuffer(1, &Texture, &Index, &MipmapLevel, NULL);
-	}
-
-	uint32 SizeX = Rect.Width();
-	uint32 SizeY = Rect.Height();
-
-	OutData.SetNumUninitialized(SizeX * SizeY);
-
-	glBindFramebuffer(UGL_READ_FRAMEBUFFER, SourceFramebuffer);
-	FOpenGL::ReadBuffer(SourceFramebuffer == 0 ? GL_BACK : GL_COLOR_ATTACHMENT0);
-	glPixelStorei(GL_PACK_ALIGNMENT, 1);	
-
-	if (FOpenGL::GetReadHalfFloatPixelsEnum() == GL_FLOAT)
-	{
-		// Slow path: Some Adreno devices won't work with HALF_FLOAT ReadPixels
-		TArray<FLinearColor> FloatData;
-		// 4 float components per texel (RGBA)
-		FloatData.AddUninitialized(SizeX * SizeY);
-		FMemory::Memzero(FloatData.GetData(),SizeX * SizeY*sizeof(FLinearColor));
-		glReadPixels(Rect.Min.X, Rect.Min.Y, SizeX, SizeY, GL_RGBA, GL_FLOAT, FloatData.GetData());
-		FLinearColor* FloatDataPtr = FloatData.GetData();
-		for (uint32 DataIndex = 0; DataIndex < SizeX * SizeY; ++DataIndex, ++FloatDataPtr)
+		if (FOpenGL::GetReadHalfFloatPixelsEnum() == GL_FLOAT)
 		{
-			OutData[DataIndex] = FFloat16Color(*FloatDataPtr);
+			// Slow path: Some Adreno devices won't work with HALF_FLOAT ReadPixels
+			TArray<FLinearColor> FloatData;
+			// 4 float components per texel (RGBA)
+			FloatData.AddUninitialized(SizeX * SizeY);
+			FMemory::Memzero(FloatData.GetData(),SizeX * SizeY*sizeof(FLinearColor));
+			glReadPixels(Rect.Min.X, Rect.Min.Y, SizeX, SizeY, GL_RGBA, GL_FLOAT, FloatData.GetData());
+			FLinearColor* FloatDataPtr = FloatData.GetData();
+			for (uint32 DataIndex = 0; DataIndex < SizeX * SizeY; ++DataIndex, ++FloatDataPtr)
+			{
+				OutData[DataIndex] = FFloat16Color(*FloatDataPtr);
+			}
 		}
-	}
-	else
-	{
-		glReadPixels(Rect.Min.X, Rect.Min.Y, SizeX, SizeY, GL_RGBA, FOpenGL::GetReadHalfFloatPixelsEnum(), OutData.GetData());
-	}
+		else
+		{
+			glReadPixels(Rect.Min.X, Rect.Min.Y, SizeX, SizeY, GL_RGBA, FOpenGL::GetReadHalfFloatPixelsEnum(), OutData.GetData());
+		}
 
-	glPixelStorei(GL_PACK_ALIGNMENT, 4);
+		glPixelStorei(GL_PACK_ALIGNMENT, 4);
 
-	if (bTempFBO)
-	{
-		glDeleteFramebuffers( 1, &SourceFramebuffer);
-	}
+		if (bTempFBO)
+		{
+			glDeleteFramebuffers( 1, &SourceFramebuffer);
+		}
 
-	GetContextStateForCurrentContext().Framebuffer = (GLuint)-1;
-	RHITHREAD_GLCOMMAND_EPILOGUE();
+		GetContextStateForCurrentContext().Framebuffer = (GLuint)-1;
+	});
+	RHITHREAD_GLTRACE_BLOCKING;
+	RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 }
 
 void FOpenGLDynamicRHI::RHIRead3DSurfaceFloatData(FRHITexture* TextureRHI,FIntRect Rect,FIntPoint ZMinMax,TArray<FFloat16Color>& OutData)
 {
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
-	RHITHREAD_GLCOMMAND_PROLOGUE();
-
-	VERIFY_GL_SCOPE();
-
-	check( FOpenGL::SupportsFloatReadSurface() );
-	check( FOpenGL::SupportsTexture3D() );
-	check( TextureRHI->GetFormat() == PF_FloatRGBA );
-
-	FOpenGLTexture* Texture = ResourceCast(TextureRHI);
-
-	uint32 SizeX = Rect.Width();
-	uint32 SizeY = Rect.Height();
-	uint32 SizeZ = ZMinMax.Y - ZMinMax.X;
-
-	// Allocate the output buffer.
-	OutData.SetNumUninitialized(SizeX * SizeY * SizeZ);
-
-	// Set up the source as a temporary FBO
-	uint32 MipmapLevel = 0;
-	uint32 Index = 0;
-	GLuint SourceFramebuffer = 0;
-	glGenFramebuffers( 1, &SourceFramebuffer);
-	glBindFramebuffer(UGL_READ_FRAMEBUFFER, SourceFramebuffer);
-
-	// Set up the destination as a temporary texture
-	GLuint TempTexture = 0;
-	FOpenGL::GenTextures(1, &TempTexture);
-	glActiveTexture( GL_TEXTURE0 );
-	glBindTexture( GL_TEXTURE_3D, TempTexture );
-	FOpenGL::TexImage3D( GL_TEXTURE_3D, 0, GL_RGBA16F, SizeX, SizeY, SizeZ, 0, GL_RGBA, GL_HALF_FLOAT, NULL );
-
-	// Copy the pixels within the specified region, minimizing the amount of data that needs to be transferred from GPU to CPU memory
-	for ( uint32 Z=0; Z < SizeZ; ++Z )
+	RHICmdList.EnqueueLambda([&](FRHICommandListImmediate&)
 	{
-		FOpenGL::FramebufferTextureLayer(UGL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, Texture->GetResource(), MipmapLevel, ZMinMax.X + Z);
-		FOpenGL::ReadBuffer(SourceFramebuffer == 0 ? GL_BACK : GL_COLOR_ATTACHMENT0);
-		FOpenGL::CopyTexSubImage3D( GL_TEXTURE_3D, 0, 0, 0, Z, Rect.Min.X, Rect.Min.Y, SizeX, SizeY );
-	}
+		VERIFY_GL_SCOPE();
 
-	// Grab the raw data from the temp texture.
-	glPixelStorei( GL_PACK_ALIGNMENT, 1 );
-	FOpenGL::GetTexImage( GL_TEXTURE_3D, 0, GL_RGBA, GL_HALF_FLOAT, OutData.GetData() );
-	glPixelStorei( GL_PACK_ALIGNMENT, 4 );
+		check( FOpenGL::SupportsFloatReadSurface() );
+		check( FOpenGL::SupportsTexture3D() );
+		check( TextureRHI->GetFormat() == PF_FloatRGBA );
 
-	// Clean up
-	FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
-	auto& TextureState = ContextState.Textures[0];
-	glBindTexture(GL_TEXTURE_3D, (TextureState.Target == GL_TEXTURE_3D) ? TextureState.Resource : 0);
-	glActiveTexture( GL_TEXTURE0 + ContextState.ActiveTexture );
-	glDeleteFramebuffers( 1, &SourceFramebuffer);
-	FOpenGL::DeleteTextures( 1, &TempTexture );
-	ContextState.Framebuffer = (GLuint)-1;
+		FOpenGLTexture* Texture = ResourceCast(TextureRHI);
 
-	RHITHREAD_GLCOMMAND_EPILOGUE();
+		uint32 SizeX = Rect.Width();
+		uint32 SizeY = Rect.Height();
+		uint32 SizeZ = ZMinMax.Y - ZMinMax.X;
+
+		// Allocate the output buffer.
+		OutData.SetNumUninitialized(SizeX * SizeY * SizeZ);
+
+		// Set up the source as a temporary FBO
+		uint32 MipmapLevel = 0;
+		uint32 Index = 0;
+		GLuint SourceFramebuffer = 0;
+		glGenFramebuffers( 1, &SourceFramebuffer);
+		glBindFramebuffer(UGL_READ_FRAMEBUFFER, SourceFramebuffer);
+
+		// Set up the destination as a temporary texture
+		GLuint TempTexture = 0;
+		FOpenGL::GenTextures(1, &TempTexture);
+		glActiveTexture( GL_TEXTURE0 );
+		glBindTexture( GL_TEXTURE_3D, TempTexture );
+		FOpenGL::TexImage3D( GL_TEXTURE_3D, 0, GL_RGBA16F, SizeX, SizeY, SizeZ, 0, GL_RGBA, GL_HALF_FLOAT, NULL );
+
+		// Copy the pixels within the specified region, minimizing the amount of data that needs to be transferred from GPU to CPU memory
+		for ( uint32 Z=0; Z < SizeZ; ++Z )
+		{
+			FOpenGL::FramebufferTextureLayer(UGL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, Texture->GetResource(), MipmapLevel, ZMinMax.X + Z);
+			FOpenGL::ReadBuffer(SourceFramebuffer == 0 ? GL_BACK : GL_COLOR_ATTACHMENT0);
+			FOpenGL::CopyTexSubImage3D( GL_TEXTURE_3D, 0, 0, 0, Z, Rect.Min.X, Rect.Min.Y, SizeX, SizeY );
+		}
+
+		// Grab the raw data from the temp texture.
+		glPixelStorei( GL_PACK_ALIGNMENT, 1 );
+		FOpenGL::GetTexImage( GL_TEXTURE_3D, 0, GL_RGBA, GL_HALF_FLOAT, OutData.GetData() );
+		glPixelStorei( GL_PACK_ALIGNMENT, 4 );
+
+		// Clean up
+		FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
+		auto& TextureState = ContextState.Textures[0];
+		glBindTexture(GL_TEXTURE_3D, (TextureState.Target == GL_TEXTURE_3D) ? TextureState.Resource : 0);
+		glActiveTexture( GL_TEXTURE0 + ContextState.ActiveTexture );
+		glDeleteFramebuffers( 1, &SourceFramebuffer);
+		FOpenGL::DeleteTextures( 1, &TempTexture );
+		ContextState.Framebuffer = (GLuint)-1;
+	});
+	RHITHREAD_GLTRACE_BLOCKING;
+	RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 }
 
 
@@ -1058,36 +1065,29 @@ void FOpenGLDynamicRHI::RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, con
 
 	RenderPassInfo = InInfo;
 
-	if (InInfo.NumOcclusionQueries > 0)
-	{
-		extern void BeginOcclusionQueryBatch(uint32);
-		BeginOcclusionQueryBatch(InInfo.NumOcclusionQueries);
-	}
-
 #if PLATFORM_ANDROID
 	if (RenderPassInfo.SubpassHint == ESubpassHint::DeferredShadingSubpass &&
 		 FOpenGL::SupportsPixelLocalStorage() && FOpenGL::SupportsShaderDepthStencilFetch())
 	{
 		glEnable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
 	}
-#endif
 
-#if PLATFORM_ANDROID
 	if (FAndroidOpenGL::RequiresAdrenoTilingModeHint())
 	{
 		FAndroidOpenGL::EnableAdrenoTilingModeHint(FCString::Strcmp(InName, TEXT("SceneColorRendering")) == 0);
+	}
+
+	// Reenable non-coherent framebuffer fetch if needed
+	FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
+	if (!ContextState.bNonCoherentFramebufferFetchEnabled)
+	{
+		ContextState.bNonCoherentFramebufferFetchEnabled = FAndroidOpenGL::ResetNonCoherentFramebufferFetch();
 	}
 #endif
 }
 
 void FOpenGLDynamicRHI::RHIEndRenderPass()
 {
-	if (RenderPassInfo.NumOcclusionQueries > 0)
-	{
-		extern void EndOcclusionQueryBatch();
-		EndOcclusionQueryBatch();
-	}
-
 	// End GL_EXT_multisampled_render_to_texture
 	PendingState.NumRenderingSamples = 1;
 
@@ -1140,7 +1140,10 @@ void FOpenGLDynamicRHI::RHINextSubpass()
 	if (RenderPassInfo.SubpassHint == ESubpassHint::DepthReadSubpass ||
 		RenderPassInfo.SubpassHint == ESubpassHint::DeferredShadingSubpass)
 	{
-		FOpenGL::FrameBufferFetchBarrier();
+		if (GetContextStateForCurrentContext().bNonCoherentFramebufferFetchEnabled)
+		{
+			FOpenGL::FrameBufferFetchBarrier();
+		}
 	}
 }
 

@@ -5,6 +5,7 @@
 #include "NaniteShared.h"
 
 #include "CoreMinimal.h"
+#include "SpanAllocator.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphResources.h"
 #include "RHIGPUReadback.h"
@@ -17,7 +18,6 @@
 
 class FScene;
 class FRayTracingScene;
-class FVisibleRayTracingMeshCommand;
 
 namespace Nanite
 {
@@ -98,8 +98,6 @@ namespace Nanite
 			uint32 GeometryId;
 		};
 
-		FRDGBufferRef ResizeAuxiliaryDataBufferIfNeeded(FRDGBuilder& GraphBuilder);
-
 		TMap<uint32, uint32> ResourceToRayTracingIdMap;
 		TSparseArray<FInternalData*> Geometries;
 
@@ -109,7 +107,7 @@ namespace Nanite
 		TSet<uint32> PendingRemoves;
 
 		TRefCountPtr<FRDGPooledBuffer> AuxiliaryDataBuffer;
-		FGrowOnlySpanAllocator AuxiliaryDataAllocator;
+		FSpanAllocator AuxiliaryDataAllocator;
 
 		TRefCountPtr<FRDGPooledBuffer> StagingAuxiliaryDataBuffer;
 

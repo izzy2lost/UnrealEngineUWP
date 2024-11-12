@@ -2,23 +2,19 @@
 
 #pragma once
 
-#include "Widgets/SCompoundWidget.h"
-
-#include "CoreMinimal.h"
 #include "Misc/NotifyHook.h"
 #include "ScopedTransaction.h"
+#include "Widgets/SCompoundWidget.h"
 
 class FDMXEditor;
 struct FDMXFixtureFunction;
 struct FDMXFixtureMode;
 class FDMXFixtureTypeSharedData;
-class UDMXEntityFixtureType;
-
 struct FPropertyAndParent;
 class IStructureDetailsView;
 class STextBlock;
 class SWidget;
-
+class UDMXEntityFixtureType;
 
 /** Editor for a single Function struct inside a UDMXEntityFixtureType. */
 class SDMXFixtureFunctionEditor
@@ -52,7 +48,7 @@ private:
 
 	/** Returns true if the properties are visible */
 	bool IsPropertyVisible(const FPropertyAndParent& PropertyAndParent) const;
-
+	
 	/** Returns the Mode currently being edited, or nullptr if the current selection cannot be resolved. */
 	FDMXFixtureMode* GetModeBeingEdited() const;
 

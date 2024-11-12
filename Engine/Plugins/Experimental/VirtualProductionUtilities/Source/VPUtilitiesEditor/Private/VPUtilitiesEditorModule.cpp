@@ -96,7 +96,7 @@ const FPlacementCategoryInfo* FVPUtilitiesEditorModule::GetVirtualProductionPlac
 				TEXT("PMVirtualProduction"),
 				25
 			);
-
+			Info.ShortDisplayName = LOCTEXT("VirtualProductionShortCategoryName", "VP");
 			IPlacementModeModule::Get().RegisterPlacementCategory(Info);
 
 			// This will return nullptr if the Register above failed so we don't need to explicitly check

@@ -37,11 +37,14 @@ bool FOpenXRMsftHandInteraction::GetRequiredExtensions(TArray<const ANSICHAR*>& 
 	return true;
 }
 
-bool FOpenXRMsftHandInteraction::GetInteractionProfile(XrInstance InInstance, FString& OutKeyPrefix, XrPath& OutPath, bool& OutHasHaptics)
+bool FOpenXRMsftHandInteraction::GetInteractionProfiles(XrInstance InInstance, TArray<FString>& OutKeyPrefixes, TArray<XrPath>& OutPaths, TArray<bool>& OutHasHaptics)
 {
-	OutKeyPrefix = "OpenXRMsftHandInteraction";
-	OutHasHaptics = false;
-	return xrStringToPath(InInstance, "/interaction_profiles/microsoft/hand_interaction", &OutPath) == XR_SUCCESS;
+	OutKeyPrefixes.Add("OpenXRMsftHandInteraction");
+	OutHasHaptics.Add(false);
+	XrPath OutPath;
+	XrResult Result = xrStringToPath(InInstance, "/interaction_profiles/microsoft/hand_interaction", &OutPath);
+	OutPaths.Add(OutPath);
+	return Result == XR_SUCCESS;
 }
 
 #undef LOCTEXT_NAMESPACE

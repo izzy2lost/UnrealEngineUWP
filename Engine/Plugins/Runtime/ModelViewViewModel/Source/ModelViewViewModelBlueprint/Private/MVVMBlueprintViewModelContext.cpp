@@ -2,7 +2,7 @@
 
 #include "MVVMBlueprintViewModelContext.h"
 #include "MVVMDeveloperProjectSettings.h"
-
+#include "View/MVVMViewModelContextResolver.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MVVMBlueprintViewModelContext)
 
@@ -31,6 +31,27 @@ FText FMVVMBlueprintViewModelContext::GetDisplayName() const
 }
 
 #if WITH_EDITOR
+TObjectPtr<UMVVMViewModelContextResolver> FMVVMBlueprintViewModelContext::CreateDefaultResolver(UPackage* Package) const
+{
+	TObjectPtr<UMVVMViewModelContextResolver> DefaultResolver;
+
+	if (CreationType == EMVVMBlueprintViewModelContextCreationType::Resolver)
+	{
+		if (const UClass* DefaultClass = GetDefault<UMVVMDeveloperProjectSettings>()->DefaultResolverValue.LoadSynchronous())
+		{
+			if (UMVVMViewModelContextResolver* DefaultResolverClass = Cast<UMVVMViewModelContextResolver>(DefaultClass->GetDefaultObject()))
+			{
+				if (DefaultResolverClass->DoesSupportViewModelClass(GetViewModelClass()))
+				{
+					DefaultResolver = NewObject<UMVVMViewModelContextResolver>(Package, DefaultClass);
+				}
+			}
+		}
+	}
+
+	return DefaultResolver;
+}
+
 namespace UE::MVVM
 {
 namespace Private
@@ -45,7 +66,7 @@ void GenerateAllowedList(const UClass* Class, TArray<FString>& AllowedStrings, T
 	{
 		Class->GetMetaData(NAME_MVVMAllowedContextCreationType).ParseIntoArray(AllowedStrings, TEXT("|"));
 	}
-	if (AllowedStrings.Num() == 0 && Class->HasMetaData(NAME_MVVMDisallowedContextCreationType))
+	if (DisallowedStrings.Num() == 0 && Class->HasMetaData(NAME_MVVMDisallowedContextCreationType))
 	{
 		Class->GetMetaData(NAME_MVVMDisallowedContextCreationType).ParseIntoArray(DisallowedStrings, TEXT("|"));
 	}

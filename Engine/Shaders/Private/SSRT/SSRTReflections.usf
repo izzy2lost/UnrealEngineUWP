@@ -434,6 +434,39 @@ void ScreenSpaceReflectionsPS(
 	);
 }
 
+#if COMPUTE_SHADER
+
+RWTexture2D<float4> SSRColorOutput;
+#if SSR_OUTPUT_FOR_DENOISER
+RWTexture2D<float> SSRHitDistanceOutput;
+#endif
+
+[numthreads(THREADGROUP_SIZE_X, THREADGROUP_SIZE_Y, 1)]
+void ScreenSpaceReflectionsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadId.xy >= View.ViewRectMinAndSize.zw))
+	{
+		return;
+	}
+
+	float4 SvPosition = float4(View.ViewRectMin.xy + DispatchThreadId.xy + float2(0.5, 0.5), 0, 1); // .zw unused
+	float4 OutColor;
+	float4 OutClosestHitDistance;
+
+	ScreenSpaceReflections(SvPosition, OutColor
+#if SSR_OUTPUT_FOR_DENOISER
+		,OutClosestHitDistance
+#endif
+	);
+
+	SSRColorOutput[DispatchThreadId.xy] = OutColor;
+#if SSR_OUTPUT_FOR_DENOISER
+	SSRHitDistanceOutput[DispatchThreadId.xy] = OutClosestHitDistance.x;
+#endif
+}
+
+#endif // COMPUTE_SHADER
+
 void VisualizeTiledScreenSpaceReflectionsPS(
 	float4 SvPosition : SV_POSITION
 	, out float4 OutColor : SV_Target0

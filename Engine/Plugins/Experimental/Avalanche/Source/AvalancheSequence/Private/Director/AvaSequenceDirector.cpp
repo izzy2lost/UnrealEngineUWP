@@ -9,19 +9,19 @@
 
 TScriptInterface<IAvaSequencePlaybackObject> UAvaSequenceDirector::GetPlaybackObject() const
 {
-	if (PlaybackObject)
+	if (PlaybackObjectInterfaceWeak.IsValid())
 	{
-		return PlaybackObject;
+		return PlaybackObjectInterfaceWeak.ToScriptInterface();
 	}
 
 	// If Playback Object is null, try to update from SequencePlayer PlaybackObject
 	const_cast<UAvaSequenceDirector*>(this)->UpdatePlaybackObject();
-
-	return PlaybackObject;
+	return PlaybackObjectInterfaceWeak.ToScriptInterface();
 }
 
 void UAvaSequenceDirector::UpdatePlaybackObject()
 {
+	UAvaSequencePlayer* SequencePlayer = SequencePlayerWeak.Get();
 	if (!SequencePlayer)
 	{
 		return;
@@ -29,8 +29,7 @@ void UAvaSequenceDirector::UpdatePlaybackObject()
 
 	if (IAvaSequencePlaybackObject* PlaybackObjectInterface = SequencePlayer->GetPlaybackObject())
 	{
-		PlaybackObject.SetInterface(PlaybackObjectInterface);
-		PlaybackObject.SetObject(PlaybackObjectInterface->ToUObject());
+		PlaybackObjectInterfaceWeak = PlaybackObjectInterface;
 	}
 }
 
@@ -56,7 +55,8 @@ void UAvaSequenceDirector::PostDuplicate(EDuplicateMode::Type InDuplicateMode)
 
 void UAvaSequenceDirector::Initialize(IMovieScenePlayer& InPlayer, IAvaSequenceProvider* InSequenceProvider)
 {
-	SequencePlayer = Cast<UAvaSequencePlayer>(InPlayer.AsUObject());
+	UAvaSequencePlayer* SequencePlayer = Cast<UAvaSequencePlayer>(InPlayer.AsUObject());
+	SequencePlayerWeak = SequencePlayer;
 
 	IAvaSequencePlaybackObject* NewPlaybackObject = nullptr;
 
@@ -74,12 +74,11 @@ void UAvaSequenceDirector::Initialize(IMovieScenePlayer& InPlayer, IAvaSequenceP
 
 	if (NewPlaybackObject)
 	{
-		PlaybackObject.SetInterface(NewPlaybackObject);
-		PlaybackObject.SetObject(NewPlaybackObject->ToUObject());
+		PlaybackObjectInterfaceWeak = NewPlaybackObject;
 	}
 	else
 	{
-		PlaybackObject.SetObject(nullptr);
+		PlaybackObjectInterfaceWeak = nullptr;
 	}
 
 	UpdateProperties();

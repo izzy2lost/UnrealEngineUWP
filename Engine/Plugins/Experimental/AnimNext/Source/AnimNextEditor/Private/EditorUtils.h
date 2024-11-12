@@ -5,18 +5,17 @@
 #include "CoreMinimal.h"
 #include "Param/ParamType.h"
 #include "EdGraphSchema_K2.h"
+#include "StructView.h"
 
-class UAnimNextGraph;
+struct FAnimNextVariableBindingData;
+class UAnimNextModule;
 class UAnimNextRigVMAssetEditorData;
 struct FAnimNextParamType;
-class UAnimNextParameterBlock;
-class UAnimNextParameterBlockBinding;
-class UAnimNextParameterBlock_EditorData;
 class URigVMController;
-struct FAnimNextParameterBlockAssetRegistryExports;
 struct FAnimNextWorkspaceAssetRegistryExports;
+class SWidget;
 
-struct FAnimNextParameterProviderAssetRegistryExports;
+struct FAnimNextAssetRegistryExports;
 
 namespace UE::AnimNext::Editor
 {
@@ -29,21 +28,11 @@ struct FUtils
 
 	static FAnimNextParamType GetParameterTypeFromMetaData(const FStringView& InStringView);
 
-	static FName ValidateName(const UAnimNextParameterBlock_EditorData* InEditorData, const FString& InName);
-
 	static void GetFilteredVariableTypeTree(TArray<TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo>>& TypeTree, ETypeTreeFilter TypeTreeFilter);
 
-	static FName GetNewParameterName(const TCHAR* InBaseName, TArrayView<FName> InAdditionalExistingNames);
+	static bool IsValidParameterNameString(FStringView InStringView, FText& OutErrorText);
 
-	static bool IsValidEntryNameString(FStringView InStringView, FText& OutErrorText);
-
-	static bool IsValidEntryName(const FName InName, FText& OutErrorText);
-
-	static bool DoesParameterNameExist(const FName InName);
-	
-	static bool DoesParameterNameExistInAsset(const FName InName, const FAssetData& InAsset);
-
-	static bool GetExportedAssetsForWorkspace(const FAssetData& InWorkspaceAsset, FAnimNextWorkspaceAssetRegistryExports& OutExports);
+	static bool IsValidParameterName(const FName InName, FText& OutErrorText);
 };
 
 }

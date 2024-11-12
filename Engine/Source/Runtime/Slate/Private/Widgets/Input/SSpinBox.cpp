@@ -1,6 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Widgets/Input/SSpinBox.h"
 
+namespace SpinBoxPrivate
+{
+	bool bUseSpinBoxMouseMoveOptimization = true;
+	FAutoConsoleVariableRef CVar
+		(
+			TEXT("Slate.Spinbox.MouseMoveOptimization"),
+			bUseSpinBoxMouseMoveOptimization,
+			TEXT("")
+		);
+}
+
 float SpinBoxComputeExponentSliderFraction(float FractionFilled, float StartFractionFilled, float SliderExponent)
 {
 	if (FractionFilled <= StartFractionFilled)

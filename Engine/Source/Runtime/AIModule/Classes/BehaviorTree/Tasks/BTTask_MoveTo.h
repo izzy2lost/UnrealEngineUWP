@@ -11,6 +11,8 @@
 #endif
 #include "AITypes.h"
 #include "BehaviorTree/Tasks/BTTask_BlackboardBase.h"
+#include "BehaviorTree/ValueOrBBKey.h"
+#include "NavFilters/NavigationQueryFilter.h"
 #include "BTTask_MoveTo.generated.h"
 
 class UAITask_MoveTo;
@@ -40,58 +42,54 @@ class UBTTask_MoveTo : public UBTTask_BlackboardBase
 
 	/** fixed distance added to threshold between AI and goal location in destination reach test */
 	UPROPERTY(config, Category = Node, EditAnywhere, meta=(ClampMin = "0.0", UIMin="0.0"))
-	float AcceptableRadius;
+	FValueOrBBKey_Float AcceptableRadius;
 
 	/** "None" will result in default filter being used */
 	UPROPERTY(Category = Node, EditAnywhere)
-	TSubclassOf<UNavigationQueryFilter> FilterClass;
+	FValueOrBBKey_Class FilterClass = TSubclassOf<UNavigationQueryFilter>();
 
 	/** if task is expected to react to changes to location represented by BB key 
 	 *	this property can be used to tweak sensitivity of the mechanism. Value is 
 	 *	recommended to be less than AcceptableRadius */
-	UPROPERTY(Category=Blackboard, EditAnywhere, meta = (ClampMin = "1", UIMin = "1", EditCondition="bObserveBlackboardValue", DisplayAfter="bObserveBlackboardValue"))
-	float ObservedBlackboardValueTolerance;
+	UPROPERTY(Category = Blackboard, EditAnywhere, meta = (EditCondition = "bObserveBlackboardValue", ClampMin = "1", UIMin = "1"))
+	FValueOrBBKey_Float ObservedBlackboardValueTolerance;
 
-	/** if move goal in BB changes the move will be redirected to new location */
-	UPROPERTY(Category = Blackboard, EditAnywhere)
-	uint32 bObserveBlackboardValue : 1;
-
-	UPROPERTY(Category = Node, EditAnywhere)
-	uint32 bAllowStrafe : 1;
+	UPROPERTY(Category = Node, EditAnywhere, DisplayName = AllowStrafe)
+	FValueOrBBKey_Bool bAllowStrafe;
 
 	/** if set, use incomplete path when goal can't be reached */
-	UPROPERTY(Category = Node, EditAnywhere, AdvancedDisplay)
-	uint32 bAllowPartialPath : 1;
+	UPROPERTY(Category = Node, EditAnywhere, AdvancedDisplay,  DisplayName = AllowPartialPath)
+	FValueOrBBKey_Bool bAllowPartialPath;
 
 	/** if set, path to goal actor will update itself when actor moves */
-	UPROPERTY(Category = Node, EditAnywhere, AdvancedDisplay)
-	uint32 bTrackMovingGoal : 1;
+	UPROPERTY(Category = Node, EditAnywhere, AdvancedDisplay,  DisplayName = TrackMovingGoal)
+	FValueOrBBKey_Bool bTrackMovingGoal;
 
 	/** if set, the goal location will need to be navigable */
-	UPROPERTY(Category = Node, EditAnywhere, AdvancedDisplay)
-	uint32 bRequireNavigableEndLocation : 1;
+	UPROPERTY(Category = Node, EditAnywhere, AdvancedDisplay,  DisplayName = RequireNavigableEndLocation)
+	FValueOrBBKey_Bool bRequireNavigableEndLocation;
 
 	/** if set, goal location will be projected on navigation data (navmesh) before using */
-	UPROPERTY(Category = Node, EditAnywhere, AdvancedDisplay)
-	uint32 bProjectGoalLocation : 1;
+	UPROPERTY(Category = Node, EditAnywhere, AdvancedDisplay,  DisplayName = ProjectGoalLocation)
+	FValueOrBBKey_Bool bProjectGoalLocation;
 
 	/** if set, radius of AI's capsule will be added to threshold between AI and goal location in destination reach test  */
-	UPROPERTY(Category = Node, EditAnywhere)
-	uint32 bReachTestIncludesAgentRadius : 1;
+	UPROPERTY(Category = Node, EditAnywhere,  DisplayName = ReachTestIncludesAgentRadius)
+	FValueOrBBKey_Bool bReachTestIncludesAgentRadius;
 	
 	/** if set, radius of goal's capsule will be added to threshold between AI and goal location in destination reach test  */
-	UPROPERTY(Category = Node, EditAnywhere)
-	uint32 bReachTestIncludesGoalRadius : 1;
+	UPROPERTY(Category = Node, EditAnywhere,  DisplayName = ReachTestIncludesGoalRadius)
+	FValueOrBBKey_Bool bReachTestIncludesGoalRadius;
 
-	/** DEPRECATED, please use combination of bReachTestIncludes*Radius instead */
-	UPROPERTY(Category = Node, VisibleInstanceOnly)
-	uint32 bStopOnOverlap : 1;
-
-	UPROPERTY()
-	uint32 bStopOnOverlapNeedsUpdate : 1;
+	/** if set, the path request will start from the end of the previous path (if any), and the generated path will be merged with the remaining points of the previous path */
+	UPROPERTY(Category = Node, EditAnywhere,  DisplayName = StartFromPreviousPath)
+	FValueOrBBKey_Bool bStartFromPreviousPath;
 
 	/** if set, move will use pathfinding. Not exposed on purpose, please use BTTask_MoveDirectlyToward */
 	uint32 bUsePathfinding : 1;
+
+	UPROPERTY()
+	uint32 bObserveBlackboardValue : 1;
 
 	AIMODULE_API virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 	AIMODULE_API virtual EBTNodeResult::Type AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
@@ -99,7 +97,6 @@ class UBTTask_MoveTo : public UBTTask_BlackboardBase
 	AIMODULE_API virtual uint16 GetInstanceMemorySize() const override;
 	AIMODULE_API virtual void InitializeMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryInit::Type InitType) const override;
 	AIMODULE_API virtual void CleanupMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryClear::Type CleanupType) const override;
-	AIMODULE_API virtual void PostLoad() override;
 
 	AIMODULE_API virtual void OnGameplayTaskDeactivated(UGameplayTask& Task) override;
 	AIMODULE_API virtual void OnMessage(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, FName Message, int32 RequestID, bool bSuccess) override;
@@ -110,7 +107,6 @@ class UBTTask_MoveTo : public UBTTask_BlackboardBase
 
 #if WITH_EDITOR
 	AIMODULE_API virtual FName GetNodeIconName() const override;
-	AIMODULE_API virtual void OnNodeCreated() override;
 #endif // WITH_EDITOR
 
 protected:

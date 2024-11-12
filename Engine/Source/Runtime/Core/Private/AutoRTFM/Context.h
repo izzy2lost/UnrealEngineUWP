@@ -4,6 +4,8 @@
 
 #include "AutoRTFM/AutoRTFM.h"
 #include "ContextStatus.h"
+#include "HAL/PlatformTLS.h"
+#include "StackRange.h"
 
 namespace AutoRTFM
 {
@@ -15,12 +17,12 @@ class FCallNest;
 class FContext
 {
 public:
-    static FContext* TryGet();
     static FContext* Get();
     static bool IsTransactional();
+	static bool IsCommittingOrAborting();
     
     // This is public API
-    ETransactionResult Transact(void (*Function)(void* Arg), void* Arg);
+    ETransactionResult Transact(void (*InstrumentedFunction)(void*), void* Arg);
     
 	EContextStatus CallClosedNest(void (*ClosedFunction)(void* Arg), void* Arg);
 
@@ -35,8 +37,6 @@ public:
 	void ClearTransactionStatus();
 	bool IsAborting() const;
 
-	void CheckOpenRecordWrite(void* LogicalAddress);
-
     // Record that a write is about to occur at the given LogicalAddress of Size bytes.
     void RecordWrite(void* LogicalAddress, size_t Size);
     template<unsigned SIZE> void RecordWrite(void* LogicalAddress);
@@ -45,21 +45,27 @@ public:
     void DidFree(void* LogicalAddress);
 
     // The rest of this is internalish.
-    void AbortByLanguageAndThrow();
+    [[noreturn]] void AbortByLanguageAndThrow();
 
 	inline FTransaction* GetCurrentTransaction() const { return CurrentTransaction; }
 	inline FCallNest* GetCurrentNest() const { return CurrentNest; }
-    inline bool IsTransactionStack(void* LogicalAddress) const { return LogicalAddress >= StackBegin && LogicalAddress < OuterTransactStackAddress; }
-	inline bool IsInnerTransactionStack(void* LogicalAddress) const { return LogicalAddress >= StackBegin && LogicalAddress < CurrentTransactStackAddress; }
-	inline EContextStatus GetStatus() const { return Status; }
-	void Throw();
-	
+	inline EContextStatus GetStatus() const { return CurrentThreadId == FPlatformTLS::GetCurrentThreadId() ? Status : EContextStatus::Idle; }
+	[[noreturn]] void Throw();
+
+	// Returns the starting stack address of the innermost call to Closed(), or
+	// nullptr if there is no call to Closed. Used to assert that a stack memory
+	// write is safe to record.
+	// See FTransaction::ShouldRecordWrite()
+	inline const void* GetClosedStackAddress() const { return ClosedStackAddress; }
+
     void DumpState() const;
 
     static void InitializeGlobalData();
 
 private:
-    FContext();
+	static FContext ContextSingleton;
+
+	FContext() { Reset(); }
     FContext(const FContext&) = delete;
 
 	void PushCallNest(FCallNest* NewCallNest);
@@ -70,8 +76,6 @@ private:
 
 	ETransactionResult ResolveNestedTransaction(FTransaction* NewTransaction);
 	bool AttemptToCommitTransaction(FTransaction* const Transaction);
-
-    void Set();
     
     // All of this other stuff ought to be private?
     void Reset();
@@ -79,11 +83,10 @@ private:
     FTransaction* CurrentTransaction{nullptr};
 	FCallNest* CurrentNest{nullptr};
 
-    void* StackBegin{nullptr}; // begin as in the smaller of the two
-    void* StackEnd{nullptr};
-    void* OuterTransactStackAddress{nullptr};
-    void* CurrentTransactStackAddress{nullptr};
+    FStackRange Stack;
+	void* ClosedStackAddress = nullptr;
     EContextStatus Status{EContextStatus::Idle};
+	uint32 CurrentThreadId{ FPlatformTLS::InvalidTlsSlot };
 };
 
 } // namespace AutoRTFM

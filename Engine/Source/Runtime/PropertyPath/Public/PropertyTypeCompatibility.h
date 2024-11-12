@@ -403,10 +403,10 @@ inline bool PropertySizesMatch_Impl(FProperty* InProperty)
 {
 	if (FByteProperty* ByteProperty = CastField<FByteProperty>(InProperty))
 	{
-		return InProperty->ElementSize == sizeof(uint8);
+		return InProperty->GetElementSize() == sizeof(uint8);
 	}
 
-	return InProperty->ElementSize == sizeof(T);
+	return InProperty->GetElementSize() == sizeof(T);
 }
 
 template<>
@@ -417,7 +417,7 @@ inline bool PropertySizesMatch_Impl<uint8>(FProperty* InProperty)
 		return !BoolProperty->IsNativeBool();
 	}
 
-	return InProperty->ElementSize == sizeof(uint8);
+	return InProperty->GetElementSize() == sizeof(uint8);
 }
 
 template<>
@@ -428,7 +428,7 @@ inline bool PropertySizesMatch_Impl<uint16>(FProperty* InProperty)
 		return !BoolProperty->IsNativeBool();
 	}
 
-	return InProperty->ElementSize == sizeof(uint16);
+	return InProperty->GetElementSize() == sizeof(uint16);
 }
 
 template<>
@@ -439,7 +439,7 @@ inline bool PropertySizesMatch_Impl<uint32>(FProperty* InProperty)
 		return !BoolProperty->IsNativeBool();
 	}
 
-	return InProperty->ElementSize == sizeof(uint32);
+	return InProperty->GetElementSize() == sizeof(uint32);
 }
 
 template<>
@@ -450,7 +450,7 @@ inline bool PropertySizesMatch_Impl<uint64>(FProperty* InProperty)
 		return !BoolProperty->IsNativeBool();
 	}
 
-	return InProperty->ElementSize == sizeof(uint64);
+	return InProperty->GetElementSize() == sizeof(uint64);
 }
 
 template<typename T>

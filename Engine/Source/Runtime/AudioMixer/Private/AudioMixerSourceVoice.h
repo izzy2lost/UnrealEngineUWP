@@ -121,6 +121,11 @@ namespace Audio
 		double GetCPUCoreUtilization() const;
 #endif // ENABLE_AUDIO_DEBUG
 
+		// Retrieves the current "render cost" of the mixer source voice. Used for debug display and for limiting voice count.
+		// 1.0 is equivalent to a single decoding sound source. 
+		// Useful as a metric more human-centric than CPU utilization.
+		float GetRelativeRenderCost() const;
+
 		// Mixes the dry and wet buffer audio into the given buffers.
 		void MixOutputBuffers(int32 InNumChannels, const float SendLevel, EMixerSourceSubmixSendStage InSubmixSendStage, FAlignedFloatBuffer& OutWetBuffer) const;
 

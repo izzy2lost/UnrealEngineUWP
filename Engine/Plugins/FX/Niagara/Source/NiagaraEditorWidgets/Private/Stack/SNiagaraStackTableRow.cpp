@@ -2,6 +2,7 @@
 
 #include "Stack/SNiagaraStackTableRow.h"
 
+#include "NiagaraEditorModule.h"
 #include "NiagaraEditorStyle.h"
 #include "NiagaraEditorWidgetsStyle.h"
 #include "Styling/AppStyle.h"
@@ -26,6 +27,8 @@
 #include "ScopedTransaction.h"
 #include "NiagaraEmitterEditorData.h"
 #include "SNiagaraStackNote.h"
+#include "Framework/Commands/GenericCommands.h"
+#include "ViewModels/NiagaraSystemViewModel.h"
 #include "ViewModels/HierarchyEditor/NiagaraSummaryViewViewModel.h"
 #include "ViewModels/Stack/NiagaraStackClipboardUtilities.h"
 #include "ViewModels/Stack/NiagaraStackNote.h"
@@ -34,6 +37,14 @@
 #include "ViewModels/Stack/NiagaraStackSimulationStageGroup.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraStackTableRow"
+
+SNiagaraStackTableRow::~SNiagaraStackTableRow()
+{
+	if(StackEntry && StackEntry->IsFinalized() == false)
+	{
+		StackEntry->OnCopyPaste().Unbind();
+	}
+}
 
 void SNiagaraStackTableRow::Construct(const FArguments& InArgs, UNiagaraStackViewModel* InStackViewModel, UNiagaraStackEntry* InStackEntry, TSharedRef<FNiagaraStackCommandContext> InStackCommandContext, const TSharedRef<STreeView<UNiagaraStackEntry*>>& InOwnerTree)
 {
@@ -55,6 +66,10 @@ void SNiagaraStackTableRow::Construct(const FArguments& InArgs, UNiagaraStackVie
 	ExpandedImage = FCoreStyle::Get().GetBrush("TreeArrow_Expanded");
 	CollapsedImage = FCoreStyle::Get().GetBrush("TreeArrow_Collapsed");
 
+	PulseAnimation.AddCurve(0.f, 0.5f, ECurveEaseFunction::CubicInOut);
+
+	InStackEntry->OnCopyPaste().BindSP(this, &SNiagaraStackTableRow::Pulse);
+	
 	IndicatorColor = InArgs._IndicatorColor;
 
 	ExecutionCategoryToolTipText = (InStackEntry->GetExecutionSubcategoryName() != NAME_None)
@@ -518,7 +533,47 @@ FReply SNiagaraStackTableRow::OnMouseButtonUp(const FGeometry& MyGeometry, const
 		FSlateApplication::Get().PushMenu(AsShared(), WidgetPath, MenuBuilder.MakeWidget(), MouseEvent.GetScreenSpacePosition(), FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
 		return FReply::Handled();
 	}
+	
 	return STableRow<UNiagaraStackEntry*>::OnMouseButtonUp(MyGeometry, MouseEvent);
+}
+
+int32 SNiagaraStackTableRow::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
+{
+	LayerId = PaintSelection(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
+	const FSlateBrush* BrushResource = GetBorderImage();
+		
+	const bool bEnabled = ShouldBeEnabled(bParentEnabled);
+
+	if ( BrushResource && BrushResource->DrawAs != ESlateBrushDrawType::NoDrawType )
+	{
+		FLinearColor PulseAlpha = FLinearColor(1.f, 1.f, 1.f, 1.f);
+		if(PulseAnimation.IsPlaying())
+		{
+			float Lerp = PulseAnimation.GetLerp();
+			PulseAlpha = FMath::Lerp(FAppStyle::Get().GetSlateColor("Colors.Hover2").GetSpecifiedColor(), PulseAlpha, Lerp);
+		}
+		
+		const bool bShowDisabledEffect = GetShowDisabledEffect();
+		const ESlateDrawEffect DrawEffects = (bShowDisabledEffect && !bEnabled) ? ESlateDrawEffect::DisabledEffect : ESlateDrawEffect::None;
+		FSlateDrawElement::MakeBox(
+			OutDrawElements,
+			LayerId,
+			AllottedGeometry.ToPaintGeometry(),
+			BrushResource,
+			DrawEffects,
+			BrushResource->GetTint(InWidgetStyle) * InWidgetStyle.GetColorAndOpacityTint() * GetBorderBackgroundColor().GetColor(InWidgetStyle) * PulseAlpha
+		);
+	}
+
+	LayerId = SCompoundWidget::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bEnabled );
+	LayerId = PaintDropIndicator(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
+
+	return LayerId;
+}
+
+void SNiagaraStackTableRow::Pulse()
+{
+	PulseAnimation.Play(AsShared());
 }
 
 void SetExpansionStateRecursive(UNiagaraStackEntry* StackEntry, bool bIsExpanded)
@@ -636,7 +691,7 @@ EVisibility SNiagaraStackTableRow::GetExpanderVisibility() const
 	}
 	else
 	{
-		return EVisibility::Collapsed;
+		return StackEntry->KeepExpanderIndentation() ? EVisibility::Hidden : EVisibility::Collapsed;
 	}
 }
 
@@ -686,6 +741,18 @@ EVisibility SNiagaraStackTableRow::GetSearchResultBorderVisibility() const
 	return StackViewModel->GetCurrentFocusedEntry() == StackEntry ? EVisibility::HitTestInvisible : EVisibility::Collapsed;
 }
 
+FSlateColor SNiagaraStackTableRow::GetInnerBackgroundColor() const
+{
+	FSlateColor Color(FLinearColor(0.f, 0.f, 0.f, 1.f));
+	if (PulseAnimation.IsPlaying())
+	{
+		float Lerp = PulseAnimation.GetLerp();
+		return FMath::Lerp(FAppStyle::Get().GetSlateColor("Colors.Hover2").GetSpecifiedColor(), Color.GetSpecifiedColor(), Lerp);
+	}
+
+	return Color;
+}
+
 void SNiagaraStackTableRow::NavigateTo(UNiagaraStackEntry* Item)
 {
 	OwnerTree->RequestNavigateToItem(Item, 0);
@@ -707,7 +774,7 @@ void SNiagaraStackTableRow::ToggleShowInSummaryView() const
 			{
 				UClass* HierarchyClass = DetermineHierarchyClassForSummaryView();
 				check(HierarchyClass);
-				StackEntry->GetEmitterViewModel()->GetSummaryHierarchyViewModel()->GetHierarchyRootViewModel()->AddChild(HierarchyClass, Identity);
+				StackEntry->GetEmitterViewModel()->GetSummaryHierarchyViewModel()->AddItem(HierarchyClass, Identity);
 			}
 		}
 	}

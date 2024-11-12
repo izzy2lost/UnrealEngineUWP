@@ -5,6 +5,8 @@
 #include "LiveLinkRole.h"
 #include "LiveLinkTypes.h"
 
+class ULiveLinkRecording;
+
 /** Interface for handling serialization of livelink data. */
 class ILiveLinkRecorder
 {

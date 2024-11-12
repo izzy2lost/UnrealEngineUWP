@@ -30,6 +30,7 @@ extern ENGINE_API void ConditionalBreakOnPSOPrecacheMaterial(const FMaterial& Ma
  * Conditional break when PSO precaching a specific shader - used for debugging PSO misses
  */
 extern ENGINE_API void ConditionalBreakOnPSOPrecacheShader(const FGraphicsPipelineStateInitializer& GraphicsPSOInitializer);
+extern ENGINE_API void ConditionalBreakOnPSOPrecacheShader(const FRHIComputeShader* ComputeShader);
 
 /**
  * Type of PSO precache miss
@@ -42,7 +43,7 @@ enum class EPSOPrecacheMissType : uint8
 };
 
 /**
- * Log PSO miss information to logg with optional detailed information on what's causing the miss compared to what's already precached
+ * Log PSO miss information to give optional detailed information on what's causing the miss compared to what's already precached
  */
 extern ENGINE_API void LogPSOMissInfo(
 	const FGraphicsPipelineStateInitializer& GraphicsPSOInitializer, 
@@ -107,6 +108,11 @@ namespace PSOCollectorStats
 		EPSOPrecacheResult PSOPrecacheResult,
 		const FMaterialRenderProxy* Material,
 		int32 PSOCollectorIndex);
+
+	/*
+	 * Update the CSV stats	
+	 */
+	extern ENGINE_API void UpdateCSVStats(EPSOPrecacheResult PSOPrecacheResult);
 
 	using VertexFactoryCountTableType = Experimental::TRobinHoodHashMap<const FVertexFactoryType*, uint32>;
 	struct FShaderStateUsage
@@ -210,11 +216,11 @@ namespace PSOCollectorStats
 		const FPrecacheStats& GetStats() const { return Stats; }
 
 		template <typename TPrecacheState>
-		void AddStateToCache(const TPrecacheState& PrecacheState, uint64 HashFn(const TPrecacheState&), const FMaterial* Material, int32 PSOCollectorIndex, const FVertexFactoryType* VertexFactoryType)
+		bool AddStateToCache(const TPrecacheState& PrecacheState, uint64 HashFn(const TPrecacheState&), const FMaterial* Material, int32 PSOCollectorIndex, const FVertexFactoryType* VertexFactoryType)
 		{
 			if (!IsPrecachingValidationEnabled())
 			{
-				return;
+				return false;
 			}
 
 			uint64 PrecacheStateHash = HashFn(PrecacheState);
@@ -242,29 +248,33 @@ namespace PSOCollectorStats
 			{
 				Stats.PrecacheData.UpdateStats(PSOCollectorIndex, VertexFactoryType);
 			}
+
+			return bUpdateStats;
 		}
 
 		template <typename TPrecacheState>
-		EPSOPrecacheResult CheckStateInCache(const TPrecacheState& PrecacheState, uint64 HashFn(const TPrecacheState&), EPSOPrecacheResult PrecacheResult, int32 PSOCollectorIndex, const FVertexFactoryType* VertexFactoryType)
+		bool CheckStateInCache(const TPrecacheState& PrecacheState, uint64 HashFn(const TPrecacheState&), int32 PSOCollectorIndex, const FVertexFactoryType* VertexFactoryType, EPSOPrecacheResult& InOutPrecacheResult)
 		{
 			if (!IsPrecachingValidationEnabled())
 			{
-				return EPSOPrecacheResult::Unknown;
+				InOutPrecacheResult = EPSOPrecacheResult::Unknown;
+				return false;
 			}
 
 			uint64 PrecacheStateHash = HashFn(PrecacheState);
-			return CheckStateInCacheByHash(PrecacheStateHash, PrecacheResult, PSOCollectorIndex, VertexFactoryType);
+			return CheckStateInCacheByHash(PrecacheStateHash, PSOCollectorIndex, VertexFactoryType, InOutPrecacheResult);
 		}
 
-		EPSOPrecacheResult CheckStateInCacheByHash(const uint64 PrecacheStateHash, EPSOPrecacheResult PrecacheResult, int32 PSOCollectorIndex, const FVertexFactoryType* VertexFactoryType)
+		bool CheckStateInCacheByHash(const uint64 PrecacheStateHash, int32 PSOCollectorIndex, const FVertexFactoryType* VertexFactoryType, EPSOPrecacheResult& InOutPrecacheResult)
 		{
 			if (!IsPrecachingValidationEnabled())
 			{
-				return EPSOPrecacheResult::Unknown;
+				InOutPrecacheResult = EPSOPrecacheResult::Unknown;
+				return false;
 			}
 
 			bool bTracked = IsStateTracked(PSOCollectorIndex, VertexFactoryType);
-			return UpdatePrecacheStats(PrecacheStateHash, PSOCollectorIndex, VertexFactoryType, bTracked, PrecacheResult);
+			return UpdatePrecacheStats(PrecacheStateHash, PSOCollectorIndex, VertexFactoryType, bTracked, InOutPrecacheResult);
 		}
 
 		ENGINE_API bool IsPrecached(uint64 PrecacheStateHash);
@@ -276,7 +286,7 @@ namespace PSOCollectorStats
 
 	private:
 
-		ENGINE_API EPSOPrecacheResult UpdatePrecacheStats(uint64 PrecacheHash, int32 PSOCollectorIndex, const FVertexFactoryType* VertexFactoryType, bool bTracked, EPSOPrecacheResult InPrecacheResult);
+		ENGINE_API bool UpdatePrecacheStats(uint64 PrecacheHash, int32 PSOCollectorIndex, const FVertexFactoryType* VertexFactoryType, bool bTracked, EPSOPrecacheResult& InOutPrecacheResult);
 
 		FPrecacheStats Stats;
 

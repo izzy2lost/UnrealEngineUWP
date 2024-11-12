@@ -33,7 +33,7 @@ struct FMovieSceneEventChannel : public FMovieSceneChannel
 	 */
 	FORCEINLINE TMovieSceneChannelData<FMovieSceneEvent> GetData()
 	{
-		return TMovieSceneChannelData<FMovieSceneEvent>(&KeyTimes, &KeyValues, &KeyHandles);
+		return TMovieSceneChannelData<FMovieSceneEvent>(&KeyTimes, &KeyValues, this, &KeyHandles);
 	}
 
 	/**

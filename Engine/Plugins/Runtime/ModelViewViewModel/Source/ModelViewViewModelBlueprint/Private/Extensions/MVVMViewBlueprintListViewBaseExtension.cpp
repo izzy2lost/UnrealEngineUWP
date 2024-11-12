@@ -18,7 +18,7 @@
 
 #define LOCTEXT_NAMESPACE "MVVMViewBlueprintListViewBaseExtension"
 
-void UMVVMViewBlueprintListViewBaseExtension::Precompile(UE::MVVM::Compiler::IMVVMBlueprintViewPrecompile* Compiler, UWidgetBlueprintGeneratedClass* Class)
+void UMVVMBlueprintViewExtension_ListViewBase::Precompile(UE::MVVM::Compiler::IMVVMBlueprintViewPrecompile* Compiler, UWidgetBlueprintGeneratedClass* Class)
 {
 	check (Compiler);
 	auto VerifyViewmodelTypeMatch = [this, Compiler](const TSubclassOf<UUserWidget> EntryWidgetClass, const FMVVMBlueprintPropertyPath& EntryViewModelPath, const FName& ContainerWidgetName)
@@ -147,7 +147,7 @@ void UMVVMViewBlueprintListViewBaseExtension::Precompile(UE::MVVM::Compiler::IMV
 	}
 }
 
-void UMVVMViewBlueprintListViewBaseExtension::Compile(UE::MVVM::Compiler::IMVVMBlueprintViewCompile* Compiler, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension)
+void UMVVMBlueprintViewExtension_ListViewBase::Compile(UE::MVVM::Compiler::IMVVMBlueprintViewCompile* Compiler, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension)
 {
 	check(Compiler);
 
@@ -178,11 +178,11 @@ void UMVVMViewBlueprintListViewBaseExtension::Compile(UE::MVVM::Compiler::IMVVMB
 						if (const FMVVMBlueprintViewModelContext* ViewModelContext = EntryBPView->FindViewModel(EntryViewModelId))
 						{
 							// Create the corresponding runtime extension
-							UMVVMViewClassExtension* NewExtensionObj = Compiler->CreateViewClassExtension(UMVVMViewListViewBaseExtension::StaticClass());
-							UMVVMViewListViewBaseExtension* NewExtension = CastChecked<UMVVMViewListViewBaseExtension>(NewExtensionObj);
+							UMVVMViewClassExtension* NewExtensionObj = Compiler->CreateViewClassExtension(UMVVMViewListViewBaseClassExtension::StaticClass());
+							UMVVMViewListViewBaseClassExtension* NewExtension = CastChecked<UMVVMViewListViewBaseClassExtension>(NewExtensionObj);
 
 							const FName EntryViewModelName = ViewModelContext->GetViewModelName();
-							NewExtension->Initialize(UMVVMViewListViewBaseExtension::FInitListViewBaseExtensionArgs(WidgetName, EntryViewModelName, CompiledFieldPath.GetValue()));
+							NewExtension->Initialize(UMVVMViewListViewBaseClassExtension::FInitListViewBaseExtensionArgs(WidgetName, EntryViewModelName, CompiledFieldPath.GetValue()));
 						
 						}
 					}
@@ -192,7 +192,7 @@ void UMVVMViewBlueprintListViewBaseExtension::Compile(UE::MVVM::Compiler::IMVVMB
 	}	
 }
 
-const UMVVMBlueprintView* UMVVMViewBlueprintListViewBaseExtension::GetEntryWidgetBlueprintView(const UUserWidget* EntryUserWidget) const
+const UMVVMBlueprintView* UMVVMBlueprintViewExtension_ListViewBase::GetEntryWidgetBlueprintView(const UUserWidget* EntryUserWidget) const
 {
 	if (const UWidgetBlueprint* EntryBlueprint = Cast<UWidgetBlueprint>(EntryUserWidget->GetClass()->ClassGeneratedBy))
 	{
@@ -207,13 +207,15 @@ const UMVVMBlueprintView* UMVVMViewBlueprintListViewBaseExtension::GetEntryWidge
 	return nullptr;
 }
 
-void UMVVMViewBlueprintListViewBaseExtension::WidgetRenamed(FName OldName, FName NewName)
+bool UMVVMBlueprintViewExtension_ListViewBase::WidgetRenamed(FName OldName, FName NewName)
 {
 	if (WidgetName == OldName)
 	{
-		WidgetName = NewName;
 		Modify();
+		WidgetName = NewName;
+		return true;
 	}
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

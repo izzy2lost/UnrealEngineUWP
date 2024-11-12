@@ -30,10 +30,9 @@ UMultiSelectionMeshEditingTool* UProjectToTargetToolBuilder::CreateNewTool(const
 void UProjectToTargetTool::Setup()
 {
 	// ProjectionTarget and ProjectionTargetSpatial are setup before calling the parent class's Setup
-	FMeshDescriptionToDynamicMesh ProjectionConverter;
 	check(Targets.Num() == 2);
 	ProjectionTarget = MakeUnique<FDynamicMesh3>();
-	ProjectionConverter.Convert(UE::ToolTarget::GetMeshDescription(Targets[1]), *ProjectionTarget);
+	*ProjectionTarget = UE::ToolTarget::GetDynamicMeshCopy(Targets[1]);
 	ProjectionTargetSpatial = MakeUnique<FDynamicMeshAABBTree3>(ProjectionTarget.Get(), true);
 
 	// Now setup parent RemeshMeshTool class

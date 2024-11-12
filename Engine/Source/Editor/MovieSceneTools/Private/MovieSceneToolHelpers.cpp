@@ -83,11 +83,16 @@
 #include "Channels/MovieSceneChannelTraits.h"
 #include "Channels/MovieSceneIntegerChannel.h"
 #include "Channels/MovieSceneByteChannel.h"
+#include "Channels/MovieSceneFloatChannel.h"
+#include "Channels/MovieSceneDoubleChannel.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "EntitySystem/Interrogation/MovieSceneInterrogationLinker.h"
 #include "ConstraintsManager.h"
 #include "Constraints/MovieSceneConstraintChannelHelper.inl"
 #include "Exporters/FbxExportOption.h"
+#include "Bindings/MovieSceneSpawnableBinding.h"
+#include "Tracks/MovieSceneBindingLifetimeTrack.h"
+#include "Sections/MovieSceneBindingLifetimeSection.h"
 
 /* FSkelMeshRecorder
  ***********/
@@ -138,6 +143,65 @@ void MovieSceneToolHelpers::TrimSection(const TSet<UMovieSceneSection*>& Section
 	}
 }
 
+bool MovieSceneToolHelpers::CanTrimSectionLeft(const TSet<UMovieSceneSection*>& Sections, FQualifiedFrameTime Time)
+{
+	for (UMovieSceneSection* Section : Sections)
+	{
+		if (Section)
+		{
+			TRange<FFrameNumber> Range = Section->GetRange();
+			TArray<TRange<FFrameNumber> > Splits = Range.Split(Time.Time.FrameNumber);
+
+			if (Splits.Num() > 0)
+			{
+				if (Splits[0] == Range) // can't split
+				{
+					continue;
+				}
+				else
+				{
+					TRange<FFrameNumber> Head = Splits[0];
+
+					if (!Head.IsEmpty())
+					{
+						return true;
+					}
+				}
+			}
+		}
+	}
+	return false;
+}
+
+bool MovieSceneToolHelpers::CanTrimSectionRight(const TSet<UMovieSceneSection*>& Sections, FQualifiedFrameTime Time)
+{
+	for (UMovieSceneSection* Section : Sections)
+	{
+		if (Section)
+		{
+			TRange<FFrameNumber> Range = Section->GetRange();
+			TArray<TRange<FFrameNumber> > Splits = Range.Split(Time.Time.FrameNumber);
+
+			if (Splits.Num() > 0)
+			{
+				if (Splits[0] == Range) // can't split
+				{
+					continue;
+				}
+				else
+				{
+					TRange<FFrameNumber> Tail = Splits.Last();
+
+					if (!Tail.IsEmpty())
+					{
+						return true;
+					}
+				}
+			}
+		}
+	}
+	return false;
+}
 
 void MovieSceneToolHelpers::TrimOrExtendSection(UMovieSceneTrack* Track, TOptional<int32> SpecifiedRowIndex, FQualifiedFrameTime Time, bool bTrimOrExtendLeft, bool bDeleteKeys)
 {
@@ -230,6 +294,37 @@ void MovieSceneToolHelpers::SplitSection(const TSet<UMovieSceneSection*>& Sectio
 			Section->SplitSection(Time, bDeleteKeys);
 		}
 	}
+}
+
+bool MovieSceneToolHelpers::CanSplitSection(const TSet<UMovieSceneSection*>& Sections, FQualifiedFrameTime Time)
+{
+	for (UMovieSceneSection* Section : Sections)
+	{
+		if (Section)
+		{
+			TRange<FFrameNumber> Range = Section->GetRange();
+			TArray<TRange<FFrameNumber> > Splits = Range.Split(Time.Time.FrameNumber);
+
+			if (Splits.Num() > 0)
+			{
+				if (Splits[0] == Range) // can't split
+				{
+					continue;
+				}
+				else if (Splits.Num() == 2)
+				{
+					TRange<FFrameNumber> Head = Splits[0];
+					TRange<FFrameNumber> Tail = Splits[1];
+
+					if (!Head.IsEmpty() && !Tail.IsEmpty())
+					{
+						return true;
+					}
+				}
+			}
+		}
+	}
+	return false;
 }
 
 bool MovieSceneToolHelpers::ParseShotName(const FString& InShotName, FString& ShotPrefix, uint32& ShotNumber, uint32& TakeNumber, uint32& ShotNumberDigits, uint32& TakeNumberDigits)
@@ -346,12 +441,12 @@ bool MovieSceneToolHelpers::ParseShotName(const FString& InShotName, FString& Sh
 				ShotPrefix = ShotName.Left(LastSlashPos);
 			}
 			
-			FString TakeStr = ShotName.RightChop(LastSlashPos + 1);
+			FString TakeStr = ShotName.RightChop(LastSlashPos + ProjectSettings->TakeSeparator.Len());
 			if (TakeStr.IsNumeric())
 			{
 				ShotNumber = INDEX_NONE; // Nullify the shot number since we only have a shot prefix
 				TakeNumber = FCString::Atoi(*TakeStr);
-				TakeNumberDigits = ShotName.Len() - (LastSlashPos+1);
+				TakeNumberDigits = ShotName.Len() - (LastSlashPos + ProjectSettings->TakeSeparator.Len());
 				return true;
 			}
 		}
@@ -604,46 +699,6 @@ UMovieSceneSequence* MovieSceneToolHelpers::CreateSequence(FString& NewSequenceN
 	}
 
 	return Cast<UMovieSceneSequence>(NewAsset);
-}
-
-UMovieSceneSubSection* MovieSceneToolHelpers::CreateSubSequence(FString& NewSequenceName, FString& NewSequencePath, FFrameNumber NewSequenceStartTime, UMovieSceneSubTrack* SubTrack, UMovieSceneSubSection* SectionToDuplicate)
-{
-	// Create a new level sequence asset with the appropriate name
-	IAssetTools& AssetTools = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools").Get();
-
-	UObject* NewAsset = nullptr;
-	for (TObjectIterator<UClass> It; It; ++It)
-	{
-		UClass* CurrentClass = *It;
-		if (CurrentClass->IsChildOf(UFactory::StaticClass()) && !(CurrentClass->HasAnyClassFlags(CLASS_Abstract)))
-		{
-			UFactory* Factory = Cast<UFactory>(CurrentClass->GetDefaultObject());
-			if (Factory->CanCreateNew() && Factory->ImportPriority >= 0 && Factory->SupportedClass == ULevelSequence::StaticClass())
-			{
-				if (SectionToDuplicate != nullptr)
-				{
-					NewAsset = AssetTools.DuplicateAssetWithDialog(NewSequenceName, NewSequencePath, SectionToDuplicate->GetSequence());
-				}
-				else
-				{
-					NewAsset = AssetTools.CreateAssetWithDialog(NewSequenceName, NewSequencePath, ULevelSequence::StaticClass(), Factory);
-				}
-				break;
-			}
-		}
-	}
-
-	if (NewAsset == nullptr)
-	{
-		return nullptr;
-	}
-
-	UMovieSceneSequence* NewSequence = Cast<UMovieSceneSequence>(NewAsset);
-
-	int32 Duration = UE::MovieScene::DiscreteSize(SectionToDuplicate ? SectionToDuplicate->GetRange() : NewSequence->GetMovieScene()->GetPlaybackRange());
-
-	UMovieSceneSubSection* NewSection = SubTrack->AddSequence(NewSequence, NewSequenceStartTime, Duration);
-	return NewSection;
 }
 
 void MovieSceneToolHelpers::GatherTakes(const UMovieSceneSection* Section, TArray<FAssetData>& AssetData, uint32& OutCurrentTakeNumber)
@@ -1108,7 +1163,7 @@ static FGuid GetHandleToObject(UObject* InObject, UMovieSceneSequence* InSequenc
 	if (bCreateIfMissing)
 	{
 		// Otherwise, create a possessable for this object. Note this will handle creating the parent possessables if this is a component.
-		PropertyOwnerGuid = InSequence->CreatePossessable(InObject);
+		PropertyOwnerGuid = Player->CreateBinding(InSequence, InObject);
 	}
 	
 	return PropertyOwnerGuid;
@@ -3065,11 +3120,7 @@ void MovieSceneToolHelpers::ImportFBXCameraToExisting(UnFbx::FFbxImporter* FbxIm
 				}
 
 				// If copying properties to a spawnable object, the template object must be updated
-				FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(InObjectBinding.Key);
-				if (Spawnable)
-				{
-					Spawnable->CopyObjectTemplate(*FoundObject, *InSequence);
-				}
+				MovieSceneHelpers::CopyObjectTemplate(InSequence, InObjectBinding.Key, FoundObject, Player->GetSharedPlaybackState());
 
 				UMovieSceneFloatTrack* FloatTrack = MovieScene->FindTrack<UMovieSceneFloatTrack>(PropertyOwnerGuid, TrackName);
 				if (FloatTrack)
@@ -3470,6 +3521,7 @@ bool MovieSceneToolHelpers::ImportFBXIfReady(UWorld* World, UMovieSceneSequence*
 	CurrentImportFBXSettings->ReduceKeysTolerance = ImportFBXSettings->ReduceKeysTolerance;
 	CurrentImportFBXSettings->bConvertSceneUnit = ImportFBXSettings->bConvertSceneUnit;
 	CurrentImportFBXSettings->ImportUniformScale = ImportFBXSettings->ImportUniformScale;
+	CurrentImportFBXSettings->bReplaceTransformTrack = ImportFBXSettings->bReplaceTransformTrack;
 	UnFbx::FFbxImporter* FbxImporter = UnFbx::FFbxImporter::GetInstance();
 
 	UnFbx::FFbxCurvesAPI CurveAPI;
@@ -3673,7 +3725,25 @@ void ExportLevelMesh(UnFbx::FFbxExporter* Exporter, ULevel* Level, IMovieScenePl
 	Exporter->ExportLevelMesh(Level, !bSelectedOnly, ActorToExport, NodeNameAdapter, bSaveAnimSeq);
 }
 
+//5.5 deprecrated
 bool MovieSceneToolHelpers::ExportFBX(UWorld* World, UMovieScene* MovieScene, IMovieScenePlayer* Player, const TArray<FGuid>& Bindings, const TArray<UMovieSceneTrack*>& Tracks, INodeNameAdapter& NodeNameAdapter, FMovieSceneSequenceIDRef& Template, const FString& InFBXFileName, FMovieSceneSequenceTransform& RootToLocalTransform)
+{
+	if (MovieScene)
+	{
+		if (UMovieSceneSequence* MovieSceneSequence = MovieScene->GetTypedOuter< UMovieSceneSequence>())
+		{
+			FAnimExportSequenceParameters AESP;
+			AESP.MovieSceneSequence = MovieSceneSequence;
+			AESP.RootMovieSceneSequence = MovieSceneSequence;
+			AESP.Player = Player;
+			AESP.RootToLocalTransform = RootToLocalTransform;
+			return MovieSceneToolHelpers::ExportFBX(World, AESP, Bindings, Tracks, NodeNameAdapter, Template, InFBXFileName);
+		}
+	}
+	return false;
+}
+
+bool MovieSceneToolHelpers::ExportFBX(UWorld* World, const FAnimExportSequenceParameters& AESP, const TArray<FGuid>& Bindings, const TArray<UMovieSceneTrack*>& Tracks, INodeNameAdapter& NodeNameAdapter, FMovieSceneSequenceIDRef& Template, const FString& InFBXFileName)
 {
 	UnFbx::FFbxExporter* Exporter = UnFbx::FFbxExporter::GetInstance();
 
@@ -3681,7 +3751,7 @@ bool MovieSceneToolHelpers::ExportFBX(UWorld* World, UMovieScene* MovieScene, IM
 	Exporter->SetTransformBaking(false);
 	Exporter->SetKeepHierarchy(true);
 
-	ExportLevelMesh(Exporter, World->PersistentLevel, Player, Bindings, NodeNameAdapter, Template);
+	ExportLevelMesh(Exporter, World->PersistentLevel, AESP.Player, Bindings, NodeNameAdapter, Template);
 
 	// Export streaming levels and actors
 	for (ULevelStreaming* StreamingLevel : World->GetStreamingLevels())
@@ -3690,16 +3760,16 @@ bool MovieSceneToolHelpers::ExportFBX(UWorld* World, UMovieScene* MovieScene, IM
 		{
 			if (ULevel* Level = StreamingLevel->GetLoadedLevel())
 			{
-				ExportLevelMesh(Exporter, Level, Player, Bindings, NodeNameAdapter, Template);
+				ExportLevelMesh(Exporter, Level, AESP.Player, Bindings, NodeNameAdapter, Template);
 			}
 		}
 	}
 
-	Exporter->ExportLevelSequence(MovieScene, Bindings, Player, NodeNameAdapter, Template, RootToLocalTransform);
+	Exporter->ExportLevelSequence(AESP.MovieSceneSequence, AESP.RootMovieSceneSequence, Bindings, AESP.Player, NodeNameAdapter, Template, AESP.RootToLocalTransform);
 
 	//Export given tracks
-	Exporter->ExportLevelSequenceTracks(MovieScene, Player, Template, nullptr, nullptr, Tracks, RootToLocalTransform);
-	
+	Exporter->ExportLevelSequenceTracks(AESP.MovieSceneSequence, AESP.RootMovieSceneSequence, AESP.Player, Template, nullptr, nullptr, Tracks, AESP.RootToLocalTransform);
+
 	// Save to disk
 	Exporter->WriteToFile(*InFBXFileName);
 
@@ -3785,7 +3855,20 @@ bool MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(UMovieScene* MovieScene, I
 	USkeletalMeshComponent* InSkelMeshComp, FMovieSceneSequenceIDRef& Template, FMovieSceneSequenceTransform& RootToLocalTransform, UAnimSeqExportOption* ExportOptions,
 	FInitAnimationCB InitCallback, FStartAnimationCB StartCallback, FTickAnimationCB TickCallback, FEndAnimationCB EndCallback)
 {
+	return false;
+}
+
+
+bool MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(const FAnimExportSequenceParameters& AESP, USkeletalMeshComponent* InSkelMeshComp, UAnimSeqExportOption* ExportOptions,
+	FInitAnimationCB InitCallback, FStartAnimationCB StartCallback, FTickAnimationCB TickCallback, FEndAnimationCB EndCallback)
+{
+	UMovieScene* MovieScene = AESP.MovieSceneSequence->GetMovieScene();
 	TArray< USkeletalMeshComponent*> SkelMeshComps;
+	if (!ExportOptions)
+	{
+		UE_LOG(LogMovieScene, Warning, TEXT(" MovieSceneToolHelpers::BakeToSkelMesh functions require a valid AnimSeqExportOption"));
+		return false;
+	}
 	if (ExportOptions->bEvaluateAllSkeletalMeshComponents)
 	{
 		AActor* Actor = InSkelMeshComp->GetTypedOuter<AActor>();
@@ -3809,7 +3892,20 @@ bool MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(UMovieScene* MovieScene, I
 		}
 	}
 
-	UnFbx::FLevelSequenceAnimTrackAdapter AnimTrackAdapter(Player, MovieScene, RootToLocalTransform);
+	UnFbx::FLevelSequenceAnimTrackAdapter AnimTrackAdapter(AESP.Player, AESP.MovieSceneSequence, AESP.RootMovieSceneSequence, AESP.RootToLocalTransform);
+	if (ExportOptions->bUseCustomTimeRange)
+	{
+
+		const FFrameRate TickResolution = MovieScene->GetTickResolution();
+		const FFrameRate DisplayResolution = ExportOptions->CustomDisplayRate;
+		const FFrameNumber StartFrameInTick = FFrameRate::TransformTime(FFrameTime(ExportOptions->CustomStartFrame), DisplayResolution, TickResolution).FloorToFrame();
+		FFrameNumber EndFrameInTick = FFrameRate::TransformTime(FFrameTime(ExportOptions->CustomEndFrame), DisplayResolution, TickResolution).CeilToFrame();
+		if (EndFrameInTick < StartFrameInTick)
+		{
+			EndFrameInTick = StartFrameInTick;
+		}
+		AnimTrackAdapter.SetRange(StartFrameInTick,EndFrameInTick);
+	}
 	int32 LocalStartFrame = AnimTrackAdapter.GetLocalStartFrame();
 	int32 StartFrame = AnimTrackAdapter.GetStartFrame();
 	int32 AnimationLength = AnimTrackAdapter.GetLength();
@@ -3908,80 +4004,109 @@ bool MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(UMovieScene* MovieScene, I
 	return true;
 }
 
+//5.5 deprecrated
 bool MovieSceneToolHelpers::ExportToAnimSequence(UAnimSequence* AnimSequence, UAnimSeqExportOption* ExportOptions, UMovieScene* MovieScene, IMovieScenePlayer* Player,
-	USkeletalMeshComponent* SkelMeshComp, FMovieSceneSequenceIDRef& Template, FMovieSceneSequenceTransform& RootToLocalTransform)
+	USkeletalMeshComponent* SkelMesh, FMovieSceneSequenceIDRef& Template, FMovieSceneSequenceTransform& RootToLocalTransform)
 {
-	if (AnimSequence == nullptr || ExportOptions == nullptr || MovieScene == nullptr || SkelMeshComp == nullptr)
+	if (MovieScene)
+	{
+		FAnimExportSequenceParameters AESP;
+		AESP.Player = Player;
+		AESP.RootToLocalTransform = RootToLocalTransform;
+		UMovieSceneSequence* OwnerSceneSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
+		AESP.MovieSceneSequence = OwnerSceneSequence;
+		AESP.RootMovieSceneSequence = OwnerSceneSequence;
+		return MovieSceneToolHelpers::ExportToAnimSequence(AnimSequence, ExportOptions, AESP, SkelMesh);
+	}
+	else
+	{
+		return false;
+	}
+}
+bool MovieSceneToolHelpers::ExportToAnimSequence(UAnimSequence* AnimSequence, UAnimSeqExportOption* ExportOptions, const FAnimExportSequenceParameters& AESP,
+	USkeletalMeshComponent* SkelMeshComp)
+{
+	if (AnimSequence == nullptr || ExportOptions == nullptr || AESP.MovieSceneSequence == nullptr || AESP.RootMovieSceneSequence == nullptr || SkelMeshComp == nullptr)
 	{
 		UE_LOG(LogMovieScene, Error, TEXT("MovieSceneToolHelpers::ExportToAnimSequence All parameters must be valid."));
 		return false;
 	}
 	FAnimRecorderInstance AnimationRecorder;
-	FFrameRate SampleRate = MovieScene->GetDisplayRate();
-	FInitAnimationCB InitCallback = FInitAnimationCB::CreateLambda([&AnimationRecorder,SampleRate,ExportOptions,SkelMeshComp,AnimSequence]
-	{
-		FAnimationRecordingSettings RecordingSettings;
-		RecordingSettings.SampleFrameRate = SampleRate;
-		RecordingSettings.Interpolation = ExportOptions->Interpolation;
-		RecordingSettings.InterpMode = ExportOptions->CurveInterpolation;
-		if (ExportOptions->CurveInterpolation == ERichCurveInterpMode::RCIM_Constant ||
-			ExportOptions->CurveInterpolation == ERichCurveInterpMode::RCIM_None)
+	FFrameRate SampleRate = AESP.MovieSceneSequence->GetMovieScene()->GetDisplayRate();
+	FInitAnimationCB InitCallback = FInitAnimationCB::CreateLambda([&AnimationRecorder, SampleRate, ExportOptions, SkelMeshComp, AnimSequence]
 		{
-			RecordingSettings.TangentMode = ERichCurveTangentMode::RCTM_None;
-		}
-		else
-		{
-			RecordingSettings.TangentMode = ERichCurveTangentMode::RCTM_Auto;
-		}
-		RecordingSettings.Length = 0;
-		RecordingSettings.bRemoveRootAnimation = false;
-		RecordingSettings.bCheckDeltaTimeAtBeginning = false;
-		RecordingSettings.bRecordTransforms = ExportOptions->bExportTransforms;
-		RecordingSettings.bRecordMorphTargets = ExportOptions->bExportMorphTargets;
-		RecordingSettings.bRecordAttributeCurves = ExportOptions->bExportAttributeCurves;
-		RecordingSettings.bRecordMaterialCurves = ExportOptions->bExportMaterialCurves;
-		RecordingSettings.bRecordInWorldSpace = ExportOptions->bRecordInWorldSpace;
-		RecordingSettings.IncludeAnimationNames = ExportOptions->IncludeAnimationNames;
-		RecordingSettings.ExcludeAnimationNames = ExportOptions->ExcludeAnimationNames;
-		RecordingSettings.bTransactRecording = ExportOptions->bTransactRecording;
-		AnimationRecorder.Init(SkelMeshComp, AnimSequence, nullptr, RecordingSettings);	
+			FAnimationRecordingSettings RecordingSettings;
+			RecordingSettings.SampleFrameRate = SampleRate;
+			RecordingSettings.Interpolation = ExportOptions->Interpolation;
+			RecordingSettings.InterpMode = ExportOptions->CurveInterpolation;
+			if (ExportOptions->CurveInterpolation == ERichCurveInterpMode::RCIM_Constant ||
+				ExportOptions->CurveInterpolation == ERichCurveInterpMode::RCIM_None)
+			{
+				RecordingSettings.TangentMode = ERichCurveTangentMode::RCTM_None;
+			}
+			else
+			{
+				RecordingSettings.TangentMode = ERichCurveTangentMode::RCTM_Auto;
+			}
+			RecordingSettings.Length = 0;
+			RecordingSettings.bRemoveRootAnimation = false;
+			RecordingSettings.bCheckDeltaTimeAtBeginning = false;
+			RecordingSettings.bRecordTransforms = ExportOptions->bExportTransforms;
+			RecordingSettings.bRecordMorphTargets = ExportOptions->bExportMorphTargets;
+			RecordingSettings.bRecordAttributeCurves = ExportOptions->bExportAttributeCurves;
+			RecordingSettings.bRecordMaterialCurves = ExportOptions->bExportMaterialCurves;
+			RecordingSettings.bRecordInWorldSpace = ExportOptions->bRecordInWorldSpace;
+			RecordingSettings.IncludeAnimationNames = ExportOptions->IncludeAnimationNames;
+			RecordingSettings.ExcludeAnimationNames = ExportOptions->ExcludeAnimationNames;
+			RecordingSettings.bTransactRecording = ExportOptions->bTransactRecording;
+			AnimationRecorder.Init(SkelMeshComp, AnimSequence, nullptr, RecordingSettings);
 		});
 
-	
+
 	FStartAnimationCB StartCallback = FStartAnimationCB::CreateLambda([SkelMeshComp, &AnimationRecorder]
-	{
-		AnimationRecorder.BeginRecording();
-		SkelMeshComp->UpdateLODStatus();
-	});
+		{
+			AnimationRecorder.BeginRecording();
+			SkelMeshComp->UpdateLODStatus();
+		});
 
 	FTickAnimationCB TickCallback = FTickAnimationCB::CreateLambda([&AnimationRecorder](float DeltaTime, FFrameNumber FrameNumber)
-	{
-		AnimationRecorder.Update(DeltaTime);
+		{
+			AnimationRecorder.Update(DeltaTime);
 
-	});
+		});
 
 	FEndAnimationCB EndCallback = FEndAnimationCB::CreateLambda([&AnimationRecorder]
-	{
+		{
 			const bool bShowAnimationAssetCreatedToast = false;
 			AnimationRecorder.FinishRecording(bShowAnimationAssetCreatedToast);
-	});
-	
+		});
 
-	MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(MovieScene,Player,
-		SkelMeshComp, Template, RootToLocalTransform, ExportOptions,
+
+	MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(AESP, SkelMeshComp, ExportOptions,
 		InitCallback, StartCallback, TickCallback, EndCallback);
 	return AnimSequence->GetDataModel()->HasBeenPopulated();
 }
 
+
 FSpawnableRestoreState::FSpawnableRestoreState(UMovieScene* MovieScene)
+	: FSpawnableRestoreState(MovieScene, nullptr)
+{
+
+}
+
+FSpawnableRestoreState::FSpawnableRestoreState(UMovieScene* MovieScene, TSharedPtr<UE::MovieScene::FSharedPlaybackState> InSharedPlaybackState)
 	: bWasChanged(false)
 	, WeakMovieScene(MovieScene)
+	, SharedPlaybackState(InSharedPlaybackState)
 {
-	for (int32 SpawnableIndex = 0; SpawnableIndex < WeakMovieScene->GetSpawnableCount(); ++SpawnableIndex)
+	auto SaveStateForSpawnable = [this](FGuid BindingGuid, ESpawnOwnership PreviousSpawnOwnership, TFunction<void(ESpawnOwnership)> SpawnOwnershipSetter)
 	{
-		FMovieSceneSpawnable& Spawnable = WeakMovieScene->GetSpawnable(SpawnableIndex);
+		// Spawnable could be in a subscene, so temporarily override it to persist throughout
+		SpawnOwnershipMap.Add(BindingGuid, PreviousSpawnOwnership);
 
-		UMovieSceneSpawnTrack* SpawnTrack = WeakMovieScene->FindTrack<UMovieSceneSpawnTrack>(Spawnable.GetGuid());
+		SpawnOwnershipSetter(ESpawnOwnership::RootSequence);
+
+		UMovieSceneSpawnTrack* SpawnTrack = WeakMovieScene->FindTrack<UMovieSceneSpawnTrack>(BindingGuid);
 
 		if (SpawnTrack && SpawnTrack->GetAllSections().Num() > 0)
 		{
@@ -3992,15 +4117,62 @@ FSpawnableRestoreState::FSpawnableRestoreState(UMovieScene* MovieScene)
 			}
 
 			bWasChanged = true;
-			
-			// Spawnable could be in a subscene, so temporarily override it to persist throughout
-			SpawnOwnershipMap.Add(Spawnable.GetGuid(), Spawnable.GetSpawnOwnership());
-			Spawnable.SetSpawnOwnership(ESpawnOwnership::RootSequence);
 
 			UMovieSceneSpawnSection* SpawnSection = Cast<UMovieSceneSpawnSection>(SpawnTrack->GetAllSections()[0]);
 			SpawnSection->Modify();
 			SpawnSection->GetChannel().Reset();
 			SpawnSection->GetChannel().SetDefault(true);
+		}
+
+		UMovieSceneBindingLifetimeTrack* BindingLifetimeTrack = WeakMovieScene->FindTrack<UMovieSceneBindingLifetimeTrack>(BindingGuid);
+		if (BindingLifetimeTrack && BindingLifetimeTrack->GetAllSections().Num() > 0)
+		{
+			// Start a transaction that will be undone later for the modifications to the binding lifetime track
+			if (!bWasChanged)
+			{
+				GEditor->BeginTransaction(NSLOCTEXT("MovieSceneToolHelpers", "SpwanableRestoreState", "SpawnableRestoreState"));
+			}
+
+			bWasChanged = true;
+
+			BindingLifetimeTrack->Modify();
+			BindingLifetimeTrack->RemoveAllAnimationData();
+			// Add a single infinite section
+			UMovieSceneSection* NewSection = NewObject<UMovieSceneSection>(BindingLifetimeTrack, UMovieSceneBindingLifetimeSection::StaticClass(), NAME_None, RF_Transactional);
+			check(NewSection);
+			NewSection->SetRange(TRange<FFrameNumber>::All());
+			BindingLifetimeTrack->AddSection(*NewSection);
+		}
+	};
+	
+	for (int32 SpawnableIndex = 0; SpawnableIndex < WeakMovieScene->GetSpawnableCount(); ++SpawnableIndex)
+	{
+		FMovieSceneSpawnable& Spawnable = WeakMovieScene->GetSpawnable(SpawnableIndex);
+
+		SaveStateForSpawnable(Spawnable.GetGuid(), Spawnable.GetSpawnOwnership(), [&Spawnable](ESpawnOwnership SpawnOwnership) { Spawnable.SetSpawnOwnership(SpawnOwnership);});
+	}
+
+	TSharedPtr<UE::MovieScene::FSharedPlaybackState> SharedPlaybackStateToUse = SharedPlaybackState;
+	if (!SharedPlaybackStateToUse)
+	{
+		SharedPlaybackStateToUse = MovieSceneHelpers::CreateTransientSharedPlaybackState(GEditor->GetEditorWorldContext().World(), WeakMovieScene->GetTypedOuter<UMovieSceneSequence>());
+	}
+
+	ensure(SharedPlaybackStateToUse.IsValid());
+	if (UMovieSceneSequence* Sequence = WeakMovieScene->GetTypedOuter<UMovieSceneSequence>())
+	{
+		if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+		{
+			for (FMovieSceneBindingReference& BindingReference : BindingReferences->GetAllReferences())
+			{
+				if (BindingReference.CustomBinding)
+				{
+					if (UMovieSceneSpawnableBindingBase* SpawnableBinding = BindingReference.CustomBinding->AsSpawnable(SharedPlaybackStateToUse.ToSharedRef()))
+					{
+						SaveStateForSpawnable(BindingReference.ID, SpawnableBinding->SpawnOwnership, [SpawnableBinding](ESpawnOwnership SpawnOwnership) { SpawnableBinding->SpawnOwnership = SpawnOwnership; });
+					}								
+				}
+			}
 		}
 	}
 
@@ -4020,7 +4192,45 @@ FSpawnableRestoreState::~FSpawnableRestoreState()
 	for (int32 SpawnableIndex = 0; SpawnableIndex < WeakMovieScene->GetSpawnableCount(); ++SpawnableIndex)
 	{
 		FMovieSceneSpawnable& Spawnable = WeakMovieScene->GetSpawnable(SpawnableIndex);
-		Spawnable.SetSpawnOwnership(SpawnOwnershipMap[Spawnable.GetGuid()]);
+		if (ESpawnOwnership* SpawnOwnership = SpawnOwnershipMap.Find(Spawnable.GetGuid()))
+		{
+			Spawnable.SetSpawnOwnership(*SpawnOwnership);
+		}
+	}
+
+	TSharedPtr<UE::MovieScene::FSharedPlaybackState> SharedPlaybackStateToUse = SharedPlaybackState;
+	if (!SharedPlaybackStateToUse)
+	{
+		// Supporting deprecated path where we have no SharedPlaybackState
+		UE::MovieScene::FSharedPlaybackStateCreateParams CreateParams;
+		CreateParams.PlaybackContext = GEditor->GetEditorWorldContext().World();
+		UMovieSceneSequence* ThisSequence = WeakMovieScene->GetTypedOuter<UMovieSceneSequence>();
+		SharedPlaybackStateToUse = MakeShared<UE::MovieScene::FSharedPlaybackState>(*ThisSequence, CreateParams);
+
+		FMovieSceneEvaluationState State;
+		SharedPlaybackStateToUse->AddCapabilityRaw(&State);
+		State.AssignSequence(MovieSceneSequenceID::Root, *ThisSequence, SharedPlaybackStateToUse.ToSharedRef());
+	}
+	ensure(SharedPlaybackStateToUse.IsValid());
+
+	if (UMovieSceneSequence* Sequence = WeakMovieScene->GetTypedOuter<UMovieSceneSequence>())
+	{
+		if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+		{
+			for (FMovieSceneBindingReference& BindingReference : BindingReferences->GetAllReferences())
+			{
+				if (BindingReference.CustomBinding)
+				{
+					if (UMovieSceneSpawnableBindingBase* SpawnableBinding = BindingReference.CustomBinding->AsSpawnable(SharedPlaybackStateToUse.ToSharedRef()))
+					{
+						if (ESpawnOwnership* SpawnOwnership = SpawnOwnershipMap.Find(BindingReference.ID))
+						{
+							SpawnableBinding->SpawnOwnership = *SpawnOwnership;
+						}
+					}
+				}
+			}
+		}
 	}
 
 	// Restore modified spawned sections
@@ -4252,9 +4462,8 @@ static void GetSequencerActorWorldTransforms(IMovieScenePlayer* Player, FMovieSc
 
 			for (int32 Index = 0; Index < Frames.Num(); ++Index)
 			{
-				const FFrameNumber& FrameNumber = Frames[Index];
-				FFrameTime GlobalTime(FrameNumber);
-				GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping(); //player evals in root time so need to go back to it.
+				FFrameNumber FrameNumber = Frames[Index];
+				FFrameTime GlobalTime = RootToLocalTransform.Inverse().TryTransformTime(FrameNumber).Get(FrameNumber); //player evals in root time so need to go back to it.
 
 				for (IMovieSceneToolsAnimationBakeHelper* BakeHelper : BakeHelpers)
 				{
@@ -4412,7 +4621,7 @@ bool MovieSceneToolHelpers::IsValidAsset(UMovieSceneSequence* Sequence, const FA
 	}
 
 	FAssetReferenceFilterContext AssetReferenceFilterContext;
-	AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(Sequence));
+	AssetReferenceFilterContext.AddReferencingAsset(FAssetData(Sequence));
 
 	TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
 
@@ -4832,85 +5041,6 @@ void MovieSceneToolHelpers::CalculateFramesBetween(
 	}
 }
 
-UENUM(BlueprintType)
-enum class FChannelMergeAlgorithm : uint8
-{
-	/**Average values together*/
-	Average,
-	/**Add values together*/
-	Add
-};
-
-//merge the channels onto the first one using the passed in algorithm, we may skip the last channel also (since it may be weight).
-template<typename ChannelType>
-static bool MergeChannels(TArray<ChannelType*>& Channels,const  TArray<UMovieSceneSection*>& Sections, const TRange<FFrameNumber>& Range,
-	FChannelMergeAlgorithm MergeAlgorithm)
-{
-	if (Channels.Num() < 2 && Channels.Num() != Sections.Num())
-	{
-		return false;
-	}
-	using ChannelValueType = typename ChannelType::ChannelValueType;
-	using CurveValueType = typename ChannelType::CurveValueType;
-
-	//base channel we set values on
-	ChannelType* BaseChannel = Channels[0];
-	TMovieSceneChannelData<ChannelValueType> BaseChannelData = BaseChannel->GetData();
-	//iterate over each key
-	TArray<FFrameNumber> KeyTimes;
-	TArray<FKeyHandle> Handles;
-	//cached set that we set at the end
-	TArray<TPair< FFrameNumber, ChannelValueType>> KeysToSet;
-	for (int32 ChannelIndex = 0; ChannelIndex < Channels.Num(); ++ChannelIndex)
-	{
-		KeyTimes.Reset();
-		Handles.Reset();
-		ChannelType* Channel = Channels[ChannelIndex];
-		Channel->GetKeys(Range, &KeyTimes, &Handles);
-		double DNumChannels = (double)(Channels.Num());
-		for (int32 FrameIndex = 0; FrameIndex < KeyTimes.Num(); ++FrameIndex)
-		{
-			const FFrameNumber& Frame = KeyTimes[FrameIndex];
-			const FFrameTime FrameTime(Frame);
-			int32 KeyIndex = Channel->GetData().GetIndex(Handles[FrameIndex]);
-			ChannelValueType Value = Channel->GetData().GetValues()[KeyIndex];
-			//got value with tangents and times, now we perform the operation
-			Value.Value = 0.0; //zero out the value we calculate it 
-			if (MergeAlgorithm == FChannelMergeAlgorithm::Average)
-			{
-				for (int32 WeightIndex = 0; WeightIndex < Sections.Num(); ++WeightIndex)
-				{
-					float Weight = Sections[WeightIndex]->GetTotalWeightValue(FrameTime);
-					CurveValueType WeightedValue = 0.0;
-					ChannelType* EachChannel = Channels[WeightIndex];
-					EachChannel->Evaluate(FrameTime, WeightedValue);
-					WeightedValue *= ((double)Weight / DNumChannels);
-					Value.Value += WeightedValue;
-				}
-			}
-			else if (MergeAlgorithm == FChannelMergeAlgorithm::Add)
-			{
-				for (int32 WeightIndex = 0; WeightIndex < Sections.Num(); ++WeightIndex)
-				{
-					float Weight = Sections[WeightIndex]->GetTotalWeightValue(FrameTime);
-					CurveValueType WeightedValue = 0.0;
-					ChannelType* EachChannel = Channels[WeightIndex];
-					EachChannel->Evaluate(FrameTime, WeightedValue);
-					WeightedValue *= Weight;
-					Value.Value += WeightedValue;
-				}
-			}
-			KeysToSet.Add(TPair<FFrameNumber, ChannelValueType>(Frame, Value));
-		}
-	}
-	for (TPair<FFrameNumber, ChannelValueType>& KeyToSet : KeysToSet)
-	{
-		MovieSceneToolHelpers::SetOrAddKey(BaseChannelData, KeyToSet.Key, KeyToSet.Value);
-	}
-
-	return true;
-}
-
 bool MovieSceneToolHelpers::OptimizeSection(const FKeyDataOptimizationParams& InParams, UMovieSceneSection* InSection)
 {
 	TArrayView<FMovieSceneFloatChannel*> FloatChannels = InSection->GetChannelProxy().GetChannels<FMovieSceneFloatChannel>();
@@ -4925,187 +5055,75 @@ bool MovieSceneToolHelpers::OptimizeSection(const FKeyDataOptimizationParams& In
 	}
 	return true;
 }
-
-template<typename ChannelType>
-static bool MergeSections(UMovieSceneSection* BaseSection, TArrayView<ChannelType*> BaseDoubleChannels, TArray<UMovieSceneSection*>& AbsoluteSections, TArray<UMovieSceneSection*>& AdditiveSections,
-	const TRange<FFrameNumber>& Range,bool bSkipLastChannel)
+void MovieSceneToolHelpers::SplitSectionsByBlendType(EMovieSceneBlendType BlendType, const TArray<UMovieSceneSection*>& InSections, TArray<UMovieSceneSection*>& Sections, TArray<UMovieSceneSection*>& OutBlendSections)
 {
-	TArrayView<ChannelType*> BaseChannels = BaseSection->GetChannelProxy().GetChannels<ChannelType>();
-	if (BaseChannels.Num() > 0)
+	for (UMovieSceneSection* InSection : InSections)
 	{
-		int32 SectionIndex = 0;
-		//sanity check to make sure channels are the same size
-		for (SectionIndex = 0; SectionIndex < AbsoluteSections.Num(); ++SectionIndex)
+		if (InSection &&
+			InSection->IsActive() &&
+			InSection->GetBlendType().IsValid())
 		{
-			TArrayView<ChannelType*>Channels = AbsoluteSections[SectionIndex]->GetChannelProxy().GetChannels<ChannelType>();
-			if (Channels.Num() != BaseChannels.Num())
+			if (InSection->GetBlendType().Get() == BlendType)
 			{
-				UE_LOG(LogMovieScene, Warning, TEXT("MergeSections:: Invalid number of channels"));
-				return false;
+				OutBlendSections.Add(InSection);
 			}
-		}
-		for (SectionIndex = 0; SectionIndex < AdditiveSections.Num(); ++SectionIndex)
-		{
-			TArrayView<ChannelType*>Channels = AdditiveSections[SectionIndex]->GetChannelProxy().GetChannels<ChannelType>();
-			if (Channels.Num() != BaseChannels.Num())
+			else 
 			{
-				UE_LOG(LogMovieScene, Warning, TEXT("MergeSections:: Invalid number of channels"));
-				return false;
+				Sections.Add(InSection);
 			}
-		}
-		BaseSection->Modify();
-
-		TArray<ChannelType*> Channels;
-		int32 ChannelIndex = 0;
-		bSkipLastChannel = false;
-		int32 BaseChannelsNum = bSkipLastChannel ? BaseChannels.Num() - 1 : BaseChannels.Num();
-		for (ChannelIndex = 0; ChannelIndex < BaseChannels.Num(); ++ChannelIndex)
-		{
-			if (AbsoluteSections.Num() > 0)
-			{
-				Channels.Reset();
-				for (SectionIndex = 0; SectionIndex < AbsoluteSections.Num(); ++SectionIndex)
-				{
-					TArrayView<ChannelType*>OurChannels = AbsoluteSections[SectionIndex]->GetChannelProxy().GetChannels<ChannelType>();
-					Channels.Add(OurChannels[ChannelIndex]);
-				}
-				//now blend them
-				if (MergeChannels(Channels, AbsoluteSections, Range,
-					FChannelMergeAlgorithm::Average) == false)
-				{
-					UE_LOG(LogMovieScene, Warning, TEXT("MergeSections:: Could not merge channels"));
-					return false;
-				}
-			}
-			if (AdditiveSections.Num() > 0)
-			{
-				//now do additives
-				Channels.Reset();
-				for (SectionIndex = 0; SectionIndex < AdditiveSections.Num(); ++SectionIndex)
-				{
-					TArrayView<ChannelType*>OurChannels = AdditiveSections[SectionIndex]->GetChannelProxy().GetChannels<ChannelType>();
-					Channels.Add(OurChannels[ChannelIndex]);
-				}
-				//now blend them
-				if (MergeChannels(Channels, AdditiveSections, Range,
-					FChannelMergeAlgorithm::Add) == false)
-				{
-					UE_LOG(LogMovieScene, Warning, TEXT("MergeSections:: Could not merge channels"));
-					return false;
-				}
-			}
-		}
-		for (ChannelType* Channel : BaseChannels)
-		{
-			Channel->AutoSetTangents();
 		}
 	}
-	else
-	{
-		return false;
-	}
-	return true;
 }
 
 bool MovieSceneToolHelpers::CollapseSection(TSharedPtr<ISequencer>& SequencerPtr, UMovieSceneTrack* OwnerTrack, TArray<UMovieSceneSection*> Sections,
 	const FBakingAnimationKeySettings& InSettings)
 {
-	if (SequencerPtr.IsValid() && Sections.Num() > 1)
+	if (SequencerPtr.IsValid() && Sections.Num() > 1 && OwnerTrack)
 	{
 		TRange<FFrameNumber> Range(InSettings.StartFrame, InSettings.EndFrame);
 		//we get the  first absolute section or if no absolute sections, first additive,
 		// that's the one we collapse onto
 		UMovieSceneSection* BaseSection = nullptr;
-		//get first absolute
-		for (UMovieSceneSection* Section: Sections)
-		{
-			if (Section->IsActive() == false)
-			{
-				continue;
-			}
-			if (Section->GetBlendType().Get() == EMovieSceneBlendType::Absolute)
-			{
-				BaseSection = Section;
-				break;
-			}
-			else if (Section->GetBlendType().Get() == EMovieSceneBlendType::Additive)
-			{
-				if (BaseSection == nullptr)
-				{
-					BaseSection = Section; //don't stop though may have an absolute later
-				}
-			}
-		}
-		if (BaseSection == nullptr)
-		{
-			UE_LOG(LogMovieScene, Warning, TEXT("CollapseSection:: Invalid section(s) to collapse"));
-			return false;
-		}
-		//now find other sections.
-		TArray<UMovieSceneSection*> AbsoluteSections;
-		TArray<UMovieSceneSection*> AdditiveSections;
-		for (UMovieSceneSection* Section : Sections)
-		{
-			if (Section != BaseSection && Section->IsActive())
-			{
-				if (Section->GetBlendType().Get() == EMovieSceneBlendType::Absolute)
-				{
-					AbsoluteSections.Add(Section);
-				}
-				else if (Section->GetBlendType().Get() == EMovieSceneBlendType::Additive)
-				{
-					AdditiveSections.Add(Section);
-				}
-			}
-		}
-		//now make sure we have sections to blend with and if so add base section to them
-		if (AbsoluteSections.Num() > 0 || AdditiveSections.Num() > 0)
-		{
-			if (AbsoluteSections.Num() > 0)
-			{
-				AbsoluteSections.Insert(BaseSection, 0);
-			}
-			if (AdditiveSections.Num() > 0)
-			{
-				AdditiveSections.Insert(BaseSection, 0);
-			}
-		}
-		else
-		{
-			UE_LOG(LogMovieScene, Warning, TEXT("CollapseSection:: Invalid section(s) to collapse"));
-			return false;
-		}
-
+		
 		FScopedTransaction Transaction(NSLOCTEXT("MovieSceneTools", "CollapseAllSections", "Collapse All Sections"));
+		for (int32 SectionIndex = Sections.Num() - 1; SectionIndex > 0; --SectionIndex)
+		{
+			BaseSection = Sections[SectionIndex - 1];
+			UMovieSceneSection* Section = Sections[SectionIndex];
+			if (BaseSection && Section && BaseSection->GetBlendType().IsValid() && Section->GetBlendType().IsValid())
+			{
+				OwnerTrack->Modify();
 
-		TArrayView<FMovieSceneFloatChannel*> BaseFloatChannels = BaseSection->GetChannelProxy().GetChannels<FMovieSceneFloatChannel>();
-		TArrayView<FMovieSceneDoubleChannel*> BaseDoubleChannels = BaseSection->GetChannelProxy().GetChannels<FMovieSceneDoubleChannel>();
-		if (BaseDoubleChannels.Num() > 0) //transforms
-		{
-			if (MergeSections(BaseSection, BaseDoubleChannels, AbsoluteSections, AdditiveSections, Range, false /*bSkipLastChannel*/) == false)
-			{
-				Transaction.Cancel();
-				return false;
-			}
-		}
-		else if(BaseFloatChannels.Num() > 0) //control rig
-		{
-			//skip weight channel for control rig
-			if (MergeSections(BaseSection, BaseFloatChannels, AbsoluteSections, AdditiveSections, Range, true /*bSkipLastChannel*/) == false)
-			{
-				Transaction.Cancel();
-				return false;
-			}
-		}
-		//delete other sections
-		OwnerTrack->Modify();
-		for (int32 SectionIndex = Sections.Num() - 1; SectionIndex >= 0; --SectionIndex)
-		{
-			if (Sections[SectionIndex] != BaseSection)
-			{
+				if (Section->IsActive())//active sections merge them
+				{
+					TArrayView<FMovieSceneFloatChannel*> BaseFloatChannels = BaseSection->GetChannelProxy().GetChannels<FMovieSceneFloatChannel>();
+					TArrayView<FMovieSceneDoubleChannel*> BaseDoubleChannels = BaseSection->GetChannelProxy().GetChannels<FMovieSceneDoubleChannel>();
+					if (BaseDoubleChannels.Num() > 0)
+					{
+						const int StartIndex = 0;
+						const int EndIndex = BaseDoubleChannels.Num() - 1;
+						MovieSceneToolHelpers::MergeSections<FMovieSceneDoubleChannel>(BaseSection,
+							Section, StartIndex, EndIndex, Range);
+
+					}
+					else if (BaseFloatChannels.Num() > 0)
+					{
+						const int StartIndex = 0;
+						const int EndIndex = BaseFloatChannels.Num() - 1;
+						MovieSceneToolHelpers::MergeSections<FMovieSceneFloatChannel>(BaseSection,
+							Section,StartIndex, EndIndex, Range);
+					}
+				}
+
+				//if merging override onto an additive we change it to an additive
+				if (Section->GetBlendType().Get() == EMovieSceneBlendType::Override &&
+					(BaseSection->GetBlendType().Get() == EMovieSceneBlendType::Additive))
+				{
+					BaseSection->SetBlendType(EMovieSceneBlendType::Override);
+				}
 				TArray<UMovieSceneSection*> AllSections = OwnerTrack->GetAllSections();
 				int32 TrackSectionIndex = INDEX_NONE;
-				if (AllSections.Find(Sections[SectionIndex], TrackSectionIndex))
+				if (AllSections.Find(Section, TrackSectionIndex))
 				{
 					if (TrackSectionIndex != INDEX_NONE)
 					{
@@ -5114,7 +5132,7 @@ bool MovieSceneToolHelpers::CollapseSection(TSharedPtr<ISequencer>& SequencerPtr
 				}
 			}
 		}
-		if (InSettings.bReduceKeys)
+		if (InSettings.bReduceKeys && BaseSection)
 		{
 			FKeyDataOptimizationParams Params;
 			Params.bAutoSetInterpolation = true;

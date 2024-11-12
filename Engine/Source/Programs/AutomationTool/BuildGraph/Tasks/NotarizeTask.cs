@@ -1,21 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildTool;
 using Microsoft.Extensions.Logging;
-
-using static AutomationTool.CommandUtils;
+using UnrealBuildTool;
 
 #pragma warning disable SYSLIB0014
 
@@ -30,31 +22,31 @@ namespace AutomationTool.Tasks
 		/// Path to the dmg to notarize
 		/// </summary>
 		[TaskParameter]
-		public string DmgPath;
+		public string DmgPath { get; set; }
 
 		/// <summary>
 		/// primary bundle ID
 		/// </summary>
 		[TaskParameter]
-		public string BundleID;
+		public string BundleID { get; set; }
 
 		/// <summary>
 		/// Apple ID Username
 		/// </summary>
 		[TaskParameter]
-		public string UserName;
+		public string UserName { get; set; }
 
 		/// <summary>
 		/// The keychain ID
 		/// </summary>
 		[TaskParameter]
-		public string KeyChainID;
+		public string KeyChainID { get; set; }
 
 		/// <summary>
 		/// When true the notarization ticket will be stapled
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool RequireStapling = false;
+		public bool RequireStapling { get; set; } = false;
 	}
 
 	[TaskElement("Notarize", typeof(NotarizeTaskParameters))]
@@ -63,156 +55,153 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Parameters for the task
 		/// </summary>
-		NotarizeTaskParameters Parameters;
+		readonly NotarizeTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor.
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public NotarizeTask(NotarizeTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public NotarizeTask(NotarizeTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Ensure running on a mac.
-			if(BuildHostPlatform.Current.Platform != UnrealTargetPlatform.Mac)
+			if (BuildHostPlatform.Current.Platform != UnrealTargetPlatform.Mac)
 			{
 				throw new AutomationException("Notarization can only be run on a Mac!");
 			}
 
 			// Ensure file exists
-			FileReference Dmg = new FileReference(Parameters.DmgPath);
-			if(!FileReference.Exists(Dmg))
+			FileReference dmg = new FileReference(_parameters.DmgPath);
+			if (!FileReference.Exists(dmg))
 			{
-				throw new AutomationException("Couldn't find a file to notarize at {0}", Dmg.FullName);
+				throw new AutomationException("Couldn't find a file to notarize at {0}", dmg.FullName);
 			}
 
-			int ExitCode = 0;
-			Logger.LogInformation("Uploading {Arg0} to the notarization server...", Dmg.FullName);
-			
+			int exitCode;
+			Logger.LogInformation("Uploading {Arg0} to the notarization server...", dmg.FullName);
+
 			// The notarytool will timeout after 5 retries or 1 hour. Whichever comes first.
 			const int MaxNumRetries = 5;
 			const int MaxTimeoutInMilliseconds = 3600000;
-			long TimeoutInMilliseconds = MaxTimeoutInMilliseconds;
-			string Output = "";
+			long timeoutInMilliseconds = MaxTimeoutInMilliseconds;
+			string output = "";
 
-			System.Diagnostics.Stopwatch TimeoutStopwatch = System.Diagnostics.Stopwatch.StartNew();
-			
-			for (int NumRetries = 0; NumRetries < MaxNumRetries; NumRetries++)
+			System.Diagnostics.Stopwatch timeoutStopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+			for (int numRetries = 0; numRetries < MaxNumRetries; numRetries++)
 			{
-				string CommandLine = string.Format("notarytool submit \"{0}\" --keychain-profile \"{1}\" --wait --timeout \"{2}\"", Dmg.FullName, Parameters.KeyChainID, TimeoutInMilliseconds);
-				Output = CommandUtils.RunAndLog("xcrun", CommandLine, out ExitCode);
-				
-				if (ExitCode == 0)
+				string commandLine = string.Format("notarytool submit \"{0}\" --keychain-profile \"{1}\" --wait --timeout \"{2}\"", dmg.FullName, _parameters.KeyChainID, timeoutInMilliseconds);
+				output = CommandUtils.RunAndLog("xcrun", commandLine, out exitCode);
+
+				if (exitCode == 0)
 				{
 					break;
 				}
-				
-				if (TimeoutStopwatch.ElapsedMilliseconds >= TimeoutInMilliseconds)
+
+				if (timeoutStopwatch.ElapsedMilliseconds >= timeoutInMilliseconds)
 				{
-					Logger.LogInformation("notarytool timed out after {TimeoutInMilliseconds}ms.", TimeoutInMilliseconds);
-					TimeoutStopwatch.Stop();
+					Logger.LogInformation("notarytool timed out after {TimeoutInMilliseconds}ms.", timeoutInMilliseconds);
+					timeoutStopwatch.Stop();
 				}
-				else if (NumRetries < MaxNumRetries)
+				else if (numRetries < MaxNumRetries)
 				{
-					Logger.LogInformation("notarytool failed with exit {ExitCode} attempting retry {NumRetries} of {MaxNumRetries}", ExitCode, NumRetries, MaxNumRetries);
-					Thread.Sleep(2000);
-					TimeoutInMilliseconds = MaxTimeoutInMilliseconds - TimeoutStopwatch.ElapsedMilliseconds;
+					Logger.LogInformation("notarytool failed with exit {ExitCode} attempting retry {NumRetries} of {MaxNumRetries}", exitCode, numRetries, MaxNumRetries);
+					await Task.Delay(2000);
+					timeoutInMilliseconds = MaxTimeoutInMilliseconds - timeoutStopwatch.ElapsedMilliseconds;
 					continue;
 				}
 
-
 				Logger.LogInformation("Retries have been exhausted");
-				throw new AutomationException("notarytool failed with exit {0}", ExitCode);
+				throw new AutomationException("notarytool failed with exit {0}", exitCode);
 			}
 
 			// Grab the UUID from the log
-			string RequestUUID = null;
+			string requestUuid;
 			try
 			{
-				RequestUUID = Regex.Match(Output, "id: ([a-zA-Z0-9]{8}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{12})").Groups[1].Value.Trim();
+				requestUuid = Regex.Match(output, "id: ([a-zA-Z0-9]{8}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{12})").Groups[1].Value.Trim();
 			}
-			catch (Exception Ex)
+			catch (Exception ex)
 			{
-				throw new AutomationException(Ex, "Couldn't get UUID from the log output {0}", Output);
+				throw new AutomationException(ex, "Couldn't get UUID from the log output {0}", output);
 			}
 
 			try
 			{
-				MatchCollection StatusMatches = Regex.Matches(Output, "(?<=status: ).+");
+				MatchCollection statusMatches = Regex.Matches(output, "(?<=status: ).+");
 				// The last status update is the right one.
-				string Status = StatusMatches[StatusMatches.Count - 1].Value.ToLower();
+				string status = statusMatches[statusMatches.Count - 1].Value.ToLower();
 
-				if (Status == "accepted")
+				if (status == "accepted")
 				{
-					if(Parameters.RequireStapling)
+					if (_parameters.RequireStapling)
 					{
 						// once we have a log file, print it out, staple, and we're done.
-						Logger.LogInformation("{Text}", GetRequestLogs(RequestUUID));
-						string CommandLine = string.Format("stapler staple {0}", Dmg.FullName);
-						Output = CommandUtils.RunAndLog("xcrun", CommandLine, out ExitCode);
-						if (ExitCode != 0)
+						Logger.LogInformation("{Text}", GetRequestLogs(requestUuid));
+						string commandLine = string.Format("stapler staple {0}", dmg.FullName);
+						output = CommandUtils.RunAndLog("xcrun", commandLine, out exitCode);
+						if (exitCode != 0)
 						{
-							throw new AutomationException("stapler failed with exit {0}", ExitCode);
+							throw new AutomationException("stapler failed with exit {0}", exitCode);
 						}
 					}
 				}
 				else
 				{
-					Logger.LogError("{Text}", GetRequestLogs(RequestUUID));
-					throw new AutomationException($"Could not notarize the app. Request status: {0}. See log output above.", Status);
+					Logger.LogError("{Text}", GetRequestLogs(requestUuid));
+					throw new AutomationException($"Could not notarize the app. Request status: {0}. See log output above.", status);
 				}
 			}
-			catch (Exception Ex)
+			catch (Exception ex)
 			{
-				if (Ex is AutomationException)
+				if (ex is AutomationException)
 				{
 					throw;
 				}
 				else
 				{
-					throw new AutomationException(Ex, "Querying for the notarization result failed, output: {0}", Output);
+					throw new AutomationException(ex, "Querying for the notarization result failed, output: {0}", output);
 				}
 			}
-
-			return Task.CompletedTask;
 		}
 
-		private string GetRequestLogs(string RequestUUID)
+		private string GetRequestLogs(string requestUuid)
 		{
 			try
 			{
-				string LogCommand = string.Format("notarytool log {0} --keychain-profile \"{1}\"", RequestUUID, Parameters.KeyChainID);
-				IProcessResult LogResult = CommandUtils.Run("xcrun", LogCommand);
+				string logCommand = string.Format("notarytool log {0} --keychain-profile \"{1}\"", requestUuid, _parameters.KeyChainID);
+				IProcessResult logResult = CommandUtils.Run("xcrun", logCommand);
 
-				string ResponseContent = null;
-				if (LogResult.bExitCodeSuccess)
+				string responseContent = null;
+				if (logResult.bExitCodeSuccess)
 				{
-					ResponseContent = LogResult.Output;
+					responseContent = logResult.Output;
 				}
 
-				return ResponseContent;
+				return responseContent;
 			}
-			catch (Exception Ex)
+			catch (Exception ex)
 			{
-				throw new AutomationException(Ex, string.Format("Couldn't complete the request, error: {0}", Ex.Message));
+				throw new AutomationException(ex, string.Format("Couldn't complete the request, error: {0}", ex.Message));
 			}
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -233,5 +222,4 @@ namespace AutomationTool.Tasks
 			yield break;
 		}
 	}
-
 }

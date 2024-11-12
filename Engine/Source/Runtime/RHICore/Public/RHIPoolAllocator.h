@@ -3,6 +3,8 @@
 
 #include "Containers/Array.h"
 #include "HAL/CriticalSection.h"
+#include "RHIFwd.h"
+#include "RHIPipeline.h"
 
 class FRHICommandListBase;
 struct FScriptContainerElement;
@@ -152,7 +154,7 @@ public:
 	RHICORE_API void Deallocate(FRHIPoolAllocationData& AllocationData);
 
 	// Bookkeeping and clearing
-	RHICORE_API void TryClear(FRHICommandListBase& RHICmdList, FRHIPoolAllocator* InAllocator, uint32 InMaxCopySize, uint32& CopySize, const TArray<FRHIMemoryPool*>& InTargetPools);
+	RHICORE_API void TryClear(FRHIContextArray const& Contexts, FRHIPoolAllocator* InAllocator, uint32 InMaxCopySize, uint32& CopySize, const TArray<FRHIMemoryPool*>& InTargetPools);
 
 	// Getters
 	int16 GetPoolIndex() const { return PoolIndex; }
@@ -227,7 +229,7 @@ public:
 	RHICORE_API void Destroy();
 
 	// Defrag & cleanup operation
-	RHICORE_API void Defrag(FRHICommandListBase& RHICmdList, uint32 InMaxCopySize, uint32& CurrentCopySize);
+	RHICORE_API void Defrag(FRHIContextArray const& Contexts, uint32 InMaxCopySize, uint32& CurrentCopySize);
 
 	// Stats
 	RHICORE_API void UpdateMemoryStats(uint32& IOMemoryAllocated, uint32& IOMemoryUsed, uint32& IOMemoryFree, uint32& IOMemoryEndFree, uint32& IOAlignmentWaste, uint32& IOAllocatedPageCount, uint32& IOFullPageCount);
@@ -243,7 +245,7 @@ protected:
 
 	// Handle a rhi specific defrag op
 	friend class FRHIMemoryPool;
-	virtual bool HandleDefragRequest(FRHICommandListBase& RHICmdList, FRHIPoolAllocationData* InSourceBlock, FRHIPoolAllocationData& InTmpTargetBlock) = 0;
+	virtual bool HandleDefragRequest(FRHIContextArray const& Contexts, FRHIPoolAllocationData* InSourceBlock, FRHIPoolAllocationData& InTmpTargetBlock) = 0;
 
 	// Const creation members - used to create new pools
 	const uint64 DefaultPoolSize;

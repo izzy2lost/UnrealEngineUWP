@@ -212,7 +212,7 @@ class StepHistoryDataView extends JobDataView {
 
 type SelectionType = d3.Selection<SVGGElement, unknown, null, undefined>;
 type Zoom = d3.ZoomBehavior<Element, unknown>;
-type Scalar = d3.ScaleLinear<number, number, never>;
+type Scalar = d3.ScaleLinear<number, number>;
 
 enum ZoomType {
    Current,
@@ -399,14 +399,14 @@ class StepHistoryRenderer {
       const arrowPoints = [[0, 0], [0, 10], [10, 5]] as any;
       svg.append("marker")
          .attr("id", "cmarker")
-         .attr('viewBox', [0, 0, 10, 10])
+         .attr('viewBox', [0, 0, 10, 10] as any)
          .attr("refX", 5)
          .attr("refY", 5)
          .attr("markerWidth", 5)
          .attr("markerHeight", 5)
          .attr("orient", 'auto-start-reverse')
          .append("path")
-         .attr('d', d3.line()(arrowPoints))
+         .attr('d', (d3.line() as any)(arrowPoints))
          .style("fill", dashboard.darktheme ? "#6D6C6B" : "#4D4C4B");
 
       //svg.append("g")
@@ -524,8 +524,11 @@ class StepHistoryRenderer {
             return;
          }
 
-         let mouseX = d3.pointer(event)[0];
-         let mouseY = d3.pointer(event)[1];
+         // bad typings
+         const _d3 = d3 as any;
+
+         let mouseX = _d3.pointer(event)[0];
+         let mouseY = _d3.pointer(event)[1];
 
          const ref = closestData(mouseX, mouseY);
 
@@ -548,11 +551,11 @@ class StepHistoryRenderer {
          if (ref) {
             this.showToolTip()
          }
-         dataView.tooltip.update(ref, d3.pointer(event, container)[0], mouseY, ref?.change);
+         dataView.tooltip.update(ref, _d3.pointer(event, container)[0], mouseY, ref?.change);
       }      
 
       // events
-      svg.on("wheel", (event) => { event.preventDefault(); })
+      svg.on("wheel", (event:any) => { event.preventDefault(); })
 
       svg.on("mousemove", (event) => { this.showToolTip(true); handleMouseMove(event);  });
       svg.on("mouseleave", (event) => { if (!dataView.tooltip.frozen) dataView.tooltip.update(undefined);})
@@ -640,6 +643,8 @@ const GraphTooltip: React.FC<{ dataView: StepHistoryDataView }> = observer(({ da
    const format = dashboard.display24HourClock ? "HH:mm:ss z" : "LT z";
    let displayTimeStr = displayTime.format('MMM Do') + ` at ${displayTime.format(format)}`;
 
+   const step = dataView.details?.stepById(dataView.stepId);
+
    return <div style={{
       position: "absolute",
       display: "block",
@@ -659,7 +664,7 @@ const GraphTooltip: React.FC<{ dataView: StepHistoryDataView }> = observer(({ da
       <Stack>
          <Link to={`/job/${ref.jobId}?step=${ref.stepId}`}><Stack horizontal>
             <StepRefStatusIcon stepRef={ref} />
-            <Text variant={textSize}>{dataView.details?.nodeByStepId(dataView.stepId)?.name}</Text>
+            <Text variant={textSize}>{step?.name}</Text>
          </Stack>
          </Link>
          <Stack style={{ paddingLeft: 2, paddingTop: 8 }} tokens={{ childrenGap: 8 }}>

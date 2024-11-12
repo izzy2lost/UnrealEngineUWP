@@ -58,7 +58,7 @@ namespace UnrealBuildTool
 					{
 						Result = GuidValue;
 						return true;
-					}		
+					}
 
 					throw new Exception($"Cannot parse \"{Line}\" for primitive type {T}");
 				}
@@ -103,7 +103,7 @@ namespace UnrealBuildTool
 				}
 				else if (T.IsGenericType)
 				{
-					if (T.GetGenericTypeDefinition() == typeof(Dictionary<,>) && TryParseAsMap(Line, out Dictionary<string,string>? DictValues))
+					if (T.GetGenericTypeDefinition() == typeof(Dictionary<,>) && TryParseAsMap(Line, out Dictionary<string, string>? DictValues))
 					{
 						// check types & early out if we can
 						Type KeyType = T.GetGenericArguments()[0];
@@ -116,7 +116,7 @@ namespace UnrealBuildTool
 
 						// make a generic dictionary
 						IDictionary ResultDict = (IDictionary)Activator.CreateInstance(T)!;
-						foreach (KeyValuePair<string,string> DictValue in DictValues)
+						foreach (KeyValuePair<string, string> DictValue in DictValues)
 						{
 							if (TryParseTyped(KeyType, DictValue.Key, out object? Key) && Key != null &&
 								TryParseTyped(ValType, DictValue.Value, out object? Value) && Value != null)
@@ -175,7 +175,7 @@ namespace UnrealBuildTool
 				{
 					if (Properties != null && Properties.ContainsKey("FilePath")) // FFilePath
 					{
-						Result = FileReference.Combine(Unreal.EngineDirectory, "Binaries", BuildHostPlatform.Current.Platform.ToString(), Properties["FilePath"] );
+						Result = FileReference.Combine(Unreal.EngineDirectory, "Binaries", BuildHostPlatform.Current.Platform.ToString(), Properties["FilePath"]);
 						return true;
 					}
 					else if (Properties == null)
@@ -192,7 +192,7 @@ namespace UnrealBuildTool
 				{
 					if (Properties != null && Properties.ContainsKey("Path")) // FDirectoryPath
 					{
-						Result = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", BuildHostPlatform.Current.Platform.ToString(), Properties["Path"] );
+						Result = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", BuildHostPlatform.Current.Platform.ToString(), Properties["Path"]);
 						return true;
 					}
 					else if (Properties == null)
@@ -220,7 +220,7 @@ namespace UnrealBuildTool
 					return false;
 				}
 				const System.Reflection.FieldAttributes IgnoreFlags = System.Reflection.FieldAttributes.Static | System.Reflection.FieldAttributes.InitOnly;
-				foreach (System.Reflection.FieldInfo Field in T.GetFields().Where( X => !X.Attributes.HasFlag(IgnoreFlags)))
+				foreach (System.Reflection.FieldInfo Field in T.GetFields().Where(X => !X.Attributes.HasFlag(IgnoreFlags)))
 				{
 					if (Properties.ContainsKey(Field.Name))
 					{
@@ -245,16 +245,13 @@ namespace UnrealBuildTool
 				}
 				return true;
 			}
-			catch(Exception)
+			catch (Exception)
 			{
 				//Log.TraceInformation(e.Message);
 				Result = null;
 				return false;
 			}
 		}
-
-
-
 
 		/// <summary>
 		/// Attempts to parse the given line as the given template type
@@ -289,7 +286,7 @@ namespace UnrealBuildTool
 			}
 
 			Result = new T[Lines.Length];
-			for ( int i = 0; i < Lines.Length; i++)
+			for (int i = 0; i < Lines.Length; i++)
 			{
 				if (!TryParseGeneric(Lines[i], out Result[i]!))
 				{

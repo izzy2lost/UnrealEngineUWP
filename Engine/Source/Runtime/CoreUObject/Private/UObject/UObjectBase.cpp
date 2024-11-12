@@ -33,7 +33,7 @@ DECLARE_CYCLE_STAT(TEXT("CreateStatID"), STAT_CreateStatID, STATGROUP_StatSystem
 
 DEFINE_LOG_CATEGORY_STATIC(LogUObjectBootstrap, Display, Display);
 
-#if CSV_PROFILER && CSV_TRACK_UOBJECT_COUNT
+#if CSV_PROFILER_STATS && CSV_TRACK_UOBJECT_COUNT
 namespace UObjectStats
 {
 	COREUOBJECT_API std::atomic<int32> GUObjectCount;
@@ -105,7 +105,7 @@ UObjectBase::UObjectBase( EObjectFlags InFlags )
 ,	ClassPrivate		(nullptr)
 ,	OuterPrivate		(nullptr)
 {
-#if CSV_PROFILER && CSV_TRACK_UOBJECT_COUNT
+#if CSV_PROFILER_STATS && CSV_TRACK_UOBJECT_COUNT
 	UObjectStats::IncrementUObjectCount();
 #endif
 }
@@ -134,10 +134,10 @@ UObjectBase::UObjectBase(UClass* InClass,
 	// Add to global table.
 	AddObject(InName, InInternalFlags, InInternalIndex, InSerialNumber);
 	
-#if CSV_PROFILER && CSV_TRACK_UOBJECT_COUNT
+#if CSV_PROFILER_STATS && CSV_TRACK_UOBJECT_COUNT
 	UObjectStats::IncrementUObjectCount();
 #endif
-		}	
+}	
 
 
 /**
@@ -149,15 +149,12 @@ UObjectBase::~UObjectBase()
 	if( UObjectInitialized() && ClassPrivate && !GIsCriticalError )
 	{
 		// Validate it.
-		check(IsValidLowLevel());
+		check(IsValidLowLevelForDestruction());
 		check(GetFName() == NAME_None);
-#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
-		UE::CoreUObject::Private::FreeObjectHandle(this);
-#endif 
-		GUObjectArray.FreeUObjectIndex(this);
+		checkf(InternalIndex == INDEX_NONE, TEXT("Object destroyed outside of GC (InternalIndex=%d, expected %d)"), InternalIndex, INDEX_NONE);	
 	}
 
-#if CSV_PROFILER && CSV_TRACK_UOBJECT_COUNT
+#if CSV_PROFILER_STATS && CSV_TRACK_UOBJECT_COUNT
 	UObjectStats::DecrementUObjectCount();
 #endif
 }
@@ -306,23 +303,28 @@ void UObjectBase::SetClass(UClass* NewClass)
 }
 #endif
 
+bool UObjectBase::IsValidLowLevelForDestruction() const
+{
+	if (this == nullptr)
+	{
+		UE_LOG(LogUObjectBase, Warning, TEXT("NULL object"));
+		return false;
+	}
+	if (!ClassPrivate)
+	{
+		UE_LOG(LogUObjectBase, Warning, TEXT("Object is not registered"));
+		return false;
+	}
+	return true;
+}
+
 /**
  * Checks to see if the object appears to be valid
  * @return true if this appears to be a valid object
  */
 bool UObjectBase::IsValidLowLevel() const
 {
-	if( this == nullptr )
-	{
-		UE_LOG(LogUObjectBase, Warning, TEXT("NULL object") );
-		return false;
-	}
-	if( !ClassPrivate )
-	{
-		UE_LOG(LogUObjectBase, Warning, TEXT("Object is not registered") );
-		return false;
-	}
-	return GUObjectArray.IsValid(this);
+	return IsValidLowLevelForDestruction() && GUObjectArray.IsValid(this);
 }
 
 bool UObjectBase::IsValidLowLevelFast(bool bRecursive /*= true*/) const
@@ -850,6 +852,16 @@ static void UObjectLoadAllCompiledInStructs()
 	StructRegistry.DoPendingOuterRegistrations(true);
 }
 
+void RegisterProcessNewlyLoadedUObjects()
+{
+	static bool bHasRegistered = false;
+	if (!bHasRegistered)
+	{
+		bHasRegistered = true;
+		FModuleManager::Get().OnProcessLoadedObjectsCallback().AddStatic(ProcessNewlyLoadedUObjects);
+	}
+}
+
 void ProcessNewlyLoadedUObjects(FName Package, bool bCanProcessNewlyLoadedObjects)
 {
 	SCOPED_BOOT_TIMING("ProcessNewlyLoadedUObjects");
@@ -861,6 +873,7 @@ void ProcessNewlyLoadedUObjects(FName Package, bool bCanProcessNewlyLoadedObject
 #endif
 	if (!bCanProcessNewlyLoadedObjects)
 	{
+		FCoreUObjectDelegates::CompiledInUObjectsRegisteredDelegate.Broadcast(Package, ECompiledInUObjectsRegisteredStatus::Delayed);
 		return;
 	}
 	LLM_SCOPE(ELLMTag::UObject);
@@ -888,10 +901,12 @@ void ProcessNewlyLoadedUObjects(FName Package, bool bCanProcessNewlyLoadedObject
 		UObjectProcessRegistrants();
 		UObjectLoadAllCompiledInStructs();
 
-		FCoreUObjectDelegates::CompiledInUObjectsRegisteredDelegate.Broadcast(Package);
+		FCoreUObjectDelegates::CompiledInUObjectsRegisteredDelegate.Broadcast(Package, ECompiledInUObjectsRegisteredStatus::PreCDO);
 
 		UObjectLoadAllCompiledInDefaultProperties(AllNewClasses);
 	}
+
+	FCoreUObjectDelegates::CompiledInUObjectsRegisteredDelegate.Broadcast(Package, ECompiledInUObjectsRegisteredStatus::PostCDO);
 
 #if WITH_RELOAD
 	IReload* Reload = GetActiveReloadInterface();
@@ -937,14 +952,6 @@ static FAutoConsoleVariableRef CMaxObjectsNotConsideredByGC(
 	ECVF_Default
 	);
 
-static int32 GSizeOfPermanentObjectPool;
-static FAutoConsoleVariableRef CSizeOfPermanentObjectPool(
-	TEXT("gc.SizeOfPermanentObjectPool"),
-	GSizeOfPermanentObjectPool,
-	TEXT("Placeholder console variable, currently not used in runtime."),
-	ECVF_Default
-	);
-
 static int32 GMaxObjectsInEditor;
 static FAutoConsoleVariableRef CMaxObjectsInEditor(
 	TEXT("gc.MaxObjectsInEditor"),
@@ -971,7 +978,6 @@ void UObjectBaseInit()
 
 	// Zero initialize and later on get value from .ini so it is overridable per game/ platform...
 	int32 MaxObjectsNotConsideredByGC = 0;
-	int32 SizeOfPermanentObjectPool = 0;
 	int32 MaxUObjects = 2 * 1024 * 1024; // Default to ~2M UObjects
 	bool bPreAllocateUObjectArray = false;	
 
@@ -989,9 +995,6 @@ void UObjectBaseInit()
 		else
 		{
 			GConfig->GetInt(TEXT("/Script/Engine.GarbageCollectionSettings"), TEXT("gc.MaxObjectsNotConsideredByGC"), MaxObjectsNotConsideredByGC, GEngineIni);
-
-			// Not used on PC as in-place creation inside bigger pool interacts with the exit purge and deleting UObject directly.
-			GConfig->GetInt(TEXT("/Script/Engine.GarbageCollectionSettings"), TEXT("gc.SizeOfPermanentObjectPool"), SizeOfPermanentObjectPool, GEngineIni);
 		}
 
 		// Maximum number of UObjects in cooked game
@@ -1012,23 +1015,16 @@ void UObjectBaseInit()
 #endif
 	}
 
-	if (MaxObjectsNotConsideredByGC <= 0 && SizeOfPermanentObjectPool > 0)
+	if (MaxObjectsNotConsideredByGC == 0)
 	{
-		// If permanent object pool is enabled but disregard for GC is disabled, GC will mark permanent object pool objects
-		// as unreachable and may destroy them so disable permanent object pool too.
-		// An alternative would be to make GC not mark permanent object pool objects as unreachable but then they would have to
-		// be considered as root set objects because they could be referencing objects from outside of permanent object pool.
-		// This would be inconsistent and confusing and also counter productive (the more root set objects the more expensive MarkAsUnreachable phase is).
-		SizeOfPermanentObjectPool = 0;
-		UE_LOG(LogInit, Warning, TEXT("Disabling permanent object pool because disregard for GC is disabled (gc.MaxObjectsNotConsideredByGC=%d)."), MaxObjectsNotConsideredByGC);
+		//Disable persistent UObjects pool if there are 0 objects not considered by GC
+		GUObjectAllocator.DisablePersistentAllocator();
 	}
 
 	// Log what we're doing to track down what really happens as log in LaunchEngineLoop doesn't report those settings in pristine form.
-	UE_LOG(LogInit, Log, TEXT("%s for max %d objects, including %i objects not considered by GC, pre-allocating %i bytes for permanent pool."), 
-		bPreAllocateUObjectArray ? TEXT("Pre-allocating") : TEXT("Presizing"),
-		MaxUObjects, MaxObjectsNotConsideredByGC, SizeOfPermanentObjectPool);
+	UE_LOG(LogInit, Log, TEXT("%s for max %d objects, including %i objects not considered by GC."), 
+		bPreAllocateUObjectArray ? TEXT("Pre-allocating") : TEXT("Presizing"), MaxUObjects, MaxObjectsNotConsideredByGC);
 
-	GUObjectAllocator.AllocatePermanentObjectPool(SizeOfPermanentObjectPool);
 	GUObjectArray.AllocateObjectPool(MaxUObjects, MaxObjectsNotConsideredByGC, bPreAllocateUObjectArray);
 #if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	UE::CoreUObject::Private::InitObjectHandles(GUObjectArray.GetObjectArrayCapacity());

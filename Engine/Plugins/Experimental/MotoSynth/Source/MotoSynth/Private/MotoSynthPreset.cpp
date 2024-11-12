@@ -35,19 +35,19 @@ void UMotoSynthPreset::PostLoad()
 void UMotoSynthPreset::StartEnginePreview()
 {
 	// Set all the state of the previewer that needs setting
-	EnginePreviewer.SetSettings(Settings);
+	EnginePreviewer->SetSettings(Settings);
 
 	if (FRichCurve* RichRPMCurve = EnginePreviewRPMCurve.GetRichCurve())
 	{
-		EnginePreviewer.SetPreviewRPMCurve(*RichRPMCurve);
+		EnginePreviewer->SetPreviewRPMCurve(*RichRPMCurve);
 	}
 
-	EnginePreviewer.StartPreviewing();
+	EnginePreviewer->StartPreviewing();
 }
 
 void UMotoSynthPreset::StopEnginePreview()
 {
-	EnginePreviewer.StopPreviewing();
+	EnginePreviewer->StopPreviewing();
 }
 
 void UMotoSynthPreset::DumpRuntimeMemoryUsage()
@@ -80,7 +80,7 @@ void UMotoSynthPreset::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 		{
 			if (FRichCurve* RichRPMCurve = EnginePreviewRPMCurve.GetRichCurve())
 			{
-				EnginePreviewer.SetPreviewRPMCurve(*RichRPMCurve);
+				EnginePreviewer->SetPreviewRPMCurve(*RichRPMCurve);
 			}
 		}
 		else
@@ -88,12 +88,12 @@ void UMotoSynthPreset::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 			// Only set the settings on the engine previewer when we have both a acceleration and deceleration source
 			if (Settings.AccelerationSource && Settings.DecelerationSource)
 			{
-				EnginePreviewer.SetSettings(Settings);
+				EnginePreviewer->SetSettings(Settings);
 			}
 			else
 			{
 				// Stop previewing if we've cleared out any sources (i.e. were previously previewing an accel/decel source, stop it now if one of them is null)
-				EnginePreviewer.StopPreviewing();
+				EnginePreviewer->StopPreviewing();
 			}
 		}
 	}
@@ -108,7 +108,6 @@ FMotoSynthEnginePreviewer::FMotoSynthEnginePreviewer()
 
 FMotoSynthEnginePreviewer::~FMotoSynthEnginePreviewer()
 {
-	StopPreviewing();
 }
 
 void FMotoSynthEnginePreviewer::SetSettings(const FMotoSynthRuntimeSettings& InSettings)

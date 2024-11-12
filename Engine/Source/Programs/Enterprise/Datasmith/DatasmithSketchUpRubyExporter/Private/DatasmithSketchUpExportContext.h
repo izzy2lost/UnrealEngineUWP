@@ -316,6 +316,7 @@ namespace DatasmithSketchUp
 		SULayerRef GetLayer(FLayerIDType LayerID);
 
 		FLayerIDType GetLayerId(SULayerRef LayerRef);
+		bool IsDefault(FLayerIDType LayerID);
 
 		TMap<FLayerIDType, bool> LayerVisibility;
 	private:
@@ -373,6 +374,6 @@ namespace DatasmithSketchUp
 		bool bColorByLayer = false;
 		bool bColorByLayerInvaliated = true;
 
-		TArray<TFuture<bool>> MeshExportTasks;
+		TArray<TSharedFuture<bool>> MeshExportTasks;
 	};
 }

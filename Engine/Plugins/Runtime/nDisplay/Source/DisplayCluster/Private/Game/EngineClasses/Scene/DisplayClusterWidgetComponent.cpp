@@ -36,6 +36,9 @@ public:
 	{
 		bWillEverBeLit = false;
 
+		// GetDynamicMeshElements needs to run single pass, because a single set of StaticMeshVertexBuffers are shared across all views.
+		bSinglePassGDME = true;
+
 		StaticMeshVertexBuffers.PositionVertexBuffer.Init(1);
 		StaticMeshVertexBuffers.StaticMeshVertexBuffer.Init(1, 1);
 		StaticMeshVertexBuffers.ColorVertexBuffer.Init(1);

@@ -3,6 +3,7 @@
 #include "Tools/SequencerEditTool_Movement.h"
 #include "MVVM/ViewModels/SectionModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "SequencerTimeDomainOverride.h"
 #include "MVVM/Selection/Selection.h"
 #include "Editor.h"
 #include "Fonts/FontMeasure.h"
@@ -50,12 +51,15 @@ FReply FSequencerEditTool_Movement::OnMouseButtonDown(SWidget& OwnerWidget, cons
 
 		DelayedDrag = FDelayedDrag_Hotspot(VirtualTrackArea.CachedTrackAreaGeometry().AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()), MouseEvent.GetEffectingButton(), Hotspot);
 
- 		if (Sequencer.GetSequencerSettings()->GetSnapPlayTimeToPressedKey() || (MouseEvent.IsShiftDown() && MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton) )
+		if (Sequencer.GetSequencerSettings()->GetSnapPlayTimeToPressedKey() || (MouseEvent.IsShiftDown() && MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton) )
 		{
 			if (TSharedPtr<FKeyHotspot> KeyHotspot = HotspotCast<FKeyHotspot>(DelayedDrag->Hotspot))
 			{
-				if (TOptional<FFrameNumber> Time = KeyHotspot->GetTime())
+				TOptional<FFrameNumber> Time   = KeyHotspot->GetTime();
+				TOptional<ETimeDomain>  Domain = KeyHotspot->GetDomain();
+				if (Time && Domain)
 				{
+					FTimeDomainOverride DomainOverride = Sequencer.OverrideTimeDomain(Domain.GetValue());
 					Sequencer.SetLocalTime(Time.GetValue());
 				}
 			}
@@ -153,6 +157,8 @@ TSharedPtr<UE::Sequencer::ISequencerEditToolDragOperation> FSequencerEditTool_Mo
 	using namespace UE::Sequencer;
 
 	FSequencerSelection& Selection = *Sequencer.GetViewModel()->GetSelection();
+	FSelectionEventSuppressor SuppressEvents = Selection.SuppressEvents();
+
 	TSharedRef<SSequencer> SequencerWidget = StaticCastSharedRef<SSequencer>(Sequencer.GetSequencerWidget());
 
 	GetHotspotTime(OriginalHotspotTime);
@@ -253,6 +259,7 @@ TSharedPtr<UE::Sequencer::ISequencerEditToolDragOperation> FSequencerEditTool_Mo
 				if (!Selection.KeySelection.IsSelected(Key.KeyHandle))
 				{
 					bUniqueDrag = true;
+					break;
 				}
 			};
 

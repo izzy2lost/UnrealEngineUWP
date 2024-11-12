@@ -70,8 +70,9 @@ enum class ELoginStatus : uint8
 	/** Player has been validated by the platform specific authentication service. */
 	LoggedIn
 };
-ONLINESERVICESINTERFACE_API const TCHAR* LexToString(ELoginStatus Status);
-ONLINESERVICESINTERFACE_API void LexFromString(ELoginStatus& OutStatus, const TCHAR* InStr);
+ONLINESERVICESINTERFACE_API const TCHAR* LexToString(ELoginStatus Value);
+ONLINESERVICESINTERFACE_API bool LexTryParseString(ELoginStatus& OutValue, const TCHAR* InStr);
+ONLINESERVICESINTERFACE_API void LexFromString(ELoginStatus& OutValue, const TCHAR* InStr);
 
 inline bool IsOnlineStatus(ELoginStatus LoginStatus)
 {
@@ -88,8 +89,9 @@ enum class ERemoteAuthTicketAudience : uint8
 	 */
 	DedicatedServer,
 };
-ONLINESERVICESINTERFACE_API const TCHAR* LexToString(ERemoteAuthTicketAudience Audience);
-ONLINESERVICESINTERFACE_API void LexFromString(ERemoteAuthTicketAudience& OutAudience, const TCHAR* InStr);
+ONLINESERVICESINTERFACE_API const TCHAR* LexToString(ERemoteAuthTicketAudience Value);
+ONLINESERVICESINTERFACE_API bool LexTryParseString(ERemoteAuthTicketAudience& OutValue, const TCHAR* InStr);
+ONLINESERVICESINTERFACE_API void LexFromString(ERemoteAuthTicketAudience& OutValue, const TCHAR* InStr);
 
 /** Some auth interfaces have more than one method for providing credentials when linking to an
  *  external account. An example usage is when the auth interface can provide a token for linking
@@ -103,8 +105,9 @@ enum class EExternalAuthTokenMethod : uint8
 	/** Acquire an external auth token using the secondary method provided by the auth interface. */
 	Secondary,
 };
-ONLINESERVICESINTERFACE_API const TCHAR* LexToString(EExternalAuthTokenMethod Method);
-ONLINESERVICESINTERFACE_API void LexFromString(EExternalAuthTokenMethod& OutMethod, const TCHAR* InStr);
+ONLINESERVICESINTERFACE_API const TCHAR* LexToString(EExternalAuthTokenMethod Value);
+ONLINESERVICESINTERFACE_API bool LexTryParseString(EExternalAuthTokenMethod& OutValue, const TCHAR* InStr);
+ONLINESERVICESINTERFACE_API void LexFromString(EExternalAuthTokenMethod& OutValue, const TCHAR* InStr);
 
 struct FAccountInfo
 {
@@ -189,6 +192,26 @@ struct FAuthLogout
 	};
 };
 
+struct FAuthLinkAccount
+{
+	static constexpr TCHAR Name[] = TEXT("LinkAccount");
+
+	struct Params
+	{
+		/** The PlatformUserId of the Local User making the request. */
+		FPlatformUserId PlatformUserId = PLATFORMUSERID_NONE;
+		/** The id associated with external auth data used to continue a previous login attempt. */
+		FLoginContinuationId ContinuationId;
+		/** Implementation dependent tags which affect how the account is linked. */
+		TArray<FName> Tags;
+	};
+
+	struct Result
+	{
+		TSharedRef<const FAccountInfo> AccountInfo;
+	};
+};
+
 struct FAuthModifyAccountAttributes
 {
 	static constexpr TCHAR Name[] = TEXT("ModifyAccountAttributes");
@@ -234,6 +257,8 @@ struct FAuthQueryExternalAuthToken
 		FAccountId LocalAccountId;
 		/** The method of external auth to provide. */
 		EExternalAuthTokenMethod Method = EExternalAuthTokenMethod::Primary;
+		/** The Relying Party for the external auth token. */
+		FString RelyingParty;
 	};
 
 	struct Result
@@ -358,6 +383,37 @@ struct FAuthGetAllLocalOnlineUsers
 	};
 };
 
+struct FAuthGetLinkAccountContinuationId
+{
+	static constexpr TCHAR Name[] = TEXT("GetLinkAccountContinuationId");
+
+	struct Params
+	{
+		/** The PlatformUserId of the Local User making the request. */
+		FPlatformUserId PlatformUserId = PLATFORMUSERID_NONE;
+	};
+
+	struct Result
+	{
+		/** The continuation id which identifies the external auth to be linked. */
+		FLoginContinuationId ContinuationId;
+	};
+};
+
+struct FAuthGetRelyingParty
+{
+	static constexpr TCHAR Name[] = TEXT("GetRelyingParty");
+
+	struct Params
+	{
+	};
+
+	struct Result
+	{
+		FString RelyingParty;
+	};
+};
+
 /** Struct for LoginStatusChanged event */
 struct FAuthLoginStatusChanged
 {
@@ -393,6 +449,10 @@ public:
 	/**
 	 * Authenticate a local user. If necessary, retrieve and maintain an access token for the
 	 * duration of the auth session.
+	 * 
+	 * Returns Errors::InvalidUser when no user has been associated with the provided credentials.
+	 * GetLinkAccountContinuationId can then be used to retrieve a continuance token which can be
+	 * used to call LinkAccount to associate credentials with the service.
 	 */
 	virtual TOnlineAsyncOpHandle<FAuthLogin> Login(FAuthLogin::Params&& Params) = 0;
 
@@ -400,6 +460,11 @@ public:
 	 * Concludes the auth session for the local user.
 	 */
 	virtual TOnlineAsyncOpHandle<FAuthLogout> Logout(FAuthLogout::Params&& Params) = 0;
+
+	/**
+	 * Link a logged in account to an external auth method using a continuation token from a previous login attempt.
+	 */
+	virtual TOnlineAsyncOpHandle<FAuthLinkAccount> LinkAccount(FAuthLinkAccount::Params&& Params) = 0;
 
 	/**
 	 * Modify attributes associated with an authenticated account. Signals OnAccountAttributesChanged on completion.
@@ -479,6 +544,16 @@ public:
 	virtual TOnlineResult<FAuthGetAllLocalOnlineUsers> GetAllLocalOnlineUsers(FAuthGetAllLocalOnlineUsers::Params&& Params) const = 0;
 
 	/**
+	 * Retrieve the continuation id from a previous login attempt which used an external auth token and failed with Errors::InvalidUser.
+	 */
+	virtual TOnlineResult<FAuthGetLinkAccountContinuationId> GetLinkAccountContinuationId(FAuthGetLinkAccountContinuationId::Params&& Params) const = 0;
+
+	/**
+	 * Retrieve the relying party to use when fetching an external token to authenticate with this interface.
+	 */
+	virtual TOnlineResult<FAuthGetRelyingParty> GetRelyingParty(FAuthGetRelyingParty::Params&& Params) const = 0;
+
+	/**
 	 * Triggered when the login status for a logged in user changes.
 	 */
 	virtual TOnlineEvent<void(const FAuthLoginStatusChanged&)> OnLoginStatusChanged() = 0;
@@ -499,6 +574,11 @@ public:
 	 * Helper for querying the login status of a local user.
 	 */
 	virtual bool IsLoggedIn(const FAccountId& AccountId) const = 0;
+
+	/**
+	 * Helper for querying the login status of a local user by platform user id.
+	 */
+	virtual bool IsLoggedIn(const FPlatformUserId& PlatformUserId) const = 0;
 };
 
 namespace Meta {
@@ -549,6 +629,15 @@ BEGIN_ONLINE_STRUCT_META(FAuthLogout::Params)
 END_ONLINE_STRUCT_META()
 
 BEGIN_ONLINE_STRUCT_META(FAuthLogout::Result)
+END_ONLINE_STRUCT_META()
+
+BEGIN_ONLINE_STRUCT_META(FAuthLinkAccount::Params)
+	ONLINE_STRUCT_FIELD(FAuthLinkAccount::Params, PlatformUserId),
+	ONLINE_STRUCT_FIELD(FAuthLinkAccount::Params, ContinuationId)
+END_ONLINE_STRUCT_META()
+
+BEGIN_ONLINE_STRUCT_META(FAuthLinkAccount::Result)
+	ONLINE_STRUCT_FIELD(FAuthLinkAccount::Result, AccountInfo)
 END_ONLINE_STRUCT_META()
 
 BEGIN_ONLINE_STRUCT_META(FAuthModifyAccountAttributes::Params)
@@ -631,6 +720,21 @@ END_ONLINE_STRUCT_META()
 
 BEGIN_ONLINE_STRUCT_META(FAuthGetAllLocalOnlineUsers::Result)
 	ONLINE_STRUCT_FIELD(FAuthGetAllLocalOnlineUsers::Result, AccountInfo)
+END_ONLINE_STRUCT_META()
+
+BEGIN_ONLINE_STRUCT_META(FAuthGetLinkAccountContinuationId::Params)
+	ONLINE_STRUCT_FIELD(FAuthGetLinkAccountContinuationId::Params, PlatformUserId)
+END_ONLINE_STRUCT_META()
+
+BEGIN_ONLINE_STRUCT_META(FAuthGetLinkAccountContinuationId::Result)
+	ONLINE_STRUCT_FIELD(FAuthGetLinkAccountContinuationId::Result, ContinuationId)
+END_ONLINE_STRUCT_META()
+
+BEGIN_ONLINE_STRUCT_META(FAuthGetRelyingParty::Params)
+END_ONLINE_STRUCT_META()
+
+BEGIN_ONLINE_STRUCT_META(FAuthGetRelyingParty::Result)
+	ONLINE_STRUCT_FIELD(FAuthGetRelyingParty::Result, RelyingParty)
 END_ONLINE_STRUCT_META()
 
 BEGIN_ONLINE_STRUCT_META(FAuthLoginStatusChanged)

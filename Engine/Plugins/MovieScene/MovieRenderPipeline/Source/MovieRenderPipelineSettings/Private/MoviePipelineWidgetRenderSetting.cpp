@@ -73,6 +73,7 @@ void UMoviePipelineWidgetRenderer::RenderSample_GameThreadImpl(const FMoviePipel
 			// Cast the interface to a widget is a little yucky but the implementation is unlikely to change.
 			TSharedPtr<SGameLayerManager> GameLayerManager = StaticCastSharedPtr<SGameLayerManager>(LocalPlayer->ViewportClient->GetGameLayerManager());
 
+			//  This leaves the texture in SRV state so no transition is needed.
 			WidgetRenderer->DrawWidget(BackbufferRenderTarget, GameLayerManager.ToSharedRef(), 1.f, FVector2D(RenderTarget->SizeX, RenderTarget->SizeY), (float)InSampleState.OutputState.TimeData.FrameDeltaTime);
 
 			TSharedPtr<FMoviePipelineOutputMerger, ESPMode::ThreadSafe> OutputBuilder = GetPipeline()->OutputBuilder;
@@ -98,7 +99,7 @@ void UMoviePipelineWidgetRenderer::RenderSample_GameThreadImpl(const FMoviePipel
 					FrameData->SortingOrder = 3;
 					FrameData->bCompositeToFinalImage = bComposite;
 
-					TUniquePtr<FImagePixelData> PixelData = MakeUnique<TImagePixelData<FColor>>(InSampleState.BackbufferSize, TArray64<FColor>(MoveTemp(RawPixels)), FrameData);
+					TUniquePtr<FImagePixelData> PixelData = MakeUnique<TImagePixelData<FColor>>(SourceRect.Size(), TArray64<FColor>(MoveTemp(RawPixels)), FrameData);
 
 					OutputBuilder->OnCompleteRenderPassDataAvailable_AnyThread(MoveTemp(PixelData));
 				});
@@ -113,7 +114,9 @@ void UMoviePipelineWidgetRenderer::SetupImpl(const MoviePipeline::FMoviePipeline
 
 	bool bInForceLinearGamma = false;
 
-	FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(GetPipeline()->GetPipelinePrimaryConfig(), GetPipeline()->GetActiveShotList()[GetPipeline()->GetCurrentShotIndex()]);
+	// TODO: Add multi-camera support? For now, simply use the default player controller camera overscan
+	const float CameraOverscan = GetPipeline()->GetCachedCameraOverscan(INDEX_NONE);
+	FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(GetPipeline()->GetPipelinePrimaryConfig(), GetPipeline()->GetActiveShotList()[GetPipeline()->GetCurrentShotIndex()], CameraOverscan);
 
 	int32 MaxResolution = GetMax2DTextureDimension();
 	if (OutputResolution.X > MaxResolution || OutputResolution.Y > MaxResolution)

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Async/TaskGraphInterfaces.h"
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 

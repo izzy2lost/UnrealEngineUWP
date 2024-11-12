@@ -579,7 +579,7 @@ namespace UnrealBuildTool
 						// make a temp target for hybrid content-as-code projects
 						if (TargetProjectFile != null)
 						{
-							NativeProjects.ConditionalMakeTempTargetForHybridProject(TargetProjectFile, new List<UnrealTargetPlatform>(1) { Platform }, Logger);
+							NativeProjects.ConditionalMakeTempTargetForHybridProject(TargetProjectFile, Logger);
 						}
 
 						if (ParamArchitectures != null)
@@ -607,6 +607,10 @@ namespace UnrealBuildTool
 					}
 				}
 			}
+
+			// Register any found descriptors for telemetry, using the first as the primary target
+			TelemetryService.Get().SetPrimaryTargetDetails(TargetDescriptors.FirstOrDefault());
+			TargetDescriptors.ForEach(x => TelemetryService.Get().AddEndpointsFromConfig(x.ProjectFile?.Directory));
 		}
 
 		/// <summary>
@@ -634,9 +638,9 @@ namespace UnrealBuildTool
 				}
 			}
 
-			if (UnrealBuildTool.IsProjectInstalled())
+			if (Unreal.IsProjectInstalled())
 			{
-				ProjectFile = UnrealBuildTool.GetInstalledProjectFile()!;
+				ProjectFile = Unreal.GetInstalledProjectFile()!;
 				return true;
 			}
 

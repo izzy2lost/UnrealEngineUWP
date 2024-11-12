@@ -9,10 +9,8 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "GenericPlatform/GenericPlatformChunkInstall.h"
 #include "ContentEncryptionConfig.h"
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "AssetRegistry/AssetData.h"
-#endif
+#include "Misc/SourceLocation.h"
+#include "Misc/SourceLocationUtils.h"
 
 #include "AssetManager.generated.h"
 
@@ -71,6 +69,12 @@ public:
 
 	/** Type representing a packaging chunk, this is a virtual type that is never loaded off disk */
 	static ENGINE_API const FPrimaryAssetType PackageChunkType;
+
+	/**
+	 * Asset Type used in return values to indicate that a specific asset of a given PrimaryAssetType should be suppressed
+	 * and not considered a PrimaryAsset.
+	 */
+	static ENGINE_API const FPrimaryAssetType SuppressionType;
 
 	/** Virtual path $AssetSearchRoots, replaced with all roots including defaults like /Game */
 	static ENGINE_API const FString AssetSearchRootsVirtualPath;
@@ -311,7 +315,8 @@ public:
 	ENGINE_API void GetPrimaryAssetBundleStateMap(TMap<FPrimaryAssetId, TArray<FName>>& BundleStateMap, bool bForceCurrent = false) const;
 
 	/**
-	 * Fills in a set of object paths with the assets that need to be loaded, for a given Primary Asset and bundle list
+	 * Fills in a set of object paths with the assets that need to be loaded, for a given Primary Asset and bundle list.
+	 * Prefer to use GetPrimaryAssetLoadList instead, because this overload creates additional allocation and is here just for backward compatibility.
 	 *
 	 * @param OutAssetLoadSet	Set that will have asset paths added to it
 	 * @param PrimaryAssetId	Asset that would be loaded
@@ -320,6 +325,18 @@ public:
 	 * @return					True if primary asset id was found
 	 */
 	ENGINE_API bool GetPrimaryAssetLoadSet(TSet<FSoftObjectPath>& OutAssetLoadSet, const FPrimaryAssetId& PrimaryAssetId, const TArray<FName>& LoadBundles, bool bLoadRecursive) const;
+
+	/**
+	 * Fills in a array of unique object paths with the assets that need to be loaded, for a given Primary Asset and bundle list
+	 *
+	 * @param OutAssetLoadList	TArray that will have asset paths added to it
+	 * @param PrimaryAssetId	Asset that would be loaded
+	 * @param LoadBundles		List of bundles to load for those assets
+	 * @param bLoadRecursive	If true, this will call RecursivelyExpandBundleData and recurse into sub bundles of other primary assets loaded by a bundle reference
+	 * @param bEnsureUniqueness Only unique items will be inserted in OutAssetLoadList
+	 * @return					True if primary asset id was found
+	 */
+	ENGINE_API bool GetPrimaryAssetLoadList(TArray<FSoftObjectPath>& OutAssetLoadList, const FPrimaryAssetId& PrimaryAssetId, const TArray<FName>& LoadBundles, bool bLoadRecursive, bool bEnsureUniqueness = true) const;
 
 	/**
 	 * Preloads data for a set of assets in a specific bundle state, and returns a handle you must keep active.
@@ -334,8 +351,30 @@ public:
 	 */
 	ENGINE_API virtual TSharedPtr<FStreamableHandle> PreloadPrimaryAssets(const TArray<FPrimaryAssetId>& AssetsToLoad, const TArray<FName>& LoadBundles, bool bLoadRecursive, FStreamableDelegate DelegateToCall = FStreamableDelegate(), TAsyncLoadPriority Priority = FStreamableManager::DefaultAsyncLoadPriority);
 
-	/** Quick wrapper to async load some non primary assets with the primary streamable manager. This will not auto release the handle, release it if needed */
-	ENGINE_API virtual TSharedPtr<FStreamableHandle> LoadAssetList(const TArray<FSoftObjectPath>& AssetList, FStreamableDelegate DelegateToCall = FStreamableDelegate(), TAsyncLoadPriority Priority = FStreamableManager::DefaultAsyncLoadPriority, const FString& DebugName = FStreamableHandle::HandleDebugName_AssetList);
+	/**
+	 * Load non primary assets with the primary streamable manager.
+	 * This will not auto release the handle, release it if needed.
+	 * 
+	 * @param AssetList			List of non primary assets to load
+	 * @param DelegateToCall	[optional] Delegate that will be called on completion, may be called before function returns if assets are already loaded
+	 * @param Priority			[optional] Async loading priority for this request
+	 * @param DebguName			[optional] Name of this handle, either FString or anything that can construct FString, will be reported in debug tools, will report Source Location if DebugName is not specified explicitly
+	 * @return					Streamable Handle that must be stored to keep the preloaded assets from being freed
+	 */
+	template< typename DebugNameType = UE::FSourceLocation >
+	TSharedPtr<FStreamableHandle> LoadAssetList(
+		const TArray<FSoftObjectPath>& AssetList,
+		FStreamableDelegate DelegateToCall = FStreamableDelegate(),
+		TAsyncLoadPriority Priority = FStreamableManager::DefaultAsyncLoadPriority,
+		DebugNameType&& DebugNameOrLocation = UE::FSourceLocation::Current());
+
+	/** rvalue reference overload for Asset List */
+	template< typename DebugNameType = UE::FSourceLocation >
+	TSharedPtr<FStreamableHandle> LoadAssetList(
+		TArray<FSoftObjectPath>&& AssetList,
+		FStreamableDelegate DelegateToCall = FStreamableDelegate(),
+		TAsyncLoadPriority Priority = FStreamableManager::DefaultAsyncLoadPriority,
+		DebugNameType&& DebugNameOrLocation = UE::FSourceLocation::Current());
 
 	/** Returns a single AssetBundleInfo, matching Scope and Name */
 	ENGINE_API virtual FAssetBundleEntry GetAssetBundleEntry(const FPrimaryAssetId& BundleScope, FName BundleName) const;
@@ -577,6 +616,10 @@ public:
 	 */
 	virtual FGuid GetChunkEncryptionKeyGuid(int32 InChunkId) const { return FGuid(); }
 
+
+	/** Get the encrypted chunk assignments for a give package. Only valid between PreSaveAssetRegistry and PostSaveAssetRegistry */
+	ENGINE_API virtual TSet<int32> GetEncryptedChunkIDsForPackage(FName InPackageName) const { return TSet<int32>(); }
+
 	/**
 	 * Determine if we should separate the asset registry for this chunk out into its own file and return the unique name that identifies it
 	 * @param InChunkIndex Chunk index to check
@@ -706,6 +749,9 @@ protected:
 	/** Called when a new chunk has been downloaded */
 	ENGINE_API virtual void OnChunkDownloaded(uint32 ChunkId, bool bSuccess);
 
+	/** Called to load asset list */
+	ENGINE_API virtual TSharedPtr<FStreamableHandle> LoadAssetListInternal(TArray<FSoftObjectPath>&& AssetList, FStreamableDelegate&& DelegateToCall, TAsyncLoadPriority Priority, FString&& DebugName);
+
 #if WITH_EDITOR
 	/** Function used during creating Management references to decide when to recurse and set references */
 	ENGINE_API virtual EAssetSetManagerResult::Type ShouldSetManager(const FAssetIdentifier& Manager, const FAssetIdentifier& Source, const FAssetIdentifier& Target,
@@ -740,6 +786,15 @@ protected:
 
 	/** Called after PIE ends, resets loading state */
 	ENGINE_API virtual void EndPIE(bool bStartSimulate);
+
+	/**
+	 * Used by UpdateManagementDatabase to build the CachedChunkMap.
+	 * Should return a new cachedChunkMap.
+	 * 
+	 * @param PackagesToUpdateChunksFor - the packages needing chunk assignment as part of the management database update.
+	 * @return a new CachedChunkMap to be used.
+	 */
+	ENGINE_API virtual TMap<int32, FAssetManagerChunkInfo> BuildChunkMap(const TSet<FName>& PackagesToUpdateChunksFor) const;
 
 	/** Copy of the asset state before PIE was entered, return to that when PIE completes */
 	TMap<FPrimaryAssetId, TArray<FName>> PrimaryAssetStateBeforePIE;
@@ -905,3 +960,44 @@ private:
 
 	friend struct FCompiledAssetManagerSearchRules;
 };
+
+template< typename DebugNameType >
+TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(
+	TArray<FSoftObjectPath>&& AssetList,
+	FStreamableDelegate DelegateToCall,
+	TAsyncLoadPriority Priority,
+	DebugNameType&& DebugNameOrLocation)
+{
+	if constexpr (std::is_same_v<std::decay_t<DebugNameType>, UE::FSourceLocation>)
+	{
+		return LoadAssetListInternal(
+			MoveTemp(AssetList),
+			MoveTemp(DelegateToCall),
+			Priority,
+			UE::SourceLocation::ToFileAndLineString(DebugNameOrLocation));
+	}
+	else
+	{
+		return LoadAssetListInternal(
+			MoveTemp(AssetList),
+			MoveTemp(DelegateToCall),
+			Priority,
+			FString{ Forward<DebugNameType>(DebugNameOrLocation) });
+	}
+}
+
+
+template< typename DebugNameType >
+TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(
+	const TArray<FSoftObjectPath>& AssetList,
+	FStreamableDelegate DelegateToCall,
+	TAsyncLoadPriority Priority,
+	DebugNameType&& DebugNameOrLocation)
+{
+	// explicit copy
+	return LoadAssetList(
+		TArray<FSoftObjectPath>{AssetList},
+		MoveTemp(DelegateToCall),
+		Priority,
+		Forward<DebugNameType>(DebugNameOrLocation));
+}

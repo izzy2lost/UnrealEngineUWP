@@ -2,15 +2,25 @@
 
 #include "Core/CameraNode.h"
 
-#include "Core/CameraRuntimeInstantiator.h"
+#include "Core/CameraNodeEvaluator.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CameraNode)
 
-void FCameraNodeRunResult::Reset()
+void UCameraNode::PostLoad()
 {
-	CameraPose.Reset();
-	bIsCameraCut = false;
-	bIsValid = false;
+#if WITH_EDITORONLY_DATA
+
+	if (GraphNodePosX_DEPRECATED != 0 || GraphNodePosY_DEPRECATED != 0)
+	{
+		GraphNodePos = FIntVector2(GraphNodePosX_DEPRECATED, GraphNodePosY_DEPRECATED);
+
+		GraphNodePosX_DEPRECATED = 0;
+		GraphNodePosY_DEPRECATED = 0;
+	}
+
+#endif
+
+	Super::PostLoad();
 }
 
 FCameraNodeChildrenView UCameraNode::GetChildren()
@@ -18,26 +28,51 @@ FCameraNodeChildrenView UCameraNode::GetChildren()
 	return OnGetChildren();
 }
 
-void UCameraNode::Reset(const FCameraNodeResetParams& Params)
+void UCameraNode::PreBuild(FCameraBuildLog& BuildLog)
 {
-	OnReset(Params);
+	OnPreBuild(BuildLog);
 }
 
-void UCameraNode::Run(const FCameraNodeRunParams& Params, FCameraNodeRunResult& OutResult)
+void UCameraNode::Build(FCameraRigBuildContext& BuildContext)
 {
-	if (bIsEnabled)
-	{
-		OnRun(Params, OutResult);
-	}
+	OnBuild(BuildContext);
+}
+
+FCameraNodeEvaluatorPtr UCameraNode::BuildEvaluator(FCameraNodeEvaluatorBuilder& Builder) const
+{
+	using namespace UE::Cameras;
+	FCameraNodeEvaluator* NewEvaluator = OnBuildEvaluator(Builder);
+	NewEvaluator->SetPrivateCameraNode(this);
+	return NewEvaluator;
 }
 
 #if WITH_EDITOR
 
-void UCameraNode::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+void UCameraNode::GetGraphNodePosition(FName InGraphName, int32& NodePosX, int32& NodePosY) const
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-	
-	FCameraRuntimeInstantiator::ForwardPropertyChange(this, PropertyChangedEvent);
+	NodePosX = GraphNodePos.X;
+	NodePosY = GraphNodePos.Y;
 }
 
-#endif
+void UCameraNode::OnGraphNodeMoved(FName InGraphName, int32 NodePosX, int32 NodePosY, bool bMarkDirty)
+{
+	Modify(bMarkDirty);
+
+	GraphNodePos.X = NodePosX;
+	GraphNodePos.Y = NodePosY;
+}
+
+const FString& UCameraNode::GetGraphNodeCommentText(FName InGraphName) const
+{
+	return GraphNodeComment;
+}
+
+void UCameraNode::OnUpdateGraphNodeCommentText(FName InGraphName, const FString& NewComment)
+{
+	Modify();
+
+	GraphNodeComment = NewComment;
+}
+
+#endif  // WITH_EDITOR
+

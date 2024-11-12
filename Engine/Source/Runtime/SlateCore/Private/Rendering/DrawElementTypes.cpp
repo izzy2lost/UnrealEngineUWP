@@ -505,6 +505,60 @@ void FSlateDrawElement::MakeShapedText(FSlateWindowElementList& ElementList, uin
 	Element.Init(ElementList, EElementType::ET_ShapedText, InLayer, PaintGeometry, InDrawEffects);
 }
 
+void FSlateDrawElement::MakeRotatedShapedText(
+	FSlateWindowElementList& ElementList,
+	const uint32 InLayer,
+	const FPaintGeometry& PaintGeometry,
+	const FShapedGlyphSequenceRef& InShapedGlyphSequence,
+	ESlateDrawEffect InDrawEffects,
+	const FLinearColor& BaseTint,
+	const FLinearColor& OutlineTint,
+	const float Angle2D,
+	const UE::Slate::FDeprecateOptionalVector2DParameter& InRotationPoint,
+	const ERotationSpace RotationSpace,
+	const FTextOverflowArgs& TextOverflowArgs)
+{
+	SCOPE_CYCLE_COUNTER(STAT_SlateDrawElementMakeTime)
+	PaintGeometry.CommitTransformsIfUsingLegacyConstructor();
+	
+	if (InShapedGlyphSequence->GetGlyphsToRender().Num() == 0)
+	{
+		return;
+	}
+	
+	if (ShouldCull(ElementList, PaintGeometry))
+	{
+		return;
+	}
+	
+	// Don't do anything if the font would be completely transparent 
+	if ((BaseTint.A == 0 && InShapedGlyphSequence->GetFontOutlineSettings().OutlineSize == 0) || 
+		(BaseTint.A == 0 && OutlineTint.A == 0))
+	{
+		return;
+	}
+	
+#if SLATE_CHECK_UOBJECT_RENDER_RESOURCES
+	SlateDrawElement::CheckInvalidUMaterial(InShapedGlyphSequence->GetFontMaterial(), TEXT("Font Material"));
+	SlateDrawElement::CheckInvalidUMaterial(InShapedGlyphSequence->GetFontOutlineSettings().OutlineMaterial, TEXT("Outline Material"));
+#endif
+	
+	FSlateShapedTextElement& Element = ElementList.AddUninitialized<EElementType::ET_ShapedText>();
+	
+	Element.SetTint(BaseTint);
+	Element.SetShapedText(ElementList, InShapedGlyphSequence, OutlineTint);
+	Element.SetOverflowArgs(TextOverflowArgs);
+	
+	Element.Init(ElementList, EElementType::ET_ShapedText, InLayer, PaintGeometry, InDrawEffects);
+	
+	if (Angle2D != 0.0f)
+	{
+		const FVector2f RotationPoint = GetRotationPoint(PaintGeometry, InRotationPoint, RotationSpace);
+		const FSlateRenderTransform RotationTransform = Concatenate(Inverse(RotationPoint), FQuat2f(Angle2D), RotationPoint);
+		Element.SetRenderTransform(Concatenate(RotationTransform, Element.GetRenderTransform()));
+	}
+}
+
 void FSlateDrawElement::MakeGradient( FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, TArray<FSlateGradientStop> InGradientStops, EOrientation InGradientType, ESlateDrawEffect InDrawEffects, FVector4f CornerRadius)
 {
 	PaintGeometry.CommitTransformsIfUsingLegacyConstructor();
@@ -516,7 +570,7 @@ void FSlateDrawElement::MakeGradient( FSlateWindowElementList& ElementList, uint
 
 	FSlateGradientElement& Element = ElementList.AddUninitialized<EElementType::ET_Gradient>();
 
-	Element.SetGradient(InGradientStops, InGradientType, CornerRadius);
+	Element.SetGradient(MoveTemp(InGradientStops), InGradientType, CornerRadius);
 
 	Element.Init(ElementList, EElementType::ET_Gradient, InLayer, PaintGeometry, InDrawEffects);
 }
@@ -600,6 +654,29 @@ void FSlateDrawElement::MakeLines(FSlateWindowElementList& ElementList, uint32 I
 	Element.Init(ElementList, EElementType::ET_Line, InLayer, PaintGeometry, DrawEffects);
 }
 
+void FSlateDrawElement::MakeDashedLines(FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, TArray<FVector2f>&& Points, ESlateDrawEffect InDrawEffects, const FLinearColor& InTint, float Thickness, float DashLengthPx, float DashScreenOffset)
+{
+	PaintGeometry.CommitTransformsIfUsingLegacyConstructor();
+
+	if (ShouldCull(ElementList) || Points.Num() < 2)
+	{
+		return;
+	}
+
+	FSlateLineElement& Element = ElementList.AddUninitialized<EElementType::ET_Line>();
+
+	Element.SetTint(InTint);
+	Element.SetThickness(Thickness);
+	Element.SetLines(MoveTemp(Points), true);
+
+	Element.DashLength = DashLengthPx;
+	Element.DashOffset = DashScreenOffset;
+
+	ESlateDrawEffect DrawEffects = InDrawEffects | ESlateDrawEffect::NoPixelSnapping;
+
+	Element.Init(ElementList, EElementType::ET_Line, InLayer, PaintGeometry, DrawEffects);
+}
+
 #if UE_ENABLE_SLATE_VECTOR_DEPRECATION_MECHANISMS
 void FSlateDrawElement::MakeLines(FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, const TArray<FVector2d>& Points, const TArray<FLinearColor>& PointColors, ESlateDrawEffect InDrawEffects, const FLinearColor& InTint, bool bAntialias, float Thickness)
 {
@@ -634,6 +711,29 @@ void FSlateDrawElement::MakeLines( FSlateWindowElementList& ElementList, uint32 
 	Element.SetLines(MoveTemp(Points), bAntialias, MoveTemp(PointColors));
 
 	Element.Init(ElementList, EElementType::ET_Line, InLayer, PaintGeometry, InDrawEffects);
+}
+
+void FSlateDrawElement::MakeDashedLines(FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, TArray<FVector2f>&& Points, TArray<FLinearColor>&& PointColors, ESlateDrawEffect InDrawEffects, const FLinearColor& InTint, float Thickness, float DashLengthPx, float DashScreenOffset)
+{
+	PaintGeometry.CommitTransformsIfUsingLegacyConstructor();
+
+	if (ShouldCull(ElementList) || Points.Num() < 2)
+	{
+		return;
+	}
+
+	FSlateLineElement& Element = ElementList.AddUninitialized<EElementType::ET_Line>();
+
+	Element.SetTint(InTint);
+	Element.SetThickness(Thickness);
+	Element.SetLines(MoveTemp(Points), true, MoveTemp(PointColors));
+
+	Element.DashLength = DashLengthPx;
+	Element.DashOffset = DashScreenOffset;
+
+	ESlateDrawEffect DrawEffects = InDrawEffects | ESlateDrawEffect::NoPixelSnapping;
+
+	Element.Init(ElementList, EElementType::ET_Line, InLayer, PaintGeometry, DrawEffects);
 }
 
 void FSlateDrawElement::MakeViewport( FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, TSharedPtr<const ISlateViewport> Viewport, ESlateDrawEffect InDrawEffects, const FLinearColor& InTint )

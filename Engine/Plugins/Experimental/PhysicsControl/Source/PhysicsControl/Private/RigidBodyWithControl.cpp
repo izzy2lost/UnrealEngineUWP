@@ -4,7 +4,7 @@
 
 #include "PhysicsControlOperatorNameGeneration.h"
 #include "PhysicsControlLog.h"
-#include "PhysicsControlProfileAsset.h"
+#include "PhysicsControlAsset.h"
 #include "PhysicsControlComponentHelpers.h"
 
 #include "Animation/AnimInstance.h"
@@ -12,6 +12,7 @@
 #include "Chaos/PBDJointConstraints.h"
 #include "Chaos/PBDJointConstraintTypes.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Physics/ImmediatePhysics/ImmediatePhysicsActorHandle.h"
 #include "Physics/ImmediatePhysics/ImmediatePhysicsJointHandle.h"
 #include "Physics/ImmediatePhysics/ImmediatePhysicsSimulation.h"
@@ -19,8 +20,6 @@
 #include "PhysicsEngine/PhysicsSettings.h"
 #include "Chaos/ChaosConstraintSettings.h"
 #include "Logging/StructuredLog.h"
-
-//UE_DISABLE_OPTIMIZATION
 
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_InitControlsAndBodyModifiers"), STAT_RigidBodyNodeWithControl_InitControlsAndBodyModifiers, STATGROUP_Anim);
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_LogControlsModifiersAndSets"), STAT_RigidBodyNodeWithControl_LogControlsModifiersAndSets, STATGROUP_Anim);
@@ -130,6 +129,14 @@ template<typename TRecord, typename TParameters> void ApplyControlAndModifierPar
 		}
 	}
 }
+//======================================================================================================================
+FName MapConstraintsBehaviorTypeToString(const MapConstraintsBehaviorType InType)
+{
+	if (InType == MapConstraintsBehaviorType::AuthoredSkeleton) { return FName("AuthoredSkeleton"); }
+	if (InType == MapConstraintsBehaviorType::DefaultTransform) { return FName("DefaultTransform"); }
+	
+	return FName("None");
+}
 
 //======================================================================================================================
 const FTransform FAnimNode_RigidBodyWithControl::GetBodyTransform(const int32 BodyIndex) const
@@ -187,8 +194,12 @@ ImmediatePhysics::FJointHandle* FAnimNode_RigidBodyWithControl::CreateConstraint
 		Settings.bAngularSwingVelocityDriveEnabled = false;
 		Settings.AngularDriveForceMode = Chaos::EJointForceMode::Acceleration;
 
-		Settings.bMassConditioningEnabled = false; // TODO needed/wanted?
-		Settings.bCollisionEnabled = false; // TODO needed?
+		// For control, we shouldn't be in situations where mass conditioning is needed.
+		Settings.bMassConditioningEnabled = false;
+		// It's not our job to change collision settings - that should come from the physics asset.
+		// However, the naming of this is unclear - if collisions are disabled in the physics asset,
+		// trust that this doesn't enable them.
+		Settings.bCollisionEnabled = true;
 
 		FVector ChildCoMPositionOffset = ChildActorHandle->GetLocalCoMTransform().GetLocation();
 		Settings.ConnectorTransforms[ConstraintChildIndex].SetLocation(ChildCoMPositionOffset);
@@ -247,8 +258,11 @@ void FAnimNode_RigidBodyWithControl::UpdateBodyIndicesInControlRecord(FRigidBody
 }
 
 //======================================================================================================================
-FName FAnimNode_RigidBodyWithControl::CreateControl(
-	const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& ControlData)
+bool FAnimNode_RigidBodyWithControl::CreateNamedControl(
+	const FName                ControlName, 
+	const FName                ParentBoneName, 
+	const FName                ChildBoneName, 
+	const FPhysicsControlData& ControlData)
 {
 	FPhysicsControl Control;
 	Control.ParentBoneName = ParentBoneName;
@@ -274,13 +288,24 @@ FName FAnimNode_RigidBodyWithControl::CreateControl(
 	{
 		UE_LOG(LogPhysicsControl, Warning,
 			TEXT("Unable to create world space control constraint for bone %s"), *ChildBoneName.ToString());
-		return FName();
+		return false;
 	}
 
-	FName ControlName = GetUniqueControlName(Control.ParentBoneName, Control.ChildBoneName);
 	ControlRecords.Add(ControlName, FRigidBodyControlRecord(Control, JointHandle));
+	return true;
+}
 
-	return ControlName;
+
+//======================================================================================================================
+FName FAnimNode_RigidBodyWithControl::CreateControl(
+	const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& ControlData)
+{
+	FName ControlName = GetUniqueControlName(ParentBoneName, ChildBoneName);
+	if (CreateNamedControl(ControlName, ParentBoneName, ChildBoneName, ControlData))
+	{
+		return ControlName;
+	}
+	return FName();
 }
 
 //======================================================================================================================
@@ -322,18 +347,29 @@ FName FAnimNode_RigidBodyWithControl::GetUniqueControlName(const FName ParentBon
 }
 
 //======================================================================================================================
-FName FAnimNode_RigidBodyWithControl::CreateBodyModifier(FName BoneName, const FPhysicsControlModifierData& ModifierData)
+bool FAnimNode_RigidBodyWithControl::CreateNamedBodyModifier(
+	const FName ModifierName, const FName BoneName, const FPhysicsControlModifierData& ModifierData)
 {
-	FName Name;
 	ImmediatePhysics::FActorHandle* const ActorHandle = FindBodyFromBoneName(BoneName);
 	if (ActorHandle)
 	{
-		Name = GetUniqueBodyModifierName(BoneName);
 		FPhysicsBodyModifier BodyModifier(BoneName, ModifierData);
-		FRigidBodyModifierRecord& Modifier = ModifierRecords.Add(Name, FRigidBodyModifierRecord(BodyModifier, ActorHandle));
+		FRigidBodyModifierRecord& Modifier = ModifierRecords.Add(
+			ModifierName, FRigidBodyModifierRecord(BodyModifier, ActorHandle));
+		return true;
 	}
+	return false;
+}
 
-	return Name;
+//======================================================================================================================
+FName FAnimNode_RigidBodyWithControl::CreateBodyModifier(FName BoneName, const FPhysicsControlModifierData& ModifierData)
+{
+	FName ModifierName = GetUniqueBodyModifierName(BoneName);
+	if (CreateNamedBodyModifier(ModifierName, BoneName, ModifierData))
+	{
+		return ModifierName;
+	}
+	return FName();
 }
 
 //======================================================================================================================
@@ -344,9 +380,9 @@ void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(const FReferen
 	check(ControlRecords.IsEmpty()); // Controls should not exist when this function is called.
 
 	FPhysicsControlCharacterSetupData SetupData;
-	if (IsValid(PhysicsControlProfileAsset))
+	if (IsValid(PhysicsControlAsset))
 	{
-		SetupData = PhysicsControlProfileAsset->CharacterSetupData;
+		SetupData = PhysicsControlAsset->CharacterSetupData;
 	}
 	if (bEnableCharacterSetupData)
 	{
@@ -357,16 +393,16 @@ void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(const FReferen
 	TMap<FName, FPhysicsControlLimbBones> AllLimbBones =
 		UE::PhysicsControl::GetLimbBones(SetupData.LimbSetupData, RefSkeleton, GetPhysicsAsset());
 
-	FPhysicsControlAndBodyModifierCreationDatas ControlAndBodyModifierCreationDatas;
-	if (IsValid(PhysicsControlProfileAsset))
+	FPhysicsControlAndBodyModifierCreationDatas AdditionalControlAndBodyModifierCreationDatas;
+	if (IsValid(PhysicsControlAsset))
 	{
-		ControlAndBodyModifierCreationDatas = PhysicsControlProfileAsset->AdditionalControlsAndModifiers;
+		AdditionalControlAndBodyModifierCreationDatas = PhysicsControlAsset->AdditionalControlsAndModifiers;
 	}
-	ControlAndBodyModifierCreationDatas += AdditionalControlsAndBodyModifiers;
+	AdditionalControlAndBodyModifierCreationDatas += AdditionalControlsAndBodyModifiers;
 
 	// An "operator" is a control or a body modifier. This will also add them to sets etc.
 	UE::PhysicsControl::CreateOperatorsForNode(
-		this, SetupData, ControlAndBodyModifierCreationDatas, 
+		this, SetupData, AdditionalControlAndBodyModifierCreationDatas,
 		AllLimbBones, RefSkeleton, GetPhysicsAsset(), NameRecords);
 
 	for (TMap<FName, FRigidBodyControlRecord>::ElementType& NameRecordPair : ControlRecords)
@@ -376,10 +412,10 @@ void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(const FReferen
 	}
 
 	// Create any additional sets that have been requested
-	if (IsValid(PhysicsControlProfileAsset))
+	if (IsValid(PhysicsControlAsset))
 	{
 		UE::PhysicsControl::CreateAdditionalSets(
-			PhysicsControlProfileAsset->AdditionalSets, ModifierRecords, ControlRecords, NameRecords);
+			PhysicsControlAsset->AdditionalSets, ModifierRecords, ControlRecords, NameRecords);
 	}
 	UE::PhysicsControl::CreateAdditionalSets(AdditionalSets, ModifierRecords, ControlRecords, NameRecords);
 
@@ -549,21 +585,32 @@ static bool UpdateDriveSpringDamperSettings(
 }
 
 //======================================================================================================================
-static RigidBodyWithControl::FPosQuat CalculateTargetTM(
-	const Chaos::FPBDJointSettings&                 JointSettings, 
-	const RigidBodyWithControl::FRigidBodyPoseData& PoseData,
-	const int32                                     ParentBodyIndex, 
-	const int32                                     ChildBodyIndex)
+static UE::PhysicsControl::FPosQuat CalculateTargetTM(
+	const Chaos::FPBDJointSettings&               JointSettings, 
+	const UE::PhysicsControl::FRigidBodyPoseData& PoseData,
+	const int32                                   ParentBodyIndex, 
+	const int32                                   ChildBodyIndex)
 {
-	const RigidBodyWithControl::FPosQuat ChildTargetTM =
-		RigidBodyWithControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintChildIndex]) * 
-		PoseData.GetTM(ChildBodyIndex);
+	if (!ensure(PoseData.IsValidIndex(ChildBodyIndex)))
+	{
+		return UE::PhysicsControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintChildIndex]);
+	}
+	
+	const UE::PhysicsControl::FPosQuat ChildTargetTM =
+		PoseData.GetTM(ChildBodyIndex) *
+		UE::PhysicsControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintChildIndex]);
+	
 	if (ParentBodyIndex >= 0)
 	{
-		const RigidBodyWithControl::FPosQuat ParentTargetTM =
-			RigidBodyWithControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintParentIndex]) * 
-			PoseData.GetTM(ParentBodyIndex);
-		return ChildTargetTM * ParentTargetTM.Inverse();
+		if (!ensure(PoseData.IsValidIndex(ParentBodyIndex)))
+		{
+			return ChildTargetTM;
+		}
+
+		const UE::PhysicsControl::FPosQuat ParentTargetTM =
+		PoseData.GetTM(ParentBodyIndex) *
+		UE::PhysicsControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintParentIndex]);
+		return ParentTargetTM.Inverse() * ChildTargetTM;
 	}
 	return ChildTargetTM;
 }
@@ -579,7 +626,8 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 		Chaos::FPBDJointConstraintHandle* Constraint = JointHandle->GetConstraint();
 		if (Constraint)
 		{
-			if (ControlRecord.ExpectedUpdateCounter.Get() != PoseData.UpdateCounter.Get())
+			if (!PoseData.UpdateCounter.HasEverBeenUpdated() || 
+				ControlRecord.ExpectedUpdateCounter.Get() != PoseData.UpdateCounter.Get())
 			{
 				// If we missed some intermediate updates, then we don't want to use the previous
 				// positions etc to calculate velocities. This will mean velocity/damping will be
@@ -611,15 +659,15 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 					checkSlow((ControlRecord.Control.ParentBoneName.IsNone() ? -1 : 
 						FindBodyIndexFromBoneName(ControlRecord.Control.ParentBoneName)) == ControlRecord.ParentBodyIndex);
 
-					RigidBodyWithControl::FPosQuat TargetTM(
+					UE::PhysicsControl::FPosQuat TargetTM(
 						ControlRecord.ControlTarget.TargetOrientation, 
 						ControlRecord.ControlTarget.TargetPosition);
 
 					if (ControlRecord.ControlData.bUseSkeletalAnimation)
 					{
-						RigidBodyWithControl::FPosQuat AnimTargetTM = CalculateTargetTM(
+						UE::PhysicsControl::FPosQuat AnimTargetTM = CalculateTargetTM(
 							JointSettings, PoseData, ControlRecord.ParentBodyIndex, ControlRecord.ChildBodyIndex);
-						TargetTM = TargetTM * AnimTargetTM;
+						TargetTM = AnimTargetTM * TargetTM;
 					}
 
 					Constraint->SetLinearDrivePositionTarget(TargetTM.GetTranslation());
@@ -627,7 +675,8 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 
 					if ((DeltaTime * ControlRecord.ControlData.LinearTargetVelocityMultiplier) != 0)
 					{
-						FVector Velocity = (TargetTM.GetTranslation() - ControlRecord.PrevTargetTM.GetTranslation()) / DeltaTime;
+						FVector Velocity = 
+							(TargetTM.GetTranslation() - ControlRecord.PreviousTargetTM.GetTranslation()) / DeltaTime;
 						Constraint->SetLinearDriveVelocityTarget(
 							Velocity * ControlRecord.ControlData.LinearTargetVelocityMultiplier);
 					}
@@ -640,7 +689,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 					{
 						// Note that quats multiply in the opposite order to TMs, and must be in the same hemisphere.
 						const FQuat Q = TargetTM.GetRotation();
-						FQuat PrevQ = ControlRecord.PrevTargetTM.GetRotation();
+						FQuat PrevQ = ControlRecord.PreviousTargetTM.GetRotation();
 						PrevQ.EnforceShortestArcWith(Q);
 						const FQuat DeltaQ = Q * PrevQ.Inverse();
 						const FVector AngularVelocity = DeltaQ.ToRotationVector() / DeltaTime;
@@ -654,7 +703,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 					}
 
 
-					ControlRecord.PrevTargetTM = TargetTM;
+					ControlRecord.PreviousTargetTM = TargetTM;
 					ControlRecord.ExpectedUpdateCounter = PoseData.UpdateCounter;
 					ControlRecord.ExpectedUpdateCounter.Increment();
 				}
@@ -814,7 +863,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControlsAndModifiers(const FVector& Si
 	// If we've skipped a frame then we need to avoid doing any velocity calculations. Simplest
 	// method is to set DeltaTime to zero.
 	{
-		if (PoseData.UpdateCounter.Get() == INDEX_NONE || 
+		if (!PoseData.UpdateCounter.HasEverBeenUpdated() || 
 			PoseData.UpdateCounter.Get() != PoseData.ExpectedUpdateCounter.Get())
 		{
 			DeltaTime = 0.0f;
@@ -870,51 +919,15 @@ void FAnimNode_RigidBodyWithControl::ApplyKinematicTargets()
 				const int32 BodyIndex = FindBodyIndexFromBoneName(ModifierRecord->Modifier.BoneName);
 				if (ActorHandle->GetIsKinematic() && BodyIndex != INDEX_NONE)
 				{
-					RigidBodyWithControl::FPosQuat TM(Target.TargetOrientation, Target.TargetPosition);
-					if (Target.bUseSkeletalAnimation)
+					UE::PhysicsControl::FPosQuat TM(Target.TargetOrientation, Target.TargetPosition);
+					if (Target.bUseSkeletalAnimation && ensure(PoseData.IsValidIndex(BodyIndex)))
 					{
-						TM = TM * PoseData.GetTM(BodyIndex);
+						TM = PoseData.GetTM(BodyIndex) * TM;
 					}
 					ActorHandle->SetKinematicTarget(TM.ToTransform());
 				}
 			}
 		}
-	}
-}
-
-//======================================================================================================================
-static Chaos::EJointMotionType ConvertMotionType(ELinearConstraintMotion InEngineType)
-{
-	switch (InEngineType)
-	{
-	case ELinearConstraintMotion::LCM_Free: return Chaos::EJointMotionType::Free;
-	case ELinearConstraintMotion::LCM_Limited: return Chaos::EJointMotionType::Limited;
-	case ELinearConstraintMotion::LCM_Locked : return Chaos::EJointMotionType::Locked;
-	default: ensure(false); return Chaos::EJointMotionType::Locked;
-	}
-};
-
-//======================================================================================================================
-static Chaos::EJointMotionType ConvertMotionType(EAngularConstraintMotion InEngineType)
-{
-	switch(InEngineType)
-	{
-	case EAngularConstraintMotion::ACM_Free: return Chaos::EJointMotionType::Free;
-	case EAngularConstraintMotion::ACM_Limited: return Chaos::EJointMotionType::Limited;
-	case EAngularConstraintMotion::ACM_Locked: return Chaos::EJointMotionType::Locked;
-	default: ensure(false); return Chaos::EJointMotionType::Locked;
-	}
-};
-
-//======================================================================================================================
-static Chaos::EPlasticityType ConvertPlasticityType(EConstraintPlasticityType InType)
-{
-	switch (InType)
-	{
-	case EConstraintPlasticityType::CCPT_Free: return Chaos::EPlasticityType::Free;
-	case EConstraintPlasticityType::CCPT_Shrink: return Chaos::EPlasticityType::Shrink;
-	case EConstraintPlasticityType::CCPT_Grow: return Chaos::EPlasticityType::Grow;
-	default: ensure(false); return Chaos::EPlasticityType::Free;
 	}
 }
 
@@ -952,143 +965,7 @@ void FAnimNode_RigidBodyWithControl::ApplyCurrentConstraintProfile()
 
 					FPBDJointSettings JointSettings = ConstraintHandle->GetSettings();
 					
-					// See ImmediatePhysics_Chaos::TransferJointSettings TODO avoid code duplication
-					// with that function. However, it uses ConstraintInstance, but we don't have
-					// one of those.
-
-					JointSettings.Stiffness = ConstraintSettings::JointStiffness();
-					JointSettings.LinearProjection = Profile.bEnableProjection ? Profile.ProjectionLinearAlpha : 0.0f;
-					JointSettings.AngularProjection = Profile.bEnableProjection ? Profile.ProjectionAngularAlpha : 0.0f;
-					JointSettings.ShockPropagation = Profile.bEnableShockPropagation ? Profile.ShockPropagationAlpha : 0.0f;
-					JointSettings.TeleportDistance = Profile.bEnableProjection ? Profile.ProjectionLinearTolerance : -1.0f;
-					JointSettings.TeleportAngle = Profile.bEnableProjection ? 
-						FMath::DegreesToRadians(Profile.ProjectionAngularTolerance) : -1.0f;
-					JointSettings.ParentInvMassScale = Profile.bParentDominates ? (FReal)0 : (FReal)1;
-
-					JointSettings.bCollisionEnabled = !Profile.bDisableCollision;
-					JointSettings.bProjectionEnabled = Profile.bEnableProjection;
-					JointSettings.bShockPropagationEnabled = Profile.bEnableShockPropagation;
-					JointSettings.bMassConditioningEnabled = Profile.bEnableMassConditioning;
-
-					JointSettings.LinearMotionTypes[0] = ConvertMotionType(Profile.LinearLimit.XMotion);
-					JointSettings.LinearMotionTypes[1] = ConvertMotionType(Profile.LinearLimit.YMotion);
-					JointSettings.LinearMotionTypes[2] = ConvertMotionType(Profile.LinearLimit.ZMotion);
-
-					JointSettings.LinearLimit = Profile.LinearLimit.Limit; // Is float to vector the best way?!
-
-					// Order is twist, swing1, swing2 and in degrees
-					JointSettings.AngularMotionTypes[(int32)Chaos::EJointAngularConstraintIndex::Twist] = ConvertMotionType(Profile.TwistLimit.TwistMotion);
-					JointSettings.AngularMotionTypes[(int32)Chaos::EJointAngularConstraintIndex::Swing1] = ConvertMotionType(Profile.ConeLimit.Swing1Motion);
-					JointSettings.AngularMotionTypes[(int32)Chaos::EJointAngularConstraintIndex::Swing2] = ConvertMotionType(Profile.ConeLimit.Swing2Motion);
-
-					JointSettings.AngularLimits[(int32)Chaos::EJointAngularConstraintIndex::Twist] = FMath::DegreesToRadians(Profile.TwistLimit.TwistLimitDegrees);
-					JointSettings.AngularLimits[(int32)Chaos::EJointAngularConstraintIndex::Swing1] = FMath::DegreesToRadians(Profile.ConeLimit.Swing1LimitDegrees);
-					JointSettings.AngularLimits[(int32)Chaos::EJointAngularConstraintIndex::Swing2] = FMath::DegreesToRadians(Profile.ConeLimit.Swing2LimitDegrees);
-
-					JointSettings.bSoftLinearLimitsEnabled = Profile.LinearLimit.bSoftConstraint;
-					JointSettings.bSoftTwistLimitsEnabled = Profile.TwistLimit.bSoftConstraint;
-					JointSettings.bSoftSwingLimitsEnabled = Profile.ConeLimit.bSoftConstraint;
-
-					JointSettings.LinearSoftForceMode = (ConstraintSettings::SoftLinearForceMode() == 0) ? 
-						EJointForceMode::Acceleration : EJointForceMode::Force;
-					JointSettings.AngularSoftForceMode = (ConstraintSettings::SoftAngularForceMode() == 0) ? 
-						EJointForceMode::Acceleration : EJointForceMode::Force;
-
-					JointSettings.SoftLinearStiffness = 
-						Chaos::ConstraintSettings::SoftLinearStiffnessScale() * Profile.LinearLimit.Stiffness;
-					JointSettings.SoftLinearDamping = 
-						Chaos::ConstraintSettings::SoftLinearDampingScale() * Profile.LinearLimit.Damping;
-					JointSettings.SoftTwistStiffness = 
-						Chaos::ConstraintSettings::SoftAngularStiffnessScale() * Profile.TwistLimit.Stiffness;
-					JointSettings.SoftTwistDamping = 
-						Chaos::ConstraintSettings::SoftAngularDampingScale() * Profile.TwistLimit.Damping;
-					JointSettings.SoftSwingStiffness = 
-						Chaos::ConstraintSettings::SoftAngularStiffnessScale() * Profile.ConeLimit.Stiffness;
-					JointSettings.SoftSwingDamping = 
-						Chaos::ConstraintSettings::SoftAngularDampingScale() * Profile.ConeLimit.Damping;
-
-					JointSettings.LinearRestitution = Profile.LinearLimit.Restitution;
-					JointSettings.TwistRestitution = Profile.TwistLimit.Restitution;
-					JointSettings.SwingRestitution = Profile.ConeLimit.Restitution;
-
-					JointSettings.LinearContactDistance = Profile.LinearLimit.ContactDistance;
-					JointSettings.TwistContactDistance = Profile.TwistLimit.ContactDistance;
-					JointSettings.SwingContactDistance = Profile.ConeLimit.ContactDistance;
-
-					JointSettings.LinearDrivePositionTarget = Profile.LinearDrive.PositionTarget;
-					JointSettings.LinearDriveVelocityTarget = Profile.LinearDrive.VelocityTarget;
-					JointSettings.bLinearPositionDriveEnabled[0] = Profile.LinearDrive.XDrive.bEnablePositionDrive;
-					JointSettings.bLinearPositionDriveEnabled[1] = Profile.LinearDrive.YDrive.bEnablePositionDrive;
-					JointSettings.bLinearPositionDriveEnabled[2] = Profile.LinearDrive.ZDrive.bEnablePositionDrive;
-					JointSettings.bLinearVelocityDriveEnabled[0] = Profile.LinearDrive.XDrive.bEnableVelocityDrive;
-					JointSettings.bLinearVelocityDriveEnabled[1] = Profile.LinearDrive.YDrive.bEnableVelocityDrive;
-					JointSettings.bLinearVelocityDriveEnabled[2] = Profile.LinearDrive.ZDrive.bEnableVelocityDrive;
-					JointSettings.LinearDriveForceMode = EJointForceMode::Acceleration; // hardcoded!
-					JointSettings.LinearDriveStiffness = Chaos::ConstraintSettings::LinearDriveStiffnessScale() * FVec3(
-							Profile.LinearDrive.XDrive.Stiffness, 
-							Profile.LinearDrive.YDrive.Stiffness, 
-							Profile.LinearDrive.ZDrive.Stiffness);
-					JointSettings.LinearDriveDamping = Chaos::ConstraintSettings::LinearDriveDampingScale() * FVec3(
-							Profile.LinearDrive.XDrive.Damping, 
-							Profile.LinearDrive.YDrive.Damping, 
-							Profile.LinearDrive.ZDrive.Damping);
-					JointSettings.LinearDriveMaxForce[0] = Profile.LinearDrive.XDrive.MaxForce;
-					JointSettings.LinearDriveMaxForce[1] = Profile.LinearDrive.YDrive.MaxForce;
-					JointSettings.LinearDriveMaxForce[2] = Profile.LinearDrive.ZDrive.MaxForce;
-
-					JointSettings.AngularDrivePositionTarget = FQuat(Profile.AngularDrive.OrientationTarget);
-					JointSettings.AngularDriveVelocityTarget = Profile.AngularDrive.AngularVelocityTarget * UE_TWO_PI; // rev/s to rad/s
-
-					JointSettings.AngularDriveForceMode = EJointForceMode::Acceleration; // hardcoded!
-					if (Profile.AngularDrive.AngularDriveMode == EAngularDriveMode::SLERP)
-					{
-						JointSettings.AngularDriveStiffness = FVec3(
-							ConstraintSettings::AngularDriveStiffnessScale() * Profile.AngularDrive.SlerpDrive.Stiffness);
-						JointSettings.AngularDriveDamping = FVec3(
-							ConstraintSettings::AngularDriveDampingScale() * Profile.AngularDrive.SlerpDrive.Damping);
-						JointSettings.AngularDriveMaxTorque = FVec3(
-							Profile.AngularDrive.SlerpDrive.MaxForce);
-						JointSettings.bAngularSLerpPositionDriveEnabled = Profile.AngularDrive.SlerpDrive.bEnablePositionDrive;
-						JointSettings.bAngularSLerpVelocityDriveEnabled = Profile.AngularDrive.SlerpDrive.bEnableVelocityDrive;
-						JointSettings.bAngularTwistPositionDriveEnabled = false;
-						JointSettings.bAngularTwistVelocityDriveEnabled = false;
-						JointSettings.bAngularSwingPositionDriveEnabled = false;
-						JointSettings.bAngularSwingVelocityDriveEnabled = false;
-					}
-					else
-					{
-						JointSettings.AngularDriveStiffness = ConstraintSettings::AngularDriveStiffnessScale() * FVec3(
-							Profile.AngularDrive.TwistDrive.Stiffness, 
-							Profile.AngularDrive.SwingDrive.Stiffness, 
-							Profile.AngularDrive.SwingDrive.Stiffness);
-						JointSettings.AngularDriveDamping = ConstraintSettings::AngularDriveDampingScale() * FVec3(
-							Profile.AngularDrive.TwistDrive.Damping, 
-							Profile.AngularDrive.SwingDrive.Damping, 
-							Profile.AngularDrive.SwingDrive.Damping);
-						JointSettings.AngularDriveMaxTorque[0] = Profile.AngularDrive.TwistDrive.MaxForce;
-						JointSettings.AngularDriveMaxTorque[1] = Profile.AngularDrive.SwingDrive.MaxForce;
-						JointSettings.AngularDriveMaxTorque[2] = Profile.AngularDrive.SwingDrive.MaxForce;
-						JointSettings.bAngularSLerpPositionDriveEnabled = false;
-						JointSettings.bAngularSLerpVelocityDriveEnabled = false;
-						JointSettings.bAngularTwistPositionDriveEnabled = Profile.AngularDrive.TwistDrive.bEnablePositionDrive;
-						JointSettings.bAngularTwistVelocityDriveEnabled = Profile.AngularDrive.TwistDrive.bEnableVelocityDrive;
-						JointSettings.bAngularSwingPositionDriveEnabled = Profile.AngularDrive.SwingDrive.bEnablePositionDrive;
-						JointSettings.bAngularSwingVelocityDriveEnabled = Profile.AngularDrive.SwingDrive.bEnableVelocityDrive;
-					}
-
-					JointSettings.LinearBreakForce = Profile.bLinearBreakable ? 
-						Chaos::ConstraintSettings::LinearBreakScale() * Profile.LinearBreakThreshold : FLT_MAX;
-					JointSettings.LinearPlasticityLimit = Profile.bLinearPlasticity ? 
-						FMath::Clamp((float)Profile.LinearPlasticityThreshold, 0.0f, 1.0f) : FLT_MAX;
-					JointSettings.LinearPlasticityType = ConvertPlasticityType(Profile.LinearPlasticityType);
-					// JointSettings.LinearPlasticityInitialDistanceSquared = ; // What do we do with this?
-
-					JointSettings.AngularBreakTorque = Profile.bAngularBreakable ? 
-						Chaos::ConstraintSettings::AngularBreakScale() * Profile.AngularBreakThreshold : FLT_MAX;
-					JointSettings.AngularPlasticityLimit = Profile.bAngularPlasticity ? 
-						FMath::Clamp((float)Profile.AngularPlasticityThreshold, 0.0f, 1.0f) : FLT_MAX;;
-
-					JointSettings.ContactTransferScale = Profile.ContactTransferScale;
+					ImmediatePhysics_Chaos::UpdateJointSettingsFromConstraintProfile(Profile, JointSettings);
 
 					ConstraintHandle->SetSettings(JointSettings);
 				}
@@ -1108,10 +985,10 @@ void FAnimNode_RigidBodyWithControl::InvokeControlProfile(FName ControlProfileNa
 void FAnimNode_RigidBodyWithControl::ApplyCurrentControlProfile()
 {
 	// We shouldn't have a hitch here, since the asset (if set) will already have been loaded 
-	if (IsValid(PhysicsControlProfileAsset))
+	if (IsValid(PhysicsControlAsset))
 	{
 		const FPhysicsControlControlAndModifierUpdates* Updates = 
-			PhysicsControlProfileAsset->Profiles.Find(CurrentControlProfile);
+			PhysicsControlAsset->Profiles.Find(CurrentControlProfile);
 		if (Updates)
 		{
 			ApplyControlAndBodyModifierDatas(
@@ -1132,91 +1009,98 @@ void FAnimNode_RigidBodyWithControl::ApplyCurrentControlProfile()
 
 //======================================================================================================================
 void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(
-	const USkeletalMesh*          const SkeletalMeshAsset, 
-	TArray<FConstraintInstance*>& ConstraintInstances)
+	const USkeletalMesh*             SkeletalMeshAsset,
+	const MapConstraintsBehaviorType PositionBehavior,
+	const MapConstraintsBehaviorType OrientationBehavior,
+	TArray<FConstraintInstance*>&    ConstraintInstances)
 {
 	// Bone1 = Child
 	// Bone2 = Parent 
 
-	if (SkeletalMeshAsset && PhysicsAssetAuthoredSkeletalMesh)
+	if (SkeletalMeshAsset != nullptr)
 	{
-		if (SkeletalMeshAsset != PhysicsAssetAuthoredSkeletalMesh)
+		const bool bAuthoredTransformRequired = 
+			((PositionBehavior == MapConstraintsBehaviorType::AuthoredSkeleton) || 
+				(OrientationBehavior == MapConstraintsBehaviorType::AuthoredSkeleton)) && 
+			(PhysicsAssetAuthoredSkeletalMesh != nullptr) && 
+			(SkeletalMeshAsset != PhysicsAssetAuthoredSkeletalMesh);
+		const bool bDefaultTransformRequired = 
+			(PositionBehavior == MapConstraintsBehaviorType::DefaultTransform) || 
+			(OrientationBehavior == MapConstraintsBehaviorType::DefaultTransform);
+
+		if (bAuthoredTransformRequired || bDefaultTransformRequired)
 		{
-			UE_LOGFMT(LogPhysicsControl, Log, 
-				"Modify Constraint parent transforms to correct for the difference between the Skeleton used to create the Physics asset \"{0}\" and the current skeleton \"{1}\".", 
-				PhysicsAssetAuthoredSkeletalMesh->GetName(), SkeletalMeshAsset->GetName());
-
-			const FReferenceSkeleton& OriginalReferenceSkeleton = PhysicsAssetAuthoredSkeletalMesh->GetRefSkeleton();
-			const FReferenceSkeleton& CurrentReferenceSkeleton = SkeletalMeshAsset->GetRefSkeleton();
-
-			for (FConstraintInstance* const ConstraintInstance : ConstraintInstances)
-			{
 #if !NO_LOGGING
-				const FVector LogPreviousConstraintPositionRelParent = ConstraintInstance->Pos2;
+			const FString AuthoredSkeletalMeshName = 
+				(PhysicsAssetAuthoredSkeletalMesh) ? PhysicsAssetAuthoredSkeletalMesh->GetName() : FString("UNDEFINED");
+			UE_LOGFMT(LogPhysicsControl, Log,
+				"Modify Constraint parent transforms to match the current skeleton \"{0}\". Settings: Authored Skeleton {1}, Position set from {2}, Orientation set from {3}",
+				SkeletalMeshAsset->GetName(), AuthoredSkeletalMeshName, MapConstraintsBehaviorTypeToString(PositionBehavior), MapConstraintsBehaviorTypeToString(OrientationBehavior));
 #endif
-				const FTransform CurrentParentRelChildTM = CalculateRelativeBoneTransform(
-					ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, CurrentReferenceSkeleton);
-				const FTransform OriginalParentRelChildTM = CalculateRelativeBoneTransform(
-					ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, OriginalReferenceSkeleton);
 
-				// Find the transform that maps the parent-bone-relative-to-the-child-bone transform
-				// in the original skeleton to the parent-bone-relative-to-the-child-bone transform
-				// in the current skeleton.
-				// Should be equivalent to CurrentParentRelChildTM * OriginalParentRelChildTM.Inverse()
-				const FTransform OriginalToCurrentParentRelChildTM = 
-					CurrentParentRelChildTM.GetRelativeTransform(OriginalParentRelChildTM); 
+			for (FConstraintInstance* ConstraintInstance : ConstraintInstances)
+			{
+				const FReferenceSkeleton& SkeletalMeshReferenceSkeleton = SkeletalMeshAsset->GetRefSkeleton();
+				const FName ChildBoneName = ConstraintInstance->ConstraintBone1;
+				const FName ParentBoneName = ConstraintInstance->ConstraintBone2;
 
-				// Update the constraints transform relative to the parent bone.
-				const FTransform OriginalRefFrame = ConstraintInstance->GetRefFrame(EConstraintFrame::Frame2);
-				const FTransform CurrentRefFrame = OriginalToCurrentParentRelChildTM * OriginalRefFrame;
-				ConstraintInstance->SetRefFrame(EConstraintFrame::Frame2, CurrentRefFrame);
+				// This function might be overkill, but it handles the case that there are sketal
+				// bones missing in the physics hierarchy.
+				const FTransform CurrentChildRelParentTM = CalculateRelativeBoneTransform(
+					ChildBoneName, ParentBoneName, SkeletalMeshReferenceSkeleton);
+
+				FTransform AuthoredCurrentRefFrame;
+				if (bAuthoredTransformRequired)
+				{
+					const FTransform OriginalChildRelParentTM = CalculateRelativeBoneTransform(
+						ChildBoneName, ParentBoneName, 
+						PhysicsAssetAuthoredSkeletalMesh->GetRefSkeleton());
+
+					// Find the transform that maps the parent-bone-relative-to-the-child-bone transform
+					// in the original skeleton to the parent-bone-relative-to-the-child-bone transform
+					// in the current skeleton.
+					// Should be equivalent to CurrentChildRelParentTM * OriginalChildRelParentTM.Inverse()
+					const FTransform OriginalToCurrentParentRelChildTM =
+						CurrentChildRelParentTM.GetRelativeTransform(OriginalChildRelParentTM);
+
+					// Update the constraints transform relative to the parent bone.
+					const FTransform OriginalRefFrame = ConstraintInstance->GetRefFrame(EConstraintFrame::Frame2);
+					AuthoredCurrentRefFrame = OriginalToCurrentParentRelChildTM * OriginalRefFrame;
+				}
 
 #if !NO_LOGGING
-				UE_LOGFMT(LogPhysicsControl, Log, 
-					"Matched Constraint {0} - {1} Parent Transform - position was {2} now {3}.", 
-					ConstraintInstance->ConstraintBone1.ToString(), 
-					ConstraintInstance->ConstraintBone2.ToString(), 
-					LogPreviousConstraintPositionRelParent.ToCompactString(), 
-					ConstraintInstance->Pos2.ToCompactString());
+				const FTransform LogPreviousConstraintTransformRelParent = ConstraintInstance->GetRefFrame(EConstraintFrame::Frame2);
+#endif
+
+				if (PositionBehavior == MapConstraintsBehaviorType::AuthoredSkeleton)
+				{
+					ConstraintInstance->SetRefPosition(EConstraintFrame::Frame2, AuthoredCurrentRefFrame.GetTranslation());
+				}
+				else if (PositionBehavior == MapConstraintsBehaviorType::DefaultTransform)
+				{
+					ConstraintInstance->SetRefPosition(EConstraintFrame::Frame2, CurrentChildRelParentTM.GetTranslation());
+				}
+
+				if (OrientationBehavior == MapConstraintsBehaviorType::AuthoredSkeleton)
+				{
+					ConstraintInstance->SetRefOrientation(EConstraintFrame::Frame2, 
+						AuthoredCurrentRefFrame.GetUnitAxis(EAxis::X), AuthoredCurrentRefFrame.GetUnitAxis(EAxis::Y));
+				}
+				else if (OrientationBehavior == MapConstraintsBehaviorType::DefaultTransform)
+				{
+					ConstraintInstance->SetRefOrientation(EConstraintFrame::Frame2, 
+						CurrentChildRelParentTM.GetUnitAxis(EAxis::X), CurrentChildRelParentTM.GetUnitAxis(EAxis::Y));
+				}
+
+#if !NO_LOGGING
+				UE_LOGFMT(LogPhysicsControl, Log,
+					"Constraint {0} - {1}  - transform relative to parent was {2} now {3}.",
+					ChildBoneName.ToString(),
+					ParentBoneName.ToString(),
+					LogPreviousConstraintTransformRelParent.ToString(),
+					ConstraintInstance->GetRefFrame(EConstraintFrame::Frame2).ToString());
 #endif
 			}
-		}
-#if !NO_LOGGING
-		else
-		{
-			UE_LOGFMT(LogPhysicsControl, Log, 
-				"Do not modify constraint parent transforms as the Skeleton used to create the Physics asset \"{0}\" matches the current skeleton \"{1}\".", 
-				PhysicsAssetAuthoredSkeletalMesh->GetName(), SkeletalMeshAsset->GetName());
-		}
-#endif
-	}
-	else if (SkeletalMeshAsset)
-	{
-		UE_LOGFMT(LogPhysicsControl, Log, 
-			"Snap Constraint parent transforms to the current skeleton \"{0}\" (Authored Skeleton is undefined in node details).", 
-			SkeletalMeshAsset->GetName());
-
-		const FReferenceSkeleton& CurrentReferenceSkeleton = SkeletalMeshAsset->GetRefSkeleton();
-
-		// Move all the constraints to the default (snapped) location relative to the parent bone.
-		for (FConstraintInstance* const ConstraintInstance : ConstraintInstances)
-		{
-#if !NO_LOGGING
-			const FVector LogPreviousConstraintPositionRelParent = ConstraintInstance->Pos2;
-#endif
-
-			const FTransform ParentRelChildTM = CalculateRelativeBoneTransform(
-				ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, CurrentReferenceSkeleton);			
-			ConstraintInstance->SetRefFrame(EConstraintFrame::Frame2, ParentRelChildTM);
-
-#if !NO_LOGGING
-			UE_LOGFMT(LogPhysicsControl, Log, 
-				"Snapped Constraint {0} - {1} Parent Transform - position was {2} now {3}.", 
-				ConstraintInstance->ConstraintBone1.ToString(), 
-				ConstraintInstance->ConstraintBone2.ToString(), 
-				LogPreviousConstraintPositionRelParent.ToCompactString(), 
-				ConstraintInstance->Pos2.ToCompactString());
-#endif
 		}
 	}
 }

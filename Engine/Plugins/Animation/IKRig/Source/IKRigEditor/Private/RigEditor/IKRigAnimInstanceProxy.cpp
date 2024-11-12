@@ -14,15 +14,13 @@ FIKRigAnimInstanceProxy::FIKRigAnimInstanceProxy(UAnimInstance* InAnimInstance, 
 
 void FIKRigAnimInstanceProxy::Initialize(UAnimInstance* InAnimInstance)
 {
-	FAnimPreviewInstanceProxy::Initialize(InAnimInstance);
-	IKRigNode->Source.SetLinkNode(&SingleNode);
-
-	// force this instance of the IK Rig evaluation to copy setting from the source IK Rig asset
-	IKRigNode->bDriveWithSourceAsset = true; 
+	Super::Initialize(InAnimInstance);
+	IKRigNode->bDriveWithSourceAsset = true; // force this instance of the IK Rig evaluation to copy settings from the source IK Rig asset 
 }
 
 bool FIKRigAnimInstanceProxy::Evaluate(FPoseContext& Output)
 {
+	Super::Evaluate(Output);
 	IKRigNode->Evaluate_AnyThread(Output);
 	return true;
 }
@@ -39,14 +37,8 @@ void FIKRigAnimInstanceProxy::GetCustomNodes(TArray<FAnimNode_Base*>& OutNodes)
 
 void FIKRigAnimInstanceProxy::UpdateAnimationNode(const FAnimationUpdateContext& InContext)
 {
-	if (CurrentAsset != nullptr)
-	{
-		FAnimPreviewInstanceProxy::UpdateAnimationNode(InContext);
-	}
-	else
-	{
-		IKRigNode->Update_AnyThread(InContext);
-	}
+	Super::UpdateAnimationNode(InContext);
+	IKRigNode->Update_AnyThread(InContext);
 }
 
 void FIKRigAnimInstanceProxy::SetIKRigAsset(UIKRigDefinition* InIKRigAsset)

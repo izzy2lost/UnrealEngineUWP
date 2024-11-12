@@ -39,6 +39,7 @@ void SFieldDisplay::Construct(const FArguments& InArgs, const UWidgetBlueprint* 
 			.TextStyle(TextStyle)
 			.ShowContext(InArgs._ShowContext)
 			.OnGetPropertyPath(this, &SFieldDisplay::HandleGetPropertyPath)
+			.ShowFieldNotify(InArgs._ShowFieldNotify)
 		]
 
 		//1-Conversion Function

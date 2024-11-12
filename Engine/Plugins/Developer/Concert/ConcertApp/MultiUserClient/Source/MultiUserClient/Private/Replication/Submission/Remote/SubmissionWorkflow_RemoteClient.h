@@ -15,7 +15,7 @@ class IConcertSyncClient;
 
 enum class EConcertClientStatus : uint8;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FSingleClientSubmissionOperation;
 	

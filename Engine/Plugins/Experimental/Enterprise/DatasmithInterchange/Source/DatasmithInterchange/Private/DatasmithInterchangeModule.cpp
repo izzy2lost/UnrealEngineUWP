@@ -4,6 +4,7 @@
 
 #include "Engine/Blueprint.h"
 #include "InterchangeDatasmithAreaLightFactory.h"
+#include "InterchangeDatasmithCustomizations.h"
 #include "InterchangeDatasmithLog.h"
 #include "InterchangeDatasmithPipeline.h"
 #include "InterchangeDatasmithTranslator.h"
@@ -21,8 +22,13 @@
 #include "InterchangeGenericScenesPipeline.h"
 #include "InterchangeManager.h"
 #include "InterchangeProjectSettings.h"
+
 #include "Logging/LogMacros.h"
 #include "UObject/SoftObjectPath.h"
+
+#if WITH_EDITOR
+#include "PropertyEditorModule.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "DatasmithInterchange"
 
@@ -33,6 +39,30 @@ class FDatasmithInterchangeModule : public IDatasmithInterchangeModule
 {
 public:
 	virtual void StartupModule() override
+	{
+		FCoreDelegates::OnPostEngineInit.AddRaw(this, &FDatasmithInterchangeModule::OnPostEngineInit);
+	}
+
+	virtual void ShutdownModule() override
+	{
+		FCoreDelegates::OnPostEngineInit.RemoveAll(this);
+
+		UE::DatasmithInterchange::FDatasmithReferenceMaterialManager::Destroy();
+		
+#if WITH_EDITOR
+		FPropertyEditorModule* PropertyEditorModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor");
+		if (PropertyEditorModule)
+		{
+			for (FName ClassName : ClassesToUnregisterOnShutdown)
+			{
+				PropertyEditorModule->UnregisterCustomClassLayout(ClassName);
+			}
+		}
+		ClassesToUnregisterOnShutdown.Empty();
+#endif
+	}
+
+	void OnPostEngineInit()
 	{
 		using namespace UE::DatasmithInterchange;
 
@@ -68,12 +98,20 @@ public:
 		FDatasmithReferenceMaterialManager::Get().RegisterSelector(TEXT("SketchUp"), MakeShared< FDatasmithSketchUpMaterialSelector >());
 		FDatasmithReferenceMaterialManager::Get().RegisterSelector(TEXT("CityEngine"), MakeShared< FDatasmithCityEngineMaterialSelector >());
 		FDatasmithReferenceMaterialManager::Get().RegisterSelector(TEXT("StdMaterial"), MakeShared< FDatasmithStdMaterialSelector >());
+
+#if WITH_EDITOR
+		ClassesToUnregisterOnShutdown.Reset();
+		// Register details customizations
+		FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+		ClassesToUnregisterOnShutdown.Add(UInterchangeDatasmithTranslatorSettings::StaticClass()->GetFName());
+		PropertyEditorModule.RegisterCustomClassLayout(ClassesToUnregisterOnShutdown.Last(), FOnGetDetailCustomizationInstance::CreateStatic(&FInterchangeDatasmithTranslatorSettingsCustomization::MakeInstance));
+#endif
 	}
 
-	virtual void ShutdownModule() override
-	{
-		UE::DatasmithInterchange::FDatasmithReferenceMaterialManager::Destroy();
-	}
+#if WITH_EDITOR
+	TArray<FName> ClassesToUnregisterOnShutdown;
+#endif
 };
 
 IMPLEMENT_MODULE(FDatasmithInterchangeModule, DatasmithInterchange);

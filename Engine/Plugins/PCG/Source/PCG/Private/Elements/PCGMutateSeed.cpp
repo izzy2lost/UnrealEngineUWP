@@ -14,11 +14,6 @@ namespace PCGMutateSeedConstants
 	static constexpr int32 PointsPerChunk = 98304;
 }
 
-UPCGMutateSeedSettings::UPCGMutateSeedSettings()
-{
-	bUseSeed = true;
-}
-
 FPCGElementPtr UPCGMutateSeedSettings::CreateElement() const
 {
 	return MakeShared<FPCGMutateSeedElement>();

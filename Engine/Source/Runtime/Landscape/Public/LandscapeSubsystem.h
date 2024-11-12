@@ -85,7 +85,7 @@ public:
 	 * @param InOptionalCameraLocations : (optional) camera locations that should be used when updating the grass. If not specified, the usual (streaming manager-based) view locations will be used
 	 */
 	LANDSCAPE_API void RegenerateGrass(bool bInFlushGrass, bool bInForceSync, TOptional<TArrayView<FVector>> InOptionalCameraLocations = TOptional<TArrayView<FVector>>());
-	
+
 	// Remove all grass instances from the specified components.  If passed null, removes all grass instances from all proxies.
 	void RemoveGrassInstances(const TSet<ULandscapeComponent*>* ComponentsToRemoveGrassInstances = nullptr);
 
@@ -100,11 +100,6 @@ public:
 	LANDSCAPE_API void BuildGrassMaps();
 	LANDSCAPE_API void BuildPhysicalMaterial();
 
-	UE_DEPRECATED(5.3, "BuildGIBakedTextures is officially deprecated nowe")
-	void BuildGIBakedTextures() {}
-	UE_DEPRECATED(5.3, "GetOutdatedGIBakedTextureComponentsCount is officially deprecated now")
-	int32 GetOutdatedGIBakedTextureComponentsCount() { return 0; }
-
 	/**
 	 * Updates the Nanite mesh on all landscape actors whose mesh is not up to date.
 	 * @param InProxiesToBuild - If specified, only the Nanite meshes of the specified landscape actors (recursively for all streaming proxies, in the case of a 1 ALandscape / N ALandscapeStreamingProxy setup) will be built
@@ -112,13 +107,10 @@ public:
 	 */
 	LANDSCAPE_API void BuildNanite(TArrayView<ALandscapeProxy*> InProxiesToBuild = TArrayView<ALandscapeProxy*>(), bool bForceRebuild = false);
 	
+	UE_DEPRECATED(5.5, "Use GetOutdatedProxyDetails")
 	LANDSCAPE_API TArray<ALandscapeProxy*> GetOutdatedProxies(UE::Landscape::EOutdatedDataFlags InMatchingOutdatedDataFlags, bool bInMustMatchAllFlags) const;
+	LANDSCAPE_API TArray<TTuple<ALandscapeProxy*, UE::Landscape::EOutdatedDataFlags>> GetOutdatedProxyDetails(UE::Landscape::EOutdatedDataFlags InMatchingOutdatedDataFlags, bool bInMustMatchAllFlags) const;
 	
-	UE_DEPRECATED(5.3, "GetOutdatedGrassMapCount is now deprecated, use GetOutdatedProxies")
-	LANDSCAPE_API int32 GetOutdatedGrassMapCount();
-	UE_DEPRECATED(5.3, "GetOudatedPhysicalMaterialComponentsCount is now deprecated, use GetOutdatedProxies")
-	LANDSCAPE_API int32 GetOudatedPhysicalMaterialComponentsCount();
-
 	LANDSCAPE_API bool IsGridBased() const;
 	LANDSCAPE_API void ChangeGridSize(ULandscapeInfo* LandscapeInfo, uint32 NewGridSizeInComponents);
 	LANDSCAPE_API ALandscapeProxy* FindOrAddLandscapeProxy(ULandscapeInfo* LandscapeInfo, const FIntPoint& SectionBase);
@@ -130,8 +122,6 @@ public:
 	LANDSCAPE_API void MarkModifiedLandscapesAsDirty();
 	LANDSCAPE_API void SaveModifiedLandscapes();
 	LANDSCAPE_API bool HasModifiedLandscapes() const;
-	UE_DEPRECATED(5.3, "Use GetDirtyOnlyInMode instead")
-	LANDSCAPE_API static bool IsDirtyOnlyInModeEnabled();
 	LANDSCAPE_API bool GetDirtyOnlyInMode() const;
 	FLandscapeNotificationManager* GetNotificationManager() { return NotificationManager; }
 	FOnHeightmapStreamedDelegate& GetOnHeightmapStreamedDelegate() { return OnHeightmapStreamed; }
@@ -167,14 +157,21 @@ private:
 	void HandlePostGarbageCollect();
 
 	bool bIsGrassCreationPrioritized = false;
-	TArray<TWeakObjectPtr<ALandscape>> LandscapeActors;
-	TArray<TWeakObjectPtr<ALandscapeProxy>> Proxies;
+
+	// UPROPERTY ensures these objects are not deleted before being unregistered
+	// (technically not necessary, as actors should always unregister prior to deletion)
+	UPROPERTY()
+	TArray<TObjectPtr<ALandscape>> LandscapeActors;
+
+	UPROPERTY()
+	TArray<TObjectPtr<ALandscapeProxy>> Proxies;
+
 	FDelegateHandle OnNaniteWorldSettingsChangedHandle;
 
 	FLandscapeTextureStreamingManager* TextureStreamingManager = nullptr;
 	FLandscapeGrassMapsBuilder* GrassMapsBuilder = nullptr;
 
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
 	class FLandscapePhysicalMaterialBuilder* PhysicalMaterialBuilder = nullptr;
 	
 	FLandscapeNotificationManager* NotificationManager = nullptr;
@@ -189,7 +186,7 @@ private:
 	std::atomic<int32> NaniteBuildsInFlight;
 	std::atomic<int32> NaniteStaticMeshesInFlight;
 
-#endif // WITH_EDITOR
+#endif // WITH_EDITORONLY_DATA
 	
 	FDelegateHandle OnScalabilityChangedHandle;
 };

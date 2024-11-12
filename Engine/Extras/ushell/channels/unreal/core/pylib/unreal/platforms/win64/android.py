@@ -109,6 +109,10 @@ class Platform(unreal.Platform):
     def _get_package_name(self):
         config = self.get_unreal_context().get_config()
         if ret := str(config.get("Engine", Platform.config_section, "PackageName")):
+            if "[PROJECT]" in ret:
+                project_name = self.get_unreal_context().get_project().get_name()
+                project_name = project_name.replace("-", "_")
+                ret = ret.replace("[PROJECT]", project_name)
             return ret
         raise ValueError(f"Failed querying '{Platform.config_section}/PackageName'")
 
@@ -121,8 +125,17 @@ class Platform(unreal.Platform):
         print("Intent: ", intent)
         print()
 
-        args = "'" + " ".join(x.replace("\"", "\\\"") for x in args) + "'"
         adb = self._get_adb()
+        reverse_port_mappings = [
+                    41899,  # Network file server, DEFAULT_TCP_FILE_SERVING_PORT in NetworkMessage.h
+                    1981,   # Unreal Insights data collection, TraceInsightsModule.cpp
+                    8558,   # Zen Store
+        ]
+        for reverse_port_mapping in reverse_port_mappings:
+            reverse_cmd = (str(adb), "reverse", "tcp:"+str(reverse_port_mapping), "tcp:"+str(reverse_port_mapping), ">", "NUL")
+            os.system(" ".join(reverse_cmd))
+
+        args = "'" + " ".join(x.replace("\"", "\\\"") for x in args) + "'"
         cmd = (str(adb), "-d", "shell", "am", "start", "--es", "cmdline", args, intent)
         print(*cmd)
 

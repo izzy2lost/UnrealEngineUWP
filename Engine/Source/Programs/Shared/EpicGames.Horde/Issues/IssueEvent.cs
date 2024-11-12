@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
@@ -27,11 +29,6 @@ namespace EpicGames.Horde.Issues
 		public EventId? EventId { get; }
 
 		/// <summary>
-		/// The complete rendered message, in plaintext
-		/// </summary>
-		public string Message { get; }
-
-		/// <summary>
 		/// Gets this event data as a BSON document
 		/// </summary>
 		public IReadOnlyList<JsonLogEvent> Lines { get; }
@@ -39,17 +36,22 @@ namespace EpicGames.Horde.Issues
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public IssueEvent(int lineIndex, LogLevel severity, EventId? eventId, string message, IReadOnlyList<JsonLogEvent> lines)
+		public IssueEvent(int lineIndex, LogLevel severity, EventId? eventId, IReadOnlyList<JsonLogEvent> lines)
 		{
 			LineIndex = lineIndex;
 			Severity = severity;
 			EventId = eventId;
-			Message = message;
 			Lines = lines;
 		}
 
+		/// <summary>
+		/// Renders the entire message of this event
+		/// </summary>
+		public string Render()
+			=> String.Join("\n", Lines.Select(x => x.GetRenderedMessage().ToString()));
+
 		/// <inheritdoc/>
-		public override string ToString() => $"[{LineIndex}] {Message}";
+		public override string ToString() => $"[{LineIndex}] {Render()}";
 	}
 
 	/// <summary>
@@ -80,7 +82,7 @@ namespace EpicGames.Horde.Issues
 		/// <summary>
 		/// Filter for changes that should be included in this issue
 		/// </summary>
-		public IReadOnlyList<string> ChangeFilter { get; set; }
+		public string ChangeFilter { get; set; }
 
 		/// <summary>
 		/// Individual log events
@@ -93,11 +95,22 @@ namespace EpicGames.Horde.Issues
 		/// <param name="type">The type of issue</param>
 		/// <param name="summaryTemplate">Template for the summary string to display for the issue</param>
 		/// <param name="changeFilter">Filter for changes covered by this issue</param>
-		public IssueEventGroup(string type, string summaryTemplate, IReadOnlyList<string> changeFilter)
+		public IssueEventGroup(string type, string summaryTemplate, string changeFilter)
 		{
 			Type = type;
 			SummaryTemplate = summaryTemplate;
 			ChangeFilter = changeFilter;
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="type">The type of issue</param>
+		/// <param name="summaryTemplate">Template for the summary string to display for the issue</param>
+		/// <param name="changeFilter">Filter for changes covered by this issue</param>
+		public IssueEventGroup(string type, string summaryTemplate, IReadOnlyList<string> changeFilter)
+			: this(type, summaryTemplate, String.Join(";", changeFilter))
+		{
 		}
 	}
 }

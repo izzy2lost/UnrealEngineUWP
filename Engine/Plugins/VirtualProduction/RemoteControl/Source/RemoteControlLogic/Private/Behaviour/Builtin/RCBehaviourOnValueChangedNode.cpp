@@ -2,7 +2,7 @@
 
 #include "Behaviour/Builtin/RCBehaviourOnValueChangedNode.h"
 
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 
 URCBehaviourOnValueChangedNode::URCBehaviourOnValueChangedNode()
 {

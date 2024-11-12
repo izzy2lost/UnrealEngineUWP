@@ -54,7 +54,6 @@ enum VCMFrameBufferStateEnum {
 };
 
 enum { kH264StartCodeLengthBytes = 4 };
-enum { kH265StartCodeLengthBytes = 4 };
 }  // namespace webrtc
 
 #endif  // MODULES_VIDEO_CODING_JITTER_BUFFER_COMMON_H_

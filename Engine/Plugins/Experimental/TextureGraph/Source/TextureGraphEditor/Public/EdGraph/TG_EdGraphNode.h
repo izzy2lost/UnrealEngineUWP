@@ -103,6 +103,7 @@ protected:
 
 	void OnNodePostEvaluate(const FTG_EvaluationContext* Fts_EvaluationContext);
 	bool UpdateEdPinDefaultValue(UEdGraphPin* EdPin, const UTG_EdGraphSchema* Schema);
+	void UpdatePinsAndReconstructNode();
 
 	void OnUpdateCommentText(const FString& NewComment) override;
 	void OnCommentBubbleToggled(bool bInCommentBubbleVisible) override;

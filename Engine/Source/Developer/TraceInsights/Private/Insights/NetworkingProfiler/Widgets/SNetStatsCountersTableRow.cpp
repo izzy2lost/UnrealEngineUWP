@@ -6,15 +6,20 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/Images/SImage.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+#include "InsightsCore/Table/ViewModels/Table.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
-#include "Insights/Common/TimeUtils.h"
-#include "Insights/Table/ViewModels/Table.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
 #include "Insights/NetworkingProfiler/Widgets/SNetStatsCountersTableCell.h"
 #include "Insights/NetworkingProfiler/Widgets/SNetStatsCountersViewTooltip.h"
 
-#define LOCTEXT_NAMESPACE "SNetStatsView"
+#define LOCTEXT_NAMESPACE "UE::Insights::NetworkingProfiler::SNetStatsView"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +49,7 @@ void SNetStatsCountersTableRow::Construct(const FArguments& InArgs, const TShare
 
 TSharedRef<SWidget> SNetStatsCountersTableRow::GenerateWidgetForColumn(const FName& ColumnId)
 {
-	TSharedPtr<Insights::FTableColumn> ColumnPtr = TablePtr->FindColumnChecked(ColumnId);
+	TSharedPtr<FTableColumn> ColumnPtr = TablePtr->FindColumnChecked(ColumnId);
 
 	return
 		SNew(SOverlay)
@@ -181,11 +186,13 @@ EVisibility SNetStatsCountersTableRow::IsColumnVisible(const FName ColumnId) con
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SNetStatsCountersTableRow::OnSetHoveredCell(TSharedPtr<Insights::FTable> InTablePtr, TSharedPtr<Insights::FTableColumn> InColumnPtr, FNetStatsCounterNodePtr InNetStatsCounterNodePtr)
+void SNetStatsCountersTableRow::OnSetHoveredCell(TSharedPtr<FTable> InTablePtr, TSharedPtr<FTableColumn> InColumnPtr, FNetStatsCounterNodePtr InNetStatsCounterNodePtr)
 {
 	SetHoveredCellDelegate.ExecuteIfBound(InTablePtr, InColumnPtr, InNetStatsCounterNodePtr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef LOCTEXT_NAMESPACE

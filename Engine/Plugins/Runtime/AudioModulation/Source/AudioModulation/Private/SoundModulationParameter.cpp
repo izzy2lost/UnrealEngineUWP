@@ -63,6 +63,7 @@ Audio::FModulationParameter USoundModulationParameter::CreateParameter() const
 	Parameter.DefaultValue = GetUnitDefault();
 	Parameter.MinValue = GetUnitMin();
 	Parameter.MaxValue = GetUnitMax();
+	Parameter.TypeHash = GetTypeHash(this);
 
 #if WITH_EDITORONLY_DATA
 	Parameter.UnitDisplayName = Settings.UnitDisplayName;

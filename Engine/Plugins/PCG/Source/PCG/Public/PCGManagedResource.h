@@ -4,13 +4,16 @@
 
 #include "PCGCommon.h"
 #include "PCGCrc.h"
+#include "Elements/PCGSplineMeshParams.h"
 
+#include "Engine/SplineMeshComponentDescriptor.h"
 #include "ISMPartition/ISMComponentDescriptor.h"
 
 #include "PCGManagedResource.generated.h"
 
 class UActorComponent;
 class UInstancedStaticMeshComponent;
+class USplineMeshComponent;
 
 /** 
 * This class is used to hold resources and their mechanism to delete them on demand.
@@ -101,37 +104,131 @@ public:
 	TSet<TSoftObjectPtr<AActor>> GeneratedActors;
 };
 
-UCLASS(BlueprintType)
-class PCG_API UPCGManagedComponent : public UPCGManagedResource
+UCLASS(Abstract)
+class PCG_API UPCGManagedComponentBase : public UPCGManagedResource
 {
 	GENERATED_BODY()
 
+	friend class UPCGComponent;
 public:
 	//~Begin UObject interface
 	virtual void PostEditImport() override;
 	//~End UObject interface
 
 	//~Begin UPCGManagedResource interface
-	virtual bool Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor>>& OutActorsToDelete) override;
-	virtual bool ReleaseIfUnused(TSet<TSoftObjectPtr<AActor>>& OutActorsToDelete) override;
+	virtual void MarkAsUsed() override;
+	virtual void MarkAsReused() override;
 	virtual bool MoveResourceToNewActor(AActor* NewActor, const AActor* ExpectedPreviousOwner) override;
 
 #if WITH_EDITOR
 	virtual void ChangeTransientState(EPCGEditorDirtyMode NewEditingMode) override;
-	/** Hides the content of the component in a transient way (such as unregistering) */
-	virtual void HideComponent();
 #endif
 	//~End UPCGManagedResource interface
 
+public:
+#if WITH_EDITOR
+	/** Hides the content of the component in a transient way (such as unregistering) */
+	void HideComponents();
+	virtual void HideComponent(int32 ComponentIndex);
+	virtual void HideComponent() {};
+#endif
+
+	void ForgetComponents();
+	virtual void ForgetComponent(int32 ComponentIndex);
+	virtual void ForgetComponent() {}
+
+	void ResetComponents();
+	virtual void ResetComponent(int32 ComponentIndex);
 	virtual void ResetComponent() { check(0); }
 	virtual bool SupportsComponentReset() const { return false; }
-	virtual void MarkAsUsed() override;
-	virtual void MarkAsReused() override;
-	virtual void ForgetComponent() { GeneratedComponent.Reset(); }
+
+protected:
+	virtual TArrayView<TSoftObjectPtr<UActorComponent>> GetComponentsArray() PURE_VIRTUAL(UPCGManagedComponentBase::GetComponentsArray, return TArrayView<TSoftObjectPtr<UActorComponent>>{};);
+	virtual int32 GetComponentsCount() const PURE_VIRTUAL(UPCGManagedComponentBase::GetComponentsCount, return 0;);
+	void SetupGeneratedComponentFromBP(TSoftObjectPtr<UActorComponent> InGeneratedComponent);
+};
+
+UCLASS(BlueprintType)
+class PCG_API UPCGManagedComponent : public UPCGManagedComponentBase
+{
+	GENERATED_BODY()
+
+	friend class UPCGComponent;
 
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = GeneratedData)
+	//~Begin UPCGManagedResource interface
+	virtual bool Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor>>& OutActorsToDelete) override;
+	virtual bool ReleaseIfUnused(TSet<TSoftObjectPtr<AActor>>& OutActorsToDelete) override;
+	//~End UPCGManagedResource interface
+
+	//~Begin UPCGManagedComponentBase interface
+#if WITH_EDITOR
+	/** Hides the content of the component in a transient way (such as unregistering) */
+	virtual void HideComponent();
+#endif
+	
+	virtual void ForgetComponent() { GeneratedComponent.Reset(); }
+
+protected:
+	virtual TArrayView<TSoftObjectPtr<UActorComponent>> GetComponentsArray() override { return TArrayView<TSoftObjectPtr<UActorComponent>>(&GeneratedComponent, 1); }
+	virtual int32 GetComponentsCount() const override { return 1; }
+	//~End UPCGManagedComponentBase interface
+
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = GeneratedData, BlueprintSetter = SetGeneratedComponentFromBP)
 	TSoftObjectPtr<UActorComponent> GeneratedComponent;
+
+private:
+	// When creating components from BP they will be tagged automatically as created from construction script, which makes them transient and isn't compatible with the PCG workflow.
+	UFUNCTION(BlueprintSetter, meta = (BlueprintInternalUseOnly = "true"))
+	void SetGeneratedComponentFromBP(TSoftObjectPtr<UActorComponent> InGeneratedComponent);
+};
+
+/** This managed resource class is used to tie multiple components in the same resource so that they are cleaned up all at the same time. */
+UCLASS(BlueprintType)
+class PCG_API UPCGManagedComponentList : public UPCGManagedComponentBase
+{
+	GENERATED_BODY()
+	friend class UPCGComponent;
+
+public:
+	//~Begin UPCGManagedResource interface
+	virtual bool Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor>>& OutActorsToDelete) override;
+	virtual bool ReleaseIfUnused(TSet<TSoftObjectPtr<AActor>>& OutActorsToDelete) override;
+	//~End UPCGManagedResource interface
+
+	//~Begin UPCGManagedComponentBase interface
+#if WITH_EDITOR
+	/** Hides the content of the component in a transient way (such as unregistering) */
+	virtual void HideComponent(int32 ComponentIndex) override;
+#endif
+
+	virtual void ForgetComponent(int32 ComponentIndex) override;
+
+protected:
+	virtual TArrayView<TSoftObjectPtr<UActorComponent>> GetComponentsArray() override { return GeneratedComponents; }
+	virtual int32 GetComponentsCount() const override { return GeneratedComponents.Num(); }
+	//~End UPCGManagedComponentBase interface
+
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = GeneratedData, BlueprintSetter = SetGeneratedComponentsFromBP)
+	TArray<TSoftObjectPtr<UActorComponent>> GeneratedComponents;
+
+private:
+	// When creating components from BP they will be tagged automatically as created from construction script, which makes them transient and isn't compatible with the PCG workflow.
+	UFUNCTION(BlueprintSetter, meta = (BlueprintInternalUseOnly = "true"))
+	void SetGeneratedComponentsFromBP(const TArray<TSoftObjectPtr<UActorComponent>>& InGeneratedComponent);
+};
+
+/** Stub default list to hold resources pushed from BP in a single place on the PCG component. */
+UCLASS()
+class UPCGManagedComponentDefaultList final : public UPCGManagedComponentList
+{
+	GENERATED_BODY()
+	friend class UPCGComponent;
+
+private:
+	void AddGeneratedComponentsFromBP(const TArray<TSoftObjectPtr<UActorComponent>>& InGeneratedComponents);
 };
 
 UCLASS(BlueprintType)
@@ -187,6 +284,40 @@ protected:
 	mutable UInstancedStaticMeshComponent* CachedRawComponentPtr = nullptr;
 };
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif
+UCLASS(BlueprintType)
+class PCG_API UPCGManagedSplineMeshComponent : public UPCGManagedComponent
+{
+	GENERATED_BODY()
+
+public:
+	//~Begin UPCGManagedComponents interface
+	virtual void ResetComponent() override { /* Does nothing, but implementation is required to support reuse. */ }
+	virtual bool SupportsComponentReset() const override { return true; }
+	virtual void ForgetComponent() override;
+	//~End UPCGManagedComponents interface
+
+	USplineMeshComponent* GetComponent() const;
+	void SetComponent(USplineMeshComponent* InComponent);
+
+	void SetDescriptor(const FSplineMeshComponentDescriptor& InDescriptor) { Descriptor = InDescriptor; }
+	const FSplineMeshComponentDescriptor& GetDescriptor() const { return Descriptor; }
+
+	void SetSplineMeshParams(const FPCGSplineMeshParams& InSplineMeshParams) { SplineMeshParams = InSplineMeshParams; }
+	const FPCGSplineMeshParams& GetSplineMeshParams() const { return SplineMeshParams; }
+
+	uint64 GetSettingsUID() const { return SettingsUID; }
+	void SetSettingsUID(uint64 InSettingsUID) { SettingsUID = InSettingsUID; }
+
+protected:
+	UPROPERTY()
+	FSplineMeshComponentDescriptor Descriptor;
+
+	UPROPERTY()
+	FPCGSplineMeshParams SplineMeshParams;
+
+	UPROPERTY(Transient)
+	uint64 SettingsUID = -1; // purposefully a value that will never happen in data
+
+	// Cached raw pointer to USplineMeshComponent
+	mutable USplineMeshComponent* CachedRawComponentPtr = nullptr;
+};

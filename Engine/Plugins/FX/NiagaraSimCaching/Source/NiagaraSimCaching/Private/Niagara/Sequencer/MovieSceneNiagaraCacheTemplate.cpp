@@ -112,7 +112,7 @@ struct FNiagaraCacheExecutionToken : IMovieSceneExecutionToken
 		FFrameNumber SectionStartTime = Section.GetInclusiveStartFrame();
 		FFrameNumber SectionEndTime = Section.GetExclusiveEndFrame();
 		
-		const float SequenceLength = Section.Params.SectionStretchMode == ENiagaraSimCacheSectionStretchMode::TimeDilate ? InFrameRate.AsSeconds(SectionEndTime - SectionStartTime) : ComponentDuration;
+		const float SequenceLength = Section.Params.SectionStretchMode == ENiagaraSimCacheSectionStretchMode::TimeDilate ? static_cast<float>(InFrameRate.AsSeconds(SectionEndTime - SectionStartTime)) : ComponentDuration;
 		const FFrameTime AnimationLength = SequenceLength * InFrameRate;
 		const int32 LengthInFrames = AnimationLength.FrameNumber.Value + static_cast<int>(AnimationLength.GetSubFrame() + 0.5f) + 1;
 	
@@ -123,15 +123,15 @@ struct FNiagaraCacheExecutionToken : IMovieSceneExecutionToken
 
 		const float SectionPlayRate = BaseParams.PlayRate;
 		const float AnimPlayRate = FMath::IsNearlyZero(SectionPlayRate) ? 1.0f : SectionPlayRate;
-		const float SeqLength = SequenceLength - InFrameRate.AsSeconds(BaseParams.StartFrameOffset + BaseParams.EndFrameOffset);
+		const float SeqLength = SequenceLength - static_cast<float>(InFrameRate.AsSeconds(BaseParams.StartFrameOffset + BaseParams.EndFrameOffset));
 
-		float AnimPosition = FFrameTime::FromDecimal((InPosition - SectionStartTime).AsDecimal() * AnimPlayRate) / InFrameRate;
-		AnimPosition += InFrameRate.AsSeconds(BaseParams.FirstLoopStartFrameOffset);
+		float AnimPosition = static_cast<float>(FFrameTime::FromDecimal((InPosition - SectionStartTime).AsDecimal() * AnimPlayRate) / InFrameRate);
+		AnimPosition += static_cast<float>(InFrameRate.AsSeconds(BaseParams.FirstLoopStartFrameOffset));
 		if (SeqLength > 0.f && (bLooping || !FMath::IsNearlyEqual(AnimPosition, SeqLength, 1e-4f)))
 		{
 			AnimPosition = FMath::Fmod(AnimPosition, SeqLength);
 		}
-		AnimPosition += InFrameRate.AsSeconds(BaseParams.StartFrameOffset);
+		AnimPosition += static_cast<float>(InFrameRate.AsSeconds(BaseParams.StartFrameOffset));
 		if (BaseParams.bReverse)
 		{
 			AnimPosition = SequenceLength - AnimPosition;

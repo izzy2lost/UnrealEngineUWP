@@ -113,21 +113,35 @@ FloatDeriv4 ConstructFloatDeriv4(float4 InValue, float4 InDdx, float4 InDdy)
 #define NearDepthValue (HAS_INVERTED_Z_BUFFER ? 1.0f : 0.0f)
 #define FarDepthValue  (HAS_INVERTED_Z_BUFFER ? 0.0f : 1.0f)
 
+float NearestDeviceDepth(float DepthA, 
+                         float DepthB,
+                         float DepthC = FarDepthValue
+)
+{
+#if HAS_INVERTED_Z_BUFFER
+	return max3(DepthA, DepthB, DepthC);
+#else
+	return min3(DepthA, DepthB, DepthC);
+#endif
+}
+
+float FarthestDeviceDepth(float DepthA, 
+                          float DepthB,
+                          float DepthC = NearDepthValue
+)
+{
+#if HAS_INVERTED_Z_BUFFER
+	return min3(DepthA, DepthB, DepthC);
+#else
+	return max3(DepthA, DepthB, DepthC);
+#endif
+}
+
 const static MaterialFloat PI = 3.1415926535897932f;
 const static float MaxHalfFloat = 65504.0f;
 const static float Max11BitsFloat = 65024.0f;
 const static float Max10BitsFloat = 64512.0f;
 const static float3 Max111110BitsFloat3 = float3(Max11BitsFloat, Max11BitsFloat, Max10BitsFloat);
-
-#if POST_PROCESS_ALPHA
-#define SceneColorLayout float4
-#define CastFloat4ToSceneColorLayout(x) (x)
-#define SetSceneColorLayoutToFloat4(dest,value) dest = (value)
-#else
-#define SceneColorLayout float3
-#define CastFloat4ToSceneColorLayout(x) ((x).rgb)
-#define SetSceneColorLayoutToFloat4(dest,value) dest.rgb = (value).rgb
-#endif
 
 #define SUPPORTS_TEXTURE_EXTERNAL		(COMPILER_GLSL_ES3_1)
 
@@ -238,7 +252,11 @@ float VectorSum(float4 V) { return V.x + V.y + V.z + V.w; }
 // Using SV_ClipDistance has overhead (15% slower base pass in triangle bound test scene on PS4) so projects have to opt-in
 #define USE_GLOBAL_CLIP_PLANE (PROJECT_ALLOW_GLOBAL_CLIP_PLANE && !MATERIAL_DOMAIN_POSTPROCESS && !MATERIAL_DOMAIN_UI)
 
-#if RAYHITGROUPSHADER || RAYMISSHADER || RAYCALLABLESHADER
+#ifndef RAYTRACINGSHADER
+	#define RAYTRACINGSHADER (RAYHITGROUPSHADER || RAYMISSSHADER || RAYCALLABLESHADER)
+#endif
+
+#if RAYTRACINGSHADER
 
 // These built-ins are not available in ray tracing
 // Define dummy versions so that ray-tracing materials will at least compile
@@ -597,12 +615,30 @@ MaterialFloat4 TextureCubeArraySampleLevel(TextureCubeArray Tex, SamplerState Sa
 #else
 	#define TANGENTTOWORLD0					TEXCOORD10
 	#define TANGENTTOWORLD2					TEXCOORD11
-	#define TANGENTTOWORLD_INTERPOLATOR_BLOCK	half4 TangentToWorld0 : TANGENTTOWORLD0; half4 TangentToWorld2 : TANGENTTOWORLD2;
+	#if MOBILE_EMULATION
+		#define TANGENTTOWORLD_INTERPOLATOR_BLOCK	float4 TangentToWorld0 : TANGENTTOWORLD0; float4 TangentToWorld2 : TANGENTTOWORLD2;
+	#else
+		#define TANGENTTOWORLD_INTERPOLATOR_BLOCK	half4 TangentToWorld0 : TANGENTTOWORLD0; half4 TangentToWorld2 : TANGENTTOWORLD2;
+	#endif
 #endif
+
+
+float3 LuminanceFactors()
+{
+#if UE_LEGACY_LUMINANCE_FACTORS
+	return float3(0.3, 0.59, 0.11);
+#else
+	#if WORKING_COLOR_SPACE_IS_SRGB || MATERIAL_DOMAIN_UI
+		return float3(0.2126390059, 0.7151686788, 0.0721923154);
+	#else
+		return float3(WORKING_COLOR_SPACE_RGB_TO_XYZ_MAT._m10_m11_m12);
+	#endif
+#endif
+}
 
 MaterialFloat Luminance( MaterialFloat3 LinearColor )
 {
-	return dot( LinearColor, MaterialFloat3( 0.3, 0.59, 0.11 ) );
+	return dot( LinearColor, MaterialFloat3(LuminanceFactors()));
 }
 
 float length2(float2 v)
@@ -1182,15 +1218,6 @@ float4 GetPerPixelLightAttenuation(float2 UV)
 	return DecodeLightAttenuation(Texture2DSampleLevel(LightAttenuationTexture, LightAttenuationTextureSampler, UV, 0));
 }
 
-// also see ConvertToDeviceZ()
-// @param DeviceZ value that is stored in the depth buffer (Z/W)
-// @return SceneDepth (linear in world units, W)
-float ConvertFromDeviceZ(float DeviceZ)
-{
-	// Supports ortho and perspective, see CreateInvDeviceZToWorldZTransform()
-	return DeviceZ * View.InvDeviceZToWorldZTransform[0] + View.InvDeviceZToWorldZTransform[1] + 1.0f / (DeviceZ * View.InvDeviceZToWorldZTransform[2] - View.InvDeviceZToWorldZTransform[3]);
-}
-
 // Returns whether or not the given projection matrix is orthographic
 bool IsOrthoProjection(float4x4 ViewToClip)
 {
@@ -1202,7 +1229,6 @@ bool IsOrthoProjection(ViewState InView)
 {
 	return IsOrthoProjection(InView.ViewToClip);
 }
-
 
 // Returns whether or not the default view is orthographic
 bool IsOrthoProjection()
@@ -1234,9 +1260,55 @@ float ConvertToDeviceZ(float SceneDepth)
 	}
 }
 
+// also see ConvertToDeviceZ()
+// @param DeviceZ value that is stored in the depth buffer (Z/W)
+// @return SceneDepth (linear in world units, W)
+float ConvertFromDeviceZ(float DeviceZ)
+{
+	// Supports ortho and perspective, see CreateInvDeviceZToWorldZTransform()
+	return DeviceZ * View.InvDeviceZToWorldZTransform[0] + View.InvDeviceZToWorldZTransform[1] + 1.0f / (DeviceZ * View.InvDeviceZToWorldZTransform[2] - View.InvDeviceZToWorldZTransform[3]);
+}
+
+float2 AdjustClipToPrevClipForProjectionType(float2 Velocity, float DeviceZ)
+{
+	if(IsOrthoProjection())
+	{
+		/*
+		* Motion vectors on far distance planes are greatly influenced by slight rotations in camera angle
+		* And with Orthographic cameras, this magnifies the velocities over large distances.
+		* As a result, we need to counter this by reducing the speed with the DeviceZ
+		*/
+#if HAS_INVERTED_Z_BUFFER
+		/**
+		* Because this is ClipToPrevClip rather than velocity, we use the non - linear device z which works better than linear depth,
+		* however if adjusting velocity directly, linear depth should be used instead. 
+		*/
+		Velocity *= DeviceZ;
+#else
+		Velocity *= 1.0f - DeviceZ;
+#endif
+	}
+	return Velocity;
+}
+
+float GetScreenPositionDepth(float4 ScreenPosition)
+{
+#if RAYTRACINGSHADER
+	// Workaround for UE-212146: Accessing global ResolvedView in this case triggers internal compiler error on some platforms.
+	return select(IsOrthoProjection(ResolveView()), ConvertFromDeviceZ(ScreenPosition.z), ScreenPosition.w);
+#else
+	return select(IsOrthoProjection(ResolvedView), ConvertFromDeviceZ(ScreenPosition.z), ScreenPosition.w);
+#endif
+}
+
+float3 GetCameraVector(ViewState InView, float3 Position, float3 CameraPosition)
+{
+	return select(IsOrthoProjection(InView), InView.ViewForward, normalize(Position - CameraPosition));
+}
+
 float3 GetCameraVector(float3 Position, float3 CameraPosition)
 {
-	return select(IsOrthoProjection(), View.ViewForward, normalize(Position - CameraPosition));
+	return GetCameraVector(PrimaryView, Position, CameraPosition);
 }
 
 float3 GetCameraVectorFromWorldPosition(float3 WorldPosition)
@@ -1244,9 +1316,14 @@ float3 GetCameraVectorFromWorldPosition(float3 WorldPosition)
 	return GetCameraVector(WorldPosition, DFHackToFloat(PrimaryView.WorldCameraOrigin));
 }
 
+float3 GetCameraVectorFromTranslatedWorldPosition(ViewState InView, float3 TranslatedWorldPosition)
+{
+	return GetCameraVector(TranslatedWorldPosition, InView.TranslatedWorldCameraOrigin);
+}
+
 float3 GetCameraVectorFromTranslatedWorldPosition(float3 TranslatedWorldPosition)
 {
-	return GetCameraVector(TranslatedWorldPosition, PrimaryView.TranslatedWorldCameraOrigin);
+	return GetCameraVectorFromTranslatedWorldPosition(PrimaryView, TranslatedWorldPosition);
 }
 
 float GetDistanceToCameraFromViewVector(float3 DistanceVector)
@@ -1378,6 +1455,44 @@ void SvPositionToResolvedScreenPositionDeriv(float4 SvPosition, float2 PPZ_DDX_D
 	ScreenPosition = NDCPos * SvPosition.w;
 	ScreenPositionDDX = NDCPos * W_DDX_DDY.x + NDCPosDDX * SvPosition.w;
 	ScreenPositionDDY = NDCPos * W_DDX_DDY.y + NDCPosDDY * SvPosition.w;
+}
+
+float3 GetTranslatedWorldCameraPosFromView(ViewState InView, float2 SvPosition, bool bForceAddOrthoHeight = false)
+{
+	// Get the camera position per pixel in ortho, or just the camera location in perspective.
+	if (IsOrthoProjection(InView))
+	{
+		//When using sky height, for example, the horizon calculation requires bForceAddOrthoHeight to be true to 
+		//avoid negative calculations when comparing the relative sky heights + view camera height
+		float3 CameraPosition = SvPositionToTranslatedWorld(float4(SvPosition, 1.0f, 1.0f));
+		CameraPosition.z += select(bForceAddOrthoHeight, View.ClipToView[1][1], 0.0f);
+		return CameraPosition;
+	}
+	else
+	{
+		return InView.TranslatedWorldCameraOrigin;
+	}
+}
+
+FDFVector3 GetWorldCameraPosFromView(ViewState InView, float2 SvPosition, bool bForceAddOrthoHeight = false)
+{
+	if(IsOrthoProjection(InView))
+	{
+		//When using sky height, for example, the horizon calculation requires bForceAddOrthoHeight to be true to 
+		//avoid negative calculations when comparing the relative sky heights + view camera height
+		FDFVector3 CameraPosition = SvPositionToWorld(float4(SvPosition, 1.0f, 1.0f));
+		CameraPosition = DFFastAdd(select(bForceAddOrthoHeight, float3(0.0f, 0.0f, View.ClipToView[1][1]), float3(0.0f,0.0f,0.0f)), CameraPosition);
+		return CameraPosition;
+	}
+	else
+	{
+		return InView.WorldCameraOrigin;
+	}
+}
+
+float3 GetTranslatedWorldCameraPosFromView(float2 SvPosition, bool bForceAddOrthoHeight = false)
+{
+	return GetTranslatedWorldCameraPosFromView(PrimaryView, SvPosition, bForceAddOrthoHeight);
 }
 
 float2 SvPositionToViewportUV(float4 SvPosition)
@@ -1885,7 +2000,7 @@ bool GetNaniteReplaceState()
 
 bool GetRayTracingQualitySwitch()
 {
-#if (RAYHITGROUPSHADER || RAYMISSSHADER || RAYCALLABLESHADER || LUMEN_CARD_CAPTURE) && !PATH_TRACING
+#if (RAYTRACINGSHADER || LUMEN_CARD_CAPTURE) && !PATH_TRACING
 	return true;
 #else
 	return false;
@@ -1904,7 +2019,7 @@ bool GetPathTracingIsIndirectVolume() { return false; }
 
 bool GetLightmassReplaceState()
 {
-#if (RAYHITGROUPSHADER || RAYMISSSHADER || RAYCALLABLESHADER) && PATH_TRACING && SIMPLIFIED_MATERIAL_SHADER
+#if RAYTRACINGSHADER && PATH_TRACING && SIMPLIFIED_MATERIAL_SHADER
 	return true;
 #else
 	return false;
@@ -1928,10 +2043,6 @@ struct FWriteToSliceGeometryOutput
 	uint LayerIndex : SV_RenderTargetArrayIndex;
 };
 
-// Helper macro to globally ignore requests for non-offset world positions in materials when lower than shader model 4. We do this
-// because we are using an extra interpolator for this second world position, and in < ES31 there may not be enough
-// NOTE: Forced on in development shaders because the Out-Of-Bounds Pixels visualizer uses it
-#define USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS	((NEEDS_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS || USE_DEVELOPMENT_SHADERS) && FEATURE_LEVEL >= FEATURE_LEVEL_ES3_1)
 
 /** Used for calculating vertex positions and UVs when drawing with DrawRectangle */
 void DrawRectangle(
@@ -2130,6 +2241,13 @@ uint DivideAndRoundUp(uint Dividend, uint Divisor, uint DivisorAsBitShift)
 	return (Dividend + Divisor - 1) >> DivisorAsBitShift;
 }
 
+#define DivideAndRoundUp8(Dividend) DivideAndRoundUp((Dividend),    8u,  3u)
+#define DivideAndRoundUp16(Dividend) DivideAndRoundUp((Dividend),  16u,  4u)
+#define DivideAndRoundUp32(Dividend) DivideAndRoundUp((Dividend),  32u,  5u)
+#define DivideAndRoundUp64(Dividend) DivideAndRoundUp((Dividend),  64u,  6u)
+#define DivideAndRoundUp128(Dividend) DivideAndRoundUp((Dividend), 128u, 7u)
+#define DivideAndRoundUp128(Dividend) DivideAndRoundUp((Dividend), 256u, 8u)
+
 float UNorm16ToF32(uint UNorm)
 {
 	return (UNorm & 0xFFFFu) / 65535.0f;
@@ -2138,6 +2256,17 @@ float UNorm16ToF32(uint UNorm)
 float SNorm16ToF32(uint SNorm)
 {
 	return UNorm16ToF32(SNorm) * 2.0f - 1.0f;
+}
+
+float ComputeZSliceFromDepth(float3 GridZParams, float SceneDepth)
+{
+	return log2(SceneDepth * GridZParams.x + GridZParams.y) * GridZParams.z;
+}
+
+float ComputeDepthFromZSlice(float3 GridZParams, float ZSlice)
+{
+	float SliceDepth = (exp2(ZSlice / GridZParams.z) - GridZParams.y) / GridZParams.x;
+	return SliceDepth;
 }
 
 // see PixelShaderOutputCommon

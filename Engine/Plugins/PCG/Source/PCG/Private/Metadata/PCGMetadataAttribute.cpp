@@ -162,10 +162,25 @@ void FPCGMetadataAttributeBase::GetValueKeys(const TArrayView<const PCGMetadataE
 	// Bitset with all unset values. If we have any unset value, we will ask the parent for those.
 	TBitArray<> UnsetValues(true, EntryKeys.Num());
 
-	GetValueKeys_Internal(EntryKeys, OutValueKeys, UnsetValues);
+	GetValueKeys_Internal(EntryKeys, OutValueKeys, UnsetValues, /*bOwnerOfEntryKeysView=*/false);
 }
 
-void FPCGMetadataAttributeBase::GetValueKeys_Internal(const TArrayView<const PCGMetadataEntryKey>& EntryKeys, TArrayView<PCGMetadataValueKey> OutValueKeys, TBitArray<>& UnsetValues) const
+void FPCGMetadataAttributeBase::GetValueKeys(TArrayView<PCGMetadataEntryKey> EntryKeys, TArray<PCGMetadataValueKey>& OutValueKeys) const
+{
+	if (EntryKeys.IsEmpty())
+	{
+		return;
+	}
+
+	OutValueKeys.SetNumUninitialized(EntryKeys.Num());
+	// Bitset with all unset values. If we have any unset value, we will ask the parent for those.
+	TBitArray<> UnsetValues(true, EntryKeys.Num());
+
+	// We have ownership on the memory, so we can skip the copy of entries.
+	GetValueKeys_Internal(EntryKeys, OutValueKeys, UnsetValues, /*bOwnerOfEntryKeysView=*/true);
+}
+
+void FPCGMetadataAttributeBase::GetValueKeys_Internal(const TArrayView<const PCGMetadataEntryKey> EntryKeys, TArrayView<PCGMetadataValueKey> OutValueKeys, TBitArray<>& UnsetValues, bool bOwnerOfEntryKeysView) const
 {
 	check(EntryKeys.Num() == OutValueKeys.Num() && OutValueKeys.Num() == UnsetValues.Num());
 
@@ -213,7 +228,26 @@ void FPCGMetadataAttributeBase::GetValueKeys_Internal(const TArrayView<const PCG
 
 	if (Parent && !bFoundAllKeys)
 	{
-		Parent->GetValueKeys_Internal(EntryKeys, OutValueKeys, UnsetValues);
+		auto ParentCall = [this, &OutValueKeys, &UnsetValues](const TArrayView<const PCGMetadataEntryKey> CurrentEntryKeys)
+		{
+			// Before querying the parent, we need to update all our entry keys to get them in the parent referential.
+			// At that point, we are owner of our memory, so it is safe to cast
+			Metadata->GetParentKeys(MakeArrayView(const_cast<PCGMetadataEntryKey*>(CurrentEntryKeys.GetData()), CurrentEntryKeys.Num()), &UnsetValues);
+			Parent->GetValueKeys_Internal(CurrentEntryKeys, OutValueKeys, UnsetValues, /*bOwnerOfEntryKeysView=*/true);
+		};
+
+		// If the input data is coming from outside, we need to copy it to be able to modify it.
+		// Only do it there, because we don't have to pay the cost of the copy if we don't have to check the parent.
+		if (!bOwnerOfEntryKeysView)
+		{
+			TArray<PCGMetadataEntryKey, TInlineAllocator<256>> CopiedKeys;
+			CopiedKeys = EntryKeys;
+			ParentCall(CopiedKeys);
+		}
+		else
+		{
+			ParentCall(EntryKeys);
+		}
 	}
 }
 

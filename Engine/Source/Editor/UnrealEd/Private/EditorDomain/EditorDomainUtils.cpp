@@ -30,6 +30,7 @@
 #include "Misc/CoreDelegates.h"
 #include "Misc/DelayedAutoRegister.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Guid.h"
 #include "Misc/PackageAccessTracking.h"
 #include "Misc/PackageAccessTrackingOps.h"
 #include "Misc/PackagePath.h"
@@ -56,6 +57,15 @@
 #include "UObject/UObjectHash.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/UObjectIterator.h"
+
+namespace UE::EditorDomain
+{
+
+// Change to a new guid when EditorDomain needs to be invalidated. Note this will also invalidate
+// every TargetDomain key since TargetDomain keys include EditorDomain keys.
+FGuid EditorDomainVersion(TEXT("ED92BBE49F6F4F2E94E9D8BC10AD59A7"));
+
+}
 
 #if !defined(EDITORDOMAINTIMEPROFILERTRACE_ENABLED)
 #if UE_TRACE_ENABLED && !UE_BUILD_SHIPPING
@@ -219,9 +229,6 @@ bool bGUtilsCookInitialized = false;
 FBlake3Hash GGlobalConstructClassesHash;
 int64 GMaxBulkDataSize = -1;
 
-// Change to a new guid when EditorDomain needs to be invalidated
-const TCHAR* EditorDomainVersion = TEXT("4132358BA4F34EFA8294F50D76F1C94F");
-
 // Identifier of the CacheBuckets for EditorDomain tables
 const TCHAR* EditorDomainPackageBucketName = TEXT("EditorDomainPackage");
 const TCHAR* BulkDataListBucketName = TEXT("BulkDataList");
@@ -326,12 +333,16 @@ void FKnownCustomVersions::FindGuidsChecked(TArray<FGuid>& OutGuids, TConstArray
 FPackageDigest CalculatePackageDigest(IAssetRegistry& AssetRegistry, FName PackageName)
 {
 	AssetRegistry.WaitForPackage(PackageName.ToString());
-	TOptional<FAssetPackageData> PackageDataOptional = AssetRegistry.GetAssetPackageDataCopy(PackageName);
-	if (!PackageDataOptional)
+	TOptional<FAssetPackageData> PackageData = AssetRegistry.GetAssetPackageDataCopy(PackageName);
+	if (!PackageData)
 	{
 		return FPackageDigest(FPackageDigest::EStatus::DoesNotExistInAssetRegistry);
 	}
-	FAssetPackageData& PackageData = *PackageDataOptional;
+	return CalculatePackageDigest(*PackageData, PackageName);
+}
+
+FPackageDigest CalculatePackageDigest(const FAssetPackageData& PackageData, FName PackageName)
+{
 	FPackageDigest Result;
 	Result.DomainUse = EDomainUse::LoadEnabled | EDomainUse::SaveEnabled;;
 	EnumSetFlagsAnd(Result.DomainUse, EDomainUse::LoadEnabled | EDomainUse::SaveEnabled,
@@ -340,7 +351,7 @@ FPackageDigest CalculatePackageDigest(IAssetRegistry& AssetRegistry, FName Packa
 	FBlake3 Writer;
 	FStringView ProjectName(FApp::GetProjectName());
 	Writer.Update(ProjectName.GetData(), ProjectName.Len() * sizeof(ProjectName[0]));
-	Writer.Update(EditorDomainVersion, FCString::Strlen(EditorDomainVersion)*sizeof(EditorDomainVersion[0]));
+	Writer.Update(&EditorDomainVersion, sizeof(EditorDomainVersion));
 	uint8 EditorDomainSaveUnversioned = GetEditorDomainSaveUnversioned() ? 1 : 0;
 	Writer.Update(&EditorDomainSaveUnversioned, sizeof(EditorDomainSaveUnversioned));
 	Writer.Update(&PackageData.GetPackageSavedHash().GetBytes(), sizeof(PackageData.GetPackageSavedHash().GetBytes()));
@@ -443,6 +454,58 @@ FPackageDigest CalculatePackageDigest(IAssetRegistry& AssetRegistry, FName Packa
 	Result.Status = FPackageDigest::EStatus::Successful;
 	Result.CustomVersions = UE::AssetRegistry::FPackageCustomVersionsHandle::FindOrAdd(CustomVersions);
 	return Result;
+}
+
+bool TryAppendClassDigests(FBlake3& Writer, TConstArrayView<FTopLevelAssetPath> ClassPaths, FString* OutErrorMessage)
+{
+	FClassDigestMap& ClassDigests = GetClassDigests();
+	bool bHasTriedPrecacheClassDigests = false;
+	int32 NextClass = 0;
+	while (NextClass < ClassPaths.Num())
+	{
+		{
+			FReadScopeLock ClassDigestsScopeLock(ClassDigests.Lock);
+			while (NextClass < ClassPaths.Num())
+			{
+				const FTopLevelAssetPath& ClassPath = ClassPaths[NextClass];
+				FClassDigestData* ExistingData = ClassDigests.Map.Find(ClassPath);
+				if (!ExistingData)
+				{
+					break;
+				}
+				NextClass++;
+
+				// We only support hashes for the ClosestNative class
+				FClassDigestData* NativeData = ExistingData;
+				if (ExistingData->ClosestNative != ClassPath)
+				{
+					NativeData = ClassDigests.Map.Find(ExistingData->ClosestNative);
+					checkf(NativeData, TEXT("Classes are only stored in a ClosestNative field if they exist"));
+				}
+				check(NativeData->bNative);
+				Writer.Update(&NativeData->InclusiveSchemaHash, sizeof(NativeData->InclusiveSchemaHash));
+			}
+		}
+
+		if (NextClass < ClassPaths.Num())
+		{
+			// EDITORDOMAIN_TODO: Remove the clauses !IsInGameThread || GIsSavingPackage once FindObject no longer asserts if GIsSavingPackage
+			if (bHasTriedPrecacheClassDigests || !IsInGameThread() || GIsSavingPackage)
+			{
+				if (OutErrorMessage)
+				{
+					*OutErrorMessage = FString::Printf(TEXT("%s is not a valid class."),
+						*ClassPaths[NextClass].ToString());
+				}
+				return false;
+			}
+			TConstArrayView<FTopLevelAssetPath> RemainingClasses =
+				TConstArrayView<FTopLevelAssetPath>(ClassPaths).RightChop(NextClass);
+			PrecacheClassDigests(RemainingClasses);
+			bHasTriedPrecacheClassDigests = true;
+		}
+	}
+	return true;
 }
 
 /**
@@ -1838,7 +1901,7 @@ bool TrySavePackage(UPackage* Package)
 			});
 
 		FString Message = FString::Printf(TEXT("Could not save package to EditorDomain because BulkData size is too large. ")
-			TEXT("Package=%s, BulkDataSize=%d, EditorDomain.MaxBulkDataSize=%d")
+			TEXT("Package=%s, BulkDataSize=%" UINT64_FMT ", EditorDomain.MaxBulkDataSize=%" INT64_FMT)
 			TEXT("\n\tWe did not detect this until after trying to save the package, which is bad for performance. Resave the package ")
 			TEXT("or debug why the size was not detected by the BulkDataRegistry."),
 			*WriteToString<256>(PackageName), PackageWriter->GetBulkDataSize(), GMaxBulkDataSize);
@@ -1916,16 +1979,11 @@ bool TrySavePackage(UPackage* Package)
 
 	if (bStorageResultValid)
 	{
-		// TODO_BuildDefinitionList: Calculate and store BuildDefinitionList on the PackageData, or collect it here from some other source.
-		TArray<UE::DerivedData::FBuildDefinition> BuildDefinitions;
-		FCbObject BuildDefinitionList = UE::TargetDomain::BuildDefinitionListToObject(BuildDefinitions);
-		FCbObject TargetDomainDependencies = UE::TargetDomain::CollectDependenciesObject(Package, nullptr, nullptr);
-		if (TargetDomainDependencies)
+		TArray<IPackageWriter::FCommitAttachmentInfo, TInlineAllocator<2>> Attachments;
+		UE::TargetDomain::CollectAndStoreCookAttachments(Package, nullptr, nullptr, nullptr, TArray<FName>(),
+			Attachments);
+		if (!Attachments.IsEmpty())
 		{
-			TArray<IPackageWriter::FCommitAttachmentInfo, TInlineAllocator<2>> Attachments;
-			Attachments.Add({ "Dependencies", TargetDomainDependencies });
-			// TODO: Reenable BuildDefinitionList once FCbPackage support for empty FCbObjects is in
-			//Attachments.Add({ "BuildDefinitionList", BuildDefinitionList });
 			UE::TargetDomain::CommitEditorDomainCookAttachments(Package->GetFName(), Attachments);
 		}
 	}

@@ -42,6 +42,7 @@ public:
 	TMap< FName, TSoftObjectPtr< UStaticMesh > > StaticMeshes;
 
 	/** Map of all the cloth related to this Datasmith Scene */
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	UPROPERTY(VisibleAnywhere, Category="Datasmith", AdvancedDisplay)
 	TMap< FName, TSoftObjectPtr< UObject > > Clothes; // UChaosClothAsset
 

@@ -4,9 +4,11 @@
 
 #include "Fonts/FontMeasure.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/Common/Stopwatch.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+#include "InsightsCore/Common/Stopwatch.h"
+
+// TraceInsights
 #include "Insights/TimingProfilerCommon.h"
 #include "Insights/ViewModels/TimingEvent.h"
 #include "Insights/ViewModels/TimingTrackViewport.h"
@@ -122,7 +124,7 @@ void FTimingEventsTrack::PreUpdate(const ITimingTrackUpdateContext& Context)
 
 			if (FilteredDrawStateInfo.Counter == 0)
 			{
-				FStopwatch Stopwatch;
+				UE::Insights::FStopwatch Stopwatch;
 				Stopwatch.Start();
 				{
 					FTimingEventsTrackDrawStateBuilder Builder(*FilteredDrawState, Context.GetViewport(), Context.GetGeometry().Scale);
@@ -458,7 +460,7 @@ TSharedPtr<ITimingEventFilter> FTimingEventsTrack::GetFilterByEvent(const TShare
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTimingEventsTrack::DrawSelectedEventInfo(const FString& InText, const FTimingTrackViewport& Viewport, const FDrawContext& DrawContext, const FSlateBrush* WhiteBrush, const FSlateFontInfo& Font) const
+void FTimingEventsTrack::DrawSelectedEventInfo(const FString& InText, const FTimingTrackViewport& Viewport, const UE::Insights::FDrawContext& DrawContext, const FSlateBrush* WhiteBrush, const FSlateFontInfo& Font) const
 {
 	const TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
 	const float FontScale = DrawContext.Geometry.Scale;
@@ -480,7 +482,7 @@ void FTimingEventsTrack::DrawSelectedEventInfo(const FString& InText, const FTim
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTimingEventsTrack::DrawSelectedEventInfoEx(const FString& InText, const FString& InLeftText, const FString& InTopText, const FTimingTrackViewport& Viewport, const FDrawContext& DrawContext, const FSlateBrush* WhiteBrush, const FSlateFontInfo& Font) const
+void FTimingEventsTrack::DrawSelectedEventInfoEx(const FString& InText, const FString& InLeftText, const FString& InTopText, const FTimingTrackViewport& Viewport, const UE::Insights::FDrawContext& DrawContext, const FSlateBrush* WhiteBrush, const FSlateFontInfo& Font) const
 {
 	const TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
 	const float FontScale = DrawContext.Geometry.Scale;

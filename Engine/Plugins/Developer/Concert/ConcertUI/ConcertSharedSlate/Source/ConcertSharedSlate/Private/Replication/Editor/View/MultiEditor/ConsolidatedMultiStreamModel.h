@@ -36,23 +36,22 @@ namespace UE::ConcertSharedSlate
 			TSharedRef<IEditableMultiReplicationStreamModel> InMultiStreamModel,
 			FGetAutoAssignTarget InGetAutoAssignTargetDelegate
 			);
-		virtual ~FConsolidatedMultiStreamModel();
-		
-		// The functions related to properties are checkNoEntry() because SBaseReplicationStreamEditor's FFakeObjectToPropertiesEditorModel masks those functions 
+		virtual ~FConsolidatedMultiStreamModel() override;
 		
 		//~ Begin IReplicationStreamModel Interface
 		virtual FSoftClassPath GetObjectClass(const FSoftObjectPath& Object) const override;
 		virtual bool ContainsObjects(const TSet<FSoftObjectPath>& Objects) const override;
-		virtual bool ContainsProperties(const FSoftObjectPath& Object, const TSet<FConcertPropertyChain>& Properties) const override { checkNoEntry(); return false; }
+		virtual bool ContainsProperties(const FSoftObjectPath& Object, const TSet<FConcertPropertyChain>& Properties) const override;
 		virtual bool ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const override;
-		virtual bool ForEachProperty(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const override { checkNoEntry(); return false; }
+		virtual bool ForEachProperty(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const override;
+		virtual uint32 GetNumProperties(const FSoftObjectPath& Object) const override;
 		//~ End IReplicationStreamModel Interface
 
 		//~ Begin IEditableReplicationStreamModel Interface
 		virtual void AddObjects(TConstArrayView<UObject*> Objects) override;
 		virtual void RemoveObjects(TConstArrayView<FSoftObjectPath> Objects) override;
-		virtual void AddProperties(const FSoftObjectPath& Object, TConstArrayView<FConcertPropertyChain> Properties) override { checkNoEntry(); }
-		virtual void RemoveProperties(const FSoftObjectPath& Object, TConstArrayView<FConcertPropertyChain> Properties) override { checkNoEntry(); }
+		virtual void AddProperties(const FSoftObjectPath& Object, TConstArrayView<FConcertPropertyChain> Properties) override { ensure(false); }
+		virtual void RemoveProperties(const FSoftObjectPath& Object, TConstArrayView<FConcertPropertyChain> Properties) override { ensure(false); }
 		virtual FOnObjectsChanged& OnObjectsChanged() override { return OnObjectsChangedDelegate; }
 		virtual FOnPropertiesChanged& OnPropertiesChanged() override { return OnPropertiesChangedDelegate; }
 		//~ End IEditableReplicationStreamModel Interface

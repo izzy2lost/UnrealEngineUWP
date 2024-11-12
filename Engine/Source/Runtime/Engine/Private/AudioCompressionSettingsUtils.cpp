@@ -4,7 +4,9 @@
 #include "AudioStreamingCache.h"
 #include "Misc/DataDrivenPlatformInfoRegistry.h"
 
-#define ENABLE_PLATFORM_COMPRESSION_OVERRIDES 1
+#ifndef ENABLE_PLATFORM_COMPRESSION_OVERRIDES
+	#define ENABLE_PLATFORM_COMPRESSION_OVERRIDES 0
+#endif
 
 #if PLATFORM_ANDROID && ENABLE_PLATFORM_COMPRESSION_OVERRIDES
 #include "AndroidRuntimeSettings.h"
@@ -12,10 +14,6 @@
 
 #if PLATFORM_IOS && ENABLE_PLATFORM_COMPRESSION_OVERRIDES
 #include "IOSRuntimeSettings.h"
-#endif
-
-#if PLATFORM_SWITCH && ENABLE_PLATFORM_COMPRESSION_OVERRIDES
-#include "SwitchRuntimeSettings.h"
 #endif
 
 #include "Misc/ConfigCacheIni.h"
@@ -51,34 +49,32 @@ FAutoConsoleVariableRef CVarChunkSlotNumScalar(
 	TEXT("1.0: is the lower limit"),
 	ECVF_Default);
 
+#if ENABLE_PLATFORM_COMPRESSION_OVERRIDES && PLATFORM_ANDROID
 const FPlatformRuntimeAudioCompressionOverrides* FPlatformCompressionUtilities::GetRuntimeCompressionOverridesForCurrentPlatform()
 {
-#if PLATFORM_ANDROID && ENABLE_PLATFORM_COMPRESSION_OVERRIDES
 	static const UAndroidRuntimeSettings* Settings = GetDefault<UAndroidRuntimeSettings>();
 	if (Settings)
 	{
 		return &(Settings->CompressionOverrides);
 	}
-
-#elif PLATFORM_IOS && ENABLE_PLATFORM_COMPRESSION_OVERRIDES
-	static const UIOSRuntimeSettings* Settings = GetDefault<UIOSRuntimeSettings>();
-
-	if (Settings)
-	{
-		return &(Settings->CompressionOverrides);
-	}
-
-#elif PLATFORM_SWITCH && ENABLE_PLATFORM_COMPRESSION_OVERRIDES
-	static const USwitchRuntimeSettings* Settings = GetDefault<USwitchRuntimeSettings>();
-
-	if (Settings)
-	{
-		return &(Settings->CompressionOverrides);
-	}
-
-#endif // PLATFORM_ANDROID
 	return nullptr;
 }
+#elif ENABLE_PLATFORM_COMPRESSION_OVERRIDES && PLATFORM_IOS
+const FPlatformRuntimeAudioCompressionOverrides* FPlatformCompressionUtilities::GetRuntimeCompressionOverridesForCurrentPlatform()
+{
+	static const UIOSRuntimeSettings* Settings = GetDefault<UIOSRuntimeSettings>();
+	if (Settings)
+	{
+		return &(Settings->CompressionOverrides);
+	}
+	return nullptr;
+}
+#elif !ENABLE_PLATFORM_COMPRESSION_OVERRIDES
+const FPlatformRuntimeAudioCompressionOverrides* FPlatformCompressionUtilities::GetRuntimeCompressionOverridesForCurrentPlatform()
+{
+	return nullptr;
+}
+#endif // ENABLE_PLATFORM_COMPRESSION_OVERRIDES
 
 void CacheAudioCookOverrides(FPlatformAudioCookOverrides& OutOverrides, const TCHAR* InPlatformName=nullptr)
 {
@@ -126,7 +122,7 @@ void CacheAudioCookOverrides(FPlatformAudioCookOverrides& OutOverrides, const TC
 		if (RetrievedCacheSize == 0)
 		{
 			UE_LOG(LogConfig, Display, TEXT("Audio Stream Cache \"Max Cache Size KB\" set to 0 by config: \"%s%s.ini\". Default value of %d KB will be used. You can update Project Settings here: Project Settings->Platforms->%s->Audio->Cook Overrides->Stream Caching->Max Cache Size (KB)"),
-				*PlatformFile->SourceProjectConfigDir, *PlatformFile->Name.ToString(), DefaultCacheSizeKB, *PlatformFile->PlatformName);
+				PlatformFile->Branch ? *PlatformFile->Branch->SourceProjectConfigDir : TEXT(""), *PlatformFile->Name.ToString(), DefaultCacheSizeKB, *PlatformFile->PlatformName);
 			RetrievedCacheSize = DefaultCacheSizeKB;
 		}
 	}
@@ -322,11 +318,6 @@ const FPlatformAudioCookOverrides* FPlatformCompressionUtilities::GetCookOverrid
 	}
 
 	return &Overrides;
-}
-
-bool FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching()
-{
-	return true;
 }
 
 const FAudioStreamCachingSettings& FPlatformCompressionUtilities::GetStreamCachingSettingsForCurrentPlatform()

@@ -38,7 +38,7 @@ void SAvaTransitionTransitionType::Construct(const FArguments& InArgs, const TSh
 
 	AddTransitionType(EStateTreeTransitionType::None, LOCTEXT("TransitionTypeNone", "None"));
 	AddTransitionType(EStateTreeTransitionType::NextSelectableState, LOCTEXT("TransitionTypeNextSelectableState", "Next"));
-	AddTransitionType(EStateTreeTransitionType::Succeeded, LOCTEXT("TransitionTypeSucceeded", "Finish"));
+	AddTransitionType(EStateTreeTransitionType::Succeeded, LOCTEXT("TransitionTypeSucceeded", "Succeed"));
 
 	ChildSlot
 	[

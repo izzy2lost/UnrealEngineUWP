@@ -29,10 +29,6 @@
 		{
 			"Name": "OperatorStack",
 			"Enabled": true
-		},
-		{
-			"Name": "StructUtils",
-			"Enabled": true
 		}
 	]
 }

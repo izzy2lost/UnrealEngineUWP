@@ -42,9 +42,6 @@
 #include "GlobalShader.h"
 #include "RenderCommandFence.h"
 #include "RenderResource.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RenderCore.h"
-#endif
 #include "RenderingThread.h"
 #include "UniformBuffer.h"
 #include "PackedNormal.h"
@@ -149,7 +146,6 @@
 #include "Engine/LocalPlayer.h"
 #include "Engine/MaterialMerging.h"
 #include "Engine/MemberReference.h"
-#include "Engine/MeshMerging.h"
 #include "Engine/NetConnection.h"
 #include "Engine/NetDriver.h"
 #include "Engine/NetSerialization.h"
@@ -244,3 +240,9 @@
 // Chaos
 #include "Chaos/ParticleHandle.h"
 #include "Chaos/Framework/PhysicsProxy.h"
+
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Engine/MeshMerging.h"
+#endif
+

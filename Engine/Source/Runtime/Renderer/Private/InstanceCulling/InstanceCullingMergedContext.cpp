@@ -4,6 +4,28 @@
 #include "InstanceCulling/InstanceCullingManager.h"
 #include "RenderGraphBuilder.h"
 
+FInstanceCullingMergedContext::FInstanceCullingMergedContext(EShaderPlatform InShaderPlatform, bool bInMustAddAllContexts, int32 InNumBins)
+	: ShaderPlatform(InShaderPlatform)
+	, bMustAddAllContexts(bInMustAddAllContexts)
+{
+	// make sure we always have at least 2 bins (for UnCulled + Generic batching modes)
+	check(InNumBins >= 2);
+
+	LoadBalancers.SetNum(InNumBins);
+	BatchInds.SetNum(InNumBins);
+	TotalBatches.SetNumZeroed(InNumBins);
+	TotalItems.SetNumZeroed(InNumBins);
+}
+
+int32 FInstanceCullingMergedContext::GetLoadBalancerIndex(EBatchProcessingMode Mode, const FBatchItem& BatchItem)
+{
+	int32 BinIndex = (Mode == EBatchProcessingMode::UnCulled) ? 0 : BatchItem.GenericBinIndex;
+
+	check(BinIndex >= 0 && BinIndex < LoadBalancers.Num());
+	
+	return BinIndex;
+}
+
 void FInstanceCullingMergedContext::MergeBatches()
 {
 	for (FBatchItem& AsyncBatchItem : AsyncBatches)
@@ -16,9 +38,9 @@ void FInstanceCullingMergedContext::MergeBatches()
 	}
 	AsyncBatches.Reset();
 
-	for (uint32 Mode = 0U; Mode < uint32(EBatchProcessingMode::Num); ++Mode)
+	for (uint32 BinIndex = 0U; BinIndex < uint32(LoadBalancers.Num()); ++BinIndex)
 	{
-		LoadBalancers[Mode].ReserveStorage(TotalBatches[Mode], TotalItems[Mode]);
+		LoadBalancers[BinIndex].ReserveStorage(TotalBatches[BinIndex], TotalItems[BinIndex]);
 	}
 	// Pre-size all arrays
 	IndirectArgs.Empty(TotalIndirectArgs);
@@ -44,7 +66,7 @@ void FInstanceCullingMergedContext::MergeBatches()
 		check(InstanceCullingContext.HasCullingCommands());
 
 		int32 BatchInfoIndex = BatchInfos.Num();
-		FContextBatchInfo& BatchInfo = BatchInfos.AddDefaulted_GetRef();
+		FContextBatchInfoPacked& BatchInfo = BatchInfos.AddDefaulted_GetRef();
 
 		BatchInfo.IndirectArgsOffset = IndirectArgs.Num();
 		//BatchInfo.NumIndirectArgs = InstanceCullingContext.IndirectArgs.Num();
@@ -65,7 +87,11 @@ void FInstanceCullingMergedContext::MergeBatches()
 		}
 
 		BatchInfo.ViewIdsOffset = ViewIds.Num();
-		BatchInfo.NumViewIds = InstanceCullingContext.ViewIds.Num();
+		BatchInfo.NumViewIds_bAllowOcclusionCulling = uint32(InstanceCullingContext.ViewIds.Num()) << 1u;
+		if (InstanceCullingContext.PrevHZB.IsValid())
+		{
+			BatchInfo.NumViewIds_bAllowOcclusionCulling |= 1u;
+		}
 		ViewIds.Append(InstanceCullingContext.ViewIds);
 
 		check(InstanceCullingContext.DynamicInstanceIdOffset >= 0);
@@ -76,8 +102,10 @@ void FInstanceCullingMergedContext::MergeBatches()
 
 		for (uint32 Mode = 0U; Mode < uint32(EBatchProcessingMode::Num); ++Mode)
 		{
-			int32 StartIndex = BatchInds[Mode].Num();
-			TInstanceCullingLoadBalancer<SceneRenderingAllocator>* MergedLoadBalancer = &LoadBalancers[Mode];
+			int32 BinIndex = GetLoadBalancerIndex(static_cast<EBatchProcessingMode>(Mode), BatchItem);
+
+			int32 StartIndex = BatchInds[BinIndex].Num();
+			TInstanceCullingLoadBalancer<SceneRenderingAllocator>* MergedLoadBalancer = &LoadBalancers[BinIndex];
 
 			BatchInfo.ItemDataOffset[Mode] = MergedLoadBalancer->GetItems().Num();
 			FInstanceProcessingGPULoadBalancer* LoadBalancer = InstanceCullingContext.LoadBalancers[Mode];
@@ -86,12 +114,12 @@ void FInstanceCullingMergedContext::MergeBatches()
 			// UnCulled bucket is used for a single instance mode
 			check(EBatchProcessingMode(Mode) != EBatchProcessingMode::UnCulled || LoadBalancer->HasSingleInstanceItemsOnly());
 
-			BatchInds[Mode].AddDefaulted(LoadBalancer->GetBatches().Num());
+			BatchInds[BinIndex].AddDefaulted(LoadBalancer->GetBatches().Num());
 
 			MergedLoadBalancer->AppendData(*LoadBalancer);
-			for (int32 Index = StartIndex; Index < BatchInds[Mode].Num(); ++Index)
+			for (int32 Index = StartIndex; Index < BatchInds[BinIndex].Num(); ++Index)
 			{
-				BatchInds[Mode][Index] = BatchInfoIndex;
+				BatchInds[BinIndex][Index] = BatchInfoIndex;
 			}
 		}
 		const uint32 BatchTotalInstances = InstanceCullingContext.TotalInstances * InstanceCullingContext.ViewIds.Num();
@@ -132,27 +160,25 @@ void FInstanceCullingMergedContext::AddBatch(FRDGBuilder& GraphBuilder, FInstanc
 
 	const bool bOcclusionCullInstances = Context->PrevHZB.IsValid() && FInstanceCullingContext::IsOcclusionCullingEnabled();
 
-	// Set HZB texture for the merged batches
+	// Resolve the bin index based on the PrevHZB. Bin 0 is reserved for UnCulled batches, every other bin is for each HZB.
+	// Generic batches with a null HZB will go in bin 1, together with the ones associated to the first HZB.
+	int32 BinIndex = 1;
 	if (bOcclusionCullInstances)
 	{
-		// Verify that each batch contains the same HZB if not null as we only support one
-		check(PrevHZB == nullptr || PrevHZB == GraphBuilder.RegisterExternalTexture(Context->PrevHZB));
+		BinIndex = Context->InstanceCullingManager->GetBinIndex(EBatchProcessingMode::Generic, Context->PrevHZB);
 
-		if (PrevHZB == nullptr)
-		{
-			// Note: performing the registration here because the final merge of contexts may happen during RDG execute (in case of the deferred culling) which seems ill-defined
-			PrevHZB = GraphBuilder.RegisterExternalTexture(Context->PrevHZB);
-		}
+		// make sure that this Context's PrevHZB is registered correctly
+		check(BinIndex > 0);
 	}
 
 	if (Context->SyncPrerequisitesFunc)
 	{
-		AsyncBatches.Add(FBatchItem{ Context, InstanceCullingDrawParams });
+		AsyncBatches.Add(FBatchItem{ Context, InstanceCullingDrawParams, BinIndex });
 
 	}
 	else
 	{
-		AddBatchItem(FBatchItem{ Context, InstanceCullingDrawParams });
+		AddBatchItem(FBatchItem{ Context, InstanceCullingDrawParams, BinIndex });
 	}
 
 }
@@ -168,8 +194,11 @@ void FInstanceCullingMergedContext::AddBatchItem(const FBatchItem& BatchItem)
 		for (uint32 Mode = 0U; Mode < uint32(EBatchProcessingMode::Num); ++Mode)
 		{
 			Context->LoadBalancers[Mode]->FinalizeBatches();
-			TotalBatches[Mode] += Context->LoadBalancers[Mode]->GetBatches().Max();
-			TotalItems[Mode] += Context->LoadBalancers[Mode]->GetItems().Max();
+
+			int32 BinIndex = GetLoadBalancerIndex(static_cast<EBatchProcessingMode>(Mode), BatchItem);
+
+			TotalBatches[BinIndex] += Context->LoadBalancers[Mode]->GetBatches().Max();
+			TotalItems[BinIndex] += Context->LoadBalancers[Mode]->GetItems().Max();
 		}
 #if DO_CHECK
 		for (int32 ViewId : Context->ViewIds)

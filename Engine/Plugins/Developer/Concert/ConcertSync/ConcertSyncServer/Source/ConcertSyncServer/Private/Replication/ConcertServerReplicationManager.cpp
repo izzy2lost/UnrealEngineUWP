@@ -4,13 +4,18 @@
 
 #include "AuthorityManager.h"
 #include "ConcertLogGlobal.h"
+#include "ConcertServerWorkspace.h"
 #include "IConcertSession.h"
 #include "Replication/ConcertReplicationClient.h"
 #include "Replication/Data/ClientQueriedInfo.h"
 #include "Replication/Formats/FullObjectFormat.h"
+#include "Replication/IReplicationWorkspace.h"
+#include "Replication/Messages/PutState.h"
 #include "Replication/Messages/ChangeStream.h"
 #include "Replication/Messages/ClientQuery.h"
 #include "Replication/Messages/Handshake.h"
+#include "Replication/Messages/ReplicationActivity.h"
+#include "Replication/Messages/RestoreContent.h"
 #include "Replication/Processing/ObjectReplicationCache.h"
 #include "Util/JoinRequestValidation.h"
 #include "Util/LogUtils.h"
@@ -23,20 +28,32 @@ namespace UE::ConcertSyncServer::Replication
 		TEXT("Whether to log changes to authority.")
 		);
 	
-	FConcertServerReplicationManager::FConcertServerReplicationManager(TSharedRef<IConcertServerSession> InLiveSession)
-		: Session(MoveTemp(InLiveSession))
-		, ReplicationFormat(MakeShared<ConcertSyncCore::FFullObjectFormat>())
-		, AuthorityManager(MakeShared<FAuthorityManager>(*this, Session))
-		, ReplicationCache(MakeShared<ConcertSyncCore::FObjectReplicationCache>(ReplicationFormat))
-		, ReplicationDataReceiver(AuthorityManager, Session, ReplicationCache)
+	FConcertServerReplicationManager::FConcertServerReplicationManager(
+		TSharedRef<IConcertServerSession> InLiveSession,
+		IReplicationWorkspace& InServerWorkspace,
+		EConcertSyncSessionFlags InSessionFlags
+		)
+		: Session(InLiveSession)
+		, ServerWorkspace(InServerWorkspace)
+		, SessionFlags(InSessionFlags)
+		, ReplicationFormat(MakeUnique<ConcertSyncCore::FFullObjectFormat>())
+		, AuthorityManager(*this, Session)
+		, MuteManager(*Session, ServerObjectCache, SessionFlags)
+		, SyncControlManager(*Session, AuthorityManager, MuteManager, *this)
+		, ReplicationCache(MakeShared<ConcertSyncCore::FObjectReplicationCache>(*ReplicationFormat))
+		, ReplicationDataReceiver(AuthorityManager, SyncControlManager, *Session, *ReplicationCache)
 	{
 		Session->RegisterCustomRequestHandler<FConcertReplication_Join_Request, FConcertReplication_Join_Response>(this, &FConcertServerReplicationManager::HandleJoinReplicationSessionRequest);
 		Session->RegisterCustomRequestHandler<FConcertReplication_QueryReplicationInfo_Request, FConcertReplication_QueryReplicationInfo_Response>(this, &FConcertServerReplicationManager::HandleQueryReplicationInfoRequest);
 		Session->RegisterCustomRequestHandler<FConcertReplication_ChangeStream_Request, FConcertReplication_ChangeStream_Response>(this, &FConcertServerReplicationManager::HandleChangeStreamRequest);
+		Session->RegisterCustomRequestHandler<FConcertReplication_RestoreContent_Request, FConcertReplication_RestoreContent_Response>(this, &FConcertServerReplicationManager::HandleRestoreContentRequest);
+		Session->RegisterCustomRequestHandler<FConcertReplication_PutState_Request, FConcertReplication_PutState_Response>(this, &FConcertServerReplicationManager::HandlePutStateRequest);
 		Session->RegisterCustomEventHandler<FConcertReplication_LeaveEvent>(this, &FConcertServerReplicationManager::HandleLeaveReplicationSessionRequest);
+		
 		Session->OnSessionClientChanged().AddRaw(this, &FConcertServerReplicationManager::OnConnectionChanged);
-
 		Session->OnTick().AddRaw(this, &FConcertServerReplicationManager::Tick);
+
+		MuteManager.OnMuteRequestApplied().AddRaw(this, &FConcertServerReplicationManager::GenerateMuteActivity);
 	}
 
 	FConcertServerReplicationManager::~FConcertServerReplicationManager()
@@ -65,12 +82,11 @@ namespace UE::ConcertSyncServer::Replication
 		}
 	}
 
-	void FConcertServerReplicationManager::ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const
+	void FConcertServerReplicationManager::ForEachReplicationClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const
 	{
 		for (const TPair<FGuid, TUniquePtr<FConcertReplicationClient>>& ClientPair : Clients)
 		{
-			if (!ClientPair.Value->GetStreamDescriptions().IsEmpty()
-				&& Callback(ClientPair.Key) == EBreakBehavior::Break)
+			if (Callback(ClientPair.Key) == EBreakBehavior::Break)
 			{
 				break;
 			}
@@ -83,15 +99,23 @@ namespace UE::ConcertSyncServer::Replication
 		FConcertReplication_Join_Response& Response
 		)
 	{
+		const FGuid ClientId = ConcertSessionContext.SourceEndpointId;
 		// Have a pair of logs before and after processing in case of potential disaster
-		UE_LOG(LogConcert, Log, TEXT("Received replication join request from endpoint %s"), *ConcertSessionContext.SourceEndpointId.ToString());
+		UE_LOG(LogConcert, Log, TEXT("Received replication join request from endpoint %s"), *ClientId.ToString());
 		
-		LogNetworkMessage(CVarLogAuthorityRequestsAndResponsesOnServer, Request, [&](){ return GetClientName(*Session, ConcertSessionContext.SourceEndpointId); });
+		LogNetworkMessage(CVarLogAuthorityRequestsAndResponsesOnServer, Request, [&](){ return GetClientName(*Session, ClientId); });
 		const EConcertSessionResponseCode Result = InternalHandleJoinReplicationSessionRequest(ConcertSessionContext, Request, Response);
-		LogNetworkMessage(CVarLogAuthorityRequestsAndResponsesOnServer, Response, [&](){ return GetClientName(*Session, ConcertSessionContext.SourceEndpointId); });
+		LogNetworkMessage(CVarLogAuthorityRequestsAndResponsesOnServer, Response, [&](){ return GetClientName(*Session, ClientId); });
+
+		const bool bSuccess = Response.JoinErrorCode == EJoinReplicationErrorCode::Success;
+		if (bSuccess)
+		{
+			Response.SyncControl = SyncControlManager.OnGenerateSyncControlForClientJoin(ClientId);
+			ServerObjectCache.OnJoin(ClientId, Request);
+		}
 		
-		UE_CLOG(Response.JoinErrorCode == EJoinReplicationErrorCode::Success, LogConcert, Log, TEXT("Accepted replication join request"));
-		UE_CLOG(Response.JoinErrorCode != EJoinReplicationErrorCode::Success, LogConcert, Log, TEXT("Rejected replication join request. %s: %s"), *ConcertSyncCore::Replication::LexJoinErrorCode(Response.JoinErrorCode), *Response.DetailedErrorMessage);
+		UE_CLOG(bSuccess, LogConcert, Log, TEXT("Accepted replication join request"));
+		UE_CLOG(!bSuccess, LogConcert, Log, TEXT("Rejected replication join request. %s: %s"), *ConcertSyncCore::Replication::LexJoinErrorCode(Response.JoinErrorCode), *Response.DetailedErrorMessage);
 		return Result;
 	}
 
@@ -127,8 +151,8 @@ namespace UE::ConcertSyncServer::Replication
 			MakeUnique<FConcertReplicationClient>(
 				MoveTemp(StreamDescriptions),
 				ClientId,
-				Session,
-				ReplicationCache,
+				*Session,
+				*ReplicationCache,
 				ConcertSyncCore::FGetObjectFrequencySettings::CreateRaw(this, &FConcertServerReplicationManager::GetObjectFrequencySettings)
 			)
 		);
@@ -205,7 +229,7 @@ namespace UE::ConcertSyncServer::Replication
 				ObjectInfo.Object = Pair.Key;
 				ObjectInfo.StreamId = StreamId;
 				
-				if (AuthorityManager->HasAuthorityToChange(ObjectInfo))
+				if (AuthorityManager.HasAuthorityToChange(ObjectInfo))
 				{
 					Info.AuthoredObjects.Add(Pair.Key);
 				}
@@ -227,8 +251,7 @@ namespace UE::ConcertSyncServer::Replication
 		const FGuid ClientEndpointId = ConcertSessionContext.SourceEndpointId;
 		UE_LOG(LogConcert, Log, TEXT("Received replication leave request from endpoint %s"), *ClientEndpointId.ToString());
 		
-		Clients.Remove(ClientEndpointId);
-		AuthorityManager->OnClientLeft(ClientEndpointId);
+		OnClientLeftReplication(ClientEndpointId);
 	}
 
 	void FConcertServerReplicationManager::OnConnectionChanged(IConcertServerSession& ConcertServerSession, EConcertClientStatus ConcertClientStatus, const FConcertSessionClientInfo& ClientInfo)
@@ -236,8 +259,53 @@ namespace UE::ConcertSyncServer::Replication
 		const FGuid ClientEndpointId = ClientInfo.ClientEndpointId;
 		if (ConcertClientStatus == EConcertClientStatus::Disconnected)
 		{
-			Clients.Remove(ClientEndpointId);
-			AuthorityManager->OnClientLeft(ClientEndpointId);
+			OnClientLeftReplication(ClientEndpointId);
+		}
+	}
+
+	void FConcertServerReplicationManager::OnClientLeftReplication(const FGuid& EndpointId)
+	{
+		if (!Clients.Contains(EndpointId))
+		{
+			return;
+		}
+		
+		TUniquePtr<FConcertReplicationClient> RemovedClient;
+		const bool bRemoved = Clients.RemoveAndCopyValue(EndpointId, RemovedClient);
+		check(bRemoved);
+
+		ProduceClientLeftActivity(*RemovedClient);
+
+		// ServerObjectCache should be updated before anyone else that may rely on its state.
+		ServerObjectCache.OnPostClientLeft(EndpointId, RemovedClient->GetStreamDescriptions());
+		
+		// There is some inefficiency here: FMuteManager::OnMuteStateChanged may broadcast, which causes SyncControlManager to rebuild ...
+		MuteManager.OnPostClientLeft(RemovedClient->GetStreamDescriptions());
+		AuthorityManager.OnPostClientLeft(EndpointId);
+		
+		// ... and then the sync control manager rebuilds again.
+		SyncControlManager.OnPostClientLeft(EndpointId);
+	}
+
+	void FConcertServerReplicationManager::ProduceClientLeftActivity(const FConcertReplicationClient& Client) const
+	{
+		if (EnumHasAnyFlags(SessionFlags, EConcertSyncSessionFlags::ShouldEnableReplicationActivities))
+		{
+			const FGuid& EndpointId = Client.GetClientEndpointId();
+			
+			FConcertSyncReplicationPayload_LeaveReplication LeaveReplication;
+			LeaveReplication.Streams = Client.GetStreamDescriptions();
+			LeaveReplication.OwnedObjects = AuthorityManager.GetOwnedObjects(EndpointId);
+			ServerWorkspace.ProduceClientLeaveReplicationActivity(EndpointId, LeaveReplication);
+		}
+	}
+
+	void FConcertServerReplicationManager::GenerateMuteActivity(const FGuid& EndpointId, const FConcertReplication_ChangeMuteState_Request& Request) const
+	{
+		if (EnumHasAnyFlags(SessionFlags, EConcertSyncSessionFlags::ShouldEnableReplicationActivities))
+		{
+			const FConcertSyncReplicationPayload_Mute MutePayload { Request };
+			ServerWorkspace.ProduceClientMuteReplicationActivity(EndpointId, MutePayload);
 		}
 	}
 
@@ -254,7 +322,7 @@ namespace UE::ConcertSyncServer::Replication
 	FConcertObjectReplicationSettings FConcertServerReplicationManager::GetObjectFrequencySettings(const FConcertReplicatedObjectId& Object) const
 	{
 		const TUniquePtr<FConcertReplicationClient>* Client = Clients.Find(Object.SenderEndpointId);
-		if (!ensureMsgf(Client, TEXT("Caller is trying to retrieve non-existing client")))
+		if (!Client)
 		{
 			UE_LOG(LogConcert, Warning, TEXT("Requested frequency settings for unknown client %s"), *Object.SenderEndpointId.ToString());
 			return {};
@@ -264,7 +332,7 @@ namespace UE::ConcertSyncServer::Replication
 			{
 				return Description.BaseDescription.Identifier == Object.StreamId;
 			});
-		if (!ensureMsgf(Stream, TEXT("Caller is trying to retrieve an object that is not registered with the client")))
+		if (!Stream)
 		{
 			UE_LOG(LogConcert, Warning, TEXT("Requested frequency settings for unknown stream %s and object %s"), *Object.StreamId.ToString(), *Object.Object.ToString());
 			return {};

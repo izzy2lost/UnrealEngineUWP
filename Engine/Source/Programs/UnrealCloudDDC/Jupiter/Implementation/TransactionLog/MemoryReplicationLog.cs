@@ -15,13 +15,16 @@ namespace Jupiter.Implementation
 	internal class MemoryReplicationLog : IReplicationLog
 	{
 		private readonly ConcurrentDictionary<NamespaceId, SortedList<string, List<(TimeUuid, ReplicationLogEvent)>>> _replicationEvents = new();
-		private readonly ConcurrentDictionary<NamespaceId, List<SnapshotInfo>>  _snapshots = new();
+		private readonly ConcurrentDictionary<NamespaceId, SortedList<string, List<(TimeUuid, BlobReplicationLogEvent)>>> _blobReplicationEvents = new();
+		private readonly ConcurrentDictionary<NamespaceId, List<SnapshotInfo>> _snapshots = new();
 
-		private readonly ConcurrentDictionary<NamespaceId, ConcurrentDictionary<string, ReplicatorState>>  _replicatorState = new();
+		private readonly ConcurrentDictionary<NamespaceId, ConcurrentDictionary<string, ReplicatorState>> _replicatorState = new();
+
+		private readonly ConcurrentDictionary<NamespaceId, bool> _namespaces = new();
 
 		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
 		{
-			return _replicationEvents.Keys.ToAsyncEnumerable();
+			return _namespaces.Keys.ToAsyncEnumerable();
 		}
 
 		public Task<(string, Guid)> InsertAddEventAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId objectBlob, DateTime? timestamp)
@@ -31,6 +34,8 @@ namespace Jupiter.Implementation
 
 		private async Task<(string, Guid)> DoInsertAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId? hash, ReplicationLogEvent.OpType op, DateTime? lastTimestamp)
 		{
+			_namespaces.TryAdd(ns, true);
+
 			DateTime timestamp = lastTimestamp.GetValueOrDefault(DateTime.Now);
 
 			return await Task.Run(() =>
@@ -42,7 +47,7 @@ namespace Jupiter.Implementation
 
 				_replicationEvents.AddOrUpdate(ns, _ =>
 				{
-					SortedList<string, List<(TimeUuid, ReplicationLogEvent)>> l = new() { { bucketId, new () { (eventId, logEvent) } } };
+					SortedList<string, List<(TimeUuid, ReplicationLogEvent)>> l = new() { { bucketId, new() { (eventId, logEvent) } } };
 					return l;
 				}, (_, buckets) =>
 				{
@@ -57,7 +62,7 @@ namespace Jupiter.Implementation
 						}
 						else
 						{
-							buckets.Add(bucketId, new () {(eventId, logEvent) });
+							buckets.Add(bucketId, new() { (eventId, logEvent) });
 						}
 					}
 
@@ -70,7 +75,7 @@ namespace Jupiter.Implementation
 
 		public Task<(string, Guid)> InsertDeleteEventAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime? timestamp)
 		{
-			return DoInsertAsync(ns, bucket, key, null, ReplicationLogEvent.OpType.Deleted, timestamp); 
+			return DoInsertAsync(ns, bucket, key, null, ReplicationLogEvent.OpType.Deleted, timestamp);
 		}
 
 		public async IAsyncEnumerable<ReplicationLogEvent> GetAsync(NamespaceId ns, string? lastBucket, Guid? lastEvent)
@@ -212,6 +217,64 @@ namespace Jupiter.Implementation
 
 			return Task.FromResult<ReplicatorState?>(null);
 		}
+
+		public Task<(string, Guid)> InsertAddBlobEventAsync(NamespaceId ns, BlobId objectBlob, DateTime? timestamp = null, BucketId? bucketHint = null)
+		{
+			_namespaces.TryAdd(ns, true);
+
+			DateTime localTimestamp = timestamp.GetValueOrDefault(DateTime.UtcNow);
+
+			DateTime replicationBucket = localTimestamp.ToReplicationBucket();
+			string bucketId = replicationBucket.ToReplicationBucketIdentifier();
+			TimeUuid eventId = TimeUuid.NewId(localTimestamp);
+			BlobReplicationLogEvent logEvent = new BlobReplicationLogEvent(ns, objectBlob, eventId, bucketId, replicationBucket, BlobReplicationLogEvent.OpType.Added, bucketHint);
+
+			_blobReplicationEvents.AddOrUpdate(ns, _ =>
+			{
+				SortedList<string, List<(TimeUuid, BlobReplicationLogEvent)>> l = new() { { bucketId, new() { (eventId, logEvent) } } };
+				return l;
+			}, (_, buckets) =>
+			{
+				lock (buckets)
+				{
+					if (buckets.TryGetValue(bucketId, out List<(TimeUuid, BlobReplicationLogEvent)>? events))
+					{
+						lock (events)
+						{
+							events.Add((eventId, logEvent));
+						}
+					}
+					else
+					{
+						buckets.Add(bucketId, new() { (eventId, logEvent) });
+					}
+				}
+
+				return buckets;
+			});
+
+			return Task.FromResult<(string, Guid)>((bucketId, eventId.ToGuid()));
+		}
+
+		public async IAsyncEnumerable<BlobReplicationLogEvent> GetBlobEventsAsync(NamespaceId ns, string replicationBucket)
+		{
+			await Task.CompletedTask;
+			if (!_blobReplicationEvents.TryGetValue(ns, out SortedList<string, List<(TimeUuid, BlobReplicationLogEvent)>>? buckets))
+			{
+				throw new NamespaceNotFoundException(ns);
+			}
+
+			if (!buckets.TryGetValue(replicationBucket, out List<(TimeUuid, BlobReplicationLogEvent)>? logEvents))
+			{
+				yield break;
+			}
+
+			logEvents.SortBy(tuple => tuple.Item1);
+			foreach ((TimeUuid _, BlobReplicationLogEvent value) in logEvents)
+			{
+				yield return value;
+			}
+		}
 	}
 
 	public static class DateTimeUtils
@@ -221,9 +284,29 @@ namespace Jupiter.Implementation
 			return new DateTime(timestamp.Year, timestamp.Month, timestamp.Day, timestamp.Hour, 0, 0);
 		}
 
+		public static DateTime ToReplicationBucket(this DateTime timestamp)
+		{
+			// each bucket is 5 minutes big
+			int minutesBucketed = (timestamp.Minute / 5) * 5;
+
+			return new DateTime(timestamp.Year, timestamp.Month, timestamp.Day, timestamp.Hour, minutesBucketed, 0);
+		}
+
 		public static string ToReplicationBucketIdentifier(this DateTime timestamp)
 		{
 			return $"rep-{timestamp.ToFileTimeUtc()}";
+		}
+
+		public static DateTime FromReplicationBucketIdentifier(this string replicationBucketIdentifier)
+		{
+			if (!replicationBucketIdentifier.StartsWith("rep-", StringComparison.InvariantCultureIgnoreCase))
+			{
+				throw new Exception($"Provided string does not look like a replication bucket identifier: '{replicationBucketIdentifier}' .");
+			}
+
+			long fileTime = long.Parse(replicationBucketIdentifier.Substring(4));
+
+			return DateTime.FromFileTimeUtc(fileTime);
 		}
 	}
 }

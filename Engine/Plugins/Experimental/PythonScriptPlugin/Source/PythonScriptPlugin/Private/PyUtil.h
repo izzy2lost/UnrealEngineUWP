@@ -7,8 +7,11 @@
 #include "CoreMinimal.h"
 #include "Containers/ArrayView.h"
 #include "Logging/LogMacros.h"
+#include "Templates/Requires.h"
 #include "UObject/Field.h"
 #include "UObject/FieldIterator.h"
+
+#include <type_traits>
 
 DECLARE_LOG_CATEGORY_EXTERN(LogPython, Log, All);
 
@@ -70,6 +73,27 @@ namespace PyUtil
 		return PyBool_FromLong(bResult);
 	}
 
+	/** Stack of context information given when calling PyEval_EvalCode */
+	class FEvalStack
+	{
+	public:
+		struct FEvalContext
+		{
+			const TCHAR* Context = nullptr;
+			PyObject* GlobalDict = nullptr;
+			PyObject* LocalDict = nullptr;
+		};
+
+		static FEvalStack& Get();
+
+		void PushContext(FEvalContext&& Context);
+		void PopContext();
+		const FEvalContext* GetCurrentContext() const;
+
+	private:
+		TArray<FEvalContext> Stack;
+	};
+
 	/** Helper to manage a property pointer that may be potentially owned by a wrapper or stack instance */
 	template <typename TPropType>
 	class TPropOnScope
@@ -98,8 +122,8 @@ namespace PyUtil
 		TPropOnScope& operator=(const TPropOnScope&) = delete;
 
 		template <
-			typename TOtherPropType,
-			typename = decltype(ImplicitConv<TPropType*>((TOtherPropType*)nullptr))
+			typename TOtherPropType
+			UE_REQUIRES(std::is_convertible_v<TOtherPropType*, TPropType*>)
 		>
 		TPropOnScope(TPropOnScope<TOtherPropType>&& Other)
 		{
@@ -110,8 +134,8 @@ namespace PyUtil
 		}
 
 		template <
-			typename TOtherPropType,
-			typename = decltype(ImplicitConv<TPropType*>((TOtherPropType*)nullptr))
+			typename TOtherPropType
+			UE_REQUIRES(std::is_convertible_v<TOtherPropType*, TPropType*>)
 		>
 		TPropOnScope& operator=(TPropOnScope<TOtherPropType>&& Other)
 		{
@@ -414,7 +438,7 @@ namespace PyUtil
 	PyObject* GetPropertyValue(const UStruct* InStruct, const void* InStructData, const FProperty* InProp, const char *InAttributeName, PyObject* InOwnerPyObject, const TCHAR* InErrorCtxt);
 
 	/** Set the current value of the given property from the given struct */
-	int SetPropertyValue(const UStruct* InStruct, void* InStructData, PyObject* InValue, const FProperty* InProp, const char *InAttributeName, const FPropertyAccessChangeNotify* InChangeNotify, const uint64 InReadOnlyFlags, const bool InOwnerIsTemplate, const TCHAR* InErrorCtxt);
+	int SetPropertyValue(const UStruct* InStruct, void* InStructData, PyObject* InValue, const FProperty* InProp, const char *InAttributeName, const FPropertyAccessChangeNotify* InChangeNotify, const uint64 InReadOnlyFlags, const bool InOwnerIsTemplate, const TCHAR* InErrorCtxt, const TConstArrayView<void*>& InArchetypeInstStructData);
 
 	/**
 	 * Check to see if the given object implements a length function.
@@ -567,6 +591,18 @@ namespace PyUtil
 	{
 		return GetCleanTypename((PyObject*)InPyObj);
 	}
+
+	/**
+	 * Get the generated type outer and name to use for the given Python type.
+	 * @note This should only be called when immediately processing the generation request 
+	 *       from Python, as it relies on getting information from the Python exec stack.
+	 */
+	void GetGeneratedTypeOuterAndName(PyTypeObject* InPyType, UObject*& OutOuter, FString& OutName);
+
+	/**
+	 * Get the generated display name to use for the given Python type.
+	 */
+	FString GetGeneratedTypeDisplayName(PyTypeObject* InPyType);
 
 	/**
 	 * Get the error context string of the given object.

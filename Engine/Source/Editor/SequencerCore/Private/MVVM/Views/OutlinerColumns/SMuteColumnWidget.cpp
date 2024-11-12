@@ -69,24 +69,18 @@ void SMuteColumnWidget::SetIsActive(const bool bInIsActive)
 void SMuteColumnWidget::SetIsActive(const FViewModelPtr& ViewModel, const bool bInIsActive)
 {
 	TViewModelPtr<IMutableExtension> Mutable = ViewModel.ImplicitCast();
-	if (bInIsActive)
+
+	// If this is mutable, mute only this
+	if (Mutable)
 	{
-		// If this is mutable, mute only this
-		if (Mutable)
-		{
-			Mutable->SetIsMuted(true);
-		}
-		// Otherwise mute mutable children of this (if any)
-		else for (TViewModelPtr<IMutableExtension> Child : ViewModel->GetDescendantsOfType<IMutableExtension>())
-		{
-			Child->SetIsMuted(true);
-		}
+		Mutable->SetIsMuted(bInIsActive);
 	}
-	else
+	// Otherwise mute mutable children of this (if any)
+	else for (TViewModelPtr<IMutableExtension> Child : ViewModel->GetDescendantsOfType<IMutableExtension>())
 	{
-		for (TViewModelPtr<IMutableExtension> Child : ViewModel->GetDescendantsOfType<IMutableExtension>(true))
+		if (Child->IsInheritable())
 		{
-			Child->SetIsMuted(false);
+			Child->SetIsMuted(bInIsActive);
 		}
 	}
 }

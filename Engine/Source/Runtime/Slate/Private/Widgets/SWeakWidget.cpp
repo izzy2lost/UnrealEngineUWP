@@ -10,6 +10,8 @@ SWeakWidget::SWeakWidget()
 {
 }
 
+SWeakWidget::~SWeakWidget() = default;
+
 void SWeakWidget::Construct(const FArguments& InArgs)
 {
 	SetCanTick(false);

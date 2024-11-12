@@ -143,6 +143,9 @@ struct FStaticMeshInstanceVisualizationDesc : public FTableRowBase
 	{
 		new(this)FStaticMeshInstanceVisualizationDesc();
 	}
+
+	/** @return whether any of descriptions in Meshes is valid. This implies that empty Meshes will be treated as not valid.*/
+	bool IsValid() const;
 };
 
 /** Handle for FStaticMeshInstanceVisualizationDesc's registered with UMassRepresentationSubsystem */
@@ -204,7 +207,7 @@ private:
 	// prevalent use in FMassRepresentationFragment. Perhaps serial number could be formed from the referenced 
 	// FStaticMeshInstanceVisualizationDesc's hash.
 };
-static_assert(sizeof(FStaticMeshInstanceVisualizationDescHandle) == sizeof(uint16), TEXT("FStaticMeshInstanceVisualizationDescHandle must be uint16 sized to ensure FMassRepresentationFragment memory isn't unexpectedly bloated"));
+static_assert(sizeof(FStaticMeshInstanceVisualizationDescHandle) == sizeof(uint16), "FStaticMeshInstanceVisualizationDescHandle must be uint16 sized to ensure FMassRepresentationFragment memory isn't unexpectedly bloated");
 
 class UInstancedStaticMeshComponent;
 
@@ -249,12 +252,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	void RemoveUpdatedInstanceIdsAtSwap(const int32 InstanceIDIndex)
 	{
-		UpdateInstanceIds.RemoveAtSwap(InstanceIDIndex, 1, EAllowShrinking::No);
-		StaticMeshInstanceTransforms.RemoveAtSwap(InstanceIDIndex, 1, EAllowShrinking::No);
-		StaticMeshInstancePrevTransforms.RemoveAtSwap(InstanceIDIndex, 1, EAllowShrinking::No);
+		UpdateInstanceIds.RemoveAtSwap(InstanceIDIndex, EAllowShrinking::No);
+		StaticMeshInstanceTransforms.RemoveAtSwap(InstanceIDIndex, EAllowShrinking::No);
+		StaticMeshInstancePrevTransforms.RemoveAtSwap(InstanceIDIndex, EAllowShrinking::No);
 		if (StaticMeshInstanceCustomFloats.Num())
 		{
-			StaticMeshInstanceCustomFloats.RemoveAtSwap(InstanceIDIndex, 1, EAllowShrinking::No);
+			StaticMeshInstanceCustomFloats.RemoveAtSwap(InstanceIDIndex, EAllowShrinking::No);
 		}
 	}
 
@@ -494,6 +497,14 @@ struct FMassISMCSharedDataMap
 		return Data.IsValidIndex(Index) ? &Data[Index] : nullptr;
 	}
 
+	const FMassISMCSharedData* GetDataForKey(const FISMCSharedDataKey Key) const
+	{
+		const int32* Index = Map.Find(Key);
+		return (Index && Data.IsValidIndex(*Index))
+			? &Data[*Index]
+			: nullptr;
+	}
+
 protected:
 	TArray<FMassISMCSharedData> Data;
 	/** Mapping from Owner (as FObjectKey) of data represented by FMassISMCSharedData to an index to Data */
@@ -619,7 +630,7 @@ public:
 		return nullptr;
 	}
 
-	FORCEINLINE void AddBatchedTransform(const FMassEntityHandle EntityHandle, const FTransform& Transform, const FTransform& PrevTransform, const float LODSignificance, const float PrevLODSignificance = -1.0f)
+	void AddBatchedTransform(const FMassEntityHandle EntityHandle, const FTransform& Transform, const FTransform& PrevTransform, const float LODSignificance, const float PrevLODSignificance = -1.0f)
 	{
 		if (FMassLODSignificanceRange* Range = GetLODSignificanceRange(LODSignificance))
 		{

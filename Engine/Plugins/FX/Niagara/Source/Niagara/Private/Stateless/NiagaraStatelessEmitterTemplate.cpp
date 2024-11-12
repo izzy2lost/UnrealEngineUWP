@@ -72,27 +72,30 @@ void UNiagaraStatelessEmitterDefault::InitModulesAndAttributes()
 #if WITH_EDITORONLY_DATA
 	Modules =
 	{
+		// Initializer Modules
 		UNiagaraStatelessModule_InitializeParticle::StaticClass(),
 		UNiagaraStatelessModule_InitialMeshOrientation::StaticClass(),
 		UNiagaraStatelessModule_ShapeLocation::StaticClass(),
-		UNiagaraStatelessModule_CameraOffset::StaticClass(),
-		UNiagaraStatelessModule_ScaleColor::StaticClass(),
-		UNiagaraStatelessModule_ScaleSpriteSize::StaticClass(),
-		UNiagaraStatelessModule_ScaleSpriteSizeBySpeed::StaticClass(),
-		UNiagaraStatelessModule_ScaleMeshSize::StaticClass(),
-		UNiagaraStatelessModule_ScaleMeshSizeBySpeed::StaticClass(),
-		UNiagaraStatelessModule_MeshIndex::StaticClass(),
-		UNiagaraStatelessModule_MeshRotationRate::StaticClass(),
+		// Before Solve
 		UNiagaraStatelessModule_AddVelocity::StaticClass(),
 		UNiagaraStatelessModule_AccelerationForce::StaticClass(),
 		UNiagaraStatelessModule_CurlNoiseForce::StaticClass(),
 		UNiagaraStatelessModule_Drag::StaticClass(),
 		UNiagaraStatelessModule_GravityForce::StaticClass(),
 		UNiagaraStatelessModule_SolveVelocitiesAndForces::StaticClass(),
+		// Post Solve
+		UNiagaraStatelessModule_CameraOffset::StaticClass(),
+		UNiagaraStatelessModule_DynamicMaterialParameters::StaticClass(),
+		UNiagaraStatelessModule_MeshIndex::StaticClass(),
+		UNiagaraStatelessModule_MeshRotationRate::StaticClass(),
+		UNiagaraStatelessModule_ScaleColor::StaticClass(),
+		UNiagaraStatelessModule_ScaleSpriteSize::StaticClass(),
+		UNiagaraStatelessModule_ScaleSpriteSizeBySpeed::StaticClass(),
+		UNiagaraStatelessModule_ScaleMeshSize::StaticClass(),
+		UNiagaraStatelessModule_ScaleMeshSizeBySpeed::StaticClass(),
 		UNiagaraStatelessModule_SpriteFacingAndAlignment::StaticClass(),
 		UNiagaraStatelessModule_SpriteRotationRate::StaticClass(),
 		UNiagaraStatelessModule_SubUVAnimation::StaticClass(),
-		UNiagaraStatelessModule_DynamicMaterialParameters::StaticClass(),
 	};
 
 	const FNiagaraStatelessGlobals& StatelessGlobals = FNiagaraStatelessGlobals::Get();
@@ -103,6 +106,9 @@ void UNiagaraStatelessEmitterDefault::InitModulesAndAttributes()
 		StatelessGlobals.CameraOffsetVariable,
 		StatelessGlobals.ColorVariable,
 		StatelessGlobals.DynamicMaterialParameters0Variable,
+		StatelessGlobals.DynamicMaterialParameters1Variable,
+		StatelessGlobals.DynamicMaterialParameters2Variable,
+		StatelessGlobals.DynamicMaterialParameters3Variable,
 		StatelessGlobals.MeshIndexVariable,
 		StatelessGlobals.MeshOrientationVariable,
 		StatelessGlobals.RibbonWidthVariable,
@@ -150,6 +156,9 @@ void UNiagaraStatelessEmitterDefault::SetShaderParameters(uint8* ShaderParameter
 	ShaderParameters->Permutation_CameraOffsetComponent				= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_ColorComponent					= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_DynamicMaterialParameter0Component= ComponentOffsets[iComponent++];
+	ShaderParameters->Permutation_DynamicMaterialParameter1Component= ComponentOffsets[iComponent++];
+	ShaderParameters->Permutation_DynamicMaterialParameter2Component= ComponentOffsets[iComponent++];
+	ShaderParameters->Permutation_DynamicMaterialParameter3Component= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_MeshIndexComponent				= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_MeshOrientationComponent			= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_RibbonWidthComponent				= ComponentOffsets[iComponent++];

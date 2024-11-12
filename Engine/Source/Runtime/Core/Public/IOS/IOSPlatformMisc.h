@@ -73,6 +73,17 @@ struct CORE_API FIOSPlatformMisc : public FApplePlatformMisc
 	// Check if notifications are allowed if min iOS version is < 10
 	UE_DEPRECATED(4.21, "IsAllowedRemoteNotifications is deprecated. Use FIOSLocalNotificationService::CheckAllowedNotifications instead.")
 	static bool IsAllowedRemoteNotifications();
+
+	enum EIOSAuthNotificationStatus
+	{
+		NotDetermined,
+		Denied,
+		Authorized,
+		Provisional,
+		Ephemeral,
+		Unknown
+	};
+	static EIOSAuthNotificationStatus GetNotificationAuthorizationStatus();
     
     static bool IsEntitlementEnabled(const char *EntitlementToCheck);
 	
@@ -190,6 +201,21 @@ struct CORE_API FIOSPlatformMisc : public FApplePlatformMisc
 	static FString GetProjectVersion();
 	static FString GetBuildNumber();
 
+    /**
+     * @return true if the app is able to refresh in the background
+     */
+    static bool IsBackgroundAppRefreshAvailable();
+
+    /**
+     * Open the Settings app at the Notification page for this app.
+     */
+    static void OpenAppNotificationSettings();
+	
+    /**
+     * Open the app's custom settings in the Settings App.
+     */
+    static void OpenAppCustomSettings();
+
 	static void SetGracefulTerminationHandler();
 	static void SetCrashHandler(void(*CrashHandler)(const FGenericCrashContext& Context));
 
@@ -214,6 +240,11 @@ struct CORE_API FIOSPlatformMisc : public FApplePlatformMisc
     static FORCENOINLINE CA_NO_RETURN void MetalAssert();
 
 	static bool CPUHasHwCrcSupport();
+	static bool CPUHasHwAesSupport();
+
+#if !UE_BUILD_SHIPPING
+	static bool IsConsoleOpen();
+#endif
 };
 
 typedef FIOSPlatformMisc FPlatformMisc;

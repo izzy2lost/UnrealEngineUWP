@@ -28,7 +28,7 @@
 #define WITH_PER_SYSTEM_PARTICLE_PERF_STATS (WITH_PARTICLE_PERF_STATS && !UE_BUILD_SHIPPING)
 #define WITH_PER_COMPONENT_PARTICLE_PERF_STATS (WITH_PARTICLE_PERF_STATS && !UE_BUILD_SHIPPING)
 
-#define WITH_PARTICLE_PERF_CSV_STATS WITH_PER_SYSTEM_PARTICLE_PERF_STATS && CSV_PROFILER && !UE_BUILD_SHIPPING
+#define WITH_PARTICLE_PERF_CSV_STATS WITH_PER_SYSTEM_PARTICLE_PERF_STATS && CSV_PROFILER_STATS && !UE_BUILD_SHIPPING
 CSV_DECLARE_CATEGORY_MODULE_EXTERN(ENGINE_API, Particles);
 
 struct FParticlePerfStats;
@@ -109,9 +109,12 @@ struct FParticlePerfStats_GT
 		ActivationCycles = 0;
 		WaitCycles = 0;
 	}
-	FORCEINLINE uint64 GetTotalCycles_GTOnly()const { return TickGameThreadCycles + FinalizeCycles + ActivationCycles + WaitCycles; }
-	FORCEINLINE uint64 GetTotalCycles()const { return GetTotalCycles_GTOnly() + TickConcurrentCycles + EndOfFrameCycles; }
-	FORCEINLINE uint64 GetPerInstanceAvgCycles()const { return NumInstances > 0 ? GetTotalCycles() / NumInstances : 0; }
+
+	FORCEINLINE uint64 GetTotalCycles_GTOnly() const { return TickGameThreadCycles + FinalizeCycles + ActivationCycles + WaitCycles; }
+	FORCEINLINE uint64 GetPerInstanceAvgCycles_GTOnly() const { return NumInstances > 0 ? GetTotalCycles_GTOnly() / NumInstances : 0; }
+
+	FORCEINLINE uint64 GetTotalCycles() const { return GetTotalCycles_GTOnly() + TickConcurrentCycles + EndOfFrameCycles; }
+	FORCEINLINE uint64 GetPerInstanceAvgCycles() const { return NumInstances > 0 ? GetTotalCycles() / NumInstances : 0; }
 };
 
 /** Stats gathered on the render thread. */
@@ -266,6 +269,27 @@ struct FParticlePerfStats
 	{
 		return GPUStats;
 	}
+
+	//Cached CSV Stat names for this system.
+#if WITH_PARTICLE_PERF_CSV_STATS
+	FName CSVStat_Count = NAME_None;
+	FName CSVStat_Total = NAME_None;
+	FName CSVStat_GTOnly = NAME_None;
+	FName CSVStat_InstAvgGT = NAME_None;
+	FName CSVStat_RT = NAME_None;
+	FName CSVStat_InstAvgRT = NAME_None;
+	FName CSVStat_GPU = NAME_None;
+	FName CSVStat_InstAvgGPU = NAME_None;
+	FName CSVStat_Activation = NAME_None;
+	FName CSVStat_Waits = NAME_None;
+	FName CSVStat_Culled = NAME_None;
+	FName CSVStat_MemoryKB = NAME_None;
+
+	TOptional<uint64> CSVMemoryKB_Asset;
+
+	void PopulateStatNames(const FName InName);
+	void ResetStatNames();
+#endif
 
 private:
 	static ENGINE_API FParticlePerfStats* GetWorldPerfStats(const UWorld* World);

@@ -255,7 +255,7 @@ namespace UE::DMXRuntime::DMXMVRFixture::Private
 				return;
 			}
 
-			FDMXColorCIE1931xyY Result;
+			FDMXGDTFColorCIE1931xyY Result;
 			bool bSuccess = LexTryParseString<float>(Result.X, *CIEColorArray[0]);
 			bSuccess = bSuccess && LexTryParseString<float>(Result.Y, *CIEColorArray[1]);
 			bSuccess = bSuccess && LexTryParseString<float>(Result.YY, *CIEColorArray[2]);
@@ -593,6 +593,14 @@ void UDMXMVRFixtureNode::CreateXmlNodeInParent(FXmlNode& ParentNode) const
 	constexpr TCHAR UUIDAttributeName[] = TEXT("uuid");
 	FXmlAttribute UUIDAttribute(UUIDAttributeName, UUID.ToString(EGuidFormats::DigitsWithHyphens));
 	Attributes.Add(UUIDAttribute);
+
+	// MultiPatch attribute
+	if (MultiPatch.IsSet())
+	{
+		constexpr TCHAR MultiPatchAttributeName[] = TEXT("multipatch");
+		FXmlAttribute MultiPatchAttribute(MultiPatchAttributeName, MultiPatch.GetValue().ToString(EGuidFormats::DigitsWithHyphens));
+		Attributes.Add(MultiPatchAttribute);
+	}
 
 	FixtureXmlNode->SetAttributes(Attributes);
 

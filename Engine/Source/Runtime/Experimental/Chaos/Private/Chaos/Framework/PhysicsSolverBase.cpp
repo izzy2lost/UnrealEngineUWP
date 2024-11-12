@@ -14,6 +14,7 @@
 
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "ChaosVisualDebugger/ChaosVDContextProvider.h"
+#include "HAL/LowLevelMemTracker.h"
 
 DEFINE_STAT(STAT_AsyncPullResults);
 DEFINE_STAT(STAT_AsyncInterpolateResults);
@@ -274,11 +275,7 @@ namespace Chaos
 	void FPhysicsSolverBase::EnableAsyncMode(FReal FixedDt)
 	{
 		AsyncDt = FixedDt;
-		if (AsyncDt != FixedDt)
-		{
-			AccumulatedTime = 0;
-			UE_LOG(LogChaos, Verbose, TEXT("FPhysicsSolverBase::AsyncDt:%f"), IsUsingAsyncResults() ? AsyncDt : -1);
-		}
+		UE_LOG(LogChaos, Verbose, TEXT("FPhysicsSolverBase::AsyncDt:%f"), IsUsingAsyncResults() ? AsyncDt : -1);
 	}
 
 	void FPhysicsSolverBase::DisableAsyncMode()
@@ -286,7 +283,6 @@ namespace Chaos
 		AsyncDt = -1;
 		UE_LOG(LogChaos, Verbose, TEXT("FPhysicsSolverBase::AsyncDt:%f"), AsyncDt);
 	}
-
 
 	FPhysicsSolverBase::~FPhysicsSolverBase()
 	{
@@ -425,6 +421,7 @@ namespace Chaos
 
 	FGraphEventRef FPhysicsSolverBase::AdvanceAndDispatch_External(FReal InDt)
 	{
+		LLM_SCOPE(ELLMTag::ChaosScene);
 		const bool bSubstepping = MMaxSubSteps > 1;
 		SetSolverSubstep_External(bSubstepping);
 		const FReal DtWithPause = bPaused_External ? 0.0f : InDt;
@@ -491,12 +488,18 @@ namespace Chaos
 			ExternalSteps = 0;
 		}
 
+		// If standalone solver we are not responsible to spawn tasks
+		if(IsStandaloneSolver())
+		{
+			return {};
+		}
+
 		// Ensures we block on any tasks generated from previous frames
 		FGraphEventRef BlockingTasks = PendingTasks;
 
 		while(FPushPhysicsData* PushData = MarshallingManager.StepInternalTime_External())
 		{
-			if(ShouldApplyRewindCallbacks() && !bIsShuttingDown)
+			if(MRewindCallback && !bIsShuttingDown)
 			{
 				MRewindCallback->ProcessInputs_External(PushData->InternalStep, PushData->SimCallbackInputs);
 			}

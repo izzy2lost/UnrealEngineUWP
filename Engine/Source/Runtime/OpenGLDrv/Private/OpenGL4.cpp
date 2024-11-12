@@ -4,11 +4,11 @@
 	OpenGL4.cpp: OpenGL 4.3 implementation.
 =============================================================================*/
 
-#include "CoreMinimal.h"
-#include "OpenGLDrv.h"
-#include "OpenGLDrvPrivate.h"
+#include "OpenGL4.h"
 
-#if OPENGL_GL4
+#if UGL_PLATFORM_SUPPORTS_GL4
+
+#include "OpenGLDrvPrivate.h"
 
 GLint FOpenGL4::MaxComputeUniformComponents = -1;
 GLint FOpenGL4::MaxCombinedUAVUnits = 0;

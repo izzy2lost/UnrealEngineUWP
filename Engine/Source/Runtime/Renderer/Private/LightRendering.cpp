@@ -30,9 +30,12 @@
 #include "BasePassRendering.h"
 #include "MobileBasePassRendering.h"
 #include "TranslucentLighting.h"
-#include "ManyLights/ManyLights.h"
+#include "MegaLights/MegaLights.h"
 #include "LightFunctionAtlas.h"
 #include "HeterogeneousVolumes/HeterogeneousVolumes.h"
+#include "Materials/MaterialRenderProxy.h"
+#include "RHIResourceUtils.h"
+#include "RectLightSceneProxy.h"
 
 using namespace LightFunctionAtlas;
 
@@ -210,26 +213,26 @@ static bool ShouldRenderRayTracingShadowsForLightType(ELightComponentType LightT
 	}	
 }
 
-bool ShouldRenderRayTracingShadows()
+bool ShouldRenderRayTracingShadows(const FSceneViewFamily& ViewFamily)
 {
 	const bool bIsStereo = GEngine->StereoRenderingDevice.IsValid() && GEngine->StereoRenderingDevice->IsStereoEnabled();
 	const bool bHairStrands = IsHairStrandsEnabled(EHairStrandsShaderType::Strands);
 
-	return ShouldRenderRayTracingEffect((CVarRayTracingOcclusion.GetValueOnRenderThread() > 0) && !(bIsStereo && bHairStrands), ERayTracingPipelineCompatibilityFlags::FullPipeline | ERayTracingPipelineCompatibilityFlags::Inline, nullptr);
+	return ShouldRenderRayTracingEffect((CVarRayTracingOcclusion.GetValueOnRenderThread() > 0) && !(bIsStereo && bHairStrands), ERayTracingPipelineCompatibilityFlags::FullPipeline | ERayTracingPipelineCompatibilityFlags::Inline, ViewFamily);
 }
 
-bool ShouldRenderRayTracingShadowsForLight(const FLightSceneProxy& LightProxy)
+bool ShouldRenderRayTracingShadowsForLight(const FSceneViewFamily& ViewFamily, const FLightSceneProxy& LightProxy)
 {
-	const bool bShadowRayTracingAllowed = ShouldRenderRayTracingEffect(true, ERayTracingPipelineCompatibilityFlags::FullPipeline | ERayTracingPipelineCompatibilityFlags::Inline, nullptr);
-	return (LightProxy.CastsRaytracedShadow() == ECastRayTracedShadow::Enabled || (ShouldRenderRayTracingShadows() && LightProxy.CastsRaytracedShadow() == ECastRayTracedShadow::UseProjectSetting))
+	const bool bShadowRayTracingAllowed = ShouldRenderRayTracingEffect(true, ERayTracingPipelineCompatibilityFlags::FullPipeline | ERayTracingPipelineCompatibilityFlags::Inline, ViewFamily);
+	return (LightProxy.CastsRaytracedShadow() == ECastRayTracedShadow::Enabled || (ShouldRenderRayTracingShadows(ViewFamily) && LightProxy.CastsRaytracedShadow() == ECastRayTracedShadow::UseProjectSetting))
 		&& ShouldRenderRayTracingShadowsForLightType((ELightComponentType)LightProxy.GetLightType())
 		&& bShadowRayTracingAllowed;
 }
 
-bool ShouldRenderRayTracingShadowsForLight(const FLightSceneInfoCompact& LightInfo)
+bool ShouldRenderRayTracingShadowsForLight(const FSceneViewFamily& ViewFamily, const FLightSceneInfoCompact& LightInfo)
 {
-	const bool bShadowRayTracingAllowed = ShouldRenderRayTracingEffect(true, ERayTracingPipelineCompatibilityFlags::FullPipeline | ERayTracingPipelineCompatibilityFlags::Inline, nullptr);
-	return (LightInfo.CastRaytracedShadow == ECastRayTracedShadow::Enabled || (ShouldRenderRayTracingShadows() && LightInfo.CastRaytracedShadow == ECastRayTracedShadow::UseProjectSetting))
+	const bool bShadowRayTracingAllowed = ShouldRenderRayTracingEffect(true, ERayTracingPipelineCompatibilityFlags::FullPipeline | ERayTracingPipelineCompatibilityFlags::Inline, ViewFamily);
+	return (LightInfo.CastRaytracedShadow == ECastRayTracedShadow::Enabled || (ShouldRenderRayTracingShadows(ViewFamily) && LightInfo.CastRaytracedShadow == ECastRayTracedShadow::UseProjectSetting))
 		&& ShouldRenderRayTracingShadowsForLightType((ELightComponentType)LightInfo.LightType)
 		&& bShadowRayTracingAllowed;
 }
@@ -272,9 +275,26 @@ void FLightFunctionSharedParameters::Bind(const FShaderParameterMap& ParameterMa
 
 FVector4f FLightFunctionSharedParameters::GetLightFunctionSharedParameters(const FLightSceneInfo* LightSceneInfo, float ShadowFadeFraction)
 {
-	const bool bIsSpotLight = LightSceneInfo->Proxy->GetLightType() == LightType_Spot;
+	bool bIsSpotLight = LightSceneInfo->Proxy->GetLightType() == LightType_Spot;
 	const bool bIsPointLight = LightSceneInfo->Proxy->GetLightType() == LightType_Point;
-	const float TanOuterAngle = bIsSpotLight ? FMath::Tan(LightSceneInfo->Proxy->GetOuterConeAngle()) : 1.0f;
+	float TanOuterAngle = bIsSpotLight ? FMath::Tan(LightSceneInfo->Proxy->GetOuterConeAngle()) : 1.0f;
+
+	if (LightSceneInfo->Proxy->GetLightType() == LightType_Rect)
+	{
+		// Rect light can have a spot like perspective projection
+		FRectLightSceneProxy* RectLightProxy = (FRectLightSceneProxy*)LightSceneInfo->Proxy;
+		if (RectLightProxy->LightFunctionConeAngleTangent > 0.0f)
+		{
+			bIsSpotLight = true;
+			TanOuterAngle = RectLightProxy->LightFunctionConeAngleTangent;
+		}
+		else
+		{
+			bIsSpotLight = false;
+			TanOuterAngle = 0.0f;
+		}
+	}
+
 	return FVector4f(TanOuterAngle, ShadowFadeFraction, bIsSpotLight ? 1.0f : 0.0f, bIsPointLight ? 1.0f : 0.0f);
 }
 
@@ -290,7 +310,7 @@ public:
 
 	void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
-		TResourceArray<uint16, INDEXBUFFER_ALIGNMENT> Indices;
+		TArray<uint16> Indices;
 
 		Indices.Empty((NumSlices - 1) * NumSides * 12);
 		// Generate triangles for the vertices of the cone shape
@@ -333,14 +353,10 @@ public:
 			}
 		}
 
-		const uint32 Size = Indices.GetResourceDataSize();
-		const uint32 Stride = sizeof(uint16);
-
 		NumIndices = Indices.Num();
 
 		// Create index buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FStencilConeIndexBuffer"), &Indices);
-		IndexBufferRHI = RHICmdList.CreateIndexBuffer(Stride, Size, BUF_Static, CreateInfo);
+		IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FStencilConeIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 	}
 
 	int32 GetIndexCount() const { return NumIndices; }
@@ -365,18 +381,14 @@ public:
 	*/
 	void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
-		TResourceArray<FVector4f, VERTEXBUFFER_ALIGNMENT> Verts;
+		TArray<FVector4f> Verts;
 		Verts.Empty(NumVerts);
 		for (int32 s = 0; s < NumVerts; s++)
 		{
-			Verts.Add(FVector4f(0, 0, 0, 0));
+			Verts.Emplace(0, 0, 0, 0);
 		}
 
-		uint32 Size = Verts.GetResourceDataSize();
-
-		// Create vertex buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FStencilConeVertexBuffer"), &Verts);
-		VertexBufferRHI = RHICmdList.CreateVertexBuffer(Size, BUF_Static, CreateInfo);
+		VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("FStencilConeVertexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Verts));
 	}
 
 	int32 GetVertexCount() const { return NumVerts; }
@@ -557,6 +569,7 @@ static void RenderLight(
 	FRDGTextureRef LightingChannelsTexture,
 	bool bRenderOverlap,
 	bool bCloudShadow,
+	const bool bCanLightUsesAtlasForUnbatchedLight = false,
 	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> VirtualShadowMapUniformBuffer = nullptr,
 	FRDGTextureRef ShadowMaskBits = nullptr,
 	int32 VirtualShadowMapId = INDEX_NONE);
@@ -569,7 +582,7 @@ FDeferredLightUniformStruct GetDeferredLightParameters(const FSceneView& View, c
 	LightSceneInfo.Proxy->GetLightShaderParameters(LightParameters, LightFlags);
 	LightParameters.MakeShaderParameters(View.ViewMatrices, View.GetLastEyeAdaptationExposure(), Out.LightParameters);
 
-	const bool bIsRayTracedLight = ShouldRenderRayTracingShadowsForLight(*LightSceneInfo.Proxy);
+	const bool bIsRayTracedLight = ShouldRenderRayTracingShadowsForLight(*View.Family, *LightSceneInfo.Proxy);
 
 	const FVector2D FadeParams = LightSceneInfo.Proxy->GetDirectionalLightDistanceFadeParameters(View.GetFeatureLevel(), !bIsRayTracedLight && LightSceneInfo.IsPrecomputedLightingValid(), View.MaxShadowCascades);
 	
@@ -595,7 +608,7 @@ FDeferredLightUniformStruct GetDeferredLightParameters(const FSceneView& View, c
 	}
 
 	const bool bDynamicShadows = View.Family->EngineShowFlags.DynamicShadows && GetShadowQuality() > 0;
-	const bool bHasLightFunction = LightSceneInfo.Proxy->GetLightFunctionMaterial() != NULL && !bUseLightFunctionAtlas;
+	const bool bHasLightFunction = LightSceneInfo.Proxy->GetLightFunctionMaterial() != NULL && (!bUseLightFunctionAtlas || !LightSceneInfo.Proxy->HasValidLightFunctionAtlasSlot());
 	Out.ShadowedBits = LightSceneInfo.Proxy->CastsStaticShadow() || bHasLightFunction ? 1 : 0;
 	Out.ShadowedBits |= LightSceneInfo.Proxy->CastsDynamicShadow() && View.Family->EngineShowFlags.DynamicShadows ? 3 : 0;
 
@@ -667,6 +680,7 @@ FDeferredLightUniformStruct GetSimpleDeferredLightParameters(
 	Out.LightParameters.Tangent = FVector3f(1, 0, 0);
 	Out.LightParameters.SpotAngles = FVector2f(-2, 1);
 	Out.LightParameters.SpecularScale = SimpleLight.SpecularScale;
+	Out.LightParameters.DiffuseScale = SimpleLight.DiffuseScale;
 	Out.LightParameters.SourceRadius = 0.0f;
 	Out.LightParameters.SoftSourceRadius = 0.0f;
 	Out.LightParameters.SourceLength = 0.0f;
@@ -677,6 +691,7 @@ FDeferredLightUniformStruct GetSimpleDeferredLightParameters(
 	Out.LightParameters.RectLightAtlasMaxLevel = FLightRenderParameters::GetRectLightAtlasInvalidMIPLevel();
 	Out.LightParameters.IESAtlasIndex = INDEX_NONE;
 	Out.LightParameters.LightFunctionAtlasLightIndex = 0;
+	Out.LightParameters.bAffectsTranslucentLighting = 0;
 	return Out;
 }
 FDeferredLightUniformStruct GetSimpleDeferredLightParameters(
@@ -687,38 +702,36 @@ FDeferredLightUniformStruct GetSimpleDeferredLightParameters(
 	return GetSimpleDeferredLightParameters(View, SimpleLight, SimpleLightPerViewData.Position);
 }
 
-FLightOcclusionType GetLightOcclusionType(const FLightSceneProxy& Proxy)
+FLightOcclusionType GetLightOcclusionType(const FLightSceneProxy& Proxy, const FSceneViewFamily& ViewFamily)
 {
-	if (ManyLights::IsLightSupported(Proxy.GetLightType(), Proxy.CastsRaytracedShadow()))
-	{
-		return FLightOcclusionType::ManyLights;
-	}
-
+	bool bUseRaytracing = false;
 #if RHI_RAYTRACING
-	if (ShouldRenderRayTracingShadowsForLight(Proxy))
-	{
-		return FLightOcclusionType::Raytraced;
-	}
+	bUseRaytracing = ShouldRenderRayTracingShadowsForLight(ViewFamily, Proxy);
 #endif
+	EMegaLightsMode MegaLightsMode = MegaLights::GetMegaLightsMode(ViewFamily, Proxy.GetLightType(), Proxy.AllowMegaLights(), Proxy.GetMegaLightsShadowMethod());
 
-	return FLightOcclusionType::Shadowmap;
+	if (MegaLightsMode != EMegaLightsMode::Disabled)
+	{
+		return MegaLightsMode == EMegaLightsMode::EnabledVSM ? FLightOcclusionType::MegaLightsVSM : FLightOcclusionType::MegaLights;
+	}
+
+	return bUseRaytracing ? FLightOcclusionType::Raytraced : FLightOcclusionType::Shadowmap;
 }
 
-FLightOcclusionType GetLightOcclusionType(const FLightSceneInfoCompact& LightInfo)
+FLightOcclusionType GetLightOcclusionType(const FLightSceneInfoCompact& LightInfo, const FSceneViewFamily& ViewFamily)
 {
-	if (ManyLights::IsLightSupported(LightInfo.LightType, LightInfo.CastRaytracedShadow))
-	{
-		return FLightOcclusionType::ManyLights;
-	}
-
+	bool bUseRaytracing = false;
 #if RHI_RAYTRACING
-	if (ShouldRenderRayTracingShadowsForLight(LightInfo))
-	{
-		return FLightOcclusionType::Raytraced;
-	}
+	bUseRaytracing = ShouldRenderRayTracingShadowsForLight(ViewFamily, LightInfo);
 #endif
+	EMegaLightsMode MegaLightsMode = MegaLights::GetMegaLightsMode(ViewFamily, LightInfo.LightType, LightInfo.bAllowMegaLights, LightInfo.MegaLightsShadowMethod);
 
-	return FLightOcclusionType::Shadowmap;
+	if (MegaLightsMode != EMegaLightsMode::Disabled)
+	{
+		return MegaLightsMode == EMegaLightsMode::EnabledVSM ? FLightOcclusionType::MegaLightsVSM : FLightOcclusionType::MegaLights;
+	}
+
+	return bUseRaytracing ? FLightOcclusionType::Raytraced : FLightOcclusionType::Shadowmap;
 }
 
 float GetLightFadeFactor(const FSceneView& View, const FLightSceneProxy* Proxy)
@@ -741,12 +754,17 @@ float GetLightFadeFactor(const FSceneView& View, const FLightSceneProxy* Proxy)
 	return SizeFade * DistanceFade;
 }
 
-void StencilingGeometry::DrawSphere(FRHICommandList& RHICmdList)
+void StencilingGeometry::DrawSphere(FRHICommandList& RHICmdList, uint32 InstanceCount)
 {
 	RHICmdList.SetStreamSource(0, StencilingGeometry::GStencilSphereVertexBuffer.VertexBufferRHI, 0);
 	RHICmdList.DrawIndexedPrimitive(StencilingGeometry::GStencilSphereIndexBuffer.IndexBufferRHI, 0, 0,
 		StencilingGeometry::GStencilSphereVertexBuffer.GetVertexCount(), 0,
-		StencilingGeometry::GStencilSphereIndexBuffer.GetIndexCount() / 3, 1);
+		StencilingGeometry::GStencilSphereIndexBuffer.GetIndexCount() / 3, InstanceCount);
+}
+
+void StencilingGeometry::DrawSphere(FRHICommandList& RHICmdList)
+{
+	DrawSphere(RHICmdList, 1);
 }
 
 void StencilingGeometry::DrawVectorSphere(FRHICommandList& RHICmdList)
@@ -990,6 +1008,7 @@ class FDeferredLightPS : public FGlobalShader
 			PermutationVector.Set< FCloudTransmittance >(false);
 			PermutationVector.Set< FAnistropicMaterials >(false);
 			PermutationVector.Set< FVirtualShadowMapMask >(false);
+			PermutationVector.Set< FHairComplexTransmittance >(false);
 		}
 
 		return PermutationVector;
@@ -1007,6 +1026,12 @@ class FDeferredLightPS : public FGlobalShader
 		}
 
 		OutEnvironment.SetDefine(TEXT("USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP"), ShouldHeterogeneousVolumesCastShadows());
+
+		// FXC is too slow at compiling Substrate lighting shaders
+		if (Substrate::IsSubstrateEnabled() && FDataDrivenShaderPlatformInfo::GetSupportsDxc(Parameters.Platform))
+		{
+			OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
+		}
 	}
 
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FDeferredLightUniformStruct& DeferredLightUniformsValue)
@@ -1115,7 +1140,7 @@ extern int32 GbEnableAsyncComputeTranslucencyLightingVolumeClear;
 
 uint32 GetShadowQuality();
 
-static bool LightRequiresDenosier(const FLightSceneInfo& LightSceneInfo)
+static bool LightRequiresDenoiser(const FLightSceneInfo& LightSceneInfo)
 {
 	ELightComponentType LightType = ELightComponentType(LightSceneInfo.Proxy->GetLightType());
 	if (LightType == LightType_Directional)
@@ -1142,8 +1167,55 @@ bool FSceneRenderer::AllowSimpleLights() const
 	return bAllowSimpleLights == 1;
 }
 
+bool CanLightUsesAtlasForUnbatchedLight(ERHIFeatureLevel::Type FeatureLevel, const FLightSceneProxy* Proxy)
+{
+	if (!Proxy)
+	{
+		return false;
+	}
+
+	// For now, we prevent directional light to use the light function atlas because atlas tiles needs to be repeatable.
+	// And if a texcoordinate node is not scale as a integer multiplier of the uv in [0,1] then the tile will become visible.
+	if (Proxy->GetLightType() == LightType_Directional)
+	{
+		return false;
+	}
+
+	// Material shoud also be compatible with light function atlas, i.e. not sample depth or world position.
+	// We do not check that for other systems (translucent, water, volume fog, clustered, Lumen), 
+	// because light functions were never available there before the atlas. So those LF aare still added into the atlas.
+	// => If a material is designed to be used with those systems, light function mateirla it must be made be compliant from the start.
+	const FMaterialRenderProxy* MaterialRenderProxy = Proxy->GetLightFunctionMaterial();
+	if (MaterialRenderProxy)
+	{
+		const FMaterial& LFMaterial = Proxy->GetLightFunctionMaterial()->GetIncompleteMaterialWithFallback(FeatureLevel);
+	
+		return LFMaterial.MaterialIsLightFunctionAtlasCompatible_RenderThread();
+	}
+
+	return false;
+}
+
+void FSceneRenderer::UpdateLightFunctionAtlasTaskFunction()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UpdateLightFunctionAtlas);
+	SCOPED_NAMED_EVENT_TEXT("UpdateLightFunctionAtlas", FColor::Yellow);
+
+	for (auto LightIt = Scene->Lights.CreateConstIterator(); LightIt; ++LightIt)
+	{
+		const FLightSceneInfoCompact& LightSceneInfoCompact = *LightIt;
+
+		LightFunctionAtlas.UpdateRegisterLightSceneInfo(LightSceneInfoCompact.LightSceneInfo);
+	}
+
+	// Update the light function atlas according to registered lights and views
+	LightFunctionAtlas.UpdateLightFunctionAtlas(Views);
+}
+
 void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLights, bool bShadowedLightsInClustered)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(GatherAndSortLights);
+
 	if (AllowSimpleLights())
 	{
 		GatherSimpleLights(ViewFamily, Views, OutSortedLights.SimpleLights);
@@ -1168,8 +1240,6 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 	{
 		const FLightSceneInfoCompact& LightSceneInfoCompact = *LightIt;
 		const FLightSceneInfo* const LightSceneInfo = LightSceneInfoCompact.LightSceneInfo;
-
-		LightFunctionAtlas.UpdateRegisterLightSceneInfo(LightSceneInfoCompact.LightSceneInfo);
 
 #if ENABLE_DEBUG_DISCARD_PROP
 		{
@@ -1199,22 +1269,27 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 					SortedLightInfo->SortKey.Fields.bLightFunction = ViewFamily.EngineShowFlags.LightFunctions && CheckForLightFunction(LightSceneInfo);
 					SortedLightInfo->SortKey.Fields.bUsesLightingChannels = Views[ViewIndex].bUsesLightingChannels && LightSceneInfo->Proxy->GetLightingChannelMask() != GetDefaultLightingChannelMask();
 
+					// Cached once here and the material is never queried again later.
+					SortedLightInfo->bIsCompatibleWithLightFunctionAtlas = CanLightUsesAtlasForUnbatchedLight(FeatureLevel, LightSceneInfo->Proxy);
+
 					// These are not simple lights.
 					SortedLightInfo->SortKey.Fields.bIsNotSimpleLight = 1;
 
-					// Lights handled by Many Lights
-					const bool bHandledByManyLights = ManyLights::IsLightSupported(LightSceneInfoCompact.LightType, LightSceneInfoCompact.CastRaytracedShadow);
+					// Lights handled by Mega Lights
+					const bool bHandledByMegaLights = MegaLights::GetMegaLightsMode(ViewFamily, LightSceneInfoCompact.LightType, LightSceneInfoCompact.bAllowMegaLights, LightSceneInfoCompact.MegaLightsShadowMethod) != EMegaLightsMode::Disabled;
 
-					// tiled and clustered deferred lighting only supported for certain lights that don't use any additional features
-					// And also that are not directional (mostly because it doesn't make so much sense to insert them into every grid cell in the universe)
+					// NOTE: bClusteredDeferredSupported==false means "lights cannot be batched" (tiled or clustered). When false, light will go the slower unbatched render path.
+					// Tiled and clustered deferred lighting only support certain lights that don't use any additional features (like shadow or light function not compatible with the atlas.)
+					// And also that are not directional (mostly because it doesn't make so much sense to insert them into every grid cell in the universe).
 					// In the forward case one directional light gets put into its own variables, and in the deferred case it gets a full-screen pass.
 					// Usually it'll have shadows and stuff anyway.
-					// Rect lights are not supported as the performance impact is significant even if not used, for now, left for trad. deferred.
+					// Contact shadow are not supported.
 					const bool bClusteredDeferredSupported =
 						(!SortedLightInfo->SortKey.Fields.bShadowed || bShadowedLightsInClustered) &&
-						(!SortedLightInfo->SortKey.Fields.bLightFunction || bUseLightFunctionAtlas)
+						(!SortedLightInfo->SortKey.Fields.bLightFunction || (bUseLightFunctionAtlas && SortedLightInfo->bIsCompatibleWithLightFunctionAtlas)) // If not compatible with the LightFunctionAtlas, light with light function materials must go the unbatched route.
 						&& LightSceneInfoCompact.LightType != LightType_Directional
-						&& !bHandledByManyLights;
+						&& LightSceneInfo->Proxy->GetContactShadowLength() == 0
+						&& !bHandledByMegaLights;
 
 					// Track feature available accross all lights
 					if (SortedLightInfo->SortKey.Fields.LightType == LightType_Rect)	{ OutSortedLights.bHasRectLights = true; }
@@ -1222,7 +1297,7 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 					if (SortedLightInfo->SortKey.Fields.bLightFunction) 				{ OutSortedLights.bHasLightFunctions = true; }
 
 					SortedLightInfo->SortKey.Fields.bClusteredDeferredNotSupported = !bClusteredDeferredSupported;
-					SortedLightInfo->SortKey.Fields.bHandledByManyLights = bHandledByManyLights;
+					SortedLightInfo->SortKey.Fields.bHandledByMegaLights = bHandledByMegaLights;
 					break;
 				}
 			}
@@ -1253,7 +1328,7 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 
 		// Simple lights are ok to use with tiled and clustered deferred lighting
 		SortedLightInfo->SortKey.Fields.bClusteredDeferredNotSupported = 0;
-		SortedLightInfo->SortKey.Fields.bHandledByManyLights = 0;
+		SortedLightInfo->SortKey.Fields.bHandledByMegaLights = 0;
 	}
 
 	// Sort non-shadowed, non-light function lights first to avoid render target switches.
@@ -1270,7 +1345,7 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 	OutSortedLights.SimpleLightsEnd = SortedLights.Num();
 	OutSortedLights.ClusteredSupportedEnd = SortedLights.Num();
 	OutSortedLights.UnbatchedLightStart = SortedLights.Num();
-	OutSortedLights.ManyLightsLightStart = SortedLights.Num();
+	OutSortedLights.MegaLightsLightStart = SortedLights.Num();
 
 	// Iterate over all lights to be rendered and build ranges for tiled deferred and unshadowed lights
 	for (int32 LightIndex = 0; LightIndex < SortedLights.Num(); LightIndex++)
@@ -1279,13 +1354,15 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 		const bool bDrawShadows = SortedLightInfo.SortKey.Fields.bShadowed;
 		const bool bLightingChannels = SortedLightInfo.SortKey.Fields.bUsesLightingChannels;
 
-		// Do not schedule unbatched lights if the atlas is used and enabled
-		const bool bDrawLightFunction = SortedLightInfo.SortKey.Fields.bLightFunction && !bUseLightFunctionAtlas;
+		// Do not schedule unbatched lights if the atlas is used and enabled.
+		// Keep in mind that when clustered shading is enabled, lights with light function are clustered compatible so are pushed in to the clustered path (if a supported light type).
+		// Otherwise, those light are pushed in the non-shadowed non-lightfunction render path that still supports light function atlas sampling.
+		const bool bDrawLightFunction = SortedLightInfo.SortKey.Fields.bLightFunction && (!bUseLightFunctionAtlas || !SortedLightInfo.bIsCompatibleWithLightFunctionAtlas);
 
-		if (SortedLightInfo.SortKey.Fields.bHandledByManyLights && OutSortedLights.ManyLightsLightStart == SortedLights.Num())
+		if (SortedLightInfo.SortKey.Fields.bHandledByMegaLights && OutSortedLights.MegaLightsLightStart == SortedLights.Num())
 		{
 			// Mark the first index that needs to be rendered
-			OutSortedLights.ManyLightsLightStart = LightIndex;
+			OutSortedLights.MegaLightsLightStart = LightIndex;
 		}
 
 		if (SortedLightInfo.SortKey.Fields.bIsNotSimpleLight && OutSortedLights.SimpleLightsEnd == SortedLights.Num())
@@ -1302,7 +1379,7 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 
 		if ((bDrawShadows || bDrawLightFunction || bLightingChannels) 
 			&& SortedLightInfo.SortKey.Fields.bClusteredDeferredNotSupported
-			&& !SortedLightInfo.SortKey.Fields.bHandledByManyLights
+			&& !SortedLightInfo.SortKey.Fields.bHandledByMegaLights
 			&& OutSortedLights.UnbatchedLightStart == SortedLights.Num())
 		{
 			OutSortedLights.UnbatchedLightStart = LightIndex;
@@ -1313,13 +1390,10 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 	check(OutSortedLights.ClusteredSupportedEnd >= OutSortedLights.SimpleLightsEnd);
 	check(OutSortedLights.UnbatchedLightStart >= OutSortedLights.ClusteredSupportedEnd);
 
-	if (OutSortedLights.UnbatchedLightStart > OutSortedLights.ManyLightsLightStart)
+	if (OutSortedLights.UnbatchedLightStart > OutSortedLights.MegaLightsLightStart)
 	{
-		OutSortedLights.UnbatchedLightStart = OutSortedLights.ManyLightsLightStart;
+		OutSortedLights.UnbatchedLightStart = OutSortedLights.MegaLightsLightStart;
 	}
-
-	// Update the light function atlas according to registered lights and views
-	LightFunctionAtlas.UpdateLightFunctionAtlas(Views);
 }
 
 FHairStrandsTransmittanceMaskData CreateDummyHairStrandsTransmittanceMaskData(FRDGBuilder& GraphBuilder, FGlobalShaderMap* ShaderMap);
@@ -1329,7 +1403,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 	FMinimalSceneTextures& SceneTextures,
 	const FTranslucencyLightingVolumeTextures& TranslucencyLightingVolumeTextures,
 	FRDGTextureRef LightingChannelsTexture,
-	FSortedLightSetSceneInfo& SortedLightSet)
+	const FSortedLightSetSceneInfo& SortedLightSet)
 {
 	const bool bUseHairLighting = HairStrands::HasViewHairStrandsData(Views);
 #if RHI_RAYTRACING
@@ -1339,7 +1413,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 #endif // RHI_RAYTRACING
 	const bool bUseLightFunctionAtlas = LightFunctionAtlas::IsEnabled(*Scene, ELightFunctionAtlasSystem::DeferredLighting);
 
-	RDG_EVENT_SCOPE(GraphBuilder, "Lights");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, Lights, "Lights");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, Lights);
 
 	SCOPED_NAMED_EVENT(FDeferredShadingSceneRenderer_RenderLights, FColor::Emerald);
@@ -1350,7 +1424,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 	const TArray<FSortedLightSceneInfo, SceneRenderingAllocator>& SortedLights = SortedLightSet.SortedLights;
 	const int32 SimpleLightsEnd = SortedLightSet.SimpleLightsEnd;
 	const int32 UnbatchedLightStart = SortedLightSet.UnbatchedLightStart;
-	const int32 ManyLightsLightStart = SortedLightSet.ManyLightsLightStart;
+	const int32 MegaLightsLightStart = SortedLightSet.MegaLightsLightStart;
 
 	FHairStrandsTransmittanceMaskData DummyTransmittanceMaskData;
 	if (bUseHairLighting && Views.Num() > 0)
@@ -1368,9 +1442,10 @@ void FDeferredShadingSceneRenderer::RenderLights(
 			Substrate::AddSubstrateStencilPass(GraphBuilder, Views, SceneTextures);
 		}
 
-		if (ViewFamily.EngineShowFlags.DirectLighting && GUseTranslucentLightingVolumes && GSupportsVolumeTextureRendering)
+		if (ViewFamily.EngineShowFlags.DirectLighting && GUseTranslucentLightingVolumes && RHISupportsVolumeTextureRendering(ViewFamily.GetShaderPlatform()))
 		{
 			RDG_EVENT_SCOPE(GraphBuilder, "InjectTranslucencyLightingVolume");
+			SCOPE_CYCLE_COUNTER(STAT_TranslucentInjectTime);
 
 			if (SimpleLights.InstanceData.Num() > 0)
 			{
@@ -1395,7 +1470,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 
 			// Shadowed and light function lights
 			{
-				FTranslucentLightInjectionCollector Collector(GraphBuilder, Views);
+				FTranslucentLightInjectionCollector Collector(GraphBuilder, Views, bAreLightsInLightGrid);
 
 				// Collect all the light injection data
 				for (int32 LightIndex = SimpleLightsEnd; LightIndex < SortedLights.Num(); LightIndex++)
@@ -1405,7 +1480,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 					const FLightSceneProxy& LightSceneProxy = *LightSceneInfo.Proxy;
 
 					const bool bDrawShadows = SortedLightInfo.SortKey.Fields.bShadowed;
-					const FLightOcclusionType OcclusionType = GetLightOcclusionType(LightSceneProxy);
+					const FLightOcclusionType OcclusionType = GetLightOcclusionType(LightSceneProxy, ViewFamily);
 					const bool bSupportShadowMaps = bDrawShadows && OcclusionType == FLightOcclusionType::Shadowmap;
 
 					// Collect all the light injection data
@@ -1466,8 +1541,10 @@ void FDeferredShadingSceneRenderer::RenderLights(
 				for (int32 LightIndex = StandardDeferredStart; LightIndex < UnbatchedLightStart; LightIndex++)
 				{
 					// Render the light to the scene color buffer, using a 1x1 white texture as input
-					const FLightSceneInfo* LightSceneInfo = SortedLights[LightIndex].LightSceneInfo;
-					RenderLight(GraphBuilder, Scene, View, SceneTextures, LightSceneInfo, nullptr, LightingChannelsTexture, false /*bRenderOverlap*/, false /*bCloudShadow*/);
+					const FSortedLightSceneInfo& SortedLightInfo = SortedLights[LightIndex];
+					const FLightSceneInfo* LightSceneInfo = SortedLightInfo.LightSceneInfo;
+					RenderLight(GraphBuilder, Scene, View, SceneTextures, LightSceneInfo, nullptr, LightingChannelsTexture, 
+						false /*bRenderOverlap*/, false /*bCloudShadow*/, SortedLightInfo.bIsCompatibleWithLightFunctionAtlas);
 				}
 			}
 
@@ -1483,9 +1560,11 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						// Draw non-shadowed non-light function lights without changing render targets between them
 						for (int32 LightIndex = StandardDeferredStart; LightIndex < UnbatchedLightStart; LightIndex++)
 						{
-							const FLightSceneInfo* LightSceneInfo = SortedLights[LightIndex].LightSceneInfo;
-							RenderLightForHair(GraphBuilder, View, SceneTextures, LightSceneInfo, 
-								NullScreenShadowMaskSubPixelTexture, LightingChannelsTexture, DummyTransmittanceMaskData, false /*bForwardRendering*/);
+							const FSortedLightSceneInfo& SortedLightInfo = SortedLights[LightIndex];
+							const FLightSceneInfo* LightSceneInfo = SortedLightInfo.LightSceneInfo;
+							RenderLightForHair(GraphBuilder, View, SceneTextures, LightSceneInfo,
+								NullScreenShadowMaskSubPixelTexture, LightingChannelsTexture, DummyTransmittanceMaskData,
+								false /*bForwardRendering*/, SortedLightInfo.bIsCompatibleWithLightFunctionAtlas);
 						}
 					}
 				}
@@ -1518,7 +1597,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 				const uint32 ViewIndex = 0;
 				FViewInfo& View = Views[ViewIndex];
 
-				const int32 NumShadowedLights = ManyLightsLightStart - UnbatchedLightStart;
+				const int32 NumShadowedLights = MegaLightsLightStart - UnbatchedLightStart;
 				// Allocate PreprocessedShadowMaskTextures once so QueueTextureExtraction can deferred write.
 				{
 					if (!View.bStatePrevViewInfoIsReadOnly)
@@ -1544,23 +1623,34 @@ void FDeferredShadingSceneRenderer::RenderLights(
 			FRDGTextureRef SharedScreenShadowMaskSubPixelTexture = nullptr;
 
 			// Draw shadowed and light function lights
-			for (int32 LightIndex = UnbatchedLightStart; LightIndex < ManyLightsLightStart; LightIndex++)
+			auto UnbatchedLightsPass = [&](bool bIsHairPass)
+			{
+			for (int32 LightIndex = UnbatchedLightStart; LightIndex < MegaLightsLightStart; LightIndex++)
 			{
 				const FSortedLightSceneInfo& SortedLightInfo = SortedLights[LightIndex];
 				const FLightSceneInfo& LightSceneInfo = *SortedLightInfo.LightSceneInfo;
 				const FLightSceneProxy& LightSceneProxy = *LightSceneInfo.Proxy;
 				const FVisibleLightInfo& VisibleLightInfo = VisibleLightInfos[LightSceneInfo.Id];
-				const FLightOcclusionType OcclusionType = GetLightOcclusionType(LightSceneProxy);
+				const FLightOcclusionType OcclusionType = GetLightOcclusionType(LightSceneProxy, ViewFamily);
 
 				const bool bDrawShadows = SortedLightInfo.SortKey.Fields.bShadowed;
-				const bool bDrawLightFunction = SortedLightInfo.SortKey.Fields.bLightFunction && !bUseLightFunctionAtlas;
+				const bool bDrawLightFunction = SortedLightInfo.SortKey.Fields.bLightFunction && (!bUseLightFunctionAtlas || !SortedLightInfo.bIsCompatibleWithLightFunctionAtlas);
 				const bool bDrawPreviewIndicator = ViewFamily.EngineShowFlags.PreviewShadowsIndicator && !LightSceneInfo.IsPrecomputedLightingValid() && LightSceneProxy.HasStaticShadowing();
 				const bool bDrawHairShadow = bDrawShadows && bUseHairLighting;
 				const bool bUseHairDeepShadow = bDrawShadows && bUseHairLighting && LightSceneProxy.CastsHairStrandsDeepShadow();
+				const bool bRunHairLighting = bUseHairLighting && (bIsHairPass || OcclusionType == FLightOcclusionType::Raytraced);
+
 				bool bUsedShadowMaskTexture = false;
 
 				bool bElideScreenShadowMask = false;
 				bool bElideScreenShadowMaskSubPixel = false;
+
+				// Raytraced shadow light for hair are handled/interleaved with regular light, as the raytraced shadow masks 
+				// for gbuffer & hair are computed by the same single pass.
+				if (bIsHairPass && OcclusionType == FLightOcclusionType::Raytraced)
+				{
+					continue;
+				}
 
 				FScopeCycleCounter Context(LightSceneProxy.GetStatId());
 
@@ -1591,7 +1681,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						{
 							SharedScreenShadowMaskTexture = GraphBuilder.CreateTexture(SharedScreenShadowMaskTextureDesc, TEXT("ShadowMaskTexture"));
 						}
-						if (!SharedScreenShadowMaskSubPixelTexture && bUseHairLighting && !bElideScreenShadowMaskSubPixel)
+						if (!SharedScreenShadowMaskSubPixelTexture && bRunHairLighting && !bElideScreenShadowMaskSubPixel)
 						{
 							SharedScreenShadowMaskSubPixelTexture = GraphBuilder.CreateTexture(SharedScreenShadowMaskTextureDesc, TEXT("ShadowMaskSubPixelTexture"));
 						}
@@ -1618,7 +1708,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						IScreenSpaceDenoiser::FShadowRayTracingConfig RayTracingConfig;
 						RayTracingConfig.RayCountPerPixel = GShadowRayTracingSamplesPerPixel > -1? GShadowRayTracingSamplesPerPixel : LightSceneProxy.GetSamplesPerPixel();
 
-						const bool bDenoiserCompatible = !LightRequiresDenosier(LightSceneInfo) || IScreenSpaceDenoiser::EShadowRequirements::PenumbraAndClosestOccluder == DenoiserToUse->GetShadowRequirements(View, LightSceneInfo, RayTracingConfig);
+						const bool bDenoiserCompatible = !LightRequiresDenoiser(LightSceneInfo) || IScreenSpaceDenoiser::EShadowRequirements::PenumbraAndClosestOccluder == DenoiserToUse->GetShadowRequirements(View, LightSceneInfo, RayTracingConfig);
 
 						const bool bWantsBatchedShadow = OcclusionType == FLightOcclusionType::Raytraced && 
 							bDoShadowBatching &&
@@ -1677,7 +1767,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 							}; // QuickOffDenoisingBatch
 
 							// Ray trace shadows of lights, and quick off denoising batch.
-							for (int32 LightBatchIndex = LightIndex; LightBatchIndex < ManyLightsLightStart; LightBatchIndex++)
+							for (int32 LightBatchIndex = LightIndex; LightBatchIndex < MegaLightsLightStart; LightBatchIndex++)
 							{
 								const FSortedLightSceneInfo& BatchSortedLightInfo = SortedLights[LightBatchIndex];
 								const FLightSceneInfo& BatchLightSceneInfo = *BatchSortedLightInfo.LightSceneInfo;
@@ -1690,13 +1780,13 @@ void FDeferredShadingSceneRenderer::RenderLights(
 									continue;
 								}
 
-								const FLightOcclusionType BatchOcclusionType = GetLightOcclusionType(*BatchLightSceneInfo.Proxy);
+								const FLightOcclusionType BatchOcclusionType = GetLightOcclusionType(*BatchLightSceneInfo.Proxy, ViewFamily);
 								if (BatchOcclusionType != FLightOcclusionType::Raytraced)
 								{
 									continue;
 								}
 
-								const bool bRequiresDenoiser = LightRequiresDenosier(BatchLightSceneInfo) && DenoiserMode > 0;
+								const bool bRequiresDenoiser = LightRequiresDenoiser(BatchLightSceneInfo) && DenoiserMode > 0;
 
 								IScreenSpaceDenoiser::FShadowRayTracingConfig BatchRayTracingConfig;
 								BatchRayTracingConfig.RayCountPerPixel = GShadowRayTracingSamplesPerPixel > -1 ? GShadowRayTracingSamplesPerPixel : BatchLightSceneInfo.Proxy->GetSamplesPerPixel();
@@ -1834,7 +1924,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						PreprocessedShadowMaskTextures[ShadowMaskIndex] = nullptr;
 
 						// Sub-pixel shadow for hair strands geometries
-						if (bUseHairLighting && ShadowMaskIndex < uint32(PreprocessedShadowMaskSubPixelTextures.Num()))
+						if (bRunHairLighting && ShadowMaskIndex < uint32(PreprocessedShadowMaskSubPixelTextures.Num()))
 						{
 							ScreenShadowMaskSubPixelTexture = PreprocessedShadowMaskSubPixelTextures[ShadowMaskIndex];
 							PreprocessedShadowMaskSubPixelTextures[ShadowMaskIndex] = nullptr;
@@ -1877,7 +1967,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 
 						FRDGTextureRef SubPixelRayTracingShadowMaskTexture = nullptr;
 						FRDGTextureUAV* SubPixelRayTracingShadowMaskUAV = nullptr;
-						if (bUseHairLighting)
+						if (bRunHairLighting)
 						{
 							FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
 								SceneTextures.Config.Extent,
@@ -1908,7 +1998,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 							RayTracingConfig.RayCountPerPixel = GShadowRayTracingSamplesPerPixel > -1 ? GShadowRayTracingSamplesPerPixel : LightSceneProxy.GetSamplesPerPixel();
 
 							IScreenSpaceDenoiser::EShadowRequirements DenoiserRequirements = IScreenSpaceDenoiser::EShadowRequirements::Bailout;
-							if (DenoiserMode != 0 && LightRequiresDenosier(LightSceneInfo))
+							if (DenoiserMode != 0 && LightRequiresDenoiser(LightSceneInfo))
 							{
 								DenoiserRequirements = DenoiserToUse->GetShadowRequirements(View, LightSceneInfo, RayTracingConfig);
 							}
@@ -1995,7 +2085,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 									RDG_EVENT_NAME("ClearQuad"),
 									PassParameters,
 									ERDGPassFlags::Raster,
-									[this, &LightSceneProxy](FRHICommandList& RHICmdList)
+									[this, &LightSceneProxy](FRDGAsyncTask, FRHICommandList& RHICmdList)
 								{
 									for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 									{
@@ -2075,7 +2165,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 				}
 
 				// Render the light to the scene color buffer, conditionally using the attenuation buffer or a 1x1 white texture as input 
-				if (bDirectLighting)
+				if (bDirectLighting && !bIsHairPass)
 				{
 					for (int32 ViewIndex = 0, ViewCount = Views.Num(); ViewIndex < ViewCount; ++ViewIndex)
 					{
@@ -2093,12 +2183,12 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						SCOPED_GPU_MASK(GraphBuilder.RHICmdList, View.GPUMask);
 						RenderLight(
 							GraphBuilder, Scene, View, SceneTextures, &LightSceneInfo, 
-							VirtualShadowMapId != INDEX_NONE ? nullptr : ScreenShadowMaskTexture, LightingChannelsTexture, false /*bRenderOverlap*/, true /*bCloudShadow*/, 
-							VirtualShadowMapArray.GetUniformBuffer(), ShadowSceneRenderer->VirtualShadowMapMaskBits, VirtualShadowMapId);
+							VirtualShadowMapId != INDEX_NONE ? nullptr : ScreenShadowMaskTexture, LightingChannelsTexture, false /*bRenderOverlap*/, true /*bCloudShadow*/, SortedLightInfo.bIsCompatibleWithLightFunctionAtlas,
+							VirtualShadowMapArray.GetUniformBuffer(ViewIndex), ShadowSceneRenderer->VirtualShadowMapMaskBits, VirtualShadowMapId);
 					}
 				}
 
-				if (bUseHairLighting)
+				if (bRunHairLighting)
 				{
 					for (int32 ViewIndex = 0, ViewCount = Views.Num(); ViewIndex < ViewCount; ++ViewIndex)
 					{
@@ -2127,7 +2217,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 							}
 							else if (bDrawHairShadow)
 							{
-								TransmittanceMaskData = RenderHairStrandsTransmittanceMask(GraphBuilder, View, &LightSceneInfo, false, ScreenShadowMaskSubPixelTexture);
+								TransmittanceMaskData = RenderHairStrandsTransmittanceMask(GraphBuilder, View, ViewIndex, &LightSceneInfo, false, ScreenShadowMaskSubPixelTexture);
 								HairShadowMask = ScreenShadowMaskSubPixelTexture;
 							}
 							if (TransmittanceMaskData.TransmittanceMask == nullptr)
@@ -2138,12 +2228,23 @@ void FDeferredShadingSceneRenderer::RenderLights(
 							// Note: ideally the light should still be evaluated for hair when not casting shadow, but for preserving the old behavior, and not adding 
 							// any perf. regression, we disable this light for hair rendering 
 							RenderLightForHair(
-								GraphBuilder, View, SceneTextures, &LightSceneInfo, 
-								VirtualShadowMapId != INDEX_NONE ? nullptr : HairShadowMask, LightingChannelsTexture, TransmittanceMaskData, false /*bForwardRendering*/,
-								VirtualShadowMapArray.GetUniformBuffer(), ShadowSceneRenderer->VirtualShadowMapMaskBitsHairStrands, VirtualShadowMapId);
+								GraphBuilder, View, SceneTextures, &LightSceneInfo,
+								VirtualShadowMapId != INDEX_NONE ? nullptr : HairShadowMask, LightingChannelsTexture, TransmittanceMaskData, 
+								false /*bForwardRendering*/, SortedLightInfo.bIsCompatibleWithLightFunctionAtlas,
+								VirtualShadowMapArray.GetUniformBuffer(ViewIndex), ShadowSceneRenderer->VirtualShadowMapMaskBitsHairStrands, VirtualShadowMapId);
 						}
 					}
 				}
+			}};
+
+			// Two seperate light loop:
+			// * For GBuffer inputs (and hair input for light having RT shadows)
+			// * For Hair inputs if any hair data are present
+			UnbatchedLightsPass(false/*bIsHairPass*/);
+			if (bUseHairLighting)
+			{
+				RDG_EVENT_SCOPE(GraphBuilder, "UnbatchedLights(Hair)");
+				UnbatchedLightsPass(true/*bIsHairPass*/);
 			}
 		}
 	}
@@ -2180,7 +2281,7 @@ static void RenderLightArrayForOverlapViewmode(
 		for (const FViewInfo& View : Views)
 		{
 			SCOPED_GPU_MASK(GraphBuilder.RHICmdList, View.GPUMask);
-			RenderLight(GraphBuilder, Scene, View, SceneTextures, LightSceneInfo, nullptr, LightingChannelsTexture, true /*bRenderOverlap*/, false /*bCloudShadow*/);
+			RenderLight(GraphBuilder, Scene, View, SceneTextures, LightSceneInfo, nullptr, LightingChannelsTexture, true /*bRenderOverlap*/, false /*bCloudShadow*/, false/*bIsCompatibleWithLightFunctionAtlas*/);
 		}
 	}
 }
@@ -2359,7 +2460,7 @@ static FDeferredLightPS::FParameters GetDeferredLightPSParameters(
 
 	// PS - Render Targets
 	Out.RenderTargets[0] = FRenderTargetBinding(SceneColorTexture, ERenderTargetLoadAction::ELoad);
-	if (Substrate::IsOpaqueRoughRefractionEnabled())
+	if (Substrate::IsOpaqueRoughRefractionEnabled() && Substrate::UsesSubstrateMaterialBuffer(View.GetShaderPlatform()))
 	{
 		Out.RenderTargets[1] = FRenderTargetBinding(Scene->SubstrateSceneData.SeparatedOpaqueRoughRefractionSceneColor, ERenderTargetLoadAction::ELoad);
 		Out.RenderTargets[2] = FRenderTargetBinding(Scene->SubstrateSceneData.SeparatedSubSurfaceSceneColor, ERenderTargetLoadAction::ELoad);
@@ -2390,10 +2491,10 @@ static void InternalRenderLight(
 	const ELightComponentType LightType = (ELightComponentType)LightProxy->GetLightType();
 
 	GraphBuilder.AddPass(
-		RDG_EVENT_NAME("%s", ShaderName),
+		RDG_EVENT_NAME("%s: %s", ShaderName, *LightProxy->GetOwnerNameOrLabel()),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[Scene, &View, PixelShader, LightSceneInfo, PassParameters, LightBounds, LightType, SubstrateTileMaterialType](FRHICommandList& RHICmdList)
+		[Scene, &View, PixelShader, LightSceneInfo, PassParameters, LightBounds, LightType, SubstrateTileMaterialType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 
 		const bool bIsRadial = LightType != LightType_Directional;
@@ -2523,8 +2624,8 @@ static void InternalRenderLight(
 			{
 				StencilingGeometry::DrawCone(RHICmdList);
 			}
-		}	
-	}); // RenderPass
+		}
+	});
 }
 
 
@@ -2557,6 +2658,7 @@ static void RenderLight(
 	FRDGTextureRef LightingChannelsTexture,
 	bool bRenderOverlap,
 	bool bCloudShadow,
+	const bool bCanLightUsesAtlasForUnbatchedLight,
 	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> VirtualShadowMapUniformBuffer,
 	FRDGTextureRef ShadowMaskBits,
 	int32 VirtualShadowMapId)
@@ -2654,7 +2756,7 @@ static void RenderLight(
 		PermutationVector.Set< FDeferredLightPS::FHairComplexTransmittance >(bNeedComplexTransmittanceSupport);
 		PermutationVector.Set< FDeferredLightPS::FLightFunctionAtlasDim >(
 			LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::DeferredLighting) && LightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot() &&
-			LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && !View.Family->EngineShowFlags.VisualizeLightCulling);
+			LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && !View.Family->EngineShowFlags.VisualizeLightCulling && bCanLightUsesAtlasForUnbatchedLight);
 
 		if (bIsRadial)
 		{
@@ -2737,6 +2839,7 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 	FRDGTextureRef LightingChannelsTexture,
 	const FHairStrandsTransmittanceMaskData& InTransmittanceMaskData,
 	const bool bForwardRendering,
+	const bool bCanLightUsesAtlasForUnbatchedLight,
 	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> VirtualShadowMapUniformBuffer,
 	FRDGTextureRef ShadowMaskBits,
 	int32 VirtualShadowMapId)
@@ -2810,7 +2913,7 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 	PermutationVector.Set< FDeferredLightPS::FVirtualShadowMapMask >(bUseVirtualShadowMapMask);
 	PermutationVector.Set< FDeferredLightPS::FLightFunctionAtlasDim >(
 		LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::DeferredLighting) && LightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot() &&
-		LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && !View.Family->EngineShowFlags.VisualizeLightCulling);
+		LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && !View.Family->EngineShowFlags.VisualizeLightCulling && bCanLightUsesAtlasForUnbatchedLight);
 	if (bIsDirectional)
 	{
 		PermutationVector.Set< FDeferredLightPS::FSourceShapeDim >(ELightSourceShape::Directional);
@@ -2836,7 +2939,7 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 		{},
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[this, VertexShader, PixelShader, PassParameters, SampleLightingViewportResolution](FRHICommandList& RHICmdList)
+		[this, VertexShader, PixelShader, PassParameters, SampleLightingViewportResolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		RHICmdList.SetViewport(0, 0, 0.0f, SampleLightingViewportResolution.X, SampleLightingViewportResolution.Y, 1.0f);
 
@@ -2866,7 +2969,7 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 void FDeferredShadingSceneRenderer::RenderLightsForHair(
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
-	FSortedLightSetSceneInfo& SortedLightSet,
+	const FSortedLightSetSceneInfo& SortedLightSet,
 	FRDGTextureRef ScreenShadowMaskSubPixelTexture,
 	FRDGTextureRef LightingChannelsTexture)
 {
@@ -2898,7 +3001,7 @@ void FDeferredShadingSceneRenderer::RenderLightsForHair(
 					FHairStrandsTransmittanceMaskData TransmittanceMaskData = DummyTransmittanceMaskData;
 					if (bDrawHairShadow)
 					{
-						TransmittanceMaskData = RenderHairStrandsTransmittanceMask(GraphBuilder, View, &LightSceneInfo, true, ScreenShadowMaskSubPixelTexture);
+						TransmittanceMaskData = RenderHairStrandsTransmittanceMask(GraphBuilder, View, ViewIndex, &LightSceneInfo, true, ScreenShadowMaskSubPixelTexture);
 					}
 
 					RenderLightForHair(
@@ -2909,7 +3012,8 @@ void FDeferredShadingSceneRenderer::RenderLightsForHair(
 						ScreenShadowMaskSubPixelTexture,
 						LightingChannelsTexture,
 						TransmittanceMaskData,
-						true /*bForwardRendering*/);
+						true /*bForwardRendering*/,
+						SortedLightInfo.bIsCompatibleWithLightFunctionAtlas);
 				}
 			}
 		}
@@ -3015,7 +3119,7 @@ static void InternalRenderSimpleLightsStandardDeferred(
 		RDG_EVENT_NAME("Light::DeferredSimpleLights(Substrate:%s,Tile:%s)", Substrate::IsSubstrateEnabled() ? TEXT("True") : TEXT("False"), Substrate::IsSubstrateEnabled() ? ToString(TileType) : TEXT("None")),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[&View, &SimpleLights, ViewIndex, NumViews, PassParameters, PixelShader, VertexShader, TileType](FRHICommandList& RHICmdList)
+		[&View, &SimpleLights, ViewIndex, NumViews, PassParameters, PixelShader, VertexShader, TileType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FGraphicsPipelineStateInitializer GraphicsPSOInit;
 		RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);

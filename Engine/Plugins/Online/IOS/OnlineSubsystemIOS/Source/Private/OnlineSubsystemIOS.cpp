@@ -164,12 +164,13 @@ bool FOnlineSubsystemIOS::Init()
 		UserCloudInterface = MakeShareable(new FOnlineUserCloudInterfaceIOS());
 		SharedCloudInterface = MakeShareable(new FOnlineSharedCloudInterfaceIOS());
 
+#if UE_WITH_STORE_KIT
 		if (IsInAppPurchasingEnabled())
 		{
 			StoreV2Interface = MakeShareable(new FOnlineStoreIOS(this));
 			PurchaseInterface = MakeShareable(new FOnlinePurchaseIOS(this));
 		}
-
+#endif
 		if (UserCloudInterface && IsCloudKitEnabled())
 		{
 			FString IOSCloudKitSyncStrategy = "";
@@ -328,8 +329,11 @@ bool FOnlineSubsystemIOS::IsInAppPurchasingEnabled()
 	GConfig->GetBool(TEXT("OnlineSubsystemIOS.Store"), TEXT("bSupportsInAppPurchasing"), bEnableIAP, GEngineIni);
 	
 	bool bEnableIAP1 = false;
-	GConfig->GetBool(TEXT("OnlineSubsystemIOS.Store"), TEXT("bSupportInAppPurchasing"), bEnableIAP1, GEngineIni);
-	return bEnableIAP || bEnableIAP1;
+	if (GConfig->GetBool(TEXT("OnlineSubsystemIOS.Store"), TEXT("bSupportInAppPurchasing"), bEnableIAP1, GEngineIni))
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Deprecated use of bSupportInAppPurchasing setting in OnlineSubsystemIOS.Store. Use bSupportsInAppPurchasing instead"));
+	}
+	return UE_WITH_STORE_KIT && (bEnableIAP || bEnableIAP1);
 }
 
 NSString* FOnlineSubsystemIOS::GetPlayerId(GKPlayer* Player)

@@ -4,6 +4,9 @@ if [ ! -d "env" ]; then
 			../../../Binaries/ThirdParty/Python3/Mac/bin/python3 -m venv env
 			;;
 		*)
+			# For daphne4.0.0 -> ImportError: libffi.so.6: cannot open shared object file: No such file or directory
+			curl -LO http://archive.ubuntu.com/ubuntu/pool/main/libf/libffi/libffi6_3.2.1-8_amd64.deb
+			sudo dpkg -i libffi6_3.2.1-8_amd64.deb
 			../../../Binaries/ThirdParty/Python3/Linux/bin/python3 -m venv env
 			;;
 	esac

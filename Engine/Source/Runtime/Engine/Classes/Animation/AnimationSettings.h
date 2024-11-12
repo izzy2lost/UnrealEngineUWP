@@ -6,15 +6,23 @@
 
 #pragma once
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "Templates/SubclassOf.h"
 #include "Animation/AnimSequence.h"
+#endif
 #include "Engine/DeveloperSettings.h"
 #include "CustomAttributes.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "MirrorDataTable.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
+#endif
 #include "AnimationSettings.generated.h"
+
+class UUserDefinedStruct;
+struct FCustomAttributeSetting;
+struct FMirrorFindReplaceExpression;
 
 /**
  * Default animation settings.
@@ -40,7 +48,7 @@ class UAnimationSettings : public UDeveloperSettings
 	UPROPERTY(config, EditAnywhere, Category = Compression)
 	bool bForceBelowThreshold;
 
-	/** If true, then the animation will be first recompressed with it's current compressor if non-NULL, or with the global default compressor (specified in the engine ini) 
+	/** If true, then the animation will be first recompressed with its current compressor if non-NULL, or with the global default compressor (specified in the engine ini) 
 	* Also known as "Run Current Default Compressor"
 	*/
 	UPROPERTY(config, EditAnywhere, Category = Compression)

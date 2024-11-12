@@ -17,6 +17,7 @@
 #include "MoviePipelinePrimaryConfig.h"
 #include "MoviePipelineQueue.h"
 #include "MovieScene.h"
+#include "MovieSceneSequence.h"
 #include "PropertyCustomizationHelpers.h"
 #include "ScopedTransaction.h"
 #include "SlateOptMacros.h"
@@ -27,6 +28,7 @@
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SScaleBox.h"
+#include "LevelSequence.h"
 
 #define LOCTEXT_NAMESPACE "SRenderGridJobList"
 
@@ -128,7 +130,7 @@ void UE::RenderGrid::Private::SRenderGridJobList::Construct(const FArguments& In
 					SNew(SHeaderRow)
 
 					+ SHeaderRow::Column(FRenderGridJobListColumns::DragDropHandle)
-					.DefaultLabel(LOCTEXT("JobListDragDropHandleColumnHeader", ""))
+					.DefaultLabel(FText())
 					.FixedWidth(36.0f)
 
 					+ SHeaderRow::Column(FRenderGridJobListColumns::IsEnabled)
@@ -370,7 +372,6 @@ void UE::RenderGrid::Private::SRenderGridJobListTable::Construct(const FArgument
 		SListView::FArguments()
 		.ListItemsSource(InArgs._ListItemsSource)
 		.HeaderRow(InArgs._HeaderRow)
-		.ItemHeight(20.0f)
 		.OnGenerateRow(this, &SRenderGridJobListTable::HandleJobListGenerateRow)
 		.OnSelectionChanged(this, &SRenderGridJobListTable::HandleJobListSelectionChanged)
 		.SelectionMode(ESelectionMode::Multi)

@@ -709,7 +709,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			});
 	}
 
-	// Note: these functions should only be used for live communication between processing running the same version of the engine.
+	// Note: these functions should only be used for live communication between processes running the same version of the engine.
 	// There is no versioning support
 	COREUOBJECT_API void NetworkWrite(FCbWriter& Writer, bool bWritePackageName) const;
 	COREUOBJECT_API bool TryNetworkRead(FCbFieldView Field, bool bReadPackageName, FName InPackageName);
@@ -853,9 +853,7 @@ inline FAssetRegistryExportPath FAssetData::GetTagValueRef<FAssetRegistryExportP
 	return FoundValue.IsSet() ? FoundValue.AsExportPath() : FAssetRegistryExportPath();
 }
 
-namespace UE
-{
-namespace AssetRegistry
+namespace UE::AssetRegistry
 {
 
 /** Low-memory version of FCustomVersion; holds only Guid and integer version. */
@@ -884,6 +882,18 @@ struct FPackageCustomVersion
 	{
 		return Ar << CustomVersion.Key << CustomVersion.Version;
 	}
+
+private:
+	friend FCbWriter& operator<<(FCbWriter& Writer, const FPackageCustomVersion& Value)
+	{
+		return Value.Write(Writer);
+	}
+	COREUOBJECT_API FCbWriter& Write(FCbWriter& Writer) const;
+	friend bool LoadFromCompactBinary(const FCbFieldView& Field, FPackageCustomVersion& Value)
+	{
+		return Value.TryRead(Field);
+	}
+	COREUOBJECT_API bool TryRead(const FCbFieldView& Field);
 };
 
 /** A handle to a deduplicated, sorted array of FPackageCustomVersion. */
@@ -902,7 +912,6 @@ private:
 	friend class FPackageCustomVersionRegistry;
 };
 
-}
 }
 
 /** A class to hold data about a package on disk, this data is updated on save/load and is not updated when an asset changes in memory */
@@ -1000,6 +1009,11 @@ public:
 	COREUOBJECT_API FIoHash GetPackageSavedHash() const;
 	COREUOBJECT_API void SetPackageSavedHash(const FIoHash& InHash);
 
+	// Note: these functions should only be used for live communication between processes running the same version of the engine.
+	// There is no versioning support
+	COREUOBJECT_API void NetworkWrite(FCbWriter& Writer) const;
+	COREUOBJECT_API bool TryNetworkRead(FCbFieldView Field);
+
 private:
 	FORCEINLINE void SerializeForCacheInternal(FArchive& Ar, FAssetPackageData& PackageData, FAssetRegistryVersion::Type Version);
 
@@ -1055,11 +1069,7 @@ struct FReferenceViewerParams
 	 * - If >0, it will hide that option and fix the Depth value to this value.
 	 */
 	int32 FixAndHideSearchDepthLimit;
-	/**
-	 * Whether to visually show to the user the option of "Search Breadth Limit" or hide it and fix it to a default value:
-	 * - If 0 or negative, it will show to the user the option of "Search Breadth Limit".
-	 * - If >0, it will hide that option and fix the Breadth value to this value.
-	 */
+	/** Limits Search Breadth to the specified value */
 	int32 FixAndHideSearchBreadthLimit;
 	/** Whether to visually show to the user the option of "Collection Filter" */
 	bool bShowCollectionFilter;

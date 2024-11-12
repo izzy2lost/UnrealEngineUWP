@@ -3,11 +3,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Widgets/SWidget.h"
+#include "Delegates/DelegateCombinations.h"
 #include "Modules/ModuleInterface.h"
+#include "Widgets/SWidget.h"
 
 class ISettingsContainer;
 class ISettingsEditorModel;
+class UDeveloperSettings;
+
+DECLARE_DELEGATE_RetVal_OneParam(bool, FShouldRegisterSettingsDelegate , UDeveloperSettings* /*Settings*/);
 
 /**
  * Interface for settings editor modules.
@@ -46,6 +50,13 @@ public:
 	 * @param InRestartApplicationDelegate The new delegate to call
 	 */
 	virtual void SetRestartApplicationCallback( FSimpleDelegate InRestartApplicationDelegate ) = 0;
+
+	/**
+	 * Set the delegate that should be called when a setting editor checks whether a settings object should be registered.
+	 * 
+	 * @param InShouldRegisterSettingDelegate The new delegate to call.
+	 */
+	virtual void SetShouldRegisterSettingCallback(FShouldRegisterSettingsDelegate InShouldRegisterSettingDelegate) = 0;
 
 public:
 

@@ -11,5 +11,6 @@ class UStateTreeTestSchema : public UStateTreeSchema
 	GENERATED_BODY()
 
 	virtual bool IsStructAllowed(const UScriptStruct* InScriptStruct) const override { return true; }
+	virtual bool IsExternalItemAllowed(const UStruct& InStruct) const override { return true; }
 };
 

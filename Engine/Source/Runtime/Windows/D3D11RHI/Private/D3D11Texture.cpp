@@ -310,12 +310,6 @@ FD3D11Texture* FD3D11DynamicRHI::CreateD3D11Texture2D(FRHITextureCreateDesc cons
 		}
 	}
 
-	if (EnumHasAnyFlags(Flags, TexCreate_GenerateMipCapable))
-	{
-		// Set the flag that allows us to call GenerateMips on this texture later
-		TextureDesc.MiscFlags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
-	}
-
 	// Set up the texture bind flags.
 	bool bCreateRTV = false;
 	bool bCreateDSV = false;
@@ -679,12 +673,6 @@ FD3D11Texture* FD3D11DynamicRHI::CreateD3D11Texture3D(FRHITextureCreateDesc cons
 		}
 	}
 
-	if (EnumHasAnyFlags(Flags, TexCreate_GenerateMipCapable))
-	{
-		// Set the flag that allows us to call GenerateMips on this texture later
-		TextureDesc.MiscFlags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
-	}
-
 	if (EnumHasAnyFlags(Flags, TexCreate_UAV))
 	{
 		TextureDesc.BindFlags |= D3D11_BIND_UNORDERED_ACCESS;
@@ -869,17 +857,6 @@ FTextureRHIRef FD3D11DynamicRHI::RHIAsyncCreateTexture2D(uint32 SizeX, uint32 Si
 	return Texture;
 }
 
-/** Generates mip maps for the surface. */
-void FD3D11DynamicRHI::RHIGenerateMips(FRHITexture* TextureRHI)
-{
-	FD3D11Texture* Texture = ResourceCast(TextureRHI);
-	// Surface must have been created with D3D11_BIND_RENDER_TARGET for GenerateMips to work
-	check(Texture->GetShaderResourceView() && Texture->GetRenderTargetView(0, -1));
-	Direct3DDeviceIMContext->GenerateMips(Texture->GetShaderResourceView());
-
-	GPUProfilingData.RegisterGPUWork(0);
-}
-
 /**
  * Computes the size in memory required by a given texture.
  *
@@ -908,7 +885,7 @@ uint32 FD3D11DynamicRHI::RHIComputeMemorySize(FRHITexture* TextureRHI)
  * @param RequestStatus			- Will be decremented by 1 when the reallocation is complete (success or failure).
  * @return						- New reference to the texture, or an invalid reference upon failure
  */
-void FD3D11DynamicRHI::RHIAsyncCopyTexture2DCopy(FRHITexture2D* NewTexture2DRHI, FRHITexture2D* Texture2DRHI, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus)
+void FD3D11DynamicRHI::RHIAsyncCopyTexture2DCopy(FRHITexture* NewTexture2DRHI, FRHITexture* Texture2DRHI, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus)
 {
 	FD3D11Texture* Texture2D = ResourceCast(Texture2DRHI);
 	FD3D11Texture* NewTexture2D = ResourceCast(NewTexture2DRHI);
@@ -954,7 +931,7 @@ void FD3D11DynamicRHI::RHIAsyncCopyTexture2DCopy(FRHITexture2D* NewTexture2DRHI,
  * @param RequestStatus	- Will be decremented by 1 when the reallocation is complete (success or failure).
  * @return				- New reference to the texture, or an invalid reference upon failure
  */
-FTexture2DRHIRef FD3D11DynamicRHI::RHIAsyncReallocateTexture2D(FRHITexture2D* Texture2DRHI, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus)
+FTextureRHIRef FD3D11DynamicRHI::RHIAsyncReallocateTexture2D(FRHITexture* Texture2DRHI, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus)
 {
 	FD3D11Texture* Texture2D = ResourceCast(Texture2DRHI);
 
@@ -974,15 +951,15 @@ FTexture2DRHIRef FD3D11DynamicRHI::RHIAsyncReallocateTexture2D(FRHITexture2D* Te
 	return NewTexture2D;
 }
 
-FTexture2DRHIRef FD3D11DynamicRHI::AsyncReallocateTexture2D_RenderThread(
+FTextureRHIRef FD3D11DynamicRHI::AsyncReallocateTexture2D_RenderThread(
 	class FRHICommandListImmediate& RHICmdList,
-	FRHITexture2D* Texture2D,
+	FRHITexture* Texture2D,
 	int32 NewMipCount,
 	int32 NewSizeX,
 	int32 NewSizeY,
 	FThreadSafeCounter* RequestStatus)
 {
-	FTexture2DRHIRef NewTexture2D;
+	FTextureRHIRef NewTexture2D;
 
 	if (ShouldNotEnqueueRHICommand())
 	{
@@ -1018,14 +995,14 @@ FTexture2DRHIRef FD3D11DynamicRHI::AsyncReallocateTexture2D_RenderThread(
  * @param Texture2D		- Texture to check the reallocation status for
  * @return				- Current reallocation status
  */
-ETextureReallocationStatus FD3D11DynamicRHI::RHIFinalizeAsyncReallocateTexture2D(FRHITexture2D* Texture2D, bool bBlockUntilCompleted )
+ETextureReallocationStatus FD3D11DynamicRHI::RHIFinalizeAsyncReallocateTexture2D(FRHITexture* Texture2D, bool bBlockUntilCompleted )
 {
 	return TexRealloc_Succeeded;
 }
 
 ETextureReallocationStatus FD3D11DynamicRHI::FinalizeAsyncReallocateTexture2D_RenderThread(
 	class FRHICommandListImmediate& RHICmdList,
-	FRHITexture2D* Texture2D,
+	FRHITexture* Texture2D,
 	bool bBlockUntilCompleted)
 {
 	return RHIFinalizeAsyncReallocateTexture2D(Texture2D, bBlockUntilCompleted);
@@ -1039,14 +1016,14 @@ ETextureReallocationStatus FD3D11DynamicRHI::FinalizeAsyncReallocateTexture2D_Re
  * @param bBlockUntilCompleted	If true, blocks until the cancellation is fully completed
  * @return						Reallocation status
  */
-ETextureReallocationStatus FD3D11DynamicRHI::RHICancelAsyncReallocateTexture2D(FRHITexture2D* Texture2D, bool bBlockUntilCompleted )
+ETextureReallocationStatus FD3D11DynamicRHI::RHICancelAsyncReallocateTexture2D(FRHITexture* Texture2D, bool bBlockUntilCompleted )
 {
 	return TexRealloc_Succeeded;
 }
 
 ETextureReallocationStatus FD3D11DynamicRHI::CancelAsyncReallocateTexture2D_RenderThread(
 	class FRHICommandListImmediate& RHICmdList,
-	FRHITexture2D* Texture2D,
+	FRHITexture* Texture2D,
 	bool bBlockUntilCompleted)
 {
 	return RHICancelAsyncReallocateTexture2D(Texture2D, bBlockUntilCompleted);
@@ -1188,7 +1165,7 @@ void FD3D11Texture::Unlock(FD3D11DynamicRHI* D3DRHI, uint32 MipIndex, uint32 Arr
 	}
 }
 
-void* FD3D11DynamicRHI::RHILockTexture2D(FRHITexture2D* TextureRHI, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail, uint64* OutLockedByteCount)
+void* FD3D11DynamicRHI::RHILockTexture2D(FRHITexture* TextureRHI, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail, uint64* OutLockedByteCount)
 {
 	check(TextureRHI);
 	FD3D11Texture* Texture = ResourceCast(TextureRHI);
@@ -1198,7 +1175,7 @@ void* FD3D11DynamicRHI::RHILockTexture2D(FRHITexture2D* TextureRHI, uint32 MipIn
 
 void* FD3D11DynamicRHI::LockTexture2D_RenderThread(
 	class FRHICommandListImmediate& RHICmdList,
-	FRHITexture2D* Texture,
+	FRHITexture* Texture,
 	uint32 MipIndex,
 	EResourceLockMode LockMode,
 	uint32& DestStride,
@@ -1214,7 +1191,7 @@ void* FD3D11DynamicRHI::LockTexture2D_RenderThread(
 	}
 	else if (LockMode == RLM_ReadOnly)
 	{
-		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 		LockedTexture = RHILockTexture2D(Texture, MipIndex, LockMode, DestStride, bLockWithinMiptail, OutLockedByteCount);
 	}
 	else
@@ -1225,7 +1202,7 @@ void* FD3D11DynamicRHI::LockTexture2D_RenderThread(
 	return LockedTexture;
 }
 
-void FD3D11DynamicRHI::RHIUnlockTexture2D(FRHITexture2D* TextureRHI, uint32 MipIndex, bool bLockWithinMiptail)
+void FD3D11DynamicRHI::RHIUnlockTexture2D(FRHITexture* TextureRHI, uint32 MipIndex, bool bLockWithinMiptail)
 {
 	check(TextureRHI);
 	FD3D11Texture* Texture = ResourceCast(TextureRHI);
@@ -1234,7 +1211,7 @@ void FD3D11DynamicRHI::RHIUnlockTexture2D(FRHITexture2D* TextureRHI, uint32 MipI
 
 void FD3D11DynamicRHI::UnlockTexture2D_RenderThread(
 	class FRHICommandListImmediate& RHICmdList,
-	FRHITexture2D* Texture,
+	FRHITexture* Texture,
 	uint32 MipIndex,
 	bool bLockWithinMiptail,
 	bool bNeedsDefaultRHIFlush)
@@ -1252,20 +1229,20 @@ void FD3D11DynamicRHI::UnlockTexture2D_RenderThread(
 	}
 }
 
-void* FD3D11DynamicRHI::RHILockTexture2DArray(FRHITexture2DArray* TextureRHI, uint32 TextureIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail)
+void* FD3D11DynamicRHI::RHILockTexture2DArray(FRHITexture* TextureRHI, uint32 TextureIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail)
 {
 	FD3D11Texture* Texture = ResourceCast(TextureRHI);
 	ConditionalClearShaderResource(Texture, false);
 	return Texture->Lock(this, MipIndex, TextureIndex, LockMode, DestStride);
 }
 
-void FD3D11DynamicRHI::RHIUnlockTexture2DArray(FRHITexture2DArray* TextureRHI, uint32 TextureIndex, uint32 MipIndex, bool bLockWithinMiptail)
+void FD3D11DynamicRHI::RHIUnlockTexture2DArray(FRHITexture* TextureRHI, uint32 TextureIndex, uint32 MipIndex, bool bLockWithinMiptail)
 {
 	FD3D11Texture* Texture = ResourceCast(TextureRHI);
 	Texture->Unlock(this, MipIndex, TextureIndex);
 }
 
-void FD3D11DynamicRHI::RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHITexture2D* TextureRHI, uint32 MipIndex, const FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, const uint8* SourceData)
+void FD3D11DynamicRHI::RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHITexture* TextureRHI, uint32 MipIndex, const FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, const uint8* SourceData)
 {
 	const FPixelFormatInfo& FormatInfo = GPixelFormats[TextureRHI->GetFormat()];
 
@@ -1325,7 +1302,7 @@ void FD3D11DynamicRHI::RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHIT
 	});
 }
 
-void FD3D11DynamicRHI::RHIUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHITexture3D* TextureRHI,uint32 MipIndex,const FUpdateTextureRegion3D& UpdateRegion,uint32 SourceRowPitch,uint32 SourceDepthPitch,const uint8* SourceData)
+void FD3D11DynamicRHI::RHIUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHITexture* TextureRHI,uint32 MipIndex,const FUpdateTextureRegion3D& UpdateRegion,uint32 SourceRowPitch,uint32 SourceDepthPitch,const uint8* SourceData)
 {
 	const SIZE_T SourceDataSize = static_cast<SIZE_T>(SourceDepthPitch) * UpdateRegion.Depth;
 	uint8* SourceDataCopy = (uint8*)FMemory::Malloc(SourceDataSize);
@@ -1365,7 +1342,7 @@ void FD3D11DynamicRHI::RHIEndUpdateTexture3D(FRHICommandListBase& RHICmdList, FU
 	Cubemap texture support.
 -----------------------------------------------------------------------------*/
 
-void* FD3D11DynamicRHI::RHILockTextureCubeFace(FRHITextureCube* TextureCubeRHI, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail)
+void* FD3D11DynamicRHI::RHILockTextureCubeFace(FRHITexture* TextureCubeRHI, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail)
 {
 	FD3D11Texture* TextureCube = ResourceCast(TextureCubeRHI);
 	ConditionalClearShaderResource(TextureCube, false);
@@ -1375,7 +1352,7 @@ void* FD3D11DynamicRHI::RHILockTextureCubeFace(FRHITextureCube* TextureCubeRHI, 
 
 void* FD3D11DynamicRHI::RHILockTextureCubeFace_RenderThread(
 	class FRHICommandListImmediate& RHICmdList,
-	FRHITextureCube* Texture,
+	FRHITexture* Texture,
 	uint32 FaceIndex,
 	uint32 ArrayIndex,
 	uint32 MipIndex,
@@ -1391,7 +1368,7 @@ void* FD3D11DynamicRHI::RHILockTextureCubeFace_RenderThread(
 	}
 	else if (LockMode == RLM_ReadOnly)
 	{
-		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 		LockedTexture = RHILockTextureCubeFace(Texture, FaceIndex, ArrayIndex, MipIndex, LockMode, DestStride, bLockWithinMiptail);
 	}
 	else
@@ -1403,7 +1380,7 @@ void* FD3D11DynamicRHI::RHILockTextureCubeFace_RenderThread(
 	return LockedTexture;
 }
 
-void FD3D11DynamicRHI::RHIUnlockTextureCubeFace(FRHITextureCube* TextureCubeRHI, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail)
+void FD3D11DynamicRHI::RHIUnlockTextureCubeFace(FRHITexture* TextureCubeRHI, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail)
 {
 	FD3D11Texture* TextureCube = ResourceCast(TextureCubeRHI);
 	uint32 D3DFace = GetD3D11CubeFace((ECubeFace)FaceIndex);
@@ -1412,7 +1389,7 @@ void FD3D11DynamicRHI::RHIUnlockTextureCubeFace(FRHITextureCube* TextureCubeRHI,
 
 void FD3D11DynamicRHI::RHIUnlockTextureCubeFace_RenderThread(
 	class FRHICommandListImmediate& RHICmdList,
-	FRHITextureCube* Texture,
+	FRHITexture* Texture,
 	uint32 FaceIndex,
 	uint32 ArrayIndex,
 	uint32 MipIndex,
@@ -1697,17 +1674,17 @@ FD3D11Texture* FD3D11DynamicRHI::CreateTextureFromResource(bool bTextureArray, b
 	return Texture2D;
 }
 
-FTexture2DRHIRef FD3D11DynamicRHI::RHICreateTexture2DFromResource(EPixelFormat Format, ETextureCreateFlags TexCreateFlags, const FClearValueBinding& ClearValueBinding, ID3D11Texture2D* TextureResource)
+FTextureRHIRef FD3D11DynamicRHI::RHICreateTexture2DFromResource(EPixelFormat Format, ETextureCreateFlags TexCreateFlags, const FClearValueBinding& ClearValueBinding, ID3D11Texture2D* TextureResource)
 {
 	return CreateTextureFromResource(false, false, Format, TexCreateFlags, ClearValueBinding, TextureResource);
 }
 
-FTexture2DArrayRHIRef FD3D11DynamicRHI::RHICreateTexture2DArrayFromResource(EPixelFormat Format, ETextureCreateFlags TexCreateFlags, const FClearValueBinding& ClearValueBinding, ID3D11Texture2D* TextureResource)
+FTextureRHIRef FD3D11DynamicRHI::RHICreateTexture2DArrayFromResource(EPixelFormat Format, ETextureCreateFlags TexCreateFlags, const FClearValueBinding& ClearValueBinding, ID3D11Texture2D* TextureResource)
 {
 	return CreateTextureFromResource(true, false, Format, TexCreateFlags, ClearValueBinding, TextureResource);
 }
 
-FTextureCubeRHIRef FD3D11DynamicRHI::RHICreateTextureCubeFromResource(EPixelFormat Format, ETextureCreateFlags TexCreateFlags, const FClearValueBinding& ClearValueBinding, ID3D11Texture2D* TextureResource)
+FTextureRHIRef FD3D11DynamicRHI::RHICreateTextureCubeFromResource(EPixelFormat Format, ETextureCreateFlags TexCreateFlags, const FClearValueBinding& ClearValueBinding, ID3D11Texture2D* TextureResource)
 {
 	return CreateTextureFromResource(false, true, Format, TexCreateFlags, ClearValueBinding, TextureResource);
 }
@@ -1800,7 +1777,7 @@ void FD3D11DynamicRHI::RHICopyTexture(FRHITexture* SourceTextureRHI, FRHITexture
 
 	check(SourceTexture && DestTexture);
 
-	GPUProfilingData.RegisterGPUWork();
+	RegisterGPUWork();
 
 	const FRHITextureDesc& SourceDesc = SourceTextureRHI->GetDesc();
 	const FRHITextureDesc& DestDesc = DestTextureRHI->GetDesc();
@@ -1872,7 +1849,7 @@ void FD3D11DynamicRHI::RHICopyBufferRegion(FRHIBuffer* DstBuffer, uint64 DstOffs
 	check(DstBufferD3D11 && SrcBufferD3D11);
 	check(DstOffset + NumBytes <= DstBuffer->GetSize() && SrcOffset + NumBytes <= SrcBuffer->GetSize());
 
-	GPUProfilingData.RegisterGPUWork();
+	RegisterGPUWork();
 
 	D3D11_BOX SrcBox;
 	SrcBox.left = SrcOffset;

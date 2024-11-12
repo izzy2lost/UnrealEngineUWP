@@ -10,8 +10,9 @@
 #include "Features/IModularFeature.h"
 #include "Features/IModularFeatures.h"
 
-#include "Misc/CoreDelegates.h"
+#include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/CoreDelegates.h"
 #include "Misc/LazySingleton.h"
 #include "Modules/ModuleInterface.h"
 
@@ -53,18 +54,10 @@ public:
  */
 class FOnlineSubsystemEOSModule : public IModuleInterface
 {
-private:
-
-	/** Class responsible for creating instance(s) of the subsystem */
-	FOnlineFactoryEOS* EOSFactory;
-
 public:
+	FOnlineSubsystemEOSModule() = default;
 
-	FOnlineSubsystemEOSModule() :
-		EOSFactory(NULL)
-	{}
-
-	virtual ~FOnlineSubsystemEOSModule() {}
+	virtual ~FOnlineSubsystemEOSModule() = default;
 
 #if WITH_EDITOR
 	void OnPostEngineInit();
@@ -84,17 +77,26 @@ public:
 	{
 		return false;
 	}
+
+private:
+	/** Class responsible for creating instance(s) of the subsystem */
+	TUniquePtr<FOnlineFactoryEOS> EOSFactory;
 };
 
 IMPLEMENT_MODULE(FOnlineSubsystemEOSModule, OnlineSubsystemEOS);
 
 void FOnlineSubsystemEOSModule::StartupModule()
 {
-	EOSFactory = new FOnlineFactoryEOS();
+	if (FParse::Param(FCommandLine::Get(), TEXT("NoEOS")))
+	{
+		return;
+	}
+
+	EOSFactory = MakeUnique<FOnlineFactoryEOS>();
 
 	// Create and register our singleton factory with the main online subsystem for easy access
 	FOnlineSubsystemModule& OSS = FModuleManager::GetModuleChecked<FOnlineSubsystemModule>("OnlineSubsystem");
-	OSS.RegisterPlatformService(EOS_SUBSYSTEM, EOSFactory);
+	OSS.RegisterPlatformService(EOS_SUBSYSTEM, EOSFactory.Get());
 
 #if WITH_EOS_SDK
 	// Have to call this as early as possible in order to hook the rendering device
@@ -144,8 +146,7 @@ void FOnlineSubsystemEOSModule::ShutdownModule()
 	FOnlineSubsystemModule& OSS = FModuleManager::GetModuleChecked<FOnlineSubsystemModule>("OnlineSubsystem");
 	OSS.UnregisterPlatformService(EOS_SUBSYSTEM);
 
-	delete EOSFactory;
-	EOSFactory = nullptr;
+	EOSFactory.Reset();
 
 	TLazySingleton<FUniqueNetIdEOSRegistry>::TearDown();
 }

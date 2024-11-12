@@ -464,6 +464,13 @@ bool UActorFactory::PreSpawnActor( UObject* Asset, FTransform& InOutLocation)
 
 AActor* UActorFactory::SpawnActor(UObject* InAsset, ULevel* InLevel, const FTransform& InTransform, const FActorSpawnParameters& InSpawnParams)
 {
+	// If not already set, provide an override spawning level mount point object using the asset used to spawn the actor
+	TUniquePtr<FScopedOverrideSpawningLevelMountPointObject> ScopeSpawningMountPoint;
+	if (!ULevel::GetOverrideSpawningLevelMountPointObject())
+	{
+		ScopeSpawningMountPoint = MakeUnique<FScopedOverrideSpawningLevelMountPointObject>(InAsset);
+	}
+	
 	ULevel* LocalLevel = ValidateSpawnActorLevel(InLevel, InSpawnParams);
 
 	AActor* DefaultActor = GetDefaultActor(FAssetData(InAsset));
@@ -793,7 +800,7 @@ void UActorFactoryEmitter::PostSpawnActor(UObject* Asset, AActor* NewActor)
 	{
 		NewEmitter->SetReplicates(true);
 		NewEmitter->bAlwaysRelevant = true;
-		NewEmitter->NetUpdateFrequency = 0.1f; // could also set bNetTemporary but LD might further trigger it or something
+		NewEmitter->SetNetUpdateFrequency(0.1f); // could also set bNetTemporary but LD might further trigger it or something
 		// call into gameplay code with template so it can set up replication
 		NewEmitter->SetTemplate(ParticleSystem);
 	}
@@ -928,8 +935,9 @@ UActorFactoryAnimationAsset::UActorFactoryAnimationAsset(const FObjectInitialize
 
 bool UActorFactoryAnimationAsset::CanCreateActorFrom( const FAssetData& AssetData, FText& OutErrorMsg )
 { 
-	if ( !AssetData.IsValid() || 
-		( !AssetData.GetClass()->IsChildOf( UAnimSequenceBase::StaticClass() ) )) 
+	if ( !AssetData.IsValid() 
+		|| !AssetData.GetClass()
+		|| !AssetData.GetClass()->IsChildOf(UAnimSequenceBase::StaticClass()))
 	{
 		OutErrorMsg = NSLOCTEXT("CanCreateActor", "NoAnimData", "A valid anim data must be specified.");
 		return false;

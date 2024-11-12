@@ -24,7 +24,7 @@ enum class ENetworkPredictionService : uint32
 	FixedInputLocal				= 1 << 4,
 	FixedInputRemote			= 1 << 5,
 	FixedTick					= 1 << 6,
-	FixedSmoothing				= 1 << 7,	// TODO
+	FixedSmoothing				= 1 << 7,
 	FixedFinalize				= 1 << 8,
 	FixedPhysics				= 1 << 9,
 	MAX_FIXED					= FixedPhysics,

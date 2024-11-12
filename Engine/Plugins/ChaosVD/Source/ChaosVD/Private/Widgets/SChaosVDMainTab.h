@@ -10,6 +10,8 @@
 
 #include "SChaosVDMainTab.generated.h"
 
+class IDetailsView;
+class IStructureDetailsView;
 class FComponentVisualizer;
 class FChaosVDEditorModeTools;
 class FChaosVDTabSpawnerBase;
@@ -20,8 +22,12 @@ class FChaosVDOutputLogTab;
 class FChaosVDPlaybackViewportTab;
 class FChaosVDObjectDetailsTab;
 class FChaosVDWorldOutlinerTab;
+class FStructOnScope;
 class SButton;
 class SDockTab;
+
+struct FDetailsViewArgs;
+struct FStructureDetailsViewArgs;
 
 UCLASS()
 class CHAOSVD_API UChaosVDMainToolbarMenuContext : public UObject
@@ -43,6 +49,8 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEngine> InChaosVDEngine);
+
+	virtual ~SChaosVDMainTab() override;
 
 	TSharedRef<FChaosVDEngine> GetChaosVDEngineInstance() const { return ChaosVDEngine.ToSharedRef(); }
 
@@ -70,7 +78,18 @@ public:
 	
 	bool ConnectToLiveSession(int32 SessionID, FString SessionAddress) const;
 
+	void LoadCVDFile(const FString& InFilename);
+
+	TSharedRef<IDetailsView> CreateDetailsView(const FDetailsViewArgs& InDetailsViewArgs);
+
+	TSharedRef<IStructureDetailsView> CreateStructureDetailsView(const FDetailsViewArgs& InDetailsViewArgs, const FStructureDetailsViewArgs& InStructureDetailsViewArgs, const TSharedPtr<FStructOnScope>& InStructData = nullptr, const FText& CustomName = FText::GetEmpty());
+
 private:
+
+	void SetCustomPropertyLayouts(IDetailsView* DetailsView);
+
+	void SetUpDisableCPUThrottlingDelegate();
+	void CleanUpDisableCPUThrottlingDelegate() const;
 
 	void RegisterMainTabMenu();
 
@@ -85,6 +104,7 @@ private:
 	TSharedRef<FTabManager::FLayout> GenerateMainLayout();
 
 	void GenerateMainWindowMenu();
+	void GenerateRecentFilesMenu(FMenuBuilder& MenuBuilder);
 
 	FReply BrowseAndOpenChaosVDRecording();
 
@@ -95,6 +115,8 @@ private:
 	void BrowseChaosVDRecordingFromFolder(FStringView FolderPath = TEXT(""));
 
 	void BrowseLiveSessionsFromTraceStore() const;
+
+	bool ShouldDisableCPUThrottling() const;
 
 	TSharedPtr<FChaosVDEngine> ChaosVDEngine;
 
@@ -112,6 +134,8 @@ private:
 	TMap<FName, TWeakPtr<SDockTab>> ActiveTabsByID;
 
 	FOnActiveViewportChanged ViewportChangedDelegate;
+
+	FDelegateHandle DisableCPUThrottleHandle;
 
 	FReply HandleSessionConnectionClicked();
 	FText GetConnectButtonText() const;

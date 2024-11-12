@@ -7,12 +7,14 @@
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "Trace/ChaosVDTraceProvider.h"
 
-FChaosVDConstraintDataProcessor::FChaosVDConstraintDataProcessor() : IChaosVDDataProcessor(FChaosVDConstraint::WrapperTypeName)
+FChaosVDConstraintDataProcessor::FChaosVDConstraintDataProcessor() : FChaosVDDataProcessorBase(FChaosVDConstraint::WrapperTypeName)
 {
 }
 
 bool FChaosVDConstraintDataProcessor::ProcessRawData(const TArray<uint8>& InData)
 {
+	FChaosVDDataProcessorBase::ProcessRawData(InData);
+
 	TSharedPtr<FChaosVDTraceProvider> ProviderSharedPtr = TraceProvider.Pin();
 	if (!ensure(ProviderSharedPtr.IsValid()))
 	{
@@ -24,28 +26,25 @@ bool FChaosVDConstraintDataProcessor::ProcessRawData(const TArray<uint8>& InData
 
 	if (bSuccess)
 	{
-		// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
-		if (FChaosVDSolverFrameData* FrameData = ProviderSharedPtr->GetCurrentSolverFrame(RecordedConstraint.SolverID))
+		FChaosVDStepData* CurrentSolverStage = ProviderSharedPtr->GetCurrentSolverStageDataForCurrentFrame(RecordedConstraint.SolverID, EChaosVDSolverStageAccessorFlags::None);
+		if (ensureMsgf(CurrentSolverStage, TEXT("A MidPhase was traced without a valid step scope")))
 		{
-			if (ensureMsgf(FrameData->SolverSteps.Num() > 0, TEXT("A MidPhase was traced without a valid step scope")))
-			{
-				AddConstraintToParticleIDMap(RecordedConstraint, RecordedConstraint.Particle0Index, *FrameData);
-				AddConstraintToParticleIDMap(RecordedConstraint, RecordedConstraint.Particle1Index, *FrameData);
-			}
+			AddConstraintToParticleIDMap(RecordedConstraint, RecordedConstraint.Particle0Index, *CurrentSolverStage);
+			AddConstraintToParticleIDMap(RecordedConstraint, RecordedConstraint.Particle1Index, *CurrentSolverStage);
 		}
 	}
 
 	return bSuccess;
 }
 
-void FChaosVDConstraintDataProcessor::AddConstraintToParticleIDMap(const FChaosVDConstraint& InConstraintData, int32 ParticleID, FChaosVDSolverFrameData& InFrameData)
+void FChaosVDConstraintDataProcessor::AddConstraintToParticleIDMap(const FChaosVDConstraint& InConstraintData, int32 ParticleID, FChaosVDStepData& InSolverStageData)
 {
-	if (TArray<FChaosVDConstraint>* ParticleConstraints = InFrameData.SolverSteps.Last().RecordedConstraintsByParticleID.Find(ParticleID))
+	if (TArray<FChaosVDConstraint>* ParticleConstraints = InSolverStageData.RecordedConstraintsByParticleID.Find(ParticleID))
 	{
 		ParticleConstraints->Add(InConstraintData);
 	}
 	else
 	{
-		InFrameData.SolverSteps.Last().RecordedConstraintsByParticleID.Add(ParticleID, { InConstraintData });
+		InSolverStageData.RecordedConstraintsByParticleID.Add(ParticleID, { InConstraintData });
 	}
 }

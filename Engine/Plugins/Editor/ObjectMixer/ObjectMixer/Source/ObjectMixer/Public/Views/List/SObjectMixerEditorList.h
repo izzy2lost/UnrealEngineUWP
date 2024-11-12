@@ -71,6 +71,7 @@ class OBJECTMIXEREDITOR_API SObjectMixerEditorList : public SSceneOutliner
 {
 
 public:
+	DECLARE_EVENT(SObjectMixerEditorList, FSelectionSynchronizedEvent);
 	
 	// Columns
 	static const FName ItemNameColumnName;
@@ -162,6 +163,9 @@ public:
 	void RestoreDefaultPropertyColumns();
 	TSharedRef<SWidget> GenerateHeaderRowContextMenu();
 
+	/** Get the event that broadcasts whenever the selection list is synchronized from the editor */
+	FSelectionSynchronizedEvent& GetOnSelectionSynchronized() { return OnSelectionSynchronizedEvent; }
+
 	/* Begin SSceneOutliner Interface */
 	virtual void CustomAddToToolbar(TSharedPtr<class SHorizontalBox> Toolbar) override;
 	/* End SSceneOutliner Interface */
@@ -183,6 +187,8 @@ protected:
 	TSharedPtr<SWidget> HeaderRowContextMenuWidget;
 
 	TWeakPtr<SHorizontalBox> ToolbarPtr;
+
+	FSelectionSynchronizedEvent OnSelectionSynchronizedEvent;
 
 	bool CanCreateFolder() const;
 	TSharedRef<SWidget> OnGenerateAddObjectButtonMenu() const;

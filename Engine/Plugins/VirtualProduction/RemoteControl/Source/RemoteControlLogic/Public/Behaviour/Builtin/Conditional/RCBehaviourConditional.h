@@ -83,6 +83,9 @@ public:
 	/** Whether we can create an action pertaining to a given remote control field for the current behaviour */
 	virtual bool CanHaveActionForField(const TSharedPtr<FRemoteControlField> InRemoteControlField) const override;
 
+	/** Whether the behaviour support property id */
+	virtual bool SupportPropertyId() const override { return true; }
+
 	/** User-friendly text representation of a condition enum. Used to display comparator info in the Actions table */
 	FText GetConditionTypeAsText(ERCBehaviourConditionType ConditionType) const;
 

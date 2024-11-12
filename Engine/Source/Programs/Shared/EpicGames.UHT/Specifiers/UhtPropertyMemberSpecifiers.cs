@@ -396,6 +396,13 @@ namespace EpicGames.UHT.Parsers
 			context.PropertySettings.PropertyFlags |= EPropertyFlags.ExperimentalAlwaysOverriden;
 		}
 
+		[UhtSpecifier(Extends = UhtTableNames.PropertyMember, ValueType = UhtSpecifierValueType.Legacy)]
+		private static void ExperimentalNeverOverridenSpecifier(UhtSpecifierContext specifierContext)
+		{
+			UhtPropertySpecifierContext context = (UhtPropertySpecifierContext)specifierContext;
+			context.PropertySettings.PropertyFlags |= EPropertyFlags.ExperimentalNeverOverriden;
+		}
+
 		[UhtSpecifier(Extends = UhtTableNames.PropertyMember, ValueType = UhtSpecifierValueType.OptionalString)]
 		private static void GetterSpecifier(UhtSpecifierContext specifierContext, StringView? value)
 		{
@@ -461,6 +468,13 @@ namespace EpicGames.UHT.Parsers
 		{
 			UhtPropertySpecifierContext context = (UhtPropertySpecifierContext)specifierContext;
 			context.PropertySettings.PropertyExportFlags |= UhtPropertyExportFlags.FieldNotify;
+		}
+
+		[UhtSpecifier(Extends = UhtTableNames.PropertyMember, ValueType = UhtSpecifierValueType.String)]
+		private static void VerseNameSpecifier(UhtSpecifierContext specifierContext, StringView value)
+		{
+			UhtPropertySpecifierContext context = (UhtPropertySpecifierContext)specifierContext;
+			context.PropertySettings.VerseName = value.ToString();
 		}
 	}
 }

@@ -7,24 +7,24 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionVertexScalarToVertexIndicesNode)
 #define LOCTEXT_NAMESPACE "FGeometryCollectionVertexScalarToVertexIndicesNode"
 
-FGeometryCollectionVertexScalarToVertexIndicesNode::FGeometryCollectionVertexScalarToVertexIndicesNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FGeometryCollectionVertexScalarToVertexIndicesNode::FGeometryCollectionVertexScalarToVertexIndicesNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
-	RegisterInputConnection(&VertexAttributeName);
-	RegisterOutputConnection(&Indices);
+	RegisterInputConnection(&AttributeKey);
+	RegisterOutputConnection(&VertexIndices);
 }
 
-void FGeometryCollectionVertexScalarToVertexIndicesNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGeometryCollectionVertexScalarToVertexIndicesNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
-	if (Out->IsA< TArray<int32> >(&Indices))
+	if (Out->IsA< TArray<int32> >(&VertexIndices))
 	{
 		TArray<int32> IndicesOut;
 
 		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		FString VertixAttributeNameVal = GetValue<FString>(Context, &VertexAttributeName, VertexAttributeName);
+		FCollectionAttributeKey Key = GetValue(Context, &AttributeKey);
 
-		if( const TManagedArray<float>* FloatArray = InCollection.FindAttribute<float>(FName(VertixAttributeNameVal), FName("Vertices") ) )
+		if( const TManagedArray<float>* FloatArray = InCollection.FindAttribute<float>(FName(Key.Attribute), FName(Key.Group) ) )
 		{
 			for (int i = 0; i < FloatArray->Num(); i++)
 			{
@@ -34,7 +34,7 @@ void FGeometryCollectionVertexScalarToVertexIndicesNode::Evaluate(Dataflow::FCon
 				}
 			}
 		}
-		SetValue< TArray<int32> >(Context, MoveTemp(IndicesOut), &Indices);
+		SetValue< TArray<int32> >(Context, MoveTemp(IndicesOut), &VertexIndices);
 	}
 }
 

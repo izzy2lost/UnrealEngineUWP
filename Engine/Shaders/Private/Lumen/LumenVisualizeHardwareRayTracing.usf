@@ -71,6 +71,7 @@ FTileData UnpackTileData(FTileDataPacked TileDataPacked)
 RWBuffer<uint> RWTileAllocator;
 RWStructuredBuffer<FTileDataPacked> RWTileDataPacked;
 
+#ifdef FLumenVisualizeCreateTilesCS
 groupshared uint SharedTileNeedsTracing;
 
 [numthreads(THREADGROUP_SIZE_2D, THREADGROUP_SIZE_2D, 1)]
@@ -102,6 +103,7 @@ void FLumenVisualizeCreateTilesCS(
 		RWTileDataPacked[TileOffset] = TileDataPacked;
 	}
 }
+#endif
 
 struct FRayData
 {
@@ -151,6 +153,7 @@ groupshared uint SharedGroupOffset;
 groupshared uint SharedRayAllocator;
 groupshared FRayDataPacked SharedRayDataPacked[THREADGROUP_SIZE_1D];
 
+#ifdef FLumenVisualizeCreateRaysCS
 [numthreads(THREADGROUP_SIZE_1D, 1, 1)]
 void FLumenVisualizeCreateRaysCS(
 	uint2 GroupId : SV_GroupID,
@@ -194,15 +197,18 @@ void FLumenVisualizeCreateRaysCS(
 		RWRayDataPacked[SharedGroupOffset + GroupThreadId] = RayDataPacked;
 	}
 }
+#endif
 
 Buffer<uint> RayAllocator;
 RWBuffer<uint> RWCompactRaysIndirectArgs;
 
+#ifdef FLumenVisualizeCompactRaysIndirectArgsCS
 [numthreads(1, 1, 1)]
 void FLumenVisualizeCompactRaysIndirectArgsCS()
 {
 	WriteDispatchIndirectArgs(RWCompactRaysIndirectArgs, 0, (RayAllocator[0] + THREADGROUP_SIZE_1D - 1) / THREADGROUP_SIZE_1D, 1, 1);
 }
+#endif
 
 /**
  * TraceData can represent three types of rays:
@@ -273,6 +279,7 @@ RWBuffer<uint> RWCompactedRayAllocator;
 RWStructuredBuffer<FRayDataPacked> RWCompactedRayDataPacked;
 RWStructuredBuffer<FTraceDataLocalPacked> RWCompactedTraceDataPacked;
 
+#ifdef FLumenVisualizeCompactRaysCS
 groupshared FTraceDataLocalPacked SharedTraceDataPacked[THREADGROUP_SIZE_1D];
 
 #define COMPACT_MODE_HIT_LIGHTING_RETRACE 0
@@ -323,6 +330,7 @@ void FLumenVisualizeCompactRaysCS(
 		RWCompactedTraceDataPacked[SharedGroupOffset + GroupThreadId] = SharedTraceDataPacked[GroupThreadId];
 	}
 }
+#endif
 
 RWBuffer<uint> RWBucketRaysByMaterialIdIndirectArgs;
 
@@ -330,15 +338,18 @@ RWBuffer<uint> RWBucketRaysByMaterialIdIndirectArgs;
 #define ELEMENTS_PER_THREAD 16
 #endif // ELEMENTS_PER_THREAD
 
+#ifdef FLumenVisualizeBucketRaysByMaterialIdIndirectArgsCS
 [numthreads(1, 1, 1)]
 void FLumenVisualizeBucketRaysByMaterialIdIndirectArgsCS()
 {
 	const uint ElementsPerGroup = THREADGROUP_SIZE_1D * ELEMENTS_PER_THREAD;
 	WriteDispatchIndirectArgs(RWBucketRaysByMaterialIdIndirectArgs, 0, (RayAllocator[0] + ElementsPerGroup - 1) / ElementsPerGroup, 1, 1);
 }
+#endif
 
 RWStructuredBuffer<FTraceDataLocalPacked> RWTraceDataPacked;
 
+#ifdef FLumenVisualizeBucketRaysByMaterialIdCS
 #define NUM_BINS (THREADGROUP_SIZE_1D / 2)
 groupshared uint BinSize[NUM_BINS];
 groupshared uint BinOffset[NUM_BINS];
@@ -406,6 +417,8 @@ void FLumenVisualizeBucketRaysByMaterialIdCS(
 		}
 	}
 }
+#endif
+
 
 RWTexture2D<float3> RWRadiance;
 
@@ -421,15 +434,21 @@ RWTexture2D<float3> RWRadiance;
 RaytracingAccelerationStructure TLAS;
 
 #if LUMEN_HARDWARE_INLINE_RAYTRACING
-StructuredBuffer<FHitGroupRootConstants> HitGroupData;
-StructuredBuffer<FRayTracingSceneMetadataRecord> RayTracingSceneMetadata;
+	StructuredBuffer<FHitGroupRootConstants> HitGroupData;
+	StructuredBuffer<FRayTracingSceneMetadataRecord> RayTracingSceneMetadata;
 #endif // LUMEN_HARDWARE_INLINE_RAYTRACING
 
 uint ThreadCount;
 uint GroupCount;
-uint LightingMode;
+
+uint HitLightingShadowMode;
+uint HitLightingDirectLighting;
+uint HitLightingSkylight;
 uint UseReflectionCaptures;
+
+uint VisualizeCullingMode;
 uint MaxTraversalIterations;
+uint MeshSectionVisibilityTest;
 float3 FarFieldReferencePos;
 float NearFieldMaxTraceDistanceDitherScale;
 float NearFieldSceneRadius;
@@ -459,11 +478,6 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 		float2 ViewportUV = (TraceCoord + 0.5f) / OutputViewSize;
 		float2 BufferUV = ViewportUV * View.ViewSizeAndInvSize.xy * View.BufferSizeAndInvSize.zw;
 
-		int HitLightingMode = EVALUATE_MATERIAL_AND_DIRECT_LIGHTING;
-#if DIM_HIT_LIGHTING
-		HitLightingMode = LightingMode;
-#endif // DIM_TRACE_MODE
-
 		// We are rendering after TAAU, remove jitter
 		BufferUV += View.TemporalAAJitter.xy * View.ScreenPositionScaleBias.xy;
 
@@ -480,10 +494,6 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 		Ray.TMax = min(Ray.TMax, ClippedNearFieldMaxTraceDistance);
 #if DIM_HIT_LIGHTING
 		FTraceDataLocal TraceData = UnpackTraceData(TraceDataPacked[RayIndex]);
-		if (TraceData.bIsValidMeshCardIndex)
-		{
-			HitLightingMode = LightingMode;
-		}
 		const float Epsilon = 0.5;
 		Ray.TMin = max(TraceData.TraceDistance - Epsilon, 0);
 #endif // DIM_TRACE_MODE
@@ -492,8 +502,15 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 		RayCone.SpreadAngle = View.EyeToPixelSpreadAngle;
 		int LinearCoord = TraceCoord.y * View.BufferSizeAndInvSize.x + TraceCoord.x;
 
-		const uint CullingMode = 0;
-		const bool bHiResSurface = VisualizeHiResSurface != 0 ? true : false;
+		uint CullingMode = RAY_FLAG_NONE;
+		if (VisualizeCullingMode == 1)
+		{
+			CullingMode = RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
+		}
+		else if (VisualizeCullingMode == 2)
+		{
+			CullingMode = RAY_FLAG_CULL_FRONT_FACING_TRIANGLES;
+		}
 
 		FRayTracedLightingContext Context = CreateRayTracedLightingContext(
 			RayCone,
@@ -501,7 +518,9 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 			LinearCoord,
 			CullingMode,
 			MaxTraversalIterations,
-			bHiResSurface);
+			MeshSectionVisibilityTest != 0);
+
+		Context.bHiResSurface = VisualizeHiResSurface != 0;
 		Context.MaxReflectionBounces = MaxReflectionBounces;
 		Context.FarFieldMaxTraceDistance = FarFieldMaxTraceDistance;
 		Context.FarFieldReferencePos = FarFieldReferencePos;
@@ -519,8 +538,14 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 				Context.InstanceMask = RAY_TRACING_MASK_FAR_FIELD;
 				Ray.TMax = FarFieldMaxTraceDistance;
 			}
+			
+			Context.bHitLightingDirectLighting = HitLightingDirectLighting != 0;
+			Context.bHitLightingSkylight = HitLightingSkylight != 0;
+			Context.bUseReflectionCaptures = UseReflectionCaptures != 0;
+			Context.HitLightingShadowMode = HitLightingShadowMode;
+			Context.HitLightingShadowMaxTraceDistance = MaxTraceDistance;
 
-			Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context, HitLightingMode, UseReflectionCaptures != 0);
+			Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context);
 
 			#define DEBUG_VISUAL_ASSERT_ON_RETRACE_MISS 0
 			#if DEBUG_VISUAL_ASSERT_ON_RETRACE_MISS && DIM_HIT_LIGHTING
@@ -595,7 +620,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 		{
 			float CoverageForFog = 1.0; // There is always something or the sky fallback.
 			float3 OriginToCollider = Ray.Direction * TraceResult.OpaqueHitDistance;
-			TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, OriginToCollider);
+			TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, Ray.Origin, Ray.Direction, TraceResult.OpaqueHitDistance);
 		}
 
 		LumenVisualizationFinalize(

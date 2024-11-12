@@ -40,6 +40,9 @@ enum class ENiagaraCompilationState : uint8
 
 struct FNiagaraLazyPrecompileReference
 {
+	FNiagaraLazyPrecompileReference(UNiagaraSystem* InSystem, TConstArrayView<UNiagaraScript*> InScripts);
+	FNiagaraLazyPrecompileReference() = delete;
+
 	TSharedPtr<FNiagaraCompileRequestDataBase, ESPMode::ThreadSafe> GetPrecompileData(UNiagaraScript* ForScript);
 	TSharedPtr<FNiagaraCompileRequestDuplicateDataBase, ESPMode::ThreadSafe> GetPrecompileDuplicateData(UNiagaraEmitter* OwningEmitter, UNiagaraScript* TargetScript);
 
@@ -47,10 +50,14 @@ struct FNiagaraLazyPrecompileReference
 	
 	UNiagaraSystem* System = nullptr;
 	TArray<UNiagaraScript*> Scripts;
-	TMap<UNiagaraScript*, int32> EmitterScriptIndex;
+
+	using FEmitterScriptIndexMap = TMap<UNiagaraScript*, int32>;
+	FEmitterScriptIndexMap EmitterScriptIndex;
 	TArray<TObjectPtr<UObject>> CompilationRootObjects;
 
 private:
+	void GenerateEmitterScriptIndexMap(FEmitterScriptIndexMap& OutIndexMap) const;
+
 	TSharedPtr<FNiagaraCompileRequestDataBase, ESPMode::ThreadSafe> SystemPrecompiledData;
 	TMap<UNiagaraScript*, TSharedPtr<FNiagaraCompileRequestDataBase, ESPMode::ThreadSafe>> EmitterMapping;
 	TArray<TSharedPtr<FNiagaraCompileRequestDuplicateDataBase, ESPMode::ThreadSafe>> PrecompileDuplicateDatas;

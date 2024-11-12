@@ -24,6 +24,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "UObject/UnrealNames.h"
 #include "UObject/UnrealType.h"
+#include "Conditions/MovieSceneCondition.h"
 
 #if WITH_EDITOR
 #include "Styling/SlateColor.h"
@@ -37,6 +38,7 @@ struct FMovieSceneEvaluationTrack;
 struct FMovieSceneTrackRowSegmentBlender;
 struct FMovieSceneTrackSegmentBlender;
 struct IMovieSceneTemplateGenerator;
+struct FMovieSceneConditionContainer;
 template<typename> struct TMovieSceneEvaluationTree;
 
 /** Flags used to perform cook-time optimization of movie scene data */
@@ -72,15 +74,15 @@ struct FMovieSceneTrackEvalOptions
 	uint32 bCanEvaluateNearestSection : 1;
 
 	/** When evaluating empty space on a track, will evaluate the last position of the previous section (if possible), or the first position of the next section, in that order of preference. */
-	UPROPERTY(EditAnywhere, Category="General", DisplayName="Evaluate Nearest Section", meta=(EditCondition=bCanEvaluateNearestSection))
+	UPROPERTY(EditAnywhere, Category="Track", DisplayName="Evaluate Nearest Section", meta=(EditCondition=bCanEvaluateNearestSection, HideEditConditionToggle))
 	uint32 bEvalNearestSection : 1;
 
 	/** Evaluate this track as part of its parent sub-section's pre-roll, if applicable */
-	UPROPERTY(EditAnywhere, Category="General")
+	UPROPERTY(EditAnywhere, Category="Track")
 	uint32 bEvaluateInPreroll : 1;
 
 	/** Evaluate this track as part of its parent sub-section's post-roll, if applicable */
-	UPROPERTY(EditAnywhere, Category="General")
+	UPROPERTY(EditAnywhere, Category="Track")
 	uint32 bEvaluateInPostroll : 1;
 
 	UPROPERTY()
@@ -99,7 +101,7 @@ struct FMovieSceneTrackDisplayOptions
 	{}
 
 	/** Show bounds as vertical frames */
-	UPROPERTY(EditAnywhere, Category = "General")
+	UPROPERTY(EditAnywhere, Category = "Track")
 	uint32 bShowVerticalFrames : 1;
 };
 
@@ -167,6 +169,17 @@ struct FMovieSceneLabelParams
 };
 #endif
 
+/* Metadata tied to a track row. */
+USTRUCT()
+struct MOVIESCENE_API FMovieSceneTrackRowMetadata
+{
+	GENERATED_BODY()
+	
+	/* Optional dynamic conditions tied to specific track rows. */
+	UPROPERTY(EditAnywhere, Category="Track Row", meta=(ShowOnlyInnerProperties))
+	FMovieSceneConditionContainer ConditionContainer;
+};
+
 /**
  * Base class for a track in a Movie Scene
  */
@@ -184,14 +197,18 @@ public:
 public:
 
 	/** General evaluation options for a given track */
-	UPROPERTY(EditAnywhere, Category = "General", meta = (ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Category = "Track", meta = (ShowOnlyInnerProperties))
 	FMovieSceneTrackEvalOptions EvalOptions;
 
 #if WITH_EDITORONLY_DATA
 	/** General display options for a given track */
-	UPROPERTY(EditAnywhere, Category = "General", meta = (ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Category = "Track", meta = (ShowOnlyInnerProperties))
 	FMovieSceneTrackDisplayOptions DisplayOptions;
 #endif
+
+	/** Optional dynamic condition for whether this track/any of the sections on this track evaluates at runtime. */
+	UPROPERTY(EditAnywhere, Category = "Track")
+	FMovieSceneConditionContainer ConditionContainer;
 
 	/**
 	 * Gets what kind of blending is supported by this section
@@ -310,6 +327,10 @@ private:
 	UPROPERTY()
 	FMovieSceneTrackEvaluationField EvaluationField;
 
+	/* Optional extra metadata tied to specific track rows. */
+	UPROPERTY()
+	TMap<int32, FMovieSceneTrackRowMetadata> TrackRowMetadata;
+
 public:
 
 	/**
@@ -360,7 +381,7 @@ public:
 	MOVIESCENE_API bool FixRowIndices();
 
 	/** Called when row indices have been fixed up */
-	virtual void OnRowIndicesChanged(const TMap<int32, int32>& NewToOldRowIndices) {}
+	MOVIESCENE_API virtual void OnRowIndicesChanged(const TMap<int32, int32>& NewToOldRowIndices);
 
 	/**
 	* @return Whether evaluation of this track should be disabled due to mute/solo settings
@@ -373,6 +394,21 @@ public:
 	*/
 	void SetEvalDisabled(bool bEvalDisabled) { bIsEvalDisabled = bEvalDisabled; }
 	MOVIESCENE_API void SetRowEvalDisabled(bool bEvalDisabled, int32 RowIndex);
+
+	/*
+	* Returns a pointer to optional track row metadata at the given RowIndex, or nullptr if none exists.
+	*/
+	MOVIESCENE_API const FMovieSceneTrackRowMetadata* FindTrackRowMetadata(int32 RowIndex) const;
+
+	/*
+	* Returns a pointer to optional track row metadata at the given RowIndex, or nullptr if none exists;
+	*/
+	MOVIESCENE_API FMovieSceneTrackRowMetadata* FindTrackRowMetadata(int32 RowIndex);
+
+	/*
+	* Returns a pointer to optional track row metadata at the given RowIndex, or nullptr if none exists;
+	*/
+	MOVIESCENE_API FMovieSceneTrackRowMetadata& FindOrAddTrackRowMetadata(int32 RowIndex);
 
 public:
 
@@ -520,6 +556,19 @@ public:
 		return bSupportsDefaultSections;
 	}
 
+	/**
+	 * @return Whether or not this track supports conditions.
+	 */
+	virtual bool SupportsConditions() const
+	{
+		return bSupportsConditions;
+	}
+
+	/*
+	* Returns an array of all conditions on track, track row, or section
+	*/
+	MOVIESCENE_API TArray<UMovieSceneCondition*> GetAllConditions();
+
 protected:
 
 	/** The object binding that this track resides within */
@@ -527,7 +576,7 @@ protected:
 	FGuid ObjectBindingID;
 
 	/** This track's tint color */
-	UPROPERTY(EditAnywhere, Category=General, DisplayName=Color)
+	UPROPERTY(EditAnywhere, Category="Track", DisplayName = Color)
 	FColor TrackTint;
 
 	/** This folder's desired sorting order */
@@ -537,6 +586,10 @@ protected:
 	/** Does this track support the creation of a default section when created? */
 	UPROPERTY()
 	bool bSupportsDefaultSections;
+
+	/** Does this track support conditions */
+	UPROPERTY()
+	bool bSupportsConditions;
 
 public:
 #endif

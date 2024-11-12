@@ -54,6 +54,13 @@ public:
 	virtual UObject* Resolve() const PURE_VIRTUAL(URemoteControlBinding::Resolve, return nullptr;);
 
 	/**
+	 * Return the Entity Object in the given world
+	 * @param InWorld World where to retrieve the object
+	 * @return The object in the given world or nullptr if not found
+	 */
+	virtual UObject* ResolveForWorld(const UWorld* InWorld) const PURE_VIRTUAL(URemoteControlBinding::ResolveForWorld, return nullptr;);
+
+	/**
 	 * Whether this binding represents a valid object.
 	 */
 	virtual bool IsValid() const PURE_VIRTUAL(URemoteControlBinding::IsValid, return false;);
@@ -103,6 +110,7 @@ public:
 	virtual void SetBoundObject(const TSoftObjectPtr<UObject>& InObject) override;
 	virtual void UnbindObject(const TSoftObjectPtr<UObject>& InBoundObject) override;
 	virtual UObject* Resolve() const override;
+	virtual UObject* ResolveForWorld(const UWorld* InWorld) const override;
 	virtual bool IsValid() const override;
 	virtual bool IsBound(const TSoftObjectPtr<UObject>& Object) const override;
 	virtual bool PruneDeletedObjects() override;
@@ -199,6 +207,7 @@ public:
 	virtual void SetBoundObject(const TSoftObjectPtr<UObject>& BoundObject) override;
 	virtual void UnbindObject(const TSoftObjectPtr<UObject>& BoundObject) override;
 	virtual UObject* Resolve() const override;
+	virtual UObject* ResolveForWorld(const UWorld* InWorld) const override;
 	virtual bool IsValid() const override;
 	virtual bool IsBound(const TSoftObjectPtr<UObject>& Object) const override;
 	virtual bool PruneDeletedObjects() override;

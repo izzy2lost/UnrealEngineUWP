@@ -462,4 +462,9 @@ bool UAnimBlueprint::IsCompatibleByAssetString(const FString& InSkeletonAsset, b
 
 	return (TargetSkeleton != nullptr && TargetSkeleton->IsCompatibleForEditor(InSkeletonAsset));
 }
+
+void UAnimBlueprint::NotifyGraphRenamed(class UEdGraph* Graph, FName OldName, FName NewName)
+{
+	OnGraphRenamedEvent().Broadcast(Graph, OldName, NewName);
+}
 #endif

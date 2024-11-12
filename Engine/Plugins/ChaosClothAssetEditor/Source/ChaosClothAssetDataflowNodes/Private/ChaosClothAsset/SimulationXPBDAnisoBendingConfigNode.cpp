@@ -5,7 +5,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationXPBDAnisoBendingConfigNode)
 
-FChaosClothAssetSimulationXPBDAnisoBendingConfigNode::FChaosClothAssetSimulationXPBDAnisoBendingConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetSimulationXPBDAnisoBendingConfigNode::FChaosClothAssetSimulationXPBDAnisoBendingConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();

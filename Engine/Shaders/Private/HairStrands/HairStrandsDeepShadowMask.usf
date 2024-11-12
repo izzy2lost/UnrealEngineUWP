@@ -42,18 +42,16 @@ float3 GetTranslatedWorldPosition(float2 UV, float SceneDepth)
 #if SHADER_SHADOWMASK_DEEPSHADOW
 
 StructuredBuffer<FDeepShadowViewInfo> DeepShadow_ViewInfoBuffer;
-uint				DeepShadow_bIsGPUDriven;
+StructuredBuffer<uint> DeepShadow_AtlasSlotIndexBuffer;
 
-float4x4			DeepShadow_CPUTranslatedWorldToLightTransform;
-int2				DeepShadow_SlotResolution;
-int2				DeepShadow_SlotOffset;
-uint				DeepShadow_SlotIndex;
+int2				DeepShadow_AtlasResolution;
 uint				DeepShadow_KernelType;
 float				DeepShadow_DepthBiasScale;
 float				DeepShadow_DensityScale;
 float4				DeepShadow_LayerDepths;
 float 				FadeAlpha;
 uint				EncodingType;
+uint				EffectiveAtlasSlotCount;
 
 Texture2D<float>	DeepShadow_FrontDepthTexture;
 Texture2D<float4>	DeepShadow_DomTexture;
@@ -65,20 +63,11 @@ SamplerState 		ShadowSampler;
 // XY: UV of the shadow space
 //  Z: Normalized depth value in light clip space
 //  W: Positive if the position is valid, negative otherwise
-float4 ToLightPosition(float3 InTranslatedWorldPosition, out float4 AtlasScaleBias)
+float4 ToLightPosition(float3 InTranslatedWorldPosition, uint InAtlasSlotIndex, out float4 AtlasScaleBias)
 {
-	float4x4 TranslatedWorldToLightTransform = 0;
-	if (DeepShadow_bIsGPUDriven > 0)
-	{
-		FDeepShadowViewInfo ShadowViewInfo = DeepShadow_ViewInfoBuffer[DeepShadow_SlotIndex];
-		TranslatedWorldToLightTransform = ShadowViewInfo.TranslatedWorldToClip;
-		AtlasScaleBias = ShadowViewInfo.AtlasScaleBias;
-	}
-	else
-	{
-		TranslatedWorldToLightTransform = DeepShadow_CPUTranslatedWorldToLightTransform;
-		AtlasScaleBias = float4(1.0f, 1.0f, 0.0f, 0.0f);
-	}
+	FDeepShadowViewInfo ShadowViewInfo = DeepShadow_ViewInfoBuffer[InAtlasSlotIndex];
+	float4x4 TranslatedWorldToLightTransform = ShadowViewInfo.TranslatedWorldToClip;
+	AtlasScaleBias = ShadowViewInfo.AtlasScaleBias;
 
 	float4 LightPos = mul(float4(InTranslatedWorldPosition,1), TranslatedWorldToLightTransform);
 	LightPos.xyz/= LightPos.w;
@@ -101,6 +90,7 @@ struct FHairSamplingSettings
 	Texture2D<float4>ShadowDomTexture;
 	SamplerState	ShadowDepthTextureSampler;
 	float2			ShadowAtlasInvResolution;
+	float2			ShadowAtlasResolution;
 	float2			ShadowSlotResolution;
 	float2			ShadowSlotOffset;
 	float			SceneDepth;					// SceneDepth in lightspace.
@@ -166,7 +156,7 @@ float InternalPCF3x3(float2 Fraction, float4 Values0, float4 Values1, float4 Val
 
 float InternalManual2x2PCF(float2 ShadowPosition, FHairSamplingSettings Settings)
 {
-	float2 TexelPos = ShadowPosition * Settings.ShadowSlotResolution + Settings.ShadowSlotOffset;
+	float2 TexelPos = ShadowPosition * Settings.ShadowAtlasResolution;
 	float2 Fraction = frac(TexelPos);
 	float2 TexelCenter = floor(TexelPos) + 0.5f;
 	float2 Sample00TexelCenter = TexelCenter - float2(1, 1);
@@ -181,7 +171,7 @@ float InternalManual2x2PCF(float2 ShadowPosition, FHairSamplingSettings Settings
 
 float InternalManual4x4PCF(float2 ShadowPosition, FHairSamplingSettings Settings)
 {
-	float2 TexelPos = ShadowPosition * Settings.ShadowSlotResolution + Settings.ShadowSlotOffset - 0.5f;
+	float2 TexelPos = ShadowPosition * Settings.ShadowAtlasResolution - 0.5f;
 	float2 Fraction = frac(TexelPos);
 	float2 TexelCenter = floor(TexelPos) + 0.5f;	// bias to get reliable texel center content	
 	float2 Sample00TexelCenter = TexelCenter - float2(1, 1);
@@ -229,15 +219,15 @@ float4 InternalGather4(float2 SamplePos, int2 Offset, FHairSamplingSettings Sett
 float InternalManual7x7PCF(float2 ShadowPosition, FHairSamplingSettings Settings)
 {
 #if 1
-	float2 TexelPos = ShadowPosition * Settings.ShadowSlotResolution + Settings.ShadowSlotOffset - 0.5f;	// bias to be consistent with texture filtering hardware
+	float2 TexelPos = ShadowPosition * Settings.ShadowAtlasResolution - 0.5f;	// bias to be consistent with texture filtering hardware
 	float2 Fraction = frac(TexelPos);
 	float2 TexelCenter = floor(TexelPos);
-	float2 SamplePos = (TexelCenter + 0.5f) / Settings.ShadowSlotResolution;
+	float2 SamplePos = (TexelCenter + 0.5f) / Settings.ShadowAtlasResolution;
 #else
-	float2 TexelPos = ShadowPosition * Settings.ShadowSlotResolution + Settings.ShadowSlotOffset;
+	float2 TexelPos = ShadowPosition * Settings.ShadowAtlasResolution;
 	float2 Fraction = frac(TexelPos);
 	float2 TexelCenter = floor(TexelPos) + 0.5f;
-	float2 SamplePos = (TexelCenter - float2(1, 1)) / Settings.ShadowSlotResolution;
+	float2 SamplePos = (TexelCenter - float2(1, 1)) / Settings.ShadowAtlasResolution;
 #endif
 	float Results;
 
@@ -288,7 +278,7 @@ float InternalGaussianFilter(float2 ShadowPosition, FHairSamplingSettings Settin
 			float2(0.14383161, -0.14100790)
 	};
 
-	const float SampleRadius = 3.f / Settings.ShadowSlotResolution.x;
+	const float SampleRadius = 3.f * Settings.ShadowAtlasInvResolution.x;
 	float AccShadow = 0;
 	for (uint SampleIt = 0; SampleIt < SampleCount; ++SampleIt)
 	{
@@ -324,13 +314,13 @@ float InternalGaussianTransmissionFilter(float3 ShadowPosition, FHairSamplingSet
 			float2(0.14383161, -0.14100790)
 	};
 
-	const float SampleRadius = 3.f / Settings.ShadowSlotResolution.x;
+	const float SampleRadius = 3.f * Settings.ShadowAtlasInvResolution.x;
 	float AccHairCount = 0;
 	for (uint SampleIt = 0; SampleIt < SampleCount; ++SampleIt)
 	{
 		const float2 Offset = PoissonDisk[SampleIt] * SampleRadius;
 		const float DepthBias = DeepShadow_LayerDepths[0] * DeepShadow_DepthBiasScale;
-		const float3 LightSpacePositionInAtlas = (ShadowPosition+float3(Offset,0)) * float3(DeepShadow_SlotResolution, 1) + float3(DeepShadow_SlotOffset, 0);
+		const float3 LightSpacePositionInAtlas = (ShadowPosition+float3(Offset,0)) * float3(DeepShadow_AtlasResolution, 1);
 		const float HairCount = SampleDOM_PCF2x2(LightSpacePositionInAtlas.xyz, DepthBias, DeepShadow_LayerDepths, Settings.ShadowDepthTexture, Settings.ShadowDomTexture);
 		AccHairCount += saturate(HairCount);
 	}
@@ -349,51 +339,61 @@ void MainPS(
 	const bool bIsValidHairPixel = HairStrands.HairOnlyDepthTexture.Load(uint3(PixelCoord, 0)).x > 0;
 	const bool bIsHairPixel = bIsValidHairPixel && HairStrands.HairCoverageTexture.Load(uint3(PixelCoord, 0)) >= 1;
 
-	const float3 TranslatedWorldPosition = GetTranslatedWorldPosition(UV, SceneDepth);
-	float4 AtlasScaleBias;
-	float4 LightSpacePosition		 = ToLightPosition(TranslatedWorldPosition, AtlasScaleBias);
-
-	// PCF or simple point sampler
-	float Visibility = 1;
-	const bool bIsValid =
-		LightSpacePosition.w > 0 &&
-		(LightSpacePosition.x >= 0 && LightSpacePosition.x <= 1) &&
-		(LightSpacePosition.y >= 0 && LightSpacePosition.y <= 1);
-	if (!bIsHairPixel && bIsValid)
-	{
-		LightSpacePosition.xy = LightSpacePosition.xy * AtlasScaleBias.xy + AtlasScaleBias.zw;
-
-		uint2 ShadowAtlasResolution;
-		DeepShadow_FrontDepthTexture.GetDimensions(ShadowAtlasResolution.x, ShadowAtlasResolution.y);
-
-	#if OPAQUE_PCF == 1
-		FHairSamplingSettings ShadowSettings;
-		ShadowSettings.ShadowDepthTexture = DeepShadow_FrontDepthTexture;
-		ShadowSettings.ShadowDomTexture = DeepShadow_DomTexture;
-		ShadowSettings.ShadowDepthTextureSampler = ShadowSampler;
-		ShadowSettings.ShadowAtlasInvResolution = 1 / float2(ShadowAtlasResolution);
-		ShadowSettings.ShadowSlotResolution = DeepShadow_SlotResolution;
-		ShadowSettings.ShadowSlotOffset = DeepShadow_SlotOffset;
-		ShadowSettings.SceneDepth = saturate(LightSpacePosition.z);
-		#if PERMUTATION_KERNEL_TYPE == KERNEL_TYPE_4x4
-			Visibility = 1 - InternalManual4x4PCF(LightSpacePosition.xy, ShadowSettings);
-		#elif PERMUTATION_KERNEL_TYPE == KERNEL_TYPE_Gaussian8		
-			Visibility = 1 - InternalGaussianFilter(LightSpacePosition.xy, ShadowSettings, 8);
-		#elif PERMUTATION_KERNEL_TYPE == KERNEL_TYPE_Gaussian16
-			Visibility = 1 - InternalGaussianFilter(LightSpacePosition.xy, ShadowSettings, 16);
-		#elif PERMUTATION_KERNEL_TYPE == KERNEL_TYPE_GaussianTransmission8
-			Visibility = 1 - InternalGaussianTransmissionFilter(LightSpacePosition.xyz, ShadowSettings, 8);
-		#else//PERMUTATION_KERNEL_TYPE == KERNEL_TYPE_2x2
-			Visibility = 1 - InternalManual2x2PCF(LightSpacePosition.xy, ShadowSettings);
-		#endif	
+	float MinVisibility = 1.f;
+	#if 1
+	for (uint AtlasSlotIt=0;AtlasSlotIt<EffectiveAtlasSlotCount;++AtlasSlotIt)
 	#else
-		const float FrontDepth = DeepShadow_FrontDepthTexture.SampleLevel(LinearSampler, LightSpacePosition.xy, 0);
-		const float ShadowBias = 0;
-		Visibility = IsCloser(FrontDepth + ShadowBias, LightSpacePosition.z) ? 0 : 1;
+	const uint AtlasSlotIt = 0;
 	#endif
+	{
+		const uint AtlasSlotIndex = DeepShadow_AtlasSlotIndexBuffer[AtlasSlotIt];
+		const float3 TranslatedWorldPosition = GetTranslatedWorldPosition(UV, SceneDepth);
+		float4 AtlasScaleBias;
+		float4 LightSpacePosition = ToLightPosition(TranslatedWorldPosition, AtlasSlotIndex, AtlasScaleBias);
+
+		// PCF or simple point sampler
+		float Visibility = 1;
+		const bool bIsValid =
+			LightSpacePosition.w > 0 &&
+			(LightSpacePosition.x >= 0 && LightSpacePosition.x <= 1) &&
+			(LightSpacePosition.y >= 0 && LightSpacePosition.y <= 1);
+		if (!bIsHairPixel && bIsValid)
+		{
+			LightSpacePosition.xy = LightSpacePosition.xy * AtlasScaleBias.xy + AtlasScaleBias.zw;
+
+			uint2 ShadowAtlasResolution;
+			DeepShadow_FrontDepthTexture.GetDimensions(ShadowAtlasResolution.x, ShadowAtlasResolution.y);
+
+		#if OPAQUE_PCF == 1
+			FHairSamplingSettings ShadowSettings;
+			ShadowSettings.ShadowDepthTexture = DeepShadow_FrontDepthTexture;
+			ShadowSettings.ShadowDomTexture = DeepShadow_DomTexture;
+			ShadowSettings.ShadowDepthTextureSampler = ShadowSampler;
+			ShadowSettings.ShadowAtlasInvResolution = 1 / float2(DeepShadow_AtlasResolution);
+			ShadowSettings.ShadowAtlasResolution = DeepShadow_AtlasResolution;
+			ShadowSettings.SceneDepth = saturate(LightSpacePosition.z);
+			#if PERMUTATION_KERNEL_TYPE == KERNEL_TYPE_4x4
+				Visibility = 1 - InternalManual4x4PCF(LightSpacePosition.xy, ShadowSettings);
+			#elif PERMUTATION_KERNEL_TYPE == KERNEL_TYPE_Gaussian8		
+				Visibility = 1 - InternalGaussianFilter(LightSpacePosition.xy, ShadowSettings, 8);
+			#elif PERMUTATION_KERNEL_TYPE == KERNEL_TYPE_Gaussian16
+				Visibility = 1 - InternalGaussianFilter(LightSpacePosition.xy, ShadowSettings, 16);
+			#elif PERMUTATION_KERNEL_TYPE == KERNEL_TYPE_GaussianTransmission8
+				Visibility = 1 - InternalGaussianTransmissionFilter(LightSpacePosition.xyz, ShadowSettings, 8);
+			#else//PERMUTATION_KERNEL_TYPE == KERNEL_TYPE_2x2
+				Visibility = 1 - InternalManual2x2PCF(LightSpacePosition.xy, ShadowSettings);
+			#endif	
+		#else
+			const float FrontDepth = DeepShadow_FrontDepthTexture.SampleLevel(LinearSampler, LightSpacePosition.xy, 0);
+			const float ShadowBias = 0;
+			Visibility = IsCloser(FrontDepth + ShadowBias, LightSpacePosition.z) ? 0 : 1;
+		#endif
+
+			MinVisibility = min(MinVisibility, Visibility);
+		}
 	}
 
-	const float FadedShadow = lerp(1.0f, Visibility, FadeAlpha);
+	const float FadedShadow = lerp(1.0f, MinVisibility, FadeAlpha);
 	OutColor = WriteShadowMaskOutput(FadedShadow, EncodingType);
 
 }
@@ -495,7 +495,6 @@ void MainPS(
 			const float PositionBiasScale = 0.5f;
 			NormalizedDepthBias = (VirtualVoxel.DepthBiasScale_Shadow * LightDirection + PositionBiasScale * (Random * 2 - 1));
 		}
-
 
 		FVirtualVoxelCommonDesc CommonDesc;
 		CommonDesc.PageCountResolution	= VirtualVoxel.PageCountResolution;

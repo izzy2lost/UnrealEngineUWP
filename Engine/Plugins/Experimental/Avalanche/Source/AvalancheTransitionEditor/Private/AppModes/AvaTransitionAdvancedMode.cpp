@@ -11,9 +11,9 @@
 FAvaTransitionAdvancedMode::FAvaTransitionAdvancedMode(const TSharedRef<FAvaTransitionEditor>& InEditor)
 	: FAvaTransitionAppMode(InEditor, EAvaTransitionEditorMode::Advanced)
 {
-	WorkspaceMenuCategory = FWorkspaceItem::NewGroup(LOCTEXT("WorkspaceMenuCategory", "Motion Design Transition Advanced"));
+	RegisterDefaultTabFactories();
 
-	TabFactories.RegisterFactory(MakeShared<FAvaTransitionTreeDetailsTabFactory>(InEditor));
+	WorkspaceMenuCategory = FWorkspaceItem::NewGroup(LOCTEXT("WorkspaceMenuCategory", "Motion Design Transition Advanced"));
 
 	TabLayout = FTabManager::NewLayout("AvaTransitionEditor_Advanced_Layout_V0_1")
 	->AddArea

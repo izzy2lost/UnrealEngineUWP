@@ -34,21 +34,73 @@ namespace CruncherSharp
                 }
             }
         }
-        public string TypeName { get; set; }
+        public string TypeName { get;  }
         public ulong Size { get; set; }
-        public ulong BitSize { get; set; }
-        public ulong Offset { get; set; }
-        public uint BitPosition { get; set; }
-        public ulong PaddingBefore { get; set; }
-        public ulong BitPaddingAfter { get; set; }
 
-        public bool AlignWithPrevious { get; set; }
+		public uint Count { get;  }
+		public uint BitSize { get;  }
+        public ulong Offset { get;  }
+        public uint BitPosition { get;  }
+        public uint PaddingBefore { get; set; }
+        public uint BitPaddingAfter { get; set; }
+
+		public uint MinAlignment 
+		{ 
+			get
+			{
+				switch (Category)
+				{
+					case MemberCategory.VTable:
+					case MemberCategory.Pointer:
+						return 8;
+
+					default:
+						if (TypeInfo != null)
+							return TypeInfo.ComputeMinAlignment();
+
+						if (PaddingBefore >= 8)
+						{
+							return 16;
+						}
+
+						uint Alignemnt = (uint)Size;
+						if (Count > 0)
+							Alignemnt = (uint)(Size / Count);
+
+						if (Alignemnt > 16) // impossible, ignore
+						{
+							Alignemnt = 1;
+						}
+
+						if (PaddingBefore >= 4 && Alignemnt < 8)
+						{
+							Alignemnt = 8;
+						}
+						else if (PaddingBefore >= 2 && Alignemnt < 4)
+						{
+							Alignemnt = 4;
+						}
+						else if (PaddingBefore > 0 && Alignemnt < 2)
+						{
+							Alignemnt = 2;
+						}
+
+						return Alignemnt;
+				}
+			}
+		}
+
+		public bool AlignWithPrevious { get; set; }
         public bool BitField { get; set; }
 
         public bool Volatile { get; set; }
         public bool Expanded { get; set; }
 
-        public SymbolMemberInfo(MemberCategory category, string name, string typeName, ulong size, ulong bitSize, ulong offset, uint bitPosition)
+		public SymbolInfo TypeInfo { get; set; }
+
+		public uint? PotentialSaving { get; set; }
+
+		public SymbolMemberInfo(MemberCategory category, string name, string typeName, ulong size, uint bitSize, ulong offset, uint bitPosition)
         {
             Category = category;
             Name = name;
@@ -63,7 +115,27 @@ namespace CruncherSharp
             BitField = false;
             Volatile = false;
             Expanded = false;
-        }
+			PotentialSaving = null;
+
+			if (TypeName.EndsWith("]"))
+			{
+				try
+				{
+					string arraySizestring = TypeName.Substring(TypeName.IndexOf('[') + 1, TypeName.IndexOf(']') - TypeName.IndexOf('[') - 1);
+					Count = UInt32.Parse(arraySizestring);
+					if (Count == 0)
+						Count = 1;
+				}
+				catch
+				{
+					Count = 1;
+				}
+			}
+			else
+			{
+				Count = 1;
+			}
+		}
 
         public bool IsBase => Category == MemberCategory.Base;
 
@@ -90,64 +162,36 @@ namespace CruncherSharp
             return 0;
         }
 
-        public static string GetBaseType(IDiaSymbol typeSymbol)
-        {
-            //cf. https://msdn.microsoft.com/en-us/library/4szdtzc3.aspx
-            switch (typeSymbol.baseType)
-            {
-                case 0:
-                    return string.Empty;
-                case 1:
-                    return "void";
-                case 2:
-                    return "char";
-                case 3:
-                    return "wchar";
-                case 6:
-                {
-                    switch (typeSymbol.length)
-                    {
-                        case 1:
-                            return "int8";
-                        case 2:
-                            return "int16";
-                        case 4:
-                            return "int32";
-                        case 8:
-                            return "int64";
-                        default:
-                            return "int";
-                    }
-                }
-                case 7:
-                    switch (typeSymbol.length)
-                    {
-                        case 1:
-                            return "uint8";
-                        case 2:
-                            return "uint16";
-                        case 4:
-                            return "uint32";
-                        case 8:
-                            return "uint64";
-                        default:
-                            return "uint";
-                    }
-                case 8:
-                    return "float";
-                case 9:
-                    return "BCS";
-                case 10:
-                    return "bool";
-                case 13:
-                    return "int32";
-                case 14:
-                    return "uint32";
-                case 29:
-                    return "bit";
-                default:
-                    return $"Unhandled: {typeSymbol.baseType}";
-            }
-        }
+		public bool UpdateTypeInfo(SymbolAnalyzer analyzer)
+		{
+			if (TypeInfo == null)
+			{
+				if (Category != MemberCategory.VTable)
+				{
+					TypeInfo = analyzer.FindSymbolInfo(TypeName);
+					if (TypeInfo != null)
+					{
+						if (Size == 0)
+						{
+							Size = (uint)TypeInfo.Size;
+							return true;
+						}
+						else if (Size != TypeInfo.Size)
+						{
+							TypeInfo = null;
+							return false;
+						}
+					}
+					else if (TypeName.Contains('['))
+					{
+						string typeName = TypeName.Substring(0, TypeName.IndexOf("["));
+						TypeInfo = analyzer.FindSymbolInfo(TypeName);
+					}
+				}
+				return false;
+			}
+			return true;
+		}
+
     }
 }

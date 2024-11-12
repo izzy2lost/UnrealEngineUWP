@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGBatchNormalization.h"
+
 #include "NNEHlslShadersBatchNormalizationCS.h"
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNEAttributeMap.h"
 #include "NNETypes.h"
@@ -46,7 +48,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (OutputTensorDescs.Num() > 1)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("BatchNormalization is only supported in inference mode at the moment, supporting no more than one output."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("BatchNormalization: Only supported in inference mode at the moment, supporting no more than one output."));
 				return false;
 			}
 			
@@ -109,7 +111,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			TBatchNormalizationCS::FPermutationDomain PermutationVector;
 			TShaderMapRef<TBatchNormalizationCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.BatchNormalization");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorBatchNormalization, "NNE.Operator.Hlsl.BatchNormalization");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorBatchNormalization);
 
 			FComputeShaderUtils::AddPass(

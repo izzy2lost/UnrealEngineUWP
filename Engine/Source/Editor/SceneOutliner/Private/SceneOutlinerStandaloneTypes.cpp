@@ -2,6 +2,7 @@
 
 #include "SceneOutlinerStandaloneTypes.h"
 
+#include "ActorTreeItem.h"
 #include "EditorActorFolders.h"
 #include "Framework/Application/SlateApplication.h"
 #include "ISceneOutlinerTreeItem.h"
@@ -41,6 +42,31 @@ TOptional<FLinearColor> FSceneOutlinerCommonLabelData::GetForegroundColor(const 
 		return DarkColor;
 	}
 
+	if(const FActorTreeItem* ActorTreeItem = TreeItem.CastTo<FActorTreeItem>())
+	{
+		AActor* Actor = ActorTreeItem->Actor.Get();
+		
+		if (!Actor)
+		{
+			// Deleted actor!
+			return FLinearColor(0.2f, 0.2f, 0.25f);
+		}
+
+		UWorld* OwningWorld = Actor->GetWorld();
+		if (!OwningWorld)
+		{
+			// Deleted world!
+			return FLinearColor(0.2f, 0.2f, 0.25f);
+		}
+
+		const bool bRepresentingPIEWorld = Actor->GetWorld()->IsPlayInEditor();
+		if (bRepresentingPIEWorld && !ActorTreeItem->bExistsInCurrentWorldAndPIE)
+		{
+			// Highlight actors that are exclusive to PlayWorld
+			return FLinearColor(0.9f, 0.8f, 0.4f);
+		}
+	}
+	
 	return TOptional<FLinearColor>();
 }
 

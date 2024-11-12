@@ -66,7 +66,7 @@ struct FLinearColor
 	/** Static lookup table used for FColor -> FLinearColor conversion. sRGB */
 	static CORE_API float sRGBToLinearTable[256];
 
-	FORCEINLINE FLinearColor() {}
+	FLinearColor() = default;
 	FORCEINLINE explicit FLinearColor(EForceInit)
 	: R(0), G(0), B(0), A(0)
 	{}
@@ -389,10 +389,7 @@ struct FLinearColor
 	CORE_API FLinearColor Desaturate( float Desaturation ) const;
 
 	/** Computes the perceptually weighted luminance value of a color. */
-	inline float GetLuminance() const
-	{		
-		return R * 0.3f + G * 0.59f + B * 0.11f;
-	}
+	CORE_API float GetLuminance() const;
 	
 	/**
 	 * Returns the maximum value in this color structure
@@ -446,6 +443,24 @@ struct FLinearColor
 		return (ClampedLo < 1.0f) ? ClampedLo : 1.0f;
 	}
 
+	/**
+	 * @brief Helper function to generate distinct colors from a sequence of integers where each integer increment
+	 * spins around the Hue wheel by increments of the golden ratio.
+	 * @param Seed			the "seed" for a semi-random, but deterministic color
+	 * @param Saturation	0-1 saturation of resulting color
+	 * @param Value			0-1 brightness of resulting color
+	 * @param HueRotation	0-360 amount to rotate around the hue wheel
+	 * @return color with semi-random hue */
+	static FLinearColor IntToDistinctColor(
+		const int32 Seed,
+		const float Saturation=1.f,
+		const float Value=1.f,
+		const float HueRotation=180.f)
+	{
+		constexpr float GoldenRatio = 1.618033988749895f; // (1 + FMath::Sqrt(5.f)) / 2.f;
+		return FLinearColor(static_cast<float>(Seed) * GoldenRatio * HueRotation, Saturation, Value).HSVToLinearRGB();
+	}
+
 	// Common colors.	
 	static CORE_API const FLinearColor White;
 	static CORE_API const FLinearColor Gray;
@@ -490,7 +505,7 @@ public:
 	const uint32& DWColor(void) const {return Bits;}
 
 	// Constructors.
-	FORCEINLINE FColor() {}
+	FColor() = default;
 	FORCEINLINE explicit FColor(EForceInit)
 	{
 		// put these into the body for proper ordering with INTEL vs non-INTEL_BYTE_ORDER

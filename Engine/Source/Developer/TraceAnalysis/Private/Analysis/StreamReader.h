@@ -14,44 +14,50 @@ class FStreamReader
 {
 public:
 	template <typename Type>
-	Type const*					GetPointer();
+	Type const*					GetPointer() const;
 	template <typename Type>
-	Type const*					GetPointerUnchecked();
-	const uint8*				GetPointer(uint32 Size);
-	const uint8*				GetPointerUnchecked();
+	Type const*					GetPointerUnchecked() const;
+	const uint8*				GetPointer(uint32 Size) const;
+	const uint8*				GetPointerUnchecked() const;
 	void						Advance(uint32 Size);
 	bool						IsEmpty() const;
-	uint32						GetRemaining() const;
 	bool						CanMeetDemand() const;
+	uint32						GetRemaining() const;
+	uint32						GetBacktrackSize(const uint8* To) const;
 	bool						Backtrack(const uint8* To);
 	struct FMark*				SaveMark() const;
 	void						RestoreMark(struct FMark* Mark);
 
 protected:
 	uint8*						Buffer = nullptr;
-	uint32						DemandHint = 0;
+	mutable uint32				DemandHint = 0;
 	uint32						Cursor = 0;
 	uint32						End = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 template <typename Type>
-Type const* FStreamReader::GetPointer()
+Type const* FStreamReader::GetPointer() const
 {
 	return (Type const*)GetPointer(sizeof(Type));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 template <typename Type>
-Type const* FStreamReader::GetPointerUnchecked()
+Type const* FStreamReader::GetPointerUnchecked() const
 {
 	return (Type const*)GetPointerUnchecked();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-inline const uint8* FStreamReader::GetPointerUnchecked()
+inline const uint8* FStreamReader::GetPointerUnchecked() const
 {
 	return Buffer + Cursor;
+}
+////////////////////////////////////////////////////////////////////////////////
+inline uint32 FStreamReader::GetBacktrackSize(const uint8* To) const
+{
+	return End - uint32(UPTRINT(To - Buffer));
 }
 
 

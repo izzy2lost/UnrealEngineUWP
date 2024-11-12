@@ -143,6 +143,12 @@ namespace UE::Chaos::ClothAsset::Private
 		{ ClothCollectionGroup::Fabrics, SimFabricGroupAttributes },
 		{ ClothCollectionGroup::Solvers, SolverGroupAttributes },
 	};
+
+	// All paintable attributes for this collection
+	static const TMap<FName, TArray<FName>> UserAccessibleAttributeNamesMap =
+	{
+		{ ClothCollectionGroup::RenderVertices, { ClothCollectionAttribute::RenderDeformerSkinningBlend } },  // Can be painted if required
+	};
 }  // End namespace UE::Chaos::ClothAsset::Private
 
 namespace UE::Chaos::ClothAsset
@@ -669,7 +675,7 @@ namespace UE::Chaos::ClothAsset
 	template CHAOSCLOTHASSET_API TTuple<int32, int32> FClothCollection::GetSubElementsStartEnd<false, true>(const TManagedArray<int32>* StartArray, const TManagedArray<int32>* EndArray, const TManagedArray<int32>* StartSubArray, const TManagedArray<int32>* EndSubArray, int32 ArrayIndex);
 	template CHAOSCLOTHASSET_API TTuple<int32, int32> FClothCollection::GetSubElementsStartEnd<true, true>(const TManagedArray<int32>* StartArray, const TManagedArray<int32>* EndArray, const TManagedArray<int32>* StartSubArray, const TManagedArray<int32>* EndSubArray, int32 ArrayIndex);
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	TArray<FName> FClothCollection::GetUserDefinedAttributeNames(const FName& GroupName) const
 	{
 		using namespace UE::Chaos::ClothAsset::Private;
@@ -696,7 +702,7 @@ namespace UE::Chaos::ClothAsset
 	template CHAOSCLOTHASSET_API TArray<FName> FClothCollection::GetUserDefinedAttributeNames<float>(const FName& GroupName) const;
 	template CHAOSCLOTHASSET_API TArray<FName> FClothCollection::GetUserDefinedAttributeNames<FVector3f>(const FName& GroupName) const;
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	TManagedArray<T>* FClothCollection::FindOrAddUserDefinedAttribute(const FName& Name, const FName& GroupName)
 	{
 		using namespace UE::Chaos::ClothAsset::Private;
@@ -706,6 +712,14 @@ namespace UE::Chaos::ClothAsset
 			if (!FixedAttributeNames->Contains(Name))
 			{
 				return ManagedArrayCollection->FindOrAddAttributeTyped<T>(Name, GroupName);
+			}
+		}
+		if (const TArray<FName>* const UserAccessibleAttributeNames = UserAccessibleAttributeNamesMap.Find(GroupName))
+		{
+			// Paintable attribute can only be found, not created (they are part of the schema)
+			if (UserAccessibleAttributeNames->Contains(Name))
+			{
+				return ManagedArrayCollection->FindAttributeTyped<T>(Name, GroupName);
 			}
 		}
 		return nullptr;
@@ -728,7 +742,7 @@ namespace UE::Chaos::ClothAsset
 		}
 	}
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	bool FClothCollection::HasUserDefinedAttribute(const FName& Name, const FName& GroupName) const
 	{
 		using namespace UE::Chaos::ClothAsset::Private;
@@ -740,6 +754,14 @@ namespace UE::Chaos::ClothAsset
 				return ManagedArrayCollection->FindAttributeTyped<T>(Name, GroupName) != nullptr;
 			}
 		}
+		if (const TArray<FName>* const UserAccessibleAttributeNames = UserAccessibleAttributeNamesMap.Find(GroupName))
+		{
+			// Paintable attribute can only be found, not created (they are part of the schema)
+			if (UserAccessibleAttributeNames->Contains(Name))
+			{
+				return ManagedArrayCollection->FindAttributeTyped<T>(Name, GroupName) != nullptr;
+			}
+		}
 		return false;
 	}
 	template CHAOSCLOTHASSET_API bool FClothCollection::HasUserDefinedAttribute<bool>(const FName& Name, const FName& GroupName) const;
@@ -747,7 +769,7 @@ namespace UE::Chaos::ClothAsset
 	template CHAOSCLOTHASSET_API bool FClothCollection::HasUserDefinedAttribute<float>(const FName& Name, const FName& GroupName) const;
 	template CHAOSCLOTHASSET_API bool FClothCollection::HasUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName) const;
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	const TManagedArray<T>* FClothCollection::GetUserDefinedAttribute(const FName& Name, const FName& GroupName) const
 	{
 		using namespace UE::Chaos::ClothAsset::Private;
@@ -759,6 +781,14 @@ namespace UE::Chaos::ClothAsset
 				return ManagedArrayCollection->FindAttributeTyped<T>(Name, GroupName);
 			}
 		}
+		if (const TArray<FName>* const UserAccessibleAttributeNames = UserAccessibleAttributeNamesMap.Find(GroupName))
+		{
+			// Paintable attribute can only be found, not created (they are part of the schema)
+			if (UserAccessibleAttributeNames->Contains(Name))
+			{
+				return ManagedArrayCollection->FindAttributeTyped<T>(Name, GroupName);
+			}
+		}
 		return nullptr;
 	}
 	template CHAOSCLOTHASSET_API const TManagedArray<bool>* FClothCollection::GetUserDefinedAttribute<bool>(const FName& Name, const FName& GroupName) const;
@@ -766,7 +796,7 @@ namespace UE::Chaos::ClothAsset
 	template CHAOSCLOTHASSET_API const TManagedArray<float>* FClothCollection::GetUserDefinedAttribute<float>(const FName& Name, const FName& GroupName) const;
 	template CHAOSCLOTHASSET_API const TManagedArray<FVector3f>* FClothCollection::GetUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName) const;
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	TManagedArray<T>* FClothCollection::GetUserDefinedAttribute(const FName& Name, const FName& GroupName)
 	{
 		using namespace UE::Chaos::ClothAsset::Private;
@@ -778,12 +808,28 @@ namespace UE::Chaos::ClothAsset
 				return ManagedArrayCollection->FindAttributeTyped<T>(Name, GroupName);
 			}
 		}
+		if (const TArray<FName>* const UserAccessibleAttributeNames = UserAccessibleAttributeNamesMap.Find(GroupName))
+		{
+			// Paintable attribute can only be found, not created (they are part of the schema)
+			if (UserAccessibleAttributeNames->Contains(Name))
+			{
+				return ManagedArrayCollection->FindAttributeTyped<T>(Name, GroupName);
+			}
+		}
 		return nullptr;
 	}
 	template CHAOSCLOTHASSET_API TManagedArray<bool>* FClothCollection::GetUserDefinedAttribute<bool>(const FName& Name, const FName& GroupName);
 	template CHAOSCLOTHASSET_API TManagedArray<int32>* FClothCollection::GetUserDefinedAttribute<int32>(const FName& Name, const FName& GroupName);
 	template CHAOSCLOTHASSET_API TManagedArray<float>* FClothCollection::GetUserDefinedAttribute<float>(const FName& Name, const FName& GroupName);
 	template CHAOSCLOTHASSET_API TManagedArray<FVector3f>* FClothCollection::GetUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName);
+
+	TArray<FName> FClothCollection::GetValidClothCollectionGroupName()
+	{
+		using namespace UE::Chaos::ClothAsset::Private;
+		TArray<FName> ValidClothCollectionGroupName;
+		FixedAttributeNamesMap.GetKeys(ValidClothCollectionGroupName);
+		return ValidClothCollectionGroupName;
+	}
 
 	bool FClothCollection::IsValidClothCollectionGroupName(const FName& GroupName)
 	{
@@ -798,6 +844,14 @@ namespace UE::Chaos::ClothAsset
 		{
 			// User defined attributes are only allowed in known group names and cannot be reserved by FixedAttributeNames.
 			if (!FixedAttributeNames->Contains(Name))
+			{
+				return true;
+			}
+		}
+		if (const TArray<FName>* const UserAccessibleAttributeNames = UserAccessibleAttributeNamesMap.Find(GroupName))
+		{
+			// Paintable attribute can only be found, not created (they are part of the schema)
+			if (UserAccessibleAttributeNames->Contains(Name) && ManagedArrayCollection->HasAttribute(Name, GroupName))
 			{
 				return true;
 			}

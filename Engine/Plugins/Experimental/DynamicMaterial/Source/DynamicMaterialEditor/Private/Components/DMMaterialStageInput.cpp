@@ -12,8 +12,13 @@
 
 const FString UDMMaterialStageInput::StageInputPrefixStr = FString(TEXT("DMMaterialStageInput"));
 
-void UDMMaterialStageInput::Update(EDMUpdateType InUpdateType)
+void UDMMaterialStageInput::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (!IsComponentValid())
 	{
 		return;
@@ -24,7 +29,7 @@ void UDMMaterialStageInput::Update(EDMUpdateType InUpdateType)
 		return;
 	}
 
-	if (InUpdateType == EDMUpdateType::Structure)
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
 		MarkComponentDirty();
 	}
@@ -34,37 +39,22 @@ void UDMMaterialStageInput::Update(EDMUpdateType InUpdateType)
 
 	if (UDMMaterialStageThroughput* Throughput = Cast<UDMMaterialStageThroughput>(Stage->GetSource()))
 	{
-		Throughput->Update(InUpdateType);
+		Throughput->Update(InSource, InUpdateType);
 		Stage->InputUpdated(this, InUpdateType);
 	}
 	else
 	{
-		Stage->Update(InUpdateType);
+		Stage->Update(InSource, InUpdateType);
 	}
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 }
 
-void UDMMaterialStageInput::UpdatePreviewMaterial(UMaterial* InPreviewMaterial /*= nullptr*/)
+void UDMMaterialStageInput::GeneratePreviewMaterial(UMaterial* InPreviewMaterial)
 {
 	if (!IsComponentValid())
 	{
 		return;
-	}
-
-	if (!InPreviewMaterial)
-	{
-		if (!PreviewMaterial)
-		{
-			CreatePreviewMaterial();
-		}
-
-		InPreviewMaterial = PreviewMaterial;
-
-		if (!PreviewMaterial)
-		{
-			return;
-		}
 	}
 
 	UDMMaterialStage* Stage = GetStage();
@@ -80,7 +70,7 @@ void UDMMaterialStageInput::UpdatePreviewMaterial(UMaterial* InPreviewMaterial /
 	check(ModelEditorOnlyData);
 
 	TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(InPreviewMaterial);
-	BuildState->SetPreviewMaterial();
+	BuildState->SetPreviewObject(this);
 
 	GenerateExpressions(BuildState);
 	UMaterialExpression* StageSourceExpression = BuildState->GetLastStageSourceExpression(this);
@@ -119,7 +109,7 @@ FString UDMMaterialStageInput::GetComponentPathComponent() const
 		}
 
 		return FString::Printf(
-			TEXT("%s%hc%i%hc"),
+			TEXT("%s%c%i%c"),
 			*UDMMaterialStage::InputsPathToken,
 			FDMComponentPath::ParameterOpen,
 			Index,

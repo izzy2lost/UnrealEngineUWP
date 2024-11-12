@@ -51,7 +51,7 @@ namespace UE::DisplayClusterConfiguratorClusterUtils
 				FString NumericSuffix = BaseName.RightChop(Index);
 				Counter = FCString::Atoi(*NumericSuffix);
 				NumericSuffix = FString::FromInt(Counter); // Restringify the counter to account for leading 0s that we don't want to remove
-				BaseName.RemoveAt(BaseName.Len() - NumericSuffix.Len(), NumericSuffix.Len(), false);
+				BaseName.RemoveAt(BaseName.Len() - NumericSuffix.Len(), NumericSuffix.Len(), EAllowShrinking::No);
 			}
 			else
 			{
@@ -287,7 +287,7 @@ UDisplayClusterConfigurationClusterNode* UE::DisplayClusterConfiguratorClusterUt
 	UDisplayClusterConfigurationClusterNode* NewClusterNode = CastChecked<UDisplayClusterConfigurationClusterNode>(AddKeyWithInstancedValueToMap(Cluster, FieldName, ClusterNodeName, ClusterNode));
 
 	check(ClusterNode != NewClusterNode);
-	ClusterNode->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders);
+	ClusterNode->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_DoNotDirty);
 	ClusterNode->SetFlags(RF_Transient);
 	
 	return NewClusterNode;
@@ -359,7 +359,7 @@ bool UE::DisplayClusterConfiguratorClusterUtils::RenameClusterNode(UDisplayClust
 			UDisplayClusterConfigurationClusterNode* NewClusterNode = CastChecked<UDisplayClusterConfigurationClusterNode>(AddKeyWithInstancedValueToMap(ClusterNodeParent, FieldName, UniqueName, ClusterNode));
 
 			check(ClusterNode != NewClusterNode);
-			ClusterNode->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders);
+			ClusterNode->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_DoNotDirty);
 			ClusterNode->SetFlags(RF_Transient);
 			
 			// If the cluster node was a primary node before the rename, we need to update the primary reference in the cluster with the new name
@@ -469,13 +469,13 @@ UDisplayClusterConfigurationViewport* UE::DisplayClusterConfiguratorClusterUtils
 
 	ClusterNode->Modify();
 	Viewport->Modify();
-	Viewport->Rename(*ViewportName, ClusterNode, REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders);
+	Viewport->Rename(*ViewportName, ClusterNode, REN_DontCreateRedirectors | REN_DoNotDirty);
 
 	const FName FieldName = GET_MEMBER_NAME_CHECKED(UDisplayClusterConfigurationClusterNode, Viewports);
 	UDisplayClusterConfigurationViewport* NewViewport = CastChecked<UDisplayClusterConfigurationViewport>(AddKeyWithInstancedValueToMap(ClusterNode, FieldName, ViewportName, Viewport));
 
 	check(Viewport != NewViewport);
-	Viewport->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders);
+	Viewport->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_DoNotDirty);
 	Viewport->SetFlags(RF_Transient);
 	
 	FDisplayClusterConfiguratorUtils::MarkDisplayClusterBlueprintAsModified(NewViewport, true);
@@ -534,7 +534,7 @@ bool UE::DisplayClusterConfiguratorClusterUtils::RenameViewport(UDisplayClusterC
 			UDisplayClusterConfigurationViewport* NewViewport =
 				CastChecked<UDisplayClusterConfigurationViewport>(AddKeyWithInstancedValueToMap(ViewportParent, FieldName, UniqueName, Viewport));
 			check(Viewport != NewViewport);
-			Viewport->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders);
+			Viewport->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_DoNotDirty);
 			Viewport->SetFlags(RF_Transient);
 			
 			FDisplayClusterConfiguratorUtils::MarkDisplayClusterBlueprintAsModified(NewViewport, true);

@@ -28,7 +28,7 @@ namespace UE::AvaEditor::Private
 	static const TArray<FAvaSceneDefaultActorResponseColumnData> ColumnData = {
 		{
 			SAvaSceneDefaultActorResponses::EnabledRowName,
-			LOCTEXT("Enabled", ""),
+			FText(),
 			LOCTEXT("Enabled.Tooltip", "The default scene actor will be added to the scene."),
 			TAttribute<float>(),
 			TOptional<float>(32.f)

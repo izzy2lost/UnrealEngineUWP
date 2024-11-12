@@ -401,6 +401,8 @@ class ONLINESUBSYSTEMUTILS_API APartyBeaconHost : public AOnlineBeaconHostObject
 	 */
 	bool IsValidationStrRequired() const { return bIsValidationStrRequired; }
 
+	virtual bool IsPlayerActive(const FUniqueNetIdRepl& PlayerId) const;
+
 protected:
 
 	/** State of the beacon */

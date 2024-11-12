@@ -119,10 +119,8 @@ float3 SubstrateForwardLighting(
 		#if SUPPORT_VSM_FOWARD_QUALITY == 1
 		{
 			const FLightShaderParameters DirectionalLight = ConvertToLightShaderParameters(DirLightData);
-			FVirtualShadowMapSMRTSettings SMRTSettings = GetDirectionalLightSMRTSettings();
 
-			const bool bBackfaceCull = true; // SUBSTRATE_TODO: this needs to be fixed but require to extract hair/SSS/diffusebackface prior to BSDF looping
-			const float ScreenRayLengthWorld = SMRTSettings.ScreenRayLength * View.ClipToView[1][1] * SceneDepth;
+			const float ScreenRayLengthWorld = VirtualShadowMap.ScreenRayLength * View.ClipToView[1][1] * SceneDepth;
 			float SMRTRayOffset = ScreenRayLengthWorld;
 
 			// Use the surface normal instead of the layer's normal, for a single evaluation before runing throught the SubstrateTree
@@ -135,15 +133,8 @@ float3 SubstrateForwardLighting(
 				SceneDepth,
 				TranslatedWorldPosition,
 				SMRTRayOffset,
-				SMRTSettings.RayCount,
-				SMRTSettings.SamplesPerRay,
-				SMRTSettings.RayLengthScale,
 				Dither,
-				bBackfaceCull,
-				WorldNormal,
-				SMRTSettings.TexelDitherScale,
-				SMRTSettings.ExtrapolateSlope,
-				SMRTSettings.AdaptiveRayCount);
+				WorldNormal);
 
 			FilterVirtualShadowMapSampleResult(PixelPos, VirtualShadowMapSample);
 
@@ -291,8 +282,7 @@ float3 SubstrateForwardLighting(
 
 				// 2. Specular evaluation (using regular normal)
 				#if FORWARD_PER_PIXEL_SHADING || TRANSLUCENCY_LIGHTING_SURFACE_LIGHTINGVOLUME
-				const bool bEnableSpecular = ReflectionStruct.SkyLightParameters.y > 0.0f;
-				if (bEnableSpecular)
+				// Every components of forward shading reflection (Sky, SSR, Lumen) are enabled/disabled within GetImageBasedReflectionSpecular.
 				{
 					// Evaluate specular parameters without bent normal
 					FSubstrateEnvLightResult SubstrateEnvLight = SubstrateEvaluateForEnvLight(SubstrateBSDFContext, true/*bEnableSpecular*/, Settings);
@@ -422,7 +412,11 @@ float3 SubstrateForwardLighting(
 				//// Evaluate the single directional light selected for forward lighting.
 				////
 				BRANCH
-				if (DirectionalLightData.HasDirectionalLight)
+				if (DirectionalLightData.HasDirectionalLight
+			#if SUBSTRATE_TRANSLUCENT_MATERIAL
+					&& DirectionalLightData.bAffectsTranslucentLighting > 0
+			#endif
+						)
 				{
 					float3 DirLightL = DirLightData.Direction;	// Already normalized
 					float3 ToDirLight = DirLightL;
@@ -465,20 +459,28 @@ float3 SubstrateForwardLighting(
 
 			#if !DISABLE_FORWARD_LOCAL_LIGHTS && (FORWARD_SHADING || TRANSLUCENCY_LIGHTING_SURFACE_FORWARDSHADING) // Forbidden for Single Layer Water
 				// Basic implementation for FORWARD_LOCAL_LIGHTS where local lights are reloaded per BSDF layer. It is fast by default when layer==1.
-				const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, EyeIndex);
+				const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 
 				// Limit max to ForwardLightData.NumLocalLights.
 				// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-				const uint NumLightsInGridCell = min(CulledLightsGrid.NumLights, GetMaxLightsPerCell(EyeIndex));
+				const uint NumLightsInGridCell = min(CulledLightsGridHeader.NumLights, GetMaxLightsPerCell(EyeIndex));
 
 				LOOP
 				for (uint GridLightListIndex = 0; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
 				{
-					const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + GridLightListIndex, EyeIndex);
+					const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGridHeader.DataStartIndex + GridLightListIndex, EyeIndex);
+		
+				#if MATERIALBLENDING_ANY_TRANSLUCENT
+					if(UnpackAffectsTranslucentLighting(LocalLight) == 0)
+					{
+						continue;
+					}
+				#endif
 
 					half4 PreviewShadowMapChannelMask = 1;
 					uint  LocalLightChannelMask = LIGHTING_CHANNEL_MASK;
 					FDeferredLightData LightData = ConvertToDeferredLight(LocalLight, 1.0f /*SpecularScale*/, PreviewShadowMapChannelMask, LocalLightChannelMask);
+
 					#if USE_IES_PROFILE
 					LightData.Color *= ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
 					#endif

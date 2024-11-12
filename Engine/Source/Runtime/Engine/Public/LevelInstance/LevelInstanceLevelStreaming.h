@@ -6,7 +6,11 @@
 #include "UObject/ObjectMacros.h"
 #include "Engine/LevelStreamingDynamic.h"
 #include "LevelInstance/LevelInstanceTypes.h"
+
+#if WITH_EDITOR
 #include "WorldPartition/ActorDescContainerInstance.h"
+#endif
+
 #include "LevelInstanceLevelStreaming.generated.h"
 
 class ILevelInstanceInterface;
@@ -40,12 +44,24 @@ protected:
 	const FLevelInstanceID& GetLevelInstanceID() const { return LevelInstanceID; }
 private:
 #if WITH_EDITOR
-	ENGINE_API void ResetLevelInstanceLoaders();
+	void ResetLevelInstanceLoaders();
+	
 	ENGINE_API virtual void OnLoadedActorsAddedToLevelPreEvent(const TArray<AActor*>& InActors);
 	ENGINE_API virtual void OnLoadedActorsAddedToLevelPostEvent(const TArray<AActor*>& InActors);
 	ENGINE_API virtual void OnLoadedActorsRemovedFromLevelPostEvent(const TArray<AActor*>& InActors);
-	ENGINE_API void OnLevelStreamingStateChanged(UWorld* InWorld, const ULevelStreaming* InLevelStreaming, ULevel* InLevelIfLoaded, ELevelStreamingState InPrevState, ELevelStreamingState InNewState);
+	ENGINE_API virtual void OnCurrentStateChanged(ELevelStreamingState InPrevState, ELevelStreamingState InNewState) override;
 	ENGINE_API void OnPreInitializeContainerInstance(UActorDescContainerInstance::FInitializeParams& InInitParams, UActorDescContainerInstance* InContainerInstance);
+	void InitializeActors(const TArray<AActor*>& InActors);
+	void OnActorReplacedEvent(FWorldPartitionActorDescInstance* InActorDescInstance);
+
+	enum EApplyPropertieOverrideType
+	{
+		PreConstruction,
+		PostConstruction,
+		PreAndPostConstruction
+	};
+
+	void ApplyPropertyOverrides(const TArray<AActor*>& InActor, bool bInAlreadyAppliedTransformOnActors, EApplyPropertieOverrideType InApplyPropertyOverrideType);
 
 	bool IsEditorWorldMode() const;
 

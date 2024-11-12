@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_Enums.h"
+#include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameEnums.h"
 
 /**
 * Viewport preview-in-scene rendering settings.

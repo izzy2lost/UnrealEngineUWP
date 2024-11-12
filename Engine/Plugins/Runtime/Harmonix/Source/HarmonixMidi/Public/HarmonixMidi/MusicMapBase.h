@@ -114,7 +114,7 @@ public:
 	static float GetFractionalTickForFractionalPoint(const TArray<T>& Points, float Point)
 	{
 		int32 Index = FMath::FloorToInt(Point);
-		if (Index == -1 || Index >= Points.Num())
+		if (!Points.IsValidIndex(Index))
 		{
 			return 0.0f;
 		}

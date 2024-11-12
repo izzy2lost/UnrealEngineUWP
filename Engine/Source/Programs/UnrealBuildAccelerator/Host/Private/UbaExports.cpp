@@ -1,10 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaExports.h"
+#include "UbaAWS.h"
+#include "UbaCacheClient.h"
+#include "UbaConfig.h"
+#include "UbaCoordinatorWrapper.h"
 #include "UbaNetworkBackendQuic.h"
 #include "UbaNetworkBackendTcp.h"
-#include "UbaAWS.h"
+#include "UbaNetworkClient.h"
 #include "UbaProcess.h"
+#include "UbaRootPaths.h"
 #include "UbaScheduler.h"
 #include "UbaStorageServer.h"
 #include "UbaSessionServer.h"
@@ -46,11 +51,29 @@ namespace uba
 	{
 	public:
 		NetworkServerWithBackend(bool& outSuccess, const NetworkServerCreateInfo& info, NetworkBackend* nb)
-		: NetworkServer(outSuccess, info), networkBackend(nb)
+		: NetworkServer(outSuccess, info), backend(nb)
 		{
 		}
 
-		NetworkBackend* networkBackend;
+		NetworkBackend* backend;
+	};
+
+	class NetworkClientWithBackend : public NetworkClient
+	{
+	public:
+		NetworkClientWithBackend(bool& outSuccess, const NetworkClientCreateInfo& info, NetworkBackend* nb, const tchar* name)
+		: NetworkClient(outSuccess, info, name), backend(nb)
+		{
+		}
+
+		NetworkBackend* backend;
+	};
+
+	class RootPathsWithLogger : public RootPaths
+	{
+	public:
+		RootPathsWithLogger(LogWriter& writer) : logger(writer) {}
+		LoggerWithWriter logger;
 	};
 
 	#define UBA_USE_SIGNALHANDLER 0//PLATFORM_LINUX // It might be that we can't use signal handlers in c# processes.. so don't set this to 1
@@ -63,6 +86,24 @@ namespace uba
 		UbaAssert(desc.data, "", 0, "", -1);
 	}
 	#endif
+
+	Config& GetConfig(const tchar* fileName = nullptr)
+	{
+		static Config config;
+		if (config.IsLoaded())
+			return config;
+		LoggerWithWriter logger(g_nullLogWriter);
+		StringBuffer<> temp;
+		if (!fileName)
+		{
+			GetDirectoryOfCurrentModule(logger, temp);
+			temp.EnsureEndsWithSlash().Append(TC("UbaHost.toml"));
+			fileName = temp.data;
+		}
+
+		config.LoadFromFile(logger, fileName);
+		return config;
+	}
 }
 
 extern "C"
@@ -93,7 +134,13 @@ extern "C"
 			delete writer;
 	}
 
-	uba::NetworkServer* CreateServer(uba::LogWriter& writer, uba::u32 workerCount, uba::u32 sendSize, uba::u32 receiveTimeoutSeconds, bool useQuic)
+	bool Config_Load(const uba::tchar* configFile)
+	{
+		uba::GetConfig(configFile);
+		return true;
+	}
+
+	uba::NetworkServer* NetworkServer_Create(uba::LogWriter& writer, uba::u32 workerCount, uba::u32 sendSize, uba::u32 receiveTimeoutSeconds, bool useQuic)
 	{
 		using namespace uba;
 		NetworkBackend* networkBackend;
@@ -105,6 +152,9 @@ extern "C"
 			networkBackend = new NetworkBackendTcp(writer);
 
 		NetworkServerCreateInfo info(writer);
+
+		info.Apply(GetConfig());
+
 		info.workerCount = workerCount;
 		info.sendSize = sendSize;
 		info.receiveTimeoutSeconds = receiveTimeoutSeconds;
@@ -117,128 +167,93 @@ extern "C"
 		return nullptr;
 	}
 
-	void DestroyServer(uba::NetworkServer* server)
+	void NetworkServer_Destroy(uba::NetworkServer* server)
 	{
 		auto s = (uba::NetworkServerWithBackend*)server;
-		auto networkBackend = s->networkBackend;
+		auto networkBackend = s->backend;
 		delete s;
 		delete networkBackend;
 	}
 
-	bool Server_StartListen(uba::NetworkServer* server, int port, const uba::tchar* ip, const uba::tchar* crypto)
+	bool NetworkServer_StartListen(uba::NetworkServer* server, int port, const uba::tchar* ip, const uba::tchar* crypto)
 	{
 		using namespace uba;
-		u8 crypto128Data[16];
-		u8* crypto128 = nullptr;
-		if (crypto && *crypto)
-		{
-			((u64*)crypto128Data)[0] = StringToValue(crypto, 16);
-			((u64*)crypto128Data)[1] = StringToValue(crypto + 16, 16);
-			crypto128 = crypto128Data;
-		}
 
 		auto s = (NetworkServerWithBackend*)server;
-		return s->StartListen(*s->networkBackend, u16(port), ip, crypto128);
+
+		bool requiresCrypto = false;
+		if (crypto && *crypto)
+		{
+			//server->GetLogger().Error(TC("CRYPTO: %s"), crypto);
+			u8 crypto128Data[16];
+			if (!CryptoFromString(crypto128Data, 16, crypto))
+				return server->GetLogger().Error(TC("Failed to parse crypto key %s"), crypto);
+			s->RegisterCryptoKey(crypto128Data);
+			requiresCrypto = true;
+		}
+
+		return s->StartListen(*s->backend, u16(port), ip, requiresCrypto);
 	}
 
-	void Server_Stop(uba::NetworkServer* server)
+	void NetworkServer_Stop(uba::NetworkServer* server)
 	{
 		auto s = (uba::NetworkServerWithBackend*)server;
-		auto networkBackend = s->networkBackend;
+		auto networkBackend = s->backend;
 		networkBackend->StopListen();
 		server->DisconnectClients();
 	}
 
 
-	bool Server_AddClient(uba::NetworkServer* server, const uba::tchar* ip, int port, const uba::tchar* crypto)
+	bool NetworkServer_AddClient(uba::NetworkServer* server, const uba::tchar* ip, int port, const uba::tchar* crypto)
 	{
 		using namespace uba;
 		u8 crypto128Data[16];
 		u8* crypto128 = nullptr;
-		if (crypto && *crypto)
-		{
-			((u64*)crypto128Data)[0] = StringToValue(crypto, 16);
-			((u64*)crypto128Data)[1] = StringToValue(crypto + 16, 16);
+		if (CryptoFromString(crypto128Data, 16, crypto))
 			crypto128 = crypto128Data;
-		}
 
 		auto s = (NetworkServerWithBackend*)server;
-		return s->AddClient(*s->networkBackend, ip, u16(port), crypto128);
+		return s->AddClient(*s->backend, ip, u16(port), crypto128);
 	}
 
-	/*
-	uba::NetworkClient* CreateClient(uba::LogWriter& writer, uba::u32 sendSize, uba::u32 receiveTimeoutSeconds)
-	{
-		return new uba::NetworkClient(writer, sendSize, receiveTimeoutSeconds);
-	}
-
-	void DestroyClient(uba::NetworkClient* client)
-	{
-		delete client;
-	}
-	*/
-
-	uba::Storage* CreateStorage(const uba::tchar* rootDir, uba::u64 casCapacityBytes, bool storeCompressed)
-	{
-		uba::StorageCreateInfo info(rootDir, uba::g_consoleLogWriter);
-		info.casCapacityBytes = casCapacityBytes;
-		info.storeCompressed = storeCompressed;
-		return new uba::StorageImpl(info, nullptr);
-	}
-
-	void DestroyStorage(uba::Storage* storage)
-	{
-		delete storage;
-	}
-
-	void Storage_SaveCasTable(uba::Storage* storage)
-	{
-		storage->SaveCasTable(true);
-	}
-
-	void Storage_DeleteFile(uba::Storage* storage, const uba::tchar* file)
-	{
-		storage->DeleteCasForFile(file);
-	}
-
-	uba::Storage* CreateStorageServer(uba::NetworkServer& server, const uba::tchar* rootDir, uba::u64 casCapacityBytes, bool storeCompressed, uba::LogWriter& writer, const uba::tchar* zone)
+	uba::StorageServer* StorageServer_Create(uba::NetworkServer& server, const uba::tchar* rootDir, uba::u64 casCapacityBytes, bool storeCompressed, uba::LogWriter& writer, const uba::tchar* zone)
 	{
 		using namespace uba;
 
+		StorageServerCreateInfo info(server, rootDir, writer);
+		info.Apply(GetConfig());
+
 		#if UBA_USE_AWS
 		StringBuffer<> fixedRootDir;
-		fixedRootDir.count = GetFullPathNameW(rootDir, fixedRootDir.capacity, fixedRootDir.data, NULL);
+		fixedRootDir.count = GetFullPathNameW(info.rootDir, fixedRootDir.capacity, fixedRootDir.data, NULL);
 		fixedRootDir.Replace('/', PathSeparator).EnsureEndsWithSlash();
-		rootDir = fixedRootDir.data;
+		info.rootDir = fixedRootDir.data;
 		AWS aws;
 		if (!zone || !*zone)
 		{
 			LoggerWithWriter logger(writer, TC(""));
-			if (aws.QueryAvailabilityZone(logger, rootDir))
+			if (aws.QueryAvailabilityZone(logger, info.rootDir))
 				zone = aws.GetAvailabilityZone();
 		}
 		#endif
 
 		StringBuffer<256> zoneTemp;
 		if (!zone || !*zone)
-		{
-			zoneTemp.count = GetEnvironmentVariableW(TC("UBA_ZONE"), zoneTemp.data, zoneTemp.capacity);
-			zone = zoneTemp.data;
-		}
+			if (GetZone(zoneTemp))
+				zone = zoneTemp.data;
 
-		StorageServerCreateInfo info(server, rootDir, writer);
 		info.casCapacityBytes = casCapacityBytes;
 		info.storeCompressed = storeCompressed;
 		info.zone = zone;
 		return new StorageServer(info);
 	}
 
-	void DestroyStorageServer(uba::Storage* storageServer)
+	void StorageServer_Destroy(uba::StorageServer* storageServer)
 	{
 		delete storageServer;
 	}
 
-	void StorageServer_SaveCasTable(uba::Storage* storageServer)
+	void StorageServer_SaveCasTable(uba::StorageServer* storageServer)
 	{
 		storageServer->SaveCasTable(true);
 	}
@@ -248,24 +263,12 @@ extern "C"
 		storageServer->RegisterDisallowedPath(path);
 	}
 
-	/*
-uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::tchar* rootDir, uba::u64 casCapacityBytes, bool storeCompressed, bool sendCompressed)
+	void StorageServer_DeleteFile(uba::StorageServer* storageServer, const uba::tchar* file)
 	{
-		uba::StorageClientCreateInfo info(client, rootDir);
-		info.casCapacityBytes = casCapacityBytes;
-		info.storeCompressed = storeCompressed;
-		info.sendCompressed = sendCompressed;
-		info.workManager = &client;
-		return new uba::StorageClient(info);
-	}
-	*/
-
-	void DestroySession(uba::Session* session)
-	{
-		delete session;
+		storageServer->DeleteCasForFile(file);
 	}
 
-	uba::u32 ProcessHandle_GetExitCode(uba::ProcessHandle* handle)
+	uba::u32 ProcessHandle_GetExitCode(const uba::ProcessHandle* handle)
 	{
 		return handle->GetExitCode();
 	}
@@ -299,9 +302,19 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		return uba::TimeToTick(handle->GetTotalWallTime());
 	}
 
+	bool ProcessHandle_WaitForExit(uba::ProcessHandle* handle, uba::u32 millisecondsTimeout)
+	{
+		return handle->WaitForExit(millisecondsTimeout);
+	}
+
 	void ProcessHandle_Cancel(uba::ProcessHandle* handle, bool terminate)
 	{
 		handle->Cancel(terminate);
+	}
+
+	void ProcessHandle_Destroy(uba::ProcessHandle* handle)
+	{
+		delete handle;
 	}
 
 	void DestroyProcessHandle(uba::ProcessHandle* handle)
@@ -314,17 +327,10 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		return &process.GetStartInfo();
 	}
 
-/*
-	uba::SessionClient* CreateSessionClient(const uba::SessionClientCreateInfo& info)
-	{
-		using namespace uba;
-		return new SessionClient(info);
-	}
-*/
-
-	uba::SessionServerCreateInfo* CreateSessionServerCreateInfo(uba::Storage& storage, uba::NetworkServer& client, uba::LogWriter& writer, const uba::tchar* rootDir, const uba::tchar* traceOutputFile, bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem, bool allowKillOnMem)
+	uba::SessionServerCreateInfo* SessionServerCreateInfo_Create(uba::StorageServer& storage, uba::NetworkServer& client, uba::LogWriter& writer, const uba::tchar* rootDir, const uba::tchar* traceOutputFile, bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem, bool allowKillOnMem, bool storeObjFilesCompressed)
 	{
 		auto info = new uba::SessionServerCreateInfo(storage, client, writer);
+		info->Apply(uba::GetConfig());
 		info->rootDir = TStrdup(rootDir);
 		info->traceOutputFile = TStrdup(traceOutputFile);
 		info->disableCustomAllocator = disableCustomAllocator;
@@ -334,21 +340,22 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		info->detailedTrace = detailedTrace;
 		info->allowWaitOnMem = allowWaitOnMem;
 		info->allowKillOnMem = allowKillOnMem;
+		info->storeObjFilesCompressed = storeObjFilesCompressed;
 		//info->remoteTraceEnabled = true;
 		//info->remoteLogEnabled = true;
 		return info;
 	}
 
-	void DestroySessionServerCreateInfo(uba::SessionServerCreateInfo* info)
+	void SessionServerCreateInfo_Destroy(uba::SessionServerCreateInfo* info)
 	{
 		free((void*)info->traceOutputFile);
 		free((void*)info->rootDir);
 		delete info;
 	}
 
-	uba::SessionServer* CreateSessionServer(const uba::SessionServerCreateInfo& info)
+	uba::SessionServer* SessionServer_Create(const uba::SessionServerCreateInfo& info, const uba::u8* environment, uba::u32 environmentSize)
 	{
-		return new uba::SessionServer(info);
+		return new uba::SessionServer(info, environment, environmentSize);
 	}
 	void SessionServer_SetRemoteProcessAvailable(uba::SessionServer* server, SessionServer_RemoteProcessAvailableCallback* available, void* userData)
 	{
@@ -397,11 +404,13 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		server->PrintSummary(logger);
 		server->GetStorage().PrintSummary(logger);
 		server->GetServer().PrintSummary(logger);
-		uba::SystemStats::GetGlobal().Print(logger, true);
+		uba::KernelStats::GetGlobal().Print(logger, true);
 		uba::PrintContentionSummary(logger);
 	}
 	void SessionServer_CancelAll(uba::SessionServer* server)
 	{
+		++server->GetServer().GetLogger().isMuted; // Mute forever
+		++server->GetLogger().isMuted; // Mute forever
 		server->CancelAllProcessesAndWait();
 	}
 	void SessionServer_SetCustomCasKeyFromTrackedInputs(uba::SessionServer* server, uba::ProcessHandle* handle, const uba::tchar* fileName, const uba::tchar* workingDir)
@@ -418,9 +427,14 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		server->EndExternalProcess(id, exitCode);
 	}
 
-	void SessionServer_UpdateStatus(uba::SessionServer* server, uba::u32 statusIndex, uba::u32 statusNameIndent, const uba::tchar* statusName, uba::u32 statusTextIndent, const uba::tchar* statusText, uba::LogEntryType statusType)
+	void SessionServer_UpdateProgress(uba::SessionServer* server, uba::u32 processesTotal, uba::u32 processesDone, uba::u32 errorCount)
 	{
-		server->UpdateStatus(statusIndex, statusNameIndent, statusName, statusTextIndent, statusText, statusType);
+		server->UpdateProgress(processesTotal, processesDone, errorCount);
+	}
+
+	void SessionServer_UpdateStatus(uba::SessionServer* server, uba::u32 statusRow, uba::u32 statusColumn, const uba::tchar* statusText, uba::LogEntryType statusType, const uba::tchar* statusLink)
+	{
+		server->UpdateStatus(statusRow, statusColumn, statusText, statusType, statusLink);
 	}
 
 	void SessionServer_RegisterCustomService(uba::SessionServer* server, SessionServer_CustomServiceFunction* function, void* userData)
@@ -432,18 +446,43 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 			});
 	}
 
-	void DestroySessionServer(uba::SessionServer* server)
+	void SessionServer_Destroy(uba::SessionServer* server)
 	{
 		if (server)
 		{
 			auto& s = (uba::NetworkServerWithBackend&)server->GetServer();
-			s.networkBackend->StopListen();
+			s.backend->StopListen();
 			s.DisconnectClients();
 		}
 		delete server;
 	}
 
-	uba::ProcessStartInfo* CreateProcessStartInfo(const uba::tchar* application, const uba::tchar* arguments, const uba::tchar* workingDir, const uba::tchar* description, uba::u32 priorityClass, uba::u64 outputStatsThresholdMs, bool trackInputs, const uba::tchar* logFile, ProcessHandle_ExitCallback* exit)
+	uba::RootPaths* RootPaths_Create(uba::LogWriter& writer)
+	{
+		return new uba::RootPathsWithLogger(writer);
+	}
+
+	bool RootPaths_RegisterRoot(uba::RootPaths* rootPaths, const uba::tchar* path, bool includeInKey, uba::u8 id)
+	{
+		using namespace uba;
+		auto rp = (uba::RootPathsWithLogger*)rootPaths;
+		return rp->RegisterRoot(rp->logger, path, includeInKey, id);
+	}
+
+	bool RootPaths_RegisterSystemRoots(uba::RootPaths* rootPaths, uba::u8 startId)
+	{
+		using namespace uba;
+		auto rp = (uba::RootPathsWithLogger*)rootPaths;
+		return rp->RegisterSystemRoots(rp->logger, startId);
+	}
+
+	void RootPaths_Destroy(uba::RootPaths* rootPaths)
+	{
+		delete (uba::RootPathsWithLogger*)rootPaths;
+	}
+
+
+	uba::ProcessStartInfo* ProcessStartInfo_Create(const uba::tchar* application, const uba::tchar* arguments, const uba::tchar* workingDir, const uba::tchar* description, uba::u32 priorityClass, uba::u64 outputStatsThresholdMs, bool trackInputs, const uba::tchar* logFile, ProcessHandle_ExitCallback* exit)
 	{
 		auto info = new uba::ProcessStartInfo();
 		info->application = TStrdup(application);
@@ -457,7 +496,8 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		info->exitedFunc = exit;
 		return info;
 	}
-	void DestroyProcessStartInfo(uba::ProcessStartInfo* info)
+
+	void ProcessStartInfo_Destroy(uba::ProcessStartInfo* info)
 	{
 		free((void*)info->application);
 		free((void*)info->arguments);
@@ -470,8 +510,10 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 	uba::Scheduler* Scheduler_Create(uba::SessionServer* session, uba::u32 maxLocalProcessors, bool enableProcessReuse)
 	{
 		uba::SchedulerCreateInfo info{*session};
+		info.Apply(uba::GetConfig());
 		info.maxLocalProcessors = maxLocalProcessors;
 		info.enableProcessReuse = enableProcessReuse;
+		info.processConfigs = &uba::GetConfig();
 		return new uba::Scheduler(info);
 	}
 
@@ -480,14 +522,14 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		scheduler->Start();
 	}
 
-	void Scheduler_EnqueueProcess(uba::Scheduler* scheduler, const uba::ProcessStartInfo& info, float weight, const void* knownInputs, uba::u32 knownInputsBytes, uba::u32 knownInputsCount)
+	uba::u32 Scheduler_EnqueueProcess(uba::Scheduler* scheduler, const uba::ProcessStartInfo& info, float weight, const void* knownInputs, uba::u32 knownInputsBytes, uba::u32 knownInputsCount)
 	{
 		uba::EnqueueProcessInfo epi(info);
 		epi.weight = weight;
 		epi.knownInputs = knownInputs;
 		epi.knownInputsBytes = knownInputsBytes;
 		epi.knownInputsCount = knownInputsCount;
-		scheduler->EnqueueProcess(epi);
+		return scheduler->EnqueueProcess(epi);
 	}
 
 	void Scheduler_SetMaxLocalProcessors(uba::Scheduler* scheduler, uba::u32 maxLocalProcessors)
@@ -510,6 +552,128 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		scheduler->GetStats(outQueued, outActiveLocal, outActiveRemote, outFinished);
 	}
 
+	uba::CacheClient* CacheClient_Create(uba::SessionServer* session, bool reportMissReason, const uba::tchar* crypto)
+	{
+		using namespace uba;
+		LogWriter& writer = session->GetLogWriter();
+		StorageImpl& storage = (StorageImpl&)session->GetStorage();
+		auto& server = (NetworkServerWithBackend&)session->GetServer();
+
+		u8 crypto128Data[16];
+		u8* crypto128 = nullptr;
+		if (crypto && *crypto)
+		{
+			if (!CryptoFromString(crypto128Data, 16, crypto))
+			{
+				LoggerWithWriter(writer, TC("UbaCacheClient")).Error(TC("Failed to parse crypto key %s"), crypto);
+				return nullptr;
+			}
+			crypto128 = crypto128Data;
+		}
+
+		NetworkClientCreateInfo ncci(writer);
+		ncci.receiveTimeoutSeconds = 60;
+		ncci.cryptoKey128 = crypto128;
+		bool ctorSuccess = false;
+		auto networkClient = new NetworkClientWithBackend(ctorSuccess, ncci, server.backend, TC("UbaCache"));
+		if (!ctorSuccess)
+		{
+			delete networkClient;
+			return nullptr;
+		}
+		CacheClientCreateInfo info{writer, storage, *networkClient, *session};
+		info.Apply(GetConfig());
+
+		info.reportMissReason = reportMissReason;
+		return new CacheClient(info);
+	}
+
+	bool CacheClient_Connect(uba::CacheClient* cacheClient, const uba::tchar* host, int port)
+	{
+		using namespace uba;
+		auto& networkClient = (NetworkClientWithBackend&)cacheClient->GetClient();
+
+		if (!networkClient.Connect(*networkClient.backend, host, u16(port)))
+			return false;
+		cacheClient->GetStorage().LoadCasTable();
+		return true;
+	}
+
+	bool CacheClient_WriteToCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessHandle* process, const uba::u8* inputs, uba::u32 inputsSize, const uba::u8* outputs, uba::u32 outputsSize)
+	{
+		using namespace uba;
+		StackBinaryWriter<16*1024> logLinesWriter;
+
+		auto& logLines = process->GetLogLines();
+		for (auto& line : logLines)
+		{
+			if (logLinesWriter.GetCapacityLeft() < 1 + GetStringWriteSize(line.text.c_str(), line.text.size()))
+				break;
+			logLinesWriter.WriteString(line.text);
+			logLinesWriter.WriteByte(line.type);
+		}
+
+		return cacheClient->WriteToCache(*rootPaths, bucket, process->GetStartInfo(), inputs, inputsSize, outputs, outputsSize, logLinesWriter.GetData(), logLinesWriter.GetPosition(), process->GetId());
+	}
+
+	bool CacheClient_WriteToCache2(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessHandle* process, const uba::u8* inputs, uba::u32 inputsSize, const uba::u8* outputs, uba::u32 outputsSize, const uba::u8* logLines, uba::u32 logLinesSize)
+	{
+		return cacheClient->WriteToCache(*rootPaths, bucket, process->GetStartInfo(), inputs, inputsSize, outputs, outputsSize, logLines, logLinesSize, process->GetId());
+	}
+
+	uba::u32 CacheClient_FetchFromCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessStartInfo& info)
+	{
+		using namespace uba;
+		CacheResult cacheResult;
+		bool res = cacheClient->FetchFromCache(cacheResult, *rootPaths, bucket, info);
+		return (res && cacheResult.hit) ? 1 : 0;
+	}
+
+	uba::CacheResult* CacheClient_FetchFromCache2(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessStartInfo& info)
+	{
+		using namespace uba;
+		auto cacheResult = new CacheResult();
+		if (cacheClient->FetchFromCache(*cacheResult, *rootPaths, bucket, info))
+			return cacheResult;
+		delete cacheResult;
+		return nullptr;
+	}
+
+	void CacheClient_RequestServerShutdown(uba::CacheClient* cacheClient, const uba::tchar* reason)
+	{
+		cacheClient->RequestServerShutdown(reason);
+	}
+
+	void CacheClient_Destroy(uba::CacheClient* cacheClient)
+	{
+		using namespace uba;
+		auto& networkClient = (NetworkClientWithBackend&)cacheClient->GetClient();
+		networkClient.Disconnect();
+		delete cacheClient;
+		delete &networkClient;
+	}
+
+	const uba::tchar* CacheResult_GetLogLine(uba::CacheResult* result, uba::u32 index)
+	{
+		auto& lines = result->logLines;
+		if (index >= lines.size())
+			return nullptr;
+		return lines[index].text.c_str();
+	}
+
+	uba::u32 CacheResult_GetLogLineType(uba::CacheResult* result, uba::u32 index)
+	{
+		auto& lines = result->logLines;
+		if (index >= lines.size())
+			return 0;
+		return uba::u32(lines[index].type);
+	}
+
+	void CacheResult_Delete(uba::CacheResult* result)
+	{
+		delete result;
+	}
+
 	void Uba_SetCustomAssertHandler(Uba_CustomAssertHandler* handler)
 	{
 		uba::SetCustomAssertHandler(handler);
@@ -518,7 +682,134 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 	void Uba_FindImports(const uba::tchar* binary, ImportFunc* func, void* userData)
 	{
 #if PLATFORM_WINDOWS
-		uba::FindImports(binary, [&](const uba::tchar* importName, bool isKnown) { func(importName, userData); });
+		uba::StringBuffer<> errors;
+		uba::FindImports(binary, [&](const uba::tchar* importName, bool isKnown, const char* const* importLoaderPaths) { func(importName, userData); }, errors);
 #endif
+	}
+
+	struct UbaInstance
+	{
+		uba::Scheduler* scheduler;
+		uba::TString workDir;
+		uba::CoordinatorWrapper coordinator;
+	};
+
+	void* Uba_Create(const uba::tchar* configFile)
+	{
+		using namespace uba;
+		auto& config = GetConfig(configFile);
+		auto networkServer = (uba::NetworkServerWithBackend*)NetworkServer_Create();
+		auto storageServer = StorageServer_Create(*networkServer, nullptr, 0, true);
+
+		SessionServerCreateInfo ssci((Storage&)*storageServer, *networkServer);
+		ssci.Apply(config);
+		auto sessionServer = SessionServer_Create(ssci);
+
+		uba::SchedulerCreateInfo sci{*sessionServer};
+		sci.Apply(config);
+		sci.processConfigs = &config;
+		auto scheduler = new uba::Scheduler(sci);
+		scheduler->Start();
+
+		bool networkListen = true;
+		if (auto* ubaTable = config.GetTable(TC("Uba")))
+			ubaTable->GetValueAsBool(networkListen, TC("NetworkListen"));
+
+		if (networkListen)
+			NetworkServer_StartListen(networkServer);
+
+		auto ubaInstance = new UbaInstance();
+		ubaInstance->scheduler = scheduler;
+		
+		StringBuffer<> temp;
+		GetCurrentDirectoryW(temp);
+		ubaInstance->workDir = temp.data;
+
+		if (auto coordinatorTable = config.GetTable(TC("Coordinator")))
+		{
+			const tchar* coordinatorName;
+			if (coordinatorTable->GetValueAsString(coordinatorName, TC("Name")))
+			{
+				auto& logger = sessionServer->GetLogger();
+				const tchar* rootDir = nullptr;
+				coordinatorTable->GetValueAsString(rootDir, TC("RootDir"));
+				if (!rootDir)
+					rootDir = sessionServer->GetRootDir();
+				StringBuffer<512> coordinatorWorkDir(rootDir);
+				coordinatorWorkDir.EnsureEndsWithSlash().Append(coordinatorName);
+				StringBuffer<512> binariesDir;
+				if (!GetDirectoryOfCurrentModule(logger, binariesDir))
+					return nullptr;
+
+				CoordinatorCreateInfo cinfo;
+				cinfo.workDir = coordinatorWorkDir.data;
+				cinfo.binariesDir = binariesDir.data;
+
+				coordinatorTable->GetValueAsString(cinfo.pool, TC("Pool"));
+				UBA_ASSERT(cinfo.pool);
+
+				cinfo.maxCoreCount = 500;
+				coordinatorTable->GetValueAsU32(cinfo.maxCoreCount, TC("MaxCoreCount"));
+
+				cinfo.logging = false;
+				coordinatorTable->GetValueAsBool(cinfo.logging, TC("Log"));
+
+				const tchar* uri = nullptr;
+				if (coordinatorTable->GetValueAsString(uri, TC("Uri")))
+					uba::SetEnvironmentVariableW(TC("UE_HORDE_URL"), uri);
+
+				if (!ubaInstance->coordinator.Create(logger, coordinatorName, cinfo, *networkServer->backend, *networkServer, scheduler))
+					return nullptr;
+			}
+		}
+
+		return ubaInstance;
+	}
+
+	uba::u32 Uba_RunProcess(void* uba, const uba::tchar* app, const uba::tchar* args, const uba::tchar* workDir, const uba::tchar* desc, void* userData, ProcessHandle_ExitCallback* exit)
+	{
+		using namespace uba;
+
+		auto& ubaInstance = *(UbaInstance*)uba;
+
+		if (!workDir)
+			workDir = ubaInstance.workDir.data();
+
+		auto scheduler = ubaInstance.scheduler;
+		ProcessStartInfo info;
+		info.application = app;
+		info.arguments = args;
+		info.workingDir = workDir;
+		info.description = desc;
+		info.userData = userData;
+		info.exitedFunc = exit;
+		return Scheduler_EnqueueProcess(scheduler, info, 1.0f, nullptr, 0, 0);
+	}
+
+	void Uba_RegisterNewFile(void* uba, const uba::tchar* file)
+	{
+		using namespace uba;
+		auto& ubaInstance = *(UbaInstance*)uba;
+		ubaInstance.scheduler->GetSession().RegisterNewFile(file);
+	}
+
+	void Uba_Destroy(void* uba)
+	{
+		using namespace uba;
+		auto ubaInstance = (UbaInstance*)uba;
+		auto scheduler = ubaInstance->scheduler;
+		auto sessionServer = &scheduler->GetSession();
+		auto storageServer = (StorageServer*)&sessionServer->GetStorage();
+		auto networkServer = &sessionServer->GetServer();
+
+		NetworkServer_Stop(networkServer);
+		SessionServer_CancelAll(sessionServer);
+
+		delete ubaInstance;
+
+		Scheduler_Destroy(scheduler);
+		SessionServer_Destroy(sessionServer);
+		StorageServer_Destroy(storageServer);
+		NetworkServer_Destroy(networkServer);
 	}
 }

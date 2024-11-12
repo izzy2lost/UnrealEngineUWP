@@ -7,14 +7,13 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogStaticMeshBuilder, Log, All);
 
+class ITargetPlatform;
 class UStaticMesh;
 class FStaticMeshRenderData;
 class FStaticMeshLODGroup;
-class USkeletalMesh;
 struct FOverlappingCorners;
 struct FMeshDescription;
 struct FMeshBuildSettings;
-
 
 class MESHBUILDER_API FStaticMeshBuilder : public FMeshBuilder
 {
@@ -22,6 +21,9 @@ public:
 	FStaticMeshBuilder();
 	virtual ~FStaticMeshBuilder() {}
 
+	virtual bool Build(FStaticMeshRenderData& OutRenderData, const FStaticMeshBuildParameters& BuildParameters) override;
+
+	UE_DEPRECATED(5.5, "Use FStaticMeshBuildParameters instead.")
 	virtual bool Build(
 		FStaticMeshRenderData& OutRenderData,
 		UStaticMesh* StaticMesh,

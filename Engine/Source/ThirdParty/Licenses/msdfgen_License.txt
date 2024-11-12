@@ -1,12 +1,12 @@
 ============================================================================================================
 Software Name:  Multi-channel signed distance field generator
-Version: V1.10
+Version: V1.12
 URL:https://github.com/Chlumsky/msdfgen/blob/master/LICENSE.txt
 =============================================================================================================
 
 MIT License
 
-Copyright (c) 2016 - 2023 Viktor Chlumsky
+Copyright (c) 2016 - 2024 Viktor Chlumsky
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

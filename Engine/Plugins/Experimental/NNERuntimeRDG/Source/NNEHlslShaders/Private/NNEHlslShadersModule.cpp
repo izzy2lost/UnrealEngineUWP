@@ -4,7 +4,7 @@
 #include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
-#include "NNE.h"
+#include "NNEHlslShadersLog.h"
 #include "ShaderCore.h"
 
 class FNNEHlslShadersModule : public IModuleInterface
@@ -13,22 +13,17 @@ public:
 	// Begin IModuleInterface
 	virtual void StartupModule() override
 	{
-		FString BaseDir;
-
 		const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("NNERuntimeRDG"));
-		
 		if (Plugin.IsValid())
 		{
-			BaseDir = Plugin->GetBaseDir() + TEXT("/Source/NNEHlslShaders");
+			const FString ShadersDir = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Shaders/Private/NNEHlslShaders"));
+			AddShaderSourceDirectoryMapping(TEXT("/NNEHlslShaders"), ShadersDir);
 		}
 		else
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Shaders directory not added. Failed to find NNE plugin"));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Shaders directory not added. Failed to find NNERuntimeRDG plugin"));
 		}
 
-		FString ModuleShaderDir = FPaths::Combine(BaseDir, TEXT("Shaders"));
-		
-		AddShaderSourceDirectoryMapping(TEXT("/NNE"), ModuleShaderDir);
 	}
 
 	virtual void ShutdownModule() override

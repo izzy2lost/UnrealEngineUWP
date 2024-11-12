@@ -35,6 +35,9 @@ struct FPropertyAnimatorCoreData
 	/** Take the owner, the property chain until the inner property and lastly the inner property */
 	PROPERTYANIMATORCORE_API explicit FPropertyAnimatorCoreData(UObject* InObject, const TArray<FProperty*>& InChainProperties, FProperty* InProperty, TSubclassOf<UPropertyAnimatorCoreResolver> InResolverClass = nullptr);
 
+	/** Takes an actor and a locator path, tries to resolve property and owner */
+	PROPERTYANIMATORCORE_API explicit FPropertyAnimatorCoreData(AActor* InActor, const FString& InPropertyLocatorPath);
+
 	/** Is this a resolvable property that uses a custom resolver */
 	PROPERTYANIMATORCORE_API bool IsResolvable() const;
 
@@ -77,6 +80,11 @@ struct FPropertyAnimatorCoreData
 		return OwnerWeak;
 	}
 
+	/** Returns chain of owner until it reaches StopOuter */
+	TArray<UObject*> GetOuters(const UObject* InStopOuter) const;
+
+	TArray<FString> GetOuterNames() const;
+
 	/** The member property of the owner, top property inside the owner itself */
 	FProperty* GetMemberProperty() const
 	{
@@ -89,11 +97,8 @@ struct FPropertyAnimatorCoreData
 		return !ChainProperties.IsEmpty() ? ChainProperties.Last().Get() : nullptr;
 	}
 
-	/** The full friendly display name from the member property to the inner property */
-	FName GetPropertyDisplayName() const
-	{
-		return PropertyDisplayName;
-	}
+	/** The friendly display name from the member property to the inner property */
+	PROPERTYANIMATORCORE_API FString GetPropertyDisplayName() const;
 
 	/** The full path of a property with its owner */
 	FString GetPathHash() const
@@ -101,11 +106,18 @@ struct FPropertyAnimatorCoreData
 		return PathHash;
 	}
 
+	/** Creates a single path that contains resolver, owner and properties for (de)serialization */
+	FString GetPropertyLocatorPath() const;
+
 	/** The member property name */
 	PROPERTYANIMATORCORE_API FName GetMemberPropertyName() const;
 
+	PROPERTYANIMATORCORE_API FName GetMemberPropertyTypeName() const;
+
 	/** The leaf property name */
 	PROPERTYANIMATORCORE_API FName GetLeafPropertyName() const;
+
+	PROPERTYANIMATORCORE_API FName GetLeafPropertyTypeName() const;
 
 	/** The chain properties from member to inner property */
 	PROPERTYANIMATORCORE_API TArray<FProperty*> GetChainProperties() const;
@@ -134,6 +146,7 @@ struct FPropertyAnimatorCoreData
 	/** Returns the top most parent / member property if there is one */
 	PROPERTYANIMATORCORE_API TOptional<FPropertyAnimatorCoreData> GetRootParent() const;
 
+	/** Checks if this property is of a specific type */
 	template<typename InPropertyClass
 		UE_REQUIRES(std::is_base_of_v<FProperty, InPropertyClass>)>
 	bool IsA() const
@@ -141,6 +154,25 @@ struct FPropertyAnimatorCoreData
 		if (const FProperty* LeafProperty = GetLeafProperty())
 		{
 			return LeafProperty->IsA(InPropertyClass::StaticClass());
+		}
+
+		return false;
+	}
+
+	/** Gets the children of this property */
+	TArray<FPropertyAnimatorCoreData> GetChildrenProperties(int32 InDepthSearch = 3) const;
+
+	/** Checks if this property contains a specific type */
+	template<typename InPropertyClass
+		UE_REQUIRES(std::is_base_of_v<FProperty, InPropertyClass>)>
+	bool HasA() const
+	{
+		for (const FPropertyAnimatorCoreData& ChildProperty : GetChildrenProperties())
+		{
+			if (ChildProperty.IsA<InPropertyClass>())
+			{
+				return true;
+			}
 		}
 
 		return false;
@@ -169,11 +201,13 @@ struct FPropertyAnimatorCoreData
 	/** Gets the property handler to perform operation on property without knowing the type */
 	UPropertyAnimatorCoreHandlerBase* GetPropertyHandler() const;
 
+	/** Internal use only, create the hash and display name */
+	void GeneratePropertyPath();
+
 private:
 	static void CopyPropertyValue(const FProperty* InProperty, const void* InSrc, void* OutDest);
 
-	/** Internal use only, used to quickly identify a data within a controller */
-	explicit FPropertyAnimatorCoreData(const FString& InPathHash, FName InDisplayName);
+	static FName GetPropertyTypeName(const FProperty* InProperty);
 
 	/** Internal use only, get property value */
 	void GetPropertyValuePtrInternal(void* OutValue) const;
@@ -190,9 +224,6 @@ private:
 	/** Uses chained properties to resolve from container to */
 	void* ContainerToValuePtr(const void* InContainer, int32 InStartPropertyIndex) const;
 
-	/** Internal use only, create the hash and display name */
-	void GeneratePropertyPath();
-
 	/** Tries to find setter function for this property */
 	bool FindSetterFunctions();
 
@@ -200,9 +231,9 @@ private:
 	UPROPERTY()
 	TWeakObjectPtr<UObject> OwnerWeak;
 
-	/** The friendly display name of the property we are controlling */
-	UPROPERTY(VisibleInstanceOnly, Category="Property")
-	FName PropertyDisplayName;
+	/** The cached friendly display name of the property we are controlling */
+	UPROPERTY(Transient)
+	FString PropertyDisplayName;
 
 	/** Used to quickly compare struct of this type */
 	UPROPERTY()

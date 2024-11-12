@@ -54,10 +54,4 @@ namespace ImgMedia
 
 	/** Name of the NumTilesY media option. */
 	static const FName NumTilesYOption("ImgNumTilesY");
-
-	/** Name of the smart cache media option. */
-	static const FName SmartCacheEnabled("ImgMediaSmartCacheEnabled");
-
-	/** Name of the smart cache time to look ahead media option. */
-	static const FName SmartCacheTimeToLookAhead("ImgMediaSmartCacheTimeToLookAhead");
 }

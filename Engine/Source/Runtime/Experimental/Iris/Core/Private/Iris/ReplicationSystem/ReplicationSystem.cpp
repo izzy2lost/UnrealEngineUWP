@@ -7,8 +7,12 @@
 #include "Iris/Core/IrisMemoryTracker.h"
 #include "Iris/Core/IrisProfiler.h"
 #include "Iris/Core/NetObjectReference.h"
+
 #include "Net/Core/Trace/NetTrace.h"
 #include "Net/Core/Misc/NetConditionGroupManager.h"
+#include "Net/Core/Connection/NetEnums.h"
+#include "Net/Core/NetToken/NetToken.h"
+
 #include "Iris/ReplicationState/ReplicationStateUtil.h"
 #include "Iris/ReplicationSystem/ChangeMaskCache.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
@@ -24,6 +28,9 @@
 #include "Iris/Serialization/NetBitStreamWriter.h"
 #include "Iris/Serialization/NetSerializer.h"
 #include "Iris/Serialization/IrisObjectReferencePackageMap.h"
+
+#include "Iris/Metrics/NetMetrics.h"
+
 #include "HAL/IConsoleManager.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "UObject/UObjectGlobals.h"
@@ -37,6 +44,9 @@ static FAutoConsoleVariableRef CVarForcePruneBeforeUpdate(TEXT("net.Iris.ForcePr
 static bool bAllowAttachmentSendPolicyFlags = true;
 static FAutoConsoleVariableRef CVarAllowAttachmentSendPolicyFlags(TEXT("net.Iris.Attachments.AllowSendPolicyFlags"), bAllowAttachmentSendPolicyFlags, TEXT("Allow use of ENetObjectAttachmentSendPolicyFlags to specify behavior of RPCs."));
 
+static bool bOnlyResetDirtinessForQuantizedObjects = true;
+static FAutoConsoleVariableRef CVarOnlyResetDirtinessForQuantizedObjects(TEXT("net.Iris.OnlyResetDirtinessForQuantizedObjects"), bOnlyResetDirtinessForQuantizedObjects, TEXT("Only Reset Dirtiness For QuantizedObjects, optimization that only resets dirtiness for objects actually considered dirty."));
+
 }
 
 namespace UE::Net::Private
@@ -47,6 +57,7 @@ class FReplicationSystemImpl
 public:
 	TMap<FObjectKey, ENetObjectAttachmentSendPolicyFlags> AttachmentSendPolicyFlags;
 	UReplicationSystem* ReplicationSystem;
+	FNetTokenStore* NetTokenStore;
 	FReplicationSystemInternal ReplicationSystemInternal;
 	uint64 IrisDebugHelperDummy = 0U;
 	FNetObjectGroupHandle NotReplicatedNetObjectGroupHandle;
@@ -55,10 +66,23 @@ public:
 	FNetBitArray ConnectionsPendingPostTickDispatchSend;
 	EReplicationSystemSendPass CurrentSendPass = EReplicationSystemSendPass::Invalid;
 
+	FName MetricNameTotalRootObjects;
+	FName MetricNameTotalSubObjects;
+
 	explicit FReplicationSystemImpl(UReplicationSystem* InReplicationSystem, const UReplicationSystem::FReplicationSystemParams& Params)
 	: ReplicationSystem(InReplicationSystem)
-	, ReplicationSystemInternal(FReplicationSystemInternalInitParams({ InReplicationSystem->GetId(), Params.MaxReplicatedObjectCount, Params.PreAllocatedReplicatedObjectCount, Params.MaxReplicatedWriterObjectCount }))
+	, NetTokenStore(Params.NetTokenStore)
+	, ReplicationSystemInternal(
+		FReplicationSystemInternalInitParams(
+		{ 
+			.ReplicationSystemId = InReplicationSystem->GetId(),
+			.MaxReplicatedObjectCount = Params.MaxReplicatedObjectCount,
+			.NetChunkedArrayCount = Params.PreAllocatedMemoryBuffersObjectCount,
+			.MaxReplicationWriterObjectCount = Params.MaxReplicationWriterObjectCount,
+		}))
 	{
+		MetricNameTotalRootObjects = TEXT("TotalSubObjects");
+		MetricNameTotalSubObjects = TEXT("TotalRootObjects");
 	}
 
 	~FReplicationSystemImpl()
@@ -67,7 +91,7 @@ public:
 
 	void InitDefaultFilteringGroups()
 	{
-		NotReplicatedNetObjectGroupHandle = ReplicationSystem->CreateGroup();
+		NotReplicatedNetObjectGroupHandle = ReplicationSystem->CreateGroup(FName(TEXT("NotReplicated")));
 		check(NotReplicatedNetObjectGroupHandle.IsNotReplicatedNetObjectGroup());
 		ReplicationSystem->AddExclusionFilterGroup(NotReplicatedNetObjectGroupHandle);
 		
@@ -81,17 +105,39 @@ public:
 
 	void Init(const UReplicationSystem::FReplicationSystemParams& Params)
 	{
-		LLM_SCOPE_BYTAG(Iris);
-
 #if !UE_BUILD_SHIPPING
 		IrisDebugHelperDummy = UE::Net::IrisDebugHelper::Init();
 #endif
-
 		const uint32 ReplicationSystemId = ReplicationSystem->GetId();
 
-		FNetRefHandleManager& NetRefHandleManager = ReplicationSystemInternal.GetNetRefHandleManager();
+		// Verify that we got a NetTokenStore and that it is configured as we expect.
+		bool bHasValidNetTokenStore = ensureAlwaysMsgf(Params.NetTokenStore, TEXT("ReplicationSystem cannot be initialized without a valid NetTokenStore"));
+		bHasValidNetTokenStore = bHasValidNetTokenStore && ensureAlwaysMsgf(Params.NetTokenStore->GetDataStore<FStringTokenStore>(), TEXT("ReplicationSystem cannot be initialized without a StringTokenStore"));
+		bHasValidNetTokenStore = bHasValidNetTokenStore && ensureAlwaysMsgf(Params.NetTokenStore->GetDataStore<FNameTokenStore>(), TEXT("ReplicationSystem cannot be initialized without a NameTokenStore"));
 
-		const uint32 MaxObjectCount =  NetRefHandleManager.GetMaxActiveObjectCount();
+		if (!bHasValidNetTokenStore)
+		{
+			LowLevelFatalError(TEXT("Cannot initialize ReplicationSystem with invalid NetTokenStore"));
+			return;
+		}
+
+		FNetRefHandleManager& NetRefHandleManager = ReplicationSystemInternal.GetNetRefHandleManager();
+		{
+			FNetRefHandleManager::FInitParams NetRefHandleManagerInitParams;
+			NetRefHandleManagerInitParams.ReplicationSystemId = ReplicationSystemId;
+			NetRefHandleManagerInitParams.MaxActiveObjectCount = Params.MaxReplicatedObjectCount;
+			NetRefHandleManagerInitParams.InternalNetRefIndexInitSize = Params.InitialNetObjectListCount;
+			NetRefHandleManagerInitParams.InternalNetRefIndexGrowSize = Params.NetObjectListGrowCount;
+			NetRefHandleManagerInitParams.NetChunkedArrayCount = Params.PreAllocatedMemoryBuffersObjectCount;
+			NetRefHandleManager.Init(NetRefHandleManagerInitParams);
+
+			NetRefHandleManager.GetOnMaxInternalNetRefIndexIncreasedDelegate().AddRaw(this, &FReplicationSystemImpl::OnMaxInternalNetRefIndexIncreased);
+		}
+
+		// Note that Params.MaxReplicatedObjectCount was just a suggestion for the NetRefHandleManager.
+		// From here systems must rely on the NetRefHandleManager configuration.
+		const uint32 AbsoluteMaxObjectCount =  NetRefHandleManager.GetMaxActiveObjectCount();
+		const uint32 CurrentMaxInternalNetRefIndex = NetRefHandleManager.GetCurrentMaxInternalNetRefIndex();
 
 		// DirtyNetObjectTracking is only needed when object replication is allowed
 		if (Params.bAllowObjectReplication)
@@ -101,111 +147,111 @@ public:
 
 			DirtyNetObjectTrackerInitParams.NetRefHandleManager = &NetRefHandleManager;
 			DirtyNetObjectTrackerInitParams.ReplicationSystemId = ReplicationSystemId;
-			DirtyNetObjectTrackerInitParams.MaxObjectCount = MaxObjectCount;
-			DirtyNetObjectTrackerInitParams.NetObjectIndexRangeStart = 1;
-			DirtyNetObjectTrackerInitParams.NetObjectIndexRangeEnd = MaxObjectCount - 1U;
+			DirtyNetObjectTrackerInitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 
 			ReplicationSystemInternal.InitDirtyNetObjectTracker(DirtyNetObjectTrackerInitParams);
 		}
 
-		FReplicationStateStorage& StateStorage = ReplicationSystemInternal.GetReplicationStateStorage();
 		{
+			FReplicationStateStorage& StateStorage = ReplicationSystemInternal.GetReplicationStateStorage();
 			FReplicationStateStorageInitParams InitParams;
 			InitParams.ReplicationSystem = ReplicationSystem;
 			InitParams.NetRefHandleManager = &NetRefHandleManager;
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.MaxObjectCount = AbsoluteMaxObjectCount;
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			InitParams.MaxConnectionCount = ReplicationSystemInternal.GetConnections().GetMaxConnectionCount();
 			InitParams.MaxDeltaCompressedObjectCount = Params.MaxDeltaCompressedObjectCount;
 			StateStorage.Init(InitParams);
 		}
 
-		FNetObjectGroups& Groups = ReplicationSystemInternal.GetGroups();
 		{
+			FNetObjectGroups& Groups = ReplicationSystemInternal.GetGroups();
 			FNetObjectGroupInitParams InitParams = {};
 			InitParams.NetRefHandleManager = &NetRefHandleManager;
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			InitParams.MaxGroupCount = Params.MaxNetObjectGroupCount;
 
 			Groups.Init(InitParams);
 		}
 
-		FReplicationStateDescriptorRegistry& Registry = ReplicationSystemInternal.GetReplicationStateDescriptorRegistry();
 		{
+			FReplicationStateDescriptorRegistry& Registry = ReplicationSystemInternal.GetReplicationStateDescriptorRegistry();
 			FReplicationStateDescriptorRegistryInitParams InitParams = {};
 			InitParams.ProtocolManager = &ReplicationSystemInternal.GetReplicationProtocolManager();
 
 			Registry.Init(InitParams);
 		}		
 
-		FNetCullDistanceOverrides& NetCullDistanceOverrides = ReplicationSystemInternal.GetNetCullDistanceOverrides();
 		{
+			FNetCullDistanceOverrides& NetCullDistanceOverrides = ReplicationSystemInternal.GetNetCullDistanceOverrides();
 			FNetCullDistanceOverridesInitParams InitParams;
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			NetCullDistanceOverrides.Init(InitParams);
 		}
 
-		FWorldLocations& WorldLocations = ReplicationSystemInternal.GetWorldLocations();
 		{
+			FWorldLocations& WorldLocations = ReplicationSystemInternal.GetWorldLocations();
 			FWorldLocationsInitParams InitParams;
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			WorldLocations.Init(InitParams);
 		}
 	
-		FDeltaCompressionBaselineInvalidationTracker& DeltaCompressionBaselineInvalidationTracker = ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker();
-		FDeltaCompressionBaselineManager& DeltaCompressionBaselineManager = ReplicationSystemInternal.GetDeltaCompressionBaselineManager();
 		{
+			FDeltaCompressionBaselineInvalidationTracker& DeltaCompressionBaselineInvalidationTracker = ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker();
 			FDeltaCompressionBaselineInvalidationTrackerInitParams InitParams;
-			InitParams.BaselineManager = &DeltaCompressionBaselineManager;
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.BaselineManager = &ReplicationSystemInternal.GetDeltaCompressionBaselineManager();
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			DeltaCompressionBaselineInvalidationTracker.Init(InitParams);
 		}
+
 		{
+			FDeltaCompressionBaselineManager& DeltaCompressionBaselineManager = ReplicationSystemInternal.GetDeltaCompressionBaselineManager();
 			FDeltaCompressionBaselineManagerInitParams InitParams;
-			InitParams.BaselineInvalidationTracker = &DeltaCompressionBaselineInvalidationTracker;
+			InitParams.BaselineInvalidationTracker = &ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker();
 			InitParams.Connections = &ReplicationSystemInternal.GetConnections();
 			InitParams.NetRefHandleManager = &NetRefHandleManager;
-			InitParams.ReplicationStateStorage = &StateStorage;
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.ReplicationStateStorage = &ReplicationSystemInternal.GetReplicationStateStorage();
+			InitParams.MaxNetObjectCount = AbsoluteMaxObjectCount;
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			InitParams.MaxDeltaCompressedObjectCount = Params.MaxDeltaCompressedObjectCount;
 			InitParams.ReplicationSystem = ReplicationSystem;
 			DeltaCompressionBaselineManager.Init(InitParams);
 		}
 
-		FReplicationFiltering& ReplicationFiltering = ReplicationSystemInternal.GetFiltering();
 		{
+			FReplicationFiltering& ReplicationFiltering = ReplicationSystemInternal.GetFiltering();
 			FReplicationFilteringInitParams InitParams;
 			InitParams.ReplicationSystem = ReplicationSystem;
 			InitParams.Connections = &ReplicationSystemInternal.GetConnections();
 			InitParams.NetRefHandleManager = &NetRefHandleManager;
-			InitParams.Groups = &Groups;
-			InitParams.BaselineInvalidationTracker = &ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker();
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.Groups = &ReplicationSystemInternal.GetGroups();
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			InitParams.MaxGroupCount = Params.MaxNetObjectGroupCount;
 			ReplicationFiltering.Init(InitParams);
 		}
 
 		InitDefaultFilteringGroups();
 
-		FReplicationConditionals& ReplicationConditionals = ReplicationSystemInternal.GetConditionals();
 		{
+			FReplicationConditionals& ReplicationConditionals = ReplicationSystemInternal.GetConditionals();
 			FReplicationConditionalsInitParams InitParams = {};
 			InitParams.NetRefHandleManager = &NetRefHandleManager;
 			InitParams.ReplicationConnections = &ReplicationSystemInternal.GetConnections();
-			InitParams.ReplicationFiltering = &ReplicationFiltering;
-			InitParams.NetObjectGroups = &Groups;
+			InitParams.ReplicationFiltering = &ReplicationSystemInternal.GetFiltering();
+			InitParams.NetObjectGroups = &ReplicationSystemInternal.GetGroups();
 			InitParams.BaselineInvalidationTracker = &ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker();
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			InitParams.MaxConnectionCount = ReplicationSystemInternal.GetConnections().GetMaxConnectionCount();
 			ReplicationConditionals.Init(InitParams);
 		}
 
-		FReplicationPrioritization& ReplicationPrioritization = ReplicationSystemInternal.GetPrioritization();
 		{
+			FReplicationPrioritization& ReplicationPrioritization = ReplicationSystemInternal.GetPrioritization();
 			FReplicationPrioritizationInitParams InitParams;
 			InitParams.ReplicationSystem = ReplicationSystem;
 			InitParams.Connections = &ReplicationSystemInternal.GetConnections();
 			InitParams.NetRefHandleManager = &NetRefHandleManager;
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			ReplicationPrioritization.Init(InitParams);
 		}
 
@@ -223,8 +269,8 @@ public:
 			ReplicationSystemInternal.SetIrisObjectReferencePackageMap(ObjectReferencePackageMap);
 		}
 
-		FNetBlobManager& BlobManager = ReplicationSystemInternal.GetNetBlobManager();
 		{
+			FNetBlobManager& BlobManager = ReplicationSystemInternal.GetNetBlobManager();
 			FNetBlobManagerInitParams InitParams = {};
 			InitParams.ReplicationSystem = ReplicationSystem;
 			InitParams.bSendAttachmentsWithObject = ReplicationSystem->IsServer();
@@ -238,8 +284,8 @@ public:
 
 		ConnectionsPendingPostTickDispatchSend.Init(ReplicationSystemInternal.GetConnections().GetMaxConnectionCount());
 
-		FNetTypeStats& NetStats = ReplicationSystemInternal.GetNetTypeStats();
 		{
+			FNetTypeStats& NetStats = ReplicationSystemInternal.GetNetTypeStats();
 			FNetTypeStats::FInitParams InitParams;
 			InitParams.NetRefHandleManager = &NetRefHandleManager;
 			NetStats.Init(InitParams);
@@ -248,7 +294,16 @@ public:
 
 	void Deinit()
 	{
+		ReplicationSystemInternal.GetPrioritization().Deinit();
+		ReplicationSystemInternal.GetFiltering().Deinit();
 		ReplicationSystemInternal.GetConnections().Deinit();
+		ReplicationSystemInternal.GetDeltaCompressionBaselineManager().Deinit();
+		ReplicationSystemInternal.GetReplicationStateStorage().Deinit();
+
+		if (ReplicationSystemInternal.IsDirtyNetObjectTrackerInitialized())
+		{
+			ReplicationSystemInternal.GetDirtyNetObjectTracker().Deinit();
+		}
 
 		// Reset replication bridge
 		ReplicationSystemInternal.GetReplicationBridge()->Deinitialize();
@@ -259,6 +314,22 @@ public:
 			ObjectReferencePackageMap->MarkAsGarbage();
 			ReplicationSystemInternal.SetIrisObjectReferencePackageMap(static_cast<UIrisObjectReferencePackageMap*>(nullptr));
 		}
+
+		ReplicationSystemInternal.GetNetRefHandleManager().GetOnMaxInternalNetRefIndexIncreasedDelegate().RemoveAll(this);
+		ReplicationSystemInternal.GetNetRefHandleManager().Deinit();
+	}
+
+	void OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex)
+	{
+		ReplicationSystemInternal.GetReplicationStateStorage().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetGroups().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetNetCullDistanceOverrides().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetWorldLocations().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetDeltaCompressionBaselineManager().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetFiltering().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetConditionals().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetPrioritization().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
 	}
 
 	void StartPreSendUpdate()
@@ -288,8 +359,8 @@ public:
 		// Store the scope list for the next SendUpdate.
 		ReplicationSystemInternal.GetNetRefHandleManager().OnPostSendUpdate();
 
-		// Update handles pending tear-off
-		ReplicationSystemInternal.GetReplicationBridge()->UpdateHandlesPendingTearOff();
+		// Update handles pending tear-off/end-replication
+		ReplicationSystemInternal.GetReplicationBridge()->UpdateHandlesPendingEndReplication();
 
 		// Reset baseline invalidation
 		ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker().PostSendUpdate();
@@ -310,7 +381,7 @@ public:
 
 	void UpdateWorldLocations()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_UpdateWorldLocations);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdateWorldLocations);
 
 		// Reset dirty object info before updating.
 		FWorldLocations& WorldLocations = ReplicationSystemInternal.GetWorldLocations();
@@ -319,28 +390,23 @@ public:
 		ReplicationSystemInternal.GetReplicationBridge()->CallUpdateInstancesWorldLocation();
 	}
 
-	void UpdateFilterPrePoll()
+	void UpdateFiltering()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_UpdateFilterPrePoll);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdateFiltering);
 		LLM_SCOPE_BYTAG(Iris);
 
 		FReplicationFiltering& Filtering = ReplicationSystemInternal.GetFiltering();
-		Filtering.FilterPrePoll();
+		Filtering.Filter();
 	}
 
-	void UpdateFilterPostPoll()
+	void UpdateObjectScopes()
 	{
 		LLM_SCOPE_BYTAG(Iris);
 
 		FReplicationFiltering& Filtering = ReplicationSystemInternal.GetFiltering();
 
 		{
-			IRIS_PROFILER_SCOPE(FReplicationSystem_UpdateFilterPostPoll);
-			Filtering.FilterPostPoll();
-		}
-
-		{
-			IRIS_PROFILER_SCOPE(FReplicationSystem_UpdateConnectionsScope);
+			IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdateConnectionsScope);
 		
 			// Iterate over all valid connections and propagate updated scopes
 			FReplicationConnections& Connections = ReplicationSystemInternal.GetConnections();
@@ -360,7 +426,7 @@ public:
 	// Can run at any time between scoping and replication.
 	void UpdateConditionals()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_UpdateConditionals);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdateConditionals);
 
 		FReplicationConditionals& Conditionals = ReplicationSystemInternal.GetConditionals();
 		Conditionals.Update();
@@ -369,10 +435,7 @@ public:
 	// Runs after filtering
 	void UpdatePrioritization(const FNetBitArrayView& ReplicatingConnections)
 	{
-#if UE_NET_IRIS_CSV_STATS
-		CSV_SCOPED_TIMING_STAT(Iris, ReplicationSystem_UpdatePrioritization);
-#endif
-		IRIS_PROFILER_SCOPE(FReplicationSystem::FImpl::UpdatePrioritization);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdatePrioritization);
 		LLM_SCOPE_BYTAG(Iris);
 
 		const FNetBitArrayView RelevantObjects = ReplicationSystemInternal.GetNetRefHandleManager().GetRelevantObjectsInternalIndices();
@@ -390,7 +453,7 @@ public:
 
 	void PropagateDirtyChanges()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_PropagateDirtyChanges);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_PropagateDirtyChanges);
 
 		FReplicationConnections& Connections = ReplicationSystemInternal.GetConnections();
 		const FChangeMaskCache& UpdatedChangeMasks = ReplicationSystemInternal.GetChangeMaskCache();
@@ -399,7 +462,13 @@ public:
 		auto UpdateDirtyChangeMasks = [&Connections, &UpdatedChangeMasks](uint32 ConnectionId)
 		{
 			FReplicationConnection* Conn = Connections.GetConnection(ConnectionId);
-			Conn->ReplicationWriter->UpdateDirtyChangeMasks(UpdatedChangeMasks);
+			
+			// Only update open connections, as closing connections are only
+			// flushing reliable data and we shouldn't send new state data to them.
+			if (!Conn->bIsClosing)
+			{
+				Conn->ReplicationWriter->UpdateDirtyChangeMasks(UpdatedChangeMasks);
+			}
 		};
 		const FNetBitArray& ValidConnections = Connections.GetValidConnections();
 		ValidConnections.ForAllSetBits(UpdateDirtyChangeMasks);
@@ -407,7 +476,7 @@ public:
 
 	void QuantizeDirtyStateData()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_QuantizeDirtyStateData);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_QuantizeDirtyStateData);
 		LLM_SCOPE_BYTAG(IrisState);
 
 		FNetRefHandleManager& NetRefHandleManager = ReplicationSystemInternal.GetNetRefHandleManager();
@@ -439,7 +508,7 @@ public:
 		};
 
 		DirtyObjectsToQuantize.ForAllSetBits(QuantizeFunction);
-		DirtyObjectsToQuantize.Reset();
+		// DirtyObjectsToQuantize is cleared in ResetObjectStateDirtiness
 
 		const uint32 ReplicationSystemId = ReplicationSystem->GetId();
 		UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystemId, ReplicationSystem.QuantizedObjectCount, QuantizedObjectCount, ENetTraceVerbosity::Trace);
@@ -447,25 +516,38 @@ public:
 
 	void ResetObjectStateDirtiness()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_ResetObjectStateDirtiness);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_ResetObjectStateDirtiness);
 
 		FNetRefHandleManager& NetRefHandleManager = ReplicationSystemInternal.GetNetRefHandleManager();
 
 		// Clear the objects that got polled this frame
 		const FNetBitArrayView PolledObjects = NetRefHandleManager.GetPolledObjectsInternalIndices();
+		FNetBitArrayView DirtyObjectsToQuantize = NetRefHandleManager.GetDirtyObjectsToQuantize();
 
-		// Reset object dirtyness
-		PolledObjects.ForAllSetBits([&NetRefHandleManager](uint32 DirtyIndex)
+		// This is clearing the internal changemask
+		if (ReplicationSystemCVars::bOnlyResetDirtinessForQuantizedObjects)
 		{
-			FReplicationInstanceOperationsInternal::ResetObjectStateDirtiness(NetRefHandleManager, DirtyIndex);
-		});
+			DirtyObjectsToQuantize.ForAllSetBits([&NetRefHandleManager](uint32 DirtyIndex)
+			{
+				FReplicationInstanceOperationsInternal::ResetObjectStateDirtiness(NetRefHandleManager, DirtyIndex);
+			});
+		}
+		else
+		{
+			PolledObjects.ForAllSetBits([&NetRefHandleManager](uint32 DirtyIndex)
+			{
+				FReplicationInstanceOperationsInternal::ResetObjectStateDirtiness(NetRefHandleManager, DirtyIndex);
+			});
+		}
+
+		DirtyObjectsToQuantize.ClearAllBits();
 
 		ReplicationSystemInternal.GetDirtyNetObjectTracker().ReconcilePolledList(PolledObjects);
 	}
 
 	void ProcessNetObjectAttachmentSendQueue(FNetBlobManager::EProcessMode ProcessMode)
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_ProcessNetObjectAttachmentSendQueue);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_ProcessNetObjectAttachmentSendQueue);
 
 		FNetBlobManager& NetBlobManager = ReplicationSystemInternal.GetNetBlobManager();
 		NetBlobManager.ProcessNetObjectAttachmentSendQueue(ProcessMode);
@@ -473,7 +555,7 @@ public:
 
 	void ProcessOOBNetObjectAttachmentSendQueue()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_ProcessOOBNetObjectAttachmentSendQueue);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_ProcessOOBNetObjectAttachmentSendQueue);
 
 		FNetBlobManager& NetBlobManager = ReplicationSystemInternal.GetNetBlobManager();
 		NetBlobManager.ProcessOOBNetObjectAttachmentSendQueue(ConnectionsPendingPostTickDispatchSend);
@@ -499,9 +581,8 @@ public:
 			Params.ReplicationSystem = ReplicationSystem;
 			Params.PacketSendWindowSize = 256;
 			Params.ConnectionId = ConnectionId;
-			Params.MaxActiveReplicatedObjectCount = ReplicationSystemInternal.GetNetRefHandleManager().GetMaxActiveObjectCount();
-			Params.PreAllocatedReplicatedObjectCount = ReplicationSystemInternal.GetNetRefHandleManager().GetPreAllocatedObjectCount();
-			Params.MaxReplicatedWriterObjectCount = ReplicationSystemInternal.GetInitParams().MaxReplicatedWriterObjectCount;
+			Params.MaxInternalNetRefIndex = ReplicationSystemInternal.GetNetRefHandleManager().GetCurrentMaxInternalNetRefIndex();
+			Params.MaxReplicationWriterObjectCount = ReplicationSystemInternal.GetInitParams().MaxReplicationWriterObjectCount;
 
 			/** 
 			  * Currently we expect all objects to be replicated from server to client.
@@ -564,14 +645,16 @@ public:
 			ReplicationConditionals.RemoveConnection(ConnectionId);
 		}
 
-		FReplicationConnections& Connections = ReplicationSystemInternal.GetConnections();
 		{
+			FReplicationConnections& Connections = ReplicationSystemInternal.GetConnections();
 			Connections.RemoveConnection(ConnectionId);
 		}
 	}
 
 	void UpdateUnresolvableReferenceTracking()
 	{
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdateUnresolvableReferenceTracking);
+
 		FReplicationConnections& Connections = ReplicationSystemInternal.GetConnections();
 		auto UpdateUnresolvableReferenceTracking = [&Connections](uint32 ConnectionId)
 		{
@@ -582,9 +665,23 @@ public:
 		const FNetBitArray& ValidConnections = Connections.GetValidConnections();
 		ValidConnections.ForAllSetBits(UpdateUnresolvableReferenceTracking);
 	}
-};
 
-}
+	void CollectNetMetrics(UE::Net::FNetMetrics& OutNetMetrics) const
+	{
+		using namespace UE::Net;
+
+		const FNetRefHandleManager& NetRefHandleManager = ReplicationSystemInternal.GetNetRefHandleManager();
+
+		const uint32 TotalNetObjects = NetRefHandleManager.GetActiveObjectCount();
+		const uint32 TotalSubObjects = NetRefHandleManager.GetSubObjectInternalIndicesView().CountSetBits();
+
+		// Collect stats on total replicated objects
+		OutNetMetrics.EmplaceMetric(MetricNameTotalRootObjects, FNetMetric(TotalNetObjects-TotalSubObjects));
+		OutNetMetrics.EmplaceMetric(MetricNameTotalSubObjects, FNetMetric(TotalSubObjects));
+	}
+}; // end class FReplicationSystemImpl
+
+} // end namespace UE::Net::Private
 
 UReplicationSystem::UReplicationSystem()
 : Super()
@@ -599,8 +696,6 @@ UReplicationSystem::UReplicationSystem()
 
 void UReplicationSystem::Init(uint32 InId, const FReplicationSystemParams& Params)
 {
-	LLM_SCOPE_BYTAG(Iris);
-
 	Id = InId;
 	bIsServer = Params.bIsServer;
 	bAllowObjectReplication = Params.bAllowObjectReplication;
@@ -645,7 +740,7 @@ void UReplicationSystem::PreSendUpdate(const FSendUpdateParams& Params)
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
 
-	IRIS_PROFILER_SCOPE(FReplicationSystem_PreSendUpdate);
+	IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_PreSendUpdate);
 
 	ensureAlways(Impl->CurrentSendPass == EReplicationSystemSendPass::Invalid);
 	Impl->CurrentSendPass = Params.SendPass;
@@ -688,7 +783,7 @@ void UReplicationSystem::PreSendUpdate(const FSendUpdateParams& Params)
 			Impl->UpdateWorldLocations();
 
 			// Update filters, reduce the top-level scoped object list and set each connection's scope.
-			Impl->UpdateFilterPrePoll();
+			Impl->UpdateFiltering();
 
 			// Invoke any operations we need to do before copying state data
 			Impl->CallPreSendUpdate(Params.DeltaSeconds);
@@ -705,8 +800,8 @@ void UReplicationSystem::PreSendUpdate(const FSendUpdateParams& Params)
 			// We must process all attachments to objects going out of scope before we update the scope
 			Impl->ProcessNetObjectAttachmentSendQueue(FNetBlobManager::EProcessMode::ProcessObjectsGoingOutOfScope);
 
-			// Update filtering and scope for all connections
-			Impl->UpdateFilterPostPoll();
+			// Update scope for all connections
+			Impl->UpdateObjectScopes();
 
 			// Propagate dirty changes to all connections
 			Impl->PropagateDirtyChanges();
@@ -774,7 +869,7 @@ IRISCORE_API void UReplicationSystem::SendUpdate(TFunctionRef<void(TArrayView<ui
 		// We only need to send data to connections that has data to send in PostTickDispatch
 
 		FNetBitArray::ForAllSetBits(Impl->ConnectionsPendingPostTickDispatchSend, ReplicatingConnections, FNetBitArray::AndOp, [&ConnectionToUpdate](uint32 ConnId) { ConnectionToUpdate.Add(ConnId);});
-		Impl->ConnectionsPendingPostTickDispatchSend.Reset();
+		Impl->ConnectionsPendingPostTickDispatchSend.ClearAllBits();
 	}
 
 	SendFunction(MakeArrayView(ConnectionToUpdate));
@@ -785,7 +880,7 @@ void UReplicationSystem::PostSendUpdate()
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
 
-	IRIS_PROFILER_SCOPE(FReplicationSystem_PostSendUpdate);
+	IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_PostSendUpdate);
 
 	if (!ensure(Impl->CurrentSendPass != EReplicationSystemSendPass::Invalid))
 	{
@@ -815,6 +910,11 @@ void UReplicationSystem::PostSendUpdate()
 
 			FNetTypeStats& TypeStats = Impl->ReplicationSystemInternal.GetNetTypeStats();
 			TypeStats.ReportCSVStats();
+
+			if (Impl->ReplicationSystemInternal.IsDirtyNetObjectTrackerInitialized())
+			{
+				Impl->ReplicationSystemInternal.GetDirtyNetObjectTracker().ReportCSVStats();
+			}
 		}
 #endif
 
@@ -830,7 +930,7 @@ void UReplicationSystem::PostGarbageCollection()
 
 void UReplicationSystem::CollectGarbage()
 {
-	IRIS_PROFILER_SCOPE(ReplicationSystem_CollectGarbage);
+	IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_CollectGarbage);
 
 	// Prune stale object instances before descriptors and protocols are pruned
 	Impl->ReplicationSystemInternal.GetReplicationBridge()->CallPruneStaleObjects();
@@ -863,6 +963,15 @@ bool UReplicationSystem::IsValidConnection(uint32 ConnectionId) const
 {
 	UE::Net::Private::FReplicationConnections& Connections = Impl->ReplicationSystemInternal.GetConnections();
 	return Connections.GetConnection(ConnectionId) != nullptr;
+}
+
+
+void UReplicationSystem::SetConnectionGracefullyClosing(uint32 ConnectionId) const
+{
+	UE::Net::Private::FReplicationConnections& Connections = Impl->ReplicationSystemInternal.GetConnections();
+	check(Connections.IsValidConnection(ConnectionId));
+
+	Connections.SetConnectionIsClosing(ConnectionId);
 }
 
 void UReplicationSystem::SetReplicationEnabledForConnection(uint32 ConnectionId, bool bReplicationEnabled)
@@ -921,14 +1030,26 @@ UNetObjectPrioritizer* UReplicationSystem::GetPrioritizer(const FName Prioritize
 	return Impl->ReplicationSystemInternal.GetPrioritization().GetPrioritizer(PrioritizerName);
 }
 
-const UE::Net::FStringTokenStore* UReplicationSystem::GetStringTokenStore() const
+const UE::Net::FNetTokenStore* UReplicationSystem::GetNetTokenStore() const
 {
-	return &Impl->ReplicationSystemInternal.GetStringTokenStore();
+	return Impl->NetTokenStore;
 }
 
-UE::Net::FStringTokenStore* UReplicationSystem::GetStringTokenStore()
+UE::Net::FNetTokenStore* UReplicationSystem::GetNetTokenStore()
 {
-	return &Impl->ReplicationSystemInternal.GetStringTokenStore();
+	return Impl->NetTokenStore;
+}
+
+UE::Net::FNetTokenResolveContext UReplicationSystem::GetNetTokenResolveContext(uint32 ConnectionId) const
+{
+	using namespace UE::Net;
+
+	UE::Net::FNetTokenResolveContext NetTokenResolveContext;
+
+	NetTokenResolveContext.NetTokenStore = Impl->NetTokenStore;
+	NetTokenResolveContext.RemoteNetTokenStoreState = Impl->NetTokenStore->GetRemoteNetTokenStoreState(ConnectionId);
+
+	return NetTokenResolveContext;
 }
 
 bool UReplicationSystem::RegisterNetBlobHandler(UNetBlobHandler* Handler)
@@ -943,19 +1064,32 @@ bool UReplicationSystem::QueueNetObjectAttachment(uint32 ConnectionId, const UE:
 	return NetBlobManager.QueueNetObjectAttachment(ConnectionId, TargetRef, Attachment);
 }
 
-bool UReplicationSystem::SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters)
+bool UReplicationSystem::SendRPC(const UObject* RootObject, const UObject* SubObject, const UFunction* Function, const void* Parameters)
 {
-	UE::Net::ENetObjectAttachmentSendPolicyFlags SendFlags = UE::Net::ENetObjectAttachmentSendPolicyFlags::None;
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None;
 	if (ReplicationSystemCVars::bAllowAttachmentSendPolicyFlags)
 	{
-		if (UE::Net::ENetObjectAttachmentSendPolicyFlags* Flags = Impl->AttachmentSendPolicyFlags.Find(FObjectKey(Function)))
+		if (ENetObjectAttachmentSendPolicyFlags* Flags = Impl->AttachmentSendPolicyFlags.Find(FObjectKey(Function)))
 		{
 			SendFlags = *Flags;
 		}
 	}
 
-	UE::Net::Private::FNetBlobManager& NetBlobManager = Impl->ReplicationSystemInternal.GetNetBlobManager();
-	return NetBlobManager.SendRPC(Object, SubObject, Function, Parameters, SendFlags);
+	FNetBlobManager::FSendRPCContext RPCContext = { .RootObject = RootObject, .SubObject = SubObject, .Function = Function };
+
+	FNetBlobManager& NetBlobManager = Impl->ReplicationSystemInternal.GetNetBlobManager();
+	return NetBlobManager.SendMulticastRPC(RPCContext, Parameters, SendFlags);
+}
+
+bool UReplicationSystem::SendRPC(uint32 ConnectionId, const UObject* RootObject, const UObject* SubObject, const UFunction* Function, const void* Parameters)
+{
+	using namespace UE::Net::Private;
+	FNetBlobManager::FSendRPCContext RPCContext = { .RootObject = RootObject, .SubObject = SubObject, .Function = Function };
+	FNetBlobManager& NetBlobManager = Impl->ReplicationSystemInternal.GetNetBlobManager();
+	return NetBlobManager.SendUnicastRPC(ConnectionId, RPCContext, Parameters);
 }
 
 bool UReplicationSystem::SetRPCSendPolicyFlags(const UFunction* Function, UE::Net::ENetObjectAttachmentSendPolicyFlags SendFlags)
@@ -967,7 +1101,7 @@ bool UReplicationSystem::SetRPCSendPolicyFlags(const UFunction* Function, UE::Ne
 
 	if (EnumHasAnyFlags(SendFlags, UE::Net::ENetObjectAttachmentSendPolicyFlags::SendImmediate) && (Function->FunctionFlags & FUNC_NetReliable))
 	{
-		ensureAlwaysMsgf(false, TEXT("ENetObjectAttachmentSendPolicyFlags::SendImmediate is not allowed to use on Reliable RPC: %s"), *GetNameSafe(Function));
+		ensureMsgf(false, TEXT("ENetObjectAttachmentSendPolicyFlags::SendImmediate is not allowed to use on Reliable RPC: %s"), *GetNameSafe(Function));
 		return false;
 	}
 
@@ -980,12 +1114,6 @@ bool UReplicationSystem::SetRPCSendPolicyFlags(const UFunction* Function, UE::Ne
 void UReplicationSystem::ResetRPCSendPolicyFlags()
 {
 	Impl->AttachmentSendPolicyFlags.Reset();
-}
-
-bool UReplicationSystem::SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters)
-{
-	UE::Net::Private::FNetBlobManager& NetBlobManager = Impl->ReplicationSystemInternal.GetNetBlobManager();
-	return NetBlobManager.SendRPC(ConnectionId, Object, SubObject, Function, Parameters);
 }
 
 void UReplicationSystem::InitDataStreams(uint32 ConnectionId, UDataStreamManager* DataStreamManager)
@@ -1069,6 +1197,9 @@ void UReplicationSystem::SetOwningNetConnection(FNetRefHandle Handle, uint32 Con
 	{
 		return;
 	}
+
+	FReplicationConditionals& Conditionals = Impl->ReplicationSystemInternal.GetConditionals();
+	Conditionals.SetOwningConnection(ObjectInternalIndex, ConnectionId);
 
 	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
 	Filtering.SetOwningConnection(ObjectInternalIndex, ConnectionId);
@@ -1156,14 +1287,14 @@ UE::Net::FNetObjectGroupHandle UReplicationSystem::GetOrCreateSubObjectFilter(FN
 	FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
 	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
 
-	FNetObjectGroupHandle GroupHandle = Groups.GetNamedGroupHandle(GroupName);
+	FNetObjectGroupHandle GroupHandle = Groups.FindGroupHandle(GroupName);
 	if (GroupHandle.IsValid())
 	{
 		check(Filtering.IsSubObjectFilterGroup(GroupHandle));
 		return GroupHandle;
 	}
 
-	GroupHandle = Groups.CreateNamedGroup(GroupName);
+	GroupHandle = Groups.CreateGroup(GroupName);
 	if (GroupHandle.IsValid())
 	{
 		Filtering.AddSubObjectFilter(GroupHandle);
@@ -1179,10 +1310,10 @@ UE::Net::FNetObjectGroupHandle UReplicationSystem::GetSubObjectFilterGroupHandle
 	FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
 	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
 
-	FNetObjectGroupHandle GroupHandle = Groups.GetNamedGroupHandle(GroupName);
+	FNetObjectGroupHandle GroupHandle = Groups.FindGroupHandle(GroupName);
 	if (GroupHandle.IsValid())
 	{
-		if (ensureAlwaysMsgf(Filtering.IsSubObjectFilterGroup(GroupHandle), TEXT("UReplicationSystem::GetSubObjectFilterGroupHandle Trying to lookup NetObjectGroupHandle for NetGroup %s that is not a subobject filter"), *GroupName.ToString()))
+		if (ensureMsgf(Filtering.IsSubObjectFilterGroup(GroupHandle), TEXT("UReplicationSystem::GetSubObjectFilterGroupHandle Trying to lookup NetObjectGroupHandle for NetGroup %s that is not a subobject filter"), *GroupName.ToString()))
 		{
 			return GroupHandle;
 		}
@@ -1190,14 +1321,14 @@ UE::Net::FNetObjectGroupHandle UReplicationSystem::GetSubObjectFilterGroupHandle
 	return FNetObjectGroupHandle();
 }
 
-void UReplicationSystem::SetSubObjectFilterStatus(FName GroupName, uint32 ConnectionId, UE::Net::ENetFilterStatus ReplicationStatus)
+void UReplicationSystem::SetSubObjectFilterStatus(FName GroupName, UE::Net::FConnectionHandle ConnectionHandle, UE::Net::ENetFilterStatus ReplicationStatus)
 {
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
 
 	if (UE::Net::IsSpecialNetConditionGroup(GroupName))
 	{
-		ensureAlwaysMsgf(false, TEXT("UReplicationSystem::SetSubObjectFilterStatus Cannot SetSubObjectFilterStatus for special NetGroup %s"), *GroupName.ToString());
+		ensureMsgf(false, TEXT("UReplicationSystem::SetSubObjectFilterStatus Cannot SetSubObjectFilterStatus for special NetGroup %s"), *GroupName.ToString());
 		return;
 	}
 
@@ -1211,7 +1342,10 @@ void UReplicationSystem::SetSubObjectFilterStatus(FName GroupName, uint32 Connec
 	if (GroupHandle.IsValid())
 	{
 		FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
-		Filtering.SetSubObjectFilterStatus(GroupHandle, ConnectionId, ReplicationStatus);
+		Filtering.SetSubObjectFilterStatus(GroupHandle, ConnectionHandle, ReplicationStatus);
+
+		FReplicationConditionals& Conditionals = Impl->ReplicationSystemInternal.GetConditionals();
+		Conditionals.MarkLifeTimeConditionalsDirtyForObjectsInGroup(GroupHandle);
 	}
 }
 
@@ -1237,11 +1371,11 @@ void UReplicationSystem::RemoveSubObjectFilter(FName GroupName)
 	}
 }
 
-UE::Net::FNetObjectGroupHandle UReplicationSystem::CreateGroup()
+UE::Net::FNetObjectGroupHandle UReplicationSystem::CreateGroup(FName GroupName)
 {
 	LLM_SCOPE_BYTAG(Iris);
 
-	return Impl->ReplicationSystemInternal.GetGroups().CreateGroup();
+	return Impl->ReplicationSystemInternal.GetGroups().CreateGroup(GroupName);
 }
 
 void UReplicationSystem::AddToGroup(FNetObjectGroupHandle GroupHandle, FNetRefHandle Handle)
@@ -1324,15 +1458,14 @@ void UReplicationSystem::RemoveFromAllGroups(FNetRefHandle Handle)
 		return;
 	}
 
-	if (const FNetObjectGroupHandle* GroupHandles = Groups.GetGroupMemberships(ObjectInternalIndex, NumGroupMemberShips))
+	// We copy the membership array as it is modified during removal
+	TArray<FNetObjectGroupHandle> CopiedGroupHandles;
+	Groups.GetGroupHandlesOfNetObject(ObjectInternalIndex, CopiedGroupHandles);
+
+	for (FNetObjectGroupHandle GroupHandle : CopiedGroupHandles)
 	{
-		// We copy the membership array as it is modified during removal
-		TArray<FNetObjectGroupHandle> CopiedGroupHandles(MakeArrayView(GroupHandles, NumGroupMemberShips));
-		for (FNetObjectGroupHandle GroupHandle : MakeArrayView(CopiedGroupHandles.GetData(), CopiedGroupHandles.Num()))
-		{
-			Groups.RemoveFromGroup(GroupHandle, ObjectInternalIndex);
-			Filtering.NotifyObjectRemovedFromGroup(GroupHandle, ObjectInternalIndex);
-		}
+		Groups.RemoveFromGroup(GroupHandle, ObjectInternalIndex);
+		Filtering.NotifyObjectRemovedFromGroup(GroupHandle, ObjectInternalIndex);
 	}	
 }
 
@@ -1379,6 +1512,13 @@ void UReplicationSystem::DestroyGroup(FNetObjectGroupHandle GroupHandle)
 	Filtering.RemoveSubObjectFilter(GroupHandle);
 
 	Groups.DestroyGroup(GroupHandle);
+}
+
+UE::Net::FNetObjectGroupHandle UReplicationSystem::FindGroup(FName GroupName) const
+{
+	const UE::Net::Private::FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
+
+	return Groups.FindGroupHandle(GroupName);
 }
 
 UE::Net::FNetObjectGroupHandle UReplicationSystem::GetNotReplicatedNetObjectGroup() const
@@ -1574,8 +1714,8 @@ void UReplicationSystem::SetIsNetTemporary(FNetRefHandle Handle)
 
 void UReplicationSystem::TearOffNextUpdate(FNetRefHandle Handle)
 {
-	constexpr EEndReplicationFlags DestroyFlags = EEndReplicationFlags::DestroyNetHandle | EEndReplicationFlags::ClearNetPushId;
-	Impl->ReplicationSystemInternal.GetReplicationBridge()->TearOff(Handle, DestroyFlags, false);
+	constexpr EEndReplicationFlags DestroyFlags = EEndReplicationFlags::TearOff | EEndReplicationFlags::ClearNetPushId;
+	Impl->ReplicationSystemInternal.GetReplicationBridge()->AddPendingEndReplication(Handle, DestroyFlags);
 }
 
 void UReplicationSystem::ForceNetUpdate(FNetRefHandle Handle)
@@ -1628,6 +1768,8 @@ void UReplicationSystem::SetCullDistanceSqrOverride(FNetRefHandle Handle, float 
 		return;
 	}
 
+	UE_LOG(LogIris, Verbose, TEXT("UReplicationSystem::SetCullDistanceSqrOverride: %s is now overridden to %f"), *Impl->ReplicationSystemInternal.GetNetRefHandleManager().PrintObjectFromNetRefHandle(Handle), FMath::Sqrt(DistSqr));
+	
 	return Impl->ReplicationSystemInternal.GetNetCullDistanceOverrides().SetCullDistanceSqr(ObjectInternalIndex, DistSqr);
 }
 
@@ -1639,7 +1781,8 @@ void UReplicationSystem::ClearCullDistanceSqrOverride(FNetRefHandle Handle)
 		return;
 	}
 
-	Impl->ReplicationSystemInternal.GetNetCullDistanceOverrides().ClearCullDistanceSqr(ObjectInternalIndex);
+	const bool bWasCullDistanceOverriden = Impl->ReplicationSystemInternal.GetNetCullDistanceOverrides().ClearCullDistanceSqr(ObjectInternalIndex);
+	UE_CLOG(bWasCullDistanceOverriden, LogIris, Verbose, TEXT("UReplicationSystem::ClearCullDistanceSqrOverride: %s is no longer overridden."), *Impl->ReplicationSystemInternal.GetNetRefHandleManager().PrintObjectFromNetRefHandle(Handle));
 }
 
 float UReplicationSystem::GetCullDistanceSqrOverride(FNetRefHandle Handle, float DefaultValue) const
@@ -1661,12 +1804,17 @@ void UReplicationSystem::ReportProtocolMismatch(uint64 NetRefHandleId, uint32 Co
 	Impl->ReplicationSystemInternal.GetReplicationBridge()->OnProtocolMismatchReported(NetRefHandle, ConnectionId);
 }
 
-void UReplicationSystem::ReportErrorWithNetRefHandle(uint32 ErrorType, uint64 NetRefHandleId, uint32 ConnectionId)
+void UReplicationSystem::ReportErrorWithNetRefHandle(UE::Net::ENetRefHandleError ErrorType, uint64 NetRefHandleId, uint32 ConnectionId)
 {
 	using namespace UE::Net::Private;
 	const FNetRefHandle NetRefHandle = FNetRefHandleManager::MakeNetRefHandle(NetRefHandleId, GetId());
 
 	Impl->ReplicationSystemInternal.GetReplicationBridge()->OnErrorWithNetRefHandleReported(ErrorType, NetRefHandle, ConnectionId);
+}
+
+void UReplicationSystem::CollectNetMetrics(UE::Net::FNetMetrics& OutNetMetrics) const
+{
+	Impl->CollectNetMetrics(OutNetMetrics);
 }
 
 
@@ -1693,6 +1841,8 @@ uint32 FReplicationSystemFactory::MaxReplicationSystemId = 0;
 
 UReplicationSystem* FReplicationSystemFactory::CreateReplicationSystem(const UReplicationSystem::FReplicationSystemParams& Params)
 {
+	LLM_SCOPE_BYTAG(IrisInitialization);
+
 	if (!Params.ReplicationBridge)
 	{
 		UE_LOG(LogIris, Error, TEXT("Cannot create ReplicationSystem without a ReplicationBridge"));
@@ -1716,7 +1866,7 @@ UReplicationSystem* FReplicationSystemFactory::CreateReplicationSystem(const URe
 			MaxReplicationSystemId = ReplicationSystemId;
 		}
 
-		UE_LOG(LogIris, Display, TEXT("Iris ReplicationSystem[%i] is created"), ReplicationSystemId);
+		UE_LOG(LogIris, Display, TEXT("Iris ReplicationSystem[%i]: %s (0x%p) is created"), ReplicationSystemId, *ReplicationSystem->GetName(), ReplicationSystem);
 
 		ReplicationSystem->Init(ReplicationSystemId, Params);
 
@@ -1741,7 +1891,7 @@ void FReplicationSystemFactory::DestroyReplicationSystem(UReplicationSystem* Sys
 
 	const uint32 Id = System->GetId();
 
-	UE_LOG(LogIris, Display, TEXT("Iris ReplicationSystem[%i] is about to be destroyed"), Id);
+	UE_LOG(LogIris, Display, TEXT("Iris ReplicationSystem[%i]: %s (0x%p) is about to be destroyed"), Id, *System->GetName(), System);
 
 	if (Id < MaxReplicationSystemCount)
 	{

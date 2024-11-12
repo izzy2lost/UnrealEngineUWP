@@ -17,6 +17,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "IDetailKeyframeHandler.h"
+#include "WidgetFocusUtils.h"
 #include "ControlRigEditMode.generated.h"
 
 class FEditorViewportClient;
@@ -46,6 +47,7 @@ struct FGizmoState;
 enum class EMovieSceneDataChangeType;
 struct FMovieSceneChannelMetaData;
 class UMovieSceneSection;
+class UControlRigEditModeSettings;
 
 DECLARE_DELEGATE_RetVal_ThreeParams(FTransform, FOnGetRigElementTransform, const FRigElementKey& /*RigElementKey*/, bool /*bLocal*/, bool /*bOnDebugInstance*/);
 DECLARE_DELEGATE_ThreeParams(FOnSetRigElementTransform, const FRigElementKey& /*RigElementKey*/, const FTransform& /*Transform*/, bool /*bLocal*/);
@@ -124,7 +126,7 @@ private:
 class CONTROLRIGEDITOR_API FControlRigEditMode : public IPersonaEditMode
 {
 public:
-	static FName ModeName;
+	static inline const FLazyName ModeName = FLazyName(TEXT("EditMode.ControlRig"));
 
 	FControlRigEditMode();
 	~FControlRigEditMode();
@@ -134,7 +136,7 @@ public:
 	void SetObjects(UControlRig* InControlRig, UObject* BindingObject, TWeakPtr<ISequencer> InSequencer);
 
 	/** Add a Control Rig object if it doesn't exist, will return true if it was added, false if it wasn't since it's already there. You can also set the Sequencer.*/
-	bool AddControlRigObject(UControlRig* InControlRig, TWeakPtr<ISequencer> InSequencer);
+	bool AddControlRigObject(UControlRig* InControlRig, const TWeakPtr<ISequencer>& InSequencer);
 
 	/* Remove control rig */
 	void RemoveControlRig(UControlRig* InControlRig);
@@ -174,6 +176,7 @@ public:
 	virtual bool ShouldDrawWidget() const override;
 	virtual bool IsCompatibleWith(FEditorModeID OtherModeID) const override;
 	virtual bool MouseMove(FEditorViewportClient* ViewportClient, FViewport* Viewport, int32 x, int32 y) override;
+	virtual bool MouseEnter( FEditorViewportClient* ViewportClient,FViewport* Viewport,int32 x, int32 y ) override;
 	virtual bool MouseLeave(FEditorViewportClient* ViewportClient, FViewport* Viewport) override;
 	virtual void PostUndo() override;
 
@@ -262,6 +265,9 @@ protected:
 	/** Toggles visibility of all  control rig shapes in the viewport */
 	void ToggleAllManipulators();
 
+	/** Returns true if all control rig shapes are visible in the viewport */
+	bool AreControlsVisible() const;
+
 	/** If Anim Slider is open, got to the next tool*/
 	void ChangeAnimSliderTool();
 
@@ -291,6 +297,9 @@ public:
 	/** Frame a list of provided items*/
    	void FrameItems(const TArray<FRigElementKey>& InItems);
 
+	/** Sets Passthrough Key on selected anim layers */
+	void SetAnimLayerPassthroughKey();
+
 	/** Opens up the space picker widget */
 	void OpenSpacePickerWidget();
 
@@ -314,6 +323,14 @@ private:
 	/** Reset Shape Size */
 	void ResetControlShapeSize();
 
+	/** Pending focus handler */
+	FPendingWidgetFocus PendingFocus;
+
+	/** Pending focus cvar binding functions to enable/disable pending focus mode */
+	void RegisterPendingFocusMode();
+	void UnregisterPendingFocusMode();
+	FDelegateHandle PendingFocusHandle;
+	
 public:
 	
 	/** Toggle Shape Transform Edit*/
@@ -328,7 +345,7 @@ private:
 	void BindCommands();
 
 	/** It creates if it doesn't have it */
-	void RecreateControlShapeActors(const TArray<FRigElementKey>& InSelectedElements = TArray<FRigElementKey>());
+	void RecreateControlShapeActors();
 
 	/** Let the preview scene know how we want to select components */
 	bool ShapeSelectionOverride(const UPrimitiveComponent* InComponent) const;
@@ -468,6 +485,9 @@ private:
 	bool bIsChangingCoordSystem;
 
 	bool CanChangeControlShapeTransform();
+
+	void OnSettingsChanged(const UControlRigEditModeSettings* InSettings);
+	
 public:
 	//Toolbar functions
 	void SetOnlySelectRigControls(bool val);
@@ -477,9 +497,10 @@ public:
 private:
 	TSet<FName> GetActiveControlsFromSequencer(UControlRig* ControlRig);
 
-	/** Create/Delete for the specified ControlRig*/
+	/** Create/Delete/Update shape actors for the specified ControlRig */
 	void CreateShapeActors(UControlRig* InControlRig);
 	void DestroyShapesActors(UControlRig* InControlRig);
+	bool TryUpdatingControlsShapes(UControlRig* InControlRig);
 
 	/*Internal function for adding ControlRig*/
 	void AddControlRigInternal(UControlRig* InControlRig);
@@ -501,6 +522,9 @@ private:
 	void TickControlShape(AControlRigShapeActor* ShapeActor, const FTransform& ComponentTransform) const;
 	bool ModeSupportedByShapeActor(const AControlRigShapeActor* ShapeActor, UE::Widget::EWidgetMode InMode) const;
 
+public:
+	//notify driven controls, should this be inside CR instead?
+	static void NotifyDrivenControls(UControlRig* InControlRig, const FRigElementKey& InKey, const FRigControlModifiedContext& InContext);
 
 protected:
 	
@@ -510,7 +534,7 @@ protected:
 	FTransform	GetHostingSceneComponentTransform(const UControlRig* ControlRig =  nullptr) const;
 
 	//Get if the hosted component is visible
-	bool IsControlRigSkelMeshVisible(UControlRig* ControlRig) const;
+	bool IsControlRigSkelMeshVisible(const UControlRig* InControlRig) const;
 	
 public:  
 		TSharedPtr<FDetailKeyFrameCacheAndHandler> DetailKeyFrameCache;
@@ -520,7 +544,6 @@ private:
 	// Post pose update handler
 	void OnPoseInitialized();
 	void PostPoseUpdate() const;
-	void NotifyDrivenControls(UControlRig* InControlRig, const FRigElementKey& InKey);
 	void UpdateSelectabilityOnSkeletalMeshes(UControlRig* InControlRig, bool bEnabled);
 
 	bool IsMovingCamera(const FViewport* InViewport) const;
@@ -566,9 +589,6 @@ private:
 	TArray<TWeakObjectPtr<UControlRig>> RuntimeControlRigs;
 	TMap<UControlRig*,TStrongObjectPtr<UControlRigEditModeDelegateHelper>> DelegateHelpers;
 
-	//hack since we can't get the viewport client from the viewport, so in the tick we set the gameview bool and then in render/tickcontrolshapes we use it.
-	TMap<FViewport*, bool>  ViewportToGameView;
-
 	TArray<FRigElementKey> DeferredItemsToFrame;
 
 	/** Computes the current interaction types based on the widget mode */
@@ -589,3 +609,27 @@ private:
 	friend class UControlRigEditModeDelegateHelper;
 	friend class SControlRigEditModeTools;
 };
+
+namespace ControlRigEditMode::Shapes
+{
+	// Returns the list of controls for which a shape is expected
+	void GetControlsEligibleForShapes(UControlRig* InControlRig, TArray<FRigControlElement*>& OutControls);
+
+	// Destroys shape actors and removes them from their UWorld
+	void DestroyShapesActorsFromWorld(const TArray<TObjectPtr<AControlRigShapeActor>>& InShapeActorsToDestroy);
+
+	// Parameters used to update shape actors (transform, visibility, etc.)
+	struct FShapeUpdateParams
+	{
+		FShapeUpdateParams(const UControlRig* InControlRig, const FTransform& InComponentTransform, const bool InSkeletalMeshVisible);
+		const UControlRig* ControlRig = nullptr;
+		const URigHierarchy* Hierarchy = nullptr;
+		const UControlRigEditModeSettings* Settings = nullptr;
+		const FTransform& ComponentTransform = FTransform::Identity;
+		const bool bIsSkeletalMeshVisible = false;
+		bool IsValid() const;
+	};
+
+	// Updates shape actors transform, visibility, etc.
+	void UpdateControlShape(AControlRigShapeActor* InShapeActor, FRigControlElement* InControlElement, const FShapeUpdateParams& InUpdateParams);
+}

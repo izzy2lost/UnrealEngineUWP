@@ -13,6 +13,8 @@
 #include <ThirdParty/GTEngine/Mathematics/GteIEEEBinary.h>
 #include <algorithm>
 #include <fstream>
+#include "HAL/Platform.h"
+#include "Misc/AssertionMacros.h"
 
 // The class BSNumber (binary scientific number) is designed to provide exact
 // arithmetic for robust algorithms, typically those for which we need to know

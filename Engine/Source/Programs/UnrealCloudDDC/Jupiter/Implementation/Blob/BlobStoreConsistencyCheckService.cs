@@ -58,12 +58,12 @@ namespace Jupiter.Implementation
 				return false;
 			}
 
-			await RunConsistencyCheckAsync();
+			await RunConsistencyCheckAsync(cancellationToken);
 
 			return true;
 		}
 
-		private async Task RunConsistencyCheckAsync()
+		private async Task RunConsistencyCheckAsync(CancellationToken cancellationToken)
 		{
 			foreach (IBlobStore blobStore in BlobService.GetBlobStores(_provider, _unrealCloudDDCSettings).Where(RunConsistencyCheckOnBlobStore))
 			{
@@ -83,7 +83,7 @@ namespace Jupiter.Implementation
 					continue;
 				}
 
-				List<NamespaceId> namespaces = await _referencesStore.GetNamespacesAsync().ToListAsync();
+				List<NamespaceId> namespaces = await _referencesStore.GetNamespacesAsync(cancellationToken).ToListAsync(cancellationToken);
 
 				// technically this does not need to be run per namespace but per storage pool
 				foreach (NamespaceId ns in namespaces)
@@ -110,15 +110,15 @@ namespace Jupiter.Implementation
 						}
 
 						Interlocked.Increment(ref countOfBlobsChecked);
-						
+
 						BlobContents contents = await blobStore.GetObjectAsync(ns, blob, LastAccessTrackingFlags.SkipTracking);
 						await using Stream s = contents.Stream;
 
 						bool inconsistencyFound = false;
-						BlobId newHash = await BlobId.FromStreamAsync(s);
+						BlobId newHash = await BlobId.FromStreamAsync(s, cancellationToken);
 						if (!blob.Equals(newHash))
 						{
-							_logger.LogError("Mismatching hash for {Blob} in {Namespace} stored in {BlobStore}, new hash has {NewHash}. Deleting incorrect blob.", blob, ns, blobStoreName,newHash);
+							_logger.LogError("Mismatching hash for {Blob} in {Namespace} stored in {BlobStore}, new hash has {NewHash}. Deleting incorrect blob.", blob, ns, blobStoreName, newHash);
 
 							Interlocked.Increment(ref countOfIncorrectBlobsFound);
 							await blobStore.DeleteObjectAsync(ns, blob);
@@ -126,7 +126,7 @@ namespace Jupiter.Implementation
 							if (isRootStore)
 							{
 								// update blob index tracking to indicate that we no longer have this blob in this region
-								await _blobIndex.RemoveBlobFromRegionAsync(ns, blob);
+								await _blobIndex.RemoveBlobFromRegionAsync(ns, blob, cancellationToken: cancellationToken);
 							}
 						}
 

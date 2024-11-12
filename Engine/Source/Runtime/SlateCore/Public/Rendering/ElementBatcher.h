@@ -8,6 +8,7 @@
 #include "Layout/Clipping.h"
 #include "Stats/Stats.h"
 #include "SlateGlobals.h"
+#include "Styling/SlateTypes.h"
 #include "Containers/StaticArray.h"
 
 class FSlateBatchData;
@@ -28,7 +29,6 @@ DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Elements (Box)"), STAT_SlateElements_Box
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Elements (Border)"), STAT_SlateElements_Border, STATGROUP_Slate, SLATECORE_API);
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Elements (Text)"), STAT_SlateElements_Text, STATGROUP_Slate, SLATECORE_API);
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Elements (ShapedText)"), STAT_SlateElements_ShapedText, STATGROUP_Slate, SLATECORE_API);
-DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Elements (Sdf)"), STAT_SlateElements_ShapedTextSdf, STATGROUP_Slate, SLATECORE_API);
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Elements (Line)"), STAT_SlateElements_Line, STATGROUP_Slate, SLATECORE_API);
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Elements (Other)"), STAT_SlateElements_Other, STATGROUP_Slate, SLATECORE_API);
 
@@ -45,8 +45,6 @@ class FSlateElementBatch
 public:
 	FSlateElementBatch(const FSlateShaderResource* InShaderResource, const FShaderParams& InShaderParams, ESlateShader ShaderType, ESlateDrawPrimitive PrimitiveType, ESlateDrawEffect InDrawEffects, ESlateBatchDrawFlag InBatchFlags, const FSlateDrawElement& InDrawElement, int32 InstanceCount = 0, uint32 InstanceOffset = 0, ISlateUpdatableInstanceBuffer* InstanceData = nullptr);
 	FSlateElementBatch(TWeakPtr<ICustomSlateElement, ESPMode::ThreadSafe> InCustomDrawer, const FSlateDrawElement& InDrawElement);
-
-	void SaveClippingState(const TArray<FSlateClippingState>& PrecachedClipStates);
 
 	bool operator==(const FSlateElementBatch& Other) const
 	{
@@ -172,6 +170,9 @@ public:
 
 	int32 GetNumFinalBatches() const { return NumBatches; }
 
+	int32 GetMaxNumFinalVertices() const { return MaxNumFinalVertices; }
+	int32 GetMaxNumFinalIndices() const { return MaxNumFinalIndices; }
+
 	const FSlateVertexArray& GetFinalVertexData() const { return FinalVertexData; }
 	const FSlateIndexArray& GetFinalIndexData() const { return FinalIndexData; }
 
@@ -198,9 +199,9 @@ public:
 		ESlateBatchDrawFlag InDrawFlags,
 		int8 SceneIndex);
 
-	/** Adds a cached batch, used in retained rendering */
-	void AddCachedBatches(const TSparseArray<FSlateRenderBatch>& InCachedBatches);
-	static void AddCachedBatchesToBatchData(FSlateBatchData* BatchDataSDR, FSlateBatchData* BatchDataHDR, const TSparseArray<FSlateRenderBatch>& InCachedBatches);
+public:
+	friend FSlateElementBatcher;
+
 private:
 	void FillBuffersFromNewBatch(FSlateRenderBatch& Batch, FSlateVertexArray& FinalVertices, FSlateIndexArray& FinalIndices);
 	void CombineBatches(FSlateRenderBatch& FirstBatch, FSlateRenderBatch& SecondBatch, FSlateVertexArray& FinalVertices, FSlateIndexArray& FinalIndices);
@@ -216,6 +217,9 @@ private:
 
 	FSlateVertexArray FinalVertexData;
 	FSlateIndexArray  FinalIndexData;
+
+	int32 MaxNumFinalVertices = 0;
+	int32 MaxNumFinalIndices = 0;
 
 	int32 FirstRenderBatchIndex;
 
@@ -417,7 +421,6 @@ private:
 		const class FShapedGlyphSequence* ShapedGlyphSequence;
 		const class FShapedGlyphSequence* OverflowGlyphSequence;
 		const UObject* FontMaterial;
-		const UObject* OutlineFontMaterial;
 		const struct FFontOutlineSettings* OutlineSettings;
 		const FSlateDrawElement* DrawElement;
 		class FSlateFontCache* FontCache;
@@ -428,18 +431,42 @@ private:
 		float StartLineY;
 		float LocalClipBoundingBoxLeft = 0;
 		float LocalClipBoundingBoxRight = 0;
+		int32 MaxGlyphCountToRender = -1;
 		int32 LayerId;
 		FColor FontTint;
 		ETextOverflowDirection OverflowDirection;
-		bool bEnableOutline : 1;
+		ETextOverflowPolicy OverflowPolicy;
 		bool bEnableCulling : 1;
 		bool bForceEllipsis : 1;
 		
 	};
 
 	template<ESlateVertexRounding Rounding>
-	void BuildShapedTextSequence(const FShapedTextBuildContext& Context);
+	int32 BuildShapedTextSequence(const FShapedTextBuildContext& Context);
 private:
+	/** struct containing info to use for the middle ellipsis policy */
+	struct FMiddleEllipsisOverflowData
+	{
+		FMiddleEllipsisOverflowData()
+			: SkipIndexStart(INDEX_NONE)
+			, SkipIndexEnd(INDEX_NONE)
+			, LineX(0.f)
+			, LineY(0.f)
+			, EllipsisLineX(0.f)
+			, EllipsisLineY(0.f)
+		{}
+
+		int32 SkipIndexStart;
+		int32 SkipIndexEnd;
+		float LineX;
+		float LineY;
+		float EllipsisLineX;
+		float EllipsisLineY;
+	};
+
+	/** Retrieve information for the middle ellipsis, like offset to use and Glyphs to skip */
+	void CalculateMiddleEllipsisSkipIndexAndOffset(const FShapedTextBuildContext& InContext, ETextOverflowDirection InOverflowDirection, FMiddleEllipsisOverflowData& OutMiddleEllipsisData);
+
 	/** Uncached Batch data currently being filled in */
 	FSlateBatchData* BatchData;
 	FSlateBatchData* BatchDataHDR;
@@ -465,9 +492,6 @@ private:
 
 	/** Track the number of drawn shaped text from the previous frame to report to stats. */
 	int32 ElementStat_ShapedText;
-
-	/** Track the number of drawn shaped text using signed distance field from the previous frame to report to stats. */
-	int32 ElementStat_ShapedTextSdf;
 
 	/** Track the number of drawn lines from the previous frame to report to stats. */
 	int32 ElementStat_Line;

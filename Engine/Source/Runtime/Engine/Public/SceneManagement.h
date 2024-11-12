@@ -31,12 +31,6 @@
 #include "Math/SHMath.h"
 #include "GlobalRenderResources.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/TextureLightProfile.h"
-#include "GameFramework/Actor.h"
-#include "LightSceneProxy.h"
-#endif
-
 class FCanvas;
 class FGlobalDynamicIndexBuffer;
 class FGlobalDynamicReadBuffer;
@@ -50,6 +44,7 @@ class FPrimitiveSceneProxy;
 class FScene;
 class FSceneViewState;
 class FShadowMap;
+class FStaticLightingBuildContext;
 class FStaticMeshRenderData;
 class FTexture;
 class UDecalComponent;
@@ -74,6 +69,11 @@ struct FEngineShowFlags;
 class FViewport;
 class FLandscapeRayTracingStateList;
 struct FPrimitiveUniformShaderParametersBuilder;
+
+namespace RayTracing
+{
+	using GeometryGroupHandle = int32;
+}
 
 namespace UE { namespace Color { class FColorSpace; } }
 
@@ -372,7 +372,7 @@ static const int32 LQ_LIGHTMAP_COEF_INDEX = 2;
 /** Compile out low quality lightmaps to save memory */
 // @todo-mobile: Need to fix this!
 #ifndef ALLOW_LQ_LIGHTMAPS
-#define ALLOW_LQ_LIGHTMAPS (PLATFORM_DESKTOP || PLATFORM_IOS || PLATFORM_ANDROID || PLATFORM_SWITCH || PLATFORM_HOLOLENS)
+#define ALLOW_LQ_LIGHTMAPS (PLATFORM_DESKTOP || PLATFORM_IOS || PLATFORM_ANDROID)
 #endif
 
 /** Compile out high quality lightmaps to save memory */
@@ -915,26 +915,26 @@ class FAsyncEncode : public IQueuedWork
 private:
 	TPendingTextureType* PendingTexture;
 	FThreadSafeCounter& Counter;
-	ULevel* LightingScenario;
+	const FStaticLightingBuildContext* LightingContext;
 	class ITextureCompressorModule* Compressor;
 
 public:
 
-	FAsyncEncode(TPendingTextureType* InPendingTexture, ULevel* InLightingScenario, FThreadSafeCounter& InCounter, ITextureCompressorModule* InCompressor) : PendingTexture(nullptr), Counter(InCounter), Compressor(InCompressor)
+	FAsyncEncode(TPendingTextureType* InPendingTexture, const FStaticLightingBuildContext* InLightingContext, FThreadSafeCounter& InCounter, ITextureCompressorModule* InCompressor) : PendingTexture(nullptr), Counter(InCounter), Compressor(InCompressor)
 	{
-		LightingScenario = InLightingScenario;
+		LightingContext = InLightingContext;
 		PendingTexture = InPendingTexture;
 	}
 
 	void Abandon()
 	{
-		PendingTexture->StartEncoding(LightingScenario, Compressor);
+		PendingTexture->StartEncoding(LightingContext, Compressor);
 		Counter.Decrement();
 	}
 
 	void DoThreadedWork()
 	{
-		PendingTexture->StartEncoding(LightingScenario, Compressor);
+		PendingTexture->StartEncoding(LightingContext, Compressor);
 		Counter.Decrement();
 	}
 };
@@ -1245,6 +1245,9 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLightShaderParameters, ENGINE_API)
 	// Factor to applies on the specular.
 	SHADER_PARAMETER(float, SpecularScale)
 
+	// Factor to applies on the diffuse.
+	SHADER_PARAMETER(float, DiffuseScale)
+
 	// One tangent of the light if applies.
 	// Note: BiTangent is on purpose not stored for memory optimisation purposes.
 	SHADER_PARAMETER(FVector3f, Tangent)
@@ -1277,6 +1280,9 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLightShaderParameters, ENGINE_API)
 
 	// Index of the light function in the atlas
 	SHADER_PARAMETER(uint32, LightFunctionAtlasLightIndex)
+
+	// Wether the light affect translucent material or not
+	SHADER_PARAMETER(uint32, bAffectsTranslucentLighting)
 
 END_SHADER_PARAMETER_STRUCT()
 
@@ -1320,6 +1326,9 @@ struct FLightRenderParameters
 	// Factor to applies on the specular.
 	float SpecularScale;
 
+	// Factor to applies on the diffuse.
+	float DiffuseScale;
+
 	// One tangent of the light if applies.
 	// Note: BiTangent is on purpose not stored for memory optimisation purposes.
 	FVector3f Tangent;
@@ -1352,6 +1361,9 @@ struct FLightRenderParameters
 
 	// Index of the light in the Light function atlas data
 	uint32 LightFunctionAtlasLightIndex;
+
+	// Wether this lights affect translucent materials or not
+	uint32 bAffectsTranslucentLighting;
 
 	float InverseExposureBlend;
 
@@ -2107,12 +2119,11 @@ ENUM_CLASS_FLAGS(FMeshElementCollector::ECommitFlags);
  * It is also the actual owner of the temporary, per-frame resources created for each mesh batch.
  * Mesh batches shall only weak-reference the resources located in the collector.
  */
-class FRayTracingMeshResourceCollector : public FMeshElementCollector
+class UE_DEPRECATED(5.5, "Use FRayTracingInstanceCollector instead.") FRayTracingMeshResourceCollector : public FMeshElementCollector
 {
 public:
 	// No MeshBatch should be allocated from an FRayTracingMeshResourceCollector.
 	inline FMeshBatch& AllocateMesh() = delete;
-	void AddMesh(int32 ViewIndex, FMeshBatch& MeshBatch) = delete;
 	void RegisterOneFrameMaterialProxy(FMaterialRenderProxy* Proxy) = delete;
 
 	FRayTracingMeshResourceCollector(
@@ -2142,15 +2153,13 @@ struct FRayTracingDynamicGeometryUpdateParams
 	FMatrix44f WorldToInstance = FMatrix44f::Identity;
 };
 
-struct FRayTracingInstance;
-struct FRayTracingMaskAndFlags;
-
-struct FRayTracingMaterialGatheringContext
+struct UE_DEPRECATED(5.5, "Use FRayTracingInstanceCollector instead.") FRayTracingMaterialGatheringContext
 {
 	const class FScene* Scene;
 	const FSceneView* ReferenceView;
 	const FSceneViewFamily& ReferenceViewFamily;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FRDGBuilder& GraphBuilder;
 	FRHICommandList& RHICmdList;
 	FRayTracingMeshResourceCollector& RayTracingMeshResourceCollector;
@@ -2165,13 +2174,68 @@ struct FRayTracingMaterialGatheringContext
 		const FSceneViewFamily& InReferenceViewFamily,
 		FRDGBuilder& InGraphBuilder,
 		FRayTracingMeshResourceCollector& InRayTracingMeshResourceCollector,
+		FGPUScenePrimitiveCollector& InDynamicPrimitiveCollector,
 		FGlobalDynamicReadBuffer& InGlobalDynamicReadBuffer);
 
 	ENGINE_API virtual ~FRayTracingMaterialGatheringContext();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	UE_DEPRECATED(5.4, "InstanceMaskAndFlags is automatically built and cached in RayTracing.cpp")
-	virtual FRayTracingMaskAndFlags BuildInstanceMaskAndFlags(const FRayTracingInstance& Instance, const FPrimitiveSceneProxy& ScenePrimitive) = 0;
+	ENGINE_API void SetPrimitive(const FPrimitiveSceneProxy* InPrimitiveSceneProxy);
+
+	ENGINE_API void Reset();
+
+	ENGINE_API void AddReferencedGeometryGroup(RayTracing::GeometryGroupHandle GeometryGroup);
+
+	ENGINE_API const TSet<RayTracing::GeometryGroupHandle>& GetReferencedGeometryGroups() const;
+
+private:
+	TSet<RayTracing::GeometryGroupHandle> ReferencedGeometryGroups;
+
+	const bool bUsingReferenceBasedResidency;
 };
+
+namespace RayTracing
+{
+	class FDynamicRayTracingInstancesContext;
+}
+
+/**
+ * Collector used to gather ray tracing instances and related resources.
+ * It is also the actual owner of the temporary, per-frame resources created for each ray tracing instance.
+ */
+class FRayTracingInstanceCollector : public FMeshElementCollector
+{
+public:
+	// No MeshBatch should be allocated from an FRayTracingInstanceCollector.
+	inline FMeshBatch& AllocateMesh() = delete;
+	void RegisterOneFrameMaterialProxy(FMaterialRenderProxy* Proxy) = delete;
+
+	ENGINE_API const FSceneView* GetReferenceView() const { return ReferenceView; }
+
+	ENGINE_API void AddRayTracingInstance(struct FRayTracingInstance Instance);
+
+	ENGINE_API void AddReferencedGeometryGroup(RayTracing::GeometryGroupHandle GeometryGroup);
+
+	ENGINE_API void AddRayTracingGeometryUpdate(FRayTracingDynamicGeometryUpdateParams Params);
+
+private:
+
+	ENGINE_API FRayTracingInstanceCollector(
+		ERHIFeatureLevel::Type InFeatureLevel,
+		FSceneRenderingBulkObjectAllocator& InBulkAllocator,
+		const FSceneView* InReferenceView,
+		bool bInTrackReferencedGeometryGroups);
+
+	const FSceneView* ReferenceView;
+	TArray<FRayTracingInstance> RayTracingInstances;
+	TArray<FRayTracingDynamicGeometryUpdateParams> RayTracingGeometriesToUpdate;
+	TSet<RayTracing::GeometryGroupHandle> ReferencedGeometryGroups;
+
+	const bool bTrackReferencedGeometryGroups;
+
+	friend RayTracing::FDynamicRayTracingInstancesContext;
+};
+
 #endif
 
 class FDynamicPrimitiveUniformBuffer : public FOneFrameResource
@@ -2717,63 +2781,11 @@ void BuildCylinderVerts(const FVector& Base, const FVector& XAxis, const FVector
 extern ENGINE_API FLinearColor GetSelectionColor(const FLinearColor& BaseColor,bool bSelected,bool bHovered, bool bUseOverlayIntensity = true);
 extern ENGINE_API FLinearColor GetViewSelectionColor(const FLinearColor& BaseColor, const FSceneView& View, bool bSelected, bool bHovered, bool bUseOverlayIntensity, bool bIndividuallySelected);
 
-
-/** Vertex Color view modes */
-namespace EVertexColorViewMode
-{
-	enum Type
-	{
-		/** Invalid or undefined */
-		Invalid,
-
-		/** Color only */
-		Color,
-		
-		/** Alpha only */
-		Alpha,
-
-		/** Red only */
-		Red,
-
-		/** Green only */
-		Green,
-
-		/** Blue only */
-		Blue,
-	};
-}
-
-
-/** Global vertex color view mode setting when SHOW_VertexColors show flag is set */
-extern ENGINE_API EVertexColorViewMode::Type GVertexColorViewMode;
-extern ENGINE_API TWeakObjectPtr<UTexture> GVertexViewModeOverrideTexture;
-extern ENGINE_API float GVertexViewModeOverrideUVChannel;
-extern ENGINE_API FString GVertexViewModeOverrideOwnerName;
-extern ENGINE_API bool ShouldProxyUseVertexColorVisualization(FName OwnerName);
-
 /**
  * Returns true if the given view is "rich", and all primitives should be forced down the dynamic drawing path so that ApplyViewModeOverrides can implement the rich view feature.
  * A view is rich if is missing the EngineShowFlags.Materials showflag, or has any of the render mode affecting showflags.
  */
 extern ENGINE_API bool IsRichView(const FSceneViewFamily& ViewFamily);
-
-#if WANTS_DRAW_MESH_EVENTS
-	/**
-	 * true if we debug material names with SCOPED_DRAW_EVENT.
-	 * Toggle with "r.ShowMaterialDrawEvents" cvar.
-	 */
-	extern ENGINE_API void BeginMeshDrawEvent_Inner(FRHICommandList& RHICmdList, const class FPrimitiveSceneProxy* PrimitiveSceneProxy, const struct FMeshBatch& Mesh, struct FDrawEvent& DrawEvent);
-#endif
-
-FORCEINLINE void BeginMeshDrawEvent(FRHICommandList& RHICmdList, const class FPrimitiveSceneProxy* PrimitiveSceneProxy, const struct FMeshBatch& Mesh, struct FDrawEvent& DrawEvent, bool ShowMaterialDrawEvent)
-{
-#if WANTS_DRAW_MESH_EVENTS
-	if (ShowMaterialDrawEvent)
-	{
-		BeginMeshDrawEvent_Inner(RHICmdList, PrimitiveSceneProxy, Mesh, DrawEvent);
-	}
-#endif
-}
 
 extern ENGINE_API void ApplyViewModeOverrides(
 	int32 ViewIndex,
@@ -3006,3 +3018,7 @@ extern ENGINE_API FSharedSamplerState* Clamp_WorldGroupSettings;
 
 /** Initializes the shared sampler states. */
 extern ENGINE_API void InitializeSharedSamplerStates();
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "MeshPaintVisualize.h"
+#endif

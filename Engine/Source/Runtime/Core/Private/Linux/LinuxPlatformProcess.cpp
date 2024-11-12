@@ -6,6 +6,7 @@
 #include "CoreGlobals.h"
 #include "Logging/LogMacros.h"
 #include "Misc/Paths.h"
+#include "HAL/FileManager.h"
 
 const TCHAR* FLinuxPlatformProcess::BaseDir()
 {
@@ -30,7 +31,14 @@ const TCHAR* FLinuxPlatformProcess::BaseDir()
 
 #ifdef UE_RELATIVE_BASE_DIR
 		FString CollapseResult(CachedResult);
-		CollapseResult /= UE_RELATIVE_BASE_DIR;
+
+		// this may have been defined at compile time because we are in Restricted, but then we have been staged as a program, and then remapped out of Restricted
+		// so if we are already in a Binaries/Linux directory
+		if (IFileManager::Get().DirectoryExists(*FPaths::Combine(CollapseResult, UE_RELATIVE_BASE_DIR)))
+		{
+			CollapseResult /= UE_RELATIVE_BASE_DIR;
+		}
+
 		FPaths::CollapseRelativeDirectories(CollapseResult);
 		FCString::Strcpy(CachedResult, UNIX_MAX_PATH, *CollapseResult);
 #endif

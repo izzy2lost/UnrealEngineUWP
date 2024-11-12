@@ -30,8 +30,6 @@
 
 #include "ModelingToolTargetUtil.h"
 #include "TargetInterfaces/MaterialProvider.h"
-#include "TargetInterfaces/MeshDescriptionCommitter.h"
-#include "TargetInterfaces/MeshDescriptionProvider.h"
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 #include "ModelingToolTargetUtil.h"
 
@@ -81,12 +79,11 @@ void UPlaneCutTool::Setup()
 			EToolMessageLevel::UserWarning);
 	}
 
-	// Convert input mesh descriptions to dynamic mesh
+	// Convert input targets to dynamic mesh
 	for (int Idx = 0; Idx < Targets.Num(); Idx++)
 	{
 		FDynamicMesh3* OriginalDynamicMesh = new FDynamicMesh3;
-		FMeshDescriptionToDynamicMesh Converter;
-		Converter.Convert(UE::ToolTarget::GetMeshDescription(Targets[Idx]), *OriginalDynamicMesh);
+		*OriginalDynamicMesh = UE::ToolTarget::GetDynamicMeshCopy(Targets[Idx]);
 		OriginalDynamicMesh->EnableAttributes();
 		TDynamicMeshScalarTriangleAttribute<int>* SubObjectIDs = new TDynamicMeshScalarTriangleAttribute<int>(OriginalDynamicMesh);
 		SubObjectIDs->Initialize(0);
@@ -477,7 +474,7 @@ void UPlaneCutTool::GenerateAsset(const TArray<FDynamicMeshOpResult>& Results)
 			}
 		}
 
-		UE::ToolTarget::CommitMeshDescriptionUpdateViaDynamicMesh(Targets[OrigMeshIdx], *UseMesh, true);
+		UE::ToolTarget::CommitDynamicMeshUpdate(Targets[OrigMeshIdx], *UseMesh, true);
 	}
 
 	if (bNeedToAdd)

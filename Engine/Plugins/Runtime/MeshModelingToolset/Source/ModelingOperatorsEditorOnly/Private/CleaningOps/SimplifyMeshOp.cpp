@@ -8,6 +8,7 @@
 #include "DynamicMesh/DynamicMesh3.h"
 #include "DynamicMesh/DynamicMeshAttributeSet.h"
 #include "DynamicMesh/MeshAttributeUtil.h"
+#include "MeshReductionSettings.h"
 #include "MeshSimplification.h"
 #include "MeshConstraintsUtil.h"
 #include "ProjectionTargets.h"
@@ -60,6 +61,10 @@ void ComputeSimplify(FDynamicMesh3* TargetMesh, const bool bReproject,
 		{
 			TargetMesh->Attributes()->SplitAllBowties();
 		}
+	}
+	if (!bPreventNormalFlips)
+	{
+		Reducer.SetEdgeFlipTolerance(-1.1);
 	}
 
 	FMeshConstraints constraints;
@@ -120,11 +125,6 @@ void ComputeSimplify(FDynamicMesh3* TargetMesh, const bool bReproject,
 	else if (TargetMode == ESimplifyTargetType::MinimalPlanar)
 	{
 		Reducer.SimplifyToMinimalPlanar(AngleThreshold);
-	}
-
-	if (!bPreventNormalFlips)
-	{
-		Reducer.SetEdgeFlipTolerance(-1.1);
 	}
 }
 

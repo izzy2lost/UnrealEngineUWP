@@ -65,7 +65,13 @@ $(async () => {
 					if (urlParams.has("redirect")) {
 						redirectString = decodeURIComponent(urlParams.get("redirect"))
 					}
-
+					else {
+						const redirectCookie = getCookie('redirect_to')
+						if (redirectCookie) {
+							redirectString = redirectCookie
+						}
+					}
+		
 					document.cookie = `auth=${token}; secure=true; path=/;`;
 					document.cookie = 'redirect_to=;';
 					window.location = window.origin + redirectString;
@@ -149,6 +155,11 @@ $(async () => {
 async function oktaSignIn() {
 	// Clear auth cookie on attempt to sign in
 	document.cookie = 'auth=;';
+
+	var urlParams = new URLSearchParams(window.location.search);
+	if (urlParams.has("redirect")) {
+		document.cookie = `redirect_to=${decodeURIComponent(urlParams.get("redirect"))}`
+	}
 
 	// Start full-page redirect to Okta
 	if (authClient) {

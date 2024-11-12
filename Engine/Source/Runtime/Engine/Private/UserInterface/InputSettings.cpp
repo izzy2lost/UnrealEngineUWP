@@ -27,7 +27,9 @@ UInputSettings::UInputSettings(const FObjectInitializer& ObjectInitializer)
 	, bEnableLegacyInputScales(true)
 	, bEnableMotionControls(true)
 	, bFilterInputByPlatformUser(false)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	, bEnableInputDeviceSubsystem(true)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	, bShouldFlushPressedKeysOnViewportFocusLost(true)
 	, bEnableDynamicComponentInputBinding(true)
 	, DefaultViewportMouseCaptureMode(EMouseCaptureMode::CapturePermanently_IncludingInitialMouseDown)
@@ -187,6 +189,14 @@ void UInputSettings::PostReloadConfig(FProperty* PropertyThatWasLoaded)
 	PopulateAxisConfigs();
 #endif
 	AddInternationalConsoleKey();
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (!bEnableInputDeviceSubsystem)
+	{
+		bEnableInputDeviceSubsystem = true;
+		UE_LOG(LogInput, Warning, TEXT("UInputSettings::bEnableInputDeviceSubsystem was detected as false from a config, but it is required to be true as of 5.5. Updating the value to be true."));
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 #if WITH_EDITOR
@@ -630,7 +640,8 @@ bool FHardwareDeviceIdentifier::operator!=(const FHardwareDeviceIdentifier& Othe
 // UInputPlatformSettings
 
 UInputPlatformSettings::UInputPlatformSettings()
-	: MaxTriggerFeedbackPosition(8)
+	: MaxPlatformUserCount(8)
+	, MaxTriggerFeedbackPosition(8)
 	, MaxTriggerFeedbackStrength(8)
 	, MaxTriggerVibrationTriggerPosition(9)
 	, MaxTriggerVibrationFrequency(255)
@@ -681,9 +692,9 @@ const TArray<FName>& UInputPlatformSettings::GetAllHardwareDeviceNames()
 	HardwareDevices.Add(FHardwareDeviceIdentifier::DefaultKeyboardAndMouse.HardwareDeviceIdentifier);
 
 	// Get every known platform's InputPlatformSettings and compile a list of them
-	TArray<UPlatformSettings*> AllInputSettings = UPlatformSettingsManager::Get().GetAllPlatformSettings<UInputPlatformSettings>();
+	TArray<TObjectPtr<UPlatformSettings>> AllInputSettings = UPlatformSettingsManager::Get().GetAllPlatformSettings<UInputPlatformSettings>();
 
-	for (const UPlatformSettings* Setting : AllInputSettings)
+	for (const TObjectPtr<UPlatformSettings>& Setting : AllInputSettings)
 	{
 		if (const UInputPlatformSettings* InputSetting = Cast<UInputPlatformSettings>(Setting))
 		{

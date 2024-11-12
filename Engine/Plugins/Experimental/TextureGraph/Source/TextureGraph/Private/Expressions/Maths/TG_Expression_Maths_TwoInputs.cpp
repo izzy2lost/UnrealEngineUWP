@@ -4,6 +4,7 @@
 #include "Transform/Expressions/T_Maths_TwoInputs.h"
 #include "FxMat/MaterialManager.h"
 #include "Job/JobBatch.h"
+#include "TextureGraphEngine/Helper/MathUtils.h"
 
 typedef std::function<TiledBlobPtr(MixUpdateCyclePtr /* Cycle */, BufferDescriptor DesiredOutputDesc, int32 /*TargetId*/, TiledBlobPtr /*Operand1*/, TiledBlobPtr /*Operand2*/)> MathOpFunc;
 
@@ -62,7 +63,9 @@ FTG_Texture	UTG_Expression_Subtract::EvaluateTexture(FTG_EvaluationContext* InCo
 	return GenericMathOp(InContext, T_Maths_TwoInputs::CreateSubtract, Output.EditTexture().GetBufferDescriptor(), Input1.GetTexture(InContext), Input2.GetTexture(InContext));
 }
 
+//////////////////////////////////////////////////////////////////////////
 /// Dot
+//////////////////////////////////////////////////////////////////////////
 float UTG_Expression_Dot::EvaluateScalar_WithValue(FTG_EvaluationContext* InContext, const float* const ValuePtr, size_t Count)
 {
 	return 0;
@@ -72,7 +75,7 @@ FVector4f UTG_Expression_Dot::EvaluateVector_WithValue(FTG_EvaluationContext* In
 {
 	check(Value && Count == 2);
 	float Result = FVector3f::DotProduct(Value[0], Value[1]);
-	return FVector4f{ Result, Result, Result, Result };
+	return FVector4f{ Result, Result, Result, 1 };
 }
 
 FTG_Texture	UTG_Expression_Dot::EvaluateTexture(FTG_EvaluationContext* InContext)
@@ -80,7 +83,9 @@ FTG_Texture	UTG_Expression_Dot::EvaluateTexture(FTG_EvaluationContext* InContext
 	return T_Maths_TwoInputs::CreateDot(InContext->Cycle, Output.EditTexture().GetBufferDescriptor(), InContext->TargetId, Input1.GetTexture(InContext), Input2.GetTexture(InContext));
 }
 
-/// Cross
+//////////////////////////////////////////////////////////////////////////
+/// Cross 
+//////////////////////////////////////////////////////////////////////////
 float UTG_Expression_Cross::EvaluateScalar_WithValue(FTG_EvaluationContext* InContext, const float* const ValuePtr, size_t Count)
 {
 	return 0;
@@ -95,6 +100,22 @@ FVector4f UTG_Expression_Cross::EvaluateVector_WithValue(FTG_EvaluationContext* 
 FTG_Texture	UTG_Expression_Cross::EvaluateTexture(FTG_EvaluationContext* InContext)
 {
 	return T_Maths_TwoInputs::CreateCross(InContext->Cycle, Output.EditTexture().GetBufferDescriptor(), InContext->TargetId, Input1.GetTexture(InContext), Input2.GetTexture(InContext));
+}
+
+//////////////////////////////////////////////////////////////////////////
+/// Step
+//////////////////////////////////////////////////////////////////////////
+float UTG_Expression_Step::EvaluateScalar_WithValue(FTG_EvaluationContext* InContext, const float* const ValuePtr, size_t Count)
+{
+	check(ValuePtr && Count == 2);
+	float Y = ValuePtr[0];
+	float X = ValuePtr[1];
+	return MathUtils::Step(Y, X);
+}
+
+FTG_Texture	UTG_Expression_Step::EvaluateTexture(FTG_EvaluationContext* InContext)
+{
+	return T_Maths_TwoInputs::CreateStep(InContext->Cycle, Output.EditTexture().GetBufferDescriptor(), InContext->TargetId, Input1.GetTexture(InContext), Input2.GetTexture(InContext));
 }
 
 //////////////////////////////////////////////////////////////////////////

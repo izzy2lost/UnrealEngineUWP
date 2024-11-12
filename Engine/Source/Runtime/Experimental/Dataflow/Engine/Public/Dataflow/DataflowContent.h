@@ -2,14 +2,14 @@
 
 #pragma once
 
-#include "Dataflow/DataflowObjectInterface.h"
-#include "Components/PrimitiveComponent.h"
+#include "DataflowContextObject.h"
+#include "UObject/Interface.h"
 #include "Templates/SharedPointer.h"
-#include "Dataflow/DataflowEdNode.h"
+#include "GameFramework/Actor.h"
 #include "DataflowContent.generated.h"
 
+
 class FDataflowEditorToolkit;
-class UDataflow;
 class USkeletalMesh;
 class USkeleton;
 class USkeletalMeshComponent;
@@ -17,61 +17,54 @@ class UAnimationAsset;
 class UDataflowBaseContent;
 class FPreviewScene;
 class UAnimSingleNodeInstance;
-class AActor;
 
-namespace Dataflow
+namespace UE::DataflowContextHelpers
 {
-	enum class EDataflowPatternVertexType : uint8
-	{
-		Sim2D = 0,
-		Sim3D = 1,
-		Render = 2
-	};
+	// Return a new(or saved) content that can store the execution state of the graph. 
+	template<class T>
+	DATAFLOWENGINE_API TObjectPtr<T> CreateNewDataflowContent(const TObjectPtr<UObject>& ContentOwner);
 }
 
-/** 
- * Context object used for selection/rendering 
- */
-
-UCLASS()
-class DATAFLOWENGINE_API UDataflowContextObject : public UObject
+UINTERFACE(MinimalAPI)
+class UDataflowContentOwner : public UInterface
 {
 	GENERATED_BODY()
+};
+
+/** 
+ * Dataflow interface for any content owner
+ */
+class DATAFLOWENGINE_API IDataflowContentOwner
+{
 public:
 
-	/** Selection Collection Access */
-	void SetPrimarySelectedNode(TObjectPtr<UDataflowEdNode> InSelectedNode) { PrimarySelectedNode = InSelectedNode; }
-	TObjectPtr<UDataflowEdNode> GetPrimarySelectedNode() const { return PrimarySelectedNode; }
+	GENERATED_BODY()
 
-	/** Render Collection used to generate the DynamicMesh3D on the PrimarySelection */
-	void SetPrimaryRenderCollection(const TSharedPtr<FManagedArrayCollection>& InCollection) { PrimaryRenderCollection = InCollection; }
-	TSharedPtr<const FManagedArrayCollection> GetPrimaryRenderCollection() const { return PrimaryRenderCollection; }
+	/** Function to build the dataflow content */
+	TObjectPtr<UDataflowBaseContent> BuildDataflowContent();
 
-	/** ViewMode Access */
-	void SetConstructionViewMode(Dataflow::EDataflowPatternVertexType InMode) {ConstructionViewMode = InMode;}
-	Dataflow::EDataflowPatternVertexType GetConstructionViewMode() const { return ConstructionViewMode; }
+	/** Notification when owner changed */
+	DECLARE_MULTICAST_DELEGATE(FOnContentOwnerChanged);
 
-	/** Get a single selected node of the specified type. Return nullptr if the specified node is not selected, or if multiple nodes are selected*/
-	template<typename NodeType>
-	NodeType* GetPrimarySelectedNodeOfType() const 
+	/** Delegate member to be called in the invalidate */
+	FOnContentOwnerChanged OnContentOwnerChanged;
+
+	/** Invalidate all the dataflow contents */
+	void InvalidateDataflowContents() const
 	{
-		if (PrimarySelectedNode && PrimarySelectedNode->GetDataflowNode()) 
-		{
-			return PrimarySelectedNode->GetDataflowNode()->AsType<NodeType>();
-		}
-		return nullptr;
+		OnContentOwnerChanged.Broadcast();
 	}
+	
+	/** Interface to update a dataflow content instance from that owner */
+	virtual void WriteDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const = 0;
 
-protected:
+	/** Interface to update a dataflow content instance from that owner */
+	virtual void ReadDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) = 0;
+	
+protected :
 
-	/** Render collection to be used */
-	TSharedPtr<FManagedArrayCollection> PrimaryRenderCollection = nullptr;
-
-	/** Primary node that is selected in the graph */
-	TObjectPtr<UDataflowEdNode> PrimarySelectedNode = nullptr;
-
-	/** Construction view mode for the context object @todo(michael) : is it only for construction or for simulation as well*/
-	Dataflow::EDataflowPatternVertexType ConstructionViewMode = Dataflow::EDataflowPatternVertexType::Sim3D;
+	/** Interface to create a dataflow content instance from that owner */
+	virtual TObjectPtr<UDataflowBaseContent> CreateDataflowContent() = 0;
 };
 
 /** 
@@ -84,140 +77,177 @@ class DATAFLOWENGINE_API UDataflowBaseContent : public UDataflowContextObject
 
 public:
 	UDataflowBaseContent();
+	~UDataflowBaseContent();
 
-	/** Data flow asset that we will edit */
-	UPROPERTY(EditAnywhere, Category = "Dataflow")
-	TObjectPtr<UDataflow> DataflowAsset = nullptr;
-
-	/** Data flow terminal path for evaluation */
-	UPROPERTY(EditAnywhere, Category = "Dataflow")
-	FString DataflowTerminal = "";
-	
 	/** 
 	*	Dirty - State Invalidation
 	*   Check if non-graph specific data has been changed, this usually requires a re-render 
 	*/
-	bool IsDirty() const { return bIsDirty; }
-	void SetIsDirty(bool InDirty) { bIsDirty = InDirty; }
+	bool IsConstructionDirty() const { return bIsConstructionDirty; }
+	void SetConstructionDirty(bool InDirty);
+	
+	bool IsSimulationDirty() const { return bIsSimulationDirty; }
+	void SetSimulationDirty(bool InDirty);
 
 	/** 
 	*	LastModifiedTimestamp - State Invalidation 
 	*   Dataflow timestamp accessors can be used to see if the EvaluationContext has been invalidated. 
 	*/
-	void SetLastModifiedTimestamp(Dataflow::FTimestamp InTimestamp);
-	const Dataflow::FTimestamp& GetLastModifiedTimestamp() const { return LastModifiedTimestamp; }
+	void SetLastModifiedTimestamp(UE::Dataflow::FTimestamp InTimestamp, bool bMakeDirty =true);
+	const UE::Dataflow::FTimestamp& GetLastModifiedTimestamp() const { return LastModifiedTimestamp; }
 
 	/**  
 	*	Context - Dataflow Evaluation State
 	*   Dataflow context stores the evaluated state of the graph. 
 	*/
-	void SetDataflowContext(const TSharedPtr<Dataflow::FEngineContext>& InContext) { DataflowContext = InContext; bIsDirty = true; }
-	const TSharedPtr<Dataflow::FEngineContext>& GetDataflowContext() const { return DataflowContext; }
-
-	/** Return the simulation time range to be used in the simulation viewport */
-	virtual FVector2f GetSimulationRange() const { return FVector2f(0.0f, 100.0f); } 
-	
-	/** Register components to the simulation world */
-	virtual void RegisterWorldContent(FPreviewScene* PreviewScene, AActor* RootActor) {}
-	
-	/** Unregister components to the simulation world */
-	virtual void UnregisterWorldContent(FPreviewScene* PreviewScene) {}
-
-	/** Build the content context, timestamp*/
-	void BuildBaseContent(TObjectPtr<UObject> ContentOwner);
+	virtual void SetDataflowContext(const TSharedPtr<UE::Dataflow::FEngineContext>& InContext) override;
+ 
+	/** Rebuild the owner dependent datas  */
+	void UpdateContentDatas();
 
 	/** Collect reference objects for GC */
 	virtual void AddContentObjects(FReferenceCollector& Collector) {}
-	
-	/** Data flow owner accessors */
-	void SetDataflowOwner(const TObjectPtr<UObject>& InOwner) { if(DataflowContext) { DataflowContext->Owner = InOwner;  bIsDirty = true; }}
-	TObjectPtr<UObject> GetDataflowOwner() const { return DataflowContext ? DataflowContext->Owner : nullptr; }
 
-	/** Data flow asset accessors */
-	void SetDataflowAsset(const TObjectPtr<UDataflow>& InAsset) { DataflowAsset = InAsset;  bIsDirty = true;}
-	const TObjectPtr<UDataflow>& GetDataflowAsset() const { return DataflowAsset; }
+	/** Set all the preview actor exposed properties */
+	virtual void SetActorProperties(TObjectPtr<AActor>& PreviewActor) const;
+	
+	/** Data flow owner accessors (through the context) */
+	void SetDataflowOwner(const TObjectPtr<UObject>& InOwner);
+	TObjectPtr<UObject> GetDataflowOwner() const;
+	
+	/** Data flow asset accessors (through the context) */
+	virtual void SetDataflowAsset(const TObjectPtr<UDataflow>& InAsset) override;
 
 	/** Data flow terminal accessors */
-	void SetDataflowTerminal(const FString& InPath) { DataflowTerminal = InPath;  bIsDirty = true;}
+	void SetDataflowTerminal(const FString& InPath) { DataflowTerminal = InPath;  SetConstructionDirty(true); SetSimulationDirty(true);}
 	const FString& GetDataflowTerminal() const { return DataflowTerminal; }
 
+	/** Terminal asset accessors */
+	void SetTerminalAsset(const TObjectPtr<UObject>& InAsset) { TerminalAsset = InAsset;  SetConstructionDirty(true); SetSimulationDirty(true);}
+	const TObjectPtr<UObject>& GetTerminalAsset() const { return TerminalAsset;}
+
+	/** Preview class accessors */
+	void SetPreviewClass(const TSubclassOf<AActor>& InPreviewClass) { PreviewClass = InPreviewClass;  SetConstructionDirty(true); SetSimulationDirty(true);}
+	const TSubclassOf<AActor>& GetPreviewClass() const { return PreviewClass;}
+
+	/** Content Serialization */
+	virtual void Serialize(FArchive& Ar);
+
+	/* Context cache saving */
+	bool IsSaved() const { return bIsSaved; }
+	void SetIsSaved(bool bInSaved) { bIsSaved = bInSaved; }
+
+	//~ UObject interface
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif //if WITH_EDITOR
+
+protected:
 	
-protected :
+	/** Data flow terminal path for evaluation */
+	UPROPERTY(Transient, SkipSerialization)
+	FString DataflowTerminal = "";
 	
-	/**  Engine context to be used for dataflow evaluation */
-    TSharedPtr<Dataflow::FEngineContext> DataflowContext = nullptr;
+	/** Data flow terminal path for evaluation */
+	UPROPERTY(Transient, SkipSerialization)
+	TObjectPtr<UObject> TerminalAsset = nullptr;
 
     /** Last data flow evaluated node time stamp */
-    Dataflow::FTimestamp LastModifiedTimestamp = Dataflow::FTimestamp::Invalid;
+	UE::Dataflow::FTimestamp LastModifiedTimestamp = UE::Dataflow::FTimestamp::Invalid;
 
     /** Dirty flag to trigger rendering. Do we need that? since when accessing the member by non const ref we will not dirty it */
-    bool bIsDirty = true;
+	UPROPERTY()
+	bool bIsConstructionDirty = true;
+
+	/** Dirty flag to reset the simulation if necessary */
+	UPROPERTY()
+	bool bIsSimulationDirty = true;
+
+	/** Saved as a cached context. Will be automatically saved to a cache directory if true. Use the pvar p.Dataflow.Editor.ContextCaching to enable. [def:false] */
+	bool bIsSaved = false;
+
+	/** Preview actor class that could be used to visualize the result */
+	TSubclassOf<AActor> PreviewClass = nullptr;
+
+	/** override actor properties from BP */
+	static void OverrideActorProperty(const TObjectPtr<AActor>& PreviewActor, TObjectPtr<UObject> PropertyValue, const FName& PropertyName);
+
+	/** override struct properties from BP */
+	template<typename StructType>
+	static void OverrideStructProperty(const TObjectPtr<AActor>& PreviewActor, const StructType& PropertyValue, const FName& PropertyName);
 };
+
+template<typename StructType>
+void UDataflowBaseContent::OverrideStructProperty(const TObjectPtr<AActor>& PreviewActor, const StructType& PropertyValue, const FName& PropertyName)
+{
+	if(PreviewActor)
+	{
+		if(const FProperty* DataflowProperty = PreviewActor->GetClass()->FindPropertyByName(PropertyName))
+		{
+			if (const FStructProperty* StructProperty = CastField<FStructProperty>(DataflowProperty))
+			{
+				if(StructProperty->Struct == StructType::StaticStruct())
+				{
+					if(StructType* PropertyStruct = DataflowProperty->ContainerPtrToValuePtr<StructType>(PreviewActor))
+					{
+						(*PropertyStruct) = PropertyValue;
+					}
+				}
+			}
+		}
+	}
+}
 
 /** 
  * Dataflow content owning dataflow and skelmesh assets that that will be used to evaluate the graph
  */
 UCLASS()
-class DATAFLOWENGINE_API UDataflowSkeletalContent : public UDataflowBaseContent
+class DATAFLOWENGINE_API  UDataflowSkeletalContent : public UDataflowBaseContent
 {
 	GENERATED_BODY()
 
 public:
 	UDataflowSkeletalContent();
 	virtual ~UDataflowSkeletalContent() override{}
-
-	/** Data flow skeletal mesh*/
-	UPROPERTY(EditAnywhere, Category = "Preview")
-	TObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
-
-	/** Animation asset to be used to preview simulation */
-	UPROPERTY(EditAnywhere, Category = "Preview")
-	TObjectPtr<UAnimationAsset> AnimationAsset;
-
-	/** Data flow skeleton */
-	UPROPERTY(EditAnywhere, Category = "Skeleton")
-	TObjectPtr<USkeleton> Skeleton = nullptr;
-
-	/** Return the simulation time range to be used in the simulation viewport */
-	virtual FVector2f GetSimulationRange() const override; 
-
-	/** Register components to the scene world */
-	virtual void RegisterWorldContent(FPreviewScene* PreviewScene, AActor* RootActor) override;
-	
-	/** Unregister components to the scene world */
-	virtual void UnregisterWorldContent(FPreviewScene* PreviewScene) override;
 	
 #if WITH_EDITOR
+	virtual bool CanEditChange(const FProperty* InProperty) const override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif //if WITH_EDITOR
 
 	/** Collect reference objects for GC */
 	virtual void AddContentObjects(FReferenceCollector& Collector) override;
 
-	/** Update the animation node instance and set it to the skelmesh component*/
-	void UpdateAnimationInstance();
-
-	/** Data flow animation instance accessors */
-	const TObjectPtr<UAnimSingleNodeInstance>& GetAnimationInstance() const {return AnimationNodeInstance;}
-	TObjectPtr<UAnimSingleNodeInstance>& GetAnimationInstance() {return AnimationNodeInstance;}
-
 	/** Data flow skeletal mesh accessors */
-	void SetSkeletalMesh(const TObjectPtr<USkeletalMesh>& InMesh);
+	void SetSkeletalMesh(const TObjectPtr<USkeletalMesh>& InMesh, const bool bHideAsset = false);
 	const TObjectPtr<USkeletalMesh>& GetSkeletalMesh() const { return SkeletalMesh; }
 
-	/** Data flow skeleton accessors */
-	void SetSkeleton(const TObjectPtr<USkeleton>& InSkeleton);
-	const TObjectPtr<USkeleton>& GetSkeleton() const { return Skeleton; }
-
 	/** Data flow animation asset accessors */
-	void SetAnimationAsset(const TObjectPtr<UAnimationAsset>& InAnimation);
+	void SetAnimationAsset(const TObjectPtr<UAnimationAsset>& InAnimation, const bool bHideAsset = false);
 	const TObjectPtr<UAnimationAsset>& GetAnimationAsset() const { return AnimationAsset; }
-	
-protected :
-	
-	/** Skeletal mesh component used in the preview scene */
-	TObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent;
 
-	/** Anim node instance used with skelmesh component */
-	TObjectPtr<UAnimSingleNodeInstance> AnimationNodeInstance;
+	//~ UObject interface
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+
+	/** Set all the preview actor exposed properties */
+	virtual void SetActorProperties(TObjectPtr<AActor>& PreviewActor) const override;
+
+protected:
+
+	/** Data flow skeletal mesh*/
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	TObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
+
+	/** Animation asset to be used to preview simulation */
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	TObjectPtr<UAnimationAsset> AnimationAsset = nullptr;
+
+	/** Boolean to control if the skeletal mesh could be edited or not */
+	bool bHideSkeletalMesh = false;
+
+	/** Boolean to control if the animation asset could be edited or not */
+	bool bHideAnimationAsset = false;
 };
+

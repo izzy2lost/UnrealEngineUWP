@@ -21,7 +21,7 @@ class TEXTUREGRAPH_API UTG_AsyncExportTask : public UTG_AsyncTask
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "TextureGraph" , meta=(DisplayName="Texture Graph Export (Async)", BlueprintInternalUseOnly = "true"))
-	static UTG_AsyncExportTask* TG_AsyncExportTask(UTextureGraph* TextureGraph, const bool OverwriteTextures);
+	static UTG_AsyncExportTask* TG_AsyncExportTask(UTextureGraph* TextureGraph, const bool OverwriteTextures, const bool bSave);
 
 	virtual void Activate() override;
 
@@ -36,8 +36,13 @@ private:
 	void OnExportDone();
 	
 	bool OverwriteTextures = true;
+
+	bool bSave = false;
+
 	UTextureGraph* OrignalTextureGraphPtr;
+
 	UTextureGraph* TextureGraphPtr;
+
 	FExportSettings TargetExportSettings;
 };
 

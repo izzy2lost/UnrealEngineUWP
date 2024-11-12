@@ -47,10 +47,8 @@ public:
 	bool operator<(FNetHandle Other) const;
 	bool operator!=(FNetHandle Other) const;
 
-	FString ToString() const;
+	NETCORE_API FString ToString() const;
 
-	static bool FullCompare(FNetHandle A, FNetHandle B);
-	
 private:
 	friend FNetHandleManager;
 	friend Private::FNetPushObjectHandle;

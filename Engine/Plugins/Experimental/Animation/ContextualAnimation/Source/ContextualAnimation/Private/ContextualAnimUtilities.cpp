@@ -166,7 +166,7 @@ void UContextualAnimUtilities::DrawDebugAnimSet(const UWorld* World, const UCont
 	{
 		for (const FContextualAnimTrack& AnimTrack : AnimSet.Tracks)
 		{
-			const FTransform Transform = (SceneAsset.GetMeshToComponentForRole(AnimTrack.Role) * SceneAsset.GetAlignmentTransform(AnimTrack, 0, Time)) * ToWorldTransform;
+			const FTransform Transform = (FTransform(SceneAsset.GetMeshToComponentForRole(AnimTrack.Role).GetRotation()) * SceneAsset.GetAlignmentTransform(AnimTrack, 0, Time)) * ToWorldTransform;
 
 			if (const UAnimSequenceBase* Animation = AnimTrack.Animation)
 			{
@@ -400,6 +400,16 @@ const FContextualAnimSceneBinding& UContextualAnimUtilities::BP_SceneBindings_Ge
 const FContextualAnimSceneBinding& UContextualAnimUtilities::BP_SceneBindings_GetBindingByActor(const FContextualAnimSceneBindings& Bindings, const AActor* Actor)
 {
 	if (const FContextualAnimSceneBinding* SceneActorData = Bindings.FindBindingByActor(Actor))
+	{
+		return *SceneActorData;
+	}
+
+	return FContextualAnimSceneBinding::InvalidBinding;
+}
+
+const FContextualAnimSceneBinding& UContextualAnimUtilities::BP_SceneBindings_GetPrimaryBinding(const FContextualAnimSceneBindings& Bindings)
+{
+	if (const FContextualAnimSceneBinding* SceneActorData = Bindings.GetPrimaryBinding())
 	{
 		return *SceneActorData;
 	}

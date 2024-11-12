@@ -438,7 +438,7 @@ void FConstraintsManagerController::StaticConstraintCreated(UWorld* InWorld, UTi
 		{
 			Manager->Modify();
 			Manager->Constraints.Add(InConstraint);
-			InConstraint->Rename(nullptr, Manager, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+			InConstraint->Rename(nullptr, Manager, REN_DontCreateRedirectors);
 			Manager->OnConstraintAdded_BP.Broadcast(Manager, InConstraint);
 		}
 	}
@@ -766,78 +766,30 @@ bool FConstraintsManagerController::RemoveAllConstraints(bool bDoNotCompensate)
 	return false;
 }
 
-static void SortConstraints(UWorld* InWorld, TArray< TWeakObjectPtr<UTickableConstraint> >& InOutSortedConstraints)
-{
-	using ConstraintPtr = TWeakObjectPtr<UTickableConstraint>;
-	// LHS ticks before RHS = LHS is a prerex of RHS 
-	auto TicksBefore = [InWorld](const UTickableConstraint& LHS, const UTickableConstraint& RHS)
-	{
-		if (RHS.IsValid() == false || LHS.IsValid() == false)
-		{
-			return false;
-		}
-		const TArray<FTickPrerequisite>& RHSPrerex = RHS.GetTickFunction(InWorld).GetPrerequisites();
-		const FConstraintTickFunction& LHSTickFunction = LHS.GetTickFunction(InWorld);
-		const bool bIsLHSAPrerexOfRHS = RHSPrerex.ContainsByPredicate([&LHSTickFunction](const FTickPrerequisite& Prerex)
-			{
-				return Prerex.PrerequisiteTickFunction == &LHSTickFunction;
-			});
-		return bIsLHSAPrerexOfRHS;
-	};
-
-	Algo::Sort(InOutSortedConstraints, [TicksBefore](const ConstraintPtr& LHS, const ConstraintPtr& RHS)
-	{
-		return TicksBefore(*LHS, *RHS);
-	});
-}
-
-static void SortConstraints(UWorld* InWorld, TArray< TObjectPtr<UTickableConstraint> >& InOutSortedConstraints)
-{
-	using ConstraintPtr = TObjectPtr<UTickableConstraint>;
-	// LHS ticks before RHS = LHS is a prerex of RHS 
-	auto TicksBefore = [InWorld](const UTickableConstraint& LHS, const UTickableConstraint& RHS)
-	{
-		const TArray<FTickPrerequisite>& RHSPrerex = RHS.GetTickFunction(InWorld).GetPrerequisites();
-		const FConstraintTickFunction& LHSTickFunction = LHS.GetTickFunction(InWorld);
-		const bool bIsLHSAPrerexOfRHS = RHSPrerex.ContainsByPredicate([&LHSTickFunction](const FTickPrerequisite& Prerex)
-			{
-				return Prerex.PrerequisiteTickFunction == &LHSTickFunction;
-			});
-		return bIsLHSAPrerexOfRHS;
-	};
-
-	Algo::Sort(InOutSortedConstraints, [TicksBefore](const ConstraintPtr& LHS, const ConstraintPtr& RHS)
-	{
-		return TicksBefore(*LHS, *RHS);
-	});
-}
-
-TArray< TObjectPtr<UTickableConstraint> > FConstraintsManagerController::GetStaticConstraints(const bool bSorted) const
+TArray< TWeakObjectPtr<UTickableConstraint> > FConstraintsManagerController::GetStaticConstraints(const bool bSorted) const
 {
 	UConstraintsManager* Manager = FindManager();
 	if (!Manager)
 	{
-		static const TArray< TObjectPtr<UTickableConstraint> > Empty;
+		static const TArray< TWeakObjectPtr<UTickableConstraint> > Empty;
 		return Empty;
 	}
-	TArray<TObjectPtr<UTickableConstraint>> Constraints = Manager->Constraints;
-
-	// Remove stale constraints. Stale constraints may be caused to due unexpected unloading
-	// of constributing objects, such as a level sequence.
+	
+	// Remove stale constraints. Stale constraints may be caused by unexpected unloading of contributing objects, such as a level sequence.
 	Manager->Constraints.RemoveAll([](const TObjectPtr<UTickableConstraint>& ExistingConstraint) -> bool
 	{
-		return !ExistingConstraint;
+		return !IsValid(ExistingConstraint);
 	});
 
+	TArray< TWeakObjectPtr<UTickableConstraint> > Constraints(Manager->Constraints);
 	if (!bSorted)
 	{
 		return Constraints;
 	}
 
-	TArray< TObjectPtr<UTickableConstraint> > SortedConstraints(Constraints);
-	SortConstraints(World,SortedConstraints);
+	UE::Constraints::Graph::SortConstraints(World, Constraints);
 
-	return SortedConstraints;
+	return Constraints;
 }
 
 TArray< TWeakObjectPtr<UTickableConstraint> > FConstraintsManagerController::GetAllConstraints(const bool bSorted) const
@@ -848,22 +800,33 @@ TArray< TWeakObjectPtr<UTickableConstraint> > FConstraintsManagerController::Get
 		static const TArray< TWeakObjectPtr<UTickableConstraint> > Empty;
 		return Empty;
 	}
+
+	// use evaluation graph cached data
+	if (FConstraintsEvaluationGraph::UseEvaluationGraph() && bSorted)
+	{
+		TArray<TWeakObjectPtr<UTickableConstraint>> SortedConstraints;
+		if (Subsystem->GetEvaluationGraph(World).GetSortedConstraints(SortedConstraints))
+		{
+		   return SortedConstraints;
+		}
+	}
+
 	TArray<TWeakObjectPtr<UTickableConstraint>> Constraints = Subsystem->GetConstraints(World);
+
+	// Remove stale constraints (note that GCd constraints should already have been caught by UConstraintSubsystem)
+	Constraints.RemoveAll([](const TWeakObjectPtr<UTickableConstraint>& ExistingConstraint) -> bool
+	{
+		return ExistingConstraint.IsStale();
+	});
 	
 	if (!bSorted)
 	{
 		return Constraints;
 	}
 
-	TArray< TWeakObjectPtr<UTickableConstraint> > SortedConstraints(Constraints);
-	// Remove stale constraints
-	Constraints.RemoveAll([](const TWeakObjectPtr<UTickableConstraint>& ExistingConstraint) -> bool
-	{
-		return ExistingConstraint.IsStale();
-	});
-	SortConstraints(World,SortedConstraints);
+	UE::Constraints::Graph::SortConstraints(World, Constraints);
 	
-	return SortedConstraints;
+	return Constraints;
 }
 
 void FConstraintsManagerController::EvaluateAllConstraints() const

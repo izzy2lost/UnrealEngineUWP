@@ -8,8 +8,10 @@
 
 #include "ShowFlags.h"
 #include "DisplayClusterMeshProjectionRenderer.h"
+#include "DisplayClusterScenePreviewEnums.h"
 
 class ADisplayClusterRootActor;
+struct FDisplayClusterRootActorPropertyOverrides;
 
 DECLARE_DELEGATE_OneParam(FRenderResultDelegate, FRenderTarget*);
 
@@ -63,9 +65,10 @@ public:
 	 * 
 	 * @param RendererId The ID of the renderer as returned from CreateRenderer.
 	 * @param ActorPath The path of the ADisplayClusterRootActor actor to preview.
-	 * @param bAutoUpdateLightcards If true, the renderer scene will also be automatically populated with the actor's associated lightcards, including future changes to them.
+	 * @param InPropertyOverrides optional overrides for root actor
+	 * @param PreviewFlags Special flags that control the behavior of the renderer.
 	 */
-	virtual bool SetRendererRootActorPath(int32 RendererId, const FString& ActorPath, bool bAutoUpdateLightcards = false) = 0;
+	virtual bool SetRendererRootActorPath(int32 RendererId, const FString& ActorPath, const FDisplayClusterRootActorPropertyOverrides& InPropertyOverrides, const EDisplayClusterScenePreviewFlags PreviewFlags = EDisplayClusterScenePreviewFlags::None) = 0;
 
 	/**
 	 * Set the root DisplayCluster actor for the renderer with the given ID, which will be added to the preview scene and used to determine the render world.
@@ -74,9 +77,10 @@ public:
 	 * 
 	 * @param RendererId The ID of the renderer as returned from CreateRenderer.
 	 * @param Actor The actor to preview.
-	 * @param bAutoUpdateLightcards If true, the renderer scene will also be automatically populated with the actor's associated lightcards, including future changes to them.
+	 * @param InPropertyOverrides optional overrides for root actor
+	 * @param PreviewFlags Special flags that control the behavior of the renderer.
 	 */
-	virtual bool SetRendererRootActor(int32 RendererId, ADisplayClusterRootActor* Actor, bool bAutoUpdateLightcards = false) = 0;
+	virtual bool SetRendererRootActor(int32 RendererId, ADisplayClusterRootActor* Actor, const FDisplayClusterRootActorPropertyOverrides& InPropertyOverrides, const EDisplayClusterScenePreviewFlags PreviewFlags = EDisplayClusterScenePreviewFlags::None) = 0;
 
 	/**
 	 * Get the root actor of a renderer. 
@@ -84,6 +88,13 @@ public:
 	 * @param RendererId The ID of the renderer as returned from CreateRenderer.
 	 */
 	virtual ADisplayClusterRootActor* GetRendererRootActor(int32 RendererId) = 0;
+
+	/**
+	 * Get the root actor (or its proxy) of a renderer.
+	 *
+	 * @param RendererId The ID of the renderer as returned from CreateRenderer.
+	 */
+	virtual ADisplayClusterRootActor* GetRendererRootActorOrProxy(int32 RendererId) = 0;
 
 	/**
 	 * Get a list of all actors that have been added to a renderer's scene.
@@ -146,14 +157,6 @@ public:
 	virtual bool SetRendererRenderSimpleElementsDelegate(int32 RendererId, FDisplayClusterMeshProjectionRenderer::FSimpleElementPass RenderSimpleElementsDelegate) = 0;
 
 	/**
-	 * Set whether the renderer should use post-processed nDisplay preview textures.
-	 *
-	 * @param RendererId The ID of the renderer as returned from CreateRenderer.
-	 * @param bUsePostProcessTexture Whether to use post-processed nDisplay preview texture for future renders.
-	 */
-	virtual bool SetRendererUsePostProcessTexture(int32 RendererId, bool bUsePostProcessTexture) = 0;
-
-	/**
 	 * Immediately render a preview.
 	 * 
 	 * @param RendererId The ID of the renderer as returned from CreateRenderer.
@@ -186,4 +189,46 @@ public:
 	 * Check whether nDisplay preview textures are being updated in real time.
 	 */
 	virtual bool IsRealTimePreviewEnabled() const = 0;
+
+	/**
+	 * Set the path of the ADisplayClusterRootActor actor for a renderer, which will be added to the preview scene and used to determine the render world.
+	 * Whenever a render is performed with this renderer, it will try to find the actor at that path and use it as the root.
+	 * 
+	 * @param RendererId The ID of the renderer as returned from CreateRenderer.
+	 * @param ActorPath The path of the ADisplayClusterRootActor actor to preview.
+	 * @param bAutoUpdateLightcards If true, the renderer scene will also be automatically populated with the actor's associated lightcards, including future changes to them.
+	 */
+	UE_DEPRECATED(5.5, "This function has been deprecated. Use EDisplayClusterScenePreviewFlags.")
+	virtual bool SetRendererRootActorPath(int32 RendererId, const FString& ActorPath, bool bAutoUpdateLightcards = false)
+	{
+		return false;
+	};
+
+	/**
+	 * Set the root DisplayCluster actor for the renderer with the given ID, which will be added to the preview scene and used to determine the render world.
+	 * Note that if the actor is destroyed (including by a recompile, reload, etc.), you will need to call this again to update the actor.
+	 * This will also clear the path set by SetRendererRootActorPath.
+	 * 
+	 * @param RendererId The ID of the renderer as returned from CreateRenderer.
+	 * @param Actor The actor to preview.
+	 * @param bAutoUpdateLightcards If true, the renderer scene will also be automatically populated with the actor's associated lightcards, including future changes to them.
+	 */
+	UE_DEPRECATED(5.5, "This function has been deprecated.")
+	virtual bool SetRendererRootActor(int32 RendererId, ADisplayClusterRootActor* Actor, bool bAutoUpdateLightcards = false)
+	{
+		return false;
+	};
+
+	/**
+	 * Set whether the renderer should use post-processed nDisplay preview textures.
+	 *
+	 * @param RendererId The ID of the renderer as returned from CreateRenderer.
+	 * @param bUsePostProcessTexture Whether to use post-processed nDisplay preview texture for future renders.
+	 */
+	UE_DEPRECATED(5.5, "This function has been deprecated.")
+	virtual bool SetRendererUsePostProcessTexture(int32 RendererId, bool bUsePostProcessTexture)
+	{
+		return false;
+	};
+
 };

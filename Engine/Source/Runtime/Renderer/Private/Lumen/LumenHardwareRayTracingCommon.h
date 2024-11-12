@@ -6,40 +6,62 @@
 #include "GlobalShader.h"
 #include "Lumen/LumenTracingUtils.h"
 #include "RayTracing/RayTracingLighting.h"
+#include "RayTracing/RayTracing.h"
 #include "RayTracingPayloadType.h"
 #include "SceneTextureParameters.h"
 #include "Substrate/Substrate.h" 
 
+enum class EReflectionsMethod;
+
+namespace RayTracing
+{
+	struct FSceneOptions;
+};
+
 namespace LumenHardwareRayTracing
 {
+	enum class EAvoidSelfIntersectionsMode : uint8
+	{
+		Disabled,
+		Retrace,
+		AHS,
+
+		MAX
+	};
+	
+	enum class EHitLightingMode
+	{
+		SurfaceCache,
+		HitLighting,
+		HitLightingForReflections,
+
+		MAX
+	};
+
 	bool IsInlineSupported();
 	bool IsRayGenSupported();
+	float GetFarFieldBias();
+	bool UseSurfaceCacheAlphaMasking();	
+	EAvoidSelfIntersectionsMode GetAvoidSelfIntersectionsMode();
+
+	// Hit Lighting
+	EHitLightingMode GetHitLightingMode(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
+	uint32 GetHitLightingShadowMode();
+	bool UseHitLightingDirectLighting();
+	bool UseHitLightingSkylight(EDiffuseIndirectMethod DiffuseIndirectMethod);
+	bool UseReflectionCapturesForHitLighting();
+
+	void SetRayTracingSceneOptions(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod, EReflectionsMethod ReflectionsMethod, RayTracing::FSceneOptions& SceneOptions);
 }
 
 #if RHI_RAYTRACING
 
 namespace Lumen
 {
-	enum class EHardwareRayTracingLightingMode;
-
-	struct FHardwareRayTracingPermutationSettings
-	{
-		EHardwareRayTracingLightingMode LightingMode;
-		bool bUseMinimalPayload;
-		bool bUseDeferredMaterial;
-	};
-
 	// Struct definitions much match those in LumenHardwareRayTracingCommon.ush 
 	struct FHitGroupRootConstants
 	{
-		uint32 BaseInstanceIndex;
 		uint32 UserData;
-	};
-
-	enum class ERayTracingShaderDispatchSize
-	{
-		DispatchSize1D = 0,
-		DispatchSize2D = 1,
 	};
 
 	enum class ERayTracingShaderDispatchType
@@ -65,12 +87,16 @@ public:
 		SHADER_PARAMETER_STRUCT_REF(FReflectionCaptureShaderData, ReflectionCapture)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, Forward)
 
-		// Surface cache
+		// Lumen
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenCardTracingParameters, TracingParameters)
+		SHADER_PARAMETER(uint32, MaxTraversalIterations)
+		SHADER_PARAMETER(uint32, MeshSectionVisibilityTest)
+		SHADER_PARAMETER(float, MinTraceDistanceToSampleSurfaceCache)
+		SHADER_PARAMETER(float, SurfaceCacheSamplingDepthBias)
 
 		// Inline data
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<Lumen::FHitGroupRootConstants>, HitGroupData)
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenHardwareRayTracingUniformBufferParameters, LumenHardwareRayTracingUniformBuffer)
+		SHADER_PARAMETER_STRUCT_REF(FLumenHardwareRayTracingUniformBufferParameters, LumenHardwareRayTracingUniformBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 
 	FLumenHardwareRayTracingShaderBase();
@@ -80,13 +106,11 @@ public:
 	using FBasePermutationDomain = TShaderPermutationDomain<FUseThreadGroupSize64>;
 	using FPermutationDomain = TShaderPermutationDomain<FBasePermutationDomain>; // The default that is used if derived classes don't define their own
 
-	static constexpr const Lumen::ERayTracingShaderDispatchSize DispatchSize = Lumen::ERayTracingShaderDispatchSize::DispatchSize2D;
-
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType, Lumen::ESurfaceCacheSampling SurfaceCacheSampling, FShaderCompilerEnvironment& OutEnvironment);
 
-	static void ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, Lumen::ERayTracingShaderDispatchSize Size, bool UseThreadGroupSize64, FShaderCompilerEnvironment& OutEnvironment);
+	static void ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, bool UseThreadGroupSize64, FShaderCompilerEnvironment& OutEnvironment);
 
-	static FIntPoint GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, Lumen::ERayTracingShaderDispatchSize ShaderDispatchSize, bool UseThreadGroupSize64);
+	static FIntPoint GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, bool UseThreadGroupSize64);
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType);
 
@@ -94,12 +118,11 @@ public:
 };
 
 
-#define DECLARE_LUMEN_RAYTRACING_SHADER(ShaderClass, ShaderDispatchSize) \
+#define DECLARE_LUMEN_RAYTRACING_SHADER(ShaderClass) \
 	public: \
 	ShaderClass() = default; \
 	ShaderClass(const ShaderMetaType::CompiledShaderInitializerType & Initializer)\
 		: FLumenHardwareRayTracingShaderBase(Initializer) {}\
-	static constexpr const Lumen::ERayTracingShaderDispatchSize DispatchSize = ShaderDispatchSize; \
 	using TComputeShaderType = class ShaderClass##CS; \
 	using TRayGenShaderType = class ShaderClass##RGS;
 
@@ -121,11 +144,11 @@ public:
 		{ \
 			FPermutationDomain PermutationVector(Parameters.PermutationId); \
 			const bool UseThreadGroupSize64 = PermutationVector.Get<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain>().Get<FUseThreadGroupSize64>() ; \
-			FIntPoint Size = GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType::Inline, DispatchSize, UseThreadGroupSize64); \
+			FIntPoint Size = GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType::Inline, UseThreadGroupSize64); \
 			OutEnvironment.SetDefine(TEXT("INLINE_RAY_TRACING_THREAD_GROUP_SIZE_X"), Size.X); \
 			OutEnvironment.SetDefine(TEXT("INLINE_RAY_TRACING_THREAD_GROUP_SIZE_Y"), Size.Y); \
 			ShaderClass::ModifyCompilationEnvironment(Parameters, Lumen::ERayTracingShaderDispatchType::Inline, OutEnvironment); \
-			ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType::Inline, DispatchSize, UseThreadGroupSize64, OutEnvironment); \
+			ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType::Inline, UseThreadGroupSize64, OutEnvironment); \
 		}\
 		static FPermutationDomain MakePermutationVector(ShaderClass::FPermutationDomain PermutationVector, EShaderPlatform ShaderPlatform) \
 		{ \
@@ -134,7 +157,7 @@ public:
 			PermutationVector.Set<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain>(Base); \
 			return PermutationVector; \
 		} \
-		static FIntPoint GetThreadGroupSize(EShaderPlatform ShaderPlatform) { return GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType::Inline, DispatchSize, UseThreadGroupSize64(ShaderPlatform)); } \
+		static FIntPoint GetThreadGroupSize(EShaderPlatform ShaderPlatform) { return GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType::Inline, UseThreadGroupSize64(ShaderPlatform)); } \
 		static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId) { return static_cast<ERayTracingPayloadType>(0); } \
 		static void AddLumenRayTracingDispatchIndirect(FRDGBuilder& GraphBuilder, FRDGEventName&& EventName, const FViewInfo& View, ShaderClass::FPermutationDomain PermutationVector, \
 			ShaderClass::FParameters* PassParameters, FRDGBufferRef IndirectArgsBuffer, uint32 IndirectArgsOffset, ERDGPassFlags ComputePassFlags) \
@@ -163,19 +186,28 @@ static void AddLumenRayTraceDispatchPass(
 {
 	ClearUnusedGraphResources(RayGenerationShader, Parameters);
 
+	FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
+
 	GraphBuilder.AddPass(
 		Forward<FRDGEventName>(PassName),
 		Parameters,
 		ERDGPassFlags::Compute,
-		[Parameters, &View, RayGenerationShader, bUseMinimalPayload, Resolution](FRHIRayTracingCommandList& RHICmdList)
+		[Parameters, &View, SceneUniformBuffer, RayGenerationShader, bUseMinimalPayload, Resolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
-			FRayTracingShaderBindingsWriter GlobalResources;
+			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenerationShader, *Parameters);
+			TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope = RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, RHICmdList);
 
-			FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-			FRayTracingPipelineState* Pipeline = bUseMinimalPayload ? View.LumenHardwareRayTracingMaterialPipeline : View.RayTracingMaterialPipeline;
+			FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
+			FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 
-			RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources,
+			if (bUseMinimalPayload)
+			{
+				Pipeline = View.LumenHardwareRayTracingMaterialPipeline;
+				SBT = View.LumenHardwareRayTracingSBT;
+			}
+
+			RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), SBT, GlobalResources,
 				Resolution.X, Resolution.Y);
 		}
 	);
@@ -193,22 +225,31 @@ static void AddLumenRayTraceDispatchIndirectPass(
 	bool bUseMinimalPayload)
 {
 	ClearUnusedGraphResources(RayGenerationShader, Parameters, { IndirectArgsBuffer });
+	
+	FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
 
 	GraphBuilder.AddPass(
 		Forward<FRDGEventName>(PassName),
 		Parameters,
 		ERDGPassFlags::Compute,
-		[Parameters, &View, RayGenerationShader, bUseMinimalPayload, IndirectArgsBuffer, IndirectArgsOffset](FRHIRayTracingCommandList& RHICmdList)
+		[Parameters, &View, SceneUniformBuffer, RayGenerationShader, bUseMinimalPayload, IndirectArgsBuffer, IndirectArgsOffset](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			IndirectArgsBuffer->MarkResourceAsUsed();
 
-			FRayTracingShaderBindingsWriter GlobalResources;
+			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenerationShader, *Parameters);
+			TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope = RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, RHICmdList);
+			
+			FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
+			FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 
-			FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-			FRayTracingPipelineState* Pipeline = bUseMinimalPayload ? View.LumenHardwareRayTracingMaterialPipeline : View.RayTracingMaterialPipeline;
+			if (bUseMinimalPayload)
+			{
+				Pipeline = View.LumenHardwareRayTracingMaterialPipeline;
+				SBT = View.LumenHardwareRayTracingSBT;
+			}
 
-			RHICmdList.RayTraceDispatchIndirect(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources,
+			RHICmdList.RayTraceDispatchIndirect(Pipeline, RayGenerationShader.GetRayTracingShader(), SBT, GlobalResources,
 				IndirectArgsBuffer->GetIndirectRHICallBuffer(), IndirectArgsOffset);
 		}
 	);
@@ -231,9 +272,9 @@ static void AddLumenRayTraceDispatchIndirectPass(
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment) \
 		{ \
 			ShaderClass::ModifyCompilationEnvironment(Parameters, Lumen::ERayTracingShaderDispatchType::RayGen, OutEnvironment); \
-			ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType::RayGen, DispatchSize, false, OutEnvironment); \
+			ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType::RayGen, false, OutEnvironment); \
 		} \
-		static FIntPoint GetThreadGroupSize() { return GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType::RayGen, DispatchSize, false); } \
+		static FIntPoint GetThreadGroupSize() { return GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType::RayGen, false); } \
 		static void AddLumenRayTracingDispatchIndirect(FRDGBuilder& GraphBuilder, FRDGEventName&& EventName, const FViewInfo& View, ShaderClass::FPermutationDomain PermutationVector, \
 			ShaderClass::FParameters* PassParameters, FRDGBufferRef IndirectArgsBuffer, uint32 IndirectArgsOffset, bool bUseMinimalPayload) \
 		{ \
@@ -245,6 +286,10 @@ static void AddLumenRayTraceDispatchIndirectPass(
 		{ \
 			TShaderRef<ShaderClass##RGS> RayGenerationShader = View.ShaderMap->GetShader<ShaderClass##RGS>(PermutationVector); \
 			AddLumenRayTraceDispatchPass(GraphBuilder, std::move(EventName), RayGenerationShader, PassParameters, DispatchResolution, View, bUseMinimalPayload); \
+		} \
+		static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters) \
+		{ \
+			return RayTracing::GetShaderBindingLayout(Parameters.Platform); \
 		} \
 	};
 	
@@ -274,7 +319,8 @@ public:
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType)
 	{
-		return FLumenHardwareRayTracingShaderBase::ShouldCompilePermutation(Parameters, ShaderDispatchType);
+		return DoesPlatformSupportLumenGI(Parameters.Platform)
+			&& FLumenHardwareRayTracingShaderBase::ShouldCompilePermutation(Parameters, ShaderDispatchType);
 	}
 };
 

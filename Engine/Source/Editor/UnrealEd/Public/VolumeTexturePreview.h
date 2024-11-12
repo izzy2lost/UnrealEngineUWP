@@ -10,14 +10,13 @@
 #include "BatchedElements.h"
 
 /**
- * Batched element parameters for previewing 2d textures.
+ * Batched element parameters for previewing 3d textures.
  */
 class FBatchedElementVolumeTexturePreviewParameters : public FBatchedElementParameters
 {
 public:
-	FBatchedElementVolumeTexturePreviewParameters(bool InViewModeAsDepthSlices, int32 InSizeZ, float InMipLevel, float InOpacity, bool InShowSlices, const FRotator& InTraceOrientation, bool bInUsePointSampling)
+	FBatchedElementVolumeTexturePreviewParameters(bool InViewModeAsDepthSlices, float InMipLevel, float InOpacity, bool InShowSlices, const FRotator& InTraceOrientation, bool bInUsePointSampling)
 		: bViewModeAsDepthSlices(InViewModeAsDepthSlices)
-		, SizeZ(InSizeZ)
 		, MipLevel(InMipLevel)
 		, Opacity(InOpacity)
 		, bShowSlices(InShowSlices)
@@ -34,15 +33,12 @@ private:
 	/** Whether to render depth slices or trace into the volume */
 	bool bViewModeAsDepthSlices;
 	
-	/** The size Z of the texture */
-	int32 SizeZ;
-
 	/** The mip level to visualize */
 	float MipLevel;
 
 	float Opacity;
 
-	/** Whether to show each depth slize of the volume */
+	/** Whether to show each depth slice of the volume */
 	 bool bShowSlices;
 
 	/** The orientation when tracing */

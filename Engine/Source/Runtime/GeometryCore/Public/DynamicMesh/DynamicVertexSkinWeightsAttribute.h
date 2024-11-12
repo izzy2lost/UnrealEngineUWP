@@ -256,6 +256,27 @@ public:
 	// Accessors/Queries
 	//
 
+	/** Returns a list of all unique bone indices that are used by this skin weight attribute.
+	 *  \return A unique list of bone indices used by all bone weights across all vertices. 
+	 */
+	TSet<int32> GetBoundBoneIndices() const
+	{
+		if (VertexBoneWeights.Num() == 0)
+		{
+			return {};	// No weights defined, return the empty set.
+		}
+
+		TSet<int32> UniqueBoneIndices;
+		for (int VertexID = 0; VertexID < VertexBoneWeights.Num(); ++VertexID)
+		{
+			for (FBoneWeight BoneWeight: VertexBoneWeights[VertexID])
+			{
+				UniqueBoneIndices.Add(BoneWeight.GetBoneIndex());
+			}
+		}
+		return UniqueBoneIndices;
+	}
+
 	bool CopyThroughMapping(const TDynamicAttributeBase<ParentType>* Source, const FMeshIndexMappings& Mapping) override
 	{
 		// Don't snarf the FBoneWeight as a concrete object, since it _may_ contain a pointer
@@ -320,8 +341,8 @@ public:
 
 		const int32 NumEntries = BoneWeights.Num();
 
-		OutBones.SetNum(NumEntries);
-		OutWeights.SetNum(NumEntries);
+		OutBones.SetNum(NumEntries, EAllowShrinking::No);
+		OutWeights.SetNum(NumEntries, EAllowShrinking::No);
 
 		for (int32 BoneIdx = 0; BoneIdx < NumEntries; ++BoneIdx)
 		{
@@ -426,12 +447,18 @@ public:
 		// just blend the attributes?
 		if (MergeInfo.RemovedVerts.A != FDynamicMesh3::InvalidID)
 		{
-			SetBoneWeightsFromLerp(MergeInfo.KeptVerts.A, MergeInfo.KeptVerts.A, MergeInfo.RemovedVerts.A, .5);
+			SetBoneWeightsFromLerp(MergeInfo.KeptVerts.A, MergeInfo.KeptVerts.A, MergeInfo.RemovedVerts.A, MergeInfo.InterpolationT);
 		}
 		if (MergeInfo.RemovedVerts.B != FDynamicMesh3::InvalidID)
 		{
-			SetBoneWeightsFromLerp(MergeInfo.KeptVerts.B, MergeInfo.KeptVerts.B, MergeInfo.RemovedVerts.B, .5);
+			SetBoneWeightsFromLerp(MergeInfo.KeptVerts.B, MergeInfo.KeptVerts.B, MergeInfo.RemovedVerts.B, MergeInfo.InterpolationT);
 		}
+	}
+
+	/** Update the overlay to reflect a vertex merge in the parent */
+	void OnMergeVertices(const FDynamicMesh3::FMergeVerticesInfo& MergeInfo) override
+	{
+		SetBoneWeightsFromLerp(MergeInfo.KeptVertex, MergeInfo.KeptVertex, MergeInfo.RemovedVertex, MergeInfo.InterpolationT);
 	}
 
 	/** Update the overlay to reflect a vertex split in the parent */
@@ -530,7 +557,7 @@ public:
 						BoneWeights.SetBoneWeight(reinterpret_cast<AnimationCore::FBoneWeight&>(*BufferPtr++), BoneWeightsSettings);
 					}
 				}
-				checkSlow(BufferPtr == &*Buffer.end());
+				checkSlow(BufferPtr == Buffer.GetData() + Buffer.Num());
 			}
 			else
 			{
@@ -601,7 +628,7 @@ public:
 						}
 					}
 				}
-				checkSlow(BufferPtr == &*Buffer.end());
+				checkSlow(BufferPtr == Buffer.GetData() + Buffer.Num());
 
 				// Compress buffer to archive.
 				Ar.SerializeCompressedNew(Buffer.GetData(), Buffer.Num() * sizeof(int32), NAME_Oodle, NAME_Oodle, COMPRESS_NoFlags, false, nullptr);

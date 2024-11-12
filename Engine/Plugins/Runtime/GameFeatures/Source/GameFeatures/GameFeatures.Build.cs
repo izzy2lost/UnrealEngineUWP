@@ -39,6 +39,7 @@ namespace UnrealBuildTool.Rules
 					new string[]
 					{
 						"UnrealEd",
+						"PlacementMode",
 						"PluginUtils",
 					}
 				);

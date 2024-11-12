@@ -4,19 +4,19 @@
 	MetalComputeShader.cpp: Metal RHI Compute Shader Class Implementation.
 =============================================================================*/
 
-
-#include "MetalRHIPrivate.h"
-#include "Templates/MetalBaseShader.h"
 #include "MetalComputeShader.h"
 #include "MetalCommandBuffer.h"
+#include "MetalDevice.h"
+#include "MetalProfiler.h"
 
 //------------------------------------------------------------------------------
 
 #pragma mark - Metal RHI Compute Shader Class
 
 
-FMetalComputeShader::FMetalComputeShader(TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary)
-	: NumThreadsX(0)
+FMetalComputeShader::FMetalComputeShader(FMetalDevice& Device, TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary)
+	: TMetalBaseShader<FRHIComputeShader, SF_Compute>(Device)
+	, NumThreadsX(0)
 	, NumThreadsY(0)
 	, NumThreadsZ(0)
 {
@@ -57,12 +57,12 @@ FMetalShaderPipelinePtr FMetalComputeShader::GetPipeline()
 		Descriptor->setLabel(Func->name());
 		Descriptor->setComputeFunction(Func.get());
         
-		if (FMetalCommandQueue::SupportsFeature(EMetalFeaturesTextureBuffers))
+		if (Device.SupportsFeature(EMetalFeaturesTextureBuffers))
 		{
 			Descriptor->setMaxTotalThreadsPerThreadgroup(NumThreadsX*NumThreadsY*NumThreadsZ);
 		}
 
-		if (FMetalCommandQueue::SupportsFeature(EMetalFeaturesPipelineBufferMutability))
+		if (Device.SupportsFeature(EMetalFeaturesPipelineBufferMutability))
 		{
 			MTL::PipelineBufferDescriptorArray* PipelineBuffers = Descriptor->buffers();
 
@@ -90,13 +90,13 @@ FMetalShaderPipelinePtr FMetalComputeShader::GetPipeline()
 
 		METAL_GPUPROFILE(FScopedMetalCPUStats CPUStat(FString::Printf(TEXT("NewComputePipeline: %d_%d"), SourceLen, SourceCRC)));
 #if METAL_DEBUG_OPTIONS
-		if (GetMetalDeviceContext().GetCommandQueue().GetRuntimeDebuggingLevel() >= EMetalDebugLevelFastValidation)
+		if (Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelFastValidation)
 		{
 			NS::Error* ComputeError = nullptr;
             MTL::ComputePipelineReflection* ComputeReflection = nullptr;
             
 			NS::UInteger ComputeOption = MTL::PipelineOptionArgumentInfo | MTL::PipelineOptionBufferTypeInfo;
-			Kernel = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newComputePipelineState(Descriptor, MTL::PipelineOption(ComputeOption), &ComputeReflection, &ComputeError));
+			Kernel = NS::TransferPtr(Device.GetDevice()->newComputePipelineState(Descriptor, MTL::PipelineOption(ComputeOption), &ComputeReflection, &ComputeError));
 			Error = ComputeError;
 			Reflection = ComputeReflection;
 		}
@@ -104,7 +104,7 @@ FMetalShaderPipelinePtr FMetalComputeShader::GetPipeline()
 #endif // METAL_DEBUG_OPTIONS
 		{
 			NS::Error* ComputeError;
-			Kernel = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newComputePipelineState(Descriptor, MTL::PipelineOption(0), nullptr, &ComputeError));
+			Kernel = NS::TransferPtr(Device.GetDevice()->newComputePipelineState(Descriptor, MTL::PipelineOption(0), nullptr, &ComputeError));
 			Error = ComputeError;
 		}
 
@@ -114,7 +114,7 @@ FMetalShaderPipelinePtr FMetalComputeShader::GetPipeline()
 			UE_LOG(LogRHI, Fatal, TEXT("Failed to create compute kernel: %s"), *NSStringToFString(Error->description()));
 		}
 
-		Pipeline = FMetalShaderPipelinePtr(new FMetalShaderPipeline);
+		Pipeline = FMetalShaderPipelinePtr(new FMetalShaderPipeline(Device));
 		Pipeline->ComputePipelineState = Kernel;
 #if METAL_DEBUG_OPTIONS
         if(Reflection)

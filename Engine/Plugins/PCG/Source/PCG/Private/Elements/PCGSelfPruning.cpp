@@ -11,6 +11,11 @@
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
 #include "Metadata/Accessors/PCGAttributeExtractor.h"
 
+#include "CollisionShape.h"
+#include "Chaos/GeometryQueries.h"
+#include "Chaos/ImplicitObject.h"
+#include "PhysicsEngine/BodyInstance.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGSelfPruning)
 
 #define LOCTEXT_NAMESPACE "PCGSelfPruningElement"
@@ -153,6 +158,225 @@ namespace PCGSelfPruningElement
 		return true;
 	}
 
+	/** Self-pruning driven by use of collision shapes. Implementation is in practice just a secondary step after the octree query to filter out points if their collisions don`t intersect. */
+	bool CollisionExclusion(FIterationState& IterationState, FPCGContext* InOptionalContext, EPCGCollisionQueryFlag InCollisionQueryFlag)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSelfPruningElement::Execute::CollisionExclusion);
+
+		check(IterationState.InputPointData);
+		const UPCGPointData::PointOctree& Octree = IterationState.InputPointData->GetOctree();
+
+		int32 CheckTimeSlicingCount = 0;
+
+		TArray<const FPCGPointRef*, TInlineAllocator<256>> ElementsToTest;
+
+		auto SetupQueryInfo = [&IterationState](const FPCGPointRef& PointRef, FBodyInstance* OtherBodyInstance, EPCGCollisionQueryFlag CollisionQueryFlag, FBodyInstance*& OutInstance, PhysicsInterfaceTypes::FInlineShapeArray& OutShapes, FCollisionShape& OutSimpleShape)
+		{
+			const int32 EntryIndex = PointRef.Point - IterationState.InputPointData->GetPoints().GetData();
+			OutInstance = IterationState.CollisionWrapper.GetBodyInstance(EntryIndex);
+			bool bHasComplexShapes = false;
+
+			if (OutInstance)
+			{
+				if (OutInstance == OtherBodyInstance)
+				{
+					if (FBodyInstance** TemporaryInstance = IterationState.TemporaryBodyInstances.Find(OtherBodyInstance))
+					{
+						OutInstance = *TemporaryInstance;
+					}
+					else
+					{
+						check(OtherBodyInstance->GetBodySetup());
+						OutInstance = new FBodyInstance();
+						OutInstance->bAutoWeld = false;
+						OutInstance->bSimulatePhysics = false;
+						OutInstance->InitBody(OtherBodyInstance->GetBodySetup(), FTransform::Identity, nullptr, nullptr);
+
+						IterationState.TemporaryBodyInstances.Add(OtherBodyInstance, OutInstance);
+					}
+				}
+
+				OutInstance->UpdateBodyScale(PointRef.Point->Transform.GetScale3D());
+				const bool bFirstChoice = FPCGCollisionWrapper::GetShapeArray(OutInstance, CollisionQueryFlag, OutShapes);
+
+				if (OutShapes.IsEmpty())
+				{
+					OutInstance = nullptr;
+				}
+				else
+				{
+					bHasComplexShapes = (CollisionQueryFlag == EPCGCollisionQueryFlag::Complex) ||
+						(CollisionQueryFlag == EPCGCollisionQueryFlag::ComplexFirst && bFirstChoice) ||
+						(CollisionQueryFlag == EPCGCollisionQueryFlag::SimpleFirst && !bFirstChoice);
+				}
+			}
+
+			if (!OutInstance)
+			{
+				OutShapes.Reset();
+				OutSimpleShape.SetBox(FVector3f(PointRef.Bounds.BoxExtent));
+			}
+
+			return bHasComplexShapes;
+		};
+
+		while (IterationState.CurrentPointIndex < IterationState.SortedPoints.Num())
+		{
+			// Don't check too many times. Pre-increment will make sure we always at least process "TimeSliceFrequencyCheck" elements at each iteration.
+			if (++CheckTimeSlicingCount >= TimeSliceFrequencyCheck)
+			{
+				if (ShouldStop(InOptionalContext))
+				{
+					return false;
+				}
+
+				CheckTimeSlicingCount = 0;
+			}
+
+			const FPCGPointRef& PointRef = IterationState.SortedPoints[IterationState.CurrentPointIndex++];
+			if (IterationState.ExcludedPoints.Contains(PointRef.Point))
+			{
+				continue; // Point discarded from previous iteration
+			}
+
+			// Select point
+			IterationState.ExclusionPoints.Add(PointRef.Point);
+
+			// 1. Gather point refs to test against - similar to the DensityBoundsExclusion, except we write to an array temporarily
+			ElementsToTest.Reset();
+			Octree.FindElementsWithBoundsTest(FBoxCenterAndExtent(PointRef.Bounds.Origin, PointRef.Bounds.BoxExtent), [&IterationState, &ElementsToTest](const FPCGPointRef& OtherPointRef)
+			{
+				if (!IterationState.ExclusionPoints.Contains(OtherPointRef.Point) && !IterationState.ExcludedPoints.Contains(OtherPointRef.Point))
+				{
+					ElementsToTest.Add(&OtherPointRef);
+				}
+			});
+
+			// For perf reasons, we won't do the body instance setup (scale...) if there's nothing to test against
+			if (ElementsToTest.IsEmpty())
+			{
+				continue;
+			}
+
+			// Implementation note: this is a deconstruction of FBodyInstance::OverlapTestForBodiesImpl
+			FBodyInstance* ThisInstance = nullptr;
+			PhysicsInterfaceTypes::FInlineShapeArray ThisShapes;
+			FCollisionShape ThisSimpleShape;
+
+			FBodyInstance* OtherInstance = nullptr;
+			PhysicsInterfaceTypes::FInlineShapeArray OtherShapes;
+			FCollisionShape OtherSimpleShape;
+
+			const bool bThisHasComplexShapes = SetupQueryInfo(PointRef, nullptr, InCollisionQueryFlag, ThisInstance, ThisShapes, ThisSimpleShape);
+			FTransform TransformNoScale = FTransform(PointRef.Point->Transform.GetRotation(), PointRef.Point->Transform.GetLocation());
+
+			// We must force the other collision flag to simple if we have complex shapes in the leading shape here, because complex-complex overlaps aren't supported.
+			EPCGCollisionQueryFlag OtherCollisionQueryFlag = (bThisHasComplexShapes ? EPCGCollisionQueryFlag::Simple : InCollisionQueryFlag);
+
+			for (const FPCGPointRef* OtherPointRef : ElementsToTest)
+			{
+				bool bOverlaps = false;
+
+				bool bOtherHasComplexShapes = SetupQueryInfo(*OtherPointRef, ThisInstance, OtherCollisionQueryFlag, OtherInstance, OtherShapes, OtherSimpleShape);
+
+				FTransform OtherTransformNoScale = FTransform(OtherPointRef->Point->Transform.GetRotation(), OtherPointRef->Point->Transform.GetLocation());
+
+				// Four cases here:
+				// 1 - shapes vs shapes
+				if (!ThisShapes.IsEmpty() && !OtherShapes.IsEmpty())
+				{
+					auto CheckForOverlap = [](const PhysicsInterfaceTypes::FInlineShapeArray& ComplexShapes, const FTransform& ComplexShapesTransform, const PhysicsInterfaceTypes::FInlineShapeArray& SimpleShapes, const FTransform& SimpleShapesTransform)
+					{
+						FTransform RelativeTransform = SimpleShapesTransform.GetRelativeTransform(ComplexShapesTransform);
+
+						for (const FPhysicsShapeHandle& ComplexShape : ComplexShapes)
+						{
+							for (const FPhysicsShapeHandle& SimpleShape : SimpleShapes)
+							{
+								FPhysicsGeometryCollection SimpleShapeCollection = FPhysicsInterface::GetGeometryCollection(SimpleShape);
+								const Chaos::FImplicitObject& SimpleShapeGeom = SimpleShapeCollection.GetGeometry();
+
+								if (Chaos::Utilities::CastHelper(SimpleShapeGeom, RelativeTransform, [&ComplexShape](const auto& Downcast, const auto& FullGeomTransform) { return Chaos::OverlapQuery(*ComplexShape.Shape->GetGeometry(), FTransform::Identity, Downcast, FullGeomTransform); }))
+								{
+									return true;
+								}
+							}
+						}
+
+						return false;
+					};
+
+					if (!bOtherHasComplexShapes)
+					{
+						bOverlaps = CheckForOverlap(ThisShapes, TransformNoScale, OtherShapes, OtherTransformNoScale);
+					}
+					else
+					{
+						bOverlaps = CheckForOverlap(OtherShapes, OtherTransformNoScale, ThisShapes, TransformNoScale);
+					}
+				}
+				// 2 - shapes vs simple shape
+				// 3 - simple shape vs shapes
+				else if (!ThisShapes.IsEmpty() || !OtherShapes.IsEmpty())
+				{
+					auto CheckForOverlap = [](const PhysicsInterfaceTypes::FInlineShapeArray& Shapes, const FTransform& ShapesTransform, const FCollisionShape& CollShape, const FTransform& CollTransform)
+					{
+						FTransform RelativeTransform = CollTransform.GetRelativeTransform(ShapesTransform);
+						FPhysicsShapeAdapter CollAdapter(RelativeTransform.GetRotation(), CollShape);
+						const FPhysicsGeometry& Geom = CollAdapter.GetGeometry();
+						FTransform GeomTransform = CollAdapter.GetGeomPose(RelativeTransform.GetLocation());
+
+						for (const FPhysicsShapeHandle& Shape : Shapes)
+						{
+							if (Chaos::Utilities::CastHelper(Geom, GeomTransform, [&Shape](const auto& Downcast, const auto& FullGeomTransform) { return Chaos::OverlapQuery(*Shape.Shape->GetGeometry(), FTransform::Identity, Downcast, FullGeomTransform); }))
+							{
+								return true;
+							}
+						}
+
+						return false;
+					};
+
+					if(!ThisShapes.IsEmpty())
+					{
+						bOverlaps = CheckForOverlap(ThisShapes, TransformNoScale, OtherSimpleShape, OtherTransformNoScale);
+					}
+					else
+					{
+						check(!OtherShapes.IsEmpty());
+						bOverlaps = CheckForOverlap(OtherShapes, OtherTransformNoScale, ThisSimpleShape, TransformNoScale);
+					}
+				}
+				// 4 - simple shape vs simple shape <- default case.
+				else
+				{
+					FTransform RelativeTransform = OtherTransformNoScale.GetRelativeTransform(TransformNoScale);
+					FPhysicsShapeAdapter ThisAdapter(FQuat::Identity, ThisSimpleShape);
+					FPhysicsShapeAdapter OtherAdapter(RelativeTransform.GetRotation(), OtherSimpleShape);
+
+					bOverlaps = Chaos::Utilities::CastHelper(OtherAdapter.GetGeometry(), OtherAdapter.GetGeomPose(RelativeTransform.GetTranslation()), [&ThisAdapter](const auto& Downcast, const auto& FullGeomTransform) { return Chaos::OverlapQuery(ThisAdapter.GetGeometry(), ThisAdapter.GetGeomPose(FVector::ZeroVector), Downcast, FullGeomTransform, /*Thickness=*/0); });
+				}
+
+				if (bOverlaps)
+				{
+					IterationState.ExcludedPoints.Add(OtherPointRef->Point);
+				}
+			}
+		}
+
+		// Clean up temporary instances
+		if (IterationState.CurrentPointIndex == IterationState.SortedPoints.Num())
+		{
+			for (TPair<FBodyInstance*, FBodyInstance*>& TemporaryInstance : IterationState.TemporaryBodyInstances)
+			{
+				delete TemporaryInstance.Value;
+			}
+			IterationState.TemporaryBodyInstances.Reset();
+		}
+
+		return true;
+	}
+
 	bool DuplicatePointsExclusion(FIterationState& IterationState, FPCGContext* InOptionalContext)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSelfPruningElement::Execute::DuplicatePointsExclusion);
@@ -218,8 +442,6 @@ namespace PCGSelfPruningElement
 			return;
 		}
 
-		TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
-
 		TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputs();
 		for (const FPCGTaggedData& Input : Inputs)
 		{
@@ -276,11 +498,12 @@ namespace PCGSelfPruningElement
 		//  then remove this point
 		if (!InState.bSortDone)
 		{
+			// In the case of the collision-driven self-pruning, we have to populate the sorted points array earlier since we're playing with the bounds.
 			InState.SortedPoints.Empty();
 			InState.SortedPoints.Reserve(Points.Num());
 			for (const FPCGPoint& Point : Points)
 			{
-				InState.SortedPoints.Add(FPCGPointRef(Point));
+				InState.SortedPoints.Emplace(Point);
 			}
 
 			FPCGAttributePropertySelector ComparisonSource = InParameters.ComparisonSource.CopyAndFixLast(InState.InputPointData);
@@ -411,6 +634,10 @@ namespace PCGSelfPruningElement
 		{
 			bIsDone = PCGSelfPruningElement::DuplicatePointsExclusion(InState, InOptionalContext);
 		}
+		else if (InParameters.bUseCollisionAttribute)
+		{
+			bIsDone = PCGSelfPruningElement::CollisionExclusion(InState, InOptionalContext, InParameters.CollisionQueryFlag);
+		}
 		else
 		{
 			bIsDone = PCGSelfPruningElement::DensityBoundsExclusion(InState, InOptionalContext);
@@ -419,7 +646,7 @@ namespace PCGSelfPruningElement
 		// Finally, output all points that are present in the ExclusionPoints. This part is not time sliced, should it be too?
 		if (bIsDone)
 		{
-			UPCGPointData* PrunedData = NewObject<UPCGPointData>();
+			UPCGPointData* PrunedData = FPCGContext::NewObject_AnyThread<UPCGPointData>(InOptionalContext);
 			PrunedData->InitializeFromData(InState.InputPointData);
 			InState.OutputPointData = PrunedData;
 
@@ -450,6 +677,17 @@ namespace PCGSelfPruningElement
 	}
 }
 
+void FPCGSelfPruningParameters::PostLoad()
+{
+#if WITH_EDITOR
+	if (bUseComplexCollision_DEPRECATED)
+	{
+		CollisionQueryFlag = EPCGCollisionQueryFlag::Complex;
+		bUseComplexCollision_DEPRECATED = false;
+	}
+#endif
+}
+
 UPCGSelfPruningSettings::UPCGSelfPruningSettings()
 {
 	// Previous Default behavior was Extents
@@ -459,6 +697,8 @@ UPCGSelfPruningSettings::UPCGSelfPruningSettings()
 void UPCGSelfPruningSettings::PostLoad()
 {
 	Super::PostLoad();
+
+	Parameters.PostLoad();
 
 #if WITH_EDITOR
 	if (PruningType_DEPRECATED != EPCGSelfPruningType::LargeToSmall)
@@ -493,6 +733,9 @@ bool FPCGSelfPruningElement::PrepareDataInternal(FPCGContext* InContext) const
 	FPCGSelfPruningElement::ContextType* TimeSlicedContext = static_cast<FPCGSelfPruningElement::ContextType*>(InContext);
 	check(TimeSlicedContext);
 
+	const UPCGSelfPruningSettings* Settings = TimeSlicedContext->GetInputSettings<UPCGSelfPruningSettings>();
+	check(Settings);
+
 	TimeSlicedContext->SetTimeSliceIsEnabled(true);
 
 	TArray<FPCGTaggedData> Inputs = InContext->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
@@ -500,7 +743,7 @@ bool FPCGSelfPruningElement::PrepareDataInternal(FPCGContext* InContext) const
 	// No global execution state.
 	EPCGTimeSliceInitResult InitResult = TimeSlicedContext->InitializePerExecutionState();
 
-	TimeSlicedContext->InitializePerIterationStates(Inputs.Num(), [&Inputs, InContext](PCGSelfPruningElement::FIterationState& OutState, const FPCGSelfPruningElement::ExecStateType&, int32 Index) -> EPCGTimeSliceInitResult
+	TimeSlicedContext->InitializePerIterationStates(Inputs.Num(), [&Inputs, Settings, InContext](PCGSelfPruningElement::FIterationState& OutState, const FPCGSelfPruningElement::ExecStateType&, int32 Index) -> EPCGTimeSliceInitResult
 	{
 		const UPCGSpatialData* SpatialData = Cast<UPCGSpatialData>(Inputs[Index].Data);
 		if (!SpatialData)
@@ -514,6 +757,20 @@ bool FPCGSelfPruningElement::PrepareDataInternal(FPCGContext* InContext) const
 		if (!OutState.InputPointData)
 		{
 			return EPCGTimeSliceInitResult::NoOperation;
+		}
+
+		if (Settings->Parameters.PruningType != EPCGSelfPruningType::RemoveDuplicates && Settings->Parameters.bUseCollisionAttribute)
+		{
+			FPCGAttributePropertyInputSelector InputSelector = Settings->Parameters.CollisionAttribute.CopyAndFixLast(OutState.InputPointData);
+
+			TUniquePtr<const IPCGAttributeAccessor> InputAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(OutState.InputPointData, InputSelector);
+			TUniquePtr<const IPCGAttributeAccessorKeys> InputKeys = PCGAttributeAccessorHelpers::CreateConstKeys(OutState.InputPointData, InputSelector);
+
+			TArray<FSoftObjectPath> Meshes;
+			if (OutState.CollisionWrapper.Prepare(InputAccessor.Get(), InputKeys.Get(), Meshes))
+			{
+				OutState.CollisionWrapper.CreateBodyInstances(Meshes);
+			}
 		}
 
 		return EPCGTimeSliceInitResult::Success;
@@ -558,6 +815,18 @@ bool FPCGSelfPruningElement::ExecuteInternal(FPCGContext* Context) const
 	});
 
 	return true;
+}
+
+bool FPCGSelfPruningElement::CanExecuteOnlyOnMainThread(FPCGContext* Context) const
+{
+	if (const UPCGSelfPruningSettings* Settings = (Context ? Context->GetInputSettings<UPCGSelfPruningSettings>() : nullptr))
+	{
+		return Settings->Parameters.bUseCollisionAttribute;
+	}
+	else
+	{
+		return false;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

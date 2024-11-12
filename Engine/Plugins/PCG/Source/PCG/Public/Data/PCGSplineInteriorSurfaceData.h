@@ -20,7 +20,10 @@ class UPCGSplineInteriorSurfaceData : public UPCGSurfaceData
 	GENERATED_BODY()
 
 public:
-	PCG_API void Initialize(const UPCGSplineData* InSplineData);
+	UE_DEPRECATED(5.5, "Call version with FPCGContext parameter")
+	PCG_API void Initialize(const UPCGSplineData* InSplineData) { Initialize(nullptr, InSplineData); }
+
+	PCG_API void Initialize(FPCGContext* Context, const UPCGSplineData* InSplineData);
 
 	// ~Begin UObject interface
 	virtual void PostLoad() override;
@@ -38,7 +41,7 @@ public:
 	virtual bool ProjectPoint(const FTransform& InTransform, const FBox& InBounds, const FPCGProjectionParams& InParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const override;
 	virtual bool HasNonTrivialTransform() const override { return true; }
 protected:
-	virtual UPCGSpatialData* CopyInternal() const override;
+	virtual UPCGSpatialData* CopyInternal(FPCGContext* Context) const override;
 	//~End UPCGSpatialData interface
 
 public:
@@ -48,7 +51,7 @@ public:
 
 protected:
 	/** Recompute cached data used for sampling. */
-	void CacheData();
+	void CacheData(FPCGContext* Context);
 
 	/** True if the given location falls in the top-down projection of the polygon given by our cached spline points. */
 	bool PointInsidePolygon(const FTransform& InTransform, const FBox& InBounds) const;

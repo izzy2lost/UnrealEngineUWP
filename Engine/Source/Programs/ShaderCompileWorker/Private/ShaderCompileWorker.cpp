@@ -22,6 +22,10 @@
 #include "Serialization/MemoryReader.h"
 #include "SocketSubsystem.h"
 
+#if PLATFORM_MAC
+#include <mach-o/dyld.h>
+#endif
+
 #define DEBUG_USING_CONSOLE	0
 
 static double LastCompileTime = 0.0;
@@ -65,9 +69,18 @@ inline bool IsUsingUBA()
 {
 #if PLATFORM_WINDOWS // Currently only implemented for windows
 	return GetUbaModule() != nullptr;
+#elif PLATFORM_MAC
+	for (int i = 0, e = _dyld_image_count(); i != e; i++)
+	{
+		if (strstr(_dyld_get_image_name(i), "UbaDetours.dylib"))
+		{
+			return true;
+		}
+	}
+	return false;
 #else
 	return false;
-#endif
+#endif	
 }
 
 #if USING_CODE_ANALYSIS
@@ -305,24 +318,60 @@ public:
 				break;
 			}
 
-#if PLATFORM_WINDOWS // Currently only implemented for windows
-			if (HMODULE UbaDetoursModule = GetUbaModule())
+			if (IsUsingUBA())
 			{
-				using UbaRequestNextProcessFunc = bool(uint32 prevExitCode, TCHAR* outArguments, uint32 outArgumentsCapacity);
-				static UbaRequestNextProcessFunc* RequestNextProcess = (UbaRequestNextProcessFunc*)(void*)GetProcAddress(UbaDetoursModule, "UbaRequestNextProcess");
+#if PLATFORM_WINDOWS
+				using ubachar = TCHAR;
+#else
+				using ubachar = char;
+#endif
+				
+				using UbaRequestNextProcessFunc = bool(uint32 prevExitCode, ubachar* outArguments, uint32 outArgumentsCapacity);
+				static UbaRequestNextProcessFunc* RequestNextProcess = nullptr;
+				if (!RequestNextProcess)
+				{
+#if PLATFORM_WINDOWS
+					if (HMODULE UbaDetoursModule = GetUbaModule())
+					{
+						RequestNextProcess = (UbaRequestNextProcessFunc*)(void*)GetProcAddress(UbaDetoursModule, "UbaRequestNextProcess");
+					}
+#elif PLATFORM_MAC
+					if (void* UbaDetoursHandle = dlopen("libUbaDetours.dylib", RTLD_LAZY))
+					{
+						RequestNextProcess = (UbaRequestNextProcessFunc*)(void*)dlsym(UbaDetoursHandle, "UbaRequestNextProcess");
+					}
+#endif
+					if (!RequestNextProcess)
+					{
+						break;
+					}
+				}
 
 				// Request new process
-				TCHAR Arguments[1024];
-				if (!RequestNextProcess(0, Arguments, 1024))
+				ubachar Temp[1024];
+				if (!RequestNextProcess(0, Temp, 1024))
 				{
 					break; // No process available, exit loop
 				}
+
+				const TCHAR* Arguments;
+#if PLATFORM_WINDOWS
+				Arguments = Temp;
+#else
+				auto Temp2 = StringCast<TCHAR>(Temp);
+				Arguments = Temp2.Get();
+#endif
 
 				// We got a new process, change inputs and outputs and run again
 				
 				TArray<FString> Tokens;
 				TArray<FString> Switches;
 				FCommandLine::Parse(Arguments, Tokens, Switches);
+				if (Tokens.Num() < 5)
+				{
+					UE_LOG(LogShaders, Error, TEXT("Did not get enough arguments for reuse: %s"), Arguments);
+					break;
+				}
 
 				WorkingDirectory = Tokens[0];
 				InputFilename = Tokens[3];
@@ -334,7 +383,6 @@ public:
 				CrashOutputFile = OutputFilePath;
 				continue;
 			}
-#endif
 
 			if (TimeToLive == 0)
 			{
@@ -456,19 +504,6 @@ private:
 
 		VerifyFormatVersions(ReceivedFormatVersionMap);
 		
-		// Apply shader source directory mappings.
-		{
-			TMap<FString, FString> DirectoryMappings;
-			InputFile << DirectoryMappings;
-
-			ResetAllShaderSourceDirectoryMappings();
-			for (TPair<FString, FString>& MappingEntry : DirectoryMappings)
-			{
-				FPaths::NormalizeDirectoryName(MappingEntry.Value);
-				AddShaderSourceDirectoryMapping(MappingEntry.Key, MappingEntry.Value);
-			}
-		}
-
 		// Initialize shader hash cache before reading any includes.
 		InitializeShaderHashCache();
 
@@ -518,23 +553,6 @@ private:
 			}
 			return CharName;
 		};
-
-		// Shared inputs
-		TMap<FString, FThreadSafeSharedAnsiStringPtr> ExternalIncludes;
-		{
-			int32 NumExternalIncludes = 0;
-			InputFile << NumExternalIncludes;
-			ExternalIncludes.Reserve(NumExternalIncludes);
-
-			for (int32 IncludeIndex = 0; IncludeIndex < NumExternalIncludes; IncludeIndex++)
-			{
-				FString NewIncludeName;
-				InputFile << NewIncludeName;
-				TArray<ANSICHAR>* NewIncludeContents = new TArray<ANSICHAR>;
-				InputFile << (*NewIncludeContents);
-				ExternalIncludes.Add(NewIncludeName, MakeShareable(NewIncludeContents));
-			}
-		}
 
 		// Shared environments
 		TArray<FShaderCompilerEnvironment> SharedEnvironments;
@@ -671,15 +689,7 @@ private:
 				FShaderCompileJob& Job = OutSingleJobs.AddDefaulted_GetRef();
 				// Deserialize the job's inputs.
 				Job.SerializeWorkerInput(InputFile);
-				Job.Input.DeserializeSharedInputs(InputFile, ExternalIncludes, SharedEnvironments, ParameterStructures);
-
-				// SCW doesn't run DDPI, GShaderHasCache Initialize is run  at start with no knowledge of the CustomPlatforms
-				// CustomPlatforms are known when we parse the WorkerInput so we populate the Directory here
-				if (IsCustomPlatform((EShaderPlatform)Job.Input.Target.Platform))
-				{
-					const EShaderPlatform ShaderPlatform = ShaderFormatNameToShaderPlatform(Job.Input.ShaderFormat);
-					UpdateIncludeDirectoryForPreviewPlatform((EShaderPlatform)Job.Input.Target.Platform, ShaderPlatform);
-				}
+				Job.Input.DeserializeSharedInputs(InputFile, SharedEnvironments, ParameterStructures);
 
 				// Process the job.
 				CompileShader(GetShaderFormats(), Job, WorkingDirectory, &GNumProcessedJobs); 
@@ -715,7 +725,7 @@ private:
 					// Deserialize the job's inputs.
 					FShaderCompileJob* Job = PipelineJob.StageJobs[StageIndex]->GetSingleShaderJob();
 					Job->SerializeWorkerInput(InputFile);
-					Job->Input.DeserializeSharedInputs(InputFile, ExternalIncludes, SharedEnvironments, ParameterStructures);
+					Job->Input.DeserializeSharedInputs(InputFile, SharedEnvironments, ParameterStructures);
 
 					// SCW doesn't run DDPI, GShaderHasCache Initialize is run  at start with no knowledge of the CustomPlatforms
 					// CustomPlatforms are known when we parse the WorkerInput so we populate the Directory here
@@ -848,7 +858,7 @@ private:
 			if (!FPlatformProcess::IsApplicationRunning(ParentProcessId))
 			{
 				FString FilePath = FString(WorkingDirectory) + InputFilename;
-				checkf(IFileManager::Get().FileSize(*FilePath) == INDEX_NONE, TEXT("Exiting due to the parent process no longer running and the input file is present!"));
+				checkf(IFileManager::Get().FileSize(*FilePath) == INDEX_NONE, TEXT("Exiting due to the parent process no longer running! FilePath=%s"), *FilePath);
 				UE_LOG(LogShaders, Log, TEXT("Parent process no longer running, exiting"));
 				FPlatformMisc::RequestExit(false);
 			}
@@ -874,7 +884,7 @@ private:
 				// If we couldn't open the process then it is no longer running, exit
 				if (ParentProcessHandle == nullptr)
 				{
-					checkf(IFileManager::Get().FileSize(*FilePath) == INDEX_NONE, TEXT("Exiting due to OpenProcess(ParentProcessId) failing and the input file is present!"));
+					checkf(IFileManager::Get().FileSize(*FilePath) == INDEX_NONE, TEXT("Exiting due to OpenProcess(ParentProcessId) failing! FilePath=%s"), *FilePath);
 					UE_LOG(LogShaders, Log, TEXT("Couldn't OpenProcess, Parent process no longer running, exiting"));
 					FPlatformMisc::RequestExit(false);
 				}
@@ -886,7 +896,7 @@ private:
 					uint32 WaitResult = WaitForSingleObject(ParentProcessHandle, 0);
 					if (WaitResult != WAIT_TIMEOUT)
 					{
-						checkf(IFileManager::Get().FileSize(*FilePath) == INDEX_NONE, TEXT("Exiting due to WaitForSingleObject(ParentProcessHandle) signaling and the input file is present!"));
+						checkf(IFileManager::Get().FileSize(*FilePath) == INDEX_NONE, TEXT("Exiting due to WaitForSingleObject(ParentProcessHandle) signaling! FilePath=%s"), *FilePath);
 						UE_LOG(LogShaders, Log, TEXT("WaitForSingleObject signaled, Parent process no longer running, exiting"));
 						FPlatformMisc::RequestExit(false);
 					}
@@ -980,7 +990,6 @@ static void DirectCompile(const TArray<const class IShaderFormat*>& ShaderFormat
 			{
 				Frequency = SF_Compute;
 			}
-#if RHI_RAYTRACING
 			else if (!FCString::Strcmp(*Token, TEXT("rgs")))
 			{
 				Frequency = SF_RayGen;
@@ -997,7 +1006,14 @@ static void DirectCompile(const TArray<const class IShaderFormat*>& ShaderFormat
 			{
 				Frequency = SF_RayCallable;
 			}
-#endif // RHI_RAYTRACING
+			else if (!FCString::Strcmp(*Token, TEXT("wrs")))
+			{
+				Frequency = SF_WorkGraphRoot;
+			}
+			else if (!FCString::Strcmp(*Token, TEXT("wcs")))
+			{
+				Frequency = SF_WorkGraphComputeNode;
+			}
 			else if (!FCString::Strcmp(*Token, TEXT("pipeline")))
 			{
 				bPipeline = true;
@@ -1238,6 +1254,9 @@ static int32 GuardedMainWrapper(int32 ArgC, TCHAR* ArgV[], FString& CrashOutputF
 		}
 		__except(HandleShaderCompileException(GetExceptionInformation(), ExceptionMsg, ExceptionCallStack))
 		{
+			// Put app into critical error mode to allow dumping logs from memory to disk
+			GIsCriticalError = true;
+
 			FArchive& OutputFile = *IFileManager::Get().CreateFileWriter(*CrashOutputFile, FILEWRITE_EvenIfReadOnly);
 
 			if (GFailedErrorCode == FSCWErrorCode::Success)

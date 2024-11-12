@@ -22,5 +22,4 @@ struct FAvaInstanceSettings
 	 */
 	UPROPERTY(config, EditAnywhere, Category = Settings)
 	bool bDefaultPlayableTransitionWaitForSequences = false;
-	
 };

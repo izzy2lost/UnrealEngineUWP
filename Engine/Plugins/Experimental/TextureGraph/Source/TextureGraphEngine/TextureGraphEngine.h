@@ -48,8 +48,6 @@ private:
 	bool												MapShaders();
 public:
 	virtual void										StartupModule() override;
-
-	virtual void										ShutdownModule() override;
 	virtual FString										GetParentPluginName();
 };
 
@@ -150,20 +148,22 @@ public:
 	/// Inline functions
 	//////////////////////////////////////////////////////////////////////////
 	/// The if check is temporary over here since no one is initialising this right now
-	FORCEINLINE static TextureGraphEngine*						GetInstance() { return GInstance; }
+	FORCEINLINE static TextureGraphEngine*				GetInstance() { return GInstance; }
 	FORCEINLINE static MixManager*						GetMixManager() { return GInstance ? GInstance->MixMgrObj.get() : nullptr; }
 	FORCEINLINE static UMaterialManager*				GetMaterialManager() { return GInstance ? GInstance->MaterialMgrObj.Get() : nullptr; }
 	FORCEINLINE static Scheduler*						GetScheduler() { return GInstance ? GInstance->SchedulerObj.get() : nullptr; }
 	FORCEINLINE static DeviceManager*					GetDeviceManager() { return GInstance ? GInstance->DeviceManagerObj.get() : nullptr; }
 	FORCEINLINE static Blobber*							GetBlobber() { return GInstance ? GInstance->BlobberObj.get() : nullptr; }
 	FORCEINLINE static int64							GetFrameId() { return GInstance ? GInstance->FrameId : 0; }
-	FORCEINLINE static TextureGraphEditor::RenderDocManager*	GetRenderDocManager() { return GInstance ? GInstance->RenderDocMgrObj.get() : nullptr; }
+	FORCEINLINE static TextureGraphEditor::RenderDocManager* GetRenderDocManager() { return GInstance ? GInstance->RenderDocMgrObj.get() : nullptr; }
 
 	FORCEINLINE static bool								IsTestMode() { return GInstance ? GInstance->bIsTestMode : false; }
 
 	FORCEINLINE static bool								IsDestroying() { return bGIsEngineDestroying; }
 	FORCEINLINE static EngineObserverSourcePtr			GetObserverSource() { return GObserverSource; }
-	FORCEINLINE static FTextureGraphErrorReporter*				GetErrorReporter(UMixInterface* MixKey) { return GInstance ? GInstance->ErrorReporters.Find(MixKey)->get() : nullptr; }
+	FORCEINLINE static FTextureGraphErrorReporter*		GetErrorReporter(UMixInterface* MixKey) { return GInstance ? GInstance->ErrorReporters.Find(MixKey)->get() : nullptr; }
+
+	FORCEINLINE static bool								IsRunning() { return GInstance ? GInstance->bRunEngine.load() : false; }
 };
 
 

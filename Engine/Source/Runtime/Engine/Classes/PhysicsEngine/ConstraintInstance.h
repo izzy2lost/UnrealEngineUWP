@@ -221,16 +221,21 @@ struct FConstraintInstanceBase
 	/** Set the constraint broken delegate. */
 	ENGINE_API void SetConstraintBrokenDelegate(FOnConstraintBroken InConstraintBrokenDelegate);
 
+	/** Set the constraint violation delegate */
+	ENGINE_API void SetConstraintViolatedDelegate(FOnConstraintViolated InConstraintViolatedDelegate);
+
 	/** Set the plastic deformation delegate. */
 	ENGINE_API void SetPlasticDeformationDelegate(FOnPlasticDeformation InPlasticDeformationDelegate);
 
 	protected:
 
 		FOnConstraintBroken OnConstraintBrokenDelegate;
+		FOnConstraintViolated OnConstraintViolatedDelegate;
 		FOnPlasticDeformation OnPlasticDeformationDelegate;
 
 		friend struct FConstraintBrokenDelegateData;
 		friend struct FConstraintBrokenDelegateWrapper;
+		friend struct FConstraintViolatedDelegateWrapper;
 		friend struct FPlasticDeformationDelegateWrapper;
 
 };
@@ -785,6 +790,9 @@ public:
 	/** Set the linear drive's strength parameters per-axis */
 	ENGINE_API void SetLinearDriveParams(const FVector& InPositionStrength, const FVector& InVelocityStrength, const FVector& InForceLimit);
 
+	/** Set the linear drive force-mode */
+	ENGINE_API void SetLinearDriveAccelerationMode(bool bAccelerationMode);
+
 	/** Get the linear drive's strength parameters. Assumes all axes are the same so only returns the X values */
 	ENGINE_API void GetLinearDriveParams(float& OutPositionStrength, float& OutVelocityStrength, float& OutForceLimit);
 
@@ -859,6 +867,9 @@ public:
 
 	/** Set the angular drive mode */
 	ENGINE_API void SetAngularDriveMode(EAngularDriveMode::Type DriveMode);
+
+	/** Set the angular drive force-mode */
+	ENGINE_API void SetAngularDriveAccelerationMode(bool bAccelerationMode);
 
 	/** Set the angular drive mode */
 	EAngularDriveMode::Type GetAngularDriveMode()

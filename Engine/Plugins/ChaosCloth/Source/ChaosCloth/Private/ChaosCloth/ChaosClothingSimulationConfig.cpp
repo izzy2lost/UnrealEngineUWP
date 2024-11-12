@@ -3,19 +3,13 @@
 #include "ChaosCloth/ChaosClothConfig.h"
 #include "Chaos/CollectionPropertyFacade.h"
 #include "Chaos/PBDLongRangeConstraints.h"  // For Tether modes
+#include "Chaos/PBDBendingConstraintsBase.h" // For ERestAngleConstructionType
 #include "GeometryCollection/ManagedArrayCollection.h"
 
 namespace Chaos
 {
 	FClothingSimulationConfig::FClothingSimulationConfig()
 	{
-	}
-
-	FClothingSimulationConfig::FClothingSimulationConfig(const TSharedPtr<const FManagedArrayCollection>& InPropertyCollection)
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		Initialize(InPropertyCollection);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	FClothingSimulationConfig::FClothingSimulationConfig(const TArray<TSharedPtr<const FManagedArrayCollection>>& InPropertyCollections)
@@ -93,14 +87,18 @@ namespace Chaos
 					Property->SetWeightedValue(BendingElementStiffnessIndex, ClothConfig->BendingStiffnessWeighted.Low, ClothConfig->BendingStiffnessWeighted.High);
 					Property->SetStringValue(BendingElementStiffnessIndex, TEXT("BendingStiffness"));
 
-					Property->AddValue(TEXT("BucklingRatio"), ClothConfig->BucklingRatio, NonAnimatablePropertyFlags);
+					Property->AddValue(TEXT("BucklingRatio"), ClothConfig->BucklingRatio, AnimatablePropertyFlags);
 
-					if (ClothConfig->BucklingStiffnessWeighted.Low > 0.f || ClothConfig->BucklingStiffnessWeighted.High > 0.f)
-					{
-						const int32 BucklingStiffnessIndex = Property->AddProperty(TEXT("BucklingStiffness"), AnimatablePropertyFlags);
-						Property->SetWeightedValue(BucklingStiffnessIndex, ClothConfig->BucklingStiffnessWeighted.Low, ClothConfig->BucklingStiffnessWeighted.High);
-						Property->SetStringValue(BucklingStiffnessIndex, TEXT("BucklingStiffness"));
-					}
+					const int32 BucklingStiffnessIndex = Property->AddProperty(TEXT("BucklingStiffness"), AnimatablePropertyFlags);
+					Property->SetWeightedValue(BucklingStiffnessIndex, ClothConfig->BucklingStiffnessWeighted.Low, ClothConfig->BucklingStiffnessWeighted.High);
+					Property->SetStringValue(BucklingStiffnessIndex, TEXT("BucklingStiffness"));
+
+					const int32 RestAngleTypeIndex = Property->AddProperty(TEXT("RestAngleType"), NonAnimatablePropertyFlags);
+					Property->SetValue(RestAngleTypeIndex, (int32)Chaos::Softs::FPBDBendingConstraintsBase::ERestAngleConstructionType::FlatnessRatio);
+
+					const int32 FlatnessRatioIndex = Property->AddProperty(TEXT("FlatnessRatio"), NonAnimatablePropertyFlags);
+					Property->SetWeightedValue(FlatnessRatioIndex, ClothConfig->FlatnessRatio.Low, ClothConfig->FlatnessRatio.High);
+					Property->SetStringValue(FlatnessRatioIndex, TEXT("FlatnessRatio"));
 				}
 				else  // Not using bending elements
 				{
@@ -165,9 +163,23 @@ namespace Chaos
 				Property->SetWeightedValue(DragIndex, ClothConfig->Drag.Low, ClothConfig->Drag.High);
 				Property->SetStringValue(DragIndex, TEXT("Drag"));
 
+				if (ClothConfig->bEnableOuterDrag)
+				{
+					const int32 OuterDragIndex = Property->AddProperty(TEXT("OuterDrag"), AnimatablePropertyFlags);
+					Property->SetWeightedValue(OuterDragIndex, ClothConfig->OuterDrag.Low, ClothConfig->OuterDrag.High);
+					Property->SetStringValue(OuterDragIndex, TEXT("OuterDrag"));
+				}
+
 				const int32 LiftIndex = Property->AddProperty(TEXT("Lift"), AnimatablePropertyFlags);
 				Property->SetWeightedValue(LiftIndex, ClothConfig->Lift.Low, ClothConfig->Lift.High);
 				Property->SetStringValue(LiftIndex, TEXT("Lift"));
+
+				if (ClothConfig->bEnableOuterLift)
+				{
+					const int32 OuterLiftIndex = Property->AddProperty(TEXT("OuterLift"), AnimatablePropertyFlags);
+					Property->SetWeightedValue(OuterLiftIndex, ClothConfig->OuterLift.Low, ClothConfig->OuterLift.High);
+					Property->SetStringValue(OuterLiftIndex, TEXT("OuterLift"));
+				}
 
 				constexpr float AirDensity = 1.225f;  // Air density in kg/m^3
 				Property->AddValue(TEXT("FluidDensity"), AirDensity, AnimatablePropertyFlags);

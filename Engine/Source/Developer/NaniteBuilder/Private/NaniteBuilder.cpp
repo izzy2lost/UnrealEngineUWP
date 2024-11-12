@@ -7,6 +7,7 @@
 #include "Rendering/NaniteResources.h"
 #include "Hash/CityHash.h"
 #include "GraphPartitioner.h"
+#include "BVHCluster.h"
 #include "Cluster.h"
 #include "ClusterDAG.h"
 #include "MeshSimplify.h"
@@ -62,7 +63,7 @@ public:
 	virtual bool Build(
 		FResources& Resources,
 		FInputMeshData& InputMeshData,
-		TArrayView<FOutputMeshData> OutputLODMeshData,
+		FOutputMeshData* OutFallbackMeshData,
 		const FMeshNaniteSettings& Settings,
 		FOnFreeInputMeshData OnFreeInputMeshData) override;
 
@@ -194,14 +195,13 @@ void CalcTangents(
 
 static float BuildCoarseRepresentation(
 	const TArray<FClusterGroup>& Groups,
-	const TArray<FCluster>& Clusters,
+	TArray<FCluster>& Clusters,
 	FMeshBuildVertexData& Verts,
 	TArray<uint32>& Indexes,
 	TArray<FStaticMeshSection, TInlineAllocator<1>>& Sections,
 	uint32& NumTexCoords,
 	uint32 TargetNumTris,
-	float TargetError,
-	int32 FallbackLODIndex)
+	float TargetError)
 {
 	TargetNumTris = FMath::Max( TargetNumTris, 64u );
 
@@ -225,11 +225,7 @@ static float BuildCoarseRepresentation(
 	FCluster CoarseRepresentation( MergeList );
 	// FindDAGCut also produces error when TargetError is non-zero but this only happens for LOD0 whose MaxDeviation is always zero.
 	// Don't use the old weights for LOD0 since they change the error calculation and hence, change the meaning of TargetError.
-	float OutError;
-	if( FallbackLODIndex > 0 )
-		OutError = CoarseRepresentation.SimplifyFallback( TargetNumTris, TargetError, FMath::Min( TargetNumTris, 256u ) );
-	else
-		OutError = CoarseRepresentation.Simplify( TargetNumTris, TargetError, FMath::Min( TargetNumTris, 256u ) );
+	const float OutError = CoarseRepresentation.Simplify( TargetNumTris, TargetError, FMath::Min( TargetNumTris, 256u ) );
 
 	TArray< FStaticMeshSection, TInlineAllocator<1> > OldSections = Sections;
 
@@ -246,10 +242,13 @@ static float BuildCoarseRepresentation(
 		Verts.TangentY.Emplace(FVector3f::ZeroVector);
 		Verts.TangentZ.Emplace(CoarseRepresentation.GetNormal(Iter));
 
-		const FVector2f* UVs = CoarseRepresentation.GetUVs(Iter);
-		for (uint32 UVIndex = 0; UVIndex < NumTexCoords; ++UVIndex)
+		if (NumTexCoords > 0)
 		{
-			Verts.UVs[UVIndex].Emplace(UVs[UVIndex].ContainsNaN() ? FVector2f::ZeroVector : UVs[UVIndex]);
+			const FVector2f* UVs = CoarseRepresentation.GetUVs(Iter);
+			for (uint32 UVIndex = 0; UVIndex < NumTexCoords; ++UVIndex)
+			{
+				Verts.UVs[UVIndex].Emplace(UVs[UVIndex].ContainsNaN() ? FVector2f::ZeroVector : UVs[UVIndex]);
+			}
 		}
 		
 		if (CoarseRepresentation.Settings.bHasColors)
@@ -258,24 +257,17 @@ static float BuildCoarseRepresentation(
 		}
 	}
 
-	TArray<FMaterialTriangle, TInlineAllocator<128>> CoarseMaterialTris;
-	TArray<FMaterialRange, TInlineAllocator<4>> CoarseMaterialRanges;
-
 	// Compute material ranges for coarse representation.
-	BuildMaterialRanges(
-		CoarseRepresentation.Indexes,
-		CoarseRepresentation.MaterialIndexes,
-		CoarseMaterialTris,
-		CoarseMaterialRanges);
-	check(CoarseMaterialRanges.Num() <= OldSections.Num());
+	CoarseRepresentation.BuildMaterialRanges();
+	check(CoarseRepresentation.MaterialRanges.Num() <= OldSections.Num());
 
 	// Rebuild section data.
-	Sections.Reset(CoarseMaterialRanges.Num());
+	Sections.Reset( CoarseRepresentation.MaterialRanges.Num() );
 	for (const FStaticMeshSection& OldSection : OldSections)
 	{
 		// Add new sections based on the computed material ranges
 		// Enforce the same material order as OldSections
-		const FMaterialRange* FoundRange = CoarseMaterialRanges.FindByPredicate([&OldSection](const FMaterialRange& Range) { return Range.MaterialIndex == OldSection.MaterialIndex; });
+		const FMaterialRange* FoundRange = CoarseRepresentation.MaterialRanges.FindByPredicate([&OldSection](const FMaterialRange& Range) { return Range.MaterialIndex == OldSection.MaterialIndex; });
 
 		// Sections can actually be removed from the coarse mesh if their source data doesn't contain enough triangles
 		if (FoundRange)
@@ -289,36 +281,25 @@ static float BuildCoarseRepresentation(
 			Section.MinVertexIndex = TNumericLimits<uint32>::Max();
 			Section.MaxVertexIndex = TNumericLimits<uint32>::Min();
 
-			for (uint32 TriangleIndex = 0; TriangleIndex < (FoundRange->RangeStart + FoundRange->RangeLength); ++TriangleIndex)
+			for( uint32 TriIndex = FoundRange->RangeStart; TriIndex < FoundRange->RangeStart + FoundRange->RangeLength; TriIndex++ )
 			{
-				const FMaterialTriangle& Triangle = CoarseMaterialTris[TriangleIndex];
-
-				// Update min vertex index
-				Section.MinVertexIndex = FMath::Min(Section.MinVertexIndex, Triangle.Index0);
-				Section.MinVertexIndex = FMath::Min(Section.MinVertexIndex, Triangle.Index1);
-				Section.MinVertexIndex = FMath::Min(Section.MinVertexIndex, Triangle.Index2);
-
-				// Update max vertex index
-				Section.MaxVertexIndex = FMath::Max(Section.MaxVertexIndex, Triangle.Index0);
-				Section.MaxVertexIndex = FMath::Max(Section.MaxVertexIndex, Triangle.Index1);
-				Section.MaxVertexIndex = FMath::Max(Section.MaxVertexIndex, Triangle.Index2);
+				for( int k = 0; k < 3; k++ )
+				{
+					Section.MinVertexIndex = FMath::Min( Section.MinVertexIndex, CoarseRepresentation.Indexes[ TriIndex * 3 + k ] );
+					Section.MaxVertexIndex = FMath::Max( Section.MaxVertexIndex, CoarseRepresentation.Indexes[ TriIndex * 3 + k ] );
+				}
 			}
 
 			Sections.Add(Section);
 		}
 	}
-
-	// Rebuild index data.
-	Indexes.Reset();
-	for (const FMaterialTriangle& Triangle : CoarseMaterialTris)
-	{
-		Indexes.Add(Triangle.Index0);
-		Indexes.Add(Triangle.Index1);
-		Indexes.Add(Triangle.Index2);
-	}
+	Swap( Indexes, CoarseRepresentation.Indexes );
 
 	FMeshBuildVertexView VertexView = MakeMeshBuildVertexView(Verts);
-	CalcTangents(VertexView, Indexes);
+	if (NumTexCoords > 0)
+	{
+		CalcTangents(VertexView, Indexes);
+	}
 
 	return OutError;
 }
@@ -412,7 +393,27 @@ static void ClusterTriangles(
 		Settings.bHasTangents ? TEXT(", Tangents") : TEXT(""),
 		Settings.bHasColors ? TEXT(", Color") : TEXT("") );
 
-	FGraphPartitioner Partitioner( NumTriangles );
+#if 0
+	FBVHCluster Partitioner( NumTriangles, FCluster::ClusterSize - 4, FCluster::ClusterSize );
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::Build::PartitionGraph);
+
+		Partitioner.Build(
+			[ &Verts, &Indexes ]( uint32 TriIndex )
+			{
+				FBounds3f Bounds;
+				Bounds  = Verts.Position[ Indexes[ TriIndex * 3 + 0 ] ];
+				Bounds += Verts.Position[ Indexes[ TriIndex * 3 + 1 ] ];
+				Bounds += Verts.Position[ Indexes[ TriIndex * 3 + 2 ] ];
+				return Bounds;
+			} );
+
+		check( Partitioner.Ranges.Num() );
+
+		LOG_CRC( Partitioner.Ranges );
+	}
+#else
+	FGraphPartitioner Partitioner( NumTriangles, FCluster::ClusterSize - 4, FCluster::ClusterSize );
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::Build::PartitionGraph);
@@ -450,11 +451,12 @@ static void ClusterTriangles(
 
 		bool bSingleThreaded = NumTriangles < 5000;
 
-		Partitioner.PartitionStrict( Graph, FCluster::ClusterSize - 4, FCluster::ClusterSize, !bSingleThreaded );
+		Partitioner.PartitionStrict( Graph, !bSingleThreaded );
 		check( Partitioner.Ranges.Num() );
 
 		LOG_CRC( Partitioner.Ranges );
 	}
+#endif
 
 	const uint32 OptimalNumClusters = FMath::DivideAndRoundUp< int32 >( Indexes.Num(), FCluster::ClusterSize * 3 );
 
@@ -476,7 +478,8 @@ static void ClusterTriangles(
 					Indexes,
 					MaterialIndexes,
 					Settings,
-					Range.Begin, Range.End, Partitioner, Adjacency );
+					Range.Begin, Range.End,
+					Partitioner.Indexes, Partitioner.SortedTo, Adjacency );
 
 				// Negative notes it's a leaf
 				Clusters[ BaseCluster + Index ].EdgeLength *= -1.0f;
@@ -511,7 +514,7 @@ void TessellateAndDisplace(
 bool FBuilderModule::Build(
 	FResources& Resources,
 	IBuilderModule::FInputMeshData& InputMeshData,
-	TArrayView<IBuilderModule::FOutputMeshData> OutputLODMeshData,
+	IBuilderModule::FOutputMeshData* OutFallbackMeshData,
 	const FMeshNaniteSettings& Settings,
 	IBuilderModule::FOnFreeInputMeshData OnFreeInputMeshData
 )
@@ -533,11 +536,13 @@ bool FBuilderModule::Build(
 		uint32 Time1 = FPlatformTime::Cycles();
 		UE_LOG( LogStaticMesh, Log, TEXT("Adaptive tessellate [%.2fs], tris: %i"), FPlatformTime::ToMilliseconds( Time1 - Time0 ) / 1000.0f, InputMeshData.TriangleCounts[0] );
 	}
+
+	uint32 Time0 = FPlatformTime::Cycles();
 	
 	const uint32 NumInputTriangles = InputMeshData.TriangleIndices.Num() / 3;
 	if (NumInputTriangles == 0)
 	{
-		UE_LOG(LogStaticMesh, Error, TEXT("Failed to build Nanite mesh. Input has 0 triangles."));
+		UE_LOG(LogStaticMesh, Warning, TEXT("Failed to build Nanite mesh. Input has 0 triangles."));
 		return false;
 	}
 
@@ -571,6 +576,7 @@ bool FBuilderModule::Build(
 
 	FBuilderSettings BuilderSettings;
 	BuilderSettings.NumTexCoords		= InputMeshData.NumTexCoords;
+	BuilderSettings.NumBoneInfluences	= InputMeshData.NumBoneInfluences;
 	BuilderSettings.MaxEdgeLengthFactor	= Settings.MaxEdgeLengthFactor;
 	BuilderSettings.bHasTangents		= Settings.bExplicitTangents;
 	BuilderSettings.bHasColors			= bHasVertexColor;
@@ -603,19 +609,20 @@ bool FBuilderModule::Build(
 	for( FCluster& Cluster : Clusters )
 		SurfaceArea += Cluster.SurfaceArea;
 
-	int32 FallbackTargetNumTris = int32((float)Resources.NumInputTriangles * Settings.FallbackPercentTriangles);
 	float FallbackTargetError = Settings.FallbackRelativeError * 0.01f * FMath::Sqrt( FMath::Min( 2.0f * SurfaceArea, InputMeshData.VertexBounds.GetSurfaceArea() ) );
 
-	bool bFallbackIsReduced = Settings.FallbackPercentTriangles < 1.0f || FallbackTargetError > 0.0f;
+	// NOTE: The fallback is reduced if the base Nanite mesh will also reduce the input
+	bool bFallbackIsReduced = Settings.FallbackPercentTriangles < 1.0f || Settings.KeepPercentTriangles < 1.0f ||
+		FallbackTargetError > 0.0f || Settings.TrimRelativeError > 0.0f;
 	
 	// If we're going to replace the original vertex buffer with a coarse representation, get rid of the old copies
 	// now that we copied it into the cluster representation. We do it before the longer DAG reduce phase to shorten peak memory duration.
 	// This is especially important when building multiple huge Nanite meshes in parallel.
 	OnFreeInputMeshData.ExecuteIfBound(bFallbackIsReduced);
 
-	uint32 Time0 = FPlatformTime::Cycles();
+	uint32 ReduceTime0 = FPlatformTime::Cycles();
 
-	FBounds3f MeshBounds;	
+	FBounds3f MeshBounds;
 	TArray<FClusterGroup> Groups;
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::Build::DAG.Reduce);
@@ -660,31 +667,22 @@ bool FBuilderModule::Build(
 		UE_LOG( LogStaticMesh, Log, TEXT("Trimmed to %u tris"), NumTris );
 	}
 
-	uint32 ReduceTime = FPlatformTime::Cycles();
-	UE_LOG(LogStaticMesh, Log, TEXT("Reduce [%.2fs]"), FPlatformTime::ToMilliseconds(ReduceTime - Time0) / 1000.0f);
+	int32 FallbackTargetNumTris = int32((float)Resources.NumInputTriangles * Settings.FallbackPercentTriangles);
 
-	for (int32 FallbackLODIndex = 0; FallbackLODIndex < OutputLODMeshData.Num(); ++FallbackLODIndex)
+	uint32 ReduceTime1 = FPlatformTime::Cycles();
+	UE_LOG( LogStaticMesh, Log, TEXT("Reduce [%.2fs]"), FPlatformTime::ToMilliseconds( ReduceTime1 - ReduceTime0 ) / 1000.0f );
+
+	if (OutFallbackMeshData != nullptr)
 	{
 		const uint32 FallbackStartTime = FPlatformTime::Cycles();
 
-		auto& FallbackLODMeshData = OutputLODMeshData[FallbackLODIndex];
-		
 		// Copy the section data which will then be patched up after the simplification
-		FallbackLODMeshData.Sections = InputMeshData.Sections;
-		
-		// % of first proxy not % of original
-		if( FallbackLODIndex > 0 )
-		{
-			FallbackTargetNumTris = OutputLODMeshData[0].TriangleIndices.Num() / 3;
-			FallbackTargetNumTris = int32((float)FallbackTargetNumTris * FallbackLODMeshData.PercentTriangles);
-			FallbackTargetError = 0.0f;
-		}
+		OutFallbackMeshData->Sections = InputMeshData.Sections;
 
-		if( !bFallbackIsReduced && FallbackLODIndex == 0 )
+		if( !bFallbackIsReduced )
 		{
-			Swap(FallbackLODMeshData.Vertices, InputMeshData.Vertices);
-			Swap(FallbackLODMeshData.TriangleIndices, InputMeshData.TriangleIndices);
-			FallbackLODMeshData.MaxDeviation = 0.f;
+			Swap(OutFallbackMeshData->Vertices, InputMeshData.Vertices);
+			Swap(OutFallbackMeshData->TriangleIndices, InputMeshData.TriangleIndices);
 		}
 		else
 		{
@@ -692,21 +690,18 @@ bool FBuilderModule::Build(
 			const float ReductionError = BuildCoarseRepresentation(
 				Groups,
 				Clusters,
-				FallbackLODMeshData.Vertices,
-				FallbackLODMeshData.TriangleIndices,
+				OutFallbackMeshData->Vertices,
+				OutFallbackMeshData->TriangleIndices,
 				FallbackSections,
 				InputMeshData.NumTexCoords,
 				FallbackTargetNumTris,
-				FallbackTargetError,
-				FallbackLODIndex
+				FallbackTargetError
 			);
-
-			FallbackLODMeshData.MaxDeviation = FallbackLODIndex == 0 ? 0.f : ReductionError / 8.f;
 
 			// Fixup mesh section info with new coarse mesh ranges, while respecting original ordering and keeping materials
 			// that do not end up with any assigned triangles (due to decimation process).
 
-			for (FStaticMeshSection& Section : FallbackLODMeshData.Sections)
+			for (FStaticMeshSection& Section : OutFallbackMeshData->Sections)
 			{
 				// For each section info, try to find a matching entry in the coarse version.
 				const FStaticMeshSection* FallbackSection = FallbackSections.FindByPredicate(
@@ -735,13 +730,13 @@ bool FBuilderModule::Build(
 		}
 
 		const uint32 FallbackEndTime = FPlatformTime::Cycles();
-		UE_LOG(LogStaticMesh, Log, TEXT("Fallback %d/%d [%.2fs], num tris: %d"), FallbackLODIndex, OutputLODMeshData.Num(), FPlatformTime::ToMilliseconds(FallbackEndTime - FallbackStartTime) / 1000.0f, FallbackLODMeshData.TriangleIndices.Num() / 3);
+		UE_LOG(LogStaticMesh, Log, TEXT("Fallback [%.2fs], num tris: %d"), FPlatformTime::ToMilliseconds(FallbackEndTime - FallbackStartTime) / 1000.0f, OutFallbackMeshData->TriangleIndices.Num() / 3);
 	}
 
 	uint32 EncodeTime0 = FPlatformTime::Cycles();
 
 	uint32 TotalGPUSize;
-	Encode(Resources, Settings, Clusters, Groups, MeshBounds, Resources.NumInputMeshes, InputMeshData.NumTexCoords, Settings.bExplicitTangents, bHasVertexColor, &TotalGPUSize);
+	Encode(Resources, Settings, Clusters, Groups, MeshBounds, Resources.NumInputMeshes, InputMeshData.NumTexCoords, Settings.bExplicitTangents, bHasVertexColor, BuilderSettings.NumBoneInfluences > 0, &TotalGPUSize);
 
 	uint32 EncodeTime1 = FPlatformTime::Cycles();
 	UE_LOG( LogStaticMesh, Log, TEXT("Encode [%.2fs]"), FPlatformTime::ToMilliseconds( EncodeTime1 - EncodeTime0 ) / 1000.0f );

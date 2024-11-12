@@ -41,6 +41,11 @@ struct FLevelStreamingGCHelper
 	static ENGINE_API int32 GetNumLevelsPendingPurge();
 
 	/**
+	 * Trash a package, making sure it will be reloaded if needed again by level streaming
+	 */
+	static ENGINE_API void TrashPackage(UPackage* InPackage);
+
+	/**
 	 * Allows FLevelStreamingGCHelper to be used in a commandlet.
 	 */
 	static ENGINE_API void EnableForCommandlet();

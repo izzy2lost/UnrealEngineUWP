@@ -21,18 +21,36 @@ struct TRACESERVICES_API FStackFrame
 /////////////////////////////////////////////////////////////////////
 struct TRACESERVICES_API FCallstack
 {
-	/** Creates an empty callstack. */
+	/** Creates the default empty callstack (id 0). */
 	FCallstack();
+
+	/** Creates an empty callstack but with a non-zero id. */
+	FCallstack(uint64 Id);
+
 	/** Creates an callstack initialized with a certain number of stack frames. */
 	FCallstack(const FStackFrame* FirstEntry, uint8 FrameCount);
+
 	/** Initializes the callstack with a certain number of stack frames. */
 	void Init(const FStackFrame* FirstEntry, uint8 FrameCount);
+
+	/** Initializes an empty callstack but with a non-zero id. */
+	void InitEmpty(uint64 Id);
+
+	/** Gets the callstack id of an empty callstack. */
+	uint64 GetEmptyId() const;
+
+	/** Return true if the number of stack frames is zero. */
+	bool IsEmpty() const;
+
 	/** Gets the number of stack frames in callstack. */
 	uint32 Num() const;
+
 	/** Gets the address at a given stack depth. */
 	uint64 Addr(uint8 Depth) const;
+
 	/** Gets the cached symbol name at a given stack depth. */
 	const TCHAR* Name(uint8 Depth) const;
+
 	/** Gets the entire frame at given depth. */
 	const FStackFrame* Frame(uint8 Depth) const;
 
@@ -89,6 +107,12 @@ inline FCallstack::FCallstack()
 }
 
 /////////////////////////////////////////////////////////////////////
+inline FCallstack::FCallstack(uint64 Id)
+{
+	InitEmpty(Id);
+}
+
+/////////////////////////////////////////////////////////////////////
 inline FCallstack::FCallstack(const FStackFrame* InFirstFrame, uint8 InFrameCount)
 {
 	Init(InFirstFrame, InFrameCount);
@@ -99,6 +123,25 @@ inline void FCallstack::Init(const FStackFrame* InFirstFrame, uint8 InFrameCount
 {
 	check((uint64(InFirstFrame) & EntryLenMask) == 0);
 	CallstackLenIndex = (uint64(InFrameCount) << EntryLenShift) | (~EntryLenMask & uint64(InFirstFrame));
+}
+
+/////////////////////////////////////////////////////////////////////
+inline void FCallstack::InitEmpty(uint64 Id)
+{
+	check((Id & EntryLenMask) == 0);
+	CallstackLenIndex = Id & ~EntryLenMask;
+}
+
+/////////////////////////////////////////////////////////////////////
+inline uint64 FCallstack::GetEmptyId() const
+{
+	return CallstackLenIndex & ~EntryLenMask;
+}
+
+/////////////////////////////////////////////////////////////////////
+inline bool FCallstack::IsEmpty() const
+{
+	return (CallstackLenIndex >> EntryLenShift) == 0;
 }
 
 /////////////////////////////////////////////////////////////////////

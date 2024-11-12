@@ -87,8 +87,8 @@ public:
 	virtual float GetSpeed(bool* MaintainPitch = nullptr) = 0;
 
 	// update the effect with the current beat/tempo
-	virtual void SetBeat(float beat) {}
-	virtual void SetTempo(float bpm) {}
+	virtual void SetQuarterNote(float QuarterNote) {}
+	virtual void SetTempo(float Bpm) {}
 
 	virtual void SetSampleRate(float InSampleRateHz) = 0;
 

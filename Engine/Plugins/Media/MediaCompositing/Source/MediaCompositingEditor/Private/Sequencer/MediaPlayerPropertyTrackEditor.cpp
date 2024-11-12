@@ -16,6 +16,7 @@
 #include "Widgets/Layout/SBox.h"
 #include "MediaSource.h"
 #include "LevelSequence.h"
+#include "SequencerSettings.h"
 
 #include "Sequencer/MediaThumbnailSection.h"
 
@@ -102,7 +103,7 @@ void FMediaPlayerPropertyTrackEditor::OnAnimatedPropertyChanged(const FPropertyC
 		return;
 	}
 
-	FProperty* Property = PropertyChangedParams.PropertyPath.GetLeafMostProperty().Property.Get();
+	const FProperty* Property = PropertyChangedParams.PropertyPath.GetLeafMostProperty().Property.Get();
 	if (!Property)
 	{
 		return;
@@ -147,7 +148,8 @@ TSharedPtr<SWidget> FMediaPlayerPropertyTrackEditor::BuildOutlinerEditWidget(con
 
 	auto CreatePicker = [this, MediaTrack]
 	{
-		UMovieSceneSequence* Sequence = GetSequencer() ? GetSequencer()->GetFocusedMovieSceneSequence() : nullptr;
+		TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+		UMovieSceneSequence* Sequence = SequencerPtr.IsValid() ? SequencerPtr->GetFocusedMovieSceneSequence() : nullptr;
 
 		FAssetPickerConfig AssetPickerConfig;
 		{
@@ -164,9 +166,12 @@ TSharedPtr<SWidget> FMediaPlayerPropertyTrackEditor::BuildOutlinerEditWidget(con
 
 		FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 
+		const float WidthOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+		const float HeightOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
 		TSharedRef<SBox> Picker = SNew(SBox)
-			.WidthOverride(500.0f)
-			.HeightOverride(400.f)
+			.WidthOverride(WidthOverride)
+			.HeightOverride(HeightOverride)
 			[
 				ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig)
 			];

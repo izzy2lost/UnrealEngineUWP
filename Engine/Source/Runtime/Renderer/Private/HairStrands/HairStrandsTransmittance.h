@@ -41,7 +41,7 @@ void RenderHairStrandsDeepShadowMask(
 /// Output hair transmittance per hair sample for a given light
 FHairStrandsTransmittanceMaskData RenderHairStrandsTransmittanceMask(
 	FRDGBuilder& GraphBuilder,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const class FLightSceneInfo* LightSceneInfo,
 	const bool bProjectingForForwardShading,
 	FRDGTextureRef ScreenShadowMaskSubPixelTexture);
@@ -49,6 +49,6 @@ FHairStrandsTransmittanceMaskData RenderHairStrandsTransmittanceMask(
 /// Output hair transmittance per hair sample for all lights using the forward cluster lights
 FHairStrandsTransmittanceMaskData RenderHairStrandsOnePassTransmittanceMask(
 	FRDGBuilder& GraphBuilder,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	FRDGTextureRef ShadowMaskBits,
 	FVirtualShadowMapArray& VirtualShadowMapArray);

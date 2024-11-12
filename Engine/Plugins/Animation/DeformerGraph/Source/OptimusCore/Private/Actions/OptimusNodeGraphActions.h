@@ -208,6 +208,10 @@ protected:
 	bool Undo(IOptimusPathResolver* InRoot) override;
 
 private:
+	
+	// The path of the node to duplicate
+	FString SourceNodePath;
+	
 	// The path of the graph the node should be added to.
 	FString GraphPath;
 	
@@ -222,8 +226,9 @@ private:
 	// gets added to the graph.
 	TFunction<bool(UOptimusNode*)> ConfigureNodeFunc;
 
-	// The stored node data to copy into the new node.
-	TArray<uint8> NodeData;
+	// State of the node when this action was created, useful when moving nodes from clipboard graph to a real graph
+	// not used if we can resolve the source node path during Do(), for regular duplicate usage
+	TArray<uint8> CachedNodeData;
 
 	// Path to the node that gets created through duplication.
 	FString NodePath;

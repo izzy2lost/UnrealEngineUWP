@@ -154,7 +154,10 @@ void SPropertyEditorEditInline::Construct( const FArguments& InArgs, const TShar
 	[
 		SAssignNew(ComboButton, SComboButton)
 		.IsEnabled(this, &SPropertyEditorEditInline::IsValueEnabled, WeakHandlePtr)
-		.OnGetMenuContent(this, &SPropertyEditorEditInline::GenerateClassPicker)
+		.OnGetMenuContent(FOnGetContent::CreateStatic(&SPropertyEditorEditInline::GenerateClassPicker, 
+														InPropertyEditor->GetPropertyHandle(), 
+														FOnClassPicked::CreateSP(this, &SPropertyEditorEditInline::OnClassPickedInternal, InPropertyEditor->GetPropertyHandle()),
+														TSharedPtr<IClassViewerFilter>(nullptr)))
 		.ContentPadding(0.0f)
 		.ToolTipText(InPropertyEditor, &FPropertyEditor::GetValueAsText )
 		.ButtonContent()
@@ -215,6 +218,13 @@ const FSlateBrush* SPropertyEditorEditInline::GetDisplayValueIcon() const
 	return nullptr;
 }
 
+void SPropertyEditorEditInline::OnClassPickedInternal(UClass* InClass, TSharedRef<IPropertyHandle> PropertyHandle)
+{
+	SPropertyEditorEditInline::OnClassPicked(InClass, PropertyHandle);
+	PropertyEditor->ForceRefresh();
+	ComboButton->SetIsOpen(false);
+}
+
 void SPropertyEditorEditInline::GetDesiredWidth( float& OutMinDesiredWidth, float& OutMaxDesiredWidth )
 {
 	OutMinDesiredWidth = 250.0f;
@@ -234,28 +244,27 @@ bool SPropertyEditorEditInline::Supports( const TSharedRef< class FPropertyEdito
 	const TSharedRef< FPropertyNode > PropertyNode = InPropertyEditor->GetPropertyNode();
 	return SPropertyEditorEditInline::Supports( &PropertyNode.Get(), PropertyNode->GetArrayIndex() );
 }
+ 
 
-bool SPropertyEditorEditInline::IsClassAllowed( UClass* CheckClass, bool bAllowAbstract ) const
-{
-	check(CheckClass);
-	return PropertyEditorHelpers::IsEditInlineClassAllowed( CheckClass, bAllowAbstract ) &&  CheckClass->HasAnyClassFlags(CLASS_EditInlineNew);
-}
-
-TSharedRef<SWidget> SPropertyEditorEditInline::GenerateClassPicker()
+TSharedRef<SWidget> SPropertyEditorEditInline::GenerateClassPicker(TSharedRef<IPropertyHandle> PropertyHandle, FOnClassPicked OnPicked, TSharedPtr<IClassViewerFilter> AdditionalClassFilter) // static
 {
 	FClassViewerInitializationOptions Options;
 	Options.bShowBackgroundBorder = false;
 	Options.bShowUnloadedBlueprints = true;
 	Options.NameTypeToDisplay = EClassViewerNameTypeToDisplay::DisplayName;
 
-	TSharedPtr<FPropertyEditorInlineClassFilter> ClassFilter = MakeShareable( new FPropertyEditorInlineClassFilter );
+	if (AdditionalClassFilter)
+	{
+		Options.ClassFilters.Add(AdditionalClassFilter.ToSharedRef());
+	}
+
+	TSharedPtr<FPropertyEditorInlineClassFilter> ClassFilter = MakeShareable(new FPropertyEditorInlineClassFilter);
 	Options.ClassFilters.Add(ClassFilter.ToSharedRef());
 	ClassFilter->bAllowAbstract = false;
 
-	const TSharedRef< FPropertyNode > PropertyNode = PropertyEditor->GetPropertyNode();
-	FProperty* Property = PropertyNode->GetProperty();
-	ClassFilter->ObjProperty = CastField<FObjectPropertyBase>( Property );
-	ClassFilter->IntProperty = CastField<FInterfaceProperty>( Property );
+	FProperty* Property = PropertyHandle->GetProperty();
+	ClassFilter->ObjProperty = CastField<FObjectPropertyBase>(Property);
+	ClassFilter->IntProperty = CastField<FInterfaceProperty>(Property);
 
 	// Filter based on UPROPERTY meta data
 	const FProperty* MetadataProperty = Property->GetOwnerProperty();
@@ -278,16 +287,19 @@ TSharedRef<SWidget> SPropertyEditorEditInline::GenerateClassPicker()
 	}
 
 	TArray<UObject*> ObjectList;
-	if (PropertyEditor && PropertyEditor->GetPropertyHandle()->IsValidHandle())
+	if (PropertyHandle->IsValidHandle())
 	{
-		PropertyEditor->GetPropertyHandle()->GetOuterObjects(ObjectList);
+		PropertyHandle->GetOuterObjects(ObjectList);
 	}
 
 	TArray<const UClass*> AllowedClassFilters;
 	TArray<const UClass*> DisallowedClassFilters;
 	PropertyEditorUtils::GetAllowedAndDisallowedClasses(ObjectList, *Property, AllowedClassFilters, DisallowedClassFilters, false);
-	
+
 	using namespace UE::PropertyEditor::EditInline::Private;
+
+	TSharedRef<FPropertyHandleBase> PropertyHandleImpl = StaticCastSharedRef<FPropertyHandleBase>(PropertyHandle);
+	TSharedPtr<FPropertyNode> PropertyNode = PropertyHandleImpl->GetPropertyNode();
 
 	// Filter based on restrictions
 	for (const TSharedRef<const FPropertyRestriction>& ClassRestriction : PropertyNode->GetRestrictions())
@@ -308,7 +320,7 @@ TSharedRef<SWidget> SPropertyEditorEditInline::GenerateClassPicker()
 			}
 		}
 
-		for (TArray<TSharedRef<IClassViewerFilter>>::TConstIterator  Iter = ClassRestriction.Get().GeClassViewFilterIterator(); Iter; ++Iter)
+		for (TArray<TSharedRef<IClassViewerFilter>>::TConstIterator Iter = ClassRestriction.Get().GeClassViewFilterIterator(); Iter; ++Iter)
 		{
 			Options.ClassFilters.Add(*Iter);
 		}
@@ -316,11 +328,11 @@ TSharedRef<SWidget> SPropertyEditorEditInline::GenerateClassPicker()
 
 	ClassFilter->AllowedClassFilters = MoveTemp(AllowedClassFilters);
 	ClassFilter->DisallowedClassFilters = MoveTemp(DisallowedClassFilters);
-	
+
 	bool bContainerHasNoClear = false;
-	if(PropertyNode->GetArrayIndex() != INDEX_NONE)
+	if (PropertyNode->GetArrayIndex() != INDEX_NONE)
 	{
-		if(const TSharedPtr<FPropertyNode>& ParentNode = PropertyNode->GetParentNodeSharedPtr())
+		if (const TSharedPtr<FPropertyNode>& ParentNode = PropertyNode->GetParentNodeSharedPtr())
 		{
 			bContainerHasNoClear = ParentNode->GetProperty()->HasAllPropertyFlags(CPF_NoClear);
 		}
@@ -328,28 +340,28 @@ TSharedRef<SWidget> SPropertyEditorEditInline::GenerateClassPicker()
 	Options.bShowNoneOption = !Property->HasAllPropertyFlags(CPF_NoClear) && !bContainerHasNoClear;
 
 	FObjectPropertyNode* ObjectPropertyNode = PropertyNode->FindObjectItemParent();
-	if( ObjectPropertyNode )
+	if (ObjectPropertyNode)
 	{
-		for ( TPropObjectIterator Itor( ObjectPropertyNode->ObjectIterator() ); Itor; ++Itor )
+		for (TPropObjectIterator Itor(ObjectPropertyNode->ObjectIterator()); Itor; ++Itor)
 		{
 			UObject* OwnerObject = Itor->Get();
-			ClassFilter->OwningObjects.Add( OwnerObject );
+			ClassFilter->OwningObjects.Add(OwnerObject);
 		}
 	}
 
-	Options.PropertyHandle = PropertyEditor->GetPropertyHandle();
-
-	FOnClassPicked OnPicked( FOnClassPicked::CreateRaw( this, &SPropertyEditorEditInline::OnClassPicked ) );
+	Options.PropertyHandle = PropertyHandle;
 
 	return FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer").CreateClassViewer(Options, OnPicked);
 }
 
-void SPropertyEditorEditInline::OnClassPicked(UClass* InClass)
+void SPropertyEditorEditInline::OnClassPicked(UClass* InClass, TSharedRef<IPropertyHandle> PropertyHandle, EPropertyValueSetFlags::Type Flags) // static
 {
+	TSharedRef<FPropertyHandleBase> PropertyHandleImpl = StaticCastSharedRef<FPropertyHandleBase>(PropertyHandle);
+	TSharedPtr<FPropertyNode> PropertyNode = PropertyHandleImpl->GetPropertyNode();
+
 	TArray<FObjectBaseAddress> ObjectsToModify;
 	TArray<FString> NewValues;
 
-	const TSharedRef< FPropertyNode > PropertyNode = PropertyEditor->GetPropertyNode();
 	FObjectPropertyNode* ObjectNode = PropertyNode->FindObjectItemParent();
 
 	if( ObjectNode )
@@ -396,8 +408,6 @@ void SPropertyEditorEditInline::OnClassPicked(UClass* InClass)
 				}
 			}
 		}
-
-		const TSharedRef<IPropertyHandle> PropertyHandle = PropertyEditor->GetPropertyHandle();
 
 		// If this is an instanced component property collect current names so we can clean them properly if necessary
 		TArray<FString> PrevPerObjectValues;
@@ -464,7 +474,7 @@ void SPropertyEditorEditInline::OnClassPicked(UClass* InClass)
 			NewValues.Add(MoveTemp(NewValue));
 		}
 
-		PropertyHandle->SetPerObjectValues(NewValues);
+		PropertyHandle->SetPerObjectValues(NewValues, Flags);
 		check(PrevPerObjectValues.Num() == 0 || PrevPerObjectValues.Num() == NewValues.Num());
 
 		for (int32 Index = 0; Index < PrevPerObjectValues.Num(); ++Index)
@@ -485,8 +495,6 @@ void SPropertyEditorEditInline::OnClassPicked(UClass* InClass)
 		GEditor->EndTransaction();
 
 		// Force a rebuild of the children when this node changes
-		PropertyNode->RequestRebuildChildren();
-
-		ComboButton->SetIsOpen(false);
+		PropertyNode->RebuildChildren();
 	}
 }

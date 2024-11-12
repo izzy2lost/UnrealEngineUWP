@@ -7,6 +7,8 @@
 #include "ActorModifierCoreDefs.h"
 #include "ActorModifierCoreStack.generated.h"
 
+class UActorModifierCoreBlueprintBase;
+class UActorModifierCoreComponent;
 class USceneComponent;
 
 /** A modifier stack contains modifiers and is also a modifier by itself */
@@ -16,6 +18,7 @@ class UActorModifierCoreStack : public UActorModifierCoreBase
 	GENERATED_BODY()
 
 	friend class UActorModifierCoreBase;
+	friend class UActorModifierCoreComponent;
 	friend class UActorModifierCoreSubsystem;
 
 	friend class FActorModifierCoreEditorDetailCustomization;
@@ -24,17 +27,28 @@ class UActorModifierCoreStack : public UActorModifierCoreBase
 public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnModifierUpdated, UActorModifierCoreBase* /** UpdatedItem */)
 
-	/** Called when a modifier is added to the stack */
-	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierAddedDelegate;
+	static FOnModifierUpdated::RegistrationType& OnModifierAdded()
+	{
+		return OnModifierAddedDelegate;
+	}
 
-	/** Called when a modifier is removed from the stack */
-	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierRemovedDelegate;
+	static FOnModifierUpdated::RegistrationType& OnModifierRemoved()
+	{
+		return OnModifierRemovedDelegate;
+	}
 
-	/** Called when a modifier is moved in the stack */
-	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierMovedDelegate;
+	static FOnModifierUpdated::RegistrationType& OnModifierMoved()
+	{
+		return OnModifierMovedDelegate;
+	}
+
+	static FOnModifierUpdated::RegistrationType& OnModifierReplaced()
+	{
+		return OnModifierReplacedDelegate;
+	}
 
 	/** Create a new stack by passing the actor and the parent stack if there is one */
-	static UActorModifierCoreStack* Create(AActor* InActor, UActorModifierCoreStack* InParentStack = nullptr);
+	static UActorModifierCoreStack* Create(UActorModifierCoreComponent* InComponent, UActorModifierCoreStack* InParentStack = nullptr);
 
 	/** Gets all modifiers in this stack, does not recurse */
 	TConstArrayView<UActorModifierCoreBase*> GetModifiers() const
@@ -44,16 +58,31 @@ public:
 
 	/** Get modifiers of a specific class only in this stack, does not recurse */
 	template <class InModifierType
-		UE_REQUIRES(std::is_base_of<UActorModifierCoreBase, InModifierType>::value)>
+		UE_REQUIRES(std::is_base_of_v<UActorModifierCoreBase, InModifierType>)>
 	void GetClassModifiers(TArray<InModifierType*>& OutModifiers) const
 	{
 		for (const TObjectPtr<UActorModifierCoreBase>& Modifier : Modifiers)
 		{
-			if (Modifier->IsA(InModifierType::StaticClass()))
+			if (InModifierType* CastedModifier = Cast<InModifierType>(Modifier))
 			{
-				OutModifiers.Add(static_cast<InModifierType*>(Modifier));
+				OutModifiers.Add(CastedModifier);
 			}
 		}
+	}
+
+	/** Gets the first modifier of a specific class only in this stack, does not recurse */
+	template <class InModifierType
+		UE_REQUIRES(std::is_base_of_v<UActorModifierCoreBase, InModifierType>)>
+	InModifierType* GetClassModifier() const
+	{
+		for (const TObjectPtr<UActorModifierCoreBase>& Modifier : Modifiers)
+		{
+			if (InModifierType* CastedModifier = Cast<InModifierType>(Modifier))
+			{
+				return CastedModifier;
+			}
+		}
+		return nullptr;
 	}
 
 	/** Gets the first modifier in this stack, does not recurse */
@@ -61,6 +90,12 @@ public:
 
 	/** Gets the last modifier in this stack, does not recurse */
 	ACTORMODIFIERCORE_API UActorModifierCoreBase* GetLastModifier() const;
+
+	/** Gets all modifiers found after this one in the stack that depends on this modifier */
+	bool GetDependentModifiers(UActorModifierCoreBase* InModifier, TSet<UActorModifierCoreBase*>& OutDependentModifiers) const;
+
+	/** Gets all modifiers found before this one in the stack that are required by this modifier */
+	bool GetRequiredModifiers(UActorModifierCoreBase* InModifier, TSet<UActorModifierCoreBase*>& OutDependentModifiers) const;
 
 	/** Check that we have a modifier inside this stack, checks also nested stacks */
 	ACTORMODIFIERCORE_API bool ContainsModifier(const FName& InSearchName, const FActorModifierCoreStackSearchOp& InSearchOptions = FActorModifierCoreStackSearchOp::GetDefault()) const;
@@ -76,10 +111,7 @@ public:
 	ACTORMODIFIERCORE_API TArray<UActorModifierCoreBase*> FindModifiers(const UClass* InSearchClass, const FActorModifierCoreStackSearchOp& InSearchOptions = FActorModifierCoreStackSearchOp::GetDefault()) const;
 
 	/** This is the root actor stack if we do not have any parent stack */
-	bool IsRootStack() const
-	{
-		return !ModifierStack.IsValid();
-	}
+	ACTORMODIFIERCORE_API bool IsRootStack() const;
 
 	/** Execute those function when the stack is restored, before executing it again */
 	ACTORMODIFIERCORE_API void ProcessFunctionOnRestore(const TFunction<void()>& InFunction);
@@ -117,12 +149,6 @@ protected:
 
 	/** Checks whether all modifier in this stack are initialized */
 	bool IsModifierStackInitialized() const;
-
-	/** Gets all modifiers found after this one in the stack that depends on this modifier */
-	bool GetDependentModifiers(UActorModifierCoreBase* InModifier, TSet<UActorModifierCoreBase*>& OutDependentModifiers) const;
-
-	/** Gets all modifiers found before this one in the stack that are required by this modifier */
-	bool GetRequiredModifiers(UActorModifierCoreBase* InModifier, TSet<UActorModifierCoreBase*>& OutDependentModifiers) const;
 
 	/** Clone a modifier with options from another stack/actor, returns the newly inserted modifier, supports BATCH operation */
 	UActorModifierCoreBase* CloneModifier(FActorModifierCoreStackCloneOp& InCloneOp);
@@ -166,16 +192,24 @@ protected:
 	/** Called when a modifier in the stack is dirty */
 	virtual void OnModifierDirty(UActorModifierCoreBase* DirtyModifier, bool bExecute) override;
 
-	/** Contains actual modifiers in the stack */
-	UPROPERTY(BlueprintReadOnly, VisibleInstanceOnly, NoClear, Export, Instanced, Category = "Modifiers")
-	TArray<TObjectPtr<UActorModifierCoreBase>> Modifiers;
-
 private:
+	/** Called when a modifier is added to the stack */
+	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierAddedDelegate;
+
+	/** Called when a modifier is removed from the stack */
+	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierRemovedDelegate;
+
+	/** Called when a modifier is moved in the stack */
+	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierMovedDelegate;
+
+	/** Called when a modifier is replaced in the stack (blueprint) */
+	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierReplacedDelegate;
+
 	/** Sets the stack to receive tick events */
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 
-	/** Checks if any modifier within the stack can be set dirty */
-	virtual bool IsModifierDirtyable() const override;
+	/** INTERNAL USE ONLY, allows tickable modifier to mark themselves dirty when checking IsModifierDirtyable */
+	void TickModifier(float InDelta) const;
 
 	/** Unregister this stack to the subsystem when this actor is destroyed */
 	UFUNCTION()
@@ -195,6 +229,13 @@ private:
 
 	/** Checks for any possible modifier optimization within the stack */
 	void CheckModifierOptimization(bool bInInvalidateAll);
+
+	/** Replaces blueprint modifier by their new object */
+	void OnBlueprintModifierReplaced(UActorModifierCoreBlueprintBase* InOldModifier, UActorModifierCoreBlueprintBase* InNewModifier);
+
+	/** Contains actual modifiers in the stack */
+	UPROPERTY(VisibleInstanceOnly, NoClear, Export, Instanced, Category = "Modifiers")
+	TArray<TObjectPtr<UActorModifierCoreBase>> Modifiers;
 
 	/** Contains a copy of modifiers in the stack for this round of execution, useful for restore and for query, can be different from modifiers array */
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional)

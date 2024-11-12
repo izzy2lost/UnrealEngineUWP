@@ -3,6 +3,8 @@
 using System;
 using System.Text.Json.Serialization;
 
+#pragma warning disable CA1056 // Change string to URI
+
 namespace EpicGames.Horde.Server
 {
 	/// <summary>
@@ -27,9 +29,10 @@ namespace EpicGames.Horde.Server
 		public string? AgentVersion { get; set; }
 
 		/// <summary>
-		/// The operating system server is hosted on
+		/// List of plugins
 		/// </summary>
-		public string OsDescription { get; set; } = String.Empty;
+		public ServerPluginInfoResponse[] Plugins { get; set; } = Array.Empty<ServerPluginInfoResponse>();
+
 	}
 
 	/// <summary>
@@ -234,5 +237,15 @@ namespace EpicGames.Horde.Server
 		/// </summary>
 		public ServerStatusSubsystem[] Statuses { get; set; } = Array.Empty<ServerStatusSubsystem>();
 	}
+
+	/// <summary>
+	/// Information about a server plugin
+	/// </summary>
+	/// <param name="Name">Name of the plugin</param>
+	/// <param name="Description">Optional description of the plugin</param>
+	/// <param name="Loaded">Whether the plugin is loaded</param>
+	/// <param name="Version">The version of the plugin assembly</param>
+	public record ServerPluginInfoResponse(string Name, string? Description, bool Loaded, string? Version = null);
+
 }
 

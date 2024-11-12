@@ -263,14 +263,16 @@ namespace DatasmithImportFactoryImpl
 			return false;
 		}
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		// CLOTH
-		FDatasmithImporter::ImportClothes( InContext );
+		FDatasmithImporter::ImportClothes( InContext );  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 
 		if ( InContext.bUserCancelled )
 		{
 			bOutOperationCancelled = true;
 			return false;
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// ACTORS
 		if( InContext.ShouldImportActors() )
@@ -531,12 +533,26 @@ UObject* UDatasmithImportFactory::CreateFromExternalSource(UClass* InClass, UObj
 
 	FDatasmithImportContext ImportContext(InExternalSource, !IsAutomatedImport(), GetLoggerName(), GetDisplayName());
 
+	TFunction< UObject* ()> ExitReturn = [&InExternalSource, &ImportContext]() -> UObject*
+		{
+			if (InExternalSource->GetDatasmithScene())
+			{
+				if (TSharedPtr<IDatasmithTranslator> Translator = InExternalSource->GetAssetTranslator())
+				{
+					// Translators may be using global content. Make sure it is flushed before completing the import
+					Translator->UnloadScene();
+				}
+			}
+
+			return ImportContext.SceneAsset;
+		};
+
 	const bool bIsSilent = IsAutomatedImport() || !bShowOptions;
 	if (!ImportContext.Init(ImportPath, InFlags, InWarn, ImportSettingsJson, bIsSilent))
 	{
 		bOperationCanceled = true;
 		bOutOperationCanceled = true;
-		return nullptr;
+		return ExitReturn();
 	}
 
 	// Collect start time to log amount of time spent to import incoming file
@@ -549,20 +565,21 @@ UObject* UDatasmithImportFactory::CreateFromExternalSource(UClass* InClass, UObj
 	else
 	{
 		UE_LOG(LogDatasmithImport, Warning, TEXT("Datasmith import error: Scene translation failure. Abort import."));
-		return nullptr;
+		return ExitReturn();
 	}
 
 	if (!Import( ImportContext ))
 	{
 		bOperationCanceled = true;
 		bOutOperationCanceled = true;
+		ImportContext.SceneAsset = nullptr;
 		UE_LOG(LogDatasmithImport, Warning, TEXT("Datasmith import error. Abort import."));
-		return nullptr;
+		return ExitReturn();
 	}
 
 	DatasmithImportFactoryImpl::ReportImportStats(ImportContext, StartTime);
 
-	return ImportContext.SceneAsset;
+	return ExitReturn();
 }
 
 bool UDatasmithImportFactory::Import( FDatasmithImportContext& ImportContext )

@@ -19,12 +19,15 @@
 #include "Textures/SlateIcon.h"
 #endif
 
+#include "ActorModifierCoreDefs.generated.h"
+
 class FActorModifierCoreProfiler;
 class AActor;
 class FText;
 class UActorModifierCoreBase;
 class UActorModifierCoreStack;
 
+UENUM(BlueprintType)
 enum class EActorModifierCoreEnableReason : uint8
 {
 	/** Modifier added by user */
@@ -37,6 +40,7 @@ enum class EActorModifierCoreEnableReason : uint8
 	Duplicate
 };
 
+UENUM(BlueprintType)
 enum class EActorModifierCoreDisableReason : uint8
 {
 	/** Modifier disabled by user */
@@ -44,10 +48,11 @@ enum class EActorModifierCoreDisableReason : uint8
 	/** Modifier disabled by undo */
 	Undo,
 	/** Modifier disabled by actor destroyed */
-	Destroyed,
+	Destroyed
 };
 
 /** Enumerates valid positions for modifier operations */
+UENUM(BlueprintType)
 enum class EActorModifierCoreStackPosition : uint8
 {
 	Before,
@@ -83,9 +88,14 @@ enum class EActorModifierCoreStatus : uint8
 	Error
 };
 
+DECLARE_DYNAMIC_DELEGATE_RetVal_OneParam(bool, FModifierCompatibilityRule, const AActor*, InTargetActor);
+
 /** Metadata for each modifier CDO, modifier instance will share same metadata as CDO */
+USTRUCT(BlueprintType)
 struct FActorModifierCoreMetadata
 {
+	GENERATED_BODY()
+
 	static inline const FName DefaultCategory = TEXT("Default");
 #if WITH_EDITOR
 	static inline const FText DefaultDescription = FText::FromString(TEXT("Description not provided"));
@@ -138,6 +148,9 @@ struct FActorModifierCoreMetadata
 
 	/** Sets the usage rule for this modifier, if it passes it will be available for this actor */
 	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& SetCompatibilityRule(const TFunction<bool(const AActor*)>& InModifierRule);
+
+	/** Sets the usage rule for this modifier, if it passes it will be available for this actor */
+	FActorModifierCoreMetadata& SetCompatibilityRule(const FModifierCompatibilityRule& InModifierRule);
 
 	/** Create the modifier instance */
 	UActorModifierCoreBase* CreateModifierInstance(UActorModifierCoreStack* InStack) const;
@@ -284,6 +297,7 @@ private:
 
 	/** Rule to pass before this modifier can be used on an actor */
 	TFunction<bool(const AActor*)> CompatibilityRuleFunction;
+	FModifierCompatibilityRule CompatibilityRuleDelegate;
 
 	/** In order to create new instances of this modifier */
 	TSubclassOf<UActorModifierCoreBase> Class;

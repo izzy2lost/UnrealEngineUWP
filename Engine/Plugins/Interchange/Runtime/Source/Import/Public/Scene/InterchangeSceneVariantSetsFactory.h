@@ -14,7 +14,7 @@
 class ULevelVariantSets;
 class UVariantObjectBinding;
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEIMPORT_API UInterchangeSceneVariantSetsFactory : public UInterchangeFactoryBase
 {
 	GENERATED_BODY()

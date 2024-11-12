@@ -66,12 +66,6 @@ enum class EInvalidateWidgetReason : uint8
 	 * that you invalidate volatility so that it can be recalculated and cached.
 	 */
 	LayoutAndVolatility = Layout | Volatility,
-
-
-	/**
-	 * Do not use this ever unless you know what you are doing
-	 */
-	All UE_DEPRECATED(4.22, "EInvalidateWidget::All has been deprecated.  You probably wanted EInvalidateWidget::Layout but if you need more than that then use bitwise or to combine them") = 0xff
 };
 
 ENUM_CLASS_FLAGS(EInvalidateWidgetReason)

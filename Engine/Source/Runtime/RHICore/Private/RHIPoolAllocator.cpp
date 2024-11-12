@@ -408,7 +408,7 @@ void FRHIMemoryPool::Deallocate(FRHIPoolAllocationData& AllocationData)
 }
 
 
-void FRHIMemoryPool::TryClear(FRHICommandListBase& RHICmdList, FRHIPoolAllocator* InAllocator, uint32 InMaxCopySize, uint32& CopySize, const TArray<FRHIMemoryPool*>& InTargetPools)
+void FRHIMemoryPool::TryClear(FRHIContextArray const& Contexts, FRHIPoolAllocator* InAllocator, uint32 InMaxCopySize, uint32& CopySize, const TArray<FRHIMemoryPool*>& InTargetPools)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRHIMemoryPool::TryClear);
 
@@ -431,7 +431,7 @@ void FRHIMemoryPool::TryClear(FRHICommandListBase& RHICmdList, FRHIPoolAllocator
 				if (TargetPool->TryAllocate(SizeToAllocate, AllocationAlignment, SupportedResourceTypes, TempTargetAllocation))
 				{
 					// RHI specific handling of the actual defrag request
-					InAllocator->HandleDefragRequest(RHICmdList, BlockToMove, TempTargetAllocation);
+					InAllocator->HandleDefragRequest(Contexts, BlockToMove, TempTargetAllocation);
 
 					// Increment the working copy size
 					CopySize += BlockToMove->GetSize();
@@ -497,7 +497,7 @@ void FRHIMemoryPool::RemoveFromFreeBlocks(FRHIPoolAllocationData* InFreeBlock)
 	{
 		if (FreeBlocks[FreeBlockIndex] == InFreeBlock)
 		{
-			FreeBlocks.RemoveAt(FreeBlockIndex, 1, EAllowShrinking::No);
+			FreeBlocks.RemoveAt(FreeBlockIndex, EAllowShrinking::No);
 			break;
 		}
 	}	
@@ -727,7 +727,7 @@ void FRHIPoolAllocator::DeallocateInternal(FRHIPoolAllocationData& AllocationDat
 }
 
 
-void FRHIPoolAllocator::Defrag(FRHICommandListBase& RHICmdList, uint32 InMaxCopySize, uint32& CurrentCopySize)
+void FRHIPoolAllocator::Defrag(FRHIContextArray const& Contexts, uint32 InMaxCopySize, uint32& CurrentCopySize)
 {
 	// Don't do anything when defrag is disabled for this allocator
 	if (!bDefragEnabled)
@@ -783,7 +783,7 @@ void FRHIPoolAllocator::Defrag(FRHICommandListBase& RHICmdList, uint32 InMaxCopy
 		for (int32 PoolIndex = 0; PoolIndex < SortedTargetPools.Num() - 1; ++PoolIndex)
 		{
 			FRHIMemoryPool* PoolToClear = SortedTargetPools[PoolIndex];
-			PoolToClear->TryClear(RHICmdList, this, InMaxCopySize, CurrentCopySize, TargetPools);
+			PoolToClear->TryClear(Contexts, this, InMaxCopySize, CurrentCopySize, TargetPools);
 
 			// Remove last allocator since we will try and clear that one next		
 			TargetPools.Pop();
@@ -830,7 +830,7 @@ void FRHIPoolAllocator::Defrag(FRHICommandListBase& RHICmdList, uint32 InMaxCopy
 				continue;
 			}
 
-			PoolToClear->TryClear(RHICmdList, this, InMaxCopySize, CurrentCopySize, TargetPools);
+			PoolToClear->TryClear(Contexts, this, InMaxCopySize, CurrentCopySize, TargetPools);
 			DefraggedPoolCount++;
 
 			if (CurrentCopySize >= InMaxCopySize || (DefraggedPoolCount >= GRHIPoolAllocatorDefragMaxPoolsToClear))

@@ -175,7 +175,6 @@ public:
 					.Padding(5)
 					[
 						SAssignNew(RevertListView, SListViewType)
-						.ItemHeight(24)
 						.ListItemsSource(&ListViewItemSource)
 						.OnGenerateRow(this, &SSourceControlRevertWidget::OnGenerateRowForList)
 					]

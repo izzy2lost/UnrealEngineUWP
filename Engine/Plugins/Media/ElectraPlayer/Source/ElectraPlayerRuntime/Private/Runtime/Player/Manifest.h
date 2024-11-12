@@ -23,7 +23,8 @@ namespace Electra
 		ISOBMFF,					// mp4
 		HLS,						// Apple HLS (HTTP Live Streaming)
 		DASH,						// MPEG DASH
-		MKV							// Matroska / WebM
+		MKV,						// Matroska / WebM
+		MPEGAudio					// MPEG audio (eg .mp3)
 	};
 
 
@@ -126,8 +127,15 @@ namespace Electra
 		 */
 		virtual void GetEndedStreams(TArray<TSharedPtrTS<IStreamSegment>>& OutAlreadyEndedStreams) = 0;
 
-		//! Returns the first PTS value as indicated by the media timeline. This should correspond to the actual absolute PTS of the sample.
+		/**
+		 * Returns the first PTS value as indicated by the media timeline. This should correspond to the actual absolute PTS of the sample.
+		 */
 		virtual FTimeValue GetFirstPTS() const = 0;
+
+		/**
+		 * Returns the time range this request covers.
+		 */
+		virtual FTimeRange GetTimeRange() const = 0;
 
 		virtual int32 GetQualityIndex() const = 0;
 		virtual int32 GetBitrate() const = 0;
@@ -178,6 +186,15 @@ namespace Electra
 			{
 				Type = EType::TryAgainLater;
 				RetryAgainAtTime = MEDIAutcTime::Current() + FTimeValue().SetFromMilliseconds(Milliseconds);
+				return *this;
+			}
+			FResult& RetryAfter(const FTimeValue& InAfter)
+			{
+				if (InAfter.IsValid())
+				{
+					Type = EType::TryAgainLater;
+					RetryAgainAtTime = MEDIAutcTime::Current() + InAfter;
+				}
 				return *this;
 			}
 			FResult& SetErrorDetail(const FErrorDetail& InErrorDetail)
@@ -239,6 +256,9 @@ namespace Electra
 
 		//! Returns the low-latency descriptor, if any. May return nullptr if there is none.
 		virtual TSharedPtrTS<const FLowLatencyDescriptor> GetLowLatencyDescriptor() const = 0;
+
+		//! Calculates the live latency given the current playback position and optional encoder latency.
+		virtual FTimeValue CalculateCurrentLiveLatency(const FTimeValue& InCurrentPlaybackPosition, const FTimeValue& InEncoderLatency, bool bViaLatencyElement) const = 0;
 
 
 		//-------------------------------------------------------------------------
@@ -336,6 +356,9 @@ namespace Electra
 		//! Returns track metadata. For period based presentations the streams can be different per period in which case the metadata of the first period is returned.
 		virtual void GetTrackMetadata(TArray<FTrackMetadata>& OutMetadata, EStreamType StreamType) const = 0;
 
+		//! Updates long term playback metadata (mostly for audio casts)
+		virtual void UpdateRunningMetaData(TSharedPtrTS<UtilsMP4::FMetadataParser> InUpdatedMetaData) = 0;
+
 		//
 		virtual FTimeValue GetMinBufferTime() const = 0;
 
@@ -343,6 +366,18 @@ namespace Electra
 		virtual TSharedPtrTS<IProducerReferenceTimeInfo> GetProducerReferenceTimeInfo(int64 ID) const = 0;
 
 		virtual FTimeValue GetDesiredLiveLatency() const = 0;
+
+		enum class ELiveEdgePlayMode
+		{
+			// Never play on the Live edge.
+			Never,
+			// Play on Live edge on start, disable when a Pause() or Seek() is issued unless it's a seek to Live edge.
+			Default,
+			// Always play on the Live edge (stream can't or should not be paused)
+			Always,
+		};
+		virtual ELiveEdgePlayMode GetLiveEdgePlayMode() const = 0;
+
 
 		enum class EPlayRateType
 		{
@@ -364,6 +399,7 @@ namespace Electra
 		virtual void TriggerClockSync(EClockSyncType InClockSyncType) = 0;
 
 		virtual void TriggerPlaylistRefresh() = 0;
+
 
 		//-------------------------------------------------------------------------
 		// Stream fragment reader
@@ -412,7 +448,8 @@ namespace Electra
 			{
 				Changed,
 				NotChanged,
-				NewPeriodNeeded
+				NewPeriodNeeded,
+				StartOver
 			};
 
 			/**
@@ -549,9 +586,9 @@ namespace Electra
 	class FPlaylistMetadataUpdateMessage : public IPlayerMessage
 	{
 	public:
-		static TSharedPtrTS<IPlayerMessage> Create(FTimeValue InValidFrom, TSharedPtrTS<UtilsMP4::FMetadataParser> InMetadata)
+		static TSharedPtrTS<IPlayerMessage> Create(FTimeValue InValidFrom, TSharedPtrTS<UtilsMP4::FMetadataParser> InMetadata, bool bInTriggerInternalRefresh)
 		{
-			TSharedPtrTS<FPlaylistMetadataUpdateMessage> p(new FPlaylistMetadataUpdateMessage(InValidFrom, InMetadata));
+			TSharedPtrTS<FPlaylistMetadataUpdateMessage> p(new FPlaylistMetadataUpdateMessage(InValidFrom, InMetadata, bInTriggerInternalRefresh));
 			return p;
 		}
 
@@ -576,13 +613,20 @@ namespace Electra
 			return Metadata;
 		}
 
+		bool GetTriggerInternalRefresh() const
+		{
+			return bTriggerInternalRefresh;
+		}
+
 	private:
-		FPlaylistMetadataUpdateMessage(FTimeValue InValidFrom, TSharedPtrTS<UtilsMP4::FMetadataParser> InMetadata)
+		FPlaylistMetadataUpdateMessage(FTimeValue InValidFrom, TSharedPtrTS<UtilsMP4::FMetadataParser> InMetadata, bool bInTriggerInternalRefresh)
 			: ValidFrom(InValidFrom)
 			, Metadata(MoveTemp(InMetadata))
+			, bTriggerInternalRefresh(bInTriggerInternalRefresh)
 		{ }
 		FTimeValue ValidFrom;
 		TSharedPtrTS<UtilsMP4::FMetadataParser> Metadata;
+		bool bTriggerInternalRefresh;
 	};
 
 

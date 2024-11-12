@@ -3,7 +3,6 @@
 
 #include "AssetCompilingManager.h"
 #include "Async/Async.h"
-#include "Async/TaskGraphInterfaces.h"
 #include "CoreMinimal.h"
 #include "GenericPlatform/GenericPlatformProcess.h"
 #include "InterchangeEngineLogPrivate.h"
@@ -20,8 +19,7 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 
 
-
-void UE::Interchange::FTaskPipeline::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+void UE::Interchange::FTaskPipeline::Execute()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskPipeline::DoTask)
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
@@ -59,17 +57,16 @@ void UE::Interchange::FTaskPipeline::DoTask(ENamedThreads::Type CurrentThread, c
 	}
 }
 
-void UE::Interchange::FTaskWaitAssetCompilation::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+void UE::Interchange::FTaskWaitAssetCompilation_GameThread::Execute()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskWaitAssetCompilation::DoTask)
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskWaitAssetCompilation_GameThread::DoTask)
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
-		INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(WaitAssetCompilation)
+	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(WaitAssetCompilation)
 #endif
-
 	LLM_SCOPE_BYNAME(TEXT("Interchange"));
 
 #if WITH_EDITOR
-
+	check(IsInGameThread());
 	TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
 	if (!ensure(AsyncHelper.IsValid()) || AsyncHelper->bCancel)
 	{
@@ -95,61 +92,45 @@ void UE::Interchange::FTaskWaitAssetCompilation::DoTask(ENamedThreads::Type Curr
 	AsyncHelper->IterateImportedAssets(SourceIndex, FillImportedObjectsFromSource);
 	AsyncHelper->IterateImportedSceneObjects(SourceIndex, FillImportedObjectsFromSource);
 
-	//Make sure all assets compilation are done before calling the pipeline post import task, let other thread execute if assets are not compile yet and wait 50ms before a new query
-	FPlatformProcess::ConditionalSleep([&ImportedObjects]()
+	bool bCompilationFinish = true;
+	for (int32 ObjectIndex = 0; ObjectIndex < ImportedObjects.Num(); ++ObjectIndex)
+	{
+		UObject* ImportObject = ImportedObjects[ObjectIndex];
+		if (UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(ImportObject))
 		{
-			LLM_SCOPE_BYNAME(TEXT("Interchange"));
-			//Compilation status cannot be ask in async thread, query the compile status on the main thread with a small fast function
-			//This ensure we dont stall the main thread until all assets are compile.
-			bool bCompilationFinish = false;
-			Async(EAsyncExecution::TaskGraphMainThread, [&bCompilationFinish, &ImportedObjects]()
-				{
-					TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskWaitAssetCompilation::DoTask::IsCompilingLambda_GameThread);
-					LLM_SCOPE_BYNAME(TEXT("Interchange"));
-					//Make sure all asset compiling managers are up to date, In case the game thread is waiting for the import to finish (like automation test or synchronous import)
-					FAssetCompilingManager::Get().ProcessAsyncTasks();
+			if (MaterialInterface->IsCompiling())
+			{
+				bCompilationFinish = false;
+				break;
+			}
+		}
+		if (IInterface_AsyncCompilation* AssetCompilationInterface = Cast<IInterface_AsyncCompilation>(ImportObject))
+		{
+			if (AssetCompilationInterface->IsCompiling())
+			{
+				bCompilationFinish = false;
+				break;
+			}
+		}
+	}
 
-					bCompilationFinish = true;
-					for (int32 ObjectIndex = 0; ObjectIndex < ImportedObjects.Num(); ++ObjectIndex)
-					{
-						UObject* ImportObject = ImportedObjects[ObjectIndex];
-						if (UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(ImportObject))
-						{
-							if (MaterialInterface->IsCompiling())
-							{
-								bCompilationFinish = false;
-								break;
-							}
-						}
-						if (IInterface_AsyncCompilation* AssetCompilationInterface = Cast<IInterface_AsyncCompilation>(ImportObject))
-						{
-							if (AssetCompilationInterface->IsCompiling())
-							{
-								bCompilationFinish = false;
-								break;
-							}
-						}
-					}
-				}).Wait();
-			return bCompilationFinish;
-		}, 0.05f);
+	if (!bCompilationFinish)
+	{
+		//re-enqueue this task so it doesn't execute the subsequent tasks
+		SetTaskStatus(EInterchangeTaskStatus::Waiting);
+	}
 #endif //WITH_EDITOR
 }
 
-void UE::Interchange::FTaskPostImport::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+void UE::Interchange::FTaskPostImport_GameThread::Execute()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskPostImport::DoTask)
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskPostImport_GameThread::DoTask)
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(PipelinePostImport)
 #endif
 
 	LLM_SCOPE_BYNAME(TEXT("Interchange"));
-
-	TOptional<FGCScopeGuard> GCScopeGuard;
-	if (!IsInGameThread())
-	{
-		GCScopeGuard.Emplace();
-	}
+	check(IsInGameThread());
 
 	TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
 	if (!ensure(AsyncHelper.IsValid()) || AsyncHelper->bCancel)
@@ -168,6 +149,24 @@ void UE::Interchange::FTaskPostImport::DoTask(ENamedThreads::Type CurrentThread,
 	{
 		return;
 	}
+
+#if WITH_EDITOR
+	auto CallPostEditChangeForAsset = [](const TArray<UE::Interchange::FImportAsyncHelper::FImportedObjectInfo>& ImportedInfos)
+		{
+			for (const UE::Interchange::FImportAsyncHelper::FImportedObjectInfo& ObjectInfo : ImportedInfos)
+			{
+				UObject* ImportedObject = ObjectInfo.ImportedObject;
+				if (!ObjectInfo.bPostEditChangeCalled)
+				{
+					ImportedObject->PostEditChange();
+				}
+			}
+		};
+
+	AsyncHelper->IterateImportedAssets(SourceIndex, CallPostEditChangeForAsset);
+	AsyncHelper->IterateImportedSceneObjects(SourceIndex, CallPostEditChangeForAsset);
+
+#endif //WITH_EDITOR
 
 	TArray<FString> NodeUniqueIDs;
 	TArray<UObject*> ImportedObjects;
@@ -194,8 +193,7 @@ void UE::Interchange::FTaskPostImport::DoTask(ENamedThreads::Type CurrentThread,
 			{
 				UObject* ImportedObject = ObjectInfo.ImportedObject;
 
-				//In case Some factory code cannot run outside of the main thread we offer this callback to finish the work after calling post edit change (building the asset)
-				//Its possible the build of the asset to be asynchronous, the factory must handle is own asset correctly
+				//In case Some factory code cannot run outside of the main thread we offer this callback to finish the work after asset build is finish.
 				if (bCallPostImportGameThreadCallback && ObjectInfo.Factory)
 				{
 					Arguments.ImportedObject = ImportedObject;

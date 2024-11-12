@@ -34,65 +34,89 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/LoadTimeProfiler.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+#include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Common/TimeUtils.h"
+#include "InsightsCore/Filter/ViewModels/FilterConfigurator.h"
+#include "InsightsCore/Filter/ViewModels/TimeFilterValueConverter.h"
+#include "InsightsCore/Table/Widgets/STableTreeView.h"
+
+// TraceInsights
 #include "Insights/Common/InsightsMenuBuilder.h"
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/Common/Stopwatch.h"
-#include "Insights/Common/TimeUtils.h"
-#include "Insights/ITimingViewExtender.h"
+#include "Insights/Config.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
+#include "Insights/ITimingViewExtender.h"
 #include "Insights/LoadingProfiler/LoadingProfilerManager.h"
+#include "Insights/LoadingProfiler/Tracks/LoadingTimingTrack.h"
+#include "Insights/LoadingProfiler/ViewModels/LoadingSharedState.h"
 #include "Insights/LoadingProfiler/Widgets/SLoadingProfilerWindow.h"
 #include "Insights/Log.h"
-#include "Insights/Table/Widgets/STableTreeView.h"
 #include "Insights/TaskGraphProfiler/TaskGraphProfilerManager.h"
 #include "Insights/Tests/TimingProfilerTests.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Tracks/FileActivityTimingTrack.h"
+#include "Insights/TimingProfiler/Tracks/MarkersTimingTrack.h"
+#include "Insights/TimingProfiler/Tracks/RegionsTimingTrack.h"
+#include "Insights/TimingProfiler/Tracks/ThreadTimingTrack.h"
+#include "Insights/TimingProfiler/Tracks/TimeRulerTrack.h"
+#include "Insights/TimingProfiler/ViewModels/FileActivitySharedState.h"
+#include "Insights/TimingProfiler/ViewModels/FrameTimingTrack.h"
+#include "Insights/TimingProfiler/ViewModels/ThreadTimingSharedState.h"
+#include "Insights/TimingProfiler/ViewModels/TimeMarker.h"
+#include "Insights/TimingProfiler/ViewModels/TimerFilters.h"
+#include "Insights/TimingProfiler/ViewModels/TimingRegionsSharedState.h"
+#include "Insights/TimingProfiler/Widgets/SStatsView.h"
+#include "Insights/TimingProfiler/Widgets/STimersView.h"
+#include "Insights/TimingProfiler/Widgets/STimingProfilerWindow.h"
 #include "Insights/TimingProfilerCommon.h"
-#include "Insights/TimingProfilerManager.h"
 #include "Insights/ViewModels/BaseTimingTrack.h"
 #include "Insights/ViewModels/DrawHelpers.h"
-#include "Insights/ViewModels/EventNameFilterValueConverter.h"
-#include "Insights/ViewModels/FileActivityTimingTrack.h"
-#include "Insights/ViewModels/FilterConfigurator.h"
-#include "Insights/ViewModels/FrameTimingTrack.h"
 #include "Insights/ViewModels/GraphSeries.h"
 #include "Insights/ViewModels/GraphTrack.h"
-#include "Insights/ViewModels/LoadingTimingTrack.h"
-#include "Insights/ViewModels/MarkersTimingTrack.h"
-#include "Insights/ViewModels/RegionsTimingTrack.h"
-#include "Insights/ViewModels/ThreadTimingTrack.h"
-#include "Insights/ViewModels/TimeFilterValueConverter.h"
-#include "Insights/ViewModels/TimerFilters.h"
-#include "Insights/ViewModels/TimeRulerTrack.h"
+#include "Insights/ViewModels/QuickFind.h"
+#include "Insights/ViewModels/ThreadTrackEvent.h"
 #include "Insights/ViewModels/TimingEventSearch.h"
 #include "Insights/ViewModels/TimingGraphTrack.h"
 #include "Insights/ViewModels/TimingViewDrawHelper.h"
-#include "Insights/ViewModels/QuickFind.h"
-#include "Insights/Widgets/SStatsView.h"
-#include "Insights/Widgets/STimersView.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
-#include "Insights/Widgets/STimingViewTrackList.h"
+#include "Insights/Widgets/SLogView.h"
 #include "Insights/Widgets/SQuickFind.h"
-#include "Insights/ViewModels/ThreadTrackEvent.h"
+#include "Insights/Widgets/STimingViewTrackList.h"
 
 #include <limits>
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#define LOCTEXT_NAMESPACE "STimingView"
+#define LOCTEXT_NAMESPACE "UE::Insights::TimingProfiler::STimingView"
 
 #define INSIGHTS_ACTIVATE_BENCHMARK 0
-
-// start auto generated ids from a big number (MSB set to 1) to avoid collisions with ids for GPU/CPU tracks based on 32bit timeline index
-uint64 FBaseTimingTrack::IdGenerator = (1ULL << 63);
-
-uint32 STimingView::TimingViewId = 0;
 
 const TCHAR* GetFileActivityTypeName(TraceServices::EFileActivityType Type);
 uint32 GetFileActivityTypeColor(TraceServices::EFileActivityType Type);
 
-namespace Insights { const FName TimingViewExtenderFeatureName(TEXT("TimingViewExtender")); }
+namespace UE::Insights::Timing
+{
+	const FName TimingViewExtenderFeatureName(TEXT("TimingViewExtender"));
+}
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+namespace Insights
+{
+	const FName TimingViewExtenderFeatureName(TEXT("TimingViewExtenderOld"));
+}
+namespace UE::Insights
+{
+	const FName TimingViewExtenderFeatureName(TEXT("TimingViewExtenderOld"));
+}
+#endif // UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+
+namespace UE::Insights::TimingProfiler
+{
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+uint32 STimingView::TimingViewId = 0;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -100,11 +124,11 @@ STimingView::STimingView()
 	: bScrollableTracksOrderIsDirty(false)
 	, FrameSharedState(MakeShared<FFrameSharedState>(this))
 	, ThreadTimingSharedState(MakeShared<FThreadTimingSharedState>(this))
-	, LoadingSharedState(MakeShared<FLoadingSharedState>(this))
+	, LoadingSharedState(MakeShared<LoadingProfiler::FLoadingSharedState>(this))
 	, FileActivitySharedState(MakeShared<FFileActivitySharedState>(this))
-	, TimingRegionsSharedState(MakeShared<Insights::FTimingRegionsSharedState>(this))
+	, TimingRegionsSharedState(MakeShared<FTimingRegionsSharedState>(this))
 	, TimeRulerTrack(MakeShared<FTimeRulerTrack>())
-	, DefaultTimeMarker(MakeShared<Insights::FTimeMarker>())
+	, DefaultTimeMarker(MakeShared<FTimeMarker>())
 	, MarkersTrack(MakeShared<FMarkersTimingTrack>())
 	, bAllowPanningOnScreenEdges(false)
 	, DPIScaleFactor(1.0f)
@@ -117,12 +141,11 @@ STimingView::STimingView()
 	DefaultTimeMarker->SetName(TEXT(""));
 	DefaultTimeMarker->SetColor(FLinearColor(0.85f, 0.5f, 0.03f, 0.5f));
 
-
-	IModularFeatures::Get().RegisterModularFeature(Insights::TimingViewExtenderFeatureName, FrameSharedState.Get());
-	IModularFeatures::Get().RegisterModularFeature(Insights::TimingViewExtenderFeatureName, ThreadTimingSharedState.Get());
-	IModularFeatures::Get().RegisterModularFeature(Insights::TimingViewExtenderFeatureName, LoadingSharedState.Get());
-	IModularFeatures::Get().RegisterModularFeature(Insights::TimingViewExtenderFeatureName, FileActivitySharedState.Get());
-	IModularFeatures::Get().RegisterModularFeature(Insights::TimingViewExtenderFeatureName, TimingRegionsSharedState.Get());
+	IModularFeatures::Get().RegisterModularFeature(Timing::TimingViewExtenderFeatureName, FrameSharedState.Get());
+	IModularFeatures::Get().RegisterModularFeature(Timing::TimingViewExtenderFeatureName, ThreadTimingSharedState.Get());
+	IModularFeatures::Get().RegisterModularFeature(Timing::TimingViewExtenderFeatureName, LoadingSharedState.Get());
+	IModularFeatures::Get().RegisterModularFeature(Timing::TimingViewExtenderFeatureName, FileActivitySharedState.Get());
+	IModularFeatures::Get().RegisterModularFeature(Timing::TimingViewExtenderFeatureName, TimingRegionsSharedState.Get());
 
 	ExtensionOverlay = SNew(SOverlay).Visibility(EVisibility::SelfHitTestInvisible);
 }
@@ -138,16 +161,26 @@ STimingView::~STimingView()
 	ForegroundTracks.Reset();
 
 	SelectedEvent.Reset();
-	for (Insights::ITimingViewExtender* Extender : GetExtenders())
+
+	for (Timing::ITimingViewExtender* Extender : GetExtenders())
 	{
 		Extender->OnEndSession(*this);
 	}
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	::Insights::ITimingViewSession* CurrentTimingViewSession = (::Insights::ITimingViewSession*)(Timing::ITimingViewSession*)this;
+	for (::Insights::ITimingViewExtender* Extender : GetOldExtenders())
+	{
+		Extender->OnEndSession(*CurrentTimingViewSession);
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
 
-	IModularFeatures::Get().UnregisterModularFeature(Insights::TimingViewExtenderFeatureName, TimingRegionsSharedState.Get());
-	IModularFeatures::Get().UnregisterModularFeature(Insights::TimingViewExtenderFeatureName, FileActivitySharedState.Get());
-	IModularFeatures::Get().UnregisterModularFeature(Insights::TimingViewExtenderFeatureName, LoadingSharedState.Get());
-	IModularFeatures::Get().UnregisterModularFeature(Insights::TimingViewExtenderFeatureName, ThreadTimingSharedState.Get());
-	IModularFeatures::Get().UnregisterModularFeature(Insights::TimingViewExtenderFeatureName, FrameSharedState.Get());
+	IModularFeatures::Get().UnregisterModularFeature(Timing::TimingViewExtenderFeatureName, TimingRegionsSharedState.Get());
+	IModularFeatures::Get().UnregisterModularFeature(Timing::TimingViewExtenderFeatureName, FileActivitySharedState.Get());
+	IModularFeatures::Get().UnregisterModularFeature(Timing::TimingViewExtenderFeatureName, LoadingSharedState.Get());
+	IModularFeatures::Get().UnregisterModularFeature(Timing::TimingViewExtenderFeatureName, ThreadTimingSharedState.Get());
+	IModularFeatures::Get().UnregisterModularFeature(Timing::TimingViewExtenderFeatureName, FrameSharedState.Get());
 
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(QuickFindTabId);
 }
@@ -321,10 +354,19 @@ void STimingView::Reset(bool bIsFirstReset)
 
 	if (!bIsFirstReset)
 	{
-		for (Insights::ITimingViewExtender* Extender : GetExtenders())
+		for (Timing::ITimingViewExtender* Extender : GetExtenders())
 		{
 			Extender->OnEndSession(*this);
 		}
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		::Insights::ITimingViewSession* CurrentTimingViewSession = (::Insights::ITimingViewSession*)(Timing::ITimingViewSession*)this;
+		for (::Insights::ITimingViewExtender* Extender : GetOldExtenders())
+		{
+			Extender->OnEndSession(*CurrentTimingViewSession);
+		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
 	}
 
 	//////////////////////////////////////////////////
@@ -363,16 +405,16 @@ void STimingView::Reset(bool bIsFirstReset)
 	SetTimeMarker(std::numeric_limits<double>::infinity());
 
 #if 0 // test for multiple time markers
-	TSharedRef<Insights::FTimeMarker> TimeMarkerA = DefaultTimeMarker;
+	TSharedRef<FTimeMarker> TimeMarkerA = DefaultTimeMarker;
 	TimeMarkerA->SetName(TEXT("A"));
 	TimeMarkerA->SetColor(FLinearColor(0.85f, 0.5f, 0.03f, 0.5f));
 
-	TSharedRef<Insights::FTimeMarker> TimeMarkerB = MakeShared<Insights::FTimeMarker>();
+	TSharedRef<FTimeMarker> TimeMarkerB = MakeShared<FTimeMarker>();
 	TimeRulerTrack->AddTimeMarker(TimeMarkerB);
 	TimeMarkerB->SetName(TEXT("B"));
 	TimeMarkerB->SetColor(FLinearColor(0.03f, 0.85f, 0.5f, 0.5f));
 
-	TSharedRef<Insights::FTimeMarker> TimeMarkerC = MakeShared<Insights::FTimeMarker>();
+	TSharedRef<FTimeMarker> TimeMarkerC = MakeShared<FTimeMarker>();
 	TimeRulerTrack->AddTimeMarker(TimeMarkerC);
 	TimeMarkerC->SetName(TEXT("C"));
 	TimeMarkerC->SetColor(FLinearColor(0.03f, 0.5f, 0.85f, 0.5f));
@@ -501,10 +543,19 @@ void STimingView::Reset(bool bIsFirstReset)
 
 	//////////////////////////////////////////////////
 
-	for (Insights::ITimingViewExtender* Extender : GetExtenders())
+	for (Timing::ITimingViewExtender* Extender : GetExtenders())
 	{
 		Extender->OnBeginSession(*this);
 	}
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	::Insights::ITimingViewSession* CurrentTimingViewSession = (::Insights::ITimingViewSession*)(Timing::ITimingViewSession*)this;
+	for (::Insights::ITimingViewExtender* Extender : GetOldExtenders())
+	{
+		Extender->OnBeginSession(*CurrentTimingViewSession);
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -600,7 +651,7 @@ void STimingView::Tick(const FGeometry& AllottedGeometry, const double InCurrent
 				Viewport.AddDirtyFlags(ETimingTrackViewportDirtyFlags::HClippedSessionTimeChanged);
 			}
 
-			//UE_LOG(TimingProfiler, Log, TEXT("Session Duration: %g"), DT);
+			//UE_LOG(LogTimingProfiler, Log, TEXT("Session Duration: %g"), DT);
 			Viewport.SetMaxValidTime(SessionTime);
 			UpdateHorizontalScrollBar();
 		}
@@ -676,10 +727,19 @@ void STimingView::Tick(const FGeometry& AllottedGeometry, const double InCurrent
 	{
 		// Tick plugin extenders.
 		// Each extender can add/remove tracks and/or change order of tracks.
-		for (Insights::ITimingViewExtender* Extender : GetExtenders())
+		for (Timing::ITimingViewExtender* Extender : GetExtenders())
 		{
 			Extender->Tick(*this, *Session.Get());
 		}
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		::Insights::ITimingViewSession* CurrentTimingViewSession = (::Insights::ITimingViewSession*)(Timing::ITimingViewSession*)this;
+		for (::Insights::ITimingViewExtender* Extender : GetOldExtenders())
+		{
+			Extender->Tick(*CurrentTimingViewSession, *Session.Get());
+		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
 
 		// Re-sort now (if we need to).
 		UpdateScrollableTracksOrder();
@@ -1586,7 +1646,7 @@ int32 STimingView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 		DrawContext.DrawText
 		(
 			DbgX, DbgY,
-			FString::Printf(TEXT("D: %llu ms + %llu ms + %llu ms + %llu ms = %llu ms | + %llu ms = %llu ms (%d fps)"),
+			FString::Printf(TEXT("D: %" UINT64_FMT " ms + %" UINT64_FMT " ms + %" UINT64_FMT " ms + %" UINT64_FMT " ms = %" UINT64_FMT " ms | + %" UINT64_FMT " ms = %" UINT64_FMT " ms (%" INT64_FMT " fps)"),
 				AvgPreDrawTracksDurationMs, // pre-draw tracks time
 				AvgDrawTracksDurationMs, // draw tracks time
 				AvgPostDrawTracksDurationMs, // post-draw tracks time
@@ -1687,7 +1747,7 @@ int32 STimingView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 			FString::Printf(TEXT("SX: %g, ST: %g, ET: %s"),
 				Viewport.GetScaleX(),
 				Viewport.GetStartTime(),
-				*TimeUtils::FormatTimeAuto(Viewport.GetMaxValidTime())),
+				*FormatTimeAuto(Viewport.GetMaxValidTime())),
 			SummaryFont, DbgTextColor
 		);
 		DbgY += DbgDY;
@@ -1760,7 +1820,8 @@ void STimingView::AddTrack(TSharedPtr<FBaseTimingTrack> Track, ETimingTrackLocat
 	const int32 MaxNumTracks = 1000;
 	if (TrackList.Num() >= MaxNumTracks)
 	{
-		UE_LOG(TimingProfiler, Warning, TEXT("Too many tracks already created (%d tracks)! Ignoring %s track : %s (\"%s\")"),
+		using namespace UE::Insights::TimingProfiler;
+		UE_LOG(LogTimingProfiler, Warning, TEXT("Too many tracks already created (%d tracks)! Ignoring %s track : %s (\"%s\")"),
 			TrackList.Num(),
 			LocationName,
 			*Track->GetTypeName().ToString(),
@@ -1769,7 +1830,7 @@ void STimingView::AddTrack(TSharedPtr<FBaseTimingTrack> Track, ETimingTrackLocat
 	}
 
 #if 0
-	UE_LOG(TimingProfiler, Log, TEXT("New %s Track (%d) : %s (\"%s\")"),
+	UE_LOG(LogTimingProfiler, Log, TEXT("New %s Track (%d) : %s (\"%s\")"),
 		LocationName,
 		TrackList.Num() + 1,
 		*Track->GetTypeName().ToString(),
@@ -1822,7 +1883,7 @@ bool STimingView::RemoveTrack(TSharedPtr<FBaseTimingTrack> Track)
 		OnTrackRemovedDelegate.Broadcast(Track);
 
 #if 0
-		UE_LOG(TimingProfiler, Log, TEXT("Removed %s Track (%d) : %s (\"%s\")"),
+		UE_LOG(LogTimingProfiler, Log, TEXT("Removed %s Track (%d) : %s (\"%s\")"),
 			LocationName,
 			TrackList.Num(),
 			*Track->GetTypeName().ToString(),
@@ -1978,7 +2039,7 @@ FReply STimingView::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointe
 		}
 	}
 
-	TSharedPtr<Insights::FTimeMarker> ScrubbingTimeMarker = nullptr;
+	TSharedPtr<FTimeMarker> ScrubbingTimeMarker = nullptr;
 
 	if (bStartPanningSelectingOrScrubbing)
 	{
@@ -2449,7 +2510,7 @@ FReply STimingView::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent
 					Time = MarkersTrack->Snap(Time, SnapTolerance);
 				}
 
-				TSharedRef<Insights::FTimeMarker> ScrubbingTimeMarker = TimeRulerTrack->GetScrubbingTimeMarker();
+				TSharedRef<FTimeMarker> ScrubbingTimeMarker = TimeRulerTrack->GetScrubbingTimeMarker();
 				ScrubbingTimeMarker->SetTime(Time);
 				RaiseTimeMarkerChanging(ScrubbingTimeMarker);
 			}
@@ -2904,6 +2965,7 @@ FReply STimingView::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& InKeyE
 
 void STimingView::ShowContextMenu(const FPointerEvent& MouseEvent)
 {
+	using namespace UE::Insights::TimingProfiler;
 	const FTimingViewCommands& Commands = FTimingViewCommands::Get();
 
 	const bool bShouldCloseWindowAfterMenuSelection = true;
@@ -2929,6 +2991,30 @@ void STimingView::ShowContextMenu(const FPointerEvent& MouseEvent)
 			TAttribute<FText>(),
 			TAttribute<FText>(),
 			FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.Find"));
+
+		TSharedPtr<SLogView> LogView = GetLogView();
+		const double MousePosTime = Viewport.SlateUnitsToTime(static_cast<float>(MousePosition.X));
+		const FText MousePosTimeText = FText::FromString(FormatTimeAuto(MousePosTime, 2));
+		const FText Label = FText::Format(LOCTEXT("ContextMenu_ScrollLogView_Fmt", "Scroll Log View (\u2192 {0})"), MousePosTimeText);
+		MenuBuilder.AddMenuEntry(
+			Label,
+			FText::Format(LOCTEXT("ContextMenu_ScrollLogView_Desc_Fmt", "Scrolls the Log View at the message with the closest timestamp to the time of the current mouse position ({0})."), MousePosTimeText),
+			FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.LogView"),
+			FUIAction(
+				FExecuteAction::CreateLambda([LogView, MousePosTime]()
+				{
+					if (LogView.IsValid())
+					{
+						LogView->SelectLogMessageByClosestTime(MousePosTime);
+					}
+				}),
+				FCanExecuteAction::CreateLambda([LogView]() -> bool
+				{
+					return LogView.IsValid();
+				})),
+			NAME_None,
+			EUserInterfaceActionType::Button
+		);
 
 		if (HoveredEvent)
 		{
@@ -2964,10 +3050,19 @@ void STimingView::ShowContextMenu(const FPointerEvent& MouseEvent)
 	}
 	MenuBuilder.EndSection();
 
-	for (Insights::ITimingViewExtender* Extender : GetExtenders())
+	for (Timing::ITimingViewExtender* Extender : GetExtenders())
 	{
 		bHasAnyActions |= Extender->ExtendGlobalContextMenu(*this, MenuBuilder);
 	}
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	::Insights::ITimingViewSession* CurrentTimingViewSession = (::Insights::ITimingViewSession*)(Timing::ITimingViewSession*)this;
+	for (::Insights::ITimingViewExtender* Extender : GetOldExtenders())
+	{
+		bHasAnyActions |= Extender->ExtendGlobalContextMenu(*CurrentTimingViewSession, MenuBuilder);
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
 
 	if (!bHasAnyActions)
 	{
@@ -3158,6 +3253,7 @@ bool STimingView::CheckTrackLocation(TSharedRef<FBaseTimingTrack> Track, ETiming
 
 void STimingView::BindCommands()
 {
+	using namespace UE::Insights::TimingProfiler;
 	FTimingViewCommands::Register();
 
 	const FTimingViewCommands& Commands = FTimingViewCommands::Get();
@@ -3536,38 +3632,38 @@ void STimingView::SnapToFrameBound(double& StartTime, double& EndTime)
 
 void STimingView::RaiseSelectionChanging()
 {
-	OnSelectionChangedDelegate.Broadcast(Insights::ETimeChangedFlags::Interactive, SelectionStartTime, SelectionEndTime);
+	OnSelectionChangedDelegate.Broadcast(Timing::ETimeChangedFlags::Interactive, SelectionStartTime, SelectionEndTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void STimingView::RaiseSelectionChanged()
 {
-	OnSelectionChangedDelegate.Broadcast(Insights::ETimeChangedFlags::None, SelectionStartTime, SelectionEndTime);
+	OnSelectionChangedDelegate.Broadcast(Timing::ETimeChangedFlags::None, SelectionStartTime, SelectionEndTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STimingView::RaiseTimeMarkerChanging(TSharedRef<Insights::FTimeMarker> InTimeMarker)
+void STimingView::RaiseTimeMarkerChanging(TSharedRef<FTimeMarker> InTimeMarker)
 {
 	if (InTimeMarker == DefaultTimeMarker)
 	{
 		const double Time = DefaultTimeMarker->GetTime();
-		OnTimeMarkerChangedDelegate.Broadcast(Insights::ETimeChangedFlags::Interactive, Time);
+		OnTimeMarkerChangedDelegate.Broadcast(Timing::ETimeChangedFlags::Interactive, Time);
 	}
-	OnCustomTimeMarkerChangedDelegate.Broadcast(Insights::ETimeChangedFlags::Interactive, InTimeMarker);
+	OnCustomTimeMarkerChangedDelegate.Broadcast(Timing::ETimeChangedFlags::Interactive, InTimeMarker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STimingView::RaiseTimeMarkerChanged(TSharedRef<Insights::FTimeMarker> InTimeMarker)
+void STimingView::RaiseTimeMarkerChanged(TSharedRef<FTimeMarker> InTimeMarker)
 {
 	if (InTimeMarker == DefaultTimeMarker)
 	{
 		const double Time = DefaultTimeMarker->GetTime();
-		OnTimeMarkerChangedDelegate.Broadcast(Insights::ETimeChangedFlags::None, Time);
+		OnTimeMarkerChangedDelegate.Broadcast(Timing::ETimeChangedFlags::None, Time);
 	}
-	OnCustomTimeMarkerChangedDelegate.Broadcast(Insights::ETimeChangedFlags::None, InTimeMarker);
+	OnCustomTimeMarkerChangedDelegate.Broadcast(Timing::ETimeChangedFlags::None, InTimeMarker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3644,7 +3740,7 @@ void STimingView::SetTimeMarkersVisible(bool bIsMarkersTrackVisible)
 		{
 			if (Viewport.GetScrollPosY() != 0.0f)
 			{
-				UE_LOG(TimingProfiler, Log, TEXT("SetTimeMarkersVisible!!!"));
+				UE_LOG(LogTimingProfiler, Log, TEXT("SetTimeMarkersVisible!!!"));
 				Viewport.SetScrollPosY(Viewport.GetScrollPosY() + MarkersTrack->GetHeight());
 			}
 
@@ -3652,7 +3748,7 @@ void STimingView::SetTimeMarkersVisible(bool bIsMarkersTrackVisible)
 		}
 		else
 		{
-			UE_LOG(TimingProfiler, Log, TEXT("SetTimeMarkersVisible!!!"));
+			UE_LOG(LogTimingProfiler, Log, TEXT("SetTimeMarkersVisible!!!"));
 			Viewport.SetScrollPosY(Viewport.GetScrollPosY() - MarkersTrack->GetHeight());
 		}
 	}
@@ -3671,7 +3767,7 @@ void STimingView::SetDrawOnlyBookmarks(bool bIsBookmarksTrack)
 		{
 			if (Viewport.GetScrollPosY() != 0.0f)
 			{
-				UE_LOG(TimingProfiler, Log, TEXT("SetDrawOnlyBookmarks!!!"));
+				UE_LOG(LogTimingProfiler, Log, TEXT("SetDrawOnlyBookmarks!!!"));
 				Viewport.SetScrollPosY(Viewport.GetScrollPosY() + MarkersTrack->GetHeight() - PrevHeight);
 			}
 
@@ -3769,7 +3865,7 @@ void STimingView::UpdateHoveredTimingEvent(float InMousePosX, float InMousePosY)
 		const double DT = Stopwatch.GetAccumulatedTime();
 		if (DT > 0.001)
 		{
-			UE_LOG(TimingProfiler, Log, TEXT("HoveredTrack [%g, %g] GetEvent: %.1f ms"), InMousePosX, InMousePosY, DT * 1000.0);
+			UE_LOG(LogTimingProfiler, Log, TEXT("HoveredTrack [%g, %g] GetEvent: %.1f ms"), InMousePosX, InMousePosY, DT * 1000.0);
 		}
 	}
 
@@ -3798,7 +3894,7 @@ void STimingView::UpdateHoveredTimingEvent(float InMousePosX, float InMousePosY)
 			const double T3 = Stopwatch.GetAccumulatedTime();
 			if (T3 > 0.001)
 			{
-				UE_LOG(TimingProfiler, Log, TEXT("HoveredTrack [%g, %g] Tooltip: %.1f ms (%.1f + %.1f + %.1f)"),
+				UE_LOG(LogTimingProfiler, Log, TEXT("HoveredTrack [%g, %g] Tooltip: %.1f ms (%.1f + %.1f + %.1f)"),
 					InMousePosX, InMousePosY, T3 * 1000.0, T1 * 1000.0, (T2 - T1) * 1000.0, (T3 - T2) * 1000.0);
 			}
 		}
@@ -3902,10 +3998,11 @@ void STimingView::SelectTimingEvent(const TSharedPtr<const ITimingEvent> InEvent
 
 void STimingView::ToggleGraphSeries(const TSharedPtr<const ITimingEvent> InEvent)
 {
-	if(InEvent.Get() && InEvent.Get()->Is<FThreadTrackEvent>() && IsInTimingProfiler())
+	if (InEvent.Get() && InEvent.Get()->Is<FThreadTrackEvent>() && IsInTimingProfiler())
 	{
 		const FThreadTrackEvent& TrackEvent = InEvent.Get()->As<FThreadTrackEvent>();
 
+		using namespace UE::Insights::TimingProfiler;
 		FTimingProfilerManager::Get()->ToggleTimingViewMainGraphEventSeries(TrackEvent.GetTimerId());
 	}
 }
@@ -4221,7 +4318,11 @@ TSharedRef<SWidget> STimingView::MakeCompactAutoScrollOptionsMenu()
 					const FString ValueStr = (AutoScrollViewportOffsetPercent == 0.0) ? FString(TEXT("0")) : FString::Printf(TEXT("%g%%"), AutoScrollViewportOffsetPercent * 100.0);
 					return FText::FromString(ValueStr);
 				})
-				.OnTextChanged_Lambda([this](const FText& InText) { SetAutoScrollViewportOffset(atof(TCHAR_TO_ANSI(*InText.ToString())) * 0.01); })
+				.OnTextChanged_Lambda([this](const FText& InText)
+				{
+					double OffsetPercent = FCString::Atof(*InText.ToString());
+					SetAutoScrollViewportOffset(OffsetPercent * 0.01);
+				})
 			]
 			+ SHorizontalBox::Slot()
 			.FillWidth(1.0f)
@@ -4255,7 +4356,11 @@ TSharedRef<SWidget> STimingView::MakeCompactAutoScrollOptionsMenu()
 					const FString ValueStr = (AutoScrollMinDelay == 0.0) ? FString(TEXT("0")) : FString::Printf(TEXT("%gs"), AutoScrollMinDelay);
 					return FText::FromString(ValueStr);
 				})
-				.OnTextChanged_Lambda([this](const FText& InText) { SetAutoScrollDelay(atof(TCHAR_TO_ANSI(*InText.ToString()))); })
+				.OnTextChanged_Lambda([this](const FText& InText)
+				{
+					double Delay = FCString::Atof(*InText.ToString());
+					SetAutoScrollDelay(Delay);
+				})
 			]
 			+ SHorizontalBox::Slot()
 			.FillWidth(1.0f)
@@ -4379,7 +4484,11 @@ TSharedRef<SWidget> STimingView::MakeAutoScrollOptionsMenu()
 					const FString ValueStr = (AutoScrollViewportOffsetPercent == 0.0) ? FString(TEXT("0")) : FString::Printf(TEXT("%g%%"), AutoScrollViewportOffsetPercent * 100.0);
 					return FText::FromString(ValueStr);
 				})
-				.OnTextChanged_Lambda([this](const FText& InText) { SetAutoScrollViewportOffset(atof(TCHAR_TO_ANSI(*InText.ToString())) * 0.01); })
+				.OnTextChanged_Lambda([this](const FText& InText)
+				{
+					double OffsetPercent = FCString::Atof(*InText.ToString());
+					SetAutoScrollViewportOffset(OffsetPercent * 0.01);
+				})
 			],
 			NAME_None,
 			LOCTEXT("AutoScrollViewportOffsetCustom_Tooltip", "Sets a custom value for the viewport offset as percent from viewport's width (when auto-scrolling)."),
@@ -4453,7 +4562,11 @@ TSharedRef<SWidget> STimingView::MakeAutoScrollOptionsMenu()
 					const FString ValueStr = (AutoScrollMinDelay == 0.0) ? FString(TEXT("0")) : FString::Printf(TEXT("%gs"), AutoScrollMinDelay);
 					return FText::FromString(ValueStr);
 				})
-				.OnTextChanged_Lambda([this](const FText& InText) { SetAutoScrollDelay(atof(TCHAR_TO_ANSI(*InText.ToString()))); })
+				.OnTextChanged_Lambda([this](const FText& InText)
+				{
+					double Delay = FCString::Atof(*InText.ToString());
+					SetAutoScrollDelay(Delay);
+				})
 			],
 			NAME_None,
 			LOCTEXT("AutoScrollDelayCustom_Tooltip", "Sets a custom time delay (in seconds) for the auto-scroll update."),
@@ -4578,16 +4691,33 @@ TSharedRef<SWidget> STimingView::MakeCpuGpuTracksFilterMenu()
 	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, CommandList);
 
 	// Let any plugin extend the GPU Tracks Filter menu.
-	for (Insights::ITimingViewExtender* Extender : GetExtenders())
+	for (Timing::ITimingViewExtender* Extender : GetExtenders())
 	{
 		Extender->ExtendGpuTracksFilterMenu(*this, MenuBuilder);
 	}
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	::Insights::ITimingViewSession* CurrentTimingViewSession = (::Insights::ITimingViewSession*)(Timing::ITimingViewSession*)this;
+	for (::Insights::ITimingViewExtender* Extender : GetOldExtenders())
+	{
+		Extender->ExtendGpuTracksFilterMenu(*CurrentTimingViewSession, MenuBuilder);
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
 
 	// Let any plugin extend the CPU Tracks Filter menu.
-	for (Insights::ITimingViewExtender* Extender : GetExtenders())
+	for (Timing::ITimingViewExtender* Extender : GetExtenders())
 	{
 		Extender->ExtendCpuTracksFilterMenu(*this, MenuBuilder);
 	}
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	for (::Insights::ITimingViewExtender* Extender : GetOldExtenders())
+	{
+		Extender->ExtendCpuTracksFilterMenu(*CurrentTimingViewSession, MenuBuilder);
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
 
 	return MenuBuilder.MakeWidget();
 }
@@ -4607,10 +4737,19 @@ TSharedRef<SWidget> STimingView::MakeOtherTracksFilterMenu()
 	MenuBuilder.EndSection();
 
 	// Let any plugin extend the Other Tracks Filter menu.
-	for (Insights::ITimingViewExtender* Extender : GetExtenders())
+	for (Timing::ITimingViewExtender* Extender : GetExtenders())
 	{
 		Extender->ExtendOtherTracksFilterMenu(*this, MenuBuilder);
 	}
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	::Insights::ITimingViewSession* CurrentTimingViewSession = (::Insights::ITimingViewSession*)(Timing::ITimingViewSession*)this;
+	for (::Insights::ITimingViewExtender* Extender : GetOldExtenders())
+	{
+		Extender->ExtendOtherTracksFilterMenu(*CurrentTimingViewSession, MenuBuilder);
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
 
 	return MenuBuilder.MakeWidget();
 }
@@ -4636,10 +4775,19 @@ TSharedRef<SWidget> STimingView::MakePluginTracksFilterMenu()
 	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, CommandList);
 
 	// Let any plugin extend the filter menu.
-	for (Insights::ITimingViewExtender* Extender : GetExtenders())
+	for (Timing::ITimingViewExtender* Extender : GetExtenders())
 	{
 		Extender->ExtendFilterMenu(*this, MenuBuilder);
 	}
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	::Insights::ITimingViewSession* CurrentTimingViewSession = (::Insights::ITimingViewSession*)(Timing::ITimingViewSession*)this;
+	for (::Insights::ITimingViewExtender* Extender : GetOldExtenders())
+	{
+		Extender->ExtendFilterMenu(*CurrentTimingViewSession, MenuBuilder);
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
 
 	return MenuBuilder.MakeWidget();
 }
@@ -4737,7 +4885,7 @@ void STimingView::CreateDepthLimitMenu(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.BeginSection("DepthLimit", LOCTEXT("ContextMenu_Section_DepthLimit", "Depth Limit"));
 	{
-		// Note: We use the custom AddMenuEntry in order to set the same key binding text for multiple menu items.
+		// Note: We use the custom FInsightsMenuBuilder::AddMenuEntry in order to set the same key binding text for multiple menu items.
 
 		FInsightsMenuBuilder::AddMenuEntry(MenuBuilder,
 			FUIAction(
@@ -4778,7 +4926,11 @@ FText STimingView::GetEventDepthLimitKeybindingText(uint32 DepthLimit) const
 {
 	uint32 CurrentDepthLimit = FTimingProfilerManager::Get()->GetEventDepthLimit();
 	uint32 NextDepthLimit = GetNextEventDepthLimit(CurrentDepthLimit);
-	return DepthLimit == NextDepthLimit ? LOCTEXT("DepthLimitKeybinding", "X") : FText::GetEmpty();
+	if (DepthLimit == NextDepthLimit)
+	{
+		return FInputChord(EKeys::X).GetInputText().ToUpper();
+	}
+	return FText::GetEmpty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -4835,9 +4987,9 @@ void STimingView::CreateCpuThreadTrackColoringModeMenu(FMenuBuilder& MenuBuilder
 			LOCTEXT("CpuThreadTrackColoringMode_ByTimerName_Desc", "Assign a color to CPU/GPU timing events based on their timer name."),
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateSP(this, &STimingView::SetCpuThreadTrackColoringMode, Insights::ETimingEventsColoringMode::ByTimerName),
+				FExecuteAction::CreateSP(this, &STimingView::SetCpuThreadTrackColoringMode, ETimingEventsColoringMode::ByTimerName),
 				FCanExecuteAction(),
-				FIsActionChecked::CreateSP(this, &STimingView::CheckCpuThreadTrackColoringMode, Insights::ETimingEventsColoringMode::ByTimerName)),
+				FIsActionChecked::CreateSP(this, &STimingView::CheckCpuThreadTrackColoringMode, ETimingEventsColoringMode::ByTimerName)),
 			NAME_None,
 			EUserInterfaceActionType::RadioButton
 		);
@@ -4846,9 +4998,9 @@ void STimingView::CreateCpuThreadTrackColoringModeMenu(FMenuBuilder& MenuBuilder
 			LOCTEXT("CpuThreadTrackColoringMode_ByTimerId_Desc", "Assign a color to CPU/GPU timing events based on their timer id."),
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateSP(this, &STimingView::SetCpuThreadTrackColoringMode, Insights::ETimingEventsColoringMode::ByTimerId),
+				FExecuteAction::CreateSP(this, &STimingView::SetCpuThreadTrackColoringMode, ETimingEventsColoringMode::ByTimerId),
 				FCanExecuteAction(),
-				FIsActionChecked::CreateSP(this, &STimingView::CheckCpuThreadTrackColoringMode, Insights::ETimingEventsColoringMode::ByTimerId)),
+				FIsActionChecked::CreateSP(this, &STimingView::CheckCpuThreadTrackColoringMode, ETimingEventsColoringMode::ByTimerId)),
 			NAME_None,
 			EUserInterfaceActionType::RadioButton
 		);
@@ -4857,9 +5009,9 @@ void STimingView::CreateCpuThreadTrackColoringModeMenu(FMenuBuilder& MenuBuilder
 			LOCTEXT("CpuThreadTrackColoringMode_BySourceFile_Desc", "Assign a color to CPU/GPU timing events based on their source file."),
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateSP(this, &STimingView::SetCpuThreadTrackColoringMode, Insights::ETimingEventsColoringMode::BySourceFile),
+				FExecuteAction::CreateSP(this, &STimingView::SetCpuThreadTrackColoringMode, ETimingEventsColoringMode::BySourceFile),
 				FCanExecuteAction(),
-				FIsActionChecked::CreateSP(this, &STimingView::CheckCpuThreadTrackColoringMode, Insights::ETimingEventsColoringMode::BySourceFile)),
+				FIsActionChecked::CreateSP(this, &STimingView::CheckCpuThreadTrackColoringMode, ETimingEventsColoringMode::BySourceFile)),
 			NAME_None,
 			EUserInterfaceActionType::RadioButton
 		);
@@ -4868,9 +5020,9 @@ void STimingView::CreateCpuThreadTrackColoringModeMenu(FMenuBuilder& MenuBuilder
 			LOCTEXT("CpuThreadTrackColoringMode_ByDuration_Desc", "Assign a color to CPU/GPU timing events based on their duration (inclusive time).\n\t≥ 10ms : red\n\t≥ 1ms : yellow\n\t≥ 100μs : green\n\t≥ 10μs : cyan\n\t≥ 1μs : blue\n\t< 1μs : gray"),
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateSP(this, &STimingView::SetCpuThreadTrackColoringMode, Insights::ETimingEventsColoringMode::ByDuration),
+				FExecuteAction::CreateSP(this, &STimingView::SetCpuThreadTrackColoringMode, ETimingEventsColoringMode::ByDuration),
 				FCanExecuteAction(),
-				FIsActionChecked::CreateSP(this, &STimingView::CheckCpuThreadTrackColoringMode, Insights::ETimingEventsColoringMode::ByDuration)),
+				FIsActionChecked::CreateSP(this, &STimingView::CheckCpuThreadTrackColoringMode, ETimingEventsColoringMode::ByDuration)),
 			NAME_None,
 			EUserInterfaceActionType::RadioButton
 		);
@@ -4883,14 +5035,14 @@ void STimingView::CreateCpuThreadTrackColoringModeMenu(FMenuBuilder& MenuBuilder
 void STimingView::ChooseNextCpuThreadTrackColoringMode()
 {
 	uint32 Mode = (uint32)FTimingProfilerManager::Get()->GetColoringMode();
-	Mode = (Mode + 1) % (uint32)Insights::ETimingEventsColoringMode::Count;
-	FTimingProfilerManager::Get()->SetColoringMode((Insights::ETimingEventsColoringMode)Mode);
+	Mode = (Mode + 1) % (uint32)ETimingEventsColoringMode::Count;
+	FTimingProfilerManager::Get()->SetColoringMode((ETimingEventsColoringMode)Mode);
 	Viewport.AddDirtyFlags(ETimingTrackViewportDirtyFlags::HInvalidated);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STimingView::SetCpuThreadTrackColoringMode(Insights::ETimingEventsColoringMode Mode)
+void STimingView::SetCpuThreadTrackColoringMode(UE::Insights::ETimingEventsColoringMode Mode)
 {
 	FTimingProfilerManager::Get()->SetColoringMode(Mode);
 	Viewport.AddDirtyFlags(ETimingTrackViewportDirtyFlags::HInvalidated);
@@ -4898,7 +5050,7 @@ void STimingView::SetCpuThreadTrackColoringMode(Insights::ETimingEventsColoringM
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool STimingView::CheckCpuThreadTrackColoringMode(Insights::ETimingEventsColoringMode Mode)
+bool STimingView::CheckCpuThreadTrackColoringMode(UE::Insights::ETimingEventsColoringMode Mode)
 {
 	return Mode == FTimingProfilerManager::Get()->GetColoringMode();
 }
@@ -4938,7 +5090,7 @@ bool STimingView::QuickFind_CanExecute() const
 
 void STimingView::QuickFind_Execute()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	LLM_SCOPE_BYTAG(Insights);
 
@@ -4994,12 +5146,20 @@ void STimingView::QuickFind_Execute()
 		NewFilterConfigurator->Add(MakeShared<FTimerNameFilter>());
 		NewFilterConfigurator->Add(MakeShared<FMetadataFilter>());
 
-		for (Insights::ITimingViewExtender* Extender : GetExtenders())
+		for (Timing::ITimingViewExtender* Extender : GetExtenders())
 		{
 			Extender->AddQuickFindFilters(NewFilterConfigurator);
 		}
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		for (::Insights::ITimingViewExtender* Extender : GetOldExtenders())
+		{
+			Extender->AddQuickFindFilters(NewFilterConfigurator);
+		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
 
-		QuickFindVm = MakeShared<FQuickFind>(NewFilterConfigurator);
+		QuickFindVm = MakeShared<::Insights::FQuickFind>(NewFilterConfigurator);
 		QuickFindVm->GetOnFindFirstEvent().AddSP(this, &STimingView::FindFirstEvent);
 		QuickFindVm->GetOnFindPreviousEvent().AddSP(this, &STimingView::FindPrevEvent);
 		QuickFindVm->GetOnFindNextEvent().AddSP(this, &STimingView::FindNextEvent);
@@ -5008,7 +5168,7 @@ void STimingView::QuickFind_Execute()
 		QuickFindVm->GetOnClearFiltersEvent().AddSP(this, &STimingView::ClearFilters);
 	}
 
-	SAssignNew(QuickFindWidgetSharedPtr, SQuickFind, QuickFindVm);
+	SAssignNew(QuickFindWidgetSharedPtr, ::Insights::SQuickFind, QuickFindVm);
 
 	if (FGlobalTabmanager::Get()->HasTabSpawner(QuickFindTabId))
 	{
@@ -5048,7 +5208,7 @@ TSharedRef<SDockTab> STimingView::SpawnQuickFindTab(const FSpawnTabArgs& Args)
 
 void STimingView::CloseQuickFindTab()
 {
-	TSharedPtr<Insights::SQuickFind> QuickFindWidget = QuickFindWidgetWeakPtr.Pin();
+	TSharedPtr<::Insights::SQuickFind> QuickFindWidget = QuickFindWidgetWeakPtr.Pin();
 	if (QuickFindWidget)
 	{
 		TSharedPtr<SDockTab> QuickFindTab = QuickFindWidget->GetParentTab().Pin();
@@ -5106,10 +5266,21 @@ TSharedPtr<FBaseTimingTrack> STimingView::FindTrack(uint64 InTrackId)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TArray<Insights::ITimingViewExtender*> STimingView::GetExtenders() const
+TArray<Timing::ITimingViewExtender*> STimingView::GetExtenders() const
 {
-	return IModularFeatures::Get().GetModularFeatureImplementations<Insights::ITimingViewExtender>(Insights::TimingViewExtenderFeatureName);
+	return IModularFeatures::Get().GetModularFeatureImplementations<Timing::ITimingViewExtender>(Timing::TimingViewExtenderFeatureName);
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+TArray<::Insights::ITimingViewExtender*> STimingView::GetOldExtenders() const
+{
+	return IModularFeatures::Get().GetModularFeatureImplementations<::Insights::ITimingViewExtender>(::Insights::TimingViewExtenderFeatureName);
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -5255,7 +5426,8 @@ void STimingView::FindLastEvent()
 void STimingView::FilterAllTracks()
 {
 	LLM_SCOPE_BYTAG(Insights);
-	FilterConfigurator = MakeShared<Insights::FFilterConfigurator>(*QuickFindVm->GetFilterConfigurator());
+
+	FilterConfigurator = MakeShared<UE::Insights::FFilterConfigurator>(*QuickFindVm->GetFilterConfigurator());
 
 	for (auto& Entry : AllTracks)
 	{
@@ -5268,7 +5440,9 @@ void STimingView::FilterAllTracks()
 void STimingView::ClearFilters()
 {
 	LLM_SCOPE_BYTAG(Insights);
+
 	FilterConfigurator.Reset();
+
 	for (auto& Entry : AllTracks)
 	{
 		Entry.Value->SetFilterConfigurator(nullptr);
@@ -5325,11 +5499,10 @@ void STimingView::PopulateTimerNameSuggestionList(const FString& Text, TArray<FS
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STimingView::EnumerateFilteredTracks(TSharedPtr<Insights::FFilterConfigurator> InFilterConfigurator, TSharedPtr<const FBaseTimingTrack> PriorityTrack, EnumerateFilteredTracksCallback Callback)
+void STimingView::EnumerateFilteredTracks(TSharedPtr<UE::Insights::FFilterConfigurator> InFilterConfigurator, TSharedPtr<const FBaseTimingTrack> PriorityTrack, EnumerateFilteredTracksCallback Callback)
 {
-	using namespace Insights;
-
-	Insights::FFilterContext FilterContext;
+	using EFilterField = UE::Insights::EFilterField;
+	UE::Insights::FFilterContext FilterContext;
 	FilterContext.AddFilterData(static_cast<int32>(EFilterField::TrackName), FString());
 
 	// Call the callback for the PriorityTrack first if it passes the filters.
@@ -5365,14 +5538,10 @@ void STimingView::EnumerateFilteredTracks(TSharedPtr<Insights::FFilterConfigurat
 
 ETraceFrameType STimingView::GetFrameTypeToSnapTo()
 {
-	TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-	if (Window.IsValid())
+	TSharedPtr<STimersView> TimersView = GetTimersView();
+	if (TimersView.IsValid())
 	{
-		TSharedPtr<STimersView> TimersView = Window->GetTimersView();
-		if (TimersView.IsValid())
-		{
-			return TimersView->GetFrameTypeMode();
-		}
+		return TimersView->GetFrameTypeMode();
 	}
 
 	// TraceFrameType_Count is the Instance mode.
@@ -5440,12 +5609,44 @@ void STimingView::UpdateFilters()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool STimingView::IsInTimingProfiler()
+bool STimingView::IsInTimingProfiler() const
 {
 	return GetName() == FInsightsManagerTabs::TimingProfilerTabId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedPtr<STimersView> STimingView::GetTimersView() const
+{
+	if (IsInTimingProfiler())
+	{
+		TSharedPtr<STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
+		if (TimingWindow.IsValid())
+		{
+			return TimingWindow->GetTimersView();
+		}
+	}
+	return nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedPtr<SLogView> STimingView::GetLogView() const
+{
+	if (IsInTimingProfiler())
+	{
+		TSharedPtr<STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
+		if (TimingWindow.IsValid())
+		{
+			return TimingWindow->GetLogView();
+		}
+	}
+	return nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::TimingProfiler
 
 #undef INSIGHTS_ACTIVATE_BENCHMARK
 #undef LOCTEXT_NAMESPACE

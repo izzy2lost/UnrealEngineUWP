@@ -18,6 +18,7 @@
 #include "EngineStats.h"
 #include "GameFramework/Pawn.h"
 #include "HLOD/HLODBatchingPolicy.h"
+#include "HLOD/HLODSetup.h"
 #include "PSOPrecache.h"
 #include "AI/NavigationSystemBase.h"
 #include "AI/Navigation/NavigationRelevantData.h"
@@ -319,6 +320,7 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 	IndirectLightingCacheQuality = ILCQ_Point;
 	bStaticWhenNotMoveable = true;
 	bSelectable = true;
+	bWantsEditorEffects = false;
 #if WITH_EDITORONLY_DATA
 	bConsiderForActorPlacementWhenHidden = false;
 #endif // WITH_EDITORONLY_DATA
@@ -361,6 +363,9 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 	bIsBeingMovedByEditor = false;
 
 	SetGenerateOverlapEvents(true);
+#if WITH_EDITORONLY_DATA
+	bHiddenEdTemporary = false;
+#endif // WITH_EDITORONLY_DATA 
 	bMultiBodyOverlap = false;
 	bReturnMaterialOnMove = false;
 	bCanEverAffectNavigation = false;
@@ -379,7 +384,7 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 
 #if UE_WITH_PSO_PRECACHING
 	bPSOPrecacheCalled = false;
-	bPSOPrecacheRequestBoosted = false;
+	PSOPrecacheRequestPriority = EPSOPrecachePriority::Medium;
 #endif // UE_WITH_PSO_PRECACHING
 	
 	bApplyImpulseOnDamage = true;
@@ -390,6 +395,8 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 #if WITH_EDITOR
 	bAlwaysAllowTranslucentSelect = false;
 
+	OverlayColor = FColor(ForceInitToZero);
+	
 	SelectionOutlineColorIndex = 0;
 #endif
 
@@ -400,6 +407,8 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 	bIgnoreBoundsForEditorFocus = false;
 	bVisibleInSceneCaptureOnly = false;
 	bHiddenInSceneCapture = false;
+
+	FirstPersonPrimitiveType = EFirstPersonPrimitiveType::None;
 }
 
 bool UPrimitiveComponent::UsesOnlyUnlitMaterials() const
@@ -414,6 +423,32 @@ bool UPrimitiveComponent::GetLightMapResolution( int32& Width, int32& Height ) c
 	Height	= 0;
 	return false;
 }
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+ELightmapType UPrimitiveComponent::GetLightmapType() const
+{
+	if (UWorld* World = GetWorld())	
+	{
+		if (AWorldSettings* WorldSettings = World->GetWorldSettings())
+		{
+			if (WorldSettings->bForceVolumetricLightmapsOnly)
+			{
+				return ELightmapType::ForceVolumetric;
+			}
+		}
+	}
+
+	return LightmapType;
+}
+
+void UPrimitiveComponent::SetLightmapType(ELightmapType InLightmapType)
+{
+	LightmapType = InLightmapType;
+}
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 
 
 void UPrimitiveComponent::GetLightAndShadowMapMemoryUsage( int32& LightMapMemoryUsage, int32& ShadowMapMemoryUsage ) const
@@ -441,7 +476,7 @@ bool UPrimitiveComponent::IsEditorOnly() const
 
 bool UPrimitiveComponent::HasStaticLighting() const
 {
-	return ((Mobility == EComponentMobility::Static) || LightmapType == ELightmapType::ForceSurface) && SupportsStaticLighting();
+	return ((Mobility == EComponentMobility::Static) || GetLightmapType() == ELightmapType::ForceSurface) && SupportsStaticLighting();
 }
 
 void UPrimitiveComponent::GetStreamingRenderAssetInfo(FStreamingTextureLevelContext& LevelContext, TArray<FStreamingRenderAssetPrimitiveInfo>& OutStreamingRenderAssets) const
@@ -590,10 +625,6 @@ void UPrimitiveComponent::CreateRenderState_Concurrent(FRegisterComponentContext
 		CachedMaxDrawDistance = bNeverCull ? 0.f : LDMaxDrawDistance;
 	}
 
-	// Always setup our ptr to the OwnerLastRenderTimer for rendering time feedback from the renderer
-	// The owner can change after calls to OnRegister so we must resynchronize this value
-	SceneData.OwnerLastRenderTimePtr = FActorLastRenderTime::GetPtr(GetOwner());
-
 	Super::CreateRenderState_Concurrent(Context);
 
 	UpdateBounds();
@@ -637,15 +668,6 @@ void UPrimitiveComponent::SendRenderTransform_Concurrent()
 
 void UPrimitiveComponent::OnRegister()
 {
-	// Both those are initalized before call Super::OnRegister since the primitive can be added to the scene
-	// before this method completes, for example through FNiagaraSystem::PollForCompilationComplete()
-	 
-	// Setup our ptr to the OwnerLastRenderTimer for rendering time feedback from the renderer
-	SceneData.OwnerLastRenderTimePtr = FActorLastRenderTime::GetPtr(GetOwner());
-	
-	// Deterministically track primitives via registration sequence numbers.
- 	SceneData.RegistrationSerialNumber = FPrimitiveSceneInfoData::GetNextRegistrationSerialNumber(); 
-
 	Super::OnRegister();
 	
 	if (bCanEverAffectNavigation)
@@ -676,8 +698,6 @@ void UPrimitiveComponent::OnRegister()
 
 void UPrimitiveComponent::OnUnregister()
 {
-	SceneData.OwnerLastRenderTimePtr = nullptr;
-
 	// If this is being garbage collected we don't really need to worry about clearing this
 	if (!HasAnyFlags(RF_BeginDestroyed) && !IsUnreachable())
 	{
@@ -711,8 +731,21 @@ FPrimitiveComponentInstanceData::FPrimitiveComponentInstanceData(const UPrimitiv
 	, VisibilityId(SourceComponent->VisibilityId)
 	, LODParent(SourceComponent->GetLODParentPrimitive())
 {
-	const_cast<UPrimitiveComponent*>(SourceComponent)->ConditionalUpdateComponentToWorld(); // sadness
+	UPrimitiveComponent* PrimitiveComponent = const_cast<UPrimitiveComponent*>(SourceComponent);
+	PrimitiveComponent->ConditionalUpdateComponentToWorld(); // sadness
 	ComponentTransform = SourceComponent->GetComponentTransform();
+
+#if WITH_EDITOR
+	// Only persist the overlay color if the component wants editor effects
+	if (PrimitiveComponent->bWantsEditorEffects)
+	{
+		OverlayColor = PrimitiveComponent->OverlayColor;
+	}
+	else
+	{
+		OverlayColor = FColor(ForceInitToZero);
+	}
+#endif
 }
 
 void FPrimitiveComponentInstanceData::ApplyToComponent(UActorComponent* Component, const ECacheApplyPhase CacheApplyPhase)
@@ -738,11 +771,24 @@ void FPrimitiveComponentInstanceData::ApplyToComponent(UActorComponent* Componen
 		PrimitiveComponent->ResetCustomPrimitiveData();
 		Component->MarkRenderStateDirty();
 	}
+	
+#if WITH_EDITOR
+	if (OverlayColor != FColor(ForceInitToZero))
+	{
+		PrimitiveComponent->SetOverlayColor(OverlayColor);
+	}
+#endif
 }
 
 bool FPrimitiveComponentInstanceData::ContainsData() const
 {
-	return (Super::ContainsData() || LODParent || (VisibilityId != INDEX_NONE));
+	bool bContainsData = (Super::ContainsData() || LODParent || (VisibilityId != INDEX_NONE));
+	
+#if WITH_EDITOR
+	bContainsData |= (OverlayColor != FColor(ForceInitToZero));
+#endif
+
+	return bContainsData;
 }
 
 void FPrimitiveComponentInstanceData::AddReferencedObjects(FReferenceCollector& Collector)
@@ -1104,7 +1150,7 @@ void UPrimitiveComponent::Serialize(FArchive& Ar)
 	{
 		if (bLightAsIfStatic_DEPRECATED)
 		{
-			LightmapType = ELightmapType::ForceSurface;
+			SetLightmapType(ELightmapType::ForceSurface);
 		}
 	}
 
@@ -1168,6 +1214,12 @@ void UPrimitiveComponent::PostEditChangeProperty(FPropertyChangedEvent& Property
 		{
 			MarkChildPrimitiveComponentRenderStateDirty();
 		}
+
+		// bIsFirstPerson can be toggled at runtime and needs to propagate to the scene proxy.
+		if (PropertyName == GET_MEMBER_NAME_CHECKED(UPrimitiveComponent, FirstPersonPrimitiveType))
+		{
+			MarkRenderStateDirty();
+		}
 	}
 
 	if (FProperty* MemberPropertyThatChanged = PropertyChangedEvent.MemberProperty)
@@ -1182,9 +1234,9 @@ void UPrimitiveComponent::PostEditChangeProperty(FPropertyChangedEvent& Property
 		}
 	}
 
-	if (LightmapType == ELightmapType::ForceSurface && GetStaticLightingType() == LMIT_None)
+	if (GetLightmapType() == ELightmapType::ForceSurface && GetStaticLightingType() == LMIT_None)
 	{
-		LightmapType = ELightmapType::Default;
+		SetLightmapType(ELightmapType::Default);
 	}
 
 	if (bCullDistanceInvalidated)
@@ -1248,7 +1300,7 @@ bool UPrimitiveComponent::CanEditChange(const FProperty* InProperty) const
 
 		if (PropertyName == LightmassSettingsName)
 		{
-			return Mobility != EComponentMobility::Movable || LightmapType == ELightmapType::ForceSurface;
+			return Mobility != EComponentMobility::Movable || GetLightmapType() == ELightmapType::ForceSurface;
 		}
 
 		if (PropertyName == SingleSampleShadowFromStationaryLightsName)
@@ -1269,10 +1321,13 @@ bool UPrimitiveComponent::CanEditChange(const FProperty* InProperty) const
 			return bILCRelevant && Mobility == EComponentMobility::Movable;
 		}
 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (PropertyName == GET_MEMBER_NAME_CHECKED(UPrimitiveComponent, LightmapType))
 		{
 			return IsStaticLightingAllowed();
 		}
+	    PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 
 		if (PropertyName == CastInsetShadowName)
 		{
@@ -1428,9 +1483,9 @@ void UPrimitiveComponent::PostLoad()
 		CachedMaxDrawDistance = bNeverCull ? 0.f : CachedMaxDrawDistance;
 	} 
 
-	if (LightmapType == ELightmapType::ForceSurface && GetStaticLightingType() == LMIT_None)
+	if (GetLightmapType() == ELightmapType::ForceSurface && GetStaticLightingType() == LMIT_None)
 	{
-		LightmapType = ELightmapType::Default;
+		SetLightmapType(ELightmapType::Default);
 	}
 
 	// Setup the default here
@@ -1642,11 +1697,15 @@ bool UPrimitiveComponent::ShouldComponentAddToScene() const
 #if WITH_EDITOR
 	AActor* Owner = GetOwner();
 	const bool bIsHiddenInEditor = GIsEditor && Owner && Owner->IsHiddenEd();
+
+	constexpr bool bIncludeParent = false;
+	const bool bIsTemporarilyHiddenInEditor = IsTemporarilyHiddenInEditor(bIncludeParent);
 #else
 	const bool bIsHiddenInEditor = false;
+	const bool bIsTemporarilyHiddenInEditor = false;
 #endif
 
-	return bSceneAdd && (ShouldRender() || (bCastHiddenShadow && !bIsHiddenInEditor) || bAffectIndirectLightingWhileHidden || bRayTracingFarField);
+	return bSceneAdd && !bIsTemporarilyHiddenInEditor && (ShouldRender() || (bCastHiddenShadow && !bIsHiddenInEditor) || bAffectIndirectLightingWhileHidden || bRayTracingFarField);
 }
 
 bool UPrimitiveComponent::ShouldCreatePhysicsState() const
@@ -1921,6 +1980,30 @@ uint64 UPrimitiveComponent::GetHiddenEditorViews() const
 	return OwnerActor ? OwnerActor->HiddenEditorViews : 0;
 }
 
+bool UPrimitiveComponent::IsTemporarilyHiddenInEditor(const bool bIncludeParent) const
+{
+	if (bHiddenEdTemporary)
+	{
+		return true;
+	}
+
+	if (bIncludeParent)
+	{
+		return GetOwner() && GetOwner()->IsTemporarilyHiddenInEditor(true);
+	}
+
+	return false;
+}
+
+void UPrimitiveComponent::SetIsTemporarilyHiddenInEditor(const bool bInIsHidden)
+{
+	if (bHiddenEdTemporary != bInIsHidden)
+	{
+		bHiddenEdTemporary = bInIsHidden;
+		MarkRenderStateDirty();
+	}
+}
+
 void UPrimitiveComponent::SetIsBeingMovedByEditor(bool bIsBeingMoved)
 {
 	bIsBeingMovedByEditor = bIsBeingMoved;
@@ -1933,11 +2016,38 @@ void UPrimitiveComponent::SetIsBeingMovedByEditor(bool bIsBeingMoved)
 
 void UPrimitiveComponent::SetSelectionOutlineColorIndex(uint8 InSelectionOutlineColorIndex)
 {
+	bool bShouldOverride = InSelectionOutlineColorIndex != 0;
 	SelectionOutlineColorIndex = InSelectionOutlineColorIndex;
+	bWantsEditorEffects |= bShouldOverride;
 	
 	if (SceneProxy)
 	{
 		SceneProxy->SetSelectionOutlineColorIndex_GameThread(InSelectionOutlineColorIndex);
+		SceneProxy->SetSelectionOverride_GameThread(bShouldOverride);
+	}
+}
+
+void UPrimitiveComponent::SetOverlayColor(FColor InOverlayColor)
+{
+	OverlayColor = InOverlayColor;
+	bWantsEditorEffects = true;
+
+	if (SceneProxy)
+	{
+		SceneProxy->SetOverlayColor_GameThread(InOverlayColor);
+		SceneProxy->SetSelectionOverride_GameThread(true);
+	}
+}
+
+void UPrimitiveComponent::RemoveOverlayColor()
+{
+	OverlayColor = FColor(ForceInitToZero);
+	bWantsEditorEffects = false;
+
+	if (SceneProxy)
+	{
+		SceneProxy->SetOverlayColor_GameThread(OverlayColor);
+		SceneProxy->SetSelectionOverride_GameThread(false);
 	}
 }
 
@@ -2576,8 +2686,11 @@ void UPrimitiveComponent::SetMoveIgnoreMask(FMaskFilter InMoveIgnoreMask)
 bool UPrimitiveComponent::ShouldComponentIgnoreHitResult(FHitResult const& TestHit, EMoveComponentFlags MoveFlags)
 {
 	// Check if the hit actors root actor is in the ignore array
-	if (MoveFlags & MOVECOMP_CheckBlockingRootActorInIgnoreList)
+	if (MoveFlags & MOVECOMP_CheckBlockingRootActorInIgnoreList && MoveIgnoreActors.Num())
 	{
+		// Ideally we should consider using GetCachedActor here to prevent actor hydration
+		// but that could have side effects and will require more investigation.
+		// Note that if the given instance is not hydrated yet, then it can't be in MoveIgnoreActors.
 		AActor const* const HitActor = TestHit.HitObjectHandle.FetchActor();
 		if (HitActor)
 		{
@@ -3556,7 +3669,7 @@ void UPrimitiveComponent::EndComponentOverlap(const FOverlapInfo& OtherOverlap, 
 	const int32 OtherOverlapIdx = IndexOfOverlapFast(OtherComp->OverlappingComponents, FOverlapInfo(this, INDEX_NONE));
 	if (OtherOverlapIdx != INDEX_NONE)
 	{
-		OtherComp->OverlappingComponents.RemoveAtSwap(OtherOverlapIdx, 1, EAllowShrinking::No);
+		OtherComp->OverlappingComponents.RemoveAtSwap(OtherOverlapIdx, EAllowShrinking::No);
 	}
 
 	const int32 OverlapIdx = IndexOfOverlapFast(OverlappingComponents, OtherOverlap);
@@ -3564,7 +3677,7 @@ void UPrimitiveComponent::EndComponentOverlap(const FOverlapInfo& OtherOverlap, 
 	{
 		//UE_LOG(LogActor, Log, TEXT("END OVERLAP! Self=%s SelfComp=%s, Other=%s, OtherComp=%s"), *GetNameSafe(this), *GetNameSafe(MyComp), *GetNameSafe(OtherActor), *GetNameSafe(OtherComp));
 		GlobalOverlapEventsCounter++;
-		OverlappingComponents.RemoveAtSwap(OverlapIdx, 1, EAllowShrinking::No);
+		OverlappingComponents.RemoveAtSwap(OverlapIdx, EAllowShrinking::No);
 
 		AActor* const MyActor = GetOwner();
 		const UWorld* World = GetWorld();
@@ -3790,7 +3903,7 @@ TArray<AActor*> UPrimitiveComponent::CopyArrayOfMoveIgnoreActors()
 		const AActor* const MoveIgnoreActor = MoveIgnoreActors[Index];
 		if (!IsValid(MoveIgnoreActor))
 		{
-			MoveIgnoreActors.RemoveAtSwap(Index,1,EAllowShrinking::No);
+			MoveIgnoreActors.RemoveAtSwap(Index,EAllowShrinking::No);
 		}
 	}
 	return MoveIgnoreActors;
@@ -3827,7 +3940,7 @@ TArray<UPrimitiveComponent*> UPrimitiveComponent::CopyArrayOfMoveIgnoreComponent
 		const UPrimitiveComponent* const MoveIgnoreComponent = MoveIgnoreComponents[Index];
 		if (!IsValid(MoveIgnoreComponent))
 		{
-			MoveIgnoreComponents.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			MoveIgnoreComponents.RemoveAtSwap(Index, EAllowShrinking::No);
 		}
 	}
 	return MoveIgnoreComponents;
@@ -3950,8 +4063,8 @@ bool UPrimitiveComponent::UpdateOverlapsImpl(const TOverlapArrayView* NewPending
 					const int32 NewElementIdx = IndexOfOverlapFast(NewOverlappingComponentPtrs, SearchItem);
 					if (NewElementIdx != INDEX_NONE)
 					{
-						NewOverlappingComponentPtrs.RemoveAtSwap(NewElementIdx, 1, EAllowShrinking::No);
-						OldOverlappingComponentPtrs.RemoveAtSwap(CompIdx, 1, EAllowShrinking::No);
+						NewOverlappingComponentPtrs.RemoveAtSwap(NewElementIdx, EAllowShrinking::No);
+						OldOverlappingComponentPtrs.RemoveAtSwap(CompIdx, EAllowShrinking::No);
 						--CompIdx;
 					}
 				}
@@ -4490,6 +4603,15 @@ void UPrimitiveComponent::SetHiddenInSceneCapture(bool bValue)
 	}
 }
 
+void UPrimitiveComponent::SetFirstPersonPrimitiveType(EFirstPersonPrimitiveType Value)
+{
+	if (FirstPersonPrimitiveType != Value)
+	{
+		FirstPersonPrimitiveType = Value;
+		MarkRenderStateDirty();
+	}
+}
+
 void UPrimitiveComponent::SetLODParentPrimitive(UPrimitiveComponent * InLODParentPrimitive)
 {
 	if (LODParentPrimitive == InLODParentPrimitive)
@@ -4518,6 +4640,11 @@ void UPrimitiveComponent::SetLODParentPrimitive(UPrimitiveComponent * InLODParen
 		LODParentPrimitive = InLODParentPrimitive;
 		MarkRenderStateDirty();
 	}
+}
+
+bool UPrimitiveComponent::AllowHLODLevelsExclusion() const
+{
+	return bEnableAutoLODGeneration && !UWorld::IsPartitionedWorld(GetWorld());
 }
 
 UPrimitiveComponent* UPrimitiveComponent::GetLODParentPrimitive() const
@@ -4600,6 +4727,24 @@ void UPrimitiveComponent::SetLastRenderTime(float InLastRenderTime)
 	}
 }
 
+float UPrimitiveComponent::GetLastRenderTime() const
+{
+	if (IsAlwaysVisible())
+	{
+		return GetWorld()->GetTimeSeconds();
+	}
+	return SceneData.LastRenderTime;
+}
+
+float UPrimitiveComponent::GetLastRenderTimeOnScreen() const
+{
+	if (IsAlwaysVisible())
+	{
+		return GetWorld()->GetTimeSeconds();
+	}
+	return SceneData.LastRenderTimeOnScreen;
+}
+
 #if MESH_DRAW_COMMAND_STATS
 void UPrimitiveComponent::SetMeshDrawCommandStatsCategory(FName StatsCategory)
 {
@@ -4622,11 +4767,12 @@ void UPrimitiveComponent::SetupPrecachePSOParams(FPSOPrecacheParams& Params)
 	Params.bRenderInMainPass = bRenderInMainPass;
 	Params.bRenderInDepthPass = bRenderInDepthPass;
 	Params.bStaticLighting = HasStaticLighting();
+	Params.bUsesIndirectLightingCache = Params.bStaticLighting && IndirectLightingCacheQuality != ILCQ_Off && (!IsPrecomputedLightingValid() || GetLightmapType() == ELightmapType::ForceVolumetric);
 	Params.bAffectDynamicIndirectLighting = bAffectDynamicIndirectLighting;
 	Params.bCastShadow = CastShadow;
 	// Custom depth can be toggled at runtime with PSO precache call so assume it might be needed when depth pass is needed
 	// Ideally precache those with lower priority and don't wait on these (UE-174426)
-	Params.bRenderCustomDepth = bRenderCustomDepth;
+	Params.bRenderCustomDepth = bRenderInDepthPass;
 	Params.bCastShadowAsTwoSided = bCastShadowAsTwoSided;
 	Params.SetMobility(Mobility);	
 	Params.SetStencilWriteMask(FRendererStencilMaskEvaluation::ToStencilMask(CustomDepthStencilWriteMask));
@@ -4660,8 +4806,7 @@ void UPrimitiveComponent::PrecachePSOs()
 
 	// clear the current request data
 	MaterialPSOPrecacheRequestIDs.Empty();
-	PSOPrecacheCompileEvent = nullptr;
-	bPSOPrecacheRequestBoosted = false;
+	PSOPrecacheRequestPriority = EPSOPrecachePriority::Medium;
 
 	// Collect the data from the derived classes
 	FPSOPrecacheParams PSOPrecacheParams;
@@ -4676,18 +4821,56 @@ void UPrimitiveComponent::PrecachePSOs()
 #endif
 }
 
+#if UE_WITH_PSO_PRECACHING
+struct FPSOPrecacheFinishedTask
+{
+	explicit FPSOPrecacheFinishedTask(UPrimitiveComponent* InPrimitiveComponent, int32 InJobSetThatJustCompleted)
+		: WeakPrimitiveComponent(InPrimitiveComponent),
+		JobSetThatJustCompleted(InJobSetThatJustCompleted)
+
+	{
+	}
+
+	static TStatId GetStatId() { return TStatId(); }
+	static ENamedThreads::Type GetDesiredThread() { return ENamedThreads::GameThread; }
+	static ESubsequentsMode::Type GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
+
+	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+	{
+		if (UPrimitiveComponent* PC = WeakPrimitiveComponent.Get())
+		{
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_PSOPrecacheFinishedTask);
+			int32 CurrJobSetCompleted = PC->LatestPSOPrecacheJobSetCompleted.load();
+			while (CurrJobSetCompleted < JobSetThatJustCompleted && !PC->LatestPSOPrecacheJobSetCompleted.compare_exchange_weak(CurrJobSetCompleted, JobSetThatJustCompleted)){}
+			PC->MarkRenderStateDirty();
+		}
+	}
+
+	TWeakObjectPtr<UPrimitiveComponent> WeakPrimitiveComponent;
+	int32 JobSetThatJustCompleted;
+};
+#endif
+
 void UPrimitiveComponent::RequestRecreateRenderStateWhenPSOPrecacheFinished(const FGraphEventArray& PSOPrecacheCompileEvents)
 {
 #if UE_WITH_PSO_PRECACHING
 	// If the proxy creation strategy relies on knowing when the precached PSO has been compiled,
 	// schedule a task to mark the render state dirty when all PSOs are compiled so the proxy gets recreated.
-	if (UsePSOPrecacheRenderProxyDelay() && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate && !PSOPrecacheCompileEvents.IsEmpty())
+	if (UsePSOPrecacheRenderProxyDelay() && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate)
 	{
-		PSOPrecacheCompileEvent = TGraphTask<FMarkActorRenderStateDirtyTask>::CreateTask(&PSOPrecacheCompileEvents).ConstructAndDispatchWhenReady(this);
+		LatestPSOPrecacheJobSet++;
+		if(!PSOPrecacheCompileEvents.IsEmpty())
+		{
+			TGraphTask<FPSOPrecacheFinishedTask>::CreateTask(&PSOPrecacheCompileEvents).ConstructAndDispatchWhenReady(this, LatestPSOPrecacheJobSet);
+		}
+		else
+		{
+			// No graph events to wait on, the job set can be considered complete.
+			LatestPSOPrecacheJobSetCompleted = LatestPSOPrecacheJobSet;
+		}
 	}
-
 	bPSOPrecacheCalled = true;
-#endif // UE_WITH_PSO_PRECACHING
+#endif //UE_WITH_PSO_PRECACHING
 }
 
 bool UPrimitiveComponent::UsePSOPrecacheRenderProxyDelay() const
@@ -4702,7 +4885,7 @@ bool UPrimitiveComponent::UsePSOPrecacheRenderProxyDelay() const
 bool UPrimitiveComponent::IsPSOPrecaching() const
 {
 #if UE_WITH_PSO_PRECACHING
-	return PSOPrecacheCompileEvent && !PSOPrecacheCompileEvent->IsComplete();
+	return LatestPSOPrecacheJobSetCompleted != LatestPSOPrecacheJobSet;
 #else
 	return false;
 #endif // UE_WITH_PSO_PRECACHING
@@ -4716,26 +4899,20 @@ bool UPrimitiveComponent::ShouldRenderProxyFallbackToDefaultMaterial() const
 	return false;
 #endif // UE_WITH_PSO_PRECACHING
 }
-
-bool UPrimitiveComponent::CheckPSOPrecachingAndBoostPriority()
+bool UPrimitiveComponent::CheckPSOPrecachingAndBoostPriority(EPSOPrecachePriority NewPSOPrecachePriority)
 {
 #if UE_WITH_PSO_PRECACHING
+	bool bPrecacheStillRunning = IsPSOPrecaching();
+
 	ensure(!IsComponentPSOPrecachingEnabled() || bPSOPrecacheCalled);
+	check(NewPSOPrecachePriority == EPSOPrecachePriority::High || NewPSOPrecachePriority == EPSOPrecachePriority::Highest);
 
-	if (PSOPrecacheCompileEvent && !PSOPrecacheCompileEvent->IsComplete())
+	if (bPrecacheStillRunning && PSOPrecacheRequestPriority < NewPSOPrecachePriority)
 	{
-		if (!bPSOPrecacheRequestBoosted)
-		{
-			BoostPSOPriority(MaterialPSOPrecacheRequestIDs);
-			bPSOPrecacheRequestBoosted = true;
-		}
+		BoostPSOPriority(NewPSOPrecachePriority, MaterialPSOPrecacheRequestIDs);
+		PSOPrecacheRequestPriority = NewPSOPrecachePriority;
 	}
-	else
-	{
-		PSOPrecacheCompileEvent = nullptr;
-	}
-
-	return IsPSOPrecaching();
+	return bPrecacheStillRunning;
 #else
 	return false;
 #endif
@@ -4788,6 +4965,11 @@ FPrimitiveMaterialPropertyDescriptor UPrimitiveComponent::GetUsedMaterialPropert
 #if WITH_EDITOR
 const bool UPrimitiveComponent::ShouldGenerateAutoLOD(const int32 HierarchicalLevelIndex) const
 {	
+	if (GetOwner() && GetOwner()->IsA<ALODActor>())
+	{
+		return true;
+	}
+
 	if (!IsHLODRelevant())
 	{
 		return false;
@@ -4797,7 +4979,7 @@ const bool UPrimitiveComponent::ShouldGenerateAutoLOD(const int32 HierarchicalLe
 	bool bExcluded = false;
 	if (HierarchicalLevelIndex < CHAR_BIT && IsExcludedFromHLODLevel(EHLODLevelExclusion(1 << HierarchicalLevelIndex)))
 	{
-		const TArray<struct FHierarchicalSimplification>& HLODSetup = GetOwner()->GetLevel()->GetWorldSettings()->GetHierarchicalLODSetup();
+		const TArray<FHierarchicalSimplification>& HLODSetup = GetOwner()->GetLevel()->GetWorldSettings()->GetHierarchicalLODSetup();
 		if (HLODSetup.IsValidIndex(HierarchicalLevelIndex))
 		{
 			if (HLODSetup[HierarchicalLevelIndex].bAllowSpecificExclusion)
@@ -4859,6 +5041,44 @@ void UPrimitiveComponent::SetExcludedFromHLODLevel(EHLODLevelExclusion HLODLevel
 void UPrimitiveComponent::GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const
 {
 	// no default values returned
+}
+
+void UPrimitiveComponent::AssignSceneProxy(FPrimitiveSceneProxy* InSceneProxy)
+{
+	check(SceneProxy == nullptr && SceneData.SceneProxy == nullptr);
+	SceneProxy = InSceneProxy;
+	SceneData.SceneProxy = InSceneProxy;
+	if (SceneProxy)
+	{
+		SceneData.bAlwaysVisible = SceneProxy->IsAlwaysVisible();
+		SceneData.OwnerLastRenderTimePtr = FActorLastRenderTime::GetPtr(GetOwner());
+
+		if (SceneData.bAlwaysVisible && SceneData.OwnerLastRenderTimePtr)
+		{
+			SceneData.OwnerLastRenderTimePtr->NumAlwaysVisibleComponents.fetch_add(1, std::memory_order_relaxed);
+		}
+
+#if WITH_EDITOR
+		if (bWantsEditorEffects)
+		{
+			SetOverlayColor(OverlayColor);
+		}
+#endif
+	}
+}
+
+void UPrimitiveComponent::ReleaseSceneProxy()
+{
+	check(SceneProxy == SceneData.SceneProxy);
+	if (SceneData.bAlwaysVisible && SceneData.OwnerLastRenderTimePtr)
+	{
+		const uint32 NumRefs = SceneData.OwnerLastRenderTimePtr->NumAlwaysVisibleComponents.fetch_sub(1, std::memory_order_relaxed);
+		check(NumRefs > 0);
+	}
+	SceneData.OwnerLastRenderTimePtr = nullptr;
+	SceneProxy = nullptr;
+	SceneData.SceneProxy = nullptr;
+	SceneData.bAlwaysVisible = false;
 }
 
 bool FActorPrimitiveComponentInterface::IsRenderStateCreated() const 
@@ -4981,11 +5201,15 @@ FString FActorPrimitiveComponentInterface::GetOwnerName() const
 FPrimitiveSceneProxy* FActorPrimitiveComponentInterface::CreateSceneProxy() 
 {
 	UPrimitiveComponent* Component = UPrimitiveComponent::GetPrimitiveComponent(this);
-	check(Component->SceneProxy == nullptr && Component->SceneData.SceneProxy == nullptr);
-	FPrimitiveSceneProxy* Proxy = Component->CreateSceneProxy();
-	Component->SceneData.SceneProxy = Proxy;
-	Component->SceneProxy = Proxy;
-	return Proxy;
+	FPrimitiveSceneProxy* SceneProxy = Component->CreateSceneProxy();
+	Component->AssignSceneProxy(SceneProxy);
+
+	return SceneProxy;
+}
+
+void FActorPrimitiveComponentInterface::PrecachePSOs()
+{
+	UPrimitiveComponent::GetPrimitiveComponent(this)->PrecachePSOs();
 }
 
 #if WITH_EDITOR

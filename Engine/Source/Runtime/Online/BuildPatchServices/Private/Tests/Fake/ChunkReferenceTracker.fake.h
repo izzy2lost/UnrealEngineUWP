@@ -59,7 +59,7 @@ namespace BuildPatchServices
 			});
 		}
 
-		virtual bool PopReference(const FGuid& ChunkId)
+		virtual bool PopReference(const FGuid& ChunkId) override
 		{
 			if (NextReferences.Num() && NextReferences[0] == ChunkId)
 			{
@@ -67,6 +67,12 @@ namespace BuildPatchServices
 				return true;
 			}
 			return false;
+		}
+		virtual int32 GetRemainingChunkCount() const override { return NextReferences.Num(); };
+
+		virtual void CopyOutOrderedUseList(TArray<FGuid>& OutUseList) const
+		{
+			OutUseList = NextReferences;
 		}
 
 	public:

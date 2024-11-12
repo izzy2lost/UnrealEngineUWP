@@ -26,6 +26,8 @@ namespace UnrealBuildTool.Rules
 
 			Type = ModuleType.CPlusPlus;
 
+			PrivateDefinitions.Add("RL_BUILD_WITH_ZYX_ROTATION_ORDER=1");
+
 			if (Target.LinkType != TargetLinkType.Monolithic)
 			{
 				PrivateDefinitions.Add("RL_BUILD_SHARED=1");
@@ -51,7 +53,8 @@ namespace UnrealBuildTool.Rules
 			}
 
 			PrivateDefinitions.Add("RL_AUTODETECT_SSE=1");
-			PublicDefinitions.Add("RL_BUILD_WITH_ML_EVALUATOR=1");
+
+			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }

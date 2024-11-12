@@ -127,6 +127,7 @@ void LumenCardCopyPS(
 	#endif
 }
 
+#ifdef ClearCompressedAtlasCS
 float3 ClearValue;
 uint2 OutputAtlasSize;
 
@@ -189,3 +190,4 @@ void ClearCompressedAtlasCS(
 		#endif
 	}
 }
+#endif

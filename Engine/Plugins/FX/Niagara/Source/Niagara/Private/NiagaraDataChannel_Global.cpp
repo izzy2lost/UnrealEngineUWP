@@ -36,17 +36,18 @@ UNiagaraDataChannelHandler_Global::UNiagaraDataChannelHandler_Global(FObjectInit
 {
 }
 
-void UNiagaraDataChannelHandler_Global::BeginDestroy()
-{
-	Super::BeginDestroy();
-	Data.Reset();
-}
-
 void UNiagaraDataChannelHandler_Global::Init(const UNiagaraDataChannel* InChannel)
 {
 	check(InChannel);
 	Super::Init(InChannel);
 	Data = CreateData();
+}
+
+void UNiagaraDataChannelHandler_Global::Cleanup()
+{
+	Data.Reset();
+
+	Super::Cleanup();
 }
 
 void UNiagaraDataChannelHandler_Global::BeginFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld)
@@ -71,6 +72,10 @@ void UNiagaraDataChannelHandler_Global::Tick(float DeltaSeconds, ETickingGroup T
 
 FNiagaraDataChannelDataPtr UNiagaraDataChannelHandler_Global::FindData(FNiagaraDataChannelSearchParameters SearchParams, ENiagaraResourceAccess AccessType)
 {
+	if(!Data)
+	{
+		Data = CreateData();
+	}
 	return Data;
 	//For more complicated channels we could check the location + bounds of the system instance etc to return some spatially localized data.
 }

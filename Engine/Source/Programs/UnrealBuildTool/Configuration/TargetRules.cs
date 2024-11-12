@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization;
+using System.Runtime.CompilerServices;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
@@ -176,12 +176,13 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Include order used in Unreal 5.2
 		/// </summary>
-		[Obsolete("The Unreal 5.2 include order is deprecated and will be unsupported in 5.5.")]
+		[Obsolete("The Unreal 5.2 include order is unsupported.")]
 		Unreal5_2,
 
 		/// <summary>
 		/// Include order used in Unreal 5.3
 		/// </summary>
+		[Obsolete("The Unreal 5.3 include order is deprecated and will be unsupported in 5.6.")]
 		Unreal5_3,
 
 		/// <summary>
@@ -189,19 +190,24 @@ namespace UnrealBuildTool
 		/// </summary>
 		Unreal5_4,
 
+		/// <summary>
+		/// Include order used in Unreal 5.5
+		/// </summary>
+		Unreal5_5,
+
 		// *** When adding new entries here, be sure to update UEBuildModuleCPP.CurrentIncludeOrderDefine to ensure that the correct guard is used. ***
 
 		/// <summary>
 		/// Always use the latest version of include order. This value is updated every Unreal release, use with caution if you intend to integrate newer Unreal releases.
 		/// </summary>
-		Latest = Unreal5_4,
+		Latest = Unreal5_5,
 
 		/// <summary>
 		/// Contains the oldest version of include order that the engine supports.
 		/// Do not delete old enum entries to prevent breaking project generation
 		/// </summary>
 #pragma warning disable CS0618 // Type or member is obsolete
-		Oldest = Unreal5_2,
+		Oldest = Unreal5_3,
 #pragma warning restore CS0618 // Type or member is obsolete
 	}
 
@@ -400,11 +406,13 @@ namespace UnrealBuildTool
 			switch (inVersion)
 			{
 				default:
+				case EngineIncludeOrderVersion.Unreal5_5:
+					return "UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5";
 				case EngineIncludeOrderVersion.Unreal5_4:
 					return "UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4";
+#pragma warning disable CS0618 // Type or member is obsolete
 				case EngineIncludeOrderVersion.Unreal5_3:
 					return "UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3";
-#pragma warning disable CS0618 // Type or member is obsolete
 				case EngineIncludeOrderVersion.Unreal5_2:
 					return "UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2";
 #pragma warning restore CS0618 // Type or member is obsolete
@@ -426,9 +434,10 @@ namespace UnrealBuildTool
 			{
 #pragma warning disable CS0618 // Type or member is obsolete
 				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_2),
-#pragma warning restore CS0618 // Type or member is obsolete
 				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_3),
+#pragma warning restore CS0618 // Type or member is obsolete
 				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_4),
+				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_5),
 			};
 		}
 
@@ -443,9 +452,10 @@ namespace UnrealBuildTool
 			{
 #pragma warning disable CS0618 // Type or member is obsolete
 				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_2, inVersion),
-#pragma warning restore CS0618 // Type or member is obsolete
 				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_3, inVersion),
+#pragma warning restore CS0618 // Type or member is obsolete
 				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_4, inVersion),
+				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_5, inVersion),
 			};
 		}
 
@@ -630,6 +640,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// The type of target.
 		/// </summary>
+		[RequiresUniqueBuildEnvironment]
 		public global::UnrealBuildTool.TargetType Type { get; set; } = global::UnrealBuildTool.TargetType.Game;
 
 		/// <summary>
@@ -673,6 +684,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Whether the target uses Steam.
 		/// </summary>
+		[Obsolete("Deprecated in UE5.5 - No longer used in engine.")]
 		public bool bUsesSteam { get; set; }
 
 		/// <summary>
@@ -715,6 +727,12 @@ namespace UnrealBuildTool
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
 		public UnrealTargetConfiguration UndecoratedConfiguration { get; set; } = UnrealTargetConfiguration.Development;
+
+		/// <summary>
+		/// Specifies the separator charcter for binary filenames.
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		public string DecoratedSeparator { get; set; } = "-";
 
 		/// <summary>
 		/// Whether this target supports hot reload
@@ -776,6 +794,11 @@ namespace UnrealBuildTool
 		public List<string> OptionalPlugins = new();
 
 		/// <summary>
+		/// If false, suppress loading "enabled by default" engine plugins not explicitly enabled by the project or target files.
+		/// </summary>
+		public bool bAllowEnginePluginsEnabledByDefault { get; set; } = true;
+
+		/// <summary>
 		/// How to treat conflicts when a disabled plugin is being enabled by another plugin referencing it
 		/// </summary>
 		public WarningLevel DisablePluginsConflictWarningLevel { get; set; } = WarningLevel.Default;
@@ -794,6 +817,16 @@ namespace UnrealBuildTool
 		/// Allows a Program Target to specify it's own solution folder path.
 		/// </summary>
 		public string SolutionDirectory { get; set; } = String.Empty;
+
+		/// <summary>
+		/// Force a Target to be treated as a Program for the purposes of project file generation.
+		/// </summary>
+		public bool bGenerateProgramProject { get; set; }
+
+		/// <summary>
+		/// If true, GetTargetNameByType will not consider this target, thereby disambiguating -TargetType=X.
+		/// </summary>
+		public bool bExplicitTargetForType { get; set; }
 
 		/// <summary>
 		/// Whether the target should be included in the default solution build configuration
@@ -846,10 +879,28 @@ namespace UnrealBuildTool
 		/// Whether to use the AutoRTFM Clang compiler.
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
-		[CommandLine("-NoUseAutoRTFM", Value = "false")]
-		[CommandLine("-UseAutoRTFM", Value = "true")]
+		public bool bUseAutoRTFMCompiler
+		{
+			get => bForceNoAutoRTFMCompiler ? false : _bUseAutoRTFMCompilerPrivate;
+			set => _bUseAutoRTFMCompilerPrivate = value;
+		}
+		private bool _bUseAutoRTFMCompilerPrivate = false;
+
+		/// <summary>
+		/// Whether to use force AutoRTFM Clang compiler off.
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[CommandLine("-NoUseAutoRTFM", Value = "true")]
 		[XmlConfigFile(Category = "BuildConfiguration")]
-		public bool bUseAutoRTFMCompiler { get; set; }
+		public bool bForceNoAutoRTFMCompiler { get; set; } = false;
+
+		/// <summary>
+		/// Whether to enable emitting AutoRTFM verification metadata
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[CommandLine("-UseAutoRTFMVerifier", Value = "true")]
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		public bool bUseAutoRTFMVerifier { get; set; } = false;
 
 		/// <summary>
 		/// Whether to compile the Chaos physics plugin.
@@ -987,12 +1038,26 @@ namespace UnrealBuildTool
 		GameplayDebuggerOverrideState UseGameplayDebuggerOverride;
 
 		/// <summary>
+		/// Whether to use I/O store on-demand
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[CommandLine("-CompileIoStoreOnDemand", Value = "true")]
+		public bool bCompileIoStoreOnDemand { get; set; } = false;
+
+		/// <summary>
 		/// Whether to use Iris.
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
 		[CommandLine("-NoUseIris", Value = "false")]
 		[CommandLine("-UseIris", Value = "true")]
 		public bool bUseIris { get; set; } = true;
+
+		/// <summary>
+		/// Whether to track owner (asset name) of RHI resource for Test configuration.
+		/// Useful for ListShaderMaps and ListShaderLibraries commands.
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		public bool bTrackRHIResourceInfoForTest { get; set; } = false;
 
 		/// <summary>
 		/// Whether we are compiling editor code or not. Prefer the more explicit bCompileAgainstEditor instead.
@@ -1162,6 +1227,25 @@ namespace UnrealBuildTool
 		private bool? bEnableTracePrivate;
 
 		/// <summary>
+		/// Force enable tracing - used to allow testing programs to verify tracing works as intended.
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		public virtual bool bForceEnableTrace
+		{
+			get
+			{
+				if (bForceEnableTracePrivate.HasValue)
+				{
+					return bForceEnableTracePrivate.Value;
+				}
+				
+				return false;
+			}
+			set => bForceEnableTracePrivate = value;
+		}
+		private bool? bForceEnableTracePrivate;
+
+		/// <summary>
 		/// Manually specified value for bCompileAgainstEditor.
 		/// </summary>
 		bool? bCompileAgainstEditorOverride;
@@ -1239,6 +1323,12 @@ namespace UnrealBuildTool
 		public bool bForceEnableRTTI { get; set; }
 
 		/// <summary>
+		/// Enable BuildSettings to contain private information about build. Such as machine name, user name and user domain name (exposed in BuildSettings.h)
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		public bool bEnablePrivateBuildInformation { get; set; }
+
+		/// <summary>
 		/// Enable Position Independent Executable (PIE). Has an overhead cost
 		/// </summary>
 		[CommandLine("-pie")]
@@ -1249,6 +1339,17 @@ namespace UnrealBuildTool
 		/// </summary>
 		[CommandLine("-stack-protect")]
 		public bool bEnableStackProtection { get; set; }
+
+		/// <summary>
+		/// Compile client-only code.
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		public bool bWithClientCode
+		{
+			get => bWithClientCodeOverride ?? (Type != TargetType.Server);
+			set => bWithClientCodeOverride = value;
+		}
+		private bool? bWithClientCodeOverride;
 
 		/// <summary>
 		/// Compile server-only code.
@@ -1551,6 +1652,10 @@ namespace UnrealBuildTool
 		private bool? bBuildAdditionalConsoleAppOverride;
 
 		/// <summary>
+		/// If true, only creates an additional console application. Overrides bBuildAdditionalConsoleApp.		
+		/// </summary>
+		public bool bBuildConsoleAppOnly { get; set; } = false;
+		/// <summary>
 		/// True if debug symbols that are cached for some platforms should not be created.
 		/// </summary>
 		public bool bDisableSymbolCache { get; set; } = true;
@@ -1726,9 +1831,17 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Forces the use of undefined identifiers in conditional expressions to be treated as errors.
 		/// </summary>
-		[XmlConfigFile(Category = "BuildConfiguration")]
-		[RequiresUniqueBuildEnvironment]
+		[XmlConfigFile(Category = "BuildConfiguration", Deprecated = true)]
+		[Obsolete("Deprecated in UE5.5 - Replace with TargetRules.UndefinedIdentifierWarningLevel")]
 		public bool bUndefinedIdentifierErrors { get; set; } = true;
+
+		/// <summary>
+		/// Indicates what warning/error level to treat undefined identifiers in conditional expressions.
+		/// </summary>
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		[CommandLine("-UndefinedIdentifierWarningLevel=")]
+		[RequiresUniqueBuildEnvironment]
+		public WarningLevel UndefinedIdentifierWarningLevel { get; set; } = WarningLevel.Error;
 
 		/// <summary>
 		/// Indicates what warning/error level to treat potential PCH performance issues.
@@ -1757,6 +1870,13 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "BuildConfiguration")]
 		[CommandLine("-ModuleIncludeSubdirectoryWarningLevel=")]
 		public WarningLevel ModuleIncludeSubdirectoryWarningLevel { get; set; } = WarningLevel.Off;
+
+		/// <summary>
+		/// Print out files that are included by each source file
+		/// </summary>
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		[CommandLine("-ShowIncludes")]
+		public bool bShowIncludes = false;
 
 		/// <summary>
 		/// Forces frame pointers to be retained this is usually required when you want reliable callstacks e.g. mallocframeprofiler
@@ -1946,6 +2066,15 @@ namespace UnrealBuildTool
 		public bool bWithAssembly { get; set; }
 
 		/// <summary>
+		/// Experimental: Store object (.obj) compressed on disk. Requires UBA to link, currently MSVC only. Toggling this flag will invalidate MSVC actions.
+		/// Warning, this option is not currently compatitable with PGO or the the cl-clang linker as those are not detoured and linking will fail.
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator", Name = "bStoreObjFilesCompressed")]
+		[CommandLine("-UBAStoreObjFilesCompressed", Value = "true", MarkUsed = false)]
+		[RequiresUniqueBuildEnvironment]
+		public bool bAllowUbaCompression { get; set; }
+
+		/// <summary>
 		/// Whether static code analysis should be enabled.
 		/// </summary>
 		[CommandLine("-StaticAnalyzer")]
@@ -2075,6 +2204,11 @@ namespace UnrealBuildTool
 		/// </summary>
 		[XmlConfigFile(Category = "BuildConfiguration")]
 		public bool bOmitFramePointers { get; set; } = true;
+
+		/// <summary>
+		/// If we want to compress the debug files
+		/// </summary>
+		public bool bCompressDebugFile { get; set; } = true;
 
 		/// <summary>
 		/// Whether to enable support for C++20 modules
@@ -2222,6 +2356,12 @@ namespace UnrealBuildTool
 		public bool bIgnoreBuildOutputs { get; set; }
 
 		/// <summary>
+		/// Whether to disable UE_DEPRECATED_FORENGINE deprecation warnings in non-engine modules.
+		/// This should only be used in the short-term as these deprecations will get removed.
+		/// </summary>
+		public bool bDisableEngineDeprecations { get; set; }
+
+		/// <summary>
 		/// Indicates that this is a formal build, intended for distribution. This flag is automatically set to true when Build.version has a changelist set and is a promoted build.
 		/// The only behavior currently bound to this flag is to compile the default resource file separately for each binary so that the OriginalFilename field is set correctly.
 		/// By default, we only compile the resource once to reduce build times.
@@ -2350,8 +2490,8 @@ namespace UnrealBuildTool
 		public CStandardVersion CStandard { get; set; } = CStandardVersion.Default;
 
 		/// <summary>
-		/// Direct the compiler to generate AVX instructions wherever SSE or AVX intrinsics are used, on the x64 platforms that support it.
-		/// Note that by enabling this you are changing the minspec for the PC platform, and the resultant executable will crash on machines without AVX support.
+		/// Direct the compiler to generate AVX instructions wherever SSE or AVX intrinsics are used, on the x64 platforms that support it. Ignored for arm64.
+		/// Note that by enabling this you are changing the minspec for the target platform, and the resultant executable will crash on machines without AVX support.
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
 		[CommandLine("-MinCpuArchX64")]
@@ -2379,6 +2519,37 @@ namespace UnrealBuildTool
 			get => (LinkTypePrivate != TargetLinkType.Default) ? LinkTypePrivate : ((Type == global::UnrealBuildTool.TargetType.Editor) ? TargetLinkType.Modular : TargetLinkType.Monolithic);
 			set => LinkTypePrivate = value;
 		}
+
+		/// <summary>
+		/// Experimental: Strip unused exports from libraries. Only applies when LinkType is Modular
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[CommandLine("-StripExports")]
+		public bool bStripExports { get; set; }
+
+		/// <summary>
+		/// Experimental: Merge modular modules into combined libraries. Sets LinkType to Modular and enables bStripExports
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[CommandLine("-MergeModules")]
+		public bool bMergeModules { get; set; }
+
+		/// <summary>
+		/// Experimental: List of plugins (and their dependencies) to each merge into separate libraries. Requires bMergeModules to be enabled
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[CommandLine("-MergePlugins=", ListSeparator = '+')]
+		public List<string> MergePlugins { get; } = new();
+
+		/// <summary>
+		/// Experimental: List of merged plugins to move common dependencies to a shared library, requires MergePlugins. Can be chained
+		/// </summary>
+		public Dictionary<string, HashSet<string>> MergePluginsShared { get; } = new();
+
+		/// <summary>
+		/// Experimental: List of merged plugins to move to the main executable, requires MergePlugins. "Engine" for all shared engine modules and "Common" for shared project modules.
+		/// </summary>
+		public List<string> MergePluginsLaunch { get; } = new();
 
 		/// <summary>
 		/// Backing storage for the LinkType property.
@@ -2474,6 +2645,14 @@ namespace UnrealBuildTool
 			}
 			set => BuildEnvironmentOverride = value;
 		}
+
+		/// <summary>
+		/// If this true, a Shared build environment target will allow for any modules that are SDK version sensitive to have
+		/// a project side module when an SDK is overridden. For instance, if IOSTargetPlatform, which is marked as IOS SDK 
+		/// version relevant, is compiled for a Target with this set to true, and that target overrides the IOS SDK, then
+		/// this would compile to e.g. MyProject/Binaries/Win64/IOS/MyProject-IOSTargetPlatform.dll
+		/// </summary>
+		public bool bAllowSDKOverrideModulesWithSharedEnvironment { get; protected set; } = false;
 
 		/// <summary>
 		/// Whether to ignore violations to the shared build environment (eg. editor targets modifying definitions)
@@ -2639,7 +2818,7 @@ namespace UnrealBuildTool
 		public bool AllowsPerProjectSDKVersion()
 		{
 			// modular target with TargetBuildEnvironment.Shared build type cannot allow per-project SDKs
-			return LinkType == TargetLinkType.Monolithic || BuildEnvironment == TargetBuildEnvironment.Unique;
+			return LinkType == TargetLinkType.Monolithic || BuildEnvironment == TargetBuildEnvironment.Unique || bAllowSDKOverrideModulesWithSharedEnvironment;
 		}
 
 		/// <summary>
@@ -2653,11 +2832,11 @@ namespace UnrealBuildTool
 		/// </summary>
 		/// <param name="rulesAssembly">Assembly containing the target</param>
 		/// <param name="arguments">Commandline options that may affect the target creation</param>
-		/// <param name="propNamesThatRequireUnique">If the target requires a unique build environment, this will contain the names of the field/property that require unique</param>
+		/// <param name="propNamesThatRequireUnique">If the target requires a unique build environment, this will contain the names of the field/property that require unique, mapped to a pair of base and current value</param>
 		/// <param name="baseTargetName">If the target requires a unique build environment, this will contain the name of the target this was based on (UnrealGame, UnrealEditor, etc)/property</param>
 		/// <returns>true if a property was set such that it requires a unique build environment</returns>
 		/// <exception cref="BuildException"></exception>
-		public bool RequiresUniqueEnvironment(RulesAssembly rulesAssembly, CommandLineArguments? arguments, List<string> propNamesThatRequireUnique, [NotNullWhen(true)] out string? baseTargetName)
+		public bool RequiresUniqueEnvironment(RulesAssembly rulesAssembly, CommandLineArguments? arguments, Dictionary<string, (string?, string?)> propNamesThatRequireUnique, [NotNullWhen(true)] out string? baseTargetName)
 		{
 			baseTargetName = null;
 
@@ -2688,7 +2867,8 @@ namespace UnrealBuildTool
 			}
 
 			// Create the target rules for it
-			TargetRules baseRules = rulesAssembly.CreateTargetRules(baseTargetName, thisRules.Platform, thisRules.Configuration, thisRules.Architectures, null, arguments, Logger, IntermediateEnvironment: thisRules.IntermediateEnvironment);
+			// we need to validate the target, but we don't care about SDK versions at all
+			TargetRules baseRules = rulesAssembly.CreateTargetRules(baseTargetName, thisRules.Platform, thisRules.Configuration, thisRules.Architectures, null, arguments, Logger, IntermediateEnvironment: thisRules.IntermediateEnvironment, ValidationOptions: TargetRulesValidationOptions.ValidateTargetOnly);
 
 			// Get all the configurable objects
 			object[] baseObjects = baseRules.GetConfigurableObjects().ToArray();
@@ -2708,7 +2888,7 @@ namespace UnrealBuildTool
 					object? baseValue = field.GetValue(baseObjects[idx]);
 					if (!CheckValuesMatch(field.FieldType, thisValue, baseValue))
 					{
-						propNamesThatRequireUnique.Add(field.Name);
+						propNamesThatRequireUnique.Add(field.Name, (thisValue?.ToString(), baseValue?.ToString()));
 					}
 				}
 
@@ -2718,7 +2898,7 @@ namespace UnrealBuildTool
 					object? baseValue = property.GetValue(baseObjects[idx]);
 					if (!CheckValuesMatch(property.PropertyType, thisValue, baseValue))
 					{
-						propNamesThatRequireUnique.Add(property.Name);
+						propNamesThatRequireUnique.Add(property.Name, (thisValue?.ToString(), baseValue?.ToString()));
 					}
 				}
 			}
@@ -2762,12 +2942,12 @@ namespace UnrealBuildTool
 			// if we didn't set it above, check the properties
 			if (BuildEnvironmentOverride.Value == TargetBuildEnvironment.UniqueIfNeeded)
 			{
-				List<string> propNames = new();
+				Dictionary<string, (string?, string?)> propNames = new();
 				string? baseTargetName;
 				if (RequiresUniqueEnvironment(rulesAssembly, arguments, propNames, out baseTargetName))
 				{
 					logger.LogInformation("Setting {Target}'s BuildEnvironment to Unique, because it had changed the values of the propertues [ {Props} ] away from the values specified in {BaseTarget}",
-						Name, String.Join(", ", propNames), baseTargetName);
+						Name, String.Join(", ", propNames.Select(x => $"{x.Key}: {x.Value.Item1} != {x.Value.Item2}")), baseTargetName);
 					BuildEnvironment = TargetBuildEnvironment.Unique;
 				}
 				else
@@ -2810,7 +2990,8 @@ namespace UnrealBuildTool
 		/// <returns>Target instance</returns>
 		public static TargetRules Create(Type rulesType, TargetInfo targetInfo, FileReference? baseFile, FileReference? platformFile, IEnumerable<FileReference>? targetFiles, BuildSettingsVersion? defaultBuildSettings, ILogger logger)
 		{
-			TargetRules rules = (TargetRules)FormatterServices.GetUninitializedObject(rulesType);
+
+			TargetRules rules = (TargetRules)RuntimeHelpers.GetUninitializedObject(rulesType);
 			if (defaultBuildSettings.HasValue)
 			{
 				rules.DefaultBuildSettings = defaultBuildSettings.Value;
@@ -2830,7 +3011,7 @@ namespace UnrealBuildTool
 
 			// Find the constructor
 			ConstructorInfo? constructor = rulesType.GetConstructor(new Type[] { typeof(TargetInfo) })
-				?? throw new CompilationResultException(CompilationResult.RulesError, "No constructor found on {TargetName} which takes an argument of type TargetInfo.", rulesType.Name);
+				?? throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "No constructor found on {TargetName} which takes an argument of type TargetInfo.", rulesType.Name);
 
 			// Invoke the regular constructor
 			try
@@ -2839,7 +3020,7 @@ namespace UnrealBuildTool
 			}
 			catch (Exception ex)
 			{
-				throw new CompilationResultException(CompilationResult.RulesError, ex, "Unable to instantiate instance of '{TargetName}' object type from compiled assembly '{AssemblyPath}'.  Unreal Build Tool creates an instance of your module's 'Rules' object in order to find out about your module's requirements.  The CLR exception details may provide more information: {ExceptionMessage}",
+				throw new CompilationResultException(CompilationResult.RulesError, ex, KnownLogEvents.RulesAssembly, "Unable to instantiate instance of '{TargetName}' object type from compiled assembly '{AssemblyPath}'.  Unreal Build Tool creates an instance of your module's 'Rules' object in order to find out about your module's requirements.  The CLR exception details may provide more information: {ExceptionMessage}",
 					rulesType.Name, Path.GetFileNameWithoutExtension(rulesType.Assembly?.Location) ?? "Unknown Assembly", ex.ToString());
 			}
 
@@ -2850,7 +3031,7 @@ namespace UnrealBuildTool
 		/// Constructor.
 		/// </summary>
 		/// <param name="target">Information about the target being built</param>
-		public TargetRules(TargetInfo target)
+		protected TargetRules(TargetInfo target)
 		{
 			DefaultName = target.Name;
 			Platform = target.Platform;
@@ -2865,6 +3046,14 @@ namespace UnrealBuildTool
 			if (Logger == null)
 			{
 				throw new NotSupportedException("Logger property must be initialized by the caller.");
+			}
+
+			// TODO: Need to get the compression setting from UBA so we can invalidate actions if the compression changes.
+			// Figure out a better way to do this.
+			{
+				UnrealBuildAcceleratorConfig ubaConfig = new();
+				XmlConfig.ApplyTo(ubaConfig);
+				bAllowUbaCompression = ubaConfig.bStoreObjFilesCompressed;
 			}
 
 			// Read settings from config files
@@ -3172,6 +3361,7 @@ namespace UnrealBuildTool
 				if ((int)value == (int)BuildSettingsVersion.Latest)
 				{
 					latestVersion = value;
+					break;
 				}
 			}
 
@@ -3215,15 +3405,53 @@ namespace UnrealBuildTool
 
 			if (IncludeOrderVersion <= (EngineIncludeOrderVersion)(EngineIncludeOrderVersion.Latest - 1) && ForcedIncludeOrder == null)
 			{
+				// Resolve EngineIncludeOrderVersion.Latest to the version it's assigned to
+				EngineIncludeOrderVersion latestEngineIncludeOrder = EngineIncludeOrderVersion.Latest;
+				foreach (EngineIncludeOrderVersion value in Enum.GetValues(typeof(BuildSettingsVersion)))
+				{
+					if ((int)value == (int)EngineIncludeOrderVersion.Latest)
+					{
+						latestEngineIncludeOrder = value;
+						break;
+					}
+				}
+
 				diagnostics.Add("[Upgrade]");
 				diagnostics.Add("[Upgrade] Using backward-compatible include order. The latest version of UE has changed the order of includes, which may require code changes. The current setting is:");
-				diagnostics.Add(String.Format("[Upgrade]     IncludeOrderVersion = EngineIncludeOrderVersion.{0}", IncludeOrderVersion));
-				diagnostics.Add(String.Format("[Upgrade] Suppress this message by setting 'IncludeOrderVersion = EngineIncludeOrderVersion.{0};' in {1}.", EngineIncludeOrderVersion.Latest, File!.GetFileName()));
+				diagnostics.Add($"[Upgrade]     IncludeOrderVersion = EngineIncludeOrderVersion.{IncludeOrderVersion}");
+				diagnostics.Add($"[Upgrade] Suppress this message by setting 'IncludeOrderVersion = EngineIncludeOrderVersion.{latestEngineIncludeOrder};' in {File!.GetFileName()}.");
 				diagnostics.Add("[Upgrade] Alternatively you can set this to 'EngineIncludeOrderVersion.Latest' to always use the latest include order. This will potentially cause compile errors when integrating new versions of the engine.");
 				diagnostics.Add("[Upgrade]");
 			}
 
 			Logger.LogDebug("Using EngineIncludeOrderVersion.{Version} for target {Target}", IncludeOrderVersion, File!.GetFileName());
+
+			if (CppStandardEngine < CppStandardVersion.EngineDefault)
+			{
+				diagnostics.Add("[Upgrade]");
+				diagnostics.Add($"[Upgrade] The latest version of UE no longer supports CppStandardVersion.{CppStandardEngine} which may require code changes.");
+				diagnostics.Add($"[Upgrade] Suppress this message by removing 'CppStandardEngine = CppStandardVersion.{CppStandardEngine};' in {File!.GetFileName()}.");
+				diagnostics.Add("[Upgrade]");
+			}
+
+			if (CppStandard < CppStandardVersion.Default)
+			{
+				// Resolve CppStandardVersion.Default to the version it's assigned to
+				CppStandardVersion defaultCppStandard = CppStandardVersion.Latest;
+				foreach (CppStandardVersion value in Enum.GetValues(typeof(CppStandardVersion)))
+				{
+					if ((int)value == (int)CppStandardVersion.Default)
+					{
+						defaultCppStandard = value;
+						break;
+					}
+				}
+
+				diagnostics.Add("[Upgrade]");
+				diagnostics.Add($"[Upgrade] The latest version of UE no longer supports CppStandardVersion.{CppStandard} which may require code changes.");
+				diagnostics.Add($"[Upgrade] Suppress this message by setting 'CppStandard = CppStandardVersion.{defaultCppStandard};' in {File!.GetFileName()}.");
+				diagnostics.Add("[Upgrade]");
+			}
 		}
 
 		/// <summary>

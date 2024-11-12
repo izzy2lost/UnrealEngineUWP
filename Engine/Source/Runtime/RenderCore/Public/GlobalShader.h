@@ -33,6 +33,9 @@ class FShaderUniformBufferParameter;
 class FVertexFactoryType;
 class ITargetPlatform;
 struct FShaderCompilerEnvironment;
+#if WITH_EDITOR
+struct FShaderCacheLoadContext;
+#endif
 
 /** Used to identify the global shader map in compile queues. */
 extern RENDERCORE_API const int32 GlobalShaderMapId;
@@ -51,6 +54,8 @@ public:
 	const TMap<FString, TArray<FShaderTypeDependency>>& GetShaderFilenameToDependeciesMap() const { return ShaderFilenameToDependenciesMap; }
 
 	RENDERCORE_API bool WithEditorOnly() const;
+
+	inline EShaderPermutationFlags GetShaderPermutationFlags() const { return ::GetShaderPermutationFlags(LayoutParams); }
 
 private:
 	FPlatformTypeLayoutParameters LayoutParams;
@@ -95,7 +100,9 @@ public:
 		ConstructSerializedType InConstructSerializedRef,
 		ConstructCompiledType InConstructCompiledRef,
 		ShouldCompilePermutationType InShouldCompilePermutationRef,
+		ShouldPrecachePermutationType InShouldPrecachePermutationRef,
 		GetRayTracingPayloadTypeType InGetRayTracingPayloadTypeRef,
+		GetShaderBindingLayoutType InGetShaderBindingLayoutTypeRef,
 #if WITH_EDITOR
 		ModifyCompilationEnvironmentType InModifyCompilationEnvironmentRef,
 		ValidateCompiledResultType InValidateCompiledResultRef,
@@ -107,7 +114,9 @@ public:
 			InConstructSerializedRef,
 			InConstructCompiledRef,
 			InShouldCompilePermutationRef,
+			InShouldPrecachePermutationRef,
 			InGetRayTracingPayloadTypeRef,
+			InGetShaderBindingLayoutTypeRef,
 #if WITH_EDITOR
 			InModifyCompilationEnvironmentRef,
 			InValidateCompiledResultRef,
@@ -130,6 +139,11 @@ public:
 	bool ShouldCompilePermutation(EShaderPlatform Platform, int32 PermutationId, EShaderPermutationFlags Flags) const
 	{
 		return FShaderType::ShouldCompilePermutation(FGlobalShaderPermutationParameters(GetFName(), Platform, PermutationId, Flags));
+	}
+
+	EShaderPermutationPrecacheRequest ShouldPrecachePermutation(EShaderPlatform Platform, int32 PermutationId, EShaderPermutationFlags Flags) const
+	{
+		return FShaderType::ShouldPrecachePermutation(FGlobalShaderPermutationParameters(GetFName(), Platform, PermutationId, Flags));
 	}
 
 #if WITH_EDITOR
@@ -169,7 +183,19 @@ class FGlobalShaderMapSection : public TShaderMap<FGlobalShaderMapContent, FShad
 public:
 	RENDERCORE_API static FGlobalShaderMapSection* CreateFromArchive(FArchive& Ar);
 
-	RENDERCORE_API bool Serialize(FArchive& Ar);
+#if WITH_EDITOR
+	RENDERCORE_API static FGlobalShaderMapSection* CreateFromCache(FShaderCacheLoadContext& Ctx);
+#endif
+
+	UE_DEPRECATED(5.5, "Use overload accepting a FShaderSerializeContext instead")
+	RENDERCORE_API bool Serialize(FArchive& Ar)
+	{
+		return false;
+	}
+
+	RENDERCORE_API bool Serialize(FShaderSerializeContext& Ctx);
+	RENDERCORE_API virtual void GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const override;
+	RENDERCORE_API virtual void GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const override;
 private:
 	inline FGlobalShaderMapSection() 
 	{ 
@@ -209,6 +235,11 @@ public:
 	{
 		TShaderRef<FShader> Shader = GetShader(&ShaderType::GetStaticType(), PermutationId);
 		checkf(Shader.IsValid(), TEXT("Failed to find shader type %s in Platform %s"), ShaderType::GetStaticType().GetName(), *LegacyShaderPlatformToShaderFormat(Platform).ToString());
+
+		// Validate that the permutation has been precached
+		ensureMsgf(ShaderType::ShouldPrecachePermutation(FGlobalShaderPermutationParameters(ShaderType::GetStaticType().GetFName(), Platform, PermutationId)) != EShaderPermutationPrecacheRequest::NotUsed,
+			TEXT("Using a global shader permutation of %s which hasn't been requested for precaching at runtime. Check the implementation of ShouldPrecachePermutation on the global shader and make sure all required or development only permutations are requested for PSO precaching"), ShaderType::GetStaticType().GetName());
+
 		return TShaderRef<ShaderType>::Cast(Shader);
 	}
 
@@ -286,7 +317,7 @@ public:
 	using ShaderMetaType = FGlobalShaderType;
 	using FPermutationParameters = FGlobalShaderPermutationParameters;
 
-	FGlobalShader() : FShader() {}
+	FGlobalShader() = default;
 
 	RENDERCORE_API FGlobalShader(const ShaderMetaType::CompiledShaderInitializerType& Initializer);
 	
@@ -297,19 +328,8 @@ public:
 		SetUniformBufferParameter(BatchedParameters, ViewUniformBufferParameter, ViewUniformBuffer);
 	}
 
-	template<typename TViewUniformShaderParameters, typename ShaderRHIParamRef, typename TRHICmdList>
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	inline void SetParameters(TRHICmdList& RHICmdList, const ShaderRHIParamRef ShaderRHI, FRHIUniformBuffer* ViewUniformBuffer)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-		SetParameters<TViewUniformShaderParameters>(BatchedParameters, ViewUniformBuffer);
-		RHICmdList.SetBatchedShaderParameters(ShaderRHI, BatchedParameters);
-	}
-
-	static inline bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return FShader::ShouldCompilePermutation(Parameters);
-	}
+	using FShader::ShouldCompilePermutation;
+	using FShader::ShouldPrecachePermutation;
 	
 	static inline void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& Environment) { };
 };
@@ -333,21 +353,6 @@ public:
 	{
 	}
 };
-
-/**
-* Container for Backup/RestoreGlobalShaderMap functions.
-* Includes shader data from any populated feature levels.
-*/
-struct FGlobalShaderBackupData
-{
-	TUniquePtr<TArray<uint8>> FeatureLevelShaderData[ERHIFeatureLevel::Num];
-};
-
-/** Backs up all global shaders to memory through serialization, and removes all references to FShaders from the global shader map. */
-extern RENDERCORE_API void BackupGlobalShaderMap(FGlobalShaderBackupData& OutGlobalShaderBackup);
-
-/** Recreates shaders in the global shader map from the serialized memory. */
-extern RENDERCORE_API void RestoreGlobalShaderMap(const FGlobalShaderBackupData& GlobalShaderData);
 
 /**
  * Accesses the global shader map.  This is a global FGlobalShaderMap which contains an instance of each global shader type.

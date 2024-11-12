@@ -164,7 +164,7 @@ int32 ShapedTextCacheUtil::FindCharacterIndexAtOffset(const FShapedTextCacheRef&
 	if (GlyphOffsetResultValue.Glyph && GlyphOffsetResultValue.Glyph->NumGraphemeClustersInGlyph > 1)
 	{
 		// Process each grapheme cluster within the ligature
-		const FString LigatureString = FString(GlyphOffsetResultValue.Glyph->NumCharactersInGlyph, InText + GlyphOffsetResultValue.Glyph->SourceIndex);
+		const FString LigatureString = FString::ConstructFromPtrSize(InText + GlyphOffsetResultValue.Glyph->SourceIndex, GlyphOffsetResultValue.Glyph->NumCharactersInGlyph);
 		TSharedRef<IBreakIterator> GraphemeBreakIterator = FBreakIterator::CreateCharacterBoundaryIterator();
 		GraphemeBreakIterator->SetString(LigatureString);
 

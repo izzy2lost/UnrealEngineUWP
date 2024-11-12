@@ -281,6 +281,8 @@ void USignificanceManager::RegisterManagedObject(FManagedObjectInfo* ObjectInfo)
 
 void USignificanceManager::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	USignificanceManager* This = CastChecked<USignificanceManager>(InThis);
 	// Do not allow eliminating references here so that we don't have to deal with cleaning up management info during GC.
 	// All managed objects should be removed from the significance manager before being marked for explicit destruction.
@@ -303,11 +305,11 @@ void USignificanceManager::UnregisterObject(UObject* Object)
 			const int32 Index = ObjWithSequentialPostWork.IndexOfByPredicate([ObjectInfo](const FSequentialPostWorkPair& WorkPair) { return WorkPair.ObjectInfo == ObjectInfo; });
 			if (Index != -1)
 			{
-				ObjWithSequentialPostWork.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				ObjWithSequentialPostWork.RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 		}
 
-		ObjArray.RemoveSwap(ObjectInfo, EAllowShrinking::No);
+		ObjArray.RemoveSingleSwap(ObjectInfo, EAllowShrinking::No);
 
 		TArray<FManagedObjectInfo*>& ObjectsWithTag = ManagedObjectsByTag.FindChecked(ObjectInfo->GetTag());
 		if (ObjectsWithTag.Num() == 1)
@@ -340,11 +342,11 @@ void USignificanceManager::UnregisterAll(FName Tag)
 				const int32 Index = ObjWithSequentialPostWork.IndexOfByPredicate([ManagedObj](const FSequentialPostWorkPair& WorkPair) { return WorkPair.ObjectInfo == ManagedObj; });
 				if (Index != -1)
 				{
-					ObjWithSequentialPostWork.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					ObjWithSequentialPostWork.RemoveAtSwap(Index, EAllowShrinking::No);
 				}
 			}
 
-			ObjArray.RemoveSwap(ManagedObj, EAllowShrinking::No);
+			ObjArray.RemoveSingleSwap(ManagedObj, EAllowShrinking::No);
 			ManagedObjects.Remove(ManagedObj->GetObject());
 			if (ManagedObj->PostSignificanceFunction != nullptr)
 			{

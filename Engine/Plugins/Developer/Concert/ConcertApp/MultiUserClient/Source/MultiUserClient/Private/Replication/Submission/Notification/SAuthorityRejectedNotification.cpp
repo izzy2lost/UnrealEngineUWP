@@ -12,7 +12,7 @@
 
 #define LOCTEXT_NAMESPACE "SAuthorityRejectedNotification"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	void SAuthorityRejectedNotification::Construct(const FArguments& InArgs)
 	{

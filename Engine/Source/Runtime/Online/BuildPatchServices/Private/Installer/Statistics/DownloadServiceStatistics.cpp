@@ -142,7 +142,7 @@ namespace BuildPatchServices
 			Result.Empty(Downloads.Num());
 			for (const TPair<int32, FDownloadTuple>& Download : Downloads)
 			{
-				DownloadData.Emplace(FPaths::GetCleanFilename(Download.Value.Get<0>()));
+				DownloadData.Emplace(Download.Value.Get<0>());
 
 				Result.AddDefaulted();
 				FDownload& Element = Result.Last();

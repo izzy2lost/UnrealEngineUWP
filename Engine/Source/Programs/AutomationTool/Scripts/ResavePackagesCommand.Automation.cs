@@ -12,18 +12,18 @@ using EpicGames.Core;
 using UnrealBuildBase;
 using Microsoft.Extensions.Logging;
 
-/// <summary>
-/// Helper command used for resaving a projects packages.
-/// </summary>
-/// <remarks>
-/// Command line parameters used by this command:
-/// -project					- Absolute path to a .uproject file
-/// -CommandletTargetName		- The Target used in running the commandlet
-/// -StakeholdersEmailAddresses	- Users to notify of completion
-/// 
-/// </remarks>
 namespace AutomationScripts.Automation
 {
+	/// <summary>
+	/// Helper command used for resaving a projects packages.
+	/// </summary>
+	/// <remarks>
+	/// Command line parameters used by this command:
+	/// -project					- Absolute path to a .uproject file
+	/// -CommandletTargetName		- The Target used in running the commandlet
+	/// -StakeholdersEmailAddresses	- Users to notify of completion
+	/// 
+	/// </remarks>
 	[RequireP4]
 	public class ResavePackages : BuildCommand
 	{

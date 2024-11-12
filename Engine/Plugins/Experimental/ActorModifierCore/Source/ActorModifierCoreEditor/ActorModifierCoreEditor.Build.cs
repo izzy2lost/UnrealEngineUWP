@@ -20,7 +20,9 @@ public class ActorModifierCoreEditor : ModuleRules
 			new string[]
 			{
 				"ActorModifierCore",
+				"ActorModifierCoreBlueprint",
 				"ApplicationCore",
+				"AssetDefinition",
 				"CoreUObject",
 				"CustomDetailsView",
 				"EditorSubsystem",
@@ -36,7 +38,7 @@ public class ActorModifierCoreEditor : ModuleRules
 				"ToolMenus",
 				"ToolWidgets",
 				"UnrealEd",
-				"WorkspaceMenuStructure",
+				"WorkspaceMenuStructure"
 			}
 		);
 	}

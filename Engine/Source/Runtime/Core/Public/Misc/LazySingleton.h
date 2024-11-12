@@ -8,7 +8,7 @@
 class FLazySingleton
 {
 protected:
-	template<class T> static void Construct(void* Place)	{ new (Place) T; }
+	template<class T> static void Construct(void* Place)	{ ::new (Place) T; }
 	template<class T> static void Destruct(T* Instance)		{ Instance->~T(); }
 };
 

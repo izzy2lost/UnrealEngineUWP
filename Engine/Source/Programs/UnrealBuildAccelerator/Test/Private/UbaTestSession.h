@@ -117,36 +117,64 @@ namespace uba
 		out.Append(IsWindows ? TC("UbaTestApp.exe") : TC("UbaTestApp"));
 	}
 
+	bool CreateTextFile(StringBufferBase& outPath, LoggerWithWriter& logger, const tchar* workingDir, const tchar* fileName, const char* text)
+	{
+		outPath.Clear().Append(workingDir).EnsureEndsWithSlash().Append(fileName);
+		FileAccessor fr(logger, outPath.data);
+		if (!fr.CreateWrite())
+			return false;
+		fr.Write(text, strlen(text) + 1);
+		return fr.Close();
+	}
+
 	bool RunTestApp(LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 	{
 		StringBuffer<MaxPath> testApp;
 		GetTestAppPath(logger, testApp);
 
+		StringBuffer<MaxPath> fileR;
+		if (!CreateTextFile(fileR, logger, workingDir, TC("FileR.h"), "Foo"))
+			return false;
+
 		{
-			StringBuffer<MaxPath> fileR;
-			fileR.Append(workingDir).Append(TC("FileR.h"));
-			FileAccessor fr(logger, fileR.data);
-			fr.CreateWrite();
-			fr.Write("Foo", 4);
-			fr.Close();
-		}
-		{
-			StringBuffer<MaxPath> dir1;
-			dir1.Append(workingDir).Append(TC("Dir1"));
-			if (!CreateDirectoryW(dir1.data))
-				return logger.Error(TC("Failed to create dir %s"), dir1.data);
+			StringBuffer<MaxPath> dir;
+			dir.Append(workingDir).Append(TC("Dir1"));
+			if (!CreateDirectoryW(dir.data))
+				return logger.Error(TC("Failed to create dir %s"), dir.data);
+
+			dir.Clear().Append(workingDir).Append(TC("Dir2"));
+			if (!CreateDirectoryW(dir.data))
+				return logger.Error(TC("Failed to create dir %s"), dir.data);
+			dir.EnsureEndsWithSlash().Append(TC("Dir3"));
+			if (!CreateDirectoryW(dir.data))
+				return logger.Error(TC("Failed to create dir %s"), dir.data);
+			dir.EnsureEndsWithSlash().Append(TC("Dir4"));
+			if (!CreateDirectoryW(dir.data))
+				return logger.Error(TC("Failed to create dir %s"), dir.data);
+			dir.EnsureEndsWithSlash().Append(TC("Dir5"));
+			if (!CreateDirectoryW(dir.data))
+				return logger.Error(TC("Failed to create dir %s"), dir.data);
 		}
 
 		ProcessStartInfo processInfo;
 		processInfo.application = testApp.data;
 		processInfo.workingDir = workingDir;
+		processInfo.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type)
+			{
+				LoggerWithWriter(g_consoleLogWriter, TC("")).Info(line);
+			};
+
 		ProcessHandle process = runProcess(processInfo);
 		if (!process.WaitForExit(100000))
 			return logger.Error(TC("UbaTestApp did not exit in 10 seconds"));
 		u32 exitCode = process.GetExitCode();
 
 		if (exitCode != 0)
+		{
+			for (auto& logLine : process.GetLogLines())
+				logger.Error(logLine.text.c_str());
 			return logger.Error(TC("UbaTestApp returned exit code %u"), exitCode);
+		}
 
 		{
 			StringBuffer<MaxPath> fileW2;
@@ -289,30 +317,21 @@ namespace uba
 
 	bool TestCustomService(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
-		if (!IsWindows)
-			return true;
-
 		return RunRemote(logger, testRootDir, RunCustomService);
 	}
 
 	bool TestDetouredClang(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
-		if (IsWindows)
-			return true;
 		return RunLocal(logger, testRootDir, RunClang);
 	}
 
 	bool TestRemoteDetouredClang(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
-		if (IsWindows)
-			return true;
 		return RunRemote(logger, testRootDir, RunClang);
 	}
 
 	bool TestDetouredTouch(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
-		if (IsWindows)
-			return true;
 		return RunLocal(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 			{
 				StringBuffer<> file;

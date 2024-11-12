@@ -29,6 +29,7 @@
 #include "Styling/SlateIconFinder.h"
 #include "Widgets/Input/NumericTypeInterface.h"
 #include "FrameNumberDetailsCustomization.h"
+#include "Sequencer/ControlRigParameterTrackEditor.h"
 
 #define LOCTEXT_NAMESPACE "SConstraintsWidget"
 
@@ -416,6 +417,18 @@ void SConstraintMenuEntry::NotifyPostChange(const FPropertyChangedEvent& InPrope
 
 FReply SConstraintMenuEntry::CreateSelectionPicker(const bool bUseDefault) const
 {
+	struct FCreationArgs
+	{
+		FOnConstraintCreated CreationDelegate;
+		ETransformConstraintType ConstraintType = ETransformConstraintType::Parent;
+		bool bUseDefault = false;
+	};
+
+	FCreationArgs Args;
+	Args.CreationDelegate = OnConstraintCreated;
+	Args.ConstraintType = ConstraintType;
+	Args.bUseDefault = bUseDefault;
+	
 	// FIXME temp approach for selecting the parent
 	FSlateApplication::Get().DismissAllMenus();
 	
@@ -424,9 +437,9 @@ FReply SConstraintMenuEntry::CreateSelectionPicker(const bool bUseDefault) const
 	ActorPickerMode.BeginActorPickingMode(
 		FOnGetAllowedClasses(), 
 		FOnShouldFilterActor(), 
-		FOnActorSelected::CreateLambda([CreationDelegate = OnConstraintCreated, Type = ConstraintType, bUseDefault](AActor* InActor)
+		FOnActorSelected::CreateLambda([Args](AActor* InActor)
 		{
-			CreateConstraint(InActor, CreationDelegate, Type, bUseDefault);
+			CreateConstraint(InActor, Args.CreationDelegate, Args.ConstraintType, Args.bUseDefault);
 		}) );
 	
 	return FReply::Handled();
@@ -492,7 +505,7 @@ void SConstraintMenuEntry::CreateConstraint(
 						{
 							Constraint->Evaluate();
 						}
-						FMovieSceneConstraintChannelHelper::AddConstraintToSequencer(WeakSequencer.Pin(), Constraint);
+						FControlRigParameterTrackEditor::AddConstraintToSequencer(WeakSequencer.Pin(), Constraint);
 					}
 					else
 					{
@@ -974,6 +987,8 @@ int32 FBaseConstraintListWidget::RefreshConstraintList()
 		return 0;
 	}
 
+	static constexpr bool bSorted = true;
+	
 	const TArray<AActor*> Selection = GetCurrentSelection();
 
 	const bool bIsConstraintsActor = Selection.Num() == 1 && Selection[0]->IsA<AConstraintsActor>();
@@ -984,14 +999,7 @@ int32 FBaseConstraintListWidget::RefreshConstraintList()
 		if (bIsConstraintsActor)
 		{
 			const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
-			static constexpr bool bSorted = true;
-			TArray< TObjectPtr<UTickableConstraint> > StaticConstraints;
-
-			StaticConstraints = Controller.GetStaticConstraints(bSorted);
-			for (TObjectPtr<UTickableConstraint>& Constraint : StaticConstraints)
-			{
-				Constraints.Add(Constraint);
-			}
+			Constraints = Controller.GetStaticConstraints(bSorted);
 		}
 		else
 		{
@@ -999,6 +1007,7 @@ int32 FBaseConstraintListWidget::RefreshConstraintList()
 			{
 				FTransformConstraintUtils::GetParentConstraints(World, Actor, Constraints);
 			}
+			
 			//remove if not active...
 			for (int32 Index = Constraints.Num() - 1; Index >= 0; --Index)
 			{
@@ -1012,7 +1021,6 @@ int32 FBaseConstraintListWidget::RefreshConstraintList()
 	else
 	{
 		const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
-		static constexpr bool bSorted = true;
 		Constraints = Controller.GetAllConstraints(bSorted);
 		if (ShowConstraints == EShowConstraints::ShowLevelSequence)
 		{
@@ -1480,7 +1488,7 @@ TSharedPtr<SWidget> SConstraintsEditionWidget::CreateContextMenu()
 					const FFrameRate TickResolution = Sequencer->GetFocusedTickResolution();
 					const FFrameTime FrameTime = Sequencer->GetLocalTime().ConvertTo(TickResolution);
 					const FFrameNumber Time = FrameTime.GetFrame();
-					FMovieSceneConstraintChannelHelper::Compensate(WeakSequencer.Pin(), TransformConstraint, TOptional<FFrameNumber>(Time));
+					FMovieSceneConstraintChannelHelper::Compensate(WeakSequencer.Pin(), TransformConstraint, TOptional<FFrameNumber>(Time), true /*bCompPreviousTick*/);
 				}), IsCompensationEnabled),
 				NAME_None,
 				EUserInterfaceActionType::Button);
@@ -1491,7 +1499,7 @@ TSharedPtr<SWidget> SConstraintsEditionWidget::CreateContextMenu()
 				FSlateIcon(),
 				FUIAction(FExecuteAction::CreateLambda([TransformConstraint, this]()
 				{
-					FMovieSceneConstraintChannelHelper::Compensate(WeakSequencer.Pin(), TransformConstraint, TOptional<FFrameNumber>());
+					FMovieSceneConstraintChannelHelper::Compensate(WeakSequencer.Pin(), TransformConstraint, TOptional<FFrameNumber>(), true /*bCompPreviousTick*/);
 				}), IsCompensationEnabled),
 				NAME_None,
 				EUserInterfaceActionType::Button);

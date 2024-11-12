@@ -3,39 +3,10 @@
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 
 #include "ChaosVDRecording.h"
+#include "ChaosVDScene.h"
+#include "Actors/ChaosVDSolverInfoActor.h"
 
-void FChaosVDSceneQuerySelectionHandle::SetIsSelected(bool bNewSelected)
-{
-	if (const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataPtr = QueryData.Pin())
-	{
-		QueryDataPtr->bIsSelectedInEditor = bNewSelected;
-		if (QueryDataPtr && QueryDataPtr->SQVisitData.IsValidIndex(SQVisitIndex))
-		{
-			QueryDataPtr->SQVisitData[SQVisitIndex].bIsSelectedInEditor = bNewSelected;
-		}
-		else if (QueryDataPtr)
-		{
-			// If we end up with a invalid index, make sure that no visit is selected
-			SQVisitIndex = INDEX_NONE;
-			for (FChaosVDQueryVisitStep& VisitData : QueryDataPtr->SQVisitData)
-			{
-				VisitData.bIsSelectedInEditor = false;
-			}
-		}
-	}
-}
-
-bool FChaosVDSceneQuerySelectionHandle::IsSelected() const
-{
-	if (const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataPtr = QueryData.Pin())
-	{
-		return QueryDataPtr->bIsSelectedInEditor;
-	}
-
-	return false;
-}
-
-UChaosVDSceneQueryDataComponent::UChaosVDSceneQueryDataComponent() : CurrentSQSelectionHandle({nullptr, INDEX_NONE})
+UChaosVDSceneQueryDataComponent::UChaosVDSceneQueryDataComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	
@@ -43,18 +14,38 @@ UChaosVDSceneQueryDataComponent::UChaosVDSceneQueryDataComponent() : CurrentSQSe
 	bNavigationRelevant = false;
 }
 
-void UChaosVDSceneQueryDataComponent::UpdateQueriesFromFrameData(const FChaosVDGameFrameData& InGameFrameData)
+void UChaosVDSceneQueryDataComponent::ClearSceneQuerySelection()
 {
-	const int32 RecordedQueriesNum = InGameFrameData.RecordedSceneQueries.Num();
+	const AChaosVDSolverInfoActor* SolverInfo = Cast<AChaosVDSolverInfoActor>(GetOwner());
+	const TSharedPtr<FChaosVDScene> CVDScene = SolverInfo ? SolverInfo->GetScene().Pin() : nullptr;
+
+	if (TSharedPtr<FChaosVDSolverDataSelection> SolverDataSelectionObject = CVDScene ? CVDScene->GetSolverDataSelectionObject().Pin() : nullptr)
+	{
+		TSharedPtr<FChaosVDSolverDataSelectionHandle> SelectionHandle = SolverDataSelectionObject->GetCurrentSelectionHandle();
+		if (SelectionHandle && SelectionHandle->IsA<FChaosVDQueryDataWrapper>())
+		{
+			SolverDataSelectionObject->SelectData(nullptr);
+		}
+	}
+}
+
+void UChaosVDSceneQueryDataComponent::UpdateFromNewGameFrameData(const FChaosVDGameFrameData& InGameFrameData)
+{
+
+	const TMap<int32, TSharedPtr<FChaosVDQueryDataWrapper>>* RecordedQueriesByQueryID = InGameFrameData.RecordedSceneQueriesBySolverID.Find(SolverID);
+
+	if (!RecordedQueriesByQueryID)
+	{
+		return;
+	}
+	
+	const int32 RecordedQueriesNum = RecordedQueriesByQueryID->Num();
 
 	RecordedQueriesByType.Empty(RecordedQueriesNum);
 	RecordedQueriesByID.Empty(RecordedQueriesNum);
 	RecordedQueries.Empty(RecordedQueriesNum);
 
-	// Until we have a way to track and auto-select new queries instances between frames, just clear the selection
-	SelectQuery(FChaosVDSceneQuerySelectionHandle());
-
-	for (const TPair<int32, TSharedPtr<FChaosVDQueryDataWrapper>>& QueryIDPair : InGameFrameData.RecordedSceneQueries)
+	for (const TPair<int32, TSharedPtr<FChaosVDQueryDataWrapper>>& QueryIDPair : (*RecordedQueriesByQueryID))
 	{
 		if (TSharedPtr<FChaosVDQueryDataWrapper> QueryData = QueryIDPair.Value)
 		{
@@ -65,6 +56,8 @@ void UChaosVDSceneQueryDataComponent::UpdateQueriesFromFrameData(const FChaosVDG
 			RecordedQueries.Add(QueryData);
 		}
 	}
+	
+	ClearSceneQuerySelection();
 }
 
 TConstArrayView<TSharedPtr<FChaosVDQueryDataWrapper>> UChaosVDSceneQueryDataComponent::GetQueriesByType(EChaosVDSceneQueryType Type) const
@@ -92,30 +85,9 @@ TSharedPtr<FChaosVDQueryDataWrapper> UChaosVDSceneQueryDataComponent::GetQueryBy
 	return nullptr;
 }
 
-void UChaosVDSceneQueryDataComponent::SelectQuery(int32 QueryID)
+void UChaosVDSceneQueryDataComponent::ClearData()
 {
-	CurrentSQSelectionHandle.SetIsSelected(false);
-	CurrentSQSelectionHandle = FChaosVDSceneQuerySelectionHandle(GetQueryByID(QueryID), 0);
-	CurrentSQSelectionHandle.SetIsSelected(true);
-	
-	SelectionChangeDelegate.Broadcast(CurrentSQSelectionHandle);
-}
-
-void UChaosVDSceneQueryDataComponent::SelectQuery(const FChaosVDSceneQuerySelectionHandle& SelectionHandle)
-{
-	CurrentSQSelectionHandle.SetIsSelected(false);
-	CurrentSQSelectionHandle = SelectionHandle;
-	CurrentSQSelectionHandle.SetIsSelected(true);
-	
-	SelectionChangeDelegate.Broadcast(CurrentSQSelectionHandle);
-}
-
-bool UChaosVDSceneQueryDataComponent::IsQuerySelected(int32 QueryID) const
-{
-	if (const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataPtr = CurrentSQSelectionHandle.GetQueryData().Pin())
-	{
-		return QueryDataPtr->ID == QueryID;
-	}
-
-	return false;
+	RecordedQueriesByType.Reset();
+	RecordedQueriesByID.Reset();
+	RecordedQueries.Reset();
 }

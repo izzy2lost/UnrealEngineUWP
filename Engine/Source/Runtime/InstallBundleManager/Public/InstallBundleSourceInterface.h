@@ -26,7 +26,7 @@ public:
 	virtual ~IInstallBundleSource() {}
 
 	// Returns a unique id for this source
-	virtual EInstallBundleSourceType GetSourceType() const = 0;
+	virtual FInstallBundleSourceType GetSourceType() const = 0;
 
 	// Returns the how this source should be weighted when combined with other sources
 	virtual float GetSourceWeight() const { return 1.0f; }
@@ -118,6 +118,7 @@ public:
 
 	// Cancel the install for the specified bundles
 	virtual void CancelBundles(TArrayView<const FName> BundleNames) {}
+	virtual void CancelBundles(TArrayView<const FName> BundleNames, TArray<FName>& OutAdditionalBunldlesToCancel) { CancelBundles(BundleNames); }
 
 	// User Pause/Resume bundles.
 	virtual void UserPauseBundles(TArrayView<const FName> BundleNames) {}
@@ -127,6 +128,7 @@ public:
 	// Currently only CheckForCellularDataUsage is supported
 	virtual EInstallBundleRequestFlags GetModifyableContentRequestFlags() const { return EInstallBundleRequestFlags::None; }
 	virtual void UpdateContentRequestFlags(TArrayView<const FName> BundleNames, EInstallBundleRequestFlags AddFlags, EInstallBundleRequestFlags RemoveFlags) {}
+	virtual void SetCellularPreference(int32 Value) {}
 
 	// Derived classes should implement this if their content install will take a significant amount of time
 	virtual TOptional<FInstallBundleSourceProgress> GetBundleProgress(FName BundleName) const { return TOptional<FInstallBundleSourceProgress>(); }
@@ -135,4 +137,8 @@ public:
 
 	// Called by bundle manager to pass through command line options to simulate errors
 	virtual void SetErrorSimulationCommands(const FString& CommandLine) {}
+
+#if !UE_BUILD_SHIPPING
+	virtual void GetDebugText(TArray<FString>& Output) {}
+#endif
 };

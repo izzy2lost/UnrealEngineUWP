@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGFlatten.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
 #include "RenderGraphUtils.h"
@@ -60,7 +62,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (Axis > InputRank || Axis < -InputRank)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Flatten 'Axis' attribute should be in the range [-r,r] with r being the rank of the input (name: %s) however axis is %d while rank is %d."), *InputTensorDescs[0].GetName(), Axis, InputRank);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Flatten: 'Axis' attribute should be in the range [-r,r] with r being the rank of the input (name: %s) however axis is %d while rank is %d."), *InputTensorDescs[0].GetName(), Axis, InputRank);
 				return false;
 			}
 			if (Axis < 0)
@@ -81,7 +83,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			const FTensorRDG& Data = *InputTensors[0];
 			const FTensorRDG& Output = *OutputTensors[0];
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Flatten");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorFlatten, "NNE.Operator.Hlsl.Flatten");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorFlatten);
 
 			AddCopyBufferPass(GraphBuilder, Output.GetBuffer(), Data.GetBuffer());

@@ -112,9 +112,9 @@ namespace CADLibrary
 			FString CADFileCachePath = CADFileData.GetCADCachePath();
 			if (IFileManager::Get().FileExists(*CADFileCachePath))
 			{
-				CADFileData.GetCADFileDescription().SetCacheFile(CADFileCachePath);
 				if (!FImportParameters::bGOverwriteCache)
 				{
+					CADFileData.GetCADFileDescription().SetCacheFile(CADFileCachePath);
 					FString MeshArchiveFilePath = CADFileData.GetMeshArchiveFilePath();
 					if (IFileManager::Get().FileExists(*MeshArchiveFilePath)) // the file has been proceed with same meshing parameters
 					{

@@ -94,6 +94,19 @@ bool FPCGPinProperties::operator==(const FPCGPinProperties& Other) const
 		bInvisiblePin == Other.bInvisiblePin;
 }
 
+uint32 GetTypeHash(const FPCGPinProperties& Value)
+{
+	uint32 Hash = GetTypeHash(Value.Label);
+	Hash = HashCombine(Hash, static_cast<uint32>(Value.AllowedTypes));
+	Hash = HashCombine(Hash, Value.bAllowMultipleConnections);
+	Hash = HashCombine(Hash, Value.bAllowMultipleData);
+	Hash = HashCombine(Hash, static_cast<uint32>(Value.Usage));
+	Hash = HashCombine(Hash, static_cast<uint32>(Value.PinStatus));
+	Hash = HashCombine(Hash, Value.bInvisiblePin);
+
+	return Hash;
+}
+
 void FPCGPinProperties::PostSerialize(const FArchive& Ar)
 {
 #if WITH_EDITOR
@@ -108,6 +121,25 @@ void FPCGPinProperties::PostSerialize(const FArchive& Ar)
 	}
 #endif // WITH_EDITOR
 }
+
+#if WITH_EDITOR
+bool FPCGPinProperties::CanEditChange(const FEditPropertyChain& PropertyChain) const
+{
+	if (FProperty* Property = PropertyChain.GetActiveNode()->GetValue())
+	{
+		if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(FPCGPinProperties, bAllowMultipleData))
+		{
+			return bAllowEditMultipleData;
+		}
+		else if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(FPCGPinProperties, bAllowMultipleConnections))
+		{
+			return bAllowMultipleData && bAllowEditMultipleConnections;
+		}
+	}
+
+	return true;
+}
+#endif // WITH_EDITOR
 
 UPCGPin::UPCGPin(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

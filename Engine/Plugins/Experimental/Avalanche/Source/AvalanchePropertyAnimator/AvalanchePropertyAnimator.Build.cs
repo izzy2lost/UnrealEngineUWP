@@ -11,6 +11,7 @@ public class AvalanchePropertyAnimator : ModuleRules
         PrivateDependencyModuleNames.AddRange(
             new string[]
             {
+	            "Avalanche",
 	            "AvalancheSequence",
 	            "AvalancheText",
 	            "Core",

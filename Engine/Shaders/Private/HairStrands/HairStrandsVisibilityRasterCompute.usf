@@ -833,7 +833,7 @@ void PlotInternal(int2 Coords, float AntiAliasingFactor, float4 P0, float4 P1, f
 {
 	const int2 IntraTileCoord = Coords - int2(((PackedTileMin >> 0) & 0xffff), ((PackedTileMin >> 16) & 0xffff));
 
-	if (all(IntraTileCoord >= 0) && all(IntraTileCoord < TileSize))
+	if (all(IntraTileCoord >= 0) && all(IntraTileCoord < int2(TileSize,TileSize)))
 	{
 		const float Alpha = ComputeLerpAlpha(Coords, P0.xy, P1.xy, SegmentLenSqRcp);
 		const float Depth = lerp(P0.z, P1.z, Alpha);
@@ -1250,7 +1250,7 @@ void Plot(int2 Coord, float4 P0, float4 P1, float Rad0, float Rad1, float Segmen
 {
 	const int2 IntraTileCoord = Coord - int2(((PackedHalfTileMin >> 0) & 0xffff), ((PackedHalfTileMin >> 16) & 0xffff));
 
-	if (all(IntraTileCoord >= 0) && all(IntraTileCoord < HalfTileSize))
+	if (all(IntraTileCoord >= 0) && all(IntraTileCoord < int2(HalfTileSize,HalfTileSize)))
 	{
 		const float Alpha = ComputeLerpAlpha(Coord, P0.xy, P1.xy, SegmentLenSqRcp);
 		const float Depth = lerp(P0.z, P1.z, Alpha);
@@ -1345,12 +1345,12 @@ void RasterMultiSampleCS(uint DispatchThreadID : SV_DispatchThreadID, uint Group
 		const uint Prim = uint((float(GroupThreadID) + 0.5f) / float(ThreadsPerSeg));
 		const uint PModTPS = GroupThreadID - (Prim * ThreadsPerSeg);
 
-		float4 SP0;
-		float4 SP1;
-		float Rad0;
-		float Rad1;
-		bool bIsEndPoint;
-		uint PrimMatID;
+		float4 SP0 = 0;
+		float4 SP1 = 0;
+		float Rad0 = 0;
+		float Rad1 = 0;
+		bool bIsEndPoint = false;
+		uint PrimMatID = ~0;
 
 		if (bThreadValid)
 		{

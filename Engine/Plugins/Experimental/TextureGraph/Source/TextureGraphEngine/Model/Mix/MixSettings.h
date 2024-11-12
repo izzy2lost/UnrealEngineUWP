@@ -30,6 +30,11 @@ UENUM()
 enum class EResolution
 {
 	Auto		  = 0		UMETA(DisplayName = "Auto"),
+	Resolution8   = 8		UMETA(DisplayName = "8"),
+	Resolution16  = 16		UMETA(DisplayName = "16"),
+	Resolution32  = 32		UMETA(DisplayName = "32"),
+	Resolution64  = 64		UMETA(DisplayName = "64"),
+	Resolution128 = 128		UMETA(DisplayName = "128"),
 	Resolution256 = 256		UMETA(DisplayName = "256"),
 	Resolution512 = 512		UMETA(DisplayName = "512"),
 	Resolution1024 = 1024	UMETA(DisplayName = "1024"),
@@ -94,7 +99,7 @@ class RenderMaterial_BP;
 typedef std::shared_ptr<RenderMaterial_BP>	RenderMaterial_BPPtr;
 
 class UMixInterface;
-
+class UStaticMesh;
 //////////////////////////////////////////////////////////////////////////
 /// MixSettings: Collectively represents the settings of a particular
 /// mix. These can be specified on a per mix basis. However, they can 
@@ -152,9 +157,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY()
 	bool							bAllowRectangularResolution = false;		// Allow rectangular outputs
 
-	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (NoResetToDefault))
+	UPROPERTY(EditAnywhere, Category = "Viewport Material", meta = (NoResetToDefault, ShowOnlyInnerProperties))
 	FViewportSettings				ViewportSettings;							// Viewport settings
 	
+	UPROPERTY(EditAnywhere, Category = "Viewport Mesh", DisplayName = "Static Mesh", NoClear)
+	TObjectPtr<UStaticMesh>			PreviewMesh;
+
+private:
 	/// Mesh related data 
 	RenderMeshPtr					_mesh;										/// The full mesh (along with all its parts) that was loaded 
 	TArray<RenderMeshPtr>			_sceneMeshes;								/// All the different submeshes that were added to the scene
@@ -166,7 +175,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	template<typename RenderMeshClass>
 	void							SetMeshInternal(RenderMeshPtr mesh, int meshType, FVector scale, FVector2D dimension);
 	void							SetMesh(RenderMeshPtr mesh);
-
+	
 protected:
 
 #if WITH_EDITOR
@@ -192,9 +201,14 @@ public:
 	
 	FViewportSettings&				GetViewportSettings();
 
+	DECLARE_MULTICAST_DELEGATE(FPreviewMeshUpdateEvent)
+	FPreviewMeshUpdateEvent OnPreviewMeshChangedEvent;
+	
 	//////////////////////////////////////////////////////////////////////////
 	/// Inline functions
 	//////////////////////////////////////////////////////////////////////////
+	[[nodiscard]] TObjectPtr<UStaticMesh> GetPreviewMesh() const{	return PreviewMesh; }
+	FORCEINLINE void				SetPreviewMesh(const TObjectPtr<UStaticMesh>& InPreviewMesh)	{	this->PreviewMesh = InPreviewMesh; }
 	FORCEINLINE bool				IsPlane() const { return bIsPlane; }
 	FORCEINLINE FVector2D			GetPlaneDimensions() const { return PlaneDimensions; }
 	FORCEINLINE const TargetTextureSetPtr& Target(size_t index) const { verify(index < _targets->size()); return (*_targets)[index]; }

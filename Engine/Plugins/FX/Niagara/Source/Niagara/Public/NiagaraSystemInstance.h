@@ -67,7 +67,14 @@ private:
 #endif
 };
 
-class FNiagaraSystemInstance 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class FNiagaraSystemInstanceFixLayout
+{
+public:
+	virtual ~FNiagaraSystemInstanceFixLayout() = default;
+};
+
+class FNiagaraSystemInstance : public FNiagaraSystemInstanceFixLayout
 {
 	friend class FNiagaraSystemSimulation;
 	friend class FNiagaraGPUSystemTick;
@@ -88,7 +95,7 @@ public:
 public:
 
 	/** Defines modes for resetting the System instance. */
-	enum class EResetMode
+	enum class EResetMode : uint8
 	{
 		/** Resets the System instance and simulations. */
 		ResetAll,
@@ -102,6 +109,13 @@ public:
 
 	ENiagaraSystemInstanceState SystemInstanceState = ENiagaraSystemInstanceState::None;
 
+	ENiagaraTickBehavior TickBehavior;
+
+private:
+	/** If async work was running when we request an Activate we will store the reset mode and perform in finalize to avoid stalling the GameThread. */
+	EResetMode DeferredResetMode = EResetMode::None;
+
+public:
 	FORCEINLINE bool GetAreDataInterfacesInitialized() const { return bDataInterfacesInitialized; }
 
 	/** Creates a new Niagara system instance. */
@@ -174,6 +188,7 @@ public:
 	NIAGARA_API bool RequiresEarlyViewData() const;
 	NIAGARA_API bool RequiresViewUniformBuffer() const;
 	NIAGARA_API bool RequiresRayTracingScene() const;
+	NIAGARA_API bool RequiresCurrentFrameNDC() const;
 
 	/** Requests the the simulation be reset on the next tick. */
 	NIAGARA_API void Reset(EResetMode Mode);
@@ -489,8 +504,6 @@ private:
 	FTransform WorldTransform;
 	TOptional<FVector> PreviousLocation;
 
-	ENiagaraTickBehavior TickBehavior;
-
 	/** The age of the System instance. */
 	float Age;
 
@@ -513,6 +526,9 @@ private:
 	int32 WarmupTickCount = -1;
 	float WarmupTickDelta = 0;
 	
+	FName IDName;
+	FNiagaraSystemInstanceID ID;
+
 	//-TODO:Stateless:
 	//TArray<TSharedRef<FNiagaraEmitterInstanceImpl, ESPMode::ThreadSafe>> Emitters;
 	TArray<FNiagaraEmitterInstanceRef> Emitters;
@@ -534,9 +550,7 @@ private:
 	TMap<FGuid, TSharedPtr<TArray<TSharedPtr<struct FNiagaraScriptDebuggerInfo, ESPMode::ThreadSafe>>, ESPMode::ThreadSafe>> CapturedFrames;
 #endif
 
-	FNiagaraSystemInstanceID ID;
-	FName IDName;
-	
+
 	/** Per instance data for any data interfaces requiring it. */
 	TArray<uint8, TAlignedHeapAllocator<16>> DataInterfaceInstanceData;
 	TArray<int32> PreTickDataInterfaces;
@@ -562,44 +576,46 @@ private:
 	FNiagaraOwnerParameters OwnerParameters[ParameterBufferCount];
 	TArray<FNiagaraEmitterParameters> EmitterParameters;
 
-	/** Used for double buffered global/system/emitter parameters */
-	uint32 CurrentFrameIndex : 1;
-	uint32 ParametersValid : 1;
-
 	// registered events for each of the emitters
 	typedef TPair<FName, FName> EmitterEventKey;
 	typedef TMap<EmitterEventKey, FNiagaraDataSet*> EventDataSetMap;
 	EventDataSetMap EmitterEventDataSetMap;
 
-	/** Indicates whether this instance must update itself rather than being batched up as most instances are. */
-	uint32 bSolo : 1;
-	uint32 bForceSolo : 1;
+	/** Used for double buffered global/system/emitter parameters */
+	uint8 CurrentFrameIndex : 1;
+	uint8 ParametersValid : 1;
 
-	uint32 bNotifyOnCompletion : 1;
+	/** Indicates whether this instance must update itself rather than being batched up as most instances are. */
+	uint8 bSolo : 1;
+	uint8 bForceSolo : 1;
+
+	uint8 bNotifyOnCompletion : 1;
 
 	/** If this system has emitters that will run GPU Simulations */
-	uint32 bHasGPUEmitters : 1;
+	uint8 bHasGPUEmitters : 1;
 	/** The system contains data interfaces that can have tick group prerequisites. */
-	uint32 bDataInterfacesHaveTickPrereqs : 1;
+	uint8 bDataInterfacesHaveTickPrereqs : 1;
 	/** The system contains data interfaces that can have tick group post requisites. */
-	uint32 bDataInterfacesHaveTickPostreqs : 1;
+	uint8 bDataInterfacesHaveTickPostreqs : 1;
 
-	uint32 bDataInterfacesInitialized : 1;
+	uint8 bDataInterfacesInitialized : 1;
 
-	uint32 bAlreadyBound : 1;
+	uint8 bAlreadyBound : 1;
 
-	uint32 bLODDistanceIsValid : 1;
-	uint32 bLODDistanceIsOverridden : 1;
+	uint8 bLODDistanceIsValid : 1;
+	uint8 bLODDistanceIsOverridden : 1;
 
 	/** True if the system instance is pooled. Prevents unbinding of parameters on completing the system */
-	uint32 bPooled : 1;
+	uint8 bPooled : 1;
 
 #if WITH_EDITOR
-	uint32 bNeedsUIResync : 1;
+	uint8 bNeedsUIResync : 1;
 #endif
 
-	/** If async work was running when we request an Activate we will store the reset mode and perform in finalize to avoid stalling the GameThread. */
-	EResetMode DeferredResetMode = EResetMode::None;
+public:
+	uint8 GPUParamIncludeInterpolation : 1 = false;
+
+private:
 
 	/** Graph event to track pending concurrent work. */
 	FGraphEventRef ConcurrentTickGraphEvent;
@@ -645,7 +661,6 @@ public:
 	uint32 ActiveGPUEmitterCount = 0;
 
 	int32 GPUDataInterfaceInstanceDataSize = 0;
-	bool GPUParamIncludeInterpolation = false;
 	TArray<TPair<TWeakObjectPtr<UNiagaraDataInterface>, int32>> GPUDataInterfaces;
 
 	struct FInstanceParameters
@@ -682,12 +697,13 @@ public:
 		}
 	};
 
+	FRandomStream	SystemState_RandomStream;
+
 	FInstanceParameters GatheredInstanceParameters;
 
 	void InitSystemState();
 	void TickSystemState();
 
-	FRandomStream	SystemState_RandomStream;
 	int32			SystemState_LoopCount = 0;
 	float			SystemState_CurrentLoopDuration = 0.0f;
 	float			SystemState_CurrentLoopDelay = 0.0f;

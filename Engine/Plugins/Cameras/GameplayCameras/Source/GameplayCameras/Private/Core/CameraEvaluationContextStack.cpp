@@ -2,30 +2,36 @@
 
 #include "Core/CameraEvaluationContextStack.h"
 
-#include "Core/CameraAsset.h"
-#include "Core/CameraDirector.h"
+#include "Core/CameraDirectorEvaluator.h"
 #include "Core/CameraEvaluationContext.h"
-#include "Core/CameraRuntimeInstantiator.h"
 #include "Core/CameraSystemEvaluator.h"
-#include "UObject/Package.h"
+#include "Core/CameraVariableTable.h"
 
-FCameraEvaluationContextInfo FCameraEvaluationContextStack::GetActiveContext() const
+namespace UE::Cameras
 {
-	for (const FContextEntry& Entry : ReverseIterate(Entries))
-	{
-		if (UCameraEvaluationContext* Context = Entry.WeakContext.Get())
-		{
-			return FCameraEvaluationContextInfo{ Context, Entry.CameraDirector };
-		}
-	}
-	return FCameraEvaluationContextInfo();
+
+FCameraEvaluationContextStack::~FCameraEvaluationContextStack()
+{
+	Reset();
 }
 
-bool FCameraEvaluationContextStack::HasContext(UCameraEvaluationContext* Context) const
+TSharedPtr<FCameraEvaluationContext> FCameraEvaluationContextStack::GetActiveContext() const
 {
 	for (const FContextEntry& Entry : ReverseIterate(Entries))
 	{
-		if (Context == Entry.WeakContext.Get())
+		if (TSharedPtr<FCameraEvaluationContext> Context = Entry.WeakContext.Pin())
+		{
+			return Context;
+		}
+	}
+	return nullptr;
+}
+
+bool FCameraEvaluationContextStack::HasContext(TSharedRef<FCameraEvaluationContext> Context) const
+{
+	for (const FContextEntry& Entry : ReverseIterate(Entries))
+	{
+		if (Context == Entry.WeakContext)
 		{
 			return true;
 		}
@@ -33,7 +39,7 @@ bool FCameraEvaluationContextStack::HasContext(UCameraEvaluationContext* Context
 	return false;
 }
 
-void FCameraEvaluationContextStack::PushContext(UCameraEvaluationContext* Context)
+void FCameraEvaluationContextStack::PushContext(TSharedRef<FCameraEvaluationContext> Context)
 {
 	checkf(Evaluator, TEXT("Can't push context when no evaluator is set! Did you call Initialize?"));
 
@@ -44,37 +50,53 @@ void FCameraEvaluationContextStack::PushContext(UCameraEvaluationContext* Contex
 	{
 		if (ExistingIndex < Entries.Num() - 1)
 		{
-			const FContextEntry EntryCopy(Entries[ExistingIndex]);
+			FContextEntry EntryCopy(MoveTemp(Entries[ExistingIndex]));
 			Entries.RemoveAt(ExistingIndex);
-			Entries.Add(EntryCopy);
+			Entries.Add(MoveTemp(EntryCopy));
 		}
 		return;
 	}
 
-	// Instantiate the camera director.
-	FCameraRuntimeInstantiationParams InstParams;
-	InstParams.InstantiationOuter = Evaluator;
-	if (!InstParams.InstantiationOuter)
-	{
-		InstParams.InstantiationOuter = GetTransientPackage();
-	}
-
-	const UCameraDirector* OriginalCameraDirector = Context->GetCameraAsset()->CameraDirector;
-	UCameraDirector* NewCameraDirector = Evaluator->GetRuntimeInstantiator().InstantiateCameraDirector(
-			OriginalCameraDirector, InstParams);
-	
-	// Add an entry in the stack.
+	// Make a new entry and activate the context. This will build the director evaluator.
 	FContextEntry NewEntry;
+
+	FCameraEvaluationContextActivateParams ActivateParams;
+	ActivateParams.Evaluator = Evaluator;
+	Context->Activate(ActivateParams);
+	
 	NewEntry.WeakContext = Context;
-	NewEntry.CameraDirector = NewCameraDirector;
-	Entries.Push(NewEntry);
+	Entries.Push(MoveTemp(NewEntry));
 }
 
-bool FCameraEvaluationContextStack::RemoveContext(UCameraEvaluationContext* Context)
+bool FCameraEvaluationContextStack::AddChildContext(TSharedRef<FCameraEvaluationContext> Context)
 {
-	const int32 NumRemoved = Entries.RemoveAll(
-			[Context](FContextEntry& Entry) { return Entry.WeakContext == Context; });
-	return (NumRemoved > 0);
+	TSharedPtr<FCameraEvaluationContext> ActiveContext = GetActiveContext();
+	if (ensureMsgf(ActiveContext.IsValid(), TEXT("Can't add child context to the stack, no active context was found!")))
+	{
+		FCameraDirectorEvaluator* DirectorEvaluator = ActiveContext->GetDirectorEvaluator();
+		if (ensureMsgf(DirectorEvaluator, TEXT("Can't add child context, active context has no camera director evaluator!")))
+		{
+			return DirectorEvaluator->AddChildEvaluationContext(Context);
+		}
+	}
+	return false;
+}
+
+bool FCameraEvaluationContextStack::RemoveContext(TSharedRef<FCameraEvaluationContext> Context)
+{
+	for (auto It = Entries.CreateIterator(); It; ++It)
+	{
+		FContextEntry& Entry = (*It);
+		if (Entry.WeakContext == Context)
+		{
+			FCameraEvaluationContextDeactivateParams DeactivateParams;
+			Context->Deactivate(DeactivateParams);
+
+			It.RemoveCurrent();
+			return true;
+		}
+	}
+	return false;
 }
 
 void FCameraEvaluationContextStack::PopContext()
@@ -82,16 +104,74 @@ void FCameraEvaluationContextStack::PopContext()
 	Entries.Pop();
 }
 
-void FCameraEvaluationContextStack::Initialize(UCameraSystemEvaluator* InEvaluator)
+void FCameraEvaluationContextStack::GetAllContexts(TArray<TSharedPtr<FCameraEvaluationContext>>& OutContexts) const
 {
-	Evaluator = InEvaluator;
+	for (const FContextEntry& Entry : Entries)
+	{
+		if (TSharedPtr<FCameraEvaluationContext> Context = Entry.WeakContext.Pin())
+		{
+			OutContexts.Add(Context);
+		}
+	}
+}
+
+void FCameraEvaluationContextStack::Reset()
+{
+	for (FContextEntry& Entry : Entries)
+	{
+		if (TSharedPtr<FCameraEvaluationContext> Context = Entry.WeakContext.Pin())
+		{
+			FCameraEvaluationContextDeactivateParams DeactivateParams;
+			Context->Deactivate(DeactivateParams);
+		}
+	}
+	Entries.Reset();
+}
+
+void FCameraEvaluationContextStack::Initialize(FCameraSystemEvaluator& InEvaluator)
+{
+	Evaluator = &InEvaluator;
 }
 
 void FCameraEvaluationContextStack::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	for (FContextEntry& Entry : Entries)
 	{
-		Collector.AddReferencedObject(Entry.CameraDirector);
+		if (TSharedPtr<FCameraEvaluationContext> Context = Entry.WeakContext.Pin())
+		{
+			Context->AddReferencedObjects(Collector);
+		}
 	}
 }
+
+void FCameraEvaluationContextStack::OnEndCameraSystemUpdate()
+{
+	// Reset all written-this-frame flags on evaluation contexts, so we properly get those flags set
+	// regardless of when, during next frame, they set their variables. This is because various 
+	// gameplay systems, Blueprint scripting, whatever, might set variables at any time.
+	TArray<TSharedPtr<FCameraEvaluationContext>> ContextsToVisit;
+	for (const FContextEntry& Entry : Entries)
+	{
+		if (TSharedPtr<FCameraEvaluationContext> Context = Entry.WeakContext.Pin())
+		{
+			ContextsToVisit.Add(Context);
+		}
+	}
+	while (!ContextsToVisit.IsEmpty())
+	{
+		TSharedPtr<FCameraEvaluationContext> Context = ContextsToVisit.Pop();
+		Context->GetInitialResult().VariableTable.ClearAllWrittenThisFrameFlags();
+
+		TArrayView<const TSharedPtr<FCameraEvaluationContext>> ChildrenContexts(Context->GetChildrenContexts());
+		for (TSharedPtr<FCameraEvaluationContext> ChildContext : ReverseIterate(ChildrenContexts))
+		{
+			if (ChildContext)
+			{
+				ContextsToVisit.Add(ChildContext);
+			}
+		}
+	}
+}
+
+}  // namespace UE::Cameras
 

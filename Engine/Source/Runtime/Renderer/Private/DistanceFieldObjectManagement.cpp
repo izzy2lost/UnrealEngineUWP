@@ -22,6 +22,7 @@
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "UnrealEngine.h"
 #include "InstanceDataSceneProxy.h"
+#include "Lumen/Lumen.h"
 
 DECLARE_GPU_STAT(DistanceFields);
 
@@ -229,7 +230,7 @@ static void RemoveDistanceFieldInstance(int32 RemoveIndex, FDistanceFieldSceneDa
 		PrimitiveAndInstanceBeingMoved.Primitive->DistanceFieldInstanceIndices[PrimitiveAndInstanceBeingMoved.InstanceIndex] = RemoveIndex;
 	}
 
-	DistanceFieldSceneData.PrimitiveInstanceMapping.RemoveAtSwap(RemoveIndex, 1, EAllowShrinking::No);
+	DistanceFieldSceneData.PrimitiveInstanceMapping.RemoveAtSwap(RemoveIndex, EAllowShrinking::No);
 
 	if(!DistanceFieldSceneData.IndicesToUpdateInObjectBuffersSet.Contains(RemoveIndex))
 	{
@@ -332,8 +333,12 @@ void ProcessPrimitiveUpdate(
 	Proxy->GetDistanceFieldAtlasData(DistanceFieldData, SelfShadowBias);
 
 	TConstArrayView<FMatrix> InstanceLocalToWorldTransforms;
-	if (const FInstanceSceneDataBuffers *InstanceData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers())
+	const FInstanceSceneDataBuffers *InstanceData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers();
+	if (InstanceData)
 	{
+		// GPU-only instance data not currently supported - instances must be available on CPU.
+		check(!InstanceData->IsInstanceDataGPUOnly());
+
 		for (int32 InstanceIndex = 0; InstanceIndex < InstanceData->GetNumInstances(); ++InstanceIndex)
 		{
 			InstanceLocalToWorldTmpStorage.Add(InstanceData->GetInstanceToWorld(InstanceIndex));
@@ -954,7 +959,9 @@ void FSceneRenderer::PrepareDistanceFieldScene(FRDGBuilder& GraphBuilder, FRDGEx
 					OcclusionMaxDistance = Scene->SkyLight->OcclusionMaxDistance;
 				}
 
-				UpdateGlobalDistanceFieldVolume(GraphBuilder, ExternalAccessQueue, View, Scene, OcclusionMaxDistance, IsLumenEnabled(View), View.GlobalDistanceFieldInfo);
+				const bool bUseLumenGlobalDistanceFieldSettings = IsLumenEnabled(View) && Lumen::IsUsingGlobalSDF(*View.Family);
+
+				UpdateGlobalDistanceFieldVolume(GraphBuilder, ExternalAccessQueue, View, Scene, OcclusionMaxDistance, bUseLumenGlobalDistanceFieldSettings, View.GlobalDistanceFieldInfo);
 			}
 		}
 	}

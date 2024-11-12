@@ -15,6 +15,8 @@ class MODELINGCOMPONENTS_API UGeometrySelectionEditCommandArguments : public UIn
 	GENERATED_BODY()
 public:
 	FGeometrySelectionHandle SelectionHandle;
+	UE::Geometry::EGeometryElementType ElementType;
+	UE::Geometry::EGeometryTopologyType TopologyMode;
 
 	bool IsSelectionEmpty() const
 	{

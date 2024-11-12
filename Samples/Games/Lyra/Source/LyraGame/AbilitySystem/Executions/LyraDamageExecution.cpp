@@ -6,6 +6,7 @@
 #include "AbilitySystem/LyraGameplayEffectContext.h"
 #include "AbilitySystem/LyraAbilitySourceInterface.h"
 #include "Engine/World.h"
+#include "LyraLogChannels.h"
 #include "Teams/LyraTeamSubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LyraDamageExecution)
@@ -109,7 +110,7 @@ void ULyraDamageExecution::Execute_Implementation(const FGameplayEffectCustomExe
 	}
 	else
 	{
-		ensureMsgf(false, TEXT("Damage Calculation cannot deduce a source location for damage coming from %s; Falling back to WORLD_MAX dist!"), *GetPathNameSafe(Spec.Def));
+		UE_LOG(LogLyraAbilitySystem, Error, TEXT("Damage Calculation cannot deduce a source location for damage coming from %s; Falling back to WORLD_MAX dist!"), *GetPathNameSafe(Spec.Def));
 	}
 
 	// Apply ability source modifiers

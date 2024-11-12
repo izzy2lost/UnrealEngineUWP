@@ -13,6 +13,7 @@ class WATER_API UNiagaraDataInterfaceWater : public UNiagaraDataInterface
 
 public:
 	virtual void PostInitProperties() override;
+	virtual bool CanBeInCluster() const override { return false; }	// Note: Due to BP functionality we can change a UObject property on this DI we can not put into a cluster
 
 	/** UNiagaraDataInterface interface */
 	virtual void GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction &OutFunc) override;
@@ -39,7 +40,7 @@ public:
 	void GetWaveParamLookupTableOffset(FVectorVMExternalFunctionContext& Context);
 
 	/** Sets the current water body to be used by this data interface */
-	void SetWaterBodyComponent(UWaterBodyComponent* InWaterBodyComponent) { SourceBodyComponent = InWaterBodyComponent; }
+	void SetWaterBodyComponent(UWaterBodyComponent* InWaterBodyComponent);
 
 protected:
 #if WITH_EDITORONLY_DATA
@@ -47,8 +48,21 @@ protected:
 #endif
 
 private:
-	UPROPERTY(EditAnywhere, Category = "Water") 
-	TObjectPtr<UWaterBodyComponent> SourceBodyComponent;
+	UPROPERTY(EditAnywhere, Category = "Water")
+	bool bFindWaterBodyOnSpawn = false;
+
+	/** When enabled the owning system instance position will be used to sample the depth of the water. */
+	UPROPERTY(EditAnywhere, Category = "Water")
+	bool bEvaluateSystemDepth = true;
+
+	/** If bEvaluateSystemDepth is enabled the depth will be updated each frame. */
+	UPROPERTY(EditAnywhere, Category = "Water", meta = (EditCondition = "bEvaluateSystemDepth"))
+	bool bEvaluateSystemDepthPerFrame = true;
+
+	UPROPERTY(EditAnywhere, Category = "Water", meta = (DisplayName = "Source Actor Or Component", AllowedClasses = "/Script/Engine.WaterBodyComponent,/Script/Engine.Actor"))
+	TObjectPtr<UObject> SourceBodyComponent;
+
+	uint32 SourceBodyChangeId = 0;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

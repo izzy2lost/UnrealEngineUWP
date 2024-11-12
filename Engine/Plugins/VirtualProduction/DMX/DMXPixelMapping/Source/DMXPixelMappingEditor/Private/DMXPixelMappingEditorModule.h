@@ -39,9 +39,6 @@ public:
 private:
 	void RegisterAssetTypeAction(IAssetTools& AssetTools, TSharedRef<IAssetTypeActions> Action);
 
-private:
-	void OnPostEngineInit();
-
 public:
 	static const FName DMXPixelMappingEditorAppIdentifier;
 

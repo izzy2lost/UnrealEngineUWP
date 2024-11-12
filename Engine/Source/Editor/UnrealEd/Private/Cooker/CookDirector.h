@@ -28,7 +28,10 @@ class FCbWriter;
 class FRunnableThread;
 class UCookOnTheFlyServer;
 namespace UE::Cook { class FCookWorkerServer; }
+namespace UE::Cook { struct FAssignPackageExtraData; }
 namespace UE::Cook { struct FCookWorkerProfileData; }
+namespace UE::Cook { struct FGeneratorEventMessage; }
+namespace UE::Cook { struct FGenerationHelper; }
 namespace UE::Cook { struct FHeartbeatMessage; }
 namespace UE::Cook { struct FInitialConfigMessage; }
 namespace UE::Cook { struct FPackageData; }
@@ -73,13 +76,26 @@ public:
 		TMap<FPackageData*, TArray<FPackageData*>>&& RequestGraph);
 	/** Notify the CookWorker that owns the cook of the package that the Director wants to take it back. */
 	void RemoveFromWorker(FPackageData& PackageData);
+
+	/**
+	 * Report EGeneratorEvent::QueuedGeneratedPackagesFencePassed to all CookWorkers so any of them
+	 * waiting on the fence to be passed before clearing their data can clear their data.
+	 */
+	void BroadcastGeneratorMessage(FGeneratorEventMessage&& Message);
+
 	/** Periodic tick function. Sends/Receives messages to CookWorkers. */
 	void TickFromSchedulerThread();
 	/** Periodic display function, called from CookOnTheFlyServer.UpdateDisplay. */
 	void UpdateDisplayDiagnostics() const;
-	/** Called when the COTFS Server has detected all packages are complete. Tells the CookWorkers to flush messages and exit. */
+	/**
+	 * Called when the COTFS Server has detected all packages are complete. Tells the CookWorkers to flush messages
+	 * and exit.
+	 */
 	void PumpCookComplete(bool& bOutCompleted);
-	/** Called when a session ends. The Director blocks on shutdown of all CookWorkers and returns state to before session started. */
+	/**
+	 * Called when a session ends. The Director blocks on shutdown of all CookWorkers and returns state to before
+	 * session started.
+	 */
 	void ShutdownCookSession();
 
 	/** Enum specifying how CookWorker log output should be shown. */
@@ -150,7 +166,10 @@ private:
 	 * The CookWorkerServers are constructed to Uninitialized; the worker process is created later.
 	 */
 	void InitializeWorkers();
-	/** Copy to snapshot variables the data required on the communication thread that can only be read from the scheduler thread. */
+	/**
+	 * Copy to snapshot variables the data required on the communication thread that can only be read from the
+	 * scheduler thread.
+	 */
 	void ConstructReadonlyThreadVariables();
 	/** Construct CookWorkerServers if necessary to replace workers that have crashed. */
 	void RecreateWorkers();
@@ -203,13 +222,17 @@ private:
 #endif
 	void AssignRequests(TArray<FWorkerId>&& InWorkers, TArray<TRefCountPtr<FCookWorkerServer>>& InRemoteWorkers, 
 		TArrayView<FPackageData*> Requests, TArray<FWorkerId>& OutAssignments,
-		TMap<FPackageData*, TArray<FPackageData*>>&& RequestGraph);
+		TMap<FPackageData*, TArray<FPackageData*>>&& RequestGraph, bool bInitialAssignment);
 
 	TArray<TRefCountPtr<FCookWorkerServer>> CopyRemoteWorkers() const;
 	void DisplayRemainingPackages() const;
 	FString GetDisplayName(const FWorkerId& WorkerId, int32 PreferredWidth = -1) const;
 	FString GetDisplayName(const FCookWorkerServer& RemoteWorker, int32 PreferredWidth=-1) const;
 	const TRefCountPtr<FCookWorkerServer>* FindRemoteWorkerInLock(const FWorkerId& WorkerId) const;
+
+	TMap<FPackageData*, FAssignPackageExtraData> GetAssignPackageExtraDatas(
+		TConstArrayView<FPackageData*> Requests) const;
+	TArray<FPackageData*> GetInfoPackagesForRequests(TConstArrayView<FPackageData*> Requests) const;
 
 private:
 	// Synchronization primitives that can be used from any thread
@@ -222,6 +245,7 @@ private:
 	TArray<FCookWorkerProfileData> RemoteWorkerProfileDatas;
 	TArray<FPendingConnection> PendingConnections;
 	TUniquePtr<FCookWorkerProfileData> LocalWorkerProfileData;
+	TArray<FGeneratorEventMessage> QueuedGeneratorBroadcasts;
 	UCookOnTheFlyServer& COTFS;
 	double WorkersStalledStartTimeSeconds = 0.;
 	double WorkersStalledWarnTimeSeconds = 0.;
@@ -235,6 +259,7 @@ private:
 	bool bCookCompleteSent = false;
 	bool bWorkersStalled = false;
 	bool bMultiprocessAvailable = false;
+	bool bReceivingMessages = false;
 
 	// Data that is read-only while the CommunicationThread is active and is readable from any thread
 	FBeginCookContextForWorker BeginCookContext;

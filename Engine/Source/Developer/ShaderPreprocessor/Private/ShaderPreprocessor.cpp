@@ -179,7 +179,7 @@ struct FStbPreprocessContext
 		return HasIncludedHeader(PlatformHeader);
 	}
 
-	void ShaderPrintGenerate(char* PreprocessFile, TArray<FShaderDiagnosticData>* OutDiagnosticDatas);
+	void ShaderPrintGenerate(char*& PreprocessFile, TArray<FShaderDiagnosticData>* OutDiagnosticDatas);
 };
 
 static void StbLoadedIncludeTrimPaddingChecked(FStbLoadedInclude* ContentsCached)
@@ -387,7 +387,7 @@ static const ANSICHAR* StbResolveInclude(const ANSICHAR* PathInSource, uint32 Pa
 	}
 
 	// Slow path...  Platform specific files and procedurally generated files (/Engine/Generated/Material.ush) -- typically 5% of files.
-	FString PathModified(PathLen, PathInSource);
+	FString PathModified = FString::ConstructFromPtrSize(PathInSource, PathLen);
 	if (!PathModified.StartsWith(TEXT("/"))) // if path doesn't start with / it's relative, if so append the parent's folder and collapse any relative dirs
 	{
 		FString ParentFolder(ParentPathAnsi);
@@ -574,7 +574,7 @@ static void StbCustomMacroEnd(const char* OriginalText, void* RawContext, const 
 	}
 }
 
-void FStbPreprocessContext::ShaderPrintGenerate(char* PreprocessedFile, TArray<FShaderDiagnosticData>* OutDiagnosticDatas)
+void FStbPreprocessContext::ShaderPrintGenerate(char*& PreprocessedFile, TArray<FShaderDiagnosticData>* OutDiagnosticDatas)
 {
 	// Check if ShaderPrintCommon.ush was included, to decide whether to add the shader print generated code
 	static FString ShaderPrintHeader("/Engine/Private/ShaderPrintCommon.ush");
@@ -630,7 +630,7 @@ void FStbPreprocessContext::ShaderPrintGenerate(char* PreprocessedFile, TArray<F
 	TArray<ANSICHAR> TextCharsAnsi;
 	CopyStringToAnsiCharArray(*TextChars, TextChars.Len(), TextCharsAnsi);
 
-	preprocessor_file_append(PreprocessedFile, TextCharsAnsi.GetData(), TextCharsAnsi.Num() - 1);
+	PreprocessedFile = preprocessor_file_append(PreprocessedFile, TextCharsAnsi.GetData(), TextCharsAnsi.Num() - 1);
 
 	// 4. Insert assert data into shader compilation output for runtime CPU lookup
 	if (OutDiagnosticDatas && TextAssertCount > 0)
@@ -810,8 +810,7 @@ bool PreprocessShader(
 			HasError |= (Diagnostic->error_level == PP_RESULT_MODE_error);
 			
 			FString Message = Diagnostic->message;
-			// ignore stb warnings (for now?)
-			if (Diagnostic->error_level == PP_RESULT_MODE_error)
+			if (Diagnostic->error_level == PP_RESULT_MODE_error || Diagnostic->error_level == PP_RESULT_MODE_warning)
 			{
 				FString Filename = Diagnostic->where->filename;
 				Output.LogError(MoveTemp(Filename), MoveTemp(Message), Diagnostic->where->line_number);
@@ -868,7 +867,6 @@ bool PreprocessShader(
 
 	OutPreprocessedShader = FString(Output.GetSourceViewWide());
 
-	Output.MoveDirectives(ShaderOutput.PragmaDirectives);
 	for (FShaderCompilerError& Error : Output.EditErrors())
 	{
 		ShaderOutput.Errors.Add(MoveTemp(Error));

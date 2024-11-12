@@ -89,6 +89,9 @@ FConcertClientPackageManager::FConcertClientPackageManager(TSharedRef<FConcertSy
 	//
 	UPackage::PackageDirtyStateChangedEvent.AddRaw(this, &FConcertClientPackageManager::HandlePackageDirtyStateChanged);
 	PackageBridge->OnLocalPackageEvent().AddRaw(this, &FConcertClientPackageManager::HandleLocalPackageEvent);
+
+	FEditorDelegates::OnDuplicateActorsBegin.AddRaw(this, &FConcertClientPackageManager::HandleDuplicateActorsBegin);
+	FEditorDelegates::OnDuplicateActorsEnd.AddRaw(this, &FConcertClientPackageManager::HandleDuplicateActorsEnd);
 #endif	// WITH_EDITOR
 
 	LiveSession->GetSession().RegisterCustomEventHandler<FConcertPackageRejectedEvent>(this, &FConcertClientPackageManager::HandlePackageRejectedEvent);
@@ -107,6 +110,8 @@ FConcertClientPackageManager::~FConcertClientPackageManager()
 		SandboxPlatformFile->DiscardSandbox(PackagesPendingHotReload, PackagesPendingPurge);
 		SandboxPlatformFile.Reset();
 	}
+	FEditorDelegates::OnDuplicateActorsBegin.RemoveAll(this);
+	FEditorDelegates::OnDuplicateActorsEnd.RemoveAll(this);
 #endif	// WITH_EDITOR
 
 	LiveSession->GetSession().UnregisterCustomEventHandler<FConcertPackageRejectedEvent>(this);
@@ -266,6 +271,27 @@ void FConcertClientPackageManager::SynchronizeInMemoryPackages()
 	HotReloadPendingPackages();
 }
 
+#if WITH_EDITOR
+void FConcertClientPackageManager::HandleDuplicateActorsBegin()
+{
+	UWorld* CurrentWorld = ConcertSyncClientUtil::GetCurrentWorld();
+	check(CurrentWorld);
+
+	ULevel* Level = CurrentWorld->GetCurrentLevel();
+	bPromptWhenAddingToLevelBeforeCheckout = Level->bPromptWhenAddingToLevelBeforeCheckout;
+	Level->bPromptWhenAddingToLevelBeforeCheckout = false;
+}
+
+void FConcertClientPackageManager::HandleDuplicateActorsEnd()
+{
+	UWorld* CurrentWorld = ConcertSyncClientUtil::GetCurrentWorld();
+	check(CurrentWorld);
+
+	ULevel* Level = CurrentWorld->GetCurrentLevel();
+	Level->bPromptWhenAddingToLevelBeforeCheckout = bPromptWhenAddingToLevelBeforeCheckout;
+}
+#endif
+
 void FConcertClientPackageManager::HandlePackageDiscarded(UPackage* InPackage)
 {
 	FConcertPackageUpdateEvent Event;
@@ -306,10 +332,8 @@ void FConcertClientPackageManager::ApplyAllHeadPackageData()
 
 bool FConcertClientPackageManager::PassesPackageFilters(UPackage* InPackage) const
 {
-	// Create a dummy package info to run filters on
-	FConcertPackageInfo PackageInfo;
-	ConcertSyncClientUtil::FillPackageInfo(InPackage, nullptr, EConcertPackageUpdateType::Saved, PackageInfo);
-	return ApplyPackageFilters(PackageInfo);
+	FConcertPackageInfo DummyPackageInfo = ConcertSyncClientUtil::FillPackageInfo(InPackage, nullptr, EConcertPackageUpdateType::Saved);
+	return ApplyPackageFilters(DummyPackageInfo);
 }
 
 bool FConcertClientPackageManager::HasSessionChanges() const
@@ -476,6 +500,7 @@ void FConcertClientPackageManager::AddPendingReloadForNewExternalMaps(const FCon
 			&& !PackagesPendingHotReload.Contains(PackageName))
 		{
 			UE_LOG(LogConcert, Display, TEXT("Scheduling reloading for world partition persistent level %s."), *PackagePathname);
+
 			PackagesPendingHotReload.Add(PackageName);
 		}
 	}
@@ -610,7 +635,11 @@ void FConcertClientPackageManager::SavePackageFile(const FConcertPackageInfo& Pa
 
 	if (bSuccess)
 	{
-		PackagesPendingHotReload.Add(PackageInfo.PackageName);
+		if (!PackageInfo.bCanSkipHotReload)
+		{
+			// We skip hot reloading assets that are hinted not to need it. @see FConcertPackageInfo::bCanSkipHotReload)
+			PackagesPendingHotReload.Add(PackageInfo.PackageName);
+		}
 		PackagesPendingPurge.Remove(PackageInfo.PackageName);
 	}
 }

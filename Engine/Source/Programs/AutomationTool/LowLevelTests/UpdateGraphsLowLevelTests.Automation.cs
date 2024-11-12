@@ -59,6 +59,7 @@ namespace LowLevelTests
 			}
 
 			//TODO(SMA): Enable bUpdateBuildGraphPropertiesFile in config and run UpdateBuildGraphPropertiesFile on all relevant .Build.cs files.
+			//Note: The metadata files are now generated/updated using RunUBT.bat -Mode=Test -GenerateMetadata
 
 			return ExitCode.Success;
 		}

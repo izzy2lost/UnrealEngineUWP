@@ -4,7 +4,7 @@
 
 #include "SSearchableComboBox.h"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	class SStringSelectionComboBox : public SSearchableComboBox
 	{

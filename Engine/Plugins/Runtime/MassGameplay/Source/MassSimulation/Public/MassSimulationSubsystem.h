@@ -14,52 +14,52 @@ class IConsoleVariable;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMassSim, Log, All);
 
-UCLASS(config = Game, defaultconfig)
-class MASSSIMULATION_API UMassSimulationSubsystem : public UMassSubsystemBase
+UCLASS(config = Game, defaultconfig, MinimalAPI)
+class UMassSimulationSubsystem : public UMassSubsystemBase
 {
 	GENERATED_BODY()
 public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSimulationStarted, UWorld* /*World*/);
 	
-	UMassSimulationSubsystem(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+	MASSSIMULATION_API UMassSimulationSubsystem(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	const FMassProcessingPhaseManager& GetPhaseManager() const { return PhaseManager; }
 
-	FMassProcessingPhase::FOnPhaseEvent& GetOnProcessingPhaseStarted(const EMassProcessingPhase Phase);
-	FMassProcessingPhase::FOnPhaseEvent& GetOnProcessingPhaseFinished(const EMassProcessingPhase Phase);
+	MASSSIMULATION_API FMassProcessingPhase::FOnPhaseEvent& GetOnProcessingPhaseStarted(const EMassProcessingPhase Phase);
+	MASSSIMULATION_API FMassProcessingPhase::FOnPhaseEvent& GetOnProcessingPhaseFinished(const EMassProcessingPhase Phase);
 	static FOnSimulationStarted& GetOnSimulationStarted() { return OnSimulationStarted; }
 
-	void RegisterDynamicProcessor(UMassProcessor& Processor);
-	void UnregisterDynamicProcessor(UMassProcessor& Processor);
+	MASSSIMULATION_API void RegisterDynamicProcessor(UMassProcessor& Processor);
+	MASSSIMULATION_API void UnregisterDynamicProcessor(UMassProcessor& Processor);
 
 	bool IsSimulationStarted() const { return bSimulationStarted; }
 
 	/** @return whether hosted EntityManager is currently, actively being used for processing purposes. Equivalent to calling FMassEntityManager.IsProcessing() */
-	bool IsDuringMassProcessing() const;
+	MASSSIMULATION_API bool IsDuringMassProcessing() const;
 
 	/** Starts/stops simulation ticking for all worlds, based on new `mass.SimulationTickingEnabled` cvar value */
-	static void HandleSimulationTickingEnabledCVarChange(IConsoleVariable*);
+	MASSSIMULATION_API static void HandleSimulationTickingEnabledCVarChange(IConsoleVariable*);
 
 protected:
 	// UWorldSubsystem BEGIN
-	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-	virtual void PostInitialize() override;
-	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
-	virtual void Deinitialize() override;
+	MASSSIMULATION_API virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	MASSSIMULATION_API virtual void PostInitialize() override;
+	MASSSIMULATION_API virtual void OnWorldBeginPlay(UWorld& InWorld) override;
+	MASSSIMULATION_API virtual void Deinitialize() override;
 	// UWorldSubsystem END
-	virtual void BeginDestroy() override;
+	MASSSIMULATION_API virtual void BeginDestroy() override;
 	
-	void RebuildTickPipeline();
+	MASSSIMULATION_API void RebuildTickPipeline();
 
-	void StartSimulation(UWorld& InWorld);
-	void StopSimulation();
+	MASSSIMULATION_API void StartSimulation(UWorld& InWorld);
+	MASSSIMULATION_API void StopSimulation();
 
-	void OnProcessingPhaseStarted(const float DeltaSeconds, const EMassProcessingPhase Phase) const;
+	MASSSIMULATION_API void OnProcessingPhaseStarted(const float DeltaSeconds, const EMassProcessingPhase Phase) const;
 
 #if WITH_EDITOR
-	void OnPieBegin(const bool bIsSimulation);
-	void OnPieEnded(const bool bIsSimulation);
-	void OnMassEntitySettingsChange(const FPropertyChangedEvent& PropertyChangedEvent);
+	MASSSIMULATION_API void OnPieBegin(const bool bIsSimulation);
+	MASSSIMULATION_API void OnPieEnded(const bool bIsSimulation);
+	MASSSIMULATION_API void OnMassEntitySettingsChange(const FPropertyChangedEvent& PropertyChangedEvent);
 #endif // WITH_EDITOR
 
 protected:

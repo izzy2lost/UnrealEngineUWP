@@ -19,6 +19,7 @@ extern RHI_API const FName LANGUAGE_Nintendo;
 class FGenericDataDrivenShaderPlatformInfo
 {
 	FName Name;
+	FName PlatformName;
 	FName Language;
 	ERHIFeatureLevel::Type MaxFeatureLevel;
 	FName ShaderFormat;
@@ -35,7 +36,6 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 bSupportsDistanceFields : 1; // used for DFShadows and DFAO - since they had the same checks
 	uint32 bSupportsDiaphragmDOF : 1;
 	uint32 bSupportsRGBColorBuffer : 1;
-	uint32 bSupportsCapsuleShadows : 1;
 	uint32 bSupportsPercentageCloserShadows : 1;
 	uint32 bSupportsIndexBufferUAVs : 1;
 	uint32 bSupportsInstancedStereo : 1;
@@ -53,6 +53,7 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 bSupportsHighEndRayTracingEffects : 1; // Whether fully-featured RT effects can be used on the platform (with translucent shadow, etc.)
 	uint32 bSupportsPathTracing : 1; // Whether real-time path tracer is supported on this platform (avoids compiling unnecessary shaders)
 	uint32 bSupportsGPUScene : 1;
+	uint32 bSupportsUnrestrictedHalfFloatBuffers : 1;
 	uint32 bSupportsByteBufferComputeShaders : 1;
 	uint32 bSupportsPrimitiveShaders : 1;
 	uint32 bSupportsUInt64ImageAtomics : 1;
@@ -98,6 +99,7 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 bSupportsWaterIndirectDraw : 1;
 	uint32 bSupportsAsyncPipelineCompilation : 1;
 	uint32 bSupportsVertexShaderSRVs : 1; // Whether SRVs can be bound to vertex shaders (may be independent from ManualVertexFetch)
+	uint32 bSupportsVertexShaderUAVs : int32(ERHIFeatureSupport::NumBits); // Whether UAVs can be bound to vertex shaders. Requires run-time check of GRHIGlobals.SupportsVertexShaderUAVs.
 	uint32 bSupportsManualVertexFetch : 1;
 	uint32 bRequiresReverseCullingOnMobile : 1;
 	uint32 bOverrideFMaterial_NeedsGBufferEnabled : 1;
@@ -106,6 +108,7 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 bSupportsRayTracingShaders : 1;
 	uint32 bSupportsVertexShaderLayer : 1;
 	uint32 BindlessSupport : int32(ERHIBindlessSupport::NumBits);
+	uint32 StaticShaderBindingLayoutSupport : int32(ERHIStaticShaderBindingLayoutSupport::NumBits);
 	uint32 bSupportsVolumeTextureAtomics : 1;
 	uint32 bSupportsROV : 1;
 	uint32 bSupportsOIT : 1;
@@ -123,6 +126,11 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 SupportsBarycentricsIntrinsics : 1;
 	uint32 SupportsBarycentricsSemantic : int32(ERHIFeatureSupport::NumBits);
 	uint32 bSupportsWave64 : 1;
+	uint32 bSupportsIndependentSamplers : 1;
+	uint32 bSupportsWorkGraphs : 1;
+#if WITH_EDITOR
+	uint32 bCanUsePreviewPlatformForMaterialValidation : 1;
+#endif
 
 	// NOTE: When adding fields, you must also add to ParseDataDrivenShaderInfo!
 	uint32 bContainsValidPlatformInfo : 1;
@@ -134,6 +142,8 @@ class FGenericDataDrivenShaderPlatformInfo
 		SetDefaultValues();
 	}
 
+	FGenericDataDrivenShaderPlatformInfo(const FGenericDataDrivenShaderPlatformInfo&) = default;
+
 	RHI_API void SetDefaultValues();
 
 public:
@@ -144,6 +154,12 @@ public:
 	{
 		check(IsValid(Platform));
 		return Infos[Platform].Name;
+	}
+
+	static FORCEINLINE_DEBUGGABLE const FName GetPlatformName(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].PlatformName;
 	}
 
 	static FORCEINLINE_DEBUGGABLE const FName GetShaderFormat(const FStaticShaderPlatform Platform)
@@ -192,6 +208,12 @@ public:
 	{
 		check(IsValid(Platform));
 		return Infos[Platform].Language == LANGUAGE_Nintendo;
+	}
+
+	static FORCEINLINE_DEBUGGABLE const FName GetLanguage(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].Language;
 	}
 
 	static FORCEINLINE_DEBUGGABLE const ERHIFeatureLevel::Type GetMaxFeatureLevel(const FStaticShaderPlatform Platform)
@@ -264,12 +286,6 @@ public:
 	{
 		check(IsValid(Platform));
 		return Infos[Platform].bSupportsRGBColorBuffer;
-	}
-
-	static FORCEINLINE_DEBUGGABLE const bool GetSupportsCapsuleShadows(const FStaticShaderPlatform Platform)
-	{
-		check(IsValid(Platform));
-		return Infos[Platform].bSupportsCapsuleShadows;
 	}
 
 	static FORCEINLINE_DEBUGGABLE const bool GetSupportsPercentageCloserShadows(const FStaticShaderPlatform Platform)
@@ -414,6 +430,12 @@ public:
 	{
 		check(IsValid(Platform));
 		return Infos[Platform].bNeedsOfflineCompiler;
+	}
+
+	static FORCEINLINE_DEBUGGABLE const bool GetSupportsUnrestrictedHalfFloatBuffers(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].bSupportsUnrestrictedHalfFloatBuffers;
 	}
 
 	static FORCEINLINE_DEBUGGABLE const bool GetSupportsByteBufferComputeShaders(const FStaticShaderPlatform Platform)
@@ -668,6 +690,12 @@ public:
 		return Infos[Platform].bSupportsVertexShaderSRVs;
 	}
 
+	static FORCEINLINE_DEBUGGABLE const ERHIFeatureSupport GetSupportsVertexShaderUAVs(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return ERHIFeatureSupport(Infos[Platform].bSupportsVertexShaderUAVs);
+	}
+
 	static FORCEINLINE_DEBUGGABLE const bool GetSupportsManualVertexFetch(const FStaticShaderPlatform Platform)
 	{
 		check(IsValid(Platform));
@@ -686,13 +714,6 @@ public:
 		return Infos[Platform].bOverrideFMaterial_NeedsGBufferEnabled;
 	}
 
-	UE_DEPRECATED(5.3, "This function is no longer in use and will be removed. Please use GetSupportsDistanceFields instead")
-	static FORCEINLINE_DEBUGGABLE const bool GetSupportsMobileDistanceField(const FStaticShaderPlatform Platform)
-	{
-		check(IsValid(Platform));
-		return false;
-	}
-
 	static FORCEINLINE_DEBUGGABLE const bool GetSupportsFFTBloom(const FStaticShaderPlatform Platform)
 	{
 		check(IsValid(Platform));
@@ -709,6 +730,12 @@ public:
 	{
 		check(IsValid(Platform));
 		return static_cast<ERHIBindlessSupport>(Infos[Platform].BindlessSupport);
+	}
+
+	static FORCEINLINE_DEBUGGABLE const ERHIStaticShaderBindingLayoutSupport GetStaticShaderBindingLayoutSupport(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return static_cast<ERHIStaticShaderBindingLayoutSupport>(Infos[Platform].StaticShaderBindingLayoutSupport);
 	}
 
 	static FORCEINLINE_DEBUGGABLE const bool GetSupportsVolumeTextureAtomics(const FStaticShaderPlatform Platform)
@@ -793,6 +820,26 @@ public:
 		check(IsValid(Platform));
 		return Infos[Platform].bSupportsWave64;
 	}
+
+	static FORCEINLINE_DEBUGGABLE const bool GetSupportsIndependentSamplers(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].bSupportsIndependentSamplers;
+	}
+
+	static FORCEINLINE_DEBUGGABLE const bool GetSupportsWorkGraphs(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].bSupportsWorkGraphs;
+	}
+
+#if WITH_EDITOR
+	static FORCEINLINE_DEBUGGABLE const bool CanUseForMaterialValidation(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].bCanUsePreviewPlatformForMaterialValidation || !Infos[Platform].bIsPreviewPlatform;
+	}
+#endif
 
 	static FORCEINLINE_DEBUGGABLE const bool IsValid(const FStaticShaderPlatform Platform)
 	{
@@ -889,13 +936,6 @@ inline bool IsVulkanPlatform(const FStaticShaderPlatform Platform)
 	return FDataDrivenShaderPlatformInfo::GetIsLanguageVulkan(Platform);
 }
 
-UE_DEPRECATED(5.3, "Use a combination of IsVulkanPlatform and IsFeatureLevelSupported (or GetMaxFeatureLevel) instead.")
-inline bool IsVulkanSM5Platform(const FStaticShaderPlatform Platform)
-{
-	return FDataDrivenShaderPlatformInfo::GetIsLanguageVulkan(Platform)
-		&& FDataDrivenShaderPlatformInfo::GetMaxFeatureLevel(Platform) == ERHIFeatureLevel::SM5;
-}
-
 // @todo: data drive uses of this function
 inline bool IsVulkanMobileSM5Platform(const FStaticShaderPlatform Platform)
 {
@@ -977,7 +1017,8 @@ inline bool RHISupportsGeometryShaders(const FStaticShaderPlatform Platform)
 	return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5)
 		&& !IsMetalPlatform(Platform)
 		&& !IsVulkanMobilePlatform(Platform)
-		&& !IsVulkanMobileSM5Platform(Platform);
+		&& !IsVulkanMobileSM5Platform(Platform)
+		&& !(FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(Platform) && FDataDrivenShaderPlatformInfo::GetIsSPIRV(Platform));
 }
 
 inline bool RHIHasTiledGPU(const FStaticShaderPlatform Platform)
@@ -1180,6 +1221,12 @@ inline ERHIBindlessSupport RHIGetBindlessSupport(const FStaticShaderPlatform Pla
 	return FDataDrivenShaderPlatformInfo::GetBindlessSupport(Platform);
 }
 
+/** True if the given shader platform supports static shader resource tables. */
+inline ERHIStaticShaderBindingLayoutSupport RHIGetStaticShaderBindingLayoutSupport(const FStaticShaderPlatform Platform)
+{
+	return FDataDrivenShaderPlatformInfo::GetStaticShaderBindingLayoutSupport(Platform);
+}
+
 inline bool RHISupportsVolumeTextureAtomics(EShaderPlatform Platform)
 {
 	return FDataDrivenShaderPlatformInfo::GetSupportsVolumeTextureAtomics(Platform);
@@ -1191,6 +1238,8 @@ inline bool RHISupportsWaveSize64(const FStaticShaderPlatform Platform)
 	return FDataDrivenShaderPlatformInfo::GetSupportsWave64(Platform);
 }
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
-#include "Internationalization/Text.h"
-#endif
+/** True if the platform supports Work Graphs */
+inline bool RHISupportsWorkGraphs(const FStaticShaderPlatform Platform)
+{
+	return FDataDrivenShaderPlatformInfo::GetSupportsWorkGraphs(Platform);
+}

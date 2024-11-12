@@ -63,7 +63,7 @@ void UAsyncImageExport::Activate()
 			[this, WeakThis](FRHICommandListImmediate& RHICmdList)
 		{
 			FTextureResource* Resource = TextureToExport->GetResource();
-			FRHITexture2D* ResourceRHI = Resource->GetTexture2DRHI();
+			FRHITexture* ResourceRHI = Resource->GetTexture2DRHI();
 
 			TArray<FColor> OutPixels;
 			if (ensure(ResourceRHI))

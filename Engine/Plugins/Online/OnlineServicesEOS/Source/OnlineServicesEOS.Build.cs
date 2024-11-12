@@ -24,5 +24,7 @@ public class OnlineServicesEOS : ModuleRules
 				"EOSShared",
 			}
 		);
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

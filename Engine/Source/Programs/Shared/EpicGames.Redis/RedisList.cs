@@ -10,172 +10,146 @@ namespace EpicGames.Redis
 	/// <summary>
 	/// Represents a typed Redis list with a given key
 	/// </summary>
-	/// <typeparam name="TElement">The type of element stored in the set</typeparam>
-	public readonly struct RedisListKey<TElement>
-	{
-		/// <summary>
-		/// The key for the list
-		/// </summary>
-		public readonly RedisKey Inner { get; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="inner">Redis key this type is using</param>
-		public RedisListKey(RedisKey inner)
-		{
-			Inner = inner;
-		}
-
-		/// <summary>
-		/// Implicit conversion to typed redis key.
-		/// </summary>
-		/// <param name="key">Key to convert</param>
-		public static implicit operator RedisListKey<TElement>(string key) => new RedisListKey<TElement>(new RedisKey(key));
-
-		/// <summary>
-		/// Implicit conversion to untyped redis keys.
-		/// </summary>
-		/// <param name="key">Key to convert</param>
-		public static implicit operator TypedRedisKey(RedisListKey<TElement> key) => key.Inner;
-	}
+	public record struct RedisList<TElement>(IDatabaseAsync Database, RedisListKey<TElement> Key);
 
 	/// <summary>
 	/// Extension methods for sets
 	/// </summary>
 	public static class RedisListExtensions
 	{
+		#region Conditions
+
+		/// <inheritdoc cref="Condition.ListIndexEqual(RedisKey, Int64, RedisValue)"/>
+		public static Condition ListIndexEqual<TElement>(this RedisList<TElement> target, long index, TElement value)
+			=> target.Key.ListIndexEqual(index, value);
+
+		/// <inheritdoc cref="Condition.ListIndexExists(RedisKey, Int64)"/>
+		public static Condition ListIndexExists<TElement>(this RedisList<TElement> target, long index)
+			=> target.Key.ListIndexExists(index);
+
+		/// <inheritdoc cref="Condition.ListIndexNotEqual(RedisKey, Int64, RedisValue)"/>
+		public static Condition ListIndexNotEqual<TElement>(this RedisList<TElement> target, long index, TElement value)
+			=> target.Key.ListIndexNotEqual(index, value);
+
+		/// <inheritdoc cref="Condition.ListIndexNotExists(RedisKey, Int64)"/>
+		public static Condition ListIndexNotExists<TElement>(this RedisList<TElement> target, long index)
+			=> target.Key.ListIndexNotExists(index);
+
+		/// <inheritdoc cref="Condition.ListLengthEqual(RedisKey, Int64)"/>
+		public static Condition ListLengthEqual<TElement>(this RedisList<TElement> target, long length)
+			=> target.Key.ListLengthEqual(length);
+
+		/// <inheritdoc cref="Condition.ListLengthGreaterThan(RedisKey, Int64)"/>
+		public static Condition ListLengthGreaterThan<TElement>(this RedisList<TElement> target, long length)
+			=> target.Key.ListLengthGreaterThan(length);
+
+		/// <inheritdoc cref="Condition.ListLengthLessThan(RedisKey, Int64)"/>
+		public static Condition ListLengthLessThan<TElement>(this RedisList<TElement> target, long length)
+			=> target.Key.ListLengthLessThan(length);
+
+		#endregion
+
 		#region ListGetByIndexAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.ListGetByIndexAsync(RedisKey, Int64, CommandFlags)"/>
-		public static Task<TElement> ListGetByIndexAsync<TElement>(this IDatabaseAsync target, RedisListKey<TElement> key, long index, CommandFlags flags = CommandFlags.None)
-		{
-			return target.ListGetByIndexAsync(key.Inner, index, flags).DeserializeAsync<TElement>();
-		}
+		public static Task<TElement> GetByIndexAsync<TElement>(this RedisList<TElement> target, long index, CommandFlags flags = CommandFlags.None)
+			=> target.Database.ListGetByIndexAsync(target.Key, index, flags);
 
 		#endregion
 
 		#region ListInsertAfterAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.ListInsertAfterAsync(RedisKey, RedisValue, RedisValue, CommandFlags)"/>
-		public static Task<long> ListInsertAfterAsync<TElement>(this IDatabaseAsync target, RedisListKey<TElement> key, TElement pivot, TElement item, CommandFlags flags = CommandFlags.None)
-		{
-			return target.ListInsertAfterAsync(key.Inner, RedisSerializer.Serialize(pivot), RedisSerializer.Serialize(item), flags);
-		}
+		public static Task<long> InsertAfterAsync<TElement>(this RedisList<TElement> target, TElement pivot, TElement item, CommandFlags flags = CommandFlags.None)
+			=> target.Database.ListInsertAfterAsync(target.Key, pivot, item, flags);
 
 		#endregion
 
 		#region ListInsertBeforeAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.ListInsertBeforeAsync(RedisKey, RedisValue, RedisValue, CommandFlags)"/>
-		public static Task<long> ListInsertBeforeAsync<TElement>(this IDatabaseAsync target, RedisListKey<TElement> key, TElement pivot, TElement item, CommandFlags flags = CommandFlags.None)
-		{
-			RedisValue pivotValue = RedisSerializer.Serialize(pivot);
-			RedisValue itemValue = RedisSerializer.Serialize(item);
-			return target.ListInsertBeforeAsync(key.Inner, pivotValue, itemValue, flags);
-		}
+		public static Task<long> InsertBeforeAsync<TElement>(this RedisList<TElement> target, TElement pivot, TElement item, CommandFlags flags = CommandFlags.None)
+			=> target.Database.ListInsertBeforeAsync(target.Key, pivot, item, flags);
 
 		#endregion
 
 		#region ListLeftPopAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.ListLeftPopAsync(RedisKey, CommandFlags)"/>
-		public static Task<TElement> ListLeftPopAsync<TElement>(this IDatabaseAsync target, RedisListKey<TElement> key, CommandFlags flags = CommandFlags.None)
-		{
-			return target.ListLeftPopAsync(key.Inner, flags).DeserializeAsync<TElement>();
-		}
+		public static Task<TElement> LeftPopAsync<TElement>(this RedisList<TElement> target, CommandFlags flags = CommandFlags.None)
+			=> target.Database.ListLeftPopAsync(target.Key, flags);
 
 		#endregion
 
 		#region ListLeftPushAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.ListLeftPushAsync(RedisKey, RedisValue, When, CommandFlags)"/>
-		public static Task<long> ListLeftPushAsync<TElement>(this IDatabaseAsync target, RedisListKey<TElement> key, TElement item, When when = When.Always, CommandFlags flags = CommandFlags.None)
-		{
-			return target.ListLeftPushAsync(key.Inner, RedisSerializer.Serialize(item), when, flags);
-		}
+		public static Task<long> LeftPushAsync<TElement>(this RedisList<TElement> target, TElement item, When when = When.Always, CommandFlags flags = CommandFlags.None)
+			=> target.Database.ListLeftPushAsync(target.Key, item, when, flags);
 
 		/// <inheritdoc cref="IDatabaseAsync.ListLeftPushAsync(RedisKey, RedisValue[], When, CommandFlags)"/>
-		public static Task<long> ListLeftPushAsync<TElement>(this IDatabaseAsync target, RedisListKey<TElement> key, TElement[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
-		{
-			return target.ListLeftPushAsync(key.Inner, RedisSerializer.Serialize(values), when, flags);
-		}
+		public static Task<long> LeftPushAsync<TElement>(this RedisList<TElement> target, TElement[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+			=> target.Database.ListLeftPushAsync(target.Key, values, when, flags);
 
 		#endregion
 
 		#region ListLengthAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.ListLengthAsync(RedisKey, CommandFlags)"/>
-		public static Task<long> ListLengthAsync<TElement>(this IDatabaseAsync target, RedisListKey<TElement> key)
-		{
-			return target.ListLengthAsync(key.Inner);
-		}
+		public static Task<long> LengthAsync<TElement>(this RedisList<TElement> target)
+			=> target.Database.ListLengthAsync(target.Key);
 
 		#endregion
 
 		#region ListRangeAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.ListRangeAsync(RedisKey, Int64, Int64, CommandFlags)"/>
-		public static Task<TElement[]> ListRangeAsync<TElement>(this IDatabaseAsync target, RedisListKey<TElement> key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
-		{
-			return target.ListRangeAsync(key.Inner, start, stop, flags).DeserializeAsync<TElement>();
-		}
+		public static Task<TElement[]> RangeAsync<TElement>(this RedisList<TElement> target, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
+			=> target.Database.ListRangeAsync(target.Key, start, stop, flags);
 
 		#endregion
 
 		#region ListRemoveAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.ListRemoveAsync(RedisKey, RedisValue, Int64, CommandFlags)"/>
-		public static Task<long> ListRemoveAsync<TElement>(this IDatabaseAsync target, RedisListKey<TElement> key, TElement value, long count = 0L, CommandFlags flags = CommandFlags.None)
-		{
-			return target.ListRemoveAsync(key.Inner, RedisSerializer.Serialize(value), count, flags);
-		}
+		public static Task<long> RemoveAsync<TElement>(this RedisList<TElement> target, TElement value, long count = 0L, CommandFlags flags = CommandFlags.None)
+			=> target.Database.ListRemoveAsync(target.Key, value, count, flags);
 
 		#endregion
 
 		#region ListRightPopAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.ListRightPopAsync(RedisKey, CommandFlags)"/>
-		public static Task<TElement> ListRightPopAsync<TElement>(this IDatabaseAsync target, RedisListKey<TElement> key, CommandFlags flags = CommandFlags.None)
-		{
-			return target.ListRightPopAsync(key.Inner, flags).DeserializeAsync<TElement>();
-		}
+		public static Task<TElement> RightPopAsync<TElement>(this RedisList<TElement> target, CommandFlags flags = CommandFlags.None)
+			=> target.Database.ListRightPopAsync(target.Key, flags);
 
 		#endregion
 
 		#region ListRightPushAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.ListRightPushAsync(RedisKey, RedisValue, When, CommandFlags)"/>
-		public static Task<long> ListRightPushAsync<TElement>(this IDatabaseAsync target, RedisListKey<TElement> key, TElement item, When when = When.Always, CommandFlags flags = CommandFlags.None)
-		{
-			return target.ListRightPushAsync(key.Inner, RedisSerializer.Serialize(item), when, flags);
-		}
+		public static Task<long> RightPushAsync<TElement>(this RedisList<TElement> target, TElement item, When when = When.Always, CommandFlags flags = CommandFlags.None)
+			=> target.Database.ListRightPushAsync(target.Key, item, when, flags);
 
 		/// <inheritdoc cref="IDatabaseAsync.ListRightPushAsync(RedisKey, RedisValue[], When, CommandFlags)"/>
-		public static Task<long> ListRightPushAsync<TElement>(this IDatabaseAsync target, RedisListKey<TElement> key, IEnumerable<TElement> values, When when = When.Always, CommandFlags flags = CommandFlags.None)
-		{
-			return target.ListRightPushAsync(key.Inner, RedisSerializer.Serialize(values), when, flags);
-		}
+		public static Task<long> RightPushAsync<TElement>(this RedisList<TElement> target, IEnumerable<TElement> values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+			=> target.Database.ListRightPushAsync(target.Key, values, when, flags);
 
 		#endregion
 
 		#region ListSetByIndexAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.ListSetByIndexAsync(RedisKey, Int64, RedisValue, CommandFlags)"/>
-		public static Task ListSetByIndexAsync<TElement>(IDatabaseAsync target, RedisListKey<TElement> key, long index, TElement value, CommandFlags flags = CommandFlags.None)
-		{
-			return target.ListSetByIndexAsync(key.Inner, index, RedisSerializer.Serialize(value), flags);
-		}
+		public static Task SetByIndexAsync<TElement>(this RedisList<TElement> target, long index, TElement value, CommandFlags flags = CommandFlags.None)
+			=> target.Database.ListSetByIndexAsync(target.Key, index, value, flags);
 
 		#endregion
 
 		#region ListTrimAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.ListTrimAsync(RedisKey, Int64, Int64, CommandFlags)"/>
-		public static Task ListTrimAsync<TElement>(this IDatabaseAsync target, RedisListKey<TElement> key, long start, long stop, CommandFlags flags = CommandFlags.None)
-		{
-			return target.ListTrimAsync(key.Inner, start, stop, flags);
-		}
+		public static Task TrimAsync<TElement>(this RedisList<TElement> target, long start, long stop, CommandFlags flags = CommandFlags.None)
+			=> target.Database.ListTrimAsync(target.Key, start, stop, flags);
 
 		#endregion
 	}

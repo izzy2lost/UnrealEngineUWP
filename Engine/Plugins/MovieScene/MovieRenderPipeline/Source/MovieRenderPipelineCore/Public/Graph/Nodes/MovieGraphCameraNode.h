@@ -16,6 +16,7 @@ public:
 	UMovieGraphCameraSettingNode()
 		: ShutterTiming(EMoviePipelineShutterTiming::FrameCenter)
 		, OverscanPercentage(0.f)
+		, bRenderAllCameras(false)
 	{}
 
 	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override { return EMovieGraphBranchRestriction::Globals; }
@@ -34,6 +35,10 @@ public:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_OverscanPercentage : 1;
+
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_bRenderAllCameras : 1;
 
 	/**
 	* Shutter Timing allows you to bias the timing of your shutter angle to either be before, during, or after
@@ -56,6 +61,17 @@ public:
 	* Note: This uses 0-100 and not 0-1 like the previous system did to bring it in-line with other usages
 	* of overscan in the engine (nDisplay).
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "100"), Category = "Settings", meta = (EditCondition = "bOverride_OverscanPercentage"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Overscan Percentage Override", UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "100"), Category = "Settings", meta = (EditCondition = "bOverride_OverscanPercentage"))
 	float OverscanPercentage;
+
+	/*
+	* If enabled Movie Render Queue will examine your Level Sequence for additional cameras and create an additional render for each renderer for that camera.
+	* The Camera Cut Track/Section is still used to determine the range of time to render, and then all Camera Actors that are in the level sequence adjacent
+	* to the Camera Cut Track will be considered for rendering. They are expected to exist the entire time and do not support rendering sub-ranges.
+	* 
+	* This increases render duration (100% per camera) and has increased VRAM/RAM requirements. However all cameras are rendered on the same engine tick so they
+	* should all see a consistent view of the world which can be useful for things like particle effects, etc.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (EditCondition = "bOverride_bRenderAllCameras"))
+	bool bRenderAllCameras;
 };

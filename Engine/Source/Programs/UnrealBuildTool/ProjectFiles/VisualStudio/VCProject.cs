@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -14,10 +13,9 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
 using EpicGames.Core;
+using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
-using Newtonsoft.Json.Linq;
-using Microsoft.CodeAnalysis;
 using static UnrealBuildTool.PlatformProjectGenerator;
 
 namespace UnrealBuildTool
@@ -492,14 +490,14 @@ namespace UnrealBuildTool
 
 			public override string ToString()
 			{
-				return String.Format("{0} {1} {2}", ProjectTarget, Platform, Configuration, Architecture != null ? " " + Architecture : string.Empty);
+				return String.Format("{0} {1} {2}", ProjectTarget, Platform, Configuration, Architecture != null ? " " + Architecture : String.Empty);
 			}
 		}
 
 		/// <inheritdoc/>
-		public override void AddModule(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
+		public override void AddModuleForIntelliSense(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
 		{
-			base.AddModule(Module, CompileEnvironment);
+			base.AddModuleForIntelliSense(Module, CompileEnvironment);
 
 			if (Settings.bUsePerFileIntellisense)
 			{
@@ -585,10 +583,6 @@ namespace UnrealBuildTool
 
 					Arguments.Add("/permissive-");
 					Arguments.Add("/Zc:strictStrings-"); // Have to disable strict const char* semantics due to Windows headers not being compliant.
-					if (CompilerVersion >= new VersionNumber(14, 32) && CompilerVersion < new VersionNumber(14, 33, 31629))
-					{
-						Arguments.Add("/Zc:lambda-");
-					}
 				}
 				else
 				{
@@ -610,11 +604,11 @@ namespace UnrealBuildTool
 					Arguments.Add("/Zc:preprocessor");
 				}
 
-				if (Target.WindowsPlatform.bStrictEnumTypesConformance && CompilerVersion >= new VersionNumber(14, 34, 31931))
+				if (Target.WindowsPlatform.bStrictEnumTypesConformance)
 				{
 					Arguments.Add("/Zc:enumTypes");
 				}
-				return string.Join(' ', Arguments);
+				return String.Join(' ', Arguments);
 			}
 			return String.Empty;
 		}
@@ -688,7 +682,7 @@ namespace UnrealBuildTool
 										continue;
 									}
 
-									var AddProjectAndTargetCombination = (UnrealArch? Arch) =>
+									Action<UnrealArch?> AddProjectAndTargetCombination = (UnrealArch? Arch) =>
 									{
 										PlatformProjectGenerator? PlatformProjectGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Platform, bInAllowFailure: true);
 										string ProjectPlatformName;
@@ -722,7 +716,7 @@ namespace UnrealBuildTool
 
 										if (CreateDistinctConfigName)
 										{
-											ProjectConfigurationName = string.Format("{0}{1}_{2}", Platform.ToString(), Arch != null ? "_" + Arch.ToString() : string.Empty, Configuration.ToString());
+											ProjectConfigurationName = String.Format("{0}{1}_{2}", Platform.ToString(), Arch != null ? "_" + Arch.ToString() : String.Empty, Configuration.ToString());
 										}
 
 										TargetType TargetConfigurationType = ProjectTarget.TargetRules!.Type;
@@ -1015,8 +1009,8 @@ namespace UnrealBuildTool
 			}
 
 			ProjectConfigAndTargetCombination? FoundCombo = ProjectConfigAndTargetCombinations.FirstOrDefault(combo => combo != null && combo.ProjectTarget != null && combo.ProjectTarget.TargetRules != null);
-			TargetRules? DefaultRules = FoundCombo != null ? FoundCombo.ProjectTarget?.TargetRules : null;
-			bool IsTestTarget = (DefaultRules != null ? DefaultRules.IsTestTarget : false);
+			TargetRules? DefaultRules = FoundCombo?.ProjectTarget?.TargetRules;
+			bool IsTestTarget = (DefaultRules != null && DefaultRules.IsTestTarget);
 
 			// Project globals (project GUID, project type, SCC bindings, etc)
 			{
@@ -1248,12 +1242,12 @@ namespace UnrealBuildTool
 				Parallel.ForEach(LocalAliasedFiles, LocalAliasedFile =>
 				{
 					// get the filetype as represented to Visual Studio
-					string VCFileType = GetVCFileType(LocalAliasedFile.FileSystemPath);
+					VCFileType FileType = GetVCFileType(LocalAliasedFile.FileSystemPath);
 					DirectoryReference FileSystemPathDir = new DirectoryReference(LocalAliasedFile.FileSystemPath);
 
 					// if the filetype is an include and its path is filtered out, skip it entirely (should we do this for any type of
 					// file? Possibly, but not today due to potential fallout)
-					if (VCFileType == "ClInclude" && IncludePathIsFilteredOut(FileSystemPathDir))
+					if (CanVCFileTypeBeIncluded(FileType) && IncludePathIsFilteredOut(FileSystemPathDir))
 					{
 						return;
 					}
@@ -1264,7 +1258,7 @@ namespace UnrealBuildTool
 						return;
 					}
 
-					if (VCFileType != "ClCompile")
+					if (!CanVCFileTypeBeCompiled(FileType))
 					{
 						return;
 					}
@@ -1324,8 +1318,8 @@ namespace UnrealBuildTool
 			}
 
 			// Check to see if all the source settings are the same
-			string CommonForcedIncludes = string.Empty;
-			string CommonAdditionalOptions = string.Empty;
+			string CommonForcedIncludes = String.Empty;
+			string CommonAdditionalOptions = String.Empty;
 			{
 				if (DirectoryToForceIncludePaths.Any())
 				{
@@ -1342,7 +1336,7 @@ namespace UnrealBuildTool
 					string? PchFileToCheck = DirectoryToPchFile.Values.FirstOrDefault();
 					if (DirectoryToPchFile.Values.All(x => x == PchFileToCheck))
 					{
-						if (!string.IsNullOrEmpty(PchFileToCheck))
+						if (!String.IsNullOrEmpty(PchFileToCheck))
 						{
 							CommonAdditionalOptions = $"/Yu\"{PchFileToCheck}\"";
 						}
@@ -1361,14 +1355,14 @@ namespace UnrealBuildTool
 				VCPreprocessorDefinitions.Append(CurDef);
 			}
 
-			var GetAdditionalOptionsString = (TargetRules? TargetRules) =>
+			Func<TargetRules?, string> GetAdditionalOptionsString = (TargetRules? TargetRules) =>
 			{
-				return string.Format("{0} {1}{2}{3}", GetCppStandardCompileArgument(GetIntelliSenseCppVersion()),
+				return String.Format("{0} {1}{2}{3}", GetCppStandardCompileArgument(GetIntelliSenseCppVersion()),
 					GetEnableCoroutinesArgument(),
-					DefaultRules != null ? (" " + GetConformanceCompileArguments(DefaultRules)) : string.Empty,
-					CommonAdditionalOptions.Length > 0 ? (" " + CommonAdditionalOptions) : string.Empty);
+					DefaultRules != null ? (" " + GetConformanceCompileArguments(DefaultRules)) : String.Empty,
+					CommonAdditionalOptions.Length > 0 ? (" " + CommonAdditionalOptions) : String.Empty);
 			};
-			
+
 			string DefaultAdditionalOptions = GetAdditionalOptionsString(DefaultRules);
 
 			// Write common IntelliSense info
@@ -1377,7 +1371,7 @@ namespace UnrealBuildTool
 				//      this data uniquely for each target configuration.  IntelliSense may behave better if we did that, but it will result in a LOT more
 				//      data being stored into the project file, and might make the IDE perform worse when switching configurations!
 				VCProjectFileContent.AppendLine("  <PropertyGroup>");
-				VCProjectFileContent.AppendLine("    <NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions){0}</NMakePreprocessorDefinitions>", (VCPreprocessorDefinitions.Length > 0 ? (";" + VCPreprocessorDefinitions) : string.Empty));
+				VCProjectFileContent.AppendLine("    <NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions){0}</NMakePreprocessorDefinitions>", (VCPreprocessorDefinitions.Length > 0 ? (";" + VCPreprocessorDefinitions) : String.Empty));
 				// NOTE: Setting the IncludePath property rather than NMakeIncludeSearchPath results in significantly less
 				// memory usage, because NMakeIncludeSearchPath metadata is duplicated to each output item. Functionality should be identical for
 				// intellisense results.
@@ -1416,12 +1410,12 @@ namespace UnrealBuildTool
 				WriteConfiguration(ProjectName, Combination, VCProjectFileContent, PlatformProjectGenerators, bGenerateUserFileContent ? VCUserFileContent : null, bGenerateUserFileContent ? VCUserFileSettings : null);
 			}
 
-			{ 
+			{
 				// Collapse common values
 				{
 					StringBuilder CommonProjectFileContent = new StringBuilder();
 
-					var AddProperties = (IDictionary<DirectoryReference, string> DirectoryToStringDict, string CommonPropertyPrefix, string PropertyNamePrefix, string PropertyValuePrefix) =>
+					Action<IDictionary<DirectoryReference, string>, string, string, string> AddProperties = (IDictionary<DirectoryReference, string> DirectoryToStringDict, string CommonPropertyPrefix, string PropertyNamePrefix, string PropertyValuePrefix) =>
 					{
 						Dictionary<string, string> UpdatedValues = new();
 						List<KeyValuePair<DirectoryReference, string>> KVPList = DirectoryToStringDict.ToList();
@@ -1454,7 +1448,7 @@ namespace UnrealBuildTool
 						Dictionary<string, string> ValueToCommonPropertyDict = new();
 						{
 							Dictionary<string, int> ValueAndCount = new();
-							foreach (var PropertyValue in UpdatedValues.Keys)
+							foreach (string PropertyValue in UpdatedValues.Keys)
 							{
 								if (!String.IsNullOrEmpty(PropertyValue))
 								{
@@ -1473,12 +1467,12 @@ namespace UnrealBuildTool
 								}
 							}
 
-							var CommonProperties = ValueAndCount.Where(kvp => kvp.Value > 1).Select(kvp => kvp.Key).ToList();
+							List<string> CommonProperties = ValueAndCount.Where(kvp => kvp.Value > 1).Select(kvp => kvp.Key).ToList();
 							CommonProperties.Sort();
 
 							// Write out the common property values
 							int CommonPropertyValueIndex = 0;
-							foreach (var CommonProperty in CommonProperties)
+							foreach (string? CommonProperty in CommonProperties)
 							{
 								string PropertyName = CommonPropertyPrefix;
 								if (CommonPropertyValueIndex > 0)
@@ -1564,12 +1558,12 @@ namespace UnrealBuildTool
 					}
 
 					// get the filetype as represented to Visual Studio
-					string VCFileType = GetVCFileType(AliasedFile.FileSystemPath);
+					VCFileType FileType = GetVCFileType(AliasedFile.FileSystemPath);
 					DirectoryReference FileSystemPathDir = new DirectoryReference(AliasedFile.FileSystemPath);
 
 					// if the filetype is an include and its path is filtered out, skip it entirely (should we do this for any type of
 					// file? Possibly, but not today due to potential fallout)
-					if (VCFileType == "ClInclude" && IncludePathIsFilteredOut(FileSystemPathDir))
+					if (CanVCFileTypeBeIncluded(FileType) && IncludePathIsFilteredOut(FileSystemPathDir))
 					{
 						continue;
 					}
@@ -1580,7 +1574,9 @@ namespace UnrealBuildTool
 						continue;
 					}
 
-					if (VCFileType != "ClCompile")
+					string VCFileType = GetVCFileTypeString(FileType);
+
+					if (!CanVCFileTypeBeCompiled(FileType))
 					{
 						VCProjectFileContent.AppendLine("    <{0} Include=\"{1}\"/>", VCFileType, EscapeFileName(AliasedFile.FileSystemPath));
 					}
@@ -1592,12 +1588,12 @@ namespace UnrealBuildTool
 						if (TryGetBuildEnvironment(Directory, out BuildEnvironment? BuildEnvironment))
 						{
 							StringBuilder ClCompileInfo = new();
-							if (DirectoryToIncludeSearchPaths.TryGetValue(Directory, out string? DirectoryToIncludeSearchPathValue) && !string.IsNullOrEmpty(DirectoryToIncludeSearchPathValue))
+							if (DirectoryToIncludeSearchPaths.TryGetValue(Directory, out string? DirectoryToIncludeSearchPathValue) && !String.IsNullOrEmpty(DirectoryToIncludeSearchPathValue))
 							{
 								ClCompileInfo.AppendLine($"      <AdditionalIncludeDirectories>$({DirectoryToIncludeSearchPathValue})</AdditionalIncludeDirectories>");
 							}
 
-							if (DirectoryToForceIncludePaths.TryGetValue(Directory, out string? DirectoryToForceIncludePathValue) && !string.IsNullOrEmpty(DirectoryToForceIncludePathValue))
+							if (DirectoryToForceIncludePaths.TryGetValue(Directory, out string? DirectoryToForceIncludePathValue) && !String.IsNullOrEmpty(DirectoryToForceIncludePathValue))
 							{
 								ClCompileInfo.AppendLine($"      <ForcedIncludeFiles>$({DirectoryToForceIncludePathValue})</ForcedIncludeFiles>");
 							}
@@ -1658,7 +1654,7 @@ namespace UnrealBuildTool
 					if (Directory.EnumerateFiles(DirectoryName, "*.cpp").Any())
 					{
 						VCProjectFileContent.Append(DirectoryName);
-						VCProjectFileContent.Append(";");
+						VCProjectFileContent.Append(';');
 					}
 				}
 				VCProjectFileContent.AppendLine("</SourcePath>");
@@ -1846,13 +1842,13 @@ namespace UnrealBuildTool
 			// Create dictionaries with key == Condition of each <PropertyGroup> and value == <PropertyGroup> XElement itself for both current and new document.
 			Dictionary<string, XElement> CurrentPropertyGroups = CurrentContent
 				.Descendants(NS + "PropertyGroup")
-				.Select(Element => (Attribute: Element.Attribute("Condition"), Element: Element))
+				.Select(Element => (Attribute: Element.Attribute("Condition"), Element))
 				.Where(Pair => Pair.Attribute != null)
 				.ToDictionary(Pair => Pair.Attribute!.Value, Pair => Pair.Element);
 
 			Dictionary<string, XElement> NewPropertyGroups = NewContent
 				.Descendants(NS + "PropertyGroup")
-				.Select(Element => (Attribute: Element.Attribute("Condition"), Element: Element))
+				.Select(Element => (Attribute: Element.Attribute("Condition"), Element))
 				.Where(Pair => Pair.Attribute != null)
 				.ToDictionary(Pair => Pair.Attribute!.Value, Pair => Pair.Element);
 
@@ -1869,10 +1865,10 @@ namespace UnrealBuildTool
 
 				// Check if <PropertyGroup> with same "Condition" attribute already exist in the current document.
 				// If yes, update required properties in existing <PropertyGroup> but preserve any other property in current document order.
-				if (CurrentPropertyGroups.TryGetValue(Attribute, out var CurrentPropertyGroup))
+				if (CurrentPropertyGroups.TryGetValue(Attribute, out XElement? CurrentPropertyGroup))
 				{
 					// Preserve values from current document for relevant properties by patching corresponding properties in new document. 
-					var ElementsToPreserveValuesFrom = CurrentPropertyGroup
+					IEnumerable<XElement> ElementsToPreserveValuesFrom = CurrentPropertyGroup
 						.Elements()
 						.Where(Element => UserFileSettings.PropertiesToPatchOrderButPreserveValue.Contains(Element.Name.LocalName));
 					foreach (XElement CurrentElement in ElementsToPreserveValuesFrom)
@@ -1893,7 +1889,7 @@ namespace UnrealBuildTool
 						.Elements()
 						.Where(Element => UserFileSettings.PropertiesToPatch.Contains(Element.Name.LocalName))
 						.ToArray();
-					
+
 					// Check if all properties are already has the correct value and order, and skip patching if so.
 					if (CurrentPropertyGroupElementsForPatch.Length == NewPropertyGroupElementsForPatch.Length &&
 						!CurrentPropertyGroupElementsForPatch.Where((CurrentProperty, i) => CurrentProperty.Name != NewPropertyGroupElementsForPatch[i].Name || CurrentProperty.Value != NewPropertyGroupElementsForPatch[i].Value).Any())
@@ -2056,35 +2052,81 @@ namespace UnrealBuildTool
 			return FiltersFileIsNeeded;
 		}
 
+		private enum VCFileType
+		{
+			None,
+			CCode,
+			Header,
+			Inline,
+			Resource,
+			Manifest,
+		};
+
 		/// <summary>
-		/// Returns the VCFileType element name based on the file path.
+		/// Returns the VCFileType string based on the VCFileType enum.
+		/// </summary>
+		/// <param name="FileType"></param>
+		/// <returns>Name of the element in MSBuild project file for this file type</returns>
+		private string GetVCFileTypeString(VCFileType FileType)
+		{
+			switch (FileType)
+			{
+				default:
+				case VCFileType.None:
+					return "None";
+				case VCFileType.CCode:
+					return "ClCompile";
+				case VCFileType.Header:
+					return "ClCompile";
+				case VCFileType.Inline:
+					return "ClInclude";
+				case VCFileType.Resource:
+					return "ResourceCompile";
+				case VCFileType.Manifest:
+					return "Manifest";
+			}
+		}
+
+		private bool CanVCFileTypeBeIncluded(VCFileType FileType)
+		{
+			return FileType == VCFileType.Header || FileType == VCFileType.Inline;
+		}
+
+		private bool CanVCFileTypeBeCompiled(VCFileType FileType)
+		{
+			return FileType == VCFileType.CCode || FileType == VCFileType.Header;
+		}
+
+		/// <summary>
+		/// Returns the VCFileType enum value based on the file path.
 		/// </summary>
 		/// <param name="Path">The path of the file to return type for.</param>
-		/// <returns>Name of the element in MSBuild project file for this file.</returns>
-		private string GetVCFileType(string Path)
+		/// <returns>VCFileType enum value for this file.</returns>
+		private VCFileType GetVCFileType(string Path)
 		{
 			// What type of file is this?
-			if (Path.EndsWith(".h", StringComparison.InvariantCultureIgnoreCase) ||
-				Path.EndsWith(".inl", StringComparison.InvariantCultureIgnoreCase))
+			if (Path.EndsWith(".h", StringComparison.InvariantCultureIgnoreCase))
 			{
-				return "ClInclude";
+				return VCFileType.Header;
 			}
-			else if (Path.EndsWith(".cpp", StringComparison.InvariantCultureIgnoreCase))
+			if (Path.EndsWith(".inl", StringComparison.InvariantCultureIgnoreCase))
 			{
-				return "ClCompile";
+				return VCFileType.Inline;
 			}
-			else if (Path.EndsWith(".rc", StringComparison.InvariantCultureIgnoreCase))
+			if (Path.EndsWith(".cpp", StringComparison.InvariantCultureIgnoreCase))
 			{
-				return "ResourceCompile";
+				return VCFileType.CCode;
 			}
-			else if (Path.EndsWith(".manifest", StringComparison.InvariantCultureIgnoreCase))
+			if (Path.EndsWith(".rc", StringComparison.InvariantCultureIgnoreCase))
 			{
-				return "Manifest";
+				return VCFileType.Resource;
 			}
-			else
+			if (Path.EndsWith(".manifest", StringComparison.InvariantCultureIgnoreCase))
 			{
-				return "None";
+				return VCFileType.Manifest;
 			}
+
+			return VCFileType.None;
 		}
 
 		// Helper class to generate NMake build commands and arguments
@@ -2142,7 +2184,8 @@ namespace UnrealBuildTool
 				{
 					if (TargetRulesObject.Type == TargetType.Editor && bEditorDependsOnShaderCompileWorker && !Unreal.IsEngineInstalled())
 					{
-						ExtraTargets.Add("ShaderCompileWorker Win64 Development");
+						string ProjParam = UProjectPath.Length > 0 ? $" -Project=\\\"{UProjectPath.Trim('"')}\\\"" : "";
+						ExtraTargets.Add($"ShaderCompileWorker Win64 Development{ProjParam}");
 					}
 					if (TargetRulesObject.bWithLiveCoding && bBuildLiveCodingConsole && !Unreal.IsEngineInstalled() && TargetRulesObject.Name != "LiveCodingConsole")
 					{
@@ -2154,7 +2197,7 @@ namespace UnrealBuildTool
 				{
 					BuildArguments.Replace("\"", "\\\"");
 					BuildArguments.Insert(0, "-Target=\"");
-					BuildArguments.Append("\"");
+					BuildArguments.Append('"');
 					foreach (string ExtraTarget in ExtraTargets)
 					{
 						BuildArguments.AppendFormat(" -Target=\"{0} -Quiet\"", ExtraTarget);
@@ -2398,7 +2441,14 @@ namespace UnrealBuildTool
 						VCProjectFileContent.AppendLine("    <NMakeReBuildCommandLine>$(RebuildBatchScript) {0}</NMakeReBuildCommandLine>", BuildArguments);
 						VCProjectFileContent.AppendLine("    <NMakeCleanCommandLine>$(CleanBatchScript) {0}</NMakeCleanCommandLine>", BuildArguments);
 					}
-					VCProjectFileContent.AppendLine("    <NMakeOutput>{0}</NMakeOutput>", NormalizeProjectPath(NMakePath.FullName));
+					if (TargetRulesObject.bBuildConsoleAppOnly)
+					{
+						VCProjectFileContent.AppendLine("    <NMakeOutput>{0}</NMakeOutput>", NormalizeProjectPath(UEBuildBinary.GetAdditionalConsoleAppPath(new FileReference(NMakePath.FullName))));
+					} 
+					else 
+					{
+						VCProjectFileContent.AppendLine("    <NMakeOutput>{0}</NMakeOutput>", NormalizeProjectPath(NMakePath.FullName));
+					}
 					if (ProjectFileGenerator.bVisualStudioLinux)
 					{
 						VCProjectFileContent.AppendLine("    <BuildCommandLine>$(NMakeBuildCommandLine)</BuildCommandLine>");
@@ -2430,6 +2480,13 @@ namespace UnrealBuildTool
 					VCProjectFileContent.AppendLine("    <NMakeCompile>");
 					VCProjectFileContent.AppendLine("      <NMakeCompileFileCommandLine>$(BuildBatchScript) {0} -WorkingDir=$(MSBuildProjectDirectory) -Files=$(SelectedFiles)</NMakeCompileFileCommandLine>", BuildArguments);
 					VCProjectFileContent.AppendLine("    </NMakeCompile>");
+					if (TargetRulesObject.bIsBuildingConsoleApplication)
+					{
+						// Let Visual Studio keep the console window open when debugging stops. Ignored by the build.
+						VCProjectFileContent.AppendLine("    <Link>");
+						VCProjectFileContent.AppendLine("      <SubSystem>Console</SubSystem>");
+						VCProjectFileContent.AppendLine("    </Link>");
+					}
 					if (ProjectFileGenerator.bVisualStudioLinux && TargetRulesObject.Platform.IsInGroup(UnrealPlatformGroup.Linux))
 					{
 						VCProjectFileContent.AppendLine("    <PostBuildEvent>");
@@ -2523,38 +2580,46 @@ namespace UnrealBuildTool
 				}
 				else
 				{
-					bool ConfigurationsFound = false;
-					foreach (XmlElement PropertyGroup in Document.DocumentElement.ChildNodes.OfType<XmlElement>()
-						.Where(element => element.Name == "PropertyGroup"))
+					foreach (string c in GetProjectProperty("Configurations").Split(';'))
 					{
-						XmlNodeList ConfigNodeList = PropertyGroup.GetElementsByTagName("Configurations");
-						// if this property group does not set configurations we do not care about it
-						if (ConfigNodeList.Count == 0)
-						{
-							continue;
-						}
+						Configurations.Add(c);
+					}
+					bool ConfigurationsFound = Configurations.Any();
 
-						if (PropertyGroup.HasAttribute("Condition"))
+					if (!ConfigurationsFound)
+					{
+						foreach (XmlElement PropertyGroup in Document.DocumentElement.ChildNodes.OfType<XmlElement>()
+							.Where(element => element.Name == "PropertyGroup"))
 						{
-							string Condition = PropertyGroup.GetAttribute("Condition");
-							Logger.LogWarning("Unable to parse configuration from property group with condition '{InitFilePath}': {Condition}. UBT Requires you to set the configuration without conditionals.", InitFilePath, Condition);
-							continue;
-						}
-						string[]? ParsedConfigurations = ConfigNodeList[0]?.FirstChild?.Value?.Split(';');
-						if (ParsedConfigurations != null)
-						{
-							foreach (string c in ParsedConfigurations)
+							XmlNodeList ConfigNodeList = PropertyGroup.GetElementsByTagName("Configurations");
+							// if this property group does not set configurations we do not care about it
+							if (ConfigNodeList.Count == 0)
 							{
-								Configurations.Add(c);
+								continue;
 							}
+
+							if (PropertyGroup.HasAttribute("Condition"))
+							{
+								string Condition = PropertyGroup.GetAttribute("Condition");
+								Logger.LogWarning("Unable to parse configuration from property group with condition '{InitFilePath}': {Condition}. UBT Requires you to set the configuration without conditionals.", InitFilePath, Condition);
+								continue;
+							}
+							string[]? ParsedConfigurations = ConfigNodeList[0]?.FirstChild?.Value?.Split(';');
+							if (ParsedConfigurations != null)
+							{
+								foreach (string c in ParsedConfigurations)
+								{
+									Configurations.Add(c);
+								}
+							}
+
+							// platforms change meaning quite a bit in .net core but typically you do not specify this and its derived from the build instead
+							// for most intents it is just Any CPU from .net framework
+							Platforms.Add("AnyCPU");
+
+							ConfigurationsFound = true;
+							break;
 						}
-
-						// platforms change meaning quite a bit in .net core but typically you do not specify this and its derived from the build instead
-						// for most intents it is just Any CPU from .net framework
-						Platforms.Add("AnyCPU");
-
-						ConfigurationsFound = true;
-						break;
 					}
 
 					// dotnet does not require you to specify configurations or platforms, if you do not debug and release are the defaults
@@ -2587,6 +2652,7 @@ namespace UnrealBuildTool
 			Dictionary<string, string> Properties = new Dictionary<string, string>();
 			Properties.Add("Platform", "AnyCPU");
 			Properties.Add("Configuration", InConfiguration.ToString());
+			Properties.Add("EngineDirectory", Unreal.EngineDirectory.FullName);
 			if (CsProjectInfo.TryRead(ProjectFilePath, Properties, out Info))
 			{
 				CachedProjectInfo.Add(InConfiguration, Info);
@@ -2602,6 +2668,16 @@ namespace UnrealBuildTool
 		{
 			CsProjectInfo Info = GetProjectInfo(UnrealTargetConfiguration.Debug)!;
 			return Info.IsDotNETCoreProject();
+		}
+
+		/// <summary>
+		/// Gets a property from the project
+		/// </summary>
+		public string GetProjectProperty(string property)
+		{
+			CsProjectInfo Info = GetProjectInfo(UnrealTargetConfiguration.Debug)!;
+			Info.Properties.TryGetValue(property, out string? value);
+			return value ?? String.Empty;
 		}
 
 		/// <inheritdoc/>
@@ -2660,5 +2736,4 @@ namespace UnrealBuildTool
 		/// Cache of parsed info about this project
 		protected readonly Dictionary<UnrealTargetConfiguration, CsProjectInfo> CachedProjectInfo = new Dictionary<UnrealTargetConfiguration, CsProjectInfo>();
 	}
-
 }

@@ -20,6 +20,7 @@ using static AutomationTool.CommandUtils;
 [Help("HostPlatforms", "Specify a list of host platforms to build, separated by '+' characters (eg. -HostPlatforms=Win32+Win64). Default is the current host platforms")]
 [Help("TargetPlatforms", "Specify a list of target platforms to build, separated by '+' characters (eg. -TargetPlatforms=Win32+Win64). Default is all the Rocket target platforms.")]
 [Help("Package", "The path which the build artifacts should be packaged to, ready for distribution.")]
+[Help("PackageAppendPluginSubdir", "Package the build artifacts in a subfolder named after the plugin.")]
 [Help("StrictIncludes", "Disables precompiled headers and unity build in order to check all source files have self-contained headers.")]
 [Help("EngineDir=<RootDirectory>", "Root Directory of the engine that will be used to build plugin(s) (optional)")]
 [Help("Unversioned", "Do not embed the current engine version into the descriptor")]
@@ -65,6 +66,14 @@ public sealed class BuildPlugin : BuildCommand
 
 		// Make sure the packaging directory is valid
 		DirectoryReference PackageDir = new DirectoryReference(PackageParam);
+		
+		// If specified, package the build artifacts in a subfolder named after the initial plugin directory. (ie. MyPlugin/Manifest.uplugin will be packaged under {PackageDir}/MyPlufin)
+		if (ParseParam("PackageAppendPluginSubdir"))
+		{
+			string PluginSubfolder = PluginFile.Directory.GetDirectoryName();
+			PackageDir = DirectoryReference.Combine(PackageDir, PluginSubfolder);
+		}
+		
 		if (PluginFile.IsUnderDirectory(PackageDir))
 		{
 			throw new AutomationException("Packaged plugin output directory must be different to source");

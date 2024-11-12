@@ -2,18 +2,17 @@
 
 #include "ViewModels/DMXPixelMappingLayoutViewModel.h"
 
-#include "Components/DMXPixelMappingMatrixCellComponent.h"
 #include "Components/DMXPixelMappingFixtureGroupComponent.h"
 #include "Components/DMXPixelMappingFixtureGroupItemComponent.h"
+#include "Components/DMXPixelMappingMatrixCellComponent.h"
 #include "Components/DMXPixelMappingMatrixComponent.h"
 #include "Components/DMXPixelMappingRendererComponent.h"
-#include "Components/DMXPixelMappingScreenComponent.h"
 #include "DMXPixelMappingEditorLog.h"
 #include "LayoutScripts/DMXPixelMappingLayoutScript.h"
+#include "Misc/ScopedSlowTask.h"
 #include "ScopedTransaction.h"
 #include "Settings/DMXPixelMappingEditorSettings.h"
 #include "Toolkits/DMXPixelMappingToolkit.h"
-
 
 #define LOCTEXT_NAMESPACE "DMXPixelMappingLayoutViewModel"
 
@@ -59,8 +58,8 @@ EDMXPixelMappingLayoutViewModelMode UDMXPixelMappingLayoutViewModel::GetMode() c
 {
 	// If a Fixture Group is selected, layout its children.
 	// If a Matrix is selected, layout its children.
-	// If more than one Fixture Group or a Screen Component is selected, layout those.
-	if (FixtureGroupComponents.Num() == 1 && ScreenComponents.IsEmpty())
+	// If more than one Fixture Group is selected, layout those.
+	if (FixtureGroupComponents.Num() == 1)
 	{
 		return EDMXPixelMappingLayoutViewModelMode::LayoutFixtureGroupComponentChildren;
 	}
@@ -68,7 +67,7 @@ EDMXPixelMappingLayoutViewModelMode UDMXPixelMappingLayoutViewModel::GetMode() c
 	{
 		return EDMXPixelMappingLayoutViewModelMode::LayoutMatrixComponentChildren;
 	}
-	else if (RendererComponent.IsValid() && ScreenComponents.IsEmpty() && FixtureGroupComponents.IsEmpty() && MatrixComponents.IsEmpty())
+	else if (RendererComponent.IsValid() && FixtureGroupComponents.IsEmpty() && MatrixComponents.IsEmpty())
 	{
 		return EDMXPixelMappingLayoutViewModelMode::LayoutRendererComponentChildren;
 	}
@@ -166,7 +165,7 @@ UDMXPixelMappingOutputComponent* UDMXPixelMappingLayoutViewModel::GetParentCompo
 	}
 	else if (LayoutMode == EDMXPixelMappingLayoutViewModelMode::LayoutFixtureGroupComponentChildren)
 	{
-		if (!ensureMsgf(FixtureGroupComponents.Num() == 1 && ScreenComponents.IsEmpty(), TEXT("GetMode no longer matches assumed conditions.")))
+		if (!ensureMsgf(FixtureGroupComponents.Num() == 1, TEXT("GetMode no longer matches assumed conditions.")))
 		{
 			return nullptr;
 		}
@@ -401,8 +400,14 @@ void UDMXPixelMappingLayoutViewModel::InstantiateLayoutScripts()
 	}
 	else if (LayoutMode == EDMXPixelMappingLayoutViewModelMode::LayoutFixtureGroupComponentChildren)
 	{
+		const float NumSteps = FixtureGroupComponents.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("InstantiateLayoutScripts", "Updating Pixel Mapping Editor..."));
+		Task.MakeDialogDelayed(.5f);
+
 		for (TWeakObjectPtr<UDMXPixelMappingFixtureGroupComponent> FixtureGroupComponent : FixtureGroupComponents)
 		{
+			Task.EnterProgressFrame();
+
 			if (FixtureGroupComponent.IsValid() && 
 				(!FixtureGroupComponent->LayoutScript || FixtureGroupComponent->LayoutScript->GetClass() != StrongLayoutScriptClass))
 			{
@@ -421,8 +426,14 @@ void UDMXPixelMappingLayoutViewModel::InstantiateLayoutScripts()
 	}
 	else if (LayoutMode == EDMXPixelMappingLayoutViewModelMode::LayoutMatrixComponentChildren)
 	{
+		const float NumSteps = MatrixComponents.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("InstantiateLayoutScripts", "Updating Pixel Mapping Editor..."));
+		Task.MakeDialogDelayed(.5f);
+
 		for (TWeakObjectPtr<UDMXPixelMappingMatrixComponent> MatrixComponent : MatrixComponents)
 		{
+			Task.EnterProgressFrame();
+
 			if (MatrixComponent.IsValid() &&
 			   (!MatrixComponent->LayoutScript || MatrixComponent->LayoutScript->GetClass() != StrongLayoutScriptClass))
 			{
@@ -463,7 +474,6 @@ void UDMXPixelMappingLayoutViewModel::RefreshComponents()
 {
 	// Reset
 	RendererComponent = nullptr;
-	ScreenComponents.Reset();
 	FixtureGroupComponents.Reset();
 	MatrixComponents.Reset();
 
@@ -486,11 +496,7 @@ void UDMXPixelMappingLayoutViewModel::RefreshComponents()
 	{
 		if (UDMXPixelMappingBaseComponent* Component = ComponentReference.GetComponent())
 		{
-			if (UDMXPixelMappingScreenComponent* ScreenComponent = Cast<UDMXPixelMappingScreenComponent>(Component))
-			{
-				ScreenComponents.Add(ScreenComponent);
-			}
-			else if (UDMXPixelMappingFixtureGroupComponent* FixtureGroupComponent = Cast<UDMXPixelMappingFixtureGroupComponent>(Component))
+			if (UDMXPixelMappingFixtureGroupComponent* FixtureGroupComponent = Cast<UDMXPixelMappingFixtureGroupComponent>(Component))
 			{
 				FixtureGroupComponents.Add(FixtureGroupComponent);
 			}

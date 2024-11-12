@@ -11,6 +11,7 @@
 #include "LiveLinkClient.h"
 #include "LiveLinkClientCommands.h"
 #include "LiveLinkSettings.h"
+#include "LiveLinkSubjectSettings.h"
 #include "LiveLinkTypes.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Modules/ModuleManager.h"
@@ -100,9 +101,10 @@ FText FLiveLinkSourceUIEntry::GetDisplayName() const
 	return GetSourceType();
 }
 
-FLiveLinkSubjectUIEntry::FLiveLinkSubjectUIEntry(const FLiveLinkSubjectKey& InSubjectKey, FLiveLinkClient* InClient)
+FLiveLinkSubjectUIEntry::FLiveLinkSubjectUIEntry(const FLiveLinkSubjectKey& InSubjectKey, FLiveLinkClient* InClient, bool bInIsSource)
 	: SubjectKey(InSubjectKey)
 	, Client(InClient)
+	, bIsSource(bInIsSource)
 {
 	if (InClient)
 	{
@@ -112,12 +114,12 @@ FLiveLinkSubjectUIEntry::FLiveLinkSubjectUIEntry(const FLiveLinkSubjectKey& InSu
 
 bool FLiveLinkSubjectUIEntry::IsSubject() const
 {
-	return !SubjectKey.SubjectName.IsNone();
+	return !bIsSource;
 }
 
 bool FLiveLinkSubjectUIEntry::IsSource() const
 {
-	return SubjectKey.SubjectName.IsNone();
+	return bIsSource;
 }
 
 bool FLiveLinkSubjectUIEntry::IsVirtualSubject() const
@@ -157,13 +159,13 @@ void FLiveLinkSubjectUIEntry::SetSubjectEnabled(bool bIsEnabled)
 
 FText FLiveLinkSubjectUIEntry::GetItemText() const
 {
-	if (IsSource())
+	if (IsSubject())
 	{
-		return Client->GetSourceType(SubjectKey.Source);
+		return Client->GetSubjectDisplayName(SubjectKey);
 	}
 	else
 	{
-		return FText::FromName(SubjectKey.SubjectName);
+		return Client->GetSourceNameOverride(SubjectKey);
 	}
 }
 
@@ -299,10 +301,6 @@ private:
 			return EntryPtr->IsSubjectValid() ? GetDefault<ULiveLinkSettings>()->GetValidColor() : GetDefault<ULiveLinkSettings>()->GetInvalidColor();
 		}
 
-		if (!EntryPtr->IsSubjectEnabled() && EntryPtr->IsSubject())
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Entry %s disabled"), *EntryPtr->SubjectKey.SubjectName.ToString());
-		}
 		return FLinearColor(0.f, 0.f, 0.f, 0.f);
 	}
 
@@ -451,7 +449,7 @@ void FLiveLinkSourcesView::CreateSourcesListView(const TSharedPtr<FUICommandList
 			.DefaultLabel(LOCTEXT("StatusColumnHeaderName", "Status"))
 			+ SHeaderRow::Column(SourceListUI::ActionsColumnName)
 			.ManualWidth(20.f)
-			.DefaultLabel(LOCTEXT("ActionsColumnHeaderName", ""))
+			.DefaultLabel(FText())
 		);
 }
 
@@ -590,29 +588,32 @@ void FLiveLinkSubjectsView::RefreshSubjects()
 			TArray<FLiveLinkSubjectKey> SubjectKeys = Client->GetSubjects(true, true);
 			SubjectData.Reset();
 
-			TMap<FGuid, FLiveLinkSubjectUIEntryPtr> SourceHeaderItems;
+			TMap<FName, FLiveLinkSubjectUIEntryPtr> SourceItems;
+
 			TArray<FLiveLinkSubjectUIEntryPtr> AllItems;
 			AllItems.Reserve(SubjectKeys.Num());
 
 			for (const FLiveLinkSubjectKey& SubjectKey : SubjectKeys)
 			{
 				FLiveLinkSubjectUIEntryPtr Source;
-				if (FLiveLinkSubjectUIEntryPtr* SourcePtr = SourceHeaderItems.Find(SubjectKey.Source))
+
+				FName SourceNameOverride = *Client->GetSourceNameOverride(SubjectKey).ToString();
+
+				if (FLiveLinkSubjectUIEntryPtr* SourcePtr = SourceItems.Find(*SourceNameOverride.ToString()))
 				{
 					Source = *SourcePtr;
 				}
 				else
 				{
-					FLiveLinkSubjectKey SourceKey = SubjectKey;
-					SourceKey.SubjectName = NAME_None;
-					Source = MakeShared<FLiveLinkSubjectUIEntry>(SourceKey, static_cast<FLiveLinkClient*>(Client));
+					constexpr bool bIsSource = true;
+					Source = MakeShared<FLiveLinkSubjectUIEntry>(SubjectKey, static_cast<FLiveLinkClient*>(Client), bIsSource);
 					SubjectData.Add(Source);
-					SourceHeaderItems.Add(SubjectKey.Source) = Source;
+					SourceItems.Add(SourceNameOverride) = Source;
 
 					SubjectsTreeView->SetItemExpansion(Source, true);
 					AllItems.Add(Source);
 				}
-
+				
 				FLiveLinkSubjectUIEntryPtr SubjectEntry = MakeShared<FLiveLinkSubjectUIEntry>(SubjectKey, static_cast<FLiveLinkClient*>(Client));
 				Source->Children.Add(SubjectEntry);
 				AllItems.Add(SubjectEntry);
@@ -655,7 +656,7 @@ void FLiveLinkSubjectsView::CreateSubjectsTreeView(const TSharedPtr<FUICommandLi
 		(
 			SNew(SHeaderRow)
 			+ SHeaderRow::Column(SubjectTreeUI::EnabledColumnName)
-			.DefaultLabel(LOCTEXT("EnabledName", ""))
+			.DefaultLabel(FText())
 			.FixedWidth(22)
 			+ SHeaderRow::Column(SubjectTreeUI::NameColumnName)
 			.DefaultLabel(LOCTEXT("SubjectItemName", "Subject Name"))
@@ -665,7 +666,7 @@ void FLiveLinkSubjectsView::CreateSubjectsTreeView(const TSharedPtr<FUICommandLi
 			.FillWidth(0.40f)
 			+ SHeaderRow::Column(SubjectTreeUI::ActionsColumnName)
 			.ManualWidth(20.f)
-			.DefaultLabel(LOCTEXT("ActionsColumnHeaderName", ""))
+			.DefaultLabel(FText())
 		);
 }
 

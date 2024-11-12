@@ -2,6 +2,7 @@
 
 #include "HttpManager.h"
 #include "HttpModule.h"
+#include "HAL/IConsoleManager.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/PlatformProcess.h"
 #include "Misc/ScopeLock.h"
@@ -10,17 +11,36 @@
 #include "Misc/Guid.h"
 #include "Misc/Fork.h"
 #include "HttpThread.h"
-#include "IHttpThreadedRequest.h"
+#include "GenericPlatform/HttpRequestCommon.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CommandLine.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
 #include "Stats/Stats.h"
 #include "Containers/BackgroundableTicker.h"
 
-// FHttpManager
+TAutoConsoleVariable<int32> CVarHttpEventLoopEnableChance(
+	TEXT("http.CurlEventLoopEnableChance"),
+	UE_HTTP_EVENT_LOOP_ENABLE_CHANCE_BY_DEFAULT,
+	TEXT("Enable chance of event loop, from 0 to 100"),
+	ECVF_SaveForNextBoot
+);
 
-FCriticalSection FHttpManager::RequestLock;
-FCriticalSection FHttpManager::CompletedRequestLock;
+TAutoConsoleVariable<FString> CVarHttpUrlPatternsToLogResponse(
+	TEXT("http.UrlPatternsToLogResponse"),
+	TEXT(""),
+	TEXT("List of url patterns to log headers and json content: \"epicgames.com unrealengine.com ...\""),
+	ECVF_SaveForNextBoot
+);
+
+TAutoConsoleVariable<FString> CVarHttpUrlPatternsToMockFailure(
+	TEXT("http.UrlPatternsToMockFailure"),
+	TEXT(""),
+	TEXT("List of url patterns to mock failure with response code, 0 indicates ConnectionError: \"epicgames.com->0 unrealengine.com->503 ...\""),
+	ECVF_SaveForNextBoot
+);
+
+// FHttpManager
 
 const TCHAR* LexToString(const EHttpFlushReason& FlushReason)
 {
@@ -46,6 +66,16 @@ namespace
 	}
 }
 
+CSV_DEFINE_CATEGORY(HttpManager, true);
+CSV_DEFINE_STAT(HttpManager, RequestsInQueue);
+CSV_DEFINE_STAT(HttpManager, MaxRequestsInQueue);
+CSV_DEFINE_STAT(HttpManager, RequestsInFlight);
+CSV_DEFINE_STAT(HttpManager, MaxRequestsInFlight);
+CSV_DEFINE_STAT(HttpManager, MaxTimeToWaitInQueue);
+CSV_DEFINE_STAT(HttpManager, DownloadedMB);
+CSV_DEFINE_STAT(HttpManager, BandwidthMbps);
+CSV_DEFINE_STAT(HttpManager, DurationMsAvg);
+
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FHttpManager::FHttpManager()
 	: FTSTickerObjectBase(0.0f, FTSBackgroundableTicker::GetCoreTicker())
@@ -69,15 +99,30 @@ void FHttpManager::Initialize()
 {
 	if (!Thread)
 	{
+		bUseEventLoop = (FMath::RandRange(0, 99) < CVarHttpEventLoopEnableChance.GetValueOnGameThread());
+
+		// Also support to change it through runtime args.
+		// Can't set cvar CVarHttpEventLoopEnableChance through runtime args or .ini files because http module initialized too early
+		FParse::Bool(FCommandLine::Get(), TEXT("useeventloop="), bUseEventLoop);
+
 		Thread = CreateHttpThread();
 		Thread->StartThread();
 	}
 
 	UpdateConfigs();
+
+	UpdateUrlPatternsToLogResponse(CVarHttpUrlPatternsToLogResponse.AsVariable());
+	CVarHttpUrlPatternsToLogResponse.AsVariable()->OnChangedDelegate().AddRaw(this, &FHttpManager::UpdateUrlPatternsToLogResponse);
+
+	UpdateUrlPatternsToMockFailure(CVarHttpUrlPatternsToMockFailure.AsVariable());
+	CVarHttpUrlPatternsToMockFailure.AsVariable()->OnChangedDelegate().AddRaw(this, &FHttpManager::UpdateUrlPatternsToMockFailure);
 }
 
 void FHttpManager::Shutdown()
 {
+	CVarHttpUrlPatternsToLogResponse.AsVariable()->OnChangedDelegate().Clear();
+	CVarHttpUrlPatternsToMockFailure.AsVariable()->OnChangedDelegate().Clear();
+
 	{
 		FScopeLock ScopeLock(&RequestLock);
 
@@ -199,8 +244,6 @@ bool FHttpManager::IsDomainAllowed(const FString& Url) const
 		return URLRequestFilter.IsRequestAllowed(Url);
 	}
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-
 #if !UE_BUILD_SHIPPING
 #if !(UE_GAME || UE_SERVER)
 	// Allowed domain filtering is opt-in in non-shipping non-game/server builds
@@ -219,23 +262,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 #endif
 #endif // !UE_BUILD_SHIPPING
 
-	// Check to see if the Domain is allowed (either on the list or the list was empty)
-	const TArray<FString>& AllowedDomains = FHttpModule::Get().GetAllowedDomains();
-	if (AllowedDomains.Num() > 0)
-	{
-		const FString Domain = FPlatformHttp::GetUrlDomain(Url);
-		for (const FString& AllowedDomain : AllowedDomains)
-		{
-			if (Domain.EndsWith(AllowedDomain))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
 	return true;
-
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 /*static*/
@@ -272,11 +299,14 @@ void FHttpManager::UpdateConfigs()
 	}
 }
 
-void FHttpManager::AddGameThreadTask(TFunction<void()>&& Task)
+void FHttpManager::AddGameThreadTask(TFunction<void()>&& Task, float Delay)
 {
 	if (Task)
 	{
-		GameThreadQueue.Enqueue(MoveTemp(Task));
+		GameThreadTicker.AddTicker(FTickerDelegate::CreateLambda([Task](float DeltaTime) {
+			Task();
+			return false;
+		}), Delay);
 	}
 }
 
@@ -430,14 +460,8 @@ bool FHttpManager::Tick(float DeltaSeconds)
 
 	// Run GameThread tasks
 	{
-		FScopeLock ScopeLock(&GameThreadQueueLock);
-
-		TFunction<void()> Task = nullptr;
-		while (GameThreadQueue.Dequeue(Task))
-		{
-			check(Task);
-			Task();
-		}
+		FScopeLock ScopeLock(&GameThreadTickerLock);
+		GameThreadTicker.Tick(DeltaSeconds);
 	}
 
 	if (Thread)
@@ -451,7 +475,8 @@ bool FHttpManager::Tick(float DeltaSeconds)
 			}
 		}
 
-		TArray<IHttpThreadedRequest*> CompletedThreadedRequests;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		TArray<FHttpRequestCommon*> CompletedThreadedRequests;
 
 		{
 			// Thread->GetCompletedRequests doesn't support multi-thread access
@@ -460,7 +485,7 @@ bool FHttpManager::Tick(float DeltaSeconds)
 		}
 
 		// Finish and remove any completed requests
-		for (IHttpThreadedRequest* CompletedRequest : CompletedThreadedRequests)
+		for (FHttpRequestCommon* CompletedRequest : CompletedThreadedRequests)
 		{
 			FHttpRequestRef CompletedRequestRef = CompletedRequest->AsShared();
 
@@ -475,7 +500,19 @@ bool FHttpManager::Tick(float DeltaSeconds)
 				BroadcastHttpRequestCompleted(CompletedRequestRef);
 			}
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
+	
+	// Report csv stats.
+	int32 TotalDownloadedMB = int32(HttpStats.TotalDownloadedBytes.load() >> 20);
+	CSV_CUSTOM_STAT_DEFINED(RequestsInQueue, HttpStats.RequestsInQueue.load(), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(MaxRequestsInQueue, int32(HttpStats.MaxRequestsInQueue.load()), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(RequestsInFlight, HttpStats.RequestsInFlight.load(), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(MaxRequestsInFlight, int32(HttpStats.MaxRequestsInFlight.load()), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(MaxTimeToWaitInQueue, int32(HttpStats.MaxTimeToWaitInQueue.load()), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(DownloadedMB, TotalDownloadedMB, ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(BandwidthMbps, int32(HttpStats.BandwidthMbps.load()), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_DEFINED(DurationMsAvg, int32(HttpStats.HttpDurationMsAvg.load()), ECsvCustomStatOp::Set);
 
 	// keep ticking
 	return true;
@@ -503,22 +540,22 @@ void FHttpManager::RemoveRequest(const FHttpRequestRef& Request)
 	Requests.Remove(Request);
 }
 
-void FHttpManager::AddThreadedRequest(const TSharedRef<IHttpThreadedRequest, ESPMode::ThreadSafe>& Request)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void FHttpManager::AddThreadedRequest(const TSharedRef<FHttpRequestCommon, ESPMode::ThreadSafe>& Request)
 {
 	check(Thread);
 	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		AddRequest(Request);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	Thread->AddRequest(&Request.Get());
 }
 
-void FHttpManager::CancelThreadedRequest(const TSharedRef<IHttpThreadedRequest, ESPMode::ThreadSafe>& Request)
+void FHttpManager::CancelThreadedRequest(const TSharedRef<FHttpRequestCommon, ESPMode::ThreadSafe>& Request)
 {
 	check(Thread);
 	Thread->CancelRequest(&Request.Get());
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool FHttpManager::IsValidRequest(const IHttpRequest* RequestPtr) const
 {
@@ -566,6 +603,30 @@ bool FHttpManager::SupportsDynamicProxy() const
 
 void FHttpManager::BroadcastHttpRequestCompleted(const FHttpRequestRef& Request)
 {
+	FHttpResponsePtr Response = Request->GetResponse();
+	if (Response.IsValid())
+	{
+		const int64 OldDuration = HttpStatsHistory.DurationMs[HttpStatsHistory.HistoryIndex];
+		const int64 NewDuration = FMath::RoundToInt64(Request->GetElapsedTime() * 1000.0f);
+
+		HttpStatsHistory.TotalDuration -= OldDuration;
+		HttpStatsHistory.TotalDuration += NewDuration;
+		HttpStatsHistory.DurationMs[HttpStatsHistory.HistoryIndex] = NewDuration;
+
+		const int64 SizeBytes = Response->GetContentLength();
+		HttpStats.TotalDownloadedBytes += SizeBytes;
+
+		HttpStatsHistory.TotalDownloadedBytes -= HttpStatsHistory.DownloadedBytes[HttpStatsHistory.HistoryIndex];
+		HttpStatsHistory.TotalDownloadedBytes += SizeBytes;
+		HttpStatsHistory.DownloadedBytes[HttpStatsHistory.HistoryIndex] = SizeBytes;
+
+		HttpStats.BandwidthMbps = ((HttpStatsHistory.TotalDownloadedBytes * 8) / (HttpStatsHistory.TotalDuration + 1) / 1000);
+		HttpStats.HttpDurationMsAvg = HttpStatsHistory.TotalDuration / FHttpStatsHistory::HttpHistoryCount;
+
+		// Increment index
+		HttpStatsHistory.HistoryIndex = (HttpStatsHistory.HistoryIndex + 1) % FHttpStatsHistory::HttpHistoryCount;
+	}
+		
 	RequestCompletedDelegate.ExecuteIfBound(Request);
 }
 
@@ -576,10 +637,85 @@ FHttpThreadBase* FHttpManager::GetThread()
 
 void FHttpManager::RecordStatTimeToConnect(float Duration)
 {
-	HttpStats.MaxTimeToConnect = FGenericPlatformMath::Max(Duration, HttpStats.MaxTimeToConnect);
+	HttpStats.MaxTimeToConnect = FGenericPlatformMath::Max(Duration, HttpStats.MaxTimeToConnect.load());
+}
+
+void FHttpManager::RecordStatRequestsInFlight(uint32 RequestsInFlight)
+{
+	HttpStats.RequestsInFlight = RequestsInFlight;
+	HttpStats.MaxRequestsInFlight = FGenericPlatformMath::Max(RequestsInFlight, HttpStats.MaxRequestsInFlight.load());
 }
 
 void FHttpManager::RecordStatRequestsInQueue(uint32 RequestsInQueue)
 {
-	HttpStats.MaxRequestsInQueue = FGenericPlatformMath::Max(RequestsInQueue, HttpStats.MaxRequestsInQueue);
+	HttpStats.RequestsInQueue = RequestsInQueue;
+	HttpStats.MaxRequestsInQueue = FGenericPlatformMath::Max(RequestsInQueue, HttpStats.MaxRequestsInQueue.load());
 }
+
+void FHttpManager::RecordMaxTimeToWaitInQueue(float Duration)
+{
+	HttpStats.MaxTimeToWaitInQueue = FGenericPlatformMath::Max(Duration, HttpStats.MaxTimeToWaitInQueue.load());
+}
+
+void FHttpManager::RecordPlatformStats(const FHttpStatsPlatform& PlatformStats)
+{
+	HttpStats.PlatformStats = PlatformStats;
+}
+
+void FHttpManager::UpdateUrlPatternsToLogResponse(IConsoleVariable* CVar)
+{
+	const FScopeLock CacheLock(&UrlPatternsToLogResponseCriticalSection);
+	const FString UrlPatternsToLogResponseStr = CVar->AsVariable()->GetString();
+	UrlPatternsToLogResponseStr.ParseIntoArray(UrlPatternsToLogResponse, TEXT(" "));
+}
+
+bool FHttpManager::ShouldLogResponse(FStringView Url)
+{
+	const FScopeLock CacheLock(&UrlPatternsToLogResponseCriticalSection);
+	for (const FString& UrlPatternToLogResponse : UrlPatternsToLogResponse)
+	{
+		if (Url.Contains(UrlPatternToLogResponse))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void FHttpManager::UpdateUrlPatternsToMockFailure(IConsoleVariable* CVar)
+{
+	const FScopeLock CacheLock(&UrlPatternsToMockFailureCriticalSection);
+	const FString UrlPatternsToMockFailureStr = CVar->AsVariable()->GetString();
+
+	TArray<FString> UrlPatternsToMockFailureStrings;
+	UrlPatternsToMockFailureStr.ParseIntoArray(UrlPatternsToMockFailureStrings, TEXT(" "));
+
+	for (const FString& UrlPatternToMockFailureString : UrlPatternsToMockFailureStrings)
+	{
+		TArray<FString> UrlPattern;
+		UrlPatternToMockFailureString.ParseIntoArray(UrlPattern, TEXT("->"));
+		if (UrlPattern.Num() == 2)
+		{
+			int32 ResponseCode = FCString::Atoi(*UrlPattern[1]);
+			UrlPatternsToMockFailure.Emplace(UrlPattern[0], ResponseCode);
+		}
+	}
+}
+
+TOptional<int32> FHttpManager::GetMockFailure(FStringView Url)
+{
+	TOptional<int32> Result;
+	const FScopeLock CacheLock(&UrlPatternsToMockFailureCriticalSection);
+
+	for (const TPair<FString, int32>& UrlPattern : UrlPatternsToMockFailure)
+	{
+		if (Url.Contains(UrlPattern.Key))
+		{
+			Result = UrlPattern.Value;
+		}
+	}
+
+	return Result;
+}
+

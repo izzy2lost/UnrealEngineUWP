@@ -20,36 +20,46 @@
 ///////////////////////////////////////////////////////////////////
 // FDisplayClusterViewportConfiguration_Tile
 ///////////////////////////////////////////////////////////////////
-void FDisplayClusterViewportConfiguration_Tile::Update()
+template <typename Predicate>
+void FDisplayClusterViewportConfiguration_Tile::ForEachTileViewport(Predicate Pred) const
 {
-	ImplBeginReallocateViewports();
-
-	const FDisplayClusterRenderFrameSettings& RenderFrameSettings = Configuration.GetRenderFrameSettings();
-	const FDisplayClusterConfigurationICVFX_StageSettings* StageSettings = Configuration.GetStageSettings();
-	FDisplayClusterViewportManager* ViewportManager = Configuration.GetViewportManagerImpl();
-
-	// Split the source viewports into multiple tiles.
+	if (FDisplayClusterViewportManager* ViewportManager = Configuration.GetViewportManagerImpl())
+{
 	for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& ViewportIt : ViewportManager->ImplGetCurrentRenderFrameViewports())
 	{
 		if (ViewportIt.IsValid() && ViewportIt->GetRenderSettings().TileSettings.GetType() == EDisplayClusterViewportTileType::Source)
 		{
-			// Split the source viewport into multiple tiles:
 			const FIntPoint& TileSize = ViewportIt->GetRenderSettings().TileSettings.GetSize();
+
+				// Iterate over all tile viewports
 			for (int32 PosX = 0; PosX < TileSize.X; PosX++)
 			{
 				for (int32 PosY = 0; PosY < TileSize.Y; PosY++)
 				{
-					FDisplayClusterViewportConfigurationHelpers_Tile::GetOrCreateTileViewport(*ViewportIt, FIntPoint(PosX, PosY));
+						::Invoke(Pred, *ViewportIt, FIntPoint(PosX, PosY));
 				}
 			}
 		}
 	}
+	}
+	else
+	{
+		UE_LOG(LogDisplayClusterViewport, Warning, TEXT("Tile:ForEachTileViewport - ViewportManager not found. "));
+	}
+}
+
+void FDisplayClusterViewportConfiguration_Tile::Update()
+{
+	ImplBeginReallocateViewports();
+
+	ForEachTileViewport([](FDisplayClusterViewport& InSourceViewport, const FIntPoint& InTilePos)
+	{
+		// Split the source viewports into multiple tiles.
+		FDisplayClusterViewportConfigurationHelpers_Tile::GetOrCreateTileViewport(InSourceViewport, InTilePos);
+	});
 
 	ImplFinishReallocateViewports();
 }
-
-void FDisplayClusterViewportConfiguration_Tile::PostUpdate()
-{ }
 
 void FDisplayClusterViewportConfiguration_Tile::ImplBeginReallocateViewports() const
 {
@@ -62,6 +72,10 @@ void FDisplayClusterViewportConfiguration_Tile::ImplBeginReallocateViewports() c
 				ViewportIt->GetRenderSettingsImpl().TileSettings.SetTileStateToBeUsed(false);
 			}
 		}
+	}
+	else
+	{
+		UE_LOG(LogDisplayClusterViewport, Warning, TEXT("Tile:BeginReallocate - ViewportManager not found. "));
 	}
 }
 
@@ -90,5 +104,9 @@ void FDisplayClusterViewportConfiguration_Tile::ImplFinishReallocateViewports() 
 		}
 
 		UnusedViewports.Empty();
+	}
+	else
+	{
+		UE_LOG(LogDisplayClusterViewport, Warning, TEXT("Tile:FinishReallocate - ViewportManager not found. "));
 	}
 }

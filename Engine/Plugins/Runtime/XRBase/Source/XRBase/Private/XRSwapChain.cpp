@@ -25,7 +25,7 @@ FORCEINLINE void CheckInRenderThread()
 
 bool InRHIOrValidThread()
 {
-	if (GIsThreadedRendering && !GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed))
+	if (GIsThreadedRendering)
 	{
 		if (IsRHIThreadRunning())
 		{
@@ -75,20 +75,6 @@ FXRSwapChain::FXRSwapChain(TArray<FTextureRHIRef>&& InRHITextureSwapChain, const
 		RHITextureSwapChain[ChainElement]->SetName(FName(*FString::Printf(TEXT("XRSwapChainBackingTex%d"), ChainElement)));
 	}
 }
-
-
-void FXRSwapChain::GenerateMips_RenderThread(FRHICommandListImmediate& RHICmdList)
-{
-	CheckInRenderThread();
-
-	if (RHITexture->GetNumMips() > 1 && RHITexture->GetTextureCube() == nullptr)
-	{
-#if PLATFORM_WINDOWS
-		RHICmdList.GenerateMips(RHITexture);
-#endif
-	}
-}
-
 
 void FXRSwapChain::IncrementSwapChainIndex_RHIThread()
 {

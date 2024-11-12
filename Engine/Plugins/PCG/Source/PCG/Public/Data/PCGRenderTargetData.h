@@ -24,7 +24,7 @@ public:
 
 	//~Begin UPCGSpatialData interface
 protected:
-	virtual UPCGSpatialData* CopyInternal() const override;
+	virtual UPCGSpatialData* CopyInternal(FPCGContext* Context) const override;
 	//~End UPCGSpatialData interface
 
 public:

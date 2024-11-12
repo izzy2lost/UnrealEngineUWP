@@ -363,12 +363,12 @@ namespace IncludeTool
 			"/Engine/Source/Runtime/Slate/Public/Framework/Text/GenericPlatformTextField.h",
 
 			// Base definitions for OpenGL3/4
-			"/Engine/Source/Runtime/OpenGLDrv/Public/OpenGL.h",
-			"/Engine/Source/Runtime/OpenGLDrv/Public/OpenGL3.h",
-			"/Engine/Source/Runtime/OpenGLDrv/Public/OpenGL4.h",
+			"/Engine/Source/Runtime/OpenGLDrv/Private/OpenGL.h",
+			"/Engine/Source/Runtime/OpenGLDrv/Private/OpenGL3.h",
+			"/Engine/Source/Runtime/OpenGLDrv/Private/OpenGL4.h",
 			"/Engine/Source/Runtime/OpenGLDrv/Public/OpenGLUtil.h", // Requires external OpenGL headers
-			"/Engine/Source/Runtime/OpenGLDrv/Public/OpenGLState.h", // Requires external OpenGL headers
-			"/Engine/Source/Runtime/OpenGLDrv/Public/OpenGLResources.h", // Requires external OpenGL headers
+			"/Engine/Source/Runtime/OpenGLDrv/Private/OpenGLState.h", // Requires external OpenGL headers
+			"/Engine/Source/Runtime/OpenGLDrv/Private/OpenGLResources.h", // Requires external OpenGL headers
 		};
 
 		/// <summary>
@@ -566,6 +566,8 @@ namespace IncludeTool
 			AddCounterpart(BranchRoot, "Engine\\Source\\Runtime\\Core\\Public\\Windows\\AllowWindowsPlatformAtomics.h", "Engine\\Source\\Runtime\\Core\\Public\\Windows\\HideWindowsPlatformAtomics.h");
 			AddCounterpart(BranchRoot, "Engine\\Source\\Runtime\\Core\\Public\\Windows\\PreWindowsApi.h", "Engine\\Source\\Runtime\\Core\\Public\\Windows\\PostWindowsApi.h");
 			AddCounterpart(BranchRoot, "Engine\\Plugins\\Runtime\\OpenCV\\Source\\OpenCVHelper\\Public\\PreOpenCVHeaders.h", "Engine\\Plugins\\Runtime\\OpenCV\\Source\\OpenCVHelper\\Public\\PostOpenCVHeaders.h");
+			AddCounterpart(BranchRoot, "Engine\\Plugins\\Media\\AjaMedia\\Source\\AjaMedia\\Private\\AjaMediaAllowPlatformTypes.h", "Engine\\Plugins\\Media\\AjaMedia\\Source\\AjaMedia\\Private\\AjaMediaHidePlatformTypes.h");
+			AddCounterpart(BranchRoot, "Engine\\Plugins\\Enterprise\\DatasmithC4DImporter\\Source\\DatasmithC4DTranslator\\Private\\DatasmithC4DMelangeSDKEnterGuard.h", "Engine\\Plugins\\Enterprise\\DatasmithC4DImporter\\Source\\DatasmithC4DTranslator\\Private\\DatasmithC4DMelangeSDKLeaveGuard.h");
 		}
 
 		/// <summary>
@@ -598,11 +600,15 @@ namespace IncludeTool
 			{
 				return true;
 			}			
-			if(Markup.Type == PreprocessorMarkupType.Define && (Markup.Tokens[0].Text == "UE_DEPRECATED_FORGAME" || Markup.Tokens[0].Text == "DEPRECATED_FORGAME"))
+			if(Markup.Type == PreprocessorMarkupType.Define && (Markup.Tokens[0].Text == "UE_DEPRECATED_FORGAME"))
 			{
 				return true;
 			}
-			if(Markup.Type == PreprocessorMarkupType.Undef && Markup.Tokens[0].Text == "TEXT")
+			if (Markup.Type == PreprocessorMarkupType.Define && Markup.Tokens[0].Text == "UE_DEPRECATED_FORENGINE")
+			{
+				return true;
+			}
+			if (Markup.Type == PreprocessorMarkupType.Undef && Markup.Tokens[0].Text == "TEXT")
 			{
 				return true;
 			}

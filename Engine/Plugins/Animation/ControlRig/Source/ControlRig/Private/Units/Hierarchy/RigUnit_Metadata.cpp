@@ -13,15 +13,6 @@
 #include "RigVMModel/RigVMPin.h"
 #endif
 
-FName FRigDispatch_MetadataBase::ItemArgName = TEXT("Item");
-FName FRigDispatch_MetadataBase::NameArgName = TEXT("Name");
-FName FRigDispatch_MetadataBase::NameSpaceArgName = TEXT("NameSpace");
-FName FRigDispatch_MetadataBase::CacheArgName = TEXT("Cache");
-FName FRigDispatch_MetadataBase::DefaultArgName = TEXT("Default");
-FName FRigDispatch_MetadataBase::ValueArgName = TEXT("Value");
-FName FRigDispatch_MetadataBase::FoundArgName = TEXT("Found");
-FName FRigDispatch_MetadataBase::SuccessArgName = TEXT("Success");
-
 #if WITH_EDITOR
 
 FString FRigDispatch_MetadataBase::GetNodeTitle(const FRigVMTemplateTypeMap& InTypes) const
@@ -72,10 +63,11 @@ const TArray<FRigVMTemplateArgumentInfo>& FRigDispatch_MetadataBase::GetArgument
 {
 	if(Infos.IsEmpty())
 	{
-		ItemArgIndex = Infos.Emplace(ItemArgName, ERigVMPinDirection::Input, FRigVMRegistry::Get().GetTypeIndex<FRigElementKey>());
+		const FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForRead();
+		ItemArgIndex = Infos.Emplace(ItemArgName, ERigVMPinDirection::Input, Registry.GetTypeIndex_NoLock<FRigElementKey>());
 		NameArgIndex = Infos.Emplace(NameArgName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::FName);
-		NameSpaceArgIndex = Infos.Emplace(NameSpaceArgName, ERigVMPinDirection::Input, FRigVMRegistry::Get().GetTypeIndex<ERigMetaDataNameSpace>());
-		CacheArgIndex = Infos.Emplace(CacheArgName, ERigVMPinDirection::Hidden, FRigVMRegistry::Get().GetTypeIndex<FCachedRigElement>());
+		NameSpaceArgIndex = Infos.Emplace(NameSpaceArgName, ERigVMPinDirection::Input, Registry.GetTypeIndex_NoLock<ERigMetaDataNameSpace>());
+		CacheArgIndex = Infos.Emplace(CacheArgName, ERigVMPinDirection::Hidden, Registry.GetTypeIndex_NoLock<FCachedRigElement>());
 	};
 	return Infos;
 }
@@ -145,28 +137,28 @@ const TArray<TRigVMTypeIndex>& FRigDispatch_MetadataBase::GetValueTypes() const
 	static TArray<TRigVMTypeIndex> Types;
 	if(Types.IsEmpty())
 	{
-		const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+		const FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForRead();
 		Types = {
 			RigVMTypeUtils::TypeIndex::Bool,
 			RigVMTypeUtils::TypeIndex::Float,
 			RigVMTypeUtils::TypeIndex::Int32,
 			RigVMTypeUtils::TypeIndex::FName,
-			Registry.GetTypeIndex<FVector>(false),
-			Registry.GetTypeIndex<FRotator>(false),
-			Registry.GetTypeIndex<FQuat>(false),
-			Registry.GetTypeIndex<FTransform>(false),
-			Registry.GetTypeIndex<FLinearColor>(false),
-			Registry.GetTypeIndex<FRigElementKey>(false),
+			Registry.GetTypeIndex_NoLock<FVector>(false),
+			Registry.GetTypeIndex_NoLock<FRotator>(false),
+			Registry.GetTypeIndex_NoLock<FQuat>(false),
+			Registry.GetTypeIndex_NoLock<FTransform>(false),
+			Registry.GetTypeIndex_NoLock<FLinearColor>(false),
+			Registry.GetTypeIndex_NoLock<FRigElementKey>(false),
 			RigVMTypeUtils::TypeIndex::BoolArray,
 			RigVMTypeUtils::TypeIndex::FloatArray,
 			RigVMTypeUtils::TypeIndex::Int32Array,
 			RigVMTypeUtils::TypeIndex::FNameArray,
-			Registry.GetTypeIndex<FVector>(true),
-			Registry.GetTypeIndex<FRotator>(true),
-			Registry.GetTypeIndex<FQuat>(true),
-			Registry.GetTypeIndex<FTransform>(true),
-			Registry.GetTypeIndex<FLinearColor>(true),
-			Registry.GetTypeIndex<FRigElementKey>(true)
+			Registry.GetTypeIndex_NoLock<FVector>(true),
+			Registry.GetTypeIndex_NoLock<FRotator>(true),
+			Registry.GetTypeIndex_NoLock<FQuat>(true),
+			Registry.GetTypeIndex_NoLock<FTransform>(true),
+			Registry.GetTypeIndex_NoLock<FLinearColor>(true),
+			Registry.GetTypeIndex_NoLock<FRigElementKey>(true)
 		};
 	}
 	return Types;
@@ -205,7 +197,7 @@ FRigBaseMetadata* FRigDispatch_GetMetadata::FindMetadata(const FRigVMExtendedExe
 
 FRigVMFunctionPtr FRigDispatch_GetMetadata::GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const
 {
-	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+	const FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForRead();
 	const TRigVMTypeIndex& ValueTypeIndex = InTypes.FindChecked(TEXT("Value"));
 	
 	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::Bool)
@@ -224,27 +216,27 @@ FRigVMFunctionPtr FRigDispatch_GetMetadata::GetDispatchFunctionImpl(const FRigVM
 	{
 		return &FRigDispatch_GetMetadata::GetMetadataDispatch<FName, FRigNameMetadata, ERigMetadataType::Name>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FVector>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FVector>(false))
 	{
 		return &FRigDispatch_GetMetadata::GetMetadataDispatch<FVector, FRigVectorMetadata, ERigMetadataType::Vector>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRotator>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRotator>(false))
 	{
 		return &FRigDispatch_GetMetadata::GetMetadataDispatch<FRotator, FRigRotatorMetadata, ERigMetadataType::Rotator>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FQuat>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FQuat>(false))
 	{
 		return &FRigDispatch_GetMetadata::GetMetadataDispatch<FQuat, FRigQuatMetadata, ERigMetadataType::Quat>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FTransform>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FTransform>(false))
 	{
 		return &FRigDispatch_GetMetadata::GetMetadataDispatch<FTransform, FRigTransformMetadata, ERigMetadataType::Transform>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FLinearColor>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FLinearColor>(false))
 	{
 		return &FRigDispatch_GetMetadata::GetMetadataDispatch<FLinearColor, FRigLinearColorMetadata, ERigMetadataType::LinearColor>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRigElementKey>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRigElementKey>(false))
 	{
 		return &FRigDispatch_GetMetadata::GetMetadataDispatch<FRigElementKey, FRigElementKeyMetadata, ERigMetadataType::RigElementKey>;
 	}
@@ -264,27 +256,27 @@ FRigVMFunctionPtr FRigDispatch_GetMetadata::GetDispatchFunctionImpl(const FRigVM
 	{
 		return &FRigDispatch_GetMetadata::GetMetadataDispatch<TArray<FName>, FRigNameArrayMetadata, ERigMetadataType::NameArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FVector>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FVector>(true))
 	{
 		return &FRigDispatch_GetMetadata::GetMetadataDispatch<TArray<FVector>, FRigVectorArrayMetadata, ERigMetadataType::VectorArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRotator>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRotator>(true))
 	{
 		return &FRigDispatch_GetMetadata::GetMetadataDispatch<TArray<FRotator>, FRigRotatorArrayMetadata, ERigMetadataType::RotatorArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FQuat>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FQuat>(true))
 	{
 		return &FRigDispatch_GetMetadata::GetMetadataDispatch<TArray<FQuat>, FRigQuatArrayMetadata, ERigMetadataType::QuatArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FTransform>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FTransform>(true))
 	{
 		return &FRigDispatch_GetMetadata::GetMetadataDispatch<TArray<FTransform>, FRigTransformArrayMetadata, ERigMetadataType::TransformArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FLinearColor>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FLinearColor>(true))
 	{
 		return &FRigDispatch_GetMetadata::GetMetadataDispatch<TArray<FLinearColor>, FRigLinearColorArrayMetadata, ERigMetadataType::LinearColorArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRigElementKey>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRigElementKey>(true))
 	{
 		return &FRigDispatch_GetMetadata::GetMetadataDispatch<TArray<FRigElementKey>, FRigElementKeyArrayMetadata, ERigMetadataType::RigElementKeyArray>;
 	}
@@ -331,7 +323,7 @@ FRigBaseMetadata* FRigDispatch_SetMetadata::FindOrAddMetadata(const FControlRigE
 
 FRigVMFunctionPtr FRigDispatch_SetMetadata::GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const
 {
-	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+	const FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForRead();
 	const TRigVMTypeIndex& ValueTypeIndex = InTypes.FindChecked(TEXT("Value"));
 	
 	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::Bool)
@@ -350,27 +342,27 @@ FRigVMFunctionPtr FRigDispatch_SetMetadata::GetDispatchFunctionImpl(const FRigVM
 	{
 		return &FRigDispatch_SetMetadata::SetMetadataDispatch<FName, FRigNameMetadata, ERigMetadataType::Name>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FVector>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FVector>(false))
 	{
 		return &FRigDispatch_SetMetadata::SetMetadataDispatch<FVector, FRigVectorMetadata, ERigMetadataType::Vector>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRotator>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRotator>(false))
 	{
 		return &FRigDispatch_SetMetadata::SetMetadataDispatch<FRotator, FRigRotatorMetadata, ERigMetadataType::Rotator>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FQuat>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FQuat>(false))
 	{
 		return &FRigDispatch_SetMetadata::SetMetadataDispatch<FQuat, FRigQuatMetadata, ERigMetadataType::Quat>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FTransform>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FTransform>(false))
 	{
 		return &FRigDispatch_SetMetadata::SetMetadataDispatch<FTransform, FRigTransformMetadata, ERigMetadataType::Transform>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FLinearColor>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FLinearColor>(false))
 	{
 		return &FRigDispatch_SetMetadata::SetMetadataDispatch<FLinearColor, FRigLinearColorMetadata, ERigMetadataType::LinearColor>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRigElementKey>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRigElementKey>(false))
 	{
 		return &FRigDispatch_SetMetadata::SetMetadataDispatch<FRigElementKey, FRigElementKeyMetadata, ERigMetadataType::RigElementKey>;
 	}
@@ -390,27 +382,27 @@ FRigVMFunctionPtr FRigDispatch_SetMetadata::GetDispatchFunctionImpl(const FRigVM
 	{
 		return &FRigDispatch_SetMetadata::SetMetadataDispatch<TArray<FName>, FRigNameArrayMetadata, ERigMetadataType::NameArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FVector>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FVector>(true))
 	{
 		return &FRigDispatch_SetMetadata::SetMetadataDispatch<TArray<FVector>, FRigVectorArrayMetadata, ERigMetadataType::VectorArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRotator>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRotator>(true))
 	{
 		return &FRigDispatch_SetMetadata::SetMetadataDispatch<TArray<FRotator>, FRigRotatorArrayMetadata, ERigMetadataType::RotatorArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FQuat>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FQuat>(true))
 	{
 		return &FRigDispatch_SetMetadata::SetMetadataDispatch<TArray<FQuat>, FRigQuatArrayMetadata, ERigMetadataType::QuatArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FTransform>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FTransform>(true))
 	{
 		return &FRigDispatch_SetMetadata::SetMetadataDispatch<TArray<FTransform>, FRigTransformArrayMetadata, ERigMetadataType::TransformArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FLinearColor>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FLinearColor>(true))
 	{
 		return &FRigDispatch_SetMetadata::SetMetadataDispatch<TArray<FLinearColor>, FRigLinearColorArrayMetadata, ERigMetadataType::LinearColorArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRigElementKey>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRigElementKey>(true))
 	{
 		return &FRigDispatch_SetMetadata::SetMetadataDispatch<TArray<FRigElementKey>, FRigElementKeyArrayMetadata, ERigMetadataType::RigElementKeyArray>;
 	}
@@ -841,7 +833,7 @@ const TArray<FRigVMTemplateArgumentInfo>& FRigDispatch_GetModuleMetadata::GetArg
 	if(ValueArgIndex == INDEX_NONE)
 	{
 		NameArgIndex = Infos.Emplace(NameArgName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::FName);
-		NameSpaceArgIndex = Infos.Emplace(NameSpaceArgName, ERigVMPinDirection::Input, FRigVMRegistry::Get().GetTypeIndex<ERigMetaDataNameSpace>());
+		NameSpaceArgIndex = Infos.Emplace(NameSpaceArgName, ERigVMPinDirection::Input, FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<ERigMetaDataNameSpace>());
 		DefaultArgIndex = Infos.Emplace(DefaultArgName, ERigVMPinDirection::Input, GetValueTypes());
 		ValueArgIndex = Infos.Emplace(ValueArgName, ERigVMPinDirection::Output, GetValueTypes());
 		FoundArgIndex = Infos.Emplace(FoundArgName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Bool);
@@ -869,7 +861,7 @@ FRigBaseMetadata* FRigDispatch_GetModuleMetadata::FindMetadata(const FRigVMExten
 			if(Connector->IsPrimary())
 			{
 				const FName Name = ExecuteContext.AdaptMetadataName(InNameSpace, InName);
-				return ExecuteContext.Hierarchy->FindMetadataForElement(Connector, InName, InType);
+				return ExecuteContext.Hierarchy->FindMetadataForElement(Connector, Name, InType);
 			}
 		}
 	}
@@ -878,7 +870,7 @@ FRigBaseMetadata* FRigDispatch_GetModuleMetadata::FindMetadata(const FRigVMExten
 
 FRigVMFunctionPtr FRigDispatch_GetModuleMetadata::GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const
 {
-	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+	const FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForRead();
 	const TRigVMTypeIndex& ValueTypeIndex = InTypes.FindChecked(TEXT("Value"));
 	
 	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::Bool)
@@ -897,27 +889,27 @@ FRigVMFunctionPtr FRigDispatch_GetModuleMetadata::GetDispatchFunctionImpl(const 
 	{
 		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<FName, FRigNameMetadata, ERigMetadataType::Name>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FVector>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FVector>(false))
 	{
 		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<FVector, FRigVectorMetadata, ERigMetadataType::Vector>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRotator>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRotator>(false))
 	{
 		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<FRotator, FRigRotatorMetadata, ERigMetadataType::Rotator>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FQuat>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FQuat>(false))
 	{
 		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<FQuat, FRigQuatMetadata, ERigMetadataType::Quat>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FTransform>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FTransform>(false))
 	{
 		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<FTransform, FRigTransformMetadata, ERigMetadataType::Transform>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FLinearColor>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FLinearColor>(false))
 	{
 		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<FLinearColor, FRigLinearColorMetadata, ERigMetadataType::LinearColor>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRigElementKey>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRigElementKey>(false))
 	{
 		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<FRigElementKey, FRigElementKeyMetadata, ERigMetadataType::RigElementKey>;
 	}
@@ -937,27 +929,27 @@ FRigVMFunctionPtr FRigDispatch_GetModuleMetadata::GetDispatchFunctionImpl(const 
 	{
 		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<FName>, FRigNameArrayMetadata, ERigMetadataType::NameArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FVector>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FVector>(true))
 	{
 		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<FVector>, FRigVectorArrayMetadata, ERigMetadataType::VectorArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRotator>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRotator>(true))
 	{
 		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<FRotator>, FRigRotatorArrayMetadata, ERigMetadataType::RotatorArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FQuat>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FQuat>(true))
 	{
 		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<FQuat>, FRigQuatArrayMetadata, ERigMetadataType::QuatArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FTransform>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FTransform>(true))
 	{
 		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<FTransform>, FRigTransformArrayMetadata, ERigMetadataType::TransformArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FLinearColor>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FLinearColor>(true))
 	{
 		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<FLinearColor>, FRigLinearColorArrayMetadata, ERigMetadataType::LinearColorArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRigElementKey>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRigElementKey>(true))
 	{
 		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<FRigElementKey>, FRigElementKeyArrayMetadata, ERigMetadataType::RigElementKeyArray>;
 	}
@@ -970,7 +962,7 @@ const TArray<FRigVMTemplateArgumentInfo>& FRigDispatch_SetModuleMetadata::GetArg
 	if(ValueArgIndex == INDEX_NONE)
 	{
 		NameArgIndex = Infos.Emplace(NameArgName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::FName);
-		NameSpaceArgIndex = Infos.Emplace(NameSpaceArgName, ERigVMPinDirection::Input, FRigVMRegistry::Get().GetTypeIndex<ERigMetaDataNameSpace>());
+		NameSpaceArgIndex = Infos.Emplace(NameSpaceArgName, ERigVMPinDirection::Input, FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<ERigMetaDataNameSpace>());
 		ValueArgIndex = Infos.Emplace(ValueArgName, ERigVMPinDirection::Input, GetValueTypes());
 		SuccessArgIndex = Infos.Emplace(SuccessArgName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Bool);
 	};
@@ -997,7 +989,7 @@ FRigBaseMetadata* FRigDispatch_SetModuleMetadata::FindOrAddMetadata(const FContr
 			if(Connector->IsPrimary())
 			{
 				const FName Name = InContext.AdaptMetadataName(InNameSpace, InName);
-				return InContext.Hierarchy->GetMetadataForElement(const_cast<FRigConnectorElement*>(Connector), InName, InType, bNotify);
+				return InContext.Hierarchy->GetMetadataForElement(const_cast<FRigConnectorElement*>(Connector), Name, InType, bNotify);
 			}
 		}
 	}
@@ -1006,7 +998,7 @@ FRigBaseMetadata* FRigDispatch_SetModuleMetadata::FindOrAddMetadata(const FContr
 
 FRigVMFunctionPtr FRigDispatch_SetModuleMetadata::GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const
 {
-	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+	const FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForRead();
 	const TRigVMTypeIndex& ValueTypeIndex = InTypes.FindChecked(TEXT("Value"));
 	
 	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::Bool)
@@ -1025,27 +1017,27 @@ FRigVMFunctionPtr FRigDispatch_SetModuleMetadata::GetDispatchFunctionImpl(const 
 	{
 		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<FName, FRigNameMetadata, ERigMetadataType::Name>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FVector>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FVector>(false))
 	{
 		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<FVector, FRigVectorMetadata, ERigMetadataType::Vector>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRotator>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRotator>(false))
 	{
 		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<FRotator, FRigRotatorMetadata, ERigMetadataType::Rotator>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FQuat>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FQuat>(false))
 	{
 		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<FQuat, FRigQuatMetadata, ERigMetadataType::Quat>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FTransform>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FTransform>(false))
 	{
 		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<FTransform, FRigTransformMetadata, ERigMetadataType::Transform>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FLinearColor>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FLinearColor>(false))
 	{
 		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<FLinearColor, FRigLinearColorMetadata, ERigMetadataType::LinearColor>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRigElementKey>(false))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRigElementKey>(false))
 	{
 		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<FRigElementKey, FRigElementKeyMetadata, ERigMetadataType::RigElementKey>;
 	}
@@ -1065,27 +1057,27 @@ FRigVMFunctionPtr FRigDispatch_SetModuleMetadata::GetDispatchFunctionImpl(const 
 	{
 		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<FName>, FRigNameArrayMetadata, ERigMetadataType::NameArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FVector>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FVector>(true))
 	{
 		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<FVector>, FRigVectorArrayMetadata, ERigMetadataType::VectorArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRotator>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRotator>(true))
 	{
 		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<FRotator>, FRigRotatorArrayMetadata, ERigMetadataType::RotatorArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FQuat>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FQuat>(true))
 	{
 		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<FQuat>, FRigQuatArrayMetadata, ERigMetadataType::QuatArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FTransform>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FTransform>(true))
 	{
 		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<FTransform>, FRigTransformArrayMetadata, ERigMetadataType::TransformArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FLinearColor>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FLinearColor>(true))
 	{
 		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<FLinearColor>, FRigLinearColorArrayMetadata, ERigMetadataType::LinearColorArray>;
 	}
-	if(ValueTypeIndex == Registry.GetTypeIndex<FRigElementKey>(true))
+	if(ValueTypeIndex == Registry.GetTypeIndex_NoLock<FRigElementKey>(true))
 	{
 		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<FRigElementKey>, FRigElementKeyArrayMetadata, ERigMetadataType::RigElementKeyArray>;
 	}

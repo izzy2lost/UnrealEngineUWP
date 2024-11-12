@@ -9,13 +9,37 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SWindow.h"
 
+#include "GroomImportOptionsWindow.generated.h"
+
 class SButton;
 class UGroomImportOptions;
 class UGroomCacheImportOptions;
 class UGroomHairGroupsPreview;
 struct FHairGroupInfo;
 
-enum class EHairDescriptionStatus;
+UENUM()
+enum class EHairDescriptionStatus : uint32
+{
+	None					= 0,
+	GroomValid				= 1u<<1,
+	NoGroup					= 1u<<2,
+	NoCurve					= 1u<<3,
+	GroomCache				= 1u<<4, // groom cache with unspecified groom asset
+	GroomCacheCompatible	= 1u<<5,
+	GroomCacheIncompatible	= 1u<<6,
+	GuidesOnly				= 1u<<7, // guides-only with unspecified groom asset
+	GuidesOnlyCompatible	= 1u<<8,
+	GuidesOnlyIncompatible	= 1u<<9,
+	PointLimit				= 1u<<10,
+	CurveLimit				= 1u<<11,
+	InvalidPoint			= 1u<<12,
+	Unknown					= 1u<<13,
+
+	Warning = CurveLimit | PointLimit | InvalidPoint,
+	Error   = NoCurve | NoGroup | GroomCacheIncompatible | GuidesOnlyIncompatible | GroomCache | GuidesOnly | Unknown,
+	Valid   = GroomValid | GroomCacheCompatible | GuidesOnlyCompatible
+};
+ENUM_CLASS_FLAGS(EHairDescriptionStatus);
 
 class SGroomImportOptionsWindow : public SCompoundWidget
 {

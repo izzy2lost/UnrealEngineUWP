@@ -93,4 +93,10 @@ public:
 	 * @return true if the option is set, false otherwise.
 	 */
 	virtual bool HasMediaOption(const FName& Key) const = 0;
+
+	/**
+	 * @return a object that can be used by the UObject garbage collection system to keep this object alive.
+	 * Players should not store a pointer of the interface but some players use the interface in async functionality and the object needs to be kept alive during those.
+	 */
+	virtual const UObject* ToUObject() const = 0;
 };

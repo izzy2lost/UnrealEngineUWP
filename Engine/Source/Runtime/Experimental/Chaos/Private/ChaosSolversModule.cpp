@@ -97,11 +97,6 @@ FChaosSolversModule::FChaosSolversModule()
 
 void FChaosSolversModule::StartupModule()
 {
-	// Load dependent modules if we can
-	if(FModuleManager::Get().ModuleExists(TEXT("FieldSystemEngine")))
-	{
-		FModuleManager::Get().LoadModule("FieldSystemEngine");
-	}
 	Initialize();
 }
 
@@ -180,11 +175,7 @@ void FChaosSolversModule::SyncTask(bool bForceBlockingSync /*= false*/)
 #endif
 }
 
-Chaos::FPBDRigidsSolver* FChaosSolversModule::CreateSolver(UObject* InOwner, Chaos::FReal InAsyncDt, Chaos::EThreadingMode InThreadingMode
-#if CHAOS_DEBUG_NAME
-	, const FName& DebugName
-#endif
-)
+Chaos::FPBDRigidsSolver* FChaosSolversModule::CreateSolver(UObject* InOwner, Chaos::FReal InAsyncDt, Chaos::EThreadingMode InThreadingMode, const FName& DebugName)
 {
 	LLM_SCOPE(ELLMTag::Chaos);
 	using namespace Chaos;
@@ -192,7 +183,7 @@ Chaos::FPBDRigidsSolver* FChaosSolversModule::CreateSolver(UObject* InOwner, Cha
 	FChaosScopeSolverLock SolverScopeLock;
 	
 	EMultiBufferMode SolverBufferMode = InThreadingMode == EThreadingMode::SingleThread ? EMultiBufferMode::Single : EMultiBufferMode::Double;
-	auto* NewSolver = new FPBDRigidsSolver(SolverBufferMode,InOwner, InAsyncDt);
+	FPBDRigidsSolver* NewSolver = new FPBDRigidsSolver(SolverBufferMode, InOwner, InAsyncDt);
 	AllSolvers.Add(NewSolver);
 
 	// Add The solver to the owner list

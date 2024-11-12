@@ -868,7 +868,7 @@ void UGeomModifier_Extrude::Apply(int32 InLength, int32 InSegments)
 			};
 			Polygons.Sort( FCompareFPolyNormal() );
 
-			FVector3f NormalCompare;
+			FVector3f NormalCompare = FVector3f::ZeroVector;
 			TArray<FPoly> PolygonGroup;
 
 			for( int32 p = 0 ; p < Polygons.Num() ; ++p )

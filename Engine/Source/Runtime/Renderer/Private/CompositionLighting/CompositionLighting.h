@@ -18,11 +18,11 @@
 class FCompositionLighting
 {
 public:
-	FCompositionLighting(TArrayView<const FViewInfo> InViews, const FSceneTextures& InSceneTextures, TUniqueFunction<bool(int32)> RequestSSAOFunction);
+	FCompositionLighting(TArrayView<FViewInfo> InViews, const FSceneTextures& InSceneTextures, TUniqueFunction<bool(int32)> RequestSSAOFunction);
 
 	void ProcessAfterOcclusion(FRDGBuilder& GraphBuilder);
 
-	void ProcessBeforeBasePass(FRDGBuilder& GraphBuilder, FDBufferTextures& DBufferTextures, FInstanceCullingManager& InstanceCullingManager);
+	void ProcessBeforeBasePass(FRDGBuilder& GraphBuilder, FDBufferTextures& DBufferTextures, FInstanceCullingManager& InstanceCullingManager, const FSubstrateSceneData& SubstrateSceneData);
 
 	enum class EProcessAfterBasePassMode
 	{
@@ -31,12 +31,12 @@ public:
 		All
 	};
 
-	void ProcessAfterBasePass(FRDGBuilder& GraphBuilder, FInstanceCullingManager& InstanceCullingManager, EProcessAfterBasePassMode Mode);
+	void ProcessAfterBasePass(FRDGBuilder& GraphBuilder, FInstanceCullingManager& InstanceCullingManager, EProcessAfterBasePassMode Mode, const FSubstrateSceneData& SubstrateSceneData);
 
 private:
 	void TryInit();
 
-	const TArrayView<const FViewInfo> Views;
+	const TArrayView<FViewInfo> Views;
 	const FSceneViewFamily& ViewFamily;
 	const FSceneTextures& SceneTextures;
 

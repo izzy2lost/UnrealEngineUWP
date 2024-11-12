@@ -39,6 +39,8 @@
 #include "RigVMFunctions/RigVMDispatch_Select.h"
 #include "Algo/Copy.h"
 #include "Brushes/SlateColorBrush.h"
+#include "Widgets/SRigVMGraphPinCategory.h"
+#include "Widgets/SRigVMVariantTagWidget.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -54,8 +56,8 @@ void SRigVMGraphNode::Construct( const FArguments& InArgs )
 {
 	if (CachedImg_CR_Pin_Connected == nullptr)
 	{
-		static const FName NAME_CR_Pin_Connected("ControlRig.Bug.Solid");
-		static const FName NAME_CR_Pin_Disconnected("ControlRig.Bug.Open");
+		static const FLazyName NAME_CR_Pin_Connected("ControlRig.Bug.Solid");
+		static const FLazyName NAME_CR_Pin_Disconnected("ControlRig.Bug.Open");
 		CachedImg_CR_Pin_Connected = FSlateIcon(TEXT("ControlRigEditorStyle"), NAME_CR_Pin_Connected).GetIcon();
 		CachedImg_CR_Pin_Disconnected = FSlateIcon(TEXT("ControlRigEditorStyle"), NAME_CR_Pin_Disconnected).GetIcon();
 	}
@@ -663,26 +665,28 @@ FText SRigVMGraphNode::GetPinLabel(TWeakPtr<SGraphPin> GraphPin) const
 	return FText();
 }
 
-FSlateColor SRigVMGraphNode::GetPinTextColor(TWeakPtr<SGraphPin> GraphPin) const
+TOptional<FSlateColor> SRigVMGraphNode::GetHighlightColor(const SGraphPin* InGraphPin) const
 {
-	if(GraphPin.IsValid())
+	if(IsCategoryPin(InGraphPin))
 	{
-		if (GraphPin.Pin()->GetPinObj()->bOrphanedPin)
-		{
-			return FLinearColor::Red;
-		}
-
-		// If there is no schema there is no owning node (or basically this is a deleted node)
-		if (GraphNode)
-		{
-			if(!GraphNode->IsNodeEnabled() || GraphNode->IsDisplayAsDisabledForced() || !GraphPin.Pin()->IsEditingEnabled() || GraphNode->IsNodeUnrelated())
-			{
-				return FLinearColor(1.0f, 1.0f, 1.0f, 0.5f);
-			}
-		}
+		return FSlateColor(EStyleColor::Hover);
 	}
+	if(HasUserProvidedValue(InGraphPin))
+	{
+		return FSlateColor(FLinearColor::Red);
+	}
+	return SGraphNode::GetHighlightColor(InGraphPin);
+}
 
-	return FLinearColor::White;
+TOptional<const FSlateBrush*> SRigVMGraphNode::GetPinBorder(const SGraphPin* InGraphPin) const
+{
+	if(HasUserProvidedValue(InGraphPin) || IsCategoryPin(InGraphPin))
+	{
+		static const FName NAME_Pin_BackgroundHovered("Graph.Pin.BackgroundHovered");
+		static const FSlateBrush* CachedImg_Pin_BackgroundHovered = FAppStyle::GetBrush( NAME_Pin_BackgroundHovered );
+		return CachedImg_Pin_BackgroundHovered;
+	}
+	return SGraphNode::GetPinBorder(InGraphPin);
 }
 
 FSlateColor SRigVMGraphNode::GetVariableLabelTextColor(
@@ -934,7 +938,7 @@ TArray<FOverlayWidgetInfo> SRigVMGraphNode::GetOverlayWidgets(bool bSelected, co
 					if (URigVMUnitNode* VisualDebugNode = Cast<URigVMUnitNode>(Injection->Node))
 					{
 						FString TemplateName;
-					   if (VisualDebugNode->GetScriptStruct()->GetStringMetaDataHierarchical(FRigVMStruct::TemplateNameMetaName, &TemplateName))
+					   if (VisualDebugNode->GetScriptStruct()->GetStringMetaDataHierarchical(FRigVMRegistry::TemplateNameMetaName, &TemplateName))
 					   {
 						   if (TemplateName == TEXT("VisualDebug"))
 						   {
@@ -1149,7 +1153,7 @@ void SRigVMGraphNode::HandleNodePinsChanged()
 		
 		const FPinInfo* PinInfoPtr = PinInfos.FindByPredicate([PinPath](const FPinInfo& PinInfo) -> bool
 		{
-			return PinInfo.ModelPinPath == PinPath;
+			return PinInfo.Identifier == PinPath;
 		});
 		
 		if (PinInfoPtr)
@@ -1174,7 +1178,7 @@ void SRigVMGraphNode::HandleNodePinsChanged()
 		
 		const FPinInfo* PinInfoPtr = PinInfos.FindByPredicate([PinPath](const FPinInfo& PinInfo) -> bool
 		{
-			return PinInfo.ModelPinPath == PinPath;
+			return PinInfo.Identifier == PinPath;
 		});
 		
 		if (PinInfoPtr)
@@ -1450,34 +1454,36 @@ FReply SRigVMGraphNode::OnExpanderArrowClicked(int32 InPinInfoIndex)
 			}
 			
 			const FPinInfo& PinInfo = PinInfos[InPinInfoIndex];
-			TArray<FString> PinPathsToModify;
-			PinPathsToModify.Add(PinInfo.ModelPinPath);
+			TArray<int32> PinInfoIndicesToModify;
+			PinInfoIndicesToModify.Add(PinInfo.Index);
 
 			// with shift clicked we expand recursively
 			if (FSlateApplication::Get().GetModifierKeys().IsShiftDown())
 			{
-				if(URigVMGraph* ModelGraph = EdGraphNode->GetModel())
+				for(const FPinInfo& OtherPinInfo : PinInfos)
 				{
-					if(URigVMPin* ModelPin = ModelGraph->FindPin(PinInfo.ModelPinPath))
+					if(PinInfoIndicesToModify.Contains(OtherPinInfo.ParentIndex))
 					{
-						TArray<URigVMPin*> SubPins = ModelPin->GetNode()->GetAllPinsRecursively();
-						for(URigVMPin* SubPin : SubPins)
-						{
-							if(SubPin->IsInOuter(ModelPin))
-							{
-								PinPathsToModify.Add(SubPin->GetPinPath());
-							}
-						}
-
-						Algo::Reverse(PinPathsToModify);
+						PinInfoIndicesToModify.Emplace(OtherPinInfo.Index);
+						PinInfoIndicesToModify.Add(OtherPinInfo.Index);
 					}
 				}
+				Algo::Reverse(PinInfoIndicesToModify);
 			}
 
+			FGuardSkipDirtyBlueprintStatus GuardDirtyBlueprintStatus(Blueprint, true);
+
 			Controller->OpenUndoBracket(PinInfo.bExpanded ? TEXT("Collapsing Pin") : TEXT("Expanding Pin"));
-			for(const FString& PinPathToModify : PinPathsToModify)
+			for(const int32& PinInfoIndexToModify : PinInfoIndicesToModify)
 			{
-				Controller->SetPinExpansion(PinPathToModify, !PinInfo.bExpanded, true, true);
+				if(PinInfos[PinInfoIndexToModify].bIsCategoryPin)
+				{
+					Controller->SetPinCategoryExpansion(EdGraphNode->GetFName(), PinInfos[PinInfoIndexToModify].Identifier, !PinInfo.bExpanded, true, true);
+				}
+				else
+				{
+					Controller->SetPinExpansion(PinInfos[PinInfoIndexToModify].Identifier, !PinInfo.bExpanded, true, true);
+				}
 			}
 			Controller->CloseUndoBracket();
 			return FReply::Handled();
@@ -1505,9 +1511,33 @@ void SRigVMGraphNode::HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URig
 					const FString PinPath = Pin->GetPinPath();
 					for(FPinInfo& PinInfo : PinInfos)
 					{
-						if(PinInfo.ModelPinPath == PinPath)
+						if(PinInfo.Identifier == PinPath)
 						{
 							PinInfo.bExpanded = Pin->IsExpanded();
+							break;
+						}
+					}
+				}
+			}
+			break;
+		}
+		case ERigVMGraphNotifType::PinCategoryExpansionChanged:
+		{
+			if(!ModelNode.IsValid())
+			{
+				return;
+			}
+			
+			if(const URigVMNode* ModelNodeFromNotification = Cast<URigVMNode>(InSubject))
+			{
+				if(ModelNodeFromNotification == ModelNode.Get())
+				{
+					const FString PinCategory = ModelNodeFromNotification->GetLastAffectedPinCategory();
+					for(FPinInfo& PinInfo : PinInfos)
+					{
+						if(PinInfo.Identifier == PinCategory)
+						{
+							PinInfo.bExpanded = ModelNodeFromNotification->IsPinCategoryExpanded(PinCategory);
 							break;
 						}
 					}
@@ -1574,7 +1604,8 @@ void SRigVMGraphNode::UpdatePinTreeView()
 	TArray<URigVMPin*> RootModelPins = ModelNode->GetPins();
 	// orphaned pins are appended to the end of pin list on each side of the node
 	RootModelPins.Append(ModelNode->GetOrphanedPins());
-	TArray<URigVMPin*> ModelPins;
+
+	TArray<TTuple<const URigVMPin*, FString>> ModelPinsOrCategories;
 
 	const bool bSupportSubPins = !RigGraphNode->DrawAsCompactNode();
 
@@ -1582,9 +1613,16 @@ void SRigVMGraphNode::UpdatePinTreeView()
 	// a) execute IOs, b) IO pins, c) input / visible pins, d) output pins
 	struct Local
 	{
-		static void VisitPinRecursively(URigVMPin* InPin, TArray<URigVMPin*>& OutPins, bool bSupportSubPins)
+		static void VisitPinRecursively(const URigVMPin* InPin, TArray<TTuple<const URigVMPin*, FString>>& OutPinsOrCategories, bool bSupportSubPins)
 		{
-			OutPins.Add(InPin);
+			const TTuple<const URigVMPin*, FString> PinKey(InPin, FString());
+			if(OutPinsOrCategories.Contains(PinKey))
+			{
+				return;
+			}
+			
+			OutPinsOrCategories.AddUnique(PinKey);
+			
 			if(!bSupportSubPins)
 			{
 				return;
@@ -1600,20 +1638,22 @@ void SRigVMGraphNode::UpdatePinTreeView()
 				const TArray<URigVMPin*>& SubPins = InPin->GetSubPins();
 				if (SubPins.Num() == 3)
 				{
-					OutPins.Add(SubPins[2]);	
-					OutPins.Add(SubPins[0]);	
-					OutPins.Add(SubPins[1]);
+					VisitPinRecursively(SubPins[2], OutPinsOrCategories, bSupportSubPins);
+					VisitPinRecursively(SubPins[0], OutPinsOrCategories, bSupportSubPins);
+					VisitPinRecursively(SubPins[1], OutPinsOrCategories, bSupportSubPins);
 				}	
 			}
 			else
 			{				
 				for (URigVMPin* SubPin : InPin->GetSubPins())
 				{
-					VisitPinRecursively(SubPin, OutPins, bSupportSubPins);
+					VisitPinRecursively(SubPin, OutPinsOrCategories, bSupportSubPins);
 				}
 			}
 		}
 	};
+
+	const FRigVMNodeLayout NodeLayout = ModelNode->GetNodeLayout();
 	
 	for(int32 SortPhase = 0; SortPhase < 4; SortPhase++)
 	{
@@ -1625,7 +1665,7 @@ void SRigVMGraphNode::UpdatePinTreeView()
 				{
 					if(RootPin->IsExecuteContext() && RootPin->GetDirection() == ERigVMPinDirection::IO)
 					{
-						Local::VisitPinRecursively(RootPin, ModelPins, bSupportSubPins);
+						Local::VisitPinRecursively(RootPin, ModelPinsOrCategories, bSupportSubPins);
 					}
 					break;
 				}
@@ -1633,7 +1673,7 @@ void SRigVMGraphNode::UpdatePinTreeView()
 				{
 					if(RootPin->GetDirection() == ERigVMPinDirection::Output)
 					{
-						Local::VisitPinRecursively(RootPin, ModelPins, bSupportSubPins);
+						Local::VisitPinRecursively(RootPin, ModelPinsOrCategories, bSupportSubPins);
 					}
 					break;
 				}
@@ -1641,20 +1681,63 @@ void SRigVMGraphNode::UpdatePinTreeView()
 				{
 					if(!RootPin->IsExecuteContext() && RootPin->GetDirection() == ERigVMPinDirection::IO)
 					{
-						Local::VisitPinRecursively(RootPin, ModelPins, bSupportSubPins);
+						Local::VisitPinRecursively(RootPin, ModelPinsOrCategories, bSupportSubPins);
 					}
 					break;
 				}
 				case 3: // input / visible pins
 				default:
 				{
-					if(RootPin->GetDirection() == ERigVMPinDirection::Input || RootPin->GetDirection() == ERigVMPinDirection::Visible)
+					// for now we only allow node layouts for input pins
+					if(!NodeLayout.IsValid())
 					{
-						Local::VisitPinRecursively(RootPin, ModelPins, bSupportSubPins);
+						if(RootPin->GetDirection() == ERigVMPinDirection::Input || RootPin->GetDirection() == ERigVMPinDirection::Visible)
+						{
+							Local::VisitPinRecursively(RootPin, ModelPinsOrCategories, bSupportSubPins);
+						}
 					}
 					break;
 				}
 			}
+		}
+	}
+
+	// visit the categories / input / visible pins in the right order
+	if(NodeLayout.IsValid())
+	{
+		for(const FRigVMPinCategory& Category : NodeLayout.Categories)
+		{
+			if(!Category.IsDefaultCategory())
+			{
+				ModelPinsOrCategories.AddUnique({nullptr, Category.Path});
+			}
+			for(const FString& PinPath : Category.Elements)
+			{
+				if(const URigVMPin* Pin = ModelNode->FindPin(PinPath))
+				{
+					Local::VisitPinRecursively(Pin, ModelPinsOrCategories, bSupportSubPins);
+				}
+			}
+		}
+
+		// when adding pins based on the node layout
+		// we may be skipping over pins which have a connection but are not part of the layout
+		const TArray<URigVMLink*> Links = ModelNode->GetLinks();
+		for(const URigVMLink* Link : Links)
+		{
+			const URigVMPin* SourcePin = Link->GetSourcePin();
+			const URigVMPin* TargetPin = Link->GetTargetPin();
+			if(SourcePin == nullptr || TargetPin == nullptr)
+			{
+				continue;
+			}
+			const URigVMPin* PinToShow = SourcePin->GetNode() == ModelNode.Get() ? SourcePin : TargetPin;
+			const TTuple<const URigVMPin*, FString> Key = {PinToShow, FString()};
+			if(ModelPinsOrCategories.Contains(Key))
+			{
+				continue;
+			}
+			Local::VisitPinRecursively(PinToShow, ModelPinsOrCategories, bSupportSubPins);
 		}
 	}
 
@@ -1665,51 +1748,135 @@ void SRigVMGraphNode::UpdatePinTreeView()
 	{
 		DispatchContext = DispatchNode->GetDispatchContext();
 	}
-	
-	TMap<URigVMPin*, int32> ModelPinToInfoIndex;
-	for(URigVMPin* ModelPin : ModelPins)
+
+	TMap<FString, int32> IdentifierToInfoIndex;
+
+	auto AddModelPinOrCategoryPinInfo =
+		[this, &IdentifierToInfoIndex, RigSchema, Template, &DispatchContext, RigGraphNode, EdGraphPinToInputPin, EdGraphPinToOutputPin, bSupportSubPins]
+	(const URigVMPin* InModelPin, const FString& InCategory)
 	{
+		const URigVMNode* CurrentModelNode = RigGraphNode->GetModelNode();
+		check(CurrentModelNode);
+			
+		const bool bIsModelPin = InModelPin != nullptr;
+		const bool bIsCategoryPin = !InCategory.IsEmpty();
+		check(bIsModelPin != bIsCategoryPin);
+			
 		FPinInfo PinInfo;
 		PinInfo.Index = PinInfos.Num();
 		PinInfo.ParentIndex = INDEX_NONE;
-		PinInfo.bHasChildren = (ModelPin->GetSubPins().Num() > 0);
-		PinInfo.bIsContainer = ModelPin->IsArray();
+		PinInfo.bIsCategoryPin = bIsCategoryPin;
+		if(bIsModelPin)
+		{
+			PinInfo.bHasChildren = InModelPin->GetSubPins().Num() > 0;
+			PinInfo.bIsContainer = InModelPin->IsArray();
+			PinInfo.bExpanded = InModelPin->IsExpanded();
+			PinInfo.Identifier = InModelPin->GetPinPath();
+			PinInfo.bShowOnlySubPins = InModelPin->ShouldOnlyShowSubPins();
+		}
+		else
+		{
+			PinInfo.bHasChildren = false;
+			TArray<FString> CategoriesWithPins = {InCategory};
+			CategoriesWithPins.Append(CurrentModelNode->GetSubPinCategories(InCategory, false, true));
+			for(const FString& CategoryWithPins : CategoriesWithPins)
+			{
+				if(!CurrentModelNode->GetPinsForCategory(CategoryWithPins).IsEmpty())
+				{
+					PinInfo.bHasChildren = true;
+					break;
+				}
+			}
+			PinInfo.bIsContainer = false;
+			PinInfo.bExpanded = CurrentModelNode->IsPinCategoryExpanded(InCategory);
+			PinInfo.Identifier = InCategory;
+			PinInfo.bShowOnlySubPins = false;
+			PinInfo.bHideInputWidget = true;
+		}
 		PinInfo.Depth = 0;
-		PinInfo.bExpanded = ModelPin->IsExpanded();
-		PinInfo.ModelPinPath = ModelPin->GetPinPath();
 		PinInfo.bAutoHeight = false;
-		PinInfo.bShowOnlySubPins = ModelPin->ShouldOnlyShowSubPins();
 
-		if(!bSupportSubPins)
+		if(!bSupportSubPins && bIsModelPin)
 		{
 			PinInfo.bHasChildren = false;
 			PinInfo.bIsContainer = false;
 		}
-		
-		const bool bAskSchemaForEdition = RigSchema && ModelPin->IsStruct() && !ModelPin->IsBoundToVariable();
-		PinInfo.bHideInputWidget = (!ModelPin->IsBoundToVariable()) && PinInfo.bIsContainer;
-		if (!PinInfo.bHideInputWidget)
+
+		if(bIsModelPin)
 		{
-			if (bAskSchemaForEdition && !PinInfo.bHasChildren)
+			const bool bAskSchemaForEdition = RigSchema && InModelPin->IsStruct() && !InModelPin->IsBoundToVariable();
+			PinInfo.bHideInputWidget = (!InModelPin->IsBoundToVariable()) && PinInfo.bIsContainer;
+			if (!PinInfo.bHideInputWidget)
 			{
-				const bool bIsStructEditable = RigSchema->IsStructEditable(ModelPin->GetScriptStruct()); 
-				PinInfo.bHideInputWidget = !bIsStructEditable;
-				PinInfo.bAutoHeight = bIsStructEditable;
-			}
-			else if(PinInfo.bHasChildren && !ModelPin->IsBoundToVariable())
-			{
-				PinInfo.bHideInputWidget = true;
+				if (bAskSchemaForEdition && !PinInfo.bHasChildren)
+				{
+					const bool bIsStructEditable = RigSchema->IsStructEditable(InModelPin->GetScriptStruct()); 
+					PinInfo.bHideInputWidget = !bIsStructEditable;
+					PinInfo.bAutoHeight = bIsStructEditable;
+				}
+				else if(PinInfo.bHasChildren && !InModelPin->IsBoundToVariable())
+				{
+					PinInfo.bHideInputWidget = true;
+				}
 			}
 		}
-		
-		if(URigVMPin* ParentPin = ModelPin->GetParentPin())
+
+		if(bIsModelPin)
 		{
-			const int32* ParentIndexPtr = ModelPinToInfoIndex.Find(ParentPin);
-			if(ParentIndexPtr == nullptr)
+			bool bNeedsParentPin = true;
+			const FString PinCategory = InModelPin->GetCategory();
+			if(!PinCategory.IsEmpty())
 			{
-				continue;
+				if(PinCategory.Equals(FRigVMPinCategory::GetDefaultCategoryName(), ESearchCase::IgnoreCase))
+				{
+					bNeedsParentPin = false;
+				}
+				else if(const int32* ParentIndexPtr = IdentifierToInfoIndex.Find(PinCategory))
+				{
+					PinInfo.ParentIndex = *ParentIndexPtr;
+					bNeedsParentPin = false;
+				}
 			}
-			PinInfo.ParentIndex = *ParentIndexPtr;
+
+			// if the pin is not part of a category, add it under its default parent
+			if(bNeedsParentPin)
+			{
+				if(URigVMPin* ParentPin = InModelPin->GetParentPin())
+				{
+					const int32* ParentIndexPtr = IdentifierToInfoIndex.Find(ParentPin->GetPinPath());
+					if(ParentIndexPtr == nullptr)
+					{
+						if(InModelPin->GetLinks().IsEmpty())
+						{
+							// parent pins have to exist for the node to display correctly
+							// but allow pins with links to show up
+							return;
+						}
+					}
+					else
+					{
+						PinInfo.ParentIndex = *ParentIndexPtr;
+						bNeedsParentPin = false;
+					}
+				}
+			}
+		}
+		else
+		{
+			const FString ParentCategory = CurrentModelNode->GetParentPinCategory(InCategory);
+			if(!ParentCategory.IsEmpty())
+			{
+				const int32* ParentIndexPtr = IdentifierToInfoIndex.Find(ParentCategory);
+				if(ParentIndexPtr == nullptr)
+				{
+					return;
+				}
+				PinInfo.ParentIndex = *ParentIndexPtr;
+			}
+		}
+
+		if(PinInfo.ParentIndex != INDEX_NONE)
+		{
 			PinInfo.Depth = PinInfos[PinInfo.ParentIndex].Depth + 1;
 			if(PinInfos[PinInfo.ParentIndex].bShowOnlySubPins)
 			{
@@ -1723,7 +1890,7 @@ void SRigVMGraphNode::UpdatePinTreeView()
 		TSharedPtr<SGraphPin> PinWidgetForExpander;
 
 		bool bPinInfoIsValid = false;
-		if(UEdGraphPin* OutputEdGraphPin = RigGraphNode->FindPin(ModelPin->GetPinPath(), EEdGraphPinDirection::EGPD_Output))
+		if(UEdGraphPin* OutputEdGraphPin = RigGraphNode->FindPin(PinInfo.Identifier, EEdGraphPinDirection::EGPD_Output))
 		{
 			if(const int32* PinIndexPtr = EdGraphPinToOutputPin.Find(OutputEdGraphPin))
 			{
@@ -1732,9 +1899,10 @@ void SRigVMGraphNode::UpdatePinTreeView()
 				PinWidgetForExpander = PinInfo.OutputPinWidget;
 				bPinWidgetForExpanderLeft = false;
 				bPinInfoIsValid = true;
-				if (Template && !ModelPin->IsExecuteContext())
+
+				if (bIsModelPin && Template && !InModelPin->IsExecuteContext())
 				{
-					if (URigVMPin* RootPin = ModelPin->GetRootPin())
+					if (URigVMPin* RootPin = InModelPin->GetRootPin())
 					{
 						FLinearColor PinColorAndOpacity = PinInfo.OutputPinWidget->GetColorAndOpacity();
 						if (Template->FindArgument(RootPin->GetFName()) == nullptr && Template->FindExecuteArgument(RootPin->GetFName(), DispatchContext) == nullptr)
@@ -1751,7 +1919,7 @@ void SRigVMGraphNode::UpdatePinTreeView()
 			}
 		}
 		
-		if(UEdGraphPin* InputEdGraphPin = RigGraphNode->FindPin(ModelPin->GetPinPath(), EEdGraphPinDirection::EGPD_Input))
+		if(UEdGraphPin* InputEdGraphPin = RigGraphNode->FindPin(PinInfo.Identifier, EEdGraphPinDirection::EGPD_Input))
 		{
 			if(const int32* PinIndexPtr = EdGraphPinToInputPin.Find(InputEdGraphPin))
 			{
@@ -1760,9 +1928,9 @@ void SRigVMGraphNode::UpdatePinTreeView()
 				PinWidgetForExpander = PinInfo.InputPinWidget;
 				bPinWidgetForExpanderLeft = true;
 				bPinInfoIsValid = true;
-				if (Template && !ModelPin->IsExecuteContext())
+				if (bIsModelPin && Template && !InModelPin->IsExecuteContext())
 				{
-					if (URigVMPin* RootPin = ModelPin->GetRootPin())
+					if (URigVMPin* RootPin = InModelPin->GetRootPin())
 					{
 						FLinearColor PinColorAndOpacity = PinInfo.InputPinWidget->GetColorAndOpacity();
 						if (Template->FindArgument(RootPin->GetFName()) == nullptr && Template->FindExecuteArgument(RootPin->GetFName(), DispatchContext) == nullptr)
@@ -1781,10 +1949,36 @@ void SRigVMGraphNode::UpdatePinTreeView()
 
 		if(!bPinInfoIsValid)
 		{
-			continue;
+			return;
 		}
 
-		ModelPinToInfoIndex.Add(ModelPin, PinInfos.Add(PinInfo));
+		ERigVMPinDirection PinDirection = ERigVMPinDirection::Invalid;
+		if(bIsModelPin)
+		{
+			PinDirection = InModelPin->GetDirection();
+		}
+		else
+		{
+			TArray<FString> CategoriesToCheck = {InCategory};
+			for(int32 CategoryIndex = 0; CategoryIndex < CategoriesToCheck.Num(); CategoryIndex++)
+			{
+				const FString& CategoryToCheck = CategoriesToCheck[CategoryIndex];
+				const TArray<URigVMPin*> PinsForCategory = CurrentModelNode->GetPinsForCategory(CategoryToCheck);
+				if(!PinsForCategory.IsEmpty())
+				{
+					PinDirection = PinsForCategory[0]->GetDirection();
+					break;
+				}
+				CategoriesToCheck.Append(CurrentModelNode->GetSubPinCategories(CategoryToCheck));
+			}
+		}
+
+		if(PinDirection == ERigVMPinDirection::Invalid)
+		{
+			return;
+		}
+
+		IdentifierToInfoIndex.Add(PinInfo.Identifier, PinInfos.Add(PinInfo));
 		
 		// check if this pin has sub pins
 		TSharedPtr<SHorizontalBox> FullPinHorizontalRowWidget = PinWidgetForExpander->GetFullPinHorizontalRowWidget().Pin();
@@ -1833,13 +2027,13 @@ void SRigVMGraphNode::UpdatePinTreeView()
 				if(
 					(
 						(
-							(ModelPin->GetDirection() == ERigVMPinDirection::Input) ||
-							(ModelPin->GetDirection() == ERigVMPinDirection::IO)
+							(PinDirection == ERigVMPinDirection::Input) ||
+							(PinDirection == ERigVMPinDirection::IO)
 						) &&
 						bPinWidgetForExpanderLeft
 					) ||
 					(
-						(ModelPin->GetDirection() == ERigVMPinDirection::Output) &&
+						(PinDirection == ERigVMPinDirection::Output) &&
 						(!bPinWidgetForExpanderLeft)
 					)
 				)
@@ -1874,6 +2068,11 @@ void SRigVMGraphNode::UpdatePinTreeView()
 				Slot.SetPadding(LineIndentation);
 			}
 		}
+	};
+	
+	for(const TTuple<const URigVMPin*,FString>& ModelPinOrCategory : ModelPinsOrCategories)
+	{
+		AddModelPinOrCategoryPinInfo(ModelPinOrCategory.Get<0>(), ModelPinOrCategory.Get<1>());
 	}
 
 	// add spacer widget at the start
@@ -1885,6 +2084,74 @@ void SRigVMGraphNode::UpdatePinTreeView()
 		SNew(SSpacer)
 		.Size(FVector2D(1.f, 2.f))
 	];
+
+	// add the tags this node potentially has
+	ERigVMTagDisplayMode TagDisplayMode = ERigVMTagDisplayMode::All;
+	if(Blueprint.IsValid())
+	{
+		TagDisplayMode = Blueprint->RigGraphDisplaySettings.TagDisplayMode;
+	}
+	if(ModelNode.IsValid() && TagDisplayMode != ERigVMTagDisplayMode::None)
+	{
+		if(URigVMFunctionReferenceNode* FunctionRefNode = Cast<URigVMFunctionReferenceNode>(ModelNode.Get()))
+		{
+			const FRigVMVariant Variant = FunctionRefNode->GetReferencedFunctionHeader().Variant;
+
+			const bool bContainsAnyTags = Variant.Tags.ContainsByPredicate([TagDisplayMode](const FRigVMTag& InTag) -> bool
+			{
+				if(TagDisplayMode == ERigVMTagDisplayMode::DeprecationOnly)
+				{
+					return InTag.bMarksSubjectAsInvalid;
+				}
+				return true;
+			});
+			
+			if(bContainsAnyTags)
+			{
+				TWeakObjectPtr<URigVMFunctionReferenceNode> WeakFunctionRefNode = FunctionRefNode;
+				
+				LeftNodeBox->AddSlot()
+				.HAlign(HAlign_Fill)
+				.VAlign(VAlign_Center)
+				.AutoHeight()
+				.Padding(2, 0, 2, 2)
+				[
+					SNew(SRigVMVariantTagWidget)
+					.Visibility_Lambda([WeakFunctionRefNode]() -> EVisibility
+					{
+						if(WeakFunctionRefNode.IsValid())
+						{
+							const FRigVMVariant Variant = WeakFunctionRefNode->GetReferencedFunctionHeader().Variant;
+							if(!Variant.Tags.IsEmpty())
+							{
+								return EVisibility::Visible;
+							}
+						}
+						return EVisibility::Collapsed;
+					})
+					.Orientation(EOrientation::Orient_Horizontal)
+					.CanAddTags(false)
+					.EnableContextMenu(false)
+					.OnGetTags_Lambda([WeakFunctionRefNode, TagDisplayMode]() -> TArray<FRigVMTag>
+					{
+						if(WeakFunctionRefNode.IsValid())
+						{
+							const FRigVMVariant Variant = WeakFunctionRefNode->GetReferencedFunctionHeader().Variant;
+							if(TagDisplayMode == ERigVMTagDisplayMode::DeprecationOnly)
+							{
+								return Variant.Tags.FilterByPredicate([TagDisplayMode](const FRigVMTag& InTag) -> bool
+								{
+									return InTag.bMarksSubjectAsInvalid;
+								});
+							}
+							return Variant.Tags;
+						}
+						return {};
+					})
+				];
+			}
+		}
+	}
 
 	auto AddArrayPlusButtonLambda = [this](URigVMPin* InModelPin, TSharedPtr<SHorizontalBox> InSlotLayout, const float InEmptySidePadding)
 	{
@@ -2019,7 +2286,7 @@ void SRigVMGraphNode::UpdatePinTreeView()
                     +SHorizontalBox::Slot()
                     .Expose(FirstSlot)
                     .FillWidth(1.f)
-                    .HAlign(HAlign_Left)
+                    .HAlign(HAlign_Fill)
                     .Padding(PinWidgetSidePadding, TopPadding, InputPinInfo.bIsContainer ? 0.f : MyEmptySidePadding, 0.f)
                     [
                         InputPinInfo.InputPinWidget.ToSharedRef()
@@ -2028,7 +2295,7 @@ void SRigVMGraphNode::UpdatePinTreeView()
 
 				if(InputPinInfo.bIsContainer)
 				{
-					URigVMPin* ModelPin = ModelNode->GetGraph()->FindPin(InputPinInfo.ModelPinPath);
+					URigVMPin* ModelPin = ModelNode->GetGraph()->FindPin(InputPinInfo.Identifier);
 					if(ModelPin)
 					{
 						// make sure to minimize the width of the label
@@ -2067,7 +2334,7 @@ void SRigVMGraphNode::UpdatePinTreeView()
 
 				if(InputPinInfo.bIsContainer)
 				{
-					URigVMPin* ModelPin = ModelNode->GetGraph()->FindPin(InputPinInfo.ModelPinPath);
+					URigVMPin* ModelPin = ModelNode->GetGraph()->FindPin(InputPinInfo.Identifier);
 					if(ModelPin)
 					{
 						// make sure to minimize the width of the label
@@ -2165,6 +2432,38 @@ void SRigVMGraphNode::UpdatePinTreeView()
 		SNew(SSpacer)
 		.Size(FVector2D(1.f, 4.f))
 	];
+}
+
+bool SRigVMGraphNode::HasUserProvidedValue(const SGraphPin* InGraphPin) const
+{
+	if(!CVarRigVMEnablePinDefaultTypes.GetValueOnAnyThread())
+	{
+		return false;
+	}
+
+	if (const URigVMEdGraphNode* RigVMEdGraphNode = Cast<URigVMEdGraphNode>(GraphNode))
+	{
+		if (const UEdGraphPin* Pin = InGraphPin->GetPinObj())
+		{
+			if(const URigVMPin* ModelPin = RigVMEdGraphNode->FindModelPinFromGraphPin(Pin))
+			{
+				return ModelPin->HasUserProvidedDefaultValue();
+			}
+		}
+	}
+	return false;
+}
+
+bool SRigVMGraphNode::IsCategoryPin(const SGraphPin* InGraphPin) const
+{
+	if (const URigVMEdGraphNode* RigVMEdGraphNode = Cast<URigVMEdGraphNode>(GraphNode))
+	{
+		if (const UEdGraphPin* Pin = InGraphPin->GetPinObj())
+		{
+			return RigVMEdGraphNode->CachedCategoryPins.Contains(Pin->GetName());
+		}
+	}
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

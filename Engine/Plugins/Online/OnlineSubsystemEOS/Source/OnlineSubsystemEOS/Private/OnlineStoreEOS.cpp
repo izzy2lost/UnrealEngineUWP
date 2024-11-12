@@ -69,7 +69,7 @@ void FOnlineStoreEOS::QueryOffers(const FUniqueNetId& UserId, const FOnQueryOnli
 		EOS_EResult Result = Data->ResultCode;
 		if (Result != EOS_EResult::EOS_Success)
 		{
-			OnComplete.ExecuteIfBound(false, CachedOfferIds, EOS_EResult_ToString(Data->ResultCode));
+			OnComplete.ExecuteIfBound(false, CachedOfferIds, LexToString(Data->ResultCode));
 			return;
 		}
 
@@ -198,10 +198,14 @@ void FOnlineStoreEOS::Checkout(const FUniqueNetId& UserId, const FPurchaseChecko
 		const EOS_EResult CheckoutResult = Data->ResultCode;
 		if (CheckoutResult != EOS_EResult::EOS_Success)
 		{
-			UE_LOG_ONLINE(Error, TEXT("EOS_Ecom_Checkout: failed with error (%s)"), ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
+			UE_LOG_ONLINE(Error, TEXT("EOS_Ecom_Checkout: failed with error (%s)"), *LexToString(CheckoutResult));
 			if (CheckoutResult == EOS_EResult::EOS_Canceled)
 			{
 				OnComplete.ExecuteIfBound(ONLINE_ERROR(EOnlineErrorResult::Canceled), MakeShared<FPurchaseReceipt>());
+			}
+			else if (CheckoutResult == EOS_EResult::EOS_Ecom_PurchaseProcessing)
+			{
+				OnComplete.ExecuteIfBound(ONLINE_ERROR(EOnlineErrorResult::FailExtended, LexToString(CheckoutResult)), MakeShared<FPurchaseReceipt>());
 			}
 			else
 			{
@@ -315,7 +319,7 @@ void FOnlineStoreEOS::QueryReceipts(const FUniqueNetId& UserId, bool bRestoreRec
 		EOS_EResult Result = Data->ResultCode;
 		if (Result != EOS_EResult::EOS_Success)
 		{
-			UE_LOG_ONLINE(Error, TEXT("EOS_Ecom_QueryEntitlements: failed with error (%s)"), ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
+			UE_LOG_ONLINE(Error, TEXT("EOS_Ecom_QueryEntitlements: failed with error (%s)"), *LexToString(Data->ResultCode));
 			OnComplete.ExecuteIfBound(ONLINE_ERROR(EOnlineErrorResult::Unknown));
 			return;
 		}
@@ -340,7 +344,7 @@ void FOnlineStoreEOS::QueryReceipts(const FUniqueNetId& UserId, bool bRestoreRec
 			EOS_EResult CopyResult = EOS_Ecom_CopyEntitlementByIndex(EOSSubsystem->EcomHandle, &CopyOptions, &Receipt);
 			if (CopyResult != EOS_EResult::EOS_Success && CopyResult != EOS_EResult::EOS_Ecom_EntitlementStale)
 			{
-				UE_LOG_ONLINE(Error, TEXT("EOS_Ecom_CopyEntitlementByIndex: failed with error (%s)"), ANSI_TO_TCHAR(EOS_EResult_ToString(CopyResult)));
+				UE_LOG_ONLINE(Error, TEXT("EOS_Ecom_CopyEntitlementByIndex: failed with error (%s)"), *LexToString(CopyResult));
 				continue;
 			}
 
@@ -401,7 +405,7 @@ void FOnlineStoreEOS::FinalizeReceiptValidationInfo(const FUniqueNetId& UserId, 
 		EOS_EResult Result = Data->ResultCode;
 		if (Result != EOS_EResult::EOS_Success)
 		{
-			UE_LOG_ONLINE(Error, TEXT("EOS_Ecom_RedeemEntitlements: failed with error (%s)"), ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
+			UE_LOG_ONLINE(Error, TEXT("EOS_Ecom_RedeemEntitlements: failed with error (%s)"), *LexToString(Data->ResultCode));
 			OnComplete.ExecuteIfBound(ONLINE_ERROR(EOnlineErrorResult::Unknown), Info);
 			return;
 		}

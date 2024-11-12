@@ -173,7 +173,7 @@ namespace UnrealBuildTool
 	/// <summary>
 	/// Encapsulates a hierarchy of config files, merging sections from them together on request 
 	/// </summary>
-	public class ConfigHierarchy
+	public sealed class ConfigHierarchy : IDisposable
 	{
 		/// <summary>
 		/// Array of 
@@ -198,6 +198,14 @@ namespace UnrealBuildTool
 		{
 			this.Files = Files.ToArray();
 		}
+
+		#region IDisposible
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			NameToSectionLock.Dispose();
+		}
+		#endregion
 
 		/// <summary>
 		/// Names of all sections in all config files
@@ -454,7 +462,7 @@ namespace UnrealBuildTool
 			string? Text;
 			if (!TryGetValue(SectionName, KeyName, out Text))
 			{
-				Value = default(T);
+				Value = default;
 				return false;
 			}
 			return Enum.TryParse<T>(Text, out Value);
@@ -481,12 +489,12 @@ namespace UnrealBuildTool
 		/// <returns>True if the key exists and could be parsed</returns>
 		public bool TryGetValueGeneric<T>(string SectionName, string KeyName, [NotNullWhen(true)] out T? Value) where T : new()
 		{
-			if (TryGetValue(SectionName, KeyName, out string? Line ))
+			if (TryGetValue(SectionName, KeyName, out string? Line))
 			{
-				return ConfigValueParser.TryParseGeneric( Line, out Value);
+				return ConfigValueParser.TryParseGeneric(Line, out Value);
 			}
 
-			Value = default(T);
+			Value = default;
 			return false;
 		}
 
@@ -499,7 +507,7 @@ namespace UnrealBuildTool
 		/// <returns>True if the key exists and could be parsed</returns>
 		public bool TryGetValuesGeneric<T>(string SectionName, string KeyName, [NotNullWhen(true)] out T[]? Values) where T : new()
 		{
-			if (TryGetValues(SectionName, KeyName, out IReadOnlyList<string>? Lines ))
+			if (TryGetValues(SectionName, KeyName, out IReadOnlyList<string>? Lines))
 			{
 				return ConfigValueParser.TryParseArrayGeneric(Lines.ToArray(), out Values);
 			}
@@ -507,7 +515,6 @@ namespace UnrealBuildTool
 			Values = null;
 			return false;
 		}
-
 
 		/// <summary>
 		/// Parse a string as a boolean value
@@ -949,7 +956,7 @@ namespace UnrealBuildTool
 		/// <param name="Line">Line of text to parse</param>
 		/// <param name="Map">Receives dictionary for the config map</param>
 		/// <returns>True if a map was parsed, false otherwise</returns>
-		public static bool TryParseAsMap(string Line, [NotNullWhen(true)] out Dictionary<string,string>? Map)
+		public static bool TryParseAsMap(string Line, [NotNullWhen(true)] out Dictionary<string, string>? Map)
 		{
 			// read outer array
 			if (!TryParse(Line, out string[]? Array))
@@ -959,10 +966,10 @@ namespace UnrealBuildTool
 			}
 
 			// read each pair - they're stored in the same way as an array of 2
-			Dictionary<string,string> NewMap = new Dictionary<string, string>();
+			Dictionary<string, string> NewMap = new Dictionary<string, string>();
 			foreach (string ArrayItem in Array)
 			{
-				if (!TryParse( ArrayItem, out string[]? Pairs) || Pairs.Length != 2)
+				if (!TryParse(ArrayItem, out string[]? Pairs) || Pairs.Length != 2)
 				{
 					Map = null;
 					return false;
@@ -1021,11 +1028,13 @@ namespace UnrealBuildTool
 			// Restricted Locations
 			new ConfigLayerExpansion { Before1 = "{ENGINE}/", After1 = "{ENGINE}/Restricted/NotForLicensees/", Before2 = "{PROJECT}/Config/", After2 = "{RESTRICTEDPROJECT_NFL}/Config/" },
 			new ConfigLayerExpansion { Before1 = "{ENGINE}/", After1 = "{ENGINE}/Restricted/NoRedist/",         Before2 = "{PROJECT}/Config/", After2 = "{RESTRICTEDPROJECT_NR}/Config/" },
+			new ConfigLayerExpansion { Before1 = "{ENGINE}/", After1 = "{ENGINE}/Restricted/LimitedAccess/",    Before2 = "{PROJECT}/Config/", After2 = "{RESTRICTEDPROJECT_LA}/Config/" },
 			// Platform Extensions
 			new ConfigLayerExpansion { Before1 = "{ENGINE}/Config/{PLATFORM}/", After1 = "{EXTENGINE}/Config/",    Before2 = "{PROJECT}/Config/{PLATFORM}/", After2 = "{EXTPROJECT}/Config/" },
 			// Platform Extensions in Restricted Locations
 			new ConfigLayerExpansion { Before1 = "{ENGINE}/Config/{PLATFORM}/", After1 = "{ENGINE}/Restricted/NotForLicensees/Platforms/{PLATFORM}/Config/",   Before2 = "{PROJECT}/Config/{PLATFORM}/", After2 = "{RESTRICTEDPROJECT_NFL}/Platforms/{PLATFORM}/{OPT_SUBDIR}Config/" },
 			new ConfigLayerExpansion { Before1 = "{ENGINE}/Config/{PLATFORM}/", After1 = "{ENGINE}/Restricted/NoRedist/Platforms/{PLATFORM}/Config/",          Before2 = "{PROJECT}/Config/{PLATFORM}/", After2 = "{RESTRICTEDPROJECT_NR}/Platforms/{PLATFORM}/{OPT_SUBDIR}Config/" },
+			new ConfigLayerExpansion { Before1 = "{ENGINE}/Config/{PLATFORM}/", After1 = "{ENGINE}/Restricted/LimitedAccess/Platforms/{PLATFORM}/Config/",     Before2 = "{PROJECT}/Config/{PLATFORM}/", After2 = "{RESTRICTEDPROJECT_LA}/Platforms/{PLATFORM}/{OPT_SUBDIR}Config/" },
 		};
 
 		private static string PerformBasicReplacements(string InString, string BaseIniName, string CustomConfig)
@@ -1084,6 +1093,7 @@ namespace UnrealBuildTool
 			{
 				DirectoryReference NFLDir;
 				DirectoryReference NRDir;
+				DirectoryReference LADir;
 				string OptionalSubDir = "";
 
 				if (ProjectDir.IsUnderDirectory(Unreal.EngineDirectory))
@@ -1091,11 +1101,13 @@ namespace UnrealBuildTool
 					OptionalSubDir = ProjectDir.MakeRelativeTo(Unreal.EngineDirectory) + "/";
 					NFLDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Restricted/NotForLicensees");
 					NRDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Restricted/NoRedist");
+					LADir = DirectoryReference.Combine(Unreal.EngineDirectory, "Restricted/LimitedAccess");
 				}
 				else
 				{
 					NFLDir = DirectoryReference.Combine(ProjectDir, "Restricted/NotForLicensees");
 					NRDir = DirectoryReference.Combine(ProjectDir, "Restricted/NoRedist");
+					LADir = DirectoryReference.Combine(ProjectDir, "Restricted/LimitedAccess");
 				}
 
 				if (ProjectDir.IsUnderDirectory(NFLDir))
@@ -1106,6 +1118,10 @@ namespace UnrealBuildTool
 				{
 					OptionalSubDir = ProjectDir.MakeRelativeTo(NRDir) + "/";
 				}
+				else if (ProjectDir.IsUnderDirectory(LADir))
+				{
+					OptionalSubDir = ProjectDir.MakeRelativeTo(LADir) + "/";
+				}
 
 				string PlatformExtensionProjectConfigDir = DirectoryReference.Combine(ProjectDir, "Platforms", PlatformName).FullName;
 
@@ -1113,6 +1129,7 @@ namespace UnrealBuildTool
 				OutString = OutString.Replace("{EXTPROJECT}", PlatformExtensionProjectConfigDir);
 				OutString = OutString.Replace("{RESTRICTEDPROJECT_NFL}", NFLDir.FullName);
 				OutString = OutString.Replace("{RESTRICTEDPROJECT_NR}", NRDir.FullName);
+				OutString = OutString.Replace("{RESTRICTEDPROJECT_LA}", LADir.FullName);
 				OutString = OutString.Replace("{OPT_SUBDIR}", OptionalSubDir);
 
 			}
@@ -1123,10 +1140,44 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Returns a list of INI filenames for the given project
 		/// </summary>
-		public static IEnumerable<FileReference> EnumerateConfigFileLocations(ConfigHierarchyType Type, DirectoryReference? ProjectDir, UnrealTargetPlatform Platform, string CustomConfig = "")
+		public static IEnumerable<FileReference> EnumerateConfigFileLocations(ConfigHierarchyType Type, DirectoryReference? ProjectDir, UnrealTargetPlatform Platform, string CustomConfig, TargetType? IncludePluginsForTargetType)
 		{
 			string BaseIniName = Enum.GetName(typeof(ConfigHierarchyType), Type) ?? String.Empty;
 			string PlatformName = GetIniPlatformName(Platform);
+			List<DirectoryReference> PluginDirs = new();
+			List<DirectoryReference> PluginPlatformExtDirs = new();
+
+			if (IncludePluginsForTargetType.HasValue)
+			{
+				ProjectDescriptor? Project = null;
+				if (ProjectDir != null)
+				{
+					Project = ProjectDescriptor.FromDirectory(ProjectDir);
+				}
+				List<PluginInfo> AllPLugins = Plugins.ReadAvailablePlugins(Unreal.EngineDirectory, ProjectDir, null);
+				foreach (PluginInfo Plugin in AllPLugins)
+				{
+					if (Plugins.IsPluginEnabledForTarget(Plugin, Project, Platform, UnrealTargetConfiguration.Development, IncludePluginsForTargetType.Value))
+					{
+						PluginDirs.Add(Plugin.Directory);
+						foreach (FileReference ChildPlugin in Plugin.ChildFiles)
+						{
+							// only look at a child plugin for a platform we are enumerating (ie, it is in a /PlatformName/ subdir), but always look in Restricted folders
+							if (ChildPlugin.ContainsName("Platforms", 0))
+							{
+								if (ChildPlugin.ContainsName(PlatformName, 0))
+								{
+									PluginPlatformExtDirs.Add(ChildPlugin.Directory);
+								}
+							}
+							else
+							{
+								PluginDirs.Add(ChildPlugin.Directory);
+							}
+						}
+					}
+				}
+			}
 
 			foreach (string Layer in ConfigLayers)
 			{
@@ -1189,6 +1240,16 @@ namespace UnrealBuildTool
 				{
 					yield return new FileReference(LayerPath);
 				}
+			}
+
+			foreach (DirectoryReference PluginDir in PluginDirs)
+			{
+				yield return FileReference.Combine(PluginDir, "Config", $"{Type}.ini");
+				yield return FileReference.Combine(PluginDir, "Config", PlatformName, $"{PlatformName}{Type}.ini");
+			}
+			foreach (DirectoryReference PluginDir in PluginPlatformExtDirs)
+			{
+				yield return FileReference.Combine(PluginDir, "Config", $"{PlatformName}{Type}.ini");
 			}
 
 			// Find all the generated config files

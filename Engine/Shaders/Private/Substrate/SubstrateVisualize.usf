@@ -9,11 +9,16 @@
 #define SUBSTRATE_INLINE_SHADING 0
 #endif
 
+#define SUBSTRATE_VISUALIZATION_SOURCE 1
 #define SUBSTRATE_SSS_MATERIAL_OVERRIDE 0
 #define SUBSTRATE_SSS_TRANSMISSION 0				// Disable for now, as the SSS profile texture need to be bound
 #define SUBSTRATE_COMPLEXSPECIALPATH 1				// Allow to read data from complex special path
 #include "/Engine/Private/Substrate/SubstrateEvaluation.ush"
 #include "/Engine/Private/Substrate/SubstrateTile.ush"
+
+#if SUBSTRATE_INLINE_SHADING == 0
+#include "/Engine/Private/Substrate/SubstrateVisualizeCommon.ush"
+#endif
 
 #include "/Engine/Private/ShaderPrint.ush"
 #include "../ColorMap.ush"
@@ -25,70 +30,6 @@ int2 GetCursorPosition()
 	return bOverrideCursorPosition > 0 ? OverrideCursorPosition : View.CursorPosition;	
 }
 
-// This is for the fxc compiler to compile faster.
-#define SUBSTRATE_VIZ_MAX_BSDF 2
-
-void DrawReferentialTWS(float3 P /*In Translated World Space*/, float3 X, float3 Y, float3 N, float3 InColor)
-{
-	const float Size = 10.f;
-	const float SizeWithTip = 12.0f;
-	const float4 Color = float4(InColor, 1);
-	const float4 ColorX = float4(1, 0, 0, 1);
-	const float4 ColorY = float4(0, 1, 0, 1);
-	const float4 ColorZ = float4(0, 0, 1, 1);
-
-	// Core
-	AddLineTWS(P, P + X * Size, Color, Color);
-	AddLineTWS(P, P + Y * Size, Color, Color);
-	AddLineTWS(P, P + N * Size, Color, Color);
-	// Tips
-	AddLineTWS(P + X * Size, P + X * SizeWithTip, ColorX, ColorX);
-	AddLineTWS(P + Y * Size, P + Y * SizeWithTip, ColorY, ColorY);
-	AddLineTWS(P + N * Size, P + N * SizeWithTip, ColorZ, ColorZ);
-}
-
-void AddDrawPixelFootprint(float3 P, float3 dPdx, float3 dPdy, float2 Scale, bool bNormalize, float4 Color)
-{
-	const float3 T = (bNormalize ? normalize(dPdx) : dPdx) * Scale.x;
-	const float3 B = (bNormalize ? normalize(dPdy) : dPdy) * Scale.y;
-	const float3 N = normalize(cross(T, B));
-
-	const float3 WP0 = P - T - B;
-	const float3 WP1 = P + T - B;
-	const float3 WP2 = P + T + B;
-	const float3 WP3 = P - T + B;
-
-	AddLineTWS(WP0, WP1, Color);
-	AddLineTWS(WP1, WP2, Color);
-	AddLineTWS(WP2, WP3, Color);
-	AddLineTWS(WP3, WP0, Color);
-}
-
-void DrawPixelFootprint(float3 P, float3 dPdx, float3 dPdy, uint2 PixelCoord)
-{
-	const FSubstrateSubsurfaceHeader SSSHeader = SubstrateLoadSubsurfaceHeader(Substrate.MaterialTextureArray, Substrate.FirstSliceStoringSubstrateSSSData, PixelCoord);
-	const bool bIsValid = SubstrateSubSurfaceHeaderGetIsValid(SSSHeader);
-	const bool bIsProfile = SubstrateSubSurfaceHeaderGetIsProfile(SSSHeader);
-
-	if (bIsValid)
-	{
-		float3 MFP = 0;
-		if (bIsProfile)
-		{
-			MFP = GetSubsurfaceProfileMFPInCm(SubstrateSubSurfaceHeaderGetProfileId(SSSHeader)).xyz * SubstrateSubSurfaceHeaderGetProfileRadiusScale(SSSHeader);
-		}
-		else
-		{
-			MFP = SubstrateSubSurfaceHeaderGetMFP(SSSHeader);
-		}
-
-		FSubstratePixelFootprint Footprint = SubstrateGetPixelFootprint(dPdx, dPdy, 0.f /*InNormalCurvatureRoughness*/);
-		AddDrawPixelFootprint(P, dPdx, dPdy, 0.5f, false, ColorRed);
-		AddDrawPixelFootprint(P, dPdx, dPdy, Footprint.PixelRadiusInWorldSpace, true, ColorOrange);
-		AddDrawPixelFootprint(P, dPdx, dPdy, max3(MFP.x, MFP.y, MFP.z), true, ColorCyan);
-	}
-}
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Material Print
 
@@ -96,545 +37,6 @@ void DrawPixelFootprint(float3 P, float3 dPdx, float3 dPdy, uint2 PixelCoord)
 
 uint ClosureIndex;
 RWBuffer<uint> RWPositionOffsetBuffer;
-
-void PrintPixelType(inout FShaderPrintContext Ctx, in FSubstratePixelHeader Header, FFontColor InColor)
-{
-	if (Header.IsSimpleMaterial())						Print(Ctx, TEXT("Simple  "), InColor);
-	else if (Header.IsSingleMaterial())					Print(Ctx, TEXT("Single  "), InColor);
-	else if (Header.IsComplexSpecialMaterial())			Print(Ctx, TEXT("Complex Special "), InColor);
-	else if (Header.IsComplexMaterial())				Print(Ctx, TEXT("Complex "), InColor);
-	else if (Header.IsSingleLayerWater())				Print(Ctx, TEXT("SLWater "), InColor);
-	else if (Header.IsHair())							Print(Ctx, TEXT("Hair    "), InColor);
-	else if (Header.IsEye())							Print(Ctx, TEXT("Eye     "), InColor);
-	else												Print(Ctx, TEXT("Error - Unkown pixel type"), FontRed);
-}
-
-void PrintSSSType(inout FShaderPrintContext Ctx, uint SSSType, bool bThin, FFontColor InColor)
-{
-		 if (SSSType == SSS_TYPE_WRAP && bThin)		Print(Ctx, TEXT("Wrap & Thin"), InColor);
-	else if (SSSType == SSS_TYPE_WRAP)				Print(Ctx, TEXT("Wrap"), InColor);
-	else if (SSSType == SSS_TYPE_DIFFUSION)			Print(Ctx, TEXT("Diffusion"), InColor);
-	else if (SSSType == SSS_TYPE_DIFFUSION_PROFILE)	Print(Ctx, TEXT("Diffusion Profile"), InColor);
-	else if (SSSType == SSS_TYPE_SIMPLEVOLUME)		Print(Ctx, TEXT("Simple Volume"), InColor);
-	else if (bThin)									Print(Ctx, TEXT("Thin"), InColor);
-	else /*	(SSSType == SSS_TYPE_INVALID) */		Print(Ctx, TEXT("Invalid"), InColor);
-}
-
-void PrintBackgroundRect(inout FShaderPrintContext Ctx, float2 StartRect, float2 EndRect)
-{
-	const float4 RectBackgroundColor = float4(1, 1, 1, 0.25f);
-	AddFilledQuadSS(
-		(StartRect - ShaderPrintData.FontSize) * ShaderPrintData.Resolution,
-		(EndRect + ShaderPrintData.FontSize) * ShaderPrintData.Resolution,
-		RectBackgroundColor);
-}
-
-void Newline(inout FShaderPrintContext Context, inout float2 MaxRect)
-{
-	MaxRect.x = max(MaxRect.x, Context.Pos.x);
-	MaxRect.y = Context.Pos.y;
-	Newline(Context);
-}
-
-void PrintAddress(inout FShaderPrintContext Context, inout FSubstrateAddressing SubstrateAddressing)
-{
-	FFontColor Font;
-	Font.Color = lerp(FontEmerald.Color, FontSilver.Color, 0.75f);
-	Print(Context, TEXT("[Address="), Font);
-	Print(Context, SubstrateAddressing.CurrentIndex, Font, 2, 0);
-	Print(Context, TEXT("]"), Font);
-}
-
-void PrintBSDF(inout FShaderPrintContext Context, inout FSubstrateAddressing SubstrateAddressing, FSubstratePixelHeader Header, float3 WorldPosition, float3 V, inout float2 RectMax)
-{
-	const FFontColor FontBSDF         = FontSilver;
-	const FFontColor FontBSDFType     = FontEmerald;
-	const FFontColor FontBSDFStateName= FontWhite;
-	const FFontColor FontBSDFPropName = FontOrange;
-	const FFontColor FontBSDFPropValu = FontWhite;
-
-	Newline(Context, RectMax);
-
-	const FSubstrateBSDF BSDF = UnpackSubstrateBSDFIn(Substrate.MaterialTextureArray, SubstrateAddressing, Header);
-
-	// Draw Referential
-	{
-		const float3 DummyL = float3(0, 0, 1);
-		FSubstrateBSDFContext BSDFContext = SubstrateCreateBSDFContext(Header, BSDF, SubstrateAddressing, V, DummyL);
-		DrawReferentialTWS(WorldPosition, BSDFContext.X, BSDFContext.Y, BSDFContext.N, float3(1, 1, 0));
-	}
-
-	switch (BSDF_GETTYPE(BSDF))
-	{
-		case SUBSTRATE_BSDF_TYPE_SLAB:
-		{
-			const bool bWeightL = BSDF_GETHASTRANSABOVE(BSDF);
-			const bool bGreyWeightV = BSDF_GETHASGREYWEIGHT_V(BSDF);
-			const bool bGreyTopTrans = BSDF.TransmittanceAboveAlongN.x == BSDF.TransmittanceAboveAlongN.y && BSDF.TransmittanceAboveAlongN.x == BSDF.TransmittanceAboveAlongN.z;
-
-			Print(Context, TEXT("Slab "), FontBSDFType);
-			PrintAddress(Context, SubstrateAddressing);
-			Newline(Context, RectMax);
-			Print(Context, TEXT(" NormalID BasisType Aniso TopLayer Scattering IsThin WeightV "), FontBSDFStateName);
-			if (!bGreyWeightV)
-			{
-				Print(Context, TEXT("            "), FontBSDFStateName);
-			}
-			if (bWeightL)
-			{
-				Print(Context, TEXT("TransToL     "), FontBSDFStateName);
-				if (!bGreyTopTrans)
-				{
-					Print(Context, TEXT("       "), FontBSDFStateName);
-				}
-				Print(Context, TEXT("CoverToL"), FontBSDFStateName);
-			}
-			Newline(Context, RectMax);
-
-			const uint BasisType  = SubstrateGetSharedLocalBasisType(Header.SharedLocalBasesTypes_PackedHeader, BSDF_GETSHAREDLOCALBASISID(BSDF));
-
-			Print(Context, TEXT(" "), FontSilver);
-			Print(Context, BSDF_GETSHAREDLOCALBASISID(BSDF), FontBSDF, 2, 1);	Print(Context, TEXT("       "), FontSilver);
-			if (BasisType == 0)
-			{
-				Print(Context, TEXT("Normal"), FontBSDF);	Print(Context, TEXT("    "), FontSilver);
-			}
-			else
-			{
-				Print(Context, TEXT("Tangent"), FontBSDF);	Print(Context, TEXT("   "), FontSilver);
-			}
-			PrintBool(Context, BSDF_GETHASANISOTROPY(BSDF));					Print(Context, TEXT("  "));
-			PrintBool(Context, BSDF_GETISTOPLAYER(BSDF));						Print(Context, TEXT("     "));
-			PrintBool(Context, BSDF_GETSSSTYPE(BSDF) != SSS_TYPE_INVALID);		Print(Context, TEXT("       "));
-			PrintBool(Context, BSDF_GETISTHIN(BSDF));							Print(Context, TEXT("   "));
-
-			// View Weight
-			{
-				if (bGreyWeightV)
-				{
-					Print(Context, BSDF.LuminanceWeightV.x, FontSilver, 6, 4);
-				}
-				else
-				{
-					Print(Context, BSDF.LuminanceWeightV.r, FontLightRed,   6, 4);
-					Print(Context, BSDF.LuminanceWeightV.g, FontLightGreen, 6, 4);
-					Print(Context, BSDF.LuminanceWeightV.b, FontLightBlue,  6, 4);
-				}
-				Print(Context, TEXT(" "), FontWhite);
-			}
-
-			// Light Weight
-			if (bWeightL)
-			{
-				Print(Context, TEXT(" "), FontSilver);
-				if (bGreyTopTrans)
-				{
-					Print(Context, BSDF.TransmittanceAboveAlongN.x, FontSilver);
-				}
-				else	
-				{
-					Print(Context, BSDF.TransmittanceAboveAlongN.r, FontLightRed,   6, 4);
-					Print(Context, BSDF.TransmittanceAboveAlongN.g, FontLightGreen, 6, 4);
-					Print(Context, BSDF.TransmittanceAboveAlongN.b, FontLightBlue,  6, 4);
-				}
-
-				Print(Context, TEXT(" "), FontSilver);
-				Print(Context, BSDF.CoverageAboveAlongN, FontSilver, 6, 4);
-			}
-			Newline(Context, RectMax);
-
-			Print(Context, TEXT(" Diffuse     "), FontBSDFPropName);	Print(Context, SLAB_DIFFUSEALBEDO(BSDF), FontBSDFPropValu);			Newline(Context, RectMax);
-
-			const bool bGreyF0 = SLAB_F0(BSDF).x == SLAB_F0(BSDF).y && SLAB_F0(BSDF).x == SLAB_F0(BSDF).z;
-			if (bGreyF0)
-			{
-				Print(Context, TEXT(" F0          "), FontBSDFPropName);	Print(Context, SLAB_F0(BSDF).x, FontBSDFPropValu);				Newline(Context, RectMax);
-			}
-			else
-			{
-				Print(Context, TEXT(" F0          "), FontBSDFPropName);	Print(Context, SLAB_F0(BSDF), FontBSDFPropValu);				Newline(Context, RectMax);
-			}
-
-
-			if (BSDF_GETHASF90(BSDF))
-			{
-				const bool bGreyF90 = SLAB_F90(BSDF).x == SLAB_F90(BSDF).y && SLAB_F90(BSDF).x == SLAB_F90(BSDF).z;
-				if (bGreyF90)
-				{
-					Print(Context, TEXT(" F90         "), FontBSDFPropName);	Print(Context, SLAB_F90(BSDF).x, FontBSDFPropValu);			Newline(Context, RectMax);
-				}
-				else
-				{
-					Print(Context, TEXT(" F90         "), FontBSDFPropName);	Print(Context, SLAB_F90(BSDF), FontBSDFPropValu);			Newline(Context, RectMax);
-				}
-			}
-
-			Print(Context, TEXT(" Roughness   "), FontBSDFPropName);	Print(Context, SLAB_ROUGHNESS(BSDF), FontBSDFPropValu);				Newline(Context, RectMax);
-
-			if (BSDF_GETHASANISOTROPY(BSDF))
-			{
-				Print(Context, TEXT(" Anisotropy  "), FontBSDFPropName);	Print(Context, SLAB_ANISOTROPY(BSDF), FontBSDFPropValu);		Newline(Context, RectMax);
-			}
-
-			if (BSDF_GETHASHAZINESS(BSDF))
-			{
-				FHaziness Haziness = UnpackHaziness(SLAB_HAZINESS(BSDF));
-
-				Print(Context, TEXT(" Haziness    "),			FontBSDFPropName);																		Newline(Context, RectMax);
-				Print(Context, TEXT("  - Roughness       "),	FontBSDFPropName);	Print(Context, Haziness.Roughness,				FontBSDFPropValu);	Newline(Context, RectMax);
-				Print(Context, TEXT("  - Weight          "),	FontBSDFPropName);	Print(Context, Haziness.Weight,					FontBSDFPropValu);	Newline(Context, RectMax);
-				Print(Context, TEXT("  - SimpleClearCoat "),	FontBSDFPropName);	Print(Context, Haziness.bSimpleClearCoat?1u:0u,	FontBSDFPropValu);	Newline(Context, RectMax);
-			}
-
-			if (BSDF_GETSSSTYPE(BSDF) != SSS_TYPE_INVALID || BSDF_GETISTHIN(BSDF))
-			{
-				const bool bIsThin = BSDF_GETISTHIN(BSDF);
-				const FSubstrateSubsurfaceHeader SSSHeader = SubstrateLoadSubsurfaceHeader(Substrate.MaterialTextureArray, Substrate.FirstSliceStoringSubstrateSSSData, SubstrateAddressing.PixelCoords);
-				Print(Context, TEXT(" SSS Type    "), FontBSDFPropName);	PrintSSSType(Context, BSDF_GETSSSTYPE(BSDF), BSDF_GETISTHIN(BSDF), FontYellow);	Newline(Context, RectMax);
-				if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_WRAP)
-				{
-					const float Opacity = SubstrateSubSurfaceHeaderGetWrapOpacity(SSSHeader);
-					Print(Context, TEXT(" SSS Opacity "), FontBSDFPropName);	Print(Context, Opacity, FontBSDFPropValu);						Newline(Context, RectMax);
-					Print(Context, TEXT(" SSS MFP     "), FontBSDFPropName);	Print(Context, SLAB_SSSMFP(BSDF), FontBSDFPropValu);			Newline(Context, RectMax);
-					Print(Context, TEXT(" SSS Phase   "), FontBSDFPropName);	Print(Context, SLAB_SSSPHASEANISOTROPY(BSDF), FontBSDFPropValu);Newline(Context, RectMax);
-					Print(Context, TEXT(" SSS Thicknes"), FontBSDFPropName);	Print(Context, BSDF_GETTHICKNESSCM(BSDF), FontBSDFPropValu);	Newline(Context, RectMax);
-				}
-				else if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_SIMPLEVOLUME)
-				{
-					const float Opacity = SubstrateSubSurfaceHeaderGetWrapOpacity(SSSHeader);
-					Print(Context, TEXT(" SSS Opacity "), FontBSDFPropName);	Print(Context, Opacity, FontBSDFPropValu);						Newline(Context, RectMax);
-					Print(Context, TEXT(" SSS MFP     "), FontBSDFPropName);	Print(Context, SLAB_SSSMFP(BSDF), FontBSDFPropValu);			Newline(Context, RectMax);
-					Print(Context, TEXT(" SSS Phase   "), FontBSDFPropName);	Print(Context, SLAB_SSSPHASEANISOTROPY(BSDF), FontBSDFPropValu);Newline(Context, RectMax);
-					Print(Context, TEXT(" SSS Thicknes"), FontBSDFPropName);	Print(Context, BSDF_GETTHICKNESSCM(BSDF), FontBSDFPropValu);	Newline(Context, RectMax);
-				}
-				else if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_DIFFUSION_PROFILE)
-				{
-					const uint ProfileId = SubstrateSubSurfaceHeaderGetProfileId(SSSHeader);
-					const float RadiusScale = SubstrateSubSurfaceHeaderGetProfileRadiusScale(SSSHeader);
-					const float3 DiffuseMFP = GetSubsurfaceProfileMFPInCm(ProfileId).xyz * RadiusScale;
-					const float Phase = GetTransmissionProfileParams(ProfileId).ScatteringDistribution;
-
-					Print(Context, TEXT(" SSS ID.     "), FontBSDFPropName);	Print(Context, ProfileId, FontBSDFPropValu);	Newline(Context, RectMax);
-					Print(Context, TEXT(" SSS Radius  "), FontBSDFPropName);	Print(Context, RadiusScale, FontBSDFPropValu);	Newline(Context, RectMax);
-					Print(Context, TEXT(" SSS MFP     "), FontBSDFPropName);	Print(Context, DiffuseMFP, FontBSDFPropValu);	Newline(Context, RectMax);
-					Print(Context, TEXT(" SSS Phase   "), FontBSDFPropName);	Print(Context, Phase, FontBSDFPropValu);		Newline(Context, RectMax);
-					if (bIsThin)
-					{
-					Print(Context, TEXT(" SSS Thicknes"), FontBSDFPropName);	Print(Context, SLAB_SSSPROFILETHICKNESSCM(BSDF), FontBSDFPropValu);		Newline(Context, RectMax);
-					}
-				}
-				else if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_DIFFUSION)
-				{
-					const float3 OriginalMFP = SubstrateSubSurfaceHeaderGetMFP(SSSHeader);
-					const float3 RescaledMFP = SLAB_SSSMFP(BSDF);
-
-					if (bIsThin)
-					{
-						Print(Context, TEXT(" SSS MFP     "), FontBSDFPropName);	Print(Context, OriginalMFP, FontBSDFPropValu);				Newline(Context, RectMax);
-						Print(Context, TEXT(" SSS MFP Norm"), FontBSDFPropName);	Print(Context, RescaledMFP, FontBSDFPropValu);				Newline(Context, RectMax);
-						Print(Context, TEXT(" SSS Thicknes"), FontBSDFPropName);	Print(Context, BSDF_GETTHICKNESSCM(BSDF), FontBSDFPropValu);Newline(Context, RectMax);
-					}
-					else
-					{
-						Print(Context, TEXT(" SSS MFP     "), FontBSDFPropName);	Print(Context, OriginalMFP, FontBSDFPropValu);				Newline(Context, RectMax);
-					}
-
-					Print(Context, TEXT(" SSS Phase   "), FontBSDFPropName);	Print(Context, SLAB_SSSPHASEANISOTROPY(BSDF), FontBSDFPropValu);Newline(Context, RectMax);
-				}
-			} // SSS
-
-			if (BSDF_GETHASFUZZ(BSDF))
-			{
-				Print(Context, TEXT(" Fuzz Amount "), FontBSDFPropName);	Print(Context, SLAB_FUZZ_AMOUNT(BSDF), FontBSDFPropValu);				Newline(Context, RectMax);
-				Print(Context, TEXT(" Fuzz Color  "), FontBSDFPropName);	Print(Context, SLAB_FUZZ_COLOR(BSDF), FontBSDFPropValu);				Newline(Context, RectMax);
-				Print(Context, TEXT(" Fuzz Rough. "), FontBSDFPropName);	Print(Context, SLAB_FUZZ_ROUGHNESS(BSDF), FontBSDFPropValu);			Newline(Context, RectMax);
-			}
-#if SUBSTRATE_COMPLEXSPECIALPATH
-			if (BSDF_GETHASGLINT(BSDF))
-			{
-				Print(Context, TEXT(" Glint Value "), FontBSDFPropName);	Print(Context, SLAB_GLINT_VALUE(BSDF), FontBSDFPropValu);				Newline(Context, RectMax);
-				Print(Context, TEXT(" Glint UVs   "), FontBSDFPropName);	Print(Context, SLAB_GLINT_UV(BSDF), FontBSDFPropValu);					Newline(Context, RectMax);
-			}
-			if (BSDF_GETHASSPECPROFILE(BSDF))
-			{
-				Print(Context, TEXT(" SpecID      "), FontBSDFPropName);	Print(Context, GetSpecularProfileId(SLAB_SPECPROFILEID(BSDF)), FontBSDFPropValu);Newline(Context, RectMax);
-				if (GetSpecularProfileParameterization(SLAB_SPECPROFILEID(BSDF)) == 0)
-				{
-				Print(Context, TEXT(" Spec Param. "), FontBSDFPropName);	Print(Context, TEXT("View/Light angles"), FontBSDFPropValu);			Newline(Context, RectMax);
-				}
-				else
-				{
-				Print(Context, TEXT(" Spec Param. "), FontBSDFPropName);	Print(Context, TEXT("Half angles"), FontBSDFPropValu);					Newline(Context, RectMax);
-				}
-			}
-#endif
-		}
-		break;
-
-		case SUBSTRATE_BSDF_TYPE_HAIR:
-		{
-			Print(Context, TEXT("Hair"), FontBSDFType);
-			PrintAddress(Context, SubstrateAddressing);
-			Newline(Context, RectMax);
-			Print(Context, TEXT(" NormalID Aniso IsTopLayer LuminanceWeight"), FontBSDFStateName);
-			Newline(Context, RectMax);
-
-			Print(Context, TEXT(" "), FontSilver);
-			Print(Context, BSDF_GETSHAREDLOCALBASISID(BSDF), FontBSDF);
-			PrintBool(Context, BSDF_GETHASANISOTROPY(BSDF));
-			PrintBool(Context, BSDF_GETISTOPLAYER(BSDF));
-			if (BSDF_GETHASGREYWEIGHT_V(BSDF))
-			{
-				Print(Context, BSDF.LuminanceWeightV.x, FontSilver);
-			}
-			else
-			{
-				Print(Context, BSDF.LuminanceWeightV.r, FontLightRed);
-				Print(Context, BSDF.LuminanceWeightV.g, FontLightGreen);
-				Print(Context, BSDF.LuminanceWeightV.b, FontLightBlue);
-			}
-			Newline(Context, RectMax);
-
-			Print(Context, TEXT(" BaseColor         "), FontBSDFPropName);	Print(Context, HAIR_BASECOLOR(BSDF), FontBSDFPropValu);				Newline(Context, RectMax);
-			Print(Context, TEXT(" Specular          "), FontBSDFPropName);	Print(Context, HAIR_SPECULAR(BSDF), FontBSDFPropValu);				Newline(Context, RectMax);
-			Print(Context, TEXT(" Roughness         "), FontBSDFPropName);	Print(Context, HAIR_ROUGHNESS(BSDF), FontBSDFPropValu);				Newline(Context, RectMax);
-			Print(Context, TEXT(" Scatter           "), FontBSDFPropName);	Print(Context, HAIR_SCATTER(BSDF), FontBSDFPropValu);				Newline(Context, RectMax);
-			Print(Context, TEXT(" Backlit           "), FontBSDFPropName);	Print(Context, HAIR_BACKLIT(BSDF), FontBSDFPropValu);				Newline(Context, RectMax);
-			Print(Context, TEXT(" Has Transmittance "), FontBSDFPropName);	Print(Context, HAIR_COMPLEXTRANSMITTANCE(BSDF), FontBSDFPropValu);	Newline(Context, RectMax);
-		}
-		break;
-
-		case SUBSTRATE_BSDF_TYPE_EYE:
-		{
-			Print(Context, TEXT("Eye"), FontBSDFType);
-			PrintAddress(Context, SubstrateAddressing);
-			Newline(Context, RectMax);
-			Print(Context, TEXT(" NormalID IsTopLayer LuminanceWeight"), FontBSDFStateName);
-			Newline(Context, RectMax);
-
-			Print(Context, TEXT(" "), FontSilver);
-			Print(Context, BSDF_GETSHAREDLOCALBASISID(BSDF), FontBSDF);
-			PrintBool(Context, BSDF_GETISTOPLAYER(BSDF));
-			if (BSDF_GETHASGREYWEIGHT_V(BSDF))
-			{
-				Print(Context, BSDF.LuminanceWeightV.x, FontSilver);
-			}
-			else
-			{
-				Print(Context, BSDF.LuminanceWeightV.r, FontLightRed);
-				Print(Context, BSDF.LuminanceWeightV.g, FontLightGreen);
-				Print(Context, BSDF.LuminanceWeightV.b, FontLightBlue);
-			}
-			Newline(Context, RectMax);
-
-			Print(Context, TEXT(" Diffuse Albedo    "), FontBSDFPropName);	Print(Context, EYE_DIFFUSEALBEDO(BSDF), FontBSDFPropValu);			Newline(Context, RectMax);
-			Print(Context, TEXT(" F0                "), FontBSDFPropName);	Print(Context, EYE_F0(BSDF), FontBSDFPropValu);						Newline(Context, RectMax);
-			Print(Context, TEXT(" Roughness         "), FontBSDFPropName);	Print(Context, EYE_ROUGHNESS(BSDF), FontBSDFPropValu);				Newline(Context, RectMax);
-			Print(Context, TEXT(" Iris Mask         "), FontBSDFPropName);	Print(Context, EYE_IRISDISTANCE(BSDF), FontBSDFPropValu);			Newline(Context, RectMax);
-			Print(Context, TEXT(" Iris Distance     "), FontBSDFPropName);	Print(Context, EYE_IRISMASK(BSDF), FontBSDFPropValu);				Newline(Context, RectMax);
-
-			// Tangent basis for the iris
-			const float3x3 IrisTangentBasis = GetTangentBasis(EYE_IRISNORMAL(BSDF));
-			DrawReferentialTWS(WorldPosition, IrisTangentBasis[0], IrisTangentBasis[1], IrisTangentBasis[2], float3(0, 1, 1));
-
-			// Tangent basis for the iris plane
-			const float3x3 IrisPlaneTangentBasis = GetTangentBasis(EYE_IRISPLANENORMAL(BSDF));
-			DrawReferentialTWS(WorldPosition, IrisPlaneTangentBasis[0], IrisPlaneTangentBasis[1], IrisPlaneTangentBasis[2], float3(1, 0, 1));
-
-			const bool bHasSSS = Header.HasSubsurface();
-			const FSubstrateSubsurfaceHeader SSSHeader = SubstrateLoadSubsurfaceHeader(Substrate.MaterialTextureArray, Substrate.FirstSliceStoringSubstrateSSSData, SubstrateAddressing.PixelCoords);
-			const bool bIsValid = SubstrateSubSurfaceHeaderGetIsValid(SSSHeader);
-			const bool bIsProfile = SubstrateSubSurfaceHeaderGetIsProfile(SSSHeader);
-			if (bHasSSS && bIsValid && bIsProfile)
-			{
-				const uint SubsurfaceProfileInt = SubstrateSubSurfaceHeaderGetProfileId(SSSHeader);
-				Print(Context, TEXT(" SSS ID.           "), FontBSDFPropName);	Print(Context, SubsurfaceProfileInt, FontBSDFPropValu);			Newline(Context, RectMax);
-			}
-		}
-		break;
-
-		case SUBSTRATE_BSDF_TYPE_SINGLELAYERWATER:
-		{
-			Print(Context, TEXT("Water"), FontBSDFType);
-			PrintAddress(Context, SubstrateAddressing);
-			Newline(Context);
-
-			Print(Context, TEXT(" BaseColor            "), FontBSDFPropName);	Print(Context, SLW_BASECOLOR(BSDF), FontBSDFPropValu);			Newline(Context, RectMax);
-			Print(Context, TEXT(" Metallic             "), FontBSDFPropName);	Print(Context, SLW_METALLIC(BSDF), FontBSDFPropValu);			Newline(Context, RectMax);
-			Print(Context, TEXT(" Specular             "), FontBSDFPropName);	Print(Context, SLW_SPECULAR(BSDF), FontBSDFPropValu);			Newline(Context, RectMax);
-			Print(Context, TEXT(" Roughness            "), FontBSDFPropName);	Print(Context, SLW_ROUGHNESS(BSDF), FontBSDFPropValu);			Newline(Context, RectMax);
-			Print(Context, TEXT(" Top Material Opacity "), FontBSDFPropName);	Print(Context, SLW_TOPMATERIALOPACITY(BSDF), FontBSDFPropValu);	Newline(Context, RectMax);
-		}
-		break;
-
-	default:
-		{
-			Print(Context, TEXT("Error - Uknown BSDF type"), FontRed);
-		}
-		break;
-	}
-
-	Newline(Context);
-}
-
-void PrintPixel(uint2 InCoord, float3 InWorldPosition, float3 V)
-{
-	FShaderPrintContext Context;
-	if (ClosureIndex > 0)
-	{
-		float2 PrintOffset;
-		PrintOffset.x = asfloat(RWPositionOffsetBuffer[0]);
-		PrintOffset.y = asfloat(RWPositionOffsetBuffer[1]);
-		Context = InitShaderPrintContext(true, PrintOffset);
-	}
-	else
-	{
-		Context = InitShaderPrintContext(true, uint2(50, 50));
-	}
-
-	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(InCoord, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
-	const uint FootPrint_Start = SubstrateAddressing.ReadBytes;
-
-	FSubstratePixelHeader Header = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
-	const uint FootPrint_PostHeader = SubstrateAddressing.ReadBytes;
-
-	const FFontColor FontBSDFCount = FontEmerald;
-	const FFontColor FontHeaderStateName = FontWhite;
-	const FFontColor FontHeaderPropName = FontWhite;
-	const FFontColor FontHeaderPropValue = FontSilver;
-
-	// Backgroun rect. for better print visibility. Track min/max point
-	float2 RectMin = Context.Pos;
-	float2 RectMax = Context.StartPos;
-
-	// Header
-	if (ClosureIndex < Header.ClosureCount && ClosureIndex == 0)
-	{
-		const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(InCoord, 0)));
-
-		const bool bSubstrateMaterial = Header.ClosureCount > 0;
-		const bool bIsSimpleMaterial = Header.IsSimpleMaterial() || Header.ClosureCount == 0;
-		const bool bIsSingleMaterial = !Header.IsSimpleMaterial() && Header.IsSingleMaterial();
-
-		FSubstrateIrradianceAndOcclusion IrradianceAndOcclusion = SubstrateGetIrradianceAndAO(Header);
-
-		RectMin = Context.Pos;
-		Print(Context, Header.ClosureCount, FontBSDFCount, 2, 0);
-		Print(Context, TEXT("BSDF"), FontBSDFCount);
-		Print(Context, TEXT(" - "), FontWhite);
-		PrintPixelType(Context, Header, FontLightRed);
-		if (bIsSingleMaterial)
-		{
-		#if SUBSTRATE_DEFERRED_SHADING
-			uint OptimisedLegacyMode = (Header.SharedLocalBasesTypes_PackedHeader >> (HEADER_SINGLEENCODING_BIT_COUNT)) & HEADER_SINGLE_OPTLEGACYMODE_BIT_MASK;
-			if (OptimisedLegacyMode ==SINGLE_OPTLEGACYMODE_CLEARCOAT)
-			{
-				Print(Context, TEXT(" - Legacy Clear-Coat"), FontLightRed);
-			}
-			else if (OptimisedLegacyMode ==SINGLE_OPTLEGACYMODE_CLOTH)
-			{
-				Print(Context, TEXT(" - Legacy Cloth"), FontLightRed);
-			}
-			else if (OptimisedLegacyMode ==SINGLE_OPTLEGACYMODE_SSSWRAP)
-			{
-				Print(Context, TEXT(" - Legacy SSS-Wrap"), FontLightRed);
-			}
-			else if (OptimisedLegacyMode == SINGLE_OPTLEGACYMODE_SSSWRAP_THIN)
-			{
-				Print(Context, TEXT(" - Legacy Foliage"), FontLightRed);
-			}
-			else if (OptimisedLegacyMode == SINGLE_OPTLEGACYMODE_SSSPROFILE)
-			{
-				Print(Context, TEXT(" - Legacy SSS-Profile"), FontLightRed);
-			}
-		#endif
-		}
-		Newline(Context, RectMax);
-
-		Print(Context, TEXT(" AO    IndIrr TopRoughness PreShadow ZeroShadow ContacShadow Ind.Occluder HasSSS"), FontHeaderStateName);
-		Newline(Context, RectMax);
-
-		Print(Context, TEXT(" "));
-		Print(Context, IrradianceAndOcclusion.MaterialAO, FontHeaderPropValue, 5, 3);					Print(Context, TEXT(" "));
-		Print(Context, IrradianceAndOcclusion.IndirectIrradiance, FontHeaderPropValue, 6, 3);			Print(Context, TEXT(" "));
-		Print(Context, TopLayerData.Roughness, FontHeaderPropValue, 5, 3);								Print(Context, TEXT("        "));
-		PrintBool(Context, Header.HasPrecShadowMask());													Print(Context, TEXT("      "));
-		PrintBool(Context, Header.HasZeroPrecShadowMask());												Print(Context, TEXT("       "));
-		PrintBool(Context, Header.DoesCastContactShadow());												Print(Context, TEXT("         "));
-		PrintBool(Context, Header.HasDynamicIndirectShadowCasterRepresentation());						Print(Context, TEXT("         "));
-		PrintBool(Context, Header.HasSubsurface());
-		Newline(Context, RectMax);
-		Newline(Context);
-		
-		PrintBackgroundRect(Context, RectMin, RectMax);
-	}
-
-	// BSDFs
-	if (ClosureIndex < Header.ClosureCount)
-	{
-		if (ClosureIndex > 0)
-		{
-			const uint AddressOffset = UnpackClosureOffsetAtIndex(Substrate.ClosureOffsetTexture[InCoord], ClosureIndex, Header.ClosureCount);
-			SubstrateSeekClosure(SubstrateAddressing, AddressOffset);
-		}
-
-		RectMin = Context.Pos;
-		RectMax = Context.StartPos;
-		PrintBSDF(Context, SubstrateAddressing, Header, InWorldPosition, V, RectMax);
-		PrintBackgroundRect(Context, RectMin, RectMax);
-
-		RWPositionOffsetBuffer[0] = asuint(Context.Pos.x);
-		RWPositionOffsetBuffer[1] = asuint(Context.Pos.y);
-	}
-
-	// Memory footprint
-	if (ClosureIndex+1 == Header.ClosureCount)
-	{
-		const bool bSubstrateMaterial = Header.ClosureCount > 0;
-		const bool bIsSimpleMaterial = Header.IsSimpleMaterial() || Header.ClosureCount == 0;
-		const bool bIsSingleMaterial = !Header.IsSimpleMaterial() && Header.IsSingleMaterial();
-
-		const uint FootPrint_PostBSDFs = SubstrateAddressing.ReadBytes;
-
-		const FSubstrateSubsurfaceHeader SSSHeader = SubstrateLoadSubsurfaceHeader(Substrate.MaterialTextureArray, Substrate.FirstSliceStoringSubstrateSSSData, SubstrateAddressing.PixelCoords);
-		const bool bHasSSSData = SubstrateSubSurfaceHeaderGetIsValid(SSSHeader);
-
-		const uint TopLayerDataBytes = 4;	// bytes 
-		const uint SSSDataBytes = 8;
-
-		const uint HeaderSize =  FootPrint_PostHeader - FootPrint_Start;
-		const uint BSDFsSize  =  FootPrint_PostBSDFs - FootPrint_PostHeader;
-		const uint TotalSize  = (FootPrint_PostBSDFs - FootPrint_Start) + (bHasSSSData ? SSSDataBytes : 0);
-
-		RectMin = Context.Pos;
-		RectMax = Context.StartPos;
-		Print(Context, TEXT("Memory"), FontEmerald); Newline(Context, RectMax);
-		if (bIsSingleMaterial || Header.IsEye() || Header.IsHair())
-		{
-			Print(Context, TEXT(" Header       "), FontSilver); Print(Context, HeaderSize - TopLayerDataBytes,				FontSilver, 3, 0); Print(Context, TEXT("bytes"), FontSilver); Newline(Context, RectMax);
-			Print(Context, TEXT(" TopNormalTex "), FontSilver); Print(Context, TopLayerDataBytes,							FontSilver, 3, 0); Print(Context, TEXT("bytes"), FontSilver); Newline(Context, RectMax);
-			Print(Context, TEXT(" BSDF         "), FontSilver); Print(Context, BSDFsSize,									FontSilver, 3, 0); Print(Context, TEXT("bytes"), FontSilver); Newline(Context, RectMax);
-		}
-		else if (bIsSimpleMaterial || Header.IsSingleLayerWater())
-		{
-			Print(Context, TEXT(" Header+BSDF  "), FontSilver); Print(Context, HeaderSize + BSDFsSize - TopLayerDataBytes,	FontSilver, 3, 0); Print(Context, TEXT("bytes"), FontSilver); Newline(Context, RectMax);
-			Print(Context, TEXT(" TopNormalTex "), FontSilver); Print(Context, TopLayerDataBytes,							FontSilver, 3, 0); Print(Context, TEXT("bytes"), FontSilver); Newline(Context, RectMax);
-		}
-		else
-		{
-			Print(Context, TEXT(" Header+Norm  "), FontSilver); Print(Context, HeaderSize,									FontSilver, 3, 0); Print(Context, TEXT("bytes"), FontSilver); Newline(Context, RectMax);
-			Print(Context, TEXT(" BSDFs        "), FontSilver); Print(Context, BSDFsSize,									FontSilver, 3, 0); Print(Context, TEXT("bytes"), FontSilver); Newline(Context, RectMax);
-		}
-
-		if (bHasSSSData)
-		{
-			Print(Context, TEXT(" SSS Data     "), FontSilver); Print(Context, SSSDataBytes, FontSilver, 3, 0); Print(Context, TEXT("bytes"), FontSilver); Newline(Context, RectMax);
-		}
-
-		Print(Context, TEXT(" Total        "), FontOrange); Print(Context, TotalSize,  FontOrange, 3, 0); Print(Context, TEXT("bytes"), FontOrange); Newline(Context, RectMax);
-		PrintBackgroundRect(Context, RectMin, RectMax);
-	}
-}
 
 float3 GetWorldPositionFromPixelPos(uint2 PixelPos)
 {
@@ -653,8 +55,24 @@ void MaterialPrintInfoCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	const float3 WorldPosition = GetWorldPositionFromPixelPos(PixelPos);
 	const float3 V = -normalize(WorldPosition - PrimaryView.TranslatedWorldCameraOrigin);
 
-	// Print pixel info
-	PrintPixel(PixelPos, WorldPosition, V);
+	FShaderPrintContext Context;
+	if (ClosureIndex > 0)
+	{
+		float2 PrintOffset;
+		PrintOffset.x = asfloat(RWPositionOffsetBuffer[0]);
+		PrintOffset.y = asfloat(RWPositionOffsetBuffer[1]);
+		Context = InitShaderPrintContext(true, PrintOffset);
+	}
+	else
+	{
+		Context = InitShaderPrintContext(true, uint2(50, 50));
+	}
+
+	// Print pixel material properties
+	SubstratePrintMaterialProperties(Context, PixelPos, WorldPosition, V, ClosureIndex);
+
+	RWPositionOffsetBuffer[0] = asuint(Context.Pos.x);
+	RWPositionOffsetBuffer[1] = asuint(Context.Pos.y);
 
 	// Print pixel footprint
 	const float3 WorldPositionX = GetWorldPositionFromPixelPos(PixelPos + uint2(1, 0));
@@ -679,6 +97,7 @@ void MaterialPrintInfoCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 #if SHADER_MATERIALCOUNT
 
 uint ViewMode;
+uint bRealTimeUpdate;
 
 float3 BytePerPixelToColor(uint In)
 {
@@ -706,7 +125,7 @@ void VisualizeMaterialPS(
 	float4 SVPos : SV_POSITION,
 	out float4 OutColor : SV_Target0)
 {
-	const uint2 PixelPosDynRes = uint2(float2(SVPos.xy) * View.ViewResolutionFraction);
+	const uint2 PixelPosDynRes = uint2(float2(SVPos.xy) * (bRealTimeUpdate > 0 ? View.ViewResolutionFraction : 1.0f));
 	float2 BufferUV = SvPositionToBufferUV(float4(PixelPosDynRes, SVPos.zw));
 
 	const float2 ScreenPosition = SvPositionToScreenPosition(SVPos).xy;
@@ -755,8 +174,11 @@ void VisualizeMaterialPS(
 			FSubstrateBSDF BSDF = UnpackSubstrateBSDF(Substrate.MaterialTextureArray, SubstrateAddressing, Header);
 			MaterialBytePerPixel = SubstrateAddressing.ReadBytes;
 		}
-			
-		OutColor.xyz = BytePerPixelToColor(MaterialBytePerPixel);
+		
+		if (MaterialBytePerPixel > 0)
+		{
+			OutColor.xyz = BytePerPixelToColor(MaterialBytePerPixel);
+		}
 	
 		// Print Legend
 		if (all(uint2(SVPos.xy) == uint2(0,0)))
@@ -815,7 +237,7 @@ float2 GetBranchOffset(FSubstrateOperator Op, bool bIsLeft)
 void MaterialDebugSubstrateTreeCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
 // UE-194712 - Temporary workaround with Vulkan shader compilation
-#if !COMPILER_VULKAN
+#if !COMPILER_VULKAN && !COMPILER_FXC
 	const uint2 PixelPos = (float2(GetCursorPosition()) * View.ViewResolutionFraction);
 
 	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
@@ -1174,7 +596,6 @@ void EvaluateLighting(
 	in float ThicknessRatio,
 	inout float4 OutColor)
 {
-	float3 AbsoluteWorldPosition = DFHackToFloat(PrimaryView.WorldCameraOrigin);
 	float3 TranslatedWorldPosition = PrimaryView.TranslatedWorldCameraOrigin;
 	float SceneDepth = 0.0;
 
@@ -1222,6 +643,7 @@ void EvaluateLighting(
 		DirLightData.DistanceFadeMAD = ForwardLightData.DirectionalLightDistanceFadeMAD;
 		DirLightData.bRadialLight = false;
 		DirLightData.SpecularScale = ForwardLightData.DirectionalLightSpecularScale;
+		DirLightData.DiffuseScale = ForwardLightData.DirectionalLightDiffuseScale;
 		float4 DirLightAttenuation = float4(1, 1, 1, 1);
 		DirLightData.ShadowedBits = 1;
 		DirLightData.ShadowMapChannelMask.x = 1;
@@ -1423,7 +845,7 @@ void MaterialDebugSubstrateTreePS(
 	OutColor = float4(0.0f, 0.0f, 0.0f, 1.0f);
 
 	// Workaround on Vulkan where this shader does not compile correctly
-#if !VULKAN_PROFILE & !VULKAN_PROFILE_SM5 && !VULKAN_PROFILE_SM6
+#if !VULKAN_PROFILE & !VULKAN_PROFILE_SM5 && !VULKAN_PROFILE_SM6 && !COMPILER_FXC
 
 	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset((float2(GetCursorPosition()) * View.ViewResolutionFraction), uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 	FSubstratePixelHeader Header = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);

@@ -5,6 +5,7 @@
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/ReverseIterate.h"
+#include "Misc/IntrusiveUnsetOptionalState.h"
 #include "Templates/Invoke.h"
 #include "Templates/UnrealTypeTraits.h"
 #include "Traits/ElementType.h"
@@ -263,6 +264,25 @@ public:
 		static_assert(std::is_const_v<ElementType>, "Only views of const elements can bind to initializer lists");
 	}
 
+	///////////////////////////////////////////////////
+	// Start - intrusive TOptional<TArrayView> state //
+	///////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TArrayView;
+
+	explicit TArrayView(FIntrusiveUnsetOptionalState)
+		: DataPtr(nullptr)
+		, ArrayNum(-1)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState) const
+	{
+		return ArrayNum == -1;
+	}
+	/////////////////////////////////////////////////
+	// End - intrusive TOptional<TArrayView> state //
+	/////////////////////////////////////////////////
+
 public:
 
 	/**
@@ -358,6 +378,12 @@ public:
 	FORCEINLINE SizeType Num() const
 	{
 		return ArrayNum;
+	}
+
+	/** @returns Number of bytes used, excluding slack */
+	FORCEINLINE SIZE_T NumBytes() const
+	{
+		return static_cast<SIZE_T>(ArrayNum) * sizeof(ElementType);
 	}
 
 	/**
@@ -815,15 +841,46 @@ auto MakeArrayView(OtherRangeType&& Other UE_LIFETIMEBOUND)
 }
 
 template<typename ElementType>
-auto MakeArrayView(ElementType* Pointer UE_LIFETIMEBOUND, int32 Size)
+TArrayView<ElementType> MakeArrayView(ElementType* Pointer UE_LIFETIMEBOUND, int32 Size)
 {
 	return TArrayView<ElementType>(Pointer, Size);
 }
 
-template <typename T>
-TArrayView<const T> MakeArrayView(std::initializer_list<T> List UE_LIFETIMEBOUND)
+template <typename ElementType>
+TArrayView<const ElementType> MakeArrayView(std::initializer_list<ElementType> List UE_LIFETIMEBOUND)
 {
-	return TArrayView<const T>(List.begin(), List.size());
+	return TArrayView<const ElementType>(List.begin(), List.size());
+}
+
+template <
+	typename OtherRangeType,
+	typename CVUnqualifiedOtherRangeType = std::remove_cv_t<std::remove_reference_t<OtherRangeType>>
+	UE_REQUIRES(TIsContiguousContainer<CVUnqualifiedOtherRangeType>::Value && TIsTArrayView_V<CVUnqualifiedOtherRangeType>)
+>
+auto MakeConstArrayView(OtherRangeType&& Other)
+{
+	return TArrayView<const std::remove_pointer_t<decltype(GetData(DeclVal<OtherRangeType&>()))>>(Forward<OtherRangeType>(Other));
+}
+template <
+	typename OtherRangeType,
+	typename CVUnqualifiedOtherRangeType = std::remove_cv_t<std::remove_reference_t<OtherRangeType>>
+	UE_REQUIRES(TIsContiguousContainer<CVUnqualifiedOtherRangeType>::Value && !TIsTArrayView_V<CVUnqualifiedOtherRangeType>)
+>
+auto MakeConstArrayView(OtherRangeType&& Other UE_LIFETIMEBOUND)
+{
+	return TArrayView<const std::remove_pointer_t<decltype(GetData(DeclVal<OtherRangeType&>()))>>(Forward<OtherRangeType>(Other));
+}
+
+template<typename ElementType>
+TArrayView<const ElementType> MakeConstArrayView(const ElementType* Pointer UE_LIFETIMEBOUND, int32 Size)
+{
+	return TArrayView<const ElementType>(Pointer, Size);
+}
+
+template <typename ElementType>
+TArrayView<const ElementType> MakeConstArrayView(std::initializer_list<ElementType> List UE_LIFETIMEBOUND)
+{
+	return TArrayView<const ElementType>(List.begin(), List.size());
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -844,8 +901,8 @@ bool operator!=(TArrayView<ElementType, SizeType>, TArrayView<OtherElementType, 
  */
 template <
 	typename RangeType,
-	typename ElementType,
-	typename = decltype(ImplicitConv<const ElementType*>(GetData(DeclVal<RangeType&>())))
+	typename ElementType
+	UE_REQUIRES(std::is_convertible_v<decltype(GetData(std::declval<RangeType&>())), const ElementType*>)
 >
 bool operator==(RangeType&& Lhs, TArrayView<ElementType> Rhs)
 {
@@ -855,8 +912,8 @@ bool operator==(RangeType&& Lhs, TArrayView<ElementType> Rhs)
 
 template <
 	typename RangeType,
-	typename ElementType,
-	typename = decltype(ImplicitConv<const ElementType*>(GetData(DeclVal<RangeType&>())))
+	typename ElementType
+	UE_REQUIRES(std::is_convertible_v<decltype(GetData(std::declval<RangeType&>())), const ElementType*>)
 >
 bool operator==(TArrayView<ElementType> Lhs, RangeType&& Rhs)
 {
@@ -872,8 +929,8 @@ bool operator==(TArrayView<ElementType> Lhs, RangeType&& Rhs)
  */
 template <
 	typename RangeType,
-	typename ElementType,
-	typename = decltype(ImplicitConv<const ElementType*>(GetData(DeclVal<RangeType&>())))
+	typename ElementType
+	UE_REQUIRES(std::is_convertible_v<decltype(GetData(std::declval<RangeType&>())), const ElementType*>)
 >
 bool operator!=(RangeType&& Lhs, TArrayView<ElementType> Rhs)
 {
@@ -882,8 +939,8 @@ bool operator!=(RangeType&& Lhs, TArrayView<ElementType> Rhs)
 
 template <
 	typename RangeType,
-	typename ElementType,
-	typename = decltype(ImplicitConv<const ElementType*>(GetData(DeclVal<RangeType&>())))
+	typename ElementType
+	UE_REQUIRES(std::is_convertible_v<decltype(GetData(std::declval<RangeType&>())), const ElementType*>)
 >
 bool operator!=(TArrayView<ElementType> Lhs, RangeType&& Rhs)
 {

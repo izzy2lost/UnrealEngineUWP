@@ -22,6 +22,7 @@
 #include "Templates/UniquePtr.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/NameTypes.h"
+#include "UObject/ObjectSaveOverride.h"
 #include "UObject/Package.h"
 
 class ITargetPlatform;
@@ -39,6 +40,7 @@ class FOutputDevice;
 class FPackagePath;
 class FSavePackageContext;
 class IPackageWriter;
+namespace UE { class FLogRecord; }
 struct FObjectSaveContextData;
 
 /**
@@ -91,6 +93,12 @@ struct FSavePackageArgs
 	FSavePackageContext* SavePackageContext = nullptr;
 	UE_DEPRECATED(4.27, "UPackage::Guid has not been used by the engine for a long time and it will be removed.")
 	TOptional<FGuid> OutputPackageGuid;
+
+	/**
+	 * In/Out list of property overrides per object to apply to during save. This list can be extended by PreSave functions
+	 * during the save.
+	 */
+	TMap<UObject*, FObjectSaveOverride>* InOutSaveOverrides = nullptr;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	FSavePackageArgs() = default;
@@ -162,16 +170,18 @@ struct FExportsValidationContext
 		IsCooking	= 1 << 0,
 	};
 
-	FExportsValidationContext(const UPackage* InPackage, const TSet<UObject*>& InExports, EFlags InFlags,
-		FOutputDevice* InOutputDevice)
+	FExportsValidationContext(const UPackage* InPackage, const TSet<UObject*>& InExports, const TMap<UObject*, FObjectSaveOverride>& InSaveOverrides, 
+		EFlags InFlags, FOutputDevice* InOutputDevice)
 		: Package(InPackage)
 		, Exports(InExports)
+		, SaveOverrides(InSaveOverrides)
 		, Flags(InFlags)
 		, OutputDevice(InOutputDevice)
 	{}
 
 	const UPackage* Package;
 	const TSet<UObject*>& Exports;
+	const TMap<UObject*, FObjectSaveOverride>& SaveOverrides;
 	const EFlags Flags;
 	FOutputDevice* OutputDevice;
 };
@@ -311,13 +321,17 @@ namespace UE::SavePackageUtilities
 
 	COREUOBJECT_API void StartSavingEDLCookInfoForVerification();
 	using FEDLMessageCallback = TFunction<void(ELogVerbosity::Type, FStringView)>;
+	using FEDLLogRecordCallback = TFunction<void(UE::FLogRecord&& Record)>;
 	COREUOBJECT_API void VerifyEDLCookInfo(bool bFullReferencesExpected = true);
+	UE_DEPRECATED(5.5, "Use version that takes FEDLLogRecordCallback")
 	COREUOBJECT_API void VerifyEDLCookInfo(const FEDLMessageCallback& MessageCallback, bool bFullReferencesExpected = true);
+	COREUOBJECT_API void VerifyEDLCookInfo(const FEDLLogRecordCallback& MessageCallback, bool bFullReferencesExpected = true);
 	COREUOBJECT_API void EDLCookInfoAddIterativelySkippedPackage(FName LongPackageName);
 	COREUOBJECT_API void EDLCookInfoMoveToCompactBinaryAndClear(FCbWriter& Writer, bool& bOutHasData);
 	COREUOBJECT_API void EDLCookInfoMoveToCompactBinaryAndClear(FCbWriter& Writer, bool& bOutHasData, FName PackageName);
 	COREUOBJECT_API bool EDLCookInfoAppendFromCompactBinary(FCbFieldView Field);
-	COREUOBJECT_API bool CanSkipEditorReferencedPackagesWhenCooking();
+	UE_DEPRECATED(5.5, "No longer used; skiponlyeditoronly is used instead and tracks editoronly references via savepackage results.")
+	inline bool CanSkipEditorReferencedPackagesWhenCooking() { return false; }
 
 
 #if WITH_EDITOR

@@ -145,11 +145,29 @@ public:
 	ENGINE_API void SetAudioDevice(UWorld& InWorld, Audio::FDeviceId InDeviceID);
 
 	/**
-	* Initialize the audio device manager.
-	* Return true if successfully initialized.
-	**/
+	 * Pre-initializes the Manager.
+	 * This starts up and initializes the manager early without need for the Engine to be available, so that 
+	 * we can load essential services ahead of Engine Startup.
+	 * @return True if success, false otherwise
+	 */
+	static ENGINE_API bool PreInitialize();
+
+	/**
+	 * Initializes the Manager.
+	 * NOTE: If the manager hasn't been PreInitialized, that stage will be performed first.
+	 * @return True if success, false otherwise
+	 */
 	static ENGINE_API bool Initialize();
+
+	/**
+	 * Returns the AudioDeviceManager Singleton
+	 * @return The Instance instance or nullptr if the device has not been *fully* initialized.
+	 */
 	static ENGINE_API FAudioDeviceManager* Get();
+
+	/**
+	 * Shuts down the AudioDeviceManager and all AudioDevices.
+	 */
 	static ENGINE_API void Shutdown();
 
 	/** Creates the main audio device. */
@@ -220,22 +238,22 @@ public:
 	/** Sets an audio device to be solo'd */
 	ENGINE_API void SetSoloDevice(Audio::FDeviceId InAudioDeviceHandle);
 
-	/** Links up the resource data indices for looking up and cleaning up. */
+	UE_DEPRECATED(5.5, "This is no longer used.  Existing calls may be deleted")
 	ENGINE_API void TrackResource(USoundWave* SoundWave, FSoundBuffer* Buffer);
-
 	/** Frees the given sound wave resource from the device manager */
 	ENGINE_API void FreeResource(USoundWave* SoundWave);
 
-	/** Frees the sound buffer from the device manager. */
+	UE_DEPRECATED(5.5, "This is no longer used.  Existing calls may be deleted")
 	ENGINE_API void FreeBufferResource(FSoundBuffer* SoundBuffer);
 
-	/** Stops using the given sound buffer. Called before freeing the buffer */
+	UE_DEPRECATED(5.5, "This is no longer used.  Existing calls may be deleted")
 	ENGINE_API void StopSourcesUsingBuffer(FSoundBuffer* Buffer);
 
-	/** Retrieves the sound buffer for the given resource id */
+	UE_DEPRECATED(5.5, "This is no longer used.  Existing calls may be deleted")
 	ENGINE_API FSoundBuffer* GetSoundBufferForResourceID(uint32 ResourceID);
 
 	/** Removes the sound buffer for the given resource id */
+	UE_DEPRECATED(5.5, "This is no longer used.  Existing calls may be deleted")
 	ENGINE_API void RemoveSoundBufferForResourceID(uint32 ResourceID);
 
 	/** Removes sound mix from all audio devices */
@@ -273,9 +291,11 @@ public:
 public:
 
 	/** Array of all created buffers */
+	UE_DEPRECATED(5.5, "This is no longer used and should not be accessed directly.")
 	TArray<FSoundBuffer*>			Buffers;
-
+	
 	/** Look up associating a USoundWave's resource ID with sound buffers	*/
+	UE_DEPRECATED(5.5, "This is no longer used and should not be accessed directly.")
 	TMap<int32, FSoundBuffer*>	WaveBufferMap;
 
 	/** Returns all the audio devices managed by device manager. */
@@ -295,14 +315,18 @@ public:
 private:
 
 #if ENABLE_AUDIO_DEBUG
-	/** Instance of audio debugger shared across audio devices */
+	/** Instance of audio debugger shared across audio devices */ 
 	TUniquePtr<Audio::FAudioDebugger> AudioDebugger;
 #endif // ENABLE_AUDIO_DEBUG
 
 	TPimplPtr<Audio::FAudioFormatSettings> AudioFormatSettings;
 	TArray<TPimplPtr<FSimpleAudioInfoFactory>> EngineFormats;
 
-	ENGINE_API bool InitializeManager();
+	/**
+	 * Conditionally Creates the AudioDeviceManager
+	 * @return New Instance or Existing Singleton, or nullptr on failure (which can happen if audio is disabled).
+	 */
+	static FAudioDeviceManager* GetOrCreate();
 
 	/** Creates a handle given the index and a generation value. */
 	ENGINE_API uint32 GetNewDeviceID();
@@ -322,6 +346,28 @@ private:
 	ENGINE_API void AppWillEnterBackground();
 	
 	ENGINE_API void RegisterAudioInfoFactories();
+
+	/**
+	 * Queries if the device manager is initalized.
+	 * @return true if initialized, false otherwise.
+	 */
+	ENGINE_API bool IsInitialized() const { return InitPhase == EInitPhase::Initialized; }	
+
+	/**
+	 * Pre-initializes the Manager
+	 * This starts up and intializes the manager early without need for the Engine to be available, so that 
+	 * we can load essential services ahead of Engine Startup.
+	 * This is optional in the flow, as InitializeManager will also call this if required.
+	 * @return True if success, false otherwise
+	 */
+	ENGINE_API bool PreInitializeManager();
+
+	/**
+	 * Initalizes the Manager.
+	 * NOTE: If PreInitializeManager has not been called already, a PreInitializeManager call is made first.
+	 * @return True if success, false otherwise
+	 */
+	ENGINE_API bool InitializeManager();
 
 	/** Audio device module which creates audio devices. */
 	IAudioDeviceModule* AudioDeviceModule;
@@ -411,7 +457,17 @@ private:
 	/** Audio Fence to ensure that we don't allow the audio thread to drift never endingly behind. */
 	FAudioCommandFence SyncFence;
 
+	/**
+	 * Simple state machine of the init state of the manager.
+	 */
+	enum class EInitPhase : uint32
+	{
+		Constructed,
+		PreInitialized,
+		Initialized
+	};
+	EInitPhase InitPhase = EInitPhase::Constructed;
+	
 	friend class FAudioDeviceHandle;
-
 	static ENGINE_API FAudioDeviceManager* Singleton;
 };

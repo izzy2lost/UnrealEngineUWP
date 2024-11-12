@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "VT/RuntimeVirtualTextureEnum.h"
+#include "RHIAccess.h"
 
 class FRHICommandListImmediate;
 class FRHITexture;
@@ -36,8 +37,11 @@ namespace RuntimeVirtualTexture
 		/** Physical texture to render to. */
 		FRHITexture* Texture = nullptr;
 
-		UE_DEPRECATED(5.1, "UAV is deprecated. Register the pooled render target with RDG instead.")
-		FRHIUnorderedAccessView* UAV = nullptr;
+		/** State of the physical texture to render to when it's being rendered */
+		ERHIAccess TextureAccessBefore = ERHIAccess::SRVMask;
+
+		/** State the physical texture to render should be left in after it's being rendered */
+		ERHIAccess TextureAccessAfter = ERHIAccess::SRVMask;
 
 		IPooledRenderTarget* PooledRenderTarget = nullptr;
 	};

@@ -27,7 +27,6 @@ void SModifierListView::Construct(const FArguments& InArgs)
 {
 	SAssignNew(Listview, SListView<ModifierListviewItem>)
 		.ListItemsSource(InArgs._Items)
-		.ItemHeight(36)
 		.OnGenerateRow(this, &SModifierListView::OnGenerateWidgetForList)
 		.OnSelectionChanged(this, &SModifierListView::OnSelectionChanged)
 		.OnContextMenuOpening(this, &SModifierListView::OnContextMenuOpening);

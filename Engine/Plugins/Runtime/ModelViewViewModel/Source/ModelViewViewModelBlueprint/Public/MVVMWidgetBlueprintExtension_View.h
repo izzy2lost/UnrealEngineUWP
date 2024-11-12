@@ -12,6 +12,11 @@ class UMVVMBlueprintViewExtension;
 class FWidgetBlueprintCompilerContext;
 class UWidgetBlueprintGeneratedClass;
 
+namespace UE::MVVM
+{
+	class FClipboardExtension;
+}
+
 namespace UE::MVVM::Private
 {
 	struct FMVVMViewBlueprintCompiler;
@@ -66,6 +71,11 @@ public:
 		return BlueprintViewChangedDelegate;
 	}
 
+	const TArrayView<const FName> GetGeneratedFunctions() const
+	{
+		return GeneratedFunctions;
+	}
+
 public:
 	//~ Begin UObject interface
 	virtual void PostLoad() override;
@@ -90,6 +100,7 @@ public:
 	UMVVMBlueprintViewExtension* CreateBlueprintWidgetExtension(TSubclassOf<UMVVMBlueprintViewExtension> ExtensionClass, FName WidgetName);
 	void RemoveBlueprintWidgetExtension(UMVVMBlueprintViewExtension* ExtensionToRemove, FName WidgetName);
 	TArray<UMVVMBlueprintViewExtension*> GetBlueprintExtensionsForWidget(FName WidgetName) const;
+	TArray<UMVVMBlueprintViewExtension*> GetAllBlueprintExtensions() const;
 
 	void SetFilterSettings(FMVVMViewBindingFilterSettings InFilterSettings);
 	FMVVMViewBindingFilterSettings GetFilterSettings() const
@@ -106,6 +117,9 @@ private:
 
 	UPROPERTY(Transient)
 	FMVVMViewBindingFilterSettings FilterSettings;
+	
+	UPROPERTY(Transient)
+	TArray<FName> GeneratedFunctions;
 
 	FSimpleMulticastDelegate BlueprintViewChangedDelegate;
 	TPimplPtr<UE::MVVM::Private::FMVVMViewBlueprintCompiler> CurrentCompilerContext;
@@ -114,6 +128,7 @@ private:
 	TArray<FMVVMExtensionItem> BlueprintExtensions;
 
 	friend UE::MVVM::Private::FMVVMViewBlueprintCompiler;
+	friend UE::MVVM::FClipboardExtension;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

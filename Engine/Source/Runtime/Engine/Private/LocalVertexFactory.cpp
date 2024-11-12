@@ -51,7 +51,9 @@ void FLocalVertexFactoryShaderParametersBase::Bind(const FShaderParameterMap& Pa
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FLocalVertexFactoryUniformShaderParameters, "LocalVF");
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FLocalVertexFactoryLooseParameters, "LocalVFLooseParameters");
 
-TUniformBufferRef<FLocalVertexFactoryUniformShaderParameters> CreateLocalVFUniformBuffer(
+
+void GetLocalVFUniformShaderParameters(
+	FLocalVertexFactoryUniformShaderParameters& UniformParameters,
 	const FLocalVertexFactory* LocalVertexFactory, 
 	uint32 LODLightmapDataIndex, 
 	FColorVertexBuffer* OverrideColorVertexBuffer, 
@@ -59,8 +61,6 @@ TUniformBufferRef<FLocalVertexFactoryUniformShaderParameters> CreateLocalVFUnifo
 	int32 PreSkinBaseVertexIndex
 	)
 {
-	FLocalVertexFactoryUniformShaderParameters UniformParameters;
-
 	UniformParameters.LODLightmapDataIndex = LODLightmapDataIndex;
 	int32 ColorIndexMask = 0;
 
@@ -103,7 +103,18 @@ TUniformBufferRef<FLocalVertexFactoryUniformShaderParameters> CreateLocalVFUnifo
 
 	UniformParameters.VertexFetch_Parameters = {ColorIndexMask, NumTexCoords, LightMapCoordinateIndex, EffectiveBaseVertexIndex};
 	UniformParameters.PreSkinBaseVertexIndex = EffectivePreSkinBaseVertexIndex;
+}
 
+TUniformBufferRef<FLocalVertexFactoryUniformShaderParameters> CreateLocalVFUniformBuffer(
+	const FLocalVertexFactory* LocalVertexFactory, 
+	uint32 LODLightmapDataIndex, 
+	FColorVertexBuffer* OverrideColorVertexBuffer, 
+	int32 BaseVertexIndex,
+	int32 PreSkinBaseVertexIndex
+	)
+{
+	FLocalVertexFactoryUniformShaderParameters UniformParameters;
+	GetLocalVFUniformShaderParameters(UniformParameters, LocalVertexFactory, LODLightmapDataIndex, OverrideColorVertexBuffer, BaseVertexIndex, PreSkinBaseVertexIndex);
 	return TUniformBufferRef<FLocalVertexFactoryUniformShaderParameters>::CreateUniformBufferImmediate(UniformParameters, UniformBuffer_MultiFrame);
 }
 
@@ -171,57 +182,6 @@ void FLocalVertexFactoryShaderParameters::Bind(const FShaderParameterMap& Parame
 	IsGPUSkinPassThrough.Bind(ParameterMap, TEXT("bIsGPUSkinPassThrough"));
 }
 
-static void GetMeshDeformerVertexStreams(FMeshDeformerGeometry const& InDeformerGeometry, FGPUSkinPassthroughVertexFactory const* InVertexFactory, FVertexInputStreamArray& InOutVertexStreams)
-{
-	const int32 PositionStreamIndex = InVertexFactory->GetAttributeStreamIndex(FGPUSkinPassthroughVertexFactory::VertexPosition);
-	if (PositionStreamIndex > -1 && InDeformerGeometry.Position.IsValid())
-	{
-		InOutVertexStreams.Add(FVertexInputStream(PositionStreamIndex, 0, InDeformerGeometry.Position->GetRHI()));
-	}
-
-	const int32 TangentStreamIndex = InVertexFactory->GetAttributeStreamIndex(FGPUSkinPassthroughVertexFactory::VertexTangent);
-	if (TangentStreamIndex > -1 && InDeformerGeometry.Tangent.IsValid())
-	{
-		InOutVertexStreams.Add(FVertexInputStream(TangentStreamIndex, 0, InDeformerGeometry.Tangent->GetRHI()));
-	}
-
-	const int32 ColorStreamIndex = InVertexFactory->GetAttributeStreamIndex(FGPUSkinPassthroughVertexFactory::VertexColor);
-	if (ColorStreamIndex > -1 && InDeformerGeometry.Color.IsValid())
-	{
-		InOutVertexStreams.Add(FVertexInputStream(ColorStreamIndex, 0, InDeformerGeometry.Color->GetRHI()));
-	}
-}
-
-static void GetElementShaderBindingsGPUSkinPassThrough(
-	const FMeshMaterialShader* Shader,
-	ERHIFeatureLevel::Type FeatureLevel,
-	const FVertexFactory* VertexFactory,
-	const FMeshBatchElement& BatchElement,
-	class FMeshDrawSingleShaderBindings& ShaderBindings,
-	FVertexInputStreamArray& VertexStreams)
-{
-	// Bind vertex streams.
-	FSkinBatchVertexFactoryUserData* BatchUserData = (FSkinBatchVertexFactoryUserData*)BatchElement.VertexFactoryUserData;
-	FGPUSkinPassthroughVertexFactory const* PassthroughVertexFactory = static_cast<FGPUSkinPassthroughVertexFactory const*>(VertexFactory);
-
-	if (BatchUserData != nullptr && BatchUserData->SkinCacheEntry != nullptr)
-	{
-		// Using Skin Cache.
-		FGPUSkinCache::GetShaderVertexStreams(BatchUserData->SkinCacheEntry, BatchUserData->SectionIndex, PassthroughVertexFactory, VertexStreams);
-	}
-	else if (BatchUserData != nullptr && BatchUserData->DeformerGeometry != nullptr)
-	{
-		// Using Mesh Deformers.
-		GetMeshDeformerVertexStreams(*BatchUserData->DeformerGeometry, PassthroughVertexFactory, VertexStreams);
-	}
-
-	// Bind the vertex factory uniform buffer.
-	if (PassthroughVertexFactory->SupportsManualVertexFetch(FeatureLevel) || UseGPUScene(GMaxRHIShaderPlatform, FeatureLevel))
-	{
-		ShaderBindings.Add(Shader->GetUniformBufferParameter<FLocalVertexFactoryUniformShaderParameters>(), PassthroughVertexFactory->GetUniformBuffer());
-	}
-}
-
 void FLocalVertexFactoryShaderParameters::GetElementShaderBindings(
 	const FSceneInterface* Scene,
 	const FSceneView* View,
@@ -238,13 +198,14 @@ void FLocalVertexFactoryShaderParameters::GetElementShaderBindings(
 	ShaderBindings.Add(IsGPUSkinPassThrough, (uint32)(LocalVertexFactory->bGPUSkinPassThrough ? 1 : 0));
 	if (LocalVertexFactory->bGPUSkinPassThrough)
 	{
-		GetElementShaderBindingsGPUSkinPassThrough(
-			Shader,
-			FeatureLevel,
-			VertexFactory,
-			BatchElement,
-			ShaderBindings,
-			VertexStreams);
+		// Bind vertex streams.
+		static_cast<FGPUSkinPassthroughVertexFactory const*>(LocalVertexFactory)->GetOverrideVertexStreams(VertexStreams);
+
+		// Bind the vertex factory uniform buffer.
+		if (LocalVertexFactory->SupportsManualVertexFetch(FeatureLevel) || UseGPUScene(GMaxRHIShaderPlatform, FeatureLevel))
+		{
+			ShaderBindings.Add(Shader->GetUniformBufferParameter<FLocalVertexFactoryUniformShaderParameters>(), LocalVertexFactory->GetUniformBuffer());
+		}
 	}
 	else
 	{

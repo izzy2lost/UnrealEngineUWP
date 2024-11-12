@@ -8,8 +8,9 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
-using Jupiter.Implementation.Blob;
+using Jupiter.Common;
 using Jupiter.Implementation;
+using Jupiter.Implementation.Blob;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
@@ -19,13 +20,12 @@ using Moq;
 using Moq.Contrib.HttpClient;
 using Serilog;
 using Logger = Serilog.Core.Logger;
-using Jupiter.Common;
 
 namespace Jupiter.FunctionalTests.Storage
 {
 	[TestClass]
 	public class BlobReplicationTests
-	{ 
+	{
 		protected NamespaceId TestNamespaceName { get; } = new NamespaceId("test-namespace");
 
 		[TestMethod]
@@ -38,12 +38,12 @@ namespace Jupiter.FunctionalTests.Storage
 			string contents = "This is a random string of content";
 			byte[] bytes = Encoding.ASCII.GetBytes(contents);
 			BlobId blobIdentifier = BlobId.FromBlob(bytes);
-			
+
 			Mock<HttpMessageHandler> handler = new Mock<HttpMessageHandler>();
 
 			// site b has the content and will serve it
 			handler.SetupRequest($"http://siteB.com/internal/api/v1/blobs/{TestNamespaceName}/{blobIdentifier}?allowOndemandReplication=false").ReturnsResponse(HttpStatusCode.OK,
-				message => { message.Content = new ReadOnlyMemoryContent(bytes);}
+				message => { message.Content = new ReadOnlyMemoryContent(bytes); }
 			).Verifiable();
 
 			handler.SetupRequest($"http://siteA.com/internal/health/live").ReturnsResponse(HttpStatusCode.OK).Verifiable();
@@ -55,8 +55,8 @@ namespace Jupiter.FunctionalTests.Storage
 			IConfigurationRoot configuration = new ConfigurationBuilder()
 				// we are not reading the base appSettings here as we want exact control over what runs in the tests
 				.AddJsonFile("appsettings.Testing.json", true)
-				.AddInMemoryCollection(new[] { 
-					new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Memory.ToString()), 
+				.AddInMemoryCollection(new[] {
+					new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Memory.ToString()),
 					new KeyValuePair<string, string?>("UnrealCloudDDC:EnableOnDemandReplication", true.ToString()),
 				})
 				.AddEnvironmentVariables()
@@ -161,7 +161,6 @@ namespace Jupiter.FunctionalTests.Storage
 			handler.Verify();
 		}
 
-				
 		[TestMethod]
 		public async Task ReplicateBlobNotPresentAsync()
 		{
@@ -170,7 +169,7 @@ namespace Jupiter.FunctionalTests.Storage
 			string contents = "This is a random string of content";
 			byte[] bytes = Encoding.ASCII.GetBytes(contents);
 			BlobId blobIdentifier = BlobId.FromBlob(bytes);
-			
+
 			Mock<HttpMessageHandler> handler = new Mock<HttpMessageHandler>();
 
 			handler.SetupRequest($"http://siteA.com/internal/health/live").ReturnsResponse(HttpStatusCode.OK).Verifiable();

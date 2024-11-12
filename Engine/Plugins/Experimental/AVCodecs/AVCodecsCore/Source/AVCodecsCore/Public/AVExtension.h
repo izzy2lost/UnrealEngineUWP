@@ -72,13 +72,12 @@ public:
 	 * @param InResource The resource to read from.
 	 * @return Result of the operation, @see FAVResult.
 	 */
-	template <typename TOutput, typename TInput, TEMPLATE_REQUIRES(!TIsDerivedFrom<TInput, TOutput>::Value)>
-	static FAVResult TransformResource(TSharedPtr<TOutput>& OutResource, TSharedPtr<TInput> const& InResource) = delete;
-
 	// Shortcut case for above for when the input and output types match. This does NOT duplicate the resource.
-	template <typename TOutput, typename TInput, TEMPLATE_REQUIRES(TIsDerivedFrom<TInput, TOutput>::Value)>
+	template <typename TOutput, typename TInput>
 	static FAVResult TransformResource(TSharedPtr<TOutput>& OutResource, TSharedPtr<TInput> const& InResource)
 	{
+		static_assert(std::is_base_of_v<TOutput, TInput>, "Input resource must be inherited from Output resource");
+
 		OutResource = InResource;
 
 		return EAVResult::Success;

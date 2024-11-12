@@ -7,6 +7,7 @@
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/MovieGraphUtils.h"
 #include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
+#include "MoviePipelineTelemetry.h"
 #include "MoviePipelineUtils.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "Styling/AppStyle.h"
@@ -28,6 +29,11 @@ void UMovieGraphAudioOutputNode::BuildNewProcessCommandLineArgsImpl(TArray<FStri
 {
 	// Always add this so that audio is muted, it'll never line up during preview anyways.
 	InOutCommandLineArgs.Add("-deterministicaudio");
+}
+
+void UMovieGraphAudioOutputNode::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesAudio = true;
 }
 
 #if WITH_EDITOR
@@ -85,7 +91,7 @@ void UMovieGraphAudioOutputNode::OnAllFramesSubmittedImpl(UMovieGraphPipeline* I
 	StartAudioExport();
 }
 
-void UMovieGraphAudioOutputNode::OnAllShotFramesSubmittedImpl(UMovieGraphPipeline* InPipeline, const UMoviePipelineExecutorShot* InShot)
+void UMovieGraphAudioOutputNode::OnAllShotFramesSubmittedImpl(UMovieGraphPipeline* InPipeline, const UMoviePipelineExecutorShot* InShot, TObjectPtr<UMovieGraphEvaluatedConfig>& InShotEvaluatedGraph)
 {
 	CachedPipeline = InPipeline;
 	EvaluatedGraph = InPipeline->GetTimeStepInstance()->GetCalculatedTimeData().EvaluatedConfig;

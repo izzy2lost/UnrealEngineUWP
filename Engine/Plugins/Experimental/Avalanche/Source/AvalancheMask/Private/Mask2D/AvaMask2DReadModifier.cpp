@@ -79,7 +79,7 @@ bool UAvaMask2DReadModifier::ApplyRead(AActor* InActor, FAvaMask2DActorData& InA
 		// Ok to continue, just nothing done for this actor
 		return true;
 	}
-	
+
 	if (const UGeometryMaskCanvas* Canvas = GetCurrentCanvas())
 	{
 		// Get MaterialCollectionHandle
@@ -109,7 +109,7 @@ bool UAvaMask2DReadModifier::ApplyRead(AActor* InActor, FAvaMask2DActorData& InA
 			ApplyParameters.MaterialParameters.ChannelAsVector = UE::GeometryMask::MaskChannelEnumToVector[ApplyParameters.MaterialParameters.Channel];
 			ApplyParameters.MaterialParameters.bInvert = bInverted;
 
-			FGeometryMaskDrawingContext DrawingContext(GeometryCanvas->GetCanvasId().World);
+			FGeometryMaskDrawingContext DrawingContext(GeometryCanvas->GetCanvasId().Level);
 
 			const FIntPoint ViewportSize = GeometryCanvas->GetResource()->GetMaxViewportSize();
 			const FVector2f ViewportPadding = FVector2f::One() - FVector2f(ViewportSize + GeometryCanvas->GetResource()->GetViewportPadding(DrawingContext)) / ViewportSize;
@@ -154,7 +154,7 @@ void UAvaMask2DReadModifier::OnModifierCDOSetup(FActorModifierCoreMetadata& InMe
 	InMetadata.DisallowAfter(TEXT("MaskWrite"));
 	InMetadata.DisallowBefore(TEXT("MaskWrite"));
 #if WITH_EDITOR
-	InMetadata.SetDisplayName(FText::FromString(TEXT("Mask (Apply)")));
+	InMetadata.SetDisplayName(FText::FromString(TEXT("Mask (Target)")));
 	InMetadata.SetDescription(LOCTEXT("ModifierDescription", "Allows to use a custom mask texture on attached actors materials"));
 #endif
 }

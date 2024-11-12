@@ -53,6 +53,7 @@ protected:
 
 	mutable CHashPtr				HashValue;					/// The actual RawObj buffer HashValue
 	RawBufferPtr					RawData;					/// Raw buffer pointer that we keep cached (If we happen to have it)
+	bool							FetchingRaw = false;		/// Whether we're already fetching raw or not
 
 	bool							bMarkedForCollection = false; /// Whether this instance is marked for collection or not
 	bool							bIsPersistent = false;		/// Whether this is persistent or not
@@ -95,6 +96,8 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	virtual RawBufferPtr			Raw_Now() = 0;	/// SLOW: Read above
 	virtual AsyncRawBufferPtr		Raw();			/// SLOW: Read above [use Blob::Raw instead. This is to be used from Blob only]
+
+	AsyncRawBufferPtr				GetRawOrMaketIt();
 
 protected:
 	virtual AsyncBufferResultPtr	TransferFrom(DeviceBufferRef& Source) = 0;
@@ -139,6 +142,7 @@ public:
 
 	FORCEINLINE const bool*			TransferChain() const { return Chain; }
 	FORCEINLINE bool				IsPersistent() const { return bIsPersistent; }
+	FORCEINLINE bool				IsFetchingRaw() const { return FetchingRaw; }
 };
 
 //typedef std::shared_ptr<DeviceBuffer>	DeviceBufferPtr;

@@ -7,7 +7,7 @@
 #include "AssetDefinition_DataflowAsset.generated.h"
 
 
-namespace DataflowAssetDefinitionHelpers
+namespace UE::DataflowAssetDefinitionHelpers
 {
 	// Return true if we should proceed, false if we should re-open the dialog
 	DATAFLOWEDITOR_API bool CreateNewDataflowAsset(const UObject* Asset, UObject*& OutDataflowAsset);
@@ -108,6 +108,7 @@ private:
 	virtual TConstArrayView<FAssetCategoryPath> GetAssetCategories() const override;
 	virtual UThumbnailInfo* LoadThumbnailInfo(const FAssetData& InAssetData) const override;
 
+	virtual	FAssetOpenSupport GetAssetOpenSupport(const FAssetOpenSupportArgs& OpenSupportArgs) const;
 	virtual EAssetCommandResult OpenAssets(const FAssetOpenArgs& OpenArgs) const override;
 };
 

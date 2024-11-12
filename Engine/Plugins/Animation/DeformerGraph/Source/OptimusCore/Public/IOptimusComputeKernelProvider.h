@@ -45,16 +45,6 @@ struct FOptimus_KernelParameterBinding
 };
 using FOptimus_KernelParameterBindingList = TArray<FOptimus_KernelParameterBinding>;
 
-// Maps from a data interface node to the data interface that it represents.
-using FOptimus_NodeToDataInterfaceMap =  TMap<const UOptimusNode*, UOptimusComputeDataInterface*>;
-
-// Maps from an output pin to the transient data interface, used to store intermediate results,
-// that it represents.
-using FOptimus_PinToDataInterfaceMap = TMap<const UOptimusNodePin*, UOptimusComputeDataInterface*>;
-
-// Maps from a kernel node to the kernel data interface 
-using FOptimus_KernelNodeToKernelDataInterfaceMap = TMap<const UOptimusNode*, UComputeDataInterface*>;
-
 using FOptimus_ComputeKernelResult = TVariant<UOptimusKernelSource* /* Kernel */, FText /* Error */>;
 
 struct FOptimus_KernelConnection
@@ -86,7 +76,6 @@ public:
 	 * this interface.
 	 * @param InKernelSourceOuter The outer object that will own the new kernel source.
 	 * @param InTraversalContext The current context being used to traverse from the graph. Used mainly to keep track of graph nesting.
-	 * @param InValueNodes 
 	 * @param InOutKernelDataInterface
 	 * @param OutInputDataBindings
 	 * @param OutOutputDataBindings
@@ -94,9 +83,8 @@ public:
 	virtual FOptimus_ComputeKernelResult CreateComputeKernel(
 		UObject* InKernelSourceOuter,
 		const FOptimusPinTraversalContext& InTraversalContext,
-		const FOptimus_KernelInputMap InKernelInputs,
-		const FOptimus_KernelOutputMap InKernelOutputs,
-		const TArray<const UOptimusNode*>& InValueNodes,
+		const FOptimus_KernelInputMap& InKernelInputs,
+		const FOptimus_KernelOutputMap& InKernelOutputs,
 		UComputeDataInterface* InOutKernelDataInterface,
 		FOptimus_InterfaceBindingMap& OutInputDataBindings,
 		FOptimus_InterfaceBindingMap& OutOutputDataBindings

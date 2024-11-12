@@ -15,10 +15,6 @@ Each of these writes optionally being made visible to Game, CPU and/or GPU Syste
 At the "Game" level, all data is held in LWC compatible types in AoS format.
 When making this data available to Niagara Systems it is converted to SWC, SoA layout that is compatible with Niagara simulation.
 
-EXPERIMENTAL:
-Data Channels are currently experimental and undergoing heavy development.
-Anything and everything can change, including content breaking changes.
-
 Some Current limitations:
 
 Tick Ordering:
@@ -26,13 +22,6 @@ Niagara Systems can chose to read the current frame's data or the previous frame
 Reading from the current frame allows zero latency but introduces a frame dependency, i.e. you must ensure that the reader ticks after the writer.
 This frame dependency needs work to be more robust and less error prone.
 Reading the previous frames data introduces a frame of latency but removes the need to tick later than the writer. Also means you're sure to get a complete frame worth of data.
-
-GPU Support:
-Currently GPU support is very limited.
-Only Game->GPU and CPUSim->GPU are supported.
-Only the Read function of the DI is supported.
-GPU simulations always use the current frame's CPU data as this is all pushed to the at the end of the frame.
-When GPU->GPU is supported, the frame dependency issue have more meaning for GPU systems.
 
 ==============================================================================*/
 
@@ -44,6 +33,7 @@ When GPU->GPU is supported, the frame dependency issue have more meaning for GPU
 #include "NiagaraCommon.h"
 #include "NiagaraDataSet.h"
 #include "UObject/UObjectIterator.h"
+#include "RenderCommandFence.h"
 #include "NiagaraDataChannel.generated.h"
 
 DECLARE_STATS_GROUP(TEXT("Niagara Data Channels"), STATGROUP_NiagaraDataChannels, STATCAT_Niagara);
@@ -58,30 +48,112 @@ class UNiagaraDataChannelWriter;
 class UNiagaraDataChannelReader;
 struct FNiagaraDataChannelPublishRequest;
 struct FNiagaraDataChannelGameDataLayout;
+class FNiagaraGpuReadbackManager;
+class FRDGBuilder;
+class UNiagaraDataChannel;
 
 //////////////////////////////////////////////////////////////////////////
 
-/** Render thread proxy of FNiagaraDataChannelData. */
-struct FNiagaraDataChannelDataProxy
+struct FNDCGpuReadbackInfo
 {
+	FNiagaraDataBufferRef Buffer;
+	bool bPublishToCPU = false;
+	bool bPublishToGame = false;
+	FVector3f LWCTile;
+};
+
+using FNiagaraDataChannelDataProxyPtr = TSharedPtr<struct FNiagaraDataChannelDataProxy>;
+
+/** Render thread proxy of FNiagaraDataChannelData. */
+struct FNiagaraDataChannelDataProxy : public TSharedFromThis<FNiagaraDataChannelDataProxy>
+{
+	~FNiagaraDataChannelDataProxy();
+
+	TWeakPtr<FNiagaraDataChannelData> Owner;
 	FNiagaraDataSet* GPUDataSet = nullptr;
+	FNiagaraDataBufferRef CurrFrameData = nullptr;
 	FNiagaraDataBufferRef PrevFrameData = nullptr;
+	bool bNeedsPrevFrameData = false;
+
+	//Keeping layout info ref to ensure lifetime for GPUDataSet.
+	FNiagaraDataChannelLayoutInfoPtr LayoutInfo;
+
+	//Buffers coming from the CPU that we're going to copy up for reading on the GPU
+	TArray<FNiagaraDataBufferRef> PendingCPUBuffers;
+
+	//Buffers written from the GPU that we must send back to the CPU.
+	TArray<FNDCGpuReadbackInfo> PendingGPUReadbackBuffers;
+	
+	//Users that need space in this NDC Data add to this for each tick via AddGPUAllocationForNextTick().
+	int32 PendingGPUAllocations = 0;
+
+	//Track current read/write counts +ve for readers, -ve for writers. We cannot mix readers and writers in the same buffer in the same stage.
+	int32 CurrBufferAccessCounts = 0;
 
 	#if !UE_BUILD_SHIPPING
+	bool bWarnedAboutSameStageRW = false;
+	FNiagaraGpuComputeDispatchInterface* DispatchInterfaceForDebuggingOnly = nullptr;
+	
 	FString DebugName;
 	const TCHAR* GetDebugName()const{return *DebugName;}
 	#else
 	const TCHAR* GetDebugName()const{return nullptr;}
 	#endif
 
-	void BeginFrame(bool bKeepPreviousFrameData);
-	void EndFrame(FNiagaraGpuComputeDispatchInterface* DispathInterface, FRHICommandListImmediate& CmdList, const TArray<FNiagaraDataBufferRef>& BuffersForGPU);
+	void BeginFrame(FNiagaraGpuComputeDispatchInterface* DispatchInterface, FRHICommandListImmediate& RHICmdList);
+	void EndFrame(FNiagaraGpuComputeDispatchInterface* DispatchInterface, FRHICommandListImmediate& RHICmdList);
 	void Reset();
+
+	FNiagaraDataBufferRef PrepareForWriteAccess(FRDGBuilder& GraphBuilder);
+	void EndWriteAccess(FRDGBuilder& GraphBuilder);
+	
+	FNiagaraDataBufferRef PrepareForReadAccess(FRDGBuilder& GraphBuilder, bool bCurrentFrame);
+	void EndReadAccess(FRDGBuilder& GraphBuilder, bool bCurrentFrame);
+
+
+	FNiagaraDataBufferRef AllocateBufferForCPU(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, int32 AllocationSize, bool bPublishToGame, bool bPublishToCPU, FVector3f LWCTile);
+	void AddBuffersFromCPU(const TArray<FNiagaraDataBufferRef>& BuffersFromCPU);	
+	void AddGPUAllocationForNextTick(int32 AllocationCount);
+
+	FNiagaraDataBufferRef GetCurrentData()const { return CurrFrameData; }
+	FNiagaraDataBufferRef GetPrevFrameData()const { return PrevFrameData; }
+	
+	void AddTransition(FRDGBuilder& GraphBuilder, ERHIAccess AccessBefore, ERHIAccess AccessAfter, FNiagaraDataBuffer* Buffer);
+
+	//Perform and bookkeeping required when we remove a proxy from a dispatcher.
+	void OnAddedToDispatcher(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface);
+	void OnRemovedFromDispatcher(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface);
+};
+
+using FNiagaraDataChannelLayoutInfoPtr = TSharedPtr<FNiagaraDataChannelLayoutInfo>;
+
+
+/** Data describing the layout of Niagara Data channel buffers that is used in multiple places and must live beyond it's owning Data Channel. */
+struct FNiagaraDataChannelLayoutInfo : public TSharedFromThis<FNiagaraDataChannelLayoutInfo>
+{
+	FNiagaraDataChannelLayoutInfo(const UNiagaraDataChannel* DataChannel);
+	~FNiagaraDataChannelLayoutInfo();
+
+	const FNiagaraDataSetCompiledData& GetDataSetCompiledData()const{ return CompiledData; }
+	const FNiagaraDataSetCompiledData& GetDataSetCompiledDataGPU()const { return CompiledDataGPU; }
+	const FNiagaraDataChannelGameDataLayout& GetGameDataLayout()const { return GameDataLayout; }
+
+private:
+
+	/**
+	Data layout for payloads in Niagara datasets.
+	*/
+	FNiagaraDataSetCompiledData CompiledData;
+
+	FNiagaraDataSetCompiledData CompiledDataGPU;
+
+	/** Layout information for any data stored at the "Game" level. i.e. From game code/BP. AoS layout and LWC types. */
+	FNiagaraDataChannelGameDataLayout GameDataLayout;
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnDataChannelCreated, const UNiagaraDataChannel*);
 
-UCLASS(Experimental, abstract, EditInlineNew, MinimalAPI, prioritizeCategories=("Data Channel"))
+UCLASS(abstract, EditInlineNew, MinimalAPI, prioritizeCategories=("Data Channel"))
 class UNiagaraDataChannel : public UObject
 {
 public:
@@ -91,6 +163,7 @@ public:
 	NIAGARA_API virtual void PostInitProperties() override;
 	NIAGARA_API virtual void PostLoad() override;
 	NIAGARA_API virtual void BeginDestroy() override;
+	NIAGARA_API virtual bool IsReadyForFinishDestroy() override;
 #if WITH_EDITOR
 	NIAGARA_API virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
 	NIAGARA_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedDataChannel) override;
@@ -103,13 +176,10 @@ public:
 	/** If true, we keep our previous frame's data. Some users will prefer a frame of latency to tick dependency. */
 	bool KeepPreviousFrameData() const { return bKeepPreviousFrameData; }
 
-	/** Returns the compiled data describing the data layout for DataChannels in this channel. */
-	NIAGARA_API const FNiagaraDataSetCompiledData& GetCompiledData(ENiagaraSimTarget SimTarget) const;
-
 	/** Create the appropriate handler object for this data channel. */
 	NIAGARA_API virtual UNiagaraDataChannelHandler* CreateHandler(UWorld* OwningWorld) const PURE_VIRTUAL(UNiagaraDataChannel::CreateHandler, {return nullptr;} );
 	
-	const FNiagaraDataChannelGameDataLayout& GetGameDataLayout() const { return GameDataLayout; }
+	const FNiagaraDataChannelLayoutInfoPtr GetLayoutInfo()const;
 
 	NIAGARA_API FNiagaraDataChannelGameDataPtr CreateGameData() const;
 
@@ -164,18 +234,13 @@ private:
 	/**
 	Data layout for payloads in Niagara datasets.
 	*/
-	UPROPERTY(Transient)
-	mutable FNiagaraDataSetCompiledData CompiledData;
-
-	UPROPERTY(Transient)
-	mutable FNiagaraDataSetCompiledData CompiledDataGPU;
-
-	/** Layout information for any data stored at the "Game" level. i.e. From game code/BP. AoS layout and LWC types. */
-	FNiagaraDataChannelGameDataLayout GameDataLayout;
+	mutable FNiagaraDataChannelLayoutInfoPtr LayoutInfo;
 	
 	#if WITH_NIAGARA_DEBUGGER
 	mutable bool bVerboseLogging = false;
 	#endif
+
+	FRenderCommandFence RTFence;
 };
 
 template<typename TAction>
@@ -203,7 +268,7 @@ enum class ENiagartaDataChannelReadResult : uint8
 /**
 * A C++ and Blueprint accessible library of utility functions for accessing Niagara DataChannel
 */
-UCLASS(Experimental)
+UCLASS()
 class NIAGARA_API UNiagaraDataChannelLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_UCLASS_BODY()

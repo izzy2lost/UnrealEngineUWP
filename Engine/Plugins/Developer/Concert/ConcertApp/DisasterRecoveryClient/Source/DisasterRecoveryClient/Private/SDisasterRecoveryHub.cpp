@@ -588,6 +588,7 @@ TSharedRef<SWidget> SDisasterRecoveryHub::MakeSessionActivityView()
 		.IsLockActivityFilteringEnabled(false)       // Not valuable and ignored by Disaster Recovery (DR). DR sessions are for the local user only but lock/unlock are not recoverable but this will also ignore when the local user locks/unlocks assets in a Multi-User session.
 		.IsPackageActivityFilteringEnabled(true)     // Enabled and displayed by default.
 		.IsTransactionActivityFilteringEnabled(true) // Enabled and displayed by default.
+		.IsReplicationActivityFilteringEnabled(true) // Enabled and displayed by default.
 		.IsIgnoredActivityFilteringEnabled(true)     // Events ignored when restoring are not displayed by default. Enabled to inspect Multi-User transaction/package activities recorded (but not recoverable) by disaster recovery session in case the crash occurred during the Multi-User session.
 		.AreRecoverAllAndCancelButtonsVisible(false) // Replaced by this widget own (for better placement)
 		.IsRecoverThroughButtonsVisible(this, &SDisasterRecoveryHub::IsRecoverThroughButtonVisible)

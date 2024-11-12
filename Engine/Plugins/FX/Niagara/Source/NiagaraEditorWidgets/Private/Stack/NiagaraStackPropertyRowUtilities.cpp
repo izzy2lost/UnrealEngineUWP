@@ -5,17 +5,31 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "IDetailTreeNode.h"
 #include "PropertyHandle.h"
+#include "ViewModels/Stack/NiagaraStackPropertyRow.h"
 
-SNiagaraStackTableRow::FOnFillRowContextMenu FNiagaraStackPropertyRowUtilities::CreateOnFillRowContextMenu(TSharedPtr<IPropertyHandle> PropertyHandle, const FNodeWidgetActions& GeneratedPropertyNodeWidgetActions)
+SNiagaraStackTableRow::FOnFillRowContextMenu FNiagaraStackPropertyRowUtilities::CreateOnFillRowContextMenu(UNiagaraStackPropertyRow& PropertyRow, const FNodeWidgetActions& GeneratedPropertyNodeWidgetActions)
 {
-	return SNiagaraStackTableRow::FOnFillRowContextMenu::CreateStatic(&OnFillPropertyRowContextMenu, PropertyHandle, GeneratedPropertyNodeWidgetActions);
+	return SNiagaraStackTableRow::FOnFillRowContextMenu::CreateStatic(&OnFillPropertyRowContextMenu, TWeakObjectPtr<UNiagaraStackPropertyRow>(&PropertyRow), GeneratedPropertyNodeWidgetActions);
 }
 
-void FNiagaraStackPropertyRowUtilities::OnFillPropertyRowContextMenu(FMenuBuilder& MenuBuilder, TSharedPtr<IPropertyHandle> PropertyHandle, FNodeWidgetActions PropertyNodeWidgetActions)
+void FNiagaraStackPropertyRowUtilities::OnFillPropertyRowContextMenu(FMenuBuilder& MenuBuilder, TWeakObjectPtr<UNiagaraStackPropertyRow> PropertyRowWeak, FNodeWidgetActions PropertyNodeWidgetActions)
 {
 	FUIAction CopyAction;
 	FUIAction PasteAction;
 
+	UNiagaraStackPropertyRow* PropertyRow = PropertyRowWeak.Get();
+	if (PropertyRow == nullptr)
+	{
+		return;
+	}
+
+	if (PropertyRow->SupportsCopy() && PropertyRow->SupportsPaste())
+	{
+		// If the row supports stack copy, don't add the actions from the property editor.
+		return;
+	}
+
+	TSharedPtr<IPropertyHandle> PropertyHandle = PropertyRow->GetDetailTreeNode()->CreatePropertyHandle();
 	if (PropertyNodeWidgetActions.CopyMenuAction.ExecuteAction.IsBound() && PropertyNodeWidgetActions.PasteMenuAction.ExecuteAction.IsBound())
 	{
 		CopyAction = PropertyNodeWidgetActions.CopyMenuAction;

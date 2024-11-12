@@ -174,6 +174,16 @@ ADisplayClusterRootActor* FDisplayClusterViewportConfiguration::GetRootActor(con
 	return nullptr;
 }
 
+FString FDisplayClusterViewportConfiguration::GetRootActorName() const
+{
+	if (ADisplayClusterRootActor* RootActor = GetRootActor(EDisplayClusterRootActorType::Scene))
+	{
+		return RootActor->GetName();
+	}
+
+	return FString();
+}
+
 void FDisplayClusterViewportConfiguration::OnHandleStartScene()
 {
 	bCurrentSceneActive = true;
@@ -215,6 +225,16 @@ UWorld* FDisplayClusterViewportConfiguration::GetCurrentWorld() const
 	}
 
 	return CurrentWorldRef.Get();
+}
+
+float FDisplayClusterViewportConfiguration::GetRootActorWorldDeltaSeconds(const EDisplayClusterRootActorType InRootActorType) const
+{
+	if (ADisplayClusterRootActor* RootActor = GetRootActor(InRootActorType))
+	{
+		return RootActor->GetWorldDeltaSeconds();
+	}
+
+	return 0.0f;
 }
 
 const UDisplayClusterConfigurationData* FDisplayClusterViewportConfiguration::GetConfigurationData() const
@@ -374,14 +394,14 @@ bool FDisplayClusterViewportConfiguration::ImplUpdateConfiguration(EDisplayClust
 	}
 
 	ConfigurationICVFX.Update();
-	ConfigurationTile.Update();
-
 	ConfigurationProjectionPolicy.Update();
-
 	ConfigurationICVFX.PostUpdate();
-	ConfigurationTile.PostUpdate();
 
 	ImplUpdateConfigurationVisibility();
+
+	// Tiled viewports should be created and updated at the very end, when all base viewports are already set up.
+	// Because tile viewports copy configuration data from the base viewport that is used to create the tile.
+	ConfigurationTile.Update();
 
 	if (!InViewportNames)
 	{

@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "BoneIndices.h"
-#include "Converters/GLTFIndexArray.h"
+#include "Converters/GLTFMeshAttributesArray.h"
 
 class UStaticMesh;
 class USkeletalMesh;

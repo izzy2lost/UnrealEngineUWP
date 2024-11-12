@@ -17,6 +17,8 @@ SEditableTextBox::SEditableTextBox()
 #endif
 }
 
+SEditableTextBox::~SEditableTextBox() = default;
+
 /**
  * Construct this widget
  *

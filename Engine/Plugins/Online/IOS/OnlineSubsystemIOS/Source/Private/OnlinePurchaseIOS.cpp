@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#if UE_WITH_STORE_KIT
+
 #include "OnlinePurchaseIOS.h"
 #include "OnlineError.h"
 #include "OnlineSubsystemIOS.h"
@@ -492,7 +494,7 @@ void FOnlinePurchaseIOS::Checkout(const FUniqueNetId& UserId, const FPurchaseChe
 			}
             else
             {
-                ErrorMessage = NSLOCTEXT("IOSPurchase", "ErrorPurchaseNotAllowed", "Failed to checkout, invalid FOnlineStoreIOS instance.");
+                ErrorMessage = NSLOCTEXT("IOSPurchase", "ErrorPurchaseInvalidInstance", "Failed to checkout, invalid FOnlineStoreIOS instance.");
             }		
         }
 		else
@@ -794,3 +796,4 @@ TSharedRef<FPurchaseReceipt> FOnlinePurchaseIOS::GenerateReceipt(const FPurchase
 
 #undef LOCTEXT_NAMESPACE
 
+#endif //UE_WITH_STORE_KIT

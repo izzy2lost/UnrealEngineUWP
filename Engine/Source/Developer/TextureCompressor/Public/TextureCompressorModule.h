@@ -25,8 +25,28 @@ struct FCompressedImage2D
 	//	that is no longer done, the real size is stored
 	int32 SizeX;
 	int32 SizeY;
-	int32 SizeZ; // Only for Volume Texture
-	uint8 PixelFormat; // EPixelFormat, opaque to avoid dependencies on Engine headers.
+
+	UE_DEPRECATED(5.5, "Use NumSlicesWithDepth or GetRHIStyleSizeZ instead")
+	int32 SizeZ;
+
+	// See FEncodedTextureDescription::GetNumSlices_WithDepth.
+	// Cubemaps = 6, Arrays = Count, Cubemaparrays = Count*6, Volume = Depth
+	int32 NumSlicesWithDepth;
+
+	
+	// This is the SizeZ that gets passed to the RHI texture mip map stuff. See FStreamableTextureResource::SizeZ.
+	// It's weird because it's actually NOT used for cubemaps or cubemap arrays, however it does get saved in derived data
+	// in Texture2DMipMap, so we need to continue to pass through the previous values for cubemaps which are:
+	//		*non array* cubemap = 1
+	//		*array* cubemaps = array_count * 6
+	//		volume = depth
+	//		arrays = array_count
+	int32 GetRHIStyleSizeZ(bool bTextureArray, bool bVolume) const 
+	{
+		return (bVolume || bTextureArray) ? NumSlicesWithDepth : 1;
+	}
+
+	EPixelFormat PixelFormat;
 };
 
 /**
@@ -242,6 +262,9 @@ struct FTextureBuildSettings
 
 	// If the target format is a tiled format and can leverage reusing the linear encoding, this is not nullptr.
 	const ITextureTiler* Tiler = nullptr;
+	
+	// If the target format has a tiler we store it here independent of shared linear
+	const ITextureTiler* TilerEvenIfNotSharedLinear = nullptr;
 
 	// If shared linear is enabled _at all_ and this texture in involved with that _at all_ then we set
 	// this so we can segregate the derived data keys.
@@ -250,6 +273,9 @@ struct FTextureBuildSettings
 	// If we have a child format, this is the base format (i.e. will have the platform prefix removed). Otherwise equal
 	// to TextureFormatName.
 	FName BaseTextureFormatName;
+
+	// Cached pointer to BaseTextureFormatName. Resolved in FinalizeBuildSettingsForLayer and ResolveBuildSettings
+	const ITextureFormat* BaseTextureFormat = nullptr;
 	
 	// Whether bHasTransparentAlpha is valid.
 	bool bKnowAlphaTransparency = false;
@@ -257,6 +283,10 @@ struct FTextureBuildSettings
 	// Only valid if bKnowAlphaTransparency is true. This is whether the resulting texture is expected to require
 	// an alpha channel based on scanning the source mips and analyzing the build settings.
 	bool bHasTransparentAlpha = false;
+
+	// If true, after encoding and potentially tiling, convert the texture back to something a PC can render
+	// so we can view the final encoding.
+	bool bDecodeForPCUsage = false;
 
 	static constexpr uint32 MaxTextureResolutionDefault = TNumericLimits<uint32>::Max();
 
@@ -365,6 +395,42 @@ struct FTextureBuildSettings
 		return bInSourceMipsAlphaDetected;
 	}
 
+	// bUnknownSourceAlphaFallback is whether we should treat the source as having alpha, in cases where the source alpha is unknown
+	void GetOutputAlphaFromKnownAlphaOrFallback(bool* bOutOutputHasAlpha, bool bUnknownSourceAlphaFallback = true) const
+	{
+		if ( bKnowAlphaTransparency )
+		{
+			*bOutOutputHasAlpha = bHasTransparentAlpha;
+		}
+		else
+		{
+			// fallback without known alpha
+			*bOutOutputHasAlpha = GetTextureExpectsAlphaInPixelFormat(bUnknownSourceAlphaFallback);
+		}
+	}
+
+	// returns false if we can't determine instead of passing through a fallback
+	bool GetOutputAlphaFromKnownAlphaOrFail(bool* bOutOutputHasAlpha) const
+	{
+		if (bKnowAlphaTransparency)
+		{
+			*bOutOutputHasAlpha = bHasTransparentAlpha;
+			return true;
+		}
+
+		if (bForceNoAlphaChannel)
+		{
+			*bOutOutputHasAlpha = false;
+			return true;
+		}
+		if (bForceAlphaChannel)
+		{
+			*bOutOutputHasAlpha = true;
+			return true;
+		}
+		return false;
+	}
+
 
 	/*
 	* Convert the build settings to an actual texture description containing enough information to describe the texture
@@ -372,6 +438,17 @@ struct FTextureBuildSettings
 	*/
 	TEXTURECOMPRESSOR_API void GetEncodedTextureDescription(FEncodedTextureDescription* OutTextureDescription, const ITextureFormat* InTextureFormat, int32 InEncodedMip0SizeX, int32 InEncodedMip0SizeY, int32 InEncodedMip0NumSlices, int32 InMipCount, bool bInImageHasAlphaChannel) const;
 	TEXTURECOMPRESSOR_API void GetEncodedTextureDescriptionWithPixelFormat(FEncodedTextureDescription* OutTextureDescription, EPixelFormat InEncodedPixelFormat, int32 InEncodedMip0SizeX, int32 InEncodedMip0SizeY, int32 InEncodedMip0NumSlices, int32 InMipCount) const;
+
+	// As per GetEncodedTextureDescription but the mip sizes are pre encoding. Return false for same reasons as GetOutputMipInfo
+	TEXTURECOMPRESSOR_API bool GetEncodedTextureDescriptionFromSourceMips(FEncodedTextureDescription* OutTextureDescription, const ITextureFormat* InTextureFormat, int32 InSourceMip0SizeX, int32 InSourceMip0SizeY, int32 InSourceMip0NumSlices, int32 InSourceMipCount, bool bInImageHasAlphaChannel) const;
+
+	// Return the expected size and mip count for a texture processed with these build settings.
+	// returns false on virtual textures - physical textures only!
+	// returns false if there's an invalid build settings - should never happen - build settings should
+	// never get generated such that this fails!
+	TEXTURECOMPRESSOR_API bool GetOutputMipInfo(
+		int32 InMip0SizeX, int32 InMip0SizeY, int32 InMip0NumSlices, int32 InExistingMipCount,
+		int32& OutMip0SizeX, int32& OutMip0SizeY, int32& OutMip0NumSlices, int32& OutMipCount) const;
 
 	/* Obtain the OpenColorIO library version, primarily used for DDC invalidation. */
 	TEXTURECOMPRESSOR_API static uint32 GetOpenColorIOVersion();
@@ -393,10 +470,12 @@ public:
 	 * @param OutNumMipsInTail - The number of mips that are joined into a single mip tail mip
 	 * @param OutExtData - Extra data that the runtime may need
 	 * @returns true on success
+	 
+	// SourceMips can be freed by this call
 	 */
 	virtual bool BuildTexture(
-		const TArray<struct FImage>& SourceMips,
-		const TArray<struct FImage>& AssociatedNormalSourceMips,
+		TArray<struct FImage>& SourceMips,
+		TArray<struct FImage>& AssociatedNormalSourceMips,
 		const FTextureBuildSettings& BuildSettings,
 		FStringView DebugTexturePathName,
 		TArray<FCompressedImage2D>& OutTextureMips,
@@ -468,8 +547,15 @@ public:
 	* Returns the number of mips that the given texture will generate with the given build settings, as well as the size of the top mip.
 	* Used for physical textures - not virtual textures.
 	*/
-	TEXTURECOMPRESSOR_API static int32 GetMipCountForBuildSettings(
+	//UE_DEPRECATED(5.5, "Just call GetOutputMipInfo directly off of build settings")
+	static FORCEINLINE int32 GetMipCountForBuildSettings(
 		int32 InMip0SizeX, int32 InMip0SizeY, int32 InMip0NumSlices, 
 		int32 InExistingMipCount, const FTextureBuildSettings& InBuildSettings, 
-		int32& OutMip0SizeX, int32& OutMip0SizeY, int32& OutMip0NumSlices);
+		int32& OutMip0SizeX, int32& OutMip0SizeY, int32& OutMip0NumSlices)
+	{
+		int32 OutMipCount = 0;
+		bool bSucceeded = InBuildSettings.GetOutputMipInfo(InMip0SizeX, InMip0SizeY, InMip0NumSlices, InExistingMipCount, OutMip0SizeX, OutMip0SizeY, OutMip0NumSlices, OutMipCount);
+		check(bSucceeded);
+		return OutMipCount;
+	}
 };

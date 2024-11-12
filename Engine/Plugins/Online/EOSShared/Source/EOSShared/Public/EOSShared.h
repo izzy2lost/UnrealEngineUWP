@@ -52,6 +52,8 @@ EOS_ENUM_FORWARD_DECL(EOS_EDesktopCrossplayStatus);
 EOS_ENUM_FORWARD_DECL(EOS_EFriendsStatus);
 EOS_ENUM_FORWARD_DECL(EOS_ELoginCredentialType);
 EOS_ENUM_FORWARD_DECL(EOS_ENetworkStatus);
+EOS_ENUM_FORWARD_DECL(EOS_EPacketReliability);
+EOS_ENUM_FORWARD_DECL(EOS_ERTCAudioInputStatus);
 EOS_ENUM_FORWARD_DECL(EOS_Presence_EStatus);
 EOS_ENUM_FORWARD_DECL(EOS_UI_EInputStateButtonFlags);
 #undef EOS_ENUM_FORWARD_DECL
@@ -66,6 +68,8 @@ extern "C" typedef uint32_t EOS_OnlinePlatformType;
 DECLARE_LOG_CATEGORY_EXTERN(LogEOSSDK, Log, All);
 
 EOSSHARED_API FString LexToString(const EOS_EResult EosResult);
+EOSSHARED_API const char* LexToUtf8String(const EOS_EResult EosResult);
+
 EOSSHARED_API FString LexToString(const EOS_ProductUserId UserId);
 EOSSHARED_API void LexFromString(EOS_ProductUserId& UserId, const TCHAR* String);
 inline EOS_ProductUserId EOSProductUserIdFromString(const TCHAR* String)
@@ -85,13 +89,18 @@ EOSSHARED_API const TCHAR* LexToString(const EOS_EExternalAccountType ExternalAc
 EOSSHARED_API const TCHAR* LexToString(const EOS_EFriendsStatus FriendStatus);
 EOSSHARED_API const TCHAR* LexToString(const EOS_ELoginStatus LoginStatus);
 EOSSHARED_API const TCHAR* LexToString(const EOS_ENetworkStatus NetworkStatus);
+EOSSHARED_API const TCHAR* LexToString(const EOS_ERTCAudioInputStatus Status);
 EOSSHARED_API const TCHAR* LexToString(const EOS_Presence_EStatus PresenceStatus);
+EOSSHARED_API const TCHAR* LexToString(const EOS_EExternalCredentialType ExternalCredentialType);
 
 EOSSHARED_API bool LexFromString(EOS_EAuthScopeFlags& OutEnum, const FStringView& InString);
+EOSSHARED_API bool LexFromString(EOS_EExternalAccountType& OutEnum, const TCHAR* InString);
 EOSSHARED_API bool LexFromString(EOS_EIntegratedPlatformManagementFlags& OutEnum, const TCHAR* InString);
 EOSSHARED_API bool LexFromString(EOS_ELoginCredentialType& OutEnum, const TCHAR* InString);
+EOSSHARED_API bool LexFromString(EOS_EPacketReliability& OutEnum, const TCHAR* InString);
 EOSSHARED_API bool LexFromString(EOS_ERTCBackgroundMode& OutEnum, const TCHAR* InString);
 EOSSHARED_API bool LexFromString(EOS_UI_EInputStateButtonFlags& OutEnum, const TCHAR* InString);
+EOSSHARED_API bool LexFromString(EOS_EExternalCredentialType& OutEnum, const TCHAR* InString);
 
 EOSSHARED_API EOS_OnlinePlatformType EOSOnlinePlatformTypeFromString(const FStringView& InString);
 

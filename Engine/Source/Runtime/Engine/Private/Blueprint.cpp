@@ -501,49 +501,51 @@ void UBlueprint::Serialize(FArchive& Ar)
 
 #if WITH_EDITOR
 
-bool UBlueprint::RenameGeneratedClasses( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags )
+bool UBlueprint::RenameGeneratedClasses(const TCHAR* NewName, UObject* NewOuter, ERenameFlags Flags)
 {
-	const bool bRenameGeneratedClasses = !(Flags & REN_SkipGeneratedClasses );
+	const bool bRenameGeneratedClasses = !(Flags & REN_SkipGeneratedClasses);
 
-	if(bRenameGeneratedClasses)
+	if (bRenameGeneratedClasses)
 	{
-		const auto TryFreeCDOName = [](UClass* ForClass, UObject* ToOuter, ERenameFlags InFlags)
-		{
-			if(ForClass->ClassDefaultObject)
+		const auto TryFreeCDOName = [](FName NewClassName, UObject* NewOuter, ERenameFlags InFlags)
 			{
-				FName CDOName = ForClass->GetDefaultObjectName();
-				
-				if(UObject* Obj = StaticFindObjectFast(UObject::StaticClass(), ToOuter, CDOName))
-				{
-					FName NewName = MakeUniqueObjectName(ToOuter, Obj->GetClass(), CDOName);
-					Obj->Rename(*(NewName.ToString()), ToOuter, InFlags|REN_ForceNoResetLoaders|REN_DontCreateRedirectors);
-				}
-			}
-		};
+				const FString& NewCDOName = FString(DEFAULT_OBJECT_PREFIX) + NewClassName.ToString();
 
-		const auto CheckRedirectors = [](FName ClassName, UClass* ForClass, UObject* NewOuter)
-		{
-			if (UObjectRedirector* Redirector = FindObjectFast<UObjectRedirector>(NewOuter, ClassName))
+				if (UObject* ExistingCDO = StaticFindObjectFast(UObject::StaticClass(), NewOuter, *NewCDOName))
+				{
+					const FName NewName = MakeUniqueObjectName(NewOuter, ExistingCDO->GetClass(), *NewCDOName);
+					ExistingCDO->Rename(*(NewName.ToString()), NewOuter, InFlags | REN_DontCreateRedirectors);
+				}
+			};
+
+		const auto CheckRedirectors = [](FName NewClassName, UClass* OldClass, UObject* NewOuter)
 			{
-				// If we found a redirector, check that the object it points to is of the same class.
-				if (Redirector->DestinationObject
-					&& Redirector->DestinationObject->GetClass() == ForClass->GetClass())
+				if (UObjectRedirector* Redirector = FindObjectFast<UObjectRedirector>(NewOuter, NewClassName))
 				{
-					Redirector->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+					// If we found a redirector, check that the object it points to is of the same class.
+					const bool bFoundRedirector =
+						Redirector->DestinationObject &&
+						(Redirector->DestinationObject->GetClass() == OldClass->GetClass())
+					;
+
+					if (bFoundRedirector)
+					{
+						Redirector->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
+					}
 				}
-			}
-		};
+			};
 
-		FName SkelClassName, GenClassName;
-		GetBlueprintClassNames(GenClassName, SkelClassName, FName(InName));
+		FName NewSkelClassName;
+		FName NewGenClassName;
+		GetBlueprintClassNames(NewGenClassName, NewSkelClassName, FName(NewName));
 
-		UPackage* NewTopLevelObjectOuter = NewOuter ? NewOuter->GetOutermost() : NULL;
-		if (GeneratedClass != NULL)
+		UPackage* NewTopLevelObjectOuter = NewOuter ? NewOuter->GetOutermost() : nullptr;
+		if (GeneratedClass != nullptr)
 		{
 			// check for collision of CDO name, move aside if necessary:
-			TryFreeCDOName(GeneratedClass, NewTopLevelObjectOuter, Flags);
-			CheckRedirectors(GenClassName, GeneratedClass, NewTopLevelObjectOuter);
-			bool bMovedOK = GeneratedClass->Rename(*GenClassName.ToString(), NewTopLevelObjectOuter, Flags);
+			TryFreeCDOName(NewGenClassName, NewTopLevelObjectOuter, Flags);
+			CheckRedirectors(NewGenClassName, GeneratedClass, NewTopLevelObjectOuter);
+			const bool bMovedOK = GeneratedClass->Rename(*NewGenClassName.ToString(), NewTopLevelObjectOuter, Flags);
 			if (!bMovedOK)
 			{
 				return false;
@@ -551,11 +553,16 @@ bool UBlueprint::RenameGeneratedClasses( const TCHAR* InName, UObject* NewOuter,
 		}
 
 		// Also move skeleton class, if different from generated class, to new package (again, to create redirector)
-		if (SkeletonGeneratedClass != NULL && SkeletonGeneratedClass != GeneratedClass)
+		const bool bShouldMoveSkeleton =
+			(SkeletonGeneratedClass != nullptr) && 
+			(SkeletonGeneratedClass != GeneratedClass)
+		;
+
+		if (bShouldMoveSkeleton)
 		{
-			TryFreeCDOName(SkeletonGeneratedClass, NewTopLevelObjectOuter, Flags);
-			CheckRedirectors(SkelClassName, SkeletonGeneratedClass, NewTopLevelObjectOuter);
-			bool bMovedOK = SkeletonGeneratedClass->Rename(*SkelClassName.ToString(), NewTopLevelObjectOuter, Flags);
+			TryFreeCDOName(NewSkelClassName, NewTopLevelObjectOuter, Flags);
+			CheckRedirectors(NewSkelClassName, SkeletonGeneratedClass, NewTopLevelObjectOuter);
+			const bool bMovedOK = SkeletonGeneratedClass->Rename(*NewSkelClassName.ToString(), NewTopLevelObjectOuter, Flags);
 			if (!bMovedOK)
 			{
 				return false;
@@ -869,6 +876,11 @@ UClass* UBlueprint::GetBlueprintClass() const
 	return UBlueprintGeneratedClass::StaticClass();
 }
 
+EBlueprintCompileOptions UBlueprint::GetDefaultCompileOptions() const
+{
+	return EBlueprintCompileOptions::None;
+}
+
 void UBlueprint::SetObjectBeingDebugged(UObject* NewObject)
 {
 	// Unregister the old object (even if PendingKill)
@@ -1103,23 +1115,29 @@ void UBlueprint::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 #endif
 }
 
-void UBlueprint::PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const
+void UBlueprint::ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const
 {
-	Super::PostLoadAssetRegistryTags(InAssetData, OutTagsAndValuesToUpdate);
-	PostLoadBlueprintAssetRegistryTags(InAssetData, OutTagsAndValuesToUpdate);
+	Super::ThreadedPostLoadAssetRegistryTagsOverride(Context);
+	PostLoadBlueprintAssetRegistryTags(Context);
 }
 
 void UBlueprint::PostLoadBlueprintAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate)
 {
-	auto FixTagValueShortClassName = [&InAssetData, &OutTagsAndValuesToUpdate](FName TagName, FAssetRegistryTag::ETagType TagType)
+	FPostLoadAssetRegistryTagsContext Context(InAssetData, OutTagsAndValuesToUpdate);
+	PostLoadBlueprintAssetRegistryTags(Context);
+}
+
+void UBlueprint::PostLoadBlueprintAssetRegistryTags(FPostLoadAssetRegistryTagsContext& Context)
+{
+	auto FixTagValueShortClassName = [&Context](FName TagName, FAssetRegistryTag::ETagType TagType)
 	{
-		FString TagValue = InAssetData.GetTagValueRef<FString>(TagName);
+		FString TagValue = Context.GetAssetData().GetTagValueRef<FString>(TagName);
 		if (!TagValue.IsEmpty() && TagValue != TEXT("None"))
 		{
 			if (UClass::TryFixShortClassNameExportPath(TagValue, ELogVerbosity::Warning,
-				TEXT("UBlueprint::PostLoadAssetRegistryTags"), true /* bClearOnError */))
+				TEXT("UBlueprint::PostLoadBlueprintAssetRegistryTags"), true /* bClearOnError */))
 			{
-				OutTagsAndValuesToUpdate.Add(FAssetRegistryTag(TagName, TagValue, TagType));
+				Context.AddTagToUpdate(FAssetRegistryTag(TagName, TagValue, TagType));
 			}
 		}
 	};
@@ -1951,7 +1969,7 @@ bool UBlueprint::ChangeOwnerOfTemplates()
 			{
 				if (Component->GetOuter() == this)
 				{
-					const bool bRenamed = Component->Rename(*Component->GetName(), BPGClass, REN_ForceNoResetLoaders | REN_DoNotDirty);
+					const bool bRenamed = Component->Rename(*Component->GetName(), BPGClass, REN_DoNotDirty);
 					ensure(bRenamed);
 					bIsStillStale |= !bRenamed;
 					bMigratedOwner = true;
@@ -1972,7 +1990,7 @@ bool UBlueprint::ChangeOwnerOfTemplates()
 				{
 					const FName OldTemplateName = Template->GetFName();
 					ensure(!OldTemplateName.ToString().EndsWith(UTimelineTemplate::TemplatePostfix));
-					const bool bRenamed = Template->Rename(*UTimelineTemplate::TimelineVariableNameToTemplateName(Template->GetFName()), BPGClass, REN_ForceNoResetLoaders|REN_DoNotDirty);
+					const bool bRenamed = Template->Rename(*UTimelineTemplate::TimelineVariableNameToTemplateName(Template->GetFName()), BPGClass, REN_DoNotDirty);
 					ensure(bRenamed);
 					bIsStillStale |= !bRenamed;
 					ensure(OldTemplateName == Template->GetVariableName());
@@ -1985,7 +2003,7 @@ bool UBlueprint::ChangeOwnerOfTemplates()
 		{
 			if (Curve && (Curve->GetOuter() == this))
 			{
-				const bool bRenamed = Curve->Rename(FUniqueNewNameHelper(Curve->GetName(), BPGClass).Get(), BPGClass, REN_ForceNoResetLoaders | REN_DoNotDirty);
+				const bool bRenamed = Curve->Rename(FUniqueNewNameHelper(Curve->GetName(), BPGClass).Get(), BPGClass, REN_DoNotDirty);
 				ensure(bRenamed);
 				bIsStillStale |= !bRenamed;
 			}
@@ -1995,7 +2013,7 @@ bool UBlueprint::ChangeOwnerOfTemplates()
 		{
 			if(SCS->GetOuter() == this)
 			{
-				const bool bRenamed = SCS->Rename(FUniqueNewNameHelper(SCS->GetName(), BPGClass).Get(), BPGClass, REN_ForceNoResetLoaders | REN_DoNotDirty);
+				const bool bRenamed = SCS->Rename(FUniqueNewNameHelper(SCS->GetName(), BPGClass).Get(), BPGClass, REN_DoNotDirty);
 				ensure(bRenamed);
 				bIsStillStale |= !bRenamed;
 				bMigratedOwner = true;
@@ -2006,7 +2024,7 @@ bool UBlueprint::ChangeOwnerOfTemplates()
 				UActorComponent* Component = SCSNode ? ToRawPtr(SCSNode->ComponentTemplate) : NULL;
 				if (Component && Component->GetOuter() == this)
 				{
-					const bool bRenamed = Component->Rename(FUniqueNewNameHelper(Component->GetName(), BPGClass).Get(), BPGClass, REN_ForceNoResetLoaders | REN_DoNotDirty);
+					const bool bRenamed = Component->Rename(FUniqueNewNameHelper(Component->GetName(), BPGClass).Get(), BPGClass, REN_DoNotDirty);
 					ensure(bRenamed);
 					bIsStillStale |= !bRenamed;
 					bMigratedOwner = true;

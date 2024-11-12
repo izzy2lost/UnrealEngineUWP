@@ -35,7 +35,7 @@ public:
 	SLATE_BEGIN_ARGS(SNiagaraVolumeTextureViewport) {}
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, TSharedPtr<FNiagaraSimCacheViewModel> InViewModel, UAnimatedSparseVolumeTexture* InVolumeTexture);
+	void Construct(const FArguments& InArgs, TSharedPtr<FNiagaraSimCacheViewModel> InViewModel, const UAnimatedSparseVolumeTexture* InVolumeTexture);
 	virtual ~SNiagaraVolumeTextureViewport() override;
 
 	void UpdatePreviewComponent(bool bReset = true);
@@ -68,12 +68,12 @@ private:
 
 	TSharedPtr<FNiagaraSimCacheViewModel> ViewModel;
 	TStrongObjectPtr<UPostProcessComponent> PostProcessComponent;
-	TStrongObjectPtr<UAnimatedSparseVolumeTexture> VolumeTexture;
+	TStrongObjectPtr<const UAnimatedSparseVolumeTexture> VolumeTexture;
 };
 
-TSharedPtr<SWidget> FNiagaraRenderTargetVolumeSimCacheVisualizer::CreateWidgetFor(UObject* CachedData, TSharedPtr<FNiagaraSimCacheViewModel> ViewModel)
+TSharedPtr<SWidget> FNiagaraRenderTargetVolumeSimCacheVisualizer::CreateWidgetFor(const UObject* CachedData, TSharedPtr<FNiagaraSimCacheViewModel> ViewModel)
 {
-	if (UAnimatedSparseVolumeTexture* VolumeTexture = Cast<UAnimatedSparseVolumeTexture>(CachedData))
+	if (const UAnimatedSparseVolumeTexture* VolumeTexture = Cast<const UAnimatedSparseVolumeTexture>(CachedData))
 	{
 		static UEnum* MaskEnum = StaticEnum<ENiagaraRenderTargetVolumeVisualizerMask>();
 		TSharedPtr<SNiagaraVolumeTextureViewport> Viewport = SNew(SNiagaraVolumeTextureViewport, ViewModel, VolumeTexture);
@@ -243,7 +243,7 @@ void FNiagaraVolumeTextureViewportClient::SetIsSimulateInEditorViewport(bool bIn
 
 //////////////////////////////////////////////////////////////////////////
 
-void SNiagaraVolumeTextureViewport::Construct(const FArguments&, TSharedPtr<FNiagaraSimCacheViewModel> InViewModel, UAnimatedSparseVolumeTexture* InVolumeTexture)
+void SNiagaraVolumeTextureViewport::Construct(const FArguments&, TSharedPtr<FNiagaraSimCacheViewModel> InViewModel, const UAnimatedSparseVolumeTexture* InVolumeTexture)
 {
 	ViewModel = InViewModel;
 	VolumeTexture.Reset(InVolumeTexture);
@@ -261,7 +261,7 @@ void SNiagaraVolumeTextureViewport::Construct(const FArguments&, TSharedPtr<FNia
 	DuplicateMat->SetStaticComponentMaskParameterValueEditorOnly("Temperature Mask", false, true, false, false, ExprGuid);
 	DuplicateMat->SetStaticSwitchParameterValueEditorOnly("Temperature (Attributes B)", false, SwitchGuid);
 	DuplicateMat->SetScalarParameterValueEditorOnly("Density Scale", DensityScale);
-	DuplicateMat->SetSparseVolumeTextureParameterValueEditorOnly("SparseVolumeTexture", InVolumeTexture);
+	DuplicateMat->SetSparseVolumeTextureParameterValueEditorOnly("SparseVolumeTexture", const_cast<UAnimatedSparseVolumeTexture*>(InVolumeTexture));
 
 	PreviewComponent->OverrideMaterials.Add(DuplicateMat);
 	PreviewComponent->bIssueBlockingRequests = false;

@@ -22,12 +22,24 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	bool bEnabled = false;
 
+	/**
+	 * An optional name which which will identify this material in the file name. For MRQ, the material name will be included in the {render_pass}
+	 * token. For Movie Render Graph, the material name will be used in {renderer_sub_name}. If a name is not specified here, the full name of the material
+	 * will be used in these tokens instead.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FString Name;
+
 	/** 
 	* Material should be set to Post Process domain, and Blendable Location = After Tonemapping. 
 	* This will need bDisableMultisampleEffects enabled for pixels to line up(ie : no DoF, MotionBlur, TAA)
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	TSoftObjectPtr<UMaterialInterface> Material;
+
+	/** Request output to be 32-bit, usually for data exports. Note that scene color precision is still defined by r.SceneColorFormat.*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", DisplayName="Use High Precision (32-bit) Output")
+	bool bHighPrecisionOutput = false;
 };
 
 UCLASS(BlueprintType)
@@ -38,6 +50,10 @@ class MOVIERENDERPIPELINERENDERPASSES_API UMoviePipelineDeferredPassBase : publi
 public:
 	UMoviePipelineDeferredPassBase();
 	
+	// UObject Interface
+	virtual void PostLoad() override;
+	// ~UObject Interface
+
 protected:
 	// UMoviePipelineRenderPass API
 	virtual void SetupImpl(const MoviePipeline::FMoviePipelineRenderPassInitSettings& InPassInitSettings) override;
@@ -83,10 +99,16 @@ protected:
 	bool CheckIfPathTracerIsSupported() const;
 	void PathTracerValidationImpl();
 
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
+
+private:
+	/** Gets the name for a post-process material (either the custom-specified name, or the material name). */
+	FString GetNameForPostProcessMaterial(const UMaterialInterface* InMaterial);
+
 public:
 	/**
 	* Should multiple temporal/spatial samples accumulate the alpha channel? This requires r.PostProcessing.PropagateAlpha
-	* to be set to 1 or 2 (see "Enable Alpha Channel Support in Post Processing" under Project Settings > Rendering). This adds
+	* to be enabled (see "Alpha Output" under Project Settings > Rendering). This adds
 	* ~30% cost to the accumulation so you should not enable it unless necessary. You must delete both the sky and fog to ensure
 	* that they do not make all pixels opaque.
 	*/
@@ -103,11 +125,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Post Processing")
 	bool bDisableMultisampleEffects;
 
+#if WITH_EDITORONLY_DATA
 	/**
 	* Should the additional post-process materials write out to a 32-bit render target instead of 16-bit?
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Deferred Renderer Data")
-	bool bUse32BitPostProcessMaterials;
+	UE_DEPRECATED(5.5, "bUse32BitPostProcessMaterials has been deprecated, please use the setting per material.")
+	UPROPERTY()
+	bool bUse32BitPostProcessMaterials_DEPRECATED;
+#endif
 
 	/**
 	* An array of additional post-processing materials to run after the frame is rendered. Using this feature may add a notable amount of render time.
@@ -138,9 +163,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stencil Clip Layers")
 	TArray<FActorLayer> ActorLayers;
 	
-	UE_DEPRECATED(5.1, "Use ActorLayers property instead.")
-	TArray<FActorLayer> StencilLayers;
-	
 	/**
 	* If the map you are working with is a World Partition map, you can specify Data layers instead of Actor Layers. If any
 	* Data Layers are specified, this will take precedence over any ActorLayers in this config. Does not affect whether or
@@ -153,6 +175,9 @@ protected:
 	/** While rendering, store an array of the non-null valid materials loaded from AdditionalPostProcessMaterials. Cleared on teardown. */
 	UPROPERTY(Transient, DuplicateTransient)
 	TArray<TObjectPtr<UMaterialInterface>> ActivePostProcessMaterials;
+
+	UPROPERTY(Transient, DuplicateTransient)
+	TSet<TObjectPtr<UMaterialInterface>> ActiveHighPrecisionPostProcessMaterials;
 
 	UPROPERTY(Transient, DuplicateTransient)
 	TObjectPtr<UMaterialInterface> StencilLayerMaterial;
@@ -171,9 +196,9 @@ protected:
 
 	// Cache the custom stencil value. Only has meaning if they have stencil layers.
 	TOptional<int32> PreviousCustomDepthValue;
-	/** Cache the previous dump frames as HDR value. Only used if using 32-bit post processing. */
+	UE_DEPRECATED(5.5, "PreviousDumpFramesValue has been deprecated.")
 	TOptional<int32> PreviousDumpFramesValue;
-	/** Cache the previous color format value. Only used if using 32-bit post processing. */
+	UE_DEPRECATED(5.5, "PreviousColorFormatValue has been deprecated.")
 	TOptional<int32> PreviousColorFormatValue;
 
 	TSharedPtr<FAccumulatorPool, ESPMode::ThreadSafe> AccumulatorPool;
@@ -308,6 +333,11 @@ public:
 	virtual bool IsAntiAliasingSupported() const { return false; }
 	virtual void ValidateStateImpl() override;
 	virtual void SetupImpl(const MoviePipeline::FMoviePipelineRenderPassInitSettings& InPassInitSettings) override;
+
+	virtual TSharedPtr<FSceneViewFamilyContext> CalculateViewFamily(FMoviePipelineRenderPassMetrics& InOutSampleState, IViewCalcPayload* OptPayload) override;
+
+	virtual bool NeedsFrameThrottle() const override { return true; }
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
 
 	/** When enabled, the path tracer will blend all spatial and temporal samples prior to the denoising and will disable post-processed motion blur.
 	 *  In this mode it is possible to use higher temporal sample counts to improve the motion blur quality.

@@ -234,8 +234,9 @@ namespace uba
 
 					if (file.received < file.size)
 					{
+						u64 left = file.size - file.received;
 						u64 segmentSize = m_client.GetMessageMaxSize() - 5; // This is server response size - header.. TODO: Should be taken from server
-						u32 segmentCount = u32(file.size / segmentSize);
+						u32 segmentCount = u32((left + segmentSize - 1) / segmentSize);
 						file.messagesInFlight.resize(segmentCount);
 						for (u32 i=0; i!=segmentCount; ++i)
 						{

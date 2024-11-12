@@ -32,7 +32,6 @@ void SCommandPickMenuWidget::Construct(const FArguments& InArgs)
 	
 	SAssignNew(TreeViewPtr,STreeView<TSharedPtr<FCommandTreeNode>>)
 		.AllowOverscroll(EAllowOverscroll::Yes)
-		.ItemHeight(24)
 		.TreeItemsSource(&CommandTree)
 		.OnSelectionChanged_Lambda([this](TSharedPtr<FCommandTreeNode> Node, ESelectInfo::Type)
 		{

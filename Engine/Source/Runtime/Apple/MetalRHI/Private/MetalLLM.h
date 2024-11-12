@@ -6,6 +6,9 @@
 #include "HAL/LowLevelMemTracker.h"
 #include "Apple/AppleLLM.h"
 
+class FMetalBuffer;
+typedef TSharedPtr<FMetalBuffer, ESPMode::ThreadSafe> FMetalBufferPtr;
+
 @interface FMetalDeallocHandler : FApplePlatformObject<NSObject>
 {
 	dispatch_block_t Block;
@@ -43,13 +46,15 @@ namespace MetalLLM
 
 #endif		// #if ENABLE_LOW_LEVEL_MEM_TRACKER
 
+class FMetalDevice;
 // These work without the LLM module
 namespace MetalLLM
 {
-	void LogAllocTexture(MTL::Device* Device, MTL::TextureDescriptor* Desc, MTL::Texture* Texture);
-	void LogAllocBuffer(MTL::Device* Device, FMetalBufferPtr Buffer);
-    void LogAllocBufferNative(MTL::Device* Device, MTLBufferPtr Buffer);
-	void LogAllocHeap(MTL::Device* Device, MTL::Heap* Heap);
+	void LogAllocTexture(FMetalDevice& Device, MTL::TextureDescriptor* Desc, MTL::Texture* Texture);
+	void LogAllocBuffer(FMetalBuffer* Buffer);
+	void LogAllocBuffer(FMetalBufferPtr Buffer);
+    void LogAllocBufferNative(MTL::Buffer* Buffer);
+	void LogAllocHeap(MTL::Heap* Heap);
 	
 	void LogAliasTexture(MTL::Texture* Texture);
 }

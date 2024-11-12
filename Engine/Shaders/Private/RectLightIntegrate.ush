@@ -52,9 +52,7 @@ float IntegrateLight( FRect Rect )
 	float NoL;
 	float Falloff;
 
-#if 0	// Reference quality
-	float3 L = RectIrradianceRef( 0, Rect, Falloff, NoL );
-#elif !CHEAP_RECT	// Optimized Lambert
+#if !CHEAP_RECT	// Optimized Lambert
 	float3 L = RectIrradianceLambert( 0, Rect, Falloff, NoL );
 #elif 1	// Karis
 	float3 L = RectIrradianceApproxKaris( 0, Rect, Falloff, NoL );
@@ -74,9 +72,7 @@ FAreaLightIntegrateContext CreateRectIntegrateContext( float Roughness, half3 N,
 	
 	FAreaLightIntegrateContext Out = InitAreaLightIntegrateContext();
 
-#if 0	// Reference quality
-	float3 L = RectIrradianceRef( N, Rect, Falloff, NoL );
-#elif !CHEAP_RECT	// Optimized Lambert
+#if !CHEAP_RECT	// Optimized Lambert
 	float3 L = RectIrradianceLambert( N, Rect, Falloff, NoL );
 #elif 1	// Karis
 	float3 L = RectIrradianceApproxKaris( N, Rect, Falloff, NoL );
@@ -254,9 +250,13 @@ FAreaLightIntegrateContext CreateRectIntegrateContext( float Roughness, half3 N,
 
 FDirectLighting IntegrateBxDF(FGBufferData GBuffer, half3 N, half3 V, FRect Rect, FShadowTerms Shadow, FRectTexture SourceTexture)
 {
+	// Compute distance to light plane and cull if not larger than threshold to 
+	// avoid numerical issue in (nearly) coplanar configuration
+	const float Distance = dot(Rect.Axis[2], Rect.Origin);
+
 	// No-visible rect light due to barn door occlusion
 	FDirectLighting Out = (FDirectLighting)0;
-	if (IsRectVisible(Rect))
+	if (IsRectVisible(Rect) && Distance > 0.001f)
 	{
 		FAreaLightIntegrateContext Context = CreateRectIntegrateContext(GBuffer.Roughness, N, V, Rect, SourceTexture);
 		GBuffer.Roughness = max(GBuffer.Roughness, 0.02);
@@ -332,8 +332,7 @@ FDirectLighting IntegrateBxDF( FGBufferData GBuffer, half3 N, half3 V, FRect Rec
 				}
 				case 3:
 				{
-					float3 ToArea = UniformSampleSphericalRect( E, SphericalRect );
-					L = normalize( ToArea );
+					L = UniformSampleSphericalRect( E, SphericalRect ).Direction;
 					H = normalize( V + L );
 					break;
 				}

@@ -114,7 +114,7 @@ void UDataDrivenConsoleVariableSettings::OnDataDrivenChange(IConsoleVariable* CV
 		UDataDrivenCVarEngineSubsystem* Subsystem = GEngine->GetEngineSubsystem<UDataDrivenCVarEngineSubsystem>();
 		if (Subsystem)
 		{
-			FConsoleManager& ConsoleManager = (FConsoleManager&)IConsoleManager::Get();
+			const IConsoleManager& ConsoleManager = IConsoleManager::Get();
 			Subsystem->OnDataDrivenCVarDelegate.Broadcast(ConsoleManager.FindConsoleObjectName(CVar));
 		}
 	}

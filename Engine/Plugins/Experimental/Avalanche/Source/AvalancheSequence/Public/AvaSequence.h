@@ -53,7 +53,7 @@ public:
 	void SetLabel(FName InLabel);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Sequence")
-	FAvaTag GetSequenceTag() const;
+	FAvaTagHandle GetSequenceTag() const;
 
 	void SetSequenceTag(const FAvaTagHandle& InSequenceTag);
 
@@ -119,6 +119,7 @@ public:
 	virtual UObject* CreateDirectorInstance(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceID InSequenceID) override;
 	virtual bool CanPossessObject(UObject& InObject, UObject* InPlaybackContext) const override;
 	virtual UObject* GetParentObject(UObject* InObject) const override;
+	virtual bool CanAnimateObject(UObject& InObject) const override;
 	//~ End UMovieSceneSequence
 
 	//~ Begin UObject
@@ -138,7 +139,7 @@ public:
 	FGuid FindGuidFromObject(UObject* InObject);
 
 #if WITH_EDITOR
-	void OnOuterWorldRenamed(const TCHAR* InName, UObject* InNewOuter, ERenameFlags InFlags, bool& bOutShouldFailRename);
+	void OnOuterWorldRenamed(UObject* InNewOuter);
 #endif
 
 	void OnWorldCleanup(UWorld* InWorld, bool bInSessionEnded, bool bInCleanupResources);

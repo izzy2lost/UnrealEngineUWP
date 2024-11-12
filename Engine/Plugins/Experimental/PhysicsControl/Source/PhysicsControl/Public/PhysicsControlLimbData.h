@@ -27,6 +27,8 @@ struct PHYSICSCONTROL_API FPhysicsControlLimbSetupData
 		, bCreateParentSpaceControls(true), bCreateBodyModifiers(true)
 	{}
 
+	bool operator==(const FPhysicsControlLimbSetupData& other) const = default;
+
 	/** The name of the limb that this will be used to create */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	FName LimbName;
@@ -106,6 +108,8 @@ struct PHYSICSCONTROL_API FPhysicsControlCharacterSetupData
 	GENERATED_BODY();
 
 	FPhysicsControlCharacterSetupData& operator+=(const FPhysicsControlCharacterSetupData& other);
+
+	bool operator==(const FPhysicsControlCharacterSetupData& other) const = default;
 
 	UPROPERTY(EditAnywhere, Category = ControlSetup)
 	TArray<FPhysicsControlLimbSetupData> LimbSetupData;

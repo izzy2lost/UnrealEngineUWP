@@ -371,8 +371,7 @@ void SMVVMViewModelPanel::HandleViewUpdated(UBlueprintExtension*)
 				UMVVMBlueprintView* CurrentBlueprintView = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>()->GetView(WidgetBlueprint);
 				if (CurrentBlueprintView == nullptr)
 				{
-					UMVVMWidgetBlueprintExtension_View::RequestExtension<UMVVMWidgetBlueprintExtension_View>(WidgetBlueprint)->CreateBlueprintViewInstance();
-					CurrentBlueprintView = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>()->GetView(WidgetBlueprint);
+					CurrentBlueprintView = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>()->RequestView(WidgetBlueprint);
 				}
 				WeakBlueprintView = CurrentBlueprintView;
 

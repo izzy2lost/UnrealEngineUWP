@@ -28,6 +28,10 @@ public:
 	{
 		TSet<FName> PackageNames;
 		TSet<FString> NonAssetFiles;
+
+		// Allow this group to track all assets under a specific set of mount points
+		TSet<FName> MountPoints;
+
 		EGroupType GroupType = EGroupType::Root;
 		EAllowedReferences AllowedReferences = EAllowedReferences::None;
 	};
@@ -42,6 +46,11 @@ public:
 	void AddNonAssetFile(FName InGroupName, const FString& InFilename)
 	{
 		PackageGroups.FindOrAdd(InGroupName).NonAssetFiles.Add(InFilename);
+	}
+
+	void AddMountPoint(FName InGroupName, FName InMountPoint)
+	{
+		PackageGroups.FindOrAdd(InGroupName).MountPoints.Add(InMountPoint);
 	}
 
 	void SetGroupType(FName InGroupName, EGroupType InGroupType)

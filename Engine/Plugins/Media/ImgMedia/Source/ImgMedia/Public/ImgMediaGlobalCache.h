@@ -46,9 +46,9 @@ public:
 	 * @param	Sequence		Indentifying name of this sequence.
 	 * @param	Index			Index of frame to add.
 	 * @param	Frame			Actual frame to add.
-	 * @param	HasMipMaps		Whether this frame contains mipmaps or not.
+	 * @param	bAdjustSizeForMipMaps	Whether this frame needs size adjustments for mip maps in separate folders.
 	 */
-	void AddFrame(const FString& FileName, const FName& Sequence, int32 Index, const TSharedPtr<FImgMediaFrame, ESPMode::ThreadSafe>& Frame, bool HasMipMaps);
+	void AddFrame(const FString& FileName, const FName& Sequence, int32 Index, const TSharedPtr<FImgMediaFrame, ESPMode::ThreadSafe>& Frame, bool bAdjustSizeForMipMaps = false);
 
 	/**
 	 * Check whether the entry with the specified sequence and index is present.

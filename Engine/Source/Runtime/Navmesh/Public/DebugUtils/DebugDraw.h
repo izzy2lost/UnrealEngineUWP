@@ -149,6 +149,16 @@ struct duDebugDraw
 	virtual void end() = 0;
 };
 
+// Reorder to handle the 0xRRGGBBAA format
+inline unsigned int duRGBA(unsigned int rgba)
+{
+	const unsigned int a = (rgba & 0x000000ff);
+	const unsigned int b = (rgba & 0x0000ff00);
+	const unsigned int g = (rgba & 0x00ff0000);
+	const unsigned int r = (rgba & 0xff000000);
+	return (r >> 24) | (g >> 8) | (b << 8) | a << 24;
+}
+
 inline unsigned int duRGBA(int r, int g, int b, int a)
 {
 	return ((unsigned int)r) | ((unsigned int)g << 8) | ((unsigned int)b << 16) | ((unsigned int)a << 24);
@@ -203,6 +213,35 @@ inline unsigned int duTransCol(unsigned int c, unsigned int a)
 	return (a<<24) | (c & 0x00ffffff);
 }
 
+//@UE BEGIN
+struct duColor
+{
+	// Color palette
+	static unsigned int red;
+	static unsigned int pink;
+	static unsigned int purple;
+	static unsigned int deepPurple;
+	static unsigned int indigo;
+	static unsigned int blue;
+	static unsigned int lightBlue;
+	static unsigned int cyan;
+	static unsigned int teal;		
+	static unsigned int green;
+	static unsigned int lightGreen;
+	static unsigned int lime;
+	static unsigned int yellow;
+	static unsigned int amber;
+	static unsigned int orange;
+	static unsigned int orangeRed;
+	static unsigned int brown;
+	
+	static unsigned int white;
+	static unsigned int lightGrey;
+	static unsigned int grey;
+	static unsigned int darkGrey;
+	static unsigned int black;
+};
+//@UE END
 
 void duCalcBoxColors(unsigned int* colors, unsigned int colTop, unsigned int colSide);
 

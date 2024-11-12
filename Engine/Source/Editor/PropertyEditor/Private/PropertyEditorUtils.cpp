@@ -4,11 +4,46 @@
 
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyPathHelpers.h"
+#include "Algo/ForEach.h"
+#include "UObject/PropertyText.h"
 
 namespace PropertyEditorUtils
 {
+	
 	void GetPropertyOptions(TArray<UObject*>& InOutContainers, FString& InOutPropertyPath,
 		TArray<TSharedPtr<FString>>& InOutOptions)
+	{
+		TArray<FString> OptionsStrings;
+		TArray<FText>* NullDisplayNames = nullptr;
+		GetPropertyOptions(InOutContainers, InOutPropertyPath, OptionsStrings, NullDisplayNames);
+		
+		Algo::Transform(OptionsStrings, InOutOptions, [](const FString& InString) { return MakeShared<FString>(InString); });
+	}
+
+	struct FOptionsData
+	{
+		FString ValueString;
+		FText DisplayName;
+
+		friend uint32 GetTypeHash(const FOptionsData& Data)
+		{
+			// TODO: Is there a faster way to hash a FText?
+			return HashCombine(GetTypeHash(Data.ValueString), GetTypeHash(Data.DisplayName.ToString()));
+		}
+
+		bool operator==(const FOptionsData& Other) const
+		{
+			return ValueString == Other.ValueString && DisplayName.IdenticalTo(Other.DisplayName, ETextIdenticalModeFlags::LexicalCompareInvariants);
+		}
+
+		bool operator!=(const FOptionsData& Other) const
+		{
+			return !(this->operator==(Other));
+		}
+	};
+
+	void GetPropertyOptions(TArray<UObject*>& InOutContainers, FString& InOutPropertyPath,
+		TArray<FString>& InOutOptions, TArray<FText>* OutDisplayNames)
 	{
 		// Check for external function references
 		if (InOutPropertyPath.Contains(TEXT(".")))
@@ -26,22 +61,59 @@ namespace PropertyEditorUtils
 
 		if (InOutContainers.Num() > 0)
 		{
-			TArray<FString> OptionIntersection;
-			TSet<FString> OptionIntersectionSet;
+			TArray<FOptionsData> OptionIntersection;
+			TSet<FOptionsData> OptionIntersectionSet;
 
+			// Loop carried containers
+			TArray<FOptionsData> LoopOptions;
+			TArray<FString> StringOptions;
+			TArray<FText> DisplayNameOptions;
+			TArray<FName> NameOptions;
+			TArray<FPropertyTextString> StringDisplayNameOptions;
+			TArray<FPropertyTextFName> FNameDisplayNameOptions;
+			
+			// Need to find the intersection between all OptionsData.
+			// If there is no OutDisplayNames or a bound function to GetOptions doesn't provide DisplayNames, then don't provide
+			// display names either.
+			bool bUseDisplayNames = true;
+			
 			for (UObject* Target : InOutContainers)
 			{
-				TArray<FString> StringOptions;
+				LoopOptions.Empty(LoopOptions.Num());
+				StringOptions.Empty(StringOptions.Num());
+				DisplayNameOptions.Empty(DisplayNameOptions.Num());
+				NameOptions.Empty(NameOptions.Num());
+				StringDisplayNameOptions.Empty(StringDisplayNameOptions.Num());
+				FNameDisplayNameOptions.Empty(FNameDisplayNameOptions.Num());
 				{
 					FEditorScriptExecutionGuard ScriptExecutionGuard;
 
+					// Test each signature of a function
 					FCachedPropertyPath Path(InOutPropertyPath);
-					if (!PropertyPathHelpers::GetPropertyValue(Target, Path, StringOptions))
+
+					// Handle function signature: "TArray<FString> GetOptions()"
+					if (PropertyPathHelpers::GetPropertyValue(Target, Path, StringOptions))
 					{
-						TArray<FName> NameOptions;
-						if (PropertyPathHelpers::GetPropertyValue(Target, Path, NameOptions))
+						Algo::Transform(StringOptions, LoopOptions, [](const FString& InName) { return FOptionsData{ .ValueString = InName, .DisplayName = FText() }; });;
+						bUseDisplayNames = false;
+					}
+					// Handle function signature: "TArray<FText> GetOptions()"
+					else if (PropertyPathHelpers::GetPropertyValue(Target, Path, NameOptions))
+					{
+						Algo::Transform(NameOptions, LoopOptions, [](const FName& InName) { return FOptionsData{ .ValueString = InName.ToString(), .DisplayName = FText() }; });;
+						bUseDisplayNames = false;
+					}
+					else if (OutDisplayNames && bUseDisplayNames)
+					{
+						// Handle function signature: "TArray<FPropertyTextString> GetOptions()"
+						if (PropertyPathHelpers::GetPropertyValue(Target, Path, StringDisplayNameOptions))
 						{
-							Algo::Transform(NameOptions, StringOptions, [](const FName& InName) { return InName.ToString(); });
+							Algo::Transform(StringDisplayNameOptions, LoopOptions, [](const FPropertyTextString& Pair) { return FOptionsData{ .ValueString = Pair.ValueString, .DisplayName = Pair.DisplayName }; });;
+						}
+						// Handle function signature: "TArray<FPropertyTextFName> GetOptions()"
+						else if (PropertyPathHelpers::GetPropertyValue(Target, Path, FNameDisplayNameOptions))
+						{
+							Algo::Transform(FNameDisplayNameOptions, LoopOptions, [](const FPropertyTextFName& Pair) { return FOptionsData{ .ValueString = Pair.ValueString.ToString(), .DisplayName = Pair.DisplayName }; });;
 						}
 					}
 				}
@@ -49,14 +121,14 @@ namespace PropertyEditorUtils
 				// If this is the first time there won't be any options.
 				if (OptionIntersection.Num() == 0)
 				{
-					OptionIntersection = StringOptions;
-					OptionIntersectionSet = TSet<FString>(StringOptions);
+					OptionIntersection = LoopOptions;
+					OptionIntersectionSet = TSet<FOptionsData>(LoopOptions);
 				}
 				else
 				{
-					TSet<FString> StringOptionsSet(StringOptions);
-					OptionIntersectionSet = StringOptionsSet.Intersect(OptionIntersectionSet);
-					OptionIntersection.RemoveAll([&OptionIntersectionSet](const FString& Option){ return !OptionIntersectionSet.Contains(Option); });
+					TSet<FOptionsData> LoopOptionsSet(LoopOptions);
+					OptionIntersectionSet = LoopOptionsSet.Intersect(OptionIntersectionSet);
+					OptionIntersection.RemoveAll([&OptionIntersectionSet](const FOptionsData& Option){ return !OptionIntersectionSet.Contains(Option); });
 				}
 
 				// If we're out of possible intersected options, we can stop.
@@ -66,7 +138,12 @@ namespace PropertyEditorUtils
 				}
 			}
 
-			Algo::Transform(OptionIntersection, InOutOptions, [](const FString& InString) { return MakeShared<FString>(InString); });
+			Algo::Transform(OptionIntersection, InOutOptions, [](const FOptionsData& Option) { return Option.ValueString; });
+			if (OutDisplayNames && bUseDisplayNames)
+			{
+				TArray<FText>& OutDisplayNamesRef = *OutDisplayNames;
+				Algo::Transform(OptionIntersection, OutDisplayNamesRef, [](const FOptionsData& Option) { return Option.DisplayName; });
+			}
 		}
 	}
 

@@ -2,34 +2,20 @@
 
 #include "SAllClientsView.h"
 
-#include "AllClientsSelectionModel.h"
+#include "Selection/AllOnlineClientsSelectionModel.h"
+#include "Replication/MultiUserReplicationManager.h"
 #include "SMultiClientView.h"
-#include "Replication/Client/ReplicationClientManager.h"
 
-#include "Algo/Transform.h"
-
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
-	void SAllClientsView::Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InConcertClient, FReplicationClientManager& InClientManager)
+	void SAllClientsView::Construct(const FArguments&, TSharedRef<IConcertClient> InConcertClient, FMultiUserReplicationManager& InMultiUserReplicationManager)
 	{
-		ClientManager = &InClientManager;
-		AllClientsModel = MakeUnique<FAllClientsSelectionModel>(InClientManager);
+		AllOnlineClientsModel = MakeUnique<FAllOnlineClientsSelectionModel>(*InMultiUserReplicationManager.GetOnlineClientManager());
+		AllOfflineClientsModel = MakeUnique<FAllOfflineClientsSelectionModel>(*InMultiUserReplicationManager.GetOfflineClientManager());
 		
 		ChildSlot
 		[
-			SNew(SMultiClientView, InConcertClient, InClientManager, *AllClientsModel)
-			.ViewSelectionArea() [ InArgs._ViewSelectionArea.Widget ]
+			SNew(SMultiClientView, InConcertClient, InMultiUserReplicationManager, *AllOnlineClientsModel, *AllOfflineClientsModel)
 		];
-	}
-
-	TSet<const FReplicationClient*> SAllClientsView::GetAllClients() const
-	{
-		TSet<const FReplicationClient*> Result;
-		Algo::Transform(ClientManager->GetRemoteClients(), Result, [](const TNonNullPtr<FRemoteReplicationClient>& Client)
-		{
-			return Client.Get();
-		});
-		Result.Add(&ClientManager->GetLocalClient());
-		return Result;
 	}
 }

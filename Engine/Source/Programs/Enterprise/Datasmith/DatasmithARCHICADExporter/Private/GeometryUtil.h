@@ -20,8 +20,8 @@ class FGeometryUtil
 	// Extract the rotation from the matrix and return as a Quat
 	static FQuat GetRotationQuat(const double Matrix[3][4]);
 
-	// Return the Quat equivalent to the direction vector
-	static FQuat GetRotationQuat(const ModelerAPI::Vector& Direction);
+	// Return the Quat equivalent of rotation defined by Direction and Up vectors
+	static FQuat GetRotationQuat(const ModelerAPI::Vector& Direction, const ModelerAPI::Vector& Up);
 
 	// Convert Archicad camera rotation to an Unreal Quat
 	static FQuat GetRotationQuat(const double PitchInDegrees, const double YawInDegrees, const double RollInDegrees);

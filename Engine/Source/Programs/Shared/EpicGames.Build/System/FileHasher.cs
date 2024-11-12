@@ -16,7 +16,7 @@ namespace UnrealBuildBase
 {
 	public class FileHasher
 	{
-		private struct CachedDigest
+		private readonly struct CachedDigest
 		{
 			[JsonPropertyName("l")]
 			public long Length { get; init; }

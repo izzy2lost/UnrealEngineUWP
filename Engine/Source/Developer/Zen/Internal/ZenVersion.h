@@ -19,6 +19,7 @@ struct FZenVersion
 	bool TryParse(const TCHAR* InString);
 	FString ToString(bool bDetailed = true) const;
 	bool operator<(FZenVersion& Other) const;
+	operator bool() const;
 };
 
 } // namespace UE::Zen

@@ -9,6 +9,7 @@
 #include "Misc/Crc.h"
 #include "Async/UniqueLock.h"
 #include "Async/WordMutex.h"
+#include "AutoRTFM/AutoRTFM.h"
 #include "Containers/UnrealString.h"
 #include "Containers/StringConv.h"
 #include "GenericPlatform/GenericPlatformStackWalk.h"
@@ -26,6 +27,7 @@
 #include "HAL/ExceptionHandling.h"
 #include "HAL/ThreadHeartBeat.h"
 #include "HAL/IConsoleManager.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 namespace 
 {
@@ -618,6 +620,7 @@ bool FORCENOINLINE FDebug::CheckVerifyFailedImpl(
 #endif
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 bool FORCENOINLINE FDebug::CheckVerifyFailedImpl2(
 	const ANSICHAR* Expr,
 	const ANSICHAR* File,
@@ -714,7 +717,7 @@ FORCENOINLINE bool FDebug::OptionallyLogFormattedEnsureMessageReturningFalseImpl
 }
 #endif
 
-FORCENOINLINE void UE_DEBUG_SECTION VARARGS LowLevelFatalErrorHandler(const ANSICHAR* File, int32 Line, const TCHAR* Format, ...)
+void UE_COLD UE_DEBUG_SECTION VARARGS LowLevelFatalErrorHandler(const ANSICHAR* File, int32 Line, const TCHAR* Format, ...)
 {
 	va_list Args;
 	va_start(Args, Format);
@@ -725,11 +728,13 @@ FORCENOINLINE void UE_DEBUG_SECTION VARARGS LowLevelFatalErrorHandler(const ANSI
 	FDebug::ProcessFatalError(PLATFORM_RETURN_ADDRESS());
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 void FDebug::DumpStackTraceToLog(const ELogVerbosity::Type LogVerbosity)
 {
 	DumpStackTraceToLog(TEXT("=== FDebug::DumpStackTrace(): ==="), LogVerbosity);
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 FORCENOINLINE void FDebug::DumpStackTraceToLog(const TCHAR* Heading, const ELogVerbosity::Type LogVerbosity)
 {
 #if !NO_LOGGING
@@ -757,7 +762,7 @@ FORCENOINLINE void FDebug::DumpStackTraceToLog(const TCHAR* Heading, const ELogV
 }
 
 #if DO_ENSURE && !USING_CODE_ANALYSIS
-bool UE_DEBUG_SECTION VARARGS CheckVerifyImpl(std::atomic<bool>& bExecuted, bool bAlways, const ANSICHAR* File, int32 Line, void* ProgramCounter, const ANSICHAR* Expr, const TCHAR* Format, va_list Args)
+bool UE_COLD UE_DEBUG_SECTION VARARGS CheckVerifyImpl(std::atomic<bool>& bExecuted, bool bAlways, const ANSICHAR* File, int32 Line, void* ProgramCounter, const ANSICHAR* Expr, const TCHAR* Format, va_list Args)
 {
 	FDebug::OptionallyLogFormattedEnsureMessageReturningFalse(true, Expr, File, Line, ProgramCounter, Format, Args);
 
@@ -774,7 +779,8 @@ bool UE_DEBUG_SECTION VARARGS CheckVerifyImpl(std::atomic<bool>& bExecuted, bool
 #endif
 }
 
-bool UE_DEBUG_SECTION UE::Assert::Private::ExecCheckImplInternal(std::atomic<bool>& bExecuted, bool bAlways, const ANSICHAR* File, int32 Line, const ANSICHAR* Expr)
+UE_AUTORTFM_ALWAYS_OPEN
+bool UE_COLD UE_DEBUG_SECTION UE::Assert::Private::ExecCheckImplInternal(std::atomic<bool>& bExecuted, bool bAlways, const ANSICHAR* File, int32 Line, const ANSICHAR* Expr)
 {
 	if (((bAlways && GEnsureAlwaysEnabled) || !bExecuted.load(std::memory_order_relaxed)) && FPlatformMisc::IsEnsureAllowed())
 	{
@@ -790,7 +796,8 @@ bool UE_DEBUG_SECTION UE::Assert::Private::ExecCheckImplInternal(std::atomic<boo
 	return false;
 }
 
-bool UE_DEBUG_SECTION VARARGS UE::Assert::Private::EnsureFailed(std::atomic<bool>& bExecuted, const FStaticEnsureRecord* Ensure, ...)
+UE_AUTORTFM_ALWAYS_OPEN
+bool UE_COLD UE_DEBUG_SECTION VARARGS UE::Assert::Private::EnsureFailed(std::atomic<bool>& bExecuted, const FStaticEnsureRecord* Ensure, ...)
 {
 	if (bExecuted.exchange(true, std::memory_order_release) && !(Ensure->bAlways && GEnsureAlwaysEnabled))
 	{

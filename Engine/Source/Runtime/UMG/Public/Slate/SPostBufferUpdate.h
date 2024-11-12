@@ -11,6 +11,7 @@
 
 class FPaintArgs;
 class FSlateWindowElementList;
+class FSlateRHIPostBufferProcessorProxy;
 
 /**
  * Custom Slate drawer to update slate post buffer
@@ -18,6 +19,30 @@ class FSlateWindowElementList;
  * Note: Declared in .cpp to avoid UMG header dependencies on SlateRHIRenderer on Server
  */
 class FPostBufferUpdater;
+
+/**
+ * Class that can update a given Slate post buffer processor via its renderthread proxy.
+ *
+ * This proxy is also deleted on the renderthread
+ */
+class FSlatePostProcessorUpdaterProxy : public TSharedFromThis<FSlatePostProcessorUpdaterProxy>
+{
+public:
+
+	/**
+	 * True implies we will skip the buffer update & only update the processor.
+	 * Useful to reset params for processor runs next frame
+	 */
+	bool bSkipBufferUpdate = false;
+
+public:
+	
+	virtual ~FSlatePostProcessorUpdaterProxy ()
+	{
+	}
+
+	virtual void UpdateProcessor_RenderThread(TSharedPtr<FSlateRHIPostBufferProcessorProxy>) const = 0;
+};
 
 /**
  * Implements a widget that triggers a post buffer update on draw
@@ -62,6 +87,11 @@ public:
 	 */
 	UMG_API void SetBuffersToUpdate(const TArrayView<ESlatePostRT> InBuffersToUpdate);
 
+	/**
+	 * Set processsor updaters for the given buffers by index.
+	 */
+	UMG_API void SetProcessorUpdaters(TMap<ESlatePostRT, TSharedPtr<FSlatePostProcessorUpdaterProxy>> InProcessorUpdaters);
+
 	/** Get buffers to update */
 	UMG_API const TArrayView<const ESlatePostRT> GetBuffersToUpdate() const;
 
@@ -89,5 +119,5 @@ private:
 	TArray<ESlatePostRT> BuffersToUpdate;
 
 	/** Custom drawer used to trigger a post buffer update */
-	TSharedPtr<FPostBufferUpdater, ESPMode::ThreadSafe> PostBufferUpdater;
+	TSharedPtr<FPostBufferUpdater> PostBufferUpdater;
 };

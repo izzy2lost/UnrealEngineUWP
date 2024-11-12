@@ -162,6 +162,10 @@ public:
 	/** Angle in degrees from the horizon for occlusion rays for which the contribution is attenuated to reduce faceting artifacts. */
 	UPROPERTY(EditAnywhere, Category = OcclusionOutput, meta = (UIMin = "0", UIMax = "45.0", ClampMin = "0", ClampMax = "89.9"))
 	float BiasAngle = 15.0f;
+
+	/** Normal space for Bent Normal bakes. */
+	UPROPERTY(EditAnywhere, Category = OcclusionOutput)
+	EBakeNormalSpace NormalSpace = EBakeNormalSpace::Tangent;
 };
 
 
@@ -227,6 +231,33 @@ public:
 	/** Clamping applied to curvature values before color mapping */
 	UPROPERTY(EditAnywhere, Category = CurvatureOutput)
 	EBakeCurvatureClampMode Clamping = EBakeCurvatureClampMode::None;
+};
+
+
+UCLASS()
+class MESHMODELINGTOOLSEXP_API UBakeUVShellMapToolProperties : public UInteractiveToolPropertySet
+{
+	GENERATED_BODY()
+public:
+	/** The source mesh UV Layer to sample. */
+	UPROPERTY(EditAnywhere, Category = "UV Shell Output")
+	int UVLayer = 0;
+
+	/** The thickness of the wireframe in pixels. */
+	UPROPERTY(EditAnywhere, Category = "UV Shell Output")
+	float WireframeThickness = 1.0f;
+
+	/** The color of wireframe pixels. */
+	UPROPERTY(EditAnywhere, Category = "UV Shell Output")
+	FLinearColor WireframeColor = FLinearColor::Blue;
+
+	/** The color of the UV shell interior pixels. */
+	UPROPERTY(EditAnywhere, Category = "UV Shell Output")
+	FLinearColor ShellColor = FLinearColor::Gray;
+
+	/** The color of pixels external to UV shells. */
+	UPROPERTY(EditAnywhere, Category = "UV Shell Output")
+	FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
 };
 
 
@@ -340,6 +371,7 @@ struct FOcclusionMapSettings
 	float MaxDistance;
 	float SpreadAngle;
 	float BiasAngle;
+	EBakeNormalSpace NormalSpace = EBakeNormalSpace::Tangent;
 
 	bool operator==(const FOcclusionMapSettings& Other) const
 	{
@@ -347,7 +379,8 @@ struct FOcclusionMapSettings
 			OcclusionRays == Other.OcclusionRays &&
 			MaxDistance == Other.MaxDistance &&
 			SpreadAngle == Other.SpreadAngle &&
-			BiasAngle == Other.BiasAngle;
+			BiasAngle == Other.BiasAngle &&
+			NormalSpace == Other.NormalSpace;
 	}
 };
 
@@ -355,8 +388,8 @@ struct FCurvatureMapSettings
 {
 	FImageDimensions Dimensions;
 	int32 CurvatureType = 0;
-	float RangeMultiplier = 1.0;
-	float MinRangeMultiplier = 0.0;
+	float RangeMultiplier = 1.0f;
+	float MinRangeMultiplier = 0.0f;
 	int32 ColorMode = 0;
 	int32 ClampMode = 0;
 
@@ -373,6 +406,26 @@ struct FMeshPropertyMapSettings
 	bool operator==(const FMeshPropertyMapSettings& Other) const
 	{
 		return Dimensions == Other.Dimensions;
+	}
+};
+
+struct FUVShellMapSettings
+{
+	FImageDimensions Dimensions;
+	int UVLayer = 0;
+	float WireframeThickness = 1.0f;
+	FLinearColor WireframeColor = FLinearColor::Blue;
+	FLinearColor ShellColor = FLinearColor::Gray;
+	FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+
+	bool operator==(const FUVShellMapSettings& Other) const
+	{
+		return Dimensions == Other.Dimensions &&
+			UVLayer == Other.UVLayer &&
+			WireframeThickness == Other.WireframeThickness &&
+			WireframeColor == Other.WireframeColor &&
+			ShellColor == Other.ShellColor &&
+			BackgroundColor == Other.BackgroundColor;
 	}
 };
 

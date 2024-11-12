@@ -187,7 +187,7 @@ namespace Electra
 	//-----------------------------------------------------------------------------
 	/**
 	 * Sets the presentation format (HLS, DASH, mp4, etc...)
-	 * 
+	 *
 	 * This must be the first call that will determine the type of ABR algorithm to use.
 	 *
 	 * @param InFormatType
@@ -262,11 +262,11 @@ namespace Electra
 									StreamInformationVideo.Push(si);
 								}
 								// Sort the representations by ascending bitrate
-								StreamInformationVideo.Sort([](const TSharedPtrTS<FABRStreamInformation>& a, const TSharedPtrTS<FABRStreamInformation>& b)
+								StreamInformationVideo.StableSort([](const TSharedPtrTS<FABRStreamInformation>& a, const TSharedPtrTS<FABRStreamInformation>& b)
 								{
 									return a->Bitrate < b->Bitrate;
 								});
-									
+
 								break;
 							}
 						}
@@ -310,7 +310,7 @@ namespace Electra
 									StreamInformationAudio.Push(si);
 								}
 								// Sort the representations by ascending bitrate
-								StreamInformationAudio.Sort([](const TSharedPtrTS<FABRStreamInformation>& a, const TSharedPtrTS<FABRStreamInformation>& b)
+								StreamInformationAudio.StableSort([](const TSharedPtrTS<FABRStreamInformation>& a, const TSharedPtrTS<FABRStreamInformation>& b)
 								{
 									return a->Bitrate < b->Bitrate;
 								});
@@ -486,7 +486,7 @@ namespace Electra
 			ABRMethod->ReportPlaybackResumed();
 		}
 	}
-	
+
 	void FAdaptiveStreamSelector::ReportPlaybackEnded()
 	{
 		if (ABRMethod.IsValid())
@@ -564,10 +564,10 @@ namespace Electra
 	IAdaptiveStreamSelector::ESegmentAction FAdaptiveStreamSelector::SelectSuitableStreams(FTimeValue& OutDelay, TSharedPtrTS<const IStreamSegment> CurrentSegment)
 	{
 		FTimeValue TimeNow = PlayerSessionServices->GetSynchronizedUTCTime()->GetTime();
-		
+
 		// No delay to fetch this segment with.
 		OutDelay.SetToZero();
-		
+
 		// Check if streams that were temporarily marked as bad can now be used again.
 		AccessMutex.Lock();
 		for(int32 i=0, iMax=StreamInformationVideo.Num(); i<iMax; ++i)

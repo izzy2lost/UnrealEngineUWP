@@ -148,12 +148,12 @@ TSharedPtr<SHeaderRow> FRCActionModel::GetHeaderRow()
 		.Style(&RCPanelStyle->HeaderRowStyle)
 
 		+ SHeaderRow::Column(UE::RCActionPanelList::Columns::VariableColor)
-		.DefaultLabel(LOCTEXT("RCActionVariableColorColumnHeader", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(5.f)
 		.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 		+ SHeaderRow::Column(UE::RCActionPanelList::Columns::DragDropHandle)
-		.DefaultLabel(LOCTEXT("RCActionDragDropHandleColumnHeader", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(25.f)
 		.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
@@ -196,6 +196,12 @@ FRCPropertyActionType::FRCPropertyActionType(URCPropertyAction* InPropertyAction
 
 	if (InPropertyAction)
 	{
+		// In case the Action is a Vector/Rotator we don't want the Lock widget
+		if (FProperty* ActionProperty = InPropertyAction->GetProperty())
+		{
+			ActionProperty->RemoveMetaData(TEXT("AllowPreserveRatio"));
+		}
+
 		// Generate UI widget for Action input
 		if (const TSharedPtr<FStructOnScope> StructOnScope = InPropertyAction->PropertySelfContainer->CreateStructOnScope())
 		{

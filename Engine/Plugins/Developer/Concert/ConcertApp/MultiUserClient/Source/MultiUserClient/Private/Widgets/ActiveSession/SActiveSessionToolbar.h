@@ -36,6 +36,8 @@ namespace UE::MultiUserClient
 
 		SLATE_BEGIN_ARGS(SActiveSessionToolbar)
 		{}
+			/** Contains the "tab" buttons. */
+			SLATE_NAMED_SLOT(FArguments, TabArea)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs, TSharedPtr<IConcertSyncClient> InConcertSyncClient);

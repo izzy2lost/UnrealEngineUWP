@@ -81,12 +81,16 @@ bool ReplaceInvalidOpcodePass::RewriteFunction(Function* function,
 
         bool replace = false;
         if (model != spv::ExecutionModel::Fragment &&
+// UE Change Begin: Allow for implicit texture sampling from compute since we support DerivativeGroupLinearNV (SPIRV-Tools issue #5674)
+			model != spv::ExecutionModel::GLCompute &&
+// UE Change End: Allow for implicit texture sampling from compute since we support DerivativeGroupLinearNV (SPIRV-Tools issue #5674)
             IsFragmentShaderOnlyInstruction(inst)) {
           replace = true;
         }
 
         if (model != spv::ExecutionModel::TessellationControl &&
-            model != spv::ExecutionModel::GLCompute) {
+            model != spv::ExecutionModel::GLCompute &&
+            !context()->IsTargetEnvAtLeast(SPV_ENV_UNIVERSAL_1_3)) {
           if (inst->opcode() == spv::Op::OpControlBarrier) {
             assert(model != spv::ExecutionModel::Kernel &&
                    "Expecting to be working on a shader module.");

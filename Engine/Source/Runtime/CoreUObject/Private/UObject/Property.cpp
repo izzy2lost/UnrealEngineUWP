@@ -2,6 +2,7 @@
 
 #include "UObject/UnrealType.h"
 
+#include "HAL/IConsoleManager.h"
 #include "Hash/Blake3.h"
 #include "Math/Box2D.h"
 #include "Math/InterpCurvePoint.h"
@@ -11,6 +12,11 @@
 #include "Misc/AsciiSet.h"
 #include "Misc/Guid.h"
 #include "Misc/StringBuilder.h"
+#include "Misc/FrameRate.h"
+#include "Misc/FrameTime.h"
+#include "Misc/QualifiedFrameTime.h"
+#include "Misc/FrameNumber.h"
+#include "Misc/Timecode.h"
 #include "Serialization/TestUndeclaredScriptStructObjectReferences.h"
 #include "Templates/Casts.h"
 #include "UObject/Class.h"
@@ -19,11 +25,19 @@
 #include "UObject/Package.h"
 #include "UObject/PropertyHelper.h"
 #include "UObject/PropertyTypeName.h"
+#include "UObject/PropertyVisitor.h"
 #include "UObject/SoftObjectPath.h"
 #include "UObject/UnrealTypePrivate.h"
 #include "UObject/UObjectGlobals.h"
+#include "UObject/UObjectIterator.h"
 
 DEFINE_LOG_CATEGORY(LogProperty);
+
+namespace UE::CoreUObject::Private
+{
+	static int32 EnsureAgainstLargeProperties = 1;
+	static FAutoConsoleVariableRef CVarEnsureAgainstLargeProperties(TEXT("CoreUObject.EnsureAgainstLargeProperties"), EnsureAgainstLargeProperties, TEXT("Ensure (warn) against properties that could possibly break in future versions of the Engine due a reduction in the max size of FProperty::ElementSize."));
+}
 
 // List the core ones here as they have already been included (and can be used without CoreUObject!)
 template<typename T>
@@ -524,12 +538,58 @@ struct TStructOpsTypeTraits<FFrameNumber> : public TStructOpsTypeTraitsBase2<FFr
 {
 	enum
 	{
+		WithZeroConstructor = true,
 		WithSerializer = true,
 		WithIdenticalViaEquality = true
 	};
 	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::None;
 };
 UE_IMPLEMENT_STRUCT("/Script/CoreUObject", FrameNumber);
+
+template<>
+struct TStructOpsTypeTraits<FFrameRate> : public TStructOpsTypeTraitsBase2<FFrameRate>
+{
+	enum
+	{
+		// The native function has a custom serializer but assets have already been created with the generic UPROPERTY serializer,
+		// so we can't switch them to use a custom serializer without breaking assets (creates mismatched sizes in data).
+		// WithSerializer = true, 
+		WithIdenticalViaEquality = true
+	};
+	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::None;
+};
+UE_IMPLEMENT_STRUCT("/Script/CoreUObject", FrameRate);
+
+template<>
+struct TStructOpsTypeTraits<FFrameTime> : public TStructOpsTypeTraitsBase2<FFrameTime>
+{
+	enum
+	{
+		WithZeroConstructor = true,
+		// The native function has a custom serializer but assets have already been created with the generic UPROPERTY serializer,
+		// so we can't switch them to use a custom serializer without breaking assets (creates mismatched sizes in data).
+		// WithSerializer = true, 
+		WithIdenticalViaEquality = true
+	};
+	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::None;
+};
+UE_IMPLEMENT_STRUCT("/Script/CoreUObject", FrameTime);
+
+// Qualified Frame Times can't be zero-initialized because they contain FrameRates,
+// and have no equality operator.
+UE_IMPLEMENT_STRUCT("/Script/CoreUObject", QualifiedFrameTime);
+
+template<>
+struct TStructOpsTypeTraits<FTimecode> : public TStructOpsTypeTraitsBase2<FTimecode>
+{
+	enum
+	{
+		WithZeroConstructor = true,
+		WithIdenticalViaEquality = true
+	};
+	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::None;
+};
+UE_IMPLEMENT_STRUCT("/Script/CoreUObject", Timecode);
 
 template<>
 struct TStructOpsTypeTraits<FSoftObjectPath> : public TStructOpsTypeTraitsBase2<FSoftObjectPath>
@@ -717,17 +777,24 @@ const TCHAR* FPropertyHelpers::ReadToken( const TCHAR* Buffer, FStringBuilderBas
 	FProperty implementation.
 -----------------------------------------------------------------------------*/
 
-#if UE_GAME && UE_FNAME_OUTLINE_NUMBER
-	static_assert(sizeof(FProperty) <= 104, "FProperty was optimized to reduce its size so most of the classes that inherent from it will fall withing 112 bytes bin of MallocBinned3");
+#if UE_GAME && UE_FNAME_OUTLINE_NUMBER && !WITH_METADATA
+	static_assert(sizeof(FProperty) <= 104, "FProperty was optimized to reduce its size so most of the classes that inherent from it will fall within 112 bytes bin of MallocBinned3");
 #endif
 
 IMPLEMENT_FIELD(FProperty)
+
+void FProperty::SetElementSize(int32 NewSize)
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	ElementSize = NewSize;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
 
 //
 // Constructors.
 //
 FProperty::FProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-	: FField(InOwner, InName, InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 	, ArrayDim(1)
 	, ElementSize(0)
 	, PropertyFlags(CPF_None)
@@ -741,24 +808,8 @@ FProperty::FProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags In
 {
 }
 
-FProperty::FProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, int32 InOffset, EPropertyFlags InFlags)
-	: FField(InOwner, InName, InObjectFlags)
-	, ArrayDim(1)
-	, ElementSize(0)
-	, PropertyFlags(InFlags)
-	, RepIndex(0)
-	, BlueprintReplicationCondition(COND_None)
-	, Offset_Internal(InOffset)
-	, PropertyLinkNext(nullptr)
-	, NextRef(nullptr)
-	, DestructorLinkNext(nullptr)
-	, PostConstructLinkNext(nullptr)
-{
-	Init();
-}
-
 FProperty::FProperty(FFieldVariant InOwner, const UECodeGen_Private::FPropertyParamsBaseWithOffset& Prop, EPropertyFlags AdditionalPropertyFlags /*= CPF_None*/)
-	: FField(InOwner, UTF8_TO_TCHAR(Prop.NameUTF8), Prop.ObjectFlags)
+	: Super(InOwner, UTF8_TO_TCHAR(Prop.NameUTF8), Prop.ObjectFlags)
 	, ArrayDim(1)
 	, ElementSize(0)
 	, PropertyFlags(Prop.PropertyFlags | AdditionalPropertyFlags)
@@ -776,7 +827,7 @@ FProperty::FProperty(FFieldVariant InOwner, const UECodeGen_Private::FPropertyPa
 }
 
 FProperty::FProperty(FFieldVariant InOwner, const UECodeGen_Private::FPropertyParamsBaseWithoutOffset& Prop, EPropertyFlags AdditionalPropertyFlags /*= CPF_None*/)
-	: FField(InOwner, UTF8_TO_TCHAR(Prop.NameUTF8), Prop.ObjectFlags)
+	: Super(InOwner, UTF8_TO_TCHAR(Prop.NameUTF8), Prop.ObjectFlags)
 	, ArrayDim(1)
 	, ElementSize(0)
 	, PropertyFlags(Prop.PropertyFlags | AdditionalPropertyFlags)
@@ -801,7 +852,7 @@ FProperty::FProperty(UField* InField)
 {
 	UProperty* SourceProperty = CastChecked<UProperty>(InField);
 	ArrayDim = SourceProperty->ArrayDim;
-	ElementSize = SourceProperty->ElementSize;
+	SetElementSize(SourceProperty->ElementSize);
 	PropertyFlags = SourceProperty->PropertyFlags;
 	RepIndex = SourceProperty->RepIndex;
 	Offset_Internal = SourceProperty->Offset_Internal;
@@ -843,7 +894,14 @@ void FProperty::Serialize( FArchive& Ar )
 	Super::Serialize(Ar);
 
 	Ar << ArrayDim;
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Ar << ElementSize;
+
+	const bool EnsureAgainstLargeProperties = UE::CoreUObject::Private::EnsureAgainstLargeProperties > 0;
+	constexpr int32 ExpectedMaxSize = (1 << 24);
+	ensureMsgf(!EnsureAgainstLargeProperties || GetElementSize() < ExpectedMaxSize, TEXT("%s has ElementSize %d which will violate an upcoming change to lower the max ElementSize.  Consider breaking up the property. Disable this warning with CoreUObject.EnsureAgainstLargeProperties 0"), *GetName(), GetElementSize());
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	EPropertyFlags SaveFlags = PropertyFlags & ~CPF_ComputedFlags;
 	// Archive the basic info.
@@ -851,6 +909,7 @@ void FProperty::Serialize( FArchive& Ar )
 	if (Ar.IsLoading())
 	{
 		PropertyFlags = (SaveFlags & ~CPF_ComputedFlags) | (PropertyFlags & CPF_ComputedFlags);
+
 	}
 
 	if (FPlatformProperties::HasEditorOnlyData() == false)
@@ -875,7 +934,7 @@ void FProperty::PostDuplicate(const FField& InField)
 {
 	const FProperty& Source = static_cast<const FProperty&>(InField);
 	ArrayDim = Source.ArrayDim;
-	ElementSize = Source.ElementSize;
+	SetElementSize(Source.GetElementSize());
 	PropertyFlags = Source.PropertyFlags;
 	RepIndex = Source.RepIndex;
 	Offset_Internal = Source.Offset_Internal;
@@ -942,6 +1001,16 @@ void FProperty::DestroyValueInternal( void* Dest ) const
 void FProperty::InitializeValueInternal( void* Dest ) const
 {
 	checkf(0, TEXT("%s failed to handle InitializeValueInternal, but it was not CPF_ZeroConstructor"), *GetFullName());
+}
+
+bool FProperty::ContainsClearOnFinishDestroyInternal( TArray<const FStructProperty*>& EncounteredStructProps ) const
+{
+	return false;
+}
+
+void FProperty::FinishDestroyInternal( void* Data ) const
+{
+	// Empty
 }
 
 /**
@@ -1342,6 +1411,25 @@ namespace UE::CoreUObject::Private
 	}
 }
 
+EPropertyVisitorControlFlow FProperty::Visit(const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath&, const FPropertyVisitorData&)> InFunc) const
+{
+	FPropertyVisitorPath Path(FPropertyVisitorInfo(this));
+	return Visit(Path, Data, InFunc);
+}
+
+EPropertyVisitorControlFlow FProperty::Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
+{
+	checkf(Path.Top().Property == this, TEXT("The property set in the info has to match to this property"));
+
+	return InFunc(Path, Data);
+}
+
+void* FProperty::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const
+{
+	FPropertyVisitorPath Path(FPropertyVisitorInfo(this));
+	return PropertyVisitorHelpers::ResolveVisitedPathInfo_Generic(this, Path, Data, Info);
+}
+
 int32 FProperty::SetupOffset()
 {
 	UObject* OwnerUObject = GetOwner<UObject>();
@@ -1349,10 +1437,17 @@ int32 FProperty::SetupOffset()
 	{
 		UStruct* OwnerStruct = (UStruct*)OwnerUObject;
 		Offset_Internal = Align(OwnerStruct->GetPropertiesSize(), GetMinAlignment());
+	#if WITH_EDITORONLY_DATA
+		IndexInOwner = OwnerStruct->TotalFieldCount;
+		OwnerStruct->TotalFieldCount += ArrayDim;
+	#endif
 	}
 	else
 	{
 		Offset_Internal = Align(0, GetMinAlignment());
+	#if WITH_EDITORONLY_DATA
+		IndexInOwner = 0;
+	#endif
 	}
 
 	uint32 UnsignedTotal = (uint32)Offset_Internal + (uint32)GetSize();
@@ -1396,7 +1491,7 @@ void* FProperty::GetValueAddressAtIndex_Direct(const FProperty* Inner, void* InV
 {
 	checkf(Inner == nullptr, TEXT("%s should not have an inner property or it's missing specialized GetValueAddressAtIndex_Direct override"), *GetFullName());
 	checkf(Index < ArrayDim && Index >= 0, TEXT("Array index (%d) out of range"), Index);
-	return (uint8*)InValueAddress + ElementSize * Index;
+	return (uint8*)InValueAddress + GetElementSize() * Index;
 }
 
 void FProperty::SetSingleValue_InContainer(void* OutContainer, const void* InValue, int32 ArrayIndex) const
@@ -1420,7 +1515,7 @@ void FProperty::SetSingleValue_InContainer(void* OutContainer, const void* InVal
 			uint8* ValueArray = (uint8*)AllocateAndInitializeValue();
 			GetValue_InContainer(OutContainer, ValueArray);
 			// Replace the value at the specified index in the temp array with the InValue
-			CopySingleValue(ValueArray + ArrayIndex * ElementSize, InValue);
+			CopySingleValue(ValueArray + ArrayIndex * GetElementSize(), InValue);
 			// Now call a setter to replace the entire array and then destroy the temp value
 			CallSetter(OutContainer, ValueArray);
 			DestroyAndFreeValue(ValueArray);
@@ -1449,7 +1544,7 @@ void FProperty::GetSingleValue_InContainer(const void* InContainer, void* OutVal
 			uint8* ValueArray = (uint8*)AllocateAndInitializeValue();
 			GetValue_InContainer(InContainer, ValueArray);
 			// Copy the item we care about and free the temp array
-			CopySingleValue(OutValue, ValueArray + ArrayIndex * ElementSize);
+			CopySingleValue(OutValue, ValueArray + ArrayIndex * GetElementSize());
 			DestroyAndFreeValue(ValueArray);
 		}
 	}
@@ -1833,7 +1928,7 @@ const TCHAR* FProperty::ImportSingleProperty( const TCHAR* Str, void* DestData, 
 				}
 				else
 				{
-					int32 Size = ArrayProperty->Inner->ElementSize;
+					int32 Size = ArrayProperty->Inner->GetElementSize();
 
 					uint8* Temp = (uint8*)FMemory_Alloca(Size);
 					ArrayProperty->Inner->InitializeValue(Temp);
@@ -2060,6 +2155,27 @@ uint32 FProperty::GetValueTypeHashInternal(const void* Src) const
 {
 	check(false); // you need to deal with the virtual call
 	return 0;
+}
+
+void FProperty::InitializeIntrusiveUnsetOptionalValue(void* Data) const 
+{
+	checkf(false, TEXT("Missing implementation for InitializeIntrusiveUnsetOptionalValue for property type returning true from HasIntrusiveUnsetOptionalState"));
+}
+
+bool FProperty::IsIntrusiveOptionalValueSet(const void* Data) const 
+{
+	checkf(false, TEXT("Missing implementation for IsIntrusiveOptionalValueSet for property type returning true from HasIntrusiveUnsetOptionalState"));
+	return false;
+}
+
+void FProperty::ClearIntrusiveOptionalValue(void* Data) const 
+{
+	checkf(false, TEXT("Missing implementation for ClearIntrusiveOptionalValue for property type returning true from HasIntrusiveUnsetOptionalState"));
+}
+
+void FProperty::EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath)
+{
+	checkf(false, TEXT("Missing implementation for EmitIntrusiveOptionalReferenceInfo for property type returning true from HasIntrusiveUnsetOptionalState"));
 }
 
 #if WITH_EDITORONLY_DATA

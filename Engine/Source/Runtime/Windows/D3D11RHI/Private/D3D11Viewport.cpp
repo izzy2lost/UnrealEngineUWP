@@ -4,6 +4,7 @@
 	D3D11Viewport.cpp: D3D viewport RHI implementation.
 =============================================================================*/
 
+#include "D3D11Viewport.h"
 #include "D3D11RHIPrivate.h"
 #include "RenderCore.h"
 #include "HDRHelper.h"
@@ -204,9 +205,6 @@ FD3D11Viewport::~FD3D11Viewport()
 {
 	check(IsInRHIThread() || IsInRenderingThread());
 
-	// Turn off HDR display mode
-	D3DRHI->ShutdownHDR();
-
 	// If the swap chain was in fullscreen mode, switch back to windowed before releasing the swap chain.
 	// DXGI throws an error otherwise.
 	if (SwapChain)
@@ -257,7 +255,6 @@ void FD3D11Viewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 
 	// Flush the outstanding GPU work and wait for it to complete.
 	FlushRenderingCommands();
-	FRHICommandListExecutor::CheckNoOutstandingCmdLists();
 
 	// Make sure we use a format the current device supports.
 	PreferredPixelFormat = D3DRHI->GetDisplayFormat(PreferredPixelFormat);
@@ -334,18 +331,15 @@ void FD3D11Viewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 	HDRGetMetaData(DisplayOutputFormat, DisplayColorGamut, bHDREnabled, WindowTopLeft, WindowBottomRight, (void*)WindowHandle);
 
 	// Float RGBA backbuffers are requested whenever HDR mode is desired
-	if (PixelFormat == GRHIHDRDisplayOutputFormat && bIsFullscreen)
+	if (bHDREnabled)
 	{
-		D3DRHI->EnableHDR();
+		EnableHDR();
 	}
 	else
 	{
-		D3DRHI->ShutdownHDR();
+		ShutdownHDR();
 	}
 
-	// If the window has been moved or resized it may have moved focus to and from a HDR monitor
-	CheckHDRMonitorStatus();
-	
 	// Create a RHI surface to represent the viewport's back buffer.
 	BackBuffer = GetSwapChainSurface(D3DRHI, PixelFormat, SizeX, SizeY, SwapChain);
 }
@@ -361,15 +355,36 @@ static bool IsCompositionEnabled()
 }
 
 /** Presents the swap chain checking the return result. */
-bool FD3D11Viewport::PresentChecked(int32 SyncInterval)
+bool FD3D11Viewport::PresentChecked(IRHICommandContext& RHICmdContext, int32 SyncInterval)
 {
 	HRESULT Result = S_OK;
 	bool bNeedNativePresent = true;
 
+#if !UE_BUILD_SHIPPING && PLATFORM_SUPPORTS_FLIP_TRACKING
+	if (SwapChain.IsValid())
+	{
+		static FRHIFlipDetails LastFlipFrame;
+		static DXGI_FRAME_STATISTICS LastStats = { 0 };
+		HRESULT GetStatHR;
+		DXGI_FRAME_STATISTICS stats = { 0 };
+		while (SUCCEEDED(GetStatHR = SwapChain->GetFrameStatistics(&stats)) && (stats.PresentCount > LastFlipFrame.PresentIndex))
+		{
+			FRHIFlipDetails NewFlipFrame;
+			NewFlipFrame.PresentIndex = stats.PresentCount;
+			NewFlipFrame.VBlankTimeInCycles = stats.SyncQPCTime.QuadPart;
+
+			RHISetVsyncDebugInfo(NewFlipFrame);
+
+			LastFlipFrame = NewFlipFrame;
+			LastStats = stats;
+		}
+	}
+#endif
+
 	if (IsValidRef(CustomPresent))
 	{
 		SCOPE_CYCLE_COUNTER(STAT_D3D11CustomPresentTime);
-		bNeedNativePresent = CustomPresent->Present(SyncInterval);
+		bNeedNativePresent = CustomPresent->Present(RHICmdContext, SyncInterval);
 	}
 
 	if (bNeedNativePresent)
@@ -393,7 +408,11 @@ bool FD3D11Viewport::PresentChecked(int32 SyncInterval)
 			{
 				Flags |= DXGI_PRESENT_ALLOW_TEARING;
 			}
-			Result = SwapChain->Present(SyncInterval, Flags);
+
+			{
+				FRenderThreadIdleScope IdleScope(ERenderThreadIdleTypes::WaitingForGPUPresent);
+				Result = SwapChain->Present(SyncInterval, Flags);
+			}
 
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
 			extern int32 GLogDX11RTRebinds;
@@ -464,11 +483,21 @@ bool FD3D11Viewport::PresentChecked(int32 SyncInterval)
 
 	D3DRHI->GetDeviceContext()->OMSetRenderTargets(0,0,0);
 
+	UINT PresentID;
+	if (SUCCEEDED(SwapChain->GetLastPresentCount(&PresentID)))
+	{
+		GRHIPresentCounter = PresentID;
+	}
+	else
+	{
+		GRHIPresentCounter++;
+	}
+
 	return bNeedNativePresent;
 }
 
 /** Blocks the CPU to synchronize with vblank by communicating with DWM. */
-void FD3D11Viewport::PresentWithVsyncDWM()
+void FD3D11Viewport::PresentWithVsyncDWM(IRHICommandContext& RHICmdContext)
 {
 #if D3D11_WITH_DWMAPI
 	LARGE_INTEGER Cycles;
@@ -544,7 +573,7 @@ void FD3D11Viewport::PresentWithVsyncDWM()
 	}
 
 	// Present.
-	PresentChecked(/*SyncInterval=*/ 0);
+	PresentChecked(RHICmdContext, /*SyncInterval=*/ 0);
 
 	// If we are forcing <= 30Hz, block the CPU an additional amount of time if needed.
 	// This second block is only needed when RefreshPercentageBeforePresent < 1.0.
@@ -599,7 +628,7 @@ void FD3D11Viewport::PresentWithVsyncDWM()
 #endif	//D3D11_WITH_DWMAPI
 }
 
-bool FD3D11Viewport::Present(bool bLockToVsync)
+bool FD3D11Viewport::Present(IRHICommandContext& RHICmdContext, bool bLockToVsync)
 {
 	bool bNativelyPresented = true;
 #if	D3D11_WITH_DWMAPI
@@ -634,27 +663,30 @@ bool FD3D11Viewport::Present(bool bLockToVsync)
 	const bool bSyncWithDWM = bLockToVsync && !bIsFullscreen && RHIConsoleVariables::bSyncWithDWM && IsCompositionEnabled();
 	if (bSyncWithDWM)
 	{
-		PresentWithVsyncDWM();
+		PresentWithVsyncDWM(RHICmdContext);
 	}
 	else
 #endif	//D3D11_WITH_DWMAPI
 	{
 		// Present the back buffer to the viewport window.
-		bNativelyPresented = PresentChecked(bLockToVsync ? RHIGetSyncInterval() : 0);
+		bNativelyPresented = PresentChecked(RHICmdContext, bLockToVsync ? RHIGetSyncInterval() : 0);
 	}
 	return bNativelyPresented;
 }
 
-EColorSpaceAndEOTF FD3D11DynamicRHI::RHIGetColorSpace(FRHIViewport* ViewportRHI)
+void* FD3D11Viewport::GetNativeSwapChain() const
 {
-	FD3D11Viewport* Viewport = ResourceCast(ViewportRHI);
-	return Viewport->GetPixelColorSpace();
+	return GetSwapChain();
 }
 
-void  FD3D11DynamicRHI::RHICheckViewportHDRStatus(FRHIViewport* ViewportRHI)
+void* FD3D11Viewport::GetNativeBackBufferTexture() const
 {
-	FD3D11Viewport* Viewport = ResourceCast(ViewportRHI);
-	return Viewport->CheckHDRMonitorStatus();
+	return GetBackBuffer()->GetD3D11Texture2D();
+}
+
+void* FD3D11Viewport::GetNativeBackBufferRT() const
+{
+	return GetBackBuffer()->GetRenderTargetView(0, 0);
 }
 
 /*=============================================================================
@@ -785,7 +817,7 @@ void FD3D11DynamicRHI::RHIEndDrawingViewport(FRHIViewport* ViewportRHI,bool bPre
 	bool bNativelyPresented = true;
 	if (bPresent)
 	{
-		bNativelyPresented = Viewport->Present(bLockToVsync);
+		bNativelyPresented = Viewport->Present(*this, bLockToVsync);
 	}
 
 	if (bNativelyPresented)
@@ -820,7 +852,7 @@ void FD3D11DynamicRHI::RHIAdvanceFrameForGetViewportBackBuffer(FRHIViewport* Vie
 {
 }
 
-FTexture2DRHIRef FD3D11DynamicRHI::RHIGetViewportBackBuffer(FRHIViewport* ViewportRHI)
+FTextureRHIRef FD3D11DynamicRHI::RHIGetViewportBackBuffer(FRHIViewport* ViewportRHI)
 {
 	FD3D11Viewport* Viewport = ResourceCast(ViewportRHI);
 

@@ -24,12 +24,13 @@
 #include "InterchangeTranslatorHelper.h"
 #include "InterchangeVariantSetNode.h"
 #include "Nodes/InterchangeSourceNode.h"
+#include "Nodes/InterchangeUserDefinedAttribute.h"
 
 #include "Sections/MovieScene3DTransformSection.h"
 #include "Texture/InterchangeImageWrapperTranslator.h"
 
 #include "Algo/Find.h"
-#include "Async/Async.h"
+#include "Async/ParallelFor.h"
 #include "Misc/App.h"
 #include "StaticMeshAttributes.h"
 #include "SkeletalMeshAttributes.h"
@@ -46,7 +47,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeGltfTranslator)
 
-#define LOCTEXT_NAMESPACE "InterchangeGltfTranslator"
+#define LOCTEXT_NAMESPACE "InterchangeGLTFTranslator"
 
 static const TArray<FString> ImporterSupportedExtensions = {
 	/* Lights */
@@ -148,7 +149,7 @@ namespace UE::Interchange::Gltf::Private
 	};
 	void SendAnalytics(const TranslationResult& TranslationResult,
 		const GLTF::FAsset& Asset = GLTF::FAsset(),
-		const FString& GLTFReaderLogMessage = "")
+		const FText& GLTFReaderLogMessage = FText::GetEmpty())
 	{
 		if (FEngineAnalytics::IsAvailable())
 		{
@@ -213,7 +214,7 @@ namespace UE::Interchange::Gltf::Private
 
 void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& NodeContainer, const GLTF::FNode& GltfNode, const FString& ParentNodeUid, const int32 NodeIndex, 
 	bool &bHasVariants, TArray<int32>& SkinnedMeshNodes, TSet<int>& UnusedMeshIndices,
-	const TMap<int32, FTransform>& T0Transforms ) const
+	const TMap<int32, FTransform>& T0Transforms, const FString& SceneNodeUid) const
 {
 	using namespace UE::Interchange::Gltf::Private;
 
@@ -226,6 +227,11 @@ void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& 
 	InterchangeSceneNode->SetAssetName(GltfNode.UniqueId);
 	NodeContainer.AddNode( InterchangeSceneNode );
 
+	for (const TPair<FString, FString>& Extra : GltfNode.Extras)
+	{
+		UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(InterchangeSceneNode, Extra.Key, Extra.Value, TOptional<FString>());
+	}
+
 	NodeUidMap.Add( &GltfNode, NodeUid );
 
 	FTransform Transform = GltfNode.Transform;
@@ -237,6 +243,11 @@ void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& 
 		case GLTF::FNode::EType::MeshSkinned:
 		{
 			SkinnedMeshNodes.Add(NodeIndex);
+
+			if (GltfNode.ParentIndex != INDEX_NONE)
+			{
+				UE_LOG(LogInterchangeImport, Warning, TEXT("Node [%s] with a skinned mesh is not root. Parent transforms will not affect a skinned mesh."), *GltfNode.Name);
+			}
 
 			if (!bHasVariants && GltfAsset.Variants.Num() > 0)
 			{
@@ -325,7 +336,13 @@ void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& 
 			if ( GltfAsset.Cameras.IsValidIndex( GltfNode.CameraIndex ) )
 			{
 				const FString CameraNodeUid = TEXT("\\Camera\\") + GltfAsset.Cameras[ GltfNode.CameraIndex ].UniqueId;
+				const FString Prefix = GltfAsset.Cameras[GltfNode.CameraIndex].Name + TEXT("_");
 				InterchangeSceneNode->SetCustomAssetInstanceUid( CameraNodeUid );
+
+				for (const TPair<FString, FString>& Extra : GltfAsset.Cameras[GltfNode.CameraIndex].Extras)
+				{
+					UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(InterchangeSceneNode, Prefix + Extra.Key, Extra.Value, TOptional<FString>());
+				}
 			}
 			break;
 		}
@@ -352,7 +369,11 @@ void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& 
 
 	InterchangeSceneNode->SetCustomLocalTransform(&NodeContainer, Transform, bResetCache);
 
-	if ( !ParentNodeUid.IsEmpty() )
+	if (GltfNode.Type == GLTF::FNode::EType::MeshSkinned)
+	{
+		NodeContainer.SetNodeParentUid(NodeUid, SceneNodeUid);
+	}
+	else if ( !ParentNodeUid.IsEmpty() )
 	{
 		NodeContainer.SetNodeParentUid( NodeUid, ParentNodeUid );
 	}
@@ -361,7 +382,7 @@ void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& 
 	{
 		if ( GltfAsset.Nodes.IsValidIndex( ChildIndex ) )
 		{
-			HandleGltfNode( NodeContainer, GltfAsset.Nodes[ ChildIndex ], NodeUid, ChildIndex, bHasVariants, SkinnedMeshNodes, UnusedMeshIndices, T0Transforms);
+			HandleGltfNode( NodeContainer, GltfAsset.Nodes[ ChildIndex ], NodeUid, ChildIndex, bHasVariants, SkinnedMeshNodes, UnusedMeshIndices, T0Transforms, SceneNodeUid);
 		}
 	}
 }
@@ -398,12 +419,37 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 		SendAnalytics(TranslationResult::INPUT_FILE_NOTFOUND);
 		return false;
 	}
-	
+
 	GLTF::FFileReader GltfFileReader;
 
 	const bool bLoadImageData = false;
-	const bool bLoadMetaData = false;
+	const bool bLoadMetaData = true;
 	GltfFileReader.ReadFile( FilePath, bLoadImageData, bLoadMetaData, const_cast< UInterchangeGLTFTranslator* >( this )->GltfAsset );
+
+	UInterchangeSourceNode* SourceNode = UInterchangeSourceNode::FindOrCreateUniqueInstance(&NodeContainer);
+	SourceNode->SetExtraInformation(TEXT("File Units"), TEXT("meter"));
+	SourceNode->SetExtraInformation(TEXT("File Axis Direction"), TEXT("Y-UP (RH)"));
+	if (GltfAsset.Metadata.GeneratorName.Len() > 0)
+	{
+		SourceNode->SetExtraInformation(TEXT("Generator Name"), GltfAsset.Metadata.GeneratorName);
+	}
+	for (const GLTF::FMetadata::FExtraData& Extra : GltfAsset.Metadata.Extras)
+	{
+		SourceNode->SetExtraInformation(Extra.Name, Extra.Value);
+	}
+
+	{
+		//For sockets, crete the Axis System conversion inverse:
+
+		FMatrix glTFToUE5Matrix = FMatrix(
+			FPlane(1, 0, 0, 0),  // X-axis remains the same
+			FPlane(0, 0, 1, 0),  // Y-axis becomes Z-axis
+			FPlane(0, 1, 0, 0),  // Z-axis becomes Y-axis
+			FPlane(0, 0, 0, 1)   // W (homogeneous coordinate)
+		);
+		FTransform AxisConversionInverseTransform = FTransform(glTFToUE5Matrix.Inverse());
+		SourceNode->SetCustomAxisConversionInverseTransform(AxisConversionInverseTransform);
+	}
 
 	const FString FileName = GltfAsset.Name;
 
@@ -428,7 +474,7 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 		{
 			UInterchangeResultError_Generic* ErrorResult = AddMessage< UInterchangeResultError_Generic >();
 			ErrorResult->SourceAssetName = FileName;
-			ErrorResult->Text = FText::Format(LOCTEXT("GLTF::FFileReader::ReadFile Failed.", "LogMessage: {0}"), FText::FromString(LogMessage.Value));
+			ErrorResult->Text = LogMessage.Value;
 
 			SendAnalytics(TranslationResult::GLTFREADER_FAILED, GltfAsset, LogMessage.Value);
 			return false;
@@ -525,6 +571,15 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 
 			TextureNode->SetCustomWrapU( UE::Interchange::Gltf::Private::ConvertWrap( GltfTexture.Sampler.WrapS ) );
 			TextureNode->SetCustomWrapV( UE::Interchange::Gltf::Private::ConvertWrap( GltfTexture.Sampler.WrapT ) );
+
+			for (const TPair<FString, FString>& Extra : GltfTexture.Source.Extras)
+			{
+				UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(TextureNode, Extra.Key, Extra.Value, TOptional<FString>());
+			}
+			for (const TPair<FString, FString>& Extra : GltfTexture.Extras)
+			{
+				UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(TextureNode, Extra.Key, Extra.Value, TOptional<FString>());
+			}
 		}
 	}
 
@@ -558,9 +613,12 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 		int32 MaterialIndex = 0;
 		for ( const GLTF::FMaterial& GltfMaterial : GltfAsset.Materials )
 		{
-			//Based on the gltf specification the basecolor and emissive textures have SRGB colors:
+			//Based on the gltf specification the basecolor and emissive and specular textures have SRGB colors:
 			SetTextureSRGB(NodeContainer, GltfMaterial.BaseColor, true);
 			SetTextureSRGB(NodeContainer, GltfMaterial.Emissive, true);
+			SetTextureSRGB(NodeContainer, GltfMaterial.Specular.SpecularColorMap, true);
+			SetTextureSRGB(NodeContainer, GltfMaterial.Specular.SpecularMap, true);		//Technically SpecularTexture is only using the Alpha channel, but could be packed onto other textures
+																						//Parent material's expectation is that the SpecularMap is SRGB (as the expectation is that it is packed onto the SpecularColorTexture.)
 			//Textures that are expected to use Scalar outputs we want to set them as SRGB false explicitly, based on UInterchangeGenericMaterialPipeline::HandleTextureNode
 			SetTextureSRGB(NodeContainer, GltfMaterial.MetallicRoughness.Map, false);
 			SetTextureSRGB(NodeContainer, GltfMaterial.Occlusion, false);
@@ -573,6 +631,11 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 
 			UInterchangeShaderGraphNode* ShaderGraphNode = UInterchangeShaderGraphNode::Create(&NodeContainer, GltfMaterial.UniqueId);
 			ShaderGraphNode->SetDisplayLabel(GltfMaterial.Name);
+
+			for (const TPair<FString, FString>& Extra : GltfMaterial.Extras)
+			{
+				UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(ShaderGraphNode, Extra.Key, Extra.Value, TOptional<FString>());
+			}
 
 			UE::Interchange::GLTFMaterials::HandleGltfMaterial(NodeContainer, GltfMaterial, GltfAsset.Textures, ShaderGraphNode);
 			
@@ -713,6 +776,11 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 			SceneNode->InitializeNode( SceneNodeUid, SceneName, EInterchangeNodeContainerType::TranslatedScene );
 			NodeContainer.AddNode( SceneNode );
 
+			for (const TPair<FString, FString>& Extra : GltfScene.Extras)
+			{
+				UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(SceneNode, Extra.Key, Extra.Value, TOptional<FString>());
+			}
+
 			//All scene node should have a valid local transform
 			SceneNode->SetCustomLocalTransform(&NodeContainer, FTransform::Identity);
 
@@ -721,7 +789,7 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 			{
 				if ( GltfAsset.Nodes.IsValidIndex( NodeIndex ) )
 				{
-					HandleGltfNode( NodeContainer, GltfAsset.Nodes[ NodeIndex ], SceneNodeUid, NodeIndex, bHasVariants, SkinnedMeshNodes, UnusedGltfMeshIndices, T0Transforms);
+					HandleGltfNode( NodeContainer, GltfAsset.Nodes[ NodeIndex ], SceneNodeUid, NodeIndex, bHasVariants, SkinnedMeshNodes, UnusedGltfMeshIndices, T0Transforms, SceneNodeUid);
 				}
 			}
 
@@ -737,9 +805,9 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 
 	// Variants
 	// Note: Variants are not supported yet in game play mode
-	if ( !FApp::IsGame() && bHasVariants )
+	if (bHasVariants)
 	{
-		HandleGltfVariants( NodeContainer, FileName );
+		HandleGltfVariants(NodeContainer, FileName);
 	}
 
 	// Add glTF errors and warnings to the Interchange results
@@ -752,21 +820,21 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 		case GLTF::EMessageSeverity::Error :
 			{
 				UInterchangeResultError_Generic* ErrorResult = AddMessage< UInterchangeResultError_Generic >();
-				ErrorResult->Text = FText::FromString(LogMessage.Get<1>());
+				ErrorResult->Text = LogMessage.Get<1>();
 				Result = ErrorResult;
 			}
 			break;
 		case GLTF::EMessageSeverity::Warning:
 			{
 				UInterchangeResultWarning_Generic* WarningResult = AddMessage< UInterchangeResultWarning_Generic >();
-				WarningResult->Text = FText::FromString(LogMessage.Get<1>());
+				WarningResult->Text = LogMessage.Get<1>();
 				Result = WarningResult;
 			}
 			break;
 		case GLTF::EMessageSeverity::Display:
 			{
 				UInterchangeResultDisplay_Generic* DisplayResult = AddMessage< UInterchangeResultDisplay_Generic >();
-				DisplayResult->Text = FText::FromString(LogMessage.Get<1>());
+				DisplayResult->Text = LogMessage.Get<1>();
 				Result = DisplayResult;
 			}
 			break;
@@ -851,46 +919,86 @@ TOptional< UE::Interchange::FImportImage > UInterchangeGLTFTranslator::GetTextur
 	return TexturePayloadData;
 }
 
-TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeGLTFTranslator::GetAnimationPayloadData(const FInterchangeAnimationPayLoadKey& PayLoadKey, const double BakeFrequency, const double RangeStartSecond, const double RangeStopSecond) const
+TOptional<UE::Interchange::FAnimationPayloadData> UInterchangeGLTFTranslator::GetAnimationPayloadData(const UE::Interchange::FAnimationPayloadQuery& PayloadQuery) const
 {
-	return Async(EAsyncExecution::TaskGraph, [this, PayLoadKey, BakeFrequency, RangeStartSecond, RangeStopSecond]
+	UE::Interchange::FAnimationPayloadData AnimationPayLoadData(PayloadQuery.SceneNodeUniqueID, PayloadQuery.PayloadKey);
+	TOptional<UE::Interchange::FAnimationPayloadData> Result;
+	switch (PayloadQuery.PayloadKey.Type)
+	{
+	case EInterchangeAnimationPayLoadType::CURVE:
+		if (UE::Interchange::Gltf::Private::GetTransformAnimationPayloadData(PayloadQuery.PayloadKey.UniqueId, GltfAsset, AnimationPayLoadData))
 		{
-
-			TOptional<UE::Interchange::FAnimationPayloadData> Result;
-			UE::Interchange::FAnimationPayloadData AnimationPayLoadData(PayLoadKey.Type);
-
-			switch (PayLoadKey.Type)
-			{
-			case EInterchangeAnimationPayLoadType::CURVE:
-				if (UE::Interchange::Gltf::Private::GetTransformAnimationPayloadData(PayLoadKey.UniqueId, GltfAsset, AnimationPayLoadData))
-				{
-					Result.Emplace(AnimationPayLoadData);
-				}
-				break;
-			case EInterchangeAnimationPayLoadType::MORPHTARGETCURVE:
-				if (UE::Interchange::Gltf::Private::GetMorphTargetAnimationPayloadData(PayLoadKey.UniqueId, GltfAsset, AnimationPayLoadData))
-				{
-					Result.Emplace(AnimationPayLoadData);
-				}
-				break;
-			case EInterchangeAnimationPayLoadType::BAKED:
-				AnimationPayLoadData.BakeFrequency = BakeFrequency;
-				AnimationPayLoadData.RangeStartTime = RangeStartSecond;
-				AnimationPayLoadData.RangeEndTime = RangeStopSecond;
-				if (UE::Interchange::Gltf::Private::GetBakedAnimationTransformPayloadData(PayLoadKey.UniqueId, GltfAsset, AnimationPayLoadData))
-				{
-					Result.Emplace(AnimationPayLoadData);
-				}
-				break;
-			case EInterchangeAnimationPayLoadType::STEPCURVE:
-			case EInterchangeAnimationPayLoadType::NONE:
-			default:
-				break;
-			}
-
-			return Result;
+			Result = AnimationPayLoadData;
 		}
-	);
+		break;
+	case EInterchangeAnimationPayLoadType::MORPHTARGETCURVE:
+		if (UE::Interchange::Gltf::Private::GetMorphTargetAnimationPayloadData(PayloadQuery.PayloadKey.UniqueId, GltfAsset, AnimationPayLoadData))
+		{
+			Result = AnimationPayLoadData;
+		}
+		break;
+	case EInterchangeAnimationPayLoadType::BAKED:
+		AnimationPayLoadData.BakeFrequency = PayloadQuery.TimeDescription.BakeFrequency;
+		AnimationPayLoadData.RangeStartTime = PayloadQuery.TimeDescription.RangeStartSecond;
+		AnimationPayLoadData.RangeEndTime = PayloadQuery.TimeDescription.RangeStopSecond;
+		if (UE::Interchange::Gltf::Private::GetBakedAnimationTransformPayloadData(PayloadQuery.PayloadKey.UniqueId, GltfAsset, AnimationPayLoadData))
+		{
+			Result = AnimationPayLoadData;
+		}
+		break;
+	case EInterchangeAnimationPayLoadType::STEPCURVE:
+	case EInterchangeAnimationPayLoadType::NONE:
+	default:
+		break;
+	}
+
+	return Result;
+}
+
+TArray<UE::Interchange::FAnimationPayloadData> UInterchangeGLTFTranslator::GetAnimationPayloadData(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries) const
+{
+	TArray<TOptional<UE::Interchange::FAnimationPayloadData>> AnimationPayloadOptionals;
+	int32 PayloadCount = PayloadQueries.Num();
+	AnimationPayloadOptionals.AddDefaulted(PayloadCount);
+	
+	const int32 BatchSize = 10;
+	if (PayloadQueries.Num() > BatchSize)
+	{
+		const int32 NumBatches = (PayloadCount / BatchSize) + 1;
+		ParallelFor(NumBatches, [&](int32 BatchIndex)
+			{
+				int32 PayloadIndexOffset = BatchIndex * BatchSize;
+				for (int32 PayloadIndex = PayloadIndexOffset; PayloadIndex < PayloadIndexOffset + BatchSize; ++PayloadIndex)
+				{
+					if (PayloadQueries.IsValidIndex(PayloadIndex))
+					{
+						AnimationPayloadOptionals[PayloadIndex] = GetAnimationPayloadData(PayloadQueries[PayloadIndex]);
+					}
+				}
+			}, EParallelForFlags::BackgroundPriority);// ParallelFor
+	}
+	else
+	{
+		for (int32 PayloadIndex = 0; PayloadIndex < PayloadCount; ++PayloadIndex)
+		{
+			if (PayloadQueries.IsValidIndex(PayloadIndex))
+			{
+				AnimationPayloadOptionals[PayloadIndex] = GetAnimationPayloadData(PayloadQueries[PayloadIndex]);
+			}
+		}
+	}
+
+	TArray<UE::Interchange::FAnimationPayloadData> AnimationPayloads;
+	for (TOptional<UE::Interchange::FAnimationPayloadData>& OptionalPayloadData : AnimationPayloadOptionals)
+	{
+		if (!OptionalPayloadData.IsSet())
+		{
+			continue;
+		}
+		AnimationPayloads.Add(OptionalPayloadData.GetValue());
+	}
+
+	return AnimationPayloads;
 }
 
 void UInterchangeGLTFTranslator::SetTextureSRGB(UInterchangeBaseNodeContainer& NodeContainer, const GLTF::FTextureMap& TextureMap, bool bSRGB) const
@@ -900,17 +1008,24 @@ void UInterchangeGLTFTranslator::SetTextureSRGB(UInterchangeBaseNodeContainer& N
 		const FString TextureUid = UInterchangeTextureNode::MakeNodeUid(GltfAsset.Textures[TextureMap.TextureIndex].UniqueId);
 		if (UInterchangeTextureNode* TextureNode = const_cast<UInterchangeTextureNode*>(Cast<UInterchangeTextureNode>(NodeContainer.GetNode(TextureUid))))
 		{
+			bool bExistingSRGBSetting;
+			if (TextureNode->GetCustomSRGB(bExistingSRGBSetting))
+			{
+				if (bExistingSRGBSetting != bSRGB)
+				{
+					UE_LOG(LogInterchangeImport, Warning, TEXT("UInterchangeGLTFPipeline: Unexpected SRGB/Linear setting on Texture: %s."), *TextureNode->GetDisplayLabel());
+				}
+			}
 			TextureNode->SetCustomSRGB(bSRGB);
 		}
 	}
 }
 
-TFuture<TOptional<UE::Interchange::FVariantSetPayloadData>> UInterchangeGLTFTranslator::GetVariantSetPayloadData(const FString& PayloadKey) const
+TOptional<UE::Interchange::FVariantSetPayloadData> UInterchangeGLTFTranslator::GetVariantSetPayloadData(const FString& PayloadKey) const
 {
 	using namespace UE::Interchange;
 
-	TPromise<TOptional<FVariantSetPayloadData>> EmptyPromise;
-	EmptyPromise.SetValue(TOptional<FVariantSetPayloadData>());
+	TOptional<FVariantSetPayloadData> Result;
 
 	TArray<FString> PayloadTokens;
 
@@ -918,7 +1033,7 @@ TFuture<TOptional<UE::Interchange::FVariantSetPayloadData>> UInterchangeGLTFTran
 	if (GltfAsset.Variants.Num() + 1 != PayloadKey.ParseIntoArray(PayloadTokens, TEXT(";")))
 	{
 		// Invalid payload
-		return EmptyPromise.GetFuture();
+		return Result;
 	}
 
 	//FString PayloadKey = FileName;
@@ -927,23 +1042,17 @@ TFuture<TOptional<UE::Interchange::FVariantSetPayloadData>> UInterchangeGLTFTran
 		if (PayloadTokens[Index + 1] != GltfAsset.Variants[Index])
 		{
 			// Invalid payload
-			return EmptyPromise.GetFuture();
+			return Result;
 		}
 	}
 
-	return Async(EAsyncExecution::TaskGraph, [this]
-			{
-				FVariantSetPayloadData PayloadData;
-				TOptional<FVariantSetPayloadData> Result;
+	FVariantSetPayloadData PayloadData;
+	if (this->GetVariantSetPayloadData(PayloadData))
+	{
+		Result = MoveTemp(PayloadData);
+	}
 
-				if (this->GetVariantSetPayloadData(PayloadData))
-				{
-					Result.Emplace(MoveTemp(PayloadData));
-				}
-
-				return Result;
-			}
-		);
+	return Result;
 }
 
 void UInterchangeGLTFTranslator::HandleGltfVariants(UInterchangeBaseNodeContainer& NodeContainer, const FString& FileName) const
@@ -1123,45 +1232,39 @@ bool UInterchangeGLTFTranslator::GetVariantSetPayloadData(UE::Interchange::FVari
 	return true;
 }
 
-TFuture< TOptional< UE::Interchange::FMeshPayloadData > > UInterchangeGLTFTranslator::GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const
+TOptional< UE::Interchange::FMeshPayloadData > UInterchangeGLTFTranslator::GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const
 {
-	return Async(EAsyncExecution::TaskGraph, [this, PayLoadKey, MeshGlobalTransform]
+	UE::Interchange::FMeshPayloadData MeshPayloadData;
+	bool bSuccessfullAcquisition = false;
+
+	switch (PayLoadKey.Type)
+	{
+	case EInterchangeMeshPayLoadType::STATIC:
+		bSuccessfullAcquisition = UE::Interchange::Gltf::Private::GetStaticMeshPayloadDataForPayLoadKey(GltfAsset, PayLoadKey.UniqueId, MeshGlobalTransform, MeshPayloadData.MeshDescription);
+		break;
+	case EInterchangeMeshPayLoadType::SKELETAL:
+		bSuccessfullAcquisition = UE::Interchange::Gltf::Private::GetSkeletalMeshDescriptionForPayLoadKey(GltfAsset, PayLoadKey.UniqueId, MeshGlobalTransform, MeshPayloadData.MeshDescription, &MeshPayloadData.JointNames);
+		break;
+	case EInterchangeMeshPayLoadType::MORPHTARGET:
+		//GLTF handles morph targets as simple Meshes
+		bSuccessfullAcquisition = UE::Interchange::Gltf::Private::GetStaticMeshPayloadDataForPayLoadKey(GltfAsset, PayLoadKey.UniqueId, MeshGlobalTransform, MeshPayloadData.MeshDescription);
+		break;
+	case EInterchangeMeshPayLoadType::NONE:
+	default:
+		break;
+	}
+
+	if (bSuccessfullAcquisition)
+	{
+		if (!FStaticMeshOperations::ValidateAndFixData(MeshPayloadData.MeshDescription, PayLoadKey.UniqueId))
 		{
-			UE::Interchange::FMeshPayloadData MeshPayLoadData;
-			bool bSuccessfullAcquisition = false;
-
-			switch (PayLoadKey.Type)
-			{
-			case EInterchangeMeshPayLoadType::STATIC:
-				bSuccessfullAcquisition = UE::Interchange::Gltf::Private::GetStaticMeshPayloadDataForPayLoadKey(GltfAsset, PayLoadKey.UniqueId, MeshGlobalTransform, MeshPayLoadData.MeshDescription);
-				break;
-			case EInterchangeMeshPayLoadType::SKELETAL:
-				bSuccessfullAcquisition = UE::Interchange::Gltf::Private::GetSkeletalMeshDescriptionForPayLoadKey(GltfAsset, PayLoadKey.UniqueId, MeshGlobalTransform, MeshPayLoadData.MeshDescription, &MeshPayLoadData.JointNames);
-				break;
-			case EInterchangeMeshPayLoadType::MORPHTARGET:
-				//GLTF handles morph targets as simple Meshes
-				bSuccessfullAcquisition = UE::Interchange::Gltf::Private::GetStaticMeshPayloadDataForPayLoadKey(GltfAsset, PayLoadKey.UniqueId, MeshGlobalTransform, MeshPayLoadData.MeshDescription);
-				break;
-			case EInterchangeMeshPayLoadType::NONE:
-			default:
-				break;
-			}
-
-			TOptional<UE::Interchange::FMeshPayloadData> Result;
-			if (bSuccessfullAcquisition)
-			{
-				if (!FStaticMeshOperations::ValidateAndFixData(MeshPayLoadData.MeshDescription, PayLoadKey.UniqueId))
-				{
-					UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
-					ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
-					ErrorResult->Text = NSLOCTEXT("UInterchangeGLTFTranslator", "GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and changed to zero. This may affect the mesh rendering.");
-				}
-
-				Result.Emplace(MeshPayLoadData);
-			}
-
-			return Result;
-		});
+			UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
+			ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
+			ErrorResult->Text = LOCTEXT("GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and changed to zero. This may affect the mesh rendering.");
+		}
+		return MeshPayloadData;
+	}
+	return TOptional<UE::Interchange::FMeshPayloadData>();
 }
 
 void UInterchangeGLTFTranslator::HandleGltfSkeletons(UInterchangeBaseNodeContainer& NodeContainer, const FString& SceneNodeUid, const TArray<int32>& SkinnedMeshNodes, TSet<int>& UnusedMeshIndices) const
@@ -1224,6 +1327,7 @@ void UInterchangeGLTFTranslator::HandleGltfSkeletons(UInterchangeBaseNodeContain
 				SkeletalMeshNode->SetSkeletonDependencyUid(*SkeletonNodeUid);
 			}
 
+			TSet<int32> SkinIndices;
 			//generate payload key:
 			//of template:
 			//"LexToString(SkinnedMeshNode.MeshIndex | (SkinnedMeshNode.Skindex << 16))":"LexToString(SkinnedMeshNode.MeshIndex | (SkinnedMeshNode.Skindex << 16))".....
@@ -1237,8 +1341,21 @@ void UInterchangeGLTFTranslator::HandleGltfSkeletons(UInterchangeBaseNodeContain
 				}
 				
 				Payload += LexToString(SkinnedMeshNode.MeshIndex | (SkinnedMeshNode.Skindex << 16));
+				SkinIndices.Add(SkinnedMeshNode.Skindex);
 			}
 			SkeletalMeshNode->SetPayLoadKey(Payload, EInterchangeMeshPayLoadType::SKELETAL);
+
+			for (const int32& SkinIndex : SkinIndices)
+			{
+				if (GltfAsset.Skins.IsValidIndex(SkinIndex))
+				{
+					const FString Prefix = GltfAsset.Skins[SkinIndex].Name + TEXT("_");
+					for (const TPair<FString, FString>& Extra : GltfAsset.Skins[SkinIndex].Extras)
+					{
+						UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(SkeletalMeshNode, Prefix + Extra.Key, Extra.Value, TOptional<FString>());
+					}
+				}
+			}
 
 			//set the mesh actor node's custom asset instance uid to the new duplicated mesh
 			//if there are more than one skins, then choose the topmost (root node of the collection, top most in a hierarchical tree term) occurance of SkinnedMeshIndex
@@ -1284,6 +1401,22 @@ UInterchangeMeshNode* UInterchangeGLTFTranslator::HandleGltfMesh(UInterchangeBas
 	//Create Mesh Node:
 	UInterchangeMeshNode* MeshNode = NewObject< UInterchangeMeshNode >(&NodeContainer);
 	MeshNode->InitializeNode(MeshNodeUid, MeshName, EInterchangeNodeContainerType::TranslatedAsset);
+
+	int32 PrimitiveIndex = 0;
+	for (const GLTF::FPrimitive& Primitive : GltfMesh.Primitives)
+	{
+		FString Prefix = TEXT("Primitive[") + FString::FromInt(PrimitiveIndex) + TEXT("]_");
+		for (const TPair<FString, FString>& Extra : Primitive.Extras)
+		{
+			UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(MeshNode, Prefix + Extra.Key, Extra.Value, TOptional<FString>());
+		}
+
+		PrimitiveIndex++;
+	}
+	for (const TPair<FString, FString>& Extra : GltfMesh.Extras)
+	{
+		UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(MeshNode, Extra.Key, Extra.Value, TOptional<FString>());
+	}
 
 	//Generate Mesh Payload:
 	FString PayloadKey = LexToString(MeshIndex);

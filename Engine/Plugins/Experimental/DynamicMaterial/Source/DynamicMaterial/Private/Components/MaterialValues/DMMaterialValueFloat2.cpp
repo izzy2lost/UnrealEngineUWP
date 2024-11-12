@@ -4,6 +4,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 
 #if WITH_EDITOR
+#include "Components/MaterialValuesDynamic/DMMaterialValueFloat2Dynamic.h"
 #include "DMDefs.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
@@ -11,6 +12,7 @@
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Model/IDMMaterialBuildStateInterface.h"
 #include "Model/IDMMaterialBuildUtilsInterface.h"
+#include "Utils/DMUtils.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "DMMaterialValueFloat2"
@@ -37,7 +39,12 @@ void UDMMaterialValueFloat2::GenerateExpression(const TSharedRef<IDMMaterialBuil
 		return;
 	}
  
-	UMaterialExpressionVectorParameter* ValueExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionVectorParameter>(GetMaterialParameterName(), UE_DM_NodeComment_Default);
+	UMaterialExpressionVectorParameter* ValueExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionVectorParameter>(
+		GetMaterialParameterName(),
+		GetParameterGroup(),
+		UE_DM_NodeComment_Default
+	);
+
 	check(ValueExpression);
  
 	ValueExpression->DefaultValue = FLinearColor(Value.X, Value.Y, 0, 0);
@@ -64,7 +71,43 @@ void UDMMaterialValueFloat2::ResetDefaultValue()
 	DefaultValue = FVector2D::ZeroVector;
 }
 
-void UDMMaterialValueFloat2::SetDefaultValue(FVector2D InDefaultValue)
+UDMMaterialValueDynamic* UDMMaterialValueFloat2::ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic)
+{
+	UDMMaterialValueFloat2Dynamic* ValueDynamic = UDMMaterialValueDynamic::CreateValueDynamic<UDMMaterialValueFloat2Dynamic>(InMaterialModelDynamic, this);
+	ValueDynamic->SetValue(Value);
+
+	return ValueDynamic;
+}
+
+FString UDMMaterialValueFloat2::GetComponentPathComponent() const
+{
+	return TEXT("Vector2D");
+}
+
+FText UDMMaterialValueFloat2::GetComponentDescription() const
+{
+	return LOCTEXT("Vector2", "Vector 2");
+}
+
+TSharedPtr<FJsonValue> UDMMaterialValueFloat2::JsonSerialize() const
+{
+	return FDMJsonUtils::Serialize(Value);
+}
+
+bool UDMMaterialValueFloat2::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	FVector2D ValueJson;
+
+	if (FDMJsonUtils::Deserialize(InJsonValue, ValueJson))
+	{
+		SetValue(ValueJson);
+		return true;
+	}
+
+	return false;
+}
+
+void UDMMaterialValueFloat2::SetDefaultValue(const FVector2D& InDefaultValue)
 {
 	DefaultValue = InDefaultValue;
 }
@@ -93,7 +136,7 @@ void UDMMaterialValueFloat2::SetValue(const FVector2D& InValue)
  
 	Value = ValueClamped;
  
-	OnValueUpdated(/* bForceStructureUpdate */ false);
+	OnValueChanged(EDMUpdateType::Value | EDMUpdateType::AllowParentUpdate);
 }
  
 #if WITH_EDITOR

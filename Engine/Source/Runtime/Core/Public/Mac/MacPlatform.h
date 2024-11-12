@@ -84,6 +84,12 @@ typedef FMacPlatformTypes FPlatformTypes;
  
 #define PLATFORM_ENABLE_POPCNT_INTRINSIC				1
 
+// Ensure we can use this builtin - seems to be present on Clang 9, GCC 11 and MSVC 19.26,
+// but gives spurious "non-void function 'BitCast' should return a value" errors on some
+// Mac and Android toolchains when building PCHs, so avoid those.
+#undef PLATFORM_COMPILER_SUPPORTS_BUILTIN_BITCAST
+#define PLATFORM_COMPILER_SUPPORTS_BUILTIN_BITCAST (__clang_major__ >= 13)
+
 #define PLATFORM_GLOBAL_LOG_CATEGORY					LogMac
 
 #if WITH_EDITOR
@@ -114,6 +120,13 @@ typedef FMacPlatformTypes FPlatformTypes;
 
 #define ABSTRACT abstract
 
+// We can use pragma optimisation's on and off as of Apple LLVM 7.3.0 but not before.
+#if (__clang_major__ > 7) || (__clang_major__ == 7 && __clang_minor__ >= 3)
+#define PRAGMA_DISABLE_OPTIMIZATION_ACTUAL _Pragma("clang optimize off")
+#define PRAGMA_ENABLE_OPTIMIZATION_ACTUAL  _Pragma("clang optimize on")
+#endif
+
+// Strings.
 // Alignment.
 #define GCC_PACK(n) __attribute__((packed,aligned(n)))
 #define GCC_ALIGN(n) __attribute__((aligned(n)))

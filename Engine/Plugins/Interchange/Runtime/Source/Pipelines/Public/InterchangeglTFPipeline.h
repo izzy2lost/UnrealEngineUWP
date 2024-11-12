@@ -16,7 +16,7 @@ class UInterchangeBaseNodeContainer;
 class UInterchangeMaterialInstanceFactoryNode;
 class UInterchangeShaderGraphNode;
 
-UCLASS(config = Interchange, meta = (DisplayName = "Interchange glTF", ToolTip = "Interchange settings for glTF conversions."))
+UCLASS(config = Interchange, meta = (DisplayName = "glTF Settings", ToolTip = "Interchange settings for glTF conversions."))
 class INTERCHANGEPIPELINES_API UGLTFPipelineSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
@@ -51,10 +51,15 @@ class INTERCHANGEPIPELINES_API UInterchangeGLTFPipeline : public UInterchangePip
 	UInterchangeGLTFPipeline();
 
 public:
+	
+	/** The name of the pipeline that will be display in the import dialog. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common", meta = (StandAlonePipelineProperty = "True", PipelineInternalEditionData = "True"))
+	FString PipelineDisplayName;
+
 	TObjectPtr<UGLTFPipelineSettings> GLTFPipelineSettings;
 
 protected:
-	virtual void AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset) override;
+	virtual void AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams) override;
 	virtual void ExecutePipeline(UInterchangeBaseNodeContainer* BaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas, const FString& ContentBasePath) override;
 
 	virtual bool CanExecuteOnAnyThread(EInterchangePipelineTask PipelineTask) override

@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================================
-	ClangPlatformAtomics.h: Apple platform Atomics functions
+	ClangPlatformAtomics.h: Clang Atomics functions
 ==============================================================================================*/
 
 #pragma once
+
+#ifdef __clang__
 
 #include "GenericPlatform/GenericPlatformAtomics.h"
 #include "CoreTypes.h"
@@ -265,12 +267,6 @@ struct FClangPlatformAtomics : public FGenericPlatformAtomics
 		__atomic_store_n((volatile int64*)Src, Val, __ATOMIC_RELAXED);
 	}
 
-	UE_DEPRECATED(4.19, "AtomicRead64 has been deprecated, please use AtomicRead's overload instead")
-	static FORCEINLINE int64 AtomicRead64(volatile const int64* Src)
-	{
-		return InterlockedCompareExchange((volatile int64*)Src, 0, 0);
-	}
-
 	static FORCEINLINE void* InterlockedCompareExchangePointer(void*volatile* Dest, void* Exchange, void* Comparand)
 	{
 		__atomic_compare_exchange_n(Dest, &Comparand, Exchange, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
@@ -304,3 +300,5 @@ struct FClangPlatformAtomics : public FGenericPlatformAtomics
 		return !!PLATFORM_HAS_128BIT_ATOMICS;
 	}
 };
+
+#endif

@@ -393,7 +393,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		/// <param name="Configs"></param>
 		/// <param name="OutEntries"></param>
-		public static void WriteConfigFileEntries(List<InstalledPlatformConfiguration> Configs, ref List<String> OutEntries)
+		public static void WriteConfigFileEntries(List<InstalledPlatformConfiguration> Configs, ref List<string> OutEntries)
 		{
 			// Write config section header
 			OutEntries.Add("[InstalledPlatforms]");
@@ -405,7 +405,7 @@ namespace UnrealBuildTool
 			}
 		}
 
-		private static void WriteConfigFileEntry(InstalledPlatformConfiguration Config, ref List<String> OutEntries)
+		private static void WriteConfigFileEntry(InstalledPlatformConfiguration Config, ref List<string> OutEntries)
 		{
 			string ConfigDescription = "+InstalledPlatformConfigurations=(";
 			ConfigDescription += String.Format("PlatformName=\"{0}\", ", Config.Platform.ToString());

@@ -14,6 +14,7 @@ class FUICommandList;
 class IClassViewerFilter;
 class FDetailsViewStyleKey;
 class FDetailsViewStyleKeys;
+class FPropertyNode;
 
 enum class EEditDefaultsOnlyNodeVisibility : uint8
 {
@@ -114,6 +115,12 @@ struct FDetailsViewArgs
 	bool bShowCustomFilterOption : 1;
 	/** True if the section selector should be shown. */
 	bool bShowSectionSelector : 1;
+	/** If true, loose properties should be shown. */
+	bool bShowLooseProperties : 1;
+
+	/** Delegate that determines whether a property should be forced hidden - evaluated on panel refresh */
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FShouldForceHideProperty, const TSharedRef<FPropertyNode>&);
+	FShouldForceHideProperty ShouldForceHideProperty;
 
 public:
 
@@ -147,6 +154,7 @@ public:
 		, bShowAnimatedPropertiesOption(true)
 		, bShowCustomFilterOption(false)
 		, bShowSectionSelector(false)
+		, bShowLooseProperties(false)
 	{
 	}
 

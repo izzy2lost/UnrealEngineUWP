@@ -2,8 +2,8 @@
 
 #include "USDStageImportOptionsCustomization.h"
 
+#include "USDMaterialUtils.h"
 #include "USDProjectSettings.h"
-#include "USDSchemasModule.h"
 #include "USDSchemaTranslator.h"
 #include "USDStageImportOptions.h"
 
@@ -56,16 +56,14 @@ void FUsdStageImportOptionsCustomization::CustomizeDetails(IDetailLayoutBuilder&
 		DetailLayoutBuilder.HideProperty(PrimsToImportProperty);
 	}
 
-	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
-
 	RenderContextComboBoxItems.Reset();
 	TSharedPtr<FString> InitiallySelectedContext;
-	for (const FName& Context : UsdSchemasModule.GetRenderContextRegistry().GetRenderContexts())
+	for (const FName& Context : UsdUnreal::MaterialUtils::GetRegisteredRenderContexts())
 	{
 		TSharedPtr<FString> ContextStr;
-		if (Context == NAME_None)
+		if (Context == UnrealIdentifiers::UniversalRenderContext)
 		{
-			ContextStr = MakeShared<FString>(TEXT("universal"));
+			ContextStr = MakeShared<FString>(UnrealIdentifiers::UniversalRenderContextDisplayString);
 		}
 		else
 		{
@@ -276,7 +274,8 @@ void FUsdStageImportOptionsCustomization::OnComboBoxSelectionChanged(TSharedPtr<
 		return;
 	}
 
-	FName NewContextName = (*NewContext) == TEXT("universal") ? NAME_None : FName(**NewContext);
+	FName NewContextName = (*NewContext) == UnrealIdentifiers::UniversalRenderContextDisplayString ? UnrealIdentifiers::UniversalRenderContext
+																								   : FName(**NewContext);
 
 	CurrentOptions->RenderContextToImport = NewContextName;
 }

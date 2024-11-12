@@ -548,6 +548,22 @@ void FChaosEngineInterface::SetMACDEnabled_AssumesLocked(const FPhysicsActorHand
 	InActorReference->GetGameThreadAPI().SetMACDEnabled(bIsMACDEnabled);
 }
 
+void FChaosEngineInterface::SetPositionSolverIterationCount_AssumesLocked(const FPhysicsActorHandle& InActorReference, uint8 PositionSolverIterationCount)
+{
+	InActorReference->GetGameThreadAPI().SetPositionSolverIterationCount(PositionSolverIterationCount);
+}
+
+void FChaosEngineInterface::SetVelocitySolverIterationCount_AssumesLocked(const FPhysicsActorHandle& InActorReference, uint8 VelocitySolverIterationCount)
+{
+	InActorReference->GetGameThreadAPI().SetVelocitySolverIterationCount(VelocitySolverIterationCount);
+}
+
+void FChaosEngineInterface::SetProjectionSolverIterationCount_AssumesLocked(const FPhysicsActorHandle& InActorReference, uint8 ProjectionSolverIterationCount)
+{
+	InActorReference->GetGameThreadAPI().SetProjectionSolverIterationCount(ProjectionSolverIterationCount);
+}
+
+
 void FChaosEngineInterface::SetIgnoreAnalyticCollisions_AssumesLocked(const FPhysicsActorHandle& InActorReference,bool bIgnoreAnalyticCollisions)
 {
 	InActorReference->GetGameThreadAPI().SetIgnoreAnalyticCollisions(bIgnoreAnalyticCollisions);
@@ -759,6 +775,22 @@ FBox FChaosEngineInterface::GetBounds_AssumesLocked(const FPhysicsActorHandle& I
 			const FRigidTransform3 WorldTM(InTransform);
 			const FAABB3 WorldBounds = LocalBounds.TransformedAABB(WorldTM);
 			return FBox(WorldBounds.Min(), WorldBounds.Max());
+		}
+	}
+
+	return FBox(EForceInit::ForceInitToZero);
+}
+
+FBox FChaosEngineInterface::GetBoundsLocal_AssumesLocked(const FPhysicsActorHandle& InActorReference)
+{
+	using namespace Chaos;
+	const Chaos::FRigidBodyHandle_External& Body_External = InActorReference->GetGameThreadAPI();
+	if (const FImplicitObjectRef Geometry = Body_External.GetGeometry())
+	{
+		if (Geometry->HasBoundingBox())
+		{
+			const FAABB3 LocalBounds = Geometry->BoundingBox();
+			return FBox(LocalBounds.Min(), LocalBounds.Max());
 		}
 	}
 
@@ -1148,6 +1180,16 @@ void FChaosEngineInterface::SetGravityEnabled_AssumesLocked(const FPhysicsActorH
 	InActorReference->GetGameThreadAPI().SetGravityEnabled(bEnabled);
 }
 
+PHYSICSCORE_API int32 FChaosEngineInterface::GetGravityGroupIndex_AssumesLocked(const FPhysicsActorHandle& InActorReference)
+{
+	return InActorReference->GetGameThreadAPI().GravityGroupIndex();
+}
+
+void FChaosEngineInterface::SetGravityGroupIndex_AssumesLocked(const FPhysicsActorHandle& InActorReference, uint32 Index)
+{
+	InActorReference->GetGameThreadAPI().SetGravityGroupIndex(Index);
+}
+
 bool FChaosEngineInterface::GetUpdateKinematicFromSimulation_AssumesLocked(const FPhysicsActorHandle& InActorReference)
 {
 	return InActorReference->GetGameThreadAPI().UpdateKinematicFromSimulation();
@@ -1240,27 +1282,24 @@ void FChaosEngineInterface::SetStabilizationEnergyThreshold_AssumesLocked(const 
 	// #todo : Implement
 }
 
-uint32 FChaosEngineInterface::GetSolverPositionIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle)
-{
-	// #todo : Implement
-	return 0;
-}
-
 void FChaosEngineInterface::SetSolverPositionIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle,uint32 InSolverIterationCount)
 {
-	// #todo : Implement
+	Chaos::FRigidBodyHandle_External& Body_External = InHandle->GetGameThreadAPI();
+	Body_External.SetPositionSolverIterationCount(InSolverIterationCount);
 }
 
-uint32 FChaosEngineInterface::GetSolverVelocityIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle)
+void FChaosEngineInterface::SetSolverVelocityIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle, uint32 InSolverIterationCount)
 {
-	// #todo : Implement
-	return 0;
+	Chaos::FRigidBodyHandle_External& Body_External = InHandle->GetGameThreadAPI();
+	Body_External.SetVelocitySolverIterationCount(InSolverIterationCount);
 }
 
-void FChaosEngineInterface::SetSolverVelocityIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle,uint32 InSolverIterationCount)
+void FChaosEngineInterface::SetSolverProjectionIterationCount_AssumesLocked(const FPhysicsActorHandle& InHandle, uint32 InSolverIterationCount)
 {
-	// #todo : Implement
+	Chaos::FRigidBodyHandle_External& Body_External = InHandle->GetGameThreadAPI();
+	Body_External.SetProjectionSolverIterationCount(InSolverIterationCount);
 }
+
 
 float FChaosEngineInterface::GetWakeCounter_AssumesLocked(const FPhysicsActorHandle& InHandle)
 {
@@ -1518,14 +1557,14 @@ FTransform FChaosEngineInterface::GetGlobalPose(const FPhysicsConstraintHandle& 
 			{
 				if (Chaos::FGeometryParticle* Particle = GetParticleFromProxy(BasePairs[0]))
 				{
-					return FTransform(Particle->R(), Particle->X()) * M[0];
+					return M[0] * FTransform(Particle->R(), Particle->X());
 				}
 			}
 			else if (InFrame == EConstraintFrame::Frame2)
 			{
 				if (Chaos::FGeometryParticle* Particle = GetParticleFromProxy(BasePairs[1]))
 				{
-					return FTransform(Particle->R(), Particle->X()) * M[1];
+					return M[1] * FTransform(Particle->R(), Particle->X());
 				}
 			}
 		}
@@ -1587,19 +1626,26 @@ void FChaosEngineInterface::GetDriveAngularVelocity(const FPhysicsConstraintHand
 	}
 }
 
+FTransform GetConstraintBodiesRelativeTransform(const FPhysicsConstraintHandle& InConstraintRef)
+{
+	const FTransform ChildTransform = FChaosEngineInterface::GetGlobalPose(InConstraintRef, EConstraintFrame::Frame1);
+	const FTransform ParentTransform = FChaosEngineInterface::GetGlobalPose(InConstraintRef, EConstraintFrame::Frame2);
+	return ChildTransform.GetRelativeTransform(ParentTransform);
+}
+
 float FChaosEngineInterface::GetCurrentSwing1(const FPhysicsConstraintHandle& InConstraintRef)
 {
-	return GetLocalPose(InConstraintRef,EConstraintFrame::Frame2).GetRotation().Euler().X;
+	return GetConstraintBodiesRelativeTransform(InConstraintRef).GetRotation().GetTwistAngle(Chaos::FJointConstants::Swing1Axis());
 }
 
 float FChaosEngineInterface::GetCurrentSwing2(const FPhysicsConstraintHandle& InConstraintRef)
 {
-	return GetLocalPose(InConstraintRef,EConstraintFrame::Frame2).GetRotation().Euler().Y;
+	return GetConstraintBodiesRelativeTransform(InConstraintRef).GetRotation().GetTwistAngle(Chaos::FJointConstants::Swing2Axis());
 }
 
 float FChaosEngineInterface::GetCurrentTwist(const FPhysicsConstraintHandle& InConstraintRef)
 {
-	return GetLocalPose(InConstraintRef,EConstraintFrame::Frame2).GetRotation().Euler().Z;
+	return GetConstraintBodiesRelativeTransform(InConstraintRef).GetRotation().GetTwistAngle(Chaos::FJointConstants::TwistAxis());
 }
 
 void FChaosEngineInterface::SetCanVisualize(const FPhysicsConstraintHandle& InConstraintRef,bool bInCanVisualize)
@@ -1681,6 +1727,18 @@ void FChaosEngineInterface::SetBreakForces_AssumesLocked(const FPhysicsConstrain
 		{
 			Constraint->SetLinearBreakForce(InLinearBreakForce);
 			Constraint->SetAngularBreakTorque(InAngularBreakTorque);
+		}
+	}
+}
+
+void FChaosEngineInterface::SetViolationCallbackThresholds_AssumesLocked(const FPhysicsConstraintHandle& InConstraintRef,float InLinearViolationCallbackThreshold,float InAngularViolationCallbackThreshold)
+{
+	if (InConstraintRef.IsValid() && InConstraintRef.Constraint->IsType(Chaos::EConstraintType::JointConstraintType))
+	{
+		if (Chaos::FJointConstraint* Constraint = static_cast<Chaos::FJointConstraint*>(InConstraintRef.Constraint))
+		{
+			Constraint->SetLinearViolationCallbackThreshold(InLinearViolationCallbackThreshold);
+			Constraint->SetAngularViolationCallbackThreshold(InAngularViolationCallbackThreshold);
 		}
 	}
 }

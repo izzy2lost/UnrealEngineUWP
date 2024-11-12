@@ -38,6 +38,7 @@ public:
 	virtual FText GetBaseToolkitName() const override;
 	virtual FString GetWorldCentricTabPrefix() const override;
 	virtual void SaveAsset_Execute() override;
+	virtual void OnAssetsSavedAs(const TArray<UObject*>& SavedObjects) override;
 	virtual void OnClose() override;
 	//~ End FAssetEditorToolkit interface
 
@@ -53,14 +54,41 @@ private:
 	TSharedRef<SDockTab> SpawnTab_RenderGraphDetails(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_RenderGraphActiveRenderSettings(const FSpawnTabArgs& Args);
 
+	/** Register sections used by the graph's details panel. */
+	void RegisterDetailsViewSections();
+
 	/** Register commands used by the editor. */
 	void BindGraphCommands();
+
+	/** Adds additional commands to the toolkit's menu. */
+	void ExtendToolkitMenu() const;
 
 	/** Deletes the member(s) which are currently selected. */
 	void DeleteSelectedMembers();
 
 	/** Determines if the selected member(s) can be deleted. */
 	bool CanDeleteSelectedMembers();
+
+	/** Duplicates the member(s) which are currently selected. */
+	void DuplicateSelectedMembers();
+
+	/** Determines if the selected member(s) can be duplicated. */
+	bool CanDuplicateSelectedMembers();
+
+	/** Determines if the Duplicate action is visible for the selected members. */
+	bool IsDuplicateVisible();
+
+	/** Frames the entire graph so it is visible. */
+	void OnZoomToWindow() const;
+
+	/** Determines if the entire graph can be framed. */
+	bool CanZoomToWindow() const;
+
+	/** Frames the selected node(s) so they are visible. */
+	void OnZoomToSelection() const;
+
+	/** Determines if the selected node(s) can be framed. */
+	bool CanZoomToSelection() const;
 
 	/** Copies editor-only nodes to the underlying runtime graph so they can be restored later. */
 	void PersistEditorOnlyNodes() const;

@@ -24,6 +24,12 @@ void MainPS
 		FMeshDecalInterpolants MeshDecalInterpolants,
 #endif
 
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW // Mobile multi view fallback path
+		in nointerpolation uint EyeIndex : VIEW_ID,
+#elif MOBILE_MULTI_VIEW
+		in nointerpolation uint ViewId : SV_ViewID,
+#endif
+
 		in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position		// after all interpolators
 
 		OPTIONAL_IsFrontFace
@@ -52,7 +58,9 @@ void MainPS
 		, out float4 OutTarget3 : SV_Target3
 #endif
 
-#if SUBSTRATE_OPAQUE_DEFERRED
+#define SUBSTRATE_OUTPUT_GBUFFER  (SUBSTRATE_OPAQUE_DEFERRED && !MATERIAL_IS_SKY)
+
+#if SUBSTRATE_OUTPUT_GBUFFER
 #if SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT != 3
 #error Substrate SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT has been updated but not the uint MRTs
 #endif
@@ -80,7 +88,7 @@ void MainPS
 		, out uint SubstrateOutput3 : SV_Target3
 		, out SUBSTRATE_TOP_LAYER_TYPE SubstrateOutput4 : SV_Target4
 #endif
-#else // SUBSTRATE_OPAQUE_DEFERRED
+#else // SUBSTRATE_OUTPUT_GBUFFER
 
 #if PIXELSHADEROUTPUT_MRT4
 		, out float4 OutTarget4 : SV_Target4
@@ -98,7 +106,7 @@ void MainPS
 		, out float4 OutTarget7 : SV_Target7
 #endif
 
-#endif // SUBSTRATE_OPAQUE_DEFERRED
+#endif // SUBSTRATE_OUTPUT_GBUFFER
 
 		// todo: if we are not inside a volumetric decal we could use OPTIONAL_OutDepthConservative for better performance, this would require a shader permutation
 		OPTIONAL_OutDepthConservative
@@ -137,14 +145,21 @@ void MainPS
 	PixelShaderIn.SvPosition = SvPosition;
 	PixelShaderIn.bIsFrontFace = bIsFrontFace;
 
+uint ArrayIndex = 0;
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW // Mobile multi view fallback path
+	ArrayIndex = EyeIndex;
+#elif MOBILE_MULTI_VIEW
+	ArrayIndex = ViewId;
+#endif
+
 #if PIXELSHADEROUTPUT_BASEPASS
 	FPixelShaderInOut_MainPS(Interpolants, BasePassInterpolants, PixelShaderIn, PixelShaderOut);
 #elif PIXELSHADEROUTPUT_MESHDECALPASS
-	FPixelShaderInOut_MainPS(Interpolants, MeshDecalInterpolants, PixelShaderIn, PixelShaderOut);
+	FPixelShaderInOut_MainPS(Interpolants, MeshDecalInterpolants, PixelShaderIn, PixelShaderOut, ArrayIndex);
 #elif PIXELSHADEROUTPUT_INTERPOLANTS
 	FPixelShaderInOut_MainPS(Interpolants, PixelShaderIn, PixelShaderOut);
 #else
-	FPixelShaderInOut_MainPS(PixelShaderIn, PixelShaderOut);
+	FPixelShaderInOut_MainPS(PixelShaderIn, PixelShaderOut, ArrayIndex);
 #endif
 
 #if PIXELSHADEROUTPUT_MRT0
@@ -163,7 +178,7 @@ void MainPS
 	OutTarget3 = PixelShaderOut.MRT[3];
 #endif
 
-#if SUBSTRATE_OPAQUE_DEFERRED
+#if SUBSTRATE_OUTPUT_GBUFFER
 
 	// In this case, here is the gbuffer pattern
 	// MRT0 is pixel color
@@ -193,7 +208,7 @@ void MainPS
 	SubstrateOutput4 = PixelShaderOut.SubstrateTopLayerData;
 #endif
 
-#else // SUBSTRATE_OPAQUE_DEFERRED
+#else // SUBSTRATE_OUTPUT_GBUFFER
 
 #if PIXELSHADEROUTPUT_MRT4
 	OutTarget4 = PixelShaderOut.MRT[4];
@@ -211,7 +226,7 @@ void MainPS
 	OutTarget7 = PixelShaderOut.MRT[7];
 #endif
 
-#endif // SUBSTRATE_OPAQUE_DEFERRED
+#endif // SUBSTRATE_OUTPUT_GBUFFER
 
 #if PIXELSHADEROUTPUT_COVERAGE || PIXELSHADEROUTPUT_A2C
 	OutCoverage = PixelShaderOut.Coverage;

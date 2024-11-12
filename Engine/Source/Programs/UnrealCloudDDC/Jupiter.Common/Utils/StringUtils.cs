@@ -47,7 +47,7 @@ namespace Jupiter
 
 			for (int i = 0; i < hex.Length >> 1; ++i)
 			{
-				arr[i] = (byte) ((StringUtils.GetHexVal(hex[i << 1]) << 4) + StringUtils.GetHexVal(hex[(i << 1) + 1]));
+				arr[i] = (byte)((StringUtils.GetHexVal(hex[i << 1]) << 4) + StringUtils.GetHexVal(hex[(i << 1) + 1]));
 			}
 
 			return arr;

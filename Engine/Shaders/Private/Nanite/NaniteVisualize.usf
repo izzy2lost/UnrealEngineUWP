@@ -8,10 +8,15 @@
 #include "../Visualization.ush"
 #include "../VirtualShadowMaps/VirtualShadowMapPageCacheCommon.ush"
 #include "../SplineMeshCommon.ush"
+#include "../MeshPaintTextureCommon.ush"
+
+#define NUM_VIRTUALTEXTURE_SAMPLES 1
+#include "../VirtualTextureCommon.ush"
 
 #include "NaniteDataDecode.ush"
 #include "NaniteAttributeDecode.ush"
 #include "NaniteCullingCommon.ush"
+#include "NaniteEditorCommon.ush"
 
 RWTexture2D<float4>		DebugOutput;
 
@@ -21,21 +26,18 @@ Texture2D<uint>			DbgBuffer32;
 Texture2D<float>		SceneDepth;
 Texture2D<float>		SceneZDecoded;
 Texture2D<uint4>		SceneZLayout;
-Texture2D<float>		MaterialZDecoded;
-Texture2D<uint4>		MaterialZLayout;
 Texture2D<uint>			ShadingMask;
 Texture2D<uint>			FastClearTileVis;
+Texture2D<float4>		MeshPaintTexture;
 
 StructuredBuffer<FNaniteRasterBinMeta> RasterBinMeta;
 ByteAddressBuffer		ShadingBinData;
-
-ByteAddressBuffer		MaterialDepthTable;
-ByteAddressBuffer		MaterialHitProxyTable;
 
 int4					VisualizeConfig;
 int4					VisualizeScales;
 uint					RegularMaterialRasterBinCount;
 int2					PickingPixelPos;
+uint					MeshPaintTextureCoordinate;
 
 // NOTE: Just hardcoded to ENaniteMeshPass::BasePass as an optimization, as all these shaders are only concerned with base pass materials
 static const uint MeshPassIndex = 0;
@@ -120,6 +122,53 @@ uint GetPixelProgrammableVisMode()
 	);
 }
 
+uint GetMeshPaintingShowMode()
+{
+	return select(
+		GetVisualizeMode() == NANITE_VISUALIZE_VERTEX_COLOR || GetVisualizeMode() == NANITE_VISUALIZE_MESH_PAINT_TEXTURE,
+		VisualizeConfig.y & 0x1,
+		NANITE_MESH_PAINTING_SHOW_ALL
+	);
+}
+
+uint GetMeshPaintingChannelMode()
+{
+	return select(
+		GetVisualizeMode() == NANITE_VISUALIZE_VERTEX_COLOR || GetVisualizeMode() == NANITE_VISUALIZE_MESH_PAINT_TEXTURE,
+		(VisualizeConfig.y >> 1) & 0x7,
+		NANITE_MESH_PAINTING_CHANNELS_RGB
+	);
+}
+
+uint GetMeshPaintingTextureMode()
+{
+	return select(
+		GetVisualizeMode() == NANITE_VISUALIZE_MESH_PAINT_TEXTURE,
+		(VisualizeConfig.y >> 4) & 0x1,
+		NANITE_MESH_PAINTING_TEXTURE_DEFAULT
+	);
+}
+
+float3 ApplyMeshPaintingChannelMode(uint Mode, float4 Color)
+{
+	switch (Mode)
+	{
+	case NANITE_MESH_PAINTING_CHANNELS_R:   return float3(Color.r, 0, 0);
+	case NANITE_MESH_PAINTING_CHANNELS_G:   return float3(0, Color.g, 0);
+	case NANITE_MESH_PAINTING_CHANNELS_B:   return float3(0, 0, Color.b);
+	case NANITE_MESH_PAINTING_CHANNELS_A:   return Color.aaa;
+	case NANITE_MESH_PAINTING_CHANNELS_RGB:	
+	default:                                return Color.rgb;
+	}
+}
+
+// Apply this to color output because we composite the visualization result with post-tone-mapped space.
+// Call this for visualization modes where it matters, but possibly we should do this in all modes.
+float3 LinearToPostTonemapSpace(float3 Color)
+{
+	return LinearToSrgbBranchless(Color);
+}
+
 float GetOverdrawScale()
 {
 	return clamp(float(VisualizeScales.x), 0.0f, 100.0f) / 100.0f;
@@ -201,11 +250,92 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		FPrimitiveSceneData PrimitiveData			= GetPrimitiveData(InstanceData.PrimitiveId);
 		FCluster Cluster							= GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 
+		const bool bIsSkinned = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH) != 0 && Cluster.bSkinning;
+
+		FNaniteSkinningHeader SkinningHeader = (FNaniteSkinningHeader)0;
+		FBoneInfluenceHeader BoneInfluenceHeader = GetBoneInfluenceHeader(Cluster);
+		BRANCH
+		if (bIsSkinned)
+		{
+			SkinningHeader = LoadNaniteSkinningHeader(InstanceData.PrimitiveId);
+		}
+
 		const uint3 TriIndices = DecodeTriangleIndices(Cluster, TriIndex);
 
-		const float3 PointLocal0 = DecodePosition(TriIndices.x, Cluster);
-		const float3 PointLocal1 = DecodePosition(TriIndices.y, Cluster);
-		const float3 PointLocal2 = DecodePosition(TriIndices.z, Cluster);
+		float3 PointLocal0 = DecodePosition(TriIndices.x, Cluster);
+		float3 PointLocal1 = DecodePosition(TriIndices.y, Cluster);
+		float3 PointLocal2 = DecodePosition(TriIndices.z, Cluster);
+
+		FNaniteRawAttributeData RawAttributeData[3];
+		GetRawAttributeData3(RawAttributeData, Cluster, TriIndices, NANITE_MAX_UVS);
+
+		FNaniteTangentBasis TangentBasis0 = MakeTangentBasis(RawAttributeData[0]);
+		FNaniteTangentBasis TangentBasis1 = MakeTangentBasis(RawAttributeData[1]);
+		FNaniteTangentBasis TangentBasis2 = MakeTangentBasis(RawAttributeData[2]);
+
+		BRANCH
+		if (bIsSkinned)
+		{
+			float3 SkinnedPosition[3];
+			SkinnedPosition[0] = float3(0.0f, 0.0f, 0.0f);
+			SkinnedPosition[1] = float3(0.0f, 0.0f, 0.0f);
+			SkinnedPosition[2] = float3(0.0f, 0.0f, 0.0f);
+
+			float3 SkinnedNormal[3];
+			SkinnedNormal[0] = float3(0.0f, 0.0f, 0.0f);
+			SkinnedNormal[1] = float3(0.0f, 0.0f, 0.0f);
+			SkinnedNormal[2] = float3(0.0f, 0.0f, 0.0f);
+
+			float3 SkinnedTangent[3];
+			SkinnedTangent[0] = float3(0.0f, 0.0f, 0.0f);
+			SkinnedTangent[1] = float3(0.0f, 0.0f, 0.0f);
+			SkinnedTangent[2] = float3(0.0f, 0.0f, 0.0f);
+
+			LOOP
+			for (uint InfluenceIndex = 0; InfluenceIndex < BoneInfluenceHeader.NumVertexBoneInfluences; ++InfluenceIndex)
+			{
+				uint BoneIndex0 = 0;
+				float BoneWeight0 = 0.0f;
+				DecodeVertexBoneInfluence(BoneInfluenceHeader, TriIndices.x, InfluenceIndex, BoneIndex0, BoneWeight0);
+
+				uint BoneIndex1 = 0;
+				float BoneWeight1 = 0.0f;
+				DecodeVertexBoneInfluence(BoneInfluenceHeader, TriIndices.y, InfluenceIndex, BoneIndex1, BoneWeight1);
+
+				uint BoneIndex2 = 0;
+				float BoneWeight2 = 0.0f;
+				DecodeVertexBoneInfluence(BoneInfluenceHeader, TriIndices.z, InfluenceIndex, BoneIndex2, BoneWeight2);
+
+				float4x3 CurrentBoneTransform[3];
+				CurrentBoneTransform[0] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex0);
+				CurrentBoneTransform[1] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex1);
+				CurrentBoneTransform[2] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex2);
+
+				SkinnedPosition[0]	+= mul(float4(PointLocal0, 1.0f), CurrentBoneTransform[0]) * BoneWeight0;
+				SkinnedPosition[1]	+= mul(float4(PointLocal1, 1.0f), CurrentBoneTransform[1]) * BoneWeight1;
+				SkinnedPosition[2]	+= mul(float4(PointLocal2, 1.0f), CurrentBoneTransform[2]) * BoneWeight2;
+
+				SkinnedNormal[0]	+= mul((float3x3)CurrentBoneTransform[0], TangentBasis0.TangentZ) * BoneWeight0;
+				SkinnedNormal[1]	+= mul((float3x3)CurrentBoneTransform[1], TangentBasis1.TangentZ) * BoneWeight1;
+				SkinnedNormal[2]	+= mul((float3x3)CurrentBoneTransform[2], TangentBasis2.TangentZ) * BoneWeight2;
+
+				SkinnedTangent[0]	+= mul((float3x3)CurrentBoneTransform[0], TangentBasis0.TangentXAndSign.xyz) * BoneWeight0;
+				SkinnedTangent[1]	+= mul((float3x3)CurrentBoneTransform[1], TangentBasis1.TangentXAndSign.xyz) * BoneWeight1;
+				SkinnedTangent[2]	+= mul((float3x3)CurrentBoneTransform[2], TangentBasis2.TangentXAndSign.xyz) * BoneWeight2;
+			}
+
+			TangentBasis0.TangentZ = SkinnedNormal[0];
+			TangentBasis1.TangentZ = SkinnedNormal[1];
+			TangentBasis2.TangentZ = SkinnedNormal[2];
+
+			TangentBasis0.TangentXAndSign.xyz = SkinnedTangent[0];
+			TangentBasis1.TangentXAndSign.xyz = SkinnedTangent[1];
+			TangentBasis2.TangentXAndSign.xyz = SkinnedTangent[2];
+
+			PointLocal0 = SkinnedPosition[0];
+			PointLocal1 = SkinnedPosition[1];
+			PointLocal2 = SkinnedPosition[2];
+		}
 
 		const float3 PointWorld0 = mul(float4(PointLocal0, 1), InstanceDynamicData.LocalToTranslatedWorld).xyz;
 		const float3 PointWorld1 = mul(float4(PointLocal1, 1), InstanceDynamicData.LocalToTranslatedWorld).xyz;
@@ -220,9 +350,6 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		// Calculate perspective correct barycentric coordinates with screen derivatives
 		const FBarycentrics Barycentrics = CalculateTriangleBarycentrics(PixelClip, PointClip0, PointClip1, PointClip2, View.ViewSizeAndInvSize.zw);
 
-		FNaniteRawAttributeData RawAttributeData[3];
-		GetRawAttributeData3(RawAttributeData, Cluster, TriIndices, NANITE_MAX_UVS);
-
 		const FNaniteAttributeData AttributeData = GetAttributeData(
 			Cluster,
 			PointLocal0,
@@ -231,15 +358,18 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			RawAttributeData[0],
 			RawAttributeData[1],
 			RawAttributeData[2],
+			TangentBasis0,
+			TangentBasis1,
+			TangentBasis2,
 			Barycentrics,
 			InstanceData,
 			NANITE_MAX_UVS
 		);
 
 		const bool bWPOEnabled = (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
-		const bool bSecondaryRasterBin = !bWPOEnabled;
+		const bool bFallbackRaster = (VisibleCluster.Flags & NANITE_CULLING_FLAG_FALLBACK_RASTER) != 0;
 
-		uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bSecondaryRasterBin);
+		uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bFallbackRaster);
 		RasterBin = RemapRasterBin(RasterBin, RenderFlags, MaterialFlags);
 
 		const int HierarchyOffset = InstanceData.NaniteHierarchyOffset;
@@ -326,12 +456,12 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_RASTER_BINS)
 		{
-			Result = IntToColor(RasterBin);
+			Result = IntToColor(RasterBin) * 0.8 + 0.2;
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_SHADING_BINS)
 		{
 			const uint ShadingBin = GetMaterialShadingBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
-			Result = IntToColor(ShadingBin);
+			Result = IntToColor(ShadingBin) * 0.8 + 0.2;
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_HIERARCHY_OFFSET)
 		{
@@ -348,11 +478,6 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		else if (VisualizeMode == NANITE_VISUALIZE_MATERIAL_INDEX)
 		{
 			Result = IntToColor(GetRelativeMaterialIndex(Cluster, TriIndex));
-		}
-		else if (VisualizeMode == NANITE_VISUALIZE_MATERIAL_DEPTH)
-		{
-			const uint MaterialDepthId = GetMaterialDepthId(UnpackedMask.ShadingBin, MaterialDepthTable);
-			Result = IntToColor(MaterialDepthId);
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_SHADING_WRITE_MASK)
 		{
@@ -387,36 +512,6 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		else if (VisualizeMode == NANITE_VISUALIZE_SCENE_Z_DECODED)
 		{
 			const float ZDecoded = SceneZDecoded[PixelPos];
-			Result = float3(pow(ZDecoded, 0.11f), 0.0f, 0.0f);
-			bApplySobel = false;
-		}
-		else if (VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_MIN || VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_MAX || VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_DELTA)// || VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_MASK)
-		{
-			const uint4 ZLayout = MaterialZLayout[PixelPos];
-			float2 MinMax = float2(f16tof32(ZLayout.y), f16tof32(ZLayout.y >> 16u));
-
-			if (VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_MIN)
-			{
-				Result = float3(pow(MinMax.x, 0.11f), 0.0f, 0.0f);
-			}
-			else if (VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_MAX)
-			{
-				Result = float3(pow(MinMax.y, 0.11f), 0.0f, 0.0f);
-			}
-			else if (VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_DELTA)
-			{
-				Result = float3(pow(MinMax.y - MinMax.x, 0.11f), 0.0f, 0.0f);
-			}
-			//else if (VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_MASK)
-			//{
-			//	Result = IntToColor((uint)ZLayout.z);
-			//}
-
-			bApplySobel = false;
-		}
-		else if (VisualizeMode == NANITE_VISUALIZE_MATERIAL_Z_DECODED)
-		{
-			const float ZDecoded = MaterialZDecoded[PixelPos];
 			Result = float3(pow(ZDecoded, 0.11f), 0.0f, 0.0f);
 			bApplySobel = false;
 		}
@@ -474,7 +569,7 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			switch (GetPixelProgrammableVisMode())
 			{
 			case NANITE_PIXEL_PROG_VIS_MODE_DEFAULT:
-				bHighlight = MaterialFlags.bPixelDiscard || MaterialFlags.bPixelDepthOffset || MaterialFlags.bDisplacement;
+				bHighlight = MaterialFlags.bPixelDiscard || MaterialFlags.bPixelDepthOffset;
 				break;
 			case NANITE_PIXEL_PROG_VIS_MODE_MASKED_ONLY:
 				bHighlight = MaterialFlags.bPixelDiscard;
@@ -482,11 +577,16 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			case NANITE_PIXEL_PROG_VIS_MODE_PDO_ONLY:
 				bHighlight = MaterialFlags.bPixelDepthOffset;
 				break;
-			case NANITE_PIXEL_PROG_VIS_MODE_TESS_ONLY:
-				bHighlight = MaterialFlags.bDisplacement;
-				break;
 			default:
 				break;
+			}
+
+			if (bFallbackRaster &&
+				(PrimitiveData.PixelProgrammableDistanceSquared > 0.0f ||
+				 PrimitiveData.MaterialDisplacementFadeOutSize > 0.0f))
+			{
+				// We've disabled pixel programmable for this cluster
+				bHighlight = false;
 			}
 
 			Result = select(bHighlight, float3(1, 0, 0), float3(0.1, 0, 0.3));
@@ -532,8 +632,8 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_DISPLACEMENT_SCALE)
 		{
-			const float DisplacementCenter = RasterBinMeta[RasterBin].MaterialDisplacementCenter;
-			const float DisplacementMagnitude = RasterBinMeta[RasterBin].MaterialDisplacementMagnitude;
+			const float DisplacementCenter = RasterBinMeta[RasterBin].MaterialDisplacementParams.Center;
+			const float DisplacementMagnitude = RasterBinMeta[RasterBin].MaterialDisplacementParams.Magnitude;
 
 			const float MinDisplacement = (0.0f - DisplacementCenter) * DisplacementMagnitude;
 			const float MaxDisplacement = (1.0f - DisplacementCenter) * DisplacementMagnitude;
@@ -541,6 +641,52 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			const float AbsDelta = abs(MaxDisplacement - MinDisplacement);
 
 			Result = GreenToRedTurbo(AbsDelta / 30.0f);
+		}
+		else if (VisualizeMode == NANITE_VISUALIZE_VERTEX_COLOR)
+		{
+#if USE_EDITOR_SHADERS
+			if (GetMeshPaintingShowMode() == NANITE_MESH_PAINTING_SHOW_SELECTED && !IsInstanceSelected(InstanceData, VisibleCluster, TriIndex))
+			{
+				Opacity = 0;
+			}
+#endif
+			Result =  LinearToPostTonemapSpace(ApplyMeshPaintingChannelMode(GetMeshPaintingChannelMode(), AttributeData.VertexColor.Value));
+		}
+		else if (VisualizeMode == NANITE_VISUALIZE_MESH_PAINT_TEXTURE)
+		{
+#if USE_EDITOR_SHADERS
+			if (GetMeshPaintingShowMode() == NANITE_MESH_PAINTING_SHOW_SELECTED && !IsInstanceSelected(InstanceData, VisibleCluster, TriIndex))
+			{
+				Opacity = 0;
+			}
+#endif
+			if (GetMeshPaintingShowMode() == NANITE_MESH_PAINTING_SHOW_ALL && GetMeshPaintingTextureMode() == NANITE_MESH_PAINTING_TEXTURE_DEFAULT && !GetMeshPaintTextureDescriptorIsValid(PrimitiveData))
+			{
+				Opacity = 0;
+			}
+			
+			if (Opacity > 0)
+			{
+				if (GetMeshPaintingTextureMode() == NANITE_MESH_PAINTING_TEXTURE_DEFAULT)
+				{
+					// Sample the shared mesh paint virtual texture atlas.
+					TDual<float2> UV = GetTexCoord(Cluster, TriIndices, Barycentrics, GetMeshPaintTextureCoordinateIndex(PrimitiveData));
+					float2 SVPositionXY = (float2)PixelPos + 0.5f;
+					FVirtualTextureFeedbackParams VirtualTextureFeedback;
+					InitializeVirtualTextureFeedback(VirtualTextureFeedback, SVPositionXY, View.FrameNumber);
+					VTPageTableResult PageTableResult = TextureLoadVirtualPageTableGrad(Scene.MeshPaint.PageTableTexture, VTPageTableUniform_Unpack(GetMeshPaintTextureDescriptor(PrimitiveData)), UV.Value, VTADDRESSMODE_CLAMP, VTADDRESSMODE_CLAMP, UV.Value_dx, UV.Value_dy, SVPositionXY, 0, VirtualTextureFeedback);
+					float4 Color = TextureVirtualSample(Scene.MeshPaint.PhysicalTexture, View.SharedBilinearClampedSampler, PageTableResult, 0, VTUniform_Unpack(Scene.MeshPaint.PackedUniform));
+					FinalizeVirtualTextureFeedback(VirtualTextureFeedback, float4(SVPositionXY, 0, 0), 1.0f, View.FrameNumber, View.VTFeedbackBuffer);
+					Result = LinearToPostTonemapSpace(ApplyMeshPaintingChannelMode(GetMeshPaintingChannelMode(), Color));
+				}
+				else
+				{
+					// Sample a single selected mesh paint texture.
+					TDual<float2> UV = GetTexCoord(Cluster, TriIndices, Barycentrics, MeshPaintTextureCoordinate);
+					float4 Color = MeshPaintTexture.SampleGrad(View.SharedBilinearClampedSampler, UV.Value, UV.Value_dx, UV.Value_dy);
+					Result = LinearToPostTonemapSpace(ApplyMeshPaintingChannelMode(GetMeshPaintingChannelMode(), Color));
+				}
+			}
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_PICKING)
 		{
@@ -606,6 +752,10 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 				Opacity = 0.5f;
 			}
 		}
+		else if (GetVisualizeMode() == NANITE_VISUALIZE_VERTEX_COLOR || GetVisualizeMode() == NANITE_VISUALIZE_MESH_PAINT_TEXTURE)
+		{
+			Opacity = 0.0f;
+		}
 	}
 
 	if (bApplySobel && ShouldApplySobelFilter() && (!GetCompositeWithSceneDepth() || UnpackedMask.bIsNanitePixel))
@@ -615,6 +765,37 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 
 	DebugOutput[PixelPos] = float4(Result, Opacity);
 }
+
+// Axis 0...5 == -X, +X, -Y, +Y, -Z, +Z 
+void SetMinMaxValueByAxis(float Value, uint Axis, inout float3 MinPoint, inout float3 MaxPoint)
+{
+	switch(Axis)
+	{
+	case 0: MinPoint.x = Value; break;
+	case 1: MaxPoint.x = Value; break;
+	case 2: MinPoint.y = Value; break;
+	case 3: MaxPoint.y = Value; break;
+	case 4: MinPoint.z = Value; break;
+	case 5: MaxPoint.z = Value; break;
+	default: break;
+	}
+}
+
+float GetMinMaxValueByAxis(uint Axis, float3 MinPoint, float3 MaxPoint)
+{
+	switch(Axis)
+	{
+	case 0: return MinPoint.x;
+	case 1: return MaxPoint.x;
+	case 2: return MinPoint.y;
+	case 3: return MaxPoint.y;
+	case 4: return MinPoint.z;
+    case 5: return MaxPoint.z;
+	default: return 0.f;
+	}
+}
+
+
 
 [numthreads(1, 1, 1)]
 void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
@@ -654,9 +835,9 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		FCluster Cluster							= GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 
 		const bool bWPOEnabled = (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
-		const bool bSecondaryRasterBin = !bWPOEnabled;
+		const bool bFallbackRaster = (VisibleCluster.Flags & NANITE_CULLING_FLAG_FALLBACK_RASTER) != 0;
 
-		uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bSecondaryRasterBin);
+		uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bFallbackRaster);
 		RasterBin = RemapRasterBin(RasterBin, RenderFlags, MaterialFlags);
 
 		FeedbackResults.PrimitiveId			= InstanceData.PrimitiveId;
@@ -670,28 +851,73 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		FeedbackResults.RasterMode			= DebugValueMax;
 		FeedbackResults.RasterBin			= RasterBin;
 		FeedbackResults.ShadingBin			= GetMaterialShadingBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
-		FeedbackResults.LegacyShadingId		= GetMaterialLegacyShadingId(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
-		FeedbackResults.MaterialDepthId		= GetMaterialDepthId(FeedbackResults.LegacyShadingId, MaterialDepthTable);
 		FeedbackResults.MaterialIndex		= GetRelativeMaterialIndex(Cluster, TriIndex);
 		FeedbackResults.MaterialCount		= GetMaterialCount(Cluster);
 		FeedbackResults.MaterialMode		= IsMaterialFastPath(Cluster) ? 0u : 1u;
 		FeedbackResults.HierarchyOffset		= InstanceData.NaniteHierarchyOffset;
 		FeedbackResults.RuntimeResourceID	= InstanceData.NaniteRuntimeResourceID;
 
-		const float4 ClusterBoundsColor		= ColorLightGreen;
-		const float4 InstanceBoundsColor	= ColorOrange;
-		const float4 ClusterLODBoundsColor	= ColorYellow;
+		const float4 ApproximateClusterBoundsColor	= ColorCyan;
+		const float4 SkinnedClusterBoundsColor		= ColorLightGreen;
+		const float4 ClusterBoundsColor				= ColorLightRed;
+		const float4 InstanceBoundsColor			= ColorOrange;
+		const float4 ClusterLODBoundsColor			= ColorYellow;
 
-		FShaderPrintContext ShaderPrint = InitShaderPrintContext();
+		FShaderPrintContext ShaderPrint = InitShaderPrintContext(true, float2(0.15, 0.1));
 		const float4x4 LocalToTranslatedWorld = DFFastToTranslatedWorld(InstanceData.LocalToWorld, NaniteView.PreViewTranslation);
 
 		const float3 WPOExtent = GetLocalMaxWPOExtent(PrimitiveData, InstanceData, bWPOEnabled);
-		const float AbsMaxMaterialDisplacement = GetAbsMaxMaterialDisplacement(PrimitiveData);
+		const float DisplacementExtent = GetMaxMaterialDisplacementExtent(PrimitiveData, bFallbackRaster, false /* bIsShadowPass */);
 
 		// If WPO and/or material displacement is enabled, the cluster bounds will have been dilated to account for max displacement
 		float3 ClusterBoxBoundsCenter = Cluster.BoxBoundsCenter;
 		float3 ClusterBoxBoundsExtent = Cluster.BoxBoundsExtent;
 		float4 ClusterLODSphere = Cluster.LODBounds;
+
+		// Pre-Skinned Bounds
+		AddOBBTWS(
+			ShaderPrint,
+			ClusterBoxBoundsCenter - ClusterBoxBoundsExtent,
+			ClusterBoxBoundsCenter + ClusterBoxBoundsExtent,
+			ClusterBoundsColor,
+			LocalToTranslatedWorld
+		);
+
+		const bool bIsSkinned = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH) != 0 && Cluster.bSkinning;
+
+		FNaniteSkinningHeader SkinningHeader = (FNaniteSkinningHeader)0;
+		BRANCH
+		if (bIsSkinned)
+		{
+			SkinningHeader = LoadNaniteSkinningHeader(InstanceData.PrimitiveId);
+			FBoneInfluenceHeader BoneInfluenceHeader = GetBoneInfluenceHeader(Cluster);
+
+			float3 MinBounds = float( 999999999.0f).xxx;
+			float3 MaxBounds = float(-999999999.0f).xxx;
+
+			for (uint VertexID = 0; VertexID < Cluster.NumVerts; ++VertexID)
+			{
+				float3 PointLocal = DecodePosition(VertexID, Cluster);
+				float3 PointSkinned = float3(0.0f, 0.0f, 0.0f);
+
+				LOOP
+				for (uint InfluenceIndex = 0; InfluenceIndex < BoneInfluenceHeader.NumVertexBoneInfluences; ++InfluenceIndex)
+				{
+					uint BoneIndex = 0;
+					float BoneWeight = 0.0f;
+					DecodeVertexBoneInfluence(BoneInfluenceHeader, VertexID, InfluenceIndex, BoneIndex, BoneWeight);
+
+					float4x3 CurrentBoneTransform = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex);
+					PointSkinned += mul(float4(PointLocal, 1.0f), CurrentBoneTransform) * BoneWeight;
+				}
+
+				MinBounds = min(MinBounds, PointSkinned);
+				MaxBounds = max(MaxBounds, PointSkinned);
+			}
+
+			ClusterBoxBoundsCenter = (MaxBounds + MinBounds) * 0.5f;
+			ClusterBoxBoundsExtent = (MaxBounds - MinBounds) * 0.5f;
+		}
 
 		BRANCH
 		if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH) != 0 &&
@@ -715,26 +941,298 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 
 			ShaderPrint.bIsActive = true;
 		}
-		ClusterBoxBoundsExtent += WPOExtent + AbsMaxMaterialDisplacement.xxx;
+		ClusterBoxBoundsExtent += WPOExtent + DisplacementExtent.xxx;
 
-		const float3 InstanceBoxBoundsCenter = InstanceData.LocalBoundsCenter;
-		const float3 InstanceBoxBoundsExtent = InstanceData.LocalBoundsExtent; // TODO: Verify WPO and material disp. is baked in already
-
+		// Skinned Bounds
 		AddOBBTWS(
 			ShaderPrint,
 			ClusterBoxBoundsCenter - ClusterBoxBoundsExtent,
 			ClusterBoxBoundsCenter + ClusterBoxBoundsExtent,
-			ClusterBoundsColor,
+			SkinnedClusterBoundsColor,
 			LocalToTranslatedWorld
 		);
 
-		AddOBBTWS(
-			ShaderPrint,
-			InstanceBoxBoundsCenter - InstanceBoxBoundsExtent,
-			InstanceBoxBoundsCenter + InstanceBoxBoundsExtent,
-			InstanceBoundsColor,
-			LocalToTranslatedWorld
-		);
+		// Estimated Skinned Bounds
+		BRANCH
+		if (bIsSkinned)
+		{
+			SkinningHeader = LoadNaniteSkinningHeader(InstanceData.PrimitiveId);
+			FBoneInfluenceHeader BoneInfluenceHeader = GetBoneInfluenceHeader(Cluster);
+
+			float3 MinBounds = float( 999999999.0f).xxx;
+			float3 MaxBounds = float(-999999999.0f).xxx;
+			
+			// Operate on max of NANITE_MAX_CLUSTER_BONE_INFLUENCES bones for now. This computation will be moved to the cluster generation/encoding on the CPU side.
+			const uint MaxClusterBoneCount = NANITE_MAX_CLUSTER_BONE_INFLUENCES;
+
+			const uint IBI = 0xFFFFFFFFu;
+			uint ClusterBoneIndexes[MaxClusterBoneCount] = {IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI};
+			float ClusterBoneWeightMin[MaxClusterBoneCount];
+			float ClusterBoneWeightMax[MaxClusterBoneCount];
+			float3 ClusterBoneBoundsMin[MaxClusterBoneCount];
+			float3 ClusterBoneBoundsMax[MaxClusterBoneCount];
+
+			UNROLL
+			for (uint BoneIndex = 0; BoneIndex < MaxClusterBoneCount; ++BoneIndex)
+			{
+				ClusterBoneWeightMin[BoneIndex] = 0.0f;
+				ClusterBoneWeightMax[BoneIndex] = 0.0f;
+				ClusterBoneBoundsMin[BoneIndex] = MinBounds;
+				ClusterBoneBoundsMax[BoneIndex] = MaxBounds;
+			}
+
+		#if 1
+			// Load cooked data
+			for (uint i = 0; i < BoneInfluenceHeader.NumClusterBoneInfluences; ++i)
+			{
+				FClusterBoneInfluence BoneInfluence = DecodeClusterBoneInfluence(Cluster, BoneInfluenceHeader, i);
+				ClusterBoneIndexes[i]	= BoneInfluence.BoneIndex;
+				ClusterBoneWeightMin[i] = BoneInfluence.MinWeight;
+				ClusterBoneWeightMax[i] = BoneInfluence.MaxWeight;
+				ClusterBoneBoundsMin[i] = BoneInfluence.BoundMin;
+				ClusterBoneBoundsMax[i] = BoneInfluence.BoundMax;
+			}
+		#else
+			for (uint VertexID = 0; VertexID < Cluster.NumVerts; ++VertexID)
+			{
+				float3 PointLocal = DecodePosition(VertexID, Cluster);
+				
+				LOOP
+				for (uint InfluenceIndex = 0; InfluenceIndex < BoneInfluenceHeader.NumVertexBoneInfluences; ++InfluenceIndex)
+				{
+					uint BoneIndex = 0;
+					float BoneWeight = 0.0f;
+					DecodeVertexBoneInfluence(BoneInfluenceHeader, VertexID, InfluenceIndex, BoneIndex, BoneWeight);
+
+					// Have we reached the end of weights?
+					if (BoneWeight == 0.0f)
+					{
+						break;
+					}
+					// Have we seen this bone index already?
+					for (uint ClusterBoneIndex = 0; ClusterBoneIndex < NANITE_MAX_CLUSTER_BONE_INFLUENCES; ++ClusterBoneIndex)
+					{
+						if (ClusterBoneIndexes[ClusterBoneIndex] == BoneIndex)
+						{
+							ClusterBoneWeightMin[ClusterBoneIndex] = min(BoneWeight, ClusterBoneWeightMin[ClusterBoneIndex]);
+							ClusterBoneWeightMax[ClusterBoneIndex] = max(BoneWeight, ClusterBoneWeightMax[ClusterBoneIndex]);
+							
+							ClusterBoneBoundsMin[ClusterBoneIndex] = min(PointLocal, ClusterBoneBoundsMin[ClusterBoneIndex]);
+							ClusterBoneBoundsMax[ClusterBoneIndex] = max(PointLocal, ClusterBoneBoundsMax[ClusterBoneIndex]);
+							break;
+						}
+						if (ClusterBoneIndexes[ClusterBoneIndex] == IBI)
+						{
+							ClusterBoneIndexes[ClusterBoneIndex] = BoneIndex;
+							ClusterBoneWeightMin[ClusterBoneIndex] = BoneWeight;
+							ClusterBoneWeightMax[ClusterBoneIndex] = BoneWeight;
+							ClusterBoneBoundsMin[ClusterBoneIndex] = PointLocal;
+							ClusterBoneBoundsMax[ClusterBoneIndex] = PointLocal;
+							break;
+						}
+					}
+				}
+			}
+		#endif
+
+			// Deform each of the cluster bone bboxes by their associated bone transform.
+			uint ClusterBoneCount = 0;
+			for (uint ClusterBoneIndex = 0; ClusterBoneIndex < NANITE_MAX_CLUSTER_BONE_INFLUENCES; ++ClusterBoneIndex)
+			{
+				if (ClusterBoneIndexes[ClusterBoneIndex] == IBI)
+				{
+					break;
+				}
+				ClusterBoneCount++;
+
+				float3 BoneBoundsMin = ClusterBoneBoundsMin[ClusterBoneIndex];
+				float3 BoneBoundsMax = ClusterBoneBoundsMax[ClusterBoneIndex];
+				
+				float3 BoneBoundsCorners[8] = {
+					float3(BoneBoundsMin.x, BoneBoundsMin.y, BoneBoundsMin.z),
+					float3(BoneBoundsMax.x, BoneBoundsMin.y, BoneBoundsMin.z),
+					float3(BoneBoundsMin.x, BoneBoundsMax.y, BoneBoundsMin.z),
+					float3(BoneBoundsMax.x, BoneBoundsMax.y, BoneBoundsMin.z),
+					float3(BoneBoundsMin.x, BoneBoundsMin.y, BoneBoundsMax.z),
+					float3(BoneBoundsMax.x, BoneBoundsMin.y, BoneBoundsMax.z),
+					float3(BoneBoundsMin.x, BoneBoundsMax.y, BoneBoundsMax.z),
+					float3(BoneBoundsMax.x, BoneBoundsMax.y, BoneBoundsMax.z)
+				};
+
+				uint BoneIndex = ClusterBoneIndexes[ClusterBoneIndex];
+				if (BoneIndex == IBI)
+				{
+					break;
+				}
+				float4x3 BoneTransform = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex);
+				ClusterBoneBoundsMin[ClusterBoneIndex] = float(999999999.0f).xxx;
+				ClusterBoneBoundsMax[ClusterBoneIndex] = float(-999999999.0f).xxx;
+
+				for (uint CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
+				{
+					float3 SkinnedClusterBoxCorner = mul(float4(BoneBoundsCorners[CornerIndex], 1.0f), BoneTransform);
+						
+					ClusterBoneBoundsMin[ClusterBoneIndex] = min(ClusterBoneBoundsMin[ClusterBoneIndex], SkinnedClusterBoxCorner);
+					ClusterBoneBoundsMax[ClusterBoneIndex] = max(ClusterBoneBoundsMax[ClusterBoneIndex], SkinnedClusterBoxCorner);
+				}
+			}
+
+			for (uint Axis = 0; Axis < 6; ++Axis)
+			{
+				// Find the extrema and second extrema bone values for this axis based on their deformed bbox.
+				uint ExtremaIndex = IBI;
+				uint ExtremaIndex2 = IBI;
+				float ExtremaValue = (Axis % 2 == 0) ? 999999999.0f : -999999999.0f;
+				float ExtremaValue2 = (Axis % 2 == 0) ? 999999999.0f : -999999999.0f;
+
+#if 0
+				ShaderPrint.StartPos.x = 0.15 + 0.12 * Axis;
+				ShaderPrint.StartPos.y = 0.1;
+				ShaderPrint.Pos = ShaderPrint.StartPos;
+				switch(Axis)
+				{
+				case 0:
+					Print(ShaderPrint, TEXT("Axis: -X"), FontCyan);
+					break;
+				case 1:
+					Print(ShaderPrint, TEXT("Axis: +X"), FontCyan);
+					break;
+				case 2:
+					Print(ShaderPrint, TEXT("Axis: -Y"), FontCyan);
+					break;
+				case 3:
+					Print(ShaderPrint, TEXT("Axis: +Y"), FontCyan);
+					break;
+				case 4:
+					Print(ShaderPrint, TEXT("Axis: -Z"), FontCyan);
+					break;
+				case 5:
+					Print(ShaderPrint, TEXT("Axis: +Z"), FontCyan);
+					break;
+				}
+				Newline(ShaderPrint);
+#endif
+				
+				for (uint ClusterBoneIndex = 0; ClusterBoneIndex < NANITE_MAX_CLUSTER_BONE_INFLUENCES; ++ClusterBoneIndex)
+				{
+					if (ClusterBoneIndexes[ClusterBoneIndex] == IBI)
+					{
+						break;
+					}
+					
+					float BBoxValue = GetMinMaxValueByAxis(Axis, ClusterBoneBoundsMin[ClusterBoneIndex], ClusterBoneBoundsMax[ClusterBoneIndex]);
+
+					if (Axis % 2 == 0)		// Negative
+					{
+						if (BBoxValue < ExtremaValue)
+						{
+							if (ExtremaValue < ExtremaValue2)
+							{
+								ExtremaIndex2 = ExtremaIndex;
+								ExtremaValue2 = ExtremaValue;
+							}
+							
+							ExtremaIndex = ClusterBoneIndex;
+							ExtremaValue = BBoxValue;
+						}
+						else if (BBoxValue < ExtremaValue2)
+						{
+							ExtremaIndex2 = ClusterBoneIndex;
+							ExtremaValue2 = BBoxValue;
+						}
+					}
+					else
+					{
+						if (BBoxValue > ExtremaValue)
+						{
+							if (ExtremaValue > ExtremaValue2)
+							{
+								ExtremaIndex2 = ExtremaIndex;
+								ExtremaValue2 = ExtremaValue;
+							}
+							
+							ExtremaIndex = ClusterBoneIndex;
+							ExtremaValue = BBoxValue;
+						}
+						else if (BBoxValue > ExtremaValue2)
+						{
+							ExtremaIndex2 = ClusterBoneIndex;
+							ExtremaValue2 = BBoxValue;
+						}
+					}
+				}
+
+				float SkinnedValue = ClusterBoneWeightMax[ExtremaIndex] * ExtremaValue;
+
+				if (ExtremaIndex2 != IBI)
+				{
+					float Weight2 = 1.0f - ClusterBoneWeightMax[ExtremaIndex];
+					for (uint ClusterBoneIndex = 0; ClusterBoneIndex < NANITE_MAX_CLUSTER_BONE_INFLUENCES; ++ClusterBoneIndex)
+					{
+						if (ClusterBoneIndexes[ClusterBoneIndex] == IBI)
+						{
+							break;
+						}
+						if (ClusterBoneIndex != ExtremaIndex && ClusterBoneIndex != ExtremaIndex2)
+						{
+							float MinWeight = ClusterBoneWeightMin[ClusterBoneIndex];
+							Weight2 -= MinWeight;
+
+							SkinnedValue += MinWeight * GetMinMaxValueByAxis(Axis, ClusterBoneBoundsMin[ClusterBoneIndex], ClusterBoneBoundsMax[ClusterBoneIndex]); 
+						}
+					}
+					SkinnedValue += Weight2 * ExtremaValue2;
+				}
+
+#if 0
+				Print(ShaderPrint, TEXT("Index 1: "), FontCyan);
+				Print(ShaderPrint, ExtremaIndex, FontCyan);
+				Newline(ShaderPrint);
+				Print(ShaderPrint, TEXT("BBox 1: "), FontCyan);
+				Print(ShaderPrint, ExtremaValue, FontCyan);
+				Newline(ShaderPrint);
+				Print(ShaderPrint, TEXT("MaxWeight 1: "), FontCyan);
+				Print(ShaderPrint, ClusterBoneWeightMax[ExtremaIndex], FontCyan);
+				Newline(ShaderPrint);
+				Print(ShaderPrint, TEXT("MinWeight 1: "), FontCyan);
+				Print(ShaderPrint, ClusterBoneWeightMin[ExtremaIndex], FontCyan);
+				Newline(ShaderPrint);
+				
+				
+				Print(ShaderPrint, TEXT("Index 2: "), FontCyan);
+				Print(ShaderPrint, ExtremaIndex2, FontCyan);
+				Newline(ShaderPrint);
+				Print(ShaderPrint, TEXT("BBox 2: "), FontCyan);
+				Print(ShaderPrint, ExtremaValue2, FontCyan);
+				Newline(ShaderPrint);
+				Print(ShaderPrint, TEXT("MaxWeight 2: "), FontCyan);
+				Print(ShaderPrint, ClusterBoneWeightMax[ExtremaIndex2], FontCyan);
+				Newline(ShaderPrint);
+				Print(ShaderPrint, TEXT("MinWeight 2: "), FontCyan);
+				Print(ShaderPrint, ClusterBoneWeightMin[ExtremaIndex2], FontCyan);
+				Newline(ShaderPrint);
+#endif
+
+				SetMinMaxValueByAxis(SkinnedValue, Axis, MinBounds, MaxBounds);
+			}
+
+#if 0
+			Print(ShaderPrint, TEXT("Cluster Bone Count: "), FontGreen);
+			Print(ShaderPrint, ClusterBoneCount, FontGreen);
+			Newline(ShaderPrint);
+#endif
+
+			ClusterBoxBoundsCenter = (MaxBounds + MinBounds) * 0.5f;
+			ClusterBoxBoundsExtent = (MaxBounds - MinBounds) * 0.5f;
+			
+			AddOBBTWS(
+				ShaderPrint,
+				ClusterBoxBoundsCenter - ClusterBoxBoundsExtent,
+				ClusterBoxBoundsCenter + ClusterBoxBoundsExtent,
+				ApproximateClusterBoundsColor,
+				LocalToTranslatedWorld
+			);
+		}
 
 		AddReferentialTWS(ShaderPrint, LocalToTranslatedWorld, 50.f);
 

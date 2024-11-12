@@ -5,6 +5,8 @@
 #include "StaticMeshSceneProxy.h"
 #include "UObject/UObjectIterator.h"
 #include "Rendering/CustomRenderPass.h"
+#include "WaterBodyActor.h"
+#include "WaterBodyComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WaterBodyInfoMeshComponent)
 
@@ -27,6 +29,8 @@ static TAutoConsoleVariable<int32> CVarShowWaterInfoSceneProxies(
 	FConsoleVariableDelegate::CreateStatic(OnCVarWaterInfoSceneProxiesValueChanged),
 	ECVF_RenderThreadSafe
 );
+
+extern TAutoConsoleVariable<int32> CVarWaterMeshGPUQuadTree;
 
 int32 GetWaterInfoRenderingMethod()
 {
@@ -65,6 +69,23 @@ FWaterBodyInfoMeshSceneProxy::FWaterBodyInfoMeshSceneProxy(UWaterBodyInfoMeshCom
 	if (GetWaterInfoRenderingMethod() != 2)
 	{
 		SetEnabled(false);
+	}
+
+	check(Component != nullptr);
+
+	if (AWaterBody* WaterBodyActor = Component->GetOwner<AWaterBody>())
+	{
+		if (UWaterBodyComponent* WaterBodyComponent = WaterBodyActor->GetWaterBodyComponent())
+		{
+			EWaterZoneRebuildFlags Flags = EWaterZoneRebuildFlags::UpdateWaterInfoTexture;
+			// The GPU quad tree is built by rasterizing the water info meshes into a texture.
+			// Just like the water info texture, the quadtree must also be updated if the proxy is rebuilt.
+			if (CVarWaterMeshGPUQuadTree.GetValueOnGameThread() == 1)
+			{
+				Flags |= EWaterZoneRebuildFlags::UpdateWaterMesh;
+			}
+			WaterBodyComponent->MarkOwningWaterZoneForRebuild(Flags);
+		}
 	}
 }
 

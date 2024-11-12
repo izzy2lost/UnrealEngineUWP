@@ -177,9 +177,9 @@ std::size_t FileStreamImpl::write(const char* source, std::size_t size) {
         return 0ul;
     }
 
-    #if defined(_MSC_VER) && (_MSC_VER < 1930)
-    // MSVC stdlib or compiler bug workaround
-    file.seekp(file.tellp());
+    #if defined(TRIO_MSVC_READ_AFTER_WRITE_WORKAROUND) && defined(_MSC_VER) && (_MSC_VER < 1930)
+        // MSVC stdlib or compiler bug workaround
+        file.seekp(file.tellp());
     #endif  // _MSC_VER
 
     file.write(source, static_cast<std::streamsize>(size));
@@ -199,9 +199,9 @@ std::size_t FileStreamImpl::write(Readable* source, std::size_t size) {
         return 0ul;
     }
 
-    #if defined(_MSC_VER) && (_MSC_VER < 1930)
-    // MSVC stdlib or compiler bug workaround
-    file.seekp(file.tellp());
+    #if defined(TRIO_MSVC_READ_AFTER_WRITE_WORKAROUND) && defined(_MSC_VER) && (_MSC_VER < 1930)
+        // MSVC stdlib or compiler bug workaround
+        file.seekp(file.tellp());
     #endif  // _MSC_VER
 
     char buffer[bufferSize];

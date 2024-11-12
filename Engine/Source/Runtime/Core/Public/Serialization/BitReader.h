@@ -27,11 +27,12 @@ struct FBitReader : public FBitArchive
 
 public:
 	CORE_API FBitReader( const uint8* Src = nullptr, int64 CountBits = 0 );
+	CORE_API ~FBitReader();
 
-	FBitReader(const FBitReader&) = default;
-    FBitReader& operator=(const FBitReader&) = default;
-    FBitReader(FBitReader&&) = default;
-    FBitReader& operator=(FBitReader&&) = default;
+	CORE_API FBitReader(const FBitReader&);
+    CORE_API FBitReader& operator=(const FBitReader&);
+    CORE_API FBitReader(FBitReader&&);
+    CORE_API FBitReader& operator=(FBitReader&&);
 
 	CORE_API void SetData( FBitReader& Src, int64 CountBits );
 	CORE_API void SetData( uint8* Src, int64 CountBits );

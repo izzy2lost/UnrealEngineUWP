@@ -1063,7 +1063,7 @@ private:
 
 };
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FShortCircuitParserTest, "System.Core.Expression Parser.Short Circuit", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter | EAutomationTestFlags::HighPriority)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FShortCircuitParserTest, "System.Core.Expression Parser.Short Circuit", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter | EAutomationTestFlags::HighPriority)
 bool FShortCircuitParserTest::RunTest(const FString& Parameters)
 {
 	struct FExpectedResult

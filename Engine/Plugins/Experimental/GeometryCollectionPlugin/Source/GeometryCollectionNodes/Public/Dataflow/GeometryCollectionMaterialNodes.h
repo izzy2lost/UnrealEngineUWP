@@ -13,6 +13,11 @@
 
 #include "GeometryCollectionMaterialNodes.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dataflow instead.") Dataflow {}
+#endif
 
 class FGeometryCollection;
 class UGeometryCollection;
@@ -59,7 +64,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Material", meta = (DisplayName = "Assign Inside Material to Inside Faces"))
 	bool bAssignInsideMaterial = false;
 
-	FAddMaterialToCollectionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FAddMaterialToCollectionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -71,7 +76,7 @@ public:
 		RegisterOutputConnection(&Materials, &Materials);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -116,7 +121,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Material", meta = (DisplayName = "Assign Inside Material to Inside Faces"))
 	bool bAssignInsideMaterial = false;
 
-	FReAssignMaterialInCollectionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FReAssignMaterialInCollectionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -128,7 +133,7 @@ public:
 		RegisterOutputConnection(&Materials, &Materials);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -153,14 +158,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	FString String;
 
-	FMaterialsInfoDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FMaterialsInfoDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Materials);
 		RegisterOutputConnection(&String);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -189,7 +194,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Material", meta = (DataflowInput, DisplayName = "Material Index"))
 	int32 MaterialIdx = 0;
 
-	FGetMaterialFromMaterialsArrayDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetMaterialFromMaterialsArrayDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Materials);
@@ -197,7 +202,7 @@ public:
 		RegisterOutputConnection(&Material);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -241,7 +246,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Material", meta = (DataflowInput, DisplayName = "Material Index", EditCondition = "Operation == ESetMaterialOperationTypeEnum::Dataflow_SetMaterialOperationType_Insert", EditConditionHides))
 	int32 MaterialIdx = 0;
 
-	FSetMaterialInMaterialsArrayDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FSetMaterialInMaterialsArrayDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Materials);
@@ -250,7 +255,7 @@ public:
 		RegisterOutputConnection(&Materials, &Materials);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -275,13 +280,13 @@ public:
 	UPROPERTY(meta = (DataflowOutput));
 	TObjectPtr<UMaterial> Material;
 
-	FMakeMaterialDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FMakeMaterialDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterOutputConnection(&Material);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -301,18 +306,18 @@ public:
 	UPROPERTY(meta = (DataflowOutput));
 	TArray<TObjectPtr<UMaterial>> Materials;
 
-	FMakeMaterialsArrayDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FMakeMaterialsArrayDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterOutputConnection(&Materials);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void GeometryCollectionMaterialNodes();
 }

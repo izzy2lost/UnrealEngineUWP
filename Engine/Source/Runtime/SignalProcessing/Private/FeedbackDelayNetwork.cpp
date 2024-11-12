@@ -140,7 +140,7 @@ namespace Audio
 			// Calculate input to delay line. 
 			for (int32 j = 0; j < 4; j++)
 			{
-				DelayInput[j] = UnderflowClamp((ScaledInput + FMO[j]) + (Coefficients.APFG[j] * DelayOut[j]));
+				DelayInput[j] = (ScaledInput + FMO[j]) + (Coefficients.APFG[j] * DelayOut[j]);
 			}
 
 			// Store delay line values
@@ -155,7 +155,7 @@ namespace Audio
 			{
 				AllPassOut[j] = (DelayInput[j] * -Coefficients.APFG[j]) + DelayOut[j];
 				// Note the reasignment of lpz. 
-				LPFZ[j] = UnderflowClamp((AllPassOut[j] * Coefficients.LPFA[j]) + (LPFZ[j] * Coefficients.LPFB[j]));
+				LPFZ[j] = (AllPassOut[j] * Coefficients.LPFA[j]) + (LPFZ[j] * Coefficients.LPFB[j]);
 				OutSampleData[i] += LPFZ[j];
 			}
 

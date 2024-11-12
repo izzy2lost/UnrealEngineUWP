@@ -4,10 +4,10 @@
 
 #include "Replication/Authority/AuthorityChangeTracker.h"
 #include "Replication/Stream/StreamChangeTracker.h"
-#include "Replication/Util/GlobalAuthorityCache.h"
-#include "Replication/Util/StreamRequestUtils.h"
+#include "Replication/Misc/GlobalAuthorityCache.h"
+#include "Replication/Misc/Util/StreamRequestUtils.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FChangeRequestBuilder::FChangeRequestBuilder(
 		const FGuid& InLocalClientId,

@@ -1,6 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "D3D12ExplicitDescriptorCache.h"
+#include "D3D12Adapter.h"
+#include "D3D12Device.h"
+#include "D3D12DirectCommandListManager.h"
+#include "D3D12RHIPrivate.h"
+#include "D3D12Stats.h"
+#include "HAL/ConsoleManager.h"
+#include "HAL/PlatformTime.h"
 #include "Hash/xxhash.h"
 
 // Whether to compare the full descriptor table on cache lookup or only use FXxHash64 digest.
@@ -27,10 +34,10 @@ static FAutoConsoleVariableRef CVarD3D12ExplicitViewDescriptorHeapSize(
 
 FD3D12ExplicitDescriptorHeapCache::~FD3D12ExplicitDescriptorHeapCache()
 {
-	check(AllocatedEntries == 0);
+	check(NumAllocatedEntries == 0);
 
 	FScopeLock Lock(&CriticalSection);
-	for (const Entry& It : Entries)
+	for (const FEntry& It : FreeList)
 	{
 		if (It.Type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
 		{
@@ -45,39 +52,51 @@ FD3D12ExplicitDescriptorHeapCache::~FD3D12ExplicitDescriptorHeapCache()
 
 		It.Heap->Release();
 	}
-	Entries.Empty();
+	FreeList.Empty();
 }
 
-void FD3D12ExplicitDescriptorHeapCache::ReleaseHeap(FD3D12ExplicitDescriptorHeapCache::Entry& Entry)
+void FD3D12ExplicitDescriptorHeapCache::DeferredReleaseHeap(FD3D12ExplicitDescriptorHeapCache::FEntry&& Entry)
+{
+	FD3D12DynamicRHI::GetD3DRHI()->DeferredDelete(
+		[Cache = this, Entry = MoveTemp(Entry)]() mutable
+		{
+			Cache->ReleaseHeap(MoveTemp(Entry));
+		});
+}
+
+void FD3D12ExplicitDescriptorHeapCache::ReleaseHeap(FD3D12ExplicitDescriptorHeapCache::FEntry&& Entry)
 {
 	FScopeLock Lock(&CriticalSection);
 
-	Entries.Add(Entry);
+	check(NumAllocatedEntries != 0);
 
-	check(AllocatedEntries != 0);
-	--AllocatedEntries;
+	Entry.LastUsedFrame = GetParentDevice()->GetParentAdapter()->GetFrameFence().GetNextFenceToSignal();
+	Entry.LastUsedTime = FPlatformTime::Seconds();
+
+	FreeList.Add(MoveTemp(Entry));
+
+	--NumAllocatedEntries;
 }
 
-FD3D12ExplicitDescriptorHeapCache::Entry FD3D12ExplicitDescriptorHeapCache::AllocateHeap(D3D12_DESCRIPTOR_HEAP_TYPE Type, uint32 NumDescriptors)
+FD3D12ExplicitDescriptorHeapCache::FEntry FD3D12ExplicitDescriptorHeapCache::AllocateHeap(D3D12_DESCRIPTOR_HEAP_TYPE Type, uint32 NumDescriptors)
 {
 	FScopeLock Lock(&CriticalSection);
 
-	++AllocatedEntries;
+	// Align request to enable greater reusue in the cache.
+	const uint32 MaxDescriptors = (Type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER) ? D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE : D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1;
+	NumDescriptors = FMath::Clamp(FMath::RoundUpToPowerOfTwo(NumDescriptors), 0, MaxDescriptors);
 
-	Entry Result = {};
+	++NumAllocatedEntries;
 
-	FD3D12ManualFence& Fence = GetParentDevice()->GetParentAdapter()->GetFrameFence();
-	const uint64 CompletedFenceValue = Fence.GetCompletedFenceValue(/* bUpdateCachedFenceValue */ false);
+	FEntry Result = {};
 
-	for (int32 EntryIndex = 0; EntryIndex < Entries.Num(); ++EntryIndex)
+	for (int32 EntryIndex = 0; EntryIndex < FreeList.Num(); ++EntryIndex)
 	{
-		const Entry& It = Entries[EntryIndex];
-		if (It.Type == Type && It.NumDescriptors >= NumDescriptors && It.FenceValue <= CompletedFenceValue)
+		const FEntry& It = FreeList[EntryIndex];
+		if (It.Type == Type && It.NumDescriptors >= NumDescriptors)
 		{
 			Result = It;
-
-			Entries[EntryIndex] = Entries.Last();
-			Entries.Pop();
+			FreeList.RemoveAtSwap(EntryIndex, EAllowShrinking::No);
 
 			return Result;
 		}
@@ -85,7 +104,8 @@ FD3D12ExplicitDescriptorHeapCache::Entry FD3D12ExplicitDescriptorHeapCache::Allo
 
 	// Compatible heap was not found in cache, so create a new one.
 
-	ReleaseStaleEntries(100, CompletedFenceValue); // Release heaps that were not used for 100 frames before allocating new.
+	// Release heaps that were not used for a while before allocating new.
+	ReleaseStaleEntries(100 /*MaxAgeInFrames*/, 5.0f /*MaxAgeInSeconds*/);
 
 	D3D12_DESCRIPTOR_HEAP_DESC Desc = {};
 
@@ -120,13 +140,18 @@ FD3D12ExplicitDescriptorHeapCache::Entry FD3D12ExplicitDescriptorHeapCache::Allo
 	return Result;
 }
 
-void FD3D12ExplicitDescriptorHeapCache::ReleaseStaleEntries(uint32 MaxAge, uint64 CompletedFenceValue)
+void FD3D12ExplicitDescriptorHeapCache::ReleaseStaleEntries(uint32 MaxAgeInFrames, float MaxAgeInSeconds)
 {
+	const uint64 CurrentFrame = GetParentDevice()->GetParentAdapter()->GetFrameFence().GetNextFenceToSignal();
+	const double CurrentTime = FPlatformTime::Seconds();
+
 	int32 EntryIndex = 0;
-	while (EntryIndex < Entries.Num())
+	while (EntryIndex < FreeList.Num())
 	{
-		Entry& It = Entries[EntryIndex];
-		if ((It.FenceValue + MaxAge) <= CompletedFenceValue)
+		FEntry& It = FreeList[EntryIndex];
+
+		if ((It.LastUsedFrame + MaxAgeInFrames) <= CurrentFrame
+			|| (It.LastUsedTime + MaxAgeInSeconds) <= CurrentTime)
 		{
 			if (It.Type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
 			{
@@ -139,10 +164,9 @@ void FD3D12ExplicitDescriptorHeapCache::ReleaseStaleEntries(uint32 MaxAge, uint6
 				DEC_DWORD_STAT_BY(STAT_ExplicitSamplerDescriptors, It.NumDescriptors);
 			}
 
-			It.Heap->Release();
+			FD3D12DynamicRHI::GetD3DRHI()->DeferredDelete(It.Heap);
 
-			Entries[EntryIndex] = Entries.Last();
-			Entries.Pop(EAllowShrinking::No);
+			FreeList.RemoveAtSwap(EntryIndex, EAllowShrinking::No);
 		}
 		else
 		{
@@ -151,15 +175,15 @@ void FD3D12ExplicitDescriptorHeapCache::ReleaseStaleEntries(uint32 MaxAge, uint6
 	}
 }
 
-void FD3D12ExplicitDescriptorHeapCache::Flush()
+void FD3D12ExplicitDescriptorHeapCache::FlushFreeList()
 {
 	FScopeLock Lock(&CriticalSection);
 
-	for (const Entry& It : Entries)
+	for (const FEntry& It : FreeList)
 	{
 		FD3D12DynamicRHI::GetD3DRHI()->DeferredDelete(It.Heap);
 	}
-	Entries.Empty();
+	FreeList.Empty();
 }
 
 ///
@@ -168,7 +192,7 @@ FD3D12ExplicitDescriptorHeap::~FD3D12ExplicitDescriptorHeap()
 {
 	if (D3D12Heap)
 	{
-		GetParentDevice()->GetExplicitDescriptorHeapCache()->ReleaseHeap(HeapCacheEntry);
+		GetParentDevice()->GetExplicitDescriptorHeapCache()->DeferredReleaseHeap(MoveTemp(HeapCacheEntry));
 	}
 }
 
@@ -222,8 +246,7 @@ int32 FD3D12ExplicitDescriptorHeap::Allocate(uint32 InNumDescriptors)
 			       TEXT("Explicit sampler descriptor heap overflow. ")
 			       TEXT("It is not possible to recover from this error, as maximum D3D12 sampler heap size is 2048."));
 		}
-		else if (GD3D12ExplicitViewDescriptorHeapSize == MaxNumDescriptors
-			&& FPlatformAtomics::InterlockedOr(&GD3D12ExplicitViewDescriptorHeapOverflowReported, 1) == 0)
+		else if ((uint32)GD3D12ExplicitViewDescriptorHeapSize <= MaxNumDescriptors && FPlatformAtomics::InterlockedOr(&GD3D12ExplicitViewDescriptorHeapOverflowReported, 1) == 0)
 		{
 			// NOTE: GD3D12RayTracingViewDescriptorHeapOverflowReported is set atomically because multiple 
 			// allocations may be happening simultaneously, but we only want to report the error once.
@@ -278,19 +301,14 @@ D3D12_GPU_DESCRIPTOR_HANDLE FD3D12ExplicitDescriptorHeap::GetDescriptorGPU(uint3
 	return Result;
 }
 
-void FD3D12ExplicitDescriptorHeap::UpdateSyncPoint()
-{
-	const FD3D12ManualFence& Fence = GetParentDevice()->GetParentAdapter()->GetFrameFence();
-	HeapCacheEntry.FenceValue = FMath::Max(HeapCacheEntry.FenceValue, Fence.GetNextFenceToSignal());
-}
-
 ///
 
-void FD3D12ExplicitDescriptorCache::Init(uint32 NumViewDescriptors, uint32 NumSamplerDescriptors, ERHIBindlessConfiguration BindlessConfig)
+void FD3D12ExplicitDescriptorCache::Init(uint32 NumConstantDescriptors, uint32 NumViewDescriptors, uint32 NumSamplerDescriptors, ERHIBindlessConfiguration BindlessConfig)
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	FD3D12BindlessDescriptorManager& BindlessManager = GetParentDevice()->GetBindlessDescriptorManager();
 
+	BindlessConfiguration = BindlessConfig;
 	bBindlessViews = BindlessManager.AreResourcesBindless(BindlessConfig);
 	bBindlessSamplers = BindlessManager.AreSamplersBindless(BindlessConfig);
 #else
@@ -298,56 +316,16 @@ void FD3D12ExplicitDescriptorCache::Init(uint32 NumViewDescriptors, uint32 NumSa
 	const bool bBindlessSamplers = false;
 #endif
 
-	if (!bBindlessViews)
+	const uint32 TotalViewDescriptors = NumConstantDescriptors + (bBindlessViews ? 0 : NumViewDescriptors);
+	if (TotalViewDescriptors)
 	{
-		ViewHeap.Init(NumViewDescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		ViewHeap.Init(TotalViewDescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	}
 		
 	if (!bBindlessSamplers)
 	{
 		SamplerHeap.Init(NumSamplerDescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 	}
-}
-
-void FD3D12ExplicitDescriptorCache::UpdateSyncPoint()
-{
-	check(IsInRHIThread() || !IsRunningRHIInSeparateThread());
-
-#if !PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	const bool bBindlessViews = false;
-	const bool bBindlessSamplers = false;
-#endif
-
-	if (!bBindlessViews)
-	{
-		ViewHeap.UpdateSyncPoint();
-	}
-
-	if (!bBindlessSamplers)
-	{
-		SamplerHeap.UpdateSyncPoint();
-	}
-}
-
-void FD3D12ExplicitDescriptorCache::SetDescriptorHeaps(FD3D12CommandContext& CommandContext)
-{
-	UpdateSyncPoint();
-
-#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	check(bBindlessViews || ViewHeap.GetParentDevice() == CommandContext.GetParentDevice());
-	check(bBindlessSamplers || SamplerHeap.GetParentDevice() == CommandContext.GetParentDevice());
-
-	ID3D12DescriptorHeap* ViewHeapToSet = bBindlessViews ? nullptr : ViewHeap.D3D12Heap;
-	ID3D12DescriptorHeap* SamplerHeapToSet = bBindlessSamplers ? nullptr : SamplerHeap.D3D12Heap;
-#else
-	check(ViewHeap.GetParentDevice() == CommandContext.GetParentDevice());
-	check(SamplerHeap.GetParentDevice() == CommandContext.GetParentDevice());
-
-	ID3D12DescriptorHeap* ViewHeapToSet = ViewHeap.D3D12Heap;
-	ID3D12DescriptorHeap* SamplerHeapToSet = SamplerHeap.D3D12Heap;
-#endif
-
-	CommandContext.StateCache.GetDescriptorCache()->OverrideLastSetHeaps(ViewHeapToSet, SamplerHeapToSet);
 }
 
 // Returns descriptor heap base index for this descriptor table allocation (checking for duplicates and reusing existing tables) or -1 if allocation failed.

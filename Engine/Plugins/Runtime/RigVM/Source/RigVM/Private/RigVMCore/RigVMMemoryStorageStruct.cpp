@@ -615,15 +615,15 @@ void FRigVMMemoryStorageStruct::SetDefaultValues(const TArray<FRigVMPropertyDesc
 
 	FName VMType = *VMTypeString;
 
-	static const FName IntTypeName(TEXT("int")); // type used by some engine tests
-	static const FName Int64TypeName(TEXT("Int64"));
-	static const FName UInt64TypeName(TEXT("UInt64"));
-
 	if (VMType == RigVMTypeUtils::BoolTypeName)
 	{
 		OutBagPropertyType = EPropertyBagPropertyType::Bool;
 	}
-	else if (VMType == RigVMTypeUtils::Int32TypeName || VMType == IntTypeName)
+	else if (VMType == RigVMTypeUtils::UInt8TypeName)
+	{
+		OutBagPropertyType = EPropertyBagPropertyType::Byte;
+	}
+	else if (VMType == RigVMTypeUtils::Int32TypeName || VMType == RigVMTypeUtils::IntTypeName)
 	{
 		OutBagPropertyType = EPropertyBagPropertyType::Int32;
 	}
@@ -631,11 +631,11 @@ void FRigVMMemoryStorageStruct::SetDefaultValues(const TArray<FRigVMPropertyDesc
 	{
 		OutBagPropertyType = EPropertyBagPropertyType::UInt32;
 	}
-	else if (VMType == Int64TypeName)
+	else if (VMType == RigVMTypeUtils::Int64TypeName)
 	{
 		OutBagPropertyType = EPropertyBagPropertyType::Int64;
 	}
-	else if (VMType == UInt64TypeName)
+	else if (VMType == RigVMTypeUtils::UInt64TypeName)
 	{
 		OutBagPropertyType = EPropertyBagPropertyType::UInt64;
 	}
@@ -654,6 +654,10 @@ void FRigVMMemoryStorageStruct::SetDefaultValues(const TArray<FRigVMPropertyDesc
 	else if (VMType == RigVMTypeUtils::FStringTypeName)
 	{
 		OutBagPropertyType = EPropertyBagPropertyType::String;
+	}
+	else if (VMType == RigVMTypeUtils::FTextTypeName)
+	{
+		OutBagPropertyType = EPropertyBagPropertyType::Text;
 	}
 	else if (Cast<UScriptStruct>(RigVMDescriptor.CPPTypeObject))
 	{

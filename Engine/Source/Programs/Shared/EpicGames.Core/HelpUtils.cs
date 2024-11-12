@@ -74,7 +74,7 @@ namespace EpicGames.Core
 		public static string GetDescription(Type type)
 		{
 			StringBuilder descriptionText = new StringBuilder();
-			foreach (DescriptionAttribute attribute in type.GetCustomAttributes(typeof(DescriptionAttribute), false))
+			foreach (DescriptionAttribute attribute in type.GetCustomAttributes(typeof(DescriptionAttribute), false).OfType<DescriptionAttribute>())
 			{
 				if (descriptionText.Length > 0)
 				{
@@ -186,7 +186,7 @@ namespace EpicGames.Core
 						lines.Add(paramString + descriptionLine);
 
 						// we replace the param string on subsequent lines with white space of the same length
-						paramString = string.Empty.PadRight(indentString.Length + rightPadding);
+						paramString = String.Empty.PadRight(indentString.Length + rightPadding);
 					}
 				}
 			}

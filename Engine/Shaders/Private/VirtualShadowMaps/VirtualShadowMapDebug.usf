@@ -21,7 +21,6 @@ int VirtualShadowMapId;
 StructuredBuffer<FPhysicalPageMetaData> PhysicalPageMetaData;
 RWTexture2D<float4> OutVisualize;
 
-static const float3 BackGroundColor = float3(0.1f, 0.1f, 0.1f);
 static const float3 BlackColor = float3(0.0f, 0.0f, 0.0f);
 
 
@@ -35,8 +34,7 @@ float3 DebugVisualizeClipmap(float2 PixelUV, FVirtualShadowMapProjectionShaderDa
 	for (int Index = ProjectionData0.ClipmapLevelCountRemaining - 1; Index >= 0; --Index)
 	{
 		int LevelSmId = ProjectionData0.VirtualShadowMapId + Index;
-		uint4 AllocatedBounds = VirtualShadowMap.PageRectBounds[LevelSmId * VSM_MAX_MIP_LEVELS];
-
+		uint4 AllocatedBounds = VirtualShadowMap.AllocatedPageRectBounds[LevelSmId * VSM_MAX_MIP_LEVELS];
 
 		if (all(AllocatedBounds.xy <= AllocatedBounds.zw))
 		{
@@ -110,7 +108,7 @@ float3 DebugVisualizeClipmap(float2 PixelUV, FVirtualShadowMapProjectionShaderDa
 	return ResultColor;
 }
 
-float3 DebugVisualizeClipmap(uint2 OutputPixel, int VirtualShadowMapId)
+float4 DebugVisualizeClipmap(uint2 OutputPixel, int VirtualShadowMapId)
 {
 	// Figure out the square area do draw in (could be any sub-rect)
 	uint SquareDomainDim = min(DebugTargetWidth, DebugTargetHeight) - BorderWidth * 2U;
@@ -118,7 +116,7 @@ float3 DebugVisualizeClipmap(uint2 OutputPixel, int VirtualShadowMapId)
 	// fill background pixels
 	if (any(or(OutputPixel < BorderWidth, OutputPixel >(SquareDomainDim + BorderWidth))))
 	{
-		return BackGroundColor;
+		return float4(0, 0, 0, 0);
 	}
 
 	// The pixel we are drawing in 0-1 range UV within the domain
@@ -127,10 +125,10 @@ float3 DebugVisualizeClipmap(uint2 OutputPixel, int VirtualShadowMapId)
 	FVirtualShadowMapProjectionShaderData ProjectionData = GetVirtualShadowMapProjectionData(VirtualShadowMapId);
 	if (ProjectionData.LightType != LIGHT_TYPE_DIRECTIONAL)
 	{
-		return BackGroundColor;
+		return float4(0, 0, 0, 0);
 	}
 
-	return DebugVisualizeClipmap(PixelUV, ProjectionData);
+	return float4(DebugVisualizeClipmap(PixelUV, ProjectionData), 1.0);
 }
 
 
@@ -141,25 +139,52 @@ void DebugVisualizeVirtualSmCS(uint2 PixelPos : SV_DispatchThreadID)
 	{
 		return;
 	}
-
 	// NOTE: Important to *not* write output if it isn't a recognized mode, as a different
 	// pass may write that output instead.
-	float3 Output = float3(1, 0, 1);
-	bool bWriteOutput = true;
+	float4 Output = float4(1, 0, 1, 0);
 
 	if (VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_CLIPMAP_VIRTUAL_SPACE)
 	{
 		Output = DebugVisualizeClipmap(PixelPos, VirtualShadowMapId);
 	}
-	else
-	{
-		bWriteOutput = false;
-	}
 
-	if (bWriteOutput)
+	if (Output.a > 0)
 	{
-		OutVisualize[PixelPos] = float4(Output, 1.0f);
+		OutVisualize[PixelPos] = Output;
 	}
 }
 
+int VisualizeVirtualShadowMapId;
+float VisualizeNaniteOverdrawScale;
+Texture2D DebugTexture;
+SamplerState DebugTextureSampler;
 
+float4 TonemapProjectionDebugTexturePS(
+	noperspective float4 UVAndScreenPos : TEXCOORD0
+) : SV_Target0
+{
+	bool bOneLightVisible = VisualizeVirtualShadowMapId >= 0;
+
+	float2 UV = UVAndScreenPos.xy;
+	float4 Output = Texture2DSample(DebugTexture, DebugTextureSampler, UV);
+
+	if (VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_SMRT_RAY_COUNT)
+	{
+		if (Output.a > 0)
+		{
+			float TotalRayCount = Output.r;
+			float TotalMaxRayCount = Output.g;
+			float IntensityMultiplier = bOneLightVisible ? 1.0 : smoothstep(0, 64, TotalMaxRayCount)+0.5;
+			Output.rgb = GreenToRedTurbo(IntensityMultiplier * TotalRayCount / TotalMaxRayCount);
+		}
+	}
+	else if (VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_NANITE_OVERDRAW)
+	{
+		const float OverdrawScale = clamp(VisualizeNaniteOverdrawScale / 100.0f, 0.0f, 1.0f);
+		const float OverdrawCount = Output.r;
+		const float OverdrawColor = 1 - exp2(-OverdrawCount * OverdrawScale);
+		Output = float4(ColorMapInferno(OverdrawColor), 0.0);
+		Output.a = smoothstep(-0.1, 0.1, dot(Output.rgb, 1.0/3.0));
+	}
+	return Output;
+}

@@ -225,7 +225,7 @@ void UAIGraph::RemoveOrphanedNodes()
 			OnNodeInstanceRemoved(TestObject);
 
 			TestObject->SetFlags(RF_Transient);
-			TestObject->Rename(NULL, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+			TestObject->Rename(NULL, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional);
 		}
 	}
 }

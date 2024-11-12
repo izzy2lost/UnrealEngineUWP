@@ -22,9 +22,14 @@ public class PoseSearch : ModuleRules
 				"AnimationCore",
 				"TraceLog",
 				"AnimGraphRuntime",
-				"StructUtils",
 				"BlendStack"
 			}
+		);
+
+		PrivateDependencyModuleNames.AddRange(
+		new string[]{
+			"RewindDebuggerRuntimeInterface",
+		}
 		);
 
 		if (Target.bCompileAgainstEditor)

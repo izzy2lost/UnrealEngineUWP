@@ -4,6 +4,9 @@
 	VolumetricFogVoxelization.usf
 =============================================================================*/
 
+// Change this to force recompilation of all shaders referencing this file.
+#pragma message("UESHADERMETADATA_VERSION 43567765-38CF-4EC3-B288-49B6F14EF801")
+
 // So vertex factories can interpolate dependencies of VertexFactoryGetTranslatedPrimitiveVolumeBounds
 #define PASS_NEEDS_PRIMITIVE_VOLUME_BOUNDS 1
 
@@ -119,7 +122,7 @@ void VoxelizeGS(triangle FVoxelizeVolumePrimitiveVSToGS Inputs[3], inout Triangl
 	uint PrimitiveId = VertexFactoryGetPrimitiveId(Inputs[0].FactoryInterpolants);
 	float3 LocalObjectBoundsMin = GetPrimitiveData(PrimitiveId).LocalObjectBoundsMin;
 	float3 LocalObjectBoundsMax = GetPrimitiveData(PrimitiveId).LocalObjectBoundsMax;
-	float4x4 LocalToWorld = DFHackToFloat(GetPrimitiveData(PrimitiveId).LocalToWorld);
+	FDFMatrix LocalToWorld = GetPrimitiveData(PrimitiveId).LocalToWorld;
 
 	float QuadDepth = ViewSpacePrimitiveVolumeOrigin.z;
 
@@ -156,8 +159,8 @@ void VoxelizeGS(triangle FVoxelizeVolumePrimitiveVSToGS Inputs[3], inout Triangl
 		{
 			float3 BoxVertexMask = float3((BoxVertex >> 0) & 1, (BoxVertex >> 1) & 1, (BoxVertex >> 2) & 1);
 			float3 BoxVertexLocalPosition = LocalObjectBoundsMin + (LocalObjectBoundsMax - LocalObjectBoundsMin) * BoxVertexMask;
-			float3 BoxVertexPosition = mul(float4(BoxVertexLocalPosition, 1), LocalToWorld).xyz;
-			float3 ViewSpaceBoxVertex = mul(float4(BoxVertexPosition + DFHackToFloat(ResolvedView.PreViewTranslation), 1), ResolvedView.TranslatedWorldToView).xyz;
+			float3 BoxVertexPosition = DFTransformLocalToTranslatedWorld(BoxVertexLocalPosition, LocalToWorld, ResolvedView.PreViewTranslation).xyz;
+			float3 ViewSpaceBoxVertex = mul(float4(BoxVertexPosition, 1), ResolvedView.TranslatedWorldToView).xyz;
 			ViewSpaceBoundingBoxMin = min(ViewSpaceBoundingBoxMin, ViewSpaceBoxVertex.xy);
 			ViewSpaceBoundingBoxMax = max(ViewSpaceBoundingBoxMax, ViewSpaceBoxVertex.xy);
 		}
@@ -279,7 +282,6 @@ float ComputeVolumeShapeMasking(float3 TranslatedWorldPosition, uint PrimitiveId
 
 	float3 LocalObjectBoundsMin = GetPrimitiveData(PrimitiveId).LocalObjectBoundsMin;
 	float3 LocalObjectBoundsMax = GetPrimitiveData(PrimitiveId).LocalObjectBoundsMax;
-	float4x4 LocalToWorld = DFHackToFloat(GetPrimitiveData(PrimitiveId).LocalToWorld);
 
 	float4x4 TranslatedWorldToLocal = DFFastToTranslatedWorld(GetPrimitiveData(PrimitiveId).WorldToLocal, ResolvedView.PreViewTranslation);
 	float3 LocalPosition = mul(float4(TranslatedWorldPosition, 1), TranslatedWorldToLocal).xyz;
@@ -314,7 +316,8 @@ void VoxelizePS(
 		VoxelizeVolumePass.RenderVolumetricCloudParametersCloudLayerCenterKm, VoxelizeVolumePass.RenderVolumetricCloudParametersPlanetRadiusKm,
 		VoxelizeVolumePass.RenderVolumetricCloudParametersBottomRadiusKm, VoxelizeVolumePass.RenderVolumetricCloudParametersTopRadiusKm);
 	float3 TranslatedWorldPosition = SvPositionToTranslatedWorld(SvPosition);
-	UpdateMaterialCloudParam(MaterialParameters, TranslatedWorldPosition, ResolvedView, CloudLayerParams, TRACING_SHADOW_DISTANCE_OFF, SPACE_SKIPPING_SLICE_DEPTH_OFF);
+	// WorldPositionDDX/Y only need to be set when using analytical derivatives, which is not needed in pixel shaders
+	UpdateMaterialCloudParam(MaterialParameters, TranslatedWorldPosition, 0.0f /*WorldPositionDDX*/, 0.0f /*WorldPositionDDY*/, ResolvedView, CloudLayerParams, TRACING_SHADOW_DISTANCE_OFF, SPACE_SKIPPING_SLICE_DEPTH_OFF);
 #endif
 
 	// Scale rendered position to account for frustum difference between fog voxelization and rendered scene

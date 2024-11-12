@@ -515,7 +515,6 @@ void SWatchViewer::Construct(const FArguments& InArgs, TArray<TSharedRef<FWatchR
 			+SOverlay::Slot()
 			[
 				SAssignNew(WatchTreeWidget, SWatchTree)
-				.ItemHeight(25.0f)
 				.TreeItemsSource(WatchSource)
 				.OnGenerateRow(this, &SWatchViewer::HandleGenerateRow)
 				.OnGetChildren(this, &SWatchViewer::HandleGetChildren)

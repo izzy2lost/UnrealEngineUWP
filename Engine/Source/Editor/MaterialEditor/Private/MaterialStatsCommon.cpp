@@ -18,7 +18,7 @@
 void FMaterialResourceStats::SetupExtraCompilationSettings(const EShaderPlatform Platform, FExtraShaderCompilerSettings& Settings) const
 {
 	Settings.bExtractShaderSource = true;
-	Settings.OfflineCompilerPath = FMaterialStatsUtils::GetPlatformOfflineCompilerPath(Platform);
+	FMaterialStatsUtils::GetPlatformOfflineCompilerSettings(Platform, Settings);
 }
 
 /*end FMaterialResourceStats functions*/
@@ -138,22 +138,52 @@ FString FMaterialStatsUtils::ShaderPlatformTypeName(const EShaderPlatform Platfo
 
 FString FMaterialStatsUtils::GetPlatformOfflineCompilerPath(const EShaderPlatform ShaderPlatform)
 {
+	FExtraShaderCompilerSettings SCSettings;
+	GetPlatformOfflineCompilerSettings(ShaderPlatform, SCSettings);
+	return SCSettings.OfflineCompilerPath;
+}
+
+void FMaterialStatsUtils::GetPlatformOfflineCompilerSettings(const EShaderPlatform ShaderPlatform, FExtraShaderCompilerSettings& SCSettings)
+{
+	auto GetSCType = [](EOfflineShaderCompiler SC)
+	{
+		switch (SC)
+		{
+		case EOfflineShaderCompiler::Mali:
+			return EOfflineShaderCompilerType::Mali;
+			break;
+		case EOfflineShaderCompiler::Adreno:
+			return EOfflineShaderCompilerType::Adreno;
+			break;
+		default:
+			return EOfflineShaderCompilerType::Num;
+		}
+	};
 	if (FDataDrivenShaderPlatformInfo::GetNeedsOfflineCompiler(ShaderPlatform))
 	{
 		if (FDataDrivenShaderPlatformInfo::GetIsAndroidOpenGLES(ShaderPlatform)
 			|| (FDataDrivenShaderPlatformInfo::GetIsLanguageVulkan(ShaderPlatform) && FDataDrivenShaderPlatformInfo::GetIsMobile(ShaderPlatform)))
 		{
-			return FPaths::ConvertRelativePathToFull(GetDefault<UMaterialEditorSettings>()->MaliOfflineCompilerPath.FilePath);
+			SCSettings.OfflineCompiler = GetSCType(GetDefault<UMaterialEditorSettings>()->OfflineCompiler);
+			SCSettings.OfflineCompilerPath = FPaths::ConvertRelativePathToFull(GetDefault<UMaterialEditorSettings>()->OfflineCompilerPath.FilePath);
+			SCSettings.GPUTarget = GetDefault<UMaterialEditorSettings>()->GPUTarget;
+			SCSettings.bDumpAll = GetDefault<UMaterialEditorSettings>()->bDumpAll;
+			SCSettings.bSaveCompilerStatsFiles = GetDefault<UMaterialEditorSettings>()->bSaveCompilerStatsFiles;
+			static const auto CVarMobileMultiView = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MobileMultiView"));
+			SCSettings.bMobileMultiView = (CVarMobileMultiView && CVarMobileMultiView->GetValueOnAnyThread() != 0);
+			return;
 		}
 	}
-	return FString();
+	SCSettings.OfflineCompiler = EOfflineShaderCompilerType::Num;
+	return;
 }
 
 bool FMaterialStatsUtils::IsPlatformOfflineCompilerAvailable(const EShaderPlatform ShaderPlatform)
 {
-	FString CompilerPath = GetPlatformOfflineCompilerPath(ShaderPlatform);
+	FExtraShaderCompilerSettings Settings;
+	GetPlatformOfflineCompilerSettings(ShaderPlatform, Settings);
 
-	bool bCompilerExists = FPaths::FileExists(CompilerPath);
+	bool bCompilerExists = FPaths::FileExists(Settings.OfflineCompilerPath);
 
 	return bCompilerExists;
 }
@@ -193,6 +223,10 @@ FString FMaterialStatsUtils::RepresentativeShaderTypeToString(const ERepresentat
 
 		case ERepresentativeShader::SkinnedCloth:
 			return TEXT("Skinned Cloth");
+		break;
+
+		case ERepresentativeShader::NaniteMesh:
+			return TEXT("Nanite Mesh");
 		break;
 
 		case ERepresentativeShader::UIDefaultFragmentShader:
@@ -266,29 +300,12 @@ FSlateColor FMaterialStatsUtils::QualitySettingColor(const EMaterialQualityLevel
 	}
 }
 
-static void MobileBasePassShaderName(bool bVertexShader, const TCHAR* PolicyName, const TCHAR* LocalLightSetting, bool bHDR, bool bSkyLight, FString& OutName)
-{
-	OutName.Reset();
-	OutName.Append(bVertexShader ? TEXT("TMobileBasePassVS") : TEXT("TMobileBasePassPS"));
-	OutName.Append(PolicyName);
-	OutName.Append(bHDR ? TEXT("HDRLinear64") : TEXT("LDRGamma32"));
-	if (!bVertexShader && bSkyLight)
-	{
-		OutName.Append(TEXT("SkyLight"));
-	}
-	if (!bVertexShader)
-	{
-		OutName.Append(LocalLightSetting);
-	}
-}
-
 void FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(TMap<FName, TArray<FRepresentativeShaderInfo>>& ShaderTypeNamesAndDescriptions, const FMaterial* TargetMaterial)
 {
-	bool bMobileHDR = IsMobileHDR();
-
 	static const FName FLocalVertexFactoryName = FLocalVertexFactory::StaticType.GetFName();
 	static const FName FGPUFactoryName = TEXT("TGPUSkinVertexFactoryDefault");
 	static const FName FClothVertexFactoryName = TEXT("TGPUSkinAPEXClothVertexFactoryDefault");
+	static const FName FNaniteVertexFactoryName = TEXT("FNaniteVertexFactory");
 
 	if (TargetMaterial->IsUIMaterial())
 	{
@@ -350,6 +367,16 @@ void FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(TMap<FName
 				.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkinnedCloth, TBasePassVSFNoLightMapPolicyName, TEXT("Base pass vertex shader")));
 		}
 
+		if (TargetMaterial->GetFeatureLevel() >= ERHIFeatureLevel::SM6)
+		{
+			if (TargetMaterial->IsUsedWithNanite())
+			{
+				static FName TBasePassCSFNoLightMapPolicyName = TEXT("TBasePassCSFNoLightMapPolicy");
+				ShaderTypeNamesAndDescriptions.FindOrAdd(FNaniteVertexFactoryName)
+					.Add(FRepresentativeShaderInfo(ERepresentativeShader::NaniteMesh, TBasePassCSFNoLightMapPolicyName, TEXT("Nanite Compute Shader")));
+			}
+		}
+
 		// Add the shader type with the most sampler usages so we can accurately report the worst case scenario.
 		// This is ad-hoc, and ideally we have a better way for finding this shader type in the future.
 		ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
@@ -367,180 +394,82 @@ void FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(TMap<FName
 	}
 	else
 	{
-		const TCHAR* DescSuffix = bMobileHDR ? TEXT(" (HDR)") : TEXT(" (LDR)");
-		FString ShaderNameStr;
-
+		static const FName TMobileBasePassVSFNoLightMapPolicyName = TEXT("TMobileBasePassVSFNoLightMapPolicy");
+		static const FName TMobileBasePassPSFNoLightMapPolicyName = TEXT("TMobileBasePassPSFNoLightMapPolicyLOCAL_LIGHTS_DISABLED");
+		
 		if (TargetMaterial->GetShadingModels().IsUnlit())
 		{
-			//unlit materials are never lightmapped
-			MobileBasePassShaderName(false, TEXT("FNoLightMapPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, false, ShaderNameStr);
-			const FString Description = FString::Printf(TEXT("Mobile base pass shader without light map%s"), DescSuffix);
 			ShaderTypeNamesAndDescriptions.Add(FLocalVertexFactoryName)
-				.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, FName(ShaderNameStr), Description));
-
-			MobileBasePassShaderName(true, TEXT("FNoLightMapPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, false, ShaderNameStr);
-			ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-				.Add(FRepresentativeShaderInfo(ERepresentativeShader::StaticMesh, FName(ShaderNameStr),
-					FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-
-			if (TargetMaterial->IsUsedWithSkeletalMesh() || TargetMaterial->IsUsedWithMorphTargets())
-			{
-				ShaderTypeNamesAndDescriptions.FindOrAdd(FGPUFactoryName)
-					.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkeletalMesh, FName(ShaderNameStr),
-						FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-			}
-			if (TargetMaterial->IsUsedWithAPEXCloth())
-			{
-				ShaderTypeNamesAndDescriptions.FindOrAdd(FClothVertexFactoryName)
-					.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkinnedCloth, FName(ShaderNameStr),
-						FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-			}
+				.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, TMobileBasePassPSFNoLightMapPolicyName,
+					TEXT("Mobile base pass shader without light map")));
 		}
 		else
 		{			
-			static auto* CVarMobileSkyLightPermutation = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.SkyLightPermutation"));
-			const bool bOnlySkyPermutation = CVarMobileSkyLightPermutation->GetValueOnAnyThread() == 2;
-						
 			if (IsStaticLightingAllowed() && TargetMaterial->IsUsedWithStaticLighting())
 			{
 				static auto* CVarAllowDistanceFieldShadows = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.AllowDistanceFieldShadows"));
 				const bool bAllowDistanceFieldShadows = CVarAllowDistanceFieldShadows->GetValueOnAnyThread() != 0;
-
-				if (bAllowDistanceFieldShadows)// distance field shadows
+				if (bAllowDistanceFieldShadows)
 				{
 					// distance field shadows only shaders
-					{
-						MobileBasePassShaderName(false, TEXT("FMobileDistanceFieldShadowsAndLQLightMapPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-						const FString Description = FString::Printf(TEXT("Mobile base pass shader with distance field shadows%s"), DescSuffix);
-						ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-							.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, FName(ShaderNameStr), Description));
-					}
-
-					static auto* CVarAllowDistanceFieldShadowsAndCSM = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.EnableStaticAndCSMShadowReceivers"));
-					const bool bAllowDistanceFieldShadowsAndCSM = CVarAllowDistanceFieldShadowsAndCSM->GetValueOnAnyThread() != 0;
-					if (bAllowDistanceFieldShadowsAndCSM)
-					{
-						// distance field shadows & CSM shaders
-						{
-							MobileBasePassShaderName(false, TEXT("FMobileDistanceFieldShadowsLightMapAndCSMLightingPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-							const FString Description = FString::Printf(TEXT("Mobile base pass shader with distance field shadows and CSM%s"), DescSuffix);
-							ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-								.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurfaceCSM, FName(ShaderNameStr), Description));
-						}
-
-						{
-							MobileBasePassShaderName(false, TEXT("FMobileDistanceFieldShadowsAndLQLightMapPolicy"), TEXT("LOCAL_LIGHTS_ENABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-							const FString Description = FString::Printf(TEXT("Mobile base pass shader with distance field shadows, CSM and local light(s) %s"), DescSuffix);
-
-							FRepresentativeShaderInfo ShaderInfo = FRepresentativeShaderInfo(ERepresentativeShader::StationarySurfaceNPointLights, FName(ShaderNameStr), Description);
-
-							ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName).Add(ShaderInfo);
-								
-						}
-
-						{
-							MobileBasePassShaderName(false, TEXT("FMobileDistanceFieldShadowsAndLQLightMapPolicy"), TEXT("LOCAL_LIGHTS_BUFFER"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-							const FString Description = FString::Printf(TEXT("Mobile base pass shader with distance field shadows, CSM and local light(s) %s"), DescSuffix);
-
-							FRepresentativeShaderInfo ShaderInfo = FRepresentativeShaderInfo(ERepresentativeShader::StationarySurfaceNPointLights, FName(ShaderNameStr), Description);
-
-							ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName).Add(ShaderInfo);
-
-						}
-					}
+					static const FName TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyName =
+						TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyLOCAL_LIGHTS_DISABLED");
+					
+					ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
+							.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyName,
+								TEXT("Mobile base pass shader with distance field shadows")));
 				}
 				else //no shadows & lightmapped
 				{
-					{
-						MobileBasePassShaderName(false, TEXT("TLightMapPolicyLQ"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-						ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-							.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, FName(ShaderNameStr),
-								FString::Printf(TEXT("Mobile base pass shader with static lighting%s"), DescSuffix)));
-					}
-
-					{
-						MobileBasePassShaderName(false, TEXT("TLightMapPolicyLQ"), TEXT("LOCAL_LIGHTS_ENABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-						const FString Description = FString::Printf(TEXT("Mobile base pass shader with static lighting and local light(s) %s"), DescSuffix);
-						FRepresentativeShaderInfo ShaderInfo = FRepresentativeShaderInfo(ERepresentativeShader::StationarySurfaceNPointLights, FName(ShaderNameStr), Description);
-						ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName).Add(ShaderInfo);
-					}
-
-					{
-						MobileBasePassShaderName(false, TEXT("TLightMapPolicyLQ"), TEXT("LOCAL_LIGHTS_BUFFER"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-						const FString Description = FString::Printf(TEXT("Mobile base pass shader with static lighting and local light(s) %s"), DescSuffix);
-						FRepresentativeShaderInfo ShaderInfo = FRepresentativeShaderInfo(ERepresentativeShader::StationarySurfaceNPointLights, FName(ShaderNameStr), Description);
-						ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName).Add(ShaderInfo);
-					}
+					static const FName TMobileBasePassPSTLightMapPolicyLQName =
+						TEXT("TMobileBasePassPSTLightMapPolicyLQLOCAL_LIGHTS_DISABLED");
+										
+					ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
+						.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, TMobileBasePassPSTLightMapPolicyLQName,
+							TEXT("Mobile base pass shader with static lighting")));
 				}
 			}
-
-			// only one of these 2 shader types will be displayed
-			
 			// dynamically lit shader NoLightmapPolicy
-			MobileBasePassShaderName(false, TEXT("FNoLightmapPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
 			ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-				.Add(FRepresentativeShaderInfo(ERepresentativeShader::DynamicallyLitObject, FName(ShaderNameStr),
-				FString::Printf(TEXT("Mobile base pass shader with only dynamic lighting%s"), DescSuffix)));
+				.Add(FRepresentativeShaderInfo(ERepresentativeShader::DynamicallyLitObject, TMobileBasePassPSFNoLightMapPolicyName,
+					TEXT("Mobile base pass shader with only dynamic lighting")));
+		}
 
-			MobileBasePassShaderName(true, TEXT("FNoLightMapPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-			ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-				.Add(FRepresentativeShaderInfo(ERepresentativeShader::StaticMesh, FName(ShaderNameStr),
-				FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
+		ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
+			.Add(FRepresentativeShaderInfo(ERepresentativeShader::StaticMesh, TMobileBasePassVSFNoLightMapPolicyName,
+				TEXT("Mobile base pass vertex shader")));
 
-			if (TargetMaterial->IsUsedWithSkeletalMesh() || TargetMaterial->IsUsedWithMorphTargets())
-			{
-				ShaderTypeNamesAndDescriptions.FindOrAdd(FGPUFactoryName)
-					.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkeletalMesh, FName(ShaderNameStr),
-						FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-			}
-			if (TargetMaterial->IsUsedWithAPEXCloth())
-			{
-				ShaderTypeNamesAndDescriptions.FindOrAdd(FClothVertexFactoryName)
-					.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkinnedCloth, FName(ShaderNameStr),
-						FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-			}
-
-			// dynamically lit shader FMobileDirectionalLightAndCSMPolicy
-			MobileBasePassShaderName(false, TEXT("FMobileDirectionalLightAndCSMPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-			ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-				.Add(FRepresentativeShaderInfo(ERepresentativeShader::DynamicallyLitObject, FName(ShaderNameStr),
-				FString::Printf(TEXT("Mobile base pass shader with only dynamic lighting%s"), DescSuffix)));
-
-			MobileBasePassShaderName(true, TEXT("FMobileDirectionalLightAndCSMPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-			ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-				.Add(FRepresentativeShaderInfo(ERepresentativeShader::StaticMesh, FName(ShaderNameStr),
-				FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-
-			if (TargetMaterial->IsUsedWithSkeletalMesh() || TargetMaterial->IsUsedWithMorphTargets())
-			{
-				ShaderTypeNamesAndDescriptions.FindOrAdd(FGPUFactoryName)
-					.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkeletalMesh, FName(ShaderNameStr),
-						FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-			}
-			if (TargetMaterial->IsUsedWithAPEXCloth())
-			{
-				ShaderTypeNamesAndDescriptions.FindOrAdd(FClothVertexFactoryName)
-					.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkinnedCloth, FName(ShaderNameStr),
-						FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-			}
+		if (TargetMaterial->IsUsedWithSkeletalMesh() || TargetMaterial->IsUsedWithMorphTargets())
+		{
+			ShaderTypeNamesAndDescriptions.FindOrAdd(FGPUFactoryName)
+				.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkeletalMesh, TMobileBasePassVSFNoLightMapPolicyName,
+					TEXT("Mobile base pass vertex shader")));
+		}
+		if (TargetMaterial->IsUsedWithAPEXCloth())
+		{
+			ShaderTypeNamesAndDescriptions.FindOrAdd(FClothVertexFactoryName)
+				.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkinnedCloth, TMobileBasePassVSFNoLightMapPolicyName,
+					TEXT("Mobile base pass vertex shader")));
 		}
 	}
 }
 
-static FString GetShaderString(const FShader::FShaderStatisticMap& Statistics)
+#if WITH_EDITORONLY_DATA
+static FString GetShaderString(const TArray<FGenericShaderStat>& Statistics)
 {
 	TStringBuilder<2048> StatisticsStrBuilder;
 	for (const auto& Stat : Statistics)
 	{
-		StatisticsStrBuilder << Stat.Key << ": ";
+		StatisticsStrBuilder << Stat.StatName << ": ";
 		Visit([&StatisticsStrBuilder](auto& StoredValue)
-		{
+ 		{
 			StatisticsStrBuilder << StoredValue << "\n";
 		}, Stat.Value);
 	}
 
 	return StatisticsStrBuilder.ToString();
 }
+#endif // WITH_EDITORONLY_DATA
 
 /**
 * Gets instruction counts that best represent the likely usage of this material based on shading model and other factors.
@@ -578,7 +507,7 @@ void FMaterialStatsUtils::GetRepresentativeInstructionCounts(TArray<FShaderInstr
 						Info.ShaderType = ShaderInfo.ShaderType;
 						Info.ShaderDescription = ShaderInfo.ShaderDescription;
 						Info.InstructionCount = NumInstructions;
-						Info.ShaderStatisticsString = GetShaderString(MaterialShaderMap->GetShaderStatisticsMapForShader(ShaderType));
+						Info.ShaderStatisticsString = GetShaderString(MaterialShaderMap->GetShaderStatistics(ShaderType));
 						if (Info.ShaderStatisticsString.Len() == 0)
 						{
 							Info.ShaderStatisticsString = TEXT("n/a");
@@ -620,7 +549,9 @@ void FMaterialStatsUtils::GetRepresentativeInstructionCounts(TArray<FShaderInstr
 									Info.ShaderType = ShaderInfo.ShaderType;
 									Info.ShaderDescription = ShaderInfo.ShaderDescription;
 									Info.InstructionCount = NumInstructions;
-									Info.ShaderStatisticsString = GetShaderString(MeshShaderMap->GetShaderStatisticsMapForShader(*MaterialShaderMap, ShaderType));
+#if WITH_EDITORONLY_DATA
+									Info.ShaderStatisticsString = GetShaderString(MeshShaderMap->GetShaderStatistics(*MaterialShaderMap, ShaderType));
+#endif // WITH_EDITORONLY_DATA
 									if (Info.ShaderStatisticsString.Len() == 0)
 									{
 										Info.ShaderStatisticsString = TEXT("n/a");
@@ -667,7 +598,7 @@ void FMaterialStatsUtils::ExtractMatertialStatsInfo(EShaderPlatform ShaderPlatfo
 
 			Content.StrDescription = ShaderInstructionInfo[InstructionIndex].InstructionCount > 0 ? FString::Printf(TEXT("%u"), ShaderInstructionInfo[InstructionIndex].InstructionCount) : TEXT("n/a");
 			Content.StrDescriptionLong = ShaderInstructionInfo[InstructionIndex].InstructionCount > 0 ?
-				FString::Printf(TEXT("%s: %u instructions"), *ShaderInstructionInfo[InstructionIndex].ShaderDescription, ShaderInstructionInfo[InstructionIndex].InstructionCount) :
+				FString::Printf(TEXT("%s: %u instructions\nStats: %s"), *ShaderInstructionInfo[InstructionIndex].ShaderDescription, ShaderInstructionInfo[InstructionIndex].InstructionCount, *ShaderInstructionInfo[InstructionIndex].ShaderStatisticsString) :
 				TEXT("Offline shader compiler not available or an error was encountered!");
 
 			OutInfo.ShaderInstructionCount.Add(ShaderInstructionInfo[InstructionIndex].ShaderType, Content);
@@ -730,13 +661,21 @@ void FMaterialStatsUtils::ExtractMatertialStatsInfo(EShaderPlatform ShaderPlatfo
 		OutInfo.ShaderCount.StrDescriptionLong = FString::Printf(TEXT("Total Shaders: %u"), TotalShadersForMaterial);
 
 		FString LWCMessage;
-		TStaticArray<uint16, (int)ELWCFunctionKind::Max> LWCFuncUsages = MaterialResource->GetEstimatedLWCFuncUsages();
+		FMaterialResource::FLWCUsagesArray LWCFuncUsagesVS;
+		FMaterialResource::FLWCUsagesArray LWCFuncUsagesPS;
+		FMaterialResource::FLWCUsagesArray LWCFuncUsagesCS;
+		MaterialResource->GetEstimatedLWCFuncUsages(LWCFuncUsagesVS, LWCFuncUsagesPS, LWCFuncUsagesCS);
 		for (int KindIndex = 0; KindIndex < (int)ELWCFunctionKind::Max; ++KindIndex)
 		{
-			int Usages = LWCFuncUsages[KindIndex];
-			if (LWCFuncUsages[KindIndex] > 0)
+			int Usages = LWCFuncUsagesVS[KindIndex] + LWCFuncUsagesPS[KindIndex] + LWCFuncUsagesCS[KindIndex];
+			if (Usages > 0)
 			{
-				LWCMessage += FString::Printf(TEXT("%s: %u\n"), *UEnum::GetDisplayValueAsText((ELWCFunctionKind)KindIndex).ToString(), Usages);
+				LWCMessage += FString::Printf(
+					TEXT("%s: %u (VS), %u (PS), %u (CS)\n"), 
+					*UEnum::GetDisplayValueAsText((ELWCFunctionKind)KindIndex).ToString(), 
+					LWCFuncUsagesVS[KindIndex],
+					LWCFuncUsagesPS[KindIndex],
+					LWCFuncUsagesCS[KindIndex]);
 			}
 		}
 

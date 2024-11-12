@@ -306,11 +306,11 @@ public:
 		{
 			if (Accessor::bUseInterp)
 			{
-				ValidX1 = CachedX1 = X1;
-				ValidY1 = CachedY1 = Y1;
-				ValidX2 = CachedX2 = X2;
-				ValidY2 = CachedY2 = Y2;
-
+				// GetData alters its args, so make temp copies to avoid screwing things up
+				int32 ValidX1 = X1;
+				int32 ValidY1 = Y1;
+				int32 ValidX2 = X2;
+				int32 ValidY2 = Y2;
 				DataAccess.GetData(ValidX1, ValidY1, ValidX2, ValidY2, CachedData);
 				if (!ensureMsgf(ValidX1 <= ValidX2 && ValidY1 <= ValidY2, TEXT("Invalid cache area: X(%d-%d), Y(%d-%d) from region X(%d-%d), Y(%d-%d)"), ValidX1, ValidX2, ValidY1, ValidY2, X1, X2, Y1, Y2))
 				{
@@ -320,16 +320,15 @@ public:
 			}
 			else
 			{
-				CachedX1 = X1;
-				CachedY1 = Y1;
-				CachedX2 = X2;
-				CachedY2 = Y2;
-
-				DataAccess.GetDataFast(CachedX1, CachedY1, CachedX2, CachedY2, CachedData);
+				DataAccess.GetDataFast(X1, Y1, X2, Y2, CachedData);
 			}
+			CachedX1 = X1;
+			CachedY1 = Y1;
+			CachedX2 = X2;
+			CachedY2 = Y2;
 
 			// Drop a visual log to indicate the area covered by this cache region extension :
-			VisualizeLandscapeRegion(CachedX1, CachedY1, CachedX2, CachedY2, FColor::Red, TEXT("Cache Data"));
+			VisualizeLandscapeRegion(CachedX1, CachedY1, CachedX2, CachedY2, FColor::Red, FString::Printf(TEXT("Cache Data (X1:%i, Y1:%i, X2:%i, Y2:%i)"), CachedX1, CachedY1, CachedX2, CachedY2));
 
 			if (bCacheOriginalData)
 			{
@@ -339,114 +338,64 @@ public:
 		}
 		else
 		{
-			bool bCacheExtended = false;
-
-			// Extend the cache area if needed
-			if (X1 < CachedX1)
+			auto ExtendCache = [this, bCacheOriginalData](const int32 InX1, const int32 InY1, const int32 InX2, const int32 InY2)
 			{
 				if (Accessor::bUseInterp)
 				{
-					int32 x1 = X1;
-					int32 x2 = ValidX1;
-					int32 y1 = FMath::Min<int32>(Y1, CachedY1);
-					int32 y2 = FMath::Max<int32>(Y2, CachedY2);
-
-					DataAccess.GetData(x1, y1, x2, y2, CachedData);
-					ValidX1 = FMath::Min<int32>(x1, ValidX1);
+					// GetData alters its args, so make temp copies to avoid screwing things up :
+					int32 ValidX1 = InX1;
+					int32 ValidY1 = InY1;
+					int32 ValidX2 = InX2;
+					int32 ValidY2 = InY2;
+					DataAccess.GetData(ValidX1, ValidY1, ValidX2, ValidY2, CachedData);
 				}
 				else
 				{
-					DataAccess.GetDataFast(X1, CachedY1, CachedX1 - 1, CachedY2, CachedData);
+					DataAccess.GetDataFast(InX1, InY1, InX2, InY2, CachedData);
 				}
 
 				if (bCacheOriginalData)
 				{
-					CacheOriginalData(X1, CachedY1, CachedX1 - 1, CachedY2);
+					CacheOriginalData(InX1, InY1, InX2, InY2);
+					// Drop a visual log to indicate the area covered by this cache region extension :
+					VisualizeLandscapeRegion(InX1, InY1, InX2, InY2, FColor::Purple, FString::Printf(TEXT("Cache Original Data (X1:%i, Y1:%i, X2:%i, Y2:%i)"), InX1, InY1, InX2, InY2), /*InZOffset = */10.0);
 				}
-				CachedX1 = X1;
+			};
 
+			// Extend the cache area if needed
+			bool bCacheExtended = false;
+			if (X1 < CachedX1)
+			{
+				ExtendCache(X1, CachedY1, CachedX1 - 1, CachedY2);
+				CachedX1 = X1;
 				bCacheExtended = true;
 			}
 
 			if (X2 > CachedX2)
 			{
-				if (Accessor::bUseInterp)
-				{
-					int32 x1 = ValidX2;
-					int32 x2 = X2;
-					int32 y1 = FMath::Min<int32>(Y1, CachedY1);
-					int32 y2 = FMath::Max<int32>(Y2, CachedY2);
-
-					DataAccess.GetData(x1, y1, x2, y2, CachedData);
-					ValidX2 = FMath::Max<int32>(x2, ValidX2);
-				}
-				else
-				{
-					DataAccess.GetDataFast(CachedX2 + 1, CachedY1, X2, CachedY2, CachedData);
-				}
-				if (bCacheOriginalData)
-				{
-					CacheOriginalData(CachedX2 + 1, CachedY1, X2, CachedY2);
-				}
+				ExtendCache(CachedX2 + 1, CachedY1, X2, CachedY2);
 				CachedX2 = X2;
-
 				bCacheExtended = true;
 			}
 
 			if (Y1 < CachedY1)
 			{
-				if (Accessor::bUseInterp)
-				{
-					int32 x1 = CachedX1;
-					int32 x2 = CachedX2;
-					int32 y1 = Y1;
-					int32 y2 = ValidY1;
-
-					DataAccess.GetData(x1, y1, x2, y2, CachedData);
-					ValidY1 = FMath::Min<int32>(y1, ValidY1);
-				}
-				else
-				{
-					DataAccess.GetDataFast(CachedX1, Y1, CachedX2, CachedY1 - 1, CachedData);
-				}
-				if (bCacheOriginalData)
-				{
-					CacheOriginalData(CachedX1, Y1, CachedX2, CachedY1 - 1);
-				}
+				ExtendCache(CachedX1, Y1, CachedX2, CachedY1 - 1);
 				CachedY1 = Y1;
-
 				bCacheExtended = true;
 			}
 
 			if (Y2 > CachedY2)
 			{
-				if (Accessor::bUseInterp)
-				{
-					int32 x1 = CachedX1;
-					int32 x2 = CachedX2;
-					int32 y1 = ValidY2;
-					int32 y2 = Y2;
-
-					DataAccess.GetData(x1, y1, x2, y2, CachedData);
-					ValidY2 = FMath::Max<int32>(y2, ValidY2);
-				}
-				else
-				{
-					DataAccess.GetDataFast(CachedX1, CachedY2 + 1, CachedX2, Y2, CachedData);
-				}
-				if (bCacheOriginalData)
-				{
-					CacheOriginalData(CachedX1, CachedY2 + 1, CachedX2, Y2);
-				}
+				ExtendCache(CachedX1, CachedY2 + 1, CachedX2, Y2);
 				CachedY2 = Y2;
-
 				bCacheExtended = true;
 			}
 
 			if (bCacheExtended)
 			{
 				// Drop a visual log to indicate the area covered by this cache region extension :
-				VisualizeLandscapeRegion(CachedX1, CachedY1, CachedX2, CachedY2, FColor::Red, TEXT("Cache Data"));
+				VisualizeLandscapeRegion(CachedX1, CachedY1, CachedX2, CachedY2, FColor::Red, FString::Printf(TEXT("Cache Data (X1:%i, Y1:%i, X2:%i, Y2:%i)"), CachedX1, CachedY1, CachedX2, CachedY2));
 			}
 		}
 	}
@@ -627,10 +576,7 @@ public:
 			for (int32 X = X1; X <= X2; X++)
 			{
 				AccessorType* Ptr = OriginalData.Find(FIntPoint(X, Y));
-				if (Ptr)
-				{
-					OutOriginalData[(X - X1) + (Y - Y1)*(1 + X2 - X1)] = *Ptr;
-				}
+				OutOriginalData[(X - X1) + (Y - Y1) * (1 + X2 - X1)] = Ptr ? *Ptr : (AccessorType)0;
 			}
 		}
 	}
@@ -660,15 +606,21 @@ private:
 		}
 	}
 
-	void VisualizeLandscapeRegion(int32 InX1, int32 InY1, int32 InX2, int32 InY2, const FColor& InColor, const FString& InDescription)
+	// X2/Y2 Coordinates are "inclusive" max values
+	void VisualizeLandscapeRegion(int32 InX1, int32 InY1, int32 InX2, int32 InY2, const FColor& InColor, const FString& InDescription, double InZOffset = 0.0f)
 	{
 		check(LandscapeInfo != nullptr);
 		ALandscapeProxy* LandscapeProxy = LandscapeInfo->GetLandscapeProxy();
 		check(LandscapeProxy != nullptr);
 		const FTransform& LandscapeTransform = LandscapeProxy->GetTransform();
-		FVector Min = LandscapeTransform.TransformPosition(FVector(InX1, InY1, 0));
-		FVector Max = LandscapeTransform.TransformPosition(FVector(InX2, InY2, 0));
-		UE_VLOG_BOX(LandscapeProxy, LogLandscapeTools, Log, FBox(Min, Max), InColor, TEXT("%s"), *InDescription);
+		static constexpr double BaseZOffset = 10.0; // Add a small Z offset to avoid Z-flickering for flat landscapes
+		FVector ZOffset(0.0, 0.0, BaseZOffset + InZOffset);
+		// the offset is given in world space so unapply the scale before applying the transform
+		ZOffset /= LandscapeTransform.GetScale3D();
+		FTransform WorldTransformForVisLog = FTransform(ZOffset) * LandscapeTransform;
+		// Use (-0.5, -0.5) for min and (+0.5, +0.5) for max because both are inclusive (i.e. caching at 0, 0, 0, 0 (X1, Y1, X2, Y2)) will draw a box of size (1, 1) around (0, 0))
+		UE_VLOG_OBOX(LandscapeProxy, LogLandscapeTools, Log, FBox(FVector(InX1, InY1, 0.0) - FVector(0.5, 0.5, 0.0), FVector(InX2, InY2, 0.0) + FVector(0.5, 0.5, 0.0)),
+			WorldTransformForVisLog.ToMatrixWithScale(), InColor, TEXT("%s"), *InDescription);
 	}
 
 	TMap<FIntPoint, AccessorType> CachedData;
@@ -678,16 +630,11 @@ private:
 
 	bool bIsValid = false;
 
+	// Inclusive bounds of the current cached region (CachedData)
 	int32 CachedX1 = INDEX_NONE;
 	int32 CachedY1 = INDEX_NONE;
 	int32 CachedX2 = INDEX_NONE;
 	int32 CachedY2 = INDEX_NONE;
-
-	// To store valid region....
-	int32 ValidX1 = INDEX_NONE;
-	int32 ValidX2 = INDEX_NONE;
-	int32 ValidY1 = INDEX_NONE;
-	int32 ValidY2 = INDEX_NONE;
 };
 
 template<bool bInUseInterp>
@@ -895,14 +842,6 @@ struct FLandscapeAlphaCache : public TLandscapeEditCache<FAlphamapAccessorTool<t
 	}
 };
 
-struct FVisibilityAccessor : public FAlphamapAccessorTool<false, false>
-{
-	FVisibilityAccessor(const FLandscapeToolTarget& InTarget)
-		: FAlphamapAccessorTool<false, false>(InTarget.LandscapeInfo.Get(), ALandscapeProxy::VisibilityLayer)
-	{
-	}
-};
-
 struct FLandscapeVisCache : public TLandscapeEditCache<FAlphamapAccessorTool<false, false>, uint8>
 {
 	static uint8 ClampValue(int32 Value) { return static_cast<uint8>(FMath::Clamp(Value, 0, 255)); }
@@ -949,14 +888,15 @@ public:
 			bCombinedLayerOperation = Landscape && Landscape->HasLayersContent() && InCombinedLayerOperation && bTargetIsHeightmap;
 			if (bCombinedLayerOperation)
 			{
-				for (uint8 i = 0; i < Landscape->GetLayerCount(); ++i)
+				int32 I = 0;
+				for (const FLandscapeLayer& CurrentLayer : Landscape->GetLayers())
 				{
-					FLandscapeLayer* CurrentLayer = Landscape->GetLayer(i);
-					BackupLayerVisibility.Add(CurrentLayer->bVisible);
-					if (CurrentLayer->Guid == EditingLayerGuid.GetValue())
+					BackupLayerVisibility.Add(CurrentLayer.bVisible);
+					if (CurrentLayer.Guid == EditingLayerGuid.GetValue())
 					{
-						EditingLayerIndex = i;
+						EditingLayerIndex = I;
 					}
+					++I;
 				}
 				check(EditingLayerIndex < Landscape->GetLayerCount());
 			}
@@ -971,10 +911,11 @@ public:
 		if (bCombinedLayerOperation)
 		{
 			TArray<bool> NewLayerVisibility;
-			for (int i = 0; i < Landscape->GetLayerCount(); ++i)
+			int32 I = 0;
+			for (const FLandscapeLayer& CurrentLayer : Landscape->GetLayers())
 			{
-				FLandscapeLayer* CurrentLayer = Landscape->GetLayer(i);
-				NewLayerVisibility.Add((i > EditingLayerIndex) ? false : CurrentLayer->bVisible);
+				NewLayerVisibility.Add((I > EditingLayerIndex) ? false : CurrentLayer.bVisible);
+				++I;
 			}
 
 			auto OnCacheUpdating = [&](const FIntRect& NewCacheBounds) -> FIntRect
@@ -1043,8 +984,8 @@ public:
 
 			FGuid CacheAccessorLayerGuid = CacheUpToEditingLayer.DataAccess.GetEditLayer();
  			checkf(EditingLayerGuid.GetValue() == CacheAccessorLayerGuid, TEXT("Editing Layer has changed between Initialize and Write. Was: %s (%s). Is now: %s (%s)"),
- 				Landscape->GetLayer(*EditingLayerGuid) ? *(Landscape->GetLayer(*EditingLayerGuid)->Name.ToString()) : TEXT("<unknown>"), *EditingLayerGuid->ToString(),
- 				Landscape->GetLayer(CacheAccessorLayerGuid) ? *(Landscape->GetLayer(CacheAccessorLayerGuid)->Name.ToString()) : TEXT("<unknown>"), *CacheAccessorLayerGuid.ToString());
+ 				Landscape->GetLayerConst(*EditingLayerGuid) ? *(Landscape->GetLayerConst(*EditingLayerGuid)->Name.ToString()) : TEXT("<unknown>"), *EditingLayerGuid->ToString(),
+ 				Landscape->GetLayerConst(CacheAccessorLayerGuid) ? *(Landscape->GetLayerConst(CacheAccessorLayerGuid)->Name.ToString()) : TEXT("<unknown>"), *CacheAccessorLayerGuid.ToString());
 
 			// Restore layers visibility
 			SetLayersVisibility(BackupLayerVisibility);
@@ -1086,11 +1027,13 @@ private:
 		check(InLayerVisibility.Num() == Landscape->GetLayerCount());
 		for (int i = 0; i < InLayerVisibility.Num(); ++i)
 		{
-			if (FLandscapeLayer* Layer = Landscape->GetLayer(i))
+			if (const FLandscapeLayer* Layer = Landscape->GetLayerConst(i))
 			{
 				if (Layer->bVisible != InLayerVisibility[i])
 				{
-					Layer->bVisible = InLayerVisibility[i];
+					// Pass bInForIntermediateRender = true here, because we don't want to call Modify on the landscape, we don't actually want to truly change 
+					//  the layer visibility, only temporarily for the purpose of the intermediate render : 
+					Landscape->SetLayerVisibility(i, InLayerVisibility[i], /*bInForIntermediateRender = */true);
 					bVisibilityChanged = true;
 				}
 			}

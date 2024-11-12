@@ -18,4 +18,6 @@ void InitStats();
 
 void InitAll(bool bAllowLogging, bool bMultithreaded);
 
+void CleanupLogs();
+void CleanupLocalization();
 void CleanupAll();

@@ -9,7 +9,9 @@
 #include "UObject/Object.h"
 
 #include "EngineDefines.h"
-#include "Engine/MeshMerging.h"
+#include "MeshMerge/MeshMergingSettings.h"
+#include "MeshMerge/MeshProxySettings.h"
+#include "MeshMerge/MeshApproximationSettings.h"
 
 #include "WorldPartition/HLOD/HLODBuilder.h"
 
@@ -64,6 +66,10 @@ public:
 	ENGINE_API bool DoesRequireWarmup() const;
 
 	static ENGINE_API FName GetRuntimeGridName(uint32 InLODLevel, int32 InCellSize, double InLoadingRange);
+
+	// Get name of properties
+	static const FName GetLayerTypePropertyName() { return GET_MEMBER_NAME_CHECKED(UHLODLayer, LayerType); };
+	static const FName GetHLODBuilderSettingsPropertyName() { return GET_MEMBER_NAME_CHECKED(UHLODLayer, HLODBuilderSettings); }
 
 private:
 	//~ Begin UObject Interface.
@@ -127,3 +133,8 @@ private:
 	uint32 bAlwaysLoaded_DEPRECATED : 1;
 #endif
 };
+
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Engine/MeshMerging.h"
+#endif

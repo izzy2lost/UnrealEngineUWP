@@ -7,7 +7,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-BEGIN_DEFINE_SPEC(FProcessTimerSpec, "BuildPatchServices.Unit", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FProcessTimerSpec, "BuildPatchServices.Unit", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 // Unit.
 typedef BuildPatchServices::TProcessTimer<BuildPatchServices::FMockCyclesProvider> FTestProcessTimer;
 TUniquePtr<FTestProcessTimer> ProcessTimer;

@@ -18,6 +18,7 @@
 #include "GroomCreateFollicleMaskOptionsWindow.h"
 #include "GroomCreateStrandsTexturesOptions.h"
 #include "GroomCreateStrandsTexturesOptionsWindow.h"
+#include "AssetCompilingManager.h"
 #include "HairStrandsImporter.h"
 #include "HairStrandsTranslator.h"
 #include "ToolMenuSection.h"
@@ -223,6 +224,9 @@ void ExecuteCreateBindingAsset(const FToolMenuContext& InContext)
 				if (BindingAsset)
 				{
 					BindingAsset->Build();
+#if WITH_EDITOR
+					FAssetCompilingManager::Get().FinishCompilationForObjects({BindingAsset});
+#endif
 					if (BindingAsset->IsValid())
 					{
 						TArray<UObject*> CreatedObjects;
@@ -355,11 +359,26 @@ void ExecuteCreateStrandsTextures(const FToolMenuContext& InContext)
 	}
 
 	// Duplicate the options to prevent dirtying the asset when they are modified but the rebuild is cancelled
-	UGroomCreateStrandsTexturesOptions* CurrentOptions = NewObject<UGroomCreateStrandsTexturesOptions>();
 	for (UGroomAsset* GroomAsset : GroomAssets)
 	{
-		if (GroomAsset && GroomAsset->IsValid() && CurrentOptions)
+		if (GroomAsset && GroomAsset->IsValid())
 		{
+			UGroomCreateStrandsTexturesOptions* CurrentOptions = nullptr;
+			UGroomAssetImportData* GroomAssetImportData = Cast<UGroomAssetImportData>(GroomAsset->AssetImportData);
+			if (GroomAssetImportData)
+			{
+				// Duplicate the options to prevent dirtying the asset when they are modified but the rebuild is cancelled
+				if (GroomAssetImportData->HairStrandsTexturesOptions)
+				{
+					CurrentOptions = DuplicateObject<UGroomCreateStrandsTexturesOptions>(GroomAssetImportData->HairStrandsTexturesOptions, nullptr);
+				}
+			}
+
+			if (CurrentOptions == nullptr)
+			{
+				CurrentOptions = NewObject<UGroomCreateStrandsTexturesOptions>();
+			}
+
 			TSharedPtr<SGroomCreateStrandsTexturesOptionsWindow> GroomOptionWindow = SGroomCreateStrandsTexturesOptionsWindow::DisplayCreateStrandsTexturesOptions(CurrentOptions);
 			if (!GroomOptionWindow->ShouldCreate())
 			{
@@ -398,7 +417,7 @@ void ExecuteCreateStrandsTextures(const FToolMenuContext& InContext)
 				
 				FStrandsTexturesInfo Info;
 				Info.Layout = CurrentOptions->Layout;
-				Info.GroomAsset   = GroomAsset;
+				Info.GroomAsset  = GroomAsset;
 				Info.TracingDirection = SignDirection;
 				Info.MaxTracingDistance = MaxDistance;
 				Info.Resolution = FMath::RoundUpToPowerOfTwo(FMath::Max(256, CurrentOptions->Resolution));
@@ -407,6 +426,7 @@ void ExecuteCreateStrandsTextures(const FToolMenuContext& InContext)
 				Info.UVChannelIndex= FMath::Max(0, CurrentOptions->UVChannelIndex);
 				Info.SkeletalMesh = SkeletalMesh;
 				Info.StaticMesh = StaticMesh;
+				Info.Dilation = FMath::Clamp(CurrentOptions->Dilation, 0, 64);
 				if (CurrentOptions->GroupIndex.Num())
 				{
 					Info.GroupIndices = CurrentOptions->GroupIndex;
@@ -422,6 +442,18 @@ void ExecuteCreateStrandsTextures(const FToolMenuContext& InContext)
 				if (Output.IsValid())
 				{
 					FGroomTextureBuilder::BuildStrandsTextures(Info, Output);
+
+					// Save settings used for generating these textures
+					if (GroomAssetImportData)
+					{
+						if (GroomAssetImportData->HairStrandsTexturesOptions || GroomAssetImportData->HairStrandsTexturesOptions != CurrentOptions)
+						{
+							// Move the transient ImportOptions to the asset package and set it on the GroomAssetImportData for serialization
+							CurrentOptions->Rename(nullptr, GroomAssetImportData);
+							GroomAssetImportData->HairStrandsTexturesOptions = CurrentOptions;
+							GroomAsset->MarkPackageDirty();
+						}
+					}
 				}
 			}
 		}

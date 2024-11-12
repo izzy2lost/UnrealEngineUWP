@@ -173,6 +173,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node Container")
 	INTERCHANGECORE_API TArray<FString> GetNodeChildrenUids(const FString& NodeUniqueID) const;
 
+	INTERCHANGECORE_API TArray<FString>* GetCachedNodeChildrenUids(const FString& NodeUniqueID) const;
+
 	/** Get the nth const child of the node */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node Container")
 	INTERCHANGECORE_API UInterchangeBaseNode* GetNodeChildren(const FString& NodeUniqueID, int32 ChildIndex);
@@ -205,6 +207,12 @@ public:
 	{
 		ChildrenCache.Reset();
 	}
+
+	/**
+	 * Checks if ParentNodeUID is an ancestor.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node")
+	INTERCHANGECORE_API bool GetIsAncestor(const FString& NodeUniqueID, const FString& AncestorUID) const;
 
 private:
 

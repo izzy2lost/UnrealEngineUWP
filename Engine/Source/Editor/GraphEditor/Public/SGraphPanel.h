@@ -138,6 +138,7 @@ public:
 	virtual FReply OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent ) override;
 	virtual bool SupportsKeyboardFocus() const override;
 	virtual void OnArrangeChildren( const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren ) const override;
+	virtual bool CustomPrepass(float LayoutScaleMultiplier) override;
 	// End of SWidget interface
 
 	// SNodePanel interface
@@ -243,6 +244,9 @@ protected:
 
 	/** Helper method to remove a node from the panel */
 	void RemoveNode(const UEdGraphNode* Node);
+
+	/** Helper method to remove all nodes from the panel holding garbage / invalid pointers */
+	void RemoveAllNodesWithInvalidPointers();
 public:
 	/** Pin marked via shift-clicking */
 	TWeakPtr<SGraphPin> MarkedPin;
@@ -399,4 +403,7 @@ private:
 
 	/** Weak pointer to the last summoned context menu, for dismissing it when requested. */
 	TWeakPtr<IMenu> ContextMenu;
+
+	/** A flag indicating that we need to check if we have any nodes which use invalid pointers */
+	bool bCheckNodeGraphObjValidity;
 };

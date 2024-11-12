@@ -569,6 +569,7 @@ TSharedPtr<IPlugin> FPluginUtils::CreateAndLoadNewPlugin(const FString& PluginNa
 	ExCreationParams.Descriptor.VersePath = CreationParams.VersePath;
 	ExCreationParams.Descriptor.VerseVersion = CreationParams.VerseVersion;
 	ExCreationParams.Descriptor.bEnableVerseAssetReflection = CreationParams.bEnableVerseAssetReflection;
+	ExCreationParams.Descriptor.bEnableIAD = CreationParams.bEnableIAD;
 
 	if (CreationParams.bHasModules)
 	{
@@ -870,6 +871,29 @@ TSharedPtr<IPlugin> FPluginUtils::FindLoadedPlugin(const FString& PluginDescript
 	return TSharedPtr<IPlugin>();
 }
 
+TSharedPtr<IPlugin> FPluginUtils::FindPluginFromPackagePath(FName PackagePath)
+{
+	FNameBuilder PackagePathNameBuilder(PackagePath);
+	return FindPluginFromPackagePath(PackagePathNameBuilder);
+}
+
+TSharedPtr<IPlugin> FPluginUtils::FindPluginFromPackagePath(FStringView PackagePath)
+{
+	TSharedPtr<IPlugin> Plugin;
+	static const FStringView ScriptPath = TEXTVIEW("/Script/");
+	if (PackagePath.StartsWith(ScriptPath))
+	{
+		const FName ModuleName(PackagePath.RightChop(ScriptPath.Len()));
+		Plugin = IPluginManager::Get().GetModuleOwnerPlugin(ModuleName);
+	}
+	else
+	{
+		const FStringView MountPoint = FPathViews::GetMountPointNameFromPath(PackagePath);
+		Plugin = IPluginManager::Get().FindPlugin(MountPoint);
+	}
+	return Plugin;
+}
+
 bool FPluginUtils::UnloadPlugin(const TSharedRef<IPlugin>& Plugin, FText* OutFailReason /*= nullptr*/)
 {
 	return UnloadPlugins({ Plugin }, OutFailReason);
@@ -1150,6 +1174,23 @@ bool FPluginUtils::ValidateNewPluginNameAndLocation(const FString& PluginName, c
 		return false;
 	}
 
+	// Check if a mount point with the same name exists
+	{
+		FString MountPoint;
+		MountPoint.Reserve(PluginName.Len() + 2);
+		MountPoint.AppendChar(TEXT('/'));
+		MountPoint.Append(PluginName);
+		MountPoint.AppendChar(TEXT('/'));
+		if (FPackageName::MountPointExists(MountPoint))
+		{
+			if (FailReason)
+			{
+				*FailReason = FText::Format(LOCTEXT("MountPointExists", "Mount point {0} already exists"), FText::FromString(MountPoint));
+			}
+			return false;
+		}
+	}
+
 	return true;
 }
 
@@ -1164,16 +1205,6 @@ bool FPluginUtils::IsValidPluginName(const FString& PluginName, FText* FailReaso
 		if (FailReason)
 		{
 			*FailReason = FText::Format(LOCTEXT("PluginNameIsEmpty", "{0} name cannot be empty"), PluginTermToUse);
-		}
-		return false;
-	}
-
-	// Must begin with an alphabetic character
-	if (!FChar::IsAlpha(PluginName[0]))
-	{
-		if (FailReason)
-		{
-			*FailReason = FText::Format(LOCTEXT("PluginNameMustBeginWithAlphabetic", "{0} name must begin with an alphabetic character"), PluginTermToUse);
 		}
 		return false;
 	}
@@ -1198,12 +1229,6 @@ bool FPluginUtils::IsValidPluginName(const FString& PluginName, FText* FailReaso
 		{
 			*FailReason = FText::Format(LOCTEXT("PluginNameContainsIllegalCharacters", "{0} name cannot contain characters such as \"{1}\""), PluginTermToUse, FText::FromString(IllegalCharacters));
 		}
-		return false;
-	}
-
-	FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
-	if (!AssetToolsModule.Get().IsNameAllowed(PluginName, FailReason))
-	{
 		return false;
 	}
 

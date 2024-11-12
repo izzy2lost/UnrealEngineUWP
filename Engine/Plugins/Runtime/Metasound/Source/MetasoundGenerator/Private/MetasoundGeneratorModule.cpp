@@ -10,8 +10,18 @@
 #include "Misc/CString.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
 DEFINE_LOG_CATEGORY(LogMetasoundGenerator);
+
+CSV_DEFINE_CATEGORY(MetaSound_ActiveOperators, true);
+
+// Note: disabled by default as it bloats the csvs quite a bit.
+static TAutoConsoleVariable<bool> CVarRecordActiveOperatorsToCsv(
+	TEXT("au.MetaSound.RecordActiveMetasoundsToCsv"),
+	false,
+	TEXT("Record the name of each active Metasound when csv profiling is recording.")
+);
 
 static FAutoConsoleCommand CommandMetaSoundExperimentalOperatorPoolSetMaxNumOperators(
 	TEXT("au.MetaSound.Experimental.OperatorPool.SetMaxNumOperators"),
@@ -53,10 +63,33 @@ namespace Metasound
 
 		OperatorPool = MakeShared<FOperatorPool>(OperatorPoolSettings);
 		OperatorInstanceCounterManager = MakeShared<FConcurrentInstanceCounterManager>(InstanceCounterCategory);
+
+#if CSV_PROFILER && !UE_BUILD_SHIPPING
+		CsvEndFrameDelegateHandle = FCsvProfiler::Get()->OnCSVProfileEndFrame().AddLambda([WeakCounterManager = OperatorInstanceCounterManager.ToWeakPtr()]
+		{
+			if (!CVarRecordActiveOperatorsToCsv->GetBool())
+			{
+				return;
+			}
+
+			if (TSharedPtr<FConcurrentInstanceCounterManager> CounterManager = WeakCounterManager.Pin())
+			{
+				CounterManager->VisitStats([](const FName& StatName, int64 Value)
+				{
+					FCsvProfiler::RecordCustomStat(StatName, CSV_CATEGORY_INDEX(MetaSound_ActiveOperators), (int32)Value, ECsvCustomStatOp::Set);
+				});
+			}
+		});
+#endif // #if CSV_PROFILER && !UE_BUILD_SHIPPING
 	}
 
 	void FMetasoundGeneratorModule::ShutdownModule()
 	{
+#if CSV_PROFILER && !UE_BUILD_SHIPPING
+		FCsvProfiler::Get()->OnCSVProfileEndFrame().Remove(CsvEndFrameDelegateHandle);
+		CsvEndFrameDelegateHandle.Reset();
+#endif // #if CSV_PROFILER && !UE_BUILD_SHIPPING
+
 		if (OperatorPool.IsValid())
 		{
 			TSharedPtr<FOperatorPool> PoolShuttingDown = OperatorPool;
@@ -64,8 +97,8 @@ namespace Metasound
 
 			// Clear the pool reference and cancel independent of resetting
 			// the shared pointer to ensure if any references are held elsewhere,
-			// they are properly invalidate.
-			PoolShuttingDown->CancelAllBuildEvents();
+			// they are properly invalidated.
+			PoolShuttingDown->StopAsyncTasks();
 		}
 
 		OperatorInstanceCounterManager.Reset();

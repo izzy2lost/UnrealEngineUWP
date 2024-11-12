@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Framework/Application/SlateApplication.h"
 #include "InputCoreTypes.h"
 #include "UITag.h"
 #include "CommonUIInputSettings.generated.h"
@@ -65,8 +66,12 @@ struct FCommonAnalogCursorSettings
 
 public:
 	/** The registration priority of the analog cursor preprocessor. */
+	UE_DEPRECATED(5.5, "PreprocessorPriority is deprecated, please use PreprocessorRegistrationInfo from now on.")
 	UPROPERTY(EditAnywhere, Config, Category = General)
 	int32 PreprocessorPriority = 2;
+
+	UPROPERTY(EditAnywhere, Config, Category = General)
+	FInputPreprocessorRegistrationKey PreprocessorRegistrationInfo = FInputPreprocessorRegistrationKey{ EInputPreProcessorType::Game, 2 };
 
 	UPROPERTY(EditDefaultsOnly, Category = AnalogCursor)
 	bool bEnableCursorAcceleration = true;
@@ -93,6 +98,9 @@ public:
 	float ScrollMultiplier = 2.5f;
 
 	FCommonAnalogCursorSettings() {}
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FCommonAnalogCursorSettings& operator=(const FCommonAnalogCursorSettings&) = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 /** Project-wide input settings for UI input actions */

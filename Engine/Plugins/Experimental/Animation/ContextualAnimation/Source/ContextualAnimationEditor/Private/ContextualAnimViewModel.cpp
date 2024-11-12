@@ -259,8 +259,7 @@ AActor* FContextualAnimViewModel::SpawnPreviewActor(const FContextualAnimTrack& 
 			PreviewCharacter->GetCapsuleComponent()->SetCapsuleSize(RoleDef->PreviewCapsuleRadius, RoleDef->PreviewCapsuleHalfHeight);
 
 			USkeletalMeshComponent* SkelMeshComp = PreviewCharacter->GetMesh();
-			SkelMeshComp->SetRelativeLocation(FVector(0.f, 0.f, -PreviewCharacter->GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
-			SkelMeshComp->SetRelativeRotation(RoleDef->MeshToComponent.GetRotation());
+			SkelMeshComp->SetRelativeTransform(RoleDef->MeshToComponent);
 			SkelMeshComp->SetSkeletalMesh(PreviewSkeletalMesh);
 			SkelMeshComp->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 
@@ -550,6 +549,11 @@ void FContextualAnimViewModel::RefreshPreviewScene()
 		}
 	}
 
+	if (!SceneAsset->HasValidData())
+	{
+		return;
+	}
+
 	if (!SceneAsset->Sections.IsValidIndex(ActiveSectionIdx))
 	{
 		return;
@@ -597,6 +601,7 @@ void FContextualAnimViewModel::AddNewAnimSet(const FContextualAnimNewAnimSetPara
 		AnimTrack.Role = Data.RoleName;
 		AnimTrack.Animation = Data.Animation;
 		AnimTrack.MovementMode = Data.MovementMode;
+		AnimTrack.CustomMovementMode = Data.CustomMovementMode;
 		AnimTrack.bOptional = Data.bOptional;
 		AnimSet.Tracks.Add(AnimTrack);
 		AnimSet.RandomWeight = Params.RandomWeight;
@@ -708,15 +713,17 @@ void FContextualAnimViewModel::AddNewIKTarget(const UContextualAnimNewIKTargetPa
 	IKTargetDef.TargetRoleName = Params.TargetRole;
 	IKTargetDef.TargetBoneName = Params.TargetBone.BoneName;
 
-	if (FContextualAnimIKTargetDefContainer* ContainerPtr = SceneAsset->Sections[Params.SectionIdx].RoleToIKTargetDefsMap.Find(Params.SourceRole))
+	FName Role = Params.SourceRole;
+	if (FContextualAnimIKTargetDefContainer* ContainerPtr = SceneAsset->IKTargetParams.IKTargetDefsForEachRole.FindByPredicate([Role](const FContextualAnimIKTargetDefContainer& Item) { return Item.Role == Role; }))
 	{
 		ContainerPtr->IKTargetDefs.AddUnique(IKTargetDef);
 	}
 	else
 	{
 		FContextualAnimIKTargetDefContainer Container;
-		Container.IKTargetDefs.AddUnique(IKTargetDef);
-		SceneAsset->Sections[Params.SectionIdx].RoleToIKTargetDefsMap.Add(Params.SourceRole, Container);
+		Container.Role = Role;
+		Container.IKTargetDefs.Add(IKTargetDef);
+		SceneAsset->IKTargetParams.IKTargetDefsForEachRole.Add(Container);
 	}
 
 	SceneAsset->PrecomputeData();
@@ -843,9 +850,9 @@ void FContextualAnimViewModel::UpdatePreviewActorTransform(const FContextualAnim
 				MovementComp->StopMovementImmediately();
 			}
 
-			const float MIN_FLOOR_DIST = 1.9f; //from CharacterMovementComp, including in this offset to avoid jittering in walking mode
+			const float MIN_FLOOR_DIST = 1.9f; //from CharacterMovementComp, including this offset to avoid jittering in walking mode
 			const float CapsuleHalfHeight = PreviewCharacter->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-			Transform.SetLocation(Transform.GetLocation() + (PreviewCharacter->GetActorQuat().GetUpVector() * CapsuleHalfHeight + MIN_FLOOR_DIST));
+			Transform.SetLocation(Transform.GetLocation() + (PreviewCharacter->GetActorQuat().GetUpVector() * (CapsuleHalfHeight + MIN_FLOOR_DIST)));
 
 			Transform.SetRotation(PreviewCharacter->GetBaseRotationOffset().Inverse() * Transform.GetRotation());
 		}
@@ -1375,7 +1382,7 @@ void FContextualAnimViewModel::CacheWarpPoints()
 					if (AnimTrack)
 					{
 						const FTransform RootTransform = AnimTrack->Animation ? UContextualAnimUtilities::ExtractRootTransformFromAnimation(AnimTrack->Animation, 0.f) : FTransform::Identity;
-						const FTransform WarpPointTransform = (SceneAsset->GetMeshToComponentForRole(AnimTrack->Role).Inverse() * (RootTransform * AnimTrack->MeshToScene));
+						const FTransform WarpPointTransform = (FTransform(SceneAsset->GetMeshToComponentForRole(AnimTrack->Role).GetRotation()).Inverse() * (RootTransform * AnimTrack->MeshToScene));
 						AnimSet.WarpPoints.Add(WarpPointDef.WarpTargetName, WarpPointTransform);
 					}
 				}
@@ -1404,10 +1411,10 @@ void FContextualAnimViewModel::CacheWarpPoints()
 							if (OtherAnimTrack)
 							{
 								FTransform T1 = AnimTrack->Animation ? UContextualAnimUtilities::ExtractRootTransformFromAnimation(AnimTrack->Animation, 0.f) : FTransform::Identity;
-								T1 = (SceneAsset->GetMeshToComponentForRole(AnimTrack->Role).Inverse() * (T1 * AnimTrack->MeshToScene));
+								T1 = (FTransform(SceneAsset->GetMeshToComponentForRole(AnimTrack->Role).GetRotation()).Inverse() * (T1 * AnimTrack->MeshToScene));
 
 								FTransform T2 = OtherAnimTrack->Animation ? UContextualAnimUtilities::ExtractRootTransformFromAnimation(OtherAnimTrack->Animation, 0.f) : FTransform::Identity;
-								T2 = (SceneAsset->GetMeshToComponentForRole(OtherAnimTrack->Role).Inverse() * (T2 * OtherAnimTrack->MeshToScene));
+								T2 = (FTransform(SceneAsset->GetMeshToComponentForRole(OtherAnimTrack->Role).GetRotation()).Inverse() * (T2 * OtherAnimTrack->MeshToScene));
 
 								WarpPointTransform.SetLocation(FMath::Lerp<FVector>(T1.GetLocation(), T2.GetLocation(), Params.Weight));
 								WarpPointTransform.SetRotation((T2.GetLocation() - T1.GetLocation()).GetSafeNormal2D().ToOrientationQuat());
@@ -1416,7 +1423,7 @@ void FContextualAnimViewModel::CacheWarpPoints()
 						else
 						{
 							const FTransform RootTransform = AnimTrack->Animation ? UContextualAnimUtilities::ExtractRootTransformFromAnimation(AnimTrack->Animation, 0.f) : FTransform::Identity;
-							WarpPointTransform = (SceneAsset->GetMeshToComponentForRole(AnimTrack->Role).Inverse() * (RootTransform * AnimTrack->MeshToScene));
+							WarpPointTransform = (FTransform(SceneAsset->GetMeshToComponentForRole(AnimTrack->Role).GetRotation()).Inverse() * (RootTransform * AnimTrack->MeshToScene));
 						}
 					}
 

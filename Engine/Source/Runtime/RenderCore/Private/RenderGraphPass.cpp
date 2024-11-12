@@ -2,6 +2,9 @@
 
 #include "RenderGraphPass.h"
 #include "RenderGraphPrivate.h"
+#include "RenderGraphBuilder.h"
+
+FEmptyShaderParameters FRDGSentinelPass::EmptyShaderParameters;
 
 FUniformBufferStaticBindings FRDGParameterStruct::GetStaticUniformBuffers() const
 {
@@ -72,12 +75,27 @@ FRHIRenderPassInfo FRDGParameterStruct::GetRenderPassInfo() const
 	if (FRDGTextureRef Texture = DepthStencil.GetTexture())
 	{
 		const FExclusiveDepthStencil ExclusiveDepthStencil = DepthStencil.GetDepthStencilAccess();
-		const ERenderTargetStoreAction StoreAction = EnumHasAnyFlags(Texture->Desc.Flags, TexCreate_Memoryless) ? ERenderTargetStoreAction::ENoAction : ERenderTargetStoreAction::EStore;
+		ERenderTargetStoreAction StoreAction = EnumHasAnyFlags(Texture->Desc.Flags, TexCreate_Memoryless) ? ERenderTargetStoreAction::ENoAction : ERenderTargetStoreAction::EStore;
+		FRDGTextureRef ResolveTexture = DepthStencil.GetResolveTexture();
+		if (ResolveTexture)
+		{
+			// Silently skip the resolve if the resolve texture is the same as the render target texture.
+			if (ResolveTexture != Texture)
+			{
+				StoreAction = ERenderTargetStoreAction::EMultisampleResolve;
+			}
+			else
+			{
+				ResolveTexture = nullptr;
+			}
+		}
+
 		const ERenderTargetStoreAction DepthStoreAction = ExclusiveDepthStencil.IsUsingDepth() ? StoreAction : ERenderTargetStoreAction::ENoAction;
 		const ERenderTargetStoreAction StencilStoreAction = ExclusiveDepthStencil.IsUsingStencil() ? StoreAction : ERenderTargetStoreAction::ENoAction;
 
 		auto& DepthStencilTarget = RenderPassInfo.DepthStencilRenderTarget;
 		DepthStencilTarget.DepthStencilTarget = Texture->GetRHI();
+		DepthStencilTarget.ResolveTarget = ResolveTexture ? ResolveTexture->GetRHI() : nullptr;
 		DepthStencilTarget.Action = MakeDepthStencilTargetActions(
 			MakeRenderTargetActions(DepthStencil.GetDepthLoadAction(), DepthStoreAction),
 			MakeRenderTargetActions(DepthStencil.GetStencilLoadAction(), StencilStoreAction));
@@ -97,14 +115,65 @@ FRHIRenderPassInfo FRDGParameterStruct::GetRenderPassInfo() const
 	return RenderPassInfo;
 }
 
+FRHICommandList* FRDGDispatchPassBuilder::CreateCommandList()
+{
+	FRHICommandList* RHICmdList = new FRHICommandList(Pass->GetGPUMask());
+	RHICmdList->SwitchPipeline(Pass->GetPipeline());
+
+	// When parallel executing, the pass commands are embedded directly into the first command list.
+	if (Pass->bParallelExecute && Pass->CommandLists.IsEmpty())
+	{
+		FRDGBuilder::PushPreScopes(*RHICmdList, Pass);
+		FRDGBuilder::ExecutePassPrologue(*RHICmdList, Pass);
+	}
+
+	if (RenderPassInfo)
+	{
+		RHICmdList->BeginRenderPass(*RenderPassInfo, TEXT("DispatchPass"));
+	}
+
+	RHICmdList->SetStaticUniformBuffers(StaticUniformBuffers);
+
+	Pass->CommandLists.Emplace(RHICmdList);
+	return RHICmdList;
+}
+
+void FRDGDispatchPassBuilder::Finish()
+{
+	// With serial execution the pass commands are embedded in the immediate command list instead.
+	if (!Pass->bParallelExecute)
+	{
+		Pass->CommandListsEvent.Trigger();
+		return;
+	}
+
+	const bool bEmptyCommandLists = Pass->CommandLists.IsEmpty();
+
+	// Create a command list to embed the epilogue (and prologue as well if no user command lists were requested).
+	FRHICommandList* RHICmdList = new FRHICommandList(Pass->GetGPUMask());
+	Pass->CommandLists.Emplace(RHICmdList);
+	Pass->CommandListsEvent.Trigger();
+
+	RHICmdList->SwitchPipeline(Pass->GetPipeline());
+
+	if (bEmptyCommandLists)
+	{
+		FRDGBuilder::PushPreScopes(*RHICmdList, Pass);
+		FRDGBuilder::ExecutePassPrologue(*RHICmdList, Pass);
+	}
+
+	FRDGBuilder::ExecutePassEpilogue(*RHICmdList, Pass);
+	FRDGBuilder::PopPreScopes(*RHICmdList, Pass);
+
+	RHICmdList->FinishRecording();
+}
+
 FRDGBarrierBatchBegin::FRDGBarrierBatchBegin(ERHIPipeline InPipelineToBegin, ERHIPipeline InPipelinesToEnd, const TCHAR* InDebugName, FRDGPass* InDebugPass)
 	: PipelinesToBegin(InPipelineToBegin)
 	, PipelinesToEnd(InPipelinesToEnd)
 #if RDG_ENABLE_DEBUG
 	, DebugPasses(InPlace, nullptr)
 	, DebugName(InDebugName)
-	, DebugPipelinesToBegin(InPipelineToBegin)
-	, DebugPipelinesToEnd(InPipelinesToEnd)
 #endif
 {
 #if RDG_ENABLE_DEBUG
@@ -118,8 +187,6 @@ FRDGBarrierBatchBegin::FRDGBarrierBatchBegin(ERHIPipeline InPipelinesToBegin, ER
 #if RDG_ENABLE_DEBUG
 	, DebugPasses(InDebugPasses)
 	, DebugName(InDebugName)
-	, DebugPipelinesToBegin(InPipelinesToBegin)
-	, DebugPipelinesToEnd(InPipelinesToEnd)
 #endif
 {}
 
@@ -155,10 +222,20 @@ void FRDGBarrierBatchBegin::CreateTransition(TConstArrayView<FRHITransitionInfo>
 {
 	check(bTransitionNeeded && !Transition);
 	Transition = RHICreateTransition(FRHITransitionCreateInfo(PipelinesToBegin, PipelinesToEnd, TransitionFlags, TransitionsRHI, Aliases));
+
+	if (bSeparateFenceTransitionNeeded)
+	{
+		SeparateFenceTransition = RHICreateTransition(FRHITransitionCreateInfo(PipelinesToBegin, PipelinesToEnd));
+	}
 }
 
 void FRDGBarrierBatchBegin::Submit(FRHIComputeCommandList& RHICmdList, ERHIPipeline Pipeline, FRDGTransitionQueue& TransitionsToBegin)
 {
+	if (SeparateFenceTransition)
+	{
+		TransitionsToBegin.Emplace(SeparateFenceTransition);
+	}
+
 	if (Transition)
 	{
 		TransitionsToBegin.Emplace(Transition);
@@ -195,7 +272,7 @@ void FRDGBarrierBatchEnd::AddDependency(FRDGBarrierBatchBegin* BeginBatch)
 #if RDG_ENABLE_DEBUG
 	check(BeginBatch);
 
-	for (ERHIPipeline Pipeline : GetRHIPipelines())
+	for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 	{
 		const FRDGPass* BeginPass = BeginBatch->DebugPasses[Pipeline];
 		if (BeginPass)
@@ -237,6 +314,11 @@ void FRDGBarrierBatchEnd::Submit(FRHIComputeCommandList& RHICmdList, ERHIPipelin
 	{
 		if (Dependent->BarriersToEnd[Pipeline] == Id)
 		{
+			if (Dependent->SeparateFenceTransition)
+			{
+				Transitions.Emplace(Dependent->SeparateFenceTransition);
+			}
+
 			Transitions.Emplace(Dependent->Transition);
 		}
 	}
@@ -281,7 +363,7 @@ FRDGBarrierBatchBegin& FRDGPass::GetEpilogueBarriersToBeginForAll(FRDGAllocator&
 {
 	if (!EpilogueBarriersToBeginForAll)
 	{
-		EpilogueBarriersToBeginForAll = Allocator.AllocNoDestruct<FRDGBarrierBatchBegin>(Pipeline, ERHIPipeline::All, GetEpilogueBarriersToBeginDebugName(ERHIPipeline::AsyncCompute), this);
+		EpilogueBarriersToBeginForAll = Allocator.AllocNoDestruct<FRDGBarrierBatchBegin>(Pipeline, ERHIPipeline::All, GetEpilogueBarriersToBeginDebugName(ERHIPipeline::All), this);
 		CreateQueue.Emplace(EpilogueBarriersToBeginForAll);
 	}
 	return *EpilogueBarriersToBeginForAll;
@@ -304,10 +386,12 @@ FRDGBarrierBatchEnd& FRDGPass::GetEpilogueBarriersToEnd(FRDGAllocator& Allocator
 FRDGPass::FRDGPass(
 	FRDGEventName&& InName,
 	FRDGParameterStruct InParameterStruct,
-	ERDGPassFlags InFlags)
+	ERDGPassFlags InFlags,
+	ERDGPassTaskMode InTaskMode)
 	: Name(Forward<FRDGEventName&&>(InName))
 	, ParameterStruct(InParameterStruct)
 	, Flags(InFlags)
+	, TaskMode(InTaskMode)
 	, Pipeline(EnumHasAnyFlags(Flags, ERDGPassFlags::AsyncCompute) ? ERHIPipeline::AsyncCompute : ERHIPipeline::Graphics)
 	, PrologueBarriersToEnd(this, ERDGBarrierLocation::Prologue)
 	, EpilogueBarriersToBeginForGraphics(Pipeline, ERHIPipeline::Graphics, GetEpilogueBarriersToBeginDebugName(ERHIPipeline::Graphics), this)

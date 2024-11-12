@@ -5,27 +5,27 @@
 #include "CADData.h"
 #include "CADOptions.h"
 #include "MeshDescription.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 #include "StaticMeshAttributes.h"
 #include "StaticMeshOperations.h"
 
-#include "CADKernel/Core/Entity.h"
-#include "CADKernel/Core/MetadataDictionary.h"
-#include "CADKernel/Core/Session.h"
-#include "CADKernel/Core/Types.h"
+#include "Core/CADEntity.h"
+#include "Core/MetadataDictionary.h"
+#include "Core/Session.h"
+#include "Core/Types.h"
 
-#include "CADKernel/Mesh/Criteria/Criterion.h"
-#include "CADKernel/Mesh/Meshers/Mesher.h"
-#include "CADKernel/Mesh/Structure/FaceMesh.h"
-#include "CADKernel/Mesh/Structure/ModelMesh.h"
+#include "Mesh/Criteria/Criterion.h"
+#include "Mesh/Meshers/Mesher.h"
+#include "Mesh/Structure/FaceMesh.h"
+#include "Mesh/Structure/ModelMesh.h"
 
-#include "CADKernel/Topo/Model.h"
-#include "CADKernel/Topo/Body.h"
-#include "CADKernel/Topo/Shell.h"
-#include "CADKernel/Topo/TopologicalEdge.h"
-#include "CADKernel/Topo/TopologicalShapeEntity.h"
-#include "CADKernel/Topo/TopologicalFace.h"
-#include "CADKernel/Topo/TopologicalVertex.h"
+#include "Topo/Model.h"
+#include "Topo/Body.h"
+#include "Topo/Shell.h"
+#include "Topo/TopologicalEdge.h"
+#include "Topo/TopologicalShapeEntity.h"
+#include "Topo/TopologicalFace.h"
+#include "Topo/TopologicalVertex.h"
 
 typedef uint32 TriangleIndex[3];
 
@@ -270,11 +270,10 @@ bool FCADKernelTools::Tessellate(UE::CADKernel::FTopologicalShapeEntity& CADTopo
 	// Tessellate the model
 	TSharedRef<FModelMesh> CADKernelModelMesh = FEntity::MakeShared<FModelMesh>();
 
-	const double GeometricTolerance = FImportParameters::GStitchingTolerance * 10; // cm to mm
 	const bool bActivateThinZoneMeshing = FImportParameters::bGActivateThinZoneMeshing;
-	FMesher Mesher(*CADKernelModelMesh, GeometricTolerance, bActivateThinZoneMeshing);
+	FMesher Mesher(*CADKernelModelMesh, TessellationContext.GeometricTolerance, bActivateThinZoneMeshing);
 
-	DefineMeshCriteria(*CADKernelModelMesh, TessellationContext.ImportParameters, GeometricTolerance);
+	DefineMeshCriteria(*CADKernelModelMesh, TessellationContext.ImportParameters, TessellationContext.GeometricTolerance);
 	Mesher.MeshEntity(CADTopologicalEntity);
 
 	return ConvertModelMeshToMeshDescription(TessellationContext, *CADKernelModelMesh, OutMeshDescription);

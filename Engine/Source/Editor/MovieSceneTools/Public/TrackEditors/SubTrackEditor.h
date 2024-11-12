@@ -8,8 +8,10 @@
 #include "Widgets/SWidget.h"
 #include "ISequencer.h"
 #include "MovieSceneTrack.h"
+#include "Tracks/MovieSceneSubTrack.h"
 #include "ISequencerSection.h"
 #include "ISequencerTrackEditor.h"
+#include "KeyframeTrackEditor.h"
 #include "MovieSceneTrackEditor.h"
 
 class AActor;
@@ -21,7 +23,7 @@ class UMovieSceneSubTrack;
  * Tools for subsequences
  */
 class MOVIESCENETOOLS_API FSubTrackEditor
-	: public FMovieSceneTrackEditor
+	: public FKeyframeTrackEditor<UMovieSceneSubTrack>
 {
 public:
 
@@ -46,7 +48,7 @@ public:
 public:
 
 	// ISequencerTrackEditor interface
-
+	virtual void ProcessKeyOperation(FFrameNumber InKeyTime, const UE::Sequencer::FKeyOperation& Operation, ISequencer& InSequencer) override;
 	virtual void BuildAddTrackMenu(FMenuBuilder& MenuBuilder) override;
 	virtual TSharedPtr<SWidget> BuildOutlinerEditWidget(const FGuid& ObjectBinding, UMovieSceneTrack* Track, const FBuildEditWidgetParams& Params) override;
 	virtual TSharedRef<ISequencerSection> MakeSectionInterface(UMovieSceneSection& SectionObject, UMovieSceneTrack& Track, FGuid ObjectBinding) override;
@@ -57,7 +59,10 @@ public:
 	virtual bool OnAllowDrop(const FDragDropEvent& DragDropEvent, FSequencerDragDropParams& DragDropParams) override;
 	virtual FReply OnDrop(const FDragDropEvent& DragDropEvent, const FSequencerDragDropParams& DragDropParams) override;
 	virtual bool IsResizable(UMovieSceneTrack* InTrack) const override;
+	virtual void OnInitialize() override;
+	virtual void OnRelease() override;
 	virtual void Resize(float NewSize, UMovieSceneTrack* InTrack) override;
+	virtual bool GetDefaultExpansionState(UMovieSceneTrack* InTrack) const override;
 
 public:
 	
@@ -81,6 +86,9 @@ public:
 
 	/** Edit the section's metadata */
 	virtual void EditMetaData(UMovieSceneSubSection* Section);
+
+	/** Update the current active edit mode when a subtrack or section is selected.*/
+	void UpdateActiveMode();
 
 	/**
 	 * Check whether the given sequence can be added as a sub-sequence.
@@ -116,6 +124,23 @@ public:
 	/** Get the UMovieSceneSubTrack class */
 	virtual TSubclassOf<UMovieSceneSubTrack> GetSubTrackClass() const;
 
+	/** Called when the editor mode has made external changes to the origin data. */
+	void UpdateOrigin(FVector InPosition, FRotator InRotation);
+
+	/** Called when sequence playback updates to revert preview data on modified secitons */
+	void ResetSectionPreviews();
+	void ResetSectionPreviews(FMovieSceneSequenceIDRef IDRef) { ResetSectionPreviews(); }
+	void ResetSectionPreviews(const FMovieSceneChannelMetaData* MetaData, UMovieSceneSection* InSection) { ResetSectionPreviews(); }
+
+	/** Query's the channel data directly (does not take parent transforms into account). Used for setting keyframes. */
+	FTransform GetTransformOriginDataForSubSection(const UMovieSceneSubSection* SubSection) const;
+
+	/** Helper function that finds the previous key. Used to "unwind" rotators */
+	int32 GetPreviousKey(FMovieSceneDoubleChannel& Channel, FFrameNumber Time);
+
+	/** Helper function to fix-up Euler rotations if they would go over 180 degrees due to interpolation. */
+	double UnwindChannel(const double& OldValue, double NewValue);
+
 protected:
 
 	/** Get the list of supported sequence class paths */
@@ -137,7 +162,7 @@ protected:
 	UMovieSceneSubTrack* FindOrCreateSubTrack(UMovieScene* MovieScene, UMovieSceneTrack* Track) const;
 
 	/** Callback for generating the menu of the "Add Sequence" combo button. */
-	TSharedRef<SWidget> HandleAddSubSequenceComboButtonGetMenuContent(UMovieSceneTrack* InTrack);
+	TSharedRef<SWidget> HandleAddSubSequenceComboButtonGetMenuContent(UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::ITrackExtension> TrackModel);
 
 private:
 
@@ -152,4 +177,13 @@ private:
 
 	/** Callback for AnimatablePropertyChanged in HandleAssetAdded. */
 	FKeyPropertyResult HandleSequenceAdded(FFrameNumber KeyTime, UMovieSceneSequence* Sequence, UMovieSceneTrack* Track, int32 RowIndex);
+
+	/** Handles adding keys to section.**/
+	void ProcessKeyOperationInternal(TArrayView<const UE::Sequencer::FKeySectionOperation> SectionsToKey, ISequencer& Sequencer, FFrameNumber KeyTime);
+
+	/** Helper for creating new keys.*/
+	void GetOriginKeys(const FVector& CurrentPosition, const FRotator& CurrentRotation, UMovieSceneSection* Section, FGeneratedTrackKeys& OutGeneratedKeys);
+
+	/** Sections this editor has added preview data to for keyframing. Used to revert data when other edits are made, before adding a key */
+	TArray<UMovieSceneSubSection*> SectionsWithPreviews;
 };

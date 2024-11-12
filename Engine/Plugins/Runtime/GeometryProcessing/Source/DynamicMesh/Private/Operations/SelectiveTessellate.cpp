@@ -2057,6 +2057,29 @@ TUniquePtr<FTessellationPattern> FSelectiveTessellate::CreateConcentricRingsPatt
 	return FSelectiveTessellate::CreateConcentricRingsTessellationPattern(InMesh, InTessellationLevel, TriangleList);
 }
 
+TUniquePtr<FTessellationPattern> FSelectiveTessellate::CreateConcentricRingsPatternFromSelectionAndMaterial(const FDynamicMesh3* InMesh,
+																								 const int InTessellationLevel,
+																								 const int MaterialID,
+																								 const TArray<int>& SelectedTriangles) 
+{
+	if (InMesh->HasAttributes() == false || InMesh->Attributes()->HasMaterialID() == false || SelectedTriangles.IsEmpty())
+	{
+		return nullptr;
+	}
+
+	TArray<int> SelectedTrianglesWithMaterial;
+	for (const int TID : SelectedTriangles)
+	{
+		const int TriangleMaterialID = InMesh->Attributes()->GetMaterialID()->GetValue(TID);
+		if (TriangleMaterialID == MaterialID)
+		{
+			SelectedTrianglesWithMaterial.Add(TID);
+		}
+	}
+
+	return FSelectiveTessellate::CreateConcentricRingsTessellationPattern(InMesh, InTessellationLevel, SelectedTrianglesWithMaterial);
+}
+
 //
 // Inner uniform pattern
 //

@@ -16,6 +16,7 @@ class FShaderSource;
 namespace UE::ShaderCompilerCommon
 {
 	static constexpr const TCHAR* kUniformBufferConstantBufferPrefix = TEXT("UniformBufferConstants_");
+	static constexpr const TCHAR* kPlatformHashStatName = TEXT("PlatformHash");
 }
 
 /**
@@ -32,17 +33,6 @@ extern SHADERCOMPILERCOMMON_API bool BuildResourceTableMapping(
 		FShaderParameterMap& ParameterMap,
 		FShaderCompilerResourceTable& OutSRT
 	);
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-UE_DEPRECATED(5.3, "No longer supported; use version of function that accepts a FShaderResourceTableMap instead")
-extern SHADERCOMPILERCOMMON_API bool BuildResourceTableMapping(
-		const TMap<FString,FResourceTableEntry>& ResourceTableMap,
-		const TMap<FString,FUniformBufferEntry>& UniformBufferMap,
-		TBitArray<>& UsedUniformBufferSlots,
-		FShaderParameterMap& ParameterMap,
-		FShaderCompilerResourceTable& OutSRT
-	);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 /** Culls global uniform buffer entries from the parameter map. */
 extern SHADERCOMPILERCOMMON_API void CullGlobalUniformBuffers(const TMap<FString, FUniformBufferEntry>& UniformBufferMap, FShaderParameterMap& ParameterMap);
@@ -65,6 +55,8 @@ extern SHADERCOMPILERCOMMON_API int16 GetNumUniformBuffersUsed(const FShaderComp
 
 namespace UE::ShaderCompilerCommon
 {
+	extern SHADERCOMPILERCOMMON_API void BuildShaderResourceTable(const FShaderCompilerResourceTable& GenericSRT, FShaderResourceTable& OutSRT, bool bGenerateEmptyTokenStreamIfNoResources = false);
+
 	extern SHADERCOMPILERCOMMON_API bool ExecuteShaderPreprocessingSteps(
 		FShaderPreprocessOutput& PreprocessOutput,
 		const FShaderCompilerInput& Input,
@@ -133,14 +125,9 @@ namespace UE::ShaderCompilerCommon
 		TFunction<FString()> AppendPreSource{};
 		TFunction<FString()> AppendPostSource{};
 		TArray<FAdditionalOutput> AdditionalOutputs;
-		union
-		{
-			bool bSourceOnly = false; // if true, will only output source .usf as directed and skip all other debug data artifacts
-			UE_DEPRECATED(5.3, "bSkipDirectCompileTxt is deprecated, use bSourceOnly flag instead")
-			bool bSkipDirectCompileTxt;
-		};
+		bool bSourceOnly = false; // if true, will only output source .usf as directed and skip all other debug data artifacts
 
-		SHADERCOMPILERCOMMON_API FString GetDebugShaderPath(const FShaderCompilerInput& Input) const;
+		SHADERCOMPILERCOMMON_API FString GetDebugShaderPath(const FShaderCompilerInput& Input, const TCHAR* Suffix = nullptr) const;
 	};
 
 	/*
@@ -182,7 +169,7 @@ namespace UE::ShaderCompilerCommon
 	 * @param	PreprocessedSource The unmodified preprocessed source (used as input to the compilation)
 	 * @param	Options Options which can change behaviour of the debug dump; see above.
 	 */
-	extern SHADERCOMPILERCOMMON_API FString GetDebugShaderContents(const FShaderCompilerInput& Input, FStringView PreprocessedSource, const FDebugShaderDataOptions& Options = FDebugShaderDataOptions());
+	extern SHADERCOMPILERCOMMON_API FString GetDebugShaderContents(const FShaderCompilerInput& Input, FStringView PreprocessedSource, const FDebugShaderDataOptions& Options = FDebugShaderDataOptions(), const TCHAR* Suffix = nullptr);
 	
 	UE_DEPRECATED(5.4, "Use overload of GetDebugShaderContents accepting an FStringView")
 	inline FString GetDebugShaderContents(const FShaderCompilerInput& Input, const FString& PreprocessedSource, const FDebugShaderDataOptions& Options = FDebugShaderDataOptions())
@@ -205,6 +192,19 @@ namespace UE::ShaderCompilerCommon
 	};
 }
 
+enum class EUniformBufferMemberReflectionReason
+{
+	None            = 0,
+	NeedsReflection = 1 << 0,
+	Bindless        = 1 << 1,
+};
+ENUM_CLASS_FLAGS(EUniformBufferMemberReflectionReason);
+
+SHADERCOMPILERCOMMON_API EUniformBufferMemberReflectionReason ShouldReflectUniformBufferMembers(
+	const FShaderCompilerInput& Input,
+	FStringView UniformBufferName
+);
+
 extern SHADERCOMPILERCOMMON_API void HandleReflectedGlobalConstantBufferMember(
 	const FString& MemberName,
 	uint32 ConstantBufferIndex,
@@ -214,8 +214,10 @@ extern SHADERCOMPILERCOMMON_API void HandleReflectedGlobalConstantBufferMember(
 );
 
 extern SHADERCOMPILERCOMMON_API void HandleReflectedUniformBufferConstantBufferMember(
+	EUniformBufferMemberReflectionReason Reason,
+	FStringView UniformBufferName,
 	int32 UniformBufferSlot,
-	const FString& MemberName,
+	FStringView MemberName,
 	int32 ReflectionOffset,
 	int32 ReflectionSize,
 	FShaderCompilerOutput& CompilerOutput
@@ -451,8 +453,16 @@ extern SHADERCOMPILERCOMMON_API void DumpDebugShaderBinary(const FShaderCompiler
 extern SHADERCOMPILERCOMMON_API void DumpDebugShaderDisassembledSpirv(const FShaderCompilerInput& Input, void* InData, int32 InDataByteSize, const FString& FileExtension);
 extern SHADERCOMPILERCOMMON_API void DumpDebugShaderDisassembledDxil(const FShaderCompilerInput& Input, void* InData, int32 InDataByteSize, const FString& FileExtension);
 
-// calls 'Mali Offline Compiler' to compile the glsl source code and extract the generated instruction count
+UE_DEPRECATED(5.5, "CompileOfflineMali is no longer used; CompileShaderOffline is used instead to support different compilers instead of Mali itself.")
 extern SHADERCOMPILERCOMMON_API void CompileOfflineMali(const FShaderCompilerInput &Input, FShaderCompilerOutput& ShaderOutput, const ANSICHAR* ShaderSource, const int32 SourceSize, bool bVulkanSpirV, const ANSICHAR* VulkanSpirVEntryPoint = nullptr);
+
+// calls 'Offline Compiler' to compile the source code and extract the stats
+extern SHADERCOMPILERCOMMON_API void CompileShaderOffline(const FShaderCompilerInput& Input,
+	FShaderCompilerOutput& ShaderOutput,
+	const ANSICHAR* ShaderSource,
+	const int32 SourceSize,
+	bool bVulkanSpirV,
+	const ANSICHAR* VulkanSpirVEntryPoint = nullptr);
 
 // Cross compiler support/common functionality
 namespace CrossCompiler

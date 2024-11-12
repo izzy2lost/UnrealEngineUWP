@@ -69,7 +69,10 @@ public:
 	virtual void UnregisterAssetTypeActions(const TSharedRef<IAssetTypeActions>& ActionsToRemove) override;
 	virtual void GetAssetTypeActionsList( TArray<TWeakPtr<IAssetTypeActions>>& OutAssetTypeActionsList ) const override;
 	virtual TWeakPtr<IAssetTypeActions> GetAssetTypeActionsForClass(const UClass* Class) const override;
-	virtual bool CanLocalize(const UClass* Class) const;
+
+	virtual TSharedPtr<ILocalizedAssetTools> GetLocalizedAssetTools() const override;
+	virtual bool CanLocalize(const UClass* Class) const override;
+
 	virtual TOptional<FLinearColor> GetTypeColor(const UClass* Class) const override;
 	
 	virtual TArray<TWeakPtr<IAssetTypeActions>> GetAssetTypeActionsListForClass(const UClass* Class) const override;
@@ -89,6 +92,8 @@ public:
 	virtual UObject* DuplicateAssetWithDialogAndTitle(const FString& AssetName, const FString& PackagePath, UObject* OriginalObject, FText DialogTitle) override;
 	virtual void SetCreateAssetsAsExternallyReferenceable(bool bValue) override;
 	virtual bool GetCreateAssetsAsExternallyReferenceable() override;
+	virtual bool ShouldCreateAssetsAsExternallyReferenceableForPath(const FStringView AssetPath) const override;
+	virtual UE::AssetTools::FShouldCreateAssetsAsExternallyReferenceableForPath& GetOnShouldCreateAssetsAsExternallyReferenceableForPath() override;
 	virtual bool IsDiscoveringAssetsInProgress() const override;
 	virtual void OpenDiscoveringAssetsDialog(const FOnAssetsDiscovered& InOnAssetsDiscovered) override;
 	virtual bool RenameAssets(const TArray<FAssetRenameData>& AssetsAndNames) override;
@@ -103,6 +108,7 @@ public:
 	virtual void ImportAssetTasks(const TArray<UAssetImportTask*>& ImportTasks) override;
 	virtual void ExportAssets(const TArray<FString>& AssetsToExport, const FString& ExportPath) override;
 	virtual void ExportAssets(const TArray<UObject*>& AssetsToExport, const FString& ExportPath) const override;
+	virtual void ExportAssetsWithCleanFilename(const TArray<UObject*>& AssetsToExport, const FString& ExportPath) const override;
 	virtual void ExportAssetsWithDialog(const TArray<UObject*>& AssetsToExport, bool bPromptForIndividualFilenames) override;
 	virtual void ExportAssetsWithDialog(const TArray<FString>& AssetsToExport, bool bPromptForIndividualFilenames) override;
 	virtual bool CanExportAssets(const TArray<FAssetData>& AssetsToExport) const override;
@@ -123,17 +129,12 @@ public:
 	virtual void ExpandDirectories(const TArray<FString>& Files, const FString& DestinationPath, TArray<TPair<FString, FString>>& FilesAndDestinations) const override;
 	virtual bool AdvancedCopyPackages(const FAdvancedCopyParams& CopyParams, const TArray<TMap<FString, FString>>& PackagesAndDestinations) const override;
 	virtual bool AdvancedCopyPackages(const TMap<FString, FString>& SourceAndDestPackages, const bool bForceAutosave, const bool bCopyOverAllDestinationOverlaps, FDuplicatedObjects* OutDuplicatedObjects, EMessageSeverity::Type NotificationSeverityFilter) const override;
-	virtual bool PatchCopyPackageFile(const FString& SrcFile, const FString& DstFile, const TMap<FString, FString>& SearchForAndReplace) const;
-	virtual TMap<FString, FString> GetMappingsForRootPackageRename(const FString& SrcRoot, const FString& DstRoot, const FString& SrcBaseDir, const TArray<TPair<FString, FString>>& SourceAndDestFiles) const;
-
-
 	virtual void GenerateAdvancedCopyDestinations(FAdvancedCopyParams& InParams, const TArray<FName>& InPackageNamesToCopy, const class UAdvancedCopyCustomization* CopyCustomization, TMap<FString, FString>& OutPackagesAndDestinations) const override;
 	virtual bool FlattenAdvancedCopyDestinations(const TArray<TMap<FString, FString>>& PackagesAndDestinations, TMap<FString, FString>& FlattenedPackagesAndDestinations) const override;
 	virtual bool ValidateFlattenedAdvancedCopyDestinations(const TMap<FString, FString>& FlattenedPackagesAndDestinations) const override;
 	virtual void GetAllAdvancedCopySources(FName SelectedPackage, FAdvancedCopyParams& CopyParams, TArray<FName>& OutPackageNamesToCopy, TMap<FName, FName>& DependencyMap, const class UAdvancedCopyCustomization* CopyCustomization) const override;
 	virtual void InitAdvancedCopyFromCopyParams(FAdvancedCopyParams CopyParams) const override;
 	virtual void OpenEditorForAssets(const TArray<UObject*>& Assets) override;
-
 	virtual void ConvertVirtualTextures(const TArray<UTexture2D*>& Textures, bool bConvertBackToNonVirtual, const TArray<UMaterial*>* RelatedMaterials = nullptr) const override;
 	virtual bool IsAssetClassSupported(const UClass* AssetClass) const override;
 	virtual TArray<UFactory*> GetNewAssetFactories() const override;
@@ -149,6 +150,9 @@ public:
 	virtual bool IsNameAllowed(const FString& Name, FText* OutErrorMessage = nullptr) const override;
 	virtual void RegisterIsNameAllowedDelegate(const FName OwnerName, FIsNameAllowed Delegate) override;
 	virtual void UnregisterIsNameAllowedDelegate(const FName OwnerName) override;
+	virtual bool SanitizeName(FString& NameToSanitize) override;
+	virtual void RegisterSanitizeNameDelegate(const FName OwnerName, FSanitizeName Delegate) override;
+	virtual void UnregisterSanitizeNameDelegate(const FName OwnerName) override;
 	virtual void RegisterCanMigrateAsset(const FName OwnerName, UE::AssetTools::FCanMigrateAsset Delegate) override;
 	virtual void UnregisterCanMigrateAsset(const FName OwnerName) override;
 	virtual bool CanAssetBePublic(FStringView AssetPath) const override;
@@ -163,6 +167,9 @@ public:
 
 	/** The manager to handle renaming assets */
 	TSharedPtr<FAssetRenameManager> AssetRenameManager;
+
+	/** The tools to manage localized variants */
+	TSharedPtr<ILocalizedAssetTools> LocalizedAssetTools;
 
 	/** The manager to handle fixing up redirectors */
 	TSharedPtr<FAssetFixUpRedirectors> AssetFixUpRedirectors;
@@ -207,8 +214,8 @@ private:
 	/** Internal method that performs the actual asset importing */
 	TArray<UObject*> ImportAssetsInternal(const TArray<FString>& Files, const FString& RootDestinationPath, TArray<TPair<FString, FString>> *FilesAndDestinationsPtr, const FAssetImportParams& ImportParams) const;
 
-	/** Internal method to export assets.  If no export path is created a user will be prompted for one.  if bPromptIndividualFilenames is true a user will be asked per file */
-	void ExportAssetsInternal(const TArray<UObject*>& ObjectsToExport, bool bPromptIndividualFilenames, const FString& ExportPath) const;
+	/** Internal method to export assets.  If no export path is created a user will be prompted for one.  if bPromptIndividualFilenames is true a user will be asked per file. if bSaveAsCleanFilename is true the file will be saved as the clean filename */
+	void ExportAssetsInternal(const TArray<UObject*>& ObjectsToExport, bool bPromptIndividualFilenames, bool bSaveAsCleanFilename, const FString& ExportPath) const;
 
 	UObject* PerformDuplicateAsset(const FString& AssetName, const FString& PackagePath, UObject* OriginalObject, bool bWithDialog);
 
@@ -225,12 +232,14 @@ private:
 	TArray<UObject*> ImportAssetsWithDialogImplementation(const FString& DestinationPath, bool bAllowAsyncImport);
 
 	/** Make sure we're not syncing */
-	void SyncAssetTypesToAssetDefinitions() const;
+	void SyncAssetTypesToAssetDefinitions();
 
 	/** Helper to remove an entry AssetTypeActionsList given a class returned by GetSupportedClass */
 	void RemoveAssetTypeActionBySupportedClass(const UClass* SupportedClass);
 
 private:
+	uint64 CachedVersion = 0;
+	
 	/** The list of all registered AssetTypeActions */
 	TArray<TSharedRef<IAssetTypeActions>> AssetTypeActionsList;
 
@@ -267,8 +276,10 @@ private:
 	TArray<FString> SubContentDenyListPaths;
 
 	bool CreateAssetsAsExternallyReferenceable;
+	UE::AssetTools::FShouldCreateAssetsAsExternallyReferenceableForPath CreateAssetsAsExternallyReferenceableForPathDelegate;
 
 	TMap<FName, FIsNameAllowed> IsNameAllowedDelegates;
+	TMap<FName, FSanitizeName> SanitizeNameDelegates;
 
 	UE::AssetTools::FOnPackageMigration OnPackageMigration;
 

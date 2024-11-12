@@ -18,9 +18,9 @@ public:
 	SLATE_BEGIN_ARGS(SMoviePipelineFormatTokenAutoCompleteBox){}
 
 	SLATE_ARGUMENT(FText, InitialText)
+	SLATE_ARGUMENT(FText, HintText)
+	SLATE_ARGUMENT(TSharedPtr<IPropertyHandle>, TextHandle)
 	SLATE_ATTRIBUTE(TArray<FString>, Suggestions)
-	/** Called whenever the text is changed programmatically or interactively by the user. */
-	SLATE_EVENT(FOnTextChanged, OnTextChanged)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -36,9 +36,11 @@ public:
 
 	static void FindAutoCompletableTextAtPos(const FString& InWholeString, int32 InCursorPos, FString& OutStr, bool& bShowAutoComplete);
 
-	void ReplaceRelevantTextWithSuggestion(const FString& InSuggestionText) const;
+	void ReplaceRelevantTextWithSuggestion(const FString& InSuggestionText);
 
 	void HandleTextBoxTextChanged(const FText& InText);
+
+	void HandleTextBoxTextCommitted(const FText& InText, ETextCommit::Type CommitInfo) const;
 
 	void FilterVisibleSuggestions(const FString& StrToMatch, const bool bForceShowAll);
 
@@ -48,13 +50,21 @@ public:
 
 	TSharedRef<ITableRow> HandleSuggestionListViewGenerateRow(TSharedPtr<FString> Text, const TSharedRef<STableViewBase>& OwnerTable) const;
 
+	/**
+	 * A helper to get file name format suggestions. Can be passed to the "Suggestions" argument.
+	 */
+	static TArray<FString> GetFileNameFormatSuggestions();
+
+private:
+	/** Get the relevant brace positions for the given cursor position within the text. */
+	static void GetBracePositionsForCursor(const FString& InText, int32 CursorPos, int32& OutStartingBracePos, int32& OutEndBracePos);
+
 private:
 	TSharedPtr<SListView<TSharedPtr<FString>>> SuggestionListView;
 	TSharedPtr<SMultiLineEditableTextBox> TextBox;
 	TSharedPtr<SMenuAnchor> MenuAnchor;
 	TSharedPtr<SVerticalBox> VerticalBox;
-	// Holds a delegate that is executed when the text has changed.
-	FOnTextChanged OnTextChanged;
+	TSharedPtr<IPropertyHandle> TextHandle;
 
 	// The pool of suggestions to show
 	TArray<FString> AllSuggestions;

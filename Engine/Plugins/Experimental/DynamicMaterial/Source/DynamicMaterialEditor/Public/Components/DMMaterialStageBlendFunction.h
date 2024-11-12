@@ -9,21 +9,30 @@ class UMaterialExpression;
 class UMaterialFunctionInterface;
 struct FDMMaterialBuildState;
 
-UCLASS(Abstract, BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageBlendFunction : public UDMMaterialStageBlend
+/** A blending stage based on a material function. */
+UCLASS(MinimalAPI, Abstract, BlueprintType, Blueprintable, ClassGroup = "Material Designer")
+class UDMMaterialStageBlendFunction : public UDMMaterialStageBlend
 {
 	GENERATED_BODY()
 
 public:
-	virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
-	virtual void ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InInputIndex, UMaterialExpression* InSourceExpression,
-		int32 InSourceOutputIndex, int32 InSourceOutputChannel) override;
+	UDMMaterialStageBlendFunction();
+
+	//~ Begin UDMMaterialStageThroughput
+	DYNAMICMATERIALEDITOR_API virtual void ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InInputIdx,
+		int32 InExpressionInputIndex, UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel) override;
+	//~ End UDMMaterialStageThroughput
+
+	//~ Begin UDMMaterialStageSource
+	DYNAMICMATERIALEDITOR_API virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
+	//~ End UDMMaterialStageSource
 
 protected:
 	UPROPERTY()
 	TObjectPtr<UMaterialFunctionInterface> MaterialFunction;
 
-	UDMMaterialStageBlendFunction();
-	UDMMaterialStageBlendFunction(const FText& InName, UMaterialFunctionInterface* InMaterialFunction);
-	UDMMaterialStageBlendFunction(const FText& InName, const FName& InFunctionName, const FString& InFunctionPath);
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageBlendFunction(const FText& InName, UMaterialFunctionInterface* InMaterialFunction);
+
+	/** Loads the function asset. */
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageBlendFunction(const FText& InName, const FName& InFunctionName, const FString& InFunctionPath);
 };

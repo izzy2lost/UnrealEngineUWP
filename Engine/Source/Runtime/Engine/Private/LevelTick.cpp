@@ -12,6 +12,7 @@
 #include "EngineStats.h"
 #include "RenderingThread.h"
 #include "Materials/MaterialParameterCollectionInstance.h"
+#include "ProfilingDebugging/LevelStreamingProfilingSubsystem.h"
 #include "AI/NavigationSystemBase.h"
 #include "GameFramework/PlayerController.h"
 #include "ParticleHelper.h"
@@ -19,6 +20,7 @@
 #include "Engine/NetConnection.h"
 #include "SceneInterface.h"
 #include "UnrealEngine.h"
+#include "Engine/LevelStreamingGCHelper.h"
 #include "Engine/LevelStreamingVolume.h"
 #include "IXRTrackingSystem.h"
 #include "Camera/CameraPhotography.h"
@@ -56,7 +58,7 @@ CSV_DECLARE_CATEGORY_MODULE_EXTERN(CORE_API, Basic);
 CSV_DEFINE_CATEGORY_MODULE(ENGINE_API, Ticks, true);
 CSV_DEFINE_CATEGORY_MODULE(ENGINE_API, ActorCount, true);
 
-#if CSV_PROFILER && CSV_TRACK_UOBJECT_COUNT
+#if CSV_PROFILER_STATS && CSV_TRACK_UOBJECT_COUNT
 CSV_DEFINE_CATEGORY_MODULE(ENGINE_API, ObjectCount, true);
 #endif
 
@@ -965,41 +967,10 @@ struct FSendAllEndOfFrameUpdates
 	
 	FGPUSkinCache* GPUSkinCache = nullptr;
 	ERHIFeatureLevel::Type FeatureLevel = ERHIFeatureLevel::Num;
-
-#if WANTS_DRAW_MESH_EVENTS
-	FDrawEvent DrawEvent;
-#endif // WANTS_DRAW_MESH_EVENTS
 };
-
-void BeginSendEndOfFrameUpdatesDrawEvent(FSendAllEndOfFrameUpdates& SendAllEndOfFrameUpdates)
-{
-	BEGIN_DRAW_EVENTF_GAMETHREAD(SendAllEndOfFrameUpdates, SendAllEndOfFrameUpdates.DrawEvent, TEXT("SendAllEndOfFrameUpdates"));
-
-	ENQUEUE_RENDER_COMMAND(BeginDrawEventCommand)(UE::RenderCommandPipe::SkeletalMesh,
-		[GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache]
-	{
-		if (GPUSkinCache != nullptr)
-		{
-			GPUSkinCache->BeginBatchDispatch();
-		}
-	});
-}
 
 DECLARE_GPU_STAT(EndOfFrameUpdates);
 DECLARE_GPU_STAT(GPUSkinCacheRayTracingGeometry);
-void EndSendEndOfFrameUpdatesDrawEvent(FSendAllEndOfFrameUpdates& SendAllEndOfFrameUpdates)
-{
-	ENQUEUE_RENDER_COMMAND(EndDrawEventCommand)(UE::RenderCommandPipe::SkeletalMesh,
-		[GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache]
-	{
-		if (GPUSkinCache != nullptr)
-		{
-			GPUSkinCache->EndBatchDispatch();
-		}
-	});
-
-	STOP_DRAW_EVENT_GAMETHREAD(SendAllEndOfFrameUpdates.DrawEvent);
-}
 
 /**
 	* Send all render updates to the rendering thread.
@@ -1057,9 +1028,12 @@ void UWorld::SendAllEndOfFrameUpdates()
 		}
 	}
 
+#if WANTS_DRAW_MESH_EVENTS
+	RHI_BREADCRUMB_EVENT_GAMETHREAD("SendAllEndOfFrameUpdates");
+#endif
+
 	// Issue a GPU event to wrap GPU work done during SendAllEndOfFrameUpdates, like skin cache updates
 	FSendAllEndOfFrameUpdates SendAllEndOfFrameUpdates(Scene);
-	BeginSendEndOfFrameUpdatesDrawEvent(SendAllEndOfFrameUpdates);
 
 	// update all dirty components. 
 	FGuardValue_Bitfield(bPostTickComponentUpdate, true); 
@@ -1132,6 +1106,12 @@ void UWorld::SendAllEndOfFrameUpdates()
 		}
 	};
 
+	if (Scene)
+	{
+		// We do not know in advance how many transform updates will occur so need to resize array to total number of components to avoid synchronization later
+		Scene->StartUpdatePrimitiveTransform(LocalComponentsThatNeedEndOfFrameUpdate.Num() + ComponentsThatNeedEndOfFrameUpdate_OnGameThread.Num());
+	}
+
 	if (IsUsingParallelNotifyEvents)
 	{
 #if WITH_EDITOR
@@ -1149,6 +1129,11 @@ void UWorld::SendAllEndOfFrameUpdates()
 		ParallelFor(LocalComponentsThatNeedEndOfFrameUpdate.Num(), ParallelWork);
 	}
 	
+	if (Scene)
+	{
+		Scene->FinishUpdatePrimitiveTransform();
+	}
+
 	for (UMaterialParameterCollectionInstance* ParameterCollectionInstance : ParameterCollectionInstances)
 	{
 		if (ParameterCollectionInstance)
@@ -1159,8 +1144,6 @@ void UWorld::SendAllEndOfFrameUpdates()
 	bMaterialParameterCollectionInstanceNeedsDeferredUpdate = false;
 			
 	LocalComponentsThatNeedEndOfFrameUpdate.Reset();
-
-	EndSendEndOfFrameUpdatesDrawEvent(SendAllEndOfFrameUpdates);
 }
 
 /**
@@ -1182,7 +1165,7 @@ void UWorld::FlushDeferredParameterCollectionInstanceUpdates()
 	}
 }
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 static TAutoConsoleVariable<int32> CVarRecordTickCountsToCSV(
 	TEXT("csv.RecordTickCounts"),
 	1,
@@ -1219,13 +1202,17 @@ static void RecordWorldCountsToCSV(UWorld* World, bool bDoingActorTicks)
 			bool bDetailed = (CVarDetailedTickContextForCSV.GetValueOnGameThread() != 0);
 
 			TSortedMap<FName, int32, FDefaultAllocator, FNameFastLess> TickContextToCountMap;
-			int32 EnabledCount;
+			int32 EnabledCount = 0;
 			FTickTaskManagerInterface::Get().GetEnabledTickFunctionCounts(World, TickContextToCountMap, EnabledCount, bDetailed, true);
 
 			for (auto It = TickContextToCountMap.CreateConstIterator(); It; ++It)
 			{
 				FCsvProfiler::Get()->RecordCustomStat(It->Key, CSV_CATEGORY_INDEX(Ticks), It->Value, ECsvCustomStatOp::Accumulate); // use accumulate in case we have more than one world ticking
 			}
+
+			// By default, Ticks/Total equals Basic/TicksQueued.
+			// Ticks/Total can be used to accumulate tick counts from game systems that don't run in the task graph.
+			CSV_CUSTOM_STAT(Ticks, Total, EnabledCount, ECsvCustomStatOp::Accumulate);
 		}
 
 		if (CVarRecordActorCountsToCSV.GetValueOnAnyThread())
@@ -1253,7 +1240,7 @@ static void RecordWorldCountsToCSV(UWorld* World, bool bDoingActorTicks)
 #endif
 	}
 }
-#endif // (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#endif // (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 
 DECLARE_CYCLE_STAT(TEXT("TG_PrePhysics"), STAT_TG_PrePhysics, STATGROUP_TickGroups);
 DECLARE_CYCLE_STAT(TEXT("TG_StartPhysics"), STAT_TG_StartPhysics, STATGROUP_TickGroups);
@@ -1281,7 +1268,9 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 		return;
 	}
 
-	SCOPED_DRAW_EVENT_GAMETHREAD(WorldTick);
+	FThreadIdleStats::BeginCriticalPath();
+
+	RHI_BREADCRUMB_EVENT_GAMETHREAD("WorldTick");
 
 	FWorldDelegates::OnWorldTickStart.Broadcast(this, TickType, DeltaSeconds);
 
@@ -1422,11 +1411,13 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 		{
 			// Reset Async Trace before Tick starts 
 			SCOPE_CYCLE_COUNTER(STAT_ResetAsyncTraceTickTime);
+			CSV_SCOPED_TIMING_STAT_EXCLUSIVE(ResetAsyncTraceTickTime);
 			ResetAsyncTrace();
 		}
 		{
 			// Run pre-actor tick delegates that want clamped/dilated time
 			SCOPE_CYCLE_COUNTER(STAT_TickTime);
+			CSV_SCOPED_TIMING_STAT_EXCLUSIVE(WorldPreActorTick);
 			FWorldDelegates::OnWorldPreActorTick.Broadcast(this, TickType, DeltaSeconds);
 		}
 	}
@@ -1450,6 +1441,7 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 
 	// If only the DynamicLevel collection has entries, we can skip the validation and tick all levels.
 	bool bValidateLevelList = false;
+	bool bHasTickedACollection = false;
 
 	for (const FLevelCollection& LevelCollection : LevelCollections)
 	{
@@ -1478,12 +1470,17 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 			}
 		}
 
+		if (LevelsToTick.Num() == 0)
+		{
+			// Nothing to do, early out before creating the slow scope
+			continue;
+		}
+
 		// Set up context on the world for this level collection
 		FScopedLevelCollectionContextSwitch LevelContext(i, this);
 
 		// If caller wants time update only, or we are paused, skip the rest.
-		const bool bShouldSkipTick = (LevelsToTick.Num() == 0);
-		if (bDoingActorTicks && !bShouldSkipTick)
+		if (bDoingActorTicks)
 		{
 			// Actually tick actors now that context is set up
 			SetupPhysicsTickFunctions(DeltaSeconds);
@@ -1533,9 +1530,11 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 			FTickTaskManagerInterface::Get().RunPauseFrame(this, DeltaSeconds, LEVELTICK_PauseTick, LevelsToTick);
 		}
 		
-		// We only want to run the following once, so only run it for the source level collection.
-		if (LevelCollections[i].GetType() == ELevelCollectionType::DynamicSourceLevels)
+		// Run this on the first collection with levels, which will be DynamicSourceLevels by default
+		if (!bHasTickedACollection)
 		{
+			bHasTickedACollection = true;
+
 			// Process any remaining latent actions
 			if( !bIsPaused )
 			{
@@ -1600,7 +1599,7 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 			}
 		}
 
-		if (bDoingActorTicks && !bShouldSkipTick)
+		if (bDoingActorTicks)
 		{
 			SCOPE_CYCLE_COUNTER(STAT_TickTime);
 			{
@@ -1712,9 +1711,30 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 	GDetailedPathFindingStats.DumpStats();
 #endif
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 	RecordWorldCountsToCSV(this, bDoingActorTicks);
-#endif // (CSV_PROFILER && !UE_BUILD_SHIPPING)
+
+	if (IsGameWorld() && FCsvProfiler::Get()->IsCapturing())
+	{
+		for (ULevelStreaming* LevelStreaming : StreamingLevels)
+		{
+			switch (LevelStreaming->GetLevelStreamingStatus())
+			{
+			case LEVEL_Loading:
+				CSV_CUSTOM_STAT(LevelStreaming, NumLevelsLoading, 1, ECsvCustomStatOp::Accumulate);
+				break;
+			case LEVEL_MakingVisible:
+				CSV_CUSTOM_STAT(LevelStreaming, NumLevelsMakingVisible, 1, ECsvCustomStatOp::Accumulate);
+				break;
+			case LEVEL_MakingInvisible:
+				CSV_CUSTOM_STAT(LevelStreaming, NumLevelsMakingInvisible, 1, ECsvCustomStatOp::Accumulate);
+				break;
+			}
+		}
+
+		CSV_CUSTOM_STAT(LevelStreaming, NumLevelsPendingPurge, FLevelStreamingGCHelper::GetNumLevelsPendingPurge(), ECsvCustomStatOp::Set);
+	}
+#endif // (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
@@ -1780,6 +1800,8 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 		});
 
 	FWorldDelegates::OnWorldTickEnd.Broadcast(this, TickType, DeltaSeconds);
+
+	FThreadIdleStats::EndCriticalPath();
 }
 
 void UWorld::CleanupActors()

@@ -19,8 +19,6 @@ namespace UE::AvaTextEditor::Private
 
 #define LOCTEXT_NAMESPACE "AvaFontField"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SAvaFontField::Construct(const FArguments& InArgs)
 {
 	FontView = InArgs._FontView;
@@ -95,8 +93,6 @@ void SAvaFontField::Construct(const FArguments& InArgs)
 
 	UpdateFont(FontView.Get());
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 void SAvaFontField::UpdateFont(const TSharedPtr<FAvaFontView>& InFontView)
 {

@@ -18,6 +18,7 @@
 #include "UObject/UObjectIterator.h"
 #include "UObject/ObjectSaveContext.h"
 #include "RigVMHost.h"
+#include "RigVMCore/RigVMTrait.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVM)
 
@@ -324,8 +325,12 @@ void URigVM::PostLoad()
 
 void URigVM::RefreshArgumentNameCaches()
 {
+	// make sure that the functions cannot change at the same time as
+	// the argument name caches are being updated.
+	FScopeLock ResolveFunctionsScopeLock(&ResolveFunctionsMutex);
+
 	// make sure to update all argument name caches
-	TArray<const FRigVMFunction*>& Functions = GetFunctions();
+	const TArray<const FRigVMFunction*>& Functions = GetFunctions();
 	for (const FRigVMInstruction& Instruction : Instructions)
 	{
 		if (Instruction.OpCode == ERigVMOpCode::Execute)
@@ -555,6 +560,12 @@ bool URigVM::ValidateBytecode()
 				CheckOperandValidity(Op.Arg);
 				break;
 			}
+			case ERigVMOpCode::SetupTraits:
+			{
+				const FRigVMSetupTraitsOp& Op = ByteCodeStorage.GetOpAt<FRigVMSetupTraitsOp>(ByteCodeInstruction);
+				CheckOperandValidity(Op.Arg);
+				break;
+			}
 			case ERigVMOpCode::Invalid:
 			{
 				ensure(false);
@@ -643,7 +654,7 @@ int32 URigVM::AddRigVMFunction(const FString& InFunctionName)
 		return FunctionIndex;
 	}
 
-	const FRigVMFunction* Function = FRigVMRegistry::Get().FindFunction(*InFunctionName);
+	const FRigVMFunction* Function = FRigVMRegistry_RWLock::Get().FindFunction(*InFunctionName);
 	if (Function == nullptr)
 	{
 		return INDEX_NONE;
@@ -984,7 +995,7 @@ bool URigVM::ResolveFunctionsIfRequired()
 		for (int32 FunctionIndex = 0; FunctionIndex < FunctionNames.Num(); FunctionIndex++)
 		{
 			const FString FunctionNameString = FunctionNames[FunctionIndex].ToString();
-			if(const FRigVMFunction* Function = FRigVMRegistry::Get().FindFunction(*FunctionNameString, TypeResolver))
+			if(const FRigVMFunction* Function = FRigVMRegistry_RWLock::Get().FindFunction(*FunctionNameString, TypeResolver))
 			{
 				GetFunctions()[FunctionIndex] = Function;
 				GetFactories()[FunctionIndex] = Function->Factory;
@@ -1141,6 +1152,13 @@ void URigVM::InstructionOpEval(FRigVMExtendedExecuteContext& Context, int32 Inst
 		case ERigVMOpCode::RunInstructions:
 		{
 			const FRigVMRunInstructionsOp& Op = ByteCode.GetOpAt<FRigVMRunInstructionsOp>(Instructions[InstructionIndex]);
+			const FRigVMOperand& Arg = Op.Arg;
+			InOpFunc(Context, InHandleBaseIndex, {}, Arg);
+			break;
+		}
+		case ERigVMOpCode::SetupTraits:
+		{
+			const FRigVMSetupTraitsOp& Op = ByteCode.GetOpAt<FRigVMSetupTraitsOp>(Instructions[InstructionIndex]);
 			const FRigVMOperand& Arg = Op.Arg;
 			InOpFunc(Context, InHandleBaseIndex, {}, Arg);
 			break;
@@ -2125,6 +2143,55 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 				ContextPublicData.InstructionIndex++;
 				break;
 			}
+			case ERigVMOpCode::SetupTraits:
+			{
+				ContextPublicData.Traits.Reset();
+				ContextPublicData.AdditionalTraitMemoryHandles.Reset();
+
+				const TArray<int32>& TraitList = *(TArray<int32>*)Context.CachedMemoryHandles[FirstHandleForInstruction[ContextPublicData.InstructionIndex]].GetData();
+				ContextPublicData.Traits.Reserve(TraitList.Num());
+				ContextPublicData.AdditionalTraitMemoryHandles.Reserve(TraitList.Num());
+				int32 AdditionalStartIndex = INDEX_NONE;
+				int32 AdditionalNum = 0;
+				for(const int32 TraitPropertyIndex : TraitList)
+				{
+					// Properties from programmatic pins that are added to the trait index list are added before their respective trait.
+					// AdditionalMemoryHandles is accumulated prior to building the FRigVMTraitScope, and each FRigVMTraitScope has a view into
+					// the overall ContextPublicData.AdditionalTraitMemoryHandles buffer.
+					if(Context.WorkMemoryStorage.GetProperties().IsValidIndex(TraitPropertyIndex))
+					{
+						const FProperty* Property = Context.WorkMemoryStorage.GetProperties()[TraitPropertyIndex];
+						const FStructProperty* StructProperty = CastField<FStructProperty>(Property);
+						if(StructProperty && StructProperty->Struct && StructProperty->Struct->IsChildOf(FRigVMTrait::StaticStruct()))
+						{
+							TConstArrayView<FRigVMMemoryHandle> AdditionalMemoryHandles;
+							if(AdditionalStartIndex != INDEX_NONE)
+							{
+								AdditionalMemoryHandles = TConstArrayView<FRigVMMemoryHandle>(&ContextPublicData.AdditionalTraitMemoryHandles[AdditionalStartIndex], AdditionalNum);
+								AdditionalStartIndex = INDEX_NONE;
+							}
+
+							ContextPublicData.Traits.Emplace(
+								Context.WorkMemoryStorage.GetData<FRigVMTrait>(TraitPropertyIndex),
+								Cast<UScriptStruct>(StructProperty->Struct),
+								AdditionalMemoryHandles);
+						}
+						else
+						{
+							if(AdditionalStartIndex == INDEX_NONE)
+							{
+								AdditionalStartIndex = ContextPublicData.AdditionalTraitMemoryHandles.Num();
+								AdditionalNum = 0;
+							}
+							ContextPublicData.AdditionalTraitMemoryHandles.Emplace(Context.WorkMemoryStorage.GetHandle(TraitPropertyIndex));
+							AdditionalNum++;
+						}
+					}
+				}
+
+				ContextPublicData.InstructionIndex++;
+				break;
+			}
 			case ERigVMOpCode::Invalid:
 			{
 				ensure(false);
@@ -2459,6 +2526,12 @@ TArray<FString> URigVM::DumpByteCodeAsTextArray(FRigVMExtendedExecuteContext& Co
 			{
 				const FRigVMRunInstructionsOp& Op = ByteCode.GetOpAt<FRigVMRunInstructionsOp>(Instructions[InstructionIndex]);
 				ResultLine = FString::Printf(TEXT("Run Instructions %d-%d (%s)"), Op.StartInstruction, Op.EndInstruction, *GetOperandLabel(Context, Op.Arg, OperandFormatFunction));
+				break;
+			}
+			case ERigVMOpCode::SetupTraits:
+			{
+				const FRigVMSetupTraitsOp& Op = ByteCode.GetOpAt<FRigVMSetupTraitsOp>(Instructions[InstructionIndex]);
+				ResultLine = FString::Printf(TEXT("Setup Traits (%s)"), *GetOperandLabel(Context, Op.Arg, OperandFormatFunction));
 				break;
 			}
 			default:

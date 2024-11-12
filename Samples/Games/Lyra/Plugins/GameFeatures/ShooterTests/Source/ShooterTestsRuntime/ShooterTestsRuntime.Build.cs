@@ -13,7 +13,9 @@ public class ShooterTestsRuntime : ModuleRules
 			{
 				"Core",
 				"LyraGame",
-				"ModularGameplay",
+				"GameplayTags",
+				"GameplayAbilities",
+				"ModularGameplay"
 				// ... add other public dependencies that you statically link with here ...
 			}
 		);
@@ -23,8 +25,22 @@ public class ShooterTestsRuntime : ModuleRules
 			{
 				"CoreUObject",
 				"Engine",
+				"InputCore",
+				"EnhancedInput",
+				"CQTest",
+				"CQTestEnhancedInput",
 				// ... add private dependencies that you statically link with here ...	
 			}
 		);
+
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[] {
+					"EngineSettings",
+					"LevelEditor",
+					"UnrealEd"
+			});
+		}
 	}
 }

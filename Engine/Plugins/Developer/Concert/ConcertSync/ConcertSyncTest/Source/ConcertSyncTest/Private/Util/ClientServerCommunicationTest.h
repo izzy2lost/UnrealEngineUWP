@@ -4,6 +4,7 @@
 
 #include "ConcertMessages.h"
 #include "IConcertSession.h"
+#include "Mock/MockUtils.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "Scratchpad/ConcertScratchpad.h"
@@ -12,10 +13,6 @@
 
 namespace UE::ConcertSyncTests
 {
-	// Utility functions used to detect when a non-mocked function is called, so that we can mock it properly when required.
-	template<typename T> T NotMocked(T Ret) { check(false); return Ret; }
-	template<typename T> T NotMocked()      { check(false); return T(); }
-
 	inline FString GetTestSessionRootPath()
 	{
 		return FPaths::ProjectIntermediateDir() / TEXT("ConcertDataStoreTest");
@@ -75,9 +72,10 @@ namespace UE::ConcertSyncTests
 	class FConcertClientSessionBaseMock : public IConcertClientSession
 	{
 	public:
-		FConcertClientSessionBaseMock() 
+		FConcertClientSessionBaseMock(FConcertClientInfo ClientInfo) 
 			: Id(FGuid::NewGuid()) 
-			, Name("FConcertClientSessionBaseMock") 
+			, Name("FConcertClientSessionBaseMock")
+			, ClientInfo(MoveTemp(ClientInfo))
 		{ }
 
 		// IConcertSession Begin.
@@ -110,7 +108,7 @@ namespace UE::ConcertSyncTests
 		virtual EConcertConnectionStatus GetConnectionStatus() const override            { return NotMocked<EConcertConnectionStatus>(EConcertConnectionStatus::Connected); }
 		virtual FGuid GetSessionClientEndpointId() const override                        { return NotMocked<FGuid>(); }
 		virtual FGuid GetSessionServerEndpointId() const override                        { return NotMocked<FGuid>(); }
-		virtual const FConcertClientInfo& GetLocalClientInfo() const override            { return NotMocked<const FConcertClientInfo&>(ClientInfo); }
+		virtual const FConcertClientInfo& GetLocalClientInfo() const override            { return ClientInfo; }
 		virtual void UpdateLocalClientInfo(const FConcertClientInfoUpdate&) override     { return NotMocked<void>(); }
 		virtual void Connect() override                                                  { return NotMocked<void>(); }
 		virtual void Disconnect() override                                               { return NotMocked<void>(); }
@@ -287,10 +285,6 @@ namespace UE::ConcertSyncTests
 					// Dispatch the response.
 					ResponseHandler->HandleResponse(ResponsePayload.GetStructMemory());
 				}
-				else
-				{
-					check(false); // The test suite is not expected to fire any other result than Success or Failed.
-				}
 			}
 			else 
 			{
@@ -304,8 +298,18 @@ namespace UE::ConcertSyncTests
 
 		virtual bool FindSessionClient(const FGuid& EndpointId, FConcertSessionClientInfo& OutSessionClientInfo) const override
 		{
-			// Need to mock this in case test fails the internal server logic may log the client name which made an invalid request.
-			return true;
+			for (int32 i = 0; i < ClientSessions.Num(); ++i)
+			{
+				if (ClientEndpoints[i] != EndpointId)
+				{
+					continue;
+				}
+				
+				const FConcertClientSessionBaseMock* ClientSessionMock = ClientSessions[i];
+				OutSessionClientInfo = { EndpointId, ClientSessionMock->GetLocalClientInfo() };
+				return true;
+			}
+			return false;
 		}
 		
 		virtual FOnConcertServerSessionClientChanged& OnSessionClientChanged() override
@@ -349,8 +353,10 @@ namespace UE::ConcertSyncTests
 	class FConcertClientSessionMock : public FConcertClientSessionBaseMock
 	{
 	public:
-		FConcertClientSessionMock(const FGuid& ClientEndpointId, FConcertServerSessionMock& Server)
-			: ServerMock(Server)
+		
+		FConcertClientSessionMock(const FGuid& ClientEndpointId, FConcertServerSessionMock& Server, FConcertClientInfo ClientInfo)
+			: FConcertClientSessionBaseMock(MoveTemp(ClientInfo))
+			, ServerMock(Server)
 			, EndpointId(ClientEndpointId)
 		{
 		}
@@ -455,8 +461,8 @@ namespace UE::ConcertSyncTests
 	public:
 		struct FClientInfo
 		{
-			FClientInfo(const FGuid& ClientEndPointId, FConcertServerSessionMock& Server)
-				: ClientSessionMock(MakeShared<FConcertClientSessionMock>(ClientEndPointId, Server))
+			FClientInfo(const FGuid& ClientEndPointId, FConcertServerSessionMock& Server, FConcertClientInfo ClientInfo)
+				: ClientSessionMock(MakeShared<FConcertClientSessionMock>(ClientEndPointId, Server, MoveTemp(ClientInfo)))
 			{}
 
 			const TSharedRef<FConcertClientSessionBaseMock> ClientSessionMock;
@@ -475,10 +481,10 @@ namespace UE::ConcertSyncTests
 			Framework.OnTestEndEvent.RemoveAll(this);
 		}
 
-		FClientInfo& ConnectClient()
+		FClientInfo& ConnectClient(FConcertClientInfo ClientInfo = {})
 		{
 			const FGuid ClientEndpointId(0, 0, 0, Clients.Num() + 1); // {0, 0, 0, 0} is used by the server.
-			Clients.Add(MakeUnique<FClientInfo>(ClientEndpointId, *ServerSessionMock));
+			Clients.Add(MakeUnique<FClientInfo>(ClientEndpointId, *ServerSessionMock, MoveTemp(ClientInfo)));
 			ServerSessionMock->ConnectClient(ClientEndpointId, *(Clients.Last()->ClientSessionMock));
 			return *Clients.Last();
 		}

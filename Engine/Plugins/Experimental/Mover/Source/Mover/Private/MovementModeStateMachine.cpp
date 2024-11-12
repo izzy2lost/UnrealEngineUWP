@@ -161,6 +161,47 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 		// Transfer any queued moves into the starting state. They'll be started during the move generation.
 		FlushQueuedMovesToGroup(SubstepStartData.SyncState.LayeredMoves);
 		OutputState.SyncState.LayeredMoves = SubstepStartData.SyncState.LayeredMoves;
+
+		FlushQueuedModifiersToGroup(SubstepStartData.SyncState.MovementModifiers);
+		OutputState.SyncState.MovementModifiers = SubstepStartData.SyncState.MovementModifiers;
+		
+		FApplyMovementEffectParams EffectParams;
+		EffectParams.MoverComp = MoverComp;
+		EffectParams.StartState = &SubstepStartData;
+		EffectParams.TimeStep = &SubTimeStep;
+		EffectParams.UpdatedComponent = UpdatedComponent;
+		EffectParams.UpdatedPrimitive = UpdatedPrimitive;
+		
+		bool bModeSetFromInstantEffect = false;
+		// Apply any instant effects that were queued up between ticks
+		if (ApplyInstantEffects(EffectParams, OutputState.SyncState))
+		{
+			// Copying over our sync state collection to SubstepStartData so it is effectively the input sync state later for the movement mode. Doing this makes sure state modification from Instant Effects isn't overridden later by the movement mode
+			for (auto SyncDataIt = OutputState.SyncState.SyncStateCollection.GetCollectionDataIterator(); SyncDataIt; ++SyncDataIt)
+			{
+				if (SyncDataIt->Get())
+				{
+					SubstepStartData.SyncState.SyncStateCollection.AddOrOverwriteData(TSharedPtr<FMoverDataStructBase>(SyncDataIt->Get()->Clone()));
+				}
+			}
+
+			if (CurrentModeName != OutputState.SyncState.MovementMode)
+			{
+				bModeSetFromInstantEffect = true;
+				SetModeImmediately(OutputState.SyncState.MovementMode);
+				SubstepStartData.SyncState.MovementMode = CurrentModeName;
+			}
+		}
+
+		FMovementModifierGroup& CurrentModifiers = OutputState.SyncState.MovementModifiers;
+		FlushModifierCancellationsToGroup(CurrentModifiers);
+		TArray<TSharedPtr<FMovementModifierBase>> ActiveModifiers = CurrentModifiers.GenerateActiveModifiers(MoverComp, SubTimeStep, SubstepStartData.SyncState, SubstepStartData.AuxState);
+
+		for (TSharedPtr<FMovementModifierBase> Modifier : ActiveModifiers)
+		{
+			Modifier->OnPreMovement(MoverComp, SubTimeStep);
+		}
+		
 		FLayeredMoveGroup& CurrentLayeredMoves = OutputState.SyncState.LayeredMoves;
 
 		// Gather any layered move contributions
@@ -177,14 +218,20 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 		for (TSharedPtr<FLayeredMoveBase>& ActiveMove : ActiveMoves)
 		{
 			FProposedMove MoveStep;
-			if (ActiveMove->GenerateMove(StartState, TimeStep, MoverComp, SimBlackboard, MoveStep))
+			if (ActiveMove->GenerateMove(SubstepStartData, SubTimeStep, MoverComp, SimBlackboard, MoveStep))
 			{
+				// If this active move is already past it's first tick we don't need to set the preferred mode again
+				if (ActiveMove->StartSimTimeMs < SubTimeStep.BaseSimTimeMs)
+				{
+					MoveStep.PreferredMode = NAME_None;
+				}
+				
 				bHasLayeredMoveContributions = true;
 				MoverComp->MovementMixer->MixLayeredMove(*ActiveMove, MoveStep, CombinedLayeredMove);
 			}
 		}
 
-		if (bHasLayeredMoveContributions && !CombinedLayeredMove.PreferredMode.IsNone())
+		if (bHasLayeredMoveContributions && !CombinedLayeredMove.PreferredMode.IsNone() && !bModeSetFromInstantEffect)
 		{
 			SetModeImmediately(CombinedLayeredMove.PreferredMode);
 			OutputState.SyncState.MovementMode = CurrentModeName;
@@ -214,13 +261,13 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 			}
 			CurrentLayeredMoves.ResetResidualVelocity();
 
+			MoverComp->ProcessGeneratedMovement.ExecuteIfBound(SubstepStartData, SubTimeStep, OUT CombinedMove);
+			
 			// Execute the combined proposed move
 			{
 				FSimulationTickParams SimTickParams;
 				SimTickParams.StartState = SubstepStartData;
-				SimTickParams.UpdatedComponent = UpdatedComponent;
-				SimTickParams.UpdatedPrimitive = UpdatedPrimitive;
-				SimTickParams.MoverComponent = MoverComp;
+				SimTickParams.MovingComps = FMovingComponentSet(MoverComp);
 				SimTickParams.TimeStep = SubTimeStep;
 				SimTickParams.ProposedMove = CombinedMove;
 
@@ -296,6 +343,11 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 		AdvanceToNextMode();
 		OutputState.SyncState.MovementMode = CurrentModeName;
 
+		for (TSharedPtr<FMovementModifierBase> Modifier : ActiveModifiers)
+		{
+			Modifier->OnPostMovement(MoverComp, SubTimeStep, OutputState.SyncState, OutputState.AuxState);
+		}
+		
 		const float RemainingMs = FMath::Clamp(OutputState.MovementEndState.RemainingMs, 0.0f, SubTimeStep.StepMs);
 		SubTimeStep.BaseSimTimeMs += (SubTimeStep.StepMs - RemainingMs);
 		SubTimeStep.StepMs = EndingSimTimeMs - SubTimeStep.BaseSimTimeMs;
@@ -304,13 +356,33 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 		SubstepStartData.AuxState  = OutputState.AuxState;
 	}
 
+	FApplyMovementEffectParams EffectParams;
+	EffectParams.MoverComp = MoverComp;
+	EffectParams.StartState = &SubstepStartData;
+	EffectParams.TimeStep = &SubTimeStep;
+	EffectParams.UpdatedComponent = UpdatedComponent;
+	EffectParams.UpdatedPrimitive = UpdatedPrimitive;
+	
+	// Apply any instant effects that were queued up during this tick and didn't get handled in a substep
+	if (ApplyInstantEffects(EffectParams, OutputState.SyncState))
+	{
+		if (CurrentModeName != OutputState.SyncState.MovementMode)
+		{
+			SetModeImmediately(OutputState.SyncState.MovementMode);
+		}
+	}
 }
 
+void UMovementModeStateMachine::OnSimulationPreRollback(const FMoverSyncState* InvalidSyncState, const FMoverSyncState* SyncState, const FMoverAuxStateContext* InvalidAuxState, const FMoverAuxStateContext* AuxState)
+{
+	RollbackModifiers(InvalidSyncState, SyncState, InvalidAuxState, AuxState);
+}
 
 void UMovementModeStateMachine::OnSimulationRollback(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState)
 {
 	ClearQueuedMode();
 	QueuedLayeredMoves.Empty();
+	QueuedInstantEffects.Empty();
 }
 
 
@@ -339,6 +411,47 @@ void UMovementModeStateMachine::QueueLayeredMove(TSharedPtr<FLayeredMoveBase> Mo
 	QueuedLayeredMoves.Add(Move);
 }
 
+void UMovementModeStateMachine::QueueInstantMovementEffect(TSharedPtr<FInstantMovementEffect> Effect)
+{
+	QueuedInstantEffects.Add(Effect);
+}
+
+FMovementModifierHandle UMovementModeStateMachine::QueueMovementModifier(TSharedPtr<FMovementModifierBase> Modifier)
+{
+	if (ensure(Modifier.IsValid()))
+	{
+		QueuedMovementModifiers.Add(Modifier);
+		Modifier->GenerateHandle();
+
+		return Modifier->GetHandle();
+	}
+
+	return 0;
+}
+
+void UMovementModeStateMachine::CancelModifierFromHandle(FMovementModifierHandle ModifierHandle)
+{
+	QueuedMovementModifiers.RemoveAll([ModifierHandle, this]
+	(const TSharedPtr<FMovementModifierBase>& Modifier)
+	{
+		if (Modifier.IsValid())
+		{
+			if (Modifier->GetHandle() == ModifierHandle)
+			{
+				return true;
+			}
+		}
+		else
+		{
+			return true;	
+		}
+
+		return false;
+	});
+	
+	ModifiersToCancel.Add(ModifierHandle);
+}
+
 
 void UMovementModeStateMachine::ConstructDefaultModes()
 {
@@ -365,6 +478,13 @@ void UMovementModeStateMachine::AdvanceToNextMode()
 		const FName PreviousModeName = CurrentModeName;
 		CurrentModeName = NextModeName;
 
+		if (PreviousModeName != NAME_None && Modes.Contains(PreviousModeName))
+		{
+			Modes[PreviousModeName]->DoDeactivate();
+		}
+
+		Modes[CurrentModeName]->DoActivate();
+
 		// signal movement mode change event
 		const UMoverComponent* MoverComp = CastChecked<UMoverComponent>(GetOuter());
 		MoverComp->OnMovementModeChanged.Broadcast(PreviousModeName, NextModeName);
@@ -384,6 +504,95 @@ void UMovementModeStateMachine::FlushQueuedMovesToGroup(FLayeredMoveGroup& Group
 		
 		QueuedLayeredMoves.Empty();
 	}
+}
+
+void UMovementModeStateMachine::FlushQueuedModifiersToGroup(FMovementModifierGroup& ModifierGroup)
+{
+	if (!QueuedMovementModifiers.IsEmpty())
+	{
+		for (TSharedPtr<FMovementModifierBase>& QueuedModifier : QueuedMovementModifiers)
+		{
+			ModifierGroup.QueueMovementModifier(QueuedModifier);
+		}
+		
+		QueuedMovementModifiers.Empty();
+	}
+}
+
+void UMovementModeStateMachine::FlushModifierCancellationsToGroup(FMovementModifierGroup& ActiveModifierGroup)
+{
+	for (FMovementModifierHandle HandleToCancel : ModifiersToCancel)
+	{
+		ActiveModifierGroup.CancelModifierFromHandle(HandleToCancel);
+	}
+	
+	ModifiersToCancel.Empty();
+}
+
+void UMovementModeStateMachine::RollbackModifiers(const FMoverSyncState* InvalidSyncState, const FMoverSyncState* SyncState, const FMoverAuxStateContext* InvalidAuxState, const FMoverAuxStateContext* AuxState)
+{
+	QueuedMovementModifiers.Empty();
+	
+	if (UMoverComponent* MoverComp = Cast<UMoverComponent>(GetOuter()))
+	{
+		for (auto ModifierFromRollbackIt = SyncState->MovementModifiers.GetActiveModifiersIterator(); ModifierFromRollbackIt; ++ModifierFromRollbackIt)
+		{
+			bool bContainsModifier = false;
+			for (auto ModifierFromCacheIt = InvalidSyncState->MovementModifiers.GetActiveModifiersIterator(); ModifierFromCacheIt; ++ModifierFromCacheIt)
+			{
+				if (ModifierFromRollbackIt->Get()->Matches(ModifierFromCacheIt->Get()))
+				{
+					bContainsModifier = true;
+					break;
+				}
+			}
+		
+			if (!bContainsModifier)
+			{
+				UE_LOG(LogMover, Log, TEXT("Modifier(%s) was started on %s after a rollback."), *ModifierFromRollbackIt->Get()->ToSimpleString(), *GetNameSafe(MoverComp->GetOwner()));
+				ModifierFromRollbackIt->Get()->OnStart(MoverComp, MoverComp->GetLastTimeStep(), *SyncState, *AuxState);
+			}
+		}
+
+		for (auto ModifierFromCacheIt = InvalidSyncState->MovementModifiers.GetActiveModifiersIterator(); ModifierFromCacheIt; ++ModifierFromCacheIt)
+		{
+			bool bContainsModifier = false;
+			for (auto ModifierFromRollbackIt = SyncState->MovementModifiers.GetActiveModifiersIterator(); ModifierFromRollbackIt; ++ModifierFromRollbackIt)
+			{
+				if (ModifierFromRollbackIt->Get()->Matches(ModifierFromCacheIt->Get()))
+				{
+					bContainsModifier = true;
+					break;
+				}
+			}
+	
+			if (!bContainsModifier)
+			{
+				UE_LOG(LogMover, Log, TEXT("Modifier(%s) was ended on %s after a rollback."), *ModifierFromCacheIt->Get()->ToSimpleString(), *GetNameSafe(MoverComp->GetOwner()));
+				ModifierFromCacheIt->Get()->OnEnd(MoverComp, MoverComp->GetLastTimeStep(), *SyncState, *AuxState);
+			}
+		}
+	}
+}
+
+bool UMovementModeStateMachine::ApplyInstantEffects(FApplyMovementEffectParams& ApplyEffectParams, FMoverSyncState& OutputState)
+{
+	bool bInstantMovementEffectApplied = false;
+	
+	if (!QueuedInstantEffects.IsEmpty())
+	{
+		for (TSharedPtr<FInstantMovementEffect>& QueuedEffect : QueuedInstantEffects)
+		{
+			if (QueuedEffect->ApplyMovementEffect(ApplyEffectParams, OutputState))
+			{
+				bInstantMovementEffectApplied = true;
+			}
+		}
+		
+		QueuedInstantEffects.Empty();
+	}
+	
+	return bInstantMovementEffectApplied;
 }
 
 AActor* UMovementModeStateMachine::GetOwnerActor() const

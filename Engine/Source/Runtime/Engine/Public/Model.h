@@ -584,7 +584,7 @@ public:
 	/**
 	 * Applies all of the finished lighting cached in the NodeGroups 
 	 */
-	void ApplyStaticLighting(ULevel* LightingScenario);
+	void ApplyStaticLighting(const FStaticLightingBuildContext* LightingContext);
 
 	/**
 	 * Apply world origin changes

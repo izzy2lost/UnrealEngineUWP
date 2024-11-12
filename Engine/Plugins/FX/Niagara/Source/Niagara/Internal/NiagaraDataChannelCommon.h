@@ -16,7 +16,8 @@ class UNiagaraDataChannel;
 class UNiagaraDataChannelHandler;
 class UNiagaraDataInterfaceDataChannelWrite;
 class UNiagaraDataInterfaceDataChannelRead;
-struct FNiagaraDataChannelDataProxy;
+
+using FNiagaraDataChannelDataProxyPtr = TSharedPtr<struct FNiagaraDataChannelDataProxy>;
 
 /** A request to publish data into a Niagara Data Channel.  */
 struct FNiagaraDataChannelPublishRequest
@@ -48,12 +49,12 @@ struct FNiagaraDataChannelPublishRequest
 #endif
 
 	FNiagaraDataChannelPublishRequest() = default;
-	explicit FNiagaraDataChannelPublishRequest(FNiagaraDataBuffer* InData)
+	explicit FNiagaraDataChannelPublishRequest(FNiagaraDataBufferRef InData)
 		: Data(InData)
 	{
 	}
 
-	explicit FNiagaraDataChannelPublishRequest(FNiagaraDataBuffer* InData, bool bInVisibleToGame, bool bInVisibleToCPUSims, bool bInVisibleToGPUSims, FVector3f InLwcTile)
+	explicit FNiagaraDataChannelPublishRequest(FNiagaraDataBufferRef InData, bool bInVisibleToGame, bool bInVisibleToCPUSims, bool bInVisibleToGPUSims, FVector3f InLwcTile)
 	: Data(InData), bVisibleToGame(bInVisibleToGame), bVisibleToCPUSims(bInVisibleToCPUSims), bVisibleToGPUSims(bInVisibleToGPUSims), LwcTile(InLwcTile)
 	{
 	}
@@ -66,12 +67,13 @@ Some data channels will have many of these and can distribute them as needed to 
 For example, some data channel handlers may subdivide the scene such that distant systems are not interacting.
 In this case, each subdivision would have it's own FNiagaraDataChannelData and distribute these to the relevant NiagaraSystems.
 */
-struct FNiagaraDataChannelData final
+struct FNiagaraDataChannelData final : public TSharedFromThis<FNiagaraDataChannelData, ESPMode::ThreadSafe>
 {
 	UE_NONCOPYABLE(FNiagaraDataChannelData)
-	NIAGARA_API explicit FNiagaraDataChannelData(UNiagaraDataChannelHandler* Owner);
+	NIAGARA_API explicit FNiagaraDataChannelData();
 	NIAGARA_API ~FNiagaraDataChannelData();
 
+	NIAGARA_API void Init(UNiagaraDataChannelHandler* Owner);
 	NIAGARA_API void Reset();
 
 	NIAGARA_API void BeginFrame(UNiagaraDataChannelHandler* Owner);
@@ -80,33 +82,35 @@ struct FNiagaraDataChannelData final
 
 	NIAGARA_API FNiagaraDataChannelGameData* GetGameData();
 	NIAGARA_API FNiagaraDataBufferRef GetCPUData(bool bPreviousFrame);
-	FNiagaraDataChannelDataProxy* GetRTProxy(){ return RTProxy.Get(); }
+	FNiagaraDataChannelDataProxyPtr GetRTProxy(){ return RTProxy; }
 	
 	/** Adds a request to publish some data into the channel on the next tick. */
 	NIAGARA_API void Publish(const FNiagaraDataChannelPublishRequest& Request);
-		
-	/**
-	 *Removes all publish requests involving the given dataset.
-	 *TODO: REMOVE
-	 *This is a hack to get around lifetime issues wrt data buffers/datasets and their compiled data.
-	 *We should rework things such that data buffers can exist beyond their owning dataset, including the compiled data detailing their layout.
-	 **/
-	NIAGARA_API void RemovePublishRequests(const FNiagaraDataSet* DataSet);
+
+	NIAGARA_API void PublishFromGPU(const FNiagaraDataChannelPublishRequest& Request);
 
 	NIAGARA_API const FNiagaraDataSetCompiledData& GetCompiledData(ENiagaraSimTarget SimTarget);
 
 	void SetLwcTile(FVector3f InLwcTile){ LwcTile = InLwcTile; }
 	FVector3f GetLwcTile()const { return LwcTile; }
+
+	//This will get a buffer from the CPU dataset intended to be written to on the CPU.
+	FNiagaraDataBuffer* GetBufferForCPUWrite();
+
+	void DestroyRenderThreadProxy(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface);
+
+	void RegisterGPUSpawningReader() { ++NumGPUSpawningReaders; }
+	void UnregisterGPUSpawningReader() { --NumGPUSpawningReaders; }
+	int32 NumRegisteredGPUSpawningReaders()const{ return NumGPUSpawningReaders; }
+
+	//Returns if this data is still valid. This can return false in cases where the owning data channel has been modified for example.
+	bool IsLayoutValid(UNiagaraDataChannelHandler* Owner)const;
 private:
+
+	void CreateRenderThreadProxy(UNiagaraDataChannelHandler* Owner);
 
 	/** DataChannel data accessible from Game/BP. AoS Layout. LWC types. */
 	FNiagaraDataChannelGameDataPtr GameData;
-
-	//		▲	CPU Sim Data can optionally be made visible to the Game Data.
-	//		|
-	//		|
-	//		|
-	//		▼	Game/BP Data can optionally be made visible to CPU sims.
 
 	/** DataChannel data accessible to Niagara CPU sims. SoA layout. Non LWC types. */
 	FNiagaraDataSet* CPUSimData = nullptr;
@@ -118,27 +122,33 @@ private:
 	/** Dataset we use for staging game data for the consumption by RT/GPU sims. */
 	FNiagaraDataSet* GameDataStaging = nullptr;
 
-	//		▲	GPU Sim Data can optionally be made visible to CPU Sims and Game Data.
-	//		|
-	//		|
-	//		|
-	//		▼	CPU Sim and Game Data can optionally be made visible to the GPU.
-
-	/** DataChannel data accessible to Niagara GPU sims. SoA layout. Non LWC types. */
-	FNiagaraDataSet* GPUSimData = nullptr;
-
-
 	/** Data buffers we'll be passing to the RT proxy for uploading to the GPU */
-	TArray<FNiagaraDataBufferRef> BuffersForGPU;
+	TArray<FNiagaraDataChannelPublishRequest> PublishRequestsForGPU;
 
 	/** Render thread proxy for this data. Owns all RT side data meant for GPU simulations. */
-	TUniquePtr<FNiagaraDataChannelDataProxy> RTProxy;
+	FNiagaraDataChannelDataProxyPtr RTProxy;
 
 	/** Pending requests to publish data into this data channel. These requests are consumed at tick tick group. */
 	TArray<FNiagaraDataChannelPublishRequest> PublishRequests;
+
+	/** Pending requests to publish data into this data channel from the GPU. To alleviate data race behavior with data coming back from the GPU, we always consume GPU requests at the start of the frame only. */
+	TArray<FNiagaraDataChannelPublishRequest> PublishRequestsFromGPU;
+
+	/** The world we were initialized with, used to get the compute interface. */
+	TWeakObjectPtr<UWorld> WeakOwnerWorld;
 
 	FVector3f LwcTile = FVector3f::ZeroVector;
 
 	/** Critical section protecting shared state for multiple writers publishing from different threads. */
 	FCriticalSection PublishCritSec;
+
+	//Keep reference to the layout this data was built with.
+	FNiagaraDataChannelLayoutInfoPtr LayoutInfo;
+
+	/** 
+	Track number of explicitly registered readers that spawn GPU particles from this data.
+	If we're spawning GPU particles using the CPU data (Spawn Conditional etc) then we have to send all CPU data to the GPU every frame.
+	Can possibly extend this to be a more automatic, registration based approach to shipping NDC data around rather than exmplicit flags on write.
+	*/
+	std::atomic<int32> NumGPUSpawningReaders;
 };

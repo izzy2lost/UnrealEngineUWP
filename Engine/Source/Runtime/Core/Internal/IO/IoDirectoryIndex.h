@@ -15,7 +15,7 @@ class FArchive;
 
 namespace IoDirectoryIndexUtils
 {
-	FString GetCommonRootPath(const TArray<FStringView>& Filenames);
+	CORE_API FString GetCommonRootPath(const TArray<FStringView>& Filenames);
 }
 
 struct FIoDirectoryIndexEntry
@@ -50,15 +50,15 @@ struct FIoDirectoryIndexResource
 class FIoDirectoryIndexWriter
 {
 public:
-	FIoDirectoryIndexWriter();
+	CORE_API FIoDirectoryIndexWriter();
 
-	void SetMountPoint(FString InMountPoint);
-	uint32 AddFile(const FStringView& InFileName);
-	void SetFileUserData(uint32 InFileEntryIndex, uint32 InUserData);
+	CORE_API void SetMountPoint(FString InMountPoint);
+	CORE_API uint32 AddFile(const FStringView& InFileName);
+	CORE_API void SetFileUserData(uint32 InFileEntryIndex, uint32 InUserData);
 
 	// Flush() can be called only once, because afterwards contents of Strings member
 	// will be empty as all strings have been moved away
-	void Flush(TArray<uint8>& OutBuffer, FAES::FAESKey InEncryptionKey);
+	CORE_API void Flush(TArray<uint8>& OutBuffer, FAES::FAESKey InEncryptionKey);
 
 private:
 	uint32 GetDirectory(uint32 DirectoryName, uint32 Parent);

@@ -1,9 +1,9 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "LevelEditorViewport.h"
+#include "EditorViewportClient.h"
 
-class UChaosVDEditorSettings;
+class UChaosVDCoreSettings;
 struct FChaosVDGameFrameData;
 class FChaosVDScene;
 enum class EChaosVDActorTrackingMode;
@@ -27,19 +27,35 @@ public:
 	virtual void Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
 	virtual void DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas) override;
 
-	virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
-
 	void ToggleObjectTrackingIfSelected();
+	bool IsAutoTrackingSelectedObject() const { return bAutoTrackSelectedObject; };
+	void SetAutoTrackingViewDistance(float NewDistance);
+	float GetAutoTrackingViewDistance() const { return TrackingViewDistance; }
 
-private:
+	void GoToLocation(const FVector& InLocation);
 
 	void TrackSelectedObject();
 
-	void HandleObjectFocused(UObject* FocusedObject);
-	void HandleActorMoving(AActor* MovedActor) const;
-	void HandleViewportSettingsChanged(UChaosVDEditorSettings* SettingsObject);
+	void FocusOnSelectedObject();
+	
+	virtual void UpdateMouseDelta() override;
 
-	FDelegateHandle ObjectFocusedDelegateHandle;
+	void HandleCVDSceneUpdated();
+
+	bool GetCanSelectTranslucentGeometry() const { return bAllowTranslucentHitProxies; };
+	void SetCanSelectTranslucentGeometry(bool bCanSelect);
+	void ToggleCanSelectTranslucentGeometry();
+
+private:
+
+	void HandleFocusRequest(FBox BoxToFocusOn);
+	void HandleActorMoving(AActor* MovedActor) const;
+
+	FDelegateHandle FocusRequestDelegateHandle;
 	UWorld* CVDWorld;
 	TWeakPtr<FChaosVDScene> CVDScene;
+
+	bool bAutoTrackSelectedObject = false;
+	float TrackingViewDistance = 120.0f;
+	bool bAllowTranslucentHitProxies = true;
 };

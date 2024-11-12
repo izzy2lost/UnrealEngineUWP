@@ -34,6 +34,12 @@ public:
 
 	/** Creates a widget where the grid display can be changed. */
 	virtual TSharedRef<SWidget> CreateGridSettingsWidget();
+
+	/** Creates a widget where the visualization in the 2d/unwrapped view can be changed. */
+	virtual TSharedRef<SWidget> CreateUnwrappedUXSettingsWidget();
+
+	/** Creates a widget where the visualization properties in the 3d viewport can be changed. */
+	virtual TSharedRef<SWidget> CreateLivePreviewUXSettingsWidget();
 	
 	/** Creates a widget where the visible UDIMs can be changed. */
 	virtual TSharedRef<SWidget> CreateUDIMSettingsWidget();

@@ -7,15 +7,24 @@ using System.Text;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Security.Cryptography;
+using System.Xml.Linq;
+using System.Collections;
 
 namespace CSVTools
 {
 
 	public class CsvToSvgLibVersion
 	{
-		private static string VersionString = "3.60";
+		private static string VersionString = "3.64";
 
 		public static string Get() { return VersionString; }
+	};
+
+	public enum ShowEventTextMode
+	{
+		Hide = 0,
+		ShowAuto = 1,
+		ShowAll = 2
 	};
 
 	public class GraphParams
@@ -29,7 +38,7 @@ namespace CSVTools
 
 		// Events
 		public List<string> showEventNames = new List<string>();
-		public bool showEventNameText = true;
+		public ShowEventTextMode showEventNameTextMode = ShowEventTextMode.ShowAuto;
 		public List<string> highlightEventRegions = new List<string>();
 
 		// Smoothing
@@ -67,6 +76,12 @@ namespace CSVTools
 		public float maxX = Range.Auto;
 		public float minY = Range.Auto;
 		public float maxY = Range.Auto;
+
+		// start graphing from this event. Note: this will cause frame numbers to start at zero (which is necessary for multiple graphs)
+		public string startEvent;
+		public int startEventOffset = 0;
+		public string endEvent;
+		public int endEventOffset = 0;
 
 		// Max auto Y range. Set to 0 to disable
 		public float maxAutoMaxY = 0.0f;
@@ -476,21 +491,50 @@ namespace CSVTools
 			List<CsvStats> csvStatsList = new List<CsvStats>();
 			int currentColorOffset = graphParams.colorOffset;
 			int currentCustomLabelIndex = 0;
-			foreach (CsvInfo csvInfo in csvList)
+
+			FrameRange frameRange = new FrameRange();
+			for ( int i=0; i<csvList.Count; i++ )
 			{
-				CsvStats newCsvStats = ProcessCsvStats(csvInfo.stats, graphParams);
+				CsvInfo csvInfo = csvList[i];
+				FrameRange csvFrameRange;
+				CsvStats newCsvStats = ProcessCsvStats(csvInfo.stats, graphParams, out csvFrameRange);
+
+				if ( csvFrameRange.isLimited() )
+				{
+					// If we have multiple CSVs and we're applying startEvent limiting then just truncate the start of the CSVs at the event so the frames line up
+					// This has the effect that frame numbers start from zero, but there is no good alternative given the CSV frame numbers will differ
+					if (csvList.Count > 1 )
+					{
+						if (csvFrameRange.start > 0)
+						{
+							newCsvStats.CropStats(csvFrameRange.start, int.MaxValue);
+						}
+						// Adjust the global frameRange end such that we're using the largest range for all CSVs
+						if (csvFrameRange.end != int.MaxValue)
+						{
+							// Offset end index because we're truncating the start
+							csvFrameRange.end -= csvFrameRange.start;
+						}
+						frameRange.end = (i == 0) ? csvFrameRange.end : Math.Max(frameRange.end, csvFrameRange.end);
+					}
+					// Otherwise set frameRange to use the first (only) csv's range and we'll modify minX/maxX, which keeps the axis numbers accurate
+					else
+					{
+						frameRange = csvFrameRange;
+					}
+				}
 
 				if (graphParams.stacked && stackTotalStat == "")
 				{
 					// Make a total stat by summing each frame
 					StatSamples totalStat = new StatSamples("Total");
 					totalStat.samples.Capacity = newCsvStats.SampleCount;
-					for (int i = 0; i < newCsvStats.SampleCount; i++)
+					for (int j = 0; j < newCsvStats.SampleCount; j++)
 					{
 						float totalValue = 0.0f;
 						foreach (StatSamples stat in newCsvStats.Stats.Values)
 						{
-							totalValue += stat.samples[i];
+							totalValue += stat.samples[j];
 						}
 						totalStat.samples.Add(totalValue);
 					}
@@ -510,6 +554,22 @@ namespace CSVTools
 			}
 			perfLog.LogTiming("ProcessCsvStats");
 
+			Range range = new Range(graphParams.minX, graphParams.maxX, graphParams.minY, graphParams.maxY);
+
+			// Apply the frameRange if necessary
+			if (frameRange.isLimited())
+			{
+				// MinX and MaxX are both relative to frameRange.start
+				range.MinX = (range.MinX == Range.Auto) ? frameRange.start : frameRange.start + range.MinX;
+				if (range.MaxX != Range.Auto)
+				{
+					range.MaxX += frameRange.start;
+				}
+				if (frameRange.end != int.MaxValue)
+				{
+					range.MaxX = (range.MaxX == Range.Auto) ? frameRange.end : Math.Min(range.MaxX, frameRange.end); 
+				}
+			}
 
 			if (graphParams.smooth)
 			{
@@ -528,8 +588,6 @@ namespace CSVTools
 				}
 				perfLog.LogTiming("SmoothStats");
 			}
-
-			Range range = new Range(graphParams.minX, graphParams.maxX, graphParams.minY, graphParams.maxY);
 
 			// Compute the X range 
 			range = ComputeAdjustedXRange(range, graphRect, csvStatsList);
@@ -673,10 +731,10 @@ namespace CSVTools
 						DrawGraph(svg, stat.samples, stat.colour, graphRect, range, thickness, statID, graphParams, MaxSegments);
 					}
 
-					if (graphParams.showEventNameText)
+					if (graphParams.showEventNameTextMode != ShowEventTextMode.Hide)
 					{
 						Colour eventColour = theme.EventTextColour;
-						DrawEventText(svg, csvStat.Events, eventColour, graphRect, range);
+						DrawEventText(svg, csvStat.Events, eventColour, graphRect, range, graphParams);
 					}
 
 					csvIndex++;
@@ -741,7 +799,7 @@ namespace CSVTools
 				{
 					foreach (StatSamples samples in stats.Stats.Values)
 					{
-						maxSample = Math.Max(maxSample, samples.ComputeMaxValue());
+						maxSample = Math.Max(maxSample, samples.ComputeMaxValue(range.MinX == Range.Auto ? 0 : (int)range.MinX, range.MaxX == Range.Auto ? -1 : (int)range.MaxX));
 					}
 				}
 				newRange.MaxY = Math.Min(maxSample * 1.05f, maxAutoMaxY);
@@ -774,10 +832,14 @@ namespace CSVTools
 			if (range.MinX == Range.Auto) newRange.MinX = 0;
 			if (range.MaxX == Range.Auto) newRange.MaxX = maxNumSamples;
 
-			// Quantize based on xincrement
+			// Quantize MinX and MaxX based on xincrement
 			if (rect != null)
 			{
 				float xInc = GetXAxisIncrement(rect, newRange);
+				if (newRange.MinX > 0)
+				{
+					newRange.MinX = (int)(range.MinX / xInc) * xInc;
+				}
 				float difX = newRange.MaxX - newRange.MinX;
 				float newDifX = (int)(0.9999 + difX / xInc) * xInc;
 				newRange.MaxX = newRange.MinX + newDifX;
@@ -1577,37 +1639,51 @@ namespace CSVTools
 		}
 
 
-		class CsvEventWithCount : CsvEvent
+		class CsvGraphEvent : CsvEvent
 		{
-			public CsvEventWithCount(CsvEvent ev)
+			public CsvGraphEvent(CsvEvent ev, int inPriority)
 			{
 				base.Frame = ev.Frame;
 				base.Name = ev.Name;
 				count = 1;
+				priority = inPriority;
 			}
 			public int count;
+			public int priority;
 		};
 
-		void DrawEventText(SvgFile svg, List<CsvEvent> events, Colour colour, Rect rect, Range range)
+		private string truncateTextIfNeeded(string text, int maxLength)
+		{
+			if (text.Length <= maxLength)
+			{
+				return text;
+			}
+			return text.Substring(0, maxLength) + "...";
+		}
+
+		void DrawEventText(SvgFile svg, List<CsvEvent> events, Colour colour, Rect rect, Range range, GraphParams graphParams )
 		{
 			float LastEventX = -100000.0f;
 			int lastFrame = 0;
 
+			bool bAutoShowMode = graphParams.showEventNameTextMode == ShowEventTextMode.ShowAuto;
+			float mergeThreshold = bAutoShowMode ? 12.0f : 8.5f;
+
 			// Make a filtered list of events to display, grouping duplicates which are close together
-			List<CsvEventWithCount> filteredEvents = new List<CsvEventWithCount>();
-			CsvEventWithCount currentDisplayEvent = null;
-			CsvEvent lastEvent = null;
+			List<CsvGraphEvent> filteredEvents = new List<CsvGraphEvent>();
+			CsvGraphEvent currentDisplayEvent = null;
 			foreach (CsvEvent ev in events)
 			{
 				// Only draw events which are in the range
+				int eventPriority = GetEventPriority(ev.Name, graphParams);
 				if (ev.Frame >= range.MinX && ev.Frame <= range.MaxX)
 				{
 					// Merge with the current display event?
 					bool bMerge = false;
-					if (currentDisplayEvent != null && lastEvent != null && ev.Name == currentDisplayEvent.Name)
+					if (currentDisplayEvent != null && ( ev.Name == currentDisplayEvent.Name || bAutoShowMode))
 					{
-						float DistToLastEvent = ToSvgX(ev.Frame, rect, range) - ToSvgX(lastEvent.Frame, rect, range);
-						if (DistToLastEvent <= 8.5)
+						float DistToLastEvent = ToSvgX(ev.Frame, rect, range) - ToSvgX(currentDisplayEvent.Frame, rect, range);
+						if (DistToLastEvent <= mergeThreshold)
 						{
 							bMerge = true;
 						}
@@ -1615,44 +1691,73 @@ namespace CSVTools
 
 					if (bMerge)
 					{
+						if ( bAutoShowMode )
+						{
+							// If this event is actually higher (numerically lower) priority then replace the current event
+							if (eventPriority < currentDisplayEvent.priority )
+							{
+								currentDisplayEvent.priority = eventPriority;
+								currentDisplayEvent.Name = ev.Name;
+								currentDisplayEvent.Frame = ev.Frame;
+							}
+						}
 						currentDisplayEvent.count++;
 					}
 					else
 					{
-						currentDisplayEvent = new CsvEventWithCount(ev);
+						currentDisplayEvent = new CsvGraphEvent(ev, eventPriority);
 						filteredEvents.Add(currentDisplayEvent);
 					}
-					lastEvent = ev;
 				}
 			}
 
-			foreach (CsvEventWithCount ev in filteredEvents)
+			if (graphParams.showEventNameTextMode == ShowEventTextMode.ShowAuto)
 			{
-				float eventX = ToSvgX(ev.Frame, rect, range);
-				string name = ev.Name;
-
-				if (ev.count > 1)
+				foreach (CsvGraphEvent ev in filteredEvents)
 				{
-					name += " &#x00D7; " + ev.count;
-				}
+					float eventX = ToSvgX(ev.Frame, rect, range);
+					string name = truncateTextIfNeeded(ev.Name,32);
 
-				// Space out the events (allow at least 8 pixels between them)
-				if (eventX - LastEventX <= 8.5f)
-				{
-					// Add an arrow to indicate events were spaced out 
-					name = "&#x21b7; " + name;
-					if (ev.count == 1)
+					if (ev.count > 1)
 					{
-						name += " (+" + (ev.Frame - lastFrame) + ")";
+						name += " +" + (ev.count-1);
 					}
-					eventX = LastEventX + 9.0f;
-				}
-				float csvTextX = ToCsvX(eventX + 7, rect, range);
 
-				DrawHorizontalAxisText(svg, name, csvTextX, colour, rect, range, 10, true);
-				LastEventX = eventX;
-				lastFrame = ev.Frame;
+					float csvTextX = ToCsvX(eventX + 7, rect, range);
+					DrawHorizontalAxisText(svg, name, csvTextX, colour, rect, range, 10, true);
+				}
 			}
+			else
+			{
+				foreach (CsvGraphEvent ev in filteredEvents)
+				{
+					float eventX = ToSvgX(ev.Frame, rect, range);
+					string name = ev.Name;
+
+					if (ev.count > 1)
+					{
+						name += " &#x00D7; " + ev.count;
+					}
+
+					// Space out the events (allow at least 8 pixels between them)
+					if (eventX - LastEventX <= 8.5f)
+					{
+						// Add an arrow to indicate events were spaced out 
+						name = "&#x21b7; " + name;
+						if (ev.count == 1)
+						{
+							name += " (+" + (ev.Frame - lastFrame) + ")";
+						}
+						eventX = LastEventX + 9.0f;
+					}
+					float csvTextX = ToCsvX(eventX + 7, rect, range);
+
+					DrawHorizontalAxisText(svg, name, csvTextX, colour, rect, range, 10, true);
+					LastEventX = eventX;
+					lastFrame = ev.Frame;
+				}
+			}
+
 		}
 
 		void DrawEventLines(SvgFile svg, Theme theme, List<CsvEvent> events, Rect rect, Range range)
@@ -1929,7 +2034,7 @@ namespace CSVTools
 			public StatSamples originalStatSamples;
 		};
 
-		void AddInteractiveScripting(SvgFile svg, Theme theme, Rect rect, Range range, List<CsvStats> csvStats, GraphParams graphParams)
+		void AddInteractiveScripting(SvgFile svg, Theme theme, Rect rect, Range range, List<CsvStats> csvStats, GraphParams graphParams )
 		{
 			bool bSnapToPeaks = graphParams.snapToPeaks && !graphParams.smooth;
 
@@ -1968,21 +2073,27 @@ namespace CSVTools
 			int multiplier = 1;
 			float numStatsPerPixel = (float)(range.MaxX - range.MinX) / rect.width;
 
+			// Compute the unfiltered sample count
+			int rawSampleCount = 0;
+			foreach (InteractiveStatInfo statInfo in interactiveStats)
+			{
+				if (statInfo.originalStatSamples != null)
+				{
+					rawSampleCount = Math.Max(statInfo.originalStatSamples.samples.Count, rawSampleCount);
+				}
+			}
+			int filteredSampleCount = rawSampleCount;
+
+			// TODO: truncate the stats/events using minX/maxX to save memory, so filteredSampleCount is (int)(range.MaxX) - (int)(range.MinX) 
+            // if not downsampling. MinX will require a bias as well as a multiplier in the javascript
+
+			// Downsample the stats if needed
 			if (numStatsPerPixel > 1)
 			{
 				multiplier = (int)numStatsPerPixel;
 
-				int maxCount = 0;
-				foreach (InteractiveStatInfo statInfo in interactiveStats)
-				{
-					if (statInfo.originalStatSamples != null)
-					{
-						maxCount = Math.Max(statInfo.originalStatSamples.samples.Count, maxCount);
-					}
-				}
-
 				// Compute max value for each frame
-				List<float> maxValues = new List<float>(maxCount);
+				List<float> maxValues = new List<float>(rawSampleCount);
 				foreach (InteractiveStatInfo statInfo in interactiveStats)
 				{
 					if (statInfo.originalStatSamples != null)
@@ -2002,7 +2113,7 @@ namespace CSVTools
 					}
 				}
 
-				int filteredStatCount = maxValues.Count / multiplier;// (int)(range.MaxX) - (int)(range.MinX);
+				filteredSampleCount = maxValues.Count / multiplier;// (int)(range.MaxX) - (int)(range.MinX);
 
 				// Create the filtered stat array
 				int offset = multiplier / 2;
@@ -2012,7 +2123,7 @@ namespace CSVTools
 					{
 						continue;
 					}
-					for (int i = 0; i < filteredStatCount; i++)
+					for (int i = 0; i < filteredSampleCount; i++)
 					{
 						int srcStartIndex = Math.Max(i * multiplier - offset, 0);
 						int srcEndIndex = Math.Min(i * multiplier + offset + 1, maxValues.Count);
@@ -2043,6 +2154,18 @@ namespace CSVTools
 				}
 			}
 
+			float oneOverMultiplier = 1.0f / (float)multiplier;
+
+			// Generate the event list
+			List<CsvEvent> allEvents = new List<CsvEvent>();
+			for (int i = 0; i < csvStats.Count; i++)
+			{
+				foreach (CsvEvent ev in csvStats[i].Events)
+				{
+					allEvents.Add(ev);
+				}
+			}
+
 
 			// Create a hidden panel for storing all the stat group elements
 			svg.WriteLine("<g id='interactivePanelInnerHidden<UNIQUE>' visibility='collapse'>");
@@ -2062,20 +2185,69 @@ namespace CSVTools
 				svg.WriteLine("</g>");
 			}
 			svg.WriteLine("</g>"); // interactivePanelInnerHidden
+
 			svg.WriteLine("<g id='interactivePanel<UNIQUE>' visibility='hidden'>");
 			DrawVerticalLine(svg, 0, new Colour(255, 255, 255, 0.4f), rect, range, 1.0f, true, true, "", true);
 			svg.WriteLine("<g id='interactivePanelInnerWithRect<UNIQUE>'>");
 			svg.WriteLine("<rect x='0' y='0' width='100' height='100' fill='rgba(0,0,0,0.3)' blend='1' id='interactivePanelRect<UNIQUE>' rx='5' ry='5'/>");
-
-
 			svg.WriteLine("<g id='interactivePanelInner<UNIQUE>'>");
-
 			svg.WriteLine("</g>"); // interactivePanelInner
 			svg.WriteLine("</g>"); // interactivePanelInnerWithRect
+
+			svg.WriteLine("<g id='interactiveEventPanelInnerWithRect<UNIQUE>'>");
+			svg.WriteLine("<rect x='0' y='0' width='100' height='100' fill='rgba(0,0,0,0.3)' blend='1' id='interactiveEventPanelRect<UNIQUE>' rx='5' ry='5'/>");
+			svg.WriteLine("<g id='interactiveEventPanelInner<UNIQUE>'>");
+
+			float textOffsetY = rect.y - 20;
+			DrawText(svg, "Events", 0, 9+ textOffsetY, 11, zeroRect, new Colour(255, 255, 255, 1.0f), "start", "Helvetica", "", true);
+			svg.WriteLine("</g>"); // interactiveEventPanelInner
+			svg.WriteLine("</g>"); // interactiveEventPanelInnerWithRect
 			svg.WriteLine("</g>"); // interactivepanel
 
+
 			svg.WriteLine("<script type='application/ecmascript'> <![CDATA[");
-			float oneOverMultiplier = 1.0f / (float)multiplier;
+
+			// Write the event list
+			List<string> elementStrings = new List<string>();
+			for (int i = 0; i < allEvents.Count; i++)
+			{
+				CsvEvent ev = allEvents[i];
+				elementStrings.Add("{ text: '" + ev.Name + "', frame: " + ev.Frame.ToString() + "}");
+			}
+			svg.WriteLine("var allEvents<UNIQUE> = [" + String.Join(",", elementStrings) + "]");
+
+			// Write the event index list for each sample frame
+			List<int>[] filteredEventIndexLists = new List<int>[filteredSampleCount];
+			for (int i = 0; i < filteredEventIndexLists.Length; i++)
+				filteredEventIndexLists[i] = new List<int>();
+
+			int eventPaddingPixels=6;
+			for (int i = 0; i < allEvents.Count; i++)
+			{
+				int frame = allEvents[i].Frame;
+				int filteredFrameIndex = (int)Math.Round((float)frame * oneOverMultiplier);
+
+				for (int j= filteredFrameIndex - eventPaddingPixels; j< filteredFrameIndex + eventPaddingPixels; j++)
+				{
+					if (j >= 0 && j < filteredEventIndexLists.Length)
+					{
+						filteredEventIndexLists[j].Add(i);
+					}
+				}
+			}
+
+			elementStrings = new List<string>();
+			for (int i = 0; i < filteredEventIndexLists.Length; i++)
+			{
+				List<int> eventIndexList = filteredEventIndexLists[i];
+				List<string> innerElementStrings = new List<string>();
+				foreach (int index in eventIndexList)
+				{
+					innerElementStrings.Add(index.ToString());
+				}
+				elementStrings.Add("["+String.Join(",", innerElementStrings)+"]");
+			}
+			svg.WriteLine("var eventIndexLists<UNIQUE> = [" + String.Join(",", elementStrings) + "]");
 
 			// Write the data array for each stat
 			foreach (InteractiveStatInfo statInfo in interactiveStats)
@@ -2181,7 +2353,7 @@ namespace CSVTools
 
 
 
-			svg.WriteLine("function GetGraphX(mouseX)");
+			svg.WriteLine("function GetGraphX<UNIQUE>(mouseX)");
 			svg.WriteLine("{");
 			svg.WriteLine("  return (mouseX - " + rect.x + ") * (" + range.MaxX + " - " + range.MinX + ") / " + rect.width + " + " + range.MinX + ";");
 			svg.WriteLine("}");
@@ -2189,6 +2361,10 @@ namespace CSVTools
 
 			svg.WriteLine("function compareSamples(a, b)");
 			svg.WriteLine("{");
+			svg.WriteLine("      if (a.isFrame)");
+			svg.WriteLine("          return -1;");
+			svg.WriteLine("      if (b.isFrame)");
+			svg.WriteLine("          return 1;");
 			svg.WriteLine("      if (a.value > b.value)");
 			svg.WriteLine("          return -1;");
 			svg.WriteLine("      if (a.value < b.value)");
@@ -2196,7 +2372,7 @@ namespace CSVTools
 			svg.WriteLine("      return 0;");
 			svg.WriteLine("}");
 
-			svg.WriteLine("function ToSvgX(graphX)");
+			svg.WriteLine("function ToSvgX<UNIQUE>(graphX)");
 			svg.WriteLine("{");
 			svg.WriteLine("    scaleX = " + rect.width / (range.MaxX - range.MinX) + ";");
 			svg.WriteLine("    return " + rect.x + " + (graphX - " + range.MinX + ") * scaleX;");
@@ -2218,7 +2394,7 @@ namespace CSVTools
 
 			svg.WriteLine("function OnGraphAreaClicked<UNIQUE>(evt)");
 			svg.WriteLine("{");
-			svg.WriteLine("  graphX = GetGraphX(evt.offsetX); ");
+			svg.WriteLine("  graphX = GetGraphX<UNIQUE>(evt.offsetX); ");
 			svg.WriteLine("  var interactivePanel = document.getElementById('interactivePanel<UNIQUE>');");
 			svg.WriteLine("  var legendPanel = document.getElementById('LegendPanel<UNIQUE>');");
 			// Snap to an interesting frame (the max value under the pixel)
@@ -2227,15 +2403,16 @@ namespace CSVTools
 			svg.WriteLine("  if (frameNum >= " + range.MinX + " && frameNum < " + range.MaxX + ")");
 			svg.WriteLine("  {");
 			svg.WriteLine("    var xOffset = 0;");
-			svg.WriteLine("    var lineX = ToSvgX(frameNum);");
+			svg.WriteLine("    var lineX = ToSvgX<UNIQUE>(frameNum);");
 			svg.WriteLine("    var textX = lineX + xOffset;");
-			svg.WriteLine("    var textY = " + rect.y + " - 20");
+			svg.WriteLine("    var textY = " + textOffsetY);
 
 			svg.WriteLine("    var interactivePanelInner = document.getElementById('interactivePanelInner<UNIQUE>');");
 			svg.WriteLine("    legendPanel.setAttribute('visibility','hidden')");
 			svg.WriteLine("    interactivePanel.setAttribute('visibility','visible')");
 			svg.WriteLine("    interactivePanel.setAttribute('transform','translate('+textX+',0)')");
 			svg.WriteLine("    var dataIndex = Math.round( frameNum * " + oneOverMultiplier + " );");
+			svg.WriteLine("    dataIndex = Math.min( dataIndex, "+ (filteredSampleCount-1) +" ); ");
 
 			// Fill out the sample data array
 			svg.WriteLine("    var samples = [");
@@ -2245,12 +2422,12 @@ namespace CSVTools
 				string textElementString = "document.getElementById('" + statInfo.jsTextElementId + "')";
 				if (statInfo.jsVarName == null)
 				{
-					svg.Write("            { value: frameNum, name: '" + statInfo.friendlyName + "', colour: 'rgb(0,0,0)'");
+					svg.Write("            { value: frameNum+" + graphParams.frameOffset + ", name: '" + statInfo.friendlyName + "', colour: 'rgb(0,0,0)', isFrame:true");
 				}
 				else
 				{
 					string valueStr = statInfo.jsVarName + "[dataIndex]";
-					svg.Write("            { value: " + valueStr + ", name: '" + statInfo.friendlyName + "', colour: " + statInfo.colour.SVGString());
+					svg.Write("            { value: " + valueStr + ", name: '" + statInfo.friendlyName + "', colour: " + statInfo.colour.SVGString() + ", isFrame:false");
 				}
 				svg.WriteLine(", groupElement: " + groupElementString + ", textElement: " + textElementString + " },");
 			}
@@ -2287,6 +2464,41 @@ namespace CSVTools
 			svg.WriteLine("        }");
 			svg.WriteLine("    }");
 
+			// Display events
+			svg.WriteLine("    var eventPanelInner = document.getElementById('interactiveEventPanelInner<UNIQUE>');");
+			svg.WriteLine("    while (eventPanelInner.childNodes.length>2)");
+			svg.WriteLine("    {");
+			svg.WriteLine("        eventPanelInner.removeChild(eventPanelInner.lastChild);");
+			svg.WriteLine("    }");
+
+			svg.WriteLine("    var eventTextY = " + textOffsetY+"+15;");
+			svg.WriteLine("    var eventIndexList = eventIndexLists<UNIQUE>[dataIndex];");
+			svg.WriteLine("    for ( i=0;i<eventIndexList.length;i++ )");
+			svg.WriteLine("    {");
+			svg.WriteLine("        var index = eventIndexList[i];");
+			svg.WriteLine("        var event = allEvents<UNIQUE>[index];");
+			svg.WriteLine("        if ( eventTextY<=" + rect.height.ToString() + ")");
+			svg.WriteLine("        {");
+			svg.WriteLine("            var frameOffset = event.frame - frameNum;");
+			svg.WriteLine("            var frameOffsetStr = (frameOffset>0 ? '+' : '') +frameOffset.toString()");
+			svg.WriteLine("            var textElement = document.createElementNS('http://www.w3.org/2000/svg','text');");
+			svg.WriteLine("            textElement.setAttribute('transform','translate(0,'+eventTextY+')');");
+			svg.WriteLine("            textElement.innerHTML = event.text + ' (' + frameOffsetStr +')';");
+			svg.WriteLine("            textElement.setAttribute('fill','rgb(224, 224, 224)');");
+			svg.WriteLine("            textElement.setAttribute('filter','url(#dropShadowFilter)');");
+			svg.WriteLine("            textElement.setAttribute('stroke','CSVStats.Colour');");
+			svg.WriteLine("            textElement.setAttribute('font-size','10');");
+			svg.WriteLine("            textElement.setAttribute('font-family','Helvetica');");
+			svg.WriteLine("            textElement.setAttribute('style','text-anchor: start');");
+			svg.WriteLine("            textElement.setAttribute('x','0');");
+			svg.WriteLine("            textElement.setAttribute('y','9');");
+			svg.WriteLine("            textElement.setAttribute('visibility','inherit');");
+			svg.WriteLine("            eventPanelInner.appendChild(textElement);");
+			svg.WriteLine("            eventTextY += 12;");
+			svg.WriteLine("        }");
+			svg.WriteLine("    }");
+
+			// Set the panel rect dimensions based on the content
 			svg.WriteLine("    var panelRect = document.getElementById('interactivePanelRect<UNIQUE>');");
 			svg.WriteLine("    var bbox = interactivePanelInner.getBBox();");
 			svg.WriteLine("    panelRect.setAttribute('width',bbox.width+16);");
@@ -2306,7 +2518,32 @@ namespace CSVTools
 			svg.WriteLine("    }   ");
 			svg.WriteLine("    var interactivePanelInnerWithRect = document.getElementById('interactivePanelInnerWithRect<UNIQUE>');");
 			svg.WriteLine("    interactivePanelInnerWithRect.setAttribute('transform','translate('+panelOffset+',0)');");
+
+			// Move the event panel and set its visibility
+			svg.WriteLine("    var eventBbox = eventPanelInner.getBBox();");
+			svg.WriteLine("    if ( textX + eventBbox.width + bbox.width + bbox.x > " + maxX + " ) ");
+			svg.WriteLine("			panelOffset-=eventBbox.width + bbox.width+40;");
+
+			svg.WriteLine("    var eventPanel = document.getElementById('interactiveEventPanelInnerWithRect<UNIQUE>');");
+			svg.WriteLine("    if (eventIndexList.length>0)");
+			svg.WriteLine("    {");
+			svg.WriteLine("      eventPanel.setAttribute('visibility','inherit');");
+			svg.WriteLine("      eventPanel.setAttribute('transform','translate('+(bbox.width+bbox.x+20+panelOffset)+',0)');");
+			svg.WriteLine("    }");
+			svg.WriteLine("    else");
+			svg.WriteLine("    {");
+			svg.WriteLine("      eventPanel.setAttribute('visibility','hidden');");
+			svg.WriteLine("    }");
+
+			// Set the event panel rect size
+			svg.WriteLine("    var eventPanelRect = document.getElementById('interactiveEventPanelRect<UNIQUE>');");
+			svg.WriteLine("    eventPanelRect.setAttribute('width',eventBbox.width+16);");
+			svg.WriteLine("    eventPanelRect.setAttribute('height',eventTextY+8);");
+			svg.WriteLine("    eventPanelRect.setAttribute('x',eventBbox.x-8);");
+			svg.WriteLine("    eventPanelRect.setAttribute('y',eventBbox.y-8);");
 			svg.WriteLine("  }");
+
+			// If we moused outside the box then hide the interactive panel
 			svg.WriteLine("  else");
 			svg.WriteLine("  {");
 			svg.WriteLine("    interactivePanel.setAttribute('visibility','hidden')");
@@ -2340,20 +2577,26 @@ namespace CSVTools
 
 		bool IsEventShown(string eventString, GraphParams graphParams)
 		{
+			return GetEventPriority(eventString, graphParams) >= 0;
+		}
+
+		int GetEventPriority(string eventString, GraphParams graphParams)
+		{
 			if (graphParams.showEventNames == null)
 			{
-				return false;
+				return -1;
 			}
 			if (graphParams.showEventNames.Count == 0)
 			{
-				return false;
+				return -1;
 			}
 			if (eventString.Length == 0)
 			{
-				return false;
+				return -1;
 			}
 
 			eventString = eventString.ToLower();
+			int priority = 0;
 			foreach (string showEventName in graphParams.showEventNames)
 			{
 				string showEventNameLower = showEventName.ToLower();
@@ -2363,15 +2606,16 @@ namespace CSVTools
 					string prefix = showEventNameLower.Substring(0, index);
 					if (eventString.StartsWith(prefix))
 					{
-						return true;
+						return priority;
 					}
 				}
 				else if (eventString == showEventNameLower)
 				{
-					return true;
+					return priority;
 				}
+				priority++;
 			}
-			return false;
+			return -1;
 		}
 
 		bool IsStatIgnored(string statName, GraphParams graphParams)
@@ -2420,10 +2664,50 @@ namespace CSVTools
 			return false;
 		}
 
-		CsvStats ProcessCsvStats(CsvStats csvStatsIn, GraphParams graphParams)
+		
+		class FrameRange
+		{
+			public bool isLimited()
+			{
+				return start > 0 || end < Int32.MaxValue;
+			}
+			
+			public int start = 0;
+			public int end = Int32.MaxValue;
+		};
+
+		FrameRange GetEventTruncationFrameRange(CsvStats csvStats, GraphParams graphParams)
+		{
+			// Apply startEvent and endEvent truncation if requested
+			FrameRange frameRange = new FrameRange();
+			if (graphParams.startEvent != null)
+			{
+				foreach (CsvEvent ev in csvStats.Events)
+				{
+					if (CsvStats.DoesSearchStringMatch(ev.Name, graphParams.startEvent))
+					{
+						frameRange.start = Math.Clamp(ev.Frame + graphParams.startEventOffset, 0, csvStats.SampleCount - 1);
+						break;
+					}
+				}
+			}
+			if (graphParams.endEvent != null)
+			{
+				foreach (CsvEvent ev in csvStats.Events)
+				{
+					if (ev.Frame >= frameRange.start && CsvStats.DoesSearchStringMatch(ev.Name, graphParams.endEvent))
+					{
+						frameRange.end = Math.Clamp(ev.Frame + graphParams.endEventOffset, 0, csvStats.SampleCount - 1);
+						break;
+					}
+				}
+			}
+			return frameRange;
+		}
+
+		CsvStats ProcessCsvStats(CsvStats csvStatsIn, GraphParams graphParams, out FrameRange frameRange)
 		{
 			CsvStats csvStats = new CsvStats(csvStatsIn, graphParams.statNames.ToArray());
-
 			if (graphParams.discardLastFrame)
 			{
 				foreach (StatSamples stat in csvStats.Stats.Values.ToArray())
@@ -2552,6 +2836,8 @@ namespace CSVTools
 					csvStats.AddStat(stat);
 				}
 			}
+
+			frameRange = GetEventTruncationFrameRange(csvStats, graphParams);
 
 			// Filter out events
 			List<CsvEvent> FilteredEvents = new List<CsvEvent>();

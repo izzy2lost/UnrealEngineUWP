@@ -17,7 +17,7 @@ class FRawStaticIndexBuffer;
 struct FStaticMeshVertexFactories;
 using FStaticMeshVertexFactoriesArray = TArray<FStaticMeshVertexFactories>;
 struct FStaticMeshSceneProxyDesc;
-
+class FTextureResource;
 
 /**
  * A static mesh component scene proxy.
@@ -77,6 +77,11 @@ public:
 		return GetCurrentFirstLODIdx_Internal();
 	}
 
+	virtual FDesiredLODLevel GetDesiredLODLevel_RenderThread(const FSceneView* View) const final override
+	{
+		return FDesiredLODLevel::CreateFirst(GetCurrentFirstLODIdx_Internal());
+	}
+
 	ENGINE_API virtual int32 GetLightMapCoordinateIndex() const override;
 
 	ENGINE_API virtual bool GetInstanceWorldPositionOffsetDisableDistance(float& OutWPODisableDistance) const override;
@@ -134,10 +139,14 @@ public:
 
 	ENGINE_API virtual const FCardRepresentationData* GetMeshCardRepresentation() const override;
 
+	ENGINE_API virtual bool IsCullingReversedByComponent() const override { return bReverseCulling; }
+
+	ENGINE_API virtual FUintVector2 GetMeshPaintTextureDescriptor() const override { return MeshPaintTextureDescriptor; }
+
 #if RHI_RAYTRACING
 	ENGINE_API virtual TArray<FRayTracingGeometry*> GetStaticRayTracingGeometries() const override;
 
-	ENGINE_API virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override;
+	ENGINE_API virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override;
 	ENGINE_API virtual bool HasRayTracingRepresentation() const override;
 	virtual bool IsRayTracingRelevant() const override { return true; }
 	virtual bool IsRayTracingStaticRelevant() const override 
@@ -263,6 +272,9 @@ protected:
 	/** This primitive has culling reversed */
 	uint32 bReverseCulling : 1;
 
+	/** The coordinate index to use for texture color painting. */
+	uint32 MeshPaintTextureCoordinateIndex : 2;
+
 	/** The view relevance for all the static mesh's materials. */
 	FMaterialRelevance MaterialRelevance;
 
@@ -289,6 +301,9 @@ protected:
 private:
 
 	const UStaticMesh* StaticMesh;
+
+	FTextureResource* MeshPaintTextureResource = nullptr;
+	FUintVector2 MeshPaintTextureDescriptor = FUintVector2(0, 0);
 
 #if STATICMESH_ENABLE_DEBUG_RENDERING
 	UObject* Owner;

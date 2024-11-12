@@ -10,7 +10,7 @@ namespace AutoRTFM
 void* MemcpyToNew(void* InDst, const void* InSrc, size_t Size, FContext* Context)
 {
 	UE_LOG(LogAutoRTFM, Verbose, TEXT("MemcpyToNew(%p, %p, %zu)"), InDst, InSrc, Size);
-    AutoRTFM::Unreachable();
+    return memcpy(InDst, InSrc, Size);
 }
 
 void* Memcpy(void* InDst, const void* InSrc, size_t Size, FContext* Context)

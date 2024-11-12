@@ -119,7 +119,7 @@ FReply FSequencerOutlinerDragDropOp::DroppedOnPanel( const TSharedRef< class SWi
 			if (SequenceModel)
 			{
 				// Fixed bindings always resolve from the root
-				Template->SourceSequence = SequenceModel->GetSequencer()->GetRootMovieSceneSequence();
+				Template->SetSequence(SequenceModel->GetSequencer()->GetRootMovieSceneSequence());
 				Template->Binding = FFixedObjectBindingID(ObjectBinding->GetObjectGuid(), SequenceModel->GetSequenceID());
 				UEdGraphNode* NewNode = Action.PerformAction(&Graph, GetHoveredPin(), GraphPosition, false);
 

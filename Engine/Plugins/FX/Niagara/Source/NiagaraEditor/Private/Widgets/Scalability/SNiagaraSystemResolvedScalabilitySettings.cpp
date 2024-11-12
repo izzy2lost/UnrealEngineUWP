@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SNiagaraSystemResolvedScalabilitySettings.h"
+#include "Stateless/NiagaraStatelessEmitter.h"
 
 #include "IDetailTreeNode.h"
 #include "IPropertyRowGenerator.h"
@@ -160,6 +161,16 @@ TSharedRef<SWidget> SScalabilityResolvedRow::GenerateWidgetForColumn(const FName
 			}
 		}
 	}
+	else if (UNiagaraStatelessEmitter* StatelessEmitter = Cast<UNiagaraStatelessEmitter>(ScalabilityRowData->OwningObject))
+	{
+		for (FNiagaraEmitterScalabilityOverride& EmitterScalabilityOverride : StatelessEmitter->GetScalabilityOverrides().Overrides)
+		{
+			if (ParentWidget.Pin()->GetSystemViewModel()->GetScalabilityViewModel()->IsPlatformActive(EmitterScalabilityOverride.Platforms))
+			{
+				CurrentEmitterOverride = &EmitterScalabilityOverride;
+			}
+		}
+	}
 
 	// we need to check whether the property is overridden so we can determine whether to check the resolved or default property for a scalability property being active
 
@@ -278,7 +289,7 @@ void SNiagaraSystemResolvedScalabilitySettings::RebuildWidget()
 	
 	TSet<UNiagaraOverviewNode*> SelectedOverviewNodes;
 
-	for(UObject* SelectedNode : SystemViewModel->GetOverviewGraphViewModel()->GetNodeSelection()->GetSelectedObjects())
+	for(UObject* SelectedNode : SystemViewModel->GetOverviewGraphViewModel()->GetNodeSelection()->GetSelectedObjectsResolved())
 	{
 		if(UNiagaraOverviewNode* OverviewNode = Cast<UNiagaraOverviewNode>(SelectedNode))
 		{
@@ -347,6 +358,11 @@ void SNiagaraSystemResolvedScalabilitySettings::RebuildWidget()
 		
 		for(const TSharedRef<FNiagaraEmitterHandleViewModel>& EmitterHandleViewModel : SystemViewModel->GetEmitterHandleViewModels())
 		{
+			if(EmitterHandleViewModel->IsValid() == false)
+			{
+				continue;
+			}
+			
 			FVersionedNiagaraEmitter VersionedEmitter = EmitterHandleViewModel->GetEmitterHandle()->GetInstance();
 			VersionedEmitter.Emitter->OnPropertiesChanged().RemoveAll(this);
 			VersionedEmitter.Emitter->OnPropertiesChanged().AddSP(this, &SNiagaraSystemResolvedScalabilitySettings::RebuildWidget);

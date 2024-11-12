@@ -44,6 +44,12 @@ const FMassISMCSharedData* UMassRepresentationSubsystem::GetISMCSharedDataForDes
 	return VisualizationComponent->GetISMCSharedDataForDescriptionIndex(DescriptionIndex);
 }
 
+const FMassISMCSharedData* UMassRepresentationSubsystem::GetISMCSharedDataForInstancedStaticMesh(const UInstancedStaticMeshComponent* ISMC) const
+{
+	check(VisualizationComponent);
+	return VisualizationComponent->GetISMCSharedDataForInstancedStaticMesh(ISMC);
+}
+
 void UMassRepresentationSubsystem::RemoveISMComponent(UInstancedStaticMeshComponent& ISMComponent)
 {
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -74,11 +80,18 @@ void UMassRepresentationSubsystem::DirtyStaticMeshInstances()
 int16 UMassRepresentationSubsystem::FindOrAddTemplateActor(const TSubclassOf<AActor>& ActorClass)
 {
 	UE_MT_SCOPED_WRITE_ACCESS(TemplateActorsMTAccessDetector);
-	int32 VisualIndex = TemplateActors.Find(ActorClass);
+
+	int32 VisualIndex = TemplateActors.IndexOfByPredicate(FTemplateActorEqualsPredicate{ActorClass});
+
 	if (VisualIndex == INDEX_NONE)
 	{
-		VisualIndex = TemplateActors.Add(ActorClass);
+		VisualIndex = TemplateActors.Add({ActorClass, 1u});
 	}
+	else
+	{
+		++TemplateActors[VisualIndex].RefCount;
+	}
+
 	check(VisualIndex < INT16_MAX);
 	return (int16)VisualIndex;
 }
@@ -96,7 +109,7 @@ AActor* UMassRepresentationSubsystem::GetOrSpawnActorFromTemplate(const FMassEnt
 
 	//@todo: this would be a good place to do pooling of actors instead of spawning them every time
 	check(ActorSpawnerSubsystem);
-	const TSubclassOf<AActor> TemplateToSpawn = TemplateActors[TemplateActorIndex];
+	const TSubclassOf<AActor> TemplateToSpawn = TemplateActors[TemplateActorIndex].Actor;
 
 	if (InOutSpawnRequestHandle.IsValid())
 	{
@@ -174,7 +187,7 @@ TSubclassOf<AActor> UMassRepresentationSubsystem::GetTemplateActorClass(const in
 		return nullptr;
 	}
 
-	return TemplateActors[TemplateActorIndex];
+	return TemplateActors[TemplateActorIndex].Actor;
 }
 
 bool UMassRepresentationSubsystem::IsCollisionLoaded(const FName TargetGrid, const FTransform& Transform) const
@@ -202,6 +215,26 @@ bool UMassRepresentationSubsystem::IsCollisionLoaded(const FName TargetGrid, con
 
 	// Execute query
 	return WorldPartitionSubsystem->IsStreamingCompleted(EWorldPartitionRuntimeCellState::Activated, QuerySources, /*bExactState*/ false);
+}
+
+void UMassRepresentationSubsystem::ReleaseTemplate(const TSubclassOf<AActor>& ActorClass)
+{
+	if (ActorClass)
+	{
+		UE_MT_SCOPED_WRITE_ACCESS(TemplateActorsMTAccessDetector);
+		
+		const int32 TemplateActorIndex = TemplateActors.IndexOfByPredicate(FTemplateActorEqualsPredicate{ActorClass});
+		check(TemplateActors.IsValidIndex(TemplateActorIndex));
+
+		FTemplateActorData& TemplateActorData = TemplateActors[TemplateActorIndex];
+		check(TemplateActorData.RefCount > 0u);
+		--TemplateActorData.RefCount;
+
+		if (TemplateActorData.RefCount == 0u)
+		{
+			TemplateActors.RemoveAt(TemplateActorIndex);
+		}
+	}
 }
 
 void UMassRepresentationSubsystem::ReleaseAllResources()
@@ -275,7 +308,7 @@ bool UMassRepresentationSubsystem::ReleaseTemplateActorInternal(const int16 Temp
 		UE_LOG(LogMassRepresentation, Error, TEXT("Template actor type %i is not referring a valid type"), TemplateActorIndex);
 		return false;
 	}
-	const TSubclassOf<AActor> TemplateToRelease = TemplateActors[TemplateActorIndex];
+	const TSubclassOf<AActor> TemplateToRelease = TemplateActors[TemplateActorIndex].Actor;
 
 	// We can only release existing and matching template actors
 	if (!ActorToRelease || ActorToRelease->GetClass() != TemplateToRelease)
@@ -294,7 +327,7 @@ bool UMassRepresentationSubsystem::CancelSpawningInternal(const int16 TemplateAc
 		UE_LOG(LogMassRepresentation, Error, TEXT("Template actor type %i is not referring a valid type"), TemplateActorIndex);
 		return false;
 	}
-	const TSubclassOf<AActor> TemplateToRelease = TemplateActors[TemplateActorIndex];
+	const TSubclassOf<AActor> TemplateToRelease = TemplateActors[TemplateActorIndex].Actor;
 
 	check(ActorSpawnerSubsystem);
 	// Check if there is something to cancel
@@ -331,7 +364,7 @@ bool UMassRepresentationSubsystem::DoesActorMatchTemplate(const AActor& Actor, c
 		return false;
 	}
 
-	const TSubclassOf<AActor> Template = TemplateActors[TemplateActorIndex];
+	const TSubclassOf<AActor> Template = TemplateActors[TemplateActorIndex].Actor;
 	return Actor.GetClass() == Template;
 }
 
@@ -450,5 +483,16 @@ void UMassRepresentationSubsystem::OnMassAgentComponentEntityDetaching(const UMa
 			// Force a reevaluate of the current representation
 			Representation->CurrentRepresentation = EMassRepresentationType::None;
 		}
+	}
+}
+
+void UMassRepresentationSubsystem::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
+{
+	Super::AddReferencedObjects(InThis, Collector);
+
+	UMassRepresentationSubsystem& TypedThis = *CastChecked<UMassRepresentationSubsystem>(InThis);
+	for (FTemplateActorData& TemplateActorData : TypedThis.TemplateActors)
+	{
+		Collector.AddStableReference(&TemplateActorData.Actor.GetGCPtr());
 	}
 }

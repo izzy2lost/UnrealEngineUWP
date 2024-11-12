@@ -109,10 +109,6 @@ public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnWaterSplineMetadataChanged, const FOnWaterSplineMetadataChangedParams&);
 	FOnWaterSplineMetadataChanged OnChangeMetadata;
 	
-	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnChangeData, UWaterSplineMetadata* /*WaterSplineMetadata*/, FPropertyChangedEvent& /*PropertyChangedEvent*/);
-	UE_DEPRECATED(5.2, "Use OnChangeMetadata")
-    FOnChangeData OnChangeData;
-    	
 #endif // WITH_EDITORONLY_DATA
 
 private:

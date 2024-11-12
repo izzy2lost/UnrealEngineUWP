@@ -15,14 +15,16 @@ class WATER_API UWaterBodyCustomComponent : public UWaterBodyComponent
 	GENERATED_UCLASS_BODY()
 	friend class AWaterBodyCustom;
 public:
-	/** AWaterBody Interface */
+	/** UWaterBodyComponent Interface */
 	virtual EWaterBodyType GetWaterBodyType() const override { return EWaterBodyType::Transition; }
 	virtual TArray<UPrimitiveComponent*> GetCollisionComponents(bool bInOnlyEnabledComponents = true) const override;
 	virtual TArray<UPrimitiveComponent*> GetStandardRenderableComponents() const override;
 	virtual bool CanEverAffectWaterMesh() const { return false; }
 
+	virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const override;
+
 protected:
-	/** AWaterBody Interface */
+	/** UWaterBodyComponent Interface */
 	virtual void Reset() override;
 	virtual void BeginUpdateWaterBody() override;
 	virtual void OnUpdateBody(bool bWithExclusionVolumes) override;

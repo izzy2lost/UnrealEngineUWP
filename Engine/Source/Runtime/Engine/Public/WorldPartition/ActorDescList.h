@@ -3,6 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/WorldPartitionActorDescType.h"
 
@@ -29,20 +30,22 @@ class TActorDescList
 		}
 	};
 
+protected:
 	using FGuidActorDescMap = TMap<FGuid, TUniquePtr<DescType>*, FDefaultSetAllocator, FActorGuidKeyFuncs>;
 	using FActorDescArray = TChunkedArray<TUniquePtr<DescType>>;
 
 public:
-	TActorDescList() {}
+	TActorDescList() : bIsProxy(false) {}
 	virtual ~TActorDescList() {}
 
 	// Non-copyable
 	TActorDescList(const TActorDescList&) = delete;
 	TActorDescList& operator=(const TActorDescList&) = delete;
 		
-	bool IsEmpty() const { return ActorsByGuid.Num() == 0; }
+	bool IsEmpty() const { return GetActorsByGuid().Num() == 0; }
 	ENGINE_API void Empty()
 	{
+		check(!bIsProxy || ActorsByGuid.IsEmpty());
 		ActorsByGuid.Empty();
 		ActorDescList.Empty();
 	}
@@ -61,8 +64,9 @@ public:
 
 	public:
 		TBaseIterator(ListType InActorDescList, UClass* InActorClass)
-			: ActorsIterator(InActorDescList->ActorsByGuid)
+			: ActorsIterator(InActorDescList->GetActorsByGuid())
 			, ActorClass(InActorClass)
+			, bIsProxy(InActorDescList->bIsProxy)
 		{
 			check(ActorClass->IsNative());
 			check(ActorClass->IsChildOf(ActorType::StaticClass()));
@@ -89,6 +93,7 @@ public:
 		 */
 		FORCEINLINE void RemoveCurrent()
 		{
+			check(!bIsProxy);
 			ActorsIterator.RemoveCurrent();
 		}
 
@@ -147,6 +152,7 @@ public:
 
 		IteratorType ActorsIterator;
 		UClass* ActorClass;
+		bool bIsProxy;
 	};
 
 	template <class ActorType = AActor>
@@ -173,8 +179,17 @@ public:
 
 	void AddActorDescriptor(DescType* ActorDesc);
 	void RemoveActorDescriptor(DescType* ActorDesc);
-
+		
+	virtual FGuidActorDescMap& GetActorsByGuid() const { return GetProxyActorsByGuid(); }
 protected:
+	void SetIsProxy()
+	{
+		check(ActorsByGuid.IsEmpty());
+		bIsProxy = true;
+	}
+	// Allow Child class to Proxy to another list
+	virtual FGuidActorDescMap& GetProxyActorsByGuid() const { return const_cast<FGuidActorDescMap&>(ActorsByGuid); }
+
 	TUniquePtr<DescType>* GetActorDescriptor(const FGuid& ActorGuid);
 	const TUniquePtr<DescType>* GetActorDescriptor(const FGuid& ActorGuid) const;
 
@@ -183,6 +198,7 @@ protected:
 
 	FActorDescArray ActorDescList;
 	FGuidActorDescMap ActorsByGuid;
+	bool bIsProxy;
 #endif
 };
 
@@ -190,16 +206,25 @@ protected:
 template<class DescType>
 void TActorDescList<DescType>::AddActorDescriptor(DescType* ActorDesc)
 {
+	check(!bIsProxy);
 	check(ActorDesc);
-	checkf(!ActorsByGuid.Contains(ActorDesc->GetGuid()), TEXT("Duplicated actor descriptor guid '%s' detected: `%s`"), *ActorDesc->GetGuid().ToString(), *ActorDesc->GetActorName().ToString());
 
-	TUniquePtr<DescType>* NewActorDesc = new(ActorDescList) TUniquePtr<DescType>(ActorDesc);
-	ActorsByGuid.Add(ActorDesc->GetGuid(), NewActorDesc);
+	if (TUniquePtr<DescType>* ExistingActorDesc = ActorsByGuid.FindRef(ActorDesc->GetGuid()))
+	{
+		UE_LOG(LogWorldPartition, Error, TEXT("Duplicated actor descriptor detected:\n\tExisting: %s\n\t     New: %s"), 
+			*ExistingActorDesc->Get()->ToString(FWorldPartitionActorDesc::EToStringMode::Full), *ActorDesc->ToString(FWorldPartitionActorDesc::EToStringMode::Full));
+	}
+	else
+	{
+		TUniquePtr<DescType>* NewActorDesc = new(ActorDescList) TUniquePtr<DescType>(ActorDesc);
+		ActorsByGuid.Add(ActorDesc->GetGuid(), NewActorDesc);
+	}
 }
 
 template<class DescType>
 void TActorDescList<DescType>::RemoveActorDescriptor(DescType* ActorDesc)
 {
+	check(!bIsProxy);
 	check(ActorDesc);
 	verify(ActorsByGuid.Remove(ActorDesc->GetGuid()));
 }
@@ -207,25 +232,25 @@ void TActorDescList<DescType>::RemoveActorDescriptor(DescType* ActorDesc)
 template<class DescType>
 TUniquePtr<DescType>* TActorDescList<DescType>::GetActorDescriptor(const FGuid& ActorGuid)
 {
-	return ActorsByGuid.FindRef(ActorGuid);
+	return GetProxyActorsByGuid().FindRef(ActorGuid);
 }
 
 template<class DescType>
 const TUniquePtr<DescType>* TActorDescList<DescType>::GetActorDescriptor(const FGuid& ActorGuid) const
 {
-	return ActorsByGuid.FindRef(ActorGuid);
+	return GetProxyActorsByGuid().FindRef(ActorGuid);
 }
 
 template<class DescType>
 TUniquePtr<DescType>* TActorDescList<DescType>::GetActorDescriptorChecked(const FGuid& ActorGuid)
 {
-	return ActorsByGuid.FindChecked(ActorGuid);
+	return GetProxyActorsByGuid().FindChecked(ActorGuid);
 }
 
 template<class DescType>
 const TUniquePtr<DescType>* TActorDescList<DescType>::GetActorDescriptorChecked(const FGuid& ActorGuid) const
 {
-	return ActorsByGuid.FindChecked(ActorGuid);
+	return GetProxyActorsByGuid().FindChecked(ActorGuid);
 }
 
 // FActorDescList supports subclassing through ActorType's and FWorldPartitionActorDescType will return  the proper iterator value type
@@ -240,13 +265,13 @@ class FActorDescList : public TActorDescList<FWorldPartitionActorDesc>
 {
 #if WITH_EDITOR
 public:
-	ENGINE_API FWorldPartitionActorDesc* GetActorDesc(const FGuid& Guid);
-	ENGINE_API const FWorldPartitionActorDesc* GetActorDesc(const FGuid& Guid) const;
+	ENGINE_API virtual FWorldPartitionActorDesc* GetActorDesc(const FGuid& Guid);
+	ENGINE_API virtual const FWorldPartitionActorDesc* GetActorDesc(const FGuid& Guid) const;
 
-	ENGINE_API FWorldPartitionActorDesc& GetActorDescChecked(const FGuid& Guid);
-	ENGINE_API const FWorldPartitionActorDesc& GetActorDescChecked(const FGuid& Guid) const;
+	ENGINE_API virtual FWorldPartitionActorDesc& GetActorDescChecked(const FGuid& Guid);
+	ENGINE_API virtual const FWorldPartitionActorDesc& GetActorDescChecked(const FGuid& Guid) const;
 
-	int32 GetActorDescCount() const { return ActorsByGuid.Num(); }
+	int32 GetActorDescCount() const { return GetProxyActorsByGuid().Num(); }
 
 	ENGINE_API FWorldPartitionActorDesc* AddActor(const AActor* InActor);
 #endif

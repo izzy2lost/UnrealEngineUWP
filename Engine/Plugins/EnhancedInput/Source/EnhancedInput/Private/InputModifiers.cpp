@@ -20,7 +20,7 @@
 FInputActionValue UInputModifierSmoothDelta::ModifyRaw_Implementation(const UEnhancedPlayerInput* PlayerInput, FInputActionValue CurrentValue, float DeltaTime)
 {
 	// You can't smooth a boolean value
-	if (ensureMsgf(CurrentValue.GetValueType() != EInputActionValueType::Boolean, TEXT("The 'Smooth Delta Modifier' doesn't support boolean values.")))
+	if (!ensureMsgf(CurrentValue.GetValueType() != EInputActionValueType::Boolean, TEXT("The 'Smooth Delta Modifier' doesn't support boolean values.")))
 	{
 		return CurrentValue;
 	}
@@ -123,20 +123,63 @@ FLinearColor UInputModifierNegate::GetVisualizationColor_Implementation(FInputAc
 * Dead zones
 */
 
+#if WITH_EDITOR
+EDataValidationResult UInputModifierDeadZone::IsDataValid(class FDataValidationContext& Context) const
+{
+	EDataValidationResult Result = CombineDataValidationResults(Super::IsDataValid(Context), EDataValidationResult::Valid);
+
+	// You cannot scale a boolean value
+	if (LowerThreshold > UpperThreshold)
+	{
+		Result = EDataValidationResult::Invalid;
+		Context.AddError(LOCTEXT("InputModifierDeadZone", "The 'Lower Threshold' cannot be greater then the 'Upper Threshold' of a deadzone."));
+	}
+
+	return Result;
+}
+
+void UInputModifierDeadZone::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	const FName MemberPropertyName = PropertyChangedEvent.GetMemberPropertyName();
+	if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UInputModifierDeadZone, LowerThreshold) ||
+		MemberPropertyName == GET_MEMBER_NAME_CHECKED(UInputModifierDeadZone, UpperThreshold))
+	{
+		// Clamp the lower threshold to the upper threshold value.
+		if (LowerThreshold > UpperThreshold)
+		{
+			LowerThreshold = UpperThreshold;
+		}
+	}
+}
+#endif	// WITH_EDITOR
+
 FInputActionValue UInputModifierDeadZone::ModifyRaw_Implementation(const UEnhancedPlayerInput* PlayerInput, FInputActionValue CurrentValue, float DeltaTime)
 {
+	// Can't apply a deadzone to a boolean type (0 or 1 are the only options) 
 	EInputActionValueType ValueType = CurrentValue.GetValueType();
 	if (ValueType == EInputActionValueType::Boolean)
 	{
 		return CurrentValue;
 	}
-
-	auto DeadZoneLambda = [this](const float AxisVal)
+	
+	auto DeadZoneLambda = [this](const float AxisVal) -> float
 	{
 		// We need to translate and scale the input to the +/- 1 range after removing the dead zone.
 		return FMath::Min(1.f, (FMath::Max(0.f, FMath::Abs(AxisVal) - LowerThreshold) / (UpperThreshold - LowerThreshold))) * FMath::Sign(AxisVal);
 	};
 
+	auto UnscaledDeadZoneLambda = [this](const float AxisVal)-> float
+	{
+		// If the value is less then our lower threshold, return zero
+		// otherwise, clamp the value to the upper threshold.
+		return
+			AxisVal < LowerThreshold ?
+				0.0f :
+				FMath::Min(AxisVal, UpperThreshold);
+	};
+	
 	FVector NewValue = CurrentValue.Get<FVector>();
 	switch (Type)
 	{
@@ -157,6 +200,20 @@ FInputActionValue UInputModifierDeadZone::ModifyRaw_Implementation(const UEnhanc
 		else
 		{
 			NewValue.X = DeadZoneLambda(NewValue.X);
+		}
+		break;
+	case EDeadZoneType::UnscaledRadial:
+		if (ValueType == EInputActionValueType::Axis3D)
+		{
+			NewValue = NewValue.GetSafeNormal() * UnscaledDeadZoneLambda(NewValue.Size());
+		}
+		else if (ValueType == EInputActionValueType::Axis2D)
+		{
+			NewValue = NewValue.GetSafeNormal2D() * UnscaledDeadZoneLambda(NewValue.Size2D());
+		}
+		else
+		{
+			NewValue.X = UnscaledDeadZoneLambda(NewValue.X);
 		}
 		break;
 	}

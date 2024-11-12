@@ -17,9 +17,14 @@ class SPluginCategoryTree;
  */
 class SPluginBrowser : public SCompoundWidget
 {
+public:
+	DECLARE_DELEGATE_RetVal(FReply, FReplyDelegate);
+
 	SLATE_BEGIN_ARGS( SPluginBrowser )
 	{
 	}
+
+		SLATE_EVENT(FReplyDelegate, OnRestartClicked)
 
 	SLATE_END_ARGS()
 
@@ -58,10 +63,10 @@ private:
 	EActiveTimerReturnType UpdatePluginsTimerCallback(double InCurrentTime, float InDeltaTime);
 
 	/** @return Is the "restart required" notice visible? */
-	EVisibility HandleRestartEditorNoticeVisibility() const;
+	EVisibility HandleRestartNoticeVisibility() const;
 
 	/** Handle the "restart now" button being clicked */
-	FReply HandleRestartEditorButtonClicked() const;
+	FReply HandleRestartButtonClicked() const;
 
 	/** Called when the text in the search box was changed */
 	void SearchBox_OnPluginSearchTextChanged( const FText& NewText );
@@ -79,6 +84,9 @@ private:
 	FReply HandleNewPluginButtonClicked() const;
 
 private:
+	/** Delegate to call when the restart button is clicked. */
+	FReplyDelegate OnRestartClicked;
+
 	/** Handles to the directory changed delegates */
 	TMap<FString, FDelegateHandle> WatchDirectories;
 

@@ -31,31 +31,6 @@ public:
 //////////////////////////////////////////////////////////////////////////
 /// Simple levels shader
 //////////////////////////////////////////////////////////////////////////
-class TEXTUREGRAPHENGINE_API FSH_Levels : public FSH_Base
-{
-public:
-	SHADER_USE_PARAMETER_STRUCT(FSH_Levels, FSH_Base);
-	DECLARE_GLOBAL_SHADER(FSH_Levels);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT(FStandardSamplerStates, SamplerStates)
-		SHADER_PARAMETER_TEXTURE(Texture2D, Input)
-		SHADER_PARAMETER(float, MinValue)
-		SHADER_PARAMETER(float, MaxValue)
-		SHADER_PARAMETER(float, Gamma)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static bool						ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) 
-	{
-		return IsPCPlatform(Parameters.Platform) && EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
-	}
-	static void						ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& params, FShaderCompilerEnvironment& env) {}
-};
-
-
-//////////////////////////////////////////////////////////////////////////
-/// Simple levels shader
-//////////////////////////////////////////////////////////////////////////
 class TEXTUREGRAPHENGINE_API FSH_Threshold : public FSH_Base
 {
 public:

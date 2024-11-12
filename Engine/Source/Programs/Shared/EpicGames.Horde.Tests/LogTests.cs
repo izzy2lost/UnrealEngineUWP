@@ -40,7 +40,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task IndexTestsAsync()
 		{
-			using KeyValueStorageClient store = KeyValueStorageClient.CreateInMemory();
+			KeyValueStorageNamespace store = KeyValueStorageNamespace.CreateInMemory();
 
 			// Write the test data to the log file in blocks
 			LogBuilder builder = new LogBuilder(LogFormat.Text, 1, 1, NullLogger.Instance);
@@ -69,7 +69,7 @@ namespace EpicGames.Horde.Tests
 			}
 
 			// Flush it to storage, and read the finished log node
-			IBlobRef<LogNode> logRef;
+			IHashedBlobRef<LogNode> logRef;
 			await using (IBlobWriter writer = store.CreateBlobWriter())
 			{
 				logRef = await builder.FlushAsync(writer, true, CancellationToken.None);
@@ -101,7 +101,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task PartialTokenTestsAsync()
 		{
-			using IStorageClient store = KeyValueStorageClient.CreateInMemory();
+			IStorageNamespace store = KeyValueStorageNamespace.CreateInMemory();
 
 			// Generate the test data
 			string[] lines =
@@ -118,7 +118,7 @@ namespace EpicGames.Horde.Tests
 				builder.WriteData(Encoding.UTF8.GetBytes(lines[lineIdx]));
 			}
 
-			IBlobRef<LogNode> rootNodeRef;
+			IHashedBlobRef<LogNode> rootNodeRef;
 			await using (IBlobWriter writer = store.CreateBlobWriter())
 			{
 				rootNodeRef = await builder.FlushAsync(writer, true, CancellationToken.None);

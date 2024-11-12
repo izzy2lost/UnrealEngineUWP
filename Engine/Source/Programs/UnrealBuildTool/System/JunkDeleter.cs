@@ -78,7 +78,7 @@ namespace UnrealBuildTool
 							if (bIsValidJunkLine)
 							{
 								// the entry is always the last element in the token array (after the final :)
-								string FixedPath = Path.Combine(CurrentToRootDir, Tokens[Tokens.Length - 1]);
+								string FixedPath = Path.Combine(CurrentToRootDir, Tokens[^1]);
 								FixedPath = FixedPath.Replace('\\', Path.DirectorySeparatorChar);
 								JunkManifest.Add(FixedPath);
 							}

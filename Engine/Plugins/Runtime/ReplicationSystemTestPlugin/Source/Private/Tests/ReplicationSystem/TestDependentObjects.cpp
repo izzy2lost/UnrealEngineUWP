@@ -59,7 +59,7 @@ private:
 
 		{
 			FNetObjectFilterDefinition& MockDefinition = NewFilterDefinitions.Emplace_GetRef();
-			MockDefinition.FilterName = "Mock";
+			MockDefinition.FilterName = "MockFilter";
 			MockDefinition.ClassName = "/Script/ReplicationSystemTestPlugin.MockNetObjectFilter";
 			MockDefinition.ConfigClassName = "/Script/ReplicationSystemTestPlugin.MockNetObjectFilterConfig";
 		}
@@ -84,8 +84,8 @@ private:
 	void InitFilterHandles()
 	{
 		NotRoutedFilterHandle = Server->GetReplicationSystem()->GetFilterHandle("NotRouted");
-		MockFilterHandle = Server->GetReplicationSystem()->GetFilterHandle("Mock");
-		MockFilter = Cast<UMockNetObjectFilter>(Server->GetReplicationSystem()->GetFilter("Mock"));
+		MockFilterHandle = Server->GetReplicationSystem()->GetFilterHandle("MockFilter");
+		MockFilter = Cast<UMockNetObjectFilter>(Server->GetReplicationSystem()->GetFilter("MockFilter"));
 	}
 
 private:
@@ -163,7 +163,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestDependentObje
 	UTestReplicatedIrisObject* ServerObject = Server->CreateObject(0, 0);
 
 	// Filter out Server object to start with
-	FNetObjectGroupHandle FilterGroup = ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle FilterGroup = ReplicationSystem->CreateGroup(NAME_None);
 	ReplicationSystem->AddExclusionFilterGroup(FilterGroup);
 	ReplicationSystem->AddToGroup(FilterGroup, ServerObject->NetRefHandle);
 
@@ -211,7 +211,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestChainedDepend
 	UTestReplicatedIrisObject* ServerObject = Server->CreateObject(0, 0);
 
 	// Filter out Server object to start with
-	FNetObjectGroupHandle FilterGroup = ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle FilterGroup = ReplicationSystem->CreateGroup(NAME_None);
 	ReplicationSystem->AddExclusionFilterGroup(FilterGroup);
 	ReplicationSystem->AddToGroup(FilterGroup, ServerObject->NetRefHandle);
 
@@ -269,7 +269,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestDependentObje
 
 	// Spawn second object on server that later will be added as a dependent object
 	// With high PollFramePeriod so that it will not replicate in a while unless it is a dependent
-	UObjectReplicationBridge::FCreateNetRefHandleParams Params = Server->GetReplicationBridge()->DefaultCreateNetRefHandleParams;
+	UObjectReplicationBridge::FRootObjectReplicationParams Params;
 	Params.PollFrequency = Server->ConvertPollPeriodIntoFrequency(255U);
 	UTestReplicatedIrisObject* ServerDependentObject = Server->CreateObject(Params);
 
@@ -336,7 +336,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestDependentObje
 	FReplicationSystemTestClient* Client = CreateClient();
 
 	// Spawn object on server
-	UObjectReplicationBridge::FCreateNetRefHandleParams Params = Server->GetReplicationBridge()->DefaultCreateNetRefHandleParams;
+	UObjectReplicationBridge::FRootObjectReplicationParams Params;
 
 	// Setup different poll frequencies for the objects
 	Params.PollFrequency = Server->ConvertPollPeriodIntoFrequency(10U);
@@ -415,7 +415,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestDependentObje
 	FReplicationSystemTestClient* Client = CreateClient();
 
 	// Spawn object on server
-	UObjectReplicationBridge::FCreateNetRefHandleParams Params = Server->GetReplicationBridge()->DefaultCreateNetRefHandleParams;
+	UObjectReplicationBridge::FRootObjectReplicationParams Params;
 	Params.PollFrequency = Server->ConvertPollPeriodIntoFrequency(14U);
 	UTestReplicatedIrisObject* ServerObject = Server->CreateObject(Params);
 

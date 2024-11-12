@@ -27,8 +27,8 @@ void FDisplayClusterViewportConfigurationProxy::UpdateConfigurationProxy_GameThr
 		, RenderFrameSettingsCopy = new FDisplayClusterRenderFrameSettings(InConfiguration.GetRenderFrameSettings())
 		](FRHICommandListImmediate& RHICmdList)
 		{
+			RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_ViewportConfiguration_UpdateConfigurationProxy, "nDisplay_ViewportConfiguration_UpdateConfigurationProxy");
 			SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportConfiguration_UpdateConfigurationProxy);
-			SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportConfiguration_UpdateConfigurationProxy);
 
 			if (RenderFrameSettingsCopy)
 			{

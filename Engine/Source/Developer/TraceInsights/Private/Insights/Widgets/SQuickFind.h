@@ -3,21 +3,24 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SWidget.h"
 #include "Widgets/Views/STreeView.h"
 
-// Insights
-#include "Insights/ViewModels/Filters.h"
-#include "Insights/ViewModels/FilterConfiguratorNode.h"
+// TraceInsightsCore
+#include "InsightsCore/Filter/ViewModels/FilterConfiguratorNode.h"
+#include "InsightsCore/Filter/ViewModels/Filters.h"
 
 class SDockTab;
+
+namespace UE::Insights { class SFilterConfigurator; }
 
 namespace Insights
 {
 
-class SFilterConfigurator;
 class FQuickFind;
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -58,7 +61,7 @@ private:
 	FReply ClearFilters_OnClicked();
 
 private:
-	TSharedPtr<SFilterConfigurator> FilterConfigurator;
+	TSharedPtr<UE::Insights::SFilterConfigurator> FilterConfigurator;
 
 	TSharedPtr<FQuickFind> QuickFindViewModel;
 

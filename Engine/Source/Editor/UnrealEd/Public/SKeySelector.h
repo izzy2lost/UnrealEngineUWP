@@ -63,6 +63,7 @@ public:
 		, _Font( FAppStyle::GetFontStyle( TEXT("NormalFont") ) )
 		, _FilterBlueprintBindable( true )
 		, _AllowClear( true )
+		, _AllowKeyChange( true )
 		{}
 		SLATE_ATTRIBUTE( TOptional<FKey>, CurrentKey )
 		SLATE_ATTRIBUTE( FOptionalSize, TreeViewWidth )
@@ -71,6 +72,7 @@ public:
 		SLATE_ATTRIBUTE( FSlateFontInfo, Font )
 		SLATE_ARGUMENT( bool, FilterBlueprintBindable )
 		SLATE_ARGUMENT( bool, AllowClear )
+		SLATE_ARGUMENT( bool, AllowKeyChange )
 	SLATE_END_ARGS()
 public:
 	UNREALED_API void Construct(const FArguments& InArgs);
@@ -120,6 +122,11 @@ protected:
 	UNREALED_API void OnKeySelectionChanged(FKeyTreeItem Selection, ESelectInfo::Type SelectInfo);
 	UNREALED_API void GetKeyChildren(FKeyTreeItem InItem, TArray<FKeyTreeItem>& OutChildren);
 
+	/**
+	 * Returns true if this key selector can actually change the that it's assigned to or not
+	 */
+	UNREALED_API bool CanChangeKey() const;
+
 	/** Gets the Menu Content, setting it up if necessary */
 	UNREALED_API virtual TSharedRef<SWidget>	GetMenuContent();
 
@@ -168,6 +175,9 @@ protected:
 
 	/** Delegate that is called every time the key changes. */
 	FOnKeyChanged				OnKeyChanged;
+
+	/** If true, then we are allowed to change the key in this widget. Otherwise, this should be used for display only. */
+	TAttribute<bool> AllowChangeKey;
 
 	/** Desired width of the tree view widget */
 	TAttribute<FOptionalSize>	TreeViewWidth;

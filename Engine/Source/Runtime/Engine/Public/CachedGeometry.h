@@ -18,7 +18,8 @@ struct FCachedGeometry
 	{
 		FRDGBufferSRVRef RDGPositionBuffer = nullptr;
 		FRDGBufferSRVRef RDGPreviousPositionBuffer = nullptr;
-		
+		FRDGBufferSRVRef RDGTangentBuffer = nullptr;
+
 		FRHIShaderResourceView* PositionBuffer = nullptr;			// Valid when the input comes from the GPUSkinCache (since it is doesn't use RDG)
 		FRHIShaderResourceView* PreviousPositionBuffer = nullptr;	// Valid when the input comes from the GPUSkinCache (since it is doesn't use RDG)
 		FRHIShaderResourceView* TangentBuffer = nullptr;			// Valid when the input comes from the GPUSkinCache (since it is doesn't use RDG)
@@ -36,6 +37,7 @@ struct FCachedGeometry
 		uint32 TotalIndexCount = 0;
 		uint32 SectionIndex = 0;
 		int32 LODIndex = -1;
+		int32 TangentFormat = 0;  // 0: Interleaved TangentX/TangentZ, 1: TangentZ only
 	};
 
 	int32 LODIndex = -1;

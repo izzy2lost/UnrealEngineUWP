@@ -2,12 +2,14 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
 #include "Async/TaskTrace.h"
 #include "Containers/Ticker.h"
-#include "CoreMinimal.h"
 #include "Framework/Commands/UICommandList.h"
+#include "Templates/SharedPointer.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/IUnrealInsightsModule.h"
 
@@ -17,15 +19,22 @@ namespace TraceServices
 	class ITasksProvider;
 }
 
-class FThreadTimingTrack;
 class FThreadTrackEvent;
 
-namespace Insights
+namespace UE::Insights::TimingProfiler
+{
+	class FThreadTimingTrack;
+	class STimingView;
+}
+
+namespace UE::Insights::TaskGraphProfiler
 {
 
 class FTaskGraphRelation;
 class FTaskTimingSharedState;
 class STaskTableTreeView;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct FTaskGraphProfilerTabs
 {
@@ -106,7 +115,7 @@ public:
 	FLinearColor GetColorForTaskEvent(ETaskEventType InEvent);
 	uint32 GetColorForTaskEventAsPackedARGB(ETaskEventType InEvent);
 
-	TSharedPtr<Insights::FTaskTimingSharedState> GetTaskTimingSharedState() { return TaskTimingSharedState;	}
+	TSharedPtr<FTaskTimingSharedState> GetTaskTimingSharedState() { return TaskTimingSharedState;	}
 
 	bool GetShowCriticalPath() const { return bShowCriticalPath; }
 	void SetShowCriticalPath(bool bInValue) { bShowCriticalPath = bInValue; }
@@ -152,9 +161,11 @@ private:
 	double GetRelationsOnCriticalPathDescendingRec(const TraceServices::FTaskInfo* Task, const TraceServices::ITasksProvider* TasksProvider, TArray<FTaskGraphRelation>& Relations);
 
 	void InitializeColorCode();
-	int32 GetRelationDisplayDepth(TSharedPtr<const FThreadTimingTrack> Track, double Time, int32 KnownDepth);
+	int32 GetRelationDisplayDepth(TSharedPtr<const TimingProfiler::FThreadTimingTrack> Track, double Time, int32 KnownDepth);
 
 	void OutputWarnings();
+
+	static TSharedPtr<UE::Insights::TimingProfiler::STimingView> GetTimingView();
 
 private:
 	bool bIsInitialized;
@@ -175,7 +186,7 @@ private:
 
 	TWeakPtr<FTabManager> TimingTabManager;
 
-	TSharedPtr<Insights::STaskTableTreeView> TaskTableTreeView;
+	TSharedPtr<STaskTableTreeView> TaskTableTreeView;
 	FLinearColor ColorCode[static_cast<uint32>(ETaskEventType::NumTaskEventTypes)];
 	bool bShowCriticalPath = false;
 	bool bShowTransitions = true;
@@ -190,5 +201,4 @@ private:
 	TSet<FString> HiddenTrackNames;
 };
 
-} // namespace Insights
-
+} // namespace UE::Insights::TaskGraphProfiler

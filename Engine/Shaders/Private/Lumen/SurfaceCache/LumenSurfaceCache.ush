@@ -43,6 +43,19 @@ float3 DecodeSurfaceCacheAlbedo(float3 EncodedAlbedo)
 	return Albedo;
 }
 
+float3 CombineFinalLighting(float3 Albedo, float3 Emissive, float3 DirectLighting, float3 IndirectLighting)
+{
+	Albedo = DecodeSurfaceCacheAlbedo(Albedo);
+
+	float3 DiffuseLambert = Albedo * (1 / PI);
+	float3 FinalLighting = (DirectLighting + IndirectLighting) * DiffuseLambert + Emissive;
+
+	// Secure against strange values, as we are writing it to a persistent atlas with a feedback loop
+	FinalLighting = max(MakeFinite(FinalLighting), float3(0.0f, 0.0f, 0.0f));
+
+	return FinalLighting;
+}
+
 struct FLumenSurfaceCacheData
 {
 	bool bValid;

@@ -202,7 +202,7 @@ void FCopyUIntBufferCS::End(FRHICommandList& RHICmdList)
 
 //*****************************************************************************
 
-void CopyUIntBufferToTargets(FRHICommandListImmediate& RHICmdList, ERHIFeatureLevel::Type FeatureLevel,  FRHIShaderResourceView* SourceSRV, FRHIUnorderedAccessView*const* TargetUAVs, int32* TargetSizes, int32 StartingOffset, int32 NumTargets)
+void CopyUIntBufferToTargets(FRHICommandList& RHICmdList, ERHIFeatureLevel::Type FeatureLevel,  FRHIShaderResourceView* SourceSRV, FRHIUnorderedAccessView*const* TargetUAVs, int32* TargetSizes, int32 StartingOffset, int32 NumTargets)
 {
 	// No that resource transition must be made outside this call as we don't know how the content of those have been generated, and will be used.
 
@@ -435,7 +435,7 @@ void FGPUSortManager::FSortBatch::GenerateKeys(FRHICommandListImmediate& RHICmdL
 	{
 		if (EnumHasAnyFlags(KeyGenLocation & Callback.Flags, EGPUSortFlags::AnyKeyGenLocation))
 		{
-			SCOPED_DRAW_EVENTF(RHICmdList, GPUSortBatch, TEXT("KeyGen_%s"), *Callback.Name.ToString());
+			SCOPED_DRAW_EVENTF(RHICmdList, GPUSortBatch, TEXT("KeyGen_%s"), Callback.Name);
 			const bool bAsInt32 = EnumHasAnyFlags(Callback.Flags, EGPUSortFlags::ValuesAsInt32);
 			FRHIUnorderedAccessView* TypedValueUAV = bAsInt32 ? DynamicValueBuffer->ValueBuffers.Last().Int32UAV : DynamicValueBuffer->ValueBuffers.Last().G16R16UAV;
 			// TR-KeyGen : TypedValueUAV is the same as ValueUAVs[1] but with a different type. The callback needs to do an BeginUAVOverlap / EndUAVOverlap between each dispatch updating partially the content.
@@ -538,9 +538,9 @@ bool FGPUSortManager::TestBatchFlags(EGPUSortFlags BatchFlags, EGPUSortFlags Tas
 	return EnumHasAnyFlags(BatchFlags, TaskFlags & EGPUSortFlags::AnyKeyPrecision) && EnumHasAnyFlags(BatchFlags, TaskFlags & EGPUSortFlags::AnySortLocation);
 }
 
-const TCHAR* FGPUSortManager::GetPrecisionString(EGPUSortFlags BatchFlags)
+auto FGPUSortManager::GetPrecisionString(EGPUSortFlags BatchFlags) -> TCHAR const(*)[1]
 {
-	return EnumHasAnyFlags(BatchFlags, EGPUSortFlags::LowPrecisionKeys) ? TEXT("LowPrecision") : TEXT("HighPrecision");
+	return RHI_BREADCRUMB_FORCE_STRING_LITERAL(EnumHasAnyFlags(BatchFlags, EGPUSortFlags::LowPrecisionKeys) ? TEXT("LowPrecision") : TEXT("HighPrecision"));
 }
 
 FGPUSortManager::FGPUSortManager(ERHIFeatureLevel::Type InFeatureLevel) 
@@ -752,7 +752,9 @@ void FGPUSortManager::OnPreRender(FRDGBuilder& GraphBuilder)
 				// Sort batches so that the next batch to handle is at the end of the array.
 				SortBatches.Sort([](const FSortBatch& A, const FSortBatch& B) { return (uint32)A.ProcessingOrder > (uint32)B.ProcessingOrder; });
 
+				RHI_BREADCRUMB_EVENT_STAT(RHICmdList, GPUKeyGenAndSort, "GPU KeyGen & Sort");
 				SCOPED_GPU_STAT(RHICmdList, GPUKeyGenAndSort);
+
 				while (SortBatches.Num() && SortBatches.Last().ProcessingOrder == ESortBatchProcessingOrder::KeyGenAndSortAfterPreRender)
 				{
 					// Remove the SortBatch but don't remove the SortBuffers from the pool since it can be reused immediately.
@@ -803,7 +805,9 @@ void FGPUSortManager::OnPostRenderOpaque(FRDGBuilder& GraphBuilder)
 		{
 			if (SortBatches.Num())
 			{
+				RHI_BREADCRUMB_EVENT_STAT(RHICmdList, GPUKeyGenAndSort, "GPU KeyGen & Sort");
 				SCOPED_GPU_STAT(RHICmdList, GPUKeyGenAndSort);
+
 				while (SortBatches.Num())
 				{
 					// Remove the SortBatch but don't remove the SortBuffers from the pool since it can be reused immediately.

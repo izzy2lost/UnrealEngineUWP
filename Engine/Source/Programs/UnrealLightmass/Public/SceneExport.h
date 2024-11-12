@@ -865,6 +865,7 @@ struct FSceneFileHeader
 	int32		NumLandscapeTextureMappings;
 	int32		NumSpeedTreeMappings;
 	int32		NumVolumeMappings;
+	int32		NumLandscapeVolumeMappings;
 	int32		NumPrecomputedVisibilityBuckets;
 	int32		NumVolumetricLightmapTasks;
 };

@@ -353,6 +353,9 @@ public:
 
 	NIAGARA_API virtual TArray<FNiagaraVariable> GetBoundAttributes() const;
 
+	/** returns the variable associated with the supplied binding if it should be bound given the current settings of the RendererProperties. */
+	NIAGARA_API virtual FNiagaraVariable GetBoundAttribute(const FNiagaraVariableAttributeBinding* Binding) const;
+
 	virtual const TArray<FNiagaraVariable>& GetRequiredAttributes() { static TArray<FNiagaraVariable> Vars; return Vars; };
 	virtual const TArray<FNiagaraVariable>& GetOptionalAttributes() { static TArray<FNiagaraVariable> Vars; return Vars; };
 
@@ -365,7 +368,7 @@ public:
 
 	NIAGARA_API virtual void GetRendererWidgets(const FNiagaraEmitterInstance* InEmitter, TArray<TSharedPtr<SWidget>>& OutWidgets, TSharedPtr<FAssetThumbnailPool> InThumbnailPool) const PURE_VIRTUAL(UNiagaraRendererProperties::GetRendererWidgets, );
 	NIAGARA_API virtual void GetRendererTooltipWidgets(const FNiagaraEmitterInstance* InEmitter, TArray<TSharedPtr<SWidget>>& OutWidgets, TSharedPtr<FAssetThumbnailPool> InThumbnailPool) const PURE_VIRTUAL(UNiagaraRendererProperties::GetRendererTooltipWidgets, );
-	virtual void GetRendererFeedback(const FVersionedNiagaraEmitter& InEmitter, TArray<FText>& OutErrors, TArray<FText>& OutWarnings, TArray<FText>& OutInfo) const {};
+	virtual void GetRendererFeedback(const FVersionedNiagaraEmitter& InEmitter, TArray<FText>& OutErrors, TArray<FText>& OutWarnings, TArray<FText>& OutInfo) const {}
 	NIAGARA_API virtual void GetRendererFeedback(const FVersionedNiagaraEmitter& InEmitter, TArray<FNiagaraRendererFeedback>& OutErrors, TArray<FNiagaraRendererFeedback>& OutWarnings, TArray<FNiagaraRendererFeedback>& OutInfo) const;
 
 	// The icon to display in the niagara stack widget under the renderer section
@@ -422,6 +425,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Rendering")
 	ENiagaraRendererMotionVectorSetting MotionVectorSetting;
 
+	UPROPERTY()
+	bool bIsEnabled;
+
+	UPROPERTY(EditAnywhere, Category = "Scalability")
+	bool bAllowInCullProxies;
+
 	/**
 	Binding to control if the renderer is enabled or disabled.
 	When disabled the renderer does not generate or render any particle data.
@@ -429,13 +438,7 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, Category = "Bindings")
 	FNiagaraVariableAttributeBinding RendererEnabledBinding;
-
-	UPROPERTY()
-	bool bIsEnabled;
-
-	UPROPERTY(EditAnywhere, Category = "Scalability")
-	bool bAllowInCullProxies;
-
+	
 	UPROPERTY()
 	FGuid OuterEmitterVersion;
 
@@ -451,9 +454,6 @@ protected:
 	NIAGARA_API virtual void UpdateSourceModeDerivates(ENiagaraRendererSourceDataMode InSourceMode, bool bFromPropertyEdit = false);
 
 #if WITH_EDITORONLY_DATA
-	/** returns the variable associated with the supplied binding if it should be bound given the current settings of the RendererProperties. */
-	NIAGARA_API virtual FNiagaraVariable GetBoundAttribute(const FNiagaraVariableAttributeBinding* Binding) const;
-
 	/** utility function that can be used to fix up old vec3 bindings into position bindings. */
 	static NIAGARA_API void ChangeToPositionBinding(FNiagaraVariableAttributeBinding& Binding);
 
@@ -469,6 +469,7 @@ protected:
 	NIAGARA_API void UpdateMaterialParametersMIC(const FNiagaraRendererMaterialParameters& MaterialParameters, TArrayView<UMaterialInterface*> Materials, TArray<TObjectPtr<UMaterialInstanceConstant>>& InOutMICs);
 
 	NIAGARA_API int32 GetDynamicParameterChannelMask(const FVersionedNiagaraEmitterData* EmitterData, FName BindingName, int32 DefaultChannelMask) const;
+	NIAGARA_API int32 GetDynamicParameterCombinedChannelMask(FName Parameter0Name, FName Parameter1Name, FName Parameter2Name, FName Parameter3Name) const;
 #endif
 
 #if WITH_EDITOR

@@ -8,6 +8,8 @@
 #include "MVVM/Extensions/IObjectBindingExtension.h"
 #include "MVVM/Extensions/ITrackExtension.h"
 #include "MVVM/Extensions/ISelectableExtension.h"
+#include "MVVM/ViewModels/TrackRowModel.h"
+#include "MovieSceneTrack.h"
 
 namespace UE::Sequencer
 {
@@ -243,6 +245,44 @@ TSet<UMovieSceneTrack*> FSequencerSelection::GetSelectedTracks() const
 
 	return SelectedTracks;
 }
+
+TSet<TPair<UMovieSceneTrack*, int32>> FSequencerSelection::GetSelectedTrackRows() const
+{
+	TSet<TPair<UMovieSceneTrack*, int32>> SelectedTrackRows;
+	SelectedTrackRows.Reserve(TrackArea.Num());
+
+	for (TViewModelPtr<ITrackExtension> TrackExtension : Outliner.Filter<ITrackExtension>())
+	{
+		// Only add a 'track row' as selected if either we have an actual 'track row' selected, or else we have a track selected and there's only a single
+		// track row, and the track allows multiple rows.
+		if (UMovieSceneTrack* Track = TrackExtension->GetTrack())
+		{
+			if (TViewModelPtr<FTrackRowModel> TrackRowModel = TrackExtension.ImplicitCast())
+			{
+				SelectedTrackRows.Add(TPair<UMovieSceneTrack*, int32>(Track, TrackExtension->GetRowIndex()));
+			}
+			else if (Track->SupportsMultipleRows() && Track->GetMaxRowIndex() == 0)
+			{
+				SelectedTrackRows.Add(TPair<UMovieSceneTrack*, int32>(Track, TrackExtension->GetRowIndex()));
+			}
+		}
+	}
+
+	TSet<UMovieSceneSection*> SelectedSections = GetSelectedSections();
+	for (UMovieSceneSection* Section : SelectedSections)
+	{
+		if (UMovieSceneTrack* Track = Section->GetTypedOuter<UMovieSceneTrack>())
+		{
+			if (Track->SupportsMultipleRows())
+			{
+				SelectedTrackRows.Add(TPair<UMovieSceneTrack*, int32>(Track, Section->GetRowIndex()));
+			}
+		}
+	}
+
+	return SelectedTrackRows;
+}
+
 
 void FSequencerSelection::OnHierarchyChanged()
 {

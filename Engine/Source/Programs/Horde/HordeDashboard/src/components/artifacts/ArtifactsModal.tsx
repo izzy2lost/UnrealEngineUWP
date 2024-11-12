@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { DetailsList, DetailsListLayoutMode, FontIcon, IColumn, IconButton, Modal, PrimaryButton, ScrollablePane, Selection, SelectionMode, SelectionZone, Spinner, SpinnerSize, Stack, Text, mergeStyleSets } from "@fluentui/react";
+import { Callout, DetailsList, DetailsListLayoutMode, DirectionalHint, FontIcon, IColumn, IContextualMenuProps, IconButton, Modal, NavBase, PrimaryButton, ScrollablePane, Selection, SelectionMode, SelectionZone, Spinner, SpinnerSize, Stack, Text, mergeStyleSets } from "@fluentui/react";
 import { action, makeObservable, observable } from "mobx";
 import { observer } from "mobx-react-lite";
 import { useEffect, useState } from "react";
 import { NavigateFunction, useNavigate } from "react-router-dom";
 import backend from "../../backend";
-import { ArtifactContextType, GetArtifactDirectoryEntryResponse, GetArtifactDirectoryResponse, GetArtifactFileEntryResponse, GetArtifactResponseV2 } from "../../backend/Api";
+import { ArtifactContextType, CreateZipRequest, GetArtifactDirectoryEntryResponse, GetArtifactDirectoryResponse, GetArtifactFileEntryResponse, GetArtifactResponse } from "../../backend/Api";
 import dashboard, { StatusColor } from "../../backend/Dashboard";
 import { getHordeStyling } from "../../styles/Styles";
 
@@ -22,17 +22,20 @@ type BrowserItem = {
    icon?: string;
    size?: number;
    type: BrowserType;
+   dirResponse?: GetArtifactDirectoryEntryResponse;
+   fileResponse?: GetArtifactFileEntryResponse;
 }
 
 
 class ArtifactsHandler {
 
-   constructor(jobId: string, stepId: string, contextType: ArtifactContextType, artifactPath?: string, artifacts?: GetArtifactResponseV2[]) {
+   constructor(jobId: string, stepId: string, contextType: ArtifactContextType, artifactPath?: string, artifacts?: GetArtifactResponse[], artifactId?: string) {
       makeObservable(this);
       this.jobId = jobId;
       this.stepId = stepId;
       this.context = contextType;
       this.artifacts = artifacts;
+      this.artifactId = artifactId;
       this.set(artifactPath);
 
       const params = new URLSearchParams(window.location.search);
@@ -54,7 +57,7 @@ class ArtifactsHandler {
 
    private async set(artifactPath?: string) {
 
-      let artifacts: GetArtifactResponseV2[] | undefined = this.artifacts;
+      let artifacts: GetArtifactResponse[] | undefined = this.artifacts;
 
       if (!artifacts) {
 
@@ -79,6 +82,15 @@ class ArtifactsHandler {
          return;
       }
 
+      if (this.artifactId && !artifacts.find(a => a.id === this.artifactId)) {
+         try {
+            const artifact = await backend.getArtifactData(this.artifactId);
+            artifacts.push(artifact);
+         } catch (err) {
+            console.log(err);
+         }         
+      }
+
       this.artifacts = artifacts;
 
       if (!this.context) {
@@ -87,7 +99,15 @@ class ArtifactsHandler {
          return;
       }
 
-      let a = artifacts.find(a => a.type === this.context)!;
+      let a: GetArtifactResponse | undefined;
+
+      if (this.artifactId) {
+         a = artifacts.find(a => a.id === this.artifactId)
+      }
+
+      if (!a) {
+         a = artifacts.find(a => a.type === this.context)!;
+      }
 
       if (!a) {
          console.error("Unable to find artifact for context", this.context, artifacts);
@@ -163,8 +183,9 @@ class ArtifactsHandler {
       if (this.baseSearch) {
          let url = `${window.location.pathname}${this.baseSearch}`;
          if (path?.length) {
-            url += `&artifactPath=${encodeURI(path)}`;
+            url += `&artifactPath=${encodeURIComponent(path.replaceAll("+", "%2B"))}`;
          }
+         
          navigate(url, { replace: true });
          console.log(this.artifact.id, path);
       }
@@ -232,7 +253,7 @@ class ArtifactsHandler {
       this.path = undefined;
       this.browse = undefined;
       this.artifact = undefined;
-      this.artifacts = undefined;      
+      this.artifacts = undefined;
       this.history = [];
       this.stepId = "";
       this.loading = false;
@@ -250,8 +271,10 @@ class ArtifactsHandler {
 
    browse?: GetArtifactDirectoryResponse;
 
-   artifact?: GetArtifactResponseV2;
-   artifacts?: GetArtifactResponseV2[];   
+   artifact?: GetArtifactResponse;
+   artifacts?: GetArtifactResponse[];
+
+   artifactId?: string;
 
    readonly context: ArtifactContextType;
 
@@ -282,7 +305,7 @@ const getStyles = () => {
                height: "unset !important",
             },
             '.ms-List-cell': {
-   
+
                borderTop: border,
                borderRight: border,
                borderLeft: border
@@ -303,7 +326,7 @@ const getStyles = () => {
    _styles = styles;
 
    return styles;
-   
+
 }
 
 const BrowseHistory: React.FC<{ handler: ArtifactsHandler }> = observer(({ handler }) => {
@@ -416,9 +439,10 @@ function formatBytes(bytes: number, decimals = 2) {
 }
 
 
-const DownloadButton: React.FC<{ handler: ArtifactsHandler }> = observer(({ handler }) => {
+const DownloadButton: React.FC<{ handler: ArtifactsHandler, openArtifactInfo: () => void }> = observer(({ handler, openArtifactInfo }) => {
 
    const [selectKey, setSelectionKey] = useState(0);
+   const navigate = useNavigate();
 
 
    // subscribe
@@ -451,8 +475,51 @@ const DownloadButton: React.FC<{ handler: ArtifactsHandler }> = observer(({ hand
       buttonText = `Download (${sizeText})`;
    }
 
-   return <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
-      <PrimaryButton styles={{ root: { fontFamily: 'Horde Open Sans SemiBold !important' } }} disabled={!selection.filesSelected && !selection.directoriesSelected} onClick={async () => {
+   let jobUrl = "";
+   if (handler.jobId) {
+      jobUrl = `/job/${handler.jobId}`;
+      if (handler.stepId) {
+         jobUrl += `?step=${handler.stepId}`;
+      }
+   }
+
+   const downloadProps: IContextualMenuProps = {
+      items: [
+         {
+            key: 'view_artifact_info',
+            text: 'View Artifact Info',
+            disabled: !handler.artifact,
+            onClick: () => {
+               openArtifactInfo();
+            }
+         },
+         {
+            key: 'navigate_to_job',
+            text: 'Navigate to Job',
+            onClick: () => {
+               navigate(jobUrl);
+            }
+         }
+      ],
+      directionalHint: DirectionalHint.bottomRightEdge
+   };
+
+   if (handler.artifact?.id) {
+      const id = handler.artifact.id;
+      downloadProps.items.unshift(
+         {
+            key: 'download_ugs',
+            text: 'Download with UGS',
+            onClick: () => {
+               window.location.assign(`/api/v2/artifacts/${id}/download?format=ugs`);
+            }
+         }
+      )
+   }
+
+
+   return <Stack id="callout_target_artifactinfo" horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
+      <PrimaryButton split menuProps={downloadProps} styles={{ root: { fontFamily: 'Horde Open Sans SemiBold !important' } }} disabled={!selection.filesSelected && !selection.directoriesSelected} onClick={async () => {
 
          const selection = handler.currentSelection.items;
 
@@ -479,21 +546,36 @@ const DownloadButton: React.FC<{ handler: ArtifactsHandler }> = observer(({ hand
 
          const path = handler.path ? handler.path + "/" : "";
 
-         const filters = selection.map(s => {
-            const item = s as BrowserItem;
+         let zipRequest: CreateZipRequest | undefined;
 
-            if (item.type === BrowserType.NavigateUp) {
-               return "";
-            }
+         if ((handler.selection?.count ?? 0) > 0) {
 
-            if (item.type === BrowserType.Directory) {
-               return `${path}${item.text}/...`;
+            const filter = selection.map(s => {
+               const item = s as BrowserItem;
+   
+               if (item.type === BrowserType.NavigateUp) {
+                  return "";
+               }
+   
+               if (item.type === BrowserType.Directory) {
+                  return `${path}${item.text}/...`;
+               }
+               return `${path}${item.text}`;
+            }).filter(f => !!f);
+
+            zipRequest = {
+               filter: filter
+            }   
+         } else {
+            if (path) {
+               zipRequest = {
+                  filter: [path + "..."]
+               }   
             }
-            return `${path}${item.text}`;
-         }).filter(f => !!f);
+         }
 
          try {
-            backend.downloadArtifactZipV2(handler.artifact.id, { filter: filters });
+            backend.downloadArtifactZipV2(handler.artifact.id, zipRequest);
          } catch (err) {
             console.error(err);
          } finally {
@@ -507,10 +589,12 @@ const DownloadButton: React.FC<{ handler: ArtifactsHandler }> = observer(({ hand
 
 let idcounter = 0;
 
-const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifacts?: GetArtifactResponseV2[], contextType: ArtifactContextType, artifactPath?: string }> = observer(({ jobId, stepId, artifacts, contextType, artifactPath }) => {
+const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifacts?: GetArtifactResponse[], contextType: ArtifactContextType, artifactPath?: string, artifactId?: string }> = observer(({ jobId, stepId, artifacts, contextType, artifactPath, artifactId }) => {
 
    // eslint-disable-next-line
-   const handler = ArtifactsHandler.current ?? new ArtifactsHandler(jobId, stepId, contextType, artifactPath, artifacts);
+   const handler = ArtifactsHandler.current ?? new ArtifactsHandler(jobId, stepId, contextType, artifactPath, artifacts, artifactId);
+
+   const [viewArtifactInfo, setViewArtifactInfo] = useState(false);
 
    useEffect(() => {
       return () => {
@@ -550,15 +634,16 @@ const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifac
    const items: BrowserItem[] = [];
 
    const getFileHRef = (item: BrowserItem) => {
-      
+
       if (item.type !== BrowserType.File) {
          return undefined;
       }
 
-      const path = encodeURI((handler.path ? handler.path + "/" : "") + item.text);
+      let path = (handler.path ? handler.path + "/" : "") + encodeURIComponent(item.text);
+      path = path.replaceAll("+", "%2B");
       const server = backend.serverUrl;
       return `${server}/api/v2/artifacts/${handler.artifact!.id}/file?path=${path}`;
-      
+
    }
 
    // use the up arrow instead
@@ -569,9 +654,9 @@ const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifac
    browse.directories?.forEach(d => {
 
       function recurseDirectories(dir: GetArtifactDirectoryEntryResponse, flattened: GetArtifactDirectoryEntryResponse[]) {
-         if (!dir.directories || dir.directories.length > 1  || dir.files?.length) {
+         if (!dir.directories || dir.directories.length > 1 || dir.files?.length) {
             const name = flattened.length ? flattened.map(d => d.name).join("/") + "/" + dir.name : dir.name;
-            items.push({ key: dir.hash, text: name, icon: "Folder", type: BrowserType.Directory, size: dir.length });
+            items.push({ key: dir.hash, text: name, icon: "Folder", type: BrowserType.Directory, size: dir.length, dirResponse: dir });
          } else {
             flattened.push(dir);
             dir.directories.forEach(d => recurseDirectories(d, [...flattened]));
@@ -584,13 +669,13 @@ const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifac
    });
 
    browse.files?.forEach(d => {
-      items.push({ key: d.hash, text: d.name, icon: "Document", type: BrowserType.File, size: d.length });
+      items.push({ key: d.hash, text: d.name, icon: "Document", type: BrowserType.File, size: d.length, fileResponse: d });
    });
 
    const columns: IColumn[] = [
-      { key: 'column1', name: 'Name', minWidth: 794, maxWidth: 794, isResizable: false, isPadded: false },
+      { key: 'column1', name: 'Name', minWidth: 794 - 32, maxWidth: 794 - 32, isResizable: false, isPadded: false },
       { key: 'column2', name: 'Size', minWidth: 128, maxWidth: 128, isResizable: false, isPadded: false },
-      { key: 'column3', name: 'View_Download', minWidth: 64, maxWidth: 64, isResizable: false, isPadded: false }
+      { key: 'column3', name: 'View_Download', minWidth: 64 + 32, maxWidth: 64 + 32, isResizable: false, isPadded: false }
    ];
 
    const renderItem = (item: any, index?: number, column?: IColumn) => {
@@ -611,15 +696,19 @@ const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifac
 
       if (column.name === "View_Download") {
 
-         if (item.type !== BrowserType.File) {
+         if (item.text === "..") {
             return null;
          }
 
+         const isFile = item.type === BrowserType.File;
+
          const href = getFileHRef(item);
 
-         return <Stack data-selection-disabled verticalAlign="center" verticalFill horizontal horizontalAlign="end" style={{ paddingTop: 0, paddingBottom: 0 }}>
-            <IconButton id="artifactview" href={`${href}&inline=true`} target="_blank" style={{ paddingTop: 1, color: "#106EBE" }} iconProps={{ iconName: "Eye", styles: { root: { fontSize: "14px" } } }} />
-            <IconButton id="artifactview" href={href} target="_blank" style={{ paddingTop: 1, color: "#106EBE" }} iconProps={{ iconName: "CloudDownload", styles: { root: { fontSize: "14px" } } }} />
+         return <Stack>
+            <Stack data-selection-disabled verticalAlign="center" verticalFill horizontal horizontalAlign="end" style={{ paddingTop: 0, paddingBottom: 0 }}>
+               {isFile && <IconButton id="artifactview" href={`${href}&inline=true`} target="_blank" style={{ paddingTop: 1, color: "#106EBE" }} iconProps={{ iconName: "Eye", styles: { root: { fontSize: "14px" } } }} />}
+               {isFile && <IconButton id="artifactview" href={href} target="_blank" style={{ paddingTop: 1, color: "#106EBE" }} iconProps={{ iconName: "CloudDownload", styles: { root: { fontSize: "14px" } } }} />}
+            </Stack>
          </Stack>
       }
 
@@ -673,56 +762,89 @@ const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifac
 
    }
 
-   return <Stack key={`jobdetailartifacts_${idcounter++}`} tokens={{ childrenGap: 12 }}>
-      <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 18 }} style={{ paddingBottom: 12 }}>
-         <Stack>
-            <BrowseBreadCrumbs handler={handler} />
+   return <Stack key={`jobdetailartifacts_${idcounter++}`}>
+      {viewArtifactInfo && <Callout
+         styles={{ root: { padding: "32px 24px", maxWidth: 1300 } }}
+         role="dialog"
+         gapSpace={12}
+         target={`#callout_target_artifactinfo`}
+         isBeakVisible={true}
+         beakWidth={12}
+         onDismiss={() => {
+            setViewArtifactInfo(false);
+         }}
+         directionalHint={DirectionalHint.leftTopEdge}
+         setInitialFocus>
+         <Stack style={{ maxWidth: 1140 }}>
+            <Stack style={{ paddingBottom: 12 }}>
+               <Stack horizontal verticalAlign="center" verticalFill={true}>
+                  <Stack>
+                     <Text style={{ fontSize: 14, fontFamily: "Horde Open Sans SemiBold" }}>{`Artifact ID ${handler.artifact?.id}`}</Text>
+                  </Stack>
+                  <Stack grow />
+                  <Stack>
+                     <IconButton
+                        iconProps={{ iconName: 'Cancel', styles: { root: { fontSize: "14px" } } }}
+                        onClick={() => { setViewArtifactInfo(false); }}
+                     />
+                  </Stack>
+               </Stack>
+            </Stack>
+            <Stack style={{ paddingLeft: 0 }}>
+               <Text style={{ fontSize: 11, whiteSpace: "pre-wrap", fontFamily: "Horde Cousine Regular" }}>{handler.artifact ? JSON.stringify(handler.artifact, undefined, 2).replaceAll("\\r", "").replaceAll("\\n", "\n") : ""}</Text></Stack>
          </Stack>
-         <Stack grow />
-         <DownloadButton handler={handler} />
+      </Callout>}
+
+      <Stack tokens={{childrenGap: 12}}>
+         <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 18 }} style={{ paddingBottom: 12 }}>
+            <Stack>
+               <BrowseBreadCrumbs handler={handler} />
+            </Stack>
+            <Stack grow />
+            <DownloadButton handler={handler} openArtifactInfo={() => setViewArtifactInfo(true)} />
+         </Stack >
+         {handler.loading && <Stack>
+            <Spinner styles={{ root: { opacity: 0, animation: "hordeFadeIn 1s ease-in-out 2s forwards" } }} size={SpinnerSize.large} />
+         </Stack>}
+         {!handler.loading && <Stack style={{ height: 492 + 160, position: "relative" }}>
+            <ScrollablePane style={{ height: 492 + 160 }}>
+               <SelectionZone selection={handler.selection!}>
+                  <DetailsList
+                     styles={{ root: { overflowX: "hidden" } }}
+                     className={styles.list}
+                     isHeaderVisible={false}
+                     compact={true}
+                     items={items}
+                     columns={columns}
+                     layoutMode={DetailsListLayoutMode.fixedColumns}
+                     selectionMode={SelectionMode.multiple}
+                     enableUpdateAnimations={false}
+                     selection={handler.selection}
+                     selectionPreservedOnEmptyClick={true}
+                     onShouldVirtualize={() => false}
+                     onItemInvoked={(item: BrowserItem) => {
+                        if (item?.type !== BrowserType.File) {
+                           return;
+                        }
+                        const href = getFileHRef(item);
+                        if (href) {
+                           window.open(href + "&inline=true", "_blank");
+                        }
+                     }}
+                     onRenderItemColumn={renderItem}
+                  />
+               </SelectionZone>
+
+            </ScrollablePane>
+         </Stack>}
       </Stack >
-      {handler.loading && <Stack>
-         <Spinner styles={{ root: { opacity: 0, animation: "hordeFadeIn 1s ease-in-out 2s forwards" } }} size={SpinnerSize.large} />
-      </Stack>}
-      {!handler.loading && <Stack style={{ height: 492 + 160, position: "relative" }}>
-         <ScrollablePane style={{ height: 492 + 160 }}>
-            <SelectionZone selection={handler.selection!}>
-               <DetailsList
-                  styles={{ root: { overflowX: "hidden" } }}
-                  className={styles.list}
-                  isHeaderVisible={false}
-                  compact={true}
-                  items={items}
-                  columns={columns}
-                  layoutMode={DetailsListLayoutMode.fixedColumns}
-                  selectionMode={SelectionMode.multiple}
-                  enableUpdateAnimations={false}
-                  selection={handler.selection}
-                  selectionPreservedOnEmptyClick={true}
-                  onShouldVirtualize={() => false}
-                  onItemInvoked={(item:BrowserItem) => {
-                     if (item?.type !== BrowserType.File) {
-                        return;
-                     }
-                     const href = getFileHRef(item);
-                     if (href) {
-                        window.open(href + "&inline=true", "_blank");
-                     }                     
-                  }}
-                  onRenderItemColumn={renderItem}
-               />
-            </SelectionZone>
+   </Stack>
 
-         </ScrollablePane>
-      </Stack>}
-   </Stack >
-
-   //
 })
 
 
 
-export const JobArtifactsModal: React.FC<{ jobId: string; stepId: string, artifacts?: GetArtifactResponseV2[], contextType: ArtifactContextType, artifactPath?: string, onClose: () => void }> = ({ jobId, stepId, artifacts, contextType, artifactPath, onClose }) => {
+export const JobArtifactsModal: React.FC<{ jobId: string; stepId: string, artifacts?: GetArtifactResponse[], contextType: ArtifactContextType, artifactPath?: string, artifactId?: string, onClose: () => void }> = ({ jobId, stepId, artifacts, contextType, artifactPath, artifactId, onClose }) => {
 
    const { hordeClasses } = getHordeStyling();
 
@@ -744,7 +866,7 @@ export const JobArtifactsModal: React.FC<{ jobId: string; stepId: string, artifa
                      </Stack>
                   </Stack>
                   <Stack styles={{ root: { paddingLeft: 4, paddingRight: 0, paddingTop: 8, paddingBottom: 4 } }}>
-                     <JobDetailArtifactsInner stepId={stepId} jobId={jobId} contextType={contextType} artifactPath={artifactPath} artifacts={artifacts} />
+                     <JobDetailArtifactsInner stepId={stepId} jobId={jobId} contextType={contextType} artifactPath={artifactPath} artifacts={artifacts} artifactId={artifactId} />
                   </Stack>
                </Stack>
             </Stack>

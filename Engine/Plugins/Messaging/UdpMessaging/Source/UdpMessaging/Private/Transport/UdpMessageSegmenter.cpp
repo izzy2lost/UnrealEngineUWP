@@ -255,7 +255,10 @@ bool FUdpMessageSegmenter::NeedSending(const FDateTime& CurrentTime)
 	const uint16 MaxNumResends = FMath::Clamp(CVarSegmenterMaxResends.GetValueOnAnyThread(), 1, 100);
 	if (AreAcknowledgementsComplete() == false && SentNumber > MaxNumResends)
 	{
-		UE_LOG(LogUdpMessaging, Warning, TEXT("Gave up sending with %d outstanding acks."), AcknowledgeSegments.Num() - AcknowledgeSegmentsCount);
+		UE_LOG(LogUdpMessaging, Warning, TEXT("Gave up sending with %d outstanding acks. Attempted %d tries."),
+			   AcknowledgeSegments.Num() - AcknowledgeSegmentsCount,
+			   MaxNumResends
+		);
 		SerializedMessage->UpdateState(EUdpSerializedMessageState::Invalid);
 		return false;
 	}
@@ -278,7 +281,10 @@ bool FUdpMessageSegmenter::NeedSending(const FDateTime& CurrentTime)
 		}
 		LastSentTime = CurrentTime;
 		++SentNumber;
-		UE_LOG(LogUdpMessaging, Warning, TEXT("Waiting for ack too long. Re-sending %d segments."), AcknowledgeSegments.Num() - AcknowledgeSegmentsCount);
+		UE_LOG(LogUdpMessaging, Warning, TEXT("Waiting for ack too long. Re-sending %d segments. Attempt %d out of %d tries."),
+			   AcknowledgeSegments.Num() - AcknowledgeSegmentsCount,
+			   SentNumber,
+			   MaxNumResends);
 		return true;
 	}
 

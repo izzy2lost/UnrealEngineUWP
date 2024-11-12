@@ -21,6 +21,9 @@ public:
 protected:
 	FRuntimeVirtualTextureDetailsCustomization();
 
+	/** Refresh array of supported material types. */
+	void RefreshMaterialTypes();
+
 	/** Callback for updating text values after an edit. */
 	void RefreshTextDetails();
 	/** Callback for full update of details view after an edit. */
@@ -31,7 +34,9 @@ protected:
 	//~ End IDetailCustomization Interface.
 
 private:
-	URuntimeVirtualTexture* VirtualTexture = nullptr;
+	TWeakObjectPtr<URuntimeVirtualTexture> VirtualTexture;
+
+	TArray<int32> SupportedMaterialTypes;
 
 	IDetailLayoutBuilder* CachedDetailBuilder = nullptr;
 
@@ -70,5 +75,5 @@ protected:
 	//~ End IDetailCustomization Interface.
 
 private:
-	URuntimeVirtualTextureComponent* RuntimeVirtualTextureComponent;
+	TWeakObjectPtr<URuntimeVirtualTextureComponent> RuntimeVirtualTextureComponent;
 };

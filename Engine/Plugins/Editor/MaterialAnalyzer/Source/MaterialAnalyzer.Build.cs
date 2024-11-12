@@ -20,7 +20,9 @@ namespace UnrealBuildTool.Rules
 					"SlateCore",
 					"EditorFramework",
 					"UnrealEd",
-					"PropertyEditor"
+					"PropertyEditor",
+					"DesktopPlatform",
+					"ToolWidgets",
 			});
 
             PrivateDependencyModuleNames.AddRange(new string[] {

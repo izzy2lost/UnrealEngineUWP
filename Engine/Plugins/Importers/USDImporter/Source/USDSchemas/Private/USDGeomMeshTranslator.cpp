@@ -6,6 +6,7 @@
 
 #include "MeshTranslationImpl.h"
 #include "UnrealUSDWrapper.h"
+#include "USDAssetCache3.h"
 #include "USDAssetUserData.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
@@ -13,7 +14,10 @@
 #include "USDGeomMeshConversion.h"
 #include "USDInfoCache.h"
 #include "USDLog.h"
+#include "USDMemory.h"
+#include "USDObjectUtils.h"
 #include "USDPrimConversion.h"
+#include "USDTranslatorUtils.h"
 #include "USDTypesConversion.h"
 
 #include "UsdWrappers/SdfPath.h"
@@ -34,6 +38,7 @@
 #include "Misc/App.h"
 #include "Misc/SecureHash.h"
 #include "Modules/ModuleManager.h"
+#include "NaniteDefinitions.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "StaticMeshAttributes.h"
 #include "StaticMeshOperations.h"
@@ -57,21 +62,6 @@
 #include "pxr/usd/usdPhysics/tokens.h"
 #include "pxr/usd/usdSkel/bindingAPI.h"
 #include "USDIncludesEnd.h"
-
-static float GMeshNormalRepairThreshold = 0.05f;
-static FAutoConsoleVariableRef CVarMeshNormalRepairThreshold(
-	TEXT("USD.MeshNormalRepairThreshold"),
-	GMeshNormalRepairThreshold,
-	TEXT("We will try repairing up to this fraction of a Mesh's normals when invalid. If a Mesh has more invalid normals than this, we will "
-		 "recompute all of them. Defaults to 0.05 (5% of all normals).")
-);
-
-static bool GSkipMeshTangentComputation = false;
-static FAutoConsoleVariableRef CVarSkipMeshTangentComputation(
-	TEXT("USD.SkipMeshTangentComputation"),
-	GSkipMeshTangentComputation,
-	TEXT("Skip computing tangents for meshes. With meshes with a huge numer of vertices, it can take a very long time to compute them.")
-);
 
 static bool GBuildReversedIndexBuffer = false;
 static FAutoConsoleVariableRef CVarBuildReversedIndexBuffer(
@@ -168,7 +158,7 @@ namespace UsdGeomMeshTranslatorImpl
 		}
 
 		// We want Nanite because the mesh is large enough for the threshold, which is set to something valid
-		if (!bHasNaniteOverrideEnabled && Context.InfoCache.IsValid())
+		if (!bHasNaniteOverrideEnabled)
 		{
 			const int32 NumTriangles = LODIndexToMeshDescription[0].Triangles().Num();
 			if (NumTriangles >= Context.NaniteTriangleThreshold)
@@ -196,29 +186,11 @@ namespace UsdGeomMeshTranslatorImpl
 			}
 		}
 
-		// Don't enable Nanite if we have more than one LOD. This means the Mesh came from the LOD variant set setup, and
-		// we're considering the LOD setup "stronger" than the Nanite override: If you have all that LOD variant set situation you
-		// likely don't want Nanite for one of the LOD meshes anyway, as that doesn't really make any sense.
-		// If the user wants to have Nanite within the variant set all they would otherwise need is to name the variant set something
-		// else other than LOD.
-		if (LODIndexToMeshDescription.Num() > 1)
+		if (Context.UsdInfoCache)
 		{
-			UE_LOG(
-				LogUsd,
-				Warning,
-				TEXT("Not enabling Nanite for mesh generated for prim '%s' as it has more than one generated LOD (and so came from a LOD variant set "
-					 "setup)"),
-				*PrimPath.GetString()
-			);
-			return false;
-		}
+			TOptional<uint64> SubtreeSectionCount = Context.UsdInfoCache->GetSubtreeMaterialSlotCount(PrimPath);
 
-		if (Context.InfoCache.IsValid())
-		{
-			TOptional<uint64> SubtreeSectionCount = Context.InfoCache->GetSubtreeMaterialSlotCount(PrimPath);
-
-			const int32 MaxNumSections = 64;	// There is no define for this, but it's checked for on NaniteBuilder.cpp, FBuilderModule::Build
-			if (!SubtreeSectionCount.IsSet() || SubtreeSectionCount.GetValue() > MaxNumSections)
+			if (!SubtreeSectionCount.IsSet() || SubtreeSectionCount.GetValue() > NANITE_MAX_CLUSTER_MATERIALS)
 			{
 				UE_LOG(
 					LogUsd,
@@ -227,7 +199,7 @@ namespace UsdGeomMeshTranslatorImpl
 						 "'%d'"),
 					*PrimPath.GetString(),
 					SubtreeSectionCount.GetValue(),
-					MaxNumSections
+					NANITE_MAX_CLUSTER_MATERIALS
 				);
 				return false;
 			}
@@ -251,18 +223,13 @@ namespace UsdGeomMeshTranslatorImpl
 		const pxr::UsdPrim& UsdPrim,
 		const TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& LODIndexToMaterialInfo,
 		UStaticMesh& StaticMesh,
-		UUsdAssetCache2& AssetCache,
-		FUsdInfoCache* InfoCache,
+		UUsdAssetCache3& AssetCache,
+		FUsdPrimLinkCache& PrimLinkCache,
 		float Time,
 		EObjectFlags Flags,
-		bool bReuseIdenticalAssets
+		bool bShareAssetsForIdenticalPrims
 	)
 	{
-		if (!InfoCache)
-		{
-			return false;
-		}
-
 		bool bMaterialAssignementsHaveChanged = false;
 
 		TArray<UMaterialInterface*> ExistingAssignments;
@@ -275,9 +242,9 @@ namespace UsdGeomMeshTranslatorImpl
 			UsdPrim,
 			LODIndexToMaterialInfo,
 			AssetCache,
-			*InfoCache,
+			PrimLinkCache,
 			Flags,
-			bReuseIdenticalAssets
+			bShareAssetsForIdenticalPrims
 		);
 
 		uint32 StaticMeshSlotIndex = 0;
@@ -586,74 +553,6 @@ namespace UsdGeomMeshTranslatorImpl
 		}
 	}
 
-	void RepairNormalsAndTangents(const FString& PrimPath, FMeshDescription& MeshDescription)
-	{
-		FStaticMeshConstAttributes Attributes{MeshDescription};
-		TArrayView<const FVector3f> VertexInstanceNormals = Attributes.GetVertexInstanceNormals().GetRawArray();
-
-		// Similar to FStaticMeshOperations::AreNormalsAndTangentsValid but we don't care about tangents since we never
-		// read those from USD
-		uint64 InvalidNormalCount = 0;
-		for (const FVertexInstanceID VertexInstanceID : MeshDescription.VertexInstances().GetElementIDs())
-		{
-			if (VertexInstanceNormals[VertexInstanceID].IsNearlyZero() || VertexInstanceNormals[VertexInstanceID].ContainsNaN())
-			{
-				++InvalidNormalCount;
-			}
-		}
-		if (InvalidNormalCount == 0)
-		{
-			return;
-		}
-
-		const float InvalidNormalFraction = (float)InvalidNormalCount / (float)VertexInstanceNormals.Num();
-
-		// We always need to do this at this point as ComputeTangentsAndNormals will end up computing tangents anyway
-		// and our triangle tangents are always invalid
-		FStaticMeshOperations::ComputeTriangleTangentsAndNormals(MeshDescription);
-
-		const static FString MeshNormalRepairThresholdText = TEXT("USD.MeshNormalRepairThreshold");
-
-		// Make sure our normals can be rebuilt from MeshDescription::InitializeAutoGeneratedAttributes in case some tool needs them.
-		// Always force-compute tangents here as we never have them anyway. If we don't force them to be recomputed we'll get
-		// the worst of both worlds as some of these will be arbitrarily recomputed anyway, and some will be left invalid
-		EComputeNTBsFlags Options = GSkipMeshTangentComputation ? EComputeNTBsFlags::None
-																: EComputeNTBsFlags::UseMikkTSpace | EComputeNTBsFlags::Tangents;
-
-		// Repairing can take a long time for degenerate triangles (UE-194839)
-		Options |= EComputeNTBsFlags::IgnoreDegenerateTriangles;
-
-		if (InvalidNormalFraction >= GMeshNormalRepairThreshold)
-		{
-			Options |= EComputeNTBsFlags::Normals;
-			UE_LOG(
-				LogUsd,
-				Log,
-				TEXT("%f%% of the normals from Mesh prim '%s' are invalid or unusable. This is at or above the threshold of '%f%%' (configurable via "
-					 "the cvar '%s'), so normals will be discarded and fully recomputed. Note that when the cvar "
-					 "'USD.Subdiv.IgnoreNormalsWhenSubdividing' is true it is expected for subdivision meshes to have their normals discarded."),
-				InvalidNormalFraction * 100.0f,
-				*PrimPath,
-				GMeshNormalRepairThreshold * 100.0f,
-				*MeshNormalRepairThresholdText
-			);
-		}
-		else if (InvalidNormalFraction > 0)
-		{
-			UE_LOG(
-				LogUsd,
-				Log,
-				TEXT("%f%% of the normals from Mesh prim '%s' are invalid or unusable. This is below the threshold of '%f%%' (configurable via the "
-					 "cvar '%s'), so the invalid normals will be repaired."),
-				InvalidNormalFraction * 100.0f,
-				*PrimPath,
-				GMeshNormalRepairThreshold * 100.0f,
-				*MeshNormalRepairThresholdText
-			);
-		}
-		FStaticMeshOperations::ComputeTangentsAndNormals(MeshDescription, Options);
-	}
-
 	UStaticMesh* CreateStaticMesh(
 		const UE::FUsdPrim& Prim,
 		TArray<FMeshDescription>& LODIndexToMeshDescription,
@@ -669,6 +568,8 @@ namespace UsdGeomMeshTranslatorImpl
 
 		FSHAHash AllLODHash;
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(CreateStaticMesh::HashingMeshDescription);
+
 			FSHA1 SHA1;
 
 			for (const FMeshDescription& MeshDescription : LODIndexToMeshDescription)
@@ -699,41 +600,43 @@ namespace UsdGeomMeshTranslatorImpl
 			// could be tricky to do since some of these build steps are async/thread-pool based.
 			SHA1.Update(reinterpret_cast<const uint8*>(&bShouldEnableNanite), sizeof(bShouldEnableNanite));
 
-			// Hash the threshhold so that if we update it and reload we'll regenerate static meshes
-			SHA1.Update(reinterpret_cast<const uint8*>(&GMeshNormalRepairThreshold), sizeof(GMeshNormalRepairThreshold));
+			// Hash these so that if we update them and reload we'll regenerate static meshes
+			static IConsoleVariable* NormalThresholdCvar = IConsoleManager::Get().FindConsoleVariable(TEXT("USD.MeshNormalRepairThreshold"));
+			static IConsoleVariable* SkipTangentComputationCvar = IConsoleManager::Get().FindConsoleVariable(TEXT("USD.SkipMeshTangentComputation"));
+			const float MeshNormalRepairThreshold = NormalThresholdCvar ? NormalThresholdCvar->GetFloat() : 1.0f;
+			const bool SkipTangentComputation = SkipTangentComputationCvar && SkipTangentComputationCvar->GetBool();
+			SHA1.Update(reinterpret_cast<const uint8*>(&MeshNormalRepairThreshold), sizeof(MeshNormalRepairThreshold));
+			SHA1.Update(reinterpret_cast<const uint8*>(&SkipTangentComputation), sizeof(SkipTangentComputation));
 
 			SHA1.Final();
 			SHA1.GetHash(&AllLODHash.Hash[0]);
 		}
 
-		FString PrefixedAssetHash = UsdUtils::GetAssetHashPrefix(Prim, Context.bReuseIdenticalAssets) + AllLODHash.ToString();
+		FString PrefixedAssetHash = UsdUtils::GetAssetHashPrefix(Prim, Context.bShareAssetsForIdenticalPrims) + AllLODHash.ToString();
 
-		if (Context.AssetCache)
+		FString DesiredName = FPaths::GetBaseFilename(MeshName);
+
+		// If we're just opening the stage we'll ignore the LOD variant sets and just parse the first LOD mesh as a regular Mesh prim,
+		// which would have produced a static mesh just named something like "LOD0" or "LOD1". This should provide a more descriptive name,
+		// like "Cube_LOD0" instead
+		if (!Context.bAllowInterpretingLODs && UsdUtils::IsGeomMeshALOD(Prim))
 		{
-			StaticMesh = Cast<UStaticMesh>(Context.AssetCache->GetCachedAsset(PrefixedAssetHash));
+			DesiredName = FPaths::GetBaseFilename(FPaths::GetPath(MeshName)) + TEXT("_") + DesiredName;
 		}
 
-		if (!StaticMesh && bHasValidMeshDescription)
+		if (Context.UsdAssetCache)
 		{
-			bOutIsNew = true;
+			StaticMesh = Context.UsdAssetCache->GetOrCreateCachedAsset<UStaticMesh>(PrefixedAssetHash, DesiredName, Context.ObjectFlags, &bOutIsNew);
+		}
 
-			FName AssetName = MakeUniqueObjectName(
-				GetTransientPackage(),
-				UStaticMesh::StaticClass(),
-				*IUsdClassesModule::SanitizeObjectName(FPaths::GetBaseFilename(MeshName))
-			);
-			StaticMesh = NewObject<UStaticMesh>(
-				GetTransientPackage(),
-				AssetName,
-				Context.ObjectFlags | EObjectFlags::RF_Public | EObjectFlags::RF_Transient
-			);
-
+		if (StaticMesh && bHasValidMeshDescription && bOutIsNew)
+		{
 #if WITH_EDITOR
 			for (int32 LODIndex = 0; LODIndex < LODIndexToMeshDescription.Num(); ++LODIndex)
 			{
 				FMeshDescription& MeshDescription = LODIndexToMeshDescription[LODIndex];
 
-				RepairNormalsAndTangents(MeshName, MeshDescription);
+				UsdUtils::RepairNormalsAndTangents(MeshName, MeshDescription);
 
 				FStaticMeshSourceModel& SourceModel = StaticMesh->AddSourceModel();
 				SourceModel.BuildSettings.bGenerateLightmapUVs = false;
@@ -754,16 +657,6 @@ namespace UsdGeomMeshTranslatorImpl
 #endif	  // WITH_EDITOR
 
 			StaticMesh->SetLightingGuid();
-
-			if (Context.AssetCache)
-			{
-				Context.AssetCache->CacheAsset(PrefixedAssetHash, StaticMesh);
-			}
-		}
-		else
-		{
-			// FPlatformMisc::LowLevelOutputDebugStringf( TEXT("Mesh found in cache %s\n"), *StaticMesh->GetName() );
-			bOutIsNew = false;
 		}
 
 		return StaticMesh;
@@ -825,6 +718,12 @@ namespace UsdGeomMeshTranslatorImpl
 			StaticMesh.BuildFromMeshDescription(MeshDescription, LODResources);
 		}
 
+#if RHI_RAYTRACING
+		if (IsRayTracingAllowed() && StaticMesh.bSupportRayTracing)
+		{
+			StaticMesh.GetRenderData()->InitializeRayTracingRepresentationFromRenderingLODs();
+		}
+#endif	  // RHI_RAYTRACING
 #endif	  // WITH_EDITOR
 
 		return true;
@@ -851,7 +750,8 @@ namespace UsdGeomMeshTranslatorImpl
 			// Fetch the MeshDescription from the imported LODIndexToMeshDescription as StaticMesh.GetMeshDescription is editor-only
 			StaticMesh.GetRenderData()->Bounds = LODIndexToMeshDescription[0].GetBounds();
 			StaticMesh.CalculateExtendedBounds();
-#endif											   // WITH_EDITOR
+
+#endif	  // WITH_EDITOR
 		}
 	}
 }	 // namespace UsdGeomMeshTranslatorImpl
@@ -1705,19 +1605,13 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 
 		   if (StaticMesh)
 		   {
-			   if (Context->InfoCache)
+			   if (Context->PrimLinkCache)
 			   {
 				   const UE::FSdfPath& TargetPath = AlternativePrimToLinkAssetsTo.IsSet() ? AlternativePrimToLinkAssetsTo.GetValue() : PrimPath;
-				   Context->InfoCache->LinkAssetToPrim(TargetPath, StaticMesh);
+				   Context->PrimLinkCache->LinkAssetToPrim(TargetPath, StaticMesh);
 			   }
 
-#if WITH_EDITOR
-			   StaticMesh->NaniteSettings.bEnabled = bShouldEnableNanite;
-			   StaticMesh->NaniteSettings.NormalPrecision = GNaniteSettingsNormalPrecision;
-			   StaticMesh->NaniteSettings.TangentPrecision = GNaniteSettingsTangentPrecision;
-#endif	  // WITH_EDITOR
-
-			   if (UUsdMeshAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData<UUsdMeshAssetUserData>(StaticMesh))
+			   if (UUsdMeshAssetUserData* UserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData<UUsdMeshAssetUserData>(StaticMesh))
 			   {
 				   UserData->PrimvarToUVIndex = LODIndexToMaterialInfo[0].PrimvarToUVIndex;	   // We use the same primvar mapping for all LODs
 				   UserData->PrimPaths.AddUnique(PrimPathString);
@@ -1754,17 +1648,23 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 			   // Only the original creator of the prim at creation time gets to set the material assignments
 			   // directly on the mesh, all others prims ensure their materials via material overrides on the
 			   // components
-			   if (bIsNew)
+			   if (bIsNew && Context->UsdAssetCache && Context->PrimLinkCache)
 			   {
+#if WITH_EDITOR
+				   StaticMesh->NaniteSettings.bEnabled = bShouldEnableNanite;
+				   StaticMesh->NaniteSettings.NormalPrecision = GNaniteSettingsNormalPrecision;
+				   StaticMesh->NaniteSettings.TangentPrecision = GNaniteSettingsTangentPrecision;
+#endif	  // WITH_EDITOR
+
 				   UsdGeomMeshTranslatorImpl::ProcessStaticMeshMaterials(
 					   GetPrim(),
 					   LODIndexToMaterialInfo,
 					   *StaticMesh,
-					   *Context->AssetCache.Get(),
-					   Context->InfoCache.Get(),
+					   *Context->UsdAssetCache,
+					   *Context->PrimLinkCache,
 					   Context->Time,
 					   Context->ObjectFlags,
-					   Context->bReuseIdenticalAssets
+					   Context->bShareAssetsForIdenticalPrims
 				   );
 
 #if WITH_EDITOR
@@ -1781,6 +1681,8 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 			   else
 			   {
 				   // Setup collision on existing mesh in case the collision settings have changed
+				   // TODO: This is recomputing collision and dirtying the StaticMesh every time, even if the mesh
+				   // is reused from the AssetCache. Maybe we can do that only when collision settings actually change?
 				   UE::UsdCollision::Private::SetupSimpleCollision(GetPrim(), *StaticMesh);
 			   }
 		   }
@@ -1854,31 +1756,14 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 			// Build failed, abandon mesh
 			if (!bSuccess)
 			{
-				Context->InfoCache->RemoveAllAssetPrimLinks(StaticMesh);
-
-				FString Hash = Context->AssetCache->GetHashForAsset(StaticMesh);
-				if (!Hash.IsEmpty())
-				{
-					Context->AssetCache->RemoveAssetReference(StaticMesh);
-					UObject* RemovedAsset = Context->AssetCache->RemoveAsset(Hash);
-					if (ensure(RemovedAsset))
-					{
-						const TCHAR* NewName = nullptr;
-						UObject* NewOuter = GetTransientPackage();
-						RemovedAsset->Rename(NewName, NewOuter);
-
-						StaticMesh = nullptr;
-
-						UE_LOG(
-							LogUsd,
-							Warning,
-							TEXT("Discarding StaticMesh generated for prim '%s' as it didn't produce any valid RenderData (likely all triangles "
-								 "were degenerate)"),
-							*PrimPath.GetString()
-						);
-					}
-				}
-
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT("Discarding StaticMesh generated for prim '%s' as it didn't produce any valid RenderData (likely all triangles "
+						 "were degenerate)"),
+					*PrimPath.GetString()
+				);
+				UsdUnreal::TranslatorUtils::AbandonFailedAsset(StaticMesh, Context->UsdAssetCache.Get(), Context->PrimLinkCache);
 				return false;
 			}
 
@@ -1978,15 +1863,32 @@ void FGeomMeshCreateAssetsTaskChain::SetupTasks()
 		   }
 		   bCollectedMetadata = true;
 
-		   // If we have at least one valid LOD, we should keep going
-		   for (const FMeshDescription& MeshDescription : LODIndexToMeshDescription)
+		   // Strip empty MeshDescriptions: If we have some valid LODs and some empty our StaticMesh RenderData
+		   // will end up with NaN bounds and will have to be discarded anyway
+		   bool bHasValidLOD = false;
+		   for (int32 LODIndex = LODIndexToMeshDescription.Num() - 1; LODIndex >= 0; --LODIndex)
 		   {
-			   if (!MeshDescription.IsEmpty())
+			   const FMeshDescription& MeshDescription = LODIndexToMeshDescription[LODIndex];
+			   if (MeshDescription.IsEmpty())
 			   {
-				   return true;
+				   LODIndexToMeshDescription.RemoveAt(LODIndex, EAllowShrinking::No);
+				   LODIndexToMaterialInfo.RemoveAt(LODIndex, EAllowShrinking::No);
+				   UE_LOG(
+					   LogUsd,
+					   Warning,
+					   TEXT("Ignoring mesh data collected for LOD%d of prim '%s' as it is empty. Is the prim invisible?"),
+					   LODIndex,
+					   bParseLODs ? *GetPrim().GetParent().GetPrimPath().GetString() : *GetPrim().GetPrimPath().GetString()
+				   );
+			   }
+			   else
+			   {
+				   bHasValidLOD = true;
 			   }
 		   }
-		   return false;
+
+		   // If we have at least one valid LOD, we should keep going
+		   return bHasValidLOD;
 	   });
 
 	FBuildStaticMeshTaskChain::SetupTasks();
@@ -2001,15 +1903,22 @@ void FUsdGeomMeshTranslator::CreateAssets()
 		return Super::CreateAssets();
 	}
 
+	if (ShouldSkipInstance())
+	{
+		return;
+	}
+
+	UE::FUsdPrim Prim = GetPrim();
+
 	// Don't bother generating assets if we're going to just draw some bounds for this prim instead
-	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(Prim);
 	if (DrawMode != EUsdDrawMode::Default)
 	{
 		CreateAlternativeDrawModeAssets(DrawMode);
 		return;
 	}
 
-	if (UsdUtils::IsCollisionMesh(GetPrim()))
+	if (UsdUtils::IsCollisionMesh(Prim))
 	{
 		return;
 	}
@@ -2019,7 +1928,8 @@ void FUsdGeomMeshTranslator::CreateAssets()
 		return;
 	}
 
-	TSharedRef<FGeomMeshCreateAssetsTaskChain> AssetsTaskChain = MakeShared<FGeomMeshCreateAssetsTaskChain>(Context, PrimPath);
+	UE::FSdfPath PrototypePrimPath = GetPrototypePrimPath();
+	TSharedRef<FGeomMeshCreateAssetsTaskChain> AssetsTaskChain = MakeShared<FGeomMeshCreateAssetsTaskChain>(Context, PrimPath, PrototypePrimPath);
 
 	Context->TranslatorTasks.Add(MoveTemp(AssetsTaskChain));
 }
@@ -2172,7 +2082,7 @@ TSet<UE::FSdfPath> FUsdGeomMeshTranslator::CollectAuxiliaryPrims() const
 
 	if (!Context->bIsBuildingInfoCache)
 	{
-		return Context->InfoCache->GetAuxiliaryPrims(PrimPath);
+		return Context->UsdInfoCache->GetAuxiliaryPrims(PrimPath);
 	}
 
 	TSet<UE::FSdfPath> Result;

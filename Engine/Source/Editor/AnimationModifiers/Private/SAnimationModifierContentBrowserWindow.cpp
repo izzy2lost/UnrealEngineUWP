@@ -321,7 +321,6 @@ class SAnimSequencesToBeModifiedViewer : public SCompoundWidget
 	void Construct(const FArguments& Args)
 	{
 		AnimSequencesToBeModifiedListView = SNew(SListView<UAnimSequence*>)
-				.ItemHeight(20.0f)
 				.ListItemsSource(&AnimSequencesToBeModifiedList)
 				.SelectionMode(ESelectionMode::None)
 				.OnGenerateRow(this, &SAnimSequencesToBeModifiedViewer::OnGenerateWidgetForRow);

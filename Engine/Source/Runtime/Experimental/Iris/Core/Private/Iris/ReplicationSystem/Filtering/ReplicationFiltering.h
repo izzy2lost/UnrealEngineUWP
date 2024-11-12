@@ -4,18 +4,22 @@
 
 #include "CoreTypes.h"
 #include "Net/Core/NetBitArray.h"
+#include "Iris/ReplicationSystem/Filtering/SharedConnectionFilterStatus.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
+#include "Iris/ReplicationSystem/Filtering/ObjectScopeHysteresisUpdater.h"
+#include "Iris/ReplicationSystem/Filtering/ReplicationFilteringConfig.h"
 #include "Iris/ReplicationSystem/NetObjectGroupHandle.h"
+#include "Net/Core/Connection/ConnectionHandle.h"
 #include "Containers/Array.h"
 #include "UObject/StrongObjectPtr.h"
 
+class UReplicationFilteringConfig;
 class UReplicationSystem;
 namespace UE::Net
 {
 	typedef uint32 FNetObjectFilterHandle;
 	namespace Private
 	{
-		class FDeltaCompressionBaselineInvalidationTracker;
 		class FNetRefHandleManager;
 		class FNetObjectGroups;
 		class FReplicationConnections;
@@ -40,13 +44,12 @@ private:
 
 struct FReplicationFilteringInitParams
 {
-	TObjectPtr<UReplicationSystem> ReplicationSystem;
+	TObjectPtr<UReplicationSystem> ReplicationSystem = nullptr;
 	const FNetRefHandleManager* NetRefHandleManager = nullptr;
 	FNetObjectGroups* Groups = nullptr;
-	FDeltaCompressionBaselineInvalidationTracker* BaselineInvalidationTracker = nullptr;
 	FReplicationConnections* Connections = nullptr;
+	FInternalNetRefIndex MaxInternalNetRefIndex = 0;
 	uint32 MaxGroupCount = 0;
-	uint32 MaxObjectCount = 0;
 };
 
 class FReplicationFiltering
@@ -55,20 +58,17 @@ public:
 	FReplicationFiltering();
 
 	void Init(FReplicationFilteringInitParams& Params);
+	void Deinit();
+
+	/** Called when the maximum InternalNetRefIndex increased and we need to realloc our lists */
+	void OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex);
 
 	/**
-	 * First pass to determine which objects are relevant to each connection.
-	 * Executes group, owner and connection filtering then any raw dynamic filters.
+	 * Executes group, owner and connection filtering then any dynamic filters.
 	 * At the end any object that is not relevant to at least one connection will be removed from the scoped object list.
-	 * Exception to this rule are always relevant (e.g. non-filtered) objects or objects set to be filtered by a fragment-based dynamic filter.
+	 * Exception to this rule are always relevant (e.g. non-filtered) objects.
 	 */
-	void FilterPrePoll();
-
-	/**
-	 * Second pass to determine which objects are relevant to each connection.
-	 * Executes only fragment-based dynamic filters.
-	 */
-	void FilterPostPoll();
+	void Filter();
 
 	/**  Returns the list of objects relevant to a given connection. This represents the global scope list minus the objects that were filtered out for the given connection. */
 	const FNetBitArrayView GetRelevantObjectsInScope(uint32 ConnectionId) const
@@ -142,10 +142,8 @@ public:
 	void RemoveSubObjectFilter(FNetObjectGroupHandle GroupHandle);
 	bool IsSubObjectFilterGroup(FNetObjectGroupHandle GroupHandle) const { return GroupHandle.IsValid() && SubObjectFilterGroups.GetBit(GroupHandle.GetGroupIndex()); }
 
-	void SetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, ENetFilterStatus ReplicationStatus);
-	void SetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, const FNetBitArrayView& ConnectionsBitArray, ENetFilterStatus);
-	void SetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, uint32 ConnectionId, ENetFilterStatus ReplicationStatus);
-	bool GetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, uint32 ConnectionId, ENetFilterStatus& OutReplicationStatus) const;
+	void SetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, FConnectionHandle ConnectionHandle, ENetFilterStatus ReplicationStatus);
+	bool GetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, uint32 ParentConnectionId, ENetFilterStatus& OutReplicationStatus) const;
 
 	/** Print the filter information we have regarding the passed ObjectIndex and his relation to the passed Connection */
 	FString PrintFilterObjectInfo(FInternalNetRefIndex ObjectIndex, uint32 ConnectionId) const;
@@ -153,6 +151,8 @@ public:
 private:
 	struct FPerConnectionInfo
 	{
+		void Deinit();
+
 		// Objects filtered depending on owning connection or user set connection filtering
 		FNetBitArray ConnectionFilteredObjects;
 		// Objects filtered out due to one or more exclusion groups it belongs to is filtered out
@@ -163,12 +163,14 @@ private:
 		FNetBitArray GroupIncludedObjects;
 		// Objects in scope after all kinds of filtering, including dynamic filtering, has been applied
 		FNetBitArray ObjectsInScope;
-
-		// Which objects are filtered out after dynamic filters and inclusion groups have been processed.
+		// Which objects are filtered out after dynamic filters have been processed.
 		FNetBitArray DynamicFilteredOutObjects;
-
-		// List of objects currently filtered out after processing dynamic filter passes and inclusion groups
+		// List of objects currently filtered out after processing dynamic filter passes. This could be temporary allocations in UpdateDynamicFiltering() but does require one bitarray per connection.
 		FNetBitArray InProgressDynamicFilteredOutObjects;
+		// Which objects are filtered out after dynamic filters, inclusion groups and hysteresis have been processed.
+		FNetBitArray DynamicFilteredOutObjectsHysteresisAdjusted;
+		// Updater of hysteresis for objects being dynamically filtered out
+		FObjectScopeHysteresisUpdater HysteresisUpdater;
 	};
 
 	struct FPerObjectInfo
@@ -178,30 +180,41 @@ private:
 	};
 
 	static constexpr uint32 UsedPerObjectInfoStorageGrowSize = 32; // 256 bytes, 1024 indices
-	typedef uint16 PerObjectInfoIndexType;
+	typedef uint32 PerObjectInfoIndexType;
 
 	struct FPerGroupInfo
 	{
 		PerObjectInfoIndexType ConnectionStateIndex;
 	};
 
+	class FPerSubObjectFilterGroupInfo
+	{
+	public:
+		// Tracks parent and child connection filter status. Necessary for splitscreen support.
+		FSharedConnectionFilterStatusCollection ConnectionFilterStatus;
+		// Index to storage for parent connection bit array. 
+		PerObjectInfoIndexType ConnectionStateIndex = 0;
+	};
+
 	struct FFilterInfo
 	{
-		ENetFilterType Type = ENetFilterType::PrePoll_Raw;
 		TStrongObjectPtr<UNetObjectFilter> Filter;
 		FName Name;
 		uint32 ObjectCount = 0;
-		// Objects with this filter set.
-		FNetBitArray FilteredObjects;
 	};
 
 private:
 	class FUpdateDirtyObjectsBatchHelper;
 	friend FNetObjectFilteringInfoAccessor;
+	friend FPerSubObjectFilterGroupInfo;
 	
 	static void StaticChecks();
 
 	void InitFilters();
+	void InitObjectScopeHysteresis();
+
+	void SetNetObjectListsSize(FInternalNetRefIndex MaxInternalIndex);
+	void SetPerConnectionListsSize(FPerConnectionInfo& ConnectionInfo, FInternalNetRefIndex NewMaxInternalIndex);
 
 	void InitNewConnections();
 	void ResetRemovedConnections();
@@ -211,17 +224,19 @@ private:
 	void UpdateGroupInclusionFiltering();
 	void UpdateSubObjectFilters();
 
-	void UpdateDynamicFilters(ENetFilterType FilterPass);
-	void PreUpdateDynamicFiltering(ENetFilterType FilterType);
-	void UpdateDynamicFiltering(ENetFilterType FilterType);
-	void PostUpdateDynamicFiltering(ENetFilterType FilterType);
+	void UpdateDynamicFilters();
+	void PreUpdateDynamicFiltering();
+	void UpdateDynamicFiltering();
+	void PostUpdateDynamicFiltering();
+
+	void PreUpdateObjectScopeHysteresis();
+	void PostUpdateObjectScopeHysteresis();
+	void ClearObjectsFromHysteresis();
 
 	/** Build the list of always relevant objects + objects that are currently relevant to at least one connection. */
 	void FilterNonRelevantObjects();
 
 	bool HasDynamicFilters() const;
-	bool HasRawFilters() const;
-	bool HasFragmentFilters() const;
 
 	// Helper to update and reset group exclusion filter effects if objects are removed from a filter or after a filter status change, returns true if the group filter was changed
 	bool ClearGroupExclusionFilterEffectsForObject(uint32 ObjectIndex, uint32 ConnectionId);
@@ -241,6 +256,12 @@ private:
 
 	void SetPerObjectInfoFilterStatus(FPerObjectInfo& ObjectInfo, ENetFilterStatus ReplicationStatus);
 
+	// SubObjectGroup filtering support
+	FPerSubObjectFilterGroupInfo& CreatePerSubObjectGroupFilterInfo(FNetObjectGroupHandle::FGroupIndexType GroupIndex);
+	void DestroyPerSubObjectGroupFilterInfo(FNetObjectGroupHandle::FGroupIndexType GroupIndex);
+	FPerSubObjectFilterGroupInfo* GetPerSubObjectFilterGroupInfo(FNetObjectGroupHandle::FGroupIndexType GroupIndex);
+	const FPerSubObjectFilterGroupInfo* GetPerSubObjectFilterGroupInfo(FNetObjectGroupHandle::FGroupIndexType GroupIndex) const;
+
 	ENetFilterStatus GetConnectionFilterStatus(const FPerObjectInfo& ObjectInfo, uint32 ConnectionId) const;
 	bool IsAnyConnectionFilterStatusAllowed(const FPerObjectInfo& ObjectInfo) const;
 	bool IsAnyConnectionFilterStatusDisallowed(const FPerObjectInfo& ObjectInfo) const;
@@ -257,27 +278,60 @@ private:
 
 	void RemoveFromDynamicFilter(uint32 ObjectIndex, uint32 FilterIndex);
 
-	void NotifyFiltersOfDirtyObjects(ENetFilterType FilterType);
+	void NotifyFiltersOfDirtyObjects();
 	void BatchNotifyFiltersOfDirtyObjects(FUpdateDirtyObjectsBatchHelper& BatchHelper, const uint32* ObjectIndices, uint32 ObjectCount);
-
-	void InvalidateBaselinesForObject(uint32 ObjectIndex, uint32 NewOwningConnectionId, uint32 PrevOwningConnectionId);
 
 	/** Returns all the filtering infos. */
 	TArrayView<FNetObjectFilteringInfo> GetNetObjectFilteringInfos();
 
+	uint8 GetObjectScopeHysteresisFrameCount(FName Profile) const;
+
+	bool HasSubObjectInScopeWithFilteredOutRootObject(FNetBitArrayView Objects) const;
+	bool HasSubObjectInScopeWithFilteredOutRootObject(uint32 connectionId) const;
+
 private:
+	enum EHysteresisProcessingMode : uint32
+	{
+		Disabled,
+		Enabled,
+	};
+
+	// Scope hysteresis state. Hysteresis is applied to objects going out of scope for objects that so desire.
+	struct FObjectScopeHysteresisState
+	{
+	public:
+		void ClearFromHysteresis(FInternalNetRefIndex NetRefIndex);
+
+		// Processing mode
+		EHysteresisProcessingMode Mode = EHysteresisProcessingMode::Disabled;
+		// Which connection ID to start with for updating.
+		uint32 ConnectionStartId = 0;
+		// Stride for connection update throttling.
+		uint32 ConnectionIdStride = 1;
+
+		// Approximate number of objects that should be cleared from hysteresis.
+		uint32 ObjectsToClearCount = 0;
+
+		// Objects to clear from hysteresis due to being destroyed or removed from dynamic filtering.
+		FNetBitArray ObjectsToClear;
+
+		// Objects that should not be added to hysteresis this frame. Example use case is newly added objects that become filtered out on the first frame.
+		FNetBitArray ObjectsExemptFromHysteresis;
+	};
+
 	// Used for ObjectIndexToDynamicFilterIndex lookup
 	static constexpr uint8 InvalidDynamicFilterIndex = 255U;
+
+	// Config
+	TStrongObjectPtr<const UReplicationFilteringConfig> Config;
 
 	// General
 	TObjectPtr<UReplicationSystem> ReplicationSystem = nullptr;
 	const FNetRefHandleManager* NetRefHandleManager = nullptr;
+	uint32 FrameIndex = 0;
 
 	// Groups
 	FNetObjectGroups* Groups = nullptr;
-
-	// Baseline invalidation tracker
-	FDeltaCompressionBaselineInvalidationTracker* BaselineInvalidationTracker = nullptr;
 
 	// Connection specifics
 	FReplicationConnections* Connections = nullptr;
@@ -286,7 +340,7 @@ private:
 	FNetBitArray NewConnections;
 
 	// Object specifics
-	uint32 MaxObjectCount = 0;
+	FInternalNetRefIndex MaxInternalNetRefIndex = 0;
 	uint32 WordCountForObjectBitArrays = 0;
 
 	// Filter specifics
@@ -308,6 +362,12 @@ private:
 	TArray<FPerGroupInfo> GroupInfos;
 	uint32 MaxGroupCount = 0;
 
+	// SubObject filter groups
+	TMap<uint32, FPerSubObjectFilterGroupInfo> SubObjectFilterGroupInfos;
+
+	// Hysteresis frame counts for dynamically filtered objects
+	TArray<uint8> ObjectScopeHysteresisFrameCounts;
+
 	/** NetObjectGroups used for filtering out objects. */
 	FNetBitArray ExclusionFilterGroups;
 
@@ -320,9 +380,11 @@ private:
 	/** Inclusion filtering groups with newly added members and that need to include objects for at least one connection. */
 	FNetBitArray DirtyInclusionFilterGroups;
 
-	//$IRIS TODO: These need better documentation
+	// Group indices which are subobject filter groups
 	FNetBitArray SubObjectFilterGroups;
+	// Group indices which are subobject filter groups and in need of updating
 	FNetBitArray DirtySubObjectFilterGroups;
+	// Object indices with a connection filter
 	FNetBitArray AllConnectionFilteredObjects;
 
 	TArray<PerObjectInfoIndexType> ObjectIndexToPerObjectInfoIndex;
@@ -338,29 +400,23 @@ private:
 	FNetBitArray DynamicFilterEnabledObjects;
 	FNetBitArray ObjectsRequiringDynamicFilterUpdate;
 
+	// Object scope hystereris
+	FObjectScopeHysteresisState HysteresisState;
+
 	uint32 bHasNewConnection : 1;
 	uint32 bHasRemovedConnection : 1;
 	uint32 bHasDirtyConnectionFilter: 1;
 	uint32 bHasDirtyOwner : 1;
 	uint32 bHasDynamicFilters : 1;
-	uint32 bHasDynamicRawFilters : 1;
-	uint32 bHasDynamicFragmentFilters : 1;
 	uint32 bHasDirtyExclusionFilterGroup : 1;
 	uint32 bHasDirtyInclusionFilterGroup : 1;
+	// Is true if any initialized DynamicFilter has the NeedsUpdate trait
+	uint32 bHasDynamicFiltersWithUpdateTrait : 1;
 };
 
 inline bool FReplicationFiltering::HasDynamicFilters() const
 {
 	return bHasDynamicFilters;
-}
-
-inline bool FReplicationFiltering::HasRawFilters() const
-{
-	return bHasDynamicRawFilters;
-}
-inline bool FReplicationFiltering::HasFragmentFilters() const
-{
-	return bHasDynamicFragmentFilters;
 }
 
 }

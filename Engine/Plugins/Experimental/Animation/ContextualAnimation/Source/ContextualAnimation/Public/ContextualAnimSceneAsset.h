@@ -105,13 +105,12 @@ public:
 
 	FTransform GetIKTargetTransformForRoleAtTime(int32 AnimSetIdx, FName Role, FName TrackName, float Time) const;
 
-	const FContextualAnimIKTargetDefContainer& GetIKTargetDefsForRole(const FName& Role) const;
-
 	const FContextualAnimTrack* FindFirstAnimTrackForRoleThatPassesSelectionCriteria(const FName& Role, const FContextualAnimSceneBindingContext& Primary, const FContextualAnimSceneBindingContext& Querier) const;
 
 	FORCEINLINE FName GetName() const { return Name; }
 	FORCEINLINE const TArray<FContextualAnimWarpPointDefinition>& GetWarpPointDefinitions() const { return WarpPointDefinitions; }
 	FORCEINLINE int32 GetNumAnimSets() const { return AnimSets.Num(); }
+	FORCEINLINE bool ShouldSyncAnimations() const { return bSyncAnimations; }
 
 protected:
 
@@ -121,11 +120,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Defaults")
 	TArray<FContextualAnimSet> AnimSets;
 
-	UPROPERTY(EditAnywhere, Category = "Defaults")
-	TMap<FName, FContextualAnimIKTargetDefContainer> RoleToIKTargetDefsMap;
-
 	UPROPERTY(EditAnywhere, Category = "Defaults", meta = (TitleProperty = "WarpTargetName"))
 	TArray<FContextualAnimWarpPointDefinition> WarpPointDefinitions;
+
+	UPROPERTY(EditAnywhere, Category = "Defaults")
+	bool bSyncAnimations = true;
 
 	void GenerateAlignmentTracks(UContextualAnimSceneAsset& SceneAsset);
 	void GenerateIKTargetTracks(UContextualAnimSceneAsset& SceneAsset);
@@ -234,6 +233,7 @@ public:
 	FORCEINLINE int32 GetSampleRate() const { return SampleRate; }
 	FORCEINLINE float GetRadius() const { return Radius; }
 	FORCEINLINE bool ShouldPrecomputeAlignmentTracks() const { return bPrecomputeAlignmentTracks; }
+	FORCEINLINE bool ShouldIgnoreClientMovementErrorChecksAndCorrection() const { return bIgnoreClientMovementErrorChecksAndCorrection; }
 
 	const TArray<TEnumAsByte<ECollisionChannel>>& GetCollisionChannelsToIgnoreForRole(FName Role) const;
 	
@@ -241,6 +241,8 @@ public:
 	{
 		return AttachmentParams.FindByPredicate([Role](const FContextualAnimAttachmentParams& Item) { return Item.Role == Role; });
 	}
+
+	const FContextualAnimIKTargetParams& GetIKTargetParams() const { return IKTargetParams; }
 
 	bool HasValidData() const { return RolesAsset != nullptr && Sections.Num() > 0 && Sections[0].AnimSets.Num() > 0; }
 
@@ -285,7 +287,7 @@ public:
 
 	const FContextualAnimTrack* FindAnimTrackByAnimation(const UAnimSequenceBase* Animation) const;
 
-	const FContextualAnimIKTargetDefContainer& GetIKTargetDefsForRoleInSection(int32 SectionIdx, const FName& Role) const;
+	const FContextualAnimIKTargetDefContainer& GetIKTargetDefsForRole(const FName& Role) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Contextual Anim|Scene Asset")
 	void GetAlignmentPointsForSecondaryRole(EContextualAnimPointType Type, int32 SectionIdx, const FContextualAnimSceneBindingContext& Primary, TArray<FContextualAnimPoint>& OutResult) const;
@@ -347,6 +349,12 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	TArray<FContextualAnimAttachmentParams> AttachmentParams;
+
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayName = "IK Target Params"))
+	FContextualAnimIKTargetParams IKTargetParams;
+
+	UPROPERTY(EditAnywhere, Category = "Settings", AdvancedDisplay)
+	bool bIgnoreClientMovementErrorChecksAndCorrection = true;
 
 	/** Whether we should extract and cache alignment tracks off line. */
 	UPROPERTY(EditAnywhere, Category = "Settings", AdvancedDisplay)

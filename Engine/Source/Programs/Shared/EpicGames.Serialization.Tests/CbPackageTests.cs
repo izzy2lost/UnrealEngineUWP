@@ -41,15 +41,15 @@ namespace EpicGames.Serialization.Tests
 
 			using CbPackageBuilder builder = new();
 			builder.AddAttachment(rootHash, CbPackageAttachmentFlags.IsObject, rootObject.GetView().ToArray());
-			byte[] bytes = await builder.ToByteArray();
+			byte[] bytes = await builder.ToByteArrayAsync();
 
 			await using MemoryStream ms = new MemoryStream(bytes);
-			CbPackageReader reader = await CbPackageReader.Create(ms);
+			CbPackageReader reader = await CbPackageReader.CreateAsync(ms);
 
 			Assert.AreEqual(rootHash, reader.RootHash);
 			Assert.AreEqual(rootObject, reader.RootObject);
 
-			await foreach ((CbPackageAttachmentEntry, byte[]) _ in reader.IterateAttachments())
+			await foreach ((CbPackageAttachmentEntry, byte[]) _ in reader.IterateAttachmentsAsync())
 			{
 				Assert.Fail("No Attachments expected");
 			}
@@ -78,16 +78,16 @@ namespace EpicGames.Serialization.Tests
 			builder.AddAttachment(simpleHash, CbPackageAttachmentFlags.IsObject, simpleObject.GetView().ToArray());
 			builder.AddAttachment(blobHash, 0, blob);
 
-			byte[] bytes = await builder.ToByteArray();
+			byte[] bytes = await builder.ToByteArrayAsync();
 
 			await using MemoryStream ms = new MemoryStream(bytes);
-			CbPackageReader reader = await CbPackageReader.Create(ms);
+			CbPackageReader reader = await CbPackageReader.CreateAsync(ms);
 
 			Assert.AreEqual(rootHash, reader.RootHash);
 			Assert.AreEqual(rootObject, reader.RootObject);
 
 			int countOfAttachments = 0;
-			await foreach ((CbPackageAttachmentEntry entry, byte[] attachmentBytes) in reader.IterateAttachments())
+			await foreach ((CbPackageAttachmentEntry entry, byte[] attachmentBytes) in reader.IterateAttachmentsAsync())
 			{
 				countOfAttachments++;
 				if (entry.AttachmentHash == blobHash)
@@ -120,12 +120,12 @@ namespace EpicGames.Serialization.Tests
 			IoHash simpleHash = IoHash.Compute(simpleObject.GetView().Span);
 			packageBuilder.AddAttachment(simpleHash, CbPackageAttachmentFlags.IsObject, simpleObject.GetView().ToArray());
 
-			byte[] buf = await packageBuilder.ToByteArray();
+			byte[] buf = await packageBuilder.ToByteArrayAsync();
 			await using MemoryStream ms = new MemoryStream(buf);
 
 			try
 			{
-				await CbPackageReader.Create(ms);
+				await CbPackageReader.CreateAsync(ms);
 				Assert.Fail("Exception should be thrown");
 			}
 			catch (Exception)

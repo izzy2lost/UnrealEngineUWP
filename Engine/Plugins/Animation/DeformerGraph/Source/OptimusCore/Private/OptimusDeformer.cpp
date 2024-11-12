@@ -57,6 +57,7 @@
 
 #include <limits>
 
+#include "OptimusDeformerDynamicInstanceManager.h"
 #include "OptimusFunctionNodeGraphHeader.h"
 #include "Nodes/OptimusNode_FunctionReference.h"
 #include "Nodes/OptimusNode_SubGraphReference.h"
@@ -227,9 +228,9 @@ UOptimusVariableDescription* UOptimusDeformer::AddVariable(
 		InDataTypeRef.Set(FOptimusDataTypeRegistry::Get().FindType(*FDoubleProperty::StaticClass()));
 	}
 
-	// Is this data type compatible with resources?
+	// Is this data type compatible with variables?
 	FOptimusDataTypeHandle DataType = InDataTypeRef.Resolve();
-	if (!DataType.IsValid() || !EnumHasAnyFlags(DataType->UsageFlags, EOptimusDataTypeUsageFlags::Variable))
+	if (!DataType.IsValid() || !EnumHasAnyFlags(DataType->UsageFlags, EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::Property))
 	{
 		UE_LOG(LogOptimusCore, Error, TEXT("Invalid data type for variables."));
 		return nullptr;
@@ -421,9 +422,6 @@ bool UOptimusDeformer::SetVariableDataType(
 		return false;
 	}
 	
-	// Make sure the value data container is still large enough to hold the property value.
-	InVariableDesc->ValueData.Reset();
-	InVariableDesc->EnsureValueContainer();
 	return true;
 }
 
@@ -576,7 +574,7 @@ bool UOptimusDeformer::SetVariableDataTypeDirect(
 	
 	if (InVariableDesc->DataType != InDataType)
 	{
-		InVariableDesc->DataType = InDataType;
+		InVariableDesc->SetDataType(InDataType);
 		Notify(EOptimusGlobalNotifyType::VariableTypeChanged, InVariableDesc);
 		(void)MarkPackageDirty();
 	}
@@ -1499,7 +1497,18 @@ bool UOptimusDeformer::Compile()
 		return false;
 	}
 
-	ComputeGraphs.Reset();
+	auto ClearCompiledData = [&]()
+	{
+		for (FOptimusComputeGraphInfo& GraphInfo : ComputeGraphs )
+		{
+			Optimus::RemoveObject(GraphInfo.ComputeGraph);
+		}
+		ComputeGraphs.Reset();
+		DataInterfacePropertyOverrideMap.Reset();
+		ValueMap.Reset();
+	};
+
+	ClearCompiledData();
 	
 	CompileBeginDelegate.Broadcast(this);
 	
@@ -1526,8 +1535,37 @@ bool UOptimusDeformer::Compile()
 	{
 		if (Graph->GetGraphType() != EOptimusNodeGraphType::Function)
 		{
-			TArray<FOptimusComputeGraphInfo> ComputeGraphInfos = CompileNodeGraphToComputeGraphs(Graph, ErrorReporter);
-			ComputeGraphs.Append(ComputeGraphInfos);
+			FOptimusNodeGraphCompilationResult Result = CompileNodeGraphToComputeGraphs(Graph, ErrorReporter);
+			ComputeGraphs.Append(Result.ComputeGraphInfos);
+
+			DataInterfacePropertyOverrideMap.Append(Result.DataInterfacePropertyOverrideMap);
+
+			// Merge Value Maps
+			for (const TPair<FOptimusValueIdentifier, FOptimusValueDescription>& Pair : Result.ValueMap)
+			{
+				const FOptimusValueIdentifier& ValueId = Pair.Key;
+				const FOptimusValueDescription& ValueDescription = Pair.Value;
+				
+				if (FOptimusValueDescription* ExistingDescription = ValueMap.Find(ValueId))
+				{
+					if (EnumHasAnyFlags(ValueDescription.ValueUsage, EOptimusValueUsage::CPU) &&
+						(!EnumHasAnyFlags(ExistingDescription->ValueUsage, EOptimusValueUsage::CPU)))
+					{
+						ExistingDescription->ValueUsage |= EOptimusValueUsage::CPU;
+						ExistingDescription->Value = ValueDescription.Value;
+					}
+					else if (EnumHasAnyFlags(ValueDescription.ValueUsage, EOptimusValueUsage::GPU) &&
+						(!EnumHasAnyFlags(ExistingDescription->ValueUsage, EOptimusValueUsage::GPU)))
+					{
+						ExistingDescription->ValueUsage |= EOptimusValueUsage::GPU;
+						ExistingDescription->ShaderValue = ValueDescription.ShaderValue;
+					}
+				}
+				else
+				{
+					ValueMap.Add(Pair);
+				}
+			}
 		}
 	}
 
@@ -1535,7 +1573,7 @@ bool UOptimusDeformer::Compile()
 
 	if (Status == EOptimusDeformerStatus::HasErrors)
 	{
-		ComputeGraphs.Reset();
+		ClearCompiledData();
 		return false;
 	}
 	
@@ -1619,7 +1657,7 @@ struct FOptimusInstancedPin
 	}
 };
 
-TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGraphs(
+FOptimusNodeGraphCompilationResult UOptimusDeformer::CompileNodeGraphToComputeGraphs(
 	const UOptimusNodeGraph* InNodeGraph,
 	TFunction<void(EOptimusDiagnosticLevel, FText, const UObject*)> InErrorReporter
 	)
@@ -2093,12 +2131,97 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 				}
 				else if (Cast<const IOptimusValueProvider>(SourceNode))
 				{
-					LinksToInsertCopyKernel.FindOrAdd(SourcePin).Add(TargetPin);
+					if (const IOptimusPropertyPinProvider* PropertyPinProvider = Cast<const IOptimusPropertyPinProvider>(TargetNode))
+					{
+						// Property pins are CPU only, no need to involve a kernel
+						if (!PropertyPinProvider->GetPropertyPins().Contains(TargetPin.Pin))
+						{
+							LinksToInsertCopyKernel.FindOrAdd(SourcePin).Add(TargetPin);
+						}
+					}
 				}
 			}
 		}
 	}
 
+	// Find all value nodes (constant and variable) 
+	TArray<const UOptimusNode *> ActiveValueNodes;
+	TMap<const UOptimusNode*, EOptimusValueUsage> ValueNodeUsageMap;
+	TMap<FOptimusRoutedConstNode, FOptimusRoutedConstNode> ConstantNodeOverrideMap;
+
+	// Propagate usage and override info backwards
+	for (int32 Index = ConnectedNodes.Num() - 1; Index >= 0; Index--)
+	{
+		const FOptimusRoutedConstNode& ConnectedNode = ConnectedNodes[Index];
+		const UOptimusNode* Node = ConnectedNode.Node;
+		if (Cast<IOptimusValueProvider>(Node))
+		{
+			EOptimusValueUsage ValueUsage = EOptimusValueUsage::None;
+
+			if (Cast<UOptimusNode_ConstantValue>(Node))
+			{
+				TArray<UOptimusNodePin*> InputPins = Node->GetPinsByDirection(EOptimusNodePinDirection::Input, true);
+				TArray<FOptimusRoutedNodePin> SourcePins = InputPins[0]->GetConnectedPinsWithRouting(ConnectedNode.TraversalContext);
+				if (SourcePins.Num() == 0)
+				{
+					// No overrider, this value node is active
+					if (!ActiveValueNodes.Contains(Node))
+					{
+						ActiveValueNodes.Add(Node);
+					}
+				}
+				else
+				{
+					// Save overrider info
+					FOptimusRoutedConstNode SourceNode = {SourcePins[0].NodePin->GetOwningNode(), SourcePins[0].TraversalContext};
+					ConstantNodeOverrideMap.Add(ConnectedNode, SourceNode);	
+				}
+			}
+			else
+			{
+				// No overrider, this value node is active	
+				if (!ActiveValueNodes.Contains(Node))
+				{
+					ActiveValueNodes.Add(Node);
+				}	
+			}
+			
+			TArray<UOptimusNodePin*> OutputPins = Node->GetPinsByDirection(EOptimusNodePinDirection::Output, false);
+			check(OutputPins.Num() == 1);
+
+			const UOptimusNodePin* OutputPin = OutputPins[0];
+			TArray<FOptimusRoutedNodePin> OtherPins = OutputPin->GetConnectedPinsWithRouting(ConnectedNode.TraversalContext);
+
+			for (const FOptimusRoutedNodePin& RoutedOtherPin : OtherPins)
+			{
+				const UOptimusNodePin* OtherPin = RoutedOtherPin.NodePin;
+				const UOptimusNode* OtherNode = OtherPin->GetOwningNode();
+				if (const IOptimusPropertyPinProvider* PropertyPinProvider = Cast<const IOptimusPropertyPinProvider>(OtherNode))
+				{
+					if (PropertyPinProvider->GetPropertyPins().Contains(OtherPin))
+					{
+						// At least one connection requesting value on CPU
+						ValueUsage |= EOptimusValueUsage::CPU;
+						continue;
+					}
+				}
+
+				// Inherit usage from the nodes that this node overrides
+				if (Cast<IOptimusValueProvider>(OtherNode))
+				{
+					ValueUsage |= ValueNodeUsageMap[OtherNode];
+					continue;
+				}
+				
+				// At least one connection requesting this value on GPU
+				ValueUsage |= EOptimusValueUsage::GPU;
+			}
+
+			EOptimusValueUsage& ValueUsageRef = ValueNodeUsageMap.FindOrAdd(Node);
+			ValueUsageRef |= ValueUsage;
+		}
+	}
+	
 	// Create all the data interfaces: node, graph, kernel outputs, loop terminal data
 	
 	// The component binding for the graph data is the primary binding on the deformer.
@@ -2107,17 +2230,15 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 	TMap<const UComputeDataInterface*, int32> DataInterfaceToBindingIndexMap;
 	
 	// Find all data interface nodes and create their data interfaces.
-	FOptimus_NodeToDataInterfaceMap NodeDataInterfaceMap;
+	TMap<FOptimusRoutedConstNode, UOptimusComputeDataInterface*> NodeDataInterfaceMap;
 	
-	// Find all value nodes (constant and variable) 
-	TArray<const UOptimusNode *> ValueNodes;
-
 	TMap<FOptimusRoutedConstNode, TArray<UOptimusComputeDataInterface*>> LoopEntryToLoopDataInterfaces;
 	
 	for (const FOptimusRoutedConstNode& ConnectedNode : ConnectedNodes)
 	{
 		if (const IOptimusDataInterfaceProvider* NodeDataInterfaceProvider = Cast<const IOptimusDataInterfaceProvider>(ConnectedNode.Node))
 		{
+			// Gets a copy of node's data interface
 			UOptimusComputeDataInterface* DataInterface = NodeDataInterfaceProvider->GetDataInterface(this);
 			if (!DataInterface)
 			{
@@ -2125,12 +2246,8 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 				return {};
 			}
 
-			NodeDataInterfaceMap.Add(ConnectedNode.Node, DataInterface);
+			NodeDataInterfaceMap.Add(ConnectedNode, DataInterface);
 			DataInterfaceToBindingIndexMap.Add(DataInterface) = NodeDataInterfaceProvider->GetComponentBinding(ConnectedNode.TraversalContext)->GetIndex();
-		}
-		else if (Cast<const IOptimusValueProvider>(ConnectedNode.Node))
-		{
-			ValueNodes.AddUnique(ConnectedNode.Node);
 		}
 		else if (const UOptimusNode_LoopTerminal* LoopTerminal = Cast<const UOptimusNode_LoopTerminal>(ConnectedNode.Node))
 		{
@@ -2150,36 +2267,70 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 		}
 	}
 
+	TMap<FOptimusValueIdentifier, FOptimusValueDescription> NodeGraphValueMap;
+
 	// Create the graph data interface and fill it with the value nodes.
 	UOptimusGraphDataInterface* GraphDataInterface = NewObject<UOptimusGraphDataInterface>(this);
-
+	DataInterfaceToBindingIndexMap.Add(GraphDataInterface) = GraphDataComponentBinding->GetIndex();
+	
 	TArray<FOptimusGraphVariableDescription> ValueNodeDescriptions;
-	ValueNodeDescriptions.Reserve(ValueNodes.Num());
-	for (int32 ValueNodeIndex = 0 ; ValueNodeIndex < ValueNodes.Num(); ValueNodeIndex++)
-	{
-		UOptimusNode const* ValueNode = ValueNodes[ValueNodeIndex];
-		if (IOptimusValueProvider const* ValueProvider = Cast<const IOptimusValueProvider>(ValueNode))
-		{
-			FOptimusGraphVariableDescription& ValueNodeDescription = ValueNodeDescriptions.AddDefaulted_GetRef();
-			ValueNodeDescription.Name = Optimus::MakeUniqueValueName(ValueProvider->GetValueName(), ValueNodeIndex);
-			ValueNodeDescription.ValueType = ValueProvider->GetValueType()->ShaderValueType;
-			ValueNodeDescription.SourceObject = ValueNode;
+	ValueNodeDescriptions.Reserve(ActiveValueNodes.Num());	
 
-			if (UOptimusNode_ConstantValue const* ConstantNode = Cast<const UOptimusNode_ConstantValue>(ValueNode))
-			{
-				ValueNodeDescription.Value = ConstantNode->GetShaderValue().ShaderValue;
-			}
+	for (const UOptimusNode* ValueNode : ActiveValueNodes)
+	{
+		const IOptimusValueProvider* ValueProvider = CastChecked<IOptimusValueProvider>(ValueNode);
+		FOptimusValueIdentifier ValueId = ValueProvider->GetValueIdentifier();
+		EOptimusValueUsage ValueUsage = ValueNodeUsageMap[ValueNode];
+
+		FOptimusValueDescription Description;
+		Description.DataType = ValueProvider->GetValueDataType();
+		Description.ValueUsage = ValueUsage;
+
+		if (EnumHasAnyFlags(Description.ValueUsage, EOptimusValueUsage::CPU))
+		{
+			Description.Value = ValueProvider->GetValue();
+		}
+		else if (EnumHasAnyFlags(Description.ValueUsage, EOptimusValueUsage::GPU))
+		{
+			Description.ShaderValue = ValueProvider->GetValue().GetShaderValue(ValueProvider->GetValueDataType());
+		}
+		
+		NodeGraphValueMap.Add(ValueId, MoveTemp(Description));	
+
+		if (EnumHasAnyFlags(ValueUsage, EOptimusValueUsage::GPU))
+		{
+			FOptimusGraphVariableDescription ValueNodeDescription;;
+			ValueNodeDescription.ValueId = ValueProvider->GetValueIdentifier();
+			ValueNodeDescription.Name = ValueNodeDescription.ValueId.Name.ToString();
+			ValueNodeDescription.ValueType = ValueProvider->GetValueDataType()->ShaderValueType;
+
+			ValueNodeDescriptions.Add(MoveTemp(ValueNodeDescription));
 		}
 	}
 	GraphDataInterface->Init(ValueNodeDescriptions);
 
-	DataInterfaceToBindingIndexMap.Add(GraphDataInterface) = GraphDataComponentBinding->GetIndex();
 	
 	TMap<FOptimusInstancedNode, UComputeDataInterface*> KernelDataInterfaceMap;
 	TMap<FOptimusInstancedNode, FOptimus_KernelInputMap> KernelInputMap;
 	TMap<FOptimusInstancedNode, FOptimus_KernelOutputMap> KernelOutputMap;
 	TMap<FOptimusInstancedPin, UOptimusComputeDataInterface*> KernelOutputDataInterfaceMap;
 
+	TMap<TWeakObjectPtr<const UComputeDataInterface>, FOptimusDataInterfacePropertyOverrideInfo> NodeGraphDataInterfacePropertyOverrideMap;
+
+	auto GetRootValueProviderPin = [&ConstantNodeOverrideMap](const FOptimusRoutedConstNode& InStartNode)
+	{
+		const FOptimusRoutedConstNode* WorkItem = &InStartNode;
+		while(const FOptimusRoutedConstNode* NextWorkItem = ConstantNodeOverrideMap.Find(*WorkItem))
+		{
+			WorkItem = NextWorkItem;
+		}
+
+		const TArray<UOptimusNodePin*> NewSourcePins = WorkItem->Node->GetPinsByDirection(EOptimusNodePinDirection::Output, false);
+		check(NewSourcePins.Num() == 1);
+
+		return FOptimusRoutedConstNodePin{NewSourcePins[0], WorkItem->TraversalContext};
+	};
+	
 	for (const FOptimusInstancedNode& InstancedNode : InstancedNodes )
 	{
 		const FOptimusRoutedConstNode& RoutedNode = InstancedNode.RoutedNode;
@@ -2223,9 +2374,9 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 					
 					if (Cast<const IOptimusValueProvider>(SourcePin->GetOwningNode()))
 					{
-						KernelInputMap[InstancedNode].Add(Pin) = {GraphDataInterface, SourcePin};
+						KernelInputMap[InstancedNode].Add(Pin) = {GraphDataInterface, GetRootValueProviderPin(SourceRoutedNode).NodePin};
 					}
-					else if (UOptimusComputeDataInterface** NodeDataInterface = NodeDataInterfaceMap.Find(SourcePin->GetOwningNode()))
+					else if (UOptimusComputeDataInterface** NodeDataInterface = NodeDataInterfaceMap.Find(SourceRoutedNode))
 					{
 						KernelInputMap[InstancedNode].Add(Pin) = {*NodeDataInterface, SourcePin};
 					}
@@ -2322,7 +2473,6 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 					for (const FOptimusInstancedPin& TargetInstancedPin : TargetDataInterfacePins)
 					{
 						const FOptimusRoutedConstNode TargetRoutedNode = TargetInstancedPin.InstancedNode.RoutedNode;
-						const UOptimusNode* TargetNode = TargetRoutedNode.Node;
 						const UOptimusNodePin* TargetPin = TargetInstancedPin.Pin;
 
 						if (bShouldCopyToDataInterface)
@@ -2332,11 +2482,49 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 						}
 						else
 						{
-							if (UOptimusComputeDataInterface** NodeDataInterface = NodeDataInterfaceMap.Find(TargetNode))
+							if (UOptimusComputeDataInterface** NodeDataInterface = NodeDataInterfaceMap.Find(TargetRoutedNode))
 							{
 								KernelOutputMap[InstancedNode].FindOrAdd(Pin).Add({*NodeDataInterface, TargetPin});
 							}
 						}	
+					}
+				}
+			}
+		}
+		
+		if (const IOptimusPropertyPinProvider* PropertyPinProvider = Cast<const IOptimusPropertyPinProvider>(Node))
+		{
+			const UComputeDataInterface* ProviderDataInterface = nullptr;
+			if (Cast<const IOptimusDataInterfaceProvider>(Node))
+			{
+				ProviderDataInterface = NodeDataInterfaceMap[RoutedNode];
+			}
+			else
+			{
+				// To be implemented when we have actual use cases
+				check(false);
+			}
+		
+			if (ensure(ProviderDataInterface))
+			{
+				for (UOptimusNodePin* Pin : PropertyPinProvider->GetPropertyPins())
+				{
+					FOptimusInstancedPin InstancedPin = {InstancedNode, Pin};
+					if (FOptimusInstancedPin* SourceInstancedPin = TargetPinToSourcePin.Find(InstancedPin))
+					{
+						const UOptimusNode* SourceNode = SourceInstancedPin->Pin->GetOwningNode();
+
+						if (Cast<IOptimusValueProvider>(SourceNode))
+						{
+							FOptimusRoutedConstNodePin RootValueProviderPin = GetRootValueProviderPin(SourceInstancedPin->InstancedNode.RoutedNode);
+
+							IOptimusValueProvider* RootValueProvider = CastChecked<IOptimusValueProvider>(RootValueProviderPin.NodePin->GetOwningNode());
+							
+							NodeGraphDataInterfacePropertyOverrideMap.FindOrAdd(ProviderDataInterface)
+									.PinNameToValueIdMap
+									.Add(Pin->GetFName(),
+										RootValueProvider->GetValueIdentifier());	
+						}
 					}
 				}
 			}
@@ -2364,18 +2552,19 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 		const TArray<FOptimusInstancedPin>& TargetInstancedPins = OutputLink.Value;
 		
 		const UOptimusNode* SourceNode = SourceInstancedPin.Pin->GetOwningNode();
+		const FOptimusRoutedConstNode& SourceRoutedNode = SourceInstancedPin.InstancedNode.RoutedNode;
 		if (const IOptimusDataInterfaceProvider* InterfaceProvider = Cast<const IOptimusDataInterfaceProvider>(SourceNode))
 		{
 			FDataInterfaceFunctionBinding DataInterfaceBinding;
-			DataInterfaceBinding.DataInterface = NodeDataInterfaceMap[SourceNode];
+			DataInterfaceBinding.DataInterface = NodeDataInterfaceMap[SourceRoutedNode];
 			DataInterfaceBinding.FunctionIndex = InterfaceProvider->GetDataFunctionIndexFromPin(SourceInstancedPin.Pin);
 			CopyFromDataInterfaceMap.Add(SourceInstancedPin) = DataInterfaceBinding;
 		}
-		else if (Cast<const IOptimusValueProvider>(SourceNode))
+		else if (const IOptimusValueProvider* ValueProvider = Cast<const IOptimusValueProvider>(SourceNode))
 		{
 			FDataInterfaceFunctionBinding DataInterfaceBinding;
 			DataInterfaceBinding.DataInterface = GraphDataInterface;
-			DataInterfaceBinding.FunctionIndex = ValueNodes.Find(SourceNode);
+			DataInterfaceBinding.FunctionIndex = GraphDataInterface->FindFunctionIndex(ValueProvider->GetValueIdentifier());
 			CopyFromDataInterfaceMap.Add(SourceInstancedPin) = DataInterfaceBinding;	
 		}
 		else if (Cast<const IOptimusComputeKernelProvider>(SourceNode))
@@ -2391,12 +2580,13 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 		for (const FOptimusInstancedPin& TargetInstancedPin : TargetInstancedPins)
 		{
 			const UOptimusNode* TargetNode = TargetInstancedPin.Pin->GetOwningNode();
+			const FOptimusRoutedConstNode& TargetRoutedNode = TargetInstancedPin.InstancedNode.RoutedNode;
 
 			if (const IOptimusDataInterfaceProvider* InterfaceProvider = Cast<const IOptimusDataInterfaceProvider>(TargetNode);
 				ensure(InterfaceProvider))
 			{
 				// One-time Initialization of the copy kernel based on the first target pin, because if source is a value provider, it does not
-				// have a meaningful data domain and a meaning component source binding
+				// have a meaningful data domain and a meaningful component source binding
 				if (!bIsCopyKernelDataInterfaceCreated)
 				{
 					bIsCopyKernelDataInterfaceCreated = true;
@@ -2412,34 +2602,34 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 				
 				
 				FDataInterfaceFunctionBinding DataInterfaceBinding;
-				DataInterfaceBinding.DataInterface = NodeDataInterfaceMap[TargetNode];
+				DataInterfaceBinding.DataInterface = NodeDataInterfaceMap[TargetRoutedNode];
 				DataInterfaceBinding.FunctionIndex = InterfaceProvider->GetDataFunctionIndexFromPin(TargetInstancedPin.Pin);
 				CopyToDataInterfaceMap.Add(TargetInstancedPin) = DataInterfaceBinding;
 			}
 		}
 	}
 
-
-	TArray<FOptimusComputeGraphInfo> GraphInfos;
+	FOptimusNodeGraphCompilationResult Result;
+	Result.DataInterfacePropertyOverrideMap = NodeGraphDataInterfacePropertyOverrideMap;
+	Result.ValueMap = NodeGraphValueMap;
+	TArray<FOptimusComputeGraphInfo>& GraphInfos = Result.ComputeGraphInfos;
 	for (EOptimusNodeGraphType GraphType : GraphTypes)
 	{
-		FString Name = InNodeGraph->GetName();
+		FString GraphName = InNodeGraph->GetName();
 		if (GraphType != InNodeGraph->GraphType)
 		{
 			check(GraphType == EOptimusNodeGraphType::Setup);
-			Name += TEXT("_Setup");
+			// Using "$" to avoid name clash with user provided graph name, see UOptimusNodeGraph::IsValidUserGraphName
+			GraphName += TEXT("$Setup");
 		}
 		
 		FOptimusComputeGraphInfo GraphInfo;
-		FName GraphName =
-			MakeUniqueObjectName(
-				this,
-				UOptimusComputeGraph::StaticClass(),
-				*Name
-				);
-		GraphInfo.GraphName = GraphName;
+		// For trigger graph, this graph name needs to match the node graph name so that user can use the node graph name to trigger it.
+		GraphInfo.GraphName = *GraphName;
 		GraphInfo.GraphType = GraphType;
-		GraphInfo.ComputeGraph = NewObject<UOptimusComputeGraph>(this, GraphInfo.GraphName);
+		// Avoid node graph and compute graph using the same name
+		FString ComputeGraphName = GraphName + TEXT("_ComputeGraph");
+		GraphInfo.ComputeGraph = NewObject<UOptimusComputeGraph>(this, *ComputeGraphName);
 
 		if (GraphType != InNodeGraph->GraphType)
 		{
@@ -2467,9 +2657,6 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 		}
 
 		// Now that we've collected all the pieces, time to line them up.
-		ComputeGraph->DataInterfaces.Add(GraphDataInterface);
-		ComputeGraph->DataInterfaceToBinding.Add(0);		// Graph data interface always uses the primary binding.
-
 		for (const FOptimusInstancedNode& InstancedNode : InstancedNodes )
 		{
 			const FOptimusRoutedConstNode& ConnectedNode = InstancedNode.RoutedNode;
@@ -2583,7 +2770,7 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 				
 				FOptimus_ComputeKernelResult KernelSourceResult = KernelProvider->CreateComputeKernel(	
 					BoundKernel.Kernel, ConnectedNode.TraversalContext,
-					KernelInputs, KernelOutputs, ValueNodes,
+					KernelInputs, KernelOutputs,
 					KernelDataInterface,
 					BoundKernel.InputDataBindings, BoundKernel.OutputDataBindings
 				);
@@ -2868,14 +3055,11 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 	
 #endif
 
-	return GraphInfos;
+	return Result;
 }
 
 void UOptimusDeformer::OnDataTypeChanged(FName InTypeName)
 {
-	// Currently only value containers depends on the UDSs,
-	UOptimusValueContainerGeneratorClass::RefreshClassForType(GetPackage(), FOptimusDataTypeRegistry::Get().FindType(InTypeName));
-	
 	for (UOptimusNodeGraph* Graph : Graphs)
 	{
 		for (UOptimusNode* Node: Graph->Nodes)
@@ -3068,7 +3252,7 @@ void UOptimusDeformer::Notify(EOptimusGlobalNotifyType InNotifyType, UObject* In
 	case EOptimusGlobalNotifyType::ConstantValueChanged:
 		if (UOptimusNode_ConstantValue* ConstantValue = Cast<UOptimusNode_ConstantValue>(InObject))
 		{
-			ConstantValueUpdateDelegate.Broadcast(ConstantValue, ConstantValue->GetShaderValue().ShaderValue);
+			ConstantValueUpdateDelegate.Broadcast(ConstantValue, ConstantValue->GetValue());
 		}
 		
 		break;
@@ -3127,11 +3311,21 @@ void UOptimusDeformer::PostLoad()
 {
 	Super::PostLoad();
 
+	for (UOptimusVariableDescription* VariableDescription : Variables->Descriptions)
+	{
+		VariableDescription->ConditionalPostLoad();
+	}
+	
 	// PostLoad everything first before changing anything for back compat
 	// Each graph postloads everything it owns
 	for (UOptimusNodeGraph* Graph: GetGraphs())
 	{
 		Graph->ConditionalPostLoad();
+	}
+
+	for (FOptimusComputeGraphInfo& Info : ComputeGraphs)
+	{
+		Info.ComputeGraph->ConditionalPostLoad();
 	}
 	
 	// Fixup any empty array entries.
@@ -3222,6 +3416,16 @@ void UOptimusDeformer::PostLoad()
 		PostLoadRemoveDeprecatedExecutionNodes();
 	}
 
+	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::PropertyBagValueContainer)
+	{
+		PostLoadRemoveDeprecatedValueContainerGeneratorClass();
+	}
+
+	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::PropertyPinSupport)
+	{
+		PostLoadMoveValueFromGraphDataInterfaceToDeformerValueMap();
+	}
+	
 	// If the graph was saved at any previous version, and was clean, mark the status now as modified.
 	if (Status == EOptimusDeformerStatus::Compiled &&
 		GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::LatestVersion)
@@ -3353,7 +3557,7 @@ void UOptimusDeformer::PostLoadRemoveDeprecatedExecutionNodes()
 				const UOptimusNodePin* PrimaryGroupPin = KernelNode->GetPrimaryGroupPin();
 
 				UOptimusNode_ComponentSource* ComponentSourceNode = nullptr;
-				FOptimusDataTypeHandle IntVector3Type = FOptimusDataTypeRegistry::Get().FindType(Optimus::GetTypeName(TBaseStructure<FIntVector3>::Get()));
+				FOptimusDataTypeHandle IntVector3Type = FOptimusDataTypeRegistry::Get().FindType(TBaseStructure<FIntVector3>::Get());
 				
 				for (const UOptimusNodePin* Pin : PrimaryGroupPin->GetSubPins())
 				{
@@ -3427,6 +3631,88 @@ void UOptimusDeformer::PostLoadRemoveDeprecatedExecutionNodes()
 	}
 	
 	(void)MarkPackageDirty();
+}
+
+void UOptimusDeformer::PostLoadRemoveDeprecatedValueContainerGeneratorClass()
+{
+	// Remove deprecated uclass based value container generator class
+	TArray<UObject*> ObjectsInPackage;
+	GetObjectsWithOuter(GetPackage(), ObjectsInPackage, false);
+
+	for (UObject* Object : ObjectsInPackage)
+	{
+		if (UOptimusValueContainerGeneratorClass* GeneratorClass = Cast<UOptimusValueContainerGeneratorClass>(Object))
+		{
+			Optimus::RemoveObject(GeneratorClass);
+			Optimus::RemoveObject(GeneratorClass->GetDefaultObject());
+		}
+	}	
+}
+
+
+void UOptimusDeformer::PostLoadMoveValueFromGraphDataInterfaceToDeformerValueMap()
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	int ConstantUniqueSuffix = 0;
+	for (FOptimusComputeGraphInfo& Info : ComputeGraphs)
+	{
+		if (UOptimusGraphDataInterface* GraphDataInterface = Info.ComputeGraph->GetGraphDataInterfaceForPostLoadFixUp())
+		{
+			for (FOptimusGraphVariableDescription& OldDescription : GraphDataInterface->Variables)
+			{
+				if (OldDescription.ShaderValue_DEPRECATED.IsValid())
+				{
+					FOptimusValueDescription NewDescription;
+					NewDescription.ValueUsage = EOptimusValueUsage::GPU;
+					NewDescription.DataType = FOptimusDataTypeRegistry::Get().FindType(OldDescription.ValueType);
+					NewDescription.ShaderValue = OldDescription.ShaderValue_DEPRECATED;
+					// Make sure the Id is unique across all graphs
+					// We could do better here if needed by finding the source constant node of this value, but settling for the simpler solution for now
+					// The only thing that would break is scrubbing constant node value without recompiling
+					FOptimusValueIdentifier ValueId = {EOptimusValueType::Constant, *(OldDescription.Name + TEXT("_PostLoadFixUp_") + FString::FromInt(ConstantUniqueSuffix))};
+					ConstantUniqueSuffix++;
+					ValueMap.Add(ValueId, MoveTemp(NewDescription));
+					
+					OldDescription.ValueId = ValueId;
+				}
+				else
+				{
+					FName VariableName = NAME_None;
+					// When source object was introduced, we also appended a unique index to the value name provided by each value provider
+					// so instead of using the name directly, we need to do this extra step
+					if (OldDescription.SourceObject_DEPRECATED.IsNull())
+					{
+						VariableName = *OldDescription.Name;
+					}
+					else
+					{
+						VariableName = *(Optimus::ExtractSourceValueName(OldDescription.Name));
+					}
+
+					FOptimusValueIdentifier ValueId = {EOptimusValueType::Variable, VariableName};
+					if (!ValueMap.Contains(ValueId))
+					{
+						for (UOptimusVariableDescription* VariableDescription : GetVariables())
+						{
+							if (VariableDescription->VariableName == VariableName)
+							{
+								FOptimusValueDescription NewDescription;
+								NewDescription.ValueUsage = EOptimusValueUsage::GPU;
+								NewDescription.DataType = FOptimusDataTypeRegistry::Get().FindType(OldDescription.ValueType);
+								NewDescription.ShaderValue = VariableDescription->DefaultValueStruct.GetShaderValue(VariableDescription->DataType);
+								ValueMap.Add(ValueId, MoveTemp(NewDescription));	
+								break;
+							}
+						}
+					}
+					
+					OldDescription.ValueId = ValueId;
+					
+				}
+			}
+		}
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 
@@ -3594,7 +3880,17 @@ UMeshDeformerInstance* UOptimusDeformer::CreateInstance(
 		return nullptr;
 	}
 
-	const FName InstanceName(GetName() + TEXT("_Instance"));
+	UOptimusDeformerDynamicInstanceManager* InstanceManager = NewObject<UOptimusDeformerDynamicInstanceManager>(InMeshComponent);
+	
+	InstanceManager->DefaultInstance = CreateOptimusInstance(InMeshComponent, InSettings);
+	
+	return InstanceManager;
+}
+
+UOptimusDeformerInstance* UOptimusDeformer::CreateOptimusInstance(UMeshComponent* InMeshComponent, UMeshDeformerInstanceSettings* InSettings)
+{
+	const FName InstanceName = Optimus::GetUniqueNameForScope(InMeshComponent ,*(GetName() + TEXT("_Instance")));
+	
 	UOptimusDeformerInstance* Instance = NewObject<UOptimusDeformerInstance>(InMeshComponent, InstanceName);
 	Instance->SetMeshComponent(InMeshComponent);
 	Instance->SetInstanceSettings(Cast<UOptimusDeformerInstanceSettings>(InSettings));

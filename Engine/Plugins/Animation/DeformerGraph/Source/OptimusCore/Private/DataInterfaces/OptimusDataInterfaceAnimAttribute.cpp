@@ -5,6 +5,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "OptimusDataDomain.h"
 #include "OptimusDataTypeRegistry.h"
+#include "OptimusObjectVersion.h"
 #include "OptimusValueContainer.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphResources.h"
@@ -15,7 +16,8 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "ShaderParameterMetadataBuilder.h"
 #include "ComputeFramework/ComputeMetadataBuilder.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
+#include "Nodes/OptimusNode_DataInterface.h"
 
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
@@ -28,14 +30,14 @@ static const FString HlslIdDelimiter = TEXT("_");
 
 
 
-FOptimusAnimAttributeDescription& FOptimusAnimAttributeDescription::Init(UOptimusAnimAttributeDataInterface* InOwner,const FString& InName, FName InBoneName,
+FOptimusAnimAttributeDescription& FOptimusAnimAttributeDescription::Init(const FString& InName, FName InBoneName,
 	const FOptimusDataTypeRef& InDataType)
 {
 	Name = InName;
 	BoneName = InBoneName;
 	DataType = InDataType;
-	DefaultValue = UOptimusValueContainer::MakeValueContainer(InOwner, InDataType);
 
+	DefaultValueStruct.SetType(DataType.Resolve());
 	// Caller should ensure that the name is unique
 	HlslId = InName;
 	PinName = *InName;
@@ -103,12 +105,14 @@ void UOptimusAnimAttributeDataInterface::PostEditChangeChainProperty(FPropertyCh
 			if(ensure(AttributeArray.IsValidIndex(ChangedIndex)))
 			{
 				FOptimusAnimAttributeDescription& ChangedAttribute = AttributeArray[ChangedIndex];
+				
+				FName OldPinName = ChangedAttribute.PinName;
 
 				if (ChangedAttribute.Name.IsEmpty())
 				{
 					ChangedAttribute.Name = TEXT("EmptyName");
 				}
-				
+
 				for (int32 Index = 0; Index < AttributeArray.Num(); Index++)
 				{
 					const FOptimusAnimAttributeDescription& Attribute = AttributeArray[Index];
@@ -125,6 +129,7 @@ void UOptimusAnimAttributeDataInterface::PostEditChangeChainProperty(FPropertyCh
 				}
 
 				UpdateAttributePinNamesAndHlslIds();
+				OnPinDefinitionRenamedDelegate.Execute(OldPinName, ChangedAttribute.PinName);
 			}
 		}
 
@@ -133,36 +138,70 @@ void UOptimusAnimAttributeDataInterface::PostEditChangeChainProperty(FPropertyCh
 			FOptimusAnimAttributeDescription& ChangedAttribute = AttributeArray[ChangedIndex];
 
 			// Update the default value container accordingly
-			ChangedAttribute.DefaultValue = UOptimusValueContainer::MakeValueContainer(this, ChangedAttribute.DataType);
+			ChangedAttribute.DefaultValueStruct.SetType(ChangedAttribute.DataType);
+			OnPinDefinitionChangedDelegate.Execute();
 		}
 	}
-	else if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayAdd)
+	else 
 	{
-		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray))
+		if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayAdd)
 		{
-			const int32 ChangedIndex = PropertyChangedEvent.GetArrayIndex(GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray));
-			FOptimusAnimAttributeDescription& Attribute = AttributeArray[ChangedIndex];
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray))
+			{
+				const int32 ChangedIndex = PropertyChangedEvent.GetArrayIndex(GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray));
+				FOptimusAnimAttributeDescription& Attribute = AttributeArray[ChangedIndex];
 			
-			// Default to a float attribute
-			Attribute.Init(this, GetUnusedAttributeName(TEXT("EmptyName")), NAME_None,
-				FOptimusDataTypeRegistry::Get().FindType(*FFloatProperty::StaticClass()));
+				// Default to a float attribute
+				Attribute.Init(GetUnusedAttributeName(TEXT("EmptyName")), NAME_None,
+					FOptimusDataTypeRegistry::Get().FindType(*FFloatProperty::StaticClass()));
+			}
 		}
-	}
-	else if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate)
-	{
-		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray))
-		{	
-			const int32 ChangedIndex = PropertyChangedEvent.GetArrayIndex(GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray));
-			FOptimusAnimAttributeDescription& Attribute = AttributeArray[ChangedIndex];
+		else if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate)
+		{
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray))
+			{	
+				const int32 ChangedIndex = PropertyChangedEvent.GetArrayIndex(GET_MEMBER_NAME_STRING_CHECKED(FOptimusAnimAttributeArray, InnerArray));
+				FOptimusAnimAttributeDescription& Attribute = AttributeArray[ChangedIndex];
 			
-			Attribute.Name = GetUnusedAttributeName(Attribute.Name);
-			Attribute.UpdatePinNameAndHlslId();
-
-			Attribute.DefaultValue = DuplicateObject(Attribute.DefaultValue, this);
+				Attribute.Name = GetUnusedAttributeName(Attribute.Name);
+				Attribute.UpdatePinNameAndHlslId();
+			}
 		}
+		
+		OnPinDefinitionChangedDelegate.Execute();
 	}
 }
 #endif
+
+
+void UOptimusAnimAttributeDataInterface::PostLoad()
+{
+	Super::PostLoad();
+	
+	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::PropertyBagValueContainer)
+	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		
+		for (FOptimusAnimAttributeDescription& Description : AttributeArray)
+		{
+			if (Description.DefaultValue_DEPRECATED)
+			{
+				Description.DefaultValue_DEPRECATED->ConditionalPostLoad();
+			}
+		}
+
+		for (FOptimusAnimAttributeDescription& Description : AttributeArray)
+		{
+			if (Description.DefaultValue_DEPRECATED)
+			{
+				Description.DefaultValueStruct = Description.DefaultValue_DEPRECATED->MakeValueContainerStruct();
+				Description.DefaultValue_DEPRECATED = nullptr;
+			}
+		}
+		
+PRAGMA_ENABLE_DEPRECATION_WARNINGS	
+	}
+}
 
 
 FString UOptimusAnimAttributeDataInterface::GetDisplayName() const
@@ -186,6 +225,18 @@ TArray<FOptimusCDIPinDefinition> UOptimusAnimAttributeDataInterface::GetPinDefin
 TSubclassOf<UActorComponent> UOptimusAnimAttributeDataInterface::GetRequiredComponentClass() const
 {
 	return USkeletalMeshComponent::StaticClass();
+}
+
+void UOptimusAnimAttributeDataInterface::Initialize()
+{
+	AddAnimAttribute(TEXT("EmptyName"), NAME_None,
+			FOptimusDataTypeRegistry::Get().FindType(*FFloatProperty::StaticClass()) );
+}
+
+void UOptimusAnimAttributeDataInterface::RegisterPropertyChangeDelegatesForOwningNode(UOptimusNode_DataInterface* InNode)
+{
+	OnPinDefinitionChangedDelegate.BindUObject(InNode, &UOptimusNode_DataInterface::RecreatePinsFromPinDefinitions);
+	OnPinDefinitionRenamedDelegate.BindUObject(InNode, &UOptimusNode_DataInterface::RenamePinFromPinDefinition);
 }
 
 
@@ -389,54 +440,17 @@ const FOptimusAnimAttributeDescription& UOptimusAnimAttributeDataInterface::AddA
 	const FOptimusDataTypeRef& InDataType)
 {
 	return AttributeArray.InnerArray.AddDefaulted_GetRef()
-		.Init(this, GetUnusedAttributeName(InName), InBoneName, InDataType);
+		.Init(GetUnusedAttributeName(InName), InBoneName, InDataType);
 }
 
-void UOptimusAnimAttributeDataInterface::RecreateValueContainers()
-{
-	for (int32 Index = 0; Index < AttributeArray.Num(); Index++)
-	{
-		FOptimusAnimAttributeDescription& Attribute = AttributeArray[Index];
 
-		if (!Attribute.DefaultValue)
-		{
-			continue;
-		}
-		
-		if (Attribute.DefaultValue->GetClass()->GetPackage() != GetPackage())
-		{
-			// Save container data
-			TArray<uint8> ContainerData;
-			{
-				FMemoryWriter ContainerArchive(ContainerData);
-				FObjectAndNameAsStringProxyArchive ContainerProxyArchive(
-						ContainerArchive, /* bInLoadIfFindFails=*/ false);
-				Attribute.DefaultValue->SerializeScriptProperties(ContainerProxyArchive);
-			}
-			
-			UOptimusValueContainer* NewContainer = UOptimusValueContainer::MakeValueContainer(this,Attribute.DefaultValue->GetValueType());
-
-			// Load container data into the new container
-			{
-				FMemoryReader ContainerArchive(ContainerData);
-				FObjectAndNameAsStringProxyArchive ContainerProxyArchive(
-						ContainerArchive, /* bInLoadIfFindFails=*/ true);
-				NewContainer->SerializeScriptProperties(ContainerProxyArchive);
-			}
-
-			Attribute.DefaultValue = NewContainer;
-		}
-	}
-}
-
-void UOptimusAnimAttributeDataInterface::OnDataTypeChanged(FName InDataType)
+void UOptimusAnimAttributeDataInterface::OnDataTypeChanged(FName InTypeName)
 {
 	for (FOptimusAnimAttributeDescription& AttributeDescription : AttributeArray)
 	{
-		if (AttributeDescription.DataType.TypeName == InDataType)
+		if (AttributeDescription.DataType.TypeName == InTypeName)
 		{
-			AttributeDescription.DefaultValue =
-				UOptimusValueContainer::MakeValueContainer(this, AttributeDescription.DataType);
+			AttributeDescription.DefaultValueStruct.SetType(AttributeDescription.DataType);
 		}
 	}
 }
@@ -526,6 +540,7 @@ FOptimusAnimAttributeRuntimeData::FOptimusAnimAttributeRuntimeData(
 	const FOptimusAnimAttributeDescription& InDescription)
 {
 	Name = *InDescription.Name;
+	HlslId = *InDescription.HlslId;
 	BoneName = InDescription.BoneName;
 	CachedBoneIndex = 0;
 	
@@ -540,15 +555,12 @@ FOptimusAnimAttributeRuntimeData::FOptimusAnimAttributeRuntimeData(
 
 	AttributeType = Registry.FindAttributeType(InDescription.DataType.TypeName);
 
-	if (ensure(InDescription.DefaultValue) && ensure(InDescription.DefaultValue->GetValueType() == InDescription.DataType))
-	{
-		CachedDefaultValue = InDescription.DefaultValue->GetShaderValue();
-	}
+	CachedDefaultValue = InDescription.DefaultValueStruct.GetShaderValue(InDescription.DataType);
 }
 
 void UOptimusAnimAttributeDataProvider::Init(
 	USkeletalMeshComponent* InSkeletalMesh,
-	TArray<FOptimusAnimAttributeDescription> InAttributeArray
+	const TArray<FOptimusAnimAttributeDescription>& InAttributeArray
 	)
 {
 	SkeletalMesh = InSkeletalMesh;
@@ -582,9 +594,9 @@ void UOptimusAnimAttributeDataProvider::Init(
 
 	TArray<FShaderParametersMetadata*> AllocatedMetadatas;
 	TArray<FShaderParametersMetadata*> NestedStructs;
-	for (FOptimusAnimAttributeDescription& Attribute : InAttributeArray)
+	for (const FOptimusAnimAttributeDescription& Attribute : InAttributeArray)
 	{
-		ComputeFramework::AddParamForType(Builder, *Attribute.Name, Attribute.DataType->ShaderValueType, NestedStructs);
+		ComputeFramework::AddParamForType(Builder, *Attribute.HlslId, Attribute.DataType->ShaderValueType, NestedStructs);
 	}
 
 	FShaderParametersMetadata* ShaderParameterMetadata = Builder.Build(FShaderParametersMetadata::EUseCase::ShaderParameterStruct, TEXT("UAnimAttributeDataInterface"));
@@ -596,7 +608,7 @@ void UOptimusAnimAttributeDataProvider::Init(
 	for (int32 Index = 0; Index < AttributeRuntimeData.Num(); ++Index)
 	{
 		FOptimusAnimAttributeRuntimeData& RuntimeData = AttributeRuntimeData[Index];
-		check(RuntimeData.Name == Members[Index].GetName());
+		check(RuntimeData.HlslId == Members[Index].GetName());
 		
 		RuntimeData.Offset = Members[Index].GetOffset();
 
@@ -723,7 +735,7 @@ void FOptimusAnimAttributeDataProviderProxy::AllocateResources(FRDGBuilder& Grap
 		for (int32 ArrayIndex = 0; ArrayIndex < AttributeArrayMetadata.Num(); ArrayIndex++)
 		{
 			const FArrayMetadata& ArrayMetadata = AttributeArrayMetadata[ArrayIndex];
-			const TArray<uint8>& ArrayData = AttributeArrayData[ArrayIndex];
+			const TArray<uint8>& ArrayData = AttributeArrayData[ArrayIndex].ArrayOfValues;
 			
 			ArrayBuffers.Add(
 				GraphBuilder.CreateBuffer(

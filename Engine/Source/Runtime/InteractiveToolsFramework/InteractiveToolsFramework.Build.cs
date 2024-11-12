@@ -25,7 +25,8 @@ public class InteractiveToolsFramework : ModuleRules
 			{
 				"Engine",
                 "RHI",
-				"GeometryCore"
+				"GeometryCore",
+				"RenderCore" // for gizmo components
 				//"Slate",
 				//"SlateCore",
 				// ... add private dependencies that you statically link with here ...	

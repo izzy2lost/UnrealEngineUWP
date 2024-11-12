@@ -6,8 +6,22 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMGraphFunctionDefinition)
 
-const FString FRigVMGraphFunctionData::EntryString = TEXT("Entry");
-const FString FRigVMGraphFunctionData::ReturnString = TEXT("Return");
+FRigVMPropertyDescription FRigVMFunctionCompilationPropertyDescription::ToPropertyDescription() const
+{
+	return FRigVMPropertyDescription(Name, CPPType, CPPTypeObject.LoadSynchronous(), DefaultValue);
+}
+
+TArray<FRigVMPropertyDescription> FRigVMFunctionCompilationPropertyDescription::ToPropertyDescription(
+	const TArray<FRigVMFunctionCompilationPropertyDescription>& InDescriptions)
+{
+	TArray<FRigVMPropertyDescription> Result;
+	Result.Reserve(InDescriptions.Num());
+	for(const FRigVMFunctionCompilationPropertyDescription& Description : InDescriptions)
+	{
+		Result.Add(Description.ToPropertyDescription());
+	}
+	return Result;
+}
 
 FRigVMExternalVariable FRigVMGraphFunctionArgument::GetExternalVariable() const
 {
@@ -50,6 +64,55 @@ bool FRigVMGraphFunctionArgument::IsExecuteContext() const
 	return false;
 }
 
+TFunction<TArray<FRigVMVariantRef>(const FGuid& InGuid)> FRigVMGraphFunctionIdentifier::GetVariantRefsByGuidFunc;
+
+bool FRigVMGraphFunctionIdentifier::IsVariant() const
+{
+	return !GetVariants(false).IsEmpty();
+}
+
+TArray<FRigVMVariantRef> FRigVMGraphFunctionIdentifier::GetVariants(bool bIncludeSelf) const
+{
+	if(GetVariantRefsByGuidFunc)
+	{
+		const FRigVMGraphFunctionHeader& ThisHeader = FRigVMGraphFunctionHeader::FindGraphFunctionHeader(*this);
+		TArray<FRigVMVariantRef> Result = GetVariantRefsByGuidFunc(ThisHeader.Variant.Guid);
+		if(!bIncludeSelf)
+		{
+			Result.RemoveAll([this](const FRigVMVariantRef& VariantRef) -> bool
+			{
+				return VariantRef.ObjectPath == GetNodeSoftPath();
+			});
+		}
+		return Result;
+	}
+	return TArray<FRigVMVariantRef>();
+}
+
+TArray<FRigVMGraphFunctionIdentifier> FRigVMGraphFunctionIdentifier::GetVariantIdentifiers(bool bIncludeSelf) const
+{
+	const TArray<FRigVMVariantRef> VariantRefs = GetVariants(bIncludeSelf);
+	TArray<FRigVMGraphFunctionIdentifier> Identifiers;
+	for(const FRigVMVariantRef& VariantRef : VariantRefs)
+	{
+		const FRigVMGraphFunctionHeader Header = FRigVMGraphFunctionHeader::FindGraphFunctionHeader(VariantRef.ObjectPath.ToString());
+		if(Header.IsValid())
+		{
+			Identifiers.Add(Header.LibraryPointer);
+		}
+	}
+	return Identifiers;
+}
+
+bool FRigVMGraphFunctionIdentifier::IsVariantOf(const FRigVMGraphFunctionIdentifier& InOther) const
+{
+	const FRigVMGraphFunctionHeader& ThisHeader = FRigVMGraphFunctionHeader::FindGraphFunctionHeader(*this);
+	const FRigVMGraphFunctionHeader& OtherHeader = FRigVMGraphFunctionHeader::FindGraphFunctionHeader(InOther);
+	return ThisHeader.Variant.Guid == OtherHeader.Variant.Guid;
+}
+
+TFunction<FRigVMGraphFunctionHeader(const FSoftObjectPath&, const FName&, bool*)> FRigVMGraphFunctionHeader::FindFunctionHeaderFromPathFunc;
+
 bool FRigVMGraphFunctionHeader::IsMutable() const
 {
 	for(const FRigVMGraphFunctionArgument& Arg : Arguments)
@@ -91,64 +154,190 @@ FRigVMGraphFunctionData* FRigVMGraphFunctionHeader::GetFunctionData(bool bLoadIf
 	return nullptr;
 }
 
-void FRigVMGraphFunctionHeader::PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName)
+FRigVMGraphFunctionHeader FRigVMGraphFunctionHeader::FindGraphFunctionHeader(const FSoftObjectPath& InFunctionObjectPath, bool* bOutIsPublic, FString* OutErrorMessage)
 {
-	const FString OldPathName = InOldPathName + TEXT(":");
-	const FString NewPathName = InNewPathName + TEXT(":");
-
-	auto ReplacePathName = [InOldPathName, InNewPathName, OldPathName, NewPathName](FSoftObjectPath& InOutObjectPath)
-	{
-		FString PathName = InOutObjectPath.ToString();
-		if(PathName.Equals(InOldPathName, ESearchCase::CaseSensitive))
-		{
-			InOutObjectPath = FSoftObjectPath(InNewPathName);
-		}
-		else if(PathName.StartsWith(OldPathName, ESearchCase::CaseSensitive))
-		{
-			PathName = NewPathName + PathName.Mid(OldPathName.Len());
-			InOutObjectPath = FSoftObjectPath(PathName);
-		}
-	};
-
-	ReplacePathName(LibraryPointer.LibraryNode);
-	ReplacePathName(LibraryPointer.HostObject);
-	for (TPair<FRigVMGraphFunctionIdentifier, uint32>& Pair : Dependencies)
-	{
-		ReplacePathName(Pair.Key.LibraryNode);
-		ReplacePathName(Pair.Key.HostObject);
-	}
+	return FindGraphFunctionHeader(InFunctionObjectPath, NAME_None, bOutIsPublic, OutErrorMessage);
 }
+
+FRigVMGraphFunctionHeader FRigVMGraphFunctionHeader::FindGraphFunctionHeader(const FSoftObjectPath& InHostObjectPath, const FName& InFunctionName, bool* bOutIsPublic, FString* OutErrorMessage)
+{
+	const FName FunctionName = GetFunctionNameFromObjectPath(InHostObjectPath.ToString(), InFunctionName);
+	if(FunctionName.IsNone())
+	{
+		return FRigVMGraphFunctionHeader();
+	}
+	
+	if(FindFunctionHeaderFromPathFunc)
+	{
+		if(InHostObjectPath.ResolveObject() == nullptr)
+		{
+			const FRigVMGraphFunctionHeader Header = FindFunctionHeaderFromPathFunc(InHostObjectPath, FunctionName, bOutIsPublic);
+			if(Header.IsValid())
+			{
+				return Header;
+			}
+		}
+	}
+	
+	// relay to the loaded function since the hostpath is loaded
+	if(const FRigVMGraphFunctionData* FunctionData = FRigVMGraphFunctionData::FindFunctionData(InHostObjectPath, FunctionName, bOutIsPublic, OutErrorMessage))
+	{
+		return FunctionData->Header;
+	}
+	return FRigVMGraphFunctionHeader(); 
+}
+
+FRigVMGraphFunctionHeader FRigVMGraphFunctionHeader::FindGraphFunctionHeader(const FRigVMGraphFunctionIdentifier& InIdentifier, bool* bOutIsPublic, FString* OutErrorMessage)
+{
+	if(FindFunctionHeaderFromPathFunc)
+	{
+		if(InIdentifier.HostObject.ResolveObject() == nullptr)
+		{
+			const FName FunctionName = GetFunctionNameFromObjectPath(InIdentifier.GetLibraryNodePath());
+			const FRigVMGraphFunctionHeader Header = FindFunctionHeaderFromPathFunc(InIdentifier.GetLibraryNodePath(), FunctionName, bOutIsPublic);
+			if(Header.IsValid())
+			{
+				return Header;
+			}
+		}
+	}
+
+	if(const FRigVMGraphFunctionData* FunctionData = FRigVMGraphFunctionData::FindFunctionData(InIdentifier, bOutIsPublic, OutErrorMessage))
+	{
+		return FunctionData->Header;
+	}
+	return FRigVMGraphFunctionHeader(); 
+}
+
+FName FRigVMGraphFunctionHeader::GetFunctionNameFromObjectPath(const FString& InObjectPath, const FName& InOptionalFunctionName)
+{
+	FName FunctionName = InOptionalFunctionName;
+	if(FunctionName.IsNone())
+	{
+		FString FunctionNameStr;
+		if(!InObjectPath.Split(TEXT("."), nullptr, &FunctionNameStr, ESearchCase::IgnoreCase, ESearchDir::FromEnd))
+		{
+			(void)InObjectPath.Split(TEXT("/"), nullptr, &FunctionNameStr, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+		}
+
+		if(FunctionNameStr.IsEmpty())
+		{
+			return NAME_None;
+		}
+		FunctionName = *FunctionNameStr;
+	}
+	return FunctionName;
+}
+
+TFunction<IRigVMGraphFunctionHost*(UObject*)> FRigVMGraphFunctionData::GetFunctionHostFromObjectFunc;
 
 bool FRigVMGraphFunctionData::IsMutable() const
 {
 	return Header.IsMutable();
 }
 
-void FRigVMGraphFunctionData::PostDuplicateHost(const FString& InOldHostPathName, const FString& InNewHostPathName)
+FRigVMGraphFunctionData* FRigVMGraphFunctionData::FindFunctionData(const FSoftObjectPath& InHostObjectPath, const FName& InFunctionName, bool* bOutIsPublic, FString* OutErrorMessage)
 {
-	Header.PostDuplicateHost(InOldHostPathName, InNewHostPathName);
-}
+	FRigVMGraphFunctionHeader InvalidHeader;
 
-FRigVMGraphFunctionData* FRigVMGraphFunctionData::FindFunctionData(const FRigVMGraphFunctionIdentifier& InIdentifier, bool* bOutIsPublic)
-{
-	IRigVMGraphFunctionHost* FunctionHost = nullptr;
-	if (UObject* FunctionHostObj = InIdentifier.HostObject.TryLoad())
+	const FName FunctionName = FRigVMGraphFunctionHeader::GetFunctionNameFromObjectPath(InHostObjectPath.ToString(), InFunctionName);
+
+	UObject* HostObject = InHostObjectPath.TryLoad();
+	if (!HostObject)
 	{
-		FunctionHost = Cast<IRigVMGraphFunctionHost>(FunctionHostObj);									
+		if(OutErrorMessage)
+		{
+			*OutErrorMessage = FString::Printf(TEXT("Failed to load the Host object %s."), *InHostObjectPath.ToString());
+		}
+		return nullptr;
+	}
+
+	IRigVMGraphFunctionHost* FunctionHost = Cast<IRigVMGraphFunctionHost>(HostObject);
+	if (!FunctionHost)
+	{
+		if(GetFunctionHostFromObjectFunc)
+		{
+			FunctionHost = GetFunctionHostFromObjectFunc(HostObject);
+		}
 	}
 
 	if (!FunctionHost)
 	{
+		if(OutErrorMessage)
+		{
+			*OutErrorMessage = TEXT("Host object is not a IRigVMGraphFunctionHost.");
+		}
 		return nullptr;
 	}
 
 	FRigVMGraphFunctionStore* FunctionStore = FunctionHost->GetRigVMGraphFunctionStore();
 	if (!FunctionStore)
 	{
+		if(OutErrorMessage)
+		{
+			*OutErrorMessage = TEXT("Host object does not contain a function store.");
+		}
 		return nullptr;
 	}
 
-	return FunctionStore->FindFunction(InIdentifier, bOutIsPublic);
+	FRigVMGraphFunctionData* Data = FunctionStore->FindFunctionByName(FunctionName, bOutIsPublic);
+	if (!Data)
+	{
+		if(OutErrorMessage)
+		{
+			*OutErrorMessage = FString::Printf(TEXT("Function %s not found in host %s."), *FunctionName.ToString(), *InHostObjectPath.ToString());
+		}
+		return nullptr;
+	}
+
+	return Data;
+}
+
+FRigVMGraphFunctionData* FRigVMGraphFunctionData::FindFunctionData(const FRigVMGraphFunctionIdentifier& InIdentifier, bool* bOutIsPublic, FString* OutErrorMessage)
+{
+	IRigVMGraphFunctionHost* FunctionHost = nullptr;
+	if (UObject* FunctionHostObj = InIdentifier.HostObject.TryLoad())
+	{
+		FunctionHost = Cast<IRigVMGraphFunctionHost>(FunctionHostObj);									
+	}
+	else
+	{
+		if(OutErrorMessage)
+		{
+			*OutErrorMessage = FString::Printf(TEXT("Failed to load the Host object %s."), *InIdentifier.HostObject.ToString());
+		}
+		return nullptr;
+	}
+
+	if (!FunctionHost)
+	{
+		if(OutErrorMessage)
+		{
+			*OutErrorMessage = TEXT("Host object is not a IRigVMGraphFunctionHost.");
+		}
+		return nullptr;
+	}
+
+	FRigVMGraphFunctionStore* FunctionStore = FunctionHost->GetRigVMGraphFunctionStore();
+	if (!FunctionStore)
+	{
+		if(OutErrorMessage)
+		{
+			*OutErrorMessage = TEXT("Host object does not contain a function store.");
+		}
+		return nullptr;
+	}
+
+	if(FRigVMGraphFunctionData* FunctionData = FunctionStore->FindFunction(InIdentifier, bOutIsPublic))
+	{
+		return FunctionData;
+	}
+
+	if(OutErrorMessage)
+	{
+		*OutErrorMessage = FString::Printf(TEXT("Function %s not found in host %s."), *InIdentifier.GetFunctionName(), *InIdentifier.HostObject.ToString());
+	}
+	return nullptr;
 }
 
 
@@ -373,4 +562,28 @@ bool FRigVMGraphFunctionData::PatchSharedArgumentOperandsIfRequired()
 	}
 	
 	return true;
+}
+
+FArchive& operator<<(FArchive& Ar, FRigVMNodeLayout& Layout)
+{
+	Ar.UsingCustomVersion(FRigVMObjectVersion::GUID);
+
+	Ar << Layout.Categories;
+	if(Ar.IsLoading())
+	{
+		if (Ar.CustomVer(FRigVMObjectVersion::GUID) < FRigVMObjectVersion::FunctionHeaderLayoutStoresPinIndexInCategory)
+		{
+			Layout.PinIndexInCategory.Reset();
+		}
+		else
+		{
+			Ar << Layout.PinIndexInCategory;
+		}
+	}
+	else
+	{
+		Ar << Layout.PinIndexInCategory;
+	}
+	Ar << Layout.DisplayNames;
+	return Ar;
 }

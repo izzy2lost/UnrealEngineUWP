@@ -3,8 +3,6 @@
 #include "SInsightsStatusBar.h"
 
 #include "CoreGlobals.h"
-#include "EditorTraceUtilitiesStyle.h"
-#include "EditorTraceUtilities.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/Commands.h"
 #include "Framework/Commands/UICommandList.h"
@@ -21,24 +19,38 @@
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "ProfilingDebugging/MiscTrace.h"
-#include "ProfilingDebugging/TraceScreenshot.h"
 #include "ProfilingDebugging/PlatformEvents.h"
-#include "SRecentTracesList.h"
+#include "ProfilingDebugging/TraceScreenshot.h"
 #include "Styling/StyleColors.h"
 #include "ToolMenus.h"
 #include "Trace/Detail/Channel.h"
 #include "Trace/StoreClient.h"
 #include "Trace/Trace.h"
-#include "UnrealInsightsLauncher.h"
-#include "Insights/Widgets/STraceServerControl.h"
-#include "Widgets/SBoxPanel.h"
-#include "Widgets/SOverlay.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Notifications/SNotificationList.h"
+#include "Widgets/SBoxPanel.h"
+
+// TraceTools
+#include "TraceTools/Interfaces/ITraceToolsModule.h"
+#include "TraceTools/Widgets/SToggleTraceButton.h"
+
+// TraceInsightsFrontend
+#include "InsightsFrontend/StoreService/TraceServerControl.h"
+
+// EditorTraceUtilities
+#include "EditorTraceUtilities.h"
+#include "EditorTraceUtilitiesStyle.h"
+#include "SRecentTracesList.h"
+#include "UnrealInsightsLauncher.h"
 
 #define LOCTEXT_NAMESPACE "InsightsEditor"
+
+namespace UE::EditorTraceUtilities
+{
+
+FStatusBarTraceSettings SInsightsStatusBarWidget::StatusBarTraceSettings;
 
 const TCHAR* SInsightsStatusBarWidget::DefaultPreset = TEXT("default");
 const TCHAR* SInsightsStatusBarWidget::MemoryPreset= TEXT("default,memory");
@@ -48,6 +60,7 @@ const TCHAR* SInsightsStatusBarWidget::ContextSwitchesPreset = TEXT("default,con
 const TCHAR* SInsightsStatusBarWidget::SettingsCategory = TEXT("EditorTraceUtilities");
 const TCHAR* SInsightsStatusBarWidget::OpenLiveSessionOnTraceStartSettingName = TEXT("OpenLiveSessionOnTraceStart");
 const TCHAR* SInsightsStatusBarWidget::OpenInsightsAfterTraceSettingName = TEXT("OpenInsightsAfterTrace");
+const TCHAR* SInsightsStatusBarWidget::TraceRegionSettingName = TEXT("InsightsToolbarTraceRegion");
 const TCHAR* SInsightsStatusBarWidget::ShowInExplorerAfterTraceSettingName = TEXT("ShowInExplorerAfterTrace");
 
 class FOpenLiveSessionTask
@@ -124,6 +137,8 @@ void SInsightsStatusBarWidget::Tick(const FGeometry& AllottedGeometry, const dou
 
 void SInsightsStatusBarWidget::Construct(const FArguments& InArgs)
 {
+	FModuleManager::LoadModuleChecked<UE::TraceTools::ITraceToolsModule>("TraceTools");
+
 	this->ChildSlot
 	[
 		SNew(SHorizontalBox)
@@ -164,42 +179,11 @@ void SInsightsStatusBarWidget::Construct(const FArguments& InArgs)
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		[
-			SNew(SButton)
-			.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-			.ContentPadding(FMargin(0.0f, 0.0f, 0.0f, 3.0f))
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Bottom)
-			.ToolTipText(this, &SInsightsStatusBarWidget::GetRecordingButtonTooltipText)
-			.OnClicked_Lambda([this]() { this->ToggleTrace_OnClicked(); return FReply::Handled(); })
-			.OnHovered_Lambda([this]() { this->bIsTraceRecordButtonHovered = true; })
-			.OnUnhovered_Lambda([this]() { this->bIsTraceRecordButtonHovered = false; })
-			.Content()
-			[
-				SNew(SOverlay)
-
-				+ SOverlay::Slot()
-				[
-					SNew(SImage)
-					.ColorAndOpacity(this, &SInsightsStatusBarWidget::GetRecordingButtonColor)
-					.Image(FEditorTraceUtilitiesStyle::Get().GetBrush("Icons.RecordTraceCenter.StatusBar"))
-					.Visibility(this, &SInsightsStatusBarWidget::GetStartTraceIconVisibility)
-				]
-
-				+ SOverlay::Slot()
-				[
-					SNew(SImage)
-					.ColorAndOpacity(this, &SInsightsStatusBarWidget::GetRecordingButtonOutlineColor)
-					.Image(FEditorTraceUtilitiesStyle::Get().GetBrush("Icons.RecordTraceOutline.StatusBar"))
-					.Visibility(this, &SInsightsStatusBarWidget::GetStartTraceIconVisibility)
-				]
-
-				+ SOverlay::Slot()
-				[
-					SNew(SImage)
-					.Image(FEditorTraceUtilitiesStyle::Get().GetBrush("Icons.RecordTraceStop.StatusBar"))
-					.Visibility(this, &SInsightsStatusBarWidget::GetStopTraceIconVisibility)
-				]
-			]
+			SNew(UE::TraceTools::SToggleTraceButton)
+			.OnToggleTraceRequested(this, &SInsightsStatusBarWidget::ToggleTrace_OnClicked)
+			.IsTraceRunning_Lambda([]() {return UE::Trace::IsTracing(); })
+			.ButtonSize(UE::TraceTools::SToggleTraceButton::EButtonSize::StatusBar)
+			.IsEnabled(this, &SInsightsStatusBarWidget::ToggleTrace_CanExecute)
 		]
 
 		+ SHorizontalBox::Slot()
@@ -211,6 +195,7 @@ void SInsightsStatusBarWidget::Construct(const FArguments& InArgs)
 			.HAlign(HAlign_Left)
 			.VAlign(VAlign_Bottom)
 			.OnClicked_Lambda([this]() { SaveSnapshot(); return FReply::Handled(); })
+			.IsEnabled(this, &SInsightsStatusBarWidget::SaveSnapshot_CanExecute)
 			.Content()
 			[
 				SNew(SImage)
@@ -223,11 +208,11 @@ void SInsightsStatusBarWidget::Construct(const FArguments& InArgs)
 
 	if (FTraceAuxiliary::GetConnectionType() == FTraceAuxiliary::EConnectionType::Network)
 	{
-		TraceDestination = ETraceDestination::TraceStore;
+		StatusBarTraceSettings.TraceDestination = ETraceDestination::TraceStore;
 	}
 	if (FTraceAuxiliary::GetConnectionType() == FTraceAuxiliary::EConnectionType::File)
 	{
-		TraceDestination = ETraceDestination::File;
+		StatusBarTraceSettings.TraceDestination = ETraceDestination::File;
 	}
 
 	LogListingName = TEXT("UnrealInsights");
@@ -273,7 +258,7 @@ TSharedRef<SWidget> SInsightsStatusBarWidget::MakeTraceMenu()
 			FInsightsStatusBarWidgetCommands::Get().Command_TraceScreenshot,
 			NAME_None,
 			TAttribute<FText>(),
-			TAttribute<FText>(),
+			TAttribute<FText>::CreateSP(this, &SInsightsStatusBarWidget::GetTraceScreenshotTooltipText),
 			FSlateIcon(FEditorTraceUtilitiesStyle::Get().GetStyleSetName(), "Icons.Screenshot.Menu")
 		);
 
@@ -282,10 +267,31 @@ TSharedRef<SWidget> SInsightsStatusBarWidget::MakeTraceMenu()
 			FInsightsStatusBarWidgetCommands::Get().Command_TraceBookmark,
 			NAME_None,
 			TAttribute<FText>(),
-			TAttribute<FText>(),
+			TAttribute<FText>::CreateSP(this, &SInsightsStatusBarWidget::GetTraceBookmarkTooltipText),
 			FSlateIcon(FEditorTraceUtilitiesStyle::Get().GetStyleSetName(), "Icons.Bookmark.Menu")
 		);
-
+		
+		MenuBuilder.AddEditableText(LOCTEXT("TraceRegionNameLabel", "Region Name:"),
+							GetTraceRegionNameDesc(),
+									FSlateIcon(),
+									TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateRaw(this, &SInsightsStatusBarWidget::GetTraceRegionName)),
+									FOnTextCommitted::CreateLambda([](const FText& NewRegionName, ETextCommit::Type)
+									{
+										GConfig->SetText(SettingsCategory, TraceRegionSettingName, NewRegionName, FEditorTraceUtilitiesModule::GetTraceUtilitiesIni());
+									}),
+									FOnTextChanged(),
+									RegionIsActive());
+		
+		MenuBuilder.AddMenuEntry(
+			GetRegionSwitchLabelText(),
+			TAttribute<FText>::CreateSP(this, &SInsightsStatusBarWidget::GetRegionSwitchDescText),
+			FSlateIcon(FEditorTraceUtilitiesStyle::Get().GetStyleSetName(), RegionIsActive() ? "Icons.EndRegion.Menu" : "Icons.BeginRegion.Menu"),
+			FUIAction(FExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleRegion_Execute),
+					  FCanExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleRegion_CanExecute)),
+			NAME_None,
+			EUserInterfaceActionType::Button
+		);
+		
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("StatNamedEventsLabel", "Stat Named Events"),
 			LOCTEXT("StatNamedEventsDesc", "Enable or disable named events in the stats system."),
@@ -331,7 +337,8 @@ TSharedRef<SWidget> SInsightsStatusBarWidget::MakeTraceMenu()
 			TAttribute<FText>::CreateSP(this, &SInsightsStatusBarWidget::GetTraceMenuItemText),
 			TAttribute<FText>::CreateSP(this, &SInsightsStatusBarWidget::GetTraceMenuItemTooltipText),
 			FSlateIcon(FEditorTraceUtilitiesStyle::Get().GetStyleSetName(), "Icons.StartTrace.Menu"),
-			FUIAction(FExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleTrace_OnClicked)),
+			FUIAction(FExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleTrace_OnClicked),
+					  FCanExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleTrace_CanExecute)),
 			NAME_None,
 			EUserInterfaceActionType::Button
 		);
@@ -492,10 +499,22 @@ void SInsightsStatusBarWidget::Channels_BuildMenu(FMenuBuilder& MenuBuilder)
 			const FChannelData& Data = ChannelsInfo[Index];
 			FString ChannelDisplayName = Data.Name;
 			ChannelDisplayName.RemoveFromEnd(TEXT("Channel"), 7);
+			FText ChannelTooltip = FText::FromString(Data.Desc);
+			if (Data.bIsReadOnly)
+			{
+				if (Data.Desc.EndsWith("."))
+				{
+					ChannelTooltip = FText::Format(LOCTEXT("ChannelTooltipFmt1", "{0} This channel is readonly and can only be enabled from the command line."), FText::FromString(Data.Desc));
+				}
+				else
+				{
+					ChannelTooltip = FText::Format(LOCTEXT("ChannelTooltipFmt2", "{0}. This channel is readonly and can only be enabled from the command line."), FText::FromString(Data.Desc));
+				}
+			}
 
 			MenuBuilder.AddMenuEntry(
 				FText::FromString(ChannelDisplayName),
-				FText::Format(LOCTEXT("ChannelDesc", "Enable/disable the {0} channel"), FText::FromString(ChannelDisplayName)),
+				ChannelTooltip,
 				FSlateIcon(),
 				FUIAction(FExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleChannel_Execute, Index),
 					FCanExecuteAction::CreateLambda([Value = !Data.bIsReadOnly]() { return Value; }),
@@ -534,11 +553,12 @@ void SInsightsStatusBarWidget::InitCommandList()
 
 FText SInsightsStatusBarWidget::GetTitleToolTipText() const
 {
+#if UE_TRACE_ENABLED
 	FTextBuilder DescBuilder;
 
 	const FString Dest = FTraceAuxiliary::GetTraceDestinationString();
 
-	if (*Dest != 0)
+	if (!Dest.IsEmpty())
 	{
 		DescBuilder.AppendLineFormat(LOCTEXT("TracingToText", "Tracing to: {0}"), FText::FromString(Dest));
 	}
@@ -552,38 +572,9 @@ FText SInsightsStatusBarWidget::GetTitleToolTipText() const
 	}
 
 	return DescBuilder.ToText();
-}
-
-FSlateColor SInsightsStatusBarWidget::GetRecordingButtonColor() const
-{
-	if (!UE::Trace::IsTracing())
-	{
-		return FStyleColors::White;
-	}
-
-	return FStyleColors::Error;
-}
-
-FSlateColor SInsightsStatusBarWidget::GetRecordingButtonOutlineColor() const
-{
-	if (!UE::Trace::IsTracing())
-	{
-		ConnectionStartTime = FSlateApplication::Get().GetCurrentTime();
-		return FLinearColor::White.CopyWithNewOpacity(0.5f);
-	}
-
-	double ElapsedTime = FSlateApplication::Get().GetCurrentTime() - ConnectionStartTime;
-	return FStyleColors::Error.GetColor(FWidgetStyle()).CopyWithNewOpacity(0.5f + 0.5f * FMath::MakePulsatingValue(ElapsedTime, 0.5f));
-}
-
-FText SInsightsStatusBarWidget::GetRecordingButtonTooltipText() const
-{
-	if (!UE::Trace::IsTracing())
-	{
-		return LOCTEXT("StartTracing", "Start tracing. The trace destination is set from the menu.");
-	}
-
-	return LOCTEXT("StopTracing", "Stop Tracing.");
+#else
+	return LOCTEXT("TraceStatusDisabled", "Trace system is disabled at compile time. Check the UE_TRACE_ENABLED define.");
+#endif
 }
 
 void SInsightsStatusBarWidget::LogMessage(const FText& Text)
@@ -703,12 +694,12 @@ FString SInsightsStatusBarWidget::GetLatestTraceFileFromFolder(const FString& In
 
 void SInsightsStatusBarWidget::SetTraceDestination_Execute(ETraceDestination InDestination)
 {
-	TraceDestination = InDestination;
+	StatusBarTraceSettings.TraceDestination = InDestination;
 }
 
 bool SInsightsStatusBarWidget::SetTraceDestination_IsChecked(ETraceDestination InDestination)
 {
-	return InDestination == TraceDestination;
+	return InDestination == StatusBarTraceSettings.TraceDestination;
 }
 
 bool SInsightsStatusBarWidget::SetTraceDestination_CanExecute()
@@ -723,7 +714,7 @@ bool SInsightsStatusBarWidget::SetTraceDestination_CanExecute()
 
 void SInsightsStatusBarWidget::SaveSnapshot()
 {
-	if (TraceDestination == ETraceDestination::File)
+	if (StatusBarTraceSettings.TraceDestination == ETraceDestination::File)
 	{
 		const bool bResult = FTraceAuxiliary::WriteSnapshot(nullptr);
 		if (bResult)
@@ -744,9 +735,13 @@ void SInsightsStatusBarWidget::SaveSnapshot()
 	LogMessage(LOCTEXT("SnapshotSavedError", "The snapshot could not be saved."));
 }
 
-bool SInsightsStatusBarWidget::SaveSnapshot_CanExecute()
+bool SInsightsStatusBarWidget::SaveSnapshot_CanExecute() const
 {
+#if UE_TRACE_ENABLED
 	return true;
+#else
+	return false;
+#endif
 }
 
 FText SInsightsStatusBarWidget::GetTraceMenuItemText() const
@@ -761,12 +756,25 @@ FText SInsightsStatusBarWidget::GetTraceMenuItemText() const
 
 FText SInsightsStatusBarWidget::GetTraceMenuItemTooltipText() const
 {
+#if UE_TRACE_ENABLED
 	if (UE::Trace::IsTracing())
 	{
 		return LOCTEXT("StopTraceButtonTooltip", "Stop tracing");
 	}
 
 	return LOCTEXT("StartTraceButtonTooltip", "Start tracing to the selected trace destination.");
+#else
+	return LOCTEXT("StartTraceDisabledButtonTooltip", "Trace system is disabled at compile time. Check the UE_TRACE_ENABLED define.");
+#endif
+}
+
+bool SInsightsStatusBarWidget::ToggleTrace_CanExecute() const
+{
+#if UE_TRACE_ENABLED
+	return true;
+#else
+	return false;
+#endif
 }
 
 void SInsightsStatusBarWidget::ToggleTrace_OnClicked()
@@ -833,36 +841,16 @@ void SInsightsStatusBarWidget::TogglePauseTrace_OnClicked()
 
 bool SInsightsStatusBarWidget::StartTracing()
 {
-	if (TraceDestination == ETraceDestination::TraceStore)
+	if (StatusBarTraceSettings.TraceDestination == ETraceDestination::TraceStore)
 	{
 		return FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::Network, TEXT("localhost"), nullptr);
 	}
-	else if (TraceDestination == ETraceDestination::File)
+	else if (StatusBarTraceSettings.TraceDestination == ETraceDestination::File)
 	{
 		return FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::File, nullptr, nullptr);
 	}
 
 	return false;
-}
-
-EVisibility SInsightsStatusBarWidget::GetStartTraceIconVisibility() const
-{
-	if (GetStopTraceIconVisibility() == EVisibility::Hidden)
-	{
-		return EVisibility::Visible;
-	}
-
-	return EVisibility::Hidden;
-}
-
-EVisibility SInsightsStatusBarWidget::GetStopTraceIconVisibility() const
-{
-	if (bIsTraceRecordButtonHovered && UE::Trace::IsTracing())
-	{
-		return EVisibility::Visible;
-	}
-
-	return EVisibility::Hidden;
 }
 
 bool SInsightsStatusBarWidget::GetBooleanSettingValue(const TCHAR* InSettingName)
@@ -968,6 +956,7 @@ void SInsightsStatusBarWidget::CreateChannelsInfo()
 
 		FChannelData NewChannelInfo;
 		NewChannelInfo.Name = Info.Name;
+		NewChannelInfo.Desc = Info.Desc;
 		NewChannelInfo.bIsEnabled = Info.bIsEnabled;
 		NewChannelInfo.bIsReadOnly = Info.bIsReadOnly;
 
@@ -1038,25 +1027,84 @@ bool SInsightsStatusBarWidget::ToggleChannel_IsChecked(int32 Index)
 }
 
 
-bool SInsightsStatusBarWidget::TraceScreenshot_CanExecute()
+bool SInsightsStatusBarWidget::TraceScreenshot_CanExecute() const
 {
 	return SHOULD_TRACE_SCREENSHOT();
 }
 
 void SInsightsStatusBarWidget::TraceScreenshot_Execute()
 {
+#if UE_SCREENSHOT_TRACE_ENABLED
 	FTraceScreenshot::RequestScreenshot(TEXT(""), false);
+#endif
 }
 
-bool SInsightsStatusBarWidget::TraceBookmark_CanExecute()
+bool SInsightsStatusBarWidget::TraceBookmark_CanExecute() const
 {
 	return SHOULD_TRACE_BOOKMARK();
 }
 
 void SInsightsStatusBarWidget::TraceBookmark_Execute()
 {
-	FString Bookmark = FDateTime::Now().ToString(TEXT("Bookmark_%Y%m%d_%H%M%S"));
-	TRACE_BOOKMARK(*Bookmark);
+	const FString Bookmark = FDateTime::Now().ToString(TEXT("Bookmark_%Y%m%d_%H%M%S"));
+	TRACE_BOOKMARK(TEXT("%s"), *Bookmark);
+}
+
+FText SInsightsStatusBarWidget::GetTraceRegionName()
+{
+	return GConfig->GetTextOrDefault(SettingsCategory, TraceRegionSettingName, FText::FromString("ToolbarCustomRegion"), FEditorTraceUtilitiesModule::GetTraceUtilitiesIni());
+}
+
+FText SInsightsStatusBarWidget::GetTraceRegionNameDesc()
+{
+	return RegionIsActive() ? LOCTEXT("TraceRegionNameDisabledDesc", "The name of the region to start or stop. Cannot be edited while a region is active.") : LOCTEXT("TraceRegionNameEnabledDesc", "The name of the region to start or stop.");
+}
+
+void SInsightsStatusBarWidget::ToggleRegion_Execute()
+{
+	if(RegionIsActive())
+	{
+		TRACE_END_REGION_WITH_ID(RegionId);
+		RegionId = 0;
+	}
+	else
+	{
+		RegionId = TRACE_BEGIN_REGION_WITH_ID(*GetTraceRegionName().ToString());
+	}
+}
+
+bool SInsightsStatusBarWidget::ToggleRegion_CanExecute() const
+{
+	return SHOULD_TRACE_REGION();
+}
+
+bool SInsightsStatusBarWidget::RegionIsActive() const
+{
+	return RegionId > 0;
+}
+
+FText SInsightsStatusBarWidget::GetRegionSwitchLabelText() const
+{
+	if(RegionIsActive())
+	{
+		return LOCTEXT("TraceEndRegionLabel", "End Region");	
+	}
+	return LOCTEXT("TraceBeginRegionLabel", "Begin Region");
+}
+
+FText SInsightsStatusBarWidget::GetRegionSwitchDescText() const
+{
+	if (!ToggleRegion_CanExecute())
+	{
+		LOCTEXT("TraceRegionDisabledDesc", "Regions can only be traced when the Region channel in enabled.");
+	}
+
+	if(RegionIsActive())
+	{
+		return LOCTEXT("TraceEndRegionDesc", "Marks the ending of a trace region with the name input above.");	
+	}
+
+	return LOCTEXT("TraceBeginRegionDesc", "Marks the beginning of a trace region with the name input above.");
 }
 
 void SInsightsStatusBarWidget::PopulateRecentTracesList()
@@ -1115,5 +1163,31 @@ void SInsightsStatusBarWidget::OpenTrace(int32 Index)
 		FUnrealInsightsLauncher::Get()->TryOpenTraceFromDestination(Traces[Index]->FilePath);
 	}
 }
+
+FText SInsightsStatusBarWidget::GetTraceScreenshotTooltipText() const
+{
+	if (TraceScreenshot_CanExecute())
+	{
+		return LOCTEXT("TraceScreenshotTooltip1", "Takes a screenshot and sends it to the trace.");
+	}
+	else
+	{
+		return LOCTEXT("TraceScreenshotTooltip2", "Screenshots can only be traced when the Screenshot channel is enabled.");
+	}
+}
+
+FText SInsightsStatusBarWidget::GetTraceBookmarkTooltipText() const
+{
+	if (TraceBookmark_CanExecute())
+	{
+		return LOCTEXT("TraceBookmarkTooltip1", "Traces a bookmark.");
+	}
+	else
+	{
+		return LOCTEXT("TraceBookmarkTooltip2", "Bookmarks can only be traced when the Bookmark channel is enabled.");
+	}
+}
+
+} // namespace UE::EditorTraceUtilities
 
 #undef LOCTEXT_NAMESPACE

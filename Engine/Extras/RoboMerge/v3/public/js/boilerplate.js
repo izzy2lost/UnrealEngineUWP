@@ -298,9 +298,17 @@ function handleUserPermissions(user) {
 		}
 	}
 
-	// Fulltime employees should see the log buttons.
+	// Everyone sees when logged in
+	$('#p4AllBotsButton').show();
+	$('#trackChangeButton').show();
+
+
+	// Fulltime employees should see a wider set of buttons.
 	if (isFTE) {
-		$('#fteButtons').show();
+		$('#logButton').show();
+		$('#lastCrashButton').show();
+		$('#p4TasksButton').show();
+		$('#branchesButton').show();
 	}
 }
 
@@ -451,39 +459,43 @@ function generateRobomergeHeader(createSignedInUserDiv = true) {
 function generateRobomergeFooter() {
 	let fixedFooterContents = $('<div class="button-bar">')
 
-	let fteButtonDiv = $('<div id="fteButtons">')
-	fteButtonDiv.hide()
-	fixedFooterContents.append(fteButtonDiv)
+	let buttonDiv = $('<div id="buttons">')
+	fixedFooterContents.append(buttonDiv)
 
 	let logButton = $('<button id="logButton">')
 	logButton.addClass("btn btn-sm btn-outline-dark")
 	logButton.click(function() { window.open('/api/logs', '_blank') })
 	logButton.text("Logs")
-	fteButtonDiv.append(logButton)
+	logButton.hide()
+	buttonDiv.append(logButton)
 
 	let lastCrashButton = $('<button id="lastCrashButton">')
 	lastCrashButton.addClass("btn btn-sm btn-outline-dark")
 	lastCrashButton.click(function() { window.open('/api/last_crash', '_blank') })
 	lastCrashButton.text("Last Crash")
-	fteButtonDiv.append(lastCrashButton)
+	lastCrashButton.hide()
+	buttonDiv.append(lastCrashButton)
 
 	let p4TasksButton = $('<button id="p4TasksButton">')
 	p4TasksButton.addClass("btn btn-sm btn-outline-dark")
 	p4TasksButton.click(function() { window.open('/api/p4tasks', '_blank') })
 	p4TasksButton.text("P4 Tasks")
-	fteButtonDiv.append(p4TasksButton)
-
-	let p4AllBotsButton = $('<button id="p4AllBotsButton">')
-	p4AllBotsButton.addClass("btn btn-sm btn-outline-dark")
-	p4AllBotsButton.click(function() { window.open('/allbots', '_blank') })
-	p4AllBotsButton.text("All bots graph")
-	fteButtonDiv.append(p4AllBotsButton)
+	p4TasksButton.hide()
+	buttonDiv.append(p4TasksButton)
 
 	let branchesButton = $('<button id="branchesButton">')
 	branchesButton.addClass("btn btn-sm btn-outline-dark")
 	branchesButton.click(function() { window.open('/api/branches', '_blank') })
 	branchesButton.text("Branch Data")
-	fteButtonDiv.append(branchesButton)
+	branchesButton.hide()
+	buttonDiv.append(branchesButton)
+
+	let p4AllBotsButton = $('<button id="p4AllBotsButton">')
+	p4AllBotsButton.addClass("btn btn-sm btn-outline-dark")
+	p4AllBotsButton.click(function() { window.open('/allbots', '_blank') })
+	p4AllBotsButton.text("All bots graph")
+	p4AllBotsButton.hide()
+	buttonDiv.append(p4AllBotsButton)
 
 	let trackChangeButton = $('<button id="trackChangeButton">')
 	trackChangeButton.addClass("btn btn-sm btn-outline-dark")
@@ -501,7 +513,8 @@ function generateRobomergeFooter() {
 		}
 	})
 	trackChangeButton.text("Track Change")
-	fteButtonDiv.append(trackChangeButton)
+	trackChangeButton.hide()
+	buttonDiv.append(trackChangeButton)
 
 	let currentlyRunningDiv = $('<div id="currentlyRunning">')
 	fixedFooterContents.append(currentlyRunningDiv)
@@ -909,7 +922,7 @@ function createEdgeRow(nodeData, edgeData, includeActions) {
 	}
 	columnArray.push(renderLastChangeCell_Common(nodeData.bot, nodeData.def.name, edgeData.last_cl, edgeAPIOp,
 														operationArgs, catchupText, edgeData.display_name))
-	postRenderLastChangeCell_Edge(columnArray[columnArray.length - 1], edgeData)
+	postRenderLastChangeCell_Edge(nodeData.bot, columnArray[columnArray.length - 1], edgeData, edgeAPIOp, operationArgs)
 
 	return columnArray
 }
@@ -1027,9 +1040,13 @@ function createPauseDivs(data, conflict) {
 			data.blockage && data.blockage.change ? data.blockage.change :
 			'unknown'
 		
-		const info = conflict && conflict.kind ? `<span class="pause-div-label">Cause:</span> <strong>${conflict.kind.toLowerCase()}</strong>` :
+		let info = conflict && conflict.kind ? `<span class="pause-div-label">Cause:</span> <strong>${conflict.kind.toLowerCase()}</strong>` :
 			data.blockage ? `<span class="pause-div-label">Blocked.</span> Type: ${data.blockage.type}<br /> Message: ${data.blockage.message}` :
 			`No info can be provided. Please contact Robomerge help.`
+
+		if (conflict && conflict.slackLinks) {
+			info += `<br>${conflict.slackLinks.map(link => `<a href="${link}" target="_blank">Slack Thread</a>`).join("<br>")}`
+		}
 
 		divs.push($('<div class="info-block conflict">')
 			.append(
@@ -1212,9 +1229,9 @@ function renderStatusCell_Common(statusCell, data) {
 			let acknowledgedSince = new Date(data.blockage.acknowledgedAt);
 			let [ackDurationStr, ackDurationColor] = printDurationInfo("Acknowledged", Date.now() - acknowledgedSince.getTime())
 			$('<div class="blockage-details">')
-				.css('color', ackDurationColor)
-				.html(`${ackDurationStr} by <strong>${data.blockage.acknowledger}</strong>`)
-				.insertAfter(blockageinfoDiv)
+									.css('color', ackDurationColor)
+									.html(`${ackDurationStr} by <strong>${data.blockage.acknowledger}</strong>`)
+									.insertAfter(blockageinfoDiv)
 		}
 		// Determine who is responsible for resolving this.
 		else {
@@ -1588,11 +1605,9 @@ function renderActionsCell_Edge(actionCell, nodeData, edgeData, conflict=null) {
 		}
 	}
 
-	let tooManyFilesBlockage = conflict && conflict.kind === 'Too many files'
-
 	if (edgeData.is_blocked && edgeData.blockage && edgeData.blockage.targetBranchName) {
 		// Skip CL
-		const skipEnabled = tooManyFilesBlockage || !edgeData.disallowSkip
+		const skipEnabled = !edgeData.disallowSkip
 		
 		const skipChangelistText = `Skip Changelist ${edgeData.blockage.change}`
 		if (skipEnabled) {
@@ -1603,10 +1618,8 @@ function renderActionsCell_Edge(actionCell, nodeData, edgeData, conflict=null) {
 				edge: edgeData.blockage.targetBranchName
 			}) + location.hash
 
-			let tooltip = `Skip past the blockage caused by changelist ${edgeData.blockage.change}. `
-			tooltip += 
-				tooManyFilesBlockage ?  'Please ensure this large changelist has been integrated before skipping.' :
-				"This option should only be selected if the work does not need to be merged or you will merge this work youself."
+			const tooltip = `Skip past the blockage caused by changelist ${edgeData.blockage.change}. `
+				+ "This option should only be selected if the work does not need to be merged or you will merge this work youself."
 			const skipOption = createActionOption(skipChangelistText, function() {
 				window.location.href = skipRequest;
 			}, tooltip)
@@ -1702,11 +1715,11 @@ function prettyDate(date) {
 	}
 }
 
-function postRenderLastChangeCell_Edge(lastChangeCell, edgeData) {
+function postRenderLastChangeCell_Edge(botname, lastChangeCell, edgeData, operationFunction, operationArgs) {
 	if (edgeData.lastGoodCL) {
-		let tooltip = 'CL approved by CIS'
+		let tooltip = edgeData.lastGoodCLJobLink ? 'CL approved by CIS' : 'Paused at CL'
 		if (edgeData.lastGoodCLDate) {
-			tooltip += ` on ${prettyDate(new Date(edgeData.lastGoodCLDate))}`
+			tooltip += ` submitted ${prettyDate(new Date(edgeData.lastGoodCLDate))}`
 		}
 		if (edgeData.headCL) {
 			tooltip += ` (head changelist ${edgeData.headCL})`
@@ -1714,6 +1727,37 @@ function postRenderLastChangeCell_Edge(lastChangeCell, edgeData) {
 		
 		let goodCL = edgeData.lastGoodCLJobLink ? $(`<a href="${edgeData.lastGoodCLJobLink}">`).prop('target', '_blank') : $('<div>');
 		goodCL.html('\u{2713} ' + edgeData.lastGoodCL).addClass('last-good-cl').prop('title', tooltip).appendTo(lastChangeCell)
+
+		if (!edgeData.lastGoodCLJobLink)
+		{
+			// On shift+click, we can set the CL instead
+			goodCL.click(function(evt) {
+				if (evt.shiftKey)
+				{
+					let data = promptFor({
+						cl: {prompt: 'Enter CL', default: edgeData.lastGoodCL},
+					})
+					if (data) {
+						data.reason = "manually set through Robomerge homepage"
+
+						operationFunction(...operationArgs, "/set_gate_cl?" + toQuery(data), function(success) {
+							if (success) {
+								updateBranchList(botname)
+								displaySuccessfulMessage(`Successfully set gate for ${edgeData.displayName} to changelist ${data.cl}`)
+							} else {
+								displayErrorMessage(`Error setting gate for ${edgeData.displayName} to changelist ${data.cl}, please check logs.`)
+							}
+						})
+						
+					}
+					if (evt.preventDefault) {
+						evt.preventDefault()
+					}
+					return false
+				}
+				return true
+			})
+		}
 	}
 }
 
@@ -1881,7 +1925,7 @@ if (!onLoginPage) {
 				$('.tags', $container).text(data.user.privileges && Array.isArray(data.user.privileges) ? ` (${data.user.privileges.join(', ')})` : '');
 
 				if (data.insufficientPrivelege) {
-					setErrorText('There are bots running but logged in user does not have admin access');
+					displayErrorMessage('There are bots running but logged in user does not have access to see any');
 				}
 
 			}

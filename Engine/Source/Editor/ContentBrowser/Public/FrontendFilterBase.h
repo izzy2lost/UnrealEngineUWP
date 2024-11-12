@@ -24,6 +24,9 @@ public:
 	/** Invoke to set the source filter that is currently used to filter assets in the asset view */
 	virtual void SetCurrentFilter(TArrayView<const FName> InSourcePaths, const FContentBrowserDataFilter& InBaseFilter) { }
 	
+	/** If this filter is a saved custom text filter, return the text query it represents. */
+	virtual TOptional<FText> GetAsCustomTextFilter() { return TOptional<FText>(); }
+	
 	// FFilterBase Interface
 	
 	/** Returns the color this filter button will be when displayed as a button */

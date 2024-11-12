@@ -230,7 +230,22 @@ float3 LuminanceWeight(in float SatNoL, in FSubstrateBSDF InBSDF)
 
 float3 LuminanceWeight(in FSubstrateBSDFContext InContext, in FSubstrateBSDF InBSDF)
 {
-	return LuminanceWeight(InContext.SatNoL, InBSDF);
+	float SatNoL = InContext.SatNoL;
+
+#if SUBSTRATE_COMPLEXPATH
+	if (BSDF_GETTYPE(InBSDF) == SUBSTRATE_BSDF_TYPE_SLAB && !BSDF_GETISTOPLAYER(InBSDF))
+	{
+		// We do not have any information about the layers above at this stage so we use a default IOR mapping to water behavior (for all fo the layers).
+		const float AirIOR = 1.0f;
+		const float LayersAboveIOR = 1.5f;
+		// Refract L coming toward the surface from air to matter according to IOR, and assuming all surface above have the same IOR.
+		// Refraction also fades out as a function of the coverage of the surfaces above.
+		float3 RefractedL = refract(-InContext.L, InContext.N, lerp(1.0f, AirIOR / LayersAboveIOR, InBSDF.CoverageAboveAlongN));
+		SatNoL = saturate(dot(InContext.N, -RefractedL));
+	}
+#endif
+
+	return LuminanceWeight(SatNoL, InBSDF);
 }
 
 half Substrate_D_GGX(half Roughness, half a2, half NoH)
@@ -410,6 +425,26 @@ FSubstrateEvaluateResult SubstrateEvaluateBSDFCommon(FSubstrateBSDFContext BSDFC
 					DirectionalAlbedo_SpecularTransmission = ComputeEnergyPreservation(EnergyTerms);
 					MSScale = ComputeEnergyConservation(EnergyTerms);
 				}
+
+				#if MATERIAL_ROUGHDIFFUSE && SUBSTRATE_SHADING_QUALITY <= 1
+				// We remove the Chan model baked transmittance specular directional albedo assuming F=0.04.
+				// Then we apply the transmittance according to the current surface setup.
+				// To make this a safe operation:
+				//	- We clamp SpecularTChan to a threshold to avoid div by 0 when the material is a metal. 
+				//	- When the material tends to be metal, DirectionalAlbedo_SpecularTransmission will naturally tend to be 0
+				// Bypass this correction when SUBSTRATE_SHADING_QUALITY > 1 (i.e., med/low quality), for trading accuracy for speed
+				// We also do not apply that correction when rendering SIMPLE_VOLUME slabs:
+				//	- In this case there is no specular transmission baked in the participating media scattering model we use for coating layer.
+				//	- And specular throughput needs to be applied on the surface transmittance too to be energy conservative.
+				if (Settings.bRoughDiffuseEnabled && BSDF_GETSSSTYPE(BSDFContext.BSDF) != SSS_TYPE_SIMPLEVOLUME)
+				{
+					const float ChanF0 = 0.04;
+					FBxDFEnergyTerms EnergyTerms = ComputeGGXSpecEnergyTerms(SafeRoughness, BSDFContext.Context.NoV, ChanF0, 1.0f);
+					const float SpecularTransmitionChanF0ToMaterialF0 = DirectionalAlbedo_SpecularTransmission / max(SUBSTRATE_EPSILON, ComputeEnergyPreservation(EnergyTerms));
+					DirectionalAlbedo_SpecularTransmission = SpecularTransmitionChanF0ToMaterialF0;
+				}
+				#endif
+
 				// Apply energy conservation on the diffuse component
 				// If the specular layer is anisotropic, the energy term is computed onto the 'main' roughness [Kulla 2019]
 				//
@@ -460,7 +495,7 @@ FSubstrateEvaluateResult SubstrateEvaluateBSDFCommon(FSubstrateBSDFContext BSDFC
 						// In this case, we set D to 1 and Vis will contain the area light / GGX integration
 						{
 							float3 MeanLightWorldDirection = 0.0f;
-							RectLightSpec = RectGGXApproxLTC(SafeRoughness, F0, BSDFContext.N, BSDFContext.V, AreaLightContext.AreaLight.Rect, AreaLightContext.AreaLight.Texture, MeanLightWorldDirection);
+							RectLightSpec = RectGGXApproxLTC(SafeRoughness, F0, F90, BSDFContext.N, BSDFContext.V, AreaLightContext.AreaLight.Rect, AreaLightContext.AreaLight.Texture, MeanLightWorldDirection);
 							
 							// Now combine the rectangular area light with Glints.
 						#if SUBSTRATE_COMPLEXSPECIALPATH && SUBSTRATE_GLINTS_ALLOWED && SUBSTRATE_GLINTS_ENABLED
@@ -593,7 +628,7 @@ FSubstrateEvaluateResult SubstrateEvaluateBSDFCommon(FSubstrateBSDFContext BSDFC
 					if (bIsRectLight)
 					{
 						{
-							RectLightSpecHaze = RectGGXApproxLTC(HazeSafeRoughness, HazeF0, BSDFContext.N, BSDFContext.V, AreaLightContext.AreaLight.Rect, AreaLightContext.AreaLight.Texture);
+							RectLightSpecHaze = RectGGXApproxLTC(HazeSafeRoughness, HazeF0, HazeF90, BSDFContext.N, BSDFContext.V, AreaLightContext.AreaLight.Rect, AreaLightContext.AreaLight.Texture);
 					
 							const float H_PDF = VisibleGGXPDF(BSDFContext.TangentV, BSDFContext.TangentH, Pow4(HazeSafeRoughness));
 							HazePDF = RayPDFToReflectionRayPDF(BSDFContext.Context.VoH, H_PDF);
@@ -698,87 +733,6 @@ FSubstrateEvaluateResult SubstrateEvaluateBSDFCommon(FSubstrateBSDFContext BSDFC
 
 			Sample.ThroughputV			= OpaqueBSDFThroughput;
 			Sample.TransmittanceAlongN	= OpaqueBSDFThroughput;
-
-			////
-			//// Evaluate cloth fuzz layered on top of the slab.
-			////
-
-			#if SUBSTRATE_FASTPATH==0
-			BRANCH
-			if (BSDF_GETHASFUZZ(BSDFContext.BSDF))
-			{
-				const float  FuzzAmount = SLAB_FUZZ_AMOUNT(BSDFContext.BSDF);
-				const float3 FuzzF0  = SLAB_FUZZ_COLOR(BSDFContext.BSDF);
-				const float  FuzzRoughness = MakeRoughnessSafe(SLAB_FUZZ_ROUGHNESS(BSDFContext.BSDF), SUBSTRATE_MIN_FUZZ_ROUGHNESS);
-
-				// F0 is ignored, as energy preservation is handle solely based on the white directional albedo and FuzzAmount
-				FBxDFEnergyTermsA EnergyTerms = (FBxDFEnergyTermsA)1.f;
-				float3 ClothSpecularPathValueNoL = 0;
-
-				#if SUBSTRATE_SHEEN_QUALITY == 1
-				// Disney LTC
-				{
-					float DirectionalAlbedo = 1;
-					BRANCH
-					if (bIsRectLight)
-					{
-						ClothSpecularPathValueNoL = FuzzF0 * RectSheenApproxLTC(FuzzRoughness, BSDFContext.N, BSDFContext.V, AreaLightContext.AreaLight.Rect, AreaLightContext.AreaLight.Texture, DirectionalAlbedo);
-					}
-					else
-					{
-						ClothSpecularPathValueNoL = FuzzF0 * SheenLTC_Eval(BSDFContext.V, AreaLightContext.L, BSDFContext.N, BSDFContext.Context.NoV, FuzzRoughness, View.SheenLTCTexture, View.SheenLTCSampler, DirectionalAlbedo);
-					}
-					EnergyTerms.E = DirectionalAlbedo;
-					EnergyTerms.W = 1.f;
-				}
-				#else
-				// Charlie cloth modle for D and Ashikhmin for visibility (more efficient than Charlie).
-				{
-					// ComputeEnergyConservation(EnergyTerms) is not taken into account because we do not white white fuzz to reflect all incoming energy
-					// The fuzz should have some transmission to the lower lobes. In order to pass a furnace test, a combination of white diffuse+white fuzz is required
-					EnergyTerms = ComputeClothEnergyTermsA(FuzzRoughness, BSDFContext.Context.NoV);
-
-					float ClothD   = D_Charlie(FuzzRoughness, BSDFContext.Context.NoH);
-					float ClothVis = Vis_Ashikhmin(BSDFContext.Context.NoV, AreaLightContext.NoL);
-					float3 ClothF  = F_Schlick(FuzzF0, BSDFContext.Context.VoH);
-					ClothSpecularPathValueNoL = (ClothD * ClothVis) * ClothF * ComputeEnergyConservation(EnergyTerms) * AreaLightContext.NoL;
-				}
-				#endif //SUBSTRATE_SHEEN_QUALITY
-
-				// The specular and diffuse components below the fuzz are only attenuated linearly according to the amount of fuzz.
-				const float3 Cloth_DirectionalAlbedo_SpecularTransmission = lerp(1.0, ComputeEnergyPreservation(EnergyTerms), FuzzAmount);
-
-				// Area light are not supported by the cloth BRDF
-				float3 ClothIntegratedSpecularValue = (ShadowTerms.SurfaceShadow * AreaLightContext.Falloff * FuzzAmount) * AreaLightContext.AreaLight.FalloffColor * ClothSpecularPathValueNoL;
-				
-				// Apply specular transmittance to diffuse and specular lob from slab medium and interface sitting below the layer of fuzz.
-				Sample.DiffusePathValue			*= Cloth_DirectionalAlbedo_SpecularTransmission;
-				Sample.IntegratedDiffuseValue	*= Cloth_DirectionalAlbedo_SpecularTransmission;
-				Sample.SpecularPathValue		*= Cloth_DirectionalAlbedo_SpecularTransmission;
-				Sample.IntegratedSpecularValue	*= Cloth_DirectionalAlbedo_SpecularTransmission;
-				
-				Sample.SpecularPathValue		+= ClothSpecularPathValueNoL;
-				Sample.IntegratedSpecularValue  += ClothIntegratedSpecularValue;
-
-				// This is not good. We should really have a separate PDF for cloth it self associated with a probability.
-				// We should also output probability to sample cloth, diffuse, secular, etc.
-				// We will revisit when the path tracer is getting up with Substrate.
-				//Sample.SpecularPDF = lerp(Sample.SpecularPDF, BSDFContext.SatNoV / PI, FuzzAmount); // Per "Production Friendly Microfacet Sheen BRDF", hemispherical sampling give good result as the roughness is usually high.
-				// SUBSTRATE_TODO we should have a separated cloth PDF and Weight
-
-				if (bHaziness)
-				{
-					Sample.SpecularHazePathValue*= Cloth_DirectionalAlbedo_SpecularTransmission;
-					Sample.SpecularHazePathValue+= ClothSpecularPathValueNoL;
-
-					// SUBSTRATE_TODO we should have a separated cloth PDF and Weight
-					//Sample.SpecularHazePDF		= lerp(Sample.SpecularHazePDF,			BSDFContext.SatNoV / PI,	Fuzz);;
-				}
-
-				Sample.ThroughputV *= Cloth_DirectionalAlbedo_SpecularTransmission;
-				// The specular transmission is ignored towards the direction of the light. (TransmittanceAlongN can only store transmittance)
-			}
-			#endif
 
 			////
 			//// Evaluate approximated SSS (using wrap lighting). Temp code. SUBSTRATE_TODO: unify evaluation
@@ -923,11 +877,7 @@ FSubstrateEvaluateResult SubstrateEvaluateBSDFCommon(FSubstrateBSDFContext BSDFC
 				const float HGPhaseFunction	= HenyeyGreensteinPhase(SLAB_SSSPHASEANISOTROPY(BSDFContext.BSDF), CosTheta);
 				const float PhaseFunction	= HGPhaseFunction / IsotropicPhase();
 
-			#if USE_NEW_SIMPLEVOLUME
-				const float3 SlabDirectionalAlbedo = PhaseFunction * IsotropicMediumSlabPunctualDirectionalAlbedoLUT(PM, BSDFContext.Context.NoV, BSDFContext.Context.NoL);
-			#else
-				const float3 SlabDirectionalAlbedo = PhaseFunction * IsotropicMediumSlabPunctualDirectionalAlbedo(PM);
-			#endif
+				const float3 SlabDirectionalAlbedo = PhaseFunction * IsotropicMediumSlabPunctualDirectionalAlbedo(PM, BSDFContext.Context.NoV, BSDFContext.Context.NoL);
 
 			#if 1
 				// For transmittance, we must account the fact that the view ray is going to be refracted at the interface of the slab.
@@ -974,6 +924,89 @@ FSubstrateEvaluateResult SubstrateEvaluateBSDFCommon(FSubstrateBSDFContext BSDFC
 					(ShadowTerms.SurfaceShadow * MediumNoL * AreaLightContext.Falloff) * AreaLightContext.AreaLight.FalloffColor * SlabDirectionalAlbedo * DirectionalAlbedo_SpecularTransmission,
 					DiffuseToVolumeBlend);
 				Sample.DiffuseColor		= SlabDirectionalAlbedo;
+			}
+			#endif
+
+			
+			////
+			//// Evaluate cloth fuzz layered on top of the slab.
+			////
+
+			#if SUBSTRATE_FASTPATH==0
+			BRANCH
+			if (BSDF_GETHASFUZZ(BSDFContext.BSDF))
+			{
+				const float  FuzzAmount = SLAB_FUZZ_AMOUNT(BSDFContext.BSDF);
+				const float3 FuzzF0  = SLAB_FUZZ_COLOR(BSDFContext.BSDF);
+				const float  FuzzRoughness = MakeRoughnessSafe(SLAB_FUZZ_ROUGHNESS(BSDFContext.BSDF), SUBSTRATE_MIN_FUZZ_ROUGHNESS);
+
+				// F0 is ignored, as energy preservation is handle solely based on the white directional albedo and FuzzAmount
+				FBxDFEnergyTermsA EnergyTerms = (FBxDFEnergyTermsA)1.f;
+				float3 ClothSpecularPathValueNoL = 0;
+
+				#if SUBSTRATE_SHEEN_QUALITY == 1
+				// Disney LTC
+				{
+					float DirectionalAlbedo = 1;
+					BRANCH
+					if (bIsRectLight)
+					{
+						ClothSpecularPathValueNoL = FuzzF0 * RectSheenApproxLTC(FuzzRoughness, BSDFContext.N, BSDFContext.V, AreaLightContext.AreaLight.Rect, AreaLightContext.AreaLight.Texture, DirectionalAlbedo);
+					}
+					else
+					{
+						ClothSpecularPathValueNoL = FuzzF0 * SheenLTC_Eval(BSDFContext.V, AreaLightContext.L, BSDFContext.N, BSDFContext.Context.NoV, FuzzRoughness, View.SheenLTCTexture, View.SheenLTCSampler, DirectionalAlbedo);
+						ClothSpecularPathValueNoL *= DirectionalAlbedo;
+					}
+					EnergyTerms.E = DirectionalAlbedo;
+					EnergyTerms.W = 1.f;
+				}
+				#else
+				// Charlie cloth modle for D and Ashikhmin for visibility (more efficient than Charlie).
+				{
+					// ComputeEnergyConservation(EnergyTerms) is not taken into account because we do not white white fuzz to reflect all incoming energy
+					// The fuzz should have some transmission to the lower lobes. In order to pass a furnace test, a combination of white diffuse+white fuzz is required
+					EnergyTerms = ComputeClothEnergyTermsA(FuzzRoughness, BSDFContext.Context.NoV);
+
+					float ClothD   = D_Charlie(FuzzRoughness, BSDFContext.Context.NoH);
+					float ClothVis = Vis_Ashikhmin(BSDFContext.Context.NoV, AreaLightContext.NoL);
+					float3 ClothF  = F_Schlick(FuzzF0, BSDFContext.Context.VoH);
+					ClothSpecularPathValueNoL = (ClothD * ClothVis) * ClothF * ComputeEnergyConservation(EnergyTerms) * AreaLightContext.NoL;
+				}
+				#endif //SUBSTRATE_SHEEN_QUALITY
+
+				// The specular and diffuse components below the fuzz are only attenuated linearly according to the amount of fuzz.
+				const float3 Cloth_DirectionalAlbedo_SpecularTransmission = lerp(1.0, ComputeEnergyPreservation(EnergyTerms), FuzzAmount);
+
+				// Area light are not supported by the cloth BRDF
+				float3 ClothIntegratedSpecularValue = (ShadowTerms.SurfaceShadow * AreaLightContext.Falloff * FuzzAmount) * AreaLightContext.AreaLight.FalloffColor * ClothSpecularPathValueNoL;
+				
+				// Apply specular transmittance to diffuse and specular lob from slab medium and interface sitting below the layer of fuzz.
+				Sample.DiffusePathValue			*= Cloth_DirectionalAlbedo_SpecularTransmission;
+				Sample.IntegratedDiffuseValue	*= Cloth_DirectionalAlbedo_SpecularTransmission;
+				Sample.SpecularPathValue		*= Cloth_DirectionalAlbedo_SpecularTransmission;
+				Sample.IntegratedSpecularValue	*= Cloth_DirectionalAlbedo_SpecularTransmission;
+				
+				Sample.SpecularPathValue		+= ClothSpecularPathValueNoL;
+				Sample.IntegratedSpecularValue  += ClothIntegratedSpecularValue;
+
+				// This is not good. We should really have a separate PDF for cloth it self associated with a probability.
+				// We should also output probability to sample cloth, diffuse, secular, etc.
+				// We will revisit when the path tracer is getting up with Substrate.
+				//Sample.SpecularPDF = lerp(Sample.SpecularPDF, BSDFContext.SatNoV / PI, FuzzAmount); // Per "Production Friendly Microfacet Sheen BRDF", hemispherical sampling give good result as the roughness is usually high.
+				// SUBSTRATE_TODO we should have a separated cloth PDF and Weight
+
+				if (bHaziness)
+				{
+					Sample.SpecularHazePathValue*= Cloth_DirectionalAlbedo_SpecularTransmission;
+					Sample.SpecularHazePathValue+= ClothSpecularPathValueNoL;
+
+					// SUBSTRATE_TODO we should have a separated cloth PDF and Weight
+					//Sample.SpecularHazePDF		= lerp(Sample.SpecularHazePDF,			BSDFContext.SatNoV / PI,	Fuzz);;
+				}
+
+				Sample.ThroughputV *= Cloth_DirectionalAlbedo_SpecularTransmission;
+				// The specular transmission is ignored towards the direction of the light. (TransmittanceAlongN can only store transmittance)
 			}
 			#endif
 
@@ -1050,10 +1083,10 @@ FSubstrateEvaluateResult SubstrateEvaluateBSDFCommon(FSubstrateBSDFContext BSDFC
 			const float Caustic = 0.8 + 0.2 * (Power + 1) * pow(saturate(dot(CausticNormal, BSDFContext.L)), Power);
 
 			const float Iris   = IrisNoL * Caustic;
-			const float Sclera = BSDFContext.Context.NoL;
+			const float Sclera = AreaLightContext.NoL;
 
 			Sample.DiffusePathValue = Diffuse_Lambert(DiffuseColor) * lerp(Sclera, Iris, EYE_IRISMASK(BSDFContext.BSDF));
-			Sample.IntegratedDiffuseValue += (ShadowTerms.SurfaceShadow * AreaLightContext.NoL * AreaLightContext.Falloff) * AreaLightContext.AreaLight.FalloffColor * Sample.DiffusePathValue;
+			Sample.IntegratedDiffuseValue += (ShadowTerms.SurfaceShadow * /* We don't AreaLightContext.NoL as it is already applied through the Sclera/Iris value above */ AreaLightContext.Falloff) * AreaLightContext.AreaLight.FalloffColor * Sample.DiffusePathValue;
 
 			Sample.DiffuseColor		= DiffuseColor;
 			Sample.DiffusePDF		= BSDFContext.SatNoL / PI;
@@ -1090,7 +1123,7 @@ FSubstrateEvaluateResult SubstrateEvaluateBSDFCommon(FSubstrateBSDFContext BSDFC
 			if (bIsRectLight)
 			{
 				// In this case, we set D to 1 and Vis will contain the area light / GGX integration
-				RectLightSpec = RectGGXApproxLTC(SafeRoughness, F0, BSDFContext.N, BSDFContext.V, AreaLightContext.AreaLight.Rect, AreaLightContext.AreaLight.Texture);
+				RectLightSpec = RectGGXApproxLTC(SafeRoughness, F0, F90, BSDFContext.N, BSDFContext.V, AreaLightContext.AreaLight.Rect, AreaLightContext.AreaLight.Texture);
 
 				const float H_PDF = VisibleGGXPDF(BSDFContext.TangentV, BSDFContext.TangentH, Alpha2);
 				PDF = RayPDFToReflectionRayPDF(BSDFContext.Context.VoH, H_PDF);
@@ -1179,33 +1212,6 @@ float SubstrateLobeSelectionProb(float3 A, float3 B)
 	const float SumA = A.x + A.y + A.z;
 	const float SumB = B.x + B.y + B.z;
 	return SumA / (SumA + SumB + 1e-6);
-}
-
-// Takes as input the sample weight and pdf for a certain lobe of a mixed model, together with the probability of picking that lobe
-// This function then updates a running total Weight and Pdf value that represents the overall contribution of the BxDF
-// This function should be called when a BxDF is made up of multiple lobes combined with a sum to correctly account for the probability
-// of sampling directions via all lobes.
-// NOTE: this function also contains special logic to handle cases with infinite pdfs cleanly
-void SubstrateAddLobeWithMIS(inout float3 Weight, inout float Pdf, float3 LobeWeight, float LobePdf, float LobeProb)
-{
-	const float MinLobeProb = 1.1754943508e-38; // smallest normal float
-	if (LobeProb > MinLobeProb)
-	{
-		LobePdf *= LobeProb;
-		LobeWeight *= 1 / LobeProb;
-
-		// See discussion in MISWeightRobust for why this is better than LobePdf / (Pdf + LobePdf)
-		float LocalMISWeight;
-		if (Pdf < LobePdf)
-			LocalMISWeight = 1 / (1 + Pdf / LobePdf);
-		else if (LobePdf < Pdf)
-			LocalMISWeight = 1 - 1 / (1 + LobePdf / Pdf);
-		else
-			LocalMISWeight = 0.5f; // avoid (rare) inf/inf
-
-		Weight = lerp(Weight, LobeWeight, LocalMISWeight);
-		Pdf += LobePdf;
-	}
 }
 
 // Select a term based based on a random value and a PDF, and returns the selected term
@@ -1306,15 +1312,15 @@ FSubstrateImportanceSampleResult SubstrateImportanceSampleBSDF(FSubstrateBSDFCon
 			Out.Weight = 0;
 			if (InTermMask & SHADING_TERM_DIFFUSE)
 			{
-				SubstrateAddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.DiffusePathValue / Evaluate.DiffusePDF, Evaluate.DiffusePDF, TermPDF);
+				AddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.DiffusePathValue / Evaluate.DiffusePDF, Evaluate.DiffusePDF, TermPDF);
 			}
 
 			if (InTermMask & SHADING_TERM_SPECULAR)
 			{
-				SubstrateAddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.SpecularPathValue / Evaluate.SpecularPDF, Evaluate.SpecularPDF, (1-TermPDF) * SpecularLobePDF);
+				AddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.SpecularPathValue / Evaluate.SpecularPDF, Evaluate.SpecularPDF, (1-TermPDF) * SpecularLobePDF);
 				if (bHaziness)
 				{
-					SubstrateAddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.SpecularHazePathValue / Evaluate.SpecularHazePDF, Evaluate.SpecularPDF, (1 - TermPDF) * (1-SpecularLobePDF));
+					AddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.SpecularHazePathValue / Evaluate.SpecularHazePDF, Evaluate.SpecularPDF, (1 - TermPDF) * (1-SpecularLobePDF));
 				}
 			}
 
@@ -1401,12 +1407,12 @@ FSubstrateImportanceSampleResult SubstrateImportanceSampleBSDF(FSubstrateBSDFCon
 			Out.Weight = 0;
 			if (InTermMask & SHADING_TERM_DIFFUSE)
 			{
-				SubstrateAddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.DiffusePathValue / Evaluate.DiffusePDF, Evaluate.DiffusePDF, TermPDF);
+				AddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.DiffusePathValue / Evaluate.DiffusePDF, Evaluate.DiffusePDF, TermPDF);
 			}
 
 			if (InTermMask & SHADING_TERM_SPECULAR)
 			{
-				SubstrateAddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.SpecularPathValue / Evaluate.SpecularPDF, Evaluate.SpecularPDF, (1-TermPDF));
+				AddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.SpecularPathValue / Evaluate.SpecularPDF, Evaluate.SpecularPDF, (1-TermPDF));
 			}
 			break;
 		}
@@ -1499,18 +1505,7 @@ FSubstrateEnvLightResult SubstrateEvaluateForEnvLight(FSubstrateBSDFContext BSDF
 				FParticipatingMedia PM = SubstrateSlabCreateParticipatingMedia(DiffuseColor, SLAB_SSSMFP(BSDFContext.BSDF));
 				const float DiffuseToVolumeBlend = SubstrateSlabDiffuseToVolumeBlend(PM);
 
-			#if USE_NEW_SIMPLEVOLUME
-				float3 SlabDirectionalAlbedo = IsotropicMediumSlabEnvDirectionalAlbedoLUT(PM, BSDFContext.Context.NoV);
-			#else
-				// The environment response of has been measured for an hemisphere having a uniform radiance of 1. 
-				// This DirectionalAlbedo also contains the integral over the hemisphere according to the phase function.
-				// The spherical harmonic used for environment lighting contains the diffuse integral over the hemisphere as DiffLambert = int_{\omega} {1 * NoL d\Omega} = PI.
-				// We do not want to be affected by the NoL term here since The DirectionalAlbedo also contains the integral over the hemisphere according to the phase function.
-				// Integral of a value=1 over the Hemisphere is int_{\omega} {1  d\Omega} = 2PI.
-				// So, as an approximation, we recover the uniform hemisphere luminance as UniformEnvL = DiffLambert * (1 / PI) * (2 * PI).
-				// We consider that the diffuse integration of the environment SH over the hemisphere multiplied with the light response will be a good approximation similar to the "split sum integral".
-				float3 SlabDirectionalAlbedo = IsotropicMediumSlabEnvDirectionalAlbedo(PM) * ((1 / PI)* (2 * PI));
-			#endif
+				float3 SlabDirectionalAlbedo = IsotropicMediumSlabEnvDirectionalAlbedo(PM, BSDFContext.Context.NoV);
 
 			#if 1
 				// Because the default EnvBRDF does not account for multiple scattering, we rescale the participating media response according to EnvBRDF.
@@ -1586,7 +1581,7 @@ FSubstrateEnvLightResult SubstrateEvaluateForEnvLight(FSubstrateBSDFContext BSDF
 					// We need a way to lerp to the glint direction with a roughness of 0. 
 					// SUBSTRATE_TODO recover glint direction.
 					SubstrateEnvLightResult.SpecularWeight *= saturate(GlintD);
-					SubstrateEnvLightResult.SpecularSafeRoughness = lerp(SubstrateEnvLightResult.SpecularSafeRoughness, 0.001f, saturate(GlintD));
+					// We keep the same SpecularSafeRoughness for single glint environment sampling to match the roughness of the surface overall, especially when the glints becomes infinitely small and thus invisible.
 				}
 			#endif // SUBSTRATE_COMPLEXSPECIALPATH && SUBSTRATE_GLINTS_ALLOWED && SUBSTRATE_GLINTS_ENABLED
 
@@ -1595,8 +1590,7 @@ FSubstrateEnvLightResult SubstrateEvaluateForEnvLight(FSubstrateBSDFContext BSDF
 				BRANCH
 				if (BSDF_GETHASSPECPROFILE(BSDFContext.BSDF))
 				{
-					const float NoR = saturate(dot(SubstrateEnvLightResult.SpecularDirection, BSDFContext.N));
-					SubstrateEnvLightResult.SpecularWeight *= EvaluateSpecularProfile(SLAB_SPECPROFILEID(BSDFContext.BSDF), BSDFContext.SatNoV, NoR, BSDFContext.SatNoV, NoR);
+					SubstrateEnvLightResult.SpecularWeight *= EvaluateSpecularProfileEnv(SLAB_SPECPROFILEID(BSDFContext.BSDF), BSDFContext.SatNoV, SubstrateEnvLightResult.SpecularSafeRoughness);
 				}
 			#endif // SUBSTRATE_COMPLEXSPECIALPATH
 
@@ -1659,8 +1653,7 @@ FSubstrateEnvLightResult SubstrateEvaluateForEnvLight(FSubstrateBSDFContext BSDF
 					BRANCH
 					if (BSDF_GETHASSPECPROFILE(BSDFContext.BSDF))
 					{
-						const float NoR = saturate(dot(SubstrateEnvLightResult.SpecularHazeDirection, BSDFContext.N));
-						SubstrateEnvLightResult.SpecularHazeWeight *= EvaluateSpecularProfile(SLAB_SPECPROFILEID(BSDFContext.BSDF), BSDFContext.SatNoV, NoR, BSDFContext.SatNoV, NoR);
+						SubstrateEnvLightResult.SpecularHazeWeight *= EvaluateSpecularProfileEnv(SLAB_SPECPROFILEID(BSDFContext.BSDF), BSDFContext.SatNoV, SubstrateEnvLightResult.SpecularHazeSafeRoughness);
 					}
 				#endif // SUBSTRATE_COMPLEXSPECIALPATH
 

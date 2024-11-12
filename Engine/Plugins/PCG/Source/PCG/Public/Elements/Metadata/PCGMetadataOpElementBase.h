@@ -4,6 +4,8 @@
 
 #include "PCGSettings.h"
 
+#include "Data/PCGPointData.h"
+#include "Helpers/PCGAsync.h"
 #include "Metadata/PCGAttributePropertySelector.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
@@ -14,6 +16,14 @@
 #include "PCGMetadataOpElementBase.generated.h"
 
 class FPCGMetadataAttributeBase;
+
+// FIXME: To be removed when we are confident Metadata is stable in MT.
+namespace PCGMetadataBase
+{
+	extern TAutoConsoleVariable<bool> CVarMetadataOperationInMT;
+	extern TAutoConsoleVariable<int> CVarMetadataOperationChunkSize;
+	extern TAutoConsoleVariable<bool> CVarMetadataOperationReserveValues;
+}
 
 namespace PCGMetadataSettingsBaseConstants
 {
@@ -87,12 +97,12 @@ public:
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Metadata; }
-	virtual bool HasDynamicPins() const override { return true; }
 	virtual bool GetPinExtraIcon(const UPCGPin* InPin, FName& OutExtraIcon, FText& OutTooltip) const override;
 	virtual FText GetNodeTooltipText() const override;
 	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
 #endif
 	virtual bool HasFlippedTitleLines() const override { return true; }
+	virtual bool HasDynamicPins() const override { return true; }
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 	virtual bool DoesPinSupportPassThrough(UPCGPin* InPin) const override;
 
@@ -119,7 +129,11 @@ public:
 
 	/* Can be overriden by child class to support default values on unplugged pins. */
 	virtual bool DoesInputSupportDefaultValue(uint32 Index) const { return false; }
+
+	UE_DEPRECATED(5.5, "Call/Implement version with FPCGContext parameter")
 	virtual UPCGParamData* CreateDefaultValueParam(uint32 Index) const { return nullptr; }
+
+	virtual UPCGParamData* CreateDefaultValueParam(FPCGContext* Context, uint32 Index) const { return nullptr; }
 #if WITH_EDITOR
 	virtual FString GetDefaultValueString(uint32 Index) const { return FString(); }
 #endif // WITH_EDITOR
@@ -174,6 +188,8 @@ namespace PCGMetadataOps
 		uint16 OutputType;
 		const UPCGMetadataSettingsBase* Settings = nullptr;
 
+		FPCGContext* Context;
+
 		TArray<FPCGAttributePropertyInputSelector> InputSources;
 
 		TArray<TUniquePtr<const IPCGAttributeAccessorKeys>> InputKeys;
@@ -192,6 +208,7 @@ class FPCGMetadataElementBase : public TPCGTimeSlicedElementBase<PCGTimeSlice::F
 protected:
 	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 
 	virtual bool DoOperation(PCGMetadataOps::FOperationData& InOperationData) const = 0;
 
@@ -407,12 +424,6 @@ void PCGMetadataOps::FOperationData::Validate()
 template <typename... InputTypes, typename... Callbacks>
 inline bool FPCGMetadataElementBase::DoNAryOp(PCGMetadataOps::FOperationData& InOperationData, TTuple<Callbacks...>&& InCallbacks) const
 {
-	// If nothing to do, exit immediately
-	if (InOperationData.NumberOfElementsToProcess == 0)
-	{
-		return true;
-	}
-
 	// Validate that all is good
 	constexpr uint32 NbInputs = (uint32)sizeof...(InputTypes);
 	constexpr uint32 NbOutputs = (uint32)sizeof...(Callbacks);
@@ -422,26 +433,57 @@ inline bool FPCGMetadataElementBase::DoNAryOp(PCGMetadataOps::FOperationData& In
 
 	InOperationData.Validate<NbInputs, NbOutputs>();
 
-	EPCGAttributeAccessorFlags Flags = EPCGAttributeAccessorFlags::AllowBroadcast;
+	EPCGAttributeAccessorFlags Flags = EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible;
 
-	// First set the default value
+	// First set the default value (only on first pass)
 	PCG::Private::NAryOperation::Options Options{ Flags, Flags | EPCGAttributeAccessorFlags::AllowSetDefaultValue, true };
-	PCG::Private::NAryOperation::Operation<InputTypes...>(InOperationData, /*StartIndex=*/0, /*Range=*/1, Options, InCallbacks);
+	if (!InOperationData.Context->AsyncState.bStarted)
+	{
+		if (PCGMetadataBase::CVarMetadataOperationReserveValues.GetValueOnAnyThread())
+		{
+			for (int32 j = 0; j < NbOutputs; ++j)
+			{
+				// We can't re-use entry keys yet, it can be dangerous in some situations where some points share their entry key.
+				InOperationData.OutputAccessors[j]->Prepare(*InOperationData.OutputKeys[j], InOperationData.NumberOfElementsToProcess, /*bCanReuseEntryKeys=*/false);
+			}
+		}
+
+		PCG::Private::NAryOperation::Operation<InputTypes...>(InOperationData, /*StartIndex=*/0, /*Range=*/1, Options, InCallbacks);
+	}
+
+	// If nothing to do now, we can early out.
+	if (InOperationData.NumberOfElementsToProcess == 0)
+	{
+		return true;
+	}
 
 	// Then iterate over all the values
 	Options.SetFlags = Flags;
 	Options.bUseDefaultKey = false;
 
-	const int32 NumberOfIterations = (InOperationData.NumberOfElementsToProcess + PCG::Private::NAryOperation::DefaultChunkSize - 1) / PCG::Private::NAryOperation::DefaultChunkSize;
+	const int32 ChunkSize = PCGMetadataBase::CVarMetadataOperationChunkSize.GetValueOnAnyThread();
 
-	for (int32 i = 0; i < NumberOfIterations; ++i)
+	if (PCGMetadataBase::CVarMetadataOperationInMT.GetValueOnAnyThread())
 	{
-		int32 StartIndex = i * PCG::Private::NAryOperation::DefaultChunkSize;
-		int32 Range = FMath::Min(InOperationData.NumberOfElementsToProcess - StartIndex, PCG::Private::NAryOperation::DefaultChunkSize);
-		PCG::Private::NAryOperation::Operation<InputTypes...>(InOperationData, StartIndex, Range, Options, InCallbacks);
+		return FPCGAsync::AsyncProcessingOneToOneRangeEx(&InOperationData.Context->AsyncState, InOperationData.NumberOfElementsToProcess, []() {},
+			[&InOperationData, &InCallbacks, &Options](int32 StartReadIndex, int32 StartWriteIndex, int32 Count)
+		{
+			PCG::Private::NAryOperation::Operation<InputTypes...>(InOperationData, StartReadIndex, Count, Options, InCallbacks);
+			return Count;
+		}, /*bEnableTimeSlicing=*/true, ChunkSize);
 	}
+	else
+	{
+		const int32 NumberOfIterations = (InOperationData.NumberOfElementsToProcess + PCG::Private::NAryOperation::DefaultChunkSize - 1) / PCG::Private::NAryOperation::DefaultChunkSize;
+		for (int32 i = 0; i < NumberOfIterations; ++i)
+		{
+			int32 StartIndex = i * PCG::Private::NAryOperation::DefaultChunkSize;
+			int32 Range = FMath::Min(InOperationData.NumberOfElementsToProcess - StartIndex, PCG::Private::NAryOperation::DefaultChunkSize);
+			PCG::Private::NAryOperation::Operation<InputTypes...>(InOperationData, StartIndex, Range, Options, InCallbacks);
+		}
 
-	return true;
+		return true;
+	}
 }
 
 template <typename InType, typename... Callbacks>
@@ -467,8 +509,3 @@ inline bool FPCGMetadataElementBase::DoQuaternaryOp(PCGMetadataOps::FOperationDa
 {
 	return DoNAryOp<InType1, InType2, InType3, InType4>(InOperationData, ForwardAsTuple(std::forward<Callbacks>(InCallbacks)...));
 }
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Metadata/PCGMetadataAttribute.h"
-#include "Metadata/PCGMetadataAttributeTpl.h"
-#endif

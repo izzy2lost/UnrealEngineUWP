@@ -4,7 +4,24 @@
 //	thread performance by removing redundant device context calls.
 
 #pragma once
+
+#include "D3D12ConstantBuffer.h"
 #include "D3D12DirectCommandListManager.h"
+#include "D3D12DescriptorCache.h"
+// TODO reorder includes so we just include D3D12PipelineState.h here
+#include COMPILED_PLATFORM_HEADER(D3D12PipelineState.h)
+#include "D3D12Resources.h"
+
+#include "Math/IntVector.h"
+
+enum class EShaderParameterTypeMask : uint16;
+
+class FD3D12SamplerState;
+
+struct FD3D12ComputePipelineState;
+struct FD3D12GraphicsPipelineState;
+struct FD3D12PipelineState;
+struct FD3D12ShaderData;
 
 //-----------------------------------------------------------------------------
 //	Configuration
@@ -400,8 +417,10 @@ protected:
 			uint32 CurrentShaderCBCounts     [SF_NumStandardFrequencies] = {};
 			uint32 CurrentShaderUAVCounts    [SF_NumStandardFrequencies] = {};
 
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 			TArray<FD3D12ShaderResourceView*> QueuedBindlessSRVs[SF_NumStandardFrequencies];
 			TArray<FD3D12UnorderedAccessView*> QueuedBindlessUAVs[SF_NumStandardFrequencies];
+#endif
 		} Common = {};
 	} PipelineState = {};
 
@@ -656,7 +675,7 @@ public:
 	ED3D12PipelineType LastComputePipelineType = ED3D12PipelineType::Compute;
 #endif // D3D12_RHI_RAYTRACING
 
-	void ApplyState(ERHIPipeline HardwarePipe, ED3D12PipelineType PipelineType);
+	void ApplyState(ERHIPipeline HardwarePipe, ED3D12PipelineType PipelineType, bool bBindlessHeapsWereJustSet);
 	void ApplySamplers(const FD3D12RootSignature* const pRootSignature, uint32 StartStage, uint32 EndStage);
 	void ApplyResources(const FD3D12RootSignature* const pRootSignature, uint32 StartStage, uint32 EndStage);
 	void ApplyBindlessResources(const FD3D12RootSignature* const pRootSignature, uint32 StartStage, uint32 EndStage);
@@ -708,7 +727,7 @@ public:
 			PipelineState.Graphics.DrawShadingRate = ShadingRate;
 			PipelineState.Graphics.Combiners[ED3D12VRSCombinerStages::PerPrimitive] = PerPrimitiveCombiner;
 			PipelineState.Graphics.Combiners[ED3D12VRSCombinerStages::ScreenSpace] = ScreenSpaceCombiner;
-			bNeedSetShadingRate = GRHISupportsPipelineVariableRateShading && GRHIVariableRateShadingEnabled;
+			bNeedSetShadingRate = GRHISupportsPipelineVariableRateShading;
 		}
 	}	
 
@@ -717,7 +736,7 @@ public:
 		if (PipelineState.Graphics.ShadingRateImage != ShadingRateImage)
 		{
 			PipelineState.Graphics.ShadingRateImage = ShadingRateImage;
-			bNeedSetShadingRateImage = GRHISupportsAttachmentVariableRateShading && GRHIAttachmentVariableRateShadingEnabled;
+			bNeedSetShadingRateImage = GRHISupportsAttachmentVariableRateShading;
 		}
 	}
 
@@ -736,13 +755,24 @@ public:
 	void ClearState();
 
 	void ForceSetComputeRootSignature() { PipelineState.Compute.bNeedSetRootSignature = true; }
+	void ForceSetGraphicsRootSignature() { PipelineState.Graphics.bNeedSetRootSignature = true; }
 
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	void QueueBindlessSRV(EShaderFrequency ShaderFrequency, FD3D12ShaderResourceView* SRV)
 	{
 		PipelineState.Common.QueuedBindlessSRVs[ShaderFrequency].Emplace(SRV);
+	}
+	void QueueBindlessSRVs(EShaderFrequency ShaderFrequency, TConstArrayView<FD3D12ShaderResourceView*> SRVs)
+	{
+		PipelineState.Common.QueuedBindlessSRVs[ShaderFrequency].Append(SRVs);
 	}
 	void QueueBindlessUAV(EShaderFrequency ShaderFrequency, FD3D12UnorderedAccessView* UAV)
 	{
 		PipelineState.Common.QueuedBindlessUAVs[ShaderFrequency].Emplace(UAV);
 	}
+	void QueueBindlessUAVs(EShaderFrequency ShaderFrequency, TConstArrayView<FD3D12UnorderedAccessView*> UAVs)
+	{
+		PipelineState.Common.QueuedBindlessUAVs[ShaderFrequency].Append(UAVs);
+	}
+#endif
 };

@@ -122,14 +122,6 @@ public:
 	{
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(BatchedParameters, View.ViewUniformBuffer);
 	}
-
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	void SetParameters(FRHICommandList& RHICmdList, const FSceneView& View)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-		SetParameters(BatchedParameters, View);
-		RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundVertexShader(), BatchedParameters);
-	}
 };
 
 class FColorCorrectGenericPS : public FColorCorrectRegionsPostProcessMaterialShader
@@ -157,14 +149,6 @@ public:
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FSceneView& View)
 	{
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(BatchedParameters, View.ViewUniformBuffer);
-	}
-
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	void SetParameters(FRHICommandList& RHICmdList, const FSceneView& View)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-		SetParameters(BatchedParameters, View);
-		RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundPixelShader(), BatchedParameters);
 	}
 };
 

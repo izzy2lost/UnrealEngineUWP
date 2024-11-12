@@ -45,9 +45,6 @@ public:
 	/** Get the return types of our struct */
 	UScriptStruct* GetReturnTypeForOutputDataStruct() const;
 
-	/** Get the then output pin */
-	UEdGraphPin* GetThenPin() const;
-
 	/** Get the Live Link Role input pin */
 	UEdGraphPin* GetLiveLinkRolePin() const;
 

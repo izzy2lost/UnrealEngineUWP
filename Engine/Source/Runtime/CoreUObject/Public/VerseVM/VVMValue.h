@@ -20,8 +20,8 @@ struct VCell;
 struct VContext;
 struct VFrame;
 struct VInt;
+struct FAccessContext;
 struct FAllocationContext;
-struct FRunningContext;
 struct VPlaceholder;
 struct VSuspension;
 struct FCellFormatter;
@@ -40,7 +40,9 @@ struct VValue
 
 	VValue(UObject* Object);
 
-	VValue(VInt Int);
+	/// Instead of using this constructor, consider `GlobalFalse()` instead.
+	VValue(std::nullptr_t) = delete;
+
 	static VValue FromInt32(int32 Int32)
 	{
 		VValue Result;
@@ -82,13 +84,12 @@ struct VValue
 
 	// Note: This is what you want if you want a deep equality check.
 	// This will return true if left and/or right are placeholders.
-	template <typename ContextType, typename HandlePlaceholderFunction>
-	static bool Equal(ContextType Context, VValue Left, VValue Right, HandlePlaceholderFunction HandlePlaceholder);
+	template <typename HandlePlaceholderFunction>
+	static bool Equal(FAllocationContext Context, VValue Left, VValue Right, HandlePlaceholderFunction HandlePlaceholder);
 
-	template <typename ContextType>
-	static FOpResult Melt(ContextType Context, VValue Value);
-	template <typename ContextType>
-	static FOpResult Freeze(ContextType Context, VValue Value);
+	// This may return a placeholder which is suspended upon as a FOpResult::Block result would be.
+	static VValue Melt(FAllocationContext Context, VValue Value);
+	static VValue Freeze(FAllocationContext Context, VValue Value);
 
 	static VValue Decode(uint64 EncodedBits)
 	{
@@ -106,7 +107,7 @@ struct VValue
 		return Result;
 	}
 
-	VValue Follow();
+	const VValue Follow() const;
 	// This assumes we're a placeholder, does Follow(), and assumes we don't point
 	// (even transitively) to a concrete value. So we must be a placeholder and the
 	// placeholder we point at (transitively) isn't resolved.
@@ -167,6 +168,18 @@ struct VValue
 		return BitCast<UObject*>(EncodedBits & ~UObjectTag);
 	}
 
+	UObject* ExtractUObject() const
+	{
+		if (IsUObject())
+		{
+			return AsUObject();
+		}
+		else
+		{
+			return nullptr;
+		}
+	}
+
 	bool IsInt() const;
 	VInt AsInt() const;
 
@@ -191,7 +204,7 @@ struct VValue
 
 	uint64 GetEncodedBits() const { return EncodedBits; }
 
-	void EnqueueSuspension(FRunningContext Context, VSuspension& Suspension);
+	void EnqueueSuspension(FAccessContext Context, VSuspension& Suspension);
 
 	FString ToString(FAllocationContext Context, const FCellFormatter& Formatter) const;
 	void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter) const;
@@ -212,15 +225,15 @@ struct VValue
 	bool IsChar() const { return (EncodedBits & VValue::NonCellTagMask) == VValue::CharTag; }
 	bool IsChar32() const { return (EncodedBits & VValue::NonCellTagMask) == VValue::Char32Tag; }
 
-	uint8 AsChar() const
+	UTF8CHAR AsChar() const
 	{
 		checkSlow(IsChar());
-		return static_cast<uint8>(EncodedBits >> NumLowerEncodingBits);
+		return static_cast<UTF8CHAR>(EncodedBits >> NumLowerEncodingBits);
 	}
-	uint32 AsChar32() const
+	UTF32CHAR AsChar32() const
 	{
 		checkSlow(IsChar32());
-		return static_cast<uint32>(EncodedBits >> NumLowerEncodingBits);
+		return static_cast<UTF32CHAR>(EncodedBits >> NumLowerEncodingBits);
 	}
 
 private:

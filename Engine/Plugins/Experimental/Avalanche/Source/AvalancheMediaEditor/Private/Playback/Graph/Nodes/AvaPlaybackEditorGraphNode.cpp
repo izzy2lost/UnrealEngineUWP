@@ -388,7 +388,7 @@ void UAvaPlaybackEditorGraphNode::GetNodeContextMenuActions(UToolMenu* Menu, UGr
 			
 			Section.AddSubMenu("Alignment"
 				, LOCTEXT("AlignmentHeader", "Alignment")
-				, FText()
+				, FText::GetEmpty()
 				, FNewToolMenuDelegate::CreateLambda([](UToolMenu* SubMenu)
 				{
 					{

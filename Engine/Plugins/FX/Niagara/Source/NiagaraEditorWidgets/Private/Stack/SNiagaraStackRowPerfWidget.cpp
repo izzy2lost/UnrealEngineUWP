@@ -72,7 +72,7 @@ void SNiagaraStackRowPerfWidget::Construct(const FArguments& InArgs, UNiagaraSta
             .VAlign(VAlign_Bottom)
             [
 				SNew(SWrapBox)
-				.UseAllottedWidth(true)
+				.UseAllottedSize(true)
 			    +SWrapBox::Slot()
                 [
                     // Placeholder brush to fill the remaining space
@@ -227,7 +227,12 @@ FLinearColor SNiagaraStackRowPerfWidget::GetPlaceholderBrushColor() const
 bool SNiagaraStackRowPerfWidget::HasPerformanceData() const
 {
 #if STATS
-	bool IsPerfCaptureEnabled = StatEnabledVar && StatEnabledVar->GetBool();
+	if (IsFinalized())
+	{
+		return false;
+	}
+
+	bool IsPerfCaptureEnabled = StatEnabledVar && StatEnabledVar->GetBool() && StackEntry->GetSystemViewModel()->SupportsPerformanceMode();
 	if (IsPerfCaptureEnabled && (IsSystemStack() || IsEmitterStack()))
 	{
 		return (IsGroupHeaderEntry() || IsModuleEntry()) && (StackEntry->GetExecutionSubcategoryName() != UNiagaraStackEntry::FExecutionSubcategoryNames::Settings);
@@ -262,8 +267,19 @@ EVisibility SNiagaraStackRowPerfWidget::IsVisible() const
 	return HasPerformanceData() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
+bool SNiagaraStackRowPerfWidget::IsFinalized() const
+{
+	return !StackEntry.IsValid() || StackEntry->IsFinalized();
+}
+
 FText SNiagaraStackRowPerfWidget::GetPerformanceDisplayText() const
 {
+	// guard against the stack entry having been finalized
+	if (IsFinalized())
+	{
+		return FText::FromString("N/A");
+	}
+
 	FNumberFormattingOptions TimeFormatOptions;
 	TimeFormatOptions.MinimumIntegralDigits = 1;
 	TimeFormatOptions.MinimumFractionalDigits = 2;
@@ -310,6 +326,11 @@ FText SNiagaraStackRowPerfWidget::GetEvalTypeDisplayText() const
 
 FSlateColor SNiagaraStackRowPerfWidget::GetPerformanceDisplayTextColor() const
 {
+	// guard against the stack entry having been finalized
+	if (IsFinalized())
+	{
+		return FSlateColor(FLinearColor::Black);
+	}
 	if (IsEntrySelected())
 	{
 		return FSlateColor(FLinearColor::Black);

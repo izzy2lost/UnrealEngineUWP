@@ -12,7 +12,7 @@
 class UIKRetargeter;
 
 UCLASS(BlueprintType, ClassGroup=("Performance Capture"), meta=(BlueprintSpawnableComponent), DisplayName = "Retarget Component")
-class URetargetComponent : public UActorComponent
+class PERFORMANCECAPTURECORE_API URetargetComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
@@ -54,35 +54,35 @@ public:
 	* Set the Source Performer Mesh.
 	* @param InPerformerMesh New Source Skeletal Mesh.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Performance Capture")
+	UFUNCTION(BlueprintCallable, Category = "Performance Capture|Retarget")
 	void SetSourcePerformerMesh(USkeletalMeshComponent* InPerformerMesh);
 	
 	/**
 	* Set the Controlled Skeletal Mesh.
 	* @param InControlledMesh New Controlled Skeletal Mesh Component.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Performance Capture")
+	UFUNCTION(BlueprintCallable, Category = "Performance Capture|Retarget")
 	void SetControlledMesh(USkeletalMeshComponent* InControlledMesh);
 
 	/**
 	* Set the Retarget Asset.
 	* @param InRetargetAsset New IKRetarget Asset.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Performance Capture")
+	UFUNCTION(BlueprintCallable, Category = "Performance Capture|Retarget")
 	void SetRetargetAsset(UIKRetargeter* InRetargetAsset);
 
 	/**
 	* Set a Custom Retarget Profile.
 	* @param InProfile New Retarget Profile.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Performance Capture")
+	UFUNCTION(BlueprintCallable, Category = "Performance Capture|Retarget")
 	void SetCustomRetargetProfile(FRetargetProfile InProfile);
 
 	/**
 	* Get Retarget Profile.
 	* @return Current Custom Retarget Profile.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Performance Capture")
+	UFUNCTION(BlueprintCallable, Category = "Performance Capture|Retarget")
 	FRetargetProfile GetCustomRetargetProfile();
 	
 protected:

@@ -16,7 +16,7 @@
 #define LOCTEXT_NAMESPACE "MVVMViewListViewBaseExtension"
 
 #if WITH_EDITOR
-void UMVVMViewListViewBaseExtension::Initialize(UMVVMViewListViewBaseExtension::FInitListViewBaseExtensionArgs InArgs)
+void UMVVMViewListViewBaseClassExtension::Initialize(UMVVMViewListViewBaseClassExtension::FInitListViewBaseExtensionArgs InArgs)
 {
 	WidgetName = InArgs.WidgetName;
 	WidgetPath = InArgs.WidgetPath;
@@ -24,7 +24,7 @@ void UMVVMViewListViewBaseExtension::Initialize(UMVVMViewListViewBaseExtension::
 }
 #endif
 
-void UMVVMViewListViewBaseExtension::OnSourcesInitialized(UUserWidget* UserWidget, UMVVMView* View)
+void UMVVMViewListViewBaseClassExtension::OnSourcesInitialized(UUserWidget* UserWidget, UMVVMView* View, UMVVMViewExtension* Extension)
 {
 	check(View->GetViewClass());
 	TValueOrError<UE::MVVM::FFieldContext, void> FieldPathResult = View->GetViewClass()->GetBindingLibrary().EvaluateFieldPath(UserWidget, WidgetPath);
@@ -36,8 +36,8 @@ void UMVVMViewListViewBaseExtension::OnSourcesInitialized(UUserWidget* UserWidge
 		{
 			if (UListViewBase* ListWidget = Cast<UListViewBase>(ObjectResult.GetValue()))
 			{
-				CachedListViewWidget = ListWidget;
-				ListWidget->OnEntryWidgetGenerated().AddUObject(this, &UMVVMViewListViewBaseExtension::HandleSetViewModelOnEntryWidget, UserWidget, ListWidget, EntryViewModelName);
+				CachedListViewWidgets.Add(FObjectKey(View), ListWidget);
+				ListWidget->OnEntryWidgetGenerated().AddUObject(this, &UMVVMViewListViewBaseClassExtension::HandleSetViewModelOnEntryWidget, UserWidget, ListWidget, EntryViewModelName);
 			}
 			else
 			{
@@ -64,15 +64,19 @@ void UMVVMViewListViewBaseExtension::OnSourcesInitialized(UUserWidget* UserWidge
 	}
 }
 
-void UMVVMViewListViewBaseExtension::OnSourcesUninitialized(UUserWidget* UserWidget, UMVVMView* View) 
+void UMVVMViewListViewBaseClassExtension::OnSourcesUninitialized(UUserWidget* UserWidget, UMVVMView* View, UMVVMViewExtension* Extension)
 {
-	if (UListViewBase* ListWidget = CachedListViewWidget.Get())
+	TWeakObjectPtr<UListViewBase> ListWidget;
+	if (CachedListViewWidgets.RemoveAndCopyValue(FObjectKey(View), ListWidget))
 	{
-		ListWidget->OnEntryWidgetGenerated().RemoveAll(this);
+		if (UListViewBase* ListWidgetPtr = ListWidget.Get())
+		{
+			ListWidgetPtr->OnEntryWidgetGenerated().RemoveAll(this);
+		}
 	}
 }
 
-void UMVVMViewListViewBaseExtension::HandleSetViewModelOnEntryWidget(UUserWidget& EntryWidget, UUserWidget* OwningUserWidget, UListViewBase* ListWidget, FName EntryViewmodelName)
+void UMVVMViewListViewBaseClassExtension::HandleSetViewModelOnEntryWidget(UUserWidget& EntryWidget, UUserWidget* OwningUserWidget, UListViewBase* ListWidget, FName EntryViewmodelName)
 {
 	if (UMVVMView* View = UMVVMSubsystem::GetViewFromUserWidget(&EntryWidget))
 	{

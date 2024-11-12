@@ -98,10 +98,12 @@ enum FileVersion : std::uint64_t {
     v21 = rev(2, 1),
     v22 = rev(2, 2),
     v23 = rev(2, 3),
-    latest = v23
+    v24 = rev(2, 4),
+    v25 = rev(2, 5),
+    latest = v25
 };
 
-using Dispatch = Dispatcher<FileVersion, FileVersion::v21, FileVersion::v22, FileVersion::v23>;
+using Dispatch = Dispatcher<FileVersion, FileVersion::v21, FileVersion::v22, FileVersion::v23, FileVersion::v24>;
 
 template<typename A, FileVersion B>
 using IfHigher = typename std::enable_if<(A::value() > B), void>::type;
@@ -1297,6 +1299,264 @@ struct RawMachineLearnedBehavior {
 
 };
 
+struct RawRBFPose {
+    String<char> name;
+    float scale;
+
+    explicit RawRBFPose(MemoryResource* memRes) :
+        name{memRes},
+        scale{1.0f} {
+    }
+
+    template<class Archive>
+    void serialize(Archive& archive) {
+        archive.label("name");
+        archive(name);
+        archive.label("scale");
+        archive(scale);
+    }
+
+};
+
+struct RawRBFPoseExt {
+    DynArray<std::uint16_t> inputControlIndices;
+    DynArray<std::uint16_t> outputControlIndices;
+    DynArray<float> outputControlWeights;
+
+    explicit RawRBFPoseExt(MemoryResource* memRes) :
+        inputControlIndices{memRes},
+        outputControlIndices{memRes},
+        outputControlWeights{memRes} {
+    }
+
+    template<class Archive>
+    void serialize(Archive& archive) {
+        archive.label("inputControlIndices");
+        archive(inputControlIndices);
+        archive.label("outputControlIndices");
+        archive(outputControlIndices);
+        archive.label("outputControlWeights");
+        archive(outputControlWeights);
+    }
+
+};
+
+struct RawRBFSolver {
+    terse::ArchiveSize<std::uint32_t, std::uint32_t> size;
+    terse::Anchor<std::uint32_t> baseMarker;
+    String<char> name;
+    DynArray<std::uint16_t> rawControlIndices;
+    DynArray<std::uint16_t> poseIndices;
+    DynArray<float> rawControlValues;
+    float radius;
+    float weightThreshold;
+    std::uint16_t solverType;
+    std::uint16_t automaticRadius;
+    std::uint16_t distanceMethod;
+    std::uint16_t normalizeMethod;
+    std::uint16_t functionType;
+    std::uint16_t twistAxis;
+    terse::ArchiveSize<std::uint32_t, std::uint32_t>::Proxy sizeMarker;
+
+    explicit RawRBFSolver(MemoryResource* memRes) :
+        size{},
+        baseMarker{},
+        name{memRes},
+        rawControlIndices{memRes},
+        poseIndices{memRes},
+        rawControlValues{memRes},
+        radius{},
+        weightThreshold{},
+        solverType{},
+        automaticRadius{},
+        distanceMethod{},
+        normalizeMethod{},
+        functionType{},
+        twistAxis{},
+        sizeMarker{size, baseMarker} {
+    }
+
+    template<class Archive>
+    void serialize(Archive& archive) {
+        archive.label("size");
+        archive(size);
+        archive(baseMarker);
+        archive.label("name");
+        archive(name);
+        archive.label("rawControlIndices");
+        archive(rawControlIndices);
+        archive.label("poseIndices");
+        archive(poseIndices);
+        archive.label("rawControlValues");
+        archive(rawControlValues);
+        archive.label("radius");
+        archive(radius);
+        archive.label("weightThreshold");
+        archive(weightThreshold);
+        archive.label("solverType");
+        archive(solverType);
+        archive.label("automaticRadius");
+        archive(automaticRadius);
+        archive.label("distanceMethod");
+        archive(distanceMethod);
+        archive.label("normalizeMethod");
+        archive(normalizeMethod);
+        archive.label("functionType");
+        archive(functionType);
+        archive.label("twistAxis");
+        archive(twistAxis);
+        archive(sizeMarker);
+    }
+
+};
+
+struct RawRBFBehavior {
+    RawLODMapping lodSolverMapping;
+    Vector<RawRBFSolver> solvers;
+    Vector<RawRBFPose> poses;
+
+    explicit RawRBFBehavior(MemoryResource* memRes) :
+        lodSolverMapping{memRes},
+        solvers{memRes},
+        poses{memRes} {
+    }
+
+    template<class Archive>
+    void serialize(Archive& archive) {
+        archive.label("lodSolverMapping");
+        archive(lodSolverMapping);
+        archive.label("solvers");
+        archive(solvers);
+        archive.label("poses");
+        archive(poses);
+    }
+
+};
+
+struct RawRBFBehaviorExt {
+    Vector<String<char> > poseControlNames;
+    Vector<RawRBFPoseExt> poses;
+
+    explicit RawRBFBehaviorExt(MemoryResource* memRes) :
+        poseControlNames{memRes},
+        poses{memRes} {
+    }
+
+    template<class Archive>
+    void serialize(Archive& archive) {
+        archive.label("poseControlNames");
+        archive(poseControlNames);
+        archive.label("poses");
+        archive(poses);
+    }
+
+};
+
+struct RawJointRepresentation {
+    std::uint16_t translation;
+    std::uint16_t rotation;
+    std::uint16_t scale;
+
+    template<class Archive>
+    void serialize(Archive& archive) {
+        archive.label("translation");
+        archive(translation);
+        archive.label("rotation");
+        archive(rotation);
+        archive.label("scale");
+        archive(scale);
+    }
+
+};
+
+struct RawJointBehaviorMetadata {
+    Vector<RawJointRepresentation> jointRepresentations;
+
+    explicit RawJointBehaviorMetadata(MemoryResource* memRes) :
+        jointRepresentations{memRes} {
+    }
+
+    template<class Archive>
+    void serialize(Archive& archive) {
+        archive.label("jointRepresentations");
+        archive(jointRepresentations);
+    }
+
+};
+
+struct RawTwist {
+    DynArray<float> twistBlendWeights;
+    DynArray<std::uint16_t> twistOutputJointIndices;
+    DynArray<std::uint16_t> twistInputControlIndices;
+    std::uint16_t twistAxis;
+
+    explicit RawTwist(MemoryResource* memRes) :
+        twistBlendWeights{memRes},
+        twistOutputJointIndices{memRes},
+        twistInputControlIndices{memRes},
+        twistAxis{} {
+    }
+
+    template<class Archive>
+    void serialize(Archive& archive) {
+        archive.label("twistBlendWeights");
+        archive(twistBlendWeights);
+        archive.label("twistOutputJointIndices");
+        archive(twistOutputJointIndices);
+        archive.label("twistInputControlIndices");
+        archive(twistInputControlIndices);
+        archive.label("twistAxis");
+        archive(twistAxis);
+    }
+
+};
+
+struct RawSwing {
+    DynArray<float> swingBlendWeights;
+    DynArray<std::uint16_t> swingOutputJointIndices;
+    DynArray<std::uint16_t> swingInputControlIndices;
+    std::uint16_t twistAxis;
+
+    explicit RawSwing(MemoryResource* memRes) :
+        swingBlendWeights{memRes},
+        swingOutputJointIndices{memRes},
+        swingInputControlIndices{memRes},
+        twistAxis{} {
+    }
+
+    template<class Archive>
+    void serialize(Archive& archive) {
+        archive.label("swingBlendWeights");
+        archive(swingBlendWeights);
+        archive.label("swingOutputJointIndices");
+        archive(swingOutputJointIndices);
+        archive.label("swingInputControlIndices");
+        archive(swingInputControlIndices);
+        archive.label("twistAxis");
+        archive(twistAxis);
+    }
+
+};
+
+struct RawTwistSwingBehavior {
+    Vector<RawTwist> twists;
+    Vector<RawSwing> swings;
+
+    explicit RawTwistSwingBehavior(MemoryResource* memRes) :
+        twists{memRes},
+        swings{memRes} {
+    }
+
+    template<class Archive>
+    void serialize(Archive& archive) {
+        archive.label("twists");
+        archive(twists);
+        archive.label("swings");
+        archive(swings);
+    }
+
+};
+
 struct DNA {
     MemoryResource* memRes;
     Signature<3> signature{{'D', 'N', 'A'}};
@@ -1307,13 +1567,21 @@ struct DNA {
     Layer<sid4("bhvr"), rev(1, 1), RawBehavior, FileVersion::v22> behavior;
     Layer<sid4("geom"), rev(1, 1), RawGeometry, FileVersion::v22> geometry;
     Layer<sid4("mlbh"), rev(1, 0), RawMachineLearnedBehavior, FileVersion::v23> machineLearnedBehavior;
+    Layer<sid4("rbfb"), rev(1, 0), RawRBFBehavior, FileVersion::v24> rbfBehavior;
+    Layer<sid4("rbfe"), rev(1, 0), RawRBFBehaviorExt, FileVersion::v25> rbfBehaviorExt;
+    Layer<sid4("jbmd"), rev(1, 0), RawJointBehaviorMetadata, FileVersion::v24> jointBehaviorMetadata;
+    Layer<sid4("twsw"), rev(1, 0), RawTwistSwingBehavior, FileVersion::v24> twistSwingBehavior;
 
     using Layers =
         LayerContainer<decltype(descriptor),
                        decltype(definition),
                        decltype(behavior),
                        decltype(geometry),
-                       decltype(machineLearnedBehavior)>;
+                       decltype(machineLearnedBehavior),
+                       decltype(rbfBehavior),
+                       decltype(rbfBehaviorExt),
+                       decltype(jointBehaviorMetadata),
+                       decltype(twistSwingBehavior)>;
     Layers layers;
 
     DNA(UnknownLayerPolicy unknownPolicy, UpgradeFormatPolicy upgradePolicy, MemoryResource* memRes_) :
@@ -1324,10 +1592,16 @@ struct DNA {
         behavior{memRes},
         geometry{memRes},
         machineLearnedBehavior{memRes},
-        layers{unknownPolicy, upgradePolicy, memRes, &descriptor, &definition, &behavior, &geometry, &machineLearnedBehavior} {
+        rbfBehavior{memRes},
+        rbfBehaviorExt{memRes},
+        jointBehaviorMetadata{memRes},
+        twistSwingBehavior{memRes},
+        layers{unknownPolicy, upgradePolicy, memRes, &descriptor, &definition, &behavior, &geometry,
+               &machineLearnedBehavior, &rbfBehavior, &rbfBehaviorExt, &jointBehaviorMetadata, &twistSwingBehavior} {
     }
 
-    explicit DNA(MemoryResource* memRes_) : DNA{UnknownLayerPolicy::Preserve, UpgradeFormatPolicy::Allowed, memRes_} {
+    explicit DNA(MemoryResource* memRes_) : DNA{UnknownLayerPolicy::Preserve, UpgradeFormatPolicy::Allowed,
+                                                memRes_} {
     }
 
     template<class Archive>
@@ -1400,6 +1674,8 @@ struct DNA {
         }
 
         context->data = nullptr;
+
+        postLoadActions();
     }
 
     template<class Archive, typename AnyVersion>
@@ -1418,6 +1694,23 @@ struct DNA {
         }
     }
 
+    void postLoadActions() {
+        if (rbfBehaviorExt.poses.empty() && !rbfBehavior.poses.empty()) {
+            rbfBehaviorExt.poses.resize(rbfBehavior.poses.size(), RawRBFPoseExt{memRes});
+            rbfBehaviorExt.poseControlNames.resize(rbfBehavior.poses.size());
+            const auto controlOffset = (definition.rawControlNames.size() +
+                                        behavior.controls.psdCount +
+                                        machineLearnedBehavior.mlControlNames.size());
+            for (std::size_t pi = {}; pi < rbfBehaviorExt.poses.size(); ++pi) {
+                rbfBehaviorExt.poseControlNames[pi] = rbfBehavior.poses[pi].name;
+                rbfBehaviorExt.poses[pi].outputControlIndices.resize(1ul);
+                rbfBehaviorExt.poses[pi].outputControlWeights.resize(1ul);
+                rbfBehaviorExt.poses[pi].outputControlIndices[0] = static_cast<std::uint16_t>(controlOffset + pi);
+                rbfBehaviorExt.poses[pi].outputControlWeights[0] = 1.0f;
+            }
+        }
+    }
+
     void unloadDefinition() {
         static_cast<RawDefinition&>(definition) = RawDefinition{memRes};
     }
@@ -1432,6 +1725,19 @@ struct DNA {
 
     void unloadMachineLearnedBehavior() {
         static_cast<RawMachineLearnedBehavior&>(machineLearnedBehavior) = RawMachineLearnedBehavior{memRes};
+    }
+
+    void unloadRBFBehavior() {
+        static_cast<RawRBFBehavior&>(rbfBehavior) = RawRBFBehavior{memRes};
+        static_cast<RawRBFBehaviorExt&>(rbfBehaviorExt) = RawRBFBehaviorExt{memRes};
+    }
+
+    void unloadJointBehaviorMetadata() {
+        static_cast<RawJointBehaviorMetadata&>(jointBehaviorMetadata) = RawJointBehaviorMetadata{memRes};
+    }
+
+    void unloadTwistSwingBehavior() {
+        static_cast<RawTwistSwingBehavior&>(twistSwingBehavior) = RawTwistSwingBehavior{memRes};
     }
 
 };

@@ -6,7 +6,7 @@
 #include "Misc/AutomationTest.h"
 
 /**
- * Base class for Functional test cases.  
+ * Base class for Functional test cases.
  */
 class FFunctionalTestBase : public FAutomationTestBase
 {
@@ -18,10 +18,15 @@ public:
 	 *
 	 * @return true to suppress logs
 	 */
-	virtual bool SuppressLogs()
-	{
-		return bSuppressLogs || !IsFunctionalTestRunning();
-	}
+	FUNCTIONALTESTING_API virtual bool SuppressLogs();
+
+	/**
+	 * Should the log category be captured and surfaced as part of the test.
+	 *
+	 * @return true to allow a log category through.
+	 */
+	FUNCTIONALTESTING_API virtual bool ShouldCaptureLogCategory(const class FName& Category) const;
+
 
 	/**
 	 * Specify how log errors & warnings should be handled during tests. If values are not set then the project
@@ -89,7 +94,7 @@ public:
 	/**
 	 * Returns true if a functional test is running (does not include map setup)
 	 */
-	FUNCTIONALTESTING_API static bool IsFunctionalTestRunning()	{ return bIsFunctionalTestRunning;	}
+	FUNCTIONALTESTING_API static bool IsFunctionalTestRunning() { return bIsFunctionalTestRunning; }
 
 protected:
 
@@ -102,6 +107,6 @@ protected:
 
 private:
 
-	static bool bIsFunctionalTestRunning;
+	FUNCTIONALTESTING_API static bool bIsFunctionalTestRunning;
 	static FString ActiveTestName;
 };

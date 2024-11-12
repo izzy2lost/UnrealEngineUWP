@@ -183,7 +183,7 @@ public:
 private:
 
 	/** Delegate called when the property editor permission list is updated */
-	void OnPermissionListUpdated(TSoftObjectPtr<UStruct>, FName);
+	void OnPermissionListUpdated(TSoftObjectPtr<const UStruct>, FName);
 
 	/** Restores the expansion state in the tree for a specific object set */
 	void RestoreExpandedItems();

@@ -293,7 +293,7 @@ void FOnlineIdentitySteam::GetLinkedAccountAuthToken(int32 LocalUserNum, const F
 
 			if (RemoteServiceIdentity.IsEmpty())
 			{
-				UE_LOG_ONLINE_IDENTITY(Warning, TEXT("FOnlineIdentitySteam::GetLinkedAccountAuthToken DefaultRemoteServiceIdentity not set"), *TokenType);
+				UE_LOG_ONLINE_IDENTITY(Warning, TEXT("FOnlineIdentitySteam::GetLinkedAccountAuthToken DefaultRemoteServiceIdentity not set"));
 				Delegate.ExecuteIfBound(LocalUserNum, false, FExternalAuthToken());
 				return;
 			}

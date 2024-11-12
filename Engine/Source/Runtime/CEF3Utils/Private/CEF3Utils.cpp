@@ -27,11 +27,12 @@ IMPLEMENT_MODULE(FDefaultModuleImpl, CEF3Utils);
 namespace CEF3Utils
 {
 #if PLATFORM_WINDOWS
-    void* CEF3DLLHandle = nullptr;
+	void* CEF3DLLHandle = nullptr;
 	void* ElfHandle = nullptr;
 	void* D3DHandle = nullptr;
 	void* GLESHandle = nullptr;
-    void* EGLHandle = nullptr;
+	void* EGLHandle = nullptr;
+	FString DllPath;
 #elif PLATFORM_MAC
 	// Dynamically load the CEF framework library.
 	CefScopedLibraryLoader *CEFLibraryLoader = nullptr;
@@ -59,9 +60,9 @@ namespace CEF3Utils
 	{
 #if PLATFORM_WINDOWS
 	#if PLATFORM_64BITS
-		FString DllPath(FPaths::Combine(*FPaths::EngineDir(), TEXT("Binaries/ThirdParty/CEF3/Win64")));
+		DllPath = FPaths::Combine(*FPaths::EngineDir(), TEXT("Binaries/ThirdParty/CEF3/Win64"));
 	#else
-		FString DllPath(FPaths::Combine(*FPaths::EngineDir(), TEXT("Binaries/ThirdParty/CEF3/Win32")));
+		DllPath = FPaths::Combine(*FPaths::EngineDir(), TEXT("Binaries/ThirdParty/CEF3/Win32"));
 	#endif
 
 		FPlatformProcess::PushDllDirectory(*DllPath);
@@ -74,6 +75,7 @@ namespace CEF3Utils
 			EGLHandle = LoadDllCEF(FPaths::Combine(*DllPath, TEXT("libEGL.dll")));
 		}
 		FPlatformProcess::PopDllDirectory(*DllPath);
+		DllPath = FPaths::ConvertRelativePathToFull(DllPath);
 		return CEF3DLLHandle != nullptr;
 #elif PLATFORM_MAC
 		// Dynamically load the CEF framework library.
@@ -140,12 +142,17 @@ namespace CEF3Utils
 	}
 #endif
 
-#if PLATFORM_MAC
 	FString GetCEF3ModulePath()
 	{
-		 return FrameworkPath;
-	}
+#if PLATFORM_WINDOWS
+		return DllPath;
+#elif PLATFORM_MAC
+		return FrameworkPath;
+#elif PLATFORM_LINUX
+		return FString();
+#else
 #endif
+	}
 
 	void BackupCEF3Logfile(const FString& LogFilePath)
 	{

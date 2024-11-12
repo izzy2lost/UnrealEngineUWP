@@ -35,6 +35,10 @@ bool UControlRigSchema::ShouldUnfoldStruct(URigVMController* InController, const
 	{
 		return false;
 	}
+	if (InStruct == FRigPhysicsSolverID::StaticStruct())
+	{
+		return false;
+	}
 	
 	return true;
 }

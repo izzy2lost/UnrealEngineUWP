@@ -20,6 +20,24 @@ FArchive& operator<<(FArchive& Ar, FIoContainerHeaderLocalizedPackage& Localized
 	return Ar;
 }
 
+void FIoContainerHeaderSoftPackageReferences::Empty()
+{
+	PackageIds.Empty();
+	PackageIndices.Empty();
+	bContainsSoftPackageReferences = false;
+}
+
+FArchive& operator<<(FArchive& Ar, FIoContainerHeaderSoftPackageReferences& SoftPackageReferences)
+{
+	Ar << SoftPackageReferences.bContainsSoftPackageReferences;
+	if (SoftPackageReferences.bContainsSoftPackageReferences)
+	{
+		Ar << SoftPackageReferences.PackageIds;
+		Ar << SoftPackageReferences.PackageIndices;
+	}
+	return Ar;
+}
+
 FArchive& operator<<(FArchive& Ar, FIoContainerHeader& ContainerHeader)
 {
 	uint32 Signature = FIoContainerHeader::Signature;
@@ -55,6 +73,11 @@ FArchive& operator<<(FArchive& Ar, FIoContainerHeader& ContainerHeader)
 	}
 	Ar << ContainerHeader.LocalizedPackages;
 	Ar << ContainerHeader.PackageRedirects;
+
+	if (Ar.IsSaving() || Version >= EIoContainerHeaderVersion::SoftPackageReferences)
+	{
+		Ar << ContainerHeader.SoftPackageReferences;
+	}
 
 	return Ar;
 }

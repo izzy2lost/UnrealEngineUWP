@@ -14,6 +14,7 @@ UMassStationaryISMSwitcherProcessor::UMassStationaryISMSwitcherProcessor(const F
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Representation;
 	ExecutionOrder.ExecuteAfter.Add(UMassVisualizationProcessor::StaticClass()->GetFName());
 	bAutoRegisterWithProcessingPhases = true;
+	ExecutionFlags = static_cast<int32>(EProcessorExecutionFlags::AllNetModes);
 }
 
 void UMassStationaryISMSwitcherProcessor::ConfigureQueries()
@@ -68,10 +69,10 @@ void UMassStationaryISMSwitcherProcessor::ProcessContext(FMassExecutionContext& 
 		{
 			continue;
 		}
-		FMassInstancedStaticMeshInfo& ISMInfo = ISMInfosView[Representation.StaticMeshDescHandle.ToIndex()];
 
-		if (Representation.PrevRepresentation == EMassRepresentationType::StaticMeshInstance
-			&& Representation.CurrentRepresentation != EMassRepresentationType::StaticMeshInstance)
+		FMassInstancedStaticMeshInfo& ISMInfo = ISMInfosView[Representation.StaticMeshDescHandle.ToIndex()];
+		if (const bool bSwitchedAwayFromStaticMesh = (Representation.PrevRepresentation == EMassRepresentationType::StaticMeshInstance
+			&& Representation.CurrentRepresentation != EMassRepresentationType::StaticMeshInstance))
 		{
 			// note that we're using the PrevLODSignificance here, and the reason for it is that the Prev value matches the 
 			// PrevRepresentation - thus we need to remove from the "previously" used LODSignificance range.
@@ -85,8 +86,8 @@ void UMassStationaryISMSwitcherProcessor::ProcessContext(FMassExecutionContext& 
 				SignalSubsystem.SignalEntity(UE::Mass::Signals::SwitchedToActor, EntityHandle);
 			}
 		}
-		else if (Representation.PrevRepresentation != EMassRepresentationType::StaticMeshInstance
-			&& Representation.CurrentRepresentation == EMassRepresentationType::StaticMeshInstance)
+		else if (const bool bSwitchedToStaticMesh = (Representation.PrevRepresentation != EMassRepresentationType::StaticMeshInstance
+			&& Representation.CurrentRepresentation == EMassRepresentationType::StaticMeshInstance))
 		{
 			const FTransform& Transform = TransformFragment.GetTransform();
 			const FTransform& PrevTransform = Representation.PrevTransform;

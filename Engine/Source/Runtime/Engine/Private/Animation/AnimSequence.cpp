@@ -19,6 +19,7 @@
 #include "Animation/MirrorDataTable.h"
 #include "UObject/UObjectIterator.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/SkeletalMeshSocket.h"
 #include "EngineUtils.h"
 #include "AnimationUtils.h"
 #include "BonePose.h"
@@ -58,7 +59,9 @@ LLM_DEFINE_TAG(SequenceData);
 #include "Animation/AnimData/IAnimationDataModel.h"
 #include "Animation/BuiltInAttributeTypes.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "Cooker/CookDeterminismHelper.h"
 #include "ProfilingDebugging/CookStats.h"
+#include "Serialization/CompactBinaryWriter.h"
 #include "Serialization/MemoryHasher.h"
 #include "Misc/DataValidation.h"
 #endif // WITH_EDITOR
@@ -431,7 +434,7 @@ void UAnimSequence::GetAssetRegistryTags(FAssetRegistryTagsContext Context) cons
 
 	if (DataModelInterface.GetObject() && DataModelInterface->HasBeenPopulated())
 	{
-		Context.AddTag(FAssetRegistryTag(TEXT("Compression Ratio"), FString::Printf(TEXT("%.03f"), (float)GetApproxCompressedSize() / (float)GetUncompressedRawSize()), FAssetRegistryTag::TT_Numerical));
+		Context.AddTag(FAssetRegistryTag(TEXT("Compression Ratio"), FString::Printf(TEXT("%.03f"), (double)GetApproxCompressedSize() / (double)GetUncompressedRawSize()), FAssetRegistryTag::TT_Numerical));
 		Context.AddTag(FAssetRegistryTag(TEXT("Source Frame Rate"), FString::Printf(TEXT("%.2f"), DataModelInterface->GetFrameRate().AsDecimal()), FAssetRegistryTag::TT_Numerical));
 		Context.AddTag(FAssetRegistryTag(TEXT("Number of Frames"), FString::Printf(TEXT("%.i"), DataModelInterface->GetNumberOfFrames()), FAssetRegistryTag::TT_Numerical));
 		Context.AddTag(FAssetRegistryTag(TEXT("Number of Keys"), FString::Printf(TEXT("%i"), DataModelInterface->GetNumberOfKeys()), FAssetRegistryTag::TT_Numerical));
@@ -471,48 +474,60 @@ void UAnimSequence::AddReferencedObjects(UObject* This, FReferenceCollector& Col
 }
 
 #if WITH_EDITOR
+
+int32 GAllowClearingCompressedDataDuringCook = 1;
+static FAutoConsoleVariableRef CVarAllowClearingCompressedDataDuringCook(
+	TEXT("a.AllowClearingCompressedDataDuringCook"),
+	GAllowClearingCompressedDataDuringCook,
+	TEXT("Values: 0/1\n")
+	TEXT("Controls whether or not to compressed data is cleared/free-ed during cook."),
+	ECVF_Default);
+
 void UAnimSequence::WillNeverCacheCookedPlatformDataAgain()
 {
-	Super::WillNeverCacheCookedPlatformDataAgain();
+	if (GAllowClearingCompressedDataDuringCook)
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		bUseRawDataOnly = true;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	UE::Anim::FAnimSequenceCompilingManager::Get().FinishCompilation({this});
-	// Clear out current platform, and any target platform data
-	CompressedData.Reset();
+		UE::Anim::FAnimSequenceCompilingManager::Get().FinishCompilation({this});
+		// Clear out current platform, and any target platform data
+		CompressedData.Reset();
 		
-	CacheTasksByKeyHash.Empty();
-	DataByPlatformKeyHash.Empty();
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	bUseRawDataOnly = true;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		CacheTasksByKeyHash.Empty();
+		DataByPlatformKeyHash.Empty();
+	}
 }
 
 void UAnimSequence::ClearAllCachedCookedPlatformData()
 {
-	Super::ClearAllCachedCookedPlatformData();
-	
-	// Delete any cache tasks first because the destructor will cancel the cache and build tasks,
-	// and drop their pointers to the data.
-	CacheTasksByKeyHash.Empty();
-	DataByPlatformKeyHash.Empty();
-	CompressedData.Reset();
-	DataKeyHash = FIoHash::Zero;
-	
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	bUseRawDataOnly = true;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	if (GAllowClearingCompressedDataDuringCook)
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		bUseRawDataOnly = true;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		
+		// Delete any cache tasks first because the destructor will cancel the cache and build tasks,
+		// and drop their pointers to the data.
+		CacheTasksByKeyHash.Empty();
+		DataByPlatformKeyHash.Empty();
+		CompressedData.Reset();
+		DataKeyHash = FIoHash::Zero;
+	}
 }
 
-int32 UAnimSequence::GetUncompressedRawSize() const
+int64 UAnimSequence::GetUncompressedRawSize() const
 {
 	if (DataModelInterface.GetObject())
 	{
-		const int32 BoneRawSize = FRawAnimSequenceTrack::SingleKeySize * DataModelInterface->GetNumBoneTracks() * DataModelInterface->GetNumberOfKeys();
-		int32 CurveRawSize = 0;
+		const int64 BoneRawSize = FRawAnimSequenceTrack::SingleKeySize * int64(DataModelInterface->GetNumBoneTracks()) * int64(DataModelInterface->GetNumberOfKeys());
+		int64 CurveRawSize = 0;
 
 		for (const FFloatCurve& Curve : DataModelInterface->GetCurveData().FloatCurves)
 		{
 			CurveRawSize += sizeof(FFloatCurve);
-			CurveRawSize += sizeof(FRichCurveKey) * Curve.FloatCurve.Keys.Num();
+			CurveRawSize += sizeof(FRichCurveKey) * int64(Curve.FloatCurve.Keys.Num());
 		}
 		return BoneRawSize + CurveRawSize;
 	}
@@ -524,18 +539,18 @@ int64 UAnimSequence::GetApproxRawSize() const
 	if (ShouldDataModelBeValid())
 	{
 		ValidateModel();
-		int32 Total = sizeof(FRawAnimSequenceTrack) * DataModelInterface->GetNumBoneTracks();
 
-		const int32 NumberOfTracks = DataModelInterface->GetNumBoneTracks();
+		const int64 NumberOfTracks = DataModelInterface->GetNumBoneTracks();
 
-		Total += DataModelInterface->GetNumberOfKeys() * sizeof(FVector3f) * NumberOfTracks;
-		Total += DataModelInterface->GetNumberOfKeys() * sizeof(FQuat4f) * NumberOfTracks;
-		Total += DataModelInterface->GetNumberOfKeys() * sizeof(FVector3f) * NumberOfTracks;
+		int64 Total = sizeof(FRawAnimSequenceTrack) * NumberOfTracks;
+		Total += int64(DataModelInterface->GetNumberOfKeys()) * sizeof(FVector3f) * NumberOfTracks;
+		Total += int64(DataModelInterface->GetNumberOfKeys()) * sizeof(FQuat4f) * NumberOfTracks;
+		Total += int64(DataModelInterface->GetNumberOfKeys()) * sizeof(FVector3f) * NumberOfTracks;
 
 		for (const FFloatCurve& Curve : DataModelInterface->GetCurveData().FloatCurves)
 		{
 			Total += sizeof(FFloatCurve);
-			Total += sizeof(FRichCurveKey) * Curve.FloatCurve.Keys.Num();
+			Total += sizeof(FRichCurveKey) * int64(Curve.FloatCurve.Keys.Num());
 		}
 		return Total;
 	}
@@ -666,11 +681,14 @@ void UAnimSequence::Serialize(FArchive& Ar)
 			UE::Anim::FAnimSequenceCompilingManager::Get().FinishCompilation({this});
 		}
 	}
-#endif // WITH_EDITOR	
+#endif // WITH_EDITOR
+
+#if WITH_EDITORONLY_DATA
 	if ( Ar.IsLoading() && Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) < FUE5MainStreamObjectVersion::PerPlatformAnimSequenceTargetFrameRate)
 	{
 		PlatformTargetFrameRate = TargetFrameRate;
-	}
+	}	
+#endif // WITH_EDITORONLY_DATA
 
 	if (Ar.CustomVer(FFrameworkObjectVersion::GUID) < FFrameworkObjectVersion::MoveCompressedAnimDataToTheDDC)
 	{
@@ -908,6 +926,40 @@ void UAnimSequence::GetPreloadDependencies(TArray<UObject*>& OutDeps)
 	}
 }
 
+#if WITH_EDITOR
+class FAnimSequenceDeterminismHelper : public UE::Cook::IDeterminismHelper
+{
+public:
+	FAnimSequenceDeterminismHelper(UAnimSequence* InAnimSequence)
+		: AnimSequence(InAnimSequence)
+	{
+	}
+
+	virtual void ConstructDiagnostics(UE::Cook::IDeterminismConstructDiagnosticsContext& Context) override
+	{
+		FString DDCKey = AnimSequence->CreateDerivedDataKeyString(Context.GetTargetPlatform());
+		FIoHash DDCKeyHash = FIoHash::Zero;
+		if (!DDCKey.IsEmpty())
+		{
+			FMemoryHasherBlake3 Writer;
+			Writer << DDCKey;
+			DDCKeyHash = Writer.Finalize();
+		}
+
+		FCbWriter Writer;
+		Writer.BeginObject();
+		Writer << "DDCKeyHash" << WriteToString<64>(DDCKeyHash);
+		Writer << "DDCKey" << DDCKey;
+		Writer.EndObject();
+
+		Context.AddDiagnostic("UAnimSequence", Writer.Save());
+	}
+
+private:
+	UAnimSequence* AnimSequence;
+};
+#endif
+
 void UAnimSequence::PreSave(const class ITargetPlatform* TargetPlatform)
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
@@ -932,7 +984,12 @@ void UAnimSequence::PreSave(FObjectPreSaveContext ObjectSaveContext)
 
 	if (!ObjectSaveContext.IsProceduralSave())
 	{
-		UpdateRetargetSourceAsset();
+		UpdateRetargetSourceAssetData();
+	}
+
+	if (ObjectSaveContext.IsDeterminismDebug())
+	{
+		ObjectSaveContext.RegisterDeterminismHelper(new FAnimSequenceDeterminismHelper(this));
 	}
 #endif
 
@@ -1112,10 +1169,12 @@ void UAnimSequence::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 
 	if(PropertyChangedEvent.Property)
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimSequence, RetargetSourceAsset))
 		{
-			UpdateRetargetSourceAsset();
+			UpdateRetargetSourceAssetData();
 		}
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		const bool bChangedRefFrameIndex = PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimSequence, RefFrameIndex);
 
@@ -1259,7 +1318,8 @@ static FAutoConsoleVariableRef CVarForceRawData(
 	ECVF_Cheat);
 #endif // WITH_EDITOR
 
-void UAnimSequence::GetBoneTransform(FTransform& OutAtom, FSkeletonPoseBoneIndex BoneIndex, double Time, bool bUseRawData) const
+
+void UAnimSequence::GetBoneTransform(FTransform& OutAtom, FSkeletonPoseBoneIndex BoneIndex, double Time, bool bUseRawData, TOptional<EAnimInterpolationType> InterpolationOverride) const
 {
 	// If the caller didn't request that raw animation data be used . . .
 	const bool bEvaluateCompressedData =
@@ -1268,9 +1328,10 @@ void UAnimSequence::GetBoneTransform(FTransform& OutAtom, FSkeletonPoseBoneIndex
 #endif 
 		(!bUseRawData || !CanEvaluateRawAnimationData());
 
+	const EAnimInterpolationType InterpolationType = InterpolationOverride.Get(Interpolation);
 	if ( bEvaluateCompressedData && IsCompressedDataValid())
 	{
-		FAnimSequenceDecompressionContext DecompContext(PlatformTargetFrameRate.Default, PlatformTargetFrameRate.Default.AsFrameTime(GetPlayLength()).RoundToFrame().Value, Interpolation, GetRetargetTransformsSourceName(), *CompressedData.CompressedDataStructure, GetSkeleton()->GetRefLocalPoses(), CompressedData.CompressedTrackToSkeletonMapTable, GetSkeleton(), IsValidAdditive(), AdditiveAnimType);
+		FAnimSequenceDecompressionContext DecompContext(PlatformTargetFrameRate.Default, PlatformTargetFrameRate.Default.AsFrameTime(GetPlayLength()).RoundToFrame().Value, InterpolationType, GetRetargetTransformsSourceName(), *CompressedData.CompressedDataStructure, GetSkeleton()->GetRefLocalPoses(), CompressedData.CompressedTrackToSkeletonMapTable, GetSkeleton(), IsValidAdditive(), AdditiveAnimType);
 		DecompContext.Seek(Time);
 		if (CompressedData.BoneCompressionCodec)
 		{
@@ -1286,7 +1347,7 @@ void UAnimSequence::GetBoneTransform(FTransform& OutAtom, FSkeletonPoseBoneIndex
 #if WITH_EDITOR
 		ValidateModel();
 		const FName BoneName = GetSkeleton()->GetReferenceSkeleton().GetBoneName(BoneIndex.GetInt());
-		OutAtom = DataModelInterface->EvaluateBoneTrackTransform(BoneName, DataModelInterface->GetFrameRate().AsFrameTime(Time), Interpolation);
+		OutAtom = DataModelInterface->EvaluateBoneTrackTransform(BoneName, DataModelInterface->GetFrameRate().AsFrameTime(Time), InterpolationType);
 
 		const FAnimationCurveIdentifier TransformCurveId(BoneName, ERawCurveTrackTypes::RCT_Transform);
 		if (const FTransformCurve* TransformCurvePtr = DataModelInterface->FindTransformCurve(TransformCurveId))
@@ -1543,7 +1604,11 @@ void UAnimSequence::GetAnimationPose(FAnimationPoseData& OutAnimationPoseData, c
 	}
 
 	// If the sequence has root motion enabled, allow sampling of a root motion delta into the custom attribute container of the outgoing pose
-	if (HasRootMotion())
+	if (HasRootMotion()
+#if WITH_EDITOR
+		&& ExtractionContext.bExtractWithRootMotionProvider
+#endif // WITH_EDITOR
+		)
 	{
 		if (const UE::Anim::IAnimRootMotionProvider* RootMotionProvider = UE::Anim::IAnimRootMotionProvider::Get())
 		{
@@ -1678,7 +1743,8 @@ void UAnimSequence::GetBonePose(FAnimationPoseData& OutAnimationPoseData, const 
 	if (bUseRawDataForPoseExtraction)
 	{
 		{
-			const UE::Anim::DataModel::FEvaluationContext EvaluationContext(ExtractionContext.CurrentTime, DataModelInterface->GetFrameRate(), GetRetargetTransformsSourceName(), GetRetargetTransforms(), Interpolation);
+			const EAnimInterpolationType InterpolationType = ExtractionContext.InterpolationOverride.Get(Interpolation);
+			const UE::Anim::DataModel::FEvaluationContext EvaluationContext(ExtractionContext.CurrentTime, DataModelInterface->GetFrameRate(), GetRetargetTransformsSourceName(), GetRetargetTransforms(), InterpolationType);
 			DataModelInterface->Evaluate(OutAnimationPoseData, EvaluationContext);
 		}
 
@@ -1695,7 +1761,8 @@ void UAnimSequence::GetBonePose(FAnimationPoseData& OutAnimationPoseData, const 
 	if (NumTracks != 0)
 	{
 		// Evaluate compressed bone data
-		FAnimSequenceDecompressionContext DecompContext(PlatformTargetFrameRate.Default, PlatformTargetFrameRate.Default.AsFrameTime(GetPlayLength()).RoundToFrame().Value, Interpolation, GetRetargetTransformsSourceName(), *CompressedData.CompressedDataStructure, GetSkeleton()->GetRefLocalPoses(), CompressedData.CompressedTrackToSkeletonMapTable, GetSkeleton(), IsValidAdditive(), AdditiveAnimType);
+		const EAnimInterpolationType InterpolationType = ExtractionContext.InterpolationOverride.Get(Interpolation);
+		FAnimSequenceDecompressionContext DecompContext(PlatformTargetFrameRate.Default, PlatformTargetFrameRate.Default.AsFrameTime(GetPlayLength()).RoundToFrame().Value, InterpolationType, GetRetargetTransformsSourceName(), *CompressedData.CompressedDataStructure, GetSkeleton()->GetRefLocalPoses(), CompressedData.CompressedTrackToSkeletonMapTable, GetSkeleton(), IsValidAdditive(), AdditiveAnimType);
 		UE::Anim::Decompression::DecompressPose(OutPose, CompressedData, ExtractionContext, DecompContext, GetRetargetTransforms(), RootMotionReset);
 	}
 
@@ -1889,10 +1956,43 @@ void UAnimSequence::UpdateCompressedCurveName(const FName& OldCurveName, const F
 }
 #endif // WITH_EDITOR
 
-#if WITH_EDITORONLY_DATA
-void UAnimSequence::UpdateRetargetSourceAsset()
+#if WITH_EDITOR
+void UAnimSequence::SetRetargetSourceAsset(USkeletalMesh* InRetargetSourceAsset)
 {
+	if (InRetargetSourceAsset != nullptr && InRetargetSourceAsset->HasAnyFlags(RF_Transient))
+	{
+		UE_LOG(LogAnimation, Error, TEXT("Error, Transient asset [%s] can not be assigned as Retarget Source for AnimSequence [%s]. Please, use a non transient asset as retarget surce.")
+			, *(InRetargetSourceAsset->GetFullName())
+			, *GetFullName());
+		ensure(false);
+		return;
+	}
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	RetargetSourceAsset = InRetargetSourceAsset;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+const TSoftObjectPtr<USkeletalMesh>& UAnimSequence::GetRetargetSourceAsset() const
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return RetargetSourceAsset;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+void UAnimSequence::ClearRetargetSourceAsset()
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	RetargetSourceAsset.Reset();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+void UAnimSequence::UpdateRetargetSourceAssetData()
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	USkeletalMesh* SourceReferenceMesh = RetargetSourceAsset.LoadSynchronous();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	const USkeleton* MySkeleton = GetSkeleton();
 	if (SourceReferenceMesh && MySkeleton)
 	{
@@ -1903,7 +2003,7 @@ void UAnimSequence::UpdateRetargetSourceAsset()
 		RetargetSourceAssetReferencePose.Empty();
 	}
 }
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_EDITOR
 
 const TArray<FTransform>& UAnimSequence::GetRetargetTransforms() const
 {
@@ -4506,15 +4606,28 @@ void UAnimSequence::CalculateNumberOfSampledKeys()
 
 FIoHash UAnimSequence::CreateDerivedDataKeyHash(const ITargetPlatform* TargetPlatform)
 {
+	FString Ret = CreateDerivedDataKeyString(TargetPlatform);
+	if (Ret.IsEmpty())
+	{
+		return FIoHash::Zero;
+	}
+
+	// New animation DDC key format; use just the hash of the complete dependencies string.
+	FMemoryHasherBlake3 Writer;
+	Writer << Ret;
+	return Writer.Finalize();
+}
+
+
+FString UAnimSequence::CreateDerivedDataKeyString(const ITargetPlatform* TargetPlatform)
+{
 	const USkeleton* CurrentSkeleton = GetSkeleton();
 	if (CurrentSkeleton == nullptr)
 	{
 		UE_LOG(LogAnimation, Warning, TEXT("Animation Compression request for %s failed, Skeleton == nullptr."), *GetName());
-		return FIoHash::Zero;
+		return FString();
 	}
 
-	// New animation DDC key format
-	FMemoryHasherBlake3 Writer;
 
 	const bool bIsValidAdditive = IsValidAdditive();
 	const char AdditiveType = bIsValidAdditive ? NibbleToTChar(AdditiveAnimType) : '0';
@@ -4542,7 +4655,7 @@ FIoHash UAnimSequence::CreateDerivedDataKeyHash(const ITargetPlatform* TargetPla
 		bPerformFrameStripping = ShouldPerformStripping(bPerformFrameStripping, bPerformFrameStrippingOnOddNumberedFrames);
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
-		
+
 	FArcToHexString ArcToHexString;
 
 	ArcToHexString.Ar << CompressionErrorThresholdScale;
@@ -4550,16 +4663,33 @@ FIoHash UAnimSequence::CreateDerivedDataKeyHash(const ITargetPlatform* TargetPla
 	BoneCompressionSettings->PopulateDDCKey(UE::Anim::Compression::FAnimDDCKeyArgs(*this, TargetPlatform), ArcToHexString.Ar);
 	CurveCompressionSettings->PopulateDDCKey(ArcToHexString.Ar);
 	VariableFrameStrippingSettings->PopulateDDCKey(UE::Anim::Compression::FAnimDDCKeyArgs(*this, TargetPlatform), ArcToHexString.Ar);
-	
-	const FFrameRate FrameRate = PlatformTargetFrameRate.GetValueForPlatform(TargetPlatform->GetPlatformInfo().IniPlatformName);
+
+	if (bIsValidAdditive)
+	{
+		// Additive sequences are compressed in re-targeted space, as such we need to include the re-targeting transforms in our key
+		const TArray<FTransform>& RetargetTransforms = GetRetargetTransforms();
+		for (FTransform RetargetTransform : RetargetTransforms)	// Copy the transform to allow us to use the non-const << operator below
+		{
+			ArcToHexString.Ar << RetargetTransform;
+		}
+	}
+
+	// Include sockets since they can impact precision requirements
+	for (const USkeletalMeshSocket* Socket : CurrentSkeleton->Sockets)
+	{
+		FName BoneName = Socket->BoneName;
+		ArcToHexString.Ar << BoneName;
+	}
+
+	const FFrameRate FrameRate = UE::Anim::Compression::GetCompressionFrameRate(*this, TargetPlatform);
 
 	FString Ret = FString::Printf(TEXT("%i_%s%s%s_%c%c%i_%s_%s_%i_%i_%s"),
 		CompressCommandletVersion,
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		*GetDataModel()->GenerateGuid().ToString(),
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		*GetSkeleton()->GetGuid().ToString(),
-		*GetSkeleton()->GetVirtualBoneGuid().ToString(),
+		*CurrentSkeleton->GetGuid().ToString(),
+		*CurrentSkeleton->GetVirtualBoneGuid().ToString(),
 		AdditiveType,
 		RefType,
 		RefFrameIndex,
@@ -4572,9 +4702,7 @@ FIoHash UAnimSequence::CreateDerivedDataKeyHash(const ITargetPlatform* TargetPla
 		*UE::Anim::Compression::AnimationCompressionVersionString
 	);
 
-	Writer << Ret;
-
-	return Writer.Finalize();
+	return Ret;
 }
 
 FIoHash UAnimSequence::BeginCacheDerivedData(const ITargetPlatform* TargetPlatform)
@@ -4756,6 +4884,21 @@ bool UAnimSequence::TryCancelAsyncTasks()
 	return CacheTasksByKeyHash.IsEmpty();
 }
 
+bool UAnimSequence::WaitForAsyncTasks(float TimeLimitSeconds)
+{
+	double StartTimeSeconds = FPlatformTime::Seconds();
+	for (auto& Pair : CacheTasksByKeyHash)
+	{
+		// Clamp to 0 as it implies polling
+		const float TimeLimit = FMath::Min(0.0f, TimeLimitSeconds - (FPlatformTime::Seconds() - StartTimeSeconds));
+		if (!Pair.Value->WaitWithTimeout(TimeLimit))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 bool UAnimSequence::IsAsyncTaskComplete() const
 {
 	bool bAllFinished = true;
@@ -4779,23 +4922,15 @@ void UAnimSequence::FinishAsyncTasks()
 		{
 			It->Value->Wait();
 
-			FCompressedAnimSequence* CompressedAnimData = [Hash = It->Key, this]()
+			FCompressedAnimSequence* TaskData = It->Value->GetTargetCompressedData();
+			const bool bCompressedRunningPlatform = (TaskData == &CompressedData);
+			auto ResetData = [this, TaskData, It, bCompressedRunningPlatform]()
 			{
-				if(Hash == DataKeyHash)
-				{
-					return &CompressedData;
-				}
-				
-				return DataByPlatformKeyHash.FindChecked(Hash).Get();
-			}();
-
-			auto ResetData = [this, CompressedAnimData, It]()
-			{
-				CompressedAnimData->Reset();
+				TaskData->Reset();
 				DataByPlatformKeyHash.Remove(It->Key);
 
 				// Reset running platform hash (if it got cancelled)
-				if (DataKeyHash == It->Key)
+				if (bCompressedRunningPlatform)
 				{
 					DataKeyHash = FIoHash::Zero;
 				}
@@ -4807,7 +4942,7 @@ void UAnimSequence::FinishAsyncTasks()
 			}
 			else
 			{
-				if (CompressedAnimData->IsValid(this, true))
+				if (TaskData->IsValid(this, true))
 				{
 #if WITH_EDITOR
 					//This is only safe during sync anim compression
@@ -4816,7 +4951,7 @@ void UAnimSequence::FinishAsyncTasks()
 						SetSkeletonVirtualBoneGuid(GetSkeleton()->GetVirtualBoneGuid());
 					}
 #endif
-					if (It->Key == DataKeyHash)
+					if (bCompressedRunningPlatform)
 					{
 						FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 						AssetRegistryModule.Get().AssetTagsFinalized(*this);
@@ -4827,7 +4962,7 @@ void UAnimSequence::FinishAsyncTasks()
 						PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					}
 				
-					check(CompressedAnimData->IsValid(this, true));
+					check(TaskData->IsValid(this, true));
 				}
 				else
 				{

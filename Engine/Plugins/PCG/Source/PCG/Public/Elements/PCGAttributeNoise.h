@@ -51,6 +51,7 @@ public:
 	virtual bool OnlyExposePreconfiguredSettings() const override { return true; }
 	virtual bool GroupPreconfiguredSettings() const override { return false; }
 #endif
+	virtual bool UseSeed() const override { return true; }
 	virtual void ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfigureInfo) override;
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 	virtual bool HasDynamicPins() const override { return true; }
@@ -122,14 +123,9 @@ struct FPCGAttributeNoiseContext : public FPCGContext
 	TUniquePtr<IPCGAttributeAccessorKeys> OutputKeys;
 };
 
-class FPCGAttributeNoiseElement : public IPCGElement
+class FPCGAttributeNoiseElement : public IPCGElementWithCustomContext<FPCGAttributeNoiseContext>
 {
 protected:
-	virtual FPCGContext* CreateContext() override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "PCGNode.h"
-#endif

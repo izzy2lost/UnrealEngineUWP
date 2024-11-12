@@ -3,6 +3,7 @@
 #pragma once
 
 #if WITH_EDITOR
+#include "PoseSearch/PoseSearchDerivedDataKey.h"
 #include "TickableEditorObject.h"
 #include "UObject/GCObject.h"
 #include "UObject/ObjectSaveContext.h"
@@ -40,6 +41,7 @@ namespace UE::PoseSearch
 		~FAsyncPoseSearchDatabasesManagement();
 
 		static FAsyncPoseSearchDatabasesManagement& Get();
+		static EAsyncBuildIndexResult RequestAsyncBuildIndexInternal(const UPoseSearchDatabase* Database, ERequestAsyncBuildFlag Flag);
 
 		void OnObjectModified(UObject* Object);
 		void OnObjectTransacted(UObject* Object, const FTransactionObjectEvent& TransactionObjectEvent);
@@ -84,6 +86,9 @@ namespace UE::PoseSearch
 		FDelegateHandle OnPackageReloadedHandle;
 		FDelegateHandle OnPreObjectPropertyChangedHandle;
 		FDelegateHandle OnObjectPropertyChangedHandle;
+
+		// Experimental, this feature might be removed without warning, not for production use
+		FPartialKeyHashes PartialKeyHashes;
 
 		static FCriticalSection Mutex;
 	};

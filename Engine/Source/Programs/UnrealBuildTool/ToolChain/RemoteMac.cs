@@ -227,7 +227,7 @@ namespace UnrealBuildTool
 				CommandLine.AppendFormat(" \"{0}\"", DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.MyDocuments));
 				CommandLine.AppendFormat(" \"{0}\"", GetLocalCygwinPath(DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.MyDocuments)!));
 				CommandLine.AppendFormat(" \"{0}\"", Unreal.EngineDirectory);
-				CommandLine.Append("\"");
+				CommandLine.Append('"');
 
 				using (Process ChildProcess = Process.Start(BuildHostPlatform.Current.Shell.FullName, CommandLine.ToString()))
 				{
@@ -1308,7 +1308,13 @@ namespace UnrealBuildTool
 				Output = new StringBuilder();
 
 				StringBuilder OutputLocal = Output;
-				DataReceivedEventHandler OutputHandler = (E, Args) => { if (Args.Data != null) { OutputLocal.Append(Args.Data); } };
+				DataReceivedEventHandler OutputHandler = (E, Args) =>
+				{
+					if (Args.Data != null)
+					{
+						OutputLocal.Append(Args.Data);
+					}
+				};
 
 				SSHProcess.StartInfo.FileName = SshExe.FullName;
 				SSHProcess.StartInfo.WorkingDirectory = SshExe.Directory.FullName;

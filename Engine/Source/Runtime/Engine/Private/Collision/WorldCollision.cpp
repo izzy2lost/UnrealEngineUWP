@@ -36,6 +36,7 @@ DEFINE_STAT(STAT_Collision_FBodyInstance_OverlapMulti);
 DEFINE_STAT(STAT_Collision_FBodyInstance_OverlapTest);
 DEFINE_STAT(STAT_Collision_FBodyInstance_LineTrace);
 DEFINE_STAT(STAT_Collision_PreFilter);
+DEFINE_STAT(STAT_Collision_SpherecastMultiple_Internal);
 
 /** default collision response container - to be used without reconstructing every time**/
 FCollisionResponseContainer FCollisionResponseContainer::DefaultResponseContainer(ECR_Block);
@@ -513,11 +514,11 @@ bool UWorld::ComponentSweepMultiByChannel(TArray<struct FHitResult>& OutHits, cl
 	{
 		FComponentQueryParams ParamsCopy{ Params };
 		TSet<uint32> ActorsToExclude;
-		for (uint32 ActorID : ParamsCopy.GetIgnoredActors())
+		for (uint32 ActorID : ParamsCopy.GetIgnoredSourceObjects())
 		{
 			ActorsToExclude.Add(ActorID);
 		}		
-		ParamsCopy.ClearIgnoredActors(); // This will be populated a bit later
+		ParamsCopy.ClearIgnoredSourceObjects(); // This will be populated a bit later
 		// All actors pointed to by shapes should be ignored (This deals with welded Actors)
 		TArray<Chaos::FShapeInstanceProxy*> Shapes = Interface->GetAllThreadShapes({ &Object, 1 });
 		for (Chaos::FShapeInstanceProxy* Shape : Shapes)

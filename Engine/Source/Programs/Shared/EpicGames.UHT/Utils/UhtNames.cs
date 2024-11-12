@@ -18,6 +18,7 @@ namespace EpicGames.UHT.Utils
 		public const string BlueprintGetter = "BlueprintGetter";
 		public const string BlueprintInternalUseOnly = "BlueprintInternalUseOnly";
 		public const string BlueprintSetter = "BlueprintSetter";
+		public const string CallInEditor = "CallInEditor";
 		public const string BlueprintType = "BlueprintType";
 		public const string CannotImplementInterfaceInBlueprint = "CannotImplementInterfaceInBlueprint";
 		public const string Category = "Category";

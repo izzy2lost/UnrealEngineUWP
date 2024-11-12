@@ -142,10 +142,9 @@ void FSkeletalMeshComponentDetails::UpdateAnimationCategory(IDetailLayoutBuilder
 	// Place the blueprint property next (which may be hidden, depending on the mode)
 	TAttribute<EVisibility> BlueprintVisibility( this, &FSkeletalMeshComponentDetails::VisibilityForBlueprintMode );
 
-	DetailBuilder.HideProperty(AnimationBlueprintHandle);
-	AnimationCategory.AddCustomRow(AnimationBlueprintHandle->GetPropertyDisplayName())
-		.RowTag(AnimationBlueprintName)
+	AnimationCategory.AddProperty(AnimationBlueprintHandle)
 		.Visibility(BlueprintVisibility)
+		.CustomWidget()
 		.NameContent()
 		[
 			AnimationBlueprintHandle->CreatePropertyNameWidget()
@@ -168,22 +167,6 @@ void FSkeletalMeshComponentDetails::UpdateAnimationCategory(IDetailLayoutBuilder
 					.Text(this, &FSkeletalMeshComponentDetails::GetSelectedAnimBlueprintName)
 					.MinDesiredWidth(200.f)
 				]
-			]
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			.Padding(2.0f, 1.0f)
-			[
-				PropertyCustomizationHelpers::MakeUseSelectedButton(FSimpleDelegate::CreateSP(this, &FSkeletalMeshComponentDetails::UseSelectedAnimBlueprint))
-			]
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			.Padding(2.0f, 1.0f)
-			[
-				PropertyCustomizationHelpers::MakeBrowseButton(FSimpleDelegate::CreateSP(this, &FSkeletalMeshComponentDetails::OnBrowseToAnimBlueprint))
 			]
 		];
 
@@ -258,6 +241,9 @@ EVisibility FSkeletalMeshComponentDetails::VisibilityForBlueprintMode() const
 
 void FSkeletalMeshComponentDetails::UpdatePhysicsCategory(IDetailLayoutBuilder& DetailBuilder)
 {
+	// Force hiding ClothTeleportMode. If you stop force hiding this, please update the comment in SkeletalMeshComponent.h where the property is declared.
+	const FName ClothTeleportModeFName(GET_MEMBER_NAME_CHECKED(USkeletalMeshComponent, ClothTeleportMode));
+	DetailBuilder.HideProperty(ClothTeleportModeFName);
 }
 
 EVisibility FSkeletalMeshComponentDetails::VisibilityForAnimationMode(EAnimationMode::Type AnimationMode) const

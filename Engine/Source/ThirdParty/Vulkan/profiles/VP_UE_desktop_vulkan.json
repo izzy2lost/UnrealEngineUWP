@@ -1,5 +1,5 @@
 {
-    "$schema": "https://schema.khronos.org/vulkan/profiles-0.8.0-139.json#",
+    "$schema": "https://schema.khronos.org/vulkan/profiles-0.8.2-280.json#",
     "capabilities": {
         "baseline": {
             "extensions": {
@@ -29,7 +29,8 @@
             "extensions": {
                 "VK_EXT_shader_image_atomic_int64": 1,
 				"VK_EXT_descriptor_indexing": 1,
-				"VK_EXT_scalar_block_layout": 1				
+				"VK_EXT_scalar_block_layout": 1,
+				"VK_EXT_mesh_shader": 1
 			},
 			
             "features": {
@@ -63,18 +64,31 @@
                 "VkPhysicalDeviceFeatures": {
                     "fragmentStoresAndAtomics": true,
                     "shaderInt64": true
-                }			
+                },
+				"VkPhysicalDeviceMeshShaderFeaturesEXT": {
+                    "meshShader": true,
+                    "taskShader": true,
+                    "multiviewMeshShader": true
+                }
 			},
 			
             "properties": {
-			},
-			
-			"formats": {
+                "VkPhysicalDeviceProperties": {
+                    "limits": {
+                        "maxBoundDescriptorSets": 9                
+					}
+                },
+				"VkPhysicalDeviceMeshShaderPropertiesEXT": {
+					"maxMeshWorkGroupInvocations": 128
+				}
+            },
+            
+            "formats": {
                 "VK_FORMAT_R64_UINT": {
                     "VkFormatProperties": {
                         "optimalTilingFeatures": [
                             "VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT",
-							"VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT"
+                            "VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT"
                         ]
                     }
 				}
@@ -89,7 +103,9 @@
 				"VK_KHR_spirv_1_4": 1,
 				"VK_KHR_shader_float_controls": 1,
 				"VK_KHR_buffer_device_address": 1,
-				"VK_EXT_scalar_block_layout": 1
+				"VK_EXT_scalar_block_layout": 1,
+				"VK_EXT_descriptor_buffer": 1,
+				"VK_KHR_ray_tracing_position_fetch": 1
 			},
             "features": {
                 "VkPhysicalDeviceRayQueryFeaturesKHR": {
@@ -109,12 +125,18 @@
                 "VkPhysicalDeviceFeatures": {
                     "fragmentStoresAndAtomics": true,
                     "shaderInt64": true
-                }					
+                },
+				"VkPhysicalDeviceDescriptorBufferFeaturesEXT": {
+					"descriptorBuffer": true
+				},
+				"VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR": {
+					"rayTracingPositionFetch": true
+				}
 			},
             "properties": {
                 "VkPhysicalDeviceProperties": {
                     "limits": {
-                        "maxBoundDescriptorSets": 8                
+                        "maxBoundDescriptorSets": 9                
 					}
                 }
             }
@@ -130,30 +152,14 @@
             "history": [
                 {
                     "revision": 1,
-                    "date": "2022-08-26"
+                    "date": "2022-08-26",
+                    "author": "Jean Noe Morissette",
+                    "comment": "Initial Release"
                 }
             ],
             "capabilities": [
                 "baseline",
 				"SM5"
-            ]
-        },
-		"VP_UE_Vulkan_SM5_RT": {
-            "version": 1,
-            "api-version": "1.2.0",
-            "label": "Epic Games - Unreal Engine - Desktop Vulkan RT",
-            "description": "A profile that describes the RayTracing requirements of the engine with Vulkan.",
-            "contributors": {},
-            "history": [
-                {
-                    "revision": 1,
-                    "date": "2023-03-10"
-                }
-            ],
-            "capabilities": [
-                "baseline",
-                "SM5",
-				"RayTracing"
             ]
         },
         "VP_UE_Vulkan_SM6": {
@@ -165,7 +171,9 @@
             "history": [
                 {
                     "revision": 1,
-                    "date": "2023-03-10"
+                    "date": "2023-03-10",
+                    "author": "Jean Noe Morissette",
+                    "comment": "Initial Release"
                 }
             ],
             "capabilities": [
@@ -182,7 +190,9 @@
             "history": [
                 {
                     "revision": 1,
-                    "date": "2023-03-10"
+                    "date": "2023-03-10",
+                    "author": "Jean Noe Morissette",
+                    "comment": "Initial Release"
                 }
             ],
             "capabilities": [

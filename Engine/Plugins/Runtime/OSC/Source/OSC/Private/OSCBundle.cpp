@@ -5,26 +5,42 @@
 
 
 FOSCBundle::FOSCBundle()
-	: Packet(MakeShareable(new FOSCBundlePacket()))
+	: Packet(MakeShared<UE::OSC::FBundlePacket>())
 {
 }
 
-FOSCBundle::FOSCBundle(const TSharedPtr<IOSCPacket>& InPacket)
+FOSCBundle::FOSCBundle(const TSharedPtr<UE::OSC::IPacket>& InPacket)
+	: Packet(InPacket.Get())
+{
+}
+
+FOSCBundle::FOSCBundle(const TSharedRef<UE::OSC::IPacket>& InPacket)
 	: Packet(InPacket)
 {
 }
 
-FOSCBundle::~FOSCBundle()
+void FOSCBundle::SetPacket(TSharedPtr<UE::OSC::IPacket>& InPacket)
 {
-	Packet.Reset();
+	using namespace UE::OSC;
+
+	check(InPacket->IsBundle());
+	Packet = TSharedRef<IPacket>(InPacket.Get());
 }
 
-void FOSCBundle::SetPacket(const TSharedPtr<IOSCPacket>& InPacket)
+void FOSCBundle::SetPacket(const TSharedRef<UE::OSC::IPacket>& InPacket)
 {
+	check(InPacket->IsBundle());
 	Packet = InPacket;
 }
 
-const TSharedPtr<IOSCPacket>& FOSCBundle::GetPacket() const
+const TSharedPtr<UE::OSC::IPacket>& FOSCBundle::GetPacket() const
+{
+	static TSharedPtr<UE::OSC::IPacket> PacketPtr;
+	PacketPtr = TSharedPtr<UE::OSC::IPacket>(&Packet.Get());
+	return PacketPtr;
+}
+
+const TSharedRef<UE::OSC::IPacket>& FOSCBundle::GetPacketRef() const
 {
 	return Packet;
 }

@@ -9,6 +9,7 @@
 #include "ConnectionDrawingPolicy.h"
 #include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
+#include "ReferenceViewer/EdGraphNode_Reference.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ReferenceViewerSchema)
 
@@ -158,6 +159,7 @@ void UReferenceViewerSchema::GetContextMenuActions(UToolMenu* Menu, UGraphNodeCo
 		Section.AddMenuEntry(FAssetManagerEditorCommands::Get().CopyReferencingObjects);
 		Section.AddMenuEntry(FAssetManagerEditorCommands::Get().ShowReferencedObjects);
 		Section.AddMenuEntry(FAssetManagerEditorCommands::Get().ShowReferencingObjects);
+		Section.AddMenuEntry(FAssetManagerEditorCommands::Get().ResolveReferencingProperties);
 		Section.AddMenuEntry(FAssetManagerEditorCommands::Get().ShowReferenceTree);
 		Section.AddMenuEntry(FAssetManagerEditorCommands::Get().ViewSizeMap);
 
@@ -272,4 +274,3 @@ void UReferenceViewerSchema::GetMakeCollectionWithReferencersOrDependenciesSubMe
 			);
 	}
 }
-

@@ -48,7 +48,7 @@ public:
 
 private:
 	/** The sample's texture resource. */
-	TRefCountPtr<FRHITexture2D> Texture;
+	TRefCountPtr<FRHITexture> Texture;
 
 	/** Output data from video decoder. */
 	FVideoDecoderOutputLinux* VideoDecoderOutputLinux;
@@ -56,6 +56,7 @@ private:
 
 using FElectraTextureSamplePtr = TSharedPtr<FElectraTextureSampleLinux, ESPMode::ThreadSafe>;
 using FElectraTextureSampleRef = TSharedRef<FElectraTextureSampleLinux, ESPMode::ThreadSafe>;
+using FElectraTextureSample = FElectraTextureSampleLinux;
 
 class FElectraTextureSamplePool : public TMediaObjectPool<FElectraTextureSampleLinux>
 {

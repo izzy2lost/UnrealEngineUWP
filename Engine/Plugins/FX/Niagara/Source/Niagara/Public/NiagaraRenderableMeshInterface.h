@@ -44,6 +44,8 @@ public:
 	virtual FBox GetLocalBounds() const = 0;
 	// Gather all the relevant mesh data to render the mesh
 	virtual void GetLODModelData(FLODModelData& OutLODModelData, int32 LODLevel) const = 0;
+	// Gather all the relevant mesh data to render the mesh in the raytracing scene
+	virtual void GetRayTraceLODModelData(FLODModelData& OutLODModelData, int32 LODLevel) const { GetLODModelData(OutLODModelData, LODLevel); }
 	// Setup the vertex factory for the mesh
 	virtual void SetupVertexFactory(FRHICommandListBase& RHICmdList, class FNiagaraMeshVertexFactory& InVertexFactory, const FLODModelData& LODModelData) const = 0;
 

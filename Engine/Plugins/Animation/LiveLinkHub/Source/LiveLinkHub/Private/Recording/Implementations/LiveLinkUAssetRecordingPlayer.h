@@ -9,44 +9,57 @@
 /** Playback track that holds recorded data for a given subject. */
 struct FLiveLinkPlaybackTrack
 {
-	/** Retrieve all frames from last read index to the new playhead, forward looking. */
-	void GetFramesUntil(double InPlayhead, TArray<FLiveLinkRecordedFrame>& OutFrames);
+	/** Retrieve all frames from the last read index to the new frame time, forward-looking. */
+	void GetFramesUntil(const FQualifiedFrameTime& InFrameTime, TArray<FLiveLinkRecordedFrame>& OutFrames);
 
-	/** Retrieve all frames from last read index to the new playhead, reverse looking. */
-	void GetFramesUntilReverse(double InPlayhead, TArray<FLiveLinkRecordedFrame>& OutFrames);
+	/** Retrieve all frames from the last read index to the new frame time, reverse-looking. */
+	void GetFramesUntilReverse(const FQualifiedFrameTime& InFrameTime, TArray<FLiveLinkRecordedFrame>& OutFrames);
 	
 	/** Retrieve the frame at the read index. */
-	bool TryGetFrame(int32 InIndex, FLiveLinkRecordedFrame& OutFrame);
+	bool TryGetFrame(const FQualifiedFrameTime& InFrameTime, FLiveLinkRecordedFrame& OutFrame);
 
 	/**
-	 * Convert the playhead time to a frame index.
-	 * @param InPlayhead The play head to convert to a frame index.
-	 * @return The frame index or INDEX_NONE.
+	 * Given a frame time, find the closest index with a matching timestamp without going over.
+	 * @param InFrameTime The frame time to convert to a frame index.
+	 * @return The frame index or INDEX_NONE
 	 */
-	int32 PlayheadToFrameIndex(double InPlayhead);
-
-	/**
-	 * Convert the frameindex to a playhead.
-	 * @return The frame index or INDEX_NONE.
-	 */
-	double FrameIndexToPlayhead(int32 InIndex);
+	int32 ConvertFrameTimeToFrameIndex(const FQualifiedFrameTime& InFrameTime);
 
 	/** Reset the LastReadIndex. */
 	void Restart(int32 NewIndex = INDEX_NONE)
 	{
-		LastReadIndex = NewIndex < FrameData.Num() && NewIndex < Timestamps.Num() ? NewIndex : INDEX_NONE;
+		LastReadRelativeIndex = NewIndex < FrameData.Num() && NewIndex < Timestamps.Num() ? NewIndex : INDEX_NONE;
+		LastReadAbsoluteIndex = LastReadRelativeIndex;
+	}
+
+	/** Convert an absolute frame index to a relative frame index. */
+	int32 GetRelativeIndex(int32 InAbsoluteIndex) const
+	{
+		int32 RelativeIndex = InAbsoluteIndex - StartIndexOffset;
+		RelativeIndex = FMath::Clamp(RelativeIndex, 0, FrameData.Num() - 1);
+		return RelativeIndex;
 	}
 
 	/** Frame data to read. */
-	TConstArrayView<struct FInstancedStruct> FrameData;
+	TArray<TSharedPtr<FInstancedStruct>> FrameData;
 	/** Timestamps for the frames in the track. */
 	TConstArrayView<double> Timestamps;
 	/** Used for static data. */
 	TSubclassOf<ULiveLinkRole> LiveLinkRole;
 	/** Subject key. */
 	FLiveLinkSubjectKey SubjectKey;
-	/** Index of the last frame that was read by the GetFrames method. */
-	int32 LastReadIndex = -1;
+	/** Index of the last relative frame that was read by the GetFrames method. */
+	int32 LastReadRelativeIndex = -1;
+	/** Index of the last absolute frame that was read by the GetFrames method. */
+	int32 LastReadAbsoluteIndex = -1;
+	/** The true index FrameData starts at. IE, if it starts at 5, then there are 5 prior frames [0..4] that aren't loaded. */
+	int32 StartIndexOffset = 0;
+	/** The frame rate of this track. Based only on the total frames and the final timestamp. */
+	FFrameRate LocalFrameRate = FFrameRate(0, 0);
+
+private:
+	/** The last timestamp recorded. */
+	double LastTimeStamp = -1.f;
 
 	friend class FLiveLinkPlaybackTrackIterator;
 };
@@ -55,20 +68,15 @@ struct FLiveLinkPlaybackTrack
 struct FLiveLinkPlaybackTracks
 {
 	/** Get the next frames */
-	TArray<FLiveLinkRecordedFrame> FetchNextFrames(double Playhead);
+	TArray<FLiveLinkRecordedFrame> FetchNextFrames(const FQualifiedFrameTime& InFrameTime);
 
 	/** Get the previous frames as if going in reverse */
-	TArray<FLiveLinkRecordedFrame> FetchPreviousFrames(double Playhead);
+	TArray<FLiveLinkRecordedFrame> FetchPreviousFrames(const FQualifiedFrameTime& InFrameTime);
 	
 	/** Get the next frame(s) at the index */
-	TArray<FLiveLinkRecordedFrame> FetchNextFramesAtIndex(int32 FrameIndex);
+	TArray<FLiveLinkRecordedFrame> FetchNextFramesAtIndex(const FQualifiedFrameTime& InFrameTime);
 
-	/** Convert the playhead to a frame index */
-	int32 PlayheadToFrameIndex(double InPlayhead);
-
-	/** Convert the index to a playhead */
-	double FrameIndexToPlayhead(int32 InIndex);
-	
+	/** Restart all tracks. */
 	void Restart(int32 InIndex);
 
 	/** Retrieve the framerate of the first frame */
@@ -76,37 +84,41 @@ struct FLiveLinkPlaybackTracks
 
 public:
 	/** LiveLink tracks to playback. */
-	TArray<FLiveLinkPlaybackTrack> Tracks;
+	TMap<FLiveLinkSubjectKey, FLiveLinkPlaybackTrack> Tracks;
 };
 
 class FLiveLinkUAssetRecordingPlayer : public ILiveLinkRecordingPlayer
 {
 public:
-	void PreparePlayback(const class ULiveLinkRecording* CurrentRecording);
+	virtual void PreparePlayback(class ULiveLinkRecording* CurrentRecording) override;
 
-	virtual TArray<FLiveLinkRecordedFrame> FetchNextFramesAtTimestamp(double Playhead) override
+	virtual void ShutdownPlayback() override;
+	
+	virtual TArray<FLiveLinkRecordedFrame> FetchNextFramesAtTimestamp(const FQualifiedFrameTime& InFrameTime) override
 	{
-		return CurrentRecordingPlayback.FetchNextFrames(Playhead);
+		if (StreamPlayback(InFrameTime.Time.GetFrame().Value))
+		{
+			return CurrentRecordingPlayback.FetchNextFrames(InFrameTime);
+		}
+		return TArray<FLiveLinkRecordedFrame>();
 	}
 
-	virtual TArray<FLiveLinkRecordedFrame> FetchPreviousFramesAtTimestamp(double Playhead) override
+	virtual TArray<FLiveLinkRecordedFrame> FetchPreviousFramesAtTimestamp(const FQualifiedFrameTime& InFrameTime) override
 	{
-		return CurrentRecordingPlayback.FetchPreviousFrames(Playhead);
+		if (StreamPlayback(InFrameTime.Time.GetFrame().Value))
+		{
+			return CurrentRecordingPlayback.FetchPreviousFrames(InFrameTime);
+		}
+		return TArray<FLiveLinkRecordedFrame>();
 	}
 
-	virtual TArray<FLiveLinkRecordedFrame> FetchNextFramesAtIndex(int32 FrameIndex) override
+	virtual TArray<FLiveLinkRecordedFrame> FetchNextFramesAtIndex(const FQualifiedFrameTime& InFrameTime) override
 	{
-		return CurrentRecordingPlayback.FetchNextFramesAtIndex(FrameIndex);
-	}
-
-	virtual int32 PlayheadToFrameIndex(double InPlayhead, bool bReverse) override
-	{
-		return CurrentRecordingPlayback.PlayheadToFrameIndex(InPlayhead);
-	}
-
-	virtual double FrameIndexToPlayhead(int32 InIndex) override
-	{
-		return CurrentRecordingPlayback.FrameIndexToPlayhead(InIndex);
+		if (StreamPlayback(InFrameTime.Time.GetFrame().Value))
+		{
+			return CurrentRecordingPlayback.FetchNextFramesAtIndex(InFrameTime);
+		}
+		return TArray<FLiveLinkRecordedFrame>();
 	}
 
 	virtual void RestartPlayback(int32 InIndex) override
@@ -118,8 +130,23 @@ public:
 	{
 		return CurrentRecordingPlayback.GetInitialFrameRate();
 	}
+
+	virtual UE::LiveLinkHub::RangeHelpers::Private::TRangeArray<int32> GetBufferedFrameRanges() override
+	{
+		return LoadedRecording.IsValid() ? LoadedRecording->GetBufferedFrameRanges() : UE::LiveLinkHub::RangeHelpers::Private::TRangeArray<int32>();
+	}
+
+private:
+	/** Buffer playback around a given frame. */
+	bool StreamPlayback(int32 InFromFrame);
+
+	/** Retrieve the total frames to buffer, based on the size the user specified in the config file. */
+	int32 GetNumFramesToBuffer() const;
 	
 private:
 	/** All tracks for the current recording. */
 	FLiveLinkPlaybackTracks CurrentRecordingPlayback;
+
+	/** The recording currently loaded. */
+	TWeakObjectPtr<ULiveLinkUAssetRecording> LoadedRecording;
 };

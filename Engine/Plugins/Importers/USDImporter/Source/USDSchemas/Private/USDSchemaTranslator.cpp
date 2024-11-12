@@ -2,10 +2,12 @@
 
 #include "USDSchemaTranslator.h"
 
+#include "UnrealUSDWrapper.h"
 #include "USDInfoCache.h"
+#include "USDMaterialUtils.h"
+#include "USDMemory.h"
 #include "USDSchemasModule.h"
 #include "USDTypesConversion.h"
-
 #include "UsdWrappers/UsdPrim.h"
 #include "UsdWrappers/UsdTyped.h"
 
@@ -14,10 +16,6 @@
 #include "Misc/ScopedSlowTask.h"
 #include "Modules/ModuleManager.h"
 
-#define LOCTEXT_NAMESPACE "USDSchemaTranslator"
-
-int32 FRegisteredSchemaTranslatorHandle::CurrentSchemaTranslatorId = 0;
-
 #if USE_USD_SDK
 #include "USDIncludesStart.h"
 #include "pxr/base/tf/token.h"
@@ -25,8 +23,20 @@ int32 FRegisteredSchemaTranslatorHandle::CurrentSchemaTranslatorId = 0;
 #include "pxr/usd/usd/prim.h"
 #include "pxr/usd/usdShade/tokens.h"
 #include "USDIncludesEnd.h"
-
 #endif	  // #if USE_USD_SDK
+
+#define LOCTEXT_NAMESPACE "USDSchemaTranslator"
+
+int32 FRegisteredSchemaTranslatorHandle::CurrentSchemaTranslatorId = 0;
+
+static bool GInstancingAwareTranslation = true;
+static FAutoConsoleVariableRef CVarInstancingAwareTranslation(
+	TEXT("USD.InstancingAwareTranslation"),
+	GInstancingAwareTranslation,
+	TEXT(
+		"Enabling this lets the USDImporter skip some extra steps during translation when it encounters multiple instance prims of the same (static) Mesh prototype prim."
+	)
+);
 
 TSharedPtr<FUsdSchemaTranslator> FUsdSchemaTranslatorRegistry::CreateTranslatorForSchema(
 	TSharedRef<FUsdSchemaTranslationContext> InTranslationContext,
@@ -55,18 +65,38 @@ TSharedPtr<FUsdSchemaTranslator> FUsdSchemaTranslatorRegistry::CreateTranslatorF
 	return {};
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FUsdRenderContextRegistry::FUsdRenderContextRegistry()
 {
-#if USE_USD_SDK
-	LLM_SCOPE_BYTAG(Usd);
-
-	UniversalRenderContext = FName(UsdToUnreal::ConvertToken(pxr::UsdShadeTokens->universalRenderContext));
-	Register(UniversalRenderContext);
-
-	UnrealRenderContext = FName(UsdToUnreal::ConvertToken(UnrealIdentifiers::Unreal));
-	Register(UnrealRenderContext);
-#endif	  // #if USE_USD_SDK
 }
+
+void FUsdRenderContextRegistry::Register(const FName& RenderContextToken)
+{
+	UsdUnreal::MaterialUtils::RegisterRenderContext(RenderContextToken);
+}
+
+void FUsdRenderContextRegistry::Unregister(const FName& RenderContextToken)
+{
+	UsdUnreal::MaterialUtils::UnregisterRenderContext(RenderContextToken);
+}
+
+const TSet<FName>& FUsdRenderContextRegistry::GetRenderContexts() const
+{
+	static TSet<FName> TempValue;
+	TempValue = TSet<FName>{UsdUnreal::MaterialUtils::GetRegisteredRenderContexts()};
+	return TempValue;
+}
+
+const FName& FUsdRenderContextRegistry::GetUniversalRenderContext() const
+{
+	return UnrealIdentifiers::UniversalRenderContext;
+}
+
+const FName& FUsdRenderContextRegistry::GetUnrealRenderContext() const
+{
+	return UnrealIdentifiers::UnrealRenderContext;
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FRegisteredSchemaTranslatorHandle FUsdSchemaTranslatorRegistry::Register(const FString& SchemaName, FCreateTranslator CreateFunction)
 {
@@ -106,6 +136,8 @@ FRegisteredSchemaTranslatorHandle FUsdSchemaTranslatorRegistry::Register(const F
 
 	SchemaTranslatorsStack->Push(RegisteredSchemaTranslator);
 
+	ExternalSchemaTranslatorCount++;
+
 	return RegisteredSchemaTranslator.Handle;
 #else
 	return FRegisteredSchemaTranslatorHandle();
@@ -132,12 +164,23 @@ void FUsdSchemaTranslatorRegistry::Unregister(const FRegisteredSchemaTranslatorH
 	}
 }
 
+int32 FUsdSchemaTranslatorRegistry::GetExternalSchemaTranslatorCount()
+{
+	return ExternalSchemaTranslatorCount;
+}
+
 FUsdSchemaTranslationContext::FUsdSchemaTranslationContext(const UE::FUsdStage& InStage, UUsdAssetCache2& InAssetCache)
 	: Stage(InStage)
-	, AssetCache(&InAssetCache)
+	, UsdAssetCache(NewObject<UUsdAssetCache3>())
 {
-	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
-	RenderContext = UsdSchemasModule.GetRenderContextRegistry().GetUniversalRenderContext();
+	RenderContext = UnrealIdentifiers::UniversalRenderContext;
+}
+
+FUsdSchemaTranslationContext::FUsdSchemaTranslationContext(const UE::FUsdStage& InStage, UUsdAssetCache3& InAssetCache)
+	: Stage(InStage)
+	, UsdAssetCache(&InAssetCache)
+{
+	RenderContext = UnrealIdentifiers::UniversalRenderContext;
 }
 
 FUsdSchemaTranslatorRegistry::FSchemaTranslatorsStack* FUsdSchemaTranslatorRegistry::FindSchemaTranslatorStack(const FString& SchemaName)
@@ -158,6 +201,11 @@ FUsdSchemaTranslatorRegistry::FSchemaTranslatorsStack* FUsdSchemaTranslatorRegis
 	{
 		return nullptr;
 	}
+}
+
+void FUsdSchemaTranslatorRegistry::ResetExternalTranslatorCount()
+{
+	ExternalSchemaTranslatorCount = 0;
 }
 
 void FUsdSchemaTranslationContext::CompleteTasks()
@@ -213,12 +261,56 @@ bool FUsdSchemaTranslator::IsCollapsed(ECollapsingType CollapsingType) const
 
 	if (!Context->bIsBuildingInfoCache)
 	{
-		return Context->InfoCache->IsPathCollapsed(PrimPath, CollapsingType);
+		return Context->UsdInfoCache->IsPathCollapsed(PrimPath, CollapsingType);
 	}
 
 	// This is merely a fallback, and we should never need this
 	return CanBeCollapsed(CollapsingType);
+#else	  // #if USE_USD_SDK
+	return false;
 #endif	  // #if USE_USD_SDK
+}
+
+UE::FSdfPath FUsdSchemaTranslator::GetPrototypePrimPath() const
+{
+	if (!GInstancingAwareTranslation)
+	{
+		return PrimPath;
+	}
+
+	UE::FUsdPrim Prim = GetPrim();
+	if (Prim)
+	{
+		if (Prim.IsInstance())
+		{
+			return Prim.GetPrototype().GetPrimPath();
+		}
+		else if (Prim.IsInstanceProxy())
+		{
+			return Prim.GetPrimInPrototype().GetPrimPath();
+		}
+	}
+
+	return PrimPath;
+}
+
+bool FUsdSchemaTranslator::ShouldSkipInstance() const
+{
+	if (!GInstancingAwareTranslation)
+	{
+		return false;
+	}
+
+	UE::FSdfPath PrototypePath = GetPrototypePrimPath();
+	if (!PrototypePath.IsEmpty())
+	{
+		if (Context->UsdInfoCache->IsPrototypeTranslated(PrototypePath))
+		{
+			return true;
+		}
+
+		Context->UsdInfoCache->MarkPrototypeAsTranslated(PrototypePath);
+	}
 
 	return false;
 }

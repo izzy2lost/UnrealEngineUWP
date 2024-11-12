@@ -9,6 +9,7 @@
 #include "UObject/ObjectPtr.h"
 #include "Containers/Map.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
+#include "WorldPartition/LevelInstance/LevelInstancePropertyOverrideDesc.h"
 #include "WorldPartition/Filter/WorldPartitionActorFilter.h"
 
 class ULevelInstanceSubsystem;
@@ -31,6 +32,7 @@ public:
 
 	virtual EWorldPartitionActorFilterType GetChildContainerFilterType() const { return IsChildContainerInstance() ? EWorldPartitionActorFilterType::Loading : EWorldPartitionActorFilterType::None; }
 	virtual FName GetChildContainerPackage() const override { return WorldAsset.GetLongPackageFName(); }
+	virtual FString GetChildContainerName() const override;
 	virtual const FWorldPartitionActorFilter* GetChildContainerFilter() const override { return &Filter; }
 		
 	ENGINE_API virtual void CheckForErrors(const IWorldPartitionActorDescInstanceView* InActorDescView, IStreamingGenerationErrorHandler* ErrorHandler) const override;
@@ -48,6 +50,7 @@ protected:
 	ENGINE_API virtual bool GetChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance, FContainerInstance& OutContainerInstance) const override;
 	ENGINE_API virtual UWorldPartition* GetLoadedChildWorldPartition(const FWorldPartitionActorDescInstance* InActorDescInstance) const override;
 	ENGINE_API FTransform GetChildContainerTransform() const;
+	FLevelInstancePropertyOverrideDesc* GetOverrideDesc() const { return PropertyOverrideDesc.Get(); }
 	ENGINE_API static bool ValidateCircularReference(const UActorDescContainerInstance* InParentContainer, FName InChildContainerPackage);
 
 	FSoftObjectPath WorldAsset;
@@ -58,11 +61,12 @@ protected:
 	FWorldPartitionActorFilter Filter;
 	bool bIsChildContainerInstance;
 
+	FSoftObjectPath PropertyOverrideAsset;
+	TSharedPtr<FLevelInstancePropertyOverrideDesc> PropertyOverrideDesc;
 private:
 	ENGINE_API bool IsChildContainerInstanceInternal() const;
 	ENGINE_API void RegisterChildContainer();
 	ENGINE_API void UnregisterChildContainer();
 	ENGINE_API void UpdateBounds();
-	FString GetChildContainerName() const;
 };
 #endif

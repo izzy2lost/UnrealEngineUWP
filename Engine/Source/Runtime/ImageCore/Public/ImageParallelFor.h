@@ -37,6 +37,19 @@ namespace FImageCore
 	{
 		return (int64)Image.SizeY * Image.NumSlices;
 	}
+	
+	// Y indexes across slices and SizeY here :
+	inline FImageView ImageParallelForGetOneRowView(const FImageView & Image,int64 Y)
+	{
+		check( Y >= 0 && Y < ImageParallelForComputeNumRows(Image) );
+
+		// point at one row of the image :
+		FImageView ImageRow = Image;
+		ImageRow.SizeY = 1;
+		ImageRow.NumSlices = 1;
+		ImageRow.RawData = (uint8 *)Image.RawData + Image.GetBytesPerPixel() * Y * Image.SizeX;
+		return ImageRow;
+	}
 
 	IMAGECORE_API int32 ImageParallelForComputeNumJobs(const FImageView & Image,int64 * pRowsPerJob);
 	IMAGECORE_API int64 ImageParallelForMakePart(FImageView * Part,const FImageView & Whole,int64 JobIndex,int64 RowsPerJob);
@@ -99,10 +112,7 @@ namespace FImageCore
 			for(int64 Y=0;Y<ImageParallelForComputeNumRows(Image);Y++)
 			{
 				// point at one row of the image :
-				FImageView ImageRow = Image;
-				ImageRow.SizeY = 1;
-				ImageRow.NumSlices = 1;
-				ImageRow.RawData = (uint8 *)Image.RawData + Image.GetBytesPerPixel() * Y * Image.SizeX;
+				FImageView ImageRow = ImageParallelForGetOneRowView(Image,Y);
 
 				CopyImage(ImageRow,LinearRow);
 			

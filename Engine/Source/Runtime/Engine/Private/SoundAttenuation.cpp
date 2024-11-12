@@ -10,6 +10,86 @@
 	USoundAttenuation implementation.
 -----------------------------------------------------------------------------*/
 
+FSoundAttenuationSettings::FSoundAttenuationSettings()
+	: bAttenuate(true)
+	, bSpatialize(true)
+	, bAttenuateWithLPF(false)
+	, bEnableListenerFocus(false)
+	, bEnableFocusInterpolation(false)
+	, bEnableOcclusion(false)
+	, bUseComplexCollisionForOcclusion(false)
+	, bEnableReverbSend(true)
+	, bEnablePriorityAttenuation(false)
+	, bApplyNormalizationToStereoSounds(false)
+	, bEnableLogFrequencyScaling(false)
+	, bEnableSubmixSends(false)
+	, bEnableSourceDataOverride(false)
+	, bEnableSendToAudioLink(true)
+	, SpatializationAlgorithm(ESoundSpatializationAlgorithm::SPATIALIZATION_Default)
+	, AudioLinkSettingsOverride(nullptr)
+	, BinauralRadius(0.0f)
+	, AbsorptionMethod(EAirAbsorptionMethod::Linear)
+	, OcclusionTraceChannel(ECC_Visibility)
+	, ReverbSendMethod(EReverbSendMethod::Linear)
+	, PriorityAttenuationMethod(EPriorityAttenuationMethod::Linear)
+#if WITH_EDITORONLY_DATA
+	, DistanceType_DEPRECATED(SOUNDDISTANCE_Normal)
+	, OmniRadius_DEPRECATED(0.0f)
+#endif
+	, NonSpatializedRadiusStart(0.0f)
+	, NonSpatializedRadiusEnd(0.0f)
+	, NonSpatializedRadiusMode(ENonSpatializedRadiusSpeakerMapMode::OmniDirectional)
+	, StereoSpread(200.0f)
+#if WITH_EDITORONLY_DATA
+	, SpatializationPluginSettings_DEPRECATED(nullptr)
+	, RadiusMin_DEPRECATED(400.f)
+	, RadiusMax_DEPRECATED(4000.f)
+#endif
+	, LPFRadiusMin(3000.f)
+	, LPFRadiusMax(6000.f)
+	, LPFFrequencyAtMin(20000.f)
+	, LPFFrequencyAtMax(20000.f)
+	, HPFFrequencyAtMin(0.0f)
+	, HPFFrequencyAtMax(0.0f)
+	, FocusAzimuth(30.0f)
+	, NonFocusAzimuth(60.0f)
+	, FocusDistanceScale(1.0f)
+	, NonFocusDistanceScale(1.0f)
+	, FocusPriorityScale(1.0f)
+	, NonFocusPriorityScale(1.0f)
+	, FocusVolumeAttenuation(1.0f)
+	, NonFocusVolumeAttenuation(1.0f)
+	, FocusAttackInterpSpeed(1.0f)
+	, FocusReleaseInterpSpeed(1.0f)
+	, OcclusionLowPassFilterFrequency(20000.f)
+	, OcclusionVolumeAttenuation(1.0f)
+	, OcclusionInterpolationTime(0.1f)
+#if WITH_EDITORONLY_DATA
+	, OcclusionPluginSettings_DEPRECATED(nullptr)
+	, ReverbPluginSettings_DEPRECATED(nullptr)
+#endif
+	, ReverbWetLevelMin(0.3f)
+	, ReverbWetLevelMax(0.95f)
+	, ReverbDistanceMin(UE_REAL_TO_FLOAT(AttenuationShapeExtents.X))
+	, ReverbDistanceMax(UE_REAL_TO_FLOAT(AttenuationShapeExtents.X) + FalloffDistance)
+	, ManualReverbSendLevel(0.0f)
+	, PriorityAttenuationMin(1.0f)
+	, PriorityAttenuationMax(1.0f)
+	, PriorityAttenuationDistanceMin(UE_REAL_TO_FLOAT(AttenuationShapeExtents.X))
+	, PriorityAttenuationDistanceMax(UE_REAL_TO_FLOAT(AttenuationShapeExtents.X) + FalloffDistance)
+	, ManualPriorityAttenuation(1.0f)
+{
+#if WITH_EDITOR
+	if (const USoundAttenuationEditorSettings* SoundAttenuationEditorSettings = GetDefault<USoundAttenuationEditorSettings>())
+	{
+		bEnableReverbSend = SoundAttenuationEditorSettings->bEnableReverbSend;
+		bEnableSendToAudioLink = SoundAttenuationEditorSettings->bEnableSendToAudioLink;
+	}
+#endif // WITH_EDITOR
+}
+
+FSoundAttenuationSettings::~FSoundAttenuationSettings() = default;
+
 #if WITH_EDITORONLY_DATA
 void FSoundAttenuationSettings::PostSerialize(const FArchive& Ar)
 {
@@ -148,6 +228,18 @@ void FSoundAttenuationSettings::CollectAttenuationShapesForVisualization(TMultiM
 	{
 		FBaseAttenuationSettings::CollectAttenuationShapesForVisualization(ShapeDetailsMap);
 	}
+}
+void FSoundAttenuationSettings::AddStructReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddStableReference(&AudioLinkSettingsOverride);
+}
+
+void FSoundAttenuationPluginSettings::AddStructReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddStableReferenceArray(&SpatializationPluginSettingsArray);
+	Collector.AddStableReferenceArray(&OcclusionPluginSettingsArray);
+	Collector.AddStableReferenceArray(&ReverbPluginSettingsArray);
+	Collector.AddStableReferenceArray(&SourceDataOverridePluginSettingsArray);
 }
 
 USoundAttenuation::USoundAttenuation(const FObjectInitializer& ObjectInitializer)

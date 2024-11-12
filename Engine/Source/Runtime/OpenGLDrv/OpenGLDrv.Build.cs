@@ -8,8 +8,6 @@ public class OpenGLDrv : ModuleRules
 {
 	public OpenGLDrv(ReadOnlyTargetRules Target) : base(Target)
 	{
-		IWYUSupport = IWYUSupport.None;
-
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core",
 			"RHI",
@@ -43,8 +41,8 @@ public class OpenGLDrv : ModuleRules
 
 		if (Target.Platform == UnrealTargetPlatform.Android)
         {
-            // for Swappy
-            PublicDefinitions.Add("USE_ANDROID_OPENGL_SWAPPY=1");
+			// for Swappy
+			PrivateDefinitions.Add("USE_ANDROID_OPENGL_SWAPPY=1");
 
             PrivateDependencyModuleNames.Add("GoogleGameSDK");
 			PrivateIncludePathModuleNames.Add("Launch");
@@ -58,6 +56,6 @@ public class OpenGLDrv : ModuleRules
 			PrecompileForTargets = PrecompileTargetsType.None;
 		}
 
-		PublicDefinitions.Add(Target.Platform == UnrealTargetPlatform.Android ? "USE_ANDROID_OPENGL=1" : "USE_ANDROID_OPENGL=0");
+		PrivateDefinitions.Add(Target.Platform == UnrealTargetPlatform.Android ? "USE_ANDROID_OPENGL=1" : "USE_ANDROID_OPENGL=0");
 	}
 }

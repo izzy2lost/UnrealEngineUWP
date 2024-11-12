@@ -106,6 +106,28 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Source")
 	INTERCHANGECORE_API bool SetCustomImportUnusedMaterial(const bool& AttributeValue);
 
+
+	/** Set Extra Information that we want to show in the Config Panel (such as File Information). */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Source")
+	INTERCHANGECORE_API bool SetExtraInformation(const FString& Name, const FString& Value);
+
+	/** Remove Extra Information that we dont want to show in the Config Panel. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Source")
+	INTERCHANGECORE_API bool RemoveExtraInformation(const FString& Name);
+
+	/** Get Extra Information that we want to show in the Config Panel (such as File Information). */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Source")
+	INTERCHANGECORE_API void GetExtraInformation(TMap<FString, FString>& OutExtraInformation) const;
+
+
+	/** Query Axis Conversion Inverse Transform (Primarily used for Socket transform calculations.). */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Source")
+	INTERCHANGECORE_API bool GetCustomAxisConversionInverseTransform(FTransform& AxisConversionInverseTransform) const;
+
+	/** Set the Axis Conversion Inverse Transform (Primarily used for Socket transform calculations.). */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Source")
+	INTERCHANGECORE_API bool SetCustomAxisConversionInverseTransform(const FTransform& AxisConversionInverseTransform);
+
 private:
 	const UE::Interchange::FAttributeKey Macro_CustomSourceFrameRateNumeratorKey = UE::Interchange::FAttributeKey(TEXT("SourceFrameRateNumerator"));
 	const UE::Interchange::FAttributeKey Macro_CustomSourceFrameRateDenominatorKey = UE::Interchange::FAttributeKey(TEXT("SourceFrameRateDenominator"));
@@ -114,5 +136,9 @@ private:
 	const UE::Interchange::FAttributeKey Macro_CustomAnimatedTimeStartKey = UE::Interchange::FAttributeKey(TEXT("AnimatedTimeStart"));
 	const UE::Interchange::FAttributeKey Macro_CustomAnimatedTimeEndKey = UE::Interchange::FAttributeKey(TEXT("AnimatedTimeEnd"));
 	const UE::Interchange::FAttributeKey Macro_CustomImportUnusedMaterialKey = UE::Interchange::FAttributeKey(TEXT("ImportUnusedMaterial"));
+	const UE::Interchange::FAttributeKey Macro_CustomAxisConversionInverseTransformKey = UE::Interchange::FAttributeKey(TEXT("AxisConversionInverseTransform"));
+
+	// Extra InformationTo show in the Config Panel.
+	UE::Interchange::TMapAttributeHelper<FString, FString> ExtraInformation; 
 };
 

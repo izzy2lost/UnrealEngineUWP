@@ -204,6 +204,11 @@ UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::RemapToNewMaterialID
 		for (int32 TriangleID : Mesh.TriangleIndicesItr())
 		{
 			int32 CurID = MaterialIDs.GetValue(TriangleID);
+			if (!ToMaterialID.IsValidIndex(CurID))
+			{
+				UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("RemapToNewMaterialIDsByMaterial_InvalidMaterial", "RemapToNewMaterialIDsByMaterial: Invalid material ID in mesh was not a valid index into FromMaterialList, skipping"));
+				continue;
+			}
 			int32 NewID = ToMaterialID[CurID];
 			MaterialIDs.SetValue(TriangleID, NewID);
 		}
@@ -212,6 +217,76 @@ UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::RemapToNewMaterialID
 	return TargetMesh;
 }
 
+
+UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::RemapAndCombineMaterials(
+	UDynamicMesh* TargetMesh,
+	const TArray<UMaterialInterface*>& TargetMeshMaterials,
+	const TArray<UMaterialInterface*>& RequiredMaterials,
+	TArray<UMaterialInterface*>& CombinedMaterials,
+	int RemapInvalidMaterialID,
+	bool bCompactDuplicateMaterials,
+	UGeometryScriptDebug* Debug
+)
+{
+	CombinedMaterials = RequiredMaterials;
+
+	if (TargetMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("RemapAndCombineMaterials_InvalidInput", "RemapAndCombineMaterials: TargetMesh is Null"));
+		return TargetMesh;
+	}
+
+	TArray<int32> ToMaterialID;
+	if (bCompactDuplicateMaterials)
+	{
+		ToMaterialID.Init(-1, TargetMeshMaterials.Num());
+		for (int32 ToMaterialIdx = 0; ToMaterialIdx < TargetMeshMaterials.Num(); ++ToMaterialIdx)
+		{
+			int32 IdxInCombined = -1;
+			if (!CombinedMaterials.Find(TargetMeshMaterials[ToMaterialIdx], IdxInCombined))
+			{
+				IdxInCombined = CombinedMaterials.Add(TargetMeshMaterials[ToMaterialIdx]);
+			}
+			ToMaterialID[ToMaterialIdx] = IdxInCombined;
+		}
+	}
+	else
+	{
+		CombinedMaterials.Append(TargetMeshMaterials);
+	}
+
+	bool bHasMaterialIDs;
+	SimpleMeshMaterialEdit(TargetMesh, true, bHasMaterialIDs,
+		[&](FDynamicMesh3& Mesh, FDynamicMeshMaterialAttribute& MaterialIDs)
+		{
+			for (int32 TriangleID : Mesh.TriangleIndicesItr())
+			{
+				int32 CurID = MaterialIDs.GetValue(TriangleID);
+				int32 NewID = RemapInvalidMaterialID;
+				if (TargetMeshMaterials.IsValidIndex(CurID))
+				{
+					if (!bCompactDuplicateMaterials)
+					{
+						NewID = CurID + RequiredMaterials.Num();
+					}
+					else
+					{
+						NewID = ToMaterialID[CurID];
+					}
+				}
+				if (NewID < 0)
+				{
+					UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("RemapAndCombineMaterials_InvalidMaterial", "RemapAndCombineMaterials: Invalid material ID in mesh was not a valid index into TargetMeshMaterials, skipping"));
+				}
+				else
+				{
+					MaterialIDs.SetValue(TriangleID, NewID);
+				}
+			}
+		});
+
+	return TargetMesh;
+}
 
 
 
@@ -222,7 +297,6 @@ UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::GetMaterialIDsOfTria
     UGeometryScriptDebug* Debug)
 {
 	MaterialIDList.Reset(EGeometryScriptIndexType::MaterialID);
-	MaterialIDList.List->SetNumZeroed(TriangleIDList.List->Num());
 	
 	if (TargetMesh == nullptr)
 	{
@@ -246,17 +320,24 @@ UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::GetMaterialIDsOfTria
 	
 	bool bHasMaterials = false;
 	bool bAllValidTriangles = true;
-	SimpleMeshMaterialQuery<int32>(TargetMesh, bHasMaterials, 0, [&](const FDynamicMesh3& EditMesh, const FDynamicMeshMaterialAttribute& MaterialIDs) {
+	SimpleMeshMaterialQuery<int32>(TargetMesh, bHasMaterials, 0, 
+		[&MaterialIDList, &bHasMaterials, &bAllValidTriangles, &TriangleIDList] 
+		(const FDynamicMesh3& EditMesh, const FDynamicMeshMaterialAttribute& MaterialIDs) 
+	{
 		TArray<int>& MaterialIDArray = *MaterialIDList.List;
+		MaterialIDArray.SetNum(TriangleIDList.List->Num());
 		for (int32 i = 0; i < TriangleIDList.List->Num(); i++)
 		{
 			int32 TriangleID = (*TriangleIDList.List)[i];
 			if (EditMesh.IsTriangle(TriangleID) == false)
 			{
 				bAllValidTriangles = false;
-				return 0;
+				MaterialIDArray[i] = -1;
 			}
-			MaterialIDArray[i] = MaterialIDs.GetValue(TriangleID);
+			else
+			{
+				MaterialIDArray[i] = MaterialIDs.GetValue(TriangleID);
+			}
 		}
 		return 0;
 	});
@@ -643,6 +724,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::CompactMaterialIDs(
 	UDynamicMesh* TargetMesh,
 	TArray<UMaterialInterface*> SourceMaterialList,
 	TArray<UMaterialInterface*>& CompactedMaterialList,
+	bool bRemoveDuplicateMaterials,
 	UGeometryScriptDebug* Debug)
 {
 	CompactedMaterialList = SourceMaterialList;
@@ -658,37 +740,68 @@ UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::CompactMaterialIDs(
 				return;
 			}
 
-			bool bWasCompact = false;
+			// Find which material IDs are used
 			FInterval1i OldValueRange;
-			int32 NewMaxValue;
-			TArray<int32> OldToNewMap, NewToOldMap;
-			bool bOK = UE::Geometry::CompactAttributeValues(EditMesh, *MaterialIDs, OldValueRange, NewMaxValue, OldToNewMap, NewToOldMap, bWasCompact);
-			if (bOK == false)
+			TArray<bool> MaterialUsed;
+			MaterialUsed.SetNumZeroed(SourceMaterialList.Num());
+			for (int32 TID : EditMesh.TriangleIndicesItr())
 			{
-				UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CompactMaterialIDs_InvalidMaterialID", "CompactMaterialIDs: Invalid MaterialIDs found, unsafe to Compact"));
-				return;
-			}
-			if (bWasCompact)
-			{
-				// this case occurs if MaterialIDs were removed such that the attribute values are still sequential/compact  (eg removed "at the end")
-				int32 NewMaterialIDCount = NewMaxValue+1;
-				CompactedMaterialList.Reset();
-				CompactedMaterialList.SetNum(NewMaterialIDCount);
-				for (int32 k = 0; k < NewMaterialIDCount; ++k)
+				int32 MID = MaterialIDs->GetValue(TID);
+				if (MID < 0)
 				{
-					CompactedMaterialList[k] = SourceMaterialList.IsValidIndex(k) ? SourceMaterialList[k] : nullptr;
-				}		
-				
-			}
-			else
-			{
-				int32 NewMaterialIDCount = NewToOldMap.Num();
-				CompactedMaterialList.Reset();
-				CompactedMaterialList.SetNum(NewMaterialIDCount);
-				for (int32 k = 0; k < NewMaterialIDCount; ++k)
+					UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CompactMaterialIDs_InvalidMaterialID", "CompactMaterialIDs: Invalid MaterialIDs found, unsafe to Compact"));
+					return;
+				}
+				else if (MID > MaterialUsed.Num()) // Note we allow material IDs beyond the SourceMaterialList array size
 				{
-					int32 OldIndex = NewToOldMap[k];
-					CompactedMaterialList[k] = SourceMaterialList.IsValidIndex(OldIndex) ? SourceMaterialList[OldIndex] : nullptr;
+					MaterialUsed.AddZeroed(MID + 1 - MaterialUsed.Num());
+				}
+				MaterialUsed[MID] = true;
+				OldValueRange.Contain(MID);
+			}
+			check(OldValueRange.Min >= 0 && OldValueRange.Max < MaterialUsed.Num());
+
+			CompactedMaterialList.Reset();
+
+			// Build an order-preserving mapping from original material IDs to their compacted ID
+			TArray<int32> ToCompactIdx;
+			ToCompactIdx.Init(-1, SourceMaterialList.Num());
+			TMap<UMaterialInterface*, int32> UniqueMaterials;
+			for (int32 SourceIdx = 0; SourceIdx < MaterialUsed.Num(); ++SourceIdx)
+			{
+				if (!MaterialUsed[SourceIdx])
+				{
+					continue;
+				}
+				UMaterialInterface* Mat = SourceIdx < SourceMaterialList.Num() ? SourceMaterialList[SourceIdx] : nullptr;
+				int32 ToIdx = -1;
+				if (bRemoveDuplicateMaterials)
+				{
+					int32* FoundIdx = UniqueMaterials.Find(Mat);
+					if (!FoundIdx)
+					{
+						ToIdx = CompactedMaterialList.Add(Mat);
+						UniqueMaterials.Add(Mat, ToIdx);
+					}
+					else
+					{
+						ToIdx = *FoundIdx;
+					}
+				}
+				else
+				{
+					ToIdx = CompactedMaterialList.Add(Mat);
+				}
+				ToCompactIdx[SourceIdx] = ToIdx;
+			}
+
+			// Apply the remapping
+			for (int32 TID : EditMesh.TriangleIndicesItr())
+			{
+				int32 OrigMID = MaterialIDs->GetValue(TID);
+				if (ToCompactIdx.IsValidIndex(OrigMID))
+				{
+					MaterialIDs->SetValue(TID, ToCompactIdx[OrigMID]);
 				}
 			}
 
@@ -696,8 +809,5 @@ UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::CompactMaterialIDs(
 	}
 	return TargetMesh;
 }
-
-
-
 
 #undef LOCTEXT_NAMESPACE

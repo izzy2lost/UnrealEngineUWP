@@ -56,6 +56,14 @@ void UAtmosphericFogComponent::Serialize(FArchive& Ar)
 		Ar << CounterVal;
 
 		SetPositionToMatchDeprecatedAtmosphericFog();
+
+		// Old-style atmospheric fog didn't save a static lighting GUID
+		// but also didn't interact with static baked lighting in the first place.
+		// The USkyAtmosphericFogComponent ctor initializes its GUID to a random value,
+		// which means we end up with cook non-determinims when that GUID doesn't get
+		// replaced on load but does get saved in the exported data on cook. So
+		// we initialize our static lighting GUID to a dummy GUID in this case.
+		SetDummyStaticLightingGUIDs();
 	}
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS

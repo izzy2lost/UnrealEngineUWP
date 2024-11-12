@@ -27,6 +27,24 @@ namespace Chaos
 	class FPhysicsSolverBase;
 }
 
+namespace RenderInterpolationCVars
+{
+	extern float RenderInterpErrorCorrectionDuration;
+	extern float RenderInterpMaximumErrorCorrectionBeforeSnapping;
+	extern float RenderInterpErrorVelocitySmoothingDuration;
+	extern float RenderInterpErrorDirectionalDecayMultiplier;
+	extern bool bRenderInterpErrorVelocityCorrection;
+	extern bool bRenderInterpDebugDraw;
+	extern float RenderInterpDebugDrawZOffset;
+}
+
+enum class EProxyInterpolationType : uint32
+{
+	Base = 0,
+	ErrorLinear = 1,
+	ErrorVelocity = 2
+};
+
 struct FProxyTimestampBase
 {
 	bool bDeleted = false;
@@ -75,8 +93,8 @@ public:
 		: Solver(nullptr)
 		, Owner(InOwner)
 		, DirtyIdx(INDEX_NONE)
-		, SyncTimestamp(InProxyTimeStamp)
 		, Type(InType)
+		, SyncTimestamp(InProxyTimeStamp)
 	{}
 
 	UObject* GetOwner() const { return Owner; }
@@ -123,35 +141,30 @@ public:
 	void SetParentProxy(IPhysicsProxyBase* InProxy) { ParentProxy = InProxy; }
 
 	// Render Interpolation CVars
+	UE_DEPRECATED(5.5, "Deprecated, use RenderInterpolationCVars::RenderInterpErrorCorrectionDuration")
 	static float GetRenderInterpErrorCorrectionDuration()
 	{
-		static float RenderInterpErrorCorrectionDuration = 0.5f;
-		static FAutoConsoleVariableRef CVarRenderInterpErrorCorrectionDuration(TEXT("p.RenderInterp.ErrorCorrectionDuration"), RenderInterpErrorCorrectionDuration, TEXT("How long in seconds to apply error correction over."));
-		return RenderInterpErrorCorrectionDuration;
+		return RenderInterpolationCVars::RenderInterpErrorCorrectionDuration;
 	}
+	UE_DEPRECATED(5.5, "Deprecated, use RenderInterpolationCVars::RenderInterpMaximumErrorCorrectionBeforeSnapping")
 	static float GetRenderInterpMaximumErrorCorrectionBeforeSnapping()
 	{
-		static float RenderInterpMaximumErrorCorrectionBeforeSnapping = 250.0f;
-		static FAutoConsoleVariableRef CVarRenderInterpErrorCorrectionMaximumError(TEXT("p.RenderInterp.MaximumErrorCorrectionBeforeSnapping"), RenderInterpMaximumErrorCorrectionBeforeSnapping, TEXT("Maximum error correction in cm before we stop interpolating and snap to target."));
-		return RenderInterpMaximumErrorCorrectionBeforeSnapping;
+		return RenderInterpolationCVars::RenderInterpMaximumErrorCorrectionBeforeSnapping;
 	}
+	UE_DEPRECATED(5.5, "Deprecated, use RenderInterpolationCVars::RenderInterpErrorVelocitySmoothingDuration")
 	static float GetRenderInterpErrorVelocitySmoothingDuration()
 	{
-		static float RenderInterpErrorVelocitySmoothingDuration = 0.5f;
-		static FAutoConsoleVariableRef CVarRenderInterpErrorVelocitySmoothingDuration(TEXT("p.RenderInterp.ErrorVelocitySmoothingDuration"), RenderInterpErrorVelocitySmoothingDuration, TEXT("How long in seconds to apply error velocity smoothing correction over, should be smaller than or equal to p.RenderInterp.ErrorCorrectionDuration. RENDERINTERPOLATION_VELOCITYSMOOTHING needs to be defined."));
-		return RenderInterpErrorVelocitySmoothingDuration;
+		return RenderInterpolationCVars::RenderInterpErrorVelocitySmoothingDuration;
 	}
+	UE_DEPRECATED(5.5, "Deprecated, use RenderInterpolationCVars::bRenderInterpDebugDraw")
 	static bool GetRenderInterpDebugDraw()
 	{
-		static bool RenderInterpDebugDraw = false;
-		static FAutoConsoleVariableRef CVarRenderInterpDebugDraw(TEXT("p.RenderInterp.DebugDraw"), RenderInterpDebugDraw, TEXT("Draw debug lines for physics render interpolation, also needs p.Chaos.DebugDraw.Enabled set"));
-		return RenderInterpDebugDraw;
+		return RenderInterpolationCVars::bRenderInterpDebugDraw;
 	}
+	UE_DEPRECATED(5.5, "Deprecated, use RenderInterpolationCVars::RenderInterpErrorDirectionalDecayMultiplier")
 	static float GetRenderInterpErrorDirectionalDecayMultiplier()
 	{
-		static float RenderInterpErrorDirectionalDecayMultiplier = 0.0f;
-		static FAutoConsoleVariableRef CVarRenderInterpErrorDirectionalDecayMultiplier(TEXT("p.RenderInterp.DirectionalDecayMultiplier"), RenderInterpErrorDirectionalDecayMultiplier, TEXT("Decay error offset in the direction that the physics object is moving, value is multiplier of projected offset direction, 0.25 means a 25% decay of the magnitude in the direction of physics travel. Deactivate by setting to 0."));
-		return RenderInterpErrorDirectionalDecayMultiplier;
+		return RenderInterpolationCVars::RenderInterpErrorDirectionalDecayMultiplier;
 	}
 
 protected:
@@ -171,11 +184,13 @@ protected:
 
 private:
 	int32 DirtyIdx;
-	TSharedPtr<FProxyTimestampBase,ESPMode::ThreadSafe> SyncTimestamp;
-	IPhysicsProxyBase* ParentProxy = nullptr;
 protected:
 	/** Proxy type */
 	EPhysicsProxyType Type;
+private:
+	TSharedPtr<FProxyTimestampBase,ESPMode::ThreadSafe> SyncTimestamp;
+	IPhysicsProxyBase* ParentProxy = nullptr;
+protected:
 	int32 InitializedOnStep = INDEX_NONE;
 	int32 IgnoreDataOnStep_Internal = INDEX_NONE;
 
@@ -191,10 +206,11 @@ struct PhysicsProxyWrapper
 
 struct FProxyInterpolationBase
 {
-	FProxyInterpolationBase()
-		: PullDataInterpIdx_External(INDEX_NONE)
-		, InterpChannel_External(0)
+	FProxyInterpolationBase(const int32 PullDataInterpIdx = INDEX_NONE, const int32 InterpChannel = 0)
+		: PullDataInterpIdx_External(PullDataInterpIdx)
+		, InterpChannel_External(InterpChannel)
 	{}
+	virtual ~FProxyInterpolationBase() { }
 
 	int32 GetPullDataInterpIdx_External() const { return PullDataInterpIdx_External; }
 	void SetPullDataInterpIdx_External(const int32 Idx) { PullDataInterpIdx_External = Idx; }
@@ -202,11 +218,48 @@ struct FProxyInterpolationBase
 	int32 GetInterpChannel_External() const { return InterpChannel_External; }
 	void SetInterpChannel_External(const int32 Channel) { InterpChannel_External = Channel; }
 
-	virtual bool IsErrorSmoothing() { return false; }
-
 protected:
 	int32 PullDataInterpIdx_External;
 	int32 InterpChannel_External;
+
+public:
+	// --- Error correction interpolation API ---
+
+	/** This interpolation structs type */
+	static const EProxyInterpolationType InterpolationType = EProxyInterpolationType::Base;
+
+	/** Get this interpolation structs type */
+	virtual const EProxyInterpolationType GetInterpolationType() const { return FProxyInterpolationBase::InterpolationType; }
+
+	/** If currently correcting an error through interpolation */
+	virtual const bool IsErrorSmoothing() const { return false; }
+
+	/** Get the position of the current error correction, taking current Alpha between GT and PT into account */
+	virtual const Chaos::FVec3 GetErrorX(const Chaos::FRealSingle Alpha) const { return Chaos::FVec3::ZeroVector; }
+
+	/** Get the rotation of the current error correction, taking current Alpha between GT and PT into account */
+	virtual const FQuat GetErrorR(const Chaos::FRealSingle Alpha) const { return FQuat::Identity; }
+
+	/** Add X and R error onto current error to correct through interpolation */
+	virtual void AccumlateErrorXR(const Chaos::FVec3 X, const FQuat R, const int32 CurrentSimTick, const int32 ErrorSmoothDuration) { };
+
+	/** Tick current error data and decay error */
+	virtual const bool UpdateError(const int32 CurrentSimTick, const Chaos::FReal AsyncFixedTimeStep) { return false; }
+
+	/** EXPERIMENTAL - Decay error based on moved direction and distance */
+	virtual const bool DirectionalDecay(Chaos::FVec3 Direction) { return false; }
+
+	/** EXPERIMENTAL - If currently correcting error while taking velocity into account */
+	virtual const bool IsErrorVelocitySmoothing() const { return false; }
+
+	/** EXPERIMENTAL - Returns the Alpha of how much to take previous velocity into account, used to lerp from linear extrapolation to the predicted position based on previous velocity */
+	virtual const Chaos::FRealSingle GetErrorVelocitySmoothingAlpha(const int32 ErrorVelocitySmoothDuration) const { return 0; }
+
+	/** EXPERIMENTAL - Get the position of the velocity-based correction, taking current Alpha between GT and PT into account*/
+	virtual const Chaos::FVec3 GetErrorVelocitySmoothingX(const Chaos::FRealSingle Alpha) const { return Chaos::FVec3::ZeroVector; }
+
+	/** EXPERIMENTAL - Register the current velocity and position for use in velocity correction calculations */
+	virtual void SetVelocitySmoothing(const Chaos::FVec3 CurrV, const Chaos::FVec3 CurrX, const int32 ErrorVelocitySmoothDuration) { };
 };
 
 // Render interpolation that can correct errors from resimulation / repositions through a linear decay over N simulation tick.
@@ -214,15 +267,20 @@ struct FProxyInterpolationError : FProxyInterpolationBase
 {
 	using Super = FProxyInterpolationBase;
 
-	FProxyInterpolationError() : Super()
+	FProxyInterpolationError(const int32 PullDataInterpIdx = INDEX_NONE, const int32 InterpChannel = 0) : Super(PullDataInterpIdx, InterpChannel)
 	{}
+	virtual ~FProxyInterpolationError() { }
 
-	virtual bool IsErrorSmoothing() override { return ErrorSmoothingCount > 0; }
+	static const EProxyInterpolationType InterpolationType = EProxyInterpolationType::ErrorLinear;
+	virtual const EProxyInterpolationType GetInterpolationType() const override { return FProxyInterpolationError::InterpolationType; }
 
-	Chaos::FVec3 GetErrorX(const Chaos::FRealSingle Alpha) { return FMath::Lerp(ErrorXPrev, ErrorX, Alpha); } // Get the ErrorX based on current Alpha between GT and PT
-	FQuat GetErrorR(const Chaos::FRealSingle Alpha) { return FMath::Lerp(ErrorRPrev, ErrorR, Alpha); } // Get the ErrorR based on current Alpha between GT and PT
+	virtual const bool IsErrorSmoothing() const override { return ErrorSmoothingCount > 0; }
 
-	void AccumlateErrorXR(const Chaos::FVec3 X, const FQuat R, const int32 CurrentSimTick, const int32 ErrorSmoothDuration)
+	virtual const Chaos::FVec3 GetErrorX(const Chaos::FRealSingle Alpha) const override { return FMath::Lerp(ErrorXPrev, ErrorX, Alpha); }
+
+	virtual const FQuat GetErrorR(const Chaos::FRealSingle Alpha) const override { return FMath::Lerp(ErrorRPrev, ErrorR, Alpha); }
+
+	virtual void AccumlateErrorXR(const Chaos::FVec3 X, const FQuat R, const int32 CurrentSimTick, const int32 ErrorSmoothDuration) override
 	{
 		ErrorSmoothingCount = ErrorSmoothDuration; // How many simulation ticks to correct error over
 		LastSimTick = CurrentSimTick - 1; // Error is from the previous simulation tick, not the current
@@ -241,7 +299,7 @@ struct FProxyInterpolationError : FProxyInterpolationBase
 		}
 	}
 
-	virtual bool UpdateError(const int32 CurrentSimTick, const Chaos::FReal AsyncFixedTimeStep)
+	virtual const bool UpdateError(const int32 CurrentSimTick, const Chaos::FReal AsyncFixedTimeStep) override
 	{
 		// Cache how many simulation ticks have passed since last call
 		SimTicks = CurrentSimTick - LastSimTick;
@@ -254,7 +312,7 @@ struct FProxyInterpolationError : FProxyInterpolationBase
 		return false;
 	}
 
-	virtual bool DirectionalDecay(Chaos::FVec3 Direction)
+	virtual const bool DirectionalDecay(Chaos::FVec3 Direction) override
 	{
 		if (IsErrorSmoothing() && SimTicks > 0)
 		{
@@ -262,7 +320,7 @@ struct FProxyInterpolationError : FProxyInterpolationBase
 			Chaos::FRealDouble DotProd = Chaos::FVec3::DotProduct(DirectionNormal, ErrorX);
 			if (DotProd > 0.0f)
 			{
-				Chaos::FVec3 DirProjection = ErrorX.ProjectOnToNormal(DirectionNormal) * IPhysicsProxyBase::GetRenderInterpErrorDirectionalDecayMultiplier();
+				Chaos::FVec3 DirProjection = ErrorX.ProjectOnToNormal(DirectionNormal) * RenderInterpolationCVars::RenderInterpErrorDirectionalDecayMultiplier;
 				ErrorX -= DirProjection;
 				return true;
 			}
@@ -271,7 +329,7 @@ struct FProxyInterpolationError : FProxyInterpolationBase
 	}
 
 protected:
-	bool DecayError()
+	virtual const bool DecayError()
 	{
 		if (!IsErrorSmoothing())
 		{
@@ -285,20 +343,23 @@ protected:
 		// Second step: 8/9  = 0.888 |  90 * 0.888 = 80 error
 		// Third step: 7/8  = 0.875 |  80 * 0.875 = 70 error
 		// etc.
-		Chaos::FRealSingle Alpha = Chaos::FRealSingle(ErrorSmoothingCount - SimTicks) / Chaos::FRealSingle(ErrorSmoothingCount);
-		Alpha = FMath::Clamp(Alpha, 0.f, 1.f);
+		for (int32 Ticks = FMath::Clamp(SimTicks, 0, ErrorSmoothingCount); Ticks > 0; Ticks--)
+		{
+			Chaos::FRealSingle Alpha = Chaos::FRealSingle(ErrorSmoothingCount - 1) / Chaos::FRealSingle(ErrorSmoothingCount);
+			Alpha = FMath::Clamp(Alpha, 0.f, 1.f);
 
-		ErrorXPrev = ErrorX;
-		ErrorX *= Alpha;
+			ErrorXPrev = ErrorX;
+			ErrorX *= Alpha;
+			ErrorRPrev = ErrorR;
+			ErrorR = FMath::Lerp(FQuat::Identity, ErrorR, Alpha);
 
-		ErrorRPrev = ErrorR;
-		ErrorR = FMath::Lerp(FQuat::Identity, ErrorR, Alpha);
+			ErrorSmoothingCount = FMath::Max(ErrorSmoothingCount - 1, 0);
+		}
 
-		ErrorSmoothingCount = FMath::Max(ErrorSmoothingCount - SimTicks, 0);
-		return true;
+		return SimTicks > 0;
 	}
 
-	void Reset()
+	virtual void Reset()
 	{
 		ErrorX = Chaos::FVec3::ZeroVector;
 		ErrorXPrev = Chaos::FVec3::ZeroVector;
@@ -318,29 +379,26 @@ protected:
 	FQuat ErrorR = FQuat::Identity;
 	FQuat ErrorRPrev = FQuat::Identity;
 	int32 ErrorSmoothingCount = 0;
-
 };
 
 
-// Take incoming velocity into consideration when performing render interpolation, the correction will be more organic but might result in clipping and it's heavier for memory and CPU.
-#ifndef RENDERINTERP_ERRORVELOCITYSMOOTHING
-#define RENDERINTERP_ERRORVELOCITYSMOOTHING 0
-#endif
 // Render Interpolation that both perform the linear error correction from FProxyInterpolationError and takes incoming velocity into account to make a smoother and more organic correction of the error.
 struct FProxyInterpolationErrorVelocity : FProxyInterpolationError
 {
 	using Super = FProxyInterpolationError;
 
-	FProxyInterpolationErrorVelocity() : Super()
+	FProxyInterpolationErrorVelocity(const int32 PullDataInterpIdx = INDEX_NONE, const int32 InterpChannel = 0) : Super(PullDataInterpIdx, InterpChannel)
 	{}
+	virtual ~FProxyInterpolationErrorVelocity() { }
 
-	bool IsErrorVelocitySmoothing() { return ErrorVelocitySmoothingCount > 0; }
+	static const EProxyInterpolationType InterpolationType = EProxyInterpolationType::ErrorVelocity;
+	virtual const EProxyInterpolationType GetInterpolationType() const override { return FProxyInterpolationErrorVelocity::InterpolationType; }
 
-	// Returns the Alpha of how much to take previous velocity into account, used to lerp from linear extrapolation to the predicted position based on previous velocity.
-	Chaos::FRealSingle GetErrorVelocitySmoothingAlpha(const int32 ErrorVelocitySmoothDuration) { return Chaos::FRealSingle(ErrorVelocitySmoothingCount) / Chaos::FRealSingle(ErrorVelocitySmoothDuration); }
-	Chaos::FVec3 GetErrorVelocitySmoothingX(const Chaos::FRealSingle Alpha) { return FMath::Lerp(ErrorVelocitySmoothingXPrev, ErrorVelocitySmoothingX, Alpha); } // Get the VelocityErrorX based on current Alpha between GT and PT
+	virtual const bool IsErrorVelocitySmoothing() const override { return ErrorVelocitySmoothingCount > 0; }
+	virtual const Chaos::FRealSingle GetErrorVelocitySmoothingAlpha(const int32 ErrorVelocitySmoothDuration) const override { return Chaos::FRealSingle(ErrorVelocitySmoothingCount) / Chaos::FRealSingle(ErrorVelocitySmoothDuration); }
+	virtual const Chaos::FVec3 GetErrorVelocitySmoothingX(const Chaos::FRealSingle Alpha) const override { return FMath::Lerp(ErrorVelocitySmoothingXPrev, ErrorVelocitySmoothingX, Alpha); }
 
-	bool UpdateError(const int32 CurrentSimTick, const Chaos::FReal AsyncFixedTimeStep) override
+	virtual const bool UpdateError(const int32 CurrentSimTick, const Chaos::FReal AsyncFixedTimeStep) override
 	{		
 		if (Super::UpdateError(CurrentSimTick, AsyncFixedTimeStep))
 		{
@@ -350,7 +408,7 @@ struct FProxyInterpolationErrorVelocity : FProxyInterpolationError
 		return false;
 	}
 
-	void SetVelocitySmoothing(const Chaos::FVec3 CurrV, const Chaos::FVec3 CurrX, const int32 ErrorVelocitySmoothDuration)
+	virtual void SetVelocitySmoothing(const Chaos::FVec3 CurrV, const Chaos::FVec3 CurrX, const int32 ErrorVelocitySmoothDuration) override
 	{
 		// Cache pre error velocity and position to be used when smoothing out error correction
 		ErrorVelocitySmoothingV = CurrV;
@@ -360,7 +418,7 @@ struct FProxyInterpolationErrorVelocity : FProxyInterpolationError
 	}
 
 protected:
-	void StepErrorVelocitySmoothingData(const Chaos::FReal AsyncFixedTimeStep)
+	virtual void StepErrorVelocitySmoothingData(const Chaos::FReal AsyncFixedTimeStep)
 	{
 		// Step the error velocity smoothing position forward along the previous velocity to have a new position to base smoothing on each tick
 		if (IsErrorVelocitySmoothing())

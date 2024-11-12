@@ -3,13 +3,17 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+// TraceServices
 #include "TraceServices/Model/Memory.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/BaseTreeNode.h"
+
+// TraceInsights
 #include "Insights/MemoryProfiler/ViewModels/MemorySharedState.h"
 #include "Insights/MemoryProfiler/ViewModels/MemoryTag.h"
 #include "Insights/MemoryProfiler/ViewModels/MemoryTracker.h"
-#include "Insights/Table/ViewModels/BaseTreeNode.h"
 
 namespace TraceServices
 {
@@ -23,6 +27,9 @@ namespace TraceServices
 		//uint64 Median = 0U;
 	};
 }
+
+namespace UE::Insights::MemoryProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -58,13 +65,13 @@ typedef TWeakPtr<class FMemTagNode> FMemTagNodeWeak;
 /**
  * Class used to store information about an llm tag node (used in the SMemTagTreeView).
  */
-class FMemTagNode : public Insights::FBaseTreeNode
+class FMemTagNode : public FBaseTreeNode
 {
 	INSIGHTS_DECLARE_RTTI(FMemTagNode, FBaseTreeNode)
 
 public:
 	/** Initialization constructor for the MemTag node. */
-	explicit FMemTagNode(Insights::FMemoryTag* InMemTag)
+	explicit FMemTagNode(FMemoryTag* InMemTag)
 		: FBaseTreeNode(FName(InMemTag->GetStatFullName(), 0), false)
 		, Type(EMemTagNodeType::MemTag)
 		, MemTag(InMemTag)
@@ -87,18 +94,18 @@ public:
 	EMemTagNodeType GetType() const { return Type; }
 
 	bool IsValidStat() const { return MemTag != nullptr; }
-	Insights::FMemoryTag* GetMemTag() const { return MemTag; }
+	FMemoryTag* GetMemTag() const { return MemTag; }
 
-	Insights::FMemoryTagId GetMemTagId() const { return MemTag ? MemTag->GetId() : Insights::FMemoryTag::InvalidTagId; }
+	FMemoryTagId GetMemTagId() const { return MemTag ? MemTag->GetId() : FMemoryTag::InvalidTagId; }
 
-	Insights::FMemoryTrackerId GetMemTrackerId() const { return MemTag ? MemTag->GetTrackerId() : Insights::FMemoryTracker::InvalidTrackerId; }
+	FMemoryTrackerId GetMemTrackerId() const { return MemTag ? MemTag->GetTrackerId() : FMemoryTracker::InvalidTrackerId; }
 	FText GetTrackerText() const;
 
 	FLinearColor GetColor() const { return MemTag ? MemTag->GetColor() : FLinearColor(0.5f, 0.5f, 0.5f, 1.0f); }
 	bool IsAddedToGraph() const { return MemTag ? MemTag->IsAddedToGraph() : false; }
 
 	FMemTagNodePtr GetParentTagNode() const { return ParentTagNode; }
-	Insights::FMemoryTag* GetParentMemTag() const { return ParentTagNode.IsValid() ? ParentTagNode->GetMemTag() : nullptr; }
+	FMemoryTag* GetParentMemTag() const { return ParentTagNode.IsValid() ? ParentTagNode->GetMemTag() : nullptr; }
 	void SetParentTagNode(FMemTagNodePtr NodePtr) { ParentTagNode = NodePtr; }
 
 	/**
@@ -111,9 +118,11 @@ public:
 
 private:
 	const EMemTagNodeType Type;
-	Insights::FMemoryTag* MemTag;
+	FMemoryTag* MemTag;
 	FMemTagNodePtr ParentTagNode;
 	TraceServices::FMemoryProfilerAggregatedStats AggregatedStats;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler

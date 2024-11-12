@@ -35,7 +35,8 @@ class CONTROLRIG_API UModularRigController : public UObject
 
 	UFUNCTION(BlueprintCallable, Category = "Control Rig | Modules")
 	bool DisconnectConnector(const FRigElementKey& InConnectorKey, bool bDisconnectSubModules = false, bool bSetupUndo = true);
-	
+	bool DisconnectConnector_Internal(const FRigElementKey& InConnectorKey, bool bDisconnectSubModules = false, TMap<FRigElementKey, FRigElementKey>*OutRemovedConnections = nullptr, bool bSetupUndo = true);
+
 	UFUNCTION(BlueprintCallable, Category = "Control Rig | Modules")
 	TArray<FRigElementKey> DisconnectCyclicConnectors(bool bSetupUndo = true);
 
@@ -72,6 +73,27 @@ class CONTROLRIG_API UModularRigController : public UObject
 	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
 	bool SetModuleShortName(const FString& InModulePath, const FString& InNewShortName, bool bSetupUndo = true);
 	bool CanSetModuleShortName(const FString& InModulePath, const FString& InNewShortName, FText& OutErrorMessage) const;
+
+	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
+	bool SwapModuleClass(const FString& InModulePath, TSubclassOf<UControlRig> InNewClass, bool bSetupUndo = true);
+
+	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
+	bool SwapModulesOfClass(TSubclassOf<UControlRig> InOldClass, TSubclassOf<UControlRig> InNewClass, bool bSetupUndo = true);
+
+	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
+	bool SelectModule(const FString& InModulePath, const bool InSelected = true);
+
+	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
+	bool DeselectModule(const FString& InModulePath);
+
+	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
+	bool SetModuleSelection(const TArray<FString>& InModulePaths);
+
+	UFUNCTION(BlueprintPure, Category = "ControlRig | Modules")
+	TArray<FString> GetSelectedModules() const;
+
+	void RefreshModuleVariables(bool bSetupUndo = true);
+	void RefreshModuleVariables(const FRigModuleReference* InModule, bool bSetupUndo = true);
 
 	static int32 GetMaxNameLength() { return 100; }
 	static void SanitizeName(FRigName& InOutName, bool bAllowNameSpaces);

@@ -50,15 +50,6 @@ static TAutoConsoleVariable<int32> CVarVulkanUseD24(
 	ECVF_ReadOnly
 );
 
-
-#if NV_AFTERMATH
-#include "GFSDK_Aftermath_GpuCrashDump.h"
-void AftermathGpuCrashDumpCallback(const void* pGpuCrashDump, const uint32 gpuCrashDumpSize, void* pUserData);
-void AftermathShaderDebugInfoCallback(const void* pShaderDebugInfo, const uint32 shaderDebugInfoSize, void* pUserData);
-void AftermathCrashDumpDescriptionCallback(PFN_GFSDK_Aftermath_AddGpuCrashDumpDescription addDescription, void* pUserData);
-void AftermathResolveMarkerCallback(const void* pMarker, void* pUserData, void** resolvedMarkerData, uint32_t* markerSize);
-#endif
-
 // Mirror GPixelFormats with format information for buffers
 VkFormat GVulkanBufferFormat[PF_MAX];
 
@@ -88,26 +79,6 @@ static EDelayAcquireImageType DelayAcquireBackBuffer()
 		return EDelayAcquireImageType::LazyAcquire;
 	}
 	return EDelayAcquireImageType::None;
-}
-
-static void EnableDrawMarkers()
-{
-	static IConsoleVariable* ShowMaterialDrawEventVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ShowMaterialDrawEvents"));
-
-	const bool bDrawEvents = GetEmitDrawEvents() != 0;
-	const bool bMaterialDrawEvents = ShowMaterialDrawEventVar ? ShowMaterialDrawEventVar->GetInt() != 0 : false;
-
-	UE_LOG(LogRHI, Display, TEXT("Setting GPU Capture Options: 1"));
-	if (!bDrawEvents)
-	{
-		UE_LOG(LogRHI, Display, TEXT("Toggling draw events: 1"));
-		SetEmitDrawEvents(true);
-	}
-	if (!bMaterialDrawEvents && ShowMaterialDrawEventVar)
-	{
-		UE_LOG(LogRHI, Display, TEXT("Toggling showmaterialdrawevents: 1"));
-		ShowMaterialDrawEventVar->Set(-1);
-	}
 }
 
 #if VULKAN_SUPPORTS_VALIDATION_CACHE
@@ -417,24 +388,6 @@ void FVulkanDevice::CreateDevice(TArray<const ANSICHAR*>& DeviceLayers, FVulkanD
 	DeviceInfo.queueCreateInfoCount = QueueFamilyInfos.Num();
 	DeviceInfo.pQueueCreateInfos = QueueFamilyInfos.GetData();
 
-#if NV_AFTERMATH && VULKAN_SUPPORTS_NV_DIAGNOSTICS
-	if (GGPUCrashDebuggingEnabled && GVulkanNVAftermathModuleLoaded)
-	{
-		GFSDK_Aftermath_Result Result = GFSDK_Aftermath_EnableGpuCrashDumps(GFSDK_Aftermath_Version_API, 
-			GFSDK_Aftermath_GpuCrashDumpWatchedApiFlags_Vulkan,
-			GFSDK_Aftermath_GpuCrashDumpFeatureFlags_DeferDebugInfoCallbacks, 
-			&AftermathGpuCrashDumpCallback,
-			&AftermathShaderDebugInfoCallback,
-			&AftermathCrashDumpDescriptionCallback,
-			&AftermathResolveMarkerCallback,
-			this);
-		if (Result != GFSDK_Aftermath_Result_Success)
-		{
-			UE_LOG(LogVulkanRHI, Warning, TEXT("Unable to initialize Aftermath crash dumps (Result %d)"), (int32)Result);
-		}
-	}
-#endif
-
 	// Create the device
 	VkResult Result = VulkanRHI::vkCreateDevice(Gpu, &DeviceInfo, VULKAN_CPU_ALLOCATOR, &Device);
 	if (Result == VK_ERROR_INITIALIZATION_FAILED)
@@ -546,13 +499,13 @@ void FVulkanDevice::SetupDrawMarkers()
 	if (bDebugMarkersFound && GRenderDocFound)
 	{
 		// We're running under RenderDoc or other trace tool, so enable capturing mode
-		EnableDrawMarkers();
+		FDynamicRHI::EnableIdealGPUCaptureOptions(true);
 	}
 #endif
 #endif
 
 #if VULKAN_ENABLE_DUMP_LAYER
-	EnableDrawMarkers();
+	FDynamicRHI::EnableIdealGPUCaptureOptions(true);
 #endif
 }
 
@@ -620,6 +573,7 @@ void FVulkanDevice::SetupFormats()
 	MapFormatSupport(PF_R8G8B8A8_UINT, { VK_FORMAT_R8G8B8A8_UINT }, ComponentMappingRGBA);
 	MapFormatSupport(PF_R8G8B8A8_SNORM, { VK_FORMAT_R8G8B8A8_SNORM }, ComponentMappingRGBA);
 	MapFormatSupport(PF_R16G16_UINT, { VK_FORMAT_R16G16_UINT }, ComponentMappingRG01);
+	MapFormatSupport(PF_R16G16_SINT, { VK_FORMAT_R16G16_SINT }, ComponentMappingRG01);
 	MapFormatSupport(PF_R16G16B16A16_UINT, { VK_FORMAT_R16G16B16A16_UINT }, ComponentMappingRGBA);
 	MapFormatSupport(PF_R16G16B16A16_SINT, { VK_FORMAT_R16G16B16A16_SINT }, ComponentMappingRGBA);
 	MapFormatSupport(PF_R32G32_UINT, { VK_FORMAT_R32G32_UINT }, ComponentMappingRG01);
@@ -715,6 +669,12 @@ void FVulkanDevice::SetupFormats()
 		MapFormatSupport(PF_ASTC_12x12_HDR, { VK_FORMAT_ASTC_12x12_SFLOAT_BLOCK_EXT }, ComponentMappingRGBA);
 	}
 
+	// When this extension is available, PF_Unknown texture can have an external buffer attached which has an
+	// internal format, that can be sampled. If it really can be sampled depends on the VK_IMAGE_USAGE_SAMPLED_BIT
+	if (GetOptionalExtensions().HasANDROIDExternalMemoryHardwareBuffer)
+	{
+		GPixelFormats[PF_Unknown].Capabilities |= EPixelFormatCapabilities::TextureSample;
+	}
 
 	// Verify available Vertex Formats
 	{
@@ -1226,29 +1186,26 @@ void FVulkanDevice::InitGPU()
 	StagingManager.Init(this);
 
 #if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
-	if (GGPUCrashDebuggingEnabled)
+	if (UE::RHI::UseGPUCrashDebugging())
 	{
-		if (OptionalDeviceExtensions.HasAMDBufferMarker)
-		{
-			VkBufferCreateInfo CreateInfo;
-			ZeroVulkanStruct(CreateInfo, VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO);
-			CreateInfo.size = GMaxCrashBufferEntries * sizeof(uint32_t);
-			CreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-			VERIFYVULKANRESULT(VulkanRHI::vkCreateBuffer(Device, &CreateInfo, VULKAN_CPU_ALLOCATOR, &CrashMarker.Buffer));
+		VkBufferCreateInfo CreateInfo;
+		ZeroVulkanStruct(CreateInfo, VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO);
+		CreateInfo.size = GMaxCrashBufferEntries * sizeof(uint32_t);
+		CreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		VERIFYVULKANRESULT(VulkanRHI::vkCreateBuffer(Device, &CreateInfo, VULKAN_CPU_ALLOCATOR, &CrashMarker.Buffer));
 
-			VkMemoryRequirements MemReq;
-			FMemory::Memzero(MemReq);
-			VulkanRHI::vkGetBufferMemoryRequirements(Device, CrashMarker.Buffer, &MemReq);
+		VkMemoryRequirements MemReq;
+		FMemory::Memzero(MemReq);
+		VulkanRHI::vkGetBufferMemoryRequirements(Device, CrashMarker.Buffer, &MemReq);
 
-			CrashMarker.Allocation = DeviceMemoryManager.Alloc(false, CreateInfo.size, MemReq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-				VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, nullptr, VULKAN_MEMORY_MEDIUM_PRIORITY, false, __FILE__, __LINE__);
+		CrashMarker.Allocation = DeviceMemoryManager.Alloc(false, CreateInfo.size, MemReq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, nullptr, VULKAN_MEMORY_MEDIUM_PRIORITY, false, __FILE__, __LINE__);
 
-			uint32* Entry = (uint32*)CrashMarker.Allocation->Map(VK_WHOLE_SIZE, 0);
-			check(Entry);
-			// Start with 0 entries
-			*Entry = 0;
-			VERIFYVULKANRESULT(VulkanRHI::vkBindBufferMemory(Device, CrashMarker.Buffer, CrashMarker.Allocation->GetHandle(), 0));
-		}
+		uint32* Entry = (uint32*)CrashMarker.Allocation->Map(VK_WHOLE_SIZE, 0);
+		check(Entry);
+		// Start with 0 entries
+		*Entry = 0;
+		VERIFYVULKANRESULT(VulkanRHI::vkBindBufferMemory(Device, CrashMarker.Buffer, CrashMarker.Allocation->GetHandle(), 0));
 	}
 #endif
 
@@ -1277,7 +1234,6 @@ void FVulkanDevice::InitGPU()
 	if (GfxQueue->GetFamilyIndex() != ComputeQueue->GetFamilyIndex() && GRHIAllowAsyncComputeCvar.GetValueOnAnyThread() != 0)
 	{
 		ComputeContext = new FVulkanCommandListContextImmediate(GVulkanRHI, this, ComputeQueue);
-		GEnableAsyncCompute = true;
 	}
 	else
 	{
@@ -1320,13 +1276,11 @@ void FVulkanDevice::InitGPU()
 		DefaultTexture = new FVulkanTexture(*this, Desc, nullptr);
 	}
 
-#if VULKAN_RHI_RAYTRACING
 	if (RHISupportsRayTracing(GMaxRHIShaderPlatform) && GetOptionalExtensions().HasRaytracingExtensions())
 	{
 		check(RayTracingCompactionRequestHandler == nullptr);
 		RayTracingCompactionRequestHandler = new FVulkanRayTracingCompactionRequestHandler(this);
 	}
-#endif
 
 	FVulkanPlatform::PostInitGPU(*this);
 }
@@ -1345,6 +1299,7 @@ void FVulkanDevice::Destroy()
 		if (vkDestroyValidationCache)
 		{
 			vkDestroyValidationCache(Device, ValidationCache, VULKAN_CPU_ALLOCATOR);
+			ValidationCache = VK_NULL_HANDLE;
 		}
 	}
 #endif
@@ -1363,14 +1318,7 @@ void FVulkanDevice::Destroy()
 	}
 
 	// Flush all pending deletes before destroying the device and any Vulkan context objects.
-	// Repeat until no new deletes are added
-	int32 NumDeletes = 0;
-	do
-	{
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-		NumDeletes = RHICmdList.FlushPendingDeletes();
-		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-	} while (NumDeletes > 0);
+	FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
 
 	delete DescriptorSetCache;
 	DescriptorSetCache = nullptr;
@@ -1418,7 +1366,7 @@ void FVulkanDevice::Destroy()
 	StagingManager.Deinit();
 
 #if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
-	if (GGPUCrashDebuggingEnabled)
+	if (UE::RHI::UseGPUCrashDebugging())
 	{
 		if (CrashMarker.Buffer != VK_NULL_HANDLE)
 		{
@@ -1592,6 +1540,7 @@ FVulkanTransientHeapCache& FVulkanDevice::GetOrCreateTransientHeapCache()
 	return *TransientHeapCache;
 }
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 FGPUTimingCalibrationTimestamp FVulkanDevice::GetCalibrationTimestamp()
 {
 	auto ToMicroseconds = [](uint64_t Timestamp)
@@ -1618,3 +1567,4 @@ FGPUTimingCalibrationTimestamp FVulkanDevice::GetCalibrationTimestamp()
 	}
 	return CalibrationTimestamp;
 }
+#endif // (RHI_NEW_GPU_PROFILER == 0)

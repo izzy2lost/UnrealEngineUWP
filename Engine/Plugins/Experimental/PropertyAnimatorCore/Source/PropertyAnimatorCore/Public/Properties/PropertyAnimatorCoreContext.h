@@ -3,27 +3,31 @@
 #pragma once
 
 #include "PropertyAnimatorCoreData.h"
-#include "PropertyBag.h"
+#include "Presets/PropertyAnimatorCorePresetable.h"
+#include "Presets/PropertyAnimatorCorePresetBase.h"
+#include "StructUtils/PropertyBag.h"
 #include "UObject/Object.h"
 #include "PropertyAnimatorCoreContext.generated.h"
 
 struct FInstancedStruct;
 class UPropertyAnimatorCoreBase;
 class UPropertyAnimatorCoreConverterBase;
-class UPropertyAnimatorCoreGroupBase;
+class UPropertyAnimatorCoreResolver;
 class UScriptStruct;
 
 /** Mode supported for properties value */
 UENUM(BlueprintType)
 enum class EPropertyAnimatorCoreMode : uint8
 {
+	/** Set the property value directly */
 	Absolute,
-	Additive,
+	/** Add value on the existing property value */
+	Additive
 };
 
 /** Context for properties linked to an animator */
 UCLASS(MinimalAPI, BlueprintType)
-class UPropertyAnimatorCoreContext : public UObject
+class UPropertyAnimatorCoreContext : public UObject, public IPropertyAnimatorCorePresetable
 {
 	GENERATED_BODY()
 
@@ -31,6 +35,8 @@ class UPropertyAnimatorCoreContext : public UObject
 	friend class FPropertyAnimatorCoreEditorContextTypeCustomization;
 
 public:
+	static FName GetAnimatedPropertyName();
+
 	const FPropertyAnimatorCoreData& GetAnimatedProperty() const
 	{
 		return AnimatedProperty;
@@ -41,16 +47,25 @@ public:
 	/** Get the handler responsible for this property type */
 	UPropertyAnimatorCoreHandlerBase* GetHandler() const;
 
-	/** Get the active group of this property */
-	UPropertyAnimatorCoreGroupBase* GetGroup() const
-	{
-		return Group;
-	}
+	/** Get the active resolver for this property if any */
+	UPropertyAnimatorCoreResolver* GetResolver() const;
 
 	PROPERTYANIMATORCORE_API void SetAnimated(bool bInAnimated);
 	bool IsAnimated() const
 	{
 		return bAnimated;
+	}
+
+	PROPERTYANIMATORCORE_API void SetMagnitude(float InMagnitude);
+	float GetMagnitude() const
+	{
+		return Magnitude;
+	}
+
+	PROPERTYANIMATORCORE_API void SetTimeOffset(double InOffset);
+	double GetTimeOffset() const
+	{
+		return TimeOffset;
 	}
 
 	PROPERTYANIMATORCORE_API void SetMode(EPropertyAnimatorCoreMode InMode);
@@ -65,12 +80,6 @@ public:
 		return ConverterClass;
 	}
 
-	PROPERTYANIMATORCORE_API void SetGroupName(FName InGroupName);
-	FName GetGroupName() const
-	{
-		return GroupName;
-	}
-
 	/** Get converter rule if any */
 	template <typename InRuleType
 		UE_REQUIRES(TModels_V<CStaticStructProvider, InRuleType>)>
@@ -78,6 +87,20 @@ public:
 	{
 		return static_cast<InRuleType*>(GetConverterRulePtr(InRuleType::StaticStruct()));
 	}
+
+	/** Called when the owner has changed and we want to update the animated property */
+	bool ResolvePropertyOwner(AActor* InNewOwner);
+
+	/** Evaluates a property within this context based on animator result */
+	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InProperty, const FInstancedPropertyBag& InAnimatorResult, FInstancedPropertyBag& OutEvaluatedValues)
+	{
+		return false;
+	}
+
+	//~ Begin IPropertyAnimatorCorePresetable
+	PROPERTYANIMATORCORE_API virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue) override;
+	PROPERTYANIMATORCORE_API virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const override;
+	//~ End IPropertyAnimatorCorePresetable
 
 protected:
 	//~ Begin UObject
@@ -89,7 +112,7 @@ protected:
 	//~ End UObject
 
 	/** Called once, when the property is linked to this context */
-	virtual void OnAnimatedPropertyLinked() {}
+	PROPERTYANIMATORCORE_API virtual void OnAnimatedPropertyLinked();
 
 	/** Called when the animated property owner is updated */
 	virtual void OnAnimatedPropertyOwnerUpdated(UObject* InPreviousOwner, UObject* InNewOwner) {}
@@ -102,13 +125,13 @@ private:
 
 	void CheckEditMode();
 	void CheckEditConverterRule();
+	void CheckEditResolver();
 
 	void OnAnimatedChanged();
 	void OnModeChanged();
-	void OnGroupNameChanged();
 
 	/** Sets the evaluation result for the resolved property */
-	PROPERTYANIMATORCORE_API void SetEvaluationResult(const FPropertyAnimatorCoreData& InResolvedProperty, const FInstancedPropertyBag& InEvaluatedValues);
+	PROPERTYANIMATORCORE_API void CommitEvaluationResult(const FPropertyAnimatorCoreData& InResolvedProperty, const FInstancedPropertyBag& InEvaluatedValues);
 
 	/** Use this to resolve virtual linked property */
 	PROPERTYANIMATORCORE_API TArray<FPropertyAnimatorCoreData> ResolveProperty(bool bInForEvaluation) const;
@@ -119,18 +142,24 @@ private:
 	/** Allocate and save properties */
 	void Save();
 
-	void SetGroup(UPropertyAnimatorCoreGroupBase* InGroup);
-
 	bool IsResolvable() const;
 	bool IsConverted() const;
-
-	/** Get the supported group names that can manage this property */
-	UFUNCTION()
-	TArray<FName> GetSupportedGroupNames() const;
 
 	/** Animation is enabled for this property */
 	UPROPERTY(EditInstanceOnly, Setter="SetAnimated", Getter="IsAnimated", Category="Animator", meta=(AllowPrivateAccess="true"))
 	bool bAnimated = true;
+
+	/** Edit condition for Magnitude */
+	UPROPERTY(Transient)
+	bool bEditMagnitude = true;
+
+	/** Magnitude of the effect on this property */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0.0", ClampMax="1.0", HideEditConditionToggle, EditCondition="bEditMagnitude", EditConditionHides, AllowPrivateAccess="true"))
+	float Magnitude = 1.f;
+
+	/** Time offset to evaluate this property */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(Units=Seconds, HideEditConditionToggle, EditCondition="bEditMagnitude", EditConditionHides, AllowPrivateAccess="true"))
+	double TimeOffset = 0;
 
 	/** Edit condition for modes */
 	UPROPERTY(Transient)
@@ -148,13 +177,13 @@ private:
 	UPROPERTY(EditInstanceOnly, Category="Animator", meta=(HideEditConditionToggle, EditCondition="bEditConverterRule", EditConditionHides, AllowPrivateAccess="true"))
 	FInstancedStruct ConverterRule;
 
-	/** The unique group name that manages this property */
-	UPROPERTY(EditInstanceOnly, Category="Animator", Setter, Getter, meta=(GetOptions="GetSupportedGroupNames", AllowPrivateAccess="true"))
-	FName GroupName = NAME_None;
+	/** Edit condition for property resolver */
+	UPROPERTY(Transient)
+	bool bEditResolver = true;
 
-	/** Active group of this property */
-	UPROPERTY()
-	TObjectPtr<UPropertyAnimatorCoreGroupBase> Group;
+	/** Custom resolver for the property */
+	UPROPERTY(VisibleInstanceOnly, NoClear, Export, Instanced, DisplayName="Range", Category="Animator", meta=(EditCondition="bEditResolver", EditConditionHides, HideEditConditionToggle, AllowPrivateAccess="true"))
+	TObjectPtr<UPropertyAnimatorCoreResolver> Resolver;
 
 	/** Store original property values for resolved properties */
 	UPROPERTY(NonTransactional)

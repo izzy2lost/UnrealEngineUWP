@@ -88,12 +88,12 @@ bool ExtractFormatArguments(FPyWrapperText* InSelf, PyObject* InObj, const int32
 					FFormatArgumentData& FormatArg = InOutFormatArgs.AddDefaulted_GetRef();
 					if (!ExtractFormatArgumentKey(InSelf, KeyItem, FormatArg))
 					{
-						PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Cannot convert format argument %d (%s) at index %d"), InArgIndex, *PyUtil::GetFriendlyTypename(InObj), SequenceIndex));
+						PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Cannot convert format argument %d (%s) at index %zd"), InArgIndex, *PyUtil::GetFriendlyTypename(InObj), SequenceIndex));
 						return false;
 					}
 					if (!ExtractFormatArgumentValue(InSelf, ValueItem, FormatArg))
 					{
-						PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Cannot convert format argument %d (%s) with key '%s' at index %d"), InArgIndex, *PyUtil::GetFriendlyTypename(InObj), *FormatArg.ArgumentName, SequenceIndex));
+						PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Cannot convert format argument %d (%s) with key '%s' at index %zd"), InArgIndex, *PyUtil::GetFriendlyTypename(InObj), *FormatArg.ArgumentName, SequenceIndex));
 						return false;
 					}
 				}
@@ -113,7 +113,7 @@ bool ExtractFormatArguments(FPyWrapperText* InSelf, PyObject* InObj, const int32
 					FormatArg.ArgumentName = FString::FromInt(InArgIndex);
 					if (!ExtractFormatArgumentValue(InSelf, ValueItem, FormatArg))
 					{
-						PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Cannot convert format argument %d (%s) at index %d"), InArgIndex, *PyUtil::GetFriendlyTypename(InObj), SequenceIndex));
+						PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Cannot convert format argument %d (%s) at index %zd"), InArgIndex, *PyUtil::GetFriendlyTypename(InObj), SequenceIndex));
 						return false;
 					}
 				}

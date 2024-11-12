@@ -40,6 +40,7 @@ public:
 		return false;
 	}
 #endif
+
 	/**
 	 * Set the presence name.
 	 * Called by the presence manager to set the display name of the client on the actor.
@@ -95,5 +96,9 @@ protected:
 
 	/** Movement object to interpolate presence movement between update events.*/
 	TOptional<FConcertClientMovement> PresenceMovement;
+
+private:
+	void UpdateVisibleInGameState();
+
 };
 

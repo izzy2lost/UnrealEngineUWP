@@ -7,7 +7,7 @@
 #include "Misc/Attribute.h"
 #include "MultiUserReplicationStream.generated.h"
 
-/** Wraps FConcertObjectReplicationMap so its edition can be transacted in the editor. */
+/** Wraps FConcertObjectReplicationMap so its edition can be transacted in the editor and saved in presets. */
 UCLASS()
 class MULTIUSERREPLICATIONEDITOR_API UMultiUserReplicationStream : public UObject
 {
@@ -23,9 +23,11 @@ public:
 	FConcertObjectReplicationMap ReplicationMap;
 
 	UMultiUserReplicationStream();
-	
+
+	/** Util that generates the description of this stream for network requests. */
 	FConcertReplicationStream GenerateDescription() const;
-	
+
+	/** Util that returns ReplicationMap. */
 	TAttribute<FConcertObjectReplicationMap*> MakeReplicationMapGetterAttribute()
 	{
 		return TAttribute<FConcertObjectReplicationMap*>::CreateLambda([WeakThis = TWeakObjectPtr<UMultiUserReplicationStream>(this)]()

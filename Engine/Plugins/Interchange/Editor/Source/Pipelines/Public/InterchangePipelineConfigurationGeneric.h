@@ -9,7 +9,7 @@
 class UInterchangeBaseNodeContainer;
 class UInterchangeSourceData;
 
-UCLASS(BlueprintType, editinlinenew, Experimental)
+UCLASS(BlueprintType, editinlinenew)
 class INTERCHANGEEDITORPIPELINES_API UInterchangePipelineConfigurationGeneric : public UInterchangePipelineConfigurationBase
 {
 	GENERATED_BODY()

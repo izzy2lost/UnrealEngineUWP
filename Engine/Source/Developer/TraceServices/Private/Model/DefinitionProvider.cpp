@@ -16,6 +16,16 @@ FDefinitionProvider::FDefinitionProvider(IAnalysisSession* InSession)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+FDefinitionProvider::~FDefinitionProvider()
+{
+	for (uint8* Page : Pages)
+	{
+		FMemory::Free(Page);
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void FDefinitionProvider::AddEntry(uint64 Hash, const void* Ptr)
 {
 	Definitions.Add(Hash, Ptr);
@@ -37,13 +47,12 @@ void* FDefinitionProvider::Allocate(uint32 Size, uint32 Alignment)
 	uint8* Dest = nullptr;
 	if (PageRemain > Size)
 	{
-		Dest = Pages.Last().Get() + (PageSize - PageRemain);
+		Dest = Pages.Last() + (PageSize - PageRemain);
 	}
 	else
 	{
-		auto& NewPage = Pages.Emplace_GetRef((uint8*)FMemory::MallocZeroed(PageSize));
-
-		Dest = NewPage.Get();
+		Dest = (uint8*)FMemory::MallocZeroed(PageSize);
+		Pages.Add(Dest);
 		PageRemain = PageSize;
 	}
 	PageRemain -= Size;

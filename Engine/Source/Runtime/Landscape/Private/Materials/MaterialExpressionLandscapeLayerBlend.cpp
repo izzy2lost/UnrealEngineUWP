@@ -6,7 +6,9 @@
 #include "EngineGlobals.h"
 #include "MaterialCompiler.h"
 #include "DataDrivenShaderPlatformInfo.h"
-#include "LandscapeUtils.h"
+#include "LandscapeUtilsPrivate.h"
+#include "Materials/MaterialAttributeDefinitionMap.h"
+#include "Materials/MaterialExpressionShadingModel.h"
 
 #if WITH_EDITOR
 #include "MaterialGraph/MaterialGraphNode.h"
@@ -157,7 +159,7 @@ int32 UMaterialExpressionLandscapeLayerBlend::Compile(class FMaterialCompiler* C
 	TArray<int32> WeightCodes;
 	WeightCodes.Empty(Layers.Num());
 
-	const bool bTextureArrayEnabled = UE::Landscape::UseWeightmapTextureArray(Compiler->GetShaderPlatform());
+	const bool bTextureArrayEnabled = UE::Landscape::Private::UseWeightmapTextureArray(Compiler->GetShaderPlatform());
 	
 	for (int32 LayerIdx = 0; LayerIdx<Layers.Num(); LayerIdx++)
 	{
@@ -205,7 +207,18 @@ int32 UMaterialExpressionLandscapeLayerBlend::Compile(class FMaterialCompiler* C
 
 	int32 InvWeightSumCode = Compiler->Div(Compiler->Constant(1.f), WeightSumCode);
 
-	int32 OutputCode = Compiler->Constant(0);
+	// If the output has a ShadingModel type, regular arithmetic nodes (weight/blend) needs to be handled differently
+	int32 OutputCode = INDEX_NONE;
+	bool bIsShadingModel = false;
+	if (FMaterialAttributeDefinitionMap::GetProperty(Compiler->GetMaterialAttribute()) == MP_ShadingModel)
+	{
+		OutputCode = Compiler->ShadingModel(EMaterialShadingModel::MSM_DefaultLit);
+		bIsShadingModel = true;
+	}
+	else
+	{
+		OutputCode = Compiler->Constant(0);
+	}
 
 	for (int32 LayerIdx = 0; LayerIdx<Layers.Num(); LayerIdx++)
 	{
@@ -220,7 +233,11 @@ int32 UMaterialExpressionLandscapeLayerBlend::Compile(class FMaterialCompiler* C
 															  static_cast<float>(Layer.ConstLayerInput.Y),
 				                                              static_cast<float>(Layer.ConstLayerInput.Z));
 
-			if (bNeedsRenormalize)
+			if (bIsShadingModel && Compiler->GetType(LayerCode) == EMaterialValueType::MCT_ShadingModel)
+			{
+				OutputCode = CompileShadingModelBlendFunction(Compiler, OutputCode, LayerCode, WeightCodes[LayerIdx]);
+			}
+			else if (bNeedsRenormalize)
 			{
 				// Renormalize the weights as our height modification has made them non-uniform
 				OutputCode = Compiler->Add(OutputCode, Compiler->Mul(LayerCode, Compiler->Mul(InvWeightSumCode, WeightCodes[LayerIdx])));
@@ -247,8 +264,16 @@ int32 UMaterialExpressionLandscapeLayerBlend::Compile(class FMaterialCompiler* C
 					                        : Compiler->Constant3(static_cast<float>(Layer.ConstLayerInput.X),
 					                                              static_cast<float>(Layer.ConstLayerInput.Y),
 					                                              static_cast<float>(Layer.ConstLayerInput.Z));
+				
 				// Blend in the layer using the alpha value
-				OutputCode = Compiler->Lerp(OutputCode, LayerCode, WeightCode);
+				if (bIsShadingModel && Compiler->GetType(LayerCode) == EMaterialValueType::MCT_ShadingModel)
+				{
+					OutputCode = CompileShadingModelBlendFunction(Compiler, OutputCode, LayerCode, WeightCode);
+				}
+				else
+				{
+					OutputCode = Compiler->Lerp(OutputCode, LayerCode, WeightCode);
+				}
 			}
 		}
 	}
@@ -310,7 +335,7 @@ bool UMaterialExpressionLandscapeLayerBlend::GenerateHLSLExpression(FMaterialHLS
 		if (Layer.BlendType != LB_AlphaBlend)
 		{
 			const FExpression* WeightExpression = nullptr;
-			const bool bTextureArrayEnabled = UE::Landscape::IsMobileWeightmapTextureArrayEnabled();
+			const bool bTextureArrayEnabled = UE::Landscape::Private::IsMobileWeightmapTextureArrayEnabled();
 			verify(GenerateStaticTerrainLayerWeightExpression(Layer.LayerName, Layer.PreviewWeight, bTextureArrayEnabled, Generator, WeightExpression));
 
 			if (WeightExpression)
@@ -374,7 +399,7 @@ bool UMaterialExpressionLandscapeLayerBlend::GenerateHLSLExpression(FMaterialHLS
 		if (Layer.BlendType == LB_AlphaBlend)
 		{
 			const FExpression* WeightExpression = nullptr;
-			const bool bTextureArrayEnabled = UE::Landscape::IsMobileWeightmapTextureArrayEnabled();
+			const bool bTextureArrayEnabled = UE::Landscape::Private::IsMobileWeightmapTextureArrayEnabled();
 			verify(GenerateStaticTerrainLayerWeightExpression(Layer.LayerName, Layer.PreviewWeight, bTextureArrayEnabled, Generator, WeightExpression));
 
 			if (WeightExpression)

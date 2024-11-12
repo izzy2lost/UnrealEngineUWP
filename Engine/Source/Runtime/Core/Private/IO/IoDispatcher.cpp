@@ -1,25 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "IO/IoDispatcher.h"
-#include "IO/IoDispatcherPrivate.h"
-#include "IO/IoStore.h"
-#include "IO/IoOffsetLength.h"
-#include "Misc/ScopeRWLock.h"
-#include "Misc/CommandLine.h"
-#include "Misc/CoreDelegates.h"
-#include "Math/RandomStream.h"
-#include "Misc/ScopeLock.h"
+#include "Async/Mutex.h"
+#include "Async/UniqueLock.h"
+#include "Containers/Ticker.h"
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
-#include "HAL/PlatformProcess.h"
-#include "Serialization/LargeMemoryReader.h"
-#include "GenericPlatform/GenericPlatformChunkInstall.h"
 #include "HAL/Event.h"
-#include "Async/MappedFileHandle.h"
+#include "IO/IoDispatcherBackend.h"
+#include "IO/IoDispatcherPrivate.h"
+#include "IO/IoOffsetLength.h"
+#include "Misc/ScopeRWLock.h"
+#include "Misc/CoreDelegates.h"
+#include "Misc/ScopeLock.h"
 #include "ProfilingDebugging/CountersTrace.h"
 #include "ProfilingDebugging/CsvProfiler.h"
-#include "Containers/Ticker.h"
-#include "IO/IoDispatcherBackend.h"
 #include "Templates/Greater.h"
 
 DEFINE_LOG_CATEGORY(LogIoDispatcher);
@@ -51,7 +46,9 @@ static const TCHAR* const GetIoErrorText_ErrorCodeTextArray[] =
 	TEXT("Invalid Parameter"),
 	TEXT("Signature Error"),
 	TEXT("Invalid Encryption Key"),
-	TEXT("Compression Error")
+	TEXT("Compression Error"),
+	TEXT("Pending Fork"),
+	TEXT("Pending Encryption Key")
 };
 
 CORE_API const TCHAR* const* GetIoErrorText_ErrorCodeText = GetIoErrorText_ErrorCodeTextArray;
@@ -81,14 +78,14 @@ public:
 		ChunkTypeToCategoryMap[static_cast<int32>(EIoChunkType::MemoryMappedBulkData)] = &Categories[BulkDataIndex];
 		ChunkTypeToCategoryMap[static_cast<int32>(EIoChunkType::ShaderCode)] = &Categories[ShadersIndex];
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FIoRequestStats::TickCsv));
 #endif
 	}
 
 	~FIoRequestStats()
 	{
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
 #endif
 	}
@@ -152,7 +149,7 @@ private:
 		double TotalRequestsTime = 0.0;
 	};
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	bool TickCsv(float DeltaTime)
 	{
 		CSV_CUSTOM_STAT_DEFINED(PendingIoRequests, static_cast<int32>(PendingIoRequests), ECsvCustomStatOp::Set);
@@ -166,7 +163,7 @@ private:
 #endif
 	TArray<FRequestCategory> Categories;
 	FRequestCategory* ChunkTypeToCategoryMap[static_cast<int32>(EIoChunkType::MAX)];
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	FTSTicker::FDelegateHandle TickerHandle;
 #endif
 };
@@ -336,7 +333,6 @@ public:
 	{
 		RequestAllocator = new FIoRequestAllocator();
 		RequestAllocator->AddRef();
-		DispatcherEvent = FPlatformProcess::GetSynchEventFromPool(false);
 		BackendContext->WakeUpDispatcherThreadDelegate.BindRaw(this, &FIoDispatcherImpl::WakeUpDispatcherThread);
 		BackendContext->bIsMultiThreaded = bInIsMultithreaded;
 		MemoryTrimDelegateHandle = FCoreDelegates::GetMemoryTrimDelegate().AddLambda([this]()
@@ -355,7 +351,6 @@ public:
 		}
 		FCoreDelegates::GetMemoryTrimDelegate().Remove(MemoryTrimDelegateHandle);
 		BackendContext->WakeUpDispatcherThreadDelegate.Unbind();
-		FPlatformProcess::ReturnSynchEventToPool(DispatcherEvent);
 		RequestAllocator->ReleaseRef();
 	}
 
@@ -401,7 +396,7 @@ public:
 		}
 		Request->AddRef();
 		{
-			FScopeLock _(&UpdateLock);
+			UE::TUniqueLock Lock(UpdateMutex);
 			RequestsToCancel.Add(Request);
 		}
 		DispatcherEvent->Trigger();
@@ -415,7 +410,7 @@ public:
 		}
 		Request->AddRef();
 		{
-			FScopeLock _(&UpdateLock);
+			UE::TUniqueLock Lock(UpdateMutex);
 			RequestsToReprioritize.Add(Request);
 		}
 		DispatcherEvent->Trigger();
@@ -582,16 +577,8 @@ public:
 		RequestStats.OnBatchIssued(Batch);
 		
 		{
-			FScopeLock _(&WaitingLock);
-			if (!WaitingRequestsHead)
-			{
-				WaitingRequestsHead = Batch.HeadRequest;
-			}
-			else
-			{
-				WaitingRequestsTail->NextRequest = Batch.HeadRequest;
-			}
-			WaitingRequestsTail = Batch.TailRequest;
+			UE::TUniqueLock Lock(WaitingMutex);
+			WaitingRequests.AddTail(Batch.HeadRequest, Batch.TailRequest);
 		}
 		Batch.HeadRequest = Batch.TailRequest = nullptr;
 		if (BackendContext->bIsMultiThreaded)
@@ -663,7 +650,7 @@ private:
 		FReadScopeLock _(BackendsLock);
 		for (const FBackendAndPriority& Backend : Backends)
 		{
-			FIoRequestImpl* CompletedRequestsHead = Backend.Value->GetCompletedRequests();
+			FIoRequestImpl* CompletedRequestsHead = Backend.Value->GetCompletedIoRequests();
 			while (CompletedRequestsHead)
 			{
 				FIoRequestImpl* NextRequest = CompletedRequestsHead->NextRequest;
@@ -745,32 +732,18 @@ private:
 
 	void ProcessIncomingRequests()
 	{
-		FIoRequestImpl* RequestsToSubmitHead = nullptr;
-		FIoRequestImpl* RequestsToSubmitTail = nullptr;
+		FIoRequestList RequestsToSubmit;
 		//TRACE_CPUPROFILER_EVENT_SCOPE(ProcessIncomingRequests);
 		for (;;)
 		{
 			{
-				FScopeLock _(&WaitingLock);
-				if (WaitingRequestsHead)
-				{
-					if (RequestsToSubmitTail)
-					{
-						RequestsToSubmitTail->NextRequest = WaitingRequestsHead;
-						RequestsToSubmitTail = WaitingRequestsTail;
-					}
-					else
-					{
-						RequestsToSubmitHead = WaitingRequestsHead;
-						RequestsToSubmitTail = WaitingRequestsTail;
-					}
-					WaitingRequestsHead = WaitingRequestsTail = nullptr;
-				}
+				UE::TUniqueLock Lock(WaitingMutex);
+				RequestsToSubmit.AddTail(MoveTemp(WaitingRequests));
 			}
 			TArray<FIoRequestImpl*> LocalRequestsToCancel;
 			TArray<FIoRequestImpl*> LocalRequestsToReprioritize;
 			{
-				FScopeLock _(&UpdateLock);
+				UE::TUniqueLock Lock(UpdateMutex);
 				Swap(LocalRequestsToCancel, RequestsToCancel);
 				Swap(LocalRequestsToReprioritize, RequestsToReprioritize);
 			}
@@ -794,58 +767,71 @@ private:
 				}
 				RequestToRePrioritize->ReleaseRef();
 			}
-			if (!RequestsToSubmitHead)
+			if (RequestsToSubmit.IsEmpty())
 			{
 				return;
 			}
 
-			FIoRequestImpl* Request = RequestsToSubmitHead;
-			RequestsToSubmitHead = RequestsToSubmitHead->NextRequest;
-			Request->NextRequest = nullptr;
+			int32 BatchCount = 0;
+			FIoRequestList Batch;
+			while (FIoRequestImpl* Request = RequestsToSubmit.PopHead())
+			{
+				check(Request->NextRequest == nullptr);
+				RequestStats.OnRequestStarted(*Request);
 
-			if (!RequestsToSubmitHead)
-			{
-				RequestsToSubmitTail = nullptr;
-			}
-
-			RequestStats.OnRequestStarted(*Request);
-			if (Request->bCancelled)
-			{
-				CompleteRequest(Request, EIoErrorCode::Cancelled);
-				Request->ReleaseRef();
-				continue;
-			}
-			
-			// Make sure that the FIoChunkId in the request is valid before we try to do anything with it.
-			if (Request->ChunkId.IsValid())
-			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(ResolveRequest);
-				bool bResolved = false;
-				FReadScopeLock _(BackendsLock);
-				for (const FBackendAndPriority& Backend : Backends)
+				if (Request->bCancelled)
 				{
-					if (Backend.Value->Resolve(Request))
-					{
-						bResolved = true;
-						Request->Backend = &Backend.Value.Get();
-						break;
-					}
+					CompleteRequest(Request, EIoErrorCode::Cancelled);
+					Request->ReleaseRef();
+					continue;
 				}
-				if (!bResolved)
+
+				if (!Request->ChunkId.IsValid())
 				{
 					CompleteRequest(Request, EIoErrorCode::NotFound);
 					Request->ReleaseRef();
 					continue;
 				}
+
+				Batch.AddTail(Request);
+				++BatchCount;
 			}
-			else
+
+			if (BatchCount > 0)
 			{
-				CompleteRequest(Request, EIoErrorCode::InvalidParameter);
-				Request->ReleaseRef();
-				continue;
+				TRACE_CPUPROFILER_EVENT_SCOPE(ResolveRequest);
+				FReadScopeLock _(BackendsLock);
+				
+				FIoRequestList Unresolved;
+				for (const FBackendAndPriority& Backend : Backends)
+				{
+					for (FIoRequestImpl& Request : Batch)
+					{
+						Request.Backend = &Backend.Value.Get();
+					}
+					Backend.Value->ResolveIoRequests(MoveTemp(Batch), Unresolved);
+					Batch = MoveTemp(Unresolved);
+					if (Batch.IsEmpty())
+					{
+						break;
+					}
+				}
+
+				Unresolved = MoveTemp(Batch);
+
+				int32 UnresolvedCount = 0;
+				while (FIoRequestImpl* Request = Unresolved.PopHead())
+				{
+					check(Request->NextRequest == nullptr);
+					Request->Backend = nullptr;
+					CompleteRequest(Request, EIoErrorCode::NotFound);
+					Request->ReleaseRef();
+					UnresolvedCount++;
+				}
+
+				check(UnresolvedCount <= BatchCount);
+				PendingIoRequestsCount += (BatchCount - UnresolvedCount);
 			}
-			
-			++PendingIoRequestsCount;
 		}
 	}
 
@@ -898,11 +884,8 @@ private:
 	FIoRequestAllocator* RequestAllocator = nullptr;
 	FBatchAllocator BatchAllocator;
 	FRunnableThread* Thread = nullptr;
-	FEvent* DispatcherEvent = nullptr;
-	FCriticalSection WaitingLock;
-	FIoRequestImpl* WaitingRequestsHead = nullptr;
-	FIoRequestImpl* WaitingRequestsTail = nullptr;
-	FCriticalSection UpdateLock;
+	FEventRef DispatcherEvent;
+	FIoRequestList WaitingRequests;
 	TArray<FIoRequestImpl*> RequestsToCancel;
 	TArray<FIoRequestImpl*> RequestsToReprioritize;
 	TAtomic<bool> bStopRequested { false };
@@ -911,6 +894,8 @@ private:
 	int64 TotalLoaded = 0;
 	FIoRequestStats RequestStats;
 	bool bIsInitialized = false;
+	UE::FMutex WaitingMutex;
+	UE::FMutex UpdateMutex;
 };
 
 FIoDispatcher::FIoDispatcher()
@@ -976,13 +961,6 @@ FIoSignatureErrorDelegate&
 FIoDispatcher::OnSignatureError()
 {
 	return Impl->OnSignatureError();
-}
-
-static bool
-HasScriptObjectsChunk(FIoDispatcher& Dispatcher)
-{
-	static bool bHasScriptObjectsChunk = Dispatcher.DoesChunkExist(CreateIoChunkId(0, 0, EIoChunkType::ScriptObjects));
-	return bHasScriptObjectsChunk;
 }
 
 bool

@@ -60,7 +60,7 @@ UAvaRundownPageTransition* FAvaRundownPageTransitionBuilder::FindOrAddTransition
 		return PageTransition;
 	}
 		
-	UAvaRundownPageTransition* PageTransition = NewObject<UAvaRundownPageTransition>(Rundown);
+	UAvaRundownPageTransition* PageTransition = UAvaRundownPageTransition::MakeNew(Rundown);
 	if (PageTransition)
 	{
 		PageTransitions.Add(PageTransition);

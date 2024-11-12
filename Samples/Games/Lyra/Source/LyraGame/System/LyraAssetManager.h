@@ -26,7 +26,7 @@ struct FLyraBundles
  *	This class is used by setting 'AssetManagerClassName' in DefaultEngine.ini.
  */
 UCLASS(Config = Game)
-class ULyraAssetManager : public UAssetManager
+class LYRAGAME_API ULyraAssetManager : public UAssetManager
 {
 	GENERATED_BODY()
 

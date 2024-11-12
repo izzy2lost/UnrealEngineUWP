@@ -27,7 +27,7 @@ protected:
 
 	// IInstallBundleSource Interface
 public:
-	virtual EInstallBundleSourceType GetSourceType() const override { return EInstallBundleSourceType::Bulk; }
+	virtual FInstallBundleSourceType GetSourceType() const override;
 	virtual float GetSourceWeight() const override { return 0.1f; }  // Low weight since all this source does in mount
 
 	virtual FInstallBundleSourceInitInfo Init(

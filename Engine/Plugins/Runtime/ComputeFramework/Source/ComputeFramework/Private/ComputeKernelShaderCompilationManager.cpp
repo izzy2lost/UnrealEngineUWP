@@ -105,25 +105,9 @@ void FComputeKernelShaderCompilationManager::ProcessAsyncResults()
 	}
 }
 
-static bool ParseShaderCompilerError(FShaderCompilerError const& InError, FComputeKernelCompileMessage& OutMessage)
+static bool ParseShaderCompilerError(FShaderCompilerError const& InError, bool bInCompilationSucceeded, FComputeKernelCompileMessage& OutMessage)
 {
 	FShaderCompilerError Error = InError;
-	Error.ExtractSourceLocation();
-
-	// We ignore error messages that don't have a line information.
-	FString Line, Column;
-	if (!Error.HasLineMarker())
-	{
-		return false;
-	}
-	if (!Error.ErrorLineString.Split(TEXT(","), &Line, &Column))
-	{
-		return false;
-	}
-	if (!Line.IsNumeric() || !Column.IsNumeric())
-	{
-		return false;
-	}
 
 	if (Error.StrippedErrorMessage.RemoveFromStart(TEXT("error: ")))
 	{
@@ -136,6 +120,11 @@ static bool ParseShaderCompilerError(FShaderCompilerError const& InError, FCompu
 	else if (Error.StrippedErrorMessage.RemoveFromStart(TEXT("note: ")))
 	{
 		OutMessage.Type = FComputeKernelCompileMessage::EMessageType::Info;
+	}
+	else
+	{
+		// General rule for preprocessing errors - if compilation succeeded errors are warnings, otherwise errors.
+		OutMessage.Type = bInCompilationSucceeded ? FComputeKernelCompileMessage::EMessageType::Warning : FComputeKernelCompileMessage::EMessageType::Error;
 	}
 
 	OutMessage.Text = Error.StrippedErrorMessage;
@@ -153,13 +142,41 @@ static bool ParseShaderCompilerError(FShaderCompilerError const& InError, FCompu
 		OutMessage.RealFilePath = GetShaderSourceFilePath(OutMessage.VirtualFilePath);
 	}
 
-	LexFromString(OutMessage.Line, *Line);
-	LexFromString(OutMessage.ColumnStart, *Column);
-	OutMessage.ColumnEnd = OutMessage.ColumnStart;
-	
-	for (TCHAR Character : Error.HighlightedLineMarker)
+	// Populate line and column number strings if available.
+	FString Line, Column;
+	// Check for "line,col" format first.
+	if (!Error.ErrorLineString.Split(TEXT(","), &Line, &Column))
 	{
-		OutMessage.ColumnEnd += (Character == TEXT('~')) ? 1 : 0;
+		// Fall back to "line" which is logged by preprocessor errors.
+		if (Error.ErrorLineString.IsNumeric())
+		{
+			Line = Error.ErrorLineString;
+			Column.Empty();
+		}
+		else
+		{
+			Line.Empty();
+			Column.Empty();
+		}
+	}
+
+	if (Line.IsNumeric())
+	{
+		LexFromString(OutMessage.Line, *Line);
+	}
+
+	if (Column.IsNumeric())
+	{
+		LexFromString(OutMessage.ColumnStart, *Column);
+		OutMessage.ColumnEnd = OutMessage.ColumnStart;
+
+		if (Error.HasLineMarker())
+		{
+			for (TCHAR Character : Error.HighlightedLineMarker)
+			{
+				OutMessage.ColumnEnd += (Character == TEXT('~')) ? 1 : 0;
+			}
+		}
 	}
 
 	return true;
@@ -248,10 +265,13 @@ void FComputeKernelShaderCompilationManager::ProcessCompiledComputeKernelShaderM
 
 				if (GShowComputeKernelShaderWarnings || !CurrentJob.bSucceeded)
 				{
-					for (int32 ErrorIndex = 0; ErrorIndex < CurrentJob.Output.Errors.Num(); ErrorIndex++)
+					TArray<FShaderCompilerError> Errors = CurrentJob.Output.Errors;
+					FShaderCompilerError::ExtractSourceLocations(Errors);
+
+					for (int32 ErrorIndex = 0; ErrorIndex < Errors.Num(); ErrorIndex++)
 					{
 						FComputeKernelCompileMessage Message;
-						if (ParseShaderCompilerError(CurrentJob.Output.Errors[ErrorIndex], Message))
+						if (ParseShaderCompilerError(Errors[ErrorIndex], CurrentJob.Output.bSucceeded, Message))
 						{
 							ProcessedCompileResults.Messages.AddUnique(Message);
 						}

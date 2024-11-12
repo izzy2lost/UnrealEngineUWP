@@ -8,7 +8,6 @@
 #include "Iris/Serialization/NetBitStreamUtil.h"
 #include "Iris/Serialization/NetExportContext.h"
 #include "Iris/ReplicationSystem/NetExports.h"
-#include "Iris/ReplicationSystem/NetTokenStoreState.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
 #include "Iris/Core/IrisLog.h"
@@ -60,21 +59,19 @@ void UNetTokenDataStream::Init(const FInitParameters& Params)
 
 	ReplicationSystemId = Params.ReplicationSystemId;
 	ConnectionId = Params.ConnectionId;
-	RemoteNetTokenStoreState = Params.RemoteTokenStoreState;
 	NetExports = Params.NetExports;
 
 	UReplicationSystem* ReplicationSystem = UE::Net::GetReplicationSystem(ReplicationSystemId);
-	NetTokenStore = &ReplicationSystem->GetReplicationSystemInternal()->GetNetTokenStore();
+	NetTokenStore = ReplicationSystem->GetNetTokenStore();
+	RemoteNetTokenStoreState = NetTokenStore->GetRemoteNetTokenStoreState(Params.ConnectionId);
 
 	// $IRIS $TODO: if we want to make this into a real feature we need to expose some sort of api to mark tokens for pre-export
 	if (Private::bIrisPreExportExistingNetTokensOnConnect)
 	{
-		// Grab all existing tokens and add them for pre-export
-		const uint32 LocalTokenCount = NetTokenStore->GetLocalNetTokenStoreState()->TokenInfos.Num();	
-		NetTokensPendingExport.Reserve(LocalTokenCount - 1);
-		for (uint32 Index = 1; Index < LocalTokenCount; ++Index)
+		TArray<FNetToken> Tokens(NetTokenStore->GetAllNetTokens());
+		for (const FNetToken& Token : Tokens)
 		{
-			NetTokensPendingExport.Add(FNetToken::MakeNetToken(Index));
+			NetTokensPendingExport.Add(Token);
 		}
 	}
 }
@@ -103,8 +100,7 @@ UDataStream::EWriteResult UNetTokenDataStream::WriteData(UE::Net::FNetSerializat
 		return EWriteResult::NoData;
 	}
 
-	UReplicationSystem* ReplicationSystem = UE::Net::GetReplicationSystem(ReplicationSystemId);
-	const FStringTokenStore* StringTokenStore = ReplicationSystem->GetStringTokenStore();
+	const FStringTokenStore* StringTokenStore = NetTokenStore->GetDataStore<const FStringTokenStore>();
 	FNetExportContext* ExportContext = Context.GetExportContext();
 
 	// Write data until we have no more data to write or it does not fit
@@ -116,6 +112,7 @@ UDataStream::EWriteResult UNetTokenDataStream::WriteData(UE::Net::FNetSerializat
 	FNetBitStreamWriter SubStream = Writer->CreateSubstream(Writer->GetBitsLeft() - 1U);
 	FNetSerializationContext SubContext = Context.MakeSubContext(&SubStream);
 
+	const bool bIsNetTokenAuthority = NetTokenStore->IsAuthority();
 	while (NetTokensPendingExport.Num())
 	{
 		FNetBitStreamRollbackScope SequenceRollback(SubStream);
@@ -124,12 +121,13 @@ UDataStream::EWriteResult UNetTokenDataStream::WriteData(UE::Net::FNetSerializat
 		// Peek at front index
 		const FNetToken& Token = NetTokensPendingExport.GetAtIndexNoCheck(0);
 
-		if (!ExportContext->IsExported(Token))
+		// We do not need to export tokens assigned by authority unless we are the authority.
+		if (!(Token.IsAssignedByAuthority() && !bIsNetTokenAuthority) && !ExportContext->IsExported(Token))
 		{
 			UE_NET_TRACE_NAMED_SCOPE(ExportScope, NetTokenExport, SubStream, SubContext.GetTraceCollector(), ENetTraceVerbosity::Verbose);
 
 			SubStream.WriteBool(true);
-			WriteNetToken(&SubStream, Token);
+			NetTokenStore->WriteNetToken(SubContext, Token);
 			NetTokenStore->WriteTokenData(SubContext, Token);
 
 			if (SubStream.IsOverflown())
@@ -199,11 +197,8 @@ void UNetTokenDataStream::ReadData(UE::Net::FNetSerializationContext& Context)
 			break;
 		}
 
-		FNetToken Token = ReadNetToken(Reader);
-		if (Token.IsValid())
-		{
-			NetTokenStore->ReadTokenData(Context, Token, *RemoteNetTokenStoreState);
-		}
+		FNetToken Token = NetTokenStore->ReadNetToken(Context);
+		NetTokenStore->ReadTokenData(Context, Token, *RemoteNetTokenStoreState);
 	}
 }
 
@@ -231,4 +226,9 @@ void UNetTokenDataStream::ProcessPacketDeliveryStatus(UE::Net::EPacketDeliverySt
 			--RecordCount;
 		}
 	}
+}
+
+bool UNetTokenDataStream::HasAcknowledgedAllReliableData() const
+{
+	return NetTokensPendingExport.Num() == 0 && NetTokenExports.Num() == 0;
 }

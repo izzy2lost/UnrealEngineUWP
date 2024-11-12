@@ -41,7 +41,7 @@ namespace UE::ConcertSharedSlate
 
 		virtual IReplicationStreamEditor& GetEditorBase() const override { return *EditorView; }
 		virtual IEditableMultiReplicationStreamModel& GetMultiStreamModel() const override { return *MultiStreamModel; }
-		virtual IReplicationStreamModel& GetConsolidatedModel() const override { return *ConsolidatedModel; }
+		virtual IEditableReplicationStreamModel& GetConsolidatedModel() const override { return *ConsolidatedModel; }
 
 	private:
 

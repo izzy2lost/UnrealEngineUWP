@@ -84,6 +84,19 @@ namespace Metasound
 				return NumFramesPerBlock;
 			}
 
+			/** Convert to human readable string. */
+			FString ToString() const;
+
+			METASOUNDGRAPHCORE_API friend bool operator<(const FOperatorSettings& InLHS, const FOperatorSettings& InRHS);
+			METASOUNDGRAPHCORE_API friend bool operator==(const FOperatorSettings& InLHS, const FOperatorSettings& InRHS);
+
+			friend FORCEINLINE uint32 GetTypeHash(const FOperatorSettings& InSettings)
+			{
+				// Ignore TargetBlockRate in comparison because it is not used in any external calculations
+				// Ignore ActualBlockRate because it is derived from NumFramesPerBlock
+				return HashCombineFast(GetTypeHash(InSettings.SampleRate), GetTypeHash(InSettings.NumFramesPerBlock));
+			}
+
 		private:
 			// Update actual block rate and frames per block.
 			void Update();

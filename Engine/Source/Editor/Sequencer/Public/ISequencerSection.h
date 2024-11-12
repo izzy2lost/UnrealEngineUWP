@@ -31,10 +31,12 @@ class ISequencer;
 class ISequencerSection;
 class ISequencerTrackEditor;
 class SWidget;
+class SOverlay;
 struct FGeometry;
 struct FKeyHandle;
 struct FPointerEvent;
 struct FSlateBrush;
+struct FTimeToPixel;
 template <typename ElementType> class TRange;
 struct FMovieSceneChannelMetaData;
 
@@ -42,7 +44,31 @@ namespace UE::Sequencer
 {
 	class FCategoryModel;
 	class FChannelModel;
+	class FSectionModel;
+	class STrackLane;
+	class STrackAreaView;
 	struct FViewDensityInfo;
+
+	struct ISectionView
+	{
+		virtual ~ISectionView()
+		{}
+
+		virtual TSharedRef<FTimeToPixel> GetTimeToPixel() const = 0;
+	};
+
+	struct FCreateSectionViewWidgetParams
+	{
+		static constexpr int32 CompoundTrackLaneViewOrder = 0;
+		static constexpr int32 DefaultWidgetOrder = 10;
+		static constexpr int32 ChannelViewOrder = 20;
+
+		TSharedRef<SOverlay> Overlay;
+		TSharedRef<ISectionView> SectionView;
+		TSharedRef<STrackLane> TrackLane;
+		TSharedRef<STrackAreaView> TrackAreaView;
+		TSharedRef<FSectionModel> SectionModel;
+	};
 }
 
 /** Enumerates which edge is being resized */
@@ -75,15 +101,15 @@ namespace SequencerSectionConstants
  */
 struct FSequencerSectionPropertyDetailsViewCustomizationParams
 {
-	FSequencerSectionPropertyDetailsViewCustomizationParams(TSharedRef<ISequencerSection> InSectionInterface, TSharedRef<ISequencer> InSequencer, ISequencerTrackEditor& InTrackEditor)
+	FSequencerSectionPropertyDetailsViewCustomizationParams(TSharedRef<ISequencerSection> InSectionInterface, TWeakPtr<ISequencer> InSequencerWeak, ISequencerTrackEditor& InTrackEditor)
 		: SectionInterface(InSectionInterface)
-		, Sequencer(InSequencer)
+		, SequencerWeak(InSequencerWeak)
 		, TrackEditor(InTrackEditor)
 	{}
 
 	FGuid ParentObjectBindingGuid;
 	TSharedRef<ISequencerSection> SectionInterface;
-	TSharedRef<ISequencer> Sequencer;
+	TWeakPtr<ISequencer> SequencerWeak;
 	ISequencerTrackEditor& TrackEditor;
 };
 
@@ -124,6 +150,11 @@ public:
 	 * @return The generated widget 
 	 */
 	virtual TSharedRef<SWidget> GenerateSectionWidget() { return SNullWidget::NullWidget; }
+
+	/**
+	 * Create view widgets for the section by adding the necessary widgets to the overlay widget
+	 */
+	SEQUENCER_API virtual void CreateViewWidgets(const UE::Sequencer::FCreateSectionViewWidgetParams& Params);
 
 	/**
 	 * Called when the section is double clicked
@@ -187,7 +218,7 @@ public:
 	/**
 	 * Create a custom channel model
 	 */
-	virtual TSharedPtr<UE::Sequencer::FChannelModel> ConstructChannelModel(FName InCategoryName, const FMovieSceneChannelHandle& InChannelHandle) const { return nullptr; }
+	virtual TSharedPtr<UE::Sequencer::FChannelModel> ConstructChannelModel(FName InChannelName, const FMovieSceneChannelHandle& InChannelHandle) const { return nullptr; }
 
 	/**
 	 * @return The height of the section
@@ -234,6 +265,17 @@ public:
 	 * @param ObjectBinding The object guid bound to this section
 	 */
 	virtual void BuildSectionContextMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding) {}
+
+	/**
+	 * Builds up the section sidebar menu for the outliner
+	 *
+	 * @param MenuBuilder	The menu builder to change
+	 * @param ObjectBinding The object guid bound to this section
+	 */
+	virtual void BuildSectionSidebarMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding)
+	{
+		BuildSectionContextMenu(MenuBuilder, ObjectBinding);
+	}
 
 	/**
 	 * Called when the user requests that a category from this section be deleted. 

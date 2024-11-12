@@ -29,12 +29,12 @@ FNiagaraEmitterHandle::FNiagaraEmitterHandle(UNiagaraEmitter& InEmitter, const F
 	, Id(FGuid::NewGuid())
 	, IdName(*Id.ToString())
 	, bIsEnabled(true)
+	, EmitterMode(ENiagaraEmitterMode::Standard)
 	, Source_DEPRECATED(nullptr)
 	, LastMergedSource_DEPRECATED(nullptr)
 	, bIsolated(false)
 	, Instance_DEPRECATED(nullptr)
 	, VersionedInstance(FVersionedNiagaraEmitter(&InEmitter, Version))
-	, EmitterMode(ENiagaraEmitterMode::Standard)
 {
 }
 
@@ -43,12 +43,12 @@ FNiagaraEmitterHandle::FNiagaraEmitterHandle(const FVersionedNiagaraEmitter& InE
 	, Id(FGuid::NewGuid())
 	, IdName(*Id.ToString())
 	, bIsEnabled(true)
+	, EmitterMode(ENiagaraEmitterMode::Standard)
 	, Source_DEPRECATED(nullptr)
 	, LastMergedSource_DEPRECATED(nullptr)
 	, bIsolated(false)
 	, Instance_DEPRECATED(nullptr)
 	, VersionedInstance(InEmitter)
-	, EmitterMode(ENiagaraEmitterMode::Standard)
 {
 }
 
@@ -58,12 +58,12 @@ FNiagaraEmitterHandle::FNiagaraEmitterHandle(UNiagaraStatelessEmitter& InEmitter
 	, Id(FGuid::NewGuid())
 	, IdName(*Id.ToString())
 	, bIsEnabled(true)
+	, EmitterMode(ENiagaraEmitterMode::Stateless)
 	, Source_DEPRECATED(nullptr)
 	, LastMergedSource_DEPRECATED(nullptr)
 	, bIsolated(false)
 	, Instance_DEPRECATED(nullptr)
 	, StatelessEmitter(&InEmitter)
-	, EmitterMode(ENiagaraEmitterMode::Stateless)
 {
 }
 //-TODO:Stateless
@@ -168,7 +168,33 @@ bool FNiagaraEmitterHandle::SetIsEnabled(bool bInIsEnabled, UNiagaraSystem& InOw
 	return false;
 }
 
+bool FNiagaraEmitterHandle::IsAllowedByScalability() const
+{
+	if (EmitterMode == ENiagaraEmitterMode::Standard)
+	{
+		FVersionedNiagaraEmitterData* EmitterData = VersionedInstance.GetEmitterData();
+		return EmitterData ? EmitterData->IsAllowedByScalability() : false;
+	}
+	else
+	{
+		return StatelessEmitter ? StatelessEmitter->IsAllowedByScalability() : false;
+	}
+}
+
 #if WITH_EDITORONLY_DATA
+bool FNiagaraEmitterHandle::IsEnabledOnEffectQualityLevel(int32 QualityLevel) const
+{
+	if (EmitterMode == ENiagaraEmitterMode::Standard)
+	{
+		FVersionedNiagaraEmitterData* EmitterData = VersionedInstance.GetEmitterData();
+		return EmitterData ? EmitterData->Platforms.IsEffectQualityEnabled(QualityLevel) : false;
+	}
+	else
+	{
+		return StatelessEmitter ? StatelessEmitter->GetPlatformSet().IsEffectQualityEnabled(QualityLevel) : false;
+	}
+}
+
 void FNiagaraEmitterHandle::SetEmitterMode(UNiagaraSystem& InOwningSystem, ENiagaraEmitterMode InEmitterMode)
 {
 	if (EmitterMode != InEmitterMode)
@@ -262,7 +288,7 @@ void FNiagaraEmitterHandle::ConditionalPostLoad(int32 NiagaraCustomVersion)
 			{
 				LastMergedSource_DEPRECATED->ConditionalPostLoad();
 				EmitterData->VersionedParentAtLastMerge = FVersionedNiagaraEmitter(LastMergedSource_DEPRECATED, LastMergedSource_DEPRECATED->GetExposedVersion().VersionGuid);
-				EmitterData->VersionedParentAtLastMerge.Emitter->Rename(nullptr, InstanceEmitter, REN_ForceNoResetLoaders);
+				EmitterData->VersionedParentAtLastMerge.Emitter->Rename(nullptr, InstanceEmitter);
 				LastMergedSource_DEPRECATED = nullptr;
 			}
 		}

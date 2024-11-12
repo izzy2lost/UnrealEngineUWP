@@ -116,6 +116,9 @@ protected:
 	virtual const FSlateBrush* GetNameIcon() const override;
 	virtual EVisibility GetBlueprintIconVisibility() const;
 
+	FText GetRuntimeDescription() const;
+	EVisibility GetRuntimeDescriptionVisibility() const;
+
 	/** Get the visibility of the index overlay */
 	EVisibility GetIndexVisibility() const;
 

@@ -497,7 +497,7 @@ public:
 
 	FString UsageStats() const
 	{
-		return FString::Printf(TEXT("RefCountSize %llu  FreeSize %llu  FreeMem %llukb"),
+		return FString::Printf(TEXT("RefCountSize %zu  FreeSize %zu  FreeMem %zukb"),
 			RefCounts.GetLength(), FreeIndices.GetLength(), (FreeIndices.GetByteCount() / 1024));
 	}
 

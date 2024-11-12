@@ -85,8 +85,10 @@ struct FNetObjectPrioritizerInitParams
 	TObjectPtr<const UReplicationSystem> ReplicationSystem;
 	/** Optional config as set in the FNetObjectPrioritizerDefinition. */
 	UNetObjectPrioritizerConfig* Config = nullptr;
-	/** The maximum number of objects in the system. */
-	uint32 MaxObjectCount = 0;
+	/** The maximum number of replicated objects in the system. */
+	uint32 AbsoluteMaxNetObjectCount = 0;
+	/** The current maximum replicated objects referenced by an index (may grow at runtime). */
+	uint32 CurrentMaxInternalIndex = 0;
 	/** The maximum number of connections in the system. */
 	uint32 MaxConnectionCount = 0;
 };
@@ -144,6 +146,12 @@ class UNetObjectPrioritizer : public UObject
 public:
 	/** Called once at init time before any other calls to the prioritizer. */
 	IRISCORE_API virtual void Init(FNetObjectPrioritizerInitParams& Params) PURE_VIRTUAL(Init,)
+
+	/** Called when the replication system is shutting down. Use this to remove references to other systems */
+	IRISCORE_API virtual void Deinit() PURE_VIRTUAL(Deinit)
+
+	/** Called when the maximum InternalNetRefIndex increased and we need to realloc our lists */
+	IRISCORE_API virtual void OnMaxInternalNetRefIndexIncreased(uint32 NewMaxInternalIndex) PURE_VIRTUAL(OnMaxInternalNetRefIndexIncreased);
 
 	/** A new connection has been added. An opportunity for the prioritizer to allocate per connection info. */
 	IRISCORE_API virtual void AddConnection(uint32 ConnectionId);

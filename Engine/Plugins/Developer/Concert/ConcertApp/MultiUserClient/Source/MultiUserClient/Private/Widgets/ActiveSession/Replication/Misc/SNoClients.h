@@ -8,7 +8,7 @@
 
 #define LOCTEXT_NAMESPACE "SNoClients"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/** Special widget that indicates no clients in widgets that list clients, like ownership reassignment combo box. */
 	class SNoClients : public SCompoundWidget

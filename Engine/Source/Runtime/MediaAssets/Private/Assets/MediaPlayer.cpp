@@ -35,6 +35,8 @@
 
 FLazyName UMediaPlayer::MediaInfoNameSourceNumMips(TEXT("SourceNumMips"));
 FLazyName UMediaPlayer::MediaInfoNameSourceNumTiles(TEXT("SourceNumTiles"));
+FLazyName UMediaPlayer::MediaInfoNameStartTimecodeValue(TEXT("StartTimecodeValue"));
+FLazyName UMediaPlayer::MediaInfoNameStartTimecodeFrameRate(TEXT("StartTimecodeFrameRate"));
 
 /* UMediaPlayer structors
  *****************************************************************************/
@@ -396,6 +398,12 @@ UMediaTimeStampInfo* UMediaPlayer::GetDisplayTimeStamp() const
 	return TimeStampInfo;
 }
 
+TOptional<FTimecode> UMediaPlayer::GetVideoTimecode() const
+{
+	return PlayerFacade->GetVideoTimecode();
+}
+
+
 FText UMediaPlayer::GetTrackDisplayName(EMediaPlayerTrack TrackType, int32 TrackIndex) const
 {
 	return PlayerFacade->GetTrackDisplayName((EMediaTrackType)TrackType, TrackIndex);
@@ -532,7 +540,6 @@ bool UMediaPlayer::IsClosed() const
 
 bool UMediaPlayer::IsReady() const
 {
-	UE_LOG(LogMediaAssets, VeryVerbose, TEXT("%s.IsReady"), *GetFName().ToString());
 	return PlayerFacade->IsReady();
 }
 
@@ -1397,7 +1404,10 @@ void UMediaPlayer::OpenSourceLatent(const UObject* WorldContextObject, FLatentAc
 FMediaPlayerProxy::FMediaPlayerProxy(UMediaPlayer* Player)
 {
 	PlayerFacade = Player->GetPlayerFacade();
+	TypeHash = GetTypeHash(Player);
 }
+
+FMediaPlayerProxy::FMediaPlayerProxy(const FMediaPlayerProxy& Other) = default;
 
 FMediaPlayerProxy::~FMediaPlayerProxy()
 {

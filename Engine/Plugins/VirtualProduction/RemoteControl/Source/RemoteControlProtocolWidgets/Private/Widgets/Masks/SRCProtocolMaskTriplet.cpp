@@ -30,6 +30,7 @@ const TSet<UScriptStruct*>& FRemoteControlProtocolMasking::GetOptionalMaskStruct
 {
 	static TSet<UScriptStruct*> OptionalMaskStructs = {
 		TBaseStructure<FLinearColor>::Get(),
+		TBaseStructure<FColor>::Get(),
 		TBaseStructure<FVector4>::Get(),
 		TBaseStructure<FQuat>::Get(),
 		TBaseStructure<FIntVector4>::Get()

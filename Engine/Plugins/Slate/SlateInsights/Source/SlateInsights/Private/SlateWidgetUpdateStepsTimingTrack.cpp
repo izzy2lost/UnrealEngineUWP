@@ -6,7 +6,10 @@
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/ViewModels/TimingTrackViewport.h"
 #include "Insights/ViewModels/TimingEvent.h"
 #include "Insights/ViewModels/TooltipDrawState.h"
@@ -179,18 +182,18 @@ void FSlateWidgetUpdateStepsTimingTrack::InitTooltip(FTooltipDrawState& InOutToo
 	if (const Message::FWidgetInfo* WigetInfo = SlateProvider->FindWidget(Event.WidgetPaint.WidgetId))
 	{
 		InOutTooltip.AddTitle(FString::Printf(TEXT("Paint: %s"), *WigetInfo->DebugInfo));
-		InOutTooltip.AddNameValueTextLine(TEXT("Start Time:"), TimeUtils::FormatTimeAuto(InTooltipEvent.GetStartTime(), 6));
-		InOutTooltip.AddNameValueTextLine(TEXT("End Time:"), TimeUtils::FormatTimeAuto(InTooltipEvent.GetEndTime(), 6));
-		InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), TimeUtils::FormatTimeAuto(InTooltipEvent.GetDuration()));
+		InOutTooltip.AddNameValueTextLine(TEXT("Start Time:"), UE::Insights::FormatTimeAuto(InTooltipEvent.GetStartTime(), 6));
+		InOutTooltip.AddNameValueTextLine(TEXT("End Time:"), UE::Insights::FormatTimeAuto(InTooltipEvent.GetEndTime(), 6));
+		InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), UE::Insights::FormatTimeAuto(InTooltipEvent.GetDuration()));
 		InOutTooltip.AddNameValueTextLine(TEXT("Widget Id:"), FText::AsNumber(WigetInfo->WidgetId.GetValue()).ToString());
 		InOutTooltip.AddNameValueTextLine(TEXT("Widget Path:"), WigetInfo->Path);
 	}
 	else
 	{
 		InOutTooltip.AddTitle(TEXT("Paint: -"));
-		InOutTooltip.AddNameValueTextLine(TEXT("Start Time:"), TimeUtils::FormatTimeAuto(InTooltipEvent.GetStartTime(), 6));
-		InOutTooltip.AddNameValueTextLine(TEXT("End Time:"), TimeUtils::FormatTimeAuto(InTooltipEvent.GetEndTime(), 6));
-		InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), TimeUtils::FormatTimeAuto(InTooltipEvent.GetDuration()));
+		InOutTooltip.AddNameValueTextLine(TEXT("Start Time:"), UE::Insights::FormatTimeAuto(InTooltipEvent.GetStartTime(), 6));
+		InOutTooltip.AddNameValueTextLine(TEXT("End Time:"), UE::Insights::FormatTimeAuto(InTooltipEvent.GetEndTime(), 6));
+		InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), UE::Insights::FormatTimeAuto(InTooltipEvent.GetDuration()));
 		InOutTooltip.AddNameValueTextLine(TEXT("Widget Id:"), FText::AsNumber(Event.WidgetPaint.WidgetId.GetValue()).ToString());
 	}
 
@@ -235,7 +238,7 @@ void FSlateWidgetUpdateStepsTimingTrack::BuildContextMenu(FMenuBuilder& InOutMen
 				);
 			InOutMenuBuilder.AddMenuEntry(
 				LOCTEXT("HideChildEvent", "Hide Short Child Events"),
-				LOCTEXT("HideChildTooltip", "Show/Hide child events that are too short to be displed properly."),
+				LOCTEXT("HideChildTooltip", "Show/Hide child events that are too short to be displayed properly."),
 				FSlateIcon(),
 				FUIAction(
 					FExecuteAction::CreateSP(this, &FSlateWidgetUpdateStepsTimingTrack::ToggleShowChildWhenTrackIsTooSmall),

@@ -12,6 +12,7 @@ LandscapeLight.cpp: Static lighting for LandscapeComponents
 #include "LightMap.h"
 #include "Engine/Level.h"
 #include "Engine/MapBuildDataRegistry.h"
+#include "StaticLightingBuildContext.h"
 #include "Components/LightComponent.h"
 #include "ShadowMap.h"
 #include "LandscapeComponent.h"
@@ -44,7 +45,31 @@ FStaticLightingTextureMapping(
 {
 }
 
-void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, ULevel* LightingScenario)
+FLandscapeStaticLightingGlobalVolumeMapping::FLandscapeStaticLightingGlobalVolumeMapping(ULandscapeComponent* InComponent,FStaticLightingMesh* InMesh,int32 InLightMapWidth,int32 InLightMapHeight,bool bPerformFullQualityRebuild) :	
+	FLandscapeStaticLightingTextureMapping(InComponent, InMesh, InLightMapWidth, InLightMapHeight, bPerformFullQualityRebuild)
+{}
+
+FLandscapeStaticLightingTextureMapping::FLandscapeStaticLightingTextureMapping(const FArchive& Ar)
+	: FStaticLightingTextureMapping(Ar), 
+	  LandscapeComponent(nullptr)
+{
+}
+
+void FLandscapeStaticLightingTextureMapping::Serialize(FArchive& Ar)
+{
+	FStaticLightingTextureMapping::Serialize(Ar);
+
+	FSoftObjectPath LandscapePath;
+	if (LandscapeComponent)
+	{
+		LandscapePath = FSoftObjectPath(LandscapeComponent);
+	}
+	Ar << LandscapePath;
+	LandscapeComponent = Cast<ULandscapeComponent>(LandscapePath.ResolveObject());
+	
+}
+
+void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, const FStaticLightingBuildContext* LightingContext)
 {
 	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTexturedLightmaps"));
 	const bool bUseVirtualTextures = (CVar->GetValueOnAnyThread() != 0) && UseVirtualTexturing(GMaxRHIShaderPlatform);
@@ -52,8 +77,7 @@ void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* Quant
 	//ELightMapPaddingType PaddingType = GAllowLightmapPadding ? LMPT_NormalPadding : LMPT_NoPadding;
 	ELightMapPaddingType PaddingType = LMPT_NoPadding;
 
-	ULevel* StorageLevel = LightingScenario ? LightingScenario : LandscapeComponent->GetOwner()->GetLevel();
-	UMapBuildDataRegistry* Registry = StorageLevel->GetOrCreateMapBuildData();
+	UMapBuildDataRegistry* Registry = LightingContext->GetOrCreateRegistryForActor(LandscapeComponent->GetOwner());
 	FMeshMapBuildData& MeshBuildData = Registry->AllocateMeshBuildData(LandscapeComponent->MapBuildDataId, true);
 
 	const bool bHasNonZeroData = QuantizedData != NULL && QuantizedData->HasNonZeroData();
@@ -61,7 +85,7 @@ void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* Quant
 	// We always create a light map if the surface either has any non-zero lighting data, or if the surface has a shadow map.  The runtime
 	// shaders are always expecting a light map in the case of a shadow map, even if the lighting is entirely zero.  This is simply to reduce
 	// the number of shader permutations to support in the very unlikely case of a unshadowed surfaces that has lighting values of zero.
-	const bool bNeedsLightMap = bHasNonZeroData || ShadowMapData.Num() > 0 || Mesh->RelevantLights.Num() > 0 || (QuantizedData != NULL && QuantizedData->bHasSkyShadowing);
+	const bool bNeedsLightMap = bHasNonZeroData || ShadowMapData.Num() > 0 || Mesh->RelevantLightsGuid.Num() > 0 || (QuantizedData != NULL && QuantizedData->bHasSkyShadowing);
 	if (bNeedsLightMap)
 	{
 		// Create a light-map for the primitive.
@@ -105,17 +129,17 @@ void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* Quant
 	
 	// Build the list of statically irrelevant lights.
 	// TODO: This should be stored per LOD.
-	for (int32 LightIndex = 0; LightIndex < Mesh->RelevantLights.Num(); LightIndex++)
+	for (int32 LightIndex = 0; LightIndex < Mesh->RelevantLightsGuid.Num(); LightIndex++)
 	{
-		const ULightComponent* Light = Mesh->RelevantLights[LightIndex];
+		FGuid LightGuid = Mesh->RelevantLightsGuid[LightIndex];
 
 		// Check if the light is stored in the light-map.
-		const bool bIsInLightMap = MeshBuildData.LightMap && MeshBuildData.LightMap->LightGuids.Contains(Light->LightGuid);
+		const bool bIsInLightMap = MeshBuildData.LightMap && MeshBuildData.LightMap->LightGuids.Contains(LightGuid);
 
 		// Add the light to the statically irrelevant light list if it is in the potentially relevant light list, but didn't contribute to the light-map.
 		if(!bIsInLightMap)
 		{
-			MeshBuildData.IrrelevantLights.AddUnique(Light->LightGuid);
+			MeshBuildData.IrrelevantLights.AddUnique(LightGuid);
 		}
 	}
 }
@@ -149,7 +173,8 @@ FLandscapeStaticLightingMesh::FLandscapeStaticLightingMesh(ULandscapeComponent* 
 		InRelevantLights,
 		InComponent,
 		InComponent->Bounds.GetBox(),
-		InComponent->GetLightingGuid()
+		InComponent->GetLightingGuid(),
+		InComponent->MapBuildDataId
 	)
 	, LandscapeComponent(InComponent)
 	, LightMapRatio(InLightMapRatio)
@@ -658,7 +683,7 @@ FLightRayIntersection FLandscapeStaticLightingMesh::IntersectLightRay(const FVec
 	const bool bIntersects = LandscapeComponent->LineTraceComponent( Result, Start, End, NewTraceParams );
 
 	// Setup a vertex to represent the intersection.
-	FStaticLightingVertex IntersectionVertex;
+	FStaticLightingVertex IntersectionVertex = {};
 	if(bIntersects)
 	{
 		IntersectionVertex.WorldPosition = Result.Location;
@@ -692,9 +717,17 @@ void ULandscapeComponent::GetStaticLightingInfo(FStaticLightingPrimitiveInfo& Ou
 		{
 			FLandscapeStaticLightingMesh* StaticLightingMesh = new FLandscapeStaticLightingMesh(this, InRelevantLights, PatchExpandCountX, PatchExpandCountY, LightMapRatio, LightingLOD);
 			OutPrimitiveInfo.Meshes.Add(StaticLightingMesh);
-			// Create a static lighting texture mapping
-			OutPrimitiveInfo.Mappings.Add(new FLandscapeStaticLightingTextureMapping(
-				this,StaticLightingMesh,SizeX,SizeY,true));
+			if (GetLightmapType() == ELightmapType::ForceVolumetric)
+			{
+				OutPrimitiveInfo.Mappings.Add(new FLandscapeStaticLightingGlobalVolumeMapping(
+					this,StaticLightingMesh,SizeX,SizeY,true));
+			}
+			else
+			{
+				// Create a static lighting texture mapping
+				OutPrimitiveInfo.Mappings.Add(new FLandscapeStaticLightingTextureMapping(
+					this,StaticLightingMesh,SizeX,SizeY,true));
+			}
 		}
 	}
 }

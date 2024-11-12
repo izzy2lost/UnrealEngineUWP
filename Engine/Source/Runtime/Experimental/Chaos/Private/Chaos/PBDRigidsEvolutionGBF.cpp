@@ -27,6 +27,10 @@
 
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 
+#include "ChaosDebugDraw/ChaosDDContext.h"
+#include "ChaosDebugDraw/ChaosDDScene.h"
+#include "ChaosDebugDraw/ChaosDDTimeline.h"
+
 //UE_DISABLE_OPTIMIZATION
 
 namespace Chaos
@@ -133,6 +137,8 @@ namespace Chaos
 		int32 ChaosOneWayInteractionPairCollisionMode = (int32)EOneWayInteractionPairCollisionMode::SphereCollision;
 		FAutoConsoleVariableRef CVarChaosIgnoreOneWayPairCollisions(TEXT("p.Chaos.Solver.OneWayPairCollisionMode"), ChaosOneWayInteractionPairCollisionMode, TEXT("How to treat collisions between two one-way interaction particles. See EOneWayInteractionPairCollisionMode (0: Ignore collisions; 1: Collide as normal; 2: Collide as spheres)"));
 
+		bool bChaosRigids_UseSimdForJointsSolver = true;
+		FAutoConsoleVariableRef  CVarChaosImmPhysUseSimdForLinearSolver(TEXT("p.Chaos.Solver.Joint.UseSimd"), bChaosRigids_UseSimdForJointsSolver, TEXT("Enable/Disable SIMD on the linear joint solver"));
 
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::AdvanceOneTimeStep"), STAT_Evolution_AdvanceOneTimeStep, STATGROUP_Chaos);
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::UnclusterUnions"), STAT_Evolution_UnclusterUnions, STATGROUP_Chaos);
@@ -358,6 +364,11 @@ void FPBDRigidsEvolutionGBF::Advance(const FReal Dt,const FReal MaxStepDt,const 
 
 void FPBDRigidsEvolutionGBF::AdvanceOneTimeStep(const FReal Dt,const FSubStepInfo& SubStepInfo)
 {	
+#if CHAOS_DEBUG_DRAW
+	// @todo(chaos): will need the time when historical debug draw is supported
+	ChaosDD::Private::FChaosDDScopeTimelineContext DDContext(CDDTickTimeline, 0.0f, Dt);
+#endif
+
 	PrepareTick();
 
 	AdvanceOneTimeStepImpl(Dt, SubStepInfo);
@@ -365,35 +376,85 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStep(const FReal Dt,const FSubStepInf
 	UnprepareTick();
 }
 
+#if CHAOS_DEBUG_DRAW
+void FPBDRigidsEvolutionGBF::SetDebugDrawScene(const ChaosDD::Private::FChaosDDScenePtr& InCDDScene)
+{
+	CDDScene = InCDDScene;
+	CDDTickTimeline.Reset();
+
+	if (CDDScene.IsValid())
+	{
+		CDDTickTimeline = CDDScene->CreateTimeline(FString::Format(TEXT("{0} {1}"), { CDDScene->GetName(), "Physics Tick" }));
+	}
+}
+#endif
+
 void FPBDRigidsEvolutionGBF::ReloadParticlesCache()
 {
-	
-	// @todo(chaos): Parallelize
 	FEvolutionResimCache* ResimCache = GetCurrentStepResimCache();
 	if ((ResimCache != nullptr) && ResimCache->IsResimming())
 	{
-		for (int32 IslandIndex = 0; IslandIndex < GetIslandManager().GetNumIslands(); ++IslandIndex)
+		// Helper function to set particle state
+		auto ResimHelper = [this, ResimCache](auto Particle) -> bool
 		{
-			Private::FPBDIsland* Island = GetIslandManager().GetIsland(IslandIndex);
-			bool bIsUsingCache = false;
-			if (!Island->IsSleeping() && !Island->NeedsResim())
+			const bool bParticleAltered = ResimCache->ReloadParticlePostSolve(*Particle->Handle());
+
+			if (bParticleAltered)
 			{
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-				if (Chaos::FPhysicsSolverBase::IsNetworkPhysicsPredictionEnabled() && Chaos::FPhysicsSolverBase::CanDebugNetworkPhysicsPrediction())
+				TArray<const Private::FPBDIsland*> Islands = GetIslandManager().FindParticleIslands(Particle->Handle());
+				for (const Private::FPBDIsland* Island : Islands)
 				{
-					UE_LOG(LogChaos, Log, TEXT("Reloading Island[%d] cache for %d particles"), IslandIndex, Island->GetParticles().Num());
-				}
-#endif
-				for (Private::FPBDIslandParticle* IslandParticle : Island->GetParticles())
-				{
-					if (auto Rigid = IslandParticle->GetParticle()->CastToRigidParticle())
+					if (Island && !Island->IsUsingCache() && !Island->NeedsResim())
 					{
-						ResimCache->ReloadParticlePostSolve(*Rigid);
+						Private::FPBDIsland* IslandNonConst = GetIslandManager().GetIsland(Island->GetArrayIndex());
+						IslandNonConst->SetIsUsingCache(true);
 					}
 				}
-				bIsUsingCache = true;
 			}
-			Island->SetIsUsingCache(bIsUsingCache);
+
+			return bParticleAltered;
+		};
+
+		auto IterationHelper = [this, ResimHelper](FTransientGeometryParticleHandle& Particle)
+		{
+			if (Particle.ResimType() == EResimType::FullResim)
+			{
+				// Don't set state from ResimCache each tick for FullResim particles
+				return;
+			}
+
+			if (FTransientPBDRigidParticleHandle* Rigid = Particle.CastToRigidParticle())
+			{
+				if (ResimHelper(Rigid))
+				{
+					Particles.SetDynamicParticleSOA(Rigid->Handle()); // Update SOA views
+				}
+			}
+			else if (FTransientPBDRigidClusteredParticleHandle* Clustered = Particle.CastToClustered())
+			{
+				if (ResimHelper(Clustered))
+				{
+					Particles.SetClusteredParticleSOA(Clustered->Handle()); // Update SOA views
+				}
+			}
+		};
+
+		// Iterate over particles in the different active views
+		for (FTransientGeometryParticleHandle& Particle : Particles.GetActiveDynamicMovingKinematicParticlesView())
+		{
+			IterationHelper(Particle);
+		}
+		for (FTransientGeometryParticleHandle& Particle : Particles.GetActiveKinematicParticlesView())
+		{
+			IterationHelper(Particle);
+		}
+		for (FTransientGeometryParticleHandle& Particle : Particles.GetActiveMovingKinematicParticlesView())
+		{
+			IterationHelper(Particle);
+		}
+		for (FTransientGeometryParticleHandle& Particle : Particles.GetActiveParticlesView())
+		{
+			IterationHelper(Particle);
 		}
 	}
 }
@@ -447,7 +508,7 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 
 	{
 		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_EvolutionStart, TEXT("Evolution Start"));
-		CVD_TRACE_PARTICLES_SOA(Particles);
+		CVD_TRACE_PARTICLES_SOA(Particles, &Clustering);
 	}
 
 	// Update the collision solver type (used to support runtime comparisons of solver types for debugging/testing)
@@ -482,7 +543,7 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 
 	{
 		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_PostIntegrate, TEXT("Post Integrate"));
-		CVD_TRACE_PARTICLES_SOA(Particles);
+		CVD_TRACE_PARTICLES_SOA(Particles, &Clustering);
 	}
 
 	if (PostIntegrateCallback != nullptr)
@@ -602,7 +663,7 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 
 	{
 		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_PreConstraintSolve, TEXT("Pre Solve"));
-		CVD_TRACE_PARTICLES_SOA(Particles);
+		CVD_TRACE_PARTICLES_SOA(Particles, &Clustering);
 	}
 
 	// Assign all islands to a set of groups. Each group is solved in parallel with the others.
@@ -611,12 +672,8 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 		SCOPE_CYCLE_COUNTER(STAT_Evolution_BuildGroups);
 		CSV_SCOPED_TIMING_STAT(PhysicsVerbose, StepSolver_BuildGroups);
 
-		// If we are resimming and if we have a particle cache we only build the island the groups 
-		// for islands that required to be simulated based of desynced particles
-		FEvolutionResimCache* ResimCache = GetCurrentStepResimCache();
-		const bool bIsResimming = (ResimCache != nullptr) && ResimCache->IsResimming();
-
-		NumGroups = IslandGroupManager.BuildGroups(bIsResimming);
+		// If we are resimulating, only build island groups for islands that require to be simulated based of particles sync state and resim type
+		NumGroups = IslandGroupManager.BuildGroups(bIsResim);
 	}
 
 
@@ -644,7 +701,7 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 
 	{
 		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_PostConstraintSolve, TEXT("Post Solve"));
-		CVD_TRACE_PARTICLES_SOA(Particles);
+		CVD_TRACE_PARTICLES_SOA(Particles, &Clustering);
 	}
 
 	if (PostSolveCallback != nullptr)
@@ -727,8 +784,9 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 		}
 
 		CVD_TRACE_JOINT_CONSTRAINTS(CVDDC_JointConstraints, JointConstraints);
+		CVD_TRACE_CHARACTER_GROUND_CONSTRAINTS(CVDDC_CharacterGroundConstraints, CharacterGroundConstraints);
 
-		CVD_TRACE_PARTICLES_SOA(Particles);
+		CVD_TRACE_PARTICLES_SOA(Particles, &Clustering);
 	}
 
 #if !UE_BUILD_SHIPPING
@@ -904,9 +962,9 @@ void FPBDRigidsEvolutionGBF::ApplyKinematicTargets(const FReal Dt, const FReal S
 	const auto& ApplyParticleKinematicTarget =
 	[Dt, StepFraction, IsLastStep](FTransientPBDRigidParticleHandle& Particle, const int32 ParticleIndex) -> void
 	{
-		TKinematicTarget<FReal, 3>& KinematicTarget = Particle.KinematicTarget();
+		FKinematicTarget& KinematicTarget = Particle.KinematicTarget();
 		const FVec3 CurrentX = Particle.GetX();
-		const FRotation3 CurrentR = Particle.GetR();
+		const FRotation3f CurrentR = Particle.GetRf();
 		constexpr FReal MinDt = 1e-6f;
 
 		bool bMoved = false;
@@ -931,26 +989,26 @@ void FPBDRigidsEvolutionGBF::ApplyKinematicTargets(const FReal Dt, const FReal S
 			// Move to kinematic target and update velocities to match
 			// Target positions only need to be processed once, and we reset the velocity next frame (if no new target is set)
 			FVec3 NewX;
-			FRotation3 NewR;
+			FRotation3f NewR;
 			if (IsLastStep)
 			{
-				NewX = KinematicTarget.GetTarget().GetLocation();
-				NewR = KinematicTarget.GetTarget().GetRotation();
+				NewX = KinematicTarget.GetPosition();
+				NewR = KinematicTarget.GetRotation();
 				KinematicTarget.SetMode(EKinematicTargetMode::Reset);
 			}
 			else
 			{
 				// as a reminder, stepfraction is the remaing fraction of the step from the remaining steps
 				// for total of 4 steps and current step of 2, this will be 1/3 ( 1 step passed, 3 steps remains )
-				NewX = FVec3::Lerp(CurrentX, KinematicTarget.GetTarget().GetLocation(), StepFraction);
-				NewR = FRotation3::Slerp(CurrentR, KinematicTarget.GetTarget().GetRotation(), decltype(FQuat::X)(StepFraction));
+				NewX = FVec3::Lerp(CurrentX, KinematicTarget.GetPosition(), StepFraction);
+				NewR = FRotation3f::Slerp(CurrentR, KinematicTarget.GetRotation(), decltype(FQuat4f::X)(StepFraction));
 			}
 
 			const bool bPositionChanged = !FVec3::IsNearlyEqual(NewX, CurrentX, UE_SMALL_NUMBER);
-			const bool bRotationChanged = !FRotation3::IsNearlyEqual(NewR, CurrentR, UE_SMALL_NUMBER);
+			const bool bRotationChanged = !FRotation3::IsNearlyEqual(NewR, CurrentR, UE_KINDA_SMALL_NUMBER);
 			bMoved = bPositionChanged || bRotationChanged;
 			FVec3 NewV = FVec3(0);
-			FVec3 NewW = FVec3(0);
+			FVec3f NewW = FVec3f(0);
 			if (Dt > MinDt)
 			{
 				if (bPositionChanged)
@@ -959,13 +1017,13 @@ void FPBDRigidsEvolutionGBF::ApplyKinematicTargets(const FReal Dt, const FReal S
 				}
 				if (bRotationChanged)
 				{
-					NewW = FRotation3::CalculateAngularVelocity(CurrentR, NewR, Dt);
+					NewW = FRotation3f::CalculateAngularVelocity(CurrentR, NewR, static_cast<FRealSingle>(Dt));
 				}
 			}
 			Particle.SetX(NewX);
-			Particle.SetR(NewR);
+			Particle.SetRf(NewR);
 			Particle.SetV(NewV);
-			Particle.SetW(NewW);
+			Particle.SetWf(NewW);
 			Particle.SetIsMovingKinematic();
 
 			break;
@@ -1005,6 +1063,14 @@ void FPBDRigidsEvolutionGBF::ApplyKinematicTargets(const FReal Dt, const FReal S
 
 	// Apply kinematic targets in parallel
 	Particles.GetActiveMovingKinematicParticlesView().ParallelFor(ApplyParticleKinematicTarget);
+
+	for(FTransientPBDRigidParticleHandle& Particle : Particles.GetActiveMovingKinematicParticlesView())
+	{
+		// Moving kinematics need to have SQ updates queued to apply substepped movement to the
+		// physics thread acceleration structure in order to get correct kinematic collisions
+		// and pass a correct structure back to the external thread
+		DirtyParticle(Particle);
+	}
 
 	// done with update, let's clear the tracking structures
 	if (IsLastStep)
@@ -1086,6 +1152,8 @@ FPBDRigidsEvolutionGBF::FPBDRigidsEvolutionGBF(
 	CollisionConstraints.SetCanDisableContacts(!!CollisionDisableCulledContacts);
 
 	CollisionConstraints.SetCullDistance(DefaultCollisionCullDistance);
+
+	JointConstraints.SetUseSimd(bChaosRigids_UseSimdForJointsSolver);
 
 	GetIslandManager().SetMaterialContainers(&PhysicsMaterials, &PerParticlePhysicsMaterials, &SolverPhysicsMaterials);
 	GetIslandManager().SetGravityForces(&GravityForces);
@@ -1348,6 +1416,10 @@ void FPBDRigidsEvolutionGBF::SetParticleTransform(FGeometryParticleHandle* InPar
 
 	OnParticleMoved(InParticle, PrevX, PrevR, bIsTeleport);
 
+	// This is a bit overkill, if this becomes an issue we will need to look into adding support
+	// to record partial updates of particles, only the transform in this case
+	CVD_TRACE_PARTICLE(InParticle);
+
 #if CHAOS_EVOLUTION_COLLISION_TESTMODE
 	{
 		// Update the test mode cache so we can move particles in PIE to test collisions
@@ -1407,7 +1479,7 @@ void FPBDRigidsEvolutionGBF::SetParticleKinematicTarget(FGeometryParticleHandle*
 	{
 		if (NewKinematicTarget.GetMode() == EKinematicTargetMode::Position)
 		{
-			SetParticleTransform(ParticleHandle, NewKinematicTarget.GetTargetPosition(), NewKinematicTarget.GetTargetRotation(), false);
+			SetParticleTransform(ParticleHandle, NewKinematicTarget.GetPosition(), NewKinematicTarget.GetRotation(), false);
 		}
 	}
 }
@@ -1457,16 +1529,16 @@ void FPBDRigidsEvolutionGBF::OnParticleMoved(FGeometryParticleHandle* InParticle
 	}
 }
 
-void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrectionDelta(FGeometryParticleHandle* InParticle, const FVec3& InPosDelta, const FVec3& InRotDelta, const bool bApplyToConnectedBodies)
+void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrectionDelta(FGeometryParticleHandle* InParticle, const FVec3& InPosDelta, const FVec3& InRotDelta, const bool bApplyToConnectedBodies, const bool bInRecalculateFrictionOnConnectedBodies, const TArray<FParticleID>& ExcludeConnections)
 {
 	ApplyParticleTransformCorrection(
 		InParticle, 
 		InParticle->GetX() + InPosDelta, 
 		FRotation3::IntegrateRotationWithAngularVelocity(InParticle->GetR(), InRotDelta, FReal(1.0)),
-		bApplyToConnectedBodies);
+		bApplyToConnectedBodies, bInRecalculateFrictionOnConnectedBodies, ExcludeConnections);
 }
 
-void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrection(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bApplyToConnectedBodies)
+void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrection(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bApplyToConnectedBodies, const bool bInRecalculateFrictionOnConnectedBodies, const TArray<FParticleID>& ExcludeConnections)
 {
 	const FRigidTransform3 OldParticleTransform = InParticle->GetTransformXR();
 	const FRigidTransform3 NewParticleTransform = FRigidTransform3(InPos, InRot);
@@ -1478,20 +1550,20 @@ void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrection(FGeometryParticleH
 	{
 		// Find all the connected particles and move them to retain their relative transform
 		// NOTE: ConnectedParticles will not include InParticle
-		TArray<FGeometryParticleHandle*> ConnectedParticles = GetConnectedParticles(InParticle);
+		TArray<FGeometryParticleHandle*> ConnectedParticles = GetConnectedParticles(InParticle, ExcludeConnections);
 		for (FGeometryParticleHandle* ConnectedParticle : ConnectedParticles)
 		{
 			if (FGenericParticleHandle(ConnectedParticle)->IsDynamic())
 			{
 				const FRigidTransform3 RelativeTransform = ConnectedParticle->GetTransformXR().GetRelativeTransformNoScale(OldParticleTransform);
 				const FRigidTransform3 NewOtherParticleTransform = RelativeTransform * NewParticleTransform;
-				ApplyParticleTransformCorrectionImpl(ConnectedParticle, NewOtherParticleTransform);
+				ApplyParticleTransformCorrectionImpl(ConnectedParticle, NewOtherParticleTransform, bInRecalculateFrictionOnConnectedBodies);
 			}
 		}
 	}
 }
 
-void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrectionImpl(FGeometryParticleHandle* InParticle, const FRigidTransform3& InTransform)
+void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrectionImpl(FGeometryParticleHandle* InParticle, const FRigidTransform3& InTransform, const bool bInRecalculateFriction)
 {
 	FGenericParticleHandle Particle = InParticle;
 
@@ -1500,16 +1572,34 @@ void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrectionImpl(FGeometryParti
 	Particle->SetR(InTransform.GetRotation());
 	Particle->SetQ(InTransform.GetRotation());
 
-	// We must fix the collision anchors so that friction doesn't undo our move or rotation
-	InParticle->ParticleCollisions().VisitCollisions(
-		[this, InParticle](FPBDCollisionConstraint& Collision)
-		{
-			Collision.UpdateParticleTransform(InParticle);
-			return ECollisionVisitorResult::Continue;
-		});
+	if (bInRecalculateFriction)
+	{
+		// We must fix the collision anchors so that friction doesn't undo our move or rotation
+		InParticle->ParticleCollisions().VisitCollisions(
+			[this, InParticle](FPBDCollisionConstraint& Collision)
+			{
+				Collision.UpdateParticleTransform(InParticle);
+				return ECollisionVisitorResult::Continue;
+			});
+	}
 }
 
-TArray<FGeometryParticleHandle*> FPBDRigidsEvolutionGBF::GetConnectedParticles(FGeometryParticleHandle* InParticle)
+void FPBDRigidsEvolutionGBF::ApplySleepOnConnectedParticles(FGeometryParticleHandle* InParticle)
+{
+	TArray<FGeometryParticleHandle*> ConnectedParticles = GetConnectedParticles(InParticle);
+	for (FGeometryParticleHandle* ConnectedParticle : ConnectedParticles)
+	{
+		if (FGenericParticleHandle(ConnectedParticle)->ObjectState() == EObjectStateType::Dynamic)
+		{
+			if (FPBDRigidParticleHandle* Rigid = ConnectedParticle->CastToRigidParticle())
+			{
+				SetParticleObjectState(Rigid, EObjectStateType::Sleeping);
+			}
+		}
+	}
+}
+
+TArray<FGeometryParticleHandle*> FPBDRigidsEvolutionGBF::GetConnectedParticles(FGeometryParticleHandle* InParticle, const TArray<FParticleID>& ExcludeConnections)
 {
 	if (InParticle->ParticleConstraints().IsEmpty())
 	{
@@ -1533,14 +1623,23 @@ TArray<FGeometryParticleHandle*> FPBDRigidsEvolutionGBF::GetConnectedParticles(F
 		{
 			if (FPBDJointConstraintHandle* Joint = Constraint->As<FPBDJointConstraintHandle>())
 			{
-				const TVec3<EJointMotionType>& JointLinearMotion = Joint->GetSettings().LinearMotionTypes;
-				if ((JointLinearMotion[0] == EJointMotionType::Locked) && (JointLinearMotion[1] == EJointMotionType::Locked) && (JointLinearMotion[2] == EJointMotionType::Locked))
+				if (Joint->IsConstraintEnabled() && !Joint->IsConstraintBroken())
 				{
-					FParticlePair JointParticles = Joint->GetConstrainedParticles();
-					FGeometryParticleHandle* OtherParticle = (JointParticles[0] != NextParticle) ? JointParticles[0] : JointParticles[1];
-					if ((OtherParticle != InParticle) && (ConnectedParticles.Find(OtherParticle) == nullptr))
+					const TVec3<EJointMotionType>& JointLinearMotion = Joint->GetSettings().LinearMotionTypes;
+					if ((JointLinearMotion[0] == EJointMotionType::Locked) && (JointLinearMotion[1] == EJointMotionType::Locked) && (JointLinearMotion[2] == EJointMotionType::Locked))
 					{
-						ConnectedParticles.Add(OtherParticle, OtherParticle);
+						// Get the other particle on the joint
+						FParticlePair JointParticles = Joint->GetConstrainedParticles();
+						FGeometryParticleHandle* OtherParticle = (JointParticles[0] != NextParticle) ? JointParticles[0] : JointParticles[1];
+
+						// NOTE: We do not generate connections through kinematic particles
+						if ((OtherParticle != nullptr) && (OtherParticle != InParticle) && FGenericParticleHandle(OtherParticle)->IsDynamic())
+						{
+							if ((ConnectedParticles.Find(OtherParticle) == nullptr) && !ExcludeConnections.Contains(OtherParticle->ParticleID()))
+							{
+								ConnectedParticles.Add(OtherParticle, OtherParticle);
+							}
+						}
 					}
 				}
 			}

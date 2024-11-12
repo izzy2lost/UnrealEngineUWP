@@ -4,8 +4,9 @@
 
 #include "IAvaEditorExtension.h"
 
-class URemoteControlTrackerComponent;
+class IRCSignatureCustomization;
 class URemoteControlPreset;
+class URemoteControlTrackerComponent;
 
 class FAvaRCExtension: public FAvaEditorExtension
 {
@@ -21,10 +22,16 @@ public:
 	virtual void Deactivate() override;
 	virtual void ExtendLevelEditorLayout(FLayoutExtender& InExtender) const override;
 	virtual void ExtendToolbarMenu(UToolMenu& InMenu) override;
+	virtual void OnSceneObjectChanged(UObject* InOldSceneObject, UObject* InNewSceneObject) override;
 	//~ End IAvaEditorExtension
 
 protected:
 	void OpenRemoteControlTab() const;
-
 	void CloseRemoteControlTab() const;
+
+	void RegisterSignatureCustomization();
+	void UnregisterSignatureCustomization();
+
+private:
+	TSharedPtr<IRCSignatureCustomization> SignatureCustomization;
 };

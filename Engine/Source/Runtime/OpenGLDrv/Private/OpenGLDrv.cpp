@@ -58,7 +58,11 @@ bool FOpenGLDynamicRHI::RHIIsValidTexture(GLuint InTexture) const
 
 void FOpenGLDynamicRHI::RHISetExternalGPUTime(uint32 InExternalGPUTime)
 {
-	GetGPUProfilingData().ExternalGPUTime = InExternalGPUTime;
+#if RHI_NEW_GPU_PROFILER
+	checkNoEntry(); // @todo - new gpu profiler
+#else
+	GPUProfilingData->ExternalGPUTime = InExternalGPUTime;
+#endif
 }
 
 #if PLATFORM_ANDROID
@@ -115,40 +119,54 @@ void FOpenGLDynamicRHI::RHIEGLTerminateContext()
 }
 #endif
 
+#if WITH_RHI_BREADCRUMBS
+	void FOpenGLDynamicRHI::RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
+	{
+		const TCHAR* NameStr = nullptr;
+		FRHIBreadcrumb::FBuffer Buffer;
+		auto GetNameStr = [&]()
+		{
+			if (!NameStr)
+			{
+				NameStr = Breadcrumb->Name.GetTCHAR(Buffer);
+			}
+			return NameStr;
+		};
 
-void FOpenGLDynamicRHI::RHIPushEvent(const TCHAR* Name, FColor Color)
-{
-#if ENABLE_OPENGL_DEBUG_GROUPS
-	// @todo-mobile: Fix string conversion ASAP!
-	FOpenGL::PushGroupMarker(TCHAR_TO_ANSI(Name));
-#endif
-	GPUProfilingData.PushEvent(Name, Color);
-}
+		if (ShouldEmitBreadcrumbs())
+		{
+	#if ENABLE_OPENGL_DEBUG_GROUPS
+			// @todo-mobile: Fix string conversion ASAP!
+			// @todo dev-pr avoid TCHAR -> ANSI conversion
+			FOpenGL::PushGroupMarker(TCHAR_TO_ANSI(GetNameStr()));
+	#endif
+		}
 
-void FOpenGLGPUProfiler::PushEvent(const TCHAR* Name, FColor Color)
-{
-	FGPUProfiler::PushEvent(Name, Color);
-}
+	#if (RHI_NEW_GPU_PROFILER == 0)
+		if (GPUProfilingData->IsProfilingGPU())
+		{
+			GPUProfilingData->PushEvent(GetNameStr(), FColor::White);
+		}
+	#endif
+	}
 
-void FOpenGLDynamicRHI::RHIPopEvent()
-{
-#if ENABLE_OPENGL_DEBUG_GROUPS
-	FOpenGL::PopGroupMarker();
-#endif
+	void FOpenGLDynamicRHI::RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
+	{
+	#if (RHI_NEW_GPU_PROFILER == 0)
+		if (GPUProfilingData->IsProfilingGPU())
+		{
+			GPUProfilingData->PopEvent();
+		}
+	#endif
 
-	GPUProfilingData.PopEvent();
-}
-
-void FOpenGLGPUProfiler::PopEvent()
-{
-	FGPUProfiler::PopEvent();
-
-}
-
-bool FOpenGLDynamicRHI::RHIRequiresComputeGenerateMips() const
-{
-	return !FOpenGL::SupportsGenerateMipmap();
-};
+		if (ShouldEmitBreadcrumbs())
+		{
+	#if ENABLE_OPENGL_DEBUG_GROUPS
+			FOpenGL::PopGroupMarker();
+	#endif
+		}
+	}
+#endif // WITH_RHI_BREADCRUMBS
 
 // only use shader hashes to determine GL PSO hash;
 uint64 FOpenGLDynamicRHI::RHIComputeStatePrecachePSOHash(const FGraphicsPipelineStateInitializer& Initializer)
@@ -206,7 +224,9 @@ bool FOpenGLDynamicRHI::RHIMatchPrecachePSOInitializers(const FGraphicsPipelineS
 	return true;
 }
 
-void FOpenGLGPUProfiler::BeginFrame(FOpenGLDynamicRHI* InRHI)
+#if (RHI_NEW_GPU_PROFILER == 0)
+
+void FOpenGLGPUProfiler::BeginFrame()
 {
 	if (NestedFrameCount++>0)
 	{
@@ -244,7 +264,7 @@ void FOpenGLGPUProfiler::BeginFrame(FOpenGLDynamicRHI* InRHI)
 		{
 			SetEmitDrawEvents(true);  // thwart an attempt to turn this off on the game side
 			bTrackingEvents = true;
-			CurrentEventNodeFrame = new FOpenGLEventNodeFrame(InRHI);
+			CurrentEventNodeFrame = new FOpenGLEventNodeFrame();
 			CurrentEventNodeFrame->StartFrame();
 		}
 	}
@@ -265,11 +285,6 @@ void FOpenGLGPUProfiler::BeginFrame(FOpenGLDynamicRHI* InRHI)
 		CurrentGPUFrameQueryIndex = (CurrentGPUFrameQueryIndex + 1) % MAX_GPUFRAMEQUERIES;
 		DisjointGPUFrameTimeQuery[CurrentGPUFrameQueryIndex].StartTracking();
 	}
-
-	if (GetEmitDrawEvents())
-	{
-		PushEvent(TEXT("FRAME"), FColor(0, 255, 0, 255));
-	}
 }
 
 void FOpenGLGPUProfiler::EndFrame()
@@ -278,11 +293,6 @@ void FOpenGLGPUProfiler::EndFrame()
 	{
 		// ignore endframes calls from nested beginframe calls.
 		return;
-	}
-
-	if (GetEmitDrawEvents())
-	{
-		PopEvent();
 	}
 
 	if (FrameTiming.IsSupported())
@@ -442,13 +452,14 @@ void FOpenGLGPUProfiler::EndFrame()
 
 void FOpenGLGPUProfiler::Cleanup()
 {
-	for (int32 Index = 0; Index < MAX_GPUFRAMEQUERIES; ++Index)
-	{
-		DisjointGPUFrameTimeQuery[Index].ReleaseResources();
-	}
-
 	FrameTiming.ReleaseResources();
+	GPUHitchEventNodeFrames.Empty();
 	NestedFrameCount = 0;
+
+	for (FOpenGLDisjointTimeStampQuery& DisjointQuery : DisjointGPUFrameTimeQuery)
+	{
+		DisjointQuery.Cleanup();
+	}
 }
 
 /** Start this frame of per tracking */
@@ -512,6 +523,8 @@ float FOpenGLEventNode::GetTiming()
 
 	return Result;
 }
+
+#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 void FOpenGLDynamicRHI::InitializeStateResources()
 {
@@ -763,6 +776,47 @@ void InitDefaultGLContextState(void)
 
 	// optional per platform setup
 	FOpenGL::SetupDefaultGLContextState(ExtensionsString);
+}
+
+void FOpenGLDynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos)
+{
+	RHICmdList.EnqueueLambda(TEXT("FOpenGLDynamicRHI::RHIReplaceResources"),
+		[ReplaceInfos = MoveTemp(ReplaceInfos)](FRHICommandListBase&)
+		{
+			for (FRHIResourceReplaceInfo const& Info : ReplaceInfos)
+			{
+				switch (Info.GetType())
+				{
+				default:
+					checkNoEntry();
+					break;
+
+				case FRHIResourceReplaceInfo::EType::Buffer:
+					{
+						FOpenGLBuffer* Dst = ResourceCast(Info.GetBuffer().Dst);
+						FOpenGLBuffer* Src = ResourceCast(Info.GetBuffer().Src);
+
+						if (Src)
+						{
+							// The source buffer should not have any associated views.
+							check(!Src->HasLinkedViews());
+
+							Dst->TakeOwnership(*Src);
+						}
+						else
+						{
+							Dst->ReleaseOwnership();
+						}
+
+						Dst->UpdateLinkedViews();
+					}
+					break;
+				}
+			}
+		}
+	);
+
+	RHICmdList.RHIThreadFence(true);
 }
 
 #undef LOCTEXT_NAMESPACE

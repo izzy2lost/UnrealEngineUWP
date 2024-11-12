@@ -8,6 +8,7 @@
 #include "Math/UnrealMathUtility.h"
 #include "Misc/FrameNumber.h"
 #include "Misc/FrameRate.h"
+#include "Misc/FrameTime.h"
 #include "Misc/Timespan.h"
 
 /**
@@ -24,6 +25,7 @@ struct FTimecode
 		, Minutes(0)
 		, Seconds(0)
 		, Frames(0)
+		, Subframe(0)
 		, bDropFrameFormat(false)
 	{}
 
@@ -39,7 +41,26 @@ struct FTimecode
 		, Seconds(InSeconds)
 		, Frames(InFrames)
 		, bDropFrameFormat(InbDropFrame)
-	{}
+	{
+		checkSlow(IsValid());
+	}
+
+	/**
+	 * User construction from a number of hours minutes seconds frames, and subframes.
+	 * @param InbDropFrame - If true, this Timecode represents a "Drop Frame Timecode" format which
+							skips the first frames of every minute (except those ending in multiples of 10)
+							to account for drift when using a fractional NTSC framerate.
+ 	 */
+	explicit FTimecode(int32 InHours, int32 InMinutes, int32 InSeconds, int32 InFrames, float InSubframe, bool InbDropFrame)
+		: Hours(InHours)
+		, Minutes(InMinutes)
+		, Seconds(InSeconds)
+		, Frames(InFrames)
+		, Subframe(InSubframe)
+		, bDropFrameFormat(InbDropFrame)
+	{
+		checkSlow(IsValid());
+	}
 
 	/**
 	 * User construction from a time in seconds
@@ -228,6 +249,22 @@ public:
 	}
 
 	/**
+	 * Create a FTimecode from a specific frame time at the given frame rate.
+	 *
+	 * @param InFrameTime - The frame time to convert into a timecode. This should already be converted to InFrameTimes's resolution.
+	 * @param InFrameRate - The framerate that this timecode is based in. This should be the playback framerate as it is used to determine
+	 *					    when the Frame value wraps over.
+	 * @param bDropFrame  - Optional parameter to indicate if we are in drop frame format.
+	 */
+	static FTimecode FromFrameTime(const FFrameTime& InFrameTime, const FFrameRate& InFrameRate, TOptional<bool> bDropFrame = {})
+	{
+		bool bShouldUseDropFrame = bDropFrame ? *bDropFrame : UseDropFormatTimecode(InFrameRate);
+		FTimecode Timecode = FromFrameNumber(InFrameTime.FloorToFrame(), InFrameRate, bShouldUseDropFrame);
+		Timecode.Subframe = InFrameTime.GetSubFrame();
+		return Timecode;
+	}
+
+	/**
 	 * Converts this Timecode back into a timespan at the given framerate, taking into account if this is a drop-frame format timecode.
 	 */
 	FTimespan ToTimespan(const FFrameRate& InFrameRate) const
@@ -268,12 +305,18 @@ public:
 	}
 
 	/** Drop frame is only support for frame rate of 29.97 or 59.94. */
+	static bool IsDropFormatTimecodeSupported(const double InRate)
+	{
+		return FMath::IsNearlyEqual(InRate, 30.0/1.001)
+			|| FMath::IsNearlyEqual(InRate, 60.0/1.001);
+	}
+
+	/** Drop frame is only support for frame rate of 29.97 or 59.94. */
 	static bool IsDropFormatTimecodeSupported(const FFrameRate& InFrameRate)
 	{
 		const double InRate = InFrameRate.AsDecimal();
 
-		return FMath::IsNearlyEqual(InRate, 30.0/1.001)
-			|| FMath::IsNearlyEqual(InRate, 60.0/1.001);
+		return IsDropFormatTimecodeSupported(InRate);
 	}
 
 	/** If the frame rate support drop frame format and the app wish to use drop frame format by default. */
@@ -302,8 +345,9 @@ public:
 	 * Get the Qualified Timecode formatted in HH:MM:SS:FF or HH:MM:SS;FF depending on if this represents drop-frame timecode or not.
 	 * @param bForceSignDisplay - Forces the timecode to be prepended with a positive or negative sign.
 								  Standard behavior is to only show the sign when the value is negative.
+	 * @param bAlwaysDisplaySubframe - Forces the subframe value to be included in the string result.
 	 */
-	FString ToString(bool bForceSignDisplay = false) const
+	FString ToString(bool bForceSignDisplay = false, bool bAlwaysDisplaySubframe = false) const
 	{
 		bool bHasNegativeComponent = Hours < 0 || Minutes < 0 || Seconds < 0 || Frames < 0;
 
@@ -319,17 +363,68 @@ public:
 			SignText = PositiveSign;
 		}
 
+		// Use a buffer that will hold 64 chars to account for maximum int sizes for hours, min, seconds, frames + 3 charcs for subframe +/- 3 chars for sign.
+		//
+		TStringBuilder<64> Builder;
 		if (bDropFrameFormat)
 		{
-			return FString::Printf(TEXT("%s%02d:%02d:%02d;%02d"), SignText, FMath::Abs(Hours), FMath::Abs(Minutes), FMath::Abs(Seconds), FMath::Abs(Frames));
+			Builder.Appendf(TEXT("%s%02d:%02d:%02d;%02d"), SignText, FMath::Abs(Hours), FMath::Abs(Minutes), FMath::Abs(Seconds), FMath::Abs(Frames));
 		}
 		else
 		{
-			return FString::Printf(TEXT("%s%02d:%02d:%02d:%02d"), SignText, FMath::Abs(Hours), FMath::Abs(Minutes), FMath::Abs(Seconds), FMath::Abs(Frames));
+			Builder.Appendf(TEXT("%s%02d:%02d:%02d:%02d"), SignText, FMath::Abs(Hours), FMath::Abs(Minutes), FMath::Abs(Seconds), FMath::Abs(Frames));
 		}
+
+		if (bAlwaysDisplaySubframe || Subframe > 0)
+		{
+			int32 ClampedSubframe = static_cast<int32>(FMath::Clamp(100*Subframe,0,99));
+			Builder.Appendf(TEXT(".%02d"), ClampedSubframe);
+		}
+		return Builder.ToString();
 	}
 
+	/**
+	 * Parses a string representation of a timecode.
+	 *
+	 * Supported SMPTE drop frame (DF) and non-drop frame (NDF) formats variations:
+	 * - NDF: HH:MM:SS:FF
+	 * - DF: HH:MM:SS;FF or HH:MM:SS.FF or HH;MM;SS;FF or HH.MM.SS.FF.
+	 *
+	 * The 2 digits per number is not enforced. It is possible to parse high frame numbers (above 60), such as for audio timecodes.
+	 * Full SMPTE compliance is not ensured by the parser (i.e. greater than 24h, negative time and any number of frames per second).
+	 *
+	 * Sub-frame variation:
+	 * Supports the sub-frame variation where the frame number is a decimal number: HH:MM:SS:FF.ZZ.
+	 *
+	 * Side effect of supporting sub-frame is that this function can't unambiguously parse partial timecodes.
+	 * 
+	 * @param InTimecodeString A string representation of a timecode
+	 * 
+	 * @return Parsed timecode if valid.
+	 */
+	static CORE_API TOptional<FTimecode> ParseTimecode(const FStringView InTimecodeString);
+
+	/**
+	 * Will return true if the timecode represents a valid timecode value where
+	 *
+	 * Hours is +/- [0,23]
+	 * Minutes is +/- [0, 59]
+	 * Seconds is +/- [0, 59]
+	 * Frames [INT_MIN, INT_MAX]
+	 * Subframes >= 0
+	 *
+	 */
+	bool IsValid() const
+	{
+		auto InAbsRange = [](int32 Val, int32 MinVal, int32 MaxVal)
+		{
+		    return FMath::Abs(Val) >= MinVal && FMath::Abs(Val) <= MaxVal;
+		};
+		return InAbsRange(Hours,0,23) && InAbsRange(Minutes, 0, 59) && InAbsRange(Seconds, 0, 59) && Subframe >= 0;
+	}
 public:
+
+	/** IMPORTANT: If you change the struct data, ensure that you also update the version in NoExportTypes.h  */
 
 	/** How many hours does this timecode represent */
 	int32 Hours;
@@ -343,13 +438,15 @@ public:
 	/** How many frames does this timecode represent */
 	int32 Frames;
 
+	/** The subframe value provided when converting to FFrameTime */
+	float Subframe = 0;
+
 	/** If true, this Timecode represents a Drop Frame timecode used to account for fractional frame rates in NTSC play rates. */
 	bool bDropFrameFormat;
 
-
 	friend inline bool operator==(const FTimecode& A, const FTimecode& B)
 	{
-		return A.Hours == B.Hours && A.Minutes == B.Minutes && A.Seconds == B.Seconds && A.Frames == B.Frames;
+		return A.Hours == B.Hours && A.Minutes == B.Minutes && A.Seconds == B.Seconds && A.Frames == B.Frames && A.Subframe == B.Subframe;
 	}
 
 	friend inline bool operator!=(const FTimecode& A, const FTimecode& B)

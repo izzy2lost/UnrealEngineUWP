@@ -55,6 +55,8 @@ void FAnimSync::AddTickRecord(const FAnimTickRecord& InTickRecord, const FAnimSy
 		// Add animation instance's tick record to the sync group. 
 		SyncGroupInstance.ActivePlayers.Add(InTickRecord);
 		SyncGroupInstance.ActivePlayers.Top().MirrorDataTable = MirrorDataTable;
+		SyncGroupInstance.ActivePlayers.Top().bOverridePositionWhenJoiningSyncGroupAsLeader = InSyncParams.bOverridePositionWhenJoiningSyncGroupAsLeader;
+		SyncGroupInstance.ActivePlayers.Top().bIsExclusiveLeader = InSyncParams.Role == EAnimGroupRole::ExclusiveAlwaysLeader;
 
 		// Set leader score for the tick record we just added, and ensure there is only one montage per group.
 		// CanBeLeader or TransitionLeader Score (BlendWeight) < Always Leader Score (2.0) < Montage Leader Score (3.0).
@@ -165,25 +167,52 @@ void FAnimSync::TickAssetPlayerInstances(FAnimInstanceProxy& InProxy, float InDe
 					SCOPE_CYCLE_COUNTER(STAT_TickAssetPlayerInstance);
 					FScopeCycleCounterUObject Scope(GroupLeader.SourceAsset);
 
-					// Inertialization was requested therefore we resync to previous leader, if needed.
-                    if (GroupLeader.bRequestedInertialization)
-                    {
-                    	// Ensure we have a previous group leader to sync to otherwise we play normally. 
-                    	if (PreviousGroup && !PreviousGroup->ActivePlayers.IsEmpty())
-                    	{
-                    		// Only need to resync when using length based syncing since we initialized the tick context with the previous group's sync end position
-                    		// and that will take care of marker based syncing.
-                    		if (!TickContext.CanUseMarkerPosition() || !(PreviousGroup->ValidMarkers.Num() > 0))
-                    		{
-                    			const FAnimTickRecord & PreviousGroupLeader = PreviousGroup->ActivePlayers[PreviousGroup->GroupLeaderIndex];
-                    			const bool bShouldResyncToSyncGroup = PreviousGroupLeader.LeaderScore >= GroupLeader.LeaderScore;
-                
-                    			// Sync to previous group leader if we have a lower score than them.
-                    			TickContext.SetResyncToSyncGroup(bShouldResyncToSyncGroup);
-                    		}
-                    	}
-                    }
+					// Enforce leader position and do not use previous group sync information as a starting point.
+					if (GroupLeader.bOverridePositionWhenJoiningSyncGroupAsLeader)
+					{
+						if (PreviousGroup && PreviousGroup->ActivePlayers.IsValidIndex(PreviousGroup->GroupLeaderIndex))
+						{
+							const FAnimTickRecord & PrevLeader = PreviousGroup->ActivePlayers[PreviousGroup->GroupLeaderIndex];
 
+							if (TickContext.CanUseMarkerPosition() && !PreviousGroup->ValidMarkers.IsEmpty())
+							{
+								const bool bIsAssetPlayerJustJoiningGroup = PrevLeader.MarkerTickRecord != GroupLeader.MarkerTickRecord || PrevLeader.DeltaTimeRecord != GroupLeader.DeltaTimeRecord;
+								const bool bDidLeaderAssetChanged = PrevLeader.SourceAsset != GroupLeader.SourceAsset;
+								
+								if (bIsAssetPlayerJustJoiningGroup || bDidLeaderAssetChanged)
+								{
+									TickContext.MarkerTickContext.SetMarkerSyncStartPosition(FMarkerSyncAnimPosition(NAME_None, NAME_None, 0));	
+								}
+							}
+							else
+							{
+								// Ensure no re-syncing occurs in order to overwrite previous leader position.
+								TickContext.SetResyncToSyncGroup(false);
+							}
+						}
+					}
+					else
+					{
+						// Inertialization was requested therefore we resync to previous leader, if needed.
+						if (GroupLeader.bRequestedInertialization)
+						{
+							// Ensure we have a previous group leader to sync to otherwise we play normally. 
+							if (PreviousGroup && !PreviousGroup->ActivePlayers.IsEmpty())
+							{
+								// Only need to resync when using length based syncing since we initialized the tick context with the previous group's sync end position
+								// and that will take care of marker based syncing.
+								if (!TickContext.CanUseMarkerPosition() || !(PreviousGroup->ValidMarkers.Num() > 0))
+								{
+									const FAnimTickRecord & PreviousGroupLeader = PreviousGroup->ActivePlayers[PreviousGroup->GroupLeaderIndex];
+									const bool bShouldResyncToSyncGroup = PreviousGroupLeader.LeaderScore >= GroupLeader.LeaderScore;
+                
+									// Sync to previous group leader if we have a lower score than them.
+									TickContext.SetResyncToSyncGroup(bShouldResyncToSyncGroup);
+								}
+							}
+						}
+					}
+					
 					// Tick group leader's asset.
 					TickContext.MarkerTickContext.MarkersPassedThisTick.Reset();
 					TickContext.RootMotionMovementParams.Clear();
@@ -232,7 +261,17 @@ void FAnimSync::TickAssetPlayerInstances(FAnimInstanceProxy& InProxy, float InDe
 				// Finalize sync group.
 				// This is where the followers tick records are reset if the needed. 
 				SyncGroup.Finalize(PreviousGroup);
-
+				
+				// Kick any records that requested being exclusive leaders but failed.
+				for (int32 RecordIndex = GroupLeaderIndex + 1; RecordIndex < SyncGroup.ActivePlayers.Num(); ++RecordIndex)
+				{
+					// We do not modify the array since we can just skip ticking their asset player and just push that to run as ungrouped.
+					if (SyncGroup.ActivePlayers[RecordIndex].bIsExclusiveLeader)
+					{
+						UngroupedActivePlayerArrays[GetSyncGroupWriteIndex()].Push(SyncGroup.ActivePlayers[RecordIndex]);
+					}
+				}
+				
 				// Ensure group leader's markers are valid, otherwise invalidate marker-based syncing for followers.
 				if (TickContext.CanUseMarkerPosition())
 				{
@@ -288,8 +327,15 @@ void FAnimSync::TickAssetPlayerInstances(FAnimInstanceProxy& InProxy, float InDe
 
 					for (int32 TickIndex = GroupLeaderIndex + 1; TickIndex < SyncGroup.ActivePlayers.Num(); ++TickIndex)
 					{
-						// Tick follower's asset player.
 						FAnimTickRecord& AssetPlayer = SyncGroup.ActivePlayers[TickIndex];
+
+						// Skip since we only wanted to be leaders. (Asset player will be ticked as ungrouped)
+						if (AssetPlayer.bIsExclusiveLeader)
+						{
+							continue;
+						}
+						
+						// Tick follower's asset player.
 						{
 							SCOPE_CYCLE_COUNTER(STAT_TickAssetPlayerInstance);
 							FScopeCycleCounterUObject Scope(AssetPlayer.SourceAsset);

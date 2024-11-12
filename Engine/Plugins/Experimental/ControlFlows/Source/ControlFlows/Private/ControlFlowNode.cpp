@@ -15,18 +15,14 @@ FControlFlowNode::FControlFlowNode()
 FControlFlowNode::FControlFlowNode(TSharedRef<FControlFlow> ControlFlowParent, const FString& FlowNodeDebugName)
 	: Parent(ControlFlowParent)
 	, NodeName(FlowNodeDebugName)
-{
-
-}
+{}
 
 FControlFlowNode::~FControlFlowNode()
-{
-
-}
+{}
 
 void FControlFlowNode::ContinueFlow()
 {
-	if (ensureAlways(Parent.IsValid()))
+	if (ensure(Parent.IsValid()))
 	{
 		Parent.Pin()->HandleControlFlowNodeCompleted(SharedThis(this));
 	}
@@ -34,7 +30,7 @@ void FControlFlowNode::ContinueFlow()
 
 void FControlFlowNode::CancelFlow()
 {
-	if (ensureAlways(Parent.IsValid()))
+	if (ensure(Parent.IsValid()))
 	{
 		bCancelled = true;
 		Parent.Pin()->HandleControlFlowNodeCompleted(SharedThis(this));
@@ -43,7 +39,7 @@ void FControlFlowNode::CancelFlow()
 
 TSharedPtr<FTrackedActivity> FControlFlowNode::GetTrackedActivity() const
 {
-	if (ensureAlways(Parent.IsValid()))
+	if (ensure(Parent.IsValid()))
 	{
 		return Parent.Pin()->GetTrackedActivity();
 	}
@@ -52,7 +48,7 @@ TSharedPtr<FTrackedActivity> FControlFlowNode::GetTrackedActivity() const
 
 void FControlFlowNode::LogExecution()
 {
-	if (ensureAlways(Parent.IsValid()))
+	if (ensure(Parent.IsValid()))
 	{
 		Parent.Pin()->LogNodeExecution(*this);
 	}
@@ -65,7 +61,7 @@ FString FControlFlowNode::GetNodeName() const
 
 void FControlFlowNode::SetProfilerEventStarted()
 {
-	if (ensureAlways(Parent.IsValid()))
+	if (ensure(Parent.IsValid()))
 	{
 		Parent.Pin()->SetProfilerEventStarted();
 	}

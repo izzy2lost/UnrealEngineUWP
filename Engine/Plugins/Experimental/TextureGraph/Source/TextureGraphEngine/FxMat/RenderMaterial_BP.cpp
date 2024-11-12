@@ -21,7 +21,7 @@ bool RenderMaterial_BP::ValidateMaterialCompatible(UMaterialInterface* InMateria
 	return FxMaterial_QuadDrawMaterial::ValidateMaterial(InMaterial);
 }
 
-RenderMaterial_BP::RenderMaterial_BP(FString Name, UMaterial* InMaterial, UMaterialInstanceDynamic* InMaterialInstance)
+RenderMaterial_BP::RenderMaterial_BP(FString Name, UMaterialInterface* InMaterial, UMaterialInstanceDynamic* InMaterialInstance)
 	: RenderMaterial(!Name.IsEmpty() ? Name : InMaterial->GetName())
 	, Material(InMaterial)
 	, MaterialInstance(TStrongObjectPtr<UMaterialInstanceDynamic>(InMaterialInstance ? InMaterialInstance : UMaterialInstanceDynamic::Create(InMaterial, nullptr)))
@@ -176,7 +176,7 @@ void RenderMaterial_BP::BlitTo(FRHICommandListImmediate& RHI, UTextureRenderTarg
 		FTextureRenderTarget2DResource* RTRes = (FTextureRenderTarget2DResource*)RT->GetRenderTargetResource();
 		check(RTRes);
 
-		FTexture2DRHIRef TextureRHI = RTRes->GetTextureRHI();
+		FTextureRHIRef TextureRHI = RTRes->GetTextureRHI();
 		check(TextureRHI);
 
 		TextureRHI->SetName(FName(*RT->GetName()));

@@ -9,13 +9,16 @@ namespace EpicGames.Horde.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
-	[IssueHandler(Priority = 10)]
+	[IssueHandler]
 	public class ContentIssueHandler : IssueHandler
 	{
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
 		static bool IsMatchingEventId(EventId eventId) => eventId == KnownLogEvents.Engine_AssetLog;
 		static bool IsMaskedEventId(EventId eventId) => eventId == KnownLogEvents.ExitCode;
+
+		/// <inheritdoc/>
+		public override int Priority => 10;
 
 		/// <inheritdoc/>
 		public override bool HandleEvent(IssueEvent issueEvent)

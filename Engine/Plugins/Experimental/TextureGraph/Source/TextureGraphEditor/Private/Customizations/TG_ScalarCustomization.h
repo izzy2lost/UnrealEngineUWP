@@ -11,7 +11,7 @@
 #include "Widgets/Input/SSlider.h"
 #include "Editor.h"
 #include "STG_TextureHistogram.h"
-
+#include "TG_SystemTypes.h"
 
 #define LOCTEXT_NAMESPACE "FTextureGraphEditorModule"
 
@@ -26,8 +26,11 @@ public:
 
 class FTG_ScalarCustomization : public IPropertyTypeCustomization
 {
-	bool bIsUsingSlider = false;
+	/** Edited Property */
 	TSharedPtr<IPropertyHandle> ScalarHandle;
+
+	/** True if the slider is being used to change the value of the property */
+	bool bIsUsingSlider = false;
 
 public:
 	static TSharedRef<IPropertyTypeCustomization> Create()
@@ -38,33 +41,32 @@ public:
 	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils) override
 	{
 		ScalarHandle = PropertyHandle;
-		check(ScalarHandle.IsValid());
-
-		float FloatValue;
-		ScalarHandle->GetValue(FloatValue);
-
-		TWeakPtr<IPropertyHandle> ScalarHandlePtr = ScalarHandle;
 
 		// Get min/max metadata values if defined
 		float MinAllowedValue = 0.0f;
 		float MinUIValue = 0.0f;
 		float MaxAllowedValue = 1.0f;
 		float MaxUIValue = 1.0f;
-		if (ScalarHandle->HasMetaData(TEXT("ClampMin")))
+		FText DisplayName;
+		if (ScalarHandle.IsValid())
 		{
-			MinAllowedValue = ScalarHandle->GetFloatMetaData(TEXT("ClampMin"));
-		}
-		if (ScalarHandle->HasMetaData(TEXT("UIMin")))
-		{
-			MinUIValue = ScalarHandle->GetFloatMetaData(TEXT("UIMin"));
-		}
-		if (ScalarHandle->HasMetaData(TEXT("ClampMax")))
-		{
-			MaxAllowedValue = ScalarHandle->GetFloatMetaData(TEXT("ClampMax"));
-		}
-		if (ScalarHandle->HasMetaData(TEXT("UIMax")))
-		{
-			MaxUIValue = ScalarHandle->GetFloatMetaData(TEXT("UIMax"));
+			if (ScalarHandle->HasMetaData(TEXT("ClampMin")))
+			{
+				MinAllowedValue = ScalarHandle->GetFloatMetaData(TEXT("ClampMin"));
+			}
+			if (ScalarHandle->HasMetaData(TEXT("UIMin")))
+			{
+				MinUIValue = ScalarHandle->GetFloatMetaData(TEXT("UIMin"));
+			}
+			if (ScalarHandle->HasMetaData(TEXT("ClampMax")))
+			{
+				MaxAllowedValue = ScalarHandle->GetFloatMetaData(TEXT("ClampMax"));
+			}
+			if (ScalarHandle->HasMetaData(TEXT("UIMax")))
+			{
+				MaxUIValue = ScalarHandle->GetFloatMetaData(TEXT("UIMax"));
+			}
+			DisplayName = ScalarHandle->GetPropertyDisplayName();
 		}
 
 		// Build the  ui
@@ -72,54 +74,77 @@ public:
 			.NameContent()
 			[
 				SNew(STextBlock)
-				.Text(PropertyHandle->GetPropertyDisplayName())
+				.Text(DisplayName)
 				.Font(CustomizationUtils.GetRegularFont())
 			]
 			.ValueContent()
 			.MinDesiredWidth(STG_TextureHistogram::PreferredWidth)
 			[
 				SNew(SSlider)
-				.Value(this, &FTG_ScalarCustomization::OnGetValue, ScalarHandlePtr)
+				.Value(this, &FTG_ScalarCustomization::OnGetValue)
 				.MinValue(MinAllowedValue)
 				.MaxValue(MaxAllowedValue)
-				.OnValueChanged(this, &FTG_ScalarCustomization::OnValueChanged, ScalarHandlePtr)
+				.OnValueChanged(this, &FTG_ScalarCustomization::OnValueChanged)
 				.OnMouseCaptureBegin(this, &FTG_ScalarCustomization::OnBeginSliderMovement)
 				.OnMouseCaptureEnd(this, &FTG_ScalarCustomization::OnEndSliderMovement)
 			];
 	}
 
-	float OnGetValue(TWeakPtr<IPropertyHandle> HandleWeakPtr) const
+	float OnGetValue() const
 	{
-		auto ValueSharedPtr = HandleWeakPtr.Pin();
-		float Value = 0;
-		if (ValueSharedPtr.IsValid())
+		float NumericVal = 0;
+		if (ScalarHandle.IsValid())
 		{
-			ensure(ValueSharedPtr->GetValue(Value) == FPropertyAccess::Success);
+			if (ScalarHandle->GetValue(NumericVal) != FPropertyAccess::Fail)
+			{
+				return NumericVal;
+			}
 		}
-		return Value;
+		return NumericVal;
+	}
+
+	void OnValueChanged(float NewValue)
+	{
+		if (bIsUsingSlider)
+		{
+			if (ScalarHandle.IsValid())
+			{
+				float OrgValue(0);
+				if (ScalarHandle->GetValue(OrgValue) != FPropertyAccess::Fail)
+				{
+					// Value hasn't changed, so lets return now
+					if (OrgValue == NewValue)
+					{
+						return;
+					}
+				}
+
+				// We don't create a transaction for each property change when using the slider.  Only once when the slider first is moved
+				EPropertyValueSetFlags::Type Flags = (EPropertyValueSetFlags::InteractiveChange | EPropertyValueSetFlags::NotTransactable);
+				ScalarHandle->SetValue(NewValue, Flags);
+			}
+		}
 	}
 
 	void OnBeginSliderMovement()
 	{
 		bIsUsingSlider = true;
-		GEditor->BeginTransaction(LOCTEXT("SetScalarProperty", "Set Scalar Property"));
-	}
-
-	void OnValueChanged(float NewValue, TWeakPtr<IPropertyHandle> HandleWeakPtr)
-	{
-		if (bIsUsingSlider)
+		if (ScalarHandle.IsValid())
 		{
-			auto HandleSharedPtr = HandleWeakPtr.Pin();
-			if (HandleSharedPtr.IsValid())
-			{
-				ensure(HandleSharedPtr->SetValue(NewValue, EPropertyValueSetFlags::InteractiveChange) == FPropertyAccess::Success);
-			}
+			GEditor->BeginTransaction(NSLOCTEXT("GraphEditor", "ChangeNumberPinValueSlider", "Change Number Pin Value slider"));
 		}
 	}
 
 	void OnEndSliderMovement()
 	{
 		bIsUsingSlider = false;
+
+		// set value once more with default flags so the TextureGraph system recognizes a non-interactive change as well.
+		float OrgValue(0);
+		if (ScalarHandle->GetValue(OrgValue) != FPropertyAccess::Fail)
+		{
+			ScalarHandle->SetValue(OrgValue);
+		}
 		GEditor->EndTransaction();
 	}
 

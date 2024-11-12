@@ -7,6 +7,15 @@ public class ChaosClothAssetEngine : ModuleRules
 	public ChaosClothAssetEngine(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+		
+		PublicDependencyModuleNames.AddRange(
+			new string[]
+			{
+				"DataflowCore",
+				"DataflowEngine",
+				"DataflowSimulation"
+			}
+		);
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
@@ -21,8 +30,7 @@ public class ChaosClothAssetEngine : ModuleRules
 				"ChaosCloth",
 				"ChaosCaching",
 				"ClothingSystemRuntimeCommon",
-				"ClothingSystemRuntimeInterface",
-				"DataflowEngine"
+				"ClothingSystemRuntimeInterface"
 			}
 		);
 

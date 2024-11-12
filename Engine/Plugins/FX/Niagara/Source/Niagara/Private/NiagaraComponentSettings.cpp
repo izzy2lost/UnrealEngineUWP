@@ -200,8 +200,8 @@ namespace FNiagaraComponentSettings
 		}
 		bNeedsSettingsUpdate = false;
 
-		bool bShouldAllowGpuEmitters = true;
-		if (GpuRHIDenyListString.Len() > 0)
+		bool bShouldAllowGpuEmitters = FNiagaraUtilities::AllowGPUParticles();
+		if (bShouldAllowGpuEmitters && GpuRHIDenyListString.Len() > 0)
 		{
 			TArray<FString> BanNames;
 			GpuRHIDenyListString.ParseIntoArray(BanNames, TEXT(","));

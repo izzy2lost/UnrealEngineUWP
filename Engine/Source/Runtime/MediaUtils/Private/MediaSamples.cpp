@@ -69,6 +69,7 @@ FMediaSamples::FMediaSamples(uint32 InMaxNumberOfQueuedAudioSamples, uint32 InMa
 {
 }
 
+FMediaSamples::~FMediaSamples() = default;
 
 bool FMediaSamples::FetchAudio(TRange<FTimespan> TimeRange, TSharedPtr<IMediaAudioSample, ESPMode::ThreadSafe>& OutSample)
 {
@@ -141,11 +142,10 @@ void FMediaSamples::FlushSamples()
  */
 FMediaSamples::EFetchBestSampleResult FMediaSamples::FetchBestVideoSampleForTimeRange(const TRange<FMediaTimeStamp> & TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample, bool bReverse, bool bConsistentResult)
 {
-	if (!VideoSampleQueue.FetchBestSampleForTimeRange(TimeRange, OutSample, bReverse, bConsistentResult))
-	{
-		return EFetchBestSampleResult::NoSample;
-	}
-	return EFetchBestSampleResult::Ok;
+	EMediaSampleQueueFetchResult FetchRes =	VideoSampleQueue.FetchBestSampleForTimeRange(TimeRange, OutSample, bReverse, bConsistentResult);
+	EFetchBestSampleResult Ret = FetchRes == EMediaSampleQueueFetchResult::Found ? EFetchBestSampleResult::Ok :
+								 FetchRes == EMediaSampleQueueFetchResult::None ? EFetchBestSampleResult::NoSample : EFetchBestSampleResult::PurgedToEmpty;
+	return Ret;
 }
 
 /**

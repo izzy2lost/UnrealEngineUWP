@@ -15,11 +15,14 @@
 #include "HAL/ExceptionHandling.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #include <link.h>
 #include <signal.h>
 
 #include "HAL/IConsoleManager.h"
+
+#include <sys/mman.h>
 
 static TAutoConsoleVariable<float> CVarUnixPlatformThreadCallStackMaxWait(
 	TEXT("UnixPlatformThreadStackWalk.MaxWait"),
@@ -39,6 +42,16 @@ namespace
 	size_t   GModuleSymbolFileMemorySize = 0U;
 }
 
+void CORE_API UnixPlatformStackWalk_UnloadPreloadedModuleSymbol()
+{
+	if (GModuleSymbolFileMemory)
+	{
+		GModuleSymbolFileMemory -= FPlatformMemory::GetConstants().PageSize;
+		FMemory::Free(GModuleSymbolFileMemory);
+		GModuleSymbolFileMemory = nullptr;
+	}
+}
+
 void CORE_API UnixPlatformStackWalk_PreloadModuleSymbolFile()
 {
 	if (GModuleSymbolFileMemory == nullptr)
@@ -49,7 +62,7 @@ void CORE_API UnixPlatformStackWalk_PreloadModuleSymbolFile()
 		if (SymbolFileFD == -1)
 		{
 			int ErrNo = errno;
-			UE_LOG(LogHAL, Warning, TEXT("UnixPlatformStackWalk_UnloadPreloadedModuleSymbol: open() failed on path %s errno=%d (%s)"),
+			UE_LOG(LogHAL, Warning, TEXT("UnixPlatformStackWalk_PreloadedModuleSymbol: open() failed on path %s errno=%d (%s)"),
 				*ModuleSymbolPath,
 				ErrNo,
 				UTF8_TO_TCHAR(strerror(ErrNo)));
@@ -60,35 +73,60 @@ void CORE_API UnixPlatformStackWalk_PreloadModuleSymbolFile()
 			GModuleSymbolFileMemorySize = lseek(SymbolFileFD, 0, SEEK_CUR);
 			lseek(SymbolFileFD, 0, SEEK_SET);
 
-			GModuleSymbolFileMemory = (uint8_t*)FMemory::Malloc(GModuleSymbolFileMemorySize);
+			// Allocate and jump by an extra page size so we can make sure we read only *our* memory and dont read only someone elses.
+			GModuleSymbolFileMemory = (uint8_t*)FMemory::Malloc(GModuleSymbolFileMemorySize +  2 * (FPlatformMemory::GetConstants().PageSize));
+			UE_LOG(LogHAL, Warning, TEXT("UnixPlatformStackWalk_PreloadModuleSymbolFile: GModuleSymbolFileMemory = 0x%x, GModuleSymbolFileMemorySize = %ld bytes"), GModuleSymbolFileMemory, GModuleSymbolFileMemorySize);
 
-			ssize_t BytesRead = read(SymbolFileFD, GModuleSymbolFileMemory, GModuleSymbolFileMemorySize);
+			GModuleSymbolFileMemory += FPlatformMemory::GetConstants().PageSize;
+			UE_LOG(LogHAL, Warning, TEXT("UnixPlatformStackWalk_PreloadModuleSymbolFile: GModuleSymbolFileMemory = 0x%x (After adding additional memory page"), GModuleSymbolFileMemory);
+	
+			// On linux read() will transfer at most 2,147,479,552 bytes
+			const int32 MaxBytesToRead = 0x7FFFF000;
+
+			ssize_t BytesRead = 0;
+			{
+				// RemainingBytes must be size_t to prevent wrap around if GModuleSymbolFileMemorySize is too large
+				size_t RemainingBytes = GModuleSymbolFileMemorySize;
+				uint8_t* CurrentModulePos = GModuleSymbolFileMemory;
+				ssize_t CurrentBytesRead = 0;
+
+				while(RemainingBytes > MaxBytesToRead)
+				{
+					CurrentBytesRead = read(SymbolFileFD, CurrentModulePos, MaxBytesToRead);
+					if(CurrentBytesRead < 0)
+					{
+						break;
+					}
+					RemainingBytes -= CurrentBytesRead;
+					CurrentModulePos += CurrentBytesRead;
+					BytesRead += CurrentBytesRead;
+				}
+				BytesRead += read(SymbolFileFD, CurrentModulePos, RemainingBytes);
+			}
+
 
 			close(SymbolFileFD);
 
 			// Did not read expected amount of bytes
 			if (BytesRead != GModuleSymbolFileMemorySize)
 			{
-				FMemory::Free(GModuleSymbolFileMemory);
+				UE_LOG(LogHAL, Warning, TEXT("UnixPlatformStackWalk_PreloadedModuleSymbol: BytesRead %d Expected %ld"), BytesRead, GModuleSymbolFileMemorySize);
+				UnixPlatformStackWalk_UnloadPreloadedModuleSymbol();
 
 				if (BytesRead == -1)
 				{
 					int ErrNo = errno;
-					UE_LOG(LogHAL, Warning, TEXT("UnixPlatformStackWalk_UnloadPreloadedModuleSymbol: read() failed, errno=%d (%s)"),
+					UE_LOG(LogHAL, Warning, TEXT("UnixPlatformStackWalk_PreloadedModuleSymbol: read() failed, errno=%d (%s)"),
 						ErrNo,
 						UTF8_TO_TCHAR(strerror(ErrNo)));
 				}
 			}
+			else
+			{
+				// Mark our selfs to the left most page boundary read only, we allocated and moved down our memory by a page to give us some slack. Only do this if we've not freed GModuleSymbolFileMemory!
+				mprotect(reinterpret_cast<void*>(reinterpret_cast<uint64>(GModuleSymbolFileMemory) & ~(FPlatformMemory::GetConstants().PageSize - 1)), GModuleSymbolFileMemorySize, PROT_READ);
+			}
 		}
-	}
-}
-
-void CORE_API UnixPlatformStackWalk_UnloadPreloadedModuleSymbol()
-{
-	if (GModuleSymbolFileMemory)
-	{
-		FMemory::Free(GModuleSymbolFileMemory);
-		GModuleSymbolFileMemory = nullptr;
 	}
 }
 
@@ -489,7 +527,7 @@ namespace
 	}
 }
 
-void FUnixPlatformStackWalk::ProgramCounterToSymbolInfo( uint64 ProgramCounter, FProgramCounterSymbolInfo& out_SymbolInfo )
+UE_AUTORTFM_ALWAYS_OPEN void FUnixPlatformStackWalk::ProgramCounterToSymbolInfo( uint64 ProgramCounter, FProgramCounterSymbolInfo& out_SymbolInfo )
 {
 	PopulateProgramCounterSymbolInfoFromSymbolFile(ProgramCounter, out_SymbolInfo);
 }
@@ -635,7 +673,7 @@ bool FUnixPlatformStackWalk::ProgramCounterToHumanReadableString( int32 CurrentC
 	return true;
 }
 
-void FUnixPlatformStackWalk::StackWalkAndDump( ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, int32 IgnoreCount, void* Context )
+UE_AUTORTFM_ALWAYS_OPEN void FUnixPlatformStackWalk::StackWalkAndDump( ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, int32 IgnoreCount, void* Context )
 {
 	if (Context == nullptr)
 	{
@@ -677,7 +715,7 @@ namespace
 	};
 } // namespace
 
-void FUnixPlatformStackWalk::StackWalkAndDumpEx(ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, int32 IgnoreCount, uint32 Flags, void* Context)
+UE_AUTORTFM_ALWAYS_OPEN void FUnixPlatformStackWalk::StackWalkAndDumpEx(ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, int32 IgnoreCount, uint32 Flags, void* Context)
 {
 	const bool bHandlingEnsure = (Flags & EStackWalkFlags::FlagsUsedWhenHandlingEnsure) == EStackWalkFlags::FlagsUsedWhenHandlingEnsure;
 	GHandlingEnsure = bHandlingEnsure;
@@ -699,7 +737,7 @@ void FUnixPlatformStackWalk::StackWalkAndDumpEx(ANSICHAR* HumanReadableString, S
 	GHandlingEnsure = false;
 }
 
-void FUnixPlatformStackWalk::StackWalkAndDumpEx(ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, void* ProgramCounter, uint32 Flags, void* Context)
+UE_AUTORTFM_ALWAYS_OPEN void FUnixPlatformStackWalk::StackWalkAndDumpEx(ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, void* ProgramCounter, uint32 Flags, void* Context)
 {
 	const bool bHandlingEnsure = (Flags & EStackWalkFlags::FlagsUsedWhenHandlingEnsure) == EStackWalkFlags::FlagsUsedWhenHandlingEnsure;
 	GHandlingEnsure = bHandlingEnsure;
@@ -749,7 +787,7 @@ namespace
 	}
 }
 
-uint32 FUnixPlatformStackWalk::CaptureStackBackTrace( uint64* BackTrace, uint32 MaxDepth, void* Context )
+UE_AUTORTFM_ALWAYS_OPEN uint32 FUnixPlatformStackWalk::CaptureStackBackTrace( uint64* BackTrace, uint32 MaxDepth, void* Context )
 {
 	// Make sure we have place to store the information before we go through the process of raising
 	// an exception and handling it.
@@ -811,7 +849,7 @@ namespace
 	}
 }
 
-void FUnixPlatformStackWalk::ThreadStackWalkAndDump(ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, int32 IgnoreCount, uint32 ThreadId)
+UE_AUTORTFM_ALWAYS_OPEN void FUnixPlatformStackWalk::ThreadStackWalkAndDump(ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, int32 IgnoreCount, uint32 ThreadId)
 {
 	ThreadStackUserData ThreadCallStack;
 	ThreadCallStack.bCaptureCallStack = true;
@@ -823,7 +861,7 @@ void FUnixPlatformStackWalk::ThreadStackWalkAndDump(ANSICHAR* HumanReadableStrin
 	GatherCallstackFromThread(ThreadCallStack, ThreadId);
 }
 
-uint32 FUnixPlatformStackWalk::CaptureThreadStackBackTrace(uint64 ThreadId, uint64* BackTrace, uint32 MaxDepth, void* Context)
+UE_AUTORTFM_ALWAYS_OPEN uint32 FUnixPlatformStackWalk::CaptureThreadStackBackTrace(uint64 ThreadId, uint64* BackTrace, uint32 MaxDepth, void* Context)
 {
 	ThreadStackUserData ThreadBackTrace;
 	ThreadBackTrace.bCaptureCallStack = false;
@@ -853,7 +891,7 @@ namespace
 	}
 }
 
-int32 FUnixPlatformStackWalk::GetProcessModuleCount()
+UE_AUTORTFM_ALWAYS_OPEN int32 FUnixPlatformStackWalk::GetProcessModuleCount()
 {
 	int Size = 0;
 	dl_iterate_phdr(NumberOfDynamicLibrariesCallback, &Size);
@@ -918,7 +956,7 @@ namespace
 	}
 }
 
-int32 FUnixPlatformStackWalk::GetProcessModuleSignatures(FStackWalkModuleInfo *ModuleSignatures, const int32 ModuleSignaturesSize)
+UE_AUTORTFM_ALWAYS_OPEN int32 FUnixPlatformStackWalk::GetProcessModuleSignatures(FStackWalkModuleInfo *ModuleSignatures, const int32 ModuleSignaturesSize)
 {
 	if (ModuleSignatures == nullptr || ModuleSignaturesSize == 0)
 	{

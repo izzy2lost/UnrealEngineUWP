@@ -102,6 +102,7 @@ protected:
 
 class FMeshDrawSingleShaderBindings : public FMeshDrawShaderBindingsLayout
 {
+	friend class FReadOnlyMeshDrawSingleShaderBindings;
 public:
 	FMeshDrawSingleShaderBindings(const FMeshDrawShaderBindingsLayout& InLayout, uint8* InData) :
 		FMeshDrawShaderBindingsLayout(InLayout)
@@ -155,26 +156,36 @@ public:
 		}
 	}
 
-	void AddTexture(
-		FShaderResourceParameter TextureParameter,
-		FShaderResourceParameter SamplerParameter,
-		FRHISamplerState* SamplerStateRHI,
-		FRHITexture* TextureRHI)
+	void Add(FShaderResourceParameter SamplerParameter, FRHISamplerState* SamplerStateRHI)
 	{
-		checkfSlow(TextureParameter.IsInitialized(), TEXT("Parameter was not serialized"));
 		checkfSlow(SamplerParameter.IsInitialized(), TEXT("Parameter was not serialized"));
-
-		if (TextureParameter.IsBound())
-		{
-			checkf(TextureRHI, TEXT("Attempted to set null Texture on slot %u"), TextureParameter.GetBaseIndex());
-			WriteBindingTexture(TextureRHI, TextureParameter.GetBaseIndex());
-		}
 
 		if (SamplerParameter.IsBound())
 		{
 			checkf(SamplerStateRHI, TEXT("Attempted to set null Sampler on slot %u"), SamplerParameter.GetBaseIndex());
 			WriteBindingSampler(SamplerStateRHI, SamplerParameter.GetBaseIndex());
 		}
+	}
+
+	void Add(FShaderResourceParameter TextureParameter, FRHITexture* TextureRHI)
+	{
+		checkfSlow(TextureParameter.IsInitialized(), TEXT("Parameter was not serialized"));
+
+		if (TextureParameter.IsBound())
+		{
+			checkf(TextureRHI, TEXT("Attempted to set null Texture on slot %u"), TextureParameter.GetBaseIndex());
+			WriteBindingTexture(TextureRHI, TextureParameter.GetBaseIndex());
+		}
+	}
+
+	void AddTexture(
+		FShaderResourceParameter TextureParameter,
+		FShaderResourceParameter SamplerParameter,
+		FRHISamplerState* SamplerStateRHI,
+		FRHITexture* TextureRHI)
+	{
+		Add(TextureParameter, TextureRHI);
+		Add(SamplerParameter, SamplerStateRHI);
 	}
 
 	template<class ParameterType>
@@ -346,6 +357,4 @@ private:
 
 		checkfSlow(FoundIndex >= 0, TEXT("Attempted to set Texture at BaseIndex %u which was never in the shader's parameter map."), BaseIndex);
 	}
-
-	friend class FMeshDrawShaderBindings;
 };

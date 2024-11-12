@@ -14,6 +14,8 @@
 #include "Data/AvaOutlinerVersion.h"
 #include "Editor/Transactor.h"
 #include "EditorModeManager.h"
+#include "Engine/Level.h"
+#include "Engine/LevelStreaming.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -64,6 +66,7 @@ FAvaOutliner::FAvaOutliner(IAvaOutlinerProvider& InOutlinerProvider)
 
 	//Listen to Object Replacement Changes
 	FCoreUObjectDelegates::OnObjectsReplaced.AddRaw(this, &FAvaOutliner::OnObjectsReplaced);
+	FEditorDelegates::OnEditorActorReplaced.AddRaw(this, &FAvaOutliner::OnActorReplaced);
 }
 
 FAvaOutliner::~FAvaOutliner()
@@ -82,6 +85,7 @@ FAvaOutliner::~FAvaOutliner()
 	}
 
 	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
+	FEditorDelegates::OnEditorActorReplaced.RemoveAll(this);
 }
 
 UAvaOutlinerSubsystem* FAvaOutliner::GetOutlinerSubsystem() const
@@ -100,24 +104,63 @@ bool FAvaOutliner::IsActorAllowedInOutliner(const AActor* InActor) const
 		return false;
 	}
 
-	// Only consider Actors that are in the Outliner World
-	const UWorld* const World = InActor->GetWorld();
-	if (!IsValid(World) || World != GetWorld())
+	const UWorld* const ActorWorld = InActor->GetWorld();
+	if (!IsValid(ActorWorld))
 	{
 		return false;
 	}
 
-	// Do not show Transient Actors in Outliner nor actors that are NOT editable
-	if (InActor->HasAnyFlags(RF_Transient) || !InActor->IsEditable() || !InActor->IsListedInSceneOutliner())
+	const UWorld* const OutlinerWorld = GetWorld();
+	if (!IsValid(OutlinerWorld))
+	{
+		return false;
+	}
+
+	// Note: RF_Transient is no longer checked (to hide transient actors).
+	// It could be re-added with Outliner parameters to show/hide Transient actors (as seen in FActorMode::IsActorDisplayable)
+	// However, in SLevelEditor::CreateSceneOutliner bShowTransient is set to true.
+
+	// Do not show Actors that aren't editable or not meant to be listed in Outliner
+	if (!InActor->IsEditable() || !InActor->IsListedInSceneOutliner())
+	{
+		return false;
+	}
+
+	// Only consider Actors that are in the Outliner World
+	if (ActorWorld != OutlinerWorld)
+	{
+		return false;
+	}
+
+	// Check if actor is in a streaming level
+	for (ULevelStreaming* const LevelStreaming : OutlinerWorld->GetStreamingLevels())
+	{
+		if (const TSoftObjectPtr<UWorld>& WorldAsset = LevelStreaming->GetWorldAsset())
+		{
+			if (WorldAsset && WorldAsset->PersistentLevel
+				&& WorldAsset->PersistentLevel->Actors.Contains(InActor))
+			{
+				return !IsDefaultWorldActorToHide(WorldAsset.Get(), InActor);
+			}
+		}
+	}
+
+	// Make sure the Actor is none of these Default World Actors
+	return !IsDefaultWorldActorToHide(ActorWorld, InActor);
+}
+
+bool FAvaOutliner::IsDefaultWorldActorToHide(const UWorld* const InWorld, const AActor* const InActor) const
+{
+	if (!IsValid(InWorld) || !IsValid(InActor))
 	{
 		return false;
 	}
 
 	// Make sure the Actor is none of these Default World Actors
-	return InActor != World->GetDefaultPhysicsVolume()
-		&& InActor != World->GetDefaultBrush()
-		&& InActor != World->GetWorldSettings()
-		&& InActor != World->MyParticleEventManager;
+	return InActor == InWorld->GetDefaultPhysicsVolume()
+		|| InActor == InWorld->GetDefaultBrush()
+		|| InActor == InWorld->GetWorldSettings()
+		|| InActor == InWorld->MyParticleEventManager;
 }
 
 bool FAvaOutliner::IsComponentAllowedInOutliner(const USceneComponent* InComponent) const
@@ -344,33 +387,55 @@ void FAvaOutliner::Refresh()
 	SceneOutlinerParentMap.Reset();
 	if (UWorld* const World = GetWorld())
 	{
-		ULevelInstanceSubsystem* const LevelInstanceSubsystem = World->GetSubsystem<ULevelInstanceSubsystem>();
+		auto AddActorToParentMap = [this](UWorld* const InWorld, AActor* const InActor)
+			{
+				if (!IsValid(InWorld) || !IsValid(InActor))
+				{
+					return;
+				}
+
+				ULevelInstanceSubsystem* const LevelInstanceSubsystem = InWorld->GetSubsystem<ULevelInstanceSubsystem>();
+
+				const ULevel* Level = InActor->GetLevel();
+				AActor* Parent = InActor->GetSceneOutlinerParent();
+
+				// Try to find the Level Instance Actor to use as Parent for actors that aren't attached to anything
+				// and belong to sub-levels
+				if (!Parent && Level != InWorld->PersistentLevel)
+				{
+					if (const ILevelInstanceInterface* LevelInstance = LevelInstanceSubsystem->GetOwningLevelInstance(Level))
+					{
+						if (const ULevelInstanceComponent* LevelInstanceComponent = LevelInstance->GetLevelInstanceComponent())
+						{
+							Parent = LevelInstanceComponent->GetOwner();
+						}
+					}
+				}
+
+				SceneOutlinerParentMap.FindOrAdd(Parent).AddUnique(InActor);
+				FindOrAdd<FAvaOutlinerActor>(InActor);
+			};
 
 		// 1) Update the Scene Outliner Parent Map for its Parent to know this Actor
 		// 2) Make sure this Actor has an assigned Outliner Item
 		for (AActor* const Actor : TActorRange<AActor>(World))
 		{
-			const ULevel* Level  = Actor->GetLevel();
-			AActor* const Parent = Actor->GetSceneOutlinerParent();
+			AddActorToParentMap(World, Actor);
+		}
 
-			// Try to find the Level Instance Actor to use as Parent for actors that aren't attached to anything
-			// and belong to sub-levels
-			if (!Parent && Level != World->PersistentLevel)
+		// Add all actors from streaming levels
+		for (ULevelStreaming* const LevelStreaming : World->GetStreamingLevels())
+		{
+			if (const TSoftObjectPtr<UWorld>& WorldAsset = LevelStreaming->GetWorldAsset())
 			{
-				if (const ILevelInstanceInterface* LevelInstance = LevelInstanceSubsystem->GetOwningLevelInstance(Level))
+				if (WorldAsset && WorldAsset->PersistentLevel)
 				{
-					if (const ULevelInstanceComponent* LevelInstanceComponent = LevelInstance->GetLevelInstanceComponent())
+					for (AActor* const Actor : WorldAsset->PersistentLevel->Actors)
 					{
-						SceneOutlinerParentMap.FindOrAdd(LevelInstanceComponent->GetOwner()).Add(Actor);
+						AddActorToParentMap(WorldAsset.Get(), Actor);
 					}
 				}
 			}
-			else
-			{
-				SceneOutlinerParentMap.FindOrAdd(Parent).Add(Actor);
-			}
-
-			FindOrAdd<FAvaOutlinerActor>(Actor);
 		}
 	}
 
@@ -387,8 +452,8 @@ void FAvaOutliner::Refresh()
 		InOutlinerView->Refresh();
 	});
 
-	// Reset Tree and Save so that the Tree is updated to the latest Outliner State
-	SaveState->SaveSceneTree(*this, /*bInResetTree*/true);
+	// Save so that the Tree is updated to the latest Outliner State
+	SaveState->SaveSceneTree(*this, /*bInResetTree*/false);
 }
 
 TSharedRef<FAvaOutlinerItem> FAvaOutliner::GetTreeRoot() const
@@ -765,6 +830,55 @@ void FAvaOutliner::DuplicateItems(TArray<FAvaOutlinerItemPtr> InItems
 	}
 
 	OutlinerProvider.OutlinerDuplicateActors(TemplateActors);
+}
+
+void FAvaOutliner::DeleteItems(TArray<FAvaOutlinerItemPtr> InItems)
+{
+	SortItems(InItems);
+
+	TArray<AActor*> DeleteActors;
+	DeleteActors.Reserve(InItems.Num());
+
+	for (TArray<FAvaOutlinerItemPtr>::TIterator It(InItems); It; ++It)
+	{
+		FAvaOutlinerItemPtr Item = *It;
+
+		if (!Item.IsValid() || !Item->CanDelete())
+		{
+			It.RemoveCurrent();
+		}
+
+		if (const FAvaOutlinerActor* const ActorItem = Item->CastTo<FAvaOutlinerActor>())
+		{
+			DeleteActors.Add(ActorItem->GetActor());
+		}
+	}
+
+	if (InItems.IsEmpty())
+	{
+		return;
+	}
+
+	FScopedTransaction DeleteTransaction(LOCTEXT("OutlinerItemDeleteAction", "Outliner Delete Item(s)"), !GIsTransacting);
+
+	if (!DeleteActors.IsEmpty())
+	{
+		OutlinerProvider.OutlinerDeleteActors(DeleteActors);
+	}
+
+	bool bRequestRefresh = false;
+	for (FAvaOutlinerItemPtr& Item : InItems)
+	{
+		if (Item && Item->Delete())
+		{
+			bRequestRefresh = true;
+		}
+	}
+
+	if (bRequestRefresh)
+	{
+		RequestRefresh();
+	}
 }
 
 void FAvaOutliner::UnregisterOutlinerView(int32 InOutlinerViewId)
@@ -1223,6 +1337,13 @@ void FAvaOutliner::OnObjectsReplaced(const TMap<UObject*, UObject*>& InReplaceme
 	{
 		InOutlinerView->NotifyObjectsReplaced();
 	});
+}
+
+void FAvaOutliner::OnActorReplaced(AActor* InOldActor, AActor* InNewActor)
+{
+	TMap<UObject*, UObject*> ReplacementMap;
+	ReplacementMap.Add(InOldActor, InNewActor);
+	OnObjectsReplaced(ReplacementMap);
 }
 
 void FAvaOutliner::SetOutlinerModified()

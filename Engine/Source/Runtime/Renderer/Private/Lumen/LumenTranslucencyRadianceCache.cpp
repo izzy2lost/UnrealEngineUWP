@@ -379,14 +379,14 @@ void LumenTranslucencyReflectionsMarkUsedProbes(
 		RDG_EVENT_NAME("TranslucentSurfacesMarkPass"),
 		PassParameters,
 		ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-		[&View, &SceneRenderer, MeshPass, PassParameters, ViewportScale, DownsampledViewRect](FRHICommandList& RHICmdList)
+		[&View, &SceneRenderer, MeshPass, PassParameters, ViewportScale, DownsampledViewRect](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FRHIRenderPassInfo RPInfo;
 		RPInfo.ResolveRect = FResolveRect(DownsampledViewRect);
 		RHICmdList.BeginRenderPass(RPInfo, TEXT("LumenTranslucencyRadianceCacheMark"));
 
 		FSceneRenderer::SetStereoViewport(RHICmdList, View, ViewportScale);
-		View.ParallelMeshDrawCommandPasses[MeshPass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+		View.ParallelMeshDrawCommandPasses[MeshPass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 
 		RHICmdList.EndRenderPass();
 	});

@@ -20,6 +20,8 @@
 #include "Tree/CurveEditorTreeFilter.h"
 #include "AnimatedPropertyKey.h"
 #include "MovieSceneSignedObject.h"
+#include "MovieSceneSequence.h"
+#include "Sections/MovieSceneSubSection.h"
 
 #include "MVVM/CurveEditorExtension.h"
 #include "MVVM/CurveEditorIntegrationExtension.h"
@@ -31,6 +33,7 @@
 #include "MVVM/ViewModels/SequenceModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 
+#include "MVVM/ViewModels/OutlinerColumns/OutlinerIndicatorColumn.h"
 #include "MVVM/ViewModels/OutlinerColumns/LockOutlinerColumn.h"
 #include "MVVM/ViewModels/OutlinerColumns/MuteOutlinerColumn.h"
 #include "MVVM/ViewModels/OutlinerColumns/PinOutlinerColumn.h"
@@ -41,6 +44,9 @@
 #include "MVVM/ViewModels/OutlinerColumns/NavOutlinerColumn.h"
 #include "MVVM/ViewModels/OutlinerColumns/KeyFrameOutlinerColumn.h"
 #include "MVVM/ViewModels/OutlinerColumns/ColorPickerOutlinerColumn.h"
+
+#include "MVVM/ViewModels/OutlinerIndicators/ConditionOutlinerIndicatorBuilder.h"
+#include "MVVM/ViewModels/OutlinerIndicators/TimeWarpOutlinerIndicatorBuilder.h"
 
 #include "ToolMenus.h"
 #include "ContentBrowserMenuContexts.h"
@@ -56,8 +62,12 @@
 #include "PropertyEditorModule.h"
 #include "PropertyHandle.h"
 
+#include "Algo/RemoveIf.h"
+#include "Engine/Font.h"
+#include "CanvasTypes.h"
+
 #if !IS_MONOLITHIC
-	UE::MovieScene::FEntityManager*& GEntityManagerForDebugging = UE::MovieScene::GEntityManagerForDebuggingVisualizers;
+UE_SELECT_ANY UE::MovieScene::FEntityManager*& GEntityManagerForDebugging = UE::MovieScene::GEntityManagerForDebuggingVisualizers;
 #endif
 
 namespace UE::Sequencer::Private
@@ -182,6 +192,92 @@ static void RegisterKeyframeExtensionHandler(const FOnGenerateGlobalRowExtension
 	);
 }
 
+namespace UE::SequencerModule::Private
+{
+	int32 RenderTimecode(FCanvas* Canvas, int32 X, int32 Y, const FTimecode& Timecode, const FString& SequenceName)
+	{
+		UFont* Font = FPlatformProperties::SupportsWindowedMode() ? GEngine->GetSmallFont() : GEngine->GetMediumFont();
+		const int32 RowHeight = FMath::TruncToInt(Font->GetMaxCharHeight());
+
+		const bool bForceSignDisplay = false;
+		const bool bAlwaysDisplaySubframe = true;
+
+		FString TimecodeStr = Timecode.ToString(bForceSignDisplay, bAlwaysDisplaySubframe);
+		float CharWidth, CharHeight;
+		Font->GetCharSize(TEXT(' '), CharWidth, CharHeight);
+		int32 NewX = X - Font->GetStringSize(*SequenceName) - (int32)CharWidth*14;
+
+		Canvas->DrawShadowedString(NewX, Y, *FString::Printf(TEXT("%s TC: %s"), *SequenceName, *TimecodeStr), Font, FColor::Green);
+		Y += RowHeight;
+
+		return Y;
+	};
+
+	int32 RenderTimeForSequences(FCanvas* Canvas, int32 X, int32 Y, TSharedPtr<ISequencer>& InSequencer)
+	{
+		const FFrameRate RootDisplayRate = InSequencer->GetRootDisplayRate();
+		const FFrameRate LocalDisplayRate = InSequencer->GetFocusedDisplayRate();
+		const FQualifiedFrameTime LocalCurrentTime = InSequencer->GetLocalTime();
+		const FQualifiedFrameTime RootCurrentTime = InSequencer->GetGlobalTime();
+
+		const FTimecode LocalTimecode = FTimecode::FromFrameTime(LocalCurrentTime.ConvertTo(LocalDisplayRate), LocalDisplayRate);
+		const FTimecode RootTimecode = FTimecode::FromFrameTime(RootCurrentTime.ConvertTo(RootDisplayRate), RootDisplayRate);
+
+		const TArray<FMovieSceneSequenceID>& SubSequenceHierarchy = InSequencer->GetSubSequenceHierarchy();
+		if (SubSequenceHierarchy.Num() > 0)
+		{
+			// The first one is the root sequence.
+			UMovieSceneSequence* Sequence = FSequencerUtilities::GetMovieSceneSequence(InSequencer, SubSequenceHierarchy[0]);
+			check(Sequence);
+			FString SequenceName = Sequence->GetDisplayName().ToString();
+			Y = RenderTimecode(Canvas, X, Y, RootTimecode, SequenceName);
+
+			if (SubSequenceHierarchy.Num() > 1)
+			{
+				// The current sequence is always the first in the list.
+				Sequence = FSequencerUtilities::GetMovieSceneSequence(InSequencer, SubSequenceHierarchy.Last());
+				check(Sequence);
+				SequenceName = Sequence->GetDisplayName().ToString();
+				Y = RenderTimecode(Canvas, X, Y, LocalTimecode, SequenceName);
+			}
+		}
+
+		return Y;
+	}
+
+	static FOpenSequencerWatcher SequencerWatcher;
+
+	/** Render the sequencer time to the viewport HUD. */
+	int32 RenderStatSequencerTime(UWorld* World, FViewport* Viewport, FCanvas* Canvas, int32 X, int32 Y, const FVector* ViewLocation, const FRotator* ViewRotation)
+	{
+		for (const FOpenSequencerWatcher::FOpenSequencerData& OpenSequencer : SequencerWatcher.OpenSequencers)
+		{
+			if (TSharedPtr<ISequencer> Sequencer = OpenSequencer.WeakSequencer.Pin())
+			{
+				Y = RenderTimeForSequences(Canvas, X, Y, Sequencer);
+			}
+		}
+		return Y;
+	}
+
+	void InitStatCommands()
+	{
+		auto StartupComplete = []()
+		{
+			check(GEngine);
+			if (GIsEditor)
+			{
+				const bool bIsRHS = true;
+				GEngine->AddEngineStat(TEXT("STAT_SequencerTimecode"), TEXT("STATCAT_Sequencer"),
+									   LOCTEXT("SequencerTimeDisplay", "Displays current timecode, rate, and frame for active sequencer editor."),
+									   UEngine::FEngineStatRender::CreateStatic(&RenderStatSequencerTime),
+									   nullptr, bIsRHS);
+			}
+		};
+
+		SequencerWatcher.DoStartup(StartupComplete);
+	}
+}
 /**
  * SequencerModule implementation (private)
  */
@@ -201,7 +297,7 @@ public:
 
 		OnPreSequencerInit.Broadcast(Sequencer, ObjectChangeListener, InitParams);
 
-		Sequencer->InitSequencer(InitParams, ObjectChangeListener, TrackEditorDelegates, EditorObjectBindingDelegates, OutlinerColumnDelegates);
+		Sequencer->InitSequencer(InitParams, ObjectChangeListener, TrackEditorDelegates, EditorObjectBindingDelegates, OutlinerColumnDelegates, OutlinerIndicatorDelegates);
 
 		OnSequencerCreated.Broadcast(Sequencer);
 
@@ -262,6 +358,15 @@ public:
 
 	virtual void UnregisterOutlinerColumn(FDelegateHandle InHandle) override {
 		OutlinerColumnDelegates.RemoveAll([=](const FOnCreateOutlinerColumn& Delegate) { return Delegate.GetHandle() == InHandle; });
+	}
+
+	virtual FDelegateHandle RegisterOutlinerIndicator(FOnCreateOutlinerIndicator InCreator) override {
+		OutlinerIndicatorDelegates.Add(InCreator);
+		return OutlinerIndicatorDelegates.Last().GetHandle();
+	}
+
+	virtual void UnregisterOutlinerIndicator(FDelegateHandle InHandle) override {
+		OutlinerIndicatorDelegates.RemoveAll([=](const FOnCreateOutlinerIndicator& Delegate) { return Delegate.GetHandle() == InHandle; });
 	}
 
 	virtual FDelegateHandle RegisterOnSequencerCreated(FOnSequencerCreated::FDelegate InOnSequencerCreated) override
@@ -382,9 +487,13 @@ public:
 				FCoreDelegates::OnPostEngineInit.AddStatic(&FSequencerCommands::Register);
 				FCoreDelegates::OnPostEngineInit.AddRaw(this, &FSequencerModule::RegisterMenus);
 			}
+			UE::SequencerModule::Private::InitStatCommands();
 
 			FPropertyEditorModule& EditModule = FModuleManager::Get().GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 			OnGetGlobalRowExtensionHandle = EditModule.GetGlobalRowExtensionDelegate().AddStatic(&RegisterKeyframeExtensionHandler);
+
+			// Register far left gutter columns
+			OutlinerIndicatorColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([] { return TSharedRef<IOutlinerColumn>(MakeShared<FOutlinerIndicatorColumn>()); }));
 
 			// Register left gutter columns
 			PinOutlinerColumnHandle  = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FPinOutlinerColumn>()); }));
@@ -401,6 +510,10 @@ public:
 			KeyFrameOutlinerColumnHandle     = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FKeyFrameOutlinerColumn>()); }));
 			NavOutlinerColumnHandle          = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FNavOutlinerColumn>()); }));
 			ColorPickerOutlinerColumnHandle  = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FColorPickerOutlinerColumn>()); }));
+
+			// Register outliner indicator items
+			ConditionOutlinerIndicatorHandle = RegisterOutlinerIndicator(FOnCreateOutlinerIndicator::CreateStatic([] { return TSharedRef<IOutlinerIndicatorBuilder>(MakeShared<FConditionOutlinerIndicatorBuilder>()); }));
+			TimeWarpOutlinerIndicatorHandle = RegisterOutlinerIndicator(FOnCreateOutlinerIndicator::CreateStatic([] { return TSharedRef<IOutlinerIndicatorBuilder>(MakeShared<FTimeWarpOutlinerIndicatorBuilder>()); }));
 
 			RegisterObjectSchemas();
 		}
@@ -427,6 +540,8 @@ public:
 		AddTrackMenuExtensibilityManager = MakeShareable( new FExtensibilityManager );
 		ToolBarExtensibilityManager = MakeShareable(new FExtensibilityManager);
 		ActionsMenuExtensibilityManager = MakeShareable(new FExtensibilityManager);
+		ViewMenuExtensibilityManager = MakeShareable(new FExtensibilityManager);
+		SidebarExtensibilityManager = MakeShareable(new FExtensibilityManager);
 
 		SequencerCustomizationManager = MakeShareable(new FSequencerCustomizationManager);
 	}
@@ -447,6 +562,7 @@ public:
 			FEditorModeRegistry::Get().UnregisterMode(FSequencerEdMode::EM_SequencerMode);
 
 			// unregister outliner columns
+			UnregisterOutlinerColumn(OutlinerIndicatorColumnHandle);
 			UnregisterOutlinerColumn(PinOutlinerColumnHandle);
 			UnregisterOutlinerColumn(MuteOutlinerColumnHandle);
 			UnregisterOutlinerColumn(LockOutlinerColumnHandle);
@@ -457,6 +573,10 @@ public:
 			UnregisterOutlinerColumn(KeyFrameOutlinerColumnHandle);
 			UnregisterOutlinerColumn(NavOutlinerColumnHandle);
 			UnregisterOutlinerColumn(ColorPickerOutlinerColumnHandle);
+
+			// unregister outliner indicator items
+			UnregisterOutlinerIndicator(ConditionOutlinerIndicatorHandle);
+			UnregisterOutlinerIndicator(TimeWarpOutlinerIndicatorHandle);
 		}
 	}
 
@@ -514,6 +634,8 @@ public:
 	virtual TSharedPtr<FExtensibilityManager> GetAddTrackMenuExtensibilityManager() const override { return AddTrackMenuExtensibilityManager; }
 	virtual TSharedPtr<FExtensibilityManager> GetToolBarExtensibilityManager() const override { return ToolBarExtensibilityManager; }
 	virtual TSharedPtr<FExtensibilityManager> GetActionsMenuExtensibilityManager() const override { return ActionsMenuExtensibilityManager; }
+	virtual TSharedPtr<FExtensibilityManager> GetViewMenuExtensibilityManager() const override { return ViewMenuExtensibilityManager; }
+	virtual TSharedPtr<FExtensibilityManager> GetSidebarExtensibilityManager() const override { return SidebarExtensibilityManager; }
 
 	virtual TSharedPtr<FSequencerCustomizationManager> GetSequencerCustomizationManager() const override { return SequencerCustomizationManager; }
 
@@ -602,6 +724,9 @@ private:
 	/** List of outliner column creators */
 	TArray<FOnCreateOutlinerColumn> OutlinerColumnDelegates;
 
+	/** List of outliner indicator item creators */
+	TArray<FOnCreateOutlinerIndicator> OutlinerIndicatorDelegates;
+
 	TArray<TSharedPtr<UE::Sequencer::IObjectSchema>> ObjectSchemas;
 
 	/** Global details row extension delegate; */
@@ -626,6 +751,8 @@ private:
 	TSharedPtr<FExtensibilityManager> AddTrackMenuExtensibilityManager;
 	TSharedPtr<FExtensibilityManager> ToolBarExtensibilityManager;
 	TSharedPtr<FExtensibilityManager> ActionsMenuExtensibilityManager;
+	TSharedPtr<FExtensibilityManager> ViewMenuExtensibilityManager;
+	TSharedPtr<FExtensibilityManager> SidebarExtensibilityManager;
 
 	TSharedPtr<FSequencerCustomizationManager> SequencerCustomizationManager;
 
@@ -639,6 +766,7 @@ private:
 	TArray<FMovieRendererEntry> MovieRenderers;
 
 	// Outliner Column Delegate Handles
+	FDelegateHandle OutlinerIndicatorColumnHandle;
 	FDelegateHandle PinOutlinerColumnHandle;
 	FDelegateHandle MuteOutlinerColumnHandle;
 	FDelegateHandle LockOutlinerColumnHandle;
@@ -649,6 +777,10 @@ private:
 	FDelegateHandle KeyFrameOutlinerColumnHandle;
 	FDelegateHandle NavOutlinerColumnHandle;
 	FDelegateHandle ColorPickerOutlinerColumnHandle;
+
+	// Outliner Indicator Item Delegate Handles
+	FDelegateHandle ConditionOutlinerIndicatorHandle;
+	FDelegateHandle TimeWarpOutlinerIndicatorHandle;
 };
 
 IMPLEMENT_MODULE(FSequencerModule, Sequencer);

@@ -2,6 +2,7 @@
 
 #include "SAvaRundownChannelLayerStatusList.h"
 
+#include "AvaTag.h"
 #include "Misc/CoreDelegates.h"
 #include "Rundown/AvaRundownEditor.h"
 #include "Rundown/AvaRundownEditorDefines.h"
@@ -112,9 +113,8 @@ void SAvaRundownChannelLayerStatusList::RefreshList()
 				continue;
 			}
 
-			const FAvaTag* LayerTag = InstancePlayer->TransitionLayer.GetTag();
-
-			if (!LayerTag)
+			const FName LayerName = InstancePlayer->TransitionLayer.ToName();
+			if (LayerName.IsNone())
 			{
 				continue;
 			}
@@ -126,8 +126,7 @@ void SAvaRundownChannelLayerStatusList::RefreshList()
 				continue;
 			}
 
-			const FName& LayerName = LayerTag->TagName;
-			const FText LayerDescription = FText::FromName(LayerTag->TagName);
+			const FText LayerDescription = FText::FromName(LayerName);
 			FLinearColor ComboPageColor = FLinearColor::Transparent;
 
 			// If we're not a combo page, just add our id to the layer request

@@ -7,8 +7,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using UnrealBuildTool.Artifacts;
 
-#nullable enable
-
 namespace UnrealBuildToolTests
 {
 
@@ -55,7 +53,7 @@ namespace UnrealBuildToolTests
 		}
 
 		[TestMethod]
-		public async Task ArtifactBundleStorageTest1()
+		public async Task ArtifactBundleStorageTest1Async()
 		{
 			CancellationToken cancellationToken = default;
 

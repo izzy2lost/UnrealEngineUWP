@@ -89,7 +89,7 @@ FReply SLayerHandle::OnDragDetected(const FGeometry& MyGeometry, const FPointerE
 
 }
 
-TSharedPtr<FLayerDragDropOp> SLayerHandle::CreateDragDropOperation(TSharedPtr<SMaterialLayersFunctionsInstanceTreeItem> InOwningStack)
+TSharedPtr<FLayerDragDropOp> SLayerHandle::CreateDragDropOperation(TSharedPtr<IDraggableItem> InOwningStack)
 {
 	TSharedPtr<FLayerDragDropOp> Operation = MakeShareable(new FLayerDragDropOp(InOwningStack));
 
@@ -142,7 +142,11 @@ void FMaterialPropertyHelpers::OnMaterialLayerAssetChanged(const struct FAssetDa
 			if (InMaterialFunction->Blends[Index] != LayerFunction)
 			{
 				InMaterialFunction->Blends[Index] = LayerFunction;
+#ifdef ENABLE_MATERIAL_LAYER_PROTOTYPE
+				InMaterialFunction->UnlinkLayerFromParent(Index); // 
+#else
 				InMaterialFunction->UnlinkLayerFromParent(Index + 1); // Blend indices are offset by 1, no blend for base layer
+#endif
 			}
 			break;
 		default:
@@ -425,6 +429,7 @@ FReply FMaterialPropertyHelpers::OnClickedSaveNewFunctionInstance(class UMateria
 					ChildInstance->VectorParameterValues = EditedInstance->VectorParameterValues;
 					ChildInstance->DoubleVectorParameterValues = EditedInstance->DoubleVectorParameterValues;
 					ChildInstance->TextureParameterValues = EditedInstance->TextureParameterValues;
+					ChildInstance->TextureCollectionParameterValues = EditedInstance->TextureCollectionParameterValues;
 					ChildInstance->RuntimeVirtualTextureParameterValues = EditedInstance->RuntimeVirtualTextureParameterValues;
 					ChildInstance->SparseVolumeTextureParameterValues = EditedInstance->SparseVolumeTextureParameterValues;
 					ChildInstance->FontParameterValues = EditedInstance->FontParameterValues;
@@ -518,6 +523,7 @@ FReply FMaterialPropertyHelpers::OnClickedSaveNewLayerInstance(class UMaterialFu
 					ChildInstance->VectorParameterValues = EditedInstance->VectorParameterValues;
 					ChildInstance->DoubleVectorParameterValues = EditedInstance->DoubleVectorParameterValues;
 					ChildInstance->TextureParameterValues = EditedInstance->TextureParameterValues;
+					ChildInstance->TextureCollectionParameterValues = EditedInstance->TextureCollectionParameterValues;
 					ChildInstance->RuntimeVirtualTextureParameterValues = EditedInstance->RuntimeVirtualTextureParameterValues;
 					ChildInstance->SparseVolumeTextureParameterValues = EditedInstance->SparseVolumeTextureParameterValues;
 					ChildInstance->FontParameterValues = EditedInstance->FontParameterValues;
@@ -540,6 +546,20 @@ bool FMaterialPropertyHelpers::IsOverriddenExpression(UDEditorParameterValue* Pa
 ECheckBoxState FMaterialPropertyHelpers::IsOverriddenExpressionCheckbox(UDEditorParameterValue* Parameter)
 {
 	return IsOverriddenExpression(Parameter) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+bool FMaterialPropertyHelpers::UsesCustomPrimitiveData(UDEditorParameterValue* Parameter)
+{
+	if (UDEditorScalarParameterValue* ScalarParameter = Cast<UDEditorScalarParameterValue>(Parameter))
+	{
+		return ScalarParameter->bUseCustomPrimitiveData;
+	}
+	else if (UDEditorVectorParameterValue* VectorParameter = Cast<UDEditorVectorParameterValue>(Parameter))
+	{
+		return VectorParameter->bUseCustomPrimitiveData;
+	}
+
+	return false;
 }
 
 void FMaterialPropertyHelpers::OnOverrideParameter(bool NewValue, class UDEditorParameterValue* Parameter, UMaterialEditorInstanceConstant* MaterialEditorInstance)
@@ -873,7 +893,7 @@ TArray<UFactory*> FMaterialPropertyHelpers::GetAssetFactories(EMaterialParameter
 }
 
 
-TSharedRef<SWidget> FMaterialPropertyHelpers::MakeStackReorderHandle(TSharedPtr<SMaterialLayersFunctionsInstanceTreeItem> InOwningStack)
+TSharedRef<SWidget> FMaterialPropertyHelpers::MakeStackReorderHandle(TSharedPtr<IDraggableItem> InOwningStack)
 {
 	TSharedRef<SLayerHandle> Handle = SNew(SLayerHandle)
 		.Content()

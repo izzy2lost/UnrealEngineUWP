@@ -14,6 +14,7 @@
 #include "LandscapeHeightfieldCollisionComponent.h"
 #include "LandscapeDataAccess.h"
 #include "LandscapeEdit.h"
+#include "LandscapeEditLayer.h"
 #include "LandscapeSplinesComponent.h"
 #include "LandscapeSplineControlPoint.h"
 #include "LandscapePrivate.h"
@@ -287,8 +288,13 @@ void RasterizeHeight(int32& MinX, int32& MinY, int32& MaxX, int32& MaxY, FLandsc
 	FLandscapeEditDataInterface::ShrinkData(HeightData, MinX, MinY, MaxX, MaxY, ValidMinX, ValidMinY, ValidMaxX, ValidMaxY);
 
 	const ALandscape* Landscape = LandscapeEdit.GetTargetLandscape();
-	bool bIsEditingLayerReservedForSplines = Landscape && Landscape->IsEditingLayerReservedForSplines();
-	check(!bIsEditingLayerReservedForSplines || (Landscape->GetLandscapeSplinesReservedLayer()->BlendMode == LSBM_AlphaBlend));
+	check(Landscape != nullptr);
+
+	const FLandscapeLayer* EditingLayer = Landscape->GetLayerConst(Landscape->GetEditingLayer());
+	check((EditingLayer == nullptr) || (EditingLayer->EditLayer != nullptr));
+	const FLandscapeLayer* SplinesLayer = Landscape->FindLayerOfType(ULandscapeEditLayerSplines::StaticClass());
+	bool bIsEditingLayerReservedForSplines = (EditingLayer != nullptr) && (SplinesLayer == EditingLayer);
+	check(!bIsEditingLayerReservedForSplines || (SplinesLayer->BlendMode == LSBM_AlphaBlend));
 
 	TArray<uint16> HeightAlphaBlendData;
 	TArray<uint8> HeightFlagsData;
@@ -568,7 +574,7 @@ bool ULandscapeInfo::ApplySplines(bool bOnlySelected, TSet<TObjectPtr<ULandscape
 	bool bResult = false;
 
 	ALandscape* Landscape = LandscapeActor.Get();
-	const FLandscapeLayer* Layer = Landscape ? Landscape->GetLandscapeSplinesReservedLayer() : nullptr;
+	const FLandscapeLayer* Layer = Landscape ? Landscape->FindLayerOfType(ULandscapeEditLayerSplines::StaticClass()) : nullptr;
 	FGuid SplinesTargetLayerGuid = Layer ? Layer->Guid : Landscape ? Landscape->GetEditingLayer() : FGuid();
 	FScopedSetLandscapeEditingLayer Scope(Landscape, SplinesTargetLayerGuid, [=] { Landscape->RequestLayersContentUpdate(ELandscapeLayerUpdateMode::Update_All); });
 

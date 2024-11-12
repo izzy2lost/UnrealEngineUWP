@@ -47,6 +47,7 @@
 #include "PropertyEditorModule.h"
 #include "ScopedTransaction.h"
 #include "SlotBase.h"
+#include "SPrimaryButton.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateColor.h"
 #include "Subsystems/AssetEditorSubsystem.h"
@@ -54,6 +55,7 @@
 #include "Templates/SharedPointer.h"
 #include "Textures/SlateIcon.h"
 #include "Toolkits/IToolkit.h"
+#include "ToolMenu.h"
 #include "Types/SlateEnums.h"
 #include "UObject/Class.h"
 #include "UObject/Field.h"
@@ -497,18 +499,17 @@ class SFunctionParamDialog : public SCompoundWidget
 			[
 				SNew(SBorder)
 				.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+				.Padding(16.0f)
 				.VAlign(VAlign_Center)
 				.HAlign(HAlign_Right)
 				[
 					SNew(SHorizontalBox)
 					+SHorizontalBox::Slot()
-					.Padding(2.0f)
 					.AutoWidth()
 					[
-						SNew(SButton)
-						.ButtonStyle(FAppStyle::Get(), "FlatButton.Success")
-						.ForegroundColor(FLinearColor::White)
-						.ContentPadding(FMargin(6, 2))
+						SNew(SPrimaryButton)
+						.Text(InArgs._OkButtonText)
+						.ToolTipText(InArgs._OkButtonTooltipText)
 						.OnClicked_Lambda([this, InParentWindow, InArgs]()
 						{
 							if(InParentWindow.IsValid())
@@ -518,34 +519,22 @@ class SFunctionParamDialog : public SCompoundWidget
 							bOKPressed = true;
 							return FReply::Handled(); 
 						})
-						.ToolTipText(InArgs._OkButtonTooltipText)
-						[
-							SNew(STextBlock)
-							.TextStyle(FAppStyle::Get(), "ContentBrowser.TopBar.Font")
-							.Text(InArgs._OkButtonText)
-						]
 					]
 					+SHorizontalBox::Slot()
-					.Padding(2.0f)
+					.Padding(FMargin(8.0f, 0.0f, 0.0f, 0.0f))
 					.AutoWidth()
 					[
 						SNew(SButton)
-						.ButtonStyle(FAppStyle::Get(), "FlatButton")
-						.ForegroundColor(FLinearColor::White)
-						.ContentPadding(FMargin(6, 2))
+						.TextStyle(FAppStyle::Get(), "DialogButtonText")
+						.Text(LOCTEXT("Cancel", "Cancel"))
 						.OnClicked_Lambda([InParentWindow]()
-						{ 
+						{
 							if(InParentWindow.IsValid())
 							{
 								InParentWindow.Pin()->RequestDestroyWindow();
 							}
 							return FReply::Handled(); 
 						})
-						[
-							SNew(STextBlock)
-							.TextStyle(FAppStyle::Get(), "ContentBrowser.TopBar.Font")
-							.Text(LOCTEXT("Cancel", "Cancel"))
-						]
 					]
 				]
 			]

@@ -6,13 +6,64 @@
 #include "Containers/AnsiString.h"
 #include "Templates/UnrealTemplate.h"
 
-const FShaderSource::CharType* FilenameSentinel = SHADER_SOURCE_LITERAL("__UE_FILENAME_SENTINEL__");
-static const int FilenameSentinelLen = FShaderSource::FCStringType::Strlen(FilenameSentinel);
-static const FShaderSource::FStringType LineDirectiveSentinel = FShaderSource::FStringType::Printf(SHADER_SOURCE_LITERAL("#line 1 \"%s\"\n"), FilenameSentinel);
+struct FPreprocessConstants
+{
+	FPreprocessConstants()
+	{
+		// Add a placeholder comment to the header to allocate enough space for the "debug hash" (which
+		// will be used to associate shader source back to debug output). This will be replaced inline
+		// by code calling into the preprocessing after the fact (necessary since the hash of the preprocessed
+		// code itself is used in constructing this debug hash).
+		StrippedCodeHeaderBuilder << DebugHashCommentStart << DebugHashPrefix << FShaderCompilerInputHash() << DebugHashCommentEnd;
+		// Also add a sentinel line directive so we get the correct line offsets when remapping error/warning messages.
+		StrippedCodeHeaderBuilder << LineDirectiveStart << FilenameSentinel << LineDirectiveEnd;
+
+		check(StrippedCodeHeaderBuilder.GetAllocatedSize() == 0);
+
+		StrippedCodeHeader = StrippedCodeHeaderBuilder.ToView();
+	}
+
+	static constexpr FShaderSource::FViewType DebugHashPrefix = SHADER_SOURCE_VIEWLITERAL("DebugHash_");
+	static constexpr FStringView DebugHashPrefixWide = TEXTVIEW("DebugHash_");
+	static constexpr FShaderSource::FViewType FilenameSentinel = SHADER_SOURCE_VIEWLITERAL("__UE_FILENAME_SENTINEL");
+
+	FShaderSource::FViewType StrippedCodeHeader;
+
+private:
+
+	static constexpr FShaderSource::FViewType DebugHashCommentStart = SHADER_SOURCE_VIEWLITERAL("// ");
+	static constexpr FShaderSource::FViewType DebugHashCommentEnd = SHADER_SOURCE_VIEWLITERAL("\n");
+	static constexpr FShaderSource::FViewType LineDirectiveStart = SHADER_SOURCE_VIEWLITERAL("#line 1 \"");
+	static constexpr FShaderSource::FViewType LineDirectiveEnd = SHADER_SOURCE_VIEWLITERAL("\"\n");
+
+	static constexpr int32 HeaderLen =
+		DebugHashCommentStart.Len() +
+		DebugHashPrefix.Len() +
+		DebugHashCommentEnd.Len() +
+		2 * sizeof(FShaderCompilerInputHash::ByteArray) + // size of input hash converted to a hex string
+		LineDirectiveStart.Len() +
+		FilenameSentinel.Len() +
+		LineDirectiveEnd.Len() +
+		1; // +1 for null terminator, even though we don't need it builder always ensures there's space for one
+
+	FShaderSource::TStringBuilder<HeaderLen> StrippedCodeHeaderBuilder;
+};
+
+static FPreprocessConstants GPreprocessConstants;
+
+FShaderSource::FViewType GetShaderSourceDebugHashPrefix()
+{
+	return GPreprocessConstants.DebugHashPrefix;
+}
+
+FStringView GetShaderSourceDebugHashPrefixWide()
+{
+	return GPreprocessConstants.DebugHashPrefixWide;
+}
 
 void FShaderDiagnosticRemapper::Remap(FShaderCompilerError& Diagnostic) const
 {
-	if (!Diagnostic.ErrorLineString.IsEmpty() && !Diagnostic.ErrorVirtualFilePath.IsEmpty() && Diagnostic.ErrorVirtualFilePath == FilenameSentinel)
+	if (!Diagnostic.ErrorLineString.IsEmpty() && !Diagnostic.ErrorVirtualFilePath.IsEmpty() && Diagnostic.ErrorVirtualFilePath == GPreprocessConstants.FilenameSentinel.GetData())
 	{
 		// only attempt remapping if the filename sentinel matches; this will bypass remapping in the case where compilation was retried on FXC
 		// with a DXC precompile (this compilation will report error messages relative to an intermediate hlsl file, which is not a change in behaviour)
@@ -44,7 +95,7 @@ void FShaderDiagnosticRemapper::Remap(FShaderCompilerError& Diagnostic) const
 		}
 	}
 
-	int32 FilenameIndex = Diagnostic.StrippedErrorMessage.Find(FilenameSentinel);
+	int32 FilenameIndex = Diagnostic.StrippedErrorMessage.Find(GPreprocessConstants.FilenameSentinel.GetData());
 	// if we find our sentinel filename in the diagnostic message it needs remapping
 	// need to loop in case the message contains the filename multiple times
 	while (FilenameIndex >= 0)
@@ -52,7 +103,7 @@ void FShaderDiagnosticRemapper::Remap(FShaderCompilerError& Diagnostic) const
 		const FString& OriginalMessage = Diagnostic.StrippedErrorMessage;
 		// Parse the line number from the message and record start and end indices
 		// Code assumes that the next integral number found in the message string after the filename is always line number
-		int32 LineNumberStart = FilenameIndex + FilenameSentinelLen;
+		int32 LineNumberStart = FilenameIndex + GPreprocessConstants.FilenameSentinel.Len();
 		while (!FChar::IsDigit(OriginalMessage[LineNumberStart]))
 		{
 			++LineNumberStart;
@@ -75,18 +126,18 @@ void FShaderDiagnosticRemapper::Remap(FShaderCompilerError& Diagnostic) const
 
 		// Assume line number is the same number of digits for simplicity in reserve allocation size;
 		// it's an upper bound but in most practical cases worst case we're allocating an extra byte
-		int32 RemappedLen = OriginalMessage.Len() - FilenameSentinelLen + RemapData.Filename.Len();
+		int32 RemappedLen = OriginalMessage.Len() - GPreprocessConstants.FilenameSentinel.Len() + RemapData.Filename.Len();
 		FString RemappedMessage;
 		RemappedMessage.Reserve(RemappedLen);
 		RemappedMessage.AppendChars(OriginalMessage.GetCharArray().GetData(), FilenameIndex);
 		RemappedMessage.Append(RemapData.Filename);
-		int32 SeparatorStart = FilenameIndex + FilenameSentinelLen;
+		int32 SeparatorStart = FilenameIndex + GPreprocessConstants.FilenameSentinel.Len();
 		RemappedMessage.Append(OriginalMessage.GetCharArray().GetData() + SeparatorStart, LineNumberStart - SeparatorStart);
 		RemappedMessage.AppendInt(RemapData.LineNumber);
 		RemappedMessage.Append(OriginalMessage.GetCharArray().GetData() + LineNumberEnd, OriginalMessage.Len() - LineNumberEnd);
 
 		Diagnostic.StrippedErrorMessage = MoveTemp(RemappedMessage);
-		FilenameIndex = Diagnostic.StrippedErrorMessage.Find(FilenameSentinel);
+		FilenameIndex = Diagnostic.StrippedErrorMessage.Find(GPreprocessConstants.FilenameSentinel.GetData());
 	}
 }
 
@@ -162,7 +213,7 @@ inline bool IsEndOfTheLine(FShaderSource::CharType C)
 
 inline bool StripNeedsHandling(FShaderSource::CharType C)
 {
-	return IsEndOfTheLine(C) || C == '/' || C == 0 || C == '#';
+	return IsEndOfTheLine(C) || C == '/' || C == '#' || C == 0;
 }
 
 inline void SkipNewLine(const FShaderSource::CharType*& Current, const FShaderSource::CharType* End)
@@ -175,15 +226,15 @@ inline void SkipNewLine(const FShaderSource::CharType*& Current, const FShaderSo
 void FShaderPreprocessOutput::StripCode(bool bCopyOriginalPreprocessdSource)
 {
 	// Reserve worst case slack (i.e. assuming there is nothing to strip) to avoid reallocation
-	FShaderSource PreprocessedSourceStripped(LineDirectiveSentinel.GetCharArray().GetData(), PreprocessedSource.Len());
+	FShaderSource PreprocessedSourceStripped(GPreprocessConstants.StrippedCodeHeader, PreprocessedSource.Len());
 	FShaderSource::CharType* OutStrippedData = PreprocessedSourceStripped.GetData();
-	FShaderSource::CharType* OutStripped = OutStrippedData + LineDirectiveSentinel.Len();
+	FShaderSource::CharType* OutStripped = OutStrippedData + GPreprocessConstants.StrippedCodeHeader.Len();
 
 	const FShaderSource::CharType* Begin = PreprocessedSource.GetData(), * Current = Begin;
 	const FShaderSource::CharType* End = Current + PreprocessedSource.Len();
 	int32 CurrentBlockUnstrippedLineOffset = 0;
 	int32 CurrentStrippedLineNum = 1;
-	while (Current < End)
+	while (Current < End && *Current)
 	{
 		while (!StripNeedsHandling(*Current))
 		{
@@ -272,7 +323,7 @@ void FShaderPreprocessOutput::StripCode(bool bCopyOriginalPreprocessdSource)
 						++Current;
 					}
 
-					FString DirectiveFileName(DirectiveFileNameLen, DirectiveFileNameStart);
+					FString DirectiveFileName = FString::ConstructFromPtrSize(DirectiveFileNameStart, DirectiveFileNameLen);
 
 					// scan to end-of-line and skip past the newline; this would be handled by the newline case above as well,
 					// but we don't want the newline at the end of the line directive to count in our calculated offsets for

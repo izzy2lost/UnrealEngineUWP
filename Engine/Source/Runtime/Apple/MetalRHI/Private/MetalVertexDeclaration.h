@@ -6,9 +6,10 @@
 
 #pragma once
 
-
 #include "MetalHashedVertexDescriptor.h"
-
+#include "MetalRHIPrivate.h"
+#include "RHI.h"
+#include "RHIResources.h"
 
 //------------------------------------------------------------------------------
 
@@ -28,7 +29,7 @@ public:
 
 #if METAL_USE_METAL_SHADER_CONVERTER
     IRVersionedInputLayoutDescriptor InputDescriptor;
-    TMap<uint32, uint32> InputDescriptorBufferStrides;
+	TStaticArray<uint32, MaxVertexElementCount> InputDescriptorBufferStrides;
 #endif
 	/** Cached element info array (offset, stream index, etc) */
 	FVertexDeclarationElementList Elements;
@@ -40,6 +41,7 @@ public:
 	uint32 BaseHash;
 
 	virtual bool GetInitializer(FVertexDeclarationElementList& Init) override final;
+	virtual uint32 GetPrecachePSOHash() const override final { return BaseHash; }
 
 protected:
 	void GenerateLayout(const FVertexDeclarationElementList& Elements);

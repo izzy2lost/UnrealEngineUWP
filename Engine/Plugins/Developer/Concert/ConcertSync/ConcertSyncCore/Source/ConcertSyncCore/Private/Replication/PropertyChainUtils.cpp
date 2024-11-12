@@ -114,6 +114,8 @@ namespace UE::ConcertSyncCore::PropertyChain
 	
 	FProperty* ResolveProperty(const UStruct& Class, const FConcertPropertyChain& ChainToResolve, bool bLogOnFail)
 	{
+		SCOPED_CONCERT_TRACE(ResolveProperty);
+		
 		FProperty* Result = nullptr;
 		ForEachReplicatableProperty(
 			Class,

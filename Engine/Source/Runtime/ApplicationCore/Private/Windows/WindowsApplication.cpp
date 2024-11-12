@@ -50,6 +50,8 @@ THIRD_PARTY_INCLUDES_END
 
 DEFINE_LOG_CATEGORY(LogWindowsDesktop);
 
+DECLARE_CYCLE_STAT(TEXT("WindowsApplication Custom Message Handler"), STAT_CustomMessageHandler_ProcessMessage, STATGROUP_Quick);
+
 /**
  * Hack to get around multiple mouse events being triggered for touch events.
  * Enabling this will prevent pen tablets from working since until we switch to the windows 8 sdk (and can use WM_POINTER*) events we cannot detect the difference
@@ -82,6 +84,13 @@ static int32 ForceRawInputSimulation = false;
 static int32 EnableRawInputSimulationOverRDP = false;
 #endif
 
+static bool bEnableWindowMessageProfilerScopes = false;
+FAutoConsoleVariableRef CVarEnableWindowMessageProfilerScopes(
+	TEXT("WindowsApplication.EnableWindowMessageProfilerScopes"),
+	bEnableWindowMessageProfilerScopes,
+	TEXT("Enable profiler scopes for window message handling on a per-message basis and for custom message handlers.")
+);
+
 /* 
 * Enabling first touch event will prevent small pop on some touch input devices.
 */
@@ -95,6 +104,13 @@ FAutoConsoleVariableRef CVarEnableFirstTouchEvent(
 const FIntPoint FWindowsApplication::MinimizedWindowPosition(-32000,-32000);
 
 FWindowsApplication* WindowsApplication = nullptr;
+
+namespace UE::WindowsInput
+{
+	static const FName InputClassName = TEXT("WindowsApplication");
+	static const FString KBMInputHardwareName = TEXT("KBM");
+	static const FString TouchInputHardwareName = TEXT("MobileTouch");
+};
 
 static bool ShouldSimulateRawInput()
 {
@@ -996,6 +1012,7 @@ int32 FWindowsApplication::ProcessMessage( HWND hwnd, uint32 msg, WPARAM wParam,
 		// give others a chance to handle messages
 		for (IWindowsMessageHandler* Handler : MessageHandlers)
 		{
+			CONDITIONAL_SCOPE_CYCLE_COUNTER(STAT_CustomMessageHandler_ProcessMessage, bEnableWindowMessageProfilerScopes);
 			int32 HandlerResult = 0;
 			if (Handler->ProcessMessage(hwnd, msg, wParam, lParam, HandlerResult))
 			{
@@ -1013,6 +1030,14 @@ int32 FWindowsApplication::ProcessMessage( HWND hwnd, uint32 msg, WPARAM wParam,
 			return 0;
 		}
 
+
+		FString MessageScopeName;
+		if (bEnableWindowMessageProfilerScopes)
+		{
+			MessageScopeName = FString::Printf(TEXT("Window Message %u"), msg);
+		}
+
+		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_CONDITIONAL(*MessageScopeName, !MessageScopeName.IsEmpty());
 		switch(msg)
 		{
 		case WM_INPUTLANGCHANGEREQUEST:
@@ -1933,6 +1958,8 @@ void FWindowsApplication::CheckForShiftUpEvents(const int32 KeyCode)
 	if (ModifierKeyState[ModifierKeyIndex] && ((::GetKeyState(KeyCode) & 0x8000) == 0) )
 	{
 		ModifierKeyState[ModifierKeyIndex] = false;
+		
+		FInputDeviceScope InputScope(nullptr, UE::WindowsInput::InputClassName, IPlatformInputDeviceMapper::Get().GetDefaultInputDevice().GetId(), UE::WindowsInput::KBMInputHardwareName);
 		MessageHandler->OnKeyUp( KeyCode, 0, false );
 	}
 }
@@ -1991,7 +2018,7 @@ int32 FWindowsApplication::ProcessDeferredMessage( const FDeferredWindowsMessage
 
 				// LPARAM bit 30 will be ZERO for new presses, or ONE if this is a repeat
 				const bool bIsRepeat = ( lParam & 0x40000000 ) != 0;
-
+				FInputDeviceScope InputScope(nullptr, UE::WindowsInput::InputClassName, IPlatformInputDeviceMapper::Get().GetDefaultInputDevice().GetId(), UE::WindowsInput::KBMInputHardwareName); 
 				MessageHandler->OnKeyChar( Character, bIsRepeat );
 
 				// Note: always return 0 to handle the message.  Win32 beeps if WM_CHAR is not handled...
@@ -2071,7 +2098,7 @@ int32 FWindowsApplication::ProcessDeferredMessage( const FDeferredWindowsMessage
 
 				// Get the character code from the virtual key pressed.  If 0, no translation from virtual key to character exists
 				uint32 CharCode = ::MapVirtualKey( Win32Key, MAPVK_VK_TO_CHAR );
-
+				FInputDeviceScope InputScope(nullptr, UE::WindowsInput::InputClassName, IPlatformInputDeviceMapper::Get().GetDefaultInputDevice().GetId(), UE::WindowsInput::KBMInputHardwareName); 
 				const bool Result = MessageHandler->OnKeyDown( ActualKey, CharCode, bIsRepeat );
 
 				// Always return 0 to handle the message or else windows will beep
@@ -2150,7 +2177,7 @@ int32 FWindowsApplication::ProcessDeferredMessage( const FDeferredWindowsMessage
 
 				// Key up events are never repeats
 				const bool bIsRepeat = false;
-
+				FInputDeviceScope InputScope(nullptr, UE::WindowsInput::InputClassName, IPlatformInputDeviceMapper::Get().GetDefaultInputDevice().GetId(), UE::WindowsInput::KBMInputHardwareName); 
 				const bool Result = MessageHandler->OnKeyUp( ActualKey, CharCode, bIsRepeat );
 
 				// Note that we allow system keys to pass through to DefWndProc here, so that core features
@@ -2238,6 +2265,7 @@ int32 FWindowsApplication::ProcessDeferredMessage( const FDeferredWindowsMessage
 					check(0);
 				}
 
+				FInputDeviceScope InputScope(nullptr, UE::WindowsInput::InputClassName, IPlatformInputDeviceMapper::Get().GetDefaultInputDevice().GetId(), UE::WindowsInput::KBMInputHardwareName); 
 				if (bMouseUp)
 				{
 					return MessageHandler->OnMouseUp( MouseButton, CursorPos ) ? 0 : 1;
@@ -2257,6 +2285,7 @@ int32 FWindowsApplication::ProcessDeferredMessage( const FDeferredWindowsMessage
 		// Mouse Movement
 		case WM_INPUT:
 			{
+				FInputDeviceScope InputScope(nullptr, UE::WindowsInput::InputClassName, IPlatformInputDeviceMapper::Get().GetDefaultInputDevice().GetId(), UE::WindowsInput::KBMInputHardwareName); 
 				if( DeferredMessage.RawInputFlags == MOUSE_MOVE_RELATIVE )
 				{
 					MessageHandler->OnRawMouseMove(DeferredMessage.X, DeferredMessage.Y);
@@ -2278,6 +2307,7 @@ int32 FWindowsApplication::ProcessDeferredMessage( const FDeferredWindowsMessage
 				BOOL Result = false;
 				if (!bUsingHighPrecisionMouseInput)
 				{
+					FInputDeviceScope InputScope(nullptr, UE::WindowsInput::InputClassName, IPlatformInputDeviceMapper::Get().GetDefaultInputDevice().GetId(), UE::WindowsInput::KBMInputHardwareName); 
 					Result = MessageHandler->OnMouseMove();
 				}
 
@@ -2296,6 +2326,7 @@ int32 FWindowsApplication::ProcessDeferredMessage( const FDeferredWindowsMessage
 
 				const FVector2D CursorPos(CursorPoint.x, CursorPoint.y);
 
+				FInputDeviceScope InputScope(nullptr, UE::WindowsInput::InputClassName, IPlatformInputDeviceMapper::Get().GetDefaultInputDevice().GetId(), UE::WindowsInput::KBMInputHardwareName); 
 				const BOOL Result = MessageHandler->OnMouseWheel( static_cast<float>( WheelDelta ) * SpinFactor, CursorPos );
 				return Result ? 0 : 1;
 			}
@@ -2329,6 +2360,8 @@ int32 FWindowsApplication::ProcessDeferredMessage( const FDeferredWindowsMessage
 					TUniquePtr<TOUCHINPUT[]> Inputs = MakeUnique<TOUCHINPUT[]>( InputCount );
 					if ( GetTouchInputInfo( (HTOUCHINPUT)lParam, InputCount, Inputs.Get(), sizeof(TOUCHINPUT) ) )
 					{
+						FInputDeviceScope InputScope(nullptr, UE::WindowsInput::InputClassName, IPlatformInputDeviceMapper::Get().GetDefaultInputDevice().GetId(), UE::WindowsInput::TouchInputHardwareName);
+
 						for ( uint32 i = 0; i < InputCount; i++ )
 						{
 							TOUCHINPUT Input = Inputs[i];
@@ -2573,7 +2606,7 @@ int32 FWindowsApplication::ProcessDeferredMessage( const FDeferredWindowsMessage
 
 					if (!CurrentNativeEventWindowPtr->IsManualManageDPIChanges())
 					{
-						CurrentNativeEventWindowPtr->SetDPIScaleFactor(LOWORD(wParam) / 96.0f);
+						CurrentNativeEventWindowPtr->SetDPIScaleFactor(LOWORD(wParam) / static_cast<float>(USER_DEFAULT_SCREEN_DPI));
 
 						LPRECT NewRect = (LPRECT)lParam;
 						SetWindowPos(hwnd, nullptr, NewRect->left, NewRect->top, NewRect->right - NewRect->left, NewRect->bottom - NewRect->top, SWP_NOZORDER | SWP_NOACTIVATE);

@@ -102,12 +102,12 @@ void FPCGSplineStruct::Initialize(const TArray<FSplinePoint>& InSplinePoints, bo
 	LocalBounds = PCGSplineStruct::CalcBounds(SplineCurves, bClosedLoop, FTransform::Identity);
 }
 
-void FPCGSplineStruct::ApplyTo(USplineComponent* InSplineComponent)
+void FPCGSplineStruct::ApplyTo(USplineComponent* InSplineComponent) const
 {
 	check(InSplineComponent);
 
 	InSplineComponent->ClearSplinePoints(false);
-	InSplineComponent->SetComponentToWorld(Transform);
+	InSplineComponent->SetWorldTransform(Transform);
 	InSplineComponent->DefaultUpVector = DefaultUpVector;
 	InSplineComponent->ReparamStepsPerSegment = ReparamStepsPerSegment;
 

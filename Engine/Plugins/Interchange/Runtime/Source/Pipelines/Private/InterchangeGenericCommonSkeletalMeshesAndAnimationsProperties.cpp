@@ -63,6 +63,7 @@ UInterchangeSkeletonFactoryNode* UInterchangeGenericCommonSkeletalMeshesAndAnima
 	}
 #if WITH_EDITOR
 	//Iterate all joints to set the meta data value in the skeleton node
+	BaseNodeContainer->ComputeChildrenCache();
 	UE::Interchange::Private::FSkeletonHelper::RecursiveAddSkeletonMetaDataValues(BaseNodeContainer, SkeletonFactoryNode, RootJointUid);
 #endif //WITH_EDITOR
 

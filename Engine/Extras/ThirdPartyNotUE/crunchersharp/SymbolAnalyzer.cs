@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace CruncherSharp
 {
@@ -30,6 +31,9 @@ namespace CruncherSharp
         public SortedSet<string> Namespaces { get; }
         public string LastError { get; private set; }
         public string FileName { get; set; }
+
+		public Dictionary<string, uint> ConfigAlignment { get; set;  }
+		public Dictionary<string, uint> ConfigEnum { get; set; }
 
 		private List<uint> _MemPools;
 		public List<uint> MemPools 
@@ -66,7 +70,9 @@ namespace CruncherSharp
         public SymbolAnalyzer()
         {
             Symbols = new Dictionary<string, SymbolInfo>();
-            RootNamespaces = new SortedSet<string>();
+			ConfigAlignment = new Dictionary<string, uint>();
+			ConfigEnum = new Dictionary<string, uint>();
+			RootNamespaces = new SortedSet<string>();
             Namespaces = new SortedSet<string>();
 			_MemPools = new List<uint>();
 			LastError = string.Empty;
@@ -97,7 +103,8 @@ namespace CruncherSharp
                     e.Cancel = true;
                     return false;
                 }
-                return true;
+
+				return true;
             }
             catch (System.Runtime.InteropServices.COMException exception)
             {
@@ -108,13 +115,33 @@ namespace CruncherSharp
 
 		public abstract bool LoadPdb(object sender, LoadPDBTask task);
 
-        protected void RunAnalysis()
+
+		protected void RunAnalysis()
         {
-            foreach (var symbol in Symbols.Values)
+			foreach (var symbol in Symbols.Values)
+			{
+				symbol.UpdateBaseClass(this);
+			}
+
+			foreach (var symbol in Symbols.Values)
             {
-                symbol.ComputeTotalPadding(this);
-                symbol.UpdateBaseClass(this);
-            }
+				symbol.ComputeTotalPadding();
+			}
+
+			foreach (var Name in ConfigAlignment.Keys)
+			{
+				if (Symbols.TryGetValue(Name, out SymbolInfo symbol))
+				{
+					ConfigAlignment.TryGetValue(Name, out var Alignment);
+					symbol.MinAlignment = Alignment;
+				}
+			}
+
+			foreach (var symbol in Symbols.Values)
+			{
+				symbol.ComputeMinAlignment();
+				symbol.ComputePotentialSaving(this);
+			}
 
 			if (!FunctionAnalysis)
 			{
@@ -123,7 +150,7 @@ namespace CruncherSharp
 
             foreach (var symbol in Symbols.Values)
             {
-                symbol.CheckOverride();
+				symbol.CheckOverride();
                 symbol.CheckMasking();
             }
         }

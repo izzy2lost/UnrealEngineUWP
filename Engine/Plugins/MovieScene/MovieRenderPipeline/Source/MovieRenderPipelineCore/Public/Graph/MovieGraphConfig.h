@@ -119,13 +119,21 @@ public:
 	/** Returns true if this variable is a global variable. */
 	bool IsGlobal() const;
 
+	/** Gets the category (if any) assigned to this variable. */
+	const FString& GetCategory() const;
+
+	/**
+	 * Sets the variable to the provided category. Be aware that the category provided here may not be the final category set on the
+	 * variable (InNewCategory will be put through FName::NameToDisplayString().
+	 */
+	void SetCategory(const FString& InNewCategory);
+
 	//~ Begin UMovieGraphMember interface
 	virtual bool IsDeletable() const override;
 	virtual bool CanRename(const FText& InNewName, FText& OutError) const override;
 	virtual bool SetMemberName(const FString& InNewName) override;
 	//~ End UMovieGraphMember interface
 
-public:
 #if WITH_EDITOR
 	FOnMovieGraphVariableChanged OnMovieGraphVariableChangedDelegate;
 
@@ -133,6 +141,11 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	//~ End UObject overrides
 #endif // WITH_EDITOR
+
+private:
+	/** The category assigned to the variable. Defaults to empty, which means no category. */
+	UPROPERTY()
+	FString Category;
 };
 
 /**
@@ -391,7 +404,7 @@ public:
 	* A list of nodes that have been visited, where the key is the graph where the node was found. Used for cycle detection right now.
 	*/
 	UPROPERTY()
-	TMap<const UMovieGraphConfig*, FMovieGraphEvaluationContext_VisitedNodeInfo> VisitedNodesByOwningGraph;
+	TMap<TObjectPtr<const UMovieGraphConfig>, FMovieGraphEvaluationContext_VisitedNodeInfo> VisitedNodesByOwningGraph;
 
 	/**
 	* The pin that is currently being followed in the traversal process.
@@ -655,7 +668,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Movie Graph")
 	UMovieGraphNode* GetOutputNode() const { return OutputNode; }
 
-
 	const TArray<TObjectPtr<UMovieGraphNode>>& GetNodes() const { return AllNodes; }
 
 	/**
@@ -665,13 +677,23 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Movie Graph")
 	UMovieGraphVariable* AddVariable(const FName InCustomBaseName = NAME_None);
 
-	/** Adds a new input member to the graph. Returns the new input on success, else nullptr. */
+	/**
+	 * Adds a new input member to the graph. Returns the new input on success, else nullptr.
+	 *
+	 * The default name of the input is "Input". Optionally, InBaseName can be specified to add the input with a specific name. If the name "Input"
+	 * (or the custom InBaseName) isn't available, a numerical suffix will be added.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
-	UMovieGraphInput* AddInput();
+	UMovieGraphInput* AddInput(const FText& InBaseName = FText::GetEmpty());
 
-	/** Adds a new output member to the graph. Returns the new output on success, else nullptr. */
+	/**
+	 * Adds a new output member to the graph. Returns the new output on success, else nullptr.
+	 *
+	 * The default name of the output is "Output". Optionally, InBaseName can be specified to add the output with a specific name. If the name "Output"
+	 * (or the custom InBaseName) isn't available, a numerical suffix will be added.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
-	UMovieGraphOutput* AddOutput();
+	UMovieGraphOutput* AddOutput(const FText& InBaseName = FText::GetEmpty());
 
 	/** Gets the variable in the graph with the specified GUID, else nullptr if one could not be found. */
 	UMovieGraphVariable* GetVariableByGuid(const FGuid& InGuid) const;
@@ -684,7 +706,7 @@ public:
 	TArray<UMovieGraphVariable*> GetVariables(const bool bIncludeGlobal = false) const;
 
 	/** Updates the values of all global variables. */
-	UFUNCTION(BlueprintCallable, Category="Experimental")
+	UFUNCTION(BlueprintCallable, Category="Movie Graph")
 	void UpdateGlobalVariableValues(const UMovieGraphPipeline* InPipeline);
 
 	/** Gets all inputs that have been defined on the graph. */
@@ -699,6 +721,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool DeleteMember(UMovieGraphMember* MemberToDelete);
 
+	/** Duplicates the provided variable. Returns the new variable on success, else nullptr. */
+	UMovieGraphVariable* DuplicateVariable(UMovieGraphVariable* InVariableToDuplicate);
+
 #if WITH_EDITOR
 	/** Gets the editor-only nodes in this graph. Editor-only nodes do not have an equivalent runtime node. */
 	const TArray<TObjectPtr<UObject>>& GetEditorOnlyNodes() const { return EditorOnlyNodes; }
@@ -711,7 +736,7 @@ public:
 	 * Given a user-defined evaluation context, evaluate the graph and build a "flattened" list of settings for each branch discovered.
 	 * If there was an error while evaluating the graph, nullptr will be returned and OutError will be populated with a description of the problem.
 	 */
-	UFUNCTION(BlueprintCallable, Category="Experimental")
+	UFUNCTION(BlueprintCallable, Category="Movie Graph")
 	UMovieGraphEvaluatedConfig* CreateFlattenedGraph(const FMovieGraphTraversalContext& InContext, FString& OutError);
 
 	/** Given a class and FProperty that belongs to that class, search for a FBoolProperty that matches the name "bOverride_<name of InRealProperty>. */
@@ -749,6 +774,23 @@ public:
 	 * If a node is not found with an override set, value is taken from the CDO of UMovieGraphOutputSettings.
 	 */
 	void GetOutputDirectory(FString& OutOutputDirectory) const;
+
+	/**
+	 * Moves one variable (InTargetVariable) before another variable (InBeforeVariable). Takes care of ensuring the variable's category is
+	 * set properly after the move.
+	 */
+	void MoveVariableBefore(UMovieGraphVariable* InTargetVariable, UMovieGraphVariable* InBeforeVariable);
+
+	/**
+	 * Moves one variable (InTargetVariable) to the specified index among all user graph variables.
+	 *
+	 * Note that MoveVariableBefore() should be used in almost all cases unless there is very specific use case. This method will not take care of setting
+	 * the category for you after the move unlike MoveVariableBefore().
+	 */
+	void MoveVariableToIndex(UMovieGraphVariable* InTargetVariable, int32 NewIndex);
+
+	/** Moves one category (InCategoryToMove) and its variables before another category (InCategoryBefore). */
+	void MoveCategoryBefore(const FString& InCategoryToMove, const FString& InCategoryBefore);
 
 protected:
 	/** Look for the output directory in the UMovieGraphOutputSettings nodes found upstream of InNode. */

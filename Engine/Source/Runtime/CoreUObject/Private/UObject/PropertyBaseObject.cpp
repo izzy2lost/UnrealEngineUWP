@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CoreMinimal.h"
+#include "HAL/IConsoleManager.h"
 #include "UObject/ObjectMacros.h"
 #include "Templates/Casts.h"
 #include "UObject/Package.h"
@@ -16,25 +17,50 @@
 #include "UObject/UObjectThreadContext.h"
 #include "Misc/StringBuilder.h"
 
+namespace UE::CoreUObject::Private
+{
+	TAutoConsoleVariable<int32> CVarNonNullableBehavior(
+		TEXT("CoreUObject.NonNullableBehavior"),
+		(int32)ENonNullableBehavior::CreateDefaultObjectIfPossible,
+		TEXT("Sets the behavior when a non-null property cannot be resolved into an object reference - 0=Leave property null and log a warning, 1=Leave property null and log an error, 2=Create a default object and log a warning if successful, or leave it null and log an error if unsuccessful")
+	);
+
+	ENonNullableBehavior GetNonNullableBehavior()
+	{
+		int32 Value = CVarNonNullableBehavior.GetValueOnAnyThread();
+		if (Value < 0 || Value > 2)
+		{
+			Value = 2;
+		}
+		return (ENonNullableBehavior)Value;
+	}
+}
+
 /*-----------------------------------------------------------------------------
 	FObjectPropertyBase.
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FObjectPropertyBase)
 
+FObjectPropertyBase::FObjectPropertyBase(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+	, PropertyClass(nullptr)
+{
+}
+
 FObjectPropertyBase::FObjectPropertyBase(FFieldVariant InOwner, const UECodeGen_Private::FObjectPropertyParams& Prop, EPropertyFlags AdditionalPropertyFlags /*= CPF_None*/)
-	: FProperty(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, AdditionalPropertyFlags)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, AdditionalPropertyFlags)
 {
 	PropertyClass = Prop.ClassFunc ? Prop.ClassFunc() : nullptr;
 }
 FObjectPropertyBase::FObjectPropertyBase(FFieldVariant InOwner, const UECodeGen_Private::FObjectPropertyParamsWithoutClass& Prop, EPropertyFlags AdditionalPropertyFlags /*= CPF_None*/)
-	: FProperty(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, AdditionalPropertyFlags)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, AdditionalPropertyFlags)
 	, PropertyClass(nullptr)
 {
 }
 
 #if WITH_EDITORONLY_DATA
 FObjectPropertyBase::FObjectPropertyBase(UField* InField)
-	: FProperty(InField)
+	: Super(InField)
 {
 	UObjectPropertyBase* SourceProperty = CastChecked<UObjectPropertyBase>(InField);
 	PropertyClass = SourceProperty->PropertyClass;
@@ -57,12 +83,22 @@ void FObjectPropertyBase::InstanceSubobjects(void* Data, void const* DefaultData
 {
 	for ( int32 ArrayIndex = 0; ArrayIndex < ArrayDim; ArrayIndex++ )
 	{
-		UObject* CurrentValue = GetObjectPropertyValue((uint8*)Data + ArrayIndex * ElementSize);
-		if ( CurrentValue )
+		TObjectPtr<UObject> CurrentObjectPtr = GetObjectPtrPropertyValue((uint8*)Data + ArrayIndex * GetElementSize());
+		UObject* CurrentValue = CurrentObjectPtr.Get();
+		if (CurrentObjectPtr.IsResolved() && CurrentValue)
 		{
-			UObject *SubobjectTemplate = DefaultData ? GetObjectPropertyValue((uint8*)DefaultData + ArrayIndex * ElementSize): nullptr;
-			UObject* NewValue = InstanceGraph->InstancePropertyValue(SubobjectTemplate, CurrentValue, InOwner, HasAnyPropertyFlags(CPF_InstancedReference) ? EInstancePropertyValueFlags::CausesInstancing : EInstancePropertyValueFlags::None);
-			SetObjectPropertyValue((uint8*)Data + ArrayIndex * ElementSize, NewValue);
+			TObjectPtr<UObject> SubobjectTemplate = DefaultData ? GetObjectPtrPropertyValue((uint8*)DefaultData + ArrayIndex * GetElementSize()): nullptr;
+			EInstancePropertyValueFlags Flags = EInstancePropertyValueFlags::None;
+			if (HasAnyPropertyFlags(CPF_InstancedReference))
+			{
+				Flags |= EInstancePropertyValueFlags::CausesInstancing;
+			}
+			if (HasAnyPropertyFlags(CPF_AllowSelfReference))
+			{
+				Flags |= EInstancePropertyValueFlags::AllowSelfReference;
+			}
+			UObject* NewValue = InstanceGraph->InstancePropertyValue(SubobjectTemplate, CurrentValue, InOwner, Flags);
+			SetObjectPropertyValue((uint8*)Data + ArrayIndex * GetElementSize(), NewValue);
 		}
 	}
 }
@@ -395,7 +431,7 @@ const TCHAR* FObjectPropertyBase::ImportText_Internal( const TCHAR* InBuffer, vo
 		// 
 		if (UObject* ExistingObject = static_cast<UObject*>(FindObjectWithOuter(Parent, nullptr, DesiredName)))
 		{
-			ExistingObject->Rename(nullptr, nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+			ExistingObject->Rename(nullptr, nullptr, REN_DontCreateRedirectors);
 		}
 
 		FObjectDuplicationParameters ObjectDuplicationParams = InitStaticDuplicateObjectParams(Result, Parent, DesiredName);
@@ -413,7 +449,7 @@ const TCHAR* FObjectPropertyBase::ImportText_Internal( const TCHAR* InBuffer, vo
 
 	if (PropertyPointerType == EPropertyPointerType::Container && HasSetter())
 	{
-		SetObjectPropertyValue_InContainer(ContainerOrPropertyPtr, Result); //TODO change this to not resolve TObjectPtr's
+		SetObjectPtrPropertyValue_InContainer(ContainerOrPropertyPtr, Result);
 	}
 	else
 	{
@@ -568,7 +604,7 @@ TObjectPtr<UObject> FObjectPropertyBase::FindImportedObject( const FProperty* Pr
 		&& Result->GetPackage() != OwnerObject->GetPackage())
 	{
 		const FObjectPropertyBase* ObjectProperty = CastField<const FObjectPropertyBase>(Property);
-		if ( !ObjectProperty || !ObjectProperty->AllowCrossLevel())
+		if (!ObjectProperty || !ObjectProperty->AllowCrossLevel())
 		{
 			UE_LOG(LogProperty, Warning, TEXT("Illegal TEXT reference to a private object in external package (%s) from referencer (%s).  Import failed..."), *Result->GetFullName(), *OwnerObject->GetFullName());
 			Result = nullptr;
@@ -584,37 +620,96 @@ FName FObjectPropertyBase::GetID() const
 	return NAME_ObjectProperty;
 }
 
-TObjectPtr<UObject> FObjectPropertyBase::GetObjectPtrPropertyValue(const void* PropertyValueAddress) const
-{
-	checkf(false, TEXT("%s is missing implementation of GetObjectPtrPropertyValue"), *GetFullName());
-	return TObjectPtr<UObject>();
-}
-
-void FObjectPropertyBase::SetObjectPtrPropertyValue(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const
-{
-	SetObjectPropertyValue(PropertyValueAddress, Ptr.Get());
-}
-
 UObject* FObjectPropertyBase::GetObjectPropertyValue(const void* PropertyValueAddress) const
 {
-	checkf(false, TEXT("%s is missing implementation of GetObjectPropertyValue"), *GetFullName());
+	unimplemented(); // needs to be implemented by the derived class
 	return nullptr;
+}
+
+TObjectPtr<UObject> FObjectPropertyBase::GetObjectPtrPropertyValue(const void* PropertyValueAddress) const
+{
+	unimplemented(); // needs to be implemented by the derived class
+	return TObjectPtr<UObject>();
 }
 
 UObject* FObjectPropertyBase::GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
 {
-	checkf(false, TEXT("%s is missing implementation of GetObjectPropertyValue_InContainer"), *GetFullName());
+	unimplemented(); // needs to be implemented by the derived class
 	return nullptr;
 }
 
-void FObjectPropertyBase::SetObjectPropertyValue_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
+TObjectPtr<UObject> FObjectPropertyBase::GetObjectPtrPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
 {
-	checkf(false, TEXT("%s is missing implementation of SetObjectPropertyValue_InContainer"), *GetFullName());
+	unimplemented(); // needs to be implemented by the derived class
+	return TObjectPtr<UObject>();
+}
+
+void FObjectPropertyBase::SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const
+{
+	unimplemented(); // needs to be implemented by the derived class
+}
+
+void FObjectPropertyBase::SetObjectPtrPropertyValueUnchecked(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const
+{
+	unimplemented(); // needs to be implemented by the derived class
+}
+
+void FObjectPropertyBase::SetObjectPropertyValueUnchecked_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
+{
+	unimplemented(); // needs to be implemented by the derived class
+}
+
+void FObjectPropertyBase::SetObjectPtrPropertyValueUnchecked_InContainer(void* ContainerAddress, TObjectPtr<UObject> Ptr, int32 ArrayIndex) const
+{
+	unimplemented(); // needs to be implemented by the derived class
 }
 
 void FObjectPropertyBase::SetObjectPropertyValue(void* PropertyValueAddress, UObject* Value) const
 {
-	check(0);
+	if (Value || !HasAnyPropertyFlags(CPF_NonNullable))
+	{
+		SetObjectPropertyValueUnchecked(PropertyValueAddress, Value);
+	}
+	else
+	{
+		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
+	}
+}
+
+void FObjectPropertyBase::SetObjectPtrPropertyValue(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const
+{
+	if (Ptr || !HasAnyPropertyFlags(CPF_NonNullable))
+	{
+		SetObjectPtrPropertyValueUnchecked(PropertyValueAddress, Ptr);
+	}
+	else
+	{
+		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
+	}
+}
+
+void FObjectPropertyBase::SetObjectPropertyValue_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
+{
+	if (Value || !HasAnyPropertyFlags(CPF_NonNullable))
+	{
+		SetObjectPropertyValueUnchecked_InContainer(ContainerAddress, Value, ArrayIndex);
+	}
+	else
+	{
+		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
+	}
+}
+
+void FObjectPropertyBase::SetObjectPtrPropertyValue_InContainer(void* ContainerAddress, TObjectPtr<UObject> Ptr, int32 ArrayIndex) const
+{
+	if (Ptr || !HasAnyPropertyFlags(CPF_NonNullable))
+	{
+		SetObjectPtrPropertyValueUnchecked_InContainer(ContainerAddress, Ptr, ArrayIndex);
+	}
+	else
+	{
+		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
+	}
 }
 
 bool FObjectPropertyBase::AllowCrossLevel() const
@@ -648,7 +743,7 @@ UObject* FObjectPropertyBase::ConstructDefaultObjectValueIfNecessary(UObject* Ex
 				ExistingValue->GetOuter() != Outer) // Unless the template's Outer is the same as the new Outer in which case the template (ExistingValue) IS the object we can reuse
 			{
 				// We probably got here because an object value failed to load (missing import class) and the property is left with a template of default subobject
-				NewDefaultObjectValue = NewObject<UObject>(Outer, ExistingValue->GetClass(), ExistingValue->GetFName(), RF_NoFlags, ExistingValue);
+				NewDefaultObjectValue = NewObject<UObject>(Outer, ExistingValue->GetClass(), NAME_None, RF_NoFlags, ExistingValue);
 			}
 			else
 			{
@@ -666,11 +761,6 @@ UObject* FObjectPropertyBase::ConstructDefaultObjectValueIfNecessary(UObject* Ex
 		// it will not have any existing objects to instantiate
 		NewDefaultObjectValue = NewObject<UObject>(Outer, PropertyClass);
 	}
-
-	// Final sanity check. We still may end up with a null object if the property class is abstract and the previous object value was missing or was not compatible
-	UE_CLOG(!NewDefaultObjectValue, LogProperty, Fatal, TEXT("Failed to create default object value for property %s. Previous value: %s"), 
-		*GetFullName(), 
-		ExistingValue ? *ExistingValue->GetFullName() : TEXT("None"));
 
 	return NewDefaultObjectValue;
 }
@@ -705,7 +795,7 @@ void FObjectPropertyBase::CheckValidObject(void* ValueAddress, TObjectPtr<UObjec
 	auto IsDeferringValueLoad = [&]() { return false; };
 #endif // USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
 
-	if ((PropertyClass != nullptr) && !ObjectClass->IsChildOf(PropertyClass) && !ObjectClass->GetAuthoritativeClass()->IsChildOf(PropertyClass))
+	if ((PropertyClass != nullptr) && !ObjectClass->IsChildOf(PropertyClass) && !ObjectClass->GetAuthoritativeClass()->IsChildOf(PropertyClass) && !ObjectClass->ImplementsInterface(PropertyClass))
 	{
 			
 		// we could be in the middle of replacing references to the 
@@ -718,32 +808,77 @@ void FObjectPropertyBase::CheckValidObject(void* ValueAddress, TObjectPtr<UObjec
 		bool bIsReplacingClassRefs = PropertyClass && PropertyClass->HasAnyClassFlags(CLASS_NewerVersionExists) != ObjectClass->HasAnyClassFlags(CLASS_NewerVersionExists);
 		if (!bIsReplacingClassRefs && !IsDeferringValueLoad())
 		{
+			UObject* DefaultValue = nullptr;
+
+			FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+			UObject* Outer = SerializeContext ? SerializeContext->SerializedObject : nullptr;
+			if (!Outer)
+			{
+				Outer = GetTransientPackage();
+			}
 			if (!HasAnyPropertyFlags(CPF_NonNullable))
 			{
 				UE_LOG(LogProperty, Warning,
-					TEXT("Serialized %s for a property of %s. Reference will be nullptred.\n    Property = %s\n    Item = %s"),
+					TEXT("Serialized %s for a property of %s. Reference will be nulled.\n    ReferencingObject = %s\n    Property = %s\n    Item = %s"),
 					*ObjectClass->GetFullName(),
 					*PropertyClass->GetFullName(),
+					*GetFullNameSafe(Outer),
 					*GetFullName(),
 					*Object.GetFullName()
 				);
-				SetObjectPropertyValue(ValueAddress, nullptr);
 			}
 			else
 			{
-				UObject* DefaultValue = ConstructDefaultObjectValueIfNecessary(OldValue);
+				using UE::CoreUObject::Private::ENonNullableBehavior;
+				using UE::CoreUObject::Private::GetNonNullableBehavior;
 
-				UE_LOG(LogProperty, Warning,
-					TEXT("Serialized %s for a non-nullable property of %s. Reference will be defaulted to %s.\n    Property = %s\n    Item = %s"),
-					*ObjectClass->GetFullName(),
-					*PropertyClass->GetFullName(),
-					DefaultValue ? *DefaultValue->GetFullName() : TEXT("None"),
-					*GetFullName(),
-					*Object.GetFullName()
-				);
+				ENonNullableBehavior NonNullableBehavior = GetNonNullableBehavior();
+				if (NonNullableBehavior == ENonNullableBehavior::CreateDefaultObjectIfPossible)
+				{
+					DefaultValue = ConstructDefaultObjectValueIfNecessary(OldValue);
+				}
 
-				SetObjectPropertyValue(ValueAddress, DefaultValue);
+				if (DefaultValue)
+				{
+					UE_LOG(LogProperty, Warning,
+						TEXT("Serialized %s for a non-nullable property of %s. Reference will be defaulted to %s (previously: %s).\n    ReferencingObject = %s\n    Property = %s\n    Item = %s"),
+						*ObjectClass->GetFullName(),
+						*PropertyClass->GetFullName(),
+						*GetFullNameSafe(DefaultValue),
+						*GetFullNameSafe(OldValue),
+						*GetFullNameSafe(Outer),
+						*GetFullName(),
+						*Object.GetFullName()
+					);
+				}
+				else if (NonNullableBehavior == ENonNullableBehavior::LogWarning)
+				{
+					UE_LOG(LogProperty, Warning,
+						TEXT("Serialized %s for a non-nullable property of %s. Reference will be nulled (previously: %s) - will cause a runtime error if accessed.\n    ReferencingObject = %s\n    Property = %s\n    Item = %s"),
+						*ObjectClass->GetFullName(),
+						*PropertyClass->GetFullName(),
+						*GetFullNameSafe(OldValue),
+						*GetFullNameSafe(Outer),
+						*GetFullName(),
+						*Object.GetFullName()
+					);
+				}
+				else
+				{
+					UE_LOG(LogProperty, Error,
+						TEXT("Serialized %s for a non-nullable property of %s. Reference will be nulled%s (previously: %s) - will cause a runtime error if accessed.\n    ReferencingObject = %s\n    Property = %s\n    Item = %s"),
+						*ObjectClass->GetFullName(),
+						*PropertyClass->GetFullName(),
+						(NonNullableBehavior == ENonNullableBehavior::CreateDefaultObjectIfPossible) ? *FString::Printf(TEXT(" as %s is abstract"), *PropertyClass->GetName()) : TEXT(""),
+						*GetFullNameSafe(OldValue),
+						*GetFullNameSafe(Outer),
+						*GetFullName(),
+						*Object.GetFullName()
+					);
+				}
 			}
+
+			SetObjectPropertyValueUnchecked(ValueAddress, DefaultValue);
 		}
 	}
 }
@@ -752,4 +887,33 @@ bool FObjectPropertyBase::SameType(const FProperty* Other) const
 {
 	return (Super::SameType(Other) || (Other && Other->IsA<FObjectPropertyBase>() && ((FObjectPropertyBase*)Other)->AllowObjectTypeReinterpretationTo(this))) && 
 			 (PropertyClass == ((FObjectPropertyBase*)Other)->PropertyClass);
+}
+
+EPropertyVisitorControlFlow FObjectPropertyBase::Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& InData, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
+{
+	// Indicate in the path that this property contains inner properties
+	Path.Top().bContainsInnerProperties = true;
+
+	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, InData, InFunc);
+
+	if (RetVal == EPropertyVisitorControlFlow::StepInto)
+	{
+		if (const TObjectPtr<UObject> Object = GetObjectPropertyValue(InData.PropertyData))
+		{
+			FPropertyVisitorData Data = InData.VisitPropertyData(Object.Get());
+
+			RetVal = Object.GetClass()->Visit(Path, Data, InFunc);
+		}
+	}
+	return RetVal;
+}
+
+void* FObjectPropertyBase::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const
+{
+	if (const TObjectPtr<UObject> Object = GetObjectPropertyValue(Data))
+	{
+		return Object.GetClass()->ResolveVisitedPathInfo(Object.Get(), Info);
+	}
+
+	return nullptr;
 }

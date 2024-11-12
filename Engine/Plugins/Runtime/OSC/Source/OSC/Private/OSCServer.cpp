@@ -1,17 +1,35 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "OSCServer.h"
 
-
-#include "OSCMessage.h"
+#include "Containers/Ticker.h"
+#include "OSCAddress.h"
 #include "OSCBundle.h"
 #include "OSCBundlePacket.h"
 #include "OSCLog.h"
+#include "OSCMessage.h"
+#include "OSCMessagePacket.h"
+#include "OSCPacket.h"
 #include "OSCServerProxy.h"
 
 
+namespace UE::OSC
+{
+	TSharedPtr<IServerProxy> IServerProxy::Create()
+	{
+		return MakeShared<OSC::FServerProxy>();
+	}
+
+	bool IServerProxy::SetAddress(const FString& InReceiveIPAddress, int32 InPort)
+	{
+		FIPv4Endpoint Endpoint;
+		FIPv4Address::Parse(InReceiveIPAddress, Endpoint.Address);
+		Endpoint.Port = InPort;
+		return SetIPEndpoint(Endpoint);
+	}
+} // namespace UE::OSC
+
 UOSCServer::UOSCServer(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
-	, ServerProxy(MakeUnique<FOSCServerProxy>(*this))
 {
 }
 
@@ -30,13 +48,24 @@ bool UOSCServer::IsActive() const
 void UOSCServer::Listen()
 {
 	check(ServerProxy.IsValid());
+
+	ClearPacketsInternal();
 	ServerProxy->Listen(GetName());
+
+	TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([this](float /*Time*/)
+	{
+		PumpPacketQueue();
+		return true;
+	}));
 }
 
 bool UOSCServer::SetAddress(const FString& InReceiveIPAddress, int32 InPort)
 {
 	check(ServerProxy.IsValid());
-	return ServerProxy->SetAddress(InReceiveIPAddress, InPort);
+
+	FIPv4Address Address;
+	FIPv4Address::Parse(InReceiveIPAddress, Address);
+	return ServerProxy->SetIPEndpoint(FIPv4Endpoint(Address, InPort));
 }
 
 void UOSCServer::SetMulticastLoopback(bool bInMulticastLoopback)
@@ -48,18 +77,22 @@ void UOSCServer::SetMulticastLoopback(bool bInMulticastLoopback)
 #if WITH_EDITOR
 void UOSCServer::SetTickInEditor(bool bInTickInEditor)
 {
-	check(ServerProxy.IsValid());
-	ServerProxy->SetTickableInEditor(bInTickInEditor);
 }
 #endif // WITH_EDITOR
 
-
 void UOSCServer::Stop()
 {
+	FTSTicker::GetCoreTicker().RemoveTicker(TickHandle);
+	TickHandle.Reset();
+
+	// CDO May have this not set by initializer ctor, so have to check if valid
 	if (ServerProxy.IsValid())
 	{
+		ServerProxy->SetOnDispatchPacket({ });
 		ServerProxy->Stop();
 	}
+
+	ClearPacketsInternal();
 }
 
 void UOSCServer::BeginDestroy()
@@ -68,54 +101,91 @@ void UOSCServer::BeginDestroy()
 	Super::BeginDestroy();
 }
 
+void UOSCServer::PostInitProperties()
+{
+	using namespace UE::OSC;
+
+	Super::PostInitProperties();
+
+	const UClass* ThisClass = UOSCServer::StaticClass();
+	check(ThisClass);
+
+	const UObject* DefaultObj = ThisClass->GetDefaultObject();
+	check(DefaultObj);
+
+	if (DefaultObj != this)
+	{
+		OSCPackets = MakeShared<FPacketQueue>();
+		ServerProxy = IServerProxy::Create();
+	}
+}
+
 void UOSCServer::SetAllowlistClientsEnabled(bool bEnabled)
 {
 	check(ServerProxy.IsValid());
 	ServerProxy->SetFilterClientsByAllowList(bEnabled);
 }
 
-void UOSCServer::AddAllowlistedClient(const FString& InIPAddress)
+void UOSCServer::AddAllowlistedClient(const FString& InIPAddress, int32 IPPort)
 {
 	check(ServerProxy.IsValid());
-	ServerProxy->AddClientToAllowList(InIPAddress);
+
+	FIPv4Address NewAddress;
+	if (FIPv4Address::Parse(InIPAddress, NewAddress))
+	{
+		ServerProxy->AddClientEndpointToAllowList(FIPv4Endpoint(NewAddress, IPPort));
+	}
 }
 
-void UOSCServer::RemoveAllowlistedClient(const FString& InIPAddress)
+void UOSCServer::RemoveAllowlistedClient(const FString& InIPAddress, int32 IPPort)
 {
 	check(ServerProxy.IsValid());
-	ServerProxy->RemoveClientFromAllowList(InIPAddress);
+
+	FIPv4Address NewAddress;
+	if (FIPv4Address::Parse(InIPAddress, NewAddress))
+	{
+		ServerProxy->RemoveClientEndpointFromAllowList(FIPv4Endpoint(NewAddress, IPPort));
+	}
 }
 
 void UOSCServer::ClearAllowlistedClients()
 {
 	check(ServerProxy.IsValid());
-	ServerProxy->ClearClientAllowList();
+	ServerProxy->ClearClientEndpointAllowList();
 }
 
 FString UOSCServer::GetIpAddress(bool bIncludePort) const
 {
 	check(ServerProxy.IsValid());
 
-	FString Address = ServerProxy->GetIpAddress();
 	if (bIncludePort)
 	{
-		Address += TEXT(":");
-		Address.AppendInt(ServerProxy->GetPort());
+		return ServerProxy->GetIPEndpoint().ToString();
 	}
 
-	return Address;
+	return ServerProxy->GetIPEndpoint().Address.ToString();
 }
 
 int32 UOSCServer::GetPort() const
 {
 	check(ServerProxy.IsValid());
-	return ServerProxy->GetPort();
+	return ServerProxy->GetIPEndpoint().Port;
 }
 
-TSet<FString> UOSCServer::GetAllowlistedClients() const
+TSet<FString> UOSCServer::GetAllowlistedClients(bool bIncludePort) const
 {
 	check(ServerProxy.IsValid());
-	return ServerProxy->GetClientAllowList();
+	const TSet<FIPv4Endpoint>& Endpoints = ServerProxy->GetClientEndpointAllowList();
+
+	TSet<FString> Result;
+	Algo::Transform(Endpoints, Result, [&bIncludePort](const FIPv4Endpoint& ClientEndpoint)
+	{
+		return bIncludePort
+			? ClientEndpoint.ToString()
+			: ClientEndpoint.Address.ToString();
+	});
+
+	return Result;
 }
 
 void UOSCServer::BindEventToOnOSCAddressPatternMatchesPath(const FOSCAddress& InOSCAddressPattern, const FOSCDispatchMessageEventBP& InEvent)
@@ -158,39 +228,47 @@ void UOSCServer::UnbindAllEventsFromOnOSCAddressPatternMatching()
 TArray<FOSCAddress> UOSCServer::GetBoundOSCAddressPatterns() const
 {
 	TArray<FOSCAddress> OutAddressPatterns;
-	for (const TPair<FOSCAddress, FOSCDispatchMessageEvent>& Pair : AddressPatterns)
+	AddressPatterns.GetKeys(OutAddressPatterns);
+	return OutAddressPatterns;
+}
+
+void UOSCServer::ClearPacketsInternal()
+{
+	using namespace UE::OSC;
+
+	OSCPackets = MakeShared<FPacketQueue>();
+
+	if (ServerProxy.IsValid())
 	{
-		OutAddressPatterns.Add(Pair.Key);
+		ServerProxy->SetOnDispatchPacket(MakeShared<IServerProxy::FOnDispatchPacket>([Queue = OSCPackets](TSharedRef<UE::OSC::IPacket> Packet)
+		{
+			Queue->Enqueue(Packet);
+		}));
 	}
-	return MoveTemp(OutAddressPatterns);
 }
 
-void UOSCServer::ClearPackets()
+void UOSCServer::BroadcastBundle(const FOSCBundle& InBundle)
 {
-	OSCPackets.Empty();
-}
+	using namespace UE::OSC;
 
-void UOSCServer::EnqueuePacket(TSharedPtr<IOSCPacket> InPacket)
-{
-	OSCPackets.Enqueue(InPacket);
-}
+	const TSharedRef<IPacket>& Packet = InBundle.GetPacketRef();
+	const FIPv4Endpoint& Endpoint = Packet->GetIPEndpoint();
+	const FString AddrStr = Endpoint.Address.ToString();
 
-void UOSCServer::DispatchBundle(const FString& InIPAddress, uint16 InPort, const FOSCBundle& InBundle)
-{
-	OnOscBundleReceived.Broadcast(InBundle, InIPAddress, InPort);
-	OnOscBundleReceivedNative.Broadcast(InBundle, InIPAddress, InPort);
+	OnOscBundleReceived.Broadcast(InBundle, AddrStr, Endpoint.Port);
+	OnOscBundleReceivedNative.Broadcast(InBundle, AddrStr, Endpoint.Port);
 
-	TSharedPtr<FOSCBundlePacket> BundlePacket = StaticCastSharedPtr<FOSCBundlePacket>(InBundle.GetPacket());
-	FOSCBundlePacket::FPacketBundle Packets = BundlePacket->GetPackets();
-	for (TSharedPtr<IOSCPacket>& Packet : Packets)
+	TSharedRef<FBundlePacket> BundlePacket = StaticCastSharedRef<FBundlePacket>(InBundle.GetPacketRef());
+	const TArray<TSharedRef<IPacket>>& Packets = BundlePacket->GetPackets();
+	for (const TSharedRef<IPacket>& SubPacket : Packets)
 	{
-		if (Packet->IsMessage())
+		if (SubPacket->IsMessage())
 		{
-			DispatchMessage(InIPAddress, InPort, FOSCMessage(Packet));
+			BroadcastMessage(FOSCMessage(SubPacket));
 		}
-		else if (Packet->IsBundle())
+		else if (SubPacket->IsBundle())
 		{
-			DispatchBundle(InIPAddress, InPort, FOSCBundle(Packet));
+			BroadcastBundle(FOSCBundle(SubPacket));
 		}
 		else
 		{
@@ -199,44 +277,53 @@ void UOSCServer::DispatchBundle(const FString& InIPAddress, uint16 InPort, const
 	}
 }
 
-void UOSCServer::DispatchMessage(const FString& InIPAddress, uint16 InPort, const FOSCMessage& InMessage)
+void UOSCServer::BroadcastMessage(const FOSCMessage& InMessage)
 {
-	OnOscMessageReceived.Broadcast(InMessage, InIPAddress, InPort);
-	OnOscMessageReceivedNative.Broadcast(InMessage, InIPAddress, InPort);
+	using namespace UE::OSC;
 
-	UE_LOG(LogOSC, Verbose, TEXT("Message received from endpoint '%s', OSCAddress of '%s'."), *InIPAddress, *InMessage.GetAddress().GetFullPath());
+	const TSharedRef<IPacket>& Packet = InMessage.GetPacketRef();
+	const FIPv4Endpoint& Endpoint = Packet->GetIPEndpoint();
+	const FString AddrStr = Endpoint.Address.ToString();
+
+	OnOscMessageReceived.Broadcast(InMessage, AddrStr, Endpoint.Port);
+	OnOscMessageReceivedNative.Broadcast(InMessage, AddrStr, Endpoint.Port);
+
+	UE_LOG(LogOSC, Verbose, TEXT("Message received from IP endpoint '%s', OSCAddress of '%s'."), *Endpoint.ToString(), *InMessage.GetAddress().GetFullPath());
 
 	for (const TPair<FOSCAddress, FOSCDispatchMessageEvent>& Pair : AddressPatterns)
 	{
 		const FOSCDispatchMessageEvent& DispatchEvent = Pair.Value;
 		if (Pair.Key.Matches(InMessage.GetAddress()))
 		{
-			DispatchEvent.Broadcast(Pair.Key, InMessage, InIPAddress, InPort);
-			UE_LOG(LogOSC, Verbose, TEXT("Message dispatched from endpoint '%s', OSCAddress path of '%s' matched OSCAddress pattern '%s'."),
-				*InIPAddress,
+			DispatchEvent.Broadcast(Pair.Key, InMessage, AddrStr, Endpoint.Port);
+			UE_LOG(LogOSC, Verbose, TEXT("Message dispatched from IP endpoint '%s', OSCAddress path of '%s' matched OSCAddress pattern '%s'."),
+				*Endpoint.ToString(),
 				*InMessage.GetAddress().GetFullPath(),
 				*Pair.Key.GetFullPath());
 		}
 	}
 }
 
-void UOSCServer::PumpPacketQueue(const TSet<uint32>* AllowlistedClients)
+void UOSCServer::PumpPacketQueue()
 {
-	TSharedPtr<IOSCPacket> Packet;
-	while (OSCPackets.Dequeue(Packet))
+	using namespace UE::OSC;
+
+	check(IsInGameThread());
+
+	TSharedPtr<IPacket> Packet;
+	while (OSCPackets->Dequeue(Packet))
 	{
-		FIPv4Address IPAddr;
-		const FString& Address = Packet->GetIPAddress();
-		if (!AllowlistedClients || (FIPv4Address::Parse(Address, IPAddr) && AllowlistedClients->Contains(IPAddr.Value)))
+		// Safe to cast to ref as all added items when dispatching to queue should be valid by this point
+		TSharedRef<IPacket> PacketRef = Packet.ToSharedRef();
+		if (ServerProxy->CanProcessPacket(PacketRef))
 		{
-			uint16 Port = Packet->GetPort();
-			if (Packet->IsMessage())
+			if (PacketRef->IsMessage())
 			{
-				DispatchMessage(Address, Port, FOSCMessage(Packet));
+				BroadcastMessage(FOSCMessage(PacketRef));
 			}
-			else if (Packet->IsBundle())
+			else if (PacketRef->IsBundle())
 			{
-				DispatchBundle(Address, Port, FOSCBundle(Packet));
+				BroadcastBundle(FOSCBundle(PacketRef));
 			}
 			else
 			{

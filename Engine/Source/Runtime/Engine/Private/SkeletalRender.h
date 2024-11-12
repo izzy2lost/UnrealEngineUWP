@@ -27,8 +27,10 @@ extern const float MaxMorphTargetBlendWeight;
 * @param	InSkeletalMeshRenderData - resource for which to compute RefToLocal matrices
 * @param	LODIndex - each LOD has its own mapping of bones to update
 * @param	ExtraRequiredBoneIndices - any extra bones apart from those active in the LOD that we'd like to update
+* @param	LeaderBoneMappedComponentSpaceTransform - optional output of follower component space transforms.
 */
-ENGINE_API void UpdateRefToLocalMatrices( TArray<FMatrix44f>& ReferenceToLocal, const USkinnedMeshComponent* InMeshComponent, const FSkeletalMeshRenderData* InSkeletalMeshRenderData, int32 LODIndex, const TArray<FBoneIndexType>* ExtraRequiredBoneIndices=NULL );
+ENGINE_API void UpdateRefToLocalMatrices( TArray<FMatrix44f>& ReferenceToLocal, const USkinnedMeshComponent* InMeshComponent, const FSkeletalMeshRenderData* InSkeletalMeshRenderData, 
+	int32 LODIndex, const TArray<FBoneIndexType>* ExtraRequiredBoneIndices = nullptr, TArray<FTransform>* LeaderBoneMappedComponentSpaceTransform = nullptr );
 
 /**
 * Utility function that fills in the array of ref-pose to local-space matrices using 

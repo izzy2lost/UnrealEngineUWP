@@ -148,11 +148,11 @@ namespace GeometryCollectionTest
 		InitMaterialToZero(NewHandle.Get());
 		Chaos::FPhysicalMaterialManager::Get().UpdateMaterial(NewHandle);
 
-		TSharedPtr<FGeometryDynamicCollection> DynamicCollection = GeometryCollectionToGeometryDynamicCollection(RestCollection.Get(), Params.DynamicState);
+		TSharedPtr<FGeometryDynamicCollection> DynamicCollection = GeometryCollectionToGeometryDynamicCollection(RestCollection, Params.DynamicState);
 
 		FSimulationParameters SimulationParams;
 		{
-			SimulationParams.RestCollection = RestCollection.Get();
+			SimulationParams.RestCollectionShared = RestCollection;
 			SimulationParams.PhysicalMaterialHandle = NewHandle;
 			SimulationParams.Shared.Mass = Params.Mass;
 			SimulationParams.Shared.bMassAsDensity = Params.bMassAsDensity;
@@ -177,9 +177,18 @@ namespace GeometryCollectionTest
 			SimulationParams.AngularDamping = 0;
 			SimulationParams.UseCCD = false;
 			SimulationParams.UseMACD = false;
+			SimulationParams.PositionSolverIterations = 8;
+			SimulationParams.VelocitySolverIterations = 1;
+			SimulationParams.ProjectionSolverIterations = 1;
 
 			Chaos::FErrorReporter ErrorReporter;
 			BuildSimulationData(ErrorReporter, *RestCollection.Get(), SimulationParams.Shared);
+
+			SimulationParams.bUseSimplicialsWhenAvailable =
+				SimulationParams.RestCollectionShared
+				&& SimulationParams.RestCollectionShared->HasAttribute(FGeometryDynamicCollection::SimplicialsAttribute, FTransformCollection::TransformGroup)
+				&& SimulationParams.Shared.SizeSpecificData[0].CollisionShapesData.Num()
+				&& (SimulationParams.Shared.SizeSpecificData[0].CollisionShapesData[0].CollisionType == ECollisionTypeEnum::Chaos_Surface_Volumetric);
 
 			FGeometryCollectionPhysicsProxy::InitializeDynamicCollection(*DynamicCollection, *RestCollection, SimulationParams);
 		}

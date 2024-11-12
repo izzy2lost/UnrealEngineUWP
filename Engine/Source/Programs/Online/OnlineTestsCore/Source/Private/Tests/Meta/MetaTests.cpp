@@ -1,13 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include <catch2/catch_test_macros.hpp>
 #include "AsyncTestStep.h"
-#include "CoreMinimal.h"
 #include "Online/DelegateAdapter.h"
 #include "Online/MulticastAdapter.h"
 #include "OnlineCatchHelper.h"
 
-#define META_SUITE_TAGS "[.Meta][.Null]"
+#define META_SUITE_TAGS "[Meta][Null]"
 #define META_TEST_CASE(x, ...) ONLINE_TEST_CASE(x, META_SUITE_TAGS)
 
 using namespace UE::Online;
@@ -18,7 +16,7 @@ META_TEST_CASE("Async test steps")
 	{
 		bool bDidComplete = false;
 
-		GetLoginPipeline(0)
+		GetPipeline()
 			.EmplaceAsyncLambda([&](FAsyncLambdaResult Result, SubsystemType Type)
 				{
 					// This should cause a failure and crash, but if the fix is working

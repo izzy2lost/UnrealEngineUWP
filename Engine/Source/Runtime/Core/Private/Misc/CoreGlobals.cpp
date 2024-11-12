@@ -161,7 +161,7 @@ bool GIsGCingAfterBlueprintCompile = false;
 bool GIsReconstructingBlueprintInstances = false;
 
 /** True if actors and objects are being re-instanced. */
-bool GIsReinstancing = false;
+std::atomic<bool> GIsReinstancing = false;
 
 /** Settings for when using UE as a library */
 FUELibraryOverrideSettings GUELibraryOverrideSettings;
@@ -291,17 +291,17 @@ static void appNoop()
 {
 }
 
-bool GEngineStartupModuleLoadingComplete = false;
+std::atomic<bool> GEngineStartupModuleLoadingComplete = false;
 CORE_API bool IsEngineStartupModuleLoadingComplete()
 {
-	return GEngineStartupModuleLoadingComplete;
+	return GEngineStartupModuleLoadingComplete.load(std::memory_order_acquire);
 }
 
 CORE_API void SetEngineStartupModuleLoadingComplete()
 {
-	if (ensure(!GEngineStartupModuleLoadingComplete))
+	if (ensure(!GEngineStartupModuleLoadingComplete.load(std::memory_order_relaxed)))
 	{
-		GEngineStartupModuleLoadingComplete = true;
+		GEngineStartupModuleLoadingComplete.store(true, std::memory_order_release);
 		SCOPED_BOOT_TIMING("OnAllModuleLoadingPhasesComplete.Broadcast");
 		FCoreDelegates::OnAllModuleLoadingPhasesComplete.Broadcast();
 	}
@@ -384,14 +384,18 @@ const TCHAR* LexToString(ELoaderType Type)
 	}
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 /** Whether the editor is currently loading a package or not												*/
-bool					GIsEditorLoadingPackage			= false;
+FIsEditorLoadingPackage	GIsEditorLoadingPackage;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 /** Whether the cooker is currently loading a package or not												*/
 bool					GIsCookerLoadingPackage			= false;
 /** Whether GWorld points to the play in editor world														*/
 bool					GIsPlayInEditorWorld			= false;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 /** Unique ID for multiple PIE instances running in one process												*/
 FPlayInEditorID			GPlayInEditorID;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 /** Whether or not PIE was attempting to play from PlayerStart												*/
 bool					GIsPIEUsingPlayerStart			= false;
 /** true if the runtime needs textures to be powers of two													*/
@@ -436,8 +440,6 @@ bool					GIsGameThreadIdInitialized		= false;
 void					(*GFlushStreamingFunc)(void)	  = &appNoop;
 /** Whether to emit begin/ end draw events.																	*/
 bool					GEmitDrawEvents					= false;
-/** Whether we want the rendering thread to be suspended, used e.g. for tracing.							*/
-bool					GShouldSuspendRenderingThread	= false;
 /** Determines what kind of trace should occur, NAME_None for none.											*/
 FLazyName				GCurrentTraceName;
 /** How to print the time in log output																		*/
@@ -863,18 +865,90 @@ namespace UE::Core::Private
 	}
 }
 
+namespace UE
+{
+	int32 GetPlayInEditorID()
+	{
+		int32 Value = PRIVATE_GetGPlayInEditorID();
+		checkf(Value != -2, TEXT("GPlayInEditorID has not been properly forwarded by the loading-thread."));
+		return Value;
+	}
+	void SetPlayInEditorID(int32 InPlayInEditorID)
+	{
+		PRIVATE_SetGPlayInEditorID(InPlayInEditorID);
+	}
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FPlayInEditorID& FPlayInEditorID::operator= (int32 InOther)
 {
-	PRIVATE_SetGPlayInEditorID(InOther);
+	UE::SetPlayInEditorID(InOther);
 	return *this;
 }
 
 FPlayInEditorID::operator int32() const
 {
-	int32 Value = PRIVATE_GetGPlayInEditorID();
-	checkf(Value != -2, TEXT("GPlayInEditorID has not been properly forwarded by the loading-thread."));
-	return Value;
+	return UE::GetPlayInEditorID();
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+bool PRIVATE_GIsEditorLoadingPackage = false;
+
+namespace UE
+{
+	bool GetIsEditorLoadingPackage()
+	{
+		if (IsInGameThread())
+		{
+			if (GIsEditor && IsInAsyncLoadingThread())
+			{
+				ensureMsgf(PRIVATE_GIsEditorLoadingPackage, TEXT("GIsEditorLoadingPackage should always be true during editor loading."));
+			}
+			return PRIVATE_GIsEditorLoadingPackage;
+		}
+		else if (IsInAsyncLoadingThread())
+		{
+			// Directly depends on GIsEditor on real async-loading thread
+			return GIsEditor;
+		}
+		else
+		{
+			ensureMsgf(false, TEXT("Querying GIsEditorLoadingPackage from any thread is not safe, you should capture the value instead if needed."));
+			return false;
+		}
+	}
+	void SetIsEditorLoadingPackage(bool InValue)
+	{
+		if (IsInGameThread())
+		{
+			if (GIsEditor && !InValue && IsInAsyncLoadingThread())
+			{
+				ensureMsgf(false, TEXT("Overriding GIsEditorLoadingPackage to false during editor loading is prohibited."));
+			}
+			else
+			{
+				PRIVATE_GIsEditorLoadingPackage = InValue;
+			}
+		}
+		else
+		{
+			ensureMsgf(false, TEXT("Overriding GIsEditorLoadingPackage only makes sense for the game thread."));
+		}
+	}
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+FIsEditorLoadingPackage& FIsEditorLoadingPackage::operator= (bool InValue)
+{
+	UE::SetIsEditorLoadingPackage(InValue);
+	return *this;
+}
+
+FIsEditorLoadingPackage::operator bool() const
+{
+	return UE::GetIsEditorLoadingPackage();
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #undef LOCTEXT_NAMESPACE
 
@@ -907,6 +981,25 @@ int32 GetMultiprocessId()
 #else
 	return 0;
 #endif
+}
+
+int GIsUsingZenPakFileStreaming = -1;
+
+bool IsUsingZenPakFileStreaming()
+{
+	if (GIsUsingZenPakFileStreaming == -1)
+	{
+		if (FParse::Param(FCommandLine::Get(), TEXT("ZenPak")))
+		{
+			GIsUsingZenPakFileStreaming = 1;
+		}
+		else
+		{
+			GIsUsingZenPakFileStreaming = 0;
+		}
+	}
+
+	return GIsUsingZenPakFileStreaming == 1;
 }
 
 }

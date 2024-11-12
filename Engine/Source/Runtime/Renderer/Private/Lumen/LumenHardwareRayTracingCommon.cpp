@@ -8,11 +8,14 @@
 #include "ShaderParameterStruct.h"
 #include "ComponentRecreateRenderStateContext.h"
 #include "LumenReflections.h"
+#include "LumenScreenProbeGather.h"
+#include "LumenRadianceCache.h"
 #include "LumenVisualize.h"
+#include "RayTracing/RayTracing.h"
 
 static TAutoConsoleVariable<int32> CVarLumenUseHardwareRayTracing(
 	TEXT("r.Lumen.HardwareRayTracing"),
-	0,
+	1,
 	TEXT("Uses Hardware Ray Tracing for Lumen features, when available.\n")
 	TEXT("Lumen will fall back to Software Ray Tracing otherwise.\n")
 	TEXT("Note: Hardware ray tracing has significant scene update costs for\n")
@@ -29,11 +32,37 @@ static TAutoConsoleVariable<int32> CVarLumenUseHardwareRayTracing(
 static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingLightingMode(
 	TEXT("r.Lumen.HardwareRayTracing.LightingMode"),
 	0,
-	TEXT("Determines the lighting mode (Default = 0)\n")
-	TEXT("0: interpolate final lighting from the surface cache\n")
-	TEXT("1: evaluate material, and interpolate irradiance and indirect irradiance from the surface cache\n")
-	TEXT("2: evaluate material and direct lighting, and interpolate indirect irradiance from the surface cache\n")
-	TEXT("3: evaluate material, direct lighting, and unshadowed skylighting at the hit point"),
+	TEXT("Determines the ray hit lighting mode:\n")
+	TEXT("0 - Use Lumen Surface Cache for ray hit lighting. This method gives the best GI and reflection performance, but quality will be limited by how well surface cache represents given scene.\n")
+	TEXT("1 - Calculate lighting at a ray hit point for GI and reflections. This will improve both GI and reflection quality, but greatly increases GPU cost, as full material and lighting will be evaluated at every hit point. Lumen Surface Cache will still be used for secondary bounces.\n")
+	TEXT("2 - Calculate lighting at a ray hit point for reflections. This will improve reflection quality, but increases GPU cost, as full material needs to be evaluated and shadow rays traced. Lumen Surface Cache will still be used for GI and secondary bounces, including GI seen in reflections."),
+	ECVF_RenderThreadSafe | ECVF_Scalability
+);
+
+static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingHitLightingDirectLighting(
+	TEXT("r.Lumen.HardwareRayTracing.HitLighting.DirectLighting"),
+	1,
+	TEXT("Whether to calculate direct lighting when doing Hit Lighting or sample it from the Surface Cache."),
+	ECVF_RenderThreadSafe | ECVF_Scalability
+);
+
+static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingHitLightingShadowMode(
+	TEXT("r.Lumen.HardwareRayTracing.HitLighting.ShadowMode"),
+	2,
+	TEXT("Which shadow mode to use for calculating direct lighting in ray hits:\n")
+	TEXT("0 - Disabled shadows\n")
+	TEXT("1 - Hard shadows, but less noise\n")
+	TEXT("2 - Area shadows, but more noise"),
+	ECVF_RenderThreadSafe | ECVF_Scalability
+);
+
+static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingHitLightingSkylight(
+	TEXT("r.Lumen.HardwareRayTracing.HitLighting.Skylight"),
+	2,
+	TEXT("Whether to calculate unshadowed skylight when doing Hit Lighting or sample shadowed skylight from the Surface Cache.\n")
+	TEXT("0 - Disabled\n")
+	TEXT("1 - Enabled\n")
+	TEXT("2 - Enabled only for standalone Lumen Reflections"),
 	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
@@ -55,14 +84,14 @@ static TAutoConsoleVariable<float> CVarLumenHardwareRayTracingPullbackBias(
 	TEXT("r.Lumen.HardwareRayTracing.PullbackBias"),
 	8.0,
 	TEXT("Determines the pull-back bias when resuming a screen-trace ray (default = 8.0)"),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<float> CVarLumenHardwareRayTracingFarFieldBias(
 	TEXT("r.Lumen.HardwareRayTracing.FarFieldBias"),
 	200.0f,
 	TEXT("Determines bias for the far field traces. Default = 200"),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingMaxIterations(
@@ -71,7 +100,34 @@ static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingMaxIterations(
 	TEXT("Limit number of ray tracing traversal iterations on supported platfoms.\n"
 		"Incomplete misses will be treated as hitting a black surface (can cause overocculsion).\n"
 		"Incomplete hits will be treated as a hit (can cause leaking)."),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarLumenRadiosityHardwareRayTracingAvoidSelfIntersections(
+	TEXT("r.Lumen.HardwareRayTracing.AvoidSelfIntersections"),
+	3,
+	TEXT("Whether to skip back face hits for a small distance in order to avoid self-intersections when BLAS mismatches rasterized geometry.\n")
+	TEXT("0 - Disabled. May have extra leaking, but it's the fastest mode.\n")
+	TEXT("1 - Enabled. This mode retraces to skip first backface hit up to r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance. Good default on most platforms.\n")
+	TEXT("2 - Enabled. This mode uses AHS to skip any backface hits up to r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance. Faster on platforms with inline AHS support.\n")
+	TEXT("3 - Enabled. Automatically chooses between mode 1 and 2 depending on platform for best performance."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingSurfaceCacheAlphaMasking(
+	TEXT("r.Lumen.HardwareRayTracing.SurfaceCacheAlphaMasking"),
+	0,
+	TEXT("Whether to support alpha masking based on the surface cache alpha channel. Disabled by default, as it slows down ray tracing performance."),
+	ECVF_RenderThreadSafe | ECVF_Scalability
+);
+
+static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingMeshSectionVisibilityTest(
+	TEXT("r.Lumen.HardwareRayTracing.MeshSectionVisibilityTest"),
+	1,
+	TEXT("Whether to test mesh section visibility at runtime.\n")
+	TEXT("When enabled translucent mesh sections are automatically hidden based on the material, but it slows down performance due to extra visibility tests per intersection.\n")
+	TEXT("When disabled translucent meshes can be hidden only if they are fully translucent. Individual mesh sections need to be hidden upfront inside the static mesh editor."),
+	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
 TAutoConsoleVariable<float> CVarLumenHardwareRayTracingMinTraceDistanceToSampleSurfaceCache(
@@ -80,6 +136,27 @@ TAutoConsoleVariable<float> CVarLumenHardwareRayTracingMinTraceDistanceToSampleS
 	TEXT("Ray hit distance from which we can start sampling surface cache in order to fix feedback loop where surface cache texel hits itself and propagates lighting."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
+
+static TAutoConsoleVariable<float> CVarLumenHardwareRayTracingSurfaceCacheSamplingDepthBias(
+	TEXT("r.Lumen.HardwareRayTracing.SurfaceCacheSampling.DepthBias"),
+	10.0f,
+	TEXT("Max distance to project a texel from a mesh card onto a hit point. Higher values will fix issues of mismatch between ray tracing geometry and rasterization, but will also increase leaking."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+bool Lumen::UseHardwareRayTracing(const FSceneViewFamily& ViewFamily)
+{
+#if RHI_RAYTRACING
+	return IsRayTracingEnabled(ViewFamily.GetShaderPlatform())
+		&& (LumenHardwareRayTracing::IsInlineSupported() || LumenHardwareRayTracing::IsRayGenSupported())
+		&& CVarLumenUseHardwareRayTracing.GetValueOnAnyThread() != 0
+		// HWRT does not support multiple views yet due to TLAS, but stereo views can be allowed as they reuse TLAS for View[0]
+		&& (ViewFamily.Views.Num() == 1 || (ViewFamily.Views.Num() == 2 && IStereoRendering::IsStereoEyeView(*ViewFamily.Views[0])))
+		&& ViewFamily.Views[0]->IsRayTracingAllowedForView();
+#else
+	return false;
+#endif
+}
 
 bool LumenHardwareRayTracing::IsInlineSupported()
 {
@@ -92,23 +169,32 @@ bool LumenHardwareRayTracing::IsRayGenSupported()
 	return GRHISupportsRayTracingShaders && GRHISupportsRayTracingDispatchIndirect;
 }
 
-bool Lumen::UseHardwareRayTracing(const FSceneViewFamily& ViewFamily)
+LumenHardwareRayTracing::EAvoidSelfIntersectionsMode LumenHardwareRayTracing::GetAvoidSelfIntersectionsMode()
 {
-#if RHI_RAYTRACING
-	return IsRayTracingEnabled(ViewFamily.GetShaderPlatform())
-		&& (LumenHardwareRayTracing::IsInlineSupported() || LumenHardwareRayTracing::IsRayGenSupported())
-		&& CVarLumenUseHardwareRayTracing.GetValueOnAnyThread() != 0
-		// Lumen HWRT does not support split screen yet, but stereo views can be allowed
-		&& (ViewFamily.Views.Num() == 1 || (ViewFamily.Views.Num() == 2 && IStereoRendering::IsStereoEyeView(*ViewFamily.Views[0])));
-#else
-	return false;
-#endif
+	int32 Mode = CVarLumenRadiosityHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread();
+
+	if (Mode == 3)
+	{
+		return GRHIGlobals.RayTracing.SupportsInlinedCallbacks ? LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::AHS : LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::Retrace;
+	}
+	else
+	{
+		return (LumenHardwareRayTracing::EAvoidSelfIntersectionsMode)FMath::Clamp(Mode, 0, (uint32)LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::MAX - 1);
+	}
 }
 
-bool Lumen::IsUsingRayTracingLightingGrid(const FSceneViewFamily& ViewFamily, const FViewInfo& View, bool bLumenGIEnabled)
+bool LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking()
+{
+	return CVarLumenHardwareRayTracingSurfaceCacheAlphaMasking.GetValueOnRenderThread() != 0;
+}
+
+bool Lumen::IsUsingRayTracingLightingGrid(const FSceneViewFamily& ViewFamily, const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod)
 {
 	if (UseHardwareRayTracing(ViewFamily) 
-		&& (LumenReflections::UseHitLighting(View, bLumenGIEnabled) || LumenVisualize::UseHitLighting(View, bLumenGIEnabled)))
+		&& (LumenReflections::UseHitLighting(View, DiffuseIndirectMethod)
+			|| LumenVisualize::UseHitLighting(View, DiffuseIndirectMethod)
+			|| LumenScreenProbeGather::UseHitLighting(View, DiffuseIndirectMethod)
+			|| LumenRadianceCache::UseHitLighting(View, DiffuseIndirectMethod)))
 	{
 		return true;
 	}
@@ -116,21 +202,28 @@ bool Lumen::IsUsingRayTracingLightingGrid(const FSceneViewFamily& ViewFamily, co
 	return false;
 }
 
-float LumenHardwareRayTracing::GetMinTraceDistanceToSampleSurfaceCache()
+void LumenHardwareRayTracing::SetRayTracingSceneOptions(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod, EReflectionsMethod ReflectionsMethod, RayTracing::FSceneOptions& SceneOptions)
 {
-	return CVarLumenHardwareRayTracingMinTraceDistanceToSampleSurfaceCache.GetValueOnRenderThread();
+	if (ReflectionsMethod == EReflectionsMethod::Lumen
+		&& LumenReflections::UseHitLighting(View, DiffuseIndirectMethod) 
+		&& LumenReflections::UseTranslucentRayTracing(View))
+	{
+		SceneOptions.bTranslucentGeometry = true;
+	}
 }
 
-Lumen::EHardwareRayTracingLightingMode Lumen::GetHardwareRayTracingLightingMode(const FViewInfo& View, bool bLumenGIEnabled)
+LumenHardwareRayTracing::EHitLightingMode LumenHardwareRayTracing::GetHitLightingMode(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod)
 {
 #if RHI_RAYTRACING
-	
-	if (!bLumenGIEnabled)
+	if (!LumenHardwareRayTracing::IsRayGenSupported())
 	{
-		// ShouldRenderLumenReflections should have prevented this
-		check(GRHISupportsRayTracingShaders);
-		// Force hit lighting and no surface cache when using standalone Lumen Reflections
-		return Lumen::EHardwareRayTracingLightingMode::EvaluateMaterialAndDirectLightingAndSkyLighting;
+		return LumenHardwareRayTracing::EHitLightingMode::SurfaceCache;
+	}
+	
+	if (DiffuseIndirectMethod != EDiffuseIndirectMethod::Lumen)
+	{
+		// Force HitLightingForReflections when using standalone Lumen Reflections
+		return LumenHardwareRayTracing::EHitLightingMode::HitLightingForReflections;
 	}
 
 	int32 LightingModeInt = CVarLumenHardwareRayTracingLightingMode.GetValueOnAnyThread();
@@ -138,21 +231,46 @@ Lumen::EHardwareRayTracingLightingMode Lumen::GetHardwareRayTracingLightingMode(
 	// Without ray tracing shaders (RayGen) support we can only use Surface Cache mode.
 	if (View.FinalPostProcessSettings.LumenRayLightingMode == ELumenRayLightingModeOverride::SurfaceCache || !LumenHardwareRayTracing::IsRayGenSupported())
 	{
-		LightingModeInt = static_cast<int32>(Lumen::EHardwareRayTracingLightingMode::LightingFromSurfaceCache);
+		LightingModeInt = static_cast<int32>(LumenHardwareRayTracing::EHitLightingMode::SurfaceCache);
+	}
+	else if (View.FinalPostProcessSettings.LumenRayLightingMode == ELumenRayLightingModeOverride::HitLightingForReflections)
+	{
+		LightingModeInt = static_cast<int32>(LumenHardwareRayTracing::EHitLightingMode::HitLightingForReflections);
 	}
 	else if (View.FinalPostProcessSettings.LumenRayLightingMode == ELumenRayLightingModeOverride::HitLighting)
 	{
-		LightingModeInt = static_cast<int32>(Lumen::EHardwareRayTracingLightingMode::EvaluateMaterialAndDirectLighting);
+		LightingModeInt = static_cast<int32>(LumenHardwareRayTracing::EHitLightingMode::HitLighting);
 	}
 
-	LightingModeInt = FMath::Clamp<int32>(LightingModeInt, 0, (int32)Lumen::EHardwareRayTracingLightingMode::MAX - 1);
-	return static_cast<Lumen::EHardwareRayTracingLightingMode>(LightingModeInt);
+	LightingModeInt = FMath::Clamp<int32>(LightingModeInt, 0, (int32)LumenHardwareRayTracing::EHitLightingMode::MAX - 1);
+	return static_cast<LumenHardwareRayTracing::EHitLightingMode>(LightingModeInt);
 #else
-	return Lumen::EHardwareRayTracingLightingMode::LightingFromSurfaceCache;
+	return LumenHardwareRayTracing::EHitLightingMode::SurfaceCache;
 #endif
 }
 
-bool Lumen::UseReflectionCapturesForHitLighting()
+uint32 LumenHardwareRayTracing::GetHitLightingShadowMode()
+{
+	return FMath::Clamp(CVarLumenHardwareRayTracingHitLightingShadowMode.GetValueOnRenderThread(), 0, 2);
+}
+
+bool LumenHardwareRayTracing::UseHitLightingDirectLighting()
+{
+	return CVarLumenHardwareRayTracingHitLightingDirectLighting.GetValueOnRenderThread() != 0;
+}
+
+bool LumenHardwareRayTracing::UseHitLightingSkylight(EDiffuseIndirectMethod DiffuseIndirectMethod)
+{
+	if (CVarLumenHardwareRayTracingHitLightingSkylight.GetValueOnRenderThread() == 2)
+	{
+		// Standalone Lumen Reflections enabled sky light by default in mode 2
+		return DiffuseIndirectMethod != EDiffuseIndirectMethod::Lumen;
+	}
+
+	return CVarLumenHardwareRayTracingHitLightingSkylight.GetValueOnRenderThread() != 0;
+}
+
+bool LumenHardwareRayTracing::UseReflectionCapturesForHitLighting()
 {
 	int32 UseReflectionCaptures = CVarLumenHardwareRayTracingHitLightingReflectionCaptures.GetValueOnRenderThread();
 	return UseReflectionCaptures != 0;
@@ -176,11 +294,6 @@ bool Lumen::UseHardwareInlineRayTracing(const FSceneViewFamily& ViewFamily)
 float LumenHardwareRayTracing::GetFarFieldBias()
 {
 	return FMath::Max(CVarLumenHardwareRayTracingFarFieldBias.GetValueOnRenderThread(), 0.0f);
-}
-
-uint32 LumenHardwareRayTracing::GetMaxTraversalIterations()
-{
-	return FMath::Max(CVarLumenHardwareRayTracingMaxIterations.GetValueOnRenderThread(), 1);
 }
 
 #if RHI_RAYTRACING
@@ -209,13 +322,8 @@ void FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironment(const FGlo
 	}
 }
 
-void FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, Lumen::ERayTracingShaderDispatchSize Size, bool UseThreadGroupSize64, FShaderCompilerEnvironment& OutEnvironment)
+void FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, bool UseThreadGroupSize64, FShaderCompilerEnvironment& OutEnvironment)
 {
-	if (DispatchSize == Lumen::ERayTracingShaderDispatchSize::DispatchSize1D)
-	{
-		OutEnvironment.SetDefine(TEXT("UE_RAY_TRACING_DISPATCH_1D"), 1);
-	}
-
 	const bool bInlineRayTracing = ShaderDispatchType == Lumen::ERayTracingShaderDispatchType::Inline;
 	if (bInlineRayTracing && !UseThreadGroupSize64)
 	{
@@ -223,19 +331,13 @@ void FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironmentInternal(Lu
 	}
 }
 
-FIntPoint FLumenHardwareRayTracingShaderBase::GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, Lumen::ERayTracingShaderDispatchSize ShaderDispatchSize, bool UseThreadGroupSize64)
+FIntPoint FLumenHardwareRayTracingShaderBase::GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, bool UseThreadGroupSize64)
 {
 	// Current inline ray tracing implementation requires 1:1 mapping between thread groups and waves.
 	const bool bInlineRayTracing = ShaderDispatchType == Lumen::ERayTracingShaderDispatchType::Inline;
 	if (bInlineRayTracing)
 	{
-		switch (ShaderDispatchSize)
-		{
-		case Lumen::ERayTracingShaderDispatchSize::DispatchSize2D: return UseThreadGroupSize64 ? FIntPoint(8, 8) : FIntPoint(8, 4);
-		case Lumen::ERayTracingShaderDispatchSize::DispatchSize1D: return UseThreadGroupSize64 ? FIntPoint(64, 1) : FIntPoint(32, 1);
-		default:
-			checkNoEntry();
-		}
+		return UseThreadGroupSize64 ? FIntPoint(64, 1) : FIntPoint(32, 1);
 	}
 
 	return FIntPoint(1, 1);
@@ -246,11 +348,11 @@ bool FLumenHardwareRayTracingShaderBase::ShouldCompilePermutation(const FGlobalS
 	const bool bInlineRayTracing = ShaderDispatchType == Lumen::ERayTracingShaderDispatchType::Inline;
 	if (bInlineRayTracing)
 	{
-		return IsRayTracingEnabledForProject(Parameters.Platform) && DoesPlatformSupportLumenGI(Parameters.Platform) && RHISupportsRayTracing(Parameters.Platform) && RHISupportsInlineRayTracing(Parameters.Platform);
+		return IsRayTracingEnabledForProject(Parameters.Platform) && RHISupportsRayTracing(Parameters.Platform) && RHISupportsInlineRayTracing(Parameters.Platform);
 	}
 	else
 	{
-		return ShouldCompileRayTracingShadersForProject(Parameters.Platform) && DoesPlatformSupportLumenGI(Parameters.Platform);
+		return ShouldCompileRayTracingShadersForProject(Parameters.Platform);
 	}
 }
 
@@ -299,12 +401,16 @@ void SetLumenHardwareRayTracingSharedParameters(
 
 	// Inline
 	SharedParameters->HitGroupData = View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer ? GraphBuilder.CreateSRV(View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer) : nullptr;
-	SharedParameters->LumenHardwareRayTracingUniformBuffer = View.GetPrimaryView()->LumenHardwareRayTracingUniformBuffer ? View.GetPrimaryView()->LumenHardwareRayTracingUniformBuffer : nullptr;
-	checkf(View.RayTracingSceneInitTask == nullptr, TEXT("RayTracingSceneInitTask must be completed before creating SRV for RayTracingSceneMetadata."));
-	SharedParameters->RayTracingSceneMetadata = View.GetRayTracingSceneChecked()->GetOrCreateMetadataBufferSRV(GraphBuilder.RHICmdList);
-
-	// Use surface cache, instead
+	SharedParameters->LumenHardwareRayTracingUniformBuffer = View.GetPrimaryView()->LumenHardwareRayTracingUniformBuffer;
+	checkf(View.RayTracingSceneInitTask.IsCompleted(), TEXT("RayTracingSceneInitTask must be completed before creating SRV for RayTracingSceneMetadata."));
+	SharedParameters->RayTracingSceneMetadata = View.LumenHardwareRayTracingSBT ? View.LumenHardwareRayTracingSBT->GetOrCreateInlineBufferSRV(GraphBuilder.RHICmdList) : nullptr;
+	
+	// Lumen
 	SharedParameters->TracingParameters = TracingParameters;
+	SharedParameters->MaxTraversalIterations = FMath::Max(CVarLumenHardwareRayTracingMaxIterations.GetValueOnRenderThread(), 1);
+	SharedParameters->MinTraceDistanceToSampleSurfaceCache = CVarLumenHardwareRayTracingMinTraceDistanceToSampleSurfaceCache.GetValueOnRenderThread();
+	SharedParameters->SurfaceCacheSamplingDepthBias = CVarLumenHardwareRayTracingSurfaceCacheSamplingDepthBias.GetValueOnRenderThread();
+	SharedParameters->MeshSectionVisibilityTest = CVarLumenHardwareRayTracingMeshSectionVisibilityTest.GetValueOnRenderThread();
 }
 
 #endif // RHI_RAYTRACING

@@ -9,6 +9,8 @@
 
 #include "Scratchpad/ConcertScratchpad.h"
 
+#include "EngineAnalytics.h"
+
 #include "Containers/Ticker.h"
 #include "Misc/Paths.h"
 #include "Stats/Stats.h"
@@ -33,6 +35,21 @@ FConcertClientSession::~FConcertClientSession()
 	// if the SessionTick is valid, Shutdown wasn't called
 	check(!SessionTick.IsValid());
 }
+
+namespace UE::ConcertClientSession::Private
+{
+	void SendAnalyticsSessionStarted(const FString& SessionIdString)
+	{
+		if (!FEngineAnalytics::IsAvailable())
+		{
+			return;
+		}
+		TArray<FAnalyticsEventAttribute> EventAttributes;
+		EventAttributes.Add(FAnalyticsEventAttribute(TEXT("SessionID"), SessionIdString));
+
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Usage.MultiUser.SessionStarted"), EventAttributes);
+	}
+} // namespace UE::ConcertClientSession::Private
 
 void FConcertClientSession::Startup()
 {
@@ -63,7 +80,9 @@ void FConcertClientSession::Startup()
 			return true;
 		});
 
-		UE_LOG(LogConcert, Display, TEXT("Initialized Concert session '%s' (Id: %s, Owner: %s)."), *SessionInfo.SessionName, *SessionInfo.SessionId.ToString(), *SessionInfo.OwnerUserName);
+		FString SessionIdString = SessionInfo.SessionId.ToString();
+		UE_LOG(LogConcert, Display, TEXT("Initialized Concert session '%s' (Id: %s, Owner: %s)."), *SessionInfo.SessionName, *SessionIdString, *SessionInfo.OwnerUserName);
+		UE::ConcertClientSession::Private::SendAnalyticsSessionStarted(SessionIdString);
 	}
 }
 

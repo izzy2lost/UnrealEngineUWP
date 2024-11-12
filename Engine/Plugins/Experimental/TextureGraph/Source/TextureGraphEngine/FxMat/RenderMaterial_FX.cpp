@@ -83,7 +83,7 @@ void RenderMaterial_FX::BlitTo(FRHICommandListImmediate& RHI, UTextureRenderTarg
 	FTextureRenderTarget2DResource* RTRes = (FTextureRenderTarget2DResource*)RenderTarget->GetRenderTargetResource();
 	check(RTRes);
 
-	FTexture2DRHIRef TextureRHI = RTRes->GetTextureRHI();
+	FTextureRHIRef TextureRHI = RTRes->GetTextureRHI();
 	check(TextureRHI);
 
 	TextureRHI->SetName(FName(*RenderTarget->GetName()));

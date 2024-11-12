@@ -97,3 +97,7 @@ bool UBlackboardKeyType_Object::TestBasicOperation(const UBlackboardComponent& O
 	return (Op == EBasicKeyOperation::Set) ? WeakObjPtr.IsValid() : !WeakObjPtr.IsValid();
 }
 
+void UBlackboardKeyType_Object::InitializeMemory(UBlackboardComponent& OwnerComp, uint8* MemoryBlock)
+{
+	SetValue(this, MemoryBlock, DefaultValue);
+}

@@ -157,6 +157,7 @@ namespace LPCM
 		Format.nAvgBytesPerSec = Format.nBlockAlign * QualityInfo.SampleRate;
 		Format.wBitsPerSample = 16;
 		Format.wFormatTag = WAVE_FORMAT_LPCM;
+		Format.cbSize = 0;
 
 		RiffDataChunk RiffDataChunks[2];
 		RiffDataChunks[0].ID = UE_MAKEFOURCC('f','m','t',' ');

@@ -14,13 +14,14 @@
 class FSequencer;
 class IKeyArea;
 class UMovieSceneSection;
+class UMovieSceneTrack;
 
 namespace UE
 {
 namespace Sequencer
 {
-
-class FChannelModel;
+	class FChannelModel;
+	struct FViewModelVariantIterator;
 
 } // namespace Sequencer
 } // namespace UE
@@ -68,9 +69,42 @@ public:
 	static TSharedPtr<SWidget> SummonContextMenu(FSequencer& Sequencer, const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
 
 	/*
-	 * Build a context menu for the sections
+	 * Build a sub menu for adding a new track section
 	 */
-	static void AddPropertiesMenu(FSequencer& Sequencer, FMenuBuilder& MenuBuilder, const TArray<TWeakObjectPtr<UObject>>& Sections);
+	static void BuildNewSectionMenu(const TWeakPtr<FSequencer>& InWeakSequencer
+		, const int32 InRowIndex
+		, const TWeakObjectPtr<UMovieSceneTrack>& InTrackWeak
+		, FMenuBuilder& MenuBuilder);
+
+	/*
+	 * Build an inline menu or sub menu for editing track section(s)
+	 */
+	static void BuildEditSectionMenu(const TWeakPtr<FSequencer>& InWeakSequencer
+		, const TArray<TWeakObjectPtr<>>& InWeakSections
+		, FMenuBuilder& MenuBuilder
+		, const bool bInSubMenu);
+
+	/*
+	* Build an inline menu or sub menu for editing track(s)
+	*/
+	static void BuildEditTrackMenu(const TWeakPtr<FSequencer>& InWeakSequencer
+		, const TArray<TWeakObjectPtr<>>& InWeakTracks
+		, FMenuBuilder& MenuBuilder
+		, const bool bInSubMenu);
+
+
+
+	/*
+	 * Build a menu for selection the blend algorithm
+	 */
+	static void BuildBlendingMenu(const TWeakPtr<FSequencer>& InWeakSequencer
+		, const TWeakObjectPtr<UMovieSceneTrack>& InTrackWeak
+		, FMenuBuilder& MenuBuilder);
+
+	/**
+	 * Gets all section objects from track area models
+	 */
+	static TArray<TWeakObjectPtr<>> GetSectionObjectsFromTrackAreaModels(const UE::Sequencer::FViewModelVariantIterator& InTrackAreaModels);
 };
 
 #undef LOCTEXT_NAMESPACE

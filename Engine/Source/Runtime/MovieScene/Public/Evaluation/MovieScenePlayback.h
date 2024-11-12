@@ -274,24 +274,12 @@ struct FMovieSceneContext : FMovieSceneEvaluationRange
 	 * Get the inverse transform of the current sub sequence, to transform local times back to root times.
 	 */
 	UE_DEPRECATED(5.4, "Please use GetSequenceToRootSequenceTransform instead.")
-	FORCEINLINE FMovieSceneTimeTransform GetSequenceToRootTransform() const
-	{
-		FMovieSceneSequenceTransform SequenceTransform = RootToSequenceTransform.InverseFromLoop(RootToSequenceWarpCounter);
-		FMovieSceneTimeTransform ReturnTransform = SequenceTransform.LinearTransform;
-		for (int i = 0; i < SequenceTransform.NestedTransforms.Num(); ++i)
-		{
-			ReturnTransform = ReturnTransform * SequenceTransform.NestedTransforms[i].LinearTransform;
-		}
-		return ReturnTransform;
-	}
+	MOVIESCENE_API FMovieSceneTimeTransform GetSequenceToRootTransform() const;
 
 	/**
 	 * Get the inverse sequence transform of the current sub sequence, to transform local times back to root times.
 	 */
-	FORCEINLINE FMovieSceneSequenceTransform GetSequenceToRootSequenceTransform() const
-	{
-		return RootToSequenceTransform.InverseFromLoop(RootToSequenceWarpCounter);
-	}
+	MOVIESCENE_API FMovieSceneInverseSequenceTransform GetSequenceToRootSequenceTransform() const;
 
 	/**
 	 * Apply section pre and post roll based on whether we're in the leading (preroll), or trailing (postroll) region for the section, and the current play direction
@@ -346,58 +334,7 @@ public:
 	/**
 	 * Transform this context to a different sub sequence space
 	 */
-	FMovieSceneContext Transform(const FMovieSceneSequenceTransform& InTransform, FFrameRate NewFrameRate) const
-	{
-		FMovieSceneContext NewContext = *this;
-		NewContext.RootToSequenceTransform = NewContext.RootToSequenceTransform * InTransform;
-		NewContext.CurrentFrameRate = NewFrameRate;
-
-		NewContext.EvaluationRange = InTransform.TransformRangeUnwarped(EvaluationRange);
-
-		// Transform the current time so we get an idea in what loop(s) we are relative to the root sequence.
-		FFrameTime TransformedTime_Unused;
-		FMovieSceneWarpCounter WarpCounter;
-		NewContext.RootToSequenceTransform.TransformTime(GetTime(), TransformedTime_Unused, WarpCounter);
-		NewContext.RootToSequenceWarpCounter = WarpCounter;
-
-		if (InTransform.IsLooping())
-		{
-			// If we have some looping, the transformed range might extend past the end of a loop and into
-			// the beginning of another. In that case, technically, the evaluation range ends up being a
-			// discontinuous range... for instance: [X, LoopEnd) + [LoopStart, Y)
-			// It can be even more than 2 ranges if the loop is short enough and the original evaluation
-			// range spans more than one loop!
-			// TODO: For now, we just take the "last part" of this discontinuous range but we should really 
-			//       actually make contexts have an array of evaluation ranges.
-			TRangeBound<FFrameTime> UpperEvalutionRangeBound = NewContext.EvaluationRange.GetUpperBound();
-			const FMovieSceneNestedSequenceTransform& LeafTransform = InTransform.NestedTransforms.Last();
-			if (UpperEvalutionRangeBound.IsClosed() && LeafTransform.IsLooping())
-			{
-				const FFrameNumber LeafWarpLength = LeafTransform.Warping.Length();
-				// Below: use strictly greater than comparison so that if the evalution range ends on the
-				//        end of a loop, we correctly evaluate up to there, instead of doing a 0-width
-				//        evaluation of the first frame of the loop.
-				while (UpperEvalutionRangeBound.GetValue() > LeafTransform.Warping.End)
-				{
-					UpperEvalutionRangeBound.SetValue(UpperEvalutionRangeBound.GetValue() - LeafWarpLength);
-				}
-
-				// We can end up with the upper bound being greater than the lower bound in the case outlined
-				// in the comment above (where we overlap a loop boundary). This is where we would split things
-				// up in multiple discontinous ranges, but as previously mentioned, we only take the last part
-				// for now.
-				TRangeBound<FFrameTime> LowerEvaluationRangeBound = NewContext.EvaluationRange.GetLowerBound();
-				if (LowerEvaluationRangeBound.IsClosed() && UpperEvalutionRangeBound.GetValue() < LowerEvaluationRangeBound.GetValue())
-				{
-					LowerEvaluationRangeBound.SetValue(LeafTransform.Warping.Start);
-				}
-
-				NewContext.EvaluationRange = TRange<FFrameTime>(LowerEvaluationRangeBound, UpperEvalutionRangeBound);
-			}
-		}
-
-		return NewContext;
-	}
+	MOVIESCENE_API FMovieSceneContext Transform(const FMovieSceneSequenceTransform& InTransform, FFrameRate NewFrameRate) const;
 
 	/**
 	 * Get the hierarchical bias for the current context

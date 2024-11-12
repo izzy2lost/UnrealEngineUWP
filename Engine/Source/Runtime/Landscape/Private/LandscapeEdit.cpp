@@ -19,6 +19,7 @@ LandscapeEdit.cpp: Landscape editing
 #include "LandscapeStreamingProxy.h"
 #include "LandscapeInfo.h"
 #include "LandscapeComponent.h"
+#include "LandscapeModule.h"
 #include "LandscapeLayerInfoObject.h"
 #include "MaterialDomain.h"
 #include "Materials/Material.h"
@@ -83,12 +84,15 @@ LandscapeEdit.cpp: Landscape editing
 #include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "ActorPartition/ActorPartitionSubsystem.h"
 #include "LandscapeUtils.h"
+#include "LandscapeUtilsPrivate.h"
 #include "LandscapeSplineActor.h"
 #include "Materials/MaterialExpressionLandscapeGrassOutput.h"
 #include "ShaderPlatformCachedIniValue.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "Misc/TransactionObjectEvent.h"
 #endif
 #include "Algo/Compare.h"
+#include "LandscapeProxy.h"
 #include "Algo/Count.h"
 #include "Algo/Transform.h"
 #include "Algo/ForEach.h"
@@ -107,6 +111,8 @@ static TAutoConsoleVariable<int32> CVarLandscapeApplyPhysicalMaterialChangesImme
 	1,
     TEXT("Applies physical material task changes immediately rather than during the next cook/PIE."));
 
+extern FAutoConsoleVariable CVarStripLayerTextureMipsOnLoad;
+
 #if WITH_EDITOR
 
 // Used to temporarily disable material instance updates (typically used for cases where multiple updates are called on sample component)
@@ -121,6 +127,8 @@ extern const size_t ChannelOffsets[4];
 extern float LandscapeNaniteBuildLag;
 
 ULandscapeLayerInfoObject* ALandscapeProxy::VisibilityLayer = nullptr;
+
+FOnLandscapeProxyFixupSharedDataDelegate ALandscapeProxy::OnLandscapeProxyFixupSharedDataDelegate;
 #endif //WITH_EDITOR
 
 void ULandscapeComponent::Init(int32 InBaseX, int32 InBaseY, int32 InComponentSizeQuads, int32 InNumSubsections, int32 InSubsectionSizeQuads)
@@ -261,12 +269,7 @@ namespace UE::Landscape::Private
 	}
 }
 
-void ULandscapeComponent::UpdateCachedBounds(bool bInApproximateBounds)
-{
-	UpdateCachedBoundsInternal(bInApproximateBounds);
-}
-
-bool ULandscapeComponent::UpdateCachedBoundsInternal(bool bInApproximateBounds)
+bool ULandscapeComponent::UpdateCachedBounds(bool bInApproximateBounds)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeComponent::UpdateCachedBounds);
 
@@ -603,6 +606,8 @@ UMaterialInstanceConstant* ULandscapeComponent::GetCombinationMaterial(FMaterial
 
 void ULandscapeComponent::UpdateMaterialInstances_Internal(FMaterialUpdateContext& Context)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeComponent::UpdateMaterialInstances_Internal);
+
 	const int8 MaxLOD = IntCastChecked<int8>(FMath::CeilLogTwo(SubsectionSizeQuads + 1) - 1);
 	decltype(MaterialPerLOD) NewMaterialPerLOD;
 	LODIndexToMaterialIndex.SetNumUninitialized(MaxLOD+1);
@@ -977,13 +982,13 @@ void ULandscapeComponent::PostEditUndo()
 			ComponentProxy->FixupWeightmaps();
 		}
 
-		// Update Material Instances on each modified component (uses the weightmap allocations fixed by FixupWeightmaps)
+		// Update Material Instances on each modified component, in case the material property has changed (uses the weightmap allocations fixed by FixupWeightmaps)
 		for (ULandscapeComponent* Component : UndoRedoModifiedComponents)
 		{
 			if (IsValid(Component)) // Components can be pending kill, if they were removed by the undo operation
 			{
 				ALandscapeProxy* ComponentProxy = Component->GetLandscapeProxy();
-				if (IsValid(ComponentProxy) && !ComponentProxy->HasLayersContent())
+				if (IsValid(ComponentProxy))
 				{
 					Component->UpdateMaterialInstances();
 				}
@@ -1121,6 +1126,7 @@ void ULandscapeComponent::FixupWeightmaps(const FGuid& InEditLayerGuid)
 	{
 		ULandscapeInfo* Info = GetLandscapeInfo();
 		ALandscapeProxy* Proxy = GetLandscapeProxy();
+		ALandscape* Landscape = Proxy->GetLandscapeActor();
 
 		TArray<TObjectPtr<UTexture2D>>& LocalWeightmapTextures = GetWeightmapTextures(InEditLayerGuid);
 		TArray<TObjectPtr<ULandscapeWeightmapUsage>>& LocalWeightmapTextureUsages = GetWeightmapTexturesUsage(InEditLayerGuid);
@@ -1149,14 +1155,16 @@ void ULandscapeComponent::FixupWeightmaps(const FGuid& InEditLayerGuid)
 			for (const auto& Allocation : LocalWeightmapLayerAllocations)
 			{
 				if (!Allocation.LayerInfo
-					|| (Allocation.LayerInfo != ALandscapeProxy::VisibilityLayer && Info->GetLayerInfoIndex(Allocation.LayerInfo) == INDEX_NONE))
+					|| (Allocation.LayerInfo != ALandscapeProxy::VisibilityLayer && Landscape && !Landscape->HasTargetLayer(Allocation.LayerInfo->LayerName)))
 				{
 					if (!bFixedLayerDeletion)
 					{
 						FFormatNamedArguments Arguments;
 						Arguments.Add(TEXT("LandscapeName"), FText::FromString(GetPathName()));
-						FMessageLog("MapCheck").Warning()
-							->AddToken(FTextToken::Create(FText::Format(LOCTEXT("MapCheck_Message_FixedUpDeletedLayerWeightmap", "{LandscapeName} : Fixed up deleted layer weightmap"), Arguments)))
+						Arguments.Add(TEXT("TargetLayerName"), FText::FromName(Allocation.GetLayerName()));
+						Arguments.Add(TEXT("EditLayerName"), FText::FromString(InEditLayerGuid.IsValid() ? LayersData[InEditLayerGuid].DebugName.ToString() : FString(TEXT("<Runtime>"))));
+						FMessageLog("MapCheck").Info()
+							->AddToken(FTextToken::Create(FText::Format(LOCTEXT("MapCheck_Message_FixedUpDeletedLayerWeightmap", "{LandscapeName} : Removed unused layer weightmap Edit Layer: '{EditLayerName}' Target Layer: '{TargetLayerName}'"), Arguments)))
 							->AddToken(FMapErrorToken::Create(FMapErrors::FixedUpDeletedLayerWeightmap));
 					}
 
@@ -1164,7 +1172,7 @@ void ULandscapeComponent::FixupWeightmaps(const FGuid& InEditLayerGuid)
 					LayersToDelete.Add(Allocation.LayerInfo);
 				}
 			}
-
+			
 			if (bFixedLayerDeletion)
 			{
 				// Delete material layer in the base/render layer
@@ -1980,21 +1988,19 @@ uint32 ULandscapeComponent::CalculatePhysicalMaterialTaskHash() const
 	
 	// Take into account any material changes.
 	UMaterialInterface* Material = GetLandscapeMaterial();
-	for (UMaterialInstanceConstant* MIC = Cast<UMaterialInstanceConstant>(Material); MIC; MIC = Cast<UMaterialInstanceConstant>(Material))
-	{
-		Hash = FCrc::TypeCrc32(MIC->ParameterStateId, Hash);
-		Material = MIC->Parent;
-	}
-	UMaterial* MaterialBase = Cast<UMaterial>(Material);
-	if (MaterialBase != nullptr)
-	{
-		Hash = FCrc::TypeCrc32(MaterialBase->StateId, Hash);
-	}
+	uint32 MaterialAllStateCRC = Material->ComputeAllStateCRC();
+
+	// also take into account the collision mip level
+	Hash = FCrc::TypeCrc32(CollisionMipLevel, Hash);
+
+	int32 SimpleCollisionMipLevelForHash = (SimpleCollisionMipLevel > CollisionMipLevel) ? SimpleCollisionMipLevel : 0;
+	Hash = FCrc::TypeCrc32(SimpleCollisionMipLevelForHash, Hash);
 
 	// We could take into account heightmap and weightmap changes here by adding to the hash.
 	// Instead we are resetting the stored hash in UpdateCollisionHeightData() and UpdateCollisionLayerData().
+	// (this is not ideal, as if we forget to reset the stored hash somewhere it will not recalculate collision...)
 
-	return Hash;
+	return MaterialAllStateCRC;
 }
 
 bool ULandscapeComponent::GetRenderPhysicalMaterials(TArray<UPhysicalMaterial*>& OutPhysicalMaterials) const 
@@ -2086,7 +2092,10 @@ void ULandscapeComponent::UpdatePhysicalMaterialTasks()
 
 	if (Hash == PhysicalMaterialHash)
 	{
-		check(!PhysicalMaterialTask.IsValid());
+		if (PhysicalMaterialTask.IsValid())
+		{
+			PhysicalMaterialTask.Release();
+		}
 		return;
 	}
 
@@ -2135,34 +2144,42 @@ void ULandscapeComponent::UpdateCollisionPhysicalMaterialData(TArray<UPhysicalMa
 	CollisionComponent->PhysicalMaterialRenderObjects = InPhysicalMaterials;
 
 	// Copy the physical material IDs for both the full and (optional) simple collision.
-	const int32 SizeVerts = SubsectionSizeQuads * NumSubsections + 1;
-	check(InMaterialIds.Num() == SizeVerts * SizeVerts);
-	const int32 FullCollisionSizeVerts = CollisionComponent->CollisionSizeQuads + 1;
+	const int32 CollisionVerts = CollisionComponent->CollisionSizeQuads + 1;
+
+	// the material ids passed in should already be at the desired collision resolution
+	check(InMaterialIds.Num() == CollisionVerts * CollisionVerts);
+
+	// if simple collision is used, this is how many verts it needs
 	const int32 SimpleCollisionSizeVerts = CollisionComponent->SimpleCollisionSizeQuads > 0 ? CollisionComponent->SimpleCollisionSizeQuads + 1 : 0;
-	const int32 BulkDataSize = FullCollisionSizeVerts * FullCollisionSizeVerts + SimpleCollisionSizeVerts * SimpleCollisionSizeVerts;
+	const int32 BulkDataSize = CollisionVerts * CollisionVerts + SimpleCollisionSizeVerts * SimpleCollisionSizeVerts;
 
 	void* Data = CollisionComponent->PhysicalMaterialRenderData.Lock(LOCK_READ_WRITE);
 	Data = CollisionComponent->PhysicalMaterialRenderData.Realloc(BulkDataSize);
 	uint8* WritePtr = (uint8*)Data;
 
-	const int32 CollisionSizes[2] = { FullCollisionSizeVerts, SimpleCollisionSizeVerts };
+	const int32 CollisionSizes[2] = { CollisionVerts, SimpleCollisionSizeVerts };
 	for (int32 i = 0; i < 2; ++i)
 	{
 		const int32 CollisionSizeVerts = CollisionSizes[i];
-		if (CollisionSizeVerts == SizeVerts)
+		if (CollisionSizeVerts == CollisionVerts)
 		{
-			FMemory::Memcpy(WritePtr, InMaterialIds.GetData(), SizeVerts * SizeVerts);
-			WritePtr += SizeVerts * SizeVerts;
+			FMemory::Memcpy(WritePtr, InMaterialIds.GetData(), CollisionVerts * CollisionVerts);
+			WritePtr += CollisionVerts * CollisionVerts;
 		}
 		else if (CollisionSizeVerts > 0)
 		{
-			const int32 StepSize = SizeVerts / CollisionSizeVerts;
-			check(CollisionSizeVerts * StepSize == SizeVerts);
-			for (int32 y = 0; y < SizeVerts; y += StepSize)
+			const float ScaleFactor = (CollisionVerts - 1.0f) / (CollisionSizeVerts - 1.0f);
+
+			// For simple collision, we just do a point-sampled resample to the desired resolution
+			// This may result in off-by-half-a-pixel misalignments, but we assume the simple collision would be fine with that
+			// (the alternative would be to directly render the MaterialIDs at both regular and simple resolutions)
+			for (int32 y = 0; y < CollisionSizeVerts; y++)					// [0 .. CollisionSizeVerts-1]
 			{
-				for (int32 x = 0; x < SizeVerts; x += StepSize)
+				int32 sampleY = FMath::RoundToInt32(y * ScaleFactor);		// [0 .. CollisionVerts-1]
+				for (int32 x = 0; x < CollisionSizeVerts; x++)				// [0 .. CollisionSizeVerts-1]
 				{
-					*WritePtr++ = InMaterialIds[y * SizeVerts + x];
+					int32 sampleX = FMath::RoundToInt32(x * ScaleFactor);	// [0 .. CollisionVerts-1]
+					*WritePtr++ = InMaterialIds[sampleY * CollisionVerts + sampleX];
 				}
 			}
 		}
@@ -2969,6 +2986,53 @@ const TArray<FName>& ALandscapeProxy::GetLayersFromMaterial() const
 	return GetLayersFromMaterial(LandscapeMaterial);
 }
 
+TArray<FName> ALandscapeProxy::RetrieveTargetLayerNamesFromMaterials() const
+{
+	TSet<FName> LayerNames;
+	LayerNames.Append(GetLayersFromMaterial());
+
+	for (int32 ComponentIndex = 0; ComponentIndex < LandscapeComponents.Num(); ComponentIndex++)
+	{
+		const ULandscapeComponent* Component = LandscapeComponents[ComponentIndex];
+
+		// Add layers from per-component override materials
+		if ((Component != nullptr) && (Component->OverrideMaterial != nullptr))
+		{
+			LayerNames.Append(GetLayersFromMaterial(Component->OverrideMaterial));
+
+			// Hole Override material
+			LayerNames.Append(GetLayersFromMaterial( Component->OverrideHoleMaterial));
+				
+			// LOD Materials
+			for(const FLandscapePerLODMaterialOverride& OverrideMaterial : Component->GetPerLODOverrideMaterials())
+			{
+				LayerNames.Append(GetLayersFromMaterial(OverrideMaterial.Material));	
+			}
+		}
+	}
+	return LayerNames.Array();
+}
+
+TMap<FName, ULandscapeLayerInfoObject*> ALandscapeProxy::RetrieveTargetLayerInfosFromAllocations() const
+{
+	TMap<FName, ULandscapeLayerInfoObject*> InfoObjects;
+	for (const TObjectPtr<ULandscapeComponent>& Component : LandscapeComponents)
+	{
+		if (Component != nullptr) // can be null in server builds that strip landscape components
+		{
+			for (const FWeightmapLayerAllocationInfo& Allocation : Component->GetWeightmapLayerAllocations())
+			{
+				if (Allocation.LayerInfo)
+				{
+					InfoObjects.Add(Allocation.GetLayerName(), Allocation.LayerInfo);
+				}
+			}
+		}
+	}
+	
+	return InfoObjects;
+}
+
 ULandscapeLayerInfoObject* ALandscapeProxy::CreateLayerInfo(const TCHAR* InLayerName, const ULevel* InLevel, const ULandscapeLayerInfoObject* InTemplate)
 {
 	FName LayerObjectName;
@@ -3021,15 +3085,26 @@ ULandscapeLayerInfoObject* ALandscapeProxy::CreateLayerInfo(const TCHAR* InLayer
 #define HEIGHTDATA(X,Y) (HeightData.Num() == 0 ? LandscapeDataAccess::GetTexHeight(0.0f) : HeightData[ FMath::Clamp<int32>(Y,0,VertsY) * VertsX + FMath::Clamp<int32>(X,0,VertsX) ])
 ENGINE_API extern bool GDisableAutomaticTextureMaterialUpdateDependencies;
 
-LANDSCAPE_API void ALandscapeProxy::Import(const FGuid& InGuid, int32 InMinX, int32 InMinY, int32 InMaxX, int32 InMaxY, int32 InNumSubsections, int32 InSubsectionSizeQuads, const TMap<FGuid, TArray<uint16>>& InImportHeightData, 
+void ALandscapeProxy::Import(const FGuid& InGuid, int32 InMinX, int32 InMinY, int32 InMaxX, int32 InMaxY, int32 InNumSubsections, int32 InSubsectionSizeQuads, const TMap<FGuid, TArray<uint16>>& InImportHeightData, 
 										   const TCHAR* const InHeightmapFileName, const TMap<FGuid, TArray<FLandscapeImportLayerInfo>>& InImportMaterialLayerInfos, ELandscapeImportAlphamapType InImportMaterialLayerType, const TArray<FLandscapeLayer>* InImportLayers)
+{
+	TArrayView<const FLandscapeLayer> ImportLayers;
+	if (InImportLayers != nullptr)
+	{
+		ImportLayers = MakeArrayView(static_cast<const FLandscapeLayer*>(InImportLayers->GetData()), InImportLayers->Num());
+	}
+	Import(InGuid, InMinX, InMinY, InMaxX, InMaxY, InNumSubsections, InSubsectionSizeQuads, InImportHeightData, InHeightmapFileName, InImportMaterialLayerInfos, InImportMaterialLayerType, ImportLayers);
+}
+
+void ALandscapeProxy::Import(const FGuid& InGuid, int32 InMinX, int32 InMinY, int32 InMaxX, int32 InMaxY, int32 InNumSubsections, int32 InSubsectionSizeQuads, const TMap<FGuid, TArray<uint16>>& InImportHeightData,
+	const TCHAR* const InHeightmapFileName, const TMap<FGuid, TArray<FLandscapeImportLayerInfo>>& InImportMaterialLayerInfos, ELandscapeImportAlphamapType InImportMaterialLayerType, const TArrayView<const FLandscapeLayer>& InImportLayers)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ALandscapeProxy::Import);
 	
 	check(InGuid.IsValid());
 	check(InImportHeightData.Num() == InImportMaterialLayerInfos.Num());
 
-	check(CanHaveLayersContent() || InImportLayers == nullptr);
+	check(CanHaveLayersContent() || InImportLayers.IsEmpty());
 
 	FScopedSlowTask SlowTask(2, LOCTEXT("BeingImportingLandscapeTask", "Importing Landscape"));
 	SlowTask.MakeDialog();
@@ -3655,7 +3730,7 @@ LANDSCAPE_API void ALandscapeProxy::Import(const FGuid& InGuid, int32 InMinX, in
 		// Create the default layer first
 		ALandscape* LandscapeActor = GetLandscapeActor();
 		check(LandscapeActor != nullptr);
-		if (LandscapeActor->GetLayerCount() == 0 && InImportLayers == nullptr)
+		if (LandscapeActor->GetLayerCount() == 0 && InImportLayers.IsEmpty())
 		{
 			LandscapeActor->CreateDefaultLayer();
 		}
@@ -3675,17 +3750,20 @@ LANDSCAPE_API void ALandscapeProxy::Import(const FGuid& InGuid, int32 InMinX, in
 		TArray<FLayerImportSettings> LayerImportSettings;		
 
 		// Only create Layers on main Landscape
-		if (LandscapeActor == this && InImportLayers != nullptr)
+		if (LandscapeActor == this && !InImportLayers.IsEmpty())
 		{
-			for (const FLandscapeLayer& OldLayer : *InImportLayers)
+			for (const FLandscapeLayer& OldLayer : InImportLayers)
 			{
-				FLandscapeLayer* NewLayer = LandscapeActor->DuplicateLayerAndMoveBrushes(OldLayer);
-				check(NewLayer != nullptr);
+				const FLandscapeLayer* NewLayer = LandscapeActor->DuplicateLayerAndMoveBrushes(OldLayer);
+				if (NewLayer != nullptr)
+				{
+					check(NewLayer->EditLayer != nullptr); // it's possible DuplicateLayerAndMoveBrushes fails (e.g. max number of layers reached), but if not, we should always have an EditLayer
 
-				FLayerImportSettings ImportSettings;
-				ImportSettings.SourceLayerGuid = OldLayer.Guid;
-				ImportSettings.DestinationLayerGuid = NewLayer->Guid;
-				LayerImportSettings.Add(ImportSettings);
+					FLayerImportSettings ImportSettings;
+					ImportSettings.SourceLayerGuid = OldLayer.Guid;
+					ImportSettings.DestinationLayerGuid = NewLayer->Guid;
+					LayerImportSettings.Add(ImportSettings);
+				}
 			}
 
 			LandscapeInfo->GetComponentsInRegion(InMinX, InMinY, InMaxX, InMaxY, ComponentsToProcess);
@@ -3699,7 +3777,7 @@ LANDSCAPE_API void ALandscapeProxy::Import(const FGuid& InGuid, int32 InMinX, in
 			}
 
 			// And we will fill all the landscape components with the provided final layer content put into the default layer (aka layer index 0)
-			const FLandscapeLayer* DefaultLayer = LandscapeActor->GetLayer(0);
+			const FLandscapeLayer* DefaultLayer = LandscapeActor->GetLayerConst(0);
 			check(DefaultLayer != nullptr);
 
 			FLayerImportSettings ImportSettings;
@@ -4031,7 +4109,7 @@ TSharedRef<UE::Landscape::Nanite::FAsyncBuildData> ALandscapeProxy::MakeAsyncNan
 	return AsyncBuildData;
 }
 
-LANDSCAPE_API void ALandscape::SetNanitePositionPrecision(int32 InPrecision, bool bInShouldDirtyPackage)
+void ALandscape::SetNanitePositionPrecision(int32 InPrecision, bool bInShouldDirtyPackage)
 {
 	NanitePositionPrecision = InPrecision;
 
@@ -4046,10 +4124,10 @@ LANDSCAPE_API void ALandscape::SetNanitePositionPrecision(int32 InPrecision, boo
 			{
 				if (Proxy != nullptr)
 				{
+					Proxy->Modify(bInShouldDirtyPackage);
 					Proxy->SynchronizeSharedProperties(this);
 					Proxy->InvalidateOrUpdateNaniteRepresentation(/*bInCheckContentId*/true, /*InTargetPlatform*/nullptr);
 					Proxy->MarkComponentsRenderStateDirty();
-					Proxy->Modify(bInShouldDirtyPackage);
 				}
 				return true;
 			});
@@ -4069,6 +4147,8 @@ bool ALandscapeProxy::ExportToRawMesh(const FRawMeshExportParams& InExportParams
 
 bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExportParams, FMeshDescription& OutRawMesh, const UE::Landscape::Nanite::FAsyncBuildData& AsyncData) const
 {
+	using EUVMappingType = FRawMeshExportParams::EUVMappingType;
+
 	const double StartTime = FPlatformTime::Seconds();
 	const FMeshDescription& Mesh = OutRawMesh;
 	ON_SCOPE_EXIT
@@ -4126,31 +4206,57 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 	FPolygonGroupID PolygonGroupID = INDEX_NONE;
 	OutRawMesh.ReserveNewPolygonGroups(bGenerateOnePolygroupPerComponent ? ComponentsToExport.Num() : 1);
 
+	const int32 ComponentSizeQuadsLOD = ((ComponentSizeQuads + 1) >> InExportParams.ExportLOD) - 1;
+	const float LODScale = (float) ComponentSizeQuadsLOD / (float) ComponentSizeQuads;
+	const float InvLODScale = (float)ComponentSizeQuads / (float)ComponentSizeQuadsLOD;
+
+	// min/max section bases of all exported components
 	FIntPoint MinSectionBase(INT_MAX, INT_MAX);
 	FIntPoint MaxSectionBase(-INT_MAX, -INT_MAX);
 	for (ULandscapeComponent* Component : ComponentsToExport)
 	{
+		check(Component->ComponentSizeQuads == ComponentSizeQuads);		// must all be the same number of quads
+
 		FIntPoint SectionBase{ Component->SectionBaseX, Component->SectionBaseY };
 
 		MinSectionBase = MinSectionBase.ComponentMin(SectionBase);
 		MaxSectionBase = MaxSectionBase.ComponentMax(SectionBase);
 	}
 
+	FVector2f ExportedSectionMinQuadCoord(MinSectionBase.X, MinSectionBase.Y);
+	FVector2f ExportedSectionMaxQuadCoord(MaxSectionBase.X + ComponentSizeQuads, MaxSectionBase.Y + ComponentSizeQuads);
+
+	// setup single UV chart scale and offset
+	float LightmapEdgePadding = 4;
+	FVector2f LightmapUVScale(
+		1.0f / (ExportedSectionMaxQuadCoord.X - ExportedSectionMinQuadCoord.X + LightmapEdgePadding * 2.0f),
+		1.0f / (ExportedSectionMaxQuadCoord.Y - ExportedSectionMinQuadCoord.Y + LightmapEdgePadding * 2.0f));
+	FVector2f LightmapUVOffset = (-ExportedSectionMinQuadCoord + LightmapEdgePadding) * LightmapUVScale;
+	
 	const bool bExportSkirt = InExportParams.SkirtDepth.IsSet();
 	for (ULandscapeComponent* Component : ComponentsToExport)
 	{
-		// Only generate a skirt around the edge of the proxy not around each component
-		const int32 MinXPadding = bExportSkirt && Component->SectionBaseX == MinSectionBase.X ? 1 : 0;
-		const int32 MaxXPadding = bExportSkirt && Component->SectionBaseX == MaxSectionBase.X ? 1 : 0;
+		TStaticArray<ULandscapeComponent*, 9> NeighborComponents;
+		Component->GetLandscapeComponentNeighbors3x3(NeighborComponents);
 
+		// Export an edge if there isn't a neighoring component or if the neighbor is not a part of set of components
+		// to export
+		auto ExportEdgePadding = [&NeighborComponents, &ComponentsToExport, bExportSkirt] (int32 Edge)
+		{
+			const ULandscapeComponent* Neighbor = NeighborComponents[Edge];
+			return bExportSkirt && (!Neighbor || !ComponentsToExport.Contains(Neighbor)) ? 1 : 0;
+		};
+		
+		// compute skirt padding
+		const int32 MinXPadding = ExportEdgePadding(3); // left
+		const int32 MaxXPadding = ExportEdgePadding(5); // right
 		const int32 XPadding = MinXPadding + MaxXPadding;
 		
-		const int32 MinYPadding = bExportSkirt && Component->SectionBaseY == MinSectionBase.Y ? 1 : 0;
-		const int32 MaxYPadding = bExportSkirt && Component->SectionBaseY == MaxSectionBase.Y ? 1 : 0;
-
+		const int32 MinYPadding = ExportEdgePadding(1); // bottom
+		const int32 MaxYPadding = ExportEdgePadding(7); // top
 		const int32 YPadding = MinYPadding + MaxYPadding;
 
-		TRACE_CPUPROFILER_EVENT_SCOPE(ALandscapeProxy::ExportToRawMesh-Component);
+		TRACE_CPUPROFILER_EVENT_SCOPE(ExportComponent);
 
 		ON_SCOPE_EXIT
 		{
@@ -4179,33 +4285,53 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 		// For this component, what unique UV mapping types should we compute?
 		const FRawMeshExportParams::FUVConfiguration& ComponentUVConfiguration = InExportParams.GetUVConfiguration(ComponentIndex);
 
+		// determine if we need to split each subsection - so they don't share vertices, and can have a UV seam between them.
+		int32 NumSplits = 1;
+		int32 SplitSizeQuads = ComponentSizeQuadsLOD;
+		if (NumSubsections > 1)
+		{
+			// and only if a Heightmap or Weightmap UV is requested
+			for (int32 UVChannel = 0; UVChannel < NumUVChannels; ++UVChannel)
+			{
+				EUVMappingType UVMappingType = ComponentUVConfiguration.ExportUVMappingTypes.IsValidIndex(UVChannel) ? ComponentUVConfiguration.ExportUVMappingTypes[UVChannel] : FRawMeshExportParams::EUVMappingType::None;
+				if (UVMappingType == EUVMappingType::HeightmapUV || UVMappingType == EUVMappingType::WeightmapUV)
+				{
+					const int32 SubsectionSizeQuadsLOD = ((SubsectionSizeQuads + 1) >> InExportParams.ExportLOD) - 1;
+					NumSplits = NumSubsections;
+					SplitSizeQuads = SubsectionSizeQuadsLOD;
+					break;
+				}
+			}
+		}
+
 		const FLandscapeComponentDataInterfaceBase& CDI = *AsyncData.ComponentData.Find(Component)->ComponentDataInterface;
-		const int32 ComponentSizeQuadsLOD = ((Component->ComponentSizeQuads + 1) >> InExportParams.ExportLOD) - 1;
-		const int32 SubsectionSizeQuadsLOD = ((Component->SubsectionSizeQuads + 1) >> InExportParams.ExportLOD) - 1;
-		float LODScale = (float)ComponentSizeQuadsLOD / ComponentSizeQuads;
 
 		const FIntPoint ComponentOffsetRelativeToProxyBoundsQuads = Component->GetSectionBase() - LandscapeSectionOffset - LandscapeProxyBoundsRect.Min;
 		const FVector2f ComponentOffsetRelativeToProxyBoundsQuadsLOD = FVector2f(ComponentOffsetRelativeToProxyBoundsQuads) * LODScale;
-		const FVector2f ComponentUVScaleRelativeToProxyBoundsLOD = LandscapeProxyBoundsRectUVScale / LODScale;
+
+		const FVector2f GlobalQuadCoordsOffset = FVector2f(Component->GetSectionBase());
+
+		const FVector2f ComponentUVScaleRelativeToProxyBoundsLOD = LandscapeProxyBoundsRectUVScale * InvLODScale;
 
 		const FVector2f ComponentHeightmapUVBias = FVector2f(static_cast<float>(Component->HeightmapScaleBias.Z), static_cast<float>(Component->HeightmapScaleBias.W));
 		const FVector2f ComponentHeightmapUVScale = FVector2f(static_cast<float>(Component->HeightmapScaleBias.X), static_cast<float>(Component->HeightmapScaleBias.Y));
-		const FVector2f ComponentHeightmapUVScaleLOD = ComponentHeightmapUVScale / LODScale;
+		const FVector2f ComponentHeightmapUVScaleLOD = ComponentHeightmapUVScale * InvLODScale;
 		const FVector2f ComponentHeightmapUVPixelOffset = ComponentHeightmapUVScale * 0.5f;
 		const FVector2f ComponentWeightmapUVScale = FVector2f(static_cast<float>(Component->WeightmapScaleBias.X), static_cast<float>(Component->WeightmapScaleBias.Y));
-		const FVector2f ComponentWeightmapUVScaleLOD = ComponentWeightmapUVScale / LODScale;
+		const FVector2f ComponentWeightmapUVScaleLOD = ComponentWeightmapUVScale * InvLODScale;
 		const FVector2f ComponentWeightmapUVPixelOffset = ComponentWeightmapUVScale * 0.5f; // I could have used Component->WeightmapScaleBias.ZW but then it would be confusing because it doesn't have the same signification as the heightmap UV bias
 
 		const int32 PaddedComponentSizeXQuadsLOD = ComponentSizeQuadsLOD + XPadding;
 		const int32 PaddedComponentSizeYQuadsLOD = ComponentSizeQuadsLOD + YPadding;
 
-		const int32 NumFaces = PaddedComponentSizeXQuadsLOD * PaddedComponentSizeYQuadsLOD * 2;
-		const int32 NumVertices = NumFaces * 3;
+		const int32 NumQuads = PaddedComponentSizeXQuadsLOD * PaddedComponentSizeYQuadsLOD;
+		const int32 NumFaces = NumQuads * 2;
+		const int32 MaxNumVertices = NumFaces * 3;	// this is an upper bound, it doesn't take into account shared vertices
 
-		OutRawMesh.ReserveNewVertices(NumVertices);
+		OutRawMesh.ReserveNewVertices(MaxNumVertices);
 		OutRawMesh.ReserveNewPolygons(NumFaces);
-		OutRawMesh.ReserveNewVertexInstances(NumVertices);
-		OutRawMesh.ReserveNewEdges(NumVertices);
+		OutRawMesh.ReserveNewVertexInstances(MaxNumVertices);
+		OutRawMesh.ReserveNewEdges(MaxNumVertices);
 
 		if (bGenerateOnePolygroupPerComponent || (OutRawMesh.PolygonGroups().Num() == 0))
 		{
@@ -4234,6 +4360,7 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 			
 			if (!bIsInside)
 			{
+				// in a skirt around the edge
 				int32 SignX = FMath::Sign(VertexX - ClampedVertexX);
 				int32 SignY = FMath::Sign(VertexY - ClampedVertexY);
 
@@ -4251,11 +4378,6 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 
 		auto GetVisibilityValue = [&CDI, ComponentSizeQuadsLOD, &VisDataMap](int32 X, int32 Y) -> float
 		{
-			if (VisDataMap.IsEmpty())
-			{
-				return 0.0f;
-			}
-
 			X = FMath::Clamp(X, 0, ComponentSizeQuadsLOD);
 			Y = FMath::Clamp(Y, 0, ComponentSizeQuadsLOD);
 
@@ -4302,8 +4424,17 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 		FBox TransformedBox = Box.TransformBy(ComponentToExportCoordinatesTransform.ToMatrixWithScale());
 		const float CellSize = TransformedBox.GetSize().GetAbsMax();
 		check(CellSize > 0.0f);
-		UE::Geometry::TPointHashGrid3<FVertexID, float> DeduplicatedVertexIDs(CellSize, INDEX_NONE);
-		DeduplicatedVertexIDs.Reserve(( PaddedComponentSizeXQuadsLOD + 1) * (PaddedComponentSizeYQuadsLOD + 1));
+
+		// We don't want to deduplicate vertices across splits (as there are sometimes UV seams between subsections)
+		// So we build a separate deduplication structure per split.
+		check(NumSplits >= 1 && NumSplits <= 2);	// the inline allocator only supports up to 2x2 total
+		TArray<UE::Geometry::TPointHashGrid3<FVertexID, float>, TInlineAllocator<4>> SplitDeduplicatedVertexIDs;
+		const int32 TotalSplits = NumSplits * NumSplits;
+		for (int32 SplitIndex = 0; SplitIndex < TotalSplits; SplitIndex++)
+		{
+			new(SplitDeduplicatedVertexIDs) UE::Geometry::TPointHashGrid3<FVertexID, float>(CellSize, INDEX_NONE);
+			SplitDeduplicatedVertexIDs.Last().Reserve((PaddedComponentSizeXQuadsLOD + 1) * (PaddedComponentSizeYQuadsLOD + 1) / TotalSplits);
+		}
 		
 		// Export to MeshDescription
 		for (int32 PaddedY = 0; PaddedY < PaddedComponentSizeYQuadsLOD; PaddedY++)
@@ -4312,28 +4443,40 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 			for (int32 PaddedX = 0; PaddedX < PaddedComponentSizeXQuadsLOD; PaddedX++)
 			{
 				int32 x = PaddedX - MinXPadding;
-				TStaticArray<FVector, UE_ARRAY_COUNT(UE::Landscape::QuadPattern)> Positions;
-				TStaticArray<FVector, UE_ARRAY_COUNT(UE::Landscape::QuadPattern)> LocalPositions;
 
-				bool bProcess = !InExportParams.ExportBounds.IsSet();
+				TArray<FVector, TInlineAllocator<6>> NewLocalPositions;
+				TArray<int32, TInlineAllocator<12>> NewIndices;
 
-				TStaticArray<float, UE_ARRAY_COUNT(UE::Landscape::QuadPattern)> Visibilities;
-				for (int32 i = 0; i < UE_ARRAY_COUNT(UE::Landscape::QuadPattern); i++)
+				bool bProcess = !InExportParams.ExportBounds.IsSet();		// no export bounds => always process
+
+				if (VisDataMap.IsEmpty())
 				{
-					int32 VertexX = x + UE::Landscape::QuadPattern[i].X;
-					int32 VertexY = y + UE::Landscape::QuadPattern[i].Y;
-					
-					LocalPositions[i] = GetVertex(VertexX, VertexY);
-					Visibilities[i] = GetVisibilityValue(VertexX, VertexY);
+					for (int32 i = 0; i < UE_ARRAY_COUNT(UE::Landscape::QuadPattern); i++)
+					{
+						int32 VertexX = x + UE::Landscape::QuadPattern[i].X;
+						int32 VertexY = y + UE::Landscape::QuadPattern[i].Y;
+						NewLocalPositions.Add(GetVertex(VertexX, VertexY));
+					}
+					NewIndices = { 0, 1, 2, 0, 2, 3 };
+				}
+				else
+				{
+					TStaticArray<FVector, UE_ARRAY_COUNT(UE::Landscape::QuadPattern)> LocalPositions;
+					TStaticArray<float, UE_ARRAY_COUNT(UE::Landscape::QuadPattern)> Visibilities;
+					for (int32 i = 0; i < UE_ARRAY_COUNT(UE::Landscape::QuadPattern); i++)
+					{
+						int32 VertexX = x + UE::Landscape::QuadPattern[i].X;
+						int32 VertexY = y + UE::Landscape::QuadPattern[i].Y;
+
+						LocalPositions[i] = GetVertex(VertexX, VertexY);
+						Visibilities[i] = GetVisibilityValue(VertexX, VertexY);
+					}
+					UE::Landscape::GenerateMarchingSquaresGeometry(Visibilities, LANDSCAPE_VISIBILITY_THRESHOLD, LocalPositions, NewIndices, NewLocalPositions);
 				}
 
-				TArray<int32, TInlineAllocator<12>> NewIndices;
-				TArray<FVector, TInlineAllocator<6>> NewLocalPositions;
+				// transform all the positions
 				TArray<FVector, TInlineAllocator<6>> NewPositions;
-			
-				UE::Landscape::GenerateMarchingSquaresGeometry(Visibilities, LANDSCAPE_VISIBILITY_THRESHOLD, LocalPositions, NewIndices, NewLocalPositions);
 				NewPositions.SetNumUninitialized(NewLocalPositions.Num());
-
 				for (int32 i = 0; i < NewLocalPositions.Num(); ++i)
 				{
 					NewPositions[i] = ComponentToExportCoordinatesTransform.TransformPosition(NewLocalPositions[i]);
@@ -4348,10 +4491,18 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 				if (bProcess)
 				{
 					//Fill the vertexID we need
-					TArray<FVertexID> VertexIDs;
+					TArray<FVertexID, TInlineAllocator<6>> VertexIDs;
 					VertexIDs.Reserve(NewPositions.Num());
-					TArray<FVertexInstanceID> VertexInstanceIDs;
+
+					TArray<FVertexInstanceID, TInlineAllocator<12>> VertexInstanceIDs;
 					VertexInstanceIDs.Reserve(NewIndices.Num());
+
+					// determine which deduplication structure to use (don't share vertices across splits)
+					int32 SplitX = FMath::Clamp(x / SplitSizeQuads, 0, NumSplits - 1);
+					int32 SplitY = FMath::Clamp(y / SplitSizeQuads, 0, NumSplits - 1);
+					int32 SplitIndex = SplitX + NumSplits * SplitY;
+					UE::Geometry::TPointHashGrid3<FVertexID, float>& DeduplicatedVertexIDs = SplitDeduplicatedVertexIDs[SplitIndex];
+
 					// Fill positions
 					for (int32 i = 0; i < NewPositions.Num(); i++)
 					{
@@ -4404,8 +4555,8 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 					// Fill other vertex data
 					for (int32 i = 0; i < NewPositions.Num(); i++)
 					{
-						float VertexX = NewLocalPositions[i].X;
-						float VertexY = NewLocalPositions[i].Y;
+						const float VertexX = NewLocalPositions[i].X;
+						const float VertexY = NewLocalPositions[i].Y;
 
 						FVector LocalTangentX, LocalTangentY, LocalTangentZ;
 						
@@ -4416,45 +4567,59 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 						Normals.Add(FVector3f(LocalTangentZ));
 
 						// Compute all UV values that we need :
+						// quad coordinates (local position is just quad coords, scaled)
+						const FVector2f QuadCoords = FVector2f(VertexX, VertexY) * (1.0f / CDI.GetScaleFactor());
 						for (int32 UVChannel = 0; UVChannel < NumUVChannels; ++UVChannel)
 						{
-							FVector2f UV = FVector2f(NewLocalPositions[i].X, NewLocalPositions[i].Y) / CDI.GetScaleFactor();
-
-							FRawMeshExportParams::EUVMappingType UVMappingType = ComponentUVConfiguration.ExportUVMappingTypes.IsValidIndex(UVChannel) ? ComponentUVConfiguration.ExportUVMappingTypes[UVChannel] : FRawMeshExportParams::EUVMappingType::None;
+							EUVMappingType UVMappingType = ComponentUVConfiguration.ExportUVMappingTypes.IsValidIndex(UVChannel) ? ComponentUVConfiguration.ExportUVMappingTypes[UVChannel] : FRawMeshExportParams::EUVMappingType::None;
 							switch (UVMappingType)
 							{
-							case FRawMeshExportParams::EUVMappingType::RelativeToProxyBoundsUV:
+							case EUVMappingType::RelativeToProxyBoundsUV:
 							{
-								UV = (ComponentOffsetRelativeToProxyBoundsQuadsLOD + UV) * ComponentUVScaleRelativeToProxyBoundsLOD;
+								FVector2f UV = (ComponentOffsetRelativeToProxyBoundsQuadsLOD + QuadCoords) * ComponentUVScaleRelativeToProxyBoundsLOD;
 								UVs.Add(UV);
 								break;
 							}
-							case FRawMeshExportParams::EUVMappingType::HeightmapUV:
+							case EUVMappingType::HeightmapUV:
 							{
-								UV = UV * ComponentHeightmapUVScaleLOD + ComponentHeightmapUVPixelOffset + ComponentHeightmapUVBias;
+								// multiple subsections have a UV seam between them -- we offset the UV by one pixel per subsection
+								// (technically this should use subsection X/Y instead of split X/Y, but they are the same when it matters)
+								FVector2f SplitOffsetQuadCoords = QuadCoords + FVector2f(SplitX, SplitY) * LODScale;
+								FVector2f UV = SplitOffsetQuadCoords * ComponentHeightmapUVScaleLOD + ComponentHeightmapUVPixelOffset + ComponentHeightmapUVBias;
 								UVs.Add(UV);
 								break;
 							}
-							case FRawMeshExportParams::EUVMappingType::WeightmapUV:
+							case EUVMappingType::WeightmapUV:
 							{
-								UV = UV * ComponentWeightmapUVScaleLOD + ComponentWeightmapUVPixelOffset;
+								// multiple subsections have a UV seam between them -- we offset the UV by one pixel per subsection
+								// (technically this should use subsection X/Y instead of split X/Y, but they are the same when it matters)
+								FVector2f SplitOffsetQuadCoords = QuadCoords + FVector2f(SplitX, SplitY) * LODScale;
+								FVector2f UV = SplitOffsetQuadCoords * ComponentWeightmapUVScaleLOD + ComponentWeightmapUVPixelOffset;
 								UVs.Add(UV);
 								break;
 							}
-							case FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XY:
-							case FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XZ:
-							case FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_YZ:
+							case EUVMappingType::TerrainCoordMapping_XY:
+							case EUVMappingType::TerrainCoordMapping_XZ:
+							case EUVMappingType::TerrainCoordMapping_YZ:
 							{
-								FVector2f QuadCoords = (ComponentOffsetRelativeToProxyBoundsQuadsLOD + UV / LODScale);
-								if (UVMappingType == FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XY)
+								FVector2f UV = (GlobalQuadCoordsOffset + QuadCoords * InvLODScale);
+								if (UVMappingType == EUVMappingType::TerrainCoordMapping_XY)
 								{
-									UV = QuadCoords;
+									// Already in XY mapping
 								}
 								else
 								{
-									UV[0] = (UVMappingType == FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XZ) ? QuadCoords[0] : QuadCoords[1];
+									UV[0] = (UVMappingType == EUVMappingType::TerrainCoordMapping_XZ) ? UV[0] : UV[1];
 									UV[1] = static_cast<float>(NewLocalPositions[i].Z);
 								}
+								UVs.Add(UV);
+								break;
+							}
+							case EUVMappingType::LightmapUV:
+							{
+								// convert LOD quad coord to quad coord
+								FVector2f UV = (ComponentOffsetRelativeToProxyBoundsQuadsLOD + QuadCoords * InvLODScale);
+								UV = UV * LightmapUVScale + LightmapUVOffset;
 								UVs.Add(UV);
 								break;
 							}
@@ -4582,7 +4747,7 @@ bool ULandscapeInfo::GetLandscapeExtent(int32& MinX, int32& MinY, int32& MaxX, i
 	return (MinX != MAX_int32);
 }
 
-LANDSCAPE_API bool ULandscapeInfo::GetLandscapeXYComponentBounds(FIntRect& OutXYComponentBounds) const
+bool ULandscapeInfo::GetLandscapeXYComponentBounds(FIntRect& OutXYComponentBounds) const
 {
 	OutXYComponentBounds = XYComponentBounds;
 
@@ -4590,7 +4755,7 @@ LANDSCAPE_API bool ULandscapeInfo::GetLandscapeXYComponentBounds(FIntRect& OutXY
 		&& (OutXYComponentBounds.Max.X != MAX_int32) && (OutXYComponentBounds.Max.Y != MAX_int32);
 }
 
-LANDSCAPE_API void ULandscapeInfo::ForAllLandscapeComponents(TFunctionRef<void(ULandscapeComponent*)> Fn) const
+void ULandscapeInfo::ForAllLandscapeComponents(TFunctionRef<void(ULandscapeComponent*)> Fn) const
 {
 	ForEachLandscapeProxy([&](ALandscapeProxy* Proxy)
 	{
@@ -4790,31 +4955,25 @@ void ULandscapeInfo::DeleteLayer(ULandscapeLayerInfoObject* LayerInfo, const FNa
 {
 	GWarn->BeginSlowTask(LOCTEXT("BeginDeletingLayerTask", "Deleting Layer"), true);
 
-	// Remove data from all components
-	FLandscapeEditDataInterface LandscapeEdit(this);
-	LandscapeEdit.DeleteLayer(LayerInfo);
-
+	LandscapeActor->Modify();
 	// Remove from layer settings array
 	{
 		int32 LayerIndex = Layers.IndexOfByPredicate([LayerInfo, LayerName](const FLandscapeInfoLayerSettings& LayerSettings) { return LayerSettings.LayerInfoObj == LayerInfo && LayerSettings.LayerName == LayerName; });
 		if (LayerIndex != INDEX_NONE)
 		{
 			Layers.RemoveAt(LayerIndex);
+			LandscapeActor->RemoveTargetLayer(LayerName);
 		}
 	}
-
-	ForEachLandscapeProxy([LayerInfo](ALandscapeProxy* Proxy)
-	{
-		Proxy->Modify();
-		int32 Index = Proxy->EditorLayerSettings.IndexOfByKey(LayerInfo);
-		if (Index != INDEX_NONE)
-		{
-			Proxy->EditorLayerSettings.RemoveAt(Index);
-		}
-		return true;
-	});
-
-	//UpdateLayerInfoMap();
+	
+	LandscapeActor->RemoveTargetLayer(LayerName);
+	
+	
+	// Remove data from all components
+	FLandscapeEditDataInterface LandscapeEdit(this);
+	LandscapeEdit.DeleteLayer(LayerInfo);
+	
+	UpdateLayerInfoMap();
 
 	GWarn->EndSlowTask();
 }
@@ -4838,37 +4997,9 @@ void ULandscapeInfo::ReplaceLayer(ULandscapeLayerInfoObject* FromLayerInfo, ULan
 			}
 		}
 
-		ForEachLandscapeProxy([FromLayerInfo, ToLayerInfo](ALandscapeProxy* Proxy)
-		{
-			Proxy->Modify();
-			FLandscapeEditorLayerSettings* ToEditorLayerSettings = Proxy->EditorLayerSettings.FindByKey(ToLayerInfo);
-			if (ToEditorLayerSettings != nullptr)
-			{
-				// If the new layer already exists, simple remove the old layer
-				int32 Index = Proxy->EditorLayerSettings.IndexOfByKey(FromLayerInfo);
-				if (Index != INDEX_NONE)
-				{
-					Proxy->EditorLayerSettings.RemoveAt(Index);
-				}
-			}
-			else
-			{
-				FLandscapeEditorLayerSettings* FromEditorLayerSettings = Proxy->EditorLayerSettings.FindByKey(FromLayerInfo);
-				if (FromEditorLayerSettings != nullptr)
-				{
-					// If only the old layer exists (most common case), change it to point to the new layer info
-					FromEditorLayerSettings->LayerInfoObj = ToLayerInfo;
-				}
-				else
-				{
-					// If neither exists in the EditorLayerSettings cache, add it
-					Proxy->EditorLayerSettings.Add(FLandscapeEditorLayerSettings(ToLayerInfo));
-				}
-			}
-			return true;
-		});
-
-		//UpdateLayerInfoMap();
+		LandscapeActor->RemoveTargetLayer(FromLayerInfo->LayerName);
+		LandscapeActor->AddTargetLayer(ToLayerInfo->LayerName, FLandscapeTargetLayerSettings(ToLayerInfo));
+		UpdateLayerInfoMap();
 
 		GWarn->EndSlowTask();
 	}
@@ -4994,6 +5125,12 @@ void ALandscapeProxy::PostEditMove(bool bFinished)
 	}
 }
 
+void ALandscapeProxy::OnLoadedActorRemovedFromLevel()
+{
+	Super::OnLoadedActorRemovedFromLevel();
+	ActorDescReferences.Empty();
+}
+
 void ALandscapeProxy::PostEditImport()
 {
 	Super::PostEditImport();
@@ -5012,7 +5149,7 @@ void ALandscape::PostEditMove(bool bFinished)
 	if (bFinished)
 	{
 		// align all proxies to landscape actor
-		auto* LandscapeInfo = GetLandscapeInfo();
+		ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
 		if (LandscapeInfo)
 		{
 			LandscapeInfo->FixupProxiesTransform(true);
@@ -5038,7 +5175,7 @@ void ALandscape::PostRegisterAllComponents()
 
 	auto HasValidBrush = [this]()
 	{
-		for (const FLandscapeLayer& Layer : LandscapeLayers)
+		for (const FLandscapeLayer& Layer : LandscapeEditLayers)
 		{
 			for (const FLandscapeLayerBrush& Brush : Layer.Brushes)
 			{
@@ -5099,7 +5236,7 @@ void ALandscape::PostEditImport()
 	}
 
 	// We need to reparent brushes that may have been part of the copy/pasted actors :
-	for (FLandscapeLayer& Layer : LandscapeLayers)
+	for (FLandscapeLayer& Layer : LandscapeEditLayers)
 	{
 		for (FLandscapeLayerBrush& Brush : Layer.Brushes)
 		{
@@ -5571,11 +5708,11 @@ ALandscapeProxy* ULandscapeInfo::MoveComponentsToProxy(const TArray<ULandscapeCo
 		FLandscapeEditDataInterface LandscapeEdit(this);
 		for (ULandscapeComponent* Component : TargetSelectedComponents)
 		{
-			Component->ReallocateWeightmaps(&LandscapeEdit, false, true, true, LandscapeProxy);
+			Component->ReallocateWeightmaps(/*DataInterface = */&LandscapeEdit, /*InEditLayerGuid = */FGuid(), /*bInSaveToTransactionBuffer = */true, /*bool bInForceReallocate = */true, /*InTargetProxy = */LandscapeProxy, /*InRestrictSharingToComponents = */nullptr);
 			Component->ForEachLayer([&](const FGuid& LayerGuid, FLandscapeLayerComponentData& LayerData)
 			{
 				FScopedSetLandscapeEditingLayer Scope(Landscape, LayerGuid);
-				Component->ReallocateWeightmaps(&LandscapeEdit, true, true, true, LandscapeProxy);
+				Component->ReallocateWeightmaps(/*DataInterface = */&LandscapeEdit, LayerGuid, /*bInSaveToTransactionBuffer = */true, /*bool bInForceReallocate = */true, /*InTargetProxy = */LandscapeProxy, /*InRestrictSharingToComponents = */nullptr);
 			});
 			Landscape->RequestLayersContentUpdateForceAll();
 		}
@@ -5663,6 +5800,12 @@ void ALandscape::SplitHeightmap(ULandscapeComponent* Comp, ALandscapeProxy* Targ
 	FVector4 OldHeightmapScaleBias = Comp->HeightmapScaleBias;
 	FVector4 NewHeightmapScaleBias = FVector4(1.0f / (float)HeightmapSizeU, 1.0f / (float)HeightmapSizeV, 0.0f, 0.0f);
 
+	// TODO-LS: Although we are only reading from the existing heightmap texture, the current code in FLandscapeEditDataInterface
+	// is performing a call to LockMip(), which results in the UnlockMip() modifying the TextureSource CompressionFormat.
+	// Modification to textures MUST be wrapped in PreEditChange/PostEditChange() in order to prevent texture compilation issues.
+	// But really, the ideal fix here would be to call LockMipReadOnly() instead of LockMip(), and completely avoid modifying the texture.
+	OldHeightmapTexture->PreEditChange(nullptr);
+
 	{
 		// Read old data and split
 		FLandscapeEditDataInterface LandscapeEdit(Info);
@@ -5684,6 +5827,8 @@ void ALandscape::SplitHeightmap(ULandscapeComponent* Comp, ALandscapeProxy* Targ
 		check(Comp->GetHeightmap(false) == Comp->GetHeightmap(true));
 		LandscapeEdit.SetHeightData(Comp->GetSectionBase().X, Comp->GetSectionBase().Y, Comp->GetSectionBase().X + Comp->ComponentSizeQuads, Comp->GetSectionBase().Y + Comp->ComponentSizeQuads, (uint16*)HeightData.GetData(), 0, false, (uint16*)NormalData.GetData());
 	}
+
+	OldHeightmapTexture->PostEditChange();
 
 	// End material update
 	if (InOutUpdateContext != nullptr && InOutRecreateRenderStateContext != nullptr)
@@ -5765,40 +5910,56 @@ void ALandscape::SplitHeightmap(ULandscapeComponent* Comp, ALandscapeProxy* Targ
 			}
 		}
 
-		// Move layer content to new layer heightmap
-		FLandscapeEditDataInterface LandscapeEdit(Info);
-		ALandscape* Landscape = Info->LandscapeActor.Get();
-		Comp->ForEachLayer([&](const FGuid& LayerGuid, FLandscapeLayerComponentData& LayerData)
+
+		// TODO-LS: Although we are only reading from the existing heightmap texture, the current code in FLandscapeEditDataInterface
+		// is performing a call to LockMip(), which results in the UnlockMip() modifying the TextureSource CompressionFormat.
+		// Modification to textures MUST be wrapped in PreEditChange/PostEditChange() in order to prevent texture compilation issues.
+		// But really, the ideal fix here would be to call LockMipReadOnly() instead of LockMip(), and completely avoid modifying the texture.
+		TArray<UTexture2D*> OldLayerHeightmaps;
+
 		{
-			UTexture2D* OldLayerHeightmap = LayerData.HeightmapData.Texture;
-			if (OldLayerHeightmap != nullptr)
+			// Move layer content to new layer heightmap
+			FLandscapeEditDataInterface LandscapeEdit(Info);
+			ALandscape* Landscape = Info->LandscapeActor.Get();
+
+			Comp->ForEachLayer([&](const FGuid& LayerGuid, FLandscapeLayerComponentData& LayerData)
 			{
-				FScopedSetLandscapeEditingLayer Scope(Landscape, LayerGuid);
-				// Read old data and split
-				TArray<uint8> LayerHeightData;
-				LayerHeightData.AddZeroed((1 + Comp->ComponentSizeQuads) * (1 + Comp->ComponentSizeQuads) * sizeof(uint16));
-				// Because of edge problem, normal would be just copy from old component data
-				TArray<uint8> LayerNormalData;
-				LayerNormalData.AddZeroed((1 + Comp->ComponentSizeQuads) * (1 + Comp->ComponentSizeQuads) * sizeof(uint16));
-
-				// Read using old heightmap scale/bias
-				Comp->HeightmapScaleBias = OldHeightmapScaleBias;
-				LandscapeEdit.GetHeightDataFast(Comp->GetSectionBase().X, Comp->GetSectionBase().Y, Comp->GetSectionBase().X + Comp->ComponentSizeQuads, Comp->GetSectionBase().Y + Comp->ComponentSizeQuads, (uint16*)LayerHeightData.GetData(), 0, (uint16*)LayerNormalData.GetData());
-				// Restore new heightmap scale/bias
-				Comp->HeightmapScaleBias = NewHeightmapScaleBias;
+				UTexture2D* OldLayerHeightmap = LayerData.HeightmapData.Texture;
+				if (OldLayerHeightmap != nullptr)
 				{
-					// no mipchain required as these layer weight maps are used in layer compositing to generate a final set of weight maps to be used for rendering
-					UTexture2D* LayerHeightmapTexture = DstProxy->CreateLandscapeTexture(HeightmapSizeU, HeightmapSizeV, TEXTUREGROUP_Terrain_Heightmap, TSF_BGRA8, /* OptionalOverrideOuter = */ nullptr, /* bCompress = */ false, /* bMipChain = */ false);
-					ULandscapeComponent::CreateEmptyTextureMips(LayerHeightmapTexture, true);
-					LayerHeightmapTexture->PostEditChange();
-					// Set Layer heightmap texture
-					LayerData.HeightmapData.Texture = LayerHeightmapTexture;
-					LandscapeEdit.SetHeightData(Comp->GetSectionBase().X, Comp->GetSectionBase().Y, Comp->GetSectionBase().X + Comp->ComponentSizeQuads, Comp->GetSectionBase().Y + Comp->ComponentSizeQuads, (uint16*)LayerHeightData.GetData(), 0, false, (uint16*)LayerNormalData.GetData());
-				}
-			}
-		});
+					FScopedSetLandscapeEditingLayer Scope(Landscape, LayerGuid);
 
-		Landscape->RequestLayersContentUpdateForceAll();
+					OldLayerHeightmaps.Add(OldLayerHeightmap);
+					OldLayerHeightmap->PreEditChange(nullptr);
+
+					// Read old data and split
+					TArray<uint8> LayerHeightData;
+					LayerHeightData.AddZeroed((1 + Comp->ComponentSizeQuads) * (1 + Comp->ComponentSizeQuads) * sizeof(uint16));
+					// Because of edge problem, normal would be just copy from old component data
+					TArray<uint8> LayerNormalData;
+					LayerNormalData.AddZeroed((1 + Comp->ComponentSizeQuads) * (1 + Comp->ComponentSizeQuads) * sizeof(uint16));
+
+					// Read using old heightmap scale/bias
+					Comp->HeightmapScaleBias = OldHeightmapScaleBias;
+					LandscapeEdit.GetHeightDataFast(Comp->GetSectionBase().X, Comp->GetSectionBase().Y, Comp->GetSectionBase().X + Comp->ComponentSizeQuads, Comp->GetSectionBase().Y + Comp->ComponentSizeQuads, (uint16*)LayerHeightData.GetData(), 0, (uint16*)LayerNormalData.GetData());
+					// Restore new heightmap scale/bias
+					Comp->HeightmapScaleBias = NewHeightmapScaleBias;
+					{
+						// no mipchain required as these layer weight maps are used in layer compositing to generate a final set of weight maps to be used for rendering
+						UTexture2D* LayerHeightmapTexture = DstProxy->CreateLandscapeTexture(HeightmapSizeU, HeightmapSizeV, TEXTUREGROUP_Terrain_Heightmap, TSF_BGRA8, /* OptionalOverrideOuter = */ nullptr, /* bCompress = */ false, /* bMipChain = */ false);
+						ULandscapeComponent::CreateEmptyTextureMips(LayerHeightmapTexture, true);
+						LayerHeightmapTexture->PostEditChange();
+						// Set Layer heightmap texture
+						LayerData.HeightmapData.Texture = LayerHeightmapTexture;
+						LandscapeEdit.SetHeightData(Comp->GetSectionBase().X, Comp->GetSectionBase().Y, Comp->GetSectionBase().X + Comp->ComponentSizeQuads, Comp->GetSectionBase().Y + Comp->ComponentSizeQuads, (uint16*)LayerHeightData.GetData(), 0, false, (uint16*)LayerNormalData.GetData());
+					}
+				}
+			});
+
+			Landscape->RequestLayersContentUpdateForceAll();
+		}
+
+		Algo::ForEach(OldLayerHeightmaps, [](UTexture2D* Tex) { Tex->PostEditChange(); });
 	}
 #endif
 
@@ -5868,6 +6029,27 @@ bool ALandscapeProxy::CanEditChange(const FProperty* InProperty) const
 	return true;
 }
 
+void ALandscapeProxy::PostTransacted(const FTransactionObjectEvent& InTransactionEvent)
+{
+	if (InTransactionEvent.GetEventType() == ETransactionObjectEventType::UndoRedo)
+	{
+		const TArray<FName>& ChangedProperties = InTransactionEvent.GetChangedProperties();
+		
+		for (const FName& ChangedProperty : ChangedProperties)
+		{
+			FProperty* Property = FindFProperty<FProperty>(GetClass(), ChangedProperty);
+
+			if (Property == nullptr)
+			{
+				continue;
+			}
+			
+			FPropertyChangedEvent PropertyChangedEvent(Property);
+			PostEditChangeProperty(PropertyChangedEvent);
+		}
+	}
+}
+
 void ALandscapeProxy::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	const FName MemberPropertyName = PropertyChangedEvent.MemberProperty ? PropertyChangedEvent.MemberProperty->GetFName() : NAME_None;
@@ -5883,24 +6065,29 @@ void ALandscapeProxy::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 			const FVector OriginalScale = RootComponent->GetRelativeScale3D();
 			FVector ModifiedScale = OriginalScale;
 
-			// Lock X and Y scaling to the same value
+			// Lock X and Y scaling to the same value (but preserving their original sign)
 			if (SubPropertyName == FName("Y"))
 			{
-				ModifiedScale.X = FMath::Abs(OriginalScale.Y) * FMath::Sign(ModifiedScale.X);
+				ModifiedScale.X = FMath::Abs(OriginalScale.Y) * FMath::Sign(OriginalScale.X);
 			}
 			else if (SubPropertyName == FName("X"))
 			{
-				ModifiedScale.Y = FMath::Abs(OriginalScale.X) * FMath::Sign(ModifiedScale.Y);
-			}
-			else if (SubPropertyName != FName("Z"))
+				ModifiedScale.Y = FMath::Abs(OriginalScale.X) * FMath::Sign(OriginalScale.Y);
+			} 
+			else if (SubPropertyName == FName("Z"))
 			{
-				// When changing all axis values at once (e.g. when copy/pasting the scale), we receive only one event and the sub-property is not set :
-				check(SubPropertyName == MemberPropertyName); // Any other combination of property / sub-property is invalid				
-				if (!FMath::IsNearlyEqual(ModifiedScale.X, ModifiedScale.Y))
+				// no adjustment necessary for Z, it is unrestricted
+			}
+			else
+			{
+				// When changing all axis values at once (e.g. when copy/pasting the scale), we receive only one event and the sub-property is not set
+				check(SubPropertyName == MemberPropertyName); // Any other combination of property / sub-property is invalid
+				// ensure that X and Y are locked (except for sign)
+				if (!FMath::IsNearlyEqual(FMath::Abs(OriginalScale.X), FMath::Abs(OriginalScale.Y)))
 				{
-					UE_LOG(LogLandscape, Warning, TEXT("Non-uniform XY scale for landscape (%f, %f) : scale will be forced to (%f, %f)"), ModifiedScale.X, ModifiedScale.Y, ModifiedScale.X, ModifiedScale.X);
-					// Arbitrarily favor the X axis as the uniform scale value (but retain the sign) : 
-					ModifiedScale.Y = FMath::Abs(OriginalScale.X) * FMath::Sign(ModifiedScale.Y);
+					// Arbitrarily favor the X axis as the uniform scale value (but retain the sign of Y) : 
+					ModifiedScale.Y = FMath::Abs(OriginalScale.X) * FMath::Sign(OriginalScale.Y);
+					UE_LOG(LogLandscape, Warning, TEXT("Non-uniform XY scale for landscape (%f, %f) : scale will be forced to (%f, %f)"), OriginalScale.X, OriginalScale.Y, ModifiedScale.X, ModifiedScale.Y);
 				}
 			}
 
@@ -6010,21 +6197,34 @@ void ALandscapeProxy::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bCastHiddenShadow))
 		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bCastShadowAsTwoSided))
 		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bAffectDistanceFieldLighting))
+		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bAffectDynamicIndirectLighting))
+		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bAffectIndirectLightingWhileHidden))
 		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bRenderCustomDepth))
 		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, CustomDepthStencilWriteMask))
 		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, CustomDepthStencilValue))
 		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, LightingChannels))
 		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, LDMaxDrawDistance))
 		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bUsedForNavigation))
-		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bFillCollisionUnderLandscapeForNavmesh)))
+		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bFillCollisionUnderLandscapeForNavmesh))
+		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bHoldout)))
 	{
 		// TODO [jonathan.bard] : Move to its own function so that we can streamline the setters of these properties when we start exposing them
-		for (int32 ComponentIndex = 0; ComponentIndex < LandscapeComponents.Num(); ComponentIndex++)
+		for (ULandscapeComponent* Comp : LandscapeComponents)
 		{
-			ULandscapeComponent* Comp = LandscapeComponents[ComponentIndex];
 			if (Comp)
 			{
 				Comp->UpdatedSharedPropertiesFromActor();
+			}
+		}
+		if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bHoldout))
+		{
+			// Match holdout property on the grass components as well
+			for (UHierarchicalInstancedStaticMeshComponent* FoliageComp : FoliageComponents)
+			{
+				if (FoliageComp)
+				{
+					FoliageComp->SetHoldout(bHoldout);
+				}
 			}
 		}
 
@@ -6042,9 +6242,6 @@ void ALandscapeProxy::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 		InvalidateGeneratedComponentData(/* bInvalidateLightingCache = */false);
 		MarkComponentsRenderStateDirty();
 	}
-
-	// Remove null layer infos
-	EditorLayerSettings.RemoveAll([](const FLandscapeEditorLayerSettings& Entry) { return Entry.LayerInfoObj == nullptr; });
 
 	// Remove any null landscape components
 	LandscapeComponents.RemoveAll([](const ULandscapeComponent* Component) { return Component == nullptr; });
@@ -6115,7 +6312,10 @@ void ALandscapeStreamingProxy::PostEditChangeProperty(FPropertyChangedEvent& Pro
 		{
 			{
 				FMaterialUpdateContext MaterialUpdateContext;
-				GetLandscapeInfo()->UpdateLayerInfoMap(/*this*/);
+				if (ULandscapeInfo* LandscapeInfo = GetLandscapeInfo())
+				{
+					LandscapeInfo->UpdateLayerInfoMap(/*this*/);
+				}
 
 				// Clear the parents out of combination material instances
 				for (const auto& MICPair : MaterialInstanceConstantMap)
@@ -6251,6 +6451,20 @@ bool ALandscapeStreamingProxy::GetReferencedContentObjects(TArray<UObject*>& Obj
 	return true;
 }
 
+void ALandscapeStreamingProxy::GetActorDescProperties(FPropertyPairsMap& PropertyPairsMap) const
+{
+	Super::GetActorDescProperties(PropertyPairsMap);
+
+	for (URuntimeVirtualTexture* RuntimeVirtualTexture : RuntimeVirtualTextures)
+	{
+		if (RuntimeVirtualTexture)
+		{
+			PropertyPairsMap.AddProperty(UPrimitiveComponent::RVTActorDescProperty);
+			return;
+		}
+	}
+}
+
 bool ALandscapeStreamingProxy::ShouldIncludeGridSizeInName(UWorld* InWorld, const FActorPartitionIdentifier& InIdentifier) const
 {
 	// Always return true if this world setting flag is true
@@ -6319,16 +6533,33 @@ bool ULandscapeInfo::CanDeleteLandscape(FText& OutReason) const
 					ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(ActorDescInstance->GetActor());
 					if (LandscapeProxy != LandscapeActor)
 					{
-						// If LandscapeProxy is null then it is not loaded so not deleted.
-						if (!LandscapeProxy)
+						const bool bIsLoaded = ActorDescInstance->IsLoaded();
+						const bool bIsAllocated = (LandscapeProxy != nullptr);
+						const bool bIsGarbage = bIsAllocated && !IsValidChecked(LandscapeProxy);
+						const bool bIsRegistered = bIsAllocated && StreamingProxies.Contains(CastChecked<ALandscapeStreamingProxy>(LandscapeProxy));
+						const bool bRegisteredComps = bIsAllocated && LandscapeProxy->HasActorRegisteredAllComponents();
+						check(bIsRegistered == bRegisteredComps);
+
+						if (bIsGarbage)
 						{
-							++UndeletedProxyCount;
+							// proxy has been deleted, WP just hasn't cleaned up the actor desc yet.
+							// so don't count it as an undeleted proxy
 						}
-						else
+						else if (bIsLoaded && !bIsRegistered)
 						{
-							// If Actor is loaded it should be Registered and not pending kill (already accounted for) or pending kill (deleted)
-							TWeakObjectPtr<ALandscapeStreamingProxy> StreamingProxyPtr = CastChecked<ALandscapeStreamingProxy>(LandscapeProxy);
-							check(StreamingProxies.Contains(StreamingProxyPtr) == IsValidChecked(LandscapeProxy));
+							// this is a bit of a messed up state that we can encounter after an initial save
+							// where the proxy is loaded but not registered with the world
+							// TODO [chris.tchou] : figure out how to fix this for real so we don't get into this state
+							UE_LOG(LogLandscape, Display, TEXT("The Landscape Proxy '%p' is loaded and valid, but not registered. This may cause incorrect display in the outliner view. You can reload the level to correct this."),
+								LandscapeProxy);
+
+							// since this proxy was not counted in the registered proxy loop above, count it here
+							UndeletedProxyCount++;
+						}
+						else if (!bIsLoaded)
+						{
+							// unloaded proxies still exist (just not in memory at the moment)
+							UndeletedProxyCount++;
 						}
 					}
 				}
@@ -6566,8 +6797,9 @@ void ALandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 		bMarkAllLandscapeRenderStateDirty = true;
 	}
 	
-	// If the property that has changed is overridable or inherited, synchronize the change on all landscape proxies :
-	if (IsSharedProperty(MemberPropertyName))
+	// If the property that has changed is overridable or inherited and not interactive (dragging a slider)
+	// synchronize the change on all landscape proxies :
+	if (IsSharedProperty(MemberPropertyName) && PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
 	{
 		bPropagateToProxies = true;
 	}
@@ -6869,16 +7101,27 @@ void ULandscapeInfo::ClearSelectedRegion(bool bIsComponentwise /*= true*/)
 	{
 		SelectedRegion.Empty();
 	}
+
+	// Refresh the detail panel since the selected region affects the visibility of some landscape tool settings : 
+	ILandscapeModule& LandscapeModule = FModuleManager::GetModuleChecked<ILandscapeModule>("Landscape");
+	LandscapeModule.GetLandscapeEditorServices()->RefreshDetailPanel();
 }
 
-void ULandscapeComponent::ReallocateWeightmaps(FLandscapeEditDataInterface* DataInterface, bool InCanUseEditingWeightmap, bool InSaveToTransactionBuffer, bool InForceReallocate, ALandscapeProxy* InTargetProxy, TArray<UTexture*>* OutNewCreatedTextures)
+void ULandscapeComponent::ReallocateWeightmaps(FLandscapeEditDataInterface* DataInterface, bool InCanUseEditingWeightmap, bool InSaveToTransactionBuffer, bool InForceReallocate, 
+	ALandscapeProxy* InTargetProxy, TArray<UTexture*>* OutNewCreatedTextures)
 {
 	FGuid TargetLayerGuid = InCanUseEditingWeightmap ? GetEditingLayerGUID() : FGuid();
-	ReallocateWeightmapsInternal(DataInterface, TargetLayerGuid, InSaveToTransactionBuffer, InForceReallocate, InTargetProxy, OutNewCreatedTextures);
+	TArray<UTexture*> CreatedTextures = ReallocateWeightmaps(DataInterface, TargetLayerGuid, InSaveToTransactionBuffer, InForceReallocate, InTargetProxy, /*InRestrictSharingToComponents = */nullptr);
+	if (OutNewCreatedTextures != nullptr)
+	{
+		*OutNewCreatedTextures = CreatedTextures;
+	}
 }
 
-void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterface* DataInterface, const FGuid& InEditLayerGuid, bool InSaveToTransactionBuffer, bool InForceReallocate, ALandscapeProxy* InTargetProxy, TArray<UTexture*>* OutNewCreatedTextures)
+TArray<UTexture*> ULandscapeComponent::ReallocateWeightmaps(FLandscapeEditDataInterface* DataInterface, const FGuid& InEditLayerGuid, bool bInSaveToTransactionBuffer, bool bInForceReallocate, 
+	ALandscapeProxy* InTargetProxy, TSet<ULandscapeComponent*>* InRestrictSharingToComponents)
 {
+	TArray<UTexture*> CreatedTextures;
 	int32 NeededNewChannels = 0;
 	ALandscapeProxy* TargetProxy = InTargetProxy ? InTargetProxy : GetLandscapeProxy();
 	
@@ -6894,7 +7137,7 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 	TArray<TObjectPtr<ULandscapeWeightmapUsage>>& ComponentWeightmapTexturesUsage = GetWeightmapTexturesUsage(InEditLayerGuid);
 
 	// When force reallocating, skip tests to see if allocations are necessary based on Component's WeightmapLayeAllocInfo
-	if (!InForceReallocate)
+	if (!bInForceReallocate)
 	{
 		for (int32 LayerIdx = 0; LayerIdx < ComponentWeightmapLayerAllocations.Num(); LayerIdx++)
 		{
@@ -6907,20 +7150,20 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 		// All channels allocated!
 		if (NeededNewChannels == 0)
 		{
-			return;
+			return {};
 		}
 	}
 
 	ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
 
 	bool bMarkPackageDirty = DataInterface == nullptr ? true : DataInterface->GetShouldDirtyPackage();
-	if (InSaveToTransactionBuffer)
+	if (bInSaveToTransactionBuffer)
 	{
 		LandscapeInfo->ModifyObject(this, bMarkPackageDirty);
 		LandscapeInfo->ModifyObject(TargetProxy, bMarkPackageDirty);
 	}
 
-	if (!InForceReallocate)
+	if (!bInForceReallocate)
 	{
 		// UE_LOG(LogLandscape, Log, TEXT("----------------------"));
 		// UE_LOG(LogLandscape, Log, TEXT("Component %s needs %d layers (%d new)"), *GetName(), WeightmapLayerAllocations.Num(), NeededNewChannels);
@@ -6983,7 +7226,7 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 
 						if (NeededNewChannels == 0)
 						{
-							return;
+							return {};
 						}
 					}
 				}
@@ -7036,6 +7279,17 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 								int32 TryDistanceSquared = (TryWeightmapUsage->ChannelUsage[ChanIdx]->GetSectionBase() - GetSectionBase()).SizeSquared();
 								if (TryDistanceSquared < BestDistanceSquared)
 								{
+									if (InRestrictSharingToComponents != nullptr)
+									{
+										TSet<ULandscapeComponent*, DefaultKeyFuncs<ULandscapeComponent*>, TInlineSetAllocator<4>> WeightmapComponents(MakeArrayView(TryWeightmapUsage->GetUniqueValidComponents()));
+										int32 NumWeightmapComponents = WeightmapComponents.Num();
+										// Don't pick this candidate if it will lead the texture to be shared with a component that's not in the provided list :
+										if ((NumWeightmapComponents > 0) && WeightmapComponents.Intersect(*InRestrictSharingToComponents).Num() != NumWeightmapComponents)
+										{
+											break;
+										}
+									}
+
 									CurrentWeightmapTexture = ItPair.Key;
 									CurrentWeightmapUsage = TryWeightmapUsage;
 									BestDistanceSquared = TryDistanceSquared;
@@ -7045,6 +7299,12 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 					}
 				}
 			}
+		}
+
+		if ((CurrentWeightmapTexture != nullptr) && CVarStripLayerTextureMipsOnLoad->GetBool())
+		{
+			// sanity check - only final weightmaps are allowed more than one mip
+			ensure((CurrentWeightmapTexture->Source.GetNumMips() == 1) || bIsFinalWeightmap);
 		}
 
 		bool NeedsUpdateResource = false;
@@ -7057,20 +7317,22 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 			int32 WeightmapSize = (SubsectionSizeQuads + 1) * NumSubsections;
 
 			// We need a new weightmap texture
-			CurrentWeightmapTexture = TargetProxy->CreateLandscapeTexture(WeightmapSize, WeightmapSize, TEXTUREGROUP_Terrain_Weightmap, TSF_BGRA8, nullptr, false, bIsFinalWeightmap); //dmb-nomips
+			CurrentWeightmapTexture = TargetProxy->CreateLandscapeTexture(WeightmapSize, WeightmapSize, TEXTUREGROUP_Terrain_Weightmap, TSF_BGRA8, nullptr, /* bCompress = */ false, /* bMipChain= */ bIsFinalWeightmap); 
 
 			// Alloc dummy mips
 			if (bIsFinalWeightmap)
 			{
 				CreateEmptyTextureMips(CurrentWeightmapTexture, true);
 			}
+			else
+			{
+				// sanity check - only final weightmaps are allowed more than one mip
+				check(CurrentWeightmapTexture->Source.GetNumMips() == 1);
+			}
 
 			CurrentWeightmapTexture->PostEditChange();
 
-			if (OutNewCreatedTextures != nullptr)
-			{
-				OutNewCreatedTextures->Add(CurrentWeightmapTexture);
-			}
+			CreatedTextures.Add(CurrentWeightmapTexture);
 
 			// Store it in the usage map
 			CurrentWeightmapUsage = TargetProxy->WeightmapUsageMap.Add(CurrentWeightmapTexture, TargetProxy->CreateWeightmapUsage());
@@ -7105,6 +7367,8 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 					// Copy the data
 					if (ensure(DataInterface != nullptr)) // it's not safe to skip the copy
 					{
+						// sanity check - only final weightmaps are allowed more than one mip
+						ensure((CurrentWeightmapTexture->Source.GetNumMips() == 1) || bIsFinalWeightmap);
 						DataInterface->CopyTextureChannel(CurrentWeightmapTexture, ChanIdx, OldWeightmapTexture, AllocInfo.WeightmapTextureChannel);
 						DataInterface->ZeroTextureChannel(OldWeightmapTexture, AllocInfo.WeightmapTextureChannel);
 						// UE_LOG(LogLandscape, Log, TEXT("Copying old channel (%s).%d to new channel (%s).%d"), *OldWeightmapTexture->GetName(), AllocInfo.WeightmapTextureChannel, *CurrentWeightmapTexture->GetName(), ChanIdx);
@@ -7150,6 +7414,8 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 	SetWeightmapTexturesUsageInternal(MoveTemp(NewComponentWeightmapTexturesUsage), InEditLayerGuid);
 
 	TargetProxy->ValidateProxyLayersWeightmapUsage();
+
+	return CreatedTextures;
 }
 
 void ALandscapeProxy::RemoveInvalidWeightmaps()
@@ -7358,7 +7624,7 @@ void ULandscapeComponent::InitWeightmapData(TArray<ULandscapeLayerInfoObject*>& 
 		new (WeightmapLayerAllocations)FWeightmapLayerAllocationInfo(LayerInfos[Idx]);
 	}
 
-	ReallocateWeightmaps();
+	ReallocateWeightmaps(/*DataInterface = */nullptr, GetEditingLayerGUID(), /*bInSaveToTransactionBuffer = */true, /*bool bInForceReallocate = */false, /*InTargetProxy = */nullptr, /*InRestrictSharingToComponents = */nullptr);
 
 	check(WeightmapLayerAllocations.Num() > 0 && WeightmapTextures.Num() > 0);
 
@@ -7551,7 +7817,7 @@ void ULandscapeComponent::GenerateMobilePlatformPixelData(bool bIsCooking, const
 
 	const int32 NumWeightTextures = FMath::DivideAndRoundUp(static_cast<int32>(Algo::CountIf(MobileWeightmapLayerAllocations, [](const FWeightmapLayerAllocationInfo& AllocationInfo) { return AllocationInfo.LayerInfo; })), 4);
 
-	const bool MobileWeightmapTextureArrayEnabled = UE::Landscape::IsMobileWeightmapTextureArrayEnabled();
+	const bool MobileWeightmapTextureArrayEnabled = UE::Landscape::Private::IsMobileWeightmapTextureArrayEnabled();
 	
 	if (MobileWeightmapTextureArrayEnabled && NumWeightTextures > 0)
 	{
@@ -7823,6 +8089,8 @@ UTexture2D* ALandscapeProxy::CreateLandscapeToolTexture(int32 InSizeX, int32 InS
 	NewTexture->Source.Init(InSizeX, InSizeY, 1, 1, InFormat, ZeroBuffer);
 	FMemory::Free(ZeroBuffer);
 
+	// Note : for TSF_G8, use TC_Grayscale even though CompressionNone is set to true, otherwise, the texture ends up being created as BGRA instead 
+	NewTexture->CompressionSettings = (InFormat == TSF_G8) ? TC_Grayscale : TC_Default;
 	NewTexture->SRGB = false;
 	NewTexture->CompressionNone = true;
 	NewTexture->MipGenSettings = TMGS_NoMipmaps;

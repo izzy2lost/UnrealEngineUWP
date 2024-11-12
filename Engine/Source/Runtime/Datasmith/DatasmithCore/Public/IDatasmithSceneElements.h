@@ -150,6 +150,12 @@ public:
 
 	/** Get whether an actor's casts shadow */
 	virtual bool GetCastShadow() const = 0;
+
+	/** Set a mesh actor's visibility */
+	virtual void SetMobility(EDatasmithActorMobilityType Mobility) = 0;
+
+	/** Get a mesh actor's visibility */
+	virtual EDatasmithActorMobilityType GetMobility() const = 0;
 };
 
 /**
@@ -240,7 +246,7 @@ protected:
 /**
 * IDatasmithClothElement class: experimental class that describes a cloth asset
 */
-class DATASMITHCORE_API IDatasmithClothElement : public IDatasmithElement
+class UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") DATASMITHCORE_API IDatasmithClothElement : public IDatasmithElement
 {
 public:
 	/** Get the FDatasmithCloth resource filename */
@@ -298,7 +304,7 @@ public:
 	virtual void SetStaticMeshPathName(const TCHAR* InStaticMeshPathName) = 0;
 };
 
-class DATASMITHCORE_API IDatasmithClothActorElement : public IDatasmithActorElement
+class UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") DATASMITHCORE_API IDatasmithClothActorElement : public IDatasmithActorElement
 {
 public:
 	virtual void SetCloth(const TCHAR* Cloth) = 0;
@@ -1619,14 +1625,22 @@ public:
 	*/
 	virtual void EmptyMeshes() = 0;
 
-	// #ue_ds_todo cloth api doc
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual void AddCloth(const TSharedPtr< IDatasmithClothElement >& InElement) = 0;
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual int32 GetClothesCount() const = 0;
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual TSharedPtr< IDatasmithClothElement > GetCloth(int32 InIndex) = 0;
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual const TSharedPtr< IDatasmithClothElement >& GetCloth(int32 InIndex) const = 0;
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual void RemoveCloth(const TSharedPtr< IDatasmithClothElement >& InElement) = 0;
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual void RemoveClothAt(int32 InIndex) = 0;
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual void EmptyClothes() = 0;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * Adds an Actor to the scene.

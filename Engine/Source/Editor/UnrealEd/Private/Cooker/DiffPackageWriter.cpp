@@ -6,6 +6,7 @@
 #include "Containers/Map.h"
 #include "CookOnTheSide/CookLog.h"
 #include "CoreGlobals.h"
+#include "EditorDomain/EditorDomainUtils.h"
 #include "Engine/Engine.h"
 #include "Logging/LogMacros.h"
 #include "Misc/CommandLine.h"
@@ -27,7 +28,8 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogDiff, Log, All);
 
-FDiffPackageWriter::FDiffPackageWriter(TUniquePtr<ICookedPackageWriter>&& InInner)
+FDiffPackageWriter::FDiffPackageWriter(TUniquePtr<ICookedPackageWriter>&& InInner,
+	UE::Cook::FDeterminismManager* InDeterminismManager)
 	: Inner(MoveTemp(InInner))
 {
 	AccumulatorGlobals.Reset(new UE::DiffWriter::FAccumulatorGlobals(Inner.Get()));
@@ -55,6 +57,9 @@ FDiffPackageWriter::FDiffPackageWriter(TUniquePtr<ICookedPackageWriter>&& InInne
 	Indent = FCString::Spc(FOutputDeviceHelper::FormatLogLine(ELogVerbosity::Warning,
 		LogDiff.GetCategoryName(), TEXT(""), GPrintLogTimes).Len());
 	NewLine = TEXT("\n"); // OutputDevices are responsible for remapping to LINE_TERMINATOR if desired
+
+	check(InDeterminismManager);
+	DeterminismManager = InDeterminismManager;
 }
 
 void FDiffPackageWriter::ParseCmds()
@@ -63,7 +68,9 @@ void FDiffPackageWriter::ParseCmds()
 	const TCHAR* DumpObjectsParam = TEXT("dumpobjects");
 
 	FString CmdsText;
-	if (FParse::Value(FCommandLine::Get(), TEXT("-diffcmds="), CmdsText, false))
+	const TCHAR* const CommandLine = FCommandLine::Get();
+
+	if (FParse::Value(CommandLine, TEXT("-diffcmds="), CmdsText, false))
 	{
 		CmdsText = CmdsText.TrimQuotes();
 		TArray<FString> CmdsList;
@@ -79,6 +86,24 @@ void FDiffPackageWriter::ParseCmds()
 			{
 				bDumpObjects = true;
 				ParseDumpObjects(*Cmd + FCString::Strlen(DumpObjectsParam));
+			}
+		}
+	}
+
+	if (FParse::Param(CommandLine, TEXT("DiffDenyList")))
+	{
+		for (FTopLevelAssetPath& DenyBaseClassPath : UE::EditorDomain::ConstructTargetIterativeClassBlockList())
+		{
+			UClass* DenyBaseClass = FindObject<UClass>(DenyBaseClassPath);
+			if (DenyBaseClass)
+			{
+				CompareDenyListClasses.Add(DenyBaseClassPath);
+				TArray<UClass*> DerivedClasses;
+				GetDerivedClasses(DenyBaseClass, DerivedClasses);
+				for (UClass* DerivedClass : DerivedClasses)
+				{
+					CompareDenyListClasses.Add(DerivedClass->GetClassPathName());
+				}
 			}
 		}
 	}
@@ -130,6 +155,7 @@ void FDiffPackageWriter::BeginPackage(const FBeginPackageInfo& Info)
 	Accumulators[1].SafeRelease();
 
 	BeginInfo = Info;
+	Package = FindObjectFast<UPackage>(nullptr, BeginInfo.PackageName);
 	ConditionallyDumpObjList();
 	ConditionallyDumpObjects();
 	Inner->BeginPackage(Info);
@@ -147,7 +173,8 @@ void FDiffPackageWriter::CommitPackage(FCommitPackageInfo&& Info)
 	{
 		EnumRemoveFlags(Info.WriteOptions, EWriteOptions::Write);
 	}
-	return Inner->CommitPackage(MoveTemp(Info));
+	Inner->CommitPackage(MoveTemp(Info));
+	Package = nullptr;
 }
 
 void FDiffPackageWriter::WritePackageData(const FPackageInfo& Info, FLargeMemoryWriter& ExportsArchive,
@@ -177,6 +204,10 @@ void FDiffPackageWriter::WritePackageData(const FPackageInfo& Info, FLargeMemory
 		Accumulator.OnFirstSaveComplete(LocalInfo.LooseFilePath, LocalInfo.HeaderSize, Info.HeaderSize,
 			MoveTemp(PreviousInnerData));
 		bIsDifferent = Accumulator.HasDifferences();
+		if (bIsDifferent && !IsPackageDiffAllowed())
+		{
+			bIsDifferent = false;
+		}
 	}
 	else
 	{
@@ -188,6 +219,7 @@ void FDiffPackageWriter::WritePackageData(const FPackageInfo& Info, FLargeMemory
 
 		TMap<FName, FArchiveDiffStats> PackageDiffStats;
 		const TCHAR* CutoffString = TEXT("UEditorEngine::Save()");
+		Accumulator.SetDeterminismManager(*DeterminismManager);
 		Accumulator.CompareWithPrevious(CutoffString, PackageDiffStats);
 
 		//COOK_STAT(FSavePackageStats::NumberOfDifferentPackages++);
@@ -197,6 +229,28 @@ void FDiffPackageWriter::WritePackageData(const FPackageInfo& Info, FLargeMemory
 	Inner->WritePackageData(LocalInfo, ExportsArchive, FileRegions);
 }
 
+bool FDiffPackageWriter::IsPackageDiffAllowed() const
+{
+	if (!CompareDenyListClasses.IsEmpty() && Package != nullptr)
+	{
+		bool bHasDenyClass = false;
+		ForEachObjectWithPackage(Package, [this, &bHasDenyClass](UObject* Object)
+			{
+				FTopLevelAssetPath ClassPath = Object->GetClass()->GetClassPathName();
+				if (CompareDenyListClasses.Contains(ClassPath))
+				{
+					bHasDenyClass = true;
+					return false; // Stop iterating
+				}
+				return true; // Keep iterating
+			});
+		if (bHasDenyClass)
+		{
+			return false;
+		}
+	}
+	return true;
+}
 UE::DiffWriter::FMessageCallback FDiffPackageWriter::GetDiffWriterMessageCallback()
 {
 	return UE::DiffWriter::FMessageCallback([this](ELogVerbosity::Type Verbosity, FStringView Message)
@@ -299,6 +353,12 @@ bool FDiffPackageWriter::IsAnotherSaveNeeded(FSavePackageResultStruct& PreviousR
 	{
 		return false;
 	}
+}
+
+void FDiffPackageWriter::RegisterDeterminismHelper(UObject* SourceObject,
+	const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper)
+{
+	DeterminismManager->RegisterDeterminismHelper(SourceObject, DeterminismHelper);
 }
 
 bool FDiffPackageWriter::FilterPackageName(const FString& InWildcard)

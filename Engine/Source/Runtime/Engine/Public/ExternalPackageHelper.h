@@ -18,11 +18,25 @@
 #include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerHelper.h"
+#include "Engine/Level.h"
+#include "UObject/CoreRedirects.h"
 
 class FExternalPackageHelper
 {
 public:
-
+	class ENGINE_API FRenameExternalObjectsHelperContext
+	{
+	public:
+		FRenameExternalObjectsHelperContext() = delete;
+		FRenameExternalObjectsHelperContext(FRenameExternalObjectsHelperContext&) = delete;
+		FRenameExternalObjectsHelperContext& operator=(FRenameExternalObjectsHelperContext&) = delete;
+		
+		explicit FRenameExternalObjectsHelperContext(const UObject* SourceObject, ERenameFlags Flags);
+		~FRenameExternalObjectsHelperContext();
+	private:		
+		const UObject* OldObject = nullptr;
+		const UPackage* SourcePackage = nullptr;
+	};
 	DECLARE_EVENT_TwoParams(FExternalPackageHelper, FOnObjectPackagingModeChanged, UObject*, bool /* bExternal */);
 	static ENGINE_API FOnObjectPackagingModeChanged OnObjectPackagingModeChanged;
 
@@ -33,7 +47,7 @@ public:
 	 * @param InFlags the package flags to apply
 	 * @return the created package
 	 */
-	static ENGINE_API UPackage* CreateExternalPackage(UObject* InObjectOuter, const FString& InObjectPath, EPackageFlags InFlags = FExternalPackageHelper::GetDefaultExternalPackageFlags(), const UExternalDataLayerAsset* InExternalDataLayerAsset = nullptr);
+	static ENGINE_API UPackage* CreateExternalPackage(const UObject* InObjectOuter, const FString& InObjectPath, EPackageFlags InFlags = FExternalPackageHelper::GetDefaultExternalPackageFlags(), const UExternalDataLayerAsset* InExternalDataLayerAsset = nullptr);
 
 	/** Returns default external package flags used to create external packages. */
 	static ENGINE_API EPackageFlags GetDefaultExternalPackageFlags();
@@ -46,7 +60,7 @@ public:
 	 * @param bInShouldDirty should dirty or not the object's outer package
 	 * @param InExternalPackageFlags the flags to apply to the external package if bInIsPackageExternal is true
 	 */
-	static ENGINE_API void SetPackagingMode(UObject* InObject, UObject* InObjectOuter, bool bInIsPackageExternal, bool bInShouldDirty = true, EPackageFlags InExternalPackageFlags = FExternalPackageHelper::GetDefaultExternalPackageFlags());
+	static ENGINE_API void SetPackagingMode(UObject* InObject, const UObject* InObjectOuter, bool bInIsPackageExternal, bool bInShouldDirty = true, EPackageFlags InExternalPackageFlags = FExternalPackageHelper::GetDefaultExternalPackageFlags());
 
 	/**
 	 * Get the path containing the external objects for this path
@@ -79,12 +93,24 @@ public:
 	template<typename T>
 	static void LoadObjectsFromExternalPackages(UObject* InOuter, TFunctionRef<void(T*)> Operation);
 
+	enum class EGetExternalSaveableObjectsFlags : uint32
+	{
+		// No flags
+		None                   = 0,
+
+		// Whether to check the object's package dirty flag. Controls whether only dirty or all external objects are returned.
+		CheckDirty             = (1 << 0) 
+	};
+
+	FRIEND_ENUM_CLASS_FLAGS(EGetExternalSaveableObjectsFlags);
+
 	/**
 	 * Get the saveable external objects that should be saved alongside this outer's package
 	 * @param InOuter		The external object's outer
 	 * @param OutObjects	The objects that should be saved
+	 * @param InFlags		Flags controlling behavior @see EGetExternalSaveableObjectsFlags
 	 */
-	static ENGINE_API void GetExternalSaveableObjects(UObject* InOuter, TArray<UObject*>& OutObjects);
+	static ENGINE_API void GetExternalSaveableObjects(UObject* InOuter, TArray<UObject*>& OutObjects, EGetExternalSaveableObjectsFlags InFlags = EGetExternalSaveableObjectsFlags::CheckDirty);
 
 	/**
 	 * Returns an array of external package file paths for the provided objects
@@ -101,6 +127,11 @@ public:
 	 * Call AssetRegistry.GetAssets and sort the results for deterministic use in cooked data.
 	 */
 	static ENGINE_API void GetSortedAssets(const FARFilter& Filter, TArray<FAssetData>& OutAssets);
+
+    /**
+    * Duplicates all ExternalPackage for any UObject outered to InObject (UObject themselves are handled by regular DuplicateObject behavior)
+    */
+	static ENGINE_API void DuplicateExternalPackages(const UObject* InObject, FObjectDuplicationParameters& InDuplicationParameters, EActorPackagingScheme ActorPackagingScheme = EActorPackagingScheme::Reduced);
 private:
 	/** Get the external object package instance name. */
 	static ENGINE_API FString GetExternalObjectPackageInstanceName(const FString& OuterPackageName, const FString& ObjectPackageName);
@@ -124,10 +155,32 @@ void FExternalPackageHelper::LoadObjectsFromExternalPackages(UObject* InOuter, T
 	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
 	AssetRegistry.ScanSynchronous({ ExternalObjectsPath }, TArray<FString>());
 
+	// Find any redirects for this class and any of its derived classes so we can load older external objects (asset registry class does not redirect)
+	TArray<FTopLevelAssetPath> ClassPaths;
+	ClassPaths.Add(T::StaticClass()->GetClassPathName());
+
+	if(T::StaticClass() != UObject::StaticClass())
+	{
+		TArray<UClass*> DerivedClasses;
+		DerivedClasses.Add(T::StaticClass());
+		GetDerivedClasses(T::StaticClass(), DerivedClasses);
+
+		for(UClass* Class : DerivedClasses)
+		{
+			TArray<FCoreRedirectObjectName> PreviousRedirectedNames;
+			FCoreRedirects::FindPreviousNames(ECoreRedirectFlags::Type_Class, FCoreRedirectObjectName(Class->GetClassPathName()), PreviousRedirectedNames);
+
+			for(const FCoreRedirectObjectName& PreviousRedirectedName : PreviousRedirectedNames)
+			{
+				ClassPaths.Add(FTopLevelAssetPath(PreviousRedirectedName.PackageName, PreviousRedirectedName.ObjectName));
+			}
+		}
+	}
+
 	FARFilter Filter;
 	Filter.bRecursivePaths = true;
 	Filter.bIncludeOnlyOnDiskAssets = true;
-	Filter.ClassPaths.Add(T::StaticClass()->GetClassPathName());
+	Filter.ClassPaths = MoveTemp(ClassPaths);
 	Filter.bRecursiveClasses = true;
 	Filter.PackagePaths.Add(*ExternalObjectsPath);
 	TArray<FAssetData> Assets;
@@ -211,7 +264,7 @@ void FExternalPackageHelper::LoadObjectsFromExternalPackages(UObject* InOuter, T
 					return false;
 				}
 				return true;
-			}, true, RF_NoFlags, UE::GC::GUnreachableObjectFlag);
+			}, true, RF_NoFlags, EInternalObjectFlags::Unreachable);
 
 			if (ensure(LoadedObject))
 			{

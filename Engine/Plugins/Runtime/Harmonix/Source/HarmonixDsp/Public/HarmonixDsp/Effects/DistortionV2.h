@@ -1,8 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "HarmonixDsp/AudioBuffer.h"
-#include "HarmonixDsp/AudioUtility.h"
+#include "DSP/AlignedBuffer.h"
 #include "HarmonixDsp/Ramper.h"
 #include "HarmonixDsp/Effects/Settings/DistortionSettings.h"
 #include "HarmonixDsp/Effects/BiquadFilter.h"
@@ -20,8 +19,7 @@ namespace Harmonix::Dsp::Effects
 		void Setup(uint32 SampleRate, uint32 MaxRenderBufferSize);
 		virtual ~FDistortionV2() {};
 
-		void Process(TAudioBuffer<float>& InOutBuffer) { Process(InOutBuffer, InOutBuffer); }
-		void Process(TAudioBuffer<float>& InBuffer, TAudioBuffer<float>& OutBuffer);
+		void Process(const TArray<TArrayView<const float>>& InBuffer, const TArray<TArrayView<float>>& OutBuffer);
 
 		void  SetInputGainDb(float InGainDb, bool Snap = false);
 		float GetInputGainDb() const;
@@ -88,7 +86,7 @@ namespace Harmonix::Dsp::Effects
 		FFirFilter32			OversampleFilterUp[kMaxChannels];
 		FFirFilter32			OversampleFilterDown[kMaxChannels];
 		bool					DoOversampling;
-		TAudioBuffer<float>		UpsampleBuffer;
+		Audio::FAlignedFloatBuffer UpsampleBuffer;
 		uint32					SampleRate;
 
 		static const uint32   kNumFilterTaps = 32;

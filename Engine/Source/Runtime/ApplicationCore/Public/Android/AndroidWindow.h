@@ -69,6 +69,8 @@ public:
 	// Called by the event manager to update the cached window dimensions to match the event it is processing.
 	static APPLICATIONCORE_API void EventManagerUpdateWindowDimensions(int32 Width, int32 Height);
 
+	APPLICATIONCORE_API bool GetNativeWindowResolution(int32_t& OutWidth, int32_t& OutHeight) const;
+
 protected:
 	/** @return true if the native window is currently in fullscreen mode, false otherwise */
 	virtual EWindowMode::Type GetWindowMode() const override { return EWindowMode::Fullscreen; }

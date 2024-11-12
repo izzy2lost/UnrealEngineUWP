@@ -29,6 +29,11 @@ public:
 
 	UNiagaraStatelessEmitter* GetStatelessEmitter() const { return StatelessEmitterWeak.Get(); }
 
+	virtual bool SupportsPaste() const { return true; }
+	virtual bool TestCanPasteWithMessage(const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage) const override;
+	virtual FText GetPasteTransactionText(const UNiagaraClipboardContent* ClipboardContent) const override;
+	virtual void Paste(const UNiagaraClipboardContent* ClipboardContent, FText& OutPasteWarning) override;
+
 protected:
 	virtual void RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues) override;
 
@@ -52,6 +57,16 @@ public:
 	void Initialize(FRequiredEntryData InRequiredEntryData, UNiagaraStatelessModule* InStatelessModule);
 
 	virtual FText GetDisplayName() const override { return DisplayName; }
+	virtual FText GetTooltipText() const override;
+
+	virtual bool SupportsCopy() const override { return true; }
+	virtual bool TestCanCopyWithMessage(FText& OutMessage) const override;
+	virtual void Copy(UNiagaraClipboardContent* ClipboardContent) const override;
+
+	virtual bool SupportsPaste() const { return true; }
+	virtual bool TestCanPasteWithMessage(const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage) const override;
+	virtual FText GetPasteTransactionText(const UNiagaraClipboardContent* ClipboardContent) const override;
+	virtual void Paste(const UNiagaraClipboardContent* ClipboardContent, FText& OutPasteWarning) override;
 
 	virtual bool SupportsDelete() const override { return true; }
 	virtual bool TestCanDeleteWithMessage(FText& OutCanDeleteMessage) const override;
@@ -65,6 +80,7 @@ public:
 	virtual void GetHeaderValueHandlers(TArray<TSharedRef<INiagaraStackItemHeaderValueHandler>>& OutHeaderValueHandlers) const override;
 
 	UNiagaraStatelessModule* GetStatelessModule() const { return StatelessModuleWeak.Get(); }
+	UNiagaraStatelessEmitter* GetStatelessEmitter() const;
 
 protected:
 	virtual void RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues) override;

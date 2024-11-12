@@ -80,6 +80,8 @@ struct FNiagaraAssetBrowserMainFilter
 	bool DoesAssetHaveTag(const FAssetData& AssetCandidate) const;
 	bool DoesAssetHaveAnyTagFromTagDefinitionsAsset(const FAssetData& AssetCandidate) const;
 
+	bool DoesFilterMatchTextQuery(const FText& Text);
+	
 	bool operator==(const FNiagaraAssetBrowserMainFilter& Other) const
 	{
 		if(FilterMode != Other.FilterMode)

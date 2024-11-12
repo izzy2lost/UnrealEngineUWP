@@ -11,7 +11,7 @@
 class UObject;
 struct FConcertPropertyChain;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/**
 	 * Just holds a bunch of IReplicationDiscoverer and calls forward the function calls to them.

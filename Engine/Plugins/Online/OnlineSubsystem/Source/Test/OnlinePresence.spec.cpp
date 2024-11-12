@@ -4,7 +4,7 @@
 #include "Interfaces/OnlinePresenceInterface.h"
 #include "Utils/OnlineTestCommon.h"
 
-BEGIN_DEFINE_SPEC(FOnlinePresenceSpec, "OnlinePresenceInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FOnlinePresenceSpec, "OnlinePresenceInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 
 IOnlineIdentityPtr OnlineIdentity;
 IOnlineFriendsPtr OnlineFriends;

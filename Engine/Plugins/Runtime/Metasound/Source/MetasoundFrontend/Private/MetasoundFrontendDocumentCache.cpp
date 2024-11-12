@@ -97,25 +97,36 @@ namespace Metasound::Frontend
 	{
 	}
 
-	void FDocumentCache::Init(bool bPrimeCache)
+	void FDocumentCache::Init(const FGuid& InBuildPageID, bool bPrimeCache)
 	{
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentCache::Init);
 		check(Document);
 
+		BuildPageID = InBuildPageID;
 		if (bPrimeCache)
 		{
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentCache::Init_Prime);
 
 			TSharedRef<const FDocumentCache> ThisShared = StaticCastSharedRef<const FDocumentCache>(AsShared());
 			DependencyCache = MakeShared<FDocumentDependencyCache>(GetDocument());
-			EdgeCache = FDocumentGraphEdgeCache::Create(ThisShared, ModifyDelegates->EdgeDelegates);
-			NodeCache = FDocumentGraphNodeCache::Create(ThisShared, ModifyDelegates->NodeDelegates);
+
+			TSharedRef<FDocumentGraphEdgeCache> EdgeCache = FDocumentGraphEdgeCache::Create(ThisShared, InBuildPageID, ModifyDelegates.Get());
+			EdgeCacheMap.Add(InBuildPageID, EdgeCache);
+			TSharedRef<FDocumentGraphNodeCache> NodeCache = FDocumentGraphNodeCache::Create(ThisShared, InBuildPageID, ModifyDelegates.Get());
+			NodeCacheMap.Add(InBuildPageID, NodeCache);
+
 			InterfaceCache = FDocumentGraphInterfaceCache::Create(ThisShared, ModifyDelegates->InterfaceDelegates);
 		}
 
 		ModifyDelegates->OnDependencyAdded.AddSP(this, &FDocumentCache::OnDependencyAdded);
 		ModifyDelegates->OnRemoveSwappingDependency.AddSP(this, &FDocumentCache::OnRemoveSwappingDependency);
 		ModifyDelegates->OnRenamingDependencyClass.AddSP(this, &FDocumentCache::OnRenamingDependencyClass);
+
+		ModifyDelegates->PageDelegates.OnRemovingPage.AddSPLambda(this, [this](const FDocumentMutatePageArgs& Args)
+		{
+			EdgeCacheMap.Remove(Args.PageID);
+			NodeCacheMap.Remove(Args.PageID);
+		});
 	}
 
 	const FMetasoundFrontendDocument& FDocumentCache::GetDocument() const
@@ -124,13 +135,14 @@ namespace Metasound::Frontend
 		return *Document;
 	}
 
-	TSharedRef<FDocumentCache> FDocumentCache::Create(const FMetasoundFrontendDocument& InDocument, TSharedRef<FDocumentModifyDelegates> Delegates, bool bPrimeCache = false)
+	TSharedRef<FDocumentCache> FDocumentCache::Create(const FMetasoundFrontendDocument& InDocument, TSharedRef<FDocumentModifyDelegates> Delegates, const FGuid& InBuildPageID, bool bPrimeCache)
 	{
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentCache::Create);
 
 		// Factory style constructor as restrictions on construction of shared pointers disallows passing of this document cache's pointer to sub-caches
 		TSharedRef<FDocumentCache> Cache = MakeShared<FDocumentCache>(InDocument, Delegates);
-		Cache->Init(bPrimeCache);
+
+		Cache->Init(InBuildPageID, bPrimeCache);
 		return Cache;
 	}
 
@@ -199,24 +211,30 @@ namespace Metasound::Frontend
 		return *DependencyCache;
 	}
 
-	const IDocumentGraphEdgeCache& FDocumentCache::GetEdgeCache() const
+	const IDocumentGraphEdgeCache& FDocumentCache::GetEdgeCache(const FGuid& InPageID) const
 	{
+		TSharedPtr<FDocumentGraphEdgeCache> EdgeCache = EdgeCacheMap.FindRef(InPageID);
 		if (!EdgeCache.IsValid())
 		{
 			TSharedRef<const FDocumentCache> ThisShared = StaticCastSharedRef<const FDocumentCache>(AsShared());
-			EdgeCache = FDocumentGraphEdgeCache::Create(ThisShared, ModifyDelegates->EdgeDelegates);
+			EdgeCache = FDocumentGraphEdgeCache::Create(ThisShared, InPageID, ModifyDelegates.Get());
+			EdgeCacheMap.Add(InPageID, EdgeCache);
 		}
-		return *EdgeCache;
+
+		return *EdgeCache.Get();
 	}
 
-	const IDocumentGraphNodeCache& FDocumentCache::GetNodeCache() const
+	const IDocumentGraphNodeCache& FDocumentCache::GetNodeCache(const FGuid& InPageID) const
 	{
+		TSharedPtr<FDocumentGraphNodeCache> NodeCache = NodeCacheMap.FindRef(InPageID);
 		if (!NodeCache.IsValid())
 		{
 			TSharedRef<const FDocumentCache> ThisShared = StaticCastSharedRef<const FDocumentCache>(AsShared());
-			NodeCache = FDocumentGraphNodeCache::Create(ThisShared, ModifyDelegates->NodeDelegates);
+			NodeCache = FDocumentGraphNodeCache::Create(ThisShared, InPageID, ModifyDelegates.Get());
+			NodeCacheMap.Add(InPageID, NodeCache);
 		}
-		return *NodeCache;
+
+		return *NodeCache.Get();
 	}
 
 	const IDocumentGraphInterfaceCache& FDocumentCache::GetInterfaceCache() const
@@ -231,12 +249,19 @@ namespace Metasound::Frontend
 
 	int32 FDocumentCache::GetTransactionCount() const
 	{
+		return GetTransactionCount(BuildPageID);
+	}
+
+	int32 FDocumentCache::GetTransactionCount(const FGuid& InPageID) const
+	{
 		int32 TotalCount = TransactionCount;
+		TSharedPtr<FDocumentGraphNodeCache> NodeCache = NodeCacheMap.FindRef(InPageID);
 		if (NodeCache.IsValid())
 		{
 			TotalCount += NodeCache->GetTransactionCount();
 		}
 
+		TSharedPtr<FDocumentGraphEdgeCache> EdgeCache = EdgeCacheMap.FindRef(InPageID);
 		if (EdgeCache.IsValid())
 		{
 			TotalCount += EdgeCache->GetTransactionCount();
@@ -300,6 +325,17 @@ namespace Metasound::Frontend
 		++TransactionCount;
 	}
 
+#if WITH_EDITORONLY_DATA
+	void FDocumentCache::SetBuildPageID(const FGuid& InPageID)
+	{
+		if (InPageID != BuildPageID)
+		{
+			check(Document->RootGraph.ContainsGraphPage(InPageID));
+			BuildPageID = InPageID;
+		}
+	}
+#endif // WITH_EDITORONLY_DATA
+
 	FDocumentGraphInterfaceCache::FDocumentGraphInterfaceCache(TSharedRef<const FDocumentCache> ParentCache)
 		: Parent(ParentCache)
 	{
@@ -338,6 +374,11 @@ namespace Metasound::Frontend
 		return nullptr;
 	}
 
+	const int32* FDocumentGraphInterfaceCache::FindInputIndex(FName InputName) const
+	{
+		return InputNameToIndex.Find(InputName);
+	}
+
 	const FMetasoundFrontendClassOutput* FDocumentGraphInterfaceCache::FindOutput(FName OutputName) const
 	{
 		if (const int32* Index = OutputNameToIndex.Find(OutputName))
@@ -347,6 +388,11 @@ namespace Metasound::Frontend
 		}
 
 		return nullptr;
+	}
+
+	const int32* FDocumentGraphInterfaceCache::FindOutputIndex(FName OutputName) const
+	{
+		return OutputNameToIndex.Find(OutputName);
 	}
 
 	int32 FDocumentGraphInterfaceCache::GetTransactionCount() const
@@ -361,6 +407,8 @@ namespace Metasound::Frontend
 		OutDelegates.OnOutputAdded.AddSP(this, &FDocumentGraphInterfaceCache::OnOutputAdded);
 		OutDelegates.OnRemovingInput.AddSP(this, &FDocumentGraphInterfaceCache::OnRemovingInput);
 		OutDelegates.OnRemovingOutput.AddSP(this, &FDocumentGraphInterfaceCache::OnRemovingOutput);
+		OutDelegates.OnInputNameChanged.AddSP(this, &FDocumentGraphInterfaceCache::OnInputNameChanged);
+		OutDelegates.OnOutputNameChanged.AddSP(this, &FDocumentGraphInterfaceCache::OnOutputNameChanged);
 	}
 
 	void FDocumentGraphInterfaceCache::OnInputAdded(int32 NewIndex)
@@ -378,12 +426,32 @@ namespace Metasound::Frontend
 		++TransactionCount;
 	}
 
+	void FDocumentGraphInterfaceCache::OnInputNameChanged(FName OldName, FName NewName)
+	{
+		int32* Index = InputNameToIndex.Find(OldName);
+		check(Index);
+		InputNameToIndex.Remove(OldName);
+		InputNameToIndex.Add(NewName, *Index);
+
+		++TransactionCount;
+	}
+
 	void FDocumentGraphInterfaceCache::OnOutputAdded(int32 NewIndex)
 	{
 		const FMetasoundFrontendDocument& Document = Parent->GetDocument();
 		const FMetasoundFrontendGraphClass& GraphClass = Document.RootGraph;
 		const FMetasoundFrontendClassOutput& Output = GraphClass.Interface.Outputs[NewIndex];
 		OutputNameToIndex.Add(Output.Name, NewIndex);
+
+		++TransactionCount;
+	}
+
+	void FDocumentGraphInterfaceCache::OnOutputNameChanged(FName OldName, FName NewName)
+	{
+		int32* Index = OutputNameToIndex.Find(OldName);
+		check(Index);
+		OutputNameToIndex.Remove(OldName);
+		OutputNameToIndex.Add(NewName, *Index);
 
 		++TransactionCount;
 	}
@@ -413,10 +481,11 @@ namespace Metasound::Frontend
 	{
 	}
 
-	FDocumentGraphNodeCache::FDocumentGraphNodeCache(TSharedRef<const FDocumentCache> ParentCache)
+	FDocumentGraphNodeCache::FDocumentGraphNodeCache(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID)
 		: Parent(ParentCache)
+		, PageID(InPageID)
 	{
-		const FMetasoundFrontendGraph& Graph = Parent->GetDocument().RootGraph.Graph;
+		const FMetasoundFrontendGraph& Graph = Parent->GetDocument().RootGraph.FindConstGraphChecked(InPageID);
 		const TArray<FMetasoundFrontendNode>& Nodes = Graph.Nodes;
 		for (int32 Index = 0; Index < Nodes.Num(); ++Index)
 		{
@@ -435,13 +504,13 @@ namespace Metasound::Frontend
 		return IDToIndex.Contains(InNodeID);
 	}
 
-	TSharedRef<FDocumentGraphNodeCache> FDocumentGraphNodeCache::Create(TSharedRef<const FDocumentCache> ParentCache, FNodeModifyDelegates& OutDelegates)
+	TSharedRef<FDocumentGraphNodeCache> FDocumentGraphNodeCache::Create(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID, FDocumentModifyDelegates& OutDelegates)
 	{
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentGraphNodeCache::Create);
 
 		// Factory style constructor as restrictions on construction of shared pointers disallows passing of this document cache's pointer to sub-caches
-		TSharedRef<FDocumentGraphNodeCache> Cache = MakeShared<FDocumentGraphNodeCache>(ParentCache);
-		Cache->Init(OutDelegates);
+		TSharedRef<FDocumentGraphNodeCache> Cache = MakeShared<FDocumentGraphNodeCache>(ParentCache, InPageID);
+		Cache->Init(OutDelegates.FindNodeDelegatesChecked(InPageID));
 		return Cache;
 	}
 
@@ -456,7 +525,7 @@ namespace Metasound::Frontend
 		if (const TArray<int32>* NodeIndices = ClassIDToNodeIndices.Find(InClassID))
 		{
 			const FMetasoundFrontendDocument& Document = Parent->GetDocument();
-			const FMetasoundFrontendGraph& Graph = Document.RootGraph.Graph;
+			const FMetasoundFrontendGraph& Graph = Document.RootGraph.FindConstGraphChecked(PageID);
 			Algo::Transform(*NodeIndices, Nodes, [&Graph](const int32& Index) { return &Graph.Nodes[Index]; });
 		}
 		return Nodes;
@@ -467,7 +536,7 @@ namespace Metasound::Frontend
 		if (const int32* NodeIndex = IDToIndex.Find(InNodeID))
 		{
 			const FMetasoundFrontendDocument& Document = Parent->GetDocument();
-			const FMetasoundFrontendGraph& Graph = Document.RootGraph.Graph;
+			const FMetasoundFrontendGraph& Graph = Document.RootGraph.FindConstGraphChecked(PageID);
 			return &Graph.Nodes[*NodeIndex];
 		}
 
@@ -586,13 +655,13 @@ namespace Metasound::Frontend
 					*bOutIsRerouted = true;
 				}
 
-				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache();
+				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache(PageID);
 				const FMetasoundFrontendVertex& RerouteOutput = Node->Interface.Outputs.Last();
 				TArrayView<const int32> EdgeIndices = EdgeCache.FindEdgeIndicesFromNodeOutput(InNodeID, RerouteOutput.VertexID);
 				const FMetasoundFrontendDocument& Doc = Parent->GetDocument();
 				for (int32 Index : EdgeIndices)
 				{
-					const FMetasoundFrontendEdge& EdgeConnectedToOutput = Doc.RootGraph.Graph.Edges[Index];
+					const FMetasoundFrontendEdge& EdgeConnectedToOutput = Doc.RootGraph.FindConstGraphChecked(PageID).Edges[Index];
 					TArray<const FMetasoundFrontendVertex*> ReroutedVertices;
 					if (ConnectedNodes)
 					{
@@ -641,13 +710,13 @@ namespace Metasound::Frontend
 					*bOutIsRerouted = true;
 				}
 
-				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache();
+				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache(PageID);
 				const FMetasoundFrontendVertex& RerouteOutput = Node->Interface.Outputs.Last();
 				TArrayView<const int32> EdgeIndices = EdgeCache.FindEdgeIndicesFromNodeOutput(InNodeID, RerouteOutput.VertexID);
 				const FMetasoundFrontendDocument& Doc = Parent->GetDocument();
 				for (int32 Index : EdgeIndices)
 				{
-					const FMetasoundFrontendEdge& EdgeConnectedToOutput = Doc.RootGraph.Graph.Edges[Index];
+					const FMetasoundFrontendEdge& EdgeConnectedToOutput = Doc.RootGraph.FindConstGraphChecked(PageID).Edges[Index];
 
 					TArray<const FMetasoundFrontendVertex*> ReroutedVertices;
 					if (ConnectedNodes)
@@ -695,12 +764,12 @@ namespace Metasound::Frontend
 					*bOutIsRerouted = true;
 				}
 
-				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache();
+				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache(PageID);
 				const FMetasoundFrontendVertex& RerouteInput = Node->Interface.Inputs.Last();
 				const FMetasoundFrontendDocument& Doc = Parent->GetDocument();
 				if (const int32* ConnectedEdgeIndex = EdgeCache.FindEdgeIndexToNodeInput(InNodeID, RerouteInput.VertexID))
 				{
-					const FMetasoundFrontendEdge& EdgeConnectedToInput = Doc.RootGraph.Graph.Edges[*ConnectedEdgeIndex];
+					const FMetasoundFrontendEdge& EdgeConnectedToInput = Doc.RootGraph.FindConstGraphChecked(PageID).Edges[*ConnectedEdgeIndex];
 					return FindReroutedOutputVertex(EdgeConnectedToInput.FromNodeID, EdgeConnectedToInput.FromVertexID, ConnectedNode, bOutIsRerouted);
 				}
 
@@ -734,12 +803,12 @@ namespace Metasound::Frontend
 					*bOutIsRerouted = true;
 				}
 
-				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache();
+				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache(PageID);
 				const FMetasoundFrontendVertex& RerouteInput = Node->Interface.Inputs.Last();
 				const FMetasoundFrontendDocument& Doc = Parent->GetDocument();
 				if (const int32* ConnectedEdgeIndex = EdgeCache.FindEdgeIndexToNodeInput(InNodeID, RerouteInput.VertexID))
 				{
-					const FMetasoundFrontendEdge& EdgeConnectedToInput = Doc.RootGraph.Graph.Edges[*ConnectedEdgeIndex];
+					const FMetasoundFrontendEdge& EdgeConnectedToInput = Doc.RootGraph.FindConstGraphChecked(PageID).Edges[*ConnectedEdgeIndex];
 					return FindReroutedOutputVertex(EdgeConnectedToInput.FromNodeID, EdgeConnectedToInput.FromVertexID, ConnectedNode, bOutIsRerouted);
 				}
 
@@ -771,7 +840,7 @@ namespace Metasound::Frontend
 	void FDocumentGraphNodeCache::OnNodeAdded(int32 InNewIndex)
 	{
 		const FMetasoundFrontendDocument& Document = Parent->GetDocument();
-		const FMetasoundFrontendGraph& Graph = Document.RootGraph.Graph;
+		const FMetasoundFrontendGraph& Graph = Document.RootGraph.FindConstGraphChecked(PageID);
 		const FMetasoundFrontendNode& Node = Graph.Nodes[InNewIndex];
 		IDToIndex.Add(Node.GetID(), InNewIndex);
 		ClassIDToNodeIndices.FindOrAdd(Node.ClassID).Add(InNewIndex);
@@ -789,7 +858,7 @@ namespace Metasound::Frontend
 		using namespace Metasound::Frontend;
 
 		const FMetasoundFrontendDocument& Document = Parent->GetDocument();
-		const TArray<FMetasoundFrontendNode>& Nodes = Document.RootGraph.Graph.Nodes;
+		const TArray<FMetasoundFrontendNode>& Nodes = Document.RootGraph.FindConstGraphChecked(PageID).Nodes;
 		const FMetasoundFrontendNode& SwapNode = Nodes[SwapIndex];
 		const FMetasoundFrontendNode& LastNode = Nodes[LastIndex];
 
@@ -809,10 +878,11 @@ namespace Metasound::Frontend
 	{
 	}
 
-	FDocumentGraphEdgeCache::FDocumentGraphEdgeCache(TSharedRef<const FDocumentCache> ParentCache)
+	FDocumentGraphEdgeCache::FDocumentGraphEdgeCache(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID)
 		: Parent(ParentCache)
+		, PageID(InPageID)
 	{
-		const TArray<FMetasoundFrontendEdge>& Edges = Parent->GetDocument().RootGraph.Graph.Edges;
+		const TArray<FMetasoundFrontendEdge>& Edges = Parent->GetDocument().RootGraph.FindConstGraphChecked(InPageID).Edges;
 		for (int32 Index = 0; Index < Edges.Num(); ++Index)
 		{
 			const FMetasoundFrontendEdge& Edge = Edges[Index];
@@ -827,20 +897,20 @@ namespace Metasound::Frontend
 		if (const int32* Index = InputToEdgeIndex.Find(InputPair))
 		{
 			const FMetasoundFrontendDocument& Document = Parent->GetDocument();
-			const FMetasoundFrontendEdge& Edge = Document.RootGraph.Graph.Edges[*Index];
+			const FMetasoundFrontendEdge& Edge = Document.RootGraph.FindConstGraphChecked(PageID).Edges[*Index];
 			return Edge.FromNodeID == InEdge.FromNodeID && Edge.FromVertexID == InEdge.FromVertexID;
 		}
 
 		return false;
 	}
 
-	TSharedRef<FDocumentGraphEdgeCache> FDocumentGraphEdgeCache::Create(TSharedRef<const FDocumentCache> ParentCache, FEdgeModifyDelegates& OutDelegates)
+	TSharedRef<FDocumentGraphEdgeCache> FDocumentGraphEdgeCache::Create(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID, FDocumentModifyDelegates& OutDelegates)
 	{
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentGraphEdgeCache::Create);
 
 		// Factory style constructor as restrictions on construction of shared pointers disallows passing of this document cache's pointer to sub-caches
-		TSharedRef<FDocumentGraphEdgeCache> Cache = MakeShared<FDocumentGraphEdgeCache>(ParentCache);
-		Cache->Init(OutDelegates);
+		TSharedRef<FDocumentGraphEdgeCache> Cache = MakeShared<FDocumentGraphEdgeCache>(ParentCache, InPageID);
+		Cache->Init(OutDelegates.FindEdgeDelegatesChecked(InPageID));
 		return Cache;
 	}
 
@@ -849,7 +919,7 @@ namespace Metasound::Frontend
 		TArray<const FMetasoundFrontendEdge*> Edges;
 
 		const FMetasoundFrontendDocument& Document = Parent->GetDocument();
-		const FMetasoundFrontendGraph& Graph = Document.RootGraph.Graph;
+		const FMetasoundFrontendGraph& Graph = Document.RootGraph.FindConstGraphChecked(PageID);
 
 		const FMetasoundFrontendVertexHandle Handle { InNodeID, InVertexID };
 		if (const int32* Index = InputToEdgeIndex.Find(Handle))
@@ -904,7 +974,7 @@ namespace Metasound::Frontend
 	void FDocumentGraphEdgeCache::OnEdgeAdded(int32 InNewIndex)
 	{
 		const FMetasoundFrontendDocument& Document = Parent->GetDocument();
-		const FMetasoundFrontendGraph& Graph = Document.RootGraph.Graph;
+		const FMetasoundFrontendGraph& Graph = Document.RootGraph.FindConstGraphChecked(PageID);
 		const FMetasoundFrontendEdge& NewEdge = Graph.Edges[InNewIndex];
 		InputToEdgeIndex.Add(NewEdge.GetToVertexHandle(), InNewIndex);
 		OutputToEdgeIndices.FindOrAdd(NewEdge.GetFromVertexHandle()).Add(InNewIndex);
@@ -915,7 +985,7 @@ namespace Metasound::Frontend
 	void FDocumentGraphEdgeCache::OnRemoveSwappingEdge(int32 SwapIndex, int32 LastIndex)
 	{
 		const FMetasoundFrontendDocument& Document = Parent->GetDocument();
-		const TArray<FMetasoundFrontendEdge>& Edges = Document.RootGraph.Graph.Edges;
+		const TArray<FMetasoundFrontendEdge>& Edges = Document.RootGraph.FindConstGraphChecked(PageID).Edges;
 
 		const FMetasoundFrontendEdge& SwapEdge = Edges[SwapIndex];
 		const FMetasoundFrontendEdge& LastEdge = Edges[LastIndex];

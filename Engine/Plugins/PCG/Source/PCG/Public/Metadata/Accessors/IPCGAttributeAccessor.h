@@ -13,7 +13,7 @@ class IPCGAttributeAccessorKeys;
 
 UENUM(Meta = (Bitflags))
 enum class EPCGAttributeAccessorFlags
-{	
+{
 	// Always require that the underlying type of the accessor match the expected type, 1 for 1.
 	StrictType = 1 << 0,
 
@@ -25,7 +25,14 @@ enum class EPCGAttributeAccessorFlags
 
 	// By default, if the key is a PCGInvalidEntryKey, it will add a new entry. With this set, it will override the default value.
 	// USE WITH CAUTION
-	AllowSetDefaultValue = 1 << 3
+	AllowSetDefaultValue = 1 << 3,
+
+	// New writes usually create a new metadata entry key when we write. In most cases, that's not mandatory, so use this flag to re-use an existing key.
+	// Only useful for writing to attributes.
+	// USE WITH CAUTION
+	AllowReuseMetadataEntryKey = 1 << 4,
+
+	AllowBroadcastAndConstructible = AllowBroadcast | AllowConstructible
 };
 ENUM_CLASS_FLAGS(EPCGAttributeAccessorFlags);
 
@@ -131,8 +138,13 @@ public:
 		return false;
 	}
 
+	virtual void Prepare(IPCGAttributeAccessorKeys& Keys, int32 Count, const bool bCanReuseEntryKeys) {}
+
 	int16 GetUnderlyingType() const { return UnderlyingType; }
 	bool IsReadOnly() const { return bReadOnly; }
+
+	// To know if we can do default value operations
+	virtual bool IsAttribute() const { return false; }
 
 protected:
 	IPCGAttributeAccessor(bool bInReadOnly, int16 InUnderlyingType)
@@ -157,7 +169,3 @@ template <> bool PCG_API IPCGAttributeAccessor::GetRange<T>(TArrayView<T> OutVal
 template <> bool PCG_API IPCGAttributeAccessor::SetRange<T>(TArrayView<const T> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags Flags);
 PCG_FOREACH_SUPPORTEDTYPES(IACCESSOR_DECL);
 #undef IACCESSOR_DECL
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Metadata/PCGMetadataCommon.h"
-#endif

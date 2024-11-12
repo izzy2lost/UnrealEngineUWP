@@ -95,6 +95,7 @@
 #include "HAL/PlatformTime.h"
 #include "StudioAnalytics.h"
 #include "DeveloperToolSettingsDelegates.h"
+#include "Cooker/CookConfigAccessTracker.h"
 #include "Cooker/PackageBuildDependencyTracker.h"
 
 #define USE_UNIT_TESTS 0
@@ -102,11 +103,6 @@
 #define LOCTEXT_NAMESPACE "UnrealEd"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUnrealEdMisc, Log, All);
-
-bool FTickableEditorObject::bCollectionIntact = true;
-bool FTickableEditorObject::bIsTickingObjects = false;
-FTickableObjectBase* FTickableEditorObject::ObjectBeingTicked = nullptr;
-
 
 namespace
 {
@@ -222,11 +218,16 @@ FUnrealEdMisc::FUnrealEdMisc() :
 	NavigationBuildingNotificationHandler(NULL)
 {
 	//This is an early entry-point into the UnrealEd module to perform some editor-specific configuration
-#if UE_WITH_PACKAGE_ACCESS_TRACKING
+#if UE_WITH_PACKAGE_ACCESS_TRACKING || UE_WITH_CONFIG_TRACKING
 	const bool bBuildDependencyTrackingNeeded = GIsEditor && (IsRunningCookCommandlet() || !GetDefault<UEditorExperimentalSettings>()->bDisableCookInEditor);
 	if (!bBuildDependencyTrackingNeeded)
 	{
+#if UE_WITH_PACKAGE_ACCESS_TRACKING
 		FPackageBuildDependencyTracker::Get().Disable();
+#endif
+#if UE_WITH_CONFIG_TRACKING
+		UE::ConfigAccessTracking::FCookConfigAccessTracker::Get().Disable();
+#endif
 	}
 #endif
 }
@@ -1260,7 +1261,7 @@ void FUnrealEdMisc::CB_RedrawAllViewports()
 
 void FUnrealEdMisc::CB_LevelActorsAdded(AActor* InActor)
 {
-	if (!GIsEditorLoadingPackage &&
+	if (!UE::GetIsEditorLoadingPackage() &&
 		!GIsCookerLoadingPackage &&
 		FEngineAnalytics::IsAvailable() &&
 		InActor &&
@@ -1396,15 +1397,9 @@ void FUnrealEdMisc::OnMessageTokenActivated(const TSharedRef<IMessageToken>& Tok
 		else
 		{
 			AActor* Actor = Cast<AActor>(Object);
-			UPrimitiveComponent* Component = Cast<UPrimitiveComponent>(Object);
-
-			if (Component)
+			if( !Actor )
 			{
-				check( !Actor);
-				if( Component->GetOwner())
-				{
-					Actor = Component->GetOwner();
-				}		
+				Actor = Object->GetTypedOuter<AActor>();
 			}
 
 			if (Actor && Actor->GetLevel() != nullptr)

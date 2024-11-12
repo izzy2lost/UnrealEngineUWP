@@ -7,6 +7,7 @@
 #include "SUSDStageEditorStyle.h"
 #include "USDAttributeUtils.h"
 #include "USDIntegrationUtils.h"
+#include "USDMemory.h"
 #include "USDTypesConversion.h"
 #include "USDValueConversion.h"
 

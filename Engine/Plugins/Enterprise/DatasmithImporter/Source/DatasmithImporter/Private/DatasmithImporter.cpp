@@ -8,7 +8,7 @@
 #include "DatasmithAssetImportData.h"
 #include "DatasmithAssetUserData.h"
 #include "DatasmithCameraImporter.h"
-#include "DatasmithCloth.h"
+#include "DatasmithCloth.h"  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 #include "DatasmithImportContext.h"
 #include "DatasmithImporterModule.h"
 #include "DatasmithLevelSequenceImporter.h"
@@ -371,7 +371,8 @@ void FDatasmithImporter::ImportStaticMeshes( FDatasmithImportContext& ImportCont
 	}
 }
 
-void FDatasmithImporter::ImportClothes(FDatasmithImportContext& ImportContext)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void FDatasmithImporter::ImportClothes(FDatasmithImportContext& ImportContext)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	const int32 ClothesCount = ImportContext.FilteredScene->GetClothesCount();
 
@@ -517,6 +518,7 @@ void FDatasmithImporter::ImportClothes(FDatasmithImportContext& ImportContext)
 		//}
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 UStaticMesh* FDatasmithImporter::ImportStaticMesh( FDatasmithImportContext& ImportContext, TSharedRef< IDatasmithMeshElement > MeshElement, UStaticMesh* ExistingStaticMesh, FDatasmithMeshElementPayload* MeshPayload)
 {
@@ -589,7 +591,7 @@ UStaticMesh* FDatasmithImporter::FinalizeStaticMesh( UStaticMesh* SourceStaticMe
 	return DestinationStaticMesh;
 }
 
-UObject* FDatasmithImporter::FinalizeCloth(UObject* SourceCloth, const TCHAR* FolderPath, UObject* ExistingCloth, TMap<UObject*, UObject*>* ReferencesToRemap)
+UObject* FDatasmithImporter::FinalizeCloth(UObject* SourceCloth, const TCHAR* FolderPath, UObject* ExistingCloth, TMap<UObject*, UObject*>* ReferencesToRemap)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	if (Cast<USkinnedAsset>(ExistingCloth))
 	{
@@ -1115,10 +1117,12 @@ AActor* FDatasmithImporter::ImportActor( FDatasmithImportContext& ImportContext,
 	{
 		ImportedActor = FDatasmithActorImporter::ImportStaticMeshActor( ImportContext, StaticCastSharedRef< IDatasmithMeshActorElement >( ActorElement ) );
 	}
-	else if (ActorElement->IsA(EDatasmithElementType::ClothActor))
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	else if (ActorElement->IsA(EDatasmithElementType::ClothActor))  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	{
 		ImportedActor = FDatasmithActorImporter::ImportClothActor(ImportContext, StaticCastSharedRef<IDatasmithClothActorElement>( ActorElement ) );
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	else if (ActorElement->IsA(EDatasmithElementType::EnvironmentLight))
 	{
 		ImportedActor = FDatasmithActorImporter::ImportEnvironment( ImportContext, StaticCastSharedRef< IDatasmithEnvironmentElement >( ActorElement ) );
@@ -1894,8 +1898,10 @@ void FDatasmithImporter::FinalizeImport(FDatasmithImportContext& ImportContext, 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDatasmithImporter::FinalizeImport);
 
 	const int32 NumImportedObjects = ImportContext.ImportedStaticMeshes.Num() +
-									 ImportContext.ImportedClothes.Num() +
-									 ImportContext.ImportedClothPresets.Num() +
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+									 ImportContext.ImportedClothes.Num() +       // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
+									 ImportContext.ImportedClothPresets.Num() +  //
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 									 ImportContext.ImportedTextures.Num() +
 									 ImportContext.ImportedMaterialFunctions.Num() +
 									 ImportContext.ImportedMaterials.Num() +
@@ -2097,7 +2103,8 @@ void FDatasmithImporter::FinalizeImport(FDatasmithImportContext& ImportContext, 
 
 	FDatasmithStaticMeshImporter::BuildStaticMeshes(StaticMeshes.Array(), ProgressFunction);
 
-	for (auto& SourcePresetObj : ImportContext.ImportedClothPresets)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	for (auto& SourcePresetObj : ImportContext.ImportedClothPresets)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	{
 		if (!SourcePresetObj || (ValidAssets.Num() > 0 && !ValidAssets.Contains(SourcePresetObj)))
 		{
@@ -2118,7 +2125,7 @@ void FDatasmithImporter::FinalizeImport(FDatasmithImportContext& ImportContext, 
 		SourcePresetObj = FinalizedPreset;
 	}
 
-	for (auto& ImportedPair : ImportContext.ImportedClothes)
+	for (auto& ImportedPair : ImportContext.ImportedClothes)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	{
 		UObject* SourceClothObj = ImportedPair.Value;
 
@@ -2144,6 +2151,7 @@ void FDatasmithImporter::FinalizeImport(FDatasmithImportContext& ImportContext, 
 
 		ImportedPair.Value = FinalizedCloth;
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	for (const auto& ImportedLevelSequencePair : ImportContext.ImportedLevelSequences)
 	{

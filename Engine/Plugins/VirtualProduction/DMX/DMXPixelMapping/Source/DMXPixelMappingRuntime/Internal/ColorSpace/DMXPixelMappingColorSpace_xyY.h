@@ -5,7 +5,7 @@
 #include "DMXAttribute.h"
 #include "ColorSpace/DMXPixelMappingColorSpace.h"
 
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 
 #include "DMXPixelMappingColorSpace_xyY.generated.h"
 
@@ -24,6 +24,13 @@ public:
 	virtual void SetRGBA(const FLinearColor& InColor) override;
 	//~ End DMXPixelMappingColorSpace interface
 
+	/**
+	 * Output gamma of the Y component in xyY space whereas Y = Pow(Y, 1 / CustomGamma).
+	 * CIE 1931 xyY is linear gamma so typically no gamma should be applied.
+	 */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Color Space")
+	float CustomGamma = 1.f;
+
 	/** Attribute sent for x */
 	UPROPERTY(EditAnywhere, Category = "XY", Meta = (DisplayName = "x Attribute"))
 	FDMXAttributeName XAttribute;
@@ -32,7 +39,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = "XY", Meta = (DisplayName = "y Attribute"))
 	FDMXAttributeName YAttribute;
 
-	/** Sets the range of the xyY color space. A value of 1.0 corresponds to the CIE 1931 xyY . */
+	/** 
+	 * Sets the range of the xyY color space. 
+	 * A value of 1.0 corresponds to CIE 1931 xyY. 
+	 * Many hardware lights use a more narrow range, typically 0.8. 
+	 */
 	UPROPERTY(EditAnywhere, Category = "XY", Meta = (ClampMin = 0.1, ClampMax = 2.0, UIMin = 0.1, UIMax = 1.0, DisplayName = "Color Space Range"))
 	float ColorSpaceRange = .8f;
 

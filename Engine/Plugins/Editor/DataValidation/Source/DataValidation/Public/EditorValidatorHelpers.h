@@ -83,7 +83,7 @@ namespace UE::DataValidation
         
     protected:
         FScopedLogMessageGatherer* Previous = nullptr;
-        FLogMessageGathererImpl* Impl;
+        FLogMessageGathererImpl* Impl = nullptr;
     };
     
     // Utility to tell the closest enclosing FScopedLogMessageGatherer to ignore certain messages

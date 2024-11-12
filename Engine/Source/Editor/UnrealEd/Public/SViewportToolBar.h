@@ -50,6 +50,7 @@ protected:
 	*
 	* @return	Label to use for this menu label
 	*/
+	UE_DEPRECATED(5.6, "Please use UE::UnrealEd::GetCameraSubmenuLabelFromViewportType instead.")
 	UNREALED_API virtual FText GetCameraMenuLabelFromViewportType(const ELevelViewportType ViewportType) const;
 
 	/**

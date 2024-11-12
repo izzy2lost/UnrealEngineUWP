@@ -237,6 +237,11 @@ FString UDataRegistrySource_CurveTable::GetDebugString() const
 	return Super::GetDebugString();
 }
 
+FSoftObjectPath UDataRegistrySource_CurveTable::GetSourceAssetPath() const
+{
+	return SourceTable.ToSoftObjectPath();
+}
+
 bool UDataRegistrySource_CurveTable::Initialize()
 {
 	if (Super::Initialize())
@@ -338,6 +343,11 @@ void UDataRegistrySource_CurveTable::PreSave(FObjectPreSaveContext ObjectSaveCon
 
 	// Force load it to validate type on save
 	SetCachedTable(true);
+}
+
+void UDataRegistrySource_CurveTable::EditorRefreshSource()
+{
+	SetCachedTable(false);
 }
 
 #endif // WITH_EDITOR

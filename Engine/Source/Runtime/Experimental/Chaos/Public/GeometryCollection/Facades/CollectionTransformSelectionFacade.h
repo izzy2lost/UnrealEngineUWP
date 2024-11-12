@@ -101,8 +101,8 @@ namespace GeometryCollection::Facades
 		CHAOS_API TArray<int32> SelectCluster() const;
 
 		/**  */
-		bool CanSelectContact() const { return TransformIndexAttribute.IsValid() && TransformToGeometryIndexAttribute.IsValid(); }
-		CHAOS_API void SelectContact(TArray<int32>& InOutSelection) const;
+		bool CanSelectContact() const { return ParentAttribute.IsValid() && LevelAttribute.IsValid() && SimulationTypeAttribute.IsValid(); }
+		CHAOS_API void SelectContact(TArray<int32>& InOutSelection, bool bIncludeNeighborsInParentLevels = true) const;
 
 		/**  */
 		bool CanSelectParent() const { return ParentAttribute.IsValid(); }
@@ -222,8 +222,8 @@ namespace GeometryCollection::Facades
 		TManagedArrayAccessor<TSet<int32>>	ChildrenAttribute;
 		TManagedArrayAccessor<int32>		LevelAttribute;
 		TManagedArrayAccessor<int32>		SimulationTypeAttribute;
-		TManagedArrayAccessor<int32>		TransformIndexAttribute;
 		TManagedArrayAccessor<int32>		TransformToGeometryIndexAttribute;
+		TManagedArrayAccessor<int32>		TransformIndexAttribute;
 		TManagedArrayAccessor<int32>		VertexStartAttribute;
 		TManagedArrayAccessor<int32>		VertexCountAttribute;
 		TManagedArrayAccessor<int32>		FaceStartAttribute;

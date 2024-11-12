@@ -5,6 +5,7 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Containers/Array.h"
 #include "Containers/RingBuffer.h"
+#include "Cooker/CookGenerationHelper.h"
 #include "Cooker/CookPackageData.h"
 #include "Cooker/CookRequestCluster.h"
 #include "Cooker/CookTypes.h"
@@ -100,7 +101,7 @@ public:
 };
 
 void FDiagnostics::AnalyzeHiddenDependencies(UCookOnTheFlyServer& COTFS, FPackageData& PackageData,
-	TMap<FPackageData*, EInstigator>&& UnsolicitedForPackage, TSet<FPackageData*>& SaveReferences,
+	TMap<FPackageData*, EInstigator>&& UnsolicitedForPackage, TMap<FPackageData*, EInstigator>& SaveReferences,
 	TConstArrayView<const ITargetPlatform*> ReachablePlatforms, bool bOnlyEditorOnlyDebug,
 	bool bHiddenDependenciesDebug)
 {
@@ -164,7 +165,7 @@ void FDiagnostics::AnalyzeHiddenDependencies(UCookOnTheFlyServer& COTFS, FPackag
 			continue;
 		}
 
-		if (PackageData.GetGeneratorPackage())
+		if (PackageData.GetGenerationHelper())
 		{
 			// TODO: Collect SaveReferences for all generated packages and collect Unsolicited from all externalactor packages
 			// and run the missing solicited test when the GeneratorPackage finishes saving all generated

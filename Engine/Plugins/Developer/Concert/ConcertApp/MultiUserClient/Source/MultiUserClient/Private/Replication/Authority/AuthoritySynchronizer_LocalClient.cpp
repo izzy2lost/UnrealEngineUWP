@@ -5,7 +5,7 @@
 #include "IConcertSyncClient.h"
 #include "Replication/IConcertClientReplicationManager.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FAuthoritySynchronizer_LocalClient::FAuthoritySynchronizer_LocalClient(TSharedRef<IConcertSyncClient> InClient)
 		: Client(MoveTemp(InClient))

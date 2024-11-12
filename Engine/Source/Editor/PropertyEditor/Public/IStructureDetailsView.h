@@ -51,6 +51,15 @@ public:
 	 */
 	virtual void SetCustomName(const FText& Text) = 0;
 
+	/*
+	* Get Const access to the StructureProvider.
+	* Not pure virtual for backwards compatibility reasons.
+	*/
+	virtual TSharedPtr<const class IStructureDataProvider> GetStructureProvider() const
+	{
+		return nullptr;
+	}
+
 public:
 
 	/**

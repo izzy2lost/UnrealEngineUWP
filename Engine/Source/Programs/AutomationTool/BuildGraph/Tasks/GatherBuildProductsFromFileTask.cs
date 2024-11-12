@@ -3,18 +3,13 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
-
 using EpicGames.Core;
-using UnrealBuildTool;
 using Microsoft.Extensions.Logging;
 
-using static AutomationTool.CommandUtils;
-
 namespace AutomationTool.Tasks
-{	
+{
 	/// <summary>
 	/// Parameters for <see cref="GatherBuildProductsFromFileTask"/>
 	/// </summary>
@@ -24,45 +19,41 @@ namespace AutomationTool.Tasks
 		/// 
 		/// </summary>
 		[TaskParameter]
-		public string BuildProductsFile;
+		public string BuildProductsFile { get; set; }
 	}
 
 	[TaskElement("GatherBuildProductsFromFile", typeof(GatherBuildProductsFromFileTaskParameters))]
 	class GatherBuildProductsFromFileTask : BgTaskImpl
 	{
-		public GatherBuildProductsFromFileTask(GatherBuildProductsFromFileTaskParameters InParameters)
+		public GatherBuildProductsFromFileTask(GatherBuildProductsFromFileTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			List<FileReference> CleanupFiles = new List<FileReference>();
-
-			Logger.LogInformation("Gathering BuildProducts from {Arg0}...", Parameters.BuildProductsFile);
+			Logger.LogInformation("Gathering BuildProducts from {Arg0}...", _parameters.BuildProductsFile);
 
 			try
 			{
-				var FileBuildProducts = File.ReadAllLines(Parameters.BuildProductsFile);
-				foreach(var BuildProduct in FileBuildProducts)
+				var fileBuildProducts = await File.ReadAllLinesAsync(_parameters.BuildProductsFile);
+				foreach (var buildProduct in fileBuildProducts)
 				{
-					Logger.LogInformation("Adding file to build products: {BuildProduct}", BuildProduct);
-					BuildProducts.Add(new FileReference(BuildProduct));
+					Logger.LogInformation("Adding file to build products: {BuildProduct}", buildProduct);
+					buildProducts.Add(new FileReference(buildProduct));
 				}
 			}
-			catch (Exception Ex)
+			catch (Exception ex)
 			{
-				Logger.LogInformation("Failed to gather build products: {Arg0}", Ex.Message);
+				Logger.LogInformation("Failed to gather build products: {Arg0}", ex.Message);
 			}
+		}
 
-			return Task.CompletedTask;
-		}
-		
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
-		
+
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
 			yield break;
@@ -73,6 +64,6 @@ namespace AutomationTool.Tasks
 			yield break;
 		}
 
-		public GatherBuildProductsFromFileTaskParameters Parameters;
+		public GatherBuildProductsFromFileTaskParameters _parameters;
 	}
 }

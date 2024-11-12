@@ -2,9 +2,8 @@
 
 #pragma once
 
-#include "PCGContext.h"
 #include "PCGSettings.h"
-#include "Async/PCGAsyncLoadingContext.h"
+#include "Elements/PCGLoadObjectsContext.h"
 
 #include "PCGGetPropertyFromObjectPath.generated.h"
 
@@ -49,15 +48,15 @@ public:
 	FPCGAttributePropertyInputSelector InputSource;
 
 	/** Property name to extract. Can only extract properties that are compatible with metadata types. If None, extract the object. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FName PropertyName = NAME_None;
 
 	/** If the property is a struct/object supported by metadata, this option can be toggled to force extracting all (compatible) properties contained in this property. Automatically true if unsupported by metadata. For now, only supports direct child properties (and not deeper). */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool bForceObjectAndStructExtraction = false;
 
-	/** By default, attribute name will be None, but it can be overridden by this name. Use @SourceName to use the property name (only works when not extracting). */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "!bForceObjectAndStructExtraction", EditConditionHides))
+	/** By default, attribute name will be None, but it can be overridden by this name. Use @SourceName to use the property name (only works when not extracting). In the case of multiple properties being extracted, will be ignored. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "!bForceObjectAndStructExtraction", EditConditionHides))
 	FName OutputAttributeName = NAME_None;
 
 	/** By default, object loading is asynchronous, can force it synchronous if needed. */
@@ -73,12 +72,7 @@ public:
 	bool bSilenceErrorOnEmptyObjectPath = false;
 };
 
-struct FPCGGetPropertyFromObjectPathContext : public FPCGContext, public IPCGAsyncLoadingContext
-{
-	TArray<TTuple<FSoftObjectPath, int32>> PathsToObjectsToExtractAndIncomingDataIndex;
-};
-
-class FPCGGetPropertyFromObjectPathElement : public IPCGElement
+class FPCGGetPropertyFromObjectPathElement : public IPCGElementWithCustomContext<FPCGLoadObjectsFromPathContext>
 {
 public:
 	// Loading needs to be done on the main thread and accessing objects outside of PCG might not be thread safe, so taking the safe approach
@@ -90,7 +84,6 @@ public:
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 
 protected:
-	virtual FPCGContext* CreateContext() override;
 	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };

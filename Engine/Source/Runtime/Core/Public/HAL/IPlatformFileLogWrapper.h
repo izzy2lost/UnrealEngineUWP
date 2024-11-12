@@ -87,6 +87,15 @@ public:
 		FILE_LOG(LogPlatformFile, VeryVerbose, TEXT("Read return %d [%fms]"), int32(Result), ThisTime);
 		return Result;
 	}
+	virtual bool		ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+	{
+		FILE_LOG(LogPlatformFile, VeryVerbose, TEXT("ReadAt %s %lld %lld"), *Filename, BytesToRead, Offset);
+		double StartTime = FPlatformTime::Seconds();
+		bool Result = FileHandle->ReadAt(Destination, BytesToRead, Offset);
+		double ThisTime = (FPlatformTime::Seconds() - StartTime) / 1000.0;
+		FILE_LOG(LogPlatformFile, VeryVerbose, TEXT("ReadAt return %d [%fms]"), int32(Result), ThisTime);
+		return Result;
+	}
 	virtual bool		Write(const uint8* Source, int64 BytesToWrite) override
 	{
 		FILE_LOG(LogPlatformFile, VeryVerbose, TEXT("Write %s %lld"), *Filename, BytesToWrite);

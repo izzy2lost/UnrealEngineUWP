@@ -19,6 +19,7 @@
 #include "Framework/Commands/GenericCommands.h"
 #include "Editor.h"
 #include "PropertyHandle.h"
+#include "AssetTextFilter.h"
 
 #define LOCTEXT_NAMESPACE "SToolInputAssetPicker"
 
@@ -129,16 +130,9 @@ void SToolInputAssetPicker::Construct( const FArguments& InArgs )
 	FOnShouldFilterAsset ShouldFilterAssetDelegate;
 	{
 		FAssetReferenceFilterContext AssetReferenceFilterContext;
-		AssetReferenceFilterContext.ReferencingAssets = InArgs._AssetPickerConfig.AdditionalReferencingAssets;
-		if (InArgs._AssetPickerConfig.PropertyHandle.IsValid())
-		{
-			TArray<UObject*> ReferencingObjects;
-			InArgs._AssetPickerConfig.PropertyHandle->GetOuterObjects(ReferencingObjects);
-			for (UObject* ReferencingObject : ReferencingObjects)
-			{
-				AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(ReferencingObject));
-			}
-		}
+		AssetReferenceFilterContext.AddReferencingAssets(InArgs._AssetPickerConfig.AdditionalReferencingAssets);
+		AssetReferenceFilterContext.AddReferencingAssetsFromPropertyHandle(InArgs._AssetPickerConfig.PropertyHandle);
+		
 		TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor ? GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext) : nullptr;
 		if (AssetReferenceFilter.IsValid())
 		{
@@ -209,7 +203,7 @@ void SToolInputAssetPicker::Construct( const FArguments& InArgs )
 
 	if (AssetViewPtr.IsValid() && !InArgs._AssetPickerConfig.bAutohideSearchBar)
 	{
-		TextFilter = MakeShareable(new FFrontendFilter_Text());
+		TextFilter = MakeShared<FAssetTextFilter>();
 		bool bClassNamesProvided = (InArgs._AssetPickerConfig.Filter.ClassPaths.Num() != 1);
 		TextFilter->SetIncludeClassName(bClassNamesProvided || AssetViewPtr->IsIncludingClassNames());
 		TextFilter->SetIncludeAssetPath(AssetViewPtr->IsIncludingAssetPaths());
@@ -295,12 +289,10 @@ void SToolInputAssetPicker::SetSearchBoxText(const FText& InSearchText)
 		TextFilter->SetRawFilterText(InSearchText);
 		if (InSearchText.IsEmpty())
 		{
-			FrontendFilters->Remove(TextFilter);
 			AssetViewPtr->SetUserSearching(false);
 		}
 		else
 		{
-			FrontendFilters->Add(TextFilter);
 			AssetViewPtr->SetUserSearching(true);
 		}
 	}

@@ -38,7 +38,7 @@ protected:
 	static constexpr float MinDim = 5;
 
 	UPROPERTY()
-	UAvaInteractiveToolsToolBase* Tool;
+	TObjectPtr<UAvaInteractiveToolsToolBase> Tool;
 
 	bool bAttemptedToCreateSnapOperation;
 	TSharedPtr<FAvaSnapOperation> SnapOperation;

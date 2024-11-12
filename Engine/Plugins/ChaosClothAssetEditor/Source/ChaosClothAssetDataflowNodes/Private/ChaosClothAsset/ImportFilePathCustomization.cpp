@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/ImportFilePathCustomization.h"
+#include "ChaosClothAsset/ImportFilePath.h"
+#include "Dataflow/DataflowGraphEditor.h"
 #include "Misc/MessageDialog.h"
 #include "Misc/PackageName.h"
 #include "Widgets/Images/SImage.h"
@@ -14,6 +16,29 @@
 
 namespace UE::Chaos::ClothAsset
 {
+	namespace Private
+	{
+		static const FChaosClothAssetImportFilePath* GetImportFilePath(const TSharedPtr<IPropertyHandle>& PropertyHandle)
+		{
+			const FChaosClothAssetImportFilePath* ImportFilePath = nullptr;
+			if (PropertyHandle)
+			{
+				if (const FStructProperty* const StructProperty = CastField<FStructProperty>(PropertyHandle->GetProperty()))
+				{
+					if (StructProperty->Struct && StructProperty->Struct->IsChildOf(FChaosClothAssetImportFilePath::StaticStruct()))
+					{
+						void* Data;
+						if (PropertyHandle->GetValueData(Data) == FPropertyAccess::Success)
+						{
+							ImportFilePath = reinterpret_cast<const FChaosClothAssetImportFilePath*>(Data);
+						}
+					}
+				}
+			}
+			return ImportFilePath;
+		}
+	}
+
 	TSharedRef<IPropertyTypeCustomization> FImportFilePathCustomization::MakeInstance()
 	{
 		return MakeShareable(new FImportFilePathCustomization);
@@ -21,8 +46,11 @@ namespace UE::Chaos::ClothAsset
 
 	void FImportFilePathCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> StructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
 	{
+		// Keep a weak pointer to the graph editor asking for this customization
+		DataflowGraphEditor = SDataflowGraphEditor::GetSelectedGraphEditor();
+
+		StructProperty = StructPropertyHandle;
 		PathStringProperty = StructPropertyHandle->GetChildHandle(TEXT("FilePath"));
-		ForceReimport = StructPropertyHandle->GetChildHandle(TEXT("bForceReimport"));
 
 		// Construct file type filter
 		FString FileTypeFilter;
@@ -50,51 +78,28 @@ namespace UE::Chaos::ClothAsset
 
 		// Create path picker widget
 		HeaderRow
-		.NameContent()
-		[
-			StructPropertyHandle->CreatePropertyNameWidget()
-		]
-		.ValueContent()
-		.MinDesiredWidth(250)
-		.MaxDesiredWidth(0)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
+			.NameContent()
 			[
-				SNew(SFilePathPicker)
-				.BrowseButtonImage(FAppStyle::GetBrush("PropertyWindow.Button_Ellipsis"))
-				.BrowseButtonStyle(FAppStyle::Get(), "HoverHintOnly")
-				.BrowseButtonToolTip(LOCTEXT("FileButtonToolTipText", "Choose a file from this computer"))
-				.BrowseDirectory(FEditorDirectories::Get().GetLastDirectory(ELastDirectory::GENERIC_OPEN))
-				.BrowseTitle(LOCTEXT("PropertyEditorTitle", "File picker..."))
-				.FilePath(this, &FImportFilePathCustomization::HandleFilePathPickerFilePath)
-				.FileTypeFilter(FileTypeFilter)
-				.OnPathPicked(this, &FImportFilePathCustomization::HandleFilePathPickerPathPicked)
+				StructPropertyHandle->CreatePropertyNameWidget()
 			]
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
+			.ValueContent()
+			.MinDesiredWidth(250)
+			.MaxDesiredWidth(0)
 			[
-				SNew(SButton)
-				.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
-				.ContentPadding(FMargin(10.f, 0))
-				.HAlign(HAlign_Right)
-				.ToolTipText(LOCTEXT("Button_ReimportAsset_Tooltip", "Reimport asset"))
-				.OnClicked(this, &FImportFilePathCustomization::OnClicked)
-				[
-					SNew(SImage)
-					.Image(FAppStyle::GetBrush("Persona.ReimportAsset"))
-				]
-			]
-		];
-	}
-
-	FReply FImportFilePathCustomization::OnClicked()
-	{
-		if (ForceReimport)
-		{
-			ForceReimport->SetValue(true);
-		}
-		return FReply::Handled();
+				SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					[
+						SNew(SFilePathPicker)
+							.BrowseButtonImage(FAppStyle::GetBrush("PropertyWindow.Button_Ellipsis"))
+							.BrowseButtonStyle(FAppStyle::Get(), "HoverHintOnly")
+							.BrowseButtonToolTip(LOCTEXT("FileButtonToolTipText", "Choose a file from this computer"))
+							.BrowseDirectory(FEditorDirectories::Get().GetLastDirectory(ELastDirectory::GENERIC_OPEN))
+							.BrowseTitle(LOCTEXT("PropertyEditorTitle", "File picker..."))
+							.FilePath(this, &FImportFilePathCustomization::HandleFilePathPickerFilePath)
+							.FileTypeFilter(FileTypeFilter)
+							.OnPathPicked(this, &FImportFilePathCustomization::HandleFilePathPickerPathPicked)
+					]
+			];
 	}
 
 	// Callbacks lifted from FFilePathStructCustomization
@@ -161,7 +166,18 @@ namespace UE::Chaos::ClothAsset
 			PathStringProperty->GetValue(OldPath);
 			if (OldPath != FinalPath)
 			{
-				PathStringProperty->SetValue(FinalPath);
+				PathStringProperty->SetValue(FinalPath, EPropertyValueSetFlags::InteractiveChange);  // Do as an interactive change so that the delegate is called with the correct value before the node invalidates
+				if (const FChaosClothAssetImportFilePath* const ImportFilePath = Private::GetImportFilePath(StructProperty))
+				{
+					// Retrieve context if any
+					const TSharedPtr<const SDataflowGraphEditor> DataflowGraphEditorPtr = DataflowGraphEditor.Pin();
+					const TSharedPtr<UE::Dataflow::FContext> Context = DataflowGraphEditorPtr ? DataflowGraphEditorPtr->GetDataflowContext() : TSharedPtr<UE::Dataflow::FContext>();
+
+					// Execute function
+					UE::Dataflow::FContextThreaded EmptyContext;
+					ImportFilePath->Execute(Context.IsValid() ? *Context : EmptyContext);
+				}
+				PathStringProperty->SetValue(FinalPath);  // This will set the final value and call invalidate on the node
 			}
 		}
 		FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_OPEN, FPaths::GetPath(PickedPath));

@@ -205,7 +205,7 @@ const TSet<int32>* Chaos::FStrainedProxyModifier::InitRestChildren(FGeometryColl
 	if (RootIndex == INDEX_NONE) { return nullptr; }
 
 	// Return a ptr to the set of child indices
-	return &Parameters.RestCollection->Children[RootIndex];
+	return &Parameters.RestCollectionShared->Children[RootIndex];
 }
 
 Chaos::FStrainedProxyModifier Chaos::FStrainedProxyIterator::operator*()

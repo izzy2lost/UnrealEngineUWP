@@ -92,8 +92,8 @@ public:
 
 	void				QueueUpdate( uint8 Layer, uint8 vLogSize, uint32 vAddress, uint8 vLevel, const FPhysicalTileLocation& pTileLocation);
 	void				AllocateTextures(FRDGBuilder& GraphBuilder);
-	void				FinalizeTextures(FRDGBuilder& GraphBuilder);
-	void				ApplyUpdates(FVirtualTextureSystem* System, FRDGBuilder& GraphBuilder);
+	void				FinalizeTextures(FRDGBuilder& GraphBuilder, FRDGExternalAccessQueue& ExternalAccessQueue);
+	void				ApplyUpdates(FVirtualTextureSystem* System, FRDGBuilder& GraphBuilder, FRDGExternalAccessQueue& ExternalAccessQueue);
 	void				QueueUpdateEntirePageTable();
 
 	void DumpToConsole(bool verbose);
@@ -120,6 +120,7 @@ private:
 
 	FTextureEntry PageTable[TextureCapacity];
 	TEnumAsByte<EPixelFormat> TexturePixelFormat[TextureCapacity];
+	FString PageTableDebugNames[TextureCapacity];
 
 	FTextureEntry PageTableIndirection;
 

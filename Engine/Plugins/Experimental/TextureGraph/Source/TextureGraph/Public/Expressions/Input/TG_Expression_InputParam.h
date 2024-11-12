@@ -15,8 +15,8 @@ class TEXTUREGRAPH_API UTG_Expression_InputParam : public UTG_Expression
 
 protected:
 	// these 2 methods need to be implemented to provide concrete signatures for derived InputParam expression classes
-	virtual FTG_SignaturePtr BuildInputParameterSignature() const { return nullptr; }
-	virtual FTG_SignaturePtr BuildInputConstantSignature() const { return nullptr; }
+	virtual FTG_SignaturePtr BuildInputParameterSignature() const;
+	virtual FTG_SignaturePtr BuildInputConstantSignature() const;
 public:
 
 #if WITH_EDITOR
@@ -33,8 +33,6 @@ public:
 
 
 #define TG_DECLARE_INPUT_PARAM_EXPRESSION(Category) \
-	protected: virtual FTG_SignaturePtr BuildInputParameterSignature() const override; \
-	protected: virtual FTG_SignaturePtr BuildInputConstantSignature() const override; \
 	public:	virtual FTG_SignaturePtr GetSignature() const override { if (bIsConstant) { \
 			static FTG_SignaturePtr ConstantSignature = BuildInputConstantSignature(); return ConstantSignature; \
 		} else { \

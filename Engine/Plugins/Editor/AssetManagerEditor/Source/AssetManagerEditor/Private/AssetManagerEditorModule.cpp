@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AssetManagerEditorModule.h"
+
+#include "Algo/Sort.h"
+#include "Algo/Unique.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "ContentBrowserDataLegacyBridge.h"
 #include "HAL/PlatformFile.h"
@@ -42,11 +45,15 @@
 #include "EdGraphSchema_K2.h"
 #include "AssetManagerEditorCommands.h"
 #include "AssetSourceControlContextMenu.h"
+#include "AssetToolsModule.h"
 #include "ReferenceViewer/SReferenceViewer.h"
 #include "ReferenceViewer/SReferenceNode.h"
+#include "ReferenceViewer/SReferencedPropertiesNode.h"
 #include "ReferenceViewer/EdGraphNode_Reference.h"
+#include "ReferenceViewer/EdGraphNode_ReferencedProperties.h"
 #include "SSizeMap.h"
 #include "Widgets/Notifications/SNotificationList.h"
+#include "Framework/Docking/TabManager.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "DesktopPlatformModule.h"
 #include "Misc/FileHelper.h"
@@ -59,14 +66,24 @@
 #include "ContentBrowserMenuContexts.h"
 #include "IContentBrowserDataModule.h"
 #include "ContentBrowserDataSubsystem.h"
-#include "Insights/Common/InsightsStyle.h"
-#include "Insights/Filter/ViewModels/Filters.h"
 #include "TreeView/AssetTable.h"
 #include "TreeView/SAssetTableTreeView.h"
 
 #define LOCTEXT_NAMESPACE "AssetManagerEditor"
 
 DEFINE_LOG_CATEGORY(LogAssetManagerEditor);
+
+namespace UE::AssetManagerEditor::Private
+{
+	bool bUseMultipleReferenceViewerTabs = true;
+	static FAutoConsoleVariableRef CVarUseMultipleReferenceViewerTabs(
+		TEXT("AssetManagerEditor.OpenReferenceViewerInNewTab"),
+		bUseMultipleReferenceViewerTabs,
+		TEXT("Whether to use multiple Reference Viewer Tabs (one per asset selection) or not.")
+	);
+
+	static FName ReferenceViewerLabel(TEXT("Reference Viewer"));
+}
 
 class FAssetManagerGraphPanelNodeFactory : public FGraphPanelNodeFactory
 {
@@ -75,6 +92,10 @@ class FAssetManagerGraphPanelNodeFactory : public FGraphPanelNodeFactory
 		if (UEdGraphNode_Reference* DependencyNode = Cast<UEdGraphNode_Reference>(Node))
 		{
 			return SNew(SReferenceNode, DependencyNode);
+		}
+		else if (UEdGraphNode_ReferencedProperties* PropertiesNode = Cast<UEdGraphNode_ReferencedProperties>(Node))
+		{
+			return SNew(SReferencedPropertiesNode, PropertiesNode);
 		}
 
 		return nullptr;
@@ -330,6 +351,12 @@ private:
 
 	static bool GetDependencyTypeArg(const FString& Arg, UE::AssetRegistry::EDependencyQuery& OutRequiredFlags);
 
+	/**
+	 * Tries to open a separate Reference Viewer for the specified Asset Identifiers.
+	 * If a Reference Viewer Tab is already showing the same Assets selection, it will be focused and no new Tab will be created
+	 */
+	void OpenReferenceViewerTab(const TArray<FAssetIdentifier>& InAssetIdentifiers, const FReferenceViewerParams& ReferenceViewerParams);
+
 	//Prints all dependency chains from assets in the search path to the target package.
 	void FindReferenceChains(FName TargetPackageName, FName RootSearchPath, UE::AssetRegistry::EDependencyQuery RequiredDependencyFlags);
 
@@ -344,7 +371,7 @@ private:
 	void GetPackageDependenciesPerClass(FName SourcePackage, const TArray<FTopLevelAssetPath>& TargetClasses, TArray<FName>& VisitedPackages, TArray<FName>& OutDependentPackages, UE::AssetRegistry::EDependencyQuery RequiredDependencyFlags);
 
 	void LogAssetsWithMultipleLabels();
-	bool CreateOrEmptyCollection(FName CollectionName, ECollectionShareType::Type ShareType);
+	bool CreateOrEmptyCollection(FName CollectionName, ECollectionShareType::Type ShareType, FText& OutError);
 	void WriteProfileFile(const FString& Extension, const FString& FileContents);
 	
 	FString GetSavedAssetRegistryPath(ITargetPlatform* TargetPlatform);
@@ -368,9 +395,17 @@ private:
 	FDelegateHandle ReferenceViewerDelegateHandle;
 	FDelegateHandle AssetEditorExtenderDelegateHandle;
 
+	/** Currently opened Reference Viewer Tabs, indexed by their Tab ID*/
+	TMap<FName, TWeakPtr<SDockTab>> ReferenceViewerTabs;
+
+	/** Associates hash created from assets selection to an existing Reference Viewer Tab ID */
+	TMap<uint32, FName> AssetsHashToTabID;
+
+	/** Used to generate unique Tab IDs */
+	uint32 GlobalTabCount = 0;
+
 	TWeakPtr<SDockTab> AssetAuditTab;
 	TWeakPtr<SDockTab> AssetDiskSizeTab;
-	TWeakPtr<SDockTab> ReferenceViewerTab;
 	TWeakPtr<SDockTab> SizeMapTab;
 	TWeakPtr<SAssetAuditBrowser> AssetAuditUI;
 	TWeakPtr<SAssetTableTreeView> AssetDiskSizeUI;
@@ -389,6 +424,17 @@ private:
 
 	FCanOpenReferenceViewerUI CanOpenReferenceViewerUIDelegate;
 
+	/**
+	 * When currently selected assets are changed for an already opened Reference Viewer Tab,
+	 * this function can be called to properly update Tab Hash and Label
+	 */
+	void UpdateReferenceViewerTabHashAndLabel(const TArray<FAssetIdentifier>& InPreviousSelection, const TArray<FAssetIdentifier>& InCurrentSelection);
+
+	/** Returns a unique Hash for the specified list of Asset Identifiers, and an optional Label to represent them */
+	static uint32 GetHashFromAssetsSelection(const TArray<FAssetIdentifier>& InAssetIdentifiers, FName* OutLabel = nullptr);
+
+	void OnReferenceViewerSelectionChanged(const TArray<FAssetIdentifier>& InPreviousSelection, const TArray<FAssetIdentifier>& InNewSelection);
+
 	void CreateAssetContextMenu(FToolMenuSection& InSection);
 	void OnExtendContentBrowserCommands(TSharedRef<FUICommandList> CommandList, FOnContentBrowserGetSelection GetSelectionDelegate);
 	void OnExtendLevelEditorCommands(TSharedRef<FUICommandList> CommandList);
@@ -401,6 +447,7 @@ private:
 	void OnReloadComplete(EReloadCompleteReason Reason);
 	void OnMarkPackageDirty(UPackage* Pkg, bool bWasDirty);
 	void OnEditAssetIdentifiers(TArray<FAssetIdentifier> AssetIdentifiers);
+	void OnReferenceViewerTabClosed(TSharedRef<SDockTab> InClosedTab);
 
 	TSharedRef<SDockTab> SpawnAssetAuditTab(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnAssetDiskSizeTab(const FSpawnTabArgs& Args);
@@ -437,9 +484,6 @@ void FAssetManagerEditorModule::StartupModule()
 
 	if (GIsEditor && !IsRunningCommandlet())
 	{
-		UE::Insights::FInsightsStyle::Initialize();
-		UE::Insights::FFilterService::Initialize();
-
 		AuditCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
 			TEXT("AssetManager.AssetAudit"),
 			TEXT("Dumps statistics about assets to the log."),
@@ -532,8 +576,9 @@ void FAssetManagerEditorModule::StartupModule()
 		FGlobalTabmanager::Get()->RegisterDefaultTabWindowSize(AssetDiskSize2TabName, FVector2D(1080, 600));
 
 		FGlobalTabmanager::Get()->RegisterNomadTabSpawner(ReferenceViewerTabName, FOnSpawnTab::CreateRaw(this, &FAssetManagerEditorModule::SpawnReferenceViewerTab))
-			.SetDisplayName(LOCTEXT("ReferenceViewerTitle", "Reference Viewer"))
-			.SetMenuType(ETabSpawnerMenuType::Hidden);
+			.SetDisplayName(FText::Format(LOCTEXT("ReferenceViewerTitle", "{0}"), FText::FromName(UE::AssetManagerEditor::Private::ReferenceViewerLabel)))
+			.SetMenuType(ETabSpawnerMenuType::Hidden)
+			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "ContentBrowser.ReferenceViewer"));
 
 		FGlobalTabmanager::Get()->RegisterNomadTabSpawner(SizeMapTabName, FOnSpawnTab::CreateRaw(this, &FAssetManagerEditorModule::SpawnSizeMapTab))
 			.SetDisplayName(LOCTEXT("SizeMapTitle", "Size Map"))
@@ -609,10 +654,26 @@ void FAssetManagerEditorModule::ShutdownModule()
 		{
 			AssetAuditTab.Pin()->RequestCloseTab();
 		}
-		if (ReferenceViewerTab.IsValid())
+
+		if (!ReferenceViewerTabs.IsEmpty())
 		{
-			ReferenceViewerTab.Pin()->RequestCloseTab();
+			for (const TPair<FName, TWeakPtr<SDockTab>>& Pair : ReferenceViewerTabs)
+			{
+				if (const TSharedPtr<SDockTab>& Tab = Pair.Value.Pin())
+				{
+					if (const TSharedPtr<SReferenceViewer>& ReferenceViewer = StaticCastSharedRef<SReferenceViewer>(Tab->GetContent()))
+					{
+						ReferenceViewer->OnReferenceViewerSelectionChanged().RemoveAll(this);
+					}
+
+					Tab->RequestCloseTab();
+				}
+			}
+
+			ReferenceViewerTabs.Empty();
+			AssetsHashToTabID.Empty();
 		}
+
 		if (SizeMapTab.IsValid())
 		{
 			SizeMapTab.Pin()->RequestCloseTab();
@@ -629,9 +690,6 @@ void FAssetManagerEditorModule::ShutdownModule()
 		// Cleanup tool menus
 		UToolMenus::UnRegisterStartupCallback(this);
 		UToolMenus::UnregisterOwner(this);
-
-		UE::Insights::FFilterService::Shutdown();
-		UE::Insights::FInsightsStyle::Shutdown();
 	}
 }
 
@@ -683,10 +741,18 @@ TSharedRef<SDockTab> FAssetManagerEditorModule::SpawnAssetDiskSizeTab(const FSpa
 
 TSharedRef<SDockTab> FAssetManagerEditorModule::SpawnReferenceViewerTab(const FSpawnTabArgs& Args)
 {
-	TSharedRef<SDockTab> NewTab = SAssignNew(ReferenceViewerTab, SDockTab)
-		.TabRole(ETabRole::NomadTab);
+	TSharedRef<SDockTab> NewTab = SNew(SDockTab)
+		.TabRole(NomadTab)
+		.OnTabClosed_Raw(this, &FAssetManagerEditorModule::OnReferenceViewerTabClosed)
+		[
+			SAssignNew(ReferenceViewerUI, SReferenceViewer)
+		];
 
-	NewTab->SetContent(SAssignNew(ReferenceViewerUI, SReferenceViewer));
+	if (!ReferenceViewerTabs.Contains(ReferenceViewerTabName))
+	{
+		// This is probably the Reference Viewer Tab created when restoring Editor Layout.
+		ReferenceViewerTabs.Emplace(ReferenceViewerTabName, NewTab);
+	}
 
 	return NewTab;
 }
@@ -736,8 +802,101 @@ IAssetManagerEditorModule::FCanOpenReferenceViewerUI& FAssetManagerEditorModule:
 	return CanOpenReferenceViewerUIDelegate;
 }
 
+void FAssetManagerEditorModule::OpenReferenceViewerTab(const TArray<FAssetIdentifier>& InAssetIdentifiers, const FReferenceViewerParams& ReferenceViewerParams)
+{
+	FName TabLabel;
+	uint32 SelectionHash = GetHashFromAssetsSelection(InAssetIdentifiers, &TabLabel);
+
+	FName TabID;
+
+	// Look for possibly existing Tab for the same assets
+	if (const FName* TabIDPtr = AssetsHashToTabID.Find(SelectionHash))
+	{
+		TabID = *TabIDPtr;
+
+		// Check if there's already a Reference Viewer Tab for this Assets selection
+		if (const TWeakPtr<SDockTab>* ExistingTabWeak = ReferenceViewerTabs.Find(TabID))
+		{
+			if (const TSharedPtr<SDockTab>& ExistingTab = ExistingTabWeak->Pin())
+			{
+				FGlobalTabmanager::Get()->DrawAttention(ExistingTab.ToSharedRef());
+				return;
+			}
+		}
+	}
+
+	TSharedPtr<SDockTab> ReferenceViewerDefaultTab;
+
+	// Look for the default reference viewer tab, in case an empty one already exists (e.g. from a previous Editor session)
+	if (const TWeakPtr<SDockTab>* ReferenceViewerDefaultTabWeak = ReferenceViewerTabs.Find(ReferenceViewerTabName))
+	{
+		ReferenceViewerDefaultTab = ReferenceViewerDefaultTabWeak->Pin();
+	}
+
+	// Look through Tab Manager as well
+	if (!ReferenceViewerDefaultTab.IsValid())
+	{
+		ReferenceViewerDefaultTab = FGlobalTabmanager::Get()->FindExistingLiveTab(ReferenceViewerTabName);
+	}
+
+	// FindExistingLiveTab fails when looking for tabs located e.g. in details panel area, etc.
+	// So, we make sure we are actually getting a reference to an empty Reference Viewer Tab.
+	// This means its label is still not set to an asset name
+	if (!ReferenceViewerDefaultTab.IsValid())
+	{
+		ReferenceViewerDefaultTab = FGlobalTabmanager::Get()->TryInvokeTab(ReferenceViewerTabName);
+	}
+
+	TSharedPtr<SDockTab> CurrentAssetTab;
+	if (ReferenceViewerDefaultTab && AssetsHashToTabID.IsEmpty())
+	{
+		TabID = ReferenceViewerTabName;
+		CurrentAssetTab = ReferenceViewerDefaultTab;
+		FGlobalTabmanager::Get()->DrawAttention(ReferenceViewerDefaultTab.ToSharedRef());
+	}
+
+	if (!CurrentAssetTab)
+	{
+		// There is no existing tab yet for this Asset, we need to create a new one.
+		CurrentAssetTab = SNew(SDockTab)
+			.TabRole(ETabRole::NomadTab);
+
+		// Generate Tab ID 
+		TabID = FName(ReferenceViewerTabName.ToString() + "_" + FString::FromInt(++GlobalTabCount));
+
+		// Try to place the newly created tab next to other Reference Viewer Tabs
+		FGlobalTabmanager::Get()->InsertNewDocumentTab(
+			ReferenceViewerTabName,
+			TabID,
+			FTabManager::FLastMajorOrNomadTab(ReferenceViewerTabName),
+			CurrentAssetTab.ToSharedRef());
+	}
+
+	if (CurrentAssetTab)
+	{
+		// Initialize Tab
+		CurrentAssetTab->SetContent(SAssignNew(ReferenceViewerUI, SReferenceViewer));
+		CurrentAssetTab->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateRaw(this, &FAssetManagerEditorModule::OnReferenceViewerTabClosed));
+		CurrentAssetTab->SetTabIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "ContentBrowser.ReferenceViewer").GetIcon());
+		CurrentAssetTab->SetLabel(FText::FromName(TabLabel));
+
+		ReferenceViewerTabs.Emplace(TabID, CurrentAssetTab);
+		AssetsHashToTabID.Emplace(SelectionHash, TabID);
+
+		const TSharedPtr<SReferenceViewer>& ReferenceViewer = StaticCastSharedRef<SReferenceViewer>(CurrentAssetTab->GetContent());
+		ReferenceViewer->SetGraphRootIdentifiers(InAssetIdentifiers, ReferenceViewerParams);
+
+		ReferenceViewer->OnReferenceViewerSelectionChanged().AddRaw(this, &FAssetManagerEditorModule::OnReferenceViewerSelectionChanged);
+	}
+}
+
 void FAssetManagerEditorModule::OpenReferenceViewerUI(const TArray<FAssetIdentifier> SelectedIdentifiers, const FReferenceViewerParams ReferenceViewerParams)
 {
+	// True : will create a dedicated Tab for each specified Asset Identifier. Prevents multiple tabs for the same Asset.
+	// False: legacy behavior, in which a single tab is available, and re-used.
+	bool bOpenInNewTab = true;
+	UE::AssetManagerEditor::Private::CVarUseMultipleReferenceViewerTabs->GetValue(bOpenInNewTab);
+
 	if (!SelectedIdentifiers.IsEmpty())
 	{
 		FText ErrorMessage;
@@ -753,10 +912,18 @@ void FAssetManagerEditorModule::OpenReferenceViewerUI(const TArray<FAssetIdentif
 				}
 			}
 		}
-		else if (TSharedPtr<SDockTab> NewTab = FGlobalTabmanager::Get()->TryInvokeTab(ReferenceViewerTabName))
+		else if (!bOpenInNewTab)
 		{
-			TSharedRef<SReferenceViewer> ReferenceViewer = StaticCastSharedRef<SReferenceViewer>(NewTab->GetContent());
-			ReferenceViewer->SetGraphRootIdentifiers(SelectedIdentifiers, ReferenceViewerParams);
+			if (const TSharedPtr<SDockTab>& InvokedTab = FGlobalTabmanager::Get()->TryInvokeTab(ReferenceViewerTabName))
+			{
+				TSharedPtr<SReferenceViewer> ReferenceViewer = StaticCastSharedRef<SReferenceViewer>(InvokedTab->GetContent());
+				ReferenceViewer->SetGraphRootIdentifiers(SelectedIdentifiers, ReferenceViewerParams);
+				InvokedTab->SetLabel(FText::FromName(UE::AssetManagerEditor::Private::ReferenceViewerLabel));
+			}
+		}
+		else
+		{
+			OpenReferenceViewerTab(SelectedIdentifiers, ReferenceViewerParams);
 		}
 	}
 }
@@ -869,7 +1036,6 @@ TArray<FName> FAssetManagerEditorModule::GetLevelEditorSelectedAssetPackages()
 
 TArray<FName> FAssetManagerEditorModule::GetContentBrowserSelectedAssetPackages(FOnContentBrowserGetSelection GetSelectionDelegate)
 {
-	TArray<FName> OutAssetPackages;
 	TArray<FAssetData> SelectedAssets;
 	TArray<FString> SelectedPaths;
 
@@ -890,13 +1056,125 @@ TArray<FName> FAssetManagerEditorModule::GetContentBrowserSelectedAssetPackages(
 
 	GetAssetDataInPaths(SelectedPaths, SelectedAssets);
 
-	TArray<FName> PackageNames;
+	TSet<FName> PackageNames;
+	PackageNames.Reserve(SelectedAssets.Num());
 	for (const FAssetData& AssetData : SelectedAssets)
 	{
-		OutAssetPackages.AddUnique(AssetData.PackageName);
+		PackageNames.Add(AssetData.PackageName);
 	}
 
-	return OutAssetPackages;
+	return PackageNames.Array();
+}
+
+void FAssetManagerEditorModule::UpdateReferenceViewerTabHashAndLabel(const TArray<FAssetIdentifier>& InPreviousSelection, const TArray<FAssetIdentifier>& InCurrentSelection)
+{
+	uint32 HashToChange = GetHashFromAssetsSelection(InPreviousSelection);
+
+	FName TabLabel;
+	uint32 NewHash = GetHashFromAssetsSelection(InCurrentSelection, &TabLabel);
+
+	if (!AssetsHashToTabID.Contains(HashToChange))
+	{
+		return;
+	}
+
+	FName TabId;
+	AssetsHashToTabID.RemoveAndCopyValue(HashToChange, TabId);
+	AssetsHashToTabID.Emplace(NewHash, TabId);
+
+	if (const TWeakPtr<SDockTab>* TabWeak = ReferenceViewerTabs.Find(TabId))
+	{
+		if (const TSharedPtr<SDockTab> Tab = TabWeak->Pin())
+		{
+			Tab->SetLabel(FText::FromName(TabLabel));
+		}
+	}
+
+	return;
+}
+
+uint32 FAssetManagerEditorModule::GetHashFromAssetsSelection(const TArray<FAssetIdentifier>& InAssetIdentifiers, FName* OutLabel)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FAssetManagerEditorModule::GetHashFromAssetsSelection);
+
+	uint32 SelectionHash = 0;
+	FString TabLabel;
+
+	if (InAssetIdentifiers.Num() > 0)
+	{
+		TArray<FName> PackageNames;
+		for (const FAssetIdentifier& AssetIdentifier : InAssetIdentifiers)
+		{
+			PackageNames.Add(AssetIdentifier.PackageName);
+		}
+
+		TMap<FName, FAssetData> PackageToAssetDataMap;
+		UE::AssetRegistry::GetAssetForPackages(PackageNames, PackageToAssetDataMap);
+
+		if (!PackageToAssetDataMap.IsEmpty())
+		{
+			TabLabel = PackageToAssetDataMap[PackageNames[0]].AssetName.ToString();
+		}
+
+		bool bNoAsset = false;
+		// C++ classes will lead to no asset, so we retrieve their package instead
+		// (TODO: this needs to be addressed in order to properly show reference viewer graph for C++ Assets)
+
+		if (!PackageToAssetDataMap.Contains(PackageNames[0]))
+		{
+			bNoAsset = true;
+			if (TabLabel.IsEmpty())
+			{
+				TabLabel = PackageNames[0].ToString();
+
+				if (!InAssetIdentifiers[0].ValueName.IsNone())
+				{
+					TabLabel += TEXT(":") + InAssetIdentifiers[0].ValueName.ToString();
+				}
+			}
+		}
+
+		// Label for multiple assets matches Path field at the top of Reference Viewer graph
+		if (InAssetIdentifiers.Num() > 1)
+		{
+			TabLabel += TEXT(" and ") + FString::FromInt(InAssetIdentifiers.Num() - 1) + TEXT(" others");
+		}
+
+		// Create a hash from the concatenation of package names from all the selected assets. This hash is used to match a selection with a Tab ID
+		// This allows to ignore selection order when comparing selections while looking for an existing Reference Viewer for the current selection
+		// We sort package names, so that selection order is not be taken into account
+
+		PackageNames.Sort([](const FName& NameA, const FName& NameB)
+		{ 
+			return NameA.FastLess(NameB);
+		});
+
+		for (const FName PackageName : PackageNames)
+		{
+			// In case there is no asset, we might get the same Hash for potentially different graphs (e.g. GameplayTags),
+			// so let's use the tab label, which in that specific case should include both package name and value
+			if (bNoAsset)
+			{
+				SelectionHash ^= GetTypeHash(TabLabel);
+			}
+			else
+			{
+				SelectionHash ^= GetTypeHash(PackageName);
+			}
+		}
+	}
+
+	if (OutLabel)
+	{
+		*OutLabel = FName(TabLabel);
+	}
+
+	return SelectionHash;
+}
+
+void FAssetManagerEditorModule::OnReferenceViewerSelectionChanged(const TArray<FAssetIdentifier>& InPreviousSelection, const TArray<FAssetIdentifier>& InNewSelection)
+{
+	UpdateReferenceViewerTabHashAndLabel(InPreviousSelection, InNewSelection);
 }
 
 void FAssetManagerEditorModule::CreateAssetContextMenu(FToolMenuSection& InSection)
@@ -1158,13 +1436,14 @@ void FAssetManagerEditorModule::OnEditAssetIdentifiers(TArray<FAssetIdentifier> 
 	TArray<FAssetData> AssetsToLoad;
 	for (FAssetIdentifier AssetIdentifier : AssetIdentifiers)
 	{
+		TArray<FAssetData> AssetDataArray;
 		if (AssetIdentifier.IsPackage())
 		{
 			// Directly a package to load
-			AssetRegistry->GetAssetsByPackageName(AssetIdentifier.PackageName, AssetsToLoad);
+			AssetRegistry->GetAssetsByPackageName(AssetIdentifier.PackageName, AssetDataArray);
 		}
 		else
-		{	
+		{
 			// If it's a primary asset ID, resolve it to a package to load
 			FPrimaryAssetId AssetId = AssetIdentifier.GetPrimaryAssetId();
 			if (AssetId.IsValid())
@@ -1174,7 +1453,29 @@ void FAssetManagerEditorModule::OnEditAssetIdentifiers(TArray<FAssetIdentifier> 
 				FAssetData AssetData;
 				if (AssetManager.GetAssetDataForPath(AssetPath, /*out*/ AssetData))
 				{
-					AssetsToLoad.Add(AssetData);
+					AssetDataArray.Add(AssetData);
+				}
+			}
+		}
+
+		FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+
+		for (const FAssetData& AssetData : AssetDataArray)
+		{
+			TWeakPtr<IAssetTypeActions> AssetTypeActionsWeak = AssetToolsModule.Get().GetAssetTypeActionsForClass(AssetData.GetClass());
+
+			if (AssetTypeActionsWeak.IsValid())
+			{
+				TArray<FAssetData> AssetArray = {AssetData};
+				constexpr bool bIsPreview = false;
+
+				// Check the selected assets, and filter out the ones we cannot Edit.
+				// This might also create a "Save Content" window, e.g. if Editing implies loading a different Level and the current one is dirty 
+				AssetArray = AssetTypeActionsWeak.Pin()->GetValidAssetsForPreviewOrEdit(AssetArray, bIsPreview);
+
+				if (!AssetArray.IsEmpty())
+				{
+					AssetsToLoad.Append(AssetArray);
 				}
 			}
 		}
@@ -1196,6 +1497,29 @@ void FAssetManagerEditorModule::OnEditAssetIdentifiers(TArray<FAssetIdentifier> 
 			}
 		}
 	}
+}
+
+void FAssetManagerEditorModule::OnReferenceViewerTabClosed(TSharedRef<SDockTab> InClosedTab)
+{
+	FName TabID = FName(InClosedTab->GetLayoutIdentifier().ToString());
+
+	uint32 PairToRemove = INDEX_NONE;
+	for (const TPair<uint32, FName>& Pair : AssetsHashToTabID)
+	{
+		if (Pair.Value == TabID)
+		{
+			PairToRemove = Pair.Key;
+			break;
+		}
+	}
+
+	if (const TSharedPtr<SReferenceViewer>& ReferenceViewer = StaticCastSharedRef<SReferenceViewer>(InClosedTab->GetContent()))
+	{
+		ReferenceViewer->OnReferenceViewerSelectionChanged().RemoveAll(this);
+	}
+
+	AssetsHashToTabID.Remove(PairToRemove);
+	ReferenceViewerTabs.Remove(FName(InClosedTab->GetLayoutIdentifier().ToString()));
 }
 
 bool FAssetManagerEditorModule::GetManagedPackageListForAssetData(const FAssetData& AssetData, TSet<FName>& ManagedPackageSet)
@@ -1346,7 +1670,7 @@ bool FAssetManagerEditorModule::GetStringValueForCustomColumn(const FAssetData& 
 	}
 	else if (ColumnName == PluginName)
 	{
-		OutValue = FPackageName::SplitPackageNameRoot(AssetData.PackageName.ToString(), nullptr);
+		OutValue = FPackageName::SplitPackageNameRoot(AssetData.PackageName, nullptr);
 		return OutValue.Len() > 0;
 	}
 	else
@@ -2439,15 +2763,15 @@ void FAssetManagerEditorModule::DumpAssetDependencies(const TArray<FString>& Arg
 	Manager.WriteCustomReport(FString::Printf(TEXT("PrimaryAssetReferences%s.gv"), *FDateTime::Now().ToString()), ReportLines);
 }
 
-bool FAssetManagerEditorModule::CreateOrEmptyCollection(FName CollectionName, ECollectionShareType::Type ShareType)
+bool FAssetManagerEditorModule::CreateOrEmptyCollection(FName CollectionName, ECollectionShareType::Type ShareType, FText& OutError)
 {
 	ICollectionManager& CollectionManager = FCollectionManagerModule::GetModule().Get();
 
 	if (CollectionManager.CollectionExists(CollectionName, ShareType))
 	{
-		return CollectionManager.EmptyCollection(CollectionName, ShareType);
+		return CollectionManager.EmptyCollection(CollectionName, ShareType, &OutError);
 	}
-	else if (CollectionManager.CreateCollection(CollectionName, ShareType, ECollectionStorageMode::Static))
+	else if (CollectionManager.CreateCollection(CollectionName, ShareType, ECollectionStorageMode::Static, &OutError))
 	{
 		return true;
 	}
@@ -2473,16 +2797,16 @@ bool FAssetManagerEditorModule::WriteCollection(FName CollectionName, ECollectio
 		ObjectPathsToAddToCollection.Add(AssetData.GetSoftObjectPath());
 	}
 
+	FText Error;
 	if (ObjectPathsToAddToCollection.Num() == 0)
 	{
 		UE_LOG(LogAssetManagerEditor, Log, TEXT("Nothing to add to collection %s"), *CollectionName.ToString());
 		ResultsMessage = FText::Format(LOCTEXT("NothingToAddToCollection", "Nothing to add to collection {0}"), FText::FromName(CollectionName));
 	}
-	else if (CreateOrEmptyCollection(CollectionName, ShareType))
-	{	
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		if (CollectionManager.AddToCollection(CollectionName, ECollectionShareType::CST_Local, UE::SoftObjectPath::Private::ConvertSoftObjectPaths(ObjectPathsToAddToCollection.Array())))
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	else if (CreateOrEmptyCollection(CollectionName, ShareType, Error))
+	{
+		if (CollectionManager.AddToCollection(
+				CollectionName, ECollectionShareType::CST_Local, ObjectPathsToAddToCollection.Array(), nullptr, &Error))
 		{
 			UE_LOG(LogAssetManagerEditor, Log, TEXT("Updated collection %s"), *CollectionName.ToString());
 			ResultsMessage = FText::Format(LOCTEXT("CreateCollectionSucceeded", "Updated collection {0}"), FText::FromName(CollectionName));
@@ -2490,14 +2814,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		else
 		{
-			UE_LOG(LogAssetManagerEditor, Warning, TEXT("Failed to update collection %s. %s"), *CollectionName.ToString(), *CollectionManager.GetLastError().ToString());
-			ResultsMessage = FText::Format(LOCTEXT("AddToCollectionFailed", "Failed to add to collection {0}. {1}"), FText::FromName(CollectionName), CollectionManager.GetLastError());
+			UE_LOG(LogAssetManagerEditor, Warning, TEXT("Failed to update collection %s. %s"), *CollectionName.ToString(), *Error.ToString());
+			ResultsMessage = FText::Format(LOCTEXT("AddToCollectionFailed", "Failed to add to collection {0}. {1}"), FText::FromName(CollectionName), Error);
 		}
 	}
 	else
 	{
-		UE_LOG(LogAssetManagerEditor, Warning, TEXT("Failed to create collection %s. %s"), *CollectionName.ToString(), *CollectionManager.GetLastError().ToString());
-		ResultsMessage = FText::Format(LOCTEXT("CreateCollectionFailed", "Failed to create collection {0}. {1}"), FText::FromName(CollectionName), CollectionManager.GetLastError());
+		UE_LOG(LogAssetManagerEditor, Warning, TEXT("Failed to create collection %s. %s"), *CollectionName.ToString(), *Error.ToString());
+		ResultsMessage = FText::Format(LOCTEXT("CreateCollectionFailed", "Failed to create collection {0}. {1}"), FText::FromName(CollectionName), Error);
 	}
 
 	if (bShowFeedback)

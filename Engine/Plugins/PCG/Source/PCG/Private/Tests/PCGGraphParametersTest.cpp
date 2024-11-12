@@ -5,8 +5,8 @@
 #include "Tests/PCGTestsCommon.h"
 
 #include "PCGGraph.h"
-#include "PropertyBag.h"
-#include "StructView.h"
+#include "StructUtils/PropertyBag.h"
+#include "StructUtils/StructView.h"
 
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphNoUserParameters, FPCGTestBaseClass, "Plugins.PCG.Graph.NoUserParameters", PCGTestsCommon::TestFlags)
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphAddSingleUserParameters, FPCGTestBaseClass, "Plugins.PCG.Graph.AddSingleUserParameter", PCGTestsCommon::TestFlags)
@@ -436,29 +436,16 @@ bool FPCGGraphSetValueUserParametersPropagates::RunTest(const FString& Parameter
 	const FName MyPropertyName = TEXT("MyProperty");
 	const FName MyPropertyName2 = TEXT("MyProperty2");
 
-	// Creating a new property MyProperty, which is a double
-	PCGTests::EmulateModifyingUserParameters(Graph, [Graph, MyPropertyName]()
-	{
-		FInstancedPropertyBag* UserParameters = const_cast<FInstancedPropertyBag*>(Graph->GetUserParametersStruct());
-		UserParameters->AddProperty(MyPropertyName, EPropertyBagPropertyType::Double, nullptr);
-	});
-
-	// Creating another property MyProperty2, which is a double
-	PCGTests::EmulateModifyingUserParameters(Graph, [Graph, MyPropertyName2]()
-	{
-		FInstancedPropertyBag* UserParameters = const_cast<FInstancedPropertyBag*>(Graph->GetUserParametersStruct());
-		UserParameters->AddProperty(MyPropertyName2, EPropertyBagPropertyType::Int64, nullptr);
-	});
+	// Creating new properties MyProperty, which is a double and MyProperty2, which is a int64
+	Graph->UpdateUserParametersStruct([MyPropertyName, MyPropertyName2](FInstancedPropertyBag& UserParameters)
+		{
+			UserParameters.AddProperty(MyPropertyName, EPropertyBagPropertyType::Double, nullptr);
+			UserParameters.AddProperty(MyPropertyName2, EPropertyBagPropertyType::Int64, nullptr);
+		});
 
 	// Setting MyProperty to 3.0
 	const double NewValue = 3.0;
-	PCGTests::EmulateModifyingUserParametersValue(Graph, MyPropertyName, [Graph, MyPropertyName, NewValue]()
-	{
-		const FPropertyBagPropertyDesc* PropertyDesc = Graph->GetUserParametersStruct()->FindPropertyDescByName(MyPropertyName);
-		FInstancedPropertyBag* UserParameters = const_cast<FInstancedPropertyBag*>(Graph->GetUserParametersStruct());
-
-		PropertyDesc->CachedProperty->SetValue_InContainer(UserParameters->GetMutableValue().GetMemory(), &NewValue);
-	});
+	Graph->SetGraphParameter<float>(MyPropertyName, NewValue);
 
 	auto Verification = [this, MyPropertyName, NewValue](UPCGGraphInstance* GraphInstance, const TCHAR* Name) -> bool
 	{
@@ -467,13 +454,10 @@ bool FPCGGraphSetValueUserParametersPropagates::RunTest(const FString& Parameter
 		UTEST_TRUE(PCG_FMT("%s UserParameters property bag is valid", Name), GraphInstance->GetUserParametersStruct()->IsValid());
 		UTEST_EQUAL(PCG_FMT("%s UserParameters has 2 properties", Name), GraphInstance->GetUserParametersStruct()->GetNumPropertiesInBag(), 2);
 
-		const FPropertyBagPropertyDesc* PropertyDesc = GraphInstance->GetUserParametersStruct()->FindPropertyDescByName(MyPropertyName);
-		UTEST_NOT_NULL(PCG_FMT("%s: First property exists", Name), PropertyDesc);
-
-		double Value = 0.0;
-		PropertyDesc->CachedProperty->GetValue_InContainer(GraphInstance->GetUserParametersStruct()->GetValue().GetMemory(), &Value);
-
-		UTEST_EQUAL(PCG_FMT("%s: Property has the right value", Name), Value, NewValue);
+		TValueOrError<double, EPropertyBagResult> FirstPropertyValue = GraphInstance->GetGraphParameter<double>(MyPropertyName);
+		
+		UTEST_FALSE(PCG_FMT("%s: First property exists and is the expected type", Name), FirstPropertyValue.HasError());
+		UTEST_EQUAL(PCG_FMT("%s: Property has the right value", Name), FirstPropertyValue.GetValue(), NewValue);
 
 		return true;
 	};

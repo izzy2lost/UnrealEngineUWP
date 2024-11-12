@@ -36,10 +36,18 @@ void UEdGraphNode_PluginReference::SetupPluginReferenceNode(const FIntPoint& InN
 	AssetBrush = FSlateIcon(FName("PluginStyle"), "Plugins.TabIcon");
 
 	PluginIdentifier = InPluginIdentifier;
-	NodeTitle = FText::FromString(InPlugin->GetName());
+
+	if (InPlugin.IsValid())
+	{
+		NodeTitle = FText::FromString(InPlugin->GetName());
+		bIsEnginePlugin = (InPlugin->GetType() == EPluginType::Engine) ? true : false;
+	}
+	else
+	{
+		NodeTitle = FText::Format(LOCTEXT("Title_PluginNotFound", "{0} **Plugin Not Found**"), FText::FromName(InPluginIdentifier.Name));
+	}
 
 	bAllowThumbnail = bInAllowThumbnail;
-	bIsEnginePlugin = (InPlugin->GetType() == EPluginType::Engine) ? true : false;
 	bIsADuplicate = bInIsADuplicate;
 
 	CachedPlugin = InPlugin;
@@ -99,22 +107,35 @@ FText UEdGraphNode_PluginReference::GetNodeTitle(ENodeTitleType::Type TitleType)
 
 FLinearColor UEdGraphNode_PluginReference::GetNodeTitleColor() const
 {
-	if (bIsEnginePlugin)
+	if (CachedPlugin.IsValid())
 	{
-		return FLinearColor(0.55f, 0.55f, 0.55f);
+		if (bIsEnginePlugin)
+		{
+			return FLinearColor(0.55f, 0.55f, 0.55f);
+		}
+		else
+		{
+			return FLinearColor(0.0f, 0.42f, 1.0f);
+		}
 	}
 	else
 	{
-		return FLinearColor(0.0f, 0.42f, 1.0f);
+		return FLinearColor(0.55f, 0.55f, 0.55f);
 	}
 }
 
 FText UEdGraphNode_PluginReference::GetTooltipText() const
 {
-	FString TooltipText = CachedPlugin->GetBaseDir();
-	FPaths::MakePathRelativeTo(TooltipText, *FPaths::RootDir());
-	
-	return FText::FromString(TooltipText);
+	if (CachedPlugin.IsValid())
+	{
+		FString TooltipText = CachedPlugin->GetBaseDir();
+		FPaths::MakePathRelativeTo(TooltipText, *FPaths::RootDir());
+		return FText::FromString(TooltipText);
+	}
+	else
+	{
+		return LOCTEXT("Tooltip_PluginNotFound", "Plugin not found!");
+	}
 }
 
 UEdGraphPin* UEdGraphNode_PluginReference::GetDependencyPin()

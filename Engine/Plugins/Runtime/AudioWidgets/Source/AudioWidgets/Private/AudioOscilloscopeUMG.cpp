@@ -31,16 +31,13 @@ UAudioOscilloscope::UAudioOscilloscope(const FObjectInitializer& ObjectInitializ
 
 void UAudioOscilloscope::CreateDummyOscilloscopeWidget()
 {
-	OscilloscopePanelWidget = SNew(SAudioOscilloscopePanelWidget, DummyDataView, 1)
+	OscilloscopePanelWidget = SNew(SAudioOscilloscopePanelWidget, DummyDataView, DummyNumChannels)
 	.PanelLayoutType(PanelLayoutType)
 	.PanelStyle(&OscilloscopeStyle);
 }
 
 void UAudioOscilloscope::CreateDataProvider()
 {
-	constexpr uint32 NumChannelsToProvide = 1;
-	constexpr float  MaxTimeWindowMs      = 5000.0f; // TODO alex.perez: should we expose this as a UPROPERTY?
-
 	UWorld* World = GetWorld();
 	if (!World)
 	{
@@ -52,6 +49,8 @@ void UAudioOscilloscope::CreateDataProvider()
 	{
 		return;
 	}
+
+	const uint32 NumChannelsToProvide = (PanelLayoutType == EAudioPanelLayoutType::Advanced) ? 1 : AudioBus->GetNumChannels(); // Advanced mode waveform display is based on channel selection
 
 	AudioSamplesDataProvider = MakeShared<AudioWidgets::FWaveformAudioSamplesDataProvider>(AudioDevice.GetDeviceID(), AudioBus, NumChannelsToProvide, TimeWindowMs, MaxTimeWindowMs, AnalysisPeriodMs);
 }
@@ -83,12 +82,18 @@ void UAudioOscilloscope::CreateOscilloscopeWidget()
 
 TSharedRef<SWidget> UAudioOscilloscope::RebuildWidget()
 {
+	TimeWindowMs = FMath::Clamp(TimeWindowMs, 10.0f, MaxTimeWindowMs);
+
 	if (!AudioBus)
 	{
+		NumChannels = DummyNumChannels;
+
 		CreateDummyOscilloscopeWidget();
 	}
 	else
 	{
+		NumChannels = AudioBus->GetNumChannels();
+
 		CreateDataProvider();
 		CreateOscilloscopeWidget();
 	}
@@ -100,8 +105,12 @@ void UAudioOscilloscope::SynchronizeProperties()
 {
 	Super::SynchronizeProperties();
 
+	TimeWindowMs = FMath::Clamp(TimeWindowMs, 10.0f, MaxTimeWindowMs);
+
 	if (!AudioBus)
 	{
+		NumChannels = DummyNumChannels;
+
 		if (AudioSamplesDataProvider.IsValid())
 		{
 			AudioSamplesDataProvider.Reset();
@@ -110,17 +119,45 @@ void UAudioOscilloscope::SynchronizeProperties()
 	}
 	else
 	{
-		if (!AudioSamplesDataProvider.IsValid() || AudioBus != AudioSamplesDataProvider->GetAudioBus())
+		if (!AudioSamplesDataProvider.IsValid() || AudioBus != AudioSamplesDataProvider->GetAudioBus() || AudioBus->GetNumChannels() != NumChannels)
 		{
+			NumChannels = AudioBus->GetNumChannels();
+
 			CreateDataProvider();
 			CreateOscilloscopeWidget();
 		}
 	}
 
+	if (PanelLayoutType == EAudioPanelLayoutType::Advanced)
+	{
+		ChannelToAnalyze = FMath::Clamp(ChannelToAnalyze, 1, NumChannels);
+	}
+
 	if (AudioSamplesDataProvider.IsValid())
 	{
+		if (MaxTimeWindowMs != AudioSamplesDataProvider->GetMaxTimeWindowMs())
+		{
+			AudioSamplesDataProvider->SetMaxTimeWindowMs(MaxTimeWindowMs);
+		}
+
+		if (PanelLayoutType == EAudioPanelLayoutType::Advanced)
+		{
+			AudioSamplesDataProvider->SetChannelToAnalyze(ChannelToAnalyze);
+		}
+
+		if (CanTriggeringBeSet())
+		{
+			AudioSamplesDataProvider->SetTriggerMode(TriggerMode);
+			AudioSamplesDataProvider->SetTriggerThreshold(TriggerThreshold);
+		}
+		else
+		{
+			AudioSamplesDataProvider->SetTriggerMode(EAudioOscilloscopeTriggerMode::None);
+		}
+
 		AudioSamplesDataProvider->SetTimeWindow(TimeWindowMs);
 		AudioSamplesDataProvider->SetAnalysisPeriod(AnalysisPeriodMs);
+
 		AudioSamplesDataProvider->RequestSequenceView(TRange<double>::Inclusive(0, 1));
 	}
 
@@ -148,8 +185,25 @@ void UAudioOscilloscope::SynchronizeProperties()
 		OscilloscopePanelWidget->SetYAxisLabelsVisibility(bShowAmplitudeLabels);
 		OscilloscopePanelWidget->SetValueGridOverlayDisplayUnit(AmplitudeGridLabelsUnit);
 
-		OscilloscopePanelWidget->SetTriggerThreshold(TriggerThreshold);
-		OscilloscopePanelWidget->SetTriggerThresholdVisibility(bShowTriggerThresholdLine);
+		OscilloscopePanelWidget->SetMaxTimeWindowMs(MaxTimeWindowMs);
+
+		if (PanelLayoutType == EAudioPanelLayoutType::Advanced)
+		{
+			OscilloscopePanelWidget->SetChannelToAnalyze(ChannelToAnalyze);
+		}
+
+		if (CanTriggeringBeSet())
+		{
+			OscilloscopePanelWidget->SetTriggerMode(TriggerMode);
+			OscilloscopePanelWidget->SetTriggerThreshold(TriggerThreshold);
+		}
+		else
+		{
+			OscilloscopePanelWidget->SetTriggerMode(EAudioOscilloscopeTriggerMode::None);
+		}
+
+		OscilloscopePanelWidget->SetTimeWindow(TimeWindowMs);
+		OscilloscopePanelWidget->SetAnalysisPeriod(AnalysisPeriodMs);
 	}
 }
 
@@ -166,6 +220,11 @@ const FText UAudioOscilloscope::GetPaletteCategory()
 	return LOCTEXT("Audio", "Audio");
 }
 #endif
+
+bool UAudioOscilloscope::CanTriggeringBeSet()
+{
+	return PanelLayoutType == EAudioPanelLayoutType::Advanced || (PanelLayoutType == EAudioPanelLayoutType::Basic && NumChannels == 1);
+}
 
 void UAudioOscilloscope::StartProcessing()
 {

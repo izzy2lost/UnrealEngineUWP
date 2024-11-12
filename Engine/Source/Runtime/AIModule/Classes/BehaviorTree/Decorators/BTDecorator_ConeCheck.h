@@ -7,6 +7,7 @@
 #include "InputCoreTypes.h"
 #include "BehaviorTree/BehaviorTreeTypes.h"
 #include "BehaviorTree/BTDecorator.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTDecorator_ConeCheck.generated.h"
 
 class UBehaviorTree;
@@ -30,7 +31,7 @@ class UBTDecorator_ConeCheck : public UBTDecorator
 
 	/** Angle between cone direction and code cone edge, or a half of the total cone angle */
 	UPROPERTY(Category=Decorator, EditAnywhere)
-	float ConeHalfAngle;
+	FValueOrBBKey_Float ConeHalfAngle;
 	
 	/** blackboard key selector */
 	UPROPERTY(EditAnywhere, Category=Blackboard)
@@ -43,8 +44,6 @@ class UBTDecorator_ConeCheck : public UBTDecorator
 	/** blackboard key selector */
 	UPROPERTY(EditAnywhere, Category=Blackboard)
 	FBlackboardKeySelector Observed;
-	
-	float ConeHalfAngleDot;
 
 	AIMODULE_API virtual void InitializeFromAsset(UBehaviorTree& Asset) override;
 	AIMODULE_API virtual uint16 GetInstanceMemorySize() const override;
@@ -58,7 +57,7 @@ class UBTDecorator_ConeCheck : public UBTDecorator
 #endif // WITH_EDITOR
 
 protected:
-
+	float GetConeHalfAngleDot(const UBehaviorTreeComponent& OwnerComp) const;
 	AIMODULE_API virtual bool CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const override;
 	AIMODULE_API virtual void OnBecomeRelevant(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 	AIMODULE_API void OnBlackboardChange(const UBlackboardComponent& Blackboard, FBlackboard::FKey ChangedKeyID);

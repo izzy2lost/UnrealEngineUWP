@@ -5,13 +5,13 @@
 #include "Components/PrimitiveComponent.h"
 #include "Containers/Set.h"
 #include "Modifiers/ActorModifierCoreSharedObject.h"
-#include "Modifiers/AvaTranslucentPriorityModifier.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
 #include "AvaTranslucentPriorityModifierShared.generated.h"
 
 class AActor;
 class ACameraActor;
+class UAvaTranslucentPriorityModifier;
 
 USTRUCT()
 struct FAvaTranslucentPriorityModifierComponentState
@@ -61,7 +61,7 @@ struct FAvaTranslucentPriorityModifierComponentState
 /**
  * Singleton class for translucent priority modifiers to share data about component state
  */
-UCLASS()
+UCLASS(Hidden)
 class UAvaTranslucentPriorityModifierShared : public UActorModifierCoreSharedObject
 {
 	GENERATED_BODY()
@@ -89,7 +89,7 @@ public:
 	UAvaTranslucentPriorityModifier* FindModifierContext(UPrimitiveComponent* InComponent) const;
 
 	/** Get sorted components state based on modifier context */
-	TArray<const FAvaTranslucentPriorityModifierComponentState*> GetSortedComponentStates(UAvaTranslucentPriorityModifier* InModifierContext) const;
+	TArray<FAvaTranslucentPriorityModifierComponentState> GetSortedComponentStates(UAvaTranslucentPriorityModifier* InModifierContext) const;
 
 	void SetSortPriorityOffset(int32 InOffset);
 

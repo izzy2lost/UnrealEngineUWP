@@ -27,9 +27,8 @@ public:
 	void SetCameraMode(ERewindDebuggerCameraMode Mode);
 	
 private:
-
 	
-	bool LastPositionValid;
+	bool bLastPositionValid;
 	FVector LastPosition;
 	
 	TWeakObjectPtr<ACameraActor> CameraActor; 

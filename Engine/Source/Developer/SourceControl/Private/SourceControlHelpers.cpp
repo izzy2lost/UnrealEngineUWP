@@ -18,6 +18,7 @@
 #include "Misc/PackageName.h"
 #include "Logging/MessageLog.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "Internationalization/PackageLocalizationUtil.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SourceControlHelpers)
 
@@ -599,9 +600,9 @@ bool USourceControlHelpers::CheckOutOrAddFiles(const TArray<FString>& InFiles, b
 
 		// Less error checking and info is made for multiple files than the single file version.
 		// This multi-file version could be made similarly more sophisticated.
-		if (!SCState->IsCheckedOut())
+		if (!SCState->IsCheckedOut() && !SCState->IsAdded())
 		{
-			if (!SCState->IsAdded())
+			if (!SCState->IsSourceControlled())
 			{
 				if (SCState->CanAdd())
 				{
@@ -978,13 +979,15 @@ bool USourceControlHelpers::ApplyOperationAndReloadPackages(const TArray<FString
 			{
 				if (Asset->IsPackageExternal())
 				{
-					if (bReloadWorld)
+					const bool bIsAssetPartOfWorld = Asset->GetWorld() && Asset->GetWorld()->GetPackage();
+					// In case this is an explicit world object/actor reload or just an external object unload/detach it 
+					if (bReloadWorld || !bIsAssetPartOfWorld)
 					{
 						// detach linker on the object
 						DetachLinker(Package);
 
-						// but track its world for reloading - not the object package itself
-						if (Asset->GetWorld() && Asset->GetWorld()->GetPackage())
+						// track its world for reloading - not the object package itself
+						if (bIsAssetPartOfWorld)
 						{
 							UniqueLoadedPackages.Add(Asset->GetWorld()->GetPackage());
 						}
@@ -1202,27 +1205,8 @@ TArray<FString> USourceControlHelpers::GetSourceControlLocations(const bool bCon
 {
 	TArray<FString> SourceControlLocations;
 
-	if (ISourceControlModule::Get().UsesCustomProjectDir())
-	{
-		FString ProjectDir = ISourceControlModule::Get().GetSourceControlProjectDir();
-
-		TArray<FString> RootPaths;
-		FPackageName::QueryRootContentPaths(RootPaths);
-		for (const FString& RootPath : RootPaths)
-		{
-			const FString RootPathOnDisk = FPackageName::LongPackageNameToFilename(RootPath);
-			if (FPaths::IsUnderDirectory(RootPathOnDisk, ProjectDir))
-			{
-				SourceControlLocations.Add(FPaths::ConvertRelativePathToFull(RootPathOnDisk));
-			}
-		}
-
-		if (!bContentOnly)
-		{
-			SourceControlLocations.Add(ProjectDir);
-		}
-	}
-	else
+	TArray<FSourceControlProjectInfo> CustomProjects = ISourceControlModule::Get().GetCustomProjects();
+	if (CustomProjects.IsEmpty())
 	{
 		TArray<FString> RootPaths;
 		FPackageName::QueryRootContentPaths(RootPaths);
@@ -1231,15 +1215,27 @@ TArray<FString> USourceControlHelpers::GetSourceControlLocations(const bool bCon
 			const FString RootPathOnDisk = FPackageName::LongPackageNameToFilename(RootPath);
 			SourceControlLocations.Add(FPaths::ConvertRelativePathToFull(RootPathOnDisk));
 		}
-		
+
 		if (!bContentOnly)
 		{
 			SourceControlLocations.Add(FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir()));
 			SourceControlLocations.Add(FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()));
 		}
 	}
-
-
+	else
+	{
+		for (FSourceControlProjectInfo& ProjectInfo : CustomProjects)
+		{
+			for (FString& ContentDir : ProjectInfo.ContentDirectories)
+			{
+				SourceControlLocations.Add(FPaths::ConvertRelativePathToFull(MoveTemp(ContentDir)));
+			}
+			if (!bContentOnly)
+			{
+				SourceControlLocations.Add(FPaths::ConvertRelativePathToFull(MoveTemp(ProjectInfo.ProjectDirectory)));
+			}
+		}
+	}
 
 	return SourceControlLocations;
 }
@@ -1701,9 +1697,16 @@ void USourceControlHelpers::AsyncQueryFileState(FQueryFileStateDelegate FileStat
 	}
 }
 
-bool USourceControlHelpers::GetFilesInDepotAtPath(const FString& PathToDirectory, TArray<FString>& OutFilesList, bool bIncludeDeleted, bool bSilent)
+bool USourceControlHelpers::GetFilesInDepotAtPath(const FString& Path, TArray<FString>& OutFilesList, bool bIncludeDeleted, bool bSilent, bool bIsFileRegexSearch)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(USourceControlHelpers::GetFilesInDepotAtPath);
+	TArray<FString> Paths;
+	Paths.Add(Path);
+	return GetFilesInDepotAtPaths(Paths, OutFilesList, bIncludeDeleted, bSilent, bIsFileRegexSearch);
+}
+
+bool USourceControlHelpers::GetFilesInDepotAtPaths(const TArray<FString>& Paths, TArray<FString>& OutFilesList, bool bIncludeDeleted, bool bSilent, bool bIsFileRegexSearch)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(USourceControlHelpers::GetFilesInDepotAtPaths);
 
 	bool bSuccess = false;
 	if (ISourceControlModule::Get().IsEnabled())
@@ -1711,25 +1714,35 @@ bool USourceControlHelpers::GetFilesInDepotAtPath(const FString& PathToDirectory
 		ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
 		if (SourceControlProvider.IsAvailable())
 		{
-			FString CorrectedPath = PathToDirectory.Replace(TEXT("/Game"), TEXT(""), ESearchCase::CaseSensitive);
-			FString FullPath = FPaths::ProjectContentDir() / CorrectedPath;
-			FPaths::RemoveDuplicateSlashes(FullPath);
+			TArray<FString> PathsToQuery;
+			for (const FString& Path : Paths)
+			{
+				FString RelativePath;
+				FPackageName::TryConvertLongPackageNameToFilename(Path, RelativePath);
+				FPaths::RemoveDuplicateSlashes(RelativePath);
+				PathsToQuery.Add(RelativePath);
+			}
 
-			TArray<FString> FileArray;
-			FileArray.Add(FullPath);
-			
 			TSharedRef<FGetFileList, ESPMode::ThreadSafe> Operation = ISourceControlOperation::Create<FGetFileList>();
 			Operation->SetIncludeDeleted(bIncludeDeleted);
-			Operation->SetSearchPattern(PathToDirectory);
+			Operation->SetQuiet(bSilent);
+			Operation->SetSearchPattern(PathsToQuery);
+			if (bIsFileRegexSearch)
+			{
+				Operation->SetMethodUsed(FGetFileList::EGetFileListMethod::FileRegexSearch);
+			}
 
-			ECommandResult::Type Result = SourceControlProvider.Execute(Operation, FileArray, EConcurrency::Synchronous);
+			ECommandResult::Type Result = SourceControlProvider.Execute(Operation, PathsToQuery, EConcurrency::Synchronous);
 			bSuccess = (Result == ECommandResult::Succeeded);
 
 			if (!bSuccess)
 			{
-				FFormatNamedArguments Arguments;
-				Arguments.Add(TEXT("PathToDirectory"), FText::FromString(PathToDirectory));
-				SourceControlHelpersInternal::LogError(FText::Format(LOCTEXT("CouldNotGetFileList", "Could not get file list under path: {PathToDirectory}."), Arguments), bSilent);
+				for (const FString& Path : Paths)
+				{
+					FFormatNamedArguments Arguments;
+					Arguments.Add(TEXT("Path"), FText::FromString(Path));
+					SourceControlHelpersInternal::LogError(FText::Format(LOCTEXT("CouldNotGetFileList", "Could not get file list at path: {Path}."), Arguments), bSilent);
+				}
 			}
 			else
 			{
@@ -2048,6 +2061,7 @@ const FString& USourceControlHelpers::GetGlobalSettingsIni()
 	{
 		FConfigContext Context = FConfigContext::ReadIntoGConfig();
 		Context.GeneratedConfigDir = FPaths::EngineSavedDir() + TEXT("Config/");
+		Context.ProjectConfigDir = (""); // don't load anything from project configs
 		Context.Load(TEXT("SourceControlSettings"), SourceControlGlobalSettingsIni);
 	}
 	return SourceControlGlobalSettingsIni;

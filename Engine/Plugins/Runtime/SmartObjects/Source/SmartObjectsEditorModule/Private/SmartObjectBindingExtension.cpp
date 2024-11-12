@@ -1,10 +1,10 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SmartObjectBindingExtension.h"
 #include "EdGraphSchema_K2.h"
 #include "Features/IModularFeatures.h"
 #include "IPropertyAccessEditor.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "PropertyBindingPath.h"
 #include "Styling/AppStyle.h"
 #include "UObject/EnumProperty.h"
@@ -47,7 +47,7 @@ USmartObjectDefinition* GetOuterSmartObjectDefinition(const TSharedPtr<const IPr
 	return Definition;
 }
 
-UStruct* ResolveLeafValueStructType(FPropertyBindingDataView ValueView, const TArray<FBindingChainElement>& InBindingChain)
+UStruct* ResolveLeafValueStructType(FPropertyBindingDataView ValueView, TConstArrayView<FBindingChainElement> InBindingChain)
 {
 	if (ValueView.GetMemory() == nullptr)
 	{
@@ -248,7 +248,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 	{
 	}
 
-	void AddBinding(const TArray<FBindingChainElement>& InBindingChain)
+	void AddBinding(TConstArrayView<FBindingChainElement> InBindingChain)
 	{
 		if (InBindingChain.IsEmpty())
 		{
@@ -272,7 +272,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		const int32 SourceStructIndex = InBindingChain[0].ArrayIndex;
 		check(SourceStructIndex >= 0 && SourceStructIndex < AccessibleStructs.Num());
 				
-		TArray<FBindingChainElement> SourceBindingChain = InBindingChain;
+		TArray<FBindingChainElement> SourceBindingChain(InBindingChain);
 		SourceBindingChain.RemoveAt(0); // remove struct index.
 
 		FPropertyBindingDataView DataView;
@@ -544,7 +544,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		return false;
 	}
 
-	UStruct* ResolveIndirection(TArray<FBindingChainElement> InBindingChain)
+	UStruct* ResolveIndirection(TConstArrayView<FBindingChainElement> InBindingChain)
 	{
 		USmartObjectDefinition* Definition = WeakDefinition.Get();
 		if (!Definition)
@@ -555,7 +555,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		const int32 SourceStructIndex = InBindingChain[0].ArrayIndex;
 		check(SourceStructIndex >= 0 && SourceStructIndex < AccessibleStructs.Num());
 		
-		TArray<FBindingChainElement> SourceBindingChain = InBindingChain;
+		TArray<FBindingChainElement> SourceBindingChain(InBindingChain);
 		SourceBindingChain.RemoveAt(0);
 
 		FPropertyBindingDataView DataView;
@@ -725,12 +725,12 @@ void FSmartObjectDefinitionBindingExtension::ExtendWidgetRow(FDetailWidgetRow& I
 	FPropertyBindingWidgetArgs Args;
 	Args.Property = InPropertyHandle->GetProperty();
 
-	Args.OnCanBindProperty = FOnCanBindProperty::CreateLambda([CachedBindingData](FProperty* InProperty)
+	Args.OnCanBindPropertyWithBindingChain = FOnCanBindPropertyWithBindingChain::CreateLambda([CachedBindingData](FProperty* InProperty, TConstArrayView<FBindingChainElement> InBindingChain)
 		{
 			return CachedBindingData->CanBindToProperty(InProperty);
 		});
 
-	Args.OnCanBindToContextStruct = FOnCanBindToContextStruct::CreateLambda([CachedBindingData](const UStruct* InStruct)
+	Args.OnCanBindToContextStructWithIndex = FOnCanBindToContextStructWithIndex::CreateLambda([CachedBindingData](const UStruct* InStruct, int32 Index)
 		{
 			return CachedBindingData->CanBindToContextStruct(InStruct);
 		});
@@ -782,7 +782,7 @@ void FSmartObjectDefinitionBindingExtension::ExtendWidgetRow(FDetailWidgetRow& I
 
 	if (Definition)
 	{
-		Args.OnResolveIndirection = FOnResolveIndirection::CreateLambda([CachedBindingData](TArray<FBindingChainElement> InBindingChain)
+		Args.OnResolveIndirection = FOnResolveIndirection::CreateLambda([CachedBindingData](const TArray<FBindingChainElement>& InBindingChain)
 		{
 			return CachedBindingData->ResolveIndirection(InBindingChain);
 		});

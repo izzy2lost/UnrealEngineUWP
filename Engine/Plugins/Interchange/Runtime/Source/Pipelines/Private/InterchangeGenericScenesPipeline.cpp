@@ -2,37 +2,47 @@
 
 #include "InterchangeGenericScenesPipeline.h"
 
+#include "Nodes/InterchangeUserDefinedAttribute.h"
 #include "InterchangeActorFactoryNode.h"
 #include "InterchangeAssetImportData.h"
 #include "InterchangeCameraNode.h"
 #include "InterchangeCameraFactoryNode.h"
 #include "InterchangeCommonPipelineDataFactoryNode.h"
-#include "InterchangeSceneImportAsset.h"
-#include "InterchangeSceneImportAssetFactoryNode.h"
-#include "InterchangeSkeletalMeshLodDataNode.h"
+#include "InterchangeLevelInstanceActorFactoryNode.h"
 #include "InterchangeLightNode.h"
 #include "InterchangeLightFactoryNode.h"
 #include "InterchangeMeshActorFactoryNode.h"
 #include "InterchangeMeshNode.h"
 #include "InterchangeDecalActorFactoryNode.h"
 #include "InterchangeDecalNode.h"
+#include "InterchangeEditorUtilitiesBase.h"
+#include "InterchangeLevelFactoryNode.h"
+#include "InterchangeManager.h"
 #include "InterchangePipelineLog.h"
 #include "InterchangePipelineMeshesUtilities.h"
+#include "InterchangeSceneImportAsset.h"
+#include "InterchangeSceneImportAssetFactoryNode.h"
 #include "InterchangeSceneNode.h"
 #include "InterchangeSceneVariantSetsFactoryNode.h"
-#include "InterchangeVariantSetNode.h"
-#include "Nodes/InterchangeUserDefinedAttribute.h"
-#include "InterchangeSkeletonFactoryNode.h"
 #include "InterchangeSkeletalMeshFactoryNode.h"
+#include "InterchangeSkeletalMeshLodDataNode.h"
+#include "InterchangeSkeletonFactoryNode.h"
+#include "InterchangeStaticMeshFactoryNode.h"
+#include "InterchangeStaticMeshLodDataNode.h"
+#include "InterchangeVariantSetNode.h"
+
 
 #include "Animation/SkeletalMeshActor.h"
 #include "CineCameraActor.h"
 #include "Engine/DirectionalLight.h"
+#include "Engine/Level.h"
 #include "Engine/PointLight.h"
 #include "Engine/RectLight.h"
 #include "Engine/SpotLight.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "WorldPartition/WorldPartition.h"
+#include "LevelInstance/LevelInstanceActor.h"
 #include "Misc/PackageName.h"
 
 #if WITH_EDITOR
@@ -49,32 +59,6 @@ if(AttributeType AttributeName; TranslatedNode->GetCustom##AttributeName(Attribu
 
 namespace UE::Interchange::Private
 {
-	TArray<FString> GetAllActiveJoints(UInterchangeBaseNodeContainer* BaseNodeContainer)
-	{
-		TArray<FString> AllActiveJoints;
-		BaseNodeContainer->IterateNodesOfType<UInterchangeSkeletonFactoryNode>([&BaseNodeContainer, &AllActiveJoints](const FString& NodeUid, UInterchangeSkeletonFactoryNode* Node)
-			{
-				FString RootNodeUid;
-				if (Node->GetCustomRootJointUid(RootNodeUid))
-				{
-					AllActiveJoints.Add(RootNodeUid);
-					BaseNodeContainer->IterateNodeChildren(RootNodeUid, [&AllActiveJoints](const UInterchangeBaseNode* Node)
-						{
-							if (const UInterchangeSceneNode* SceneNode = Cast<UInterchangeSceneNode>(Node))
-							{
-								TArray<FString> SpecializeTypes;
-								SceneNode->GetSpecializedTypes(SpecializeTypes);
-								if (SpecializeTypes.Contains(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString()))
-								{
-									AllActiveJoints.Add(Node->GetUniqueID());
-								}
-							}
-						});
-				}
-			});
-		return AllActiveJoints;
-	}
-
 	//Either a (TransformSpecialized || !JointSpecialized || RootJoint) can be a parent (only those get FactoryNodes) :
 	FString FindFactoryParentSceneNodeUid(UInterchangeBaseNodeContainer* BaseNodeContainer, TArray<FString>& ActiveSkeletonUids, const UInterchangeSceneNode* SceneNode)
 	{
@@ -212,17 +196,17 @@ namespace UE::Interchange::Private
 				OwningWorld->EditorDestroyActor(Actor, true);
 				// Since deletion can be delayed, rename to avoid future name collision
 				// Call UObject::Rename directly on actor to avoid AActor::Rename which unnecessarily sunregister and re-register components
-				Actor->UObject::Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+				Actor->UObject::Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 			}
 		}
 	}
 }
 
-void UInterchangeGenericLevelPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
+void UInterchangeGenericLevelPipeline::AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
+	Super::AdjustSettingsForContext(ContextParams);
 
-	bIsReimportContext = ReimportAsset != nullptr;
+	bIsReimportContext = ContextParams.ReimportAsset != nullptr;
 }
 
 void UInterchangeGenericLevelPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas, const FString& ContentBasePath)
@@ -269,19 +253,89 @@ void UInterchangeGenericLevelPipeline::ExecutePipeline(UInterchangeBaseNodeConta
 	});
 
 #if WITH_EDITORONLY_DATA
+	const FString FilePath = FPaths::ConvertRelativePathToFull(InSourceDatas[0]->GetFilename());
+
+	UWorld* TargetWorld = GWorld->GetCurrentLevel()->GetWorld();
+	
+	UInterchangeLevelFactoryNode* ParentLevelFactoryNode = nullptr;
+	LevelInstanceActorFactoryNode = nullptr;
+
+	if (TargetWorld)
+	{
+		//create the parent level factory node
+		ParentLevelFactoryNode = NewObject<UInterchangeLevelFactoryNode>(BaseNodeContainer, NAME_None);
+		const FString ParentDisplayLabel = TEXT("ParentLevel_") + TargetWorld->GetName();
+		const FString ParentNodeUid = ParentDisplayLabel;
+		ParentLevelFactoryNode->InitializeNode(ParentNodeUid, ParentDisplayLabel, EInterchangeNodeContainerType::FactoryData);
+		ParentLevelFactoryNode->SetCustomShouldCreateLevel(false);
+		ParentLevelFactoryNode->SetCustomReferenceObject(TargetWorld);
+		BaseNodeContainer->AddNode(ParentLevelFactoryNode);
+
+		UWorld* ReimportReferenceWorld = nullptr;
+		if (ULevel* Level = Cast<ULevel>(ReimportLevel.TryLoad()))
+		{
+			ReimportReferenceWorld = Level->GetWorld();
+		}
+
+		const bool bReimportReferenceWorld = ReimportReferenceWorld && ReimportReferenceWorld == TargetWorld;
+
+		if (!bReimportReferenceWorld && SceneHierarchyType == EInterchangeSceneHierarchyType::CreateLevelInstanceActor)
+		{
+			ensure(!LevelFactoryNode);
+			const FString DisplayLabel = ReimportReferenceWorld ? ReimportReferenceWorld->GetName() : ("Level_") + FPaths::GetBaseFilename(FilePath);
+			const FString NodeUid = TEXT("Level_") + FilePath;
+			ensure(!BaseNodeContainer->IsNodeUidValid(NodeUid));
+			LevelFactoryNode = NewObject<UInterchangeLevelFactoryNode>(BaseNodeContainer, NAME_None);
+			LevelFactoryNode->InitializeNode(NodeUid, DisplayLabel, EInterchangeNodeContainerType::FactoryData);
+			LevelFactoryNode->SetCustomCreateWorldPartitionLevel(false);
+			LevelFactoryNode->SetCustomShouldCreateLevel(true);
+
+			if (ReimportReferenceWorld)
+			{
+				LevelFactoryNode->SetCustomShouldCreateLevel(false);
+				LevelFactoryNode->SetCustomReferenceObject(ReimportReferenceWorld);
+				//When we re-import we want the FinalizeObject_GameThread to be call on the level factory for this level node
+				LevelFactoryNode->SetForceNodeReimport();
+			}
+			//Look at the parent level factory node before the level factory node
+			LevelFactoryNode->AddFactoryDependencyUid(ParentLevelFactoryNode->GetUniqueID());
+
+			BaseNodeContainer->AddNode(LevelFactoryNode);
+
+			//Create a level instance actor
+			{
+				LevelInstanceActorFactoryNode = NewObject<UInterchangeLevelInstanceActorFactoryNode>(BaseNodeContainer, NAME_None);
+
+				if (ensure(LevelInstanceActorFactoryNode))
+				{
+					LevelInstanceActorFactoryNode->SetCustomActorClassName(ALevelInstance::StaticClass()->GetPathName());
+					//This actor has the same name has the level it reference
+					const FString ActorDisplayLabel = DisplayLabel;
+					FString ActorNodeUid = TEXT("LevelInstance_") + FilePath;
+					LevelInstanceActorFactoryNode->InitializeNode(ActorNodeUid, ActorDisplayLabel, EInterchangeNodeContainerType::FactoryData);
+					ActorNodeUid = BaseNodeContainer->AddNode(LevelInstanceActorFactoryNode);
+					//Set the level this actor is referring
+					LevelInstanceActorFactoryNode->SetCustomLevelReference(LevelFactoryNode->GetUniqueID());
+					//We ensure the actor will be created after the parent and reference world are create or ready
+					LevelInstanceActorFactoryNode->AddFactoryDependencyUid(LevelFactoryNode->GetUniqueID());
+					//Add the Level instance actor into the parent level (TargetWorld)
+					LevelInstanceActorFactoryNode->SetCustomLevelUid(ParentLevelFactoryNode->GetUniqueID());
+					//Add the actor to the world that we want to create the actor
+					ParentLevelFactoryNode->AddCustomActorFactoryNodeUid(ActorNodeUid);
+				}
+			}
+		}
+	}
+
 	// Add the SceneImportData factory node
 	{
 		ensure(!SceneImportFactoryNode);
-
-		const FString FilePath = FPaths::ConvertRelativePathToFull(InSourceDatas[0]->GetFilename());
 		const FString DisplayLabel = TEXT("SceneImport_") + FPaths::GetBaseFilename(FilePath);
 		const FString NodeUid = TEXT("SceneImport_") + FilePath;
 		const FString FactoryNodeUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(NodeUid);
 		ensure(!BaseNodeContainer->IsNodeUidValid(FactoryNodeUid));
 		SceneImportFactoryNode = NewObject<UInterchangeSceneImportAssetFactoryNode>(BaseNodeContainer, NAME_None);
-
 		SceneImportFactoryNode->InitializeNode(FactoryNodeUid, DisplayLabel, EInterchangeNodeContainerType::FactoryData);
-
 		// Add dependency to all the factory nodes created so far
 		BaseNodeContainer->IterateNodesOfType<UInterchangeFactoryBaseNode>(
 			[this](const FString& NodeUid, UInterchangeFactoryBaseNode* Node)
@@ -293,25 +347,70 @@ void UInterchangeGenericLevelPipeline::ExecutePipeline(UInterchangeBaseNodeConta
 
 		BaseNodeContainer->AddNode(SceneImportFactoryNode);
 	}
+
 #endif
 
 	/* Find all scene node that are active joint. Non active joint should be convert to actor if they are in a static mesh hierarchy */
-	TArray<FString> ActiveSkeletonUids = UE::Interchange::Private::GetAllActiveJoints(BaseNodeContainer);
+	CacheActiveJointUids();
+
+	//Cache any lod group data, this way we can add actor only for the lod group
+	TMap< const UInterchangeSceneNode*, TArray<const UInterchangeSceneNode*>> SceneNodesPerLodGroupNode;
+	for (const UInterchangeSceneNode* SceneNode : SceneNodes)
+	{
+		if (!SceneNode)
+		{
+			continue;
+		}
+		TArray<FString> SpecializeTypes;
+		SceneNode->GetSpecializedTypes(SpecializeTypes);
+
+		if (SpecializeTypes.Num() > 0)
+		{
+			if (SpecializeTypes.Contains(UE::Interchange::FSceneNodeStaticData::GetLodGroupSpecializeTypeString()))
+			{
+				TArray<const UInterchangeSceneNode*>& LodGroupChildren = SceneNodesPerLodGroupNode.FindOrAdd(SceneNode);
+				BaseNodeContainer->IterateNodeChildren(SceneNode->GetUniqueID(), [&LodGroupChildren, &SceneNode](const UInterchangeBaseNode* ChildNode)
+					{
+						if (const UInterchangeSceneNode* ChildSceneNode = Cast<UInterchangeSceneNode>(ChildNode))
+						{
+							//Avoid adding self (first iterative call is self)
+							if (SceneNode != ChildSceneNode)
+							{
+								LodGroupChildren.Add(ChildSceneNode);
+							}
+						}
+					});
+			}
+		}
+	}
+
+	auto GetParentLodGroup = [&SceneNodesPerLodGroupNode](const UInterchangeSceneNode* Node)->const UInterchangeSceneNode*
+		{
+			for (TPair< const UInterchangeSceneNode*, TArray<const UInterchangeSceneNode*>> LodSceneNodes : SceneNodesPerLodGroupNode)
+			{
+				if (LodSceneNodes.Value.Contains(Node))
+				{
+					return LodSceneNodes.Key;
+				}
+			}
+			return nullptr;
+		};
 
 	for (const UInterchangeSceneNode* SceneNode : SceneNodes)
 	{
 		if (SceneNode)
 		{
-			if (SceneNode->GetSpecializedTypeCount() > 0)
+			TArray<FString> SpecializeTypes;
+			SceneNode->GetSpecializedTypes(SpecializeTypes);
+
+			if (SpecializeTypes.Num() > 0)
 			{
-				TArray<FString> SpecializeTypes;
-				SceneNode->GetSpecializedTypes(SpecializeTypes);
 				if (!SpecializeTypes.Contains(UE::Interchange::FSceneNodeStaticData::GetTransformSpecializeTypeString()))
 				{
 					bool bSkipNode = true;
 					if (SpecializeTypes.Contains(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString()))
 					{
-						if(!ActiveSkeletonUids.Contains(SceneNode->GetUniqueID()))
+						if(!Cached_ActiveJointUids.Contains(SceneNode->GetUniqueID()))
 						{ 
 							bSkipNode = false;
 						}
@@ -329,6 +428,11 @@ void UInterchangeGenericLevelPipeline::ExecutePipeline(UInterchangeBaseNodeConta
 							}
 						}
 					}
+					else if (SpecializeTypes.Contains(UE::Interchange::FSceneNodeStaticData::GetLodGroupSpecializeTypeString()))
+					{
+						//Do not skip lod group, we always treat it has a mesh (import LODs option control if we import all lod or only the first)
+						bSkipNode = false;
+					}
 
 					if (bSkipNode)
 					{
@@ -337,6 +441,13 @@ void UInterchangeGenericLevelPipeline::ExecutePipeline(UInterchangeBaseNodeConta
 					}
 				}
 			}
+
+			if (GetParentLodGroup(SceneNode))
+			{
+				//Ignore all lod hierarchy after the lod group
+				continue;
+			}
+
 			ExecuteSceneNodePreImport(GlobalOffsetTransform, SceneNode);
 		}
 	}
@@ -436,6 +547,60 @@ void UInterchangeGenericLevelPipeline::ExecuteSceneNodePreImport(const FTransfor
 		}
 	}
 
+	const bool bIsLodGroup = [&SceneNode]()
+		{
+			TArray<FString> SpecializeTypes;
+			SceneNode->GetSpecializedTypes(SpecializeTypes);
+			return SpecializeTypes.Contains(UE::Interchange::FSceneNodeStaticData::GetLodGroupSpecializeTypeString());
+		}();
+
+	UInterchangeStaticMeshFactoryNode* LodGroupStaticMeshFactoryNode = nullptr;
+	if (bIsLodGroup)
+	{
+		//Find the staticmesh factory node create for this lod group
+		BaseNodeContainer->BreakableIterateNodesOfType<UInterchangeStaticMeshFactoryNode>([this, &LodGroupStaticMeshFactoryNode, &SceneNode, &TranslatedAssetNode](const FString& NodeUid, UInterchangeStaticMeshFactoryNode* StaticMeshFactoryNode)
+			{
+				TArray<FString> LodDataUids;
+				StaticMeshFactoryNode->GetLodDataUniqueIds(LodDataUids);
+				if (!LodDataUids.IsEmpty())
+				{
+					if (UInterchangeStaticMeshLodDataNode* LodDataNode = Cast<UInterchangeStaticMeshLodDataNode>(BaseNodeContainer->GetFactoryNode(LodDataUids[0])))
+					{
+						TArray<FString> LodDataMeshUids;
+						LodDataNode->GetMeshUids(LodDataMeshUids);
+						if (!LodDataMeshUids.IsEmpty())
+						{
+							if (BaseNodeContainer->GetIsAncestor(LodDataMeshUids[0], SceneNode->GetUniqueID()))
+							{
+								LodGroupStaticMeshFactoryNode = StaticMeshFactoryNode;
+								//Set the first lod meshuid has the TranslatedAssetNode so it create the mesh actor factory node,
+								//and setup it properly
+								if (const UInterchangeSceneNode* LodDataMeshNode = Cast<UInterchangeSceneNode>(BaseNodeContainer->GetNode(LodDataMeshUids[0])))
+								{
+									FString AssetUid;
+									if (LodDataMeshNode->GetCustomAssetInstanceUid(AssetUid))
+									{
+										TranslatedAssetNode = BaseNodeContainer->GetNode(AssetUid);
+									}
+								}
+								else
+								{
+									TranslatedAssetNode = BaseNodeContainer->GetNode(LodDataMeshUids[0]);
+								}
+								return true;
+							}
+						}
+					}
+				}
+				return false;
+			});
+		if (!LodGroupStaticMeshFactoryNode || !TranslatedAssetNode)
+		{
+			//Skip this lod group if there is no associated mesh
+			return;
+		}
+	}
+
 	UInterchangeActorFactoryNode* ActorFactoryNode = CreateActorFactoryNode(SceneNode, TranslatedAssetNode);
 
 	if (!ensure(ActorFactoryNode))
@@ -443,20 +608,42 @@ void UInterchangeGenericLevelPipeline::ExecuteSceneNodePreImport(const FTransfor
 		return;
 	}
 
+	UInterchangeUserDefinedAttributesAPI::DuplicateAllUserDefinedAttribute(SceneNode, ActorFactoryNode, false);
+
+	TArray<FString> LayerNames;
+	SceneNode->GetLayerNames(LayerNames);
+	ActorFactoryNode->AddLayerNames(LayerNames);
+
+	TArray<FString> Tags;
+	SceneNode->GetTags(Tags);
+	ActorFactoryNode->AddTags(Tags);
+
 	FString NodeUid = SceneNode->GetUniqueID() + (bRootJointNode ? TEXT("_SkeletonNode") : TEXT(""));
 	FString FactoryNodeUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(NodeUid);
 
 	ActorFactoryNode->InitializeNode(FactoryNodeUid, SceneNode->GetDisplayLabel(), EInterchangeNodeContainerType::FactoryData);
 	const FString ActorFactoryNodeUid = BaseNodeContainer->AddNode(ActorFactoryNode);
-
+#if WITH_EDITORONLY_DATA
+	//The level must be create before any actor asset since all actors will be create in the specified level
+	if (LevelFactoryNode)
+	{
+		ActorFactoryNode->AddFactoryDependencyUid(LevelFactoryNode->GetUniqueID());
+		ActorFactoryNode->SetCustomLevelUid(LevelFactoryNode->GetUniqueID());
+		LevelFactoryNode->AddCustomActorFactoryNodeUid(ActorFactoryNodeUid);
+		//The level instance actor must be create after the actor on the reference level are created
+		if (LevelInstanceActorFactoryNode)
+		{
+			LevelInstanceActorFactoryNode->AddFactoryDependencyUid(ActorFactoryNode->GetUniqueID());
+		}
+	}
+#endif
 	// The translator is responsible to provide a unique name
 	ActorFactoryNode->SetAssetName(SceneNode->GetAssetName());
 
 	if (!SceneNode->GetParentUid().IsEmpty())
 	{
 		/* Find all scene node that are active joint. Non active joint should be convert to actor if they are in a static mesh hierarchy */
-		TArray<FString> ActiveSkeletonUids = UE::Interchange::Private::GetAllActiveJoints(BaseNodeContainer);
-		FString ParentNodeUid = UE::Interchange::Private::FindFactoryParentSceneNodeUid(BaseNodeContainer, ActiveSkeletonUids, SceneNode);
+		FString ParentNodeUid = UE::Interchange::Private::FindFactoryParentSceneNodeUid(BaseNodeContainer, Cached_ActiveJointUids, SceneNode);
 		if (ParentNodeUid != UInterchangeBaseNode::InvalidNodeUid())
 		{
 			FString ParentFactoryNodeUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(ParentNodeUid);
@@ -470,6 +657,10 @@ void UInterchangeGenericLevelPipeline::ExecuteSceneNodePreImport(const FTransfor
 	if (bRootJointNode)
 	{
 		ActorFactoryNode->AddTargetNodeUid(SkeletalMeshFactoryNodeUid);
+	}
+	else if (LodGroupStaticMeshFactoryNode)
+	{
+		ActorFactoryNode->AddTargetNodeUid(LodGroupStaticMeshFactoryNode->GetUniqueID());
 	}
 	else
 	{
@@ -485,16 +676,8 @@ void UInterchangeGenericLevelPipeline::ExecuteSceneNodePreImport(const FTransfor
 	{
 		if (bRootJointNode)
 		{
-			LocalTransform = FTransform::Identity;
 			//LocalTransform of RootjointNode is already baked into the Skeletal and animation.
-			//due to that we acquire the Parent SceneNode and get its GlobalTransform:
-			if (!SceneNode->GetParentUid().IsEmpty())
-			{
-				if (const UInterchangeSceneNode* ParentSceneNode = Cast<UInterchangeSceneNode>(BaseNodeContainer->GetNode(SceneNode->GetParentUid())))
-				{
-					ParentSceneNode->GetCustomLocalTransform(LocalTransform);
-				}
-			}
+			LocalTransform = FTransform::Identity;
 		}
 
 		if (SceneNode->GetParentUid().IsEmpty())
@@ -982,7 +1165,7 @@ void UInterchangeGenericLevelPipeline::ExecutePostImportPipeline(const UIntercha
 
 	if (UInterchangeSceneImportAsset* SceneImportAsset = Cast<UInterchangeSceneImportAsset>(CreatedAsset))
 	{
-		if (!bIsReimportContext || !bDeleteMissingActors)
+		if (!bIsReimportContext || !(bDeleteMissingActors || bDeleteMissingAssets))
 		{
 			SceneImportAsset->UpdateSceneObjects();
 			return;
@@ -1029,7 +1212,7 @@ void UInterchangeGenericLevelPipeline::ExecutePostImportPipeline(const UIntercha
 						{
 							ActorsToDelete.Add(Cast<AActor>(Object));
 						}
-						else
+						else if(!Object->IsA<UWorld>()) //Avoid deleting UWorld asset
 						{
 							AssetsToForceDelete.Add(Object);
 						}
@@ -1038,9 +1221,12 @@ void UInterchangeGenericLevelPipeline::ExecutePostImportPipeline(const UIntercha
 			}
 		}
 
-		Private::DeleteActors(ActorsToDelete);
+		if (bDeleteMissingActors)
+		{
+			Private::DeleteActors(ActorsToDelete);
+		}
 
-		if (!AssetsToForceDelete.IsEmpty())
+		if (bDeleteMissingAssets && !AssetsToForceDelete.IsEmpty())
 		{
 			Private::DeleteAssets(AssetsToForceDelete);
 		}
@@ -1058,6 +1244,170 @@ void UInterchangeGenericLevelPipeline::ExecutePostImportPipeline(const UIntercha
 			}
 		}
 	}
+
+	if (UWorld* World = Cast<UWorld>(CreatedAsset))
+	{
+		PostPipelineImportData.AddWorld(World);
+	}
+	else if (ALevelInstance* LevelInstanceActor = Cast<ALevelInstance>(CreatedAsset))
+	{
+		const UInterchangeLevelInstanceActorFactoryNode* LevelInstanceFactoryNode = Cast<UInterchangeLevelInstanceActorFactoryNode>(InBaseNodeContainer->GetFactoryNode(NodeKey));
+		FString LevelFactoryNodeUid;
+		if (LevelInstanceFactoryNode->GetCustomLevelReference(LevelFactoryNodeUid))
+		{
+			if (const UInterchangeFactoryBaseNode* ReferenceLevelFactoryNode = InBaseNodeContainer->GetFactoryNode(LevelFactoryNodeUid))
+			{
+				FSoftObjectPath ReferenceLevelPath;
+				if (ReferenceLevelFactoryNode->GetCustomReferenceObject(ReferenceLevelPath))
+				{
+					if (UWorld* ReferenceWorld = Cast<UWorld>(ReferenceLevelPath.TryLoad()))
+					{
+						PostPipelineImportData.AddLevelInstanceActor(LevelInstanceActor, ReferenceWorld);
+					}
+				}
+			}
+		}
+	}
 #endif
 }
 
+void UInterchangeGenericLevelPipeline::ExecutePostBroadcastPipeline(const UInterchangeBaseNodeContainer* InBaseNodeContainer, const FString& NodeKey, UObject* CreatedAsset, bool bIsAReimport)
+{
+	Super::ExecutePostBroadcastPipeline(InBaseNodeContainer, NodeKey, CreatedAsset, bIsAReimport);
+	
+	if (!CreatedAsset || !ensure(IsInGameThread()))
+	{
+		return;
+	}
+
+#if WITH_EDITORONLY_DATA
+	if (ALevelInstance* LevelInstanceActor = Cast<ALevelInstance>(CreatedAsset))
+	{
+		if (UWorld* WorldAsset = LevelInstanceActor->GetWorldAsset().Get())
+		{
+			//We cannot call EnterEdit on a dirty world.
+			if (WorldAsset->GetPackage()->IsDirty())
+			{
+				if (UInterchangeEditorUtilitiesBase* EditorUtilities = UInterchangeManager::GetInterchangeManager().GetEditorUtilities())
+				{
+					if (!EditorUtilities->SaveAsset(WorldAsset))
+					{
+						UE_LOG(LogInterchangePipeline, Warning, TEXT("UInterchangeGenericAssetsPipeline: Cannot save the level instance actor (%s) referenced world (%s)"), *LevelInstanceActor->GetName(), *WorldAsset->GetName());
+					}
+				}
+			}
+
+			//Commit an edit to properly finish the setup for the new Level instance actor and new level.
+			LevelInstanceActor->EnterEdit();
+			LevelInstanceActor->ExitEdit();
+		}
+	}
+#endif
+}
+
+#if WITH_EDITORONLY_DATA
+
+void UInterchangeGenericLevelPipeline::FPostPipelineImportData::AddWorld(UWorld* World)
+{
+	if (!Worlds.Contains(World))
+	{
+		Worlds.Add(World, false);
+		TArray<ALevelInstance*> CompletedLevelInstances;
+		for (TPair<ALevelInstance*, UWorld*>& LevelInstanceAndReferenceWorld : ReferenceWorldPerLevelInstanceToUpdates)
+		{
+			if (UpdateLevelInstanceInternal(LevelInstanceAndReferenceWorld.Key, LevelInstanceAndReferenceWorld.Value))
+			{
+				CompletedLevelInstances.Add(LevelInstanceAndReferenceWorld.Key);
+			}
+		}
+
+		//Remove level instance completed
+		for (ALevelInstance* CompletedLevelInstance : CompletedLevelInstances)
+		{
+			ReferenceWorldPerLevelInstanceToUpdates.Remove(CompletedLevelInstance);
+		}
+	}
+}
+
+void UInterchangeGenericLevelPipeline::FPostPipelineImportData::AddLevelInstanceActor(ALevelInstance* LevelInstanceActor, UWorld* ReferenceWorld)
+{
+	if (!UpdateLevelInstanceInternal(LevelInstanceActor, ReferenceWorld))
+	{
+		ReferenceWorldPerLevelInstanceToUpdates.Add(LevelInstanceActor, ReferenceWorld);
+	}
+}
+
+bool UInterchangeGenericLevelPipeline::FPostPipelineImportData::UpdateLevelInstanceInternal(ALevelInstance* LevelInstanceActor, UWorld* ReferencedWorld)
+{
+	if (!Worlds.Contains(ReferencedWorld))
+	{
+		return false;
+	}
+	UWorld* ParentWorld = LevelInstanceActor->GetWorld();
+	if (!Worlds.Contains(ParentWorld))
+	{
+		return false;
+	}
+
+	bool& bWorldUpdate = Worlds.FindChecked(ReferencedWorld);
+	
+	if (!bWorldUpdate)
+	{
+		if (UInterchangeEditorUtilitiesBase* EditorUtilities = UInterchangeManager::GetInterchangeManager().GetEditorUtilities())
+		{
+			if (!EditorUtilities->SaveAsset(ReferencedWorld))
+			{
+				UE_LOG(LogInterchangePipeline, Warning, TEXT("UInterchangeGenericAssetsPipeline: Cannot save the level instance actor (%s) referenced world (%s)"), *LevelInstanceActor->GetName(), *ReferencedWorld->GetName());
+			}
+		}
+
+		// Make sure newly created level asset gets scanned
+		ULevel::ScanLevelAssets(ReferencedWorld->GetPackage()->GetName());
+
+		ParentWorld->PreEditChange(nullptr);
+
+		LevelInstanceActor->SetWorldAsset(ReferencedWorld);
+		LevelInstanceActor->UpdateLevelInstanceFromWorldAsset();
+		LevelInstanceActor->LoadLevelInstance();
+
+		//Reference world must be cleanup since they are not the main world.
+		//This remove all the world managers and prevent GC issue when unloading the main world referencing this world.
+		if (ReferencedWorld->bIsWorldInitialized)
+		{
+			ReferencedWorld->CleanupWorld();
+		}
+
+		ParentWorld->PostEditChange();
+
+		bWorldUpdate = true;
+	}
+
+	return true;
+}
+
+#endif //WITH_EDITORONLY_DATA
+
+void UInterchangeGenericLevelPipeline::CacheActiveJointUids()
+{
+	Cached_ActiveJointUids.Reset();
+	BaseNodeContainer->IterateNodesOfType<UInterchangeSkeletonFactoryNode>([this](const FString& NodeUid, UInterchangeSkeletonFactoryNode* Node)
+		{
+			FString RootNodeUid;
+			if (Node->GetCustomRootJointUid(RootNodeUid))
+			{
+				Cached_ActiveJointUids.Add(RootNodeUid);
+				BaseNodeContainer->IterateNodeChildren(RootNodeUid, [this](const UInterchangeBaseNode* Node)
+					{
+						if (const UInterchangeSceneNode* SceneNode = Cast<UInterchangeSceneNode>(Node))
+						{
+							TArray<FString> SpecializeTypes;
+							SceneNode->GetSpecializedTypes(SpecializeTypes);
+							if (SpecializeTypes.Contains(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString()))
+							{
+								Cached_ActiveJointUids.Add(Node->GetUniqueID());
+							}
+						}
+					});
+			}
+		});
+}

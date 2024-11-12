@@ -9,6 +9,7 @@
 #include "Styling/SlateTypes.h"
 #include "Misc/Paths.h"
 #include "Styling/StyleColors.h"
+#include "StateTreeTypes.h"
 #include "Styling/SlateStyleMacros.h"
 
 
@@ -56,11 +57,6 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 			.SetColorAndOpacity(FLinearColor(230.0f / 255.0f, 230.0f / 255.0f, 230.0f / 255.0f, 0.5f));
 		Set("StateTree.Icon", StateIcon);
 
-		const FTextBlockStyle StateDetailsIcon = FTextBlockStyle(NormalText)
-			.SetFont(FAppStyle::Get().GetFontStyle("FontAwesome.10"))
-		    .SetColorAndOpacity(FLinearColor(230.0f / 255.0f, 230.0f / 255.0f, 230.0f / 255.0f, 0.5f));
-		Set("StateTree.DetailsIcon", StateDetailsIcon);
-
 		const FTextBlockStyle StateTitle = FTextBlockStyle(NormalText)
 			.SetFont(DEFAULT_FONT("Bold", 12))
 			.SetColorAndOpacity(FLinearColor(230.0f / 255.0f, 230.0f / 255.0f, 230.0f / 255.0f, 0.9f));
@@ -83,6 +79,8 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 			.SetEditableTextBoxStyle(StateTitleEditableText));
 
 		Set("StateTree.State.Border", new FSlateBorderBrush(NAME_None, FMargin(2.0f)));
+
+		Set("StateTree.State", new FSlateRoundedBoxBrush(FLinearColor::White, 2.0f));
 	}
 
 	// Details
@@ -95,24 +93,35 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 		Set("StateTree.Node.Label", new FSlateRoundedBoxBrush(FStyleColors::AccentGray, 6.f));
 
 		// For multi selection with mixed values for a given property
-		Set("StateTree.Node.Label.Mixed", new FSlateRoundedBoxBrush(FStyleColors::Dropdown, 6.f));
-
 		const FLinearColor Color = FStyleColors::Hover.GetSpecifiedColor();
 		const FLinearColor HollowColor = Color.CopyWithNewOpacity(0.0);
 		Set("StateTree.Node.Label.Mixed", new FSlateRoundedBoxBrush(HollowColor, 6.0f, Color, 1.0f));
+
+		const FTextBlockStyle DetailsCategory = FTextBlockStyle(NormalText)
+			.SetFont(DEFAULT_FONT("Bold", 8));
+		Set("StateTree.Category", DetailsCategory);
 	}
 
 	// Task
 	{
-		const FTextBlockStyle TaskTitle = FTextBlockStyle(NormalText)
+		const FLinearColor ForegroundCol =  FStyleColors::Foreground.GetSpecifiedColor();
+
+		Set("StateTree.Task.Title", FTextBlockStyle(NormalText)
 			.SetFont(DEFAULT_FONT("Regular", 10))
-			.SetColorAndOpacity(FLinearColor(230.0f / 255.0f, 230.0f / 255.0f, 230.0f / 255.0f, 0.85f));
-		Set("StateTree.Task.Title", TaskTitle);
+			.SetColorAndOpacity(ForegroundCol.CopyWithNewOpacity(0.8f)));
+
+		Set("StateTree.Task.Title.Bold", FTextBlockStyle(NormalText)
+			.SetFont(DEFAULT_FONT("Bold", 10))
+			.SetColorAndOpacity(ForegroundCol.CopyWithNewOpacity(0.8f)));
+
+		Set("StateTree.Task.Title.Subdued", FTextBlockStyle(NormalText)
+			.SetFont(DEFAULT_FONT("Regular", 10))
+			.SetColorAndOpacity(ForegroundCol.CopyWithNewOpacity(0.4f)));
 
 		// Tasks to be show up a bit darker than the state
 		Set("StateTree.Task.Rect", new FSlateColorBrush(FLinearColor(FVector3f(0.67f))));
 	}
-	
+
 	// Details rich text
 	{
 		Set("Details.Normal", FTextBlockStyle(NormalText)
@@ -121,9 +130,62 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 		Set("Details.Bold", FTextBlockStyle(NormalText)
 			.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.BoldFont"))));
 
+		Set("Details.Italic", FTextBlockStyle(NormalText)
+			.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.ItalicFont"))));
+
 		Set("Details.Subdued", FTextBlockStyle(NormalText)
 			.SetColorAndOpacity(FSlateColor::UseSubduedForeground())
 			.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont"))));
+	}
+
+	// Normal rich text
+	{
+		Set("Normal.Normal", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(FSlateColor::UseForeground())
+			.SetFont(DEFAULT_FONT("Regular", 10)));
+
+		Set("Normal.Bold", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(FSlateColor::UseForeground())
+			.SetFont(DEFAULT_FONT("Bold", 10)));
+
+		Set("Normal.Italic", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(FSlateColor::UseForeground())
+			.SetFont(DEFAULT_FONT("Italic", 10)));
+
+		Set("Normal.Subdued", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(FSlateColor::UseSubduedForeground())
+			.SetFont(DEFAULT_FONT("Regular", 10)));
+	}
+
+	// Transition rich text
+	{
+		const FLinearColor ForegroundCol =  FStyleColors::White.GetSpecifiedColor();
+		Set("Transition.Normal", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(ForegroundCol.CopyWithNewOpacity(0.9f))
+			.SetFont(DEFAULT_FONT("Regular", 11)));
+
+		Set("Transition.Bold", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(ForegroundCol.CopyWithNewOpacity(0.9f))
+			.SetFont(DEFAULT_FONT("Bold", 11)));
+
+		Set("Transition.Italic", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(ForegroundCol.CopyWithNewOpacity(0.9f))
+			.SetFont(DEFAULT_FONT("Italic", 11)));
+
+		Set("Transition.Subdued", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(ForegroundCol.CopyWithNewOpacity(0.5f))
+			.SetFont(DEFAULT_FONT("Regular", 11)));
+	}
+
+	// Diff tool
+	{
+		Set("DiffTools.Added", FLinearColor(0.3f, 1.f, 0.3f)); // green
+		Set("DiffTools.Removed", FLinearColor(1.0f, 0.2f, 0.3f)); // red
+		Set("DiffTools.Changed", FLinearColor(0.85f, 0.71f, 0.25f)); // yellow
+		Set("DiffTools.Moved", FLinearColor(0.5f, 0.8f, 1.f)); // light blue
+		Set("DiffTools.Enabled", FLinearColor(0.7f, 1.f, 0.7f)); // light green
+		Set("DiffTools.Disabled", FLinearColor(1.0f, 0.6f, 0.5f)); // light red
+		Set("DiffTools.Properties", FLinearColor(0.2f, 0.4f, 1.f)); // blue
 	}
 
 	// Debugger
@@ -155,7 +217,7 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 
 	const FComboButtonStyle& ComboButtonStyle = FCoreStyle::Get().GetWidgetStyle<FComboButtonStyle>("ComboButton");
 
-	// Condition Operand combo button
+	// Expression Operand combo button
 	const FButtonStyle OperandButton = FButtonStyle()
 		.SetNormal(FSlateRoundedBoxBrush(FStyleColors::AccentGreen.GetSpecifiedColor().Desaturate(0.3f), 4.0f))
 		.SetHovered(FSlateRoundedBoxBrush(FStyleColors::AccentGreen.GetSpecifiedColor().Desaturate(0.2f), 4.0f))
@@ -184,7 +246,7 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 
 	Set("StateTree.Param.Background", new FSlateRoundedBoxBrush(FStyleColors::Hover, 6.f));
 	
-	// Condition Indent combo button
+	// Expression Indent combo button
 	const FButtonStyle IndentButton = FButtonStyle()
 		.SetNormal(FSlateRoundedBoxBrush(FLinearColor::Transparent, 2.0f))
 		.SetHovered(FSlateRoundedBoxBrush(FStyleColors::Background, 2.0f, FStyleColors::InputOutline, 1.0f))
@@ -197,14 +259,42 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 	
 	Set("StateTree.Node.Indent.ComboBox", FComboButtonStyle(ComboButtonStyle).SetButtonStyle(IndentButton));
 
-	const FEditableTextStyle& NormalEditableText = FCoreStyle::Get().GetWidgetStyle<FEditableTextStyle>("NormalEditableText");
-	FEditableTextStyle NameEditStyle(NormalEditableText);
-	NameEditStyle.Font.Size = 10;
-	Set("StateTree.Node.Name", NameEditStyle);
+	
+	// Node text styles
+	{
+		FEditableTextStyle EditableTextStyle = FEditableTextStyle(FAppStyle::GetWidgetStyle<FEditableTextStyle>("NormalEditableText"));
+		EditableTextStyle.Font = FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont"));
+		EditableTextStyle.Font.Size = 10.0f;
+		Set("StateTree.Node.Editable", EditableTextStyle);
 
+		FEditableTextBoxStyle EditableTextBlockStyle = FEditableTextBoxStyle(FAppStyle::GetWidgetStyle<FEditableTextBoxStyle>("NormalEditableTextBox"));
+		EditableTextStyle.Font = FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont"));
+		EditableTextStyle.Font.Size = 10.0f;
+		Set("StateTree.Node.EditableTextBlock", EditableTextBlockStyle);
+
+		const FTextBlockStyle StateNodeNormalText = FTextBlockStyle(NormalText)
+			.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+			.SetFontSize(10);
+		Set("StateTree.Node.Normal", StateNodeNormalText);
+
+		Set("StateTree.Node.Bold", FTextBlockStyle(NormalText)
+			.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.BoldFont")))
+			.SetFontSize(10));
+
+		Set("StateTree.Node.Subdued", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(FSlateColor::UseSubduedForeground())
+			.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+			.SetFontSize(10));
+
+		Set("StateTree.Node.TitleInlineEditableText", FInlineEditableTextBlockStyle()
+			.SetTextStyle(StateNodeNormalText)
+			.SetEditableTextBoxStyle(EditableTextBlockStyle));
+	}
+
+	
 	// Command icons
 	{
-		// From generic engine
+		// From generic Engine
 		UE::StateTree::Editor::FContentRootScope Scope(this, EngineSlateContentDir);
 		Set("StateTreeEditor.CutStates", new IMAGE_BRUSH_SVG("Starship/Common/Cut", CoreStyleConstants::Icon16x16));
 		Set("StateTreeEditor.CopyStates", new IMAGE_BRUSH_SVG("Starship/Common/Copy", CoreStyleConstants::Icon16x16));
@@ -222,21 +312,24 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 
 		Set("StateTreeEditor.Debugger.Task.Enter", new CORE_IMAGE_BRUSH_SVG("Starship/Common/arrow-right", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
 		Set("StateTreeEditor.Debugger.Task.Exit", new CORE_IMAGE_BRUSH_SVG("Starship/Common/arrow-left", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
-		Set("StateTreeEditor.Debugger.Task.Failed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
+		Set("StateTreeEditor.Debugger.Task.Failed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close-small", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
 		Set("StateTreeEditor.Debugger.Task.Succeeded", new CORE_IMAGE_BRUSH_SVG("Starship/Common/check", CoreStyleConstants::Icon16x16, FStyleColors::AccentGreen));
-		Set("StateTreeEditor.Debugger.Task.Stopped", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
+		Set("StateTreeEditor.Debugger.Task.Stopped", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close-small", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
 
-		Set("StateTreeEditor.Debugger.Condition", new CORE_IMAGE_BRUSH_SVG("Starship/Common/help", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
 		Set("StateTreeEditor.Debugger.Condition.Passed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/check", CoreStyleConstants::Icon16x16, FStyleColors::AccentGreen));
-		Set("StateTreeEditor.Debugger.Condition.Failed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
+		Set("StateTreeEditor.Debugger.Condition.Failed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close-small", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
 		Set("StateTreeEditor.Debugger.Condition.OnEvaluating", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Update", CoreStyleConstants::Icon16x16, FStyleColors::AccentYellow));
-		Set("StateTreeEditor.Debugger.Condition.OnTransition", new CORE_IMAGE_BRUSH_SVG("Starship/Common/help", CoreStyleConstants::Icon16x16, FStyleColors::AccentBlue));
 
 		Set("StateTreeEditor.Debugger.Unset", new CORE_IMAGE_BRUSH_SVG("Starship/Common/help", CoreStyleConstants::Icon16x16, FStyleColors::AccentBlack));
+
+		// Common Node Icons
+		Set("Node.EnableDisable", new CORE_IMAGE_BRUSH_SVG("Starship/Common/check-circle", CoreStyleConstants::Icon16x16));
+		Set("Node.Time", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Recent", CoreStyleConstants::Icon16x16));
+		Set("Node.Sync", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Update", CoreStyleConstants::Icon16x16));
 	}
 
 	{
-		// From generic engine editor
+		// From generic Engine Editor
 		UE::StateTree::Editor::FContentRootScope Scope(this, EngineEditorSlateContentDir);
 
 		Set("StateTreeEditor.Debugger.StartRecording", new IMAGE_BRUSH("Sequencer/Transport_Bar/Record_24x", CoreStyleConstants::Icon16x16));
@@ -258,6 +351,20 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 		Set("StateTreeEditor.EnableStates", new IMAGE_BRUSH("Icons/Empty_16x", CoreStyleConstants::Icon16x16));
 		Set("StateTreeEditor.Debugger.Breakpoint.EnabledAndValid", new IMAGE_BRUSH_SVG( "Starship/Blueprints/Breakpoint_Valid", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
 		Set("StateTreeEditor.Debugger.ResumeDebuggerAnalysis", new IMAGE_BRUSH_SVG("Starship/Common/Timeline", CoreStyleConstants::Icon16x16));
+
+		Set("StateTreeEditor.Transition.None", new CORE_IMAGE_BRUSH_SVG("Starship/Common/x-circle", CoreStyleConstants::Icon16x16, FSlateColor::UseSubduedForeground()));
+		Set("StateTreeEditor.Transition.Succeeded", new CORE_IMAGE_BRUSH_SVG("Starship/Common/check", CoreStyleConstants::Icon16x16, FStyleColors::AccentGreen));
+		Set("StateTreeEditor.Transition.Failed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close-small", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
+
+		Set("StateTreeEditor.Transition.Succeeded", new CORE_IMAGE_BRUSH_SVG("Starship/Common/check", CoreStyleConstants::Icon16x16, FStyleColors::AccentGreen));
+		Set("StateTreeEditor.Transition.Failed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close-small", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
+
+		// Common Node Icons
+		Set("Node.Navigation", new IMAGE_BRUSH_SVG("Starship/Common/Navigation", CoreStyleConstants::Icon16x16));
+		Set("Node.Event", new IMAGE_BRUSH_SVG("Starship/Common/Event", CoreStyleConstants::Icon16x16));
+		Set("Node.Animation", new IMAGE_BRUSH_SVG("Starship/Common/Animation", CoreStyleConstants::Icon16x16));
+		Set("Node.Debug", new IMAGE_BRUSH_SVG("Starship/Common/Debug", CoreStyleConstants::Icon16x16));
+		Set("Node.Find", new IMAGE_BRUSH_SVG("Starship/Common/Find", CoreStyleConstants::Icon16x16));
 	}
 
 	{
@@ -271,15 +378,42 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 		Set("StateTreeEditor.SelectNone", new IMAGE_BRUSH_SVG("Icons/Select_None", CoreStyleConstants::Icon16x16));
 		Set("StateTreeEditor.TryEnterState", new IMAGE_BRUSH_SVG("Icons/Try_Enter_State", CoreStyleConstants::Icon16x16));
 		Set("StateTreeEditor.TrySelectChildrenInOrder", new IMAGE_BRUSH_SVG("Icons/Try_Select_Children_In_Order", CoreStyleConstants::Icon16x16));
+		Set("StateTreeEditor.TrySelectChildrenAtRandom", new IMAGE_BRUSH_SVG("Icons/Try_Select_Children_At_Random", CoreStyleConstants::Icon16x16));
 		Set("StateTreeEditor.TryFollowTransitions", new IMAGE_BRUSH_SVG("Icons/Try_Follow_Transitions", CoreStyleConstants::Icon16x16));
+		Set("StateTreeEditor.StateConditions", new IMAGE_BRUSH_SVG("Icons/State_Conditions", CoreStyleConstants::Icon16x16));
 
 		Set("StateTreeEditor.Conditions", new IMAGE_BRUSH_SVG("Icons/Conditions", CoreStyleConstants::Icon16x16));
+		Set("StateTreeEditor.Conditions.Large", new IMAGE_BRUSH_SVG("Icons/Conditions", CoreStyleConstants::Icon24x24));
+		Set("StateTreeEditor.Evaluators", new IMAGE_BRUSH_SVG("Icons/Evaluators", CoreStyleConstants::Icon16x16));
+		Set("StateTreeEditor.Parameters", new IMAGE_BRUSH_SVG("Icons/Parameters", CoreStyleConstants::Icon16x16));
+		Set("StateTreeEditor.Utility", new IMAGE_BRUSH_SVG("Icons/Utility", CoreStyleConstants::Icon16x16));
+		Set("StateTreeEditor.Utility.Large", new IMAGE_BRUSH_SVG("Icons/Utility", CoreStyleConstants::Icon24x24));
+		Set("StateTreeEditor.Tasks", new IMAGE_BRUSH_SVG("Icons/Tasks", CoreStyleConstants::Icon16x16));
+		Set("StateTreeEditor.Tasks.Large", new IMAGE_BRUSH_SVG("Icons/Tasks", CoreStyleConstants::Icon24x24));
+		Set("StateTreeEditor.Transitions", new IMAGE_BRUSH_SVG("Icons/Transitions", CoreStyleConstants::Icon16x16));
 
 		Set("StateTreeEditor.StateSubtree", new IMAGE_BRUSH_SVG("Icons/State_Subtree", CoreStyleConstants::Icon16x16));
 		Set("StateTreeEditor.StateLinked", new IMAGE_BRUSH_SVG("Icons/State_Linked", CoreStyleConstants::Icon16x16));
+
+		Set("StateTreeEditor.Transition.Dash", new IMAGE_BRUSH_SVG("Icons/Transition_Dash", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
+		Set("StateTreeEditor.Transition.Goto", new IMAGE_BRUSH_SVG("Icons/Transition_Goto", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
+		Set("StateTreeEditor.Transition.Next", new IMAGE_BRUSH_SVG("Icons/Transition_Next", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
+		Set("StateTreeEditor.Transition.Parent", new IMAGE_BRUSH_SVG("Icons/Transition_Parent", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
+
+		Set("StateTreeEditor.Transition.Condition", new IMAGE_BRUSH_SVG("Icons/State_Conditions", CoreStyleConstants::Icon16x16, FStyleColors::AccentGray));
+		Set("StateTreeEditor.Debugger.Condition.OnTransition", new IMAGE_BRUSH_SVG("Icons/State_Conditions", CoreStyleConstants::Icon16x16, FStyleColors::AccentGray));
+
+		Set("StateTreeEditor.Debugger.Log.Warning", new IMAGE_BRUSH_SVG("Icons/Alert", CoreStyleConstants::Icon16x16, FStyleColors::AccentYellow));
+		Set("StateTreeEditor.Debugger.Log.Error", new IMAGE_BRUSH_SVG("Icons/Failure", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
+
+		// Common Node Icons
+		Set("Node.Movement", new IMAGE_BRUSH_SVG("Icons/Movement", CoreStyleConstants::Icon16x16));
+		Set("Node.Tag", new IMAGE_BRUSH_SVG("Icons/Tag", CoreStyleConstants::Icon16x16));
+		Set("Node.RunParallel", new IMAGE_BRUSH_SVG("Icons/RunParallel", CoreStyleConstants::Icon16x16));
+		Set("Node.Task", new IMAGE_BRUSH_SVG("Icons/Task", CoreStyleConstants::Icon16x16));
+		Set("Node.Text", new IMAGE_BRUSH_SVG("Icons/Text", CoreStyleConstants::Icon16x16));
+		Set("Node.Function", new IMAGE_BRUSH_SVG("Icons/Function", CoreStyleConstants::Icon16x16));
 	}
-
-
 }
 
 void FStateTreeEditorStyle::Register()
@@ -296,4 +430,41 @@ FStateTreeEditorStyle& FStateTreeEditorStyle::Get()
 {
 	static FStateTreeEditorStyle Instance;
 	return Instance;
+}
+
+const FSlateBrush* FStateTreeEditorStyle::GetBrushForSelectionBehaviorType(EStateTreeStateSelectionBehavior InBehaviour, bool bHasChildren, EStateTreeStateType StateType)
+{	
+	if (InBehaviour == EStateTreeStateSelectionBehavior::None)
+	{
+		return Get().GetBrush("StateTreeEditor.SelectNone");
+	}
+	else if (InBehaviour == EStateTreeStateSelectionBehavior::TryEnterState)
+	{
+		return Get().GetBrush("StateTreeEditor.TryEnterState");			
+	}
+	else if (InBehaviour == EStateTreeStateSelectionBehavior::TrySelectChildrenInOrder
+		|| InBehaviour == EStateTreeStateSelectionBehavior::TrySelectChildrenWithHighestUtility
+		|| InBehaviour == EStateTreeStateSelectionBehavior::TrySelectChildrenAtRandomWeightedByUtility)
+	{
+		if (!bHasChildren
+			|| StateType == EStateTreeStateType::Linked
+			|| StateType == EStateTreeStateType::LinkedAsset)
+		{
+			return Get().GetBrush("StateTreeEditor.TryEnterState");			
+		}
+		else
+		{
+			return Get().GetBrush("StateTreeEditor.TrySelectChildrenInOrder");
+		}
+	}
+	else if (InBehaviour == EStateTreeStateSelectionBehavior::TrySelectChildrenAtRandom)
+	{
+		return Get().GetBrush("StateTreeEditor.TrySelectChildrenAtRandom");
+	}
+	else if (InBehaviour == EStateTreeStateSelectionBehavior::TryFollowTransitions)
+	{
+		return Get().GetBrush("StateTreeEditor.TryFollowTransitions");
+	}
+
+	return nullptr;
 }

@@ -26,6 +26,14 @@ struct FIniStringValue
 	/** From .ini, relative to {PROJECT}. Ex: /Config/DefaultEngine.ini */
 	UPROPERTY(EditAnywhere, Category = General)
 	FString Filename;
+
+	/** 
+	 * Ini branch that Filename belongs to. Ex: if Filename is "/Config/DefaultEngine.ini", Branch should be "Engine".
+	 *
+	 * If this isn't set, the system will attempt to detect it based on Filename.
+	 */
+	UPROPERTY(EditAnywhere, Category = General)
+	FString Branch;
 };
 
 /**

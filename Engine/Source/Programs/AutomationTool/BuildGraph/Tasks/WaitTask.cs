@@ -2,11 +2,8 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
-using AutomationTool;
 using EpicGames.Core;
 
 namespace AutomationTool.Tasks
@@ -20,7 +17,7 @@ namespace AutomationTool.Tasks
 		/// Number of seconds to wait.
 		/// </summary>
 		[TaskParameter]
-		public int Seconds;
+		public int Seconds { get; set; }
 	}
 
 	/// <summary>
@@ -29,37 +26,34 @@ namespace AutomationTool.Tasks
 	[TaskElement("Wait", typeof(WaitTaskParameters))]
 	public class WaitTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		WaitTaskParameters Parameters;
+		readonly WaitTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a wait task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public WaitTask(WaitTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public WaitTask(WaitTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			await Task.Delay(TimeSpan.FromSeconds(Parameters.Seconds));
+			await Task.Delay(TimeSpan.FromSeconds(_parameters.Seconds));
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>

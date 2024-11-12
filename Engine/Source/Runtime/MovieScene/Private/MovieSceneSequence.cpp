@@ -19,6 +19,8 @@
 #include "EntitySystem/IMovieSceneEntityProvider.h"
 #include "Compilation/MovieSceneCompiledDataManager.h"
 #include "UniversalObjectLocator.h"
+#include "Bindings/MovieSceneSpawnableBinding.h"
+#include "MovieSceneCommonHelpers.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneSequence)
 
@@ -65,16 +67,12 @@ FMovieSceneBindingReferences* UMovieSceneSequence::GetBindingReferences()
 	return const_cast<FMovieSceneBindingReferences*>(Result);
 }
 
-void UMovieSceneSequence::UnloadBoundObject(const UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& ObjectId, int32 BindingIndex)
+void UMovieSceneSequence::LocateBoundObjects(const FGuid& ObjectId, const UE::UniversalObjectLocator::FResolveParams& ResolveParams, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
 {
-	FMovieSceneBindingReferences* Refs = GetBindingReferences();
-	if (Refs)
-	{
-		Refs->UnloadBoundObject(ResolveParams, ObjectId, BindingIndex);
-	}
+	LocateBoundObjects(ObjectId, ResolveParams, nullptr, OutObjects);
 }
 
-void UMovieSceneSequence::LocateBoundObjects(const FGuid& ObjectId, const UE::UniversalObjectLocator::FResolveParams& ResolveParams, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
+void UMovieSceneSequence::LocateBoundObjects(const FGuid& ObjectId, const UE::UniversalObjectLocator::FResolveParams& ResolveParams, TSharedPtr<const FSharedPlaybackState> SharedPlaybackState, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
 {
 	const FMovieSceneBindingReferences* Refs = GetBindingReferences();
 	if (Refs)
@@ -87,6 +85,18 @@ void UMovieSceneSequence::LocateBoundObjects(const FGuid& ObjectId, const UE::Un
 		LocateBoundObjects(ObjectId, const_cast<UObject*>(ResolveParams.Context), OutObjects);
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
+}
+
+FGuid UMovieSceneSequence::FindBindingFromObject(UObject* InObject, UObject* Context) const
+{
+	if (InObject && Context)
+	{
+		TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(Context, const_cast<UMovieSceneSequence*>(this));
+
+		return FindBindingFromObject(InObject, SharedPlaybackState);
+	}
+
+	return FGuid();
 }
 
 void UMovieSceneSequence::PostLoad()
@@ -201,15 +211,13 @@ void UMovieSceneSequence::Serialize(FArchive& Ar)
 
 #if WITH_EDITOR
 
-bool UMovieSceneSequence::OptimizeForCook()
+void UMovieSceneSequence::OptimizeForCook()
 {
 	UMovieScene* MovieScene = GetMovieScene();
 	if (!MovieScene)
 	{
-		return false;
+		return;
 	}
-
-	bool bModified = false;
 
 	for (int32 TrackIndex = 0; TrackIndex < MovieScene->GetTracks().Num(); )
 	{
@@ -219,7 +227,6 @@ bool UMovieSceneSequence::OptimizeForCook()
 			Track->RemoveForCook();
 			MovieScene->RemoveTrack(*Track);
 			UE_LOG(LogMovieScene, Display, TEXT("Removing muted track: %s from: %s"), *Track->GetDisplayName().ToString(), *GetPathName());
-			bModified = true;
 			continue;
 		}
 		++TrackIndex;
@@ -239,7 +246,6 @@ bool UMovieSceneSequence::OptimizeForCook()
 					Section->RemoveForCook();
 					Track->RemoveSection(*Section);
 					UE_LOG(LogMovieScene, Display, TEXT("Removing muted section: %s from: %s"), *Section->GetPathName(), *Track->GetDisplayName().ToString());
-					bModified = true;
 					continue;
 				}
 				++SectionIndex;
@@ -271,7 +277,6 @@ bool UMovieSceneSequence::OptimizeForCook()
 				Track->RemoveForCook();
 				MovieScene->RemoveTrack(*Track);
 				UE_LOG(LogMovieScene, Display, TEXT("Removing muted track: %s from: %s"), *Track->GetDisplayName().ToString(), *GetPathName());
-				bModified = true;
 				continue;
 			}
 			++TrackIndex;
@@ -291,7 +296,6 @@ bool UMovieSceneSequence::OptimizeForCook()
 						Section->RemoveForCook();
 						Track->RemoveSection(*Section);
 						UE_LOG(LogMovieScene, Display, TEXT("Removing muted section: %s from: %s"), *Section->GetPathName(), *Track->GetDisplayName().ToString());
-						bModified = true;
 						continue;
 					}
 					++SectionIndex;
@@ -303,22 +307,14 @@ bool UMovieSceneSequence::OptimizeForCook()
 		{
 			UE_LOG(LogMovieScene, Display, TEXT("Removing muted object: %s from: %s"), *MovieScene->GetBindings()[ObjectBindingIndex].GetName(), *GetPathName());
 			FGuid GuidToRemove = MovieScene->GetBindings()[ObjectBindingIndex].GetObjectGuid();
-			bModified |= MovieScene->RemoveSpawnable(GuidToRemove);
-			bModified |= MovieScene->RemovePossessable(GuidToRemove);
+			MovieScene->RemoveSpawnable(GuidToRemove);
+			MovieScene->RemovePossessable(GuidToRemove);
 		}
 		else
 		{
 			++ObjectBindingIndex;
 		}
 	}
-
-	if (bModified)
-	{
-		Modify();
-		MovieScene->Modify();
-	}
-
-	return bModified;
 }
 
 #endif
@@ -348,18 +344,14 @@ UMovieSceneCompiledData* UMovieSceneSequence::GetOrCreateCompiledData()
 FGuid UMovieSceneSequence::FindPossessableObjectId(UObject& Object, UObject* Context) const
 {
 	using namespace UE::MovieScene;
-
-	FSharedPlaybackStateCreateParams CreateParams;
-	CreateParams.PlaybackContext = Context;
 	UMovieSceneSequence* ThisSequence = const_cast<UMovieSceneSequence*>(this);
-	TSharedRef<FSharedPlaybackState> TransientPlaybackState = MakeShared<FSharedPlaybackState>(*ThisSequence, CreateParams);
-
-	FMovieSceneEvaluationState State;
-	TransientPlaybackState->AddCapabilityRaw(&State);
-	State.AssignSequence(MovieSceneSequenceID::Root, *ThisSequence, TransientPlaybackState);
-
-	FGuid ExistingID = State.FindObjectId(Object, MovieSceneSequenceID::Root, TransientPlaybackState);
-	return ExistingID;
+	TSharedRef<UE::MovieScene::FSharedPlaybackState> TransientPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(Context, ThisSequence);
+	if (FMovieSceneEvaluationState* EvaluationState = TransientPlaybackState->FindCapability<FMovieSceneEvaluationState>())
+	{
+		FGuid ExistingID = EvaluationState->FindObjectId(Object, MovieSceneSequenceID::Root, TransientPlaybackState);
+		return ExistingID;
+	}
+	return FGuid();
 }
 
 FMovieSceneObjectBindingID UMovieSceneSequence::FindBindingByTag(FName InBindingName) const
@@ -404,3 +396,16 @@ UObject* UMovieSceneSequence::CreateDirectorInstance(IMovieScenePlayer& Player, 
 	return CreateDirectorInstance(Player.GetSharedPlaybackState(), SequenceID);
 }
 
+#if WITH_EDITOR
+
+ETrackSupport UMovieSceneSequence::IsTrackSupported(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
+{
+	if (!UMovieScene::IsTrackClassAllowed(InTrackClass))
+	{
+		return ETrackSupport::NotSupported;
+	}
+
+	return IsTrackSupportedImpl(InTrackClass); 
+}
+
+#endif

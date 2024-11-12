@@ -2,25 +2,22 @@
 
 #include "Widgets/Monitors/SDMXChannelsMonitor.h"
 
+#include "Containers/UnrealString.h"
 #include "DMXEditorSettings.h"
-#include "DMXEditorUtils.h"
 #include "DMXProtocolCommon.h"
-#include "DMXProtocolSettings.h"
+#include "DMXSubsystem.h"
 #include "IO/DMXInputPort.h"
 #include "IO/DMXOutputPort.h"
-#include "Widgets/SDMXChannel.h"
-#include "Widgets/Monitors/SDMXMonitorSourceSelector.h"
-
-#include "Styling/AppStyle.h"
+#include "IO/DMXPortManager.h"
 #include "SlateOptMacros.h"
-#include "Containers/UnrealString.h"
+#include "Styling/AppStyle.h"
 #include "Widgets/Input/SButton.h"
-#include "Widgets/Input/SCheckBox.h" 
 #include "Widgets/Input/SEditableTextBox.h" 
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Layout/SWrapBox.h"
-
+#include "Widgets/Monitors/SDMXMonitorSourceSelector.h"
+#include "Widgets/SDMXChannel.h"
 
 #define LOCTEXT_NAMESPACE "SDMXChannelsMonitor"
 
@@ -44,7 +41,7 @@ void SDMXChannelsMonitor::Construct(const FArguments& InArgs)
 			[
 				SNew(SWrapBox)
 				.InnerSlotPadding(FVector2D(36.0f, 10.0f))
-				.UseAllottedWidth(true)
+				.UseAllottedSize(true)
 		
 				// Source Selector
 				+ SWrapBox::Slot()
@@ -121,7 +118,7 @@ void SDMXChannelsMonitor::Construct(const FArguments& InArgs)
 				.HAlign(HAlign_Fill)
 				[
 					SAssignNew(ChannelValuesBox, SWrapBox)
-					.UseAllottedWidth(true)
+					.UseAllottedSize(true)
 					.InnerSlotPadding(FVector2D(1.0f, 1.0f))
 				]
 			]
@@ -133,6 +130,8 @@ void SDMXChannelsMonitor::Construct(const FArguments& InArgs)
 	// Init UI
 	CreateChannelValueWidgets();
 	ZeroChannelValues();
+
+	FDMXPortManager::Get().GetOnBuffersCleared().AddSP(this, &SDMXChannelsMonitor::OnPortBuffersCleared);
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
@@ -143,7 +142,7 @@ void SDMXChannelsMonitor::Tick(const FGeometry& AllottedGeometry, const double I
 	if (SourceSelector->IsMonitorInputPorts())
 	{
 		// The widget returns the right arrays, also output ports that loopback when input ports are selected.
-		for (const FDMXInputPortSharedRef& InputPort : SourceSelector->GetSelectedInputPorts())
+		for (const TSharedRef<FDMXInputPort>& InputPort : SourceSelector->GetSelectedInputPorts())
 		{
 			if (InputPort->GameThreadGetDMXSignal(UniverseID, Signal))
 			{
@@ -153,7 +152,7 @@ void SDMXChannelsMonitor::Tick(const FGeometry& AllottedGeometry, const double I
 	}
 	else
 	{
-		for (const FDMXOutputPortSharedRef& OutputPort : SourceSelector->GetSelectedOutputPorts())
+		for (const TSharedRef<FDMXOutputPort>& OutputPort : SourceSelector->GetSelectedOutputPorts())
 		{
 			constexpr bool bEvenIfNotLoopbackToEngine = true;
 			if (OutputPort->GameThreadGetDMXSignal(UniverseID, Signal, bEvenIfNotLoopbackToEngine))
@@ -255,16 +254,6 @@ void SDMXChannelsMonitor::SetChannelValues(const TArray<uint8>& Buffer)
 	}
 }
 
-FReply SDMXChannelsMonitor::OnClearButtonClicked()
-{
-	FDMXEditorUtils::ClearAllDMXPortBuffers();
-	FDMXEditorUtils::ClearFixturePatchCachedData();
-
-	ZeroChannelValues();
-
-	return FReply::Handled();
-}
-
 void SDMXChannelsMonitor::OnUniverseIDValueCommitted(const FText& InNewText, ETextCommit::Type CommitType)
 {
 	// If the entered text isn't numeric, restore the previous Value
@@ -294,6 +283,18 @@ void SDMXChannelsMonitor::OnUniverseIDValueCommitted(const FText& InNewText, ETe
 
 		ZeroChannelValues();
 	}
+}
+
+FReply SDMXChannelsMonitor::OnClearButtonClicked()
+{
+	UDMXSubsystem::ClearDMXBuffers();
+
+	return FReply::Handled();
+}
+
+void SDMXChannelsMonitor::OnPortBuffersCleared()
+{
+	ZeroChannelValues();
 }
 
 #undef LOCTEXT_NAMESPACE

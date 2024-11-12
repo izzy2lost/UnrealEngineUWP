@@ -13,7 +13,7 @@ class BLENDSTACKEDITOR_API UAnimGraphNode_BlendStack_Base : public UAnimGraphNod
 {
 	GENERATED_BODY()
 
-	public:
+public:
 	virtual void GetOutputLinkAttributes(FNodeAttributeArray& OutAttributes) const override;
 	virtual void OnProcessDuringCompilation(IAnimBlueprintCompilationContext& InCompilationContext, IAnimBlueprintGeneratedClassCompiledData& OutCompiledData) override;
 
@@ -30,6 +30,7 @@ class BLENDSTACKEDITOR_API UAnimGraphNode_BlendStack_Base : public UAnimGraphNod
 	virtual void Serialize(FArchive& Ar) override;
 
 	virtual TArray<UEdGraph*> GetSubGraphs() const override;
+	virtual void BakeDataDuringCompilation(class FCompilerResultsLog& MessageLog) override;
 
 protected:
 	// Helper function for compilation
@@ -63,7 +64,6 @@ class UAnimGraphNode_BlendStack : public UAnimGraphNode_BlendStack_Base
 	virtual FText GetTooltipText() const override;
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 	virtual FText GetMenuCategory() const override;
-	virtual void BakeDataDuringCompilation(class FCompilerResultsLog& MessageLog) override;
 
 protected:
 	virtual FAnimNode_BlendStack_Standalone* GetBlendStackNode() const override { return (FAnimNode_BlendStack_Standalone*)(&Node); }

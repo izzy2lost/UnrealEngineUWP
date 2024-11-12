@@ -7,6 +7,10 @@
 #include "HAL/PlatformMemory.h"
 #include "Misc/AssertionMacros.h"
 
+#if PLATFORM_HAS_ASAN_INCLUDE
+#include <sanitizer/asan_interface.h>
+#endif
+
 class FVirtualStackAllocator;
 
 /**
@@ -104,6 +108,10 @@ private:
 	FORCEINLINE void Free(void* RestorePointer)
 	{
 		check(RestorePointer <= NextAllocationStart);
+
+#if PLATFORM_HAS_ASAN_INCLUDE
+		ASAN_POISON_MEMORY_REGION(RestorePointer, static_cast<uint8*>(NextAllocationStart) - static_cast<uint8*>(RestorePointer));
+#endif
 
 		NextAllocationStart = RestorePointer;
 		if (UNLIKELY(NextAllocationStart == VirtualMemory.GetVirtualPointer() && DecommitMode != EVirtualStackAllocatorDecommitMode::AllOnDestruction))

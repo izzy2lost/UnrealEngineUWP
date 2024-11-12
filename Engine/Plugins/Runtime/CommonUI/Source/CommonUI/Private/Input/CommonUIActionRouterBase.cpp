@@ -40,6 +40,12 @@ static const FAutoConsoleVariableRef CVarAutoFlushInput(
 	bAutoFlushPressedKeys,
 	TEXT("Causes the pressed keys to be flushed when the Input Mode is switched to Menu."));
 
+bool bResetUIInputConfigOnActivatableTreeDeactivation = true;
+static const FAutoConsoleVariableRef CVarResetUIInputConfigOnActivatableTreeDeactivation(
+	TEXT("CommonUI.ResetUIInputConfigOnActivatableTreeDeactivation"),
+	bResetUIInputConfigOnActivatableTreeDeactivation,
+	TEXT("Controls if input config is reset when root is changed via deactivation."));
+
 //////////////////////////////////////////////////////////////////////////
 
 static bool bTraceInputConfig = false;
@@ -72,6 +78,11 @@ static FAutoConsoleVariableRef CVarCheckGameViewportClientValid(
 	TEXT("CommonUI.Debug.CheckGameViewportClientValid"),
 	bCheckGameViewportClientValid,
 	TEXT("Log error when CommonUI is used without the current game viewport deriving from CommonGameViewportClient."));
+
+TAutoConsoleVariable<bool> CvarEarlyOutRefreshActionDomainLeafNodeConfig(
+	TEXT("CommonUI.Debug.EarlyOutRefreshActionDomainLeafNodeConfig"),
+	true,
+	TEXT("When true early out in RefreshActionDomainLeafNodeConfig if there is an active root node."));
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -202,27 +213,42 @@ FUIActionBindingHandle UCommonUIActionRouterBase::RegisterUIActionBinding(const 
 
 bool UCommonUIActionRouterBase::RegisterLinkedPreprocessor(const UWidget& Widget, const TSharedRef<IInputProcessor>& InputPreprocessor, int32 DesiredIndex)
 {
+	return RegisterLinkedPreprocessor(Widget, InputPreprocessor, FInputPreprocessorRegistrationKey{ EInputPreProcessorType::Game, DesiredIndex });
+}
+
+bool UCommonUIActionRouterBase::RegisterLinkedPreprocessor(const UWidget& Widget, const TSharedRef<IInputProcessor>& InputPreprocessor)
+{
+	return RegisterLinkedPreprocessor(Widget, InputPreprocessor, FInputPreprocessorRegistrationKey());
+}
+
+bool UCommonUIActionRouterBase::RegisterLinkedPreprocessor(const UWidget& Widget, const TSharedRef<IInputProcessor>& InputPreprocessor, const FInputPreprocessorRegistrationKey& RegistrationInfo)
+{
 	if (FActivatableTreeNodePtr OwnerNode = FindOwningNode(Widget))
 	{
-		OwnerNode->AddInputPreprocessor(InputPreprocessor, DesiredIndex);
+		OwnerNode->AddInputPreprocessor(InputPreprocessor, RegistrationInfo);
 		return true;
 	}
 	else if (Widget.GetCachedWidget())
 	{
 		// The widget is already constructed, but there's no node for it yet - defer for a frame
 		FPendingWidgetRegistration& PendingRegistration = GetOrCreatePendingRegistration(Widget);
-		if (FPendingWidgetRegistration::FPreprocessorRegistration* ExistingEntry = PendingRegistration.Preprocessors.FindByKey(InputPreprocessor))
+
+		bool bAlreadyExists = false;
+		for (FInputPreprocessorRegistration& Registration : PendingRegistration.InputPreProcessors)
 		{
-			// Already pending - just make sure the index lines up on the off chance it changed
-			ExistingEntry->DesiredIdx = DesiredIndex;
+			if (Registration.InputProcessor == InputPreprocessor)
+			{
+				Registration.Info = RegistrationInfo;
+				bAlreadyExists = true;
+				break;
+			}
 		}
-		else
+
+		if(!bAlreadyExists)
 		{
-			FPendingWidgetRegistration::FPreprocessorRegistration PreprocessorRegistration;
-			PreprocessorRegistration.Preprocessor = InputPreprocessor;
-			PreprocessorRegistration.DesiredIdx = DesiredIndex;
-			PendingRegistration.Preprocessors.Add(PreprocessorRegistration);
+			PendingRegistration.InputPreProcessors.Add(FInputPreprocessorRegistration{ RegistrationInfo, InputPreprocessor });
 		}
+
 		return true;
 	}
 
@@ -237,24 +263,27 @@ void UCommonUIActionRouterBase::Initialize(FSubsystemCollectionBase& Collection)
 	UCommonActivatableWidget::OnRebuilding.AddUObject(this, &UCommonUIActionRouterBase::HandleActivatableWidgetRebuilding);
 	FCoreUObjectDelegates::GetPostGarbageCollect().AddUObject(this, &UCommonUIActionRouterBase::HandlePostGarbageCollect);
 
-	if (ensure(InputSubsystem))
+	if (FSlateApplication::IsInitialized())
 	{
-		AnalogCursor = MakeAnalogCursor();
-		PostAnalogCursorCreate();
-
-		if (bCheckGameViewportClientValid && !GEngine->GameViewportClientClass->IsChildOf<UCommonGameViewportClient>())
+		if (ensure(InputSubsystem))
 		{
-			UE_LOG(LogUIActionRouter, Error, 
-				TEXT("Using CommonUI without a CommonGameViewportClient derived game viewport client. CommonUI Input routing will not function correctly.\n")
-				TEXT("To disable this warning set CommonUI.Debug.CheckGameViewportClientValid=0 under [SystemSettings] in your project's DefaultEngine.ini."));
-		}
-	}
-	else
-	{
-		UE_LOG(LogUIActionRouter, Warning, TEXT("Input system not initialized before action router!"));
-	}
+			AnalogCursor = MakeAnalogCursor();
+			PostAnalogCursorCreate();
 
-	FSlateApplication::Get().OnFocusChanging().AddUObject(this, &UCommonUIActionRouterBase::HandleSlateFocusChanging);
+			if (bCheckGameViewportClientValid && !GEngine->GameViewportClientClass->IsChildOf<UCommonGameViewportClient>())
+			{
+				UE_LOG(LogUIActionRouter, Error,
+					TEXT("Using CommonUI without a CommonGameViewportClient derived game viewport client. CommonUI Input routing will not function correctly.\n")
+					TEXT("To disable this warning set CommonUI.Debug.CheckGameViewportClientValid=0 under [SystemSettings] in your project's DefaultEngine.ini."));
+			}
+		}
+		else
+		{
+			UE_LOG(LogUIActionRouter, Warning, TEXT("Input system not initialized before action router!"));
+		}
+
+		FSlateApplication::Get().OnFocusChanging().AddUObject(this, &UCommonUIActionRouterBase::HandleSlateFocusChanging);
+	}
 }
 
 void UCommonUIActionRouterBase::PostAnalogCursorCreate()
@@ -266,7 +295,7 @@ void UCommonUIActionRouterBase::RegisterAnalogCursorTick()
 {
 	if (GEngine->GameViewportClientClass->IsChildOf<UCommonGameViewportClient>())
 	{
-		FSlateApplication::Get().RegisterInputPreProcessor(AnalogCursor, UCommonUIInputSettings::Get().GetAnalogCursorSettings().PreprocessorPriority);
+		FSlateApplication::Get().RegisterInputPreProcessor(AnalogCursor, UCommonUIInputSettings::Get().GetAnalogCursorSettings().PreprocessorRegistrationInfo);
 	}
 
 	if (bIsActivatableTreeEnabled)
@@ -307,6 +336,10 @@ void UCommonUIActionRouterBase::SetIsActivatableTreeEnabled(bool bInIsTreeEnable
 	if (!bInIsTreeEnabled)
 	{
 		SetActiveRoot(nullptr);
+	}
+	else
+	{
+		RefreshActionDomainLeafNodeConfig();
 	}
 }
 
@@ -592,7 +625,11 @@ void UCommonUIActionRouterBase::RemoveBinding(FUIActionBindingHandle Handle)
 int32 UCommonUIActionRouterBase::GetLocalPlayerIndex() const
 {
 	ULocalPlayer* LocalPlayer = GetLocalPlayerChecked();
-	return LocalPlayer->GetGameInstance()->GetLocalPlayers().Find(LocalPlayer);
+	if (UGameInstance* GameInstance = LocalPlayer->GetGameInstance())
+	{
+		return GameInstance->GetLocalPlayers().Find(LocalPlayer);
+	}
+	return INDEX_NONE;
 }
 
 bool UCommonUIActionRouterBase::ShouldAlwaysShowCursor() const
@@ -740,26 +777,44 @@ void UCommonUIActionRouterBase::HandleRootNodeDeactivated(TWeakPtr<FActivatableT
 		SetActiveRoot(nullptr);
 	}
 
-	bool bActivatedRootNodeExists = false;
-	for (const FActivatableTreeRootRef& Root : RootNodes)
+	
+	if (!CvarEarlyOutRefreshActionDomainLeafNodeConfig->GetBool())
 	{
-		if (Root->IsWidgetActivated())
+		bool bActivatedRootNodeExists = false;
+		for (const FActivatableTreeRootRef& Root : RootNodes)
 		{
-			bActivatedRootNodeExists = true;
-			break;
+			if (Root->IsWidgetActivated())
+			{
+				bActivatedRootNodeExists = true;
+				break;
+			}
+		}
+
+		// In the case that all root nodes are not activated we need to re-establish input for the highest paint layer node in action domain nodes.
+		if (!bActivatedRootNodeExists && bIsActivatableTreeEnabled)
+		{
+			if (bWarnAllWidgetsDeactivated)
+			{
+				UE_LOG(LogUIActionRouter, Warning, TEXT("All widgets deactivated. Existing input config set: %s"),
+					   ActiveInputConfig.IsSet() ? TEXT("Yes - the current input config is lingering from a deactivated widget.") : TEXT("No."));
+			}
+
+			RefreshActionDomainLeafNodeConfig();
 		}
 	}
-
-	// In the case that all root nodes are not activated we need to re-establish input for the highest paint layer node in action domain nodes.
-	if (!bActivatedRootNodeExists && bIsActivatableTreeEnabled)
+	else
 	{
-		if (bWarnAllWidgetsDeactivated)
+		// In the case that all root nodes are not activated we need to re-establish input for the highest paint layer node in action domain nodes.
+		if (bIsActivatableTreeEnabled)
 		{
-			UE_LOG(LogUIActionRouter, Warning, TEXT("All widgets deactivated. Existing input config set: %s"), 
-				ActiveInputConfig.IsSet() ? TEXT("Yes - the current input config is lingering from a deactivated widget.") : TEXT("No."));
-		}
+			if (bWarnAllWidgetsDeactivated)
+			{
+				UE_LOG(LogUIActionRouter, Warning, TEXT("All widgets deactivated. Existing input config set: %s"),
+					   ActiveInputConfig.IsSet() ? TEXT("Yes - the current input config is lingering from a deactivated widget.") : TEXT("No."));
+			}
 
-		RefreshActionDomainLeafNodeConfig();
+			RefreshActionDomainLeafNodeConfig();
+		}
 	}
 }
 
@@ -990,16 +1045,16 @@ void UCommonUIActionRouterBase::ProcessRebuiltWidgets()
 				OwnerWidget->RegisterInputTreeNode(OwnerNode);
 			}
 
-			if ((PendingRegistration.bIsScrollRecipient || PendingRegistration.Preprocessors.Num() > 0) && ensureMsgf(OwnerNode, TEXT("Widget [%s] does not have a parent activatable widget at any level - cannot register preprocessors or as a scroll recipient"), *Widget->GetName()))
+			if ((PendingRegistration.bIsScrollRecipient || PendingRegistration.InputPreProcessors.Num() > 0) && ensureMsgf(OwnerNode, TEXT("Widget [%s] does not have a parent activatable widget at any level - cannot register preprocessors or as a scroll recipient"), *Widget->GetName()))
 			{
 				if (PendingRegistration.bIsScrollRecipient)
 				{
 					OwnerNode->AddScrollRecipient(*Widget);
 				}
 
-				for (const auto& PreprocessorInfo : PendingRegistration.Preprocessors)
+				for (const auto& PreprocessorInfo : PendingRegistration.InputPreProcessors)
 				{
-					OwnerNode->AddInputPreprocessor(PreprocessorInfo.Preprocessor.ToSharedRef(), PreprocessorInfo.DesiredIdx);
+					OwnerNode->AddInputPreprocessor(PreprocessorInfo.InputProcessor.ToSharedRef(), PreprocessorInfo.Info);
 				}
 			}
 		}
@@ -1212,8 +1267,11 @@ void UCommonUIActionRouterBase::SetActiveRoot(FActivatableTreeRootPtr NewActiveR
 		bForceResetActiveRoot = false;
 		ActiveRootNode.Reset();
 
-		// Reset the input config when dormant so we don't get stuck in a non-default input mode when layout is dormant
-		SetActiveUIInputConfig(FUIInputConfig(ECommonInputMode::All, EMouseCaptureMode::NoCapture));
+		if (bForceResetActiveRoot || bResetUIInputConfigOnActivatableTreeDeactivation)
+		{
+			// Reset the input config when dormant so we don't get stuck in a non-default input mode when layout is dormant
+			SetActiveUIInputConfig(FUIInputConfig(ECommonInputMode::All, EMouseCaptureMode::NoCapture));
+		}
 	}
 	else
 	{
@@ -1417,10 +1475,30 @@ void UCommonUIActionRouterBase::SetActiveUIInputConfig(const FUIInputConfig& New
 
 void UCommonUIActionRouterBase::RefreshActionDomainLeafNodeConfig()
 {
-	// We don't want to refresh if the activatable tree is not enabled as we don't want input mode changes when dormant
-	if (!bIsActivatableTreeEnabled)
+	if (CvarEarlyOutRefreshActionDomainLeafNodeConfig->GetBool())
 	{
-		return;
+		// We don't want to refresh if the activatable tree is not enabled as we don't want input mode changes when dormant
+		bool bActivatedRootNodeExists = false;
+		for (const FActivatableTreeRootRef& Root : RootNodes)
+		{
+			if (Root->IsWidgetActivated())
+			{
+				bActivatedRootNodeExists = true;
+				break;
+			}
+		}
+
+		if (bActivatedRootNodeExists)
+		{
+			return;
+		}
+	}
+	else
+	{
+		if (!bIsActivatableTreeEnabled)
+		{
+			return;
+		}
 	}
 
 	if (const UCommonInputActionDomainTable* ActionDomainTable = GetActionDomainTable())

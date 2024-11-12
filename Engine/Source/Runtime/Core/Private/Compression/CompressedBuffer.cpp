@@ -271,7 +271,7 @@ private:
 
 FCompositeBuffer FBlockEncoder::Compress(const FCompositeBuffer& RawData, const uint64 BlockSize) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FBlockEncoder::Compress);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FBlockEncoder.Compress);
 
 	checkf(FMath::IsPowerOfTwo(BlockSize) && BlockSize <= MAX_uint32,
 		TEXT("BlockSize must be a 32-bit power of two but was %" UINT64_FMT "."), BlockSize);
@@ -381,7 +381,9 @@ FCompositeBuffer FBlockEncoder::Compress(const FCompositeBuffer& RawData, const 
 			if (BlockContexts.Num() > 1)
 			{
 				// Hash the raw data in parallel with encoding the blocks when there are multiple threads.
-				TRACE_CPUPROFILER_EVENT_SCOPE(FBlockEncoder::Compress::RawHash);
+				// @todo : on many-core systems like ThreadRippers this is the bottleneck (slower than compression)
+				//	use FXxHash64::HashBufferChunked instead.
+				TRACE_CPUPROFILER_EVENT_SCOPE(FBlockEncoder.RawHash);
 				RawHash.Update(RawData);
 			}
 		});
@@ -1078,7 +1080,8 @@ FCompressedBuffer FCompressedBuffer::Load(FArchive& Ar)
 	Header.ByteSwap();
 
 	FCompressedBuffer Local;
-	if (Header.Magic == Header.ExpectedMagic && Header.TotalCompressedSize >= sizeof(FHeader))
+	constexpr uint64 MaxCompressedSize = uint64(1) << 48;
+	if (Header.Magic == Header.ExpectedMagic && Header.TotalCompressedSize >= sizeof(FHeader) && Header.TotalCompressedSize <= MaxCompressedSize)
 	{
 		FUniqueBuffer MutableBuffer = FUniqueBuffer::Alloc(Header.TotalCompressedSize);
 		Header.ByteSwap();
@@ -1099,6 +1102,7 @@ FCompressedBuffer FCompressedBuffer::Load(FArchive& Ar)
 void FCompressedBuffer::Save(FArchive& Ar) const
 {
 	check(Ar.IsSaving());
+	checkf(!CompressedData.IsNull(), TEXT("Serializing a null compressed buffer is not supported."));
 	for (const FSharedBuffer& Segment : CompressedData.GetSegments())
 	{
 		Ar.Serialize(const_cast<void*>(Segment.GetData()), int64(Segment.GetSize()));

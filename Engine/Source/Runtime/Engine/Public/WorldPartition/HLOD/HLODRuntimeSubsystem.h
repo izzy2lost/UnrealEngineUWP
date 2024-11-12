@@ -62,9 +62,13 @@ public:
 
 	ENGINE_API void OnCVarsChanged();
 
-#if WITH_EDITOR
+#if !UE_BUILD_SHIPPING
 	uint32 GetNumOutdatedHLODActors() const { return OutdatedHLODActors.Num(); }
-	static ENGINE_API bool WriteHLODStatsCSV(UWorld* InWorld, const FString& InFilename);
+#endif
+
+#if WITH_EDITOR
+	UE_DEPRECATED(5.5, "Use UWorldPartitionHLODEditorSubsystem::WriteHLODStatsCSV()")
+	static ENGINE_API bool WriteHLODStatsCSV(UWorld* InWorld, const FString& InFilename) { return false; }
 #endif
 
 	UE_DEPRECATED(5.4, "You should perform this logic on the game side.")
@@ -117,7 +121,7 @@ private:
 	FWorldPartitionHLODActorRegisteredEvent		HLODActorRegisteredEvent;
 	FWorldPartitionHLODActorUnregisteredEvent	HLODActorUnregisteredEvent;
 
-#if WITH_EDITOR
+#if !UE_BUILD_SHIPPING
 	TSet<AWorldPartitionHLOD*> OutdatedHLODActors;
 #endif
 };

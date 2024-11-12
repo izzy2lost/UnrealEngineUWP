@@ -70,14 +70,17 @@ IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FDecalPassUniformParameters, "DecalPass",
 
 FDeferredDecalPassTextures GetDeferredDecalPassTextures(
 	FRDGBuilder& GraphBuilder, 
-	const FSceneView& View,
+	const FViewInfo& View,
+	const FSubstrateSceneData& SubstrateSceneData,
 	const FSceneTextures& SceneTextures, 
-	FDBufferTextures* DBufferTextures)
+	FDBufferTextures* DBufferTextures,
+	EDecalRenderStage DecalRenderStage)
 {
 	FDeferredDecalPassTextures PassTextures;
 
-	auto* Parameters = GraphBuilder.AllocParameters<FDecalPassUniformParameters>();
-	
+	auto* Parameters = GraphBuilder.AllocParameters<FDecalPassUniformParameters>(); //
+
+
 	const bool bIsMobile = (View.GetFeatureLevel() == ERHIFeatureLevel::ES3_1);
 	ESceneTextureSetupMode TextureReadAccess = ESceneTextureSetupMode::None;
 	EMobileSceneTextureSetupMode MobileTextureReadAccess = EMobileSceneTextureSetupMode::None;
@@ -93,6 +96,14 @@ FDeferredDecalPassTextures GetDeferredDecalPassTextures(
 	SetupSceneTextureUniformParameters(GraphBuilder, &SceneTextures, View.FeatureLevel, TextureReadAccess, Parameters->SceneTextures);
 	SetupMobileSceneTextureUniformParameters(GraphBuilder, &SceneTextures, MobileTextureReadAccess, Parameters->MobileSceneTextures);
 	Parameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(GetEyeAdaptationBuffer(GraphBuilder, View));
+	if (DecalRenderStage == EDecalRenderStage::Emissive)
+	{
+		 Substrate::BindSubstratePublicGlobalUniformParameters(GraphBuilder, &SubstrateSceneData, Parameters->SubstratePublic);
+	}
+	else
+	{
+		Substrate::BindSubstratePublicGlobalUniformParameters(GraphBuilder, nullptr, Parameters->SubstratePublic); // nullptr for default
+	}
 	PassTextures.DecalPassUniformBuffer = GraphBuilder.CreateUniformBuffer(Parameters);
 
 	PassTextures.Depth = SceneTextures.Depth;
@@ -114,7 +125,6 @@ FDeferredDecalPassTextures GetDeferredDecalPassTextures(
 
 void GetDeferredDecalRenderTargetsInfo(
 	const FSceneTexturesConfig& Config,
-	EShaderPlatform ShaderPlatform,
 	EDecalRenderTargetMode RenderTargetMode,
 	FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo)
 {
@@ -138,7 +148,7 @@ void GetDeferredDecalRenderTargetsInfo(
 
 	case EDecalRenderTargetMode::DBuffer:
 	{
-		const FDBufferTexturesDesc DBufferTexturesDesc = GetDBufferTexturesDesc(Config.Extent, ShaderPlatform);
+		const FDBufferTexturesDesc DBufferTexturesDesc = GetDBufferTexturesDesc(Config.Extent, Config.ShaderPlatform);
 
 		AddRenderTargetInfo(DBufferTexturesDesc.DBufferADesc.Format, DBufferTexturesDesc.DBufferADesc.Flags, RenderTargetsInfo);
 		AddRenderTargetInfo(DBufferTexturesDesc.DBufferBDesc.Format, DBufferTexturesDesc.DBufferBDesc.Flags, RenderTargetsInfo);
@@ -152,7 +162,7 @@ void GetDeferredDecalRenderTargetsInfo(
 	}
 	case EDecalRenderTargetMode::AmbientOcclusion:
 	{		
-		const FRDGTextureDesc AOTextureDesc = GetScreenSpaceAOTextureDesc(Config.Extent);
+		const FRDGTextureDesc AOTextureDesc = GetScreenSpaceAOTextureDesc(Config.FeatureLevel, Config.Extent);
 		AddRenderTargetInfo(AOTextureDesc.Format, AOTextureDesc.Flags, RenderTargetsInfo);
 		break;
 	}
@@ -160,6 +170,24 @@ void GetDeferredDecalRenderTargetsInfo(
 	default:
 		checkNoEntry();
 	}
+
+	if (Config.bRequiresDepthAux)
+	{
+		switch (RenderTargetMode)
+		{
+		case EDecalRenderTargetMode::SceneColorAndGBuffer:
+		case EDecalRenderTargetMode::SceneColorAndGBufferNoNormal:
+		case EDecalRenderTargetMode::SceneColor:
+			AddRenderTargetInfo(Config.bPreciseDepthAux ? PF_R32_FLOAT : PF_R16F, TexCreate_RenderTargetable | TexCreate_ShaderResource | TexCreate_InputAttachmentRead, RenderTargetsInfo);	
+		};
+	}
+	if (Config.bCustomResolveSubpass)
+	{
+		// resolve target as an additional color attachment
+		AddRenderTargetInfo(IsAndroidPlatform(Config.ShaderPlatform) ? PF_R8G8B8A8 : PF_B8G8R8A8, TexCreate_RenderTargetable | TexCreate_ShaderResource, RenderTargetsInfo);
+	}
+
+	RenderTargetsInfo.NumSamples = Config.NumSamples;
 
 	SetupDepthStencilInfo(PF_DepthStencil, Config.DepthCreateFlags, ERenderTargetLoadAction::ELoad,
 		ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilWrite, RenderTargetsInfo);
@@ -169,6 +197,7 @@ void GetDeferredDecalPassParameters(
 	FRDGBuilder &GraphBuilder,
 	const FViewInfo& View,
 	const FDeferredDecalPassTextures& Textures,
+	EDecalRenderStage DecalRenderStage,
 	EDecalRenderTargetMode RenderTargetMode,
 	FDeferredDecalPassParameters& PassParameters)
 {
@@ -181,13 +210,21 @@ void GetDeferredDecalPassParameters(
 
 	FRenderTargetBindingSlots& RenderTargets = PassParameters.RenderTargets;
 	PassParameters.RenderTargets.ShadingRateTexture = GVRSImageManager.GetVariableRateShadingImage(GraphBuilder, View, FVariableRateShadingImageManager::EVRSPassType::Decals);
-
+	PassParameters.RenderTargets.MultiViewCount = (View.bIsMobileMultiViewEnabled) ? 2 : (View.Aspects.IsMobileMultiViewEnabled() ? 1 : 0);
 	uint32 ColorTargetIndex = 0;
 
-	const auto AddColorTarget = [&](FRDGTextureRef Texture, ERenderTargetLoadAction LoadAction = ERenderTargetLoadAction::ELoad)
+	const auto AddColorTarget = [&](FRDGTextureRef Texture, ERenderTargetLoadAction LoadAction = ERenderTargetLoadAction::ELoad, FRDGTextureRef TextureArray = nullptr, bool bIsMobileMultiView = false)
 	{
-		checkf(Texture, TEXT("Attempting to bind decal render targets, but the texture is null."));
-		RenderTargets[ColorTargetIndex++] = FRenderTargetBinding(Texture, LoadAction);
+		if (bIsMobileMultiView)
+		{
+			checkf(TextureArray, TEXT("Attempting to bind decal render targets, but the texture array is null."));
+			RenderTargets[ColorTargetIndex++] = FRenderTargetBinding(TextureArray, LoadAction);
+		}
+		else
+		{
+			checkf(Texture, TEXT("Attempting to bind decal render targets, but the texture is null."));
+			RenderTargets[ColorTargetIndex++] = FRenderTargetBinding(Texture, LoadAction);
+		}
 	};
 
 	switch (RenderTargetMode)
@@ -213,13 +250,16 @@ void GetDeferredDecalPassParameters(
 
 		const FDBufferTextures& DBufferTextures = *Textures.DBufferTextures;
 
-		const ERenderTargetLoadAction LoadAction = DBufferTextures.DBufferA->HasBeenProduced()
+		const bool bDBufferAProduced = DBufferTextures.DBufferA ? DBufferTextures.DBufferA->HasBeenProduced() : false;
+		const bool bDBufferTexArrayAProduced = DBufferTextures.DBufferATexArray ? DBufferTextures.DBufferATexArray->HasBeenProduced() : false;
+		const bool bUseTextureArrays = View.bIsMobileMultiViewEnabled || UE::StereoRenderUtils::FStereoShaderAspects(View.GetShaderPlatform()).IsMobileMultiViewEnabled();
+		const ERenderTargetLoadAction LoadAction = (bUseTextureArrays ? bDBufferTexArrayAProduced : bDBufferAProduced)
 			? ERenderTargetLoadAction::ELoad
 			: ERenderTargetLoadAction::EClear;
 
-		AddColorTarget(DBufferTextures.DBufferA, LoadAction);
-		AddColorTarget(DBufferTextures.DBufferB, LoadAction);
-		AddColorTarget(DBufferTextures.DBufferC, LoadAction);
+		AddColorTarget(DBufferTextures.DBufferA, LoadAction, DBufferTextures.DBufferATexArray, bUseTextureArrays);
+		AddColorTarget(DBufferTextures.DBufferB, LoadAction, DBufferTextures.DBufferBTexArray, bUseTextureArrays);
+		AddColorTarget(DBufferTextures.DBufferC, LoadAction, DBufferTextures.DBufferCTexArray, bUseTextureArrays);
 
 		if (DBufferTextures.DBufferMask)
 		{
@@ -351,7 +391,8 @@ static bool RenderPreStencil(FRHICommandList& RHICmdList, const FViewInfo& View,
 	RHICmdList.SetStreamSource(0, GetUnitCubeVertexBuffer(), 0);
 
 	// Render decal mask
-	RHICmdList.DrawIndexedPrimitive(GetUnitCubeIndexBuffer(), 0, 0, 8, 0, UE_ARRAY_COUNT(GCubeIndices) / 3, 1);
+	uint32 InstanceCount = View.Aspects.IsInstancedMultiViewportEnabled() ? 1 : View.GetStereoPassInstanceFactor();
+	RHICmdList.DrawIndexedPrimitive(GetUnitCubeIndexBuffer(), 0, 0, 8, 0, UE_ARRAY_COUNT(GCubeIndices) / 3, InstanceCount);
 
 	return true;
 }
@@ -505,17 +546,49 @@ void CollectDeferredDecalPassPSOInitializers(
 	const FDecalBlendDesc DecalBlendDesc = DecalRendering::ComputeDecalBlendDesc(ShaderPlatform, Material);
 	EDecalRenderTargetMode DecalRenderTargetMode = DecalRendering::GetRenderTargetMode(DecalBlendDesc, DecalRenderStage);
 
+
+	TShaderRef<FShader> VertexShader, PixelShader;
+	if (!DecalRendering::GetShaders(FeatureLevel, Material, DecalRenderStage, VertexShader, PixelShader))
+	{
+		return;
+	}
+
+	if (IsPSOShaderPreloadingEnabled())
+	{
+		FPSOPrecacheData PSOPrecacheData;
+		PSOPrecacheData.bRequired = true;
+		PSOPrecacheData.Type = FPSOPrecacheData::EType::Graphics;
+		PSOPrecacheData.ShaderPreloadData.Shaders.Add(VertexShader);
+		PSOPrecacheData.ShaderPreloadData.Shaders.Add(PixelShader);
+#if PSO_PRECACHING_VALIDATE
+		PSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
+		PSOPrecacheData.VertexFactoryType = nullptr;
+#endif // PSO_PRECACHING_VALIDATE	
+
+		PSOInitializers.Add(MoveTemp(PSOPrecacheData));
+		return;
+	}
+
 	FGraphicsPipelineStateInitializer GraphicsPSOInit;
 	GraphicsPSOInit.PrimitiveType = PT_TriangleList;		
 	GraphicsPSOInit.BlendState = DecalRendering::GetDecalBlendState(DecalBlendDesc, DecalRenderStage, DecalRenderTargetMode);
 
-	DecalRendering::SetupShaderState(FeatureLevel, Material, DecalRenderStage, GraphicsPSOInit.BoundShaderState);
+	if (!DecalRendering::SetupShaderState(FeatureLevel, Material, DecalRenderStage, GraphicsPSOInit.BoundShaderState))
+	{
+		return;
+	}
 
 	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
-	RenderTargetsInfo.NumSamples = 1;
-	GetDeferredDecalRenderTargetsInfo(SceneTexturesConfig, ShaderPlatform, DecalRenderTargetMode, RenderTargetsInfo);
+	GetDeferredDecalRenderTargetsInfo(SceneTexturesConfig, DecalRenderTargetMode, RenderTargetsInfo);
 	ApplyTargetsInfo(GraphicsPSOInit, RenderTargetsInfo);
-	
+
+	if (FeatureLevel == ERHIFeatureLevel::ES3_1)
+	{
+		// subpass info set during the submission of the draws in a mobile renderer
+		GraphicsPSOInit.SubpassIndex = 1; // all decals use second sub-pass on mobile
+		GraphicsPSOInit.SubpassHint = GetSubpassHint(SceneTexturesConfig.ShaderPlatform, SceneTexturesConfig.bIsUsingGBuffers, SceneTexturesConfig.bRequireMultiView, SceneTexturesConfig.NumSamples);
+	}
+		
 	const auto AddDeferredDecalPSO = [&](bool bInsideDecal,	bool bReverseHanded, bool bReverseCulling, bool bDecalUsesStencil)
 	{
 		const EDecalRasterizerState DecalRasterizerState = DecalRendering::GetDecalRasterizerState(bInsideDecal, bReverseHanded, bReverseCulling);
@@ -527,7 +600,7 @@ void CollectDeferredDecalPassPSOInitializers(
 
 		GraphicsPSOInit.StatePrecachePSOHash = RHIComputeStatePrecachePSOHash(GraphicsPSOInit);
 
-		FPSOPrecacheData& PSOPrecacheData = PSOInitializers.Emplace_GetRef();
+		FPSOPrecacheData PSOPrecacheData;
 		PSOPrecacheData.bRequired = true;
 		PSOPrecacheData.Type = FPSOPrecacheData::EType::Graphics;
 		PSOPrecacheData.GraphicsPSOInitializer = GraphicsPSOInit;
@@ -535,9 +608,9 @@ void CollectDeferredDecalPassPSOInitializers(
 		PSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
 		PSOPrecacheData.VertexFactoryType = nullptr;
 #endif // PSO_PRECACHING_VALIDATE		
-	};
 
-	PSOInitializers.Reserve(FMath::Max(PSOInitializers.Max(), PSOInitializers.Num() + 16));
+		PSOInitializers.Add(MoveTemp(PSOPrecacheData));
+	};
 
 	const auto AddDeferredDecalPSOInsideOutside = [&](bool bReverseHanded, bool bReverseCulling, bool bDecalUsesStencil)
 	{
@@ -563,7 +636,7 @@ void CollectDeferredDecalPassPSOInitializers(
 
 void AddDeferredDecalPass(
 	FRDGBuilder& GraphBuilder,
-	const FViewInfo& View,
+	FViewInfo& View,
 	TConstArrayView<FTransientDecalRenderData> VisibleDecals,
 	const FDeferredDecalPassTextures& PassTextures,
 	FInstanceCullingManager& InstanceCullingManager,
@@ -584,7 +657,6 @@ void AddDeferredDecalPass(
 	const FScene& Scene = *(FScene*)ViewFamily.Scene;
 	const EShaderPlatform ShaderPlatform = View.GetShaderPlatform();
 	const ERHIFeatureLevel::Type FeatureLevel = View.GetFeatureLevel();
-	const uint32 MeshDecalCount = View.MeshDecalBatches.Num();
 	const uint32 DecalCount = Scene.Decals.Num();
 	uint32 SortedDecalCount = 0;
 	FTransientDecalRenderDataList* SortedDecals = nullptr;
@@ -601,7 +673,8 @@ void AddDeferredDecalPass(
 		INC_DWORD_STAT_BY(STAT_Decals, SortedDecalCount);
 	}
 
-	const bool bVisibleDecalsInView = MeshDecalCount > 0 || SortedDecalCount > 0;
+	const bool bHasAnyDrawCommandDecalCount = HasAnyDrawCommandDecalCount(DecalRenderStage, View);
+	const bool bVisibleDecalsInView = SortedDecalCount > 0 || bHasAnyDrawCommandDecalCount;
 	const bool bShaderComplexity = View.Family->EngineShowFlags.ShaderComplexity;
 	const bool bStencilSizeThreshold = CVarStencilSizeThreshold.GetValueOnRenderThread() >= 0;
 
@@ -621,7 +694,7 @@ void AddDeferredDecalPass(
 		}
 
 		auto* PassParameters = GraphBuilder.AllocParameters<FDeferredDecalPassParameters>();
-		GetDeferredDecalPassParameters(GraphBuilder, View, PassTextures, RenderTargetMode, *PassParameters);
+		GetDeferredDecalPassParameters(GraphBuilder, View, PassTextures, DecalRenderStage, RenderTargetMode, *PassParameters);
 
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("Batch [%d, %d]", DecalIndexBegin, DecalIndexEnd - 1),
@@ -631,8 +704,8 @@ void AddDeferredDecalPass(
 		{
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
-#if PSO_PRECACHING_VALIDATE
-			int32 PSOCollectorIndex = FPSOCollectorCreateManager::GetIndex(EShadingPath::Deferred, TEXT("MeshDecal"));
+#if PSO_PRECACHING_VALIDATE			
+			int32 PSOCollectorIndex = FPassProcessorManager::GetPSOCollectorIndex(EShadingPath::Deferred, DecalRendering::GetMeshPassType(RenderTargetMode));
 #endif // PSO_PRECACHING_VALIDATE
 
 			for (uint32 DecalIndex = DecalIndexBegin; DecalIndex < DecalIndexEnd; ++DecalIndex)
@@ -682,7 +755,8 @@ void AddDeferredDecalPass(
 				}
 #endif // PSO_PRECACHING_VALIDATE
 
-				RHICmdList.DrawIndexedPrimitive(GetUnitCubeIndexBuffer(), 0, 0, 8, 0, UE_ARRAY_COUNT(GCubeIndices) / 3, 1);
+				uint32 InstanceCount = View.Aspects.IsInstancedMultiViewportEnabled() ? 1 : View.GetStereoPassInstanceFactor();
+				RHICmdList.DrawIndexedPrimitive(GetUnitCubeIndexBuffer(), 0, 0, 8, 0, UE_ARRAY_COUNT(GCubeIndices) / 3, InstanceCount);
 			}
 		});
 	};
@@ -691,7 +765,7 @@ void AddDeferredDecalPass(
 	{
 		RDG_EVENT_SCOPE(GraphBuilder, "DeferredDecals %s", GetStageName(DecalRenderStage));
 
-		if (MeshDecalCount > 0 && (DecalRenderStage == EDecalRenderStage::BeforeBasePass || DecalRenderStage == EDecalRenderStage::BeforeLighting || DecalRenderStage == EDecalRenderStage::Emissive || DecalRenderStage == EDecalRenderStage::AmbientOcclusion))
+		if (bHasAnyDrawCommandDecalCount && (DecalRenderStage == EDecalRenderStage::BeforeBasePass || DecalRenderStage == EDecalRenderStage::BeforeLighting || DecalRenderStage == EDecalRenderStage::Emissive || DecalRenderStage == EDecalRenderStage::AmbientOcclusion))
 		{
 			RenderMeshDecals(GraphBuilder, Scene, View, PassTextures, InstanceCullingManager, DecalRenderStage);
 		}

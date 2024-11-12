@@ -9,17 +9,21 @@
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
 #include "Components/MaterialValues/DMMaterialValueFloat2.h"
+#include "Components/MaterialValues/DMMaterialValueFloat3RGB.h"
 #include "Components/MaterialValues/DMMaterialValueFloat3XYZ.h"
 #include "Components/MaterialValues/DMMaterialValueFloat4.h"
-#include "DMPrivate.h"
-#include "DynamicMaterialEditorModule.h"
+#include "DynamicMaterialEditorSettings.h"
 #include "Materials/MaterialExpressionFunctionInput.h"
 #include "Materials/MaterialExpressionFunctionOutput.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialFunctionInterface.h"
+#include "MaterialValueType.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Utils/DMMaterialFunctionFunctionLibrary.h"
+#include "Utils/DMPrivate.h"
+#include "Utils/DMUtils.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageFunction"
 
@@ -135,7 +139,7 @@ void UDMMaterialStageFunction::AddDefaultInput(int32 InInputIndex) const
 	EDMMaterialPropertyType StageProperty = Layer->GetMaterialProperty();
 	check(StageProperty != EDMMaterialPropertyType::None);
 
-	const UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base);
+	UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base);
 
 	if (PreviousLayer)
 	{
@@ -149,11 +153,31 @@ void UDMMaterialStageFunction::AddDefaultInput(int32 InInputIndex) const
 	}
 	else
 	{
+		EDMMaterialPropertyType DefaultProperty = StageProperty;
+
+		if (DefaultProperty == EDMMaterialPropertyType::None)
+		{
+			if (UDMMaterialSlot* Slot = Layer->GetSlot())
+			{
+				if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
+				{
+					if (ModelEditorOnlyData->GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType::BaseColor))
+					{
+						DefaultProperty = EDMMaterialPropertyType::BaseColor;
+					}
+					else if (ModelEditorOnlyData->GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
+					{
+						DefaultProperty = EDMMaterialPropertyType::EmissiveColor;
+					}
+				}
+			}
+		}
+
 		Stage->ChangeInput_PreviousStage(
-			InInputIndex, 
-			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
-			EDMMaterialPropertyType::EmissiveColor,
-			0, 
+			InInputIndex,
+			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+			DefaultProperty,
+			0,
 			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
 		);
 	}
@@ -227,9 +251,9 @@ void UDMMaterialStageFunction::PreEditChange(FEditPropertyChain& PropertyAboutTo
 	MaterialFunction_PreEdit = MaterialFunction;
 }
 
-void UDMMaterialStageFunction::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+void UDMMaterialStageFunction::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
+	Super::PostEditChangeProperty(InPropertyChangedEvent);
 
 	if (MaterialFunction != MaterialFunction_PreEdit)
 	{
@@ -267,10 +291,7 @@ void UDMMaterialStageFunction::OnMaterialFunctionChanged()
 	DeinitFunction();
 	InitFunction();
 
-	if (FDMUpdateGuard::CanUpdate())
-	{
-		Update(EDMUpdateType::Structure);
-	}
+	Update(this, EDMUpdateType::Structure);
 }
 
 bool UDMMaterialStageFunction::NeedsFunctionInit() const
@@ -291,14 +312,42 @@ bool UDMMaterialStageFunction::NeedsFunctionInit() const
 
 	if (Outputs.IsEmpty())
 	{
-		UE::DynamicMaterialEditor::Private::LogError(TEXT("Function must have at least one output."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Function must have at least one output."), true, this);
 		return false;
 	}
 
-	if (!Inputs[0].ExpressionInput || !Outputs[0].ExpressionOutput
-		|| Inputs[0].ExpressionInput->InputType != Outputs[0].ExpressionOutput->GetOutputType(0))
+	const uint32 InputType = Inputs[0].ExpressionInput ? Inputs[0].ExpressionInput->GetInputType(0) : MCT_Unknown;
+	const bool bInputTypeIsFloat = (InputType & MCT_Float) != 0;
+
+	const uint32 OutputType = Outputs[0].ExpressionOutput ? Outputs[0].ExpressionOutput->GetOutputType(0) : MCT_Unknown;
+	const bool bOutputTypeIsFloat = (InputType & MCT_Float) != 0;
+
+	/**
+	 * First input and output types must match.
+	 * Previously MCT_Float (a combination of float 1, 2, 3 and 4) caused a equality check to fail. It is now more rigorous.
+	 */
+	bool bValidThroughput = true;
+
+	if (InputType == MCT_Unknown || OutputType == MCT_Unknown)
 	{
-		UE::DynamicMaterialEditor::Private::LogError(TEXT("Function's first input must match its first output."));
+		bValidThroughput = false;
+	}
+	else if (bInputTypeIsFloat && bOutputTypeIsFloat)
+	{
+		// If they are both float types and either of them are MCT_Float then they are a match.
+		if (InputType != MCT_Float && OutputType != MCT_Float)
+		{
+			bValidThroughput = InputType == OutputType;
+		}
+	}
+	else if (InputType != OutputType)
+	{
+		bValidThroughput = false;
+	}
+
+	if (!bValidThroughput)
+	{
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Function's first input must match its first output."), true, this);
 		return false;
 	}
 
@@ -313,7 +362,7 @@ bool UDMMaterialStageFunction::NeedsFunctionInit() const
 
 		if (!IsValid(FunctionInput))
 		{
-			UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has missing input object."));
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has missing input object."), true, this);
 			return false;
 		}
 
@@ -327,42 +376,19 @@ bool UDMMaterialStageFunction::NeedsFunctionInit() const
 					break;
 
 				default:
-					UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid first input - must be a scalar or vector3."));
+					UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid first input - must be a scalar or vector3."), true, this);
 					return false;
 			}
 
 			continue;
 		}
 
-		EDMValueType ValueType = EDMValueType::VT_None;
+		const EDMValueType ValueType = UDMMaterialFunctionFunctionLibrary::GetInputValueType(FunctionInput);
 
-		switch (FunctionInput->InputType)
+		if (ValueType == EDMValueType::VT_None)
 		{
-			case EFunctionInputType::FunctionInput_Scalar:
-				ValueType = EDMValueType::VT_Float1;
-				break;
-
-			case EFunctionInputType::FunctionInput_Vector2:
-				ValueType = EDMValueType::VT_Float2;
-				break;
-
-			case EFunctionInputType::FunctionInput_Vector3:
-				ValueType = EDMValueType::VT_Float3_XYZ;
-				break;
-
-			case EFunctionInputType::FunctionInput_Vector4:
-				ValueType = EDMValueType::VT_Float4_RGBA;
-				break;
-
-			case EFunctionInputType::FunctionInput_Texture2D:
-			case EFunctionInputType::FunctionInput_TextureCube:
-			case EFunctionInputType::FunctionInput_VolumeTexture:
-				ValueType = EDMValueType::VT_Texture;
-				break;
-
-			default:
-				UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid input type - must be a scalar, vector or texture."));
-				return false;
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid input type - must be a scalar, vector or texture."), true, this);
+			return false;
 		}
 
 		if (ValueType != InputValues[InputIndex]->GetType())
@@ -419,14 +445,14 @@ void UDMMaterialStageFunction::InitFunction()
 
 	if (Inputs.IsEmpty())
 	{
-		UE::DynamicMaterialEditor::Private::LogError(TEXT("Function must have at least one input."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Function must have at least one input."), true, this);
 		MaterialFunction = nullptr;
 		return;
 	}
 
 	if (Outputs.IsEmpty())
 	{
-		UE::DynamicMaterialEditor::Private::LogError(TEXT("Function must have at least one output."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Function must have at least one output."), true, this);
 		MaterialFunction = nullptr;
 		return;
 	}
@@ -448,7 +474,7 @@ void UDMMaterialStageFunction::InitFunction()
 
 		if (!IsValid(FunctionInput))
 		{
-			UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has missing input object."));
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has missing input object."), true, this);
 			InputConnectors.SetNum(1);
 			MaterialFunction = nullptr;
 			return;
@@ -464,7 +490,7 @@ void UDMMaterialStageFunction::InitFunction()
 					break;
 
 				default:
-					UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid first input - must be a scalar or vector."));
+					UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid first input - must be a scalar or vector."), true, this);
 					InputConnectors.SetNum(1);
 					MaterialFunction = nullptr;
 					return;
@@ -481,43 +507,20 @@ void UDMMaterialStageFunction::InitFunction()
 			continue;
 		}
 
-		EDMValueType ValueType = EDMValueType::VT_None;
+		const EDMValueType ValueType = UDMMaterialFunctionFunctionLibrary::GetInputValueType(FunctionInput);
 
-		switch (FunctionInput->InputType)
+		if (ValueType == EDMValueType::VT_None)
 		{
-			case EFunctionInputType::FunctionInput_Scalar:
-				ValueType = EDMValueType::VT_Float1;
-				break;
-
-			case EFunctionInputType::FunctionInput_Vector2:
-				ValueType = EDMValueType::VT_Float2;
-				break;
-
-			case EFunctionInputType::FunctionInput_Vector3:
-				ValueType = EDMValueType::VT_Float3_XYZ;
-				break;
-
-			case EFunctionInputType::FunctionInput_Vector4:
-				ValueType = EDMValueType::VT_Float4_RGBA;
-				break;
-
-			case EFunctionInputType::FunctionInput_Texture2D:
-			case EFunctionInputType::FunctionInput_TextureCube:
-			case EFunctionInputType::FunctionInput_VolumeTexture:
-				ValueType = EDMValueType::VT_Texture;
-				break;
-
-			default:
-				UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid input type - must be a scalar, vector or texture."));
-				InputConnectors.SetNum(1);
-				MaterialFunction = nullptr;
-				return;
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid input type - must be a scalar, vector or texture."), true, this);
+			InputConnectors.SetNum(1);
+			MaterialFunction = nullptr;
+			return;
 		}
 
 		InputConnectors[InputIndex].Index = InputIndex;
 		InputConnectors[InputIndex].Type = ValueType;
 
-		if (Inputs[InputIndex].ExpressionInput->InputName == NAME_None)
+		if (Inputs[InputIndex].ExpressionInput->InputName.IsNone())
 		{
 			static const FText InputNameFormat = LOCTEXT("InputFormat", "Input {0}");
 			InputConnectors[InputIndex].Name = FText::Format(InputNameFormat, FText::AsNumber(InputIndex + 1));
@@ -540,47 +543,7 @@ void UDMMaterialStageFunction::InitFunction()
 		UDMMaterialValue* Value = InputValue->GetValue();
 		check(Value);
 
-		if (FunctionInput->bUsePreviewValueAsDefault)
-		{
-			switch (FunctionInput->InputType)
-			{
-				case EFunctionInputType::FunctionInput_Scalar:
-					if (UDMMaterialValueFloat1* Float1Value = Cast<UDMMaterialValueFloat1>(Value))
-					{
-						Float1Value->SetDefaultValue(FunctionInput->PreviewValue.X);
-						Float1Value->ApplyDefaultValue();
-					}
-					break;
-
-				case EFunctionInputType::FunctionInput_Vector2:
-					if (UDMMaterialValueFloat2* Float2Value = Cast<UDMMaterialValueFloat2>(Value))
-					{
-						Float2Value->SetDefaultValue({FunctionInput->PreviewValue.X, FunctionInput->PreviewValue.Y});
-						Float2Value->ApplyDefaultValue();
-					}
-					break;
-
-				case EFunctionInputType::FunctionInput_Vector3:
-					if (UDMMaterialValueFloat3XYZ* Float3Value = Cast<UDMMaterialValueFloat3XYZ>(Value))
-					{
-						Float3Value->SetDefaultValue({FunctionInput->PreviewValue.X, FunctionInput->PreviewValue.Y, FunctionInput->PreviewValue.Z});
-						Float3Value->ApplyDefaultValue();
-					}
-					break;
-
-				case EFunctionInputType::FunctionInput_Vector4:
-					if (UDMMaterialValueFloat4* Float4Value = Cast<UDMMaterialValueFloat4>(Value))
-					{
-						Float4Value->SetDefaultValue(FunctionInput->PreviewValue);
-						Float4Value->ApplyDefaultValue();
-					}
-					break;
-
-				default:
-					// Not possible
-					break;
-			}
-		}
+		UDMMaterialFunctionFunctionLibrary::SetInputDefault(FunctionInput, Value);
 	}
 }
 

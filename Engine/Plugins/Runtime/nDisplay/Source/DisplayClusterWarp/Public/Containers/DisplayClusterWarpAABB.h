@@ -14,6 +14,7 @@ struct FDisplayClusterWarpAABB
 		: FBox(FVector(FLT_MAX, FLT_MAX, FLT_MAX), FVector(-FLT_MAX, -FLT_MAX, -FLT_MAX))
 	{ }
 
+	/** Expand the value in AABB with the new values. */
 	template<typename FArg>
 	inline void UpdateAABB(const FArg X, const FArg Y, const FArg Z)
 	{
@@ -26,6 +27,7 @@ struct FDisplayClusterWarpAABB
 		Max.Z = FMath::Max(Max.Z, Z);
 	}
 
+	/** Expand value in AABB with a new point. */
 	inline void UpdateAABB(const FVector4f& InPts)
 	{
 		if (InPts.W > 0)
@@ -33,12 +35,14 @@ struct FDisplayClusterWarpAABB
 			UpdateAABB(InPts.X, InPts.Y, InPts.Z);
 		}
 	}
+	/** Expand value in AABB with a new point. */
 
 	inline void UpdateAABB(const FVector& InPts)
 	{
 		UpdateAABB(InPts.X, InPts.Y, InPts.Z);
 	}
 
+	/** Expand the value in AABB using the input point list. */
 	inline void UpdateAABB(const TArray<FVector>& InPoints)
 	{
 		for (const FVector& Pts : InPoints)
@@ -47,6 +51,7 @@ struct FDisplayClusterWarpAABB
 		}
 	}
 
+	/** Expand the value in AABB using the input AABB. */
 	inline void UpdateAABB(const FDisplayClusterWarpAABB& InAABB)
 	{
 		operator+=(InAABB);

@@ -469,6 +469,7 @@ FReply SBatchExportOptionsDialog::OnButtonClick(EAppReturnType::Type ButtonID)
 	const UBatchExportOptions* ExportOptions = UBatchExportOptions::GetInstance();
 	BatchContext->bIncludeReferencedAssets = ExportOptions->bIncludeReferencedAssets;
 	BatchContext->bOverwriteExistingFiles = ExportOptions->bOverwriteExistingFiles;
+	BatchContext->bRetainAdditiveFlags = ExportOptions->bRetainAdditiveFlags;
 	//BatchContext->bExportOnlyAnimatedBones = ExportOptions->bExportOnlyAnimatedBones;
 	
 	UserResponse = ButtonID;
@@ -875,7 +876,7 @@ bool SRetargetExporterAssetBrowser::OnShouldFilterAsset(const FAssetData& AssetD
 	{
 		return true;
 	}
-	
+
 	const USkeleton* DesiredSkeleton = BatchRetargetSettings->SourceSkeletalMesh->GetSkeleton();
 	if (!DesiredSkeleton)
 	{
@@ -884,10 +885,15 @@ bool SRetargetExporterAssetBrowser::OnShouldFilterAsset(const FAssetData& AssetD
 
 	if (bIsAnimBlueprint)
 	{
-		TObjectPtr<USkeleton> ABPSkeleton = Cast<UAnimBlueprint>(AssetData.GetAsset())->TargetSkeleton;
-		return !DesiredSkeleton->IsCompatibleForEditor(ABPSkeleton);
+		const FAssetDataTagMapSharedView::FFindTagResult Result = AssetData.TagsAndValues.FindTag("TargetSkeleton");
+		if (!Result.IsSet())
+		{
+			return true;
+		}
+
+		return DesiredSkeleton->IsCompatibleForEditor(Result.GetValue());
 	}
-	
+
 	return !DesiredSkeleton->IsCompatibleForEditor(AssetData);
 }
 

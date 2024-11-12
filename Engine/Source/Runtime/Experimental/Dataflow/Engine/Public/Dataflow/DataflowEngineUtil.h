@@ -15,7 +15,7 @@
 #include "UObject/UnrealType.h"
 #include "UObject/UnrealTypePrivate.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	namespace Reflection
 	{

@@ -8,6 +8,7 @@
 #include "InterchangeShaderGraphNode.h"
 #include "InterchangeMaterialInstanceNode.h"
 #include "InterchangeMaterialFactoryNode.h"
+#include "InterchangeManager.h"
 
 #include "Gltf/InterchangeGLTFMaterial.h"
 
@@ -225,7 +226,8 @@ void UGLTFPipelineSettings::BuildMaterialInstance(const UInterchangeShaderGraphN
 
 	MaterialInstanceFactoryNode->SetCustomParent(Parent);
 
-	const UClass* MaterialClass = FApp::IsGame() ? UMaterialInstanceDynamic::StaticClass() : UMaterialInstanceConstant::StaticClass();
+	UInterchangeEditorUtilitiesBase* EditorUtilities = UInterchangeManager::GetInterchangeManager().GetEditorUtilities();
+	const UClass* MaterialClass = (EditorUtilities && EditorUtilities->IsRuntimeOrPIE()) ? UMaterialInstanceDynamic::StaticClass() : UMaterialInstanceConstant::StaticClass();
 	MaterialInstanceFactoryNode->SetCustomInstanceClassName(MaterialClass->GetPathName());
 
 	for (const TPair<FString, UE::Interchange::FAttributeKey>& GltfAttributeKey : GltfAttributeKeys)
@@ -234,9 +236,18 @@ void UGLTFPipelineSettings::BuildMaterialInstance(const UInterchangeShaderGraphN
 
 		FString InputValueKey = UInterchangeShaderPortsAPI::MakeInputValueKey(GltfAttributeKey.Key);
 
-		//we are only using 3 attribute types:
+		//we are only using 4 attribute types for now:
 		switch (AttributeType)
 		{
+		case UE::Interchange::EAttributeTypes::Bool:
+		{
+			bool Value;
+			if (ShaderGraphNode->GetBooleanAttribute(GltfAttributeKey.Value.Key, Value))
+			{
+				MaterialInstanceFactoryNode->AddBooleanAttribute(InputValueKey, Value);
+			}
+		}
+		break;
 		case UE::Interchange::EAttributeTypes::Float:
 		{
 			float Value;
@@ -278,9 +289,9 @@ UInterchangeGLTFPipeline::UInterchangeGLTFPipeline()
 {
 }
 
-void UInterchangeGLTFPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
+void UInterchangeGLTFPipeline::AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
+	Super::AdjustSettingsForContext(ContextParams);
 
 	TArray<FString> MaterialInstanceIssues = GLTFPipelineSettings->ValidateMaterialInstancesAndParameters();
 	for (const FString& MaterialInstanceIssue : MaterialInstanceIssues)

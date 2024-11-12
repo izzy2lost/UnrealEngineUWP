@@ -409,21 +409,6 @@ UEdGraphPin* UK2Node_GetDMXAttributeValues::GetOutputIsSuccessPin() const
 	return Pin;
 }
 
-UEdGraphPin* UK2Node_GetDMXAttributeValues::GetThenPin() const
-{
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-
-	UEdGraphPin* Pin = FindPin(UEdGraphSchema_K2::PN_Then);
-	if (Pin == nullptr)
-	{
-		UE_LOG_DMXBLUEPRINTGRAPH(Error, TEXT("No ThenPin found"));
-		return nullptr;
-	}
-
-	check(Pin->Direction == EGPD_Output);
-	return Pin;
-}
-
 void UK2Node_GetDMXAttributeValues::ExposeAttributes()
 {
 	if (bIsExposed == true && UserDefinedPins.Num())

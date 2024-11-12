@@ -15,7 +15,6 @@
 #include "PPMChainGraphWorldSubsystem.h"
 #include "PPMChainGraph.h"
 #include "RHI.h"
-#include "Runtime/Renderer/Private/SceneTextureParameters.h"
 #include "ScreenPass.h"
 #include "Engine/Texture2D.h"
 #include "TextureResource.h"
@@ -35,8 +34,9 @@ namespace
 		, FPostProcessMaterialInputs& PostProcessMaterialInputs
 		, EPPMChainGraphExecutionLocation PointOfExecution)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("PPMChainGraph.Render")));
-		SCOPED_GPU_STAT(GraphBuilder.RHICmdList, PPMChain);
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, PPMChain, "PPMChainGraph.Render");
+		RDG_RHI_GPU_STAT_SCOPE(GraphBuilder, PPMChain);
+
 		FRHIDepthStencilState* DepthStencilState = FScreenPassPipelineState::FDefaultDepthStencilState::GetRHI();
 		
 		const FScreenPassTextureViewport RegionViewport(SceneColorRenderTarget.Texture, PrimaryViewRect);
@@ -265,7 +265,7 @@ void FPPMChainGraphSceneViewExtension::GatherChainGraphProxies
 	}
 }
 
-void FPPMChainGraphSceneViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass PassId, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled)
+void FPPMChainGraphSceneViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass PassId, const FSceneView& View, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled)
 {
 	{
 		FScopeLock ScopeLock(&WorldSubsystem->ActiveAccessCriticalSection);
@@ -274,27 +274,29 @@ void FPPMChainGraphSceneViewExtension::SubscribeToPostProcessingPass(EPostProces
 			return;
 		}
 	}
-	InOutPassCallbacks.Add(FAfterPassCallbackDelegate::CreateLambda([this, InPassId = PassId](FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessMaterialInputs& InInputs)
-		{
-			FPostProcessMaterialInputs InOutInputs = InInputs;
-			return FPPMChainGraphSceneViewExtension::AfterPostProcessPass_RenderThread(GraphBuilder, View, InOutInputs, InPassId);
-		}));
+
+	TArray<TSharedPtr<FPPMChainGraphProxy>> ChainGraphProxies;
+	EPPMChainGraphExecutionLocation PointOfExecution = (EPPMChainGraphExecutionLocation)((int)PassId + 1);
+	GatherChainGraphProxies(ChainGraphProxies, View, *View.Family, PointOfExecution);
+
+	if (!ChainGraphProxies.IsEmpty())
+	{
+		InOutPassCallbacks.Add(FAfterPassCallbackDelegate::CreateLambda([this, InPassId = PassId, ChainGraphProxies = MoveTemp(ChainGraphProxies)](FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessMaterialInputs& InInputs)
+			{
+				FPostProcessMaterialInputs InOutInputs = InInputs;
+				return FPPMChainGraphSceneViewExtension::AfterPostProcessPass_RenderThread(GraphBuilder, View, InOutInputs, InPassId, ChainGraphProxies);
+			}));
+	}
 }
 
-FScreenPassTexture FPPMChainGraphSceneViewExtension::AfterPostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, FPostProcessMaterialInputs& InOutInputs, EPostProcessingPass InCurrentPass)
+FScreenPassTexture FPPMChainGraphSceneViewExtension::AfterPostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, FPostProcessMaterialInputs& InOutInputs, EPostProcessingPass InCurrentPass, const TArray<TSharedPtr<FPPMChainGraphProxy>>& InChainGraphProxy)
 {
 	const FSceneViewFamily& ViewFamily = *View.Family;
 
 	TArray<TSharedPtr<FPPMChainGraphProxy>> ChainGraphProxies;
 
 	EPPMChainGraphExecutionLocation PointOfExecution = (EPPMChainGraphExecutionLocation)((int)InCurrentPass + 1);
-	GatherChainGraphProxies(ChainGraphProxies, View, ViewFamily, PointOfExecution);
 	FScreenPassRenderTarget OverrideOutput = InOutInputs.OverrideOutput;
-	if (ChainGraphProxies.IsEmpty())
-	{
-		// Don't need to modify anything, just return the untouched scene color texture back to post processing.
-		return InOutInputs.ReturnUntouchedSceneColorForPostProcessing(GraphBuilder);
-	}
 
 	const FIntRect PrimaryViewRect = UE::FXRenderingUtils::GetRawViewRectUnsafe(View);
 	const FScreenPassTexture SceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, InOutInputs.GetInput(EPostProcessMaterialInput::SceneColor));
@@ -346,6 +348,7 @@ FScreenPassTexture FPPMChainGraphSceneViewExtension::AfterPostProcessPass_Render
 
 void FPPMChainGraphSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessingInputs& Inputs)
 {
+	CachedView = &View;
 	const FSceneViewFamily& ViewFamily = *View.Family;
 
 	TArray<TSharedPtr<FPPMChainGraphProxy>> ChainGraphProxies;

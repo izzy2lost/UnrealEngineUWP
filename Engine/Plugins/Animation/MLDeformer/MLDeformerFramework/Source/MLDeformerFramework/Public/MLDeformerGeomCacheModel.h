@@ -28,7 +28,6 @@ class MLDEFORMERFRAMEWORK_API UMLDeformerGeomCacheModel
 
 public:
 	// UObject overrides.
-	virtual void Serialize(FArchive& Archive) override;
 	virtual void PostLoad() override;
 	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
@@ -38,7 +37,8 @@ public:
 	// UMLDeformerModel overrides.
 #if WITH_EDITORONLY_DATA
 	virtual bool HasTrainingGroundTruth() const override;
-	virtual void SampleGroundTruthPositions(float SampleTime, TArray<FVector3f>& OutPositions) override;
+	virtual void SampleGroundTruthPositionsAtFrame(int32 FrameIndex, TArray<FVector3f>& OutPositions) override;
+	virtual void SampleGroundTruthPositions(float SampleTime, TArray<FVector3f>& OutPositions) override;	// Deprecated in base class, will be removed soon.
 #endif
 #if WITH_EDITOR
 	virtual void UpdateNumTargetMeshVertices() override;
@@ -102,7 +102,8 @@ private:
 	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use the training input anims instead."))
 	TSoftObjectPtr<UGeometryCache> GeometryCache_DEPRECATED;
 
-	UPROPERTY(EditAnywhere, Category = "Target Mesh")
+	/** The training animation inputs. */
+	UPROPERTY(EditAnywhere, Category = "Inputs")
 	TArray<FMLDeformerGeomCacheTrainingInputAnim> TrainingInputAnims;
 #endif // WITH_EDITORONLY_DATA
 };

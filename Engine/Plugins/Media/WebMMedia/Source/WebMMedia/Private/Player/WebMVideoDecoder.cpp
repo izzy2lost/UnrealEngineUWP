@@ -12,6 +12,7 @@
 #include "PipelineStateCache.h"
 #include "RHIStaticStates.h"
 #include "Containers/DynamicRHIResourceArray.h"
+#include "RHIResourceUtils.h"
 
 namespace
 {
@@ -36,18 +37,15 @@ namespace
 			Elements.Add(FVertexElement(0, STRUCT_OFFSET(FMediaElementVertex, TextureCoordinate), VET_Float2, 1, Stride));
 			VertexDeclarationRHI = PipelineStateCache::GetOrCreateVertexDeclaration(Elements);
 
-			TResourceArray<FMediaElementVertex> Vertices;
-			Vertices.AddUninitialized(4);
-			Vertices[0].Position.Set(-1.0f, 1.0f, 1.0f, 1.0f);
-			Vertices[0].TextureCoordinate.Set(0.0f, 0.0f);
-			Vertices[1].Position.Set(1.0f, 1.0f, 1.0f, 1.0f);
-			Vertices[1].TextureCoordinate.Set(1.0f, 0.0f);
-			Vertices[2].Position.Set(-1.0f, -1.0f, 1.0f, 1.0f);
-			Vertices[2].TextureCoordinate.Set(0.0f, 1.0f);
-			Vertices[3].Position.Set(1.0f, -1.0f, 1.0f, 1.0f);
-			Vertices[3].TextureCoordinate.Set(1.0f, 1.0f);
-			FRHIResourceCreateInfo CreateInfo(TEXT("FMoviePlaybackResources"), &Vertices);
-			VertexBufferRHI = RHICmdList.CreateVertexBuffer(sizeof(FMediaElementVertex) * 4, BUF_Static, CreateInfo);
+			const FMediaElementVertex Vertices[] =
+			{
+				FMediaElementVertex(FVector4f(-1.0f,  1.0f, 1.0f, 1.0f), FVector2f(0.0f, 0.0f)),
+				FMediaElementVertex(FVector4f( 1.0f,  1.0f, 1.0f, 1.0f), FVector2f(1.0f, 0.0f)),
+				FMediaElementVertex(FVector4f(-1.0f, -1.0f, 1.0f, 1.0f), FVector2f(0.0f, 1.0f)),
+				FMediaElementVertex(FVector4f( 1.0f, -1.0f, 1.0f, 1.0f), FVector2f(1.0f, 1.0f)),
+			};
+
+			VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("FMoviePlaybackResources"), EBufferUsageFlags::Static, MakeConstArrayView(Vertices));
 		}
 
 		virtual void ReleaseRHI() override
@@ -225,7 +223,7 @@ void FWebMVideoDecoder::ConvertYUVToRGBAndSubmit(const FConvertParams& Params)
 	{
 		const auto CopyTextureMemory = [Image](
 			FRHICommandListImmediate& InCommandList,
-			FRHITexture2D* RHITexture,
+			FRHITexture* RHITexture,
 			int ImageIndex,
 			int CopyHeight)
 		{

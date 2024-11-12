@@ -8,10 +8,6 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "Engine/EngineTypes.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/SkeletalMesh.h"
-#include "Rendering/MorphTargetVertexInfoBuffers.h"
-#endif
 #include "Components/SceneComponent.h"
 #include "Interfaces/Interface_AsyncCompilation.h"
 #include "Engine/TextureStreamingTypes.h"
@@ -20,6 +16,7 @@
 #include "LODSyncInterface.h"
 #include "BoneContainer.h"
 #include "ClothingSystemRuntimeTypes.h"
+#include "Animation/SkinWeightProfile.h"
 #include "SkinnedMeshComponent.generated.h"
 
 enum class ESkinCacheUsage : uint8;
@@ -38,9 +35,21 @@ class UMorphTarget;
 class USkinnedAsset;
 struct FExternalMorphSet;
 struct FExternalMorphWeightData;
+struct FSkinWeightProfileStack;
+
+namespace Nanite
+{
+	struct FResources;
+}
+
+namespace UE::Anim
+{
+	struct FSkinnedMeshComponentExtensions;
+}
 
 DECLARE_DELEGATE_OneParam(FOnAnimUpdateRateParamsCreated, FAnimUpdateRateParameters*)
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnTickPose, USkinnedMeshComponent* /*SkinnedMeshComponent*/, float /*DeltaTime*/, bool /*bNeedsValidRootMotion*/)
+DECLARE_MULTICAST_DELEGATE(FOnBoneTransformsFinalizedMultiCast);
 
 //
 // Bone Visibility.
@@ -123,6 +132,16 @@ namespace EBoneSpaces
 		//LocalSpace		UMETA( DisplayName = "Parent Bone Space" ),
 	};
 }
+
+
+/** Values for specifying which layer a skin weight profile is applied at.
+ */
+UENUM(BlueprintType)
+enum class ESkinWeightProfileLayer : uint8
+{
+	Primary,		/** Primary skin weight profile layer */
+	Secondary,		/** Secondary skin weight profile layer */
+};
 
 /** WeightIndex is an into the MorphTargetWeights array */
 using FMorphTargetWeightMap = TMap<const UMorphTarget* /* MorphTarget */, int32 /* WeightIndex */>;
@@ -276,9 +295,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Deformer", meta = (InlineEditConditionToggle))
 	bool bSetMeshDeformer = false;
 
-	/** The mesh deformer to use. If no mesh deformer is set from here or the SkeletalMesh, then we fall back to the fixed function deformation. */
+	/** The mesh deformer to use. If no mesh deformer is set from here or the SkeletalMesh, then we fall back to the fixed function deformation, unless AlwaysUseMeshDeformer is turned on. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Deformer", meta = (editcondition = "bSetMeshDeformer"))
 	TObjectPtr<UMeshDeformer> MeshDeformer;
+
+	/** If true, and if no mesh deformer is set from here or the SkeletalMesh, fall back to the default deformer specified in the project settings, unless DefaultMode is set to "Never" in project settings*/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Deformer")
+	bool bAlwaysUseMeshDeformer = false;
 
 	/** Set the MeshDeformer and update the internal MeshDeformerInstance. */
 	ENGINE_API void SetMeshDeformer(bool bInSetMeshDeformer, UMeshDeformer* InMeshDeformer);
@@ -315,7 +338,7 @@ public:
 	 * 
 	 * This function takes GetMeshDeformerMaxLOD() into account, so there's no need to call both.
 	 */
-	UMeshDeformerInstance* GetMeshDeformerInstanceForLOD(int32 LODIndex) const;
+	ENGINE_API UMeshDeformerInstance* GetMeshDeformerInstanceForLOD(int32 LODIndex) const;
 
 	/** Max LOD at which to update or apply the MeshDeformer. */
 	ENGINE_API int32 GetMeshDeformerMaxLOD() const;
@@ -516,9 +539,23 @@ public:
 
 	ENGINE_API void GetCPUSkinnedCachedFinalVertices(TArray<FFinalSkinVertex>& OutVertices) const;
 
+	ENGINE_API virtual const Nanite::FResources* GetNaniteResources() const;
+
+	/**
+	 * Returns true if the component has valid Nanite render data.
+	 */
+	ENGINE_API virtual bool HasValidNaniteData() const;
+
 #if UE_ENABLE_DEBUG_DRAWING
 	/** Get whether to draw this mesh's debug skeleton */
-	bool ShouldDrawDebugSkeleton() const { return bDrawDebugSkeleton; }
+	bool ShouldDrawDebugSkeleton() const
+	{
+		return bDrawDebugSkeleton
+#if WITH_EDITORONLY_DATA
+		|| bDisplayBones
+#endif
+		; 
+	}
 
 	/** Set whether to draw this mesh's debug skeleton */
 	void SetDrawDebugSkeleton(bool bInDraw) { bDrawDebugSkeleton = bInDraw; }
@@ -693,14 +730,19 @@ public:
 	uint8 bUseBoundsFromMasterPoseComponent : 1;
 #endif // WITH_EDITORONLY_DATA
 
+	/** If true, the Location of this Component will be included into its bounds calculation
+	* (this can be useful when using SMU_OnlyTickPoseWhenRendered on a character that moves away from the root and no bones are left near the origin of the component) */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = SkeletalMesh)
+	uint8 bIncludeComponentLocationIntoBounds : 1;
+
 	/** Forces the mesh to draw in wireframe mode. */
 	UPROPERTY()
 	uint8 bForceWireframe:1;
 
 #if WITH_EDITORONLY_DATA
 	/** Draw the skeleton hierarchy for this skel mesh. */
-	UPROPERTY()
-	uint8 bDisplayBones_DEPRECATED:1;
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Rendering)
+	uint8 bDisplayBones:1;
 #endif
 
 	/** Disable Morphtarget for this component. */
@@ -762,6 +804,15 @@ public:
 	UPROPERTY(transient)
 	uint8 bCPUSkinning : 1;
 
+	/** 
+	 * If set, use the screen render flag instead of the default render flag when processing offscreen-rendering optimizations 
+	 * (such as VisibilityBasedAnimTickOption) that look to reduce animation work when the mesh is not rendered. 
+	 * Using this option can result in meshes that are occlusion culled ceasing to perform animation work.
+	 * Note that this can however result in shadows not being animated when meshes are not directly visible.
+	 */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=Optimization)
+	uint8 bUseScreenRenderStateForUpdate:1;
+
 	// Update Rate
 	/** if TRUE, Owner will determine how often animation will be updated and evaluated. See AnimUpdateRateTick() 
 	 * This allows to skip frames for performance. (For example based on visibility and size on screen). */
@@ -809,14 +860,6 @@ private:
 	/** If true, UpdateTransform will always result in a call to MeshObject->Update. */
 	UPROPERTY(transient)
 	uint8 bForceMeshObjectUpdate:1;
-
-	/**
-	   Whether to update dynamic bone & cloth sim data immediately, not to wait until GDME or defer update to RHIThread.
-	   When set to true, it is the equivalent of r.DeferSkeletalDynamicDataUpdateUntilGDME=0 and r.RHICmdDeferSkeletalLockAndFillToRHIThread=0.
-	   When set to false, r.DeferSkeletalDynamicDataUpdateUntilGDME and r.RHICmdDeferSkeletalLockAndFillToRHIThread values are respected.
-	 */
-	UPROPERTY(transient)
-	uint8 bForceUpdateDynamicDataImmediately : 1;
 
 protected:
 	/** Whether we are externally controlling tick rate */
@@ -1060,6 +1103,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
 	ENGINE_API void UnsetMeshDeformer();
 
+	/**
+	 * Always use a MeshDeformer as long as one can be found in the project settings
+	 *
+	 * @param bShouldAlwaysUseMeshDeformer Always use mesh deformer for this component
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
+	ENGINE_API void SetAlwaysUseMeshDeformer(bool bShouldAlwaysUseMeshDeformer);
+
+	/**
+	 * Returns whether the component is set to always use a mesh deformer if one can be found in the project settings
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
+	ENGINE_API bool GetAlwaysUseMeshDeformer() const;
+	
 	/** 
 	 * Get Parent Bone of the input bone
 	 * 
@@ -1101,13 +1158,23 @@ public:
 
 	bool HasMeshDeformer() const { return GetActiveMeshDeformers().Deformers.Num() > 0; }
 
-	bool GetForceUpdateDynamicDataImmediately() const { return bForceUpdateDynamicDataImmediately; }
-	void SetForceUpdateDynamicDataImmediately(bool bForceUpdateImmediately) { bForceUpdateDynamicDataImmediately = bForceUpdateImmediately; }
+	UE_DEPRECATED(5.5, "This is no longer relevant. Dynamic data is always updated immediately.")
+	bool GetForceUpdateDynamicDataImmediately() const { return true; }
+
+	UE_DEPRECATED(5.5, "This is no longer relevant. Dynamic data is always updated immediately.")
+	void SetForceUpdateDynamicDataImmediately(bool bForceUpdateImmediately) {}
 
 	/**
 	 *	Compute SkeletalMesh MinLOD that will be used by this component
 	 */
 	ENGINE_API int32 ComputeMinLOD() const;
+
+	/**
+	 * Validate the min LOD value of the mesh component by iterating over render data to make sure we get something usable.
+	 *
+	 * @param	InMinLOD	The starting LOD index to iterate from to make sure the render data is valid. Range from [0, Max Number of LOD - 1].
+	 */
+	int32 GetValidMinLOD(const int32 InMinLODIndex) const;
 
 public:
 	//~ Begin UObject Interface
@@ -1145,7 +1212,7 @@ public:
 	ENGINE_API virtual bool DoesSocketExist(FName InSocketName) const override;
 	ENGINE_API virtual bool HasAnySockets() const override;
 	ENGINE_API virtual void QuerySupportedSockets(TArray<FComponentSocketDescription>& OutSockets) const override;
-	ENGINE_API virtual bool UpdateOverlapsImpl(const TOverlapArrayView* PendingOverlaps=NULL, bool bDoNotifies=true, const TOverlapArrayView* OverlapsAtEndLocation=NULL) override;
+	ENGINE_API virtual bool UpdateOverlapsImpl(const TOverlapArrayView* PendingOverlaps=nullptr, bool bDoNotifies=true, const TOverlapArrayView* OverlapsAtEndLocation=nullptr) override;
 	//~ End USceneComponent Interface
 
 	//~ Begin UPrimitiveComponent Interface
@@ -1159,6 +1226,7 @@ public:
 	ENGINE_API virtual void GetStreamingRenderAssetInfo(FStreamingTextureLevelContext& LevelContext, TArray<FStreamingRenderAssetPrimitiveInfo>& OutStreamingRenderAssets) const override;
 	ENGINE_API virtual int32 GetNumMaterials() const override;
 	virtual float GetStreamingScale() const override { return GetComponentTransform().GetMaximumAxisScale(); }
+	ENGINE_API virtual void GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const override;
 	//~ End UPrimitiveComponent Interface
 
 	//~ Begin UMeshComponent Interface
@@ -1208,6 +1276,10 @@ public:
 	ENGINE_API void SetSelectedEditorMaterial(int32 NewSelectedEditorMaterial);
 
 #endif // WITH_EDITOR
+
+	/** Function returns whether Nanite should be used to render and skin this mesh. */
+	ENGINE_API virtual bool ShouldNaniteSkin();
+
 	/**
 	 * Function returns whether or not CPU skinning should be applied
 	 * Allows the editor to override the skinning state for editor tools
@@ -1321,51 +1393,52 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
 	ENGINE_API void ClearSkinWeightOverride(int32 LODIndex);
 
-	/** Setup an override Skin Weight Profile for this component */
+	/** Set up an override skin weight profile for this component on the given layer.
+	 *  The values from the secondary layer (if set to have a profile) are applied first, followed by the values from the primary layer.
+	 *  Since skin weight profiles are stored as sparse data, where only weight values different from the base are kept in storage, it's
+	 *  possible to set up layers such that they don't interfere with one another.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	ENGINE_API bool SetSkinWeightProfile(FName InProfileName);
+	ENGINE_API bool SetSkinWeightProfile(FName InProfileName, ESkinWeightProfileLayer InLayer = ESkinWeightProfileLayer::Primary);
 
-	/** Clear the Skin Weight Profile from this component, in case it is set */
+	/** Clear the skin weight profile from the given layer on this component, in case it is set. If no profile is set for the layer,
+	 *  then this call does nothing. */
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	ENGINE_API void ClearSkinWeightProfile();
+	ENGINE_API void ClearSkinWeightProfile(ESkinWeightProfileLayer InLayer = ESkinWeightProfileLayer::Primary);
 
+	/** Clear the skin Weight Profile from all layers on this component. If no profiles are set for any layer, then this call does nothing. */
+	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
+	ENGINE_API void ClearAllSkinWeightProfiles();
+	
 	/** Unload a Skin Weight Profile's skin weight buffer (if created) */
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
 	ENGINE_API void UnloadSkinWeightProfile(FName InProfileName);
 
-	/** Return the name of the Skin Weight Profile that is currently set otherwise returns 'None' */
+	/** Return the name of the skin weight profile that is currently set on the given layer, otherwise returns 'None' */
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	FName GetCurrentSkinWeightProfileName() const { return CurrentSkinWeightProfileName; }
+	ENGINE_API FName GetCurrentSkinWeightProfileName(ESkinWeightProfileLayer InLayer = ESkinWeightProfileLayer::Primary) const;
 
-	/** Check whether or not a Skin Weight Profile is currently set */
+	/** Return the names of the skin weight profiles for all the layers */
+	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
+	ENGINE_API TArray<FName> GetCurrentSkinWeightProfileLayerNames() const;
+	
+	/** Check whether a skin weight profile is currently set on any layer. */
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
 	ENGINE_API bool IsUsingSkinWeightProfile() const;
 
-	UE_DEPRECATED(4.26, "GetVertexOffsetUsage() has been deprecated. Support will be dropped in the future.")
-	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	int32 GetVertexOffsetUsage(int32 LODIndex) const { return 0; }
-
-	UE_DEPRECATED(4.26, "SetVertexOffsetUsage() has been deprecated. Support will be dropped in the future.")
-	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	void SetVertexOffsetUsage(int32 LODIndex, int32 Usage) {}
-
-	UE_DEPRECATED(4.26, "SetPreSkinningOffsets() has been deprecated. Support will be dropped in the future.")
-	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	void SetPreSkinningOffsets(int32 LODIndex, TArray<FVector> Offsets) {}
-
-	UE_DEPRECATED(4.26, "SetPostSkinningOffsets() has been deprecated. Support will be dropped in the future.")
-	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	void SetPostSkinningOffsets(int32 LODIndex, TArray<FVector> Offsets) {}
-
-	/** Check whether or not a Skin Weight Profile is currently pending load / create */
-	bool IsSkinWeightProfilePending() const { return bSkinWeightProfilePending == 1; }
+	/** Check whether a skin weight profile is currently pending load / create */
+	bool IsSkinWeightProfilePending() const { return bSkinWeightProfilePending; }
 
 	/** Queues an update of the Skin Weight Buffer used by the current MeshObject */
 	ENGINE_API void UpdateSkinWeightOverrideBuffer();
-protected:	
+protected:
+	/** Set the currently active skin weight profile stack to the given stack. If the stack is empty, then the skin weight profile buffer
+	  * will be set to the base buffer for this mesh.
+	  */
+	bool SetSkinWeightProfileStack(const FSkinWeightProfileStack& InProfileStack);
 
-	/** Name of currently set up Skin Weight profile, otherwise is 'none' */
-	FName CurrentSkinWeightProfileName;
+	/** Name of currently set up Skin Weight layers, all set to NAME_None for no override */
+	FName CurrentSkinWeightProfileLayers[2] = {NAME_None};
 public:
 	/** Returns skin weight vertex buffer to use for specific LOD (will look at override) */
 	ENGINE_API FSkinWeightVertexBuffer* GetSkinWeightBuffer(int32 LODIndex) const;
@@ -1391,7 +1464,7 @@ public:
 	 * @param TickFunction Supplied as non null if we are running in a tick, allows us to create graph tasks for parallelism
 	 * 
 	 */
-	ENGINE_API virtual void RefreshBoneTransforms(FActorComponentTickFunction* TickFunction = NULL) PURE_VIRTUAL(USkinnedMeshComponent::RefreshBoneTransforms, );
+	ENGINE_API virtual void RefreshBoneTransforms(FActorComponentTickFunction* TickFunction = nullptr) PURE_VIRTUAL(USkinnedMeshComponent::RefreshBoneTransforms, );
 
 protected:
 	/** 
@@ -1424,7 +1497,7 @@ public:
 	FOnTickPose OnTickPose;
 
 	/** 
-	 * Update Follower Component. This gets called when LeaderPoseComponent!=NULL
+	 * Update Follower Component. This gets called when LeaderPoseComponent!=nullptr
 	 * 
 	 */
 	ENGINE_API virtual void UpdateFollowerComponent();
@@ -1550,12 +1623,14 @@ protected:
 	/** Flip the editable space base buffer */
 	ENGINE_API void FlipEditableSpaceBases();
 
+public:
 	/** 
 	 * Should tick  pose (by calling TickPose) in Tick
 	 * 
 	 * @return : return true if should Tick. false otherwise.
 	 */
 	ENGINE_API virtual bool ShouldTickPose() const;
+protected:
 
 	/**
 	 * Allocate Transform Data array including SpaceBases, BoneVisibilityStates 
@@ -1670,13 +1745,13 @@ public:
 	 * @param InSocketName	The name of the socket to find
 	 * @param OutBoneIndex	The socket bone index in this skeletal mesh, or INDEX_NONE if the socket is not found or not a bone-relative socket
 	 * @param OutTransform	The socket local transform, or identity if the socket is not found.
-	 * @return SkeletalMeshSocket of named socket on the skeletal mesh component, or NULL if not found.
+	 * @return SkeletalMeshSocket of named socket on the skeletal mesh component, or nullptr if not found.
 	 */
 	ENGINE_API class USkeletalMeshSocket const* GetSocketInfoByName(FName InSocketName, FTransform& OutTransform, int32& OutBoneIndex) const;
 
 	/**
 	 * @param InSocketName	The name of the socket to find
-	 * @return SkeletalMeshSocket of named socket on the skeletal mesh component, or NULL if not found.
+	 * @return SkeletalMeshSocket of named socket on the skeletal mesh component, or nullptr if not found.
 	 */
 	ENGINE_API class USkeletalMeshSocket const* GetSocketByName( FName InSocketName ) const;
 
@@ -1811,7 +1886,7 @@ public:
 	 *
 	 * @return the name of the bone that was found, or 'None' if no bone was found
 	 */
-	ENGINE_API FName FindClosestBone(FVector TestLocation, FVector* BoneLocation = NULL, float IgnoreScale = 0.f, bool bRequirePhysicsAsset = false) const;
+	ENGINE_API FName FindClosestBone(FVector TestLocation, FVector* BoneLocation = nullptr, float IgnoreScale = 0.f, bool bRequirePhysicsAsset = false) const;
 
 	/** finds the closest bone to the given location
 	*
@@ -1830,7 +1905,7 @@ public:
 	 *
 	 * @param MorphTargetName Name of MorphTarget to look for.
 	 *
-	 * @return Pointer to found MorphTarget. Returns NULL if could not find target with that name.
+	 * @return Pointer to found MorphTarget. Returns nullptr if could not find target with that name.
 	 */
 	ENGINE_API virtual class UMorphTarget* FindMorphTarget( FName MorphTargetName ) const;
 
@@ -1968,6 +2043,7 @@ public:
 
 	friend class FRenderStateRecreator;
 	friend class FSkeletalMeshStreamOut;
+	friend struct UE::Anim::FSkinnedMeshComponentExtensions;
 
 	//
 	// Animation required bones
@@ -1996,6 +2072,19 @@ public:
 	 * @param InOutRequiredBones - the array in which to merge the additional required bones.
 	 */
 	virtual void GetAdditionalRequiredBonesForLeader(int32 LODIndex, TArray<FBoneIndexType>& InOutRequiredBones) const {}
+
+	/**
+	 * Register an OnBoneTransformsFinalized callback which can be called in FinalizeBoneTransform().
+	 * Note the inherited class has to implement the Broadcast call in FinalizeBoneTransform() if it wants to mimic the same behavior as in USkeletalMeshComponent.
+	 * @param Delegate - the delegate to be broadcasted in FinalizeBoneTransform by the inherited class.
+	 */
+	virtual FDelegateHandle RegisterOnBoneTransformsFinalizedDelegate(const FOnBoneTransformsFinalizedMultiCast::FDelegate& /*Delegate*/) { return FDelegateHandle(); }
+
+	/**
+	 * Unregister an OnBoneTransformsFinalized callback.
+	 * @param DelegateHandle - the handle of the delegate to remove from the list.
+	 */
+	virtual void UnregisterOnBoneTransformsFinalizedDelegate(const FDelegateHandle& /*DelegateHandle*/) {}
 };
 
 class FRenderStateRecreator

@@ -13,6 +13,7 @@
 #include "LightComponent.generated.h"
 
 class FLightComponentMapBuildData;
+class FStaticLightingBuildContext;
 class FStaticShadowDepthMapData;
 class ULevel;
 class UMaterialInterface;
@@ -66,7 +67,8 @@ class ULightComponent : public ULightComponentBase
 	int32 ShadowMapChannel_DEPRECATED;
 
 	/** Transient shadowmap channel used to preview the results of stationary light shadowmap packing. */
-	int32 PreviewShadowMapChannel=0;
+	UPROPERTY(NonPIEDuplicateTransient)
+	int32 PreviewShadowMapChannel;
 	
 	/** Min roughness effective for this light. Used for softening specular highlights. */
 	UPROPERTY()
@@ -78,6 +80,12 @@ class ULightComponent : public ULightComponentBase
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Light, AdvancedDisplay, meta=(UIMin = "0", UIMax = "1"))
 	float SpecularScale;
+
+	/** 
+	* Multiplier on diffuse lighting. Use only with great care! Any value besides 1 is not physical!
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Light, AdvancedDisplay, meta=(UIMin = "0", UIMax = "1"))
+	float DiffuseScale;
 
 	/** 
 	 * Scales the resolution of shadowmaps used to shadow this light.  By default shadowmap resolution is chosen based on screen size of the caster. 
@@ -147,9 +155,25 @@ class ULightComponent : public ULightComponentBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Light, AdvancedDisplay)
 	uint32 bForceCachedShadowsForMovablePrimitives : 1;
 
+	/**
+	 * Whether to allow this light to use MegaLights, if it is enabled in the project settings or Post Process Volume.
+	 * When disabled, the renderer will no longer use stochastic sampling to solve this light's lighting, and will fall back to other shadowing methods, adding significant GPU cost.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Light, meta = (DisplayName = "Allow MegaLights"), AdvancedDisplay)
+	uint32 bAllowMegaLights : 1;
+
+	/**
+	* Selects which shadowing method should MegaLights use for this light.
+	* RayTracing - Preferred method, which guarantees fixed MegaLights cost and correct area shadows, but is dependent on the BVH representation quality.
+	* VirtualShadowMap - Has a significant per light cost, but can cast shadows directly from the Nanite geometry using rasterization.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Light, meta = (DisplayName = "MegaLights Shadow Method"), AdvancedDisplay)
+	TEnumAsByte<EMegaLightsShadowMethod::Type> MegaLightsShadowMethod;
+
 	/** 
 	 * Channels that this light should affect.  
 	 * These channels only apply to opaque materials, direct lighting, and dynamic lighting and shadowing.
+	 * Lighting channels are only supported on translucent materials using forward shading (i.e. when not using the translucency lighting volume).
 	 */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Light)
 	FLightingChannels LightingChannels;
@@ -315,10 +339,16 @@ public:
 	ENGINE_API void SetSpecularScale(float NewValue);
 
 	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Light")
+	ENGINE_API void SetDiffuseScale(float NewValue);
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Light")
 	ENGINE_API void SetForceCachedShadowsForMovablePrimitives(bool bNewValue);
 
 	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Light")
 	ENGINE_API void SetLightingChannels(bool bChannel0, bool bChannel1, bool bChannel2);
+
+	UFUNCTION(BlueprintCallable, Category="Rendering|Components|Light")
+	ENGINE_API void SetUseRayTracedDistanceFieldShadows(bool bNewValue);
 
 public:
 	/** The light's scene info. */
@@ -467,6 +497,10 @@ protected:
 #endif // WITH_EDITOR
 	//~ End USceneComponent Interface
 
+private:
+
+	bool CanTraceDistanceFieldShadows() const;
+
 public:
 	ENGINE_API virtual void InvalidateLightingCacheDetailed(bool bInvalidateBuildEnqueuedLighting, bool bTranslationOnly) override;
 
@@ -485,11 +519,13 @@ public:
 	/** Get the color temperature in the working color space. */
 	ENGINE_API FLinearColor GetColorTemperature() const;
 
+#if WITH_EDITOR	
 	/** 
 	 * Iterates over ALL stationary light components in the target world and assigns their preview shadowmap channel, and updates light icons accordingly.
 	 * Also handles assignment after a lighting build, so that the same algorithm is used for previewing and static lighting.
 	 */
-	static ENGINE_API void ReassignStationaryLightChannels(UWorld* TargetWorld, bool bAssignForLightingBuild, ULevel* LightingScenario);
+	static ENGINE_API void ReassignStationaryLightChannels(UWorld* TargetWorld, bool bAssignForLightingBuild, FStaticLightingBuildContext* LightingContext);
+#endif
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnUpdateColorAndBrightness, ULightComponent&);
 
@@ -508,6 +544,7 @@ struct FPrecomputedLightInstanceData : public FSceneComponentInstanceData
 	FPrecomputedLightInstanceData(const ULightComponent* SourceComponent)
 		: FSceneComponentInstanceData(SourceComponent)
 		, Transform(SourceComponent->GetComponentTransform())
+		, OriginalLightGuid(SourceComponent->OriginalLightGuid)		
 		, LightGuid(SourceComponent->LightGuid)
 		, PreviewShadowMapChannel(SourceComponent->PreviewShadowMapChannel)
 	{}
@@ -526,6 +563,9 @@ struct FPrecomputedLightInstanceData : public FSceneComponentInstanceData
 
 	UPROPERTY()
 	FTransform Transform;
+
+	UPROPERTY()
+	FGuid OriginalLightGuid;
 
 	UPROPERTY()
 	FGuid LightGuid;

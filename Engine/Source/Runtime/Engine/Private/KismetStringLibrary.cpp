@@ -420,7 +420,7 @@ TArray<FString> UKismetStringLibrary::GetCharacterArrayFromString(const FString&
 		for (auto CharIt(SourceString.CreateConstIterator()); CharIt; ++CharIt)
 		{
 			TCHAR Char = *CharIt;
-			SeparatedChars.Add(FString(1, &Char));
+			SeparatedChars.Add(FString::ConstructFromPtrSize(&Char, 1));
 		}
 
 		// Remove the null terminator on the end

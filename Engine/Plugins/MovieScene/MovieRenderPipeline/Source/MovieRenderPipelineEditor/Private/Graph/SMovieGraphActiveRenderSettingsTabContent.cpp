@@ -90,6 +90,8 @@ bool FActiveRenderSettingsTreeElement::IsBranchRenderable() const
 
 const TArray<TSharedPtr<FActiveRenderSettingsTreeElement>>& FActiveRenderSettingsTreeElement::GetChildren() const
 {
+	static const FName HideInActiveRenderSettingsMetaDataKey(TEXT("HideInActiveRenderSettings"));
+	
 	auto MakeElementFromNode = [this](const TObjectPtr<UMovieGraphNode>& Node) -> TSharedPtr<FActiveRenderSettingsTreeElement>
 	{
 		// The element name should include the node's instance name (if the instance name isn't empty)
@@ -179,6 +181,12 @@ const TArray<TSharedPtr<FActiveRenderSettingsTreeElement>>& FActiveRenderSetting
 	{
 		for (const FProperty* Property : SettingsNode->GetAllOverrideableProperties())
 		{
+			// Some properties opt-out of being shown in the Active Render Settings editor
+			if (Property->HasMetaData(HideInActiveRenderSettingsMetaDataKey))
+			{
+				continue;
+			}
+			
 			TSharedPtr<FActiveRenderSettingsTreeElement> Element =
 				MakeShared<FActiveRenderSettingsTreeElement>(FName(Property->GetDisplayNameText().ToString()), EElementType::Property);
 			Element->SettingsNode = SettingsNode;
@@ -398,7 +406,6 @@ void SMovieGraphActiveRenderSettingsTabContent::Construct(const FArguments& InAr
 			{
 				return TraversalError.IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed;
 			})
-			.ItemHeight(28)
 			.TreeItemsSource(&RootElements)
 			.SelectionMode(ESelectionMode::Single)
 			.OnGenerateRow(this, &SMovieGraphActiveRenderSettingsTabContent::GenerateTreeRow)

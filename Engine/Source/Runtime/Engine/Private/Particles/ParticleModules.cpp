@@ -3529,6 +3529,7 @@ void UParticleModuleTypeDataMesh::OnMeshChanged()
 
 void UParticleModuleTypeDataMesh::PreEditChange(FProperty* PropertyThatWillChange)
 {
+	Super::PreEditChange(PropertyThatWillChange);
 	if ( (PropertyThatWillChange != nullptr) && (PropertyThatWillChange->GetFName() == FName(TEXT("Mesh"))) )
 	{
 		if ( GIsEditor && (Mesh != nullptr) )

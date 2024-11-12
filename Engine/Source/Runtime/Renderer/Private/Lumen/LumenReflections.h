@@ -6,8 +6,6 @@
 #include "BlueNoise.h"
 #include "ShaderParameterMacros.h"
 
-enum class ERDGPassFlags : uint16;
-
 class FLumenCardTracingInputs;
 class FLumenCardTracingParameters;
 class FLumenMeshSDFGridParameters;
@@ -18,9 +16,10 @@ class FSceneView;
 class FSceneViewFamily;
 class FViewFamilyInfo;
 class FViewInfo;
-
 struct FLumenSceneFrameTemporaries;
 struct FSceneTextures;
+enum class EDiffuseIndirectMethod;
+enum class ERDGPassFlags : uint16;
 
 namespace LumenRadianceCache
 { 
@@ -49,6 +48,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLumenReflectionTracingParameters, )
 	SHADER_PARAMETER(uint32, ReflectionDownsampleFactor)
 	SHADER_PARAMETER(FIntPoint, ReflectionTracingViewSize)
 	SHADER_PARAMETER(FIntPoint, ReflectionTracingBufferSize)
+	SHADER_PARAMETER(FVector2f, ReflectionTracingBufferInvSize)
 	SHADER_PARAMETER(float, MaxRayIntensity)
 	SHADER_PARAMETER(float, ReflectionSmoothBias)
 	SHADER_PARAMETER(uint32, ReflectionPass)
@@ -87,11 +87,12 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLumenReflectionTracingParameters, )
 END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FLumenReflectionTileParameters, )
+	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, ReflectionClearTileData)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, ReflectionResolveTileData)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, ReflectionTracingTileData)
+	RDG_BUFFER_ACCESS(ClearIndirectArgs, ERHIAccess::IndirectArgs)
 	RDG_BUFFER_ACCESS(ResolveIndirectArgs, ERHIAccess::IndirectArgs)
 	RDG_BUFFER_ACCESS(TracingIndirectArgs, ERHIAccess::IndirectArgs)
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ResolveTileUsed)
 END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FCompactedReflectionTraceParameters, )
@@ -104,10 +105,12 @@ END_SHADER_PARAMETER_STRUCT()
 namespace LumenReflections
 {
 	bool UseFarField(const FSceneViewFamily& ViewFamily);
-	bool UseHitLighting(const FViewInfo& View, bool bLumenGIEnabled);
+	bool UseHitLighting(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
 	bool UseTranslucentRayTracing(const FViewInfo& View);
-	bool IsHitLightingForceEnabled(const FViewInfo& View, bool bLumenGIEnabled);
+	bool IsHitLightingForceEnabled(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
 	bool UseSurfaceCacheFeedback();
+	bool UseScreenTraces(const FViewInfo& View);
+	bool UseDistantScreenTraces(const FViewInfo& View);
 	float GetSampleSceneColorNormalTreshold();
 	uint32 GetMaxReflectionBounces(const FViewInfo& View);
 	uint32 GetMaxRefractionBounces(const FViewInfo& View);
@@ -146,7 +149,7 @@ extern void TraceReflections(
 	const FLumenReflectionTileParameters& ReflectionTileParameters,
 	const FLumenMeshSDFGridParameters& InMeshSDFGridParameters,
 	bool bUseRadianceCache,
-	bool bLumenGIEnabled,
+	EDiffuseIndirectMethod DiffuseIndirectMethod,
 	const LumenRadianceCache::FRadianceCacheInterpolationParameters& RadianceCacheParameters,
 	ERDGPassFlags ComputePassFlags);
 
@@ -165,5 +168,5 @@ extern void RenderLumenHardwareRayTracingReflections(
 	bool bUseRadianceCache,
 	const LumenRadianceCache::FRadianceCacheInterpolationParameters& RadianceCacheParameters,
 	bool bSampleSceneColorAtHit,
-	bool bLumenGIEnabled,
+	EDiffuseIndirectMethod DiffuseIndirectMethod,
 	ERDGPassFlags ComputePassFlags);

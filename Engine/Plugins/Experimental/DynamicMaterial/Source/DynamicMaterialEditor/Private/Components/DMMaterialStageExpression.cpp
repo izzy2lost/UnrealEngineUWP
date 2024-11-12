@@ -1,14 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/DMMaterialStageExpression.h"
+
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "DMDefs.h"
 #include "EditorClassUtils.h"
 #include "Materials/MaterialExpression.h"
-#include "Materials/MaterialExpressionComponentMask.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
+#include "Utils/DMUtils.h"
 
 // Expressions to exclude
 #include "Materials/MaterialExpressionComment.h"
@@ -100,7 +101,7 @@ UDMMaterialStageExpression* UDMMaterialStageExpression::ChangeStageSource_Expres
 	}
 
 	check(InExpressionClass);
-	check(!(InExpressionClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
+	check(!InExpressionClass->HasAnyClassFlags(UE::DynamicMaterial::InvalidClassFlags));
 
 	return InStage->ChangeSource<UDMMaterialStageExpression>(InExpressionClass);
 }
@@ -127,7 +128,7 @@ void UDMMaterialStageExpression::GenerateExpressionList()
 			continue;
 		}
 
-		if (ExpressionClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists))
+		if (ExpressionClass->HasAnyClassFlags(UE::DynamicMaterial::InvalidClassFlags))
 		{
 			continue;
 		}
@@ -174,8 +175,8 @@ UDMMaterialStageExpression::UDMMaterialStageExpression(const FText& InName, TSub
 	bInputRequired = false;
 	bAllowNestedInputs = false;
 
-	ensureAlwaysMsgf(!InName.IsEmpty(), TEXT("Material Designer MSE Class with invalid Name: %s"),             *StaticClass()->GetName());
-	ensureAlwaysMsgf(InClass,           TEXT("Material Designer MSE Class with invalid Expression Class: %s"), *StaticClass()->GetName());
+	ensureAlwaysMsgf(!InName.IsEmpty(), TEXT("MSE Class with invalid Name: %s"),             *StaticClass()->GetName());
+	ensureAlwaysMsgf(InClass,           TEXT("MSE Class with invalid Expression Class: %s"), *StaticClass()->GetName());
 }
 
 void UDMMaterialStageExpression::GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const

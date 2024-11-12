@@ -2,9 +2,10 @@
 
 #pragma once
 
+#include "Modules/ModuleInterface.h"
+
 #include "Delegates/Delegate.h"
 #include "Delegates/DelegateCombinations.h"
-#include "Modules/ModuleInterface.h"
 
 #if WITH_EDITOR
 #include "UObject/ScriptInterface.h"
@@ -24,31 +25,14 @@ DECLARE_DELEGATE_RetVal_OneParam(TScriptInterface<IDynamicMaterialModelEditorOnl
 /**
  * Material Designer - Build your own materials in a slimline editor!
  */
-class DYNAMICMATERIAL_API FDynamicMaterialModule : public IModuleInterface
+class FDynamicMaterialModule : public IModuleInterface
 {
 public:
-	static FDynamicMaterialModule& Get();
-	static bool AreUObjectsSafe();
-	static bool IsMaterialExportEnabled();
+	DYNAMICMATERIAL_API static FDynamicMaterialModule& Get();
 
-#if WITH_EDITOR
-	static TScriptInterface<IDynamicMaterialModelEditorOnlyDataInterface> CreateEditorOnlyData(UDynamicMaterialModel* InMaterialModel);
-	static FDMCreateEditorOnlyDataDelegate& GetCreateEditorOnlyDataDelegate() { return CreateEditorOnlyDataDelegate; }
-#endif
+	/** Returns true if UObjects are currently safe to use. */
+	DYNAMICMATERIAL_API static bool AreUObjectsSafe();
 
-	//~ Begin IDynamicMaterialModule
-	virtual void StartupModule() override;
-	virtual void ShutdownModule() override;
-	//~ End IDynamicMaterialModule
-
-protected:
-	static bool bIsEngineExiting;
-
-#if WITH_EDITOR
-	static FDMCreateEditorOnlyDataDelegate CreateEditorOnlyDataDelegate;
-#endif
-	
-	static void HandleEnginePreExit();
-
-	FDelegateHandle EnginePreExitHandle;
+	/** Returns true if the material export flag has been enabled. @See DM.ExportMaterials */
+	DYNAMICMATERIAL_API static bool IsMaterialExportEnabled();
 };

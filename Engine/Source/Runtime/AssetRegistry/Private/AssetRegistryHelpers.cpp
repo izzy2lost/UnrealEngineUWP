@@ -14,6 +14,26 @@
 #include "Misc/RedirectCollector.h"
 #endif
 
+namespace UE::AssetRegistry
+{
+
+template<typename TLessThan>
+static void SortAssets(TArray<FAssetData>& Assets, TLessThan&& Predicate, EAssetRegistrySortOrder SortOrder)
+{
+	switch (SortOrder)
+	{
+	case EAssetRegistrySortOrder::Ascending: Assets.Sort(Predicate); break;
+	case EAssetRegistrySortOrder::Descending:
+		Assets.Sort([&Predicate](const FAssetData& Left, const FAssetData& Right)
+		{
+			return Predicate(Right, Left);
+		});
+		break;
+	default: checkNoEntry(); break;
+	}
+}
+}
+
 TScriptInterface<IAssetRegistry> UAssetRegistryHelpers::GetAssetRegistry()
 {
 	return &UAssetRegistryImpl::Get();
@@ -118,12 +138,53 @@ UClass* UAssetRegistryHelpers::FindAssetNativeClass(const FAssetData& AssetData)
 	return AssetClass;
 }
 
-void UAssetRegistryHelpers::FindReferencersOfAssetOfClass(UObject* AssetInstance, TConstArrayView<UClass*> InMatchClasses, TArray<FAssetData>& OutAssetDatas)
+void UAssetRegistryHelpers::SortByPredicate(
+	TArray<FAssetData>& Assets,
+	FSortingPredicate SortingPredicate,
+	EAssetRegistrySortOrder SortOrder
+	)
+{
+	if (SortingPredicate.IsBound())
+	{
+		UE::AssetRegistry::SortAssets(
+			Assets,
+			[&SortingPredicate](const FAssetData& Left, const FAssetData& Right)
+			{
+				return SortingPredicate.Execute(Left, Right);
+			}, SortOrder);
+	}
+}
+
+void UAssetRegistryHelpers::SortByAssetName(TArray<FAssetData>& Assets, EAssetRegistrySortOrder SortOrder)
+{
+	UE::AssetRegistry::SortAssets(Assets,
+		[](const FAssetData& Left, const FAssetData& Right)
+		{
+			// Summary: String compare needed instead of FName::LexicalLess.
+			// Reason: FName::LexicalLess says e.g. FName("Scene_10") < FName("Scene_01") (while: FString::operator< says "Scene_01" < "Scene_10").
+			// Explanation:
+			// - "Scene_10" has ComparisionIndex of "Scene" and Number = 11,
+			// - "Scene_01" has ComparisionIndex of "Scene_01" and number 0
+			// - Thus, (FName("Scene_10").LexicalLess(FName("Scene_01")) internally ends up checking "Scene" < "Scene_01" , which is true.
+			// - For reference, "Scene_1" has ComparisionIndex of "Scene" and number 2, which, when sorting, we'd "expect" Scene_01 to have, too.
+			return Left.AssetName.ToString() < Right.AssetName.ToString();
+		}, SortOrder);
+}
+
+void UAssetRegistryHelpers::FindReferencersOfAssetOfClass(
+	UObject* AssetInstance,
+	TConstArrayView<UClass*> InMatchClasses,
+	TArray<FAssetData>& OutAssetDatas
+	)
 {
 	FindReferencersOfAssetOfClass(AssetInstance->GetOutermost()->GetFName(), InMatchClasses, OutAssetDatas);
 }
 
-void UAssetRegistryHelpers::FindReferencersOfAssetOfClass(const FAssetIdentifier& InAssetIdentifier, TConstArrayView<UClass*> InMatchClasses, TArray<FAssetData>& OutAssetDatas)
+void UAssetRegistryHelpers::FindReferencersOfAssetOfClass(
+	const FAssetIdentifier& InAssetIdentifier,
+	TConstArrayView<UClass*> InMatchClasses,
+	TArray<FAssetData>& OutAssetDatas
+	)
 {
 	// If the asset registry is still loading assets, we cant check for referencers, so we must open the rename dialog
 	const IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
@@ -169,7 +230,11 @@ void UAssetRegistryHelpers::GetBlueprintAssets(const FARFilter& InFilter, TArray
 	TSet<FTopLevelAssetPath> BlueprintParentClassPaths;
 	if (Filter.bRecursiveClasses)
 	{
-		AssetRegistry.GetDerivedClassNames(BlueprintParentClassPathRoots, TSet<FTopLevelAssetPath>(), BlueprintParentClassPaths);
+		AssetRegistry.GetDerivedClassNames(
+			BlueprintParentClassPathRoots, 
+			TSet<FTopLevelAssetPath>(),
+			 BlueprintParentClassPaths
+			 );
 	}
 	else
 	{
@@ -190,7 +255,7 @@ void UAssetRegistryHelpers::GetBlueprintAssets(const FARFilter& InFilter, TArray
 		}
 		return true;
 	};
-	AssetRegistry.EnumerateAssets(Filter, FilterLambda);
+	AssetRegistry.EnumerateAssets(Filter, FilterLambda, UE::AssetRegistry::EEnumerateAssetsFlags::None);
 }
 
 bool UAssetRegistryHelpers::IsAssetDataBlueprintOfClassSet(const FAssetData& AssetData, const TSet<FTopLevelAssetPath>& ClassNameSet)
@@ -234,6 +299,11 @@ UAssetRegistryHelpers::FTemporaryCachingModeScope::~FTemporaryCachingModeScope()
 
 void UAssetRegistryHelpers::FixupRedirectedAssetPath(FSoftObjectPath& InOutSoftObjectPath)
 {
+	if (InOutSoftObjectPath.IsNull())
+	{
+		return;
+	}
+
 	FSoftObjectPath FoundRedirection;
 	InOutSoftObjectPath.FixupCoreRedirects();
 
@@ -253,6 +323,11 @@ void UAssetRegistryHelpers::FixupRedirectedAssetPath(FSoftObjectPath& InOutSoftO
 
 void UAssetRegistryHelpers::FixupRedirectedAssetPath(FName& InOutAssetPath)
 {
+	if (InOutAssetPath.IsNone())
+	{
+		return;
+	}
+
 	FSoftObjectPath SoftObjectPath(InOutAssetPath.ToString());
 	FixupRedirectedAssetPath(SoftObjectPath);
 	InOutAssetPath = FName(*SoftObjectPath.ToString());

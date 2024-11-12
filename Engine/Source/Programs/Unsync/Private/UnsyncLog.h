@@ -74,7 +74,7 @@ enum class ELogLevel
 void LogFlush();
 
 void LogPrintf(ELogLevel Level, const wchar_t* Str, ...);
-void LogError(const FError& E);
+void LogError(const FError& E, std::wstring ExtraContext = {});
 
 void LogProgress(const wchar_t* ItemName, uint64 Current, uint64 Total);
 void LogStatus(const wchar_t* ItemName, const wchar_t* Status);

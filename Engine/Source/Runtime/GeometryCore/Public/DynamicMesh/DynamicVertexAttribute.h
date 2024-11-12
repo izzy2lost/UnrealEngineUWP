@@ -148,12 +148,12 @@ public:
 		}
 	}
 
-	/** Initialize the attribute values to the given max triangle ID */
+	/** Initialize the attribute values with InitialValue, and resize to the parent mesh's max vertex ID */
 	void Initialize(AttribValueType InitialValue = (AttribValueType)0)
 	{
 		check(Parent != nullptr);
-		AttribValues.Resize(0);
-		AttribValues.Resize( Parent->MaxVertexID() * AttribDimension, InitialValue );
+		AttribValues.Resize(Parent->MaxVertexID() * AttribDimension);
+		AttribValues.Fill(InitialValue);
 	}
 
 	void SetNewValue(int NewVertexID, const AttribValueType* Data)
@@ -329,12 +329,17 @@ public:
 		// just blend the attributes?
 		if (MergeInfo.RemovedVerts.A != FDynamicMesh3::InvalidID)
 		{
-			SetAttributeFromLerp(MergeInfo.KeptVerts.A, MergeInfo.KeptVerts.A, MergeInfo.RemovedVerts.A, .5);
+			SetAttributeFromLerp(MergeInfo.KeptVerts.A, MergeInfo.KeptVerts.A, MergeInfo.RemovedVerts.A, MergeInfo.InterpolationT);
 		}
 		if (MergeInfo.RemovedVerts.B != FDynamicMesh3::InvalidID)
 		{
-			SetAttributeFromLerp(MergeInfo.KeptVerts.B, MergeInfo.KeptVerts.B, MergeInfo.RemovedVerts.B, .5);
+			SetAttributeFromLerp(MergeInfo.KeptVerts.B, MergeInfo.KeptVerts.B, MergeInfo.RemovedVerts.B, MergeInfo.InterpolationT);
 		}
+	}
+
+	void OnMergeVertices(const FDynamicMesh3::FMergeVerticesInfo& MergeInfo) override
+	{
+		SetAttributeFromLerp(MergeInfo.KeptVertex, MergeInfo.KeptVertex, MergeInfo.RemovedVertex, MergeInfo.InterpolationT);
 	}
 
 	/** Update the overlay to reflect a vertex split in the parent */

@@ -6,6 +6,7 @@
 #include "Misc/UObjectToken.h"
 #include "WaterBodyActor.h"
 #include "WaterBodyMeshComponent.h"
+#include "WaterSplineComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WaterBodyCustomComponent)
 
@@ -45,6 +46,15 @@ TArray<UPrimitiveComponent*> UWaterBodyCustomComponent::GetStandardRenderableCom
 		Result.Add(MeshComp);
 	}
 	return Result;
+}
+
+FBoxSphereBounds UWaterBodyCustomComponent::CalcBounds(const FTransform& LocalToWorld) const
+{
+	if (MeshComp)
+	{
+		return MeshComp->CalcBounds(MeshComp->GetRelativeTransform()).TransformBy(LocalToWorld);
+	}
+	return Super::CalcBounds(LocalToWorld);
 }
 
 void UWaterBodyCustomComponent::Reset()
@@ -97,7 +107,11 @@ void UWaterBodyCustomComponent::OnUpdateBody(bool bWithExclusionVolumes)
 			continue;
 		}
 
-		CopySharedNavigationSettingsToComponent(Comp);
+		// Do not copy Nav setting over Water Spline Component, its just a spline component and will report Navigation warning if only one spline point because of empty bounds box
+		if (!Comp->IsA<UWaterSplineComponent>())
+		{
+			CopySharedNavigationSettingsToComponent(Comp);
+		}
 
 		Comp->SetMobility(Mobility);
 	}

@@ -231,7 +231,7 @@ static void Denoise(
 
 using namespace UE::Renderer::Private;
 
-class FOptiXDenosier : public IPathTracingSpatialTemporalDenoiser
+class FOptiXDenoiser : public IPathTracingSpatialTemporalDenoiser
 {
 public:
 	class FHistory : public IHistory
@@ -247,9 +247,11 @@ public:
 		const TCHAR* DebugName;
 	};
 
-	~FOptiXDenosier() {}
+	~FOptiXDenoiser() {}
 
 	const TCHAR* GetDebugName() const override { return *DebugName; }
+
+	bool NeedTextureCreateExtraFlags() const override { return true; }
 
 	virtual FOutputs AddPasses(FRDGBuilder& GraphBuilder, const FSceneView& View, const FInputs& Inputs) const
 	{
@@ -306,7 +308,7 @@ public:
 	}
 
 private:
-	inline static const FString DebugName = TEXT("FOptiXDenosier");
+	inline static const FString DebugName = TEXT("FOptiXDenoiser");
 };
 
 void FOptiXDenoiseModule::StartupModule()
@@ -324,7 +326,7 @@ void FOptiXDenoiseModule::StartupModule()
 	OptiXDenoiseBaseDLLHandle = FPlatformProcess::GetDllHandle(*OptiXDenoiseBaseDllPath);
 	FOptiXCudaFunctionList::Get().RegisterFunctionInstance<FOptiXDenoiserFunctionInstance>();
 
-	GPathTracingSpatialTemporalDenoiserPlugin = MakeUnique<FOptiXDenosier>();
+	RegisterSpatialTemporalDenoiser(MakeUnique<FOptiXDenoiser>(), TEXT("OptiX"));
 }
 
 void FOptiXDenoiseModule::ShutdownModule()
@@ -333,7 +335,7 @@ void FOptiXDenoiseModule::ShutdownModule()
 	UE_LOG(LogOptiXDenoise, Log, TEXT("OptiXDenoise shutting down"));
 #endif
 
-	GPathTracingSpatialTemporalDenoiserPlugin.Reset();
+	UnregisterDenoiser(TEXT("OptiX"));
 
 	// Assure resources related to CUDA is released before the releasing of CUDA module.
 	Denoiser.Reset();

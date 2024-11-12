@@ -14,7 +14,11 @@ namespace UE::RHICore
 		constexpr ETextureCreateFlags AllRenderTargetFlags = ETextureCreateFlags::RenderTargetable | ETextureCreateFlags::ResolveTargetable | ETextureCreateFlags::DepthStencilTargetable;
 #if STATS
 		const int64 TextureSizeDeltaInBytes = bAllocating ? static_cast<int64>(TextureSizeInBytes) : -static_cast<int64>(TextureSizeInBytes);
-		if (EnumHasAnyFlags(TextureFlags, AllRenderTargetFlags))
+		if (EnumHasAnyFlags(TextureFlags, ETextureCreateFlags::ReservedResource))
+		{
+			INC_MEMORY_STAT_BY(STAT_ReservedUncommittedTextureMemory, TextureSizeDeltaInBytes);
+		}
+		else if (EnumHasAnyFlags(TextureFlags, AllRenderTargetFlags))
 		{
 			switch (Dimension)
 			{
@@ -94,16 +98,16 @@ namespace UE::RHICore
 		OutStats.StreamingMemorySize    = GRHIGlobals.StreamingTextureMemorySizeInKB * 1024;
 		OutStats.NonStreamingMemorySize = GRHIGlobals.NonStreamingTextureMemorySizeInKB * 1024;
 		OutStats.TexturePoolSize        = GRHIGlobals.TexturePoolSize;
-
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		OutStats.AllocatedMemorySize = OutStats.StreamingMemorySize;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	inline void UpdateGlobalBufferStats(const FRHIBufferDesc& BufferDesc, int64 BufferSizeDelta)
 	{
 #if STATS
-		if (EnumHasAnyFlags(BufferDesc.Usage, EBufferUsageFlags::VertexBuffer))
+		if (EnumHasAnyFlags(BufferDesc.Usage, EBufferUsageFlags::ReservedResource))
+		{
+			INC_MEMORY_STAT_BY(STAT_ReservedUncommittedBufferMemory, BufferSizeDelta);
+		}
+		else if (EnumHasAnyFlags(BufferDesc.Usage, EBufferUsageFlags::VertexBuffer))
 		{
 			INC_MEMORY_STAT_BY(STAT_VertexBufferMemory, BufferSizeDelta);
 		}
@@ -148,5 +152,23 @@ namespace UE::RHICore
 
 		INC_MEMORY_STAT_BY(STAT_UniformBufferMemory, BufferSizeDelta);
 		FPlatformAtomics::InterlockedAdd((volatile int64*)&GRHIGlobals.UniformBufferMemorySize, BufferSizeDelta);
+	}
+
+	inline void UpdateReservedResourceStatsOnCommit(int64 CommitDelta, bool bBuffer, bool bCommitting)
+	{
+#if STATS
+		const int64 CommittedDelta = bCommitting ? static_cast<int64>(CommitDelta) : -static_cast<int64>(CommitDelta);
+
+		if (bBuffer)
+		{
+			INC_MEMORY_STAT_BY(STAT_ReservedCommittedBufferMemory, CommittedDelta);
+			DEC_MEMORY_STAT_BY(STAT_ReservedUncommittedBufferMemory, CommittedDelta);
+		}
+		else
+		{
+			INC_MEMORY_STAT_BY(STAT_ReservedCommittedTextureMemory, CommittedDelta);
+			DEC_MEMORY_STAT_BY(STAT_ReservedUncommittedTextureMemory, CommittedDelta);
+		}
+#endif
 	}
 }

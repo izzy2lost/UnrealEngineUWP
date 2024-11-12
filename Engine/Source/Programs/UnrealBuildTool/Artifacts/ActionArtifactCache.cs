@@ -89,7 +89,7 @@ namespace UnrealBuildTool.Artifacts
 		/// <param name="path">Path to artifact</param>
 		/// <param name="hash">Hash of the artifact</param>
 		/// <returns>The artifact</returns>
-		private ArtifactFile CreateArtifact(ArtifactDirectoryTree tree, string path, IoHash hash)
+		private static ArtifactFile CreateArtifact(ArtifactDirectoryTree tree, string path, IoHash hash)
 		{
 			return new(tree, new Utf8String(path), hash);
 		}
@@ -164,11 +164,12 @@ namespace UnrealBuildTool.Artifacts
 		/// </summary>
 		/// <param name="directory">Directory for the cache</param>
 		/// <param name="cppDependencyCache">Previously created dependency cache</param>
+		/// <param name="memoryMappedFileCache">Cache for memory mapped files</param>
 		/// <param name="logger">Logging device</param>
 		/// <returns>Action artifact cache object</returns>
-		public static IActionArtifactCache CreateHordeFileCache(DirectoryReference directory, CppDependencyCache cppDependencyCache, ILogger logger)
+		public static IActionArtifactCache CreateHordeFileCache(DirectoryReference directory, CppDependencyCache cppDependencyCache, MemoryMappedFileCache memoryMappedFileCache, ILogger logger)
 		{
-			IArtifactCache artifactCache = HordeStorageArtifactCache.CreateFileCache(directory, /*logger*/ NullLogger.Instance, false);
+			IArtifactCache artifactCache = HordeStorageArtifactCache.CreateFileCache(directory, memoryMappedFileCache, NullLogger.Instance, false);
 			return new ActionArtifactCache(artifactCache, cppDependencyCache, logger);
 		}
 
@@ -185,16 +186,16 @@ namespace UnrealBuildTool.Artifacts
 		}
 
 		/// <inheritdoc/>
-		public async Task<bool> CompleteActionFromCacheAsync(LinkedAction action, CancellationToken cancellationToken)
+		public async Task<ActionArtifactResult> CompleteActionFromCacheAsync(LinkedAction action, CancellationToken cancellationToken)
 		{
 			if (!EnableReads)
 			{
-				return false;
+				return new ActionArtifactResult(false, new List<string>());
 			}
 
 			if (!action.ArtifactMode.HasFlag(ArtifactMode.Enabled))
 			{
-				return false;
+				return new ActionArtifactResult(false, new List<string>());
 			}
 
 			ArtifactDirectoryMapping directoryMapping = GetDirectoryMapping(action);
@@ -215,7 +216,7 @@ namespace UnrealBuildTool.Artifacts
 				{
 					_logger.LogInformation("Artifact Cache Miss: No artifact actions found for {ActionDescription}", actionDescription);
 				}
-				return false;
+				return new ActionArtifactResult(false, new List<string>());
 			}
 
 			foreach (ArtifactAction artifactAction in artifactActions)
@@ -239,7 +240,7 @@ namespace UnrealBuildTool.Artifacts
 					{
 						if (LogCacheMisses)
 						{
-							_logger.LogInformation("Artifact Cache Miss: Content hash different {actionDescription}/{File}", actionDescription, item.FullName);
+							_logger.LogInformation("Artifact Cache Miss: Content hash different {ActionDescription}/{File}", actionDescription, item.FullName);
 						}
 						match = false;
 						break;
@@ -254,7 +255,7 @@ namespace UnrealBuildTool.Artifacts
 
 					if (readResults == null || readResults.Length == 0 || !readResults[0])
 					{
-						return false;
+						return new ActionArtifactResult(false, new List<string>());
 					}
 					else
 					{
@@ -265,11 +266,11 @@ namespace UnrealBuildTool.Artifacts
 							item.ResetCachedInfo(); // newly created outputs need refreshing
 							_fileHasher.SetDigest(item, output.ContentHash);
 						}
-						return true;
+						return new ActionArtifactResult(true, new List<string>());
 					}
 				}
 			}
-			return false;
+			return new ActionArtifactResult(false, new List<string>());
 		}
 
 		/// <inheritdoc/>
@@ -395,7 +396,7 @@ namespace UnrealBuildTool.Artifacts
 		{
 			builder.AppendLine(action.CommandVersion);
 			builder.AppendLine(action.CommandArguments);
-			await AppendFiles(builder, directoryMapping, action, inputs);
+			await AppendFilesAsync(builder, directoryMapping, action, inputs);
 		}
 
 		/// <summary>
@@ -408,7 +409,7 @@ namespace UnrealBuildTool.Artifacts
 		/// <returns>Task object</returns>
 		private async Task AppendActionKeyAsync(StringBuilder builder, ArtifactDirectoryMapping directoryMapping, LinkedAction action, List<FileItem>? dependencies)
 		{
-			await AppendFiles(builder, directoryMapping, action, dependencies);
+			await AppendFilesAsync(builder, directoryMapping, action, dependencies);
 		}
 
 		/// <summary>
@@ -419,7 +420,7 @@ namespace UnrealBuildTool.Artifacts
 		/// <param name="action">Source action</param>
 		/// <param name="files">Collection of files</param>
 		/// <returns>Task object</returns>
-		private async Task AppendFiles(StringBuilder builder, ArtifactDirectoryMapping directoryMapping, LinkedAction action, List<FileItem>? files)
+		private async Task AppendFilesAsync(StringBuilder builder, ArtifactDirectoryMapping directoryMapping, LinkedAction action, List<FileItem>? files)
 		{
 			if (files != null)
 			{
@@ -432,7 +433,7 @@ namespace UnrealBuildTool.Artifacts
 				string[] lines = new string[files.Count];
 				for (int index = 0; index < files.Count; index++)
 				{
-					ArtifactFile artifact = directoryMapping.GetArtifact(action, files[index], waits[index].Result);
+					ArtifactFile artifact = directoryMapping.GetArtifact(action, files[index], await waits[index]);
 					lines[index] = $"{GetArtifactTreeName(artifact)} {artifact.Tree} {artifact.Name} {artifact.ContentHash}";
 				}
 				Array.Sort(lines, StringComparer.Ordinal);
@@ -495,7 +496,7 @@ namespace UnrealBuildTool.Artifacts
 		/// <param name="substitutions">Substitutions when a given input is found</param>
 		/// <param name="outputs">Destination list</param>
 		/// <param name="inputs">Source inputs</param>
-		private void AddFileItems(HashSet<FileItem> uniques, Dictionary<FileItem, List<FileItem>>? substitutions, List<FileItem> outputs, IEnumerable<FileItem> inputs)
+		private static void AddFileItems(HashSet<FileItem> uniques, Dictionary<FileItem, List<FileItem>>? substitutions, List<FileItem> outputs, IEnumerable<FileItem> inputs)
 		{
 			if (substitutions != null)
 			{

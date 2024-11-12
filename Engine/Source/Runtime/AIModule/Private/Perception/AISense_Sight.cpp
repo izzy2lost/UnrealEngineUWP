@@ -95,7 +95,7 @@ EReverseForEachResult ReverseForEach(T& Array, const PREDICATE_CLASS& Predicate)
 const FAISightTarget::FTargetId FAISightTarget::InvalidTargetId = FAISystem::InvalidUnsignedID;
 
 FAISightTarget::FAISightTarget(AActor* InTarget, FGenericTeamId InTeamId)
-	: Target(InTarget), SightTargetInterface(nullptr), TeamId(InTeamId)
+	: Target(InTarget), TeamId(InTeamId)
 {
 	if (InTarget)
 	{
@@ -471,12 +471,12 @@ float UAISense_Sight::Update()
 			if (Operation.bInRange)
 			{
 				// In range queries are always sorted at the beginning of the update
-				SightQueriesInRange.RemoveAtSwap(Operation.Index, 1, EAllowShrinking::No);
+				SightQueriesInRange.RemoveAtSwap(Operation.Index, EAllowShrinking::No);
 			}
 			else
 			{
 				// Preserve the list ordered
-				SightQueriesOutOfRange.RemoveAt(Operation.Index, 1, EAllowShrinking::No);
+				SightQueriesOutOfRange.RemoveAt(Operation.Index, EAllowShrinking::No);
 				if (Operation.Index < NextOutOfRangeIndex)
 				{
 					NextOutOfRangeIndex--;
@@ -530,7 +530,7 @@ UAISense_Sight::EVisibilityResult UAISense_Sight::ComputeVisibility(UWorld* Worl
 		return EVisibilityResult::NotVisible;
 	}
 
-	if (Target.SightTargetInterface != nullptr)
+	if (IAISightTargetInterface* SightTargetInterface = Target.WeakSightTargetInterface.Get())
 	{
 		const bool bWasVisible = SightQuery.GetLastResult();
 		FCanBeSeenFromContext Context;
@@ -539,7 +539,7 @@ UAISense_Sight::EVisibilityResult UAISense_Sight::ComputeVisibility(UWorld* Worl
 		Context.IgnoreActor = ListenerActor;
 		Context.bWasVisible = &bWasVisible;
 
-		const EVisibilityResult Result = Target.SightTargetInterface->CanBeSeenFrom(Context, OutSeenLocation, OutNumberOfLoSChecksPerformed, OutNumberOfAsyncLosCheckRequested, OutStimulusStrength, &SightQuery.UserData, &OnPendingCanBeSeenQueryProcessedDelegate);
+		const EVisibilityResult Result = SightTargetInterface->CanBeSeenFrom(Context, OutSeenLocation, OutNumberOfLoSChecksPerformed, OutNumberOfAsyncLosCheckRequested, OutStimulusStrength, &SightQuery.UserData, &OnPendingCanBeSeenQueryProcessedDelegate);
 		if (Result == EVisibilityResult::Pending)
 		{
 			// we need to clear the trace info value in order to avoid interfering with the engine processed asynchronous queries
@@ -667,7 +667,7 @@ void UAISense_Sight::OnPendingTraceQueryProcessed(const FTraceHandle& TraceHandl
 void UAISense_Sight::OnPendingQueryProcessed(const int32 SightQueryIndex, const bool bIsVisible, const float StimulusStrength, const FVector& SeenLocation, const TOptional<int32>& UserData, const TOptional<AActor*> InTargetActor)
 {
 	FAISightQuery SightQuery = SightQueriesPending[SightQueryIndex];
-	SightQueriesPending.RemoveAtSwap(SightQueryIndex, 1, EAllowShrinking::No);
+	SightQueriesPending.RemoveAtSwap(SightQueryIndex, EAllowShrinking::No);
 
 	AIPerception::FListenerMap& ListenersMap = *GetListeners();
 	FPerceptionListener* Listener = ListenersMap.Find(SightQuery.ObserverId);
@@ -748,36 +748,33 @@ void UAISense_Sight::UnregisterSource(AActor& SourceActor)
 	{
 		AActor* TargetActor = AsTarget.Target.Get();
 
-		if (TargetActor)
+		// notify all interested observers that this source is no longer
+		// visible		
+		AIPerception::FListenerMap& ListenersMap = *GetListeners();
+		auto RemoveQuery = [this,&ListenersMap,&AsTargetId,&TargetActor](TArray<FAISightQuery>& SightQueries, const int32 QueryIndex)->EReverseForEachResult
 		{
-			// notify all interested observers that this source is no longer
-			// visible		
-			AIPerception::FListenerMap& ListenersMap = *GetListeners();
-			auto RemoveQuery = [this,&ListenersMap,&AsTargetId,&TargetActor](TArray<FAISightQuery>& SightQueries, const int32 QueryIndex)->EReverseForEachResult
+			FAISightQuery* SightQuery = &SightQueries[QueryIndex];
+			if (SightQuery->TargetId == AsTargetId)
 			{
-				FAISightQuery* SightQuery = &SightQueries[QueryIndex];
-				if (SightQuery->TargetId == AsTargetId)
+				if (SightQuery->GetLastResult() && TargetActor)
 				{
-					if (SightQuery->GetLastResult())
-					{
-						FPerceptionListener& Listener = ListenersMap[SightQuery->ObserverId];
-						ensure(Listener.Listener.IsValid());
+					FPerceptionListener& Listener = ListenersMap[SightQuery->ObserverId];
+					ensure(Listener.Listener.IsValid());
 
-						Listener.RegisterStimulus(TargetActor, FAIStimulus(*this, 0.f, SightQuery->LastSeenLocation, Listener.CachedLocation, FAIStimulus::SensingFailed));
-					}
-
-					SightQueries.RemoveAtSwap(QueryIndex, 1, EAllowShrinking::No);
-					return EReverseForEachResult::Modified;
+					Listener.RegisterStimulus(TargetActor, FAIStimulus(*this, 0.f, SightQuery->LastSeenLocation, Listener.CachedLocation, FAIStimulus::SensingFailed));
 				}
-				return EReverseForEachResult::UnTouched;
-			};
-			ReverseForEach(SightQueriesInRange, RemoveQuery);
-			if (ReverseForEach(SightQueriesOutOfRange, RemoveQuery) == EReverseForEachResult::Modified)
-			{
-				bSightQueriesOutOfRangeDirty = true;
+
+				SightQueries.RemoveAtSwap(QueryIndex, EAllowShrinking::No);
+				return EReverseForEachResult::Modified;
 			}
-			ReverseForEach(SightQueriesPending, RemoveQuery);
+			return EReverseForEachResult::UnTouched;
+		};
+		ReverseForEach(SightQueriesInRange, RemoveQuery);
+		if (ReverseForEach(SightQueriesOutOfRange, RemoveQuery) == EReverseForEachResult::Modified)
+		{
+			bSightQueriesOutOfRangeDirty = true;
 		}
+		ReverseForEach(SightQueriesPending, RemoveQuery);
 	}
 }
 
@@ -787,20 +784,24 @@ bool UAISense_Sight::RegisterTarget(AActor& TargetActor, const TFunction<void(FA
 	
 	FAISightTarget* SightTarget = ObservedTargets.Find(TargetActor.GetUniqueID());
 	
-	if (SightTarget != nullptr && SightTarget->GetTargetActor() != &TargetActor)
-	{
-		// this means given unique ID has already been recycled. 
-		FAISightTarget NewSightTarget(&TargetActor);
-
-		SightTarget = &(ObservedTargets.Add(NewSightTarget.TargetId, NewSightTarget));
-		SightTarget->SightTargetInterface = Cast<IAISightTargetInterface>(&TargetActor);
-	}
-	else if (SightTarget == nullptr)
+	// Check if the target is recycled OR new
+	if (SightTarget == nullptr || SightTarget->GetTargetActor() != &TargetActor)
 	{
 		FAISightTarget NewSightTarget(&TargetActor);
 
 		SightTarget = &(ObservedTargets.Add(NewSightTarget.TargetId, NewSightTarget));
-		SightTarget->SightTargetInterface = Cast<IAISightTargetInterface>(&TargetActor);
+
+		// we're looking at components first and only if nothing is found we proceed to check 
+		// if the TargetActor implements IAISightTargetInterface. The advantage of doing it in 
+		// this order is that you can have components override the original Actor's implementation
+		if (IAISightTargetInterface* InterfaceComponent = TargetActor.FindComponentByInterface<IAISightTargetInterface>())
+		{
+			SightTarget->WeakSightTargetInterface = InterfaceComponent;
+		}
+		else 
+		{
+			SightTarget->WeakSightTargetInterface = Cast<IAISightTargetInterface>(&TargetActor);
+		}
 	}
 
 	// set/update data
@@ -1024,7 +1025,7 @@ void UAISense_Sight::RemoveAllQueriesByListener(const FPerceptionListener& Liste
 			{
 				OnRemoveFunc(SightQuery);
 			}
-			SightQueries.RemoveAtSwap(QueryIndex, 1, EAllowShrinking::No);
+			SightQueries.RemoveAtSwap(QueryIndex, EAllowShrinking::No);
 			return EReverseForEachResult::Modified;
 		}
 		return EReverseForEachResult::UnTouched;
@@ -1057,7 +1058,7 @@ void UAISense_Sight::RemoveAllQueriesToTarget_Internal(const FAISightTarget::FTa
 			{
 				OnRemoveFunc(SightQuery);
 			}
-			SightQueries.RemoveAtSwap(QueryIndex, 1, EAllowShrinking::No);
+			SightQueries.RemoveAtSwap(QueryIndex, EAllowShrinking::No);
 			return EReverseForEachResult::Modified;
 		}
 		return EReverseForEachResult::UnTouched;

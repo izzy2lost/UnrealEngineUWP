@@ -21,7 +21,8 @@
 #include "IDetailsView.h"
 #include "Widgets/Images/SImage.h"
 #include "Framework/Application/SlateApplication.h"
-	
+#include "ToolMenus.h"
+
 #define LOCTEXT_NAMESPACE "FChaosClothAssetEditorModeToolkit"
 
 namespace UE::Chaos::ClothAsset
@@ -138,25 +139,6 @@ void FChaosClothAssetEditorModeToolkit::Init(const TSharedPtr<IToolkitHost>& Ini
 			]
 		]	
 	];
-}
-
-void FChaosClothAssetEditorModeToolkit::BuildEditorToolBar(const FName& EditorToolBarName)
-{
-	check(EditorToolBarName != FName());
-
-	const TSharedRef<const FUICommandList> EdModeToolkitCommands = GetToolkitCommands();
-
-	UToolMenu* const ToolBarMenu = UToolMenus::Get()->ExtendMenu(EditorToolBarName);
-	FToolMenuSection& Section = ToolBarMenu->FindOrAddSection("ClothTools");
-
-	FToolMenuEntry& WeightMapButtonEntry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FChaosClothAssetEditorCommands::Get().AddWeightMapNode));
-	WeightMapButtonEntry.SetCommandList(EdModeToolkitCommands);
-
-	FToolMenuEntry& SkinWeightsButtonEntry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FChaosClothAssetEditorCommands::Get().AddTransferSkinWeightsNode));
-	SkinWeightsButtonEntry.SetCommandList(EdModeToolkitCommands);
-
-	FToolMenuEntry& SelectionButtonEntry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FChaosClothAssetEditorCommands::Get().AddMeshSelectionNode));
-	SelectionButtonEntry.SetCommandList(EdModeToolkitCommands);
 }
 
 const FSlateBrush* FChaosClothAssetEditorModeToolkit::GetActiveToolIcon(const FString& ActiveToolIdentifier) const

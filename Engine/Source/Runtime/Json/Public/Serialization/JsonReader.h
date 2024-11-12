@@ -422,13 +422,17 @@ private:
 			{
 				if (IsJsonNumber(Char))
 				{
-					if (!ParseNumberToken(Char))
+					bool bParseNumberSucceed = ParseNumberToken(Char);
+					if (!bParseNumberSucceed && Char != '-') // Could be -NaN, will return false when fail to parse it as -NaN later on
 					{
 						return false;
 					}
 
-					OutToken = EJsonToken::Number;
-					return true;
+					if (bParseNumberSucceed)
+					{
+						OutToken = EJsonToken::Number;
+						return true;
+					}
 				}
 
 				switch (Char)
@@ -493,6 +497,7 @@ private:
 				case CharType('t'): case CharType('T'):
 				case CharType('f'): case CharType('F'):
 				case CharType('n'): case CharType('N'):
+				case CharType('-'):
 					{
 						FString Test;
 						Test += Char;
@@ -504,7 +509,8 @@ private:
 								return false;
 							}
 
-							if (IsAlphaNumber(Char))
+							if (IsAlphaNumber(Char) 
+								|| Char == '(' || Char == ')') // Could be "-nan(ind)" depending on the platform and impl of standard library when write
 							{
 								++CharacterNumber;
 								Test += Char;
@@ -534,6 +540,21 @@ private:
 						if (Test == TEXT("Null"))
 						{
 							OutToken = EJsonToken::Null;
+							return true;
+						}
+
+						if (Test.Compare(TEXT("NaN"), ESearchCase::IgnoreCase) == 0)
+						{
+							NumberValue = std::numeric_limits<double>::quiet_NaN();
+							OutToken = EJsonToken::Number;
+							return true;
+						}
+
+						if (Test.Compare(TEXT("-NaN"), ESearchCase::IgnoreCase) == 0 ||
+							Test.Compare(TEXT("-NaN(ind)"), ESearchCase::IgnoreCase) == 0)
+						{
+							NumberValue = -std::numeric_limits<double>::quiet_NaN();
+							OutToken = EJsonToken::Number;
 							return true;
 						}
 
@@ -788,7 +809,11 @@ private:
 			return true;
 		}
 
-		SetErrorMessage( TEXT("Poorly formed Json Number Token.") );
+		if (FirstChar != '-') // Could be -NaN, will set the error message when fail to parse it as -NaN later on
+		{
+			SetErrorMessage( TEXT("Poorly formed Json Number Token.") );
+		}
+
 		return false;
 	}
 

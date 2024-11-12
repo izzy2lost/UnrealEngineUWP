@@ -2,7 +2,6 @@
 
 #include "AvaModifiersActorUtils.h"
 
-#include "AvaDefs.h"
 #include "Components/PrimitiveComponent.h"
 #include "GameFramework/Actor.h"
 
@@ -15,20 +14,20 @@ FBox FAvaModifiersActorUtils::GetActorsBounds(const TSet<TWeakObjectPtr<AActor>>
 {
 	FBox ActorsBounds = FBox(EForceInit::ForceInit);
 	ActorsBounds.IsValid = 0;
-	
+
 	FVector OrientedVerts[8];
-	
+
 	FTransform AccumulatedTransform = InReferenceTransform;
 
 	for (const TWeakObjectPtr<AActor>& ActorWeak : InActors)
 	{
 		const AActor* Actor = ActorWeak.Get();
-		
+
 		if (!Actor)
 		{
 			continue;
 		}
-		
+
 		if (bInSkipHidden && !IsActorVisible(Actor))
 		{
 			continue;
@@ -53,9 +52,9 @@ FBox FAvaModifiersActorUtils::GetActorsBounds(const TSet<TWeakObjectPtr<AActor>>
 			ActorsBounds.IsValid = 1;
 		}
 	}
-	
+
 	AccumulatedTransform.SetScale3D(FVector::OneVector);
-	
+
 	return ActorsBounds.TransformBy(AccumulatedTransform);
 }
 
@@ -65,7 +64,7 @@ FBox FAvaModifiersActorUtils::GetActorsBounds(AActor* InActor, bool bInIncludeCh
 	{
 		return FBox();
 	}
-	
+
 	TSet<TWeakObjectPtr<AActor>> AttachedModifyActors {InActor};
 
 	if (bInIncludeChildren)
@@ -77,20 +76,20 @@ FBox FAvaModifiersActorUtils::GetActorsBounds(AActor* InActor, bool bInIncludeCh
 			return InAttachedActor;
 		});
 	}
-	
+
 	return FAvaModifiersActorUtils::GetActorsBounds(AttachedModifyActors, InActor->GetActorTransform(), bInSkipHidden);
 }
 
 FBox FAvaModifiersActorUtils::GetActorBounds(const AActor* InActor)
-{	
+{
 	FBox Box(ForceInit);
 	Box.IsValid = 0;
-	
+
 	if (!InActor || !InActor->GetRootComponent())
 	{
 		return Box;
 	}
-	
+
 	FTransform ActorToWorld = InActor->GetTransform();
 	ActorToWorld.SetScale3D(FVector::OneVector);
 	const FTransform WorldToActor = ActorToWorld.Inverse();
@@ -101,7 +100,7 @@ FBox FAvaModifiersActorUtils::GetActorBounds(const AActor* InActor)
 		{
 			return;
 		}
-		
+
 #if WITH_EDITOR
 		// Ignore Visualization Components, but don't consider them as failed components.
 		if (InPrimitiveComponent->IsVisualizationComponent())
@@ -109,7 +108,7 @@ FBox FAvaModifiersActorUtils::GetActorBounds(const AActor* InActor)
 			return;
 		}
 #endif
-		
+
 		const FTransform ComponentToActor = InPrimitiveComponent->GetComponentTransform() * WorldToActor;
 		const FBox ComponentBox = InPrimitiveComponent->CalcBounds(ComponentToActor).GetBox();
 
@@ -138,17 +137,17 @@ FOrientedBox FAvaModifiersActorUtils::GetOrientedBox(const FBox& InLocalBox, con
 FVector FAvaModifiersActorUtils::GetVectorAxis(int32 InAxis)
 {
 	FVector FollowedAxisVector = FVector::ZeroVector;
-	
+
 	if (EnumHasAnyFlags(static_cast<EAvaModifiersAxis>(InAxis), EAvaModifiersAxis::X))
 	{
 		FollowedAxisVector.X = 1;
 	}
-	
+
 	if (EnumHasAnyFlags(static_cast<EAvaModifiersAxis>(InAxis), EAvaModifiersAxis::Y))
 	{
 		FollowedAxisVector.Y = 1;
 	}
-	
+
 	if (EnumHasAnyFlags(static_cast<EAvaModifiersAxis>(InAxis), EAvaModifiersAxis::Z))
 	{
 		FollowedAxisVector.Z = 1;
@@ -175,7 +174,7 @@ bool FAvaModifiersActorUtils::IsActorNotIsolated(const AActor* InActor)
 	{
 		return false;
 	}
-	
+
 #if WITH_EDITOR
 	bool bIsIsolatingActors = false;
 	TArray<TWeakObjectPtr<const AActor>> IsolatedActors;
@@ -195,38 +194,39 @@ bool FAvaModifiersActorUtils::IsActorNotIsolated(const AActor* InActor)
 	return false;
 }
 
-FRotator FAvaModifiersActorUtils::FindLookAtRotation(const FVector& InEyePosition, const FVector& InTargetPosition, const EAvaAxis InAxis, const bool bInFlipAxis)
+FRotator FAvaModifiersActorUtils::FindLookAtRotation(const FVector& InEyePosition, const FVector& InTargetPosition, EAvaModifiersAxis InAxis, bool bInFlipAxis)
 {
-	auto LookAtDirection = [&InEyePosition, &InTargetPosition, bInFlipAxis]() -> FVector
+	const FVector Direction = bInFlipAxis ? (InTargetPosition - InEyePosition).GetSafeNormal() : (InEyePosition - InTargetPosition).GetSafeNormal();
+
+	if (Direction.IsNearlyZero())
 	{
-		FVector OutDirection = bInFlipAxis ? (InEyePosition - InTargetPosition) : (InTargetPosition - InEyePosition);
-
-		OutDirection.Normalize();
-		if (OutDirection.SizeSquared() < 0.5f)
-		{
-			// Assert possible if OutDirection is not normalized.
-			OutDirection = FVector(1, 0, 0);
-		}
-
-		return OutDirection;
-	};
-
-	FMatrix NewRotation = FRotationMatrix::Identity;
-
-	switch (InAxis)
-	{
-	case EAvaAxis::Horizontal:
-		NewRotation = FRotationMatrix::MakeFromX(LookAtDirection());
-		break;
-	case EAvaAxis::Vertical:
-		NewRotation = FRotationMatrix::MakeFromY(LookAtDirection());
-		break;
-	case EAvaAxis::Depth:
-		NewRotation = FRotationMatrix::MakeFromZ(LookAtDirection());
-		break;
+		return FRotator::ZeroRotator;
 	}
 
-	return NewRotation.Rotator();
+	const FRotator BaseRotation = Direction.Rotation();
+
+	FQuat AxisQuat;
+	switch (InAxis)
+	{
+	case EAvaModifiersAxis::X:
+		AxisQuat = FQuat::Identity;
+		break;
+
+	case EAvaModifiersAxis::Y:
+		AxisQuat = FQuat(FVector::ZAxisVector, FMath::DegreesToRadians(90.0f));
+		break;
+
+	case EAvaModifiersAxis::Z:
+		AxisQuat = FQuat(FVector::YAxisVector, FMath::DegreesToRadians(-90.0f));
+		break;
+
+	default:
+		return FRotator::ZeroRotator;
+	}
+
+	const FQuat FinalQuat = BaseRotation.Quaternion() * AxisQuat;
+
+	return FinalQuat.Rotator();
 }
 
 bool FAvaModifiersActorUtils::IsActorVisible(const AActor* InActor)

@@ -58,6 +58,7 @@ namespace FAndroidBackgroundDownloadDelegates
 	DECLARE_DELEGATE_TwoParams(FAndroidBackgroundDownload_OnWorkerStop, FString /*WorkID*/, jobject /*UnderlyingWorker*/);
 	DECLARE_DELEGATE_FourParams(FAndroidBackgroundDownload_OnProgress, jobject /*UnderlyingWorker*/, FString /*RequestID*/, int64_t /*BytesWrittenSinceLastCall*/, int64_t /*TotalBytesWritten*/);
 	DECLARE_DELEGATE_FourParams(FAndroidBackgroundDownload_OnComplete, jobject /*UnderlyingWorker*/, FString /*RequestID*/, FString /*CompleteLocation*/, bool /*bWasSuccess*/);
+	DECLARE_DELEGATE_FourParams(FAndroidBackgroundDownload_OnMetrics, jobject /*UnderlyingWorker*/, FString /*RequestID*/, int64_t /*TotalBytesDownloaded*/, int64_t /*DownloadDuration*/);
 	DECLARE_DELEGATE_TwoParams(FAndroidBackgroundDownload_OnAllComplete, jobject /*UnderlyingWorker*/, bool /*bDidAllRequestsSucceed*/);
 	DECLARE_DELEGATE_TwoParams(FAndroidBackgroundDownload_OnTickWorkerThread, JNIEnv*, jobject /*UnderlyingWorker*/);
 
@@ -66,6 +67,7 @@ namespace FAndroidBackgroundDownloadDelegates
 	FAndroidBackgroundDownload_OnWorkerStop AndroidBackgroundDownload_OnWorkerStop;
 	FAndroidBackgroundDownload_OnProgress AndroidBackgroundDownload_OnProgress;
 	FAndroidBackgroundDownload_OnComplete AndroidBackgroundDownload_OnComplete;
+	FAndroidBackgroundDownload_OnMetrics AndroidBackgroundDownload_OnMetrics;
 	FAndroidBackgroundDownload_OnAllComplete AndroidBackgroundDownload_OnAllComplete;
 	FAndroidBackgroundDownload_OnTickWorkerThread AndroidBackgroundDownload_OnTickWorkerThread;
 };
@@ -178,6 +180,7 @@ void FAndroidPlatformBackgroundHttpManager::Initialize()
 	FAndroidBackgroundDownloadDelegates::AndroidBackgroundDownload_OnWorkerStop.BindSP(this, &FAndroidPlatformBackgroundHttpManager::Java_OnWorkerStop);
 	FAndroidBackgroundDownloadDelegates::AndroidBackgroundDownload_OnProgress.BindSP(this, &FAndroidPlatformBackgroundHttpManager::Java_OnDownloadProgress);
 	FAndroidBackgroundDownloadDelegates::AndroidBackgroundDownload_OnComplete.BindSP(this, &FAndroidPlatformBackgroundHttpManager::Java_OnDownloadComplete);
+	FAndroidBackgroundDownloadDelegates::AndroidBackgroundDownload_OnMetrics.BindSP(this, &FAndroidPlatformBackgroundHttpManager::Java_OnDownloadMetrics);
 	FAndroidBackgroundDownloadDelegates::AndroidBackgroundDownload_OnAllComplete.BindSP(this, &FAndroidPlatformBackgroundHttpManager::Java_OnAllDownloadsComplete);
 	FAndroidBackgroundDownloadDelegates::AndroidBackgroundDownload_OnTickWorkerThread.BindSP(this, &FAndroidPlatformBackgroundHttpManager::Java_OnTick);
 
@@ -363,7 +366,7 @@ void FAndroidPlatformBackgroundHttpManager::ActivatePendingRequests()
 
 				//Expect our ContentText to have a {DownloadPercent} argument in it by default, so this will replace that with the Java string format argument so Java can insert the appropriate value
 				FFormatNamedArguments Arguments;
-				Arguments.Emplace(TEXT("DownloadPercent"), FText::FromString(TEXT("%02d%%")));
+				Arguments.Emplace(TEXT("DownloadPercent"), FText::FromString(TEXT("%3d%%")));
 				FText UpdatedContentText = FText::Format(AndroidBackgroundHTTPManagerDefaultLocalizedText.DefaultNotificationText_Content.GetText(), Arguments);
 				WorkParams.AddDataToWorkerParameters(FAndroidNativeDownloadWorkerParameterKeys::NOTIFICATION_CONTENT_TEXT_KEY, UpdatedContentText);
 
@@ -659,7 +662,7 @@ const FString FAndroidPlatformBackgroundHttpManager::GetFullFileNameForDownloadD
 	if (!ensureAlwaysMsgf((AppendedFileNameInt < MAX_NUM_DOWNLOAD_DESC_FILES), TEXT("DownloadDescriptionList folder full of files! May lead to cases where we stomp expected .ini files for other workers!")))
 	{
 		static int StompNum = 0;
-		AppendedFileNameInt = (StompNum % MAX_NUM_DOWNLOAD_DESC_FILES);
+		AppendedFileNameInt = (StompNum++ % MAX_NUM_DOWNLOAD_DESC_FILES);
 	}
 	
 	return GetBaseFileNameForDownloadDescriptionListWithAppendedInt(AppendedFileNameInt);;
@@ -702,6 +705,19 @@ void FAndroidPlatformBackgroundHttpManager::Java_OnDownloadComplete(jobject Unde
 	else
 	{
 		UE_LOG(LogBackgroundHttpManager, Log, TEXT("Taking no action as RequestID:%s did not have a corresponding ActiveRequest"), *RequestID);
+	}
+}
+
+void FAndroidPlatformBackgroundHttpManager::Java_OnDownloadMetrics(jobject UnderlyingWorker, FString RequestID, int64_t TotalBytesDownloaded, int64_t DownloadDuration)
+{
+	UE_LOG(LogBackgroundHttpManager, Log, TEXT("DownloadMetrics... RequestID:%s TotalBytesDownloaded:%ld DownloadDuration:%ld"), *RequestID, TotalBytesDownloaded, DownloadDuration);
+
+	FAndroidBackgroundHttpRequestPtr CompletedRequest = FindRequestByID(RequestID);
+	if (CompletedRequest.IsValid())
+	{
+		float DownloadDurationInSeconds = (float)((double)DownloadDuration / 1000.0f);
+
+		CompletedRequest->NotifyRequestMetricsAvailable((int32)TotalBytesDownloaded, DownloadDurationInSeconds);
 	}
 }
 
@@ -1234,6 +1250,15 @@ JNI_METHOD void Java_com_epicgames_unreal_download_UEDownloadWorker_nativeAndroi
 	bool ConvertedbWasSuccess = static_cast<bool>(bWasSuccess);
 
 	FAndroidBackgroundDownloadDelegates::AndroidBackgroundDownload_OnComplete.ExecuteIfBound(thiz, RequestID, ConvertedCompleteLocation, ConvertedbWasSuccess);
+}
+
+JNI_METHOD void Java_com_epicgames_unreal_download_UEDownloadWorker_nativeAndroidBackgroundDownloadOnMetrics(JNIEnv* jenv, jobject thiz, jstring TaskID, jlong TotalBytesDownloaded, jlong DownloadDuration)
+{
+	FString RequestID = FJavaHelper::FStringFromParam(jenv, TaskID);
+	int64_t ConvertedTotalBytesDownloaded = static_cast<uint64_t>(TotalBytesDownloaded);
+	int64_t ConvertedDownloadDuration = static_cast<uint64_t>(DownloadDuration);
+
+	FAndroidBackgroundDownloadDelegates::AndroidBackgroundDownload_OnMetrics.ExecuteIfBound(thiz, RequestID, ConvertedTotalBytesDownloaded, ConvertedDownloadDuration);
 }
 
 JNI_METHOD void Java_com_epicgames_unreal_download_UEDownloadWorker_nativeAndroidBackgroundDownloadOnAllComplete(JNIEnv* jenv, jobject thiz, jboolean bDidAllRequestsSucceed)

@@ -26,7 +26,7 @@ enum class EAvaRundownRowState
 	Disabled
 };
 
-class FAvaRundownPageViewRowDragDropOp : public FDragDropOperation, public TSharedFromThis<FAvaRundownPageViewRowDragDropOp>
+class FAvaRundownPageViewRowDragDropOp : public FDragDropOperation
 {
 public:
 	DRAG_DROP_OPERATOR_TYPE(FAvaRundownPageViewRowDragDropOp, FDragDropOperation)

@@ -130,8 +130,8 @@ const FSlateBrush* SRigVMUserDataPath::GetUserDataIcon() const
 
 const FSlateBrush* SRigVMUserDataPath::GetUserDataIcon(const UNameSpacedUserData::FUserData* InUserData) const
 {
-	static FName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
-	static FName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
+	static const FLazyName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
+	static const FLazyName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
 
 	if (InUserData)
 	{
@@ -191,7 +191,7 @@ void SRigVMUserDataPath::FillUserDataPathMenu(FMenuBuilder& InMenuBuilder, FStri
 		InMenuBuilder.BeginSection("UserData", LOCTEXT("UserData", "User Data"));
 	}
 	{
-		static FName PropertyIcon(TEXT("Kismet.VariableList.TypeIcon"));
+		static const FLazyName PropertyIcon(TEXT("Kismet.VariableList.TypeIcon"));
 		const URigVMEdGraphSchema* Schema = GetDefault<URigVMEdGraphSchema>();
 
 		const TArray<const UNameSpacedUserData::FUserData*> UserDataArray = UserDataObject->GetUserDataArray(InParentPath);

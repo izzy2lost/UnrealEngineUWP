@@ -107,7 +107,7 @@ namespace HarmonixMetasoundTests::MetronomeNode
 				return false;
 			}
 
-			if (!InTest.TestEqual(Testf("Midi Clock Looping"), (*OutputMidiClock)->DoesLoop(), Params.Loop))
+			if (!InTest.TestEqual(Testf("Midi Clock Looping"), (*OutputMidiClock)->HasPersistentLoop(), Params.Loop))
 			{
 				return false;
 			}
@@ -121,8 +121,8 @@ namespace HarmonixMetasoundTests::MetronomeNode
 			float SecsPerBlock = Params.NumSamplesPerBlock / Params.SampleRate;
 			float TicksPerBlock = TicksPerSec * SecsPerBlock;
 
-			TSharedPtr<FMidiFileData> MidiData = FMidiClock::MakeClockConductorMidiData(Params.Tempo, Params.TimeSigNumerator, Params.TimeSigDenominator);
-			int32 LoopLengthTicks = MidiData->SongMaps.GetBarMap().BarIncludingCountInToTick(Params.LoopLengthBars);
+			TSharedPtr<FSongMaps> SongMaps = MakeShared<FSongMaps>(Params.Tempo, Params.TimeSigNumerator, Params.TimeSigDenominator);
+			int32 LoopLengthTicks = SongMaps->BarIncludingCountInToTick(Params.LoopLengthBars);
 			
 			//test for tempo consistency by stopping and restarting the transport (clock output and tempo map)
 			if (TestCaseString.Equals(TempoChangeTestString))
@@ -145,15 +145,15 @@ namespace HarmonixMetasoundTests::MetronomeNode
 				}
 
 				//expect 1 tempo change point at the beginning (original tempo)
-				int32 NumTempoChange = (*OutputMidiClock)->GetTempoMap().GetNumTempoChangePoints();
+				int32 NumTempoChange = (*OutputMidiClock)->GetSongMapEvaluator().GetNumTempoChanges();
 				if (!InTest.TestEqual("Expect 1 tempo change", NumTempoChange, ExpectedNumTempoChangeAtStart))
 				{
 					return false;
 				}
 
 				//check tempo in tempo map
-				int32 TempoChangeTick = (*OutputMidiClock)->GetTempoMap().GetTempoChangePointTick(TempoPointsChangeIndexAtStart);
-				float CurrentTempoBPM = (*OutputMidiClock)->GetTempoMap().GetTempoAtTick(TempoChangeTick);
+				int32 TempoChangeTick = (*OutputMidiClock)->GetSongMapEvaluator().GetTempoChangePointTick(TempoPointsChangeIndexAtStart);
+				float CurrentTempoBPM = (*OutputMidiClock)->GetSongMapEvaluator().GetTempoAtTick(TempoChangeTick);
 				if (!InTest.TestEqual("Expect original tempo at tick 0", CurrentTempoBPM, Params.Tempo, 0.001f))
 				{
 					return false;
@@ -174,15 +174,15 @@ namespace HarmonixMetasoundTests::MetronomeNode
 				}
 
 				//expect 2 tempo change points in tempo map: 1 at the beginning (original), 1 at the current tick (different)
-				NumTempoChange = (*OutputMidiClock)->GetTempoMap().GetNumTempoChangePoints();
+				NumTempoChange = (*OutputMidiClock)->GetSongMapEvaluator().GetNumTempoChanges();
 				if (!InTest.TestEqual("Expect 2 tempo change", NumTempoChange, ExpectedNumTempoChangeBeforeStop))
 				{
 					return false;
 				}
 
 				//check tempo in tempo map
-				TempoChangeTick = (*OutputMidiClock)->GetTempoMap().GetTempoChangePointTick(TempoPointsChangeIndexAfterStop);
-				CurrentTempoBPM = (*OutputMidiClock)->GetTempoMap().GetTempoAtTick(TempoChangeTick);
+				TempoChangeTick = (*OutputMidiClock)->GetSongMapEvaluator().GetTempoChangePointTick(TempoPointsChangeIndexAfterStop);
+				CurrentTempoBPM = (*OutputMidiClock)->GetSongMapEvaluator().GetTempoAtTick(TempoChangeTick);
 				if (!InTest.TestEqual("Expect a different tempo from the original at the current tick", CurrentTempoBPM, DifferentTempo,0.001f))
 				{
 					return false;
@@ -219,15 +219,15 @@ namespace HarmonixMetasoundTests::MetronomeNode
 				}
 				
 				//expect 1 tempo change at the start 
-				NumTempoChange = (*OutputMidiClock)->GetTempoMap().GetNumTempoChangePoints();
-				if (!InTest.TestEqual("Expect 1 tempo change", (*OutputMidiClock)->GetTempoMap().GetNumTempoChangePoints(), ExpectedNumTempoChangeStopAndRestart))
+				NumTempoChange = (*OutputMidiClock)->GetSongMapEvaluator().GetNumTempoChanges();
+				if (!InTest.TestEqual("Expect 1 tempo change", NumTempoChange, ExpectedNumTempoChangeStopAndRestart))
 				{
 					return false;
 				}
 
 				//check tempo in tempo map (original tempo) 
-				TempoChangeTick = (*OutputMidiClock)->GetTempoMap().GetTempoChangePointTick(TempoPointsChangeIndexAtStart);
-				CurrentTempoBPM = (*OutputMidiClock)->GetTempoMap().GetTempoAtTick(TempoChangeTick);
+				TempoChangeTick = (*OutputMidiClock)->GetSongMapEvaluator().GetTempoChangePointTick(TempoPointsChangeIndexAtStart);
+				CurrentTempoBPM = (*OutputMidiClock)->GetSongMapEvaluator().GetTempoAtTick(TempoChangeTick);
 				if (!InTest.TestEqual("Expect original tempo at tick 0", CurrentTempoBPM, Params.Tempo,0.001f))
 				{
 					return false;
@@ -245,7 +245,7 @@ namespace HarmonixMetasoundTests::MetronomeNode
 
 				int32 ExpectedTick = FMath::RoundToInt32(TicksPerBlock * (BlockIndex + 1));
 
-				if (!InTest.TestEqual(Testf("Midi Clock Looping"), (*OutputMidiClock)->DoesLoop(), Params.Loop))
+				if (!InTest.TestEqual(Testf("Midi Clock Looping"), (*OutputMidiClock)->HasPersistentLoop(), Params.Loop))
 				{
 					return false;
 				}
@@ -262,7 +262,7 @@ namespace HarmonixMetasoundTests::MetronomeNode
 					ExpectedTick %= LoopLengthTicks;
 				}
 
-				int32 ActualTick = (*OutputMidiClock)->GetCurrentMidiTick();
+				int32 ActualTick = (*OutputMidiClock)->GetNextMidiTickToProcess();
 				// allow for single tick tolerance?
 				ExpectedTick = FMath::Abs(ExpectedTick - ActualTick) <= 1 ? ActualTick : ExpectedTick;
 				if (AllTicksEqual && (ActualTick != ExpectedTick))
@@ -273,21 +273,20 @@ namespace HarmonixMetasoundTests::MetronomeNode
 				}
 
 				// test looping here since it the values may not be updated until the first execution
-				if ((*OutputMidiClock)->DoesLoop())
+				if ((*OutputMidiClock)->HasPersistentLoop())
 				{
 					int32 LoopStartTick = 0;
 					int32 LoopEndTick = LoopLengthTicks;
 
-					// use default values since the looping clock uses 120 bpm for its own midi data
-					float LoopStartMs = LoopStartTick / DefaultTicksPerMs;
-					float LoopEndMs = LoopEndTick / DefaultTicksPerMs;
+					float LoopStartMs = LoopStartTick / TicksPerMs;
+					float LoopEndMs = LoopEndTick / TicksPerMs;
 
-					if (!InTest.TestEqual(Testf("Midi Clock Loop Start Tick"), (*OutputMidiClock)->GetLoopStartTick(), LoopStartTick))
+					if (!InTest.TestEqual(Testf("Midi Clock Loop Start Tick"), (*OutputMidiClock)->GetFirstTickInLoop(), LoopStartTick))
 					{
 						return false;
 					}
 
-					if (!InTest.TestEqual(Testf("Midi Clock Loop End Tick"), (*OutputMidiClock)->GetLoopEndTick(), LoopEndTick))
+					if (!InTest.TestEqual(Testf("Midi Clock Loop Length"), (*OutputMidiClock)->GetLoopLengthTicks(), LoopEndTick - LoopStartTick))
 					{
 						return false;
 					}

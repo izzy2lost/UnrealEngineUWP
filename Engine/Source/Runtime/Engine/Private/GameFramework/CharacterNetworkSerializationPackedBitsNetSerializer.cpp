@@ -7,8 +7,9 @@
 #if UE_WITH_IRIS
 
 #include "GameFramework/CharacterNetworkSerializationPackedBitsNetSerializer.h"
+#include "EngineLogs.h"
+#include "HAL/IConsoleManager.h"
 #include "Iris/ReplicationState/PropertyNetSerializerInfoRegistry.h"
-
 #include "Iris/Core/NetObjectReference.h"
 #include "Iris/Serialization/NetBitStreamUtil.h"
 #include "Iris/Serialization/NetSerializerDelegates.h"
@@ -16,6 +17,8 @@
 #include "GameFramework/CharacterMovementReplication.h"
 #include "Iris/Serialization/NetReferenceCollector.h"
 #include "Iris/Serialization/NetSerializerArrayStorage.h"
+#include "Iris/Serialization/IrisPackageMapExportUtil.h"
+#include "Containers/ArrayView.h"
 
 namespace UE::Net::Private
 {
@@ -31,10 +34,9 @@ struct FCharacterNetworkSerializationPackedBitsNetSerializerQuantizedType
 	static constexpr uint32 MaxInlinedObjectRefs = 4;
 	static constexpr uint32 InlinedWordCount = Private::CalculateRequiredWordCount(CHARACTER_SERIALIZATION_PACKEDBITS_RESERVED_SIZE);
 
-	typedef FNetSerializerArrayStorage<FNetObjectReference, AllocationPolicies::TInlinedElementAllocationPolicy<MaxInlinedObjectRefs>> FObjectReferenceStorage;
 	typedef FNetSerializerArrayStorage<WordType, AllocationPolicies::TInlinedElementAllocationPolicy<InlinedWordCount>> FDataBitsStorage;
 
-	FObjectReferenceStorage ObjectReferenceStorage;
+	FIrisPackageMapExportsQuantizedType QuantizedExports;
 	FDataBitsStorage DataBitsStorage;
 	uint32 NumDataBits;
 };
@@ -90,37 +92,28 @@ private:
 	static void FreeDynamicState(FNetSerializationContext&, QuantizedType& Value);
 
 	static FCharacterNetworkSerializationPackedBitsNetSerializer::FNetSerializerRegistryDelegates NetSerializerRegistryDelegates;
-	static const FNetSerializer* ObjectNetSerializer;
+	inline static IConsoleVariable* CVarNetPackedMovementMaxBits = nullptr;
 };
 
 UE_NET_IMPLEMENT_SERIALIZER(FCharacterNetworkSerializationPackedBitsNetSerializer);
 
 const FCharacterNetworkSerializationPackedBitsNetSerializer::ConfigType FCharacterNetworkSerializationPackedBitsNetSerializer::DefaultConfig;
 FCharacterNetworkSerializationPackedBitsNetSerializer::FNetSerializerRegistryDelegates FCharacterNetworkSerializationPackedBitsNetSerializer::NetSerializerRegistryDelegates;
-const FNetSerializer* FCharacterNetworkSerializationPackedBitsNetSerializer::ObjectNetSerializer = &UE_NET_GET_SERIALIZER(FObjectNetSerializer);
 
 void FCharacterNetworkSerializationPackedBitsNetSerializer::Serialize(FNetSerializationContext& Context, const FNetSerializeArgs& Args)
 {
+	// For now we ignore this in default state hash due to complications with asymmetrically serialized state.
+	if (Context.IsInitializingDefaultState())
+	{
+		return;
+	}
+
 	const QuantizedType& Value = *reinterpret_cast<QuantizedType*>(Args.Source);
 	
 	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
 
-	const uint32 NumReferences = Value.ObjectReferenceStorage.Num();
-
-	// If we have any references, export them!
-	if (Writer->WriteBool(NumReferences != 0))
-	{
-		UE::Net::WritePackedUint32(Writer, NumReferences);		
-		FObjectNetSerializerConfig ObjectSerializerConfig;
-		for (const FNetObjectReference& Ref : MakeArrayView(Value.ObjectReferenceStorage.GetData(), NumReferences))
-		{
-			FNetSerializeArgs ObjectArgs;
-			ObjectArgs.NetSerializerConfig = &ObjectSerializerConfig;
-			ObjectArgs.Source = NetSerializerValuePointer(&Ref);
-
-			ObjectNetSerializer->Serialize(Context, ObjectArgs);
-		}
-	}
+	// Serialize captured references and exports
+	FIrisPackageMapExportsUtil::Serialize(Context, Value.QuantizedExports);
 
 	// Write data bits
 	const uint32 NumDataBits = Value.NumDataBits;
@@ -133,55 +126,40 @@ void FCharacterNetworkSerializationPackedBitsNetSerializer::Serialize(FNetSerial
 
 void FCharacterNetworkSerializationPackedBitsNetSerializer::FreeDynamicState(FNetSerializationContext& Context, QuantizedType& Value)
 {
-	Value.ObjectReferenceStorage.Free(Context);
+	// Free quantized state for captured reference and exports
+	FIrisPackageMapExportsUtil::FreeDynamicState(Context, Value.QuantizedExports);
+
 	Value.DataBitsStorage.Free(Context);
 	Value.NumDataBits = 0;
 }
 
 void FCharacterNetworkSerializationPackedBitsNetSerializer::Deserialize(FNetSerializationContext& Context, const FNetDeserializeArgs& Args)
 {
+	// For consistency, we should never get here. For now we ignore this in default state hash due to complications with asymmetrically serialized state.
+	if (Context.IsInitializingDefaultState())
+	{
+		return;
+	}
+
 	const ConfigType* Config = static_cast<const ConfigType*>(Args.NetSerializerConfig);
 	QuantizedType& TargetValue = *reinterpret_cast<QuantizedType*>(Args.Target);
 	
 	FNetBitStreamReader* Reader = Context.GetBitStreamReader();
 
-	// Read any object references
-	const bool bHasObjectReferences = Reader->ReadBool();
-	if (bHasObjectReferences)
-	{
-		const uint32 NumReferences = UE::Net::ReadPackedUint32(Reader);
-
-		if (NumReferences > Config->MaxAllowedObjectReferences)
-		{
-			Context.SetError(GNetError_ArraySizeTooLarge);
-			return;
-		}
-
-		TargetValue.ObjectReferenceStorage.AdjustSize(Context, NumReferences);
-
-		FObjectNetSerializerConfig ObjectSerializerConfig;
-		for (FNetObjectReference& Ref : MakeArrayView(TargetValue.ObjectReferenceStorage.GetData(), TargetValue.ObjectReferenceStorage.Num()))
-		{
-			FNetDeserializeArgs ObjectArgs;
-			ObjectArgs.NetSerializerConfig = &ObjectSerializerConfig;
-			ObjectArgs.Target = NetSerializerValuePointer(&Ref);
-
-			ObjectNetSerializer->Deserialize(Context, ObjectArgs);
-		}
-	}
-	else
-	{
-		TargetValue.ObjectReferenceStorage.Free(Context);
-	}
+	// Deserialize captured references and exports
+	FIrisPackageMapExportsUtil::Deserialize(Context, TargetValue.QuantizedExports);
 
 	const bool bHasDataBits = Reader->ReadBool();
 	if (bHasDataBits)
 	{
 		const uint32 NumDataBits = UE::Net::ReadPackedUint32(Reader);
 
-		if (NumDataBits > Config->MaxAllowedDataBits)
+		const uint32 MaxNumDataBits = CVarNetPackedMovementMaxBits ? static_cast<uint32>(CVarNetPackedMovementMaxBits->GetInt()) : Config->MaxAllowedDataBits;
+		if (NumDataBits > MaxNumDataBits)
 		{
 			Context.SetError(GNetError_ArraySizeTooLarge);
+			UE_LOG(LogNetPlayerMovement, Error, TEXT("FCharacterNetworkSerializationPackedBits::Deserialize: Invalidating move due to NumBits (%u) exceeding allowable limit (%u). See NetPackedMovementMaxBits."), NumDataBits, MaxNumDataBits);
+			ensureMsgf(false, TEXT("Invalidating move due to NumBits exceeding allowable limit"));
 			return;
 		}
 		
@@ -203,26 +181,22 @@ void FCharacterNetworkSerializationPackedBitsNetSerializer::Quantize(FNetSeriali
 	const SourceType& SourceValue = *reinterpret_cast<const SourceType*>(Args.Source);
 	QuantizedType& TargetValue = *reinterpret_cast<QuantizedType*>(Args.Target);
 
-	const uint32 NumObjectReferences = SourceValue.ObjectReferences.Num();
-	TargetValue.ObjectReferenceStorage.AdjustSize(Context, NumObjectReferences);
+	// Quantize captured references and exports
+	FIrisPackageMapExportsUtil::Quantize(Context, SourceValue.PackageMapExports, MakeArrayView(SourceValue.NetTokensPendingExport), TargetValue.QuantizedExports);
 
-	if (NumObjectReferences > 0)
+	uint32 NumDataBits = SourceValue.DataBits.Num();
+
+	const ConfigType* Config = static_cast<const ConfigType*>(Args.NetSerializerConfig);
+	const uint32 MaxNumDataBits = CVarNetPackedMovementMaxBits ? static_cast<uint32>(CVarNetPackedMovementMaxBits->GetInt()) : Config->MaxAllowedDataBits;
+
+	if (NumDataBits > MaxNumDataBits)
 	{
-		FObjectNetSerializerConfig Config;
-		const TObjectPtr<UObject>* SourceReferences = SourceValue.ObjectReferences.GetData();
-		FNetObjectReference* TargetReferences = TargetValue.ObjectReferenceStorage.GetData();
-		for (uint32 ReferenceIndex = 0; ReferenceIndex < NumObjectReferences; ++ReferenceIndex)
-		{
-			FNetQuantizeArgs ObjectArgs;
-			ObjectArgs.NetSerializerConfig = &Config;
-			ObjectArgs.Source = NetSerializerValuePointer(SourceReferences + ReferenceIndex);
-			ObjectArgs.Target = NetSerializerValuePointer(TargetReferences + ReferenceIndex);
-
-			ObjectNetSerializer->Quantize(Context, ObjectArgs);
-		}
+		// This is just to avoid disconnect and instead warn and invalidate the data on the sending side.
+		UE_LOG(LogNetPlayerMovement, Error, TEXT("FCharacterNetworkSerializationPackedBits::Quantize: Invalidating move due to NumBits (%u) exceeding allowable limit (%u). See NetPackedMovementMaxBits."), NumDataBits, MaxNumDataBits);
+		NumDataBits = 0U;
+		ensureMsgf(false, TEXT("Invalidating move due to NumBits exceeding allowable limit"));
 	}
 
-	const uint32 NumDataBits = SourceValue.DataBits.Num();
 	TargetValue.DataBitsStorage.AdjustSize(Context, Private::CalculateRequiredWordCount(NumDataBits));
 	if (NumDataBits > 0)
 	{
@@ -236,22 +210,8 @@ void FCharacterNetworkSerializationPackedBitsNetSerializer::Dequantize(FNetSeria
 	const QuantizedType& Source = *reinterpret_cast<const QuantizedType*>(Args.Source);
 	SourceType& Target = *reinterpret_cast<SourceType*>(Args.Target);
 
-	// References
-	const uint32 NumObjectReferences = Source.ObjectReferenceStorage.Num();	
-	Target.ObjectReferences.SetNumUninitialized(NumObjectReferences);
-
-	FObjectNetSerializerConfig Config;
-	const FNetObjectReference* SourceReferences = Source.ObjectReferenceStorage.GetData();
-	TObjectPtr<UObject>* TargetReferences = Target.ObjectReferences.GetData();
-	for (uint32 ReferenceIndex = 0; ReferenceIndex < NumObjectReferences; ++ReferenceIndex)
-	{
-		FNetDequantizeArgs ObjectArgs;
-		ObjectArgs.NetSerializerConfig = &Config;
-		ObjectArgs.Source = NetSerializerValuePointer(SourceReferences + ReferenceIndex);
-		ObjectArgs.Target = NetSerializerValuePointer(TargetReferences + ReferenceIndex);
-
-		ObjectNetSerializer->Dequantize(Context, ObjectArgs);
-	}
+	// Dequantize captured references and exports and inject into target
+	FIrisPackageMapExportsUtil::Dequantize(Context, Source.QuantizedExports, Target.PackageMapExports);
 
 	// DataBits
 	Target.DataBits.SetNumUninitialized(Source.NumDataBits);
@@ -265,18 +225,19 @@ bool FCharacterNetworkSerializationPackedBitsNetSerializer::IsEqual(FNetSerializ
 		const QuantizedType& Value0 = *reinterpret_cast<const QuantizedType*>(Args.Source0);
 		const QuantizedType& Value1 = *reinterpret_cast<const QuantizedType*>(Args.Source1);
 
-		if (Value0.NumDataBits != Value1.NumDataBits || Value0.ObjectReferenceStorage.Num() != Value1.ObjectReferenceStorage.Num())
+		if (Value0.NumDataBits != Value1.NumDataBits)
+		{
+			return false;
+		}
+
+		// Compare references and exports
+		if (!FIrisPackageMapExportsUtil::IsEqual(Context, Value0.QuantizedExports, Value1.QuantizedExports))
 		{
 			return false;
 		}
 
 		const uint32 RequiredWords = Private::CalculateRequiredWordCount(Value0.NumDataBits);
 		if (RequiredWords > 0 && FMemory::Memcmp(Value0.DataBitsStorage.GetData(), Value1.DataBitsStorage.GetData(), sizeof(WordType) * RequiredWords) != 0)
-		{
-			return false;
-		}
-
-		if (Value0.ObjectReferenceStorage.Num() > 0 && FMemory::Memcmp(Value0.ObjectReferenceStorage.GetData(), Value1.ObjectReferenceStorage.GetData(), sizeof(FNetObjectReference) * Value0.ObjectReferenceStorage.Num()) != 0)
 		{
 			return false;
 		}
@@ -296,7 +257,9 @@ bool FCharacterNetworkSerializationPackedBitsNetSerializer::Validate(FNetSeriali
 	const ConfigType* Config = static_cast<const ConfigType*>(Args.NetSerializerConfig);
 	const QuantizedType& SourceValue = *reinterpret_cast<const QuantizedType*>(Args.Source);
 
-	if (SourceValue.ObjectReferenceStorage.Num() > Config->MaxAllowedObjectReferences || SourceValue.NumDataBits > Config->MaxAllowedDataBits)
+	const uint32 MaxNumDataBits = CVarNetPackedMovementMaxBits ? static_cast<uint32>(CVarNetPackedMovementMaxBits->GetInt()) : Config->MaxAllowedDataBits;
+
+	if (!FIrisPackageMapExportsUtil::Validate(Context, SourceValue.QuantizedExports))
 	{
 		return false;
 	}
@@ -308,7 +271,8 @@ void FCharacterNetworkSerializationPackedBitsNetSerializer::CloneDynamicState(FN
 	const QuantizedType& SourceValue = *reinterpret_cast<const QuantizedType*>(Args.Source);
 	QuantizedType& TargetValue = *reinterpret_cast<QuantizedType*>(Args.Target);
 
-	TargetValue.ObjectReferenceStorage.Clone(Context, SourceValue.ObjectReferenceStorage);
+	FIrisPackageMapExportsUtil::CloneDynamicState(Context, TargetValue.QuantizedExports, SourceValue.QuantizedExports);
+
 	TargetValue.DataBitsStorage.Clone(Context, SourceValue.DataBitsStorage);
 }
 
@@ -324,11 +288,7 @@ void FCharacterNetworkSerializationPackedBitsNetSerializer::CollectNetReferences
 	const QuantizedType& Value = *reinterpret_cast<const QuantizedType*>(Args.Source);
 	FNetReferenceCollector& Collector = *reinterpret_cast<UE::Net::FNetReferenceCollector*>(Args.Collector);
 
-	const FNetReferenceInfo ReferenceInfo(FNetReferenceInfo::EResolveType::ResolveOnClient);	
-	for (const FNetObjectReference& Ref : MakeArrayView(Value.ObjectReferenceStorage.GetData(), Value.ObjectReferenceStorage.Num()))
-	{
-		Collector.Add(ReferenceInfo, Ref, Args.ChangeMaskInfo);
-	}
+	FIrisPackageMapExportsUtil::CollectNetReferences(Context, Value.QuantizedExports, Args.ChangeMaskInfo, Collector);
 }
 
 static const FName PropertyNetSerializerRegistry_NAME_CharacterMoveResponsePackedBits("CharacterMoveResponsePackedBits");
@@ -347,6 +307,11 @@ FCharacterNetworkSerializationPackedBitsNetSerializer::FNetSerializerRegistryDel
 
 void FCharacterNetworkSerializationPackedBitsNetSerializer::FNetSerializerRegistryDelegates::OnPreFreezeNetSerializerRegistry()
 {
+	FCharacterNetworkSerializationPackedBitsNetSerializer::CVarNetPackedMovementMaxBits = IConsoleManager::Get().FindConsoleVariable(TEXT("p.NetPackedMovementMaxBits"), false);
+#if WITH_SERVER_CODE
+	ensureMsgf(CVarNetPackedMovementMaxBits != nullptr, TEXT("%s"), TEXT("Unable to find cvar p.NetPackedMovementMaxBits"));
+#endif
+
 	UE_NET_REGISTER_NETSERIALIZER_INFO(PropertyNetSerializerRegistry_NAME_CharacterMoveResponsePackedBits);
 	UE_NET_REGISTER_NETSERIALIZER_INFO(PropertyNetSerializerRegistry_NAME_CharacterServerMovePackedBitsPackedBits);
 	UE_NET_REGISTER_NETSERIALIZER_INFO(PropertyNetSerializerRegistry_NAME_CharacterNetworkSerializationPackedBits);

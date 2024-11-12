@@ -224,7 +224,7 @@ void FNiagaraRendererSprites::CreateRenderThreadResources(FRHICommandListBase& R
 #endif
 }
 
-void FNiagaraRendererSprites::PrepareParticleSpriteRenderData(FParticleSpriteRenderData& ParticleSpriteRenderData, const FSceneViewFamily& ViewFamily, FNiagaraDynamicDataBase* InDynamicData, const FNiagaraSceneProxy* SceneProxy, ENiagaraGpuComputeTickStage::Type GpuReadyTickStage) const
+void FNiagaraRendererSprites::PrepareParticleSpriteRenderData(FRHICommandListBase& RHICmdList, FParticleSpriteRenderData& ParticleSpriteRenderData, const FSceneViewFamily& ViewFamily, FNiagaraDynamicDataBase* InDynamicData, const FNiagaraSceneProxy* SceneProxy, ENiagaraGpuComputeTickStage::Type GpuReadyTickStage) const
 {
 	ParticleSpriteRenderData.DynamicDataSprites = static_cast<FNiagaraDynamicDataSprites*>(InDynamicData);
 	if (!ParticleSpriteRenderData.DynamicDataSprites || !SceneProxy->GetComputeDispatchInterface())
@@ -234,7 +234,7 @@ void FNiagaraRendererSprites::PrepareParticleSpriteRenderData(FParticleSpriteRen
 	}
 
 	// Early out if we have no data or instances, this must be done before we read the material
-	FNiagaraDataBuffer* CurrentParticleData = ParticleSpriteRenderData.DynamicDataSprites->GetParticleDataToRender(bGpuLowLatencyTranslucency);
+	FNiagaraDataBuffer* CurrentParticleData = ParticleSpriteRenderData.DynamicDataSprites->GetParticleDataToRender(RHICmdList, bGpuLowLatencyTranslucency);
 	if (!CurrentParticleData || (SourceMode == ENiagaraRendererSourceDataMode::Particles && CurrentParticleData->GetNumInstances() == 0) || (GbEnableNiagaraSpriteRendering == 0))
 	{
 		return;
@@ -263,7 +263,7 @@ void FNiagaraRendererSprites::PrepareParticleSpriteRenderData(FParticleSpriteRen
 	}
 
 
-	ParticleSpriteRenderData.SourceParticleData = ParticleSpriteRenderData.DynamicDataSprites->GetParticleDataToRender(bLowLatencyTranslucencyEnabled);
+	ParticleSpriteRenderData.SourceParticleData = ParticleSpriteRenderData.DynamicDataSprites->GetParticleDataToRender(RHICmdList, bLowLatencyTranslucencyEnabled);
 	if ( !ParticleSpriteRenderData.SourceParticleData || (SourceMode == ENiagaraRendererSourceDataMode::Particles && ParticleSpriteRenderData.SourceParticleData->GetNumInstances() == 0) )
 	{
 		ParticleSpriteRenderData.SourceParticleData = nullptr;
@@ -959,7 +959,7 @@ void FNiagaraRendererSprites::GetDynamicMeshElements(const TArray<const FSceneVi
 	// This will also determine if we have anything to render
 	// ENiagaraGpuComputeTickStage::Last is used as the GPU ready stage as we can support reading translucent data after PostRenderOpaque sims have run
 	FParticleSpriteRenderData ParticleSpriteRenderData;
-	PrepareParticleSpriteRenderData(ParticleSpriteRenderData, ViewFamily, DynamicDataRender, SceneProxy, ENiagaraGpuComputeTickStage::Last);
+	PrepareParticleSpriteRenderData(Collector.GetRHICommandList(), ParticleSpriteRenderData, ViewFamily, DynamicDataRender, SceneProxy, ENiagaraGpuComputeTickStage::Last);
 
 	if (ParticleSpriteRenderData.SourceParticleData == nullptr)
 	{
@@ -1070,7 +1070,7 @@ void FNiagaraRendererSprites::GetDynamicMeshElements(const TArray<const FSceneVi
 }
 
 #if RHI_RAYTRACING
-void FNiagaraRendererSprites::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances, const FNiagaraSceneProxy* SceneProxy)
+void FNiagaraRendererSprites::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector, const FNiagaraSceneProxy* SceneProxy)
 {
 	if (!CVarRayTracingNiagaraSprites.GetValueOnRenderThread())
 	{
@@ -1079,31 +1079,30 @@ void FNiagaraRendererSprites::GetDynamicRayTracingInstances(FRayTracingMaterialG
 
 	check(SceneProxy);
 
+	FRHICommandListBase& RHICmdList = Collector.GetRHICommandList();
 
 	// Prepare our particle render data
 	// This will also determine if we have anything to render
 	// ENiagaraGpuComputeTickStage::PostInitViews is used as we need the data one InitViews is complete as the HWRT BVH will be generated before other sims have run
 	FParticleSpriteRenderData ParticleSpriteRenderData;
-	PrepareParticleSpriteRenderData(ParticleSpriteRenderData, *Context.ReferenceView->Family, DynamicDataRender, SceneProxy, ENiagaraGpuComputeTickStage::PostInitViews);
+	PrepareParticleSpriteRenderData(RHICmdList, ParticleSpriteRenderData, *Collector.GetReferenceView()->Family, DynamicDataRender, SceneProxy, ENiagaraGpuComputeTickStage::PostInitViews);
 
 	if (ParticleSpriteRenderData.SourceParticleData == nullptr)
 	{
 		return;
 	}
 
-	FRHICommandListBase& RHICmdList = Context.RHICmdList;
-
 #if STATS
 	FScopeCycleCounter EmitterStatsCounter(EmitterStatID);
 #endif
 
-	FGlobalDynamicReadBuffer& DynamicReadBuffer = Context.RayTracingMeshResourceCollector.GetDynamicReadBuffer();
+	FGlobalDynamicReadBuffer& DynamicReadBuffer = Collector.GetDynamicReadBuffer();
 	PrepareParticleRenderBuffers(RHICmdList, ParticleSpriteRenderData, DynamicReadBuffer);
 	
 	FNiagaraGPUSortInfo SortInfo;
 	if (ParticleSpriteRenderData.bNeedsSort || ParticleSpriteRenderData.bNeedsCull)
 	{
-		InitializeSortInfo(ParticleSpriteRenderData, *SceneProxy, *Context.ReferenceView, 0, SortInfo);
+		InitializeSortInfo(ParticleSpriteRenderData, *SceneProxy, *Collector.GetReferenceView(), 0, SortInfo);
 	}
 
 	if (!FNiagaraSpriteVertexFactory::StaticType.SupportsRayTracingDynamicGeometry())
@@ -1111,7 +1110,7 @@ void FNiagaraRendererSprites::GetDynamicRayTracingInstances(FRayTracingMaterialG
 		return;
 	}
 
-	FMeshCollectorResources* CollectorResources = &Context.RayTracingMeshResourceCollector.AllocateOneFrameResource<FMeshCollectorResources>();
+	FMeshCollectorResources* CollectorResources = &Collector.AllocateOneFrameResource<FMeshCollectorResources>();
 	FNiagaraSpriteVertexFactory& VertexFactory = CollectorResources->VertexFactory;
 
 	// Sort/Cull particles if needed.
@@ -1141,13 +1140,13 @@ void FNiagaraRendererSprites::GetDynamicRayTracingInstances(FRayTracingMaterialG
 	if (NumInstances > 0)
 	{
 		SetupVertexFactory(RHICmdList, ParticleSpriteRenderData, VertexFactory);
-		CollectorResources->UniformBuffer = CreateViewUniformBuffer(ParticleSpriteRenderData, *Context.ReferenceView, Context.ReferenceViewFamily, *SceneProxy, VertexFactory);
+		CollectorResources->UniformBuffer = CreateViewUniformBuffer(ParticleSpriteRenderData, *Collector.GetReferenceView(), *Collector.GetReferenceView()->Family, *SceneProxy, VertexFactory);
 		VertexFactory.SetSpriteUniformBuffer(CollectorResources->UniformBuffer);
 
 		const uint32 GPUCountBufferOffset = SortInfo.CulledGPUParticleCountOffset != INDEX_NONE ? SortInfo.CulledGPUParticleCountOffset : ParticleSpriteRenderData.SourceParticleData->GetGPUInstanceCountBufferOffset();
 
 		FMeshBatch MeshBatch;
-		CreateMeshBatchForView(RHICmdList, ParticleSpriteRenderData, MeshBatch, *Context.ReferenceView, *SceneProxy, VertexFactory, NumInstances, GPUCountBufferOffset, ParticleSpriteRenderData.bNeedsCull);
+		CreateMeshBatchForView(RHICmdList, ParticleSpriteRenderData, MeshBatch, *Collector.GetReferenceView(), *SceneProxy, VertexFactory, NumInstances, GPUCountBufferOffset, ParticleSpriteRenderData.bNeedsCull);
 
 		FRayTracingInstance RayTracingInstance;
 		RayTracingInstance.Geometry = &RayTracingGeometry;
@@ -1164,7 +1163,7 @@ void FNiagaraRendererSprites::GetDynamicRayTracingInstances(FRayTracingMaterialG
 		const int32 NumTrianglesPerInstance = NumCutoutVertexPerSubImage == 8 ? 6 : 2;
 
 		// Update dynamic ray tracing geometry
-		Context.DynamicRayTracingGeometriesToUpdate.Add(
+		Collector.AddRayTracingGeometryUpdate(
 			FRayTracingDynamicGeometryUpdateParams
 			{
 				RayTracingInstance.Materials,
@@ -1178,7 +1177,7 @@ void FNiagaraRendererSprites::GetDynamicRayTracingInstances(FRayTracingMaterialG
 			}
 		);
 
-		OutRayTracingInstances.Add(RayTracingInstance);
+		Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 	}
 }
 #endif

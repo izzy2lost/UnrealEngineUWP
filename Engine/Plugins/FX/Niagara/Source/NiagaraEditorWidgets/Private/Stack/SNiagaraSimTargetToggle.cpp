@@ -3,6 +3,7 @@
 #include "Stack/SNiagaraSimTargetToggle.h"
 
 #include "NiagaraEditorStyle.h"
+#include "NiagaraSystem.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Images/SImage.h"

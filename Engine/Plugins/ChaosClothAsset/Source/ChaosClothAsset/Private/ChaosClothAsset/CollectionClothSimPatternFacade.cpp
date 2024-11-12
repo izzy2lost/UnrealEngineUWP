@@ -112,8 +112,8 @@ namespace UE::Chaos::ClothAsset
 		SetDefaults();
 	}
 
-	template<typename IndexType, typename TEnableIf<TIsIndexType<IndexType>::Value, int>::type>
-	void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<IndexType>& Indices, const int32 FabricIndex)
+	template<typename IndexType UE_REQUIRES_DEFINITION(TIsIndexType<IndexType>::Value)>
+	void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<IndexType>& Indices, const int32 FabricIndex, const TArray<FVector3f>& Normals)
 	{
 		Reset();
 
@@ -134,7 +134,7 @@ namespace UE::Chaos::ClothAsset
 		{
 			SimPosition2D[SimVertexIndex] = Positions2D[SimVertexIndex];
 			SimPosition3D[SimVertexIndex + StartVertexIndex[1]] = Positions3D[SimVertexIndex];
-			SimNormal[SimVertexIndex + StartVertexIndex[1]] = FVector3f::ZeroVector;
+			SimNormal[SimVertexIndex + StartVertexIndex[1]] = Normals.IsValidIndex(SimVertexIndex) ? Normals[SimVertexIndex] : FVector3f::ZeroVector;
 		}
 
 		const int32 NumSimFaces = Private::GetNumFaces(Indices);
@@ -146,19 +146,19 @@ namespace UE::Chaos::ClothAsset
 		for (int32 SimFaceIndex = 0; SimFaceIndex < NumSimFaces; ++SimFaceIndex)
 		{
 			// Indices from the start of the pattern
-			const int32 PattternVertexIndex0 = Private::GetIndex<0>(Indices, SimFaceIndex);
-			const int32 PattternVertexIndex1 = Private::GetIndex<1>(Indices, SimFaceIndex);
-			const int32 PattternVertexIndex2 = Private::GetIndex<2>(Indices, SimFaceIndex);
+			const int32 PatternVertexIndex0 = Private::GetIndex<0>(Indices, SimFaceIndex);
+			const int32 PatternVertexIndex1 = Private::GetIndex<1>(Indices, SimFaceIndex);
+			const int32 PatternVertexIndex2 = Private::GetIndex<2>(Indices, SimFaceIndex);
 
 			// 2D Indices from the start of the cloth
-			const int32 Vertex2DIndex0 = PattternVertexIndex0 + BaseVertex2D;
-			const int32 Vertex2DIndex1 = PattternVertexIndex1 + BaseVertex2D;
-			const int32 Vertex2DIndex2 = PattternVertexIndex2 + BaseVertex2D;
+			const int32 Vertex2DIndex0 = PatternVertexIndex0 + BaseVertex2D;
+			const int32 Vertex2DIndex1 = PatternVertexIndex1 + BaseVertex2D;
+			const int32 Vertex2DIndex2 = PatternVertexIndex2 + BaseVertex2D;
 
 			// 3D Indices from the start of the cloth
-			const int32 Vertex3DIndex0 = PattternVertexIndex0 + StartVertexIndex[1];
-			const int32 Vertex3DIndex1 = PattternVertexIndex1 + StartVertexIndex[1];
-			const int32 Vertex3DIndex2 = PattternVertexIndex2 + StartVertexIndex[1];
+			const int32 Vertex3DIndex0 = PatternVertexIndex0 + StartVertexIndex[1];
+			const int32 Vertex3DIndex1 = PatternVertexIndex1 + StartVertexIndex[1];
+			const int32 Vertex3DIndex2 = PatternVertexIndex2 + StartVertexIndex[1];
 
 			// Set indices in cloth index space
 			SimIndices2D[SimFaceIndex] = FIntVector3(Vertex2DIndex0, Vertex2DIndex1, Vertex2DIndex2);
@@ -168,10 +168,19 @@ namespace UE::Chaos::ClothAsset
 			const FVector3f& Pos0 = SimPosition3D[Vertex3DIndex0];
 			const FVector3f& Pos1 = SimPosition3D[Vertex3DIndex1];
 			const FVector3f& Pos2 = SimPosition3D[Vertex3DIndex2];
-			const FVector3f Normal = (Pos1 - Pos0).Cross(Pos2 - Pos0).GetSafeNormal();
-			SimNormal[Vertex3DIndex0] += Normal;
-			SimNormal[Vertex3DIndex1] += Normal;
-			SimNormal[Vertex3DIndex2] += Normal;
+			const FVector3f Normal = (Pos2 - Pos0).Cross(Pos1 - Pos0).GetSafeNormal();
+			if (!Normals.IsValidIndex(PatternVertexIndex0))
+			{
+				SimNormal[Vertex3DIndex0] += Normal;
+			}
+			if (!Normals.IsValidIndex(PatternVertexIndex1))
+			{
+				SimNormal[Vertex3DIndex1] += Normal;
+			}
+			if (!Normals.IsValidIndex(PatternVertexIndex2))
+			{
+				SimNormal[Vertex3DIndex2] += Normal;
+			}
 		}
 
 		// Normalize normals
@@ -180,9 +189,9 @@ namespace UE::Chaos::ClothAsset
 			SimNormal[SimVertexIndex + StartVertexIndex[1]] = SimNormal[SimVertexIndex + StartVertexIndex[1]].GetSafeNormal(UE_SMALL_NUMBER, FVector3f::XAxisVector);
 		}
 	}
-	template CHAOSCLOTHASSET_API void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<int32>& Indices, const int32 FabricIndex);
-	template CHAOSCLOTHASSET_API void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<uint32>& Indices, const int32 FabricIndex);
-	template CHAOSCLOTHASSET_API void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<FIntVector3>& Indices, const int32 FabricIndex);
+	template CHAOSCLOTHASSET_API void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<int32>& Indices, const int32 FabricIndex, const TArray<FVector3f>& Normals);
+	template CHAOSCLOTHASSET_API void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<uint32>& Indices, const int32 FabricIndex, const TArray<FVector3f>& Normals);
+	template CHAOSCLOTHASSET_API void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<FIntVector3>& Indices, const int32 FabricIndex, const TArray<FVector3f>& Normals);
 
 	void FCollectionClothSimPatternFacade::Initialize(const FCollectionClothSimPatternConstFacade& Other, const int32 SimVertex3DOffset, const int32 FabricsOffset)
 	{

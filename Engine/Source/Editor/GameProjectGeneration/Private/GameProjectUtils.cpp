@@ -96,8 +96,19 @@ constexpr const TCHAR GameProjectUtils::IncludePathFormatString[];
 namespace
 {
 	/** Get the configuration values for enabling Lumen by default. */
-	void AddLumenConfigValues(const FProjectInformation& InProjectInfo, TArray<FTemplateConfigValue>& ConfigValues)
+	void AddLumenConfigValues(const FProjectInformation& InProjectInfo, TArray<FTemplateConfigValue>& ConfigValues, bool bDisableStaticLighting = true)
 	{
+		// In some cases we may want to leave static lighting enabled (e.g. VRTemplate needs it as of UE 5.5)
+		if (bDisableStaticLighting)
+		{
+			// Disable static lighting support
+			ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
+				TEXT("/Script/Engine.RendererSettings"),
+				TEXT("r.AllowStaticLighting"),
+				TEXT("0"),
+				true /* ShouldReplaceExistingValue */);
+		}
+
 		// Required for Lumen's Software Ray Tracing support
 		ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
 			TEXT("/Script/Engine.RendererSettings"),
@@ -157,27 +168,23 @@ namespace
 	/** Get the configuration values for raytracing if enabled. */
 	void AddRaytracingConfigValues(const FProjectInformation& InProjectInfo, TArray<FTemplateConfigValue>& ConfigValues)
 	{
-		if (InProjectInfo.bEnableRaytracing.IsSet() && 
-			InProjectInfo.bEnableRaytracing.GetValue() == true)
-		{
-			ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
-				TEXT("/Script/WindowsTargetPlatform.WindowsTargetSettings"),
-				TEXT("DefaultGraphicsRHI"),
-				TEXT("DefaultGraphicsRHI_DX12"),
-				true /* ShouldReplaceExistingValue */);
+		ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
+			TEXT("/Script/WindowsTargetPlatform.WindowsTargetSettings"),
+			TEXT("DefaultGraphicsRHI"),
+			TEXT("DefaultGraphicsRHI_DX12"),
+			false /* ShouldReplaceExistingValue */);
 
-			ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
-				TEXT("/Script/Engine.RendererSettings"),
-				TEXT("r.SkinCache.CompileShaders"),
-				TEXT("True"),
-				true /* ShouldReplaceExistingValue */);
+		ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
+			TEXT("/Script/Engine.RendererSettings"),
+			TEXT("r.SkinCache.CompileShaders"),
+			TEXT("True"),
+			false /* ShouldReplaceExistingValue */);
 
-			ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
-				TEXT("/Script/Engine.RendererSettings"),
-				TEXT("r.RayTracing"),
-				TEXT("True"),
-				true /* ShouldReplaceExistingValue */);
-		}
+		ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
+			TEXT("/Script/Engine.RendererSettings"),
+			TEXT("r.RayTracing"),
+			TEXT("True"),
+			false /* ShouldReplaceExistingValue */);
 	}
 
 	void AddDefaultMapConfigValues(const FProjectInformation& InProjectInfo, TArray<FTemplateConfigValue>& ConfigValues)
@@ -919,6 +926,7 @@ void GameProjectUtils::CheckForOutOfDateGameProjectFile()
 			if ( ProjectStatus.bRequiresUpdate )
 			{
 				bRequiresUpdate = true;
+				UE_LOG(LogGameProjectGeneration, Log, TEXT("Project %s requires update. Determined from QueryStatusForCurrentProject"), *ProjectStatus.Name);
 			}
 		}
 
@@ -934,6 +942,7 @@ void GameProjectUtils::CheckForOutOfDateGameProjectFile()
 				FPluginReferenceDescriptor PluginReference(Plugin->GetName(), true);
 				NewPluginReferences.Add(PluginReference);
 				bRequiresUpdate = true;
+				UE_LOG(LogGameProjectGeneration, Log, TEXT("Project %s requires update. Installed plugin %s not found in project descriptor"), *ProjectStatus.Name, *Plugin->GetName());
 			}
 		}
 
@@ -948,11 +957,32 @@ void GameProjectUtils::CheckForOutOfDateGameProjectFile()
 					const FPluginDescriptor& Descriptor = Plugin->GetDescriptor();
 					if(Reference.MarketplaceURL != Descriptor.MarketplaceURL)
 					{
+						UE_LOG(LogGameProjectGeneration, Log, TEXT("Project %s requires update. Plugin %s MarketplaceURL value in project descriptor (%s) differs from value in plugin descriptor (%s) "),
+							*ProjectStatus.Name, *Plugin->GetName(), *Reference.MarketplaceURL, *Descriptor.MarketplaceURL);
+
 						Reference.MarketplaceURL = Descriptor.MarketplaceURL;
 						bRequiresUpdate = true;
 					}
 					if(Reference.SupportedTargetPlatforms != Descriptor.SupportedTargetPlatforms)
 					{
+						auto CombineStrings = [](const TArray<FString>& Strings) -> FString
+							{
+								FStringBuilderBase Output;
+								const int32 LastIndex = Strings.Num() - 1;
+								for (int32 I = 0; I <= LastIndex; ++I)
+								{
+									Output += Strings[I];
+									if (I != LastIndex)
+									{
+										Output += TEXT(", ");
+									}
+								}
+								return Output.ToString();
+							};
+
+						UE_LOG(LogGameProjectGeneration, Log, TEXT("Project %s requires update. Plugin %s SupportedTargetPlatforms value in project descriptor (%s) differs from value in plugin descriptor (%s) "),
+							*ProjectStatus.Name, *Plugin->GetName(), *CombineStrings(Reference.SupportedTargetPlatforms), *CombineStrings(Descriptor.SupportedTargetPlatforms));
+
 						Reference.SupportedTargetPlatforms = Descriptor.SupportedTargetPlatforms;
 						bRequiresUpdate = true;
 					}
@@ -973,8 +1003,39 @@ void GameProjectUtils::CheckForOutOfDateGameProjectFile()
 			const FText UpdateProjectConfirmText = LOCTEXT("UpdateProjectFileConfirm", "Update");
 			const FText UpdateProjectCancelText = LOCTEXT("UpdateProjectFileCancel", "Not Now");
 
+
+			/** Utility functions for notifications */
+			struct FSuppressDialogOptions
+			{
+				static bool ShouldSuppressModal()
+				{
+					bool bSuppressNotification = false;
+					GConfig->GetBool(TEXT("GameProjectUtils"), TEXT("SuppressUpdateProjectFilePromptNotification"), bSuppressNotification, GEditorPerProjectIni);
+					return bSuppressNotification;
+				}
+
+				static ECheckBoxState GetDontAskAgainCheckBoxState()
+				{
+					// Check the config for any preferences			
+					return ShouldSuppressModal() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+				}
+
+				static void OnDontAskAgainCheckBoxStateChanged(ECheckBoxState NewState)
+				{
+					// If the user selects to not show this again, set that in the config so we know about it in between sessions
+					const bool bSuppressNotification = (NewState == ECheckBoxState::Checked);
+					GConfig->SetBool(TEXT("GameProjectUtils"), TEXT("SuppressUpdateProjectFilePromptNotification"), bSuppressNotification, GEditorPerProjectIni);
+				}
+			}; 
+
+			// If the user has specified to supress this pop up, then just early out and exit	
+			if (FSuppressDialogOptions::ShouldSuppressModal())
+			{
+				return;
+			}
+			
 			FNotificationInfo Info(UpdateProjectText);
-			Info.ExpireDuration = 10;
+			Info.ExpireDuration = 10.0f;
 			Info.bFireAndForget = true;
 			Info.bUseLargeFont = false;
 			Info.bUseThrobber = false;
@@ -982,6 +1043,11 @@ void GameProjectUtils::CheckForOutOfDateGameProjectFile()
 			Info.ButtonDetails.Add(FNotificationButtonInfo(UpdateProjectConfirmText, FText(), OnUpdateProjectConfirm));
 			Info.ButtonDetails.Add(FNotificationButtonInfo(UpdateProjectCancelText, FText(), FSimpleDelegate::CreateStatic(&GameProjectUtils::OnUpdateProjectCancel)));
 
+			// Add a "Don't show this again" option
+			Info.CheckBoxState = TAttribute<ECheckBoxState>::Create(&FSuppressDialogOptions::GetDontAskAgainCheckBoxState);
+			Info.CheckBoxStateChanged = FOnCheckStateChanged::CreateStatic(&FSuppressDialogOptions::OnDontAskAgainCheckBoxStateChanged);
+			Info.CheckBoxText = LOCTEXT("DefaultCheckBoxMessage", "Don't show this again");
+			
 			if (UpdateGameProjectNotification.IsValid())
 			{
 				UpdateGameProjectNotification.Pin()->ExpireAndFadeout();
@@ -1815,7 +1881,7 @@ TOptional<FGuid> GameProjectUtils::CreateProjectFromTemplate(const FProjectInfor
 
 	AddHardwareConfigValues(InProjectInfo, ConfigValuesToSet);
 
-	AddLumenConfigValues(InProjectInfo, ConfigValuesToSet);
+	AddLumenConfigValues(InProjectInfo, ConfigValuesToSet, /* do not disable static lighting, as some templates need it */ false);
 	AddRaytracingConfigValues(InProjectInfo, ConfigValuesToSet);
 	AddNewProjectDefaultShadowConfigValues(InProjectInfo, ConfigValuesToSet);
 	AddPostProcessingConfigValues(InProjectInfo, ConfigValuesToSet);
@@ -2081,31 +2147,6 @@ void GameProjectUtils::AddHardwareConfigValues(const FProjectInformation& InProj
 					true /* ShouldReplaceExistingValue */);
 			}
 		}
-	}
-
-	// Don't override these settings for templates
-	if (InProjectInfo.TemplateFile.IsEmpty())
-	{
-		// New projects always have DX12 by default on Windows
-		ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
-			TEXT("/Script/WindowsTargetPlatform.WindowsTargetSettings"),
-			TEXT("DefaultGraphicsRHI"),
-			TEXT("DefaultGraphicsRHI_DX12"),
-			false /* ShouldReplaceExistingValue */);
-
-		// Force clear D3D12TargetedShaderFormats since the BaseEngine list can change at any time.
-		ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
-			TEXT("/Script/WindowsTargetPlatform.WindowsTargetSettings"),
-			TEXT("!D3D12TargetedShaderFormats"),
-			TEXT("ClearArray"),
-			false /* ShouldReplaceExistingValue */);
-
-		// New projects always have DX12 only supporting SM6 by default on Windows
-		ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
-			TEXT("/Script/WindowsTargetPlatform.WindowsTargetSettings"),
-			TEXT("+D3D12TargetedShaderFormats"),
-			TEXT("PCD3D_SM6"),
-			false /* ShouldReplaceExistingValue */);
 	}
 }
 

@@ -31,8 +31,8 @@ void FAvaRundownCommands::RegisterCommands()
 		, FInputChord(EKeys::Delete));
 
 	UI_COMMAND(RenumberPage
-		, "Renumber Page"
-		, "Renumbers the Id of the Selected Page"
+		, "Renumber Pages"
+		, "Renumbers the Id of the Selected Pages"
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::F3));
 	
@@ -143,6 +143,18 @@ void FAvaRundownCommands::RegisterCommands()
 		, "Takes the Next Page in the Page List"
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::Subtract));
+
+	UI_COMMAND(ResetValuesToDefaults
+		, "Reset To Defaults"
+		, "Reset selected values to default values"
+		, EUserInterfaceActionType::Button
+		, FInputChord());
+
+	UI_COMMAND(ResetValuesToTemplate
+		, "Reset To Template"
+		, "Reset selected values to template values"
+		, EUserInterfaceActionType::Button
+		, FInputChord());
 }
 
 #undef LOCTEXT_NAMESPACE

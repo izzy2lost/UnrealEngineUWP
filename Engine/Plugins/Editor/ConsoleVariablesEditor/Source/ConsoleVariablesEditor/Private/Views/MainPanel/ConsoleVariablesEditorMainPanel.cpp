@@ -7,6 +7,7 @@
 #include "ConsoleVariablesEditorCommandInfo.h"
 #include "ConsoleVariablesEditorLog.h"
 #include "ConsoleVariablesEditorModule.h"
+#include "ConsoleVariablesEditorProjectSettings.h"
 #include "HAL/IConsoleManager.h"
 #include "MultiUser/ConsoleVariableSync.h"
 #include "Views/List/ConsoleVariablesEditorList.h"
@@ -277,13 +278,13 @@ void FConsoleVariablesEditorMainPanel::SaveSpecificPresetAs(const TObjectPtr<UCo
 	}
 }
 
-void FConsoleVariablesEditorMainPanel::ImportPreset(const FAssetData& InPresetAsset)
+void FConsoleVariablesEditorMainPanel::ImportPreset(const FAssetData& InPresetAsset, const EConsoleVariablesEditorPresetImportMode InImportMode)
 {
 	FSlateApplication::Get().DismissAllMenus();
 	
 	if (UConsoleVariablesAsset* Preset = CastChecked<UConsoleVariablesAsset>(InPresetAsset.GetAsset()))
 	{
-		if (const TObjectPtr<UConsoleVariablesAsset> EditingAsset = GetEditingAsset(); ImportPreset_Impl(Preset, EditingAsset))
+		if (const TObjectPtr<UConsoleVariablesAsset> EditingAsset = GetEditingAsset(); ImportPreset_Impl(Preset, EditingAsset, InImportMode))
 		{
 			EditorList->RebuildList("", false);
 		}
@@ -294,21 +295,60 @@ void FConsoleVariablesEditorMainPanel::ImportPreset(const TObjectPtr<UConsoleVar
 {
 	FSlateApplication::Get().DismissAllMenus();
 
-	if (const TObjectPtr<UConsoleVariablesAsset> EditingAsset = GetEditingAsset(); ImportPreset_Impl(InPreset, EditingAsset))
+	if (const TObjectPtr<UConsoleVariablesAsset> EditingAsset = GetEditingAsset(); ImportPreset_Impl(InPreset, EditingAsset, EConsoleVariablesEditorPresetImportMode::UseDefault))
 	{
 		EditorList->RebuildList("", false);
 	}
 }
 
 bool FConsoleVariablesEditorMainPanel::ImportPreset_Impl(
-	const TObjectPtr<UConsoleVariablesAsset> Preset, const TObjectPtr<UConsoleVariablesAsset> EditingAsset)
+	const TObjectPtr<UConsoleVariablesAsset> Preset, const TObjectPtr<UConsoleVariablesAsset> EditingAsset, const EConsoleVariablesEditorPresetImportMode InImportMode)
 {
 	if (Preset && EditingAsset)
 	{
-		ReferenceAssetOnDisk = Preset;
+		bool bReplaceExisting = InImportMode == EConsoleVariablesEditorPresetImportMode::ReplaceExisting ? true : false;
+
+		FConsoleVariablesEditorModule& CVarModule = GetConsoleVariablesModule();
+		if (InImportMode == EConsoleVariablesEditorPresetImportMode::UseDefault)
+		{
+			if (UConsoleVariablesEditorProjectSettings* ProjectSettingsPtr =
+				GetMutableDefault<UConsoleVariablesEditorProjectSettings>())
+			{
+				bReplaceExisting = ProjectSettingsPtr->PresetImportMode ==
+					EConsoleVariablesEditorPresetImportMode::ReplaceExisting;
+			}
+		}
+
+		if (bReplaceExisting || EditingAsset->GetSavedCommands().IsEmpty())
+		{
+			ReferenceAssetOnDisk = Preset;
+		}
+		else if (ReferenceAssetOnDisk.Get() != EditingAsset.Get())
+		{
+			ReferenceAssetOnDisk.Reset();
+		}
 
 		EditingAsset->Modify();
-		EditingAsset->CopyFrom(Preset);
+
+		if (bReplaceExisting)
+		{
+			// Reset the editing asset's variable values before replacing the list
+			for (const FConsoleVariablesEditorAssetSaveData& CommandData : EditingAsset->GetSavedCommands())
+			{
+				const TWeakPtr<FConsoleVariablesEditorCommandInfo>& Command = CVarModule.FindCommandInfoByName(CommandData.CommandName);
+				if (const TSharedPtr<FConsoleVariablesEditorCommandInfo> PinnedCommand = Command.Pin())
+				{
+					PinnedCommand->SetSourceFlag(PinnedCommand->StartupSource);
+					PinnedCommand->ExecuteCommand(PinnedCommand->StartupValueAsString, true, false);
+				}
+			}
+
+			EditingAsset->CopyFrom(Preset);
+		}
+		else
+		{
+			EditingAsset->AddFrom(Preset);
+		}
 
 		return true;
 	}

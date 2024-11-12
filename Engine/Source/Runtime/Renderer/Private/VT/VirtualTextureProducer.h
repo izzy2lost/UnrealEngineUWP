@@ -58,6 +58,7 @@ public:
 	FVirtualTextureProducerCollection();
 	FVirtualTextureProducerHandle RegisterProducer(FRHICommandListBase& RHICmdList, FVirtualTextureSystem* System, const FVTProducerDescription& InDesc, IVirtualTexture* InProducer);
 	void ReleaseProducer(FVirtualTextureSystem* System, const FVirtualTextureProducerHandle& Handle);
+	bool TryReleaseProducer(FVirtualTextureSystem* System, const FVirtualTextureProducerHandle& Handle);
 	
 	void AddDestroyedCallback(const FVirtualTextureProducerHandle& Handle, FVTProducerDestroyedFunction* Function, void* Baton);
 	uint32 RemoveAllCallbacks(const void* Baton);

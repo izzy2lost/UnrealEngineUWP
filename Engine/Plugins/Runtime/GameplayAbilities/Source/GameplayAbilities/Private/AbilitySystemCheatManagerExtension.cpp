@@ -378,7 +378,7 @@ void UAbilitySystemCheatManagerExtension::AbilityCancel(const FString& PartialNa
 					if (Instance)
 					{
 						UE_LOG(LogConsoleResponse, Log, TEXT("%s (%s): Cancelling (instanced) %s"), *PC->GetName(), *ASC->GetName(), *Instance->GetName());
-						Instance->CancelAbility(GASpec.Handle, ASC->AbilityActorInfo.Get(), GASpec.ActivationInfo, true);
+						Instance->CancelAbility(GASpec.Handle, ASC->AbilityActorInfo.Get(), Instance->GetCurrentActivationInfoRef(), true);
 						bFound = true;
 					}
 				}
@@ -386,7 +386,9 @@ void UAbilitySystemCheatManagerExtension::AbilityCancel(const FString& PartialNa
 			else
 			{
 				UE_LOG(LogConsoleResponse, Log, TEXT("%s (%s): Cancelling (non-instanced) %s"), *PC->GetName(), *ASC->GetName(), *GASpec.Ability->GetName());
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				GASpec.Ability->CancelAbility(GASpec.Handle, ASC->AbilityActorInfo.Get(), GASpec.ActivationInfo, true);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				bFound = true;
 			}
 		}

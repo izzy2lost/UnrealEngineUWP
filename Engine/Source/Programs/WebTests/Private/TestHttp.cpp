@@ -33,11 +33,13 @@
  */
 
 #define HTTP_TAG "[HTTP]"
-#define HTTP_TIME_DIFF_TOLERANCE 0.5f
+#define HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST 0.5f
 #define HTTP_TEST_TIMEOUT_CHUNK_SIZE 16*1024 // Use a big chunk size so it triggers data received callback in time on all platforms
 
 extern TAutoConsoleVariable<bool> CVarHttpInsecureProtocolEnabled;
 extern TAutoConsoleVariable<bool> CVarHttpRetrySystemNonGameThreadSupportEnabled;
+extern TAutoConsoleVariable<int32> CVarHttpMaxConcurrentRequests;
+extern TAutoConsoleVariable<FString> CVarHttpUrlPatternsToMockFailure;
 
 class FMockHttpModule : public FHttpModule
 {
@@ -154,6 +156,7 @@ public:
 		FParse::Value(FCommandLine::Get(), TEXT("web_server_ip="), WebServerIp);
 		FParse::Bool(FCommandLine::Get(), TEXT("run_heavy_tests="), bRunHeavyTests);
 		FParse::Bool(FCommandLine::Get(), TEXT("retry_enabled="), bRetryEnabled);
+		FParse::Value(FCommandLine::Get(), TEXT("web_server_unix_socket="), WebServerUnixSocket);
 	}
 
 	void DisableWarningsInThisTest()
@@ -179,8 +182,10 @@ public:
 	const FString UrlStreamUpload() { return FString::Format(TEXT("{0}/streaming_upload_put"), { *UrlHttpTests() }); }
 	const FString UrlMockLatency(uint32 Latency) const { return FString::Format(TEXT("{0}/mock_latency/{1}/"), { *UrlHttpTests(), Latency }); }
 	const FString UrlMockStatus(uint32 StatusCode) const { return FString::Format(TEXT("{0}/mock_status/{1}/"), { *UrlHttpTests(), StatusCode }); }
+	const FString UrlUnixSocketHttpTests() const { return "http://localhost/webtests/unixsockettests"; }
 
 	FString WebServerIp;
+	FString WebServerUnixSocket;
 	uint32 WebServerHttpPort;
 	FMockHttpModule* HttpModule = nullptr;
 	bool bRunHeavyTests;
@@ -313,17 +318,26 @@ public:
 		ensure(--OngoingRequests >= 0);
 	}
 
+	void TickHttpManager()
+	{
+		double Now = FPlatformTime::Seconds();
+		static double LastTick = Now;
+		double Duration = Now - LastTick;
+		LastTick = Now;
+		HttpModule->GetHttpManager().Tick(Duration);
+		FPlatformProcess::Sleep(TickFrequency);
+	}
+
 	void WaitUntilAllHttpRequestsComplete()
 	{
 		while (HasOngoingRequest())
 		{
-			HttpModule->GetHttpManager().Tick(TickFrequency);
-			FPlatformProcess::Sleep(TickFrequency);
+			TickHttpManager();
 		}
 
 		// In case in http thread the http request complete and set OngoingRequests to 0, http manager never 
 		// had chance to Tick and remove the request
-		HttpModule->GetHttpManager().Tick(TickFrequency);
+		TickHttpManager();
 	}
 
 	bool HasOngoingRequest() const
@@ -385,6 +399,70 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can process https request", HTT
 	HttpRequest->ProcessRequest();
 }
 
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can mock connection error through CVar", HTTP_TAG)
+{
+	CVarHttpUrlPatternsToMockFailure->Set(TEXT("epicgames.com->0 unrealengine.com->503"));
+
+	float ExpectedTimeoutDuration = 2.0f;
+	HttpModule->HttpConnectionTimeout = ExpectedTimeoutDuration;
+	const double StartTime = FPlatformTime::Seconds();
+
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(TEXT("https://www.epicgames.com/"));
+	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, ExpectedTimeoutDuration](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(!bSucceeded);
+		CHECK(!HttpResponse);
+		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::ConnectionError);
+		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ExpectedTimeoutDuration, HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST));
+	});
+	HttpRequest->ProcessRequest();
+}
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can mock response failure through CVar", HTTP_TAG)
+{
+	CVarHttpUrlPatternsToMockFailure->Set(TEXT("epicgames.com->0 unrealengine.com->503"));
+
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetVerb(TEXT("GET"));
+	HttpRequest->SetURL(TEXT("https://www.unrealengine.com/"));
+	HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(bSucceeded);
+		REQUIRE(HttpResponse != nullptr);
+		CHECK(HttpResponse->GetResponseCode() == 503);
+	});
+	HttpRequest->ProcessRequest();
+}
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can complete successfully for different response codes", HTTP_TAG)
+{
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetVerb(TEXT("GET"));
+
+	int32 ExpectedStatusCode = 0;
+	SECTION("For status 200")
+	{
+		ExpectedStatusCode = 200;
+	}
+	SECTION("For status 206")
+	{
+		ExpectedStatusCode = 206;
+	}
+	SECTION("For status 400")
+	{
+		ExpectedStatusCode = 400;
+	}
+
+	HttpRequest->SetURL(UrlMockStatus(ExpectedStatusCode));
+
+	HttpRequest->OnProcessRequestComplete().BindLambda([ExpectedStatusCode](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(bSucceeded);
+		REQUIRE(HttpResponse != nullptr);
+		CHECK(HttpResponse->GetResponseCode() == ExpectedStatusCode);
+	});
+	HttpRequest->ProcessRequest();
+}
+
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can do blocking call", HTTP_TAG)
 {
 	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
@@ -439,7 +517,8 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request connect timeout", 
 	DisableWarningsInThisTest();
 
 	HttpModule->HttpActivityTimeout = 3.0f; // Make sure this won't be triggered before establishing connection
-	HttpModule->HttpConnectionTimeout = 15.0f;
+	float ExpectedTimeoutDuration = 15.0f;
+	HttpModule->HttpConnectionTimeout = ExpectedTimeoutDuration;
 
 	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
 
@@ -448,17 +527,13 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request connect timeout", 
 
 	const double StartTime = FPlatformTime::Seconds();
 
-	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, ExpectedTimeoutDuration](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 		CHECK(!bSucceeded);
 		CHECK(HttpResponse == nullptr);
 		CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
 		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::ConnectionError);
 		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
-		double HttpTimeDiffTolerance = 1.5;
-#if WITH_CURL_XCURL
-		HttpTimeDiffTolerance += 3.0; // It seems xCurl takes up to 3 more seconds for connect timeout
-#endif
-		CHECK(FMath::IsNearlyEqual(DurationInSeconds, 15.0, HttpTimeDiffTolerance));
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ExpectedTimeoutDuration, UE_HTTP_CONNECTION_TIMEOUT_MAX_DEVIATION));
 	});
 	HttpRequest->ProcessRequest();
 }
@@ -517,12 +592,11 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http download", HTTP_
 	}
 	SECTION("Success with customized stream delegate")
 	{
-		FHttpRequestStreamDelegate Delegate;
-		Delegate.BindLambda([TotalBytesReceived](void* Ptr, int64 Length) {
+		FHttpRequestStreamDelegateV2 Delegate;
+		Delegate.BindLambda([TotalBytesReceived](void* Ptr, int64& Length) {
 			*TotalBytesReceived += Length;
-			return true;
 		});
-		CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegate(Delegate));
+		CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegateV2(Delegate));
 
 		HttpRequest->OnProcessRequestComplete().BindLambda([Chunks, ChunkSize, TotalBytesReceived](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 			CHECK(bSucceeded);
@@ -568,12 +642,12 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http download", HTTP_
 	{
 		DisableWarningsInThisTest();
 
-		FHttpRequestStreamDelegate Delegate;
-		Delegate.BindLambda([TotalBytesReceived](void* Ptr, int64 Length) {
+		FHttpRequestStreamDelegateV2 Delegate;
+		Delegate.BindLambda([TotalBytesReceived](void* Ptr, int64& Length) {
 			*TotalBytesReceived += Length;
-			return false;
+			Length = 0; // Mark as no data was serialized successfully
 		});
-		CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegate(Delegate));
+		CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegateV2(Delegate));
 
 		HttpRequest->OnProcessRequestComplete().BindLambda([ChunkSize, TotalBytesReceived](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 			CHECK(!bSucceeded);
@@ -627,10 +701,9 @@ public:
 		TotalBytesReceived = nullptr;
 	}
 
-	bool OnReceivedData(void* Ptr, int64 Length)
+	void OnReceivedData(void* Ptr, int64& Length)
 	{
 		*TotalBytesReceived += Length;
-		return true;
 	}
 
 	int64* TotalBytesReceived;
@@ -639,13 +712,13 @@ public:
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "In streaming downloading http request won't trigger response body receive delegate after canceling", HTTP_TAG)
 {
 	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
-	HttpRequest->SetURL(UrlStreamDownload(30, 1024*1024));
+	HttpRequest->SetURL(UrlStreamDownload(60, 1024*1024));
 
 	TSharedPtr<FUserStreamingClass> UserInstance = MakeShared<FUserStreamingClass>();
 
-	FHttpRequestStreamDelegate Delegate;
+	FHttpRequestStreamDelegateV2 Delegate;
 	Delegate.BindThreadSafeSP(UserInstance.ToSharedRef(), &FUserStreamingClass::OnReceivedData);
-	CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegate(Delegate));
+	CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegateV2(Delegate));
 
 	HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 		CHECK(!bSucceeded);
@@ -663,21 +736,38 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "In streaming downloading http r
 	UserInstance.Reset();
 }
 
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "In streaming downloading http request won't crash if shared ptr bound to delegate got destroyed", HTTP_TAG)
+{
+	DisableWarningsInThisTest(); // Failed writing received data to disk/application
+
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(UrlStreamDownload(60, 1024*1024));
+
+	TSharedPtr<FUserStreamingClass> UserInstance = MakeShared<FUserStreamingClass>();
+
+	FHttpRequestStreamDelegateV2 Delegate;
+	Delegate.BindThreadSafeSP(UserInstance.ToSharedRef(), &FUserStreamingClass::OnReceivedData);
+	CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegateV2(Delegate));
+	HttpRequest->ProcessRequest();
+
+	while (*UserInstance->TotalBytesReceived == 0) // Make sure it started receiving data
+	{
+		FPlatformProcess::Sleep(0.001f);
+	}
+	CHECK(*UserInstance->TotalBytesReceived < 60 * 1024 * 1024);
+	CHECK(UserInstance.GetSharedReferenceCount() == 1);
+	UserInstance.Reset();
+}
+
 class FInvalidateDelegateShutdownFixture : public FHttpModuleTestFixture
 {
 public:
 	FInvalidateDelegateShutdownFixture()
 	{
-		UserStreamingInstance = new FUserStreamingClass;
+		UserStreamingInstance = MakeShared<FUserStreamingClass>();
 	}
 
-	~FInvalidateDelegateShutdownFixture()
-	{
-		delete UserStreamingInstance;
-		UserStreamingInstance = nullptr;
-	}
-
-	FUserStreamingClass* UserStreamingInstance;
+	TSharedPtr<FUserStreamingClass> UserStreamingInstance;
 };
 
 TEST_CASE_METHOD(FInvalidateDelegateShutdownFixture, "Shutdown http module without issue when there are ongoing download http requests", HTTP_TAG)
@@ -688,9 +778,9 @@ TEST_CASE_METHOD(FInvalidateDelegateShutdownFixture, "Shutdown http module witho
 	{
 		TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 		HttpRequest->SetURL(UrlStreamDownload(10, 1024*1024));
-		FHttpRequestStreamDelegate Delegate;
-		Delegate.BindRaw(UserStreamingInstance, &FUserStreamingClass::OnReceivedData);
-		CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegate(Delegate));
+		FHttpRequestStreamDelegateV2 Delegate;
+		Delegate.BindThreadSafeSP(UserStreamingInstance.ToSharedRef(), &FUserStreamingClass::OnReceivedData);
+		CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegateV2(Delegate));
 
 		HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 			CHECK(bSucceeded);
@@ -741,12 +831,11 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can download big file exceeds 3
 	HttpRequest->SetVerb(TEXT("GET"));
 
 	TSharedRef<int64> TotalBytesReceived = MakeShared<int64>(0);
-	FHttpRequestStreamDelegate Delegate;
-	Delegate.BindLambda([TotalBytesReceived](void* Ptr, int64 Length) {
+	FHttpRequestStreamDelegateV2 Delegate;
+	Delegate.BindLambda([TotalBytesReceived](void* Ptr, int64& Length) {
 		*TotalBytesReceived += Length;
-		return true;
 	});
-	HttpRequest->SetResponseBodyReceiveStreamDelegate(Delegate);
+	HttpRequest->SetResponseBodyReceiveStreamDelegateV2(Delegate);
 
 	HttpRequest->OnProcessRequestComplete().BindLambda([Chunks, ChunkSize, TotalBytesReceived](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 		CHECK(bSucceeded);
@@ -919,14 +1008,15 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request activity timeout",
 		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::ConnectionError);
 
 		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
-#if WITH_CURL_XCURL
-		// Unlike libCurl, currently there is an issue in xCurl that it triggers CURLINFO_HEADER_OUT even if can't 
+#if UE_HTTP_ACTIVITY_TIMER_START_AFTER_RECEIVED_DATA
+		// Unlike libCurl, currently there is an issue in xCurl that it triggers CURLINFO_HEADER_OUT even if can't
 		// connect. Had to disable that code, make sure not to treat that event as connected
-		// So it takes 5s to receive the first chunk to be considered as connected, then start response timer and 
+		// In a similar way on MacOS/iOS we don't get any notification until some data is received
+		// So it takes 5s to receive the first chunk to be considered as connected, then start response timer and
 		// take 3s to response timeout
-		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ActivityTimeoutSetting + 5, HTTP_TIME_DIFF_TOLERANCE));
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ActivityTimeoutSetting + 5, HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST));
 #else
-		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ActivityTimeoutSetting, HTTP_TIME_DIFF_TOLERANCE));
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ActivityTimeoutSetting, HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST));
 #endif
 
 	});
@@ -946,7 +1036,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request won't trigger acti
 	const double StartTime = FPlatformTime::Seconds();
 	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, TimeToWaitBeforeCancel](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
-		CHECK(FMath::IsNearlyEqual(DurationInSeconds, TimeToWaitBeforeCancel, HTTP_TIME_DIFF_TOLERANCE));
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, TimeToWaitBeforeCancel, HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST));
 		CHECK(!bSucceeded);
 		CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
 		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::Cancelled);
@@ -1018,7 +1108,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request total timeout with
 		CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
 		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::TimedOut);
 		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
-		CHECK(FMath::IsNearlyEqual(DurationInSeconds, TotalTimeoutSetting, HTTP_TIME_DIFF_TOLERANCE));
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, TotalTimeoutSetting, HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST));
 	});
 	HttpRequest->ProcessRequest();
 }
@@ -1067,7 +1157,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request total timeout with
 		CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
 		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::TimedOut);
 		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
-		CHECK(FMath::IsNearlyEqual(DurationInSeconds, TimeoutSetting, HTTP_TIME_DIFF_TOLERANCE));
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, TimeoutSetting, HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST));
 	});
 	HttpRequest->ProcessRequest();
 }
@@ -1160,8 +1250,7 @@ public:
 	{
 		while (!bQuitRequested)
 		{
-			HttpModule->GetHttpManager().Tick(TickFrequency);
-			FPlatformProcess::Sleep(TickFrequency);
+			TickHttpManager();
 		}
 	}
 
@@ -1204,6 +1293,57 @@ TEST_CASE_METHOD(FWaitUntilQuitFromTestFixture, "Http request can be reused", HT
 	HttpRequest->ProcessRequest();
 }
 
+TEST_CASE_METHOD(FWaitUntilQuitFromTestFixture, "Http request can be reused when there is total timeout setting", HTTP_TAG)
+{
+	DisableWarningsInThisTest();
+
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(UrlMockLatency(3));
+	HttpRequest->SetTimeout(2);
+
+	HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(!bSucceeded);
+		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::TimedOut);
+
+		HttpRequest->SetURL(UrlMockLatency(1));
+		HttpRequest->ResetTimeoutStatus(); // Must do this in order to restart timeout
+
+		HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+			CHECK(bSucceeded);
+			bQuitRequested = true;
+		});
+		HttpRequest->ProcessRequest();
+	});
+	HttpRequest->ProcessRequest();
+}
+
+#if UE_HTTP_CONNECTION_TIMEOUT_SUPPORT_RETRY
+TEST_CASE_METHOD(FWaitUntilQuitFromTestFixture, "Make sure connection time out can work well for 2nd same http request", HTTP_TAG)
+{
+	DisableWarningsInThisTest();
+
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+
+	float ConnectionTimeoutDuration = 2.0f;
+	HttpModule->HttpConnectionTimeout = ConnectionTimeoutDuration;
+
+	HttpRequest->SetURL(UrlWithInvalidPortToTestConnectTimeout());
+
+	const double StartTime = FPlatformTime::Seconds();
+
+	HttpRequest->OnProcessRequestComplete().BindLambda([this, StartTime, ConnectionTimeoutDuration](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		TSharedRef<IHttpRequest> HttpRequest2 = CreateRequest();
+		HttpRequest2->SetURL(UrlWithInvalidPortToTestConnectTimeout());
+		HttpRequest2->OnProcessRequestComplete().BindLambda([this, StartTime, ConnectionTimeoutDuration](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+			bQuitRequested = true;
+			const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
+			CHECK(FMath::IsNearlyEqual(DurationInSeconds, ConnectionTimeoutDuration * 2, UE_HTTP_CONNECTION_TIMEOUT_MAX_DEVIATION * 2));
+		});
+		HttpRequest2->ProcessRequest();
+	});
+	HttpRequest->ProcessRequest();
+}
+#endif // UE_HTTP_CONNECTION_TIMEOUT_SUPPORT_RETRY
 
 // Response shared ptr should be able to be kept by user code and valid to access without http request
 class FValidateResponseDependencyFixture : public FWaitUntilCompleteHttpFixture
@@ -1437,13 +1577,12 @@ TEST_CASE_METHOD(FValidateHeaderReceiveOrderFixture, "Http request header receiv
 	HttpRequest->SetURL(UrlStreamDownload(2/*Chunks*/, 1024/*ChunkSize*/));
 	HttpRequest->SetVerb(TEXT("GET"));
 
-	FHttpRequestStreamDelegate StreamDelegate;
-	StreamDelegate.BindLambda([this](void *InDataPtr, int64 InLength) {
+	FHttpRequestStreamDelegateV2 StreamDelegate;
+	StreamDelegate.BindLambda([this](void *InDataPtr, int64& InLength) {
 		bAnyDataReceived = true;
 		CHECK(!bCompleteCallbackTriggered);
-		return true;
 	});
-	HttpRequest->SetResponseBodyReceiveStreamDelegate(StreamDelegate);
+	HttpRequest->SetResponseBodyReceiveStreamDelegateV2(StreamDelegate);
 
 	SECTION("in http thread")
 	{
@@ -1624,6 +1763,76 @@ TEST_CASE_METHOD(FWaitUntilQuitFromTestThreadedFixture, "Threaded http request p
 	ThreadedHttpRunnable.StartTestHttpThread(false/*bBlockGameThread*/);
 }
 
+TEST_CASE_METHOD(FWaitUntilQuitFromTestFixture, "Cancel http request without ProcessRequest called", HTTP_TAG)
+{
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(UrlToTestMethods());
+	++ExpectingExtraCallbacks;
+	HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		--ExpectingExtraCallbacks;
+		CHECK(!bSucceeded);
+		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::Cancelled);
+		bQuitRequested = true;
+	});
+	HttpRequest->CancelRequest();
+}
+
+TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Cancel http request with ProcessRequest called but before started from queue", HTTP_TAG)
+{
+	CVarHttpMaxConcurrentRequests->Set(1);
+
+	std::atomic<bool> bFirstRequestCompleted = false;
+
+	FHttpManager& HttpManager = HttpModule->GetHttpManager();
+	const FHttpStats HttpStats = HttpManager.GetHttpStats();
+	CHECK(HttpStats.RequestsInQueue == 0);
+	CHECK(HttpStats.MaxRequestsInQueue == 0);
+
+	ThreadedHttpRunnable.OnRunFromThread().BindLambda([this, &bFirstRequestCompleted]() {
+		TSharedRef<IHttpRequest> HttpRequestRunning = CreateRequest();
+		HttpRequestRunning->SetURL(UrlStreamDownload(3/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 1/*ChunkLatency*/));
+		HttpRequestRunning->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+		HttpRequestRunning->OnProcessRequestComplete().BindLambda([this, &bFirstRequestCompleted](FHttpRequestPtr HttpRequestQueuing, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+			bFirstRequestCompleted = true;
+			ThreadedHttpRunnable.UnblockGameThread();
+		});
+		HttpRequestRunning->ProcessRequest();
+
+
+		TSharedRef<IHttpRequest> HttpRequestQueuing = CreateRequest();
+		HttpRequestQueuing->SetURL(UrlStreamDownload(3/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 1/*ChunkLatency*/));
+		HttpRequestQueuing->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+		HttpRequestQueuing->OnHeaderReceived().BindLambda([this](FHttpRequestPtr Request, const FString& HeaderName, const FString& HeaderValue) {
+			// Should never be started
+			CHECK(false);
+		});
+		HttpRequestQueuing->OnRequestProgress64().BindLambda([this](FHttpRequestPtr Request, uint64 /*BytesSent*/, uint64 BytesReceived) {
+			// Should never be started
+			CHECK(false);
+		});
+
+		++ExpectingExtraCallbacks;
+		HttpRequestQueuing->OnProcessRequestComplete().BindLambda([this, &bFirstRequestCompleted](FHttpRequestPtr HttpRequestQueuing, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+			--ExpectingExtraCallbacks;
+			CHECK(!bSucceeded);
+			CHECK(HttpRequestQueuing->GetFailureReason() == EHttpFailureReason::Cancelled);
+			CHECK(!bFirstRequestCompleted);
+		});
+		HttpRequestQueuing->ProcessRequest();
+		FPlatformProcess::Sleep(1); // Make sure the first request started
+
+		FHttpManager& HttpManager = HttpModule->GetHttpManager();
+		const FHttpStats HttpStats = HttpManager.GetHttpStats();
+		CHECK(HttpStats.RequestsInQueue == 1);
+		CHECK(HttpStats.MaxRequestsInQueue == 1);
+
+		HttpRequestQueuing->CancelRequest();
+	});
+
+	ThreadedHttpRunnable.StartTestHttpThread(true/*bBlockGameThread*/);
+}
+
+#if UE_HTTP_CONNECTION_TIMEOUT_SUPPORT_RETRY
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Cancel http request connect before timeout", HTTP_TAG)
 {
 	DisableWarningsInThisTest();
@@ -1633,17 +1842,26 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Cancel http request connect bef
 	HttpRequest->SetVerb(TEXT("GET"));
 	HttpRequest->SetTimeout(7);
 	const double StartTime = FPlatformTime::Seconds();
-	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+	++ExpectingExtraCallbacks;
+	HttpRequest->OnProcessRequestComplete().BindLambda([this, StartTime](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		--ExpectingExtraCallbacks;
 		CHECK(!bSucceeded);
 		const double DurationInSeconds = FPlatformTime::Seconds() - StartTime;
 		CHECK(DurationInSeconds < 2.0);
 		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::Cancelled);
 	});
-	HttpRequest->ProcessRequest();
-	FPlatformProcess::Sleep(0.5);
+	SECTION("ProcessRequest called")
+	{
+		HttpRequest->ProcessRequest();
+		FPlatformProcess::Sleep(0.5);
+	}
+	SECTION("ProcessRequest not called")
+	{
+	}
 	HttpRequest->CancelRequest();
 	HttpRequest->CancelRequest(); // Duplicated calls to CancelRequest should be fine
 }
+#endif
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Retry respect Retry-After header in response", HTTP_TAG)
 {
@@ -1664,10 +1882,6 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Retry respect Retry-After heade
 	{
 		HttpRequest->SetURL(UrlMockStatus(EHttpResponseCodes::TooManyRequests));
 	}
-	SECTION("ServiceUnavail")
-	{
-		HttpRequest->SetURL(UrlMockStatus(EHttpResponseCodes::ServiceUnavail));
-	}
 
 	uint32 RetryAfter = 4;
 
@@ -1684,7 +1898,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Retry respect Retry-After heade
 	HttpRequest->OnProcessRequestComplete().BindLambda([RetryAfter, StartTime](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 		CHECK(bSucceeded);
 		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
-		CHECK(FMath::IsNearlyEqual(DurationInSeconds, (float)(RetryAfter), HTTP_TIME_DIFF_TOLERANCE));
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, (float)(RetryAfter), HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST));
 	});
 
 	HttpRequest->ProcessRequest();
@@ -1699,6 +1913,15 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Request can time out during loc
 
 	DisableWarningsInThisTest();
 
+	EHttpRequestDelegateThreadPolicy ThreadPolicyExpected = EHttpRequestDelegateThreadPolicy::CompleteOnGameThread;
+	SECTION("From game thread")
+	{
+	}
+	SECTION("From http thread")
+	{
+		ThreadPolicyExpected = EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread;
+	}
+
 	TSharedRef<IHttpRequest> HttpRequest = HttpRetryManager->CreateRequest(
 		1/*InRetryLimitCountOverride*/,
 		FHttpRetrySystem::FRetryTimeoutRelativeSecondsSetting()/*InRetryTimeoutRelativeSecondsOverride unused*/,
@@ -1707,6 +1930,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Request can time out during loc
 
 	HttpRequest->SetURL(UrlMockStatus(EHttpResponseCodes::TooManyRequests));
 	HttpRequest->SetTimeout(1.0f);
+	HttpRequest->SetDelegateThreadPolicy(ThreadPolicyExpected);
 
 	uint32 RetryAfter = 4;
 
@@ -1714,7 +1938,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Request can time out during loc
 	HttpRequest->SetHeader(TEXT("Retry-After"), FString::Format(TEXT("{0}"), { RetryAfter }));
 
 	const double StartTime = FPlatformTime::Seconds();
-	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, ThreadPolicyExpected](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 		// When timeout during lock out period, it fails with result of last request before lock out
 		CHECK(bSucceeded);
 		REQUIRE(HttpResponse != nullptr);
@@ -1722,7 +1946,8 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Request can time out during loc
 		CHECK(HttpResponse->GetResponseCode() == EHttpResponseCodes::TooManyRequests);
 		CHECK(HttpResponse->GetContentLength() > 0);
 		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
-		CHECK(FMath::IsNearlyEqual(DurationInSeconds, 1.0, HTTP_TIME_DIFF_TOLERANCE));
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, 1.0, HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST));
+		CHECK((ThreadPolicyExpected == EHttpRequestDelegateThreadPolicy::CompleteOnGameThread && IsInGameThread() || ThreadPolicyExpected == EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread && !IsInGameThread()));
 	});
 
 	HttpRequest->ProcessRequest();
@@ -1750,14 +1975,15 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Request can time out during ret
 	// Will be forwarded back in response
 	HttpRequest->SetHeader(TEXT("Retry-After"), FString::Format(TEXT("{0}"), { RetryAfter }));
 
+	++ExpectingExtraCallbacks;
 	HttpRequest->OnRequestWillRetry().BindLambda([this](FHttpRequestPtr Request, FHttpResponsePtr /*Response*/, float LockoutPeriod) {
+		--ExpectingExtraCallbacks;
 		// Now retry with a latency during request
-		Request->SetURL(UrlStreamDownload(2/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 2/*ChunkLatency*/));
+		Request->SetURL(UrlStreamDownload(3/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 2/*ChunkLatency*/));
 	});
 
 	const double StartTime = FPlatformTime::Seconds();
 	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
-		CHECK(HttpRequest->GetResponse() == nullptr); // Timeout will return response with nullptr in request itself
 		CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
 		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::TimedOut);
 
@@ -1769,7 +1995,41 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Request can time out during ret
 		CHECK(HttpResponse->GetResponseCode() == EHttpResponseCodes::TooManyRequests);
 		CHECK(HttpResponse->GetContentLength() > 0);
 		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
-		CHECK(FMath::IsNearlyEqual(DurationInSeconds, 3.0, HTTP_TIME_DIFF_TOLERANCE));
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, 3.0, HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST));
+	});
+
+	HttpRequest->ProcessRequest();
+}
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Request will not retry", HTTP_TAG)
+{
+	if (!bRetryEnabled)
+	{
+		return;
+	}
+
+	DisableWarningsInThisTest();
+
+	TSharedRef<IHttpRequest> HttpRequest = HttpRetryManager->CreateRequest(1/*InRetryLimitCountOverride*/);
+	SECTION("When response code is not listed for retry")
+	{
+		HttpRequest->SetURL(UrlMockStatus(EHttpResponseCodes::TooManyRequests));
+		// Will be forwarded back in response
+		HttpRequest->SetHeader(TEXT("Retry-After"), FString::Format(TEXT("{0}"), { 2 }));
+	}
+	SECTION("When there is any response and timed out during streaming download")
+	{
+		HttpRequest->SetURL(UrlStreamDownload(3/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 2/*ChunkLatency*/));
+		HttpRequest->SetTimeout(3.0f);
+
+		HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+			CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
+			CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::TimedOut);
+		});
+	}
+
+	HttpRequest->OnRequestWillRetry().BindLambda([this](FHttpRequestPtr Request, FHttpResponsePtr Response, float LockoutPeriod) {
+		CHECK(false);
 	});
 
 	HttpRequest->ProcessRequest();
@@ -1807,6 +2067,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Retry immediately without lock 
 	HttpRequest->ProcessRequest();
 }
 
+#if UE_HTTP_CONNECTION_TIMEOUT_SUPPORT_RETRY
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Optionally retry limit can be set differently for connection error", HTTP_TAG)
 {
 	if (!bRetryEnabled)
@@ -1816,47 +2077,47 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Optionally retry limit can be s
 
 	DisableWarningsInThisTest();
 
+	HttpModule->HttpConnectionTimeout = 1.0f;
+
+	FHttpRetrySystem::FExponentialBackoffCurve RetryBackoffCurve;
+	RetryBackoffCurve.MinCoefficient = 1.0f; // no jitter
+
 	TSharedRef<IHttpRequest> HttpRequest = HttpRetryManager->CreateRequest(
-		5/*InRetryLimitCountOverride*/,
+		3/*InRetryLimitCountOverride*/,
 		FHttpRetrySystem::FRetryTimeoutRelativeSecondsSetting()/*InRetryTimeoutRelativeSecondsOverride unused*/,
 		{ EHttpResponseCodes::TooManyRequests, EHttpResponseCodes::ServiceUnavail }/*InRetryResponseCodes*/,
 		FHttpRetrySystem::FRetryVerbs(), /*unused*/
 		FHttpRetrySystem::FRetryDomainsPtr(), /*unused*/
-		1 /*InRetryLimitCountForConnectionErrorOverride*/
+		1, /*InRetryLimitCountForConnectionErrorOverride*/
+		RetryBackoffCurve/*InExponentialBackoffCurve*/
 	);
 
 	float ExpectedTimeoutDuration = 0.0f;
-	//SECTION("RetryLimitCountDefault:5 will be used so retries in general take long")
-	//{
-	//	HttpRequest->SetURL(UrlMockStatus(EHttpResponseCodes::TooManyRequests));
-	//	HttpRequest->SetHeader(TEXT("Retry-After"), FString::Format(TEXT("{0}"), { 3 }));
-
-	//	ExpectedTimeoutDuration = 15.0f; // each request will take about 0s, 5 retry back offs, each back off takes 3s;
-	//}
-	//SECTION("RetryLimitCountForConnectionErrorDefault:1 will be used so retries for connection error take less time")
+	float TimeDiffTolerance = 0.0f;
+	SECTION("RetryLimitCountForConnectionErrorDefault:1 will be used so retries for connection error take less time")
 	{
-		HttpRequest->SetURL(UrlStreamDownload(2/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 2/*ChunkLatency*/));
-		HttpModule->HttpActivityTimeout = 1.0f;
+		HttpRequest->SetURL(UrlWithInvalidPortToTestConnectTimeout());
 
-		ExpectedTimeoutDuration = 2.0f; // each request will take 1s, 1st retry back off takes 0s
+		ExpectedTimeoutDuration = 6.0f; // each request will take 1s, 1st retry back off takes 4s
+		TimeDiffTolerance = 2 * UE_HTTP_CONNECTION_TIMEOUT_MAX_DEVIATION;
+	}
+	SECTION("RetryLimitCountDefault:3 will be used so retries in general take long")
+	{
+		HttpRequest->SetURL(UrlMockStatus(EHttpResponseCodes::TooManyRequests));
+		HttpRequest->SetHeader(TEXT("Retry-After"), FString::Format(TEXT("{0}"), { 3 }));
 
-#if WITH_CURL_XCURL
-		// Unlike libCurl, currently there is an issue in xCurl that it triggers CURLINFO_HEADER_OUT even if can't 
-		// connect. Had to disable that code, make sure not to treat that event as connected
-		// It takes 2s to receive the first chunk to be considered as connected, then start response timer and 
-		// take 1s to time out. So it takes 3s in total for each request instead of 1s
-		ExpectedTimeoutDuration += 4;
-#endif
+		ExpectedTimeoutDuration = 9.0f; // each request will take 0s, 3 retry back offs, each back off takes 3s;
+		TimeDiffTolerance = 3 * HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST;
 	}
 
 	const double StartTime = FPlatformTime::Seconds();
-	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, ExpectedTimeoutDuration](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, ExpectedTimeoutDuration, TimeDiffTolerance](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
-		float TimeDiffTolerance = 1.0f;
 		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ExpectedTimeoutDuration, TimeDiffTolerance));
 	});
 	HttpRequest->ProcessRequest();
 }
+#endif // UE_HTTP_CONNECTION_TIMEOUT_SUPPORT_RETRY
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Retry fallback with exponential lock out if there is no Retry-After header", HTTP_TAG)
 {
@@ -1975,7 +2236,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Flush while activity timeout sh
 	HttpModule->GetHttpManager().Flush(EHttpFlushReason::FullFlush);
 }
 
-#if (PLATFORM_WINDOWS && !WITH_CURL_XCURL) || PLATFORM_MAC || PLATFORM_UNIX
+#if UE_HTTP_SUPPORT_LOCAL_SERVER
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Scheme besides http and https can work if allowed by settings", HTTP_TAG)
 {
@@ -2071,5 +2332,151 @@ TEST_CASE_METHOD(FLocalHttpServerFixture, "Local http server can serve large fil
 	HttpRequest->ProcessRequest();
 }
 
-#endif // (PLATFORM_WINDOWS && !WITH_CURL_XCURL) || PLATFORM_MAC || PLATFORM_UNIX
+#endif // UE_HTTP_SUPPORT_LOCAL_SERVER
 
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Accessing request initial information without issue while request is running", HTTP_TAG)
+{
+	for (int32 i = 0; i < 30; ++i) // Use 2 "for" loops so it doesn't trigger the warning the request waited for too long in the queue
+	{
+		TArray<TSharedRef<IHttpRequest>> Requests;
+		for (int32 j = 0; j < 30; ++j)
+		{
+			TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+			HttpRequest->SetHeader(TEXT("Custom-HeaderA"), TEXT("a"));
+			HttpRequest->SetHeader(TEXT("Custom-HeaderB"), TEXT("b"));
+			HttpRequest->SetHeader(TEXT("Custom-HeaderC"), TEXT("c"));
+			HttpRequest->SetURL(UrlStreamDownload(3, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 0));
+			HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+			HttpRequest->ProcessRequest();
+			Requests.Add(HttpRequest);
+		}
+
+		bool bRequestsStillRunning = true;
+		while (bRequestsStillRunning)
+		{
+			bRequestsStillRunning = false;
+			for (TSharedRef<IHttpRequest> Request : Requests)
+			{
+				if (!EHttpRequestStatus::IsFinished(Request->GetStatus()))
+				{
+					bRequestsStillRunning = true;
+
+					CHECK(!Request->GetAllHeaders().IsEmpty());
+					CHECK(!Request->GetURL().IsEmpty());
+				}
+			}
+		}
+	}
+}
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Test platform request requests limits", HTTP_TAG "[LIMIT]")
+{
+	bool bCheckCancel = GENERATE(false, true);
+	int32 NumRequests = GENERATE(1, 10, 20, 50, 100, 200, 500, 1000);
+	//Output NumRequests when error occurs.
+	UNSCOPED_INFO(NumRequests);
+	UNSCOPED_INFO(bCheckCancel);
+
+	DYNAMIC_SECTION(" making " << NumRequests << " requests with bCheckCancel=" << bCheckCancel)
+	{
+		if (NumRequests > 50 && !bRunHeavyTests)
+		{
+			return;
+		}
+
+		TArray<TSharedRef<IHttpRequest>> Requests;
+
+		for (int32 i = 0; i < NumRequests; ++i)
+		{
+			TSharedRef<IHttpRequest> HttpRequest = FHttpModule::Get().CreateRequest();
+			// Requests server to serve 1024b chunks to allow time for cancel to happen
+			HttpRequest->SetURL(UrlStreamDownload(3, HTTP_TEST_TIMEOUT_CHUNK_SIZE, /*ChunkLatency=*/bCheckCancel ? 1 : 0));
+			HttpRequest->SetVerb(TEXT("GET"));
+
+			// Since catch2 uses std::srand, use std::rand here should make it deterministic when use same seed through --rng-seed
+			if (std::rand() % 2)
+			{
+				HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+			}
+
+			HttpRequest->OnProcessRequestComplete().BindLambda([bCheckCancel](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded)
+			{
+				//Only assert if response is successful on non-canceled requests
+				if (!bCheckCancel)
+				{
+					CHECK(bSucceeded);
+					CHECK(HttpResponse != nullptr);
+				}
+			});
+			HttpRequest->ProcessRequest();
+
+			Requests.Add(HttpRequest);
+		}
+
+		CHECK(Requests.Num() == NumRequests);
+
+		if(bCheckCancel)
+		{
+			// Make sure requests are started in http thread
+			FPlatformProcess::Sleep(0.1);
+
+			for (auto Request : Requests)
+			{
+				Request->CancelRequest();
+			}
+		}
+	}
+}
+
+#if UE_HTTP_SUPPORT_UNIX_SOCKET
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http Methods over Unix Domain Socket", HTTP_TAG)
+{
+	if (WebServerUnixSocket.Len() == 0)
+	{
+		return;
+	}
+
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	CHECK(HttpRequest->GetVerb() == TEXT("GET"));
+
+	const int Number = FPlatformTime::Cycles();
+
+	HttpRequest->SetURL(FString::Format(TEXT("{0}/{1}"), { *UrlUnixSocketHttpTests(), Number }));
+	HttpRequest->SetOption(HttpRequestOptions::UnixSocketPath, WebServerUnixSocket);
+
+	SECTION("Default GET")
+	{
+	}
+	SECTION("GET")
+	{
+		HttpRequest->SetVerb(TEXT("GET"));
+	}
+	SECTION("POST")
+	{
+		HttpRequest->SetVerb(TEXT("POST"));
+	}
+	SECTION("PUT")
+	{
+		HttpRequest->SetVerb(TEXT("PUT"));
+	}
+	SECTION("DELETE")
+	{
+		HttpRequest->SetVerb(TEXT("DELETE"));
+	}
+
+	HttpRequest->OnProcessRequestComplete().BindLambda([Number](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(bSucceeded);
+		REQUIRE(HttpResponse != nullptr);
+		CHECK(HttpResponse->GetResponseCode() == 200);
+
+		FString ResponseContent = HttpResponse->GetContentAsString();
+
+		int NumberReturned = FCString::Atoi(*ResponseContent);
+		CHECK(Number == NumberReturned);
+
+		});
+	HttpRequest->ProcessRequest();
+}
+
+#endif //UE_HTTP_SUPPORT_UNIX_SOCKET

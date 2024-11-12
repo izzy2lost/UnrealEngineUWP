@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import backend, { useBackend } from '../backend';
 import { useQuery } from './JobDetailCommon';
 import ErrorHandler from './ErrorHandler';
+import { GetJobsTabResponse, JobsTabData, TabType } from '../backend/Api';
 
 function setError(message: string) {
 
@@ -38,6 +39,16 @@ export const PreflightRedirector: React.FC = () => {
    // whether a template is specified
    const templateId = !query.get("templateId") ? "" : query.get("templateId")!;
 
+   const parameters: string[] = [];
+
+   query.forEach((value, key) => {
+      if (key.startsWith("id")) {
+         parameters.push(`${key}=${value}`);
+      }
+   })
+
+   const version = "2";
+
    if (!change) {
       setError("No preflight change specified");
       return null;
@@ -57,14 +68,14 @@ export const PreflightRedirector: React.FC = () => {
 
    let stream = projectStore.streamByFullname(streamName);
 
-   if (!stream) {      
+   if (!stream) {
 
       stream = projectStore.streamById(streamName?.replace("//", "").replaceAll("/", "-").toLowerCase());
 
       if (!stream) {
-         stream = projectStore.streamByFullname(streamName + "-VS");   
-      }      
-      
+         stream = projectStore.streamByFullname(streamName + "-VS");
+      }
+
    }
 
    if (!stream) {
@@ -79,29 +90,51 @@ export const PreflightRedirector: React.FC = () => {
       return null;
    }
 
+   let tab = "summary";
+   stream.tabs.find(t => {
+      if (t.type !== TabType.Jobs) {
+         return false;
+      }
+
+      if (!!(t as GetJobsTabResponse).templates?.find(t => t === templateId)) {
+         tab = t.title;
+      }
+   })
+
    if (!state.preflightQueried) {
 
       console.log(`Redirecting preflight: ${window.location.href}`);
 
-      backend.getJobs({ filter: "id", count: 1, preflightChange: cl }).then(result => {
+      backend.getJobs({ filter: "id,streamId", count: 1, preflightChange: cl }).then(result => {
 
          if (result && result.length === 1) {
 
-            let url = `/job/${result[0].id}?newbuild=true&allowtemplatechange=true&shelvedchange=${change}&p4v=true`;
+            if (stream.id === result[0].streamId) {
+               
+               let url = `/job/${result[0].id}?newbuild=true&allowtemplatechange=true&shelvedchange=${change}&p4v=true`;
 
-            if (autosubmit === "true") {
-               url += "&autosubmit=true";
-            }
-
-            if (templateId) {
-               url += `&templateId=${templateId}`;
-            }
-
-            navigate(url, { replace: true });
-            return;
+               if (autosubmit === "true") {
+                  url += "&autosubmit=true";
+               }
+   
+               if (templateId) {
+                  url += `&templateId=${templateId}`;
+               }
+   
+               if (parameters.length) {
+                  url += ("&" + parameters.join("&"));
+               }
+   
+               if (version === "2") {
+                  url += "&newbuildversion=2"
+               }
+   
+               navigate(url, { replace: true });
+               return;   
+            } 
          }
 
-         let url = `/stream/${stream!.id}?tab=summary&newbuild=true&shelvedchange=${change}&p4v=true`;
+         let url = `/stream/${stream!.id}?tab=${tab}&newbuild=true&shelvedchange=${change}&p4v=true`;
 
          if (autosubmit === "true") {
             url += "&autosubmit=true";
@@ -109,6 +142,14 @@ export const PreflightRedirector: React.FC = () => {
 
          if (templateId) {
             url += `&templateId=${templateId}`;
+         }
+
+         if (parameters.length) {
+            url += ("&" + parameters.join("&"));
+         }
+
+         if (version === "2") {
+            url += "&newbuildversion=2"
          }
 
          navigate(url, { replace: true });

@@ -13,6 +13,7 @@
 #include "IO/IoHash.h"
 #include "Serialization/Archive.h"
 #include "Serialization/ArchiveUObject.h"
+#include "Serialization/BulkDataCookedIndex.h"
 #include "Serialization/FileRegionArchive.h"
 #include "Templates/Function.h"
 #include "Templates/RefCounting.h"
@@ -172,7 +173,7 @@ public:
 	FArchive& operator<<(FSoftObjectPath& SoftObjectPath);
 	FArchive& operator<<( FLazyObjectPtr& LazyObjectPtr );
 	virtual bool ShouldSkipProperty(const FProperty* InProperty) const override;
-	virtual void SetSerializeContext(FUObjectSerializeContext* InLoadContext) override;
+	UE_DEPRECATED(5.5, "GetSerializeContext is not supported. Use FUObjectThreadContext::Get().GetSerializeContext().")
 	FUObjectSerializeContext* GetSerializeContext() override;
 	virtual void UsingCustomVersion(const struct FGuid& Guid) override;
 	/**
@@ -287,25 +288,38 @@ public:
 #endif // WITH_EDITORONLY_DATA
 
 	virtual bool SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializationParams& Params) override;
-	
+
+	void ForEachBulkDataCookedIndex(TUniqueFunction<void(FBulkDataCookedIndex, FFileRegionMemoryWriter&)>&& Func, EBulkDataPayloadType Type) const;
+
+	FFileRegionMemoryWriter& GetBulkDataArchive(FBulkDataCookedIndex CookedIndex);
+	FFileRegionMemoryWriter& GetOptionalBulkDataArchive(FBulkDataCookedIndex CookedIndex);
+	FFileRegionMemoryWriter& GetMemoryMappedBulkDataArchive(FBulkDataCookedIndex CookedIndex);
+
+	bool HasCookedIndexBulkData() const;
+
+	UE_DEPRECATED(5.5, "Use the overload that takes a FBulkDataCookedIndex")
 	FFileRegionMemoryWriter& GetBulkDataArchive()
 	{
-		return BulkDataAr;
+		return GetBulkDataArchive(FBulkDataCookedIndex::Default);
 	}
 
+	UE_DEPRECATED(5.5, "Use the overload that takes a FBulkDataCookedIndex")
 	FFileRegionMemoryWriter& GetOptionalBulkDataArchive()
 	{
-		return OptionalBulkDataAr;
+		return GetOptionalBulkDataArchive(FBulkDataCookedIndex::Default);
 	}
 
+	UE_DEPRECATED(5.5, "Use the overload that takes a FBulkDataCookedIndex")
 	FFileRegionMemoryWriter& GetMemoryMappedBulkDataArchive()
 	{
-		return MemoryMappedBulkDataAr;
+		return GetMemoryMappedBulkDataArchive(FBulkDataCookedIndex::Default);
 	}
 
 protected:
 	/** Set the filename being saved to */
 	void SetFilename(FStringView InFilename);
+
+	const TMap<FBulkDataCookedIndex, TUniquePtr<FFileRegionMemoryWriter>>& GetArchives(EBulkDataPayloadType Type) const;
 
 private:
 	/** Optional log output to bubble errors back up. */
@@ -315,14 +329,19 @@ private:
 	/** The index of the last derived data chunk added to the package. */
 	int32 LastDerivedDataIndex = -1;
 #endif
+
+#if WITH_EDITOR
 	/** Map from bulk data object to resource index. */
 	TMap<FBulkData*, int32> SerializedBulkData;
+#endif //WITH_EDITOR
+
 	/** Default bulk data archive. */
-	FFileRegionMemoryWriter BulkDataAr;
+	TMap<FBulkDataCookedIndex, TUniquePtr<FFileRegionMemoryWriter>> BulkDataAr; // Can't use TUniqueObj as FFileRegionMemoryWriter isn't movable
 	/** Optional bulk data archive. */
-	FFileRegionMemoryWriter OptionalBulkDataAr;
+	TMap<FBulkDataCookedIndex, TUniquePtr<FFileRegionMemoryWriter>> OptionalBulkDataAr;
 	/** Memory mapped bulk data archive. */
-	FFileRegionMemoryWriter MemoryMappedBulkDataAr;
+	TMap<FBulkDataCookedIndex, TUniquePtr<FFileRegionMemoryWriter>> MemoryMappedBulkDataAr;
+
 	const TMap<UObject*, TSet<FProperty*>>* TransientPropertyOverrides = nullptr;
 	/** Alignment for memory mapped data .*/ 
 	int64 MemoryMappingAlignment = -1;

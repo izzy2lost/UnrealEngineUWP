@@ -86,6 +86,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "AnimationBlueprintLibrary|Animation")
 	static void GetAnimationCurveNames(const UAnimSequenceBase* AnimationSequenceBase, ERawCurveTrackTypes CurveType, TArray<FName>& CurveNames);
 
+	/** Gets the root transform from the raw animation at Time */
+	UFUNCTION(BlueprintCallable, Category="AnimationBlueprintLibrary|Animation")
+	static FTransform ExtractRootTrackTransform(const UAnimSequenceBase* AnimationSequenceBase, float Time);
+
 	/** Retrieves the Raw Translation Animation Data for the given Animation Track Name and Animation Sequence */
 	UE_DEPRECATED(5.2, "GetRawTrackPositionData has been deprecated, use AnimationModel interface instead")
 	UFUNCTION(BlueprintPure, Category = "AnimationBlueprintLibrary|RawTrackData")
@@ -539,6 +543,13 @@ public:
 
 	static bool IsValidTimeInternal(const UAnimSequenceBase* AnimationSequenceBase, const float Time);
 
+	/**
+	 * Given an animation sequence determine if any bones in that animation sequence has timecode attribute data.
+	 *
+	 * @return The bone name if found; otherwise none value will be returned.
+	 */
+	static FName FindBoneNameWithTimecodeAttributes(const UAnimSequenceBase* AnimSequenceBase);
+
 	/** Evaluates timecode attributes (e.g. "TCFrame", "TCSecond", etc.) of the root bone and returns the resulting qualified frame time.
 	 *
 	 *  @param AnimationSequenceBase: Anim sequence for which to evaluate the root bone attributes.
@@ -550,6 +561,20 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "AnimationBlueprintLibrary|Helpers")
 	static bool EvaluateRootBoneTimecodeAttributesAtTime(const UAnimSequenceBase* AnimationSequenceBase, const float EvalTime, FQualifiedFrameTime& OutQualifiedFrameTime);
+
+	/** Evaluates timecode attributes (e.g. "TCFrame", "TCSecond", etc.) and TCSlate of the root bone and returns the resulting qualified frame time.
+	 *
+	 *  @param AnimationSequenceBase: Anim sequence for which to evaluate the root bone attributes.
+	 *  @param EvalTime: Time (in seconds) at which to evaluate the timecode bone attributes.
+	 *  @param OutQualifiedFrameTime: Resulting qualified frame time from evaluation. If the anim sequence has an import file frame rate
+	 *      set, then that will be used as the frame rate of the qualified frame time. Otherwise, the sampling frame rate of the anim
+	 *      sequence is used. If no timecode attributes are present on the bone or if none can be evaluated, the passed object will not be modified.
+	 *  @param OutSlate:  The slate name (if any).  If so TCSlate exists on the root bone then an empty string is returned.
+	 *
+	 *  @return: true if the root bone had timecode attributes that could be evaluated and a qualified frame time was set, or false otherwise.
+	 */
+	UFUNCTION(BlueprintPure, Category = "AnimationBlueprintLibrary|Helpers")
+	static bool EvaluateBoneTimecodeAndSlateAttributesAtTime(const FName BoneName, const UAnimSequenceBase* AnimationSequenceBase, const float EvalTime, FQualifiedFrameTime& OutQualifiedFrameTime, FString& Slate);
 
 	/** Evaluates the subframe timecode attribute (e.g. "TCSubframe") of the root bone and returns the resulting value.
 	 *

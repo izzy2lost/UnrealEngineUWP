@@ -128,7 +128,7 @@ void FAnimSliderKeySelection::GetMapOfContiguousKeys()
 		if (const FCurveModel* Curve = CurveEditor->FindCurve(Pair.Key))
 		{
 			AllKeyHandles.Reset();
-			Curve->GetKeys(*CurveEditor, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), AllKeyHandles);
+			Curve->GetKeys(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), AllKeyHandles);
 			AllKeyPositions.SetNum(AllKeyHandles.Num());
 			Curve->GetKeyPositions(AllKeyHandles, AllKeyPositions);
 			SelectedKeyHandles.Reset(Pair.Value.Num());

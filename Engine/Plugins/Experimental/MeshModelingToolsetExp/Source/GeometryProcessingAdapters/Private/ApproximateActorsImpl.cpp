@@ -41,7 +41,7 @@
 #include "MaterialUtilities.h"
 #include "ShaderCore.h"
 
-#include "Engine/MeshMerging.h"
+#include "MeshMerge/MeshApproximationSettings.h"
 
 #include "Async/Async.h"
 #include "Misc/ScopedSlowTask.h"
@@ -439,7 +439,7 @@ static TSharedPtr<FApproximationMeshData> GenerateApproximationMesh(
 	}
 
 	// make ground plane
-	FVector3d GroundPlaneOrigin;
+	FVector3d GroundPlaneOrigin = FVector3d::ZeroVector;
 	FPlane3d GroundClipPlane;
 	bool bHaveGroundClipPlane = false;
 	if (Options.GroundPlanePolicy == IGeometryProcessing_ApproximateActors::EGroundPlanePolicy::FixedZHeightGroundPlane)
@@ -1398,6 +1398,8 @@ UStaticMesh* FApproximateActorsImpl::EmitGeneratedMeshAsset(
 	MeshAssetOptions.bAllowDistanceField = Options.bAllowDistanceField;
 	MeshAssetOptions.bGenerateLightmapUVs = Options.bGenerateLightmapUVs;
 	MeshAssetOptions.bCreatePhysicsBody = Options.bCreatePhysicsBody;
+
+	MeshAssetOptions.bBuildReversedIndexBuffer = Options.bBuildReversedIndexBuffer;
 
 	if (Material)
 	{

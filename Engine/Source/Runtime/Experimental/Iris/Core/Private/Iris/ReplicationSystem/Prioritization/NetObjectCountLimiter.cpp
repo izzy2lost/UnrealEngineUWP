@@ -22,12 +22,20 @@ void UNetObjectCountLimiter::Init(FNetObjectPrioritizerInitParams& Params)
 	checkf(Params.Config != nullptr, TEXT("Need config to operate."));
 	checkf(Params.MaxConnectionCount < 65536U, TEXT("Assumption being able to use uint16 for ConnectionIds is incorrect."));
 	Config = TStrongObjectPtr<UNetObjectCountLimiterConfig>(CastChecked<UNetObjectCountLimiterConfig>(Params.Config));
-	ensureAlwaysMsgf(Config->MaxObjectCount >= 1U, TEXT("Prioritizer will not consider any object for replication. They will be replicated once when constructed, but never again."));
+	ensureMsgf(Config->MaxObjectCount >= 1U, TEXT("Prioritizer will not consider any object for replication. They will be replicated once when constructed, but never again."));
 
 	InternalObjectIndices.Init(ObjectGrowCount);
 	PerConnectionInfos.SetNum(Params.MaxConnectionCount + 1);
 
 	ReplicationSystem = Params.ReplicationSystem;
+}
+
+void UNetObjectCountLimiter::Deinit()
+{
+	ReplicationSystem = nullptr;
+	Config = nullptr;
+
+	InternalObjectIndices.Empty();
 }
 
 void UNetObjectCountLimiter::AddConnection(uint32 ConnectionId)

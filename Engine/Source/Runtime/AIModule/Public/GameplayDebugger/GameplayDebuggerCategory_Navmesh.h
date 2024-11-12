@@ -9,6 +9,7 @@
 #include "NavMesh/NavMeshRenderingComponent.h"
 
 class APlayerController;
+class UNavigationSystemV1;
 
 class FGameplayDebuggerCategory_Navmesh : public FGameplayDebuggerCategory
 {
@@ -26,6 +27,14 @@ protected:
 
 	void CycleNavData();
 	void CycleActorReference();
+	void ToggleLockedReferenceLocation();
+
+	/** Called on the server to collect data for the specified navigation data relative to RefPawn.
+	 * RefPawn will be used to define the location where we need to collect the data and then call CollectNavigationData's version that receive a location as parameter. */
+	AIMODULE_API virtual void CollectNavigationData(const UNavigationSystemV1* NavSys, const ANavigationData* NavData, const APawn* RefPawn);
+	/** Called on the server to collect data for the specified navigation data around a location. */
+	AIMODULE_API virtual void CollectNavigationData(const UNavigationSystemV1* NavSys, const ANavigationData* NavData, const FVector& RefLocation);
+	AIMODULE_API void RetrieveRelativeTilesToDisplay(TArray<FIntPoint>& OutTileDelta);
 
 	struct FRepData
 	{
@@ -34,6 +43,7 @@ protected:
 		FString NavDataName;
 		FString NavBuildLockStatusDesc;
 		FString SupportedAgents;
+		FVector LockedReferenceLocation = FNavigationSystem::InvalidLocation;
 		int32 NumDirtyAreas = 0;
 		int32 NumSuspendedDirtyAreas = 0;
 		uint16 NumRunningTasks = 0;
@@ -61,6 +71,8 @@ protected:
 	int32 NavDataIndexToDisplay = INDEX_NONE;
 	bool bSwitchToNextNavigationData = false;
 	TWeakObjectPtr<const APawn> PrevDebugActorReference;
+	bool bToggleLockedReferenceLocation = false;
+	TOptional<FVector> LockedReferenceLocation;
 };
 
 #endif // WITH_GAMEPLAY_DEBUGGER_MENU

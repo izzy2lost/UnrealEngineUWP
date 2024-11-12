@@ -161,6 +161,12 @@ public:
 	virtual FName GetInstanceName() const = 0;
 
 	/**
+	* Get the instance config name for this instance. 
+	* @return instance config name
+	*/
+	virtual FName GetInstanceConfigName() const = 0;
+
+	/**
 	 * Retrieve any of the standard or implementation specific interfaces
 	 */
 	template <typename InterfaceType>
@@ -195,20 +201,21 @@ ONLINESERVICESINTERFACE_API int32 GetBuildUniqueId();
 /**
  * Check if an instance of the online service is loaded
  *
- * @param OnlineServices Type of online services to retrieve
- * @param InstanceName Name of the services instance to retrieve
- * @return The services instance or an invalid pointer if the services is unavailable
+ * @param OnlineServices Type of online services for the IOnlineServices instance
+ * @param InstanceName Name of the instance
+ * @return true if the instance is loaded
  */
-ONLINESERVICESINTERFACE_API bool IsLoaded(EOnlineServices OnlineServices = EOnlineServices::Default, FName InstanceName = NAME_None);
+ONLINESERVICESINTERFACE_API bool IsLoaded(EOnlineServices OnlineServices = EOnlineServices::Default, FName InstanceName = NAME_None, FName InstanceConfigName = NAME_None);
 
 /**
  * Get an instance of the online service
  *
  * @param OnlineServices Type of online services to retrieve
  * @param InstanceName Name of the services instance to retrieve
+ * @param InstanceConfigName Name of the implementation specific config to use for this services instance
  * @return The services instance or an invalid pointer if the services is unavailable
  */
-ONLINESERVICESINTERFACE_API TSharedPtr<IOnlineServices> GetServices(EOnlineServices OnlineServices = EOnlineServices::Default, FName InstanceName = NAME_None);
+ONLINESERVICESINTERFACE_API TSharedPtr<IOnlineServices> GetServices(EOnlineServices OnlineServices = EOnlineServices::Default, FName InstanceName = NAME_None, FName InstanceConfigName = NAME_None);
 
 /**
  * Get a specific services type and cast to the specific services type
@@ -217,9 +224,9 @@ ONLINESERVICESINTERFACE_API TSharedPtr<IOnlineServices> GetServices(EOnlineServi
  * @return The services instance or an invalid pointer if the services is unavailable
  */
 template <typename ServicesClass>
-TSharedPtr<ServicesClass> GetServices(FName InstanceName = NAME_None)
+TSharedPtr<ServicesClass> GetServices(FName InstanceName = NAME_None, FName InstanceConfigName = NAME_None)
 {
-	return StaticCastSharedPtr<ServicesClass>(GetServices(ServicesClass::GetServicesProvider(), InstanceName));
+	return StaticCastSharedPtr<ServicesClass>(GetServices(ServicesClass::GetServicesProvider(), InstanceName, InstanceConfigName));
 }
 
 /**
@@ -228,14 +235,21 @@ TSharedPtr<ServicesClass> GetServices(FName InstanceName = NAME_None)
  * @param OnlineServices Type of online services to destroy
  * @param InstanceName Name of the services instance to destroy
  */
-ONLINESERVICESINTERFACE_API void DestroyService(EOnlineServices OnlineServices = EOnlineServices::Default, FName InstanceName = NAME_None);
+ONLINESERVICESINTERFACE_API void DestroyService(EOnlineServices OnlineServices = EOnlineServices::Default, FName InstanceName = NAME_None, FName InstanceConfigName = NAME_None);
 
 /**
- * Destroy all instances of the online service specified
+ * Destroy all instances of the online services specified by EOnlineServices type
  *
  * @param OnlineServices Type of online services to destroy all instances from
  */
 ONLINESERVICESINTERFACE_API void DestroyAllNamedServices(EOnlineServices OnlineServices);
+
+/**
+ * Destroy all instances of the online services with specified instance name
+ *
+ * @param InstanceName Name of online services to destroy all instances from
+ */
+ONLINESERVICESINTERFACE_API void DestroyAllServicesWithName(FName InstanceName);
 
 namespace Meta {
 // TODO: Move to OnlineServices_Meta.inl file?

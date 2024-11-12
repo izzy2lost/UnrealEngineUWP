@@ -177,6 +177,10 @@ FStatsGridRow_Shaders::EShaderClass FStatsGridRow_Shaders::GetShaderClass(const 
 		case ERepresentativeShader::UIInstancedVertexShader:
 			return EShaderClass::VertexShader;
 		break;
+
+		case ERepresentativeShader::NaniteMesh:
+			return EShaderClass::ComputeShader;
+		break;
 	}
 
 	return EShaderClass::VertexShader;
@@ -190,8 +194,21 @@ void FStatsGridRow_Shaders::CreateRow(TSharedPtr<FMaterialStats> StatsManager)
 	if (bIsHeaderRow)
 	{
 		EShaderClass ShaderClass = GetShaderClass(ShaderType);
-		FString HeaderContent = ShaderClass == EShaderClass::VertexShader ? TEXT("Vertex Shader") : TEXT("Pixel Shader");
 
+		FString HeaderContent;
+		if (ShaderClass == EShaderClass::VertexShader)
+		{
+			HeaderContent = TEXT("Vertex Shader");
+		}
+		else if (ShaderClass == EShaderClass::FragmentShader)
+		{
+			HeaderContent = TEXT("Pixel Shader");
+		}
+		else if (ShaderClass == EShaderClass::ComputeShader)
+		{
+			HeaderContent = TEXT("Compute Shader");
+		}
+		
 		HeaderCell = MakeShareable(new FGridCell_StaticString(HeaderContent, HeaderContent));
 		HeaderCell->SetContentBold(true);
 		HeaderCell->SetColor(FStyleColors::Foreground);
@@ -761,6 +778,11 @@ void FMaterialStatsGrid::BuildShaderRows()
 			VertShaderRow->CreateRow(StatsManager);
 
 			VertexShaderRows.Add(VertShaderRow);
+
+			TSharedPtr<FStatsGridRow> VertShaderRow2 = MakeShareable(new FStatsGridRow_Shaders((ERepresentativeShader)i, false, false));
+			VertShaderRow2->CreateRow(StatsManager);
+
+			VertexShaderRows.Add(VertShaderRow2);			
 		}
 	}
 }

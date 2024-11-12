@@ -19,13 +19,33 @@
 
 THIRD_PARTY_INCLUDES_START
 #include <acl/compression/compress.h>
+#include <acl/compression/pre_process.h>
 #include <acl/compression/transform_error_metrics.h>
 #include <acl/compression/track_error.h>
+#include <acl/core/bitset.h>
+#include <acl/core/compressed_tracks_version.h>
 #include <acl/decompression/decompress.h>
 THIRD_PARTY_INCLUDES_END
 #endif	// WITH_EDITORONLY_DATA
 
 #include <acl/core/compressed_tracks.h>
+
+void FACLCompressedAnimDataBase::SerializeCompressedData(UObject* DataOwner, FArchive& Ar)
+{
+	ICompressedAnimData::SerializeCompressedData(DataOwner, Ar);
+
+	Ar << bCompressionFailed;
+
+	if (bCompressionFailed && (Ar.IsLoading() || Ar.IsCooking()))
+	{
+		// Compression failed due to invalid settings or data (see below in Compress(..))
+		// We'll end up outputting the bind pose during decompression
+		// We report an error to cause the cook to fail
+		UE_LOG(LogAnimationCompression, Error,
+			TEXT("ACL failed to compress an anim sequence and will output the bind pose at runtime: %s"),
+			DataOwner != nullptr ? *DataOwner->GetPathName() : TEXT("[Unknown Sequence]"));
+	}
+}
 
 bool FACLCompressedAnimData::IsValid() const
 {
@@ -42,7 +62,7 @@ UAnimBoneCompressionCodec_ACLBase::UAnimBoneCompressionCodec_ACLBase(const FObje
 	: Super(ObjectInitializer)
 {
 #if WITH_EDITORONLY_DATA
-	CompressionLevel = ACLCL_Medium;
+	CompressionLevel = ACLCL_Automatic;
 	PhantomTrackMode = ACLPhantomTrackMode::Ignore;	// Same as UE codecs
 
 	// We use a higher virtual vertex distance when bones have a socket attached or are keyed end effectors (IK, hand, camera, etc)
@@ -56,6 +76,12 @@ UAnimBoneCompressionCodec_ACLBase::UAnimBoneCompressionCodec_ACLBase(const FObje
 }
 
 #if WITH_EDITORONLY_DATA
+bool UAnimBoneCompressionCodec_ACLBase::IsHighFidelity(const FCompressibleAnimData& CompressibleAnimData) const
+{
+	// ACL handles raw data sanitizing internally
+	return true;
+}
+
 static void AppendMaxVertexDistances(USkeletalMesh* OptimizationTarget, TMap<FName, float>& BoneMaxVertexDistanceMap)
 {
 #if (ENGINE_MAJOR_VERSION == 4 && ENGINE_MINOR_VERSION >= 27) || ENGINE_MAJOR_VERSION >= 5
@@ -161,7 +187,7 @@ static void PopulateShellDistanceFromOptimizationTargets(const FCompressibleAnim
 			continue;	// No skinned vertices for this bone, skipping
 		}
 
-		const FBoneData& UE4Bone = CompressibleAnimData.BoneData[ACLBoneIndex];
+		const FBoneData& UEBone = CompressibleAnimData.BoneData[ACLBoneIndex];
 
 		acl::track_desc_transformf& Desc = ACLTrack.get_description();
 
@@ -170,7 +196,7 @@ static void PopulateShellDistanceFromOptimizationTargets(const FCompressibleAnim
 		// Together with the precision value, all vertices skinned to this bone
 		// will be guaranteed to have an error smaller or equal to the precision
 		// threshold used.
-		if (UE4Bone.bHasSocket || UE4Bone.bKeyEndEffector)
+		if (UEBone.bHasSocket || UEBone.bKeyEndEffector)
 		{
 			// Bones that have sockets or are key end effectors require extra precision, make sure
 			// that our shell distance is at least what we ask of it regardless of the skinning
@@ -195,7 +221,7 @@ static void StripBindPose(const FCompressibleAnimData& CompressibleAnimData, acl
 
 	for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
 	{
-		const FBoneData& UE4Bone = CompressibleAnimData.BoneData[BoneIndex];
+		const FBoneData& UEBone = CompressibleAnimData.BoneData[BoneIndex];
 
 		acl::track_qvvf& Track = ACLTracks[BoneIndex];
 		acl::track_desc_transformf& Desc = Track.get_description();
@@ -214,7 +240,39 @@ static void StripBindPose(const FCompressibleAnimData& CompressibleAnimData, acl
 		//         Single bone decompression will output the correct value
 
 		// Set the default value to the bind pose so that it can be stripped
-		Desc.default_value = rtm::qvv_set(UEQuatToACL(UE4Bone.Orientation), UEVector3ToACL(UE4Bone.Position), UEVector3ToACL(UE4Bone.Scale));
+		Desc.default_value = rtm::qvv_set(UEQuatToACL(UEBone.Orientation), UEVector3ToACL(UEBone.Position), UEVector3ToACL(UEBone.Scale));
+	}
+}
+
+static void ResetTracksToIdentity(const FCompressibleAnimData& CompressibleAnimData, bool bBuildAdditiveBase, acl::track_array_qvvf& ACLTracks)
+{
+	// This resets the input ACL tracks to the identity transform but retains all other values
+	const uint32 NumSamples = 1;
+	const float SampleRate = 30.0f;
+
+	// Additive animations have 0,0,0 scale as the default since we add it
+	const bool bIsAdditive = bBuildAdditiveBase ? false : CompressibleAnimData.bIsValidAdditive;
+	const FVector3f UE4DefaultScale(bIsAdditive ? 0.0f : 1.0f);
+	const rtm::vector4f ACLDefaultScale = rtm::vector_set(bIsAdditive ? 0.0f : 1.0f);
+
+	rtm::qvvf ACLIdentityTransform = rtm::qvv_identity();
+	ACLIdentityTransform.scale = ACLDefaultScale;
+
+	const acl::track_desc_transformf DefaultDesc;
+
+	for (acl::track_qvvf& ACLTrack : ACLTracks)
+	{
+		// Reset everything to the identity transform and default values
+		// Retain the output index to ensure proper output size
+		acl::track_desc_transformf Desc = ACLTrack.get_description();	// Copy
+		Desc.default_value = ACLIdentityTransform;
+		Desc.precision = DefaultDesc.precision;
+		Desc.shell_distance = DefaultDesc.shell_distance;
+		Desc.parent_index = acl::k_invalid_track_index;
+
+		// Reset track to a single sample
+		ACLTrack = acl::track_qvvf::make_reserve(Desc, ACLAllocatorImpl, NumSamples, SampleRate);
+		ACLTrack[0] = ACLIdentityTransform;
 	}
 }
 
@@ -224,7 +282,9 @@ bool UAnimBoneCompressionCodec_ACLBase::Compress(const FCompressibleAnimData& Co
 
 	acl::track_array_qvvf ACLBaseTracks;
 	if (CompressibleAnimData.bIsValidAdditive)
+	{
 		ACLBaseTracks = BuildACLTransformTrackArray(ACLAllocatorImpl, CompressibleAnimData, DefaultVirtualVertexDistance, SafeVirtualVertexDistance, true, PhantomTrackMode);
+	}
 
 	UE_LOG(LogAnimationCompression, Verbose, TEXT("ACL Animation raw size: %u bytes [%s]"), ACLTracks.get_raw_size(), *CompressibleAnimData.FullName);
 
@@ -267,14 +327,74 @@ bool UAnimBoneCompressionCodec_ACLBase::Compress(const FCompressibleAnimData& Co
 		Settings.error_metric = &DefaultErrorMetric;
 	}
 
+	{
+		// We pre-process the raw tracks to prime them for compression
+		acl::pre_process_settings_t PreProcessSettings;
+		PreProcessSettings.actions = acl::pre_process_actions::recommended;
+
+		// If we retain full precision, use lossless pre-processing
+		if (Settings.rotation_format == acl::rotation_format8::quatf_full ||
+			Settings.rotation_format == acl::rotation_format8::quatf_drop_w_full ||
+			Settings.translation_format == acl::vector_format8::vector3f_full ||
+			Settings.scale_format == acl::vector_format8::vector3f_full)
+		{
+			PreProcessSettings.precision_policy = acl::pre_process_precision_policy::lossless;
+		}
+		else
+		{
+			PreProcessSettings.precision_policy = acl::pre_process_precision_policy::lossy;
+		}
+
+		PreProcessSettings.error_metric = Settings.error_metric;
+
+		if (!ACLBaseTracks.is_empty())
+		{
+			PreProcessSettings.additive_base = &ACLBaseTracks;
+			PreProcessSettings.additive_format = AdditiveFormat;
+		}
+
+		acl::pre_process_track_list(ACLAllocatorImpl, PreProcessSettings, ACLTracks);
+	}
+
 	acl::output_stats Stats;
 	acl::compressed_tracks* CompressedTracks = nullptr;
-	const acl::error_result CompressionResult = acl::compress_track_list(ACLAllocatorImpl, ACLTracks, Settings, ACLBaseTracks, AdditiveFormat, CompressedTracks, Stats);
+	acl::error_result CompressionResult = acl::compress_track_list(ACLAllocatorImpl, ACLTracks, Settings, ACLBaseTracks, AdditiveFormat, CompressedTracks, Stats);
 
-	if (!CompressionResult.empty() || CompressedTracks == nullptr)
+	bool bEnableErrorReporting = true;
+	bool bCompressionFailed = false;
+
+	if (!CompressionResult.empty())
 	{
-		UE_LOG(LogAnimationCompression, Warning, TEXT("ACL failed to compress clip: %s [%s]"), ANSI_TO_TCHAR(CompressionResult.c_str()), *CompressibleAnimData.FullName);
-		return false;
+		// If compression failed, one of two things happened:
+		//    * Invalid settings were used, this would be a code/logic error that results in an improper usage of ACL
+		//    * Invalid data was provided, this would be a validation error that should ideally be caught earlier (e.g import, save)
+		// 
+		// Either way, if we get here, we cannot recover and we cannot fail as the engine assumes that compression always succeeds.
+		// We must handle failure gracefully. To that end, we compress an empty stub to ensure that something is present to
+		// decompress. Because the stub is empty, we'll simply output the bind pose. We still log this as an error to signal that
+		// this is a problem that needs to be fixed. This will allow the editor to continue working with the bind pose we'll output
+		// but cooking will fail preventing us from running with invalid state.
+
+		UE_LOG(LogAnimationCompression, Error, TEXT("ACL failed to compress anim sequence: %s [%s]"), ANSI_TO_TCHAR(CompressionResult.c_str()), *CompressibleAnimData.FullName);
+
+		// We reset the tracks to the identity, getting rid of any potentially invalid data.
+		// By setting them to the identity along with their default value as well, bind pose stripping will
+		// strip the single keyframe. This will result in the bind pose being outputted during decompression
+		// for non-additive animations and additive animations will retain the additive identity.
+		ResetTracksToIdentity(CompressibleAnimData, false, ACLTracks);
+		if (CompressibleAnimData.bIsValidAdditive)
+		{
+			ResetTracksToIdentity(CompressibleAnimData, true, ACLBaseTracks);
+		}
+
+		CompressionResult = acl::compress_track_list(ACLAllocatorImpl, ACLTracks, Settings, ACLBaseTracks, AdditiveFormat, CompressedTracks, Stats);
+
+		// The stub compression should never fail
+		check(CompressionResult.empty() && CompressedTracks != nullptr);
+
+		// Because we compress an empty stub, disable error reporting below
+		bEnableErrorReporting = false;
+		bCompressionFailed = true;
 	}
 
 	checkSlow(CompressedTracks->is_valid(true).empty());
@@ -291,10 +411,14 @@ bool UAnimBoneCompressionCodec_ACLBase::Compress(const FCompressibleAnimData& Co
 
 	OutResult.AnimData->CompressedNumberOfKeys = GetNumSamples(CompressibleAnimData);
 
+	FACLCompressedAnimDataBase& AnimData = static_cast<FACLCompressedAnimDataBase&>(*OutResult.AnimData);
+	AnimData.bCompressionFailed = bCompressionFailed;
+
 #if !NO_LOGGING
+	if (bEnableErrorReporting)
 	{
 		// Use debug settings in case codec picked is the fallback
-		acl::decompression_context<UE4DebugDecompressionSettings> Context;
+		acl::decompression_context<UEDebugDecompressionSettings> Context;
 		Context.initialize(*CompressedTracks);
 
 		const acl::track_error TrackError = acl::calculate_compression_error(ACLAllocatorImpl, ACLTracks, Context, *Settings.error_metric, ACLBaseTracks);
@@ -321,11 +445,14 @@ void UAnimBoneCompressionCodec_ACLBase::PopulateDDCKey(const UE::Anim::Compressi
 {
 	Super::PopulateDDCKey(KeyArgs, Ar);
 
-	uint32 ForceRebuildVersion = 18;
+	uint32 ForceRebuildVersion = 20;
 
 	Ar << ForceRebuildVersion << DefaultVirtualVertexDistance << SafeVirtualVertexDistance << ErrorThreshold;
 	Ar << CompressionLevel;
 	Ar << PhantomTrackMode;
+
+	uint16 LatestACLVersion = static_cast<uint16>(acl::compressed_tracks_version16::latest);
+	Ar << LatestACLVersion;
 
 	// Add the end effector match name list since if it changes, we need to re-compress
 	const TArray<FString>& KeyEndEffectorsMatchNameArray = UAnimationSettings::Get()->KeyEndEffectorsMatchNameArray;
@@ -349,13 +476,14 @@ void UAnimBoneCompressionCodec_ACLBase::PopulateDDCKey(const UE::Anim::Compressi
 		const TArray<FTransform>& BindPose = Skeleton->GetRefLocalPoses();
 		for (const FTransform& BoneBindTransform : BindPose)
 		{
-			// The bind pose never has scale, or none that we use
-
 			FQuat Rotation = BoneBindTransform.GetRotation();
 			Ar << Rotation;
 
 			FVector Translation = BoneBindTransform.GetTranslation();
 			Ar << Translation;
+
+			FVector Scale = BoneBindTransform.GetScale3D();
+			Ar << Scale;
 		}
 	}
 }
@@ -388,11 +516,6 @@ int64 UAnimBoneCompressionCodec_ACLBase::EstimateCompressionMemoryUsage(const UA
 	EstimatedMemoryUsage += 100 * 1024;		// Reserve 100 KB for internal bookkeeping and other required metadata
 
 	return EstimatedMemoryUsage;
-}
-
-ACLSafetyFallbackResult UAnimBoneCompressionCodec_ACLBase::ExecuteSafetyFallback(acl::iallocator& Allocator, const acl::compression_settings& Settings, const acl::track_array_qvvf& RawClip, const acl::track_array_qvvf& BaseClip, const acl::compressed_tracks& CompressedClipData, const FCompressibleAnimData& CompressibleAnimData, FCompressibleAnimDataResult& OutResult)
-{
-	return ACLSafetyFallbackResult::Ignored;
 }
 #endif
 

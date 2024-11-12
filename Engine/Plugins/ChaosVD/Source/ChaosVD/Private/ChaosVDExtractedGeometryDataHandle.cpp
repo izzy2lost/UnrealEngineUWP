@@ -4,7 +4,7 @@
 
 #include "Chaos/ImplicitObject.h"
 
-FName FChaosVDExtractedGeometryDataHandle::GetName() const
+FName FChaosVDExtractedGeometryDataHandle::GetTypeName() const
 {
 	using namespace Chaos;
 

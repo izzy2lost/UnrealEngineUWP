@@ -2,11 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+
 #include "Framework/Commands/UIAction.h"
 #include "Framework/Commands/Commands.h"
 
 class FMenuBuilder;
+
+namespace UE::Insights::MemoryProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
@@ -101,3 +105,7 @@ protected:
 	/** Reference to the global instance of the profiler manager. */
 	class FMemoryProfilerManager* This;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler

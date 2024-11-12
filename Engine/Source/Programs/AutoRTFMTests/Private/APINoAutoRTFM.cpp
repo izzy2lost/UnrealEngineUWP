@@ -1,24 +1,24 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "API.h"
+#include <AutoRTFM/AutoRTFM.h>
 
-int NoAutoRTFM::DoSomethingC(int I)
+UE_AUTORTFM_NOAUTORTFM int NoAutoRTFM::DoSomethingC(int I)
 {
     return I + 13;
 }
 
-int NoAutoRTFM::DoSomethingInTransactionC(int I, void*)
+UE_AUTORTFM_NOAUTORTFM int NoAutoRTFM::DoSomethingInTransactionC(int I, void*)
 {
     return I + 42;
 }
 
-int NoAutoRTFM::DoSomethingCpp(int I)
+UE_AUTORTFM_NOAUTORTFM int NoAutoRTFM::DoSomethingCpp(int I)
 {
     return I + 13;
 }
 
-int NoAutoRTFM::DoSomethingInTransactionCpp(int I, void*)
+UE_AUTORTFM_NOAUTORTFM int NoAutoRTFM::DoSomethingInTransactionCpp(int I, void*)
 {
     return I + 42;
 }
-

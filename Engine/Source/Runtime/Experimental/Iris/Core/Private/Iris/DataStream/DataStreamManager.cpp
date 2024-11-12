@@ -25,6 +25,7 @@ public:
 	void EndWrite();
 	void ReadData(UE::Net::FNetSerializationContext& context);
 	void ProcessPacketDeliveryStatus(UE::Net::EPacketDeliveryStatus Status, FDataStreamRecord const* Record);
+	bool HasAcknowledgedAllReliableData() const;
 
 	ECreateDataStreamResult CreateStream(const FName StreamName);
 
@@ -120,6 +121,11 @@ void UDataStreamManager::ProcessPacketDeliveryStatus(UE::Net::EPacketDeliverySta
 	return Impl->ProcessPacketDeliveryStatus(Status, Record);
 }
 
+bool UDataStreamManager::HasAcknowledgedAllReliableData() const
+{
+	return Impl->HasAcknowledgedAllReliableData();
+}
+
 ECreateDataStreamResult UDataStreamManager::CreateStream(const FName StreamName)
 {
 	return Impl->CreateStream(StreamName);
@@ -147,6 +153,8 @@ UE::Net::Private::FNetExports& UDataStreamManager::GetNetExports()
 
 void UDataStreamManager::AddReferencedObjects(UObject* Object, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(Object, Collector);
+
 	UDataStreamManager* StreamManager = CastChecked<UDataStreamManager>(Object);
 	if (FImpl* Impl = StreamManager->Impl.Get())
 	{
@@ -407,6 +415,19 @@ void UDataStreamManager::FImpl::ProcessPacketDeliveryStatus(UE::Net::EPacketDeli
 	}
 
 	Records.Pop();
+}
+
+bool UDataStreamManager::FImpl::HasAcknowledgedAllReliableData() const
+{
+	for (TObjectPtr<const UDataStream> Stream : Streams)
+	{
+		if (Stream && !Stream->HasAcknowledgedAllReliableData())
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 ECreateDataStreamResult UDataStreamManager::FImpl::CreateStream(const FName StreamName)

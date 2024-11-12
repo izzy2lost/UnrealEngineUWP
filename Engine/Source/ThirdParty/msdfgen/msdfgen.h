@@ -2,7 +2,7 @@
 /*
  * MULTI-CHANNEL SIGNED DISTANCE FIELD GENERATOR
  * ---------------------------------------------
- * A utility by Viktor Chlumsky, (c) 2014 - 2023
+ * A utility by Viktor Chlumsky, (c) 2014 - 2024
  * https://github.com/Chlumsky/msdfgen
  * Published under the MIT license
  *
@@ -22,12 +22,19 @@
 #define MSDFGEN_USE_FREETYPE
 #define MSDFGEN_DISABLE_VARIABLE_FONTS
 #endif
+#ifndef MSDFGEN_ENABLE_SVG
+#define MSDFGEN_DISABLE_SVG
+#endif
 
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <cmath>
 #include <vector>
+
+#ifdef MSDFGEN_PARENT_NAMESPACE
+namespace MSDFGEN_PARENT_NAMESPACE {
+#endif
 
 // This file needs to be included first for all MSDFgen sources
 
@@ -117,7 +124,7 @@ struct Vector2 {
 
     /// Sets individual elements of the vector.
     inline void set(double newX, double newY) {
-		x = newX, y = newY;
+        x = newX, y = newY;
     }
 
     /// Returns the vector's squared length.
@@ -257,7 +264,7 @@ inline Vector2 operator/(const Vector2 a, double b) {
 }
 
 inline byte pixelFloatToByte(float x) {
-    return byte(clamp(256.f*x, 255.f));
+    return byte(~int(255.5f-255.f*clamp(x)));
 }
 
 inline float pixelByteToFloat(byte x) {
@@ -445,6 +452,44 @@ Bitmap<T, N>::operator BitmapConstRef<T, N>() const {
     return BitmapConstRef<T, N>(pixels, w, h);
 }
 
+/**
+ * Represents the range between two real values.
+ * For example, the range of representable signed distances.
+ */
+struct Range {
+
+    double lower, upper;
+
+    inline Range(double symmetricalWidth = 0) : lower(-.5*symmetricalWidth), upper(.5*symmetricalWidth) { }
+
+    inline Range(double lowerBound, double upperBound) : lower(lowerBound), upper(upperBound) { }
+
+    inline Range &operator*=(double factor) {
+        lower *= factor;
+        upper *= factor;
+        return *this;
+    }
+
+    inline Range &operator/=(double divisor) {
+        lower /= divisor;
+        upper /= divisor;
+        return *this;
+    }
+
+    inline Range operator*(double factor) const {
+        return Range(lower*factor, upper*factor);
+    }
+
+    inline Range operator/(double divisor) const {
+        return Range(lower/divisor, upper/divisor);
+    }
+
+};
+
+inline Range operator*(double factor, const Range &range) {
+    return Range(factor*range.lower, factor*range.upper);
+}
+
 /// A transformation from shape coordinates to pixel coordinates.
 class Projection {
 
@@ -471,6 +516,49 @@ public:
 private:
     Vector2 scale;
     Vector2 translate;
+
+};
+
+/// Linear transformation of signed distance values.
+class DistanceMapping {
+
+public:
+    /// Explicitly designates value as distance delta rather than an absolute distance.
+    class Delta {
+    public:
+        double value;
+        inline explicit Delta(double distanceDelta) : value(distanceDelta) { }
+        inline operator double() const { return value; }
+    };
+
+    static DistanceMapping inverse(Range range);
+
+    DistanceMapping();
+    DistanceMapping(Range range);
+    double operator()(double d) const;
+    double operator()(Delta d) const;
+    DistanceMapping inverse() const;
+
+private:
+    double scale;
+    double translate;
+
+    inline DistanceMapping(double scale, double translate) : scale(scale), translate(translate) { }
+
+};
+
+/**
+ * Full signed distance field transformation specifies both spatial transformation (Projection)
+ * as well as distance value transformation (DistanceMapping).
+ */
+class SDFTransformation : public Projection {
+
+public:
+    DistanceMapping distanceMapping;
+
+    inline SDFTransformation() { }
+
+    inline SDFTransformation(const Projection &projection, const DistanceMapping &distanceMapping) : Projection(projection), distanceMapping(distanceMapping) { }
 
 };
 
@@ -676,8 +764,8 @@ public:
     virtual Vector2 directionChange(double param) const = 0;
     /// Returns the minimum signed distance between origin and the edge.
     virtual SignedDistance signedDistance(Point2 origin, double &param) const = 0;
-    /// Converts a previously retrieved signed distance from origin to pseudo-distance.
-    virtual void distanceToPseudoDistance(SignedDistance &distance, Point2 origin, double param) const;
+    /// Converts a previously retrieved signed distance from origin to perpendicular distance.
+    virtual void distanceToPerpendicularDistance(SignedDistance &distance, Point2 origin, double param) const;
     /// Outputs a list of (at most three) intersections (their X coordinates) with an infinite horizontal scanline at y and returns how many there are.
     virtual int scanlineIntersections(double x[3], int dy[3], double y) const = 0;
     virtual int horizontalScanlineIntersections(double x[3], int dy[3], double y) const = 0;
@@ -789,8 +877,6 @@ public:
     void moveEndPoint(Point2 to);
     void splitInThirds(EdgeSegment *&part0, EdgeSegment *&part1, EdgeSegment *&part2) const;
 
-    void deconverge(int param, double amount);
-
 };
 
 /// Container for a single edge of dynamic type.
@@ -853,8 +939,6 @@ public:
 
 // Threshold of the dot product of adjacent edge directions to be considered convergent.
 #define MSDFGEN_CORNER_DOT_EPSILON .000001
-// The proportional amount by which a curve's control point will be adjusted to eliminate convergent corners.
-#define MSDFGEN_DECONVERGENCE_FACTOR .000001
 
 /// Vector shape representation.
 class Shape {
@@ -967,40 +1051,40 @@ private:
 
 };
 
-class PseudoDistanceSelectorBase {
+class PerpendicularDistanceSelectorBase {
 
 public:
     struct EdgeCache {
         Point2 point;
         double absDistance;
         double aDomainDistance, bDomainDistance;
-        double aPseudoDistance, bPseudoDistance;
+        double aPerpendicularDistance, bPerpendicularDistance;
 
         EdgeCache();
     };
 
-    static bool getPseudoDistance(double &distance, const Vector2 &ep, const Vector2 &edgeDir);
+    static bool getPerpendicularDistance(double &distance, const Vector2 &ep, const Vector2 &edgeDir);
 
-    PseudoDistanceSelectorBase();
+    PerpendicularDistanceSelectorBase();
     void reset(double delta);
     bool isEdgeRelevant(const EdgeCache &cache, const EdgeSegment *edge, const Point2 &p) const;
     void addEdgeTrueDistance(const EdgeSegment *edge, const SignedDistance &distance, double param);
-    void addEdgePseudoDistance(double distance);
-    void merge(const PseudoDistanceSelectorBase &other);
+    void addEdgePerpendicularDistance(double distance);
+    void merge(const PerpendicularDistanceSelectorBase &other);
     double computeDistance(const Point2 &p) const;
     SignedDistance trueDistance() const;
 
 private:
     SignedDistance minTrueDistance;
-    double minNegativePseudoDistance;
-    double minPositivePseudoDistance;
+    double minNegativePerpendicularDistance;
+    double minPositivePerpendicularDistance;
     const EdgeSegment *nearEdge;
     double nearEdgeParam;
 
 };
 
-/// Selects the nearest edge by its pseudo-distance.
-class PseudoDistanceSelector : public PseudoDistanceSelectorBase {
+/// Selects the nearest edge by its perpendicular distance.
+class PerpendicularDistanceSelector : public PerpendicularDistanceSelectorBase {
 
 public:
     typedef double DistanceType;
@@ -1014,12 +1098,12 @@ private:
 
 };
 
-/// Selects the nearest edge for each of the three channels by its pseudo-distance.
+/// Selects the nearest edge for each of the three channels by its perpendicular distance.
 class MultiDistanceSelector {
 
 public:
     typedef MultiDistance DistanceType;
-    typedef PseudoDistanceSelectorBase::EdgeCache EdgeCache;
+    typedef PerpendicularDistanceSelectorBase::EdgeCache EdgeCache;
 
     void reset(const Point2 &p);
     void addEdge(EdgeCache &cache, const EdgeSegment *prevEdge, const EdgeSegment *edge, const EdgeSegment *nextEdge);
@@ -1029,11 +1113,11 @@ public:
 
 private:
     Point2 p;
-    PseudoDistanceSelectorBase r, g, b;
+    PerpendicularDistanceSelectorBase r, g, b;
 
 };
 
-/// Selects the nearest edge for each of the three color channels by its pseudo-distance and by true distance for the alpha channel.
+/// Selects the nearest edge for each of the three color channels by its perpendicular distance and by true distance for the alpha channel.
 class MultiAndTrueDistanceSelector : public MultiDistanceSelector {
 
 public:
@@ -1160,8 +1244,7 @@ typename ShapeDistanceFinder<ContourCombiner>::DistanceType ShapeDistanceFinder<
 }
 
 // Fast SDF approximation (out of range values not computed)
-void approximateSDF(const BitmapRef<float, 1> &output, const Shape &shape, const Projection &projection, double outerRange, double innerRange);
-void approximateSDF(const BitmapRef<float, 1> &output, const Shape &shape, const Projection &projection, double range);
+void approximateSDF(const BitmapRef<float, 1> &output, const Shape &shape, const SDFTransformation &transformation);
 
 }
 
@@ -1226,16 +1309,22 @@ struct MSDFGeneratorConfig : GeneratorConfig {
 };
 
 /// Predicts potential artifacts caused by the interpolation of the MSDF and corrects them by converting nearby texels to single-channel.
-void msdfErrorCorrection(const BitmapRef<float, 3> &sdf, const Shape &shape, const Projection &projection, double range, const MSDFGeneratorConfig &config = MSDFGeneratorConfig());
-void msdfErrorCorrection(const BitmapRef<float, 4> &sdf, const Shape &shape, const Projection &projection, double range, const MSDFGeneratorConfig &config = MSDFGeneratorConfig());
+void msdfErrorCorrection(const BitmapRef<float, 3> &sdf, const Shape &shape, const SDFTransformation &transformation, const MSDFGeneratorConfig &config = MSDFGeneratorConfig());
+void msdfErrorCorrection(const BitmapRef<float, 4> &sdf, const Shape &shape, const SDFTransformation &transformation, const MSDFGeneratorConfig &config = MSDFGeneratorConfig());
+void msdfErrorCorrection(const BitmapRef<float, 3> &sdf, const Shape &shape, const Projection &projection, Range range, const MSDFGeneratorConfig &config = MSDFGeneratorConfig());
+void msdfErrorCorrection(const BitmapRef<float, 4> &sdf, const Shape &shape, const Projection &projection, Range range, const MSDFGeneratorConfig &config = MSDFGeneratorConfig());
 
 /// Applies the simplified error correction to all discontiunous distances (INDISCRIMINATE mode). Does not need shape or translation.
-void msdfFastDistanceErrorCorrection(const BitmapRef<float, 3> &sdf, const Projection &projection, double range, double minDeviationRatio = ErrorCorrectionConfig::defaultMinDeviationRatio);
-void msdfFastDistanceErrorCorrection(const BitmapRef<float, 4> &sdf, const Projection &projection, double range, double minDeviationRatio = ErrorCorrectionConfig::defaultMinDeviationRatio);
+void msdfFastDistanceErrorCorrection(const BitmapRef<float, 3> &sdf, const SDFTransformation &transformation, double minDeviationRatio = ErrorCorrectionConfig::defaultMinDeviationRatio);
+void msdfFastDistanceErrorCorrection(const BitmapRef<float, 4> &sdf, const SDFTransformation &transformation, double minDeviationRatio = ErrorCorrectionConfig::defaultMinDeviationRatio);
+void msdfFastDistanceErrorCorrection(const BitmapRef<float, 3> &sdf, const Projection &projection, Range range, double minDeviationRatio = ErrorCorrectionConfig::defaultMinDeviationRatio);
+void msdfFastDistanceErrorCorrection(const BitmapRef<float, 4> &sdf, const Projection &projection, Range range, double minDeviationRatio = ErrorCorrectionConfig::defaultMinDeviationRatio);
 
 /// Applies the simplified error correction to edges only (EDGE_ONLY mode). Does not need shape or translation.
-void msdfFastEdgeErrorCorrection(const BitmapRef<float, 3> &sdf, const Projection &projection, double range, double minDeviationRatio = ErrorCorrectionConfig::defaultMinDeviationRatio);
-void msdfFastEdgeErrorCorrection(const BitmapRef<float, 4> &sdf, const Projection &projection, double range, double minDeviationRatio = ErrorCorrectionConfig::defaultMinDeviationRatio);
+void msdfFastEdgeErrorCorrection(const BitmapRef<float, 3> &sdf, const SDFTransformation &transformation, double minDeviationRatio = ErrorCorrectionConfig::defaultMinDeviationRatio);
+void msdfFastEdgeErrorCorrection(const BitmapRef<float, 4> &sdf, const SDFTransformation &transformation, double minDeviationRatio = ErrorCorrectionConfig::defaultMinDeviationRatio);
+void msdfFastEdgeErrorCorrection(const BitmapRef<float, 3> &sdf, const Projection &projection, Range range, double minDeviationRatio = ErrorCorrectionConfig::defaultMinDeviationRatio);
+void msdfFastEdgeErrorCorrection(const BitmapRef<float, 4> &sdf, const Projection &projection, Range range, double minDeviationRatio = ErrorCorrectionConfig::defaultMinDeviationRatio);
 
 /// The original version of the error correction algorithm.
 void msdfErrorCorrection_legacy(const BitmapRef<float, 3> &output, const Vector2 &threshold);
@@ -1254,7 +1343,7 @@ public:
     };
 
     MSDFErrorCorrection();
-    explicit MSDFErrorCorrection(const BitmapRef<byte, 1> &stencil, const Projection &projection, double range);
+    explicit MSDFErrorCorrection(const BitmapRef<byte, 1> &stencil, const SDFTransformation &transformation);
     /// Sets the minimum ratio between the actual and maximum expected distance delta to be considered an error.
     void setMinDeviationRatio(double minDeviationRatio);
     /// Sets the minimum ratio between the pre-correction distance error and the post-correction distance error.
@@ -1280,8 +1369,7 @@ public:
 
 private:
     BitmapRef<byte, 1> stencil;
-    Projection projection;
-    double invRange;
+    SDFTransformation transformation;
     double minDeviationRatio;
     double minImproveRatio;
 
@@ -1292,6 +1380,8 @@ private:
 #ifdef MSDFGEN_USE_FREETYPE
 
 namespace msdfgen {
+
+#define MSDFGEN_LEGACY_FONT_COORDINATE_SCALE (1/64.)
 
 typedef unsigned unicode_t;
 
@@ -1333,6 +1423,16 @@ struct FontVariationAxis {
     double defaultValue;
 };
 
+/// The scaling applied to font glyph coordinates when loading a glyph
+enum FontCoordinateScaling {
+    /// The coordinates are kept as the integer values native to the font file
+    FONT_SCALING_NONE,
+    /// The coordinates will be normalized to the em size, i.e. 1 = 1 em
+    FONT_SCALING_EM_NORMALIZED,
+    /// The incorrect legacy version that was in effect before version 1.12, coordinate values are divided by 64 - DO NOT USE - for backwards compatibility only
+    FONT_SCALING_LEGACY
+};
+
 /// Initializes the FreeType library.
 FreetypeHandle *initializeFreetype();
 /// Deinitializes the FreeType library.
@@ -1342,27 +1442,32 @@ void deinitializeFreetype(FreetypeHandle *library);
 /// Creates a FontHandle from FT_Face that was loaded by the user. destroyFont must still be called but will not affect the FT_Face.
 FontHandle *adoptFreetypeFont(FT_Face ftFace);
 /// Converts the geometry of FreeType's FT_Outline to a Shape object.
-FT_Error readFreetypeOutline(Shape &output, FT_Outline *outline);
+FT_Error readFreetypeOutline(Shape &output, FT_Outline *outline, double scale = MSDFGEN_LEGACY_FONT_COORDINATE_SCALE);
 #endif
 
 /// Loads a font file and returns its handle.
 FontHandle *loadFont(FreetypeHandle *library, const char *filename);
 /// Loads a font from binary data and returns its handle.
 FontHandle *loadFontData(FreetypeHandle *library, const byte *data, int length);
-/// Unloads a font file.
+/// Unloads a font.
 void destroyFont(FontHandle *font);
-/// Outputs the metrics of a font file.
-bool getFontMetrics(FontMetrics &metrics, FontHandle *font);
+/// Outputs the metrics of a font.
+bool getFontMetrics(FontMetrics &metrics, FontHandle *font, FontCoordinateScaling coordinateScaling = FONT_SCALING_LEGACY);
 /// Outputs the width of the space and tab characters.
-bool getFontWhitespaceWidth(double &spaceAdvance, double &tabAdvance, FontHandle *font);
+bool getFontWhitespaceWidth(double &spaceAdvance, double &tabAdvance, FontHandle *font, FontCoordinateScaling coordinateScaling = FONT_SCALING_LEGACY);
+/// Outputs the total number of glyphs available in the font.
+bool getGlyphCount(unsigned &output, FontHandle *font);
 /// Outputs the glyph index corresponding to the specified Unicode character.
 bool getGlyphIndex(GlyphIndex &glyphIndex, FontHandle *font, unicode_t unicode);
-/// Loads the geometry of a glyph from a font file.
-bool loadGlyph(Shape &output, FontHandle *font, GlyphIndex glyphIndex, double *advance = NULL);
-bool loadGlyph(Shape &output, FontHandle *font, unicode_t unicode, double *advance = NULL);
+/// Loads the geometry of a glyph from a font.
+bool loadGlyph(Shape &output, FontHandle *font, GlyphIndex glyphIndex, FontCoordinateScaling coordinateScaling, double *outAdvance = NULL);
+bool loadGlyph(Shape &output, FontHandle *font, unicode_t unicode, FontCoordinateScaling coordinateScaling, double *outAdvance = NULL);
+// Legacy API - FontCoordinateScaling is LEGACY
+bool loadGlyph(Shape &output, FontHandle *font, GlyphIndex glyphIndex, double *outAdvance = NULL);
+bool loadGlyph(Shape &output, FontHandle *font, unicode_t unicode, double *outAdvance = NULL);
 /// Outputs the kerning distance adjustment between two specific glyphs.
-bool getKerning(double &output, FontHandle *font, GlyphIndex glyphIndex1, GlyphIndex glyphIndex2);
-bool getKerning(double &output, FontHandle *font, unicode_t unicode1, unicode_t unicode2);
+bool getKerning(double &output, FontHandle *font, GlyphIndex glyphIndex0, GlyphIndex glyphIndex1, FontCoordinateScaling coordinateScaling = FONT_SCALING_LEGACY);
+bool getKerning(double &output, FontHandle *font, unicode_t unicode0, unicode_t unicode1, FontCoordinateScaling coordinateScaling = FONT_SCALING_LEGACY);
 
 #ifndef MSDFGEN_DISABLE_VARIABLE_FONTS
 /// Sets a single variation axis of a variable font.
@@ -1386,30 +1491,70 @@ bool resolveShapeGeometry(Shape &shape);
 
 #endif
 
+#ifndef MSDFGEN_DISABLE_SVG
+
+#ifndef MSDFGEN_EXT_PUBLIC
+#define MSDFGEN_EXT_PUBLIC // for DLL import/export
+#endif
+
+namespace msdfgen {
+
+extern MSDFGEN_EXT_PUBLIC const int SVG_IMPORT_FAILURE;
+extern MSDFGEN_EXT_PUBLIC const int SVG_IMPORT_SUCCESS_FLAG;
+extern MSDFGEN_EXT_PUBLIC const int SVG_IMPORT_PARTIAL_FAILURE_FLAG;
+extern MSDFGEN_EXT_PUBLIC const int SVG_IMPORT_INCOMPLETE_FLAG;
+extern MSDFGEN_EXT_PUBLIC const int SVG_IMPORT_UNSUPPORTED_FEATURE_FLAG;
+extern MSDFGEN_EXT_PUBLIC const int SVG_IMPORT_TRANSFORMATION_IGNORED_FLAG;
+
+/// Builds a shape from an SVG path string
+bool buildShapeFromSvgPath(Shape &shape, const char *pathDef, double endpointSnapRange = 0);
+
+/// Reads a single <path> element found in the specified SVG file and converts it to output Shape
+bool loadSvgShape(Shape &output, const char *filename, int pathIndex = 0, Vector2 *dimensions = NULL);
+
+/// New version - if Skia is available, reads the entire geometry of the SVG file into the output Shape, otherwise may only read one path, returns SVG import flags
+int loadSvgShape(Shape &output, Shape::Bounds &viewBox, const char *filename);
+
+}
+
+#endif
+
 namespace msdfgen {
 
 /// Generates a conventional single-channel signed distance field.
-void generateSDF(const BitmapRef<float, 1> &output, const Shape &shape, const Projection &projection, double range, const GeneratorConfig &config = GeneratorConfig());
+void generateSDF(const BitmapRef<float, 1> &output, const Shape &shape, const SDFTransformation &transformation, const GeneratorConfig &config = GeneratorConfig());
 
-/// Generates a single-channel signed pseudo-distance field.
-void generatePseudoSDF(const BitmapRef<float, 1> &output, const Shape &shape, const Projection &projection, double range, const GeneratorConfig &config = GeneratorConfig());
+/// Generates a single-channel signed perpendicular distance field.
+void generatePSDF(const BitmapRef<float, 1> &output, const Shape &shape, const SDFTransformation &transformation, const GeneratorConfig &config = GeneratorConfig());
 
 /// Generates a multi-channel signed distance field. Edge colors must be assigned first! (See edgeColoringSimple)
-void generateMSDF(const BitmapRef<float, 3> &output, const Shape &shape, const Projection &projection, double range, const MSDFGeneratorConfig &config = MSDFGeneratorConfig());
+void generateMSDF(const BitmapRef<float, 3> &output, const Shape &shape, const SDFTransformation &transformation, const MSDFGeneratorConfig &config = MSDFGeneratorConfig());
 
 /// Generates a multi-channel signed distance field with true distance in the alpha channel. Edge colors must be assigned first.
-void generateMTSDF(const BitmapRef<float, 4> &output, const Shape &shape, const Projection &projection, double range, const MSDFGeneratorConfig &config = MSDFGeneratorConfig());
+void generateMTSDF(const BitmapRef<float, 4> &output, const Shape &shape, const SDFTransformation &transformation, const MSDFGeneratorConfig &config = MSDFGeneratorConfig());
 
 // Old version of the function API's kept for backwards compatibility
-void generateSDF(const BitmapRef<float, 1> &output, const Shape &shape, double range, const Vector2 &scale, const Vector2 &translate, bool overlapSupport = true);
-void generatePseudoSDF(const BitmapRef<float, 1> &output, const Shape &shape, double range, const Vector2 &scale, const Vector2 &translate, bool overlapSupport = true);
-void generateMSDF(const BitmapRef<float, 3> &output, const Shape &shape, double range, const Vector2 &scale, const Vector2 &translate, const ErrorCorrectionConfig &errorCorrectionConfig = ErrorCorrectionConfig(), bool overlapSupport = true);
-void generateMTSDF(const BitmapRef<float, 4> &output, const Shape &shape, double range, const Vector2 &scale, const Vector2 &translate, const ErrorCorrectionConfig &errorCorrectionConfig = ErrorCorrectionConfig(), bool overlapSupport = true);
+void generateSDF(const BitmapRef<float, 1> &output, const Shape &shape, const Projection &projection, Range range, const GeneratorConfig &config = GeneratorConfig());
+void generatePSDF(const BitmapRef<float, 1> &output, const Shape &shape, const Projection &projection, Range range, const GeneratorConfig &config = GeneratorConfig());
+void generatePseudoSDF(const BitmapRef<float, 1> &output, const Shape &shape, const Projection &projection, Range range, const GeneratorConfig &config = GeneratorConfig());
+void generateMSDF(const BitmapRef<float, 3> &output, const Shape &shape, const Projection &projection, Range range, const MSDFGeneratorConfig &config = MSDFGeneratorConfig());
+void generateMTSDF(const BitmapRef<float, 4> &output, const Shape &shape, const Projection &projection, Range range, const MSDFGeneratorConfig &config = MSDFGeneratorConfig());
+
+void generateSDF(const BitmapRef<float, 1> &output, const Shape &shape, Range range, const Vector2 &scale, const Vector2 &translate, bool overlapSupport = true);
+void generatePSDF(const BitmapRef<float, 1> &output, const Shape &shape, Range range, const Vector2 &scale, const Vector2 &translate, bool overlapSupport = true);
+void generatePseudoSDF(const BitmapRef<float, 1> &output, const Shape &shape, Range range, const Vector2 &scale, const Vector2 &translate, bool overlapSupport = true);
+void generateMSDF(const BitmapRef<float, 3> &output, const Shape &shape, Range range, const Vector2 &scale, const Vector2 &translate, const ErrorCorrectionConfig &errorCorrectionConfig = ErrorCorrectionConfig(), bool overlapSupport = true);
+void generateMTSDF(const BitmapRef<float, 4> &output, const Shape &shape, Range range, const Vector2 &scale, const Vector2 &translate, const ErrorCorrectionConfig &errorCorrectionConfig = ErrorCorrectionConfig(), bool overlapSupport = true);
 
 // Original simpler versions of the previous functions, which work well under normal circumstances, but cannot deal with overlapping contours.
-void generateSDF_legacy(const BitmapRef<float, 1> &output, const Shape &shape, double range, const Vector2 &scale, const Vector2 &translate);
-void generatePseudoSDF_legacy(const BitmapRef<float, 1> &output, const Shape &shape, double range, const Vector2 &scale, const Vector2 &translate);
-void generateMSDF_legacy(const BitmapRef<float, 3> &output, const Shape &shape, double range, const Vector2 &scale, const Vector2 &translate, ErrorCorrectionConfig errorCorrectionConfig = ErrorCorrectionConfig());
-void generateMTSDF_legacy(const BitmapRef<float, 4> &output, const Shape &shape, double range, const Vector2 &scale, const Vector2 &translate, ErrorCorrectionConfig errorCorrectionConfig = ErrorCorrectionConfig());
+void generateSDF_legacy(const BitmapRef<float, 1> &output, const Shape &shape, Range range, const Vector2 &scale, const Vector2 &translate);
+void generatePSDF_legacy(const BitmapRef<float, 1> &output, const Shape &shape, Range range, const Vector2 &scale, const Vector2 &translate);
+void generatePseudoSDF_legacy(const BitmapRef<float, 1> &output, const Shape &shape, Range range, const Vector2 &scale, const Vector2 &translate);
+void generateMSDF_legacy(const BitmapRef<float, 3> &output, const Shape &shape, Range range, const Vector2 &scale, const Vector2 &translate, ErrorCorrectionConfig errorCorrectionConfig = ErrorCorrectionConfig());
+void generateMTSDF_legacy(const BitmapRef<float, 4> &output, const Shape &shape, Range range, const Vector2 &scale, const Vector2 &translate, ErrorCorrectionConfig errorCorrectionConfig = ErrorCorrectionConfig());
 
 }
+
+#ifdef MSDFGEN_PARENT_NAMESPACE
+} // namespace MSDFGEN_PARENT_NAMESPACE
+#endif

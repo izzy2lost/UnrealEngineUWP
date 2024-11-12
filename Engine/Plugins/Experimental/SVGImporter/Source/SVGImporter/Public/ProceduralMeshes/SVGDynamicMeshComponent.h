@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Components/DynamicMeshComponent.h"
+#include "SVGBaseDynamicMeshComponent.h"
 #include "SVGDynamicMeshComponent.generated.h"
 
 class UMaterial;
@@ -43,7 +43,7 @@ DECLARE_DELEGATE(FSVGMeshActionDelegate)
 class UStaticMesh;
 
 UCLASS(MinimalAPI, ClassGroup=(SVG))
-class USVGDynamicMeshComponent : public UDynamicMeshComponent
+class USVGDynamicMeshComponent : public USVGBaseDynamicMeshComponent
 {
 	GENERATED_BODY()
 

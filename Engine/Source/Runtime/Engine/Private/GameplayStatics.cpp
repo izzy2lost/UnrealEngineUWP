@@ -2208,7 +2208,7 @@ int32 UGameplayStatics::GetMaxAudioChannelCount(const UObject* WorldContextObjec
 
 UDecalComponent* CreateDecalComponent(class UMaterialInterface* DecalMaterial, FVector DecalSize, UWorld* World, AActor* Actor, float LifeSpan)
 {
-	if (World && World->GetNetMode() == NM_DedicatedServer)
+	if (World == nullptr || World->GetNetMode() == NM_DedicatedServer)
 	{
 		return nullptr;
 	}
@@ -3243,7 +3243,20 @@ bool UGameplayStatics::DeprojectScreenToWorld(APlayerController const* Player, c
 
 bool UGameplayStatics::DeprojectSceneCaptureToWorld(ASceneCapture2D const* SceneCapture2D, const FVector2D& TargetUV, FVector& WorldPosition, FVector& WorldDirection)
 {
-	if (USceneCaptureComponent2D* SceneCaptureComponent2D = SceneCapture2D->GetCaptureComponent2D())
+	if (SceneCapture2D)
+	{
+		return DeprojectSceneCaptureComponentToWorld(SceneCapture2D->GetCaptureComponent2D(), TargetUV, WorldPosition, WorldDirection);
+	}
+
+	// something went wrong, zero things and return false
+	WorldPosition = FVector::ZeroVector;
+	WorldDirection = FVector::ZeroVector;
+	return false;
+}
+
+bool UGameplayStatics::DeprojectSceneCaptureComponentToWorld(USceneCaptureComponent2D* SceneCaptureComponent2D, const FVector2D& TargetUV, FVector& WorldPosition, FVector& WorldDirection)
+{
+	if (SceneCaptureComponent2D)
 	{
 		if (SceneCaptureComponent2D->TextureTarget)
 		{
@@ -3315,6 +3328,11 @@ bool UGameplayStatics::ProjectWorldToScreen(APlayerController const* Player, con
 
 	ScreenPosition = FVector2D::ZeroVector;
 	return false;
+}
+
+FVector UGameplayStatics::TransformWorldToFirstPerson(const FMinimalViewInfo& ViewInfo, const FVector& WorldPosition, bool bIgnoreFirstPersonScale)
+{
+	return ViewInfo.TransformWorldToFirstPerson(WorldPosition, bIgnoreFirstPersonScale);
 }
 
 void UGameplayStatics::CalculateViewProjectionMatricesFromViewTarget(AActor* InViewTarget, FMatrix& OutViewMatrix, FMatrix& OutProjectionMatrix, FMatrix& OutViewProjectionMatrix)

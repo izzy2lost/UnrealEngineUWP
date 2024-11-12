@@ -29,9 +29,15 @@ void FDependsNode::PrintReferencers() const
 }
 
 template <uint32 FlagWidth>
-void IterateDependencyList(const FDependsNode::FIterateDependenciesCallback& InCallback, UE::AssetRegistry::EDependencyCategory SearchCategory, const UE::AssetRegistry::FDependencyQuery& SearchFlags,
-	UE::AssetRegistry::EDependencyCategory ListCategory, UE::AssetRegistry::EDependencyProperty CategoryMask, const TArray<FDependsNode*>& Dependencies, const TBitArray<>* FlagBits,
-	UE::AssetRegistry::EDependencyProperty(*ByteToProperties)(uint8), bool IsSorted)
+void IterateDependencyList(const FDependsNode::FIterateDependenciesCallback& InCallback,
+	UE::AssetRegistry::EDependencyCategory SearchCategory,
+	const UE::AssetRegistry::FDependencyQuery& SearchFlags,
+	UE::AssetRegistry::EDependencyCategory ListCategory,
+	UE::AssetRegistry::EDependencyProperty CategoryMask,
+	const TArray<FDependsNode*>& Dependencies,
+	const TBitArray<>* FlagBits,
+	UE::AssetRegistry::EDependencyProperty(*ByteToProperties)(uint8),
+	bool IsSorted)
 {
 	using namespace UE::AssetRegistry;
 	if (!(SearchCategory & ListCategory))
@@ -60,10 +66,31 @@ void IterateDependencyList(const FDependsNode::FIterateDependenciesCallback& InC
 			for (uint32 DependencyFlagBits : DependsNodeFlagsSet)
 			{
 				EDependencyProperty DependencyProperties = ByteToProperties(static_cast<uint8>(DependencyFlagBits));
-				if (((DependencyProperties & RequiredProperties) == RequiredProperties) && ((DependencyProperties & ExcludedProperties) == EDependencyProperty::None))
+				if (!EnumHasAllFlags(DependencyProperties, RequiredProperties))
 				{
-					InCallback(DependsNode, ListCategory, DependencyProperties, bDuplicate);
+					continue;
 				}
+				if (EnumHasAnyFlags(DependencyProperties, ExcludedProperties))
+				{
+					continue;
+				}
+				bool bPassesRequiredUnions = true;
+				for (EDependencyProperty RequiredUnion : SearchFlags.RequiredUnions)
+				{
+					EDependencyProperty RequiredUnionProperty = RequiredUnion & CategoryMask;
+					if (RequiredUnionProperty != EDependencyProperty::None &&
+						!EnumHasAnyFlags(DependencyProperties, RequiredUnionProperty))
+					{
+						bPassesRequiredUnions = false;
+						break;
+					}
+				}
+				if (!bPassesRequiredUnions)
+				{
+					continue;
+				}
+
+				InCallback(DependsNode, ListCategory, DependencyProperties, bDuplicate);
 				bDuplicate = true;
 			}
 		}
@@ -71,9 +98,16 @@ void IterateDependencyList(const FDependsNode::FIterateDependenciesCallback& InC
 }
 
 template <uint32 FlagWidth>
-void IterateDependencyList(const FDependsNode::FIterateDependenciesCallback& InCallback, const FDependsNode* SearchNode, UE::AssetRegistry::EDependencyCategory SearchCategory, const UE::AssetRegistry::FDependencyQuery& SearchFlags,
-	UE::AssetRegistry::EDependencyCategory ListCategory, UE::AssetRegistry::EDependencyProperty CategoryMask, const TArray<FDependsNode*>& Dependencies, const TBitArray<>* FlagBits,
-	UE::AssetRegistry::EDependencyProperty(*ByteToProperties)(uint8), bool IsSorted)
+void IterateDependencyList(const FDependsNode::FIterateDependenciesCallback& InCallback,
+	const FDependsNode* SearchNode,
+	UE::AssetRegistry::EDependencyCategory SearchCategory,
+	const UE::AssetRegistry::FDependencyQuery& SearchFlags,
+	UE::AssetRegistry::EDependencyCategory ListCategory,
+	UE::AssetRegistry::EDependencyProperty CategoryMask,
+	const TArray<FDependsNode*>& Dependencies,
+	const TBitArray<>* FlagBits,
+	UE::AssetRegistry::EDependencyProperty(*ByteToProperties)(uint8),
+	bool IsSorted)
 {
 	using namespace UE::AssetRegistry;
 	if (!(SearchCategory & ListCategory))
@@ -99,10 +133,30 @@ void IterateDependencyList(const FDependsNode::FIterateDependenciesCallback& InC
 			for (uint32 DependencyFlagBits : DependsNodeFlagsSet)
 			{
 				EDependencyProperty DependencyProperties = ByteToProperties(static_cast<uint8>(DependencyFlagBits));
-				if (((DependencyProperties & RequiredProperties) == RequiredProperties) && ((DependencyProperties & ExcludedProperties) == EDependencyProperty::None))
+				if (!EnumHasAllFlags(DependencyProperties, RequiredProperties))
 				{
-					InCallback(DependsNode, ListCategory, DependencyProperties, bDuplicate);
+					continue;
 				}
+				if (EnumHasAnyFlags(DependencyProperties, ExcludedProperties))
+				{
+					continue;
+				}
+				bool bPassesRequiredUnions = true;
+				for (EDependencyProperty RequiredUnion : SearchFlags.RequiredUnions)
+				{
+					EDependencyProperty RequiredUnionProperty = RequiredUnion & CategoryMask;
+					if (RequiredUnionProperty != EDependencyProperty::None &&
+						!EnumHasAnyFlags(DependencyProperties, RequiredUnionProperty))
+					{
+						bPassesRequiredUnions = false;
+						break;
+					}
+				}
+				if (!bPassesRequiredUnions)
+				{
+					continue;
+				}
+				InCallback(DependsNode, ListCategory, DependencyProperties, bDuplicate);
 				bDuplicate = true;
 			}
 		}
@@ -128,25 +182,48 @@ void IterateDependencyList(const FDependsNode::FIterateDependenciesCallback& InC
 	}
 }
 
-void FDependsNode::IterateOverDependencies(const FIterateDependenciesCallback& InCallback, UE::AssetRegistry::EDependencyCategory Category, const UE::AssetRegistry::FDependencyQuery& Flags) const
+void FDependsNode::IterateOverDependencies(const FIterateDependenciesCallback& InCallback,
+	UE::AssetRegistry::EDependencyCategory Category,
+	const UE::AssetRegistry::FDependencyQuery& Flags) const
 {
 	using namespace UE::AssetRegistry;
-	IterateDependencyList<PackageFlagWidth>(InCallback, Category, Flags, EDependencyCategory::Package, EDependencyProperty::PackageMask, PackageDependencies, &PackageFlags, ByteToPackageProperties, PackageIsSorted);
-	IterateDependencyList<SearchableNameFlagWidth>(InCallback, Category, Flags, EDependencyCategory::SearchableName, EDependencyProperty::SearchableNameMask, NameDependencies, nullptr, nullptr, SearchableNameIsSorted);
-	IterateDependencyList<ManageFlagWidth>(InCallback, Category, Flags, EDependencyCategory::Manage, EDependencyProperty::ManageMask, ManageDependencies, &ManageFlags, ByteToManageProperties, ManageIsSorted);
+	IterateDependencyList<PackageFlagWidth>(InCallback, Category, Flags, EDependencyCategory::Package,
+		EDependencyProperty::PackageMask, PackageDependencies, &PackageFlags,
+		ByteToPackageProperties, PackageIsSorted);
+	IterateDependencyList<SearchableNameFlagWidth>(InCallback, Category, Flags, EDependencyCategory::SearchableName,
+		EDependencyProperty::SearchableNameMask, NameDependencies, nullptr,
+		nullptr, SearchableNameIsSorted);
+	IterateDependencyList<ManageFlagWidth>(InCallback, Category, Flags, EDependencyCategory::Manage,
+		EDependencyProperty::ManageMask, ManageDependencies, &ManageFlags,
+		ByteToManageProperties, ManageIsSorted);
 }
 
-void FDependsNode::IterateOverDependencies(const FIterateDependenciesCallback& InCallback, const FDependsNode* DependsNode, UE::AssetRegistry::EDependencyCategory Category, const UE::AssetRegistry::FDependencyQuery& Flags) const
+void FDependsNode::IterateOverDependencies(const FIterateDependenciesCallback& InCallback,
+	const FDependsNode* DependsNode,
+	UE::AssetRegistry::EDependencyCategory Category,
+	const UE::AssetRegistry::FDependencyQuery& Flags) const
 {
 	using namespace UE::AssetRegistry;
-	IterateDependencyList<PackageFlagWidth>(InCallback, DependsNode, Category, Flags, EDependencyCategory::Package, EDependencyProperty::PackageMask, PackageDependencies, &PackageFlags, ByteToPackageProperties, PackageIsSorted);
-	IterateDependencyList<SearchableNameFlagWidth>(InCallback, DependsNode, Category, Flags, EDependencyCategory::SearchableName, EDependencyProperty::SearchableNameMask, NameDependencies, nullptr, nullptr, SearchableNameIsSorted);
-	IterateDependencyList<ManageFlagWidth>(InCallback, DependsNode, Category, Flags, EDependencyCategory::Manage, EDependencyProperty::ManageMask, ManageDependencies, &ManageFlags, ByteToManageProperties, ManageIsSorted);
+	IterateDependencyList<PackageFlagWidth>(InCallback, DependsNode, Category, Flags, EDependencyCategory::Package,
+		EDependencyProperty::PackageMask, PackageDependencies, &PackageFlags,
+		ByteToPackageProperties, PackageIsSorted);
+	IterateDependencyList<SearchableNameFlagWidth>(InCallback, DependsNode, Category, Flags,
+		EDependencyCategory::SearchableName,
+		EDependencyProperty::SearchableNameMask, NameDependencies, nullptr, 
+		nullptr, SearchableNameIsSorted);
+	IterateDependencyList<ManageFlagWidth>(InCallback, DependsNode, Category, Flags, EDependencyCategory::Manage,
+		EDependencyProperty::ManageMask, ManageDependencies, &ManageFlags,
+		ByteToManageProperties, ManageIsSorted);
 }
 
-void FDependsNode::GetDependencies(TArray<FDependsNode*>& OutDependencies, UE::AssetRegistry::EDependencyCategory Category, const UE::AssetRegistry::FDependencyQuery& Flags) const
+void FDependsNode::GetDependencies(TArray<FDependsNode*>& OutDependencies,
+	UE::AssetRegistry::EDependencyCategory Category,
+	const UE::AssetRegistry::FDependencyQuery& Flags) const
 {
-	IterateOverDependencies([&OutDependencies](FDependsNode* InDependency, UE::AssetRegistry::EDependencyCategory InCategory, UE::AssetRegistry::EDependencyProperty InProperties, bool bDuplicate)
+	IterateOverDependencies([&OutDependencies](FDependsNode* InDependency,
+		UE::AssetRegistry::EDependencyCategory InCategory,
+		UE::AssetRegistry::EDependencyProperty InProperties,
+		bool bDuplicate)
 	{
 		if (!bDuplicate)
 		{
@@ -156,9 +233,13 @@ void FDependsNode::GetDependencies(TArray<FDependsNode*>& OutDependencies, UE::A
 	Category, Flags);
 }
 
-void FDependsNode::GetDependencies(TArray<FAssetIdentifier>& OutDependencies, UE::AssetRegistry::EDependencyCategory Category, const UE::AssetRegistry::FDependencyQuery& Flags) const
+void FDependsNode::GetDependencies(TArray<FAssetIdentifier>& OutDependencies,
+	UE::AssetRegistry::EDependencyCategory Category, const UE::AssetRegistry::FDependencyQuery& Flags) const
 {
-	IterateOverDependencies([&OutDependencies](const FDependsNode* InDependency, UE::AssetRegistry::EDependencyCategory InCategory, UE::AssetRegistry::EDependencyProperty InProperties, bool bDuplicate)
+	IterateOverDependencies([&OutDependencies](const FDependsNode* InDependency,
+		UE::AssetRegistry::EDependencyCategory InCategory,
+		UE::AssetRegistry::EDependencyProperty InProperties,
+		bool bDuplicate)
 	{
 		if (!bDuplicate)
 		{
@@ -168,24 +249,35 @@ void FDependsNode::GetDependencies(TArray<FAssetIdentifier>& OutDependencies, UE
 	Category, Flags);
 }
 
-void FDependsNode::GetDependencies(TArray<FAssetDependency>& OutDependencies, UE::AssetRegistry::EDependencyCategory Category, const UE::AssetRegistry::FDependencyQuery& Flags) const
+void FDependsNode::GetDependencies(TArray<FAssetDependency>& OutDependencies,
+	UE::AssetRegistry::EDependencyCategory Category, const UE::AssetRegistry::FDependencyQuery& Flags) const
 {
-	IterateOverDependencies([&OutDependencies](const FDependsNode* InDependency, UE::AssetRegistry::EDependencyCategory InCategory, UE::AssetRegistry::EDependencyProperty InProperties, bool bDuplicate)
+	IterateOverDependencies([&OutDependencies](const FDependsNode* InDependency,
+		UE::AssetRegistry::EDependencyCategory InCategory,
+		UE::AssetRegistry::EDependencyProperty InProperties,
+		bool bDuplicate)
 	{
 		OutDependencies.Add(FAssetDependency{ InDependency->GetIdentifier(), InCategory, InProperties });
 	},
 	Category, Flags);
 }
 
-void FDependsNode::GetReferencers(TArray<FDependsNode*>& OutReferencers, UE::AssetRegistry::EDependencyCategory Category, const UE::AssetRegistry::FDependencyQuery& Flags) const
+void FDependsNode::GetReferencers(TArray<FDependsNode*>& OutReferencers,
+	UE::AssetRegistry::EDependencyCategory Category, const UE::AssetRegistry::FDependencyQuery& Flags) const
 {
 	for (FDependsNode* Referencer : Referencers)
 	{
 		bool bShouldAdd = false;
 		// If type specified, filter
-		if (Category != UE::AssetRegistry::EDependencyCategory::All || Flags.Required != UE::AssetRegistry::EDependencyProperty::None || Flags.Excluded != UE::AssetRegistry::EDependencyProperty::None)
+		if (Category != UE::AssetRegistry::EDependencyCategory::All
+			|| Flags.Required != UE::AssetRegistry::EDependencyProperty::None
+			|| Flags.Excluded != UE::AssetRegistry::EDependencyProperty::None
+			|| !Flags.RequiredUnions.IsEmpty())
 		{
-			Referencer->IterateOverDependencies([&bShouldAdd](const FDependsNode* InDependency, UE::AssetRegistry::EDependencyCategory InCategory, UE::AssetRegistry::EDependencyProperty InProperties, bool bDuplicate)
+			Referencer->IterateOverDependencies([&bShouldAdd](const FDependsNode* InDependency,
+				UE::AssetRegistry::EDependencyCategory InCategory,
+				UE::AssetRegistry::EDependencyProperty InProperties,
+				bool bDuplicate)
 				{
 					bShouldAdd = true;
 				}, this, Category, Flags);
@@ -202,11 +294,15 @@ void FDependsNode::GetReferencers(TArray<FDependsNode*>& OutReferencers, UE::Ass
 	}
 }
 
-void FDependsNode::GetReferencers(TArray<FAssetDependency>& OutReferencers, UE::AssetRegistry::EDependencyCategory Category, const UE::AssetRegistry::FDependencyQuery& Flags) const
+void FDependsNode::GetReferencers(TArray<FAssetDependency>& OutReferencers,
+	UE::AssetRegistry::EDependencyCategory Category, const UE::AssetRegistry::FDependencyQuery& Flags) const
 {
 	for (FDependsNode* Referencer : Referencers)
 	{
-		Referencer->IterateOverDependencies([&OutReferencers, Referencer](const FDependsNode* InDependency, UE::AssetRegistry::EDependencyCategory InCategory, UE::AssetRegistry::EDependencyProperty InProperties, bool bDuplicate)
+		Referencer->IterateOverDependencies([&OutReferencers, Referencer](const FDependsNode* InDependency,
+			UE::AssetRegistry::EDependencyCategory InCategory,
+			UE::AssetRegistry::EDependencyProperty InProperties,
+			bool bDuplicate)
 			{
 				OutReferencers.Add(FAssetDependency{ Referencer->GetIdentifier(), InCategory, InProperties });
 			}, this, Category, Flags);
@@ -264,27 +360,35 @@ void AddDependency(FDependsNode* InDependency, UE::AssetRegistry::EDependencyPro
 	}
 }
 
-void FDependsNode::AddDependency(FDependsNode* InDependency, UE::AssetRegistry::EDependencyCategory Category, UE::AssetRegistry::EDependencyProperty Properties)
+void FDependsNode::AddDependency(FDependsNode* InDependency,
+	UE::AssetRegistry::EDependencyCategory Category, UE::AssetRegistry::EDependencyProperty Properties)
 {
 	using namespace UE::AssetRegistry;
-	if (!!(Category & UE::AssetRegistry::EDependencyCategory::Package))
+	if (EnumHasAnyFlags(Category, UE::AssetRegistry::EDependencyCategory::Package))
 	{
-		::AddDependency<PackageFlagWidth>(InDependency, Properties, EDependencyProperty::PackageMask, PackageDependencies, &PackageFlags, PackagePropertiesToByte, PackageIsSorted);
-		check((Category & ~EDependencyCategory::Package) == EDependencyCategory::None); // It is illegal to try to add a dependency as more than one category at a time
+		::AddDependency<PackageFlagWidth>(InDependency, Properties, EDependencyProperty::PackageMask,
+			PackageDependencies, &PackageFlags, PackagePropertiesToByte, PackageIsSorted);
+		// It is illegal to try to add a dependency as more than one category at a time
+		check((Category & ~EDependencyCategory::Package) == EDependencyCategory::None);
 	}
-	else if (!!(Category & EDependencyCategory::SearchableName))
+	else if (EnumHasAnyFlags(Category, EDependencyCategory::SearchableName))
 	{
-		::AddDependency<SearchableNameFlagWidth>(InDependency, Properties, EDependencyProperty::SearchableNameMask, NameDependencies, nullptr, nullptr, SearchableNameIsSorted);
-		check((Category & ~EDependencyCategory::SearchableName) == EDependencyCategory::None); // It is illegal to try to add a dependency as more than one category at a time
+		::AddDependency<SearchableNameFlagWidth>(InDependency, Properties, EDependencyProperty::SearchableNameMask,
+			NameDependencies, nullptr, nullptr, SearchableNameIsSorted);
+		// It is illegal to try to add a dependency as more than one category at a time
+		check((Category & ~EDependencyCategory::SearchableName) == EDependencyCategory::None);
 	}
-	else if (!!(Category & UE::AssetRegistry::EDependencyCategory::Manage))
+	else if (EnumHasAnyFlags(Category, UE::AssetRegistry::EDependencyCategory::Manage))
 	{
-		::AddDependency<ManageFlagWidth>(InDependency, Properties, EDependencyProperty::ManageMask, ManageDependencies, &ManageFlags, ManagePropertiesToByte, ManageIsSorted);
-		check((Category & ~EDependencyCategory::Manage) == EDependencyCategory::None); // It is illegal to try to add a dependency as more than one category at a time
+		::AddDependency<ManageFlagWidth>(InDependency, Properties, EDependencyProperty::ManageMask,
+			ManageDependencies, &ManageFlags, ManagePropertiesToByte, ManageIsSorted);
+		// It is illegal to try to add a dependency as more than one category at a time
+		check((Category & ~EDependencyCategory::Manage) == EDependencyCategory::None);
 	}
 	else
 	{
-		check(false); // It is illegal to try to add a dependency without a category
+		// It is illegal to try to add a dependency without a category
+		check(false);
 	}
 }
 
@@ -302,11 +406,15 @@ void FDependsNode::AddPackageDependencySet(FDependsNode* InDependency, const FPa
 void FDependsNode::AddReferencer(FDependsNode* InReferencer)
 {
 	using namespace UE::AssetRegistry;
-	::AddDependency<0>(InReferencer, EDependencyProperty::None, EDependencyProperty::None, Referencers, nullptr, nullptr, ReferencersIsSorted);
+	::AddDependency<0>(InReferencer, EDependencyProperty::None, EDependencyProperty::None,
+		Referencers, nullptr, nullptr, ReferencersIsSorted);
 }
 
 template <uint32 FlagWidth>
-void RemoveDependency(FDependsNode* InDependency, TArray<FDependsNode*>& Dependencies, TBitArray<>* FlagBits, bool IsSorted)
+void RemoveDependency(FDependsNode* InDependency,
+	TArray<FDependsNode*>& Dependencies,
+	TBitArray<>* FlagBits,
+	bool IsSorted)
 {
 	check(FlagWidth == 0 || FlagBits != nullptr);
 	if (IsSorted)
@@ -373,11 +481,17 @@ void FDependsNode::RefreshReferencers()
 {
 	if (IsReferencersSorted())
 	{
-		Referencers.RemoveAll([this](FDependsNode* Referencer) { return !Referencer->ContainsDependency(this); });
+		Referencers.RemoveAll([this](FDependsNode* Referencer)
+			{
+				return !Referencer->ContainsDependency(this);
+			});
 	}
 	else
 	{
-		Referencers.RemoveAllSwap([this](FDependsNode* Referencer) { return !Referencer->ContainsDependency(this); });
+		Referencers.RemoveAllSwap([this](FDependsNode* Referencer)
+			{
+				return !Referencer->ContainsDependency(this);
+			});
 	}
 }
 
@@ -428,7 +542,10 @@ void FDependsNode::RemoveManageReferencesToNode()
 }
 
 template <uint32 FlagWidth>
-void RemoveAll(const TUniqueFunction<bool(const FDependsNode*)>& ShouldRemove, TArray<FDependsNode*>& Dependencies, TBitArray<>* FlagBits, bool IsSorted)
+void RemoveAll(const TUniqueFunction<bool(const FDependsNode*)>& ShouldRemove,
+	TArray<FDependsNode*>& Dependencies,
+	TBitArray<>* FlagBits,
+	bool IsSorted)
 {
 	check(FlagWidth == 0 || FlagBits != nullptr);
 	if (IsSorted)
@@ -439,7 +556,8 @@ void RemoveAll(const TUniqueFunction<bool(const FDependsNode*)>& ShouldRemove, T
 		}
 		else
 		{
-			// This block is the same functionality as TArray::RemoveAll, but it needs to handle removing the corresponding FlagBits
+			// This block is the same functionality as TArray::RemoveAll,
+			// but it needs to handle removing the corresponding FlagBits
 			const int32 OriginalNum = Dependencies.Num();
 			if (!OriginalNum)
 			{
@@ -450,27 +568,30 @@ void RemoveAll(const TUniqueFunction<bool(const FDependsNode*)>& ShouldRemove, T
 			int32 WriteIndex = 0;
 			int32 ReadIndex = 0;
 			FDependsNode** DependencyData = Dependencies.GetData();
-			bool Keep = !ShouldRemove(DependencyData[ReadIndex]); // use a ! to guarantee it can't be anything other than zero or one
+			// When calling ShouldRemove, use a ! to guarantee it can't be anything other than zero or one
+			bool bKeep = !ShouldRemove(DependencyData[ReadIndex]);
 			do
 			{
 				int32 RunStartIndex = ReadIndex++;
-				while (ReadIndex < OriginalNum && Keep == !ShouldRemove(DependencyData[ReadIndex]))
+				while (ReadIndex < OriginalNum && bKeep == !ShouldRemove(DependencyData[ReadIndex]))
 				{
 					ReadIndex++;
 				}
 				int32 RunLength = ReadIndex - RunStartIndex;
 				checkSlow(RunLength > 0);
-				if (Keep)
+				if (bKeep)
 				{
 					// this was a keep run, we need to move it
 					if (WriteIndex != RunStartIndex)
 					{
-						FMemory::Memmove(&DependencyData[WriteIndex], &DependencyData[RunStartIndex], sizeof(DependencyData[0]) * RunLength);
-						FlagBits->SetRangeFromRange(WriteIndex * FlagSetWidth, FlagSetWidth * RunLength, FlagBits->GetData(), RunStartIndex * FlagSetWidth);
+						FMemory::Memmove(&DependencyData[WriteIndex], &DependencyData[RunStartIndex],
+							sizeof(DependencyData[0]) * RunLength);
+						FlagBits->SetRangeFromRange(WriteIndex * FlagSetWidth,
+							FlagSetWidth * RunLength, FlagBits->GetData(), RunStartIndex * FlagSetWidth);
 					}
 					WriteIndex += RunLength;
 				}
-				Keep = !Keep;
+				bKeep = !bKeep;
 			} while (ReadIndex < OriginalNum);
 
 			Dependencies.SetNum(WriteIndex);
@@ -511,7 +632,8 @@ void FDependsNode::RemoveLinks(const TUniqueFunction<bool(const FDependsNode*)>&
 }
 
 
-bool FDependsNode::ContainsDependency(FDependsNode* InDependency, UE::AssetRegistry::EDependencyCategory Category) const
+bool FDependsNode::ContainsDependency(FDependsNode* InDependency,
+	UE::AssetRegistry::EDependencyCategory Category) const
 {
 	using namespace UE::AssetRegistry;
 	auto ListContains = [InDependency](const TArray<FDependsNode*>& List, bool IsSorted)
@@ -557,7 +679,10 @@ void FDependsNode::PrintDependenciesRecursive(const FString& Indent, TSet<const 
 		UE_LOG(LogAssetRegistry, Log, TEXT("%s%s"), *Indent, *Identifier.ToString());
 		VisitedNodes.Add(this);
 
-		IterateOverDependencies([&Indent, &VisitedNodes](FDependsNode* InDependency, UE::AssetRegistry::EDependencyCategory InCategory, UE::AssetRegistry::EDependencyProperty InProperties, bool bDuplicate)
+		IterateOverDependencies([&Indent, &VisitedNodes](FDependsNode* InDependency,
+			UE::AssetRegistry::EDependencyCategory InCategory,
+			UE::AssetRegistry::EDependencyProperty InProperties,
+			bool bDuplicate)
 		{
 			if (!bDuplicate)
 			{
@@ -594,11 +719,17 @@ int32 FDependsNode::GetConnectionCount() const
 	return PackageDependencies.Num() + NameDependencies.Num() + ManageDependencies.Num() + Referencers.Num();
 }
 
-void FDependsNode::SerializeSave(FArchive& Ar, const TUniqueFunction<int32(FDependsNode*, bool)>& GetSerializeIndexFromNode, FSaveScratch& Scratch, const FAssetRegistrySerializationOptions& Options) const
+void FDependsNode::SerializeSave(FArchive& Ar,
+	const TUniqueFunction<int32(FDependsNode*, bool)>& GetSerializeIndexFromNode,
+	FSaveScratch& Scratch,
+	const FAssetRegistrySerializationOptions& Options) const
 {
 	Ar << const_cast<FAssetIdentifier&>(Identifier);
 
-	auto WriteDependencies = [&Ar, &GetSerializeIndexFromNode, &Scratch](const TArray<FDependsNode*>& InDependencies, const TBitArray<>* InFlagBits, int FlagSetWidth, bool bAsReferencer)
+	auto WriteDependencies = [&Ar, &GetSerializeIndexFromNode, &Scratch](const TArray<FDependsNode*>& InDependencies,
+		const TBitArray<>* InFlagBits,
+		int FlagSetWidth,
+		bool bAsReferencer)
 	{
 		TArray<FSaveScratch::FSortInfo>& SortInfos = Scratch.SortInfos;
 		TArray<int32>& OutDependencies = Scratch.OutDependencies;
@@ -616,7 +747,10 @@ void FDependsNode::SerializeSave(FArchive& Ar, const TUniqueFunction<int32(FDepe
 		}
 		// Sort the serialized dependencies to make the output deterministic.
 		// OutDependencies and OutFlagBits (if present) are associated arrays and have to be sorted together
-		Algo::Sort(SortInfos, [](const FSaveScratch::FSortInfo& A, const FSaveScratch::FSortInfo& B) { return A.SerializeIndex < B.SerializeIndex; });
+		Algo::Sort(SortInfos, [](const FSaveScratch::FSortInfo& A, const FSaveScratch::FSortInfo& B)
+			{
+				return A.SerializeIndex < B.SerializeIndex;
+			});
 
 		int32 NumOutDependencies = SortInfos.Num();
 		OutDependencies.Reset(NumOutDependencies);
@@ -633,7 +767,8 @@ void FDependsNode::SerializeSave(FArchive& Ar, const TUniqueFunction<int32(FDepe
 				OutFlagBits.AddRange(*InFlagBits, FlagSetWidth, SortInfo.ListIndex * FlagSetWidth);
 			}
 
-			// We don't use BitArray::operator<< because we want to avoid the reallocation that operator<< does on load and we want to avoid saving BitArray.Num when it can be derived from NumDependencies
+			// We don't use BitArray::operator<< because we want to avoid the reallocation that operator<< does on load
+			// and we want to avoid saving BitArray.Num when it can be derived from NumDependencies.
 			int32 NumFlagBits = FlagSetWidth * NumOutDependencies;
 			check(OutFlagBits.Num() == NumFlagBits);
 			int32 NumFlagWords = FBitSet::CalculateNumWords(NumFlagBits);
@@ -642,16 +777,22 @@ void FDependsNode::SerializeSave(FArchive& Ar, const TUniqueFunction<int32(FDepe
 	};
 
 	WriteDependencies(PackageDependencies, &PackageFlags, PackageFlagSetWidth, false);
-	WriteDependencies(Options.bSerializeSearchableNameDependencies ? NameDependencies : FDependsNodeList(), nullptr, 0, false);
-	WriteDependencies(Options.bSerializeManageDependencies ? ManageDependencies : FDependsNodeList(), Options.bSerializeManageDependencies ? &ManageFlags : nullptr, ManageFlagSetWidth, false);
+	WriteDependencies(Options.bSerializeSearchableNameDependencies ? NameDependencies : FDependsNodeList(),
+		nullptr, 0, false);
+	WriteDependencies(Options.bSerializeManageDependencies ? ManageDependencies : FDependsNodeList(),
+		Options.bSerializeManageDependencies ? &ManageFlags : nullptr, ManageFlagSetWidth, false);
 	WriteDependencies(Referencers, nullptr, 0, true);
 }
 
-void FDependsNode::SerializeLoad(FArchive& Ar, const TUniqueFunction<FDependsNode* (int32)>& GetNodeFromSerializeIndex, FLoadScratch& Scratch)
+void FDependsNode::SerializeLoad(FArchive& Ar,
+	const TUniqueFunction<FDependsNode* (int32)>& GetNodeFromSerializeIndex,
+	FLoadScratch& Scratch)
 {
 	Ar << Identifier;
 
-	auto ReadDependencies = [&Ar, &GetNodeFromSerializeIndex, &Scratch](TArray<FDependsNode*>& OutDependencies, TBitArray<>* OutFlagBits, int FlagSetWidth)
+	auto ReadDependencies = [&Ar, &GetNodeFromSerializeIndex, &Scratch](TArray<FDependsNode*>& OutDependencies,
+		TBitArray<>* OutFlagBits,
+		int FlagSetWidth)
 	{
 		TArray<int32>& InDependencies = Scratch.InDependencies;
 		TArray<uint32>& InFlagBits = Scratch.InFlagBits;
@@ -664,7 +805,8 @@ void FDependsNode::SerializeLoad(FArchive& Ar, const TUniqueFunction<FDependsNod
 		int32 NumDependencies = InDependencies.Num();
 		if (OutFlagBits)
 		{
-			// We don't use BitArray::operator<< because we want to avoid the reallocation that operator<< does on load and we want to avoid saving BitArray.Num when it can be derived from NumDependencies
+			// We don't use BitArray::operator<< because we want to avoid the reallocation that operator<< does on load
+			// and we want to avoid saving BitArray.Num when it can be derived from NumDependencies.
 			NumFlagBits = FlagSetWidth * NumDependencies;
 			const int32 NumFlagWords = FBitSet::CalculateNumWords(NumFlagBits);
 			InFlagBits.SetNumUninitialized(NumFlagWords);
@@ -689,7 +831,10 @@ void FDependsNode::SerializeLoad(FArchive& Ar, const TUniqueFunction<FDependsNod
 			SortIndexes.Add(Index);
 		}
 
-		Algo::Sort(SortIndexes, [&PointerDependencies](int32 A, int32 B) { return PointerDependencies[A] < PointerDependencies[B]; });
+		Algo::Sort(SortIndexes, [&PointerDependencies](int32 A, int32 B)
+			{
+				return PointerDependencies[A] < PointerDependencies[B];
+			});
 
 		OutDependencies.Empty(NumDependencies);
 		for (int32 SortIndex : SortIndexes)
@@ -703,7 +848,8 @@ void FDependsNode::SerializeLoad(FArchive& Ar, const TUniqueFunction<FDependsNod
 			for (int32 WriteIndex = 0; WriteIndex < NumDependencies; ++WriteIndex)
 			{
 				int32 ReadIndex = SortIndexes[WriteIndex];
-				OutFlagBits->SetRangeFromRange(WriteIndex * FlagSetWidth, FlagSetWidth, InFlagBitsData, ReadIndex * FlagSetWidth);
+				OutFlagBits->SetRangeFromRange(WriteIndex * FlagSetWidth, FlagSetWidth,
+					InFlagBitsData, ReadIndex * FlagSetWidth);
 			}
 		}
 	};
@@ -716,8 +862,15 @@ void FDependsNode::SerializeLoad(FArchive& Ar, const TUniqueFunction<FDependsNod
 	SetIsDependenciesInitialized(true);
 }
 
-void FDependsNode::SerializeLoad_BeforeFlags(FArchive& Ar, FAssetRegistryVersion::Type Version, FDependsNode* PreallocatedDependsNodeDataBuffer, int32 NumDependsNodes, bool bSerializeDependencies,
-	uint32 HardBits, uint32 SoftBits, uint32 HardManageBits, uint32 SoftManageBits)
+void FDependsNode::SerializeLoad_BeforeFlags(FArchive& Ar,
+	FAssetRegistryVersion::Type Version,
+	FDependsNode* PreallocatedDependsNodeDataBuffer,
+	int32 NumDependsNodes,
+	bool bSerializeDependencies,
+	uint32 HardBits,
+	uint32 SoftBits,
+	uint32 HardManageBits,
+	uint32 SoftManageBits)
 {
 	Ar << Identifier;
 
@@ -742,7 +895,13 @@ void FDependsNode::SerializeLoad_BeforeFlags(FArchive& Ar, FAssetRegistryVersion
 	ManageDependencies.Empty(bSerializeDependencies ? NumSoftManage + NumHardManage : 0);
 	Referencers.Empty(NumReferencers);
 
-	auto SerializeNodeArray = [&Ar, PreallocatedDependsNodeDataBuffer, NumDependsNodes](int32 Num, TArray<FDependsNode*>& OutNodes, TBitArray<>* OutFlagBits, uint32 FlagSetWidth, uint32 FlagSetBits, bool bShouldOverwriteFlag, bool bAllowWrite)
+	auto SerializeNodeArray = [&Ar, PreallocatedDependsNodeDataBuffer, NumDependsNodes](int32 Num,
+		TArray<FDependsNode*>& OutNodes,
+		TBitArray<>* OutFlagBits,
+		uint32 FlagSetWidth,
+		uint32 FlagSetBits,
+		bool bShouldOverwriteFlag,
+		bool bAllowWrite)
 	{
 		for (int32 DependencyIndex = 0; DependencyIndex < Num; ++DependencyIndex)
 		{
@@ -780,23 +939,31 @@ void FDependsNode::SerializeLoad_BeforeFlags(FArchive& Ar, FAssetRegistryVersion
 	SerializeNodeArray(NumHard, PackageDependencies, &PackageFlags, PackageFlagSetWidth, HardBits, true, true);
 	SerializeNodeArray(NumSoft, PackageDependencies, &PackageFlags, PackageFlagSetWidth, SoftBits, false, true);
 	SerializeNodeArray(NumName, NameDependencies, nullptr, 0, 0, true, bSerializeDependencies);
-	SerializeNodeArray(NumSoftManage, ManageDependencies, &ManageFlags, ManageFlagSetWidth, SoftManageBits, true, bSerializeDependencies);
-	SerializeNodeArray(NumHardManage, ManageDependencies, &ManageFlags, ManageFlagSetWidth, HardManageBits, true, bSerializeDependencies);
+	SerializeNodeArray(NumSoftManage, ManageDependencies, &ManageFlags, ManageFlagSetWidth, SoftManageBits,
+		true, bSerializeDependencies);
+	SerializeNodeArray(NumHardManage, ManageDependencies, &ManageFlags, ManageFlagSetWidth, HardManageBits,
+		true, bSerializeDependencies);
 	SerializeNodeArray(NumReferencers, Referencers, nullptr, 0, 0, true, true);
 
 	SetIsDependenciesInitialized(true);
 }
 
-void FDependsNode::GetPropertySetBits_BeforeFlags(uint32& HardBits, uint32& SoftBits, uint32& HardManageBits, uint32& SoftManageBits)
+void FDependsNode::GetPropertySetBits_BeforeFlags(uint32& HardBits,
+	uint32& SoftBits,
+	uint32& HardManageBits,
+	uint32& SoftManageBits)
 {
 	{
 		FDependsNode::FPackageFlagSet FlagSet;
-		FlagSet.Add(PackagePropertiesToByte(UE::AssetRegistry::EDependencyProperty::Hard | UE::AssetRegistry::EDependencyProperty::Game | UE::AssetRegistry::EDependencyProperty::Build));
+		FlagSet.Add(PackagePropertiesToByte(
+			UE::AssetRegistry::EDependencyProperty::Hard
+			| UE::AssetRegistry::EDependencyProperty::Game | UE::AssetRegistry::EDependencyProperty::Build));
 		FlagSet.Save(&HardBits);
 	}
 	{
 		FDependsNode::FPackageFlagSet FlagSet;
-		FlagSet.Add(PackagePropertiesToByte(UE::AssetRegistry::EDependencyProperty::Game | UE::AssetRegistry::EDependencyProperty::Build));
+		FlagSet.Add(PackagePropertiesToByte(
+			UE::AssetRegistry::EDependencyProperty::Game | UE::AssetRegistry::EDependencyProperty::Build));
 		FlagSet.Save(&SoftBits);
 	}
 	HardManageBits = 0x1;
@@ -852,7 +1019,10 @@ void SortDependencyList(TArray<FDependsNode*>& Dependencies, TBitArray<>* Flags)
 		}
 
 		// Sort the index array
-		Algo::Sort(Order, [&DependencyData](int32 A, int32 B) { return DependencyData[A] < DependencyData[B]; });
+		Algo::Sort(Order, [&DependencyData](int32 A, int32 B)
+			{
+				return DependencyData[A] < DependencyData[B];
+			});
 
 		// Remove duplicate in the dependency array, which are now adjacent, and merge their corresponding flags
 		typedef TPropertyCombinationSet<FlagWidth> FCombinationSet;

@@ -304,7 +304,6 @@ void SRigHierarchyTreeView::Construct(const FArguments& InArgs)
 	SuperArgs.OnMouseButtonDoubleClick(Delegates.OnMouseButtonDoubleClick);
 	SuperArgs.OnSetExpansionRecursive(Delegates.OnSetExpansionRecursive);
 	SuperArgs.HighlightParentNodesForSelection(true);
-	SuperArgs.ItemHeight(24);
 	SuperArgs.AllowInvisibleItemSelection(true);  //without this we deselect everything when we filter or we collapse
 	
 	SuperArgs.ShouldStackHierarchyHeaders_Lambda([]() -> bool {
@@ -320,6 +319,11 @@ void SRigHierarchyTreeView::Construct(const FArguments& InArgs)
 
 	LastMousePosition = FVector2D::ZeroVector;
 	TimeAtMousePosition = 0.0;
+
+	if(InArgs._PopulateOnConstruct)
+	{
+		RefreshTreeView(true);
+	}
 }
 
 void SRigHierarchyTreeView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
@@ -374,6 +378,19 @@ void SRigHierarchyTreeView::Tick(const FGeometry& AllottedGeometry, const double
 			}
 		}
 	}
+}
+
+TSharedPtr<FRigTreeElement> SRigHierarchyTreeView::FindElement(const FRigElementKey& InElementKey) const
+{
+	for (int32 RootIndex = 0; RootIndex < RootElements.Num(); ++RootIndex)
+	{
+		TSharedPtr<FRigTreeElement> Found = FindElement(InElementKey, RootElements[RootIndex]);
+		if (Found.IsValid())
+		{
+			return Found;
+		}
+	}
+	return TSharedPtr<FRigTreeElement>();
 }
 
 TSharedPtr<FRigTreeElement> SRigHierarchyTreeView::FindElement(const FRigElementKey& InElementKey, TSharedPtr<FRigTreeElement> CurrentItem)
@@ -544,9 +561,13 @@ bool SRigHierarchyTreeView::AddElement(const FRigBaseElement* InElement)
 			}
 			break;
 		}
-		case ERigElementType::RigidBody:
+		case ERigElementType::Physics:
 		{
-			if(!Settings.bShowRigidBodies)
+			if(!Settings.bShowPhysics)
+			{
+				return false;
+			}
+			if(CVarControlRigHierarchyEnablePhysics.GetValueOnAnyThread() == false)
 			{
 				return false;
 			}
@@ -1115,7 +1136,7 @@ TPair<const FSlateBrush*, FSlateColor> SRigHierarchyItem::GetBrushForElementType
 	static const FSlateBrush* NullBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Null");
 	static const FSlateBrush* BoneImportedBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.BoneImported");
 	static const FSlateBrush* BoneUserBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.BoneUser");
-	static const FSlateBrush* RigidBodyBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.RigidBody");
+	static const FSlateBrush* PhysicsBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.RigidBody");
 	static const FSlateBrush* SocketOpenBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Socket_Open");
 	static const FSlateBrush* SocketClosedBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Socket_Closed");
 	static const FSlateBrush* PrimaryConnectorBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.ConnectorPrimary");
@@ -1146,7 +1167,7 @@ TPair<const FSlateBrush*, FSlateColor> SRigHierarchyItem::GetBrushForElementType
 				}
 				else
 				{
-					static FName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
+					static const FLazyName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
 					Brush = FAppStyle::GetBrush(TypeIcon);
 					ShapeColor = GetColorForControlType(Control->Settings.ControlType, Control->Settings.ControlEnum);
 				}
@@ -1196,9 +1217,9 @@ TPair<const FSlateBrush*, FSlateColor> SRigHierarchyItem::GetBrushForElementType
 
 			break;
 		}
-		case ERigElementType::RigidBody:
+		case ERigElementType::Physics:
 		{
-			Brush = RigidBodyBrush;
+			Brush = PhysicsBrush;
 			break;
 		}
 		case ERigElementType::Reference:
@@ -1375,7 +1396,7 @@ void SSearchableRigHierarchyTreeView::Construct(const FArguments& InArgs)
 		]
 	];
 
-	if (MaxHeight > 0)
+	if (MaxHeight > SMALL_NUMBER)
 	{
 		VerticalBox->GetSlot(1).SetMaxHeight(MaxHeight);
 	}

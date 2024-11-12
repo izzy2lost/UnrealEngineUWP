@@ -24,6 +24,37 @@ namespace PCGFeatureSwitches
 			}
 		})
 	};
+
+	namespace Helpers
+	{
+		uint64 GetAvailableMemoryForSamplers()
+		{
+			const FPlatformMemoryStats MemoryStats = FPlatformMemory::GetStats();
+			// Also uses AvailableVirtual because the system might have plenty of physical memory but still be limited by virtual memory available in some cases.
+			// (i.e. per-process quota, paging file size lower than actual memory available, etc.).
+			return CVarSamplerMemoryThreshold.GetValueOnAnyThread() * FMath::Min(MemoryStats.AvailablePhysical, MemoryStats.AvailableVirtual);
+		}
+	}
+}
+
+namespace PCGSystemSwitches
+{
+#if WITH_EDITOR
+	TAutoConsoleVariable<bool> CVarPausePCGExecution(
+		TEXT("pcg.PauseExecution"),
+		false,
+		TEXT("Pauses all execution of PCG but does not cancel tasks."));
+
+	TAutoConsoleVariable<bool> CVarGlobalDisableRefresh(
+		TEXT("pcg.GlobalDisableRefresh"),
+		false,
+		TEXT("Disable refresh for all PCG Components."));
+
+	TAutoConsoleVariable<bool> CVarDirtyLoadAsPreviewOnLoad(
+		TEXT("pcg.DirtyLoadAsPreviewOnLoad"),
+		false,
+		TEXT("Enables dirtying on load for load as preview components.\nTurning off this option will require to force generate or apply a change before this component is regenerated."));
+#endif
 }
 
 namespace PCGHiGenGrid
@@ -99,6 +130,17 @@ double FPCGRuntimeGenerationRadii::GetGenerationRadiusFromGrid(EPCGHiGenGrid Gri
 		case EPCGHiGenGrid::Grid512: return GenerationRadius51200;
 		case EPCGHiGenGrid::Grid1024: return GenerationRadius102400;
 		case EPCGHiGenGrid::Grid2048: return GenerationRadius204800;
+		case EPCGHiGenGrid::Grid4096: return GenerationRadius204800 * (1 << 1);
+		case EPCGHiGenGrid::Grid8192: return GenerationRadius204800 * (1 << 2);
+		case EPCGHiGenGrid::Grid16384: return GenerationRadius204800 * (1 << 3);
+		case EPCGHiGenGrid::Grid32768: return GenerationRadius204800 * (1 << 4);
+		case EPCGHiGenGrid::Grid65536: return GenerationRadius204800 * (1 << 5);
+		case EPCGHiGenGrid::Grid131072: return GenerationRadius204800 * (1 << 6);
+		case EPCGHiGenGrid::Grid262144: return GenerationRadius204800 * (1 << 7);
+		case EPCGHiGenGrid::Grid524288: return GenerationRadius204800 * (1 << 8);
+		case EPCGHiGenGrid::Grid1048576: return GenerationRadius204800 * (1 << 9);
+		case EPCGHiGenGrid::Grid2097152: return GenerationRadius204800 * (1 << 10);
+		case EPCGHiGenGrid::Grid4194304: return GenerationRadius204800 * (1 << 11);
 		case EPCGHiGenGrid::Unbounded: return GenerationRadius;
 	}
 

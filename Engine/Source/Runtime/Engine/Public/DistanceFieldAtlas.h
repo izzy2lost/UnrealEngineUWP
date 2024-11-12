@@ -430,7 +430,7 @@ private:
 
 	FDelegateHandle PostReachabilityAnalysisHandle;
 
-	class IMeshUtilities* MeshUtilities;
+	std::atomic<class IMeshUtilities*> MeshUtilities;
 
 	mutable FCriticalSection CriticalSection;
 
@@ -441,10 +441,6 @@ private:
 extern ENGINE_API FDistanceFieldAsyncQueue* GDistanceFieldAsyncQueue;
 
 extern ENGINE_API FString BuildDistanceFieldDerivedDataKey(const FString& InMeshKey);
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RenderingThread.h"
-#endif
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
 #include "CoreMinimal.h"

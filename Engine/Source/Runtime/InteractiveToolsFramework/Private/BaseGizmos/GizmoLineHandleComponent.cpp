@@ -3,6 +3,7 @@
 #include "BaseGizmos/GizmoLineHandleComponent.h"
 #include "BaseGizmos/GizmoRenderingUtil.h"
 #include "BaseGizmos/GizmoMath.h"
+#include "BaseGizmos/GizmoViewContext.h"
 #include "PrimitiveSceneProxy.h"
 #include "SceneManagement.h" // FMeshElementCollector, FPrimitiveDrawInterface
 
@@ -62,7 +63,7 @@ public:
 				bool bIsViewDependent = (bExternalIsViewDependent) ? (*bExternalIsViewDependent) : false;
 				if (bIsViewDependent)
 				{
-					LengthScale = GizmoRenderingUtil::CalculateLocalPixelToWorldScale(View, WorldDiskOrigin);
+					LengthScale = UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(View, WorldDiskOrigin);
 				}
 
 				FVector ScaledIntevalStart = -LengthScale * (WorldIntervalEnd - WorldDiskOrigin) + WorldDiskOrigin;
@@ -169,7 +170,7 @@ bool UGizmoLineHandleComponent::LineTraceComponent(FHitResult& OutHit, const FVe
 	float PixelToWorldScale = 1;
 	if (bIsViewDependent)
 	{
-		PixelToWorldScale = GizmoRenderingUtil::CalculateLocalPixelToWorldScale(GizmoViewContext, WorldBaseOrigin);
+		PixelToWorldScale = UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(GizmoViewContext, WorldBaseOrigin);
 	}
 
 	float LengthScale = (bImageScale) ? PixelToWorldScale : 1.f;

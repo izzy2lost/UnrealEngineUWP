@@ -3,6 +3,98 @@
 #include "Tables/BaseLensTable.h"
 #include "LensFile.h"
 
+FKeyHandle FBaseFocusCurve::AddPointToCurve(FRichCurve& InCurve, float InFocus, float InValue, float InputTolerance, FKeyHandle InOptionalKeyHandle)
+{
+	const FKeyHandle ExistingKeyHandle = SetPointInCurve(InCurve, InFocus, InValue, InputTolerance);
+	if (ExistingKeyHandle != FKeyHandle::Invalid())
+	{
+		return ExistingKeyHandle;
+	}
+	
+	const FKeyHandle NewKeyHandle = InCurve.AddKey(InFocus, InValue, false, InOptionalKeyHandle);
+	InCurve.SetKeyTangentMode(NewKeyHandle, ERichCurveTangentMode::RCTM_None);
+	InCurve.SetKeyInterpMode(NewKeyHandle, RCIM_Linear);
+
+	return NewKeyHandle;
+}
+
+FKeyHandle FBaseFocusCurve::SetPointInCurve(FRichCurve& InCurve, float InFocus, float InValue, float InputTolerance)
+{
+	const FKeyHandle KeyHandle = InCurve.FindKey(InFocus, InputTolerance);
+	if (KeyHandle != FKeyHandle::Invalid())
+	{
+		InCurve.SetKeyValue(KeyHandle, InValue);
+	}
+
+	return KeyHandle;
+}
+
+void FBaseFocusCurve::DeletePointFromCurve(FRichCurve& InCurve, float InFocus, float InputTolerance)
+{
+	const FKeyHandle KeyHandle = InCurve.FindKey(InFocus, InputTolerance);
+	if (KeyHandle != FKeyHandle::Invalid())
+	{
+		InCurve.DeleteKey(KeyHandle);
+	}
+}
+
+void FBaseFocusCurve::ChangeFocusInCurve(FRichCurve& InCurve, float InExistingFocus, float InNewFocus, float InputTolerance)
+{
+	const FKeyHandle KeyHandle = InCurve.FindKey(InExistingFocus, InputTolerance);
+	if (KeyHandle != FKeyHandle::Invalid())
+	{
+		InCurve.SetKeyTime(KeyHandle, InNewFocus);
+	}
+}
+
+void FBaseFocusCurve::MergeFocusInCurve(FRichCurve& InCurve, float InExistingFocus, float InNewFocus, bool bReplaceExisting, float InputTolerance)
+{
+	const FKeyHandle KeyHandle = InCurve.FindKey(InExistingFocus, InputTolerance);
+	if (KeyHandle != FKeyHandle::Invalid())
+	{
+		const FKeyHandle CxNewHandle = InCurve.FindKey(InNewFocus, InputTolerance);
+		if (CxNewHandle != FKeyHandle::Invalid() && bReplaceExisting)
+		{
+			InCurve.Keys[InCurve.GetIndexSafe(CxNewHandle)] = InCurve.GetKey(KeyHandle);
+			InCurve.DeleteKey(KeyHandle);
+		}
+		else if (CxNewHandle == FKeyHandle::Invalid())
+		{
+			InCurve.SetKeyTime(KeyHandle, InNewFocus);	
+		}
+	}
+}
+
+void FBaseLensTable::CopyCurveKeys(const FRichCurve& InSourceCurve, FRichCurve& InDestCurve, TArrayView<const FKeyHandle> InKeys)
+{
+	for (int32 Index = 0; Index < InKeys.Num(); ++Index)
+	{
+		const FKeyHandle Handle = InKeys[Index];
+		const int32 KeyIndex = InSourceCurve.GetIndexSafe(Handle);
+		if (KeyIndex != INDEX_NONE)
+		{
+			InDestCurve.Keys[KeyIndex] = InSourceCurve.GetKey(Handle);
+		}
+	}
+
+	InDestCurve.AutoSetTangents();
+}
+
+void FBaseLensTable::PropagateCurveValuesToCrossCurves(const FRichCurve& InCurve, float InCrossCurveTime, TFunctionRef<FRichCurve*(float)> GetCurveFn)
+{
+	for (auto Iter(InCurve.GetKeyIterator()); Iter; ++Iter)
+	{
+		if (FRichCurve* CrossCurve = GetCurveFn(Iter->Time))
+		{
+			const FKeyHandle KeyHandle = CrossCurve->FindKey(InCrossCurveTime);
+			if (KeyHandle != FKeyHandle::Invalid())
+			{
+				CrossCurve->SetKeyValue(KeyHandle, Iter->Value);
+			}
+		}
+	}
+}
+
 FName FBaseLensTable::GetFriendlyPointName(ELensDataCategory InCategory)
 {
 	switch (InCategory)

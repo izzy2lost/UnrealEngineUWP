@@ -16,6 +16,7 @@
 #include "MaterialEditorSettings.h"
 #include "Animation/CurveSequence.h"
 
+class FPreviewProfileController;
 class FMaterialEditorViewportClient;
 class IMaterialEditor;
 class SMaterialEditorUIPreviewZoomer;
@@ -81,8 +82,6 @@ public:
 	bool IsPreviewPrimitiveChecked(EThumbnailPrimType PrimType) const;
 	void OnSetPreviewMeshFromSelection();
 	bool IsPreviewMeshFromSelectionChecked() const;
-	void TogglePreviewGrid();
-	bool IsTogglePreviewGridChecked() const;
 	void TogglePreviewBackground();
 	bool IsTogglePreviewBackgroundChecked() const;
 	/** Call back for when the user changes preview scene settings in the UI */
@@ -97,6 +96,7 @@ public:
 protected:
 	/** SEditorViewport interface */
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;
+	virtual TSharedPtr<SWidget> BuildViewportToolbar() override;
 	virtual void PopulateViewportOverlays(TSharedRef<class SOverlay> Overlay) override;
 	virtual EVisibility OnGetViewportContentVisibility() const override;
 	virtual void BindCommands() override;
@@ -118,6 +118,9 @@ private:
 
 	/** Preview Scene - uses advanced preview settings */
 	TSharedPtr<class FAdvancedPreviewScene> AdvancedPreviewScene;
+
+	/** Handles Preview Profiles */
+	TSharedPtr<FPreviewProfileController> PreviewProfileController;
 
 	/** Post process volume actor. */
 	TObjectPtr<class APostProcessVolume> PostProcessVolumeActor;

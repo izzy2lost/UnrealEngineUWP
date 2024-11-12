@@ -101,6 +101,19 @@ namespace Audio
 		return PlayCommandName;
 	}
 
+	int32 FQuantizedPlayCommand::OverrideFramesUntilExec(int32 NumFramesUntilExec)
+	{
+//		if (OwningClockPtr)
+//		{
+//				if(const FMixerDevice* MixerDevice = OwningClockPtr->GetMixerDevice())
+//				{
+//					return NumFramesUntilExec + 2 * MixerDevice->GetBufferLength();
+//				}
+//		}
+//		
+		return NumFramesUntilExec;
+	}
+
 	void FQuantizedQueueCommand::SetQueueCommand(const FAudioComponentCommandInfo& InAudioComponentData)
 	{
 		AudioComponentData = InAudioComponentData;
@@ -119,7 +132,7 @@ namespace Audio
 	int32 FQuantizedQueueCommand::OverrideFramesUntilExec(int32 NumFramesUntilExec)
 	{
 		// Calculate the amount of time before taking up a voice slot
-		int32 NumFramesBeforeVoiceSlot = NumFramesUntilExec - static_cast<int32>(OwningClockPtr->GetTickRate().GetFramesPerDuration(AudioComponentData.AnticapatoryBoundary.Quantization));
+		int32 NumFramesBeforeVoiceSlot = NumFramesUntilExec - static_cast<int32>(OwningClockPtr->GetTickRate().GetFramesPerDuration(AudioComponentData.AnticipatoryBoundary.Quantization));
 
 		//If NumFramesBeforeVoiceSlot is less than 0, change the boundary back to the original, and mark this command as having 0 frames till exec
 		if (NumFramesBeforeVoiceSlot < 0)

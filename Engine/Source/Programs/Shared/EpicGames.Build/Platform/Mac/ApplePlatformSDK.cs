@@ -16,7 +16,7 @@ namespace UnrealBuildBase
 	{
 		public static readonly string? InstalledSDKVersion = GetInstalledSDKVersion();
 
-		public static bool TryConvertVersionToInt(string? StringValue, out UInt64 OutValue)
+		public static bool TryConvertVersionToInt(string? StringValue, out ulong OutValue)
 		{
 			OutValue = 0;
 
@@ -52,14 +52,14 @@ namespace UnrealBuildBase
 				int ExitCode;
 				// xcode-select -p gives the currently selected Xcode location (xcodebuild -version may fail if Xcode.app is broken)
 				// Example output: /Applications/Xcode.app/Contents/Developer
-				string Output = RunLocalProcessAndReturnStdOut("sh", "-c 'xcode-select -p'", out ExitCode);
+				string Output = RunLocalProcessAndReturnStdOut("/bin/sh", "-c 'xcode-select -p'", out ExitCode);
 
 				if (ExitCode == 0)
 				{
 					DirectoryReference DeveloperDir = new DirectoryReference(Output);
 					FileReference Plist = FileReference.Combine(DeveloperDir.ParentDirectory!, "Info.plist");
 					// Find out the version number in Xcode.app/Contents/Info.plist
-					Output = RunLocalProcessAndReturnStdOut("sh",
+					Output = RunLocalProcessAndReturnStdOut("/bin/sh",
 						  $"-c 'plutil -extract CFBundleShortVersionString raw {Plist}'", out ExitCode);
 					if (ExitCode == 0)
 					{
@@ -77,12 +77,12 @@ namespace UnrealBuildBase
 					Registry.GetValue(
 						"HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Apple Inc.\\Apple Mobile Device Support\\Shared",
 						"iTunesMobileDeviceDLL", null) as string;
-				if (string.IsNullOrEmpty(DllPath) || !File.Exists(DllPath))
+				if (String.IsNullOrEmpty(DllPath) || !File.Exists(DllPath))
 				{
 					DllPath = Registry.GetValue(
 						"HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Apple Inc.\\Apple Mobile Device Support\\Shared",
 						"MobileDeviceDLL", null) as string;
-					if (string.IsNullOrEmpty(DllPath) || !File.Exists(DllPath))
+					if (String.IsNullOrEmpty(DllPath) || !File.Exists(DllPath))
 					{
 						// iTunes >= 12.7 doesn't have a key specifying the 32-bit DLL but it does have a ASMapiInterfaceDLL key and MobileDevice.dll is in usually in the same directory
 						DllPath = Registry.GetValue(
@@ -92,14 +92,14 @@ namespace UnrealBuildBase
 							? null
 							: DllPath.Substring(0, DllPath.LastIndexOf('\\') + 1) + "MobileDevice.dll";
 
-						if (string.IsNullOrEmpty(DllPath) || !File.Exists(DllPath))
+						if (String.IsNullOrEmpty(DllPath) || !File.Exists(DllPath))
 						{
 							DllPath = FindWindowsStoreITunesDLL();
 						}
 					}
 				}
 
-				if (!string.IsNullOrEmpty(DllPath) && File.Exists(DllPath))
+				if (!String.IsNullOrEmpty(DllPath) && File.Exists(DllPath))
 				{
 					string? DllVersion = FileVersionInfo.GetVersionInfo(DllPath).FileVersion;
 					// Only return the DLL version as the SDK version if we can correctly parse it
@@ -146,18 +146,6 @@ namespace UnrealBuildBase
 			}
 
 			return InstallPath;
-		}
-		
-		/// <summary>
-		/// Runs a command line process, and returns simple StdOut output. This doesn't handle errors or return codes
-		/// </summary>
-		/// <returns>The entire StdOut generated from the process as a single trimmed string</returns>
-		/// <param name="Command">Command to run</param>
-		/// <param name="Args">Arguments to Command</param>
-		/// <param name="Logger">Logger for output</param>
-		private static string RunLocalProcessAndReturnStdOut(string Command, string Args, ILogger? Logger = null)
-		{
-			return RunLocalProcessAndReturnStdOut(Command, Args, out _, Logger);	
 		}
 
 		/// <summary>

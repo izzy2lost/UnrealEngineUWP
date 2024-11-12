@@ -11,14 +11,17 @@
 #include "InstallBundleUtils.h"
 #include "BundlePrereqCombinedStatusHelper.h"
 #include "Interfaces/IPluginManager.h"
+#include "Internationalization/PackageLocalizationManager.h"
 #include "Logging/StructuredLog.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/AsciiSet.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/ConfigUtilities.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/EnumRange.h"
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Misc/WildcardString.h"
 #include "Algo/AllOf.h"
 #include "Misc/TVariantMeta.h"
@@ -36,9 +39,12 @@
 #include "Misc/PathViews.h"
 #include "Containers/Queue.h"
 #include "ShaderCodeLibrary.h"
+#include "DeviceProfiles/DeviceProfileManager.h"
 #include "Trace/Trace.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GameFeaturePluginStateMachine)
+
+#define LOCTEXT_NAMESPACE "GameFeatureDataStateMachine"
 
 #if WITH_EDITOR
 #include "PluginUtils.h"
@@ -90,6 +96,16 @@ namespace UE::GameFeatures
 	static TAutoConsoleVariable<bool> CVarWaitForDependencyDeactivation(TEXT("GameFeaturePlugin.WaitForDependencyDeactivation"),
 		false,
 		TEXT("Enable to make block deactivation until all dependencies are deactivated. Warning - this can lead to failure to unload"));
+
+	static TAutoConsoleVariable<bool> CVarEnableAssetStreaming(TEXT("GameFeaturePlugin.EnableAssetStreaming"),
+		true,
+		TEXT("Enable experimental asset streaming"));
+
+	bool ShouldDeferLocalizationDataLoad()
+	{
+		// Note: We don't defer localization data loading in the editor, as the editor only needs to mount plugins to use them
+		return !GIsEditor && bDeferLocalizationDataLoad;
+	}
 
 	bool ShouldSkipVerify(const FString& PluginName)
 	{
@@ -643,7 +659,7 @@ struct FTransitionDependenciesGameFeaturePluginState : public FGameFeaturePlugin
 			}
 			else
 			{
-				RemainingDependencies.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				RemainingDependencies.RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 
 			UpdateStateMachineImmediate();
@@ -759,10 +775,11 @@ struct FGameFeaturePluginState_CheckingStatus : public FGameFeaturePluginState
 	{
 		if (!bParsedURL)
 		{
-			bParsedURL = StateProperties.ParseURL();
+			TValueOrError<void, FString> ParseUrlResult = StateProperties.ParseURL();
+			bParsedURL = !ParseUrlResult.HasError();
 			if (!bParsedURL)
 			{
-				StateStatus.SetTransitionError(EGameFeaturePluginState::ErrorCheckingStatus, GetErrorResult(TEXT("Bad_PluginURL")));
+				StateStatus.SetTransitionError(EGameFeaturePluginState::ErrorCheckingStatus, GetErrorResult(ParseUrlResult.GetError()));
 				return;
 			}
 		}
@@ -943,6 +960,12 @@ struct FBaseDataReleaseGameFeaturePluginState : public FGameFeaturePluginState
 	bool bWasDeleted = false;
 	TArray<FName> PendingBundles;
 
+	void CleanUp()
+	{
+		PendingBundles.Empty();
+		IInstallBundleManager::ReleasedDelegate.RemoveAll(this);
+	}
+
 	void OnContentRemoved(FInstallBundleReleaseRequestResultInfo BundleResult)
 	{
 		if (!PendingBundles.Contains(BundleResult.BundleName))
@@ -970,12 +993,7 @@ struct FBaseDataReleaseGameFeaturePluginState : public FGameFeaturePluginState
 		UpdateStateMachineImmediate();
 	}
 
-	virtual void BeginState() override
-	{
-		BeginRemoveRequest();
-	}
-
-	virtual void BeginRemoveRequest()
+	void BeginRemoveRequest()
 	{
 		CleanUp();
 
@@ -988,14 +1006,8 @@ struct FBaseDataReleaseGameFeaturePluginState : public FGameFeaturePluginState
 			return;
 		}
 
-		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
-		check(BundleManager.IsValid());
-
-		const TArray<FName>& InstallBundles = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>().InstallBundles;
-
 		EInstallBundleReleaseRequestFlags ReleaseFlags = GetReleaseRequestFlags();
-		TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> MaybeRequestInfo = BundleManager->RequestReleaseContent(InstallBundles, ReleaseFlags);
-
+		TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> MaybeRequestInfo = UGameFeaturesSubsystem::Get().ReleaseBundle(StateProperties.PluginName, GetInstallBundles(), ReleaseFlags);
 		if (MaybeRequestInfo.HasError())
 		{
 			const FStringView ShortUrl = StateProperties.PluginIdentifier.GetIdentifyingString();
@@ -1027,6 +1039,11 @@ struct FBaseDataReleaseGameFeaturePluginState : public FGameFeaturePluginState
 		}
 	}
 
+	virtual void BeginState() override
+	{
+		BeginRemoveRequest();
+	}
+
 	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
 	{
 		if (!Result.HasValue())
@@ -1043,19 +1060,13 @@ struct FBaseDataReleaseGameFeaturePluginState : public FGameFeaturePluginState
 		StateStatus.SetTransition(GetSuccessTransitionState());
 	}
 
-	void CleanUp()
-	{
-		PendingBundles.Empty();
-		IInstallBundleManager::ReleasedDelegate.RemoveAll(this);
-	}
-
 	virtual void EndState() override
 	{
 		CleanUp();
 	}
 
 	/** Controls what check is done to determine if this state should run or not */
-	virtual bool ShouldReleaseContent() const
+	bool ShouldReleaseContent() const
 	{
 		switch (StateProperties.GetPluginProtocol())
 		{
@@ -1070,10 +1081,23 @@ struct FBaseDataReleaseGameFeaturePluginState : public FGameFeaturePluginState
 			}
 		}
 	}
+
+	virtual TConstArrayView<FName> GetInstallBundles()
+	{
+		TConstArrayView<FName> Ret;
+		if (ShouldReleaseContent())
+		{
+			Ret = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>().InstallBundles;
+		}
+		return Ret;
+	}
+
 	/** Determine what kind of release request flags we submit */
 	virtual EInstallBundleReleaseRequestFlags GetReleaseRequestFlags() const
 	{
-		return StateProperties.ProtocolOptions.GetSubtype<FInstallBundlePluginProtocolOptions>().ReleaseInstallBundleFlags;
+		EInstallBundleReleaseRequestFlags ReleaseFlags = StateProperties.ProtocolOptions.GetSubtype<FInstallBundlePluginProtocolOptions>().ReleaseInstallBundleFlags;
+		ReleaseFlags &= ~EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly; // Release state MUST release
+		return ReleaseFlags;
 	}
 
 	/** Determines what state you transition to in the event of a success or failure to release content */
@@ -1185,14 +1209,14 @@ struct FGameFeaturePluginState_Releasing : public FBaseDataReleaseGameFeaturePlu
 	}
 };
 
-struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
+struct FBaseDownloadGameFeaturePluginState : public FGameFeaturePluginState
 {
-	FGameFeaturePluginState_Downloading(FGameFeaturePluginStateMachineProperties& InStateProperties)
+	FBaseDownloadGameFeaturePluginState(FGameFeaturePluginStateMachineProperties& InStateProperties)
 		: FGameFeaturePluginState(InStateProperties)
 		, Result(MakeValue())
 	{}
 
-	~FGameFeaturePluginState_Downloading()
+	virtual ~FBaseDownloadGameFeaturePluginState()
 	{
 		Cleanup();
 	}
@@ -1243,10 +1267,7 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 			UpdateStateMachineImmediate();
 			return;
 		}
-		
-		FInstallBundlePluginProtocolMetaData& Metadata = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>();
-		const TArray<FName>& InstallBundles = Metadata.InstallBundles;
-		
+
 		// check to verify if the bundle(s) we need is already UpToDate
 		if (BundleContentState.GetAllBundlesHaveState(EInstallBundleInstallState::UpToDate))
 		{
@@ -1266,11 +1287,8 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 			return;
 		}
 
-		//Pull our InstallFlags from the Options, but also make sure SkipMount is set as there is a separate mounting step that will re-request this
-		//without SkipMount and then mount the data, this allows us to pre-download data without mounting it
-		EInstallBundleRequestFlags InstallFlags = Options.InstallBundleFlags;
-		InstallFlags |= EInstallBundleRequestFlags::SkipMount;
-
+		const TConstArrayView<FName> InstallBundles = GetInstallBundles();
+		const EInstallBundleRequestFlags InstallFlags = GetRequestFlags();
 		TValueOrError<FInstallBundleRequestInfo, EInstallBundleResult> MaybeRequestInfo = BundleManager->RequestUpdateContent(InstallBundles, InstallFlags);
 
 		if (MaybeRequestInfo.HasError())
@@ -1289,7 +1307,7 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 			const FStringView ShortUrl = StateProperties.PluginIdentifier.GetIdentifyingString();
 			ensureMsgf(false, TEXT("Unable to enqueue download for the PluginURL(%.*s) because failed to resolve install bundles!"), ShortUrl.Len(), ShortUrl.GetData());
 			Result = GetErrorResult(TEXT("BundleManager.GotState."), TEXT("Resolve_Failed"), UE::GameFeatures::CommonErrorCodes::GetGenericConnectionError());
-			
+
 			UpdateStateMachineImmediate();
 			return;
 		}
@@ -1303,14 +1321,14 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 		else
 		{
 			PendingBundleDownloads = MoveTemp(RequestInfo.BundlesEnqueued);
-			IInstallBundleManager::InstallBundleCompleteDelegate.AddRaw(this, &FGameFeaturePluginState_Downloading::OnInstallBundleCompleted);
-			IInstallBundleManager::PausedBundleDelegate.AddRaw(this, &FGameFeaturePluginState_Downloading::OnInstallBundlePaused);
+			IInstallBundleManager::InstallBundleCompleteDelegate.AddRaw(this, &FBaseDownloadGameFeaturePluginState::OnInstallBundleCompleted);
+			IInstallBundleManager::PausedBundleDelegate.AddRaw(this, &FBaseDownloadGameFeaturePluginState::OnInstallBundlePaused);
 
 			ProgressTracker = MakeUnique<FInstallBundleCombinedProgressTracker>(false);
 			ProgressTracker->SetBundlesToTrackFromContentState(BundleContentState, PendingBundleDownloads);
 
 			ProgressUpdateHandle = FTSTicker::GetCoreTicker().AddTicker(
-				FTickerDelegate::CreateRaw(this, &FGameFeaturePluginState_Downloading::OnUpdateProgress)/*, 0.1f*/);
+				FTickerDelegate::CreateRaw(this, &FBaseDownloadGameFeaturePluginState::OnUpdateProgress)/*, 0.1f*/);
 
 			//If this setting is flipped then we should immediately request to pause downloads.
 			//We still generate the downloads so that we have an accurate PendingBundleDownloads list
@@ -1335,10 +1353,10 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 			//Use OptionalErrorCode and/or OptionalErrorText if available
 			const FString ErrorCodeEnding = (BundleResult.OptionalErrorCode.IsEmpty()) ? LexToString(BundleResult.Result) : BundleResult.OptionalErrorCode;
 			const FText ErrorText = BundleResult.OptionalErrorCode.IsEmpty() ? UE::GameFeatures::CommonErrorCodes::GetErrorTextForBundleResult(BundleResult.Result) : BundleResult.OptionalErrorText;
-			
+
 			Result = GetErrorResult(TEXT("BundleManager.OnComplete."), ErrorCodeEnding, ErrorText);
-			
-			if(BundleResult.Result != EInstallBundleResult::UserCancelledError)
+
+			if (BundleResult.Result != EInstallBundleResult::UserCancelledError)
 			{
 				TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
 				BundleManager->CancelUpdateContent(PendingBundleDownloads);
@@ -1405,7 +1423,7 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 		{
 			const bool bIsPaused = (InPauseBundleInfo.PauseFlags != EInstallBundlePauseFlags::None);
 			const TCHAR* PauseReason = InstallBundleUtil::GetInstallBundlePauseReason(InPauseBundleInfo.PauseFlags);
-			
+
 			NotifyPauseChange(bIsPaused, PauseReason);
 		}
 	}
@@ -1420,18 +1438,22 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 	{
 		Cleanup();
 
-		check(StateProperties.GetPluginProtocol() == EGameFeaturePluginProtocol::InstallBundle);
+		if (!ShouldDownloadContent())
+		{
+			bPluginDownloaded = true;
+			UpdateProgress(1.0f);
+			return;
+		}
+
 		ensureMsgf(AllowAsyncLoading(), TEXT("FGameFeaturePluginState::AllowAsyncLoading is false while attempting to download GFP data."));
 
-		UGameFeaturesSubsystem::Get().OnGameFeatureDownloading(StateProperties.PluginName, StateProperties.PluginIdentifier);
-
 		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
-		const TArray<FName>& InstallBundles = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>().InstallBundles;
+		const TConstArrayView<FName> InstallBundles = GetInstallBundles();
 
 		if (InstallBundles.Num() > 1)
 		{
-			GotContentStateHandle = BundleManager->GetContentState(InstallBundles, EInstallBundleGetContentStateFlags::None, true, 
-				FInstallBundleGetContentStateDelegate::CreateRaw(this, &FGameFeaturePluginState_Downloading::OnGotContentState));
+			GotContentStateHandle = BundleManager->GetContentState(InstallBundles, EInstallBundleGetContentStateFlags::None, true,
+				FInstallBundleGetContentStateDelegate::CreateRaw(this, &FBaseDownloadGameFeaturePluginState::OnGotContentState));
 		}
 		else
 		{
@@ -1443,7 +1465,7 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 			const FInstallBundleCombinedInstallState& InstallState = MaybeInstallState.GetValue();
 			FInstallBundleCombinedContentState HackContentState;
 			HackContentState.IndividualBundleStates.Reserve(InstallState.IndividualBundleStates.Num());
-			for(const TPair<FName, EInstallBundleInstallState>& Pair : InstallState.IndividualBundleStates)
+			for (const TPair<FName, EInstallBundleInstallState>& Pair : InstallState.IndividualBundleStates)
 			{
 				FInstallBundleContentState& BundleContentState = HackContentState.IndividualBundleStates.Emplace(Pair.Key);
 				BundleContentState.State = Pair.Value;
@@ -1457,7 +1479,8 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 	{
 		if (!Result.HasValue())
 		{
-			StateStatus.SetTransitionError(EGameFeaturePluginState::ErrorManagingData, Result);
+			const EGameFeaturePluginState FailState = GetFailureTransitionState();
+			StateStatus.SetTransitionError(FailState, Result);
 			return;
 		}
 
@@ -1465,8 +1488,10 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 		{
 			return;
 		}
-
-		StateStatus.SetTransition(EGameFeaturePluginState::Installed);
+		
+		UGameFeaturesSubsystem::Get().OnGameFeatureDownloaded(StateProperties.PluginIdentifier);
+		const EGameFeaturePluginState SuccessState = GetSuccessTransitionState();
+		StateStatus.SetTransition(SuccessState);
 	}
 
 	virtual void TryCancelState() override
@@ -1502,11 +1527,11 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 		}
 
 		const FInstallBundlePluginProtocolOptions& Options = StateProperties.ProtocolOptions.GetSubtype<FInstallBundlePluginProtocolOptions>();
-		
+
 		//Update our InstallBundleRequestFlags
 		{
 			EInstallBundleRequestFlags UpdatedRequestFlags = Options.InstallBundleFlags;
-						
+
 			EInstallBundleRequestFlags AddFlags = (UpdatedRequestFlags & (~OldRequestFlags));
 			EInstallBundleRequestFlags RemoveFlags = ((~UpdatedRequestFlags) & OldRequestFlags);
 
@@ -1531,6 +1556,74 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 	virtual void EndState() override
 	{
 		Cleanup();
+	}
+
+	/** Controls what check is done to determine if this state should run or not */
+	bool ShouldDownloadContent() const
+	{
+		switch (StateProperties.GetPluginProtocol())
+		{
+		case (EGameFeaturePluginProtocol::InstallBundle):
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	virtual TConstArrayView<FName> GetInstallBundles()
+	{
+		TConstArrayView<FName> Ret;
+		if (ShouldDownloadContent())
+		{
+			Ret = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>().InstallBundles;
+		}
+		return Ret;
+	}
+
+	/** Determine what kind of request flags we submit */
+	virtual EInstallBundleRequestFlags GetRequestFlags() const
+	{
+		EInstallBundleRequestFlags InstallFlags = StateProperties.ProtocolOptions.GetSubtype<FInstallBundlePluginProtocolOptions>().InstallBundleFlags;
+		return InstallFlags;
+	}
+
+	/** Determines what state you transition to in the event of a success or failure to release content */
+	virtual EGameFeaturePluginState GetSuccessTransitionState() const = 0;
+	virtual EGameFeaturePluginState GetFailureTransitionState() const = 0;
+};
+
+struct FGameFeaturePluginState_Downloading : public FBaseDownloadGameFeaturePluginState
+{
+	FGameFeaturePluginState_Downloading(FGameFeaturePluginStateMachineProperties& InStateProperties)
+		: FBaseDownloadGameFeaturePluginState(InStateProperties)
+	{}
+
+	virtual void BeginState() override
+	{
+		check(ShouldDownloadContent());
+
+		UGameFeaturesSubsystem::Get().OnGameFeatureDownloading(StateProperties.PluginName, StateProperties.PluginIdentifier);
+
+		FBaseDownloadGameFeaturePluginState::BeginState();
+	}
+	
+	virtual EInstallBundleRequestFlags GetRequestFlags() const override
+	{
+		//Pull our InstallFlags from the Options, but also make sure SkipMount is set as there is a separate mounting step that will re-request this
+		//without SkipMount and then mount the data, this allows us to pre-download data without mounting it
+		EInstallBundleRequestFlags InstallFlags = FBaseDownloadGameFeaturePluginState::GetRequestFlags();
+		InstallFlags |= EInstallBundleRequestFlags::SkipMount;
+		return InstallFlags;
+	}
+
+	virtual EGameFeaturePluginState GetSuccessTransitionState() const override
+	{
+		return EGameFeaturePluginState::Installed;
+	}
+
+	virtual EGameFeaturePluginState GetFailureTransitionState() const override
+	{
+		return EGameFeaturePluginState::ErrorManagingData;
 	}
 };
 
@@ -1618,7 +1711,7 @@ struct FGameFeaturePluginState_Unmounting : public FGameFeaturePluginState
 		if (TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(StateProperties.PluginName);
 			Plugin && Plugin->GetDescriptor().bExplicitlyLoaded)
 		{
-			if (!UE::GameFeatures::bDeferLocalizationDataLoad)
+			if (!UE::GameFeatures::ShouldDeferLocalizationDataLoad())
 			{
 				IPluginManager::Get().UnmountExplicitlyLoadedPluginLocalizationData(StateProperties.PluginName);
 			}
@@ -1651,17 +1744,13 @@ struct FGameFeaturePluginState_Unmounting : public FGameFeaturePluginState
 			return;
 		}
 
-		UGameFeaturesSubsystem::Get().OnGameFeatureReleasing(StateProperties.PluginName, StateProperties.PluginIdentifier);
-
-		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
-
 		const TArray<FName>& InstallBundles = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>().InstallBundles;
 
 		EInstallBundleReleaseRequestFlags ReleaseFlags = StateProperties.ProtocolOptions.GetSubtype<FInstallBundlePluginProtocolOptions>().ReleaseInstallBundleFlags;
+		ReleaseFlags |= EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly;
 		//Make sure we don't remove files here early, that should only be done in Uninstalling
 		ReleaseFlags &= ~(EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible);
-
-		TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> MaybeRequestInfo = BundleManager->RequestReleaseContent(InstallBundles, ReleaseFlags);
+		TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> MaybeRequestInfo = UGameFeaturesSubsystem::Get().UnmountBundle(StateProperties.PluginName, InstallBundles, ReleaseFlags);
 
 		if (MaybeRequestInfo.HasError())
 		{
@@ -2001,7 +2090,7 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 		if (!UseAsyncLoading() || UE::GameFeatures::CVarForceSyncLoadShaderLibrary.GetValueOnGameThread())
 		{
 			verify(IPluginManager::Get().MountExplicitlyLoadedPlugin(StateProperties.PluginName));
-			if (!UE::GameFeatures::bDeferLocalizationDataLoad)
+			if (!UE::GameFeatures::ShouldDeferLocalizationDataLoad())
 			{
 				IPluginManager::Get().MountExplicitlyLoadedPluginLocalizationData(StateProperties.PluginName);
 			}
@@ -2015,7 +2104,7 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 		}
 
 		verify(IPluginManager::Get().MountExplicitlyLoadedPlugin(StateProperties.PluginName));
-		if (!UE::GameFeatures::bDeferLocalizationDataLoad)
+		if (!UE::GameFeatures::ShouldDeferLocalizationDataLoad())
 		{
 			IPluginManager::Get().MountExplicitlyLoadedPluginLocalizationData(StateProperties.PluginName);
 		}
@@ -2092,6 +2181,16 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 			}
 		}
 
+		auto RefreshPackageLocalizationCacheForPlugin = [NewlyMountedPlugin]()
+		{
+			// We need to refresh the package localization cache for a GFP if it loaded cooked asset registry state, 
+			// as we need the asset registry data to correctly build the package localization cache for the GFP
+			if (NewlyMountedPlugin && NewlyMountedPlugin->CanContainContent())
+			{
+				FPackageLocalizationManager::Get().InvalidateRootSourcePath(NewlyMountedPlugin->GetMountedAssetPath());
+			}
+		};
+
 		if (!UseAsyncLoading())
 		{
 			FAssetRegistryState PluginAssetRegistryState;
@@ -2099,6 +2198,7 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 			{
 				IAssetRegistry& AssetRegistry = UAssetManager::Get().GetAssetRegistry();
 				AssetRegistry.AppendState(PluginAssetRegistryState);
+				RefreshPackageLocalizationCacheForPlugin();
 			}
 			else
 			{
@@ -2110,7 +2210,7 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 		}
 
 		const bool bForceSyncAssetRegistryAppend = UE::GameFeatures::CVarForceSyncAssetRegistryAppend.GetValueOnGameThread();
-		UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, PluginAssetRegistry=MoveTemp(PluginAssetRegistry), bForceSyncAssetRegistryAppend]
+		UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, PluginAssetRegistry=MoveTemp(PluginAssetRegistry), bForceSyncAssetRegistryAppend, RefreshPackageLocalizationCacheForPlugin]
 		{
 			bool bSuccess = false;
 			TSharedPtr<FAssetRegistryState> PluginAssetRegistryState = MakeShared<FAssetRegistryState>();
@@ -2120,11 +2220,12 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 				if (!bForceSyncAssetRegistryAppend)
 				{
 					AssetRegistry.AppendState(*PluginAssetRegistryState);
+					RefreshPackageLocalizationCacheForPlugin();
 				}
 				bSuccess = true;
 			}
 
-			ExecuteOnGameThread(UE_SOURCE_LOCATION, [this, PluginAssetRegistryState, bSuccess, bForceSyncAssetRegistryAppend]
+			ExecuteOnGameThread(UE_SOURCE_LOCATION, [this, PluginAssetRegistryState, bSuccess, bForceSyncAssetRegistryAppend, RefreshPackageLocalizationCacheForPlugin]
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Mounting_ARComplete);
 
@@ -2136,6 +2237,7 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 				{
 					IAssetRegistry& AssetRegistry = UAssetManager::Get().GetAssetRegistry();
 					AssetRegistry.AppendState(*PluginAssetRegistryState);
+					RefreshPackageLocalizationCacheForPlugin();
 				}
 
 				CompletedSubStates |= ESubState::LoadAssetRegistry;
@@ -2185,6 +2287,11 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 		// Post-mount
 		if (bComplete)
 		{
+			if (AllowIniLoading())
+			{
+				StateProperties.GameFeatureData->InitializeBasePluginIniFile(StateProperties.PluginInstalledFilename);
+			}
+
 			FGameFeaturePostMountingContext Context(StateProperties.PluginName, [this](FStringView InPauserTag) { OnPostMountPauserCompleted(InPauserTag); });
 			NumExpectedPostMountPausers = INDEX_NONE;
 			UGameFeaturesSubsystem::Get().OnGameFeaturePostMounting(StateProperties.PluginName, StateProperties.PluginIdentifier, Context);
@@ -2241,7 +2348,7 @@ struct FWaitingForDependenciesTransitionPolicy
 
 	static EGameFeaturePluginState GetTransitionState()
 	{
-		return EGameFeaturePluginState::Registering;
+		return UE::GameFeatures::CVarEnableAssetStreaming.GetValueOnGameThread() ? EGameFeaturePluginState::AssetDependencyStreaming : EGameFeaturePluginState::Registering;
 	}
 
 	static EGameFeaturePluginState GetErrorState()
@@ -2260,6 +2367,98 @@ struct FGameFeaturePluginState_WaitingForDependencies : public FTransitionDepend
 	FGameFeaturePluginState_WaitingForDependencies(FGameFeaturePluginStateMachineProperties& InStateProperties)
 		: FTransitionDependenciesGameFeaturePluginState(InStateProperties)
 	{
+	}
+};
+
+struct FGameFeaturePluginState_AssetDependencyStreamOut : public FBaseDataReleaseGameFeaturePluginState
+{
+	FGameFeaturePluginState_AssetDependencyStreamOut(FGameFeaturePluginStateMachineProperties& InStateProperties)
+		: FBaseDataReleaseGameFeaturePluginState(InStateProperties)
+	{}
+
+	virtual EGameFeaturePluginState GetSuccessTransitionState() const override
+	{
+		return EGameFeaturePluginState::Unmounting;
+	}
+
+	virtual EGameFeaturePluginState GetFailureTransitionState() const override
+	{
+		return EGameFeaturePluginState::ErrorAssetDependencyStreaming;
+	}
+
+	virtual TConstArrayView<FName> GetInstallBundles() override
+	{
+		TConstArrayView<FName> Ret;
+		if (ShouldReleaseContent())
+		{
+			Ret = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>().AssetDependencyBundles;
+		}
+		return Ret;
+	}
+
+	// There's no explict uninstall set for asset dependencies, so set EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible
+	// to be 'correct'. In most cases, we'd expect to store these with a cache of some sort, so this exact flag probably wont matter
+	// in practice.
+	virtual EInstallBundleReleaseRequestFlags GetReleaseRequestFlags() const override
+	{
+		const EInstallBundleReleaseRequestFlags BaseFlags = FBaseDataReleaseGameFeaturePluginState::GetReleaseRequestFlags();
+		return (BaseFlags | EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible);
+	}
+};
+
+struct FGameFeaturePluginState_ErrorAssetDependencyStreaming : public FErrorGameFeaturePluginState
+{
+	FGameFeaturePluginState_ErrorAssetDependencyStreaming(FGameFeaturePluginStateMachineProperties& InStateProperties) 
+		: FErrorGameFeaturePluginState(InStateProperties) 
+	{}
+
+	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
+	{
+		if (StateProperties.Destination < EGameFeaturePluginState::ErrorAssetDependencyStreaming)
+		{
+			StateStatus.SetTransition(EGameFeaturePluginState::AssetDependencyStreamOut);
+		}
+		else if (StateProperties.Destination > EGameFeaturePluginState::ErrorAssetDependencyStreaming)
+		{
+			StateStatus.SetTransition(EGameFeaturePluginState::AssetDependencyStreaming);
+		}
+	}
+};
+
+struct FGameFeaturePluginState_AssetDependencyStreaming : public FBaseDownloadGameFeaturePluginState
+{
+	FGameFeaturePluginState_AssetDependencyStreaming(FGameFeaturePluginStateMachineProperties& InStateProperties)
+		: FBaseDownloadGameFeaturePluginState(InStateProperties)
+	{}
+
+	virtual TConstArrayView<FName> GetInstallBundles() override
+	{
+		TConstArrayView<FName> Ret;
+		if (ShouldDownloadContent())
+		{
+			Ret = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>().AssetDependencyBundles;
+		}
+		return Ret;
+	}
+
+	virtual EInstallBundleRequestFlags GetRequestFlags() const override
+	{
+		EInstallBundleRequestFlags InstallFlags = FBaseDownloadGameFeaturePluginState::GetRequestFlags();
+		if (UseAsyncLoading())
+		{
+			InstallFlags |= EInstallBundleRequestFlags::AsyncMount;
+		}
+		return InstallFlags;
+	}
+
+	virtual EGameFeaturePluginState GetSuccessTransitionState() const override
+	{
+		return EGameFeaturePluginState::Registering;
+	}
+
+	virtual EGameFeaturePluginState GetFailureTransitionState() const override
+	{
+		return EGameFeaturePluginState::ErrorAssetDependencyStreaming;
 	}
 };
 
@@ -2284,7 +2483,7 @@ struct FGameFeaturePluginState_Unregistering : public FGameFeaturePluginState
 	{
 		if (bHasUnloaded)
 		{
-			StateStatus.SetTransition(EGameFeaturePluginState::Unmounting);
+			StateStatus.SetTransition(EGameFeaturePluginState::AssetDependencyStreamOut);
 			return;
 		}
 
@@ -2464,6 +2663,11 @@ struct FGameFeaturePluginState_Registering : public FGameFeaturePluginState
 		}
 		else
 		{
+			FScopedSlowTask LoadingGameFeatureData(1.0f, 
+				FText::Format(
+					LOCTEXT("LoadingGameFeatureData", "Loading Game Feature Data for Plugin: {0}"), 
+					FText::FromString(StateProperties.PluginName)));
+			LoadingGameFeatureData.Visibility = ESlowTaskVisibility::Important;
 			for (const FString& Path : GameFeatureDataSearchPaths)
 			{
 				if (FPackageName::DoesPackageExist(Path))
@@ -2525,11 +2729,6 @@ struct FGameFeaturePluginState_Registering : public FGameFeaturePluginState
 		{
 			check(LoadGFDState == ELoadGFDState::Success);
 
-			if (AllowIniLoading())
-			{
-				StateProperties.GameFeatureData->InitializeBasePluginIniFile(StateProperties.PluginInstalledFilename);
-			}
-
 			StateStatus.SetTransition(EGameFeaturePluginState::Registered);
 
 			check(StateProperties.AddedPrimaryAssetTypes.Num() == 0);
@@ -2587,10 +2786,7 @@ struct FGameFeaturePluginState_Unloading : public FGameFeaturePluginState
 
 	virtual void BeginState() override
 	{
-		if (UE::GameFeatures::bDeferLocalizationDataLoad)
-		{
-			IPluginManager::Get().UnmountExplicitlyLoadedPluginLocalizationData(StateProperties.PluginName);
-		}
+		IPluginManager::Get().UnmountExplicitlyLoadedPluginLocalizationData(StateProperties.PluginName);
 	}
 
 	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
@@ -2639,10 +2835,7 @@ struct FGameFeaturePluginState_Loading : public FGameFeaturePluginState
 		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Loading_Begin);
 		check(StateProperties.GameFeatureData);
 
-		if (UE::GameFeatures::bDeferLocalizationDataLoad)
-		{
-			IPluginManager::Get().MountExplicitlyLoadedPluginLocalizationData(StateProperties.PluginName);
-		}
+		IPluginManager::Get().MountExplicitlyLoadedPluginLocalizationData(StateProperties.PluginName);
 
 		BundleHandle = LoadGameFeatureBundles(StateProperties.GameFeatureData);
 		if (BundleHandle)
@@ -2808,6 +3001,17 @@ struct FGameFeaturePluginState_Deactivating : public FGameFeaturePluginState
 		NumExpectedPausers = 0;
 		bInProcessOfDeactivating = false;
 		bHasUnloaded = false;
+
+		static bool bUseNewDynamicLayers = IConsoleManager::Get().FindConsoleVariable(TEXT("ini.UseNewDynamicLayers"))->GetInt() != 0;
+		if (bUseNewDynamicLayers)
+		{
+			FName Tag = *StateProperties.PluginName;
+			UE::DynamicConfig::PerformDynamicConfig(Tag, [Tag](FConfigModificationTracker* ChangeTracker)
+			{
+				FConfigCacheIni::RemoveTagFromAllBranches(Tag, ChangeTracker);
+				IConsoleManager::Get().UnsetAllConsoleVariablesWithTag(Tag);
+			});
+		}
 	}
 
 	void OnPauserCompleted(FStringView InPauserTag)
@@ -2977,6 +3181,17 @@ struct FGameFeaturePluginState_Activating : public FGameFeaturePluginState
 struct FGameFeaturePluginState_Active : public FDestinationGameFeaturePluginState
 {
 	FGameFeaturePluginState_Active(FGameFeaturePluginStateMachineProperties& InStateProperties) : FDestinationGameFeaturePluginState(InStateProperties) {}
+
+	virtual void BeginState() override
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Active);
+		check(GEngine);
+
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Active_SendEvents);
+			UGameFeaturesSubsystem::Get().OnGameFeatureActivated(StateProperties.GameFeatureData, StateProperties.PluginName, StateProperties.PluginIdentifier);
+		}
+	}
 
 	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
 	{
@@ -3296,6 +3511,17 @@ bool UGameFeaturePluginStateMachine::AllowAsyncLoading() const
 	return StateProperties.AllowAsyncLoading();
 }
 
+bool UGameFeaturePluginStateMachine::HasAssetStreamingDependencies() const
+{
+	ensure(IsStatusKnown());
+	if (StateProperties.ProtocolMetadata.HasSubtype<FInstallBundlePluginProtocolMetaData>())
+	{
+		const FInstallBundlePluginProtocolMetaData& ProtocolData = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>();
+		return !ProtocolData.AssetDependencyBundles.IsEmpty();
+	}
+	return false;
+}
+
 void UGameFeaturePluginStateMachine::SetWasLoadedAsBuiltIn()
 {
 	StateProperties.bWasLoadedAsBuiltInGameFeaturePlugin = true;
@@ -3328,6 +3554,11 @@ UGameFeatureData* UGameFeaturePluginStateMachine::GetGameFeatureDataForRegistere
 	return nullptr;
 }
 
+const FGameFeaturePluginStateMachineProperties& UGameFeaturePluginStateMachine::GetProperties() const
+{
+	return StateProperties;
+}
+
 bool UGameFeaturePluginStateMachine::IsValidTransitionState(EGameFeaturePluginState InState) const
 {
 	check(InState != EGameFeaturePluginState::MAX);
@@ -3352,7 +3583,8 @@ UE_TRACE_EVENT_END()
 
 void UGameFeaturePluginStateMachine::UpdateStateMachine()
 {
-	EGameFeaturePluginState CurrentState = GetCurrentState();
+	const EGameFeaturePluginState InitialState = GetCurrentState();
+	EGameFeaturePluginState CurrentState = InitialState;
 	if (bInUpdateStateMachine)
 	{
 		UE_LOG(LogGameFeatures, Verbose, TEXT("Game feature state machine skipping update for %s in ::UpdateStateMachine. Current State: %s"), *GetGameFeatureName(), *UE::GameFeatures::ToString(CurrentState));
@@ -3486,6 +3718,28 @@ void UGameFeaturePluginStateMachine::UpdateStateMachine()
 			}
 		}
 
+		// Log our final state if we've finished transitioning
+		if (!bKeepProcessing && InitialState != CurrentState)
+		{
+			if (!StateStatus.TransitionResult.HasValue())
+			{
+				UE_LOG(LogGameFeatures, Error, TEXT("Game feature '%s' transition failed. Ending state: %s [%s, %s]. Result: %s"),
+					*GetGameFeatureName(),
+					*UE::GameFeatures::ToString(CurrentState),
+					*UE::GameFeatures::ToString(StateProperties.Destination.MinState),
+					*UE::GameFeatures::ToString(StateProperties.Destination.MaxState),
+					*UE::GameFeatures::ToString(StateStatus.TransitionResult));
+			}
+			else if (StateProperties.Destination.Contains(CurrentState))
+			{
+				UE_LOG(LogGameFeatures, Display, TEXT("Game feature '%s' transitioned successfully. Ending state: %s [%s, %s]"),
+					*GetGameFeatureName(),
+					*UE::GameFeatures::ToString(CurrentState),
+					*UE::GameFeatures::ToString(StateProperties.Destination.MinState),
+					*UE::GameFeatures::ToString(StateProperties.Destination.MaxState));
+			}
+		}
+
 		if (NumTransitions++ > MaxTransitions)
 		{
 			UE_LOG(LogGameFeatures, Fatal, TEXT("Infinite loop in game feature state machine transitions. Current state %s. GameFeature: %s"), *UE::GameFeatures::ToString(CurrentState), *GetGameFeatureName());
@@ -3538,7 +3792,7 @@ FString FInstallBundlePluginProtocolMetaData::ToString() const
 	return ReturnedString;
 }
 
-TValueOrError<FInstallBundlePluginProtocolMetaData, void> FInstallBundlePluginProtocolMetaData::FromString(FStringView URLOptionsString)
+TValueOrError<FInstallBundlePluginProtocolMetaData, FString> FInstallBundlePluginProtocolMetaData::FromString(FStringView URLOptionsString)
 {
 	TArray<FName> InstallBundles;
 
@@ -3554,24 +3808,39 @@ TValueOrError<FInstallBundlePluginProtocolMetaData, void> FInstallBundlePluginPr
 	{
 		bParseSuccess = false;
 		UE_LOG(LogGameFeatures, Error, TEXT("Error parsing InstallBundle protocol options URL %.*s"), URLOptionsString.Len(), URLOptionsString.GetData());
-		return MakeError();
+		return MakeError(TEXTVIEW("Bad_PluginURL"));
 	}
 
-	return MakeValue<FInstallBundlePluginProtocolMetaData>(MoveTemp(InstallBundles));
+	// Get any additional bundles for streamed assets
+	TValueOrError<TArray<FName>, FString> MaybeStreamingAssetInstallBundles =
+		UGameFeaturesSubsystem::Get().GetPolicy().GetStreamingAssetInstallBundles(URLOptionsString);
+	if (MaybeStreamingAssetInstallBundles.HasError())
+	{
+		UE_LOG(LogGameFeatures, Error, TEXT("Failed to get streaming asset install bundles from GFP policy. URL %.*s"), URLOptionsString.Len(), URLOptionsString.GetData());
+		return MakeError(MaybeStreamingAssetInstallBundles.StealError());
+	}
+
+	FInstallBundlePluginProtocolMetaData Ret;
+	Ret.InstallBundles = MoveTemp(InstallBundles);
+	Ret.AssetDependencyBundles = MaybeStreamingAssetInstallBundles.StealValue();
+
+	return MakeValue<FInstallBundlePluginProtocolMetaData>(MoveTemp(Ret));
 }
 
-bool FGameFeaturePluginStateMachineProperties::ParseURL()
+TValueOrError<void, FString> FGameFeaturePluginStateMachineProperties::ParseURL()
 {
+	const FStringView BadUrlError = TEXTVIEW("Bad_PluginURL");
+
 	if (!ensureMsgf(!PluginIdentifier.IdentifyingURLSubset.IsEmpty(), TEXT("Unexpected empty IdentifyingURLSubset while parsing URL!")))
 	{
-		return false;
+		return MakeError(BadUrlError);
 	}
 
 	FStringView PluginPathFromURL;
 	FStringView URLOptions;
 	if (!UGameFeaturesSubsystem::ParsePluginURL(PluginIdentifier.GetFullPluginURL(), nullptr, &PluginPathFromURL, &URLOptions))
 	{
-		return false;
+		return MakeError(BadUrlError);
 	}
 
 	PluginInstalledFilename = PluginPathFromURL;
@@ -3580,17 +3849,17 @@ bool FGameFeaturePluginStateMachineProperties::ParseURL()
 	if (PluginInstalledFilename.IsEmpty() || !PluginInstalledFilename.EndsWith(TEXT(".uplugin")))
 	{
 		ensureMsgf(false, TEXT("PluginInstalledFilename must have a uplugin extension. PluginInstalledFilename: %s"), *PluginInstalledFilename);
-		return false;
+		return MakeError(BadUrlError);
 	}
 
 	//Do additional parsing of our Metadata from the options on our remaining URL
 	if (GetPluginProtocol() == EGameFeaturePluginProtocol::InstallBundle)
 	{
-		TValueOrError<FInstallBundlePluginProtocolMetaData, void> MaybeMetaData = FInstallBundlePluginProtocolMetaData::FromString(URLOptions);
+		TValueOrError<FInstallBundlePluginProtocolMetaData, FString> MaybeMetaData = FInstallBundlePluginProtocolMetaData::FromString(URLOptions);
 		if (MaybeMetaData.HasError())
 		{
 			ensureMsgf(false, TEXT("Failure to parse URL %s into a valid FInstallBundlePluginProtocolMetaData"), *PluginIdentifier.GetFullPluginURL());
-			return false;
+			return MakeError(MaybeMetaData.StealError());
 		}
 
 		FInstallBundlePluginProtocolMetaData& MetaData = *ProtocolMetadata.SetSubtype<FInstallBundlePluginProtocolMetaData>();
@@ -3606,7 +3875,7 @@ bool FGameFeaturePluginStateMachineProperties::ParseURL()
 			else
 			{
 				ensureMsgf(false, TEXT("Protocol options type is incorrect for URL %s"), *PluginIdentifier.GetFullPluginURL());
-				return false;
+				return MakeError(BadUrlError);
 			}
 		}
 	}
@@ -3616,13 +3885,13 @@ bool FGameFeaturePluginStateMachineProperties::ParseURL()
 		if (!ProtocolOptions.HasSubtype<FNull>())
 		{
 			ensureMsgf(false, TEXT("Protocol options type is incorrect for URL %s"), *PluginIdentifier.GetFullPluginURL());
-			return false;
+			return MakeError(BadUrlError);
 		}
 	}
 
 	static_assert(static_cast<uint8>(EGameFeaturePluginProtocol::Count) == 3, "Update FGameFeaturePluginStateMachineProperties::ParseURL to handle any new Metadata parsing required for new EGameFeaturePluginProtocol. If no metadata is required just increment this counter.");
 
-	return true;
+	return MakeValue();
 }
 
 UE::GameFeatures::FResult FGameFeaturePluginStateMachineProperties::ValidateProtocolOptionsUpdate(const FGameFeatureProtocolOptions& NewProtocolOptions) const
@@ -3681,3 +3950,4 @@ bool FGameFeaturePluginStateMachineProperties::AllowAsyncLoading() const
 		(!IsRunningCommandlet() || UE::GameFeatures::CVarForceAsyncLoad.GetValueOnGameThread());
 }
 
+#undef LOCTEXT_NAMESPACE 

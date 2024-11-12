@@ -4,7 +4,51 @@
 
 #if WITH_TESTS
 
+#include "Containers/UnrealString.h"
 #include "Tests/TestHarnessAdapter.h"
+
+namespace UE::Containers::RingBuffer::Test
+{
+int32 NumCallsOfResizeAllocation = 0;
+}
+
+template <uint32 NumInlineElements>
+class TCoreTRingBufferTestInlineAllocator :
+	public TInlineAllocator<NumInlineElements, FDefaultAllocator>
+{
+public:
+	using SuperAllocator = TInlineAllocator<NumInlineElements, FDefaultAllocator>;
+	template <typename ElementType>
+	using SuperForElementType = typename SuperAllocator::template ForElementType<ElementType>;
+	using SizeType = typename SuperAllocator::SizeType;
+
+	template<typename ElementType>
+	class ForElementType : public SuperForElementType<ElementType>
+	{
+	public:
+		// Allocator API that is used and we need to test
+		void ResizeAllocation(SizeType CurrentNum, SizeType NewMax, SIZE_T NumBytesPerElement)
+		{
+			++UE::Containers::RingBuffer::Test::NumCallsOfResizeAllocation;
+			SuperForElementType<ElementType>::ResizeAllocation(CurrentNum, NewMax, NumBytesPerElement);
+		}
+
+		// Allocator API unused by TRingBuffer
+		// SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const
+		// SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		// SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+
+		// Allocator API that is used but we don't need to test
+		// void MoveToEmpty(ForElementType& Other)
+		// FORCEINLINE ElementType* GetAllocation() const
+		// SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		// bool HasAllocation() const
+		// SizeType GetInitialCapacity() const
+#if UE_ENABLE_ARRAY_SLACK_TRACKING
+		// void SlackTrackerLogNum(SizeType NewNumUsed)
+#endif
+	};
+};
 
 class FRingBufferTest
 {
@@ -1034,12 +1078,12 @@ public:
 				{
 					Q.Add(It);
 				}
-				uint32* SavedData = Q.AllocationData;
+				uint32* SavedData = Q.GetStorage();
 				CHECK_MESSAGE(TEXT("Compact - Full array front at start - setup"), (Q.Front == 0) == true);
 				View = Q.Compact();
 				CHECK_MESSAGE(TEXT("Compact - Full array front at start - values"),
 					ArrayViewsEqual(View, TArrayView<const uint32>({ 0,1,2,3,4,5,6,7 })) == true);
-				CHECK_MESSAGE(TEXT("Compact - Full array front at start - no reallocate"), (Q.AllocationData == SavedData) == true);
+				CHECK_MESSAGE(TEXT("Compact - Full array front at start - no reallocate"), (Q.GetStorage() == SavedData) == true);
 			}
 		}
 
@@ -1119,6 +1163,64 @@ public:
 				CHECK_MESSAGE(TEXT("Remove - two elements - front at end - destructor count"), Counter::NumDestruct == 5);
 				Q.Add(5);
 				CHECK_MESSAGE(TEXT("Remove - two elements - front at end - values"), (Q == TRingBuffer<Counter>({ 2,3,4,5 })) == true);
+			}
+		}
+
+		// Test use of a specified allocator
+		{
+			using namespace UE::Containers::RingBuffer::Test;
+			{
+				NumCallsOfResizeAllocation = 0;
+				TRingBuffer<int32, TCoreTRingBufferTestInlineAllocator<10>> Q;
+				for (int32 AddIndex = 0; AddIndex < 20; ++AddIndex)
+				{
+					Q.Add(AddIndex);
+					for (int32 TestIndex = 0; TestIndex < Q.Num(); ++TestIndex)
+					{
+						CHECK_MESSAGE(TEXT("Specified Allocator - Expected values present with inline allocator"),
+							Q[TestIndex] == TestIndex);
+					}
+				}
+				CHECK_MESSAGE(TEXT("Specified Allocator - ResizeAllocation called"), NumCallsOfResizeAllocation > 0);
+			}
+		}
+
+		// Test some Reallocate cases
+		{
+			struct FLargeElement
+			{
+				FLargeElement(int32 InValue)
+					: Value(InValue)
+				{
+				}
+				int32 Value;
+				// To be a proper test, this buffer must be larger than InlineBufferSize in Reallocate
+				uint8 Buffer[16384];
+			};
+			{
+				TRingBuffer<FLargeElement> Q;
+				constexpr int32 Count = 10;
+				for (int32 AddIndex = 0; AddIndex < Count; ++AddIndex)
+				{
+					Q.Emplace(AddIndex);
+				}
+				for (int32 TestIndex = 0; TestIndex < Count; ++TestIndex)
+				{
+					CHECK_MESSAGE(TEXT("Reallocate FLargeElement - Expected values present"), Q[TestIndex].Value == TestIndex);
+				}
+			}
+			{
+				// To be a proper test, sizeof(int32)*Count must be larger than InlineBufferSize in Reallocate 
+				constexpr int32 Count = 10000;
+				TRingBuffer<FLargeElement> Q;
+				for (int32 AddIndex = 0; AddIndex < Count; ++AddIndex)
+				{
+					Q.Emplace(AddIndex);
+				}
+				for (int32 TestIndex = 0; TestIndex < Count; ++TestIndex)
+				{
+					CHECK_MESSAGE(TEXT("Reallocate large count - Expected values present"), Q[TestIndex].Value == TestIndex);
+				}
 			}
 		}
 

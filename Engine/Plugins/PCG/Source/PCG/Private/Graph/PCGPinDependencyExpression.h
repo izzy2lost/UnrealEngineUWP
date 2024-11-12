@@ -4,6 +4,8 @@
 
 #include "PCGCommon.h"
 
+#include "PCGPinDependencyExpression.generated.h"
+
 /** Conjunction of disjunctions of pin IDs that are required to be active for this task to be active.
 * 
 * Example:
@@ -13,8 +15,11 @@
 *     If Pin1 is deactivated during execution: [ PinID0, ConjunctionMarker, RemovedMarker, RemovedMarker ]
 *     Expression is now false and the task using this expression can be culled.
 */
+USTRUCT()
 struct FPCGPinDependencyExpression
 {
+	GENERATED_BODY()
+
 	/** Expression building. Appends a pin ID to the current disjunction. */
 	void AddPinDependency(FPCGPinId PinId);
 
@@ -45,5 +50,6 @@ private:
 	/* Signifies a pin removed from the expression, used to set terms false (pin inactive). */
 	inline static const FPCGPinId RemovedTermMarker = std::numeric_limits<FPCGPinId>::max() - 1;
 
-	TArray<FPCGPinId> Expression;
+	UPROPERTY()
+	TArray<uint64> Expression;
 };

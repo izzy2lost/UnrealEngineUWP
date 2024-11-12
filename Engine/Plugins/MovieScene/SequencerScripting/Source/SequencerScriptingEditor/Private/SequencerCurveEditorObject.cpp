@@ -3,12 +3,20 @@
 #include "SequencerCurveEditorObject.h"
 #include "MVVM/CurveEditorExtension.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/ViewModels/ChannelModel.h"
+#include "MVVM/SectionModelStorageExtension.h"
+#include "MVVM/ViewModels/OutlinerViewModel.h"
+#include "MVVM/Extensions/IOutlinerExtension.h"
+#include "MVVM/ViewModels/TrackModel.h"
+#include "Tree/SCurveEditorTree.h"
 #include "ISequencer.h"
 #include "CurveEditor.h"
 #include "CurveEditorTypes.h"
 #include "CurveModel.h"
 #include "Channels/MovieSceneChannel.h"
 #include "ExtensionLibraries/MovieSceneSectionExtensions.h"
+#include "Filters/CurveEditorFilterBase.h"
+
 //For custom colors on channels, stored in editor pref's
 #include "CurveEditorSettings.h"
 
@@ -79,7 +87,7 @@ TArray<FSequencerChannelProxy> USequencerCurveEditorObject::GetChannelsWithSelec
 		{
 			if (const FCurveModel* Curve = CurveEditor->FindCurve(Pair.Key))
 			{
-				if (UMovieSceneSection* Section = Cast<UMovieSceneSection>(Curve->GetOwningObject()))
+				if (UMovieSceneSection* Section = Curve->GetOwningObjectOrOuter<UMovieSceneSection>())
 				{
 					FName ChannelName = Curve->GetChannelName();
 					FSequencerChannelProxy ChannelProxy(ChannelName,Section);
@@ -104,7 +112,7 @@ TArray<int32> USequencerCurveEditorObject::GetSelectedKeys(const FSequencerChann
 		{
 			if (const FCurveModel* Curve = CurveEditor->FindCurve(Pair.Key))
 			{
-				if (UMovieSceneSection* Section = Cast<UMovieSceneSection>(Curve->GetOwningObject()))
+				if (UMovieSceneSection* Section = Curve->GetOwningObjectOrOuter<UMovieSceneSection>())
 				{
 					if (Section == ChannelProxy.Section)
 					{
@@ -137,8 +145,65 @@ void USequencerCurveEditorObject::EmptySelection()
 	}
 }
 
-FCurveModelID USequencerCurveEditorObject::GetCurve(UMovieSceneSection* InSection, const FName& InName)
+void USequencerCurveEditorObject::ShowCurve(const FSequencerChannelProxy& ChannelProxy, bool bShowCurve)
 {
+	using namespace UE::Sequencer;
+	TSharedPtr<FCurveEditor> CurveEditor = GetCurveEditor();
+	if (CurrentSequencer.IsValid() && CurveEditor.IsValid())
+	{
+		if (IsCurveShown(ChannelProxy) != bShowCurve)
+		{
+			const TSharedPtr<FSequencerEditorViewModel> SequencerViewModel = CurrentSequencer.Pin()->GetViewModel();
+			const FCurveEditorExtension* CurveEditorExtension = SequencerViewModel->CastDynamic<FCurveEditorExtension>();
+			check(CurveEditorExtension);
+			TSharedPtr<SCurveEditorTree>  CurveEditorTreeView = CurveEditorExtension->GetCurveEditorTreeView();
+			TSharedPtr<FOutlinerViewModel> OutlinerViewModel = SequencerViewModel->GetOutliner();
+			bool bIsSelected = false;
+			TParentFirstChildIterator<IOutlinerExtension> OutlinerExtenstionIt = OutlinerViewModel->GetRootItem()->GetDescendantsOfType<IOutlinerExtension>();
+			for (; OutlinerExtenstionIt; ++OutlinerExtenstionIt)
+			{
+				if (TSharedPtr<FTrackModel> TrackModel = OutlinerExtenstionIt.GetCurrentItem()->FindAncestorOfType<FTrackModel>())
+				{
+					if (UMovieSceneTrack* Track = TrackModel->GetTrack())
+					{
+						if (TViewModelPtr<FChannelGroupOutlinerModel> ChannelModel = CastViewModel<FChannelGroupOutlinerModel>(OutlinerExtenstionIt.GetCurrentItem()))
+						{
+							if (TSharedPtr<FChannelModel> ChannelPtr = ChannelModel->GetChannel(ChannelProxy.Section)) //if not section to key we also don't select it.
+							{
+								if (ChannelPtr->GetChannelName() == ChannelProxy.ChannelName)
+								{
+									if (TViewModelPtr<ICurveEditorTreeItemExtension> CurveEditorItem = OutlinerExtenstionIt.GetCurrentItem().ImplicitCast())
+									{
+										FCurveEditorTreeItemID CurveEditorTreeItem = CurveEditorItem->GetCurveEditorItemID();
+										if (CurveEditorTreeItem != FCurveEditorTreeItemID::Invalid())
+										{
+											CurveEditorTreeView->SetItemSelection(CurveEditorTreeItem, bShowCurve);
+											break;
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+bool USequencerCurveEditorObject::IsCurveShown(const FSequencerChannelProxy& ChannelProxy)
+{
+	TOptional<FCurveModelID> CurveModelID;
+	if (UMovieSceneSection* Section = ChannelProxy.Section)
+	{
+		CurveModelID = USequencerCurveEditorObject::GetCurve(Section, ChannelProxy.ChannelName);
+	}
+	return CurveModelID.IsSet();
+}
+
+TOptional<FCurveModelID> USequencerCurveEditorObject::GetCurve(UMovieSceneSection* InSection, const FName& InName)
+{
+	TOptional<FCurveModelID> OptCurveModel;
 	TSharedPtr<FCurveEditor> CurveEditor = GetCurveEditor();
 	if (CurrentSequencer.IsValid() && CurveEditor.IsValid())
 	{
@@ -147,11 +212,12 @@ FCurveModelID USequencerCurveEditorObject::GetCurve(UMovieSceneSection* InSectio
 		{
 			if (Pair.Value.IsValid() && Pair.Value->GetOwningObject() == InSection && Pair.Value->GetChannelName() == InName)
 			{
-				return Pair.Key;
+				OptCurveModel = Pair.Key;
+				break;
 			}
 		}
 	}
-	return FCurveModelID::Unique();
+	return OptCurveModel;
 }
 
 void USequencerCurveEditorObject::SelectKeys(const FSequencerChannelProxy& ChannelProxy, const TArray<int32>& Indices)
@@ -161,7 +227,8 @@ void USequencerCurveEditorObject::SelectKeys(const FSequencerChannelProxy& Chann
 	{
 		if (UMovieSceneSection* Section = ChannelProxy.Section)
 		{
-			FCurveModelID CurveModelID = USequencerCurveEditorObject::GetCurve(Section, ChannelProxy.ChannelName);
+			TOptional<FCurveModelID> CurveModelID = USequencerCurveEditorObject::GetCurve(Section, ChannelProxy.ChannelName);
+			if(CurveModelID.IsSet())
 			{
 				if (FMovieSceneChannel* MovieSceneChannel = UMovieSceneSectionExtensions::GetMovieSceneChannel(Section, ChannelProxy.ChannelName))
 				{
@@ -174,7 +241,7 @@ void USequencerCurveEditorObject::SelectKeys(const FSequencerChannelProxy& Chann
 							Handles.Add(Handle);
 						}
 					}
-					CurveEditor->Selection.Add(CurveModelID, ECurvePointType::Key, Handles);
+					CurveEditor->Selection.Add(CurveModelID.GetValue(), ECurvePointType::Key, Handles);
 				}
 			}
 		}
@@ -262,6 +329,28 @@ void USequencerCurveEditorObject::SetRandomColorForChannels(UClass* Class, const
 		}
 	}
 }
+
+void USequencerCurveEditorObject::ApplyFilter(UCurveEditorFilterBase* Filter)
+{
+	TSharedPtr<FCurveEditor> CurveEditor =  GetCurveEditor();
+
+	if (Filter && CurveEditor.IsValid())
+	{
+		Filter->InitializeFilter(CurveEditor.ToSharedRef());
+		const TMap<FCurveModelID, FKeyHandleSet>& SelectedKeys = CurveEditor->GetSelection().GetAll();
+		TMap<FCurveModelID, FKeyHandleSet> OutKeysToSelect;
+		Filter->ApplyFilter(CurveEditor.ToSharedRef(), SelectedKeys, OutKeysToSelect);
+
+		// Clear their selection and then set it to the keys the filter thinks you should have selected.
+		CurveEditor->GetSelection().Clear();
+
+		for (const TTuple<FCurveModelID, FKeyHandleSet>& OutSet : OutKeysToSelect)
+		{
+			CurveEditor->GetSelection().Add(OutSet.Key, ECurvePointType::Key, OutSet.Value.AsArray());
+		}
+	}
+}
+
 
 
 

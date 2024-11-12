@@ -3,7 +3,7 @@
 	"Version": 1,
 	"VersionName": "1.0",
 	"FriendlyName": "Runtime Tests",
-	"Description": "",
+	"Description": "Automated tests for runtime code used in both editor and cooked builds",
 	"Category": "Testing",
 	"CreatedBy": "Epic Games, Inc.",
 	"CreatedByURL": "https://epicgames.com",
@@ -17,7 +17,7 @@
 	"Modules": [
 		{
 			"Name": "RuntimeTests",
-			"Type": "UncookedOnly",
+			"Type": "Runtime",
 			"LoadingPhase": "PreDefault"
 		}
 	]

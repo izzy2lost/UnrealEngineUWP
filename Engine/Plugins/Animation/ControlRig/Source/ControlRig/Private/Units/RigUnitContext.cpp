@@ -3,8 +3,15 @@
 #include "Units/RigUnitContext.h"
 #include "ControlRig.h"
 #include "ModularRig.h"
+#include "Units/Execution/RigUnit_PrepareForExecution.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnitContext)
+
+bool FControlRigExecuteContext::IsRunningConstructionEvent() const
+{
+	return GetEventName() == FRigUnit_PrepareForExecution::EventName ||
+		GetEventName() == FRigUnit_PostPrepareForExecution::EventName;
+}
 
 FName FControlRigExecuteContext::AddRigModuleNameSpace(const FName& InName) const
 {

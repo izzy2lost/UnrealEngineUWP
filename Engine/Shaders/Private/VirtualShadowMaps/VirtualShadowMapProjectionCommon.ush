@@ -101,12 +101,12 @@ FVirtualShadowMapSample SampleVirtualShadowMapLevel(int VirtualShadowMapId, floa
 	return Result;
 }
 
-FVirtualShadowMapSample SampleVirtualShadowMap(int VirtualShadowMapId, float2 ShadowMapUV)
+FVirtualShadowMapSample SampleVirtualShadowMap(int VirtualShadowMapId, float2 ShadowMapUV, uint MinMipLevel)
 {
-	FShadowPageTranslationResult Page = ShadowVirtualToPhysicalUV(VirtualShadowMapId, ShadowMapUV);
+	FShadowPageTranslationResult Page = ShadowVirtualToPhysicalUV(VirtualShadowMapId, ShadowMapUV, MinMipLevel);
+	FVirtualShadowMapSample Result = InitVirtualShadowMapSample();
 	if (Page.bValid)
 	{
-		FVirtualShadowMapSample Result = InitVirtualShadowMapSample();
 		Result.bValid = true;
 		Result.MipLevel = Page.LODOffset;
 		Result.VirtualShadowMapId = VirtualShadowMapId;
@@ -114,12 +114,18 @@ FVirtualShadowMapSample SampleVirtualShadowMap(int VirtualShadowMapId, float2 Sh
 		Result.VirtualTexelAddressFloat = Page.VirtualTexelAddressFloat;
 		Result.PhysicalTexelAddress = Page.PhysicalTexelAddress;
 		Result.Depth = SampleVirtualShadowMapPhysicalDepth(Result.PhysicalTexelAddress);
-		return Result;
 	}
 
-	return InitVirtualShadowMapSample();
+	return Result;
 }
 
+// VSM normal bias that smoothly scales with distance to camera
+float3 VirtualShadowMapGetNormalBiasLength(float3 TranslatedWorldPosition)
+{
+	float DistanceToCamera = GetDistanceToCameraFromViewVector(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
+	float NormalBiasLength = max(0.02f, VirtualShadowMap.NormalBias * DistanceToCamera / GetCotanHalfFieldOfView().x);
+	return NormalBiasLength;
+}
 
 // Data to convert UV's and depths from one clipmap level basis to another
 struct FVirtualShadowMapClipmapRelativeTransform
@@ -368,6 +374,7 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapDirectional(
 	int ClipmapIndex = max(0, ClipmapLevel - BaseProjectionData.ClipmapLevel);
 
 	// Check if sample is within the clipmap range (from camera)
+	FVirtualShadowMapSampleResult Result = InitVirtualShadowMapSampleResult();
 	if (ClipmapIndex < BaseProjectionData.ClipmapLevelCountRemaining)
 	{
 		int ClipmapLevelVirtualShadowMapId = VirtualShadowMapId + ClipmapIndex;
@@ -385,7 +392,6 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapDirectional(
 		{
 			int SampledClipmapIndex = SmSample.VirtualShadowMapId - VirtualShadowMapId;
 
-			FVirtualShadowMapSampleResult Result = InitVirtualShadowMapSampleResult();
 			Result.bValid = true;
 			Result.ShadowFactor = 1.0f;
 			Result.OccluderDistance = -1.0f;
@@ -412,13 +418,10 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapDirectional(
 					SmSample.Depth,
 					ShadowUVz.z);
 			}
-
-			return Result;
 		}
 	}
 
-	// Invalid
-	return InitVirtualShadowMapSampleResult();
+	return Result;
 }
 
 
@@ -450,7 +453,7 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapLocal(
 	float4 ShadowUVz = mul(float4(ShadowTranslatedWorldPosition, 1.0f), ProjectionData.TranslatedWorldToShadowUVMatrix);
 	ShadowUVz.xyz /= ShadowUVz.w;
 
-	FVirtualShadowMapSample SmSample = SampleVirtualShadowMap(VirtualShadowMapId, ShadowUVz.xy);
+	FVirtualShadowMapSample SmSample = SampleVirtualShadowMap(VirtualShadowMapId, ShadowUVz.xy, ProjectionData.MinMipLevel);
 	if (SmSample.bValid)
 	{
 		FVirtualShadowMapSampleResult Result = InitVirtualShadowMapSampleResult();
@@ -477,9 +480,9 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapLocal(
 			Result.ShadowFactor = 0.0f;
 			// Shadow view matrix is rotation
 			float ReceiverDistance = length(ShadowTranslatedWorldPosition);
-			Result.OccluderDistance = RayStartDistance + ComputeOccluderDistancePerspective(
+			Result.OccluderDistance = ComputeOccluderDistancePerspective(
 				ProjectionData.ShadowViewToClipMatrix,
-				SmSample.Depth,
+				BiasedDepth,
 				ShadowUVz.z,
 				ReceiverDistance);
 		}
@@ -521,3 +524,4 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapTranslatedWorld(int VirtualS
 		return SampleVirtualShadowMapLocal(VirtualShadowMapId, TranslatedWorldPosition, RayStartDistance);
 	}
 }
+

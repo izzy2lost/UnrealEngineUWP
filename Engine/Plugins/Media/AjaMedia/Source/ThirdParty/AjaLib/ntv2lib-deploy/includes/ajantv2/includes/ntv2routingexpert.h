@@ -2,7 +2,7 @@
 /**
 	@file		ntv2routingexpert.h
 	@brief		Declares RoutingExpert class used by CNTV2SignalRouter.
-	@copyright	(C) 2014-2021 AJA Video Systems, Inc.
+	@copyright	(C) 2014-2022 AJA Video Systems, Inc.
 **/
 
 #ifndef NTV2ROUTINGEXPERT_H
@@ -11,7 +11,6 @@
 #include "ntv2signalrouter.h"
 
 #include "ajabase/system/lock.h"
-#include "ajabase/common/common.h"
 #include "ajabase/common/ajarefptr.h"
 
 class RoutingExpert;

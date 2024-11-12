@@ -103,7 +103,7 @@ namespace UE::MultiUserClient
 	struct FPropertyChange
 	{
 		/** The properties of the operation */
-		TArray<FConcertPropertyChain> Properties;
+		TSet<FConcertPropertyChain> Properties;
 		/** How to interpret Properties. */
 		EPropertyChangeType ChangeType;
 	};

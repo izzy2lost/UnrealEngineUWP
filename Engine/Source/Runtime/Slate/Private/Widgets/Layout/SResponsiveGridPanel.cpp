@@ -20,6 +20,8 @@ SResponsiveGridPanel::SResponsiveGridPanel()
 : Slots(this, GET_MEMBER_NAME_CHECKED(SResponsiveGridPanel, Slots))
 {}
 
+SResponsiveGridPanel::~SResponsiveGridPanel() = default;
+
 SResponsiveGridPanel::FScopedWidgetSlotArguments SResponsiveGridPanel::AddSlot(int32 Row)
 {
 	TWeakPtr<SResponsiveGridPanel> WeakPanel = SharedThis(this);

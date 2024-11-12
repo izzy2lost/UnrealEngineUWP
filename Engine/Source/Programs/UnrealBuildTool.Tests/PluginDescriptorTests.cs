@@ -7,15 +7,15 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using EpicGames.Core;
-using UnrealBuildTool;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using UnrealBuildTool;
 
 namespace UnrealBuildToolTests
 {
 	[TestClass]
 	public class PluginDescriptorTests
 	{
-		private static DirectoryReference s_tempDirectory;
+		private static DirectoryReference? s_tempDirectory;
 
 		private static DirectoryReference CreateTempDir()
 		{
@@ -33,7 +33,7 @@ namespace UnrealBuildToolTests
 		[ClassCleanup]
 		public static void TearDown()
 		{
-			if (Directory.Exists(PluginDescriptorTests.s_tempDirectory.FullName))
+			if (s_tempDirectory != null && Directory.Exists(PluginDescriptorTests.s_tempDirectory.FullName))
 			{
 				Directory.Delete(PluginDescriptorTests.s_tempDirectory.FullName, true);
 			}
@@ -127,7 +127,7 @@ namespace UnrealBuildToolTests
 
 		private static string GetAbsolutePathToTempFile(string fileName)
 		{
-			if (String.IsNullOrEmpty(fileName))
+			if (String.IsNullOrEmpty(fileName) || s_tempDirectory == null)
 			{
 				return "";
 			}
@@ -139,7 +139,7 @@ namespace UnrealBuildToolTests
 			string extension = Path.GetExtension(fileName);
 			Debug.Assert(!String.IsNullOrEmpty(extension));
 			Debug.Assert(extension == ".uplugin");
-			string inputFile = Path.Join(s_tempDirectory.FullName, fileName);
+			string inputFile = Path.Join(s_tempDirectory?.FullName, fileName);
 			FileReference inputFileReference = new FileReference(inputFile);
 			File.WriteAllText(inputFile, fileContent);
 			return inputFileReference;

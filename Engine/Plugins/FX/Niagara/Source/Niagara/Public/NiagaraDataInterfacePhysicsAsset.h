@@ -214,7 +214,7 @@ struct FNDIPhysicsAssetProxy : public FNiagaraDataInterfaceProxy
 	void DestroyPerInstanceData(const FNiagaraSystemInstanceID& SystemInstance);
 
 	/** Launch all pre stage functions */
-	virtual void PreStage(const FNDIGpuComputePostStageContext& Context) override;
+	virtual void PreStage(const FNDIGpuComputePreStageContext& Context) override;
 
 	/** List of proxy data for each system instances*/
 	TMap<FNiagaraSystemInstanceID, FNDIPhysicsAssetData> SystemInstancesToProxyData;

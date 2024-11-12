@@ -3,12 +3,16 @@
 
 #include "EdGraphUtilities.h"
 #include "EdGraph/EdGraphNode.h"
+#include "MetasoundEditorGraphCommentNode.h"
 #include "MetasoundEditorGraphNode.h"
 #include "MetasoundEditorGraphSchema.h"
+#include "MetasoundStandardNodesNames.h"
+#include "NodeTemplates/MetasoundFrontendNodeTemplateAudioAnalyzer.h"
 #include "NodeTemplates/MetasoundFrontendNodeTemplateReroute.h"
 #include "SGraphNode.h"
 #include "SMetasoundGraphNode.h"
 #include "SMetasoundGraphNodeComment.h"
+#include "SMetasoundSpectrumAnalyzerGraphNode.h"
 #include "Templates/SharedPointer.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 
@@ -30,12 +34,17 @@ class FMetasoundGraphNodeFactory : public FGraphPanelNodeFactory
 				{
 					return SNew(SMetaSoundGraphNodeKnot, InNode);
 				}
+				else if (ClassName == FAudioAnalyzerNodeTemplate::ClassName)
+				{
+					return SNew(SMetaSoundSpectrumAnalyzerGraphNode, InNode);
+				}
 			}
 			return SNew(SMetaSoundGraphNode, InNode);
 		}
-		else if (UEdGraphNode_Comment* CommentNode = Cast<UEdGraphNode_Comment>(InNode))
+		else if (UMetasoundEditorGraphCommentNode* CommentNode = Cast<UMetasoundEditorGraphCommentNode>(InNode))
 		{
-			if (CommentNode->GetSchema()->IsA(UMetasoundEditorGraphSchema::StaticClass()))
+			const UEdGraphSchema* EdGraphSchema = CommentNode->GetSchema();
+			if (EdGraphSchema && EdGraphSchema->IsA(UMetasoundEditorGraphSchema::StaticClass()))
 			{
 				return SNew(SMetasoundGraphNodeComment, CommentNode);
 			}

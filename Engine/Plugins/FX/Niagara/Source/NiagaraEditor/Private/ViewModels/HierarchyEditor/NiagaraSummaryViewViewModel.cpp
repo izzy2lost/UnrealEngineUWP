@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ViewModels/HierarchyEditor/NiagaraSummaryViewViewModel.h"
+
+#include "EdGraphSchema_Niagara.h"
 #include "GraphEditAction.h"
 #include "NiagaraConstants.h"
 #include "NiagaraEditorStyle.h"
@@ -290,7 +292,7 @@ void FNiagaraFunctionViewModel::RefreshChildrenInputs(bool bClearCache) const
 						}
 					}
 					
-					return VariableGuidMetadataMap[GuidA].EditorSortPriority < VariableGuidMetadataMap[GuidB].EditorSortPriority;
+					return VariableGuidMetadataMap[GuidA].GetEditorSortPriority_DEPRECATED() < VariableGuidMetadataMap[GuidB].GetEditorSortPriority_DEPRECATED();
 				});
 				
 				for(const FGuid& VariableGuid : VariableGuids)
@@ -623,12 +625,12 @@ void FNiagaraModuleInputViewModel::AddNativeChildrenInputs()
 			{
 				if(UNiagaraScriptVariable* ScriptVariable = Graph->GetScriptVariable(Variable))
 				{
-					if(!ScriptVariable->Metadata.ParentAttribute.IsNone() && ScriptVariable->Metadata.ParentAttribute.IsEqual(GetInputData()->InputName))
+					if(!ScriptVariable->Metadata.GetParentAttribute_DEPRECATED().IsNone() && ScriptVariable->Metadata.GetParentAttribute_DEPRECATED().IsEqual(GetInputData()->InputName))
 					{
 						FNiagaraHierarchyIdentity ChildIdentity;
 						ChildIdentity.Guids.Add(GetData()->GetPersistentIdentity().Guids[0]);
 						ChildIdentity.Guids.Add(ScriptVariable->Metadata.GetVariableGuid());
-						ChildSortOrderMap.Add(ChildIdentity, ScriptVariable->Metadata.EditorSortPriority);
+						ChildSortOrderMap.Add(ChildIdentity, ScriptVariable->Metadata.GetEditorSortPriority_DEPRECATED());
 					}
 				}
 			}
@@ -694,7 +696,7 @@ TArray<FNiagaraHierarchyIdentity> FNiagaraModuleInputViewModel::GetNativeChildIn
 			{
 				if(UNiagaraScriptVariable* ScriptVariable = Graph->GetScriptVariable(Variable))
 				{
-					if(!ScriptVariable->Metadata.ParentAttribute.IsNone() && ScriptVariable->Metadata.ParentAttribute.IsEqual(GetInputData()->InputName))
+					if(!ScriptVariable->Metadata.GetParentAttribute_DEPRECATED().IsNone() && ScriptVariable->Metadata.GetParentAttribute_DEPRECATED().IsEqual(GetInputData()->InputName))
 					{
 						FNiagaraHierarchyIdentity ChildIdentity;
 						ChildIdentity.Guids.Add(GetData()->GetPersistentIdentity().Guids[0]);

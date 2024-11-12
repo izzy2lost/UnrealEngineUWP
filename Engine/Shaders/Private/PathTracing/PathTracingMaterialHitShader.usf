@@ -24,7 +24,8 @@
 // Ensure specular profile and glints are supported
 // TODO: the derivatives don't appear to be correct in all cases, causing incorrectly blurry lookups - so disable them for now unless using substrate
 //  We don't have an easy way to detect if the material is using glints or not, so use the complex special path which includes glints for now
-#define USE_ANALYTIC_DERIVATIVES (SUBSTRATE_ENABLED && SUBSTRATE_COMPLEXSPECIALPATH && PLATFORM_ENABLES_SUBSTRATE_GLINTS)
+#define SUBSTRATE_COMPLEXSPECIALPATH 1
+#define USE_ANALYTIC_DERIVATIVES 1
 
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Private/RayTracing/RayTracingCommon.ush"
@@ -43,6 +44,7 @@
 #if SUBSTRATE_ENABLED
 #define MATERIAL_SUBSTRATE_OPAQUE_PRECOMPUTED_LIGHTING 0
 #include "/Engine/Private/Substrate/SubstrateExport.ush"
+#include "/Engine/Private/PathTracing/Material/PathTracingSubstrateCommon.ush"
 #endif
 
 float AdjustMaterialRoughness(float Roughness, float PathRoughness)
@@ -155,7 +157,7 @@ float3 GetSimpleVolumeDiffuseColor(float3 DiffuseColor, float3 MeanFreePath)
 	// SUBSTRATE_TODO: In the case of thin materials, we should also include a backscattering diffuse portion
 	FParticipatingMedia PM = SubstrateSlabCreateParticipatingMedia(DiffuseColor, MeanFreePath);
 	const float DiffuseToVolumeBlend = SubstrateSlabDiffuseToVolumeBlend(PM);
-	const float3 SlabDirectionalAlbedo = IsotropicMediumSlabEnvDirectionalAlbedo(PM);
+	const float3 SlabDirectionalAlbedo = IsotropicMediumSlabEnvDirectionalAlbedoALU(PM);
 	return lerp(DiffuseColor, SlabDirectionalAlbedo, DiffuseToVolumeBlend);
 }
 
@@ -286,7 +288,9 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 #elif MATERIALBLENDING_MODULATE
 	Payload.BSDFOpacity = 0.0;
 	Payload.TransparencyColor = GetMaterialEmissive(PixelMaterialInputs);
-	HLSL_STATIC_ASSERT(MATERIAL_SHADINGMODEL_UNLIT == 1, "Modulate blend mode requires unlit shading model");
+	// NOTE: in the case of substrate materials we could have DEFAULT_LIT here
+	HLSL_STATIC_ASSERT(MATERIAL_SHADINGMODEL_UNLIT == 1 ||
+	                   MATERIAL_SHADINGMODEL_DEFAULT_LIT == 1, "Modulate blend mode requires unlit shading model");
 	Payload.ShadingModelID = SHADINGMODELID_UNLIT;
 #elif MATERIALBLENDING_MASKED && MATERIAL_DITHER_OPACITY_MASK
 	// dithering emulates real transparency, so switch to translucent
@@ -468,7 +472,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 								FuzzRoughness = MakeRoughnessSafe(FuzzRoughness, SUBSTRATE_MIN_FUZZ_ROUGHNESS);
 							}
 							
-							const float FuzzE = ComputeClothEnergyTermsA(FuzzRoughness, NoV).E;
+							const float FuzzE = ComputeSheenEnergyTerms(FuzzRoughness, NoV).E;
 							const float FuzzAttenuation = 1.0 - FuzzAmount * FuzzE;
 							float DiffuseWeight = FuzzAttenuation;
 							float3 Spec0Albedo = FuzzAttenuation * Spec0E;
@@ -489,7 +493,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 								Spec1Albedo *=       SpecBlend;
 							}
 							// SUBSTRATE_TODO: Need to account for glass case here for lobe selection ....
-							const float  FuzzAlbedo = FuzzAmount * FuzzE;
+							const float3 FuzzAlbedo = FuzzAmount * FuzzE * FuzzColor;
 							const float3 SlabAlbedo = MaxLobeWeight * (DiffuseWeight * DiffuseColor + Spec0Albedo + Spec1Albedo + FuzzAlbedo);
 							Pdf = LobeColorToWeight(SlabAlbedo);
 						}
@@ -578,6 +582,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 					}
 					if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_SIMPLEVOLUME)
 					{
+						// TODO: this case should be represented by a different BSDF
 						Payload.DiffuseColor = GetSimpleVolumeDiffuseColor(Payload.DiffuseColor, SLAB_SSSMFP(BSDF));
 					}
 					else if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_DIFFUSION)
@@ -597,9 +602,47 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 						Payload.PhaseG = 0.0;
 #endif
 					}
+					else if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_WRAP)
+					{
+						const bool bIsThin = BSDF_GETISTHIN(BSDF);
+						const float TransmittanceNoL = 1.0f;
+						const float3 SlabDiffuseColor = bIsThin ? Payload.DiffuseColor : float3(1, 1, 1);
+						const FParticipatingMedia PM = SubstrateSlabCreateParticipatingMedia(Payload.DiffuseColor, SLAB_SSSMFP(BSDF));
+						float3 SubsurfaceColor = IsotropicMediumSlabTransmittance(PM, SUBSTRATE_SIMPLEVOLUME_THICKNESS_M, TransmittanceNoL);
+						const float Opacity = 1.f - abs(SLAB_SSSPHASEANISOTROPY(BSDF));
+
+						float3 Front = Payload.DiffuseColor;
+						float3 Back = SubsurfaceColor;
+						float3 Sum = Front + Back;
+						float S = max(Sum.x, max(Sum.y, Sum.z));
+						if (S > 1)
+						{
+							// nudge the material back to something physically plausible
+							// NOTE: we ignore spec here since it should be accounted for by the brdf model itself
+							Payload.DiffuseColor = Front / S;
+							SubsurfaceColor = Back / S;
+						}
+						if (bIsThin)
+						{
+							// foliage case, only the color matters
+							Payload.ShadingModelID = SHADINGMODELID_TWOSIDED_FOLIAGE;
+							Payload.SetFoliageTransmissionColor(SubsurfaceColor);
+						}
+						else
+						{
+
+							// Match formula from non-Substrate handling of wrap SSS
+							const float SSSRadius = (1 - Opacity) * 10.0; // simple formula, up to 10cm radius
+							// The legacy behavior has both diffuse+sss responses separately, but we can combine them to avoid needing a custom lobe
+							// In practice the diffuse and SSS responses are similar, so the difference should be minimal (and is an approximation of the raster behavior anyway)
+							Payload.DiffuseColor += SubsurfaceColor;
+							Payload.MeanFreePath = SSSRadius;
+							Payload.PhaseG = 0;
+						}
+					}
 					else
 					{
-						// SUBSTRATE_TODO: Do something meaningful for the other SSS types ...
+						// TODO: Are there any other SSS types to consider?
 						Payload.MeanFreePath = 0;
 						Payload.PhaseG       = 0;
 					}
@@ -902,18 +945,18 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 
 		const float3 ScatteringCoeff = max(0.0f, DFDemote(GetSingleLayerWaterMaterialOutput0(WaterMaterialParameters)));
 		const float3 AbsorptionCoeff = max(0.0f, DFDemote(GetSingleLayerWaterMaterialOutput1(WaterMaterialParameters)));
-		const float PhaseG = clamp(DFDemote(GetSingleLayerWaterMaterialOutput2(WaterMaterialParameters)), -0.99f, 0.99f);
+		const float PhaseG = clamp(DFDemote(GetSingleLayerWaterMaterialOutput2(WaterMaterialParameters).x), -0.99f, 0.99f);
 
 		const float3 WaterExtinction = ScatteringCoeff + AbsorptionCoeff;
 		const float3 WaterAlbedo = select(WaterExtinction > 0.0, ScatteringCoeff / WaterExtinction, float3(0.0, 0.0, 0.0));
 
-		Payload.ShadingModelID = SHADINGMODELID_DEFAULT_LIT; // replace shading model to avoid extra cases in raygen
+		Payload.ShadingModelID = SHADINGMODELID_SOLID_GLASS; // replace shading model to avoid extra cases in raygen
 		Payload.BaseColor = WaterAlbedo; // TODO: unused at the moment
 		Payload.SetExtinction(WaterExtinction);
 		Payload.Ior = DielectricF0ToIor(DielectricSpecularToF0(Specular));
 		// we are using actual refraction, so don't apply any transparency
 		Payload.TransparencyColor = 0.0;
-		Payload.BSDFOpacity = 0.0; // only shade with the glass portion
+		Payload.BSDFOpacity = 1.0;
 	}
 	else
 #endif
@@ -923,11 +966,25 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 	{
 		const float3 TransmittanceColor = GetThinTranslucentMaterialOutput0(MaterialParameters);
 		Payload.SetTransmittanceColor(TransmittanceColor);
-		Payload.Ior = Ior;
+
+		// The material is a blend of glass and default_lit response, model it stochastically
+		if (Payload.BSDFOpacity < PackedPayload.GetStochasticSlabRand())
+		{
+			// Pick glass lobe - shade as glass (leave SHADINGMODELID_THIN_TRANSLUCENT on)
+			Payload.Ior = Ior;
+		}
+		else
+		{
+			// Pick solid lobe -- toggle back to default_lit response
+			// Ior stays 0.0 since this mode does not include any refraction
+			Payload.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
+		}
+		
+		float SurfaceCoverage = GetThinTranslucentMaterialOutput1(MaterialParameters);
 		if (Ior > 0.0)
 		{
-			// In this mode we get rough refraction, so don't apply any transparency
-			Payload.TransparencyColor = 0.0;
+			// In this mode we get rough refraction, so any transparency is only due to coverage (affecting both solid and glass lobes)
+			Payload.TransparencyColor = 1 - SurfaceCoverage;
 		}
 		else
 		{
@@ -939,8 +996,15 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 			const float  Metallic = Payload.Metallic;
 			const float  Specular = Payload.Specular;
 			const float  F0 = F0RGBToF0(ComputeF0(Specular, BaseColor, Metallic));
+			// This is the portion of transparency due to glass. We always compute it because we don't need to model the amount
+			// of transparency stochastically.
+			/// BSDFOpacity here still represents the blend between solid and glass behaviors.
 			Payload.TransparencyColor = (1 - Payload.BSDFOpacity) * ComputeThinSlabWeights(TransmittanceColor, VoN, 0.0, F0).Transmitted;
+			// Now account for overall coverage (allows the combination of solid/glass to become transparent)
+			Payload.TransparencyColor = lerp(1.0.xxx, Payload.TransparencyColor, SurfaceCoverage);
 		}
+		// Now we can replace the BSDFOpacity with coverage
+		Payload.BSDFOpacity = SurfaceCoverage;
 	}
 	else
 #endif
@@ -1035,11 +1099,23 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 		// Make the glass totally clear if no custom medium is set
 		Payload.SetExtinction(0.0);
 #endif
-		Payload.Ior = Ior;
 		if (Ior > 0.0)
 		{
-			// we are using actual refraction, so disable transparency
-			Payload.TransparencyColor = 0.0;
+			// Our material is a blend between glass and default_lit -- use stochastic blending between the two
+			if (PackedPayload.GetStochasticSlabRand() < Payload.BSDFOpacity)
+			{
+				// solid case - keep default_lit shading model
+			}
+			else
+			{
+				// glass
+				// we are using actual refraction, so disable transparency
+				Payload.Ior = Ior;
+				Payload.TransparencyColor = 0.0;
+				Payload.ShadingModelID = SHADINGMODELID_SOLID_GLASS;
+
+			}
+			Payload.BSDFOpacity = 1.0; // cancels out with the probability of selecting the lobe
 		}
 	}
 	else
@@ -1345,6 +1421,10 @@ RAY_TRACING_ENTRY_ANY_HIT(PathTracingMaterialAHS,
 				}
 #endif
 			}
+
+			// Fade out the Transparency as a function of the SurfaceCoverage.
+			const float SurfaceCoverage = GetThinTranslucentMaterialOutput1(MaterialParameters);
+			Transparency = lerp(1.0.xxx, Transparency, SurfaceCoverage);
 		}
 		else
 #endif // MATERIAL_SHADINGMODEL_THIN_TRANSLUCENT

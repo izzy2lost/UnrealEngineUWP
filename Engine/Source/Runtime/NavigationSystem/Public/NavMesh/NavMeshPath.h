@@ -40,13 +40,12 @@ struct FNavMeshPath : public FNavigationPath
 	typedef FNavigationPath Super;
 
 	NAVIGATIONSYSTEM_API FNavMeshPath();
+	NAVIGATIONSYSTEM_API ~FNavMeshPath();
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FNavMeshPath(const FNavMeshPath&) = default;
-	FNavMeshPath(FNavMeshPath&& Other) = default;
-	FNavMeshPath& operator=(const FNavMeshPath& Other) = default;
-	FNavMeshPath& operator=(FNavMeshPath&& Other) = default;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	NAVIGATIONSYSTEM_API FNavMeshPath(const FNavMeshPath&);
+	NAVIGATIONSYSTEM_API FNavMeshPath(FNavMeshPath&& Other);
+	NAVIGATIONSYSTEM_API FNavMeshPath& operator=(const FNavMeshPath& Other);
+	NAVIGATIONSYSTEM_API FNavMeshPath& operator=(FNavMeshPath&& Other);
 
 	FORCEINLINE void SetWantsStringPulling(const bool bNewWantsStringPulling) { bWantsStringPulling = bNewWantsStringPulling; }
 	FORCEINLINE bool WantsStringPulling() const { return bWantsStringPulling; }

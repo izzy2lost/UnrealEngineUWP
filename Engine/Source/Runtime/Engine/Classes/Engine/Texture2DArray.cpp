@@ -241,8 +241,14 @@ uint32 UTexture2DArray::CalcTextureMemorySize(int32 MipCount) const
 
 			// Must be consistent with the logic in FTexture2DResource::InitRHI
 			const FIntPoint MipExtents = CalcMipMapExtent(GetSizeX(), GetSizeY(), Format, FirstMip);
-			uint32 TextureAlign = 0;
-			Size = (uint32)RHICalcTexture2DArrayPlatformSize(MipExtents.X, MipExtents.Y, GetArraySize(), Format, FMath::Max(1, MipCount), 1, Flags, FRHIResourceCreateInfo(GetPlatformData()->GetExtData()), TextureAlign);
+
+			const FRHITextureDesc Desc =
+				FRHITextureCreateDesc::Create2DArray(TEXT("Temp"), MipExtents, GetArraySize(), Format)
+				.SetNumMips(FMath::Max(1, MipCount))
+				.SetFlags(Flags)
+				.SetExtData(GetPlatformData()->GetExtData());
+
+			Size = RHICalcTexturePlatformSize(Desc).Size;
 		}
 	}
 	return Size;
@@ -495,11 +501,7 @@ ENGINE_API void UTexture2DArray::InvalidateTextureSource()
 {
 	Modify();
 
-	if (GetPlatformData())
-	{
-		delete GetPlatformData();
-		SetPlatformData(nullptr);
-	}
+	SetPlatformData(nullptr);
 
 	Source = FTextureSource();
 	Source.SetOwner(this);

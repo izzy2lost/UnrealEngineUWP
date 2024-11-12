@@ -1,13 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AI/Navigation/NavigationTypes.h"
-#include "AI/NavigationSystemBase.h"
-#include "AI/Navigation/NavQueryFilter.h"
+#include "AI/Navigation/NavAreaBase.h"
 #include "AI/Navigation/NavigationRelevantData.h"
+#include "AI/Navigation/NavigationElement.h"
+#include "AI/Navigation/NavQueryFilter.h"
+#include "AI/NavigationSystemBase.h"
+#include "Components/ShapeComponent.h"
 #include "Engine/Level.h"
 #include "EngineStats.h"
-#include "Components/ShapeComponent.h"
-#include "AI/Navigation/NavAreaBase.h"
 #include "GameFramework/WorldSettings.h"
 #include "WorldPartition/DataLayer/DataLayerAsset.h"
 
@@ -15,7 +16,7 @@
 
 DEFINE_STAT(STAT_Navigation_MetaAreaTranslation);
 
-static const uint32 MAX_NAV_SEARCH_NODES = 2048;
+static constexpr uint32 MAX_NAV_SEARCH_NODES = 2048;
 
 namespace FNavigationSystem
 {
@@ -76,20 +77,6 @@ namespace FNavigationSystem
 	}	
 }
 
-FNavigationDirtyArea::FNavigationDirtyArea(const FBox& InBounds, int32 InFlags, UObject* const InOptionalSourceObject /*= nullptr*/)
-	: Bounds(InBounds)
-	, Flags(InFlags)
-	, OptionalSourceObject(InOptionalSourceObject)
-{
-#if !NO_LOGGING
-	if (!Bounds.IsValid || Bounds.ContainsNaN())
-	{
-		UE_LOG(LogNavigation, Warning, TEXT("Creation of FNavigationDirtyArea with invalid bounds%s. Bounds: %s, SourceObject: %s."),
-			Bounds.ContainsNaN() ? TEXT(" (contains NaN)") : TEXT(""), *Bounds.ToString(), *GetFullNameSafe(OptionalSourceObject.Get()));
-	}
-#endif //!NO_LOGGING	
-}
-
 //----------------------------------------------------------------------//
 // FNavigationQueryFilter
 //----------------------------------------------------------------------//
@@ -141,13 +128,113 @@ FString FNavDataConfig::GetDescription() const
 	return FString::Printf(TEXT("Name %s class %s agent radius %.1f")
 		, *Name.ToString(), *NavDataClass.ToString(), AgentRadius);
 }
+
 //----------------------------------------------------------------------//
 // FNavigationRelevantData
 //----------------------------------------------------------------------//
+FNavigationRelevantData::FNavigationRelevantData(const FNavigationRelevantData& Other)
+	: TSharedFromThis<FNavigationRelevantData, ESPMode::ThreadSafe>(Other)
+	, CollisionData(Other.CollisionData)
+	, VoxelData(Other.VoxelData)
+	, Bounds(Other.Bounds)
+	, NavDataPerInstanceTransformDelegate(Other.NavDataPerInstanceTransformDelegate)
+	, ShouldUseGeometryDelegate(Other.ShouldUseGeometryDelegate)
+	, Modifiers(Other.Modifiers)
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	, SourceObject(Other.SourceObject)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+	, SourceElement(Other.SourceElement)
+	, bPendingLazyGeometryGathering(Other.bPendingLazyGeometryGathering)
+	, bPendingLazyModifiersGathering(Other.bPendingLazyModifiersGathering)
+	, bPendingChildLazyModifiersGathering(Other.bPendingChildLazyModifiersGathering)
+	, bSupportsGatheringGeometrySlices(Other.bSupportsGatheringGeometrySlices)
+	, bShouldSkipDirtyAreaOnAddOrRemove(Other.bShouldSkipDirtyAreaOnAddOrRemove)
+	, bLoadedData(Other.bLoadedData)
+{
+}
+
+FNavigationRelevantData::FNavigationRelevantData(FNavigationRelevantData&& Other)
+	: TSharedFromThis<FNavigationRelevantData, ESPMode::ThreadSafe>(MoveTemp(Other))
+	, CollisionData(MoveTemp(Other.CollisionData))
+	, VoxelData(MoveTemp(Other.VoxelData))
+	, Bounds(MoveTemp(Other.Bounds))
+	, NavDataPerInstanceTransformDelegate(MoveTemp(Other.NavDataPerInstanceTransformDelegate))
+	, ShouldUseGeometryDelegate(MoveTemp(Other.ShouldUseGeometryDelegate))
+	, Modifiers(MoveTemp(Other.Modifiers))
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	, SourceObject(MoveTemp(Other.SourceObject))
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+	, SourceElement(MoveTemp(Other.SourceElement))
+	, bPendingLazyGeometryGathering(Other.bPendingLazyGeometryGathering)
+	, bPendingLazyModifiersGathering(Other.bPendingLazyModifiersGathering)
+	, bPendingChildLazyModifiersGathering(Other.bPendingChildLazyModifiersGathering)
+	, bSupportsGatheringGeometrySlices(Other.bSupportsGatheringGeometrySlices)
+	, bShouldSkipDirtyAreaOnAddOrRemove(Other.bShouldSkipDirtyAreaOnAddOrRemove)
+	, bLoadedData(Other.bLoadedData)
+{
+}
+
+FNavigationRelevantData& FNavigationRelevantData::operator=(FNavigationRelevantData&& Other)
+{
+	TSharedFromThis<FNavigationRelevantData, ESPMode::ThreadSafe>::operator =(MoveTemp(Other));
+	CollisionData = MoveTemp(Other.CollisionData);
+	VoxelData = MoveTemp(Other.VoxelData);
+	Bounds = MoveTemp(Other.Bounds);
+	NavDataPerInstanceTransformDelegate = MoveTemp(Other.NavDataPerInstanceTransformDelegate);
+	ShouldUseGeometryDelegate = MoveTemp(Other.ShouldUseGeometryDelegate);
+	Modifiers = MoveTemp(Other.Modifiers);
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	SourceObject = MoveTemp(Other.SourceObject);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+	SourceElement = MoveTemp(Other.SourceElement);
+	bPendingLazyGeometryGathering = Other.bPendingLazyGeometryGathering;
+	bPendingLazyModifiersGathering = Other.bPendingLazyModifiersGathering;
+	bPendingChildLazyModifiersGathering = Other.bPendingChildLazyModifiersGathering;
+	bSupportsGatheringGeometrySlices = Other.bSupportsGatheringGeometrySlices;
+	bShouldSkipDirtyAreaOnAddOrRemove = Other.bShouldSkipDirtyAreaOnAddOrRemove;
+	bLoadedData = Other.bLoadedData;
+	return *this;
+}
+
+FNavigationRelevantData& FNavigationRelevantData::operator=(const FNavigationRelevantData& Other)
+{
+	TSharedFromThis<FNavigationRelevantData, ESPMode::ThreadSafe>::operator =(Other);
+	CollisionData = Other.CollisionData;
+	VoxelData = Other.VoxelData;
+	Bounds = Other.Bounds;
+	NavDataPerInstanceTransformDelegate = Other.NavDataPerInstanceTransformDelegate;
+	ShouldUseGeometryDelegate = Other.ShouldUseGeometryDelegate;
+	Modifiers = Other.Modifiers;
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	SourceObject = Other.SourceObject;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+	SourceElement = Other.SourceElement;
+	bPendingLazyGeometryGathering = Other.bPendingLazyGeometryGathering;
+	bPendingLazyModifiersGathering = Other.bPendingLazyModifiersGathering;
+	bPendingChildLazyModifiersGathering = Other.bPendingChildLazyModifiersGathering;
+	bSupportsGatheringGeometrySlices = Other.bSupportsGatheringGeometrySlices;
+	bShouldSkipDirtyAreaOnAddOrRemove = Other.bShouldSkipDirtyAreaOnAddOrRemove;
+	bLoadedData = Other.bLoadedData;
+	return *this;
+}
+
 bool FNavigationRelevantData::FCollisionDataHeader::IsValid(const uint8* RawData, int32 RawDataSize)
 {
-	const int32 HeaderSize = sizeof(FCollisionDataHeader);
+	constexpr int32 HeaderSize = sizeof(FCollisionDataHeader);
 	return (RawDataSize == 0) || ((RawDataSize >= HeaderSize) && (((const FCollisionDataHeader*)RawData)->DataSize == RawDataSize));
+}
+
+FCompositeNavModifier FNavigationRelevantData::GetModifierForAgent(const FNavAgentProperties* NavAgent) const
+{
+	return Modifiers.HasMetaAreas() ? Modifiers.GetInstantiatedMetaModifier(NavAgent, SourceElement->GetWeakUObject()) : Modifiers;
 }
 
 bool FNavigationRelevantData::HasPerInstanceTransforms() const
@@ -179,7 +266,7 @@ bool FNavigationRelevantData::IsCollisionDataValid() const
 	const bool bIsValid = FCollisionDataHeader::IsValid(CollisionData.GetData(), CollisionData.Num());
 	if (!ensure(bIsValid))
 	{
-		UE_LOG(LogNavigation, Error, TEXT("NavOctree element has corrupted collision data! Owner:%s Bounds:%s"), *GetNameSafe(GetOwner()), *Bounds.ToString());
+		UE_LOG(LogNavigation, Error, TEXT("NavOctree element has corrupted collision data! Owner:%s Bounds:%s"), *SourceElement->GetName(), *Bounds.ToString());
 		return false;
 	}
 
@@ -197,7 +284,7 @@ FNavigationQueryFilter::FNavigationQueryFilter(const FNavigationQueryFilter& Sou
 FNavigationQueryFilter::FNavigationQueryFilter(const FNavigationQueryFilter* Source)
 	: MaxSearchNodes(DefaultMaxSearchNodes)
 {
-	if (Source != NULL)
+	if (Source != nullptr)
 	{
 		Assign(*Source);
 	}
@@ -220,7 +307,7 @@ FNavigationQueryFilter& FNavigationQueryFilter::operator=(const FNavigationQuery
 
 void FNavigationQueryFilter::Assign(const FNavigationQueryFilter& Source)
 {
-	if (Source.GetImplementation() != NULL)
+	if (Source.GetImplementation() != nullptr)
 	{
 		QueryFilterImpl = Source.QueryFilterImpl;
 	}
@@ -356,12 +443,20 @@ FNavLinkAuxiliaryId FNavLinkAuxiliaryId::GenerateUniqueAuxiliaryId(FStringView P
 	return FNavLinkAuxiliaryId(AuxiliaryId);
 }
 
+FNavLinkId FNavLinkId::GenerateUniqueId()
+{
+	// Apply NavLinkIdBitMask to differentiate Legacy Ids (that do not have the mask set).
+	const uint64 UniqueId = UE::Navigation::NavLinkIdHelpers::Private::MakeIdFromGUID(FGuid::NewGuid()) | NavLinkIdBitMask;
+	UE_LOG(LogNavLink, VeryVerbose, TEXT("%hs id: %u."), __FUNCTION__, UniqueId);
+	return FNavLinkId(UniqueId);
+}
+
 FNavLinkId FNavLinkId::GenerateUniqueId(FNavLinkAuxiliaryId AuxiliaryId, FGuid ActorInstanceGuid)
 {
 	// Apply NavLinkIdBitMask to differentiate Legacy Ids (that do not have the mask set).
 	const uint64 UniqueId = UE::Navigation::NavLinkIdHelpers::Private::MakeIdFromGUID(AuxiliaryId, ActorInstanceGuid) | NavLinkIdBitMask;
 
-	UE_LOG(LogNavLink, VeryVerbose, TEXT("%hs id: %u."), __FUNCTION__, UniqueId);
+	UE_LOG(LogNavLink, VeryVerbose, TEXT("%hs id: %llu."), __FUNCTION__, UniqueId);
 
 	return FNavLinkId(UniqueId);
 }
@@ -407,3 +502,34 @@ TSubclassOf<UNavAreaBase> UNavAreaBase::PickAreaClassForAgent(const AActor& Acto
 	return GetClass();
 }
 
+//----------------------------------------------------------------------//
+// Deprecated methods
+//----------------------------------------------------------------------//
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+// Deprecated
+FNavigationRelevantData::FNavigationRelevantData(UObject& Source)
+	: SourceElement(MakeShared<const FNavigationElement>(Source))
+	, bPendingLazyGeometryGathering(false)
+	, bPendingLazyModifiersGathering(false)
+	, bPendingChildLazyModifiersGathering(false)
+	, bSupportsGatheringGeometrySlices(false)
+	, bShouldSkipDirtyAreaOnAddOrRemove(false)
+	, bLoadedData(false)
+{
+}
+
+// Deprecated
+const UObject* FNavigationRelevantData::GetOwner() const
+{
+	return SourceElement->GetWeakUObject().Get();
+}
+
+// Deprecated
+TWeakObjectPtr<UObject> FNavigationRelevantData::GetOwnerPtr() const
+{
+	return TWeakObjectPtr(const_cast<UObject*>(GetOwner()));
+}
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

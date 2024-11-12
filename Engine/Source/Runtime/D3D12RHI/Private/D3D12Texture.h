@@ -5,8 +5,9 @@ D3D12Texture.h: Implementation of D3D12 Texture
 =============================================================================*/
 #pragma once
 
-#include "D3D12Resources.h"
 #include "D3D12CommandList.h"
+#include "D3D12Resources.h"
+#include "D3D12View.h"
 
 /** If true, guard texture creates with SEH to log more information about a driver crash we are seeing during texture streaming. */
 #define GUARDED_TEXTURE_CREATES (PLATFORM_WINDOWS && !(UE_BUILD_SHIPPING || UE_BUILD_TEST || PLATFORM_COMPILER_CLANG))
@@ -75,7 +76,7 @@ public:
 		
 	// Setup functionality
 	void InitializeTextureData(FRHICommandListBase& RHICmdList, const FRHITextureCreateDesc& CreateDesc, D3D12_RESOURCE_STATES DestinationState);
-	void CreateViews();
+	void CreateViews(FD3D12Texture* FirstLinkedObject);
 	void SetCreatedRTVsPerSlice(bool Value, int32 InRTVArraySize)
 	{
 		bCreatedRTVsPerSlice = Value;
@@ -87,25 +88,25 @@ public:
 		RenderTargetViews.SetNum(Num);
 	}
 
-	void EmplaceRTV(D3D12_RENDER_TARGET_VIEW_DESC const& RTVDesc, int32 Index)
+	void EmplaceRTV(D3D12_RENDER_TARGET_VIEW_DESC const& RTVDesc, int32 Index, FD3D12Texture* FirstLinkedObject)
 	{
 		check(RenderTargetViews.IsValidIndex(Index));
 		check(!RenderTargetViews[Index]);
 
-		RenderTargetViews[Index] = MakeShared<FD3D12RenderTargetView>(GetParentDevice());
+		RenderTargetViews[Index] = MakeShared<FD3D12RenderTargetView>(GetParentDevice(), FirstLinkedObject ? FirstLinkedObject->RenderTargetViews[Index].Get() : nullptr);
 		RenderTargetViews[Index]->CreateView(this, RTVDesc);
 	}
 
-	void EmplaceDSV(D3D12_DEPTH_STENCIL_VIEW_DESC const& DSVDesc, int32 Index)
+	void EmplaceDSV(D3D12_DEPTH_STENCIL_VIEW_DESC const& DSVDesc, int32 Index, FD3D12Texture* FirstLinkedObject)
 	{
 		check(Index < FExclusiveDepthStencil::MaxIndex);
 		check(!DepthStencilViews[Index]);
 
-		DepthStencilViews[Index] = MakeShared<FD3D12DepthStencilView>(GetParentDevice());
+		DepthStencilViews[Index] = MakeShared<FD3D12DepthStencilView>(GetParentDevice(), FirstLinkedObject ? FirstLinkedObject->DepthStencilViews[Index].Get() : nullptr);
 		DepthStencilViews[Index]->CreateView(this, DSVDesc);
 	}
 
-	void EmplaceSRV(D3D12_SHADER_RESOURCE_VIEW_DESC const& SRVDesc)
+	void EmplaceSRV(D3D12_SHADER_RESOURCE_VIEW_DESC const& SRVDesc, FD3D12Texture* FirstLinkedObject)
 	{
 		check(!ShaderResourceView);
 
@@ -113,26 +114,24 @@ public:
 			? FD3D12ShaderResourceView::EFlags::SkipFastClearFinalize
 			: FD3D12ShaderResourceView::EFlags::None;
 
-		ShaderResourceView = MakeShared<FD3D12ShaderResourceView>(GetParentDevice());
+		ShaderResourceView = MakeShared<FD3D12ShaderResourceView>(GetParentDevice(), FirstLinkedObject ? FirstLinkedObject->ShaderResourceView.Get() : nullptr);
 		ShaderResourceView->CreateView(this, SRVDesc, Flags);
 	}
 
 	// Locking/update functions
-	void* Lock(class FRHICommandListImmediate* RHICmdList, uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode LockMode, uint32& DestStride, uint64* OutLockedByteCount = nullptr);
-	void Unlock(class FRHICommandListImmediate* RHICmdList, uint32 MipIndex, uint32 ArrayIndex);
+	void* Lock(FRHICommandListImmediate& RHICmdList, uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode LockMode, uint32& DestStride, uint64* OutLockedByteCount = nullptr);
+	void Unlock(FRHICommandListBase& RHICmdList, uint32 MipIndex, uint32 ArrayIndex);
+
 	void UpdateTexture2D(FRHICommandListBase& RHICmdList, uint32 MipIndex, const struct FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, const uint8* SourceData);
-	void UpdateTexture(uint32 MipIndex, uint32 DestX, uint32 DestY, uint32 DestZ, const D3D12_TEXTURE_COPY_LOCATION& SourceCopyLocation);
-	void CopyTextureRegion(uint32 DestX, uint32 DestY, uint32 DestZ, FD3D12Texture* SourceTexture, const D3D12_BOX& SourceBox);
+	void UpdateTexture(FD3D12CommandContext& Context, uint32 MipIndex, uint32 DestX, uint32 DestY, uint32 DestZ, const D3D12_TEXTURE_COPY_LOCATION& SourceCopyLocation);
+
+	void CopyTextureRegion(FD3D12CommandContext& Context, uint32 DestX, uint32 DestY, uint32 DestZ, FD3D12Texture* SourceTexture, const D3D12_BOX& SourceBox);
 
 	// Resource aliasing
 	void AliasResources(FD3D12Texture* Texture);
 	void SetAliasingSource(FTextureRHIRef& SourceTextureRHI)	{ AliasingSourceTexture = SourceTextureRHI; }
 
 protected:
-
-	// Lock helper functions
-	void UnlockInternal(class FRHICommandListImmediate* RHICmdList, FLinkedObjectIterator NextObject, uint32 MipIndex, uint32 ArrayIndex);
-		
 	// A shader resource view of the texture.
 	TSharedPtr<FD3D12ShaderResourceView> ShaderResourceView;
 
@@ -153,7 +152,7 @@ protected:
 	TSharedPtr<FD3D12DepthStencilView> DepthStencilViews[FExclusiveDepthStencil::MaxIndex];
 
 	// Data for each subresource while texture is locked
-	TMap<uint32, FD3D12LockedResource*> LockedMap;
+	TMap<uint32, TUniquePtr<FD3D12LockedResource>> LockedMap;
 
 	// Cached footprint size of first resource - optimization
 	mutable TUniquePtr<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> FirstSubresourceFootprint;
@@ -193,26 +192,25 @@ struct TD3D12ResourceTraits<FRHITexture>
 
 class FD3D12Viewport;
 
+#if D3D12RHI_USE_DUMMY_BACKBUFFER
 class FD3D12BackBufferReferenceTexture2D : public FD3D12Texture
 {
 public:
-	FD3D12BackBufferReferenceTexture2D(const FRHITextureCreateDesc& InDesc, FD3D12Viewport* InViewPort, bool bInIsSDR, FD3D12Device* InDevice)
+	FD3D12BackBufferReferenceTexture2D(const FRHITextureCreateDesc& InDesc, FD3D12Viewport* InViewPort, FD3D12Device* InDevice)
 		: FD3D12Texture(InDesc, InDevice)
 		, Viewport(InViewPort)
-		, bIsSDR(bInIsSDR)
 	{
 	}
 
 	FD3D12Viewport* GetViewPort() const { return Viewport; }
-	bool IsSDR() const { return bIsSDR; }
 
 	FRHITexture* GetBackBufferTexture() const;
 	virtual FRHIDescriptorHandle GetDefaultBindlessHandle() const override;
 
 private:
-	FD3D12Viewport* Viewport = nullptr;
-	bool bIsSDR = false;
+	FD3D12Viewport* const Viewport;
 };
+#endif
 
 /** Given a pointer to a RHI texture that was created by the D3D12 RHI, returns a pointer to the FD3D12Texture it encapsulates. */
 FORCEINLINE FD3D12Texture* GetD3D12TextureFromRHITexture(FRHITexture* Texture)
@@ -224,7 +222,7 @@ FORCEINLINE FD3D12Texture* GetD3D12TextureFromRHITexture(FRHITexture* Texture)
 	
 	// If it's the dummy backbuffer then swap with actual current RHI backbuffer right now
 	FRHITexture* RHITexture = Texture;
-#if D3D12_USE_DUMMY_BACKBUFFER
+#if D3D12RHI_USE_DUMMY_BACKBUFFER
 	if (RHITexture && EnumHasAnyFlags(RHITexture->GetFlags(), TexCreate_Presentable))
 	{
 		FD3D12BackBufferReferenceTexture2D* BufferBufferReferenceTexture = (FD3D12BackBufferReferenceTexture2D*)RHITexture;

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Core/RootCameraNode.h"
+#include "Core/BlendStackCameraRigEvent.h"
 
 #include "DefaultRootCameraNode.generated.h"
 
@@ -11,7 +12,7 @@ class UBlendStackCameraNode;
 /**
  * The default implementation of a root camera node.
  */
-UCLASS(MinimalAPI)
+UCLASS(MinimalAPI, Hidden)
 class UDefaultRootCameraNode : public URootCameraNode
 {
 	GENERATED_BODY()
@@ -22,23 +23,67 @@ public:
 
 protected:
 
-	virtual FCameraNodeChildrenView OnGetChildren() override;
-	virtual void OnRun(const FCameraNodeRunParams& Params, FCameraNodeRunResult& OutResult) override;
+	virtual FCameraNodeEvaluatorPtr OnBuildEvaluator(FCameraNodeEvaluatorBuilder& Builder) const override;
 
-	virtual void OnActivateCameraMode(const FActivateCameraModeParams& Params) override;
+public:
+
+	UPROPERTY(Instanced)
+	TObjectPtr<UBlendStackCameraNode> BaseLayer;
+
+	UPROPERTY(Instanced)
+	TObjectPtr<UBlendStackCameraNode> MainLayer;
+
+	UPROPERTY(Instanced)
+	TObjectPtr<UBlendStackCameraNode> GlobalLayer;
+
+	UPROPERTY(Instanced)
+	TObjectPtr<UBlendStackCameraNode> VisualLayer;
+};
+
+namespace UE::Cameras
+{
+
+class FPersistentBlendStackCameraNodeEvaluator;
+class FTransientBlendStackCameraNodeEvaluator;
+
+/**
+ * Evaluator for the default root camera node.
+ */
+class FDefaultRootCameraNodeEvaluator : public FRootCameraNodeEvaluator
+{
+	UE_DECLARE_CAMERA_NODE_EVALUATOR(GAMEPLAYCAMERAS_API, FDefaultRootCameraNodeEvaluator)
+
+protected:
+
+	// FCameraNodeEvaluator interface.
+	virtual FCameraNodeEvaluatorChildrenView OnGetChildren() override;
+	virtual void OnBuild(const FCameraNodeEvaluatorBuildParams& Params) override;
+	virtual void OnRun(const FCameraNodeEvaluationParams& Params, FCameraNodeEvaluationResult& OutResult) override;
+
+#if UE_GAMEPLAY_CAMERAS_DEBUG
+	virtual void OnBuildDebugBlocks(const FCameraDebugBlockBuildParams& Params, FCameraDebugBlockBuilder& Builder) override;
+#endif  // UE_GAMEPLAY_CAMERAS_DEBUG
+
+	// FRootCameraNodeEvaluator interface.
+	virtual void OnActivateCameraRig(const FActivateCameraRigParams& Params) override;
+	virtual void OnDeactivateCameraRig(const FDeactivateCameraRigParams& Params) override;
+	virtual void OnBuildSingleCameraRigHierarchy(const FSingleCameraRigHierarchyBuildParams& Params, FCameraNodeEvaluatorHierarchy& OutHierarchy) override;
+	virtual void OnRunSingleCameraRig(const FSingleCameraRigEvaluationParams& Params, FCameraNodeEvaluationResult& OutResult) override;
 
 private:
 
-	UPROPERTY(Instanced)
-	TObjectPtr<UCameraNode> BaseLayer;
+	template<typename EvaluatorType>
+	EvaluatorType* BuildBlendStackEvaluator(const FCameraNodeEvaluatorBuildParams& Params, UBlendStackCameraNode* BlendStackNode);
 
-	UPROPERTY(Instanced)
-	TObjectPtr<UCameraNode> MainLayer;
+	void OnBlendStackEvent(const FBlendStackCameraRigEvent& InEvent);
 
-	UPROPERTY(Instanced)
-	TObjectPtr<UCameraNode> GlobalLayer;
+private:
 
-	UPROPERTY(Instanced)
-	TObjectPtr<UCameraNode> VisualLayer;
+	FPersistentBlendStackCameraNodeEvaluator* BaseLayer;
+	FTransientBlendStackCameraNodeEvaluator* MainLayer;
+	FPersistentBlendStackCameraNodeEvaluator* GlobalLayer;
+	FPersistentBlendStackCameraNodeEvaluator* VisualLayer;
 };
+
+}  // namespace UE::Cameras
 

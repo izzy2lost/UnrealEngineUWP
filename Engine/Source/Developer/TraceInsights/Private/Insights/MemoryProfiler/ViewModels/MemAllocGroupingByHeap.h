@@ -2,24 +2,18 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-// Insights
-#include "Insights/Table/ViewModels/BaseTreeNode.h"
-#include "Insights/Table/ViewModels/TreeNodeGrouping.h"
-#include "TraceServices/Model/AllocationsProvider.h"
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/BaseTreeNode.h"
+#include "InsightsCore/Table/ViewModels/TreeNodeGrouping.h"
 
-namespace TraceServices
+namespace TraceServices { class IAllocationsProvider; }
+
+namespace UE::Insights { class IAsyncOperationProgress; }
+
+namespace UE::Insights::MemoryProfiler
 {
-	struct FStackFrame;
-}
-
-namespace Insights
-{
-
-class IAsyncOperationProgress;
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class FMemAllocGroupingByHeap : public FTreeNodeGrouping
 {
@@ -30,10 +24,9 @@ public:
 	virtual ~FMemAllocGroupingByHeap() override;
 
 	virtual void GroupNodes(const TArray<FTableTreeNodePtr>& Nodes, FTableTreeNode& ParentGroup, TWeakPtr<FTable> InParentTable, IAsyncOperationProgress& InAsyncOperationProgress) const override;
+
 private:
 	const TraceServices::IAllocationsProvider& AllocProvider;
 };
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler

@@ -29,6 +29,7 @@ DECLARE_STATS_GROUP(TEXT("Async Load Game Thread"), STATGROUP_AsyncLoadGameThrea
 DECLARE_CYCLE_STAT(TEXT("PostLoadObjects GT"), STAT_FAsyncPackage_PostLoadObjectsGameThread, STATGROUP_AsyncLoadGameThread);
 DECLARE_CYCLE_STAT(TEXT("TickAsyncLoading GT"), STAT_FAsyncPackage_TickAsyncLoadingGameThread, STATGROUP_AsyncLoadGameThread);
 DECLARE_CYCLE_STAT(TEXT("Flush Async Loading GT"), STAT_FAsyncPackage_FlushAsyncLoadingGameThread, STATGROUP_AsyncLoadGameThread);
+DECLARE_CYCLE_STAT(TEXT("Flush All Async Loads GT"), STAT_FAsyncPackage_FlushAllAsyncLoadingGameThread, STATGROUP_AsyncLoadGameThread);
 DECLARE_CYCLE_STAT_WITH_FLAGS(TEXT("PostLoadInstances GT"), STAT_FAsyncPackage_PostLoadInstancesGameThread, STATGROUP_AsyncLoadGameThread, EStatFlags::Verbose);
 DECLARE_CYCLE_STAT_WITH_FLAGS(TEXT("CreateClusters GT"), STAT_FAsyncPackage_CreateClustersGameThread, STATGROUP_AsyncLoadGameThread, EStatFlags::Verbose);
 
@@ -75,7 +76,7 @@ struct FAsyncLoadingThreadSettings
 	FAsyncLoadingThreadSettings();
 
 	/** Gets the ALT settigns from ini (or command line). */
-	static FAsyncLoadingThreadSettings& Get();
+	COREUOBJECT_API static FAsyncLoadingThreadSettings& Get();
 };
 
 /**

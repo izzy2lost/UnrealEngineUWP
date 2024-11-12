@@ -32,6 +32,7 @@
 #include "Features/IModularFeatures.h"
 #include "AnimPreviewInstance.h"
 #include "PersonaModule.h"
+#include "PersonaPreviewSceneSkelMeshInstanceController.h"
 
 #define LOCTEXT_NAMESPACE "PreviewSceneCustomizations"
 
@@ -98,7 +99,8 @@ void FPreviewSceneDescriptionCustomization::CustomizeDetails(IDetailLayoutBuilde
 		TArray<UClass*> BuiltInPreviewControllers = {
 			UPersonaPreviewSceneDefaultController::StaticClass(),
 			UPersonaPreviewSceneRefPoseController::StaticClass(),
-			UPersonaPreviewSceneAnimationController::StaticClass() };
+			UPersonaPreviewSceneAnimationController::StaticClass(),
+			UPersonaPreviewSceneSkelMeshInstanceController::StaticClass() };
 		TArray<UClass*> DynamicPreviewControllers;
 		for (TObjectIterator<UClass> It; It; ++It)
 		{

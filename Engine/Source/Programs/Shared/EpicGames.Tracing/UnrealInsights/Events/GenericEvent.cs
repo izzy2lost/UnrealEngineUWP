@@ -13,26 +13,26 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 		public long? Long { get; }
 		public double? Float { get; }
 		public string? String { get; }
-		readonly byte[]? Array;
+		readonly byte[]? _array;
 		public byte[]? GetArray()
 		{
-			return Array;
+			return _array;
 		}
 
-		private Field(bool Value) { Bool = Value; }
-		private Field(int Value) { Int = Value; }
-		private Field(long Value) { Long = Value; }
-		private Field(float Value) { Float = Value; }
-		private Field(double Value) { Float = Value; }
-		private Field(string Value) { String = Value; }
-		private Field(byte[] Value) { Array = Value; }
-		public static Field FromBool(bool Value) => new Field(Value);
-		public static Field FromInt(int Value) => new Field(Value);
-		public static Field FromLong(long Value) => new Field(Value);
-		public static Field FromFloat(float Value) => new Field(Value);
-		public static Field FromDouble(double Value) => new Field(Value);
-		public static Field FromString(string Value) => new Field(Value);
-		public static Field FromArray(byte[] Value) => new Field(Value);
+		private Field(bool value) { Bool = value; }
+		private Field(int value) { Int = value; }
+		private Field(long value) { Long = value; }
+		private Field(float value) { Float = value; }
+		private Field(double value) { Float = value; }
+		private Field(string value) { String = value; }
+		private Field(byte[] value) { _array = value; }
+		public static Field FromBool(bool value) => new Field(value);
+		public static Field FromInt(int value) => new Field(value);
+		public static Field FromLong(long value) => new Field(value);
+		public static Field FromFloat(float value) => new Field(value);
+		public static Field FromDouble(double value) => new Field(value);
+		public static Field FromString(string value) => new Field(value);
+		public static Field FromArray(byte[] value) => new Field(value);
 	}
 
 	/// <summary>
@@ -41,242 +41,318 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 	public class GenericEvent : ITraceEvent
 	{
 		public uint Serial { get; }
-		readonly Field[] Fields;
-		public Field[] GetFields() => Fields;
-		public EventType Type => EventType;
-		private EventType EventType;
+		readonly Field[] _fields;
+		public Field[] GetFields() => _fields;
+		public EventType Type => _eventType;
+		private readonly EventType _eventType;
 
-		public GenericEvent(uint Serial, Field[] Fields, EventType EventType)
+		public GenericEvent(uint serial, Field[] fields, EventType eventType)
 		{
-			this.Serial = Serial;
-			this.Fields = Fields;
-			this.EventType = EventType;
+			Serial = serial;
+			_fields = fields;
+			_eventType = eventType;
 		}
 
 		public ushort Size
 		{
 			get
 			{
-				ushort TotalSize = 0;
-				if (EventType.HasSerial) TotalSize += 3; // 24-bit serial
-				TotalSize += EventType.GetEventSize();
-				if (EventType.MaybeHasAux())
+				ushort totalSize = 0;
+				if (_eventType.HasSerial)
 				{
-					for (int i = 0; i < EventType.Fields.Count; i++)
-					{
-						EventTypeField FieldType = EventType.Fields[i];
-						if (!FieldType.IsAuxData())
-							continue;
+					totalSize += 3; // 24-bit serial
+				}
 
-						ushort AuxDataSize;
-						if (FieldType.TypeInfo == EventTypeField.TypeAnsiString)
+				totalSize += _eventType.GetEventSize();
+				if (_eventType.MaybeHasAux())
+				{
+					for (int i = 0; i < _eventType.Fields.Count; i++)
+					{
+						EventTypeField fieldType = _eventType.Fields[i];
+						if (!fieldType.IsAuxData())
 						{
-							AuxDataSize = (ushort) Fields[i].String!.Length;
+							continue;
 						}
-						else if (FieldType.TypeInfo == EventTypeField.TypeWideString)
+
+						ushort auxDataSize;
+						if (fieldType.TypeInfo == EventTypeField.TypeAnsiString)
 						{
-							AuxDataSize = (ushort) (Fields[i].String!.Length * 2);
+							auxDataSize = (ushort) _fields[i].String!.Length;
+						}
+						else if (fieldType.TypeInfo == EventTypeField.TypeWideString)
+						{
+							auxDataSize = (ushort) (_fields[i].String!.Length * 2);
 						}
 						else
 						{
-							AuxDataSize = (ushort) Fields[i].GetArray()!.Length;
+							auxDataSize = (ushort) _fields[i].GetArray()!.Length;
 						}
 
-						TotalSize += sizeof(uint); // AuxHeader
-						TotalSize += AuxDataSize;
+						totalSize += sizeof(uint); // AuxHeader
+						totalSize += auxDataSize;
 					}
-					TotalSize += sizeof(byte); // AuxTerminal UID
+					totalSize += sizeof(byte); // AuxTerminal UID
 				}
 				
-				return TotalSize;
+				return totalSize;
 			}
 		}
 
-		public void Serialize(ushort Uid, BinaryWriter Writer)
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter")]
+		public void Serialize(ushort uid, BinaryWriter writer)
 		{
-			if (EventType.HasSerial)
+			if (_eventType.HasSerial)
 			{
-				byte SerialLow = (byte) (Serial & 0xFF);
-				Writer.Write(SerialLow);
-				Writer.Write(BinaryReaderExtensions.GetHighWord(Serial));
+				byte serialLow = (byte)(Serial & 0xFF);
+				writer.Write(serialLow);
+				writer.Write(BinaryReaderExtensions.GetHighWord(Serial));
 			}
 			
-			for (int i = 0; i < EventType.Fields.Count; i++)
+			for (int i = 0; i < _eventType.Fields.Count; i++)
 			{
-				EventTypeField FieldType = EventType.Fields[i];
+				EventTypeField fieldType = _eventType.Fields[i];
 
-				if (FieldType.TypeInfo == EventTypeField.TypeInt8) { Writer.Write((byte)Fields[i].Int!); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeInt16) { Writer.Write((ushort)Fields[i].Int!); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeInt32) { Writer.Write((uint)Fields[i].Int!); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeInt64) { Writer.Write((ulong)Fields[i].Long!); }
-				else if (FieldType.TypeInfo == EventTypeField.TypePointer) { Writer.Write((ulong)Fields[i].Long!); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeFloat32) { Writer.Write((float)Fields[i].Float!); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeFloat64) { Writer.Write((double)Fields[i].Float!); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeAnsiString) {  } // Write later as aux-data
-				else if (FieldType.TypeInfo == EventTypeField.TypeWideString) {  } // Write later as aux-data
-				else if (FieldType.TypeInfo == EventTypeField.TypeArray) {  } // Write later as aux-data
-				else if (FieldType.TypeInfo == EventTypeField.TypeBool) { Writer.Write(Fields[i].Bool!.Value ? (byte)1 : (byte)0); }
-				else { throw new Exception($"Found unknown TypeInfo {FieldType.TypeInfo}"); }
-			}
-			
-			if (EventType.MaybeHasAux())
-			{
-				for (int i = 0; i < EventType.Fields.Count; i++)
+				if (fieldType.TypeInfo == EventTypeField.TypeInt8)
 				{
-					EventTypeField FieldType = EventType.Fields[i];
+					writer.Write((byte)_fields[i].Int!);
+				}
+				else if (fieldType.TypeInfo == EventTypeField.TypeInt16)
+				{
+					writer.Write((ushort)_fields[i].Int!);
+				}
+				else if (fieldType.TypeInfo == EventTypeField.TypeInt32)
+				{
+					writer.Write((uint)_fields[i].Int!);
+				}
+				else if (fieldType.TypeInfo == EventTypeField.TypeInt64)
+				{
+					writer.Write((ulong)_fields[i].Long!);
+				}
+				else if (fieldType.TypeInfo == EventTypeField.TypePointer)
+				{
+					writer.Write((ulong)_fields[i].Long!);
+				}
+				else if (fieldType.TypeInfo == EventTypeField.TypeFloat32)
+				{
+					writer.Write((float)_fields[i].Float!);
+				}
+				else if (fieldType.TypeInfo == EventTypeField.TypeFloat64)
+				{
+					writer.Write((double)_fields[i].Float!);
+				}
+				else if (fieldType.TypeInfo == EventTypeField.TypeAnsiString)
+				{
+				} // Write later as aux-data
+				else if (fieldType.TypeInfo == EventTypeField.TypeWideString)
+				{
+				} // Write later as aux-data
+				else if (fieldType.TypeInfo == EventTypeField.TypeArray)
+				{
+				} // Write later as aux-data
+				else if (fieldType.TypeInfo == EventTypeField.TypeBool)
+				{
+					writer.Write(_fields[i].Bool!.Value ? (byte)1 : (byte)0);
+				}
+				else
+				{
+					throw new Exception($"Found unknown TypeInfo {fieldType.TypeInfo}");
+				}
+			}
 
-					if (FieldType.Size > 0)
+			if (_eventType.MaybeHasAux())
+			{
+				for (int i = 0; i < _eventType.Fields.Count; i++)
+				{
+					EventTypeField fieldType = _eventType.Fields[i];
+
+					if (fieldType.Size > 0)
+					{
 						continue; // Skip any non-aux fields
+					}
 
-					ushort AuxUid = PredefinedEventUid.AuxData;
-					if (!EventType.IsImportant())
+					ushort auxUid = PredefinedEventUid.AuxData;
+					if (!_eventType.IsImportant())
 					{
 						// Well-known UIDs are only shifted in non-important events
-						AuxUid = (ushort) (AuxUid << 1);
+						auxUid = (ushort) (auxUid << 1);
 					}
 
-					byte[] Data;
-					if (FieldType.TypeInfo == EventTypeField.TypeAnsiString)
+					byte[] data;
+					if (fieldType.TypeInfo == EventTypeField.TypeAnsiString)
 					{
-						Data = Encoding.ASCII.GetBytes(Fields[i].String!);
+						data = Encoding.ASCII.GetBytes(_fields[i].String!);
 					}
-					else if (FieldType.TypeInfo == EventTypeField.TypeWideString)
+					else if (fieldType.TypeInfo == EventTypeField.TypeWideString)
 					{
-						Data = Encoding.Unicode.GetBytes(Fields[i].String!);
+						data = Encoding.Unicode.GetBytes(_fields[i].String!);
 					}
 					else
 					{
-						Data = Fields[i].GetArray()!;
+						data = _fields[i].GetArray()!;
 					}
 
-					uint AuxHeader = 0;
-					AuxHeader = SetBits(AuxHeader, AuxUid, 0, 8);
-					AuxHeader = SetBits(AuxHeader, (uint) i, 8, 5);
-					AuxHeader = SetBits(AuxHeader, (uint) Data.Length, 13, 19);
+					uint auxHeader = 0;
+					auxHeader = SetBits(auxHeader, auxUid, 0, 8);
+					auxHeader = SetBits(auxHeader, (uint) i, 8, 5);
+					auxHeader = SetBits(auxHeader, (uint) data.Length, 13, 19);
 					
-					Writer.Write(AuxHeader);
-					Writer.Write(Data);
+					writer.Write(auxHeader);
+					writer.Write(data);
 				}
 				
-				ushort AuxDataTerminalUid = PredefinedEventUid.AuxDataTerminal;
+				ushort auxDataTerminalUid = PredefinedEventUid.AuxDataTerminal;
 				
-				if (!EventType.IsImportant())
+				if (!_eventType.IsImportant())
 				{
 					// Well-known UIDs are only shifted in non-important events
-					AuxDataTerminalUid = (ushort) (AuxDataTerminalUid << 1);
+					auxDataTerminalUid = (ushort) (auxDataTerminalUid << 1);
 				}
-				Writer.Write((byte)AuxDataTerminalUid);
+				writer.Write((byte)auxDataTerminalUid);
 			}
 		}
 
-		public static GenericEvent Deserialize(ushort Uid, BinaryReader Reader, EventType EventType)
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter")]
+		public static GenericEvent Deserialize(ushort uid, BinaryReader reader, EventType eventType)
 		{
-			Field[] Fields = new Field[EventType.Fields.Count];
-			uint Serial = 0;
+			Field[] fields = new Field[eventType.Fields.Count];
+			uint serial = 0;
 			
-			if (!EventType.IsNoSync() && !EventType.IsImportant())
+			if (!eventType.IsNoSync() && !eventType.IsImportant())
 			{
 				// Read uint24 as serial
-				byte SerialLow = Reader.ReadByte();
-				ushort SerialHigh = Reader.ReadUInt16();
-				Serial = SerialLow | ((uint)SerialHigh << 16);
+				byte serialLow = reader.ReadByte();
+				ushort serialHigh = reader.ReadUInt16();
+				serial = serialLow | ((uint)serialHigh << 16);
 			}
 
-			for (int i = 0; i < EventType.Fields.Count; i++)
+			for (int i = 0; i < eventType.Fields.Count; i++)
 			{
-				EventTypeField FieldType = EventType.Fields[i];
+				EventTypeField fieldType = eventType.Fields[i];
 
-				if (FieldType.TypeInfo == EventTypeField.TypeInt8) { Fields[i] = Field.FromInt(Reader.ReadByte()); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeInt16) { Fields[i] = Field.FromInt(Reader.ReadUInt16()); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeInt32) { Fields[i] = Field.FromInt((int)Reader.ReadUInt32()); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeInt64) { Fields[i] = Field.FromLong((long) Reader.ReadUInt64()); }
-				else if (FieldType.TypeInfo == EventTypeField.TypePointer) { Fields[i] = Field.FromLong((long) Reader.ReadUInt64()); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeFloat32) { Fields[i] = Field.FromFloat(Reader.ReadSingle()); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeFloat64) { Fields[i] = Field.FromDouble(Reader.ReadDouble()); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeAnsiString) {  } // Read later as aux-data
-				else if (FieldType.TypeInfo == EventTypeField.TypeWideString) {  } // Read later as aux-data
-				else if (FieldType.TypeInfo == EventTypeField.TypeArray) {  } // Read later as aux-data
-				else if (FieldType.TypeInfo == EventTypeField.TypeBool) { Fields[i] = Field.FromBool(Reader.ReadByte() == 1); }
-				else { throw new Exception($"Found unknown TypeInfo {FieldType.TypeInfo}"); }
+				if (fieldType.TypeInfo == EventTypeField.TypeInt8)
+				{
+					fields[i] = Field.FromInt(reader.ReadByte());
+				}
+				else if (fieldType.TypeInfo == EventTypeField.TypeInt16)
+				{
+					fields[i] = Field.FromInt(reader.ReadUInt16());
+				}
+				else if (fieldType.TypeInfo == EventTypeField.TypeInt32)
+				{
+					fields[i] = Field.FromInt((int)reader.ReadUInt32());
+				}
+				else if (fieldType.TypeInfo == EventTypeField.TypeInt64)
+				{
+					fields[i] = Field.FromLong((long) reader.ReadUInt64());
+				}
+				else if (fieldType.TypeInfo == EventTypeField.TypePointer)
+				{
+					fields[i] = Field.FromLong((long) reader.ReadUInt64());
+				}
+				else if (fieldType.TypeInfo == EventTypeField.TypeFloat32)
+				{
+					fields[i] = Field.FromFloat(reader.ReadSingle());
+				}
+				else if (fieldType.TypeInfo == EventTypeField.TypeFloat64)
+				{
+					fields[i] = Field.FromDouble(reader.ReadDouble());
+				}
+				else if (fieldType.TypeInfo == EventTypeField.TypeAnsiString)
+				{
+				} // Read later as aux-data
+				else if (fieldType.TypeInfo == EventTypeField.TypeWideString)
+				{
+				} // Read later as aux-data
+				else if (fieldType.TypeInfo == EventTypeField.TypeArray)
+				{
+				} // Read later as aux-data
+				else if (fieldType.TypeInfo == EventTypeField.TypeBool)
+				{
+					fields[i] = Field.FromBool(reader.ReadByte() == 1);
+				}
+				else
+				{
+					throw new Exception($"Found unknown TypeInfo {fieldType.TypeInfo}");
+				}
 			}
 
-			if (EventType.MaybeHasAux())
+			if (eventType.MaybeHasAux())
 			{
 				for (;;)
 				{
-					ushort AuxUid = Reader.ReadByte();
-					if (!EventType.IsImportant())
+					ushort auxUid = reader.ReadByte();
+					if (!eventType.IsImportant())
 					{
 						// Well-known UIDs are only shifted in non-important events
-						AuxUid = (ushort) (AuxUid >> 1);
+						auxUid = (ushort) (auxUid >> 1);
 					}
 
-					if (AuxUid == PredefinedEventUid.AuxData)
+					if (auxUid == PredefinedEventUid.AuxData)
 					{
-						Reader.BaseStream.Position -= 1; // Include the UID for parsing rest of header as a single uint32
-						uint AuxHeader = Reader.ReadUInt32();
+						reader.BaseStream.Position -= 1; // Include the UID for parsing rest of header as a single uint32
+						uint auxHeader = reader.ReadUInt32();
 
-						int FieldIndex = (int) ReadBits(AuxHeader, 8, 5);
-						uint Size = ReadBits(AuxHeader, 13, 19);
+						int fieldIndex = (int)ReadBits(auxHeader, 8, 5);
+						uint size = ReadBits(auxHeader, 13, 19);
 
-						byte[] AuxData = Reader.ReadBytesStrict((int) Size);
+						byte[] auxData = reader.ReadBytesStrict((int)size);
 						
-						if (EventType.Fields[FieldIndex].TypeInfo == EventTypeField.TypeAnsiString)
+						if (eventType.Fields[fieldIndex].TypeInfo == EventTypeField.TypeAnsiString)
 						{
-							Fields[FieldIndex] = Field.FromString(Encoding.ASCII.GetString(AuxData));
+							fields[fieldIndex] = Field.FromString(Encoding.ASCII.GetString(auxData));
 						}
-						else if (EventType.Fields[FieldIndex].TypeInfo == EventTypeField.TypeWideString)
+						else if (eventType.Fields[fieldIndex].TypeInfo == EventTypeField.TypeWideString)
 						{
-							Fields[FieldIndex] = Field.FromString(Encoding.Unicode.GetString(AuxData));
+							fields[fieldIndex] = Field.FromString(Encoding.Unicode.GetString(auxData));
 						}
 						else
 						{
-							Fields[FieldIndex] = Field.FromArray(AuxData);
+							fields[fieldIndex] = Field.FromArray(auxData);
 						}
 					}
-					else if (AuxUid == PredefinedEventUid.AuxDataTerminal)
+					else if (auxUid == PredefinedEventUid.AuxDataTerminal)
 					{
 						break;
 					}
 					else
 					{
-						throw new Exception($"Invalid AuxUid found: {AuxUid} / 0x{AuxUid:X4}");
+						throw new Exception($"Invalid AuxUid found: {auxUid} / 0x{auxUid:X4}");
 					}
 				}
 			}
 
-			return new GenericEvent(Serial, Fields, EventType);
-		}
-		
-		private static uint SetBits(uint Word, uint Value, int Pos, int Size)
-		{
-			uint mask = (((uint)1 << Size) - 1) << Pos;
-			Word &= ~mask;
-			Word |= (Value << Pos) & mask;
-			return Word;
+			return new GenericEvent(serial, fields, eventType);
 		}
 
-		private static uint ReadBits(uint Word, int Pos, int Size)
+		private static uint SetBits(uint word, uint value, int pos, int size)
 		{
-			uint Mask = (((uint)1 << Size) - 1) << Pos;
-			return (Word & Mask) >> Pos;
+			uint mask = (((uint)1 << size) - 1) << pos;
+			word &= ~mask;
+			word |= (value << pos) & mask;
+			return word;
 		}
 
-		internal static (ushort Uid, int FieldIndex, int Size) DeserializeAuxHeader(uint Header)
+		private static uint ReadBits(uint word, int pos, int size)
 		{
-			ushort Uid = (ushort) ReadBits(Header, 0, 8);
-			int FieldIndex = (int) ReadBits(Header, 8, 5);
-			int Size = (int) ReadBits(Header, 13, 19);
-			return (Uid, FieldIndex, Size);
+			uint mask = (((uint)1 << size) - 1) << pos;
+			return (word & mask) >> pos;
+		}
+
+		internal static (ushort Uid, int FieldIndex, int Size) DeserializeAuxHeader(uint header)
+		{
+			ushort uid = (ushort)ReadBits(header, 0, 8);
+			int fieldIndex = (int)ReadBits(header, 8, 5);
+			int size = (int)ReadBits(header, 13, 19);
+			return (uid, fieldIndex, size);
 		}
 		
-		internal static uint SerializeAuxHeader(ushort Uid, int FieldIndex, int Size)
+		internal static uint SerializeAuxHeader(ushort uid, int fieldIndex, int size)
 		{
-			uint Header = 0;
-			Header = SetBits(Header, Uid, 0, 8);
-			Header = SetBits(Header, (uint) FieldIndex, 8, 5);
-			Header = SetBits(Header, (uint) Size, 13, 19);
-			return Header;
+			uint header = 0;
+			header = SetBits(header, uid, 0, 8);
+			header = SetBits(header, (uint) fieldIndex, 8, 5);
+			header = SetBits(header, (uint) size, 13, 19);
+			return header;
 		}
 	}
 }

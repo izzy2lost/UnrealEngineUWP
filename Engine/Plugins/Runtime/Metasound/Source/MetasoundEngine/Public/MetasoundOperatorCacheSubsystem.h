@@ -47,6 +47,8 @@ public:
 	void RemoveCachedOperatorsForMetaSound(UPARAM(DisplayName = "MetaSound Source") UMetaSoundSource* InMetaSound);
 
 private:
+	void PrecacheMetaSoundInternal(UMetaSoundSource* InMetaSound, int32 InNumInstances, bool bTouchExisting);
+
 	FSoundGeneratorInitParams BuildParams;
 }; //UMetaSoundCacheSubsystem
 

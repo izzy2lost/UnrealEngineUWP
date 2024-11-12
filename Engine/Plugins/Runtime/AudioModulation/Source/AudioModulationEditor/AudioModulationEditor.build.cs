@@ -28,10 +28,13 @@ public class AudioModulationEditor : ModuleRules
 				"InputCore",				
 				"AudioEditor",
 				"AudioExtensions",
+				"AudioInsights",
+				"AudioInsightsEditor",
 				"AudioModulation",
 				"CurveEditor",
 				"EditorWidgets",
 				"ToolWidgets",
+				"TraceAnalysis",
 				"WaveTable",
 				"WaveTableEditor"
 			}

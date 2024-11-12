@@ -46,7 +46,7 @@ FText FAvaRundownPageViewImpl::GetPageNameText() const
 
 	return Page.IsValidPage()
 		? FText::FromString(Page.GetPageName())
-		: LOCTEXT("EmptyPageNameText", "");
+		: FText();
 }
 
 FText FAvaRundownPageViewImpl::GetPageTransitionLayerNameText() const
@@ -84,7 +84,7 @@ FText FAvaRundownPageViewImpl::GetPageSummary() const
 
 	return Page.IsValidPage()
 		? Page.GetPageSummary()
-		: LOCTEXT("EmptyPageSummaryText", "");
+		: FText();
 }
 
 FText FAvaRundownPageViewImpl::GetPageDescription() const
@@ -93,7 +93,7 @@ FText FAvaRundownPageViewImpl::GetPageDescription() const
 
 	return Page.IsValidPage()
 		? Page.GetPageDescription()
-		: LOCTEXT("EmptyPageDescriptionText", "");
+		: FText();
 }
 
 bool FAvaRundownPageViewImpl::HasObjectPath(const UAvaRundown* InRundown) const

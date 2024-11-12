@@ -11,15 +11,16 @@ const FName AAvaShapeActor::ShapeComponentName("Shape Component");
 // Sets default values
 AAvaShapeActor::AAvaShapeActor()
 {
-	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	SetCanBeDamaged(false);
-	PrimaryActorTick.bCanEverTick          = true;
-	PrimaryActorTick.bStartWithTickEnabled = true;
-	PrimaryActorTick.bTickEvenWhenPaused   = true;
+	PrimaryActorTick.bCanEverTick          = false;
+	PrimaryActorTick.bStartWithTickEnabled = false;
+	PrimaryActorTick.bTickEvenWhenPaused   = false;
 
 	ShapeMeshComponent = CreateDefaultSubobject<UDynamicMeshComponent>(ShapeComponentName);
 	ShapeMeshComponent->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
 	ShapeMeshComponent->SetGenerateOverlapEvents(true);
+	ShapeMeshComponent->SetCanEverAffectNavigation(false);
+
 	SetRootComponent(ShapeMeshComponent);
 
 	bFinishedCreation = false;

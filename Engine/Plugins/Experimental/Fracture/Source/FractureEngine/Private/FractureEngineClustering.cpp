@@ -1082,6 +1082,11 @@ bool FFractureEngineClustering::ClusterSelected(
 	FGeometryCollection& GeometryCollection,
 	TArray<int32>& Selection)
 {
+	if (GeometryCollection.NumElements(FGeometryCollection::TransformGroup) == 0)
+	{
+		return false;
+	}
+
 	GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(GeometryCollection);
 	SelectionFacade.RemoveRootNodes(Selection);
 	SelectionFacade.Sanitize(Selection);
@@ -1112,6 +1117,12 @@ bool FFractureEngineClustering::ClusterSelected(
 bool FFractureEngineClustering::MergeSelectedClusters(FGeometryCollection& GeometryCollection, TArray<int32>& Selection)
 {
 	Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(GeometryCollection);
+
+	const int32 NumTransforms = GeometryCollection.NumElements(FGeometryCollection::TransformGroup);
+	if (Selection.Num() > NumTransforms)
+	{
+		return false;
+	}
 
 	GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(GeometryCollection);
 	SelectionFacade.ConvertEmbeddedSelectionToParents(Selection); // embedded geo must stay attached to parent
@@ -1183,6 +1194,11 @@ bool FFractureEngineClustering::ClusterMagnet(
 )
 {
 	using namespace UE::Private::ClusterMagnet;
+
+	if (GeometryCollection.NumElements(FGeometryCollection::TransformGroup) == 0)
+	{
+		return false;
+	}
 
 	Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(GeometryCollection);
 	HierarchyFacade.GenerateLevelAttribute();

@@ -24,17 +24,10 @@ void FastResolvePS(in FScreenVertexOutput Input)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-#if SHADER_COMPOSE_SAMPLE
+#if SHADER_COMPOSE_SAMPLE || SHADER_HOLDOUT
 
 #include "../HeightFogCommon.ush"
 #include "../SkyAtmosphereCommon.ush"
-
-int2 OutputResolution;
-uint bComposeDofDepth;
-uint bHasHoldout;
-
-Texture2D<float>	HairDOFDepthTexture;
-Texture2D<float4>	HairLightingSampleBuffer;
 
 float4 EvaluateVolumetric(float3 WorldPosition, float SceneDepth)
 {
@@ -74,6 +67,18 @@ float4 EvaluateVolumetric(float3 WorldPosition, float SceneDepth)
 
 	return Fogging;
 }
+#endif // SHADER_COMPOSE_SAMPLE || SHADER_HOLDOUT
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if SHADER_COMPOSE_SAMPLE
+
+int2 OutputResolution;
+uint bComposeDofDepth;
+uint bHasHoldout;
+
+Texture2D<float>	HairDOFDepthTexture;
+Texture2D<float4>	HairLightingSampleBuffer;
 
 void ComposeSamplePS(
 	in FScreenVertexOutput Input,
@@ -109,7 +114,7 @@ void ComposeSamplePS(
 	LOOP
 	for (uint SampleIt = 0; SampleIt < NodeDesc.Count; SampleIt++)
 	{
-		#if POST_PROCESS_ALPHA
+		#if SUPPORT_PRIMITIVE_ALPHA_HOLDOUT
 		if (bHasHoldout)
 		{
 			const FHairSample Sample = UnpackHairSample(HairStrands.HairSampleData[NodeDesc.Offset + SampleIt]);
@@ -121,10 +126,14 @@ void ComposeSamplePS(
 		const uint2 Coord = GetHairSampleCoord(LinearCoord, Resolution);
 		LocalAccColor += HairLightingSampleBuffer.Load(uint3(Coord, 0)).xyz;
 	}
-	OutColor.rgb = LocalAccColor * Volumetric.a + Volumetric.rgb;
 
-	// If any sample support holdout, then the lighting contribution is set to 0, to mask out the current hair pixel
-	OutColor.rgb *= bHoldout ? 0 : PixelCoverage;
+	// If any sample support holdout, then the lighting contribution is set to 0 to mask out the current hair pixel 
+	// but fog from camera to hair pixel needs to be accounted for
+	if (bHoldout)
+	{
+		LocalAccColor = 0;
+	}
+	OutColor.rgb = (LocalAccColor * Volumetric.a + Volumetric.rgb) * PixelCoverage;
 	OutColor.a = PixelCoverage;
 
 	OutDepth = HairDeviceZ;
@@ -173,6 +182,10 @@ void ComposeSamplePS(
 
 #if SHADER_HOLDOUT
 
+// PassType:
+// * 0: Output attenuation for the scene pixel (alpha only)
+// * 1: Output hair contribution to the scene pixel (alpha value only)
+uint PassType;
 uint bComposeDofDepth;
 Texture2D<float> HairDOFDepthTexture;
 
@@ -181,7 +194,7 @@ void HoldoutPS(
 	out float4 OutColor : SV_Target0,
 	out float  OutDepth : SV_DEPTH)
 {
-#if POST_PROCESS_ALPHA
+#if SUPPORT_PRIMITIVE_ALPHA_HOLDOUT
 	OutColor = 0.0f;
 	const uint3 PixelCoord = uint3(floor(Input.Position.xy), 0);
 	
@@ -208,13 +221,18 @@ void HoldoutPS(
 		bHoldout = bHoldout || HasHairFlags(Sample.Flags, HAIR_FLAGS_HOLDOUT);
 	}
 
+	const float3 ClosetPointWorldPosition = DFHackToFloat(SvPositionToWorld(float4(Input.Position.xy, HairDeviceZ, 1.0)));
+	const float4 Volumetric = EvaluateVolumetric(ClosetPointWorldPosition, ConvertFromDeviceZ(HairDeviceZ));
+
 	if (!bHoldout)
 	{
 		discard;
 	}
 
+	//OutColor.rgb = (LocalAccColor * Volumetric.a + Volumetric.rgb) * PixelCoverage;
+
 	OutColor.rgb = 0;
-	OutColor.a = PixelCoverage;
+	OutColor.a   = PassType == 0 ? PixelCoverage : Volumetric.a * PixelCoverage;
 	OutDepth     = HairDeviceZ;
 	if (bComposeDofDepth)
 	{
@@ -308,6 +326,11 @@ void MainPS(
 	float4 OutGBufferD = 0;
 	float4 OutGBufferE = 0;
 	float  OutDepth = 0;
+#elif PERMUTATION_OUTPUT_TYPE == 1
+	OutGBufferC = 0;
+	OutGBufferD = 0;
+	OutGBufferE = 0;
+	OutDepth = 0;
 #endif
 
 	const uint3 PixelCoord = uint3(floor(SvPosition.xy), 0);

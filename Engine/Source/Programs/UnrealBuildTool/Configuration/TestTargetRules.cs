@@ -3,7 +3,7 @@
 using System;
 using System.IO;
 using System.Reflection;
-using System.Runtime.Serialization;
+using System.Runtime.CompilerServices;
 using EpicGames.Core;
 using UnrealBuildBase;
 
@@ -181,7 +181,7 @@ namespace UnrealBuildTool
 
 			if (target.Platform == UnrealTargetPlatform.Win64)
 			{
-				string outputName = "$(TargetName)";
+				string outputName = target.Name;
 				if (target.Configuration != UndecoratedConfiguration)
 				{
 					outputName = outputName + "-" + target.Platform + "-" + target.Configuration;
@@ -209,7 +209,7 @@ namespace UnrealBuildTool
 		public static TestTargetRules Create(TargetRules rules, TargetInfo targetInfo)
 		{
 			Type testTargetRulesType = typeof(TestTargetRules);
-			TestTargetRules testRules = (TestTargetRules)FormatterServices.GetUninitializedObject(testTargetRulesType);
+			TestTargetRules testRules = (TestTargetRules)RuntimeHelpers.GetUninitializedObject(testTargetRulesType);
 
 			// Initialize the logger before calling the constructor
 			testRules.Logger = rules.Logger;
@@ -275,7 +275,7 @@ namespace UnrealBuildTool
 
 			bBuildInSolutionByDefault = false;
 
-			bDeployAfterCompile = target.Platform != UnrealTargetPlatform.Android;
+			bDeployAfterCompile = true;
 			bIsBuildingConsoleApplication = true;
 
 			// Disabling default true flags that aren't necessary for tests
@@ -311,6 +311,8 @@ namespace UnrealBuildTool
 			bBuildRequiresCookedData = true;
 			bBuildDeveloperTools = false;
 
+			bUsePlatformFileStub = (Platform == UnrealTargetPlatform.Android);
+
 			// Useful for debugging test failures
 			if (target.Configuration == UnrealTargetConfiguration.Debug)
 			{
@@ -326,7 +328,6 @@ namespace UnrealBuildTool
 			GlobalDefinitions.Add("TEST_FOR_VALID_FILE_SYSTEM_MEMORY=0");
 
 			// LLT Globals
-			GlobalDefinitions.Add("UE_LLT_USE_PLATFORM_FILE_STUB=0");
 			GlobalDefinitions.Add("UE_LLT_WITH_MOCK_ENGINE_DEFAULTS=0");
 
 			// Platform specific setup
@@ -339,10 +340,19 @@ namespace UnrealBuildTool
 				GlobalDefinitions.Add("USE_ANDROID_LAUNCH=0");
 				GlobalDefinitions.Add("USE_ANDROID_JNI=0");
 
-				// Workaround for a linker bug when building LowLevelTests for Android
+				// Addresses linker errors when building LowLevelTests for Android
 				// TODO: This should be written to the intermediate directory, somewhere else not when TargetRules are being created
 				FileReference versionScriptFile = new FileReference(Path.GetTempPath() + $"LLTWorkaroundScrip-{Name}.ldscript");
-				FileReference.WriteAllTextIfDifferent(versionScriptFile, "{ local: *; };");
+				string SymbolsLinkScriptContent = @"{
+					global: LowLevelTestsMain;
+					global: JNI_OnLoad;
+					global: Java_com_epicgames_unreal_tests_TestActivity_runTests;
+					*VM*;
+					*AndroidPath*;
+					*Catch*;
+					local: *;
+				};";
+				FileReference.WriteAllTextIfDifferent(versionScriptFile, SymbolsLinkScriptContent);
 				AdditionalLinkerArguments = " -Wl,--version-script=\"" + versionScriptFile.FullName + "\"";
 			}
 			else if (target.Platform == UnrealTargetPlatform.IOS)

@@ -2,20 +2,22 @@
 
 #include "CookTypes.h"
 
-#include "CompactBinaryTCP.h"
-#include "CookPackageData.h"
 #include "Containers/StringView.h"
+#include "CookArtifactReader.h"
+#include "Cooker/CompactBinaryTCP.h"
+#include "Cooker/CookDeterminismManager.h"
+#include "Cooker/CookPackageData.h"
+#include "Cooker/PackageTracker.h"
 #include "DerivedDataRequest.h"
 #include "Editor.h"
-#include "HAL/PlatformTLS.h"
 #include "HAL/PlatformTime.h"
+#include "HAL/PlatformTLS.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Math/NumericLimits.h"
 #include "Math/UnrealMathUtility.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
-#include "PackageTracker.h"
 #include "Serialization/PackageWriterToSharedBuffer.h"
 
 LLM_DEFINE_TAG(Cooker_CachedPlatformData);
@@ -49,6 +51,18 @@ const TCHAR* LexToString(EStateChangeReason Reason)
 	}
 }
 
+bool IsTerminalStateChange(EStateChangeReason Reason)
+{
+	switch (Reason)
+	{
+	case EStateChangeReason::Completed: return true;
+	case EStateChangeReason::SaveError: return true;
+	case EStateChangeReason::CookerShutdown: return true;
+	case EStateChangeReason::CookSuppressed: return true;
+	default: return false;
+	}
+}
+
 const TCHAR* LexToString(ESuppressCookReason Reason)
 {
 	switch (Reason)
@@ -74,6 +88,87 @@ const TCHAR* LexToString(ESuppressCookReason Reason)
 	}
 }
 
+const TCHAR* LexToString(UE::Cook::EPackageState Reason)
+{
+	static_assert(static_cast<int>(EPackageState::Count) == 7);
+	switch (Reason)
+	{
+	case EPackageState::Idle: return TEXT("Idle");
+	case EPackageState::Request: return TEXT("Request");
+	case EPackageState::AssignedToWorker: return TEXT("AssignedToWorker");
+	case EPackageState::Load: return TEXT("Load");
+	case EPackageState::SaveActive: return TEXT("SaveActive");
+	case EPackageState::SaveStalledRetracted: return TEXT("SaveStalledRetracted");
+	case EPackageState::SaveStalledAssignedToWorker: return TEXT("SaveStalledAssignedToWorker");
+	default: return TEXT("Invalid");
+	}
+}
+
+const TCHAR* LexToString(UE::Cook::EPreloaderState State)
+{
+	static_assert(static_cast<int>(EPreloaderState::Count) == 4);
+	switch (State)
+	{
+	case EPreloaderState::Inactive: return TEXT("Inactive");
+	case EPreloaderState::PendingKick: return TEXT("PendingKick");
+	case EPreloaderState::ActivePreload: return TEXT("ActivePreload");
+	case EPreloaderState::ReadyForLoad: return TEXT("ReadyForLoad");
+	default: return TEXT("Invalid");
+	}
+}
+
+const TCHAR* LexToString(UE::Cook::ESaveSubState State)
+{
+	static_assert(static_cast<int>(ESaveSubState::Count) == 17);
+	switch (State)
+	{
+	case ESaveSubState::StartSave: return TEXT("StartSave");
+	case ESaveSubState::FirstCookedPlatformData_CreateObjectCache: return TEXT("FirstCookedPlatformData_CreateObjectCache");
+	case ESaveSubState::FirstCookedPlatformData_CallingBegin: return TEXT("FirstCookedPlatformData_CallingBegin");
+	case ESaveSubState::FirstCookedPlatformData_CheckForGenerator: return TEXT("FirstCookedPlatformData_CheckForGenerator");
+	case ESaveSubState::FirstCookedPlatformData_CheckForGeneratorAfterWaitingForIsLoaded: return TEXT("FirstCookedPlatformData_CheckForGeneratorAfterWaitingForIsLoaded");
+	case ESaveSubState::Generation_TryGenerateList: return TEXT("Generation_TryGenerateList");
+	case ESaveSubState::Generation_QueueGeneratedPackages: return TEXT("Generation_QueueGeneratedPackages");
+	case ESaveSubState::CheckForIsGenerated: return TEXT("CheckForIsGenerated");
+	case ESaveSubState::Generation_PreMoveCookedPlatformData_WaitingForIsLoaded: return TEXT("Generation_PreMoveCookedPlatformData_WaitingForIsLoaded");
+	case ESaveSubState::Generation_CallObjectsToMove: return TEXT("Generation_CallObjectsToMove");
+	case ESaveSubState::Generation_BeginCacheObjectsToMove: return TEXT("Generation_BeginCacheObjectsToMove");
+	case ESaveSubState::Generation_FinishCacheObjectsToMove: return TEXT("Generation_FinishCacheObjectsToMove");
+	case ESaveSubState::Generation_CallPopulate: return TEXT("Generation_CallPopulate");
+	case ESaveSubState::Generation_CallGetPostMoveObjects: return TEXT("Generation_CallGetPostMoveObjects");
+	case ESaveSubState::LastCookedPlatformData_CallingBegin: return TEXT("LastCookedPlatformData_CallingBegin");
+	case ESaveSubState::LastCookedPlatformData_WaitingForIsLoaded: return TEXT("LastCookedPlatformData_WaitingForIsLoaded");
+	case ESaveSubState::ReadyForSave: return TEXT("ReadyForSave");
+	default: return TEXT("Invalid");
+	}
+}
+
+const TCHAR* LexToString(UE::Cook::EUrgency Urgency)
+{
+	static_assert(static_cast<int>(EUrgency::Count) == 3);
+	switch (Urgency)
+	{
+	case EUrgency::Normal: return TEXT("Normal");
+	case EUrgency::High: return TEXT("High");
+	case EUrgency::Blocking: return TEXT("Blocking");
+	default: return TEXT("Invalid");
+	}
+}
+
+EStateChangeReason ConvertToStateChangeReason(ESuppressCookReason Reason)
+{
+	switch (Reason)
+	{
+	case ESuppressCookReason::OrphanedGenerated: return EStateChangeReason::SaveError;
+	case ESuppressCookReason::LoadError: return EStateChangeReason::SaveError;
+	case ESuppressCookReason::ValidationError: return EStateChangeReason::SaveError;
+	case ESuppressCookReason::SaveError: return EStateChangeReason::SaveError;
+	case ESuppressCookReason::CookCanceled: return EStateChangeReason::CookerShutdown;
+	case ESuppressCookReason::MultiprocessAssignmentError: return EStateChangeReason::ReassignAbortedPackages;
+	case ESuppressCookReason::RetractedByCookDirector: return EStateChangeReason::Retraction;
+	default: return EStateChangeReason::CookSuppressed;
+	}
+}
 
 FCookerTimer::FCookerTimer(float InTimeSlice)
 	: TickStartTime(FPlatformTime::Seconds()), ActionStartTime(TickStartTime)
@@ -189,11 +284,14 @@ void SetIsSchedulerThread(bool bValue)
 	FPlatformTLS::SetTlsValue(SchedulerThreadTlsSlot, bValue ? (void*)0x1 : (void*)0x0);
 }
 
-FCookSavePackageContext::FCookSavePackageContext(const ITargetPlatform* InTargetPlatform,
-	ICookedPackageWriter* InPackageWriter, FStringView InWriterDebugName, FSavePackageSettings InSettings)
+FCookSavePackageContext::FCookSavePackageContext(const ITargetPlatform* InTargetPlatform, TSharedPtr<ICookArtifactReader> InCookArtifactReader,
+	ICookedPackageWriter* InPackageWriter, FStringView InWriterDebugName, FSavePackageSettings InSettings,
+	TUniquePtr<FDeterminismManager>&& InDeterminismManager)
 	: SaveContext(InTargetPlatform, InPackageWriter, MoveTemp(InSettings))
 	, WriterDebugName(InWriterDebugName)
+	, ArtifactReader(InCookArtifactReader)
 	, PackageWriter(InPackageWriter)
+	, DeterminismManager(MoveTemp(InDeterminismManager))
 {
 	PackageWriterCapabilities = InPackageWriter->GetCookCapabilities();
 }
@@ -265,6 +363,18 @@ bool IsCookIgnoreTimeouts()
 {
 	static bool bIsIgnoreCookTimeouts = FParse::Param(FCommandLine::Get(), TEXT("CookIgnoreTimeouts"));
 	return bIsIgnoreCookTimeouts;
+}
+
+TConstArrayView<const TCHAR*> GetCommandLineDelimiterStrs()
+{
+	static const TCHAR* Delimiters[] = { TEXT(","), TEXT("+"), TEXT(";") };
+	return TConstArrayView<const TCHAR*>(Delimiters, UE_ARRAY_COUNT(Delimiters));
+}
+
+TConstArrayView<const TCHAR> GetCommandLineDelimiterChars()
+{
+	static const TCHAR Delimiters[] = { ',', '+', ';' };
+	return TConstArrayView<TCHAR>(Delimiters, UE_ARRAY_COUNT(Delimiters));
 }
 
 FDiscoveredPlatformSet::FDiscoveredPlatformSet(EDiscoveredPlatformSet InSource)
@@ -633,6 +743,7 @@ FCbWriter& operator<<(FCbWriter& Writer, const UE::Cook::FInitializeConfigSettin
 	Writer << "MaxNumPackagesBeforePartialGC" << Value.MaxNumPackagesBeforePartialGC;
 	Writer << "ConfigSettingDenyList" << Value.ConfigSettingDenyList;
 	Writer << "MaxAsyncCacheForType" << Value.MaxAsyncCacheForType;
+	Writer << "bRandomizeCookOrder" << Value.bRandomizeCookOrder;
 	// Make sure new values are added to LoadFromCompactBinary and MoveOrCopy
 	Writer.EndObject();
 	return Writer;
@@ -668,6 +779,7 @@ bool LoadFromCompactBinary(FCbFieldView Field, UE::Cook::FInitializeConfigSettin
 	bOk = LoadFromCompactBinary(Field["MaxNumPackagesBeforePartialGC"], OutValue.MaxNumPackagesBeforePartialGC) & bOk;
 	bOk = LoadFromCompactBinary(Field["ConfigSettingDenyList"], OutValue.ConfigSettingDenyList) & bOk;
 	bOk = LoadFromCompactBinary(Field["MaxAsyncCacheForType"], OutValue.MaxAsyncCacheForType) & bOk;
+	bOk = LoadFromCompactBinary(Field["bRandomizeCookOrder"], OutValue.bRandomizeCookOrder) & bOk;
 	// Make sure new values are added to MoveOrCopy and operator<<
 	return bOk;
 }
@@ -696,6 +808,7 @@ void FInitializeConfigSettings::MoveOrCopy(SourceType&& Source, TargetType&& Tar
 	Target.MaxNumPackagesBeforePartialGC = Source.MaxNumPackagesBeforePartialGC;
 	Target.ConfigSettingDenyList = MoveTempIfPossible(Source.ConfigSettingDenyList);
 	Target.MaxAsyncCacheForType = MoveTempIfPossible(Source.MaxAsyncCacheForType);
+	Target.bRandomizeCookOrder = Source.bRandomizeCookOrder;
 	// Make sure new values are added to operator<< and LoadFromCompactBinary
 }
 
@@ -831,6 +944,7 @@ FCbWriter& operator<<(FCbWriter& Writer, const UE::Cook::FCookByTheBookOptions& 
 	Writer << "SkipSoftReferences" << Value.bSkipSoftReferences;
 	Writer << "CookAgainstFixedBase" << Value.bCookAgainstFixedBase;
 	Writer << "DlcLoadMainAssetRegistry" << Value.bDlcLoadMainAssetRegistry;
+	Writer << "CookSoftPackageReferences" << Value.bCookSoftPackageReferences;
 	Writer.EndObject();
 	return Writer;
 }
@@ -860,6 +974,7 @@ bool LoadFromCompactBinary(FCbFieldView Field, UE::Cook::FCookByTheBookOptions& 
 	bOk = LoadFromCompactBinary(Field["SkipSoftReferences"], OutValue.bSkipSoftReferences) & bOk;
 	bOk = LoadFromCompactBinary(Field["CookAgainstFixedBase"], OutValue.bCookAgainstFixedBase) & bOk;
 	bOk = LoadFromCompactBinary(Field["DlcLoadMainAssetRegistry"], OutValue.bDlcLoadMainAssetRegistry) & bOk;
+	bOk = LoadFromCompactBinary(Field["CookSoftPackageReferences"], OutValue.bCookSoftPackageReferences) & bOk;
 
 	return bOk;
 }
@@ -867,7 +982,7 @@ bool LoadFromCompactBinary(FCbFieldView Field, UE::Cook::FCookByTheBookOptions& 
 FCbWriter& operator<<(FCbWriter& Writer, const UE::Cook::FCookOnTheFlyOptions& Value)
 {
 	Writer.BeginObject();
-	Writer << "BindAnyPort" << Value.bBindAnyPort;
+	Writer << "Port" << Value.Port;
 	Writer << "PlatformProtocol" << Value.bPlatformProtocol;
 	Writer.EndObject();
 	return Writer;
@@ -876,7 +991,7 @@ FCbWriter& operator<<(FCbWriter& Writer, const UE::Cook::FCookOnTheFlyOptions& V
 bool LoadFromCompactBinary(FCbFieldView Field, UE::Cook::FCookOnTheFlyOptions& OutValue)
 {
 	bool bOk = Field.IsObject();
-	bOk = LoadFromCompactBinary(Field["BindAnyPort"], OutValue.bBindAnyPort) & bOk;
+	bOk = LoadFromCompactBinary(Field["Port"], OutValue.Port) & bOk;
 	bOk = LoadFromCompactBinary(Field["PlatformProtocol"], OutValue.bPlatformProtocol) & bOk;
 	return bOk;
 }

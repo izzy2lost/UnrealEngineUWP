@@ -17,15 +17,25 @@
 
 #include "HarmonixMetasound/Common.h"
 #include "HarmonixMetasound/DataTypes/MidiClock.h"
-
-DEFINE_LOG_CATEGORY_STATIC(LogMidiClockSubdivisionTrigger, Log, All);
+#include "HarmonixMetasound/MidiOps/PulseGenerator.h"
+#include "HarmonixMetasound/Nodes/MidiClockSubdivisionTriggerNode.h"
 
 #define LOCTEXT_NAMESPACE "HarmonixMetaSound_MidiClockSubdivisionTriggerNode"
 
-namespace HarmonixMetasound
+namespace HarmonixMetasound::Nodes::MidiClockSubdivisionTriggerNode
 {
 	using namespace Metasound;
 
+	const FNodeClassName& GetClassName()
+	{
+		static const FNodeClassName ClassName { HarmonixNodeNamespace, "MidiClockSubdivisionTrigger", "" };
+		return ClassName;
+	}
+
+	int32 GetCurrentMajorVersion()
+	{
+		return 0;
+	}
 
 	class FMidiClockSubdivisionTriggerOperator : public TExecutableOperator<FMidiClockSubdivisionTriggerOperator>
 	{
@@ -63,13 +73,7 @@ namespace HarmonixMetasound
 		FTriggerWriteRef   TriggerOutPin;
 
  		//** DATA (current state)
-		EMidiClockSubdivisionQuantization GridSizeUnits;
-		int32 GridSizeMultiplier = 1;
-		EMidiClockSubdivisionQuantization GridOffsetUnits;
-		int32 GridOffsetMultiplier = 0;
-
-		int32 GridOffsetTicks = 0;
-		int32 GridSizeTicks	  = 0;
+		Harmonix::Midi::Ops::FPulseGenerator PulseGenerator;
 	};
 
 	class FMidiClockSubdivisionTriggerNode : public FNodeFacade
@@ -78,7 +82,7 @@ namespace HarmonixMetasound
 		FMidiClockSubdivisionTriggerNode(const FNodeInitData& InInitData)
 			: FNodeFacade(InInitData.InstanceName, InInitData.InstanceID, TFacadeOperatorClass<FMidiClockSubdivisionTriggerOperator>())
 		{}
-		virtual ~FMidiClockSubdivisionTriggerNode() = default;
+		virtual ~FMidiClockSubdivisionTriggerNode() override = default;
 	};
 
 	METASOUND_REGISTER_NODE(FMidiClockSubdivisionTriggerNode)
@@ -88,8 +92,8 @@ namespace HarmonixMetasound
 		auto InitNodeInfo = []() -> FNodeClassMetadata
 		{
 			FNodeClassMetadata Info;
-			Info.ClassName        = { HarmonixNodeNamespace, TEXT("MidiClockSubdivisionTrigger"), TEXT("")};
-			Info.MajorVersion     = 0;
+			Info.ClassName        = GetClassName();
+			Info.MajorVersion     = GetCurrentMajorVersion();
 			Info.MinorVersion     = 1;
 			Info.DisplayName      = METASOUND_LOCTEXT("MIDIClockSubdivisionTriggerNode_DisplayName", "MIDI Clock Subdivision Trigger");
 			Info.Description      = METASOUND_LOCTEXT("MIDIClockSubdivisionTriggerNode_Description", "Watches a MIDI clock and outputs triggers at musical subdivisions.");
@@ -105,16 +109,23 @@ namespace HarmonixMetasound
 		return Info;
 	}
 
-	namespace MidiClockSubdivisionTriggerPinNames
+	namespace Inputs
 	{
-		METASOUND_PARAM(TriggerOutput, "Trigger Out", "A series of triggers at the specified subdivision grid.")
+		DEFINE_METASOUND_PARAM_ALIAS(MidiClock, CommonPinNames::Inputs::MidiClock);
+		DEFINE_METASOUND_PARAM_ALIAS(Enable, CommonPinNames::Inputs::Enable);
+		DEFINE_METASOUND_PARAM_ALIAS(GridSizeUnits, CommonPinNames::Inputs::GridSizeUnits);
+		DEFINE_METASOUND_PARAM_ALIAS(GridSizeMult, CommonPinNames::Inputs::GridSizeMult);
+		DEFINE_METASOUND_PARAM_ALIAS(OffsetUnits, CommonPinNames::Inputs::OffsetUnits);
+		DEFINE_METASOUND_PARAM_ALIAS(OffsetMult, CommonPinNames::Inputs::OffsetMult);
+	}
+
+	namespace Outputs
+	{
+		DEFINE_OUTPUT_METASOUND_PARAM(TriggerOutput, "Trigger Out", "A series of triggers at the specified subdivision grid.")
 	}
 
 	const FVertexInterface& FMidiClockSubdivisionTriggerOperator::GetVertexInterface()
 	{
-		using namespace MidiClockSubdivisionTriggerPinNames;
-		using namespace CommonPinNames;
-
 		static const FVertexInterface Interface(
 			FInputVertexInterface(
 				TInputDataVertex<FMidiClock>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::MidiClock)),
@@ -125,7 +136,7 @@ namespace HarmonixMetasound
 				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::OffsetMult), 0)
 				),
 			FOutputVertexInterface(
-				TOutputDataVertex<FTrigger>(METASOUND_GET_PARAM_NAME_AND_METADATA(TriggerOutput))
+				TOutputDataVertex<FTrigger>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::TriggerOutput))
 			)
 		);
 
@@ -134,9 +145,6 @@ namespace HarmonixMetasound
 
 	TUniquePtr<IOperator> FMidiClockSubdivisionTriggerOperator::CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults)
 	{
-		using namespace MidiClockSubdivisionTriggerPinNames;
-		using namespace CommonPinNames;
-
 		const FMidiClockSubdivisionTriggerNode& TheNode = static_cast<const FMidiClockSubdivisionTriggerNode&>(InParams.Node);
 
 		const FInputVertexInterfaceData& InputData = InParams.InputData;
@@ -180,115 +188,44 @@ namespace HarmonixMetasound
 
 	void FMidiClockSubdivisionTriggerOperator::BindInputs(FInputVertexInterfaceData& InVertexData)
 	{
-		using namespace CommonPinNames;
-
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Enable),    EnableInPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MidiClock), MidiClockInPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::GridSizeMult), GridSizeMultInPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::GridSizeUnits), GridSizeUnitsInPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::OffsetMult), GridOffsetMultInPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::OffsetUnits), GridOffsetUnitsInPin);
+
+		PulseGenerator.Reset();
 	}
 
 	void FMidiClockSubdivisionTriggerOperator::BindOutputs(FOutputVertexInterfaceData& InVertexData)
 	{
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(MidiClockSubdivisionTriggerPinNames::TriggerOutput), TriggerOutPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::TriggerOutput), TriggerOutPin);
 	}
 	
 	void FMidiClockSubdivisionTriggerOperator::Reset(const FResetParams& ResetParams)
 	{
 		TriggerOutPin->Reset();
 		
-		GridSizeUnits = *GridSizeUnitsInPin;
-		GridSizeMultiplier = *GridSizeMultInPin;
-		if (GridSizeMultiplier < 1)
-		{
-			GridSizeMultiplier = 1;
-		}
-		GridOffsetUnits = *GridOffsetUnitsInPin;
-		GridOffsetMultiplier = *GridOffsetMultInPin;
-
-		const FSongMaps& SongMaps = MidiClockInPin->GetSongMaps();
-		GridOffsetTicks = SongMaps.SubdivisionToMidiTicks(GridOffsetUnits, 0) * GridOffsetMultiplier;
-		GridSizeTicks = SongMaps.SubdivisionToMidiTicks(GridSizeUnits, 0) * GridSizeMultiplier;
+		PulseGenerator.Reset();
 	}
 
 	void FMidiClockSubdivisionTriggerOperator::Execute()
 	{
+		// Update the pulse generator
+		PulseGenerator.Enable(*EnableInPin);
+		PulseGenerator.SetInterval({
+			*GridSizeUnitsInPin,
+			*GridOffsetUnitsInPin,
+			static_cast<uint16>(*GridSizeMultInPin),
+			static_cast<uint16>(*GridOffsetMultInPin) });
+
+		// If there were pulses, trigger the output
 		TriggerOutPin->AdvanceBlock();
-			
-		// first let's see if our configuration has changed at all...
-		if (*GridSizeUnitsInPin != GridSizeUnits || *GridSizeMultInPin != GridSizeMultiplier)
+		PulseGenerator.Process(*MidiClockInPin, [this](const Harmonix::Midi::Ops::FPulseGenerator::FPulseInfo& Pulse)
 		{
-			GridSizeUnits = *GridSizeUnitsInPin;
-			GridSizeMultiplier = *GridSizeMultInPin;
-			if (GridSizeMultiplier < 1)
-			{
-				GridSizeMultiplier = 1;
-			}
-		}
-
-		if (*GridOffsetUnitsInPin != GridOffsetUnits || *GridOffsetMultInPin != GridOffsetMultiplier)
-		{
-			GridOffsetUnits = *GridOffsetUnitsInPin;
-			GridOffsetMultiplier = *GridOffsetMultInPin;
-			const FSongMaps& SongMaps = MidiClockInPin->GetSongMaps();
-			GridOffsetTicks = SongMaps.SubdivisionToMidiTicks(GridOffsetUnits, 0) * GridOffsetMultiplier;
-		}
-
-		if (*EnableInPin)
-		{
-			for (const FMidiClockEvent& ClockEvent : MidiClockInPin->GetMidiClockEventsInBlock())
-			{
-				if (ClockEvent.Msg.Type == FMidiClockMsg::EType::AdvanceThru)
-				{
-					if (ClockEvent.Msg.AsAdvanceThru().IsPreRoll)
-					{
-						continue;
-					}
-					
-					int32 TickPreceedingThisAdvance = ClockEvent.Msg.FromTick() - GridOffsetTicks;
-					int32 LastTickProcessed = ClockEvent.Msg.ThruTick() - GridOffsetTicks;
-					const FSongMaps& SongMaps = MidiClockInPin->GetSongMaps();
-					
-					// calculate new GridSizeTicks and GridOffsetTicks at the tick we're evaluating based on any time signature changes
-					GridSizeTicks = SongMaps.SubdivisionToMidiTicks(GridSizeUnits, ClockEvent.Msg.ThruTick()) * GridSizeMultiplier;
-					
-					// if this is one of the quantization types that is variable in size we have to do it a little different...
-					if (GridSizeUnits == EMidiClockSubdivisionQuantization::Bar ||
-						GridSizeUnits == EMidiClockSubdivisionQuantization::Beat)
-					{
-						
-						FMusicTimestamp Start = SongMaps.GetBarMap().TickToMusicTimestamp(TickPreceedingThisAdvance);
-						FMusicTimestamp End = SongMaps.GetBarMap().TickToMusicTimestamp(LastTickProcessed);
-						if (GridSizeUnits == EMidiClockSubdivisionQuantization::Bar && Start.Bar != End.Bar)
-						{
-							if (End.Bar % GridSizeMultiplier == 0)
-							{
-								TriggerOutPin->TriggerFrame(ClockEvent.BlockFrameIndex);
-							}
-						}
-						else if (GridSizeUnits == EMidiClockSubdivisionQuantization::Beat && FMath::FloorToInt32(Start.Beat) != FMath::FloorToInt32(End.Beat))
-						{
-							if (FMath::FloorToInt32(End.Beat-1.0f) % GridSizeMultiplier == 0)
-							{
-								TriggerOutPin->TriggerFrame(ClockEvent.BlockFrameIndex);
-							}
-						}
-					}
-					else
-					{
-						
-						int32 StartingGridSquare = TickPreceedingThisAdvance / GridSizeTicks;
-						int32 EndingGridSquare = LastTickProcessed / GridSizeTicks;
-						if (StartingGridSquare != EndingGridSquare)
-						{
-							TriggerOutPin->TriggerFrame(ClockEvent.BlockFrameIndex);
-						}
-					}
-				}
-			}
-		}
+			TriggerOutPin->TriggerFrame(Pulse.BlockFrameIndex);
+		});
 	}
 }
 

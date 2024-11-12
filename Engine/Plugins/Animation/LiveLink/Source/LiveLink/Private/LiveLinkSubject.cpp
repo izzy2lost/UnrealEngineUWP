@@ -13,6 +13,9 @@
 #include "LiveLinkTimedDataInput.h"
 #include "TimedDataInputCollection.h"
 
+#if WITH_EDITOR
+#include "SkinnedAssetCompiler.h"
+#endif
 
 FLiveLinkSubject::FSubjectEvaluationStatistics::FSubjectEvaluationStatistics()
 	: BufferUnderflow(0)
@@ -56,6 +59,15 @@ FLiveLinkSubject::~FLiveLinkSubject()
 
 void FLiveLinkSubject::Update()
 {
+	FScopeLock Lock(&SettingsCriticalSection);
+
+	if (bClearOverrideStaticData)
+	{
+		ClearFrames();
+		OverrideStaticData.Reset();
+		bClearOverrideStaticData = false;
+	}
+
 	// Clear all frames that are too old
 	if (FrameData.Num() > CachedSettings.BufferSettings.MaxNumberOfFrameToBuffered)
 	{
@@ -208,6 +220,26 @@ bool FLiveLinkSubject::HasValidFrameSnapshot() const
 	return FrameSnapshot.StaticData.IsValid() && FrameSnapshot.FrameData.IsValid();
 }
 
+FLiveLinkStaticDataStruct& FLiveLinkSubject::GetStaticData(bool bGetOverrideData)
+{
+	if (bGetOverrideData && OverrideStaticData)
+	{
+		return *OverrideStaticData;
+	}
+
+	return StaticData;
+}
+
+const FLiveLinkStaticDataStruct& FLiveLinkSubject::GetStaticData() const
+{
+	if (OverrideStaticData)
+	{
+		return *OverrideStaticData;
+	}
+
+	return StaticData;
+}
+
 TArray<FLiveLinkTime> FLiveLinkSubject::GetFrameTimes() const
 {
 	TArray<FLiveLinkTime> Result;
@@ -334,30 +366,8 @@ bool FLiveLinkSubject::HasStaticData() const
 
 void FLiveLinkSubject::AddFrameData(FLiveLinkFrameDataStruct&& InFrameData)
 {
-	check(IsInGameThread());
-	if (!StaticData.IsValid())
+	if (!ValidateFrameData(InFrameData))
 	{
-		static const FName InvalidStatFrame = "LiveLinkSubject_InvalidStatFrame";
-		FLiveLinkLog::WarningOnce(InvalidStatFrame, SubjectKey, TEXT("Can't add frame for subject '%s'. The static frame data is invalid."), *SubjectKey.SubjectName.ToString());
-		return;
-	}
-
-	if (Role == nullptr)
-	{
-		return;
-	}
-
-	if (Role->GetDefaultObject<ULiveLinkRole>()->GetFrameDataStruct() != InFrameData.GetStruct())
-	{
-		static const FName NAME_IncompatibleRoles = "LiveLinkSubject_IncompatibleRoles";
-		FLiveLinkLog::WarningOnce(NAME_IncompatibleRoles, SubjectKey, TEXT("Can't add frame for subject '%s'. The frame data is incompatible with current role '%s'."), *SubjectKey.SubjectName.ToString(), *Role->GetName());
-		return;
-	}
-
-	if (!FLiveLinkRoleTrait::Validate(Role, InFrameData))
-	{
-		static const FName NAME_UnsupportedFrameData = "LiveLinkSubject_UnsupportedFrameData";
-		FLiveLinkLog::WarningOnce(NAME_UnsupportedFrameData, SubjectKey, TEXT("Trying to add unsupported frame data type to role '%s'."), *Role->GetName());
 		return;
 	}
 
@@ -428,7 +438,7 @@ void FLiveLinkSubject::AddFrameData(FLiveLinkFrameDataStruct&& InFrameData)
 		{
 			PreProcessor->PreProcessFrame(InFrameData);
 		}
-		
+
 		//Assign identifier to incoming frame and insert it where it belongs
 		const FLiveLinkFrameIdentifier ThisFrameIdentifier = NextIdentifier++;
 		ReceivedOrderedFrames.Enqueue(ThisFrameIdentifier);
@@ -452,6 +462,50 @@ void FLiveLinkSubject::AddFrameData(FLiveLinkFrameDataStruct&& InFrameData)
 	}
 
 	LastPushTime = FApp::GetCurrentTime();
+}
+
+void FLiveLinkSubject::PreprocessFrame(FLiveLinkFrameDataStruct& InOutFrameData)
+{
+	for (ULiveLinkFramePreProcessor::FWorkerSharedPtr PreProcessor : FramePreProcessors)
+	{
+		PreProcessor->PreProcessFrame(InOutFrameData);
+	}
+}
+
+bool FLiveLinkSubject::ValidateFrameData(const FLiveLinkFrameDataStruct& InFrameData)
+{
+	if (!StaticData.IsValid())
+	{
+		static const FName InvalidStatFrame = "LiveLinkSubject_InvalidStatFrame";
+		FLiveLinkLog::WarningOnce(InvalidStatFrame, SubjectKey, TEXT("Can't add frame for subject '%s'. The static frame data is invalid."), *SubjectKey.SubjectName.ToString());
+		return false;
+	}
+
+	if (Role == nullptr)
+	{
+		return false;
+	}
+
+	if (Role->GetDefaultObject<ULiveLinkRole>()->GetFrameDataStruct() != InFrameData.GetStruct())
+	{
+		static const FName NAME_IncompatibleRoles = "LiveLinkSubject_IncompatibleRoles";
+		FLiveLinkLog::WarningOnce(NAME_IncompatibleRoles, SubjectKey, TEXT("Can't add frame for subject '%s'. The frame data is incompatible with current role '%s'."), *SubjectKey.SubjectName.ToString(), *Role->GetName());
+		return false;
+	}
+
+	if (!FLiveLinkRoleTrait::Validate(Role, InFrameData))
+	{
+		static const FName NAME_UnsupportedFrameData = "LiveLinkSubject_UnsupportedFrameData";
+		FLiveLinkLog::WarningOnce(NAME_UnsupportedFrameData, SubjectKey, TEXT("Trying to add unsupported frame data type to role '%s'."), *Role->GetName());
+		return false;
+	}
+
+	return true;
+}
+
+void FLiveLinkSubject::ClearOverrideStaticData_AnyThread()
+{
+	bClearOverrideStaticData = true;
 }
 
 int32 FLiveLinkSubject::FindNewFrame_WorldTime(const FLiveLinkWorldTime& WorldTime) const
@@ -998,8 +1052,6 @@ void FLiveLinkSubject::RemoveFrames(int32 InCount)
 
 void FLiveLinkSubject::SetStaticData(TSubclassOf<ULiveLinkRole> InRole, FLiveLinkStaticDataStruct&& InStaticData)
 {
-	check(IsInGameThread());
-
 	if (Role == nullptr)
 	{
 		static const FName NAME_NoRoleForSubject = "LiveLinkSubject_NoRoleForSubject";
@@ -1007,12 +1059,15 @@ void FLiveLinkSubject::SetStaticData(TSubclassOf<ULiveLinkRole> InRole, FLiveLin
 		return;
 	}
 
-	if(Role == InRole)
+	if (Role == InRole)
 	{
 		//Set initial blending processor to the role's default one. User will be able to modify it afterwards.
 		FrameData.Reset();
 		ReceivedOrderedFrames.Empty();
 		StaticData = MoveTemp(InStaticData);
+		// SetStaticData can be called after caching settings and checking for a dirty remapper. But the remapper needs to be applied
+		// to this new static data, so remap again when caching settings.
+		bNeedsStaticRemap = OverrideStaticData.IsSet();
 	}
 	else
 	{
@@ -1023,7 +1078,7 @@ void FLiveLinkSubject::SetStaticData(TSubclassOf<ULiveLinkRole> InRole, FLiveLin
 
 void FLiveLinkSubject::CacheSettings(ULiveLinkSourceSettings* SourceSetting, ULiveLinkSubjectSettings* SubjectSetting)
 {
-	check(IsInGameThread());
+	FScopeLock Lock(&SettingsCriticalSection);
 
 	if (SourceSetting)
 	{
@@ -1077,6 +1132,65 @@ void FLiveLinkSubject::CacheSettings(ULiveLinkSourceSettings* SourceSetting, ULi
 					FramePreProcessors.Add(NewPreProcessor);
 				}
 			}
+		}
+
+		SubjectRemapper.Reset();
+		
+		if (SubjectSetting->Remapper
+#if WITH_EDITOR
+		/** Remappers may call FinishCompilation for skinned assets, which isn't safe to do if we are running in a different thread. */
+		&& (IsInGameThread() || FSkinnedAssetCompilingManager::Get().GetNumRemainingJobs() == 0)
+#endif
+		)
+		{
+			// If there wasn't a remapper, then we need to initialize the one we will create.
+			bool bRecreateRemapper = SubjectSetting->Remapper->GetWorker() == nullptr || SubjectSetting->Remapper->bDirty || bNeedsStaticRemap;
+			bNeedsStaticRemap = false;
+
+			ULiveLinkSubjectRemapper::FWorkerSharedPtr NewRemapper = bRecreateRemapper ? SubjectSetting->Remapper->CreateWorker() : SubjectSetting->Remapper->GetWorker();
+
+			if (NewRemapper.IsValid())
+			{
+				// If this is a new remapper, then do an initial remapping.
+				if (bRecreateRemapper)
+				{
+					SubjectSetting->Remapper->bDirty = false;
+
+					if (SubjectSetting->Remapper->IsValidRemapper())
+					{
+						// Since the remapper has changed, we need to update the static data as well. 
+						FLiveLinkStaticDataStruct RemappedStaticData;
+						RemappedStaticData.InitializeWith(StaticData);
+						NewRemapper->RemapStaticData(RemappedStaticData);
+
+						if (HasValidFrameSnapshot())
+						{
+							NewRemapper->RemapStaticData(FrameSnapshot.StaticData);
+							NewRemapper->RemapFrameData(FrameSnapshot.StaticData, FrameSnapshot.FrameData);
+						}
+
+						// Important: Because we changed the static data, we have to update the frame data to match the new static data.
+						for (FLiveLinkFrameDataStruct& FrameDataStruct : FrameData)
+						{
+							NewRemapper->RemapFrameData(RemappedStaticData, FrameDataStruct);
+						}
+
+						OverrideStaticData = MoveTemp(RemappedStaticData);
+
+						SetStaticDataAsRebroadcasted(false);
+					}
+					else
+					{
+						// Remapper isn't valid, reset static data.
+						ClearFrames();
+
+						OverrideStaticData.Reset();
+					}
+
+				}
+			}
+
+			SubjectRemapper = MoveTemp(NewRemapper);
 		}
 
 		// Create a new or fetch the interpolation for this frame
@@ -1262,4 +1376,3 @@ void FLiveLinkSubject::ResetBufferStats()
 	EvaluationStatistics.FrameDrop = 0;
 	EvaluationStatistics.LastEvaluationData = FTimedDataInputEvaluationData();
 }
-

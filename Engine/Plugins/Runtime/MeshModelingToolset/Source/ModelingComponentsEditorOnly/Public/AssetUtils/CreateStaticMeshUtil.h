@@ -79,6 +79,9 @@ namespace AssetUtils
 		// Whether to generate lightmap uvs for the generated mesh
 		bool bGenerateLightmapUVs = false;
 
+		// Whether to generate UVs with full floating point precision.
+		bool bUseFullPrecisionUVs = false;
+		
 		// Controls whether the UBodySetup on the Asset will be created (generally should be true)
 		bool bCreatePhysicsBody = true;
 		// set asset collision type
@@ -93,6 +96,12 @@ namespace AssetUtils
 
 		// by default, PostEditChange() will be called to rebuild mesh, set true to skip this call
 		bool bDeferPostEditChange = false;
+
+		// Whether to build a reversed index buffer. Will double the memory usage of indices.
+		bool bBuildReversedIndexBuffer = true;
+
+		// Whether to attempt to re-create the original non-manifold mesh from the (optional) non-manifold index map on the dynamic mesh.
+		bool bConvertBackToNonManifold = false;
 	};
 
 	/**

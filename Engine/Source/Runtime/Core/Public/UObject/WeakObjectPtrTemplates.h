@@ -4,8 +4,10 @@
 
 #include "CoreTypes.h"
 #include "Templates/LosesQualifiersFromTo.h"
+#include "Templates/Requires.h"
 #include "Containers/Map.h"
 #include "UObject/WeakObjectPtrTemplatesFwd.h"
+#include "UObject/StrongObjectPtrTemplatesFwd.h"
 
 #include <type_traits>
 
@@ -45,8 +47,8 @@ public:
 	 * @param Object object to create a weak pointer to
 	 */
 	template <
-		typename U,
-		typename = decltype(ImplicitConv<T*>(std::declval<U>()))
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U, T*>)
 	>
 	FORCEINLINE TWeakObjectPtr(U Object) :
 		TWeakObjectPtrBase((const UObject*)Object)
@@ -61,8 +63,8 @@ public:
 	 * @param Other weak pointer to copy from
 	 */
 	template <
-		typename OtherT,
-		typename = decltype(ImplicitConv<T*>((OtherT*)nullptr))
+		typename OtherT
+		UE_REQUIRES(std::is_convertible_v<OtherT*, T*>)
 	>
 	FORCEINLINE TWeakObjectPtr(const TWeakObjectPtr<OtherT, TWeakObjectPtrBase>& Other) :
 		TWeakObjectPtrBase(*(TWeakObjectPtrBase*)&Other) // we do a C-style cast to private base here to avoid clang 3.6.0 compilation problems with friend declarations
@@ -97,8 +99,8 @@ public:
 	 * @param Other weak pointer to copy from
 	 */
 	template <
-		typename OtherT,
-		typename = decltype(ImplicitConv<T*>((OtherT*)nullptr))
+		typename OtherT
+		UE_REQUIRES(std::is_convertible_v<OtherT*, T*>)
 	>
 	FORCEINLINE TWeakObjectPtr& operator=(const TWeakObjectPtr<OtherT, TWeakObjectPtrBase>& Other)
 	{
@@ -123,6 +125,28 @@ public:
 	FORCEINLINE T* Get(/*bool bEvenIfPendingKill = false*/) const
 	{
 		return (T*)TWeakObjectPtrBase::Get();
+	}
+
+	/**
+	 * Pin the weak pointer and get a strongptr.
+	 * @param bEvenIfPendingKill if this is true, pendingkill objects are considered valid
+	 * @return nullptr if this object is gone or the weak pointer is explicitly null, otherwise a valid uobject pointer
+	 */
+	FORCEINLINE TStrongObjectPtr<T> Pin(bool bEvenIfPendingKill) const
+	{
+		TStrongObjectPtr<T> StrongPtr;
+		StrongPtr.Attach((T*)TWeakObjectPtrBase::Pin(bEvenIfPendingKill).Detach());
+		return StrongPtr;
+	}
+
+	/**
+	 * Pin the weak pointer as a strong ptr. This is an optimized version implying bEvenIfPendingKill=false.
+	 */
+	FORCEINLINE TStrongObjectPtr<T> Pin(/*bool bEvenIfPendingKill = false*/) const
+	{
+		TStrongObjectPtr<T> StrongPtr;
+		StrongPtr.Attach((T*)TWeakObjectPtrBase::Pin().Detach());
+		return StrongPtr;
 	}
 
 	/** Deferences the weak pointer even if its marked RF_Unreachable. This is needed to resolve weak pointers during GC (such as ::AddReferenceObjects) */
@@ -208,6 +232,19 @@ public:
 	}
 
 	/**
+	 * Returns true if two weak pointers were originally set to the same object, even if they are now stale
+	 * @param Other weak pointer to compare to
+	 */
+	template <
+		typename OtherT
+		UE_REQUIRES(UE_REQUIRES_EXPR((T*)nullptr == (OtherT*)nullptr))
+	>
+	FORCEINLINE bool HasSameIndexAndSerialNumber(const TWeakObjectPtr<OtherT, TWeakObjectPtrBase>& Other) const
+	{
+		return ((const TWeakObjectPtrBase&)*this).HasSameIndexAndSerialNumber((const TWeakObjectPtrBase&)Other);
+	}
+
+	/**
 	 * Weak object pointer serialization, this forwards to FArchive::operator<<(struct FWeakObjectPtr&) or an override
 	 */
 	FORCEINLINE	void Serialize(FArchive& Ar)
@@ -268,6 +305,12 @@ public:
 	}
 #endif
 };
+
+template <typename T>
+TWeakObjectPtr(T*) -> TWeakObjectPtr<T>;
+
+template <typename T>
+TWeakObjectPtr(const TWeakObjectPtr<T>&) -> TWeakObjectPtr<T>;
 
 #if !PLATFORM_COMPILER_HAS_GENERATED_COMPARISON_OPERATORS
 /**
@@ -360,10 +403,26 @@ struct TCallTraits<TWeakObjectPtr<T>> : public TCallTraitsBase<TWeakObjectPtr<T>
 template<typename DestArrayType, typename SourceArrayType>
 void CopyFromWeakArray(DestArrayType& Dest, const SourceArrayType& Src)
 {
-	Dest.Empty(Src.Num());
-	for (int32 Index = 0; Index < Src.Num(); Index++)
+	const int32 Count = Src.Num();
+	Dest.Empty(Count);
+	for (int32 Index = 0; Index < Count; Index++)
 	{
 		if (auto Value = Src[Index].Get())
+		{
+			Dest.Add(Value);
+		}
+	}
+}
+
+/** Utility function to fill in a TArray<TWeakObjectPtr<ClassName>> from a TArray<TObjectPtr<ClassName>> or TArray<ClassName*> */
+template<typename DestArrayType, typename SourceArrayType>
+void CopyToWeakArray(DestArrayType& Dest, const SourceArrayType& Src)
+{
+	const int32 Count = Src.Num();
+	Dest.Empty(Count);
+	for (int32 Index = 0; Index < Count; Index++)
+	{
+		if (auto* Value = Src[Index])
 		{
 			Dest.Add(Value);
 		}

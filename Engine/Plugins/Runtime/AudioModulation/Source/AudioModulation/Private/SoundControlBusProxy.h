@@ -74,6 +74,7 @@ namespace AudioModulation
 		float GetGeneratorValue() const;
 		float GetMixValue() const;
 		float GetValue() const;
+		FName GetParameterName() const;
 		bool IsBypassed() const;
 		void MixIn(const float InValue);
 		void MixGenerators();
@@ -93,6 +94,11 @@ namespace AudioModulation
 
 		Audio::FModulationMixFunction MixFunction;
 		TArray<FGeneratorHandle> GeneratorHandles;
+
+#if !UE_BUILD_SHIPPING
+		FName ParameterName;
+#endif // !UE_BUILD_SHIPPING 
+
 	};
 
 	using FBusProxyMap = TMap<FBusId, FControlBusProxy>;

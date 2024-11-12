@@ -1,9 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
-
-#include <catch2/catch_test_macros.hpp>
-
 #include "Helpers/TitleFile/AsyncTitleFileEnumerateFiles.h"
 #include "Helpers/TitleFile/AsyncTitleFileGetEnumeratedFiles.h"
 #include "Helpers/TitleFile/AsyncTitleFileReadFile.h"
@@ -33,7 +29,7 @@ FTitleFileContentsRef FormatExpectedFileContents(FString FileContents)
 TITLE_FILE_TEST_CASE("EnumerateFiles", TITLE_FILE_ENUMERATE_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FTitleFileEnumerateFiles::Params Params;
 	Params.LocalAccountId = AccountId;
@@ -46,7 +42,7 @@ TITLE_FILE_TEST_CASE("EnumerateFiles", TITLE_FILE_ENUMERATE_TAG)
 TITLE_FILE_TEST_CASE("EnumerateFiles - Invalid User", TITLE_FILE_ENUMERATE_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FTitleFileEnumerateFiles::Params Params;
 
@@ -58,7 +54,7 @@ TITLE_FILE_TEST_CASE("EnumerateFiles - Invalid User", TITLE_FILE_ENUMERATE_TAG)
 TITLE_FILE_TEST_CASE("GetEnumeratedFiles", TITLE_FILE_GET_ENUMERATED_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FTitleFileEnumerateFiles::Params EnumerateParams;
 	EnumerateParams.LocalAccountId = AccountId;
@@ -78,7 +74,7 @@ TITLE_FILE_TEST_CASE("GetEnumeratedFiles", TITLE_FILE_GET_ENUMERATED_TAG)
 TITLE_FILE_TEST_CASE("GetEnumeratedFiles - Invalid user", TITLE_FILE_GET_ENUMERATED_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FTitleFileEnumerateFiles::Params EnumerateParams;
 	EnumerateParams.LocalAccountId = AccountId;
@@ -96,7 +92,7 @@ TITLE_FILE_TEST_CASE("GetEnumeratedFiles - Invalid state", TITLE_FILE_GET_ENUMER
 	DestroyCurrentServiceModule();
 
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FTitleFileGetEnumeratedFiles::Params GetParams;
 	GetParams.LocalAccountId = AccountId;
@@ -109,7 +105,7 @@ TITLE_FILE_TEST_CASE("GetEnumeratedFiles - Invalid state", TITLE_FILE_GET_ENUMER
 TITLE_FILE_TEST_CASE("ReadFile", TITLE_FILE_READ_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FTitleFileEnumerateFiles::Params EnumerateParams;
 	EnumerateParams.LocalAccountId = AccountId;
@@ -135,7 +131,7 @@ TITLE_FILE_TEST_CASE("ReadFile", TITLE_FILE_READ_TAG)
 TITLE_FILE_TEST_CASE("ReadFile - Invalid User", TITLE_FILE_READ_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FTitleFileEnumerateFiles::Params EnumerateParams;
 	EnumerateParams.LocalAccountId = AccountId;
@@ -153,7 +149,7 @@ TITLE_FILE_TEST_CASE("ReadFile - Empty filename", TITLE_FILE_READ_TAG)
 	DestroyCurrentServiceModule();
 
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FTitleFileReadFile::Params ReadParams;
 	ReadParams.LocalAccountId = AccountId;
@@ -166,7 +162,7 @@ TITLE_FILE_TEST_CASE("ReadFile - Empty filename", TITLE_FILE_READ_TAG)
 TITLE_FILE_TEST_CASE("ReadFile - Not Found", TITLE_FILE_READ_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FTitleFileEnumerateFiles::Params EnumerateParams;
 	EnumerateParams.LocalAccountId = AccountId;

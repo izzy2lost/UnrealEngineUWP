@@ -8,6 +8,7 @@
 #include "PyWrapperEnum.h"
 #include "PyWrapperDelegate.h"
 #include "PyGIL.h"
+#include "UObject/ObjectRedirector.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/PurgingReferenceCollector.h"
@@ -39,12 +40,10 @@ void FPyReferenceCollector::AddReferencedObjects(FReferenceCollector& InCollecto
 			FPyWrapperBaseMetaData* PythonWrappedInstanceMetaData = FPyWrapperBaseMetaData::GetMetaData(PythonWrappedInstance);
 			if (PythonWrappedInstanceMetaData)
 			{
-				PythonWrappedInstanceMetaData->AddReferencedObjects(PythonWrappedInstance, InCollector);
+				PythonWrappedInstanceMetaData->AddInstanceReferencedObjects(PythonWrappedInstance, InCollector);
 			}
 		}
 	}
-
-	FPyWrapperTypeReinstancer::Get().AddReferencedObjects(InCollector);
 }
 
 FString FPyReferenceCollector::GetReferencerName() const
@@ -85,7 +84,17 @@ void FPyReferenceCollector::PurgeUnrealGeneratedTypes()
 	FPurgingReferenceCollector PurgingReferenceCollector;
 	TArray<FWeakObjectPtr> WeakReferencesToPurgedObjects;
 
-	auto FlagObjectForPurge = [&PurgingReferenceCollector, &WeakReferencesToPurgedObjects](UObject* InObject, const bool bMarkPendingKill)
+	TMap<UObject*, UObjectRedirector*> ReverseRedirectorMapping;
+	ForEachObjectOfClass(UObjectRedirector::StaticClass(), [&ReverseRedirectorMapping](UObject* InObject)
+	{
+		UObjectRedirector* Redirector = CastChecked<UObjectRedirector>(InObject);
+		if (Redirector->DestinationObject)
+		{
+			ReverseRedirectorMapping.Add(Redirector->DestinationObject, Redirector);
+		}
+	});
+
+	auto FlagObjectForPurge = [&PurgingReferenceCollector, &WeakReferencesToPurgedObjects, &ReverseRedirectorMapping](UObject* InObject, const bool bMarkPendingKill)
 	{
 		check(!InObject->HasAnyInternalFlags(EInternalObjectFlags::Native));
 
@@ -104,6 +113,13 @@ void FPyReferenceCollector::PurgeUnrealGeneratedTypes()
 			WeakReferencesToPurgedObjects.Add(InObject);
 		}
 
+		if (UObjectRedirector* Redirector = ReverseRedirectorMapping.FindRef(InObject))
+		{
+			check(Redirector->DestinationObject == InObject);
+			Redirector->DestinationObject = nullptr;
+			Redirector->ClearFlags(RF_Public | RF_Standalone);
+		}
+
 		PurgingReferenceCollector.AddObjectToPurge(InObject);
 	};
 
@@ -112,9 +128,12 @@ void FPyReferenceCollector::PurgeUnrealGeneratedTypes()
 	{
 		ForEachObjectOfClass(UPythonGeneratedClass::StaticClass(), [&FlagObjectForPurge](UObject* InObject)
 		{
-			FlagObjectForPurge(InObject, /*bMarkPendingKill*/false);
-
 			UPythonGeneratedClass* PythonGeneratedClass = CastChecked<UPythonGeneratedClass>(InObject);
+
+			// Generated classes are kept alive by the FPyWrapperTypeRegistry ARO, so unregister the type from FPyWrapperTypeRegistry
+			PythonGeneratedClass->UnregisterGeneratedType();
+
+			FlagObjectForPurge(InObject, /*bMarkPendingKill*/false);
 			ForEachObjectOfClass(PythonGeneratedClass, [&FlagObjectForPurge](UObject* InInnerObject)
 			{
 				FlagObjectForPurge(InInnerObject, /*bMarkPendingKill*/true);
@@ -127,6 +146,11 @@ void FPyReferenceCollector::PurgeUnrealGeneratedTypes()
 	{
 		ForEachObjectOfClass(UPythonGeneratedStruct::StaticClass(), [&FlagObjectForPurge](UObject* InObject)
 		{
+			UPythonGeneratedStruct* PythonGeneratedStruct = CastChecked<UPythonGeneratedStruct>(InObject);
+
+			// Generated structs are kept alive by the FPyWrapperTypeRegistry ARO, so unregister the type from FPyWrapperTypeRegistry
+			PythonGeneratedStruct->UnregisterGeneratedType();
+
 			FlagObjectForPurge(InObject, /*bMarkPendingKill*/false);
 		}, false, RF_ClassDefaultObject, EInternalObjectFlags::Native);
 	}
@@ -136,6 +160,11 @@ void FPyReferenceCollector::PurgeUnrealGeneratedTypes()
 	{
 		ForEachObjectOfClass(UPythonGeneratedEnum::StaticClass(), [&FlagObjectForPurge](UObject* InObject)
 		{
+			UPythonGeneratedEnum* PythonGeneratedEnum = CastChecked<UPythonGeneratedEnum>(InObject);
+
+			// Generated enums are kept alive by the FPyWrapperTypeRegistry ARO, so unregister the type from FPyWrapperTypeRegistry
+			PythonGeneratedEnum->UnregisterGeneratedType();
+
 			FlagObjectForPurge(InObject, /*bMarkPendingKill*/false);
 		}, false, RF_ClassDefaultObject, EInternalObjectFlags::Native);
 	}

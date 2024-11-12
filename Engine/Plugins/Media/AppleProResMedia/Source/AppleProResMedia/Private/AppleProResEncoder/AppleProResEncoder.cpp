@@ -692,3 +692,8 @@ bool FAppleProResEncoder::WriteAudioSample(const TArrayView<int16>& InAudioSampl
 {
 	return false;
 }
+
+const FAppleProResEncoderOptions& FAppleProResEncoder::GetOptions() const
+{
+	return Options;
+}

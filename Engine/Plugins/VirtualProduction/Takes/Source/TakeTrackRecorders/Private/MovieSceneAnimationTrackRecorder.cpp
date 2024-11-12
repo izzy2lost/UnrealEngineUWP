@@ -2,6 +2,7 @@
 
 #include "TrackRecorders/MovieSceneAnimationTrackRecorder.h"
 #include "Animation/Skeleton.h"
+#include "AnimationRecorder.h"
 #include "AssetRegistry/AssetData.h"
 #include "Engine/SkeletalMesh.h"
 #include "TrackRecorders/MovieSceneAnimationTrackRecorderSettings.h"
@@ -90,16 +91,6 @@ void UMovieSceneAnimationTrackRecorder::CreateAnimationAssetAndSequence(const AA
 static FGuid GetActorInSequence(AActor* InActor, UMovieScene* MovieScene)
 {
 	FString ActorTargetName = InActor->GetActorLabel();
-
-
-	for (int32 SpawnableCount = 0; SpawnableCount < MovieScene->GetSpawnableCount(); ++SpawnableCount)
-	{
-		const FMovieSceneSpawnable& Spawnable = MovieScene->GetSpawnable(SpawnableCount);
-		if (Spawnable.GetName() == ActorTargetName || Spawnable.Tags.Contains(*ActorTargetName))
-		{
-			return Spawnable.GetGuid();
-		}
-	}
 
 	for (int32 PossessableCount = 0; PossessableCount < MovieScene->GetPossessableCount(); ++PossessableCount)
 	{
@@ -348,9 +339,22 @@ void UMovieSceneAnimationTrackRecorder::RemoveRootMotion()
 
 void UMovieSceneAnimationTrackRecorder::ProcessRecordedTimes(const FString& HoursName, const FString& MinutesName, const FString& SecondsName, const FString& FramesName, const FString& SubFramesName, const FString& SlateName, const FString& Slate)
 {
+	FProcessRecordedTimeParams Params{
+		 .HoursName = HoursName,
+		 .MinutesName = MinutesName,
+		 .SecondsName = SecondsName,
+		 .FramesName = FramesName,
+		 .SubFramesName = SubFramesName,
+		 .SlateName = SlateName,
+		 .Slate = Slate,
+	};
+	ProcessRecordedTimes(Params);
+}
+void UMovieSceneAnimationTrackRecorder::ProcessRecordedTimes(const FProcessRecordedTimeParams& InParams)
+{
 	UMovieSceneAnimationTrackRecorderSettings* AnimSettings = CastChecked<UMovieSceneAnimationTrackRecorderSettings>(Settings.Get());
 
-	AnimationRecorder.ProcessRecordedTimes(AnimSequence.Get(), SkeletalMeshComponent.Get(), HoursName, MinutesName, SecondsName, FramesName, SubFramesName, SlateName, Slate, AnimSettings->TimecodeBoneMethod);
+	AnimationRecorder.ProcessRecordedTimes(AnimSequence.Get(), SkeletalMeshComponent.Get(), AnimSettings->TimecodeBoneMethod, InParams);
 }
 
 bool UMovieSceneAnimationTrackRecorder::LoadRecordedFile(const FString& FileName, UMovieScene *InMovieScene, TMap<FGuid, AActor*>& ActorGuidToActorMap,  TFunction<void()> InCompletionCallback)

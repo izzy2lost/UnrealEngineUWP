@@ -13,7 +13,10 @@ public class HarmonixMetasoundTests : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
+				"FunctionalTesting",
 				"UnrealEd",
+				"AudioExtensions",
+				"MetasoundEngine",
 				"MetasoundEngineTest",
 				"MetasoundFrontend",
 				"MetasoundGenerator",
@@ -22,6 +25,7 @@ public class HarmonixMetasoundTests : ModuleRules
 				"HarmonixDsp",
 				"HarmonixMetasound",
 				"HarmonixMidi",
+				"Projects",
 				"SignalProcessing"
 			}
 		);

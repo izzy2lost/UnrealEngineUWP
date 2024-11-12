@@ -34,7 +34,7 @@ namespace Harmonix
 		 * 
 		 * @return	number of instances successfully created and pooled. Can be fewer than Num requested.
 		 */
-		FORCEINLINE int32 TryAllocate(int32 Num, TFunction<FSharedObjectPtr()> FactoryMethod)
+		FORCEINLINE int32 TryAllocate(int32 Num, TFunction<FSharedObjectPtr()> InFactoryMethod, bool bInAllowGrowth = false)
 		{
 			checkf(Num > 0, TEXT("Num to allocate must be greater than 0"));
 
@@ -42,13 +42,19 @@ namespace Harmonix
 
 			checkf(Objects.Num() == 0, TEXT("Objects already allocated. Check \"IsInitialized() == false\" before allocating."));
 
+			bAllowGrowth = bInAllowGrowth;
 			Objects.Reset(Num);
 			for (int32 Index = 0; Index < Num; ++Index)
 			{
-				if (FSharedObjectPtr NewObject = FactoryMethod())
+				if (FSharedObjectPtr NewObject = InFactoryMethod())
 				{
 					Objects.Add(NewObject);
 				}
+			}
+
+			if (bAllowGrowth)
+			{
+				FactoryMethod = InFactoryMethod;
 			}
 
 			return Objects.Num();
@@ -57,7 +63,7 @@ namespace Harmonix
 		/**
 		 * allocates Num number of objects, given a factory method
 		 */
-		void Allocate(int32 Num, TFunction<FSharedObjectPtr()> FactoryMethod)
+		void Allocate(int32 Num, TFunction<FSharedObjectPtr()> InFactoryMethod, bool bInAllowGrowth = false)
 		{
 			checkf(Num > 0, TEXT("Num to allocate must be greater than 0"));
 
@@ -65,11 +71,17 @@ namespace Harmonix
 
 			checkf(Objects.Num() == 0, TEXT("Objects already allocated. Check \"IsInitialized() == false\" before allocating."));
 
+			bAllowGrowth = bInAllowGrowth;
 			Objects.Reset(Num);
 			for (int32 Index = 0; Index < Num; ++Index)
 			{
-				Objects.Add(FactoryMethod());
+				Objects.Add(InFactoryMethod());
 				checkSlow(Objects[Index].IsValid());
+			}
+
+			if (bAllowGrowth)
+			{
+				FactoryMethod = InFactoryMethod;
 			}
 		}
 
@@ -83,7 +95,9 @@ namespace Harmonix
 			FScopeLock Lock(&PoolLock);
 
 			NumInUse = 0;
+			bAllowGrowth = false;
 			Objects.Reset();
+			FactoryMethod.Reset();
 		}
 
 		/**
@@ -103,6 +117,15 @@ namespace Harmonix
 				int32 FreeIndex = NumInUse;
 				++NumInUse;
 				return Objects[FreeIndex];
+			}
+			else if (bAllowGrowth)
+			{
+				if (FSharedObjectPtr NewObject = FactoryMethod())
+				{
+					Objects.Add(NewObject);
+					++NumInUse;
+					return NewObject;
+				}
 			}
 
 			return nullptr;
@@ -151,6 +174,10 @@ namespace Harmonix
 			return Objects.Num() > 0;
 		}
 
+		bool CanGrow() const
+		{
+			return bAllowGrowth;
+		}
 
 		int32 GetNumAllocated() const
 		{
@@ -185,7 +212,9 @@ namespace Harmonix
 
 		mutable FCriticalSection PoolLock;
 
-		int32 NumInUse;
+		int32 NumInUse = 0;
+		bool bAllowGrowth = false;
 		TArray<FSharedObjectPtr> Objects;
+		TFunction<FSharedObjectPtr()> FactoryMethod;
 	};
 };

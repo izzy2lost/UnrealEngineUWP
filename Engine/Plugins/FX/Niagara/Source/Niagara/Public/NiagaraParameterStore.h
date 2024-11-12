@@ -1019,7 +1019,7 @@ struct FNiagaraParameterDirectBinding<FMatrix44f>
 		checkSlow(BoundVariable.GetSizeInBytes() == sizeof(FMatrix44f));
 		checkfSlow(LayoutVersion == BoundStore->GetLayoutVersion(), TEXT("This binding is invalid, its bound parameter store's layout was changed since it was created"));
 #endif
-		FMatrix44f Ret;
+		FMatrix44f Ret = FMatrix44f::Identity;
 		if (ValuePtr)
 		{
 			FMemory::Memcpy(&Ret, ValuePtr, sizeof(FMatrix44f));//Temp annoyance until we fix the alignment issues with parameter stores.
@@ -1135,7 +1135,7 @@ struct FNiagaraParameterDirectBinding<FQuat4f>
 		checkSlow(BoundVariable.GetSizeInBytes() == sizeof(FQuat4f));
 		checkfSlow(LayoutVersion == BoundStore->GetLayoutVersion(), TEXT("This binding is invalid, its bound parameter store's layout was changed since it was created"));
 #endif
-		FQuat4f Ret;
+		FQuat4f Ret = FQuat4f::Identity;
 		if (ValuePtr)
 		{
 			FMemory::Memcpy(&Ret, ValuePtr, sizeof(FQuat4f));//Temp annoyance until we fix the alignment issues with parameter stores.

@@ -121,6 +121,21 @@ bool FPCGFilterByIndexTest_Basic::RunTest(const FString& Parameters)
 		UTEST_EQUAL("Output 5 filtered exclusively", Outputs[4].Pin, PCGPinConstants::DefaultOutFilterLabel);
 	}
 
+	// Range index selection [2:2] = [2]
+	{
+		Settings->SelectedIndices = FString("2:2");
+		const TArray<FPCGTaggedData> Outputs = PCGFilterByIndexTestPrivate::ResetAndExecute(TestData, Settings);
+
+		UTEST_EQUAL("Output count", Outputs.Num(), InputNum);
+		UTEST_TRUE("Output is valid", PCGFilterByIndexTestPrivate::ValidateData(Outputs));
+
+		UTEST_EQUAL("Output 1 filtered exclusively", Outputs[0].Pin, PCGPinConstants::DefaultOutFilterLabel);
+		UTEST_EQUAL("Output 2 filtered exclusively", Outputs[1].Pin, PCGPinConstants::DefaultOutFilterLabel);
+		UTEST_EQUAL("Output 3 filtered inclusively", Outputs[2].Pin, PCGPinConstants::DefaultInFilterLabel);
+		UTEST_EQUAL("Output 4 filtered exclusively", Outputs[3].Pin, PCGPinConstants::DefaultOutFilterLabel);
+		UTEST_EQUAL("Output 5 filtered exclusively", Outputs[4].Pin, PCGPinConstants::DefaultOutFilterLabel);
+	}
+
 	// Range index selection (should be [5-3,5-1) = [2,4) = [2:3]
 	{
 		Settings->SelectedIndices = FString("-3:-1");
@@ -177,7 +192,7 @@ bool FPCGFilterByIndexTest_InvalidSelection::RunTest(const FString& Parameters)
 	PCGTestsCommon::FTestData TestData;
 	UPCGFilterByIndexSettings* Settings = PCGTestsCommon::GenerateSettings<UPCGFilterByIndexSettings>(TestData);
 
-	AddExpectedError("Invalid expression in index selection string", EAutomationExpectedMessageFlags::Contains, 3);
+	AddExpectedError("Invalid expression in parsed string:", EAutomationExpectedMessageFlags::Contains, 2);
 
 	// Test inverted range
 	{
@@ -195,15 +210,7 @@ bool FPCGFilterByIndexTest_InvalidSelection::RunTest(const FString& Parameters)
 		UTEST_TRUE("Output count", Outputs.IsEmpty());
 	}
 
-	// Duplicate selection for range
-	{
-		Settings->SelectedIndices = FString("2:2");
-		const TArray<FPCGTaggedData> Outputs = PCGFilterByIndexTestPrivate::ResetAndExecute(TestData, Settings);
-
-		UTEST_TRUE("Output count", Outputs.IsEmpty());
-	}
-
-	AddExpectedError("Invalid character in index selection string");
+	AddExpectedError("Invalid character in parsed string:");
 
 	// Test invalid character
 	{

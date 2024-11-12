@@ -211,7 +211,7 @@ FHairTraversalResult ComputeHairCountVirtualVoxel(
 			AddStepAABB(InSettings.bDebugEnabled, PreviousP, HitP, float3(0, 1, 0));
 			#endif
 
-			const uint3 VolumeCoord    = PositionToCoord(HitP, InNodeDesc.TranslatedWorldMinAABB, InNodeDesc.TranslatedWorldMaxAABB, InNodeDesc.VirtualResolution);
+			const uint3 VolumeCoord = clamp((HitP - InNodeDesc.TranslatedWorldMinAABB) / InNodeDesc.VoxelWorldSize, 0, InNodeDesc.VirtualResolution - 1);
 			const uint3 PageIndexCoord = (VolumeCoord >> InCommonDesc.PageResolutionLog2);
 
 			// Update page index only when needed

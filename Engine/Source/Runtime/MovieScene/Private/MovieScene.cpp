@@ -46,10 +46,33 @@ TOptional<TRangeBound<FFrameNumber>> GetMaxUpperBound(const UMovieSceneTrack* Tr
 
 UMovieScene::FIsTrackClassAllowedEvent UMovieScene::IsTrackClassAllowedEvent;
 UMovieScene::FFixupDynamicBindingPayloadParameterNameEvent UMovieScene::FixupDynamicBindingPayloadParameterNameEvent;
+UMovieScene::FIsCustomBindingClassAllowedEvent UMovieScene::IsCustomBindingClassAllowedEvent;
+UMovieScene::FIsConditionClassAllowedEvent UMovieScene::IsConditionClassAllowedEvent;
+UMovieScene::FFixupDirectorBlueprintConditionPayloadParameterNameEvent UMovieScene::FixupDirectorBlueprintConditionPayloadParameterNameEvent;
 
 bool UMovieScene::IsTrackClassAllowed(UClass* InClass)
 {
 	if (IsTrackClassAllowedEvent.IsBound() && !IsTrackClassAllowedEvent.Execute(InClass))
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool UMovieScene::IsCustomBindingClassAllowed(UClass* InClass)
+{
+	if (IsCustomBindingClassAllowedEvent.IsBound() && !IsCustomBindingClassAllowedEvent.Execute(InClass))
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool UMovieScene::IsConditionClassAllowed(const UClass* InClass)
+{
+	if (IsConditionClassAllowedEvent.IsBound() && !IsConditionClassAllowedEvent.Execute(InClass))
 	{
 		return false;
 	}
@@ -104,6 +127,19 @@ void UMovieScene::PostInitProperties()
 void UMovieScene::PostLoad()
 {
 	SortMarkedFrames();
+
+#if WITH_EDITORONLY_DATA
+	for (FMovieSceneMarkedFrame& MarkedFrame : MarkedFrames)
+	{
+		const FLinearColor DefaultDeprecatedColor(0.f, 1.f, 1.f, 0.4f);
+
+		if (MarkedFrame.Color_DEPRECATED != DefaultDeprecatedColor)
+		{
+			MarkedFrame.bUseCustomColor = true;
+			MarkedFrame.CustomColor = MarkedFrame.Color_DEPRECATED;
+		}
+	}
+#endif
 
 	Super::PostLoad();
 }
@@ -270,7 +306,7 @@ void UMovieScene::AddSpawnable(const FMovieSceneSpawnable& InNewSpawnable, const
 	FMovieSceneBinding NewBinding = InNewBinding;
 	for (auto Track : NewBinding.GetTracks())
 	{
-		Track->Rename(nullptr, this);
+		Track->Rename(nullptr, this, REN_DontCreateRedirectors);
 	}
 	int32 NewBindingIndex = InsertSorted(ObjectBindings, MoveTemp(NewBinding));
 
@@ -350,7 +386,7 @@ void UMovieScene::AddPossessable(const FMovieScenePossessable& InNewPossessable,
 	FMovieSceneBinding NewBinding = InNewBinding;
 	for (auto Track : NewBinding.GetTracks())
 	{
-		Track->Rename(nullptr, this);
+		Track->Rename(nullptr, this, REN_DontCreateRedirectors);
 	}
 	int32 NewBindingIndex = InsertSorted(ObjectBindings, MoveTemp(NewBinding));
 	check(ObjectBindings.IsValidIndex(NewBindingIndex));
@@ -1095,7 +1131,7 @@ bool UMovieScene::AddGivenTrack(UMovieSceneTrack* InTrack, const FGuid& ObjectGu
 	Modify();
 	if (FMovieSceneBinding* Binding = FindBinding(ObjectGuid))
 	{
-		InTrack->Rename(nullptr, this);
+		InTrack->Rename(nullptr, this, REN_DontCreateRedirectors);
 		Binding->AddTrack(*InTrack, this);
 		return true;
 	}
@@ -1206,7 +1242,7 @@ bool UMovieScene::AddGivenTrack(UMovieSceneTrack* InTrack)
 	{
 		Modify();
 		Tracks.Add(InTrack);
-		InTrack->Rename(nullptr, this);
+		InTrack->Rename(nullptr, this, REN_DontCreateRedirectors);
 
 		EventHandlers.Trigger(&UE::MovieScene::ISequenceDataEventHandler::OnTrackAdded, InTrack);
 
@@ -1277,7 +1313,7 @@ void UMovieScene::SetCameraCutTrack(UMovieSceneTrack* InTrack)
 	}
 
 	Modify();
-	InTrack->Rename(nullptr, this);
+	InTrack->Rename(nullptr, this, REN_DontCreateRedirectors);
 	UMovieSceneTrack* OldCameraCutTrack = CameraCutTrack;
 	CameraCutTrack = InTrack;
 
@@ -1547,7 +1583,7 @@ void UMovieScene::ReplaceBinding(const FGuid& BindingToReplaceGuid, const FMovie
 		// We also need to change the track's owners to be the MovieScene.
 		for (auto Track : Binding->GetTracks())
 		{
-			Track->Rename(nullptr, this);
+			Track->Rename(nullptr, this, REN_DontCreateRedirectors);
 		}
 
 		EventHandlers.Trigger(&UE::MovieScene::ISequenceDataEventHandler::OnBindingRemoved, BindingToReplaceGuid);

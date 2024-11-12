@@ -10,7 +10,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-BEGIN_DEFINE_SPEC(FChunkReferenceTrackerSpec, "BuildPatchServices.Unit", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FChunkReferenceTrackerSpec, "BuildPatchServices.Unit", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 const uint32 TestChunkSize = 128 * 1024;
 // Unit
 TUniquePtr<BuildPatchServices::IChunkReferenceTracker> ChunkReferenceTracker;
@@ -82,7 +82,7 @@ void FChunkReferenceTrackerSpec::Define()
 	}
 
 	// Specs.
-	xDescribe("ChunkReferenceTracker", [this]()
+	Describe("ChunkReferenceTracker", [this]()
 	{
 		Describe("GetReferencedChunks", [this]()
 		{
@@ -92,6 +92,10 @@ void FChunkReferenceTrackerSpec::Define()
 				{
 					MockManifest = MakeShareable(new FMockManifest());
 					MockManifest->FileManifests = FileManifests;
+					MockManifest->BuildFileList = FileList;
+					MockManifest->TaggedFileList = TSet<FString>(FileList);
+					MockManifest->SyncInternalManifestStructures();
+
 					TSet<FString> FilesToConstruct(FileList);
 					FilesToConstruct.Sort(TLess<FString>());
 					ManifestSet.Reset(FBuildManifestSetFactory::Create({ BuildPatchServices::FInstallerAction::MakeInstall(MockManifest.ToSharedRef()) }));
@@ -136,6 +140,10 @@ void FChunkReferenceTrackerSpec::Define()
 				{
 					MockManifest = MakeShareable(new FMockManifest());
 					MockManifest->FileManifests = FileManifests;
+					MockManifest->BuildFileList = FileList;
+					MockManifest->TaggedFileList = TSet<FString>(FileList);
+					MockManifest->SyncInternalManifestStructures();
+
 					TSet<FString> FilesToConstruct(SubsetFileList);
 					FilesToConstruct.Sort(TLess<FString>());
 					ManifestSet.Reset(FBuildManifestSetFactory::Create({ BuildPatchServices::FInstallerAction::MakeInstall(MockManifest.ToSharedRef()) }));
@@ -181,6 +189,10 @@ void FChunkReferenceTrackerSpec::Define()
 			{
 				MockManifest = MakeShareable(new FMockManifest());
 				MockManifest->FileManifests = FileManifests;
+				MockManifest->BuildFileList = FileList;
+				MockManifest->TaggedFileList = TSet<FString>(FileList);
+				MockManifest->SyncInternalManifestStructures();
+
 				TSet<FString> FilesToConstruct(FileList);
 				FilesToConstruct.Sort(TLess<FString>());
 				ManifestSet.Reset(FBuildManifestSetFactory::Create({ BuildPatchServices::FInstallerAction::MakeInstall(MockManifest.ToSharedRef()) }));
@@ -230,6 +242,10 @@ void FChunkReferenceTrackerSpec::Define()
 			{
 				MockManifest = MakeShareable(new FMockManifest());
 				MockManifest->FileManifests = FileManifests;
+				MockManifest->BuildFileList = FileList;
+				MockManifest->TaggedFileList = TSet<FString>(FileList);
+				MockManifest->SyncInternalManifestStructures();
+
 				TSet<FString> FilesToConstruct(FileList);
 				FilesToConstruct.Sort(TLess<FString>());
 				ManifestSet.Reset(FBuildManifestSetFactory::Create({ BuildPatchServices::FInstallerAction::MakeInstall(MockManifest.ToSharedRef()) }));
@@ -298,6 +314,10 @@ void FChunkReferenceTrackerSpec::Define()
 			{
 				MockManifest = MakeShareable(new FMockManifest());
 				MockManifest->FileManifests = FileManifests;
+				MockManifest->BuildFileList = FileList;
+				MockManifest->TaggedFileList = TSet<FString>(FileList);
+				MockManifest->SyncInternalManifestStructures();
+
 				TSet<FString> FilesToConstruct(FileList);
 				FilesToConstruct.Sort(TLess<FString>());
 				ManifestSet.Reset(FBuildManifestSetFactory::Create({ BuildPatchServices::FInstallerAction::MakeInstall(MockManifest.ToSharedRef()) }));
@@ -348,6 +368,10 @@ void FChunkReferenceTrackerSpec::Define()
 			{
 				MockManifest = MakeShareable(new FMockManifest());
 				MockManifest->FileManifests = FileManifests;
+				MockManifest->BuildFileList = FileList;
+				MockManifest->TaggedFileList = TSet<FString>(FileList);
+				MockManifest->SyncInternalManifestStructures();
+
 				TSet<FString> FilesToConstruct(FileList);
 				FilesToConstruct.Sort(TLess<FString>());
 				ManifestSet.Reset(FBuildManifestSetFactory::Create({ BuildPatchServices::FInstallerAction::MakeInstall(MockManifest.ToSharedRef()) }));

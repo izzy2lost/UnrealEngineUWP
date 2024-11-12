@@ -237,7 +237,7 @@ public:
 		bWaitingOnFPSChart = false;
 		bWaitingOnFinalizingVideo = false;
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		if (FCsvProfiler* const CsvProfiler = FCsvProfiler::Get())
 		{
 			CsvProfilerDelegateHandle = CsvProfiler->OnCSVProfileFinished().AddLambda([this](const FString& Filename)
@@ -257,7 +257,7 @@ public:
 			}
 
 		}
-#endif // CSV_PROFILER
+#endif // CSV_PROFILER_STATS
 
 		if (IVideoRecordingSystem* const VideoRecordingSystem = IPlatformFeaturesModule::Get().GetVideoRecordingSystem())
 		{
@@ -304,12 +304,12 @@ public:
 
 	virtual void End(const EICVFXAutoTestState NewState) override
 	{
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		if (FCsvProfiler* const CsvProfiler = FCsvProfiler::Get())
 		{
 			CsvProfiler->OnCSVProfileFinished().Remove(CsvProfilerDelegateHandle);
 		}
-#endif // CSV_PROFILER
+#endif // CSV_PROFILER_STATS
 
 		if (IVideoRecordingSystem* const VideoRecordingSystem = IPlatformFeaturesModule::Get().GetVideoRecordingSystem())
 		{

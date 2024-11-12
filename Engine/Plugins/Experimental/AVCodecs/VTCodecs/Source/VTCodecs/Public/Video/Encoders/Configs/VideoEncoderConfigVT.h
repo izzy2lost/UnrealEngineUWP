@@ -28,8 +28,8 @@ public:
 	CFStringRef Profile;
     EVideoFormat PixelFormat;
     CFStringRef EntropyCodingMode;
-    int32 MinQP;
-    int32 MaxQP;
+    int32 MinQuality;
+    int32 MaxQuality;
 
 	FVideoEncoderConfigVT()
 		: FAVConfig()
@@ -65,8 +65,8 @@ public:
 				this->TargetBitrate == Other.TargetBitrate &&
                 this->PixelFormat == Other.PixelFormat &&
                 this->EntropyCodingMode == Other.EntropyCodingMode &&
-                this->MinQP == Other.MinQP &&
-                this->MaxQP == Other.MaxQP;
+                this->MinQuality == Other.MinQuality &&
+                this->MaxQuality == Other.MaxQuality;
 	}
 
 	bool operator!=(FVideoEncoderConfigVT const& Other) const

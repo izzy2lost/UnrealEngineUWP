@@ -22,7 +22,7 @@ public:
 	//~ Begin FRichCurveEditorModel
 	virtual void AddKeys(TArrayView<const FKeyPosition> InKeyPositions, TArrayView<const FKeyAttributes> InAttributes, TArrayView<TOptional<FKeyHandle>>* OutKeyHandles) override;
 	virtual void RemoveKeys(TArrayView<const FKeyHandle> InKeys) override;
-	virtual void SetKeyAttributes(TArrayView<const FKeyHandle> InKeys, TArrayView<const FKeyAttributes> InAttributes, EPropertyChangeType::Type ChangeType = EPropertyChangeType::Unspecified) override;
+	virtual void SetKeyPositions(TArrayView<const FKeyHandle> InKeys, TArrayView<const FKeyPosition> InKeyPositions, EPropertyChangeType::Type ChangeType) override;
 	virtual bool IsValid() const override;
 	virtual FRichCurve& GetRichCurve() override;
 	virtual const FRichCurve& GetReadOnlyRichCurve() const override;
@@ -49,6 +49,9 @@ protected:
 	/** Active curve pointer */
 	FRichCurve CurrentCurve;
 
-	/** Wheter a valid curve was built from lens data */
+	/** An optional clamp on the output values (y-axis) that the curve keys are allowed to have */
+	TAttribute<TRange<double>> ClampOutputRange;
+	
+	/** Whether a valid curve was built from lens data */
 	bool bIsCurveValid = false;
 };

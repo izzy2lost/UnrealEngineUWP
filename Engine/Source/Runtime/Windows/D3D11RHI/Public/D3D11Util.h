@@ -6,6 +6,14 @@
 
 #pragma once
 
+#include "RHICommandList.h"
+#include "RHIDefinitions.h"
+#include "Templates/RefCounting.h"
+#include "Windows/D3D11ThirdParty.h"
+
+class FRHIBuffer;
+class FRHITexture;
+
 #define D3D11RHI_IMMEDIATE_CONTEXT	(GD3D11RHI->GetDeviceContext())
 #define D3D11RHI_DEVICE				(GD3D11RHI->GetDevice())
 
@@ -229,6 +237,7 @@ struct FD3D11RHIGenericCommandString
 {
 	static const TCHAR* TStr() { return TEXT("FD3D11RHIGenericCommand"); }
 };
+
 template <
 	typename JobType,
 	typename = TEnableIf<
@@ -269,7 +278,7 @@ inline bool ShouldNotEnqueueRHICommand()
 struct FScopedD3D11RHIThreadStaller : public FScopedRHIThreadStaller
 {
 	FScopedD3D11RHIThreadStaller(bool bDoStall = true)
-		: FScopedRHIThreadStaller(FRHICommandListExecutor::GetImmediateCommandList(), bDoStall && IsInRenderingThread() && GRHICommandList.IsRHIThreadActive())
+		: FScopedRHIThreadStaller(FRHICommandListExecutor::GetImmediateCommandList(), bDoStall && IsInRenderingThread() && GRHICommandList.AreRHITasksActive())
 	{
 	}
 };

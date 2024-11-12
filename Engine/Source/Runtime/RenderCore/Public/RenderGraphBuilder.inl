@@ -144,6 +144,12 @@ FORCEINLINE PODType* FRDGBuilder::AllocPODArray(uint32 Count)
 	return Allocators.Root.AllocUninitialized<PODType>(Count);
 }
 
+template <typename PODType>
+TArrayView<PODType> FRDGBuilder::AllocPODArrayView(uint32 Count)
+{
+	return TArrayView<PODType>(AllocPODArray<PODType>(Count), Count);
+}
+
 template <typename ObjectType, typename... TArgs>
 FORCEINLINE ObjectType* FRDGBuilder::AllocObject(TArgs&&... Args)
 {
@@ -163,7 +169,7 @@ FORCEINLINE ParameterStructType* FRDGBuilder::AllocParameters()
 }
 
 template <typename ParameterStructType>
-FORCEINLINE ParameterStructType* FRDGBuilder::AllocParameters(ParameterStructType* StructToCopy)
+FORCEINLINE ParameterStructType* FRDGBuilder::AllocParameters(const ParameterStructType* StructToCopy)
 {
 	ParameterStructType* Struct = Allocators.Root.Alloc<ParameterStructType>();
 	*Struct = *StructToCopy;
@@ -234,33 +240,9 @@ TRDGUniformBufferRef<ParameterStructType> FRDGBuilder::CreateUniformBuffer(const
 #endif // !USE_NULL_RHI
 }
 
-template <typename ExecuteLambdaType>
-FRDGPassRef FRDGBuilder::AddPass(
-	FRDGEventName&& Name,
-	ERDGPassFlags Flags,
-	ExecuteLambdaType&& ExecuteLambda)
-{
-#if !USE_NULL_RHI
-	using LambdaPassType = TRDGEmptyLambdaPass<ExecuteLambdaType>;
-
-	IF_RDG_ENABLE_DEBUG(UserValidation.ValidateAddPass(Name, Flags));
-
-	Flags |= ERDGPassFlags::NeverCull;
-
-	FlushAccessModeQueue();
-
-	LambdaPassType* Pass = Passes.Allocate<LambdaPassType>(Allocators.Root, MoveTemp(Name), Flags, MoveTemp(ExecuteLambda));
-	SetupEmptyPass(Pass);
-	return Pass;
-#else
-	checkNoEntry();
-	return nullptr;
-#endif // !USE_NULL_RHI
-}
-
 #if !USE_NULL_RHI
 template <typename ParameterStructType, typename ExecuteLambdaType>
-FRDGPassRef FRDGBuilder::AddPassInternal(
+FRDGPass* FRDGBuilder::AddPassInternal(
 	FRDGEventName&& Name,
 	const FShaderParametersMetadata* ParametersMetadata,
 	const ParameterStructType* ParameterStruct,
@@ -268,17 +250,15 @@ FRDGPassRef FRDGBuilder::AddPassInternal(
 	ExecuteLambdaType&& ExecuteLambda)
 {
 	using LambdaPassType = TRDGLambdaPass<ParameterStructType, ExecuteLambdaType>;
-
 	IF_RDG_ENABLE_DEBUG(UserValidation.ValidateAddPass(ParameterStruct, ParametersMetadata, Name, Flags));
-
 	FlushAccessModeQueue();
-
+	const TCHAR* NameString = Name.GetTCHAR();
 	FRDGPass* Pass = Allocators.Root.AllocNoDestruct<LambdaPassType>(
-		MoveTemp(Name),
+		Forward<FRDGEventName&&>(Name),
 		ParametersMetadata,
 		ParameterStruct,
-		OverridePassFlags(Name.GetTCHAR(), Flags),
-		MoveTemp(ExecuteLambda));
+		OverridePassFlags(NameString, Flags),
+		Forward<ExecuteLambdaType&&>(ExecuteLambda));
 
 	IF_RDG_ENABLE_DEBUG(ClobberPassOutputs(Pass));
 	Passes.Insert(Pass);
@@ -288,7 +268,27 @@ FRDGPassRef FRDGBuilder::AddPassInternal(
 #endif // !USE_NULL_RHI
 
 template <typename ExecuteLambdaType>
-FRDGPassRef FRDGBuilder::AddPass(
+FRDGPass* FRDGBuilder::AddPass(
+	FRDGEventName&& Name,
+	ERDGPassFlags Flags,
+	ExecuteLambdaType&& ExecuteLambda)
+{
+#if !USE_NULL_RHI
+	using LambdaPassType = TRDGEmptyLambdaPass<ExecuteLambdaType>;
+	IF_RDG_ENABLE_DEBUG(UserValidation.ValidateAddPass(Name, Flags));
+	Flags |= ERDGPassFlags::NeverCull;
+	FlushAccessModeQueue();
+	LambdaPassType* Pass = Passes.Allocate<LambdaPassType>(Allocators.Root, Forward<FRDGEventName&&>(Name), Flags, Forward<ExecuteLambdaType&&>(ExecuteLambda));
+	SetupEmptyPass(Pass);
+	return Pass;
+#else
+	checkNoEntry();
+	return nullptr;
+#endif // !USE_NULL_RHI
+}
+
+template <typename ExecuteLambdaType>
+FRDGPass* FRDGBuilder::AddPass(
 	FRDGEventName&& Name,
 	const FShaderParametersMetadata* ParametersMetadata,
 	const void* ParameterStruct,
@@ -296,7 +296,7 @@ FRDGPassRef FRDGBuilder::AddPass(
 	ExecuteLambdaType&& ExecuteLambda)
 {
 #if !USE_NULL_RHI
-	return AddPassInternal(Forward<FRDGEventName>(Name), ParametersMetadata, ParameterStruct, Flags, Forward<ExecuteLambdaType>(ExecuteLambda));
+	return AddPassInternal(Forward<FRDGEventName&&>(Name), ParametersMetadata, ParameterStruct, Flags, Forward<ExecuteLambdaType&&>(ExecuteLambda));
 #else
 	checkNoEntry();
 	return nullptr;
@@ -304,14 +304,54 @@ FRDGPassRef FRDGBuilder::AddPass(
 }
 
 template <typename ParameterStructType, typename ExecuteLambdaType>
-FRDGPassRef FRDGBuilder::AddPass(
+FRDGPass* FRDGBuilder::AddPass(
 	FRDGEventName&& Name,
 	const ParameterStructType* ParameterStruct,
 	ERDGPassFlags Flags,
 	ExecuteLambdaType&& ExecuteLambda)
 {
 #if !USE_NULL_RHI
-	return AddPassInternal(Forward<FRDGEventName>(Name), ParameterStructType::FTypeInfo::GetStructMetadata(), ParameterStruct, Flags, Forward<ExecuteLambdaType>(ExecuteLambda));
+	return AddPassInternal(Forward<FRDGEventName&&>(Name), ParameterStructType::FTypeInfo::GetStructMetadata(), ParameterStruct, Flags, Forward<ExecuteLambdaType&&>(ExecuteLambda));
+#else
+	checkNoEntry();
+	return nullptr;
+#endif // !USE_NULL_RHI
+}
+
+template <typename ParameterStructType, typename LaunchLambdaType>
+FRDGPass* FRDGBuilder::AddDispatchPass(
+	FRDGEventName&& Name,
+	const ParameterStructType* ParameterStruct,
+	ERDGPassFlags Flags,
+	LaunchLambdaType&& LaunchLambda)
+{
+#if !USE_NULL_RHI
+	using DispatchPassType = TRDGDispatchPass<ParameterStructType, LaunchLambdaType>;
+	const FShaderParametersMetadata* ParametersMetadata = ParameterStructType::FTypeInfo::GetStructMetadata();
+
+	if (EnumHasAnyFlags(Flags, ERDGPassFlags::Raster))
+	{
+		Flags |= ERDGPassFlags::SkipRenderPass;
+	}
+
+	IF_RDG_ENABLE_DEBUG(UserValidation.ValidateAddPass(ParameterStruct, ParametersMetadata, Name, Flags));
+
+	FlushAccessModeQueue();
+
+	const TCHAR* NameString = Name.GetTCHAR();
+
+	FRDGDispatchPass* Pass = Allocators.Root.AllocNoDestruct<DispatchPassType>(
+		Forward<FRDGEventName&&>(Name),
+		ParametersMetadata,
+		ParameterStruct,
+		OverridePassFlags(NameString, Flags),
+		Forward<LaunchLambdaType&&>(LaunchLambda));
+
+	IF_RDG_ENABLE_DEBUG(ClobberPassOutputs(Pass));
+	Passes.Insert(Pass);
+	DispatchPasses.Emplace(Pass);
+	SetupParameterPass(Pass);
+	return Pass;
 #else
 	checkNoEntry();
 	return nullptr;
@@ -378,10 +418,15 @@ inline void FRDGBuilder::QueueBufferUpload(FRDGBufferRef Buffer, FRDGBufferIniti
 inline void FRDGBuilder::QueueCommitReservedBuffer(FRDGBufferRef Buffer, uint64 CommitSizeInBytes)
 {
 	IF_RDG_ENABLE_DEBUG(UserValidation.ValidateCommitBuffer(Buffer, CommitSizeInBytes));
-
-	Buffer->PendingCommitSize = FMath::Max<uint64>(CommitSizeInBytes, Buffer->PendingCommitSize);
-	Buffer->PooledBuffer->SetCommittedSize(Buffer->PendingCommitSize);
-	Buffer->bQueuedForReservedCommit = 1;
+	if (IsImmediateMode())
+	{
+		Buffer->PendingCommitSize = CommitSizeInBytes;
+	}
+	else
+	{
+		AsyncSetupQueue.Push(FAsyncSetupOp::ReservedBufferCommit(Buffer, CommitSizeInBytes));
+	}
+	Buffer->PooledBuffer->SetCommittedSize(CommitSizeInBytes);
 }
 
 inline void FRDGBuilder::QueueTextureExtraction(FRDGTextureRef Texture, TRefCountPtr<IPooledRenderTarget>* OutTexturePtr, ERHIAccess AccessFinal, ERDGResourceExtractionFlags Flags)
@@ -444,32 +489,28 @@ inline void FRDGBuilder::QueueBufferExtraction(FRDGBufferRef Buffer, TRefCountPt
 	SetBufferAccessFinal(Buffer, AccessFinal);
 }
 
-inline void FRDGBuilder::SetCommandListStat(TStatId StatId)
-{
-#if RDG_CMDLIST_STATS
-	CommandListStatScope = StatId;
-	RHICmdList.SetCurrentStat(StatId);
-#endif
-}
-
 inline void FRDGBuilder::AddDispatchHint()
 {
-	if (Passes.Num() > 0)
+	if (IsImmediateMode())
+	{
+		RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
+	}
+	else if (Passes.Num() > 0)
 	{
 		Passes[Passes.Last()]->bDispatchAfterExecute = 1;
 	}
 }
 
 template <typename TaskLambdaType>
-FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddSetupTask(TaskLambdaType&& TaskLambda, bool bCondition)
+FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddSetupTask(TaskLambdaType&& TaskLambda, bool bCondition, ERDGSetupTaskWaitPoint WaitPoint)
 {
-	return AddSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, UE::Tasks::ETaskPriority::Normal, bCondition);
+	return AddSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, UE::Tasks::ETaskPriority::Normal, bCondition, WaitPoint);
 }
 
 template <typename TaskLambdaType>
-FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddSetupTask(TaskLambdaType&& TaskLambda, UE::Tasks::ETaskPriority Priority, bool bCondition)
+FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddSetupTask(TaskLambdaType&& TaskLambda, UE::Tasks::ETaskPriority Priority, bool bCondition, ERDGSetupTaskWaitPoint WaitPoint)
 {
-	return AddSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, Priority, bCondition);
+	return AddSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, Priority, bCondition, WaitPoint);
 }
 
 template <typename TaskLambdaType>
@@ -477,7 +518,8 @@ FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddSetupTask(
 	TaskLambdaType&& TaskLambda,
 	UE::Tasks::FPipe* Pipe,
 	UE::Tasks::ETaskPriority Priority,
-	bool bCondition)
+	bool bCondition,
+	ERDGSetupTaskWaitPoint WaitPoint)
 {
 	return AddSetupTask(MoveTemp(TaskLambda), Pipe, TArray<UE::Tasks::FTask>{}, Priority, bCondition);
 }
@@ -487,7 +529,8 @@ FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddSetupTask(
 	TaskLambdaType&& TaskLambda,
 	PrerequisitesCollectionType&& Prerequisites,
 	UE::Tasks::ETaskPriority Priority,
-	bool bCondition)
+	bool bCondition,
+	ERDGSetupTaskWaitPoint WaitPoint)
 {
 	return AddSetupTask(MoveTemp(TaskLambda), nullptr, Forward<PrerequisitesCollectionType&&>(Prerequisites), Priority, bCondition);
 }
@@ -535,7 +578,8 @@ UE::Tasks::FTask FRDGBuilder::AddSetupTask(
 	UE::Tasks::FPipe* Pipe,
 	PrerequisitesCollectionType&& Prerequisites,
 	UE::Tasks::ETaskPriority Priority,
-	bool bCondition)
+	bool bCondition,
+	ERDGSetupTaskWaitPoint WaitPoint)
 {
 	UE::Tasks::FTask Task;
 
@@ -567,22 +611,22 @@ UE::Tasks::FTask FRDGBuilder::AddSetupTask(
 
 	if (Task.IsValid())
 	{
-		ParallelSetup.Tasks.Emplace(Task);
+		ParallelSetup.Tasks[(int32)WaitPoint].Emplace(Task);
 	}
 
 	return Task;
 }
 
 template <typename TaskLambdaType>
-FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(TaskLambdaType&& TaskLambda, bool bCondition)
+FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(TaskLambdaType&& TaskLambda, bool bCondition, ERDGSetupTaskWaitPoint WaitPoint)
 {
-	return AddCommandListSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, UE::Tasks::ETaskPriority::Normal, bCondition);
+	return AddCommandListSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, UE::Tasks::ETaskPriority::Normal, bCondition, WaitPoint);
 }
 
 template <typename TaskLambdaType>
-FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(TaskLambdaType&& TaskLambda, UE::Tasks::ETaskPriority TaskPriority, bool bCondition)
+FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(TaskLambdaType&& TaskLambda, UE::Tasks::ETaskPriority TaskPriority, bool bCondition, ERDGSetupTaskWaitPoint WaitPoint)
 {
-	return AddCommandListSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, TaskPriority, bCondition);
+	return AddCommandListSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, TaskPriority, bCondition, WaitPoint);
 }
 
 template <typename TaskLambdaType>
@@ -590,9 +634,10 @@ FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(
 	TaskLambdaType&& TaskLambda,
 	UE::Tasks::FPipe* Pipe,
 	UE::Tasks::ETaskPriority Priority,
-	bool bCondition)
+	bool bCondition,
+	ERDGSetupTaskWaitPoint WaitPoint)
 {
-	return AddCommandListSetupTask(MoveTemp(TaskLambda), Pipe, TArray<UE::Tasks::FTask>{}, Priority, bCondition);
+	return AddCommandListSetupTask(MoveTemp(TaskLambda), Pipe, TArray<UE::Tasks::FTask>{}, Priority, bCondition, WaitPoint);
 }
 
 template <typename TaskLambdaType, typename PrerequisitesCollectionType>
@@ -600,9 +645,10 @@ FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(
 	TaskLambdaType&& TaskLambda,
 	PrerequisitesCollectionType&& Prerequisites,
 	UE::Tasks::ETaskPriority Priority,
-	bool bCondition)
+	bool bCondition,
+	ERDGSetupTaskWaitPoint WaitPoint)
 {
-	return AddCommandListSetupTask(MoveTemp(TaskLambda), nullptr, Forward<PrerequisitesCollectionType&&>(Prerequisites), Priority, bCondition);
+	return AddCommandListSetupTask(MoveTemp(TaskLambda), nullptr, Forward<PrerequisitesCollectionType&&>(Prerequisites), Priority, bCondition, WaitPoint);
 }
 
 template <typename TaskLambdaType, typename PrerequisitesCollectionType>
@@ -611,7 +657,8 @@ UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(
 	UE::Tasks::FPipe* Pipe,
 	PrerequisitesCollectionType&& Prerequisites,
 	UE::Tasks::ETaskPriority Priority,
-	bool bCondition)
+	bool bCondition,
+	ERDGSetupTaskWaitPoint WaitPoint)
 {
 	UE::Tasks::FTask Task;
 
@@ -629,7 +676,7 @@ UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(
 	{
 		SCOPED_NAMED_EVENT(CreateCommandList, FColor::Emerald);
 		RHICmdListTask = new FRHICommandList(RHICmdList.GetGPUMask());
-		ParallelSetup.CommandLists.Emplace(RHICmdListTask);
+		RHICmdList.QueueAsyncCommandListSubmit(RHICmdListTask);
 	}
 
 	auto OuterLambda = [this, TaskLambda = MoveTemp(TaskLambda), RHICmdListTask, bAllocateCommandListForTask]() mutable
@@ -666,7 +713,7 @@ UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(
 
 	if (Task.IsValid())
 	{
-		ParallelSetup.Tasks.Emplace(Task);
+		ParallelSetup.Tasks[(int32)WaitPoint].Emplace(Task);
 	}
 
 	return Task;
@@ -704,18 +751,4 @@ inline void FRDGBuilder::RemoveUnusedTextureWarning(FRDGTextureRef Texture)
 inline void FRDGBuilder::RemoveUnusedBufferWarning(FRDGBufferRef Buffer)
 {
 	IF_RDG_ENABLE_DEBUG(UserValidation.RemoveUnusedWarning(Buffer));
-}
-
-inline void FRDGBuilder::BeginEventScope(FRDGEventName&& ScopeName)
-{
-#if RDG_GPU_DEBUG_SCOPES
-	GPUScopeStacks.BeginEventScope(MoveTemp(ScopeName), RHICmdList.GetGPUMask(), ERDGEventScopeFlags::None);
-#endif
-}
-
-inline void FRDGBuilder::EndEventScope()
-{
-#if RDG_GPU_DEBUG_SCOPES
-	GPUScopeStacks.EndEventScope();
-#endif
 }

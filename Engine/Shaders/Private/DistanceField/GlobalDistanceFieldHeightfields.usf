@@ -96,6 +96,8 @@ float ComputeHeightfieldDistance(FHeightfieldSample HeightfieldSample, float3 Tr
 	return HeightfieldMinDistance;
 }
 
+#ifdef MarkHeightfieldPagesCS
+
 groupshared uint GroupMarkedPage[64];
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
@@ -180,9 +182,13 @@ void MarkHeightfieldPagesCS(
 	}
 }
 
+#endif
+
 RWBuffer<uint> RWBuildHeightfieldComposeTilesIndirectArgBuffer;
 RWBuffer<uint> RWPageComposeHeightfieldIndirectArgBuffer;
 Buffer<uint> PageUpdateIndirectArgBuffer;
+
+#ifdef BuildHeightfieldComposeTilesIndirectArgBufferCS
 
 [numthreads(1, 1, 1)]
 void BuildHeightfieldComposeTilesIndirectArgBufferCS(
@@ -198,6 +204,11 @@ void BuildHeightfieldComposeTilesIndirectArgBufferCS(
 		WriteDispatchIndirectArgs(RWPageComposeHeightfieldIndirectArgBuffer, 0, 0, 1, 1);
 	}
 }
+
+#endif
+
+
+#ifdef BuildHeightfieldComposeTilesCS
 
 RWStructuredBuffer<uint> RWPageComposeHeightfieldTileBuffer;
 
@@ -223,6 +234,10 @@ void BuildHeightfieldComposeTilesCS(
 		}
 	}
 }
+
+#endif
+
+#ifdef ComposeHeightfieldsIntoPagesCS
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void ComposeHeightfieldsIntoPagesCS(
@@ -276,6 +291,10 @@ void ComposeHeightfieldsIntoPagesCS(
 	}
 }
 
+#endif
+
+#ifdef CompositeHeightfieldsIntoObjectGridPagesCS
+
 RWStructuredBuffer<uint4> RWPageObjectGridBuffer;
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, THREADGROUP_SIZE)]
@@ -314,3 +333,5 @@ void CompositeHeightfieldsIntoObjectGridPagesCS(
 		}
 	}
 }
+
+#endif

@@ -26,6 +26,7 @@ class UPackage;
 struct FFileStatData;
 struct FGuid;
 struct FSoftObjectPath;
+namespace UE::AssetRegistry::Impl { struct FScanPathContext; }
 
 DECLARE_LOG_CATEGORY_EXTERN(LogPackageName, Log, All);
 
@@ -52,6 +53,13 @@ public:
 		LongPackageNames_PathWithNoStartingSlash,
 		LongPackageNames_PathWithTrailingSlash,
 		LongPackageNames_PathWithDoubleSlash,
+	};
+
+	enum class EConvertFlags
+	{
+		None = 0,
+		/// When set, this will allow filenames following the wildcard pattern of `*.*.*`, rather than `*.*`.
+		AllowDots = 0x1
 	};
 
 	/**
@@ -97,17 +105,21 @@ public:
 	 */
 	static COREUOBJECT_API FName* FindScriptPackageName(FName InShortName);
 
-	/** 
-	 * Tries to convert the supplied relative or absolute filename to a long package name/path starting with a root like /game
-	 * This works on both package names and directories, and it does not validate that it actually exists on disk.
-	 * 
+	/**
+	 * Tries to convert the supplied relative or absolute filename to a long package name/path starting with a root like
+	 * /game This works on both package names and directories, and it does not validate that it actually exists on disk.
+	 *
 	 * @param InFilename Filename to convert.
 	 * @param OutPackageName The resulting long package name if the conversion was successful.
 	 * @param OutFailureReason Description of an error if the conversion failed.
+	 * @param Flags Modifies the behaviour of how filename conversions are applied.
 	 * @return Returns true if the supplied filename properly maps to one of the long package roots.
 	 */
-	static COREUOBJECT_API bool TryConvertFilenameToLongPackageName(const FString& InFilename, FString& OutPackageName, FString* OutFailureReason = nullptr);
-	static COREUOBJECT_API bool TryConvertFilenameToLongPackageName(FStringView InFilename, FStringBuilderBase& OutPackageName, FStringBuilderBase* OutFailureReason = nullptr);
+	static COREUOBJECT_API bool TryConvertFilenameToLongPackageName(const FString& InFilename, FString& OutPackageName,
+		FString* OutFailureReason = nullptr, const EConvertFlags Flags = EConvertFlags::None);
+	static COREUOBJECT_API bool TryConvertFilenameToLongPackageName(FStringView InFilename,
+		FStringBuilderBase& OutPackageName, FStringBuilderBase* OutFailureReason = nullptr,
+		const EConvertFlags Flags = EConvertFlags::None);
 
 	/** 
 	 * Converts the supplied filename to long package name.
@@ -183,13 +195,13 @@ public:
 	static COREUOBJECT_API bool SplitLongPackageName(const FString& InLongPackageName, FString& OutPackageRoot, FString& OutPackagePath, FString& OutPackageName, const bool bStripRootLeadingSlash = false);
 
 	/**
-	 * Split a full object path (Class /Path/To/A/Package.Object:SubObject) into its constituent pieces
+	 * Split a full object path (Class /Path/To/A/Package.Object:Subobject1.Subobject2) into its constituent pieces
 	 *  
 	 * @param InFullObjectPath  Full object path we want to split
 	 * @param OutClassName      The extracted class name (Class)
 	 * @param OutPackageName    The extracted package name (/Path/To/A/Package)
 	 * @param OutObjectName     The extracted object name (Object)
-	 * @param OutSubObjectName  The extracted subobject name (SubObject)
+	 * @param OutSubObjectName  The extracted subobject name (Subobject1.Subobject2) - Note: nested subobjects are not split
 	 * @param bDetectClassName  If true, the optional Class will be detected and separated based on a space.
 	 *                          If false, and there is a space, the space and text before it will be included in the
 	 *                          other names. Spaces in those names is invalid, but some code ignores the
@@ -199,6 +211,25 @@ public:
 		FString& OutPackageName, FString& OutObjectName, FString& OutSubObjectName, bool bDetectClassName = true);
 	static COREUOBJECT_API void SplitFullObjectPath(FStringView InFullObjectPath, FStringView& OutClassName,
 		FStringView& OutPackageName, FStringView& OutObjectName, FStringView& OutSubObjectName, bool bDetectClassName=true);
+
+	/**
+	 * Split a full object path (Class /Path/To/A/Package.Object:Subobject1.Subobject2) into its constituent pieces.
+	 * All subobjects are split individually and stored in an array.
+	 *
+	 * @param InFullObjectPath  Full object path we want to split
+	 * @param OutClassName      The extracted class name (Class)
+	 * @param OutPackageName    The extracted package name (/Path/To/A/Package)
+	 * @param OutSubobjectNames The extracted object name (Object)
+	 * @param OutSubObjectName  The extracted subobject names (Subobject1 and Subobject2)
+	 * @param bDetectClassName  If true, the optional Class will be detected and separated based on a space.
+	 *                          If false, and there is a space, the space and text before it will be included in the
+	 *                          other names. Spaces in those names is invalid, but some code ignores the
+	 *                          invalidity in ObjectName if it only cares about packageName.
+	 */
+	static COREUOBJECT_API void SplitFullObjectPath(const FString& InFullObjectPath, FString& OutClassName,
+		FString& OutPackageName, FString& OutObjectName, TArray<FString>& OutSubobjectNames, bool bDetectClassName = true);
+	static COREUOBJECT_API void SplitFullObjectPath(FStringView InFullObjectPath, FStringView& OutClassName,
+		FStringView& OutPackageName, FStringView& OutObjectName, TArray<FStringView>& OutSubobjectNames, bool bDetectClassName = true);
 
 	/** 
 	 * Returns true if the path starts with a valid root (i.e. /Game/, /Engine/, etc) and contains no illegal characters.
@@ -295,6 +326,8 @@ public:
 
 	/**
 	 * This will insert a mount point at the head of the search chain (so it can overlap an existing mount point and win).
+	 * If you register a mount point (even if you do so only in certain circumstances) consider also adding a handler for GetExplanationForUnavailablePackage
+	 * to help debug cases where a package can't be found
 	 *
 	 * @param RootPath Logical Root Path.
 	 * @param ContentPath Content Path on disk.
@@ -385,16 +418,16 @@ public:
 	};
 
 	/**
-	 * Checks if the package exists in IOStore containers, on disk outsode of IOStore, both, or neither
+	 * Checks if the package exists in IOStore containers, on disk outside of IOStore, both, or neither
 	 *
 	 * @param PackagePath Package package.
 	 * @param Filter Indication of where it should look for 
-	 * @param Guid If nonnull, and the package is found on disk but does not have this PackageGuid in its FPackageFileSummary::Guid, false is returned
+	 * @param Guid If non-null, and the package is found on disk but does not have this PackageGuid in its FPackageFileSummary::Guid, false is returned
 	 * @param bMatchCaseOnDisk If true, the OutPackagePath is modified to match the capitalization of the discovered file
-	 * @param OutPackagePath If nonnull and the package exists, set to a copy of PackagePath with the HeaderExtension set to the extension that exists on disk (and if bMatchCaseOnDisk is true, capitalization changed to match). If not found, this variable is not written
+	 * @param OutPackagePath If non-null and the package exists, set to a copy of PackagePath with the HeaderExtension set to the extension that exists on disk (and if bMatchCaseOnDisk is true, capitalization changed to match). If not found, this variable is not written
 	 * @return the set of locations where the package exists (IoDispatcher or FileSystem, both or neither)
 	 **/
-	static COREUOBJECT_API EPackageLocationFilter DoesPackageExistEx(const FPackagePath& PackagePath, EPackageLocationFilter Filterconst, bool bMatchCaseOnDisk = false, FPackagePath* OutPackagePath = nullptr);
+	static COREUOBJECT_API EPackageLocationFilter DoesPackageExistEx(const FPackagePath& PackagePath, EPackageLocationFilter Filter, bool bMatchCaseOnDisk = false, FPackagePath* OutPackagePath = nullptr);
 
 	/**
 	 * Attempts to find a package given its short name on disk (very slow).
@@ -567,6 +600,15 @@ public:
 	 */
 	static COREUOBJECT_API bool IsMapPackageExtension(const TCHAR* Ext);
 
+	/**
+	 * Returns whether the passed in extension is a valid verse extension.
+	 * Extensions with and without trailing dots are supported.
+	 *
+	 * @param	Extension to test.
+	 * @return	True if Ext is a verse extension, otherwise false
+	 */
+	static COREUOBJECT_API bool IsVerseExtension(const TCHAR* Ext);
+
 	/** 
 	 * Returns whether the passed in filename ends with any of the known
 	 * package extensions.
@@ -580,6 +622,15 @@ public:
 		FStringView MapPackageExtension(LexToString(EPackageExtension::Map));
 		return Filename.EndsWith(AssetPackageExtension) || Filename.EndsWith(MapPackageExtension);
 	}
+
+	/** Return the text string used to mark the _Generated_ directory of packages created by CookPackageSplitters. */
+	static COREUOBJECT_API const TCHAR* GetGeneratedPackageSubPath();
+
+	/**
+	 * Return whether a given packagename or file path is generated based on its name (we evaluate whether it
+	 * is in a GetGeneratedPackageSubPath directory).
+	 */
+	static COREUOBJECT_API bool IsUnderGeneratedPackageSubPath(FStringView FileOrLongPackagePath);
 
 	/**
 	 * This will recurse over a directory structure looking for packages.
@@ -678,6 +729,7 @@ public:
 	 * "/PackageRoot/Path/Leaf" -> (return "PackageRoot"; OutRelativePath = "Path/Leaf")
 	 */
 	static COREUOBJECT_API FStringView SplitPackageNameRoot(FStringView InPackageName, FStringView* OutRelativePath);
+	static COREUOBJECT_API FString SplitPackageNameRoot(FName InPackageName, FString* OutRelativePath);
 	
 	/** 
 	 * Returns the name of the package referred to by the specified object path
@@ -853,6 +905,23 @@ public:
 	static COREUOBJECT_API bool TryGetMountPointForPath(FStringView InFilePathOrPackageName, FStringBuilderBase& OutMountPointPackageName, FStringBuilderBase& OutMountPointFilePath, FStringBuilderBase& OutRelPath,
 		EFlexNameType* OutFlexNameType = nullptr, EErrorCode* OutFailureReason = nullptr);
 
+	/** Delegate type for allowing higher levels systems to provide additional context for why a package is not available */
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FGetExplanationForUnavailablePackageDelegate, const FName& /*Unavailable Package*/, FStringBuilderBase& /*InOutExplanation*/);
+
+	/**
+	 * Accessor for installing callbacks for use with GetExplanationForUnavailablePackage
+	 * 
+	 */ 
+	static COREUOBJECT_API FGetExplanationForUnavailablePackageDelegate& GetExplanationForUnavailablePackageDelegate();
+
+	/**
+	 * Attempt to generate an explanation for why a particular package was not available for loading
+	 * 
+	 * @param UnavailablePackageName The package that was requested but could not be loaded
+	 * @param InOutExplanation A string builder that will be populated with any available information about why the package was not available. The string builder will *not* be reset and will be appended to.
+	 */
+	 static COREUOBJECT_API void GetExplanationForUnavailablePackage(const FName& UnavailablePackageName, FStringBuilderBase& InOutExplanation);
+
 private:
 
 	/**
@@ -880,6 +949,16 @@ private:
 	static COREUOBJECT_API bool TryConvertToMountedPathComponents(FStringView InPath, FStringBuilderBase& OutMountPointPackageName, FStringBuilderBase& OutMountPointFilePath, FStringBuilderBase& OutRelPath,
 		FStringBuilderBase& OutObjectName, EPackageExtension& OutExtension, FStringBuilderBase& OutCustomExtension, EFlexNameType* OutFlexNameType = nullptr, EErrorCode* OutFailureReason = nullptr);
 
+	/**
+	 * Internal helper to create a FPackagePath given LocalFilePath or PackageName, and if found, return the MountPoint, RelativePath, and PackageExtension
+	 *
+	 * @param InPath The path to test, either a LocalFilePath, PackageName, or ObjectPath
+	 * @param OutPackagePath FPackagePath to store the converted InPath
+	 * @param OutFailureReason it is set to the failurereason if the MountPoint is not found, otherwise it is set to EErrorCode::PackageNameUnknown
+	 * @return True if InPath be converted (was not malformed)
+	 */
+	static COREUOBJECT_API bool TryConvertToMountedPackagePath(const FString& InPath, FPackagePath& OutPackagePath, EErrorCode& OutFailureReason);
+
 	/** Event that is triggered when a new content path is mounted */
 	static COREUOBJECT_API FOnContentPathMountedEvent OnContentPathMountedEvent;
 
@@ -890,5 +969,13 @@ private:
 	static COREUOBJECT_API FDoesPackageExistOverride DoesPackageExistOverrideDelegate;
 
 	friend class FPackagePath;
+
+	// Internal helper not meant for public use. These versions of DoesPackageExist do not use the AssetRegistry; any code that might be holding an AssetRegistry lock should call these functions instead
+	friend class FAssetRegistryConsoleCommands;
+	friend class UAssetRegistryImpl;
+	friend struct ::UE::AssetRegistry::Impl::FScanPathContext;
+	static COREUOBJECT_API EPackageLocationFilter InternalDoesPackageExistEx(const FPackagePath& PackagePath, EPackageLocationFilter Filterconst, bool bMatchCaseOnDisk = false, FPackagePath* OutPackagePath = nullptr);
+	static COREUOBJECT_API EPackageLocationFilter InternalDoesPackageExistEx(const FString& LongPackageName, EPackageLocationFilter Filterconst, bool bMatchCaseOnDisk = false, FPackagePath* OutPackagePath = nullptr);
 };
 
+ENUM_CLASS_FLAGS(FPackageName::EConvertFlags);

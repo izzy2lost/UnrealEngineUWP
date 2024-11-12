@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/ClothGeometryTools.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
+#include "ChaosClothAsset/CollectionClothSelectionFacade.h"
 #include "Containers/Queue.h"
 #include "DynamicMesh/DynamicMesh3.h"
 #include "DynamicMesh/DynamicMeshAttributeSet.h"
@@ -9,6 +11,7 @@
 #include "DynamicMesh/NonManifoldMappingSupport.h"
 #include "Math/Vector.h"
 #include "Util/IndexUtil.h"
+#include "Utils/ClothingMeshUtils.h"
 #include "Algo/RemoveIf.h"
 
 namespace UE::Chaos::ClothAsset
@@ -21,6 +24,7 @@ namespace UE::Chaos::ClothAsset
 			TArray<int32> Indices;  // 3x number of triangles
 			TArray<FVector2f> Positions2D;
 			TArray<FVector3f> Positions3D;  // Same size as Positions
+			TArray<FVector3f> Normals; // Empty or same size as Positions
 			TArray<int32> PositionToSourceIndex; // Same size as Positions. Index in the original welded position array
 		};
 
@@ -77,9 +81,11 @@ namespace UE::Chaos::ClothAsset
 			return Index0 < Index1 ? FIntVector2(Index0, Index1) : FIntVector2(Index1, Index0);
 		}
 
-		static void UnwrapDynamicMesh(const UE::Geometry::FDynamicMesh3& DynamicMesh, TArray<FIsland>& OutIslands)
+		static void UnwrapDynamicMesh(const UE::Geometry::FDynamicMesh3& DynamicMesh, bool bImportNormals, TArray<FIsland>& OutIslands)
 		{
 			using namespace UE::Geometry;
+			const UE::Geometry::FDynamicMeshAttributeSet* const AttributeSet = DynamicMesh.Attributes();
+			const UE::Geometry::FDynamicMeshNormalOverlay* const NormalOverlay = bImportNormals && AttributeSet ? AttributeSet->PrimaryNormals() : nullptr;
 
 			OutIslands.Reset();
 			constexpr float SquaredWeldingDistance = FMath::Square(0.01f);  // 0.1 mm
@@ -97,6 +103,7 @@ namespace UE::Chaos::ClothAsset
 					continue;
 				}
 				const FIndex3i TriangleIndices = DynamicMesh.GetTriangle(SeedTriangle);
+				const FIndex3i TriangleNormalElements = NormalOverlay ? NormalOverlay->GetTriangle(SeedTriangle) : FIndex3i::Invalid();
 
 				const int32 SeedIndex0 = TriangleIndices[0];
 				const int32 SeedIndex1 = TriangleIndices[1];
@@ -115,6 +122,11 @@ namespace UE::Chaos::ClothAsset
 
 				Island.Positions3D.Add(Position0);
 				Island.Positions3D.Add(Position1);
+				if (NormalOverlay)
+				{
+					Island.Normals.Add(NormalOverlay->GetElement(TriangleNormalElements[0]));
+					Island.Normals.Add(NormalOverlay->GetElement(TriangleNormalElements[1]));
+				}
 				Island.PositionToSourceIndex.Add(SeedIndex0);
 				Island.PositionToSourceIndex.Add(SeedIndex1);
 
@@ -126,12 +138,14 @@ namespace UE::Chaos::ClothAsset
 					int32 Triangle;
 					FIndex2i OldEdge;
 					FIndex2i NewEdge;
+					FIndex2i NormalIndices;
 					int32 CrossEdgePoint;  // Keep the opposite point to orientate degenerate cases
 				} Visitor =
 				{
 					SeedTriangle,
 					FIndex2i(SeedIndex0, SeedIndex1),
 					FIndex2i(SeedIndex2D0, SeedIndex2D1),
+					FIndex2i(TriangleNormalElements[0], TriangleNormalElements[1]),
 					INDEX_NONE
 				};
 
@@ -146,10 +160,13 @@ namespace UE::Chaos::ClothAsset
 					const int32 OldIndex1 = Visitor.OldEdge.B;
 					const int32 NewIndex0 = Visitor.NewEdge.A;
 					const int32 NewIndex1 = Visitor.NewEdge.B;
+					const int32 NormalIndex0 = Visitor.NormalIndices.A;
+					const int32 NormalIndex1 = Visitor.NormalIndices.B;
 
 					// Find opposite index from this triangle edge
 
 					const int32 OldIndex2 = IndexUtil::FindTriOtherVtxUnsafe(OldIndex0, OldIndex1, DynamicMesh.GetTriangle(Triangle));
+					const int32 NormalIndex2 = NormalOverlay ? IndexUtil::FindTriOtherVtxUnsafe(NormalIndex0, NormalIndex1, NormalOverlay->GetTriangle(Triangle)) : INDEX_NONE;
 
 					// Find the 2D intersection of the two connecting adjacent edges using the 3D reference length
 					const FVector3f P0(DynamicMesh.GetVertexRef(OldIndex0));
@@ -199,6 +216,10 @@ namespace UE::Chaos::ClothAsset
 					{
 						NewIndex2 = Island.Positions2D.Add(C2);
 						Island.Positions3D.Add(P2);
+						if (NormalOverlay)
+						{
+							Island.Normals.Add(NormalOverlay->GetElement(NormalIndex2));
+						}
 						Island.PositionToSourceIndex.Add(OldIndex2);
 					}
 
@@ -223,6 +244,12 @@ namespace UE::Chaos::ClothAsset
 						FIndex3i(NewIndex2, NewIndex1, NewIndex0),
 						FIndex3i(NewIndex0, NewIndex2, NewIndex1)
 					};
+					const FIndex2i NormalEdgeList[3] =
+					{
+						FIndex2i(NormalIndex1, NormalIndex0),
+						FIndex2i(NormalIndex2, NormalIndex1),
+						FIndex2i(NormalIndex0, NormalIndex2)
+					};
 					for (int32 Edge = 0; Edge < 3; ++Edge)
 					{
 						const int32 EdgeIndex0 = OldEdgeList[Edge].A;
@@ -243,6 +270,7 @@ namespace UE::Chaos::ClothAsset
 										NeighborTriangle,
 										OldEdgeList[Edge],
 										FIndex2i(NewEdgeList[Edge].A, NewEdgeList[Edge].B),
+										NormalEdgeList[Edge],
 										NewEdgeList[Edge].C,  // Pass the cross edge 2D opposite point to help define orientation of any degenerated triangles
 									});
 							}
@@ -253,12 +281,14 @@ namespace UE::Chaos::ClothAsset
 			}
 		}
 
-		static void BuildIslandsFromDynamicMeshUVs(const UE::Geometry::FDynamicMeshUVOverlay& UVOverlay, const FVector2f& UVScale, TArray<FIsland>& OutIslands)
+		static void BuildIslandsFromDynamicMeshUVs(const UE::Geometry::FDynamicMeshUVOverlay& UVOverlay, const FVector2f& UVScale, bool bImportNormals, TArray<FIsland>& OutIslands)
 		{
 			using namespace UE::Geometry;
 
-			const FDynamicMesh3* DynamicMesh = UVOverlay.GetParentMesh();
+			const FDynamicMesh3* const DynamicMesh = UVOverlay.GetParentMesh();
 			check(DynamicMesh);
+			const UE::Geometry::FDynamicMeshAttributeSet* const AttributeSet = DynamicMesh->Attributes();
+			const UE::Geometry::FDynamicMeshNormalOverlay* const NormalOverlay = bImportNormals && AttributeSet ? AttributeSet->PrimaryNormals() : nullptr;
 
 			OutIslands.Reset();
 
@@ -297,22 +327,27 @@ namespace UE::Chaos::ClothAsset
 					const int32 Triangle = Visitor.Triangle;
 					const FIndex3i TriangleIndices = DynamicMesh->GetTriangle(Triangle);
 					const FIndex3i TriangleUVElements = UVOverlay.GetTriangle(Triangle);
+					const FIndex3i TriangleNormalElements = NormalOverlay ? NormalOverlay->GetTriangle(Triangle) : FIndex3i::Invalid();
 
-					auto GetOrAddNewIndex = [&UVOverlay, &Island, &SourceElementIndexToNewIndex, &DynamicMesh, &UVScale](int32 ElementId, int32 VertexId)
+					auto GetOrAddNewIndex = [&UVOverlay, &Island, &SourceElementIndexToNewIndex, &DynamicMesh, &UVScale, NormalOverlay](int32 ElementId, int32 VertexId, int32 NormalId)
 					{
 						int32& NewIndex = SourceElementIndexToNewIndex[ElementId];
 						if (NewIndex == INDEX_NONE)
 						{
 							NewIndex = Island.Positions3D.Add(FVector3f(DynamicMesh->GetVertexRef(VertexId)));
 							Island.Positions2D.Add((FVector2f(1.f) - UVOverlay.GetElement(ElementId)) * UVScale);  // The static mesh import uses 1 - UV for some reason
+							if (NormalOverlay)
+							{
+								Island.Normals.Add(NormalOverlay->GetElement(NormalId));
+							}
 							Island.PositionToSourceIndex.Add(VertexId);
 						}
 						return NewIndex;
 					};
 
-					const int32 NewIndex0 = GetOrAddNewIndex(TriangleUVElements[0], TriangleIndices[0]);
-					const int32 NewIndex1 = GetOrAddNewIndex(TriangleUVElements[1], TriangleIndices[1]);
-					const int32 NewIndex2 = GetOrAddNewIndex(TriangleUVElements[2], TriangleIndices[2]);
+					const int32 NewIndex0 = GetOrAddNewIndex(TriangleUVElements[0], TriangleIndices[0], TriangleNormalElements[0]);
+					const int32 NewIndex1 = GetOrAddNewIndex(TriangleUVElements[1], TriangleIndices[1], TriangleNormalElements[1]);
+					const int32 NewIndex2 = GetOrAddNewIndex(TriangleUVElements[2], TriangleIndices[2], TriangleNormalElements[2]);
 					Island.Indices.Add(NewIndex0);
 					Island.Indices.Add(NewIndex1);
 					Island.Indices.Add(NewIndex2);
@@ -852,7 +887,7 @@ namespace UE::Chaos::ClothAsset
 
 	void FClothGeometryTools::BuildSimMeshFromDynamicMesh(
 		const TSharedRef<FManagedArrayCollection>& ClothCollection,
-		const UE::Geometry::FDynamicMesh3& DynamicMesh, int32 UVChannelIndex, const FVector2f& UVScale, bool bAppend)
+		const UE::Geometry::FDynamicMesh3& DynamicMesh, int32 UVChannelIndex, const FVector2f& UVScale, bool bAppend, bool bImportNormals)
 	{
 		using namespace Private::SimMeshBuilder;
 
@@ -863,16 +898,16 @@ namespace UE::Chaos::ClothAsset
 
 		const UE::Geometry::FDynamicMeshAttributeSet* const AttributeSet = DynamicMesh.Attributes();
 		const UE::Geometry::FDynamicMeshUVOverlay* const UVOverlay = AttributeSet ? AttributeSet->GetUVLayer(UVChannelIndex) : nullptr;
-		const UE::Geometry::FDynamicMeshVertexSkinWeightsAttribute* SkinWeights = AttributeSet ? AttributeSet->GetSkinWeightsAttribute(FName("Default")) : nullptr;
+		const UE::Geometry::FDynamicMeshVertexSkinWeightsAttribute* SkinWeights = AttributeSet ? AttributeSet->GetSkinWeightsAttribute(FName("Default")) : nullptr; 
 
 		TArray<FIsland> Islands;
 		if (UVOverlay)
 		{
-			BuildIslandsFromDynamicMeshUVs(*UVOverlay, UVScale, Islands);
+			BuildIslandsFromDynamicMeshUVs(*UVOverlay, UVScale, bImportNormals, Islands);
 		}
 		else
 		{
-			UnwrapDynamicMesh(DynamicMesh, Islands);
+			UnwrapDynamicMesh(DynamicMesh, bImportNormals, Islands);
 		}
 
 		FCollectionClothFacade Cloth(ClothCollection);
@@ -882,7 +917,7 @@ namespace UE::Chaos::ClothAsset
 			{
 				FCollectionClothSimPatternFacade Pattern = Cloth.AddGetSimPattern();
 				const int32 VertexOffset = Cloth.GetNumSimVertices3D();
-				Pattern.Initialize(Island.Positions2D, Island.Positions3D, Island.Indices);
+				Pattern.Initialize(Island.Positions2D, Island.Positions3D, Island.Indices, INDEX_NONE, Island.Normals);
 
 				// Copy skinning data
 				if (SkinWeights)
@@ -1260,5 +1295,246 @@ namespace UE::Chaos::ClothAsset
 		}
 	}
 
+	bool FClothGeometryTools::ConvertSelectionToNewGroupType(const TSharedRef<const FManagedArrayCollection>& ClothCollection, const FName& SelectionName, const FName& GroupName, bool bSecondarySelection, TSet<int32>& OutSelectionSet)
+	{
+		FCollectionClothSelectionConstFacade SelectionFacade(ClothCollection);
+		FCollectionClothConstFacade ClothFacade(ClothCollection);
+		if (!SelectionFacade.IsValid() || !ClothFacade.IsValid() || (bSecondarySelection ? !SelectionFacade.HasSelectionSecondarySet(SelectionName) : !SelectionFacade.HasSelection(SelectionName)))
+		{
+			return false;
+		}
 
+		const TSet<int32>& OrigSelectionSet = bSecondarySelection ? SelectionFacade.GetSelectionSecondarySet(SelectionName) : SelectionFacade.GetSelectionSet(SelectionName);
+		const FName OrigSelectionGroup = bSecondarySelection ? SelectionFacade.GetSelectionSecondaryGroup(SelectionName) : SelectionFacade.GetSelectionGroup(SelectionName);
+
+		if (OrigSelectionGroup == GroupName)
+		{
+			OutSelectionSet = OrigSelectionSet;
+			return true;
+		}
+
+		auto ConvertVerticesToFaces = [&OrigSelectionSet, &OutSelectionSet](const TConstArrayView<FIntVector3>& Indices)
+		{
+			OutSelectionSet.Reset();
+			OutSelectionSet.Reserve(OrigSelectionSet.Num());
+			for (int32 FaceIndex = 0; FaceIndex < Indices.Num(); ++FaceIndex)
+			{
+				const FIntVector3& Element = Indices[FaceIndex];
+				if (OrigSelectionSet.Contains(Element[0]) &&
+					OrigSelectionSet.Contains(Element[1]) &&
+					OrigSelectionSet.Contains(Element[2]))
+				{
+					OutSelectionSet.Add(FaceIndex);
+				}
+			}
+		};
+
+
+		auto ConvertFacesToVertices = [&OrigSelectionSet, &OutSelectionSet](const TConstArrayView<FIntVector3>& Indices)
+		{
+			OutSelectionSet.Reset();
+			OutSelectionSet.Reserve(OrigSelectionSet.Num());
+			for (const int32 FaceIndex : OrigSelectionSet)
+			{
+				if (Indices.IsValidIndex(FaceIndex))
+				{
+					OutSelectionSet.Add(Indices[FaceIndex][0]);
+					OutSelectionSet.Add(Indices[FaceIndex][1]);
+					OutSelectionSet.Add(Indices[FaceIndex][2]);
+				}
+			}
+		};	
+
+		if (OrigSelectionGroup == ClothCollectionGroup::SimVertices2D)
+		{
+			if (GroupName == ClothCollectionGroup::SimFaces)
+			{
+				ConvertVerticesToFaces(ClothFacade.GetSimIndices2D());
+				return true;
+			}
+			else if (GroupName == ClothCollectionGroup::SimVertices3D)
+			{
+				const TConstArrayView<int32> SimVertex3DLookup = ClothFacade.GetSimVertex3DLookup();
+				OutSelectionSet.Reset();
+				OutSelectionSet.Reserve(OrigSelectionSet.Num());
+				for (const int32 OrigSelection : OrigSelectionSet)
+				{
+					if (SimVertex3DLookup.IsValidIndex(OrigSelection))
+					{
+						OutSelectionSet.Add(SimVertex3DLookup[OrigSelection]);
+					}
+				}
+				return true;
+			}
+		}
+		else if (OrigSelectionGroup == ClothCollectionGroup::SimVertices3D)
+		{
+			if (GroupName == ClothCollectionGroup::SimFaces)
+			{
+				ConvertVerticesToFaces(ClothFacade.GetSimIndices3D());
+				return true;
+			}
+			else if (GroupName == ClothCollectionGroup::SimVertices2D)
+			{
+				const TConstArrayView<TArray<int32>> SimVertex2DLookup = ClothFacade.GetSimVertex2DLookup();
+				OutSelectionSet.Reset();
+				OutSelectionSet.Reserve(OrigSelectionSet.Num());
+				for (const int32 OrigSelection : OrigSelectionSet)
+				{
+					if (SimVertex2DLookup.IsValidIndex(OrigSelection))
+					{
+						for (const int32 Vertex2D : SimVertex2DLookup[OrigSelection])
+						{
+							OutSelectionSet.Add(Vertex2D);
+						}
+					}
+				}
+				return true;
+			}
+		}
+		else if (OrigSelectionGroup == ClothCollectionGroup::SimFaces)
+		{
+			if (GroupName == ClothCollectionGroup::SimVertices2D)
+			{
+				ConvertFacesToVertices(ClothFacade.GetSimIndices2D());
+				return true;
+			}
+			else if (GroupName == ClothCollectionGroup::SimVertices3D)
+			{
+				ConvertFacesToVertices(ClothFacade.GetSimIndices3D());
+				return true;
+			}
+		}
+		else if (OrigSelectionGroup == ClothCollectionGroup::RenderVertices)
+		{
+			if (GroupName == ClothCollectionGroup::RenderFaces)
+			{
+				ConvertVerticesToFaces(ClothFacade.GetRenderIndices());
+				return true;
+			}
+		}
+		else if (OrigSelectionGroup == ClothCollectionGroup::RenderFaces)
+		{
+			if (GroupName == ClothCollectionGroup::RenderVertices)
+			{
+				ConvertFacesToVertices(ClothFacade.GetRenderIndices());
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	bool FClothGeometryTools::ConvertSelectionToNewGroupType(const TSharedRef<const FManagedArrayCollection>& ClothCollection, const FName& SelectionName, const FName& GroupName, TSet<int32>& OutSelectionSet)
+	{
+		constexpr bool bSecondarySelection = false;
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return ConvertSelectionToNewGroupType(ClothCollection, SelectionName, GroupName, bSecondarySelection, OutSelectionSet);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+
+	void FClothGeometryTools::TransferWeightMap(
+		const TConstArrayView<FVector3f>& SourcePositions,
+		const TConstArrayView<FIntVector3>& InSourceIndices,
+		const TConstArrayView<float>& SourceWeights,
+		const TConstArrayView<FVector3f>& TargetPositions,
+		const TConstArrayView<FVector3f>& TargetNormals,
+		const TConstArrayView<FIntVector3>& InTargetIndices,
+		const TArrayView<float>& TargetWeights)
+	{
+		check(TargetWeights.Num() == TargetPositions.Num());
+		if (!ensure(SourcePositions.Num() <= 65536))
+		{
+			return;  // MeshToMeshVertData below is limited to 16bit unsigned int indexes
+		}
+
+		TArray<uint32> SourceIndices;
+		SourceIndices.Reserve(InSourceIndices.Num() * 3);
+		for (const FIntVector3& InSourceIndex : InSourceIndices)
+		{
+			SourceIndices.Add(InSourceIndex[0]);
+			SourceIndices.Add(InSourceIndex[1]);
+			SourceIndices.Add(InSourceIndex[2]);
+		}
+		TArray<uint32> TargetIndices;
+		TargetIndices.Reserve(InTargetIndices.Num() * 3);
+		for (const FIntVector3& InTargetIndex : InTargetIndices)
+		{
+			TargetIndices.Add(InTargetIndex[0]);
+			TargetIndices.Add(InTargetIndex[1]);
+			TargetIndices.Add(InTargetIndex[2]);
+		}
+
+		const ClothingMeshUtils::ClothMeshDesc SourceMeshDesc(SourcePositions, SourceIndices);
+		const ClothingMeshUtils::ClothMeshDesc TargetMeshDesc(TargetPositions, TargetNormals, TargetIndices);
+
+		TArray<FMeshToMeshVertData> MeshToMeshVertData;
+		const FPointWeightMap* const MaxDistances = nullptr; // No need to update the vertex contribution on the transition maps
+		constexpr bool bUseSmoothTransitions = false;  // Smooth transitions are only used at rendering for now and not during LOD transitions
+		constexpr bool bUseMultipleInfluences = false;  // Multiple influences must not be used for LOD transitions
+		constexpr float SkinningKernelRadius = 0.f;  // KernelRadius is only required when using multiple influences
+
+		ClothingMeshUtils::GenerateMeshToMeshVertData(
+			MeshToMeshVertData,
+			TargetMeshDesc,
+			SourceMeshDesc,
+			MaxDistances,
+			bUseSmoothTransitions,
+			bUseMultipleInfluences,
+			SkinningKernelRadius);
+
+		check(MeshToMeshVertData.Num() == TargetWeights.Num());
+		for (int32 Index = 0; Index < TargetWeights.Num(); ++Index)
+		{
+			const FMeshToMeshVertData& MeshToMeshVertDatum = MeshToMeshVertData[Index];
+
+			const uint16 VertIndex0 = MeshToMeshVertDatum.SourceMeshVertIndices[0];
+			const uint16 VertIndex1 = MeshToMeshVertDatum.SourceMeshVertIndices[1];
+			const uint16 VertIndex2 = MeshToMeshVertDatum.SourceMeshVertIndices[2];
+
+			TargetWeights[Index] = FMath::Clamp(
+				SourceWeights[VertIndex0] * MeshToMeshVertDatum.PositionBaryCoordsAndDist[0] +
+				SourceWeights[VertIndex1] * MeshToMeshVertDatum.PositionBaryCoordsAndDist[1] +
+				SourceWeights[VertIndex2] * MeshToMeshVertDatum.PositionBaryCoordsAndDist[2], 0.f, 1.f);
+		}
+	}
+
+	TSet<int32> FClothGeometryTools::GenerateKinematicVertices3D(const TSharedRef<FManagedArrayCollection>& ClothCollection, const FName& MaxDistanceMapName, const FVector2f& MaxDistanceValue, const FName& InputKinematicVertices, float KinematicDistanceThreshold)
+	{
+		TSet<int32> KinematicVertices;
+
+		// Add InputKinematicVertices
+		FCollectionClothSelectionConstFacade SelectionFacade(ClothCollection);
+		if (InputKinematicVertices != NAME_None && SelectionFacade.IsValid() && SelectionFacade.HasSelection(InputKinematicVertices) && SelectionFacade.GetSelectionGroup(InputKinematicVertices) == UE::Chaos::ClothAsset::ClothCollectionGroup::SimVertices3D)
+		{
+			KinematicVertices = SelectionFacade.GetSelectionSet(InputKinematicVertices);
+		}
+
+		FCollectionClothFacade ClothFacade(ClothCollection);
+		if (ClothFacade.IsValid())
+		{
+			if (ClothFacade.HasWeightMap(MaxDistanceMapName))
+			{
+				TConstArrayView<float> MaxDistanceMap = ClothFacade.GetWeightMap(MaxDistanceMapName);
+				const FVector2f MaxDistanceOffsetRange(MaxDistanceValue[0], MaxDistanceValue[1] - MaxDistanceValue[0]);
+				for (int32 Index = 0; Index < MaxDistanceMap.Num(); ++Index)
+				{
+					if (MaxDistanceOffsetRange[0] + MaxDistanceMap[Index] * MaxDistanceOffsetRange[1] < KinematicDistanceThreshold)
+					{
+						KinematicVertices.Add(Index);
+					}
+				}
+			}
+			else if (MaxDistanceValue[0] < KinematicDistanceThreshold)
+			{
+				KinematicVertices.Reserve(ClothFacade.GetNumSimVertices3D());
+				for (int32 Index = 0; Index < ClothFacade.GetNumSimVertices3D(); ++Index)
+				{
+					KinematicVertices.Add(Index);
+				}
+			}
+		}
+		return KinematicVertices;
+	}
 }  // End namespace UE::Chaos::ClothAsset

@@ -20,17 +20,8 @@ FAdvancedRenamerCommands::FAdvancedRenamerCommands()
 
 void FAdvancedRenamerCommands::RegisterCommands()
 {
-	UI_COMMAND(RenameSelectedActors
-		, "Rename Selected Actors"
-		, "Opens the Advanced Renamer Panel to rename all selected actors."
-		, EUserInterfaceActionType::Button
-		, FInputChord())
-
-	UI_COMMAND(RenameSharedClassActors
-		, "Rename Actors of Selected Actor Classes"
-		, "Opens the Advanced Renamer Panel to rename all actors sharing a class with any selected actor."
-		, EUserInterfaceActionType::Button
-		, FInputChord())
+	UI_COMMAND(BatchRenameObject, "Batch Rename", "Batch Rename Object(s) based on selection.", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Shift, EKeys::F2));
+	UI_COMMAND(BatchRenameSharedClassActors, "Rename Actors of Selected Actor Classes", "Opens the Batch Renamer Panel to rename all actors sharing a class with any selected actor.", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Control | EModifierKey::Shift, EKeys::F2));
 }
 
 #undef LOCTEXT_NAMESPACE

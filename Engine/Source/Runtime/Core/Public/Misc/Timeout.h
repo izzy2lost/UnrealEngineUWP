@@ -13,7 +13,7 @@ namespace UE
 	// usage:
 	// ------------------------------------
 	// FTimeout Timeout(FTimespan::FromMilliseconds(2));
-	// while (!Timeout) { ... }
+	// while (!Timeout.IsExpired()) { ... }
 	// ------------------------------------
 	class FTimeout
 	{
@@ -23,7 +23,13 @@ namespace UE
 		{
 		}
 
+		UE_DEPRECATED(5.5, "Use IsExpired() instead.")
 		explicit operator bool() const
+		{
+			return IsExpired();
+		}
+
+		bool IsExpired() const
 		{
 			return GetRemainingTime() <= FTimespan::Zero();
 		}

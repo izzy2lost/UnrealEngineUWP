@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "HarmonixMetasound/Nodes/MetronomeNode.h"
+
 #include "MetasoundExecutableOperator.h"
 #include "MetasoundFacade.h"
 #include "MetasoundNodeInterface.h"
@@ -8,22 +10,27 @@
 #include "MetasoundStandardNodesCategories.h"
 #include "MetasoundVertex.h"
 
-#include "HarmonixMetasound/Common.h"
-#include "HarmonixMetasound/DataTypes/MidiClock.h"
-#include "HarmonixMetasound/DataTypes/MusicTransport.h"
 #include <algorithm>
 
+#include "HAL/IConsoleManager.h"
 #include "HAL/PlatformMath.h"
 
 #define LOCTEXT_NAMESPACE "HarmonixMetaSound"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMetronomeNode, Log, All);
 
-namespace HarmonixMetasound
+namespace HarmonixMetasound::Nodes::MetronomeNode
 {
 	using namespace Metasound;
 
-	class FMetronomeOperator : public TExecutableOperator<FMetronomeOperator>, public FMusicTransportControllable
+	bool bSkipMetronomeLastProcessedClockTickCheck = true;
+	FAutoConsoleVariableRef CVarSkipMetronomeLastProcessedClockTickCheck(
+		TEXT("au.Metronome.SkipLastProcessedClockTickCheck"),
+		bSkipMetronomeLastProcessedClockTickCheck,
+		TEXT("Skip Last Processed Clock Tick conditions when executing a Metronome Metasound Node."),
+		ECVF_Default);
+
+	class FMetronomeOperator : public FMetronomeOperatorBase
 	{
 	public:
 		static const FNodeClassMetadata& GetNodeInfo();
@@ -31,56 +38,14 @@ namespace HarmonixMetasound
 		static TUniquePtr<IOperator> CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults);
 
 		FMetronomeOperator(const FBuildOperatorParams& InParams,
-						   const FMusicTransportEventStreamReadRef& InTransport,
-						   const bool  InLoop,
-						   const int32 InLoopLengthBars, 
-						   const FInt32ReadRef& InTimSigNumerator,
-						   const FInt32ReadRef& InTimeSigDenominator,
-						   const FFloatReadRef& InTempo,
-		                   const FFloatReadRef& InSpeedMultiplier,
-		                   const int32 InSeekPrerollBars);
-
-		virtual void BindInputs(FInputVertexInterfaceData& InVertexData) override;
-		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override;
-		virtual FDataReferenceCollection GetInputs() const override;
-		virtual FDataReferenceCollection GetOutputs() const override;
-
-		void Reset(const FResetParams& Params);
-		void Execute();
-
-	private:
-		void Init();
-		
-		//** INPUTS
-		FMusicTransportEventStreamReadRef TransportInPin;
-		const bool  LoopInPin;
-		const int32 LoopLengthBarsInPin;
-		FInt32ReadRef TimeSigNumInPin;
-		FInt32ReadRef TimeSigDenomInPin;
-		FFloatReadRef TempoInPin;
-		FFloatReadRef SpeedMultInPin;
-		const int32 SeekPreRollBarsInPin;
-
-		//** OUTPUTS
-		FMidiClockWriteRef MidiClockOutPin;
-
-		//** DATA
-		FMidiClock MetronomeClock;
-		TSharedPtr<FMidiFileData> MidiData;
-		FSampleCount BlockSize;
-		float        SampleRate;
-		float        CurrentTempo;
-		int32        CurrentTimeSigNum;
-		int32        CurrentTimeSigDenom;
-		int32		 LastClockTickUpdate = -1;
-
-		void BuildMidiData(bool ResetToStart = true);
-		void UpdateMidi();
-		void AddTempoChangeForMidi(float TempoBPM);
-		void AddTimeSigChangeForMidi(int32 TimeSigNum, int32 TimeSigDenom);
-		void HandleTransportChange(int32 StartFrameIndex, EMusicPlayerTransportState NewTransportState);
-
-		FMidiClock& GetDrivingMidiClock() { return LoopInPin ? MetronomeClock : (*MidiClockOutPin); }
+			const FMusicTransportEventStreamReadRef& InTransport,
+			const bool  InLoop,
+			const int32 InLoopLengthBars,
+			const FInt32ReadRef& InTimSigNumerator,
+			const FInt32ReadRef& InTimeSigDenominator,
+			const FFloatReadRef& InTempo,
+			const FFloatReadRef& InSpeedMultiplier,
+			const int32 InSeekPrerollBars);
 	};
 
 	class FMetronomeNode : public FNodeFacade
@@ -161,7 +126,7 @@ namespace HarmonixMetasound
 		return MakeUnique<FMetronomeOperator>(InParams, InTransport, InLoop, InLoopLengthBars, InTimeSigNumerator, InTimeSigDenominator, InTempo, InSpeed, InPreRollBars);
 	}
 
-	FMetronomeOperator::FMetronomeOperator(const FBuildOperatorParams& InParams, 
+	FMetronomeOperatorBase::FMetronomeOperatorBase(const FBuildOperatorParams& InParams,
 	                                       const FMusicTransportEventStreamReadRef& InTransport,
 										   const bool  InLoop,
 										   const int32 InLoopLengthBars,
@@ -180,24 +145,31 @@ namespace HarmonixMetasound
 		, SpeedMultInPin(InSpeedMultiplier)
 		, SeekPreRollBarsInPin(InPreRollBars)
 		, MidiClockOutPin(FMidiClockWriteRef::CreateNew(InParams.OperatorSettings))
-		, MetronomeClock(InParams.OperatorSettings)
+		, MonotonicallyIncreasingClock(MakeShared<FMidiClock, ESPMode::NotThreadSafe>(InParams.OperatorSettings))
 		, BlockSize(InParams.OperatorSettings.GetNumFramesPerBlock())
 		, SampleRate(InParams.OperatorSettings.GetSampleRate())
 		, CurrentTempo(*TempoInPin)
 		, CurrentTimeSigNum(FMath::Clamp(*TimeSigNumInPin, 1, 64))
 		, CurrentTimeSigDenom(FMath::Clamp(*TimeSigDenomInPin, 1, 64))
 	{
-		if (LoopInPin)
-		{
-			MidiClockOutPin->AttachToTimeAuthority(MetronomeClock);
-		}
-
 		Reset(InParams);
-
 		Init();
 	}
 
-	void FMetronomeOperator::BindInputs(FInputVertexInterfaceData& InVertexData)
+	FMetronomeOperator::FMetronomeOperator(const FBuildOperatorParams& InParams,
+		const FMusicTransportEventStreamReadRef& InTransport,
+		const bool  InLoop,
+		const int32 InLoopLengthBars,
+		const FInt32ReadRef& InTimSigNumerator,
+		const FInt32ReadRef& InTimeSigDenominator,
+		const FFloatReadRef& InTempo,
+		const FFloatReadRef& InSpeedMultiplier,
+		const int32 InSeekPrerollBars)
+		: FMetronomeOperatorBase(InParams, InTransport, InLoop, InLoopLengthBars, InTimSigNumerator, InTimeSigDenominator, InTempo, InSpeedMultiplier, InSeekPrerollBars)
+	{
+	}
+
+	void FMetronomeOperatorBase::BindInputs(FInputVertexInterfaceData& InVertexData)
 	{
 		using namespace CommonPinNames;
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Transport), TransportInPin);
@@ -212,39 +184,34 @@ namespace HarmonixMetasound
 		Init();
 	}
 
-	void FMetronomeOperator::BindOutputs(FOutputVertexInterfaceData& InVertexData)
+	void FMetronomeOperatorBase::BindOutputs(FOutputVertexInterfaceData& InVertexData)
 	{
 		using namespace CommonPinNames;
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::MidiClock), MidiClockOutPin);
 	}
 
-	FDataReferenceCollection FMetronomeOperator::GetInputs() const
-	{
-		// This should never be called. Bind(...) is called instead. This method
-		// exists as a stop-gap until the API can be deprecated and removed.
-		checkNoEntry();
-		return {};
-	}
-
-	FDataReferenceCollection FMetronomeOperator::GetOutputs() const
-	{
-		// This should never be called. Bind(...) is called instead. This method
-		// exists as a stop-gap until the API can be deprecated and removed.
-		checkNoEntry();
-		return {};
-	}
-
-	void FMetronomeOperator::Reset(const FResetParams& Params)
+	void FMetronomeOperatorBase::Reset(const FResetParams& Params)
 	{
 		BlockSize = Params.OperatorSettings.GetNumFramesPerBlock();
 		SampleRate = Params.OperatorSettings.GetSampleRate();
 		
-		LastClockTickUpdate = -1;
+		LastProcessedClockTick = -1;
+		NextClockTickToProcess = 0;
 	}
 
-	void FMetronomeOperator::Init()
+	void FMetronomeOperatorBase::Init()
 	{
-		BuildMidiData();
+		bClocksArePreparedForExecute = false;
+		PrepareClocksForExecute();
+		
+		MonotonicallyIncreasingClock->SetSpeed(0, 1.0f);
+		MidiClockOutPin->SetSpeed(0, 1.0f);
+		if (LoopInPin)
+		{
+			MidiClockOutPin->SetDrivingClock(MonotonicallyIncreasingClock);
+		}
+
+		BuildSongMaps();
 		
 		FTransportInitFn InitFn = [this](EMusicPlayerTransportState CurrentState)
 		{
@@ -252,11 +219,11 @@ namespace HarmonixMetasound
 			switch (CurrentState)
 			{
 			case EMusicPlayerTransportState::Starting:
-				DrivingMidiClock.ResetAndStart(0, true);
-				break;
-
-			case EMusicPlayerTransportState::Playing:
-				DrivingMidiClock.WriteAdvance(0, 0, *SpeedMultInPin);
+				MidiClockOutPin->SeekTo(0, 0, 0);
+				if (LoopInPin)
+				{
+					MonotonicallyIncreasingClock->SeekTo(0, 0, 0);
+				}
 				break;
 			}
 
@@ -268,39 +235,34 @@ namespace HarmonixMetasound
 		FMusicTransportControllable::Init(*TransportInPin, MoveTemp(InitFn));
 	}
 
-	void FMetronomeOperator::Execute()
+	void FMetronomeOperatorBase::Execute()
 	{
-		MidiClockOutPin->PrepareBlock();
+		PrepareClocksForExecute();
 
 		FMidiClock& DrivingMidiClock = GetDrivingMidiClock();
-		DrivingMidiClock.PrepareBlock();
 
 		if (*SpeedMultInPin != DrivingMidiClock.GetSpeedAtEndOfBlock())
 		{
-			DrivingMidiClock.AddSpeedChangeToBlock({ 0, 0.0f, *SpeedMultInPin });
+			DrivingMidiClock.SetSpeed(0, *SpeedMultInPin);
 		}
 
 		// only update our midi data if the clock is advancing
 		// update the tempo and time sig before we advance our clock 
-		int32 ClockTick = DrivingMidiClock.GetCurrentHiResTick();
-		if (ClockTick >= 0 && ClockTick > LastClockTickUpdate)
+		int32 ClockTick = DrivingMidiClock.GetLastProcessedMidiTick();
+		if ((ClockTick >= 0 && ClockTick > LastProcessedClockTick) || bSkipMetronomeLastProcessedClockTickCheck)
 		{
 			UpdateMidi();
-			LastClockTickUpdate = ClockTick;
+			LastProcessedClockTick = ClockTick;
 		}
 
-		TransportSpanPostProcessor HandleMidiClockEvents = [this](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState CurrentState)
+		TransportSpanPostProcessor HandleMidiClockEvents = [this, &DrivingMidiClock](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState CurrentState)
 		{
 			int32 NumFrames = EndFrameIndex - StartFrameIndex;
 			HandleTransportChange(StartFrameIndex, CurrentState);
-			if (MidiClockOutPin->DoesLoop())
+			DrivingMidiClock.SetSpeed(StartFrameIndex, *SpeedMultInPin);
+			if (CurrentState == EMusicPlayerTransportState::Playing || CurrentState == EMusicPlayerTransportState::Continuing)
 			{
-				MetronomeClock.Process(StartFrameIndex, NumFrames, SeekPreRollBarsInPin, *SpeedMultInPin);
-				MidiClockOutPin->Process(MetronomeClock, StartFrameIndex, NumFrames, SeekPreRollBarsInPin, *SpeedMultInPin);
-			}
-			else
-			{
-				MidiClockOutPin->Process(StartFrameIndex, NumFrames, SeekPreRollBarsInPin, *SpeedMultInPin);
+				DrivingMidiClock.Advance(StartFrameIndex, NumFrames);
 			}
 		};
 
@@ -312,16 +274,21 @@ namespace HarmonixMetasound
 				// Play from the beginning if we haven't received a seek call while we were stopped...
 				if (!ReceivedSeekWhileStopped())
 				{
-					BuildMidiData(true);
-					LastClockTickUpdate = -1;
+					BuildSongMaps(true);
+					LastProcessedClockTick = -1;
+					NextClockTickToProcess = 0;
 				}
-				DrivingMidiClock.ResetAndStart(StartFrameIndex, !ReceivedSeekWhileStopped());
+				if (!ReceivedSeekWhileStopped())
+				{
+					DrivingMidiClock.SeekTo(StartFrameIndex, 0, 0);
+				}
 				return EMusicPlayerTransportState::Playing;
 				
 			case EMusicPlayerTransportState::Seeking:
-				BuildMidiData(false);
-				DrivingMidiClock.SeekTo(StartFrameIndex, TransportInPin->GetNextSeekDestination(), SeekPreRollBarsInPin);
-				LastClockTickUpdate = DrivingMidiClock.GetCurrentMidiTick();
+				BuildSongMaps(false);
+				DrivingMidiClock.SeekTo(StartFrameIndex, TransportInPin->GetNextSeekDestination());
+				LastProcessedClockTick = DrivingMidiClock.GetLastProcessedMidiTick();
+				NextClockTickToProcess = DrivingMidiClock.GetNextMidiTickToProcess();
 				// Here we will return that we want to be in the same state we were in before this request to 
 				// seek since we can seek "instantaneously"...
 				return GetTransportState();
@@ -331,52 +298,51 @@ namespace HarmonixMetasound
 		};
 		ExecuteTransportSpans(TransportInPin, BlockSize, TransportHandler, HandleMidiClockEvents);
 
-		if (LoopInPin)
+		if (MidiClockOutPin->HasPersistentLoop())
 		{
-			MidiClockOutPin->CopySpeedAndTempoChanges(&MetronomeClock);
+			MidiClockOutPin->Advance(*MonotonicallyIncreasingClock, 0, BlockSize);
 		}
+
+		MarkClocksAsExecuted();
 	}
 
-	void FMetronomeOperator::BuildMidiData(bool ResetToStart)
+	void FMetronomeOperatorBase::BuildSongMaps(bool ResetToStart)
 	{
 		// make sure we have valid values
 		CurrentTempo = FMath::Max(1.0f, *TempoInPin);
 		CurrentTimeSigNum = FMath::Max(1, *TimeSigNumInPin);
 		CurrentTimeSigDenom = FMath::Max(1, *TimeSigDenomInPin);
 	
-		MidiData = FMidiClock::MakeClockConductorMidiData(CurrentTempo, CurrentTimeSigNum, CurrentTimeSigDenom);
+		SongMaps = MakeShared<FSongMaps>(CurrentTempo, CurrentTimeSigNum, CurrentTimeSigDenom);
 		
 		if (LoopInPin)
 		{
-			MetronomeClock.AttachToMidiResource(MidiData, ResetToStart);
+			MonotonicallyIncreasingClock->AttachToSongMapEvaluator(SongMaps, ResetToStart);
 
-			// midi clock out will follow the tempo of the metronome
+			// midi clock out will follow the tempo of the monotonically increasing clock
 			// so just assign it to some reasonable values. They will be ignored
-			TSharedPtr<FMidiFileData> MidiDataOut = FMidiClock::MakeClockConductorMidiData(120.0f, CurrentTimeSigNum, CurrentTimeSigDenom);
-			MidiClockOutPin->AttachToMidiResource(MidiDataOut, ResetToStart);
+			TSharedPtr<FSongMaps> SongMapsOut = MakeShared<FSongMaps>(120.0f, CurrentTimeSigNum, CurrentTimeSigDenom);
+			MidiClockOutPin->AttachToSongMapEvaluator(SongMapsOut, ResetToStart);
 			
-			int32 LoopEndTick = MidiDataOut->SongMaps.GetBarMap().BarIncludingCountInToTick(FMath::Max(LoopLengthBarsInPin, 1));
-			MidiClockOutPin->SetLoop(0, LoopEndTick);
+			int32 LoopEndTick = SongMapsOut->BarIncludingCountInToTick(FMath::Max(LoopLengthBarsInPin, 1));
+			// LoopEndTick == Loop Length since we are starting the loop at tick 0...
+			MidiClockOutPin->SetupPersistentLoop(0, LoopEndTick);
 		}
 		else
 		{
 			// if we're not looping, then the MidiClockOut is going to be the driving midi clock
 			// so attach the midi data directly to it
-			MidiClockOutPin->AttachToMidiResource(MidiData);
-			MidiClockOutPin->ClearLoop();
+			MidiClockOutPin->AttachToSongMapEvaluator(SongMaps);
+			MidiClockOutPin->ClearPersistentLoop();
 		}
 	}
 
-	void FMetronomeOperator::UpdateMidi()
+	void FMetronomeOperatorBase::UpdateMidi()
 	{
 		FMidiClock& DrivingMidiClock = GetDrivingMidiClock();
 		bool HasMidiChanges = false;
 		if (*TempoInPin > 0 && !FMath::IsNearlyEqual(CurrentTempo, *TempoInPin))
 		{
-			if (!HasMidiChanges)
-			{
-				DrivingMidiClock.LockForMidiDataChanges();
-			}
 			AddTempoChangeForMidi(*TempoInPin);
 			HasMidiChanges = true;
 		};
@@ -387,67 +353,92 @@ namespace HarmonixMetasound
 		{
 			CurrentTimeSigNum = InTimeSigNum;
 			CurrentTimeSigDenom = InTimeSigDenom;
-			if (ensure(!MidiClockOutPin->DoesLoop()))
+			if (!MidiClockOutPin->HasPersistentLoop())
 			{
-				if (!HasMidiChanges)
-				{
-					DrivingMidiClock.LockForMidiDataChanges();
-				}
-				AddTimeSigChangeForMidi(InTimeSigNum, InTimeSigDenom);
+				HandleTimeSigChangeForMidi(InTimeSigNum, InTimeSigDenom);
 				HasMidiChanges = true;
 			}
 			else
 			{
-				UE_LOG(LogMetronomeNode, Warning, TEXT("Changing Time Sig. on looping metronome not supported." 
+				UE_LOG(LogMetronomeNode, Log, TEXT("Changing Time Sig. on looping metronome not supported." 
 					"Changing time signature will require changing loop length which is currently not supported."))
 			}
 		}
 
 		if (HasMidiChanges)
 		{
-			DrivingMidiClock.MidiDataChangesComplete();
+			// We only have to tell the MonotonicallyIncreasingClock that the song maps have changed
+			// if we are looping...
+			if (LoopInPin)
+			{
+				MonotonicallyIncreasingClock->SongMapsChanged();
+			}
+			// Regardless of which clock is currently driving, MonotonicallyIncreasingClock or MidiClockOutPin,
+			// we need to inform the MidiClockOutPin that the song maps have changed. 
+			MidiClockOutPin->SongMapsChanged();
 		}
 	}
 
-	void FMetronomeOperator::AddTempoChangeForMidi(float InTempoBPM)
+	void FMetronomeOperatorBase::AddTempoChangeForMidi(float InTempoBPM)
 	{
 		CurrentTempo = InTempoBPM;
-		int32 AtTick = GetDrivingMidiClock().GetCurrentHiResTick() + 1;
-		MidiData->AddTempoChange(0, AtTick, CurrentTempo);
+		int32 AtTick = GetDrivingMidiClock().GetNextMidiTickToProcess();
+		SongMaps->AddTempoChange(AtTick, CurrentTempo);
 	}
 
-	void FMetronomeOperator::AddTimeSigChangeForMidi(int32 InTimeSigNum, int32 InTimeSigDenom)
+	void FMetronomeOperatorBase::HandleTimeSigChangeForMidi(int32 InTimeSigNum, int32 InTimeSigDenom)
 	{
 		CurrentTimeSigNum = InTimeSigNum;
 		CurrentTimeSigDenom = InTimeSigDenom;
-		int32 AtTick = GetDrivingMidiClock().GetCurrentHiResTick() + 1;
+		int32 AtTick = GetDrivingMidiClock().GetNextMidiTickToProcess();
 		// round to the next bar boundary, the bar we're actually going to apply the time sig change to
-		int32 AtBar = FMath::CeilToInt32(MidiData->SongMaps.GetBarIncludingCountInAtTick(AtTick));
-		int32 NumTimeSigPoints = MidiData->SongMaps.GetBarMap().GetNumTimeSignaturePoints();
+		int32 AtBar = FMath::CeilToInt32(SongMaps->GetBarIncludingCountInAtTick(AtTick));
+		int32 NumTimeSigPoints = SongMaps->GetNumTimeSignatureChanges();
 
 		// check if there's already a time signature point at the bar we're trying to update
 		// the metronome clock increases monotonically, so we just have to check the _last_ point
-		FTimeSignaturePoint& Point = MidiData->SongMaps.GetBarMap().GetTimeSignaturePoint(NumTimeSigPoints - 1);
-		if (Point.BarIndex == AtBar)
+		FTimeSignaturePoint* Point = SongMaps->GetMutableTimeSignaturePoint(NumTimeSigPoints - 1);
+		check(Point);
+		if (Point->BarIndex == AtBar)
 		{
 			// update that instead of adding a new one
-			Point.TimeSignature.Numerator = InTimeSigNum;
-			Point.TimeSignature.Denominator = InTimeSigDenom;
+			Point->TimeSignature.Numerator = InTimeSigNum;
+			Point->TimeSignature.Denominator = InTimeSigDenom;
 		}
 		else
 		{
-			MidiData->AddTimeSigChange(0, AtTick, CurrentTimeSigNum, CurrentTimeSigDenom);
+			SongMaps->AddTimeSigChange(AtTick, CurrentTimeSigNum, CurrentTimeSigDenom);
 		}
 	}
 
-	void FMetronomeOperator::HandleTransportChange(int32 StartFrameIndex, EMusicPlayerTransportState NewTransportState)
+	void FMetronomeOperatorBase::HandleTransportChange(int32 StartFrameIndex, EMusicPlayerTransportState NewTransportState)
 	{
-		MidiClockOutPin->HandleTransportChange(StartFrameIndex, NewTransportState);
+		GetDrivingMidiClock().SetTransportState(StartFrameIndex, NewTransportState);
+	}
+
+	void FMetronomeOperatorBase::PrepareClocksForExecute()
+	{
+		if (bClocksArePreparedForExecute)
+		{
+			return;
+		}
+
+		MidiClockOutPin->PrepareBlock();
+
 		if (LoopInPin)
 		{
-			MetronomeClock.HandleTransportChange(StartFrameIndex, NewTransportState);
+			MonotonicallyIncreasingClock->PrepareBlock();
 		}
+
+		bClocksArePreparedForExecute = true;
+
 	}
+
+	void FMetronomeOperatorBase::MarkClocksAsExecuted()
+	{
+		bClocksArePreparedForExecute = false;
+	}
+
 }
 
 #undef LOCTEXT_NAMESPACE // "HarmonixMetaSound"

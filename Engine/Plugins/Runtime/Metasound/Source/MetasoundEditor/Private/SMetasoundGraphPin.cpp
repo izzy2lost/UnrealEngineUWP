@@ -12,6 +12,11 @@ namespace Metasound
 {
 	namespace Editor
 	{
+		bool SMetaSoundGraphPinKnot::CanInspectPin(const UEdGraphPin* InPin)
+		{
+			return false;
+		}
+
 		void SMetaSoundGraphPinKnot::Construct(const FArguments& InArgs, UEdGraphPin* InPin)
 		{
 			SGraphPinKnot::Construct(SGraphPinKnot::FArguments(), InPin);
@@ -38,8 +43,8 @@ namespace Metasound
 				{
 					if (const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(FRerouteNodeTemplate::GetRegistryKey()))
 					{
-						FConstNodeHandle NodeHandle = OwningNode->GetConstNodeHandle();
-						bHasRequiredConnections = Template->HasRequiredConnections(NodeHandle);
+						const FMetaSoundFrontendDocumentBuilder& DocBuilder = GetBuilderChecked().GetConstBuilder();
+						bHasRequiredConnections = Template->HasRequiredConnections(DocBuilder, DocBuilder.GetBuildPageID(), OwningNode->GetNodeID());
 					}
 				}
 			}

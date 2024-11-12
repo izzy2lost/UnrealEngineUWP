@@ -59,9 +59,11 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 	static final String PSOCacheData_Key = "psocache";
 	static final String JobContext_Key = "jtx";
 	static final String JobID_Key = "jid";
+	static final String Priority_Key = "pri";
 	static final String ServiceID_Key = "sid";
 	static final String CompiledProgram_Key = "cpg";
 	static final String SHMem_Key = "shm";
+	static final String CompilationDuration_Key = "cd";
 	static final String JobFail = "f";
 	static final String RobustContextKey = "rbc";
 	public static final String LogDir = "/oglservice/";
@@ -263,6 +265,8 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 		return false;
 	}
 
+	public native void NativeSetThreadPriority(long PriorityInfo);
+
 	@Nullable
 	@Override
 	public IBinder onBind(Intent intent)
@@ -271,6 +275,8 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 
 		if(!bGFXInitialized)
 		{
+			System.loadLibrary("psoservice");
+
 			if(!UseVulkan())
 			{
 				Bundle extras =intent.getExtras();
@@ -316,16 +322,18 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 					beginTrace("PSOProgramService.handleMessage");
 					if(UseVulkan())
 					{
-						byte[] VS = msg.getData().getByteArray(VS_Key);
-						byte[] PS = msg.getData().getByteArray(PS_Key);
-						byte[] PSOData = msg.getData().getByteArray(PSOData_Key);
+						byte[] VS			= msg.getData().getByteArray(VS_Key);
+						byte[] PS			= msg.getData().getByteArray(PS_Key);
+						byte[] PSOData		= msg.getData().getByteArray(PSOData_Key);
 						byte[] PSOCacheData = msg.getData().getByteArray(PSOCacheData_Key);
+						long PriorityInfo	= msg.getData().getLong(Priority_Key);
 
-						int JobID = msg.getData().getInt(JobID_Key);
-						int ServiceID = msg.getData().getInt(ServiceID_Key);
+						int JobID			= msg.getData().getInt(JobID_Key);
+						int ServiceID		= msg.getData().getInt(ServiceID_Key);
 
 						byte[] JobContext = msg.getData().getByteArray(JobContext_Key);
 
+						NativeSetThreadPriority(PriorityInfo);
 						//logger.verbose("Processing program job "+JobID);
 						ProcessVulkanProgramRequest(msg.replyTo, JobID, ServiceID, JobContext, VS, PS, PSOData, PSOCacheData);
 					}
@@ -336,9 +344,10 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 						String CS = msg.getData().getString(CS_Key);
 						int JobID = msg.getData().getInt(JobID_Key);
 						int ServiceID = msg.getData().getInt(ServiceID_Key);
-
+						long PriorityInfo = msg.getData().getLong(Priority_Key);
 						byte[] JobContext = msg.getData().getByteArray(JobContext_Key);
 
+						NativeSetThreadPriority(PriorityInfo);
 						//logger.verbose("Processing program job "+JobID);
 						ProcessGLProgramRequest(msg.replyTo, JobID, ServiceID, JobContext, VS, PS, CS);
 					}
@@ -355,10 +364,12 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 						long PSODataSize				= msg.getData().getLong(PSOData_Key);
 						long PSOCacheDataSize			= msg.getData().getLong(PSOCacheData_Key);
 						int JobID						= msg.getData().getInt(JobID_Key);
+						long PriorityInfo				= msg.getData().getLong(Priority_Key);
 						int ServiceID					= msg.getData().getInt(ServiceID_Key);
 						byte[] JobContext				= msg.getData().getByteArray(JobContext_Key);
 						int SHMemFD						= SharedFD.getFd();
 
+						NativeSetThreadPriority(PriorityInfo);
 						//logger.verbose("Processing program job "+JobID);
 						ProcessVulkanProgramRequestSHM(msg.replyTo, JobID, ServiceID, JobContext, SHMemFD, VSSize, PSSize, PSODataSize, PSOCacheDataSize);
 						try
@@ -384,9 +395,10 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 	public void ProcessVulkanProgramRequest(Messenger replyTo, int JobID, int ServiceID, byte[] JobContext, byte[] VS, byte[] PS, byte[] PSOData, byte[] PSOCacheData)
 	{
 		ByteBuffer Result = null;
+		float[] PSOCompilationDuration = new float[1];
 		try
 		{
-			byte[] PipelineCache = compileVulkanPSO(JobID, VS, PS, PSOData, PSOCacheData);
+			byte[] PipelineCache = compileVulkanPSO(JobID, VS, PS, PSOData, PSOCacheData, PSOCompilationDuration);
 			Result = ByteBuffer.allocate(PipelineCache.length);
 			Result.order(ByteOrder.nativeOrder());
 			Result.put(PipelineCache);
@@ -401,17 +413,18 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 		if(Result != null)
 		{
 			//logger.verbose(JobID+" SendSuccess()  ");
-			SendSuccess(replyTo, ServiceID, JobID, JobContext, Result.array());
+			SendSuccess(replyTo, ServiceID, JobID, JobContext, Result.array(), PSOCompilationDuration[0]);
 		}
 	}
 
 	public void ProcessVulkanProgramRequestSHM(Messenger replyTo, int JobID, int ServiceID, byte[] JobContext, int SHMemFD, long VSSize, long PSSize, long PSODataSize, long PSOCacheDataSize)
 	{
 		int SHMResultFD = -1;
+		float[] PSOCompilationDuration = new float[1];
 		try
 		{
 			// native code returns a shared FD which must be adopted in java land.
-			SHMResultFD = compileVulkanPSOSHM(JobID, SHMemFD, VSSize, PSSize, PSODataSize, PSOCacheDataSize);
+			SHMResultFD = compileVulkanPSOSHM(JobID, SHMemFD, VSSize, PSSize, PSODataSize, PSOCacheDataSize, PSOCompilationDuration);
 		}
 		catch (Exception e)
 		{
@@ -422,7 +435,7 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 		{
 			//logger.verbose(JobID+" SendSuccess()  ");
 			// SendSuccess will adopt the shared FD.
-			SendSuccess(replyTo, ServiceID, JobID, JobContext, SHMResultFD );
+			SendSuccess(replyTo, ServiceID, JobID, JobContext, SHMResultFD, PSOCompilationDuration[0]);
 		}
 		else
 		{
@@ -435,8 +448,10 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 	public void ProcessGLProgramRequest(Messenger replyTo, int JobID, int ServiceID, byte[] JobContext, String VS, String PS, String CS)
 	{
 		ByteBuffer Result = null;
+		float CompilationDuration = -1.0f;
 		try
 		{
+			long CompilationStart = System.currentTimeMillis();	
 			if( bEnableTestFailures && JobID == 500)
 			{
 				int splitpoint = VS.length()/2;
@@ -447,6 +462,8 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 			Result = CompileAndLink(JobID, VS, PS, CS);
 			//logger.verbose(JobID+" CompileAndLink()  "+ (Result == null ? "null res " : Result.toString()));
 
+			CompilationDuration = (float)(((double)System.currentTimeMillis() - (double)CompilationStart) / 1000.0f);
+
 		} catch (Exception e)
 		{
 			SendFail(replyTo, ServiceID, JobID, JobContext, e.getMessage());
@@ -455,7 +472,7 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 		if(Result != null)
 		{
 			//logger.verbose(JobID+" SendSuccess()  ");
-			SendSuccess(replyTo, ServiceID, JobID, JobContext, Result.array());
+			SendSuccess(replyTo, ServiceID, JobID, JobContext, Result.array(), CompilationDuration);
 		}
 	}
 
@@ -491,17 +508,17 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 		super.onDestroy();
 	}
 
-	public void SendSuccess(Messenger replyTo, int ServiceID, int JobID, byte[] context, byte[] compiledbinary)
+	public void SendSuccess(Messenger replyTo, int ServiceID, int JobID, byte[] context, byte[] compiledbinary, float compilationDuration)
 	{
-		SendSuccess(replyTo, ServiceID, JobID, context, compiledbinary, -1);
+		SendSuccess(replyTo, ServiceID, JobID, context, compiledbinary, -1, compilationDuration);
 	}
 
-	public void SendSuccess(Messenger replyTo, int ServiceID, int JobID, byte[] context, int ShmMemCompiledFD)
+	public void SendSuccess(Messenger replyTo, int ServiceID, int JobID, byte[] context, int ShmMemCompiledFD, float compilationDuration)
 	{
-		SendSuccess(replyTo, ServiceID, JobID, context, null, ShmMemCompiledFD);
+		SendSuccess(replyTo, ServiceID, JobID, context, null, ShmMemCompiledFD, compilationDuration);
 	}
 
-	public void SendSuccess(Messenger replyTo, int ServiceID, int JobID, byte[] context, byte[] compiledbinary, int ShmMemCompiledFD)
+	public void SendSuccess(Messenger replyTo, int ServiceID, int JobID, byte[] context, byte[] compiledbinary, int ShmMemCompiledFD, float compilationDuration)
 	{
 		if( bEnableTestFailures && JobID == 1000 )
 		{
@@ -536,6 +553,7 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 			}
 			params.putInt(JobID_Key, JobID);
 			params.putInt(ServiceID_Key, ServiceID);
+			params.putFloat(CompilationDuration_Key, compilationDuration);
 			msg.setData(params);
 
 			replyTo.send(msg);
@@ -580,26 +598,24 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 	////////////////////////////////////////////// Vulkan context stuff
 	public native void InitVKDevice();
 	public native void ShutdownVKDevice();
-	public native byte[] CompileVKGFXPSO(byte[] VertexShaderSource, byte[]  PixelShaderSource, byte[] PSOData, byte[] PSOCacheData);
-	public native int CompileVKGFXPSOSHM(int SHMemFD, long VSSize, long PSSize, long PSODataSize, long PSOCacheDataSize);
+	public native byte[] CompileVKGFXPSO(byte[] VertexShaderSource, byte[]  PixelShaderSource, byte[] PSOData, byte[] PSOCacheData, float[] PSOCompilationDuration);
+	public native int CompileVKGFXPSOSHM(int SHMemFD, long VSSize, long PSSize, long PSODataSize, long PSOCacheDataSize, float[] PSOCompilationDuration);
 
 	private void initVulkanContext()
 	{
 		beginTrace("PSOProgramService.InitVulkanContext");
-		System.loadLibrary("psoservice");
-
 		InitVKDevice();
 		endTrace();
 	}
 
-	private byte[] compileVulkanPSO(int JobID, byte [] VertexShaderSource, byte []  PixelShaderSource, byte [] PSOData, byte [] PSOCacheData)
+	private byte[] compileVulkanPSO(int JobID, byte [] VertexShaderSource, byte []  PixelShaderSource, byte [] PSOData, byte [] PSOCacheData, float[] PSOCompilationDuration)
 	{
-		return CompileVKGFXPSO(VertexShaderSource, PixelShaderSource, PSOData, PSOCacheData);
+		return CompileVKGFXPSO(VertexShaderSource, PixelShaderSource, PSOData, PSOCacheData, PSOCompilationDuration);
 	}
 
-	private int compileVulkanPSOSHM(int JobID, int SHMemFD, long VSSize, long PSSize, long PSODataSize, long PSOCacheDataSize)
+	private int compileVulkanPSOSHM(int JobID, int SHMemFD, long VSSize, long PSSize, long PSODataSize, long PSOCacheDataSize, float[] PSOCompilationDuration)
 	{
-		return CompileVKGFXPSOSHM(SHMemFD, VSSize, PSSize, PSODataSize, PSOCacheDataSize);
+		return CompileVKGFXPSOSHM(SHMemFD, VSSize, PSSize, PSODataSize, PSOCacheDataSize, PSOCompilationDuration);
 	}
 
 	private void shutdownVulkanContext()

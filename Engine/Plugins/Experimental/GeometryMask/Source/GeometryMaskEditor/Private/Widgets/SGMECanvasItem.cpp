@@ -9,8 +9,6 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SGMECanvasItem::Construct(
 	const FArguments& InArgs,
 	const TSharedRef<STableViewBase>& InOwnerTableView,
@@ -51,5 +49,3 @@ FOptionalSize SGMECanvasItem::GetAspectRatio()
 
 	return AspectRatio;
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION

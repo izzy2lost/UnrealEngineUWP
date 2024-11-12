@@ -198,8 +198,8 @@ bool UExternalDataLayerManager::RegisterExternalStreamingObjectForGameWorld(cons
 		return false;
 	}
 
-	const FString ExternalStreamingObjectName = FExternalDataLayerHelper::GetExternalStreamingObjectName(InExternalDataLayerAsset);
-	URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject = FindObject<URuntimeHashExternalStreamingObjectBase>(ExternalStreamingObjectPackage, *ExternalStreamingObjectName);
+	URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject = Cast<URuntimeHashExternalStreamingObjectBase>((UObject*)FindObjectWithOuter(ExternalStreamingObjectPackage, URuntimeHashExternalStreamingObjectBase::StaticClass()));
+
 	if (!ExternalStreamingObject)
 	{
 		UE_LOG(LogWorldPartition, Error, TEXT("[EDL: %s] No external streaming object found in package %s."), *InExternalDataLayerAsset->GetName(), *ExternalStreamingObjectPackagePath);
@@ -531,7 +531,7 @@ const UExternalDataLayerAsset* UExternalDataLayerManager::GetActorEditorContextC
 	return nullptr;
 }
 
-const UExternalDataLayerAsset* UExternalDataLayerManager::GetMatchingExternalDataLayerAssetForObjectPath(const FSoftObjectPath& InObjectPath)
+const UExternalDataLayerAsset* UExternalDataLayerManager::GetMatchingExternalDataLayerAssetForObjectPath(const FSoftObjectPath& InObjectPath) const
 {
 	const FName MountPoint = FPackageName::GetPackageMountPoint(InObjectPath.ToString());
 
@@ -611,7 +611,7 @@ void UExternalDataLayerManager::PostEditUndo()
 	PreEditUndoExternalDataLayerAssets.Empty();
 }
 
-void UExternalDataLayerManager::OnBeginPlay()
+void UExternalDataLayerManager::PrepareEditorGameWorld()
 {
 	if (IsRunningGameOrInstancedWorldPartition())
 	{
@@ -622,9 +622,9 @@ void UExternalDataLayerManager::OnBeginPlay()
 	}
 }
 
-void UExternalDataLayerManager::OnEndPlay()
+void UExternalDataLayerManager::ShutdownEditorGameWorld()
 {
-	// UWorldPartition::Uninitialize() calls OnEndPlay for game worlds, but ExternalDataLayerManager::Deinitialize is also called afterward. 
+	// UWorldPartition::Uninitialize() calls ShutdownEditorGameWorld for game worlds, but ExternalDataLayerManager::Deinitialize is also called afterward. 
 	// For game world, let UExternalDataLayerManager::Deinitialize do the job.
 	if (!GetTypedOuter<UWorld>()->IsGameWorld())
 	{
@@ -827,68 +827,29 @@ void UExternalDataLayerManager::ForEachExternalStreamingObjects(TFunctionRef<boo
 
 FString UExternalDataLayerManager::GetActorPackageName(const UExternalDataLayerAsset* InExternalDataLayerAsset, const ULevel* InDestinationLevel, const FString& InActorPath) const
 {
-	const FString ContainerRootPath = GetExternalDataLayerLevelRootPath(InExternalDataLayerAsset);
-	const FString ActorPackageName = ULevel::GetActorPackageName(ULevel::GetExternalActorsPath(ContainerRootPath), InDestinationLevel->GetActorPackagingScheme(), InActorPath);
+	const FString ActorPackageName = ULevel::GetActorPackageName(InDestinationLevel->GetPackage(), InDestinationLevel->GetActorPackagingScheme(), InActorPath, InExternalDataLayerAsset);
 	return ActorPackageName;
 }
 
-bool UExternalDataLayerManager::SetupActorPackageForExternalDataLayerAsset(AActor* InActor, const UExternalDataLayerAsset* InExternalDataLayerAsset)
+bool UExternalDataLayerManager::ValidateOnActorExternalDataLayerAssetChanged(AActor* InActor)
 {
-	check(InActor);
-	check(InActor->IsPackageExternal());
-
-	// First check if we really need to rename the package at all.
-	// For example, when reinstancing (after compiling a BP), we reuse the old actor package.
-	const FString OldActorPackageName = InActor->GetPackage()->GetName();
-	const FString NewActorPackageName = GetActorPackageName(InExternalDataLayerAsset, InActor->GetLevel(), InActor->GetPathName());
-	if (OldActorPackageName == NewActorPackageName)
-	{
-		return true;
-	}
-
-	check(InActor->GetExternalPackage()->HasAnyPackageFlags(PKG_NewlyCreated));
-	UExternalDataLayerInstance* ExternalDataLayerInstance = GetExternalDataLayerInstance(InExternalDataLayerAsset);
-	if (!ExternalDataLayerInstance)
-	{
-		UE_LOG(LogWorldPartition, Warning, TEXT("[EDL: %s] Can't find External Data Layer instance, package of actor %s won't be moved under External Data Layer root."), *InExternalDataLayerAsset->GetName(), *InActor->GetActorNameOrLabel());
-		return false;
-	}
-	
-	bool bSuccess = InActor->GetPackage()->Rename(*NewActorPackageName);
-	UE_LOG(LogWorldPartition, Verbose, TEXT("[EDL: %s] Set new actor %s Package %s."), *InExternalDataLayerAsset->GetName(), *InActor->GetActorNameOrLabel(), *InActor->GetPackage()->GetName());
-	FText FailureReason;
-	if (!ExternalDataLayerInstance->CanAddActor(InActor, &FailureReason))
-	{
-		InActor->GetPackage()->Rename(*OldActorPackageName);
-		UE_LOG(LogWorldPartition, Warning, TEXT("[EDL: %s] Can't rename package for actor %s. %s"), *InExternalDataLayerAsset->GetName(), *InActor->GetActorNameOrLabel(), *FailureReason.ToString());
-		return false;
-	}
-	return bSuccess;
-}
-
-bool UExternalDataLayerManager::OnActorPreSpawnInitialization(AActor* InActor, const UExternalDataLayerAsset* InExternalDataLayerAsset)
-{
-	return SetupActorPackageForExternalDataLayerAsset(InActor, InExternalDataLayerAsset);
-}
-
-bool UExternalDataLayerManager::OnActorExternalDataLayerAssetChanged(AActor* InActor)
-{
-	// Check that the actor package is valid (it is currently not supported to change the EDL of an actor)
 	check(InActor);
 	check(InActor->IsPackageExternal());
 	const UExternalDataLayerAsset* ExternalDataLayerAsset = InActor->GetExternalDataLayerAsset();
-	check(ExternalDataLayerAsset);
-
+	if (ExternalDataLayerAsset)
+	{
 #if DO_CHECK
-	// Validate that the container
-	FExternalDataLayerContainerMap::ValueType ActorDescContainer = EDLContainerMap.FindChecked(ExternalDataLayerAsset);
-	check(ActorDescContainer->GetExternalActorPath() == ULevel::GetExternalActorsPath(GetExternalDataLayerLevelRootPath(ExternalDataLayerAsset)));
+		// Validate the corresponding container for this External Data Layer asset
+		FExternalDataLayerContainerMap::ValueType ActorDescContainer = EDLContainerMap.FindChecked(ExternalDataLayerAsset);
+		check(ActorDescContainer->GetExternalActorPath() == ULevel::GetExternalActorsPath(GetExternalDataLayerLevelRootPath(ExternalDataLayerAsset)));
 #endif
-	
-	const FString ActorPackageName = InActor->GetExternalPackage()->GetName();
-	const FString NewActorPackageName = GetActorPackageName(ExternalDataLayerAsset, InActor->GetLevel(), InActor->GetPathName());
-	check(NewActorPackageName == ActorPackageName);
-	return (NewActorPackageName == ActorPackageName);
+		// Validate that the actor package is valid
+		const FString ActorPackageName = InActor->GetExternalPackage()->GetName();
+		const FString NewActorPackageName = GetActorPackageName(ExternalDataLayerAsset, InActor->GetLevel(), InActor->GetPathName());
+		check(NewActorPackageName == ActorPackageName);
+		return (NewActorPackageName == ActorPackageName);
+	}
+	return true;
 }
 
 AWorldDataLayers* UExternalDataLayerManager::GetWorldDataLayers(const UExternalDataLayerAsset* InExternalDataLayerAsset, bool bAllowCreate) const
@@ -928,8 +889,7 @@ URuntimeHashExternalStreamingObjectBase* UExternalDataLayerManager::CreateExtern
 		return nullptr;
 	}
 
-	const FString ExternalStreamingObjectName = FExternalDataLayerHelper::GetExternalStreamingObjectName(InExternalDataLayerAsset);
-	URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject = GetOuterUWorldPartition()->FlushStreamingToExternalStreamingObject(ExternalStreamingObjectName);
+	URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject = GetOuterUWorldPartition()->FlushStreamingToExternalStreamingObject();
 	if (!ExternalStreamingObject)
 	{
 		return nullptr;
@@ -946,7 +906,7 @@ URuntimeHashExternalStreamingObjectBase* UExternalDataLayerManager::CreateExtern
 	// Outer DataLayerInstances to the ExternalStreamingObject and set its RootExternalDataLayerInstance
 	DuplicatedEDLWorldDataLayers->ForEachDataLayerInstance([ExternalStreamingObject](UDataLayerInstance* DataLayerInstance)
 	{
-		DataLayerInstance->Rename(nullptr, ExternalStreamingObject, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional | REN_ForceNoResetLoaders);
+		DataLayerInstance->Rename(nullptr, ExternalStreamingObject, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional);
 		ExternalStreamingObject->DataLayerInstances.Add(DataLayerInstance);
 		if (UExternalDataLayerInstance* ExternalDataLayerInstance = Cast<UExternalDataLayerInstance>(DataLayerInstance))
 		{

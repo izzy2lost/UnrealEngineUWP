@@ -37,6 +37,7 @@ static FAutoConsoleVariableRef CVarRayTracingSkyLight(
 #include "PathTracing.h"
 
 #include "RayTracing/RaytracingOptions.h"
+#include "RayTracing/RayTracing.h"
 #include "PostProcess/PostProcessing.h"
 #include "PostProcess/SceneFilterRendering.h"
 #include "HairStrands/HairStrandsRendering.h"
@@ -135,7 +136,7 @@ bool ShouldRenderRayTracingSkyLight(const FSkyLightSceneProxy* SkyLightSceneProx
 	bool bRayTracingSkyEnabled = (GRayTracingSkyLight  > 0 && SkyLightSceneProxy->CastRayTracedShadow == ECastRayTracedShadow::UseProjectSetting)
 								||  SkyLightSceneProxy->CastRayTracedShadow == ECastRayTracedShadow::Enabled;
 
-	return bRayTracingSkyEnabled && ShouldRenderRayTracingEffect(ERayTracingPipelineCompatibilityFlags::FullPipeline) && (GetSkyLightSamplesPerPixel(SkyLightSceneProxy) > 0);
+	return bRayTracingSkyEnabled && ShouldRenderRayTracingSkyLightEffect() && (GetSkyLightSamplesPerPixel(SkyLightSceneProxy) > 0);
 }
 
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FSkyLightData, "SkyLight");
@@ -238,6 +239,11 @@ class FRayTracingSkyLightRGS : public FGlobalShader
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
 	{
 		return ERayTracingPayloadType::RayTracingMaterial;
+	}
+
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
 	}
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
@@ -379,7 +385,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "RayTracingSkyLight");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, RayTracingSkyLight, "RayTracingSkyLight");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, RayTracingSkyLight);
 
 	check(SceneColorTexture);
@@ -425,14 +431,11 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 
 	// Fill Scene Texture parameters
 	FSceneTextureParameters SceneTextures = GetSceneTextureParameters(GraphBuilder, Views[0]);
+	const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
 
-	int32 ViewIndex = 0;
-	int32 LastViewIndex = Views.Num() - 1;
 	for (FViewInfo& View : Views)
 	{
 		RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
-
-		FSceneViewState* SceneViewState = (FSceneViewState*)View.State;
 
 		FRayTracingSkyLightRGS::FParameters *PassParameters = GraphBuilder.AllocParameters<FRayTracingSkyLightRGS::FParameters>();
 		PassParameters->RWSkyOcclusionMaskUAV = SkyLightkUAV;
@@ -466,55 +469,111 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 		PermutationVector.Set<FRayTracingSkyLightRGS::FHairLighting>(bUseHairLighting ? 1 : 0);
 		TShaderMapRef<FRayTracingSkyLightRGS> RayGenerationShader(GetGlobalShaderMap(FeatureLevel), PermutationVector);
 		ClearUnusedGraphResources(RayGenerationShader, PassParameters);
+		
+		FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
 
 		FIntPoint RayTracingResolution = View.ViewRect.Size() / UpscaleFactor;
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("SkyLightRayTracing %dx%d", RayTracingResolution.X, RayTracingResolution.Y),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[PassParameters, this, &View, RayGenerationShader, RayTracingResolution](FRHIRayTracingCommandList& RHICmdList)
+			[PassParameters, this, &View, SceneUniformBuffer, RayGenerationShader, RayTracingResolution, &RayTracingScene](FRHICommandList& RHICmdList)
 		{
-			FRayTracingShaderBindingsWriter GlobalResources;
+			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
+			TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope = RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, RHICmdList);
 
 			FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
-			FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
+			FShaderBindingTableRHIRef SBT = View.RayTracingSBT;
 			if (CVarRayTracingSkyLightEnableMaterials.GetValueOnRenderThread() == 0)
 			{
 				// Declare default pipeline
 				FRayTracingPipelineStateInitializer Initializer;
+
+				const FShaderBindingLayout* ShaderBindingLayout = RayTracing::GetShaderBindingLayout(ShaderPlatform);
+				if (ShaderBindingLayout)
+				{
+					Initializer.ShaderBindingLayout = &ShaderBindingLayout->RHILayout;
+				}
+
 				Initializer.MaxPayloadSizeInBytes = GetRayTracingPayloadTypeMaxSize(ERayTracingPayloadType::RayTracingMaterial);
 				FRHIRayTracingShader* RayGenShaderTable[] = { RayGenerationShader.GetRayTracingShader() };
 				Initializer.SetRayGenShaderTable(RayGenShaderTable);
 
 				FRHIRayTracingShader* HitGroupTable[] = { GetRayTracingDefaultOpaqueShader(View.ShaderMap) };
 				Initializer.SetHitGroupTable(HitGroupTable);
-				Initializer.bAllowHitGroupIndexing = false; // Use the same hit shader for all geometry in the scene by disabling SBT indexing.
 
 				FRHIRayTracingShader* MissGroupTable[] = { GetRayTracingDefaultMissShader(View.ShaderMap) };
 				Initializer.SetMissShaderTable(MissGroupTable);
 
 				Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
-				RHICmdList.SetRayTracingMissShader(RayTracingSceneRHI, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+
+				SBT = Scene->RayTracingSBT.AllocateRHI(RHICmdList, ERayTracingShaderBindingMode::RTPSO, ERayTracingHitGroupIndexingMode::Disallow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
+
+				RHICmdList.SetDefaultRayTracingHitGroup(SBT, Pipeline, 0);
+				RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+				RHICmdList.CommitShaderBindingTable(SBT);
 			}
 
-			RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
+			RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
 		});
+	}
 
-		// Denoising
-		if (GRayTracingSkyLightDenoiser != 0)
+	// Denoising
+	if (GRayTracingSkyLightDenoiser != 0)
+	{
+		const IScreenSpaceDenoiser* DefaultDenoiser = IScreenSpaceDenoiser::GetDefaultDenoiser();
+		const IScreenSpaceDenoiser* DenoiserToUse = DefaultDenoiser;
+
+		IScreenSpaceDenoiser::FDiffuseIndirectInputs DenoiserInputs;
+		DenoiserInputs.Color = OutSkyLightTexture;
+		DenoiserInputs.RayHitDistance = OutHitDistanceTexture;
+
+		IScreenSpaceDenoiser::FAmbientOcclusionRayTracingConfig RayTracingConfig;
+		RayTracingConfig.ResolutionFraction = ResolutionFraction;
+		RayTracingConfig.RayCountPerPixel = GetSkyLightSamplesPerPixel(SkyLight);
+
+		bool bAllViewsSameGPU = true;
+#if WITH_MGPU
+		for (int32 ViewIndex = 1; ViewIndex < Views.Num(); ViewIndex++)
 		{
-			const IScreenSpaceDenoiser* DefaultDenoiser = IScreenSpaceDenoiser::GetDefaultDenoiser();
-			const IScreenSpaceDenoiser* DenoiserToUse = DefaultDenoiser;
-
-			IScreenSpaceDenoiser::FDiffuseIndirectInputs DenoiserInputs;
-			DenoiserInputs.Color = OutSkyLightTexture;
-			DenoiserInputs.RayHitDistance = OutHitDistanceTexture;
-
+			if (Views[ViewIndex].GPUMask != Views[0].GPUMask)
 			{
-				IScreenSpaceDenoiser::FAmbientOcclusionRayTracingConfig RayTracingConfig;
-				RayTracingConfig.ResolutionFraction = ResolutionFraction;
-				RayTracingConfig.RayCountPerPixel = GetSkyLightSamplesPerPixel(SkyLight);
+				bAllViewsSameGPU = false;
+			}
+		}
+#endif
+
+		if (bAllViewsSameGPU && DenoiserToUse == DefaultDenoiser)
+		{
+			RDG_GPU_MASK_SCOPE(GraphBuilder, Views[0].GPUMask);
+
+			RDG_EVENT_SCOPE(GraphBuilder, "%s(SkyLight) %s",
+				DenoiserToUse->GetDebugName(),
+				Views.Num() > 1 ?
+					*FString::Printf(TEXT("%d views"), Views.Num()) :
+					*FString::Printf(TEXT("%dx%d"), Views[0].ViewRect.Width(), Views[0].ViewRect.Height()));
+
+			// Multi-view version of DenoiseSkyLight, which saves memory by sharing persistent render targets across views.
+			// Persistent render targets are stored on the first view, so PrevViewInfo for the first view is passed in.
+			IScreenSpaceDenoiser::FDiffuseIndirectOutputs DenoiserOutputs = IScreenSpaceDenoiser::DenoiseSkyLight(
+				GraphBuilder,
+				Views,
+				&Views[0].PrevViewInfo,
+				SceneTextures,
+				DenoiserInputs,
+				RayTracingConfig);
+
+			OutSkyLightTexture = DenoiserOutputs.Color;
+		}
+		else
+		{
+			int32 ViewIndex = 0;
+			int32 LastViewIndex = Views.Num() - 1;
+
+			for (FViewInfo& View : Views)
+			{
+				RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
 
 				RDG_EVENT_SCOPE(GraphBuilder, "%s%s(SkyLight) %dx%d",
 					DenoiserToUse != DefaultDenoiser ? TEXT("ThirdParty ") : TEXT(""),
@@ -534,9 +593,15 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 				{
 					OutSkyLightTexture = DenoiserOutputs.Color;
 				}
+
+				++ViewIndex;
 			}
 		}
+	}
 
+	for (FViewInfo& View : Views)
+	{
+		FSceneViewState* SceneViewState = (FSceneViewState*)View.State;
 		if (SceneViewState != nullptr)
 		{
 			if (CVarRayTracingSkyLightDecoupleSampleGeneration.GetValueOnRenderThread() == 1)
@@ -552,8 +617,6 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 				SceneViewState->SkyLightVisibilityRaysDimensions = FIntVector(1);
 			}
 		}
-
-		++ViewIndex;
 	}
 }
 
@@ -609,7 +672,7 @@ void FDeferredShadingSceneRenderer::CompositeRayTracingSkyLight(
 			RDG_EVENT_NAME("GlobalIlluminationComposite"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[this, &View, PassParameters, SceneTextureExtent = SceneTextures.Config.Extent](FRHICommandList& RHICmdList)
+			[this, &View, PassParameters, SceneTextureExtent = SceneTextures.Config.Extent](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			TShaderMapRef<FPostProcessVS> VertexShader(View.ShaderMap);
 			TShaderMapRef<FCompositeSkyLightPS> PixelShader(View.ShaderMap);

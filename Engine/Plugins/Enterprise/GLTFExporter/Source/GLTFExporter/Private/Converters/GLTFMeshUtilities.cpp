@@ -11,6 +11,8 @@
 #include "StaticMeshCompiler.h"
 #include "SkinnedAssetCompiler.h"
 #include "LandscapeComponent.h"
+#include "Components/SplineMeshComponent.h"
+#include "Converters/GLTFMeshAttributesArray.h"
 
 void FGLTFMeshUtilities::FullyLoad(const UStaticMesh* InStaticMesh)
 {
@@ -212,6 +214,13 @@ int32 FGLTFMeshUtilities::GetLOD(const USkeletalMesh* SkeletalMesh, const USkele
 	const int32 ForcedLOD = SkeletalMeshComponent != nullptr ? SkeletalMeshComponent->GetForcedLOD() - 1 : -1;
 	const int32 LOD = ForcedLOD > 0 ? ForcedLOD : FMath::Max(DefaultLOD, GetMinimumLOD(SkeletalMesh, SkeletalMeshComponent));
 	return FMath::Min(LOD, GetMaximumLOD(SkeletalMesh));
+}
+
+int32 FGLTFMeshUtilities::GetLOD(const UStaticMesh* StaticMesh, const USplineMeshComponent* SplineMeshComponent, int32 DefaultLOD)
+{
+	const int32 ForcedLOD = SplineMeshComponent != nullptr ? SplineMeshComponent->ForcedLodModel - 1 : -1;
+	const int32 LOD = ForcedLOD > 0 ? ForcedLOD : FMath::Max(DefaultLOD, GetMinimumLOD(StaticMesh, SplineMeshComponent));
+	return FMath::Min(LOD, GetMaximumLOD(StaticMesh));
 }
 
 int32 FGLTFMeshUtilities::GetMaximumLOD(const UStaticMesh* StaticMesh)

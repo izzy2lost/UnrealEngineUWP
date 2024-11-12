@@ -57,16 +57,16 @@ FString CaptureExpressionsAndValues(const FString& InExpressions, ArgTypes&&... 
 			{ \
 				TestFlags = ExtractAutomationTestFlags(TFlags); \
 				PrettyNameDotNotation = FString(PrettyName).Replace(TEXT("::"), TEXT(".")); \
-				if (!(TestFlags & EAutomationTestFlags::ApplicationContextMask)) \
+				if (!(TestFlags & EAutomationTestFlags_ApplicationContextMask)) \
 				{ \
-					TestFlags |= EAutomationTestFlags::ApplicationContextMask; \
+					TestFlags |= EAutomationTestFlags_ApplicationContextMask; \
 				} \
-				if (!(TestFlags & EAutomationTestFlags::FilterMask)) \
+				if (!(TestFlags & EAutomationTestFlags_FilterMask)) \
 				{ \
 					TestFlags |= EAutomationTestFlags::EngineFilter; \
 				} \
 			} \
-			virtual uint32 GetTestFlags() const override { return TestFlags; } \
+			virtual EAutomationTestFlags GetTestFlags() const override { return TestFlags; } \
 			virtual bool IsStressTest() const { return false; } \
 			virtual uint32 GetRequiredDeviceNum() const override { return 1; } \
 			virtual FString GetTestSourceFileName() const override { return FileName; } \
@@ -84,7 +84,7 @@ FString CaptureExpressionsAndValues(const FString& InExpressions, ArgTypes&&... 
 			} \
 			virtual FString GetBeautifiedTestName() const override { return PrettyNameDotNotation; } \
 		private:\
-			uint32 TestFlags; \
+			EAutomationTestFlags TestFlags; \
 			FString PrettyNameDotNotation; \
 		};
 
@@ -108,26 +108,41 @@ FString CaptureExpressionsAndValues(const FString& InExpressions, ArgTypes&&... 
 #define TEST_CASE(PrettyName, TFlags) TEST_CASE_NAMED_STR(TEST_CASE_GENERATED_NAME_UNIQUE, TEST_CASE_GENERATED_NAME_UNIQUE_STR, PrettyName, TFlags)
 #define TEST_CASE_NAMED(ClassName, PrettyName, TFlags) TEST_CASE_NAMED_STR(ClassName, #ClassName, PrettyName, TFlags)
 
+// Both python and oodle don't trust __LINE__ for unique names, and use __COUNTER__ where possible
+#ifdef __COUNTER__
+#define MAKE_UNIQUE_IDENT(str) LLT_JOIN(str, __COUNTER__)
+#else
+#define MAKE_UNIQUE_IDENT(str) LLT_JOIN(str, __LINE__)
+#endif
+
+// DISABLED_ makes a unique name for either a function or a lambda such that the linker should strip them.
+#define DISABLED_TEST_CASE(...)						static void MAKE_UNIQUE_IDENT(disabled_test_()
+#define DISABLED_TEST_CASE_NAMED(ClassName, ...)	static void MAKE_UNIQUE_IDENT(disabled_test_)()
+#define DISABLED_SCENARIO(...)						static void MAKE_UNIQUE_IDENT(disabled_scenario_)()
+#define DISABLED_SECTION(...)						auto MAKE_UNIQUE_IDENT(disabled_section_) = []()
+
 //-V:CHECK:571,501,547
-#define CHECK(Expr) if (!(Expr)) { FAutomationTestFramework::Get().GetCurrentTest()->AddError(TEXT("Condition failed")); }
+#define CHECK(...) if (!(__VA_ARGS__)) { FAutomationTestFramework::Get().GetCurrentTest()->AddError(TEXT("Condition failed")); }
 //-V:CHECK_FALSE:571,501,547
-#define CHECK_FALSE(Expr) if (Expr) { FAutomationTestFramework::Get().GetCurrentTest()->AddError(TEXT("Condition expected to return false but returned true")); }
-#define CHECKED_IF(Expr) if (Expr)
-#define CHECKED_ELSE(Expr) if (!(Expr))
+#define CHECK_FALSE(...) if (!!(__VA_ARGS__)) { FAutomationTestFramework::Get().GetCurrentTest()->AddError(TEXT("Condition expected to return false but returned true")); }
+#define CHECKED_IF(...) if (!!(__VA_ARGS__))
+#define CHECKED_ELSE(...) if (!(__VA_ARGS__))
 //-V:CHECK_MESSAGE:571,501,547
-#define CHECK_MESSAGE(Message, Expr) if (!(Expr)) { FAutomationTestFramework::Get().GetCurrentTest()->AddError(Message); }
+#define CHECK_MESSAGE(Message, ...) if (!(__VA_ARGS__)) { FAutomationTestFramework::Get().GetCurrentTest()->AddError(Message); }
 //-V:CHECK_FALSE_MESSAGE:571,501,547
-#define CHECK_FALSE_MESSAGE(Message, Expr) if (Expr) { FAutomationTestFramework::Get().GetCurrentTest()->AddError(Message); }
+#define CHECK_FALSE_MESSAGE(Message, ...) if (!!(__VA_ARGS__)) { FAutomationTestFramework::Get().GetCurrentTest()->AddError(Message); }
 //-V:REQUIRE:571,501,547
-#define REQUIRE(Expr) if (!(Expr)) { FAutomationTestFramework::Get().GetCurrentTest()->AddError(TEXT("Required condition failed, interrupting test")); return; }
+#define REQUIRE(...) if (!(__VA_ARGS__)) { FAutomationTestFramework::Get().GetCurrentTest()->AddError(TEXT("Required condition failed, interrupting test")); return; }
 //-V:REQUIRE_MESSAGE:571,501,547
-#define REQUIRE_MESSAGE(Message, Expr) if (!(Expr)) { FAutomationTestFramework::Get().GetCurrentTest()->AddError(Message); return; }
+#define REQUIRE_MESSAGE(Message, ...) if (!(__VA_ARGS__)) { FAutomationTestFramework::Get().GetCurrentTest()->AddError(Message); return; }
 #define STATIC_REQUIRE(...) static_assert(__VA_ARGS__, #__VA_ARGS__);
 #define STATIC_CHECK(...) static_assert(__VA_ARGS__, #__VA_ARGS__);
 #define STATIC_CHECK_FALSE(...) static_assert(!(__VA_ARGS__), "!(" #__VA_ARGS__ ")");
 
 #define CHECK_EQUALS(What, X, Y) FAutomationTestFramework::Get().GetCurrentTest()->TestEqual(What, X, Y);
+#define CHECK_EQUALS_SENSITIVE(What, X, Y) FAutomationTestFramework::Get().GetCurrentTest()->TestEqualSensitive(What, X, Y);
 #define CHECK_NOT_EQUALS(What, X, Y) FAutomationTestFramework::Get().GetCurrentTest()->TestNotEqual(What, X, Y);
+#define CHECK_NOT_EQUALS_SENSITIVE(What, X, Y) FAutomationTestFramework::Get().GetCurrentTest()->TestNotEqualSensitive(What, X, Y);
 
 #define SECTION(Text) FAutomationTestFramework::Get().GetCurrentTest()->AddInfo(TEXT(Text));
 #define FAIL_CHECK(Message) FAutomationTestFramework::Get().GetCurrentTest()->AddError(Message);
@@ -135,7 +150,10 @@ FString CaptureExpressionsAndValues(const FString& InExpressions, ArgTypes&&... 
 #define CAPTURE(...) FAutomationTestFramework::Get().GetCurrentTest()->AddInfo(CaptureExpressionsAndValues(#__VA_ARGS__, __VA_ARGS__));
 #define INFO(Message) FAutomationTestFramework::Get().GetCurrentTest()->AddInfo(Message);
 #define WARN(Message) FAutomationTestFramework::Get().GetCurrentTest()->AddWarning(Message); 
+#define ADD_WARNING(Message) FAutomationTestFramework::Get().GetCurrentTest()->AddWarning(Message); 
+#define ADD_ERROR(Message) FAutomationTestFramework::Get().GetCurrentTest()->AddError(Message); 
 #define FAIL_ON_MESSAGE(Message) FAutomationTestFramework::Get().GetCurrentTest()->AddExpectedError(Message);
+
 
 #define SKIP(Message)
 

@@ -11,6 +11,8 @@
 #include "StructDeserializer.h"
 #include "UObject/UnrealType.h"
 #include "Async/Async.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
+#include "JsonObjectConverter.h"
 
 // For UrlDecode/Encode
 #include "Http.h"
@@ -200,7 +202,7 @@ namespace
 				WriteValue(Writer, Key, Param.IntValue);
 				break;
 			case FWebJSParam::PTYPE_STRING:
-				WriteValue(Writer, Key, Param.StringValue);
+				WriteValue(Writer, Key, *Param.StringValue);
 				break;
 			case FWebJSParam::PTYPE_OBJECT:
 			{
@@ -352,6 +354,16 @@ bool FMobileJSScripting::OnJsMessageReceived(const FString& Command, const TArra
 
 FString FMobileJSScripting::ConvertStruct(UStruct* TypeInfo, const void* StructPtr)
 {
+	TSharedRef<FJsonObject> OutJson(new FJsonObject());
+	if (FJsonObjectConverter::UStructToJsonObject(TypeInfo, StructPtr, OutJson))
+	{
+		FString StringToFill;
+		auto Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&StringToFill);
+		if (FJsonSerializer::Serialize(OutJson, Writer))
+		{
+			return StringToFill;
+		}
+	}
 	return TEXT("undefined");
 }
 

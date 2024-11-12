@@ -11,6 +11,7 @@
 #include "PhysicsEngine/BoxElem.h"
 #include "PhysicsEngine/SphereElem.h"
 #include "PhysicsEngine/SphylElem.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "PhysicsEngine/SkinnedLevelSetElem.h"
 #include "Animation/SkeletalMeshActor.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -1295,4 +1296,4 @@ void SanitizeRestrictedContent(UPhysicsAsset* PhysAsset)
 
 }; // namespace FPhysicsAssetUtils
 
-IMPLEMENT_MODULE(FDefaultModuleImpl, PhysicsAssetUtils)
+IMPLEMENT_MODULE(FDefaultModuleImpl, PhysicsUtilities)

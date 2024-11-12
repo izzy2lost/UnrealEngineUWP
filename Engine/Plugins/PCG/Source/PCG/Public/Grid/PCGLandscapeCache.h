@@ -183,11 +183,12 @@ private:
 		FIntPoint Coordinate;
 		FObjectKey WorldKey;
 
+		// Implementation note: FObjectKey will implicitly convert UObjects, including AActor.
 		CacheMapKey(const FGuid& InLandscapeGuid, const FIntPoint& InCoordinate, const FObjectKey& InWorldKey)
 			: LandscapeGuid(InLandscapeGuid), Coordinate(InCoordinate), WorldKey(InWorldKey)
 		{}
 
-		CacheMapKey(const FGuid& InLandscapeGuid, const FIntPoint& InCoordinate, AActor* InHintActor)
+		CacheMapKey(const FGuid& InLandscapeGuid, const FIntPoint& InCoordinate, const AActor* InHintActor)
 			: LandscapeGuid(InLandscapeGuid), Coordinate(InCoordinate)
 		{
 			if (InHintActor && InHintActor->GetLevel())

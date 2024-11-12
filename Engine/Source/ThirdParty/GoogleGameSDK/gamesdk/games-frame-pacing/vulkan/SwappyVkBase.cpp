@@ -21,6 +21,35 @@
 #define LOG_TAG "SwappyVkBase"
 #include "SwappyLog.h"
 
+
+// Workaround Mali issue with VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT 
+namespace AllocatorWorkaround
+{
+VKAPI_ATTR void* Alloc(void* UserData, size_t Size, size_t Alignment, VkSystemAllocationScope AllocScope) {
+    return malloc(Size);
+}
+
+VKAPI_ATTR void Free(void* UserData, void* Mem) { 
+    free(Mem);
+}
+
+VKAPI_ATTR void* Realloc(void* UserData, void* Original, size_t Size, size_t Alignment, VkSystemAllocationScope AllocScope) {
+    return realloc(Original, Size);
+}
+
+
+VkAllocationCallbacks AllocationCallbacks = {
+    nullptr,
+    (PFN_vkAllocationFunction)&Alloc,
+    (PFN_vkReallocationFunction)&Realloc,
+    (PFN_vkFreeFunction)&Free,
+    (PFN_vkInternalAllocationNotification) nullptr,
+    (PFN_vkInternalFreeNotification) nullptr
+};
+
+} // namespace AllocatorWorkaround
+
+
 namespace swappy {
 
 PFN_vkCreateCommandPool vkCreateCommandPool = nullptr;
@@ -144,7 +173,8 @@ VkResult SwappyVkBase::initializeVkSyncObjects(VkQueue queue,
         .queueFamilyIndex = queueFamilyIndex,
     };
 
-    VkResult res = vkCreateCommandPool(mDevice, &cmd_pool_info, NULL,
+    VkResult res = vkCreateCommandPool(
+        mDevice, &cmd_pool_info, &AllocatorWorkaround::AllocationCallbacks,
                                        &mCommandPool[queue]);
     if (res) {
         SWAPPY_LOGE("vkCreateCommandPool failed %d", res);
@@ -280,7 +310,8 @@ void SwappyVkBase::destroyVkSyncObjects() {
     // Free destroy the command pools
     for (auto it = mCommandPool.begin(); it != mCommandPool.end(); it++) {
         auto commandPool = it->second;
-        vkDestroyCommandPool(mDevice, commandPool, NULL);
+        vkDestroyCommandPool(mDevice, commandPool,
+                             &AllocatorWorkaround::AllocationCallbacks);
     }
 }
 
@@ -425,17 +456,27 @@ std::chrono::nanoseconds SwappyVkBase::getSwapInterval() {
 }
 
 void SwappyVkBase::addTracer(const SwappyTracer* tracer) {
-    if (tracer != nullptr) mCommonBase.addTracerCallbacks(*tracer);
+    mCommonBase.addTracerCallbacks(*tracer);
 }
 
 void SwappyVkBase::removeTracer(const SwappyTracer* tracer) {
-    if (tracer != nullptr) mCommonBase.removeTracerCallbacks(*tracer);
+    mCommonBase.removeTracerCallbacks(*tracer);
 }
 
 int SwappyVkBase::getSupportedRefreshPeriodsNS(uint64_t* out_refreshrates,
                                                int allocated_entries) {
     return mCommonBase.getSupportedRefreshPeriodsNS(out_refreshrates,
                                                     allocated_entries);
+}
+
+void SwappyVkBase::resetFramePacing() { mCommonBase.resetFramePacing(); }
+
+void SwappyVkBase::enableFramePacing(bool enable) {
+    mCommonBase.enableFramePacing(enable);
+}
+
+void SwappyVkBase::enableBlockingWait(bool enable) {
+    mCommonBase.enableBlockingWait(enable);
 }
 
 }  // namespace swappy

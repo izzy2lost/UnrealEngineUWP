@@ -9,7 +9,7 @@
 #include "Tests/Framework/AvaTestUtils.h"
 
 BEGIN_DEFINE_SPEC(AvalancheModifiersAlignBetween, "Avalanche.Modifiers.AlignBetween",
-                  EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+                  EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	AAvaTestDynamicMeshActor* ModifiedMeshActor;
 	AAvaTestDynamicMeshActor* ReferenceOneMeshActor;

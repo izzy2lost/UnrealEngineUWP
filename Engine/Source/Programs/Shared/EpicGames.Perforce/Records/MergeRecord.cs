@@ -18,7 +18,7 @@ namespace EpicGames.Perforce
 		/// <summary>
 		/// The starting revision, as an integer (null if 'none')
 		/// </summary>
-		public int? StartFromRev => String.Equals(StartFromRevText, "none", StringComparison.Ordinal) ? (int?)null : int.Parse(StartFromRevText);
+		public int? StartFromRev => String.Equals(StartFromRevText, "none", StringComparison.Ordinal) ? (int?)null : Int32.Parse(StartFromRevText);
 
 		/// <summary>
 		/// The first revision being merged (or 'none')

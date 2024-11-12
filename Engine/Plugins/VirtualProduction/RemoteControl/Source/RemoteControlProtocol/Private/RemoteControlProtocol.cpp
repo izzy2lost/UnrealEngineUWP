@@ -2,21 +2,26 @@
 
 #include "RemoteControlProtocol.h"
 
+#include "GameFramework/Actor.h"
+#include "Misc/CoreDelegates.h"
+#include "RCModifyOperationFlags.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlProtocolBinding.h"
+#include "RemoteControlProtocolEntityProcessor.h"
 #include "RemoteControlProtocolModule.h"
-
-#include "Misc/CoreDelegates.h"
+#include "RemoteControlSettings.h"
 #include "UObject/StructOnScope.h"
 
 FRemoteControlProtocol::FRemoteControlProtocol(const FName InProtocolName)
 	: ProtocolName(InProtocolName)
 {
+	FCoreDelegates::OnBeginFrame.AddRaw(this, &FRemoteControlProtocol::OnBeginFrame);
 	FCoreDelegates::OnEndFrame.AddRaw(this, &FRemoteControlProtocol::OnEndFrame);
 }
 
 FRemoteControlProtocol::~FRemoteControlProtocol()
 {
+	FCoreDelegates::OnBeginFrame.RemoveAll(this);
 	FCoreDelegates::OnEndFrame.RemoveAll(this);
 }
 
@@ -43,32 +48,12 @@ void FRemoteControlProtocol::QueueValue(const FRemoteControlProtocolEntityPtr In
 	EntityValuesToApply.Add(InProtocolEntity, InProtocolValue);
 }
 
-void FRemoteControlProtocol::OnEndFrame()
+void FRemoteControlProtocol::OnBeginFrame()
 {
-	for (const TPair<const FRemoteControlProtocolEntityPtr, double>& EntityValuesToApplyPair : EntityValuesToApply)
-	{
-		// Check is the Shared ptr and TStructOnScope is valid
-		if (EntityValuesToApplyPair.Key.IsValid() && EntityValuesToApplyPair.Key->IsValid())
-		{
-			FRemoteControlProtocolEntity* ProtocolEntity = EntityValuesToApplyPair.Key->Get();
-			const double ThisFrameValue = EntityValuesToApplyPair.Value;
-			const double* PreviousFrameValuePtr = PreviousTickValuesToApply.Find(EntityValuesToApplyPair.Key);
-			
-			// Check the value from previous frame
-			if (PreviousFrameValuePtr == nullptr || !FMath::IsNearlyEqual(ThisFrameValue, *PreviousFrameValuePtr))
-			{
-				if (!ProtocolEntity->ApplyProtocolValueToProperty(EntityValuesToApplyPair.Value))
-				{
-					// Warn if the the value can't by applied
-					ensureMsgf(false, TEXT("Can't apply property for Protocol %s and PropertyId %s"),
-					           *ProtocolName.ToString(), *ProtocolEntity->GetPropertyId().ToString());
-				}
-			}
-		}
-	}
+	using namespace UE::RemoteControl;
+	ProtocolEntityProcessor::ProcessEntities(EntityValuesToApply);
 
-	// Move the values from this frame to cached map
-	PreviousTickValuesToApply = MoveTemp(EntityValuesToApply);
+	EntityValuesToApply.Reset();
 }
 
 #if WITH_EDITOR

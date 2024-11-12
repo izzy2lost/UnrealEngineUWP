@@ -13,6 +13,11 @@ namespace UE::GeometryCollectionConvexUtility
 	struct FConvexHulls;
 }
 
+namespace Chaos::Facades
+{
+	class FCollectionHierarchyFacade;
+}
+
 UENUM()
 enum class EProximityMethod : int32
 {
@@ -55,6 +60,8 @@ public:
 	CHAOS_API void RequireProximity(UE::GeometryCollectionConvexUtility::FConvexHulls* OptionalComputedHulls = nullptr);
 
 	CHAOS_API void InvalidateProximity();
+
+	CHAOS_API void EnumerateNeighbors(const Chaos::Facades::FCollectionHierarchyFacade& Hierarchy, int32 BoneIdx, TFunctionRef<void(int32)> NeighborFunc, bool bIncludeNeighborsInParentLevels = true, bool bFilterDuplicates = true);
 
 	// Stores stats about the contact between two geometries
 	struct FGeometryContactEdge

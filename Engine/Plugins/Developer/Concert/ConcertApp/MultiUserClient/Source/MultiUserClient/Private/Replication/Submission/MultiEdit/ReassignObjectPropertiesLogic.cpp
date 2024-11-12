@@ -3,277 +3,290 @@
 #include "ReassignObjectPropertiesLogic.h"
 
 #include "ConcertLogGlobal.h"
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Submission/ISubmissionOperation.h"
-#include "Replication/Util/SynchronizedRequestUtils.h"
+#include "Replication/Misc/Util/SynchronizedRequestUtils.h"
 
 #include "Algo/AllOf.h"
 #include "Algo/AnyOf.h"
 #include "Async/Async.h"
 
+#include <type_traits>
+
 #define LOCTEXT_NAMESPACE "FReassignObjectPropertiesLogic"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication::ReassignObjectProperties
 {
-	namespace ReassignObjectProperties::Private
+	using FClientId = FGuid;
+		
+	struct FObjectReassignment
 	{
-		using FClientId = FGuid;
-		
-		struct FObjectReassignment
+		/** Used to build the final changelist to apply to the target client. Maps ClientIds to the object data they had registered. */
+		TMap<FClientId, FConcertObjectReplicationMap> OldRegisteredObjects;
+		/** The frequency settings clients when reassignment operation was started. */
+		TMap<FClientId, FConcertStreamFrequencySettings> OldFrequencies;
+		/** Changes to make to all the other clients */
+		TMap<FClientId, FConcertReplication_ChangeStream_Request> ReassignedClientRequests;
+		/** Authority that the clients had before. This is used to determine whether to give the assigned to client authority once the stream changes have been made. */
+		TMap<FClientId, TArray<FSoftObjectPath>> ReassignedAuthority;
+	};
+	
+	/** Builds all the changes that must be made to the clients we are transferring from.  */
+	static FObjectReassignment BuildChangesForTransferal(const FOnlineClientManager& ClientManager, TConstArrayView<FSoftObjectPath> ObjectsToReassign, const FGuid& StreamId)
+	{
+		FObjectReassignment Result;
+		TMap<FGuid, FConcertObjectReplicationMap>& OldRegisteredObjects = Result.OldRegisteredObjects;
+		TMap<FGuid, FConcertStreamFrequencySettings>& OldFrequencies = Result.OldFrequencies;
+		TMap<FGuid, FConcertReplication_ChangeStream_Request>& ReassignedClientRequests = Result.ReassignedClientRequests;
+		TMap<FGuid, TArray<FSoftObjectPath>>& ReassignedAuthority = Result.ReassignedAuthority;
+	
+		for (const FSoftObjectPath& ObjectPath : ObjectsToReassign)
 		{
-			/** Used to build the final changelist to apply to the target client. Maps ClientIds to the object data they had registered. */
-			TMap<FClientId, FConcertObjectReplicationMap> OldRegisteredObjects;
-			/** The frequency settings clients when reassignment operation was started. */
-			TMap<FClientId, FConcertStreamFrequencySettings> OldFrequencies;
-			/** Changes to make to all the other clients */
-			TMap<FClientId, FConcertReplication_ChangeStream_Request> ReassignedClientRequests;
-			/** Authority that the clients had before. This is used to determine whether to give the assigned to client authority once the stream changes have been made. */
-			TMap<FClientId, TArray<FSoftObjectPath>> ReassignedAuthority;
-		};
-		
-		/** Builds all the changes that must be made to the clients we are transferring from.  */
-		static FObjectReassignment BuildChangesForTransferal(const FReplicationClientManager& ClientManager, TConstArrayView<FSoftObjectPath> ObjectsToReassign, const FGuid& StreamId)
-		{
-			FObjectReassignment Result;
-			TMap<FGuid, FConcertObjectReplicationMap>& OldRegisteredObjects = Result.OldRegisteredObjects;
-			TMap<FGuid, FConcertStreamFrequencySettings>& OldFrequencies = Result.OldFrequencies;
-			TMap<FGuid, FConcertReplication_ChangeStream_Request>& ReassignedClientRequests = Result.ReassignedClientRequests;
-			TMap<FGuid, TArray<FSoftObjectPath>>& ReassignedAuthority = Result.ReassignedAuthority;
-		
-			for (const FSoftObjectPath& ObjectPath : ObjectsToReassign)
-			{
-				const FConcertObjectInStreamID ObjectId{ StreamId, ObjectPath };
+			const FConcertObjectInStreamID ObjectId{ StreamId, ObjectPath };
 
-				const FGlobalAuthorityCache& AuthorityCache = ClientManager.GetAuthorityCache();
-				AuthorityCache.ForEachClientWithObjectInStream(ObjectPath,
-					[&ClientManager, &OldRegisteredObjects, &OldFrequencies, &ReassignedClientRequests, &ReassignedAuthority, &ObjectPath, &ObjectId, &AuthorityCache](const FGuid& ClientId)
+			const FGlobalAuthorityCache& AuthorityCache = ClientManager.GetAuthorityCache();
+			AuthorityCache.ForEachClientWithObjectInStream(ObjectPath,
+				[&ClientManager, &OldRegisteredObjects, &OldFrequencies, &ReassignedClientRequests, &ReassignedAuthority, &ObjectPath, &ObjectId, &AuthorityCache](const FGuid& ClientId)
+				{
+					// Get the property assignments of the client being reassigned from
+					const FOnlineClient* ClientToReassignFrom = ClientManager.FindClient(ClientId);
+					if (!ensureMsgf(ClientToReassignFrom, TEXT("Authority cache out of sync")))
 					{
-						// Get the property assignments of the client being reassigned from
-						const FReplicationClient* ClientToReassignFrom = ClientManager.FindClient(ClientId);
-						if (!ensureMsgf(ClientToReassignFrom, TEXT("Authority cache out of sync"))
-							|| !ClientToReassignFrom->AllowsEditing())
-						{
-							return EBreakBehavior::Continue;
-						}
-						
-						const IClientStreamSynchronizer& ReassignedStreamSynchronizer = ClientToReassignFrom->GetStreamSynchronizer();
-						const FConcertReplicatedObjectInfo* ObjectInfo = ReassignedStreamSynchronizer.GetServerState().ReplicatedObjects.Find(ObjectId.Object);
-						if (!ensureMsgf(ObjectInfo, TEXT("ForEachClientWithObjectInStream lied")))
-						{
-							return EBreakBehavior::Continue;
-						}
-
-						// Transfer from client being reassigned from to the client being assigned to
-						OldRegisteredObjects.FindOrAdd(ClientId).ReplicatedObjects.Add(ObjectPath, *ObjectInfo);
-						// Remove the object completely from the reassigned client.
-						ReassignedClientRequests.FindOrAdd(ClientId).ObjectsToRemove.Add(ObjectId);
-						// Later we can determine whether to give the assigned to client authority
-						if (AuthorityCache.HasAuthorityOverObject(ObjectPath, ClientId))
-						{
-							ReassignedAuthority.FindOrAdd(ClientId).Add(ObjectPath);
-						}
-
-						// Keep track of this object's frequency settings so it can be transferred
-						const FConcertObjectReplicationSettings* OverrideFrequencySettings = ReassignedStreamSynchronizer.GetFrequencySettings().ObjectOverrides.Find(ObjectId.Object);
-						if (OverrideFrequencySettings)
-						{
-							OldFrequencies.FindOrAdd(ClientId).ObjectOverrides.Add(ObjectId.Object, *OverrideFrequencySettings);
-						}
-					
 						return EBreakBehavior::Continue;
-					});
-			}
-
-			// Need to set Defaults of the OldFrequencies because that's not been done, yet.
-			for (TPair<FGuid, FConcertStreamFrequencySettings>& OldFrequency : OldFrequencies)
-			{
-				const FReplicationClient* ClientToReassignFrom = ClientManager.FindClient(OldFrequency.Key);
-				check(ClientToReassignFrom);
-				OldFrequency.Value.Defaults = ClientToReassignFrom->GetStreamSynchronizer().GetFrequencySettings().Defaults;
-			}
-
-			return Result;
-		}
-
-		static FConcertObjectReplicationSettings GetHighestFrequency(const FSoftObjectPath& Object, const TMap<FClientId, FConcertStreamFrequencySettings>& OldFrequencies)
-		{
-			TOptional<FConcertObjectReplicationSettings> Settings;
-			for (const TPair<FClientId, FConcertStreamFrequencySettings>& Pair : OldFrequencies)
-			{
-				const FConcertObjectReplicationSettings& ClientSettings = Pair.Value.GetSettingsFor(Object);
-				if (!Settings)
-				{
-					Settings = ClientSettings;
-				}
-				else if (*Settings <= ClientSettings)
-				{
-					Settings = ClientSettings;
-				}
-			}
-			return Settings.Get(FConcertObjectReplicationSettings{});
-		}
-
-		/** Builds a changelist based on which remote clients we managed to change successfully. */
-		static TPair<FStreamChangelist, FFrequencyChangelist> MakeChangelistFromAppliedChanges(
-			const TMap<FGuid, FConcertObjectReplicationMap>& OldRegisteredObjects,
-			const TMap<FClientId, FConcertStreamFrequencySettings>& OldFrequencies,
-			const FParallelExecutionResult& ParallelExecutionResult,
-			const IClientStreamSynchronizer& AssignedToStreamSynchronizer
-			)
-		{
-			FStreamChangelist ObjectChanges;
-			FFrequencyChangelist FrequencyChanges;
-			
-			const FConcertObjectReplicationMap& CurrentTargetClientState = AssignedToStreamSynchronizer.GetServerState();
-			const FConcertStreamFrequencySettings& CurrentFrequencySettings = AssignedToStreamSynchronizer.GetFrequencySettings();
-			const FGuid TargetStreamId = AssignedToStreamSynchronizer.GetStreamId();
-			for (const TPair<FGuid, FSubmitStreamChangesResponse>& ChangesRequestedOnRemote : ParallelExecutionResult.StreamResponses)
-			{
-				const TOptional<FCompletedChangeSubmission>& SubmissionInfo = ChangesRequestedOnRemote.Value.SubmissionInfo;
-				if (!SubmissionInfo || SubmissionInfo->Response.IsFailure())
-				{
-					continue;
-				}
-				
-				const FConcertObjectReplicationMap& ObjectReplicationMap = OldRegisteredObjects[ChangesRequestedOnRemote.Key];
-				for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& ChangesToApply : ObjectReplicationMap.ReplicatedObjects)
-				{
-					const FSoftObjectPath& ObjectPath = ChangesToApply.Key;
-					const FConcertObjectInStreamID ObjectId { TargetStreamId, ObjectPath };
-					TOptional<FConcertReplication_ChangeStream_PutObject> PutRequest = FConcertReplication_ChangeStream_PutObject::MakeFromInfo(ChangesToApply.Value);
-					if (!ensure(PutRequest))
-					{
-						continue;
-					}
-
-					// We want to append the other client's properties to the ones the target client already has.
-					// TODO UE-201166: This step would not be necessary if we had an append operation in FConcertReplication_ChangeStream_PutObject
-					const FConcertReplicatedObjectInfo* CurrentInfo = CurrentTargetClientState.ReplicatedObjects.Find(ObjectId.Object);
-					if (CurrentInfo)
-					{
-						for (const FConcertPropertyChain& PropertyChain : CurrentInfo->PropertySelection.ReplicatedProperties)
-						{
-							PutRequest->Properties.ReplicatedProperties.AddUnique(PropertyChain);
-						}
 					}
 					
-					ObjectChanges.ObjectsToPut.Add(ObjectId, MoveTemp(*PutRequest));
-
-					// The reassigned to client will replicate at the highest rate of either its current rate or the highest from the source clients.
-					const FConcertObjectReplicationSettings& CurrentObjectFrequencySettings = CurrentFrequencySettings.GetSettingsFor(ObjectPath);
-					const FConcertObjectReplicationSettings HighestSourceFrequencySettings = GetHighestFrequency(ObjectPath, OldFrequencies);
-					if (CurrentObjectFrequencySettings < HighestSourceFrequencySettings)
+					const IClientStreamSynchronizer& ReassignedStreamSynchronizer = ClientToReassignFrom->GetStreamSynchronizer();
+					const FConcertReplicatedObjectInfo* ObjectInfo = ReassignedStreamSynchronizer.GetServerState().ReplicatedObjects.Find(ObjectId.Object);
+					if (!ensureMsgf(ObjectInfo, TEXT("ForEachClientWithObjectInStream lied")))
 					{
-						FrequencyChanges.OverridesToAdd.Add(ObjectPath, HighestSourceFrequencySettings);
+						return EBreakBehavior::Continue;
 					}
-				}
-			}
-			return { ObjectChanges, FrequencyChanges };
-		}
 
-		/** Builds list of authority changes based on which clients we managed to change successfully. */
-		static FConcertReplication_ChangeAuthority_Request MakeAuthorityRequestFrom(
-			const TMap<FGuid, TArray<FSoftObjectPath>>& ReassignedAuthority, 
-			const FParallelExecutionResult& ParallelExecutionResult,
-			const FGuid& TargetStreamId
-			)
-		{
-			FConcertReplication_ChangeAuthority_Request ResultRequest;
-			for (const TPair<FGuid, FSubmitStreamChangesResponse>& ChangesRequestedOnRemote : ParallelExecutionResult.StreamResponses)
-			{
-				const TOptional<FCompletedChangeSubmission>& SubmissionInfo = ChangesRequestedOnRemote.Value.SubmissionInfo;
-				if (!SubmissionInfo || SubmissionInfo->Response.IsFailure())
-				{
-					continue;
-				}
+					// Transfer from client being reassigned from to the client being assigned to
+					OldRegisteredObjects.FindOrAdd(ClientId).ReplicatedObjects.Add(ObjectPath, *ObjectInfo);
+					// Remove the object completely from the reassigned client.
+					ReassignedClientRequests.FindOrAdd(ClientId).ObjectsToRemove.Add(ObjectId);
+					// Later we can determine whether to give the assigned to client authority
+					if (AuthorityCache.HasAuthorityOverObject(ObjectPath, ClientId))
+					{
+						ReassignedAuthority.FindOrAdd(ClientId).Add(ObjectPath);
+					}
 
-				const TArray<FSoftObjectPath>* PreviousAuthority = ReassignedAuthority.Find(ChangesRequestedOnRemote.Key);
-				if (!PreviousAuthority)
-				{
-					continue;
-				}
-
-				for (const FSoftObjectPath& ObjectPath : *PreviousAuthority)
-				{
-					ResultRequest.TakeAuthority.Add(ObjectPath, FConcertStreamArray{{ TargetStreamId }});
-				}
-			}
-			return ResultRequest;
-		}
-
-		/** @return Whether TargetClientObjects includes all properties ClientsToConsider have registered for ObjectToCheck. */
-		static bool DoesTargetIncludeOthers_SingleObject(
-			const FConcertObjectReplicationMap& TargetClientObjects,
-			const TArray<TNonNullPtr<const FReplicationClient>> ClientsToConsider,
-			const FSoftObjectPath& ObjectToCheck)
-		{
-			const FConcertReplicatedObjectInfo* ObjectInfo = TargetClientObjects.ReplicatedObjects.Find(ObjectToCheck);
+					// Keep track of this object's frequency settings so it can be transferred
+					const FConcertObjectReplicationSettings* OverrideFrequencySettings = ReassignedStreamSynchronizer.GetFrequencySettings().ObjectOverrides.Find(ObjectId.Object);
+					if (OverrideFrequencySettings)
+					{
+						OldFrequencies.FindOrAdd(ClientId).ObjectOverrides.Add(ObjectId.Object, *OverrideFrequencySettings);
+					}
 				
-			for (const FReplicationClient* OtherClient : ClientsToConsider)
-			{
-				const FConcertObjectReplicationMap& OtherClientObjects = OtherClient->GetStreamSynchronizer().GetServerState();
-				const FConcertReplicatedObjectInfo* OtherObjectInfo = OtherClientObjects.ReplicatedObjects.Find(ObjectToCheck);
-					
-				// TargetClient has at least as much if OtherClient has nothing
-				if (!OtherObjectInfo || OtherObjectInfo->PropertySelection.ReplicatedProperties.IsEmpty())
-				{
-					continue;
-				}
-
-				if (!ObjectInfo || !ObjectInfo->PropertySelection.Includes(OtherObjectInfo->PropertySelection))
-				{
-					return false;
-				}
-			}
-
-			return true;
+					return EBreakBehavior::Continue;
+				});
 		}
+
+		// Need to set Defaults of the OldFrequencies because that's not been done, yet.
+		for (TPair<FGuid, FConcertStreamFrequencySettings>& OldFrequency : OldFrequencies)
+		{
+			const FOnlineClient* ClientToReassignFrom = ClientManager.FindClient(OldFrequency.Key);
+			check(ClientToReassignFrom);
+			OldFrequency.Value.Defaults = ClientToReassignFrom->GetStreamSynchronizer().GetFrequencySettings().Defaults;
+		}
+
+		return Result;
+	}
+
+	static FConcertObjectReplicationSettings GetHighestFrequency(const FSoftObjectPath& Object, const TMap<FClientId, FConcertStreamFrequencySettings>& OldFrequencies)
+	{
+		TOptional<FConcertObjectReplicationSettings> Settings;
+		for (const TPair<FClientId, FConcertStreamFrequencySettings>& Pair : OldFrequencies)
+		{
+			const FConcertObjectReplicationSettings& ClientSettings = Pair.Value.GetSettingsFor(Object);
+			if (!Settings)
+			{
+				Settings = ClientSettings;
+			}
+			else if (*Settings <= ClientSettings)
+			{
+				Settings = ClientSettings;
+			}
+		}
+		return Settings.Get(FConcertObjectReplicationSettings{});
+	}
+
+	/** Builds a changelist based on which remote clients we managed to change successfully. */
+	static TPair<FStreamChangelist, FFrequencyChangelist> MakeChangelistFromAppliedChanges(
+		const TMap<FGuid, FConcertObjectReplicationMap>& OldRegisteredObjects,
+		const TMap<FClientId, FConcertStreamFrequencySettings>& OldFrequencies,
+		const FParallelExecutionResult& ParallelExecutionResult,
+		const IClientStreamSynchronizer& AssignedToStreamSynchronizer
+		)
+	{
+		FStreamChangelist ObjectChanges;
+		FFrequencyChangelist FrequencyChanges;
 		
-		/** @return Whether ClientId includes all properties assigned to ObjectsToCheck as all other clients (passing the predicate) do. */
-		static bool DoesTargetIncludeOthers(
-			const FGuid& TargetClientId,
-			TConstArrayView<FSoftObjectPath> ObjectsToCheck,
-			const FReplicationClientManager& ClientManager,
-			TFunctionRef<bool(const FReplicationClient& Client)> ShouldConsiderClientPredicate
-			)
+		const FConcertObjectReplicationMap& CurrentTargetClientState = AssignedToStreamSynchronizer.GetServerState();
+		const FConcertStreamFrequencySettings& CurrentFrequencySettings = AssignedToStreamSynchronizer.GetFrequencySettings();
+		const FGuid TargetStreamId = AssignedToStreamSynchronizer.GetStreamId();
+		for (const TPair<FGuid, FSubmitStreamChangesResponse>& ChangesRequestedOnRemote : ParallelExecutionResult.StreamResponses)
 		{
-			const FReplicationClient* TargetClient = ClientManager.FindClient(TargetClientId);
-			if (!ensure(TargetClient))
+			const TOptional<FCompletedChangeSubmission>& SubmissionInfo = ChangesRequestedOnRemote.Value.SubmissionInfo;
+			if (!SubmissionInfo || SubmissionInfo->Response.IsFailure())
 			{
-				return false;
+				continue;
+			}
+			
+			const FConcertObjectReplicationMap& ObjectReplicationMap = OldRegisteredObjects[ChangesRequestedOnRemote.Key];
+			for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& ChangesToApply : ObjectReplicationMap.ReplicatedObjects)
+			{
+				const FSoftObjectPath& ObjectPath = ChangesToApply.Key;
+				const FConcertObjectInStreamID ObjectId { TargetStreamId, ObjectPath };
+				TOptional<FConcertReplication_ChangeStream_PutObject> PutRequest = FConcertReplication_ChangeStream_PutObject::MakeFromInfo(ChangesToApply.Value);
+				if (!ensure(PutRequest))
+				{
+					continue;
+				}
+
+				// We want to append the other client's properties to the ones the target client already has.
+				// TODO UE-201166: This step would not be necessary if we had an append operation in FConcertReplication_ChangeStream_PutObject
+				const FConcertReplicatedObjectInfo* CurrentInfo = CurrentTargetClientState.ReplicatedObjects.Find(ObjectId.Object);
+				if (CurrentInfo)
+				{
+					for (const FConcertPropertyChain& PropertyChain : CurrentInfo->PropertySelection.ReplicatedProperties)
+					{
+						PutRequest->Properties.ReplicatedProperties.Add(PropertyChain);
+					}
+				}
+				
+				ObjectChanges.ObjectsToPut.Add(ObjectId, MoveTemp(*PutRequest));
+
+				// The reassigned to client will replicate at the highest rate of either its current rate or the highest from the source clients.
+				const FConcertObjectReplicationSettings& CurrentObjectFrequencySettings = CurrentFrequencySettings.GetSettingsFor(ObjectPath);
+				const FConcertObjectReplicationSettings HighestSourceFrequencySettings = GetHighestFrequency(ObjectPath, OldFrequencies);
+				if (CurrentObjectFrequencySettings < HighestSourceFrequencySettings)
+				{
+					FrequencyChanges.OverridesToAdd.Add(ObjectPath, HighestSourceFrequencySettings);
+				}
+			}
+		}
+		return { ObjectChanges, FrequencyChanges };
+	}
+
+	/** Builds list of authority changes based on which clients we managed to change successfully. */
+	static FConcertReplication_ChangeAuthority_Request MakeAuthorityRequestFrom(
+		const TMap<FGuid, TArray<FSoftObjectPath>>& ReassignedAuthority, 
+		const FParallelExecutionResult& ParallelExecutionResult,
+		const FGuid& TargetStreamId
+		)
+	{
+		FConcertReplication_ChangeAuthority_Request ResultRequest;
+		for (const TPair<FGuid, FSubmitStreamChangesResponse>& ChangesRequestedOnRemote : ParallelExecutionResult.StreamResponses)
+		{
+			const TOptional<FCompletedChangeSubmission>& SubmissionInfo = ChangesRequestedOnRemote.Value.SubmissionInfo;
+			if (!SubmissionInfo || SubmissionInfo->Response.IsFailure())
+			{
+				continue;
 			}
 
-			const FConcertObjectReplicationMap& TargetClientObjects = TargetClient->GetStreamSynchronizer().GetServerState();
-			const TArray<TNonNullPtr<const FReplicationClient>> ClientsToConsider = ClientManager.GetClients(ShouldConsiderClientPredicate);
-			return Algo::AllOf(ObjectsToCheck, [&TargetClientObjects, &ClientsToConsider](const FSoftObjectPath& ObjectToCheck)
+			const TArray<FSoftObjectPath>* PreviousAuthority = ReassignedAuthority.Find(ChangesRequestedOnRemote.Key);
+			if (!PreviousAuthority)
 			{
-				return DoesTargetIncludeOthers_SingleObject(TargetClientObjects, ClientsToConsider, ObjectToCheck);
-			});
-		}
-
-		/** @return Whether ClientId has any properties assigned to any of the objects in ObjectsToCheck. */
-		static bool HasAnyProperties(const FGuid& ClientId, TConstArrayView<FSoftObjectPath> ObjectsToCheck, const FReplicationClientManager& ClientManager)
-		{
-			const FReplicationClient* TargetClient = ClientManager.FindClient(ClientId);
-			if (!ensure(TargetClient))
-			{
-				return false;
+				continue;
 			}
 
-			const FConcertObjectReplicationMap& TargetClientObjects = TargetClient->GetStreamSynchronizer().GetServerState();
-			return Algo::AnyOf(ObjectsToCheck, [&TargetClientObjects](const FSoftObjectPath& ObjectPath)
+			for (const FSoftObjectPath& ObjectPath : *PreviousAuthority)
 			{
-				const FConcertReplicatedObjectInfo* ObjectInfo = TargetClientObjects.ReplicatedObjects.Find(ObjectPath);
-				return ObjectInfo && !ObjectInfo->PropertySelection.ReplicatedProperties.IsEmpty();
-			});
+				ResultRequest.TakeAuthority.Add(ObjectPath, FConcertStreamArray{{ TargetStreamId }});
+			}
 		}
+		return ResultRequest;
+	}
+
+	/** @return Whether TargetClientObjects includes all properties ClientsToConsider have registered for ObjectToCheck. */
+	static bool DoesTargetIncludeOtherClientsContent_SingleObject(
+		const FConcertObjectReplicationMap& TargetClientObjects,
+		const FOnlineClientManager& ClientManager,
+		const FSoftObjectPath& ObjectToCheck
+		)
+	{
+		const FConcertReplicatedObjectInfo* ObjectInfo = TargetClientObjects.ReplicatedObjects.Find(ObjectToCheck);
+
+		bool bIncludesAllOtherClients = true;
+		ClientManager.ForEachClient([&ObjectToCheck, ObjectInfo, &bIncludesAllOtherClients](const FOnlineClient& OtherClient)
+		{
+			const FConcertObjectReplicationMap& OtherClientObjects = OtherClient.GetStreamSynchronizer().GetServerState();
+			const FConcertReplicatedObjectInfo* OtherObjectInfo = OtherClientObjects.ReplicatedObjects.Find(ObjectToCheck);
+				
+			// TargetClient has at least as much if OtherClient has nothing
+			if (!OtherObjectInfo || OtherObjectInfo->PropertySelection.ReplicatedProperties.IsEmpty())
+			{
+				return EBreakBehavior::Continue;
+			}
+
+			const bool bTargetContainsOther = ObjectInfo && ObjectInfo->PropertySelection.Includes(OtherObjectInfo->PropertySelection);
+			bIncludesAllOtherClients &= bTargetContainsOther;
+			return bIncludesAllOtherClients ? EBreakBehavior::Continue : EBreakBehavior::Break;
+		});
+
+		return bIncludesAllOtherClients;
 	}
 	
-	FReassignObjectPropertiesLogic::FReassignObjectPropertiesLogic(FReplicationClientManager& InClientManager)
+	/** @return Whether ClientId includes all properties assigned to ObjectsToCheck as all other clients do. */
+	static bool DoesTargetIncludeOtherClientsContent(
+		const FGuid& TargetClientId,
+		TConstArrayView<FSoftObjectPath> ObjectsToCheck,
+		const FOnlineClientManager& ClientManager
+		)
+	{
+		const FOnlineClient* TargetClient = ClientManager.FindClient(TargetClientId);
+		if (!ensure(TargetClient))
+		{
+			return false;
+		}
+
+		const FConcertObjectReplicationMap& TargetClientObjects = TargetClient->GetStreamSynchronizer().GetServerState();
+		return Algo::AllOf(ObjectsToCheck, [&ClientManager, &TargetClientObjects](const FSoftObjectPath& ObjectToCheck)
+		{
+			return DoesTargetIncludeOtherClientsContent_SingleObject(TargetClientObjects, ClientManager, ObjectToCheck);
+		});
+	}
+
+	/** @return Whether ClientId has any properties assigned to any of the objects in ObjectsToCheck. */
+	static bool HasAnyProperties(const FGuid& ClientId, TConstArrayView<FSoftObjectPath> ObjectsToCheck, const FOnlineClientManager& ClientManager)
+	{
+		const FOnlineClient* TargetClient = ClientManager.FindClient(ClientId);
+		if (!ensure(TargetClient))
+		{
+			return false;
+		}
+
+		const FConcertObjectReplicationMap& TargetClientObjects = TargetClient->GetStreamSynchronizer().GetServerState();
+		return Algo::AnyOf(ObjectsToCheck, [&TargetClientObjects](const FSoftObjectPath& ObjectPath)
+		{
+			const FConcertReplicatedObjectInfo* ObjectInfo = TargetClientObjects.ReplicatedObjects.Find(ObjectPath);
+			return ObjectInfo && !ObjectInfo->PropertySelection.ReplicatedProperties.IsEmpty();
+		});
+	}
+
+	template<typename TCallback> requires std::is_invocable_r_v<EBreakBehavior, TCallback, const FGuid&>
+	static void EnumerateOwningOnlineClients(
+		const FOnlineClientManager& ClientManager,
+		const FSoftObjectPath& ObjectPath,
+		TCallback&& Callback
+		) 
+	{
+		ClientManager.ForEachClient([&ObjectPath, &Callback](const FOnlineClient& ReplicationClient)
+		{
+			const bool bHasProperties = ReplicationClient.GetStreamSynchronizer().GetServerState().HasProperties(ObjectPath);
+			return bHasProperties ? Callback(ReplicationClient.GetEndpointId()) : EBreakBehavior::Continue;
+		});
+	}
+}
+
+namespace UE::MultiUserClient::Replication
+{
+	FReassignObjectPropertiesLogic::FReassignObjectPropertiesLogic(FOnlineClientManager& InClientManager)
 		: ClientManager(InClientManager)
 	{
 		ClientManager.OnRemoteClientsChanged().AddRaw(this, &FReassignObjectPropertiesLogic::OnRemoteClientsChanged);
-		ClientManager.GetAuthorityCache().OnCacheChanged().AddRaw(this, &FReassignObjectPropertiesLogic::OnClientCacheChanged);
 	}
 
 	FReassignObjectPropertiesLogic::~FReassignObjectPropertiesLogic()
@@ -281,7 +294,6 @@ namespace UE::MultiUserClient
 		// Note that all of this clean up is not REALLY needed because the FReassignObjectPropertiesLogic is a member of ClientManager.
 		// However, we'll follow good RAII here in case that should ever change.
 		ClientManager.OnRemoteClientsChanged().RemoveAll(this);
-		ClientManager.GetAuthorityCache().OnCacheChanged().RemoveAll(this);
 
 		if (FSubmissionQueue* SubmissionQueue = FindSubmissionQueueForTargetClient())
 		{
@@ -289,24 +301,14 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	void FReassignObjectPropertiesLogic::EnumerateClientOwnershipState(const FSoftObjectPath& ObjectPath, FProcessClientOwnership Callback) const
-	{
-		ClientManager.ForEachClient([&ObjectPath, &Callback](const FReplicationClient& ReplicationClient)
-		{
-			const bool bHasProperties = ReplicationClient.GetStreamSynchronizer().GetServerState().HasProperties(ObjectPath);
-			const EOwnershipState Ownership = bHasProperties ? EOwnershipState::HasObjectRegistered : EOwnershipState::NoOwnership;
-			return Callback(ReplicationClient.GetEndpointId(), Ownership);
-		});
-	}
-
 	bool FReassignObjectPropertiesLogic::OwnsAnyOf(TConstArrayView<FSoftObjectPath> Objects, const FGuid& TargetClientId) const
 	{
 		bool bOwnsAny = false;
 		for (int32 i = 0; i < Objects.Num() && !bOwnsAny; ++i)
 		{
-			EnumerateClientOwnershipState(Objects[i], [&bOwnsAny, &TargetClientId](const FGuid& ClientId, EOwnershipState Ownership)
+			ReassignObjectProperties::EnumerateOwningOnlineClients(ClientManager, Objects[i],[&bOwnsAny, &TargetClientId](const FGuid& ClientId)
 			{
-				bOwnsAny = TargetClientId == ClientId && Ownership == EOwnershipState::HasObjectRegistered;
+				bOwnsAny |= ClientId == TargetClientId;
 				return bOwnsAny ? EBreakBehavior::Break : EBreakBehavior::Continue;
 			});
 		}
@@ -318,9 +320,9 @@ namespace UE::MultiUserClient
 		bool bOwnsAny = false;
 		for (int32 i = 0; i < Objects.Num() && !bOwnsAny; ++i)
 		{
-			EnumerateClientOwnershipState(Objects[i], [&bOwnsAny](const FGuid& ClientId, EOwnershipState Ownership)
+			ReassignObjectProperties::EnumerateOwningOnlineClients(ClientManager,Objects[i], [&bOwnsAny](const FGuid& ClientId)
 			{
-				bOwnsAny = Ownership == EOwnershipState::HasObjectRegistered;
+				bOwnsAny = true;
 				return bOwnsAny ? EBreakBehavior::Break : EBreakBehavior::Continue;
 			});
 		}
@@ -337,24 +339,17 @@ namespace UE::MultiUserClient
 			return false;
 		}
 		
-		const FReplicationClient* Client = ClientManager.FindClient(ClientId);
+		const FOnlineClient* Client = ClientManager.FindClient(ClientId);
 		if (!Client)
 		{
 			SET_REASON(LOCTEXT("Reason.ClientDisconnected", "Client disconnected"));
 			return false;
 		}
-		
-		if (!Client->AllowsEditing())
-		{
-			SET_REASON(LOCTEXT("Reason.ClientNoEditing", "Client does not allow remote editing"));
-			return false;
-		}
 
 		// Relevant after user has re-assigned all properties to a given client
-		auto ShouldConsiderClient = [this](const FReplicationClient& Client) { return Client.AllowsEditing(); };
-		if (ReassignObjectProperties::Private::DoesTargetIncludeOthers(ClientId, ObjectsToReassign, ClientManager, ShouldConsiderClient))
+		if (ReassignObjectProperties::DoesTargetIncludeOtherClientsContent(ClientId, ObjectsToReassign, ClientManager))
 		{
-			const bool bHasAnyProperties = ReassignObjectProperties::Private::HasAnyProperties(ClientId, ObjectsToReassign, ClientManager);
+			const bool bHasAnyProperties = ReassignObjectProperties::HasAnyProperties(ClientId, ObjectsToReassign, ClientManager);
 			SET_REASON(
 				FText::Format(
 					LOCTEXT("Reason.NothingToAssignFmt", "Nothing to assign: {0}"),
@@ -372,8 +367,8 @@ namespace UE::MultiUserClient
 	{
 		using namespace ConcertSyncClient::Replication;
 		
-		const FReplicationClient* ClientToAssignTo = ClientManager.FindClient(ClientId);
-		if (!ensure(ClientToAssignTo && ClientToAssignTo->AllowsEditing()))
+		const FOnlineClient* ClientToAssignTo = ClientManager.FindClient(ClientId);
+		if (!ensure(ClientToAssignTo))
 		{
 			UE_LOG(LogConcert, Error, TEXT("Property Reassignment: The target client is not editable."));
 			return;
@@ -382,7 +377,7 @@ namespace UE::MultiUserClient
 		const IClientStreamSynchronizer& StreamSynchronizer = ClientToAssignTo->GetStreamSynchronizer();
 		const FGuid& TargetStreamId = StreamSynchronizer.GetStreamId();
 		auto[OldRegisteredObjects, OldFrequencies, ReassignedClientRequests, ReassignedAuthority]
-			= ReassignObjectProperties::Private::BuildChangesForTransferal(
+			= ReassignObjectProperties::BuildChangesForTransferal(
 				ClientManager,
 				ObjectsToReassign,
 				TargetStreamId
@@ -441,8 +436,6 @@ namespace UE::MultiUserClient
 				);
 			InProgressOperation.Reset();
 		}
-
-		BroadcastOwnershipChanged();
 	}
 
 	void FReassignObjectPropertiesLogic::OnAssignedFromClientsCompleted(FParallelExecutionResult ParallelResult)
@@ -462,7 +455,7 @@ namespace UE::MultiUserClient
 
 	FSubmissionQueue* FReassignObjectPropertiesLogic::FindSubmissionQueueForTargetClient() const
 	{
-		FReplicationClient* Client = InProgressOperation.IsSet()
+		FOnlineClient* Client = InProgressOperation.IsSet()
 			? ClientManager.FindClient(InProgressOperation->AssignedToClient)
 			: nullptr;
 		return Client ? &Client->GetSubmissionQueue() : nullptr;
@@ -476,9 +469,8 @@ namespace UE::MultiUserClient
 			return;
 		}
 		
-		const FReplicationClient* ClientToAssignTo = ClientManager.FindClient(InProgressOperation->AssignedToClient);
-		if (!ensureMsgf(ClientToAssignTo, TEXT("FReassignObjectPropertiesLogic should have cancelled the change upon disconnect"))
-			|| !ClientToAssignTo->AllowsEditing())
+		const FOnlineClient* ClientToAssignTo = ClientManager.FindClient(InProgressOperation->AssignedToClient);
+		if (!ensureMsgf(ClientToAssignTo, TEXT("FReassignObjectPropertiesLogic should have cancelled the change upon disconnect")))
 		{
 			UE_LOG(LogConcert, Error, TEXT("Property Reassignment: The target client is no longer editable."));
 			return;
@@ -500,7 +492,7 @@ namespace UE::MultiUserClient
 		const IClientStreamSynchronizer& StreamSynchronizer = ClientToAssignTo->GetStreamSynchronizer();
 		const FGuid& StreamId = StreamSynchronizer.GetStreamId();
 		const bool bIsStreamRegistered = !StreamSynchronizer.GetServerState().IsEmpty();
-		auto[ObjectChanges, FrequencyChanges] = ReassignObjectProperties::Private::MakeChangelistFromAppliedChanges(
+		auto[ObjectChanges, FrequencyChanges] = ReassignObjectProperties::MakeChangelistFromAppliedChanges(
 			InProgressOperation->OldRegisteredObjects,
 			InProgressOperation->OldFrequencies,
 			ParallelResult,
@@ -512,7 +504,7 @@ namespace UE::MultiUserClient
 		
 		const TSharedPtr<ISubmissionOperation> SubmitOperation = Workflow.SubmitChanges({
 			MoveTemp(AssignedToClientRequest),
-			ReassignObjectProperties::Private::MakeAuthorityRequestFrom(InProgressOperation->OldAuthority, ParallelResult, StreamId)
+			ReassignObjectProperties::MakeAuthorityRequestFrom(InProgressOperation->OldAuthority, ParallelResult, StreamId)
 		});
 		if (!ensure(SubmitOperation))
 		{

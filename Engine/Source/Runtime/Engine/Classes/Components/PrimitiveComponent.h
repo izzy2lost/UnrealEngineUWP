@@ -9,7 +9,6 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectGlobals.h"
 #include "Misc/Guid.h"
-#include "InputCoreTypes.h"
 #include "Interfaces/IPhysicsComponent.h"
 #include "Templates/SubclassOf.h"
 #include "Engine/EngineTypes.h"
@@ -30,7 +29,7 @@
 #include "HLOD/HLODBatchingPolicy.h"
 #include "HLOD/HLODLevelExclusion.h"
 #include "Stats/Stats2.h"
-#include "PSOPrecache.h"
+#include "PSOPrecacheFwd.h"
 #include "MeshDrawCommandStatsDefines.h"
 #include "PrimitiveSceneInfoData.h"
 #include "PrimitiveComponent.generated.h"
@@ -123,6 +122,16 @@ enum class ERayTracingGroupCullingPriority : uint8
 	CP_6 UMETA(DisplayName = "6"),
 	CP_7 UMETA(DisplayName = "7"),
 	CP_8_QUICKLY_CULL UMETA(DisplayName = "8 - Quickly cull")
+};
+
+/** Determines how a primitive interacts with first person rendering. */
+UENUM()
+enum class EFirstPersonPrimitiveType : uint8
+{
+	/** Primitive does not interact with first person rendering. */
+	None UMETA(DisplayName = "None"),
+	/** Primitive is rendered as first person and affected by first person properties on the camera. */
+	FirstPerson UMETA(DisplayName = "First Person"),
 };
 
 /** Converts a stencil mask from the editor's USTRUCT version to the version the renderer uses. */
@@ -285,12 +294,20 @@ public:
 	TEnumAsByte<EIndirectLightingCacheQuality> IndirectLightingCacheQuality;
 
 	/** Controls the type of lightmap used for this component. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Lighting)
+	UE_DEPRECATED(5.5, "Use GetLightmapType()/SetLightmapType() instead")
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Lighting, Getter, Setter,  meta = (AllowPrivateAccess)) 
 	ELightmapType LightmapType;
+	
+	ENGINE_API ELightmapType GetLightmapType() const;
+	ENGINE_API void SetLightmapType(ELightmapType InLightmapType);
 
 	/** Determines how the geometry of a component will be incorporated in proxy (simplified) HLODs. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=HLOD, meta=(DisplayName="HLOD Batching Policy", DisplayAfter="bEnableAutoLODGeneration", EditConditionHides, EditCondition="bEnableAutoLODGeneration"))
 	EHLODBatchingPolicy HLODBatchingPolicy;
+
+	/** Control shadow invalidation behavior, in particular with respect to Virtual Shadow Maps and material effects like World Position Offset. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Lighting, AdvancedDisplay, meta=(EditCondition="CastShadow"))
+	EShadowCacheInvalidationBehavior ShadowCacheInvalidationBehavior;
 
 	/** Whether to include this component in HLODs or not. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = HLOD, meta=(DisplayName="Include Component in HLOD"))
@@ -359,6 +376,12 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintGetter = GetGenerateOverlapEvents, BlueprintSetter = SetGenerateOverlapEvents, Category = Collision)
 	uint8 bGenerateOverlapEvents : 1;
 
+#if WITH_EDITORONLY_DATA
+	/** Whether this component is temporarily hidden within the editor. */
+	UPROPERTY(Transient)
+	uint8 bHiddenEdTemporary:1;
+#endif // WITH_EDITORONLY_DATA
+
 public:
 	/**
 	 * If true, this component will generate individual overlaps for each overlapping physics body if it is a multi-body component. When false, this component will
@@ -415,7 +438,7 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Rendering)
 	uint8 bReceivesDecals:1;
 
-	/** If this is True, this primitive will render black with an alpha of 0, but all secondary effects (shadows, reflections, indirect lighting) remain. This feature required the project setting "Enable alpha channel support in post processing". */
+	/** If this is True, this primitive will render black with an alpha of 0, but all secondary effects (shadows, reflections, indirect lighting) remain. This feature requires activating the project setting(s) "Alpha Output", and "Support Primitive Alpha Holdout" if using the deferred renderer. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Rendering, Interp)
 	uint8 bHoldout : 1;
 
@@ -442,6 +465,10 @@ public:
 	/** If this is True, this component can be selected in the editor. */
 	UPROPERTY()
 	uint8 bSelectable:1;
+
+	/** When true, this component requests editor effects like outlines and overlays. */
+	UPROPERTY()
+	uint8 bWantsEditorEffects:1;
 
 #if WITH_EDITORONLY_DATA
 	/** If true, this component will be considered for placement when dragging and placing items in the editor even if it is not visible, such as in the case of hidden collision meshes */
@@ -486,10 +513,6 @@ public:
 	/** Whether the object should cast a static shadow from shadow casting lights.  This flag is only used if CastShadow is true. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Lighting, AdvancedDisplay, meta=(EditCondition="CastShadow", DisplayName = "Static Shadow"))
 	uint8 bCastStaticShadow:1;
-
-	/** Control shadow invalidation behavior, in particular with respect to Virtual Shadow Maps and material effects like World Position Offset. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Lighting, AdvancedDisplay, meta=(EditCondition="CastShadow"))
-	EShadowCacheInvalidationBehavior ShadowCacheInvalidationBehavior;
 
 	/** 
 	 * Whether the object should cast a volumetric translucent shadow.
@@ -635,6 +658,10 @@ public:
 	UPROPERTY()
 	uint8 bRayTracingFarField : 1;
 
+	/** If this is set to FirstPerson, the camera FirstPersonFieldOfView and FirstPersonScale parameters will be used on this component. These parameters can be used to render the component with a different field of view and a smaller depth range such that clipping with the scene can be avoided. This is useful for rendering first person view geometry. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Rendering)
+	EFirstPersonPrimitiveType FirstPersonPrimitiveType;
+
 protected:
 	/** Result of last call to AreAllCollideableDescendantsRelative(). */
 	uint8 bCachedAllCollideableDescendantsRelative : 1;
@@ -653,29 +680,23 @@ protected:
 		ToolTip = "When false, the underlying physics body will contain all sim data (mass, inertia tensor, etc) even if mobility is not set to Moveable"))
 	uint8 bStaticWhenNotMoveable:1;
 
+	uint8 bIgnoreBoundsForEditorFocus : 1;
+
+public:
 #if UE_WITH_PSO_PRECACHING
-	/** Helper flag to check if PSOs have been precached already */
-	uint8 bPSOPrecacheCalled : 1;
-
-	/** Have the PSO requests already been priority boosted? */
-	uint8 bPSOPrecacheRequestBoosted : 1;
-
-	/** Cached array of material PSO requests which can be used to boost the priority */
-	TArray<FMaterialPSOPrecacheRequestID> MaterialPSOPrecacheRequestIDs;
-
-	/** Graph event used to track all the PSO precache events */
-	FGraphEventRef PSOPrecacheCompileEvent;
+	/** PSOs requested priority */
+	EPSOPrecachePriority PSOPrecacheRequestPriority : 2;
+	static_assert((int)EPSOPrecachePriority::Highest < 1 << 2);
 #endif
 
-	uint8 bIgnoreBoundsForEditorFocus : 1;
 #if WITH_EDITOR
-public:
 	uint8 bAlwaysAllowTranslucentSelect : 1;
 
 	uint8 SelectionOutlineColorIndex;
+
+	FColor OverlayColor;
 #endif
 
-public:
 	/** If true then DoCustomNavigableGeometryExport will be called to collect navigable geometry of this component. */
 	UPROPERTY()
 	TEnumAsByte<EHasCustomNavigableGeometry::Type> bHasCustomNavigableGeometry;
@@ -734,9 +755,37 @@ public:
 	/** 
 	 * Channels that this component should be in.  Lights with matching channels will affect the component.  
 	 * These channels only apply to opaque materials, direct lighting, and dynamic lighting and shadowing.
+	 * Lighting channels are only supported on translucent materials using forward shading (i.e. when not using the translucency lighting volume).
 	 */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Lighting)
 	FLightingChannels LightingChannels;
+
+#if UE_WITH_PSO_PRECACHING 
+	/** Cached array of material PSO requests which can be used to boost the priority */
+	TArray<FMaterialPSOPrecacheRequestID> MaterialPSOPrecacheRequestIDs;
+	/** Atomic int used to track the last PSO precache events */
+	std::atomic<int> LatestPSOPrecacheJobSetCompleted = 0;
+	int32 LatestPSOPrecacheJobSet = 0;
+	/** Helper flag to check if PSOs have been precached already */
+	uint8 bPSOPrecacheCalled : 1;
+#endif
+
+	/**
+	* Defines how quickly it should be culled. For example buildings should have a low priority, but small dressing should have a high priority.
+	*/
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = RayTracing, meta = (DisplayAfter="RayTracingGroupId"))
+	ERayTracingGroupCullingPriority RayTracingGroupCullingPriority;
+
+	/** Mask used for stencil buffer writes. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = "Rendering", meta = (editcondition = "bRenderCustomDepth", DisplayAfter="CustomDepthStencilValue"))
+	ERendererStencilMask CustomDepthStencilWriteMask;
+
+private:
+	/** Which specific HLOD levels this component should be excluded from */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = HLOD, meta = (Bitmask, BitmaskEnum = "/Script/Engine.EHLODLevelExclusion", DisplayName = "Exclude from HLOD Levels", DisplayAfter = "bEnableAutoLODGeneration", EditConditionHides, EditCondition = "AllowHLODLevelsExclusion()"))
+	uint8 ExcludeFromHLODLevels;
+
+public:
 
 	/**
 	 * Defines run-time groups of components. For example allows to assemble multiple parts of a building at runtime.
@@ -754,6 +803,7 @@ public:
 	int32 CustomDepthStencilValue;
 
 private:
+
 	/** Optional user defined default values for the custom primitive data of this primitive */
 	UPROPERTY(EditAnywhere, Category=Rendering, meta = (DisplayName = "Custom Primitive Data Defaults"))
 	FCustomPrimitiveData CustomPrimitiveData;
@@ -761,6 +811,7 @@ private:
 	/** Custom data that can be read by a material through a material parameter expression. Set data using SetCustomPrimitiveData* functions */
 	UPROPERTY(Transient)
 	FCustomPrimitiveData CustomPrimitiveDataInternal;
+	
 public:
 
 	/** If non-null, physics state creation has been deferred to ULevel::IncrementalUpdateComponents or this scene's StartFrame.*/
@@ -815,7 +866,7 @@ public:
 	int8 VirtualTextureMinCoverage = 0;
 
 	/** Controls if this component draws in the main pass as well as in the virtual texture. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = VirtualTexture, meta = (DisplayName = "Draw in Main Pass"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = VirtualTexture, meta = (DisplayName = "Draw in Main Pass"))
 	ERuntimeVirtualTextureMainPassType VirtualTextureRenderPassType = ERuntimeVirtualTextureMainPassType::Exclusive;
 
 	/** Get the array of runtime virtual textures into which we render the mesh for this actor. */
@@ -884,8 +935,9 @@ public:
 	ENGINE_API bool WasRecentlyRendered(float Tolerance = 0.2f) const;
 
 	ENGINE_API void SetLastRenderTime(float InLastRenderTime);
-	float GetLastRenderTime() const { return SceneData.LastRenderTime; }
-	float GetLastRenderTimeOnScreen() const { return SceneData.LastRenderTimeOnScreen; }
+
+	ENGINE_API float GetLastRenderTime() const;
+	ENGINE_API float GetLastRenderTimeOnScreen() const;
 
 #if MESH_DRAW_COMMAND_STATS
 	ENGINE_API void SetMeshDrawCommandStatsCategory(FName StatsCategory);
@@ -919,9 +971,10 @@ public:
 
 	/**
 	 * Check if PSOs are still precaching and boost priority if not done yet.
+	 * PSOPrecachePriority specifies the new priority to boost to. calls that would reduce the current priority are ignored, highest pri is used for components that are actively rendering.
 	 * Returns true if the PSOs are still precaching.
 	 */
-	ENGINE_API bool CheckPSOPrecachingAndBoostPriority();
+	ENGINE_API bool CheckPSOPrecachingAndBoostPriority(EPSOPrecachePriority PSOPrecachePriority = EPSOPrecachePriority::High);
 
 protected:
 
@@ -1366,16 +1419,6 @@ public:
 	UPROPERTY(BlueprintAssignable, Category="Input|Touch Input")
 	FComponentEndTouchOverSignature OnInputTouchLeave;
 
-	/**
-	 * Defines how quickly it should be culled. For example buildings should have a low priority, but small dressing should have a high priority.
-	 */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = RayTracing)
-	ERayTracingGroupCullingPriority RayTracingGroupCullingPriority;
-
-	/** Mask used for stencil buffer writes. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = "Rendering", meta = (editcondition = "bRenderCustomDepth"))
-	ERendererStencilMask CustomDepthStencilWriteMask;
-
 	/** Scale the bounds of this object, used for frustum culling. Useful for features like WorldPositionOffset. */
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	ENGINE_API void SetBoundsScale(float NewBoundsScale=1.f);
@@ -1388,11 +1431,14 @@ public:
 	UFUNCTION(BlueprintPure, Category="Rendering|Material")
 	ENGINE_API virtual class UMaterialInterface* GetMaterial(int32 ElementIndex) const;
 
-	/** Returns the material to show in the editor details panel as being used. */
-	virtual class UMaterialInterface* GetEditorMaterial(int32 ElementIndex) const 
-	{ 
+#if WITH_EDITOR
+	/** Returns the material to show in the editor details panel as being used. Skips Nanite Override materials. */
+	UFUNCTION(BlueprintPure, Category = "Rendering|Material")
+	ENGINE_API virtual class UMaterialInterface* GetEditorMaterial(int32 ElementIndex) const
+	{
 		return GetMaterial(ElementIndex);
 	}
+#endif
 
 	UFUNCTION(BlueprintCallable, Category = "Rendering|Material")
 	ENGINE_API virtual int32 GetMaterialIndex(FName MaterialSlotName) const;
@@ -1466,10 +1512,16 @@ public:
 	ENGINE_API virtual void SetWalkableSlopeOverride(const FWalkableSlopeOverride& NewOverride);
 
 	/** 
-	 *	Sets whether or not a single body should use physics simulation, or should be 'fixed' (kinematic).
-	 *	Note that if this component is currently attached to something, beginning simulation will detach it.
+	 * When this component is a simple/single body, this will enable or disable simulation on that body. In addition, 
+	 * if this component is currently attached to something, beginning simulation will detach it. Note that stopping
+	 * simulation will not reattach the component - that would need to be done explicitly. 
+	 * 
+	 * For more complex components (e.g. skeletal meshes), simulation will apply to the bodies contained by the
+	 * component (e.g. using a physics asset). Since these bodies will be free to move independently of the component, 
+	 * the component will not be automatically detached. If detachment is required, then that can be done by 
+	 * calling DetachFromComponent.
 	 *
-	 *	@param	bSimulate	New simulation state for single body
+	 * @param bSimulate New simulation state for the single body or multiple bodies
 	 */
 	UFUNCTION(BlueprintCallable, Category="Physics")
 	ENGINE_API virtual void SetSimulatePhysics(bool bSimulate);
@@ -1822,7 +1874,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	ENGINE_API void SetReceivesDecals(bool bNewReceivesDecals);
 
-    /** Changes the value of bHoldout (Path Tracing only feature)*/
+    /** Changes the value of bHoldout */
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	ENGINE_API void SetHoldout(bool bNewHoldout);
 
@@ -1929,6 +1981,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	ENGINE_API void SetHiddenInSceneCapture(bool bValue);
 
+	/** Sets FirstPersonPrimitiveType property and marks the render state dirty. */
+	UFUNCTION(BlueprintCallable, Category = "Rendering")
+	ENGINE_API void SetFirstPersonPrimitiveType(EFirstPersonPrimitiveType Value);
+
 	/**
 	 * Count of all component overlap events (begin or end) ever generated for any components.
 	 * Changes to this number within a scope can also be a simple way to know if any events were triggered.
@@ -1940,19 +1996,24 @@ public:
 	FPrimitiveSceneProxy* SceneProxy;
 
 	FPrimitiveSceneProxy* GetSceneProxy() const { check(SceneProxy == SceneData.SceneProxy); return SceneData.SceneProxy; }
-	void ReleaseSceneProxy() { check(SceneProxy == SceneData.SceneProxy); SceneProxy = nullptr;  SceneData.SceneProxy = nullptr; }
+
+	ENGINE_API void AssignSceneProxy(FPrimitiveSceneProxy* SceneProxy);
+	ENGINE_API void ReleaseSceneProxy();
+
+	/** Returns whether the primitive component's scene proxy is always visible. */
+	bool IsAlwaysVisible() const { return SceneData.bAlwaysVisible; }
 
 	/** A fence to track when the primitive is detached from the scene in the rendering thread. */
 	FRenderCommandFence DetachFence;
 
 private:
-	/** Which specific HLOD levels this component should be excluded from */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = HLOD, meta = (Bitmask, BitmaskEnum = "/Script/Engine.EHLODLevelExclusion", DisplayName = "Exclude from HLOD Levels", DisplayAfter = "bEnableAutoLODGeneration", EditConditionHides, EditCondition = "bEnableAutoLODGeneration"))
-	uint8 ExcludeFromHLODLevels;
-
 	/** LOD parent primitive to draw instead of this one (multiple UPrim's will point to the same LODParent ) */
 	UPROPERTY(NonPIEDuplicateTransient)
 	TObjectPtr<class UPrimitiveComponent> LODParentPrimitive;
+
+	/* Returns true if component can be excluded from specific HLOD levels */
+	UFUNCTION()
+	bool AllowHLODLevelsExclusion() const;
 
 public:
 
@@ -2549,11 +2610,26 @@ public:
 	/** Returns mask that represents in which views this primitive is hidden */
 	ENGINE_API virtual uint64 GetHiddenEditorViews() const;
 
+	/**
+	 * Returns whether or not this component was explicitly hidden in the editor for the duration of the current editor session
+	 * @param bIncludeParent - Whether to recurse up actor hierarchy or not
+	 */
+	ENGINE_API bool IsTemporarilyHiddenInEditor(const bool bIncludeParent) const;
+
+	/**
+ 	 * Explicitly sets whether or not this component is hidden in the editor for the duration of the current editor session
+ 	 * @param bIsHidden	True if the component is hidden
+ 	 */
+	ENGINE_API void SetIsTemporarilyHiddenInEditor(const bool bInIsHidden);
+
 	/** Sets whether this component is being moved by the editor so the renderer can render velocities for it, even when Static. */
 	ENGINE_API void SetIsBeingMovedByEditor(bool bNewIsBeingMoved);
 
 
 	ENGINE_API void SetSelectionOutlineColorIndex(uint8 SelectionOutlineColorIndex);
+	
+	ENGINE_API void SetOverlayColor(FColor OverlayColor);
+	ENGINE_API void RemoveOverlayColor();
 #endif// WITH_EDITOR
 
 	/** Resets the cached scene velocity. Useful to prevent motion blur when teleporting components. See also SetIsBeingMovedByEditor(). */
@@ -2702,6 +2778,14 @@ public:
 	/** Set whether all bodies in this component should use Continuous Collision Detection */
 	UFUNCTION(BlueprintCallable, Category = "Physics")
 	ENGINE_API virtual void SetAllUseCCD(bool InUseCCD);
+
+	/** [EXPERIMENTAL] Set whether this component should use Motion-Aware Collision Detection */
+	UFUNCTION(BlueprintCallable, Category = "Physics")
+	ENGINE_API virtual void SetUseMACD(bool InUseMACD, FName BoneName = NAME_None);
+
+	/** [EXPERIMENTAL] Set whether all bodies in this component should use Motion-Aware Collision Detection */
+	UFUNCTION(BlueprintCallable, Category = "Physics")
+	ENGINE_API virtual void SetAllUseMACD(bool InUseMACD);
 
 	/**
 	 *	Force all bodies in this component to sleep.
@@ -3031,6 +3115,11 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UPrimitiveComponent> LODParent = nullptr;
+
+#if WITH_EDITOR
+	FColor OverlayColor;
+#endif
+	
 };
 
 
@@ -3215,3 +3304,8 @@ bool UPrimitiveComponent::GetOverlapsWithActor_Template(const AActor* Actor, TAr
 
 	return InitialCount != OutOverlaps.Num();
 }
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "InputCoreTypes.h"
+#include "PSOPrecache.h"
+#endif

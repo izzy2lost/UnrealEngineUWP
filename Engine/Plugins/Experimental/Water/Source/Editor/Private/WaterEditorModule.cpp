@@ -203,12 +203,19 @@ void FWaterEditorModule::OnLevelActorAddedToWorld(AActor* Actor)
 					check(IsValid(FoundLandscape));
 
 					bool bHasWaterManager = false;
-					FoundLandscape->ForEachLayer([&bHasWaterManager](FLandscapeLayer& Layer)
+					FoundLandscape->ForEachLayerConst([&bHasWaterManager](const FLandscapeLayer& Layer)
 					{
 						for (const FLandscapeLayerBrush& Brush : Layer.Brushes)
 						{
 							bHasWaterManager |= Cast<AWaterLandscapeBrush>(Brush.GetBrush()) != nullptr;
+							if (bHasWaterManager)
+							{
+								// Stop iterating the moment we've found the brush manager : 
+								return false;
+							}
 						}
+
+						return true;
 					});
 
 					if (!bHasWaterManager)

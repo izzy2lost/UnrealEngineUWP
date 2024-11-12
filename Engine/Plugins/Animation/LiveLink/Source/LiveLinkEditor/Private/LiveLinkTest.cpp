@@ -8,7 +8,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLiveLinkInterpolationTest, "System.Engine.Animation.LiveLink.Interpolation", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLiveLinkInterpolationTest, "System.Engine.Animation.LiveLink.Interpolation", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 /** */
 bool FLiveLinkInterpolationTest::RunTest(const FString& Parameters)

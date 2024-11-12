@@ -2,9 +2,12 @@
 
 #pragma once
 
-#include "DetailGroup.h"
 #include "DetailWidgetRow.h"
+#include "IPropertyTypeCustomization.h"
 #include "Widgets/SCompoundWidget.h"
+
+class FAssetThumbnailPool;
+class FDetailCategoryImpl;
 
 /**
  * Generates the header widget for a customized struct or other type.
@@ -20,28 +23,10 @@ public:
 		SLATE_ARGUMENT( TSharedPtr<FDetailCategoryImpl>, ParentCategory)
 	SLATE_END_ARGS()
 	
-	void Construct( const FArguments& InArgs,
-		TSharedPtr<IPropertyTypeCustomization> InCustomizationInterface, TSharedRef<IPropertyHandle> InPropertyHandle)
-	{
-		ParentCategory = InArgs._ParentCategory;
-		
-		CustomizationInterface = InCustomizationInterface;
-		PropertyHandle = InPropertyHandle;
-		CustomPropertyWidget = MakeShareable(new FDetailWidgetRow);
+	void Construct(const FArguments& InArgs,
+		TSharedPtr<IPropertyTypeCustomization> InCustomizationInterface, TSharedRef<IPropertyHandle> InPropertyHandle);
 
-		CustomizationInterface->CustomizeHeader(InPropertyHandle, *CustomPropertyWidget, *this);
-
-		ChildSlot
-		[
-			CustomPropertyWidget->ValueWidget.Widget
-		];
-	}
-
-	virtual TSharedPtr<FAssetThumbnailPool> GetThumbnailPool() const override
-	{
-		TSharedPtr<FDetailCategoryImpl> ParentCategoryPinned = ParentCategory.Pin();
-		return ParentCategoryPinned.IsValid() ? ParentCategoryPinned->GetParentLayout().GetThumbnailPool() : NULL;
-	}
+	virtual TSharedPtr<FAssetThumbnailPool> GetThumbnailPool() const override;
 
 private:
 	TWeakPtr<FDetailCategoryImpl> ParentCategory;

@@ -112,6 +112,7 @@ public:
 		: NameWidget( *this, 0.0f, 0.0f, HAlign_Left, VAlign_Center )
 		, ValueWidget( *this, DefaultValueMinWidth, DefaultValueMaxWidth, HAlign_Left, VAlign_Center )
 		, ExtensionWidget( *this, 0.0f, 0.0f, HAlign_Right, VAlign_Center)
+		, ResetToDefaultWidget( *this, 0.0f, 0.0f, HAlign_Center, VAlign_Center)
 		, WholeRowWidget( *this, 0.0f, 0.0f, HAlign_Fill, VAlign_Fill )
 		, VisibilityAttr( EVisibility::Visible )
 		, FilterTextString()
@@ -126,6 +127,7 @@ public:
 		NameWidget = FDetailWidgetDecl(*this, Other.NameWidget);
 		ValueWidget = FDetailWidgetDecl(*this, Other.ValueWidget);
 		ExtensionWidget = FDetailWidgetDecl(*this, Other.ExtensionWidget);
+		ResetToDefaultWidget = FDetailWidgetDecl(*this, Other.ResetToDefaultWidget);
 		WholeRowWidget = FDetailWidgetDecl(*this, Other.WholeRowWidget);
 		VisibilityAttr = Other.VisibilityAttr;
 		IsEnabledAttr = Other.IsEnabledAttr;
@@ -188,6 +190,14 @@ public:
 	FDetailWidgetDecl& ExtensionContent()
 	{
 		return ExtensionWidget;
+	}
+
+	/**
+	 * Assigns content to the reset to default (right-most) slot
+	 */
+	FDetailWidgetDecl& ResetToDefaultContent()
+	{
+		return ResetToDefaultWidget;
 	}
 
 	/**
@@ -268,6 +278,11 @@ public:
 		return ExtensionWidget.Widget->GetType() != InvalidDetailWidgetName;
 	}
 
+	bool HasResetToDefaultContent() const
+	{
+		return ResetToDefaultWidget.Widget->GetType() != InvalidDetailWidgetName;
+	}
+	
 	/**
 	 * @return true if the row has columns, false if it spans the entire row
 	 */
@@ -281,7 +296,7 @@ public:
 	 */
 	bool HasAnyContent() const
 	{
-		return WholeRowWidget.Widget->GetType() != InvalidDetailWidgetName || HasColumns();
+		return WholeRowWidget.Widget->GetType() != InvalidDetailWidgetName || HasColumns() || HasResetToDefaultContent();
 	}
 
 	/** @return true if a custom copy/paste is bound on this row */
@@ -365,6 +380,8 @@ public:
 	FDetailWidgetDecl ValueWidget;
 	/** Extension (right) column content */
 	FDetailWidgetDecl ExtensionWidget;
+	/** Reset to default (right-most) column content */
+	FDetailWidgetDecl ResetToDefaultWidget;
 	/** Whole row content */
 	FDetailWidgetDecl WholeRowWidget;
 	/** Visibility of the row */

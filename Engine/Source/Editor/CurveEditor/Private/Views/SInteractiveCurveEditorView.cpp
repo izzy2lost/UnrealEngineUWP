@@ -11,6 +11,7 @@
 #include "CurveDataAbstraction.h"
 #include "CurveDrawInfo.h"
 #include "CurveEditor.h"
+#include "CurveEditorAxis.h"
 #include "CurveEditorCommands.h"
 #include "CurveEditorContextMenu.h"
 #include "CurveEditorHelpers.h"
@@ -67,6 +68,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SToolTip.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Widgets/Input/NumericTypeInterface.h"
 
 class FPaintArgs;
 class FWidgetStyle;
@@ -291,18 +293,176 @@ void SInteractiveCurveEditorView::DrawGridLines(TSharedRef<FCurveEditor> CurveEd
 	const FLinearColor   MajorGridColor = CurveEditor->GetPanel()->GetGridLineTint();
 	const FLinearColor   MinorGridColor = MajorGridColor.CopyWithNewOpacity(MajorGridColor.A * .5f);
 	const FPaintGeometry PaintGeometry = AllottedGeometry.ToPaintGeometry();
-	const FLinearColor	 LabelColor = FLinearColor::White.CopyWithNewOpacity(0.65f);
 	const FSlateFontInfo FontInfo = FCoreStyle::Get().GetFontStyle("ToolTip.LargerFont");
 
-	// Get our viewing range bounds. We go through the GetBounds() interface on the curve editor because it's more aware of what our range is than the original widget is.
-	double InputValueMin, InputValueMax;
-	GetInputBounds(InputValueMin, InputValueMax);
+	FCurveEditorScreenSpace ViewSpace = GetViewSpace();
 
-	TArray<float> MajorGridLines, MinorGridLines;
-	TArray<FText> MajorGridLabels;
+	FCurveEditorScreenSpaceH HorizontalGridSpace = ViewSpace;
+	FCurveEditorScreenSpaceV VerticalGridSpace   = ViewSpace;
 
-	GetGridLinesX(CurveEditor, MajorGridLines, MinorGridLines, &MajorGridLabels);
-	ensureMsgf(MajorGridLabels.Num() == 0 || MajorGridLines.Num() == MajorGridLabels.Num(), TEXT("If grid labels are specified, one must be specified for every major grid line, even if it is just an empty FText."));
+	TArray<double> MajorGridLines, MinorGridLines;
+
+	struct FGridLine
+	{
+		double Value;
+		FText Label;
+	};
+
+	struct FGridLineLabels
+	{
+		FGridLineLabels(FCurveEditorViewAxisID AxisID, TSet<FCurveEditorViewAxisID>& HighlightedAxes)
+		{
+			// Show default color if this axis is not highlighted, or its the only one
+			if (HighlightedAxes.Num() == 0)
+			{
+				// Default
+				Color = FLinearColor::White.CopyWithNewOpacity(0.65f);
+			}
+			else if (HighlightedAxes.Contains(AxisID))
+			{
+				// Highlighted
+				Color = FLinearColor::White.CopyWithNewOpacity(0.95f);
+			}
+			else
+			{
+				// Subdued
+				Color = FLinearColor::White.CopyWithNewOpacity(0.15f);
+			}
+		}
+		TArray<FText> Labels;
+		TArray<FVector2f> Sizes;
+		FVector2f MaxSize;
+		FLinearColor Color;
+	};
+	TArray<FGridLineLabels> MajorGridLabels;
+
+	FCurveEditorSelection& Selection = CurveEditor->GetSelection();
+	TSet<FCurveEditorViewAxisID> HighlightedHorizontalAxes, HighlightedVerticalAxes;
+
+	TOptional<FCurveModelID> HoveredCurve = GetHoveredCurve();
+	if (HoveredCurve)
+	{
+		if (const FCurveInfo* CurveInfo = CurveInfoByID.Find(HoveredCurve.GetValue()))
+		{
+			HighlightedHorizontalAxes.Add(CurveInfo->HorizontalAxis);
+			HighlightedVerticalAxes.Add(CurveInfo->VerticalAxis);
+		}
+	}
+	else for (const TTuple<FCurveModelID, FCurveInfo>& Pair : CurveInfoByID)
+	{
+		if (const FKeyHandleSet* SelectionSet = Selection.FindForCurve(Pair.Key))
+		{
+			HighlightedHorizontalAxes.Add(Pair.Value.HorizontalAxis);
+			HighlightedVerticalAxes.Add(Pair.Value.VerticalAxis);
+		}
+	}
+
+	// Ask Custom axes to draw until we find something that does
+	for (int32 Index = 0; Index < CustomHorizontalAxes.Num(); ++Index)
+	{
+		const FAxisInfo& AxisInfo = CustomHorizontalAxes[Index];
+		AxisInfo.Axis->GetGridLines(*CurveEditor, *this, FCurveEditorViewAxisID(Index), MajorGridLines, MinorGridLines, ECurveEditorAxisOrientation::Horizontal);
+		if (MajorGridLines.Num() || MinorGridLines.Num())
+		{
+			HorizontalGridSpace = FCurveEditorScreenSpaceH(HorizontalGridSpace.GetPhysicalWidth(), AxisInfo.Min, AxisInfo.Max);
+			break;
+		}
+	}
+
+	if (MajorGridLines.Num() == 0)
+	{
+		TArray<float> MajorGridLinesFloat, MinorGridLinesFloat;
+		if (bNeedsDefaultGridLinesH)
+		{
+			// Auto populate the major grid labels
+			FGridLineLabels& Labels = MajorGridLabels.Emplace_GetRef(FCurveEditorViewAxisID(), HighlightedHorizontalAxes);
+			GetGridLinesX(CurveEditor, MajorGridLinesFloat, MinorGridLinesFloat, &Labels.Labels);
+		}
+		else
+		{
+			GetGridLinesX(CurveEditor, MajorGridLinesFloat, MinorGridLinesFloat, nullptr);
+		}
+
+		// This legacy API defined grid lines in screen space
+		if (MajorGridLinesFloat.Num())
+		{
+			MajorGridLines.SetNum(MajorGridLinesFloat.Num());
+			for (int32 Index = 0; Index < MajorGridLines.Num(); ++Index)
+			{
+				MajorGridLines[Index] = ViewSpace.ScreenToSeconds(MajorGridLinesFloat[Index]);
+			}
+		}
+		if (MinorGridLinesFloat.Num())
+		{
+			MinorGridLines.SetNum(MinorGridLinesFloat.Num());
+			for (int32 Index = 0; Index < MinorGridLines.Num(); ++Index)
+			{
+				MinorGridLines[Index] = ViewSpace.ScreenToSeconds(MinorGridLinesFloat[Index]);
+			}
+		}
+	}
+	else if (bNeedsDefaultGridLinesH)
+	{
+		FText DefaultFormat = CurveEditor->GetGridLineLabelFormatXAttribute().Get();
+
+		if (!DefaultFormat.IsEmpty())
+		{
+			FGridLineLabels& DefaultGridLabels = MajorGridLabels.Emplace_GetRef(FCurveEditorViewAxisID(), HighlightedHorizontalAxes);
+
+			const int32 Num = MajorGridLines.Num();
+			DefaultGridLabels.Labels.SetNum(Num);
+			for (int32 GridLineIndex = 0; GridLineIndex < Num; ++GridLineIndex)
+			{
+				// Put the grid line from HorizontalGridSpace into the default ViewSpace
+				double GridLine = HorizontalGridSpace.SecondsToScreen(MajorGridLines[GridLineIndex]);
+				GridLine = ViewSpace.ScreenToSeconds(GridLine);
+
+				DefaultGridLabels.Labels[GridLineIndex] = FText::Format(DefaultFormat, GridLine);
+			}
+		}
+	}
+
+	// Populate grid labels for custom axes
+	if (MajorGridLines.Num() > 0)
+	{
+		const int32 NumLabels = MajorGridLines.Num();
+
+		for (int32 Index = 0; Index < CustomHorizontalAxes.Num(); ++Index)
+		{
+			const FAxisInfo& AxisInfo = CustomHorizontalAxes[Index];
+			if (!AxisInfo.Axis->HasLabels())
+			{
+				continue;
+			}
+
+			FGridLineLabels& Entry = MajorGridLabels.Emplace_GetRef(FCurveEditorViewAxisID(Index), HighlightedHorizontalAxes);
+
+			Entry.Labels.SetNum(NumLabels);
+			for (int32 GridLineIndex = 0; GridLineIndex < NumLabels; ++GridLineIndex)
+			{
+				Entry.Labels[GridLineIndex] = AxisInfo.Axis->MakeLabel(MajorGridLines[GridLineIndex]);
+			}
+		}
+	}
+
+	const TSharedRef<FSlateFontMeasure> FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+
+	// Compute sizing
+	for (FGridLineLabels& Entry : MajorGridLabels)
+	{
+		Entry.Sizes.SetNum(Entry.Labels.Num());
+
+		FVector2f MaxSize(0.f, 0.f);
+		for (int32 Index = 0; Index < Entry.Labels.Num(); ++Index)
+		{
+			const FVector2f LabelSize = FontMeasure->Measure(Entry.Labels[Index], FontInfo);
+
+			Entry.Sizes[Index] = LabelSize;
+			MaxSize.X = FMath::Max(MaxSize.X, LabelSize.X);
+			MaxSize.Y = FMath::Max(MaxSize.Y, LabelSize.Y);
+		}
+		Entry.MaxSize = MaxSize;
+	}
 
 	// Pre-allocate an array of line points to draw our vertical lines. Each major grid line
 	// will overwrite the X value of both points but leave the Y value untouched so they draw from the bottom to the top.
@@ -310,12 +470,10 @@ void SInteractiveCurveEditorView::DrawGridLines(TSharedRef<FCurveEditor> CurveEd
 	LinePoints.Add(FVector2D(0.f, 0.f));
 	LinePoints.Add(FVector2D(0.f, Height));
 
-	const TSharedRef<FSlateFontMeasure> FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
-
 	// Draw major vertical grid lines
 	for (int32 i = 0; i < MajorGridLines.Num(); i++)
 	{
-		const float RoundedLine = FMath::RoundToFloat(MajorGridLines[i]);
+		const float RoundedLine = FMath::RoundToFloat(HorizontalGridSpace.SecondsToScreen(MajorGridLines[i]));
 		if (RoundedLine < 0 || RoundedLine > RoundedWidth)
 		{
 			continue;
@@ -324,23 +482,40 @@ void SInteractiveCurveEditorView::DrawGridLines(TSharedRef<FCurveEditor> CurveEd
 		// Vertical Grid Line
 		LinePoints[0].X = LinePoints[1].X = RoundedLine;
 
-		if (MajorGridLabels.IsValidIndex(i))
+		// Offset for all labels
+		if (MajorGridLabels[0].Labels.Num() > 0)
 		{
-			FText Label = MajorGridLabels[i];
-			const FVector2D LabelSize = FontMeasure->Measure(Label, FontInfo);
-			const FPaintGeometry LabelGeometry = AllottedGeometry.ToPaintGeometry(FSlateLayoutTransform(FVector2D(LinePoints[0].X - LabelSize.X*.5f, CurveViewConstants::LabelOffsetPixels)));
+			FVector2f LabelOffset(0.f, 0.f);
 
-			LinePoints[0].Y = LabelSize.Y + CurveViewConstants::LabelOffsetPixels*2.f;
+			// Compute size of all labels
+			for (FGridLineLabels& Entry : MajorGridLabels)
+			{
+				LabelOffset.Y += CurveViewConstants::LabelOffsetPixels;
 
-			FSlateDrawElement::MakeText(
-				OutDrawElements,
-				BaseLayerId + CurveViewConstants::ELayerOffset::GridLabels,
-				LabelGeometry,
-				Label,
-				FontInfo,
-				DrawEffects,
-				LabelColor
-			);
+				FVector2f LabelSize = Entry.Sizes[i];
+				const FPaintGeometry LabelGeometry = AllottedGeometry.ToPaintGeometry(
+					FSlateLayoutTransform(
+						FVector2f(
+							LinePoints[0].X - LabelSize.X*.5f,                 // Center horizontally on the grid line
+							LabelOffset.Y + (Entry.MaxSize.Y-LabelSize.Y)*.5f  // Center vertically within the axis
+						)
+					)
+				);
+
+				FSlateDrawElement::MakeText(
+					OutDrawElements,
+					BaseLayerId + CurveViewConstants::ELayerOffset::GridLabels,
+					LabelGeometry,
+					Entry.Labels[i],
+					FontInfo,
+					DrawEffects,
+					Entry.Color
+				);
+
+				LabelOffset.Y += Entry.MaxSize.Y + CurveViewConstants::LabelOffsetPixels;
+			}
+
+			LinePoints[0].Y = LabelOffset.Y;
 		}
 		else
 		{
@@ -381,11 +556,130 @@ void SInteractiveCurveEditorView::DrawGridLines(TSharedRef<FCurveEditor> CurveEd
 		);
 	}
 
+
+
+
+
+
+
 	MajorGridLines.Reset();
 	MinorGridLines.Reset();
 	MajorGridLabels.Reset();
-	GetGridLinesY(CurveEditor, MajorGridLines, MinorGridLines, &MajorGridLabels);
-	ensureMsgf(MajorGridLabels.Num() == 0 || MajorGridLines.Num() == MajorGridLabels.Num(), TEXT("If grid labels are specified, one must be specified for every major grid line, even if it is just an empty FText."));
+
+	// Ask Custom axes to draw until we find something that does
+	for (int32 Index = 0; Index < CustomVerticalAxes.Num(); ++Index)
+	{
+		const FAxisInfo& AxisInfo = CustomVerticalAxes[Index];
+		AxisInfo.Axis->GetGridLines(*CurveEditor, *this, FCurveEditorViewAxisID(Index), MajorGridLines, MinorGridLines, ECurveEditorAxisOrientation::Vertical);
+		if (MajorGridLines.Num() || MinorGridLines.Num())
+		{
+			VerticalGridSpace = FCurveEditorScreenSpaceV(ViewSpace.GetPhysicalHeight(), AxisInfo.Min, AxisInfo.Max);
+			break;
+		}
+	}
+
+	if (MajorGridLines.Num() == 0)
+	{
+		// Auto populate the major grid labels
+		TArray<float> MajorGridLinesFloat, MinorGridLinesFloat;
+		if (bNeedsDefaultGridLinesV)
+		{
+			// Auto populate the major grid labels
+			FGridLineLabels& Labels = MajorGridLabels.Emplace_GetRef(FCurveEditorViewAxisID(), HighlightedVerticalAxes);
+			GetGridLinesY(CurveEditor, MajorGridLinesFloat, MinorGridLinesFloat, &Labels.Labels);
+		}
+		else
+		{
+			GetGridLinesY(CurveEditor, MajorGridLinesFloat, MinorGridLinesFloat, nullptr);
+		}
+
+		// This legacy API defined grid lines in screen space
+		if (MajorGridLinesFloat.Num())
+		{
+			MajorGridLines.SetNum(MajorGridLinesFloat.Num());
+			for (int32 Index = 0; Index < MajorGridLines.Num(); ++Index)
+			{
+				MajorGridLines[Index] = ViewSpace.ScreenToValue(MajorGridLinesFloat[Index]);
+			}
+		}
+		if (MinorGridLinesFloat.Num())
+		{
+			MinorGridLines.SetNum(MinorGridLinesFloat.Num());
+			for (int32 Index = 0; Index < MinorGridLines.Num(); ++Index)
+			{
+				MinorGridLines[Index] = ViewSpace.ScreenToValue(MinorGridLinesFloat[Index]);
+			}
+		}
+	}
+	else if (bNeedsDefaultGridLinesV)
+	{
+		FText DefaultFormat = CurveEditor->GetGridLineLabelFormatYAttribute().Get();
+		if (!DefaultFormat.IsEmpty())
+		{
+			FGridLineLabels& DefaultGridLabels = MajorGridLabels.Emplace_GetRef(FCurveEditorViewAxisID(), HighlightedVerticalAxes);
+
+			const int32 Num = MajorGridLines.Num();
+			DefaultGridLabels.Labels.SetNum(Num);
+			for (int32 GridLineIndex = 0; GridLineIndex < Num; ++GridLineIndex)
+			{
+				double GridLine = VerticalGridSpace.ValueToScreen(MajorGridLines[GridLineIndex]);
+				GridLine = ViewSpace.ScreenToValue(GridLine);
+
+				DefaultGridLabels.Labels[GridLineIndex] = FText::Format(DefaultFormat, GridLine);
+			}
+		}
+	}
+
+	// Populate grid labels for custom axes
+	if (MajorGridLines.Num() > 0)
+	{
+		const int32 NumLabels = MajorGridLines.Num();
+
+		for (int32 Index = 0; Index < CustomVerticalAxes.Num(); ++Index)
+		{
+			const FAxisInfo& AxisInfo = CustomVerticalAxes[Index];
+			if (!AxisInfo.Axis->HasLabels())
+			{
+				continue;
+			}
+
+			FGridLineLabels& Entry = MajorGridLabels.Emplace_GetRef(FCurveEditorViewAxisID(Index), HighlightedVerticalAxes);
+
+			Entry.Labels.SetNum(NumLabels);
+			for (int32 GridLineIndex = 0; GridLineIndex < NumLabels; ++GridLineIndex)
+			{
+				Entry.Labels[GridLineIndex] = AxisInfo.Axis->MakeLabel(MajorGridLines[GridLineIndex]);
+			}
+		}
+	}
+
+
+
+
+
+
+
+
+
+
+
+	// Compute sizing
+	for (FGridLineLabels& Entry : MajorGridLabels)
+	{
+		Entry.Sizes.SetNum(Entry.Labels.Num());
+
+		FVector2f MaxSize(0.f, 0.f);
+		for (int32 Index = 0; Index < Entry.Labels.Num(); ++Index)
+		{
+			const FVector2f LabelSize = FontMeasure->Measure(Entry.Labels[Index], FontInfo);
+
+			Entry.Sizes[Index] = LabelSize;
+			MaxSize.X = FMath::Max(MaxSize.X, LabelSize.X);
+			MaxSize.Y = FMath::Max(MaxSize.Y, LabelSize.Y);
+		}
+		Entry.MaxSize = MaxSize;
+	}
+
 
 	// Reset our cached Line to draw from left to right
 	LinePoints[0].X = 0.f;
@@ -394,7 +688,7 @@ void SInteractiveCurveEditorView::DrawGridLines(TSharedRef<FCurveEditor> CurveEd
 	// Draw our major horizontal lines
 	for (int32 i = 0; i < MajorGridLines.Num(); i++)
 	{
-		const float RoundedLine = FMath::RoundToFloat(MajorGridLines[i]);
+		const float RoundedLine = FMath::RoundToFloat(VerticalGridSpace.ValueToScreen(MajorGridLines[i]));
 		if (RoundedLine < 0 || RoundedLine > RoundedHeight)
 		{
 			continue;
@@ -403,29 +697,47 @@ void SInteractiveCurveEditorView::DrawGridLines(TSharedRef<FCurveEditor> CurveEd
 		// Overwrite the height of the line we're drawing to draw the different grid lines.
 		LinePoints[0].Y = LinePoints[1].Y = RoundedLine;
 
-		if (MajorGridLabels.IsValidIndex(i))
+		// Offset for all labels
+		if (MajorGridLabels[0].Labels.Num() > 0)
 		{
-			FText Label = MajorGridLabels[i];
-			const FVector2D LabelSize = FontMeasure->Measure(Label, FontInfo);
-			const FPaintGeometry LabelGeometry = AllottedGeometry.ToPaintGeometry(FSlateLayoutTransform(FVector2D(CurveViewConstants::LabelOffsetPixels, LinePoints[0].Y - LabelSize.Y*.5f)));
+			FVector2f LabelOffset(0.f, 0.f);
 
-			LinePoints[0].X = LabelSize.X + CurveViewConstants::LabelOffsetPixels*2.f;
+			// Compute size of all labels
+			for (FGridLineLabels& Entry : MajorGridLabels)
+			{
+				LabelOffset.X += CurveViewConstants::LabelOffsetPixels;
 
-			FSlateDrawElement::MakeText(
-				OutDrawElements,
-				BaseLayerId + CurveViewConstants::ELayerOffset::GridLabels,
-				LabelGeometry,
-				Label,
-				FontInfo,
-				DrawEffects,
-				LabelColor
-			);
+				FVector2f LabelSize = Entry.Sizes[i];
+				const FPaintGeometry LabelGeometry = AllottedGeometry.ToPaintGeometry(
+					FSlateLayoutTransform(
+						FVector2D(
+							LabelOffset.X + (Entry.MaxSize.X-LabelSize.X)*.5f,  // Center horizontally within the axis
+							LinePoints[0].Y - LabelSize.Y*.5f                   // Center vertically on the grid line
+						)
+					)
+				);
+
+				FSlateDrawElement::MakeText(
+					OutDrawElements,
+					BaseLayerId + CurveViewConstants::ELayerOffset::GridLabels,
+					LabelGeometry,
+					Entry.Labels[i],
+					FontInfo,
+					DrawEffects,
+					Entry.Color
+				);
+
+				LabelOffset.X += Entry.MaxSize.X + CurveViewConstants::LabelOffsetPixels;
+			}
+
+			LinePoints[0].X = LabelOffset.X;
 		}
 		else
 		{
 			LinePoints[0].X = 0.f;
 		}
 
+		// Draw the grid line
 		FSlateDrawElement::MakeLines(
 			OutDrawElements,
 			BaseLayerId + CurveViewConstants::ELayerOffset::GridLines,
@@ -469,8 +781,7 @@ void SInteractiveCurveEditorView::DrawCurves(TSharedRef<FCurveEditor> CurveEdito
 	const FVector2D      VisibleSize = AllottedGeometry.GetLocalSize();
 	const FPaintGeometry PaintGeometry = AllottedGeometry.ToPaintGeometry();
 
-	const float HoveredCurveThickness = 3.5f;
-	const float UnHoveredCurveThickness = 2.f;
+	const float HoverThicknessOffset = 1.5f;
 	const bool  bAntiAliasCurves = true;
 
 	const bool bDrawLines = CVarDrawCurveLines.GetValueOnGameThread();
@@ -480,22 +791,47 @@ void SInteractiveCurveEditorView::DrawCurves(TSharedRef<FCurveEditor> CurveEdito
 	for (const FCurveDrawParams& Params : CachedDrawParams)
 	{
 		const bool bIsCurveHovered = HoveredCurve.IsSet() && HoveredCurve.GetValue() == Params.GetID();
-		const float Thickness = bIsCurveHovered ? HoveredCurveThickness : UnHoveredCurveThickness;
+		const float Thickness = bIsCurveHovered ? Params.Thickness+HoverThicknessOffset : Params.Thickness;
 		const int32 CurveLayerId = bIsCurveHovered ? BaseLayerId + CurveViewConstants::ELayerOffset::Curves : BaseLayerId + CurveViewConstants::ELayerOffset::HoveredCurves;
 
 		if (bDrawLines)
 		{
+			if (Params.DashLengthPx > 0.f)
+			{
+				float DashOffset = static_cast<float>(GetViewSpace().PixelsPerInput() * GetViewSpace().GetInputMin());
 
-			FSlateDrawElement::MakeLines(
-				OutDrawElements,
-				CurveLayerId,
-				PaintGeometry,
-				Params.InterpolatingPoints,
-				DrawEffects,
-				Params.Color,
-				bAntiAliasCurves,
-				Thickness
-			);
+				TArray<FVector2f> NewVector;
+				NewVector.Reserve(Params.InterpolatingPoints.Num());
+				for (FVector2d Vect : Params.InterpolatingPoints)
+				{
+					NewVector.Add(UE::Slate::CastToVector2f(Vect));
+				}
+
+				FSlateDrawElement::MakeDashedLines(
+					OutDrawElements,
+					CurveLayerId,
+					PaintGeometry,
+					MoveTemp(NewVector),
+					DrawEffects,
+					Params.Color,
+					Thickness,
+					Params.DashLengthPx,
+					DashOffset
+				);
+			}
+			else
+			{
+				FSlateDrawElement::MakeLines(
+					OutDrawElements,
+					CurveLayerId,
+					PaintGeometry,
+					Params.InterpolatingPoints,
+					DrawEffects,
+					Params.Color,
+					bAntiAliasCurves,
+					Thickness
+				);
+			}
 		}
 		
 		TArray<FVector2D> LinePoints;
@@ -681,7 +1017,7 @@ bool SInteractiveCurveEditorView::GetCurveWithinWidgetRange(const FSlateRect& Wi
 		if (const FCurveModel* Curve = CurveEditor->FindCurve(CurveID))
 		{
 			TArray<FKeyHandle> KeyHandles;
-			Curve->GetKeys(*CurveEditor, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+			Curve->GetKeys(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
 
 			for (const FKeyHandle& KeyHandle : KeyHandles)
 			{
@@ -696,6 +1032,8 @@ bool SInteractiveCurveEditorView::GetCurveWithinWidgetRange(const FSlateRect& Wi
 
 void SInteractiveCurveEditorView::UpdateCurveProximities(FVector2D MousePixel)
 {
+	TOptional<FCurveModelID> PreviouslyHovered = GetHoveredCurve();
+
 	CurveProximities.Reset();
 	CachedToolTipData.Reset();
 
@@ -747,9 +1085,12 @@ void SInteractiveCurveEditorView::UpdateCurveProximities(FVector2D MousePixel)
 
 	Algo::SortBy(CurveProximities, [](TTuple<FCurveModelID, float> In) { return In.Get<1>(); });
 
+	TOptional<FCurveModelID> NewHovered;
 	// Also, set the cached tooltips if dragging because the curve proximity might not be updated during the drag
 	if (CurveProximities.Num() > 0 && (CurveProximities[0].Get<1>() < CurveViewConstants::HoverProximityThresholdPx || DragOperation.IsSet()))
 	{
+		NewHovered = CurveProximities[0].Get<0>();
+
 		const FCurveModel* HoveredCurve = CurveEditor->FindCurve(CurveProximities[0].Get<0>());
 		if (HoveredCurve)
 		{
@@ -767,6 +1108,11 @@ void SInteractiveCurveEditorView::UpdateCurveProximities(FVector2D MousePixel)
 			
 			CachedToolTipData = ToolTipData;
 		}
+	}
+
+	if (PreviouslyHovered != NewHovered)
+	{
+		RefreshRetainer();
 	}
 }
 
@@ -1283,7 +1629,7 @@ FReply SInteractiveCurveEditorView::OnMouseButtonUp(const FGeometry& MyGeometry,
 
 			TArray<FKeyHandle> KeyHandles;
 			KeyHandles.Reserve(CurveModel->GetNumKeys());
-			CurveModel->GetKeys(*CurveEditor, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+			CurveModel->GetKeys(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
 
 			// Add or remove all keys from the curve.
 			if (bIsShiftDown)
@@ -1605,7 +1951,7 @@ void SInteractiveCurveEditorView::AddKeyAtTime(const TSet<FCurveModelID>& ToCurv
 			// add that key to the selection set instead. This solves issues with snapping causing keys to be created adjacent
 			// to the mouse cursor (sometimes by a large amount).
 			TArray<FKeyHandle> ExistingKeys;
-			CurveModel->GetKeys(*CurveEditor, EvalTime - KINDA_SMALL_NUMBER, EvalTime + KINDA_SMALL_NUMBER, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), ExistingKeys);
+			CurveModel->GetKeys(EvalTime - KINDA_SMALL_NUMBER, EvalTime + KINDA_SMALL_NUMBER, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), ExistingKeys);
 			
 			TOptional<FKeyHandle> NewKey;
 
@@ -1615,8 +1961,34 @@ void SInteractiveCurveEditorView::AddKeyAtTime(const TSet<FCurveModelID>& ToCurv
 			}
 			else
 			{
-				const FKeyAttributes& KeyAttributes = GetDefaultKeyAttributesForCurveTime(*CurveEditor, *CurveModel, EvalTime);
+				FKeyAttributes KeyAttributes = GetDefaultKeyAttributesForCurveTime(*CurveEditor, *CurveModel, EvalTime);
+				if (KeyAttributes.HasInterpMode() && 
+					KeyAttributes.GetInterpMode() == ERichCurveInterpMode::RCIM_Cubic&& 
+					KeyAttributes.HasTangentMode() && 
+					(KeyAttributes.GetTangentMode() == RCTM_User || KeyAttributes.GetTangentMode() == RCTM_Break))
+				{
+					//if we are within the range of existing keys set the tangent to be that of the slope of the curve, otherwise
+					//just set it as flat
+					double MinTime = 0., MaxTime = 0.;
+					CurveModel->GetTimeRange(MinTime, MaxTime);
+					if (EvalTime > MinTime && EvalTime < MaxTime)
+					{
+						const double DeltaTime = 0.1;
 
+						// Compute right tangent
+						double RightTangent = GetTangentValue(EvalTime, CurveValue, CurveModel, DeltaTime);
+						KeyAttributes.SetLeaveTangent(RightTangent);
+
+						// Left
+						double LeftTangent = GetTangentValue(EvalTime, CurveValue, CurveModel, -DeltaTime);
+						KeyAttributes.SetArriveTangent(LeftTangent);
+					}
+					else
+					{
+						KeyAttributes.SetLeaveTangent(0.0);
+						KeyAttributes.SetArriveTangent(0.0);
+					}
+				}
 				// Add a key on this curve
 				NewKey = CurveModel->AddKey(FKeyPosition(EvalTime, CurveValue), KeyAttributes);
 			}

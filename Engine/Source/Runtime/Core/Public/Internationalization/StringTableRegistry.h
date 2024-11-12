@@ -52,19 +52,19 @@ public:
 	CORE_API void LogMissingStringTableEntry(const FName InTableId, const FTextKey& InKey);
 
 	/** Internal function called by LOCTABLE_NEW to create and register a new FStringTable instance */
-	CORE_API void Internal_NewLocTable(const FName InTableId, const FString& InNamespace);
+	CORE_API void Internal_NewLocTable(const FName InTableId, const FTextKey& InNamespace);
 
 	/** Internal function called by LOCTABLE_FROMFILE_X to create and register a FStringTable instance that has been populated from a file */
-	CORE_API void Internal_LocTableFromFile(const FName InTableId, const FString& InNamespace, const FString& InFilePath, const FString& InRootPath);
+	CORE_API void Internal_LocTableFromFile(const FName InTableId, const FTextKey& InNamespace, const FString& InFilePath, const FString& InRootPath);
 
 	/** Internal function called by LOCTABLE_SETSTRING to set the entry denoted by the given key to the given source string, within the given string table (table must have been registered already) */
-	CORE_API void Internal_SetLocTableEntry(const FName InTableId, const FString& InKey, const FString& InSourceString);
+	CORE_API void Internal_SetLocTableEntry(const FName InTableId, const FTextKey& InKey, const FString& InSourceString);
 
 	/** Internal function called by LOCTABLE_SETMETA to set meta-data for the entry denoted by the given key, within the given string table (table must have been registered already) */
-	CORE_API void Internal_SetLocTableEntryMetaData(const FName InTableId, const FString& InKey, const FName InMetaDataId, const FString& InMetaData);
+	CORE_API void Internal_SetLocTableEntryMetaData(const FName InTableId, const FTextKey& InKey, const FName InMetaDataId, const FString& InMetaData);
 
 	/** Internal function called by LOCTABLE to find the entry with by the given key within the given string table (redirects, will load assets if needed, and returns a dummy FText if not found) */
-	CORE_API FText Internal_FindLocTableEntry(const FName InTableId, const FString& InKey, const EStringTableLoadingPolicy InLoadingPolicy) const;
+	CORE_API FText Internal_FindLocTableEntry(const FName InTableId, const FTextKey& InKey, const EStringTableLoadingPolicy InLoadingPolicy) const;
 
 private:
 	/** Private constructor - use singleton accessor */

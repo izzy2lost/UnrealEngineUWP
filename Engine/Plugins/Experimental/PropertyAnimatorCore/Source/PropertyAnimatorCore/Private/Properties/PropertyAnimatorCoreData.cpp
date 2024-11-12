@@ -3,7 +3,6 @@
 #include "Properties/PropertyAnimatorCoreData.h"
 
 #include "Properties/PropertyAnimatorCoreResolver.h"
-#include "Properties/Handlers/PropertyAnimatorCoreHandlerBase.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
 
 FPropertyAnimatorCoreData::FPropertyAnimatorCoreData(UObject* InObject, FProperty* InMemberProperty, FProperty* InProperty, TSubclassOf<UPropertyAnimatorCoreResolver> InResolverClass)
@@ -69,6 +68,159 @@ FPropertyAnimatorCoreData::FPropertyAnimatorCoreData(UObject* InObject, const TA
 	FindSetterFunctions();
 }
 
+FPropertyAnimatorCoreData::FPropertyAnimatorCoreData(AActor* InActor, const FString& InPropertyLocatorPath)
+{
+	UPropertyAnimatorCoreSubsystem* Subsystem = UPropertyAnimatorCoreSubsystem::Get();
+
+	if (!InActor || InPropertyLocatorPath.IsEmpty() || !Subsystem)
+	{
+		return;
+	}
+
+	UPropertyAnimatorCoreResolver* Resolver = nullptr;
+
+	TArray<FString> Elements;
+	InPropertyLocatorPath.ParseIntoArray(Elements, TEXT(";"));
+
+	if (Elements.Num() < 2)
+	{
+		return;
+	}
+
+	int32 ElementIndex = 0;
+
+	// Get Resolver
+	if (Elements.Num() == 3)
+	{
+		FString ResolverClass;
+		FString ResolverName;
+		Elements[ElementIndex++].Split(TEXT(":"), &ResolverClass, &ResolverName);
+
+		Resolver = Subsystem->FindResolverByName(FName(ResolverName));
+		Resolver = Resolver ? Resolver : Subsystem->FindResolverByClass(LoadObject<UClass>(nullptr, *ResolverClass));
+
+		if (Resolver)
+		{
+			PropertyResolverClass = Resolver->GetClass();
+		}
+	}
+
+	// Locate Owner
+	TArray<FString> Outers;
+	Elements[ElementIndex++].ParseIntoArray(Outers, TEXT(","));
+
+	// Locate Property
+	TArray<FString> Properties;
+	Elements[ElementIndex].ParseIntoArray(Properties, TEXT(","));
+
+	for (const FString& PropertyPath : Properties)
+	{
+		FProperty* Property = FindFProperty<FProperty>(*PropertyPath);
+
+		if (!Property)
+		{
+			break;
+		}
+
+		ChainProperties.Add(Property);
+	}
+
+	// Search for an object containing member property
+	if (const FProperty* MemberProperty = GetMemberProperty())
+	{
+		UClass* MemberOwningClass = MemberProperty->GetOwnerClass();
+
+		UObject* FoundObject = InActor;
+		for (int32 Index = 0; Index < Outers.Num(); Index++)
+		{
+			FString OuterClass;
+			FString OuterName;
+			Outers[Index].Split(TEXT(":"), &OuterClass, &OuterName);
+
+			TArray<UObject*> OwnedObjects;
+			GetObjectsWithOuter(FoundObject, OwnedObjects, /** IncludeNested */false);
+
+			bool bFound = false;
+
+			// Search by name
+			for (UObject* OwnedObject : OwnedObjects)
+			{
+				if (OwnedObject->GetName() == OuterName)
+				{
+					FoundObject = OwnedObject;
+					bFound = true;
+					break;
+				}
+			}
+
+			// Search by class
+			if (!bFound)
+			{
+				for (UObject* OwnedObject : OwnedObjects)
+				{
+					if (OwnedObject->GetClass()->GetClassPathName().ToString() == OuterClass)
+					{
+						FoundObject = OwnedObject;
+						bFound = true;
+						break;
+					}
+				}
+			}
+
+			// Search by parent class when last outer to allow (USceneComponent::RelativeLocation == UStaticMeshComponent::RelativeLocation)
+			if (!bFound && (Outers.Num() - 1) == Index && MemberProperty)
+			{
+				for (UObject* OwnedObject : OwnedObjects)
+				{
+					if (OwnedObject->GetClass()->IsChildOf(MemberOwningClass))
+					{
+						FoundObject = OwnedObject;
+						bFound = true;
+						break;
+					}
+				}
+			}
+
+			if (!bFound)
+			{
+				FoundObject = nullptr;
+				break;
+			}
+		}
+
+		OwnerWeak = FoundObject;
+
+		// Use resolver if owner was not found
+		if (!FoundObject && Resolver && MemberProperty)
+		{
+			const FPropertyAnimatorCoreData ActorData(InActor, nullptr, nullptr);
+			TSet<FPropertyAnimatorCoreData> ResolvableProperties;
+			Resolver->GetResolvableProperties(ActorData, ResolvableProperties);
+
+			for (const FPropertyAnimatorCoreData& ResolvableProperty : ResolvableProperties)
+			{
+				UObject* PropertyOwner = ResolvableProperty.GetOwner();
+
+				if (!PropertyOwner)
+				{
+					continue;
+				}
+
+				if (PropertyOwner->IsA(MemberOwningClass))
+				{
+					FoundObject = PropertyOwner;
+					break;
+				}
+			}
+
+			OwnerWeak = FoundObject;
+		}
+	}
+
+	GeneratePropertyPath();
+	FindSetterFunctions();
+}
+
 bool FPropertyAnimatorCoreData::IsResolvable() const
 {
 	return PropertyResolverClass.Get() != nullptr;
@@ -123,16 +275,171 @@ UActorComponent* FPropertyAnimatorCoreData::GetOwningComponent() const
 	return Owner->GetTypedOuter<UActorComponent>();
 }
 
+TArray<UObject*> FPropertyAnimatorCoreData::GetOuters(const UObject* InStopOuter) const
+{
+	TArray<UObject*> Owners;
+
+	UObject* Outer = OwnerWeak.Get();
+
+	if (!Outer)
+	{
+		return Owners;
+	}
+
+	while (Outer && Outer != InStopOuter)
+	{
+		Owners.Add(Outer);
+		Outer = Outer->GetOuter();
+	}
+
+	Algo::Reverse(Owners);
+
+	return Owners;
+}
+
+TArray<FString> FPropertyAnimatorCoreData::GetOuterNames() const
+{
+	TArray<FString> OuterNames;
+	PathHash.ParseIntoArray(OuterNames, TEXT("."), true);
+	const FString MemberPropertyName = GetMemberPropertyName().ToString();
+
+	// Remove all properties chain segments
+	for (int32 Index = OuterNames.Num() - 1; Index >= 0; Index--)
+	{
+		if (OuterNames[Index].Equals(MemberPropertyName))
+		{
+			OuterNames.RemoveAt(Index, OuterNames.Num() - Index);
+			break;
+		}
+	}
+
+	// Remove resolver name at the beginning
+	if (!OuterNames.IsEmpty() && IsResolvable())
+	{
+		OuterNames.RemoveAt(0);
+	}
+
+	return OuterNames;
+}
+
+FString FPropertyAnimatorCoreData::GetPropertyDisplayName() const
+{
+	if (!PropertyDisplayName.IsEmpty())
+	{
+		return PropertyDisplayName;
+	}
+
+	const FString ResolverName = IsResolvable()
+		? (GetPropertyResolver()->GetResolverName().ToString() + TEXT("."))
+		: TEXT("");
+
+	FString DisplayName;
+	FString PropertyTypePath;
+	for (const TFieldPath<FProperty>& ChainProperty : ChainProperties)
+	{
+		FString FriendlyName = ChainProperty->GetName();
+
+		if (ChainProperty->IsA<FBoolProperty>())
+		{
+			FriendlyName.RemoveFromStart(TEXT("b"), ESearchCase::Type::CaseSensitive);
+		}
+
+		DisplayName += DisplayName.IsEmpty()
+			? FriendlyName
+			: (TEXT(".") + FriendlyName);
+
+		const FString TypeName = GetPropertyTypeName(ChainProperty.Get()).ToString();
+
+		PropertyTypePath += PropertyTypePath.IsEmpty()
+			? TypeName
+			: (TEXT(".") + TypeName);
+	}
+
+	if (!ChainProperties.IsEmpty())
+	{
+		const FString LeafPropertyName = ChainProperties.Last()->GetName();
+
+		PropertyTypePath += PropertyTypePath.IsEmpty()
+			? LeafPropertyName
+			: (TEXT(".") + LeafPropertyName);
+	}
+
+	FPropertyAnimatorCoreData* MutableThis = const_cast<FPropertyAnimatorCoreData*>(this);
+
+	// Find alias
+	FString AliasName;
+	if (const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
+	{
+		AliasName = AnimatorSubsystem->FindPropertyAlias(PropertyTypePath);
+	}
+
+	if (!AliasName.IsEmpty())
+	{
+		int32 LastPeriodIndex;
+		if (DisplayName.FindLastChar(TEXT('.'), LastPeriodIndex))
+		{
+			DisplayName = DisplayName.Left(LastPeriodIndex + 1);
+		}
+
+		DisplayName += AliasName;
+	}
+
+	MutableThis->PropertyDisplayName = ResolverName + DisplayName;
+
+	return PropertyDisplayName;
+}
+
+FString FPropertyAnimatorCoreData::GetPropertyLocatorPath() const
+{
+	FString LocatorPath;
+
+	// Append resolver
+	if (const UPropertyAnimatorCoreResolver* Resolver = GetPropertyResolver())
+	{
+		LocatorPath += Resolver->GetClass()->GetClassPathName().ToString() + TEXT(":") + Resolver->GetResolverName().ToString() + TEXT(";");
+	}
+
+	// Append outers
+	for (const UObject* Outer : GetOuters(GetOwningActor()))
+	{
+		LocatorPath += Outer->GetClass()->GetClassPathName().ToString() + TEXT(":") + Outer->GetName() + TEXT(",");
+	}
+
+	LocatorPath.RemoveFromEnd(TEXT(","));
+	LocatorPath += TEXT(";");
+
+	// Append properties
+	const AActor* OwningActor = GetOwningActor();
+	for (const TFieldPath<FProperty>& Property : ChainProperties)
+	{
+		LocatorPath += Property->GetPathName(OwningActor) + TEXT(",");
+	}
+
+	LocatorPath.RemoveFromEnd(TEXT(","));
+
+	return LocatorPath;
+}
+
 FName FPropertyAnimatorCoreData::GetMemberPropertyName() const
 {
 	const FProperty* MemberProperty = GetMemberProperty();
 	return MemberProperty ? MemberProperty->GetFName() : NAME_None;
 }
 
+FName FPropertyAnimatorCoreData::GetMemberPropertyTypeName() const
+{
+	return GetPropertyTypeName(GetMemberProperty());
+}
+
 FName FPropertyAnimatorCoreData::GetLeafPropertyName() const
 {
 	const FProperty* LeafProperty = GetLeafProperty();
 	return LeafProperty ? LeafProperty->GetFName() : NAME_None;
+}
+
+FName FPropertyAnimatorCoreData::GetLeafPropertyTypeName() const
+{
+	return GetPropertyTypeName(GetLeafProperty());
 }
 
 TArray<FProperty*> FPropertyAnimatorCoreData::GetChainProperties() const
@@ -159,7 +466,10 @@ bool FPropertyAnimatorCoreData::HasSetter() const
 
 bool FPropertyAnimatorCoreData::IsParentOf(const FPropertyAnimatorCoreData& InOtherProperty) const
 {
-	if (FProperty* LeafProperty = GetLeafProperty())
+	FProperty* LeafProperty = GetLeafProperty();
+	const UObject* Owner = GetOwner();
+
+	if (Owner && Owner == InOtherProperty.GetOwner() && LeafProperty)
 	{
 		const TArray<FProperty*> OtherChainProperties = InOtherProperty.GetChainProperties();
 
@@ -179,7 +489,10 @@ bool FPropertyAnimatorCoreData::IsChildOf(const FPropertyAnimatorCoreData& InOth
 
 bool FPropertyAnimatorCoreData::IsOwning(const FPropertyAnimatorCoreData& InOtherProperty) const
 {
-	if (FProperty* LeafProperty = GetLeafProperty())
+	FProperty* LeafProperty = GetLeafProperty();
+	const UObject* Owner = GetOwner();
+
+	if (Owner && Owner == InOtherProperty.GetOwner() && LeafProperty)
 	{
 		const TArray<FProperty*> OtherChainProperties = InOtherProperty.GetChainProperties();
 
@@ -270,6 +583,44 @@ TOptional<FPropertyAnimatorCoreData> FPropertyAnimatorCoreData::GetRootParent() 
 	return FPropertyAnimatorCoreData(GetOwner(), ParentChainProperties, GetPropertyResolverClass());
 }
 
+TArray<FPropertyAnimatorCoreData> FPropertyAnimatorCoreData::GetChildrenProperties(int32 InDepthSearch) const
+{
+	TArray<FPropertyAnimatorCoreData> ChildrenProperties;
+	FProperty* LeafProperty = GetLeafProperty();
+
+	if (!LeafProperty || InDepthSearch-- <= 0)
+	{
+		return ChildrenProperties;
+	}
+
+	if (const FStructProperty* StructProperty = CastField<FStructProperty>(LeafProperty))
+	{
+		if (const UScriptStruct* Struct = StructProperty->Struct)
+		{
+			TArray<FProperty*> Properties;
+			Algo::Transform(ChainProperties, Properties, [](const TFieldPath<FProperty>& InProperty)
+			{
+				return InProperty.Get();
+			});
+
+			for (FProperty* ChildProperty : TFieldRange<FProperty>(Struct))
+			{
+				if (ChildProperty)
+				{
+					FPropertyAnimatorCoreData ChildPropertyData(GetOwner(), Properties, ChildProperty, GetPropertyResolverClass());
+
+					ChildrenProperties.Add(ChildPropertyData);
+					ChildrenProperties.Append(ChildPropertyData.GetChildrenProperties(InDepthSearch));
+				}
+			}
+		}
+	}
+
+	// We don't handle object, array, map, set container for now
+
+	return ChildrenProperties;
+}
+
 UPropertyAnimatorCoreHandlerBase* FPropertyAnimatorCoreData::GetPropertyHandler() const
 {
 	// Cache it once
@@ -282,12 +633,6 @@ UPropertyAnimatorCoreHandlerBase* FPropertyAnimatorCoreData::GetPropertyHandler(
 	}
 
 	return PropertyHandler;
-}
-
-FPropertyAnimatorCoreData::FPropertyAnimatorCoreData(const FString& InPathHash, FName InDisplayName)
-	: PropertyDisplayName(InDisplayName)
-	, PathHash(InPathHash)
-{
 }
 
 void FPropertyAnimatorCoreData::GetPropertyValuePtrInternal(void* OutValue) const
@@ -456,29 +801,35 @@ void FPropertyAnimatorCoreData::CopyPropertyValue(const FProperty* InProperty, c
 	}
 }
 
+FName FPropertyAnimatorCoreData::GetPropertyTypeName(const FProperty* InProperty)
+{
+	if (InProperty)
+	{
+		if (const FStructProperty* StructProperty = CastField<FStructProperty>(InProperty))
+		{
+			return StructProperty->Struct->GetFName();
+		}
+
+		return FName(InProperty->GetCPPType());
+	}
+
+	return NAME_None;
+}
+
 void FPropertyAnimatorCoreData::GeneratePropertyPath()
 {
 	const UObject* Owner = GetOwner();
-	const FString ResolverName = IsResolvable() ? GetPropertyResolver()->GetResolverName().ToString() : TEXT("");
+	const UObject* StopOuter = GetOwningActor();
+	const FString ResolverName = IsResolvable() ? GetPropertyResolver()->GetResolverName().ToString() + TEXT(".") : TEXT("");
 
 	PathHash = ResolverName;
-	PathHash += IsValid(Owner) ? Owner->GetPathName() : TEXT("");
+	PathHash += IsValid(Owner) ? Owner->GetPathName(StopOuter) : TEXT("");
 
 	FString DisplayName = ResolverName;
 	for (const TFieldPath<FProperty>& ChainProperty : ChainProperties)
 	{
 		PathHash += TEXT(".") + ChainProperty->GetName();
-
-		FString FriendlyName = ChainProperty->GetName();
-		if (ChainProperty->IsA<FBoolProperty>())
-		{
-			FriendlyName.RemoveFromStart(TEXT("b"), ESearchCase::Type::CaseSensitive);
-		}
-
-		DisplayName += DisplayName.IsEmpty() ? FriendlyName : TEXT(".") + FriendlyName;
 	}
-
-	PropertyDisplayName = FName(DisplayName);
 }
 
 bool FPropertyAnimatorCoreData::FindSetterFunctions()

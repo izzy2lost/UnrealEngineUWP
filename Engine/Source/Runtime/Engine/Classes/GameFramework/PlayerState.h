@@ -42,20 +42,16 @@ class APlayerState : public AInfo
 {
 	GENERATED_UCLASS_BODY()
 
-	// destructor for handling property deprecation, please remove after all deprecated properties are gone
-	ENGINE_API virtual ~APlayerState();
+private:
 
 	/** Player's current score. */
-	UE_DEPRECATED(4.25, "This member will be made private. Use GetScore or SetScore instead.")
-	UPROPERTY(ReplicatedUsing=OnRep_Score, Category=PlayerState, BlueprintGetter=GetScore)
+	UPROPERTY(ReplicatedUsing = OnRep_Score, Category = PlayerState, BlueprintGetter = GetScore)
 	float Score;
 
 	/** Unique net id number. Actual value varies based on current online subsystem, use it only as a guaranteed unique number per player. */
-	UE_DEPRECATED(4.25, "This member will be made private. Use GetPlayerId or SetPlayerId instead.")
-	UPROPERTY(ReplicatedUsing=OnRep_PlayerId, Category=PlayerState, BlueprintGetter=GetPlayerId)
+	UPROPERTY(ReplicatedUsing = OnRep_PlayerId, Category = PlayerState, BlueprintGetter = GetPlayerId)
 	int32 PlayerId;
 
-private:
 	/** Replicated compressed ping for this player (holds ping in msec divided by 4) */
 	UPROPERTY(Replicated, Category=PlayerState, BlueprintGetter=GetCompressedPing, meta=(AllowPrivateAccess))
 	uint8 CompressedPing;
@@ -72,27 +68,25 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category=PlayerState)
 	uint8 bShouldUpdateReplicatedPing:1;
 
-public:
 	/** Whether this player is currently a spectator */
-	UE_DEPRECATED(4.25, "This member will be made private. Use IsSpectator or SetIsSpectator instead.")
 	UPROPERTY(Replicated, Category=PlayerState, BlueprintGetter=IsSpectator)
 	uint8 bIsSpectator:1;
 
 	/** Whether this player can only ever be a spectator */
-	UE_DEPRECATED(4.25, "This member will be made private. Use IsOnlyASpectator or SetIsOnlyASpectator instead.")
 	UPROPERTY(Replicated)
 	uint8 bOnlySpectator:1;
 
 	/** True if this PlayerState is associated with an AIController */
-	UE_DEPRECATED(4.25, "This member will be made private. Use IsABot or SetIsABot instead.")
 	UPROPERTY(Replicated, Category=PlayerState, BlueprintGetter=IsABot)
 	uint8 bIsABot:1;
 
+public:
 	/** client side flag - whether this player has been welcomed or not (player entered message) */
 	uint8 bHasBeenWelcomed:1;
 
+private:
+
 	/** Means this PlayerState came from the GameMode's InactivePlayerArray */
-	UE_DEPRECATED(4.25, "This member will be made private. Use IsInactive or SetIsInactive instead.")
 	UPROPERTY(ReplicatedUsing=OnRep_bIsInactive)
 	uint8 bIsInactive:1;
 
@@ -100,18 +94,28 @@ public:
 	 * waiting for the player to finish the transition before creating a new one
 	 * this is used to avoid preserving the PlayerState in the InactivePlayerArray if the player leaves
 	 */
-	UE_DEPRECATED(4.25, "This member will be made private. Use IsFromPreviousLevel or SetIsFromPreviousLevel instead.")
 	UPROPERTY(Replicated)
 	uint8 bFromPreviousLevel:1;
+
+public:
 
 	/** if set, GetPlayerName() will call virtual GetPlayerNameCustom() to allow custom access */
 	uint8 bUseCustomPlayerNames : 1;
 
+private:
+
 	/** Elapsed time on server when this PlayerState was first created.  */
-	UE_DEPRECATED(4.25, "This member will be made private. Use GetStartTime or SetStartTime instead.")
 	UPROPERTY(Replicated)
 	int32 StartTime;
 
+	/** The id used by the network to uniquely identify a player.
+	 * NOTE: the internals of this property should *never* be exposed to the player as it's transient
+	 * and opaque in meaning (ie it might mean date/time followed by something else).
+	 * It is OK to use and pass around this property, though. */
+	UPROPERTY(ReplicatedUsing = OnRep_UniqueId)
+	FUniqueNetIdRepl UniqueId;
+
+public:
 	/** This is used for sending game agnostic messages that can be localized */
 	UPROPERTY()
 	TSubclassOf<class ULocalMessage> EngineMessageClass;
@@ -122,14 +126,6 @@ public:
 	/** Used to match up InactivePlayerState with rejoining playercontroller. */
 	UPROPERTY()
 	FString SavedNetworkAddress;
-
-	/** The id used by the network to uniquely identify a player.
-	 * NOTE: the internals of this property should *never* be exposed to the player as it's transient
-	 * and opaque in meaning (ie it might mean date/time followed by something else).
-	 * It is OK to use and pass around this property, though. */
-	UE_DEPRECATED(4.25, "This member will be made private. Use GetUniqueId or SetUniqueId instead.")
-	UPROPERTY(ReplicatedUsing=OnRep_UniqueId)
-	FUniqueNetIdRepl UniqueId; 
 
 	/** The session that the player needs to join/remove from as it is created/leaves */
 	FName SessionName;
@@ -265,10 +261,6 @@ public:
 	/** called by seamless travel when initializing a player on the other side - copy properties to the new PlayerState that should persist */
 	ENGINE_API virtual void SeamlessTravelTo(class APlayerState* NewPlayerState);
 
-	/** return true if PlayerState is primary (ie. non-splitscreen) player */
-	UE_DEPRECATED(5.1, "This version of IsPrimaryPlayer has been deprecated, please use the Platform Device Mapper to check the owning PlatformUserId instead.")
-	ENGINE_API virtual bool IsPrimaryPlayer() const;
-
 	ENGINE_API virtual void GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const override;
 
 	/** calls OverrideWith and triggers OnOverrideWith for BP extension */
@@ -309,7 +301,6 @@ private:
 	// Hidden functions that don't make sense to use on this class.
 	HIDE_ACTOR_TRANSFORM_FUNCTIONS();
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	//~ Begin Methods for Replicated Members.
 public:
 
@@ -439,7 +430,6 @@ public:
 	ENGINE_API virtual void OnSetUniqueId();
 
 	//~ End Methods for Replicated Members.
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 struct FSetPlayerStatePawn

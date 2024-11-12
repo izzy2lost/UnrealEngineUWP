@@ -33,8 +33,9 @@ public:
 	static constexpr int32 MaxTextureSize = 8192;
 	
 	UGeometryMaskCanvasResource();
-	virtual ~UGeometryMaskCanvasResource() override;
-	
+
+	virtual void BeginDestroy() override;
+
 	/** Will return the first available color channel without a canvas assigned. EGeometryMaskColorChannel::None if not available. */
 	const EGeometryMaskColorChannel GetNextAvailableColorChannel() const;
 
@@ -71,13 +72,13 @@ public:
 	void ResetRenderParameters(EGeometryMaskColorChannel InColorChannel);
 
 	/** Updates the canvas, intended to be called every frame. */
-	void Update(UWorld* InWorld, FSceneView& InView, int32 InViewIndex = 0);
+	void Update(const ULevel* InLevel, FSceneView& InView, int32 InViewIndex = 0);
 
 private:
 	/** Draws all writers to the canvas. */
-	void Draw(UWorld* InWorld, FSceneView& InView, int32 InViewIndex = 0);
+	void Draw(const ULevel* InLevel, FSceneView& InView, int32 InViewIndex = 0);
 
-	FGeometryMaskDrawingContext* GetDrawingContextForWorld(const UWorld* InWorld, uint8 InSceneViewIndex);
+	FGeometryMaskDrawingContext* GetDrawingContextForLevel(const ULevel* InLevel, uint8 InSceneViewIndex);
 	FGeometryMaskDrawingContext* GetDrawingContextForCanvas(const FGeometryMaskCanvasId& InCanvasId);
 	FGeometryMaskDrawingContext* GetDrawingContextForChannel(EGeometryMaskColorChannel InColorChannel);
 

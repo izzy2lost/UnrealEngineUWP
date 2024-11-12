@@ -103,6 +103,19 @@ enum class EInputDeviceTriggerMask : uint8
 };
 ENUM_CLASS_FLAGS(EInputDeviceTriggerMask)
 
+/**
+ * Represents input device analog sticks that are available
+ *
+ * NOTE: Make sure to keep this type in sync with the reflected version in NoExportTypes.h!
+ */
+enum class EInputDeviceAnalogStickMask : uint8
+{
+	None = 0x00,
+	Left = 0x01,
+	Right = 0x02
+};
+ENUM_CLASS_FLAGS(EInputDeviceAnalogStickMask)
+
 struct FInputDeviceProperty
 {
 	FInputDeviceProperty(FName InName)
@@ -207,6 +220,44 @@ struct FInputDeviceTriggerVibrationProperty : public FInputDeviceTriggerProperty
 	int32 VibrationFrequency = 0;
 
 	int32 VibrationAmplitude = 0;
+};
+
+/** Base class for device properties that affect Analog Sticks */
+struct FInputDeviceAnalogStickProperty : public FInputDeviceProperty
+{
+	FInputDeviceAnalogStickProperty(FName InName)
+		: FInputDeviceProperty(InName)
+	{}
+
+	FInputDeviceAnalogStickProperty(FName InName, EInputDeviceAnalogStickMask InAffectedStick)
+		: FInputDeviceProperty(InName)
+		, AffectedStick(InAffectedStick)
+	{}
+
+	/** Which stick this property should effect */
+	EInputDeviceAnalogStickMask AffectedStick = EInputDeviceAnalogStickMask::None;
+};
+
+/**
+ * A generic input device property that sets Deadzone for Analog Sticks.
+ * 
+ * NOTE: Not all input device libraries do their own deadzone filtering, so the game must still do it.
+ * This is just to tell those device libraries that do some filtering not to ignore inputs of this size (circular) or larger.
+ */
+struct FInputDeviceAnalogStickDeadZoneProperty : public FInputDeviceAnalogStickProperty
+{
+	FInputDeviceAnalogStickDeadZoneProperty()
+		: FInputDeviceAnalogStickProperty(PropertyName())
+	{}
+
+	FInputDeviceAnalogStickDeadZoneProperty(EInputDeviceAnalogStickMask InAffectedStick, float InDeadZone)
+		: FInputDeviceAnalogStickProperty(PropertyName(), InAffectedStick)
+		, DeadZone(InDeadZone)
+	{}
+
+	static FName PropertyName() { return FName("InputDeviceAnalogStickDeadZone"); }
+
+	float DeadZone = 0;
 };
 
 /**

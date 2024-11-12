@@ -12,13 +12,22 @@ struct FBuoyancyWaterSplineData
 		const FInterpCurveVector& InPosition,
 		const EWaterBodyType InBodyType,
 		const TOptional<FInterpCurveFloat>& InWidth,
-		const TOptional<FInterpCurveFloat>& InVelocity)
+		const TOptional<FInterpCurveFloat>& InVelocity,
+		const TOptional<FShallowWaterSimulationGrid>& InShallowWaterSimData
+	)
 		: Transform(InTransform)
 		, Position(InPosition)
 		, BodyType(InBodyType)
 		, Width(InWidth)
 		, Velocity(InVelocity)
+		, ShallowWaterSimData(InShallowWaterSimData)
 	{ }
+
+
+	bool ShouldSampleFromShallowWaterSimulation() const
+	{
+		return ShallowWaterSimData.IsSet() && ShallowWaterSimData->IsValid();
+	}
 
 	// Parameters that all water bodies have
 	Chaos::FRigidTransform3 Transform;
@@ -28,4 +37,8 @@ struct FBuoyancyWaterSplineData
 	// Parameters that only _some_ water bodies have
 	TOptional<FInterpCurveFloat> Width;
 	TOptional<FInterpCurveFloat> Velocity;
+
+	// Only some water bodies can have a baked shallow water sim representation, which
+	// overrides the splines for water height/depth/velocity/normal
+	TOptional<FShallowWaterSimulationGrid> ShallowWaterSimData;
 };

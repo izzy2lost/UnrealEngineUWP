@@ -26,6 +26,8 @@ namespace UnrealBuildTool.Rules
 			}
 			else if (Target.Platform == UnrealTargetPlatform.IOS)
 			{
+                PrivateDependencyModuleNames.Add("Swift");
+   
 				PublicDefinitions.Add("WITH_FIREBASE_IOS=1");
 				string FirebaseBaseIOSDir = Path.Combine(ModuleDirectory, "ThirdParty/IOS/");
 				PublicSystemIncludePaths.AddRange(
@@ -35,14 +37,6 @@ namespace UnrealBuildTool.Rules
 				);
 				
 				// Firebase frameworks for cloud messaging (notifications)
-				PublicAdditionalFrameworks.Add(
-					new Framework(
-					"FIRAnalyticsConnector",
-					Path.Combine(FirebaseBaseIOSDir, "FIRAnalyticsConnector.framework.zip"),
-					""
-					)
-				);
-				
 				PublicAdditionalFrameworks.Add(
 					new Framework(
 					"FirebaseAnalytics",
@@ -61,40 +55,8 @@ namespace UnrealBuildTool.Rules
 				
 				PublicAdditionalFrameworks.Add(
 					new Framework(
-					"FirebaseCoreDiagnostics",
-					Path.Combine(FirebaseBaseIOSDir, "FirebaseCoreDiagnostics.framework.zip"),
-					""
-					)
-				);
-				
-				PublicAdditionalFrameworks.Add(
-					new Framework(
-					"FirebaseInstanceID",
-					Path.Combine(FirebaseBaseIOSDir, "FirebaseInstanceID.framework.zip"),
-					""
-					)
-				);
-				
-				PublicAdditionalFrameworks.Add(
-					new Framework(
 					"FirebaseMessaging",
 					Path.Combine(FirebaseBaseIOSDir, "FirebaseMessaging.framework.zip"),
-					""
-					)
-				);
-				
-				PublicAdditionalFrameworks.Add(
-					new Framework(
-					"GoogleAppMeasurement",
-					Path.Combine(FirebaseBaseIOSDir, "GoogleAppMeasurement.framework.zip"),
-					""
-					)
-				);
-				
-				PublicAdditionalFrameworks.Add(
-					new Framework(
-					"GoogleUtilities",
-					Path.Combine(FirebaseBaseIOSDir, "GoogleUtilities.framework.zip"),
 					""
 					)
 				);
@@ -106,14 +68,54 @@ namespace UnrealBuildTool.Rules
 					""
 					)
 				);
-				
-				PublicAdditionalFrameworks.Add(
-					new Framework(
-					"Protobuf",
-					Path.Combine(FirebaseBaseIOSDir, "Protobuf.framework.zip"),
-					""
-					)
-				);
+                    
+                PublicAdditionalFrameworks.Add(
+                    new Framework(
+                    "FirebaseCoreInternal",
+                    Path.Combine(FirebaseBaseIOSDir, "FirebaseCoreInternal.framework.zip"),
+                    ""
+                    )
+                );
+                                
+                PublicAdditionalFrameworks.Add(
+                    new Framework(
+                    "FirebaseInstallations",
+                    Path.Combine(FirebaseBaseIOSDir, "FirebaseInstallations.framework.zip"),
+                    ""
+                    )
+                );
+                                                                                
+                PublicAdditionalFrameworks.Add(
+                    new Framework(
+                    "GoogleUtilities",
+                    Path.Combine(FirebaseBaseIOSDir, "GoogleUtilities.framework.zip"),
+                    ""
+                    )
+                );
+                                                                                                
+                PublicAdditionalFrameworks.Add(
+                    new Framework(
+                    "GoogleDataTransport",
+                    Path.Combine(FirebaseBaseIOSDir, "GoogleDataTransport.framework.zip"),
+                    ""
+                    )
+                );
+                                                                                                                
+                PublicAdditionalFrameworks.Add(
+                    new Framework(
+                    "FBLPromises",
+                    Path.Combine(FirebaseBaseIOSDir, "FBLPromises.framework.zip"),
+                    ""
+                    )
+                );
+                                                                                                                                
+                PublicAdditionalFrameworks.Add(
+                    new Framework(
+                    "GoogleAppMeasurement",
+                    Path.Combine(FirebaseBaseIOSDir, "GoogleAppMeasurement.framework.zip"),
+                    ""
+                    )
+                );
 			}
 
 			PublicIncludePathModuleNames.Add("Launch");

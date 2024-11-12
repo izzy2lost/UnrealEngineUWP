@@ -2,13 +2,20 @@
 
 #include "PixWinPluginModule.h"
 
-#include "CoreMinimal.h"
 #include "RenderingThread.h"
 #include "RHI.h"
 #include "UnrealClient.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/Engine.h"
 #include "Misc/CommandLine.h"
+#include "Misc/Paths.h"
+#include "HAL/FileManager.h"
+
+#if WITH_EDITOR
+#include "Framework/Application/SlateApplication.h"
+#include "Editor.h"
+#include "SPixWinPluginEditorExtension.h"
+#endif
 
 #if !defined(WITH_PIX_EVENT_RUNTIME)
 #define WITH_PIX_EVENT_RUNTIME 0
@@ -25,23 +32,35 @@ THIRD_PARTY_INCLUDES_END
 #include "Windows/HideWindowsPlatformTypes.h"
 #endif
 
-#if WITH_EDITOR
-#include "Editor.h"
-#endif
-
-DEFINE_LOG_CATEGORY_STATIC(PixWinPlugin, Log, All);
+DEFINE_LOG_CATEGORY(PixWinPlugin);
 
 #define LOCTEXT_NAMESPACE "PixWinPlugin"
 
+static FString MakeWinPixCaptureFilePath(const FString& InFilename)
+{
+	FString Filename = InFilename;
+	if (Filename.IsEmpty())
+	{
+		const FDateTime DateTime = FDateTime::Now();
+		Filename = FString(TEXT("UEPixCapture_")) + DateTime.ToString();
+	}
+
+	const bool bAbsoluteFileName = !FPaths::IsRelative(Filename);
+	FString FileName = bAbsoluteFileName ? Filename : FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / FString("PixCaptures") / Filename);
+	FileName = FPaths::SetExtension(FileName, "wpix");
+	FPaths::MakePlatformFilename(FileName);
+	return FileName;
+}
+
 namespace Impl
 {
+#if PIX_PLUGIN_ENABLED
 	/** Container for graphics analysis com interface. */
 	class FPixGraphicsAnalysisInterface
 	{
 	public:
 		FPixGraphicsAnalysisInterface()
 		{
-#if PIX_PLUGIN_ENABLED
 			WinPixGpuCapturerHandle = FPlatformProcess::GetDllHandle(L"WinPixGpuCapturer.dll");
 
 			if (!WinPixGpuCapturerHandle)
@@ -56,7 +75,6 @@ namespace Impl
 			{
 				PIXSetHUDOptions(PIX_HUD_SHOW_ON_NO_WINDOWS);
 			}
-#endif // PIX_PLUGIN_ENABLED
 		}
 
 		bool IsValid()
@@ -64,37 +82,46 @@ namespace Impl
 			return WinPixGpuCapturerHandle != nullptr;
 		}
 
-		void BeginCapture(void* WindowHandle, const FString& DestFileName)
+		bool IsAttached()
 		{
-#if PIX_PLUGIN_ENABLED
+			return WinPixGpuCapturerHandle != nullptr && PIXIsAttachedForGpuCapture();
+		}
+
+		void BeginCapture(HWND WindowHandle, const FString& DestFileName)
+		{
 			if (WinPixGpuCapturerHandle)
 			{
-				PIXSetTargetWindow((HWND)WindowHandle);
+				PIXSetTargetWindow(WindowHandle);
+
+				const FString CapturePath = MakeWinPixCaptureFilePath(DestFileName);
 
 				PIXCaptureParameters Parameters{};
-				// UETODO: christopher.waters - implement capturing to a file.
-				//Parameters.GpuCaptureParameters.FileName = *DestFileName;
-				Parameters.GpuCaptureParameters.FileName = TEXT("");
+				Parameters.GpuCaptureParameters.FileName = *CapturePath;
 
 				PIXBeginCapture2(PIX_CAPTURE_GPU, &Parameters);
 			}
-#endif
 		}
 
 		void EndCapture()
 		{
-#if PIX_PLUGIN_ENABLED
 			if (WinPixGpuCapturerHandle)
 			{
 				PIXEndCapture(0);
 			}
-#endif
+		}
+
+		void OpenCapture(const FString& FileName)
+		{
+			if (WinPixGpuCapturerHandle)
+			{
+				PIXOpenCaptureInUI(*FileName);
+			}
 		}
 
 	private:
 		void* WinPixGpuCapturerHandle{};
 	};
-
+#endif
 
 	/** Dummy input device that is used only to generate a Tick. */
 	class FPixDummyInputDevice : public IInputDevice
@@ -102,7 +129,8 @@ namespace Impl
 	public:
 		FPixDummyInputDevice(FPixWinPluginModule* InModule)
 			: Module(InModule)
-		{ }
+		{
+		}
 
 		virtual void Tick(float DeltaTime) override
 		{
@@ -125,9 +153,16 @@ namespace Impl
 
 void FPixWinPluginModule::StartupModule()
 {
+#if PIX_PLUGIN_ENABLED
 	PixGraphicsAnalysisInterface = new Impl::FPixGraphicsAnalysisInterface();
 	if (PixGraphicsAnalysisInterface->IsValid())
 	{
+		FString CapturePath = FPaths::ProjectSavedDir() / TEXT("PixCaptures");
+		if (!IFileManager::Get().DirectoryExists(*CapturePath))
+		{
+			IFileManager::Get().MakeDirectory(*CapturePath, true);
+		}
+
 		// Register modular features.
 		IModularFeatures::Get().RegisterModularFeature(IRenderCaptureProvider::GetModularFeatureName(), (IRenderCaptureProvider*)this);
 		IModularFeatures::Get().RegisterModularFeature(IInputDeviceModule::GetModularFeatureName(), (IInputDeviceModule*)this);
@@ -138,9 +173,12 @@ void FPixWinPluginModule::StartupModule()
 			TEXT("Captures the rendering commands of the next frame."),
 			FConsoleCommandDelegate::CreateRaw(this, &FPixWinPluginModule::CaptureFrame));
 
+		FCoreDelegates::OnPostEngineInit.AddRaw(this, &FPixWinPluginModule::OnPostEngineInit);
+
 		UE_LOG(PixWinPlugin, Log, TEXT("PIX capture plugin is ready!"));
 	}
 	else
+#endif
 	{
 		UE_LOG(PixWinPlugin, Log, TEXT("PIX capture plugin failed to initialize! Check that the process is launched from PIX."));
 	}
@@ -148,6 +186,7 @@ void FPixWinPluginModule::StartupModule()
 
 void FPixWinPluginModule::ShutdownModule()
 {
+#if PIX_PLUGIN_ENABLED
 	delete PixGraphicsAnalysisInterface;
 	PixGraphicsAnalysisInterface = nullptr;
 	delete ConsoleCommandCaptureFrame;
@@ -155,16 +194,21 @@ void FPixWinPluginModule::ShutdownModule()
 
 	IModularFeatures::Get().UnregisterModularFeature(IRenderCaptureProvider::GetModularFeatureName(), (IRenderCaptureProvider*)this);
 	IModularFeatures::Get().UnregisterModularFeature(IInputDeviceModule::GetModularFeatureName(), (IInputDeviceModule*)this);
+
+#if WITH_EDITOR
+	EditorExtension.Reset();
+#endif
+
+#endif
 }
 
-TSharedPtr<class IInputDevice> FPixWinPluginModule::CreateInputDevice(const TSharedRef<FGenericApplicationMessageHandler>& InMessageHandler)
+TSharedPtr<IInputDevice> FPixWinPluginModule::CreateInputDevice(const TSharedRef<FGenericApplicationMessageHandler>& InMessageHandler)
 {
 	UE_LOG(PixWinPlugin, Log, TEXT("Creating dummy input device (for intercepting engine ticks)"));
-	Impl::FPixDummyInputDevice* InputDev = new Impl::FPixDummyInputDevice(this);
-	return MakeShareable((IInputDevice*)InputDev);
+	return MakeShared<Impl::FPixDummyInputDevice>(this);
 }
 
-void FPixWinPluginModule::CaptureFrame(FViewport* InViewport, uint32 InFlags, FString const& InDestFileName)
+void FPixWinPluginModule::CaptureFrame(FViewport* InViewport, uint32 InFlags, const FString& InDestFileName)
 {
 	if (!bEndCaptureNextTick)
 	{
@@ -172,51 +216,74 @@ void FPixWinPluginModule::CaptureFrame(FViewport* InViewport, uint32 InFlags, FS
 	}
 }
 
-void FPixWinPluginModule::BeginCapture(FRHICommandListImmediate* InRHICommandList, uint32 InFlags, FString const& InDestFileName)
+void FPixWinPluginModule::BeginCapture(FRHICommandListImmediate* InRHICommandList, uint32 InFlags, const FString& InDestFileName)
 {
+#if PIX_PLUGIN_ENABLED
 	InRHICommandList->SubmitCommandsAndFlushGPU();
 	InRHICommandList->EnqueueLambda([Pix = PixGraphicsAnalysisInterface, InDestFileName](FRHICommandListImmediate& RHICommandList)
 	{
 		Pix->BeginCapture(nullptr, InDestFileName);
 	});
+#endif
 }
 
 void FPixWinPluginModule::EndCapture(FRHICommandListImmediate* InRHICommandList)
 {
+#if PIX_PLUGIN_ENABLED
 	InRHICommandList->SubmitCommandsAndFlushGPU();
 	InRHICommandList->EnqueueLambda([Pix = PixGraphicsAnalysisInterface](FRHICommandListImmediate& RHICommandList)
 	{
 		Pix->EndCapture();
 	});
+#endif
+}
+
+void FPixWinPluginModule::OnPostEngineInit()
+{
+#if WITH_EDITOR
+	if (FSlateApplication::IsInitialized() && !IsRunningCommandlet())
+	{
+		EditorExtension = MakeShared<FPixWinPluginEditorExtension>(this);
+	}
+#endif // WITH_EDITOR
 }
 
 void FPixWinPluginModule::Tick(float DeltaTime)
 {
+#if PIX_PLUGIN_ENABLED
+	const bool bNewCurrentlyAttached = PixGraphicsAnalysisInterface && PixGraphicsAnalysisInterface->IsAttached();
+	if (bNewCurrentlyAttached != bCurrentlyAttached)
+	{
+		// Call EnableIdealGPUCaptureOptions the first time we are attached
+		if (bNewCurrentlyAttached)
+		{
+			FDynamicRHI::EnableIdealGPUCaptureOptions(true);
+		}
+
+		bCurrentlyAttached = bNewCurrentlyAttached;
+	}
+
 	if (bBeginCaptureNextTick)
 	{
 		// Start a capture.
 		bBeginCaptureNextTick = false;
 		bEndCaptureNextTick = true;
 
-		ENQUEUE_RENDER_COMMAND(BeginCaptureCommand)([this](FRHICommandListImmediate& RHICommandList)
-		{
-			BeginCapture(&RHICommandList, 0, FString());
-		});
+		BeginFrameCapture(nullptr, FString());
 	}
 	else if (bEndCaptureNextTick)
 	{
 		// End a capture.
 		bEndCaptureNextTick = false;
 
-		ENQUEUE_RENDER_COMMAND(EndCaptureCommand)([this](FRHICommandListImmediate& RHICommandList)
-		{
-			EndCapture(&RHICommandList);
-		});
+		EndFrameCapture(0, FString());
 	}
+#endif
 }
 
-void FPixWinPluginModule::DoFrameCaptureCurrentViewport(FViewport* InViewport, uint32 InFlags, FString const& InDestFileName)
+void FPixWinPluginModule::DoFrameCaptureCurrentViewport(FViewport* InViewport, uint32 InFlags, const FString& InDestFileName)
 {
+#if PIX_PLUGIN_ENABLED
 	// infer the intended viewport to intercept/capture:
 	FViewport* Viewport = InViewport;
 
@@ -241,34 +308,59 @@ void FPixWinPluginModule::DoFrameCaptureCurrentViewport(FViewport* InViewport, u
 	}
 #endif // WITH_EDITOR
 
+	const FString DestFileName = MakeWinPixCaptureFilePath(InDestFileName);
+
 	check(Viewport);
-	BeginFrameCapture(Viewport->GetWindow(), InDestFileName);
+	BeginFrameCapture(Viewport->GetWindow(), DestFileName);
 
 	Viewport->Draw(true);
 
-	EndFrameCapture();
+	EndFrameCapture(InFlags, DestFileName);
+#endif
 }
 
 void FPixWinPluginModule::BeginFrameCapture(void* HWnd, const FString& DestFileName)
 {
+#if PIX_PLUGIN_ENABLED
 	UE_LOG(PixWinPlugin, Log, TEXT("Capturing a frame in PIX"));
 
-	ENQUEUE_RENDER_COMMAND(StartRenderDocCapture)(
-		[this, HWnd, DestFileName](FRHICommandListImmediate& RHICmdList)
+	Impl::FPixGraphicsAnalysisInterface* Pix = PixGraphicsAnalysisInterface;
+	HWND WindowHandle = HWnd ? (HWND)HWnd : GetActiveWindow();
+
+	ENQUEUE_RENDER_COMMAND(PixWinBeginFrameCapture)(
+		[Pix, WindowHandle, DestFileName](FRHICommandListImmediate& RHICommandList)
 		{
-			PixGraphicsAnalysisInterface->BeginCapture(HWnd, DestFileName);
+			if (Pix && Pix->IsValid())
+			{
+				Pix->BeginCapture(WindowHandle, FString());
+			}
 		});
+#endif
 }
 
-void FPixWinPluginModule::EndFrameCapture()
+void FPixWinPluginModule::EndFrameCapture(uint32 InFlags, const FString& DestFileName)
 {
-	ENQUEUE_RENDER_COMMAND(EndRenderDocCapture)(
-		[this](FRHICommandListImmediate& RHICmdList)
+#if PIX_PLUGIN_ENABLED
+	Impl::FPixGraphicsAnalysisInterface* Pix = PixGraphicsAnalysisInterface;
+	ENQUEUE_RENDER_COMMAND(PixWinEndFrameCapture)(
+		[Pix, InFlags, DestFileName](FRHICommandListImmediate& RHICommandList)
 		{
-			PixGraphicsAnalysisInterface->EndCapture();
+			if (Pix && Pix->IsValid())
+			{
+				RHICommandList.SubmitCommandsAndFlushGPU();
+				Pix->EndCapture();
+
+				// If we're already attached, don't open a new PIX instance
+				if ((InFlags & IRenderCaptureProvider::ECaptureFlags_Launch) && !Pix->IsAttached())
+				{
+					Pix->OpenCapture(DestFileName);
+				}
+			}
 		});
+#endif
 }
 
 #undef LOCTEXT_NAMESPACE
 
 IMPLEMENT_MODULE(FPixWinPluginModule, PixWinPlugin)
+

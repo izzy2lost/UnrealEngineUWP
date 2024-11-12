@@ -13,7 +13,7 @@
 #include "Scratchpad/ConcertScratchpad.h"
 
 /** Flags used for the tests. */
-static const int ConcertClientLiveTransactionAuthorsTestFlags = EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter;
+static const EAutomationTestFlags ConcertClientLiveTransactionAuthorsTestFlags = EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter;
 
 namespace ConcertLiveTransactionAuthorsTestUtils
 {

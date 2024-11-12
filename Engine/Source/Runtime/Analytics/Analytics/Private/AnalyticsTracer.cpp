@@ -47,11 +47,6 @@ double FAnalyticsSpan::GetDuration() const
 	return Duration;
 }
 
-void FAnalyticsSpan::SetParentSpan(TSharedPtr<IAnalyticsSpan> NewSpanParent)
-{
-	ParentSpan = NewSpanParent;
-}
-
 void FAnalyticsSpan::Start(const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
 {
 	// Create a new Guid for this flow, can we assume it is unique?
@@ -62,8 +57,6 @@ void FAnalyticsSpan::Start(const TArray<FAnalyticsEventAttribute>& AdditionalAtt
 	EndTime			= FDateTime::UtcNow();
 	Duration		= 0;	
 	IsActive		= true;
-
-	TRACE_BEGIN_REGION(*Name.ToString());
 }
 
 bool FAnalyticsSpan::GetIsActive() const
@@ -83,19 +76,10 @@ void FAnalyticsSpan::End(const TArray<FAnalyticsEventAttribute>& AdditionalAttri
 	EndTime = FDateTime::UtcNow();
 	Duration = (EndTime - StartTime).GetTotalSeconds();
 		
-	TRACE_END_REGION(*Name.ToString());
-
-	// Append the parent attributes and the the additional attributes to the current span attributes, these will get passed down to the child spans
+	// Add attributes and the the additional attributes to the current span attributes, these will get passed down to the child spans
 	AddAttributes(AdditionalAttributes);
 
-	TSharedPtr< IAnalyticsSpan> ParentSpanShared = ParentSpan.Pin();
-
-	if (ParentSpanShared.IsValid())
-	{
-		AddAttributes(ParentSpanShared->GetAttributes());
-	}
-
-	const uint32 SpanSchemaVersion = 1;
+	const uint32 SpanSchemaVersion = 2;
 	const FString SpanEventName = TEXT("Span");
 
 	TArray<FAnalyticsEventAttribute> EventAttributes = Attributes;
@@ -103,7 +87,6 @@ void FAnalyticsSpan::End(const TArray<FAnalyticsEventAttribute>& AdditionalAttri
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("SchemaVersion"), SpanSchemaVersion));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("Span_Name"), Name.ToString()));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("Span_GUID"), Guid.ToString()));
-	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("Span_ParentName"), ParentSpanShared.IsValid() ? ParentSpanShared->GetName().ToString() : TEXT("")));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("Span_ThreadId"), ThreadId));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("Span_Depth"), StackDepth));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("Span_StartUTC"), StartTime.ToUnixTimestampDecimal()));
@@ -138,6 +121,11 @@ const FName& FAnalyticsSpan::GetName() const
 	return Name;
 }
 
+FGuid FAnalyticsSpan::GetId() const
+{
+	return Guid;
+}
+
 const TArray<FAnalyticsEventAttribute>& FAnalyticsSpan::GetAttributes() const
 {
 	return Attributes;
@@ -148,11 +136,6 @@ uint32 FAnalyticsSpan::GetStackDepth() const
 	return StackDepth;
 }
 
-TSharedPtr<IAnalyticsSpan> FAnalyticsSpan::GetParentSpan() const
-{
-	return ParentSpan.Pin();
-}
-
 void FAnalyticsTracer::SetProvider(TSharedPtr<IAnalyticsProvider> InProvider)
 {
 	AnalyticsProvider = InProvider;
@@ -160,7 +143,7 @@ void FAnalyticsTracer::SetProvider(TSharedPtr<IAnalyticsProvider> InProvider)
 
 TSharedPtr<IAnalyticsSpan> FAnalyticsTracer::GetCurrentSpan() const
 {
-	return ActiveSpanStack.Num()? ActiveSpanStack.Top() : TSharedPtr<IAnalyticsSpan>();
+	return ActiveSpanStack.Num() ? ActiveSpanStack.Top() : TSharedPtr<IAnalyticsSpan>();
 }
 
 void FAnalyticsTracer::StartSession()
@@ -170,24 +153,15 @@ void FAnalyticsTracer::StartSession()
 
 void FAnalyticsTracer::EndSession()
 {
-	FScopeLock ScopeLock(&CriticalSection);	
+	FScopeLock ScopeLock(&CriticalSection);
 
 	EndSpan(SessionSpan);
 	SessionSpan.Reset();
 
-	// Stop any active spans, go from stack bottom first so parent spans will end their children 
+	// Stop any active spans, go from stack bottom first so parent spans will end their children
 	while (ActiveSpanStack.Num())
-	{	
-		TSharedPtr<IAnalyticsSpan> Span = ActiveSpanStack[0];
-
-		if (Span.IsValid())
-		{
-			EndSpan(Span);
-		}	
-		else
-		{
-			ActiveSpanStack.Remove(Span);
-		}
+	{
+		EndSpan(ActiveSpanStack[0]);
 	}
 
 	ActiveSpanStack.Reset();
@@ -199,27 +173,70 @@ TSharedPtr<IAnalyticsSpan> FAnalyticsTracer::StartSpan(const FName NewSpanName, 
 {
 	FScopeLock ScopeLock(&CriticalSection);
 	TSharedPtr<IAnalyticsSpan> NewSpan = MakeShared<FAnalyticsSpan>(NewSpanName);
-	NewSpan->SetParentSpan(ParentSpan);
+
+	// Add the child to the parent's list of child spans
+	if (ParentSpan.IsValid())
+	{
+		if (SpanHeirarchy.Find(ParentSpan->GetId()))
+		{
+			// Child list exists for this span already so append the new child for this span
+			SpanHeirarchy[ParentSpan->GetId()].Emplace(NewSpan);
+		}
+		else
+		{
+			// Create a new child list for this span
+			SpanHeirarchy.Emplace(ParentSpan->GetId(), { NewSpan });
+		}
+	}
+
 
 	return StartSpanInternal(NewSpan, AdditionalAttributes) ? NewSpan : TSharedPtr<IAnalyticsSpan>();
 }
 
-bool FAnalyticsTracer::StartSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
+void FAnalyticsTracer::BeginRegion(TSharedPtr<IAnalyticsSpan> Span)
 {
-	if (Span.IsValid() && Span->GetIsActive() == false)
+	// This function is a temporary work around as UnrealInsights does not handle overlapping region with the same name.
+	FName RegionName = Span->GetName();
+
+	uint32 NameCounter = 0;
+
+	while (RegionNames.Find(RegionName) != nullptr)
 	{
-		return StartSpanInternal(Span, AdditionalAttributes);
+		// Generate a unique region name for this span
+		FNameBuilder NameBuilder(Span->GetName());
+		RegionName = FName(FName(*FString::Printf(TEXT("%s%d"), *Span->GetName().ToString(), ++NameCounter)));
 	}
 
-	return false;
+	// Add the region name to the list by span ID
+	RegionNames.Emplace(RegionName, Span->GetId());
+
+	TRACE_BEGIN_REGION(*RegionName.ToString());
+}
+
+void FAnalyticsTracer::EndRegion(TSharedPtr<IAnalyticsSpan> Span)
+{
+	// Find the region, end it and remove from the region names
+	for (TMap<FName, FGuid>::TConstIterator it(RegionNames); it; ++it)
+	{
+		// Slow match by ID on removal, fast match on creation
+		if ((*it).Value == Span->GetId())
+		{
+			const FName& RegionName = (*it).Key;
+			TRACE_END_REGION(*RegionName.ToString());
+			RegionNames.Remove(RegionName);
+			return;
+		}
+	}
 }
 
 bool FAnalyticsTracer::StartSpanInternal(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
 {
-	TSharedPtr<IAnalyticsSpan> LastAdddedActiveSpan = ActiveSpanStack.Num()? ActiveSpanStack.Top(): TSharedPtr<IAnalyticsSpan>();
-	Span->SetStackDepth(LastAdddedActiveSpan.IsValid()? LastAdddedActiveSpan->GetStackDepth()+1 : 0);
+	TSharedPtr<IAnalyticsSpan> LastAdddedActiveSpan = ActiveSpanStack.Num() ? ActiveSpanStack.Top() : TSharedPtr<IAnalyticsSpan>();
+	Span->SetStackDepth(LastAdddedActiveSpan.IsValid() ? LastAdddedActiveSpan->GetStackDepth() + 1 : 0);
 	Span->SetProvider(AnalyticsProvider);
 	Span->Start(AdditionalAttributes);
+
+	BeginRegion(Span);
 
 	// Add span to active spans list
 	ActiveSpanStack.Emplace(Span);
@@ -239,30 +256,24 @@ bool FAnalyticsTracer::EndSpanInternal(TSharedPtr<IAnalyticsSpan> Span, const TA
 	{
 		Span->End(AdditionalAttributes);
 
+		EndRegion(Span);
+
 		ActiveSpanStack.Remove(Span);
 
-		// Remove any active children of this span, inherit on the parent's attributes in the child
-		bool RemovedActiveChild = false;
-
-		do 
+		// End any children of this span
+		const TArray<TWeakPtr<IAnalyticsSpan>>* ChildSpans = SpanHeirarchy.Find(Span->GetId());
+		
+		if (ChildSpans != nullptr)
 		{
-			RemovedActiveChild = false;
-
-			for (int32 i = 0; i < ActiveSpanStack.Num(); ++i)
+			for (TWeakPtr<IAnalyticsSpan> ChildSpanWeakPtr : *ChildSpans)
 			{
-				TSharedPtr<IAnalyticsSpan> ChildSpan = ActiveSpanStack[i];
-
-				if (ChildSpan.IsValid() && ChildSpan->GetParentSpan() == Span)
-				{
-					EndSpanInternal(ChildSpan, Span->GetAttributes());
-					RemovedActiveChild = true;
-					break;
-				}
+				// Pass the parent's attributes to the children as it ends
+				EndSpanInternal(ChildSpanWeakPtr.Pin(), Span->GetAttributes());
 			}
+		}
 
-		} while (RemovedActiveChild==true);
-
-		return true;
+		// Remove this span's child list 
+		SpanHeirarchy.Remove(Span->GetId());
 	}
 
 	return false;

@@ -12,7 +12,7 @@
 #if WITH_EDITOR
 void UTG_Graph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::PostEditChangeProperty."));
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Graph::PostEditChangeProperty."));
 }
 
 bool UTG_Graph::Modify(bool bAlwaysMarkDirty)
@@ -20,7 +20,7 @@ bool UTG_Graph::Modify(bool bAlwaysMarkDirty)
 	// Runtime state is about to get dirty
 	// And remember it as such for undo redo
 	bIsGraphTraversalDirty = true;
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::Modify: Graph Modified."));
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Graph::Modify: Graph Modified."));
 
 	return Super::Modify(bAlwaysMarkDirty);
 }
@@ -28,7 +28,7 @@ bool UTG_Graph::Modify(bool bAlwaysMarkDirty)
 
 void UTG_Graph::PostEditUndo()
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::PostEditUndo."));
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Graph::PostEditUndo."));
 	UObject::PostEditUndo();
 }
 
@@ -56,7 +56,7 @@ void UTG_Graph::Serialize(FArchive& Ar)
 
 	int32 Version = Ar.CustomVer(FTG_CustomVersion::GUID);
 
-	UE_LOG(LogTextureGraph, Log, TEXT("  %s Graph: %s"),
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("  %s Graph: %s"),
 		(Ar.IsSaving() ? TEXT("Saved") : TEXT("Loaded")),
 		*Name);
 }
@@ -65,7 +65,7 @@ void UTG_Graph::PostLoad()
 {
 	Super::PostLoad();
 
-	UE_LOG(LogTextureGraph, Log, TEXT("  PostLoad Graph: %s"), *Name);
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("  PostLoad Graph: %s"), *Name);
 
 	// We have to reset the Transactional flag for the UTG_Graph and we do not know why...
 	// For the other UObject in the data structure (Script, Node, Expression) it is set
@@ -86,7 +86,7 @@ void UTG_Graph::PostLoad()
 			if (!PinsMatchSignature)
 			{
 				NodeRequiringRemap.Add(i);
-				UE_LOG(LogTextureGraph, Log, TEXT("Node %s serialized signature is different from expression"), *Node->GetId().ToString());
+				UE_LOG(LogTextureGraph, VeryVerbose, TEXT("Node %s serialized signature is different from expression"), *Node->GetId().ToString());
 				Node->WarningStack.Add(FName(FString::Printf(TEXT("Node %s serialized signature is different from expression's signature, pins are regenerated"), *Node->GetId().ToString())));
 			}
 
@@ -126,7 +126,7 @@ void UTG_Graph::PostLoad()
 void UTG_Graph::PreSave(FObjectPreSaveContext SaveContext)
 {
 	Super::PreSave(SaveContext);
-	UE_LOG(LogTextureGraph, Log, TEXT("  PreSave Graph: %s"), *Name);
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("  PreSave Graph: %s"), *Name);
 }
 
 // Inner setup node calling allocation of pins and edges and var in cascade
@@ -154,6 +154,7 @@ void UTG_Graph::RegenerateNode(UTG_Node* InNode)
 	// Call in the UObject Modify to snapshot the current state for do/undo feature
 	// Done BEFORE doing any change to the node
 	InNode->Modify();
+	Modify();
 	
 	FTG_SignaturePtr OldSignature = InNode->Signature;
 	// If the old signature is null, rebuild one from the current PIn arguments
@@ -218,7 +219,8 @@ void UTG_Graph::RegenerateNode(UTG_Node* InNode)
 	{
 		// The pin is still valid so kill it
 		UTG_Pin* Pin = InNode->Pins[i].Get();
-		if (Pin)
+		
+		if (Pin && IsValidPin(Pin->GetId()))
 		{
 			KillPin(Pin->GetId()); // This also remove the Pin from the Params
 		}
@@ -348,8 +350,12 @@ void UTG_Graph::KillPin(FTG_Id InPinId)
 		}
 	}
 
-	// Remove the pin form the param just in case
-	Params.Remove(Pin->GetAliasName());
+	// Only update for Param Pin's. 
+	if(Pin->IsParam())
+	{
+		// Remove the pin form the param just in case
+		Params.Remove(Pin->GetAliasName());
+	}
 }
 
 void UTG_Graph::RemoveNode(UTG_Node* InNode)
@@ -581,22 +587,26 @@ void UTG_Graph::RemoveEdge(UTG_Node& NodeFrom, FTG_Name& PinFromName, UTG_Node& 
 void UTG_Graph::AppendParamsSignature(FTG_Arguments& InOutArguments, TArray<FTG_Id>& InParams,
                                       TArray<FTG_Id>& OutParams) const
 {
-	for (auto pid : Params)
+	for (auto PinId : Params)
 	{
-		const UTG_Pin* ParamPin = GetPin(pid.Value);
+		const UTG_Pin* ParamPin = GetPin(PinId.Value);
 
-		FTG_Argument Argument = {
-			ParamPin->GetAliasName(), // Use the alias name to export the param as the graph interface
-			ParamPin->GetArgumentCPPTypeName(), // Same CPP type name
-			ParamPin->GetArgumentType().Unparamed() // Remove the param tag since it is no longer a param
-		}; 
+		/// The pin has to be marked connectable to show up
+		if (!ParamPin->IsNotConnectable())
+		{
+			FTG_Argument Argument = {
+				ParamPin->GetAliasName(), // Use the alias name to export the param as the graph interface
+				ParamPin->GetArgumentCPPTypeName(), // Same CPP type name
+				ParamPin->GetArgumentType().Unparamed() // Remove the param tag since it is no longer a param
+			}; 
 
-		InOutArguments.Emplace(Argument);
+			InOutArguments.Emplace(Argument);
 
-		if (ParamPin->IsInput())
-			InParams.Emplace(pid.Value);
-		else
-			OutParams.Emplace(pid.Value);
+			if (ParamPin->IsInput())
+				InParams.Emplace(PinId.Value);
+			else
+				OutParams.Emplace(PinId.Value);
+		}
 	}
 }
 
@@ -651,13 +661,13 @@ bool UTG_Graph::RenameParam(FName OldName, FName NewName)
 
 void UTG_Graph::OnNodeChanged(UTG_Node* InNode, bool bIsTweaking)
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::Node Changed"))
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Graph::Node Changed"))
 	NotifyGraphChanged(InNode, bIsTweaking);
 }
 
 void UTG_Graph::OnNodeSignatureChanged(UTG_Node* InNode)
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::Node Recreate"));
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Graph::Node Recreate"));
 	// recreate node with expression
 	RegenerateNode(InNode);
 
@@ -671,7 +681,7 @@ void UTG_Graph::OnNodeSignatureChanged(UTG_Node* InNode)
 
 void UTG_Graph::OnNodePinChanged(FTG_Id InPinId, UTG_Node* InNode)
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::Pin Changed"))
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Graph::Pin Changed"))
 
 	// Commented this code
 	// Right now pin changed is being called only from renaming pin.
@@ -768,11 +778,14 @@ void UTG_Graph::ForEachEdges(std::function<void(const UTG_Pin* /*pinFrom*/, cons
 				if (APinId < BPinId)
 				{
 					const UTG_Pin* BPin = GetPin(BPinId);
-					check(BPin);
-					if (APinIsOutputAkaSource)
-						visitor(APin, BPin);
-					else
-						visitor(BPin, APin);
+
+					if (BPin)
+					{
+						if (APinIsOutputAkaSource)
+							visitor(APin, BPin);
+						else
+							visitor(BPin, APin);
+					}
 				}
 			}
 		}
@@ -839,7 +852,7 @@ int UTG_Graph::GetAllOutputParamValues(TArray<FTG_Variant>& OutVariants, TArray<
 				}
 				else
 				{
-					UE_LOG(LogTextureGraph, Log, TEXT("Output {} variant failed to access"), *(Pin->GetAliasName().ToString()));
+					UE_LOG(LogTextureGraph, VeryVerbose, TEXT("Output {} variant failed to access"), *(Pin->GetAliasName().ToString()));
 				}
 			}
 		}
@@ -849,34 +862,38 @@ int UTG_Graph::GetAllOutputParamValues(TArray<FTG_Variant>& OutVariants, TArray<
 
 FTG_Ids UTG_Graph::GatherSourceNodes(const UTG_Node* InNode) const
 {
-	FTG_Ids sourceNodes; // the array of source nodes that will be return, empty for now
+	FTG_Ids SourceNodes; // the array of source nodes that will be return, empty for now
 
 	if (InNode) // Only work for a valid node
 	{
-		bool allInConnected = true;
-		bool allInDisconnected = true;
+		bool AllInConnected = true;
+		bool AllInDisconnected = true;
 		auto InPinIds = InNode->GetInputPinIds();
 		for (auto opi : InPinIds) // Over all the Input pins, find the node feeding them
 		{
 			const UTG_Pin* Pin = InNode->Pins[opi.PinIdx()];
 			if (Pin->GetEdges().IsEmpty())
 			{
-				allInConnected = false;
+				AllInConnected = false;
 			}
 			else
 			{
-				allInDisconnected = false;
+				AllInDisconnected = false;
 				auto EdgePinId = Pin->GetEdges()[0];
 				const UTG_Pin* SourcePin = GetPin(EdgePinId);
-				check(SourcePin);
 
-				// only add the source node if not already there
-				if (sourceNodes.Find(SourcePin->GetNodeId()) == INDEX_NONE)
-					sourceNodes.Emplace(SourcePin->GetNodeId());
+				if (SourcePin)
+				{
+					check(SourcePin);
+
+					// only add the source node if not already there
+					if (SourceNodes.Find(SourcePin->GetNodeId()) == INDEX_NONE)
+						SourceNodes.Emplace(SourcePin->GetNodeId());
+				}
 			}
 		}
 	}
-	return sourceNodes;
+	return SourceNodes;
 }
 
 FTG_Ids UTG_Graph::GatherAllSourceNodes(const UTG_Node* Node) const
@@ -1023,7 +1040,7 @@ void UTG_Graph::SetExtraEditorNodes(const TArray<TObjectPtr<const UObject>>& InN
 #endif
 const FTG_GraphTraversal& UTG_Graph::GetTraversal() const
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::GetTraversal: Dirty = %s"),
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Graph::GetTraversal: Dirty = %s"),
 	       bIsGraphTraversalDirty ? TEXT("true") : TEXT("false"));
 	if (bIsGraphTraversalDirty)
 	{
@@ -1070,7 +1087,7 @@ void UTG_Graph::Log()
 	LogMessage.ParseIntoArray(Lines, TEXT("\n"));
 	for (const FString& Line : Lines)
 	{
-		UE_LOG(LogTextureGraph, Log, TEXT("%s"), *Line);
+		UE_LOG(LogTextureGraph, VeryVerbose, TEXT("%s"), *Line);
 	}
 }
 

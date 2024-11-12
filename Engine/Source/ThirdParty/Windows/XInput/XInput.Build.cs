@@ -13,9 +13,10 @@ public class XInput : ModuleRules
 
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
 		{
-			PublicSystemLibraries.Add("XInput.lib");
+			// Note, XInput.lib in this folder is patched to remove the exported symbol DllMain.
+			// Reason is because ld-lld.exe links things wrong when this symbol is exported. This must have been an oversight at microsoft
+			PublicAdditionalLibraries.Add(Path.Combine(Target.WindowsPlatform.DirectXLibDir, "XInput.lib"));
 			PublicDelayLoadDLLs.Add("XInput1_4.dll");
 		}
 	}
 }
-

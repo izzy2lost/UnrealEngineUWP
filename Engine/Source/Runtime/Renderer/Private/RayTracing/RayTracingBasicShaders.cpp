@@ -6,6 +6,7 @@
 
 #include "PipelineStateCache.h"
 #include "ShaderParameterStruct.h"
+#include "RayTracingDefinitions.h"
 
 IMPLEMENT_GLOBAL_SHADER( FBasicOcclusionMainRGS, "/Engine/Private/RayTracing/RayTracingBuiltInShaders.usf", "OcclusionMainRGS", SF_RayGen);
 IMPLEMENT_GLOBAL_SHADER( FBasicIntersectionMainRGS, "/Engine/Private/RayTracing/RayTracingBuiltInShaders.usf", "IntersectionMainRGS", SF_RayGen);
@@ -14,6 +15,7 @@ IMPLEMENT_GLOBAL_SHADER( FBasicIntersectionMainCHS, "/Engine/Private/RayTracing/
 struct FBasicRayTracingPipeline
 {
 	FRayTracingPipelineState* PipelineState = nullptr;
+	FShaderBindingTableRHIRef SBT;
 	TShaderRef<FBasicOcclusionMainRGS> OcclusionRGS;
 	TShaderRef<FBasicIntersectionMainRGS> IntersectionRGS;
 };
@@ -27,7 +29,6 @@ FBasicRayTracingPipeline GetBasicRayTracingPipeline(FRHICommandList& RHICmdList,
 	FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(FeatureLevel);
 
 	FRayTracingPipelineStateInitializer PipelineInitializer;
-	PipelineInitializer.bAllowHitGroupIndexing = false;
 
 	auto OcclusionRGS = ShaderMap->GetShader<FBasicOcclusionMainRGS>();
 	auto IntersectionRGS = ShaderMap->GetShader<FBasicIntersectionMainRGS>();
@@ -42,48 +43,60 @@ FBasicRayTracingPipeline GetBasicRayTracingPipeline(FRHICommandList& RHICmdList,
 	auto MissShader = ShaderMap->GetShader<FDefaultPayloadMS>();
 	FRHIRayTracingShader* MissShaderTable[] = { MissShader.GetRayTracingShader() };
 	PipelineInitializer.SetMissShaderTable(MissShaderTable);
+		
+	FRayTracingShaderBindingTableInitializer SBTInitializer;
+	SBTInitializer.ShaderBindingMode = ERayTracingShaderBindingMode::RTPSO;
+	SBTInitializer.HitGroupIndexingMode = ERayTracingHitGroupIndexingMode::Disallow;
+	SBTInitializer.NumGeometrySegments = 1;
+	SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
+	SBTInitializer.NumMissShaderSlots = 1;
+	SBTInitializer.NumCallableShaderSlots = 0;
+	SBTInitializer.LocalBindingDataSize = PipelineInitializer.GetMaxLocalBindingDataSize();
 
 	FBasicRayTracingPipeline Result;
 
 	Result.PipelineState = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, PipelineInitializer);
+	Result.SBT = RHICmdList.CreateRayTracingShaderBindingTable(SBTInitializer);
 	Result.OcclusionRGS = OcclusionRGS;
 	Result.IntersectionRGS = IntersectionRGS;
 
 	return Result;
 }
 
-void DispatchBasicOcclusionRays(FRHICommandList& RHICmdList, FRHIRayTracingScene* Scene, FRHIShaderResourceView* SceneView, FRHIShaderResourceView* RayBufferView, FRHIUnorderedAccessView* ResultView, uint32 NumRays)
+void DispatchBasicOcclusionRays(FRHICommandList& RHICmdList, FRHIShaderResourceView* SceneView, FRHIRayTracingGeometry* Geometry, FRHIShaderResourceView* RayBufferView, FRHIUnorderedAccessView* ResultView, uint32 NumRays)
 {
 	FBasicRayTracingPipeline RayTracingPipeline = GetBasicRayTracingPipeline(RHICmdList, GMaxRHIFeatureLevel);
-
-	RHICmdList.SetRayTracingHitGroup(Scene, 0, 0, 0, RayTracingPipeline.PipelineState, 0, 0, nullptr, 0, nullptr, 0);
-	RHICmdList.SetRayTracingMissShader(Scene, 0, RayTracingPipeline.PipelineState, 0, 0, nullptr, 0);
+	
+	RHICmdList.SetDefaultRayTracingHitGroup(RayTracingPipeline.SBT, RayTracingPipeline.PipelineState, 0);
+	RHICmdList.SetRayTracingMissShader(RayTracingPipeline.SBT, 0, RayTracingPipeline.PipelineState, 0, 0, nullptr, 0);
+	RHICmdList.CommitShaderBindingTable(RayTracingPipeline.SBT);
 
 	FBasicOcclusionMainRGS::FParameters OcclusionParameters;
 	OcclusionParameters.TLAS = SceneView;
 	OcclusionParameters.Rays = RayBufferView;
 	OcclusionParameters.OcclusionOutput = ResultView;
 
-	FRayTracingShaderBindingsWriter GlobalResources;
+	FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 	SetShaderParameters(GlobalResources, RayTracingPipeline.OcclusionRGS, OcclusionParameters);
-	RHICmdList.RayTraceDispatch(RayTracingPipeline.PipelineState, RayTracingPipeline.OcclusionRGS.GetRayTracingShader(), Scene, GlobalResources, NumRays, 1);
+	RHICmdList.RayTraceDispatch(RayTracingPipeline.PipelineState, RayTracingPipeline.OcclusionRGS.GetRayTracingShader(), RayTracingPipeline.SBT, GlobalResources, NumRays, 1);
 }
 
-void DispatchBasicIntersectionRays(FRHICommandList& RHICmdList, FRHIRayTracingScene* Scene, FRHIShaderResourceView* SceneView, FRHIShaderResourceView* RayBufferView, FRHIUnorderedAccessView* ResultView, uint32 NumRays)
+void DispatchBasicIntersectionRays(FRHICommandList& RHICmdList, FRHIShaderResourceView* SceneView, FRHIRayTracingGeometry* Geometry, FRHIShaderResourceView* RayBufferView, FRHIUnorderedAccessView* ResultView, uint32 NumRays)
 {
 	FBasicRayTracingPipeline RayTracingPipeline = GetBasicRayTracingPipeline(RHICmdList, GMaxRHIFeatureLevel);
-
-	RHICmdList.SetRayTracingHitGroup(Scene, 0, 0, 0, RayTracingPipeline.PipelineState, 0, 0, nullptr, 0, nullptr, 0);
-	RHICmdList.SetRayTracingMissShader(Scene, 0, RayTracingPipeline.PipelineState, 0, 0, nullptr, 0);
+	   
+	RHICmdList.SetDefaultRayTracingHitGroup(RayTracingPipeline.SBT, RayTracingPipeline.PipelineState, 0);
+	RHICmdList.SetRayTracingMissShader(RayTracingPipeline.SBT, 0, RayTracingPipeline.PipelineState, 0, 0, nullptr, 0);
+	RHICmdList.CommitShaderBindingTable(RayTracingPipeline.SBT);
 
 	FBasicIntersectionMainRGS::FParameters OcclusionParameters;
 	OcclusionParameters.TLAS = SceneView;
 	OcclusionParameters.Rays = RayBufferView;
 	OcclusionParameters.IntersectionOutput = ResultView;
 
-	FRayTracingShaderBindingsWriter GlobalResources;
+	FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 	SetShaderParameters(GlobalResources, RayTracingPipeline.IntersectionRGS, OcclusionParameters);
-	RHICmdList.RayTraceDispatch(RayTracingPipeline.PipelineState, RayTracingPipeline.IntersectionRGS.GetRayTracingShader(), Scene, GlobalResources, NumRays, 1);
+	RHICmdList.RayTraceDispatch(RayTracingPipeline.PipelineState, RayTracingPipeline.IntersectionRGS.GetRayTracingShader(), RayTracingPipeline.SBT, GlobalResources, NumRays, 1);
 }
 
 #endif // RHI_RAYTRACING

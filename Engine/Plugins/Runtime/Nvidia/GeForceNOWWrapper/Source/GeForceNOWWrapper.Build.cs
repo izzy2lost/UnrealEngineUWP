@@ -11,6 +11,8 @@ public class GeForceNOWWrapper : ModuleRules
 			Target.UEThirdPartySourceDirectory + "NVIDIA/GeForceNOW/include"
 		);
 
+		StaticAnalyzerDisabledCheckers.Add("unix.Malloc");
+
 		PublicDependencyModuleNames.AddRange(
 			new string[] {
 				"GeForceNOW",

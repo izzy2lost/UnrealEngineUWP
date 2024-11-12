@@ -18,6 +18,8 @@ class FCameraCalibrationCurveEditor;
 class SCameraCalibrationCurveEditorPanel;
 class FCameraCalibrationStepsController;
 class FCameraCalibrationTimeSliderController;
+enum class ELensDataChangedReason : uint8;
+enum class ELensCurveAxis : uint8;
 
 /** Widget used to display data from the LensFile */
 class SLensDataViewer : public SCompoundWidget, public FSelfRegisteringEditorUndoClient
@@ -70,6 +72,9 @@ private:
 	/** Makes the Toolbar with data manipulation buttons */
 	TSharedRef<SWidget> MakeToolbarWidget(TSharedRef<SCameraCalibrationCurveEditorPanel> InEditorPanel);
 
+	/** Makes the toolbar for the curve editor, which sits on top of the curve editor */
+	TSharedRef<SWidget> MakeCurveEditorToolbarWidget();
+	
 	/** Curve Editor add point delegate handler*/
 	void OnAddDataPointHandler();
 	
@@ -97,14 +102,17 @@ private:
 	/** Callbacked when user clicks AddPoint from the dialog */
 	void OnLensDataPointAdded();
 
-	/** Callbacked when user clicks remove point buttons */
-	void OnDataPointRemoved(float InFocus, TOptional<float> InZoom);
+	/** Callbacked when user changes anything about the data point that may require a refresh */
+	void OnDataPointChanged(ELensDataChangedReason ChangedReason, float InFocus, TOptional<float> InZoom);
 	
 	/** Called when the data table points list of a data category was updated */
 	void OnDataTablePointsUpdated(ELensDataCategory InCategory);
 
 	/** Used to keep same selected data point when rebuilding tree */
 	void UpdateDataSelection(const TSharedPtr<FLensDataListItem>& PreviousSelection);
+
+	/** Gets whether the axis selection buttons should be visible in the curve editor toolbar */
+	EVisibility GetCurveAxisButtonVisibility() const;
 
 private:
 	
@@ -119,7 +127,7 @@ private:
 	 * If category hasn't changed, don't recreate data entries
 	 */
 	TSharedPtr<FLensDataCategoryItem> CachedSelectedCategoryItem;
-
+	
 	/** Data items associated with selected data category TreeView */
 	TSharedPtr<STreeView<TSharedPtr<FLensDataListItem>>> DataEntriesTree;
 
@@ -138,6 +146,9 @@ private:
 	/** Child class of curve editor panel */
 	TSharedPtr<SCameraCalibrationCurveEditorPanel> CurvePanel;
 
+	/** The current axis type to display in the curve editor */
+	ELensCurveAxis CurveAxisType = (ELensCurveAxis)0;
+	
 	/** Evaluated FIZ for the current frame */
 	TAttribute<FCachedFIZData> CachedFIZ;
 

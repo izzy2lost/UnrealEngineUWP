@@ -2,11 +2,15 @@
 
 #include "Graph/MovieGraphCVarManager.h"
 
+#include "Engine/World.h"
 #include "Graph/MovieGraphConfig.h"
 #include "Graph/Nodes/MovieGraphApplyCVarPresetNode.h"
 #include "Graph/Nodes/MovieGraphSetCVarValueNode.h"
+#include "Graph/Nodes/MovieGraphSetStartEndConsoleCommandsNode.h"
 #include "HAL/IConsoleManager.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Misc/DefaultValueHelper.h"
+#include "MoviePipelineQueue.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "Sections/MovieSceneConsoleVariableTrackInterface.h"
 
@@ -57,6 +61,16 @@ void FMovieGraphCVarManager::AddPreset(const TScriptInterface<IMovieSceneConsole
 	}
 }
 
+void FMovieGraphCVarManager::AddStartConsoleCommands(const TArray<FString>& InStartConsoleCommands)
+{
+	StartConsoleCommands = InStartConsoleCommands;
+}
+
+void FMovieGraphCVarManager::AddEndConsoleCommands(const TArray<FString>& InEndConsoleCommands)
+{
+	EndConsoleCommands = InEndConsoleCommands;
+}
+
 void FMovieGraphCVarManager::AddEvaluatedGraph(const UMovieGraphEvaluatedConfig* InEvaluatedGraph)
 {
 	const FMovieGraphEvaluatedBranchConfig* GlobalsBranchConfig = InEvaluatedGraph->BranchConfigMapping.Find(UMovieGraphNode::GlobalsPinName);
@@ -81,8 +95,45 @@ void FMovieGraphCVarManager::AddEvaluatedGraph(const UMovieGraphEvaluatedConfig*
 		else if (const UMovieGraphApplyCVarPresetNode* ApplyPresetNode = Cast<UMovieGraphApplyCVarPresetNode>(Node))
 		{
 			AddPreset(ApplyPresetNode->ConsoleVariablePreset);
+
+			// Preset nodes can optionally have overrides on top of the preset via promoted pins (and variables connected to them)
+			for (const TPair<FString, float>& CvarOverride : ApplyPresetNode->GetConsoleVariableOverrides())
+			{
+				AddCVar(CvarOverride.Key, CvarOverride.Value);
+			}
+		}
+		else if (const UMovieGraphSetStartEndConsoleCommandsNode* ConsoleCommandsNode = Cast<UMovieGraphSetStartEndConsoleCommandsNode>(Node))
+		{
+			AddStartConsoleCommands(ConsoleCommandsNode->ConsoleCommands->AddStartCommands);
+			AddEndConsoleCommands(ConsoleCommandsNode->ConsoleCommands->AddEndCommands);
 		}
 	}
+}
+
+void FMovieGraphCVarManager::AddShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
+{
+// UMoviePipelineExecutorShot and UMoviePipelineExecutorJob don't share a common base class, hence the need for a define vs. a lambda.
+#define ADD_CVARS(Owner) \
+	for (const FMoviePipelineConsoleVariableEntry& CVarEntry : Owner->ConsoleVariableOverrides) \
+	{ \
+		if (CVarEntry.bIsEnabled) \
+		{ \
+			AddCVar(CVarEntry.Name, CVarEntry.Value); \
+		} \
+	}
+	
+	if (InShot)
+	{
+		// Add cvars specified on the parent job first. The shot's cvars will have a chance to override these if needed.
+		if (const UMoviePipelineExecutorJob* ParentJob = InShot->GetTypedOuter<UMoviePipelineExecutorJob>())
+		{
+			ADD_CVARS(ParentJob)
+		}
+
+		// Then add the shot's cvar overrides.
+		ADD_CVARS(InShot)
+	}
+#undef ADD_CVARS
 }
 
 void FMovieGraphCVarManager::ApplyAllCVars()
@@ -128,6 +179,29 @@ void FMovieGraphCVarManager::RevertAllCVars()
 
 	CVars.Reset();
 	PreviousConsoleVariableValues.Reset();
+}
+
+void FMovieGraphCVarManager::RunStartConsoleCommands()
+{
+	for (const FString& StartCommand : StartConsoleCommands)
+	{
+		UE_LOG(LogMovieRenderPipeline, Log, TEXT("Executing Console Command \"%s\" before shot starts."), *StartCommand);
+		UKismetSystemLibrary::ExecuteConsoleCommand(WorldContext, StartCommand, nullptr);
+	}
+}
+
+void FMovieGraphCVarManager::RunEndConsoleCommands()
+{
+	for (const FString& EndCommand : EndConsoleCommands)
+	{
+		UE_LOG(LogMovieRenderPipeline, Log, TEXT("Executing Console Command \"%s\" after shot ends."), *EndCommand);
+		UKismetSystemLibrary::ExecuteConsoleCommand(WorldContext, EndCommand, nullptr);
+	}
+}
+
+void FMovieGraphCVarManager::SetWorld(UWorld* InWorld)
+{
+	WorldContext = InWorld;
 }
 
 void FMovieGraphCVarManager::ApplyCVar(IConsoleVariable* InCVar, float InValue)

@@ -121,8 +121,11 @@ void UUndoableResolveHandler::SetManagedObject(UObject* Object)
 
 	// save package and copy the package to a temp file so it can be reverted
 	const FString BaseFilename = FPaths::GetBaseFilename(Filepath);
-	BackupFilepath = FPaths::CreateTempFilename(*(FPaths::ProjectSavedDir()/TEXT("Temp")), *BaseFilename.Left(32));
-	ensure(FPlatformFileManager::Get().GetPlatformFile().CopyFile(*BackupFilepath, *Filepath));
+	const FString Directory = FPaths::ProjectSavedDir()/TEXT("Temp");
+	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+	BackupFilepath = FPaths::CreateTempFilename(*Directory, *BaseFilename.Left(32));
+	ensure(PlatformFile.CreateDirectoryTree(*Directory));
+	ensure(PlatformFile.CopyFile(*BackupFilepath, *Filepath));
 }
 
 void UUndoableResolveHandler::MarkResolved()
@@ -323,7 +326,7 @@ struct FPropertyInstance
 		{
 			const void* DataA = ValProperty->ContainerPtrToValuePtr<void*>(Object);
 			const void* DataB = Other.ValProperty->ContainerPtrToValuePtr<void*>(Other.Object);
-			check(ValProperty->ElementSize == Other.ValProperty->ElementSize);
+			check(ValProperty->GetElementSize() == Other.ValProperty->GetElementSize());
 			check(ValProperty->GetClass() == Other.ValProperty->GetClass());
 			
 			return ValProperty->Identical(DataA, DataB, PPF_DeepComparison);
@@ -392,14 +395,13 @@ template<>
 class TTreeDiffSpecification<FPropertyInstance>
 {
 public:
-	virtual ~TTreeDiffSpecification() = default;
-	
-	virtual bool AreValuesEqual(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB) const
+
+	bool AreValuesEqual(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB, TArray<FPropertySoftPath>* OutDifferingProperties = nullptr) const
 	{
 		return TreeNodeA == TreeNodeB;
 	}
 	
-	virtual bool AreMatching(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB) const
+	bool AreMatching(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB, TArray<FPropertySoftPath>* OutDifferingProperties = nullptr) const
 	{
 		if (TreeNodeA.KeyProperty->GetName() == TreeNodeB.KeyProperty->GetName())
 		{
@@ -417,18 +419,18 @@ public:
 		return false;
 	}
 	
-	virtual void GetChildren(const FPropertyInstance& InParent, TArray<FPropertyInstance>& OutChildren) const
+	void GetChildren(const FPropertyInstance& InParent, TArray<FPropertyInstance>& OutChildren) const
 	{
 		return InParent.GetChildren(OutChildren);
 	}
 
-	virtual bool ShouldMatchByValue(const FPropertyInstance& TreeNodeA) const
+	bool ShouldMatchByValue(const FPropertyInstance& TreeNodeA) const
 	{
 		// array elements should match by value
 		return CastField<FArrayProperty>(TreeNodeA.KeyProperty->Owner.ToField()) != nullptr;
 	}
 	
-	virtual bool ShouldInheritEqualFromChildren(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB) const
+	bool ShouldInheritEqualFromChildren(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB) const
 	{
 		return true;
 	}
@@ -1204,7 +1206,7 @@ EAssetCommandResult MergeUtils::Merge(const FAssetManualMergeArgs& MergeArgs)
 namespace UE::MergeUtilsTests
 {
 
-	IMPLEMENT_COMPLEX_AUTOMATION_TEST(FMergeWithSelfTests, "ReviewDiffMerge.MergeWithSelf", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_COMPLEX_AUTOMATION_TEST(FMergeWithSelfTests, "ReviewDiffMerge.MergeWithSelf", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 	void FMergeWithSelfTests::GetTests(TArray<FString>& OutBeautifiedNames, TArray<FString>& OutTestCommands) const
 	{
 		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");

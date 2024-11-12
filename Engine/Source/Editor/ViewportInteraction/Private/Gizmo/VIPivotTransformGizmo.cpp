@@ -508,13 +508,13 @@ void UPivotRotationGizmoHandleGroup::SetupIndicator(USceneComponent* RootCompone
 	RootComponent->SetMobility(EComponentMobility::Movable);
 	RootComponent->SetupAttachment(FullRotationHandleMeshComponent);
 
+	IndicatorMeshComponent->SetCanEverAffectNavigation(false);
 	IndicatorMeshComponent->SetStaticMesh(Mesh);
 	IndicatorMeshComponent->SetMobility(EComponentMobility::Movable);
 	IndicatorMeshComponent->SetupAttachment(RootComponent);
 	IndicatorMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	IndicatorMeshComponent->SetVisibility(false);
 	IndicatorMeshComponent->SetGenerateOverlapEvents(false);
-	IndicatorMeshComponent->SetCanEverAffectNavigation(false);
 	IndicatorMeshComponent->bCastDynamicShadow = true;
 	IndicatorMeshComponent->bCastStaticShadow = false;
 	IndicatorMeshComponent->bAffectDistanceFieldLighting = false;

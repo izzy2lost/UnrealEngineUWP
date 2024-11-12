@@ -50,7 +50,7 @@ public:
 	bool ChangePresetCategory(const TSharedPtr<FAvaEaseCurvePreset>& InPreset, const FString& InNewCategory) const;
 
 	TSharedPtr<FAvaEaseCurvePreset> FindPreset(const FString& InName);
-	TSharedPtr<FAvaEaseCurvePreset> FindPresetByTangents(const FAvaEaseCurveTangents& InTangents);
+	TSharedPtr<FAvaEaseCurvePreset> FindPresetByTangents(const FAvaEaseCurveTangents& InTangents, const double InErrorTolerance = 0.01);
 
 	bool DoesPresetCategoryExist(const FString& InCategory);
 	bool RenamePresetCategory(const FString& InCategory, const FString& InNewCategoryName);

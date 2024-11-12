@@ -1,12 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 import { useLocation } from 'react-router-dom';
-import { BatchData, GetJobStepRefResponse, JobStepBatchError, JobStepBatchState, JobStepOutcome, JobStepState, NodeData, StepData } from '../backend/Api';
+import { BatchData, GetJobStepRefResponse, JobStepBatchError, JobStepBatchState, JobStepOutcome, JobStepState, StepData } from '../backend/Api';
 
 type StepItem = {
    step?: StepData;
    batch?: BatchData;
-   node?: NodeData;
    agentId?: string;
    agentRow?: boolean;
    agentType?: string;
@@ -89,7 +88,7 @@ export const getBatchText = (item: StepItem): string | undefined => {
 
    const batch = item.batch;
 
-   let statusText = undefined;
+   let statusText: string | undefined;
 
    if (batch) {
 
@@ -132,7 +131,7 @@ export const getBatchText = (item: StepItem): string | undefined => {
 
       if (batch.error === JobStepBatchError.SyncingFailed) {
          statusText = `${item.agentId} : Syncing failed`;
-      }      
+      }
 
       if (batch.error === JobStepBatchError.Cancelled) {
          if (item.agentId) {

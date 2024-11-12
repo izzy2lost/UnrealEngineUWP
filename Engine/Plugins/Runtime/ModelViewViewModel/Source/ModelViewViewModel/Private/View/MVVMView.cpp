@@ -9,11 +9,15 @@
 #include "Blueprint/UserWidget.h"
 #include "Debugging/MVVMDebugging.h"
 #include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
 #include "Extensions/MVVMViewClassExtension.h"
+#include "MVVMGameSubsystem.h"
 #include "MVVMMessageLog.h"
 #include "ModelViewViewModelModule.h"
 #include "Templates/ValueOrError.h"
 #include "Types/MVVMFieldContext.h"
+#include "Types/MVVMViewModelCollection.h"
+#include "Bindings/MVVMBindingHelper.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MVVMView)
 
@@ -22,6 +26,7 @@ DECLARE_CYCLE_STAT(TEXT("UninitializeSources"), STAT_UMG_Viewmodel_UninitializeS
 DECLARE_CYCLE_STAT(TEXT("InitializeBindings"), STAT_UMG_Viewmodel_InitializeBindings, STATGROUP_UMG_Viewmodel);
 DECLARE_CYCLE_STAT(TEXT("UninitializeBindings"), STAT_UMG_Viewmodel_UninitializeBindings, STATGROUP_UMG_Viewmodel);
 DECLARE_CYCLE_STAT(TEXT("SetSource"), STAT_UMG_Viewmodel_SetSource, STATGROUP_UMG_Viewmodel);
+DECLARE_CYCLE_STAT(TEXT("ExecuteViewModel"), STAT_UMG_Viewmodel_ExecuteViewModel, STATGROUP_UMG_Viewmodel);
 DECLARE_CYCLE_STAT(TEXT("ExecuteBinding ValueChanged"), STAT_UMG_Viewmodel_ExecuteBinding_ValueChanged, STATGROUP_UMG_Viewmodel);
 DECLARE_CYCLE_STAT(TEXT("ExecuteBinding Delayed"), STAT_UMG_Viewmodel_ExecuteBinding_Delayed, STATGROUP_UMG_Viewmodel);
 DECLARE_CYCLE_STAT(TEXT("ExecuteBinding Tick"), STAT_UMG_Viewmodel_ExecuteBinding_Tick, STATGROUP_UMG_Viewmodel);
@@ -31,6 +36,24 @@ DECLARE_CYCLE_STAT(TEXT("ExecuteBinding Tick"), STAT_UMG_Viewmodel_ExecuteBindin
 ///////////////////////////////////////////////////////////////////////
 // 
 ///////////////////////////////////////////////////////////////////////
+
+namespace UE::MVVM::Private
+{
+UMVVMViewModelCollectionObject* GetGlobalCollection(UUserWidget* UserWidget)
+{
+	if (const UWorld* World = UserWidget->GetWorld())
+	{
+		if (const UGameInstance* GameInstance = World->GetGameInstance())
+		{
+			return GameInstance->GetSubsystem<UMVVMGameSubsystem>()->GetViewModelCollection();
+		}
+	}
+	return nullptr;
+}
+
+using FRecursiveDetctionElement = TTuple<const UObject*, FMVVMViewClass_BindingKey>;
+TArray<FRecursiveDetctionElement> RecursiveDetector;
+} // namespace
 
 void UMVVMView::ConstructView(const UMVVMViewClass* InGeneratedViewClass)
 {
@@ -52,6 +75,14 @@ void UMVVMView::Construct()
 {
 	check(GeneratedViewClass);
 	check(bConstructed == false);
+
+	// Create an independent copy of extensions per view.
+	check(Extensions.IsEmpty());
+	Extensions.Reset(GeneratedViewClass->GetViewClassExtensions().Num());
+	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	{
+		Extensions.Add(Extension->ViewConstructed(GetUserWidget(), this));
+	}
 
 	if (GeneratedViewClass->DoesInitializeSourcesOnConstruct())
 	{
@@ -82,6 +113,14 @@ void UMVVMView::Destruct()
 
 	UninitializeEvents();
 	UninitializeSources(); // and bindings
+
+	const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> ClassExtensions = GeneratedViewClass->GetViewClassExtensions();
+	check(ClassExtensions.Num() == Extensions.Num());
+	for (int32 Index = ClassExtensions.Num() - 1; Index >= 0; --Index)
+	{
+		ClassExtensions[Index]->OnViewDestructed(GetUserWidget(), this, Extensions[Index]);
+		Extensions.RemoveAtSwap(Index);
+	}
 }
 
 
@@ -101,6 +140,14 @@ void UMVVMView::InitializeSources()
 	check(Sources.Num() == NumberOfSources);
 	check(NumberOfSources <= 64); // the max number of source the bitfield can hold.
 
+	if (GeneratedViewClass->DoesListenToViewModelCollectionChanged())
+	{
+		if (UMVVMViewModelCollectionObject* Collection = UE::MVVM::Private::GetGlobalCollection(GetUserWidget()))
+		{
+			Collection->OnCollectionChanged().AddUObject(this, &UMVVMView::HandleViewModelCollectionChanged);
+		}
+	}
+
 	for (int32 Index = 0; Index < NumberOfSources; ++Index)
 	{
 		InitializeSource(FMVVMView_SourceKey(Index));
@@ -118,16 +165,18 @@ void UMVVMView::InitializeSources()
 		InitializeSourceBindingsCommon();
 	}
 
-	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> ClassExtensions = GeneratedViewClass->GetViewClassExtensions();
+	check(ClassExtensions.Num() == Extensions.Num());
+	for (int32 Index = 0; Index < ClassExtensions.Num(); ++Index)
 	{
-		Extension->OnSourcesInitialized(GetUserWidget(), this);
+		ClassExtensions[Index]->OnSourcesInitialized(GetUserWidget(), this, Extensions[Index]);
 	}
 
 	if (GeneratedViewClass->DoesInitializeBindingsOnConstruct())
 	{
-		for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+		for (int32 Index = 0; Index < ClassExtensions.Num(); ++Index)
 		{
-			Extension->OnBindingsInitialized(GetUserWidget(), this);
+			ClassExtensions[Index]->OnBindingsInitialized(GetUserWidget(), this, Extensions[Index]);
 		}
 	}
 
@@ -149,9 +198,19 @@ void UMVVMView::UninitializeSources()
 		UninitializeBindings();
 	}
 
-	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> ClassExtensions = GeneratedViewClass->GetViewClassExtensions();
+	check(ClassExtensions.Num() == Extensions.Num());
+	for (int32 Index = 0; Index < ClassExtensions.Num(); ++Index)
 	{
-		Extension->OnSourcesUninitialized(GetUserWidget(), this);
+		ClassExtensions[Index]->OnSourcesUninitialized(GetUserWidget(), this, Extensions[Index]);
+	}
+
+	if (GeneratedViewClass->DoesListenToViewModelCollectionChanged())
+	{
+		if (UMVVMViewModelCollectionObject* Collection = UE::MVVM::Private::GetGlobalCollection(GetUserWidget()))
+		{
+			Collection->OnCollectionChanged().RemoveAll(this);
+		}
 	}
 
 	bSourcesInitialized = false;
@@ -274,9 +333,11 @@ void UMVVMView::InitializeBindings()
 
 	InitializeSourceBindingsCommon();
 
-	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> ClassExtensions = GeneratedViewClass->GetViewClassExtensions();
+	check(ClassExtensions.Num() == Extensions.Num());
+	for (int32 Index = 0; Index < ClassExtensions.Num(); ++Index)
 	{
-		Extension->OnBindingsInitialized(GetUserWidget(), this);
+		ClassExtensions[Index]->OnBindingsInitialized(GetUserWidget(), this, Extensions[Index]);
 	}
 }
 
@@ -311,9 +372,11 @@ void UMVVMView::UninitializeBindings()
 
 	bBindingsInitialized = false;
 
-	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> ClassExtensions = GeneratedViewClass->GetViewClassExtensions();
+	check(ClassExtensions.Num() == Extensions.Num());
+	for (int32 Index = 0; Index < ClassExtensions.Num(); ++Index)
 	{
-		Extension->OnBindingsUninitialized(GetUserWidget(), this);
+		ClassExtensions[Index]->OnBindingsUninitialized(GetUserWidget(), this, Extensions[Index]);
 	}
 
 	const TArrayView<const FMVVMViewClass_Source> ClassSources = GeneratedViewClass->GetSources();
@@ -359,7 +422,7 @@ void UMVVMView::InitializeSourceBindings(FMVVMView_SourceKey SourceKey, bool bRu
 				{
 					if (ensureMsgf(FieldId.IsValid(), TEXT("Invalid field. It failed somewhere in the compiler.")))
 					{
-						UE::FieldNotification::FFieldMulticastDelegate::FDelegate Delegate = UE::FieldNotification::FFieldMulticastDelegate::FDelegate::CreateUObject(this, &UMVVMView::HandledLibraryBindingValueChanged);
+						UE::FieldNotification::FFieldMulticastDelegate::FDelegate Delegate = UE::FieldNotification::FFieldMulticastDelegate::FDelegate::CreateUObject(this, &UMVVMView::HandledLibraryBindingValueChanged, SourceKey);
 						NotifyFieldValueChanged->AddFieldValueChangedDelegate(FieldId.GetFieldId(), MoveTemp(Delegate));
 						++ViewSource.RegisteredCount;
 					}
@@ -368,12 +431,47 @@ void UMVVMView::InitializeSourceBindings(FMVVMView_SourceKey SourceKey, bool bRu
 		}
 
 		// Run the bindings
-		for (const FMVVMViewClass_SourceBinding& SourceBinding : ClassSource.GetBindings())
+		if (bRunAllBindings)
 		{
-			if (SourceBinding.ExecuteAtInitialization() || bRunAllBindings)
+			// Run all the bindings from this source but only once.
+			TArray<FMVVMViewClass_BindingKey, TInlineAllocator<8>> ExecutedBindings;
+			for (const FMVVMViewClass_SourceBinding& SourceBinding : ClassSource.GetBindings())
 			{
-				const FMVVMViewClass_Binding& ClassBinding = GeneratedViewClass->GetBinding(SourceBinding.GetBindingKey());
-				ExecuteBindingImmediately(ClassBinding, SourceBinding.GetBindingKey());
+				if (!ExecutedBindings.Contains(SourceBinding.GetBindingKey()))
+				{
+					ExecutedBindings.Add(SourceBinding.GetBindingKey());
+					const FMVVMViewClass_Binding& ClassBinding = GeneratedViewClass->GetBinding(SourceBinding.GetBindingKey());
+					ExecuteBindingImmediately(ClassBinding, SourceBinding.GetBindingKey());
+				}
+			}
+
+			TArray<FMVVMViewClass_ConditionKey, TInlineAllocator<8>> ExecutedConditions;
+			for (const FMVVMViewClass_SourceCondition& SourceCondition : ClassSource.GetConditions())
+			{
+				if (!ExecutedConditions.Contains(SourceCondition.GetConditionKey()))
+				{
+					ExecutedConditions.Add(SourceCondition.GetConditionKey());
+					const FMVVMViewClass_Condition& ClassCondition = GeneratedViewClass->GetCondition(SourceCondition.GetConditionKey());
+					ExecuteConditionInternal(SourceCondition);
+				}
+			}
+
+		}
+		else
+		{
+			for (const FMVVMViewClass_SourceBinding& SourceBinding : ClassSource.GetBindings())
+			{
+				if (SourceBinding.ExecuteAtInitialization())
+				{
+					const FMVVMViewClass_Binding& ClassBinding = GeneratedViewClass->GetBinding(SourceBinding.GetBindingKey());
+					ExecuteBindingImmediately(ClassBinding, SourceBinding.GetBindingKey());
+				}
+			}
+
+			for (const FMVVMViewClass_SourceCondition& SourceCondition : ClassSource.GetConditions())
+			{
+				const FMVVMViewClass_Condition& ClassCondition = GeneratedViewClass->GetCondition(SourceCondition.GetConditionKey());
+				ExecuteConditionInternal(SourceCondition);
 			}
 		}
 
@@ -533,31 +631,17 @@ bool UMVVMView::EvaluateSource(FMVVMViewClass_SourceKey SourceKey)
 }
 
 
-namespace UE::MVVM::Private
-{
-	using FRecursiveDetctionElement = TTuple<const UObject*, FMVVMViewClass_BindingKey>;
-	TArray<FRecursiveDetctionElement> RecursiveDetector;
-}
-
-
-void UMVVMView::HandledLibraryBindingValueChanged(UObject* InSource, UE::FieldNotification::FFieldId InFieldId)
+void UMVVMView::HandledLibraryBindingValueChanged(UObject* InSource, UE::FieldNotification::FFieldId InFieldId, FMVVMView_SourceKey ViewSourceKey)
 {
 	SCOPE_CYCLE_COUNTER(STAT_UMG_Viewmodel_ExecuteBinding_ValueChanged);
 
 	check(InSource);
 	check(InFieldId.IsValid());
+	check(ViewSourceKey.IsValid());
 
-	if (ensure(GeneratedViewClass))
+	if (ensure(GeneratedViewClass) && ensure(Sources.IsValidIndex(ViewSourceKey.GetIndex())))
 	{
-		int32 ViewSourceIndex = Sources.IndexOfByPredicate([InSource](const FMVVMView_Source& Other){ return Other.Source == InSource; });
-		if (ViewSourceIndex == INDEX_NONE)
-		{
-			ensureMsgf(false, TEXT("No source was found. That means the source was removed but the binding was not."));
-			return;
-		}
-		const FMVVMView_SourceKey ViewSourceKey = FMVVMView_SourceKey(ViewSourceIndex);
-		const FMVVMView_Source& ViewSource = Sources[ViewSourceIndex];
-
+		const FMVVMView_Source& ViewSource = Sources[ViewSourceKey.GetIndex()];
 		if (!ViewSource.bBindingsInitialized || !ViewSource.bSourceInitialized)
 		{
 			// we do not want to run a binding while we are initializing the bindings.
@@ -586,42 +670,63 @@ void UMVVMView::HandledLibraryBindingValueChanged(UObject* InSource, UE::FieldNo
 		{
 			if (SourceBinding.GetFieldId().GetFieldName() == InFieldId.GetName())
 			{
-				const FMVVMViewClass_Binding& ClassBinding = GeneratedViewClass->GetBinding(SourceBinding.GetBindingKey());
-				if (ensure(ClassBinding.IsOneWay()))
-				{
-					const EMVVMExecutionMode ExecutionMode = ClassBinding.GetExecuteMode();
-					if (ExecutionMode == EMVVMExecutionMode::Immediate)
-					{
-						// Test for recursivity
-						const UMVVMView* Self = this;
-						if (UE::MVVM::Private::RecursiveDetector.FindByPredicate([Self, InCompiledBindingIndex = SourceBinding.GetBindingKey()](const UE::MVVM::Private::FRecursiveDetctionElement& Element)
-							{
-								return Element.Get<0>() == Self && Element.Get<1>() == InCompiledBindingIndex;
-							}) != nullptr)
-						{
-							ensureAlwaysMsgf(false, TEXT("Recursive binding detected"));
-							//Todo add more infos. Callstack maybe? Log the chain?
-							UE::MVVM::FMessageLog Log(Self->GetUserWidget());
-							Log.Warning(LOCTEXT("RecursionDetected", "A recursive binding was detected (ie. A->B->C->A->B->C) at runtime."));
-							return;
-						}
-
-						{
-							UE::MVVM::Private::RecursiveDetector.Emplace(this, SourceBinding.GetBindingKey());
-							ExecuteBindingImmediately(ClassBinding, SourceBinding.GetBindingKey());
-							UE::MVVM::Private::RecursiveDetector.Pop();
-						}
-					}
-					else if (ExecutionMode == EMVVMExecutionMode::Delayed)
-					{
-						GEngine->GetEngineSubsystem<UMVVMBindingSubsystem>()->AddDelayedBinding(this, SourceBinding.GetBindingKey());
-					}
-					else
-					{
-						ensureMsgf(false, TEXT("We should not have registered the binding."));
-					}
-				}
+				ExecuteBindingInternal(SourceBinding);
 			}
+		}
+
+		// Run all conditions
+		for (const FMVVMViewClass_SourceCondition& SourceCondition : ClassSource.GetConditions())
+		{
+			if (SourceCondition.GetFieldId().GetFieldName() == InFieldId.GetName())
+			{
+				ExecuteConditionInternal(SourceCondition);
+			}
+		}
+	}
+}
+
+void UMVVMView::ExecuteConditionInternal(const FMVVMViewClass_SourceCondition& SourceCondition) const
+{
+	const FMVVMViewClass_Condition& ClassCondition = GeneratedViewClass->GetCondition(SourceCondition.GetConditionKey());
+
+	UUserWidget* UserWidget = GetUserWidget();
+	UFunction* FunctionToBind = UserWidget->GetClass()->FindFunctionByName(ClassCondition.GetUserWidgetFunctionName());
+
+	UE::MVVM::BindingHelper::ExecuteFunction_NoReturnValue(FunctionToBind, UserWidget);
+}
+
+
+void UMVVMView::ExecuteBindingInternal(const FMVVMViewClass_SourceBinding& SourceBinding) const
+{
+	const FMVVMViewClass_Binding& ClassBinding = GeneratedViewClass->GetBinding(SourceBinding.GetBindingKey());
+	if (ensure(ClassBinding.IsOneWay()))
+	{
+		const EMVVMExecutionMode ExecutionMode = ClassBinding.GetExecuteMode();
+		if (ExecutionMode == EMVVMExecutionMode::Immediate)
+		{
+			// Test for recursivity
+			const UMVVMView* Self = this;
+			if (UE::MVVM::Private::RecursiveDetector.FindByPredicate([Self, InCompiledBindingIndex = SourceBinding.GetBindingKey()](const UE::MVVM::Private::FRecursiveDetctionElement& Element)
+				{
+					return Element.Get<0>() == Self && Element.Get<1>() == InCompiledBindingIndex;
+				}) != nullptr)
+			{
+				ensureAlwaysMsgf(false, TEXT("Recursive binding detected"));
+				//Todo add more infos. Callstack maybe? Log the chain?
+				UE::MVVM::FMessageLog Log(Self->GetUserWidget());
+				Log.Warning(LOCTEXT("RecursionDetected", "A recursive binding was detected (ie. A->B->C->A->B->C) at runtime."));
+				return;
+			}
+
+				{
+					UE::MVVM::Private::RecursiveDetector.Emplace(this, SourceBinding.GetBindingKey());
+					ExecuteBindingImmediately(ClassBinding, SourceBinding.GetBindingKey());
+					UE::MVVM::Private::RecursiveDetector.Pop();
+				}
+		}
+		else if (ExecutionMode == EMVVMExecutionMode::Delayed)
+		{
+			GEngine->GetEngineSubsystem<UMVVMBindingSubsystem>()->AddDelayedBinding(this, SourceBinding.GetBindingKey());
 		}
 	}
 }
@@ -809,9 +914,6 @@ bool UMVVMView::SetSourceInternal(FMVVMViewClass_SourceKey ClassSourceKey, TScri
 	}
 
 	UObject* PreviousValue = ViewSource.Source;
-	bool bPreviousSourceInitialized = ViewSource.bSourceInitialized;
-	bool bPreviousBindingsInitialized = ViewSource.bBindingsInitialized;
-
 	{
 		// Sanity check. Test if the bitfield matches the cached value.
 		const bool bIsValid = PreviousValue != nullptr;
@@ -821,6 +923,9 @@ bool UMVVMView::SetSourceInternal(FMVVMViewClass_SourceKey ClassSourceKey, TScri
 
 	if (PreviousValue != NewValue.GetObject())
 	{
+		bool bPreviousBindingsInitialized = ViewSource.bBindingsInitialized;
+		bool bPreviousSourceInitialized = ViewSource.bSourceInitialized;
+
 		if (ViewSource.bBindingsInitialized)
 		{
 			UninitializeSourceBindings(ClassSourceKey, ClassSource, ViewSource);
@@ -852,7 +957,9 @@ bool UMVVMView::SetSourceInternal(FMVVMViewClass_SourceKey ClassSourceKey, TScri
 				}
 			}
 
-			// initialize bindings and run time
+			// Initialize bindings and execute them without delay.
+			//A binding might have different source dependencies. The binding might not have the "ExecAtInit" flag for this source.
+			//Force the execution of all the bindings for this source.
 			InitializeSourceBindings(ViewSourceKey, true);
 		}
 
@@ -860,7 +967,99 @@ bool UMVVMView::SetSourceInternal(FMVVMViewClass_SourceKey ClassSourceKey, TScri
 		UE::MVVM::FDebugging::BroadcastViewSourceValueChanged(this, ClassSourceKey, ViewSourceKey);
 #endif
 	}
+	else if (ClassSource.AlwaysExecuteBindingsOnSetSource() && ViewSource.bBindingsInitialized)
+	{
+		ExecuteViewModelBindingsInternal(ClassSourceKey);
+	}
+
 	return true;
+}
+
+
+bool UMVVMView::ExecuteViewModelBindings(FName ViewModelName)
+{
+	if (ViewModelName.IsNone())
+	{
+		UE::MVVM::FMessageLog Log(GetUserWidget());
+		Log.Error(LOCTEXT("SetViewModelInvalidName", "The viewmodel name is empty."));
+		return false;
+	}
+
+	if (GeneratedViewClass == nullptr)
+	{
+		UE::MVVM::FMessageLog Log(GetUserWidget());
+		Log.Error(LOCTEXT("SetViewModelInvalidClass", "The view is not constructed."));
+		return false;
+	}
+
+	const int32 ClassSourceIndex = GeneratedViewClass->GetSources().IndexOfByPredicate([ViewModelName](const FMVVMViewClass_Source& Other)
+		{
+			return Other.GetName() == ViewModelName;
+		});
+
+	if (ClassSourceIndex == INDEX_NONE)
+	{
+		UE::MVVM::FMessageLog Log(GetUserWidget());
+		Log.Error(LOCTEXT("SetViewModelViewModelNameNotFound", "The viewmodel name could not be found."));
+		return false;
+	}
+
+	ExecuteViewModelBindingsInternal(FMVVMViewClass_SourceKey(ClassSourceIndex));
+	return true;
+}
+
+
+void UMVVMView::ExecuteViewModelBindingsInternal(FMVVMViewClass_SourceKey ClassSourceKey)
+{
+	SCOPE_CYCLE_COUNTER(STAT_UMG_Viewmodel_ExecuteViewModel);
+
+	const FMVVMViewClass_Source& ClassSource = GeneratedViewClass->GetSource(ClassSourceKey);
+
+	// Run all evaluates
+	if (ClassSource.HasEvaluateBindings())
+	{
+		for (const FMVVMViewClass_EvaluateSource& ClassEvaluate : GeneratedViewClass->GetEvaluateSources())
+		{
+			if (ClassEvaluate.GetParentSource() == ClassSourceKey)
+			{
+				EvaluateSource(ClassEvaluate.GetSource());
+			}
+		}
+	}
+
+	// Run the bindings
+	for (const FMVVMViewClass_SourceBinding& SourceBinding : ClassSource.GetBindings())
+	{
+		ExecuteBindingInternal(SourceBinding);
+	}
+	// Run all conditions
+	for (const FMVVMViewClass_SourceCondition& SourceCondition : ClassSource.GetConditions())
+	{
+		ExecuteConditionInternal(SourceCondition);
+	}
+}
+
+
+void UMVVMView::HandleViewModelCollectionChanged()
+{
+	if (ensure(GeneratedViewClass))
+	{
+		const int32 NumberOfSources = GeneratedViewClass->GetSources().Num();
+		for (int32 Index = 0; Index < NumberOfSources; ++Index)
+		{
+			FMVVMView_SourceKey SourceKey(Index);
+			FMVVMView_Source& ViewSource = Sources[SourceKey.GetIndex()];
+			const FMVVMViewClass_Source& ClassSource = GeneratedViewClass->GetSource(ViewSource.ClassKey);
+			if (ViewSource.bSourceInitialized && !ViewSource.bSetManually && ClassSource.RequireGlobalViewModelCollectionUpdate())
+			{
+				TScriptInterface<INotifyFieldValueChanged> NewValue = ClassSource.GetGlobalCollectionViewModel(GetUserWidget());
+				if (NewValue.GetObject() != ViewSource.Source)
+				{
+					SetSourceInternal(ViewSource.ClassKey, NewValue, true);
+				}
+			}
+		}
+	}
 }
 
 
@@ -885,9 +1084,11 @@ void UMVVMView::InitializeEvents()
 		BindEvent(ClassEvent, FMVVMViewClass_EventKey(Index));
 	}
 
-	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> ClassExtensions = GeneratedViewClass->GetViewClassExtensions();
+	check(ClassExtensions.Num() == Extensions.Num());
+	for (int32 Index = 0; Index < ClassExtensions.Num(); ++Index)
 	{
-		Extension->OnEventsInitialized(GetUserWidget(), this);
+		ClassExtensions[Index]->OnEventsInitialized(GetUserWidget(), this, Extensions[Index]);
 	}
 
 	bEventsInitialized = true;
@@ -905,9 +1106,11 @@ void UMVVMView::UninitializeEvents()
 	
 	bEventsInitialized = false;
 
-	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> ClassExtensions = GeneratedViewClass->GetViewClassExtensions();
+	check(ClassExtensions.Num() == Extensions.Num());
+	for (int32 Index = 0; Index < ClassExtensions.Num(); ++Index)
 	{
-		Extension->OnEventsUninitialized(GetUserWidget(), this);
+		ClassExtensions[Index]->OnEventsUninitialized(GetUserWidget(), this, Extensions[Index]);
 	}
 
 	for (int32 Index = BoundEvents.Num() - 1; Index >= 0; --Index)
@@ -1043,6 +1246,71 @@ void UMVVMView::ReinitializeEvents(FMVVMViewClass_SourceKey SourceKey, UObject* 
 			BindEvent(ClassEvent, FMVVMViewClass_EventKey(Index));
 		}
 	}
+}
+
+
+bool UMVVMView::AreSourcesValidForEvent(int32 EventKeyIndex) const
+{
+	FMVVMViewClass_EventKey EventKey = FMVVMViewClass_EventKey(EventKeyIndex);
+	if (GeneratedViewClass)
+	{
+		const FMVVMViewClass_Event& ClassEvent = GeneratedViewClass->GetEvent(EventKey);
+		uint64 EventSources = ClassEvent.GetSources();
+		if ((EventSources & ValidSources) == EventSources)
+		{
+			return true;
+		}
+		
+		const uint64 MissingSources = EventSources & (~ValidSources);
+		if ((MissingSources & GeneratedViewClass->GetOptionalSources()) != MissingSources)
+		{
+#if UE_WITH_MVVM_DEBUGGING
+			UE::MVVM::FMessageLog Log(GetUserWidget());
+			Log.Error(FText::Format(LOCTEXT("ExecuteEventFailInvalidSource", "The event '{0}' was not executed. There are invalid sources.")
+				, FText::FromString(ClassEvent.ToString(GeneratedViewClass, FMVVMViewClass_Event::FToStringArgs::Short()))
+			));
+#else
+			UE::MVVM::FMessageLog Log(GetUserWidget());
+			Log.Error(FText::Format(LOCTEXT("ExecuteEventFailInvalidSource", "The event '{0}' was not executed. There are invalid sources.")
+				, FText::AsNumber(EventKey.GetIndex())
+			));
+#endif
+		}
+	}
+	return false;
+}
+
+
+bool UMVVMView::AreSourcesValidForBinding(int32 InBindingKey) const
+{
+	FMVVMViewClass_BindingKey BindingKey = FMVVMViewClass_BindingKey(InBindingKey);
+	if (GeneratedViewClass)
+	{
+		const FMVVMViewClass_Binding& ClassBinding = GeneratedViewClass->GetBinding(BindingKey);
+		uint64 BindingSources = ClassBinding.GetSources();
+		if ((BindingSources & ValidSources) == BindingSources)
+		{
+			return true;
+		}
+		
+		const uint64 MissingSources = BindingSources & (~ValidSources);
+		if ((MissingSources & GeneratedViewClass->GetOptionalSources()) != MissingSources)
+		{
+			// Only log invalid bindings as info, since it is possible expected behavior for async functions
+#if UE_WITH_MVVM_DEBUGGING
+			UE::MVVM::FMessageLog Log(GetUserWidget());
+			Log.Info(FText::Format(LOCTEXT("ExecuteGraphBindingFailInvalidSource", "The binding '{0}' was not executed. There are invalid sources.")
+				, FText::FromString(ClassBinding.ToString(GeneratedViewClass, FMVVMViewClass_Binding::FToStringArgs::Short()))
+			));
+#else
+			UE::MVVM::FMessageLog Log(GetUserWidget());
+			Log.Info(FText::Format(LOCTEXT("ExecuteGraphBindingFailInvalidSource", "The binding '{0}' was not executed. There are invalid sources.")
+				, FText::AsNumber(BindingKey.GetIndex())
+			));
+#endif
+		}
+	}
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

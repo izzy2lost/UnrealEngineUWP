@@ -11,6 +11,7 @@
 namespace unsync {
 
 struct FComputeBlocksParams;
+struct FSyncFilter;
 
 struct FFileManifest
 {
@@ -71,6 +72,8 @@ struct FDirectoryManifest
 
 	bool bHasFileRevisionControl = false;
 
+	std::vector<FPackReference> PackReferences;
+
 	bool IsValid() const { return Version != EVersions::Invalid; }
 };
 
@@ -104,9 +107,8 @@ void			   UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath&
 FDirectoryManifest CreateDirectoryManifest(const FPath& Root, const FComputeBlocksParams& Params);
 FDirectoryManifest CreateDirectoryManifestIncremental(const FPath& Root, const FComputeBlocksParams& Params);
 bool			   LoadOrCreateDirectoryManifest(FDirectoryManifest& Result, const FPath& Root, const FComputeBlocksParams& Params);
-
-void MoveCompatibleManifestBlocks(FDirectoryManifest& Manifest, FDirectoryManifest&& DonorManifest);
-
-bool AlgorithmOptionsCompatible(const FAlgorithmOptions& A, const FAlgorithmOptions& B);
+bool			   MergeManifests(FDirectoryManifest& Existing, const FDirectoryManifest& Other, bool bCaseSensitive);
+void			   MoveCompatibleManifestBlocks(FDirectoryManifest& Manifest, FDirectoryManifest&& DonorManifest);
+bool			   AlgorithmOptionsCompatible(const FAlgorithmOptions& A, const FAlgorithmOptions& B);
 
 }  // namespace unsync

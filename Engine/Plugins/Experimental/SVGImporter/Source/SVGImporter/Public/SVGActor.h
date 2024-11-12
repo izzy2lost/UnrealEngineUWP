@@ -15,6 +15,7 @@
 #if WITH_EDITOR
 class FScopedTransaction;
 class FTransactionObjectEvent;
+class USVGActorEditorComponent;
 #endif
 
 class USVGData;
@@ -65,6 +66,10 @@ public:
 	//~ Begin ASVGDynamicMeshesOwnerActor
 	virtual TArray<UDynamicMeshComponent*> GetSVGDynamicMeshes() override;
 	//~ End ASVGDynamicMeshesOwnerActor
+
+#if WITH_EDITOR
+	USVGActorEditorComponent* GetSVGEditorComponent() { return SVGEditorComponent; }
+#endif
 
 	TArray<TObjectPtr<USVGFillComponent>> GetFillComponents() const;
 	TArray<TObjectPtr<USVGStrokeComponent>> GetStrokeComponents() const;
@@ -273,6 +278,11 @@ protected:
 	UPROPERTY()
 	TObjectPtr<USceneComponent> StrokeShapesRoot;
 
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	TObjectPtr<USVGActorEditorComponent> SVGEditorComponent;
+#endif
+
 	UPROPERTY()
 	TArray<TObjectPtr<USVGDynamicMeshComponent>> ShapeComponents;
 
@@ -333,6 +343,7 @@ UPROPERTY()
 private:
 #if WITH_EDITOR
 	friend class FSVGDynamicMeshVisualizer;
+	friend class FSVGActorEditorComponentVisualizer;
 
 	void SetFillsExtrudeInteractive(float InFillsExtrude);
 	void SetStrokesExtrudeInteractive(float InStrokesExtrude);

@@ -34,6 +34,8 @@
 #include "Async/Async.h"
 #include "Async/Future.h"
 #include "Virtualization/VirtualizationSystem.h"
+#include "CookedPackageStore.h"
+#include "ZenStoreHttpClient.h"
 
 IMPLEMENT_MODULE(FDefaultModuleImpl, PakFileUtilities);
 
@@ -553,6 +555,7 @@ struct FPakCommandLineParameters
 	FString InputFinalPakFilename; // This is the resulting pak file we want to end up with after we generate the pak patch.  This is used instead of passing in the raw content.
 	FString ChangedFilesOutputFilename;
 	FString CsvPath;
+	FString ProjectStoreFilename;
 	bool EncryptIndex;
 	bool UseCustomCompressor;
 	FGuid EncryptionKeyGuid;
@@ -672,7 +675,7 @@ struct FCompressedFileBuffer
 	}
 
 	void ResetSource();
-	bool ReadSource(const FPakInputPair& InFile);
+	bool ReadSource(const FPakInputPair& InFile, FCookedPackageStore* PackageStore);
 	void SetSourceAsWorkingBuffer();
 
 	TUniquePtr<FMemoryCompressor> BeginCompressFileToWorkingBuffer(const FPakInputPair& InFile, FName CompressionMethod, const int32 CompressionBlockSize, FGraphEventRef EndCompressionBarrier);
@@ -811,7 +814,7 @@ FString FCompressedFileBuffer::GetDDCKeyString(const uint8* UncompressedFile, co
 {
 	FString KeyString;
 
-	KeyString += FString::Printf(TEXT("_F:%s_C:%s_B:%d_"), *CompressionFormat.ToString(), *FCompression::GetCompressorDDCSuffix(CompressionFormat), BlockSize);
+	KeyString += FString::Printf(TEXT("_F:%s_C:%s_B:%" INT64_FMT "_"), *CompressionFormat.ToString(), *FCompression::GetCompressorDDCSuffix(CompressionFormat), BlockSize);
 	
 	FSHA1 HashState;
 	HashState.Update(UncompressedFile, UncompressedFileSize);
@@ -828,35 +831,46 @@ void FCompressedFileBuffer::ResetSource()
 	UncompressedBuffer.Empty();
 }
 
-bool FCompressedFileBuffer::ReadSource(const FPakInputPair& InputInfo)
+bool FCompressedFileBuffer::ReadSource(const FPakInputPair& InputInfo, FCookedPackageStore* PackageStore)
 {
 	if (!InputInfo.bNeedRehydration)
 	{
 		TUniquePtr<FArchive> FileHandle(IFileManager::Get().CreateFileReader(*InputInfo.Source));
-		if (!FileHandle)
+		if (FileHandle)
 		{
-			OriginalSize = -1;
-			return false;
+			OriginalSize = FileHandle->TotalSize();
+			const int64 PaddedEncryptedFileSize = Align(OriginalSize, FAES::AESBlockSize);
+
+			UncompressedBuffer.SetNumUninitialized(PaddedEncryptedFileSize);
+
+			FileHandle->Serialize(UncompressedBuffer.GetData(), OriginalSize);
+
+			if (!FileHandle->IsError())
+			{
+				return true;
+			}
 		}
-
-		OriginalSize = FileHandle->TotalSize();
-		const int64 PaddedEncryptedFileSize = Align(OriginalSize, FAES::AESBlockSize);
-
-		UncompressedBuffer.SetNumUninitialized(PaddedEncryptedFileSize);
-
-		FileHandle->Serialize(UncompressedBuffer.GetData(), OriginalSize);
-
-		if (!FileHandle->IsError())
+		else if (PackageStore && PackageStore->HasZenStoreClient())
 		{
-			return true;
+			FString FullFilename = FPaths::ConvertRelativePathToFull(InputInfo.Source);
+			FIoChunkId ChunkId = PackageStore->GetChunkIdFromFileName(FullFilename);
+			if (ChunkId.IsValid())
+			{
+				TIoStatusOr<FIoBuffer> ChunkReadStatus = PackageStore->ReadChunk(ChunkId);
+				if (ChunkReadStatus.IsOk())
+				{
+					FIoBuffer Buffer = ChunkReadStatus.ConsumeValueOrDie();
+					OriginalSize = Buffer.GetSize();
+					const int64 PaddedEncryptedFileSize = Align(OriginalSize, FAES::AESBlockSize);
+					UncompressedBuffer.SetNumUninitialized(PaddedEncryptedFileSize);
+					FMemory::Memcpy(UncompressedBuffer.GetData(), Buffer.GetData(), Buffer.GetSize());
+					return true;
+				}
+			}
 		}
-		else
-		{
-			UncompressedBuffer.Empty();
-			OriginalSize = -1;
-
-			return false;
-		}
+		UncompressedBuffer.Empty();
+		OriginalSize = -1;
+		return false;
 	}
 	else
 	{
@@ -1266,6 +1280,8 @@ void ProcessCommonCommandLine(const TCHAR* CmdLine, FPakCommandLineParameters& C
 	FParse::Value(CmdLine, TEXT("-patchSeekOptMode="), (int32&)CmdLineParameters.SeekOptParams.Mode);
 
 	FParse::Value(CmdLine, TEXT("csv="), CmdLineParameters.CsvPath);
+
+	FParse::Value(FCommandLine::Get(), TEXT("ProjectStore="), CmdLineParameters.ProjectStoreFilename);
 }
 
 void ProcessPakFileSpecificCommandLine(const TCHAR* CmdLine, const TArray<FString>& NonOptionArguments, TArray<FPakInputPair>& Entries, FPakCommandLineParameters& CmdLineParameters)
@@ -2163,6 +2179,7 @@ private:
 	TSpscQueue<FOutputPakFileEntry*> WriteQueue;
 	TFuture<void> CompressionThread;
 	TFuture<void> WriterThread;
+	TUniquePtr<FCookedPackageStore> PackageStore;
 	FEventRef CompressionQueueEntryAddedEvent;
 	FEventRef WriteQueueEntryAddedEvent;
 	FEventRef EntryRetiredEvent;
@@ -2203,6 +2220,20 @@ bool FPakWriterContext::Initialize(const FPakCommandLineParameters& InCmdLinePar
 			FormatLogLine += CompressionMethod.ToString();
 		}
 		UE_LOG(LogPakFile, Display, TEXT("%s"), *FormatLogLine);
+	}
+
+	if (!CmdLineParameters.ProjectStoreFilename.IsEmpty())
+	{
+		TUniquePtr<FCookedPackageStore> NewPackageStore = MakeUnique<FCookedPackageStore>(FPaths::GetPath(CmdLineParameters.ProjectStoreFilename));
+		FIoStatus Status = NewPackageStore->LoadProjectStore(*CmdLineParameters.ProjectStoreFilename);
+		if (Status.IsOk())
+		{
+			PackageStore = MoveTemp(NewPackageStore);
+		}
+		else
+		{
+			UE_LOG(LogPakFile, Fatal, TEXT("Failed loading project store '%s'"), *CmdLineParameters.ProjectStoreFilename);
+		}
 	}
 
 	// Oodle is built into the Engine now and can be used to decode startup phase files (ini,res,uplugin)
@@ -2366,7 +2397,7 @@ void FPakWriterContext::BeginCompress(FOutputPakFileEntry* Entry)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(BeginCompress);
 
-	if (!Entry->AccessCompressedBuffer().ReadSource(Entry->InputPair))
+	if (!Entry->AccessCompressedBuffer().ReadSource(Entry->InputPair, PackageStore.Get()))
 	{
 		// TODO: Should we give an error?
 		Entry->bSomeCompressionSucceeded = true; // Prevent loading in EndCompress
@@ -3245,7 +3276,8 @@ bool ListFilesInPak(const TCHAR * InPakFilename, int64 SizeFilter, bool bInclude
 
 	if (PakFile.IsValid())
 	{
-		UE_LOG(LogPakFile, Log, TEXT("Mount point %s"), *PakFile.GetMountPoint());
+		UE_LOG(LogPakFile, Display, TEXT("Listing %s with mount point \"%s\""),
+			*FPaths::GetCleanFilename(InPakFilename), *PakFile.GetMountPoint());
 
 		TArray<FPakFile::FPakEntryIterator> Records;
 
@@ -3672,16 +3704,16 @@ bool AuditPakFiles( const FString& InputPath, bool bOnlyDeleted, const FString& 
 			}
 			else if (Itr.Value.PakPriority == HighestPakPriority)
 			{
-				WriteCSVLine( FString::Printf( TEXT("%s,Fresh,%s,,%d,,%d,%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, Itr.Value.PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText ) );
+				WriteCSVLine( FString::Printf( TEXT("%s,Fresh,%s,,%d,,%" INT64_FMT ",%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, Itr.Value.PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText ) );
 			}
 			else
 			{
-				WriteCSVLine( FString::Printf( TEXT("%s,Inherited,%s,,%d,,%d,%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, Itr.Value.PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText  ) );
+				WriteCSVLine( FString::Printf( TEXT("%s,Inherited,%s,,%d,,%" INT64_FMT ",%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, Itr.Value.PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText  ) );
 			}
 		}
 		else if (DeletedRevision->PakPriority == Itr.Value.PakPriority)
 		{
-			WriteCSVLine( FString::Printf( TEXT("%s,Moved,%s,%s,%d,,%d,%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, *DeletedRevision->PakFilename, Itr.Value.PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText ) );
+			WriteCSVLine( FString::Printf( TEXT("%s,Moved,%s,%s,%d,,%" INT64_FMT ",%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, *DeletedRevision->PakFilename, Itr.Value.PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText ) );
 		}
 		else if (DeletedRevision->PakPriority > Itr.Value.PakPriority)
 		{
@@ -3690,7 +3722,7 @@ bool AuditPakFiles( const FString& InputPath, bool bOnlyDeleted, const FString& 
 		}
 		else if (DeletedRevision->PakPriority < Itr.Value.PakPriority)
 		{
-			WriteCSVLine( FString::Printf( TEXT("%s,Restored,%s,%s,%d,%d,%d,%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, *DeletedRevision->PakFilename, Itr.Value.PakPriority, DeletedRevision->PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText ) );
+			WriteCSVLine( FString::Printf( TEXT("%s,Restored,%s,%s,%d,%d,%" INT64_FMT ",%s,%s,%s"), *AssetName, *Itr.Value.PakFilename, *DeletedRevision->PakFilename, Itr.Value.PakPriority, DeletedRevision->PakPriority, Itr.Value.Size, *AssetPath, *PatchDotChunk, *OpenOrderText ) );
 		}
 
 		if( bFileExists && bSortByOrdering && bHasOpenOrder )
@@ -4494,8 +4526,7 @@ bool GenerateHashesFromPak(const TCHAR* InPakFilename, const TCHAR* InDestPakFil
 					if (EntryInfo.IndexDataEquals(Entry))
 					{
 						// TUniquePtr<FArchive> FileHandle(IFileManager::Get().CreateFileWriter(*DestFilename));
-						TArray<uint8> Bytes;
-						FMemoryWriter MemoryFile(Bytes);
+						FLargeMemoryWriter MemoryFile;
 						FArchive* FileHandle = &MemoryFile;
 						// if (FileHandle.IsValid())
 						{
@@ -4509,7 +4540,7 @@ bool GenerateHashesFromPak(const TCHAR* InPakFilename, const TCHAR* InDestPakFil
 							}
 
 							UE_LOG(LogPakFile, Display, TEXT("Generated hash for \"%s\""), *FullFilename);
-							GenerateHashForFile(Bytes.GetData(), Bytes.Num(), FileHash);
+							GenerateHashForFile(MemoryFile.GetData(), MemoryFile.TotalSize(), FileHash);
 							FileHash.PatchIndex = PakPriority;
 							FileHash.bIsDeleteRecord = false;
 							FileHash.bForceInclude = false;
@@ -5367,7 +5398,7 @@ bool MakeBinaryConfig(const TCHAR* CmdLine)
 	FString ProjectDir = FPaths::GetPath(ProjectFile);
 
 	FConfigCacheIni Config(EConfigCacheType::Temporary);
-	FConfigContext Context = FConfigContext::ReadIntoConfigSystem(&Config, TEXT(""));
+	FConfigContext Context = FConfigContext::ReadIntoConfigSystem(&Config, PlatformName);
 	Context.ProjectConfigDir = FPaths::Combine(ProjectDir, TEXT("Config/"));
 	Config.InitializeKnownConfigFiles(Context);
 
@@ -5389,9 +5420,6 @@ bool MakeBinaryConfig(const TCHAR* CmdLine)
 	for (const FString& Filename : Config.GetFilenames())
 	{
 		FConfigFile* File = Config.FindConfigFile(Filename);
-
-		delete File->SourceConfigFile;
-		File->SourceConfigFile = nullptr;
 
 		for (const FString& Section : SectionsDenyList)
 		{
@@ -5449,6 +5477,7 @@ bool MakeBinaryConfig(const TCHAR* CmdLine)
  */
 bool ExecuteUnrealPak(const TCHAR* CmdLine)
 {
+	UE_LOG(LogPakFile, Display, TEXT("ProjectDir: %s"), *FPaths::ProjectDir());
 	{
 		FString IoStoreArg;
 		if (FParse::Value(CmdLine, TEXT("-CreateGlobalContainer="), IoStoreArg) ||
@@ -5457,32 +5486,19 @@ bool ExecuteUnrealPak(const TCHAR* CmdLine)
 			return CreateIoStoreContainerFiles(CmdLine) == 0;
 		}
 
-		// IAS commands
+		if (FParse::Value(CmdLine, TEXT("-ListContainer="), IoStoreArg))
 		{
-			if (FParse::Value(CmdLine, TEXT("-Upload="), IoStoreArg))
-			{
-				return UploadIoStoreContainerFiles(*IoStoreArg) == 0;
-			}
+			return ListIoStoreContainer(CmdLine);
+		}
 
-			if (FParse::Value(CmdLine, TEXT("-Download="), IoStoreArg))
-			{
-				return DownloadIoStoreContainerFiles(*IoStoreArg) == 0;
-			}
+		if (FParse::Value(CmdLine, TEXT("-ListContainerBulkData="), IoStoreArg))
+		{
+			return ListIoStoreContainerBulkData(CmdLine);
+		}
 
-			if (FParse::Param(CmdLine, TEXT("ListTocs")))
-			{
-				return ListOnDemandTocs();
-			}
-
-			if (FParse::Value(CmdLine, TEXT("-ListContainer="), IoStoreArg))
-			{
-				return ListIoStoreContainer(CmdLine);
-			}
-
-			if (FParse::Value(CmdLine, TEXT("-ListContainerBulkData="), IoStoreArg))
-			{
-				return ListIoStoreContainerBulkData(CmdLine);
-			}
+		if (FParse::Value(CmdLine, TEXT("-DiffContainer="), IoStoreArg))
+		{
+			return DiffIoStoreContainer(CmdLine);
 		}
 	}
 
@@ -5677,7 +5693,7 @@ bool ExecuteUnrealPak(const TCHAR* CmdLine)
 					UE_LOG(LogPakFile, Display, TEXT("Source PakFile '%s' is missing in target folder"),
 						*SourcePakFiles[I]);
 				}
-				SourcePakFiles.RemoveAtSwap(I, 1, EAllowShrinking::No);
+				SourcePakFiles.RemoveAtSwap(I, EAllowShrinking::No);
 			}
 		}
 		if (bLogUniques2)

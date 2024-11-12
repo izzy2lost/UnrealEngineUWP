@@ -355,37 +355,37 @@ void UDEPRECATED_K2Node_CastPatchToType::ExpandNode(class FKismetCompilerContext
  	LastThenPin = Branch_Node->GetThenPin();
 
 	// NODE 4. UDMXSubsystem::GetAttributesMap
-	static const FName FuncName_GetAttributesMapForPatch = GET_FUNCTION_NAME_CHECKED(UDMXSubsystem, GetFunctionsMapForPatch);
-	UFunction* FuncPtr_GetAttributesMapForPatch = FindUField<UFunction>(UDMXSubsystem::StaticClass(), FuncName_GetAttributesMapForPatch);
-	check(FuncPtr_GetAttributesMapForPatch);
+	static const FName FuncName_GetFunctionsMap = GET_FUNCTION_NAME_CHECKED(UDMXSubsystem, GetFunctionsMap);
+	UFunction* FuncPtr_GetFunctionsMap = FindUField<UFunction>(UDMXSubsystem::StaticClass(), FuncName_GetFunctionsMap);
+	check(FuncPtr_GetFunctionsMap);
 
-	UK2Node_CallFunction* GetAttributesMapForPatch_Node = CompilerContext.SpawnIntermediateNode<UK2Node_CallFunction>(this, SourceGraph);
-	GetAttributesMapForPatch_Node->SetFromFunction(FuncPtr_GetAttributesMapForPatch);
-	GetAttributesMapForPatch_Node->AllocateDefaultPins();
+	UK2Node_CallFunction* GetFunctionsMap_Node = CompilerContext.SpawnIntermediateNode<UK2Node_CallFunction>(this, SourceGraph);
+	GetFunctionsMap_Node->SetFromFunction(FuncPtr_GetFunctionsMap);
+	GetFunctionsMap_Node->AllocateDefaultPins();
 
-	UEdGraphPin* GetAttributesMap_In_Self = GetAttributesMapForPatch_Node->FindPin(UEdGraphSchema_K2::PN_Self);
+	UEdGraphPin* GetAttributesMap_In_Self = GetFunctionsMap_Node->FindPin(UEdGraphSchema_K2::PN_Self);
 	if (GetAttributesMap_In_Self == nullptr)
 	{
 		CompilerContext.MessageLog.Error(*LOCTEXT("SelfPin", "Self: Pin doesn't exists. @@").ToString(), this);
 		return;
 	}
 
-	UEdGraphPin* GetAttributesMap_In_Exec = GetAttributesMapForPatch_Node->GetExecPin();
-	UEdGraphPin* GetAttributesMap_In_FixturePatch = GetAttributesMapForPatch_Node->FindPin(TEXT("InFixturePatch"));
+	UEdGraphPin* GetAttributesMap_In_Exec = GetFunctionsMap_Node->GetExecPin();
+	UEdGraphPin* GetAttributesMap_In_FixturePatch = GetFunctionsMap_Node->FindPin(TEXT("InFixturePatch"));
 	if (GetAttributesMap_In_FixturePatch == nullptr)
 	{
 		CompilerContext.MessageLog.Error(*LOCTEXT("InFixturePatchPin", "InFixturePatch: Pin doesn't exists. @@").ToString(), this);
 		return;
 	}
 
-	UEdGraphPin* GetAttributesMap_InOut_AttributesMap = GetAttributesMapForPatch_Node->FindPin(TEXT("OutAttributesMap"));
+	UEdGraphPin* GetAttributesMap_InOut_AttributesMap = GetFunctionsMap_Node->FindPin(TEXT("OutAttributesMap"));
 	if (GetAttributesMap_InOut_AttributesMap == nullptr)
 	{
 		CompilerContext.MessageLog.Error(*LOCTEXT("OutAttributesMapPin", "OutAttributesMap: Pin doesn't exists. @@").ToString(), this);
 		return;
 	}
 
-	UEdGraphPin* GetAttributesMap_Out_Then = GetAttributesMapForPatch_Node->GetThenPin();
+	UEdGraphPin* GetAttributesMap_Out_Then = GetFunctionsMap_Node->GetThenPin();
 
 	// inputs
  	K2Schema->TryCreateConnection(GetAttributesMap_In_Self, DMXSubsytem_ReturnValue);
@@ -430,7 +430,10 @@ void UDEPRECATED_K2Node_CastPatchToType::ExpandNode(class FKismetCompilerContext
 			UEdGraphPin* IN_FuncName = Map_IN_Names[PairIndex];
 			UEdGraphPin* OUT_FuncInt = Map_OUT_Ints[PairIndex];
 
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			const FName FuncName_GetAttributesValue = GET_FUNCTION_NAME_CHECKED(UDMXSubsystem, GetFunctionsValue);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS 
+
 			UFunction* FuncPtr_GetAttributesValue = FindUField<UFunction>(UDMXSubsystem::StaticClass(), FuncName_GetAttributesValue);
 			check(FuncPtr_GetAttributesValue);
 

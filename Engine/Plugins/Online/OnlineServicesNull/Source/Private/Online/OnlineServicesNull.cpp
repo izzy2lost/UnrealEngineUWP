@@ -29,8 +29,8 @@ END_ONLINE_STRUCT_META()
 
  /*Meta*/ }
 
-FOnlineServicesNull::FOnlineServicesNull(FName InInstanceName)
-	: FOnlineServicesCommon(TEXT("Null"), InInstanceName)
+FOnlineServicesNull::FOnlineServicesNull(FName InInstanceName, FName InInstanceConfigName)
+	: FOnlineServicesCommon(TEXT("Null"), InInstanceName, InInstanceConfigName)
 {
 }
 

@@ -206,7 +206,7 @@ void SDependencyRow::OnSelectedVariantSetChanged(TSharedPtr<FText> NewItem, ESel
 			// to be pickable as a dependency in the first place.
 			// These two facts together prevent us from getting to some invalid states when we could e.g. leave the
 			// Variant part of the dependency as None, and then have another variant depend on this one.
-			for ( const UVariant* Variant : VariantSet->GetVariants() )
+			for ( UVariant* Variant : VariantSet->GetVariants() )
 			{
 				if ( ParentVariant->IsValidDependency( Variant ) )
 				{

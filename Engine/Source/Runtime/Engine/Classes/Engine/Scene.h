@@ -10,11 +10,6 @@
 #include "UObject/Object.h"
 #include "UObject/ScriptInterface.h"
 #include "Engine/BlendableInterface.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "RHIDefinitions.h"
-#include "EngineDefines.h" // SDPG_NumBits moved to here
-#endif
 #include "SceneUtils.h"
 #include "Engine/EngineTypes.h"
 #include "Scene.generated.h"
@@ -44,6 +39,15 @@ enum EAutoExposureMethod : int
 	/** Uses camera settings. */
 	AEM_Manual   UMETA(DisplayName = "Manual"),
 	AEM_MAX,
+};
+
+UENUM()
+enum class ELocalExposureMethod : uint8
+{
+	/** Decompose image into base and detail layers using a bilateral blur. Only the base layer contrast is reduced in order to preserve details. */
+	Bilateral UMETA(DisplayName = "Bilateral"),
+	/** Fuse multiple exposures according to quality measures. Local Exposure is calculated using the fused exposures. */
+	Fusion UMETA(DisplayName = "Fusion (Experimental)"),
 };
 
 UENUM()
@@ -86,11 +90,13 @@ UENUM()
 enum class ELumenRayLightingModeOverride : uint8
 {
 	/* Use the project default method */
-	Default			UMETA(DisplayName = "Project Default"),
-	/* Use the Lumen Surface Cache to light reflection rays.  This method gives the best reflection performance. */
-	SurfaceCache	UMETA(DisplayName = "Surface Cache"),
-	/* Calculate lighting at the ray hit point.  This method gives the highest reflection quality, but greatly increases GPU cost, as the material needs to be evaluated and shadow rays traced.  The Surface Cache will still be used for Diffuse Indirect lighting (GI seen in Reflections). */
-	HitLighting		UMETA(DisplayName = "Hit Lighting for Reflections"),
+	Default						UMETA(DisplayName = "Project Default"),
+	/* Use Lumen Surface Cache for ray hit lighting. This method gives the best GI and reflection performance, but quality will be limited by how well surface cache represents given scene. */
+	SurfaceCache				UMETA(DisplayName = "Surface Cache"),
+	/* Calculate lighting at a hit point for reflections. This will improve reflection quality, but increases GPU cost, as full material needs to be evaluated and shadow rays traced. Lumen Surface Cache will still be used for GI and secondary bounces, including GI seen in reflections. */
+	HitLightingForReflections	UMETA(DisplayName = "Hit Lighting for Reflections"),
+	/* Calculate lighting at a hit point for GI and reflections. This will improve both GI and reflection quality, but greatly increases GPU cost, as full material and lighting will be evaluated at every hit point. Lumen Surface Cache will still be used for secondary bounces. */
+	HitLighting					UMETA(DisplayName = "Hit Lighting"),
 };
 
 UENUM()
@@ -753,6 +759,9 @@ struct FPostProcessSettings
 	uint8 bOverride_ChromaticAberrationStartOffset:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint8 bOverride_bMegaLights:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint8 bOverride_AmbientCubemapTint:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
@@ -889,6 +898,9 @@ struct FPostProcessSettings
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint8 bOverride_HistogramLogMax:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint8 bOverride_LocalExposureMethod : 1;
 
 	UPROPERTY()
 	uint8 bOverride_LocalExposureContrastScale_DEPRECATED:1;
@@ -1181,6 +1193,9 @@ struct FPostProcessSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint8 bOverride_ScreenSpaceReflectionRoughnessScale:1; // TODO: look useless...
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint8 bOverride_UserFlags:1;
+
 	// -----------------------------------------------------------------------
 
 	// Ray Tracing
@@ -1294,7 +1309,7 @@ struct FPostProcessSettings
 	uint32 bOverride_PathTracingSamplesPerPixel : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (PinHiddenByDefault, InlineEditConditionToggle))
-	uint32 bOverride_PathTracingMaxPathExposure : 1;
+	uint32 bOverride_PathTracingMaxPathIntensity : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (PinHiddenByDefault, InlineEditConditionToggle))
 	uint32 bOverride_PathTracingEnableEmissiveMaterials : 1;
@@ -1615,7 +1630,11 @@ struct FPostProcessSettings
 	/** Scales the indirect lighting contribution. A value of 0 disables GI. Default is 1. The show flag 'Global Illumination' must be enabled to use this property. */
 	UPROPERTY(interp, BlueprintReadWrite, AdvancedDisplay, Category="Global Illumination", meta=(ClampMin = "0", UIMax = "4.0", editcondition = "bOverride_IndirectLightingIntensity", DisplayName = "Indirect Lighting Intensity"))
 	float IndirectLightingIntensity;
-
+	
+	/** Controls how Lumen rays are lit when Lumen is using Hardware Ray Tracing.  By default, Lumen uses the Surface Cache for best performance, but can be set to 'Hit Lighting' for higher quality. */
+	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category = "Global Illumination|Lumen Global Illumination", meta = (editcondition = "bOverride_LumenRayLightingMode", DisplayName = "Ray Lighting Mode"))
+	ELumenRayLightingModeOverride LumenRayLightingMode;
+	
 	/** Scales Lumen Scene's quality.  Larger scales cause Lumen Scene to be calculated with a higher fidelity, which can be visible in reflections, but increase GPU cost. */
 	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category = "Global Illumination|Lumen Global Illumination", meta = (ClampMin = ".25", UIMax = "2", editcondition = "bOverride_LumenSceneLightingQuality", DisplayName = "Lumen Scene Lighting Quality"))
 	float LumenSceneLightingQuality;
@@ -1640,7 +1659,7 @@ struct FPostProcessSettings
 	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category = "Global Illumination|Lumen Global Illumination", AdvancedDisplay, meta = (ClampMin = ".5", UIMax = "4", editcondition = "bOverride_LumenFinalGatherLightingUpdateSpeed", DisplayName = "Final Gather Lighting Update Speed"))
 	float LumenFinalGatherLightingUpdateSpeed;
 
-	/** Whether to use screen space traces for Lumen Global Illumination. Screen space traces bypass Lumen Scene and instead sample Scene Depth and Color. This improves quality, but at the same time prevents from Lumen Scene only changes like adding emissive objects, which are visible only in Global Illumination. */
+	/** Whether to use screen space traces for Lumen Global Illumination. Screen space traces bypass Lumen Scene and instead sample Scene Depth and Scene Color. This improves quality, as it bypasses Lumen Scene, but causes view dependent lighting. */
 	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category = "Global Illumination|Lumen Global Illumination", meta = (editcondition = "bOverride_LumenFinalGatherScreenTraces", DisplayName = "Screen Traces"))
 	uint8 LumenFinalGatherScreenTraces : 1;
 
@@ -1675,11 +1694,7 @@ struct FPostProcessSettings
 	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category = "Reflections|Lumen Reflections", meta = (ClampMin = ".25", UIMax = "2", editcondition = "bOverride_LumenReflectionQuality", DisplayName = "Quality"))
 	float LumenReflectionQuality;
 
-	/** Controls how Lumen rays are lit when Lumen is using Hardware Ray Tracing.  By default, Lumen uses the Surface Cache for best performance, but can be set to 'Hit Lighting' for higher quality. */
-	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category = "Reflections|Lumen Reflections", meta = (editcondition = "bOverride_LumenRayLightingMode", DisplayName = "Ray Lighting Mode"))
-	ELumenRayLightingModeOverride LumenRayLightingMode;
-
-	/** Whether to use screen space traces for Lumen Reflections. Screen space traces bypass Lumen Scene and instead sample Scene Depth and Color. This improves quality, but at the same time prevents from Lumen Scene only changes like adding emissive objects, which are visible only in Reflections. */
+	/** Whether to use screen space traces for Lumen Reflections. Screen space traces bypass Lumen Scene and instead sample Scene Depth and Scene Color. This improves quality, as it bypasses Lumen Scene, but causes view dependent lighting. */
 	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category = "Reflections|Lumen Reflections", meta = (editcondition = "bOverride_LumenReflectionsScreenTraces", DisplayName = "Screen Traces"))
 	uint8 LumenReflectionsScreenTraces : 1;
 
@@ -1710,6 +1725,15 @@ struct FPostProcessSettings
 	/** Until what roughness we fade the screen space reflections, 0.8 works well, smaller can run faster */
 	UPROPERTY(interp, BlueprintReadWrite, Category="Reflections|Screen Space Reflections", meta=(ClampMin = "0.01", ClampMax = "1.0", editcondition = "bOverride_ScreenSpaceReflectionMaxRoughness", DisplayName = "Max Roughness"))
 	float ScreenSpaceReflectionMaxRoughness;
+
+	/** 
+	 * Allows forcing MegaLights on or off for this volume, regardless of the project setting for MegaLights. 
+	 * MegaLights will stochastically sample lights, which allows many shadow casting lights to be rendered efficiently, with a consistent and low GPU cost.
+	 * When MegaLights is enabled, other direct lighting algorithms like Deferred Shading will no longer be used, and other shadowing methods like Ray Traced Shadows, Distance Field Shadows and Shadow Maps will no longer be used.
+	 * MegaLights requires Hardware Ray Tracing and Shader Model 6.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rendering Features", meta = (editcondition = "bOverride_bMegaLights", DisplayName = "MegaLights"))
+	uint8 bMegaLights : 1;
 
 	/** AmbientCubemap tint color */
 	UPROPERTY(interp, BlueprintReadWrite, Category="Rendering Features|Ambient Cubemap", meta=(editcondition = "bOverride_AmbientCubemapTint", DisplayName = "Tint", HideAlphaChannel))
@@ -1841,6 +1865,10 @@ struct FPostProcessSettings
 	/** Calibration constant for 18% albedo, deprecating this value. */
 	UPROPERTY()
 	float AutoExposureCalibrationConstant_DEPRECATED;
+
+	/** Local Exposure algorithm */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lens|Local Exposure", meta = (editcondition = "bOverride_LocalExposureMethod", DisplayName = "Method"))
+	ELocalExposureMethod LocalExposureMethod;
 
 	UPROPERTY()
 	float LocalExposureContrastScale_DEPRECATED;
@@ -2227,9 +2255,9 @@ struct FPostProcessSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path Tracing", meta = (ClampMin = "1", UIMax = "65536", editcondition = "bOverride_PathTracingSamplesPerPixel", DisplayName = "Samples Per Pixel"))
 	int32 PathTracingSamplesPerPixel;
 
-	/** Sets the maximum exposure allowed in the path tracer to reduce fireflies. This should be set a few stops higher than the scene exposure. */
-	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category = "Path Tracing", meta = (ClampMin = "-10.0", ClampMax = "30.0", editcondition = "bOverride_PathTracingMaxPathExposure", DisplayName = "Max Path Exposure"))
-	float PathTracingMaxPathExposure;
+	/** Sets the maximum intensity of indirect samples to reduce fireflies. Lowering this value reduces noise at the expense of accuracy. Increasing it is more accurate but may lead to more noise. */
+	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category = "Path Tracing", meta = (ClampMin = "1.0", ClampMax = "65504.0", editcondition = "bOverride_PathTracingMaxPathIntensity", DisplayName = "Max Path Intensity"))
+	float PathTracingMaxPathIntensity;
 
 	/** Should emissive materials contribute to scene lighting? */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path Tracing", meta = (editcondition = "bOverride_PathTracingEnableEmissiveMaterials", DisplayName = "Emissive Materials"))
@@ -2284,6 +2312,10 @@ struct FPostProcessSettings
 	UPROPERTY()
 	float ScreenPercentage_DEPRECATED;
 
+	/** Per-view user flags accessible in materials via TestPostVolumeUserFlag node, allowing per-view overrides of material behavior. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rendering Features", meta = (editcondition = "bOverride_UserFlags", DisplayName = "User Flags"))
+	int32 UserFlags;
+
 
 
 	// Note: Adding properties before this line require also changes to the OverridePostProcessSettings() function and 
@@ -2298,6 +2330,13 @@ struct FPostProcessSettings
 	FWeightedBlendables WeightedBlendables;
 
 #if WITH_EDITORONLY_DATA
+	/**
+	 * For editor material preview windows, we need to support visualizing the output of a blendable that writes to a UserSceneTexture.  Stores
+	 * a pointer to a blendable that's being previewed, forcing its output to write to SceneColor instead of the UserSceneTexture, making it visible.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UObject> PreviewBlendable;
+
 	// for backwards compatibility
 	UPROPERTY()
 	TArray<TObjectPtr<UObject>> Blendables_DEPRECATED;

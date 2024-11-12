@@ -155,7 +155,7 @@ namespace UE::Chaos::ClothAsset::Private
 	}
 }
 
-FChaosClothAssetSimulationBaseConfigNode::FChaosClothAssetSimulationBaseConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetSimulationBaseConfigNode::FChaosClothAssetSimulationBaseConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {}
 
@@ -165,7 +165,7 @@ void FChaosClothAssetSimulationBaseConfigNode::RegisterCollectionConnections()
 	RegisterOutputConnection(&Collection, &Collection);
 }
 
-void FChaosClothAssetSimulationBaseConfigNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetSimulationBaseConfigNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	using namespace Chaos::Softs;
 	using namespace UE::Chaos::ClothAsset;
@@ -229,7 +229,7 @@ int32 FChaosClothAssetSimulationBaseConfigNode::AddPropertyHelper(
 	return KeyIndex;
 }
 
-FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::FPropertyHelper(const FChaosClothAssetSimulationBaseConfigNode& InConfigNode, Dataflow::FContext& InContext, ::Chaos::Softs::FCollectionPropertyMutableFacade& InProperties, const TSharedRef<FManagedArrayCollection>& InClothCollection)
+FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::FPropertyHelper(const FChaosClothAssetSimulationBaseConfigNode& InConfigNode, UE::Dataflow::FContext& InContext, ::Chaos::Softs::FCollectionPropertyMutableFacade& InProperties, const TSharedRef<FManagedArrayCollection>& InClothCollection)
 	: ConfigNode(InConfigNode)
 	, Context(InContext)
 	, Properties(InProperties)
@@ -270,7 +270,6 @@ int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyWeig
 	const float& PropertyLow,
 	const float& PropertyHigh,
 	const FString& WeightMap,
-	FString& MapOverride,
 	const TArray<FName>& SimilarPropertyNames,
 	ECollectionPropertyFlags PropertyFlags) const
 {
@@ -288,7 +287,6 @@ int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyWeig
 	const int32 PropertyKeyIndex = ConfigNode.AddPropertyHelper(Properties, PropertyName, SimilarPropertyNames, PropertyFlags);
 	Properties.SetWeightedValue(PropertyKeyIndex, PropertyLow, PropertyHigh);
 	Properties.SetStringValue(PropertyKeyIndex, ConfigNode.GetValue<FString>(Context, &WeightMap));
-	MapOverride = ConfigNode.GetValue<FString>(Context, &WeightMap, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
 	return PropertyKeyIndex;
 }
 
@@ -299,7 +297,7 @@ int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyWeig
 	ECollectionPropertyFlags PropertyFlags)
 {
 	return SetPropertyWeighted(PropertyName, PropertyValue.bIsAnimatable, PropertyValue.Low,
-		PropertyValue.High, PropertyValue.WeightMap, PropertyValue.WeightMap_Override, SimilarPropertyNames, PropertyFlags);
+		PropertyValue.High, PropertyValue.WeightMap, SimilarPropertyNames, PropertyFlags);
 }
 
 int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyWeighted(
@@ -309,7 +307,7 @@ int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyWeig
 	ECollectionPropertyFlags PropertyFlags)
 {
 	return SetPropertyWeighted(PropertyName, false, PropertyValue.Low,
-		PropertyValue.High, PropertyValue.WeightMap, PropertyValue.WeightMap_Override, SimilarPropertyNames, PropertyFlags);
+		PropertyValue.High, PropertyValue.WeightMap, SimilarPropertyNames, PropertyFlags);
 }
 
 int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyWeighted(
@@ -319,7 +317,7 @@ int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyWeig
 	ECollectionPropertyFlags PropertyFlags)
 {
 	return SetPropertyWeighted(PropertyName, false, 0.0f,
-		1.0f, PropertyValue.WeightMap, PropertyValue.WeightMap_Override, SimilarPropertyNames, PropertyFlags);
+		1.0f, PropertyValue.WeightMap, SimilarPropertyNames, PropertyFlags);
 }
 
 
@@ -390,7 +388,6 @@ int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyStri
 {
 	const int32 PropertyKeyIndex = ConfigNode.AddPropertyHelper(Properties, PropertyName, SimilarPropertyNames, PropertyFlags);
 	Properties.SetStringValue(PropertyKeyIndex, ConfigNode.GetValue<FString>(Context, &PropertyValue.StringValue));
-	PropertyValue.StringValue_Override = ConfigNode.GetValue<FString>(Context, &PropertyValue.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
 	return PropertyKeyIndex;
 }
 

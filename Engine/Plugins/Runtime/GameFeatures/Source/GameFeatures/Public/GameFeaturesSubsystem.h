@@ -21,6 +21,8 @@ class FJsonObject;
 struct FWorldContext;
 struct FGameFeaturePluginStateRange;
 struct FGameFeaturePluginStateMachineProperties;
+struct FInstallBundleReleaseRequestInfo;
+enum class EInstallBundleResult : uint32;
 enum class EInstallBundleRequestFlags : uint32;
 enum class EInstallBundleReleaseRequestFlags : uint32;
 
@@ -203,7 +205,7 @@ using FGameFeaturePluginUninstallComplete = FGameFeaturePluginChangeStateComplet
 using FGameFeaturePluginTerminateComplete = FGameFeaturePluginChangeStateComplete;
 using FGameFeaturePluginUpdateProtocolComplete = FGameFeaturePluginChangeStateComplete;
 
-DECLARE_DELEGATE_OneParam(FMultipleGameFeaturePluginChangeStateComplete, PREPROCESSOR_COMMA_SEPARATED(const TMap<FString, UE::GameFeatures::FResult>& /*Results*/));
+using FMultipleGameFeaturePluginChangeStateComplete = TDelegate<void(const TMap<FString, UE::GameFeatures::FResult>& Results)>;
 
 using FBuiltInGameFeaturePluginsLoaded = FMultipleGameFeaturePluginChangeStateComplete;
 using FMultipleGameFeaturePluginsLoaded = FMultipleGameFeaturePluginChangeStateComplete;
@@ -233,26 +235,15 @@ void GAMEFEATURES_API LexFromString(EGameFeatureTargetState& Value, const TCHAR*
 struct FGameFeaturePluginReferenceDetails
 {
 	FString PluginName;
-	bool bShouldActivate;
-
-	FGameFeaturePluginReferenceDetails(FString InPluginName, bool bInShouldActivate)
-		: PluginName(MoveTemp(InPluginName))
-		, bShouldActivate(bInShouldActivate)
-	{
-	}
+	bool bShouldActivate = false;
 };
 
 struct FGameFeaturePluginDetails
 {
 	TArray<FGameFeaturePluginReferenceDetails> PluginDependencies;
 	TMap<FString, TSharedPtr<class FJsonValue>> AdditionalMetadata;
-	bool bHotfixable;
-	EBuiltInAutoState BuiltInAutoState;
-
-	FGameFeaturePluginDetails()
-		: bHotfixable(false)
-		, BuiltInAutoState(EBuiltInAutoState::Installed)
-	{}
+	bool bHotfixable = false;
+	EBuiltInAutoState BuiltInAutoState = EBuiltInAutoState::Invalid;
 };
 
 struct FBuiltInGameFeaturePluginBehaviorOptions
@@ -376,6 +367,14 @@ struct FGameFeatureProtocolOptions : public TUnion<FInstallBundlePluginProtocolO
 	GAMEFEATURES_API FGameFeatureProtocolOptions();
 	GAMEFEATURES_API explicit FGameFeatureProtocolOptions(const FInstallBundlePluginProtocolOptions& InOptions);
 	GAMEFEATURES_API explicit FGameFeatureProtocolOptions(FNull InOptions);
+
+	bool operator==(const FGameFeatureProtocolOptions& Other) const
+	{
+		return TUnion<FInstallBundlePluginProtocolOptions, FNull>::operator==(Other) &&
+			bForceSyncLoading == Other.bForceSyncLoading &&
+			bLogWarningOnForcedDependencyCreation == Other.bLogWarningOnForcedDependencyCreation &&
+			bLogErrorOnForcedDependencyCreation == Other.bLogErrorOnForcedDependencyCreation;
+	}
 
 	/** Force this GFP to load synchronously even if async loading is allowed */
 	bool bForceSyncLoading : 1;
@@ -520,6 +519,11 @@ public:
 	void LoadGameFeaturePlugin(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, const FGameFeaturePluginLoadComplete& CompleteDelegate);
 	void LoadGameFeaturePlugin(TConstArrayView<FString> PluginURLs, const FGameFeatureProtocolOptions& ProtocolOptions, const FMultipleGameFeaturePluginsLoaded& CompleteDelegate);
 
+	/** Registers a single game feature plugin. */
+	void RegisterGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginLoadComplete& CompleteDelegate);
+	void RegisterGameFeaturePlugin(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, const FGameFeaturePluginLoadComplete& CompleteDelegate);
+	void RegisterGameFeaturePlugin(TConstArrayView<FString> PluginURLs, const FGameFeatureProtocolOptions& ProtocolOptions, const FMultipleGameFeaturePluginsLoaded& CompleteDelegate);
+
 	/** Loads a single game feature plugin and activates it. */
 	void LoadAndActivateGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginLoadComplete& CompleteDelegate);
 	void LoadAndActivateGameFeaturePlugin(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, const FGameFeaturePluginLoadComplete& CompleteDelegate);
@@ -539,6 +543,9 @@ public:
 
 	/** Determines if a plugin is in the Active state.*/
 	bool IsGameFeaturePluginActive(const FString& PluginURL, bool bCheckForActivating = false) const;
+
+	/** Determines if a plugin is up to date or needs an update. Returns true if an update is available.*/
+	bool DoesGameFeaturePluginNeedUpdate(const FString& PluginURL) const;
 
 	/** Deactivates the specified plugin */
 	void DeactivateGameFeaturePlugin(const FString& PluginURL);
@@ -572,7 +579,7 @@ public:
 	 * If the specified plugin is known by the game feature system, returns the URL used to identify it
 	 * @return true if the plugin exists, false if it was not found
 	 */
-	bool GetPluginURLByName(const FString& PluginName, FString& OutPluginURL) const;
+	bool GetPluginURLByName(FStringView PluginName, FString& OutPluginURL) const;
 
 	/** If the specified plugin is a built-in plugin, return the URL used to identify it. Returns true if the plugin exists, false if it was not found */
 	UE_DEPRECATED(5.1, "Use GetPluginURLByName instead")
@@ -588,6 +595,7 @@ public:
 	template <typename T = UGameFeaturesProjectPolicies>
 	T& GetPolicy() const
 	{
+		ensureMsgf(bInitializedPolicyManager, TEXT("Attemting to get policy before GameFeaturesSubsystem is ready!"));
 		return *CastChecked<T>(GameSpecificPolicies, ECastCheckedType::NullChecked);
 	}
 
@@ -620,7 +628,14 @@ public:
 	bool GetGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL, struct FGameFeaturePluginDetails& OutPluginDetails) const;
 
 	/** Gets relevant properties out of a uplugin file. Should only be used for built-in GFPs */
+	UE_DEPRECATED(5.5, "Use non-PluginURL version of GetBuiltInGameFeaturePluginDetails and GetBuiltInGameFeaturePluginPath instead")
 	bool GetBuiltInGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL, struct FGameFeaturePluginDetails& OutPluginDetails) const;
+
+	/** Gets relevant properties out of a uplugin file. Should only be used for built-in GFPs */
+	bool GetBuiltInGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, struct FGameFeaturePluginDetails& OutPluginDetails) const;
+
+	/** Gets the URL for the given plugin, applying game-specific policies where appropriate. Should only be used for built-in GFPs */
+	bool GetBuiltInGameFeaturePluginURL(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL) const;
 
 	/** Gets relevant properties out of a uplugin file if it's installed */
 	bool GetGameFeaturePluginDetails(FString PluginURL, struct FGameFeaturePluginDetails& OutPluginDetails) const;
@@ -654,11 +669,11 @@ private:
 	void OnGameFeaturePredownloading(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier);
 
 	void OnGameFeatureDownloading(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier);
+	void OnGameFeatureDownloaded(const FGameFeaturePluginIdentifier& PluginIdentifier);
 	friend struct FGameFeaturePluginState_Downloading;
 
 	void OnGameFeatureReleasing(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier);
 	friend struct FGameFeaturePluginState_Releasing;
-	friend struct FGameFeaturePluginState_Unmounting;
 
 	void OnGameFeaturePreMounting(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier, FGameFeaturePreMountingContext& Context);
 	void OnGameFeaturePostMounting(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier, FGameFeaturePostMountingContext& Context);
@@ -673,6 +688,9 @@ private:
 	void OnGameFeatureActivating(const UGameFeatureData* GameFeatureData, const FString& PluginName, FGameFeatureActivatingContext& Context, const FGameFeaturePluginIdentifier& PluginIdentifier);
 	friend struct FGameFeaturePluginState_Activating;
 
+	void OnGameFeatureActivated(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier);
+	friend struct FGameFeaturePluginState_Active;
+
 	void OnGameFeatureDeactivating(const UGameFeatureData* GameFeatureData, const FString& PluginName, FGameFeatureDeactivatingContext& Context, const FGameFeaturePluginIdentifier& PluginIdentifier);
 	friend struct FGameFeaturePluginState_Deactivating;
 
@@ -683,7 +701,7 @@ private:
 	friend struct FGameFeaturePluginState_Unloading;
 
 	void OnGameFeaturePauseChange(const FGameFeaturePluginIdentifier& PluginIdentifier, const FString& PluginName, FGameFeaturePauseStateChangeContext& Context);
-	friend struct FGameFeaturePluginState_Downloading;
+	friend struct FBaseDownloadGameFeaturePluginState;
 	friend struct FGameFeaturePluginState_Deactivating;
 
 	void OnAssetManagerCreated();
@@ -693,7 +711,12 @@ private:
 
 	static void RemoveGameFeatureFromAssetManager(const UGameFeatureData* GameFeatureToRemove, const FString& PluginName, const TArray<FName>& AddedPrimaryAssetTypes);
 
+	// Provide additional causal information when a package is unavailable for load
+	void GetExplanationForUnavailablePackage(const FString& SkippedPackage, IPlugin* PluginIfFound, FStringBuilderBase& InOutExplanation);
+
 private:
+	bool IsPluginAllowed(const FString& PluginURL) const;
+
 	bool ShouldUpdatePluginProtocolOptions(const UGameFeaturePluginStateMachine* StateMachine, const FGameFeatureProtocolOptions& NewOptions);
 	UE::GameFeatures::FResult UpdateGameFeatureProtocolOptions(UGameFeaturePluginStateMachine* StateMachine, const FGameFeatureProtocolOptions& NewOptions, bool* bOutDidUpdate = nullptr);
 
@@ -706,9 +729,23 @@ private:
 	/** Prunes any cached GFP details */
 	void PruneCachedGameFeaturePluginDetails(const FString& PluginURL, const FString& PluginDescriptorFilename) const;
 	friend struct FGameFeaturePluginState_Unmounting;
+	friend struct FBaseDataReleaseGameFeaturePluginState;
 
-	/** Gets the state machine associated with the specified plugin name */
-	UGameFeaturePluginStateMachine* FindGameFeaturePluginStateMachineByPluginName(const FString& PluginName) const;
+	/**
+	 * Wrapper to InstallBundleManager release bundle.
+	 * Will only release the bundle if this is the last GFP using the bundle.
+	 */
+	TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> ReleaseBundle(const FString& PluginName, TArrayView<const FName> BundleNames, EInstallBundleReleaseRequestFlags Flags);
+
+	/**
+	 * Wrapper to InstallBundleManager release bundle for the unmount call
+	 * Will only unmount the bundle if this is the last GFP using the bundle.
+	 */
+	TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> UnmountBundle(const FString& PluginName,  TArrayView<const FName> BundleNames, EInstallBundleReleaseRequestFlags Flags);
+
+	// Reference tracker to know which bundles are in use.
+	TMap<FName, TSet<FString>> MountedBundleToPlugin;
+	TMap<FName, TSet<FString>> DownloadedBundleToPlugin;
 
 	/** Gets the state machine associated with the specified URL */
 	UGameFeaturePluginStateMachine* FindGameFeaturePluginStateMachine(const FString& PluginURL) const;
@@ -753,6 +790,8 @@ private:
 	/** Handle 'ListGameFeaturePlugins' console command */
 	void ListGameFeaturePlugins(const TArray<FString>& Args, UWorld* InWorld, FOutputDevice& Ar);
 
+	void SetExplanationForNotMountingPlugin(const FString& PluginURL, const FString& Explanation);
+
 	enum class EObserverCallback
 	{
 		CheckingStatus,
@@ -767,6 +806,7 @@ private:
 		Loading,
 		Unloading,
 		Activating,
+		Activated,
 		Deactivating,
 		PauseChanged,
 		Count
@@ -796,12 +836,19 @@ private:
 		FCachedGameFeaturePluginDetails(const FGameFeaturePluginDetails& InDetails, const FDateTime& InTimeStamp) : Details(InDetails), TimeStamp(InTimeStamp) {}
 	};
 	mutable TMap<FString, FCachedGameFeaturePluginDetails> CachedPluginDetailsByFilename;
+	mutable FCriticalSection CachedGameFeaturePluginDetailsLock;
 
 	UPROPERTY()
 	TArray<TObjectPtr<UObject>> Observers;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UGameFeaturesProjectPolicies> GameSpecificPolicies;
+
+#if WITH_EDITOR
+	// When we decide not to mount a plugin, we can store an explanation here so that if we later attempt to load an asset from it we can tell the user why it's not available
+	TMap<FString, FString> UnmountedPluginNameToExplanation;
+#endif
+	FDelegateHandle GetExplanationForUnavailablePackageDelegateHandle;
 
 	bool bInitializedPolicyManager = false;
 };

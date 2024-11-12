@@ -39,7 +39,7 @@ public:
 	/**
 	 * Weightmap constraint constructor. 
 	 */
-	template<int32 Valence, TEMPLATE_REQUIRES(Valence >= 2 && Valence <= 4)>
+	template<int32 Valence UE_REQUIRES(Valence >= 2 && Valence <= 4)>
 	inline FPBDStiffness(
 		const FSolverVec2& InWeightedValue,
 		const TConstArrayView<FRealSingle>& Multipliers = TConstArrayView<FRealSingle>(),
@@ -71,10 +71,6 @@ public:
 	inline void ApplyPBDValues(const FSolverReal Dt, const int32 NumIterations);
 
 	/** Update the weight map table with the current simulation parameters. */
-	UE_DEPRECATED(5.2, "Use ApplyPBDValues() instead.")
-	void ApplyValues(const FSolverReal Dt, const int32 NumIterations) { ApplyPBDValues(Dt, NumIterations); }
-
-	/** Update the weight map table with the current simulation parameters. */
 	inline void ApplyXPBDValues(const FSolverReal MaxStiffnesss);
 
 private:
@@ -99,7 +95,7 @@ FPBDStiffness::FPBDStiffness(
 	SetWeightedValue(InWeightedValue, MaxStiffness);
 }
 
-template<int32 Valence, typename TEnableIf<Valence >= 2 && Valence <= 4, int>::type>
+template<int32 Valence UE_REQUIRES_DEFINITION(Valence >= 2 && Valence <= 4)>
 FPBDStiffness::FPBDStiffness(
 	const FSolverVec2& InWeightedValue,
 	const TConstArrayView<FRealSingle>& Multipliers,

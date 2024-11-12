@@ -48,10 +48,11 @@ FMenuEntryBlock::FMenuEntryBlock( const FName& InExtensionHook, const TAttribute
 }
 
 
-FMenuEntryBlock::FMenuEntryBlock( const FName& InExtensionHook, const TAttribute<FText>& InLabel, const TAttribute<FText>& InToolTip, const FSlateIcon& InIcon, const FUIAction& UIAction, const EUserInterfaceActionType InUserInterfaceActionType, bool bInCloseSelfOnly, bool bInShouldCloseWindowAfterMenuSelection)
+FMenuEntryBlock::FMenuEntryBlock( const FName& InExtensionHook, const TAttribute<FText>& InLabel, const TAttribute<FText>& InToolTip, const FSlateIcon& InIcon, const FUIAction& UIAction, const EUserInterfaceActionType InUserInterfaceActionType, bool bInCloseSelfOnly, bool bInShouldCloseWindowAfterMenuSelection, const TAttribute<FText>& InInputBindingOverride)
 	: FMultiBlock( UIAction, InExtensionHook, EMultiBlockType::MenuEntry )
 	, LabelOverride( InLabel )
 	, ToolTipOverride( InToolTip )
+	, InputBindingOverride( InInputBindingOverride)
 	, IconOverride( InIcon )
 	, bIsSubMenu( false )
 	, bIsRecursivelySearchable( true )
@@ -333,7 +334,18 @@ FText SMenuEntryBlock::GetFilteredToolTipText( TAttribute<FText> ToolTipText ) c
 
 EVisibility SMenuEntryBlock::GetVisibility() const
 {
-	TSharedPtr< const FUICommandList > ActionList = MultiBlock->GetActionList();
+	// Let the visibility override take prescedence here.
+	// However, if it returns Visible, let the other methods have a chance to change that.
+	if (MultiBlock->GetVisibilityOverride().IsSet())
+	{
+		const EVisibility OverrideVisibility = MultiBlock->GetVisibilityOverride().Get();
+		if (OverrideVisibility != EVisibility::Visible)
+		{
+			return OverrideVisibility;
+		}
+	}
+
+	TSharedPtr<const FUICommandList> ActionList = MultiBlock->GetActionList();
 	TSharedPtr< const FUICommandInfo > Action = MultiBlock->GetAction();
 	const FUIAction& DirectActions = MultiBlock->GetDirectActions();
 
@@ -650,7 +662,7 @@ TSharedRef< SWidget > SMenuEntryBlock::BuildMenuEntryWidget( const FMenuEntryBui
 		.ClickMethod( ButtonClickMethod )
 		.ContentPadding(StyleSet->GetMargin(StyleName,".Block.Padding"))
 		// Pass along the block's tool-tip string
-		.ToolTip( FMultiBoxSettings::ToolTipConstructor.Execute(EntryToolTip, nullptr, UICommand ) )
+		.ToolTip( FMultiBoxSettings::ToolTipConstructor.Execute(EntryToolTip, nullptr, UICommand, /*ShowActionShortcut=*/ false ) )
 		// Bind the button's "on clicked" event to our object's method for this
 		.OnClicked(this, &SMenuEntryBlock::OnMenuItemButtonClicked)
 		[
@@ -900,7 +912,7 @@ TSharedRef< SWidget> SMenuEntryBlock::BuildSubMenuWidget( const FMenuEntryBuildP
 			// Create a button
 			SNew( SSubMenuButton )
 			// Pass along the block's tool-tip string
-			.ToolTip( FMultiBoxSettings::ToolTipConstructor.Execute(EntryToolTip, nullptr, UICommand ) )
+			.ToolTip( FMultiBoxSettings::ToolTipConstructor.Execute(EntryToolTip, nullptr, UICommand, /*ShowActionShortcut=*/ false) )
 			// Style to use
 			.ButtonStyle( &StyleSet->GetWidgetStyle<FButtonStyle>( ISlateStyle::Join( StyleName, ".Button" ) ) )
 			.ContentPadding(StyleSet->GetMargin(StyleName, ".Block.Padding"))
@@ -1573,10 +1585,10 @@ TSharedRef< SWidget > SMenuEntryBlock::MakeNewMenuWidget() const
 	}
 	else if (MenuEntryBlock->EntryWidget.IsValid())
 	{
-		const bool bCloseSelfOnly = false;
+		static constexpr bool bCloseSelfOnly = false;
 		FMenuBuilder MenuBuilder(MenuEntryBlock->bShouldCloseWindowAfterMenuSelection, nullptr, TSharedPtr<FExtender>(), bCloseSelfOnly, StyleSet );
 		{
-			MenuBuilder.AddWidget( MenuEntryBlock->EntryWidget.ToSharedRef(), FText::GetEmpty() );
+			MenuBuilder.AddWidget( MenuEntryBlock->EntryWidget.ToSharedRef(), FText::GetEmpty(), FMenuEntryStyleParams() );
 		}
 
 		return MenuBuilder.MakeWidget();

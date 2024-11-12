@@ -9,15 +9,27 @@
 #include "Templates/UnrealTemplate.h"
 #include "UObject/UnrealNames.h"
 
-FContentBrowserItemData::FContentBrowserItemData(UContentBrowserDataSource* InOwnerDataSource, EContentBrowserItemFlags InItemFlags, FName InVirtualPath, FName InItemName, FText InDisplayNameOverride, TSharedPtr<const IContentBrowserItemDataPayload> InPayload)
+FContentBrowserItemData::FContentBrowserItemData(
+	UContentBrowserDataSource* InOwnerDataSource,
+	EContentBrowserItemFlags InItemFlags,
+	FName InVirtualPath,
+	FName InItemName,
+	FText InDisplayNameOverride,
+	TSharedPtr<const IContentBrowserItemDataPayload> InPayload,
+	FName InInternalPath)
 	: OwnerDataSource(InOwnerDataSource)
 	, ItemFlags(InItemFlags)
 	, VirtualPath(InVirtualPath)
 	, ItemName(InItemName)
+	, InternalPath(InInternalPath)
 	, CachedDisplayName(MoveTemp(InDisplayNameOverride))
 	, Payload(MoveTemp(InPayload))
 {
 	checkf(IsFolder() != IsFile(), TEXT("Items must be either a folder or a file!"));
+	if (CachedDisplayName.IsEmpty())
+	{
+		CachedDisplayName = FText::AsCultureInvariant(ItemName.ToString());
+	}
 }
 
 bool FContentBrowserItemData::operator==(const FContentBrowserItemData& InOther) const
@@ -100,34 +112,17 @@ FName FContentBrowserItemData::GetVirtualPath() const
 
 FName FContentBrowserItemData::GetInvariantPath() const
 {
-	if (UContentBrowserDataSource* DataSource = OwnerDataSource.Get())
+	FName Internal = GetInternalPath();
+	if (!Internal.IsNone())
 	{
-		if (!VirtualPath.IsNone())
-		{
-			FName ConvertedPath;
-			DataSource->TryConvertVirtualPath(VirtualPath, ConvertedPath);
-			return ConvertedPath;
-		}
+		return Internal;
 	}
-
-	return NAME_None;
+	return VirtualPath; // None or a useful path
 }
 
 FName FContentBrowserItemData::GetInternalPath() const
 {
-	if (UContentBrowserDataSource* DataSource = OwnerDataSource.Get())
-	{
-		if (!VirtualPath.IsNone())
-		{
-			FName ConvertedPath;
-			if (DataSource->TryConvertVirtualPath(VirtualPath, ConvertedPath) == EContentBrowserPathType::Internal)
-			{
-				return ConvertedPath;
-			}
-		}
-	}
-
-	return NAME_None;
+	return InternalPath;
 }
 
 FName FContentBrowserItemData::GetItemName() const
@@ -137,10 +132,6 @@ FName FContentBrowserItemData::GetItemName() const
 
 FText FContentBrowserItemData::GetDisplayName() const
 {
-	if (CachedDisplayName.IsEmpty())
-	{
-		CachedDisplayName = FText::AsCultureInvariant(ItemName.ToString());
-	}
 	return CachedDisplayName;
 }
 
@@ -333,6 +324,28 @@ FContentBrowserItemData FContentBrowserItemDataTemporaryContext::FinalizeItem(co
 	return OnFinalizeItem.Execute(ItemData, InProposedName, OutErrorMsg);
 }
 
+FContentBrowserMinimalItemData::FContentBrowserMinimalItemData(const FContentBrowserItemData& InItemData)
+	: FContentBrowserMinimalItemData(InItemData.GetItemType(), InItemData.GetVirtualPath(), InItemData.GetOwnerDataSource())
+{
+
+}
+
+FContentBrowserMinimalItemData::FContentBrowserMinimalItemData(EContentBrowserItemFlags InItemType, FName InVirtualPath, const UContentBrowserDataSource* InSource)
+	: ItemType(InItemType)
+	, VirtualPath(InVirtualPath)
+	, DataSource(InSource)
+{
+
+}
+
+FString FContentBrowserMinimalItemData::ToString() const
+{
+	return FString::Printf(TEXT("%s:%s:%s"), 
+		*VirtualPath.ToString(), 
+		EnumHasAllFlags(ItemType, EContentBrowserItemFlags::Type_File) ? TEXT("File") : TEXT("Folder"),
+		DataSource ? *DataSource->GetName() : TEXT("null")
+	);
+}
 
 FContentBrowserItemDataKey::FContentBrowserItemDataKey(const FContentBrowserItemData& InItemData)
 	: ItemType(InItemData.GetItemType())

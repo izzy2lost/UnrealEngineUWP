@@ -11,6 +11,7 @@
 #include "ScopedTransaction.h"
 #include "EditorCategoryUtils.h"
 #include "Settings/EditorStyleSettings.h"
+#include "String/ParseTokens.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "EdGraph"
@@ -23,8 +24,33 @@ void FEdGraphSchemaAction::CosmeticUpdateCategory(FText NewCategory)
 	Category.BuildSourceString().ParseIntoArray(FullSearchCategoryArray, TEXT(" "), true);
 
 	// Glob search text together, we use the SearchText string for basic filtering:
+#if WITH_EDITORONLY_DATA
+	CategoryChain.Reset();
+#endif // WITH_EDITORONLY_DATA
 	UpdateSearchText();
 }
+
+#if WITH_EDITOR
+void FEdGraphSchemaAction::CosmeticUpdateRootCategory(FText NewRootCategory)
+{
+	if (!NewRootCategory.IsEmpty())
+	{
+		if (GetCategory().IsEmpty())
+		{
+			CosmeticUpdateCategory(NewRootCategory);
+		}
+		else
+		{
+			CosmeticUpdateCategory(FText::FromString(FString::Format(TEXT("{0}|{1}"), { NewRootCategory.ToString(), GetCategory().ToString()})));
+		}
+	}
+}
+
+const TArray<FString>& FEdGraphSchemaAction::GetCategoryChain() const
+{
+	return CategoryChain;
+}
+#endif // WITH_EDITOR
 
 void FEdGraphSchemaAction::UpdateSearchText()
 {
@@ -75,6 +101,19 @@ void FEdGraphSchemaAction::UpdateSearchText()
 		Entry.ToLowerInline();
 		SearchText += Entry;
 	}
+
+	#if WITH_EDITOR
+	ensure(CategoryChain.IsEmpty());
+	const FStringView CategoryDelim = FStringView(TEXT("|"));
+	const UE::String::EParseTokensOptions ParseOptions =
+		UE::String::EParseTokensOptions::IgnoreCase |
+		UE::String::EParseTokensOptions::SkipEmpty |
+		UE::String::EParseTokensOptions::Trim;
+	FString SubCategory = FEditorCategoryUtils::GetCategoryDisplayString(GetCategory().ToString());
+	UE::String::ParseTokens(FStringView(SubCategory), CategoryDelim,
+		[&CategoryChain = CategoryChain](FStringView Token) { CategoryChain.Emplace(Token); },
+		ParseOptions);
+	#endif
 }
 
 void FEdGraphSchemaAction::UpdateSearchData(FText NewMenuDescription, FText NewToolTipDescription, FText NewCategory, FText NewKeywords)
@@ -103,14 +142,25 @@ void FEdGraphSchemaAction::UpdateSearchData(FText NewMenuDescription, FText NewT
 /////////////////////////////////////////////////////
 // FGraphActionListBuilderBase
 
-void FGraphActionListBuilderBase::AddAction( const TSharedPtr<FEdGraphSchemaAction>& NewAction, FString const& Category)
+void FGraphActionListBuilderBase::AddAction( const TSharedPtr<FEdGraphSchemaAction>& NewAction)
 {
-	Entries.Add( ActionGroup( NewAction, Category ) );
+	Entries.Add( NewAction );
+}
+
+void FGraphActionListBuilderBase::AddAction(const TSharedPtr<FEdGraphSchemaAction>& NewAction, FString const& Category)
+{
+#if WITH_EDITOR
+	NewAction->CosmeticUpdateRootCategory(FText::FromString(Category));
+#endif
+	Entries.Add(NewAction);
 }
 
 void FGraphActionListBuilderBase::AddActionList( const TArray<TSharedPtr<FEdGraphSchemaAction> >& NewActions, FString const& Category)
 {
-	Entries.Add( ActionGroup( NewActions, Category ) );
+#if WITH_EDITOR
+	NewActions[0]->CosmeticUpdateRootCategory(FText::FromString(Category));
+#endif
+	Entries.Add( NewActions[0] );
 }
 
 void FGraphActionListBuilderBase::Append( FGraphActionListBuilderBase& Other )
@@ -123,10 +173,17 @@ int32 FGraphActionListBuilderBase::GetNumActions() const
 	return Entries.Num();
 }
 
-FGraphActionListBuilderBase::ActionGroup& FGraphActionListBuilderBase::GetAction( const int32 Index )
+TSharedPtr<FEdGraphSchemaAction>& FGraphActionListBuilderBase::GetSchemaAction( const int32 Index)
 {
 	return Entries[Index];
 }
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+FGraphActionListBuilderBase::ActionGroup FGraphActionListBuilderBase::GetAction(const int32 Index)
+{
+	return FGraphActionListBuilderBase::ActionGroup(Entries[Index]);
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FGraphActionListBuilderBase::Empty()
 {
@@ -135,7 +192,7 @@ void FGraphActionListBuilderBase::Empty()
 
 /////////////////////////////////////////////////////
 // FGraphActionListBuilderBase::GraphAction
-
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FGraphActionListBuilderBase::ActionGroup::ActionGroup(TSharedPtr<FEdGraphSchemaAction> InAction, FString CategoryPrefix)
 	: RootCategory(MoveTemp(CategoryPrefix))
 {
@@ -221,25 +278,26 @@ void FGraphActionListBuilderBase::ActionGroup::Copy(const ActionGroup& Other)
 void FGraphActionListBuilderBase::ActionGroup::InitCategoryChain()
 {
 #if WITH_EDITOR
-	const TCHAR* CategoryDelim = TEXT("|");
-	FEditorCategoryUtils::GetCategoryDisplayString(RootCategory).ParseIntoArray(CategoryChain, CategoryDelim, true);
+	const FStringView CategoryDelim = FStringView(TEXT("|"));
+	const UE::String::EParseTokensOptions ParseOptions = 
+		UE::String::EParseTokensOptions::IgnoreCase |
+		UE::String::EParseTokensOptions::SkipEmpty |
+		UE::String::EParseTokensOptions::Trim;
+	UE::String::ParseTokens(FStringView(FEditorCategoryUtils::GetCategoryDisplayString(RootCategory)), CategoryDelim,
+		[&CategoryChain = CategoryChain](FStringView Token) { CategoryChain.Emplace(Token); },
+		ParseOptions);
 
 	if (Actions.Num() > 0)
 	{
-		TArray<FString> SubCategoryChain;
-
 		FString SubCategory = FEditorCategoryUtils::GetCategoryDisplayString(Actions[0]->GetCategory().ToString());
-		SubCategory.ParseIntoArray(SubCategoryChain, CategoryDelim, true);
-
-		CategoryChain.Append(SubCategoryChain);
-	}
-
-	for (FString& Category : CategoryChain)
-	{
-		Category.TrimStartInline();
+		UE::String::ParseTokens(FStringView(SubCategory), CategoryDelim,
+			[&CategoryChain = CategoryChain](FStringView Token) { CategoryChain.Emplace(Token); },
+			ParseOptions);
 	}
 #endif
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 /////////////////////////////////////////////////////
 // FCategorizedGraphActionListBuilder
@@ -261,14 +319,28 @@ FCategorizedGraphActionListBuilder::FCategorizedGraphActionListBuilder(FString C
 {
 }
 
-void FCategorizedGraphActionListBuilder::AddAction(TSharedPtr<FEdGraphSchemaAction> const& NewAction, FString const& CategoryIn)
+void FCategorizedGraphActionListBuilder::AddAction(const TSharedPtr<FEdGraphSchemaAction>& NewAction)
 {
-	FGraphActionListBuilderBase::AddAction(NewAction, ConcatCategories(Category, CategoryIn));
+	// apply Category to NewAction:
+#if WITH_EDITOR
+	NewAction->CosmeticUpdateRootCategory(FText::FromString(Category));
+#endif
+	FGraphActionListBuilderBase::AddAction(NewAction);
+}
+
+void FCategorizedGraphActionListBuilder::AddAction(const TSharedPtr<FEdGraphSchemaAction>& NewAction, FString const& CategoryIn)
+{
+#if WITH_EDITOR
+	NewAction->CosmeticUpdateRootCategory(FText::FromString(ConcatCategories(Category, CategoryIn)));
+#endif
+	FGraphActionListBuilderBase::AddAction(NewAction);
 }
 
 void FCategorizedGraphActionListBuilder::AddActionList(TArray<TSharedPtr<FEdGraphSchemaAction> > const& NewActions, FString const& CategoryIn)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FGraphActionListBuilderBase::AddActionList(NewActions, ConcatCategories(Category, CategoryIn));
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 /////////////////////////////////////////////////////
@@ -765,139 +837,156 @@ FText UEdGraphSchema::GetPinDisplayName(const UEdGraphPin* Pin) const
 	return ResultPinName;
 }
 
-float UEdGraphSchema::GetActionFilteredWeight(const FGraphActionListBuilderBase::ActionGroup& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const
+float UEdGraphSchema::GetActionFilteredWeight(const FEdGraphSchemaAction& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const
 {
 	// The overall 'weight'
 	int32 TotalWeight = 0;
 
-	int32 Action = 0;
-	if (InCurrentAction.Actions[Action].IsValid() == true)
+	// Combine the actions string, separate with \n so terms don't run into each other, and remove the spaces (incase the user is searching for a variable)
+	// In the case of groups containing multiple actions, they will have been created and added at the same place in the code, using the same description
+	// and keywords, so we only need to use the first one for filtering.
+	const FString& SearchText = InCurrentAction.GetFullSearchText();
+
+	// Setup an array of arrays so we can do a weighted search			
+	TArray<FGraphSchemaSearchTextWeightInfo> WeightedArrayList;
+	FGraphSchemaSearchWeightModifiers WeightModifiers = GetSearchWeightModifiers();
+	FGraphSchemaSearchTextDebugInfo DebugInfo;
+	int32 NonLocalizedFirstIndex = CollectSearchTextWeightInfo(InCurrentAction, WeightModifiers, WeightedArrayList, &DebugInfo);
+
+	// Now iterate through all the filter terms and calculate a 'weight' using the values and multipliers
+	const FString* EachTerm = nullptr;
+	const FString* EachTermSanitized = nullptr;
+	for (int32 FilterIndex = 0; FilterIndex < InFilterTerms.Num(); ++FilterIndex)
 	{
-		// Combine the actions string, separate with \n so terms don't run into each other, and remove the spaces (incase the user is searching for a variable)
-		// In the case of groups containing multiple actions, they will have been created and added at the same place in the code, using the same description
-		// and keywords, so we only need to use the first one for filtering.
-		const FString& SearchText = InCurrentAction.GetSearchTextForFirstAction();
-
-		// Setup an array of arrays so we can do a weighted search			
-		TArray<FGraphSchemaSearchTextWeightInfo> WeightedArrayList;
-		FGraphSchemaSearchWeightModifiers WeightModifiers = GetSearchWeightModifiers();
-		FGraphSchemaSearchTextDebugInfo DebugInfo;
-		int32 NonLocalizedFirstIndex = CollectSearchTextWeightInfo(InCurrentAction, WeightModifiers, WeightedArrayList, &DebugInfo);
-
-		// Now iterate through all the filter terms and calculate a 'weight' using the values and multipliers
-		const FString* EachTerm = nullptr;
-		const FString* EachTermSanitized = nullptr;
-		for (int32 FilterIndex = 0; FilterIndex < InFilterTerms.Num(); ++FilterIndex)
+		EachTerm = &InFilterTerms[FilterIndex];
+		EachTermSanitized = &InSanitizedFilterTerms[FilterIndex];
+		if (SearchText.Contains(*EachTerm, ESearchCase::CaseSensitive))
 		{
-			EachTerm = &InFilterTerms[FilterIndex];
-			EachTermSanitized = &InSanitizedFilterTerms[FilterIndex];
-			if (SearchText.Contains(*EachTerm, ESearchCase::CaseSensitive))
-			{
-				TotalWeight += 2;
-			}
-			else if (SearchText.Contains(*EachTermSanitized, ESearchCase::CaseSensitive))
-			{
-				TotalWeight++;
-			}
-			// Now check the weighted lists	(We could further improve the hit weight by checking consecutive word matches)
-			for (int32 iFindCount = 0; iFindCount < WeightedArrayList.Num(); iFindCount++)
-			{
-				int32 WeightPerList = 0;
-				const TArray<FString>& KeywordArray = *WeightedArrayList[iFindCount].Array;
-				int32 EachWeight = WeightedArrayList[iFindCount].WeightModifier;
-				int32 WholeMatchCount = 0;
-				int32 WholeMatchMultiplier = (iFindCount < NonLocalizedFirstIndex) ? WeightModifiers.WholeMatchLocalizedWeightMultiplier : WeightModifiers.WholeMatchWeightMultiplier;
+			TotalWeight += 2;
+		}
+		else if (SearchText.Contains(*EachTermSanitized, ESearchCase::CaseSensitive))
+		{
+			TotalWeight++;
+		}
+		// Now check the weighted lists	(We could further improve the hit weight by checking consecutive word matches)
+		for (int32 iFindCount = 0; iFindCount < WeightedArrayList.Num(); iFindCount++)
+		{
+			int32 WeightPerList = 0;
+			const TArray<FString>& KeywordArray = *WeightedArrayList[iFindCount].Array;
+			int32 EachWeight = WeightedArrayList[iFindCount].WeightModifier;
+			int32 WholeMatchCount = 0;
+			int32 WholeMatchMultiplier = (iFindCount < NonLocalizedFirstIndex) ? WeightModifiers.WholeMatchLocalizedWeightMultiplier : WeightModifiers.WholeMatchWeightMultiplier;
 
-				for (int32 iEachWord = 0; iEachWord < KeywordArray.Num(); iEachWord++)
+			for (int32 iEachWord = 0; iEachWord < KeywordArray.Num(); iEachWord++)
+			{
+				// If we get an exact match weight the find count to get exact matches higher priority
+				if (KeywordArray[iEachWord].StartsWith(*EachTerm, ESearchCase::CaseSensitive))
 				{
-					// If we get an exact match weight the find count to get exact matches higher priority
-					if (KeywordArray[iEachWord].StartsWith(*EachTerm, ESearchCase::CaseSensitive))
+					if (iEachWord == 0)
 					{
-						if (iEachWord == 0)
-						{
-							WeightPerList += EachWeight * WholeMatchMultiplier;
-						}
-						else
-						{
-							WeightPerList += EachWeight;
-						}
-						WholeMatchCount++;
+						WeightPerList += EachWeight * WholeMatchMultiplier;
 					}
-					else if (KeywordArray[iEachWord].Contains(*EachTerm, ESearchCase::CaseSensitive))
+					else
 					{
 						WeightPerList += EachWeight;
 					}
-					if (KeywordArray[iEachWord].StartsWith(*EachTermSanitized, ESearchCase::CaseSensitive))
-					{
-						if (iEachWord == 0)
-						{
-							WeightPerList += EachWeight * WholeMatchMultiplier;
-						}
-						else
-						{
-							WeightPerList += EachWeight;
-						}
-						WholeMatchCount++;
-					}
-					else if (KeywordArray[iEachWord].Contains(*EachTermSanitized, ESearchCase::CaseSensitive))
-					{
-						WeightPerList += EachWeight / 2;
-					}
+					WholeMatchCount++;
 				}
-
-				// Increase the weight if theres a larger % of matches in the keyword list
-				if (WholeMatchCount != 0)
+				else if (KeywordArray[iEachWord].Contains(*EachTerm, ESearchCase::CaseSensitive))
 				{
-					int32 PercentAdjust = (100 / KeywordArray.Num()) * WholeMatchCount;
-					int32 PercentAdjustedWeight = WeightPerList * PercentAdjust;
-					DebugInfo.PercentMatch += (float)KeywordArray.Num() / (float)WholeMatchCount;
-					DebugInfo.PercentMatchWeight += (PercentAdjustedWeight - WeightPerList);
-					WeightPerList = PercentAdjustedWeight;
+					WeightPerList += EachWeight;
 				}
-
-				if (WeightedArrayList[iFindCount].DebugWeight)
+				if (KeywordArray[iEachWord].StartsWith(*EachTermSanitized, ESearchCase::CaseSensitive))
 				{
-					*WeightedArrayList[iFindCount].DebugWeight += WeightPerList;
+					if (iEachWord == 0)
+					{
+						WeightPerList += EachWeight * WholeMatchMultiplier;
+					}
+					else
+					{
+						WeightPerList += EachWeight;
+					}
+					WholeMatchCount++;
 				}
-				TotalWeight += WeightPerList;
+				else if (KeywordArray[iEachWord].Contains(*EachTermSanitized, ESearchCase::CaseSensitive))
+				{
+					WeightPerList += EachWeight / 2;
+				}
 			}
-		}
 
-		PrintSearchTextDebugInfo(InFilterTerms, InCurrentAction, &DebugInfo);
+			// Increase the weight if theres a larger % of matches in the keyword list
+			if (WholeMatchCount != 0)
+			{
+				int32 PercentAdjust = (100 / KeywordArray.Num()) * WholeMatchCount;
+				int32 PercentAdjustedWeight = WeightPerList * PercentAdjust;
+				DebugInfo.PercentMatch += (float)KeywordArray.Num() / (float)WholeMatchCount;
+				DebugInfo.PercentMatchWeight += (PercentAdjustedWeight - WeightPerList);
+				WeightPerList = PercentAdjustedWeight;
+			}
+
+			if (WeightedArrayList[iFindCount].DebugWeight)
+			{
+				*WeightedArrayList[iFindCount].DebugWeight += WeightPerList;
+			}
+			TotalWeight += WeightPerList;
+		}
 	}
+
+	PrintSearchTextDebugInfo(InFilterTerms, InCurrentAction, &DebugInfo);
 	return TotalWeight;
 
 }
 
-int32 UEdGraphSchema::CollectSearchTextWeightInfo(const FGraphActionListBuilderBase::ActionGroup& InCurrentAction, const FGraphSchemaSearchWeightModifiers& InWeightModifiers, 
-													TArray<FGraphSchemaSearchTextWeightInfo>& OutWeightedArrayList, FGraphSchemaSearchTextDebugInfo* InDebugInfo) const
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+float UEdGraphSchema::GetActionFilteredWeight(const FGraphActionListBuilderBase::ActionGroup& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const
+{
+	int32 TotalWeight = 0;
+	int32 Action = 0;
+	if (InCurrentAction.Actions[Action].IsValid() == true)
+	{
+		return GetActionFilteredWeight(*InCurrentAction.Actions[Action], InFilterTerms, InSanitizedFilterTerms, DraggedFromPins);
+	}
+	return TotalWeight;
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+int32 UEdGraphSchema::CollectSearchTextWeightInfo(const FEdGraphSchemaAction& InCurrentAction, const FGraphSchemaSearchWeightModifiers& InWeightModifiers,
+	TArray<FGraphSchemaSearchTextWeightInfo>& OutWeightedArrayList, FGraphSchemaSearchTextDebugInfo* InDebugInfo) const
 {
 	// First the localized keywords
-	OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetLocalizedSearchKeywordsArrayForFirstAction(), InWeightModifiers.KeywordWeight, InDebugInfo ? &InDebugInfo->KeywordWeight : nullptr));
+	OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetLocalizedSearchKeywordsArray(), InWeightModifiers.KeywordWeight, InDebugInfo ? &InDebugInfo->KeywordWeight : nullptr));
 
 	// The localized description
-	OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetLocalizedMenuDescriptionArrayForFirstAction(), InWeightModifiers.DescriptionWeight, InDebugInfo ? &InDebugInfo->DescriptionWeight : nullptr));
+	OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetLocalizedMenuDescriptionArray(), InWeightModifiers.DescriptionWeight, InDebugInfo ? &InDebugInfo->DescriptionWeight : nullptr));
 
 	// The node search localized title weight
-	OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetLocalizedSearchTitleArrayForFirstAction(), InWeightModifiers.NodeTitleWeight, InDebugInfo ? &InDebugInfo->NodeTitleWeight : nullptr));
+	OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetLocalizedSearchTitleArray(), InWeightModifiers.NodeTitleWeight, InDebugInfo ? &InDebugInfo->NodeTitleWeight : nullptr));
 
 	// The localized category
-	OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetLocalizedSearchCategoryArrayForFirstAction(), InWeightModifiers.CategoryWeight, InDebugInfo ? &InDebugInfo->CategoryWeight : nullptr));
+	OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetLocalizedSearchCategoryArray(), InWeightModifiers.CategoryWeight, InDebugInfo ? &InDebugInfo->CategoryWeight : nullptr));
 
 	// First the keywords
-	int32 NonLocalizedFirstIndex = OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetSearchKeywordsArrayForFirstAction(), InWeightModifiers.KeywordWeight, InDebugInfo ? &InDebugInfo->KeywordWeight : nullptr));
+	int32 NonLocalizedFirstIndex = OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetSearchKeywordsArray(), InWeightModifiers.KeywordWeight, InDebugInfo ? &InDebugInfo->KeywordWeight : nullptr));
 
 	// The description
-	OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetMenuDescriptionArrayForFirstAction(), InWeightModifiers.DescriptionWeight, InDebugInfo ? &InDebugInfo->DescriptionWeight : nullptr));
+	OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetMenuDescriptionArray(), InWeightModifiers.DescriptionWeight, InDebugInfo ? &InDebugInfo->DescriptionWeight : nullptr));
 
 	// The node search title weight
-	OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetSearchTitleArrayForFirstAction(), InWeightModifiers.NodeTitleWeight, InDebugInfo ? &InDebugInfo->NodeTitleWeight : nullptr));
+	OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetSearchTitleArray(), InWeightModifiers.NodeTitleWeight, InDebugInfo ? &InDebugInfo->NodeTitleWeight : nullptr));
 
 	// The category
-	OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetSearchCategoryArrayForFirstAction(), InWeightModifiers.CategoryWeight, InDebugInfo ? &InDebugInfo->CategoryWeight : nullptr));
+	OutWeightedArrayList.Add(FGraphSchemaSearchTextWeightInfo(&InCurrentAction.GetSearchCategoryArray(), InWeightModifiers.CategoryWeight, InDebugInfo ? &InDebugInfo->CategoryWeight : nullptr));
 
 	return NonLocalizedFirstIndex;
 }
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+int32 UEdGraphSchema::CollectSearchTextWeightInfo(const FGraphActionListBuilderBase::ActionGroup& InCurrentAction, const FGraphSchemaSearchWeightModifiers& InWeightModifiers, 
+													TArray<FGraphSchemaSearchTextWeightInfo>& OutWeightedArrayList, FGraphSchemaSearchTextDebugInfo* InDebugInfo) const
+{
+	return CollectSearchTextWeightInfo(*InCurrentAction.Actions[0], InWeightModifiers, OutWeightedArrayList, InDebugInfo);
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 //////////////////////////////////////////////////////////////////////////
 /** CVars for tweaking how context menu search picks the best match */
@@ -973,7 +1062,17 @@ FGraphSchemaSearchWeightModifiers UEdGraphSchema::GetSearchWeightModifiers() con
 	return Modifiers;
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void UEdGraphSchema::PrintSearchTextDebugInfo(const TArray<FString>& InFilterTerms, const FGraphActionListBuilderBase::ActionGroup& InCurrentAction, const FGraphSchemaSearchTextDebugInfo* InDebugInfo) const
+{
+	if (InCurrentAction.Actions.Num() > 0)
+	{
+		PrintSearchTextDebugInfo(InFilterTerms, *InCurrentAction.Actions[0], InDebugInfo);
+	}
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+void UEdGraphSchema::PrintSearchTextDebugInfo(const TArray<FString>& InFilterTerms, const FEdGraphSchemaAction& InCurrentAction, const FGraphSchemaSearchTextDebugInfo* InDebugInfo) const
 {
 	if (ContextMenuConsoleVariables::bPrintDebugInfo && InDebugInfo)
 	{
@@ -981,7 +1080,7 @@ void UEdGraphSchema::PrintSearchTextDebugInfo(const TArray<FString>& InFilterTer
 	}
 }
 
-void FGraphSchemaSearchTextDebugInfo::Print(const TArray<FString>& SearchForKeywords, const FGraphActionListBuilderBase::ActionGroup& Action) const
+void FGraphSchemaSearchTextDebugInfo::Print(const TArray<FString>& SearchForKeywords, const FEdGraphSchemaAction& Action) const
 {
 	auto CombineStrings = [](const TArray<FString>& Strings) -> FString
 	{
@@ -995,20 +1094,27 @@ void FGraphSchemaSearchTextDebugInfo::Print(const TArray<FString>& SearchForKeyw
 	};
 
 	FString SearchText = CombineStrings(SearchForKeywords);
-	FString LocalizedTitle = CombineStrings(Action.GetLocalizedSearchTitleArrayForFirstAction());
-	FString LocalizedKeywords = CombineStrings(Action.GetLocalizedSearchKeywordsArrayForFirstAction());
-	FString LocalizedDescription = CombineStrings(Action.GetLocalizedMenuDescriptionArrayForFirstAction());
-	FString LocalizedCategory = CombineStrings(Action.GetLocalizedSearchCategoryArrayForFirstAction());
-	FString Title = CombineStrings(Action.GetSearchTitleArrayForFirstAction());
-	FString Keywords = CombineStrings(Action.GetSearchKeywordsArrayForFirstAction());
-	FString Description = CombineStrings(Action.GetMenuDescriptionArrayForFirstAction());
-	FString Category = CombineStrings(Action.GetSearchCategoryArrayForFirstAction());
+	FString LocalizedTitle = CombineStrings(Action.GetLocalizedSearchTitleArray());
+	FString LocalizedKeywords = CombineStrings(Action.GetLocalizedSearchKeywordsArray());
+	FString LocalizedDescription = CombineStrings(Action.GetLocalizedMenuDescriptionArray());
+	FString LocalizedCategory = CombineStrings(Action.GetLocalizedSearchCategoryArray());
+	FString Title = CombineStrings(Action.GetSearchTitleArray());
+	FString Keywords = CombineStrings(Action.GetSearchKeywordsArray());
+	FString Description = CombineStrings(Action.GetMenuDescriptionArray());
+	FString Category = CombineStrings(Action.GetSearchCategoryArray());
 
 	UE_LOG(LogTemp, Log, TEXT("Searching for \"%s\" in [LocTitle:\"%s\" LocKeywords:\"%s\" LocDescription:\"%s\" LocCategory:\"%s\" Title:\"%s\" Keywords:\"%s\" Description:\"%s\" Category:\"%s\"] \
 TotalWeight: %.2f | NodeTitleWeight: %.2f | KeywordWeight: %.2f | CategoryWeight: %.2f | PercentMatchWeight: %.2f | ShorterMatchWeight: %.2f"),
 		*SearchText, *LocalizedTitle, *LocalizedKeywords, *LocalizedDescription, *LocalizedCategory, *Title, *Keywords, *Description, *Category, 
 		TotalWeight, NodeTitleWeight, KeywordWeight, CategoryWeight, PercentMatchWeight, ShorterMatchWeight);
 }
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void FGraphSchemaSearchTextDebugInfo::Print(const TArray<FString>& SearchForKeywords, const FGraphActionListBuilderBase::ActionGroup& Action) const
+{
+	return Print(SearchForKeywords, *Action.Actions[0]);
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif // WITH_EDITORONLY_DATA
 
 void UEdGraphSchema::ConstructBasicPinTooltip(UEdGraphPin const& Pin, FText const& PinDescription, FString& TooltipOut) const

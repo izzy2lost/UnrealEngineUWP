@@ -10,6 +10,7 @@
 #include "USDExporterModule.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDValueConversion.h"
 
 #include "UsdWrappers/SdfLayer.h"
@@ -632,6 +633,16 @@ void UUsdConversionBlueprintLibrary::SendAnalytics(
 	IUsdClassesModule::SendAnalytics(MoveTemp(Converted), EventName, bAutomated, ElapsedSeconds, NumberOfFrames, Extension);
 }
 
+void UUsdConversionBlueprintLibrary::BlockAnalyticsEvents()
+{
+	IUsdClassesModule::BlockAnalyticsEvents();
+}
+
+void UUsdConversionBlueprintLibrary::ResumeAnalyticsEvents()
+{
+	IUsdClassesModule::ResumeAnalyticsEvents();
+}
+
 void UUsdConversionBlueprintLibrary::RemoveAllPrimSpecs(const FString& StageRootLayer, const FString& PrimPath, const FString& TargetLayer)
 {
 #if USE_USD_SDK
@@ -767,12 +778,12 @@ TArray<FString> UUsdConversionBlueprintLibrary::DuplicatePrims(
 
 UUsdAssetUserData* UUsdConversionBlueprintLibrary::GetUsdAssetUserData(UObject* Object)
 {
-	return UsdUtils::GetAssetUserData(Object);
+	return UsdUnreal::ObjectUtils::GetAssetUserData(Object);
 }
 
 bool UUsdConversionBlueprintLibrary::SetUsdAssetUserData(UObject* Object, UUsdAssetUserData* AssetUserData)
 {
-	return UsdUtils::SetAssetUserData(Object, AssetUserData);
+	return UsdUnreal::ObjectUtils::SetAssetUserData(Object, AssetUserData);
 }
 
 namespace UE::UsdConversionBlueprintLibrary::Private

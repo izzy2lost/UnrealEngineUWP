@@ -19,6 +19,7 @@
 #include "UObject/Class.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectPtr.h"
+#include "Curves/RealCurve.h"
 
 #include "MovieSceneByteChannel.generated.h"
 
@@ -33,7 +34,9 @@ struct FMovieSceneByteChannel : public FMovieSceneChannel
 	GENERATED_BODY()
 
 	FMovieSceneByteChannel()
-		: DefaultValue(0)
+		: PreInfinityExtrap(RCCE_Constant)
+		, PostInfinityExtrap(RCCE_Constant)
+		, DefaultValue(0)
 		, bHasDefaultValue(false)
 		, Enum(nullptr)
 		, KeyHandles()
@@ -51,7 +54,7 @@ struct FMovieSceneByteChannel : public FMovieSceneChannel
 	 */
 	FORCEINLINE TMovieSceneChannelData<uint8> GetData()
 	{
-		return TMovieSceneChannelData<uint8>(&Times, &Values, &KeyHandles);
+		return TMovieSceneChannelData<uint8>(&Times, &Values, this, &KeyHandles);
 	}
 
 	/**
@@ -169,6 +172,15 @@ public:
 	{
 		Enum = InEnum;
 	}
+
+public:
+	/** Pre-infinity extrapolation state, byte channel only supports constant, cycle and oscillate */
+	UPROPERTY()
+	TEnumAsByte<ERichCurveExtrapolation> PreInfinityExtrap;
+
+	/** Post-infinity extrapolation state, byte channel only supports constant, cycle and oscillate */
+	UPROPERTY()
+	TEnumAsByte<ERichCurveExtrapolation> PostInfinityExtrap;
 
 private:
 

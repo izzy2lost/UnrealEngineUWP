@@ -129,8 +129,6 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 	float InDirectionalLightCloudShadow, float3 InDirectionalLightAtmosphereTransmittance, inout float OutDirectionalLightShadow,
 	bool bSeparateMainDirLightLuminance, inout float3 SeparatedMainDirLightLuminance, bool bSkipDirLightVirtualShadowMapEvaluation)
 {
-	float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation);
-
 	float4 DynamicShadowFactors = 1;
 
 	#if MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED
@@ -140,6 +138,7 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 	FDeferredLightingSplit DirectLighting;
 	DirectLighting.DiffuseLighting = 0;
 	DirectLighting.SpecularLighting = 0;
+	DirectLighting.LightingLuminance = 0;
 
 	float SpecularScale = 1;
 #if TRANSLUCENCY_ANY_VOLUMETRIC
@@ -152,7 +151,11 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 	const FDirectionalLightData DirectionalLightData = GetDirectionalLightData(EyeIndex);
 
 	BRANCH
-	if (DirectionalLightData.HasDirectionalLight)
+	if (DirectionalLightData.HasDirectionalLight
+#if MATERIALBLENDING_ANY_TRANSLUCENT
+		&& DirectionalLightData.bAffectsTranslucentLighting > 0
+#endif
+		)
 	{
 		half4 PreviewShadowMapChannelMask = 1;
 		uint  DirLightingChannelMask = LIGHTING_CHANNEL_MASK;
@@ -195,10 +198,8 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 				#if SUPPORT_VSM_FOWARD_QUALITY == 1
 				{
 					const FLightShaderParameters DirectionalLight = ConvertToLightShaderParameters(LightData);
-					FVirtualShadowMapSMRTSettings SMRTSettings = GetDirectionalLightSMRTSettings();
 
-					const bool bBackfaceCull = !IsSubsurfaceModel(GBufferData.ShadingModelID);
-					const float ScreenRayLengthWorld = SMRTSettings.ScreenRayLength * View.ClipToView[1][1] * GBufferData.Depth;
+					const float ScreenRayLengthWorld = VirtualShadowMap.ScreenRayLength * View.ClipToView[1][1] * GBufferData.Depth;
 					float SMRTRayOffset = ScreenRayLengthWorld;
 
 					FVirtualShadowMapSampleResult VirtualShadowMapSample = TraceDirectional(
@@ -208,15 +209,8 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 						GBufferData.Depth,
 						TranslatedWorldPosition,
 						SMRTRayOffset,
-						SMRTSettings.RayCount,
-						SMRTSettings.SamplesPerRay,
-						SMRTSettings.RayLengthScale,
 						Dither,
-						bBackfaceCull,
-						GBufferData.WorldNormal,
-						SMRTSettings.TexelDitherScale,
-						SMRTSettings.ExtrapolateSlope,
-						SMRTSettings.AdaptiveRayCount);
+						GBufferData.WorldNormal);
 
 					FilterVirtualShadowMapSampleResult(PixelPos, VirtualShadowMapSample);
 
@@ -234,7 +228,7 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 			float4 LightAttenuation = float4(DynamicShadowFactor.x, DynamicShadowFactor.x, 1, 1);
 		#endif
 
-		FDeferredLightingSplit NewLighting = GetDynamicLightingSplit(TranslatedWorldPosition, -CameraVector, GBufferData, 1, GBufferData.ShadingModelID, LightData, LightAttenuation, Dither, uint2(0,0), OutDirectionalLightShadow);
+		FDeferredLightingSplit NewLighting = GetDynamicLightingSplit(TranslatedWorldPosition, -CameraVector, GBufferData, 1, LightData, LightAttenuation, Dither, uint2(0,0), OutDirectionalLightShadow);
 
 		FLATTEN
 		if (DirLightingChannelMask & LightingChannelMask)
@@ -243,9 +237,11 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 			// This cannot go into LightAttenuation due to some distance based attenuation math being applied.
 			NewLighting.DiffuseLighting *= InDirectionalLightCloudShadow;
 			NewLighting.SpecularLighting *= InDirectionalLightCloudShadow;
+			NewLighting.LightingLuminance *= InDirectionalLightCloudShadow;
 		#endif
 			NewLighting.DiffuseLighting.rgb *= InDirectionalLightAtmosphereTransmittance;
 			NewLighting.SpecularLighting.rgb *= InDirectionalLightAtmosphereTransmittance;
+			NewLighting.LightingLuminance *= Luminance(InDirectionalLightAtmosphereTransmittance);
 
 			if (bSeparateMainDirLightLuminance)
 			{
@@ -256,26 +252,36 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 			{
 				DirectLighting.DiffuseLighting += NewLighting.DiffuseLighting;
 				DirectLighting.SpecularLighting += NewLighting.SpecularLighting;
+				DirectLighting.LightingLuminance += NewLighting.LightingLuminance;
 			}
 		}
 	}
 
 #if !DISABLE_FORWARD_LOCAL_LIGHTS
 
-	const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, EyeIndex);
+	const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 
 	
 	// Limit max to ForwardLightData.NumLocalLights.
 	// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-	const uint NumLightsInGridCell = min(CulledLightsGrid.NumLights, GetMaxLightsPerCell(EyeIndex));
+	const uint NumLightsInGridCell = min(CulledLightsGridHeader.NumLights, GetMaxLightsPerCell(EyeIndex));
 
 	LOOP
 	for (uint GridLightListIndex = 0; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
 	{
 		half4 PreviewShadowMapChannelMask = 1;
 		uint  LocalLightingChannelMask = LIGHTING_CHANNEL_MASK;
-		const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + GridLightListIndex, EyeIndex);
+		const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGridHeader.DataStartIndex + GridLightListIndex, EyeIndex);
+		
+	#if MATERIALBLENDING_ANY_TRANSLUCENT
+		if(UnpackAffectsTranslucentLighting(LocalLight) == 0)
+		{
+			continue;
+		}
+	#endif
+
 		FDeferredLightData LightData = ConvertToDeferredLight(LocalLight, SpecularScale, PreviewShadowMapChannelMask, LocalLightingChannelMask);
+
 		// Rect light optionally supported in forward.
 		LightData.bRectLight = LightData.bRectLight && SUPPORT_RECTLIGHT_ON_FORWARD_LIT_TRANSLUCENT;
 		#if USE_HAIR_COMPLEX_TRANSMITTANCE
@@ -291,7 +297,7 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 		float DynamicShadowing = dot(PreviewShadowMapChannelMask, DynamicShadowFactors);
 		float4 LightAttenuation = float4(1, 1, DynamicShadowing.x, DynamicShadowing.x);
 		float SurfaceShadow = 1.0f;
-		FDeferredLightingSplit NewLighting = GetDynamicLightingSplit(TranslatedWorldPosition, -CameraVector, GBufferData, 1, GBufferData.ShadingModelID, LightData, LightAttenuation, Dither, uint2(0,0), SurfaceShadow);
+		FDeferredLightingSplit NewLighting = GetDynamicLightingSplit(TranslatedWorldPosition, -CameraVector, GBufferData, 1, LightData, LightAttenuation, Dither, uint2(0,0), SurfaceShadow);
 
 		FLATTEN
 		if (LocalLightingChannelMask & LightingChannelMask)
@@ -347,16 +353,16 @@ float3 GetForwardDirectLightingForVertexLighting(uint GridIndex, float3 Translat
 		DirectLighting += LightColor * (NoL * ShadowFactor) * DiffuseLighting;
 	}
 	
-	const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, EyeIndex);
+	const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 
 	// Limit max to ForwardLightData.NumLocalLights.
 	// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-	const uint NumLightsInGridCell = min(CulledLightsGrid.NumLights, GetMaxLightsPerCell(EyeIndex));
+	const uint NumLightsInGridCell = min(CulledLightsGridHeader.NumLights, GetMaxLightsPerCell(EyeIndex));
 
 	LOOP
 	for (uint GridLightListIndex = 0; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
 	{
-		const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + GridLightListIndex, EyeIndex);
+		const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGridHeader.DataStartIndex + GridLightListIndex, EyeIndex);
 		const FSimpleDeferredLightData LightData = ConvertToSimpleLight(LocalLight);
 
 		// No specular for vertex lighting
@@ -430,30 +436,7 @@ half3 GetImageBasedReflectionSpecular(FMaterialPixelParameters MaterialParameter
 	else
 #endif
 	{
-		uint NumLocalReflectionCaptures = 0;
-		uint DataStartIndex = 0;
-
-#if REFLECTION_COMPOSITE_USE_BLENDED_REFLECTION_CAPTURES
-		#if (INSTANCED_STEREO || MOBILE_MULTI_VIEW)
-			BRANCH
-			if (EyeIndex == 0)
-			{
-		#endif
-
-				uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
-				NumLocalReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
-				DataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
-
-		#if (INSTANCED_STEREO || MOBILE_MULTI_VIEW)
-			}
-			else
-			{
-				uint NumCulledEntryIndex = (ForwardLightDataISR.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
-				NumLocalReflectionCaptures = min(ForwardLightDataISR.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightDataISR.NumReflectionCaptures);
-				DataStartIndex = ForwardLightDataISR.NumCulledLightsGrid[NumCulledEntryIndex + 1];
-			}
-		#endif
-#endif
+		FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGridHeader(GridIndex, EyeIndex);
 
 		const bool bCompositeSkylight = true;
 		SpecularIBL = CompositeReflectionCapturesAndSkylightTWS(
@@ -464,8 +447,8 @@ half3 GetImageBasedReflectionSpecular(FMaterialPixelParameters MaterialParameter
 			IndirectIrradiance, 
 			1.0f, 
 			0.0f, 
-			NumLocalReflectionCaptures, 
-			DataStartIndex, 
+			CulledReflectionCapturesGridHeader.NumReflectionCaptures, 
+			CulledReflectionCapturesGridHeader.DataStartIndex, 
 			SingleCaptureIndex,
 			bCompositeSkylight,
 			EyeIndex);
@@ -522,7 +505,7 @@ half3 GetImageBasedReflectionSpecular(FMaterialPixelParameters MaterialParameter
 	if (abs(dot(PlanarReflectionStruct.ReflectionPlane.xyz, 1)) > .0001f)
 	{
 		// Reuse ReflectionCubemapSampler to avoid reducing the sampler count available to artists
-		float4 PlanarReflection = ComputePlanarReflections(MaterialParameters.WorldPosition_CamRelative, MaterialParameters.WorldNormal, Roughness, ReflectionStruct.ReflectionCubemapSampler);
+		float4 PlanarReflection = ComputePlanarReflections(MaterialParameters.WorldPosition_CamRelative, MaterialParameters.WorldNormal, Roughness);
 		// Planar reflections win over SSR and reflection environment
 		SpecularLighting = PlanarReflection.rgb + (1 - PlanarReflection.a) * SpecularLighting;
 	}

@@ -59,10 +59,13 @@ public:
 		bHoldout									= false;
 		bDisableMaterialInvalidations				= false;
 		bSplineMesh									= false;
+		bSkinnedMesh								= false;
 		bAllowInstanceCullingOcclusionQueries		= false;
 		bHasPixelAnimation                          = false;
 		bRayTracingFarField							= false;
 		bRayTracingHasGroupId						= false;
+		bHasPerClusterDisplacementFallbackRaster	= false;
+		bIsFirstPersonPrimitive						= false;
 
 		Parameters.MaxWPOExtent						= 0.0f;
 		Parameters.MinMaterialDisplacement			= 0.0f;
@@ -90,6 +93,8 @@ public:
 		Parameters.InstancePayloadDataOffset		= INDEX_NONE;
 		Parameters.InstancePayloadDataStride		= 0;
 		Parameters.InstancePayloadExtensionSize		= 0;
+
+		Parameters.MeshPaintTextureDescriptor		= FUintVector2(0, 0);
 
 		LightingChannels = GetDefaultLightingChannelMask();
 
@@ -127,11 +132,14 @@ public:
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			Holdout);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			DisableMaterialInvalidations);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			SplineMesh);
+	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			SkinnedMesh);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			AllowInstanceCullingOcclusionQueries);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			HasAlwaysEvaluateWPOMaterials);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			HasPixelAnimation);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			RayTracingFarField);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			RayTracingHasGroupId);
+	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			HasPerClusterDisplacementFallbackRaster);
+	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			IsFirstPersonPrimitive);
 
 	PRIMITIVE_UNIFORM_BUILDER_METHOD(uint32,			InstanceSceneDataOffset);
 	PRIMITIVE_UNIFORM_BUILDER_METHOD(uint32,			NumInstanceSceneDataEntries);
@@ -146,6 +154,8 @@ public:
 	PRIMITIVE_UNIFORM_BUILDER_METHOD(uint32,			NaniteRayTracingDataOffset);
 	PRIMITIVE_UNIFORM_BUILDER_METHOD(uint32,			LightmapUVIndex);
 	PRIMITIVE_UNIFORM_BUILDER_METHOD(uint32,			LightmapDataIndex);
+	PRIMITIVE_UNIFORM_BUILDER_METHOD(float,				MaterialDisplacementFadeOutSize);
+	PRIMITIVE_UNIFORM_BUILDER_METHOD(FUintVector2,		MeshPaintTextureDescriptor);
 
 #undef PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD
 #undef PRIMITIVE_UNIFORM_BUILDER_METHOD
@@ -306,6 +316,8 @@ public:
 
 	ENGINE_API FPrimitiveUniformShaderParametersBuilder& InstanceWorldPositionOffsetDisableDistance(float WPODisableDistance);
 
+	ENGINE_API FPrimitiveUniformShaderParametersBuilder& PixelProgrammableDistance(float PixelProgrammableDistance);
+
 	inline const FPrimitiveUniformShaderParameters& Build()
 	{
 		const FDFVector3 AbsoluteWorldPosition(AbsoluteLocalToWorld.GetOrigin());
@@ -421,10 +433,13 @@ public:
 		Parameters.Flags |= bHoldout ? PRIMITIVE_SCENE_DATA_FLAG_HOLDOUT : 0u;
 		Parameters.Flags |= bDisableMaterialInvalidations ? PRIMITIVE_SCENE_DATA_FLAG_DISABLE_MATERIAL_INVALIDATIONS : 0u;
 		Parameters.Flags |= bSplineMesh ? PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH : 0u;
+		Parameters.Flags |= bSkinnedMesh ? PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH : 0u;
 		Parameters.Flags |= bAllowInstanceCullingOcclusionQueries ? PRIMITIVE_SCENE_DATA_FLAG_INSTANCE_CULLING_OCCLUSION_QUERIES: 0u;
 		Parameters.Flags |= bHasPixelAnimation ? PRIMITIVE_SCENE_DATA_FLAG_HAS_PIXEL_ANIMATION : 0u;
 		Parameters.Flags |= bRayTracingFarField ? PRIMITIVE_SCENE_DATA_FLAG_RAYTRACING_FAR_FIELD : 0u;
 		Parameters.Flags |= bRayTracingHasGroupId ? PRIMITIVE_SCENE_DATA_FLAG_RAYTRACING_HAS_GROUPID : 0u;
+		Parameters.Flags |= bHasPerClusterDisplacementFallbackRaster ? PRIMITIVE_SCENE_DATA_FLAG_PER_CLUSTER_DISPLACEMENT_FALLBACK_RASTER : 0u;
+		Parameters.Flags |= bIsFirstPersonPrimitive ? PRIMITIVE_SCENE_DATA_FLAG_IS_FIRST_PERSON_PRIMITIVE : 0u;
 		
 		Parameters.VisibilityFlags = 0;
 		Parameters.VisibilityFlags |= bCastHiddenShadow ? PRIMITIVE_VISIBILITY_FLAG_CAST_HIDDEN_SHADOW : 0u;
@@ -487,8 +502,11 @@ private:
 	uint32 bHoldout : 1;
 	uint32 bDisableMaterialInvalidations : 1;
 	uint32 bSplineMesh : 1;
+	uint32 bSkinnedMesh : 1;
 	uint32 bAllowInstanceCullingOcclusionQueries : 1;
 	uint32 bHasPixelAnimation : 1;
 	uint32 bRayTracingFarField : 1;
 	uint32 bRayTracingHasGroupId : 1;
+	uint32 bHasPerClusterDisplacementFallbackRaster : 1;
+	uint32 bIsFirstPersonPrimitive : 1;
 };

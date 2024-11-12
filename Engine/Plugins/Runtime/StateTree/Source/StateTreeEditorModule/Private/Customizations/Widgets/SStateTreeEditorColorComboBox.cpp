@@ -17,6 +17,8 @@ void SStateTreeEditorColorComboBox::Construct(const FArguments& InArgs, TSharedP
 	ColorRefHandle = InColorRefHandle;
 	ColorIDHandle = InColorRefHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeEditorColorRef, ID));
 
+	ColorRefHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &SStateTreeEditorColorComboBox::UpdatedSelectedColorWidget));
+
 	ChildSlot
 	[
 		SAssignNew(ColorComboBox, SComboBox<TSharedPtr<FStateTreeEditorColorRef>>)

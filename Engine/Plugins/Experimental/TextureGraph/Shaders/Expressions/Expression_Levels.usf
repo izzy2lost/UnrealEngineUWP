@@ -1,36 +1,100 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "/Engine/Public/Platform.ush"
 #include "/Plugin/TextureGraph/SamplerStates.ush"
+#include "/Plugin/TextureGraph/ShaderUtil.ush"
 
-Texture2D Input;
-float MinValue;
-float MaxValue;
-float Gamma;
 
-float3 GammaCorrection(float3 Clr, float GammaValue)
+#ifndef CONVERT_TO_GRAYSCALE
+#define CONVERT_TO_GRAYSCALE 0
+#endif
+
+#ifndef AUTO_LEVELS
+#define AUTO_LEVELS 0
+#endif
+
+#ifndef OUT_LEVELS
+#define OUT_LEVELS 0
+#endif
+
+Texture2D SourceTexture;
+float LowValue;
+float HighValue;
+float MidValue;
+
+float OutLow;
+float OutHigh;
+float OutputRange;
+
+float DoAutoLevel;
+float MidPercentage;
+
+Texture2D Histogram;
+
+
+float LevelsControlInputRange(float Value, float LowInput, float HighInput)
 {
-	float invGamma = 1.0 / GammaValue;
-	return pow(Clr, float3(invGamma, invGamma, invGamma));
+	return min(max(Value - LowInput, float(0)) / (float(HighInput) - LowInput), float(1));
 }
 
-float3 LevelsControlInputRange(float3 Clr, float3 MinInput, float3 MaxInput)
+float LevelsControlInputCurve(float Value, float LowInput, float HighInput, float MidInput)
 {
-	return min(max(Clr - MinInput, float3(0, 0, 0)) / (float3(MaxInput) - MinInput), float3(1, 1, 1));
-}
+	float ValueRanged = LevelsControlInputRange(Value, LowInput, HighInput);
 
-float3 LevelsControlInput(float3 Clr, float3 MinInput, float GammaValue, float3 MaxInput)
-{
-	return GammaCorrection(LevelsControlInputRange(Clr, MinInput, MaxInput), GammaValue);
+	// 0.5 = EvalRange(Mid) ^ Exponent
+	// thus
+	float MidRanged = saturate((MidInput - LowInput) / (HighInput - LowInput));
+	MidRanged = max(0.001, min(0.9999, MidRanged));
+
+	float InvGammaValue = log(MidRanged) / log(0.5);
+	
+#if OUT_LEVELS
+	float4 HistoMin			= Histogram.Load(int3(2, 1, 0));
+	float4 HistoMax			= Histogram.Load(int3(3, 1, 0));
+		
+	LowInput = 	HistoMin.w;
+	HighInput = HistoMax.w;
+	
+	float InputRange = clamp(HighInput - LowInput, 0, 1);
+	
+	ValueRanged = OutLow + ((ValueRanged - LowInput) / InputRange) * OutputRange;
+#endif /// OUT_LEVELS
+
+
+
+	return pow(ValueRanged, InvGammaValue);
 }
 
 float4 FSH_Levels(float2 uv : TEXCOORD0) : SV_Target0
 {
-	float4 Clr = Input.Sample(SamplerStates_NoBorder, uv);
-	// float4 MinInput = MinValue.Sample(SamplerStates_NoBorder, uv);
-	// float4 MaxInput = MaxValue.Sample(SamplerStates_NoBorder, uv);
+	// fetch the source texture value
+	float4 Color = SourceTexture.Sample(SamplerStates_NoBorder, uv);
 
-	float3 LevelClr = LevelsControlInput(Clr, float3(MinValue, MinValue, MinValue), Gamma, float3(MaxValue, MaxValue, MaxValue));
+	// isolate the scalar value
+#if CONVERT_TO_GRAYSCALE
+	float SourceValue = Grayscale(Color.rgb);
+#else
+	float SourceValue = Color.x;
+#endif
+
+	// Standard path, Low and High come from specified uniforms
+	float LowInput = LowValue;
+	float HighInput = HighValue;
+
+	float MidInput = MidValue;
+
+#if AUTO_LEVELS
+
+	float4 HistoMinCount	= Histogram.Load(int3(0, 1, 0));
+	float4 HistoMaxCount	= Histogram.Load(int3(1, 1, 0));
+	float4 HistoMin			= Histogram.Load(int3(2, 1, 0));
+	float4 HistoMax			= Histogram.Load(int3(3, 1, 0));
+		
+	LowInput = 	HistoMin.w;
+	HighInput = HistoMax.w;
+#endif /// AUTO_LEVELS
+
+	float3 LeveledColor = LevelsControlInputCurve(SourceValue, LowInput, HighInput, MidValue);
 	
-	return float4(LevelClr.rgb, Clr.a);
+	return float4(LeveledColor.rgb, 1.0);
 }
 

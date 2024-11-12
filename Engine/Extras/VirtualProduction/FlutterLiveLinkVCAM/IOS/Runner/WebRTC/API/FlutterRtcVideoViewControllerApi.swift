@@ -1,10 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+import Flutter
 import Foundation
 
 /// Handles messages about [FlutterRtcPeerConnection]s to and from the Flutter API.
 class FlutterRtcVideoViewControllerApi: FlutterPluginApi<RtcVideoViewControllerFlutterApi> {
-  init(binaryMessenger: FlutterBinaryMessenger) {
+  init(binaryMessenger: FlutterBinaryMessenger, textureRegistry: FlutterTextureRegistry) {
+    self.textureRegistry = textureRegistry
+    
     super.init(flutter: RtcVideoViewControllerFlutterApi(binaryMessenger: binaryMessenger))
     
     RtcVideoViewControllerHostApiSetup.setUp(binaryMessenger: binaryMessenger, api: self)
@@ -19,6 +22,9 @@ class FlutterRtcVideoViewControllerApi: FlutterPluginApi<RtcVideoViewControllerF
   
   /// Manager for indexed video view controllers shared with Flutter.
   let videoViewControllerManager = IdObjectManager<FlutterRtcVideoViewController>(debugTypeName: "VideoViewController")
+  
+  /// Texture registry used to communicate with Flutter.
+  let textureRegistry: FlutterTextureRegistry
   
   /// The active singleton instance of this class.
   private(set) static var instance: FlutterRtcVideoViewControllerApi?
@@ -45,6 +51,19 @@ extension FlutterRtcVideoViewControllerApi: RtcVideoViewControllerHostApi {
       .getChecked(id: controllerId)
       .setTrack(newTrack: track)
   }
+  
+  func getTextureId(controllerId: Int64) throws -> Int64 {
+    return videoViewControllerManager
+      .getChecked(id: controllerId)
+      .textureId
+  }
+  
+  func clear(controllerId: Int64) throws {
+    videoViewControllerManager
+      .getChecked(id: controllerId)
+      .clear()
+  }
+  
   
   func dispose(controllerId: Int64) throws {
     videoViewControllerManager.unregister(id: controllerId)

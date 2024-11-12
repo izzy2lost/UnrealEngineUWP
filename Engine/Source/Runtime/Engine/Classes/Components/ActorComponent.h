@@ -10,16 +10,12 @@
 #include "Engine/EngineBaseTypes.h"
 #include "UObject/CoreNetTypes.h"
 #include "UObject/ScriptMacros.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "EdGraph/EdGraphPin.h"
-#include "UObject/CoreNet.h"
-#endif
 #include "Interfaces/Interface_AssetUserData.h"
 #include "UObject/StructOnScope.h"
 #include "PropertyPairsMap.h"
 #include "ComponentInstanceDataCache.h"
 #include "Experimental/ConcurrentLinearAllocator.h"
+#include "Misc/TransactionallySafeRWScopeLock.h"
 #include "ActorComponent.generated.h"
 
 struct FTypedElementHandle;
@@ -449,7 +445,7 @@ private:
 	TArray<FSimpleMemberReference> UCSModifiedProperties_DEPRECATED;
 #endif
 
-	static ENGINE_API FRWLock AllUCSModifiedPropertiesLock;
+	static ENGINE_API FTransactionallySafeRWLock AllUCSModifiedPropertiesLock;
 	static ENGINE_API TMap<UActorComponent*, TArray<FSimpleMemberReference>> AllUCSModifiedProperties;
 
 public:
@@ -1074,6 +1070,7 @@ public:
 	ENGINE_API virtual bool IsSelectedInEditor() const override;
 	virtual void SetPackageExternal(bool bExternal, bool bShouldDirty) {}
 	virtual FBox GetStreamingBounds() const { return FBox(ForceInit); }
+	virtual FBox GetStreamingBoundsEditor() const { return GetStreamingBounds(); }
 	virtual bool ForceActorNonSpatiallyLoaded() const { return false; }
 	virtual bool ForceActorNoDataLayers() const { return false; }
 #endif // WITH_EDITOR
@@ -1169,7 +1166,13 @@ public:
 	/** Can this component potentially influence navigation */
 	ENGINE_API bool CanEverAffectNavigation() const;
 
-	/** set value of bCanEverAffectNavigation flag and update navigation octree if needed */
+	/**
+	 * Sets value of bCanEverAffectNavigation flag and update navigation octree if needed.
+	 * @note This flag influences the required updates when setting other properties associated
+	 * to the navigation data (e.g., transform, primitive, mesh, etc.).
+	 * So when setting it to 'true' it is more efficient to set the other properties first,
+	 * otherwise ('false') it is more efficient to set this one first, then the other properties.
+	 */
 	ENGINE_API void SetCanEverAffectNavigation(bool bRelevant);
 
 	/** Override to specify that a component is relevant to the navigation system */
@@ -1177,6 +1180,11 @@ public:
 
 	/** Override to specify that a component is relevant to the HLOD generation. */
 	virtual bool IsHLODRelevant() const { return false; }
+
+#if WITH_EDITOR
+	/** Override to provide a custom set of components to be used in place of the current component for the HLOD generation. */
+	virtual TArray<UActorComponent*> GetHLODProxyComponents() const { return TArray<UActorComponent*>(); }
+#endif
 
 	/** Suffix used to identify template component instances */
 	static ENGINE_API const FString ComponentTemplateNameSuffix;

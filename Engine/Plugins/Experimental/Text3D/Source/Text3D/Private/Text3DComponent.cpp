@@ -12,6 +12,7 @@
 #include "Fonts/SlateTextShaper.h"
 #include "Framework/Text/PlainTextLayoutMarshaller.h"
 #include "Glyph.h"
+#include "Internationalization/Regex.h"
 #include "Materials/Material.h"
 #include "MeshCreator.h"
 #include "Misc/ScopeExit.h"
@@ -23,30 +24,6 @@
 #include "UObject/ConstructorHelpers.h"
 
 #define LOCTEXT_NAMESPACE "Text3D"
-
-#if WITH_EDITOR
-namespace UE::Text3D::Private
-{
-	/** Get the Group Type according to the material name. */
-	static TMap<FName, EText3DGroupType> MaterialToGroup =
-	{
-		{ TEXT("FrontMaterial"), EText3DGroupType::Front },
-		{ TEXT("BackMaterial"), EText3DGroupType::Back },
-		{ TEXT("ExtrudeMaterial"), EText3DGroupType::Extrude },
-		{ TEXT("BevelMaterial"), EText3DGroupType::Bevel }
-	};
-
-	/** Sets the material based on the group name. */
-	using FGetter = TMemFunPtrType<true, UText3DComponent, UMaterialInterface*()>::Type;
-	static TMap<FName, FGetter> GroupToMaterial =
-	{
-		{ TEXT("FrontMaterial"), &UText3DComponent::GetFrontMaterial },
-		{ TEXT("BackMaterial"), &UText3DComponent::GetBackMaterial },
-		{ TEXT("ExtrudeMaterial"), &UText3DComponent::GetExtrudeMaterial },
-		{ TEXT("BevelMaterial"), &UText3DComponent::GetBevelMaterial }
-	};
-}
-#endif
 
 struct FText3DShapedText
 {
@@ -60,12 +37,78 @@ struct FText3DShapedText
 		LineHeight = 0.0f;
 		FontAscender = 0.0f;
 		FontDescender = 0.0f;
+		Kerning = 0.0f;
+		WordSpacing = 0.0f;
+		bWrap = false;
 		Lines.Reset();
+	}
+
+	void CalculateWidth()
+	{
+		TArray<FShapedGlyphLine> NewLines;
+		for (const FShapedGlyphLine& GlyphLine : Lines)
+		{
+			FShapedGlyphLine& CurrentLine = NewLines.Add_GetRef(FShapedGlyphLine());
+			TArray<FShapedGlyphEntry> CurrentWord;
+
+			float LineWidth = 0.0f;
+			int32 GlyphCount = GlyphLine.GlyphsToRender.Num();
+			float CurrentWordLength = 0.0f;
+			for (int32 GlyphIdx = 0; GlyphIdx < GlyphCount; ++GlyphIdx)
+			{
+				const FShapedGlyphEntry& CurrentGlyph = GlyphLine.GlyphsToRender[GlyphIdx];
+				float GlyphAdv = GlyphLine.GetAdvance(GlyphIdx, Kerning, WordSpacing);
+				LineWidth += GlyphAdv;
+				CurrentWordLength += GlyphAdv;
+
+				// If we're at the end the line or at whitespace
+				if (!CurrentGlyph.bIsVisible || GlyphIdx == GlyphLine.GlyphsToRender.Num() - 1)
+				{
+					if (bWrap && LineWidth > MaxWidth)
+					{
+						CurrentLine.Width = LineWidth - CurrentWordLength;
+
+						if (CurrentWordLength != LineWidth) // No break to wrap
+						{
+							NewLines.Add(FShapedGlyphLine());
+							LineWidth = CurrentWordLength;
+						}
+					}
+					else
+					{
+						CurrentLine.Width = LineWidth;
+					}
+
+					// if we're wrapping, we may/may not want the white space
+					if (!bWrap || LineWidth < MaxWidth || LineWidth == CurrentWordLength)
+					{
+						CurrentWord.Add(CurrentGlyph);
+					}
+
+					NewLines.Last().GlyphsToRender.Append(CurrentWord);
+					CurrentWordLength = 0.0f;
+					CurrentWord.Empty();
+				}
+				else
+				{
+					CurrentWord.Add(CurrentGlyph);
+				}
+			}
+
+			CurrentLine.GlyphsToRender.Append(CurrentWord);
+			CurrentLine.Width = LineWidth;
+		}
+
+		Lines = NewLines;
 	}
 
 	float LineHeight;
 	float FontAscender;
 	float FontDescender;
+	float Kerning;
+	float WordSpacing;
+	float MaxWidth;
+	bool bWrap;
 	TArray<struct FShapedGlyphLine> Lines;
 };
 
@@ -237,6 +280,39 @@ void UText3DComponent::RefreshTypeface()
 	}
 }
 
+void UText3DComponent::UpdateStatistics()
+{
+	Statistics = FText3DStatistics();
+
+	const FString WordString = Text.ToString();
+
+	const FRegexPattern WordPattern(TEXT("\\S+"));
+	FRegexMatcher Matcher(WordPattern, WordString);
+
+	int32 PreviousEndIndex = 0;
+	int32 WhitespaceCount = 0;
+
+	while (Matcher.FindNext())
+	{
+		const FString Word = Matcher.GetCaptureGroup(0);
+
+		if (!Word.IsEmpty())
+		{
+			FText3DWordStatistics& WordStatistics = Statistics.Words.Add_GetRef(FText3DWordStatistics());
+			const int32 MatchBegin = Matcher.GetMatchBeginning();
+			const int32 MatchEnd = Matcher.GetMatchEnding();
+
+			WordStatistics.ActualRange = FTextRange(MatchBegin, MatchEnd);
+
+			WhitespaceCount += MatchBegin - PreviousEndIndex;
+
+			WordStatistics.RenderRange = FTextRange(MatchBegin - WhitespaceCount, MatchEnd - WhitespaceCount);
+
+			PreviousEndIndex = MatchEnd;
+		}
+	}
+}
+
 void UText3DComponent::OnRegister()
 {
 	Super::OnRegister();
@@ -246,7 +322,7 @@ void UText3DComponent::OnRegister()
 		TextRoot->AttachToComponent(this, FAttachmentTransformRules::KeepRelativeTransform);
 	}
 
-	RebuildInternal();
+	RebuildInternal(/** AutoUpdate */true, /** CleanCache */true);
 }
 
 void UText3DComponent::OnUnregister()
@@ -321,15 +397,27 @@ void UText3DComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 			 Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, WordSpacing) ||
 			 Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, bHasMaxWidth) ||
 			 Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, MaxWidth) ||
+			 Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, MaxWidthHandling) ||
 			 Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, bHasMaxHeight) ||
 			 Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, MaxHeight) ||
 			 Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, bScaleProportionally))
 	{
-		MarkForLayoutUpdate();
+		if (MaxWidthHandling == EText3DMaxWidthHandling::WrapAndScale ||
+ 		   Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, MaxWidthHandling))
+		{
+			MarkForGeometryUpdate();
+		}
+		else
+		{
+			MarkForLayoutUpdate();
+		}
 	}
-	else if (const EText3DGroupType* MaterialGroup = UE::Text3D::Private::MaterialToGroup.Find(Name))
+	else if (Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, FrontMaterial)
+		|| Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, BevelMaterial)
+		|| Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, ExtrudeMaterial)
+		|| Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, BackMaterial))
 	{
-		UpdateMaterial(*MaterialGroup, Invoke(UE::Text3D::Private::GroupToMaterial[Name], this));
+		OnMaterialChanged();
 	}
 
 	RebuildInternal();
@@ -665,7 +753,7 @@ void UText3DComponent::SetMaterial(const EText3DGroupType Type, UMaterialInterfa
 		}
 		}
 
-		UpdateMaterial(Type, Value);
+		OnMaterialChanged();
 	}
 }
 
@@ -765,6 +853,30 @@ void UText3DComponent::SetMaxWidth(const float Value)
 	{
 		MaxWidth = NewValue;
 		UpdateTransforms();
+	}
+}
+
+EText3DMaxWidthHandling UText3DComponent::GetMaxWidthHandling() const
+{
+	return MaxWidthHandling;
+}
+
+void UText3DComponent::SetMaxWidthHandling(const EText3DMaxWidthHandling Value)
+{
+	if (MaxWidthHandling == Value)
+	{
+		return;
+	}
+
+	MaxWidthHandling = Value;
+
+	if (MaxWidthHandling == EText3DMaxWidthHandling::WrapAndScale)
+	{
+		MarkForGeometryUpdate();
+	}
+	else
+	{
+		MarkForLayoutUpdate();
 	}
 }
 
@@ -921,14 +1033,6 @@ void UText3DComponent::RebuildInternal(const bool& bIsAutoUpdate, const bool& bC
 	}
 }
 
-void UText3DComponent::CalculateTextWidth()
-{
-	for (FShapedGlyphLine& ShapedLine : ShapedText->Lines)
-	{
-		ShapedLine.CalculateWidth(Kerning, WordSpacing);
-	}
-}
-
 float UText3DComponent::GetTextHeight() const
 {
 	return ShapedText->Lines.Num() * ShapedText->LineHeight + (ShapedText->Lines.Num() - 1) * LineSpacing;
@@ -1023,7 +1127,12 @@ FVector UText3DComponent::GetLineLocation(int32 LineIndex)
 
 void UText3DComponent::UpdateTransforms()
 {
-	CalculateTextWidth();
+	ShapedText->Kerning = Kerning;
+	ShapedText->WordSpacing = WordSpacing;
+	ShapedText->MaxWidth = MaxWidth;
+	ShapedText->bWrap = MaxWidthHandling == EText3DMaxWidthHandling::WrapAndScale;
+
+	ShapedText->CalculateWidth();
 	CalculateTextScale();
 	const FVector Scale = GetTextScale();
 	TextRoot->SetRelativeScale3D(Scale);
@@ -1092,7 +1201,7 @@ void UText3DComponent::ClearTextMesh()
 			if (IsValid(ChildComponent))
 			{
 				ChildComponent->DetachFromComponent(FDetachmentTransformRules::KeepRelativeTransform);
-				ChildComponent->DestroyComponent();	
+				ChildComponent->DestroyComponent();
 			}
 		}
 	}
@@ -1132,7 +1241,7 @@ void UText3DComponent::BuildTextMesh(const bool& bCleanCache)
 		{
 			if (!UE::IsSavingPackage(StrongThis))
 			{
-				StrongThis->BuildTextMeshInternal(bCleanCache);	
+				StrongThis->BuildTextMeshInternal(bCleanCache);
 			}
 		}
 	});
@@ -1163,7 +1272,7 @@ void UText3DComponent::BuildTextMeshInternal(const bool& bCleanCache)
 	FCachedFontData& CachedFontData = Subsystem->GetCachedFontData(Font, TypefaceIndex);
 	const FT_Face Face = CachedFontData.GetFreeTypeFace(TypefaceIndex);
 	if (!Face)
-	{ 
+	{
 		UE_LOG(LogText3D, Error, TEXT("Failed to load font data '%s'"), *CachedFontData.GetFontName());
 		return;
 	}
@@ -1176,6 +1285,10 @@ void UText3DComponent::BuildTextMeshInternal(const bool& bCleanCache)
 	ShapedText->LineHeight = Face->size->metrics.height * FontInverseScale;
 	ShapedText->FontAscender = Face->size->metrics.ascender * FontInverseScale;
 	ShapedText->FontDescender = Face->size->metrics.descender * FontInverseScale;
+	ShapedText->Kerning = Kerning;
+	ShapedText->WordSpacing = WordSpacing;
+	ShapedText->MaxWidth = MaxWidth;
+	ShapedText->bWrap = MaxWidthHandling == EText3DMaxWidthHandling::WrapAndScale;
 
 	constexpr int32 AdjustedFontSize = 48; // Magic number that makes font scale consistent with previous implementation
 	FSlateFontInfo FontInfo(Font, AdjustedFontSize);
@@ -1227,12 +1340,12 @@ void UText3DComponent::BuildTextMeshInternal(const bool& bCleanCache)
 			if (const TSharedPtr<FFreeTypeFace> FontFacePtr = GlyphEntry.FontFaceData->FontFace.Pin();
 				FontFacePtr.IsValid())
 			{
-				GlyphIndexToFontFace.FindOrAdd(GlyphEntry.GlyphIndex, FontFacePtr.Get());	
+				GlyphIndexToFontFace.FindOrAdd(GlyphEntry.GlyphIndex, FontFacePtr.Get());
 			}
 		}
 	}
 
-	CalculateTextWidth();
+	ShapedText->CalculateWidth();
 	CalculateTextScale();
 	TextRoot->SetRelativeScale3D(GetTextScale());
 
@@ -1283,7 +1396,7 @@ void UText3DComponent::BuildTextMeshInternal(const bool& bCleanCache)
 			}
 			else
 			{
-				// @note: This shouldn't occur, but it does under unknown circumstances (UE-164789) so it should be handled 
+				// @note: This shouldn't occur, but it does under unknown circumstances (UE-164789) so it should be handled
 				UE_LOG(LogText3D, Error, TEXT("CharacterMesh not found at index %d"), GlyphId);
 			}
 
@@ -1302,11 +1415,8 @@ void UText3DComponent::BuildTextMeshInternal(const bool& bCleanCache)
 		}
 	}
 
-	for (int32 Index = 0; Index < static_cast<int32>(EText3DGroupType::TypeCount); Index++)
-	{
-		const EText3DGroupType Type = static_cast<EText3DGroupType>(Index);
-		UpdateMaterial(Type, GetMaterial(Type));
-	}
+	OnMaterialChanged();
+	UpdateStatistics();
 
 	TextGeneratedNativeDelegate.Broadcast();
 	TextGeneratedDelegate.Broadcast();
@@ -1332,28 +1442,28 @@ float UText3DComponent::MaxBevel() const
 	return Extrude / 2.0f;
 }
 
-void UText3DComponent::UpdateMaterial(const EText3DGroupType Type, UMaterialInterface* Material)
+void UText3DComponent::OnMaterialChanged()
 {
-	// Material indices are affected by some options
-	const bool bHasBevel = !bOutline && !FMath::IsNearlyZero(Bevel);
-	if (!bHasBevel && Type == EText3DGroupType::Bevel)
-	{
-		return; 
-	}
-
-	const bool bHasExtrude = !FMath::IsNearlyZero(Extrude);
-	if (!bHasExtrude && Type == EText3DGroupType::Extrude)
-	{
-		return;
-	}
-
-	int32 Index = static_cast<int32>(Type);
-	Index -= !bHasBevel && Type >= EText3DGroupType::Bevel ? 1 : 0; // if no bevel, and the input is bevel or above (bevel, side/extrude, back), offset -1
-	Index -= !bHasExtrude && Type >= EText3DGroupType::Extrude ? 1 : 0; // if no extrude, and the input is side/extrude or above (back), offset -1
+	using namespace UE::Text3D::Materials;
 
 	for (UStaticMeshComponent* StaticMeshComponent : CharacterMeshes)
 	{
-		StaticMeshComponent->SetMaterial(Index, Material);
+		for (int32 GroupIndex = 0; GroupIndex < static_cast<int32>(EText3DGroupType::TypeCount); GroupIndex++)
+		{
+			const int32 MaterialIndex = StaticMeshComponent->GetMaterialIndex(SlotNames[GroupIndex]);
+
+			if (MaterialIndex == INDEX_NONE)
+			{
+				continue;
+			}
+
+			UMaterialInterface* Material = GetMaterial(static_cast<EText3DGroupType>(GroupIndex));
+
+			if (Material != StaticMeshComponent->GetMaterial(MaterialIndex))
+			{
+				StaticMeshComponent->SetMaterial(MaterialIndex, Material);
+			}
+		}
 	}
 }
 

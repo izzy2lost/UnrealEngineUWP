@@ -8,7 +8,6 @@
 #include "Toolkits/AssetEditorToolkit.h"
 #include "Templates/SharedPointer.h"
 
-class FAvaRundownServer;
 class IAvaRundownFilterSuggestionFactory;
 class FExtensibilityManager;
 class FName;
@@ -57,14 +56,6 @@ public:
 	 * @remark prefer extending with the UToolMenu named after IAvaMediaEditorModule::GetRundownPageMenuName, and using UAvaRundownPageContext to retrieve context information
 	 */
 	virtual TSharedPtr<FExtensibilityManager> GetRundownMenuExtensibilityManager() = 0;
-
-	DECLARE_MULTICAST_DELEGATE(FOnRundownServerStarted);
-	virtual FOnRundownServerStarted& GetOnRundownServerStarted() = 0;
-
-	DECLARE_MULTICAST_DELEGATE(FOnRundownServerStopped);
-	virtual FOnRundownServerStopped& GetOnRundownServerStopped() = 0;
-
-	virtual TSharedPtr<FAvaRundownServer> GetRundownServer() const = 0;
 
 	/**
  	* Check if current rundown filter expression factory support the comparison operation

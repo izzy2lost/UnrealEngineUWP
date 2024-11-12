@@ -41,7 +41,8 @@ namespace Metasound
 			FBox2D Bounds;
 
 			const UEdGraphPin* OutputPin = nullptr;
-			Frontend::FConstOutputHandle OutputHandle;
+			const FMetasoundFrontendVertex* OutputVertex = nullptr;
+			const FMetasoundFrontendNode* OutputNode = nullptr;
 
 			bool bCloseToSpline = false;
 			float ClosestDistanceSquared = TNumericLimits<float>::Max();
@@ -57,7 +58,7 @@ namespace Metasound
 
 			const FMetasoundFrontendEdgeStyle* EdgeStyle = nullptr;
 
-			FDrawConnectionData(const FVector2D& InStart, const FVector2D& InEnd, const FVector2D& InSplineTangent, const FConnectionParams& InParams, const UGraphEditorSettings& InSettings, const FVector2D& InMousePosition);
+			FDrawConnectionData(const FVector2D& InStart, const FVector2D& InEnd, const FEditor& Editor, const FVector2D& InSplineTangent, const FConnectionParams& InParams, const UGraphEditorSettings& InSettings, const FVector2D& InMousePosition);
 
 			void UpdateSplineOverlap(FGraphSplineOverlapResult& OutResult) const;
 		};

@@ -15,7 +15,7 @@
 #include "Internationalization/Internationalization.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/DataDrivenPlatformInfoRegistry.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "PropertyEditorModule.h"
 #include "PropertyHandle.h"
 #include "SPerPlatformPropertiesWidget.h"

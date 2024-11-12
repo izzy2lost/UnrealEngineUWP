@@ -528,7 +528,6 @@ void SHairCardGenOptionsWindow::Construct(const FArguments& InArgs)
 				.Padding(2)
 			[
 				SAssignNew(GroupSettingsListView, SListView<TObjectPtr<UHairCardGeneratorGroupSettings>>)
-					.ItemHeight(24)
 					.ListItemsSource(&SettingsObject->GetFilterGroupSettings())
 					.OnGenerateRow(this, &SHairCardGenOptionsWindow::OnGenerateOptionListRow)
 					.SelectionMode(this, &SHairCardGenOptionsWindow::GetListSelectionMode)

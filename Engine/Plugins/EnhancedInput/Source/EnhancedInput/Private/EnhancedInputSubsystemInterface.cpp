@@ -12,6 +12,8 @@
 #include "InputMappingQuery.h"
 #include "PlayerMappableInputConfig.h"
 #include "PlayerMappableKeySettings.h"
+#include "Engine/LocalPlayer.h"
+#include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(EnhancedInputSubsystemInterface)
 
@@ -32,6 +34,19 @@ static FAutoConsoleVariableRef GCVarGlobalAxisConfigMode(
 
 template<typename T>
 void DeepCopyPtrArray(const TArray<T*>& From, TArray<T*>& To)
+{
+	To.Empty(From.Num());
+	for (T* ToDuplicate : From)
+	{
+		if (ToDuplicate)
+		{
+			To.Add(DuplicateObject<T>(ToDuplicate, nullptr));
+		}
+	}
+}
+
+template<typename T>
+void DeepCopyPtrArray(const TArray<T*>& From, TArray<TObjectPtr<T>>& To)
 {
 	To.Empty(From.Num());
 	for (T* ToDuplicate : From)
@@ -579,192 +594,6 @@ TArray<FEnhancedActionKeyMapping> IEnhancedInputSubsystemInterface::GetAllPlayer
 	return PlayerMappableMappings;
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-
-int32 IEnhancedInputSubsystemInterface::AddPlayerMappedKey(const FName MappingName, const FKey NewKey, const FModifyContextOptions& Options /*= FModifyContextOptions()*/)
-{
-	return AddPlayerMappedKeyInSlot(MappingName, NewKey, FPlayerMappableKeySlot::FirstKeySlot, Options);
-}
-
-int32 IEnhancedInputSubsystemInterface::K2_AddPlayerMappedKeyInSlot(const FName MappingName, const FKey NewKey, const FPlayerMappableKeySlot& KeySlot /*= FPlayerMappableKeySlot()*/, const FModifyContextOptions& Options /*= FModifyContextOptions()*/)
-{
-	return AddPlayerMappedKeyInSlot(MappingName, NewKey, KeySlot, Options);
-}
-
-int32 IEnhancedInputSubsystemInterface::AddPlayerMappedKeyInSlot(const FName MappingName, const FKey NewKey, const FPlayerMappableKeySlot& KeySlot /*= FPlayerMappableKeySlot::FirstKeySlot*/, const FModifyContextOptions& Options /*= FModifyContextOptions()*/)
-{
-	if (UEnhancedInputUserSettings* Settings = GetUserSettings())
-	{
-		FMapPlayerKeyArgs Args = {};
-		Args.MappingName = MappingName;
-		Args.NewKey = NewKey;
-		Args.Slot = static_cast<EPlayerMappableKeySlot>(KeySlot.GetSlotNumber());
-
-		FGameplayTagContainer FailureReason;
-		Settings->MapPlayerKey(Args, FailureReason);
-
-		if (!FailureReason.IsEmpty())
-		{
-			UE_LOG(LogEnhancedInput, Warning, TEXT("IEnhancedInputSubsystemInterface::AddPlayerMappedKeyInSlot Failed! Reasoning: %s"), *FailureReason.ToString());
-			return 0;
-		}
-	}
-
-	RequestRebuildControlMappings(Options);
-	return 1;
-}
-
-int32 IEnhancedInputSubsystemInterface::RemovePlayerMappedKey(const FName MappingName, const FModifyContextOptions& Options /*= FModifyContextOptions()*/)
-{
-	return RemovePlayerMappedKeyInSlot(MappingName, FPlayerMappableKeySlot::FirstKeySlot, Options);
-}
-
-int32 IEnhancedInputSubsystemInterface::K2_RemovePlayerMappedKeyInSlot(const FName MappingName, const FPlayerMappableKeySlot& KeySlot /*= FPlayerMappableKeySlot()*/, const FModifyContextOptions& Options /*= FModifyContextOptions()*/)
-{
-	return RemovePlayerMappedKeyInSlot(MappingName, KeySlot, Options);
-}
-
-int32 IEnhancedInputSubsystemInterface::RemovePlayerMappedKeyInSlot(const FName MappingName, const FPlayerMappableKeySlot& KeySlot /*= FPlayerMappableKeySlot::FirstKeySlot*/, const FModifyContextOptions& Options /*= FModifyContextOptions()*/)
-{
-	if (UEnhancedInputUserSettings* Settings = GetUserSettings())
-	{
-		FMapPlayerKeyArgs Args = {};
-		Args.MappingName = MappingName;
-		Args.Slot = static_cast<EPlayerMappableKeySlot>(KeySlot.GetSlotNumber());
-		
-		FGameplayTagContainer FailureReason;
-		Settings->UnMapPlayerKey(Args, FailureReason);
-
-		if (!FailureReason.IsEmpty())
-		{
-			UE_LOG(LogEnhancedInput, Warning, TEXT("IEnhancedInputSubsystemInterface::RemovePlayerMappedKeyInSlot Failed! Reasoning: %s"), *FailureReason.ToString());
-			return 0;
-		}
-	}
-	
-	RequestRebuildControlMappings(Options);
-
-	return 1;
-}
-
-int32 IEnhancedInputSubsystemInterface::RemoveAllPlayerMappedKeysForMapping(const FName MappingName, const FModifyContextOptions& Options /*= FModifyContextOptions()*/)
-{
-	if (UEnhancedInputUserSettings* Settings = GetUserSettings())
-	{
-		FMapPlayerKeyArgs Args = {};
-		Args.MappingName = MappingName;
-
-		FGameplayTagContainer FailureReason;
-		Settings->ResetAllPlayerKeysInRow(Args, FailureReason);
-		
-		if (!FailureReason.IsEmpty())
-		{
-			UE_LOG(LogEnhancedInput, Warning, TEXT("IEnhancedInputSubsystemInterface::RemovePlayerMappedKeyInSlot Failed! Reasoning: %s"), *FailureReason.ToString());
-			return 0;
-		}
-	}
-
-	RequestRebuildControlMappings(Options);
-
-	return 1;
-}
-
-void IEnhancedInputSubsystemInterface::RemoveAllPlayerMappedKeys(const FModifyContextOptions& Options)
-{
-	if (UEnhancedInputUserSettings* Settings = GetUserSettings())
-	{
-		FGameplayTagContainer FailureReason;
-		Settings->ResetKeyProfileToDefault(Settings->GetCurrentKeyProfileIdentifier(), FailureReason);
-	}
-
-	RequestRebuildControlMappings(Options);
-}
-
-FKey IEnhancedInputSubsystemInterface::GetPlayerMappedKey(const FName MappingName) const
-{
-	return GetPlayerMappedKeyInSlot(MappingName, FPlayerMappableKeySlot::FirstKeySlot);
-}
-
-FKey IEnhancedInputSubsystemInterface::K2_GetPlayerMappedKeyInSlot(const FName MappingName, const FPlayerMappableKeySlot& KeySlot /*= FPlayerMappableKeySlot()*/) const
-{
-	return GetPlayerMappedKeyInSlot(MappingName, KeySlot);
-}
-
-FKey IEnhancedInputSubsystemInterface::GetPlayerMappedKeyInSlot(const FName MappingName, const FPlayerMappableKeySlot& KeySlot /*= FPlayerMappableKeySlot()*/) const
-{
-	if (const UEnhancedInputUserSettings* Settings = GetUserSettings())
-	{
-		if (const UEnhancedPlayerMappableKeyProfile* KeyProfile = Settings->GetCurrentKeyProfile())
-		{
-			FPlayerMappableKeyQueryOptions Opts = {};
-			Opts.MappingName = MappingName;
-			Opts.SlotToMatch = static_cast<EPlayerMappableKeySlot>(KeySlot.GetSlotNumber());
-
-			TArray<FKey> Keys;
-			KeyProfile->QueryPlayerMappedKeys(Opts, OUT Keys);
-			
-			if (!Keys.IsEmpty())
-			{
-				return Keys[0];
-			}
-		}
-	}
-	
-	return EKeys::Invalid;
-}
-
-TArray<FKey> IEnhancedInputSubsystemInterface::GetAllPlayerMappedKeys(const FName MappingName) const
-{
-	TArray<FKey> PlayerMappedKeys;
-	
-	if (const UEnhancedInputUserSettings* Settings = GetUserSettings())
-	{
-		if (const UEnhancedPlayerMappableKeyProfile* KeyProfile = Settings->GetCurrentKeyProfile())
-		{
-			FPlayerMappableKeyQueryOptions Opts = {};
-			Opts.MappingName = MappingName;
-			
-			KeyProfile->QueryPlayerMappedKeys(Opts, OUT PlayerMappedKeys);
-		}
-	}
-	
-	return PlayerMappedKeys;
-}
-
-void IEnhancedInputSubsystemInterface::AddPlayerMappableConfig(const UPlayerMappableInputConfig* Config, const FModifyContextOptions& Options)
-{
-	if (Config)
-	{
-		if (GetDefault<UEnhancedInputDeveloperSettings>()->bLogOnDeprecatedConfigUsed && Config->IsDeprecated())
-		{
-			UE_LOG(LogEnhancedInput, Warning, TEXT("The Player Mappable Input Config '%s' is marked as deprecated, but is still being added!"), *Config->GetFName().ToString());
-		}
-
-		for (TPair<TObjectPtr<UInputMappingContext>, int32> Pair : Config->GetMappingContexts())
-		{
-			AddMappingContext(Pair.Key, Pair.Value, Options);
-		}	
-	}
-}
-
-void IEnhancedInputSubsystemInterface::RemovePlayerMappableConfig(const UPlayerMappableInputConfig* Config, const FModifyContextOptions& Options)
-{
-	if (Config)
-	{
-		if (GetDefault<UEnhancedInputDeveloperSettings>()->bLogOnDeprecatedConfigUsed && Config->IsDeprecated())
-		{
-			UE_LOG(LogEnhancedInput, Warning, TEXT("The Player Mappable Input Config '%s' is marked as deprecated, but is still being removed!"), *Config->GetFName().ToString());
-		}
-
-		for(TPair<TObjectPtr<UInputMappingContext>, int32> Pair : Config->GetMappingContexts())
-		{
-			RemoveMappingContext(Pair.Key, Options);
-		}	
-	}
-}
-
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 // TODO: This should be a delegate (along with InjectChordBlockers), moving chording out of the underlying subsystem and enabling implementation of custom mapping handlers.
 /**
  * Reorder the given UnordedMappings such that chording mappings > chorded mappings > everything else.
@@ -776,14 +605,26 @@ TArray<FEnhancedActionKeyMapping> IEnhancedInputSubsystemInterface::ReorderMappi
 {
 	TSet<const UInputAction*> ChordingActions;
 
-	// Gather all chording actions within a mapping's triggers.
-	auto GatherChordingActions = [&ChordingActions, &DependentChordActions](const FEnhancedActionKeyMapping& Mapping)
+	struct FTriggerEvaluationResults
 	{
 		bool bFoundChordTrigger = false;
-		auto EvaluateTriggers = [&Mapping, &ChordingActions, &bFoundChordTrigger, &DependentChordActions](const TArray<UInputTrigger*>& Triggers)
+		bool bFoundAlwaysTickTrigger = false;
+	};
+	
+	// Gather all chording actions within a mapping's triggers.
+	auto GatherChordingActions = [&ChordingActions, &DependentChordActions](const FEnhancedActionKeyMapping& Mapping) -> FTriggerEvaluationResults
+	{
+		FTriggerEvaluationResults Res = {};
+		auto EvaluateTriggers = [&Mapping, &ChordingActions, &DependentChordActions, &Res](const TArray<UInputTrigger*>& Triggers)-> FTriggerEvaluationResults
 		{
 			for (const UInputTrigger* Trigger : Triggers)
 			{
+				if (!Trigger)
+				{
+					UE_LOG(LogEnhancedInput, Error, TEXT("Null input trigger detected in mapping to input action '%s'"), *GetNameSafe(Mapping.Action));
+					continue;
+				}
+				
 				if (const UInputTriggerChordAction* ChordTrigger = Cast<const UInputTriggerChordAction>(Trigger))
 				{
 					ChordingActions.Add(ChordTrigger->ChordAction);
@@ -791,18 +632,27 @@ TArray<FEnhancedActionKeyMapping> IEnhancedInputSubsystemInterface::ReorderMappi
 					// Keep track of the action itself, and the action it is dependant on
 					DependentChordActions.Emplace(UEnhancedPlayerInput::FDependentChordTracker { Mapping.Action, ChordTrigger->ChordAction });
 					
-					bFoundChordTrigger = true;
+					Res.bFoundChordTrigger = true;
 				}
-			}
-		};
-		EvaluateTriggers(Mapping.Triggers);
-		
-		if(ensureMsgf(Mapping.Action, TEXT("A key mapping has no associated action!")))
-		{
-			EvaluateTriggers(Mapping.Action->Triggers);			
-		}
 
-		return bFoundChordTrigger;
+				// Keep track of if this trigger is marked as being "always tick".
+				// This is not a great thing to do but some custom triggers may require always being ticked, so allow it as an option
+				Res.bFoundAlwaysTickTrigger |= Trigger->bShouldAlwaysTick;
+			}
+			return Res;
+		};
+		
+		const FTriggerEvaluationResults MappingResults = EvaluateTriggers(Mapping.Triggers);
+
+		ensureMsgf(Mapping.Action, TEXT("A key mapping has no associated action!"));
+		const FTriggerEvaluationResults ActionResults = EvaluateTriggers(Mapping.Action->Triggers);
+
+		// returned the combined results of each individual keymapping and it's associated input action.
+		return FTriggerEvaluationResults
+		{
+			.bFoundChordTrigger			= (MappingResults.bFoundChordTrigger || ActionResults.bFoundChordTrigger),
+			.bFoundAlwaysTickTrigger	= (MappingResults.bFoundAlwaysTickTrigger || ActionResults.bFoundAlwaysTickTrigger)
+		};
 	};
 
 	// Split chorded mappings (second priority) from all others whilst building a list of chording actions to use for further prioritization.
@@ -812,10 +662,17 @@ TArray<FEnhancedActionKeyMapping> IEnhancedInputSubsystemInterface::ReorderMappi
 	int32 NumEmptyMappings = 0;
 	for (const FEnhancedActionKeyMapping& Mapping : UnorderedMappings)
 	{
-		if(Mapping.Action)
+		if (Mapping.Action)
 		{
-			TArray<FEnhancedActionKeyMapping>& MappingArray = GatherChordingActions(Mapping) ? ChordedMappings : OtherMappings;
-			MappingArray.Add(Mapping);
+			// Evaluate the triggers on each key mapping to check for chords and also "always tick" input triggers.
+			const FTriggerEvaluationResults TriggerEvalResults = GatherChordingActions(Mapping);
+
+			// Determine which array this mapping should be in based on if it has a chord or not
+			TArray<FEnhancedActionKeyMapping>& MappingArray = TriggerEvalResults.bFoundChordTrigger ? ChordedMappings : OtherMappings;
+
+			// flag this new mapping as being always tick as necessary
+			FEnhancedActionKeyMapping& NewlyAddedMapping = MappingArray.Add_GetRef(Mapping);
+			NewlyAddedMapping.bHasAlwaysTickTrigger = TriggerEvalResults.bFoundAlwaysTickTrigger;
 		}
 		else
 		{
@@ -829,7 +686,8 @@ TArray<FEnhancedActionKeyMapping> IEnhancedInputSubsystemInterface::ReorderMappi
 
 	// Move chording mappings to the front as they need to be evaluated before chord and blocker triggers
 	// TODO: Further ordering of chording mappings may be required should one of them be chorded against another
-	auto ExtractChords = [&OrderedMappings, &ChordingActions](TArray<FEnhancedActionKeyMapping>& Mappings) {
+	auto ExtractChords = [&OrderedMappings, &ChordingActions](TArray<FEnhancedActionKeyMapping>& Mappings)
+	{
 		for (int32 i = 0; i < Mappings.Num();)
 		{
 			if (ChordingActions.Contains(Mappings[i].Action))
@@ -1090,10 +948,11 @@ void IEnhancedInputSubsystemInterface::RebuildControlMappings()
 				OldMappings.RemoveAtSwap(Idx);
 			}
 		}
-		for (const UInputAction* Action : RemovedActions)
-		{
-			PlayerInput->ActionInstanceData.Remove(Action);
-		}	
+
+		// Actions that are no longer mapped to a key may have been "In progress" by the player
+		// Notify the player input object so that it can reconcile this state and call the "Canceled" event
+		// on the next evaluation of the input.
+		PlayerInput->NotifyInputActionsUnmapped(RemovedActions);
 	}
 
 	// Perform a modifier calculation pass on the default data to initialize values correctly.
@@ -1154,17 +1013,21 @@ void IEnhancedInputSubsystemInterface::TickForcedInput(float DeltaTime)
 	}
 
 	// Forced key presses
-	for (const TPair<FKey, FInputActionValue>& ForcedKeyPair : ForcedKeys)
+	for (TPair<FKey, FInjectedKeyData>& ForcedKeyPair : ForcedKeys)
 	{
 		// Prefer sending the key pressed event via a player controller if one is available.
 		if (APlayerController* Controller = Cast<APlayerController>(PlayerInput->GetOuter()))
 		{
-			InjectKey(Controller, ForcedKeyPair.Key, ForcedKeyPair.Value, DeltaTime);
+			InjectKey(Controller, ForcedKeyPair.Key, ForcedKeyPair.Value.InputValue, DeltaTime);
 		}
 		else
 		{
-			InjectKey(PlayerInput, ForcedKeyPair.Key, ForcedKeyPair.Value, DeltaTime);
+			InjectKey(PlayerInput, ForcedKeyPair.Key, ForcedKeyPair.Value.InputValue, DeltaTime);
 		}
+
+		// Keep track of the fact that we have injected this input value so we can check
+		// it if we remove input on the same frame
+		ForcedKeyPair.Value.LastInjectedValue = ForcedKeyPair.Value.InputValue;
 	}
 }
 
@@ -1187,7 +1050,9 @@ void IEnhancedInputSubsystemInterface::ApplyForcedInput(const UInputAction* Acti
 void IEnhancedInputSubsystemInterface::ApplyForcedInput(FKey Key, FInputActionValue Value)
 {
 	check(Key.IsValid());
-	ForcedKeys.Emplace(Key, Value);
+	
+	FInjectedKeyData& Data = ForcedKeys.FindOrAdd(Key);
+	Data.InputValue = Value;
 }
 
 void IEnhancedInputSubsystemInterface::RemoveForcedInput(const UInputAction* Action)
@@ -1198,15 +1063,34 @@ void IEnhancedInputSubsystemInterface::RemoveForcedInput(const UInputAction* Act
 void IEnhancedInputSubsystemInterface::RemoveForcedInput(FKey Key)
 {
 	check(Key.IsValid());
-	ForcedKeys.Remove(Key);
 
+	const FInjectedKeyData* InjectedKeyData = ForcedKeys.Find(Key);
+	if (!InjectedKeyData)
+	{
+		// Nothing to do if the value was not being injected
+		return;
+	}
+	
+	// Otherwise, we need to inject a release event tos player input
 	if (UEnhancedPlayerInput* PlayerInput = GetPlayerInput())
 	{
 		FInputKeyParams Params;
 		Params.Key = Key;
-		Params.Delta = FVector::ZeroVector;
+
+		// We want to inject the opposite of whatever we were previously injecting for this key
+		// in order to get it back to providing a fake value of zero. For example, if we were injecting (.5,.5)
+		// we want to use a delta of -.5,-.5 to get us back to a zero value. We only want to do this
+		// for analog keys.
+		//
+		// Any digital key we always want a value of zero to ensure it is treated as a release event.
+		Params.Delta = Key.IsAnalog() ? -InjectedKeyData->LastInjectedValue.Get<FVector>() : FVector::ZeroVector;
 		Params.Event = EInputEvent::IE_Released;
-		
+		Params.NumSamples = Key.IsAnalog() ? 1 : 0;
+
+		// Set the input device id to the platform user's default input device
+		const FPlatformUserId UserId = PlayerInput->GetOwningLocalPlayer()->GetPlatformUserId();
+		Params.InputDevice = IPlatformInputDeviceMapper::Get().GetPrimaryInputDeviceForUser(UserId);
+	
 		// Prefer sending the key released event via a player controller if one is available.
 		if (APlayerController* Controller = Cast<APlayerController>(PlayerInput->GetOuter()))
 		{
@@ -1216,5 +1100,12 @@ void IEnhancedInputSubsystemInterface::RemoveForcedInput(FKey Key)
 		{
 			PlayerInput->InputKey(Params);
 		}
+	
+		// Flush the player's pressed keys to ensure that the removed event is read
+		// and the PlayerInput re-evaluates the RawEventAccumulator as needed.
+		PlayerInput->FlushPressedKeys();
 	}
+
+	// No longer inject this key on tick
+	ForcedKeys.Remove(Key);
 }

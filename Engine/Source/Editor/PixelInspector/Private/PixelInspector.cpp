@@ -852,21 +852,37 @@ namespace PixelInspector
 
 	void FPixelInspectorSceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 	{
-		const float DisplayGamma = InViewFamily.RenderTarget->GetDisplayGamma();
-		// We need to apply gamma to the final color if the output is in HDR.
-		FinalColorGamma = (InViewFamily.EngineShowFlags.Tonemapper == 0) ? DEFAULT_DISPLAY_GAMMA : DisplayGamma;
+		bool bAnyUsePixelInspector = false;
+		for (const FSceneView* View : InViewFamily.Views)
+		{
+			if (View->bUsePixelInspector)
+			{
+				bAnyUsePixelInspector = true;
+				break;
+			}
+		}
+
+		if (bAnyUsePixelInspector)
+		{
+			const float DisplayGamma = InViewFamily.RenderTarget->GetDisplayGamma();
+			// We need to apply gamma to the final color if the output is in HDR.
+			FinalColorGamma = (InViewFamily.EngineShowFlags.Tonemapper == 0) ? DEFAULT_DISPLAY_GAMMA : DisplayGamma;
+		}
 	}
 
-	void FPixelInspectorSceneViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass PassId, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled)
+	void FPixelInspectorSceneViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass PassId, const FSceneView& View, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled)
 	{
-		if (PassId == EPostProcessingPass::FXAA)
+		if (View.bUsePixelInspector)
 		{
-			InOutPassCallbacks.Add(FAfterPassCallbackDelegate::CreateRaw(this, &FPixelInspectorSceneViewExtension::PostProcessPassAfterFxaa_RenderThread));
-		}		
-		
-		if (PassId == EPostProcessingPass::MotionBlur)
-		{
-			InOutPassCallbacks.Add(FAfterPassCallbackDelegate::CreateRaw(this, &FPixelInspectorSceneViewExtension::PostProcessPassAfterMotionBlur_RenderThread));
+			if (PassId == EPostProcessingPass::FXAA)
+			{
+				InOutPassCallbacks.Add(FAfterPassCallbackDelegate::CreateRaw(this, &FPixelInspectorSceneViewExtension::PostProcessPassAfterFxaa_RenderThread));
+			}
+
+			if (PassId == EPostProcessingPass::MotionBlur)
+			{
+				InOutPassCallbacks.Add(FAfterPassCallbackDelegate::CreateRaw(this, &FPixelInspectorSceneViewExtension::PostProcessPassAfterMotionBlur_RenderThread));
+			}
 		}
 	}
 

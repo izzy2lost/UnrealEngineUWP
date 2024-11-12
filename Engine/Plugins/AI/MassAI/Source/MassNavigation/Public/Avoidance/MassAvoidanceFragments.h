@@ -7,7 +7,7 @@
 #include "MassAvoidanceFragments.generated.h"
 
 USTRUCT()
-struct MASSNAVIGATION_API FMassMovingAvoidanceParameters : public FMassSharedFragment
+struct MASSNAVIGATION_API FMassMovingAvoidanceParameters : public FMassConstSharedFragment
 {
 	GENERATED_BODY()
 
@@ -94,7 +94,7 @@ struct MASSNAVIGATION_API FMassMovingAvoidanceParameters : public FMassSharedFra
 };
 
 USTRUCT()
-struct MASSNAVIGATION_API FMassStandingAvoidanceParameters : public FMassSharedFragment
+struct MASSNAVIGATION_API FMassStandingAvoidanceParameters : public FMassConstSharedFragment
 {
 	GENERATED_BODY()
 

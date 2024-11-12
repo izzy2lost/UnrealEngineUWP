@@ -2,15 +2,12 @@
 
 #pragma once
 
-// *INDENT-OFF*
-#ifdef RL_BUILD_WITH_ML_EVALUATOR
-
 #include "rltests/Defs.h"
 #include "rltests/StorageValueType.h"
 #include "rltests/dna/FakeReader.h"
 
 #include "riglogic/TypeDefs.h"
-#include "riglogic/ml/LODSpec.h"
+#include "riglogic/types/LODSpec.h"
 
 #ifdef _MSC_VER
     #pragma warning(push)
@@ -60,7 +57,7 @@ extern const Vector<AlignedMatrix<float> > mlbNetWeightsFloat;
 extern const Vector<AlignedMatrix<std::uint16_t> > mlbNetWeightsHalfFloat;
 extern const Vector<AlignedMatrix<float> > mlbNetBiasesFloat;
 extern const Vector<AlignedMatrix<std::uint16_t> > mlbNetBiasesHalfFloat;
-extern const LODSpec lods;
+extern const LODSpec<std::uint32_t> lods;
 
 template<typename TValue>
 struct Values {
@@ -138,6 +135,3 @@ class CanonicalReader : public dna::FakeReader {
 }  // namespace ml
 
 }  // namespace rltests
-
-#endif  // RL_BUILD_WITH_ML_EVALUATOR
-// *INDENT-ON*

@@ -234,22 +234,13 @@ FString GetDebugNameFromOwner(UObject* Owner)
 
 /** 
  * Utility to check if we need to generate a new unique identifier for the editor bulkdata or not.
- * At the moment the instancing context (if any) can request that we generate new guids. At the time
- * of writing the use case for this is creating a new map from a template, and the bulkdata is being
- * loaded from the template as we don't want every map created from the template to have the same 
- * identifiers.
- * The second use case is if we are loading the editor bulkdata to a transient package, which can 
+ * The current use case is if we are loading the editor bulkdata to a transient package, which can 
  * occur when some assets duplicate a number of UObjects from a template package that will eventually
  * be added to themselves. The duplication will load the editor bulkdata to a transient package before
  * it is re-parented.
  */
 bool ShouldGenerateNewIdentifier(FLinkerLoad* LinkerLoad, UObject* Owner)
 {
-	if (LinkerLoad && LinkerLoad->ShouldRegenerateGuids())
-	{
-		return true;
-	}
-
 	UPackage* Package = Owner != nullptr ? Owner->GetPackage() : nullptr;
 	if (Package != nullptr && Package->HasAnyFlags(RF_Transient))
 	{
@@ -264,6 +255,8 @@ static FIoHash HashPayload(const FSharedBuffer& InPayload)
 {
 	if (InPayload.GetSize() > 0)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(EditorBulkData.HashPayload);
+
 		return FIoHash::HashBuffer(InPayload);
 	}
 	else
@@ -327,19 +320,25 @@ FArchive& operator<<(FArchive& Ar, FSharedBuffer& Buffer)
 
 	if (Ar.IsLoading())
 	{
+		Buffer.Reset();
+
 		int64 BufferLength;
 		Ar << BufferLength;
 
 		if (BufferLength >= 0)
 		{
-			FUniqueBuffer MutableBuffer = FUniqueBuffer::Alloc(BufferLength);
-			Ar.Serialize(MutableBuffer.GetData(), BufferLength);
+			if (const int64 SpaceRemaining = Ar.TotalSize() - Ar.Tell(); SpaceRemaining >= BufferLength)
+			{
+				FUniqueBuffer MutableBuffer = FUniqueBuffer::Alloc(BufferLength);
+				Ar.Serialize(MutableBuffer.GetData(), BufferLength);
 
-			Buffer = MutableBuffer.MoveToShared();
-		}
-		else
-		{
-			Buffer.Reset();
+				Buffer = MutableBuffer.MoveToShared();
+			}
+			else
+			{
+				Ar.SetError();
+				UE_LOG(LogSerialization, Error, TEXT("Not enough data remaining in archive (%s) to load the payload. Bytes required: %lld vs bytes remaining %lld"), *Ar.GetArchiveName(), BufferLength, SpaceRemaining);
+			}
 		}
 	}
 	else if (Ar.IsSaving())
@@ -901,18 +900,33 @@ void FEditorBulkData::Serialize(FArchive& Ar, UObject* Owner, bool bAllowRegiste
 			// Serializing full 8k texture payloads to memory on each metadata change will empty
 			// the undo stack very quickly.
 
+			const uint32 TagValue = 0x12345678;
+			uint32 Tag1 = TagValue;
+			Ar << Tag1;
+			check( Tag1 == TagValue );
+
 			if (Ar.IsSaving())
 			{
-				if (Payload.IsNull() && !IsDataVirtualized())
+				if ( PayloadSize == 0 )
 				{
-					// We need to serialize in FSharedBuffer form, or otherwise we'd need to support
-					// multiple code paths here. Technically a bit wasteful but for general use it 
-					// shouldn't be noticeable. This will make it easier to do the real perf wins
-					// in the future.
-					Payload = GetDataInternal().Decompress();
+					// nothing to do
 				}
+				else if (Payload.IsNull() && !IsDataVirtualized())
+				{
+					// We load the data from disk to serialize it to the undo history
+					// since don't know that the data on disk will stay the same
 
-				Ar << Payload;
+					FCompressedBuffer CompressedPayload = GetDataInternal();
+					bool bIsCompressedBuffer = true;
+					Ar << bIsCompressedBuffer;
+					Ar << CompressedPayload;
+				}
+				else
+				{
+					bool bIsCompressedBuffer = false;
+					Ar << bIsCompressedBuffer;
+					Ar << Payload;
+				}
 			}
 			else
 			{
@@ -922,17 +936,60 @@ void FEditorBulkData::Serialize(FArchive& Ar, UObject* Owner, bool bAllowRegiste
 				{
 					BulkDataId = FGuid::NewGuid();
 				}
+				
+				if ( PayloadSize == 0 )
+				{
+					// nothing to do
+					Payload.Reset();
+				}
+				else
+				{
+					bool bIsCompressedBuffer = false;
+					Ar << bIsCompressedBuffer;
 
-				Ar << Payload;
+					if ( bIsCompressedBuffer )
+					{
+						FCompressedBuffer CompressedPayload;
+						Ar << CompressedPayload;
+						
+						// there's no way to just set a CompressedBuffer for Payload, so we have to Decompress
+						//	it might be nice if Payload could be either FSharedBuffer or FCompressedBuffer
+						//	then we could just store it without decompressing
+
+						if ( CanUnloadData() )
+						{
+							//	don't bother to Decompress if it will just be discarded immediately by UnloadData below
+							Payload.Reset();
+						}
+						else
+						{
+							Payload = CompressedPayload.Decompress();
+						}
+					}
+					else
+					{
+						Ar << Payload;
+					}
+				}
+
+				// the call to UnloadData below will then often discard the Payload we just read !?
+				// ? is it guaranteed that the Payload we just loaded matches what we will get back from PackagePath after UnloadData ?
 
 				Register(Owner, TEXT("Serialize/Transacting"), false /* bAllowUpdateId */);
 			}
+			
+			uint32 Tag2 = TagValue;
+			Ar << Tag2;
+			check( Tag2 == TagValue );
 
 			// Try to unload the payload if possible, usually because we loaded it during the transaction in the
 			// first place and we don't want to keep it in memory anymore.
-			// This does mean if the owning asset is frequently edited we will be reloading the payload off disk
-			// a lot. But in practice this didn't show up as too much of a problem. If someone has found this to 
-			// be a perf issue, then remove the call to ::UnloadData and trade memory cost for perf gain.
+			// 
+			// BulkData currently does not ever cache the decompressed Payload when it is possible to reload from disk.
+			// that is, on typical BulkData, CanUnloadData is always false because the data is either on disk (so Payload is null)
+			//	or not on disk
+			// we may have gotten out of sync with that standard state here due to serialization,
+			//	so go ahead and UnloadData now.
 			UnloadData();
 		}
 	}
@@ -1197,6 +1254,7 @@ void FEditorBulkData::Serialize(FArchive& Ar, UObject* Owner, bool bAllowRegiste
 					// store the payload as an empty FSharedBuffer.
 					if (CompressedPayload.GetRawSize() > 0)
 					{
+						// an example of when this is hit is in UTexture::Serialize for object duplication
 						Payload = CompressedPayload.Decompress();
 					}
 					else
@@ -1341,7 +1399,7 @@ FCompressedBuffer FEditorBulkData::LoadFromPackageFile() const
 	TUniquePtr<FArchive> BulkArchive;
 	if (!IsReferencingByPackagePath())
 	{
-		FOpenPackageResult Result = IPackageResourceManager::Get().OpenReadPackage(PackagePath, EPackageSegment::Header);
+		FOpenPackageResult Result = IPackageResourceManager::Get().OpenReadPackage(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header);
 		if (Result.Format == EPackageFormat::Binary)
 		{
 			BulkArchive = MoveTemp(Result.Archive);
@@ -1388,7 +1446,7 @@ FCompressedBuffer FEditorBulkData::LoadFromPackageTrailer() const
 	TUniquePtr<FArchive> BulkArchive;
 	if (!IsReferencingByPackagePath())
 	{
-		FOpenPackageResult Result = IPackageResourceManager::Get().OpenReadPackage(PackagePath, EPackageSegment::Header);
+		FOpenPackageResult Result = IPackageResourceManager::Get().OpenReadPackage(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header);
 		if (Result.Format == EPackageFormat::Binary)
 		{
 			BulkArchive = MoveTemp(Result.Archive);
@@ -1433,7 +1491,7 @@ FCompressedBuffer FEditorBulkData::LoadFromSidecarFileInternal(ErrorVerbosity Ve
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FEditorBulkData::LoadFromSidecarFileInternal);
 
-	FOpenPackageResult Result = IPackageResourceManager::Get().OpenReadPackage(PackagePath, EPackageSegment::PayloadSidecar);
+	FOpenPackageResult Result = IPackageResourceManager::Get().OpenReadPackage(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::PayloadSidecar);
 	if (Result.Archive.IsValid() && Result.Format == EPackageFormat::Binary)
 	{
 		FPackageTrailer Trailer;
@@ -1515,15 +1573,24 @@ bool FEditorBulkData::SerializeData(FArchive& Ar, FCompressedBuffer& InPayload, 
 	{
 		// Loading from old bulkdata format
 		const int64 Size = GetPayloadSize();
-		FUniqueBuffer LoadPayload = FUniqueBuffer::Alloc(Size);
 
+		FUniqueBuffer LoadPayload;
 		if (EnumHasAnyFlags(PayloadFlags, EFlags::LegacyFileIsCompressed))
 		{
+			LoadPayload = FUniqueBuffer::Alloc(Size);
 			Ar.SerializeCompressed(LoadPayload.GetData(), Size, NAME_Zlib, COMPRESS_NoFlags, false);
+		}
+		else if(const int64 SpaceRemaining = Ar.TotalSize() - Ar.Tell(); SpaceRemaining >= Size)
+		{
+			LoadPayload = FUniqueBuffer::Alloc(Size);
+			Ar.Serialize(LoadPayload.GetData(), Size);
 		}
 		else
 		{
-			Ar.Serialize(LoadPayload.GetData(), Size);
+			Ar.SetError();
+			UE_LOG(LogSerialization, Error, TEXT("Not enough data remaining in archive (%s) to load the payload. Bytes required: %lld vs bytes remaining %lld"), *Ar.GetArchiveName(), Size, SpaceRemaining);
+
+			return false;
 		}
 
 		InPayload = FCompressedBuffer::Compress(LoadPayload.MoveToShared(), ECompressedBufferCompressor::NotSet, ECompressedBufferCompressionLevel::None);
@@ -1669,7 +1736,16 @@ void FEditorBulkData::UnloadData()
 {
 	UE::TUniqueLock _(Mutex);
 
-	if (CanUnloadData())
+	// This only does anything in unusual cases.
+	// In standard use, if a BulkData has disk backing (so CanUnloadData), then the in-memory Payload is always null
+	//	 because decompression does NOT cache the decompressed result in Payload.
+	// If there is no disk backing (so CanUnloadData is false), then Payload is not null.
+	// In both cases, UnloadData is a nop.
+	// The only time it does anything is if you had in-memory payload, then created a disk backing,
+	//	so CanUnloadData transitions from false to true,
+	//  then the next call to UnloadData will act to drop the in-memory payload.
+
+	if ( ! Payload.IsNull() && CanUnloadData())
 	{
 		Payload.Reset();
 	}
@@ -1945,6 +2021,7 @@ FCompressedBuffer FEditorBulkData::GetDataInternal() const
 	if (Payload)
 	{
 		// Note that this doesn't actually compress the data!
+		//	it reinterprets Payload as an FCompressedBuffer, doesn't have to alloc or memcpy, just points at it
 		return FCompressedBuffer::Compress(Payload, ECompressedBufferCompressor::NotSet, ECompressedBufferCompressionLevel::None);
 	}
 
@@ -1977,12 +2054,20 @@ FCompressedBuffer FEditorBulkData::GetDataInternal() const
 
 bool FEditorBulkData::DoesPayloadNeedLoading() const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FEditorBulkData::DoesPayloadNeedLoading);
+	// this function is very simple, but can still be a long time scope
+	//	 because acquiring the mutex blocks if the main thread is serializing the bulkdata to the undo transaction buffer
+
 	UE::TUniqueLock _(Mutex);
 	return Payload.IsNull() && PayloadSize > 0;
 }
 
 TFuture<FSharedBuffer> FEditorBulkData::GetPayload() const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FEditorBulkData::GetPayload);
+	// this function is very simple, but can still be a long time scope
+	//	 because acquiring the mutex blocks if the main thread is serializing the bulkdata to the undo transaction buffer
+
 	UE::TUniqueLock _(Mutex);
 
 	TPromise<FSharedBuffer> Promise;
@@ -2001,8 +2086,14 @@ TFuture<FSharedBuffer> FEditorBulkData::GetPayload() const
 	{
 		FCompressedBuffer CompressedPayload = GetDataInternal();
 
+		FSharedBuffer DecompressedPayload = CompressedPayload.Decompress();
+
+		// NOTE: DecompressedPayload is *NOT* cached in the Payload variable
+		//	so UnloadData will do nothing
+		//	and we will reload from disk if GetPayload() is called twice in a row
+		
 		// TODO: Not actually async yet!
-		Promise.SetValue(CompressedPayload.Decompress());
+		Promise.SetValue(DecompressedPayload);
 	}
 
 	return Promise.GetFuture();

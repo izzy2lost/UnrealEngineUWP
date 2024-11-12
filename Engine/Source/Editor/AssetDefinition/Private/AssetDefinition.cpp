@@ -54,6 +54,30 @@ FAssetCategoryPath::FAssetCategoryPath(TConstArrayView<FText> InCategoryPath)
 	}
 }
 
+void FAssetCategoryPath::GetSubCategories(TArray<FName>& SubCategories) const
+{
+	if (HasSubCategory())
+	{
+		SubCategories.Reserve(SubCategories.Num() + NumSubCategories());
+		for (int32 i = 1; i < CategoryPath.Num(); i++)
+		{
+			SubCategories.Add(CategoryPath[i].Key);
+		}
+	}
+}
+
+void FAssetCategoryPath::GetSubCategoriesText(TArray<FText>& SubCategories) const
+{
+	if (HasSubCategory())
+	{
+		SubCategories.Reserve(SubCategories.Num() + NumSubCategories());
+		for (int32 i = 1; i < CategoryPath.Num(); i++)
+		{
+			SubCategories.Add(CategoryPath[i].Value);
+		}
+	}
+}
+
 // UAssetDefinition
 //---------------------------------------------------------------------------
 

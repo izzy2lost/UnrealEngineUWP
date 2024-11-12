@@ -50,6 +50,26 @@ const TArray<FName> UDefaultGameFeaturesProjectPolicies::GetPreloadBundleStateFo
 	return FeatureBundles;
 }
 
+bool UGameFeaturesProjectPolicies::GetGameFeaturePluginURL(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL) const
+{
+	// It could still be a GFP, but state machine may not have been created for it yet
+	// Check if it is a built-in GFP
+	const FString& PluginDescriptorFilename = Plugin->GetDescriptorFileName();
+	if (!PluginDescriptorFilename.IsEmpty())
+	{
+		if (GetDefault<UGameFeaturesSubsystemSettings>()->IsValidGameFeaturePlugin(FPaths::ConvertRelativePathToFull(PluginDescriptorFilename)))
+		{
+			OutPluginURL = UGameFeaturesSubsystem::GetPluginURL_FileProtocol(PluginDescriptorFilename);
+		}
+		else
+		{
+			OutPluginURL = TEXT("");
+		}
+		return true;
+	}
+	return false;
+}
+
 bool UGameFeaturesProjectPolicies::WillPluginBeCooked(const FString& PluginFilename, const FGameFeaturePluginDetails& PluginDetails) const
 {
 	return true;
@@ -68,15 +88,7 @@ TValueOrError<FString, FString> UGameFeaturesProjectPolicies::ResolvePluginDepen
 	// Check if the dependency plugin exists yet (should be true for all built-in plugins)
 	else if (TSharedPtr<IPlugin> DependencyPlugin = IPluginManager::Get().FindPlugin(DependencyName))
 	{
-		// It could still be a GFP, but state machine may not have been created for it yet
-		// Check if it is a built-in GFP
-		if (!DependencyPlugin->GetDescriptorFileName().IsEmpty() &&
-			GetDefault<UGameFeaturesSubsystemSettings>()->IsValidGameFeaturePlugin(FPaths::ConvertRelativePathToFull(DependencyPlugin->GetDescriptorFileName())))
-		{
-			DependencyURL = UGameFeaturesSubsystem::GetPluginURL_FileProtocol(DependencyPlugin->GetDescriptorFileName());
-		}
-
-		bResolvedDependency = true;
+		bResolvedDependency = GetGameFeaturePluginURL(DependencyPlugin.ToSharedRef(), DependencyURL);
 	}
 
 	if (bResolvedDependency)

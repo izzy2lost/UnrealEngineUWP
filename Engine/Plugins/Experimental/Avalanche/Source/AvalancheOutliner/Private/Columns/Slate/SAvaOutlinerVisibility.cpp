@@ -12,7 +12,7 @@
 
 namespace UE::AvaOutliner::Private
 {
-	class FVisibilityDragDropOp : public FDragDropOperation, public TSharedFromThis<FVisibilityDragDropOp>
+	class FVisibilityDragDropOp : public FDragDropOperation
 	{
 	public:
 		DRAG_DROP_OPERATOR_TYPE(FVisibilityDragDropOp, FDragDropOperation)

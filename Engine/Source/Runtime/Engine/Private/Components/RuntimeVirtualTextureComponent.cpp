@@ -3,26 +3,58 @@
 #include "Components/RuntimeVirtualTextureComponent.h"
 
 #include "Async/TaskGraphInterfaces.h"
-#include "GameDelegates.h"
+#include "ComponentRecreateRenderStateContext.h"
 #include "Engine/Texture.h"
 #include "Engine/World.h"
-#include "Logging/MessageLog.h"
+#include "GameDelegates.h"
 #include "GameFramework/Actor.h"
+#include "Logging/MessageLog.h"
 #include "Misc/UObjectToken.h"
 #include "Misc/MapErrors.h"
+#include "RenderUtils.h"
+#include "RHIGlobals.h"
 #include "SceneInterface.h"
+#include "SceneUtils.h"
+#include "UnrealEngine.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/UnrealType.h"
 #include "VT/RuntimeVirtualTexture.h"
 #include "VT/VirtualTexture.h"
 #include "VT/VirtualTextureBuilder.h"
-#include "RenderUtils.h"
-#include "RHIGlobals.h"
-#include "SceneUtils.h"
+#include "VT/VirtualTextureBuiltData.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RuntimeVirtualTextureComponent)
 
 #define LOCTEXT_NAMESPACE "URuntimeVirtualTextureComponent"
+
+static TAutoConsoleVariable<bool> CVarVTStreamingMips(
+	TEXT("r.VT.RVT.StreamingMips"),
+	true,
+	TEXT("Enable streaming mips for RVT"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)	{ FGlobalComponentRecreateRenderStateContext Context; }),
+	ECVF_Default);
+
+#if WITH_EDITOR
+
+static TAutoConsoleVariable<int32> CVarVTStreamingMipsShowInEditor(
+	TEXT("r.VT.RVT.StreamingMips.UseInEditor"),
+	1,
+	TEXT("Use streaming mips for RVT when in Editor.\n")
+	TEXT("  0: Never use.\n")
+	TEXT("  1: Use the setting from RVT component (default).\n")
+	TEXT("  2: Always use when available.\n"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable) { FGlobalComponentRecreateRenderStateContext Context; }),
+	ECVF_Default);
+
+#endif
+
+static TAutoConsoleVariable<bool> CVarVTStreamingMipsUseAlways(
+	TEXT("r.VT.RVT.StreamingMips.UseAlways"),
+	false,
+	TEXT("Whenever streaming low mips are in use, only show the streaming mips and never show runtime generated pages.\n"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable) { FGlobalComponentRecreateRenderStateContext Context; }),
+	ECVF_Default);
+
 
 URuntimeVirtualTextureComponent::URuntimeVirtualTextureComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -77,9 +109,9 @@ void URuntimeVirtualTextureComponent::OnUnregister()
 
 #endif
 
-void URuntimeVirtualTextureComponent::SetVirtualTexture(URuntimeVirtualTexture* InVirtualTexture) 
+void URuntimeVirtualTextureComponent::SetVirtualTexture(URuntimeVirtualTexture* InVirtualTexture)
 {
-	VirtualTexture = InVirtualTexture; 
+	VirtualTexture = InVirtualTexture;
 	MarkRenderStateDirty();
 }
 
@@ -136,10 +168,30 @@ void URuntimeVirtualTextureComponent::DestroyRenderState_Concurrent()
 	Super::DestroyRenderState_Concurrent();
 }
 
+static ERuntimeVirtualTextureMaterialQuality ConvertMaterialQualityEnum(EMaterialQualityLevel::Type InMaterialQualityLevel)
+{
+	switch (InMaterialQualityLevel)
+	{
+	case EMaterialQualityLevel::Low: return ERuntimeVirtualTextureMaterialQuality::Low;
+	case EMaterialQualityLevel::Medium: return ERuntimeVirtualTextureMaterialQuality::Medium;
+	case EMaterialQualityLevel::High: return ERuntimeVirtualTextureMaterialQuality::High;
+	case EMaterialQualityLevel::Epic: return ERuntimeVirtualTextureMaterialQuality::Epic;
+	default: check(0);
+	}
+
+	return ERuntimeVirtualTextureMaterialQuality::Low;
+}
+
 bool URuntimeVirtualTextureComponent::IsEnabledInScene() const
 {
-	const bool bUseNanite = UseNanite(GetScene()->GetShaderPlatform());
+	const EShaderPlatform ShaderPlatform = GetScene()->GetShaderPlatform();
+	const bool bUseNanite = UseNanite(ShaderPlatform);
 	if (bEnableForNaniteOnly && !bUseNanite)
+	{
+		return false;
+	}
+
+	if (!RuntimeVirtualTexture::IsMaterialTypeSupported(VirtualTexture->GetMaterialType(), ShaderPlatform))
 	{
 		return false;
 	}
@@ -151,6 +203,15 @@ bool URuntimeVirtualTextureComponent::IsEnabledInScene() const
 			if (!EnableInGamePerPlatform.GetValue())
 			{
 				return false;
+			}
+
+			if (bUseMinMaterialQuality)
+			{
+				ERuntimeVirtualTextureMaterialQuality CurrentQuality = ConvertMaterialQualityEnum(GetCachedScalabilityCVars().MaterialQualityLevel);
+ 				if (CurrentQuality < MinInGameMaterialQuality)
+ 				{
+ 					return false;
+ 				}
 			}
 		}
 	}
@@ -231,28 +292,49 @@ uint64 URuntimeVirtualTextureComponent::CalculateStreamingTextureSettingsHash() 
 
 bool URuntimeVirtualTextureComponent::IsStreamingLowMips(EShadingPath ShadingPath) const
 {
-	checkf(IsActiveInWorld(), TEXT("This function should never be called for a world where we're inactive"));
-	
 #if WITH_EDITOR
-	if (!bUseStreamingLowMipsInEditor && GIsEditor)
+	if (GIsEditor)
 	{
-		return false;
+		const int32 ShowStreamingMipsInEditor = CVarVTStreamingMipsShowInEditor.GetValueOnAnyThread();
+		if (ShowStreamingMipsInEditor == 0 || (ShowStreamingMipsInEditor == 1 && !bUseStreamingMipsInEditor))
+		{
+			return false;
+		}
 	}
 #endif
-	return VirtualTexture != nullptr && StreamingTexture != nullptr && StreamingTexture->GetVirtualTexture(ShadingPath) != nullptr;
+	return VirtualTexture != nullptr && StreamingTexture != nullptr && StreamingTexture->GetVirtualTexture(ShadingPath) != nullptr && CVarVTStreamingMips.GetValueOnAnyThread();
 }
 
-bool IsCompatibleFormat(URuntimeVirtualTexture const& RuntimeVirtualTexture, UVirtualTexture2D const& StreamingVirtualTexture)
+bool URuntimeVirtualTextureComponent::IsStreamingLowMipsOnly()
 {
-	// During texture compilation we can't validate anything other than first layer, so restrict validation to that.
-	// This should catch any 99% of issues anyway. 
-	return (RuntimeVirtualTexture.GetLayerFormat(0) == StreamingVirtualTexture.GetPixelFormat(0));
+	return bUseStreamingMipsOnly || CVarVTStreamingMipsUseAlways.GetValueOnAnyThread();
+}
+
+/** 
+ * This test should be covered by the BuildHash check, but there was an bug where the texture compilation built the streaming virtual texture with an unexpected pixel format. 
+ * The bug was fixed but keeping this extra check to catch any similar regression in future.
+ */
+static bool IsCompatibleFormat(URuntimeVirtualTexture const& RuntimeVirtualTexture, UVirtualTexture2D const& StreamingVirtualTexture)
+{
+	if (FTexturePlatformData const* StreamingTextureData = StreamingVirtualTexture.GetPlatformData())
+	{
+		if (FVirtualTextureBuiltData const* VTData = StreamingTextureData->VTData)
+		{
+			for (int32 LayerIndex = 0; LayerIndex < RuntimeVirtualTexture.GetLayerCount(); ++LayerIndex)
+			{
+				if (RuntimeVirtualTexture.GetLayerFormat(LayerIndex) != VTData->LayerTypes[LayerIndex])
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+	}
+	return false;
 }
 
 bool URuntimeVirtualTextureComponent::IsStreamingTextureInvalid(EShadingPath ShadingPath) const
 {
-	checkf(IsActiveInWorld(), TEXT("This function should never be called for a world where we're inactive"));
-
 	return 
 		VirtualTexture != nullptr && 
 		StreamingTexture != nullptr && 
@@ -349,7 +431,7 @@ void URuntimeVirtualTextureComponent::InitializeStreamingTexture(EShadingPath Sh
 		BuildDesc.TileBorderSize = VirtualTexture->GetTileBorderSize();
 		BuildDesc.LODGroup = VirtualTexture->GetLODGroup();
 		BuildDesc.LossyCompressionAmount = GetLossyCompressionAmount();
-
+		
 		BuildDesc.LayerCount = VirtualTexture->GetLayerCount();
 		check(BuildDesc.LayerCount <= RuntimeVirtualTexture::MaxTextureLayers);
 		BuildDesc.LayerFormats.AddDefaulted(BuildDesc.LayerCount);
@@ -369,15 +451,21 @@ void URuntimeVirtualTextureComponent::InitializeStreamingTexture(EShadingPath Sh
 		BuildDesc.InSizeY = InSizeY;
 		BuildDesc.InData = InData;
 
-		StreamingTexture->BuildTexture(ShadingPath, BuildDesc);
+		// Make sure the streaming texture is fully built before marking the render state dirty, otherwise the scene proxy will be constructed thinking that it's not, which will prevent showing it in editor. 
+		//  It's a rarely-triggered, bake-time, editor-only function anyway, so the blocking wait is acceptable
+		constexpr bool bWaitForCompilation = true;
+		StreamingTexture->BuildTexture(ShadingPath, BuildDesc, bWaitForCompilation);
 		StreamingTexture->Modify();
 	}
+
+	MarkRenderStateDirty();
 }
 
 bool URuntimeVirtualTextureComponent::CanEditChange(const FProperty* InProperty) const
 {
 	bool bCanEdit = Super::CanEditChange(InProperty);
-	if (InProperty->GetFName() == TEXT("bUseStreamingLowMipsInEditor"))
+	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URuntimeVirtualTextureComponent, bUseStreamingMipsInEditor) || 
+		InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URuntimeVirtualTextureComponent, bUseStreamingMipsOnly))
 	{
 		bCanEdit &= GetVirtualTexture() != nullptr && GetStreamingTexture() != nullptr;
 	}

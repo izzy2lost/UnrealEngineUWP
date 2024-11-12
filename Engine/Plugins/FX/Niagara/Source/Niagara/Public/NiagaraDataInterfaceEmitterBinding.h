@@ -39,6 +39,9 @@ struct FNiagaraDataInterfaceEmitterBinding
 	/** Resolves the binding to an FNiagaraEmitterHandle or nullptr if it's invalid. */
 	const FNiagaraEmitterHandle* ResolveHandle(const UNiagaraDataInterface* DataInterface) const;
 
+	/** Resolves the binding to an FNiagaraEmitterHandle or nullptr if it's invalid. */
+	const FNiagaraEmitterHandle* ResolveHandle(const UNiagaraSystem* OwnerSystem, const FNiagaraEmitterHandle* OwnerEmitter) const;
+
 	/** Resolves the emitter name */
 	FString ResolveUniqueName(const UNiagaraDataInterface* DataInterface) const;
 

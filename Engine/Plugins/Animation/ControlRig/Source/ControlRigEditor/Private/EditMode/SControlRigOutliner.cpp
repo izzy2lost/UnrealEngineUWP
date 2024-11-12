@@ -17,6 +17,8 @@
 #include "EditMode/ControlRigEditMode.h"
 #include "EditorModeManager.h"
 #include "ISequencer.h"
+#include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/Selection/Selection.h"
 #include "LevelSequence.h"
 #include "Selection.h"
 #include "Editor.h"
@@ -360,7 +362,6 @@ void SMultiRigHierarchyTreeView::Construct(const FArguments& InArgs)
 	SuperArgs.OnMouseButtonDoubleClick(Delegates.OnMouseButtonDoubleClick);
 	SuperArgs.OnSetExpansionRecursive(Delegates.OnSetExpansionRecursive);
 	SuperArgs.HighlightParentNodesForSelection(true);
-	SuperArgs.ItemHeight(24);
 	SuperArgs.AllowInvisibleItemSelection(true);  //without this we deselect everything when we filter or we collapse
 
 	SuperArgs.ShouldStackHierarchyHeaders_Lambda([]() -> bool {
@@ -523,9 +524,13 @@ bool SMultiRigHierarchyTreeView::AddElement(UControlRig* InControlRig, const FRi
 				}
 				break;
 			}
-			case ERigElementType::RigidBody:
+			case ERigElementType::Physics:
 			{
-				if (!Settings.bShowRigidBodies)
+				if (!Settings.bShowPhysics)
+				{
+					return false;
+				}
+				if(CVarControlRigHierarchyEnablePhysics.GetValueOnAnyThread() == false)
 				{
 					return false;
 				}
@@ -606,7 +611,7 @@ bool SMultiRigHierarchyTreeView::AddElement(UControlRig* InControlRig, const FRi
 
 			if (ParentKey.IsValid())
 			{
-				if(FKControlRig)
+				if(FKControlRig && ParentKey != URigHierarchy::GetWorldSpaceReferenceKey())
 				{
 					if(const FRigControlElement* ControlElement = Cast<FRigControlElement>(InElement))
 					{
@@ -893,14 +898,25 @@ TArray<URigHierarchy*> SMultiRigHierarchyTreeView::GetHierarchy() const
 void SMultiRigHierarchyTreeView::SetControlRigs(TArrayView < TWeakObjectPtr<UControlRig>>& InControlRigs)
 {
 	ControlRigs.SetNum(0);
+	TArray < TPair<UControlRig*, TArray<FName>>> SelectedControls;
 	for (TWeakObjectPtr<UControlRig>& ControlRig : InControlRigs)
 	{
 		if (ControlRig.IsValid())
 		{
 			ControlRigs.Add(ControlRig.Get());
+			SelectedControls.Add(TPair<UControlRig*, TArray<FName>>(ControlRig.Get(), ControlRig->CurrentControlSelection()));
 		}
 	}
+	
 	RefreshTreeView(true);
+	//reselect controls that will have gotten cleared by the refresh, this situation can happen on save
+	for (TPair<UControlRig*, TArray<FName>>& CRS : SelectedControls)
+	{
+		for (const FName& Name : CRS.Value)
+		{
+			CRS.Key->SelectControl(Name, true);
+		}
+	}
 }
 
 //////////////////////////////////////////////////////////////
@@ -978,7 +994,7 @@ void SControlRigOutliner::Construct(const FArguments& InArgs, FControlRigEditMod
 	DisplaySettings.bShowNulls = false;
 	DisplaySettings.bShowReferences = false;
 	DisplaySettings.bShowSockets = false;
-	DisplaySettings.bShowRigidBodies = false;
+	DisplaySettings.bShowPhysics = false;
 	DisplaySettings.bHideParentsOnFilter = true;
 	DisplaySettings.bFlattenHierarchyOnFilter = true;
 	DisplaySettings.bShowConnectors = false;
@@ -1135,6 +1151,15 @@ void SControlRigOutliner::HandleSelectionChanged(TSharedPtr<FMultiRigTreeElement
 				GEditor->SelectNone(true, true);
 				GEditor->RedrawLevelEditingViewports();
 			}
+			const TWeakPtr<ISequencer>& WeakSequencer = EditMode->GetWeakSequencer();
+			//also need to clear explicitly in sequencer
+			if (WeakSequencer.IsValid())
+			{
+				if (ISequencer* SequencerPtr = WeakSequencer.Pin().Get())
+				{
+					SequencerPtr->GetViewModel()->GetSelection()->Empty();
+				}
+			}
 		}
 	}
 
@@ -1242,23 +1267,21 @@ void SControlRigOutliner::HandleOnControlRigBound(UControlRig* InControlRig)
 
 void SControlRigOutliner::HandleOnObjectBoundToControlRig(UObject* InObject)
 {
-	//just refresh the views, but do so on nex tick sine with FK control rig's the controls aren't set up
+	//just refresh the views, but do so on next tick since with FK control rig's the controls aren't set up
 	//until AFTER we are bound.
-	TWeakPtr<SControlRigOutliner> WeakPtr = StaticCastSharedRef<SControlRigOutliner>(this->AsShared());
+	TWeakPtr<SControlRigOutliner> WeakPtr = StaticCastSharedRef<SControlRigOutliner>(AsShared()).ToWeakPtr();
 	GEditor->GetTimerManager()->SetTimerForNextTick([WeakPtr]()
 	{
 		if (WeakPtr.IsValid())
 		{
-			TSharedPtr<SControlRigOutliner> StrongPtr = WeakPtr.Pin();
-			if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(StrongPtr->ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
+			TSharedPtr<SControlRigOutliner> StrongThis = WeakPtr.Pin();
+			if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(StrongThis->ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
 			{
 				TArrayView<TWeakObjectPtr<UControlRig>> ControlRigs = EditMode->GetControlRigs();
-				StrongPtr->HierarchyTreeView->GetTreeView()->SetControlRigs(ControlRigs); //will refresh tree
+				StrongThis->HierarchyTreeView->GetTreeView()->SetControlRigs(ControlRigs); //will refresh tree
 			}
 		}
 	});
-
-
 }
 
 #undef LOCTEXT_NAMESPACE

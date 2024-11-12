@@ -75,6 +75,16 @@ static FAutoConsoleCommand PrintReplicationFrequencyReportCommand(
 
 #endif
 
+#if WITH_EDITOR
+static FAutoConsoleCommand CMD_DumpGameplayTagSources(
+	TEXT("GameplayTags.DumpSources"),
+	TEXT("Dumps all known sources of gameplay tags"),
+	FConsoleCommandWithOutputDeviceDelegate::CreateLambda([](FOutputDevice& Out){
+		UGameplayTagsManager::Get().DumpSources(Out);
+	})
+);
+#endif
+
 struct FCompareFGameplayTagNodeByTag
 {
 	FORCEINLINE bool operator()(const TSharedPtr<FGameplayTagNode>& A, const TSharedPtr<FGameplayTagNode>& B) const
@@ -179,7 +189,6 @@ UGameplayTagsManager::UGameplayTagsManager(const FObjectInitializer& ObjectIniti
 {
 	bUseFastReplication = false;
 	bShouldWarnOnInvalidTags = true;
-	bShouldClearInvalidTags = false;
 	bDoneAddingNativeTags = false;
 	bShouldAllowUnloadingTags = false;
 	NetIndexFirstBitSegment = 16;
@@ -386,20 +395,12 @@ void UGameplayTagsManager::AddTagsFromAdditionalLooseIniFiles(const TArray<FStri
 		{
 			FoundSource->SourceTagList->ConfigFileName = IniFilePath;
 
-			// Check deprecated locations
-			TArray<FString> Tags;
-			if (GConfig->GetArray(TEXT("UserTags"), TEXT("GameplayTags"), Tags, IniFilePath))
-			{
-				for (const FString& Tag : Tags)
-				{
-					FoundSource->SourceTagList->GameplayTagList.AddUnique(FGameplayTagTableRow(FName(*Tag)));
-				}
-			}
-			else
-			{
-				// Load from new ini
-				FoundSource->SourceTagList->LoadConfig(UGameplayTagsList::StaticClass(), *IniFilePath);
-			}
+			FoundSource->SourceTagList->LoadConfig(UGameplayTagsList::StaticClass(), *IniFilePath);
+
+			// we don't actually need this in GConfig because they aren't read from again, and they take a lot of memory,
+			// and aren't tagged with the plugin name, so can't be unloaded along with the plugin anyway, but
+			// since LoadConfig can't take an existing FConfigFile* to load from, we put it into GConfig, then remove it
+			GConfig->Remove(IniFilePath);
 
 #if WITH_EDITOR
 			if (GIsEditor || IsRunningCommandlet()) // Sort tags for UI Purposes but don't sort in -game scenario since this would break compat with noneditor cooked builds
@@ -455,6 +456,7 @@ void UGameplayTagsManager::ConstructGameplayTagTree()
 
 			for (const class FNativeGameplayTag* NativeTag : FNativeGameplayTag::GetRegisteredNativeTags())
 			{
+				FindOrAddTagSource(NativeTag->GetModuleName(), EGameplayTagSourceType::Native);
 				AddTagTableRow(NativeTag->GetGameplayTagTableRow(), NativeTag->GetModuleName());
 			}
 		}
@@ -483,24 +485,6 @@ void UGameplayTagsManager::ConstructGameplayTagTree()
 		{
 			SCOPE_LOG_GAMEPLAYTAGS(TEXT("UGameplayTagsManager::ConstructGameplayTagTree: ImportINI tags"));
 
-			// Copy from deprecated list in DefaultEngine.ini
-			TArray<FString> EngineConfigTags;
-			GConfig->GetArray(TEXT("/Script/GameplayTags.GameplayTagsSettings"), TEXT("+GameplayTags"), EngineConfigTags, GEngineIni);
-			
-			for (const FString& EngineConfigTag : EngineConfigTags)
-			{
-				MutableDefault->GameplayTagList.AddUnique(FGameplayTagTableRow(FName(*EngineConfigTag)));
-			}
-
-			// Copy from deprecated list in DefaultGamplayTags.ini
-			EngineConfigTags.Empty();
-			GConfig->GetArray(TEXT("/Script/GameplayTags.GameplayTagsSettings"), TEXT("+GameplayTags"), EngineConfigTags, MutableDefault->GetDefaultConfigFilename());
-
-			for (const FString& EngineConfigTag : EngineConfigTags)
-			{
-				MutableDefault->GameplayTagList.AddUnique(FGameplayTagTableRow(FName(*EngineConfigTag)));
-			}
-
 #if WITH_EDITOR
 			MutableDefault->SortTags();
 #endif
@@ -525,6 +509,11 @@ void UGameplayTagsManager::ConstructGameplayTagTree()
 					AddTagIniSearchPath(Pair.Key);
 				}
 			}
+		}
+
+		if (!GIsEditor)
+		{
+			GConfig->SafeUnloadBranch(*GGameplayTagsIni);
 		}
 
 #if WITH_EDITOR
@@ -558,8 +547,8 @@ void UGameplayTagsManager::ConstructGameplayTagTree()
 			}
 
 			bUseFastReplication = MutableDefault->FastReplication;
+			bUseDynamicReplication = MutableDefault->bDynamicReplication;
 			bShouldWarnOnInvalidTags = MutableDefault->WarnOnInvalidTags;
-			bShouldClearInvalidTags = MutableDefault->ClearInvalidTags;
 			NumBitsForContainerSize = MutableDefault->NumBitsForContainerSize;
 			NetIndexFirstBitSegment = MutableDefault->NetIndexFirstBitSegment;
 
@@ -593,7 +582,7 @@ int32 PrintNetIndiceAssignment = 0;
 static FAutoConsoleVariableRef CVarPrintNetIndiceAssignment(TEXT("GameplayTags.PrintNetIndiceAssignment"), PrintNetIndiceAssignment, TEXT("Logs GameplayTag NetIndice assignment"), ECVF_Default );
 void UGameplayTagsManager::ConstructNetIndex()
 {
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	bNetworkIndexInvalidated = false;
 
@@ -626,19 +615,19 @@ void UGameplayTagsManager::ConstructNetIndex()
 		checkf( Found, TEXT("Tag %s not found in NetworkGameplayTagNodeIndex"), *Tag.ToString() );
 	}
 
-	InvalidTagNetIndex = IntCastChecked<uint16, int32>(NetworkGameplayTagNodeIndex.Num() + 1);
-	NetIndexTrueBitNum = FMath::CeilToInt(FMath::Log2(static_cast<float>(InvalidTagNetIndex)));
-	
-	// This should never be smaller than NetIndexTrueBitNum
-	NetIndexFirstBitSegment = FMath::Min<int32>(GetDefault<UGameplayTagsSettings>()->NetIndexFirstBitSegment, NetIndexTrueBitNum);
-
 	// This is now sorted and it should be the same on both client and server
 	if (NetworkGameplayTagNodeIndex.Num() >= INVALID_TAGNETINDEX)
 	{
-		ensureMsgf(false, TEXT("Too many tags in dictionary for networking! Remove tags or increase tag net index size"));
+		ensureMsgf(false, TEXT("Too many tags (%d) in dictionary for networking! Remove tags or increase tag net index size (%d)"), NetworkGameplayTagNodeIndex.Num(), INVALID_TAGNETINDEX);
 
 		NetworkGameplayTagNodeIndex.SetNum(INVALID_TAGNETINDEX - 1);
 	}
+
+	InvalidTagNetIndex = IntCastChecked<uint16, int32>(NetworkGameplayTagNodeIndex.Num() + 1);
+	NetIndexTrueBitNum = FMath::CeilToInt(FMath::Log2(static_cast<float>(InvalidTagNetIndex)));
+
+	// This should never be smaller than NetIndexTrueBitNum
+	NetIndexFirstBitSegment = FMath::Min<int32>(GetDefault<UGameplayTagsSettings>()->NetIndexFirstBitSegment, NetIndexTrueBitNum);
 
 	UE_CLOG(PrintNetIndiceAssignment, LogGameplayTags, Display, TEXT("Assigning NetIndices to %d tags."), NetworkGameplayTagNodeIndex.Num() );
 
@@ -878,11 +867,6 @@ void UGameplayTagsManager::RedirectTagsForContainer(FGameplayTagContainer& Conta
 					UObject* LoadingObject = LoadContext ? LoadContext->SerializedObject : nullptr;
 					UE_ASSET_LOG(LogGameplayTags, Warning, *GetPathNameSafe(LoadingObject), TEXT("Invalid GameplayTag %s found in property %s."), *TagName.ToString(), *GetPathNameSafe(SerializingProperty));
 				}
-
-				if (ShouldClearInvalidTags())
-				{
-					NamesToRemove.Add(TagName);
-				}
 			}
 		}
 #endif
@@ -923,12 +907,7 @@ void UGameplayTagsManager::RedirectSingleGameplayTag(FGameplayTag& Tag, FPropert
 				FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
 				UObject* LoadingObject = LoadContext ? LoadContext->SerializedObject : nullptr;
 				UE_ASSET_LOG(LogGameplayTags, Warning, *GetPathNameSafe(LoadingObject), TEXT("Invalid GameplayTag %s found in property %s."), *TagName.ToString(), *GetPathNameSafe(SerializingProperty));
-			}
-			
-			if (ShouldClearInvalidTags())
-			{
-				Tag.TagName = NAME_None;
-			}
+			}			
 		}
 	}
 #endif
@@ -960,23 +939,27 @@ bool UGameplayTagsManager::ImportSingleGameplayTag(FGameplayTag& Tag, FName Impo
 #if WITH_EDITOR
 		if (ShouldWarnOnInvalidTags())
 		{
-			FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
-			UObject* LoadingObject = LoadContext ? LoadContext->SerializedObject : nullptr;
+			// These are more elaborate checks to ensure we're actually loading a UObject, and not pasting it, compiling it, or other possible paths into this function.
+			const FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
+			const UObject* LoadingObject = LoadContext ? LoadContext->SerializedObject : nullptr;
 			if (LoadingObject)
 			{
-				// If this is a serialize with a real object and it failed to find the tag, warn about it
-				UE_ASSET_LOG(LogGameplayTags, Warning, *GetPathNameSafe(LoadingObject), TEXT("Invalid GameplayTag %s found in object %s."), *ImportedTagName.ToString(), *LoadingObject->GetName());
+				// We need to defer the check until after native gameplay tags are done loading (in case the tag has not yet been defined)
+				CallOrRegister_OnDoneAddingNativeTagsDelegate(FSimpleMulticastDelegate::FDelegate::CreateWeakLambda(this,
+					[this, ImportedTagName, AssetName = GetPathNameSafe(LoadingObject), FullObjectPath = LoadingObject->GetFullName()]()
+					{
+						// Verify it again -- it could have been a late-loading native tag
+						if (!ValidateTagCreation(ImportedTagName))
+						{
+							UE_ASSET_LOG(LogGameplayTags, Warning, *AssetName, TEXT("Invalid GameplayTag %s found in object %s."), *ImportedTagName.ToString(), *FullObjectPath);
+						}
+					}));
 			}
 		}
-
-		// Always keep invalid tags in cooked game to be consistent with properties
-		if (!ShouldClearInvalidTags())
 #endif
-		{
-			// For imported tags that are part of a serialize, leave invalid ones the same way normal serialization does to avoid data loss
-			Tag.TagName = ImportedTagName;
-			bRetVal = true;
-		}
+		// For imported tags that are part of a serialize, leave invalid ones the same way normal serialization does to avoid data loss
+		Tag.TagName = ImportedTagName;
+		bRetVal = true;
 	}
 
 	if (bRetVal)
@@ -992,7 +975,7 @@ bool UGameplayTagsManager::ImportSingleGameplayTag(FGameplayTag& Tag, FName Impo
 	return bRetVal;
 }
 
-void UGameplayTagsManager::InitializeManager()
+UE_AUTORTFM_ALWAYS_OPEN void UGameplayTagsManager::InitializeManager()
 {
 	check(!SingletonManager);
 	SCOPED_BOOT_TIMING("UGameplayTagsManager::InitializeManager");
@@ -1234,7 +1217,7 @@ UGameplayTagsManager::~UGameplayTagsManager()
 
 void UGameplayTagsManager::DestroyGameplayTagTree()
 {
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	if (GameplayRootTag.IsValid())
 	{
@@ -1320,7 +1303,7 @@ int32 UGameplayTagsManager::InsertTagIntoNodeArray(FName Tag, FName FullTag, TSh
 		{
 			// This critical section is to handle an issue where tag requests come from another thread when async loading from a background thread in FGameplayTagContainer::Serialize.
 			// This function is not generically threadsafe.
-			FScopeLock Lock(&GameplayTagMapCritical);
+			FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 			GameplayTagNodeMap.Add(GameplayTag, TagNode);
 		}
 	}
@@ -1344,7 +1327,7 @@ void UGameplayTagsManager::PrintReplicationIndices()
 
 	UE_LOG(LogGameplayTags, Display, TEXT("::PrintReplicationIndices (TOTAL %d)"), GameplayTagNodeMap.Num());
 
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	for (auto It : GameplayTagNodeMap)
 	{
@@ -1665,7 +1648,7 @@ FString UGameplayTagsManager::GetCategoriesMetaFromFunction(const UFunction* Thi
 
 void UGameplayTagsManager::GetAllTagsFromSource(FName TagSource, TArray< TSharedPtr<FGameplayTagNode> >& OutTagArray) const
 {
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	for (const TPair<FGameplayTag, TSharedPtr<FGameplayTagNode>>& NodePair : GameplayTagNodeMap)
 	{
@@ -1987,7 +1970,7 @@ FGameplayTag UGameplayTagsManager::RequestGameplayTag(FName TagName, bool ErrorI
 
 	// This critical section is to handle an issue where tag requests come from another thread when async loading from a background thread in FGameplayTagContainer::Serialize.
 	// This function is not generically threadsafe.
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	// Check if there are redirects for this tag. If so and the redirected tag is in the node map, return it.
 	// Redirects take priority, even if the tag itself may exist.
@@ -2110,7 +2093,7 @@ FGameplayTag UGameplayTagsManager::FindGameplayTagFromPartialString_Slow(FString
 {
 	// This critical section is to handle an issue where tag requests come from another thread when async loading from a background thread in FGameplayTagContainer::Serialize.
 	// This function is not generically threadsafe.
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	// Exact match first
 	FGameplayTag PossibleTag(*PartialString);
@@ -2189,19 +2172,16 @@ void UGameplayTagsManager::RemoveNativeGameplayTag(const FNativeGameplayTag* Tag
 	HandleGameplayTagTreeChanged(true);
 }
 
-void UGameplayTagsManager::CallOrRegister_OnDoneAddingNativeTagsDelegate(FSimpleMulticastDelegate::FDelegate Delegate)
+FDelegateHandle UGameplayTagsManager::CallOrRegister_OnDoneAddingNativeTagsDelegate(const FSimpleMulticastDelegate::FDelegate& Delegate) const
 {
 	if (bDoneAddingNativeTags)
 	{
 		Delegate.Execute();
+		return FDelegateHandle{};
 	}
 	else
 	{
-		bool bAlreadyBound = Delegate.GetUObject() != nullptr ? OnDoneAddingNativeTagsDelegate().IsBoundToObject(Delegate.GetUObject()) : false;
-		if (!bAlreadyBound)
-		{
-			OnDoneAddingNativeTagsDelegate().Add(Delegate);
-		}
+		return OnDoneAddingNativeTagsDelegate().Add(Delegate);
 	}
 }
 
@@ -2239,7 +2219,7 @@ void UGameplayTagsManager::DoneAddingNativeTags()
 
 FGameplayTagContainer UGameplayTagsManager::RequestGameplayTagParents(const FGameplayTag& GameplayTag) const
 {
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	const FGameplayTagContainer* ParentTags = GetSingleTagContainerPtr(GameplayTag);
 
@@ -2271,41 +2251,37 @@ bool UGameplayTagsManager::ExtractParentTags(const FGameplayTag& GameplayTag, TA
 	int32 OldSize = UniqueParentTags.Num();
 	FName RawTag = GameplayTag.GetTagName();
 
-	// Need to run in the open as it takes a lock. 
-	UE_AUTORTFM_OPEN(
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
+
+	// This code does not check redirectors because that was already handled by GameplayTagContainerLoaded
+	const TSharedPtr<FGameplayTagNode>*Node = GameplayTagNodeMap.Find(GameplayTag);
+	if (Node)
+	{
+		// Use the registered tag container if it exists
+		const FGameplayTagContainer& SingleContainer = (*Node)->GetSingleTagContainer();
+		for (const FGameplayTag& ParentTag : SingleContainer.ParentTags)
 		{
-			FScopeLock Lock(&GameplayTagMapCritical);
+			UniqueParentTags.AddUnique(ParentTag);
+		}
 
-			// This code does not check redirectors because that was already handled by GameplayTagContainerLoaded
-			const TSharedPtr<FGameplayTagNode>*Node = GameplayTagNodeMap.Find(GameplayTag);
-			if (Node)
-			{
-				// Use the registered tag container if it exists
-				const FGameplayTagContainer& SingleContainer = (*Node)->GetSingleTagContainer();
-				for (const FGameplayTag& ParentTag : SingleContainer.ParentTags)
-				{
-					UniqueParentTags.AddUnique(ParentTag);
-				}
-
-				if constexpr (0 != VALIDATE_EXTRACT_PARENT_TAGS)
-				{
-					GameplayTag.ParseParentTags(ValidationCopy);
-					ensureAlwaysMsgf(ValidationCopy == UniqueParentTags, TEXT("ExtractParentTags results are inconsistent for tag %s"), *GameplayTag.ToString());
-				}
-			}
-			else if (!ShouldClearInvalidTags())
-			{
-				// If we don't clear invalid tags, we need to extract the parents now in case they get registered later
-				GameplayTag.ParseParentTags(UniqueParentTags);
-			}
-		});
+		if constexpr (0 != VALIDATE_EXTRACT_PARENT_TAGS)
+		{
+			GameplayTag.ParseParentTags(ValidationCopy);
+			ensureAlwaysMsgf(ValidationCopy == UniqueParentTags, TEXT("ExtractParentTags results are inconsistent for tag %s"), *GameplayTag.ToString());
+		}
+	}
+	else
+	{
+		// If we don't clear invalid tags, we need to extract the parents now in case they get registered later
+		GameplayTag.ParseParentTags(UniqueParentTags);
+	}
 
 	return UniqueParentTags.Num() != OldSize;
 }
 
 void UGameplayTagsManager::RequestAllGameplayTags(FGameplayTagContainer& TagContainer, bool OnlyIncludeDictionaryTags) const
 {
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	for (const TPair<FGameplayTag, TSharedPtr<FGameplayTagNode>>& NodePair : GameplayTagNodeMap)
 	{
@@ -2355,7 +2331,7 @@ void UGameplayTagsManager::AddChildrenTags(FGameplayTagContainer& TagContainer, 
 				bool bShouldInclude = true;
 
 #if WITH_EDITORONLY_DATA
-				if (OnlyIncludeDictionaryTags && ChildNode->GetFirstSourceName() == NAME_None)
+				if (OnlyIncludeDictionaryTags && !ChildNode->IsExplicitTag())
 				{
 					// Only have info to do this in editor builds
 					bShouldInclude = false;
@@ -2459,6 +2435,21 @@ bool UGameplayTagsManager::ValidateTagCreation(FName TagName) const
 
 	return FindTagNode(TagName).IsValid();
 }
+
+#if WITH_EDITOR
+void UGameplayTagsManager::DumpSources(FOutputDevice& Out) const
+{
+	for (const TPair<FName, FGameplayTagSource>& Pair : TagSources)
+	{
+		Out.Logf(TEXT("%s : %s"), *Pair.Key.ToString(), *UEnum::GetValueAsString(Pair.Value.SourceType));
+		FString ConfigFilePath = Pair.Value.GetConfigFileName();
+		if (!ConfigFilePath.IsEmpty())
+		{
+			Out.Logf(TEXT("Config file path: %s"), *Pair.Value.SourceTagList->ConfigFileName);
+		}
+	}
+}
+#endif
 
 FGameplayTagTableRow::FGameplayTagTableRow(FGameplayTagTableRow const& Other)
 {

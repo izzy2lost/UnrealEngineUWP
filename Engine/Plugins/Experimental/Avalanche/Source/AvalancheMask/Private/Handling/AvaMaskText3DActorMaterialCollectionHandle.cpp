@@ -708,7 +708,6 @@ bool FAvaMaskAvaTextActorMaterialCollectionHandle::ApplyOriginalState(const FStr
 			{
 				TextComponent->SetTranslucencyStyle(HandleData->OriginalTranslucencyStyle);	
 			}
-			TextComponent->RefreshMaterialInstances();
 			
 			Super::ApplyOriginalState(InHandleData);
 			

@@ -935,7 +935,7 @@ bool UIpNetDriver::InitBase( bool bInitAsClient, FNetworkNotify* InNotify, const
 	if (CVarNetIpNetDriverUseReceiveThread.GetValueOnAnyThread() != 0 && SocketSubsystem->IsSocketWaitSupported())
 	{
 		SocketReceiveThreadRunnable = MakeUnique<FReceiveThreadRunnable>(this);
-		SocketReceiveThread.Reset(FRunnableThread::Create(SocketReceiveThreadRunnable.Get(), *FString::Printf(TEXT("IpNetDriver Receive Thread"), *NetDriverName.ToString())));
+		SocketReceiveThread.Reset(FRunnableThread::Create(SocketReceiveThreadRunnable.Get(), *FString::Printf(TEXT("IpNetDriver Receive Thread: %s"), *NetDriverName.ToString())));
 	}
 
 	SetSocketAndLocalAddress(Resolver->GetFirstSocket());
@@ -1184,22 +1184,22 @@ void UIpNetDriver::TickDispatch(float DeltaTime)
 
 		if (Connection == nullptr)
 		{
-			auto* Result = MappedClientConnections.Find(FromAddr);
-
-			if (Result != nullptr)
+			if (TObjectPtr<UNetConnection>* ConnectionMapValue = MappedClientConnections.Find(FromAddr))
 			{
-				UNetConnection* ConnVal = *Result;
-
-				if (ConnVal != nullptr)
+				UNetConnection* FoundConnection = *ConnectionMapValue;
+				if (FoundConnection)
 				{
-					Connection = ConnVal;
+					if (ensureMsgf(FoundConnection->Driver, TEXT("Found invalid cleaned-up connection in Map: %s"), *Connection->Describe()))
+					{
+						Connection = FoundConnection;
+						check(CastChecked<UIpConnection>(Connection)->RemoteAddr->CompareEndpoints(*FromAddr));
+					}
 				}
 				else
 				{
 					ReceivedTraits.bFromRecentlyDisconnected = true;
 				}
 			}
-			check(Connection == nullptr || CastChecked<UIpConnection>(Connection)->RemoteAddr->CompareEndpoints(*FromAddr));
 		}
 
 
@@ -1367,24 +1367,22 @@ UNetConnection* UIpNetDriver::ProcessConnectionlessPacket(FReceivedPacketView& P
 
 					if (FoundConn != nullptr)
 					{
-						TObjectPtr<UNetConnection> RemovedConn = nullptr;
 						TSharedRef<FInternetAddr> RemoteAddrRef = FoundConn->RemoteAddr.ToSharedRef();
-
-						//verify(MappedClientConnections.RemoveAndCopyValue(RemoteAddrRef, RemovedConn) && RemovedConn == FoundConn);
 
 						// @todo: There needs to be a proper/standardized copy API for this. Also in IpConnection.cpp
 						bool bIsValid = false;
 
 						RemoveFromNewIPTracking(RemoteAddrRef.Get());
+						
+						// Remove the old address mapping
+						MappedClientConnections.Remove(RemoteAddrRef);
 
 						const FString OldAddress = RemoteAddrRef->ToString(true);
 
 						RemoteAddrRef->SetIp(*Address->ToString(false), bIsValid);
 						RemoteAddrRef->SetPort(Address->GetPort());
 
-
 						MappedClientConnections.Add(RemoteAddrRef, FoundConn);
-
 
 						// Make sure we didn't just invalidate a RecentlyDisconnectedClients entry, with the same address
 						int32 RecentDisconnectIdx = RecentlyDisconnectedClients.IndexOfByPredicate(
@@ -1800,7 +1798,7 @@ void UIpNetDriver::RemoveFromNewIPTracking(const FInternetAddr& InAddr)
 
 			if (AggIdx != INDEX_NONE)
 			{
-				AggregatedIPsToLog.RemoveAtSwap(AggIdx, 1, EAllowShrinking::No);
+				AggregatedIPsToLog.RemoveAtSwap(AggIdx, EAllowShrinking::No);
 			}
 		}
 
@@ -1811,8 +1809,8 @@ void UIpNetDriver::RemoveFromNewIPTracking(const FInternetAddr& InAddr)
 		}
 		else if (HashIdx == NewIPHashes.Num()-1)
 		{
-			NewIPHashes.RemoveAt(HashIdx, 1, EAllowShrinking::No);
-			NewIPHitCount.RemoveAt(HashIdx, 1, EAllowShrinking::No);
+			NewIPHashes.RemoveAt(HashIdx, EAllowShrinking::No);
+			NewIPHitCount.RemoveAt(HashIdx, EAllowShrinking::No);
 		}
 		else
 		{

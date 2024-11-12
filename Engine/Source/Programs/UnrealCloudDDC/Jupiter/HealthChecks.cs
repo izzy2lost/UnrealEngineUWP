@@ -69,8 +69,7 @@ namespace Jupiter
 		}
 	}
 
-	
-	public class LastAccessServiceCheck: IHealthCheck
+	public class LastAccessServiceCheck : IHealthCheck
 	{
 		private readonly LastAccessServiceReferences _lastAccessService;
 
@@ -89,7 +88,7 @@ namespace Jupiter
 			return Task.FromResult(HealthCheckResult.Degraded());
 		}
 	}
-	
+
 	public class ReplicationSnapshotServiceCheck : IHealthCheck
 	{
 		private readonly ReplicationSnapshotService _replicationSnapshotService;

@@ -35,7 +35,7 @@ namespace LowLevelTasks
 	//implementation of a treiber stack
 	//(https://en.wikipedia.org/wiki/Treiber_stack)
 	template<typename NodeType>
-	class TEventStack
+	class UE_DEPRECATED(5.5, "This class will be removed.") TEventStack
 	{
 		static constexpr uint32 EVENT_INDEX_NONE = ~0u;
 
@@ -124,8 +124,14 @@ namespace LowLevelTasks
 		static thread_local FSchedulerTls* ActiveScheduler;
 		static thread_local FLocalQueueType* LocalQueue;
 		static thread_local EWorkerType WorkerType;
-		// number of busy-waiting calls in the call-stack
-		static thread_local uint32 BusyWaitingDepth;
+	
+	private:
+		// Hide the member to avoid clashing with local variables
+		// already named bIsStandbyWorker.
+		struct Impl
+		{
+			static thread_local bool bIsStandbyWorker;
+		};
 
 	public:
 		CORE_API bool IsWorkerThread() const;
@@ -141,6 +147,16 @@ namespace LowLevelTasks
 		inline static bool IsBackgroundWorker()
 		{
 			return WorkerType == EWorkerType::Background;
+		}
+
+		inline static bool IsStandbyWorker()
+		{
+			return Impl::bIsStandbyWorker;
+		}
+
+		inline static void SetStandbyWorker(bool bInIsStandbyWorker)
+		{
+			Impl::bIsStandbyWorker = bInIsStandbyWorker;
 		}
 	};
 
@@ -170,15 +186,18 @@ namespace LowLevelTasks
 
 		//tries to do some work until the Task is completed
 		template<typename TaskType>
+		UE_DEPRECATED(5.5, "This method will be removed.")
 		inline void BusyWait(const TaskType& Task, bool ForceAllowBackgroundWork = false);
 
 		//tries to do some work until the Conditional return true
 		template<typename Conditional>
+		UE_DEPRECATED(5.5, "This method will be removed.")
 		inline void BusyWaitUntil(Conditional&& Cond, bool ForceAllowBackgroundWork = false);
 
 		//tries to do some work until all the Tasks are completed
 		//the template parameter can be any Type that has a const conversion operator to FTask
 		template<typename TaskType>
+		UE_DEPRECATED(5.5, "This method will be removed.")
 		inline void BusyWait(const TArrayView<const TaskType>& Tasks, bool ForceAllowBackgroundWork = false);
 
 		//number of instantiated workers
@@ -189,23 +208,36 @@ namespace LowLevelTasks
 
 		//get the background priority set when workers were started
 		inline EThreadPriority GetBackgroundPriority() const { return BackgroundPriority; }
+
+		//determine if we're currently out of workers for a given task priority
+		CORE_API bool IsOversubscriptionLimitReached(ETaskPriority TaskPriority) const;
+
+		//event that will fire when the scheduler has reached its oversubscription limit (all threads are waiting).
+		//note: This event can be broadcasted from any thread so the receiver needs to be thread-safe
+		//      For optimal performance, avoid binding UObjects to this event and use AddRaw/AddLambda instead.
+		//      Also, what's happening inside that callback should be as brief and simple as possible (i.e. raising an event)
+		CORE_API FOversubscriptionLimitReached& GetOversubscriptionLimitReachedEvent();
 	public:
 		FScheduler() = default;
 		~FScheduler();
 
 	private: 
 		[[nodiscard]] FTask* ExecuteTask(FTask* InTask);
-		TUniquePtr<FThread> CreateWorker(bool bPermitBackgroundWork = false, FThread::EForkable IsForkable = FThread::NonForkable, Private::FWaitEvent* ExternalWorkerEvent = nullptr, FSchedulerTls::FLocalQueueType* ExternalWorkerLocalQueue = nullptr, EThreadPriority Priority = EThreadPriority::TPri_Normal, uint64 InAffinity = 0);
+		TUniquePtr<FThread> CreateWorker(uint32 WorkerId, const TCHAR* Name, bool bPermitBackgroundWork = false, FThread::EForkable IsForkable = FThread::NonForkable, Private::FWaitEvent* ExternalWorkerEvent = nullptr, FSchedulerTls::FLocalQueueType* ExternalWorkerLocalQueue = nullptr, EThreadPriority Priority = EThreadPriority::TPri_Normal, uint64 InAffinity = 0);
 		void WorkerMain(Private::FWaitEvent* WorkerEvent, FSchedulerTls::FLocalQueueType* ExternalWorkerLocalQueue, uint32 WaitCycles, bool bPermitBackgroundWork);
+		void StandbyLoop(Private::FWaitEvent* WorkerEvent, FSchedulerTls::FLocalQueueType* ExternalWorkerLocalQueue, uint32 WaitCycles, bool bPermitBackgroundWork);
+		void WorkerLoop(Private::FWaitEvent* WorkerEvent, FSchedulerTls::FLocalQueueType* ExternalWorkerLocalQueue, uint32 WaitCycles, bool bPermitBackgroundWork);
 		CORE_API void LaunchInternal(FTask& Task, EQueuePreference QueuePreference, bool bWakeUpWorker);
 		CORE_API void BusyWaitInternal(const FConditional& Conditional, bool ForceAllowBackgroundWork);
 		inline bool WakeUpWorker(bool bBackgroundWorker);
-
-		template<typename QueueType, FTask* (QueueType::*DequeueFunction)(bool), bool bIsBusyWaiting>
+		CORE_API void IncrementOversubscription();
+		CORE_API void DecrementOversubscription();
+		template<typename QueueType, FTask* (QueueType::*DequeueFunction)(bool), bool bIsStandbyWorker>
 		bool TryExecuteTaskFrom(Private::FWaitEvent* WaitEvent, QueueType* Queue, Private::FOutOfWork& OutOfWork, bool bPermitBackgroundWork);
 
+		friend class FOversubscriptionScope;
 	private:
-		Private::FWaitingQueue                         WaitingQueue[2] = { WorkerEvents, WorkerEvents };
+		Private::FWaitingQueue                         WaitingQueue[2] = { { WorkerEvents, OversubscriptionLimitReachedEvent }, { WorkerEvents, OversubscriptionLimitReachedEvent } };
 		FSchedulerTls::FQueueRegistry                  QueueRegistry;
 		FCriticalSection                               WorkerThreadsCS;
 		TArray<TUniquePtr<FThread>>                    WorkerThreads;
@@ -213,11 +245,88 @@ namespace LowLevelTasks
 		TAlignedArray<Private::FWaitEvent>             WorkerEvents;
 		std::atomic_uint                               ActiveWorkers { 0 };
 		std::atomic_uint                               NextWorkerId { 0 };
+		std::atomic<int32>                             ForegroundCreationIndex{ 0 };
+		std::atomic<int32>                             BackgroundCreationIndex{ 0 };
 		uint64                                         WorkerAffinity = 0;
 		uint64                                         BackgroundAffinity = 0;
 		EThreadPriority                                WorkerPriority = EThreadPriority::TPri_Normal;
 		EThreadPriority                                BackgroundPriority = EThreadPriority::TPri_BelowNormal;
 		std::atomic_bool                               TemporaryShutdown{ false };
+		FOversubscriptionLimitReached                  OversubscriptionLimitReachedEvent;
+	};
+
+	namespace Private
+	{
+		class FOversubscriptionTls
+		{
+			static thread_local bool bIsOversubscriptionAllowed;
+
+			friend class FOversubscriptionAllowedScope;
+		public:
+			static bool IsOversubscriptionAllowed() { return bIsOversubscriptionAllowed; }
+		};
+
+		class FOversubscriptionAllowedScope
+		{
+			UE_NONCOPYABLE(FOversubscriptionAllowedScope);
+
+		public:
+			FOversubscriptionAllowedScope(bool bIsOversubscriptionAllowed)
+			{
+				bPreviousValue = FOversubscriptionTls::bIsOversubscriptionAllowed;
+				FOversubscriptionTls::bIsOversubscriptionAllowed = bIsOversubscriptionAllowed;
+			}
+
+			~FOversubscriptionAllowedScope()
+			{
+				FOversubscriptionTls::bIsOversubscriptionAllowed = bPreviousValue;
+			}
+		private:
+			bool bPreviousValue;
+		};
+	}
+
+	class FOversubscriptionScope
+	{
+		UE_NONCOPYABLE(FOversubscriptionScope);
+
+	public:
+		FOversubscriptionScope(bool bCondition = true)
+		{
+			if (bCondition && Private::FOversubscriptionTls::IsOversubscriptionAllowed())
+			{
+				bIncrementOversubscriptionEmitted = true;
+
+#if CPUPROFILERTRACE_ENABLED
+				if (CpuChannel)
+				{
+					static uint32 OversubscriptionTraceId = FCpuProfilerTrace::OutputEventType("Oversubscription");
+					FCpuProfilerTrace::OutputBeginEvent(OversubscriptionTraceId);
+					bCpuBeginEventEmitted = true;
+				}
+#endif
+				FScheduler::Get().IncrementOversubscription();
+			}
+		}
+
+		~FOversubscriptionScope()
+		{
+			if (bIncrementOversubscriptionEmitted)
+			{
+				FScheduler::Get().DecrementOversubscription();
+
+#if CPUPROFILERTRACE_ENABLED
+				if (bCpuBeginEventEmitted)
+				{
+					FCpuProfilerTrace::OutputEndEvent();
+					bCpuBeginEventEmitted = false;
+				}
+#endif
+			}
+		}
+	private:
+		bool bIncrementOversubscriptionEmitted = false;
+		bool bCpuBeginEventEmitted = false;
 	};
 
 	FORCEINLINE_DEBUGGABLE bool TryLaunch(FTask& Task, EQueuePreference QueuePreference = EQueuePreference::DefaultPreference, bool bWakeUpWorker = true)
@@ -225,21 +334,30 @@ namespace LowLevelTasks
 		return FScheduler::Get().TryLaunch(Task, QueuePreference, bWakeUpWorker);
 	}
 
+	UE_DEPRECATED(5.5, "This method will be removed.")
 	FORCEINLINE_DEBUGGABLE void BusyWaitForTask(const FTask& Task, bool ForceAllowBackgroundWork = false)
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		FScheduler::Get().BusyWait(Task, ForceAllowBackgroundWork);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	template<typename Conditional>
+	UE_DEPRECATED(5.5, "This method will be removed.")
 	FORCEINLINE_DEBUGGABLE void BusyWaitUntil(Conditional&& Cond, bool ForceAllowBackgroundWork = false)
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		FScheduler::Get().BusyWaitUntil<Conditional>(Forward<Conditional>(Cond), ForceAllowBackgroundWork);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	template<typename TaskType>
+	UE_DEPRECATED(5.5, "This method will be removed.")
 	FORCEINLINE_DEBUGGABLE void BusyWaitForTasks(const TArrayView<const TaskType>& Tasks, bool ForceAllowBackgroundWork = false)
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		FScheduler::Get().BusyWait<TaskType>(Tasks, ForceAllowBackgroundWork);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/******************

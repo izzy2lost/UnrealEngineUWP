@@ -26,6 +26,7 @@ public abstract class CustomDeploymentHandler
 	public virtual bool PreGetFilesToDeployOrStage(ProjectParams Params, DeploymentContext SC) => false;
 	public virtual bool GetFilesToStageForDLC(ProjectParams Params, DeploymentContext SC) => false;
 	public virtual bool GetFilesToArchive(ProjectParams Params, DeploymentContext SC) => false;
+	public virtual bool PostStagingFileCopy(ProjectParams Params, DeploymentContext SC) => false;
 
 	// always called
 	public virtual void PostPackage(ProjectParams Params, DeploymentContext SC, int WorkingCL) { }
@@ -39,7 +40,7 @@ public abstract class CustomDeploymentHandler
 	#region Private/boilerplate
 
 	/// <summary>
-	/// Validate & instantiate the given custom deployment handler
+	/// Validate and instantiate the given custom deployment handler
 	/// </summary>
 	public static CustomDeploymentHandler Create(string Name, Platform AutomationPlatform)
 	{

@@ -6,6 +6,7 @@
 #include "Types/MVVMFieldVariant.h"
 #include "Types/MVVMBindingMode.h"
 #include "Types/MVVMViewModelCollection.h"
+#include "Types/MVVMConditionOperation.h"
 
 #include "UObject/Package.h"
 #include "MVVMSubsystem.generated.h"
@@ -31,6 +32,9 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 	//~ End UEngineSubsystem interface
+
+	UFUNCTION(BlueprintCallable, Category="Viewmodel", meta = (DisplayName = "Compare Float Values"))
+	bool K2_CompareFloatValues(EMVVMConditionOperation Operation, float Value, float CompareValue, float CompareMaxValue = 0.0f);
 
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel", meta = (DisplayName = "Get View From User Widget"))
 	UMVVMView* K2_GetViewFromUserWidget(const UUserWidget* UserWidget) const;

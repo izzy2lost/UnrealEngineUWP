@@ -8,6 +8,7 @@
 #include "InterchangeSceneImportAsset.h"
 
 #include "ContentBrowserMenuContexts.h"
+#include "LevelInstance/LevelInstanceActor.h"
 #include "Misc/App.h"
 #include "Misc/DelayedAutoRegister.h"
 #include "ThumbnailRendering/SceneThumbnailInfo.h"
@@ -45,6 +46,7 @@ namespace MenuExtension_InterchangeSceneImportAsset
 			ImportAssetParameters.bIsAutomated = GIsAutomationTesting || FApp::IsUnattended() || IsRunningCommandlet() || GIsRunningUnattendedScript;
 			ImportAssetParameters.ReimportAsset = Asset;
 			ImportAssetParameters.ReimportSourceIndex = INDEX_NONE;
+			ImportAssetParameters.ImportLevel = Asset->GetOriginalLevel();
 
 			TTuple<FAssetImportResultRef, FSceneImportResultRef> ImportResult = InterchangeManager.ImportSceneAsync(FString(), SourceData, ImportAssetParameters);
 

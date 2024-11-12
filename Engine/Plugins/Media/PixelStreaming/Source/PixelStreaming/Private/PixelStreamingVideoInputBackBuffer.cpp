@@ -43,7 +43,7 @@ FPixelStreamingVideoInputBackBuffer::~FPixelStreamingVideoInputBackBuffer()
 	}
 }
 
-void FPixelStreamingVideoInputBackBuffer::OnBackBufferReady(SWindow& SlateWindow, const FTexture2DRHIRef& FrameBuffer)
+void FPixelStreamingVideoInputBackBuffer::OnBackBufferReady(SWindow& SlateWindow, const FTextureRHIRef& FrameBuffer)
 {
 	OnFrame(FPixelCaptureInputFrameRHI(FrameBuffer));
 }

@@ -11,6 +11,7 @@
 #include "Misc/MemStack.h"
 #include "Misc/Crc.h"
 #include "UObject/NameTypes.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #if CPUPROFILERTRACE_ENABLED
 
@@ -132,6 +133,7 @@ FCpuProfilerTraceInternal::FThreadBuffer* FCpuProfilerTraceInternal::CreateThrea
 	return ThreadBuffer;
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 void FCpuProfilerTraceInternal::FlushThreadBuffer(FThreadBuffer* InThreadBuffer)
 {
 	UE_TRACE_LOG(CpuProfiler, EventBatchV2, true)
@@ -170,69 +172,35 @@ void FCpuProfilerTrace::OutputBeginEvent(uint32 SpecId)
 void FCpuProfilerTrace::OutputBeginDynamicEvent(const ANSICHAR* Name, const ANSICHAR* File, uint32 Line)
 {
 	CPUPROFILERTRACE_OUTPUTBEGINEVENT_PROLOGUE();
-	uint32 SpecId = ThreadBuffer->DynamicAnsiScopeNamesMap.FindRef(Name);
-	if (!SpecId)
-	{
-		LLM_SCOPE_BYNAME(TEXT("Trace/CpuProfiler"));
-		int32 NameSize = strlen(Name) + 1;
-		ANSICHAR* NameCopy = reinterpret_cast<ANSICHAR*>(ThreadBuffer->DynamicScopeNamesMemory.Alloc(NameSize, alignof(ANSICHAR)));
-		FMemory::Memmove(NameCopy, Name, NameSize);
-		SpecId = OutputEventType(NameCopy, File, Line);
-		ThreadBuffer->DynamicAnsiScopeNamesMap.Add(NameCopy, SpecId);
-	}
+	uint32 SpecId = OutputDynamicEventType(Name, File, Line);
 	CPUPROFILERTRACE_OUTPUTBEGINEVENT_EPILOGUE();
 }
 
 void FCpuProfilerTrace::OutputBeginDynamicEvent(const TCHAR* Name, const ANSICHAR* File, uint32 Line)
 {
 	CPUPROFILERTRACE_OUTPUTBEGINEVENT_PROLOGUE();
-	uint32 SpecId = ThreadBuffer->DynamicTCharScopeNamesMap.FindRef(Name);
-	if (!SpecId)
-	{
-		LLM_SCOPE_BYNAME(TEXT("Trace/CpuProfiler"));
-		int32 NameSize = (FCString::Strlen(Name) + 1) * sizeof(TCHAR);
-		TCHAR* NameCopy = reinterpret_cast<TCHAR*>(ThreadBuffer->DynamicScopeNamesMemory.Alloc(NameSize, alignof(TCHAR)));
-		FMemory::Memmove(NameCopy, Name, NameSize);
-		SpecId = OutputEventType(NameCopy, File, Line);
-		ThreadBuffer->DynamicTCharScopeNamesMap.Add(NameCopy, SpecId);
-	}
+	uint32 SpecId = OutputDynamicEventType(Name, File, Line);
 	CPUPROFILERTRACE_OUTPUTBEGINEVENT_EPILOGUE();
 }
 
 void FCpuProfilerTrace::OutputBeginDynamicEvent(const FName Name, const ANSICHAR* File, uint32 Line)
 {
-	OutputBeginDynamicEventWithId(Name, nullptr, File, Line);
+	CPUPROFILERTRACE_OUTPUTBEGINEVENT_PROLOGUE();
+	uint32 SpecId = OutputDynamicEventType(Name, File, Line);
+	CPUPROFILERTRACE_OUTPUTBEGINEVENT_EPILOGUE();
+}
+
+void FCpuProfilerTrace::OutputBeginDynamicEventWithId(const FName Id, const ANSICHAR* Name, const ANSICHAR* File, uint32 Line)
+{
+	CPUPROFILERTRACE_OUTPUTBEGINEVENT_PROLOGUE();
+	uint32 SpecId = OutputDynamicEventTypeWithId(Id, Name, File, Line);
+	CPUPROFILERTRACE_OUTPUTBEGINEVENT_EPILOGUE();
 }
 
 void FCpuProfilerTrace::OutputBeginDynamicEventWithId(const FName Id, const TCHAR* Name, const ANSICHAR* File, uint32 Line)
 {
 	CPUPROFILERTRACE_OUTPUTBEGINEVENT_PROLOGUE();
-	uint32 SpecId = ThreadBuffer->DynamicFNameScopeNamesMap.FindRef(Id.GetComparisonIndex());
-	if (!SpecId)
-	{
-		LLM_SCOPE_BYNAME(TEXT("Trace/CpuProfiler"));
-		if (Name != nullptr)
-		{
-			SpecId = OutputEventType(Name, File, Line);
-		}
-		else
-		{
-			const FNameEntry* NameEntry = Id.GetDisplayNameEntry();
-			if (NameEntry->IsWide())
-			{
-				WIDECHAR WideName[NAME_SIZE];
-				NameEntry->GetWideName(WideName);
-				SpecId = OutputEventType(WideName, File, Line);
-			}
-			else
-			{
-				ANSICHAR AnsiName[NAME_SIZE];
-				NameEntry->GetAnsiName(AnsiName);
-				SpecId = OutputEventType(AnsiName, File, Line);
-			}
-		}
-		ThreadBuffer->DynamicFNameScopeNamesMap.Add(Id.GetComparisonIndex(), SpecId);
-	}
+	uint32 SpecId = OutputDynamicEventTypeWithId(Id, Name, File, Line);
 	CPUPROFILERTRACE_OUTPUTBEGINEVENT_EPILOGUE();
 }
 
@@ -313,6 +281,7 @@ uint32 FCpuProfilerTraceInternal::GetNextSpecId()
 	return (NextSpecId++) + 1;
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 uint32 FCpuProfilerTrace::OutputEventType(const TCHAR* Name, const ANSICHAR* File, uint32 Line)
 {
 	uint32 SpecId = FCpuProfilerTraceInternal::GetNextSpecId();
@@ -333,6 +302,7 @@ uint32 FCpuProfilerTrace::OutputEventType(const TCHAR* Name, const ANSICHAR* Fil
 	return SpecId;
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 uint32 FCpuProfilerTrace::OutputEventType(const ANSICHAR* Name, const ANSICHAR* File, uint32 Line)
 {
 	uint32 SpecId = FCpuProfilerTraceInternal::GetNextSpecId();
@@ -350,6 +320,134 @@ uint32 FCpuProfilerTrace::OutputEventType(const ANSICHAR* Name, const ANSICHAR* 
 		<< EventSpec.Line(Line)
 #endif
 	;
+	return SpecId;
+}
+
+UE_AUTORTFM_ALWAYS_OPEN
+uint32 FCpuProfilerTrace::OutputEventType(const FName Name, const ANSICHAR* File, uint32 Line)
+{
+	const FNameEntry* NameEntry = Name.GetDisplayNameEntry();
+	if (NameEntry->IsWide())
+	{
+		WIDECHAR WideName[NAME_SIZE];
+		NameEntry->GetWideName(WideName);
+		return OutputEventType(WideName, File, Line);
+	}
+	else
+	{
+		ANSICHAR AnsiName[NAME_SIZE];
+		NameEntry->GetAnsiName(AnsiName);
+		return OutputEventType(AnsiName, File, Line);
+	}
+}
+
+UE_AUTORTFM_ALWAYS_OPEN
+uint32 FCpuProfilerTrace::OutputDynamicEventType(const ANSICHAR* Name, const ANSICHAR* File, uint32 Line)
+{
+	FCpuProfilerTraceInternal::FThreadBuffer* ThreadBuffer = FCpuProfilerTraceInternal::ThreadBuffer;
+	if (!ThreadBuffer)
+	{
+		ThreadBuffer = FCpuProfilerTraceInternal::CreateThreadBuffer();
+	}
+	uint32 SpecId = ThreadBuffer->DynamicAnsiScopeNamesMap.FindRef(Name);
+	if (!SpecId)
+	{
+		LLM_SCOPE_BYNAME(TEXT("Trace/CpuProfiler"));
+		int32 NameSize = strlen(Name) + 1;
+		ANSICHAR* NameCopy = reinterpret_cast<ANSICHAR*>(ThreadBuffer->DynamicScopeNamesMemory.Alloc(NameSize, alignof(ANSICHAR)));
+		FMemory::Memmove(NameCopy, Name, NameSize);
+		SpecId = OutputEventType(NameCopy, File, Line);
+		ThreadBuffer->DynamicAnsiScopeNamesMap.Add(NameCopy, SpecId);
+	}
+	return SpecId;
+}
+
+UE_AUTORTFM_ALWAYS_OPEN
+uint32 FCpuProfilerTrace::OutputDynamicEventType(const TCHAR* Name, const ANSICHAR* File, uint32 Line)
+{
+	FCpuProfilerTraceInternal::FThreadBuffer* ThreadBuffer = FCpuProfilerTraceInternal::ThreadBuffer;
+	if (!ThreadBuffer)
+	{
+		ThreadBuffer = FCpuProfilerTraceInternal::CreateThreadBuffer();
+	}
+	uint32 SpecId = ThreadBuffer->DynamicTCharScopeNamesMap.FindRef(Name);
+	if (!SpecId)
+	{
+		LLM_SCOPE_BYNAME(TEXT("Trace/CpuProfiler"));
+		int32 NameSize = (FCString::Strlen(Name) + 1) * sizeof(TCHAR);
+		TCHAR* NameCopy = reinterpret_cast<TCHAR*>(ThreadBuffer->DynamicScopeNamesMemory.Alloc(NameSize, alignof(TCHAR)));
+		FMemory::Memmove(NameCopy, Name, NameSize);
+		SpecId = OutputEventType(NameCopy, File, Line);
+		ThreadBuffer->DynamicTCharScopeNamesMap.Add(NameCopy, SpecId);
+	}
+	return SpecId;
+}
+
+UE_AUTORTFM_ALWAYS_OPEN
+uint32 FCpuProfilerTrace::OutputDynamicEventType(const FName Name, const ANSICHAR* File, uint32 Line)
+{
+	FCpuProfilerTraceInternal::FThreadBuffer* ThreadBuffer = FCpuProfilerTraceInternal::ThreadBuffer;
+	if (!ThreadBuffer)
+	{
+		ThreadBuffer = FCpuProfilerTraceInternal::CreateThreadBuffer();
+	}
+	uint32 SpecId = ThreadBuffer->DynamicFNameScopeNamesMap.FindRef(Name.GetComparisonIndex());
+	if (!SpecId)
+	{
+		LLM_SCOPE_BYNAME(TEXT("Trace/CpuProfiler"));
+		SpecId = OutputEventType(Name, File, Line);
+		ThreadBuffer->DynamicFNameScopeNamesMap.Add(Name.GetComparisonIndex(), SpecId);
+	}
+	return SpecId;
+}
+
+UE_AUTORTFM_ALWAYS_OPEN
+uint32 FCpuProfilerTrace::OutputDynamicEventTypeWithId(const FName Id, const ANSICHAR* Name, const ANSICHAR* File, uint32 Line)
+{
+	FCpuProfilerTraceInternal::FThreadBuffer* ThreadBuffer = FCpuProfilerTraceInternal::ThreadBuffer;
+	if (!ThreadBuffer)
+	{
+		ThreadBuffer = FCpuProfilerTraceInternal::CreateThreadBuffer();
+	}
+	uint32 SpecId = ThreadBuffer->DynamicFNameScopeNamesMap.FindRef(Id.GetComparisonIndex());
+	if (!SpecId)
+	{
+		LLM_SCOPE_BYNAME(TEXT("Trace/CpuProfiler"));
+		if (Name != nullptr)
+		{
+			SpecId = OutputEventType(Name, File, Line);
+		}
+		else
+		{
+			SpecId = OutputEventType(Id, File, Line);
+		}
+		ThreadBuffer->DynamicFNameScopeNamesMap.Add(Id.GetComparisonIndex(), SpecId);
+	}
+	return SpecId;
+}
+
+UE_AUTORTFM_ALWAYS_OPEN
+uint32 FCpuProfilerTrace::OutputDynamicEventTypeWithId(const FName Id, const TCHAR* Name, const ANSICHAR* File, uint32 Line)
+{
+	FCpuProfilerTraceInternal::FThreadBuffer* ThreadBuffer = FCpuProfilerTraceInternal::ThreadBuffer;
+	if (!ThreadBuffer)
+	{
+		ThreadBuffer = FCpuProfilerTraceInternal::CreateThreadBuffer();
+	}
+	uint32 SpecId = ThreadBuffer->DynamicFNameScopeNamesMap.FindRef(Id.GetComparisonIndex());
+	if (!SpecId)
+	{
+		LLM_SCOPE_BYNAME(TEXT("Trace/CpuProfiler"));
+		if (Name != nullptr)
+		{
+			SpecId = OutputEventType(Name, File, Line);
+		}
+		else
+		{
+			SpecId = OutputEventType(Id, File, Line);
+		}
+		ThreadBuffer->DynamicFNameScopeNamesMap.Add(Id.GetComparisonIndex(), SpecId);
+	}
 	return SpecId;
 }
 

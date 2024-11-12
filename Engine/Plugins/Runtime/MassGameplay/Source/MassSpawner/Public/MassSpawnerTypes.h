@@ -66,8 +66,8 @@ struct FMassSpawnedEntityType
 		EntityConfig.ResetWeakPtr();
 	}
 
-	const UMassEntityConfigAsset* GetEntityConfig() const;
-	UMassEntityConfigAsset* GetEntityConfig();
+	MASSSPAWNER_API const UMassEntityConfigAsset* GetEntityConfig() const;
+	MASSSPAWNER_API UMassEntityConfigAsset* GetEntityConfig();
 
 private:
 	UPROPERTY(Transient)

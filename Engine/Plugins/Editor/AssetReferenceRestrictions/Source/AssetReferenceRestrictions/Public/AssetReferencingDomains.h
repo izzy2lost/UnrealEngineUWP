@@ -74,6 +74,7 @@ struct ASSETREFERENCERESTRICTIONS_API FDomainDatabase final
 	TTuple<bool, FText> CanDomainsSeeEachOther(TSharedPtr<FDomainData> Referencee, TSharedPtr<FDomainData> Referencer) const;
 
 	const TArray<FString>& GetDomainsDefinedByPlugins() const { return DomainsDefinedByPlugins; }
+	bool IsPlugin(TSharedPtr<FDomainData> Domain) const { return PluginDomains.Contains(Domain); }
 
 	TSharedPtr<FDomainData> FindOrAddDomainByName(const FString& Name);
 
@@ -112,6 +113,9 @@ private:
 
 	// List of domains that came from plugins (used for domain pickers in the settings)
 	TArray<FString> DomainsDefinedByPlugins;
+
+	// Plugin Domains
+	TSet<TSharedPtr<FDomainData>> PluginDomains;
 
 	bool bDatabaseOutOfDate = false;
 

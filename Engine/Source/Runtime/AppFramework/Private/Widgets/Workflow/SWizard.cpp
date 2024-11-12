@@ -235,6 +235,7 @@ void SWizard::Construct( const FArguments& InArgs )
 	}
 
 	OnGetNextPageIndex = InArgs._OnGetNextPageIndex;
+	OnTryToMoveToPage = InArgs._OnTryToMoveToPage;
 
 	WidgetSwitcher->SetActiveWidgetIndex(INDEX_NONE);
 	ShowPage(InArgs._InitialPageIndex.Get());
@@ -336,6 +337,12 @@ void SWizard::AdvanceToPage(int32 PageIndex)
 	{
 		BreadcrumbTrail->PushCrumb(Pages[CurrentPage].GetName(), CurrentPage);
 	}
+
+	if (OnTryToMoveToPage.IsBound())
+	{
+		PageIndex = OnTryToMoveToPage.Execute(PageIndex);
+	}
+
 	ShowPage(PageIndex);
 }
 

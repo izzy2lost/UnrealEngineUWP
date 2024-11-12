@@ -20,6 +20,8 @@ class FArrangedChildren;
  */
 class SListPanel : public SPanel
 {
+	SLATE_DECLARE_WIDGET_API(SListPanel, SPanel, SLATE_API)
+
 public:
 	/** A ListPanel slot is very simple - it just stores a widget. */
 	class FSlot : public TSlotBase<FSlot>
@@ -119,20 +121,10 @@ protected:
 
 	/** @return true if this panel should arrange items as tiles placed alongside one another in each line */
 	SLATE_API bool ShouldArrangeAsTiles() const;
-	
-protected:
 
+protected:
 	/** The children being arranged by this panel */
 	TPanelChildren<FSlot> Children;
-
-	/** The uniform item width used to arrange the children. Only relevant for tile views. */
-	TAttribute<float> ItemWidth;
-	
-	/** The uniform item height used to arrange the children */
-	TAttribute<float> ItemHeight;
-
-	/** Total number of items that the tree wants to visualize */
-	TAttribute<int32> NumDesiredItems;
 	
 	/**
 	 * The offset of the view area from the top of the list in item heights.
@@ -143,18 +135,28 @@ protected:
 	/** Amount scrolled past beginning/end of list in Slate Units. */
 	float OverscrollAmount = 0.f;
 
+	/** The preferred number of lines that this widget should have orthogonal to the scroll axis. Only relevant for tile views. */
+	int32 PreferredNumLines = 1;
+
 	/**
 	 * When true, a refresh of the table view control that is using this panel is pending.
 	 * Some of the widgets in this panel are associated with items that may no longer be sound data.
 	 */
 	bool bIsRefreshPending = false;
 
-	/** How should be horizontally aligned? Only relevant for tile views. */
-	TAttribute<EListItemAlignment> ItemAlignment;
-
 	/** Overall orientation of the list for layout and scrolling. Only relevant for tile views. */
 	EOrientation Orientation;
 
-	/** The preferred number of lines that this widget should have orthogonal to the scroll axis. Only relevant for tile views. */
-	int32 PreferredNumLines = 1;
+private:
+	/** How should be horizontally aligned? Only relevant for tile views. */
+	TSlateAttribute<EListItemAlignment> ItemAlignmentAttribute;
+
+	/** The uniform item width used to arrange the children. Only relevant for tile views. */
+	TSlateAttribute<float> ItemWidthAttribute;
+
+	/** The uniform item height used to arrange the children */
+	TSlateAttribute<float> ItemHeightAttribute;
+
+	/** Total number of items that the tree wants to visualize */
+	TSlateAttribute<int32> NumDesiredItemsAttribute;
 };

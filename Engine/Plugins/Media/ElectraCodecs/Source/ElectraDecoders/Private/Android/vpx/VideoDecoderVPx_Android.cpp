@@ -53,6 +53,8 @@ public:
 	uint64 GetUserValue() const override
 	{ return UserValue; }
 
+	EOutputType GetOutputType() const
+	{ return EOutputType::Output; }
 	int32 GetWidth() const override
 	{ return Width - Crop.Left - Crop.Right; }
 	int32 GetHeight() const override
@@ -393,7 +395,7 @@ bool FElectraVideoDecoderVPx_Android::ResetToCleanStart()
 	DecodeState = EDecodeState::Decoding;
 	LastPushedPresentationTime = -1;
 	bDidSendEOS = false;
-	
+
 	return !LastError.IsSet();
 }
 
@@ -1064,7 +1066,7 @@ void FElectraVideoDecoderOutputVPx_Android::ReleaseOutputBuffer()
 }
 
 IElectraDecoderVideoOutput::EImageCopyResult FElectraVideoDecoderOutputVPx_Android::CopyPlatformImage(IElectraDecoderVideoOutputCopyResources* InCopyResources) const
-{ 
+{
 	TSharedPtr<FElectraVideoDecoderVPx_Android, ESPMode::ThreadSafe> Decoder = OwningDecoder.Pin();
 	if (Decoder.IsValid())
 	{
@@ -1079,7 +1081,7 @@ IElectraDecoderVideoOutput::EImageCopyResult FElectraVideoDecoderOutputVPx_Andro
 			OwningDecoderBufferInfo.BufferIndex = -1;
 		}
 
-		return IElectraDecoderVideoOutput::EImageCopyResult::Succeeded; 
+		return IElectraDecoderVideoOutput::EImageCopyResult::Succeeded;
 	}
-	return IElectraDecoderVideoOutput::EImageCopyResult::Failed; 
+	return IElectraDecoderVideoOutput::EImageCopyResult::Failed;
 }

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "RHIDefinitions.h"
+#include "RenderGraphDefinitions.h"
 
 #if RHI_RAYTRACING
 
@@ -12,7 +13,7 @@ struct FRayTracingAccelerationStructureSize;
 class FRayTracingGeometry;
 class FRDGBuilder;
 class FRHIBuffer;
-class FRHICommandListImmediate;
+class FRHICommandList;
 
 /** 
  * Queue for ray tracing geometry updates used by the skinned geometry systems. 
@@ -31,10 +32,11 @@ public:
 	ENGINE_API uint32 ComputeScratchBufferSize() const;
 	
 	/** Commit all pending work. Requires a scratch buffer that is at least as big as the size provided by ComputeScratchBufferSize(). */
-	ENGINE_API void Commit(FRHICommandListImmediate& RHICmdList, FRHIBuffer* ScratchBuffer);
+	UE_DEPRECATED(5.5, "This function has been deprecated. Use the version that takes GraphBuilder as input.")
+	ENGINE_API void Commit(FRHICommandList& RHICmdList, FRHIBuffer* ScratchBuffer);
 
 	/** Commit all pending work using render graph. This allocates a transient scratch buffer internally. */
-	ENGINE_API void Commit(FRDGBuilder& GraphBuilder);
+	ENGINE_API void Commit(FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePassFlags = ERDGPassFlags::Compute);
 
 private:
 	/** Info about pending updates. */

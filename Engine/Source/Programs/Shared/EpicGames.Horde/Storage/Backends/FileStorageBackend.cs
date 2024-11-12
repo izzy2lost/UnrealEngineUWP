@@ -69,18 +69,28 @@ namespace EpicGames.Horde.Storage.Backends
 			=> _objectStore.ReadAsync(GetBlobFile(locator), offset, length, cancellationToken);
 
 		/// <inheritdoc/>
-		public async Task<BlobLocator> WriteBlobAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default)
+		public Task WriteBlobAsync(BlobLocator locator, Stream stream, IReadOnlyCollection<BlobLocator>? imports, CancellationToken cancellationToken = default)
+			=> _objectStore.WriteAsync(GetBlobFile(locator), stream, cancellationToken);
+
+		/// <inheritdoc/>
+		public async Task<BlobLocator> WriteBlobAsync(Stream stream, IReadOnlyCollection<BlobLocator>? imports, string? prefix = null, CancellationToken cancellationToken = default)
 		{
 			BlobLocator locator = StorageHelpers.CreateUniqueLocator(prefix);
-			await _objectStore.WriteAsync(GetBlobFile(locator), stream, cancellationToken);
+			await WriteBlobAsync(locator, stream, imports, cancellationToken);
 			return locator;
 		}
 
 		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetBlobReadRedirectAsync(BlobLocator path, CancellationToken cancellationToken = default) => default;
+		public ValueTask<Uri?> TryGetBlobReadRedirectAsync(BlobLocator path, CancellationToken cancellationToken = default)
+			=> default;
 
 		/// <inheritdoc/>
-		public ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => default;
+		public ValueTask<Uri?> TryGetBlobWriteRedirectAsync(BlobLocator path, IReadOnlyCollection<BlobLocator>? imports = null, CancellationToken cancellationToken = default)
+			=> default;
+
+		/// <inheritdoc/>
+		public ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(IReadOnlyCollection<BlobLocator>? imports = null, string? prefix = null, CancellationToken cancellationToken = default)
+			=> default;
 
 		#endregion
 
@@ -112,15 +122,15 @@ namespace EpicGames.Horde.Storage.Backends
 
 		/// <inheritdoc/>
 		public Task AddAliasAsync(string name, BlobLocator locator, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
-			=> throw new NotSupportedException("File storage client does not currently support aliases.");
+			=> throw new NotSupportedException("File storage backend does not currently support aliases.");
 
 		/// <inheritdoc/>
 		public Task RemoveAliasAsync(string name, BlobLocator locator, CancellationToken cancellationToken = default)
-			=> throw new NotSupportedException("File storage client does not currently support aliases.");
+			=> throw new NotSupportedException("File storage backend does not currently support aliases.");
 
 		/// <inheritdoc/>
 		public Task<BlobAliasLocator[]> FindAliasesAsync(string alias, int? maxResults = null, CancellationToken cancellationToken = default)
-			=> throw new NotSupportedException("File storage client does not currently support aliases.");
+			=> throw new NotSupportedException("File storage backend does not currently support aliases.");
 
 		#endregion
 
@@ -139,7 +149,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task<BlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public async Task<HashedBlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
 			FileReference file = GetRefFile(name);
 			if (!FileReference.Exists(file))
@@ -153,11 +163,11 @@ namespace EpicGames.Horde.Storage.Backends
 			IoHash hash = IoHash.Parse(lines[0].Trim());
 			BlobLocator locator = new BlobLocator(lines[1].Trim());
 
-			return new BlobRefValue(hash, locator);
+			return new HashedBlobRefValue(hash, locator);
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteRefAsync(RefName name, BlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public async Task WriteRefAsync(RefName name, HashedBlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			FileReference file = GetRefFile(name);
 			DirectoryReference.CreateDirectory(file.Directory);
@@ -167,7 +177,7 @@ namespace EpicGames.Horde.Storage.Backends
 			{
 				try
 				{
-					await FileReference.WriteAllTextAsync(file, $"{value.Hash}\n{value.Locator}\n");
+					await FileReference.WriteAllTextAsync(file, $"{value.Hash}\n{value.Locator}\n", cancellationToken);
 					break;
 				}
 				catch (IOException ex) when (attempt < 3)

@@ -4,62 +4,11 @@
 	OpenGLES.cpp: OpenGL ES implementation.
 =============================================================================*/
 
-#include "CoreMinimal.h"
-#include "HAL/IConsoleManager.h"
-#include "OpenGLDrv.h"
+#include "OpenGLES.h"
+
+#if UGL_PLATFORM_SUPPORTS_GLES
+
 #include "OpenGLDrvPrivate.h"
-
-#if !PLATFORM_DESKTOP
-
-#if OPENGL_ES
-
-PFNEGLGETSYSTEMTIMENVPROC eglGetSystemTimeNV_p = NULL;
-PFNEGLCREATESYNCKHRPROC eglCreateSyncKHR_p = NULL;
-PFNEGLDESTROYSYNCKHRPROC eglDestroySyncKHR_p = NULL;
-PFNEGLCLIENTWAITSYNCKHRPROC eglClientWaitSyncKHR_p = NULL;
-PFNEGLGETSYNCATTRIBKHRPROC eglGetSyncAttribKHR_p = NULL;
-
-namespace GLFuncPointers
-{
-	// Offscreen MSAA rendering
-	PFNGLFRAMEBUFFERTEXTURE2DMULTISAMPLEEXTPROC	glFramebufferTexture2DMultisampleEXT = NULL;
-	PFNGLRENDERBUFFERSTORAGEMULTISAMPLEEXTPROC	glRenderbufferStorageMultisampleEXT = NULL;
-
-	PFNGLPUSHGROUPMARKEREXTPROC				glPushGroupMarkerEXT = NULL;
-	PFNGLPOPGROUPMARKEREXTPROC				glPopGroupMarkerEXT = NULL;
-	PFNGLLABELOBJECTEXTPROC					glLabelObjectEXT = NULL;
-	PFNGLGETOBJECTLABELEXTPROC				glGetObjectLabelEXT = NULL;
-
-	PFNGLBUFFERSTORAGEEXTPROC				glBufferStorageEXT = NULL;
-	// KHR_debug
-	PFNGLDEBUGMESSAGECONTROLKHRPROC			glDebugMessageControlKHR = NULL;
-	PFNGLDEBUGMESSAGEINSERTKHRPROC			glDebugMessageInsertKHR = NULL;
-	PFNGLDEBUGMESSAGECALLBACKKHRPROC		glDebugMessageCallbackKHR = NULL;
-	PFNGLGETDEBUGMESSAGELOGKHRPROC			glDebugMessageLogKHR = NULL;
-	PFNGLGETPOINTERVKHRPROC					glGetPointervKHR = NULL;
-	PFNGLPUSHDEBUGGROUPKHRPROC				glPushDebugGroupKHR = NULL;
-	PFNGLPOPDEBUGGROUPKHRPROC				glPopDebugGroupKHR = NULL;
-	PFNGLOBJECTLABELKHRPROC					glObjectLabelKHR = NULL;
-	PFNGLGETOBJECTLABELKHRPROC				glGetObjectLabelKHR = NULL;
-	PFNGLOBJECTPTRLABELKHRPROC				glObjectPtrLabelKHR = NULL;
-	PFNGLGETOBJECTPTRLABELKHRPROC			glGetObjectPtrLabelKHR = NULL;
-
-	// ES 3.2
-	PFNGLTEXBUFFEREXTPROC					glTexBufferEXT = nullptr;
-	PFNGLTEXBUFFERRANGEEXTPROC				glTexBufferRangeEXT = nullptr;
-	PFNGLCOPYIMAGESUBDATAEXTPROC			glCopyImageSubData = nullptr;
-	PFNGLENABLEIEXTPROC						glEnableiEXT = nullptr;
-	PFNGLDISABLEIEXTPROC					glDisableiEXT = nullptr;
-	PFNGLBLENDEQUATIONIEXTPROC				glBlendEquationiEXT = nullptr;
-	PFNGLBLENDEQUATIONSEPARATEIEXTPROC		glBlendEquationSeparateiEXT = nullptr;
-	PFNGLBLENDFUNCIEXTPROC					glBlendFunciEXT = nullptr;
-	PFNGLBLENDFUNCSEPARATEIEXTPROC			glBlendFuncSeparateiEXT = nullptr;
-	PFNGLCOLORMASKIEXTPROC					glColorMaskiEXT = nullptr;
-	PFNGLFRAMEBUFFERTEXTUREPROC				glFramebufferTexture = nullptr;
-
-	PFNGLFRAMEBUFFERTEXTUREMULTIVIEWOVRPROC				glFramebufferTextureMultiviewOVR = NULL;
-	PFNGLFRAMEBUFFERTEXTUREMULTISAMPLEMULTIVIEWOVRPROC	glFramebufferTextureMultisampleMultiviewOVR = NULL;
-};
 
 /** GL_EXT_disjoint_timer_query */
 bool FOpenGLES::bSupportsDisjointTimeQueries = false;
@@ -94,9 +43,6 @@ bool FOpenGLES::bSupportsShaderDepthStencilFetch = false;
 
 /** GL_EXT_multisampled_render_to_texture */
 bool FOpenGLES::bSupportsMultisampledRenderToTexture = false;
-
-/** GL_NV_texture_compression_s3tc, GL_EXT_texture_compression_s3tc */
-bool FOpenGLES::bSupportsDXT = false;
 
 /** OpenGL ES 3.0 profile */
 bool FOpenGLES::bSupportsETC2 = false;
@@ -224,17 +170,19 @@ void FOpenGLES::ProcessExtensions(const FString& ExtensionsString)
 	bSupportsBGRA8888 = ExtensionsString.Contains(TEXT("GL_APPLE_texture_format_BGRA8888")) || ExtensionsString.Contains(TEXT("GL_IMG_texture_format_BGRA8888")) || ExtensionsString.Contains(TEXT("GL_EXT_texture_format_BGRA8888"));
 	bSupportsColorBufferFloat = ExtensionsString.Contains(TEXT("GL_EXT_color_buffer_float"));
 	bSupportsColorBufferHalfFloat = ExtensionsString.Contains(TEXT("GL_EXT_color_buffer_half_float"));
-	bSupportsShaderFramebufferFetch = ExtensionsString.Contains(TEXT("GL_EXT_shader_framebuffer_fetch")) || ExtensionsString.Contains(TEXT("GL_NV_shader_framebuffer_fetch"))
-		|| ExtensionsString.Contains(TEXT("GL_ARM_shader_framebuffer_fetch ")); // has space at the end to exclude GL_ARM_shader_framebuffer_fetch_depth_stencil match
-	bSupportsShaderMRTFramebufferFetch = ExtensionsString.Contains(TEXT("GL_EXT_shader_framebuffer_fetch")) || ExtensionsString.Contains(TEXT("GL_NV_shader_framebuffer_fetch"));
-	bSupportsPixelLocalStorage = ExtensionsString.Contains(TEXT("GL_EXT_shader_pixel_local_storage"));
-	bSupportsShaderDepthStencilFetch = ExtensionsString.Contains(TEXT("GL_ARM_shader_framebuffer_fetch_depth_stencil"));
 	bSupportsMultisampledRenderToTexture = ExtensionsString.Contains(TEXT("GL_EXT_multisampled_render_to_texture"));
-	bSupportsDXT = ExtensionsString.Contains(TEXT("GL_NV_texture_compression_s3tc")) || ExtensionsString.Contains(TEXT("GL_EXT_texture_compression_s3tc"));
 	bSupportsNVFrameBufferBlit = ExtensionsString.Contains(TEXT("GL_NV_framebuffer_blit"));
 	bSupportsBufferStorage = ExtensionsString.Contains(TEXT("GL_EXT_buffer_storage"));
 	bSupportsDepthClamp = ExtensionsString.Contains(TEXT("GL_EXT_depth_clamp"));
 	bSupportsASTCDecodeMode = ExtensionsString.Contains(TEXT("GL_EXT_texture_compression_astc_decode_mode"));
+	
+	if (MobileAllowFramebufferFetch(GMaxRHIShaderPlatform))
+	{
+		bSupportsShaderFramebufferFetch = ExtensionsString.Contains(TEXT("GL_EXT_shader_framebuffer_fetch")) || ExtensionsString.Contains(TEXT("GL_NV_shader_framebuffer_fetch")) || ExtensionsString.Contains(TEXT("GL_ARM_shader_framebuffer_fetch ")); // has space at the end to exclude GL_ARM_shader_framebuffer_fetch_depth_stencil match
+		bSupportsShaderMRTFramebufferFetch = ExtensionsString.Contains(TEXT("GL_EXT_shader_framebuffer_fetch")) || ExtensionsString.Contains(TEXT("GL_NV_shader_framebuffer_fetch"));
+		bSupportsPixelLocalStorage = ExtensionsString.Contains(TEXT("GL_EXT_shader_pixel_local_storage"));
+		bSupportsShaderDepthStencilFetch = ExtensionsString.Contains(TEXT("GL_ARM_shader_framebuffer_fetch_depth_stencil"));
+	}
 
 	// Report shader precision
 	int Range[2];
@@ -341,6 +289,4 @@ void FOpenGLES::ProcessExtensions(const FString& ExtensionsString)
 	}
 }
 
-#endif
-
-#endif //desktop
+#endif //UGL_PLATFORM_SUPPORTS_GLES

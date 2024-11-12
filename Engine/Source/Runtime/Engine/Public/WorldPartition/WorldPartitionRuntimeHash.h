@@ -15,6 +15,7 @@
 #include "WorldPartition/WorldPartitionStreamingGenerationContext.h"
 #include "WorldPartition/WorldPartitionRuntimeContainerResolving.h"
 #include "WorldPartition/DataLayer/DataLayerInstanceProviderInterface.h"
+#include "WorldPartition/DataLayer/WorldDataLayers.h"
 #if WITH_EDITOR
 #include "CookPackageSplitter.h"
 #include "Misc/HierarchicalLogArchive.h"
@@ -22,6 +23,7 @@
 #include "WorldPartitionRuntimeHash.generated.h"
 
 struct FHierarchicalLogArchive;
+struct FDataLayerInstanceNames;
 class FWorldPartitionDraw2DContext;
 class UExternalDataLayerAsset;
 class UExternalDataLayerInstance;
@@ -88,13 +90,16 @@ public:
 	ENGINE_API virtual const UExternalDataLayerAsset* GetExternalDataLayerAsset() const override { return ExternalDataLayerAsset; }
 	ENGINE_API virtual FString GetPackageNameToCreate() const override;
 	ENGINE_API virtual bool OnPrepareGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages) override { return true; }
-	ENGINE_API virtual bool OnPopulateGeneratorPackageForCook(UPackage* InPackage) override;
-	ENGINE_API virtual bool OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) override;
+	ENGINE_API virtual bool OnPopulateGeneratorPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InPackage) override;
+	ENGINE_API virtual bool OnPopulateGeneratedPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) override;
 	//~End IWorldPartitionCookPackageObject interface
+
+	ENGINE_API const static TCHAR* GetCookedExternalStreamingObjectName() { return TEXT("RuntimeHashExternalStreamingObjectBase"); }
 
 protected:
 	virtual void DumpStateLog(FHierarchicalLogArchive& Ar);
 	UWorldPartitionRuntimeCell* GetCellForCookPackage(const FString& InCookPackageName) const;
+	bool PrepareForCook(const IWorldPartitionCookPackageContext& InCookContext);
 #endif
 
 public:
@@ -145,13 +150,38 @@ private:
 	TMap<const UWorldPartitionRuntimeCell*, double> CellToSourceMinSqrDistances;
 };
 
+struct ENGINE_API FWorldPartitionStreamingContext
+{
+public:
+	static FWorldPartitionStreamingContext Create(const UWorld* InWorld);
+	FWorldPartitionStreamingContext();
+	bool IsValid() const { return bIsValid; }
+
+private:
+	FWorldPartitionStreamingContext(const UWorld* InWorld);
+	FWorldPartitionStreamingContext(EWorldPartitionDataLayersLogicOperator InDataLayersLogicOperator, const FWorldDataLayersEffectiveStates& InDataLayerEffectiveStates, int32 InUpdateStreamingStateEpoch);
+
+	int32 GetResolvingDataLayersRuntimeStateEpoch() const { check(IsValid()); return DataLayerEffectiveStates->GetUpdateEpoch(); }
+	int32 GetUpdateStreamingStateEpoch() const { check(IsValid()); return UpdateStreamingStateEpoch; }
+	EDataLayerRuntimeState ResolveDataLayerRuntimeState(const FDataLayerInstanceNames& InDataLayerNames) const;
+
+	bool bIsValid;
+	EWorldPartitionDataLayersLogicOperator DataLayersLogicOperator;
+	const FWorldDataLayersEffectiveStates* DataLayerEffectiveStates;
+	int32 UpdateStreamingStateEpoch;
+
+	friend class UWorldPartitionStreamingPolicy;
+	friend class UWorldPartitionRuntimeCell;
+	friend class UWorldPartitionRuntimeCellData;
+};
+
 UCLASS(Abstract, Config=Engine, AutoExpandCategories=(WorldPartition), Within=WorldPartition, MinimalAPI)
 class UWorldPartitionRuntimeHash : public UObject
 {
 	GENERATED_UCLASS_BODY()
 
+	friend class UWorldPartition;
 	friend class URuntimePartition;
-	friend struct FFortWorldPartitionUtils;
 
 #if WITH_EDITOR
 	virtual void SetDefaultValues() {}
@@ -164,7 +194,11 @@ class UWorldPartitionRuntimeHash : public UObject
 	virtual void DrawPreview() const {}
 
 	ENGINE_API virtual bool HasStreamingContent() const { return false; }
-	ENGINE_API URuntimeHashExternalStreamingObjectBase* StoreStreamingContentToExternalStreamingObject(FName InStreamingObjectName);
+	ENGINE_API URuntimeHashExternalStreamingObjectBase* StoreStreamingContentToExternalStreamingObject();
+
+	UE_DEPRECATED(5.5, "StoreStreamingContentToExternalStreamingObject(FName) is deprecated, use StoreStreamingContentToExternalStreamingObject() instead")
+	URuntimeHashExternalStreamingObjectBase* StoreStreamingContentToExternalStreamingObject(FName InStreamingObjectName) { return StoreStreamingContentToExternalStreamingObject(); }
+
 	ENGINE_API virtual void FlushStreamingContent();
 	ENGINE_API virtual TSubclassOf<URuntimeHashExternalStreamingObjectBase> GetExternalStreamingObjectClass() const PURE_VIRTUAL(UWorldPartitionRuntimeHash::GetExternalStreamingObjectClass, return nullptr;);
 	ENGINE_API virtual void DumpStateLog(FHierarchicalLogArchive& Ar) const;
@@ -183,10 +217,14 @@ class UWorldPartitionRuntimeHash : public UObject
 	UE_DEPRECATED(5.4, "GetCellForPackage is deprecated.")
 	ENGINE_API UWorldPartitionRuntimeCell* GetCellForPackage(const FWorldPartitionCookPackage& PackageToCook) const { return nullptr; }
 	//~End Deprecation
+#endif
 
+	ENGINE_API virtual void OnBeginPlay() {}
+
+#if WITH_EDITOR
 	// PIE/Game methods
-	ENGINE_API void OnBeginPlay();
-	ENGINE_API void OnEndPlay();
+	ENGINE_API virtual void PrepareEditorGameWorld();
+	ENGINE_API virtual void ShutdownEditorGameWorld();
 
 protected:
 	ENGINE_API virtual void StoreStreamingContentToExternalStreamingObject(URuntimeHashExternalStreamingObjectBase* OutExternalStreamingObject);
@@ -198,10 +236,15 @@ public:
 	class FStreamingSourceCells
 	{
 	public:
-		void AddCell(const UWorldPartitionRuntimeCell* Cell, const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape);
+		void AddCell(const UWorldPartitionRuntimeCell* Cell, const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape, const FWorldPartitionStreamingContext& Context);
 		void Reset() { Cells.Reset(); }
 		int32 Num() const { return Cells.Num(); }
 		TSet<const UWorldPartitionRuntimeCell*>& GetCells() { return Cells; }
+
+		//~Begin Deprecation
+		UE_DEPRECATED(5.5, "Use version that takes FWorldPartitionStreamingContext instead.")
+		void AddCell(const UWorldPartitionRuntimeCell* Cell, const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape) {}
+		//~End Deprecation
 
 	private:
 		TSet<const UWorldPartitionRuntimeCell*> Cells;
@@ -210,7 +253,7 @@ public:
 	// Streaming interface
 	virtual void ForEachStreamingCells(TFunctionRef<bool(const UWorldPartitionRuntimeCell*)> Func) const {}
 	virtual void ForEachStreamingCellsQuery(const FWorldPartitionStreamingQuerySource& QuerySource, TFunctionRef<bool(const UWorldPartitionRuntimeCell*)> Func, FWorldPartitionQueryCache* QueryCache = nullptr) const {}
-	virtual void ForEachStreamingCellsSources(const TArray<FWorldPartitionStreamingSource>& Sources, TFunctionRef<bool(const UWorldPartitionRuntimeCell*, EStreamingSourceTargetState)> Func) const {}
+	virtual void ForEachStreamingCellsSources(const TArray<FWorldPartitionStreamingSource>& Sources, TFunctionRef<bool(const UWorldPartitionRuntimeCell*, EStreamingSourceTargetState)> Func, const FWorldPartitionStreamingContext& Context = FWorldPartitionStreamingContext()) const {}
 	// Computes a hash value of all runtime hash specific dependencies that affects the update of the streaming
 	virtual uint32 ComputeUpdateStreamingHash() const { return 0; }
 
@@ -227,9 +270,10 @@ public:
 	virtual bool IsStreaming3D() const { return true; }
 	virtual bool GetShouldMergeStreamingSourceInfo() const { return false; }
 
-protected:
-	static ENGINE_API URuntimeHashExternalStreamingObjectBase* CreateExternalStreamingObject(TSubclassOf<URuntimeHashExternalStreamingObjectBase> InClass, UObject* InOuter, FName InName, UWorld* InOuterWorld);
+	static ENGINE_API URuntimeHashExternalStreamingObjectBase* CreateExternalStreamingObject(TSubclassOf<URuntimeHashExternalStreamingObjectBase> InClass, UObject* InOuter, UWorld* InOuterWorld);
 	ENGINE_API UWorldPartitionRuntimeCell* CreateRuntimeCell(UClass* CellClass, UClass* CellDataClass, const FString& CellName, const FString& CellInstanceSuffix, UObject* InOuter = nullptr);
+
+protected:
 	virtual EWorldPartitionStreamingPerformance GetStreamingPerformanceForCell(const UWorldPartitionRuntimeCell* Cell) const;
 
 #if WITH_EDITORONLY_DATA
@@ -251,9 +295,15 @@ protected:
 protected:
 #if WITH_EDITOR
 	ENGINE_API void ForceExternalActorLevelReference(bool bForceExternalActorLevelReferenceForPIE);
+	ENGINE_API bool ResolveBlockOnSlowStreamingForCell(bool bInOwnerBlockOnSlowStreaming, bool bInIsHLODCell, const TArray<const UDataLayerInstance*>& InCellDataLayerInstances) const;
 #endif
 
 	TSet<TWeakObjectPtr<URuntimeHashExternalStreamingObjectBase>> InjectedExternalStreamingObjects;
+
+	ENGINE_API virtual bool SupportsWorldAssetStreaming(const FName& InTargetGrid) { return false; }
+	ENGINE_API virtual FGuid RegisterWorldAssetStreaming(const UWorldPartition::FRegisterWorldAssetStreamingParams& InParams) { return FGuid(); }
+	ENGINE_API virtual bool UnregisterWorldAssetStreaming(const FGuid& InWorldAssetStreamingGuid) { return false; }
+	ENGINE_API virtual TArray<UWorldPartitionRuntimeCell*> GetWorldAssetStreamingCells(const FGuid& InWorldAssetStreamingGuid) { return {}; }
 
 #if WITH_EDITOR
 private:
@@ -266,5 +316,10 @@ private:
 public:
 	static ENGINE_API void RegisterWorldPartitionRuntimeHashConverter(const UClass* InSrcClass, const UClass* InDstClass, FRuntimeHashConvertFunc&& InConverter);
 	static ENGINE_API UWorldPartitionRuntimeHash* ConvertWorldPartitionHash(const UWorldPartitionRuntimeHash* InSrcHash, const UClass* InDstClass);
+
+	static ENGINE_API void ExecutePreSetupHLODActors(const UWorldPartition* InWorldPartition, const UWorldPartition::FSetupHLODActorsParams& InParams);
+	static ENGINE_API void ExecutePostSetupHLODActors(const UWorldPartition* InWorldPartition, const UWorldPartition::FSetupHLODActorsParams& InParams);
+	ENGINE_API virtual void PreSetupHLODActors(const UWorldPartition* InWorldPartition, const UWorldPartition::FSetupHLODActorsParams& InParams) const {}
+	ENGINE_API virtual void PostSetupHLODActors(const UWorldPartition* InWorldPartition, const UWorldPartition::FSetupHLODActorsParams& InParams) const {}
 #endif
 };

@@ -54,6 +54,7 @@ protected:
 			void SetObject(const UObject* InObject)
 			{
 				ObjectId.SetObject(InObject);
+				ObjectFlags = InObject->GetFlags();
 				ObjectAnnotation = InObject->FindOrCreateTransactionAnnotation();
 			}
 
@@ -61,6 +62,7 @@ protected:
 			{
 				UE::Transaction::FSerializedObject::Reset();
 				ObjectId.Reset();
+				ObjectFlags = RF_NoFlags;
 				ObjectAnnotation.Reset();
 				PendingKillChange = EPendingKillChange::None;
 			}
@@ -69,12 +71,16 @@ protected:
 			{
 				UE::Transaction::FSerializedObject::Swap(Other);
 				ObjectId.Swap(Other.ObjectId);
+				Exchange(ObjectFlags, Other.ObjectFlags);
 				Exchange(ObjectAnnotation, Other.ObjectAnnotation);
 				Exchange(PendingKillChange, Other.PendingKillChange);
 			}
 
 			/** ID of the object when it was serialized */
 			FTransactionObjectId ObjectId;
+
+			/** The flags of the object when it was serialized */
+			EObjectFlags ObjectFlags = RF_NoFlags;
 
 			/** Annotation data for the object stored externally */
 			TSharedPtr<ITransactionObjectAnnotation> ObjectAnnotation;
@@ -220,6 +226,10 @@ protected:
 
 	struct FObjectRecords
 	{
+		// clang fix for std::is_default_constructible_v 
+		// returning false in inlined code of outer class
+		FObjectRecords() {}
+
 		friend FArchive& operator<<(FArchive& Ar, FObjectRecords& ObjectRecords)
 		{
 			Ar << ObjectRecords.SaveCount;
@@ -239,6 +249,10 @@ protected:
 
 	struct FPackageRecord
 	{
+		// clang fix for std::is_default_constructible_v 
+		// returning false in inlined code of outer class
+		FPackageRecord() {}
+
 		friend FArchive& operator<<(FArchive& Ar, FPackageRecord& PackageRecord)
 		{
 			Ar << PackageRecord.DirtyFenceCount;

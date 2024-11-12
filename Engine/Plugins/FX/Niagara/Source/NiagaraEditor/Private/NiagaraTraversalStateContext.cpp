@@ -44,7 +44,7 @@ void FNiagaraTraversalStateContext::PushGraphInternal(const FNiagaraCompilationN
 					}
 				}
 			}
-			else if (!StaticSwitchNode->bSetByCompiler)
+			else if (!StaticSwitchNode->bSetByCompiler && CallingNode)
 			{
 				for (const FNiagaraCompilationInputPin& InputPin : CallingNode->InputPins)
 				{
@@ -60,7 +60,7 @@ void FNiagaraTraversalStateContext::PushGraphInternal(const FNiagaraCompilationN
 
 			if (IsValueSet)
 			{
-				const uint32 SwitchNodeHash = HashCombine(TraversalStack.Top().FullStackHash, GetTypeHash(StaticSwitchNode->NodeGuid));
+				const FGuid SwitchNodeHash = FGuid::Combine(TraversalStack.Top().FullStackHash, StaticSwitchNode->NodeGuid);
 				if (ensure(!StaticSwitchValueMap.Contains(SwitchNodeHash)))
 				{
 					StaticSwitchValueMap.Add(SwitchNodeHash, SwitchValue);
@@ -75,39 +75,75 @@ void FNiagaraTraversalStateContext::PushGraphInternal(const FNiagaraCompilationN
 		}
 		else if (const FNiagaraCompilationNodeFunctionCall* InnerFunctionNode = Node->AsType<FNiagaraCompilationNodeFunctionCall>())
 		{
-			const uint32 InnerFunctionNodeHash = HashCombine(TraversalStack.Top().FullStackHash, GetTypeHash(InnerFunctionNode->NodeGuid));
+			const FGuid InnerFunctionNodeHash = FGuid::Combine(TraversalStack.Top().FullStackHash, InnerFunctionNode->NodeGuid);
 
 			// based on the original code bInheritDebugState drives whether we use the system value vs NoDebug.  Note
 			// that the serialized Debugstate is never used.
-			ENiagaraFunctionDebugState CachedDebugState = InnerFunctionNode->bInheritDebugState
+			ENiagaraFunctionDebugState CachedDebugState = (CallingNode && InnerFunctionNode->bInheritDebugState)
 				? ConstantResolver.GetDebugState()
-				: ENiagaraFunctionDebugState::NoDebug;
+				: InnerFunctionNode->DebugState;
 
 			if (ensure(!FunctionDebugStateMap.Contains(InnerFunctionNodeHash)))
 			{
 				FunctionDebugStateMap.Add(InnerFunctionNodeHash, CachedDebugState);
 			}
 
-			for (const FNiagaraCompilationNodeFunctionCall::FTaggedVariable& TaggedVariable : InnerFunctionNode->PropagatedStaticSwitchParameters)
+			if (CallingNode)
 			{
-				const FNiagaraCompilationInputPin* ValuePin = InnerFunctionNode->InputPins.FindByPredicate([&TaggedVariable](const FNiagaraCompilationInputPin& InputPin) -> bool
+				for (const FNiagaraCompilationNodeFunctionCall::FTaggedVariable& TaggedVariable : InnerFunctionNode->PropagatedStaticSwitchParameters)
+				{
+					const FNiagaraCompilationInputPin* ValuePin = InnerFunctionNode->InputPins.FindByPredicate([&TaggedVariable](const FNiagaraCompilationInputPin& InputPin) -> bool
 					{
 						return InputPin.PinName == TaggedVariable.Key.GetName();
 					});
 
-				if (ValuePin)
-				{
-					const FNiagaraCompilationInputPin* CallerInputPin = CallingNode->InputPins.FindByPredicate([&TaggedVariable](const FNiagaraCompilationInputPin& InputPin) -> bool
+					if (ValuePin)
+					{
+						const FNiagaraCompilationInputPin* CallerInputPin = CallingNode->InputPins.FindByPredicate([&TaggedVariable](const FNiagaraCompilationInputPin& InputPin) -> bool
 						{
 							return InputPin.PinName == TaggedVariable.Value;
 						});
 
-					if (CallerInputPin)
-					{
-						const uint32 FunctionPinNodeHash = HashCombine(InnerFunctionNodeHash, GetTypeHash(ValuePin->PinName));
-						if (ensure(!FunctionDefaultValueMap.Contains(FunctionPinNodeHash)))
+						if (CallerInputPin)
 						{
-							FunctionDefaultValueMap.Add(FunctionPinNodeHash, CallerInputPin->DefaultValue);
+							const FFunctionDefaultValueMapKey DefaultValueKey = MakeTuple(InnerFunctionNodeHash, ValuePin->PinName);
+
+							const FString* ExistingDefaultValue = FunctionDefaultValueMap.Find(DefaultValueKey);
+							if (ensure(!ExistingDefaultValue))
+							{
+								FunctionDefaultValueMap.Add(DefaultValueKey, CallerInputPin->DefaultValue);
+							}
+							else
+							{
+								// generate an error message to help track down the scenario where this has happened
+								UE_LOG(LogNiagaraEditor, Warning, TEXT("FNiagaraTraversalStateContext::PushGraphInternal() generated a non-unique function call.\n" \
+									"\t[ExistingDefaultValue] %s\n" \
+									"\t[NewDefaultValue] %s\n" \
+									"\t[ValuePin->PinName] %s\n" \
+									"\t[TaggedVariable] %s - %s\n" \
+									"\t[InnerFunctionNode] %s - %s"),
+									ExistingDefaultValue ? **ExistingDefaultValue : TEXT("<null>"),
+									*CallerInputPin->DefaultValue,
+									*ValuePin->PinName.ToString(),
+									*TaggedVariable.Key.GetName().ToString(), *TaggedVariable.Value.ToString(),
+									*InnerFunctionNode->FunctionName, *InnerFunctionNode->FunctionScriptName
+									);
+								
+								UE_LOG(LogNiagaraEditor, Warning, TEXT("FNiagaraTraversalStateContext - Stack"))
+								for (int32 StackIt = TraversalStack.Num() - 1; StackIt >= 0; --StackIt)
+								{
+									FString StackMessage = FString::Printf(TEXT("[%d] - %s, %s"),
+										StackIt,
+										*TraversalStack[StackIt].NodeGuid.ToString(EGuidFormats::DigitsWithHyphens),
+										*TraversalStack[StackIt].FullStackHash.ToString(EGuidFormats::DigitsWithHyphens));
+
+#if WITH_NIAGARA_TRAVERSAL_FRIENDLY_NAME
+									StackMessage.Append(TEXT(", "));
+									StackMessage.Append(TraversalStack[StackIt].FriendlyName);
+#endif
+									UE_LOG(LogNiagaraEditor, Warning, TEXT("%s"),  *StackMessage);
+								}
+							}
 						}
 					}
 				}
@@ -116,26 +152,40 @@ void FNiagaraTraversalStateContext::PushGraphInternal(const FNiagaraCompilationN
 	}
 }
 
+void FNiagaraTraversalStateContext::BeginContext(const FNiagaraCompilationGraph* ParentGraph, const FNiagaraFixedConstantResolver& ConstantResolver)
+{
+	if (ParentGraph)
+	{
+		FNiagaraTraversalStackEntry& StackTop = TraversalStack.AddDefaulted_GetRef();
+#if WITH_NIAGARA_TRAVERSAL_FRIENDLY_NAME
+		StackTop.FriendlyName = TEXT("Root");
+#endif
+
+		PushGraphInternal(nullptr, ParentGraph, ConstantResolver);
+	}
+}
+
 void FNiagaraTraversalStateContext::PushFunction(const FNiagaraCompilationNodeFunctionCall* FunctionCall, const FNiagaraFixedConstantResolver& ConstantResolver)
 {
-	TOptional<uint32> CurrentStackHash;
+	TOptional<FGuid> CurrentStackHash;
 	if (!TraversalStack.IsEmpty())
 	{
 		CurrentStackHash = TraversalStack.Top().FullStackHash;
 	}
 
 	FNiagaraTraversalStackEntry& StackTop = TraversalStack.AddDefaulted_GetRef();
-	StackTop.FriendlyName = FString::Printf(TEXT("FuncionName - %s | FullName - %s | FullTitle - %s | NodeType - %d"),
+#if WITH_NIAGARA_TRAVERSAL_FRIENDLY_NAME
+	StackTop.FriendlyName = FString::Printf(TEXT("FunctionName - %s | FullName - %s | FullTitle - %s | NodeType - %d"),
 		*FunctionCall->FunctionName,
 		*FunctionCall->FullName,
 		*FunctionCall->FullTitle,
 		(int32)FunctionCall->NodeType);
+#endif
 
 	StackTop.NodeGuid = FunctionCall->NodeGuid;
-	const uint32 NodeGuidHash = GetTypeHash(StackTop.NodeGuid);
 	StackTop.FullStackHash = CurrentStackHash.IsSet()
-		? HashCombine(*CurrentStackHash, NodeGuidHash)
-		: NodeGuidHash;
+		? FGuid::Combine(*CurrentStackHash, StackTop.NodeGuid)
+		: StackTop.NodeGuid;
 
 	if (FunctionCall->CalledGraph)
 	{
@@ -145,24 +195,25 @@ void FNiagaraTraversalStateContext::PushFunction(const FNiagaraCompilationNodeFu
 
 void FNiagaraTraversalStateContext::PushEmitter(const FNiagaraCompilationNodeEmitter* Emitter)
 {
-	TOptional<uint32> CurrentStackHash;
+	TOptional<FGuid> CurrentStackHash;
 	if (!TraversalStack.IsEmpty())
 	{
 		CurrentStackHash = TraversalStack.Top().FullStackHash;
 	}
 
 	FNiagaraTraversalStackEntry& StackTop = TraversalStack.AddDefaulted_GetRef();
+#if WITH_NIAGARA_TRAVERSAL_FRIENDLY_NAME
 	StackTop.FriendlyName = FString::Printf(TEXT("EmitterName - %s | FullName - %s | FullTitle - %s | NodeType - %d"),
 		*Emitter->EmitterUniqueName,
 		*Emitter->FullName,
 		*Emitter->FullTitle,
 		(int32)Emitter->NodeType);
+#endif
 
 	StackTop.NodeGuid = Emitter->NodeGuid;
-	const uint32 NodeGuidHash = GetTypeHash(StackTop.NodeGuid);
 	StackTop.FullStackHash = CurrentStackHash.IsSet()
-		? HashCombine(*CurrentStackHash, NodeGuidHash)
-		: NodeGuidHash;
+		? FGuid::Combine(*CurrentStackHash, StackTop.NodeGuid)
+		: StackTop.NodeGuid;
 }
 
 void FNiagaraTraversalStateContext::PopFunction(const FNiagaraCompilationNodeFunctionCall* FunctionCall)
@@ -181,7 +232,7 @@ bool FNiagaraTraversalStateContext::GetStaticSwitchValue(const FGuid& NodeGuid, 
 {
 	if (!TraversalStack.IsEmpty())
 	{
-		if (const int32* ValuePtr = StaticSwitchValueMap.Find(HashCombine(TraversalStack.Top().FullStackHash, GetTypeHash(NodeGuid))))
+		if (const int32* ValuePtr = StaticSwitchValueMap.Find(FGuid::Combine(TraversalStack.Top().FullStackHash, NodeGuid)))
 		{
 			StaticSwitchValue = *ValuePtr;
 			return true;
@@ -194,9 +245,8 @@ bool FNiagaraTraversalStateContext::GetFunctionDefaultValue(const FGuid& NodeGui
 {
 	if (!TraversalStack.IsEmpty())
 	{
-		const uint32 NodeHash = HashCombine(TraversalStack.Top().FullStackHash, GetTypeHash(NodeGuid));
-		const uint32 PinHash = HashCombine(NodeHash, GetTypeHash(PinName));
-		if (const FString* ValuePtr = FunctionDefaultValueMap.Find(PinHash))
+		const FGuid StackGuid = FGuid::Combine(TraversalStack.Top().FullStackHash, NodeGuid);
+		if (const FString* ValuePtr = FunctionDefaultValueMap.Find(MakeTuple(StackGuid, PinName)))
 		{
 			FunctionDefaultValue = *ValuePtr;
 			return true;
@@ -209,8 +259,21 @@ bool FNiagaraTraversalStateContext::GetFunctionDebugState(const FGuid& NodeGuid,
 {
 	if (!TraversalStack.IsEmpty())
 	{
-		const uint32 NodeHash = HashCombine(TraversalStack.Top().FullStackHash, GetTypeHash(NodeGuid));
+		const FGuid NodeHash = FGuid::Combine(TraversalStack.Top().FullStackHash, NodeGuid);
 		if (const ENiagaraFunctionDebugState* ValuePtr = FunctionDebugStateMap.Find(NodeHash))
+		{
+			DebugState = *ValuePtr;
+			return true;
+		}
+	}
+	return false;
+}
+
+bool FNiagaraTraversalStateContext::GetCurrentDebugState(ENiagaraFunctionDebugState& DebugState) const
+{
+	if (!TraversalStack.IsEmpty())
+	{
+		if (const ENiagaraFunctionDebugState* ValuePtr = FunctionDebugStateMap.Find(TraversalStack.Top().FullStackHash))
 		{
 			DebugState = *ValuePtr;
 			return true;
@@ -333,19 +396,19 @@ ENiagaraFunctionDebugState FNiagaraFixedConstantResolver::GetDebugState() const
 	return (ENiagaraFunctionDebugState)EnumValue.Value;
 }
 
-void FNiagaraFixedConstantResolver::AddNamedChildResolver(FName ScopeName, const FNiagaraFixedConstantResolver& ChildResolver)
+void FNiagaraFixedConstantResolver::AddChildResolver(const FGuid& ChildId, const FNiagaraFixedConstantResolver& ChildResolver)
 {
-	if (ensure(FindChildResolver(ScopeName) == nullptr))
+	if (ensure(FindChildResolver(ChildId) == nullptr))
 	{
-		ChildResolversByName.Emplace(ScopeName, ChildResolver);
+		ChildResolvers.Emplace(ChildId, ChildResolver);
 	}
 }
 
-const FNiagaraFixedConstantResolver* FNiagaraFixedConstantResolver::FindChildResolver(FName ScopeName) const
+const FNiagaraFixedConstantResolver* FNiagaraFixedConstantResolver::FindChildResolver(const FGuid& ChildId) const
 {
-	const FNamedResolverPair* ChildResolver = ChildResolversByName.FindByPredicate([ScopeName](const FNamedResolverPair& NamedPair) -> bool
+	const FNamedResolverPair* ChildResolver = ChildResolvers.FindByPredicate([ChildId](const FNamedResolverPair& NamedPair) -> bool
 	{
-			return NamedPair.Key == ScopeName;
+			return NamedPair.Key == ChildId;
 	});
 
 	return ChildResolver ? &ChildResolver->Value : nullptr;

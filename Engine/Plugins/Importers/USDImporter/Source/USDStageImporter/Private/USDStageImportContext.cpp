@@ -27,7 +27,7 @@ bool FUsdStageImportContext::Init(
 	ObjectName = InName;
 	FilePath = InFilePath;
 	bIsAutomated = bInIsAutomated;
-	ImportObjectFlags = InFlags | RF_Transactional;
+	ImportObjectFlags = InFlags;
 	World = GEditor->GetEditorWorldContext().World();
 	PackagePath = InInitialPackagePath;
 
@@ -91,8 +91,12 @@ void FUsdStageImportContext::Reset()
 	FilePath = FString{};
 	ImportOptions = NewObject<UUsdStageImportOptions>();
 	ImportedAsset = nullptr;
+	ImportedAssets.Reset();
 	LevelSequenceHelper.Clear();
+	UsdAssetCache = nullptr;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	AssetCache = nullptr;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	BBoxCache = nullptr;
 	MaterialToPrimvarToUVIndex.Empty();
 	Stage = UE::FUsdStage{};

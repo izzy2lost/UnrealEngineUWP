@@ -10,6 +10,7 @@
 #include "DetailItemNode.h"
 #include "DetailPropertyRow.h"
 #include "IPropertyGenerationUtilities.h"
+#include "ObjectEditorUtils.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Modules/ModuleManager.h"
 #include "ObjectPropertyNode.h"
@@ -144,6 +145,27 @@ TArrayView<TSharedPtr<IPropertyHandle>> FDetailLayoutCustomization::GetPropertyH
 	return TArrayView<TSharedPtr<IPropertyHandle>>();
 }
 
+FText FDetailLayoutCustomization::GetFilterTextString() const
+{
+	if (HasCustomWidget())
+	{
+		return WidgetDecl->FilterTextString;
+	}
+	else if (HasCustomBuilder() && CustomBuilderRow->GetWidgetRow())
+	{
+		return CustomBuilderRow->GetWidgetRow()->FilterTextString;
+	}
+	else if (HasPropertyNode())
+	{
+		return PropertyRow->GetFilterTextString();
+	}
+	else if (DetailGroup->GetHeaderPropertyRow())
+	{
+		return DetailGroup->GetHeaderPropertyRow()->GetFilterTextString();
+	}
+	return {};
+}
+
 const IDetailLayoutRow* FDetailLayoutCustomization::GetDetailLayoutRow() const
 {
 	if (HasCustomWidget())
@@ -225,6 +247,17 @@ FDetailCategoryImpl::FDetailCategoryImpl(FName InCategoryName, TSharedRef<FDetai
 
 FDetailCategoryImpl::~FDetailCategoryImpl()
 {
+	// The children won't be able to pin the weak pointer of their parent (this object) to remove themselves from the list of tickables
+	// because at this point the parent's shared pointer reference counter has already reached 0 (the execution has reached this destructor).
+	// Therefore the tickable nodes need to be manually removed from that list to prevent these dead node pointers remaining in the layout object.
+	for (TSharedRef<FDetailTreeNode>& SimpleChildNode : SimpleChildNodes)
+	{
+		RemoveTickableNode(*SimpleChildNode);
+	}
+	for (TSharedRef<FDetailTreeNode>& AdvancedChildNode : AdvancedChildNodes)
+	{
+		RemoveTickableNode(*AdvancedChildNode);
+	}
 }
 
 
@@ -489,6 +522,11 @@ IDetailPropertyRow* FDetailCategoryImpl::AddExternalStructureProperty(TSharedPtr
 
 	FDetailPropertyRow::MakeExternalPropertyRowCustomization(StructData, PropertyName, AsShared(), NewCustomization, Params);
 
+	if (Params.ShouldHideRootObjectNode() && NewCustomization.HasPropertyNode() && NewCustomization.GetPropertyNode()->AsComplexNode())
+	{
+		NewCustomization.PropertyRow->SetForceShowOnlyChildren(true);
+	}
+
 	TSharedPtr<FDetailPropertyRow> NewRow = NewCustomization.PropertyRow;
 
 	if (NewRow.IsValid())
@@ -509,6 +547,11 @@ IDetailPropertyRow* FDetailCategoryImpl::AddExternalStructureProperty(TSharedPtr
 	NewCustomization.bAdvanced = Location == EPropertyLocation::Advanced;
 
 	FDetailPropertyRow::MakeExternalPropertyRowCustomization(StructDataProvider, PropertyName, AsShared(), NewCustomization, Params);
+
+	if (Params.ShouldHideRootObjectNode() && NewCustomization.HasPropertyNode() && NewCustomization.GetPropertyNode()->AsComplexNode())
+	{
+		NewCustomization.PropertyRow->SetForceShowOnlyChildren(true);
+	}
 
 	TSharedPtr<FDetailPropertyRow> NewRow = NewCustomization.PropertyRow;
 
@@ -709,9 +752,19 @@ void FDetailCategoryImpl::Tick(float DeltaTime)
 
 void FDetailCategoryImpl::RefreshTree(bool bRefilterCategory)
 {
-	bPendingRefresh = true;
-	bPendingRefreshNeedsRefilter = bRefilterCategory;
-	AddTickableNode(*this);
+	TSharedPtr<FDetailLayoutBuilderImpl> ParentLayout = GetParentLayoutImpl();
+
+	// If this is an external property node, refresh it directly since external objects' detail layout builder don't get ticked.
+	if (ParentLayout.IsValid() && ParentLayout->IsLayoutForExternalRoot())
+	{
+		RefreshTreeInternal(bRefilterCategory);
+	}
+	else
+	{
+		bPendingRefresh = true;
+		bPendingRefreshNeedsRefilter = bRefilterCategory;
+		AddTickableNode(*this);
+	}
 }
 
 void FDetailCategoryImpl::RefreshTreeInternal(bool bRefilterCategory)
@@ -793,6 +846,16 @@ void FDetailCategoryImpl::SetDisplayName(const FText& InDisplayName)
 	SetDisplayName(CategoryName, InDisplayName);
 }
 
+const TOptional<FText>& FDetailCategoryImpl::GetToolTip() const
+{
+	return ToolTip;
+}
+
+void FDetailCategoryImpl::SetToolTip(const FText& InToolTip)
+{
+	ToolTip = InToolTip;
+}
+
 void FDetailCategoryImpl::SetDisplayName(FName InCategoryName, const FText& LocalizedNameOverride)
 {
 	if (!LocalizedNameOverride.IsEmpty())
@@ -801,26 +864,7 @@ void FDetailCategoryImpl::SetDisplayName(FName InCategoryName, const FText& Loca
 	}
 	else if (InCategoryName != NAME_None)
 	{
-		static const FTextKey CategoryLocalizationNamespace = TEXT("UObjectCategory");
-		static const FName CategoryMetaDataKey = TEXT("Category");
-
-		DisplayName = FText();
-
-		const FString NativeCategory = InCategoryName.ToString();
-		if (FText::FindText(CategoryLocalizationNamespace, NativeCategory, /*OUT*/DisplayName, &NativeCategory))
-		{
-			// Category names in English are typically gathered in their non-pretty form (eg "UserInterface" rather than "User Interface"), so skip 
-			// applying the localized variant if the text matches the raw category name, as in this case the pretty printer will do a better job
-			if (NativeCategory.Equals(DisplayName.ToString(), ESearchCase::CaseSensitive))
-			{
-				DisplayName = FText();
-			}
-		}
-		
-		if (DisplayName.IsEmpty())
-		{
-			DisplayName = FText::AsCultureInvariant(FName::NameToDisplayString(NativeCategory, false));
-		}
+		DisplayName = FObjectEditorUtils::GetCategoryText(InCategoryName);
 	}
 	else
 	{
@@ -861,7 +905,8 @@ TSharedRef<ITableRow> FDetailCategoryImpl::GenerateWidgetForTableView(const TSha
 	InitializeObjectName();
 	TSharedPtr<FDetailLayoutBuilderImpl> ParentLayout = GetParentLayoutImpl();
 
-	return SNew(SDetailCategoryTableRow, AsShared(), OwnerTable)
+	TSharedRef<SDetailCategoryTableRow> RowWidget =
+		SNew(SDetailCategoryTableRow, AsShared(), OwnerTable)
 		.PasteFromText(OnPasteFromText())
 		.ObjectName( ObjectName )
 		.IsEmpty( bIsEmpty )
@@ -869,6 +914,13 @@ TSharedRef<ITableRow> FDetailCategoryImpl::GenerateWidgetForTableView(const TSha
 		.DisplayName(GetDisplayName())
 		.HeaderContent(HeaderContent)
 		.WholeRowHeaderContent(bHeaderContentWholeRowContent);
+
+	if (ToolTip.IsSet() && !ToolTip->IsEmpty())
+	{
+		RowWidget->SetToolTipText(ToolTip.GetValue());
+	}
+
+	return RowWidget;
 }
 
 void FDetailCategoryImpl::InitializeObjectName()
@@ -908,12 +960,21 @@ bool FDetailCategoryImpl::GenerateStandaloneWidget(FDetailWidgetRow& OutRow) con
 
 	const bool bIsInnerCategory = GetParentLayoutImpl()->IsLayoutForExternalRoot();
 	FTextBlockStyle NameStyle = bIsInnerCategory ? FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText") : FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("DetailsView.CategoryTextStyle");
+
+	TSharedRef<STextBlock> TextBlock =
+    	SNew(STextBlock)
+    	.Text(GetDisplayName())
+    	.TextStyle(&NameStyle)
+    	.ShadowOffset(FVector2D::ZeroVector);
+
+    if (ToolTip.IsSet() && !ToolTip->IsEmpty())
+    {
+    	TextBlock->SetToolTipText(ToolTip.GetValue());
+    }
+
 	OutRow.NameContent()
 	[
-		SNew(STextBlock)
-		.Text(GetDisplayName())
-		.TextStyle(&NameStyle)
-		.ShadowOffset(FVector2D::ZeroVector)
+		TextBlock
 	];
 
 	if(HeaderContentWidget.IsValid())
@@ -1307,4 +1368,40 @@ bool FDetailCategoryImpl::IsParentEnabled() const
 {
 	IDetailsViewPrivate* DetailsView = GetDetailsView();
 	return !DetailsView || DetailsView->IsPropertyEditingEnabled();
+}
+
+bool FDetailLayoutMap::ShouldShowGroup(FName RequiredGroupName) const
+{
+	auto HasInnerPropertiesOnly = [](const TArray<FDetailLayoutCustomization>& CustomizationLayouts) -> bool
+		{
+			static const FName Name_ShowOnlyInnerProperties("ShowOnlyInnerProperties");
+
+			for (const FDetailLayoutCustomization& Customization : CustomizationLayouts)
+			{
+				if (const TSharedPtr<FPropertyNode> PropertyNode = Customization.GetPropertyNode())
+				{
+					if (const TSharedPtr<FPropertyNode> ParentNode = PropertyNode->GetParentNodeSharedPtr())
+					{
+						if (const FProperty* ParentNodeProperty = ParentNode->GetProperty())
+						{
+							if (ParentNodeProperty->HasMetaData(Name_ShowOnlyInnerProperties))
+							{
+								return true;
+							}
+						}
+					}
+				}
+			}
+			return false;
+		};
+
+	bool bInnerPropertiesOnly = false;
+
+	if (const FDetailLayout* FoundLayout = Layouts.FindByPredicate([RequiredGroupName](const FDetailLayout& Layout) { return Layout.GetInstanceName() == RequiredGroupName; }))
+	{
+		bInnerPropertiesOnly = HasInnerPropertiesOnly(FoundLayout->GetSimpleLayouts()) || HasInnerPropertiesOnly(FoundLayout->GetAdvancedLayouts());
+	}
+
+	// Should show the group if the group name is not empty and there are more than two entries in the list where one of them is not the default "none" entry (represents the base object)
+	return !bInnerPropertiesOnly && RequiredGroupName != NAME_None && Layouts.Num() > 1 && (Layouts.Num() > 2 || !bContainsBaseInstance);
 }

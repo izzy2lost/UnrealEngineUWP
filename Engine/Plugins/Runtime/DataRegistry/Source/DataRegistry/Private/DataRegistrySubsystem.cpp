@@ -20,16 +20,12 @@
 #include "Engine/Engine.h"
 #endif
 
+TObjectPtr<UDataRegistrySubsystem> UDataRegistrySubsystem::SingletonSubSystem = nullptr;
+
 UDataRegistrySubsystem* UDataRegistrySubsystem::Get()
 {
-	// This function is fairly slow and once this is valid it will stay valid until shutdown
-	static UDataRegistrySubsystem* SubSystem = nullptr;
-	if (!SubSystem)
-	{
-		SubSystem = GEngine->GetEngineSubsystem<UDataRegistrySubsystem>();
-	}
-
-	return SubSystem;
+	// GetEngineSubsystem is fairly slow and once SingletonSubSystem is valid it will stay valid until shutdown
+	return SingletonSubSystem;
 }
 
 //static bool GetCachedItemBP(FDataRegistryId ItemId, UPARAM(ref) FTableRowBase& OutItem);
@@ -103,6 +99,52 @@ DEFINE_FUNCTION(UDataRegistrySubsystem::execFindCachedItemBP)
 	{
 		P_NATIVE_BEGIN;
 		CacheResult = SubSystem->GetCachedItemRaw(CacheData, CacheStruct, ItemId);
+
+		if (CacheResult && CacheStruct && CacheData)
+		{
+			UScriptStruct* OutputStruct = OutItemProp->Struct;
+
+			const bool bCompatible = (OutputStruct == CacheStruct) ||
+				(OutputStruct->IsChildOf(CacheStruct) && FStructUtils::TheSameLayout(OutputStruct, CacheStruct));
+
+			if (bCompatible)
+			{
+				OutResult = EDataRegistrySubsystemGetItemResult::Found;
+				CacheStruct->CopyScriptStruct(OutItemDataPtr, CacheData);
+			}
+		}
+		P_NATIVE_END;
+	}
+}
+
+
+//static void FindCachedItemFromLookupBP(FDataRegistryId ItemId, const FDataRegistryLookup& ResolvedLookup, EDataRegistrySubsystemGetItemResult& OutResult, FTableRowBase& OutItem) {}
+DEFINE_FUNCTION(UDataRegistrySubsystem::execFindCachedItemFromLookupBP)
+{
+	P_GET_STRUCT(FDataRegistryId, ItemId);
+	P_GET_STRUCT_REF(FDataRegistryLookup, ResolvedLookup);
+	P_GET_ENUM_REF(EDataRegistrySubsystemGetItemResult, OutResult)
+
+	Stack.MostRecentPropertyAddress = nullptr;
+	Stack.MostRecentPropertyContainer = nullptr;
+	Stack.StepCompiledIn<FStructProperty>(nullptr);
+
+	void* OutItemDataPtr = Stack.MostRecentPropertyAddress;
+	FStructProperty* OutItemProp = CastField<FStructProperty>(Stack.MostRecentProperty);
+	P_FINISH;
+
+	UDataRegistrySubsystem* SubSystem = UDataRegistrySubsystem::Get();
+	check(SubSystem);
+
+	const uint8* CacheData = nullptr;
+	const UScriptStruct* CacheStruct = nullptr;
+	FDataRegistryCacheGetResult CacheResult;
+	OutResult = EDataRegistrySubsystemGetItemResult::NotFound;
+
+	if (OutItemProp && OutItemDataPtr && SubSystem->IsConfigEnabled(true))
+	{
+		P_NATIVE_BEGIN;
+		CacheResult = SubSystem->GetCachedItemRawFromLookup(CacheData, CacheStruct, ItemId, ResolvedLookup);
 
 		if (CacheResult && CacheStruct && CacheData)
 		{
@@ -322,13 +364,13 @@ void UDataRegistrySubsystem::LoadAllRegistries()
 	// Now add to map or update as needed
 	for (FAssetData& Data : AssetDataList)
 	{
-		PathsToLoad.Add(AssetManager.GetAssetPathForData(Data));
+		PathsToLoad.AddUnique(AssetManager.GetAssetPathForData(Data));
 	}
 
 	if (PathsToLoad.Num() > 0)
 	{
 		// Do as one async bulk load, faster in cooked builds
-		TSharedPtr<FStreamableHandle> LoadHandle = AssetManager.LoadAssetList(PathsToLoad);
+		TSharedPtr<FStreamableHandle> LoadHandle = AssetManager.LoadAssetList(MoveTemp(PathsToLoad));
 
 		if (LoadHandle.IsValid())
 		{
@@ -774,6 +816,27 @@ bool UDataRegistrySubsystem::AcquireItemBP(FDataRegistryId ItemId, FDataRegistry
 		}));
 }
 
+void UDataRegistrySubsystem::GetPossibleDataRegistryIdList(FDataRegistryType RegistryType, TArray<FDataRegistryId>& OutIdList)
+{
+	OutIdList.Reset();
+
+	UDataRegistrySubsystem* SubSystem = UDataRegistrySubsystem::Get();
+	check(SubSystem);
+
+	if (!SubSystem->IsConfigEnabled(true))
+	{
+		return;
+	}
+
+	UDataRegistry* FoundRegistry = SubSystem->GetRegistryForType(RegistryType);
+
+	if (FoundRegistry)
+	{
+		// Don't sort by default
+		FoundRegistry->GetPossibleRegistryIds(OutIdList, false);
+	}
+}
+
 void UDataRegistrySubsystem::EvaluateDataRegistryCurve(FDataRegistryId ItemId, float InputValue, float DefaultValue, EDataRegistrySubsystemGetItemResult& OutResult, float& OutValue)
 {
 	UDataRegistrySubsystem* SubSystem = UDataRegistrySubsystem::Get();
@@ -879,6 +942,9 @@ void UDataRegistrySubsystem::PostAssetManager()
 
 void UDataRegistrySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
+	check(SingletonSubSystem == nullptr);
+	SingletonSubSystem = this;
+
 	Super::Initialize(Collection);
 
 	// This should always happen before PostEngineInit
@@ -896,6 +962,8 @@ void UDataRegistrySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UDataRegistrySubsystem::Deinitialize()
 {
+	check(SingletonSubSystem == this);
+
 	if (!GExitPurge)
 	{
 		DeinitializeAllRegistries();
@@ -905,10 +973,14 @@ void UDataRegistrySubsystem::Deinitialize()
 	bFullyInitialized = false;
 
 	Super::Deinitialize();
+
+	SingletonSubSystem = nullptr;
 }
 
 void UDataRegistrySubsystem::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	UDataRegistrySubsystem* This = CastChecked<UDataRegistrySubsystem>(InThis);
 
 	if (GIsEditor)

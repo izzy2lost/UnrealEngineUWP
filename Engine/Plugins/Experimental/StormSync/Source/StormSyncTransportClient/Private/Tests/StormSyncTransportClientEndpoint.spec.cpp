@@ -242,7 +242,7 @@ private:
 	}
 };
 
-BEGIN_DEFINE_SPEC(FStormSyncTransportClientEndpointSpec, "StormSync.StormSyncTransportClient.StormSyncTransportClientEndpoint", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FStormSyncTransportClientEndpointSpec, "StormSync.StormSyncTransportClient.StormSyncTransportClientEndpoint", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	static constexpr const TCHAR* EndpointFriendlyName = TEXT("Test Suite ClientEndpoint (Message System)");
 	TSharedPtr<FStormSyncTransportClientEndpoint> ClientEndpoint;

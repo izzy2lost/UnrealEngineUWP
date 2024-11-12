@@ -2,10 +2,13 @@
 
 #include "NetEventNodeHelper.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 
-#define LOCTEXT_NAMESPACE "NetEventNode"
+#define LOCTEXT_NAMESPACE "UE::Insights::NetworkingProfiler::FNetEventNode"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // NetEventNode Type Helper
@@ -88,5 +91,7 @@ FText NetEventNodeGroupingHelper::ToDescription(const ENetEventGroupingMode Grou
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef LOCTEXT_NAMESPACE

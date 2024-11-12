@@ -22,7 +22,10 @@ namespace UE::Cook
 struct FInstigator;
 struct FPackageData;
 
-/** An IWorkerRequests for CookWorkers in MultiProcess cooks: functions are implemented as interprocess messages to/from the CookDirector. */
+/**
+ * An IWorkerRequests for CookWorkers in MultiProcess cooks: functions are implemented as interprocess messages
+ * to/from the CookDirector.
+ */
 class FWorkerRequestsRemote : public IWorkerRequests
 {
 public:
@@ -38,7 +41,9 @@ public:
 	virtual void RemapTargetPlatforms(const TMap<ITargetPlatform*, ITargetPlatform*>& Remap) override;
 	virtual void OnRemoveSessionPlatform(const ITargetPlatform* TargetPlatform) override;
 	virtual void QueueDiscoveredPackage(UCookOnTheFlyServer& COTFS, FPackageData& PackageData,
-		FInstigator&& Instigator, FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent) override;
+		FInstigator&& Instigator, FDiscoveredPlatformSet&& ReachablePlatforms, EUrgency Urgency,
+		FGenerationHelper* ParentGenerationHelper) override;
+	virtual void EndQueueGeneratedPackages(UCookOnTheFlyServer& COTFS, FGenerationHelper& GenerationHelper) override;
 	virtual void AddStartCookByTheBookRequest(FFilePlatformRequest&& Request) override;
 	virtual void InitializeCookOnTheFly() override;
 	virtual void AddCookOnTheFlyRequest(FFilePlatformRequest&& Request) override;

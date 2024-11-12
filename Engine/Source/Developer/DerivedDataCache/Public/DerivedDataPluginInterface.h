@@ -41,6 +41,7 @@ public:
 	* If IsBuildThreadsafe() returns true, then this is the thread pool that is used to run the background task.
 	* @return	The threadpool to run the task with
 	**/
+	UE_DEPRECATED(5.5, "GetCustomThreadPool() is no longer supported.")
 	virtual FQueuedThreadPool* GetCustomThreadPool() const { return GThreadPool; }
 
 	/** Indicated that this plugin generates deterministic data. This is used for DDC verification */

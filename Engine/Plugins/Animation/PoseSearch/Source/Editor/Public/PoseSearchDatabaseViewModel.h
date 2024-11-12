@@ -3,12 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "MovieSceneFwd.h"
 #include "PoseSearch/PoseSearchAssetSampler.h"
 #include "PoseSearch/PoseSearchMirrorDataCache.h"
 #include "PoseSearch/PoseSearchRole.h"
+#include "PoseSearch/PoseSearchTrajectoryTypes.h"
 #include "PoseSearchDatabasePreviewScene.h"
+#include "PoseSearch/PoseSearchDatabase.h"
 #include "UObject/GCObject.h"
 
 class UWorld;
@@ -19,6 +21,7 @@ class UAnimComposite;
 class UAnimSequence;
 class UBlendSpace;
 class UMirrorDataTable;
+class UMultiAnimAsset;
 
 namespace UE::PoseSearch
 {
@@ -29,9 +32,9 @@ namespace UE::PoseSearch
 	struct FDatabasePreviewActor
 	{
 	public:
-		bool SpawnPreviewActor(UWorld* World, const UPoseSearchDatabase* PoseSearchDatabase, int32 IndexAssetIdx, const FRole& Role, const FTransform& SamplerRootTransformOrigin, const FTransform* PrecalculatedRootTransformOrigin, int32 PoseIdxForTimeOffset = INDEX_NONE);
+		bool SpawnPreviewActor(UWorld* World, const UPoseSearchDatabase* PoseSearchDatabase, int32 IndexAssetIdx, const FRole& Role, const FTransform& SamplerRootTransformOrigin, int32 PoseIdxForTimeOffset = INDEX_NONE);
 		void UpdatePreviewActor(const UPoseSearchDatabase* PoseSearchDatabase, float PlayTime, bool bQuantizeAnimationToPoseData);
-		static bool DrawPreviewActors(TArrayView<FDatabasePreviewActor> PreviewActors, const UPoseSearchDatabase* PoseSearchDatabase, bool bDisplayRootMotionSpeed, bool bDisplayBlockTransition, TConstArrayView<float> QueryVector);
+		static bool DrawPreviewActors(TConstArrayView<FDatabasePreviewActor> PreviewActors, const UPoseSearchDatabase* PoseSearchDatabase, bool bDisplayRootMotionSpeed, bool bDisplayBlockTransition, TConstArrayView<float> QueryVector);
 
 		void Destroy();
 
@@ -43,7 +46,6 @@ namespace UE::PoseSearch
 		int32 GetIndexAssetIndex() const { return IndexAssetIndex; }
 		int32 GetCurrentPoseIndex() const { return CurrentPoseIndex; }
 		float GetPlayTimeOffset() const { return PlayTimeOffset; }
-		const FTransform& GetRootTransformOrigin() const { return RootTransformOrigin;  }
 		
 	private:
 		UAnimPreviewInstance* GetAnimPreviewInstanceInternal();
@@ -53,19 +55,11 @@ namespace UE::PoseSearch
 		int32 CurrentPoseIndex = INDEX_NONE;
 		float PlayTimeOffset = 0.f;
 		float CurrentTime = 0.f;
-
-		// world space root transforms
-		FTransform RootTransformCurrentQuantizedTime = FTransform::Identity;
-		FTransform RootTransformCurrent = FTransform::Identity;
-		FTransform RootTransformOrigin = FTransform::Identity;
-
-		// local space root BONE transform
-		FTransform RootBoneTransformCurrentQuantizedTime = FTransform::Identity;
+		float QuantizedTime = 0.f;
 
 		FAnimationAssetSampler Sampler;
-
-		TArray<FVector> SampledRootMotion;
-		TArray<float> SampledRootMotionSpeed;
+		FPoseSearchQueryTrajectory Trajectory;
+		TArray<float> TrajectorySpeed;
 
 		FRole ActorRole = DefaultRole;
 	};
@@ -115,7 +109,7 @@ namespace UE::PoseSearch
 		void AddBlendSpaceToDatabase(UBlendSpace* BlendSpace);
 		void AddAnimCompositeToDatabase(UAnimComposite* AnimComposite);
 		void AddAnimMontageToDatabase(UAnimMontage* AnimMontage);
-		void AddMultiSequenceToDatabase();
+		void AddMultiAnimAssetToDatabase(UMultiAnimAsset* MultiAnimAsset);
 
 		bool DeleteFromDatabase(int32 AnimationAssetIndex);
 
@@ -125,6 +119,11 @@ namespace UE::PoseSearch
 		void SetIsEnabled(int32 AnimationAssetIndex, bool bEnabled);
 		bool IsEnabled(int32 AnimationAssetIndex) const;
 
+		bool SetAnimationAsset(int32 AnimationAssetIndex, UObject* AnimAsset);
+
+		void SetMirrorOption(int32 AnimationAssetIndex, EPoseSearchMirrorOption InMirrorOption);
+		EPoseSearchMirrorOption GetMirrorOption(int32 AnimationAssetIndex);
+		
 		int32 SetSelectedNode(int32 PoseIdx, bool bClearSelection, bool bDrawQuery, TConstArrayView<float> InQueryVector);
 		void SetSelectedNodes(const TArrayView<TSharedPtr<FDatabaseAssetTreeNode>>& InSelectedNodes);
 		void ProcessSelectedActor(AActor* Actor);
@@ -147,6 +146,7 @@ namespace UE::PoseSearch
 
 		float PlayTime = 0.f;
 		float DeltaTimeMultiplier = 1.f;
+		float StepDeltaTime = 1.f / 30.f;
 
 		/** Scene asset being viewed and edited by this view model. */
 		TWeakObjectPtr<UPoseSearchDatabase> PoseSearchDatabasePtr;

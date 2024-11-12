@@ -3,7 +3,7 @@
 
 #include "CADData.h"
 #include "IDatasmithSceneElements.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 #include "Utility/DatasmithMeshHelper.h"
 
 #include "HAL/FileManager.h"

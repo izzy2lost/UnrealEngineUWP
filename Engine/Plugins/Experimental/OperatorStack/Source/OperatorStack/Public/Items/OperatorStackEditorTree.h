@@ -13,7 +13,7 @@ struct FOperatorStackEditorTree
 	explicit FOperatorStackEditorTree(UOperatorStackEditorStackCustomization* InCustomization, FOperatorStackEditorContextPtr InContext);
 
 	/** Get all top items supported by this customization */
-	OPERATORSTACKEDITOR_API TArray<FOperatorStackEditorItemPtr> GetRootItems() const;
+	OPERATORSTACKEDITOR_API FOperatorStackEditorItemPtr GetRootItem() const;
 
 	/** Get supported children items from a supported item */
 	TArray<FOperatorStackEditorItemPtr> GetChildrenItems(FOperatorStackEditorItemPtr InItem) const;
@@ -49,10 +49,7 @@ private:
 
 	using FOperatorStackEditorTreeNodePtr = TSharedPtr<FOperatorStackEditorTreeNode>;
 
-	void GetSupportedItems(const TArray<FOperatorStackEditorItemPtr>& InItems, TArray<FOperatorStackEditorItemPtr>& OutSupportedItems) const;
 	TArray<FOperatorStackEditorItemPtr> GetSupportedChildrenItems(const FOperatorStackEditorItemPtr& InParentItem) const;
-
-	void BuildTree(const TArray<FOperatorStackEditorItemPtr>& InSourceItems);
 	void BuildTreeInternal(const TArray<FOperatorStackEditorItemPtr>& InItems, int32 InParent);
 
 	/** All items in this tree */
@@ -62,7 +59,7 @@ private:
 	TArray<FOperatorStackEditorTreeNodePtr> Nodes;
 
 	/** Root items in the tree */
-	TArray<FOperatorStackEditorTreeNodePtr> RootNodes;
+	FOperatorStackEditorTreeNodePtr RootNode;
 
 	/** Customization used to build this tree */
 	TWeakObjectPtr<UOperatorStackEditorStackCustomization> CustomizationWeak;

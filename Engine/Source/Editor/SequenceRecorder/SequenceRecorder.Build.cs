@@ -41,6 +41,7 @@ namespace UnrealBuildTool.Rules
                     "Kismet",
                     "LiveLinkInterface",
 					"SceneOutliner",
+					"Sequencer"
                 }
                 );
 

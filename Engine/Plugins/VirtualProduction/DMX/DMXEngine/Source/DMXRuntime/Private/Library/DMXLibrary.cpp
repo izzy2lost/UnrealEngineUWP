@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Library/DMXLibrary.h"
 
+#include "Algo/MaxElement.h"
 #include "DMXRuntimeLog.h"
 #include "DMXRuntimeMainStreamObjectVersion.h"
 #include "DMXProtocolSettings.h"
@@ -27,18 +28,37 @@ FDMXOnEntityArrayChangedDelegate UDMXLibrary::OnEntitiesRemovedDelegate;
 UDMXLibrary::UDMXLibrary()
 {
 	const FName GeneralSceneDescriptionName = FName(GetName() + TEXT("_MVRGeneralSceneDescription"));
-	GeneralSceneDescription = NewObject<UDMXMVRGeneralSceneDescription>(this, GeneralSceneDescriptionName);
+	GeneralSceneDescription = NewObject<UDMXMVRGeneralSceneDescription>(this, GeneralSceneDescriptionName, RF_Public);
 }
 
 void UDMXLibrary::PostInitProperties()
 {
 	Super::PostInitProperties();
 
-	if (!HasAnyFlags(RF_ClassDefaultObject))
+	if (!IsTemplate())
 	{
 		FDMXPortManager::Get().OnPortsChanged.AddUObject(this, &UDMXLibrary::UpdatePorts);
 		UpdatePorts();
 	}
+}
+
+void UDMXLibrary::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+#if WITH_EDITOR
+	if (Ar.IsLoading())
+	{
+		if (Ar.CustomVer(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::DMXFixturePatchHasFixtureID)
+		{
+			const TArray<UDMXEntityFixturePatch*> FixturePatches = GetEntitiesTypeCast<UDMXEntityFixturePatch>();
+			for (UDMXEntityFixturePatch* FixturePatch : FixturePatches)
+			{
+				FixturePatch->GenerateFixtureID();
+			}
+		}
+	}
+#endif
 }
 
 void UDMXLibrary::PostLoad()
@@ -57,7 +77,6 @@ void UDMXLibrary::PostLoad()
 			UpgradeFromControllersToPorts();
 		}
 
-		UpdateGeneralSceneDescription();
 #endif 
 		UpdatePorts();
 
@@ -203,7 +222,7 @@ UDMXEntity* UDMXLibrary::FindEntity(const FGuid& Id)
 {
 	for (UDMXEntity* Entity : Entities)
 	{
-		if (Entity && Entity->GetID() == Id)
+		if (IsValid(Entity) && Entity->GetID() == Id)
 		{
 			return Entity;
 		}
@@ -270,7 +289,7 @@ void UDMXLibrary::SetEntityIndex(UDMXEntity* InEntity, const int32 NewIndex)
 	{
 		if (NewIndex >= Entities.Num())
 		{
-			Entities.RemoveAt(OldIndex, 1, false);
+			Entities.RemoveAt(OldIndex, EAllowShrinking::No);
 			Entities.Add(InEntity);
 			return;
 		}
@@ -559,13 +578,13 @@ UDMXMVRGeneralSceneDescription* UDMXLibrary::UpdateGeneralSceneDescription()
 {
 	if (ensureAlwaysMsgf(GeneralSceneDescription, TEXT("Trying to update General Scene Description of %s, but the General Scene Description is not valid."), *GetName()))
 	{
-		GeneralSceneDescription->WriteDMXLibraryToGeneralSceneDescription(*this);
+		GeneralSceneDescription->WriteDMXLibrary(*this);
 		return GeneralSceneDescription;
 	}
 
 	return nullptr;
 }
-#endif // WITH_EDTIOR
+#endif // WITH_EDITOR
 
 #if WITH_EDITOR
 void UDMXLibrary::UpgradeFromControllersToPorts()

@@ -11,8 +11,6 @@
 
 #define LOCTEXT_NAMESPACE "SStormSyncProgressBarNotification"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SStormSyncProgressBarNotification::Construct(const FArguments& InArgs)
 {
 	TotalBytes = InArgs._TotalBytes;
@@ -67,8 +65,6 @@ void SStormSyncProgressBarNotification::Construct(const FArguments& InArgs)
 		]
 	];
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 float SStormSyncProgressBarNotification::GetPercent() const
 {

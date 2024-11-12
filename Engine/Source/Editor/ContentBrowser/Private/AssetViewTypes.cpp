@@ -11,40 +11,70 @@
 #include "Misc/AssertionMacros.h"
 #include "Templates/UnrealTemplate.h"
 
-FAssetViewItem::FAssetViewItem(FContentBrowserItem&& InItem)
+FAssetViewItem::FAssetViewItem(int32 InIndex)
+	: Index(InIndex)
+{
+}
+
+FAssetViewItem::FAssetViewItem(int32 InIndex, FContentBrowserItem&& InItem)
 	: Item(MoveTemp(InItem))
+	, Index(InIndex)
 {
 	checkf(Item.IsValid(), TEXT("FAssetViewItem was constructed from an invalid item!"));
 }
 
-FAssetViewItem::FAssetViewItem(const FContentBrowserItem& InItem)
+FAssetViewItem::FAssetViewItem(int32 InIndex, const FContentBrowserItem& InItem)
 	: Item(InItem)
+	, Index(InIndex)
 {
 	checkf(Item.IsValid(), TEXT("FAssetViewItem was constructed from an invalid item!"));
 }
 
-FAssetViewItem::FAssetViewItem(FContentBrowserItemData&& InItemData)
+FAssetViewItem::FAssetViewItem(int32 InIndex, FContentBrowserItemData&& InItemData)
 	: Item(MoveTemp(InItemData))
+	, Index(InIndex)
 {
 	checkf(Item.IsValid(), TEXT("FAssetViewItem was constructed from an invalid item!"));
 }
 
-FAssetViewItem::FAssetViewItem(const FContentBrowserItemData& InItemData)
+FAssetViewItem::FAssetViewItem(int32 InIndex, const FContentBrowserItemData& InItemData)
 	: Item(InItemData)
+	, Index(InIndex)
 {
 	checkf(Item.IsValid(), TEXT("FAssetViewItem was constructed from an invalid item!"));
+}
+
+void FAssetViewItem::ResetItemData(int32 OldIndex, int32 NewIndex, FContentBrowserItemData InItemData)
+{
+	int32 Expected = OldIndex;
+	if (Index.compare_exchange_strong(Expected, NewIndex, std::memory_order_relaxed))
+	{
+		Item = FContentBrowserItem{MoveTemp(InItemData)};
+		// Do not broadcast event here, it will be broadcast on the main thread after bulk building/recycling of items
+	}
+	else
+	{
+		checkf(false, TEXT("Concurrency issue detected recycling FAssetViewItem (%s) from old index %d to new index %d - already reassigned to %d"),
+			*WriteToString<256>(InItemData.GetVirtualPath()),
+			OldIndex, NewIndex, Expected);
+	}
+}
+
+void FAssetViewItem::BroadcastItemDataChanged()
+{
+	ItemDataChangedEvent.Broadcast();
 }
 
 void FAssetViewItem::AppendItemData(const FContentBrowserItem& InItem)
 {
 	Item.Append(InItem);
-	ItemDataChangedEvent.Broadcast();
+	// Do not broadcast event here, caller is responsible for broadcasting in a threadsafe way
 }
 
 void FAssetViewItem::AppendItemData(const FContentBrowserItemData& InItemData)
 {
 	Item.Append(InItemData);
-	ItemDataChangedEvent.Broadcast();
+	// Do not broadcast event here, caller is responsible for broadcasting in a threadsafe way
 }
 
 void FAssetViewItem::RemoveItemData(const FContentBrowserItem& InItem)
@@ -65,14 +95,30 @@ void FAssetViewItem::RemoveItemData(const FContentBrowserItemData& InItemData)
 	}
 }
 
+void FAssetViewItem::RemoveItemData(const FContentBrowserMinimalItemData& InItemKey)
+{
+	Item.TryRemove(InItemKey);
+	if (Item.IsValid())
+	{
+		ItemDataChangedEvent.Broadcast();
+	}	
+}
+
 void FAssetViewItem::ClearCachedCustomColumns()
 {
+	check(IsInGameThread());
 	CachedCustomColumnData.Reset();
 	CachedCustomColumnDisplayText.Reset();
 }
 
 void FAssetViewItem::CacheCustomColumns(TArrayView<const FAssetViewCustomColumn> CustomColumns, const bool bUpdateSortData, const bool bUpdateDisplayText, const bool bUpdateExisting)
 {
+	check(IsInGameThread());
+	if (bUpdateExisting && CachedCustomColumnData.IsEmpty())
+	{
+		return;
+	}
+
 	for (const FAssetViewCustomColumn& Column : CustomColumns)
 	{
 		FAssetData ItemAssetData;
@@ -186,17 +232,11 @@ FSimpleDelegate& FAssetViewItem::OnRenameCanceled()
 	return RenameCanceledEvent;
 }
 
-bool FAssetViewItem::ShouldRenameWhenScrolledIntoView() const
+FString FAssetViewItem::ItemToString_Debug(TSharedPtr<FAssetViewItem> AssetItem) 
 {
-	return bRenameWhenScrolledIntoView;
-}
-
-void FAssetViewItem::RenameWhenScrolledIntoView()
-{
-	bRenameWhenScrolledIntoView = true;
-}
-
-void FAssetViewItem::ClearRenameWhenScrolledIntoView()
-{
-	bRenameWhenScrolledIntoView = false;
+	if (AssetItem.IsValid())
+	{
+		return AssetItem->GetItem().GetVirtualPath().ToString();
+	}
+	return TEXT("nullptr");
 }

@@ -56,7 +56,7 @@ inline static void ParseTokens1Delim1Char(
 			{
 				break;
 			}
-			if (TChar<CharType>::ToLower(*ViewIt) != Delimiter)
+			if (TChar<CharType>::ToLower(*ViewIt) != LowerDelimiter)
 			{
 				++ViewIt;
 				continue;

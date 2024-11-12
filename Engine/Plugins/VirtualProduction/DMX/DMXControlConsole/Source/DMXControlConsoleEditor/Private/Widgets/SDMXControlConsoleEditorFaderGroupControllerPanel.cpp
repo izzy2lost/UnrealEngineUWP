@@ -182,13 +182,10 @@ namespace UE::DMX::Private
 
 		const UDMXControlConsoleFaderGroup* FaderGroup = FaderGroupControllerModel->GetFirstAvailableFaderGroup();
 		const UDMXEntityFixturePatch* FixturePatch = FaderGroup ? FaderGroup->GetFixturePatch() : nullptr;
-		int32 FixtureID;
-		if (FixturePatch && FixturePatch->FindFixtureID(FixtureID))
-		{
-			return FText::FromString(FString::FromInt(FixtureID));
-		}
 
-		return LOCTEXT("FIDNone", "None");
+		return FixturePatch ? 
+			FText::FromString(FString::FromInt(FixturePatch->GetFixtureID())) :
+			LOCTEXT("FIDNone", "None");
 	}
 
 	FText SDMXControlConsoleEditorFaderGroupControllerPanel::OnGetFaderGroupControllerUniverseText() const

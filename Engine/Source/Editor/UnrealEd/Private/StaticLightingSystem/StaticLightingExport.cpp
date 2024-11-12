@@ -166,4 +166,15 @@ void FLandscapeStaticLightingTextureMapping::ExportMapping(class FLightmassExpor
 {
 	Exporter->LandscapeTextureMappings.AddUnique(this);
 }
+
+/** 
+* Export static lighting mapping instance data to an exporter 
+* @param Exporter - export interface to process static lighting data
+**/
+void FLandscapeStaticLightingGlobalVolumeMapping::ExportMapping(class FLightmassExporter* Exporter)
+{
+	Exporter->LandscapeVolumeMappings.AddUnique(this);
+}
+
+
 #endif

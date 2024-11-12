@@ -527,13 +527,13 @@ namespace Electra
 
 		FParserMKV(IPlayerSessionServices* InPlayerSession);
 
-		FErrorDetail ParseHeader(IReader* DataReader, EParserFlags ParseFlags) override;
+		FErrorDetail ParseHeader(IGenericDataReader* DataReader, EParserFlags ParseFlags) override;
 		FErrorDetail PrepareTracks() override;
 		FTimeValue GetDuration() const override;
 		int32 GetNumberOfTracks() const override;
 		const ITrack* GetTrackByIndex(int32 Index) const override;
 		const ITrack* GetTrackByTrackID(uint64 TrackID) const override;
-		TSharedPtrTS<IClusterParser> CreateClusterParser(IReader* DataReader, const TArray<uint64>& TrackIDsToParse, EClusterParseFlags ParseFlags) const override;
+		TSharedPtrTS<IClusterParser> CreateClusterParser(IGenericDataReader* DataReader, const TArray<uint64>& TrackIDsToParse, EClusterParseFlags ParseFlags) const override;
 		void AddCue(int64 InCueTimestamp, uint64 InTrackID, int64 InCueRelativePosition, uint64 InCueBlockNumber, int64 InClusterPosition) override;
 
 		int64 OnReadAssetData(void* Destination, int64 NumBytes, int64 FromOffset, int64* OutTotalSize) override;
@@ -724,7 +724,7 @@ namespace Electra
 						}
 						Chars.Add(0);
 						auto Cnv = StringCast<TCHAR>((const ANSICHAR*)Chars.GetData());
-						FString UTF8Text(Cnv.Length(), Cnv.Get());
+						FString UTF8Text = FString::ConstructFromPtrSize(Cnv.Get(), Cnv.Length());
 						*reinterpret_cast<FString*>(Elem->DataValue) = MoveTemp(UTF8Text);
 						break;
 					}
@@ -737,7 +737,7 @@ namespace Electra
 						}
 						Chars.Add(0);
 						auto Cnv = StringCast<TCHAR>((const UTF8CHAR*)Chars.GetData());
-						FString UTF8Text(Cnv.Length(), Cnv.Get());
+						FString UTF8Text = FString::ConstructFromPtrSize(Cnv.Get(), Cnv.Length());
 						*reinterpret_cast<FString*>(Elem->DataValue) = MoveTemp(UTF8Text);
 						break;
 						}
@@ -864,9 +864,9 @@ namespace Electra
 		public:
 			FMKVSeekHead(uint32 InID, int64 InByteOffset, int64 InByteSize) : FMKVEBMLElement(InID, InByteOffset, InByteSize) { }
 			virtual ~FMKVSeekHead() = default;
-			virtual EParseResult ParseElement(IMKVFetcher* InReader) 
-			{ 
-				EParseResult Result = ParseElementList(Elements, InReader); 
+			virtual EParseResult ParseElement(IMKVFetcher* InReader)
+			{
+				EParseResult Result = ParseElementList(Elements, InReader);
 				// We sort the Seek elements by their file position. This may avoid too many random file accesses
 				// when loading the elements after a cluster.
 				Seeks.Sort([](const TMKVElementPtr<FMKVSeek>& a, const TMKVElementPtr<FMKVSeek>& b){return a->GetSeekPosition() < b->GetSeekPosition();});
@@ -1166,9 +1166,9 @@ namespace Electra
 		public:
 			FMKVAudio(uint32 InID, int64 InByteOffset, int64 InByteSize) : FMKVEBMLElement(InID, InByteOffset, InByteSize) { }
 			virtual ~FMKVAudio() = default;
-			virtual EParseResult ParseElement(IMKVFetcher* InReader) 
-			{ 
-				EParseResult Result = ParseElementList(Elements, InReader); 
+			virtual EParseResult ParseElement(IMKVFetcher* InReader)
+			{
+				EParseResult Result = ParseElementList(Elements, InReader);
 				if (OutputSamplingFrequency == 0.0)
 				{
 					OutputSamplingFrequency = SamplingFrequency;
@@ -1324,8 +1324,8 @@ namespace Electra
 			FMKVContentEncodings(uint32 InID, int64 InByteOffset, int64 InByteSize) : FMKVEBMLElement(InID, InByteOffset, InByteSize) { }
 			virtual ~FMKVContentEncodings() = default;
 			virtual EParseResult ParseElement(IMKVFetcher* InReader)
-			{ 
-				EParseResult Result = ParseElementList(Elements, InReader); 
+			{
+				EParseResult Result = ParseElementList(Elements, InReader);
 				// The content encodings must be processed in descending `ContentEncodingOrder`, but it is not mandated
 				// that they are sorted such in the file. We sort them now.
 				ContentEncoding.StableSort([](const TMKVElementPtr<FMKVContentEncoding>& a, const TMKVElementPtr<FMKVContentEncoding>& b){return a->GetContentEncodingOrder() > b->GetContentEncodingOrder();});
@@ -1540,8 +1540,8 @@ namespace Electra
 		public:
 			FMKVChapters(uint32 InID, int64 InByteOffset, int64 InByteSize) : FMKVEBMLElement(InID, InByteOffset, InByteSize) { }
 			virtual ~FMKVChapters() = default;
-			virtual EParseResult ParseElement(IMKVFetcher* InReader) 
-			{ 
+			virtual EParseResult ParseElement(IMKVFetcher* InReader)
+			{
 				// Not using chapters. Skip over them.
 				return InReader->FetchSkipOver(ByteSize) ? EParseResult::Ok : EParseResult::Error;
 			}
@@ -1782,7 +1782,7 @@ namespace Electra
 			FMKVCues(uint32 InID, int64 InByteOffset, int64 InByteSize) : FMKVEBMLElement(InID, InByteOffset, InByteSize) { }
 			virtual ~FMKVCues() = default;
 			virtual EParseResult ParseElement(IMKVFetcher* InReader)
-			{ 
+			{
 				EParseResult Result = ParseElementList(Elements, InReader);
 				if (Result == EParseResult::Ok)
 				{
@@ -2022,7 +2022,7 @@ namespace Electra
 
 	public:
 		class FMKVTrack;
-		
+
 		class FMKVCueIterator : public IParserMKV::ICueIterator
 		{
 		public:
@@ -2232,7 +2232,7 @@ namespace Electra
 			};
 			#undef OVERRIDE_BASE_ACTIONS
 
-			FMKVClusterParser(TSharedPtrTS<const FParserMKV> InParentMKV, IParserMKV::IReader* InDataReader, const TArray<uint64>& InTrackIDsToParse, EClusterParseFlags InParseFlags);
+			FMKVClusterParser(TSharedPtrTS<const FParserMKV> InParentMKV, IGenericDataReader* InDataReader, const TArray<uint64>& InTrackIDsToParse, EClusterParseFlags InParseFlags);
 			virtual ~FMKVClusterParser() {}
 			EParseAction NextParseAction() override;
 			FErrorDetail GetLastError() const override;
@@ -2243,18 +2243,18 @@ namespace Electra
 			class FClusterDataReader : public IMKVElementReader, public FMKVEBMLReader, public IMKVFetcher
 			{
 			public:
-				FClusterDataReader(IParserMKV::IReader* InReader) : FMKVEBMLReader(this), Reader(InReader), StartOffset(InReader->MKVGetCurrentFileOffset()), Offset(InReader->MKVGetCurrentFileOffset()) {}
+				FClusterDataReader(IGenericDataReader* InReader) : FMKVEBMLReader(this), Reader(InReader), StartOffset(InReader->GetCurrentOffset()), Offset(InReader->GetCurrentOffset()) {}
 				virtual ~FClusterDataReader() {}
 				int64 GetStartOffset() const { return StartOffset; }
 				int64 GetCurrentOffset() const { return CurrentOffset(); }
-				int64 GetTotalSize() const { return Reader->MKVGetTotalSize(); }
+				int64 GetTotalSize() const { return Reader->GetTotalSize(); }
 				int64 GetEndOffset() const { return StartOffset + GetTotalSize(); }
-				bool HasReadBeenAborted() const { return bWasAborted || Reader->MKVHasReadBeenAborted(); }
+				bool HasReadBeenAborted() const { return bWasAborted || Reader->HasReadBeenAborted(); }
 				bool ReachedEOS() const { return bReachedEOS; }
 				bool SkipOver(int64 NumBytes) { return Skip(NumBytes); }
 
 				bool Read(uint8& OutValue) override
-				{ return Validate(Reader->MKVReadData(&OutValue, sizeof(OutValue), Offset), sizeof(OutValue)); }
+				{ return Validate(Reader->ReadData(&OutValue, sizeof(OutValue), Offset), sizeof(OutValue)); }
 				bool Read(uint16& OutValue) override
 				{ return ReadValue(OutValue); }
 				bool Read(uint32& OutValue) override
@@ -2262,9 +2262,9 @@ namespace Electra
 				bool Read(uint64& OutValue) override
 				{ return ReadValue(OutValue); }
 				bool Read(TArray<uint8>& OutValue, int64 NumBytes) override
-				{ OutValue.AddUninitialized((int32)NumBytes); return Validate(Reader->MKVReadData(OutValue.GetData(), NumBytes, Offset), NumBytes); }
+				{ OutValue.AddUninitialized((int32)NumBytes); return Validate(Reader->ReadData(OutValue.GetData(), NumBytes, Offset), NumBytes); }
 				bool Skip(int64 NumBytes) override
-				{ return Validate(Reader->MKVReadData(nullptr, NumBytes, Offset), NumBytes); }
+				{ return Validate(Reader->ReadData(nullptr, NumBytes, Offset), NumBytes); }
 
 				void SetOffset(int64 InOffset)
 				{ Offset = InOffset; }
@@ -2290,13 +2290,13 @@ namespace Electra
 				{ check(!"not implemented"); return false;}
 			private:
 				FErrorDetail LastError() const override { return Error; }
-				int64 CurrentOffset() const override { return Reader->MKVGetCurrentFileOffset(); }
+				int64 CurrentOffset() const override { return Reader->GetCurrentOffset(); }
 				bool Prefetch(int64 NumBytes) override { return true; }
 
 				template<typename T>
 				bool ReadValue(T& OutValue)
 				{
-					if (Validate(Reader->MKVReadData(&OutValue, sizeof(T), Offset), sizeof(T)))
+					if (Validate(Reader->ReadData(&OutValue, sizeof(T), Offset), sizeof(T)))
 					{
 					#if PLATFORM_LITTLE_ENDIAN
 						OutValue = Utils::EndianSwap(OutValue);
@@ -2317,11 +2317,11 @@ namespace Electra
 					{
 						bReachedEOS = true;
 					}
-					bWasAborted = Reader->MKVHasReadBeenAborted();
+					bWasAborted = Reader->HasReadBeenAborted();
 					return false;
 				}
 
-				IParserMKV::IReader* Reader = nullptr;
+				IGenericDataReader* Reader = nullptr;
 				int64 StartOffset = 0;
 				int64 Offset = 0;
 				FErrorDetail Error;
@@ -2436,7 +2436,7 @@ namespace Electra
 	private:
 		bool SetupCodecInfo(FStreamCodecInformation& OutCodecInformation, TMKVElementPtr<FMKVTrackEntry> InFromTrack);
 
-		IReader* DataReader = nullptr;
+		IGenericDataReader* DataReader = nullptr;
 		IPlayerSessionServices* PlayerSessionServices = nullptr;
 
 		const TMap<FString,FString> CodecMapping
@@ -2449,6 +2449,10 @@ namespace Electra
 			{ TEXT("A_AAC/MPEG4/LC"), TEXT("aac") },
 			{ TEXT("A_AAC/MPEG4/LC/SBR"), TEXT("aac") },
 			{ TEXT("A_OPUS"), TEXT("Opus") },
+			{ TEXT("A_FLAC"), TEXT("FLAC") },
+			{ TEXT("A_MPEG/L3"), TEXT("MPEG") },
+			{ TEXT("A_MPEG/L2"), TEXT("MPEG") },
+			{ TEXT("A_MPEG/L1"), TEXT("MPEG") },
 			//{ TEXT("S_TEXT/UTF8"), TEXT("") },
 			//{ TEXT("S_TEXT/WEBVTT"), TEXT("") },
 			//{ TEXT(""), TEXT("") },
@@ -2538,12 +2542,12 @@ namespace Electra
 	{
 		if (DataReader)
 		{
-			int64 NumRead = DataReader->MKVReadData(Destination, NumBytes, FromOffset);
+			int64 NumRead = DataReader->ReadData(Destination, NumBytes, FromOffset);
 			if (OutTotalSize)
 			{
-				*OutTotalSize = DataReader->MKVGetTotalSize();
+				*OutTotalSize = DataReader->GetTotalSize();
 			}
-			if (DataReader->MKVHasReadBeenAborted())
+			if (DataReader->HasReadBeenAborted())
 			{
 				return static_cast<int64>(FBufferedDataReader::IDataProvider::EError::Aborted);
 			}
@@ -2561,7 +2565,7 @@ namespace Electra
 		PlayerSessionServices = InPlayerSession;
 	}
 
-	FErrorDetail FParserMKV::ParseHeader(IReader* InDataReader, EParserFlags ParseFlags)
+	FErrorDetail FParserMKV::ParseHeader(IGenericDataReader* InDataReader, EParserFlags ParseFlags)
 	{
 		DataReader = InDataReader;
 
@@ -2932,8 +2936,8 @@ namespace Electra
 			TArray<uint8> vpcC { 1,0,0,0, 0,0,0,0, 0,0,0,0 };
 			vpcC[4] = (uint8)OutCodecInformation.GetProfile();
 			vpcC[5] = (uint8)OutCodecInformation.GetProfileLevel();
-			vpcC[6] = (uint8)((OutCodecInformation.GetCodecVideoColorInfo().BitDepthLuma.Get(8) << 4) + 
-							  (OutCodecInformation.GetCodecVideoColorInfo().ChromaSubsampling.Get(0) << 1) + 
+			vpcC[6] = (uint8)((OutCodecInformation.GetCodecVideoColorInfo().BitDepthLuma.Get(8) << 4) +
+							  (OutCodecInformation.GetCodecVideoColorInfo().ChromaSubsampling.Get(0) << 1) +
 							   OutCodecInformation.GetCodecVideoColorInfo().VideoFullRangeFlag.Get(0));
 			vpcC[7] = (uint8)OutCodecInformation.GetCodecVideoColorInfo().ColourPrimaries.Get(2);
 			vpcC[8] = (uint8)OutCodecInformation.GetCodecVideoColorInfo().TransferCharacteristics.Get(2);
@@ -3076,8 +3080,8 @@ namespace Electra
 			TArray<uint8> vpcC { 1,0,0,0, 0,0,0,0, 0,0,0,0 };
 			vpcC[4] = (uint8)OutCodecInformation.GetProfile();
 			vpcC[5] = (uint8)OutCodecInformation.GetProfileLevel();
-			vpcC[6] = (uint8)((OutCodecInformation.GetCodecVideoColorInfo().BitDepthLuma.Get(8) << 4) + 
-							  (OutCodecInformation.GetCodecVideoColorInfo().ChromaSubsampling.Get(0) << 1) + 
+			vpcC[6] = (uint8)((OutCodecInformation.GetCodecVideoColorInfo().BitDepthLuma.Get(8) << 4) +
+							  (OutCodecInformation.GetCodecVideoColorInfo().ChromaSubsampling.Get(0) << 1) +
 							   OutCodecInformation.GetCodecVideoColorInfo().VideoFullRangeFlag.Get(0));
 			vpcC[7] = (uint8)OutCodecInformation.GetCodecVideoColorInfo().ColourPrimaries.Get(2);
 			vpcC[8] = (uint8)OutCodecInformation.GetCodecVideoColorInfo().TransferCharacteristics.Get(2);
@@ -3160,7 +3164,7 @@ namespace Electra
 			// The codec private data is (presumably) an `OpusHead` structure as described here
 			//   https://datatracker.ietf.org/doc/html/rfc7845#section-5.1
 			// according to the Matroska Opus *DRAFT* described here: https://wiki.xiph.org/MatroskaOpus
-			
+
 			TArray<uint8> OpusHead = InFromTrack->GetCodecPrivate();
 			const TArray<uint8> MagicOpusHeader {'O','p','u','s','H','e','a','d'};
 			if (OpusHead.Num() < 8 || FMemory::Memcmp(OpusHead.GetData(), MagicOpusHeader.GetData(), MagicOpusHeader.Num()))
@@ -3202,23 +3206,6 @@ namespace Electra
 			OutCodecInformation.SetCodecSpecifierRFC6381(TEXT("Opus"));
 			OutCodecInformation.SetSamplingRate(Audio->GetOutputSampleRate());
 			OutCodecInformation.SetNumberOfChannels(Audio->GetNumberOfChannels());
-#if 0
-			// If there is no default duration set we try to calculate it from the sample rate.
-			const int32 NumDecodedSamplesPerBlock = 960;
-			if (InFromTrack->GetDefaultDurationNanos() == 0)
-			{
-				FTimeFraction fr(NumDecodedSamplesPerBlock, (uint32)OutCodecInformation.GetSamplingRate());
-				if (fr.IsValid())
-				{
-					int64 nanos = fr.GetAsTimebase(1000000000);
-					check(nanos >= 0);
-					if (nanos >= 0)
-					{
-						InFromTrack->SetDefaultDurationNanos((uint64)nanos);
-					}
-				}
-			}
-#else
 			// If there is no default duration set we assume the encoded frame size was 20ms
 			if (InFromTrack->GetDefaultDurationNanos() == 0)
 			{
@@ -3233,7 +3220,81 @@ namespace Electra
 					}
 				}
 			}
-#endif
+			return true;
+		}
+		// FLAC audio?
+		else if (InFromTrack->GetTrackType() == EMKVTrackType::Audio && Codec4CC.Equals(TEXT("FLAC")))
+		{
+			// The Private Data contains all the header/metadata packets before the first data packet.
+			// These include the first header packet containing only the word fLaC as well as all metadata packets.
+			//   https://datatracker.ietf.org/doc/draft-ietf-cellar-codec/
+
+			TArray<uint8> FlacHead = InFromTrack->GetCodecPrivate();
+			const TArray<uint8> MagicFlacHeader {'f','L','a','C'};
+			if (FlacHead.Num() < 4 || FMemory::Memcmp(FlacHead.GetData(), MagicFlacHeader.GetData(), MagicFlacHeader.Num()))
+			{
+				return false;
+			}
+			// Replace the magic header with zeros, which is what the 'dfLa' box of an mp4 starts with
+			// (the version number 0 and flags of 0)
+			// Otherwise this is identical to the `dfLa` box.
+			FlacHead[0] = FlacHead[1] = FlacHead[2] = FlacHead[3] = 0;
+
+			TMKVElementPtr<FMKVAudio> Audio = InFromTrack->GetAudio();
+			if (!Audio.IsValid())
+			{
+				return false;
+			}
+
+			OutCodecInformation.GetExtras().Set(TEXT("dfLa_box"), FVariantValue(FlacHead));
+			OutCodecInformation.SetStreamType(EStreamType::Audio);
+			OutCodecInformation.SetMimeType(TEXT("audio/mp4"));
+			OutCodecInformation.SetCodec(FStreamCodecInformation::ECodec::Audio4CC);
+			OutCodecInformation.SetCodec4CC(Utils::Make4CC('f','L','a','C'));
+			OutCodecInformation.SetCodecSpecificData(FlacHead);
+			OutCodecInformation.SetStreamLanguageCode(InFromTrack->GetLanguage());
+			OutCodecInformation.SetCodecSpecifierRFC6381(TEXT("flac"));
+			OutCodecInformation.SetSamplingRate(Audio->GetOutputSampleRate());
+			OutCodecInformation.SetNumberOfChannels(Audio->GetNumberOfChannels());
+			// If there is no default duration set we try to calculate it from the sample rate.
+			if (InFromTrack->GetDefaultDurationNanos() == 0)
+			{
+				UE_LOG(LogElectraMKVParser, Error, TEXT("A_FLAC requires a sample default duration specified in the track!"));
+				return false;
+			}
+			return true;
+		}
+		// MPEG audio?
+		else if (InFromTrack->GetTrackType() == EMKVTrackType::Audio && Codec4CC.Equals(TEXT("MPEG")))
+		{
+			TMKVElementPtr<FMKVAudio> Audio = InFromTrack->GetAudio();
+			if (!Audio.IsValid())
+			{
+				return false;
+			}
+
+			OutCodecInformation.SetStreamType(EStreamType::Audio);
+			OutCodecInformation.SetMimeType(TEXT("audio/mpeg"));
+			OutCodecInformation.SetCodec(FStreamCodecInformation::ECodec::Audio4CC);
+			OutCodecInformation.SetCodec4CC(Utils::Make4CC('m','p','g','a'));
+			OutCodecInformation.SetProfile(1);
+			FString Layer = InFromTrack->GetCodecID().Mid(8);
+			int32 LayerValue = 3;
+			if (Layer.Len())
+			{
+				LexFromString(LayerValue, *Layer);
+			}
+			OutCodecInformation.SetProfileLevel(LayerValue);
+			OutCodecInformation.SetStreamLanguageCode(InFromTrack->GetLanguage());
+			OutCodecInformation.SetCodecSpecifierRFC6381(TEXT("mp4a.6b"));
+			OutCodecInformation.SetSamplingRate(Audio->GetOutputSampleRate());
+			OutCodecInformation.SetNumberOfChannels(Audio->GetNumberOfChannels());
+			// If there is no default duration set we try to calculate it from the sample rate.
+			if (InFromTrack->GetDefaultDurationNanos() == 0)
+			{
+				UE_LOG(LogElectraMKVParser, Error, TEXT("A_MPEG requires a sample default duration specified in the track!"));
+				return false;
+			}
 			return true;
 		}
 		return false;
@@ -3698,7 +3759,7 @@ namespace Electra
 
 
 
-	TSharedPtrTS<IParserMKV::IClusterParser> FParserMKV::CreateClusterParser(IParserMKV::IReader* InDataReader, const TArray<uint64>& InTrackIDsToParse, EClusterParseFlags InParseFlags) const
+	TSharedPtrTS<IParserMKV::IClusterParser> FParserMKV::CreateClusterParser(IGenericDataReader* InDataReader, const TArray<uint64>& InTrackIDsToParse, EClusterParseFlags InParseFlags) const
 	{
 		FMKVClusterParser* Parser = new FMKVClusterParser(AsShared(), InDataReader, InTrackIDsToParse, InParseFlags);
 		return TSharedPtrTS<IParserMKV::IClusterParser>(Parser);
@@ -3713,7 +3774,7 @@ namespace Electra
 		Segment->GetOrCreateCues()->AddCue(InCueTimestamp / TimestampScale, InTrackID, InCueRelativePosition, InCueBlockNumber, InClusterPosition, NextCueUniqueID);
 	}
 
-	FParserMKV::FMKVClusterParser::FMKVClusterParser(TSharedPtrTS<const FParserMKV> InParentMKV, IParserMKV::IReader* InDataReader, const TArray<uint64>& InTrackIDsToParse, EClusterParseFlags InParseFlags)
+	FParserMKV::FMKVClusterParser::FMKVClusterParser(TSharedPtrTS<const FParserMKV> InParentMKV, IGenericDataReader* InDataReader, const TArray<uint64>& InTrackIDsToParse, EClusterParseFlags InParseFlags)
 		: ParentMKV(InParentMKV), Reader(new FClusterDataReader(InDataReader))
 	{
 		SegmentBaseOffset = InParentMKV->GetSegment()->GetElementOffset();
@@ -3840,7 +3901,7 @@ namespace Electra
 					{
 						int32 SampleSize = 0;
 						uint8 b;
-						do 
+						do
 						{
 							if (!Reader->Read(b))
 							{

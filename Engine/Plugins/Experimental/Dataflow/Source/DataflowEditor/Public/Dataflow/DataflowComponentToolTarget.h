@@ -43,7 +43,6 @@ public:
 
 	// IDynamicMeshProvider
 	virtual UE::Geometry::FDynamicMesh3 GetDynamicMesh() override;
-	virtual UE::Geometry::FDynamicMesh3 GetDynamicMesh(bool bRequestTangents) override;
 
 protected:
 	// So that the tool target factory can poke into Component.

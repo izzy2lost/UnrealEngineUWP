@@ -2,6 +2,8 @@
 
 #include "Utils/MPEG/ElectraUtilsMPEGVideo.h"
 #include "Utils/ElectraBitstreamReader.h"
+#include "Utils/MPEG/ElectraUtilsMPEGVideo_H264.h"
+#include "Utils/MPEG/ElectraUtilsMPEGVideo_H265.h"
 #include "ElectraDecodersUtils.h"
 
 namespace ElectraDecodersUtil
@@ -50,6 +52,98 @@ namespace ElectraDecodersUtil
 			return ParsedSPSs[SpsIndex];
 		}
 
+
+		bool FAVCDecoderConfigurationRecord::CreateFromCodecSpecificData(const TArray<uint8>& InFromCSD)
+		{
+			if (!InFromCSD.IsEmpty())
+			{
+				CodecSpecificData = InFromCSD;
+				TArray<ElectraDecodersUtil::MPEG::H264::FNaluInfo> Nalus;
+				if (!ElectraDecodersUtil::MPEG::H264::ParseBitstreamForNALUs(Nalus, InFromCSD.GetData(), InFromCSD.Num()))
+				{
+					return false;
+				}
+
+				FArray aSPS, aPPS;
+				for(int32 i=0; i<Nalus.Num(); ++i)
+				{
+					if (Nalus[i].Type == 7)
+					{
+						TMap<uint32, ElectraDecodersUtil::MPEG::H264::FSequenceParameterSet> SPSs;
+						if (ElectraDecodersUtil::MPEG::H264::ParseSequenceParameterSet(SPSs, InFromCSD.GetData() + Nalus[i].Offset + Nalus[i].UnitLength, Nalus[i].Size))
+						{
+							ElectraDecodersUtil::MPEG::H264::FSequenceParameterSet sps(SPSs.CreateConstIterator().Value());
+							AVCProfileIndication = sps.profile_idc;
+							ProfileCompatibility = (sps.constraint_set0_flag << 7) | (sps.constraint_set1_flag << 6) | (sps.constraint_set2_flag << 5) |
+												   (sps.constraint_set3_flag << 4) | (sps.constraint_set4_flag << 3) | (sps.constraint_set5_flag << 2);
+							AVCLevelIndication = sps.level_idc;
+							NALUnitLength = 4;
+							ChromaFormat = sps.chroma_format_idc;
+							BitDepthLumaMinus8 = sps.bit_depth_luma_minus8;
+							BitDepthChromaMinus8 = sps.bit_depth_chroma_minus8;
+							bHaveAdditionalProfileIndication = false;
+						}
+						else
+						{
+							return false;
+						}
+						aSPS.NALUs.Emplace_GetRef() = MakeArrayView<const uint8>(InFromCSD.GetData() + Nalus[i].Offset + Nalus[i].UnitLength, Nalus[i].Size);
+					}
+					else if (Nalus[i].Type == 8)
+					{
+						aPPS.NALUs.Emplace_GetRef() = MakeArrayView<const uint8>(InFromCSD.GetData() + Nalus[i].Offset + Nalus[i].UnitLength, Nalus[i].Size);
+					}
+				}
+				if (aSPS.NALUs.IsEmpty() || aPPS.NALUs.IsEmpty())
+				{
+					return false;
+				}
+
+				// Create the raw configuration record now.
+				ConfigurationVersion = 1;
+				FElectraBitstreamWriter wr;
+				wr.PutBits(ConfigurationVersion, 8);
+				wr.PutBits(AVCProfileIndication, 8);
+				wr.PutBits(ProfileCompatibility, 8);
+				wr.PutBits(AVCLevelIndication, 8);
+				wr.PutBits(63U, 6);
+				wr.PutBits(NALUnitLength-1, 2);
+				wr.PutBits(7U, 3);
+				wr.PutBits(static_cast<uint32>(aSPS.NALUs.Num()), 5);
+				for(int32 j=0; j<aSPS.NALUs.Num(); ++j)
+				{
+					const TArray<uint8>& d(aSPS.NALUs[j]);
+					wr.PutBits(static_cast<uint32>(d.Num()), 16);
+					for(int32 k=0; k<d.Num(); ++k)
+					{
+						wr.PutBits(d[k], 8);
+					}
+				}
+				wr.PutBits(static_cast<uint32>(aPPS.NALUs.Num()), 8);
+				for(int32 j=0; j<aPPS.NALUs.Num(); ++j)
+				{
+					const TArray<uint8>& d(aPPS.NALUs[j]);
+					wr.PutBits(static_cast<uint32>(d.Num()), 16);
+					for(int32 k=0; k<d.Num(); ++k)
+					{
+						wr.PutBits(d[k], 8);
+					}
+				}
+				if (AVCProfileIndication != 66 && AVCProfileIndication != 77 && AVCProfileIndication != 88)
+				{
+					wr.PutBits(63U, 6);
+					wr.PutBits(ChromaFormat, 2);
+					wr.PutBits(31U, 5);
+					wr.PutBits(BitDepthLumaMinus8, 3);
+					wr.PutBits(31U, 5);
+					wr.PutBits(BitDepthChromaMinus8, 3);
+					wr.PutBits(0U, 8);
+				}
+				wr.GetArray(RawData);
+				return true;
+			}
+			return false;
+		}
 
 		bool FAVCDecoderConfigurationRecord::Parse()
 		{
@@ -257,7 +351,7 @@ namespace ElectraDecodersUtil
 		{
 			return ParsedSPSs.Num();
 		}
-		
+
 		const FISO23008_2_seq_parameter_set_data& FHEVCDecoderConfigurationRecord::GetParsedSPS(int32 SpsIndex) const
 		{
 			return ParsedSPSs[SpsIndex];
@@ -286,6 +380,118 @@ namespace ElectraDecodersUtil
 			TemporalIdNested = 0;
 			NALUnitLengthMinus1 = 0;
 			ParsedSPSs.Empty();
+		}
+
+		bool FHEVCDecoderConfigurationRecord::CreateFromCodecSpecificData(const TArray<uint8>& InFromCSD)
+		{
+			if (!InFromCSD.IsEmpty())
+			{
+				CodecSpecificData = InFromCSD;
+				TArray<ElectraDecodersUtil::MPEG::H265::FNaluInfo> Nalus;
+				if (!ElectraDecodersUtil::MPEG::H265::ParseBitstreamForNALUs(Nalus, InFromCSD.GetData(), InFromCSD.Num()))
+				{
+					return false;
+				}
+				FArray aVPS, aSPS, aPPS;
+				for(int32 i=0; i<Nalus.Num(); ++i)
+				{
+					if (Nalus[i].Type == 32)
+					{
+						aVPS.NALUnitType = 32;
+						aVPS.NALUs.Emplace_GetRef() = MakeArrayView<const uint8>(InFromCSD.GetData() + Nalus[i].Offset + Nalus[i].UnitLength, Nalus[i].Size);
+					}
+					else if (Nalus[i].Type == 33)
+					{
+						TMap<uint32, ElectraDecodersUtil::MPEG::H265::FSequenceParameterSet> SPSs;
+						if (ElectraDecodersUtil::MPEG::H265::ParseSequenceParameterSet(SPSs, InFromCSD.GetData() + Nalus[i].Offset + Nalus[i].UnitLength, Nalus[i].Size))
+						{
+							ElectraDecodersUtil::MPEG::H265::FSequenceParameterSet sps(SPSs.CreateConstIterator().Value());
+							GeneralProfileSpace = sps.profile_tier_level.general_profile_space;
+							GeneralTierFlag = sps.profile_tier_level.general_tier_flag;
+							GeneralProfileIDC = sps.profile_tier_level.general_profile_idc;
+							GeneralProfileCompatibilityFlags = sps.profile_tier_level.general_profile_compatibility_flags;
+							GeneralConstraintIndicatorFlags = sps.profile_tier_level.general_constraint_indicator_flags;
+							GeneralLevelIDC = sps.profile_tier_level.general_level_idc;
+							check(sps.vui_parameters_present_flag);
+							MinSpatialSegmentationIDC = sps.vui_parameters.min_spatial_segmentation_idc;
+							ParallelismType = 0;	// for simplicity as 0 indicates `unknown`.
+							ChromaFormat = sps.chroma_format_idc;
+							BitDepthLumaMinus8 = sps.bit_depth_luma_minus8;
+							BitDepthChromaMinus8 = sps.bit_depth_chroma_minus8;
+							AverageFrameRate = 0;	// unknown
+							ConstantFrameRate = 0;	// may or may not
+							NumTemporalLayers = 0;	// unknown
+							TemporalIdNested = 0;	// may or may not
+							NALUnitLengthMinus1 = 3;
+						}
+						else
+						{
+							return false;
+						}
+						aSPS.NALUnitType = 33;
+						aSPS.NALUs.Emplace_GetRef() = MakeArrayView<const uint8>(InFromCSD.GetData() + Nalus[i].Offset + Nalus[i].UnitLength, Nalus[i].Size);
+					}
+					else if (Nalus[i].Type == 34)
+					{
+						aPPS.NALUnitType = 34;
+						aPPS.NALUs.Emplace_GetRef() = MakeArrayView<const uint8>(InFromCSD.GetData() + Nalus[i].Offset + Nalus[i].UnitLength, Nalus[i].Size);
+					}
+				}
+				if (aVPS.NALUs.IsEmpty() || aSPS.NALUs.IsEmpty() || aPPS.NALUs.IsEmpty())
+				{
+					return false;
+				}
+				Arrays.Emplace(MoveTemp(aVPS));
+				Arrays.Emplace(MoveTemp(aSPS));
+				Arrays.Emplace(MoveTemp(aPPS));
+
+				// Create the raw configuration record now.
+				ConfigurationVersion = 1;
+				FElectraBitstreamWriter wr;
+				wr.PutBits(ConfigurationVersion, 8);
+				wr.PutBits(GeneralProfileSpace, 2);
+				wr.PutBits(GeneralTierFlag, 1);
+				wr.PutBits(GeneralProfileIDC, 5);
+				wr.PutBits(GeneralProfileCompatibilityFlags, 32);
+				wr.PutBits64(GeneralConstraintIndicatorFlags, 48);
+				wr.PutBits(GeneralLevelIDC, 8);
+				wr.PutBits(15U, 4);
+				wr.PutBits(MinSpatialSegmentationIDC, 12);
+				wr.PutBits(63U, 6);
+				wr.PutBits(ParallelismType, 2);
+				wr.PutBits(63U, 6);
+				wr.PutBits(ChromaFormat, 2);
+				wr.PutBits(31U, 5);
+				wr.PutBits(BitDepthLumaMinus8, 3);
+				wr.PutBits(31U, 5);
+				wr.PutBits(BitDepthChromaMinus8, 3);
+				wr.PutBits(AverageFrameRate, 16);
+				wr.PutBits(ConstantFrameRate, 2);
+				wr.PutBits(NumTemporalLayers, 3);
+				wr.PutBits(TemporalIdNested, 1);
+				wr.PutBits(NALUnitLengthMinus1, 2);
+				wr.PutBits(static_cast<uint32>(Arrays.Num()), 8);
+				for(int32 i=0; i<Arrays.Num(); ++i)
+				{
+					const FArray& a(Arrays[i]);
+					wr.PutBits(a.Completeness, 1);
+					wr.PutBits(0U, 1);
+					wr.PutBits(a.NALUnitType, 6);
+					wr.PutBits(static_cast<uint32>(a.NALUs.Num()), 16);
+					for(int32 j=0; j<a.NALUs.Num(); ++j)
+					{
+						const TArray<uint8>& d(a.NALUs[j]);
+						wr.PutBits(static_cast<uint32>(d.Num()), 16);
+						for(int32 k=0; k<d.Num(); ++k)
+						{
+							wr.PutBits(d[k], 8);
+						}
+					}
+				}
+				wr.GetArray(RawData);
+				return true;
+			}
+			return false;
 		}
 
 		bool FHEVCDecoderConfigurationRecord::Parse()
@@ -933,7 +1139,7 @@ namespace ElectraDecodersUtil
 					return false;
 				}
 			}
-			
+
 			uint8 long_term_ref_pics_present_flag = BitReader.GetBits(1);
 			if (long_term_ref_pics_present_flag)
 			{
@@ -944,7 +1150,7 @@ namespace ElectraDecodersUtil
 					BitReader.SkipBits(1);							//	used_by_curr_pic_lt_sps_flag[ i ]
 				}
 			}
-			
+
 			OutSPS.sps_temporal_mvp_enabled_flag = BitReader.GetBits(1);
 			OutSPS.strong_intra_smoothing_enabled_flag = BitReader.GetBits(1);
 			OutSPS.vui_parameters_present_flag = BitReader.GetBits(1);
@@ -1114,7 +1320,7 @@ namespace ElectraDecodersUtil
 									payload_bit_equal_to_zero()
 								}
 							}
-					
+
 						H.264:
 							if (!byte_aligned())
 							{

@@ -19,7 +19,7 @@ UE_NET_TEST(ObjectPollFrequencyLimiter, ObjectsToPollAreSpreadOutWhenCreatingObj
 	constexpr uint32 MaxObjectCount = PollFrequency + 1U;
 
 	FObjectPollFrequencyLimiter FrequencyLimiter;
-	FrequencyLimiter.Init(MaxObjectCount);
+	FrequencyLimiter.Init(MaxObjectCount + 1);
 
 	FNetBitArray EmptyBitArray(MaxObjectCount + 1);
 	FNetBitArray ScopeBitArray(MaxObjectCount + 1);
@@ -40,7 +40,7 @@ UE_NET_TEST(ObjectPollFrequencyLimiter, ObjectsToPollAreSpreadOutWhenCreatingObj
 	// All objects are created. Verify we get one object polled per frame
 	for (uint32 It = 0, EndIt = MaxObjectCount; It < EndIt; ++It)
 	{
-		OutputBitArrayView.Reset();
+		OutputBitArrayView.ClearAllBits();
 		FrequencyLimiter.Update(MakeNetBitArrayView(ScopeBitArray), MakeNetBitArrayView(EmptyBitArray), OutputBitArrayView);
 
 		const uint32 PollCount = OutputArray.CountSetBits();
@@ -56,7 +56,7 @@ UE_NET_TEST(ObjectPollFrequencyLimiter, ObjectsToPollAreSpreadOutRegardlessOfUpd
 
 	constexpr uint32 MaxObjectCount = 128;
 	FObjectPollFrequencyLimiter FrequencyLimiter;
-	FrequencyLimiter.Init(MaxObjectCount);
+	FrequencyLimiter.Init(MaxObjectCount + 1);
 
 	constexpr uint32 PollFrequency = 8U;
 	// With three times as many objects as the poll frequency we expect three objects to be polled per frame.
@@ -99,7 +99,7 @@ UE_NET_TEST(ObjectPollFrequencyLimiter, ObjectsToPollAreSpreadOutRegardlessOfUpd
 	// Verify the objects get polled evenly.
 	for (uint32 PollIt = 0; PollIt <= PollFrequency; ++PollIt)
 	{
-		OutputArray.Reset();
+		OutputArray.ClearAllBits();
 		FNetBitArrayView OutputBitArrayView = MakeNetBitArrayView(OutputArray);
 		FrequencyLimiter.Update(MakeNetBitArrayView(ScopeBitArray), MakeNetBitArrayView(EmptyBitArray), OutputBitArrayView);
 
@@ -121,9 +121,8 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestSubObjectsPol
 	// Spawn object on server polled every 3 frames
 	const uint32 PollPeriod = 3;
 	const float PollFrequency = Server->ConvertPollPeriodIntoFrequency(PollPeriod);
-	UObjectReplicationBridge::FCreateNetRefHandleParams Params;
+	UObjectReplicationBridge::FRootObjectReplicationParams Params;
 	Params.PollFrequency = PollFrequency;
-	Params.bCanReceive = true;
 	Params.bUseClassConfigDynamicFilter = true;
 	Params.bNeedsPreUpdate = true;
 	UTestReplicatedIrisObject* ServerRootObject = Server->CreateObject(Params);

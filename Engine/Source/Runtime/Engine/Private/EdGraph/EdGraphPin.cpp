@@ -509,7 +509,7 @@ UEdGraphPin* UEdGraphPin::CreatePin(UEdGraphNode* InOwningNode)
 	return NewPin;
 }
 
-void UEdGraphPin::MakeLinkTo(UEdGraphPin* ToPin)
+void UEdGraphPin::MakeLinkTo(UEdGraphPin* ToPin, bool bAlwaysMarkDirty)
 {
 	if (ToPin)
 	{
@@ -525,32 +525,32 @@ void UEdGraphPin::MakeLinkTo(UEdGraphPin* ToPin)
 			ensureMsgf(MyNode->GetOuter() == ToPin->GetOwningNode()->GetOuter(), TEXT("%s"), *GetLinkInfoString( LOCTEXT("MakeLinkTo", "MakeLinkTo").ToString(), LOCTEXT("OuterMismatch", "has a different outer than pin").ToString(), ToPin)); // Ensure both pins belong to the same graph
 
 			// Notify owning nodes about upcoming change
-			Modify();
-			ToPin->Modify();
+			Modify(bAlwaysMarkDirty);
+			ToPin->Modify(bAlwaysMarkDirty);
 
 			// Add to both lists
 			LinkedTo.Add(ToPin);
 			ToPin->LinkedTo.Add(this);
 
 			// If either node was a pre-placed ghost, turn it into a real thing
-			UEdGraphPin::ConvertConnectedGhostNodesToRealNodes(MyNode);
-			UEdGraphPin::ConvertConnectedGhostNodesToRealNodes(ToPin->GetOwningNode());
+			UEdGraphPin::ConvertConnectedGhostNodesToRealNodes(MyNode, bAlwaysMarkDirty);
+			UEdGraphPin::ConvertConnectedGhostNodesToRealNodes(ToPin->GetOwningNode(), bAlwaysMarkDirty);
 		}
 	}
 }
 
-void UEdGraphPin::BreakLinkTo(UEdGraphPin* ToPin)
+void UEdGraphPin::BreakLinkTo(UEdGraphPin* ToPin, bool bAlwaysMarkDirty)
 {
 	if (ToPin)
 	{
 		// If we do indeed link to the passed in pin...
 		if (LinkedTo.Contains(ToPin))
 		{
-			Modify();
+			Modify(bAlwaysMarkDirty);
 
 			if (ToPin->LinkedTo.Contains(this))
 			{
-				ToPin->Modify();
+				ToPin->Modify(bAlwaysMarkDirty);
 				ToPin->LinkedTo.Remove(this);
 			}
 			else if (OwningNode && !OwningNode->HasAnyFlags(RF_BeginDestroyed))
@@ -569,13 +569,13 @@ void UEdGraphPin::BreakLinkTo(UEdGraphPin* ToPin)
 	}
 }
 
-void UEdGraphPin::BreakAllPinLinks(const bool bNotifyNodes)
+void UEdGraphPin::BreakAllPinLinks(bool bNotifyNodes, bool bAlwaysMarkDirty)
 {
 	TArray<UEdGraphPin*> LinkedToCopy = LinkedTo;
 
 	for (UEdGraphPin* LinkedToPin : LinkedToCopy)
 	{
-		BreakLinkTo(LinkedToPin);
+		BreakLinkTo(LinkedToPin, bAlwaysMarkDirty);
 #if WITH_EDITOR
 		if (bNotifyNodes)
 		{
@@ -851,6 +851,12 @@ void UEdGraphPin::AddStructReferencedObjects(class FReferenceCollector& Collecto
 {
 	Collector.AddReferencedObject(PinType.PinSubCategoryMemberReference.MemberParent);
 	Collector.AddReferencedObject(DefaultObject);
+#if WITH_EDITOR
+	// EdGraphPins are not serialized via the reflection system, but we need visibility 
+	// into pin references for asset reload and potentially reinstancing, so
+	// I'm publishing this as an owned reference in editor:
+	Collector.AddReferencedObject(PinType.PinSubCategoryObject);
+#endif
 }
 
 void UEdGraphPin::SerializeAsOwningNode(FArchive& Ar, TArray<UEdGraphPin*>& ArrayRef)
@@ -1168,7 +1174,7 @@ bool UEdGraphPin::ImportTextItem(const TCHAR*& Buffer, int32 PortFlags, class UO
 		// Advance over the '='
 		Buffer++;
 
-		FString PropertyToken(NumCharsInToken, StartBuffer);
+		FString PropertyToken = FString::ConstructFromPtrSize(StartBuffer, NumCharsInToken);
 		PropertyToken.TrimEndInline();
 		bool bParseSuccess = false;
 		if (PropertyToken == PinHelpers::PinIdName)
@@ -1799,12 +1805,12 @@ void UEdGraphPin::DeclarePinCustomVersions(FArchive& Ar)
 }
 #endif
 
-void UEdGraphPin::ConvertConnectedGhostNodesToRealNodes(UEdGraphNode* InNode)
+void UEdGraphPin::ConvertConnectedGhostNodesToRealNodes(UEdGraphNode* InNode, bool bAlwaysMarkDirty)
 {
 	if (InNode && InNode->IsAutomaticallyPlacedGhostNode())
 	{
 		// Enable the node and clear the comment
-		InNode->Modify();
+		InNode->Modify(bAlwaysMarkDirty);
 		InNode->SetEnabledState(ENodeEnabledState::Enabled, /*bUserAction=*/ false);
 		InNode->NodeComment.Empty();
 #if WITH_EDITORONLY_DATA
@@ -1816,7 +1822,7 @@ void UEdGraphPin::ConvertConnectedGhostNodesToRealNodes(UEdGraphNode* InNode)
 		{
 			for (UEdGraphPin* OtherPin : Pin->LinkedTo)
 			{
-				ConvertConnectedGhostNodesToRealNodes(OtherPin->GetOwningNode());
+				ConvertConnectedGhostNodesToRealNodes(OtherPin->GetOwningNode(), bAlwaysMarkDirty);
 			}
 		}
 	}
@@ -2160,7 +2166,7 @@ EPinResolveResult PinHelpers::ImportText_PinReference(const TCHAR*& Buffer, UEdG
 		Buffer++;
 	}
 
-	FString PinRefLine(Buffer - BufferStart, BufferStart);
+	FString PinRefLine = FString::ConstructFromPtrSize(BufferStart, Buffer - BufferStart);
 	FString OwningNodeString;
 	FString PinGuidString;
 	if (PinRefLine.Split(TEXT(" "), &OwningNodeString, &PinGuidString, ESearchCase::CaseSensitive, ESearchDir::FromEnd))

@@ -82,6 +82,7 @@ namespace UE::AvaOutliner::Private
 		virtual bool ShouldLockOutliner() const override { return false; }
 		virtual bool ShouldHideItem(const FAvaOutlinerItemPtr& Item) const override { return false; }
 		virtual void OutlinerDuplicateActors(const TArray<AActor*>& InTemplateActors) override;
+		virtual void OutlinerDeleteActors(const TArray<AActor*>& InDeleteActors) override;
 		virtual FEditorModeTools* GetOutlinerModeTools() const override { return &ModeTools.Get(); }
 		virtual FAvaSceneTree* GetSceneTree() const override { return nullptr; }
 		virtual UWorld* GetOutlinerWorld() const override { return World; }

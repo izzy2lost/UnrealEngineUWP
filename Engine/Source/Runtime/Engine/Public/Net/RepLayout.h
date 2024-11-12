@@ -21,6 +21,7 @@
 #include "UObject/GCObject.h"
 #include "Containers/StaticBitArray.h"
 #include "Net/Core/Misc/GuidReferences.h"
+#include "Net/Core/NetToken/NetTokenExportContext.h"
 #include "Net/Core/PushModel/PushModel.h"
 #include "Net/Core/PropertyConditions/RepChangedPropertyTracker.h"
 #include "Templates/CopyQualifiersFromTo.h"
@@ -195,7 +196,7 @@ public:
 
 	FString ToDebugString() const
 	{
-		return FString::Printf(TEXT("{Cmd: %u, Index: %u, Depth: %u, Ptr: %x}"), CmdIndex, ArrayIndex, ArrayDepth, DataPtr);
+		return FString::Printf(TEXT("{Cmd: %u, Index: %u, Depth: %u, Ptr: 0x%08" UPTRINT_x_FMT "}"), CmdIndex, ArrayIndex, ArrayDepth, (UPTRINT)DataPtr);
 	}
 
 	friend bool operator==(const FRepSharedPropertyKey& A, const FRepSharedPropertyKey& B)
@@ -242,6 +243,14 @@ struct FRepSerializationSharedInfo
 		bIsValid(false)
 	{}
 
+	~FRepSerializationSharedInfo()
+	{
+		// Explicitly reset members to improve resilience to double-destruction.
+		SharedPropertyInfo = {};
+		SerializedProperties = nullptr;
+		bIsValid = false;
+	}
+
 	void SetValid()
 	{
 		bIsValid = true;
@@ -266,6 +275,7 @@ struct FRepSerializationSharedInfo
 		{
 			SharedPropertyInfo.Reset();
 			SerializedProperties->Reset();
+			NetTokensPendingExport.Reset();
 
 			bIsValid = false;
 		}
@@ -297,12 +307,15 @@ struct FRepSerializationSharedInfo
 	/** Binary blob of net serialized data to be shared */
 	TUniquePtr<FNetBitWriter> SerializedProperties;
 
+	/** NetTokenExports for this RepLayout, will need to index to avoid adding exports that we do not want to use. */
+	UE::Net::FNetTokenExportContext::FNetTokenExports NetTokensPendingExport;
+
 	void CountBytes(FArchive& Ar) const;
 
 private:
 
 	/** Whether or not shared serialization data has been successfully built. */
-	bool bIsValid;
+	bool bIsValid = false;
 };
 
 /**
@@ -347,7 +360,7 @@ public:
 	TArray<uint16> Changed;
 
 	/** Whether or not this Changelist should be resent due to a Nak. */
-	bool Resend;
+	bool Resend = false;
 };
 
 /**
@@ -398,6 +411,11 @@ public:
 
 	void CountBytes(FArchive& Ar) const;
 
+	void Empty()
+	{
+		Buffer.Empty();
+	}
+
 private:
 
 	// Properties will be copied in here so memory needs aligned to largest type
@@ -438,13 +456,13 @@ public:
 	TUniquePtr<struct FCustomDeltaChangelistState> CustomDeltaChangelistState;
 
 	/** Index in the buffer where changelist history starts (i.e., the Oldest changelist). */
-	int32 HistoryStart;
+	int32 HistoryStart = 0;
 
 	/** Index in the buffer where changelist history ends (i.e., the Newest changelist). */
-	int32 HistoryEnd;
+	int32 HistoryEnd = 0;
 
 	/** Number of times that properties have been compared */
-	int32 CompareIndex;
+	int32 CompareIndex = 0;
 
 	/** Tracking custom delta sends, for comparison against sending rep state. */
 	uint32 CustomDeltaChangeIndex = 0;
@@ -496,17 +514,22 @@ public:
 
 	~FReplicationChangelistMgr();
 
-	FRepChangelistState* GetRepChangelistState() const
+	FRepChangelistState* GetRepChangelistState()
 	{
-		return const_cast<FRepChangelistState*>(&RepChangelistState);
+		return &RepChangelistState;
+	}
+
+	const FRepChangelistState* GetRepChangelistState() const
+	{
+		return &RepChangelistState;
 	}
 
 	void CountBytes(FArchive& Ar) const;
 
 private:
 
-	uint32 LastReplicationFrame;
-	uint32 LastInitialReplicationFrame;
+	uint32 LastReplicationFrame = 0;
+	uint32 LastInitialReplicationFrame = 0;
 
 	FRepChangelistState RepChangelistState;
 };
@@ -1393,7 +1416,7 @@ public:
 		TSet<FNetworkGUID>& UnmappedGuids) const;
 
 	/** Builds shared serialization state for a multicast rpc */
-	void ENGINE_API BuildSharedSerializationForRPC(const FConstRepObjectDataBuffer Data);
+	void ENGINE_API BuildSharedSerializationForRPC(const FConstRepObjectDataBuffer Data, UE::Net::FNetTokenStore* NetTokenStore = nullptr);
 
 	/** Clears shared serialization state for a multicast rpc */
 	void ENGINE_API ClearSharedSerializationForRPC();
@@ -1630,7 +1653,8 @@ private:
 		const FConstRepObjectDataBuffer Data,
 		TArray<uint16>& Changed,
 		const bool bWriteHandle,
-		FRepSerializationSharedInfo& SharedInfo) const;
+		FRepSerializationSharedInfo& SharedInfo, 
+		UE::Net::FNetTokenStore* NetTokenStore = nullptr) const;
 
 	void BuildSharedSerialization_r(
 		FRepHandleIterator& RepHandleIterator,

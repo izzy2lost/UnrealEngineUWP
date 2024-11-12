@@ -6,12 +6,12 @@
 #include "Components/DMMaterialStageThroughput.h"
 #include "Components/DMMaterialSubStage.h"
 #include "DMComponentPath.h"
-#include "DMPrivate.h"
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageInputThroughput"
 
@@ -59,10 +59,7 @@ void UDMMaterialStageInputThroughput::SetMaterialStageThroughputClass(TSubclassO
 		}
 	}
 
-	if (FDMUpdateGuard::CanUpdate())
-	{
-		Update(EDMUpdateType::Structure);
-	}
+	Update(this, EDMUpdateType::Structure);
 }
 
 UDMMaterialStageThroughput* UDMMaterialStageInputThroughput::GetMaterialStageThroughput() const
@@ -243,15 +240,38 @@ void UDMMaterialStageInputThroughput::PostEditorDuplicate(UDynamicMaterialModel*
 
 FText UDMMaterialStageInputThroughput::GetComponentDescription() const
 {
+	if (UDMMaterialStageThroughput* Throughput = GetMaterialStageThroughput())
+	{
+		return Throughput->GetComponentDescription();
+	}
+
 	if (TSubclassOf<UDMMaterialStageThroughput> MaterialStageThroughputClass = GetMaterialStageThroughputClass())
 	{
 		check(MaterialStageThroughputClass.Get());
-		UDMMaterialStageThroughput* ThroughputCDO = Cast<UDMMaterialStageThroughput>(MaterialStageThroughputClass->GetDefaultObject(true));
+		UDMMaterialStageThroughput* ThroughputCDO = Cast<UDMMaterialStageThroughput>(MaterialStageThroughputClass->GetDefaultObject(/* Create if needed */ true));
 
 		return ThroughputCDO->GetComponentDescription();
 	}
 
 	return Super::GetComponentDescription();
+}
+
+FSlateIcon UDMMaterialStageInputThroughput::GetComponentIcon() const
+{
+	if (UDMMaterialStageThroughput* Throughput = GetMaterialStageThroughput())
+	{
+		return Throughput->GetComponentIcon();
+	}
+
+	if (TSubclassOf<UDMMaterialStageThroughput> MaterialStageThroughputClass = GetMaterialStageThroughputClass())
+	{
+		check(MaterialStageThroughputClass.Get());
+		UDMMaterialStageThroughput* ThroughputCDO = Cast<UDMMaterialStageThroughput>(MaterialStageThroughputClass->GetDefaultObject(/* Create if needed */ true));
+
+		return ThroughputCDO->GetComponentIcon();
+	}
+
+	return Super::GetComponentIcon();
 }
 
 FText UDMMaterialStageInputThroughput::GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel)
@@ -282,16 +302,16 @@ UDMMaterialStageInputThroughput::UDMMaterialStageInputThroughput()
 	EditableProperties.Add(GET_MEMBER_NAME_CHECKED(UDMMaterialStageInputThroughput, SubStage));
 }
 
-void UDMMaterialStageInputThroughput::OnSubStageUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
+void UDMMaterialStageInputThroughput::OnSubStageUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!IsComponentValid())
 	{
 		return;
 	}
 
-	if (InComponent == SubStage && FDMUpdateGuard::CanUpdate())
+	if (InSource == SubStage)
 	{
-		Update(InUpdateType);
+		Update(InSource, InUpdateType);
 	}
 }
 

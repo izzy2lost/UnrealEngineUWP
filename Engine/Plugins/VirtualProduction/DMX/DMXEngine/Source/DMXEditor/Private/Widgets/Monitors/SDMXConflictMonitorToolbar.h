@@ -26,10 +26,14 @@ namespace UE::DMX
 	public:
 		SLATE_BEGIN_ARGS(SDMXConflictMonitorToolbar)
 			: _StatusInfo(EDMXConflictMonitorStatusInfo::Idle)
+			, _TimeGameThread(0.0)
 			{}
 
 			/** The status of the monitor */
 			SLATE_ATTRIBUTE(EDMXConflictMonitorStatusInfo, StatusInfo)
+
+			/** The game thread time */
+			SLATE_ATTRIBUTE(double, TimeGameThread)
 
 			/** Broadcast when the depth changed */
 			SLATE_EVENT(FSimpleDelegate, OnDepthChanged)
@@ -60,6 +64,9 @@ namespace UE::DMX
 
 		/** The current depth */
 		uint8 Depth = 3;
+
+		/** Cached time on game thread */
+		double CachedTimeGameThread = 0.0;
 
 		// Slate args
 		TAttribute<EDMXConflictMonitorStatusInfo> StatusInfo;

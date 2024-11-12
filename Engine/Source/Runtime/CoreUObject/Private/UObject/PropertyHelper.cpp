@@ -292,6 +292,82 @@ const TCHAR* DelegatePropertyTools::ImportDelegateFromText( FScriptDelegate& Del
 namespace UE
 {
 
+#if WITH_EDITORONLY_DATA
+const FString* FindOriginalTypeName(const UField* Field)
+{
+	if (Field && FUObjectThreadContext::Get().GetSerializeContext()->bImpersonateProperties)
+	{
+		return Field->FindMetaData(NAME_OriginalType);
+	}
+	return nullptr;
+}
+
+const FString* FindOriginalTypeName(const FProperty* Property)
+{
+	if (!FUObjectThreadContext::Get().GetSerializeContext()->bImpersonateProperties)
+	{
+		return nullptr;
+	}
+
+	// Prioritize metadata on the property over metadata on the type.
+	if (const FString* OriginalType = Property->FindMetaData(NAME_OriginalType))
+	{
+		return OriginalType;
+	}
+
+	// Search the owner chain to support metadata defined in UPROPERTY on a container for testing purposes.
+	for (FField* OwnerField = Property->Owner.ToField(); OwnerField; OwnerField = OwnerField->Owner.ToField())
+	{
+		if (const FString* OriginalType = OwnerField->FindMetaData(NAME_OriginalType))
+		{
+			return OriginalType;
+		}
+	}
+
+	if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+	{
+		return FindOriginalTypeName(StructProperty->Struct);
+	}
+	if (const FClassProperty* ClassProperty = CastField<FClassProperty>(Property))
+	{
+		return FindOriginalTypeName(ClassProperty->PropertyClass);
+	}
+	if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
+	{
+		return FindOriginalTypeName(EnumProperty->GetEnum());
+	}
+	if (const FByteProperty* ByteProperty = CastField<FByteProperty>(Property))
+	{
+		return FindOriginalTypeName(ByteProperty->Enum);
+	}
+	return nullptr;
+}
+
+FPropertyTypeName FindOriginalType(const UField* Field)
+{
+	if (const FString* OriginalType = FindOriginalTypeName(Field))
+	{
+		if (UE::FPropertyTypeNameBuilder Type; Type.TryParse(*OriginalType))
+		{
+			return Type.Build();
+		}
+	}
+	return {};
+}
+
+FPropertyTypeName FindOriginalType(const FProperty* Property)
+{
+	if (const FString* OriginalType = FindOriginalTypeName(Property))
+	{
+		if (UE::FPropertyTypeNameBuilder Type; Type.TryParse(*OriginalType))
+		{
+			return Type.Build();
+		}
+	}
+	return {};
+}
+#endif // WITH_EDITORONLY_DATA
+
 static FCoreRedirectObjectName BuildCoreRedirectObjectName(FPropertyTypeName TypeName)
 {
 	FName OuterName;
@@ -371,7 +447,7 @@ static bool FindRedirectForProperty(FPropertyTypeName OldType, FPropertyTypeName
 
 	// If the type in the tag matches the field then skip looking for redirects.
 	// This is necessary to handle redirects where the old name continues to be used.
-	FCoreRedirectObjectName OldNameRedirect = BuildCoreRedirectObjectName(OldType);
+	const FCoreRedirectObjectName OldNameRedirect = BuildCoreRedirectObjectName(OldType);
 	if (Field && Field->GetFName() == OldNameRedirect.ObjectName)
 	{
 		return false;
@@ -387,12 +463,29 @@ static bool FindRedirectForProperty(FPropertyTypeName OldType, FPropertyTypeName
 
 	// If a partial match does not match the field then repeat the lookup without allowing partial matches.
 	// This is necessary to handle redirects of the original type of a property that changed type.
-	if (Field && Field->GetFName() != NewNameRedirect.ObjectName)
+	if (Field)
 	{
-		NewNameRedirect = FCoreRedirects::GetRedirectedName(FTraits::GetFlags(), OldNameRedirect, ECoreRedirectMatchFlags::None);
-		if (OldNameRedirect == NewNameRedirect)
+		FName FieldName = Field->GetFName();
+
+	#if WITH_EDITORONLY_DATA
+		// Compare against the original type of an impersonated type.
+		if (const FPropertyTypeName OriginalType = FindOriginalType(Property); !OriginalType.IsEmpty())
 		{
-			return false;
+			FieldName = OriginalType.GetName();
+			if (FieldName == OldNameRedirect.ObjectName)
+			{
+				return false;
+			}
+		}
+	#endif // WITH_EDITORONLY_DATA
+
+		if (FieldName != NewNameRedirect.ObjectName)
+		{
+			NewNameRedirect = FCoreRedirects::GetRedirectedName(FTraits::GetFlags(), OldNameRedirect, ECoreRedirectMatchFlags::None);
+			if (OldNameRedirect == NewNameRedirect)
+			{
+				return false;
+			}
 		}
 	}
 

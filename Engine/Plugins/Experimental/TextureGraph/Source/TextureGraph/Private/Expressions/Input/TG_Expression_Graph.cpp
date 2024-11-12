@@ -170,19 +170,53 @@ void UTG_Expression_TextureGraph::OnTextureGraphPreSave(UObject* Object, FObject
 {
 	// every editor should check if your texture graph is dependent on the object being saved
 	UTextureGraph* GraphBeingSaved = Cast<UTextureGraph>(Object);
-	// if object being saved is our linked TextureGraph, we re-create
-	if (GraphBeingSaved && TextureGraph)
+	UTextureGraph* ParentGraph = GetTypedOuter<UTextureGraph>();
+	// if object being saved is our linked TextureGraph, 
+	// and this expression's graph is NOT the same as the graph being saved, we re-create
+	if (GraphBeingSaved && TextureGraph && 
+		GraphBeingSaved != ParentGraph )
 	{
-		UTextureGraph* ParentGraph = CastChecked<UTextureGraph>(GetOutermostObject());
-
-		// update if the graph being saved is the one we're using in this expression directly
-		// Or our parent graph is indirectly dependent on the graph being saved 
-		if (GraphBeingSaved == TextureGraph ||
-			ParentGraph->IsDependent(GraphBeingSaved))
+		
+		check (ParentGraph);
+		// if graph being saved is not ourself, and there is a cyclic dependency
+		bool bSameGraphs = GraphBeingSaved->GetOuter() == TextureGraph->GetOuter();
+		if (bSameGraphs || ParentGraph->IsDependentOn(GraphBeingSaved))
 		{
-			// Recreate the Runtime copy
-			RuntimeGraph = DuplicateObject(TextureGraph->Graph(), this);	
+			// Check if the graph saved has caused cyclic dependency on the parent graph of this expression
+			if (!bSameGraphs && ParentGraph->HasCyclicDependency())
+			{
+				if (TextureGraphEngine::GetErrorReporter(ParentGraph) != nullptr)
+				{
+					auto ErrorType = static_cast<int32>(ETextureGraphErrorType::RECURSIVE_CALL);
+	
+					TextureGraphEngine::GetErrorReporter(ParentGraph)->ReportError(ErrorType, FString::Printf(TEXT("Can not use graph as a cyclic dependency is detected")));
+				}
+				Modify();
+				//we reset graph
+				TextureGraph = nullptr;
+				RuntimeGraph = nullptr;
+#if WITH_EDITOR
+				// We need to find its property and trigger property change event manually.
+				const auto SourcePin = GetParentNode()->GetInputPin(GET_MEMBER_NAME_CHECKED(UTG_Expression_TextureGraph, TextureGraph));
 
+				check(SourcePin)
+	
+				if(SourcePin)
+				{
+					FProperty* Property = SourcePin->GetExpressionProperty();
+					NotifyExpressionChanged(FPropertyChangedEvent(Property));
+				}
+#endif
+			}
+			else
+			{
+				// Recreate the Runtime copy
+				RuntimeGraph = DuplicateObject(TextureGraph->Graph(), this);	
+#ifdef UE_BUILD_DEBUG
+				RuntimeGraph->IsRuntime = 2;
+#endif
+			}
+			
 			// Graph is reset, notify the owning node / graph to update itself
 			NotifyGraphChanged();
 		}
@@ -193,6 +227,9 @@ void UTG_Expression_TextureGraph::Initialize()
 	if (TextureGraph && !RuntimeGraph)
 	{
 		RuntimeGraph = DuplicateObject(TextureGraph->Graph(), this);
+#ifdef UE_BUILD_DEBUG
+		RuntimeGraph->IsRuntime = 2;
+#endif
 	}
 
 }
@@ -218,7 +255,7 @@ bool UTG_Expression_TextureGraph::CheckDependencies(const UTextureGraph* InTextu
 		return false;
 	}
 
-	if (InTextureGraph->IsDependent(ParentGraph))
+	if (InTextureGraph->IsDependentOn(ParentGraph))
 	{
 		auto ErrorType = static_cast<int32>(ETextureGraphErrorType::RECURSIVE_CALL);
 	
@@ -233,10 +270,8 @@ void UTG_Expression_TextureGraph::SetTextureGraphInternal(UTextureGraph* InTextu
 {
 	// validate that we're allowed to use InTextureGraph as input here
 	// if dependencies exist, we don't want to use the InTextureGraph so we ll treat it just like a nullptr.
-	// TODO: At the moment we reset TextureGraph to nullptr when a dependency check fails.
-	// Ideally we'd like to revert to the previous valid value. The problem here is that
-	// TextureGraph at this point comes pre-filled with the problematic value 
 	bool IsValidTextureGraph = CheckDependencies(InTextureGraph);
+
 	if (!IsValidTextureGraph)
 	{
 		return;
@@ -253,6 +288,9 @@ void UTG_Expression_TextureGraph::SetTextureGraphInternal(UTextureGraph* InTextu
 		// This is a valid TextureGraph
 		TextureGraph = InTextureGraph;
 		RuntimeGraph = DuplicateObject(TextureGraph->Graph(), this);
+#ifdef UE_BUILD_DEBUG
+		RuntimeGraph->IsRuntime = 2;
+#endif
 	}
 
 	// Graph is reset, notify the owning node / graph to update itself
@@ -315,11 +353,14 @@ void UTG_Expression_TextureGraph::Evaluate(FTG_EvaluationContext* InContext)
 bool UTG_Expression_TextureGraph::Validate(MixUpdateCyclePtr Cycle)
 {
 	// if TextureGraph is already in execution list then
-	if(TextureGraph &&  Cycle->ContainsMix(TextureGraph))
+	UTextureGraph* ParentGraph = CastChecked<UTextureGraph>(GetOutermostObject());
+
+	if((TextureGraph &&  Cycle->ContainsMix(TextureGraph)) ||
+		(ParentGraph && ParentGraph->HasCyclicDependency()))
 	{
 		auto ErrorType = static_cast<int32>(ETextureGraphErrorType::RECURSIVE_CALL);
 		
-		const FString ErrorMsg = FString::Format(TEXT("Recursive Texture Graph call found in '{0}' asset."), {Cycle->TopMix()->GetName()} );
+		const FString ErrorMsg = FString::Format(TEXT("Recursive Texture Graph call found in '{0}' asset."), {TextureGraph->GetName()} );
 		TextureGraphEngine::GetErrorReporter(Cycle->GetMix())->ReportError(ErrorType, ErrorMsg, GetParentNode());
 		return false;
 	}

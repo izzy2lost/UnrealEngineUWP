@@ -512,8 +512,8 @@ EFileJournalResult FWindowsPlatformFile::FileJournalReadModified(const TCHAR* Vo
 			if (OutError)
 			{
 				*OutError = FString::Printf(
-					TEXT("FSCTL_READ_UNPRIVILEGED_USN_JOURNAL returned an unexpected value; ReadBufferResultsSize == %u, and the minimum expected is %d."),
-					ReadBufferResultsSize, sizeof(USN));
+					TEXT("FSCTL_READ_UNPRIVILEGED_USN_JOURNAL returned an unexpected value; ReadBufferResultsSize == %u, and the minimum expected is %zu."),
+					(uint32)ReadBufferResultsSize, sizeof(USN));
 			}
 			return EFileJournalResult::JournalInternalError;
 		}
@@ -573,7 +573,7 @@ EFileJournalResult FWindowsPlatformFile::FileJournalReadModified(const TCHAR* Vo
 				*OutError = FString::Printf(
 					TEXT("FSCTL_READ_UNPRIVILEGED_USN_JOURNAL returned an unexpected value; ReadBufferResultsSize == %u, but NextJournalUSN did not increase.")
 					TEXT("Previous value = %" UINT64_FMT ". New value = %" UINT64_FMT "."),
-					ReadBufferResultsSize, static_cast<uint64>(CurrentJournalUSN), static_cast<uint64>(NextJournalUSN));
+					(uint32)ReadBufferResultsSize, static_cast<uint64>(CurrentJournalUSN), static_cast<uint64>(NextJournalUSN));
 			}
 			return EFileJournalResult::JournalInternalError;
 		}

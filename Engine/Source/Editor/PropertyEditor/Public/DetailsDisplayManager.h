@@ -2,15 +2,19 @@
 #pragma once
 
 #include "DetailsViewStyleKey.h"
+#include "Framework/Commands/UIAction.h"
 #include "Templates/SharedPointer.h"
 #include "UserInterface/Widgets/PropertyUpdatedWidgetBuilder.h"
 #include "Widgets/SWidget.h"
 
+class FPropertyPath;
 DECLARE_DELEGATE(FOnDetailsNeedsUpdate)
 
 class FDetailsViewStyle;
 class FComplexPropertyNode;
 class FDetailLayoutBuilderImpl;
+
+struct FConstructPropertyUpdatedWidgetBuilderArgs;
 
 /** An @code FDetailsDisplayManager @endcode provides an API to tweak various settings of your details view, and
  * provides some utility methods to work with Details.  */
@@ -114,7 +118,8 @@ public:
 	* @param bIsCategoryUpdateWidget if true this widget builder is for a Category instead of a property within
 	* @param InCategoryObjectName  the name of the UObject associated with the Category for the widget builder, if one exists, else it is NAME_NONE
 	*/
-	virtual TSharedPtr<FPropertyUpdatedWidgetBuilder> GetPropertyUpdatedWidget(FResetToDefault ResetToDefault, bool bIsCategoryUpdateWidget = false, FName InCategoryObjectName = NAME_None);
+	UE_DEPRECATED(5.5, "Use ConstructPropertyUpdatedWidgetBuilder")
+	PROPERTYEDITOR_API virtual TSharedPtr<FPropertyUpdatedWidgetBuilder> GetPropertyUpdatedWidget(FResetToDefault ResetToDefault, bool bIsCategoryUpdateWidget = false, FName InCategoryObjectName = NAME_None);
 
 	/**
 	* Returns a widget which will show in place of the reset to default button, or a nullptr if the default reset button should be used
@@ -123,7 +128,22 @@ public:
 	* @param InEditorPropertyChain the FEditorPropertyChain for the FPropertyNode whose state is visualized by this  property updated widget 
 	* @param InCategoryObjectName the name of the UObject for which the Category is displayed, if one is associated with the Category
 	*/
-	virtual TSharedPtr<FPropertyUpdatedWidgetBuilder> GetPropertyUpdatedWidget(FResetToDefault ResetToDefault, TSharedRef<FEditPropertyChain> InEditorPropertyChain, FName InCategoryObjectName);
+	UE_DEPRECATED(5.5, "Use ConstructPropertyUpdatedWidgetBuilder")
+	PROPERTYEDITOR_API virtual TSharedPtr<FPropertyUpdatedWidgetBuilder> GetPropertyUpdatedWidget(FResetToDefault ResetToDefault, TSharedRef<FEditPropertyChain> InEditorPropertyChain, FName InCategoryObjectName);
+
+	/**
+	 * If returning true, the row widgets (ie. SDetailSingleItemRow, SDetailCategoryTableRow) will call ConstructPropertyUpdatedWidgetBuilder.
+	 * Enables potentially expensive setup to be elided
+	 */
+	UE_DEPRECATED(5.5, "Experimental API")
+	PROPERTYEDITOR_API virtual bool CanConstructPropertyUpdatedWidgetBuilder() const;
+
+	/**
+	 * Returns a builder class which will generate a widget in place of the Extension widgets on an item row.
+	 * For non-item rows (ie. category), a widget will be placed in the same location
+	 */
+	UE_DEPRECATED(5.5, "Experimental API")
+	PROPERTYEDITOR_API virtual TSharedPtr<FPropertyUpdatedWidgetBuilder> ConstructPropertyUpdatedWidgetBuilder(const FConstructPropertyUpdatedWidgetBuilderArgs& Args);
 
 	void UpdatePropertyForCategory(FName InCategoryObjectName, FProperty* Property, bool bAddProperty);
 
@@ -165,3 +185,11 @@ protected:
 	TMap<FName, TSet<FProperty*>> CategoryNameToUpdatePropertySetMap;
 };
 
+struct FConstructPropertyUpdatedWidgetBuilderArgs
+{
+	~FConstructPropertyUpdatedWidgetBuilderArgs();
+	
+	FExecuteAction ResetToDefaultAction;
+	TSharedPtr<FPropertyPath> PropertyPath;
+	FName CategoryObjectName;
+};

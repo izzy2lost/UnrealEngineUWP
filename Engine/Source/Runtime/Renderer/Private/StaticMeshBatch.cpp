@@ -28,12 +28,25 @@ FStaticMeshBatch::~FStaticMeshBatch()
 }
 
 
-FStaticMeshBatchRelevance::FStaticMeshBatchRelevance(const FStaticMeshBatch& StaticMesh, float InScreenSize, bool InbSupportsCachingMeshDrawCommands, bool InbUseSkyMaterial, bool bInUseSingleLayerWaterMaterial, bool bInUseAnisotropy, bool bInSupportsNaniteRendering, bool bInSupportsGPUScene, bool bInUseForWaterInfoTextureDepth, bool bInUseForLumenSceneCapture, ERHIFeatureLevel::Type FeatureLevel)
+FStaticMeshBatchRelevance::FStaticMeshBatchRelevance(
+	const FStaticMeshBatch& StaticMesh, 
+	float InScreenSize, 
+	bool InbSupportsCachingMeshDrawCommands, 
+	bool InbUseSkyMaterial, 
+	bool bInUseSingleLayerWaterMaterial, 
+	bool bInUseAnisotropy, 
+	bool bInSupportsNaniteRendering, 
+	bool bInSupportsGPUScene, 
+	bool bInUseForWaterInfoTextureDepth, 
+	bool bInUseForLumenSceneCapture, 
+	uint8 InDecalRenderTargetModeMask,
+	ERHIFeatureLevel::Type FeatureLevel)
 	: Id(StaticMesh.Id)
 	, ScreenSize(InScreenSize)
 	, NumElements(StaticMesh.Elements.Num())
 	, CommandInfosBase(0)
-	, LODIndex(StaticMesh.LODIndex)
+	, UnsignedLODIndex(StaticMesh.LODIndex)
+	, bInvalidLODIndex(StaticMesh.LODIndex < 0)
 	, bDitheredLODTransition(StaticMesh.bDitheredLODTransition)
 	, bSelectable(StaticMesh.bSelectable)
 	, CastShadow(StaticMesh.CastShadow)
@@ -52,7 +65,9 @@ FStaticMeshBatchRelevance::FStaticMeshBatchRelevance(const FStaticMeshBatch& Sta
 	, bSupportsGPUScene(bInSupportsGPUScene)
 	, bUseForWaterInfoTextureDepth(bInUseForWaterInfoTextureDepth)
 	, bUseForLumenSceneCapture(bInUseForLumenSceneCapture)
+	, DecalRenderTargetModeMask(InDecalRenderTargetModeMask)
 {
+	check(GetLODIndex() == StaticMesh.LODIndex);
 }
 
 int32 FStaticMeshBatchRelevance::GetStaticMeshCommandInfoIndex(EMeshPass::Type MeshPass) const

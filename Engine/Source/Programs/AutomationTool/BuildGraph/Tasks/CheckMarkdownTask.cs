@@ -1,14 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
 
 namespace AutomationTool.Tasks
@@ -22,7 +21,7 @@ namespace AutomationTool.Tasks
 		/// Optional filter to be applied to the list of input files.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 	}
 
 	/// <summary>
@@ -58,7 +57,7 @@ namespace AutomationTool.Tasks
 			}
 
 			// Find the anchors in any markdown files
-			foreach(FileReference file in markdownFiles)
+			foreach (FileReference file in markdownFiles)
 			{
 				string[] lines = await FileReference.ReadAllLinesAsync(file);
 				foreach (string line in lines)
@@ -96,18 +95,21 @@ namespace AutomationTool.Tasks
 						string link = match.Groups[2].Value;
 						if (!Regex.IsMatch(link, "^(?:[a-z]+:/)?/"))
 						{
-							int hashIdx = link.IndexOf('#');
-							if (hashIdx == -1)
+							if (!link.Contains('\\', StringComparison.Ordinal))
 							{
-								link = FileReference.Combine(file.Directory, link).FullName;
-							}
-							else if (hashIdx == 0)
-							{
-								link = $"{file}{link[hashIdx..]}";
-							}
-							else
-							{
-								link = $"{FileReference.Combine(file.Directory, link[0..hashIdx])}{link[hashIdx..]}";
+								int hashIdx = link.IndexOf('#', StringComparison.Ordinal);
+								if (hashIdx == -1)
+								{
+									link = FileReference.Combine(file.Directory, link).FullName;
+								}
+								else if (hashIdx == 0)
+								{
+									link = $"{file}{link[hashIdx..]}";
+								}
+								else
+								{
+									link = $"{FileReference.Combine(file.Directory, link[0..hashIdx])}{link[hashIdx..]}";
+								}
 							}
 
 							bool validLink;
@@ -131,8 +133,8 @@ namespace AutomationTool.Tasks
 		}
 
 		/// <inheritdoc/>
-		public override void Write(XmlWriter Writer)
-			=> Write(Writer, _parameters);
+		public override void Write(XmlWriter writer)
+			=> Write(writer, _parameters);
 
 		/// <inheritdoc/>
 		public override IEnumerable<string> FindConsumedTagNames()

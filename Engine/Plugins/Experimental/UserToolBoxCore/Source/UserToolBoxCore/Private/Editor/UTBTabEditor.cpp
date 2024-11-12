@@ -824,7 +824,6 @@ void FUTBTabEditor::CreateOrRebuildUTBTabSectionTabWidget()
 	.AutoHeight()
 	[		// Groups List
 		SAssignNew( SectionListView,SListView<TSharedPtr<FString>>)
-			.ItemHeight(24.f)
 			.OnGenerateRow_Lambda(
 
 			[this] (const TSharedPtr<FString> SectionName, const TSharedRef<STableViewBase>& OwnerTable)

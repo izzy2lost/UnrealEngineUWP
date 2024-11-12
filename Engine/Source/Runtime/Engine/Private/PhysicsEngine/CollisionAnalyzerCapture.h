@@ -8,13 +8,12 @@
 
 #include "ICollisionAnalyzer.h"
 #include "CollisionAnalyzerModule.h"
+#include "Engine/HitResult.h"
 #include "Physics/PhysicsInterfaceCore.h"
 #include "Physics/PhysicsInterfaceUtils.h"
 
 #include "Chaos/Capsule.h"
 #include "Chaos/Sphere.h"
-
-struct FHitResult;
 
 extern bool bSkipCapture;
 extern bool GCollisionAnalyzerIsRecording;

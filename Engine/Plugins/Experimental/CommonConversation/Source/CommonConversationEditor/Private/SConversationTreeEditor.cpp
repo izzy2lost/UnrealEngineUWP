@@ -143,7 +143,6 @@ void SConversationTreeEditor::Construct( const FArguments& InArgs, TSharedPtr<FC
 			.BorderImage(FAppStyle::GetBrush("Menu.Background"))
 			[
 				SAssignNew(TreeView, STreeViewType)
-				.ItemHeight(24)
 				.TreeItemsSource(&RootNodes)
 				.OnGenerateRow(this, &SConversationTreeEditor::OnGenerateRow)
 				.OnGetChildren(this, &SConversationTreeEditor::OnGetChildren)

@@ -24,6 +24,18 @@
 // uncomment to make intellisense work better
 //#include "../../../../../../../../Source/ThirdParty/OpenXR/include/openxr/openxr_platform.h"
 
+static int GetMSAASampleCount()
+{
+	static int Mode = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.XRMSAAMode"))->GetValueOnAnyThread();
+	// mode 2 is to use an MSAA target as the swapchain image (depth only for now) and then we copy it's resolved target to the compositor
+	if (Mode == 2)
+	{
+		static int MSAACount = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MSAACount"))->GetValueOnAnyThread();
+		return MSAACount;
+	}
+	return 1;
+}
+
 FOXRVisionOSSwapchain::FSwapchainImage::FSwapchainImage(FTextureRHIRef InImage, EImageState InImageState)
 	: Image(InImage)
 	, ImageState(InImageState)
@@ -76,14 +88,16 @@ FOXRVisionOSSwapchain::FOXRVisionOSSwapchain(const XrSwapchainCreateInfo* create
 		ETextureCreateFlags TextureCreateFlags = ETextureCreateFlags::None;
 		TextureCreateFlags |= TexCreate_RenderTargetable;
 		TextureCreateFlags |= TexCreate_ShaderResource;
-		if (isColor) 
+		uint8 NumSamples = 1;
+		if (isColor)
 		{
 			TextureCreateFlags |= TexCreate_UAV;
 			TextureCreateFlags |= TexCreate_SRGB;
 		} 
 		else
 		{
-			if ((EPixelFormat)CreateInfo.format == PF_DepthStencil) 
+			NumSamples = GetMSAASampleCount();
+			if ((EPixelFormat)CreateInfo.format == PF_DepthStencil)
 			{
 				TextureCreateFlags |= TexCreate_DepthStencilTargetable;
 				TextureCreateFlags |= TexCreate_DepthStencilResolveTarget;
@@ -105,12 +119,19 @@ FOXRVisionOSSwapchain::FOXRVisionOSSwapchain(const XrSwapchainCreateInfo* create
 											CreateInfo.width, CreateInfo.height,
 											(EPixelFormat)CreateInfo.format)
 			.SetFlags(TextureCreateFlags)
+			.SetNumSamples(NumSamples)
 			.DetermineInititialState();
 		
 		Images.Reserve(SwapchainLength);
 		for (int32 BufferIndex = 0; BufferIndex < SwapchainLength; ++BufferIndex)
 		{
-			Images.Emplace(RHICreateTexture(BackBufferDesc), EImageState::Released);
+			FTextureRHIRef Tex = RHICreateTexture(BackBufferDesc);
+			Images.Emplace(Tex, EImageState::Released);
+
+			// hacky way to set the debug label for these textures- this can go when everything is working, but it's helpful for debugging in the capture
+			FString Name = FString::Printf(TEXT("%s_SwapChain%d"), (CreateInfo.usageFlags & XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT) ? TEXT("Color") : TEXT("Depth"), BufferIndex);
+			FRHICommandListBase* Base = (FRHICommandListBase*)nullptr;
+			GDynamicRHI->RHIBindDebugLabelName(*Base, Tex, *Name);
 		}
 	}
 }

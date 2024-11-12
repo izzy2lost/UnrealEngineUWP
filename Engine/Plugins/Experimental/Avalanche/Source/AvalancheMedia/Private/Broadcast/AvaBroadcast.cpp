@@ -2,11 +2,9 @@
 
 #include "Broadcast/AvaBroadcast.h"
 #include "Async/Async.h"
-#include "AvaMediaSerializationUtils.h"
+#include "AvaBroadcastSerialization.h"
 #include "Containers/UnrealString.h"
 #include "Delegates/IDelegateInstance.h"
-#include "Formatters/XmlArchiveInputFormatter.h"
-#include "Formatters/XmlArchiveOutputFormatter.h"
 #include "HAL/FileManager.h"
 #include "IAvaMediaModule.h"
 #include "Misc/Paths.h"
@@ -19,33 +17,43 @@ DEFINE_LOG_CATEGORY(LogAvaBroadcast);
 
 namespace UE::AvaBroadcast::Private
 {
-	// Tested with server in game and editor modes: This function is called only when the server receives some broadcast queries.
-	static FString GetXmlSaveFilepath()
+	static FString EnsureExtension(const FString& InFilename, const FString& InExtension)
+	{
+		if (!FPaths::GetExtension(InFilename).Equals(InExtension, ESearchCase::IgnoreCase))
+		{
+			// Appending extension instead of using SetExtension to respect
+			// dot naming convention for xml/yaml config files.
+			return InFilename + TEXT(".") + InExtension;
+		}
+		return InFilename;
+	}
+
+	static FString GetConfigFilepath(const FString& InExtension)
 	{
 		FString BroadcastConfigName;
 
 		// Allowing command line specification of the broadcast configuration file name. This allows
 		// starting the same project (from a shared location) with different configurations.
-		if (FParse::Value(FCommandLine::Get(),TEXT("MotionDesignBroadcastConfig="), BroadcastConfigName))
-		{
-			// Ensure it has an xml extension.
-			if (!FPaths::GetExtension(BroadcastConfigName).Equals(TEXT("xml"), ESearchCase::IgnoreCase))
-			{
-				// Appending extension instead of using SetExtension to respect
-				// dot naming convention for xml/yaml config files.
-				BroadcastConfigName += TEXT(".xml");
-			}
-		}
-		else
+		if (!FParse::Value(FCommandLine::Get(),TEXT("MotionDesignBroadcastConfig="), BroadcastConfigName))
 		{
 			// When launching the server from the same project location, we want to avoid loading the same
 			// broadcast configuration as the client. The server needs a clean configuration.
 			const bool bIsServerRunning = (IAvaMediaModule::IsModuleLoaded() && IAvaMediaModule::Get().IsPlaybackServerStarted());	
-			BroadcastConfigName = bIsServerRunning ? TEXT("MotionDesignServerBroadcastConfig.xml") : TEXT("MotionDesignBroadcastConfig.xml");
+			BroadcastConfigName = bIsServerRunning ? TEXT("MotionDesignServerBroadcastConfig") : TEXT("MotionDesignBroadcastConfig");
 		}
-		
-		return FPaths::ProjectConfigDir() / BroadcastConfigName;
+		return EnsureExtension(FPaths::ProjectConfigDir() / BroadcastConfigName, InExtension);
 	}
+
+	static FString GetXmlSaveFilepath()
+	{
+		return GetConfigFilepath(TEXT("xml"));
+	}
+
+	static FString GetJsonSaveFilepath()
+	{
+		return GetConfigFilepath(TEXT("json"));
+	}
+
 }
 
 UAvaBroadcast& UAvaBroadcast::Get()
@@ -66,13 +74,7 @@ UAvaBroadcast& UAvaBroadcast::Get()
 			, RF_Transactional | RF_Standalone);
 
 		Broadcast->AddToRoot();
-#if WITH_EDITOR
 		Broadcast->LoadBroadcast();
-#else
-		Broadcast->CreateProfile(NAME_None, /*bMakeCurrentProfile*/ true);
-		Broadcast->EnsureValidCurrentProfile();
-		Broadcast->UpdateProfileNames();
-#endif
 	}
 	
 	check(Broadcast);
@@ -270,6 +272,16 @@ bool UAvaBroadcast::RenameProfile(FName InProfileName, FName InNewProfileName)
 		{
 			CurrentProfile = InNewProfileName;
 		}
+
+		// Rename pinned channel's profile.
+		for (TPair<FName, FName>& PinnedChannel : PinnedChannels)
+		{
+			if (PinnedChannel.Value == InProfileName)
+			{
+				PinnedChannel.Value = InNewProfileName;
+			}
+		}
+		
 		return true;
 	}
 	return false;
@@ -317,18 +329,29 @@ const FAvaBroadcastProfile& UAvaBroadcast::GetProfile(FName InProfileName) const
 	return FAvaBroadcastProfile::GetNullProfile();
 }
 
-#if WITH_EDITOR
 void UAvaBroadcast::LoadBroadcast()
 {
 	using namespace UE::AvaBroadcast::Private;
-	TUniquePtr<FArchive> FileReader(IFileManager::Get().CreateFileReader(*GetXmlSaveFilepath()));
 
-	if (FileReader.IsValid())
+	LoadedConfigFilepath = GetJsonSaveFilepath();
+	bool bConfigLoaded = FAvaBroadcastSerialization::LoadBroadcastFromJson(LoadedConfigFilepath, this);
+
+#if WITH_EDITOR
+	if (!bConfigLoaded)
 	{
-		FXmlArchiveInputFormatter InputFormatter(*FileReader, this);
-		UE::AvaMediaSerializationUtils::SerializeObject(InputFormatter, this);
-		FileReader->Close();
+		// Fallback to legacy xml format.
+		LoadedConfigFilepath = GetXmlSaveFilepath();
+		bConfigLoaded = FAvaBroadcastSerialization::LoadBroadcastFromXml(LoadedConfigFilepath, this);
 	}
+#endif
+
+	if (!bConfigLoaded)
+	{
+		LoadedConfigFilepath.Reset();
+	}
+
+	// Set the profile names early because it is needed to resolve the pinned channels below.
+	UpdateProfileNames();
 	
 	if (Profiles.Num() > 0)
 	{
@@ -345,24 +368,28 @@ void UAvaBroadcast::LoadBroadcast()
 	}
 	
 	EnsureValidCurrentProfile();
-	UpdateProfileNames();
 }
 
 void UAvaBroadcast::SaveBroadcast()
 {
-	bool bIsBroadcastSaved = false;
 	using namespace UE::AvaBroadcast::Private;
-	TUniquePtr<FArchive> FileWriter(IFileManager::Get().CreateFileWriter(*GetXmlSaveFilepath()));
-	if (FileWriter.IsValid())	
-	{
-		FXmlArchiveOutputFormatter XmlOutput(*FileWriter);
-		XmlOutput.SerializeObjectsInPlace(true); // We want the media outputs nested.
-		UE::AvaMediaSerializationUtils::SerializeObject(XmlOutput, this);
-		bIsBroadcastSaved = XmlOutput.SaveDocumentToInnerArchive();
-		GetPackage()->SetDirtyFlag(false);
-		FileWriter->Close();
-	}
+	
+	bool bIsBroadcastSaved = FAvaBroadcastSerialization::SaveBroadcastToJson(this, GetJsonSaveFilepath());
+
+#if WITH_EDITOR
+	// In case of failure, fallback to xml format.
+	// Temporary until the json format is battle tested.
 	if (!bIsBroadcastSaved)
+	{
+		bIsBroadcastSaved = FAvaBroadcastSerialization::SaveBroadcastToXml(this, GetXmlSaveFilepath());
+	}
+#endif
+	
+	if (bIsBroadcastSaved)
+	{
+		GetPackage()->SetDirtyFlag(false);
+	}
+	else
 	{
 		UE_LOG(LogAvaBroadcast, Error, TEXT("Failed to save broadcast configuration.")); 
 	}
@@ -370,9 +397,13 @@ void UAvaBroadcast::SaveBroadcast()
 
 FString UAvaBroadcast::GetBroadcastSaveFilepath() const
 {
-	return UE::AvaBroadcast::Private::GetXmlSaveFilepath();
+	if (!LoadedConfigFilepath.IsEmpty())
+	{
+		return LoadedConfigFilepath;
+	}
+	
+	return UE::AvaBroadcast::Private::GetJsonSaveFilepath();
 }
-#endif
 
 void UAvaBroadcast::QueueNotifyChange(EAvaBroadcastChange InChange)
 {
@@ -391,7 +422,7 @@ void UAvaBroadcast::QueueNotifyChange(EAvaBroadcastChange InChange)
 					ThisWeak->OnBroadcastChanged.Broadcast(ThisWeak->QueuedBroadcastChanges);
 					ThisWeak->QueuedBroadcastChanges = EAvaBroadcastChange::None;
 				}
-			});	
+			});
 		}
 	}
 }

@@ -22,6 +22,7 @@ void SFlattenHeightEyeDropperButton::Construct(const FArguments& InArgs)
 	// Their visibility are changed according to whether dropper mode is active or not.
 	SButton::Construct(
 		SButton::FArguments()
+		.ButtonStyle(FAppStyle::Get(), "SimpleButton")
 		.ContentPadding(1.0f)
 		.OnClicked(this, &SFlattenHeightEyeDropperButton::OnClicked)
 		.OnHovered(this, &SFlattenHeightEyeDropperButton::OnMouseHovered)

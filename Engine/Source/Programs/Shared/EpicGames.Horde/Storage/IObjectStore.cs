@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -53,8 +52,16 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="key">Relative path within the bucket</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns></returns>
+		/// <returns>True if the object exists</returns>
 		Task<bool> ExistsAsync(ObjectKey key, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Gets the size of a particular object
+		/// </summary>
+		/// <param name="key">Relative path within the bucket</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Size of the object, or -1 if it does not exist</returns>
+		Task<long> GetSizeAsync(ObjectKey key, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Deletes a file with the given path
@@ -63,13 +70,6 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Async task</returns>
 		Task DeleteAsync(ObjectKey key, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Enumerates all the objects in the store
-		/// </summary>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Sequence of object paths</returns>
-		IAsyncEnumerable<ObjectKey> EnumerateAsync(CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a HTTP redirect for a read request
@@ -118,7 +118,7 @@ namespace EpicGames.Horde.Storage
 			public Task WriteAsync(ObjectKey key, Stream stream, CancellationToken cancellationToken) => _inner.WriteAsync(key, stream, cancellationToken);
 			public Task DeleteAsync(ObjectKey path, CancellationToken cancellationToken) => _inner.DeleteAsync(path, cancellationToken);
 			public Task<bool> ExistsAsync(ObjectKey path, CancellationToken cancellationToken) => _inner.ExistsAsync(path, cancellationToken);
-			public IAsyncEnumerable<ObjectKey> EnumerateAsync(CancellationToken cancellationToken = default) => _inner.EnumerateAsync(cancellationToken);
+			public Task<long> GetSizeAsync(ObjectKey path, CancellationToken cancellationToken) => _inner.GetSizeAsync(path, cancellationToken);
 			public ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey path, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync(path, cancellationToken);
 			public ValueTask<Uri?> TryGetWriteRedirectAsync(ObjectKey path, CancellationToken cancellationToken = default) => _inner.TryGetWriteRedirectAsync(path, cancellationToken);
 			public void GetStats(StorageStats stats) => _inner.GetStats(stats);

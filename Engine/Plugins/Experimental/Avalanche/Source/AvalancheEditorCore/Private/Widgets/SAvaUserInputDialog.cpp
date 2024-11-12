@@ -9,22 +9,30 @@
 
 #define LOCTEXT_NAMESPACE "SAvaUserInputDialog"
 
-bool SAvaUserInputDialog::CreateModalDialog(const TSharedPtr<SWidget>& InParent, const FText& InTitle,
-	const FText& InPrompt, const TSharedRef<FAvaUserInputDataTypeBase>& InInputType)
+bool SAvaUserInputDialog::CreateModalDialog(const TSharedRef<FAvaUserInputDialogDataTypeBase>& InInputType, const TSharedPtr<SWidget>& InParent,
+	const TOptional<FText>& InPrompt, const TOptional<FText>& InTitle)
 {
+	static const FText DefaultPrompt = LOCTEXT("DefaultPrompt", "Value requested:");
+	static const FText DefaultTitle = LOCTEXT("DefaultTitle", "User Input Required");
+
+	const FText Prompt = InPrompt.IsSet() && !InPrompt.GetValue().IsEmpty()
+		? InPrompt.GetValue()
+		: DefaultPrompt;
+
+	const FText Title = InTitle.IsSet() && !InTitle.GetValue().IsEmpty()
+		? InTitle.GetValue()
+		: DefaultTitle;
+
 	TSharedPtr<SWindow> ParentWindow = InParent.IsValid() ? FSlateApplication::Get().FindWidgetWindow(InParent.ToSharedRef()) : nullptr;
 
-	static const FText DefaultTitle = LOCTEXT("DefaultTitle", "User Input Required");
-	static const FText DefaultPrompt = LOCTEXT("DefaultPrompt", "Value requested:");
-
 	TSharedRef<SAvaUserInputDialog> InputDialog = SNew(SAvaUserInputDialog, InInputType)
-		.Prompt(InPrompt.IsEmpty() ? DefaultPrompt : InPrompt);
+		.Prompt(Prompt);
 
 	TSharedRef<SWindow> Window = SNew(SWindow)
 		.SizingRule(ESizingRule::Autosized)
 		.SupportsMinimize(false)
 		.SupportsMaximize(false)
-		.Title(InTitle.IsEmpty() ? DefaultTitle : InTitle)
+		.Title(Title)
 		[
 			InputDialog
 		];
@@ -38,7 +46,7 @@ void SAvaUserInputDialog::PrivateRegisterAttributes(struct FSlateAttributeDescri
 {
 }
 
-void SAvaUserInputDialog::Construct(const FArguments& InArgs, const TSharedRef<FAvaUserInputDataTypeBase>& InInputType)
+void SAvaUserInputDialog::Construct(const FArguments& InArgs, const TSharedRef<FAvaUserInputDialogDataTypeBase>& InInputType)
 {
 	InputType = InInputType;
 	InputType->OnCommit.BindSP(this, &SAvaUserInputDialog::OnUserCommit);
@@ -74,7 +82,8 @@ void SAvaUserInputDialog::Construct(const FArguments& InArgs, const TSharedRef<F
 				SNew(SButton)
 				.Text(LOCTEXT("Accept", "Accept"))
 				.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
-				.OnClicked(this, &SAvaUserInputDialog::OnOkayClicked)
+				.OnClicked(this, &SAvaUserInputDialog::OnAcceptClicked)
+				.IsEnabled(this, &SAvaUserInputDialog::GetAcceptedEnabled)
 			]
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
@@ -89,7 +98,7 @@ void SAvaUserInputDialog::Construct(const FArguments& InArgs, const TSharedRef<F
 	];
 }
 
-TSharedPtr<FAvaUserInputDataTypeBase> SAvaUserInputDialog::GetInputType() const
+TSharedPtr<FAvaUserInputDialogDataTypeBase> SAvaUserInputDialog::GetInputType() const
 {
 	return InputType;
 }
@@ -99,16 +108,28 @@ bool SAvaUserInputDialog::WasAccepted() const
 	return bAccepted;
 }
 
-FReply SAvaUserInputDialog::OnOkayClicked()
+FReply SAvaUserInputDialog::OnAcceptClicked()
 {
-	Close(true);
+	if (!InputType.IsValid())
+	{
+		Close(/* Accepted */ false);
+	}
+	else if (InputType->IsValueValid())
+	{
+		Close(/* Accepted */ true);
+	}
 
 	return FReply::Handled();
 }
 
+bool SAvaUserInputDialog::GetAcceptedEnabled() const
+{
+	return !InputType.IsValid() || InputType->IsValueValid();
+}
+
 FReply SAvaUserInputDialog::OnCancelClicked()
 {
-	Close(false);
+	Close(/* Accepted */ false);
 
 	return FReply::Handled();
 }

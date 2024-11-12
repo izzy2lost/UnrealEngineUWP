@@ -40,6 +40,7 @@ public:
 	ENGINE_API bool ShouldLoadForPacking() const;
 	// When Loading a APackedLevelActor it needs to be fully loaded for packing.
 	virtual bool SupportsPartialEditorLoading() const override { return false; }
+	virtual bool SupportsPropertyOverrides() const override { return false; }
 
 	ENGINE_API virtual TUniquePtr<class FWorldPartitionActorDesc> CreateClassActorDesc() const override;
 	

@@ -13,7 +13,7 @@ class MOVIERENDERPIPELINECORE_API UMoviePipelineOutputSetting : public UMoviePip
 	GENERATED_BODY()
 public:
 	UMoviePipelineOutputSetting();
-public:
+
 #if WITH_EDITOR
 	virtual FText GetDisplayText() const override { return NSLOCTEXT("MovieRenderPipeline", "OutputSettingDisplayName", "Output"); }
 	virtual FText GetFooterText(UMoviePipelineExecutorJob* InJob) const override;
@@ -27,6 +27,9 @@ public:
 	// UObject Interface
 	virtual void PostLoad() override;
 	// ~UObject Interface
+
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
+
 public:
 	/** What directory should all of our output files be relative to. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Output")

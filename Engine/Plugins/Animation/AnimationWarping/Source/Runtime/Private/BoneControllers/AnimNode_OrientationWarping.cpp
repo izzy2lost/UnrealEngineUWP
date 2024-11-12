@@ -153,6 +153,13 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 	const float PreviousOrientationAngleRad = ActualOrientationAngleRad;
 #endif
 
+#if ENABLE_ANIM_DEBUG || ENABLE_VISUAL_LOG
+	if (DeltaSeconds > 0)
+	{
+		bUsedFutureRootMotion = false;
+	}
+#endif
+
 	// We will likely need to revisit LocomotionAngle participating as an input to orientation warping.
 	// Without velocity information from the motion model (such as the capsule), LocomotionAngle isn't enough
 	// information in isolation for all cases when deciding to warp.
@@ -224,9 +231,23 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 			}
 
 			FVector RootMotionDeltaTranslation = RootMotionTransformDelta.GetTranslation();
-
+			const FQuat PreviousRootMotionDeltaRotation = RootMotionDeltaRotation;
+			RootMotionDeltaRotation = RootMotionTransformDelta.GetRotation();
+			
 			// Flatten root motion translation, along the rotation axis.
 			RootMotionDeltaTranslation = RootMotionDeltaTranslation - RotationAxisVector.Dot(RootMotionDeltaTranslation) * RotationAxisVector;
+
+			// Look forward in root motion to determine orientation warping angle if future time specified
+			FVector PredictedRootMotionDeltaTranslation = RootMotionDeltaTranslation;
+			if (TargetTime > 0 && CurrentAnimAsset)
+			{
+				if (UAnimSequenceBase* AnimSequence = Cast<UAnimSequenceBase>(CurrentAnimAsset))
+				{
+					FTransform PredictedRootMotionTransform = AnimSequence->ExtractRootMotion(CurrentAnimAssetTime, TargetTime, false);
+					PredictedRootMotionDeltaTranslation = PredictedRootMotionTransform.GetTranslation();
+					PredictedRootMotionDeltaTranslation = PredictedRootMotionDeltaTranslation - RotationAxisVector.Dot(PredictedRootMotionDeltaTranslation) * RotationAxisVector;
+				}
+			}
 			
 			const float RootMotionDeltaSpeed = RootMotionDeltaTranslation.Size() / DeltaSeconds;
 			if (RootMotionDeltaSpeed < MinRootMotionSpeedThreshold)
@@ -236,7 +257,6 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 			}
 			else
 			{
-
 				const FVector PreviousRootMotionDeltaDirection = RootMotionDeltaDirection;
 				// Hold previous direction if we can't calculate it from current move delta, because the root is no longer moving
 				RootMotionDeltaDirection = RootMotionDeltaTranslation.GetSafeNormal(UE_SMALL_NUMBER, PreviousRootMotionDeltaDirection);
@@ -255,7 +275,27 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 					}
 				}
 
-				// Don't compensate interpolation by the root motion angle delta if the previous angle isn't valid.
+				// If there is translation in predicted root motion, use it if the orientation error is less than current error
+				if (TargetTime > 0 && CurrentAnimAsset && !PredictedRootMotionDeltaTranslation.IsNearlyZero(UE_SMALL_NUMBER))
+				{
+					PredictedRootMotionDeltaTranslation.Normalize();
+					float PredictedOrientationErrorAngleRad = UE::Anim::SignedAngleRadBetweenNormals(PredictedRootMotionDeltaTranslation, LocomotionForward, RotationAxisVector);
+
+					// The future orientation will often match the current, so add a small delta to avoid further testing for same values
+					if (FMath::Abs(PredictedOrientationErrorAngleRad) + UE_KINDA_SMALL_NUMBER < FMath::Abs(TargetOrientationAngleRad))
+					{
+						// Note: Don't update root motion direction, as the root motion direction is what we are playing, 
+						// not the future. Updating root motion direction will break counter compensate. 
+						// Also, we rely on the built in interp for continuity / smoothness
+#if ENABLE_ANIM_DEBUG || ENABLE_VISUAL_LOG
+						FutureRootMotionDeltaDirection = PredictedRootMotionDeltaTranslation;
+						bUsedFutureRootMotion = true;
+#endif
+						TargetOrientationAngleRad = PredictedOrientationErrorAngleRad;
+					}
+				}
+
+				// Don't compensate interpolation by the root motion angle delta if the previous direction isn't valid.
 				if (bCounterCompenstateInterpolationByRootMotion && !PreviousRootMotionDeltaDirection.IsNearlyZero(UE_SMALL_NUMBER))
 				{
 #if !ENABLE_ANIM_DEBUG
@@ -263,13 +303,19 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 #endif
 					// Counter the interpolated orientation angle by the root motion direction angle delta.
 					// This prevents our interpolation from fighting the natural root motion that's flowing through the graph.
-					RootMotionDeltaAngleRad = UE::Anim::SignedAngleRadBetweenNormals(RootMotionDeltaDirection, PreviousRootMotionDeltaDirection, RotationAxisVector);
+					// To correctly measure the amount to counter, we need to unrotate our previous delta direction by our previous rotation
+					// As the previous direction delta is relative to the previous rotation delta
+					RootMotionDeltaAngleRad = UE::Anim::SignedAngleRadBetweenNormals(RootMotionDeltaDirection, PreviousRootMotionDeltaRotation.UnrotateVector(PreviousRootMotionDeltaDirection), RotationAxisVector);
+					
 					// Root motion may have large deltas i.e. bad blends or sudden direction changes like pivots.
 					// If there's an instantaneous pop in root motion direction, this is likely a pivot.
 					const float MaxRootMotionDeltaToCompensateRad = FMath::DegreesToRadians(MaxRootMotionDeltaToCompensateDegrees);
 					if (FMath::Abs(RootMotionDeltaAngleRad) < MaxRootMotionDeltaToCompensateRad)
 					{
-						ActualOrientationAngleRad = FMath::UnwindRadians(ActualOrientationAngleRad + RootMotionDeltaAngleRad);
+						CounterCompensateTargetAngleRad += RootMotionDeltaAngleRad;
+						float CounterCompensateAngle = FMath::FInterpTo(0, CounterCompensateTargetAngleRad, DeltaSeconds, CounterCompensateInterpSpeed);
+						ActualOrientationAngleRad = FMath::UnwindRadians(ActualOrientationAngleRad + CounterCompensateAngle);
+						CounterCompensateTargetAngleRad -= CounterCompensateAngle;
 					}
 				}
 
@@ -355,6 +401,16 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 				ComponentTransform.GetLocation() + DebugArrowOffset,
 				ComponentTransform.GetLocation() + DebugArrowOffset + RotationDirection * 100.f * DebugDrawScale,
 				40.f * DebugDrawScale, FColor::Blue, false, 0.f, 2.f * DebugDrawScale);
+
+			if (bUsedFutureRootMotion && bGraphDrivenWarping)
+			{
+				const FVector FutureRotationDirection = ComponentTransform.GetRotation().RotateVector(FutureRootMotionDeltaDirection);
+
+				Output.AnimInstanceProxy->AnimDrawDebugDirectionalArrow(
+					ComponentTransform.GetLocation() + DebugArrowOffset,
+					ComponentTransform.GetLocation() + DebugArrowOffset + FutureRotationDirection * 100.f * DebugDrawScale,
+					40.f * DebugDrawScale, FColor::Yellow, false, 0.f, 2.f * DebugDrawScale);
+			}
 
 			const float ActualOrientationAngleDegrees = FMath::RadiansToDegrees(ActualOrientationAngleRad);
 			const FVector WarpedRotationDirection = bGraphDrivenWarping
@@ -451,6 +507,16 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 				ComponentTransform.GetLocation() + DebugArrowOffset,
 				ComponentTransform.GetLocation() + DebugArrowOffset + RotationDirection * 100.f * DebugDrawScale,
 				FColor::Blue, TEXT(""));
+
+			if (bUsedFutureRootMotion && bGraphDrivenWarping)
+			{
+				const FVector FutureRotationDirection = ComponentTransform.GetRotation().RotateVector(FutureRootMotionDeltaDirection);
+
+				Output.AnimInstanceProxy->AnimDrawDebugDirectionalArrow(
+					ComponentTransform.GetLocation() + DebugArrowOffset,
+					ComponentTransform.GetLocation() + DebugArrowOffset + FutureRotationDirection * 100.f * DebugDrawScale,
+					40.f * DebugDrawScale, FColor::Yellow, false, 0.f, 2.f * DebugDrawScale);
+			}
 
 			const float ActualOrientationAngleDegrees = FMath::RadiansToDegrees(ActualOrientationAngleRad);
 			const FVector WarpedRotationDirection = bGraphDrivenWarping

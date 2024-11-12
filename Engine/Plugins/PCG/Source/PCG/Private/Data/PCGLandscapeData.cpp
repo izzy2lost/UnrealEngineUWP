@@ -2,13 +2,14 @@
 
 #include "Data/PCGLandscapeData.h"
 
+#include "PCGContext.h"
 #include "PCGSubsystem.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialDataTpl.h"
 #include "Data/PCGSurfaceData.h"
-#include "Data/PCGWorldData.h"
 #include "Grid/PCGLandscapeCache.h"
 #include "Helpers/PCGHelpers.h"
+#include "Helpers/PCGWorldQueryHelpers.h"
 
 #include "ChaosInterfaceWrapperCore.h"
 #include "Landscape.h"
@@ -106,7 +107,7 @@ void UPCGLandscapeData::Initialize(const TArray<TWeakObjectPtr<ALandscapeProxy>>
 
 	if (DataProps.bGetPhysicalMaterial)
 	{
-		Metadata->CreateAttribute<FSoftObjectPath>(PCGWorldRayHitConstants::PhysicalMaterialReferenceAttribute, FSoftObjectPath(), /*bAllowInterpolation=*/false, /*bOverrideParent*/false);
+		Metadata->CreateAttribute<FSoftObjectPath>(PCGWorldQueryConstants::PhysicalMaterialReferenceAttribute, FSoftObjectPath(), /*bAllowInterpolation=*/false, /*bOverrideParent*/false);
 	}
 
 	if (DataProps.bGetComponentCoordinates)
@@ -415,7 +416,7 @@ bool UPCGLandscapeData::ProjectPoint(const FTransform& InTransform, const FBox& 
 
 	if (DataProps.bGetPhysicalMaterial && OutMetadata && LandscapeCollisionComponent)
 	{
-		if (FPCGMetadataAttribute<FSoftObjectPath>* PhysicalMaterialAttribute = OutMetadata->GetMutableTypedAttribute<FSoftObjectPath>(PCGWorldRayHitConstants::PhysicalMaterialReferenceAttribute))
+		if (FPCGMetadataAttribute<FSoftObjectPath>* PhysicalMaterialAttribute = OutMetadata->GetMutableTypedAttribute<FSoftObjectPath>(PCGWorldQueryConstants::PhysicalMaterialReferenceAttribute))
 		{
 			if(UPhysicalMaterial* PhysicalMaterial = LandscapeCollisionComponent->GetPhysicalMaterial(static_cast<float>(ComponentLocalPoint.X), static_cast<float>(ComponentLocalPoint.Y), EHeightfieldSource::Complex))
 			{
@@ -476,7 +477,7 @@ const UPCGPointData* UPCGLandscapeData::CreatePointData(FPCGContext* Context, co
 		return nullptr;
 	}
 
-	UPCGPointData* Data = NewObject<UPCGPointData>();
+	UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	Data->InitializeFromData(this);
 	TArray<FPCGPoint>& Points = Data->GetMutablePoints();
 
@@ -612,9 +613,9 @@ const ULandscapeInfo* UPCGLandscapeData::GetLandscapeInfo(const FVector& InPosit
 	return nullptr;
 }
 
-UPCGSpatialData* UPCGLandscapeData::CopyInternal() const
+UPCGSpatialData* UPCGLandscapeData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGLandscapeData* NewLandscapeData = NewObject<UPCGLandscapeData>();
+	UPCGLandscapeData* NewLandscapeData = FPCGContext::NewObject_AnyThread<UPCGLandscapeData>(Context);
 
 	CopyBaseSurfaceData(NewLandscapeData);
 

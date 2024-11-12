@@ -118,7 +118,7 @@ public:
 	virtual TSharedRef< const SWidget> AsWidget() const override { return AsShared(); }
 	virtual TSharedRef< SWidget> AsWidget() override { return AsShared(); }
 	virtual TWeakPtr< SViewport > GetViewportWidget() override { return ViewportWidget; }
-	virtual void AddOverlayWidget( TSharedRef<SWidget> OverlaidWidget ) override;
+	virtual void AddOverlayWidget( TSharedRef<SWidget> OverlaidWidget, int32 ZOrder=INDEX_NONE ) override;
 	virtual void RemoveOverlayWidget( TSharedRef<SWidget> OverlaidWidget ) override;
 
 
@@ -143,6 +143,11 @@ public:
 	 * @return true if this viewport is maximized, false otherwise
 	 */
 	bool IsMaximized() const;
+
+	/**
+	 * @return true if this viewport can be maximized, false otherwise
+	 */
+	bool CanMaximize() const;
 
 	/**
 	 * Attempts to switch this viewport into immersive mode
@@ -240,6 +245,9 @@ public:
 
 	/** Called to lock/unlock the actor from the viewport's context menu */
 	void OnActorLockToggleFromMenu(AActor* Actor);
+
+	/** Called to unlock the actor from the viewport's context menu */
+	void OnActorLockToggleFromMenu();
 
 	/**
 	 * @return true if the actor is locked to the viewport
@@ -397,7 +405,7 @@ public:
 	EVisibility GetToolbarVisibility() const;
 
 	/** Get the visibility for items considered to be part of the 'full' viewport toolbar */
-	EVisibility GetFullToolbarVisibility() const { return (bShowToolbarAndControls && bShowFullToolbar) ? EVisibility::Visible : EVisibility::Collapsed; }
+	EVisibility GetFullToolbarVisibility() const { return (bShowToolbarAndControls && bShowFullToolbar) ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed; }
 
 	/** Unpin and close all actor preview windows */
 	void RemoveAllPreviews(const bool bRemoveFromDesktopViewport = true);
@@ -451,6 +459,7 @@ protected:
 	/** SEditorViewport interface */
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;
 	virtual TSharedPtr<SWidget> MakeViewportToolbar() override;
+	virtual TSharedPtr<SWidget> BuildViewportToolbar() override;
 
 	virtual void OnIncrementPositionGridSize() override;
 	virtual void OnDecrementPositionGridSize() override;
@@ -671,7 +680,7 @@ private:
 	 *
 	 * @param CommandList	The list to bind commands to
 	 */
-	void BindShowCommands( FUICommandList& CommandList );
+	void BindShowCommands( FUICommandList& CommandList ) override;
 
 	/**
 	 * Binds commands for our drag-drop context menu

@@ -2,9 +2,12 @@
 
 #pragma once
 
+#include "UObject/NameTypes.h"
+
 /**
  * Add stats that Pixel Streaming can display on screen or be used internally.
  */
+
 class PIXELSTREAMING_API IPixelStreamingStats
 {
 public:

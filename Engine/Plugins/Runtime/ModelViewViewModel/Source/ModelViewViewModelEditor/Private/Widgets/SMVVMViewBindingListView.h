@@ -12,6 +12,7 @@ template <typename ItemType> class STreeView;
 class STableViewBase;
 class UMVVMWidgetBlueprintExtension_View;
 class UMVVMBlueprintViewEvent;
+class UMVVMBlueprintViewCondition;
 class FWidgetBlueprintEditor;
 
 namespace UE::MVVM
@@ -31,6 +32,9 @@ public:
 
 	void Refresh();
 
+	void EventParametersRegenerate(UMVVMBlueprintViewEvent* Event);
+	void ConditionParametersRegenerate(UMVVMBlueprintViewCondition* Condition);
+
 	void OnFilterTextChanged(const FText& InFilterText);
 	void ClearFilterText();
 
@@ -39,6 +43,7 @@ public:
 
 	void RequestNavigateToBinding(FGuid BindingId);
 	void RequestNavigateToEvent(UMVVMBlueprintViewEvent* Event);
+	void RequestNavigateToCondition(UMVVMBlueprintViewCondition* Condition);
 
 private:
 	TSharedRef<ITableRow> GenerateEntryRow(TSharedPtr<FBindingEntry> Entry, const TSharedRef<STableViewBase>& OwnerTable) const;

@@ -3,6 +3,7 @@
 #include "Types/MVVMBindingEntry.h"
 #include "MVVMBlueprintView.h"
 #include "MVVMBlueprintViewEvent.h"
+#include "MVVMBlueprintViewCondition.h"
 
 
 #define LOCTEXT_NAMESPACE "BindingEntry"
@@ -78,6 +79,27 @@ void FBindingEntry::SetEventParameter(UMVVMBlueprintViewEvent* InEvent, FMVVMBlu
 	Event = InEvent;
 	PinId = MoveTemp(Parameter);
 }
+
+UMVVMBlueprintViewCondition* FBindingEntry::GetCondition() const
+{
+	return Condition.Get();
+}
+
+void FBindingEntry::SetCondition(UMVVMBlueprintViewCondition* InCondition)
+{
+	check(RowType == ERowType::None);
+	RowType = ERowType::Condition;
+	Condition = InCondition;
+}
+
+void FBindingEntry::SetConditionParameter(UMVVMBlueprintViewCondition* InCondition, FMVVMBlueprintPinId Parameter)
+{
+	check(RowType == ERowType::None);
+	RowType = ERowType::ConditionParameter;
+	Condition = InCondition;
+	PinId = MoveTemp(Parameter);
+}
+
 
 void FBindingEntry::AddChild(TSharedPtr<FBindingEntry> Child)
 {

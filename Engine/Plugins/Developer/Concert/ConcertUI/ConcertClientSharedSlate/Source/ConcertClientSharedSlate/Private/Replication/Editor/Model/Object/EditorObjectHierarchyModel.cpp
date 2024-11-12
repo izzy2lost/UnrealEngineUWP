@@ -20,7 +20,7 @@ namespace UE::ConcertClientSharedSlate
 
 		static void DiscoverComponents(
 			const UObject& Object,
-			const TFunctionRef<EBreakBehavior(const FSoftObjectPath& Child, ConcertSharedSlate::EChildRelationship Relationship)>& Callback
+			const TFunctionRef<EBreakBehavior(const TSoftObjectPtr<>& Child, ConcertSharedSlate::EChildRelationship Relationship)>& Callback
 			)
 		{
 			using namespace ConcertSharedSlate;
@@ -34,7 +34,7 @@ namespace UE::ConcertClientSharedSlate
 					return;
 				}
 
-				for (const UActorComponent* Component : TInlineComponentArray<UActorComponent*>(AsActor))
+				for (UActorComponent* Component : TInlineComponentArray<UActorComponent*>(AsActor))
 				{
 					if (IsValid(Component)
 						&& IsValidComponent(*Component)
@@ -51,7 +51,7 @@ namespace UE::ConcertClientSharedSlate
 			{
 				for (int32 i = 0; i < SceneComponent->GetNumChildrenComponents(); ++i)
 				{
-					const USceneComponent* ChildComponent = SceneComponent->GetChildComponent(i);
+					USceneComponent* ChildComponent = SceneComponent->GetChildComponent(i);
 					if (IsValid(ChildComponent) // GetChildComponent can return nullptr sometimes...
 						&& IsValidComponent(*ChildComponent)
 						&& Callback(ChildComponent, EChildRelationship::Component) == EBreakBehavior::Break)
@@ -64,15 +64,15 @@ namespace UE::ConcertClientSharedSlate
 	}
 
 	void FEditorObjectHierarchyModel::ForEachDirectChild(
-		const FSoftObjectPath& Parent,
-		TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, ConcertSharedSlate::EChildRelationship Relationship)> Callback,
+		const TSoftObjectPtr<>& Parent,
+		TFunctionRef<EBreakBehavior(const TSoftObjectPtr<>& Object, ConcertSharedSlate::EChildRelationship Relationship)> Callback,
 		ConcertSharedSlate::EChildRelationshipFlags InclusionFlags
 		) const
 	{
 		using namespace ConcertSharedSlate;
 
 		// In the context of replication, only resolve objects but do not load them. Case: client 1 may be viewing objects of client 2 but they are in different worlds.
-		const UObject* Object = Parent.ResolveObject();
+		const UObject* Object = Parent.Get();
 		if (!Object)
 		{
 			return;
@@ -95,12 +95,12 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 
-	TOptional<ConcertSharedSlate::IObjectHierarchyModel::FParentInfo> FEditorObjectHierarchyModel::GetParentInfo(const FSoftObjectPath& ChildObject) const
+	TOptional<ConcertSharedSlate::IObjectHierarchyModel::FParentInfo> FEditorObjectHierarchyModel::GetParentInfo(const TSoftObjectPtr<const UObject>& ChildObject) const
 	{
 		using namespace ConcertSharedSlate;
 
 		// In the context of replication, only resolve objects but do not load them. Case: client 1 may be viewing objects of client 2 but they are in different worlds.
-		const UObject* Object = ChildObject.ResolveObject();
+		const UObject* Object = ChildObject.Get();
 		if (!Object)
 		{
 			return {};

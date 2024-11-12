@@ -3,12 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Framework/Docking/TabManager.h"
 #include "Input/Reply.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
-// Insights
+// TraceInsights
 #include "Insights/IUnrealInsightsModule.h" // for FInsightsMajorTabExtender
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -25,7 +26,7 @@ namespace Insights
 {
 
 /** Implements the base class for a major tab window. */
-class SMajorTabWindow : public SCompoundWidget
+class TRACEINSIGHTS_API SMajorTabWindow : public SCompoundWidget
 {
 public:
 	/** Default constructor. */

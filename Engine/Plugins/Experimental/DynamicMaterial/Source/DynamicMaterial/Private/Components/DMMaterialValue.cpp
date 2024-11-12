@@ -5,18 +5,11 @@
 #include "DMComponentPath.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Materials/Material.h"
+#include "Model/IDMMaterialBuildUtilsInterface.h"
 #include "UObject/Package.h"
 
 #if WITH_EDITOR
-#include "AssetRegistry/AssetRegistryModule.h"
 #include "DMValueDefinition.h"
-#include "DynamicMaterialModule.h"
-#include "Factories/MaterialFactoryNew.h"
-#include "IDetailTreeNode.h"
-#include "IPropertyRowGenerator.h"
-#include "Model/IDMMaterialBuildStateInterface.h"
-#include "Model/IDMMaterialBuildUtilsInterface.h"
-#include "Model/IDynamicMaterialModelEditorOnlyDataInterface.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #endif // WITH_EDITOR
@@ -26,26 +19,20 @@
 TMap<EDMValueType, TStrongObjectPtr<UClass>> UDMMaterialValue::TypeClasses = {};
 
 const FString UDMMaterialValue::ParameterPathToken = FString(TEXT("Parameter"));
-const TCHAR* UDMMaterialValue::ParameterNamePrefix = TEXT("VALUE_");
 
 #if WITH_EDITOR
 const FName UDMMaterialValue::ValueName = "Value";
 
 UDMMaterialValue* UDMMaterialValue::CreateMaterialValue(UDynamicMaterialModel* InMaterialModel, const FString& InName,
-	EDMValueType InType, bool bInLocal)
+	TSubclassOf<UDMMaterialValue> InValueClass, bool bInLocal)
 {
 	check(InMaterialModel);
  
-	TStrongObjectPtr<UClass>* ValueClassPtr = TypeClasses.Find(InType);
-	check(ValueClassPtr);
- 
-	UClass* ValueClass = (*ValueClassPtr).Get();
-	check(ValueClass);
- 
-	UDMMaterialValue* NewValue = NewObject<UDMMaterialValue>(InMaterialModel, ValueClass, NAME_None, RF_Transactional);
+	UDMMaterialValue* NewValue = NewObject<UDMMaterialValue>(InMaterialModel, InValueClass, NAME_None, RF_Transactional);
 	check(NewValue);
-	NewValue->Type = InType;
 	NewValue->bLocal = bInLocal;
+	NewValue->ResetDefaultValue();
+	NewValue->ApplyDefaultValue();
  
 	if (InName.IsEmpty() == false)
 	{
@@ -56,6 +43,7 @@ UDMMaterialValue* UDMMaterialValue::CreateMaterialValue(UDynamicMaterialModel* I
 
 		NewValue->Parameter = InMaterialModel->CreateUniqueParameter(*InName);
 		NewValue->Parameter->SetParentComponent(NewValue);
+		NewValue->CachedParameterName = *InName;
 	}
  
 	return NewValue;
@@ -65,8 +53,17 @@ UDMMaterialValue* UDMMaterialValue::CreateMaterialValue(UDynamicMaterialModel* I
 UDMMaterialValue::UDMMaterialValue()
 	: UDMMaterialValue(EDMValueType::VT_None)
 {
-	Parameter = nullptr;
+}
 
+UDMMaterialValue::UDMMaterialValue(EDMValueType InType)
+	: Type(InType)
+	, bLocal(false)
+	, Parameter(nullptr)
+	, CachedParameterName(NAME_None)
+#if WITH_EDITORONLY_DATA
+	, bExposeParameter(false)
+#endif
+{
 #if WITH_EDITORONLY_DATA
 	EditableProperties.Add(ValueName);
 #endif
@@ -85,11 +82,9 @@ FText UDMMaterialValue::GetTypeName() const
  
 FText UDMMaterialValue::GetDescription() const
 {
-	static const FText Template = LOCTEXT("ValueDescriptionTemplate", "{0} ({1})");
- 
 	return FText::Format(
-		Template,
-		Parameter ? FText::FromName(Parameter->GetParameterName()) : FText::AsNumber(FindIndex() + 1),
+		LOCTEXT("ValueDescriptionTemplate", "{0} ({1})"),
+		FText::FromName(GetMaterialParameterName()),
 		GetTypeName()
 	);
 }
@@ -117,6 +112,14 @@ void UDMMaterialValue::PostLoad()
 
 		Parameter->SetParentComponent(this);
 	}
+
+	if (bLocal)
+	{
+		if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+		{
+			MaterialModel->AddRuntimeComponentReference(this);
+		}
+	}
 }
 
 void UDMMaterialValue::PostEditImport()
@@ -133,17 +136,21 @@ void UDMMaterialValue::PostEditImport()
 		Parameter->SetParentComponent(this);
 	}
 }
-
-void UDMMaterialValue::BeginDestroy()
-{
-	Super::BeginDestroy();
-	PreviewMaterial = nullptr;
-}
 #endif // WITH_EDITOR
 
 FName UDMMaterialValue::GetMaterialParameterName() const
 {
-	return Parameter ? FName(ParameterNamePrefix + Parameter->GetParameterName().ToString()) : GetFName();
+	if (Parameter)
+	{
+		return Parameter->GetParameterName();
+	}
+
+	if (!CachedParameterName.IsNone())
+	{
+		return CachedParameterName;
+	}
+
+	return GetFName();
 }
 
 UDMMaterialComponent* UDMMaterialValue::GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const
@@ -186,11 +193,8 @@ bool UDMMaterialValue::SetParameterName(FName InBaseName)
 			MaterialModel->FreeParameter(Parameter);
 			Parameter = nullptr;
 		}
- 
-		return true;
 	}
- 
-	if (Parameter)
+	else if (Parameter)
 	{
 		Parameter->RenameParameter(InBaseName);
 	}
@@ -199,8 +203,53 @@ bool UDMMaterialValue::SetParameterName(FName InBaseName)
 		Parameter = MaterialModel->CreateUniqueParameter(InBaseName);
 		Parameter->SetParentComponent(this);
 	}
+
+	UpdateCachedParameterName(/* Reset Name */ false);
  
 	return true;
+}
+
+EDMMaterialParameterGroup UDMMaterialValue::GetParameterGroup() const
+{
+	if (GetMaterialParameterName().ToString().StartsWith("Global"))
+	{
+		return EDMMaterialParameterGroup::Global;
+	}
+
+	if (bExposeParameter)
+	{
+		return EDMMaterialParameterGroup::Property;
+	}
+
+	return EDMMaterialParameterGroup::NotExposed;
+}
+
+void UDMMaterialValue::SetShouldExposeParameter(bool bInExpose)
+{
+	if (bExposeParameter == bInExpose)
+	{
+		return;
+	}
+
+	bExposeParameter = bInExpose;
+	
+	Update(this, EDMUpdateType::Structure);
+}
+
+void UDMMaterialValue::OnComponentAdded()
+{
+	Super::OnComponentAdded();
+
+	if (bLocal)
+	{
+		if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+		{
+			MaterialModel->AddRuntimeComponentReference(this);
+		}
+
+		CachedParameterName = NAME_None;
+		UpdateCachedParameterName(/* Reset Name */ true);
+	}
 }
 
 void UDMMaterialValue::OnComponentRemoved()
@@ -214,114 +263,65 @@ void UDMMaterialValue::OnComponentRemoved()
 
 		Parameter->SetComponentState(EDMComponentLifetimeState::Removed);
 	}
+
+	if (bLocal)
+	{
+		if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+		{
+			MaterialModel->RemoveRuntimeComponentReference(this);
+		}
+
+		CachedParameterName = NAME_None;
+	}
  
 	Super::OnComponentRemoved();
 }
-
-int32 UDMMaterialValue::FindIndex() const
-{
-	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
-	check(MaterialModel);
- 
-	const TArray<UDMMaterialValue*>& Values = MaterialModel->GetValues();
- 
-	for (int32 ValueIdx = 0; ValueIdx < Values.Num(); ++ValueIdx)
-	{
-		if (Values[ValueIdx] == this)
-		{
-			return ValueIdx;
-		}
-	}
- 
-	check(false);
-	return INDEX_NONE;
-}
- 
-int32 UDMMaterialValue::FindIndexSafe() const
-{
-	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
-	check(MaterialModel);
- 
-	const TArray<UDMMaterialValue*>& Values = MaterialModel->GetValues();
- 
-	for (int32 ValueIdx = 0; ValueIdx < Values.Num(); ++ValueIdx)
-	{
-		if (Values[ValueIdx] == this)
-		{
-			return ValueIdx;
-		}
-	}
- 
-	return INDEX_NONE;
-}
- 
-UMaterial* UDMMaterialValue::GetPreviewMaterial()
-{
-	if (!PreviewMaterial)
-	{
-		CreatePreviewMaterial();
- 
-		if (PreviewMaterial)
-		{
-			MarkComponentDirty();
-		}
-	}
- 
-	return PreviewMaterial;
-}
 #endif // WITH_EDITOR
- 
-void UDMMaterialValue::SetMIDParameter(UMaterialInstanceDynamic* InMID) const
+
+TSharedPtr<FJsonValue> UDMMaterialValue::JsonSerialize() const
 {
-	checkNoEntry();
+	return nullptr;
 }
- 
-#if WITH_EDITOR
-void UDMMaterialValue::DoClean()
+
+bool UDMMaterialValue::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
 {
-	if (!IsComponentValid())
+	return false;
+}
+
+#if WITH_EDITOR
+void UDMMaterialValue::PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent)
+{
+	if (GetOuter() == InMaterialModel)
 	{
+		Super::PostEditorDuplicate(InMaterialModel, InParent);
+		UpdateCachedParameterName(/* Reset Name */ false);
 		return;
 	}
 
-	UpdatePreviewMaterial();
+	FName OldParameterName = NAME_None;
 
-	Super::DoClean();
-}
-
-void UDMMaterialValue::PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent)
-{
-	if (GetOuter() != InMaterialModel)
+	if (UDMMaterialParameter* Param = GetParameter())
 	{
-		FName OldParameterName = NAME_None;
-
-		if (UDMMaterialParameter* Param = GetParameter())
+		// Reset this to null as it holds a copy of the parameter from the copied-from object.
+		// This will not be in the model's parameter list and will share the same name as the old parameter.
+		// Just null the reference and create a new parameter.
+		if (InMaterialModel->ConditionalFreeParameter(Param))
 		{
-			// Reset this to null as it holds a copy of the parameter from the copied-from object.
-			// This will not be in the model's parameter list and will share the same name as the old parameter.
-			// Just null the reference and create a new parameter.
-			if (InMaterialModel->ConditionalFreeParameter(Param))
-			{
-				OldParameterName = Param->GetParameterName();
-				Parameter = nullptr;
-			}
-		}
-
-		Super::PostEditorDuplicate(InMaterialModel, InParent);
-
-		Rename(nullptr, InMaterialModel, UE::DynamicMaterial::RenameFlags);
-
-		if (OldParameterName != NAME_None)
-		{
-			SetParameterName(OldParameterName);
+			OldParameterName = Param->GetParameterName();
+			Parameter = nullptr;
 		}
 	}
-	else
+
+	Super::PostEditorDuplicate(InMaterialModel, InParent);
+
+	Rename(nullptr, InMaterialModel, UE::DynamicMaterial::RenameFlags);
+
+	if (!OldParameterName.IsNone())
 	{
-		Super::PostEditorDuplicate(InMaterialModel, InParent);
+		SetParameterName(OldParameterName);
 	}
 
-	PreviewMaterial = nullptr;
+	UpdateCachedParameterName(/* Reset Name */ false);
 }
 
 bool UDMMaterialValue::Modify(bool bInAlwaysMarkDirty)
@@ -347,21 +347,21 @@ void UDMMaterialValue::PostEditUndo()
  
 	MarkComponentDirty();
  
-	OnValueUpdated(/*bForceStructureUpdate*/ true); // Just in case - Undos are not meant to be quick and easy.
+	OnValueChanged(EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate); // Just in case - Undos are not meant to be quick and easy.
 }
  
-void UDMMaterialValue::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+void UDMMaterialValue::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
+	Super::PostEditChangeProperty(InPropertyChangedEvent);
 
 	if (!IsComponentValid())
 	{
 		return;
 	}
 
-	FName MemberPropertyName = PropertyChangedEvent.GetMemberPropertyName();
+	const FName MemberPropertyName = InPropertyChangedEvent.GetMemberPropertyName();
 
-	if (MemberPropertyName == NAME_None)
+	if (MemberPropertyName.IsNone())
 	{
 		return;
 	}
@@ -370,104 +370,59 @@ void UDMMaterialValue::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 	{
 		if (EditableProperty == MemberPropertyName)
 		{
-			OnValueUpdated(/* bForceStructureUpdate */ EditableProperty != ValueName);
+			const EDMUpdateType UpdateType = (EditableProperty == ValueName ? EDMUpdateType::Value : EDMUpdateType::Structure)
+				| EDMUpdateType::AllowParentUpdate;
+
+			OnValueChanged(UpdateType);
 			return;
 		}
 	}
-}
- 
-void UDMMaterialValue::EnsureDetailObjects()
-{
-	if (!IsComponentValid())
-	{
-		return;
-	}
-
-	if (PropertyRowGenerator.IsValid() && DetailTreeNode.IsValid() && PropertyHandle.IsValid())
-	{
-		return;
-	}
- 
-	PropertyHandle.Reset();
-	DetailTreeNode.Reset();
-	PropertyRowGenerator.Reset();
- 
-	FPropertyEditorModule& PropertyEditor = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
- 
-	FPropertyRowGeneratorArgs RowGeneratorArgs;
-	PropertyRowGenerator = PropertyEditor.CreatePropertyRowGenerator(RowGeneratorArgs);
-	PropertyRowGenerator->SetObjects({this});
- 
-	for (const TSharedRef<IDetailTreeNode>& CategoryNode : PropertyRowGenerator->GetRootTreeNodes())
-	{
-		if (CategoryNode->GetNodeName() != TEXT("Material Designer"))
-		{
-			continue;
-		}
- 
-		TArray<TSharedRef<IDetailTreeNode>> ChildNodes;
-		CategoryNode->GetChildren(ChildNodes);
- 
-		for (const TSharedRef<IDetailTreeNode>& ChildNode : ChildNodes)
-		{
-			if (ChildNode->GetNodeType() != EDetailNodeType::Item)
-			{
-				continue;
-			}
- 
-			if (ChildNode->GetNodeName() != ValueName)
-			{
-				continue;
-			}
- 
-			DetailTreeNode = ChildNode;
-			PropertyHandle = ChildNode->CreatePropertyHandle();
-			return;
-		}
-	}
-}
-
-TSharedPtr<IDetailTreeNode> UDMMaterialValue::GetDetailTreeNode()
-{
-	EnsureDetailObjects();
-	return DetailTreeNode;
-}
- 
-TSharedPtr<IPropertyHandle> UDMMaterialValue::GetPropertyHandle()
-{
-	EnsureDetailObjects();
-	return PropertyHandle;
 }
 #endif // WITH_EDITOR
-
-UDMMaterialValue::UDMMaterialValue(EDMValueType InType)
-	: Type(InType)
-	, bLocal(false)
-	, Parameter(nullptr)
-#if WITH_EDITORONLY_DATA
-	, PreviewMaterial(nullptr)
-#endif
-{
-#if WITH_EDITORONLY_DATA
-	EditableProperties.Add(ValueName);
-#endif
-}
  
-void UDMMaterialValue::OnValueUpdated(bool bInForceStructureUpdate)
+void UDMMaterialValue::OnValueChanged(EDMUpdateType InUpdateType)
 {
 	if (!IsComponentValid())
 	{
 		return;
 	}
 
-	if (FDMUpdateGuard::CanUpdate())
+	Update(this, InUpdateType);
+
+#if WITH_EDITOR
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::AllowParentUpdate) && ParentComponent)
 	{
-		Update(bInForceStructureUpdate ? EDMUpdateType::Structure : EDMUpdateType::Value);
+		ParentComponent->Update(this, InUpdateType);
+	}
+#endif
+}
+
+#if WITH_EDITOR
+FName UDMMaterialValue::GenerateAutomaticParameterName() const
+{
+	return *GetComponentPath();
+}
+
+void UDMMaterialValue::UpdateCachedParameterName(bool bInResetName)
+{
+	if (Parameter)
+	{
+		CachedParameterName = Parameter->GetParameterName();
+	}
+	else if (bInResetName || CachedParameterName.IsNone())
+	{
+		CachedParameterName = GenerateAutomaticParameterName();
 	}
 }
- 
-void UDMMaterialValue::Update(EDMUpdateType InUpdateType)
+#endif
+
+void UDMMaterialValue::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (!IsComponentValid())
 	{
 		return;
@@ -478,119 +433,24 @@ void UDMMaterialValue::Update(EDMUpdateType InUpdateType)
 	{
 		return;
 	}
- 
+
+	MarkComponentDirty();
+
 	if (InUpdateType == EDMUpdateType::Structure)
 	{
-		MarkComponentDirty();
-	}
-
-	if (ParentComponent)
-	{
-		ParentComponent->Update(InUpdateType);
+		UpdateCachedParameterName(/* Reset Name */ false);
 	}
 #endif
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 
-#if WITH_EDITOR
-	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
-	check(MaterialModel);
-
-	if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = MaterialModel->GetEditorOnlyData())
+	if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
 	{
-		ModelEditorOnlyData->OnValueUpdated(this, InUpdateType);
+		MaterialModel->OnValueUpdated(this, InUpdateType);
 	}
-#endif
 }
 
 #if WITH_EDITOR
-void UDMMaterialValue::CreatePreviewMaterial()
-{
-	if (!IsComponentValid())
-	{
-		return;
-	}
-
-	if (FDynamicMaterialModule::IsMaterialExportEnabled() == false)
-	{
-		UMaterialFactoryNew* MaterialFactory = NewObject<UMaterialFactoryNew>();
-		check(MaterialFactory);
- 
-		PreviewMaterial = (UMaterial*)MaterialFactory->FactoryCreateNew(
-			UMaterial::StaticClass(),
-			GetTransientPackage(),
-			NAME_None,
-			RF_Transient,
-			nullptr,
-			GWarn
-		);
- 
-		PreviewMaterial->bIsPreviewMaterial = true;
-	}
-	else
-	{
-		FString MaterialBaseName = GetName() + "-" + FGuid::NewGuid().ToString();
-		const FString FullName = "/Game/DynamicMaterials/" + MaterialBaseName;
-		UPackage* Package = CreatePackage(*FullName);
- 
-		UMaterialFactoryNew* MaterialFactory = NewObject<UMaterialFactoryNew>();
-		check(MaterialFactory);
- 
-		PreviewMaterial = Cast<UMaterial>(MaterialFactory->FactoryCreateNew(
-			UMaterial::StaticClass(),
-			Package,
-			*MaterialBaseName,
-			RF_Standalone | RF_Public,
-			nullptr,
-			GWarn
-		));
- 
-		FAssetRegistryModule::AssetCreated(PreviewMaterial);
-		Package->FullyLoad();
-	}
-}
- 
-void UDMMaterialValue::UpdatePreviewMaterial()
-{
-	if (!IsComponentValid())
-	{
-		return;
-	}
-
-	if (!PreviewMaterial)
-	{
-		CreatePreviewMaterial();
- 
-		if (!PreviewMaterial)
-		{
-			return;
-		}
-	}
- 
-	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
-
-	if (!MaterialModel)
-	{
-		return;
-	}
-
-	IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = MaterialModel->GetEditorOnlyData();
-
-	if (!ModelEditorOnlyData)
-	{
-		return;
-	}
-
-	TSharedRef<IDMMaterialBuildStateInterface> BuildState = ModelEditorOnlyData->CreateBuildStateInterface(PreviewMaterial);
-
-	UE_LOG(LogDynamicMaterial, Display, TEXT("Building Material Designer Value Preview (%s)..."), *GetName());
-
-	GenerateExpression(BuildState);
-	UMaterialExpression* ValueExpression = BuildState->GetLastValueExpression(this);
- 
-	BuildState->GetBuildUtils().UpdatePreviewMaterial(ValueExpression, 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 32);
-}
- 
 int32 UDMMaterialValue::GetInnateMaskOutput(int32 OutputChannels) const
 {
 	return INDEX_NONE;

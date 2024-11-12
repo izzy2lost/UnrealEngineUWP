@@ -13,7 +13,7 @@
 
 #define LOCTEXT_NAMESPACE "MVVMBindingExecuteTest"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMVVMFieldValueChangedTest, "System.Plugins.MVVM.FieldValueChanged", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMVVMFieldValueChangedTest, "System.Plugins.MVVM.FieldValueChanged", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 
 bool FMVVMFieldValueChangedTest::RunTest(const FString& Parameters)

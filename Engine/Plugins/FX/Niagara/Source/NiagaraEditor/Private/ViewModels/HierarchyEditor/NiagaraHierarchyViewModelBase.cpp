@@ -9,7 +9,7 @@
 #include "ViewModels/NiagaraSystemViewModel.h"
 #include "ViewModels/Stack/NiagaraStackViewModel.h"
 #include "Widgets/Views/STableRow.h"
-#include "Widgets/SNiagaraHierarchy.h"
+#include "Widgets/SNiagaraHierarchyEditor.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "Widgets/SToolTip.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -301,14 +301,17 @@ FNiagaraHierarchyItemViewModelBase::FCanPerformActionResults FNiagaraHierarchyCa
 					return Results;
 				}
 
+				Results.CanPerformMessage = LOCTEXT("MoveCategoryText", "Move category here");
+
 				// if we are making a category a sibling of another at the root level, the section will be set to the currently active section. Let that be known.
 				if(Parent.Pin()->GetData()->IsA<UNiagaraHierarchyRoot>())
 				{
 					UNiagaraHierarchyCategory* DraggedCategory = Cast<UNiagaraHierarchyCategory>(DraggedItem->GetDataMutable());
 					if(DraggedCategory->GetSection() != HierarchyViewModel->GetActiveHierarchySectionData())
 					{
-						FText BaseMessage = LOCTEXT("CategorySectionWillUpdateDueToDrop", "The section of the category will change to {0} after the drop");
-						Results.CanPerformMessage = FText::FormatOrdered(BaseMessage, HierarchyViewModel->GetActiveHierarchySectionData() == nullptr ? FText::FromString("All") : HierarchyViewModel->GetActiveHierarchySectionData()->GetSectionNameAsText());
+						FText SectionChangeBaseText = LOCTEXT("CategorySectionWillUpdateDueToDrop", "The section of the category will change to {0} after the drop");
+						FText ActualSectionChangeText = FText::FormatOrdered(SectionChangeBaseText, HierarchyViewModel->GetActiveHierarchySectionData() == nullptr ? FText::FromString("All") : HierarchyViewModel->GetActiveHierarchySectionData()->GetSectionNameAsText());
+						Results.CanPerformMessage = FText::FormatOrdered(FText::AsCultureInvariant("{0}\n{1}"), Results.CanPerformMessage, ActualSectionChangeText);
 					}
 				}
 			}
@@ -325,6 +328,8 @@ FNiagaraHierarchyItemViewModelBase::FCanPerformActionResults FNiagaraHierarchyCa
 					Results.CanPerformMessage = LOCTEXT("CantDropCategoryOnCategorySameChildCategoryName", "A sub-category of the same name already exists! Please rename your category first.");
 					return Results;
 				}
+
+				Results.CanPerformMessage = LOCTEXT("CreateSubcategory", "Drop category here to create a sub-category");
 			}
 
 			Results.bCanPerform = true;
@@ -410,8 +415,8 @@ void UNiagaraHierarchyViewModelBase::Initialize()
 	}
 	
 	SetupCommands();
-
-	HierarchyRootViewModel = MakeShared<FNiagaraHierarchyRootViewModel>(HierarchyRoot.Get(), this, true);
+	
+	HierarchyRootViewModel = CreateRootViewModelForData(HierarchyRoot.Get(), true);
 	HierarchyRootViewModel->Initialize();
 	HierarchyRootViewModel->AddChildFilter(FNiagaraHierarchyItemViewModelBase::FOnFilterChild::CreateUObject(this, &UNiagaraHierarchyViewModelBase::FilterForHierarchySection));
 	HierarchyRootViewModel->AddChildFilter(FNiagaraHierarchyItemViewModelBase::FOnFilterChild::CreateUObject(this, &UNiagaraHierarchyViewModelBase::FilterForUncategorizedRootItemsInAllSection));
@@ -430,6 +435,11 @@ void UNiagaraHierarchyViewModelBase::Finalize()
 	HierarchyRoot = nullptr;
 	
 	FinalizeInternal();
+}
+
+TSubclassOf<UNiagaraHierarchyCategory> UNiagaraHierarchyViewModelBase::GetCategoryDataClass() const
+{
+	return UNiagaraHierarchyCategory::StaticClass();
 }
 
 void UNiagaraHierarchyViewModelBase::ForceFullRefresh()
@@ -520,6 +530,11 @@ bool UNiagaraHierarchyViewModelBase::FilterForUncategorizedRootItemsInAllSection
 	}
 
 	return true;
+}
+
+TSharedPtr<FNiagaraHierarchyRootViewModel> UNiagaraHierarchyViewModelBase::CreateRootViewModelForData(UNiagaraHierarchyRoot* Root, bool bIsForHierarchy)
+{
+	return MakeShared<FNiagaraHierarchyRootViewModel>(Root, this, bIsForHierarchy);
 }
 
 TSharedPtr<FNiagaraHierarchyItemViewModelBase> UNiagaraHierarchyViewModelBase::CreateViewModelForData(UNiagaraHierarchyItemBase* ItemBase, TSharedPtr<FNiagaraHierarchyItemViewModelBase> Parent)
@@ -614,6 +629,9 @@ void FNiagaraHierarchyItemViewModelBase::RefreshChildrenData()
 		}
 	}
 
+	/** Every item view model can define its own sort order for its children. */
+	SortChildrenData();
+	
 	RefreshChildrenDataInternal();
 
 	/** All remaining children are supposed to exist at this point, as internal data won't be removed by refreshing & external data was cleaned up already.
@@ -667,12 +685,6 @@ void FNiagaraHierarchyItemViewModelBase::SyncViewModelsToData()
 	/** Give the view models a chance to further customize the children sync process. */
 	SyncViewModelsToDataInternal();	
 
-	// first we sort the data. Categories before items.
-	GetDataMutable()->GetChildrenMutable().StableSort([](const UNiagaraHierarchyItemBase& ItemA, const UNiagaraHierarchyItemBase& ItemB)
-		{
-			return ItemA.IsA<UNiagaraHierarchyCategory>() && ItemB.IsA<UNiagaraHierarchyItem>();
-		});
-
 	// then we sort the view models according to the data order as this is what will determine widget order created from the view models
 	Children.Sort([this](const TSharedPtr<FNiagaraHierarchyItemViewModelBase>& ItemA, const TSharedPtr<FNiagaraHierarchyItemViewModelBase>& ItemB)
 		{
@@ -712,6 +724,14 @@ const TArray<TSharedPtr<FNiagaraHierarchyItemViewModelBase>>& FNiagaraHierarchyI
 	}
 
 	return FilteredChildren;
+}
+
+void FNiagaraHierarchyItemViewModelBase::SortChildrenData() const
+{
+	GetDataMutable()->GetChildrenMutable().StableSort([](const UNiagaraHierarchyItemBase& ItemA, const UNiagaraHierarchyItemBase& ItemB)
+		{
+			return ItemA.IsA<UNiagaraHierarchyCategory>() && ItemB.IsA<UNiagaraHierarchyItem>();
+		});
 }
 
 int32 FNiagaraHierarchyItemViewModelBase::GetHierarchyDepth() const
@@ -888,7 +908,8 @@ void FNiagaraHierarchyItemViewModelBase::Delete()
 
 void FNiagaraHierarchyItemViewModelBase::DeleteChild(TSharedPtr<FNiagaraHierarchyItemViewModelBase> Child)
 {	
-	ensure(Child->GetParent().Pin() == AsShared());	
+	ensure(Child->GetParent().Pin() == AsShared());
+	GetDataMutable()->Modify();
 	GetDataMutable()->GetChildrenMutable().Remove(Child->GetDataMutable());
 	Children.Remove(Child);
 }
@@ -1490,7 +1511,7 @@ void UNiagaraHierarchyViewModelBase::AddCategory(TSharedPtr<FNiagaraHierarchyIte
 		return;
 	}
 	
-	TSharedPtr<FNiagaraHierarchyItemViewModelBase> ViewModel = CategoryParent->AddNewItem(UNiagaraHierarchyCategory::StaticClass());
+	TSharedPtr<FNiagaraHierarchyItemViewModelBase> ViewModel = CategoryParent->AddNewItem(GetCategoryDataClass());
 
 	if(ensure(ViewModel.IsValid()))
 	{
@@ -1522,6 +1543,13 @@ void UNiagaraHierarchyViewModelBase::AddSection() const
 	TSharedPtr<FNiagaraHierarchySectionViewModel> HierarchySectionViewModel = HierarchyRootViewModel->AddSection();
 	OnItemAddedDelegate.ExecuteIfBound(HierarchySectionViewModel);
 	OnHierarchyChangedDelegate.Broadcast();
+}
+
+UNiagaraHierarchyItemBase* UNiagaraHierarchyViewModelBase::AddItem(TSubclassOf<UNiagaraHierarchyItemBase> NewChildClass, FNiagaraHierarchyIdentity ChildIdentity)
+{
+	FScopedTransaction Transaction(LOCTEXT("Transaction_AddItem", "Add hierarchy item"));
+	HierarchyRoot->Modify();
+	return GetHierarchyRootViewModel()->AddChild(NewChildClass, ChildIdentity);
 }
 
 void UNiagaraHierarchyViewModelBase::DeleteItemWithIdentity(FNiagaraHierarchyIdentity Identity)

@@ -20,6 +20,7 @@
 #include "WorldPartition/WorldPartitionActorDescInstanceViewInterface.h"
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/ActorDescContainer.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
@@ -43,14 +44,14 @@ static FGuid GetDefaultActorDescGuid(const FWorldPartitionActorDesc* ActorDesc)
 }
 
 FWorldPartitionActorDesc::FWorldPartitionActorDesc()
-	: bIsSpatiallyLoaded(false)
+	: RuntimeBounds(ForceInit)
+	, bIsSpatiallyLoaded(false)
 	, bActorIsEditorOnly(false)
 	, bActorIsRuntimeOnly(false)
 	, bActorIsMainWorldOnly(false)
 	, bActorIsHLODRelevant(false)
 	, bActorIsListedInSceneOutliner(true)
 	, bIsUsingDataLayerAsset(false)
-	, bIsBoundsValid(false)
 	, ActorNativeClass(nullptr)
 	, Container(nullptr)
 	, bIsDefaultActorDesc(false)
@@ -81,7 +82,6 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 	}
 	else
 	{
-		check(InActor->IsPackageExternal());
 		check(InActor->GetActorGuid().IsValid());
 		Guid = InActor->GetActorGuid();
 	}
@@ -90,9 +90,13 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 
 	ActorTransform = InActor->GetActorTransform();
 
-	const FBox StreamingBounds = !bIsDefaultActorDesc ? InActor->GetStreamingBounds() : FBox(ForceInit);
-	StreamingBounds.GetCenterAndExtents(BoundsLocation, BoundsExtent);
-	bIsBoundsValid = StreamingBounds.IsValid == 1;
+	RuntimeBounds.Init();
+	EditorBounds.Init();
+	
+	if (!bIsDefaultActorDesc)
+	{
+		InActor->GetStreamingBounds(RuntimeBounds, EditorBounds);
+	}
 
 	RuntimeGrid = InActor->GetRuntimeGrid();
 	bIsSpatiallyLoaded = InActor->GetIsSpatiallyLoaded();
@@ -158,6 +162,7 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 	ActorPackage = InActor->GetPackage()->GetFName();
 	ActorPath = bIsDefaultActorDesc ? *InActor->GetClass()->GetPathName() : *InActor->GetPathName();
 	ActorName = InActor->GetFName();
+	ActorNameString = ActorName.ToString();
 
 	ContentBundleGuid = InActor->GetContentBundleGuid();
 
@@ -176,8 +181,7 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 			ParentActor = AttachParentActor->GetActorGuid();
 		}
 
-		const ActorsReferencesUtils::FGetActorReferencesParams Params = ActorsReferencesUtils::FGetActorReferencesParams(const_cast<AActor*>(InActor))
-			.SetRequiredFlags(RF_HasExternalPackage);
+		const ActorsReferencesUtils::FGetActorReferencesParams Params = ActorsReferencesUtils::FGetActorReferencesParams(const_cast<AActor*>(InActor));
 		TArray<ActorsReferencesUtils::FActorReference> ActorReferences = ActorsReferencesUtils::GetActorReferences(Params);
 
 		if (ActorReferences.Num())
@@ -199,42 +203,93 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 		ActorLabel = *InActor->GetActorLabel(false);
 	}
 
+	ActorLabelString = ActorLabel.ToString();
+	ActorDisplayClassNameString = GetDisplayClassName().ToString();
+
 	Container = nullptr;
+}
+
+void FWorldPartitionActorDesc::InitTransientProperties(const FWorldPartitionActorDescInitData& DescData)
+{
+	ActorPackage = DescData.PackageName;
+	ActorPath = DescData.ActorPath;
+	ActorNativeClass = DescData.NativeClass ? DescData.NativeClass : AActor::StaticClass();
+	NativeClass = *ActorNativeClass->GetPathName();
+	ActorName = *FPaths::GetExtension(ActorPath.ToString());
+	ActorNameString = ActorName.ToString();
 }
 
 void FWorldPartitionActorDesc::Init(const FWorldPartitionActorDescInitData& DescData)
 {
-	ActorPackage = DescData.PackageName;
-	ActorPath = DescData.ActorPath;
-	ActorNativeClass = DescData.NativeClass;
-	NativeClass = *DescData.NativeClass->GetPathName();
-	ActorName = *FPaths::GetExtension(ActorPath.ToString());
+	InitTransientProperties(DescData);
+
+	auto DeprecateClass = [this](FArchive& Archive)
+	{
+		// Call registered deprecator
+		TSubclassOf<AActor> DeprecatedClass = ActorNativeClass;
+		while (DeprecatedClass)
+		{
+			if (FActorDescDeprecator* Deprecator = Deprecators.Find(DeprecatedClass))
+			{
+				(*Deprecator)(Archive, this);
+				break;
+			}
+			DeprecatedClass = DeprecatedClass->GetSuperClass();
+		}
+	};
 
 	// Serialize actor metadata
-	FMemoryReader MetadataAr(DescData.SerializedData, true);
-
-	// Serialize metadata custom versions
-	FCustomVersionContainer CustomVersions;
-	CustomVersions.Serialize(MetadataAr);
-	MetadataAr.SetCustomVersions(CustomVersions);
-	
-	// Serialize metadata payload
-	FActorDescArchive ActorDescAr(MetadataAr, this);
-	ActorDescAr.Init();
-
-	Serialize(ActorDescAr);
-
-	// Call registered deprecator
-	TSubclassOf<AActor> DeprecatedClass = ActorNativeClass;
-	while (DeprecatedClass)
+	if (!DescData.IsUsingArchive())
 	{
-		if (FActorDescDeprecator* Deprecator = Deprecators.Find(DeprecatedClass))
+		FMemoryReader MetadataAr(DescData.GetSerializedData(), true);
+
+		// Serialize metadata custom versions
+		FCustomVersionContainer CustomVersions;
+		CustomVersions.Serialize(MetadataAr);
+		MetadataAr.SetCustomVersions(CustomVersions);
+
+		TArray<FCustomVersionDifference> Diffs = FCurrentCustomVersions::Compare(CustomVersions.GetAllVersions(), *DescData.PackageName.ToString());
+		for (FCustomVersionDifference Diff : Diffs)
 		{
-			(*Deprecator)(MetadataAr, this);
-			break;
+			if (Diff.Type == ECustomVersionDifference::Missing)
+			{
+				UE_LOG(LogWorldPartition, Fatal, TEXT("Missing custom version for actor descriptor '%s'"), *DescData.PackageName.ToString());
+			}
+			else if (Diff.Type == ECustomVersionDifference::Invalid)
+			{
+				UE_LOG(LogWorldPartition, Fatal, TEXT("Invalid custom version for actor descriptor '%s'"), *DescData.PackageName.ToString());
+			}
+			else if (Diff.Type == ECustomVersionDifference::Newer)
+			{
+				int32 PackageVersion = -1;
+				int32 HeadCodeVersion = -1;
+				if (const FCustomVersion* PackagePtr = CustomVersions.GetVersion(Diff.Version->Key))
+				{
+					PackageVersion = PackagePtr->Version;
+				}
+				if (TOptional<FCustomVersion> CurrentPtr = FCurrentCustomVersions::Get(Diff.Version->Key))
+				{
+					HeadCodeVersion = CurrentPtr->Version;
+				}
+				UE_LOG(LogWorldPartition, Fatal, TEXT("Newer custom version for actor descriptor '%s' (file: %d, head: %d)"), *DescData.PackageName.ToString(), PackageVersion, HeadCodeVersion);
+			}
 		}
-		DeprecatedClass = DeprecatedClass->GetSuperClass();
+	
+		// Serialize metadata payload
+		FActorDescArchive ActorDescAr(MetadataAr, this);
+		ActorDescAr.Init();
+
+		Serialize(ActorDescAr);
+		DeprecateClass(MetadataAr);
 	}
+	else
+	{
+		Serialize(*DescData.GetArchive());
+		DeprecateClass(*DescData.GetArchive());
+	}
+
+	ActorLabelString = ActorLabel.ToString();
+	ActorDisplayClassNameString = GetDisplayClassName().ToString();
 
 	Container = nullptr;
 }
@@ -242,7 +297,7 @@ void FWorldPartitionActorDesc::Init(const FWorldPartitionActorDescInitData& Desc
 void FWorldPartitionActorDesc::Patch(const FWorldPartitionActorDescInitData& DescData, TArray<uint8>& OutData, FWorldPartitionAssetDataPatcher* InAssetDataPatcher)
 {
 	// Serialize actor metadata
-	FMemoryReader MetadataAr(DescData.SerializedData, true);
+	FMemoryReader MetadataAr(DescData.GetSerializedData(), true);
 
 	// Serialize metadata custom versions
 	FCustomVersionContainer CustomVersions;
@@ -253,9 +308,11 @@ void FWorldPartitionActorDesc::Patch(const FWorldPartitionActorDescInitData& Des
 	TArray<uint8> PatchedPayloadData;
 	FMemoryWriter PatchedPayloadAr(PatchedPayloadData, true);
 
-	TUniquePtr<FWorldPartitionActorDesc> ActorDesc(AActor::StaticCreateClassActorDesc(DescData.NativeClass ? DescData.NativeClass : AActor::StaticClass()));
-	FActorDescArchivePatcher ActorDescAr(MetadataAr, ActorDesc.Get(), PatchedPayloadAr, InAssetDataPatcher);	
-	FTopLevelAssetPath ActorClassPath(TEXT("/Script/Engine.Actor"));
+	UClass* NativeClass = DescData.NativeClass ? DescData.NativeClass : AActor::StaticClass();
+	TUniquePtr<FWorldPartitionActorDesc> ActorDesc(AActor::StaticCreateClassActorDesc(NativeClass));
+	ActorDesc->InitTransientProperties(DescData);
+	FActorDescArchivePatcher ActorDescAr(MetadataAr, ActorDesc.Get(), PatchedPayloadAr, InAssetDataPatcher);
+	FTopLevelAssetPath ActorClassPath(NativeClass->GetPathName());
 	ActorDescAr.Init(ActorClassPath);
 
 	ActorDesc->Serialize(ActorDescAr);
@@ -279,10 +336,9 @@ bool FWorldPartitionActorDesc::Equals(const FWorldPartitionActorDesc* Other) con
 		ActorPackage == Other->ActorPackage &&
 		ActorPath == Other->ActorPath &&
 		ActorLabel == Other->ActorLabel &&
-		bIsBoundsValid == Other->bIsBoundsValid &&
 		ActorTransform.Equals(Other->ActorTransform, 0.1f) &&
-		BoundsLocation.Equals(Other->BoundsLocation, 0.1f) &&
-		BoundsExtent.Equals(Other->BoundsExtent, 0.1f) &&
+		RuntimeBounds.Equals(Other->RuntimeBounds, 0.1f) &&
+		EditorBounds.Equals(Other->EditorBounds, 0.1f) &&
 		RuntimeGrid == Other->RuntimeGrid &&
 		bIsSpatiallyLoaded == Other->bIsSpatiallyLoaded &&
 		bActorIsEditorOnly == Other->bActorIsEditorOnly &&
@@ -315,7 +371,8 @@ bool FWorldPartitionActorDesc::ShouldResave(const FWorldPartitionActorDesc* Othe
 		bActorIsEditorOnly != Other->bActorIsEditorOnly ||
 		bActorIsRuntimeOnly != Other->bActorIsRuntimeOnly ||
 		bActorIsMainWorldOnly != Other->bActorIsMainWorldOnly ||
-		bIsBoundsValid != Other->bIsBoundsValid ||
+		RuntimeBounds.IsValid != Other->RuntimeBounds.IsValid||
+		EditorBounds.IsValid != Other->EditorBounds.IsValid||
 		HLODLayer != Other->HLODLayer ||
 		ParentActor != Other->ParentActor ||
 		ContentBundleGuid != Other->ContentBundleGuid ||
@@ -329,7 +386,7 @@ bool FWorldPartitionActorDesc::ShouldResave(const FWorldPartitionActorDesc* Othe
 	}
 
 	// Tolerate up to 5% for bounds change
-	if (bIsBoundsValid)
+	if (RuntimeBounds.IsValid)
 	{
 		const FBox ThisBounds = GetRuntimeBounds();
 		const FBox OtherBounds = Other->GetRuntimeBounds();
@@ -349,14 +406,14 @@ bool FWorldPartitionActorDesc::ShouldResave(const FWorldPartitionActorDesc* Othe
 	return !bActorIsHLODRelevant && Other->bActorIsHLODRelevant;
 }
 
-void FWorldPartitionActorDesc::SerializeTo(TArray<uint8>& OutData) const
+void FWorldPartitionActorDesc::SerializeTo(TArray<uint8>& OutData, FWorldPartitionActorDesc* BaseDesc) const
 {
 	FWorldPartitionActorDesc* MutableThis = const_cast<FWorldPartitionActorDesc*>(this);
 
 	// Serialize to archive and gather custom versions
 	TArray<uint8> PayloadData;
 	FMemoryWriter PayloadAr(PayloadData, true);
-	FActorDescArchive ActorDescAr(PayloadAr, MutableThis);
+	FActorDescArchive ActorDescAr(PayloadAr, MutableThis, BaseDesc);
 	ActorDescAr.Init();
 
 	MutableThis->Serialize(ActorDescAr);
@@ -406,102 +463,117 @@ void FWorldPartitionActorDesc::RegisterActorDescDeprecator(TSubclassOf<AActor> A
 
 FString FWorldPartitionActorDesc::ToString(EToStringMode Mode) const
 {
-	auto GetBoolStr = [](bool bValue) -> const TCHAR*
+	TStringBuilder<1024> Result;
+	const TCHAR LineStart = (Mode == EToStringMode::ForDiff) ? TEXT('\t') : TEXT(' ');
+	const TCHAR* LineEnd = (Mode == EToStringMode::ForDiff) ? LINE_TERMINATOR : nullptr;
+	
+	Result.Appendf(TEXT("Guid:%s%s"), *Guid.ToString(), LineEnd ? LineEnd : TEXT(""));
+
+	auto Append = [&Result, LineStart, LineEnd](const TCHAR* Name, const TCHAR* Value)
 	{
-		return bValue ? TEXT("1") : TEXT("0");
+		Result.AppendChar(LineStart);
+		Result.Append(Name);
+		Result.AppendChar(TEXT(':'));
+		Result.Append(Value);
+
+		if (LineEnd)
+		{
+			Result.Append(LineEnd);
+		}
 	};
 
-	TStringBuilder<1024> Result;
-	Result.Appendf(TEXT("Guid:%s"), *Guid.ToString());
+	auto AppendFromString = [&Append](const TCHAR* Name, const FString& Value)
+	{
+		Append(Name, *Value);
+	};
+
+	auto AppendToString = [&AppendFromString]<typename Type>(const TCHAR* Name, const Type& Value)
+	{
+		AppendFromString(Name, Value.ToString());
+	};
+
+	auto AppendFromBool = [&Append, Mode](const TCHAR* Name, bool bValue)
+	{
+		Append(Name, (Mode >= EToStringMode::Compact) ? (bValue ? TEXT("true") : TEXT("false")) : (bValue ? TEXT("1") : TEXT("0")));
+	};
 
 	if (Mode >= EToStringMode::Compact)
 	{
-		FString BoundsStr;
-
-		if (bIsBoundsValid)
+		if (BaseClass.IsValid())
 		{
-			const FBox EditorBounds = GetEditorBounds();
-			const FBox RuntimeBounds = GetRuntimeBounds();
-			if (EditorBounds.Equals(RuntimeBounds))
-			{
-				BoundsStr = RuntimeBounds.ToString();
-			}
-			else
-			{
-				BoundsStr = *FString::Printf(TEXT("(Editor:%s Runtime:%s)"), *EditorBounds.ToString(), *RuntimeBounds.ToString());
-			}
-		}
-		else
-		{
-			BoundsStr = TEXT("Invalid");
+			AppendToString(TEXT("BaseClass"), BaseClass);
 		}
 
-		Result.Appendf(
-			TEXT(" BaseClass:%s NativeClass:%s Name:%s Label:%s SpatiallyLoaded:%s Bounds:%s RuntimeGrid:%s EditorOnly:%s RuntimeOnly:%s HLODRelevant:%s ListedInSceneOutliner:%s IsMainWorldOnly:%s"),
-			*BaseClass.ToString(), 
-			*NativeClass.ToString(), 
-			*GetActorName().ToString(),
-			*GetActorLabel().ToString(),
-			GetBoolStr(bIsSpatiallyLoaded),
-			*BoundsStr,
-			*RuntimeGrid.ToString(),
-			GetBoolStr(bActorIsEditorOnly),
-			GetBoolStr(bActorIsRuntimeOnly),
-			GetBoolStr(bActorIsHLODRelevant),
-			GetBoolStr(bActorIsListedInSceneOutliner),
-			GetBoolStr(IsMainWorldOnly())
-		);
+		AppendToString(TEXT("NativeClass"), NativeClass);
+		AppendFromString(TEXT("Name"), GetActorNameString());
+
+		if (Mode >= EToStringMode::Verbose)
+		{
+			AppendToString(TEXT("ActorPackage"), ActorPackage);
+			AppendToString(TEXT("ActorPath"), ActorPath);
+		}
+
+		AppendToString(TEXT("Label"), GetActorLabel());
+		AppendFromBool(TEXT("SpatiallyLoaded"), bIsSpatiallyLoaded);
+		AppendToString(TEXT("EditorBounds"), EditorBounds);
+		AppendToString(TEXT("RuntimeBounds"), RuntimeBounds);
+		AppendToString(TEXT("RuntimeGrid"), RuntimeGrid);
+		AppendFromBool(TEXT("EditorOnly"), bActorIsEditorOnly);
+		AppendFromBool(TEXT("RuntimeOnly"), bActorIsRuntimeOnly);
+		AppendFromBool(TEXT("HLODRelevant"), bActorIsHLODRelevant);
+		AppendFromBool(TEXT("ListedInSceneOutliner"), bActorIsListedInSceneOutliner);
+		AppendFromBool(TEXT("IsMainWorldOnly"), IsMainWorldOnly());
 
 		if (ParentActor.IsValid())
 		{
-			Result.Appendf(TEXT(" Parent:%s"), *ParentActor.ToString());
+			AppendToString(TEXT("Parent"), ParentActor);
 		}
 
 		if (HLODLayer.IsValid())
 		{
-			Result.Appendf(TEXT(" HLODLayer:%s"), *HLODLayer.ToString());
+			AppendToString(TEXT("HLODLayer"), HLODLayer);
 		}
 
 		if (!FolderPath.IsNone())
 		{
-			Result.Appendf(TEXT(" FolderPath:%s"), *FolderPath.ToString());
+			AppendToString(TEXT("FolderPath"), FolderPath);
 		}
 
 		if (FolderGuid.IsValid())
 		{
-			Result.Appendf(TEXT(" FolderGuid:%s"), *FolderGuid.ToString());
+			AppendToString(TEXT("FolderGuid"), FolderGuid);
 		}
 
 		if (Mode >= EToStringMode::Full)
 		{
 			if (References.Num())
 			{
-				Result.Appendf(TEXT(" References:%s"), *FString::JoinBy(References, TEXT(","), [&](const FGuid& ReferenceGuid) { return ReferenceGuid.ToString(); }));
+				AppendFromString(TEXT("References"), FString::JoinBy(References, TEXT(","), [&](const FGuid& ReferenceGuid) { return ReferenceGuid.ToString(); }));
 			}
 
 			if (EditorOnlyReferences.Num())
 			{
-				Result.Appendf(TEXT(" EditorOnlyReferences:%s"), *FString::JoinBy(EditorOnlyReferences, TEXT(","), [&](const FGuid& ReferenceGuid) { return ReferenceGuid.ToString(); }));
+				AppendFromString(TEXT("EditorOnlyReferences"), FString::JoinBy(EditorOnlyReferences, TEXT(","), [&](const FGuid& ReferenceGuid) { return ReferenceGuid.ToString(); }));
 			}
 
 			if (Tags.Num())
 			{
-				Result.Appendf(TEXT(" Tags:%s"), *FString::JoinBy(Tags, TEXT(","), [&](const FName& TagName) { return TagName.ToString(); }));
+				AppendFromString(TEXT("Tags"), FString::JoinBy(Tags, TEXT(","), [&](const FName& TagName) { return TagName.ToString(); }));
 			}
 
 			if (Properties.Num())
 			{
-				Result.Appendf(TEXT(" Properties:%s"), *Properties.ToString());
+				AppendToString(TEXT("Properties"), Properties);
 			}
 
 			if (DataLayers.Num())
 			{
-				Result.Appendf(TEXT(" DataLayers:%s"), *FString::JoinBy(DataLayers, TEXT(","), [&](const FName& DataLayerName) { return DataLayerName.ToString(); }));
+				AppendFromString(TEXT("DataLayers"), FString::JoinBy(DataLayers, TEXT(","), [&](const FName& DataLayerName) { return DataLayerName.ToString(); }));
 			}
 
 			if (ExternalDataLayerAsset.IsValid())
 			{
-				Result.Appendf(TEXT(" ExternalDataLayerAsset:%s"), *ExternalDataLayerAsset.ToString());
+				AppendToString(TEXT("ExternalDataLayerAsset"), ExternalDataLayerAsset);
 			}
 		}
 	}
@@ -545,25 +617,44 @@ void FWorldPartitionActorDesc::Serialize(FArchive& Ar)
 	{
 		FVector3f BoundsLocationFlt, BoundsExtentFlt;
 		Ar << BoundsLocationFlt << BoundsExtentFlt;
-		BoundsLocation = FVector(BoundsLocationFlt);
-		BoundsExtent = FVector(BoundsExtentFlt);
-		bIsBoundsValid = true;
+		RuntimeBounds = FBox(FVector(BoundsLocationFlt - BoundsExtentFlt), FVector(BoundsLocationFlt + BoundsExtentFlt));
+		EditorBounds = RuntimeBounds;
 	}
 	else if (!bIsDefaultActorDesc)
 	{
-		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WorldPartitionActorDescSerializeInvalidBounds)
+		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WorldPartitionActorDescSerializeEditorBounds)
 		{
-			bIsBoundsValid = true;
+			bool bIsBoundsValid = true;
+			if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::WorldPartitionActorDescSerializeInvalidBounds)
+			{
+				Ar << bIsBoundsValid;
+			}
+
+			if (bIsBoundsValid)
+			{
+				FVector BoundsLocation;
+				FVector BoundsExtent;
+
+				Ar << BoundsLocation << BoundsExtent;
+
+				RuntimeBounds = FBox(BoundsLocation - BoundsExtent, BoundsLocation + BoundsExtent);
+				EditorBounds = RuntimeBounds;
+			}
+			else
+			{
+				RuntimeBounds.Init();
+				EditorBounds.Init();
+			}
 		}
 		else
 		{
-			Ar << bIsBoundsValid;
+			Ar << RuntimeBounds << EditorBounds;
 		}
-
-		if (bIsBoundsValid)
-		{
-			Ar << BoundsLocation << BoundsExtent;
-		}
+	}
+	else
+	{
+		RuntimeBounds.Init();
+		EditorBounds.Init();
 	}
 	
 	if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) < FUE5ReleaseStreamObjectVersion::ConvertedActorGridPlacementToSpatiallyLoadedFlag)
@@ -707,7 +798,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			FGuid FixupContentBundleGuid = ContentBundlePaths::GetContentBundleGuidFromExternalActorPackagePath(ActorPackage.ToString());
 			if (ContentBundleGuid != FixupContentBundleGuid)
 			{
-				UE_LOG(LogWorldPartition, Log, TEXT("ActorDesc ContentBundleGuid was fixed up: %s"), *GetActorName().ToString());
+				UE_LOG(LogWorldPartition, Log, TEXT("ActorDesc ContentBundleGuid was fixed up: %s"), *GetActorNameString());
 				ContentBundleGuid = FixupContentBundleGuid;
 			}
 		}
@@ -740,17 +831,32 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FBox FWorldPartitionActorDesc::GetEditorBounds() const
 {
-	return bIsBoundsValid ? FBox(BoundsLocation - BoundsExtent, BoundsLocation + BoundsExtent) : FBox(ForceInit);
+	return EditorBounds.IsValid ? EditorBounds : RuntimeBounds;
 }
 
 FBox FWorldPartitionActorDesc::GetRuntimeBounds() const
 {
-	return bIsBoundsValid ? FBox(BoundsLocation - BoundsExtent, BoundsLocation + BoundsExtent) : FBox(ForceInit);
+	return RuntimeBounds;
 }
 
 FName FWorldPartitionActorDesc::GetActorName() const
 {
 	return ActorName;
+}
+
+const FString& FWorldPartitionActorDesc::GetActorNameString() const
+{
+	return ActorNameString;
+}
+
+const FString& FWorldPartitionActorDesc::GetActorLabelString() const
+{
+	return ActorLabelString;
+}
+
+const FString& FWorldPartitionActorDesc::GetDisplayClassNameString() const
+{
+	return ActorDisplayClassNameString;
 }
 
 FName FWorldPartitionActorDesc::GetActorLabelOrName() const

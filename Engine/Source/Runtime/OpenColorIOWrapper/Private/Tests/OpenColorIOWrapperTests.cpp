@@ -5,11 +5,11 @@
 
 #if WITH_DEV_AUTOMATION_TESTS && WITH_OCIO
 
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "Logging/LogMacros.h"
 #include "Math/UnrealMathUtility.h"
 #include "OpenColorIOWrapper.h"
-#include "TransferFunctions.h"
+#include "ColorManagement/TransferFunctions.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUnrealOpenColorIOTest, Log, All);
 

@@ -203,11 +203,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 protected:
 #if WITH_EDITORONLY_DATA
 	/** Poses of the nearest neighbor ROM. */
-	UPROPERTY(EditAnywhere, Category = "Section")
+	UPROPERTY(EditAnywhere, Category = "Section", meta = (DisplayName = "Neighbor Sequence"))
 	TObjectPtr<UAnimSequence> NeighborPoses;
 
 	/** Geometry cache of the nearest neighbor ROM. */
-	UPROPERTY(EditAnywhere, Category = "Section")
+	UPROPERTY(EditAnywhere, Category = "Section", meta = (DisplayName = "Neighbor Geom Cache"))
 	TObjectPtr<UGeometryCache> NeighborMeshes;
 
 	/** Method to create weight map for this section. */
@@ -379,6 +379,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Python")
 	const UNearestNeighborModelSection* GetSectionPtr(int32 Index) const;
 	const UNearestNeighborModelSection& GetSection(int32 Index) const;
+	UNearestNeighborModelSection& GetSection(int32 Index);
 
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
 	const TArray<int32>& GetPCACoeffStarts() const;
@@ -407,6 +408,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
 	bool DoesUsePCA() const { return bUsePCA; }
 
+#if WITH_EDITORONLY_DATA
+	TArray<FInt32Range> GetMeshVertRanges(const USkeletalMesh& SkelMesh);
+#endif
+
 #if WITH_EDITOR
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
 	int32 GetInputDim() const { return InputDim; }
@@ -417,8 +422,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
 	int32 GetOutputDim() const { return OutputDim; }
 	
+	UE_DEPRECATED(5.5, "GetNumEpochs() is deprecated.")
+	UFUNCTION(meta = (DeprecatedFunction, DeprecationMessage = "GetNumEpochs has been deprecated. Convert from GetNumIterations instead."))
+	int32 GetNumEpochs() const { return 0; }
+
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	int32 GetNumEpochs() const { return NumEpochs; }
+	int32 GetNumIterations() const { return NumIterations; }
 	
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
 	int32 GetBatchSize() const { return BatchSize; }
@@ -467,9 +476,12 @@ public:
 	void InvalidateInferenceModelOnly();
 	bool LoadOptimizedNetworkFromFile(const FString& Filename);
 	void ClearOptimizedNetwork();
+	void RemoveAllSections();
 
 	FMLDeformerGeomCacheTrainingInputAnim* GetNearestNeighborAnim(int32 SectionIndex);
 	const FMLDeformerGeomCacheTrainingInputAnim* GetNearestNeighborAnim(int32 SectionIndex) const;
+
+	void AddSection(TObjectPtr<UNearestNeighborModelSection> Section) { Sections.Add(Section); }
 
 	void UpdateFileCache();
 	const FString& GetFileCacheDirectory() const;
@@ -486,12 +498,13 @@ public:
 
 	bool IsBeforeCustomVersionWasAdded() const;
 	bool IsBeforeTrainedBasisAdded() const;
+	bool IsBeforeDeprecateNumEpochs() const;
 	const TArray<float>& GetVertexWeightSum() const;
 
 	static FName GetInputDimPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, InputDim); }
 	static FName GetHiddenLayerDimsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, HiddenLayerDims); }
 	static FName GetOutputDimPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, OutputDim); }
-	static FName GetNumEpochsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, NumEpochs); }
+	static FName GetNumIterationsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, NumIterations); }
 	static FName GetBatchSizePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, BatchSize); }
 	static FName GetLearningRatePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, LearningRate); }
 	static FName GetEarlyStopEpochsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, EarlyStopEpochs); }
@@ -522,8 +535,13 @@ protected:
 	TArray<int32> HiddenLayerDims;
 
 	/** Max number of cycles iterated through the training set. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", AdvancedDisplay, meta = (ClampMin = "1"))
-	int32 NumEpochs = 2500;
+	UE_DEPRECATED(5.5, "NumEpochs is deprecated. Convert to NumIterations instead.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "NumEpochs is deprecated. Convert to NumIterations instead.", ClampMin = "1"))
+	int32 NumEpochs_DEPRECATED = 2500;
+
+	/** The number of iterations to train the model for. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", meta = (ClampMin = "1", ClampMax = "1000000"))
+	int32 NumIterations = 5000;
 
 	/** Number of data samples processed together as a group in a single pass. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", AdvancedDisplay, meta = (ClampMin = "1"))
@@ -550,7 +568,7 @@ protected:
 	bool bUseFileCache = false;
 
 	/** Directory to save the intermediate results. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "File Cache", meta = (EditCondition = "bUseFileCache"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "File Cache", meta = (EditCondition = "bUseFileCache", EditConditionHides))
 	FString FileCacheDirectory = FPaths::ProjectIntermediateDir() + "NearestNeighborModel";
 
 	TOptional<FDateTime> CachedDeltasTimestamp;
@@ -587,8 +605,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings")
 	bool bUsePCA = false;
 
-	/** The number of basis used in each section. Only editable when UsePCA is false. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings", meta = (EditCondition = "!bUsePCA"))
+	/** The number of basis used in each section. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings", meta = (EditCondition = "!bUsePCA", EditConditionHides))
 	int32 NumBasisPerSection = 128;
 
 	/** Whether to use dual quaternion deltas. If false, LBS deltas will be used. */
@@ -611,12 +629,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings", META = (ClampMin = "0"))
 	float RBFSigma = 1.0f;
 
+public:
+#if WITH_EDITOR
+	UNearestNeighborModelSection* OnSectionAdded(int32 NewIndex);
+#endif
+
 private:
 	TWeakObjectPtr<UNetwork> GetOptimizedNetwork();
 
 #if WITH_EDITOR
-	UNearestNeighborModelSection* OnSectionAdded(int32 NewIndex);
-	FSection& GetSection(int32 Index);
 
 	void SetOptimizedNetwork(UNearestNeighborOptimizedNetwork* InOptimizedNetwork);
 

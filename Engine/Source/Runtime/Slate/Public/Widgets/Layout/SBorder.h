@@ -99,6 +99,7 @@ public:
 	 * Default constructor.
 	 */
 	SLATE_API SBorder();
+	SLATE_API virtual ~SBorder();
 
 	/**
 	 * Construct this widget
@@ -171,17 +172,6 @@ protected:
 	TSlateAttributeRef<FSlateColor> GetBorderBackgroundColorAttribute() const { return TSlateAttributeRef<FSlateColor>(SharedThis(this), BorderBackgroundColorAttribute); }
 	TSlateAttributeRef<FVector2D> GetDesiredSizeScaleAttribute() const { return TSlateAttributeRef<FVector2D>(SharedThis(this), DesiredSizeScaleAttribute); }
 	TSlateAttributeRef<bool> GetShowDisabledEffectAttribute() const { return TSlateAttributeRef<bool>(SharedThis(this), ShowDisabledEffectAttribute); }
-
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.0, "Direct access to BorderImage is now deprecated. Use the setter or getter.")
-	FInvalidatableBrushAttribute BorderImage;
-	UE_DEPRECATED(5.0, "Direct access to BorderBackgroundColor is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<FSlateColor> BorderBackgroundColor;
-	UE_DEPRECATED(5.0, "Direct access to DesiredSizeScale is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<FVector2D> DesiredSizeScale;
-	UE_DEPRECATED(5.0, "Direct access to ShowDisabledEffect is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<bool> ShowDisabledEffect;
-#endif
 
  private:
 	TSlateAttribute<const FSlateBrush*> BorderImageAttribute;

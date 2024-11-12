@@ -97,14 +97,14 @@ uint GetRemappedRasterBinFromIndex(
 	uint InPrimitiveIndex,
 	uint InRegularRasterBinCount,
 	uint InRenderFlags,
-	bool bSecondaryRasterBin)
+	bool bFallbackRasterBin)
 {
 	uint RasterBin = GetMaterialRasterBinFromIndex(
 		InRelativeMaterialIndex,
 		InPrimitiveIndex,
 		MeshPassIndex,
 		InRegularRasterBinCount,
-		bSecondaryRasterBin
+		bFallbackRasterBin
 	);
 
 	const FNaniteMaterialFlags MaterialFlags = GetRasterBinMaterialFlags(RasterBin);
@@ -326,13 +326,17 @@ uint AllocateRasterBinCluster(uint BinIndex, bool bSoftware, uint BatchCount)
 }
 #endif
 
-void ExportRasterBin(uint RasterBin, uint ClusterIndex, uint RangeStart, uint RangeEnd, uint BatchCount, uint BatchInfoOffset, FCluster Cluster, bool bBatchInfoInlined, bool bSoftware)
+void ExportRasterBin(uint RasterBin, FNaniteMaterialFlags BinMaterialFlags, uint ClusterIndex, uint RangeStart, uint RangeEnd, uint BatchCount, uint BatchInfoOffset, FCluster Cluster, bool bBatchInfoInlined, bool bSoftware)
 {
-	const FNaniteMaterialFlags BinMaterialFlags = GetRasterBinMaterialFlags(RasterBin);
-	
 	if (MinSupportedWaveSize < 32 && BinMaterialFlags.bPixelProgrammable)
 	{
 		// SW pixel programmable path requires wave size >= 32. Fall back to HW raster when that is not guaranteed.
+		bSoftware = false;
+	}
+
+	if (!BinMaterialFlags.bNoDerivativeOps)
+	{
+		// Materials requiring finite differences must run the HW path (SW lanes are processing random triangles)
 		bSoftware = false;
 	}
 
@@ -386,6 +390,11 @@ void ScalarizeForEachMatching( T Value, FFunction Function )
 	}
 }
 
+bool IsNaniteMaterialMergingAllowed(FNaniteMaterialFlags MaterialFlags)
+{
+	return !MaterialFlags.bDisplacement;	// Merging ranges is incompatible with tessellation. Cluster rasterizer assumes UVDensities is uniform.
+}
+
 [numthreads(64, 1, 1)]
 void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupThreadIndex : SV_GroupIndex)
 {
@@ -397,7 +406,7 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 	{
 #if NANITE_TESSELLATION_PATCH_REFS
 		const uint PatchIndex = VisiblePatches.Load(VisibleIndex * 8);
-		const uint PatchEncoded = SplitWorkQueue.DataBuffer.Load(PatchIndex * 16);
+		const uint PatchEncoded = SplitWorkQueue.DataBuffer_Load(PatchIndex * 16);
 #else
 		const uint PatchEncoded = VisiblePatches.Load(VisibleIndex * 16);
 #endif
@@ -414,7 +423,7 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 			InstanceData.PrimitiveId,
 			RegularMaterialRasterBinCount,
 			RenderFlags,
-			/* Secondary Bin */ false
+			/* bFallbackRasterBin */ false
 		);
 
 		uint IndexInBin = 0;
@@ -483,9 +492,7 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 		FVisibleCluster VisibleCluster		= GetVisibleCluster(VisibleClusterIndex, VIRTUAL_TEXTURE_TARGET);
 		FInstanceSceneData InstanceData		= GetInstanceSceneData(VisibleCluster, false);
 		FCluster Cluster					= GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
-		const bool bWPOEnabled				= (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
-		const bool bSecondaryBin			= !bWPOEnabled; // use secondary bin where applicable when WPO disabled
-		const bool bMergeRanges				= false;	// Merging ranges is incompatible with tessellation. Cluster rasterizer assumes UVDensities is uniform. 	// TODO: Reenable it for non-tessellation materials?
+		const bool bFallbackBin				= (VisibleCluster.Flags & NANITE_CULLING_FLAG_FALLBACK_RASTER) != 0;
 
 		BRANCH
 		if (IsMaterialFastPath(Cluster))
@@ -505,55 +512,68 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 			uint BatchInfoOffset1 = BatchCount0;
 			uint BatchInfoOffset2 = BatchCount0 + BatchCount1;
 
+			FNaniteMaterialFlags BinMaterialFlags0 = (FNaniteMaterialFlags)0;
+			FNaniteMaterialFlags BinMaterialFlags1 = (FNaniteMaterialFlags)0;
+			FNaniteMaterialFlags BinMaterialFlags2 = (FNaniteMaterialFlags)0;
+
 			// Length is remaining triangles after Material0 and Material1
 			const uint Material2Length = Cluster.NumTris - (Cluster.Material0Length + Cluster.Material1Length);
 
 			// The 0th material range is always non-zero length
 			{
-				RasterBin0 = GetRemappedRasterBinFromIndex(Cluster.Material0Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin);
+				RasterBin0 = GetRemappedRasterBinFromIndex(Cluster.Material0Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bFallbackBin);
+				BinMaterialFlags0 = GetRasterBinMaterialFlags(RasterBin0);
 			}
 
 			BRANCH
 			if (Cluster.Material1Length > 0u)
 			{
-				RasterBin1 = GetRemappedRasterBinFromIndex(Cluster.Material1Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin);
+				RasterBin1 = GetRemappedRasterBinFromIndex(Cluster.Material1Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bFallbackBin);
+				BinMaterialFlags1 = GetRasterBinMaterialFlags(RasterBin1);
 			}
 
 			BRANCH
 			if (Material2Length > 0)
 			{
-				RasterBin2 = GetRemappedRasterBinFromIndex(Cluster.Material2Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin);
+				RasterBin2 = GetRemappedRasterBinFromIndex(Cluster.Material2Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bFallbackBin);
+				BinMaterialFlags2 = GetRasterBinMaterialFlags(RasterBin2);
 			}
 
-			RasterLen0 = Cluster.Material0Length;
-			RasterLen1 = Cluster.Material1Length;
-			RasterLen2 = Material2Length;
+			const bool bAllowMerging0 = IsNaniteMaterialMergingAllowed(BinMaterialFlags0);
+			const bool bAllowMerging1 = IsNaniteMaterialMergingAllowed(BinMaterialFlags1);
+			const bool bAllowMerging2 = IsNaniteMaterialMergingAllowed(BinMaterialFlags2);
 
 			BRANCH
-			if (bMergeRanges)
+			if (RasterBin0 == RasterBin1 && bAllowMerging0 && bAllowMerging1)
 			{
-				if (RasterBin0 == RasterBin1 && RasterBin0 == RasterBin2)
+				if (RasterBin0 == RasterBin2 && bAllowMerging2)
 				{
 					RasterLen0 = Cluster.NumTris;
 					BatchCount0 += BatchCount1 + BatchCount2;
 				}
-				else if (RasterBin0 == RasterBin1)
+				else
 				{
 					RasterLen0 = (Cluster.Material0Length + Cluster.Material1Length);
 					RasterLen2 = Material2Length;
 					BatchCount0 += BatchCount1;
 				}
-				else if (RasterBin1 == RasterBin2)
-				{
-					RasterLen0 = Cluster.Material0Length;
-					RasterLen1 = Cluster.NumTris - Cluster.Material0Length;
-					BatchCount1 += BatchCount2;
-				}
+			}
+			else if (RasterBin1 == RasterBin2 && bAllowMerging1 && bAllowMerging2)
+			{
+				RasterLen0 = Cluster.Material0Length;
+				RasterLen1 = Cluster.NumTris - Cluster.Material0Length;
+				BatchCount1 += BatchCount2;
+			}
+			else
+			{
+				RasterLen0 = Cluster.Material0Length;
+				RasterLen1 = Cluster.Material1Length;
+				RasterLen2 = Material2Length;
 			}
 			
 			// The 0th material range is always non-zero length
 			{
-				ExportRasterBin(RasterBin0, VisibleClusterIndex, 0u, RasterLen0, BatchCount0, BatchInfoOffset0, Cluster, true, bSoftware);
+				ExportRasterBin(RasterBin0, BinMaterialFlags0, VisibleClusterIndex, 0u, RasterLen0, BatchCount0, BatchInfoOffset0, Cluster, true, bSoftware);
 			}
 
 			BRANCH
@@ -561,7 +581,7 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 			{
 				const uint Range1Start = RasterLen0;
 				const uint Range1End   = Range1Start + RasterLen1;
-				ExportRasterBin(RasterBin1, VisibleClusterIndex, Range1Start, Range1End, BatchCount1, BatchInfoOffset1, Cluster, true, bSoftware);
+				ExportRasterBin(RasterBin1, BinMaterialFlags1, VisibleClusterIndex, Range1Start, Range1End, BatchCount1, BatchInfoOffset1, Cluster, true, bSoftware);
 			}
 
 			BRANCH
@@ -569,7 +589,7 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 			{
 				const uint Range2Start = (RasterLen0 + RasterLen1);
 				const uint Range2End   = Range2Start + RasterLen2;
-				ExportRasterBin(RasterBin2, VisibleClusterIndex, Range2Start, Range2End, BatchCount2, BatchInfoOffset2, Cluster, true, bSoftware);
+				ExportRasterBin(RasterBin2, BinMaterialFlags2, VisibleClusterIndex, Range2Start, Range2End, BatchCount2, BatchInfoOffset2, Cluster, true, bSoftware);
 			}
 		}
 		else
@@ -579,6 +599,9 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 			uint CurrentRangeEnd = 0;
 			uint CurrentBatchCount = 0;
 			uint CurrentBatchInfoOffset = 0;
+
+			FNaniteMaterialFlags CurrentBinMaterialFlags = (FNaniteMaterialFlags)0;
+			bool bCurrentAllowMerging = false;
 
 			FBitStreamReaderState BatchCountStreamState = BitStreamReader_Create_Aligned(Cluster.PageBaseAddress + Cluster.VertReuseBatchCountTableOffset * 4, 0, NANITE_MAX_CLUSTER_MATERIALS * 4);
 
@@ -593,12 +616,14 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 				uint MaterialIndex;
 				DecodeMaterialRange(EncodedRange, TriStart, TriLength, MaterialIndex);
 
-				const uint RasterBinN = GetRemappedRasterBinFromIndex(MaterialIndex, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin);
+				const uint RasterBinN = GetRemappedRasterBinFromIndex(MaterialIndex, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bFallbackBin);
+				const FNaniteMaterialFlags BinMaterialFlags = GetRasterBinMaterialFlags(RasterBinN);
+				const bool bAllowMerging = IsNaniteMaterialMergingAllowed(BinMaterialFlags);
 
 				const uint BatchCount = BitStreamReader_Read_RO(ClusterPageData, BatchCountStreamState, 4, 4);
 
 				// Check if raster slot matches the current run, and that the triangle range is contiguous.
-				if (bMergeRanges && (RasterBinN == CurrentRangeBin))
+				if ((RasterBinN == CurrentRangeBin) && bAllowMerging && bCurrentAllowMerging)
 				{
 					// Update current range
 					CurrentRangeEnd = TriStart + TriLength;
@@ -610,7 +635,7 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 					BRANCH
 					if (CurrentRangeEnd > 0)
 					{
-						ExportRasterBin(CurrentRangeBin, VisibleClusterIndex, CurrentRangeStart, CurrentRangeEnd, CurrentBatchCount, CurrentBatchInfoOffset, Cluster, false, bSoftware);
+						ExportRasterBin(CurrentRangeBin, CurrentBinMaterialFlags, VisibleClusterIndex, CurrentRangeStart, CurrentRangeEnd, CurrentBatchCount, CurrentBatchInfoOffset, Cluster, false, bSoftware);
 					}
 
 					CurrentRangeBin   = RasterBinN;
@@ -618,11 +643,13 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 					CurrentRangeEnd   = CurrentRangeStart + TriLength;
 					CurrentBatchInfoOffset += CurrentBatchCount;
 					CurrentBatchCount = BatchCount;
+					CurrentBinMaterialFlags = BinMaterialFlags;
+					bCurrentAllowMerging = bAllowMerging;
 				}
 			}
 
 			// Need to flush current range
-			ExportRasterBin(CurrentRangeBin, VisibleClusterIndex, CurrentRangeStart, CurrentRangeEnd, CurrentBatchCount, CurrentBatchInfoOffset, Cluster, false, bSoftware);
+			ExportRasterBin(CurrentRangeBin, CurrentBinMaterialFlags, VisibleClusterIndex, CurrentRangeStart, CurrentRangeEnd, CurrentBatchCount, CurrentBatchInfoOffset, Cluster, false, bSoftware);
 		}
 	}
 #endif

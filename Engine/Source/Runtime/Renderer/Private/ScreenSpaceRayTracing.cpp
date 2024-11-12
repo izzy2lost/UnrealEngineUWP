@@ -46,6 +46,12 @@ static TAutoConsoleVariable<int32> CVarSSRStencil(
 	TEXT(" 0 is off (default), 1 is on"),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarSSRCompute(
+	TEXT("r.SSR.Compute"), 0,
+	TEXT("Use compute for SSR if possible. Only available for non tiled SSR with no stencil prepass currently\n")
+	TEXT(" 0 is PS (default), 1 is sync compute, 2 is async compute"),
+	ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<int32> CVarSSGILeakFreeReprojection(
 	TEXT("r.SSGI.LeakFreeReprojection"), 1,
 	TEXT("Whether use a more expensive but leak free reprojection of previous frame's scene color.\n"),
@@ -150,7 +156,8 @@ bool ShouldRenderScreenSpaceReflections(const FViewInfo& View)
 		return false;
 	}
 
-	if (IsForwardShadingEnabled(View.GetShaderPlatform()))
+	const EShaderPlatform ShaderPlatform = View.GetShaderPlatform();
+	if (IsForwardShadingEnabled(ShaderPlatform) && !IsMobilePlatform(ShaderPlatform))
 	{
 		return false;
 	}
@@ -281,16 +288,7 @@ void SetupCommonScreenSpaceRayParameters(
 		/* inout */ OutParameters);
 } // SetupCommonScreenSpaceRayParameters()
 
-
-} // namespace ScreenSpaceRayTracing
-
-
-bool UseSingleLayerWaterIndirectDraw(EShaderPlatform ShaderPlatform);
-
-namespace
-{
-
-float ComputeRoughnessMaskScale(const FViewInfo& View, ESSRQuality SSRQuality)
+static float ComputeRoughnessMaskScale(const FViewInfo& View, ESSRQuality SSRQuality)
 {
 	float MaxRoughness = FMath::Clamp(View.FinalPostProcessSettings.ScreenSpaceReflectionMaxRoughness, 0.01f, 1.0f);
 
@@ -308,11 +306,11 @@ FLinearColor ComputeSSRParams(const FViewInfo& View, ESSRQuality SSRQuality, boo
 
 	float FrameRandom = 0;
 
-	if(View.ViewState)
+	if (View.ViewState)
 	{
 		bool bTemporalAAIsOn = IsTemporalAccumulationBasedMethod(View.AntiAliasingMethod);
 
-		if(bTemporalAAIsOn)
+		if (bTemporalAAIsOn)
 		{
 			// usually this number is in the 0..7 range but it depends on the TemporalAA quality
 			FrameRandom = View.ViewState->GetCurrentTemporalAASampleIndex() * 1551;
@@ -325,13 +323,18 @@ FLinearColor ComputeSSRParams(const FViewInfo& View, ESSRQuality SSRQuality, boo
 	}
 
 	return FLinearColor(
-		FMath::Clamp(View.FinalPostProcessSettings.ScreenSpaceReflectionIntensity * 0.01f, 0.0f, 1.0f), 
+		FMath::Clamp(View.FinalPostProcessSettings.ScreenSpaceReflectionIntensity * 0.01f, 0.0f, 1.0f),
 		RoughnessMaskScale,
 		(float)bEnableDiscard,	// TODO 
 		FrameRandom);
 }
 
+} // namespace ScreenSpaceRayTracing
 
+bool UseSingleLayerWaterIndirectDraw(EShaderPlatform ShaderPlatform);
+
+namespace
+{
 
 BEGIN_SHADER_PARAMETER_STRUCT(FSSRTTileClassificationParameters, )
 	SHADER_PARAMETER(FIntPoint, TileBufferExtent)
@@ -500,6 +503,42 @@ class FScreenSpaceReflectionsPS : public FGlobalShader
 	END_SHADER_PARAMETER_STRUCT()
 };
 
+class FScreenSpaceReflectionsCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FScreenSpaceReflectionsCS);
+	SHADER_USE_PARAMETER_STRUCT(FScreenSpaceReflectionsCS, FGlobalShader);
+
+	using FPermutationDomain = TShaderPermutationDomain<FSSRQualityDim, FSSROutputForDenoiser>;
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("SUPPORTS_ANISOTROPIC_MATERIALS"), FDataDrivenShaderPlatformInfo::GetSupportsAnisotropicMaterials(Parameters.Platform));
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_X"), GetThreadGroupSize().X);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_Y"), GetThreadGroupSize().Y);
+		OutEnvironment.SetDefine(TEXT("COMPUTE_SHADER"), 1);
+	}
+
+	static FIntPoint GetThreadGroupSize()
+	{
+		return 8;
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_INCLUDE(FSSRCommonParameters, CommonParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FSSRPassCommonParameters, SSRPassCommonParameter)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, SSRColorOutput)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, SSRHitDistanceOutput)
+	END_SHADER_PARAMETER_STRUCT()
+};
+
 // This is duplicated from FWaterTileVS because vertex shader should share Parameters structure for everything to be registered correctly in a RDG pass.
 class FScreenSpaceReflectionsTileVS : public FGlobalShader
 {
@@ -602,6 +641,7 @@ class FScreenSpaceCastStandaloneRayCS : public FGlobalShader
 IMPLEMENT_GLOBAL_SHADER(FSSRTPrevFrameReductionCS, "/Engine/Private/SSRT/SSRTPrevFrameReduction.usf", "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FSSRTDiffuseTileClassificationCS, "/Engine/Private/SSRT/SSRTTileClassification.usf", "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FScreenSpaceReflectionsPS,        "/Engine/Private/SSRT/SSRTReflections.usf", "ScreenSpaceReflectionsPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FScreenSpaceReflectionsCS, "/Engine/Private/SSRT/SSRTReflections.usf", "ScreenSpaceReflectionsCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FScreenSpaceReflectionsTileVS,    "/Engine/Private/SingleLayerWaterComposite.usf", "WaterTileVS", SF_Vertex);
 IMPLEMENT_GLOBAL_SHADER(FVisualizeTiledScreenSpaceReflectionsPS, "/Engine/Private/SSRT/SSRTReflections.usf", "VisualizeTiledScreenSpaceReflectionsPS", SF_Pixel)
 IMPLEMENT_GLOBAL_SHADER(FVisualizeTiledScreenSpaceReflectionsVS, "/Engine/Private/SingleLayerWaterComposite.usf", "WaterTileVS", SF_Vertex)
@@ -909,7 +949,7 @@ FPrevSceneColorMip ReducePrevSceneColorMip(
 				View.ViewRect.Width() / Divisor, View.ViewRect.Height() / Divisor),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[PassParameters, ComputeShader, &View, Divisor](FRHICommandList& RHICmdList)
+			[PassParameters, ComputeShader, &View, Divisor](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *PassParameters, FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), 8 * Divisor));
 		});
@@ -1090,13 +1130,14 @@ void RenderScreenSpaceReflections(
 		TShaderMapRef<FScreenSpaceReflectionsStencilPS> PixelShader(View.ShaderMap, PermutationVector);
 		ClearUnusedGraphResources(PixelShader, PassParameters);
 
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, ScreenSpaceReflections, "ScreenSpaceReflections");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, ScreenSpaceReflections);
 
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("SSR StencilSetup %dx%d", View.ViewRect.Width(), View.ViewRect.Height()),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[PassParameters, &View, PixelShader](FRHICommandList& RHICmdList)
+			[PassParameters, &View, PixelShader](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 		
@@ -1167,19 +1208,45 @@ void RenderScreenSpaceReflections(
 		PassParameters->HZBSampler = TStaticSamplerState<SF_Point>::GetRHI();
 	};
 
-	FScreenSpaceReflectionsPS::FPermutationDomain PermutationVector;
-	PermutationVector.Set<FSSRQualityDim>(SSRQuality);
-	PermutationVector.Set<FSSROutputForDenoiser>(bDenoiser);
-		
-	FScreenSpaceReflectionsPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FScreenSpaceReflectionsPS::FParameters>();
-	PassParameters->CommonParameters = CommonParameters;
-	SetSSRParameters(&PassParameters->SSRPassCommonParameter);
-	PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
-	PassParameters->RenderTargets = RenderTargets;
-	PassParameters->RenderTargets.ShadingRateTexture = GVRSImageManager.GetVariableRateShadingImage(GraphBuilder, View, FVariableRateShadingImageManager::EVRSPassType::SSR);
+	const int32 CVarSSRComputeValue = CVarSSRCompute.GetValueOnRenderThread();
+	// Compute path is only implemented for non-tiled SSR currently
+	const bool bCompute = CVarSSRComputeValue > 0 && !TiledScreenSpaceReflection && !SSRStencilPrePass && !bSingleLayerWater;
+	const bool bAsyncCompute = bCompute && CVarSSRComputeValue == 2;
 
-	TShaderMapRef<FScreenSpaceReflectionsPS> PixelShader(View.ShaderMap, PermutationVector);
+	FScreenSpaceReflectionsPS::FPermutationDomain PermutationVectorPS;
+	FScreenSpaceReflectionsCS::FPermutationDomain PermutationVectorCS;
+	FScreenSpaceReflectionsPS::FParameters* PassParametersPS = nullptr;
+	FScreenSpaceReflectionsCS::FParameters* PassParametersCS = nullptr;
 
+	if (bCompute)
+	{
+		PermutationVectorCS.Set<FSSRQualityDim>(SSRQuality);
+		PermutationVectorCS.Set<FSSROutputForDenoiser>(bDenoiser);
+
+		PassParametersCS = GraphBuilder.AllocParameters<FScreenSpaceReflectionsCS::FParameters>();
+		PassParametersCS->CommonParameters = CommonParameters;
+		SetSSRParameters(&PassParametersCS->SSRPassCommonParameter);
+		PassParametersCS->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
+		PassParametersCS->SSRColorOutput = GraphBuilder.CreateUAV(DenoiserInputs->Color);
+		if (bDenoiser)
+		{
+			PassParametersCS->SSRHitDistanceOutput = GraphBuilder.CreateUAV(DenoiserInputs->RayHitDistance);
+		}
+	}
+	else
+	{
+		PermutationVectorPS.Set<FSSRQualityDim>(SSRQuality);
+		PermutationVectorPS.Set<FSSROutputForDenoiser>(bDenoiser);
+
+		PassParametersPS = GraphBuilder.AllocParameters<FScreenSpaceReflectionsPS::FParameters>();
+		PassParametersPS->CommonParameters = CommonParameters;
+		SetSSRParameters(&PassParametersPS->SSRPassCommonParameter);
+		PassParametersPS->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
+		PassParametersPS->RenderTargets = RenderTargets;
+		PassParametersPS->RenderTargets.ShadingRateTexture = GVRSImageManager.GetVariableRateShadingImage(GraphBuilder, View, FVariableRateShadingImageManager::EVRSPassType::SSR);
+	}
+
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, ScreenSpaceReflections, "ScreenSpaceReflections");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, ScreenSpaceReflections);
 
 	static const auto CVarSSRTiledCompositeVisualize = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("r.SSR.TiledComposite.Visualize"));
@@ -1187,31 +1254,50 @@ void RenderScreenSpaceReflections(
 
 	if (TiledScreenSpaceReflection == nullptr)
 	{
-		ClearUnusedGraphResources(PixelShader, PassParameters);
-
-		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("SSR RayMarch(Quality=%d RayPerPixel=%d%s) %dx%d",
-				SSRQuality, RayTracingConfigs.RayCountPerPixel, bDenoiser ? TEXT(" DenoiserOutput") : TEXT(""),
-				View.ViewRect.Width(), View.ViewRect.Height()),
-			PassParameters,
-			ERDGPassFlags::Raster,
-			[PassParameters, &View, PixelShader, SSRStencilPrePass](FRHICommandList& RHICmdList)
+		if (bCompute)
 		{
-			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
-		
-			FGraphicsPipelineStateInitializer GraphicsPSOInit;
-			FPixelShaderUtils::InitFullscreenPipelineState(RHICmdList, View.ShaderMap, PixelShader, /* out */ GraphicsPSOInit);
-			if (SSRStencilPrePass)
+			TShaderMapRef<FScreenSpaceReflectionsCS> ComputeShader(View.ShaderMap, PermutationVectorCS);
+
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("SSR RayMarchCS(Quality=%d RayPerPixel=%d%s) %dx%d",
+					SSRQuality, RayTracingConfigs.RayCountPerPixel, bDenoiser ? TEXT(" DenoiserOutput") : TEXT(""),
+					View.ViewRect.Width(), View.ViewRect.Height()),
+				bAsyncCompute ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
+				ComputeShader,
+				PassParametersCS,
+				FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FScreenSpaceReflectionsCS::GetThreadGroupSize()));
+		}
+		else
+		{
+			TShaderMapRef<FScreenSpaceReflectionsPS> PixelShader(View.ShaderMap, PermutationVectorPS);
+
+			ClearUnusedGraphResources(PixelShader, PassParametersPS);
+
+			GraphBuilder.AddPass(
+				RDG_EVENT_NAME("SSR RayMarch(Quality=%d RayPerPixel=%d%s) %dx%d",
+					SSRQuality, RayTracingConfigs.RayCountPerPixel, bDenoiser ? TEXT(" DenoiserOutput") : TEXT(""),
+					View.ViewRect.Width(), View.ViewRect.Height()),
+				PassParametersPS,
+				ERDGPassFlags::Raster,
+				[PassParametersPS, &View, PixelShader, SSRStencilPrePass](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
-				// Clobers the stencil to pixel that should not compute SSR
-				GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep>::GetRHI();
-			}
+				RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
-			SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0x80);
-			SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *PassParameters);
+				FGraphicsPipelineStateInitializer GraphicsPSOInit;
+				FPixelShaderUtils::InitFullscreenPipelineState(RHICmdList, View.ShaderMap, PixelShader, /* out */ GraphicsPSOInit);
+				if (SSRStencilPrePass)
+				{
+					// Clobers the stencil to pixel that should not compute SSR
+					GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep>::GetRHI();
+				}
 
-			FPixelShaderUtils::DrawFullscreenTriangle(RHICmdList);
-		});
+				SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0x80);
+				SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *PassParametersPS);
+
+				FPixelShaderUtils::DrawFullscreenTriangle(RHICmdList);
+			});
+		}
 	}
 	else if (!bVisualizeTiledScreenSpaceReflection)
 	{
@@ -1220,18 +1306,20 @@ void RenderScreenSpaceReflections(
 		FScreenSpaceReflectionsTileVS::FPermutationDomain VsPermutationVector;
 		TShaderMapRef<FScreenSpaceReflectionsTileVS> VertexShader(View.ShaderMap, VsPermutationVector);
 
-		PassParameters->TileListData = TiledScreenSpaceReflection->TileListDataBufferSRV;
-		PassParameters->IndirectDrawParameter = TiledScreenSpaceReflection->DrawIndirectParametersBuffer;
+		PassParametersPS->TileListData = TiledScreenSpaceReflection->TileListDataBufferSRV;
+		PassParametersPS->IndirectDrawParameter = TiledScreenSpaceReflection->DrawIndirectParametersBuffer;
 
-		ClearUnusedGraphResources(VertexShader, PixelShader, PassParameters);
+		TShaderMapRef<FScreenSpaceReflectionsPS> PixelShader(View.ShaderMap, PermutationVectorPS);
+
+		ClearUnusedGraphResources(VertexShader, PixelShader, PassParametersPS);
 
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("SSR RayMarch(Quality=%d RayPerPixel=%d%s) %dx%d",
 				SSRQuality, RayTracingConfigs.RayCountPerPixel, bDenoiser ? TEXT(" DenoiserOutput") : TEXT(""),
 				View.ViewRect.Width(), View.ViewRect.Height()),
-			PassParameters,
+			PassParametersPS,
 			ERDGPassFlags::Raster,
-			[PassParameters, &View, VertexShader, PixelShader, SSRStencilPrePass](FRHICommandList& RHICmdList)
+			[PassParametersPS, &View, VertexShader, PixelShader, SSRStencilPrePass](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
@@ -1248,12 +1336,12 @@ void RenderScreenSpaceReflections(
 			GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 
 			SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0x80);
-			SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), *PassParameters);
-			SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *PassParameters);
+			SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), *PassParametersPS);
+			SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *PassParametersPS);
 
-			PassParameters->IndirectDrawParameter->MarkResourceAsUsed();
+			PassParametersPS->IndirectDrawParameter->MarkResourceAsUsed();
 
-			RHICmdList.DrawPrimitiveIndirect(PassParameters->IndirectDrawParameter->GetIndirectRHICallBuffer(), 0);
+			RHICmdList.DrawPrimitiveIndirect(PassParametersPS->IndirectDrawParameter->GetIndirectRHICallBuffer(), 0);
 		});
 	}
 	else
@@ -1272,7 +1360,7 @@ void RenderScreenSpaceReflections(
 
 		FVisualizeTiledScreenSpaceReflectionsPS::FParameters* VisualizePassParameters = GraphBuilder.AllocParameters<FVisualizeTiledScreenSpaceReflectionsPS::FParameters>();
 
-		VisualizePassParameters->CommonParameters = *PassParameters;
+		VisualizePassParameters->CommonParameters = *PassParametersPS;
 		VisualizePassParameters->CommonParameters.TileListData = TiledScreenSpaceReflection->TileListDataBufferSRV;
 		VisualizePassParameters->CommonParameters.IndirectDrawParameter = TiledScreenSpaceReflection->DrawIndirectParametersBuffer;
 
@@ -1283,7 +1371,7 @@ void RenderScreenSpaceReflections(
 				bDenoiser ? TEXT(" DenoiserOutput") : TEXT(""), View.ViewRect.Width(), View.ViewRect.Height()),
 			VisualizePassParameters,
 			ERDGPassFlags::Raster,
-			[VisualizePassParameters, &View, VertexShader, VisualizePixelShader, SSRStencilPrePass](FRHICommandList& RHICmdList)
+			[VisualizePassParameters, &View, VertexShader, VisualizePixelShader, SSRStencilPrePass](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 

@@ -47,10 +47,24 @@ enum class EInterchangePipelineContext : uint8
 	AssetReimport,
 	SceneImport,
 	SceneReimport,
-	AssetCustomLODImport, //The import for custom LOD is there because we use a copy of the asset import data pipeline stack.
+	AssetCustomLODImport,
 	AssetCustomLODReimport,
-	AssetAlternateSkinningImport, //The import for custom LOD is there because we use a copy of the asset import data pipeline stack.
+	AssetAlternateSkinningImport,
 	AssetAlternateSkinningReimport,
+	AssetCustomMorphTargetImport, //Import the content has a combine static mesh so we can add a custom morph target to a skeletal mesh
+	AssetCustomMorphTargetReImport,
+};
+
+USTRUCT()
+struct FInterchangePipelineContextParams
+{
+	GENERATED_BODY()
+
+	EInterchangePipelineContext ContextType = EInterchangePipelineContext::None;
+	UClass* ImportObjectType = nullptr;
+	TObjectPtr<UObject> ReimportAsset = nullptr;
+	const UInterchangeBaseNodeContainer* BaseNodeContainer = nullptr;
+
 };
 
 USTRUCT(BlueprintType)
@@ -78,20 +92,32 @@ struct FInterchangePipelinePropertyStates
 	{
 		bLocked = bLockValue;
 	}
-	
+
+	/** Return true if the property is locked. */
+	bool IsPropertyPreDialogReset() const
+	{
+		return bPreDialogReset;
+	}
+
+	void SetPropertyPreDialogReset(const bool bPreDialogResetValue)
+	{
+		bPreDialogReset = bPreDialogResetValue;
+	}
+
+
 	/** Return true if the property is visible for the specified context. */
-	bool IsPropertyVisibleInBasicLayout() const
+	bool IsPropertyVisibleInShowEssentials() const
 	{
 		return BasicLayoutStates.bVisible;
 	}
 
 	/** Return true if the property is visible for the specified context. */
-	bool IsPropertyVisible(const bool bIsReimportContext, const bool bIsBasicLayout) const
+	bool IsPropertyVisible(const bool bIsReimportContext, const bool bIsShowEssentials) const
 	{
 		bool bVisible = bIsReimportContext ? ReimportStates.bVisible : ImportStates.bVisible;
 		if (bVisible)
 		{
-			bVisible = bIsBasicLayout ? BasicLayoutStates.bVisible : true;
+			bVisible = bIsShowEssentials ? BasicLayoutStates.bVisible : true;
 		}
 		return bVisible;
 	}
@@ -106,7 +132,7 @@ struct FInterchangePipelinePropertyStates
 		ReimportStates.bVisible = bVisibleValue;
 	}
 
-	void SetPropertyBasicLayoutVisibility(const bool bVisibleValue)
+	void SetPropertyShowEssentialsVisibility(const bool bVisibleValue)
 	{
 		BasicLayoutStates.bVisible = bVisibleValue;
 	}
@@ -114,6 +140,10 @@ struct FInterchangePipelinePropertyStates
 	/** If true, the property is locked. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Property States")
 	bool bLocked = false;
+
+	/** If true, the property will be reset to default when loading the import dialog. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Property States")
+	bool bPreDialogReset = false;
 
 	/** The property states for the import context. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Context Properties States")
@@ -134,6 +164,7 @@ struct FInterchangeConflictInfo
 	FString Description;
 	FGuid UniqueId;
 	TObjectPtr<UInterchangePipelineBase> Pipeline = nullptr;
+	TSet<UClass*> AffectedAssetClasses;
 };
 
 class SInterchangeBaseConflictWidget : public SCompoundWidget
@@ -159,6 +190,15 @@ public:
 protected:
 	TSharedPtr<SWindow> WidgetWindow = nullptr;
 };
+
+/**
+ * Pipeline implementation:
+ *
+ * 1. ExecutePipeline - Create the factory nodes from the translated nodes. This is where the logic is execute to create the unreal asset via the factory node. Called after the translation
+ * 2. ExecutePostFactoryPipeline - Called after the factory has create the unreal asset with the associate factory node, but before calling PostEditChange.
+ * 3. ExecutePostImportPipeline - Called after the asset PostEditChange is done. If the asset use the async build framework, the asset build should be completed.
+ * 4. ExecutePostBroadcastPipeline - Called after the asset was registered to the registry manager and all broadcast calls have been done.
+ */
 
 UCLASS(BlueprintType, Blueprintable, editinlinenew, Abstract, MinimalAPI)
 class UInterchangePipelineBase : public UObject
@@ -233,6 +273,20 @@ public:
 	}
 
 	/**
+	 * ScriptedExecutePostBroadcastPipeline is called after an asset is completely imported and the broadcast have been called.
+	 * This can be useful if you need to unload the asset for any reason (Level reference by level instance need to be unload).
+	 * @note - the FTaskCompletion_GameThread calls this function not the virtual one that is call by the default implementation.
+	 */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interchange | Pipeline")
+	INTERCHANGECORE_API void ScriptedExecutePostBroadcastPipeline(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& FactoryNodeKey, UObject* CreatedAsset, bool bIsAReimport);
+	/** The default implementation, which is called if the Blueprint does not have any implementation, calls the virtual ExecutePostBroadcastPipeline(). */
+	void ScriptedExecutePostBroadcastPipeline_Implementation(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& FactoryNodeKey, UObject* CreatedAsset, bool bIsAReimport)
+	{
+		//By default we call the virtual import pipeline execution
+		ExecutePostBroadcastPipeline(BaseNodeContainer, FactoryNodeKey, CreatedAsset, bIsAReimport);
+	}
+
+	/**
 	 * Non-virtual helper that allows Blueprint to implement an event-based function.
 	 * The Interchange manager calls this function, not the virtual one that is called by the default implementation.
 	 */
@@ -287,7 +341,7 @@ public:
 		return true;
 	}
 
-	INTERCHANGECORE_API void LoadSettings(const FName PipelineStackName);
+	INTERCHANGECORE_API void LoadSettings(const FName PipelineStackName, bool bResetPreDialog = false);
 
 	INTERCHANGECORE_API void SaveSettings(const FName PipelineStackName);
 
@@ -296,20 +350,35 @@ public:
 	 * The function is also called when we import or reimport custom LOD and alternate skinning.
 	 *
 	 * @Note - The function will set the context of the pipeline.
-	 * @Param ReimportType - Tells the pipeline what reimport type the user wants to achieve.
-	 * @Param ReimportAsset - This is an optional parameter which is set when reimporting an asset.
+	 * @Param ContextParams - Give all the context information to the pipeline for the current import.
 	 */
-	INTERCHANGECORE_API virtual void AdjustSettingsForContext(EInterchangePipelineContext ReimportType, TObjectPtr<UObject> ReimportAsset);
+	INTERCHANGECORE_API virtual void AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams);
 	INTERCHANGECORE_API virtual void AdjustSettingsFromCache();
 
 	/** Transfer the source pipeline adjust settings to this pipeline. */
-	INTERCHANGECORE_API void TransferAdjustSettings(UInterchangePipelineBase* SourcePipeline);
+	INTERCHANGECORE_API void TransferAdjustSettings(const UInterchangePipelineBase* SourcePipeline);
 
-	INTERCHANGECORE_API void SetBasicLayoutMode(bool bBasicLayoutModeValue)
+	INTERCHANGECORE_API void SetShowEssentialsMode(bool bShowEssentialsModeValue)
 	{
-		bIsBasicLayout = bBasicLayoutModeValue;
+		bIsShowEssentials = bShowEssentialsModeValue;
 	}
 
+	/*
+	 * Set to true if this pipeline is from a re-import or an override pipelines stack
+	 */
+	INTERCHANGECORE_API void SetFromReimportOrOverride(bool bInFromReimportOrOverride)
+	{
+		bFromReimportOrOverride = bInFromReimportOrOverride;
+	}
+
+	/*
+	 * Return true if the pipeline was created for a re-import or an override pipelines stack
+	 */
+	INTERCHANGECORE_API bool IsFromReimportOrOverride() const
+	{
+		return bFromReimportOrOverride;
+	}
+	
 	/**
 	 * This function is called before showing the import dialog. It is not called when doing a reimport.
 	 */
@@ -338,9 +407,15 @@ public:
 	 * The import dialog will call this function when the user changes a specific property. Return true if the pipeline UI should be refreshed.
 	 * A refresh will call the FilterPropertiesFromTranslatedData function.
 	 */
-	INTERCHANGECORE_API virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent)
+	INTERCHANGECORE_API virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const
 	{
 		return false;
+	}
+
+	/** Fill the list of all asset this pipeline can create */
+	INTERCHANGECORE_API virtual void GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const
+	{
+		return;
 	}
 
 #endif //WITH_EDITOR
@@ -414,7 +489,7 @@ public:
 
 	bool CanEditPropertiesStates() { return bAllowPropertyStatesEdition; }
 	bool IsReimportContext() { return bIsReimportContext; }
-	bool IsBasicLayout() { return bIsBasicLayout; }
+	bool IsShowEssentials() { return bIsShowEssentials; }
 
 #if WITH_EDITOR
 	/*
@@ -460,7 +535,20 @@ public:
 	 * The Unreal import system has an option to force a name if we import only one main asset (one texture, one mesh or one animation).
 	 * The generic asset pipeline uses this information to behave as expected.
 	 */
+	UPROPERTY()
 	FString DestinationName;
+
+	/*
+	 * The content path where asset should be created.
+	 */
+	UPROPERTY()
+	FString ContentImportPath;
+
+	/*
+	 * Extra data available for scene pipeline, when we do a re-import we need to know what is the level so we do not create a new one.
+	 */
+	UPROPERTY()
+	FSoftObjectPath ReimportLevel;
 
 protected:
 
@@ -487,6 +575,14 @@ protected:
 	{
 	}
 
+	/**
+	 * This function is called after the Unreal asset is completely imported. PostEditChange and all broadcast have been called.
+	 * @Note: Some Unreal assets have asynchronous build operations. It's possible they are still compiling.
+	 */
+	virtual void ExecutePostBroadcastPipeline(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& NodeKey, UObject* CreatedAsset, bool bIsAReimport)
+	{
+	}
+
 	virtual void SetReimportSourceIndex(UClass* ReimportObjectClass, const int32 SourceFileIndex)
 	{
 	}
@@ -496,7 +592,7 @@ protected:
 	{
 	}
 
-	INTERCHANGECORE_API void LoadSettingsInternal(const FName PipelineStackName, const FString& ConfigFilename, TMap<FName, FInterchangePipelinePropertyStates>& ParentPropertiesStates);
+	INTERCHANGECORE_API void LoadSettingsInternal(const FName PipelineStackName, const FString& ConfigFilename, TMap<FName, FInterchangePipelinePropertyStates>& ParentPropertiesStates, bool bResetPreDialog);
 
 	INTERCHANGECORE_API void SaveSettingsInternal(const FName PipelineStackName, const FString& ConfigFilename);
 
@@ -527,12 +623,19 @@ protected:
 	bool bIsReimportContext = false;
 
 	/**
-	 * If true, this pipeline instance is use for basic layout.
+	 * If true, this pipeline instance is use for essentials settings layout.
 	 * If false, this pipeline instance is use for normal layout.
 	 *
 	 * Note: This layout must be set by the owner instancing this pipeline. This layout will be use to hide or not some properties.
 	 */
-	bool bIsBasicLayout = false;
+	bool bIsShowEssentials = false;
+
+	/*
+	 * If true, this pipeline was create to re-import an asset or override the project settings pipelines.
+	 * That kind of pipeline will not be treat like project settings pipeline in the UI. PredialogCleanup will not be called.
+	 */
+	UPROPERTY()
+	bool bFromReimportOrOverride = false;
 
 	UPROPERTY()
 	TObjectPtr<UInterchangeResultsContainer> Results;
@@ -545,8 +648,7 @@ protected:
 	TMap<FName, FInterchangePipelinePropertyStates> PropertiesStates;
 
 	mutable TMap<FName, FInterchangePipelinePropertyStates> CachePropertiesStates;
-	mutable EInterchangePipelineContext CachePipelineContext = EInterchangePipelineContext::None;
-	mutable TWeakObjectPtr<UObject> CacheReimportObject = nullptr;
+	mutable FInterchangePipelineContextParams CacheContextParam;
 
 	TArray<FInterchangeConflictInfo> ConflictInfos;
 };

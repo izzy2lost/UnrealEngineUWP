@@ -49,17 +49,11 @@ private:
 		bool bShouldIgnorePendingEvents = false; // becomes true when we detect first pending event with incorrect timestamp (i.e < LastCycle)
 	};
 
-	void ProcessBuffer(const FEventTime& EventTime, FThreadState& ThreadState, const uint8* BufferPtr, uint32 BufferSize);
-	void ProcessBufferV2(const FEventTime& EventTime, FThreadState& ThreadState, const uint8* BufferPtr, uint32 BufferSize);
-	void DispatchPendingEvents(uint64& LastCycle, uint64 CurrentCycle, FThreadState& ThreadState, const FPendingEvent*& PendingCursor, int32& RemainingPending, bool bIsBeginEvent);
-	void DispatchRemainingPendingEvents(FThreadState& ThreadState);
-	void EndOpenEvents(FThreadState& ThreadState, double Timestamp);
-	void OnCpuScopeEnter(const FOnEventContext& Context);
-	void OnCpuScopeLeave(const FOnEventContext& Context);
-	uint32 DefineTimer(uint32 SpecId, const TCHAR* TimerName, const TCHAR* File, uint32 Line, bool bMergeByName); // returns the TimerId
-	uint32 DefineNewTimerChecked(uint32 SpecId, const TCHAR* TimerName, const TCHAR* File = nullptr, uint32 Line = 0); // returns the TimerId
-	uint32 GetTimerId(uint32 SpecId);
-	FThreadState& GetThreadState(uint32 ThreadId);
+	struct FTimerInfo
+	{
+		uint32 Id;
+		uint32 Count;
+	};
 
 	enum : uint16
 	{
@@ -71,12 +65,27 @@ private:
 		RouteId_CpuScope,
 	};
 
+	void ProcessBuffer(const FEventTime& EventTime, FThreadState& ThreadState, const uint8* BufferPtr, uint32 BufferSize);
+	void ProcessBufferV2(const FEventTime& EventTime, FThreadState& ThreadState, const uint8* BufferPtr, uint32 BufferSize);
+	void DispatchPendingEvents(uint64& LastCycle, uint64 CurrentCycle, FThreadState& ThreadState, const FPendingEvent*& PendingCursor, int32& RemainingPending, bool bIsBeginEvent);
+	void DispatchRemainingPendingEvents(FThreadState& ThreadState);
+	void EndOpenEvents(FThreadState& ThreadState, double Timestamp);
+	void OnCpuScopeEnter(const FOnEventContext& Context);
+	void OnCpuScopeLeave(const FOnEventContext& Context);
+	uint32 DefineTimer(uint32 SpecId, const TCHAR* TimerName, const TCHAR* File, uint32 Line); // returns the TimerId
+	uint32 DefineNewTimerChecked(uint32 SpecId, const TCHAR* TimerName, const TCHAR* File = nullptr, uint32 Line = 0); // returns the TimerId
+	uint32 GetTimerId(uint32 SpecId);
+	FThreadState& GetThreadState(uint32 ThreadId);
+
+private:
 	IAnalysisSession& Session;
 	IEditableTimingProfilerProvider& EditableTimingProfilerProvider;
 	IEditableThreadProvider& EditableThreadProvider;
+
 	TMap<uint32, FThreadState*> ThreadStatesMap;
-	TMap<uint32, uint32> SpecIdToTimerIdMap;
-	TMap<const TCHAR*, uint32, FDefaultSetAllocator, TStringPointerMapKeyFuncs_DEPRECATED<const TCHAR*, uint32>> ScopeNameToTimerIdMap;
+	TMap<uint32, uint32> SpecIdToTimerIdMap; // SpecId --> TimerId
+	TMap<uint64, FTimerInfo> ScopeNameToTimerIdMap; // (uint64)Name --> FTimerInfo
+
 	uint32 CoroutineTimerId = ~0;
 	uint32 CoroutineUnknownTimerId = ~0;
 	uint64 TotalEventSize = 0;

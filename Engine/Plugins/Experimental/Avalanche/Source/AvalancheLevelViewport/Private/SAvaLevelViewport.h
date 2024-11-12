@@ -9,6 +9,7 @@
 #include "Subsystems/PanelExtensionSubsystem.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtrFwd.h"
+#include "Widgets/SAvaLevelViewportTextureOverlay.h"
 
 class ACameraActor;
 class FAvaLevelViewportClient;
@@ -22,11 +23,13 @@ class SAvaLevelViewportPixelGrid;
 class SAvaLevelViewportSafeFrames;
 class SAvaLevelViewportScreenGrid;
 class SAvaLevelViewportSnapIndicators;
+class SAvaLevelViewportTextureOverlay;
 class SCanvas;
 class SOverlay;
 class SWidget;
 class UAvaViewportSettings;
 class UToolMenu;
+enum class EAvaViewportPostProcessType : uint8;
 enum class EAvaViewportVirtualSizeAspectRatioState : uint8;
 enum class ECheckBoxState : uint8;
 struct FAssetEditorViewportConstructionArgs;
@@ -126,33 +129,12 @@ public:
 
 	void ExecuteToggleChildActorLock();
 
-	bool IsPostProcessNoneEnabled() const;
-	bool CanTogglePostProcessNone() const;
-	void ExecuteTogglePostProcessNone();
+	bool IsPostProcessTypeEnabled(EAvaViewportPostProcessType InPostProcessType) const;
+	bool CanTogglePostProcessType(EAvaViewportPostProcessType InPostProcessType) const;
+	void ExecuteTogglePostProcessType(EAvaViewportPostProcessType InPostProcessType);
 
-	bool IsPostProcessBackgroundEnabled() const;
-	bool CanTogglePostProcessBackground() const;
-	void ExecuteTogglePostProcessBackground();
-
-	bool IsPostProcessChannelRedEnabled() const;
-	bool CanTogglePostProcessChannelRed() const;
-	void ExecuteTogglePostProcessChannelRed();
-
-	bool IsPostProcessChannelGreenEnabled() const;
-	bool CanTogglePostProcessChannelGreen() const;
-	void ExecuteTogglePostProcessChannelGreen();
-
-	bool IsPostProcessChannelBlueEnabled() const;
-	bool CanTogglePostProcessChannelBlue() const;
-	void ExecuteTogglePostProcessChannelBlue();
-
-	bool IsPostProcessChannelAlphaEnabled() const;
-	bool CanTogglePostProcessChannelAlpha() const;
-	void ExecuteTogglePostProcessChannelAlpha();
-
-	bool IsPostProcessCheckerboardEnabled() const;
-	bool CanTogglePostProcessCheckerboard() const;
-	void ExecuteTogglePostProcessCheckerboard();
+	bool CanToggleTextureOverlay() const;
+	void ExecuteToggleTextureOverlay();
 	
 	FIntPoint GetVirtualSize() const;
 	bool IsVirtualSizeActive(FIntPoint InVirtualSize) const;
@@ -183,6 +165,7 @@ public:
 private:
 	TWeakPtr<SAvaLevelViewportFrame> ViewportFrameWeak;
 	TSharedPtr<SAvaLevelViewportCameraBounds> CameraBounds;
+	TSharedPtr<SAvaLevelViewportTextureOverlay> TextureOverlay;
 	TSharedPtr<SAvaLevelViewportPixelGrid> PixelGrid;
 	TSharedPtr<SAvaLevelViewportScreenGrid> ScreenGrid;
 	TSharedPtr<SAvaLevelViewportSafeFrames> SafeFrames;
@@ -245,6 +228,17 @@ private:
 	void OnBackgroundOpacitySliderEnd(float InValue);
 	void OnBackgroundOpacityChanged(float InValue);
 	void OnBackgroundOpacityCommitted(float InValue, ETextCommit::Type InCommitType);
+
+	FString GetTextureOverlayTextureObjectPath() const;
+	void OnTextureOverlayTextureChanged(const FAssetData& InAssetData);
+
+	float GetTextureOverlayOpacity() const;
+	void OnTextureOverlayOpacitySliderEnd(float InValue);
+	void OnTextureOverlayOpacityChanged(float InValue);
+	void OnTextureOverlayOpacityCommitted(float InValue, ETextCommit::Type InCommitType);
+
+	ECheckBoxState GetTextureOverlayStretchEnabledCheckBoxState() const;
+	void OnTextureOverlayStretchEnabledCheckBoxChanged(ECheckBoxState InState);
 
 	int32 GetVirtualSizeX() const;
 	int32 GetVirtualSizeY() const;

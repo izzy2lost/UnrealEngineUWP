@@ -23,8 +23,6 @@ DECLARE_CYCLE_STAT(TEXT("MovieScene: Evaluate double channels"), MovieSceneEval_
 namespace UE::MovieScene
 {
 
-MOVIESCENE_API extern bool GEnableCachedChannelEvaluation;
-
 struct FDoubleChannelTypeAssociation
 {
 	TComponentTypeID<FSourceDoubleChannel> ChannelType;
@@ -36,18 +34,6 @@ TArray<FDoubleChannelTypeAssociation, TInlineAllocator<4>> GDoubleChannelTypeAss
 
 // @todo: for multi-bindings we currently re-evaluate the double channel for each binding, even though the time is the same.
 // Do we need to optimize for this case using something like the code below, while pessimizing the common (non-multi-bind) codepath??
-
-/** Entity-component task that evaluates using the non-cached codepath for testing parity */
-struct FEvaluateDoubleChannels_Uncached
-{
-	void ForEachEntity(FSourceDoubleChannel DoubleChannel, FFrameTime FrameTime, double& OutResult) const
-	{
-		if (!DoubleChannel.Source->Evaluate(FrameTime, OutResult))
-		{
-			OutResult = MIN_dbl;
-		}
-	}
-};
 
 /** Entity-component task that evaluates using a cached interpolation if possible */
 struct FEvaluateDoubleChannels_Cached
@@ -176,28 +162,15 @@ void UDoubleChannelEvaluatorSystem::OnSchedulePersistentTasks(UE::MovieScene::IE
 
 	for (const FDoubleChannelTypeAssociation& ChannelType : GDoubleChannelTypeAssociations)
 	{
-		if (GEnableCachedChannelEvaluation)
-		{
-			// Evaluate double channels per instance and write the evaluated value into the output
-			FEntityTaskBuilder()
-			.Read(ChannelType.ChannelType)
-			.Read(BuiltInComponents->EvalTime)
-			.Write(ChannelType.CachedInterpolationType)
-			.Write(ChannelType.ResultType)
-			.FilterNone({ BuiltInComponents->Tags.Ignored })
-			.SetStat(GET_STATID(MovieSceneEval_EvaluateDoubleChannelTask))
-			.Fork_PerEntity<FEvaluateDoubleChannels_Cached>(&Linker->EntityManager, TaskScheduler);
-		}
-		else
-		{
-			FEntityTaskBuilder()
-			.Read(ChannelType.ChannelType)
-			.Read(BuiltInComponents->EvalTime)
-			.Write(ChannelType.ResultType)
-			.FilterNone({ BuiltInComponents->Tags.Ignored })
-			.SetStat(GET_STATID(MovieSceneEval_EvaluateDoubleChannelTask))
-			.Fork_PerEntity<FEvaluateDoubleChannels_Uncached>(&Linker->EntityManager, TaskScheduler);
-		}
+		// Evaluate double channels per instance and write the evaluated value into the output
+		FEntityTaskBuilder()
+		.Read(ChannelType.ChannelType)
+		.Read(BuiltInComponents->EvalTime)
+		.Write(ChannelType.CachedInterpolationType)
+		.Write(ChannelType.ResultType)
+		.FilterNone({ BuiltInComponents->Tags.Ignored })
+		.SetStat(GET_STATID(MovieSceneEval_EvaluateDoubleChannelTask))
+		.Fork_PerEntity<FEvaluateDoubleChannels_Cached>(&Linker->EntityManager, TaskScheduler);
 	}
 }
 
@@ -205,11 +178,7 @@ void UDoubleChannelEvaluatorSystem::OnRun(FSystemTaskPrerequisites& InPrerequisi
 {
 	using namespace UE::MovieScene;
 
-	FMovieSceneEntitySystemRunner* Runner = Linker->GetActiveRunner();
-	if (!Runner)
-	{
-		return;
-	}
+	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
 
 	FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 
@@ -229,21 +198,6 @@ void UDoubleChannelEvaluatorSystem::OnRun(FSystemTaskPrerequisites& InPrerequisi
 	}
 	else if (Runner->GetCurrentPhase() == ESystemPhase::Evaluation)
 	{
-		if (!GEnableCachedChannelEvaluation)
-		{
-			for (const FDoubleChannelTypeAssociation& ChannelType : GDoubleChannelTypeAssociations)
-			{
-				FEntityTaskBuilder()
-				.Read(ChannelType.ChannelType)
-				.Read(BuiltInComponents->EvalTime)
-				.Write(ChannelType.ResultType)
-				.FilterNone({ BuiltInComponents->Tags.Ignored })
-				.SetStat(GET_STATID(MovieSceneEval_EvaluateDoubleChannelTask))
-				.Dispatch_PerEntity<FEvaluateDoubleChannels_Uncached>(&Linker->EntityManager, InPrerequisites, &Subsequents);
-			}
-			return;
-		}
-
 		for (const FDoubleChannelTypeAssociation& ChannelType : GDoubleChannelTypeAssociations)
 		{
 			// Evaluate double channels per instance and write the evaluated value into the output

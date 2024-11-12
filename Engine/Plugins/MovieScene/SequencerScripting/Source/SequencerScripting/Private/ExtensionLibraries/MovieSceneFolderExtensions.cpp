@@ -41,8 +41,9 @@ FColor UMovieSceneFolderExtensions::GetFolderColor(UMovieSceneFolder* Folder)
 
 #if WITH_EDITORONLY_DATA
 	return Folder->GetFolderColor();
-#endif //WITH_EDITORONLY_DATA
+#else
 	return FColor();
+#endif //WITH_EDITORONLY_DATA
 }
 
 bool UMovieSceneFolderExtensions::SetFolderColor(UMovieSceneFolder* Folder, FColor InFolderColor)

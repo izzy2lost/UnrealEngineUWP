@@ -127,6 +127,13 @@ namespace UE
 		
 		UE_DEPRECATED(5.3, "Do not use, this is here as a temporary workaround for another issue.")
 		MOVIERENDERPIPELINECORE_API uint64 GetRendererFrameCount();
+		
+		/**
+		 * Updates the provided scene view in accordance with the show flags that are currently set (eg, changes the specular override color if
+		 * the OverrideDiffuseAndSpecular show flag is set). The show flags that are looked at here are usually the ones that are set when the
+		 * view mode index is changed.
+		 */
+		MOVIERENDERPIPELINECORE_API void UpdateSceneViewForShowFlags(FSceneView* View);
 	}
 
 	namespace MoviePipeline
@@ -145,6 +152,11 @@ namespace UE
 		MOVIERENDERPIPELINECORE_API FMoviePipelineRenderPassMetrics GetRenderPassMetrics(UMoviePipelinePrimaryConfig* InPrimaryConfig, UMoviePipelineExecutorShot* InPipelineExecutorShot, const FMoviePipelineRenderPassMetrics& InRenderPassMetrics, const FIntPoint& InEffectiveOutputResolution);
 		MOVIERENDERPIPELINECORE_API bool CanWriteToFile(const TCHAR* InFilename, bool bOverwriteExisting);
 		MOVIERENDERPIPELINECORE_API FString GetPaddingFormatString(int32 InZeroPadCount, const int32 InFrameNumber);
+		MOVIERENDERPIPELINECORE_API void DoPostProcessBlend(const FVector& InViewLocation, const class UWorld* InWorld, const struct FMinimalViewInfo& InViewInfo, class FSceneView* InOutView);
+
+		MOVIERENDERPIPELINECORE_API void SetSkeletalMeshClothSubSteps(const int32 InSubdivisionCount, UWorld* InWorld, TMap<TWeakObjectPtr<UObject>, TArray<::MoviePipeline::FClothSimSettingsCache>> InClothSimCache);
+		MOVIERENDERPIPELINECORE_API void RestoreSkeletalMeshClothSubSteps(TMap<TWeakObjectPtr<UObject>, TArray<::MoviePipeline::FClothSimSettingsCache>> InClothSimCache);
+
 
 		/** When using spatial/temporal samples without anti-aliasing, get the sub-pixel jitter for the given frame index. FrameIndex is modded by InSamplesPerFrame so that the aa jitter pattern repeats every output frame. */
 		MOVIERENDERPIPELINECORE_API FVector2f GetSubPixelJitter(int32 InFrameIndex, int32 InSamplesPerFrame);

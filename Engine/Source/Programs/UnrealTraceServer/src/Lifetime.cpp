@@ -85,7 +85,12 @@ void FLifetime::AddPid(uint32 Pid)
 		return;
 	}
 #if TS_USING(TS_PLATFORM_WINDOWS)
-	FProcHandle ProcessHandle = OpenProcess(PROCESS_QUERY_INFORMATION | SYNCHRONIZE, FALSE, Pid);
+	FProcHandle ProcessHandle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, FALSE, Pid);
+	if (!ProcessHandle)
+	{
+		TS_LOG("Failed to open sponsor process (error code: %d), will not be able to use as sponsor.", GetLastError());
+		return;
+	}
 #else
 	FProcHandle ProcessHandle = FProcHandle(intptr_t(Pid));
 #endif

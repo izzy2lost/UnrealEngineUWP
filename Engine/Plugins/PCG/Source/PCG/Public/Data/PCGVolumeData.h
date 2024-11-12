@@ -32,7 +32,7 @@ public:
 	// TODO what should this do - closest point on volume?
 	//virtual bool ProjectPoint(const FTransform& InTransform, const FBox& InBounds, const FPCGProjectionParams& InParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const;
 protected:
-	virtual UPCGSpatialData* CopyInternal() const override;
+	virtual UPCGSpatialData* CopyInternal(FPCGContext* Context) const override;
 	//~End UPCGSpatialData interface
 
 public:
@@ -59,7 +59,3 @@ protected:
 	// Internal body instance to perform queries faster, used in static cases only
 	FBodyInstance* VolumeBodyInstance = nullptr;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

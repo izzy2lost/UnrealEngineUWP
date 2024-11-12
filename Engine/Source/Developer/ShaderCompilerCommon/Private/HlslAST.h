@@ -474,6 +474,28 @@ namespace CrossCompiler
 			virtual FCompoundStatement* AsCompoundStatement() override { return this; }
 		};
 
+		struct FStaticAssertStatement : public FNode
+		{
+			FStaticAssertStatement(FLinearAllocator* InAllocator, const FSourceInfo& InInfo, const FString& InKeyword);
+			~FStaticAssertStatement();
+
+			virtual void Write(FASTWriter& Writer) const override;
+
+			const FString Keyword; // Either "_Static_assert" (DXC) or "static_assert" (C++11 like compilers)
+			FExpression* Condition;
+			FString Message;
+		};
+
+		struct FC99PragmaStatement : public FNode
+		{
+			FC99PragmaStatement(FLinearAllocator* InAllocator, const FSourceInfo& InInfo, const FString& InArgument);
+			~FC99PragmaStatement();
+
+			virtual void Write(FASTWriter& Writer) const override;
+
+			FString Argument;
+		};
+
 		struct FSemanticSpecifier : public FNode
 		{
 			enum class ESpecType

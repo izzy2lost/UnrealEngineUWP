@@ -2,10 +2,11 @@
 
 #pragma once
 
-#include "CoreTypes.h"
+#include "HAL/Platform.h"
 #include "Iris/IrisConfig.h"
+#include "Iris/Serialization/NetSerializationContext.h"
+#include "Templates/AlignmentTemplates.h"
 #include "Templates/IsPODType.h"
-#include "NetSerializationContext.h"
 
 namespace UE::Net
 {
@@ -14,7 +15,7 @@ namespace AllocationPolicies
 {
 
 /**
- * Default AllicationPolicy for NetSerializationStorage helper class
+ * Default AllocationPolicy for FNetSerializerArrayStorage helper class
  */
 class FElementAllocationPolicy
 {
@@ -166,9 +167,55 @@ private:
 	SizeType ArrayMaxCapacity;
 };
 
+/**
+ * Helper class to manage storage of untyped dynamic storage with arbitrary alignment in quantized data.
+ * If storage is used to store elements that themselves uses dynamic allocations the user must take care to properly free and clone such elements properly prior to and/or after changing sizes.
+ * FNetSerializerAlignedStorage is only intended to be used from within Quantized replication states that requires dynamic storage as it has very specific expectations and limitations.
+ * NOTE: A NetSerializer using FNetSerializerAlignedStorage MUST specify the trait bHasDynamicState and forward appropriate calls to Clone and Free to this class.
+ * A zero constructed state is considered valid.
+ */
+class FNetSerializerAlignedStorage
+{
+public:
+	// Use whatever SizeType that is typically used by FNetSerializerArrayStorage
+	typedef typename AllocationPolicies::FElementAllocationPolicy::SizeType SizeType;
+
+public:
+	/**
+	 * AdjustSize - Adjust the size of FNetSerializerArrayStorage as needed
+	 * The state storage in which the storage is located is expected to be in a valid state which can either be zero initialized or a previous valid state
+	 */
+	IRISCORE_API void AdjustSize(FNetSerializationContext& Context, SizeType InNum, SizeType InAlignment);
+
+	/**
+	 * Free - Free allocated memory and reset state. it is valid to pass in a zero-initialized state
+	 * The state storage in which the storage is located is expected to be in a valid state which can either be zero initialized or a previous valid state.
+	 * Should typically only be called from within a the implemntation of NetSerializer::FreeDynamicState()
+	 */
+	IRISCORE_API void Free(FNetSerializationContext& Context);
+
+	/**
+	 * Clone - Clone dynamic storage from Source
+	 * No assumptions of the validity of the target is made, as this is typically called AFTER a memcopy is made to the target state
+	 * which invalidates all dynamic data
+	 * Should typically only be called from within a the implemntation of NetSerializer::CloneDynamicState()
+	*/
+	IRISCORE_API void Clone(FNetSerializationContext& Context, const FNetSerializerAlignedStorage& Source);
+
+	inline const uint8* GetData() const;
+	inline uint8* GetData();
+	inline SizeType Num() const;
+	inline SizeType GetAlignment() const;
+
+private:
+	uint8* Data = nullptr;
+	SizeType StorageNum = 0;
+	SizeType StorageMaxCapacity = 0;
+	// An alignment of 0 isn't valid but the value is only used if there's actual data involved.
+	SizeType StorageAlignment = 0;
+};
 
 // FNetSerializerArrayStorage Implementation
-
 template <typename QuantizedElementType, typename AllocationPolicy>
 FNetSerializerArrayStorage<QuantizedElementType, AllocationPolicy>::FNetSerializerArrayStorage()
 : ArrayNum(0)
@@ -182,6 +229,13 @@ void FNetSerializerArrayStorage<QuantizedElementType, AllocationPolicy>::AdjustS
 	const SizeType NewCapacity = AllocatorInstance.CalculateNewCapacity(InNum);
 	AllocatorInstance.ResizeAllocation(Context, ArrayNum, NewCapacity);
 	ArrayMaxCapacity = NewCapacity;
+
+	if (NewCapacity > ArrayNum)
+	{
+		// To avoid issues with bad data in padding we always zero initialize new memory.
+		FMemory::Memzero(GetData() + ArrayNum, (NewCapacity - ArrayNum) * sizeof(ElementType));
+	}
+
 	ArrayNum = FMath::Min(InNum, NewCapacity);
 }
 
@@ -214,6 +268,27 @@ void FNetSerializerArrayStorage<QuantizedElementType, AllocationPolicy>::Clone(F
 	ArrayNum = SourceNum;
 }
 
+// FNetSerializerAlignedStorage implementation
+
+inline const uint8* FNetSerializerAlignedStorage::GetData() const
+{
+	return Data;
+}
+
+inline uint8* FNetSerializerAlignedStorage::GetData()
+{
+	return Data;
+}
+
+inline FNetSerializerAlignedStorage::SizeType FNetSerializerAlignedStorage::Num() const
+{
+	return StorageNum;
+}
+
+inline FNetSerializerAlignedStorage::SizeType FNetSerializerAlignedStorage::GetAlignment() const
+{
+	return StorageAlignment;
+}
 
 namespace AllocationPolicies
 {

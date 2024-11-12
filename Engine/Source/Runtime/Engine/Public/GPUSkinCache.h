@@ -49,6 +49,7 @@
 class FGPUSkinPassthroughVertexFactory;
 class FGPUBaseSkinVertexFactory;
 class FMorphVertexBuffer;
+class FSkeletalMeshObject;
 class FSkeletalMeshLODRenderData;
 class FSkeletalMeshObjectGPUSkin;
 class FSkeletalMeshVertexClothBuffer;
@@ -57,7 +58,6 @@ struct FClothSimulData;
 struct FSkelMeshRenderSection;
 struct FVertexBufferAndSRV;
 struct FRayTracingGeometrySegment;
-struct FSkinBatchVertexFactoryUserData;
 
 extern bool ShouldWeCompileGPUSkinVFShaders(EShaderPlatform Platform, ERHIFeatureLevel::Type FeatureLevel);
 
@@ -129,7 +129,7 @@ public:
 	ENGINE_API ~FGPUSkinCache();
 
 	static void UpdateSkinWeightBuffer(FGPUSkinCacheEntry* Entry);
-	static void SetEntryGPUSkin(FGPUSkinCacheEntry* Entry, FSkeletalMeshObjectGPUSkin* Skin);
+	static void SetEntryGPUSkin(FGPUSkinCacheEntry* Entry, FSkeletalMeshObject* Skin);
 
 	bool ProcessEntry(
 		EGPUSkinCacheEntryMode Mode,
@@ -137,7 +137,7 @@ public:
 		FGPUBaseSkinVertexFactory* VertexFactory,
 		FGPUSkinPassthroughVertexFactory* TargetVertexFactory, 
 		const FSkelMeshRenderSection& BatchElement, 
-		FSkeletalMeshObjectGPUSkin* Skin,
+		FSkeletalMeshObject* Skin,
 		const FMorphVertexBuffer* MorphVertexBuffer, 
 		const FSkeletalMeshVertexClothBuffer* ClothVertexBuffer, 
 		const FClothSimulData* SimData,
@@ -151,15 +151,7 @@ public:
 		FGPUSkinCacheEntry*& InOutEntry
 		);
 
-	static void GetShaderVertexStreams(
-		const FGPUSkinCacheEntry* Entry,
-		int32 Section,
-		const FGPUSkinPassthroughVertexFactory* VertexFactory,
-		FVertexInputStreamArray& VertexStreams);
-
 	static void Release(FGPUSkinCacheEntry*& SkinCacheEntry);
-
-	static const FSkinBatchVertexFactoryUserData* GetVertexFactoryUserData(FGPUSkinCacheEntry* Entry, int32 Section);
 
 	static bool IsEntryValid(FGPUSkinCacheEntry* SkinCacheEntry, int32 Section);
 	static FColor GetVisualizationDebugColor(const FName& GPUSkinCacheVisualizationMode, FGPUSkinCacheEntry* Entry, FGPUSkinCacheEntry* RayTracingEntry, uint32 SectionIndex);
@@ -212,7 +204,7 @@ public:
 			{
 				PositionBuffers[Index].Buffer.ClassName = PositionsName;
 				PositionBuffers[Index].Buffer.OwnerName = OwnerName;
-				PositionBuffers[Index].Buffer.Initialize(RHICmdList, TEXT("SkinCachePositions"), PosBufferBytesPerElement, NumVertices * 3, PF_R32_FLOAT, BUF_Static);
+				PositionBuffers[Index].Buffer.Initialize(RHICmdList, TEXT("SkinCachePositions"), PosBufferBytesPerElement, NumVertices * 3, PF_R32_FLOAT, ERHIAccess::SRVMask, BUF_Static);
 				PositionBuffers[Index].Buffer.Buffer->SetOwnerName(OwnerName);
 				PositionBuffers[Index].AccessState = ERHIAccess::Unknown;
 			}
@@ -368,34 +360,17 @@ public:
 			return Allocation ? Allocation->GetIntermediateAccumulatedTangentBuffer() : nullptr;
 		}
 
-		FSkinCacheRWBuffer* Advance(const FVertexBufferAndSRV& BoneBuffer1, uint32 Revision1, const FVertexBufferAndSRV& BoneBuffer2, uint32 Revision2)
+		// Allocates an element that's not the "Used" element passed in (or if Used is NULL, allocates any element).  Optionally adds element to "AllocatedItems" if non-null.
+		FSkinCacheRWBuffer* AllocateUnused(const FVertexBufferAndSRV& BoneBuffer, uint32 Revision, const FSkinCacheRWBuffer* Used, TArray<FSkinCacheRWBuffer*>* AllocatedItems)
 		{
-			FSkinCacheRWBuffer* Result = nullptr;
-			const FVertexBufferAndSRV* InBoneBuffers[2] = { &BoneBuffer1 , &BoneBuffer2 };
-			uint32 InRevisions[2] = { Revision1 , Revision2 };
+			int32 UnusedIndex = Used == &Allocation->PositionBuffers[0] ? 1 : 0;
+			Revisions[UnusedIndex] = Revision;
+			BoneBuffers[UnusedIndex] = &BoneBuffer;
 
-			for (int32 Index = 0; Index < NUM_BUFFERS; ++Index)
+			FSkinCacheRWBuffer* Result = &Allocation->PositionBuffers[UnusedIndex];
+			if (AllocatedItems)
 			{
-				bool Needed = false;
-				for (int32 i = 0; i < 2; ++i)
-				{
-					if (Revisions[Index] == InRevisions[i] && BoneBuffers[Index] == InBoneBuffers[i])
-					{
-						if (i == 0)
-						{
-							Result = &Allocation->PositionBuffers[Index];
-						}
-						Needed = true;
-					}
-				}
-
-				if (!Needed)
-				{
-					Revisions[Index] = Revision1;
-					BoneBuffers[Index] = &BoneBuffer1;
-					Result = &Allocation->PositionBuffers[Index];
-					break;
-				}
+				AllocatedItems->Add(Result);
 			}
 			return Result;
 		}
@@ -434,8 +409,6 @@ public:
 	void ProcessRayTracingGeometryToUpdate(FRHICommandList& RHICmdList, FGPUSkinCacheEntry* SkinCacheEntry);
 #endif // RHI_RAYTRACING
 
-	void BeginBatchDispatch();
-	void EndBatchDispatch();
 	void ENGINE_API DoDispatch(FRHICommandList& RHICmdList);
 
 	inline ERHIFeatureLevel::Type GetFeatureLevel() const { return FeatureLevel; }
@@ -452,7 +425,6 @@ protected:
 	TArray<FDispatchEntry> BatchDispatches;
 
 	FRWBuffersAllocation* TryAllocBuffer(uint32 NumVertices, bool WithTangnents, bool UseIntermediateTangents, uint32 NumTriangles, FRHICommandList& RHICmdList, const FName& OwnerName);
-	void DoDispatch(FRHICommandList& RHICmdList, FGPUSkinCacheEntry* SkinCacheEntry, int32 Section, int32 RevisionNumber);
 	void DispatchUpdateSkinTangents(FRHICommandList& RHICmdList, FGPUSkinCacheEntry* Entry, int32 SectionIndex, FSkinCacheRWBuffer*& StagingBuffer, bool bTrianglePass);
 
 	void PrepareUpdateSkinning(
@@ -478,7 +450,6 @@ protected:
 	uint64 ExtraRequiredMemory;
 	int32 FlushCounter;
 	bool bRequiresMemoryLimit;
-	bool bShouldBatchDispatches = false;
 
 	// For recompute tangents, holds the data required between compute shaders
 	TArray<FSkinCacheRWBuffer> StagingBuffers;
@@ -490,11 +461,12 @@ protected:
 	static void CVarSinkFunction();
 	static FAutoConsoleVariableSink CVarSink;
 
-	void IncrementDispatchCounter(FRHICommandList& RHICmdList);
+	bool IncrementDispatchCounter(FRHICommandList& RHICmdList);
 	int32 DispatchCounter = 0;
 
 	void PrintMemorySummary() const;
-	FString GetSkeletalMeshObjectName(const FSkeletalMeshObjectGPUSkin* GPUSkin) const;
+	FString GetSkeletalMeshObjectName(const FSkeletalMeshObject* GPUSkin) const;
+	FDebugName GetSkeletalMeshObjectDebugName(const FSkeletalMeshObject* GPUSkin) const;
 };
 
 DECLARE_STATS_GROUP(TEXT("GPU Skin Cache"), STATGROUP_GPUSkinCache, STATCAT_Advanced);

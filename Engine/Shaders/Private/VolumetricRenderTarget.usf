@@ -9,6 +9,8 @@
 
 #include "SceneTextureParameters.ush"
 
+#include "Substrate/Substrate.ush"
+
 #ifndef CLOUD_MIN_AND_MAX_DEPTH
 #define CLOUD_MIN_AND_MAX_DEPTH 0
 #endif
@@ -198,8 +200,7 @@ void ReconstructVolumetricRenderTargetPS(
 		{
 			const bool bUseNewSampleMode2 = ((IntPixelPos.x - IntPixelPosDownsample.x * DownSampleFactor) == CurrentTracingPixelOffset.x) && ((IntPixelPos.y - IntPixelPosDownsample.y * DownSampleFactor) == CurrentTracingPixelOffset.y);
 
-			// Always use new sample, reproject previous frame samples/pixels
-			if (bUseNewSampleMode2 || !bValidPreviousUVs)
+			if (bUseNewSampleMode2)
 			{
 				// Load the new sample for this pixel we have just traced
 				RGBA = SafeLoadTracingVolumetricTexture(int2(SVPos.xy) / DownSampleFactor);// +float4(0.1, 0.0, 0, 0);
@@ -207,15 +208,20 @@ void ReconstructVolumetricRenderTargetPS(
 			}
 			else if(bValidPreviousUVs)
 			{
-				// Sample valid on screen history
+				// Sample valid on screen history using bilinear filtering
 				RGBA = SafeSamplePreviousFrameVolumetricTexture(PrevScreenUVs);// +float4(0, 0.1, 0, 0);
 				DepthData = SafeSamplePreviousFrameVolumetricDepthTexture(PrevScreenUVs);
 			}
 			else
 			{
-				// Bilinear sample new low resoltuion tracing
-				RGBA = SafeSampleTracingVolumetricTexture(ScreenUV);
-				DepthData = SafeSampleTracingVolumetricDepthTexture(ScreenUV);
+				// Bias the sample such that the currently-traced screen pixels line up with the centre of their traced values in the tracing texture
+				// This prevents clouds from appearing to shift position when rotating the camera quickly
+				float2 ScreenPixelsOffset = -(CurrentTracingPixelOffset - (DownSampleFactor - 1.0f) * 0.5f);
+				float2 TracingTextureUV = ScreenUV + ScreenPixelsOffset * DstVolumetricTextureSizeAndInvSize.zw;
+
+				// Sample the new low resolution clouds we just traced using bilinear filtering 
+				RGBA = SafeSampleTracingVolumetricTexture(TracingTextureUV);
+				DepthData = SafeSampleTracingVolumetricDepthTexture(TracingTextureUV);
 			}
 			OutputRt0 = RGBA;
 			OutputRt1 = float2(DepthData.CloudFrontDepthFromViewKm, DepthData.SceneDepthFromViewKm);
@@ -240,7 +246,7 @@ void ReconstructVolumetricRenderTargetPS(
 
 
 
-		#if CLOUD_MIN_AND_MAX_DEPTH
+		#if PERMUTATION_CLOUD_MIN_AND_MAX_DEPTH
 
 
 
@@ -320,7 +326,7 @@ void ReconstructVolumetricRenderTargetPS(
 
 
 
-		#else // CLOUD_MIN_AND_MAX_DEPTH
+		#else // PERMUTATION_CLOUD_MIN_AND_MAX_DEPTH
 
 
 
@@ -336,8 +342,8 @@ void ReconstructVolumetricRenderTargetPS(
 				int2 NeightboorsOffset[8] = { int2(1,0), int2(1,1), int2(0,1), int2(-1,1), int2(-1,0), int2(-1,-1), int2(0,-1), int2(1,-1)};
 
 				const float ReconstructDepthZ = HalfResDepthTexture.Load(int3(SVPos.xy + ViewViewRectMin, 0)).r;
-				const float3 WorldPosition = DFHackToFloat(SvPositionToWorld(float4(CenterSample, ReconstructDepthZ, 1.0)));
-				const float PixelDistanceFromViewKm = length(WorldPosition - DFHackToFloat(PrimaryView.WorldCameraOrigin)) * CENTIMETER_TO_KILOMETER;
+				const float3 TranslatedWorldPosition = SvPositionToTranslatedWorld(float4(CenterSample, ReconstructDepthZ, 1.0));
+				const float PixelDistanceFromViewKm = length(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin) * CENTIMETER_TO_KILOMETER;
 
 				RGBA = HistoryRGBA;
 				DepthData = HistoryDepthData;
@@ -407,7 +413,7 @@ void ReconstructVolumetricRenderTargetPS(
 
 
 
-		#endif // CLOUD_MIN_AND_MAX_DEPTH
+		#endif // PERMUTATION_CLOUD_MIN_AND_MAX_DEPTH
 
 
 
@@ -449,6 +455,16 @@ void ReconstructVolumetricRenderTargetPS(
 
 #include "SceneTexturesCommon.ush"
 
+#if PERMUTATION_APPLY_FOG
+#include "HeightFogCommon.ush"
+#endif // PERMUTATION_APPLY_FOG
+
+#if PERMUTATION_APPLY_LOCAL_FOG_VOLUME
+#include "LocalFogVolumes/LocalFogVolumeCommon.ush"
+#endif // PERMUTATION_SUPPORT_LOCAL_FOG_VOLUME
+
+#define APPLY_FOG_LATE (PERMUTATION_APPLY_FOG || PERMUTATION_APPLY_LOCAL_FOG_VOLUME)
+
 SamplerState LinearTextureSampler;
 
 Texture2D<float4> VolumetricTexture;
@@ -464,8 +480,8 @@ float4 SceneWithoutSingleLayerWaterViewRect;
 float2 FullResolutionToWaterBufferScale;
 #endif
 
-#if MSAA_SAMPLE_COUNT > 1
-Texture2DMS<float, MSAA_SAMPLE_COUNT> MSAADepthTexture;
+#if PERMUTATION_MSAA_SAMPLE_COUNT > 1
+Texture2DMS<float, PERMUTATION_MSAA_SAMPLE_COUNT> MSAADepthTexture;
 #endif
 
 #if INSTANCED_STEREO
@@ -521,10 +537,83 @@ float4 VolumetricTextureSizeAndInvSize;
 float UvOffsetSampleAcceptanceWeight;
 float2 FullResolutionToVolumetricBufferResolutionScale;
 
+float4 ApplyFogToCloudSampleFromVPosAndDepth(float2 SVPos, float DepthKilometer, float4 CloudRGBT)
+{
+#if APPLY_FOG_LATE
+
+	float4 HeightFogInscatteringAndTransmittance = float4(0, 0, 0, 1);
+	const float2 SVPosition = SVPos;
+	const float DistanceToPoint = DepthKilometer * KILOMETER_TO_CENTIMETER;
+
+	const float3 FogSampleWorldPositionRelativeToCameraCm = normalize(SvPositionToTranslatedWorld(float4(SVPosition, 0.5f, 1.0f))) * DistanceToPoint;
+
+#if PERMUTATION_APPLY_FOG
+	{
+		HeightFogInscatteringAndTransmittance = CalculateHeightFog(FogSampleWorldPositionRelativeToCameraCm);
+	}
+#endif
+
+#if PERMUTATION_APPLY_LOCAL_FOG_VOLUME
+	uint2 TilePos = SVPosition / LFVTilePixelSize.xx;
+	float4 LFVContribution = GetLFVContribution(PrimaryView, TilePos, FogSampleWorldPositionRelativeToCameraCm);
+	if (LFVRenderInVolumetricFog > 0)
+	{
+		HeightFogInscatteringAndTransmittance = float4(LFVContribution.rgb + HeightFogInscatteringAndTransmittance.rgb * LFVContribution.a, LFVContribution.a * HeightFogInscatteringAndTransmittance.a);
+	}
+#endif
+
+#if PERMUTATION_APPLY_FOG
+	if (FogStruct.ApplyVolumetricFog > 0)
+	{
+		float4 ClipPos = mul(float4(FogSampleWorldPositionRelativeToCameraCm, 1.0f), PrimaryView.TranslatedWorldToClip);
+		float3 VolumeUV = ComputeVolumeUVFromNDC(ClipPos);
+		const uint EyeIndex = 0;
+		HeightFogInscatteringAndTransmittance = CombineVolumetricFog(HeightFogInscatteringAndTransmittance, VolumeUV, EyeIndex, DistanceToPoint);
+	}
+#endif
+
+#if PERMUTATION_APPLY_LOCAL_FOG_VOLUME
+	if (LFVRenderInVolumetricFog == 0)
+	{
+		HeightFogInscatteringAndTransmittance = float4(LFVContribution.rgb + HeightFogInscatteringAndTransmittance.rgb * LFVContribution.a, LFVContribution.a * HeightFogInscatteringAndTransmittance.a);
+	}
+#endif
+
+	HeightFogInscatteringAndTransmittance.rgb *= PrimaryView.PreExposure;
+
+	CloudRGBT.rgb = CloudRGBT.rgb * HeightFogInscatteringAndTransmittance.a + (1.0 - CloudRGBT.a) * HeightFogInscatteringAndTransmittance.rgb;
+
+#endif // APPLY_FOG_LATE
+
+	return CloudRGBT;
+}
+
+float4 ApplyFogToCloudFromUVsAndDepth(float2 UVWithOffset, float DepthKilometer, float4 CloudRGBT)
+{
+#if APPLY_FOG_LATE
+	float2 SVPosWithOffset = (UVWithOffset / (FullResolutionToVolumetricBufferResolutionScale.x *View.BufferSizeAndInvSize.xy * VolumetricTextureSizeAndInvSize.zw)) * View.BufferSizeAndInvSize.xy + View.ViewRectMin.xy;
+	CloudRGBT = ApplyFogToCloudSampleFromVPosAndDepth(SVPosWithOffset, DepthKilometer, CloudRGBT);
+#endif // APPLY_FOG_LATE
+
+	return CloudRGBT;
+}
+
+float4 ApplyFogToCloudFromUVs(float2 UVWithOffset, float4 CloudRGBT)
+{
+#if APPLY_FOG_LATE
+	float2 SVPosWithOffset = (UVWithOffset / (FullResolutionToVolumetricBufferResolutionScale.x * View.BufferSizeAndInvSize.xy * VolumetricTextureSizeAndInvSize.zw)) * View.BufferSizeAndInvSize.xy + View.ViewRectMin.xy;
+	float VolumeFrontDepthKilometer = SafeSampleVolumetricDepthTexture(UVWithOffset).x;
+	CloudRGBT = ApplyFogToCloudSampleFromVPosAndDepth(SVPosWithOffset, VolumeFrontDepthKilometer, CloudRGBT);
+#endif // APPLY_FOG_LATE
+
+	return CloudRGBT;
+}
+
+
 void ComposeVolumetricRTOverScenePS(
 	in float4 SVPos : SV_POSITION,
 	out float4 OutputRt0 : SV_Target0
-#if MSAA_SAMPLE_COUNT > 1
+#if PERMUTATION_MSAA_SAMPLE_COUNT > 1
 	, in uint SampleIndex : SV_SampleIndex
 #endif
 )
@@ -562,17 +651,25 @@ void ComposeVolumetricRTOverScenePS(
 
 #if PERMUTATION_UPSAMPLINGMODE==0
 	// Single bilinear sample
-
 	OutputRt0 = SafeLoadVolumetricTexture(VolumeUV * VolumetricTextureSizeAndInvSize.xy); // SafeSampleVolumetricTexture(VolumeUV);
+	float2 VolumeFrontDepth0 = SafeSampleVolumetricDepthTexture(VolumeUV);
+	OutputRt0 = ApplyFogToCloudSampleFromVPosAndDepth(CurResPixelCoord, VolumeFrontDepth0.x, OutputRt0);
 	return;
 
 #elif PERMUTATION_UPSAMPLINGMODE==1
 	// Jitter the source sample to add high frequency that can be resolved by TAA - 4 samples
 
 	float4 Data0 = SafeSampleVolumetricTexture(VolumeUVOffset0);
+	Data0 = ApplyFogToCloudFromUVs(VolumeUVOffset0, Data0);
+
 	float4 Data1 = SafeSampleVolumetricTexture(VolumeUVOffset1);
+	Data1 = ApplyFogToCloudFromUVs(VolumeUVOffset1, Data1);
+
 	float4 Data2 = SafeSampleVolumetricTexture(VolumeUVOffset2);
+	Data2 = ApplyFogToCloudFromUVs(VolumeUVOffset2, Data2);
+
 	float4 Data3 = SafeSampleVolumetricTexture(VolumeUVOffset3);
+	Data3 = ApplyFogToCloudFromUVs(VolumeUVOffset3, Data3);
 
 	OutputRt0 = 0.25 * (Data0 + Data1 + Data2 + Data3); 
 	return;
@@ -587,10 +684,11 @@ void ComposeVolumetricRTOverScenePS(
 
 	float PixelLinearDepth = ConvertFromDeviceZ(WaterLinearDepthTexture.SampleLevel(WaterLinearDepthSampler, WaterDepthScreenUV, 0).r);
 
-	float3 WorldPosition = DFHackToFloat(SvPositionToWorld(float4(SVPos.xy, 0.5, 1.0)));
-	WorldPosition = normalize(WorldPosition - DFHackToFloat(PrimaryView.WorldCameraOrigin)) * PixelLinearDepth + DFHackToFloat(PrimaryView.WorldCameraOrigin);
 
-	float4 ClipPosition = mul(float4(WorldPosition,1.0), DFHackToFloat(PrimaryView.WorldToClip));
+	float3 TranslatedWorldPosition = SvPositionToTranslatedWorld(float4(SVPos.xy, 0.5, 1.0));
+	TranslatedWorldPosition = normalize(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin) * PixelLinearDepth + PrimaryView.TranslatedWorldCameraOrigin;
+
+	float4 ClipPosition = mul(float4(TranslatedWorldPosition,1.0), PrimaryView.TranslatedWorldToClip);
 	ClipPosition /= ClipPosition.w;
 	float PixelDeviceZ = ClipPosition.z;
 
@@ -598,7 +696,7 @@ void ComposeVolumetricRTOverScenePS(
 
 #else
 
-#if  MSAA_SAMPLE_COUNT > 1
+#if  PERMUTATION_MSAA_SAMPLE_COUNT > 1
 	float PixelDeviceZ = MSAADepthTexture.Load(int2(SVPos.xy), SampleIndex).x;
 #else
 	float PixelDeviceZ = SceneTexturesStruct.SceneDepthTexture.Load(uint3(SVPos.xy, 0)).r;
@@ -632,7 +730,7 @@ void ComposeVolumetricRTOverScenePS(
 
 	if (PixelDistanceFromViewKm > VolumeFrontDepth)
 	{
-		OutputRt0 = VolumeRGBT;
+		OutputRt0 = ApplyFogToCloudFromUVsAndDepth(VolumeUV, VolumeFrontDepth.x, VolumeRGBT);
 	}
 	else
 	{
@@ -662,21 +760,22 @@ void ComposeVolumetricRTOverScenePS(
 	float2 VolumeFrontDepth3 = SafeLoadVolumetricDepthTexture(VolumeUVOffset3 * VolumetricTextureSizeAndInvSize.xy);
 #endif
 
+
 	float ValidSampleCount = 0.0f;
 	float4 DataAcc = 0.0f;
 #if 1
-	if (PixelDistanceFromViewKm > VolumeFrontDepth0.x) { DataAcc += VolumeRGBT0; ValidSampleCount += 1.0f; }
-	if (PixelDistanceFromViewKm > VolumeFrontDepth1.x) { DataAcc += VolumeRGBT1; ValidSampleCount += 1.0f; }
-	if (PixelDistanceFromViewKm > VolumeFrontDepth2.x) { DataAcc += VolumeRGBT2; ValidSampleCount += 1.0f; }
-	if (PixelDistanceFromViewKm > VolumeFrontDepth3.x) { DataAcc += VolumeRGBT3; ValidSampleCount += 1.0f; }
+	if (PixelDistanceFromViewKm > VolumeFrontDepth0.x) { VolumeRGBT0 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset0, VolumeFrontDepth0.x, VolumeRGBT0); DataAcc += VolumeRGBT0; ValidSampleCount += 1.0f; }
+	if (PixelDistanceFromViewKm > VolumeFrontDepth1.x) { VolumeRGBT1 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset1, VolumeFrontDepth1.x, VolumeRGBT1); DataAcc += VolumeRGBT1; ValidSampleCount += 1.0f; }
+	if (PixelDistanceFromViewKm > VolumeFrontDepth2.x) { VolumeRGBT2 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset2, VolumeFrontDepth2.x, VolumeRGBT2); DataAcc += VolumeRGBT2; ValidSampleCount += 1.0f; }
+	if (PixelDistanceFromViewKm > VolumeFrontDepth3.x) { VolumeRGBT3 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset3, VolumeFrontDepth3.x, VolumeRGBT3); DataAcc += VolumeRGBT3; ValidSampleCount += 1.0f; }
 #else
 	float ClostestDepth = 999999999.0f;
 	float ThisDepth;
 	PixelDistanceFromViewKm = min(PixelDistanceFromViewKm, max(max(VolumeFrontDepth0.y, VolumeFrontDepth1.y), max(VolumeFrontDepth2.y, VolumeFrontDepth3.y))); // clamp to the maximum of the read depth to avoid no depth matching
-	ThisDepth = abs(VolumeFrontDepth0.y - PixelDistanceFromViewKm); if (ThisDepth < ClostestDepth) { DataAcc = VolumeRGBT0; ValidSampleCount = 1.0f; ClostestDepth = ThisDepth; }
-	ThisDepth = abs(VolumeFrontDepth1.y - PixelDistanceFromViewKm); if (ThisDepth < ClostestDepth) { DataAcc = VolumeRGBT1; ValidSampleCount = 1.0f; ClostestDepth = ThisDepth; }
-	ThisDepth = abs(VolumeFrontDepth2.y - PixelDistanceFromViewKm); if (ThisDepth < ClostestDepth) { DataAcc = VolumeRGBT2; ValidSampleCount = 1.0f; ClostestDepth = ThisDepth; }
-	ThisDepth = abs(VolumeFrontDepth3.y - PixelDistanceFromViewKm); if (ThisDepth < ClostestDepth) { DataAcc = VolumeRGBT3; ValidSampleCount = 1.0f; ClostestDepth = ThisDepth; }
+	ThisDepth = abs(VolumeFrontDepth0.y - PixelDistanceFromViewKm); if (ThisDepth < ClostestDepth) { VolumeRGBT0 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset0, VolumeFrontDepth0.x, VolumeRGBT0); DataAcc = VolumeRGBT0; ValidSampleCount = 1.0f; ClostestDepth = ThisDepth; }
+	ThisDepth = abs(VolumeFrontDepth1.y - PixelDistanceFromViewKm); if (ThisDepth < ClostestDepth) { VolumeRGBT1 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset1, VolumeFrontDepth1.x, VolumeRGBT1); DataAcc = VolumeRGBT1; ValidSampleCount = 1.0f; ClostestDepth = ThisDepth; }
+	ThisDepth = abs(VolumeFrontDepth2.y - PixelDistanceFromViewKm); if (ThisDepth < ClostestDepth) { VolumeRGBT2 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset2, VolumeFrontDepth2.x, VolumeRGBT2); DataAcc = VolumeRGBT2; ValidSampleCount = 1.0f; ClostestDepth = ThisDepth; }
+	ThisDepth = abs(VolumeFrontDepth3.y - PixelDistanceFromViewKm); if (ThisDepth < ClostestDepth) { VolumeRGBT3 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset3, VolumeFrontDepth3.x, VolumeRGBT3); DataAcc = VolumeRGBT3; ValidSampleCount = 1.0f; ClostestDepth = ThisDepth; }
 #endif
 
 	if (ValidSampleCount > 0.0f)
@@ -721,10 +820,10 @@ void ComposeVolumetricRTOverScenePS(
 		const float CloudFrontDepthTinyOffset = 0.001;
 
 		// We are testing if the depth buffer is further than the cloud front depth and that the cloud front depth is actually in front of traced depth.
-		if (PixelDistanceFromViewKm > (VolumeFrontDepth0.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth0.x < (VolumeFrontDepth0.y)) { DataAcc += VolumeRGBT0; ValidSampleCount += 1.0f; }
-		if (PixelDistanceFromViewKm > (VolumeFrontDepth1.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth1.x < (VolumeFrontDepth1.y)) { DataAcc += VolumeRGBT1; ValidSampleCount += 1.0f; }
-		if (PixelDistanceFromViewKm > (VolumeFrontDepth2.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth2.x < (VolumeFrontDepth2.y)) { DataAcc += VolumeRGBT2; ValidSampleCount += 1.0f; }
-		if (PixelDistanceFromViewKm > (VolumeFrontDepth3.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth3.x < (VolumeFrontDepth3.y)) { DataAcc += VolumeRGBT3; ValidSampleCount += 1.0f; }
+		if (PixelDistanceFromViewKm > (VolumeFrontDepth0.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth0.x < (VolumeFrontDepth0.y)) { VolumeRGBT0 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset0, VolumeFrontDepth0.x, VolumeRGBT0); DataAcc += VolumeRGBT0; ValidSampleCount += 1.0f; }
+		if (PixelDistanceFromViewKm > (VolumeFrontDepth1.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth1.x < (VolumeFrontDepth1.y)) { VolumeRGBT1 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset1, VolumeFrontDepth1.x, VolumeRGBT1); DataAcc += VolumeRGBT1; ValidSampleCount += 1.0f; }
+		if (PixelDistanceFromViewKm > (VolumeFrontDepth2.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth2.x < (VolumeFrontDepth2.y)) { VolumeRGBT2 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset2, VolumeFrontDepth2.x, VolumeRGBT2); DataAcc += VolumeRGBT2; ValidSampleCount += 1.0f; }
+		if (PixelDistanceFromViewKm > (VolumeFrontDepth3.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth3.x < (VolumeFrontDepth3.y)) { VolumeRGBT3 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset3, VolumeFrontDepth3.x, VolumeRGBT3); DataAcc += VolumeRGBT3; ValidSampleCount += 1.0f; }
 		if (ValidSampleCount > 0.0f)
 		{
 			OutputRt0 = DataAcc / ValidSampleCount;
@@ -748,10 +847,10 @@ void ComposeVolumetricRTOverScenePS(
 			VolumeFrontDepth3 = SafeLoadVolumetricDepthTexture(VolumeUVOffset3 * VolumetricTextureSizeAndInvSize.xy);
 
 			// We are testing if the depth buffer is further than the cloud front depth and that the cloud front depth is actually in front of traced depth.
-			if (PixelDistanceFromViewKm > (VolumeFrontDepth0.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth0.x < (VolumeFrontDepth0.y)) { DataAcc += VolumeRGBT0; ValidSampleCount += 1.0f; }
-			if (PixelDistanceFromViewKm > (VolumeFrontDepth1.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth1.x < (VolumeFrontDepth1.y)) { DataAcc += VolumeRGBT1; ValidSampleCount += 1.0f; }
-			if (PixelDistanceFromViewKm > (VolumeFrontDepth2.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth2.x < (VolumeFrontDepth2.y)) { DataAcc += VolumeRGBT2; ValidSampleCount += 1.0f; }
-			if (PixelDistanceFromViewKm > (VolumeFrontDepth3.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth3.x < (VolumeFrontDepth3.y)) { DataAcc += VolumeRGBT3; ValidSampleCount += 1.0f; }
+			if (PixelDistanceFromViewKm > (VolumeFrontDepth0.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth0.x < (VolumeFrontDepth0.y)) { VolumeRGBT0 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset0, VolumeFrontDepth0.x, VolumeRGBT0); DataAcc += VolumeRGBT0; ValidSampleCount += 1.0f; }
+			if (PixelDistanceFromViewKm > (VolumeFrontDepth1.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth1.x < (VolumeFrontDepth1.y)) { VolumeRGBT1 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset1, VolumeFrontDepth1.x, VolumeRGBT1); DataAcc += VolumeRGBT1; ValidSampleCount += 1.0f; }
+			if (PixelDistanceFromViewKm > (VolumeFrontDepth2.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth2.x < (VolumeFrontDepth2.y)) { VolumeRGBT2 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset2, VolumeFrontDepth2.x, VolumeRGBT2); DataAcc += VolumeRGBT2; ValidSampleCount += 1.0f; }
+			if (PixelDistanceFromViewKm > (VolumeFrontDepth3.x - CloudFrontDepthTinyOffset) && VolumeFrontDepth3.x < (VolumeFrontDepth3.y)) { VolumeRGBT3 = ApplyFogToCloudFromUVsAndDepth(VolumeUVOffset3, VolumeFrontDepth3.x, VolumeRGBT3); DataAcc += VolumeRGBT3; ValidSampleCount += 1.0f; }
 			if (ValidSampleCount > 0.0f)
 			{
 				OutputRt0 = DataAcc / ValidSampleCount;// +float4(10.0, 0.0, 0.0, 0.0);
@@ -768,8 +867,14 @@ void ComposeVolumetricRTOverScenePS(
 
 	// We only want to run the special "cloud over water" code path on actual water pixels, otherwise depth threshold can cause visual issues.
 	// However, with Forward Shading, we do not have access to the gbuffer: so we still run that simple water depth test to occlude cloud on forrground meshes. Not the perfect but it will work in most cases.
+#if SUBSTRATE_ENABLED
+	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
+	const bool bIsWaterPixel = SubstratePixelHeader.IsSingleLayerWater(); 
+#else
 	FScreenSpaceData ScreenSpaceData = GetScreenSpaceData(ScreenUV);
 	const bool bIsWaterPixel = ForwardShadingEnable || ScreenSpaceData.GBuffer.ShadingModelID == SHADINGMODELID_SINGLELAYERWATER;
+#endif
 
 	uint2 VolumeCoord0 = max(0, int2(VolumeCoordUInt) + int2(0, 0));
 	uint2 VolumeCoord1 = max(0, int2(VolumeCoordUInt) + int2(OffsetX, 0));
@@ -807,6 +912,11 @@ void ComposeVolumetricRTOverScenePS(
 		float4 VolumeRGBT1 = SafeLoadVolumetricTexture(VolumeCoord1);
 		float4 VolumeRGBT2 = SafeLoadVolumetricTexture(VolumeCoord2);
 		float4 VolumeRGBT3 = SafeLoadVolumetricTexture(VolumeCoord3);
+
+		VolumeRGBT0 = ApplyFogToCloudFromUVsAndDepth(VolumeCoord0 * VolumetricTextureSizeAndInvSize.zw, VolumeFrontDepth0.x, VolumeRGBT0);
+		VolumeRGBT1 = ApplyFogToCloudFromUVsAndDepth(VolumeCoord1 * VolumetricTextureSizeAndInvSize.zw, VolumeFrontDepth1.x, VolumeRGBT1);
+		VolumeRGBT2 = ApplyFogToCloudFromUVsAndDepth(VolumeCoord2 * VolumetricTextureSizeAndInvSize.zw, VolumeFrontDepth2.x, VolumeRGBT2);
+		VolumeRGBT3 = ApplyFogToCloudFromUVsAndDepth(VolumeCoord3 * VolumetricTextureSizeAndInvSize.zw, VolumeFrontDepth3.x, VolumeRGBT3);
 
 		if (bIsWaterPixel) 
 		{
@@ -863,7 +973,10 @@ void ComposeVolumetricRTOverScenePS(
 	{
 		// Now do a bilinear sample to have a soft look region without depth edges.
 		ValidSampleCount = 1.0;
-		DataAcc = SafeSampleVolumetricTexture((float2(VolumeCoord0) + 0.25 + (float2(OffsetX, OffsetY) * 0.5 + 0.5) * 0.5) * VolumetricTextureSizeAndInvSize.zw);
+		float2 SampleUVs = (float2(VolumeCoord0) + 0.25 + (float2(OffsetX, OffsetY) * 0.5 + 0.5) * 0.5) * VolumetricTextureSizeAndInvSize.zw;
+		DataAcc = SafeSampleVolumetricTexture(SampleUVs);
+		DataAcc = ApplyFogToCloudFromUVs(SampleUVs, DataAcc);
+
 		//DataAcc = float4(0, 1.0, 0, 0);
 	}
 

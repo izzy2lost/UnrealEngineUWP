@@ -5,6 +5,11 @@ ConsoleManager.cpp: console command handling
 =============================================================================*/
 
 #include "HAL/ConsoleManager.h"
+#include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/UnrealString.h"
+#include "CoreTypes.h"
+#include "HAL/CriticalSection.h"
 #include "Misc/ScopeLock.h"
 #include "Misc/ScopeRWLock.h"
 #include "Misc/Paths.h"
@@ -15,16 +20,187 @@ ConsoleManager.cpp: console command handling
 #include "Misc/CoreDelegates.h"
 #include "Misc/OutputDeviceFile.h"
 #include "Misc/RemoteConfigIni.h"
+#include "Misc/TransactionallySafeScopeLock.h"
 #include "Modules/ModuleManager.h"
 #include "HAL/PlatformProcess.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "HAL/FileManager.h"
-#include "Serialization/ArchiveCountMem.h"
+#include "Logging/MessageLog.h"
 
 #include <clocale>
 
 DEFINE_LOG_CATEGORY(LogConsoleResponse);
 DEFINE_LOG_CATEGORY_STATIC(LogConsoleManager, Log, All);
+
+#define LOCTEXT_NAMESPACE "ConsoleManager"
+
+class FOutputDevice;
+class UWorld;
+
+class FConsoleManager :public IConsoleManager
+{
+public:
+	/** constructor */
+	FConsoleManager()
+		: bHistoryWasLoaded(false)
+		, ThreadPropagationCallback(0)
+		, bCallAllConsoleVariableSinks(true)
+	{
+	}
+
+	/** destructor */
+	~FConsoleManager()
+	{
+		for (TMap<FString, IConsoleObject*>::TConstIterator PairIt(ConsoleObjects); PairIt; ++PairIt)
+		{
+			IConsoleObject* Var = PairIt.Value();
+
+			delete Var;
+		}
+	}
+
+
+
+	// internally needed or ECVF_RenderThreadSafe
+	IConsoleThreadPropagation* GetThreadPropagationCallback();
+	// internally needed or ECVF_RenderThreadSafe
+	bool IsThreadPropagationThread();
+
+	/** @param InVar must not be 0 */
+	virtual FString FindConsoleObjectName(const IConsoleObject* Obj) const override;
+
+	/** Can be moved out into some automated testing system */
+	void Test();
+
+	void OnCVarChanged();
+
+	virtual FConsoleVariableMulticastDelegate& OnCVarUnregistered()override;
+	virtual FConsoleObjectWithNameMulticastDelegate& OnConsoleObjectUnregistered() override;
+
+	// interface IConsoleManager -----------------------------------
+
+	virtual IConsoleVariable* RegisterConsoleVariable(const TCHAR* Name, bool DefaultValue, const TCHAR* Help, uint32 Flags) override;
+	virtual IConsoleVariable* RegisterConsoleVariable(const TCHAR* Name, int32 DefaultValue, const TCHAR* Help, uint32 Flags) override;
+	virtual IConsoleVariable* RegisterConsoleVariable(const TCHAR* Name, float DefaultValue, const TCHAR* Help, uint32 Flags) override;
+	virtual IConsoleVariable* RegisterConsoleVariable(const TCHAR* Name, const TCHAR* DefaultValue, const TCHAR* Help, uint32 Flags) override;
+	virtual IConsoleVariable* RegisterConsoleVariable(const TCHAR* Name, const FString& DefaultValue, const TCHAR* Help, uint32 Flags) override;
+
+	virtual IConsoleVariable* RegisterConsoleVariableRef(const TCHAR* Name, bool& RefValue, const TCHAR* Help, uint32 Flags) override;
+	virtual IConsoleVariable* RegisterConsoleVariableRef(const TCHAR* Name, int32& RefValue, const TCHAR* Help, uint32 Flags) override;
+	virtual IConsoleVariable* RegisterConsoleVariableRef(const TCHAR* Name, float& RefValue, const TCHAR* Help, uint32 Flags) override;
+	virtual IConsoleVariable* RegisterConsoleVariableRef(const TCHAR* Name, FString& RefValue, const TCHAR* Help, uint32 Flags) override;
+	virtual IConsoleVariable* RegisterConsoleVariableBitRef(const TCHAR* CVarName, const TCHAR* FlagName, uint32 BitNumber, uint8* Force0MaskPtr, uint8* Force1MaskPtr, const TCHAR* Help, uint32 Flags) override;
+
+
+	virtual void CallAllConsoleVariableSinks() override;
+
+	virtual FConsoleVariableSinkHandle RegisterConsoleVariableSink_Handle(const FConsoleCommandDelegate& Command) override;
+	virtual void UnregisterConsoleVariableSink_Handle(FConsoleVariableSinkHandle Handle) override;
+
+	virtual IConsoleCommand* RegisterConsoleCommand(const TCHAR* Name, const TCHAR* Help, const FConsoleCommandDelegate& Command, uint32 Flags) override;
+	virtual IConsoleCommand* RegisterConsoleCommand(const TCHAR* Name, const TCHAR* Help, const FConsoleCommandWithArgsDelegate& Command, uint32 Flags) override;
+	virtual IConsoleCommand* RegisterConsoleCommand(const TCHAR* Name, const TCHAR* Help, const FConsoleCommandWithWorldDelegate& Command, uint32 Flags) override;
+	virtual IConsoleCommand* RegisterConsoleCommand(const TCHAR* Name, const TCHAR* Help, const FConsoleCommandWithWorldAndArgsDelegate& Command, uint32 Flags) override;
+	virtual IConsoleCommand* RegisterConsoleCommand(const TCHAR* Name, const TCHAR* Help, const FConsoleCommandWithArgsAndOutputDeviceDelegate& Command, uint32 Flags) override;
+	virtual IConsoleCommand* RegisterConsoleCommand(const TCHAR* Name, const TCHAR* Help, const FConsoleCommandWithWorldArgsAndOutputDeviceDelegate& Command, uint32 Flags) override;
+	virtual IConsoleCommand* RegisterConsoleCommand(const TCHAR* Name, const TCHAR* Help, const FConsoleCommandWithOutputDeviceDelegate& Command, uint32 Flags) override;
+	virtual IConsoleCommand* RegisterConsoleCommand(const TCHAR* Name, const TCHAR* Help, uint32 Flags) override;
+	virtual IConsoleObject* FindConsoleObject(const TCHAR* Name, bool bTrackFrequentCalls = true) const override;
+	virtual IConsoleVariable* FindConsoleVariable(const TCHAR* Name, bool bTrackFrequentCalls = true) const override;
+	virtual void ForEachConsoleObjectThatStartsWith(const FConsoleObjectVisitor& Visitor, const TCHAR* ThatStartsWith) const override;
+	virtual void ForEachConsoleObjectThatContains(const FConsoleObjectVisitor& Visitor, const TCHAR* ThatContains) const override;
+	virtual bool ProcessUserConsoleInput(const TCHAR* InInput, FOutputDevice& Ar, UWorld* InWorld) override;
+	virtual void AddConsoleHistoryEntry(const TCHAR* Key, const TCHAR* Input) override;
+	virtual void GetConsoleHistory(const TCHAR* Key, TArray<FString>& Out) override;
+	virtual bool IsNameRegistered(const TCHAR* Name) const override;
+	virtual void RegisterThreadPropagation(uint32 ThreadId, IConsoleThreadPropagation* InCallback) override;
+	virtual void UnregisterConsoleObject(IConsoleObject* Object, bool bKeepState) override;
+	virtual void UnsetAllConsoleVariablesWithTag(FName Tag, EConsoleVariableFlags Priority) override;
+#if ALLOW_OTHER_PLATFORM_CONFIG
+	virtual void LoadAllPlatformCVars(FName PlatformName, const FString& DeviceProfileName = FString()) override;
+	virtual void ClearAllPlatformCVars(FName PlatformName = NAME_None, const FString& DeviceProfileName = FString()) override;
+	virtual void PreviewPlatformCVars(FName PlatformName, const FString& DeviceProfileName, FName PreviewModeTag) override;
+#endif
+
+	// Internal functionality to this file -----------------------------------
+
+	/** Map of console variables and commands, indexed by the name of that command or variable */
+	// [name] = pointer (pointer must not be 0)
+	TMap<FString, IConsoleObject*> ConsoleObjects;
+
+	bool bHistoryWasLoaded;
+	TMap<FString, TArray<FString>>	HistoryEntriesMap;
+	TArray<FConsoleCommandDelegate>	ConsoleVariableChangeSinks;
+
+	FConsoleVariableMulticastDelegate ConsoleVariableUnregisteredDelegate;
+	FConsoleObjectWithNameMulticastDelegate ConsoleObjectUnregisteredDelegate;
+
+	IConsoleThreadPropagation* ThreadPropagationCallback;
+
+	FCriticalSection CachedPlatformsAndDeviceProfilesLock;
+	TSet<FName> CachedPlatformsAndDeviceProfiles;
+
+	// if true the next call to CallAllConsoleVariableSinks() we will call all registered sinks
+	bool bCallAllConsoleVariableSinks;
+
+	/**
+		* Used to prevent concurrent access to ConsoleObjects.
+		* We don't aim to solve all concurrency problems (for example registering and unregistering a cvar on different threads, or reading a cvar from one thread while writing it from a different thread).
+		* Rather we just ensure that operations on a cvar from one thread will not conflict with operations on another cvar from another thread.
+	**/
+	mutable FTransactionallySafeCriticalSection ConsoleObjectsSynchronizationObject;
+
+	/**
+	 * @param Name must not be 0, must not be empty
+	 * @param Obj must not be 0
+	 * @return 0 if the name was already in use
+	 */
+	IConsoleObject* AddConsoleObject(const TCHAR* Name, IConsoleObject* Obj);
+	
+	/**
+	 * Similar to AddConsoleObject, but it just adds it without any flag checking or preexisting var checking
+	 */
+	void AddShadowConsoleObject(const TCHAR* Name, IConsoleObject* Obj);
+
+	/**
+	 * @param Stream must not be 0
+	 * @param Pattern must not be 0
+	 */
+	static bool MatchPartialName(const TCHAR* Stream, const TCHAR* Pattern);
+
+	/** Returns true if Pattern is found in Stream, case insensitive. */
+	static bool MatchSubstring(const TCHAR* Stream, const TCHAR* Pattern);
+
+	/**
+	 * Get string till whitespace, jump over whitespace
+	 * inefficient but this code is not performance critical
+	 */
+	static FString GetTextSection(const TCHAR*& It);
+
+	/** same as FindConsoleObject() but ECVF_CreatedFromIni are not filtered out (for internal use) */
+	IConsoleObject* FindConsoleObjectUnfiltered(const TCHAR* Name) const;
+
+	/**
+	 * Unregisters a console variable or command, if that object was registered.  For console variables, this will
+	 * actually only "deactivate" the variable so if it becomes registered again the state may persist
+	 * (unless bKeepState is false).
+	 *
+	 * @param	Name	Name of the console object to remove (not case sensitive)
+	 * @param	bKeepState	if the current state is kept in memory until a cvar with the same name is registered
+	 */
+	void UnregisterConsoleObject(const TCHAR* Name, bool bKeepState);
+
+	// reads HistoryEntriesMap from the .ini file (if not already loaded)
+	void LoadHistoryIfNeeded();
+
+	// writes HistoryEntriesMap to the .ini file
+	void SaveHistory();
+};
+
+static FConsoleManager& GetManager()
+{
+	return (FConsoleManager&)IConsoleManager::Get();
+}
 
 namespace UE::ConsoleManager::Private
 {
@@ -173,6 +349,7 @@ public:
 	{
 		return *Help;
 	}
+	
 	virtual void SetHelp(const TCHAR* Value) override final
 	{
 		check(Value);
@@ -182,10 +359,19 @@ public:
 		// for now disabled as there is no good callstack when we crash early during engine init
 //		ensure(IsGoodHelpString(Value));
 	}
+
+	virtual FText GetDetailedHelp() const override
+	{
+		// Append the current value of the variable to provide more details :
+		const FString CurrentValueString = GetString();
+		return FText::Format(LOCTEXT("CVarDetailedHelp", "{0}\n\nCurrent value : {1}"), FText::FromString(GetHelp()), CurrentValueString.IsEmpty() ? LOCTEXT("CVarEmptyValueString", "<empty>") : FText::FromString(CurrentValueString));
+	}
+
 	virtual EConsoleVariableFlags GetFlags() const
 	{
 		return Flags;
 	}
+	
 	virtual void SetFlags(const EConsoleVariableFlags Value)
 	{
 		Flags = Value;
@@ -195,6 +381,11 @@ public:
 	virtual class IConsoleVariable* AsVariable()
 	{
 		return this;
+	}
+	
+	virtual void LogHistory(FOutputDevice& Ar)
+	{
+	
 	}
 	
 	/** Legacy funciton to add old single delegates to the new multicast delegate. */
@@ -221,8 +412,7 @@ public:
 
 		if(!bRet)
 		{
-			FConsoleManager& ConsoleManager = (FConsoleManager&)IConsoleManager::Get();
-			FString CVarName = ConsoleManager.FindConsoleObjectName(this);
+			FString CVarName = IConsoleManager::Get().FindConsoleObjectName(this);
 
 			const FString Message = FString::Printf(TEXT("Setting the console variable '%s' with 'SetBy%s' was ignored as it is lower priority than the previous 'SetBy%s'. Value remains '%s'"),
 				CVarName.IsEmpty() ? TEXT("unknown?") : *CVarName,
@@ -280,14 +470,6 @@ public:
 	// ------
 	// Helper accessors to get to FConsoleVariableExtendedData, when we don't have a Type
 
-	/**
-	 * Print the history to a log
-	 */
-	virtual void LogHistory(FOutputDevice& Ar) = 0;
-	/**
-	 * Track memory used by history data
-	 */
-	virtual SIZE_T GetHistorySize() = 0;
 
 #if ALLOW_OTHER_PLATFORM_CONFIG
 	/**
@@ -319,7 +501,7 @@ protected: // -----------------------------------------
 		}
 		else
 		{
-			FConsoleManager& ConsoleManager = (FConsoleManager&)IConsoleManager::Get();
+			FConsoleManager& ConsoleManager = GetManager();
 			if(ConsoleManager.IsThreadPropagationThread() && FPlatformProcess::SupportsMultithreading())
 			{
 				if(!bWarnedAboutThreadSafety)
@@ -370,6 +552,7 @@ public:
 	{
 		return *Help;
 	}
+
 	virtual void SetHelp(const TCHAR* InValue)
 	{
 		check(InValue);
@@ -377,10 +560,12 @@ public:
 
 		Help = InValue;
 	}
+
 	virtual EConsoleVariableFlags GetFlags() const
 	{
 		return Flags;
 	}
+
 	virtual void SetFlags(const EConsoleVariableFlags Value)
 	{
 		Flags = Value;
@@ -410,7 +595,7 @@ void OnCVarChange(T& Dst, const T& Src, EConsoleVariableFlags Flags, EConsoleVar
         return;
     }
     
-	FConsoleManager& ConsoleManager = (FConsoleManager&)IConsoleManager::Get();
+	FConsoleManager& ConsoleManager = GetManager();
 
 #if WITH_RELOAD
 	// Unlike HotReload, Live Coding does global initialization outside of the main thread.  During global initialization,
@@ -2099,7 +2284,7 @@ IConsoleObject* FConsoleManager::FindConsoleObject(const TCHAR* Name, bool bTrac
 
 IConsoleObject* FConsoleManager::FindConsoleObjectUnfiltered(const TCHAR* Name) const
 {
-	FScopeLock ScopeLock( &ConsoleObjectsSynchronizationObject );
+	FTransactionallySafeScopeLock ScopeLock( &ConsoleObjectsSynchronizationObject );
 	IConsoleObject* Var = ConsoleObjects.FindRef(Name);
 	return Var;
 }
@@ -2110,7 +2295,7 @@ void FConsoleManager::UnregisterConsoleObject(IConsoleObject* CVar, bool bKeepSt
 	{
 		return;
 	}
-	FScopeLock ScopeLock(&ConsoleObjectsSynchronizationObject);
+	FTransactionallySafeScopeLock ScopeLock(&ConsoleObjectsSynchronizationObject);
 
 	// Slow search for console object
 	const FString ObjName = FindConsoleObjectName( CVar );
@@ -2123,7 +2308,7 @@ void FConsoleManager::UnregisterConsoleObject(IConsoleObject* CVar, bool bKeepSt
 
 void FConsoleManager::UnregisterConsoleObject(const TCHAR* Name, bool bKeepState)
 {
-	FScopeLock ScopeLock(&ConsoleObjectsSynchronizationObject);
+	FTransactionallySafeScopeLock ScopeLock(&ConsoleObjectsSynchronizationObject);
 
 	IConsoleObject* Object = FindConsoleObject(Name);
 
@@ -2162,9 +2347,7 @@ void FConsoleManager::LoadHistoryIfNeeded()
 	HistoryEntriesMap.Reset();
 
 	FConfigFile Ini;
-
-	const FString ConfigPath = FPaths::GeneratedConfigDir() + TEXT("ConsoleHistory.ini");
-	ProcessIniContents(*ConfigPath, *ConfigPath, &Ini, false, false);
+	FConfigContext::ReadSingleIntoLocalFile(Ini).Load(*(FPaths::GeneratedConfigDir() + TEXT("ConsoleHistory.ini")));
 
 	const FString SectionName = TEXT("ConsoleHistory");
 	const FName KeyName = TEXT("History");
@@ -2224,13 +2407,13 @@ void FConsoleManager::ForEachConsoleObjectThatStartsWith(const FConsoleObjectVis
 	check(ThatStartsWith);
 
 	//@caution, potential deadlock if the visitor tries to call back into the cvar system. Best not to do this, but we could capture and array of them, then release the lock, then dispatch the visitor.
-	FScopeLock ScopeLock( &ConsoleObjectsSynchronizationObject );
+	FTransactionallySafeScopeLock ScopeLock( &ConsoleObjectsSynchronizationObject );
 	for(TMap<FString, IConsoleObject*>::TConstIterator PairIt(ConsoleObjects); PairIt; ++PairIt)
 	{
 		const FString& Name = PairIt.Key();
 		IConsoleObject* CVar = PairIt.Value();
 
-		if(MatchPartialName(*Name, ThatStartsWith))
+		if(!CVar->IsShadowObject() && MatchPartialName(*Name, ThatStartsWith))
 		{
 			Visitor.Execute(*Name, CVar);
 		}
@@ -2247,12 +2430,16 @@ void FConsoleManager::ForEachConsoleObjectThatContains(const FConsoleObjectVisit
 	int32 ContainsStringLength = FCString::Strlen(ThatContains);
 
 	//@caution, potential deadlock if the visitor tries to call back into the cvar system. Best not to do this, but we could capture and array of them, then release the lock, then dispatch the visitor.
-	FScopeLock ScopeLock( &ConsoleObjectsSynchronizationObject );
+	FTransactionallySafeScopeLock ScopeLock( &ConsoleObjectsSynchronizationObject );
 	for(TMap<FString, IConsoleObject*>::TConstIterator PairIt(ConsoleObjects); PairIt; ++PairIt)
 	{
 		const FString& Name = PairIt.Key();
 		IConsoleObject* CVar = PairIt.Value();
 
+		if (CVar->IsShadowObject())
+		{
+			continue;
+		}
 		if (ContainsStringLength == 1)
 		{
 			if (MatchPartialName(*Name, ThatContains))
@@ -2377,13 +2564,18 @@ static void DumpObjects(const TMap<FString, IConsoleObject*>& ConsoleObjects, co
 				{
 					continue;
 				}
+				FString ShadowString;
+				if (Obj->IsShadowObject())
+				{
+					ShadowString = TEXT(" [SHADOW]");
+				}
 				if (bWriteToCSV)
 				{
-					MultiLogf(Log, CSV, TEXT("%s,%s,%s%s"), *Key, *CVar->GetString(), GetConsoleVariableSetByName(CVar->GetFlags()), *Help);
+					MultiLogf(Log, CSV, TEXT("%s%s,%s,%s%s"), *Key, *ShadowString, *CVar->GetString(), GetConsoleVariableSetByName(CVar->GetFlags()), *Help);
 				}
 				else
 				{
-					MultiLogf(Log, CSV, TEXT("%s = \"%s\"      LastSetBy: %s%s"), *Key, *CVar->GetString(), GetConsoleVariableSetByName(CVar->GetFlags()), *Help);
+					MultiLogf(Log, CSV, TEXT("%s%s = \"%s\"      LastSetBy: %s%s"), *Key, *ShadowString, *CVar->GetString(), GetConsoleVariableSetByName(CVar->GetFlags()), *Help);
 				}
 			}
 		}
@@ -2567,14 +2759,7 @@ bool FConsoleManager::ProcessUserConsoleInput(const TCHAR* InInput, FOutputDevic
 		return false;
 	}
 
-#if DISABLE_CHEAT_CVARS
-	if(CObj->TestFlags(ECVF_Cheat))
-	{
-		return false;
-	}
-#endif // DISABLE_CHEAT_CVARS
-
-	if(CObj->TestFlags(ECVF_Unregistered))
+	if (!CObj->IsEnabled())
 	{
 		return false;
 	}
@@ -2702,6 +2887,11 @@ bool FConsoleManager::ProcessUserConsoleInput(const TCHAR* InInput, FOutputDevic
 	return true;
 }
 
+void FConsoleManager::AddShadowConsoleObject(const TCHAR* Name, IConsoleObject* Obj)
+{
+	ConsoleObjects.Add(Name, Obj);
+}
+
 IConsoleObject* FConsoleManager::AddConsoleObject(const TCHAR* Name, IConsoleObject* Obj)
 {
 	check(Name);
@@ -2709,7 +2899,7 @@ IConsoleObject* FConsoleManager::AddConsoleObject(const TCHAR* Name, IConsoleObj
 	check(Obj);
 	LLM_SCOPE_BYNAME(TEXT("EngineMisc/ConsoleCommands"));
 
-	FScopeLock ScopeLock( &ConsoleObjectsSynchronizationObject ); // we will lock on the entire add process
+	FTransactionallySafeScopeLock ScopeLock( &ConsoleObjectsSynchronizationObject ); // we will lock on the entire add process
 	IConsoleObject* ExistingObj = ConsoleObjects.FindRef(Name);
 
 	if(Obj->GetFlags() & ECVF_Scalability)
@@ -2871,7 +3061,7 @@ FString FConsoleManager::FindConsoleObjectName(const IConsoleObject* InVar) cons
 {
 	check(InVar);
 
-	FScopeLock ScopeLock( &ConsoleObjectsSynchronizationObject );
+	FTransactionallySafeScopeLock ScopeLock( &ConsoleObjectsSynchronizationObject );
 	for(TMap<FString, IConsoleObject*>::TConstIterator PairIt(ConsoleObjects); PairIt; ++PairIt)
 	{
 		IConsoleObject* Var = PairIt.Value();
@@ -2982,7 +3172,7 @@ void FConsoleManager::GetConsoleHistory(const TCHAR* Key, TArray<FString>& Out)
 
 bool FConsoleManager::IsNameRegistered(const TCHAR* Name) const
 {
-	FScopeLock ScopeLock(&ConsoleObjectsSynchronizationObject);
+	FTransactionallySafeScopeLock ScopeLock(&ConsoleObjectsSynchronizationObject);
 	return ConsoleObjects.Contains(Name);
 }
 
@@ -3092,6 +3282,10 @@ void FConsoleManager::PreviewPlatformCVars(FName PlatformName, const FString& De
 
 	for (auto Pair : ConsoleObjects)
 	{
+		if (Pair.Value->IsShadowObject())
+		{
+			continue;
+		}
 		if (IConsoleVariable* CVar = Pair.Value->AsVariable())
 		{
 			// we want Preview but not Cheat
@@ -3132,6 +3326,11 @@ void FConsoleManager::ClearAllPlatformCVars(FName PlatformName, const FString& D
 	
 	for (auto Pair : ConsoleObjects)
 	{
+		if (Pair.Value->IsShadowObject())
+		{
+			continue;
+		}
+
 		if (IConsoleVariable* CVar = Pair.Value->AsVariable())
 		{
 			// clear any cached values for this key
@@ -3397,7 +3596,7 @@ void CreateConsoleVariables()
 
 	// testing code
 	{
-		FConsoleManager& ConsoleManager = (FConsoleManager&)IConsoleManager::Get();
+		FConsoleManager& ConsoleManager = GetManager();
 
 		ConsoleManager.Test();
 	}
@@ -3486,6 +3685,13 @@ static TAutoConsoleVariable<int32> CVarMobileAllowDeferredShadingOpenGL(
 		 "1: Allow Deferred Shading on OpenGL"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
+static TAutoConsoleVariable<int32> CVarMobileAllowFramebufferFetchOpenGL(
+	TEXT("r.Mobile.AllowFramebufferFetchOpenGL"),
+	1,
+	TEXT("0: Use multi-pass rendering without FBF and PLS extensions\n"
+		"1: Allow use of framebuffer fetch and PLS extensions (default)"),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+
 static TAutoConsoleVariable<int32> CVarMobileEnableStaticAndCSMShadowReceivers(
 	TEXT("r.Mobile.EnableStaticAndCSMShadowReceivers"),
 	1,
@@ -3500,13 +3706,6 @@ static TAutoConsoleVariable<int32> CVarMobileEnableMovableLightCSMShaderCulling(
 		 "1: Primitives lit by movable directional light render with the CSM shader when determined to be within CSM range. (default)"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
-static TAutoConsoleVariable<int32> CVarMobileEnableNoPrecomputedLightingCSMShader(
-	TEXT("r.Mobile.EnableNoPrecomputedLightingCSMShader"),
-	0,
-	TEXT("0: CSM shaders for scenes without any precomputed lighting are not generated unless r.AllowStaticLighting is 0. (default)\n")
-	TEXT("1: CSM shaders for scenes without any precomputed lighting are always generated."),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly);
-
 static TAutoConsoleVariable<int32> CVarMobileUseCSMShaderBranch(
 	TEXT("r.Mobile.UseCSMShaderBranch"),
 	0,
@@ -3519,21 +3718,6 @@ static TAutoConsoleVariable<int32> CVarMobileAllowDistanceFieldShadows(
 	1,
 	TEXT("0: Do not generate shader permutations to render distance field shadows from stationary directional lights.\n"
 		 "1: Generate shader permutations to render distance field shadows from stationary directional lights. (default)"),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly);
-
-static TAutoConsoleVariable<int32> CVarMobileAllowMovableDirectionalLights(
-	TEXT("r.Mobile.AllowMovableDirectionalLights"),
-	1,
-	TEXT("0: Do not generate shader permutations to render movable directional lights.\n"
-		 "1: Generate shader permutations to render movable directional lights. (default)"),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly);
-
-static TAutoConsoleVariable<int32> CVarMobileSkyLightPermutation(
-	TEXT("r.Mobile.SkyLightPermutation"),
-	0,
-	TEXT("0: Generate both sky-light and non-skylight permutations. (default)\n"
-		 "1: Generate only non-skylight permutations.\n"
-		 "2: Generate only skylight permutations"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
 static TAutoConsoleVariable<int32> CVarMobileFloatPrecisionMode(
@@ -3580,6 +3764,27 @@ static TAutoConsoleVariable<int32> CVarMobileForwardEnableLocalLights(
 		"2: Local Lights Buffer Enabled\n"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarMobileRenderRectLightsAsSpotLights(
+	TEXT("r.Mobile.Forward.RenderRectLightsAsSpotLights"),
+	1,
+	TEXT("0: Rect Lights are rendered as area lights\n"
+		"1: Rect Lights are rendered as Spot Lights (default)\n"),
+	ECVF_ReadOnly | ECVF_MobileShaderChange);
+
+static TAutoConsoleVariable<int32> CVarMobileForwardEnableIESProfiles(
+	TEXT("r.Mobile.Forward.EnableIESProfiles"),
+	0,
+	TEXT("0: IES profiles disabled in mobile forward (default)\n"
+		"1: IES profiles enabled in mobile forward \n"),
+	ECVF_ReadOnly | ECVF_MobileShaderChange);
+
+static TAutoConsoleVariable<int32> CVarMobileForwardEnableParticleLights(
+	TEXT("r.Mobile.Forward.EnableParticleLights"),
+	0,
+	TEXT("0: Particle Lights Disabled (default)\n"
+		 "1: Particle Lights Enabled (requires local lights)\n"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<int32> CVarMobileForwardEnableClusteredReflections(
 	TEXT("r.Mobile.Forward.EnableClusteredReflections"),
 	0,
@@ -3588,7 +3793,7 @@ static TAutoConsoleVariable<int32> CVarMobileForwardEnableClusteredReflections(
 
 static TAutoConsoleVariable<int32> CVarMobileSupportGPUScene(
 	TEXT("r.Mobile.SupportGPUScene"),
-	0,
+	1,
 	TEXT("Whether to support GPU scene, required for auto-instancing (only Mobile feature level)"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe
 );
@@ -3755,6 +3960,15 @@ static TAutoConsoleVariable<int32> CVarAllowStaticLighting(
 	TEXT("Whether to allow any static lighting to be generated and used, like lightmaps and shadowmaps.\n"
 		 "Games that only use dynamic lighting should set this to 0 to save some static lighting overhead."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarAllowStaticLightingInWorldPartitionMaps(
+	TEXT("r.AllowStaticLightingInWorldPartitionMaps"),
+	0,
+	TEXT("Whether to allow any static lighting to be generated and used in WorldPartition maps, like lightmaps and shadowmaps.\n"
+		 "Games that only use dynamic lighting should set this to 0 to save some static lighting overhead."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+
 
 static TAutoConsoleVariable<int32> CVarNormalMaps(
 	TEXT("r.NormalMapsForStaticLighting"),
@@ -4069,6 +4283,16 @@ static TAutoConsoleVariable<int32> CVarMobileDBuffer(
 		" 1: on"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
+static TAutoConsoleVariable<int32> CVarMobileForwardDecalLighting(
+	TEXT("r.Mobile.Forward.DecalLighting"),
+	1,
+	TEXT("Enables lit decals when using the mobile forward renderer without DBuffer.\n"
+		" 0: off\n"
+		" 1: on, lighting channel 1 is used for decal lighting\n"
+		" 2: on, lighting channel 2 is used for decal lighting\n"
+		" 3: on, lighting channel 3 is used for decal lighting"),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+
 static TAutoConsoleVariable<float> CVarSkeletalMeshLODRadiusScale(
 	TEXT("r.SkeletalMeshLODRadiusScale"),
 	1.0f,
@@ -4182,14 +4406,6 @@ static TAutoConsoleVariable<int32> CVarDisableOpenGLTextureStreamingSupport(
 		 "  1 = Texture streaming will be disabled."),
 	ECVF_ReadOnly);
 
-// Moved here from OpenGLRHI module to make sure its always accessible on all platforms
-static FAutoConsoleVariable CVarOpenGLUseEmulatedUBs(
-	TEXT("OpenGL.UseEmulatedUBs"),
-	1,
-	TEXT("If true, enable using emulated uniform buffers on OpenGL Mobile mode."),
-	ECVF_ReadOnly
-	);
-
 static TAutoConsoleVariable<int32> CVarAndroidOverrideExternalTextureSupport(
 	TEXT("r.Android.OverrideExternalTextureSupport"),
 	0,
@@ -4235,3 +4451,578 @@ static TAutoConsoleVariable<int32> CVarMobileSupportsGen4TAA(
 		 "0: Fallback to FXAA"
 		 "1: Support Desktop Gen4 TAA (default)"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarLegacyLuminanceFactors(
+	TEXT("r.LegacyLuminanceFactors"),
+	0,
+	TEXT("Default luminance factors:\n"
+		"0: Working color space coefficients (default)\n"
+		"1: Legacy coefficients (inaccurate). Activate to retain the 5.4 and earlier versions behavior.\n"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+
+class FConsoleObjectShadowData
+{
+protected:
+	
+	FConsoleObjectShadowData(const TCHAR* CVarToShadow, const TCHAR* InDeprecatedVersion, EShadowCVarBehavior InLookupBehavior, EShadowCVarBehavior InUsageBehavior)
+		: ShadowName(CVarToShadow)
+		, DeprecatedVersion(InDeprecatedVersion)
+		, LookupBehavior(InLookupBehavior)
+		, UsageBehavior(InUsageBehavior)
+		, bHasLooked(false)
+		, bHasMessagedForUsage(false)
+		, bHasMessagedEditorForUsage(false)
+	{
+	}
+
+	virtual ~FConsoleObjectShadowData()
+	{
+	}
+
+	virtual IConsoleObject* GetRealObject() const = 0;
+	virtual void SetRealObject(IConsoleObject* Object) const = 0;
+	virtual FString GetThisName() const = 0;
+
+	void LogOrEditorMessage(const FText& Msg, bool bIsError) const
+	{
+		if (GIsEditor && !bHasMessagedEditorForUsage)
+		{
+			bHasMessagedEditorForUsage = true;
+
+			FMessageLog EditorErrors("EditorErrors");
+			TSharedRef<FTokenizedMessage> Message = EditorErrors.Message(bIsError ? EMessageSeverity::Error : EMessageSeverity::Warning);
+			Message->AddToken(FTextToken::Create(Msg));
+			EditorErrors.Notify();
+		}
+
+		// always spit to log
+		if (bIsError)
+		{
+			UE_LOG(LogConsoleManager, Error, TEXT("%s"), *Msg.ToString());
+		}
+		else
+		{
+			UE_LOG(LogConsoleManager, Warning, TEXT("%s"), *Msg.ToString());
+		}
+	}
+
+	bool Bind() const
+	{
+		if (GetRealObject() == nullptr)
+		{
+			// if we looked but it wasn't found, then just return false
+			if (bHasLooked)
+			{
+				return false;
+			}
+			bHasLooked = true;
+
+			IConsoleObject* Object = IConsoleManager::Get().FindConsoleObject(*ShadowName, false);
+			if (Object == nullptr)
+			{
+				if (LookupBehavior != EShadowCVarBehavior::NoMessaging)
+				{
+					FFormatNamedArguments Arguments;
+					Arguments.Add(TEXT("ThisName"), FText::FromString(GetThisName()));
+					Arguments.Add(TEXT("ShadowName"), FText::FromString(ShadowName));
+
+					FText Message;
+					if (LookupBehavior == EShadowCVarBehavior::Assert)
+					{
+						Message = FText::Format(LOCTEXT("FailedShadowCVarLookup_Assert", "Attempted to delay-load real CVar '{ThisName}' for shadowed CVar '{ShadowName}' failed."), Arguments);
+					}
+					else
+					{
+						Message = FText::Format(LOCTEXT("FailedShadowCVarLookup", "Attempted to delay-load real CVar '{ThisName}' for shadowed CVar '{ShadowName}' failed. Uses of '{ThisName}' will do nothing."), Arguments);
+					}
+
+					switch (LookupBehavior)
+					{
+					case EShadowCVarBehavior::Warn:
+						LogOrEditorMessage(Message, false);
+						break;
+					case EShadowCVarBehavior::Error:
+						LogOrEditorMessage(Message, true);
+						break;
+					case EShadowCVarBehavior::Ensure:
+						ensureMsgf(false, TEXT("%s"), *Message.ToString());
+						break;
+					case EShadowCVarBehavior::Assert:
+						UE_LOG(LogConsoleManager, Fatal, TEXT("%s"), *Message.ToString());
+						break;
+					}
+				}
+				return false;
+			}
+
+			SetRealObject(Object);
+		}
+
+		return true;
+	}
+
+	bool BindForUsage() const
+	{
+		if (!Bind())
+		{
+			return false;
+		}
+
+		if (!bHasMessagedForUsage)
+		{
+			if (UsageBehavior != EShadowCVarBehavior::NoMessaging)
+			{
+				FFormatNamedArguments Arguments;
+				Arguments.Add(TEXT("ThisName"), FText::FromString(GetThisName()));
+				Arguments.Add(TEXT("ShadowName"), FText::FromString(ShadowName));
+				Arguments.Add(TEXT("DeprecatedVersion"), FText::FromString(DeprecatedVersion));
+
+				FText Message;
+				if (DeprecatedVersion != TEXT(""))
+				{
+					Message = FText::Format(LOCTEXT("ShadowCVarUsage_Deprecated", "Using a deprecated (as of UE {DeprecatedVersion}) CVar: '{ThisName}'. It will be removed in the future. Change all uses to '{ShadowName}' instead."), Arguments);
+				}
+				else
+				{
+					Message = FText::Format(LOCTEXT("ShadowCVarUsage", "Using a shadowed CVar '{ThisName}'. It is recommended to change all uses to '{ShadowName}' instead."), Arguments);
+				}
+				switch (UsageBehavior)
+				{
+				case EShadowCVarBehavior::Warn:
+					LogOrEditorMessage(Message, false);
+					break;
+				case EShadowCVarBehavior::Error:
+					LogOrEditorMessage(Message, true);
+					break;
+				case EShadowCVarBehavior::Ensure:
+					// don't keep re-ensuring for this cvar
+					bHasMessagedForUsage = true;
+					ensureAlwaysMsgf(false, TEXT("%s"), *Message.ToString());
+					break;
+				case EShadowCVarBehavior::Assert:
+					UE_LOG(LogConsoleManager, Fatal, TEXT("%s"), *Message.ToString());
+					break;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	FString ShadowName;
+	FString DeprecatedVersion;
+	EShadowCVarBehavior LookupBehavior;
+	EShadowCVarBehavior UsageBehavior;
+	mutable uint8 bHasLooked : 1;
+	mutable uint8 bHasMessagedForUsage : 1;
+	mutable uint8 bHasMessagedEditorForUsage : 1;
+};
+
+
+class FConsoleVariableShadow : public FConsoleObjectShadowData, public IConsoleVariable
+{
+public:
+	FConsoleVariableShadow(const TCHAR* CVarToShadow, const TCHAR* InDeprecatedVersion, EShadowCVarBehavior InLookupBehavior, EShadowCVarBehavior InUsageBehavior)
+		: FConsoleObjectShadowData(CVarToShadow, InDeprecatedVersion, InLookupBehavior, InUsageBehavior)
+		, RealVariable(nullptr)
+	{
+
+	}
+
+	virtual class IConsoleVariable* AsVariable() override
+	{
+		return this;
+	}
+
+	virtual bool IsShadowObject() const override
+	{
+		return true;
+	}
+
+	virtual bool IsVariableBool() const override
+	{
+		if (Bind())
+		{
+			return RealVariable->IsVariableBool();
+		}
+		return false;
+	}
+	virtual bool IsVariableInt() const override
+	{
+		if (Bind())
+		{
+			return RealVariable->IsVariableInt();
+		}
+		return false;
+	}
+	virtual bool IsVariableFloat() const override
+	{
+		if (Bind())
+		{
+			return RealVariable->IsVariableFloat();
+		}
+		return false;
+	}
+	virtual bool IsVariableString() const override
+	{
+		if (Bind())
+		{
+			return RealVariable->IsVariableString();
+		}
+		return false;
+	}
+
+	virtual class TConsoleVariableData<bool>* AsVariableBool() override
+	{
+		if (BindForUsage())
+		{
+			return RealVariable->AsVariableBool();
+		}
+		return nullptr;
+	}
+	virtual class TConsoleVariableData<int32>* AsVariableInt() override
+	{
+		if (BindForUsage())
+		{
+			return RealVariable->AsVariableInt();
+		}
+		return nullptr;
+	}
+	virtual class TConsoleVariableData<float>* AsVariableFloat() override
+	{
+		if (BindForUsage())
+		{
+			return RealVariable->AsVariableFloat();
+		}
+		return nullptr;
+	}
+	virtual class TConsoleVariableData<FString>* AsVariableString() override
+	{
+		if (BindForUsage())
+		{
+			return RealVariable->AsVariableString();
+		}
+		return nullptr;
+	}
+
+
+	virtual const TCHAR* GetHelp() const override
+	{
+		if (Bind())
+		{
+			return RealVariable->GetHelp();
+		}
+		return TEXT("");
+	}
+
+	virtual FText GetDetailedHelp() const override
+	{
+		if (Bind())
+		{
+			return RealVariable->GetDetailedHelp();
+		}
+		return INVTEXT("");
+	}
+
+	virtual void SetHelp(const TCHAR* Value) override
+	{
+		if (Bind())
+		{
+			return RealVariable->SetHelp(Value);
+		}
+	}
+
+	virtual EConsoleVariableFlags GetFlags() const override
+	{
+		if (Bind())
+		{
+			return RealVariable->GetFlags();
+		}
+		return (EConsoleVariableFlags)0;
+
+	}
+
+	virtual void SetFlags(const EConsoleVariableFlags Value) override
+	{
+		if (BindForUsage())
+		{
+			RealVariable->SetFlags(Value);
+		}
+	}
+
+
+	virtual void Set(const TCHAR* InValue, EConsoleVariableFlags SetBy, FName Tag) override
+	{
+		if (BindForUsage())
+		{
+			RealVariable->Set(InValue, SetBy, Tag);
+		}
+	}
+
+	virtual void Unset(EConsoleVariableFlags SetBy, FName Tag) override
+	{
+		if (BindForUsage())
+		{
+			RealVariable->Unset(SetBy, Tag);
+		}
+	}
+
+	virtual bool GetBool() const override
+	{
+		if (BindForUsage())
+		{
+			return RealVariable->GetBool();
+		}
+		return false;
+	}
+
+	virtual int32 GetInt() const override
+	{
+		if (BindForUsage())
+		{
+			return RealVariable->GetInt();
+		}
+		return 0;
+	}
+
+	virtual float GetFloat() const override
+	{
+		if (BindForUsage())
+		{
+			return RealVariable->GetFloat();
+		}
+		return 0;
+	}
+
+	virtual FString GetString() const override
+	{
+		if (BindForUsage())
+		{
+			return RealVariable->GetString();
+		}
+		return FString();
+	}
+
+	virtual void SetOnChangedCallback(const FConsoleVariableDelegate& Callback) override
+	{
+		if (Bind())
+		{
+			RealVariable->SetOnChangedCallback(Callback);
+		}
+	}
+
+	virtual FConsoleVariableMulticastDelegate& OnChangedDelegate() override
+	{
+		if (Bind())
+		{
+			return RealVariable->OnChangedDelegate();
+		}
+		static FConsoleVariableMulticastDelegate Dummy;
+		return Dummy;
+	}
+
+	virtual FString GetDefaultValue() override
+	{
+		if (BindForUsage())
+		{
+			return RealVariable->GetDefaultValue();
+		}
+		return FString();
+	}
+
+	virtual void LogHistory(FOutputDevice& Ar) override
+	{
+		if (Bind())
+		{
+			RealVariable->LogHistory(Ar);
+		}
+	}
+
+	/**
+	 * Track memory used by history data
+	 */
+	virtual SIZE_T GetHistorySize() override
+	{
+		if (Bind())
+		{
+			return RealVariable->GetHistorySize();
+		}
+		return 0;
+	}
+
+	virtual void Release() override
+	{
+		// the real var should do it's own Release when it's time
+		RealVariable = nullptr;
+	}
+
+#if ALLOW_OTHER_PLATFORM_CONFIG
+
+	virtual TSharedPtr<IConsoleVariable> GetPlatformValueVariable(FName PlatformName, const FString& DeviceProfileName = FString())
+	{
+		if (BindForUsage())
+		{
+			return RealVariable->GetPlatformValueVariable(PlatformName, DeviceProfileName);
+		}
+		return nullptr;
+	}
+
+	virtual bool HasPlatformValueVariable(FName PlatformName, const FString& DeviceProfileName = FString()) override
+	{
+		if (Bind())
+		{
+			return RealVariable->HasPlatformValueVariable(PlatformName, DeviceProfileName);
+		}
+		return false;
+	}
+
+	virtual void ClearPlatformVariables(FName PlatformName = NAME_None)
+	{
+		if (Bind())
+		{
+			RealVariable->ClearPlatformVariables(PlatformName);
+		}
+	}
+
+#endif
+
+protected:
+	virtual IConsoleObject* GetRealObject() const override
+	{
+		return RealVariable;
+	}
+	virtual void SetRealObject(IConsoleObject* Object) const override
+	{
+		RealVariable = (IConsoleVariable*)Object;
+	}
+	virtual FString GetThisName() const override
+	{
+		return IConsoleManager::Get().FindConsoleObjectName(this);
+	}
+
+private:
+
+	mutable IConsoleVariable* RealVariable;
+};
+
+struct FConsoleCommandShadow : public FConsoleObjectShadowData, public IConsoleCommand
+{
+
+	FConsoleCommandShadow(const TCHAR* CVarToShadow, const TCHAR* InDeprecatedVersion, EShadowCVarBehavior InLookupBehavior, EShadowCVarBehavior InUsageBehavior)
+		: FConsoleObjectShadowData(CVarToShadow, InDeprecatedVersion, InLookupBehavior, InUsageBehavior)
+		, RealCommand(nullptr)
+	{
+
+	}
+
+	virtual struct IConsoleCommand* AsCommand() override
+	{
+		return this;
+	}
+
+	virtual const TCHAR* GetHelp() const override
+	{
+		if (Bind())
+		{
+			return RealCommand->GetHelp();
+		}
+		return TEXT("");
+	}
+
+	virtual void SetHelp(const TCHAR* InValue) override
+	{
+		if (Bind())
+		{
+			return RealCommand->SetHelp(InValue);
+		}
+	}
+
+	virtual FText GetDetailedHelp() const
+	{
+		if (Bind())
+		{
+			return RealCommand->GetDetailedHelp();
+		}
+		return INVTEXT("");
+	}
+
+	virtual EConsoleVariableFlags GetFlags() const override
+	{
+		if (Bind())
+		{
+			return RealCommand->GetFlags();
+		}
+		return (EConsoleVariableFlags)0;
+
+	}
+
+	virtual void SetFlags(const EConsoleVariableFlags Value) override
+	{
+		if (BindForUsage())
+		{
+			RealCommand->SetFlags(Value);
+		}
+	}
+
+	virtual bool Execute(const TArray< FString >& Args, UWorld* InWorld, class FOutputDevice& OutputDevice) override
+	{
+		if (BindForUsage())
+		{
+			return RealCommand->Execute(Args, InWorld, OutputDevice);
+		}
+		return false;
+	}
+
+	virtual void Release() override
+	{
+		// the real var should do it's own Release when it's time
+		RealCommand = nullptr;
+	}
+
+protected:
+	virtual IConsoleObject* GetRealObject() const override
+	{
+		return RealCommand;
+	}
+	virtual void SetRealObject(IConsoleObject* Object) const override
+	{
+		RealCommand = (IConsoleCommand*)Object;
+	}
+	virtual FString GetThisName() const override
+	{
+		return IConsoleManager::Get().FindConsoleObjectName(this);
+	}
+
+private:
+
+	mutable IConsoleCommand* RealCommand;
+
+};
+
+
+
+FAutoConsoleVariableShadow::FAutoConsoleVariableShadow(const TCHAR* Name, const TCHAR* CVarToShadow, EShadowCVarBehavior LookupFailureBehavior)
+{
+#if !NO_CVARS
+	GetManager().AddShadowConsoleObject(Name, new FConsoleVariableShadow(CVarToShadow, nullptr, LookupFailureBehavior, EShadowCVarBehavior::NoMessaging));
+#endif
+}
+
+FAutoConsoleVariableDeprecated::FAutoConsoleVariableDeprecated(const TCHAR* Name, const TCHAR* CVarToShadow, const TCHAR* DeprecatedAtVersion, EShadowCVarBehavior UsageBehavior,  EShadowCVarBehavior LookupFailureBehavior)
+{
+#if !NO_CVARS
+	GetManager().AddShadowConsoleObject(Name, new FConsoleVariableShadow(CVarToShadow, DeprecatedAtVersion, LookupFailureBehavior, UsageBehavior));
+#endif
+}
+
+FAutoConsoleCommandDeprecated::FAutoConsoleCommandDeprecated(const TCHAR* Name, const TCHAR* CVarToShadow, const TCHAR* DeprecatedAtVersion, EShadowCVarBehavior UsageBehavior, EShadowCVarBehavior LookupFailureBehavior)
+{
+#if !NO_CVARS
+	GetManager().AddShadowConsoleObject(Name, new FConsoleCommandShadow(CVarToShadow, DeprecatedAtVersion, LookupFailureBehavior, UsageBehavior));
+#endif
+}
+
+
+
+#undef LOCTEXT_NAMESPACE

@@ -6,6 +6,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "HistoryManager.h"
 #include "CollectionManagerTypes.h"
+#include "ReferenceViewer/ReferenceViewerSettings.h"
 
 class FUICommandList;
 class SComboButton;
@@ -18,6 +19,8 @@ struct FAssetManagerEditorRegistrySource;
 template <typename OptionType> class SComboBox;
 
 class UEdGraph;
+
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnReferenceViewerSelectionChanged, const TArray<FAssetIdentifier>&, const TArray<FAssetIdentifier>&)
 
 /**
  * 
@@ -52,6 +55,8 @@ public:
 	virtual bool SupportsKeyboardFocus() const override { return true; }
 	virtual FReply OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent ) override;
 	virtual void Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime ) override;
+
+	FOnReferenceViewerSelectionChanged& OnReferenceViewerSelectionChanged() { return OnReferenceViewerSelectionChangedDelegate; }
 
 private:
 
@@ -96,6 +101,12 @@ private:
 
 	/** Gets the text to be displayed for warning/status updates */
 	FText GetStatusText() const;
+	
+	/** Gets the text to be displayed at the center of the graph */
+    FText GetCenteredStatusText() const;
+
+	/** Gets the visibility for the text which can be displayed at the center of the graph */
+	EVisibility GetCenteredStatusVisibility() const;
 
 	/** Called when the path is being edited */
 	void OnAddressBarTextChanged(const FText& NewText);
@@ -118,9 +129,6 @@ private:
 	void OnSearchReferencerDepthCommitted(int32 NewValue);
 	void OnSearchDependencyDepthCommitted(int32 NewValue);
 
-	void OnSearchBreadthEnabledChanged( ECheckBoxState NewState );
-	ECheckBoxState IsSearchBreadthEnabledChecked() const;
-
 	void OnEnableCollectionFilterChanged(ECheckBoxState NewState);
 	ECheckBoxState IsEnableCollectionFilterChecked() const;
 	void CollectionFilterAddMenuEntry(FMenuBuilder& MenuBuilder, const FName& CollectionName);
@@ -137,8 +145,8 @@ private:
 	bool IsShowSoftReferencesChecked() const;
 	void OnShowHardReferencesChanged();
 	bool IsShowHardReferencesChecked() const;
-	void OnShowEditorOnlyReferencesChanged();
-	bool IsShowEditorOnlyReferencesChecked() const;
+	void OnEditorOnlyReferenceFilterTypeChanged(EEditorOnlyReferenceFilterType Value);
+	EEditorOnlyReferenceFilterType GetEditorOnlyReferenceFilterType() const;
 
 	void OnShowFilteredPackagesOnlyChanged();
 	bool IsShowFilteredPackagesOnlyChecked() const;
@@ -162,7 +170,9 @@ private:
 	bool IsShowCodePackagesChecked() const;
 
 	int32 GetSearchBreadthCount() const;
-	void OnSearchBreadthCommitted(int32 NewValue);
+	void SetSearchBreadthCount(int32 InBreadthValue);
+	void OnSearchBreadthChanged(int32 InBreadthValue);
+	void OnSearchBreadthCommited(int32 InBreadthValue, ETextCommit::Type InCommitType);
 
 	TSharedRef<SWidget> GetShowMenuContent();
 
@@ -181,6 +191,8 @@ private:
 	void ZoomToFit();
 	bool CanZoomToFit() const;
 	void OnFind();
+	void ResolveReferencingProperties() const;
+	bool CanResolveReferencingProperties() const;
 
 	/** Find Path */
 	void OnFindPathAssetSelected();
@@ -274,11 +286,16 @@ private:
 
 	/** Used to delay graph rebuilding during spinbox slider interaction */
 	bool bNeedsGraphRebuild;
+	bool bNeedsGraphRefilter;
+	bool bNeedsReferencedPropertiesUpdate;
 	double SliderDelayLastMovedTime = 0.0;
 	double GraphRebuildSliderDelay = 0.25;
 
 	/** Handle to know if dirty */
 	FDelegateHandle AssetRefreshHandle;
+
+	/** Called when expanding a node, or manually updating the asset path */
+	FOnReferenceViewerSelectionChanged OnReferenceViewerSelectionChangedDelegate;
 };
 
 enum class EDependencyPinCategory

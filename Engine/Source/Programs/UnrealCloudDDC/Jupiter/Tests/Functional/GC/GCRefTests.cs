@@ -7,18 +7,18 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text;
 using System.Threading.Tasks;
+using EpicGames.Horde.Storage;
+using EpicGames.Serialization;
+using Jupiter.Common;
 using Jupiter.Controllers;
 using Jupiter.Implementation;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Serilog;
 using Serilog.Core;
-using EpicGames.Horde.Storage;
-using EpicGames.Serialization;
-using Jupiter.Common;
 
 namespace Jupiter.FunctionalTests.GC
 {
@@ -46,7 +46,6 @@ namespace Jupiter.FunctionalTests.GC
 		}
 	}
 
-	
 	[TestClass]
 	[DoNotParallelize]
 	public class ScyllaPerShardGCReferencesTests : GCReferencesTests
@@ -136,7 +135,7 @@ namespace Jupiter.FunctionalTests.GC
 			Assert.IsNotNull(refService);
 			(BlobId ob0_hash, CbObject ob0_cb) = GetCBWithAttachment(object0id);
 			await refService.PutAsync(TestNamespace, DefaultBucket, object0Name, ob0_hash, ob0_cb);
-		   
+
 			(BlobId ob1_hash, CbObject ob1_cb) = GetCBWithAttachment(object1id);
 			await refService.PutAsync(TestNamespace, DefaultBucket, object1Name, ob1_hash, ob1_cb);
 

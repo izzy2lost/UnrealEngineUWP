@@ -32,6 +32,8 @@ public:
 	EType GetPresentationType() const override;
 	TSharedPtrTS<const FLowLatencyDescriptor> GetLowLatencyDescriptor() const override
 	{ return nullptr; }
+	FTimeValue CalculateCurrentLiveLatency(const FTimeValue& InCurrentPlaybackPosition, const FTimeValue& InEncoderLatency, bool bViaLatencyElement) const override
+	{ return FTimeValue(); }
 	FTimeValue GetAnchorTime() const override
 	{ return FTimeValue::GetZero(); }
 	FTimeRange GetTotalTimeRange() const override
@@ -57,9 +59,12 @@ public:
 	void ClearDefaultEndTime() override
 	{ DefaultEndTime.SetToInvalid(); }
 	void GetTrackMetadata(TArray<FTrackMetadata>& OutMetadata, EStreamType StreamType) const override;
+	void UpdateRunningMetaData(TSharedPtrTS<UtilsMP4::FMetadataParser> InUpdatedMetaData) override;
 	FTimeValue GetMinBufferTime() const override;
 	FTimeValue GetDesiredLiveLatency() const override
 	{ return FTimeValue(); }
+	ELiveEdgePlayMode GetLiveEdgePlayMode() const override
+	{ return IManifest::ELiveEdgePlayMode::Never; }
 	TRangeSet<double> GetPossiblePlaybackRates(EPlayRateType InForType) const override;
 	TSharedPtrTS<IProducerReferenceTimeInfo> GetProducerReferenceTimeInfo(int64 ID) const override;
 	void UpdateDynamicRefetchCounter() override;
@@ -239,6 +244,8 @@ public:
 			}
 		}
 
+		void UpdateRunningMetaData(const FString& InKindOfValue, const FVariant& InNewValue) override
+		{ }
 
 		FResult GetStartingSegment(TSharedPtrTS<IStreamSegment>& OutSegment, const FPlayerSequenceState& InSequenceState, FString InSelectedStreamID, const FPlayStartPosition& StartPosition, ESearchType SearchType, int64 AtAbsoluteFilePos);
 		FResult GetNextSegment(TSharedPtrTS<IStreamSegment>& OutSegment, TSharedPtrTS<const IStreamSegment> CurrentSegment, const FPlayStartOptions& Options);

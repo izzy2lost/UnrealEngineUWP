@@ -267,7 +267,7 @@ void FDiceTask::RunChild( inout FDiceTask ParentTask, bool bActive, uint LocalIt
 	if( Tri.bIsValid )
 	{
 	#if VISUALIZE
-		VisualizeValues.x = GetVisualizeValues(1u /*AddValue */, 0u /* SubPatch */, LocalItemIndex);
+		VisualizeValues = GetVisualizeValues(1u /*AddValue */, 0u /* SubPatch */, LocalItemIndex);
 	#endif
 
 		RasterizeDicedTri(
@@ -343,7 +343,7 @@ void FClusterSplitTask::RunChild( inout FClusterSplitTask ParentTask, bool bActi
 			Encoded.z != ~0u &&
 			Encoded.w != ~0u );
 
-		SplitWorkQueue.DataBuffer.Store4( WriteOffset * 16, Encoded );
+		SplitWorkQueue.DataBuffer_Store4( WriteOffset * 16, Encoded );
 	}
 }
 

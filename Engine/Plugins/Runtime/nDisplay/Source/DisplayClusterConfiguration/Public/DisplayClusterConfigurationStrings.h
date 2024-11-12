@@ -25,7 +25,8 @@ namespace DisplayClusterConfigurationStrings
 		static constexpr const TCHAR* ClusterConfigurationCategory = TEXT("NDisplay Cluster Configuration");
 		static constexpr const TCHAR* ClusterPostprocessCategory   = TEXT("Post Process");
 		static constexpr const TCHAR* ColorGradingCategory         = TEXT("Color Grading");
-		static constexpr const TCHAR* CameraColorGradingCategory   = TEXT("Inner Frustum Color Grading");
+		static constexpr const TCHAR* CameraColorGradingCategoryOrig   = TEXT("Inner Frustum Color Grading");
+		static constexpr const TCHAR* CameraColorGradingCategory   = TEXT("Color Grading Inner Frustum");
 		static constexpr const TCHAR* ChromaKeyCategory            = TEXT("Chromakey");
 		static constexpr const TCHAR* LightcardCategory            = TEXT("Light Cards");
 		static constexpr const TCHAR* OCIOCategory                 = TEXT("OCIO");
@@ -33,13 +34,24 @@ namespace DisplayClusterConfigurationStrings
 		static constexpr const TCHAR* TileCategory                 = TEXT("Tile Rendering");
 		static constexpr const TCHAR* OverrideCategory             = TEXT("Texture Replacement");
 		static constexpr const TCHAR* ViewportsCategory            = TEXT("Viewports");
-		static constexpr const TCHAR* ICVFXCategory                = TEXT("Inner Frustum");
-		static constexpr const TCHAR* ICVFXCameraCategory          = TEXT("ICVFX Camera");
+		
+		static constexpr const TCHAR* InCameraVFXCategory          = TEXT("In Camera VFX");
+		static constexpr const TCHAR* InnerFrustumCategory         = TEXT("Inner Frustum");
+
+		static constexpr const TCHAR* ICVFXCameraCategoryOrig      = TEXT("ICVFX Camera");
+		static constexpr const TCHAR* ICVFXCameraCategory          = TEXT("Camera ICVFX");
+
 		static constexpr const TCHAR* ConfigurationCategory        = TEXT("Configuration");
-		static constexpr const TCHAR* PreviewCategory              = TEXT("Editor Preview");
-		static constexpr const TCHAR* PreviewInGameCategory        = TEXT("Preview In Game");
+		static constexpr const TCHAR* PreviewCategory              = TEXT("Preview");
 		static constexpr const TCHAR* AdvancedCategory             = TEXT("Advanced");
 		static constexpr const TCHAR* TextureShareCategory         = TEXT("Texture Share");
+		static constexpr const TCHAR* NetworkCategory              = TEXT("Network");
+		static constexpr const TCHAR* RenderingCategory            = TEXT("Rendering");
+		static constexpr const TCHAR* StereoCategory               = TEXT("Stereo");
+
+		static constexpr const TCHAR* ViewPointStereoCategory              = TEXT("Stereo");
+		static constexpr const TCHAR* ViewPointCameraPostProcessCategory   = TEXT("Camera Post Process");
+		static constexpr const TCHAR* ViewPointInFrustumProjectionCategory = TEXT("Frustum Fit");
 	}
 
 	// Command line arguments

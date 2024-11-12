@@ -165,7 +165,7 @@ public:
 			FTypeInfo& TypeInfo = RegisteredTypes.CueTypes[i];
 			if (TypeInfo.IDPtr == &TCue::ID)
 			{
-				RegisteredTypes.CueTypes.RemoveAtSwap(i, 1, EAllowShrinking::No);
+				RegisteredTypes.CueTypes.RemoveAtSwap(i, EAllowShrinking::No);
 				RegisteredTypes.bDirty = true;
 				break;
 			}
@@ -339,7 +339,7 @@ struct FSavedCue
 
 	FString GetDebugName() const
 	{
-		return FString::Printf(TEXT("[%s 0x%X] @ (Frame %d/%dms)"), *FGlobalCueTypeTable::Get().GetTypeName(ID), (int64)this, Frame, Time);
+		return FString::Printf(TEXT("[%s 0x%" INT64_FMT "] @ (Frame %d/%dms)"), *FGlobalCueTypeTable::Get().GetTypeName(ID), (int64)this, Frame, Time);
 	}
 
 	FNetSimCueTypeId ID = 0;
@@ -699,7 +699,7 @@ struct TNetSimCueDispatcher : public FNetSimCueDispatcher
 				{
 					UE_LOG(LogNetworkPredictionCues, Log, TEXT("%s. Calling OnRollback for SavedCue NetSimCue %s. Cue has not been matched but it <= LastRecvFrame %d."), *GetDebugName(), *SavedCue.GetDebugName(), LastRecvFrame);
 					SavedCue.Callbacks.OnRollback.Broadcast();
-					SavedCues.RemoveAt(It.GetIndex(), 1, EAllowShrinking::No);
+					SavedCues.RemoveAt(It.GetIndex(), EAllowShrinking::No);
 				}
 			}
 		}
@@ -714,7 +714,7 @@ struct TNetSimCueDispatcher : public FNetSimCueDispatcher
 					// Unmatched cue whose time has passed, time to rollback
 					UE_LOG(LogNetworkPredictionCues, Log, TEXT("%s. Calling OnRollback for SavedCue NetSimCue %s. Cue was not matched during a resimulate."), *GetDebugName(), *SavedCue.GetDebugName());
 					SavedCue.Callbacks.OnRollback.Broadcast();
-					SavedCues.RemoveAt(It.GetIndex(), 1, EAllowShrinking::No);
+					SavedCues.RemoveAt(It.GetIndex(), EAllowShrinking::No);
 				}
 			}
 

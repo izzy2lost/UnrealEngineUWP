@@ -9,6 +9,7 @@ void SSimulcamViewport::Construct(const FArguments& InArgs, UTexture* InTexture)
 {
 	OnSimulcamViewportClicked = InArgs._OnSimulcamViewportClicked;
 	OnSimulcamViewportInputKey = InArgs._OnSimulcamViewportInputKey;
+	OnSimulcamViewportMarqueeSelect = InArgs._OnSimulcamViewportMarqueeSelect;
 
 	Texture = TStrongObjectPtr<UTexture>(InTexture);
 

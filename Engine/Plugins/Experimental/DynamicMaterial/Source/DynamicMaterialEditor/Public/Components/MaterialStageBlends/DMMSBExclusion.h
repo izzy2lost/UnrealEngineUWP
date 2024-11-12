@@ -5,8 +5,8 @@
 #include "Components/DMMaterialStageBlendFunction.h"
 #include "DMMSBExclusion.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageBlendExclusion : public UDMMaterialStageBlendFunction
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialStageBlendExclusion : public UDMMaterialStageBlendFunction
 {
 	GENERATED_BODY()
 

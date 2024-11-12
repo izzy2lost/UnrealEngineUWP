@@ -21,12 +21,11 @@
 #include "EditorActorFolders.h"
 #include "IPlacementModeModule.h"
 #include "LevelEditorSequencerIntegration.h"
-#include "LevelSequence.h"
 #include "SceneOutlinerModule.h"
 #include "SceneOutlinerTextInfoColumn.h"
 #include "SPositiveActionButton.h"
+
 #include "Algo/Find.h"
-#include "Algo/RemoveIf.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "LevelInstance/LevelInstanceInterface.h"
@@ -34,12 +33,10 @@
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/Views/STreeView.h"
-#include "WorldPartition/ActorDescContainer.h"
-#include "WorldPartition/WorldPartitionActorDesc.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
 #include "WorldPartition/ContentBundle/ContentBundleEngineSubsystem.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
-#include "WorldPartition/WorldPartitionActorDescInstance.h"
 
 #define LOCTEXT_NAMESPACE "SObjectMixerEditorList"
 
@@ -100,7 +97,6 @@ void SObjectMixerEditorList::Construct(const FArguments& InArgs, TSharedRef<FObj
 
 SObjectMixerEditorList::~SObjectMixerEditorList()
 {	
-	FLevelEditorSequencerIntegration::Get().GetOnSequencersChanged().RemoveAll(this);
 	HeaderRowContextMenuWidget.Reset();
 }
 
@@ -145,13 +141,10 @@ TSharedRef<SWidget> SObjectMixerEditorList::OnGenerateAddObjectButtonMenu() cons
 	{
 		FMenuBuilder AddObjectButtonMenuBuilder = FMenuBuilder(true, nullptr);
 
-		for (const UClass* Class : ClassesToPlace)
+		for (UClass* Class : ClassesToPlace)
 		{
-			if (const UActorFactory* Factory = GEditor->FindActorFactoryForActorClass(Class))
-			{
-				AddObjectButtonMenuBuilder.AddWidget(
-					SNew(SObjectMixerPlacementAssetMenuEntry, MakeShareable(new FPlaceableItem(*Factory->GetClass()))), FText::GetEmpty());
-			}
+			TSharedPtr<FPlaceableItem> Item = MakeShared<FPlaceableItem>(GEditor->FindActorFactoryForActorClass(Class), FAssetData(Class));
+			AddObjectButtonMenuBuilder.AddWidget(SNew(SObjectMixerPlacementAssetMenuEntry, Item), FText::GetEmpty());
 		}
 
 		return AddObjectButtonMenuBuilder.MakeWidget();
@@ -677,6 +670,17 @@ void SObjectMixerEditorList::Tick(const FGeometry& AllottedGeometry, const doubl
 
 TSharedRef<SWidget> SObjectMixerEditorList::GenerateHeaderRowContextMenu()
 {
+	TSharedPtr<FObjectMixerEditorList> PinnedListModel = ListModelPtr.Pin(); 
+	check(PinnedListModel);
+
+	if (const UObjectMixerObjectFilter* Filter = PinnedListModel->GetMainObjectFilterInstance())
+	{
+		if (!Filter->ShouldAllowColumnCustomizationByUser())
+		{
+			return SNullWidget::NullWidget;
+		}
+	}
+
 	if (!HeaderRowContextMenuWidget)
 	{
 		FMenuBuilder MenuBuilder(false, nullptr);
@@ -1188,7 +1192,7 @@ void SObjectMixerEditorList::SetupColumns(FSceneOutlinerInitializationOptions& O
 		);
 		
 		// Sequencer Columns
-		if (FLevelEditorSequencerIntegration::Get().GetSequencers().Num() > 0)
+		if (FObjectMixerEditorModule::Get().GetSequencers().Num() > 0)
 		{
 			const FText SpawnableDisplayText = LOCTEXT("SpawnableColumnName", "Spawnable");
 			const FText SequencerInfoDisplayText = LOCTEXT("SequencerColumnName", "Sequencer");

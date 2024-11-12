@@ -3,11 +3,13 @@
 import json
 import os
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import socket
 import struct
 import traceback
-from typing import Optional
+import uuid
+from typing import Optional, List
+from enum import Enum
 
 from PySide6 import QtCore
 from PySide6 import QtWidgets
@@ -15,7 +17,6 @@ from PySide6 import QtWidgets
 from switchboard import message_protocol, switchboard_application
 from switchboard import switchboard_utils as sb_utils
 from switchboard import switchboard_widgets as sb_widgets
-from switchboard import switchboard_dialog as sb_dialog
 from switchboard.config import CONFIG, BoolSetting, IntSetting, FilePathSetting, \
     LoggingSetting, OptionSetting, Setting, StringSetting, SETTINGS, \
     StringListSetting, AddressSetting, migrate_comma_separated_string_to_list, \
@@ -25,13 +26,28 @@ from switchboard.devices.unreal.plugin_unreal import DeviceUnreal, \
     DeviceWidgetUnreal, LiveLinkPresetSetting, MediaProfileSetting
 from switchboard.devices.unreal.uassetparser import UassetParser
 from switchboard.devices.device_base import DeviceStatus
-from switchboard.message_protocol import SyncStatusRequestFlags
 from switchboard.switchboard_logging import LOGGER
 from switchboard.sbcache import SBCache, Asset
+from switchboard.devices.unreal.plugin_unreal import ProgramStartQueueItem, UnrealJobs
 
 from .ndisplay_monitor_ui import nDisplayMonitorUI
 from .ndisplay_monitor import nDisplayMonitor
 
+
+class PackagingClientConfig(Enum):
+    ''' Used to specify the type of client packaging'''
+
+    Default = "Default"
+    NoClient = "None"
+    Shipping = "Shipping"
+    Development = "Development"
+
+
+class LaunchMode(Enum):
+    ''' Used to specify how to launch the Unreal instances. '''
+
+    Standalone = "Standalone (ICVFX)"
+    Packaged = "Packaged Game"
 
 class AddnDisplayDialog(AddDeviceDialog):
     def __init__(self, existing_devices, parent=None):
@@ -48,6 +64,18 @@ class AddnDisplayDialog(AddDeviceDialog):
         self.name_field = None
         self.address_field = None
 
+        # Initialize a grid layout for the form
+        grid_layout = QtWidgets.QGridLayout()
+
+        # Config File row
+
+        lblConfigFile = QtWidgets.QLabel(self, text="Config File")
+
+        # Combobox with config files
+        self.cbConfigs = sb_widgets.SearchableComboBox(self)
+        self.cbConfigs.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
+        self.cbConfigs.setEditable(True)  # to allow the user to type the value
+
         # Button to browse for supported config files
         self.btnBrowse = QtWidgets.QPushButton(self, text="Browse")
         self.btnBrowse.clicked.connect(self.on_clicked_btnBrowse)
@@ -56,19 +84,46 @@ class AddnDisplayDialog(AddDeviceDialog):
         self.btnFindConfigs = QtWidgets.QPushButton(self, text="Populate")
         self.btnFindConfigs.clicked.connect(self.on_clicked_btnFindConfigs)
 
-        # Combobox with config files
-        self.cbConfigs = sb_widgets.SearchableComboBox(self)
-        self.cbConfigs.setSizePolicy(
-            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
-        self.cbConfigs.setEditable(True)  # to allow the user to type the value
+        config_file_layout = QtWidgets.QHBoxLayout()
+        config_file_layout.addWidget(self.cbConfigs)
+        config_file_layout.addWidget(self.btnBrowse)
+        config_file_layout.addWidget(self.btnFindConfigs)
 
-        # Create layout for the config file selection widgets
-        file_selection_layout = QtWidgets.QHBoxLayout()
-        file_selection_layout.addWidget(self.cbConfigs)
-        file_selection_layout.addWidget(self.btnBrowse)
-        file_selection_layout.addWidget(self.btnFindConfigs)
+        grid_layout.addWidget(lblConfigFile, 0, 0)
+        grid_layout.addLayout(config_file_layout, 0, 1)
 
-        self.form_layout.addRow("Config File", file_selection_layout)
+        # Launch As row
+
+        lblLaunchAs = QtWidgets.QLabel(self, text="Launch As")
+        self.cmbLaunchAs = QtWidgets.QComboBox(self)
+        self.cmbLaunchAs.addItems([LaunchMode.Standalone.value, LaunchMode.Packaged.value])
+        self.cmbLaunchAs.currentIndexChanged.connect(self.on_cmbLaunchAs_currentIndexChanged)
+
+        launch_as_layout = QtWidgets.QHBoxLayout()
+        launch_as_layout.addWidget(self.cmbLaunchAs)
+        launch_as_layout.setAlignment(QtCore.Qt.AlignLeft)
+
+        grid_layout.addWidget(lblLaunchAs, 1, 0)
+        grid_layout.addLayout(launch_as_layout, 1, 1)
+
+        # Path row (initially not editable)
+        self.lblPath = QtWidgets.QLabel(self, text=DevicenDisplay.csettings['packaged_game_path'].nice_name)
+        self.lblPath.setEnabled(False)
+        self.pathField = QtWidgets.QLineEdit(self)
+        self.pathField.setEnabled(False)
+        self.btnPathBrowse = QtWidgets.QPushButton(self, text="...")
+        self.btnPathBrowse.setEnabled(False)
+        self.btnPathBrowse.clicked.connect(self.on_clicked_btnPathBrowse)
+
+        path_layout = QtWidgets.QHBoxLayout()
+        path_layout.addWidget(self.pathField)
+        path_layout.addWidget(self.btnPathBrowse)
+
+        grid_layout.addWidget(self.lblPath, 2, 0)
+        grid_layout.addLayout(path_layout, 2, 1)
+
+        # Add the grid layout to the form layout
+        self.form_layout.addRow(grid_layout)
 
         # Add a spacer right before the ok/cancel buttons
         spacer_layout = QtWidgets.QHBoxLayout()
@@ -78,8 +133,7 @@ class AddnDisplayDialog(AddDeviceDialog):
                 QtWidgets.QSizePolicy.Expanding))
         self.form_layout.addRow("", spacer_layout)
 
-        # Find existing nDisplay devices in order to issue a warning about
-        # replacing them.
+        # Find existing nDisplay devices in order to issue a warning about replacing them.
         self.existing_ndisplay_devices = []
 
         for device in existing_devices:
@@ -94,6 +148,31 @@ class AddnDisplayDialog(AddDeviceDialog):
 
         # populate the config combobox with the items last populated.
         self.recall_config_itemDatas()
+
+    def on_cmbLaunchAs_currentIndexChanged(self, state):
+        ''' Called when the user changes the state of the LaunchAs dropdown
+        It updates the editability of the packaged game path selection accordingly.
+        '''
+        is_packaged = self.is_packaged_game()
+
+        self.lblPath.setEnabled(is_packaged)
+        self.pathField.setEnabled(is_packaged)
+        self.pathField.setEnabled(is_packaged)
+        self.btnPathBrowse.setEnabled(is_packaged)
+
+    def on_clicked_btnPathBrowse(self):
+        ''' Called to browse for the packaged game executable path.'''
+
+        file_dialog = QtWidgets.QFileDialog(self)
+        file_path, _ = file_dialog.getOpenFileName(
+            self,
+            "Select Executable",
+            "",
+            "All Files (*);;Executables (*.exe);;Scripts (*.bat *.cmd *.sh)"
+        )
+
+        if file_path:
+            self.pathField.setText(os.path.normpath(file_path))
 
     def recall_config_itemDatas(self):
         '''
@@ -136,12 +215,22 @@ class AddnDisplayDialog(AddDeviceDialog):
         config_path = os.path.normpath(config_path)
         return config_path
 
+    def is_packaged_game(self):
+        ''' Returns true if this is a packaged game'''
+        return self.cmbLaunchAs.currentText() == LaunchMode.Packaged.value
+
+    def packaged_game_path(self):
+        ''' Returns the path to the packaged game'''
+        return self.pathField.text()
+
     def result(self):
         res = super().result()
         if res == QtWidgets.QDialog.Accepted:
             config_path = self.current_config_path()
-            DevicenDisplay.csettings['ndisplay_config_file'].update_value(
-                config_path)
+            DevicenDisplay.csettings['ndisplay_config_file'].update_value(config_path)
+            launch_mode = LaunchMode.Packaged.value if self.is_packaged_game() else LaunchMode.Standalone.value
+            DevicenDisplay.csettings['launch_mode'].update_value(launch_mode)
+            DevicenDisplay.csettings['packaged_game_path'].update_value(self.packaged_game_path())
 
         return res
 
@@ -175,10 +264,6 @@ class AddnDisplayDialog(AddDeviceDialog):
         # update the field with the selected path
         if len(cfg_path) > 0 and os.path.exists(cfg_path):
             self.cbConfigs.setCurrentText(cfg_path)
-
-    def generate_short_unique_config_name(config_path: str, file_name: str) -> str:
-        config_path = CONFIG.shrink_path(config_path)
-        return sb_dialog.SwitchboardDialog.filter_empty_abiguated_path(config_path, file_name)
 
     def on_clicked_btnFindConfigs(self):
         ''' Finds and populates config combobox '''
@@ -289,6 +374,7 @@ class DisplayConfig(object):
         self.uasset_path = ''
 
 
+
 class DevicenDisplay(DeviceUnreal):
 
     add_device_dialog = AddnDisplayDialog
@@ -300,22 +386,68 @@ class DevicenDisplay(DeviceUnreal):
             value="",
             tool_tip="Path to nDisplay config file",
             allow_reset=False,
-            is_read_only=True
+            is_read_only=True,
+            category="General Settings",
+        ),
+        'launch_mode': OptionSetting(
+            attr_name="launch_mode",
+            nice_name="Launch As",
+            value=LaunchMode.Standalone.value,
+            possible_values=[
+                LaunchMode.Standalone.value,
+                LaunchMode.Packaged.value,
+            ],
+            tool_tip=f"Select the mode in which to launch the cluster. '{LaunchMode.Packaged.value}' will use the Packaged Game Path,"
+            f" while '{LaunchMode.Standalone.value}' will launch the project using the UnrealEditor executable with -game in the command line.",
+            category="General Settings",
+        ),
+        'packaged_game_path': FilePathSetting(
+            attr_name="packaged_game_path",
+            nice_name="Packaged Executable",
+            value="",
+            tool_tip=f"Path to the nDisplay packaged game executable. Only used when '{LaunchMode.Packaged.value}' launch mode is selected.",
+            show_ui=True,
+            file_path_filter="Programs and Scripts (*.exe;*.bat;*.sh);;All Files (*)",
+            category="General Settings",
         ),
         'use_all_available_cores': BoolSetting(
             attr_name="use_all_available_cores",
             nice_name="Use All Available Cores",
             value=False,
+            category="UE Settings",
         ),
         'texture_streaming': BoolSetting(
             attr_name="texture_streaming",
             nice_name="Texture Streaming",
             value=True,
+            category="Render Settings",
         ),
         'sound': BoolSetting(
             attr_name="sound",
             nice_name="Sound",
             value=False,
+            category="UE Settings",
+        ),
+        'loading_screen': BoolSetting(
+            attr_name="loading_screen",
+            nice_name="Loading Screen",
+            value=False,
+            tool_tip='When unchecked, will add -NoLoadingScreen to the command line',
+            category="UE Settings",
+        ),
+        'allow_python': BoolSetting(
+            attr_name="allow_python",
+            nice_name="Python",
+            value=False,
+            tool_tip='When unchecked, will add -DisablePython to the command line',
+            category="UE Settings",
+        ),
+        'incremental_gc_reachability': BoolSetting(
+            attr_name="incremental_gc_reachability",
+            nice_name="Incremental GC reachability",
+            value=False,
+            tool_tip='When checked, will set the CVar gc.AllowIncrementalReachability to 1',
+            category="UE Settings",
         ),
         'render_api': OptionSetting(
             attr_name="render_api",
@@ -332,32 +464,37 @@ class DevicenDisplay(DeviceUnreal):
                 "vulkan -sm5",
                 "vulkan -sm6"
             ],
+            category="Render Settings",
         ),
         'multiplayer_mode': OptionSetting(
             attr_name="multiplayer_mode",
             nice_name="Multiplayer Server Mode",
             value='None',
-            possible_values=['None', 'Listen server', 'Dedicated server']
+            possible_values=['None', 'Listen server', 'Dedicated server'],
+            category="Multiplayer Settings",
         ),
         'dedicated_server_address': AddressSetting(
             attr_name="dedicated_server_address",
             nice_name="Dedicated Server Address",
             value='127.0.0.1',
             tool_tip='Server address to connect to. Not used if Multiplayer Server Mode '
-                     'is set to "Listen Server" or auto start of dedicated server is enabled'
+                     'is set to "Listen Server" or auto start of dedicated server is enabled',
+            category="Multiplayer Settings",
         ),
         'dedicated_server_port': IntSetting(
             attr_name="dedicated_server_port",
             nice_name="Dedicated Server Port",
             value='7777',
-            tool_tip='Server port to connect to. Not used if Multiplayer Server Mode is not Dedicated Server'
+            tool_tip='Server port to connect to. Not used if Multiplayer Server Mode is not Dedicated Server',
+            category="Multiplayer Settings",
         ),
         'render_mode': OptionSetting(
             attr_name="render_mode",
             nice_name="Render Mode",
             value="Mono",
             possible_values=[
-                "Mono", "Frame sequential", "Side-by-Side", "Top-bottom"]
+                "Mono", "Frame sequential", "Side-by-Side", "Top-bottom"],
+            category="Render Settings",
         ),
         'render_sync_policy': OptionSetting(
             attr_name="render_sync_policy",
@@ -371,32 +508,37 @@ class DevicenDisplay(DeviceUnreal):
                 "- 'Ethernet': Ethernet-based sync. Formerly known as 'sync policy 1'\n"
                 "- 'Nvidia': Nvidia's Quadro Sync Framelock. Formerly known as 'sync policy 2'\n"
             ),
+            category="Render Settings",
         ),
         'executable_filename': FilePathSetting(
             attr_name="executable_filename",
-            nice_name="nDisplay Executable Filename",
+            nice_name="Unreal Editor Filename",
             value="UnrealEditor.exe",
-            file_path_filter="Programs (*.exe;*.bat)"
+            file_path_filter="Programs (*.exe;*.bat);;All Files (*)",
+            category="UE Settings",
         ),
         'ndisplay_cmd_args': StringSetting(
             attr_name="ndisplay_cmd_args",
             nice_name="Extra Cmd Line Args",
             value="",
+            category="Command Line Args",
         ),
         'ndisplay_exec_cmds': StringListSetting(
             attr_name="ndisplay_exec_cmds",
             nice_name='ExecCmds',
-            value= [],
+            value=[],
             tool_tip='ExecCmds to be passed. No need for outer double quotes.',
             allow_reset=False,
-            migrate_data=migrate_comma_separated_string_to_list
+            migrate_data=migrate_comma_separated_string_to_list,
+            category="Command Line Args",
         ),
         'ndisplay_dp_cvars': StringListSetting(
             attr_name='ndisplay_dp_cvars',
             nice_name="DPCVars",
             value=[],
             tool_tip="Device profile console variables.",
-            migrate_data=migrate_comma_separated_string_to_list
+            migrate_data=migrate_comma_separated_string_to_list,
+            category="Command Line Args",
         ),
         'ndisplay_unattended': BoolSetting(
             attr_name='ndisplay_unattended',
@@ -406,6 +548,7 @@ class DevicenDisplay(DeviceUnreal):
                 'Include the "-unattended" command line argument, which is '
                 'documented to "Disable anything requiring feedback from the '
                 'user."'),
+            category="UE Settings",
         ),
         'max_gpu_count': OptionSetting(
             attr_name="max_gpu_count",
@@ -415,13 +558,15 @@ class DevicenDisplay(DeviceUnreal):
             tool_tip=(
                 "If you have multiple GPUs in the PC, you can specify how "
                 "many to use."),
-        ),
+            category="GPU/CPU Settings",
+       ),
         'priority_modifier': OptionSetting(
             attr_name='priority_modifier',
             nice_name="Process Priority",
             value=sb_utils.PriorityModifier.Normal.name,
             possible_values=[p.name for p in sb_utils.PriorityModifier],
             tool_tip="Used to override the priority of the process.",
+            category="GPU/CPU Settings",
         ),
         'populated_config_itemDatas': Setting(
             attr_name='populated_config_itemDatas',
@@ -434,7 +579,8 @@ class DevicenDisplay(DeviceUnreal):
             attr_name='minimize_before_launch',
             nice_name="Minimize Before Launch",
             value=True,
-            tool_tip="Minimizes windows before launch"
+            tool_tip="Minimizes windows before launch",
+            category="General Settings",
         ),
         'primary_device_name': StringSetting(
             attr_name='primary_device_name',
@@ -466,7 +612,8 @@ class DevicenDisplay(DeviceUnreal):
                 'LogLiveLink',
                 'LogRemoteControl',
             ],
-            tool_tip='Logging categories and verbosity levels'
+            tool_tip='Logging categories and verbosity levels',
+            category="UE Settings",
         ),
         'udpmessaging_unicast_endpoint': StringSetting(
             attr_name='udpmessaging_unicast_endpoint',
@@ -476,6 +623,7 @@ class DevicenDisplay(DeviceUnreal):
                 'Local interface binding (-UDPMESSAGING_TRANSPORT_UNICAST) of '
                 'the form {address}:{port}. If {address} is omitted, the device '
                 'address is used.'),
+            category="Network Settings",
         ),
         'udpmessaging_extra_static_endpoints': StringSetting(
             attr_name='udpmessaging_extra_static_endpoints',
@@ -485,25 +633,29 @@ class DevicenDisplay(DeviceUnreal):
                 'Comma separated. Used to add static endpoints '
                 '(-UDPMESSAGING_TRANSPORT_STATIC) in addition to those '
                 'managed by Switchboard.'),
+            category="Network Settings",
         ),
         'disable_ensures': BoolSetting(
             attr_name='disable_ensures',
             nice_name="Disable Ensures",
             value=True,
-            tool_tip="When checked, disables the handling of ensure errors - which are non-fatal and may cause hitches."
+            tool_tip="When checked, disables the handling of ensure errors - which are non-fatal and may cause hitches.",
+            category="UE Settings",
         ),
         'disable_all_screen_messages': BoolSetting(
             attr_name='disable_all_screen_messages',
             nice_name="Disable All Screen Messages",
             value=True,
-            tool_tip="When checked, adds DisableAllScreenMessages to ExecCmds"
+            tool_tip="When checked, adds DisableAllScreenMessages to ExecCmds",
+            category="UE Settings",
         ),
         'livelink_preset': LiveLinkPresetSetting(
             attr_name='livelink_preset',
             nice_name='LiveLink Preset',
             value='',
             tool_tip=(
-                'Adds the selected LiveLink preset to the command line \n')
+                'Adds the selected LiveLink preset to the command line \n'),
+            category="Tools Settings",
         ),
         'graphics_adapter': OptionSetting(
             attr_name="graphics_adapter",
@@ -515,12 +667,14 @@ class DevicenDisplay(DeviceUnreal):
                 "- 'Config' : Use the setting in the nDisplay config file \n"
                 "- 0, 1, .. : The specified gpu index \n"
             ),
+            category="GPU/CPU Settings",
         ),
         'mediaprofile': MediaProfileSetting(
             attr_name='mediaprofile',
             nice_name='Media Profile',
             value='',
-            tool_tip=('Adds the selected Media Profile to the command line')
+            tool_tip=('Adds the selected Media Profile to the command line'),
+            category="Tools Settings",
         ),
         'lock_gpu_clock': BoolSetting(
             attr_name="lock_gpu_clock",
@@ -531,6 +685,7 @@ class DevicenDisplay(DeviceUnreal):
                 "to be running on the client machine as administrator, otherwise this option will be ignored."
             ),
             show_ui=True if sys.platform in ('win32', 'linux') else False,  # Gpu Clocker is available in select platforms
+            category="GPU/CPU Settings",
         ),
     }
 
@@ -546,7 +701,8 @@ class DevicenDisplay(DeviceUnreal):
                 nice_name="UE Command Line",
                 value=kwargs.get("ue_command_line", ''),
                 allow_reset=False,
-                is_read_only=True
+                is_read_only=True,
+                category="Command Line Args",
             ),
             'window_position': Setting(
                 attr_name="window_position",
@@ -675,6 +831,7 @@ class DevicenDisplay(DeviceUnreal):
             DevicenDisplay.csettings['livelink_preset'],
             DevicenDisplay.csettings['mediaprofile'],
             DevicenDisplay.csettings['graphics_adapter'],
+            DevicenDisplay.csettings['packaged_game_path'],
             CONFIG.ENGINE_DIR,
             CONFIG.SOURCE_CONTROL_WORKSPACE,
             CONFIG.UPROJECT_PATH,
@@ -750,7 +907,7 @@ class DevicenDisplay(DeviceUnreal):
         # single player
         if multiplayer_mode_name == 'None':
             return map_name
-        
+
         def is_local_address(address):
             return address == SETTINGS.ADDRESS.get_value() or address == '127.0.0.1'
 
@@ -766,27 +923,60 @@ class DevicenDisplay(DeviceUnreal):
             return get_client_args(primary_device_address)
 
         if map_name_is_valid(map_name):
-            return '?'.join([map_name,'Listen', get_common_args()])
-         
+            return '?'.join([map_name, 'Listen', get_common_args()])
+
         current_map_name = get_game_launch_level_path()
         if current_map_name.strip() == '':
             return map_name
 
         return '?'.join([current_map_name, 'Listen', get_common_args()])
 
-    def should_use_project_path_in_command_line(self):
+    def should_use_project_path_in_command_line(self) -> bool:
         ''' Returns true if the project path should be added to the command line.
         This is normally true when launching the editor, but not when launching a cooked game executable.
         '''
- 
+
+        # Don't use project path if this is a packaged game
+        if self.is_packaged_game():
+            return False
+
         # The default exe of an Unreal device is the Editor.
         default_exe = Path(DeviceUnreal.csettings['ue_exe']._original_value)
 
         # This is the current executable
-        exe = Path(self.generate_unreal_exe_path())
+        exe = Path(self.generate_exe_path())
 
         # We don't use direct comparison to include editor build variants, such as -Debug builds.
         return exe.stem.lower().startswith(default_exe.stem.lower())
+
+    def is_packaged_game(self) -> bool:
+        ''' Returns True if this node is launching as a package game'''
+        return DevicenDisplay.csettings['launch_mode'].get_value() == LaunchMode.Packaged.value
+
+    def get_packaged_game_path(self) -> str:
+        ''' Returns the packaged game executable path '''
+        return DevicenDisplay.csettings['packaged_game_path'].get_value(self.name)
+
+    def get_remote_log_path(self):
+        ''' Override from base class '''
+
+        # If packaged, assume exe name also the name of the folder where Saved is located in.
+
+        if self.is_packaged_game():
+            exe_path = Path(self.get_packaged_game_path())
+            return exe_path.with_name(exe_path.stem) / 'Saved' / 'Logs'
+
+        return super().get_remote_log_path()
+
+    def generate_exe_path(self) -> str:
+        ''' Uses the packaged executable path when this is a packaged game launch
+        Note: We didn't override generate_unreal_exe_path because Fill DDCs would grab the wrong executable.
+        '''
+
+        if self.is_packaged_game():
+            return self.get_packaged_game_path()
+
+        return super().generate_unreal_exe_path()
 
     def generate_unreal_command_line(self, map_name=""):
 
@@ -833,6 +1023,18 @@ class DevicenDisplay(DeviceUnreal):
         no_sound = (
             "-nosound"
             if not DevicenDisplay.csettings['sound'].get_value(self.name)
+            else "")
+
+        # Loading Screen
+        no_loading_screen = (
+            "-NoLoadingScreen"
+            if not DevicenDisplay.csettings['loading_screen'].get_value(self.name)
+            else "")
+
+        # Allow Python
+        no_python = (
+            "-DisablePython"
+            if not DevicenDisplay.csettings['allow_python'].get_value(self.name)
             else "")
 
         # MaxGPUCount (mGPU)
@@ -927,10 +1129,12 @@ class DevicenDisplay(DeviceUnreal):
         # Modify map name arg for multiplayer mode
         map_name = self.generate_multiplayer_map_name_args(map_name)
 
+        dash_game = "-game" if not self.is_packaged_game() else ""
+
         # fill in fixed arguments
         args = [
             f'{uproject}',
-            "-game",                      # render nodes run in -game
+            dash_game,                    # render nodes run in -game
             f'{map_name}',                # map to open
             "-messaging",                 # enables messaging, needed for MultiUser
             "-dc_cluster",                # this is a cluster node
@@ -951,6 +1155,8 @@ class DevicenDisplay(DeviceUnreal):
             f'{use_all_cores}',           # -useallavailablecores
             f'{no_texture_streaming}',    # -notexturestreaming
             f'{no_sound}',                # -nosound
+            f'{no_loading_screen}',       # -NoLoadingScreen
+            f'{no_python}',               # -DisablePython
             f'-dc_node={self.name}',      # name of this node in the nDisplay cluster
             f'Log={self.log_filename}',   # log file
             f'{ini_engine}',              # Engine ini injections
@@ -1066,6 +1272,10 @@ class DevicenDisplay(DeviceUnreal):
         if mediaprofile_gamepath:
             dp_cvars.append(self.dpcvar_for_mediaprofile(mediaprofile_gamepath))
 
+        # GC
+        if DevicenDisplay.csettings['incremental_gc_reachability'].get_value(self.name):
+            dp_cvars.append('gc.AllowIncrementalReachability=1')
+
         # Add user set dp cvars, overriding any of the forced ones.
         user_dp_cvars = self.csettings['ndisplay_dp_cvars'].get_value(self.name)
         user_dp_cvars = [cvar.strip() for cvar in user_dp_cvars if len(cvar.strip()) and len(cvar.split('=')) == 2]
@@ -1079,7 +1289,7 @@ class DevicenDisplay(DeviceUnreal):
         args.append(self.csettings['logging'].get_command_line_arg(
             override_device_name=self.name))
 
-        path_to_exe = self.generate_unreal_exe_path()
+        path_to_exe = self.generate_exe_path()
         args_expanded = ' '.join(args)
 
         self.settings['ue_command_line'].update_value(
@@ -1168,6 +1378,101 @@ class DevicenDisplay(DeviceUnreal):
     def select_as_primary(self):
         ''' Selects this node as the primary node in the nDisplay cluster '''
         self.__class__.select_device_as_primary(self)
+
+    def package_game(
+            self,
+            clientconfig: PackagingClientConfig = PackagingClientConfig.Default,
+            dryrun: bool = False) -> uuid.UUID:
+        ''' Packages the game using default settings '''
+
+        # Determine the folder where to package the game.
+
+        outdir = Path(self.get_packaged_game_path())
+
+        # Note: is_file() can't work reliably if the file doesn't exist yet.
+        if outdir.exists():
+            if outdir.is_file():
+                outdir = outdir.parent
+        else:
+            # if it ends with a separator, we know it is a directory
+            is_surely_dir = str(outdir).endswith(Path().anchor)
+            could_be_file = not is_surely_dir
+            if could_be_file:
+                outdir = outdir.parent
+
+        if outdir == Path(""):
+            raise FileNotFoundError("Invalid Packaged Game Path")
+
+        program_name = UnrealJobs.PackageGame.value
+
+        # Make sure there isn't any other program already running.
+        # @todo Should include un-started programs
+        if self.program_start_queue.running_programs_count():
+            raise PermissionError("Another task is already running. Please try again later.")
+
+        # @todo using the remote platform would be more correct.
+
+        if sys.platform.startswith('linux'):
+            platform = 'Linux'
+        elif sys.platform.startswith('darwin'):
+            platform = 'Mac'
+        else:
+            platform = 'Win64'
+
+        if clientconfig == PackagingClientConfig.Default:
+            clientconfigarg = ''
+        else:
+            clientconfigarg = f'-clientconfig={clientconfig.value}'
+
+        args = [
+            'BuildCookRun',
+            f'-project="{CONFIG.UPROJECT_PATH.get_value(self.name)}"',
+            '-noP4',
+            f'-platform={platform}',
+            clientconfigarg,
+            '-cook',
+            '-allmaps',
+            '-build',
+            '-stage',
+            '-pack',
+            '-archive',
+            f'-archivedirectory="{str(outdir)}"'
+        ]
+
+        prog_exe = "RunUAT"
+
+        if sys.platform.startswith('win'):
+            prog_exe += ".bat"
+        else:
+            prog_exe += ".sh"
+
+        prog_path = str(Path(CONFIG.ENGINE_DIR.get_value(self.name)).parent / prog_exe)
+        prog_args = ' '.join(args)
+
+        if dryrun:
+            return uuid.uuid4()
+
+        LOGGER.info(f'Packaging "{self.name}" with command: {prog_path} {prog_args}')
+
+        puuid, msg = message_protocol.create_start_process_message(
+            prog_path=prog_path,
+            prog_args=prog_args,
+            prog_name=program_name,
+            caller=self.name,
+            update_clients_with_stdout=True,
+        )
+
+        self.program_start_queue.add(
+            ProgramStartQueueItem(
+                name=program_name,
+                puuid_dependency=None,
+                puuid=puuid,
+                msg_to_unreal_client=msg,
+            ),
+            unreal_client=self.unreal_client,
+        )
+
+        return puuid
 
     @classmethod
     def extract_configexport_from_uasset(cls, cfg_file) -> str:
@@ -1403,26 +1708,6 @@ class DevicenDisplay(DeviceUnreal):
         self.settings['config_graphics_adapter'].update_value(
             menode['kwargs'].get("config_graphics_adapter", -1))
 
-    @classmethod
-    def uasset_path_from_object_path(
-            cls, object_path: str, project_dir: str) -> str:
-        '''
-        Given a full object path, return the package file path, treating
-        "`project_dir`/Content/" as "/Game/".
-        '''
-        expected_root = '/Game/'
-        if not object_path.startswith(expected_root):
-            raise ValueError('Unsupported object path root')
-
-        # If object_path is: /Game/PathA/PathB/Package.Object:SubObject
-        # Then package_rel_path is: PathA/PathB/Package
-        path_end_idx = object_path.rindex('/')
-        package_end_idx = object_path.index('.', path_end_idx)
-        package_rel_path = object_path[len(expected_root):package_end_idx]
-
-        return os.path.normpath(
-            os.path.join(project_dir, 'Content', f'{package_rel_path}.uasset'))
-
     def get_connected_devices(self):
         ''' Returns a list with the connected devices/nodes
         '''
@@ -1511,18 +1796,27 @@ class DevicenDisplay(DeviceUnreal):
             cfg_content, cfg_destination)
         self.unreal_client.send_message(cfg_msg)
 
-        if self.bp_object_path:
-            local_uasset_path = self.uasset_path_from_object_path(
-                self.bp_object_path, os.path.dirname(
-                    CONFIG.UPROJECT_PATH.get_value()))
-            dest_uasset_path = self.uasset_path_from_object_path(
-                self.bp_object_path, os.path.dirname(
-                    CONFIG.UPROJECT_PATH.get_value(self.name)))
+        # Send .uasset but only if not launching packaged
+        if self.bp_object_path and not self.is_packaged_game():
+            local_project_path = os.path.dirname(
+                CONFIG.UPROJECT_PATH.get_value())
+            dest_project_path = os.path.dirname(
+                CONFIG.UPROJECT_PATH.get_value(self.name))
+
+            local_uasset_path = CONFIG.ue_plugin_mgr.content_to_file_path(
+                PurePosixPath(self.bp_object_path)).with_suffix('.uasset')
+
+            uasset_project_relative = os.path.relpath(local_uasset_path,
+                                                      local_project_path)
+
+            dest_uasset_path = os.path.join(dest_project_path,
+                                            uasset_project_relative)
 
             if os.path.isfile(local_uasset_path):
                 self.pending_transfer_uasset = True
                 _, uasset_msg = message_protocol.create_send_file_message(
-                    local_uasset_path, dest_uasset_path, force_overwrite=True)
+                    str(local_uasset_path), dest_uasset_path,
+                    force_overwrite=True)
                 self.unreal_client.send_message(uasset_msg)
             else:
                 LOGGER.warning(
@@ -1572,7 +1866,7 @@ class DevicenDisplay(DeviceUnreal):
         cls.ndisplay_monitor.removed_device(device)
 
     @classmethod
-    def send_cluster_event(cls, devices, cluster_event):
+    def send_cluster_event(cls, devices: List[DeviceUnreal], cluster_event):
         '''
         Sends a cluster event (to the primary node, which will replicate to the rest
         of the cluster).
@@ -1593,6 +1887,14 @@ class DevicenDisplay(DeviceUnreal):
             LOGGER.warning('Could not find primary device when trying to send '
                            'cluster event. Please make sure the primary '
                            'device is marked as such.')
+            raise ValueError
+
+        if not primary.is_connected_and_authenticated():
+            LOGGER.warning('Primary node must be connected and running to send a cluster event')
+            raise ValueError
+
+        if not primary.program_start_queue.running_programs_named(UnrealJobs.Unreal.value):
+            LOGGER.warning('Primary node must be connected and running to send a cluster event')
             raise ValueError
 
         msg = bytes(json.dumps(cluster_event), 'utf-8')

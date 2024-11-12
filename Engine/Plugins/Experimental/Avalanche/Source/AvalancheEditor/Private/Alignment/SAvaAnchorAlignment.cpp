@@ -9,7 +9,6 @@
 
 #define LOCTEXT_NAMESPACE "SAvaAnchorAlignment"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SAvaAnchorAlignment::Construct(const FArguments& InArgs)
 {
 	Anchors = InArgs._Anchors;
@@ -53,7 +52,6 @@ void SAvaAnchorAlignment::Construct(const FArguments& InArgs)
 		]
 	];
 }
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 EVisibility SAvaAnchorAlignment::GetHorizontalVisibility() const
 {

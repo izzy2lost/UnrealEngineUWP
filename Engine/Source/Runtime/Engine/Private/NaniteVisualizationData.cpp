@@ -37,26 +37,22 @@ void FNaniteVisualizationData::Initialize()
 		AddVisualizationMode(TEXT("Primitives"), LOCTEXT("Primitives", "Primitives"), FModeType::Standard, NANITE_VISUALIZE_PRIMITIVES, true);
 		AddVisualizationMode(TEXT("Instances"), LOCTEXT("Instances", "Instances"), FModeType::Standard, NANITE_VISUALIZE_INSTANCES, true);
 		AddVisualizationMode(TEXT("Overdraw"), LOCTEXT("Overdraw", "Overdraw"), FModeType::Standard, NANITE_VISUALIZE_OVERDRAW, false);
-		AddVisualizationMode(TEXT("MaterialID"), LOCTEXT("MaterialID", "Material ID"), FModeType::Standard, NANITE_VISUALIZE_MATERIAL_DEPTH, true);
 		AddVisualizationMode(TEXT("LightmapUV"), LOCTEXT("LightmapUV", "Lightmap UV"), FModeType::Standard, NANITE_VISUALIZE_LIGHTMAP_UVS, true);
 		AddVisualizationMode(TEXT("EvaluateWPO"), LOCTEXT("EvaluateWPO", "Evaluate WPO"), FModeType::Standard, NANITE_VISUALIZE_EVALUATE_WORLD_POSITION_OFFSET, true);
 		AddVisualizationMode(TEXT("PixelProgrammable"), LOCTEXT("PixelProgrammable", "Pixel Programmable"), FModeType::Standard, NANITE_VISUALIZE_PIXEL_PROGRAMMABLE_RASTER, true);
-		
+		AddVisualizationMode(TEXT("Tessellation"), LOCTEXT("Tessellation", "Tessellation"), FModeType::Standard, NANITE_VISUALIZE_TESSELLATION, true);
+		AddVisualizationMode(TEXT("RasterBins"), LOCTEXT("RasterBins", "Raster Bins"), FModeType::Standard, NANITE_VISUALIZE_RASTER_BINS, true);
+		AddVisualizationMode(TEXT("ShadingBins"), LOCTEXT("ShadingBins", "Shading Bins"), FModeType::Standard, NANITE_VISUALIZE_SHADING_BINS, true);
+
 		AddVisualizationMode(TEXT("Picking"), LOCTEXT("Picking", "Picking"), FModeType::Advanced, NANITE_VISUALIZE_PICKING, true);
 		AddVisualizationMode(TEXT("Groups"), LOCTEXT("Groups", "Groups"), FModeType::Advanced, NANITE_VISUALIZE_GROUPS, true);
 		AddVisualizationMode(TEXT("Pages"), LOCTEXT("Pages", "Pages"), FModeType::Advanced, NANITE_VISUALIZE_PAGES, true);
 		AddVisualizationMode(TEXT("Hierarchy"), LOCTEXT("Hierarchy", "Hierarchy"), FModeType::Advanced, NANITE_VISUALIZE_HIERARCHY_OFFSET, true);
 		AddVisualizationMode(TEXT("RasterMode"), LOCTEXT("RasterMode", "Raster Mode"), FModeType::Advanced, NANITE_VISUALIZE_RASTER_MODE, true);
-		AddVisualizationMode(TEXT("RasterBins"), LOCTEXT("RasterBins", "Raster Bins"), FModeType::Advanced, NANITE_VISUALIZE_RASTER_BINS, true);
-		AddVisualizationMode(TEXT("ShadingBins"), LOCTEXT("ShadingBins", "Shading Bins"), FModeType::Advanced, NANITE_VISUALIZE_SHADING_BINS, true);
 		AddVisualizationMode(TEXT("SceneZMin"), LOCTEXT("SceneZMin", "Scene Z Min"), FModeType::Advanced, NANITE_VISUALIZE_SCENE_Z_MIN, true);
 		AddVisualizationMode(TEXT("SceneZMax"), LOCTEXT("SceneZMax", "Scene Z Max"), FModeType::Advanced, NANITE_VISUALIZE_SCENE_Z_MAX, true);
 		AddVisualizationMode(TEXT("SceneZDelta"), LOCTEXT("SceneZDelta", "Scene Z Delta"), FModeType::Advanced, NANITE_VISUALIZE_SCENE_Z_DELTA, true);
 		AddVisualizationMode(TEXT("SceneZDecoded"), LOCTEXT("SceneZDecoded", "Scene Z Decoded"), FModeType::Advanced, NANITE_VISUALIZE_SCENE_Z_DECODED, true);
-		AddVisualizationMode(TEXT("MaterialZMin"), LOCTEXT("MaterialZMin", "Material Z Min"), FModeType::Advanced, NANITE_VISUALIZE_MATERIAL_Z_MIN, true);
-		AddVisualizationMode(TEXT("MaterialZMax"), LOCTEXT("MaterialZMax", "Material Z Max"), FModeType::Advanced, NANITE_VISUALIZE_MATERIAL_Z_MAX, true);
-		AddVisualizationMode(TEXT("MaterialZDelta"), LOCTEXT("MaterialZDelta", "Material Z Delta"), FModeType::Advanced, NANITE_VISUALIZE_MATERIAL_Z_DELTA, true);
-		AddVisualizationMode(TEXT("MaterialZDecoded"), LOCTEXT("MaterialZDecoded", "Material Z Decoded"), FModeType::Advanced, NANITE_VISUALIZE_MATERIAL_Z_DECODED, true);
 		AddVisualizationMode(TEXT("MaterialCount"), LOCTEXT("MaterialCount", "Material Count"), FModeType::Advanced, NANITE_VISUALIZE_MATERIAL_COUNT, true);
 		AddVisualizationMode(TEXT("MaterialMode"), LOCTEXT("MaterialMode", "Material Mode"), FModeType::Advanced, NANITE_VISUALIZE_MATERIAL_MODE, true);
 		AddVisualizationMode(TEXT("MaterialIndex"), LOCTEXT("MaterialIndex", "Material Index"), FModeType::Advanced, NANITE_VISUALIZE_MATERIAL_INDEX, true);
@@ -67,9 +63,10 @@ void FNaniteVisualizationData::Initialize()
 		AddVisualizationMode(TEXT("VSMStatic"), LOCTEXT("VSMStatic", "Virtual Shadow Map Static"), FModeType::Advanced, NANITE_VISUALIZE_VSM_STATIC_CACHING, true);
 		AddVisualizationMode(TEXT("ShadingWriteMask"), LOCTEXT("ShadingWriteMask", "Shading Write Mask"), FModeType::Advanced, NANITE_VISUALIZE_SHADING_WRITE_MASK, true);
 		AddVisualizationMode(TEXT("NoDerivativeOps"), LOCTEXT("NoDerivativeOps", "No Derivative Ops"), FModeType::Advanced, NANITE_VISUALIZE_NO_DERIVATIVE_OPS, true);
-		AddVisualizationMode(TEXT("FastClearTiles"), LOCTEXT("FastClearTiles", "Fast Clear Tiles"), FModeType::Advanced, NANITE_VISUALIZE_FAST_CLEAR_TILES, true);
-		AddVisualizationMode(TEXT("Tessellation"), LOCTEXT("Tessellation", "Tessellation"), FModeType::Advanced, NANITE_VISUALIZE_TESSELLATION, true);
+		AddVisualizationMode(TEXT("FastClearTiles"), LOCTEXT("FastClearTiles", "Fast Clear Tiles"), FModeType::Advanced, NANITE_VISUALIZE_FAST_CLEAR_TILES, true);				
 		AddVisualizationMode(TEXT("DisplacementScale"), LOCTEXT("DisplacementScale", "DisplacementScale"), FModeType::Advanced, NANITE_VISUALIZE_DISPLACEMENT_SCALE, true);
+		AddVisualizationMode(TEXT("VertexColor"), LOCTEXT("VertexColor", "VertexColor"), FModeType::Advanced, NANITE_VISUALIZE_VERTEX_COLOR, true);
+		AddVisualizationMode(TEXT("MeshPaintTexture"), LOCTEXT("MeshPaintTexture", "Mesh Paint Texture"), FModeType::Advanced, NANITE_VISUALIZE_MESH_PAINT_TEXTURE, true);
 
 		ConfigureConsoleCommand();
 
@@ -101,7 +98,7 @@ void FNaniteVisualizationData::ConfigureConsoleCommand()
 
 	IConsoleManager::Get().RegisterConsoleVariable(
 		GetOverviewConsoleCommandName(),
-		TEXT("Triangles,Clusters,Instances,Primitives,,,,,,,,,Overdraw,MaterialID,RasterBins,EvaluateWPO"),
+		TEXT("Triangles,Clusters,Instances,Primitives,,,,,,,,,Overdraw,ShadingBins,RasterBins,EvaluateWPO"),
 		//TEXT("Triangles,Clusters,Instances,Primitives"),
 		*ConsoleDocumentationOverviewTargets,
 		ECVF_Default

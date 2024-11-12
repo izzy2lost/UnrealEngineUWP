@@ -24,7 +24,7 @@ namespace UE
 
 	namespace Geometry
 	{
-		template <class GridType> class TTriLinearGridInterpolant;
+		template <class GridType, typename RealType, bool bScalarCellSize> class TTriLinearGridInterpolant;
 		template <typename T> struct TCapsule3;
 		template <typename T> struct THalfspace3;
 		template <typename T> struct TSphere3;
@@ -34,15 +34,15 @@ namespace UE
 
 		/** @return true if InnerSphere is fully contained within OuterSphere */
 		template<typename RealType>
-		bool IsInside(const TSphere3<RealType>& OuterSphere, const TSphere3<RealType>& InnerSphere);
+		GEOMETRYCORE_API bool IsInside(const TSphere3<RealType>& OuterSphere, const TSphere3<RealType>& InnerSphere);
 
 		/** @return true if InnerCapsule is fully contained within OuterSphere */
 		template<typename RealType>
-		bool IsInside(const TSphere3<RealType>& OuterSphere, const TCapsule3<RealType>& InnerCapsule);
+		GEOMETRYCORE_API bool IsInside(const TSphere3<RealType>& OuterSphere, const TCapsule3<RealType>& InnerCapsule);
 
 		/** @return true if InnerBox is fully contained within OuterSphere */
 		template<typename RealType>
-		bool IsInside(const TSphere3<RealType>& OuterSphere, const TOrientedBox3<RealType>& InnerBox);
+		GEOMETRYCORE_API bool IsInside(const TSphere3<RealType>& OuterSphere, const TOrientedBox3<RealType>& InnerBox);
 
 		/** @return true if all all points in range-based for over EnumerablePts are inside OuterSphere */
 		template<typename RealType, typename EnumerablePointsType, typename E = decltype(DeclVal<EnumerablePointsType>().begin())>
@@ -73,15 +73,15 @@ namespace UE
 
 		/** @return true if InnerCapsule is fully contained within OuterCapsule */
 		template<typename RealType>
-		bool IsInside(const TCapsule3<RealType>& OuterCapsule, const TCapsule3<RealType>& InnerCapsule);
+		GEOMETRYCORE_API bool IsInside(const TCapsule3<RealType>& OuterCapsule, const TCapsule3<RealType>& InnerCapsule);
 
 		/** @return true if InnerSphere is fully contained within OuterCapsule */
 		template<typename RealType>
-		bool IsInside(const TCapsule3<RealType>& OuterCapsule, const TSphere3<RealType>& InnerSphere);
+		GEOMETRYCORE_API bool IsInside(const TCapsule3<RealType>& OuterCapsule, const TSphere3<RealType>& InnerSphere);
 
 		/** @return true if InnerBox is fully contained within OuterCapsule */
 		template<typename RealType>
-		bool IsInside(const TCapsule3<RealType>& OuterCapsule, const TOrientedBox3<RealType>& InnerBox);
+		GEOMETRYCORE_API bool IsInside(const TCapsule3<RealType>& OuterCapsule, const TOrientedBox3<RealType>& InnerBox);
 
 		/** @return true if all all points in range-based for over EnumerablePts are inside OuterCapsule */
 		template<typename RealType, typename EnumerablePointsType, typename E = decltype(DeclVal<EnumerablePointsType>().begin())>
@@ -112,15 +112,15 @@ namespace UE
 
 		/** @return true if InnerBox is fully contained within OuterBox */
 		template<typename RealType>
-		bool IsInside(const TOrientedBox3<RealType>& OuterBox, const TOrientedBox3<RealType>& InnerBox);
+		GEOMETRYCORE_API bool IsInside(const TOrientedBox3<RealType>& OuterBox, const TOrientedBox3<RealType>& InnerBox);
 
 		/** @return true if InnerSphere is fully contained within OuterBox */
 		template<typename RealType>
-		bool IsInside(const TOrientedBox3<RealType>& OuterBox, const TSphere3<RealType>& InnerSphere);
+		GEOMETRYCORE_API bool IsInside(const TOrientedBox3<RealType>& OuterBox, const TSphere3<RealType>& InnerSphere);
 
 		/** @return true if InnerCapsule is fully contained within OuterBox */
 		template<typename RealType>
-		bool IsInside(const TOrientedBox3<RealType>& OuterBox, const TCapsule3<RealType>& InnerCapsule);
+		GEOMETRYCORE_API bool IsInside(const TOrientedBox3<RealType>& OuterBox, const TCapsule3<RealType>& InnerCapsule);
 
 		/** @return true if all all points in range-based for over EnumerablePts are inside OuterBox */
 		template<typename RealType, typename EnumerablePointsType, typename E = decltype(DeclVal<EnumerablePointsType>().begin())>

@@ -69,7 +69,10 @@ GROUP_BEFORE_GLOBAL(Catch::DefaultGroup)
 		InitAll(true, true);
 	}
 
-	FModuleManager::Get().LoadModule(TEXT("IrisCore"));
+	for (const FName ModuleToLoad : {"IrisCore", "ReplicationSystemTestPlugin"})
+	{
+		FModuleManager::Get().LoadModule(ModuleToLoad);
+	}
 }
 
 GROUP_AFTER_GLOBAL(Catch::DefaultGroup)

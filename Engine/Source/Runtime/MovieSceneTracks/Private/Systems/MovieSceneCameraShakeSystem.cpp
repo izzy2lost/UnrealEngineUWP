@@ -215,7 +215,7 @@ FCameraShakePreviewer& FCameraShakePreviewerLinkerExtension::GetPreviewer(FInsta
 	UMovieSceneEntitySystemLinker* Linker = WeakLinker.Get();
 	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
 	const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InstanceHandle);
-	UObject* PlaybackContext = SequenceInstance.GetPlayer()->GetPlaybackContext();
+	UObject* PlaybackContext = SequenceInstance.GetSharedPlaybackState()->GetPlaybackContext();
 	UWorld* ContextWorld = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
 
 	FCameraShakePreviewer& NewPreviewer = Previewers.Emplace(InstanceHandle, ContextWorld);
@@ -276,7 +276,7 @@ void FCameraShakePreviewerLinkerExtension::OnLevelViewportClientListChanged()
 	for (TPair<FInstanceHandle, FCameraShakePreviewer> Pair : Previewers)
 	{
 		const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(Pair.Key);
-		UObject* PlaybackContext = SequenceInstance.GetPlayer()->GetPlaybackContext();
+		UObject* PlaybackContext = SequenceInstance.GetSharedPlaybackState()->GetPlaybackContext();
 		UWorld* ContextWorld = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
 
 		Pair.Value.RegisterViewModifiers(
@@ -375,7 +375,7 @@ void UMovieSceneCameraShakeInstantiatorSystem::OnRun(FSystemTaskPrerequisites& I
 	{
 		const FSequenceInstance& Instance = InstanceRegistry->GetInstance(InstanceHandle);
 		const FMovieSceneContext& Context = Instance.GetContext();
-		IMovieScenePlayer* Player = Instance.GetPlayer();
+		UObject* PlaybackContext = Instance.GetSharedPlaybackState()->GetPlaybackContext();
 
 		TSubclassOf<UCameraShakeBase> ShakeClass = ShakeData.SectionData.ShakeClass;
 		UCameraShakeSourceComponent* ShakeSourceComponent = Cast<UCameraShakeSourceComponent>(BoundObject);
@@ -471,7 +471,7 @@ void UMovieSceneCameraShakeInstantiatorSystem::OnRun(FSystemTaskPrerequisites& I
 			}
 			else
 			{
-				UObject* OuterObject = Player->GetPlaybackContext() ? Player->GetPlaybackContext() : GetTransientPackage();
+				UObject* OuterObject = PlaybackContext ? PlaybackContext : GetTransientPackage();
 				ShakeInstance = NewObject<UCameraShakeBase>(OuterObject, ShakeClass);
 			}
 
@@ -533,7 +533,7 @@ void UMovieSceneCameraShakeInstantiatorSystem::TriggerOneShotShakes()
 	for (TPair<FInstanceHandle, TArray<FTimedTrigger>>& Pair : TriggersByInstance)
 	{
 		const FSequenceInstance& Instance = InstanceRegistry->GetInstance(Pair.Key);
-		IMovieScenePlayer* Player = Instance.GetPlayer();
+		TSharedRef<const FSharedPlaybackState> SharedPlaybackState = Instance.GetSharedPlaybackState();
 
 		const FMovieSceneContext& Context = Instance.GetContext();
 		if (Context.GetDirection() != EPlayDirection::Forwards)
@@ -546,7 +546,8 @@ void UMovieSceneCameraShakeInstantiatorSystem::TriggerOneShotShakes()
 			TArray<UCameraShakeSourceComponent*> ShakeSourceComponents;
 			if (Trigger.ObjectBindingID.IsValid())
 			{
-				for (TWeakObjectPtr<> WeakBoundObject : Player->FindBoundObjects(Trigger.ObjectBindingID, Instance.GetSequenceID()))
+				TArrayView<TWeakObjectPtr<>> BoundObjects = SharedPlaybackState->FindBoundObjects(Trigger.ObjectBindingID, Instance.GetSequenceID());
+				for (TWeakObjectPtr<> WeakBoundObject : BoundObjects)
 				{
 					if (UObject* BoundObject = WeakBoundObject.Get())
 					{

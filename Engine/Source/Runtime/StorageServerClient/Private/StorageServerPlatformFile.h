@@ -6,6 +6,7 @@
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "Containers/StringView.h"
 #include "IO/IoDispatcher.h"
+#include "IStorageServerPlatformFile.h"
 
 #if !UE_BUILD_SHIPPING
 
@@ -21,15 +22,20 @@ namespace UE::Cook
 }
 #endif
 
+#define STORAGE_SERVER_FILE_UNKOWN_SIZE (-1) 
+
 class FStorageServerFileSystemTOC
 {
 public:
 	~FStorageServerFileSystemTOC();
-	void AddFile(const FIoChunkId& FileChunkId, FStringView Path);
+	void AddFile(const FIoChunkId& FileChunkId, FStringView Path, int64 RawSize);
 	bool FileExists(const FString& Path);
 	bool DirectoryExists(const FString& Path);
 	const FIoChunkId* GetFileChunkId(const FString& Path);
-	bool IterateDirectory(const FString& Path, TFunctionRef<bool(const FIoChunkId&, const TCHAR*)> Callback);
+	int64 GetFileSize(const FString& Path);
+	bool GetFileData(const FString& Path, FIoChunkId& OutChunkId, int64& OutRawSize);
+	bool IterateDirectory(const FString& Path, TFunctionRef<bool(const FIoChunkId&, const TCHAR*, int64)> Callback);
+	bool IterateDirectoryRecursively(const FString& Path, TFunctionRef<bool(const FIoChunkId&, const TCHAR*, int64)> Callback);
 
 private:
 	struct FDirectory
@@ -42,6 +48,7 @@ private:
 	{
 		FIoChunkId FileChunkId;
 		FString FilePath;
+		int64 RawSize;
 	};
 
 	FDirectory* AddDirectoriesRecursive(const FString& DirectoryPath);
@@ -54,7 +61,7 @@ private:
 };
 
 class FStorageServerPlatformFile
-	: public IPlatformFile
+	: public IStorageServerPlatformFile
 {
 public:
 	FStorageServerPlatformFile();
@@ -87,7 +94,9 @@ public:
 	virtual bool DirectoryExists(const TCHAR* Directory) override;
 	virtual FFileStatData GetStatData(const TCHAR* FilenameOrDirectory) override;
 	virtual bool IterateDirectory(const TCHAR* Directory, FDirectoryVisitor& Visitor) override;
+	virtual bool IterateDirectoryRecursively(const TCHAR* Directory, FDirectoryVisitor& Visitor) override;
 	virtual bool IterateDirectoryStat(const TCHAR* Directory, FDirectoryStatVisitor& Visitor) override;
+	virtual IMappedFileHandle* OpenMapped(const TCHAR* Filename) override;
 	virtual FString GetFilenameOnDisk(const TCHAR* Filename) override;
 	virtual bool DeleteFile(const TCHAR* Filename) override;
 	virtual bool MoveFile(const TCHAR* To, const TCHAR* From) override;
@@ -99,12 +108,30 @@ public:
 	virtual FString ConvertToAbsolutePathForExternalAppForRead(const TCHAR* Filename) override;
 	virtual bool SendMessageToServer(const TCHAR* Message, IPlatformFile::IFileServerMessageHandler* Handler) override;
 
+	FStringView GetHostAddr() const override;
+	void GetAndResetConnectionStats(FConnectionStats& OutStats) override;
+
+	void SetAllowPackageIo(bool bInAllowPackageIo)
+	{
+		bAllowPackageIo = bInAllowPackageIo;
+	}
+	void SetAbortOnConnectionFailure(bool bInAbortOnConnectionFailure)
+	{
+		bAbortOnConnectionFailure = bInAbortOnConnectionFailure;
+	}
+	void SetCustomProjectStorePath(FStringView InProjectStorePath)
+	{
+		CustomProjectStorePath = InProjectStorePath;
+	}
 private:
 	friend class FStorageServerFileHandle;
 
+	void InitializeConnection();
+	bool IsNonServerFilenameAllowed(FStringView InFilename);
+	bool IsAssumedImmutableTimeStampFilename(FStringView InFilename) const;
 	bool MakeStorageServerPath(const TCHAR* LocalFilenameOrDirectory, FStringBuilderBase& OutPath) const;
 	bool MakeLocalPath(const TCHAR* ServerFilenameOrDirectory, FStringBuilderBase& OutPath) const;
-	IFileHandle* InternalOpenFile(const FIoChunkId& FileChunkId, const TCHAR* LocalFilename);
+	IFileHandle* InternalOpenFile(const FIoChunkId& FileChunkId, int64 RawSize, const TCHAR* LocalFilename);
 	bool SendGetFileListMessage();
 	FFileStatData SendGetStatDataMessage(const FIoChunkId& FileChunkId);
 	int64 SendReadMessage(uint8* Destination, const FIoChunkId& FileChunkId, int64 Offset, int64 BytesToRead);
@@ -112,7 +139,11 @@ private:
 	void OnCookOnTheFlyMessage(const UE::Cook::FCookOnTheFlyMessage& Message);
 #endif
 	TUniquePtr<FArchive> TryFindProjectStoreMarkerFile(IPlatformFile* Inner) const;
+	FAnsiString MakeBaseURI();
 
+	FString CustomProjectStorePath;
+	TSet<FName> ExcludedNonServerExtensions;
+	TSet<FName> AssumedImmutableTimeStampExtensions;
 	IPlatformFile* LowerLevel = nullptr;
 	FStringView ServerEngineDirView = FStringView(TEXT("/{engine}/"));
 	FStringView ServerProjectDirView = FStringView(TEXT("/{project}/"));
@@ -123,8 +154,11 @@ private:
 	FStorageServerFileSystemTOC ServerToc;
 	FString ServerProject;
 	FString ServerPlatform;
+	FString BaseURI;
 	mutable TArray<FString> HostAddrs;
 	mutable uint16 HostPort = 8558;
+	bool bAllowPackageIo = true;
+	bool bAbortOnConnectionFailure = true;
 };
 
 #endif

@@ -4,7 +4,7 @@
 
 import { FontIcon, Stack } from '@fluentui/react';
 import React, { CSSProperties } from 'react';
-import { DeviceStatus, FindIssueResponse, GetAgentLeaseResponse, GetBatchResponse, GetIssueResponse, GetJobStepRefResponse, GetStepResponse, IssueSeverity, JobStepBatchError, JobStepOutcome, JobStepState, LabelOutcome, LabelState, LeaseOutcome, LeaseState } from '../backend/Api';
+import { DeviceStatus, FindIssueResponse, GetAgentLeaseResponse, GetBatchResponse, GetIssueResponse, GetJobStepRefResponse, GetLabelStateResponse, GetStepResponse, IssueSeverity, JobStepBatchError, JobStepOutcome, JobStepState, LabelOutcome, LabelState, LeaseOutcome, LeaseState } from '../backend/Api';
 import dashboard, { StatusColor } from "../backend/Dashboard";
 import { JobLabel } from '../backend/JobDetails';
 import { getStepStatusColor } from '../styles/colors';
@@ -55,14 +55,14 @@ export const getLabelIcon = (state: LabelState | undefined, outcome: LabelOutcom
 }
 
 
-export const LabelStatusIcon: React.FC<{ label: JobLabel, style?: CSSProperties }> = ({ label, style }) => {
+export const LabelStatusIcon: React.FC<{ label: GetLabelStateResponse, style?: CSSProperties }> = ({ label, style }) => {
 
    style = style ?? {};
    style.fontSize = style.fontSize ?? 13;
    style.paddingTop = style.paddingTop ?? 3;
    style.paddingRight = style.paddingRight ?? 8;
 
-   const icon = getLabelIcon(label.stateResponse.state, label.stateResponse.outcome);
+   const icon = getLabelIcon(label.state, label.outcome);
 
    return <StatusIcon iconName={icon.icon} style={{ ...style, color: icon.color }} />;
 }

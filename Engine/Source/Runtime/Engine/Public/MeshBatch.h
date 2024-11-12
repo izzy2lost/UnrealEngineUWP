@@ -15,13 +15,6 @@
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
 #include "InstanceUniformShaderParameters.h"
 #endif
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "UniformBuffer.h"
-#include "MaterialShared.h"
-#include "Engine/Scene.h"
-#include "PrimitiveUniformShaderParameters.h"
-#endif
 
 #define USE_MESH_BATCH_VALIDATION !UE_BUILD_SHIPPING
 
@@ -113,8 +106,9 @@ struct FMeshBatchDynamicPrimitiveData
 		}
 	}
 	
-	FORCEINLINE void EnableInstanceDynamicData(bool bEnable) { SetPayloadDataFlags(INSTANCE_SCENE_DATA_FLAG_HAS_DYNAMIC_DATA, bEnable); }
-	FORCEINLINE void EnableInstanceLocalBounds(bool bEnable) { SetPayloadDataFlags(INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS, bEnable); }
+	FORCEINLINE void EnableInstanceDynamicData(bool bEnable)  { SetPayloadDataFlags(INSTANCE_SCENE_DATA_FLAG_HAS_DYNAMIC_DATA, bEnable); }
+	FORCEINLINE void EnableInstanceSkinningData(bool bEnable) { SetPayloadDataFlags(INSTANCE_SCENE_DATA_FLAG_HAS_SKINNING_DATA, bEnable); }
+	FORCEINLINE void EnableInstanceLocalBounds(bool bEnable)  { SetPayloadDataFlags(INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS, bEnable); }
 	FORCEINLINE void SetNumInstanceCustomDataFloats(uint32 NumFloats)
 	{
 		SetPayloadDataFlags(INSTANCE_SCENE_DATA_FLAG_HAS_CUSTOM_DATA, NumFloats > 0);
@@ -133,7 +127,7 @@ struct FMeshBatchDynamicPrimitiveData
 		{
 			Total += 2;
 		}
-		else if (PayloadDataFlags & (INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET | INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA))
+		else if (PayloadDataFlags & (INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET | INSTANCE_SCENE_DATA_FLAG_HAS_SKINNING_DATA))
 		{
 			Total += 1;
 		}
@@ -148,6 +142,11 @@ struct FMeshBatchDynamicPrimitiveData
 			{
 				Total += 3;
 			}
+		}
+
+		if (PayloadDataFlags & INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA)
+		{
+			Total += 1;
 		}
 
 		if (PayloadDataFlags & INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS)
@@ -350,12 +349,14 @@ struct FMeshBatch
 	/** This is the threshold that will be used to know if we should use this mesh batch or use one with no tessellation enabled */
 	float TessellationDisablingShadowMapMeshSize;
 
+	/** Segment index of the original mesh */
+	int32 SegmentIndex;
+
 	/* Mesh Id in a primitive. Used for stable sorting of draws belonging to the same primitive. **/
 	uint16 MeshIdInPrimitive;
 
 	/** LOD index of the mesh, used for fading LOD transitions. */
 	int8 LODIndex;
-	uint8 SegmentIndex;
 
 	uint32 ReverseCulling : 1;
 	uint32 bDisableBackfaceCulling : 1;
@@ -475,9 +476,9 @@ struct FMeshBatch
 	,	MaterialRenderProxy(nullptr)
 	,	LCI(nullptr)
 	,	TessellationDisablingShadowMapMeshSize(0.0f)
+	,	SegmentIndex(INDEX_NONE)
 	,	MeshIdInPrimitive(0)
 	,	LODIndex(INDEX_NONE)
-	,	SegmentIndex(0xFF)
 	,	ReverseCulling(false)
 	,	bDisableBackfaceCulling(false)
 	,	CastShadow(true)

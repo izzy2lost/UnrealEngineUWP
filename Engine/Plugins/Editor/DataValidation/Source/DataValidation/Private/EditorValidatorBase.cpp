@@ -26,7 +26,7 @@ EDataValidationResult UEditorValidatorBase::ValidateLoadedAsset(const FAssetData
 	FDateTime ValidationTime = FDateTime::Now();
 	bool bTriedToValidate = false;
 	
-	TGuardValue<UObject*> ObjectGuard(CurrentObjectBeingValidated, Asset);
+	TGuardValue<TObjectPtr<UObject>> ObjectGuard(CurrentObjectBeingValidated, Asset);
 	TGuardValue<const FAssetData*> AssetGuard(CurrentAssetBeingValidated, &AssetData);
 
 	if (K2_CanValidate(Context.GetValidationUsecase()) && K2_CanValidateAsset(Asset))

@@ -68,6 +68,24 @@ static TAutoConsoleVariable<int32> CVarGraphicsAdapter(
 	TEXT("  1: Adapter #1, ..."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static FAutoConsoleCommandWithWorldAndArgs CVarRHISetGPUCaptureOptions(
+	TEXT("r.RHISetGPUCaptureOptions"),
+	TEXT("Utility function to change multiple CVARs useful when profiling or debugging GPU rendering. Setting to 1 or 0 will guarantee all options are in the appropriate state.\n")
+	TEXT("r.showmaterialdrawevents, toggledrawevents."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& Args, UWorld* World)
+	{
+		if (Args.Num() > 0)
+		{
+			const bool bEnabled = Args[0].ToBool();
+			FDynamicRHI::EnableIdealGPUCaptureOptions(bEnabled);
+		}
+		else
+		{
+			UE_LOG(LogRHI, Display, TEXT("Usage: r.RHISetGPUCaptureOptions 0 or r.RHISetGPUCaptureOptions 1"));
+		}
+	})
+);
+
 #if STATS
 #include "ProfilingDebugging/CsvProfilerConfig.h"
 #include "Stats/StatsData.h"
@@ -116,12 +134,12 @@ const FClearValueBinding FClearValueBinding::DefaultNormal8Bit(FLinearColor(128.
 
 #if HAS_GPU_STATS
 
-	FDrawCallCategoryName::FDrawCallCategoryName()
+	FRHIDrawStatsCategory::FRHIDrawStatsCategory()
 		: Name(NAME_None)
 		, Index(-1)
 	{}
 
-	FDrawCallCategoryName::FDrawCallCategoryName(FName InName)
+	FRHIDrawStatsCategory::FRHIDrawStatsCategory(FName InName)
 		: Name(InName)
 		, Index(GetManager().NumCategory++)
 	{
@@ -132,14 +150,14 @@ const FClearValueBinding FClearValueBinding::DefaultNormal8Bit(FLinearColor(128.
 		}
 	}
 
-	FDrawCallCategoryName::FManager::FManager()
+	FRHIDrawStatsCategory::FManager::FManager()
 		: NumCategory(0)
 	{
 		FMemory::Memzero(Array);
 		FMemory::Memzero(DisplayCounts);
 	}
 
-	FDrawCallCategoryName::FManager& FDrawCallCategoryName::GetManager()
+	FRHIDrawStatsCategory::FManager& FRHIDrawStatsCategory::GetManager()
 	{
 		// Categories are global scope objects, so the initialization order is undefined.
 		// Lazy init the manager on first use.
@@ -1086,12 +1104,6 @@ static_assert((int32)ERHIZBuffer::FarPlane == 0 || (int32)ERHIZBuffer::FarPlane 
 /**
  * RHI configuration settings.
  */
-
-static TAutoConsoleVariable<int32> ResourceTableCachingCvar(
-	TEXT("rhi.ResourceTableCaching"),
-	1,
-	TEXT("If 1, the RHI will cache resource table contents within a frame. Otherwise resource tables are rebuilt for every draw call.")
-	);
 static TAutoConsoleVariable<int32> GSaveScreenshotAfterProfilingGPUCVar(
 	TEXT("r.ProfileGPU.Screenshot"),
 	1,
@@ -1115,67 +1127,12 @@ static TAutoConsoleVariable<int32> GCVarRHIRenderPass(
 	TEXT(""),
 	ECVF_Default);
 
-static TAutoConsoleVariable<int32> CVarGPUCrashDebugging(
-	TEXT("r.GPUCrashDebugging"),
-	0,
-	TEXT("Enable vendor specific GPU crash analysis tools"),
-	ECVF_ReadOnly
-	);
-
-static TAutoConsoleVariable<int32> CVarGPUCrashDump(
-	TEXT("r.GPUCrashDump"),
-	0,
-	TEXT("Enable vendor specific GPU crash dumps"),
-	ECVF_ReadOnly
-);
-
 static TAutoConsoleVariable<int32> CVarGPUCrashOnOutOfMemory(
 	TEXT("r.GPUCrashOnOutOfMemory"),
 	0,
 	TEXT("Enable crash reporting on GPU OOM"),
 	ECVF_ReadOnly
 );
-
-static TAutoConsoleVariable<int32> CVarGPUCrashDebuggingAftermathMarkers(
-	TEXT("r.GPUCrashDebugging.Aftermath.Markers"),
-	0,
-	TEXT("Enable draw event markers in Aftermath dumps"),
-	ECVF_ReadOnly
-);
-
-static TAutoConsoleVariable<int32> CVarGPUCrashDebuggingAftermathCallstack(
-	TEXT("r.GPUCrashDebugging.Aftermath.Callstack"),
-	0,
-	TEXT("Enable callstack capture in Aftermath dumps"),
-	ECVF_ReadOnly
-);
-
-static TAutoConsoleVariable<int32> CVarGPUCrashDebuggingAftermathResourceTracking(
-	TEXT("r.GPUCrashDebugging.Aftermath.ResourceTracking"),
-	0,
-	TEXT("Enable resource tracking for Aftermath dumps"),
-	ECVF_ReadOnly
-);
-
-static TAutoConsoleVariable<int32> CVarGPUCrashDebuggingAftermathTrackAll(
-	TEXT("r.GPUCrashDebugging.Aftermath.TrackAll"),
-	1,
-	TEXT("Enable maximum tracking for Aftermath dumps"),
-	ECVF_ReadOnly
-);
-
-static FAutoConsoleVariableRef CVarEnableVariableRateShading(
-	TEXT("r.VRS.Enable"),
-	GRHIVariableRateShadingEnabled,
-	TEXT("Toggle to enable Variable Rate Shading."),
-	ECVF_RenderThreadSafe);
-
-static FAutoConsoleVariableRef CVarEnableAttachmentVariableRateShading(
-	TEXT("r.VRS.EnableImage"),
-	GRHIAttachmentVariableRateShadingEnabled,
-	TEXT("Toggle to enable image-based Variable Rate Shading."),
-	ECVF_RenderThreadSafe);
-
 
 FString GRHIBindlessResourceConfiguration = TEXT("Disabled");
 static FAutoConsoleVariableRef CVarEnableBindlessResources(
@@ -1240,9 +1197,16 @@ ERHIBindlessConfiguration RHIParseBindlessConfiguration(EShaderPlatform Platform
 
 #if WITH_EDITOR
 	// We have to check the -bindless command line option here to make sure the shaders are compiled with bindless enabled too.
-	static const bool bCommandLine = FParse::Param(FCommandLine::Get(), TEXT("Bindless"));
-	if (bCommandLine)
+	static const bool bRegularCommandLine = FParse::Param(FCommandLine::Get(), TEXT("Bindless"));
+	static const bool bRTOnlyCommandLine = FParse::Param(FCommandLine::Get(), TEXT("BindlessRT"));
+	if (bRegularCommandLine || bRTOnlyCommandLine)
 	{
+		// Only allow what the platform supports
+		if (BindlessSupport == ERHIBindlessSupport::RayTracingOnly || bRTOnlyCommandLine)
+		{
+			return ERHIBindlessConfiguration::RayTracingShaders;
+		}
+
 		return ERHIBindlessConfiguration::AllShaders;
 	}
 #endif
@@ -1317,21 +1281,20 @@ void FRHIDrawStats::Accumulate(FRHIDrawStats& Other)
 {
 	for (uint32 GPUIndex = 0; GPUIndex < GNumExplicitGPUsForRendering; ++GPUIndex)
 	{
-		FPerGPUStats& LeftGPU = GetGPU(GPUIndex);
-		FPerGPUStats& RightGPU = Other.GetGPU(GPUIndex);
+		FPerGPU& LeftGPU = GetGPU(GPUIndex);
+		FPerGPU& RightGPU = Other.GetGPU(GPUIndex);
 
 		for (int32 CategoryIndex = 0; CategoryIndex < NumCategories; ++CategoryIndex)
 		{
-			FPerCategoryStats& LeftCategory = LeftGPU.GetCategory(CategoryIndex);
-			FPerCategoryStats& RightCategory = RightGPU.GetCategory(CategoryIndex);
+			FPerCategory& LeftCategory = LeftGPU.Categories[CategoryIndex];
+			FPerCategory& RightCategory = RightGPU.Categories[CategoryIndex];
 
 			LeftCategory += RightCategory;
 		}
 	}
 }
 
-// Called from RHIBeginFrame
-void FRHICommandListImmediate::ProcessStats()
+RHI_API void FRHIDrawStats::ProcessAsFrameStats()
 {
 #if HAS_GPU_STATS
 	// Only copy the display counters every half second keep things more stable.
@@ -1347,23 +1310,20 @@ void FRHICommandListImmediate::ProcessStats()
 		bCopyDisplayFrames = true;
 	}
 
-	FDrawCallCategoryName::FManager& Manager = FDrawCallCategoryName::GetManager();
+	FRHIDrawStatsCategory::FManager& Manager = FRHIDrawStatsCategory::GetManager();
 #endif
 
 	// Summed stats across all GPUs
-	FRHIDrawStats::FPerCategoryStats Total = {};
-	TStaticArray<FRHIDrawStats::FPerCategoryStats, FRHIDrawStats::NumCategories> TotalPerCategory;
+	FPerCategory Total = {};
+	TStaticArray<FPerCategory, FRHIDrawStats::NumCategories> TotalPerCategory;
 	FMemory::Memzero(TotalPerCategory);
 
 	for (int32 GPUIndex = 0; GPUIndex < MAX_NUM_GPUS; ++GPUIndex)
 	{
-		FRHIDrawStats::FPerCategoryStats TotalPerGPU = {};
-
-		FRHIDrawStats::FPerGPUStats& GPUStats = FrameDrawStats.GetGPU(GPUIndex);
-
+		FPerCategory TotalPerGPU = {};
 		for (int32 CategoryIndex = 0; CategoryIndex < FRHIDrawStats::NumCategories; ++CategoryIndex)
 		{
-			FRHIDrawStats::FPerCategoryStats& Category = GPUStats.GetCategory(CategoryIndex);
+			FPerCategory& Category = GPUs[GPUIndex].Categories[CategoryIndex];
 
 			TotalPerCategory[CategoryIndex] += Category;
 			TotalPerGPU                     += Category;
@@ -1390,7 +1350,7 @@ void FRHICommandListImmediate::ProcessStats()
 	SET_DWORD_STAT(STAT_RHILines             , Total.Lines    );
 	SET_DWORD_STAT(STAT_RHIDrawPrimitiveCalls, Total.Draws    );
 
-	#if CSV_PROFILER
+	#if CSV_PROFILER_STATS
 	for (int32 CategoryIndex = 0; CategoryIndex < Manager.NumCategory; ++CategoryIndex)
 	{
 		FCsvProfiler::RecordCustomStat(Manager.Array[CategoryIndex]->Name, CSV_CATEGORY_INDEX(DrawCall), int32(TotalPerCategory[CategoryIndex].Draws), ECsvCustomStatOp::Set);
@@ -1398,7 +1358,7 @@ void FRHICommandListImmediate::ProcessStats()
 	#endif
 #endif // HAS_GPU_STATS
 
-	FrameDrawStats.Reset();
+	Reset();
 }
 
 //
@@ -1517,6 +1477,17 @@ int32 RHIGetPreferredClearUAVRectPSResourceType(const FStaticShaderPlatform Plat
 	return 1; // TEXTURE_2D
 }
 
+RHI_API bool RHISupportsVolumeTextureRendering(const FStaticShaderPlatform Platform)
+{
+#if WITH_EDITOR
+	// When preview platforms are supported (when building with editor) we might be previewing an RHI that doesn't support geometry shaders (such as Metal)
+	// while rendering with a runtime RHI that doesn't support vertex shader layers as an alternative (such as D3D), so take these DDPI entries into account, too.
+	return GSupportsVolumeTextureRendering && (RHISupportsGeometryShaders(Platform) || RHISupportsVertexShaderLayer(Platform));
+#else
+	return GSupportsVolumeTextureRendering;
+#endif
+}
+
 void FRHIRenderPassInfo::ConvertToRenderTargetsInfo(FRHISetRenderTargetsInfo& OutRTInfo) const
 {
 	for (int32 Index = 0; Index < MaxSimultaneousRenderTargets; ++Index)
@@ -1559,6 +1530,12 @@ void FRHIRenderPassInfo::ConvertToRenderTargetsInfo(FRHISetRenderTargetsInfo& Ou
 		DepthStencilRenderTarget.ExclusiveDepthStencil);
 	OutRTInfo.bClearDepth = (DepthLoadAction == ERenderTargetLoadAction::EClear);
 	OutRTInfo.bClearStencil = (StencilLoadAction == ERenderTargetLoadAction::EClear);
+
+	if (DepthStencilRenderTarget.ResolveTarget && DepthStencilRenderTarget.ResolveTarget != DepthStencilRenderTarget.DepthStencilTarget)
+	{
+		OutRTInfo.DepthStencilResolveRenderTarget = OutRTInfo.DepthStencilRenderTarget;
+		OutRTInfo.DepthStencilResolveRenderTarget.Texture = DepthStencilRenderTarget.ResolveTarget;
+	}
 
 	OutRTInfo.ShadingRateTexture = ShadingRateTexture;
 	OutRTInfo.ShadingRateTextureCombiner = ShadingRateTextureCombiner;
@@ -1656,6 +1633,20 @@ void FRHIRenderPassInfo::Validate() const
 			// 1. render pass must have depth target
 			// 2. depth target must support InputAttachement
 			ensure(EnumHasAnyFlags(DepthStencilRenderTarget.DepthStencilTarget->GetFlags(), TexCreate_InputAttachmentRead));
+		}
+
+		if (DepthStencilRenderTarget.ResolveTarget && DepthStencilRenderTarget.ResolveTarget != DepthStencilRenderTarget.DepthStencilTarget)
+		{
+			// For depth resolve
+			// 1. RHI must support depth stencil resolve
+			// 2. Must be using MSAA resolve
+			// 3. Resolve target sample count must be 1
+			// 4. Resolve target format must be the same as the MSAA target format
+			ensureMsgf(GRHISupportsDepthStencilResolve, TEXT("Attempted to resolve depth/stencil target but feature is not supported."));
+			ensureMsgf(bIsMSAAResolve, TEXT("Depth/stencil resolve target is bound but resolve was not requested."));
+			ensureMsgf(DepthStencilRenderTarget.ResolveTarget->GetNumSamples() == 1, TEXT("Depth/stencil resolve targets must have a sample count of 1."));
+			ensureMsgf(DepthStencilRenderTarget.ResolveTarget->GetFormat() == DepthStencilRenderTarget.DepthStencilTarget->GetFormat(),
+				TEXT("Depth/stencil resolve targets must have the same format as the MSAA target."));
 		}
 	}
 	else
@@ -1767,19 +1758,18 @@ bool FRHITextureDesc::Validate(const FRHITextureCreateInfo& Desc, const TCHAR* N
 				Name, GetTextureDimensionString(Desc.Dimension));
 		}
 
-		ValidateResourceDesc(Desc.NumMips == 1,
-			TEXT("Reserved Texture %s's NumMips=%d is invalid. Expected only 1 mip level."),
-			Name, Desc.NumMips);
-
 		if (Desc.Dimension == ETextureDimension::Texture2DArray)
 		{
-			ValidateResourceDesc(Desc.Extent.X >= GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension,
-				TEXT("Reserved Texture array %s's Desc.Extent.X=%d is invalid. It is required to be be no less than %d."),
-				Name, Desc.Extent.X, GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension);
+			const uint32 MipShift = FMath::Max<uint32>(1u, Desc.NumMips) - 1;
+			const FIntPoint SmallestMipExtent = Desc.Extent / (1 << MipShift);
 
-			ValidateResourceDesc(Desc.Extent.Y >= GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension,
-				TEXT("Reserved Texture array %s's Desc.Extent.Y=%d is invalid. It is required to be be no less than %d."),
-				Name, Desc.Extent.Y, GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension);
+			ValidateResourceDesc(SmallestMipExtent.X >= GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension,
+				TEXT("Reserved Texture array %s's SmallestMipExtent.X=%d is invalid. It is required to be be no less than %d."),
+				Name, SmallestMipExtent.X, GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension);
+
+			ValidateResourceDesc(SmallestMipExtent.Y >= GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension,
+				TEXT("Reserved Texture array %s's SmallestMipExtent.Y=%d is invalid. It is required to be be no less than %d."),
+				Name, SmallestMipExtent.Y, GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension);
 		}
 	}
 
@@ -1829,8 +1819,20 @@ bool FRHITextureSRVCreateInfo::Validate(const FRHITextureDesc& TextureDesc, cons
 		TEXT("Failed to create SRV at mips %d-%d: the texture %s has only %d mip levels."),
 		TextureSRVDesc.MipLevel, (TextureSRVDesc.MipLevel + TextureSRVDesc.NumMipLevels), TextureName, TextureDesc.NumMips);
 
-	// Validate the array sloces
-	if (TextureDesc.IsTextureArray())
+	// Validate the array slices
+	if (TextureDesc.IsTextureCube() && TextureSRVDesc.DimensionOverride == ETextureDimension::Texture2DArray)
+	{
+		// Either TextureCube or TextureCubeArray, compute array size appropriately
+		int32 CubeArraySize = TextureDesc.Dimension == ETextureDimension::TextureCube ? ECubeFace::CubeFace_MAX : ECubeFace::CubeFace_MAX * TextureDesc.ArraySize;
+
+		ValidateResourceDesc((TextureSRVDesc.FirstArraySlice + TextureSRVDesc.NumArraySlices) <= CubeArraySize,
+			TEXT("Failed to create SRV at array slices %d-%d: the cube map texture %s has only %d slices."),
+			TextureSRVDesc.FirstArraySlice,
+			(TextureSRVDesc.FirstArraySlice + TextureSRVDesc.NumArraySlices),
+			TextureName,
+			CubeArraySize);
+	}
+	else if (TextureDesc.IsTextureArray())
 	{
 		ValidateResourceDesc((TextureSRVDesc.FirstArraySlice + TextureSRVDesc.NumArraySlices) <= TextureDesc.ArraySize,
 			TEXT("Failed to create SRV at array slices %d-%d: the texture array %s has only %d slices."),
@@ -1957,11 +1959,6 @@ SIZE_T CalculateImageBytes(uint32 SizeX,uint32 SizeY,uint32 SizeZ,uint8 Format)
 	}
 }
 
-FRHIShaderResourceView* FRHITextureViewCache::GetOrCreateSRV(FRHITexture* Texture, const FRHITextureSRVCreateInfo& SRVCreateInfo)
-{
-	return GetOrCreateSRV(FRHICommandListImmediate::Get(), Texture, SRVCreateInfo);
-}
-
 FRHIShaderResourceView* FRHITextureViewCache::GetOrCreateSRV(FRHICommandListBase& RHICmdList, FRHITexture* Texture, const FRHITextureSRVCreateInfo& SRVCreateInfo)
 {
 	for (const auto& KeyValue : SRVs)
@@ -1992,11 +1989,6 @@ FRHIShaderResourceView* FRHITextureViewCache::GetOrCreateSRV(FRHICommandListBase
 	FRHIShaderResourceView* View = RHIShaderResourceView.GetReference();
 	SRVs.Emplace(SRVCreateInfo, MoveTemp(RHIShaderResourceView));
 	return View;
-}
-
-FRHIUnorderedAccessView* FRHITextureViewCache::GetOrCreateUAV(FRHITexture* Texture, const FRHITextureUAVCreateInfo& UAVCreateInfo)
-{
-	return GetOrCreateUAV(FRHICommandListImmediate::Get(), Texture, UAVCreateInfo);
 }
 
 FRHIUnorderedAccessView* FRHITextureViewCache::GetOrCreateUAV(FRHICommandListBase& RHICmdList, FRHITexture* Texture, const FRHITextureUAVCreateInfo& UAVCreateInfo)
@@ -2030,11 +2022,6 @@ FRHIUnorderedAccessView* FRHITextureViewCache::GetOrCreateUAV(FRHICommandListBas
 	return View;
 }
 
-FRHIShaderResourceView* FRHIBufferViewCache::GetOrCreateSRV(FRHIBuffer* Buffer, const FRHIBufferSRVCreateInfo& SRVCreateInfo)
-{
-	return GetOrCreateSRV(FRHICommandListImmediate::Get(), Buffer, SRVCreateInfo);
-}
-
 FRHIShaderResourceView* FRHIBufferViewCache::GetOrCreateSRV(FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, const FRHIBufferSRVCreateInfo& SRVCreateInfo)
 {
 	for (const auto& KeyValue : SRVs)
@@ -2046,12 +2033,6 @@ FRHIShaderResourceView* FRHIBufferViewCache::GetOrCreateSRV(FRHICommandListBase&
 	}
 
 	auto CreateDesc = FRHIViewDesc::CreateBufferSRV();
-	CreateDesc.SetOffsetInBytes(SRVCreateInfo.StartOffsetBytes);
-
-	if (SRVCreateInfo.NumElements != UINT32_MAX)
-	{
-		CreateDesc.SetNumElements(SRVCreateInfo.NumElements);
-	}
 
 	if (EnumHasAnyFlags(Buffer->GetUsage(), BUF_ByteAddressBuffer))
 	{
@@ -2064,6 +2045,7 @@ FRHIShaderResourceView* FRHIBufferViewCache::GetOrCreateSRV(FRHICommandListBase&
 	else if (EnumHasAnyFlags(Buffer->GetUsage(), BUF_AccelerationStructure))
 	{
 		CreateDesc.SetType(FRHIViewDesc::EBufferType::AccelerationStructure);
+		CreateDesc.SetRayTracingScene(SRVCreateInfo.RayTracingScene);
 	}
 	else
 	{
@@ -2071,16 +2053,18 @@ FRHIShaderResourceView* FRHIBufferViewCache::GetOrCreateSRV(FRHICommandListBase&
 		CreateDesc.SetFormat(SRVCreateInfo.Format);
 	}
 
+	CreateDesc.SetOffsetInBytes(SRVCreateInfo.StartOffsetBytes);
+
+	if (SRVCreateInfo.NumElements != UINT32_MAX)
+	{
+		CreateDesc.SetNumElements(SRVCreateInfo.NumElements);
+	}
+
 	FShaderResourceViewRHIRef RHIShaderResourceView = RHICmdList.CreateShaderResourceView(Buffer, CreateDesc);
 
 	FRHIShaderResourceView* View = RHIShaderResourceView.GetReference();
 	SRVs.Emplace(SRVCreateInfo, MoveTemp(RHIShaderResourceView));
 	return View;
-}
-
-FRHIUnorderedAccessView* FRHIBufferViewCache::GetOrCreateUAV(FRHIBuffer* Buffer, const FRHIBufferUAVCreateInfo& UAVCreateInfo)
-{
-	return GetOrCreateUAV(FRHICommandListImmediate::Get(), Buffer, UAVCreateInfo);
 }
 
 FRHIUnorderedAccessView* FRHIBufferViewCache::GetOrCreateUAV(FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, const FRHIBufferUAVCreateInfo& UAVCreateInfo)
@@ -2142,20 +2126,18 @@ void FRHIBufferViewCache::SetDebugName(FRHICommandListBase& RHICmdList, const TC
 
 #endif
 
-void FRHITransientTexture::Acquire(FRHICommandListBase& RHICmdList, const TCHAR* InName, uint32 InPassIndex, uint64 InAcquireCycle)
+void FRHITransientTexture::BindDebugLabelName(FRHICommandListBase& RHICmdList)
 {
-	FRHITransientResource::Acquire(RHICmdList, InName, InPassIndex, InAcquireCycle);
-	ViewCache.SetDebugName(RHICmdList, InName);
+	ViewCache.SetDebugName(RHICmdList, GetName());
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	RHICmdList.BindDebugLabelName(GetRHI(), InName);
+	RHICmdList.BindDebugLabelName(GetRHI(), GetName());
 #endif
 }
 
-void FRHITransientBuffer::Acquire(FRHICommandListBase& RHICmdList, const TCHAR* InName, uint32 InPassIndex, uint64 InAcquireCycle)
+void FRHITransientBuffer::BindDebugLabelName(FRHICommandListBase& RHICmdList)
 {
-	FRHITransientResource::Acquire(RHICmdList, InName, InPassIndex, InAcquireCycle);
-	ViewCache.SetDebugName(RHICmdList, InName);
+	ViewCache.SetDebugName(RHICmdList, GetName());
 
 	// TODO: Add method to rename a buffer.
 }
@@ -2185,6 +2167,16 @@ FDebugName& FDebugName::operator=(FName Other)
 	return *this;
 }
 
+uint32 FDebugName::ToString(TCHAR* Out, uint32 OutSize) const
+{
+	uint32 NumChars = Name.ToString(Out, OutSize);
+	if (Number != NAME_NO_NUMBER_INTERNAL)
+	{
+		NumChars += FCString::Snprintf(Out + NumChars, OutSize - NumChars, TEXT("_%u"), Number);
+	}
+	return NumChars;
+}
+
 FString FDebugName::ToString() const
 {
 	FString Out;
@@ -2207,6 +2199,86 @@ void FDebugName::AppendString(FStringBuilderBase& Builder) const
 
 namespace UE::RHI
 {
+	static TAutoConsoleVariable<int32> CVarGPUCrashDebugging(
+		TEXT("r.GPUCrashDebugging"),
+		0,
+		TEXT("Enable vendor specific GPU crash analysis tools"),
+		ECVF_ReadOnly
+	);
+
+	RHI_API bool UseGPUCrashDebugging()
+	{
+		static const bool bNoGpuCrashDebugging = FParse::Param(FCommandLine::Get(), TEXT("nogpucrashdebugging"));
+		static const bool bGpuCrashDebugging   = FParse::Param(FCommandLine::Get(), TEXT("gpucrashdebugging"));
+
+		// Command line takes precedence
+		if (bNoGpuCrashDebugging)
+		{
+			return false;
+		}
+		else if (bGpuCrashDebugging)
+		{
+			return true;
+		}
+		else
+		{
+			return CVarGPUCrashDebugging.GetValueOnAnyThread() != 0;
+		}
+	}
+
+	RHI_API bool ShouldEnableGPUCrashFeature(IConsoleVariable& CVar, TCHAR const* CommandLineSwitch)
+	{
+		static const bool bNoGpuCrashDebugging = FParse::Param(FCommandLine::Get(), TEXT("nogpucrashdebugging"));
+		static const bool bGpuCrashDebugging   = FParse::Param(FCommandLine::Get(), TEXT("gpucrashdebugging"));
+
+		bool bEnabled;
+		if (bNoGpuCrashDebugging)
+		{
+			// Command line switch is forcing everything off
+			bEnabled = false;
+		}
+		else if (bGpuCrashDebugging)
+		{
+			// Command line switch is forcing everything on
+			bEnabled = true;
+		}
+		else if (CVarGPUCrashDebugging->GetInt() > 0)
+		{
+			// Otherwise, switch everything on when opt-ed in via the r.GPUCrashDebugging cvar.
+			bEnabled = true;
+		}
+		else
+		{
+			// If none of the above apply, check the individual feature cvar.
+			bEnabled = CVar.GetInt() > 0;
+		}
+
+		// Allow additional command line switches to force on/off the feature via "-feature=1" / "-feature=0", or simply "-feature".
+		int32 Value = 0;
+		if (FParse::Value(FCommandLine::Get(), *FString::Printf(TEXT("%s="), CommandLineSwitch), Value))
+		{
+			bEnabled = Value > 0;
+		}
+		else if (FParse::Param(FCommandLine::Get(), CommandLineSwitch))
+		{
+			bEnabled = true;
+		}
+
+		return bEnabled;
+	}
+
+	static TAutoConsoleVariable<int32> CVarGPUCrashDebuggingBreadcrumbs(
+		TEXT("r.GPUCrashDebugging.Breadcrumbs"),
+		1,
+		TEXT("Enable RHI breadcrumbs, a vendor-agnostic method for determining which passes were active when a GPU crash occurs"),
+		ECVF_ReadOnly
+	);
+
+	RHI_API bool UseGPUCrashBreadcrumbs()
+	{
+		static bool bEnabled = ShouldEnableGPUCrashFeature(*CVarGPUCrashDebuggingBreadcrumbs, TEXT("gpubreadcrumbs"));
+		return bEnabled;
+	}
 
 	RHI_API void CopySharedMips(FRHICommandList& RHICmdList, FRHITexture* SrcTexture, FRHITexture* DstTexture)
 	{

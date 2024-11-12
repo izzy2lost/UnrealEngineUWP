@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Insights/Table/ViewModels/BaseTreeNode.h"
-#include "Insights/Table/ViewModels/TreeNodeGrouping.h"
+#include "InsightsCore/Table/ViewModels/BaseTreeNode.h"
+#include "InsightsCore/Table/ViewModels/TreeNodeGrouping.h"
 
 class FAssetDependencyGrouping : public UE::Insights::FTreeNodeGrouping
 {

@@ -7,6 +7,7 @@
 #include "Templates/UniquePtr.h"
 #include "MeshDescription.h"
 #include "ReferenceSkeleton.h"
+#include "Misc/EnumClassFlags.h"
 
 #include "SkeletonModifier.generated.h"
 
@@ -15,6 +16,38 @@ class FName;
 struct FMeshDescription;
 struct FReferenceSkeleton;
 struct FTransformComposer;
+
+enum class ESkeletalMeshModificationType : uint32
+{
+	None = 0x000,
+
+	BonesAdded = 0x001,
+	BonesRemoved = 0x002,
+	BonesRenamed = 0x004,
+	TransformChanged = 0x008,
+	HierarchyChanged = 0x010,
+
+	IndicesUpdated = HierarchyChanged | BonesRemoved,
+
+	SkeletonUpdated = BonesAdded | BonesRenamed | HierarchyChanged
+};
+ENUM_CLASS_FLAGS(ESkeletalMeshModificationType)
+
+enum class ESkeletonModificationType : uint32
+{
+	Cancel = 0x000,
+	None = 0x001,
+	
+	SimpleMerge = 0x002,
+	DuplicateAndMerge = 0x004,
+	FullMerge = 0x008,
+	FullMergeAll = 0x010,
+
+	DeepMerge = DuplicateAndMerge | FullMerge | FullMergeAll,
+	
+	DoUpdate = SimpleMerge | DeepMerge
+};
+ENUM_CLASS_FLAGS(ESkeletonModificationType)
 
 /**
  * FMirrorOptions
@@ -230,6 +263,17 @@ private:
 	// orient function
 	void GetBonesToOrient(const TArray<FName>& InBonesName, const FOrientOptions& InOptions, TArray<int32>& OutBonesToOrient) const;
 
+	// pre/post commit
+	ESkeletalMeshModificationType PreCommitSkeletalMesh();
+	ESkeletonModificationType PreCommitSkeleton(const ESkeletalMeshModificationType InSkeletalMeshModifications) const;
+	void PostCommitSkeleton(const ESkeletonModificationType InSkeletonModifications) const;
+
+	// update mesh description on commit
+	void CommitChangesToMeshDescription(const ESkeletalMeshModificationType InSkeletalMeshModifications);
+	
+	// notification
+	void NotifyFromSkeletonChanges() const;
+	
 	UPROPERTY(transient)
 	TWeakObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
 	
@@ -238,6 +282,11 @@ private:
 	TUniquePtr<FTransformComposer> TransformComposer;
 	TArray<int32> BoneIndexTracker;
 	bool bRestricted = false;
+
+public:
+	
+	// UPROPERTY(EditAnywhere, Category = Debug)
+	bool bDebug = false;
 };
 
 struct FTransformComposer
@@ -295,3 +344,25 @@ struct FTransformComposer
 	TBitArray<> TransformCached;
 };
 
+UENUM()
+enum class ESKeletalMeshMergeType : uint8
+{
+	New		UMETA(ToolTip = "Create a new skeleton asset from the current changes."),
+	Merge	UMETA(ToolTip = "Merge the current changes to the existing skeleton asset. Note that this may invalidate dependent assets, such as animation clips, pose assets and animation blueprints."),
+};
+
+UCLASS(HideCategories=Object, MinimalAPI)
+class USkeletalMeshMergeOptions : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	/** Changes merge type (New or Merge) */
+	UPROPERTY(EditAnywhere, Category="Merge")
+	ESKeletalMeshMergeType MergeType = ESKeletalMeshMergeType::New;
+
+	/** Also apply the changes to the skeletal meshes referencing the same skeleton */
+	UPROPERTY(EditAnywhere, Category="Merge", meta=(EditCondition="MergeType==ESKeletalMeshMergeType::Merge"))
+	bool bMergeAll = false;
+};

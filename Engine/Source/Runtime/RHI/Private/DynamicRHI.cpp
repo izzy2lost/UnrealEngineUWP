@@ -119,6 +119,11 @@ void RHIDetectAndWarnOfBadDrivers(bool bHasEditorToken)
 			return;
 		}
 
+		TOptional<FSuggestedDriverEntry> SuggestedDriver = DetectedGPUHardware.FindSuggestedDriverVersion();
+		const FString SuggestedDriverString = SuggestedDriver ? SuggestedDriver->SuggestedDriverVersion : FString(TEXT("Unknown"));
+
+		UE_LOG(LogRHI, Warning, TEXT("Out of date driver found. Using: '%s' Suggested: '%s'"), *DriverInfo.UserDriverVersion, (SuggestedDriver ? *SuggestedDriver->SuggestedDriverVersion : TEXT("Unknown")));
+
 		TArray<FString> DeviceCanUpdateDriverList;
 		GConfig->GetArray(TEXT("Devices"), TEXT("DeviceCanUpdateDriverList"), DeviceCanUpdateDriverList, GHardwareIni);
 
@@ -179,7 +184,6 @@ void RHIDetectAndWarnOfBadDrivers(bool bHasEditorToken)
 			Args.Add(TEXT("InstalledVer"), FText::FromString(DriverInfo.UserDriverVersion));
 
 			// Find the best driver version to recommend.
-			TOptional<FSuggestedDriverEntry> SuggestedDriver = DetectedGPUHardware.FindSuggestedDriverVersion();
 			if (SuggestedDriver)
 			{
 				// Suggest the latest too, if not denylisted.
@@ -442,11 +446,14 @@ void RHIExit()
 		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 	}
 
-	FRHICommandListImmediate::CleanupGraphEvents();
+	GRHICommandList.CleanupGraphEvents();
 }
 
-void FDynamicRHI::RHIBeginFrame(FRHICommandListImmediate& RHICmdList)
+FDynamicRHI::~FDynamicRHI() = default;
+
+void FDynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList)
 {
+	RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread, ERHISubmitFlags::EndFrame);
 }
 
 // Default fallback; will not work for non-8-bit surfaces and it's extremely slow.
@@ -491,44 +498,41 @@ void FDynamicRHI::RHIRead3DSurfaceFloatData(FRHITexture* Texture, FIntRect Rect,
 
 void FDynamicRHI::EnableIdealGPUCaptureOptions(bool bEnabled)
 {
-	static IConsoleVariable* RHICmdBypassVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.rhicmdbypass"));
-	static IConsoleVariable* ShowMaterialDrawEventVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ShowMaterialDrawEvents"));	
-	static IConsoleObject* RHIThreadEnableObj = IConsoleManager::Get().FindConsoleObject(TEXT("r.RHIThread.Enable"));
-	static IConsoleCommand* RHIThreadEnableCommand = RHIThreadEnableObj ? RHIThreadEnableObj->AsCommand() : nullptr;
-
-	const bool bShouldEnableDrawEvents = bEnabled;
-	const bool bShouldEnableMaterialDrawEvents = bEnabled;
-	const bool bShouldEnableRHIThread = !bEnabled;
-	const bool bShouldRHICmdBypass = bEnabled;	
-
-	const bool bDrawEvents = GetEmitDrawEvents() != 0;
-	const bool bMaterialDrawEvents = ShowMaterialDrawEventVar ? ShowMaterialDrawEventVar->GetInt() != 0 : false;
-	const bool bRHIThread = IsRunningRHIInSeparateThread();
-	const bool bRHIBypass = RHICmdBypassVar ? RHICmdBypassVar->GetInt() != 0 : false;
-
 	UE_LOG(LogRHI, Display, TEXT("Setting GPU Capture Options: %i"), bEnabled ? 1 : 0);
-	if (bShouldEnableDrawEvents != bDrawEvents)
+
+	// Draw Events
+	if (bEnabled != (GetEmitDrawEvents() != 0))
 	{
-		UE_LOG(LogRHI, Display, TEXT("Toggling draw events: %i"), bShouldEnableDrawEvents ? 1 : 0);
-		SetEmitDrawEvents(bShouldEnableDrawEvents);
+		UE_LOG(LogRHI, Display, TEXT("Toggling draw events: %i"), bEnabled ? 1 : 0);
+		SetEmitDrawEvents(bEnabled);
 	}
-	if (bShouldEnableMaterialDrawEvents != bMaterialDrawEvents && ShowMaterialDrawEventVar)
+
+	// Material Draw Events
+	static IConsoleVariable* ShowMaterialDrawEventVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ShowMaterialDrawEvents"));
+	if (ShowMaterialDrawEventVar)
 	{
-		UE_LOG(LogRHI, Display, TEXT("Toggling showmaterialdrawevents: %i"), bShouldEnableDrawEvents ? 1 : 0);
-		ShowMaterialDrawEventVar->Set(bShouldEnableDrawEvents ? -1 : 0);		
+		if (bEnabled != (ShowMaterialDrawEventVar->GetInt() != 0))
+		{
+			UE_LOG(LogRHI, Display, TEXT("Toggling showmaterialdrawevents: %i"), bEnabled ? 1 : 0);
+			ShowMaterialDrawEventVar->Set(bEnabled ? -1 : 0);
+		}
 	}
-	if (bRHIThread != bShouldEnableRHIThread && RHIThreadEnableCommand)
+
+	// Full pass names in RDG
+	static IConsoleVariable* RDGEvents = IConsoleManager::Get().FindConsoleVariable(TEXT("r.RDG.Events"));
+	if (RDGEvents)
 	{
-		UE_LOG(LogRHI, Display, TEXT("Toggling rhi thread: %i"), bShouldEnableRHIThread ? 1 : 0);
-		TArray<FString> Args;
-		Args.Add(FString::Printf(TEXT("%i"), bShouldEnableRHIThread ? 1 : 0));
-		RHIThreadEnableCommand->Execute(Args, nullptr, *GLog);
+		if (bEnabled)
+		{
+			UE_LOG(LogRHI, Display, TEXT("Enabling full RDG events (r.RDG.Events 3)"));
+			RDGEvents->Set(3, ECVF_SetByCode);
+		}
+		else
+		{
+			UE_LOG(LogRHI, Display, TEXT("Resetting RDG events to default (r.RDG.Events)"));
+			RDGEvents->Unset(ECVF_SetByCode);
+		}
 	}
-	if (bRHIBypass != bShouldRHICmdBypass && RHICmdBypassVar)
-	{
-		UE_LOG(LogRHI, Display, TEXT("Toggling rhi bypass: %i"), bEnabled ? 1 : 0);
-		RHICmdBypassVar->Set(bShouldRHICmdBypass ? 1 : 0, ECVF_SetByConsole);		
-	}	
 }
 
 FTextureReferenceRHIRef FDynamicRHI::RHICreateTextureReference(FRHICommandListBase& RHICmdList, FRHITexture* InReferencedTexture)
@@ -539,16 +543,26 @@ FTextureReferenceRHIRef FDynamicRHI::RHICreateTextureReference(FRHICommandListBa
 
 void FDynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList, FRHITextureReference* TextureRef, FRHITexture* InReferencedTexture)
 {
-	FRHITexture* ReferencedTexture = InReferencedTexture ? InReferencedTexture : FRHITextureReference::GetDefaultTexture();
-	TextureRef->SetReferencedTexture(ReferencedTexture);
+	// Workaround for a crash bug where FRHITextureReferences are deleted before this command is executed on the RHI thread.
+	// Take a reference on the FRHITextureReference object to keep it alive.
+	// @todo dev-pr - This should be refactored out when we eventually remove FRHITextureReference.
+	TRefCountPtr<FRHITextureReference> Ref = TextureRef;
+
+	RHICmdList.EnqueueLambda(TEXT("FDynamicRHI::RHIUpdateTextureReference"), [TextureRef = MoveTemp(Ref), InReferencedTexture](FRHICommandListBase&)
+	{
+		FRHITexture* ReferencedTexture = InReferencedTexture ? InReferencedTexture : FRHITextureReference::GetDefaultTexture();
+		TextureRef->SetReferencedTexture(ReferencedTexture);
+	});
+	
+	RHICmdList.RHIThreadFence(true);
 }
 
-void FDynamicRHI::RHIVirtualTextureSetFirstMipInMemory(FRHICommandListImmediate& RHICmdList, FRHITexture2D* TextureRHI, uint32 FirstMip)
+void FDynamicRHI::RHIVirtualTextureSetFirstMipInMemory(FRHICommandListImmediate& RHICmdList, FRHITexture* TextureRHI, uint32 FirstMip)
 {
 	UE_LOG(LogRHI, Fatal, TEXT("The current RHI does not implement support for virtually allocated textures."));
 }
 
-void FDynamicRHI::RHIVirtualTextureSetFirstMipVisible(FRHICommandListImmediate& RHICmdList, FRHITexture2D* TextureRHI, uint32 FirstMip)
+void FDynamicRHI::RHIVirtualTextureSetFirstMipVisible(FRHICommandListImmediate& RHICmdList, FRHITexture* TextureRHI, uint32 FirstMip)
 {
 	UE_LOG(LogRHI, Fatal, TEXT("The current RHI does not implement support for virtually allocated textures."));
 }
@@ -576,12 +590,10 @@ uint64 FDynamicRHI::RHIComputeStatePrecachePSOHash(const FGraphicsPipelineStateI
 		uint32 DepthStencilState;
 		uint32 ImmutableSamplerState;
 
-		uint32 MultiViewCount : 8;
 		uint32 DrawShadingRate : 8;
 		uint32 PrimitiveType : 8;
 		uint32 bDepthBounds : 1;
-		uint32 bHasFragmentDensityAttachment : 1;
-		uint32 Unused : 6;
+		uint32 Unused : 15;
 	} HashKey;
 
 	FMemory::Memzero(&HashKey, sizeof(FHashKey));
@@ -615,11 +627,9 @@ uint64 FDynamicRHI::RHIComputeStatePrecachePSOHash(const FGraphicsPipelineStateI
 	// Ignore immutable samplers for now
 	//HashKey.ImmutableSamplerState = GetTypeHash(ImmutableSamplerState);
 
-	HashKey.MultiViewCount = Initializer.MultiViewCount;
 	HashKey.DrawShadingRate = Initializer.ShadingRate;
 	HashKey.PrimitiveType = Initializer.PrimitiveType;
 	HashKey.bDepthBounds = Initializer.bDepthBounds;
-	HashKey.bHasFragmentDensityAttachment = Initializer.bHasFragmentDensityAttachment;
 
 	uint64 PrecachePSOHash = CityHash64((const char*)&HashKey, sizeof(FHashKey));
 
@@ -748,23 +758,6 @@ bool FDynamicRHI::RHIMatchPrecachePSOInitializers(const FGraphicsPipelineStateIn
 	return true;
 }
 
-FDefaultRHIRenderQueryPool::FDefaultRHIRenderQueryPool(ERenderQueryType InQueryType, FDynamicRHI* InDynamicRHI, uint32 InNumQueries)
-	: DynamicRHI(InDynamicRHI)
-	, QueryType(InQueryType)
-	, NumQueries(InNumQueries)
-{
-	if (NumQueries != UINT32_MAX && (GSupportsTimestampRenderQueries || InQueryType != RQT_AbsoluteTime))
-	{
-		Queries.Reserve(NumQueries);
-		for (uint32 i = 0; i < NumQueries; i++)
-		{
-			Queries.Push(DynamicRHI->RHICreateRenderQuery(QueryType));
-			check(Queries.Last().IsValid());
-			++AllocatedQueries;
-		}
-	}
-}
-
 FDefaultRHIRenderQueryPool::~FDefaultRHIRenderQueryPool()
 {
 	check(IsInRHIThread() || IsInRenderingThread());
@@ -780,42 +773,28 @@ FRHIPooledRenderQuery FDefaultRHIRenderQueryPool::AllocateQuery()
 	}
 	else
 	{
-		FRHIPooledRenderQuery Query = FRHIPooledRenderQuery(this, DynamicRHI->RHICreateRenderQuery(QueryType));
+		FRHIPooledRenderQuery Query = FRHIPooledRenderQuery(this, RHICreateRenderQuery(QueryType));
 		if (Query.IsValid())
 		{
 			++AllocatedQueries;
 		}
-		ensure(AllocatedQueries <= NumQueries);
+
 		return Query;
 	}
 }
 
 void FDefaultRHIRenderQueryPool::ReleaseQuery(TRefCountPtr<FRHIRenderQuery>&& Query)
 {
-	if (QueryType == ERenderQueryType::RQT_Occlusion)
-	{
-		static int dbg = 0;
-		dbg++;
-	}
 	check(IsInParallelRenderingThread());
-	//Hard to validate because of Resource resurrection, better to remove GetQueryRef entirely
-	//checkf(Query.IsValid() && Query.GetRefCount() <= 2, TEXT("Query has been released but reference still held: use FRHIPooledRenderQuery::GetQueryRef() with extreme caution"));
-	
 	checkf(Query.IsValid(), TEXT("Only release valid queries"));
-	checkf((uint32)Queries.Num() < NumQueries, TEXT("Pool contains more queries than it started with, double release somewhere?"));
 
 	Queries.Push(MoveTemp(Query));
 	check(!Query.IsValid());
 }
 
-FRenderQueryPoolRHIRef RHICreateRenderQueryPool(ERenderQueryType QueryType, uint32 NumQueries)
+FRenderQueryPoolRHIRef RHICreateRenderQueryPool(ERenderQueryType QueryType, uint32 /* unused NumQueries */)
 {
-	return GDynamicRHI->RHICreateRenderQueryPool(QueryType, NumQueries);
-}
-
-EColorSpaceAndEOTF FDynamicRHI::RHIGetColorSpace(FRHIViewport* Viewport)
-{
-	return EColorSpaceAndEOTF::ERec709_sRGB;
+	return new FDefaultRHIRenderQueryPool(QueryType);
 }
 
 void FDynamicRHI::RHICheckViewportHDRStatus(FRHIViewport* Viewport)
@@ -876,9 +855,19 @@ RHI_API FShaderResourceViewInitializer::FShaderResourceViewInitializer(FRHIBuffe
 	: FRHIViewDesc::FBufferSRV::FInitializer()
 	, Buffer(InBuffer)
 {
+	SetTypeFromBuffer(Buffer);
 	SetOffsetInBytes(InStartOffsetBytes);
 	SetNumElements(InNumElements);
+}
+
+// Provided for back-compat.
+RHI_API FShaderResourceViewInitializer::FShaderResourceViewInitializer(FRHIBuffer* InBuffer, FRHIRayTracingScene* InRayTracingScene, uint32 InStartOffsetBytes)
+	: FRHIViewDesc::FBufferSRV::FInitializer()
+	, Buffer(InBuffer)
+{
 	SetTypeFromBuffer(Buffer);
+	SetRayTracingScene(InRayTracingScene);
+	SetOffsetInBytes(InStartOffsetBytes);
 }
 
 // Provided for back-compat.

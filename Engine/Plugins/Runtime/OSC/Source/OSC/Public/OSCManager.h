@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "OSCAddress.h"
 #include "OSCBundle.h"
@@ -16,6 +15,12 @@
 class UOSCServer;
 class UOSCClient;
 
+namespace UE::OSC
+{
+	OSC_API int32 GetDefaultClientPort();
+	OSC_API int32 GetDefaultServerPort();
+}
+
 UCLASS()
 class OSC_API UOSCManager : public UBlueprintFunctionLibrary
 {
@@ -28,7 +33,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|OSC")
 	static UOSCServer* CreateOSCServer(FString ReceiveIPAddress, int32 Port, bool bMulticastLoopback, bool bStartListening, FString ServerName, UObject* Outer = nullptr);
 
-	// Creates an OSC Client.  If SendIPAddress left empty (or '0'), attempts to use
+	// Creates an OSC Client.  If SendIPAddress left empty (or '0')
 	// attempts to use LocalHost IP address.
 	UFUNCTION(BlueprintCallable, Category = "Audio|OSC")
 	static UOSCClient* CreateOSCClient(FString SendIPAddress, int32 Port, FString ClientName, UObject* Outer = nullptr);

@@ -42,6 +42,7 @@ int16 GetNumUniformBuffersUsed(const FShaderCompilerResourceTable& InSRT)
 	Num = FMath::Max(Num, (int16)CountLambda(InSRT.ShaderResourceViewMap));
 	Num = FMath::Max(Num, (int16)CountLambda(InSRT.TextureMap));
 	Num = FMath::Max(Num, (int16)CountLambda(InSRT.UnorderedAccessViewMap));
+	Num = FMath::Max(Num, (int16)CountLambda(InSRT.ResourceCollectionMap));
 	return Num;
 }
 
@@ -83,6 +84,30 @@ void BuildResourceTableTokenStream(const TArray<uint32>& InResourceMap, int32 Ma
 	}
 }
 
+void UE::ShaderCompilerCommon::BuildShaderResourceTable(const FShaderCompilerResourceTable& GenericSRT, FShaderResourceTable& OutSRT, bool bGenerateEmptyTokenStreamIfNoResources)
+{
+	// Copy over the bits indicating which resource tables are active.
+	OutSRT.ResourceTableBits = GenericSRT.ResourceTableBits;
+
+	OutSRT.ResourceTableLayoutHashes = GenericSRT.ResourceTableLayoutHashes;
+
+	// Now build our token streams.
+	BuildResourceTableTokenStream(GenericSRT.TextureMap,             GenericSRT.MaxBoundResourceTable, OutSRT.TextureMap,             bGenerateEmptyTokenStreamIfNoResources);
+	BuildResourceTableTokenStream(GenericSRT.ShaderResourceViewMap,  GenericSRT.MaxBoundResourceTable, OutSRT.ShaderResourceViewMap,  bGenerateEmptyTokenStreamIfNoResources);
+	BuildResourceTableTokenStream(GenericSRT.SamplerMap,             GenericSRT.MaxBoundResourceTable, OutSRT.SamplerMap,             bGenerateEmptyTokenStreamIfNoResources);
+	BuildResourceTableTokenStream(GenericSRT.UnorderedAccessViewMap, GenericSRT.MaxBoundResourceTable, OutSRT.UnorderedAccessViewMap, bGenerateEmptyTokenStreamIfNoResources);
+	BuildResourceTableTokenStream(GenericSRT.ResourceCollectionMap,  GenericSRT.MaxBoundResourceTable, OutSRT.ResourceCollectionMap,  bGenerateEmptyTokenStreamIfNoResources);
+}
+
+static bool DoesUniformBufferNeedReflectedMembers(const TMap<FString, FUniformBufferEntry>& UniformBufferMap, FStringView UniformBufferName)
+{
+	if (const FUniformBufferEntry* Entry = UniformBufferMap.FindByHash(GetTypeHash(UniformBufferName), UniformBufferName))
+	{
+		return EnumHasAnyFlags(Entry->Flags, ERHIUniformBufferFlags::NeedsReflectedMembers);
+	}
+
+	return false;
+}
 
 bool BuildResourceTableMapping(
 	const FShaderResourceTableMap& ResourceTableMap,
@@ -103,25 +128,36 @@ bool BuildResourceTableMapping(
 		const FString& Name = Entry.UniformBufferMemberName;
 
 		// If the shaders uses this member (eg View_PerlinNoise3DTexture)...
-		if (TOptional<FParameterAllocation> Allocation = ParameterMap.FindParameterAllocation(Name))
+		if (TOptional<FParameterAllocation> Allocation = ParameterMap.FindAndRemoveParameterAllocation(Name))
 		{
+			FStringView UniformBufferName = Entry.GetUniformBufferName();
+
 			const EShaderParameterType ParameterType = Allocation->Type;
 			const bool bBindlessParameter = IsParameterBindless(ParameterType);
 
 			// Force bindless "indices" to zero since they're not needed in SetResourcesFromTables
 			const uint16 BaseIndex = bBindlessParameter ? 0 : Allocation->BaseIndex;
 
-			ParameterMap.RemoveParameterAllocation(*Name);
+			if (DoesUniformBufferNeedReflectedMembers(UniformBufferMap, UniformBufferName))
+			{
+				FString RenamedMember = Name.Replace(TEXT("_"), TEXT("."));
+				ParameterMap.AddParameterAllocation(*RenamedMember, Allocation->BufferIndex, Allocation->BaseIndex, Allocation->Size, Allocation->Type);
+
+				// Force the parameter to be marked as bound
+				ParameterMap.FindParameterAllocation(RenamedMember);
+			}
 
 			uint16 UniformBufferIndex = INDEX_NONE;
-			uint16 UBBaseIndex, UBSize;
 
 			// Add the UB itself as a parameter if not there
-			FString UniformBufferName(Entry.GetUniformBufferName());
-			if (!ParameterMap.FindParameterAllocation(*UniformBufferName, UniformBufferIndex, UBBaseIndex, UBSize))
+			if (TOptional<FParameterAllocation> UniformBufferParameter = ParameterMap.FindParameterAllocation(UniformBufferName))
+			{
+				UniformBufferIndex = UniformBufferParameter->BufferIndex;
+			}
+			else
 			{
 				UniformBufferIndex = UsedUniformBufferSlots.FindAndSetFirstZeroBit();
-				ParameterMap.AddParameterAllocation(*UniformBufferName, UniformBufferIndex,0,0,EShaderParameterType::UniformBuffer);
+				ParameterMap.AddParameterAllocation(UniformBufferName, UniformBufferIndex, 0, 0, EShaderParameterType::UniformBuffer);
 			}
 
 			// Mark used UB index
@@ -146,8 +182,12 @@ bool BuildResourceTableMapping(
 				break;
 			case UBMT_SRV:
 			case UBMT_RDG_TEXTURE_SRV:
+			case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 			case UBMT_RDG_BUFFER_SRV:
 				OutSRT.ShaderResourceViewMap.Add(ResourceMap);
+				break;
+			case UBMT_RESOURCE_COLLECTION:
+				OutSRT.ResourceCollectionMap.Add(ResourceMap);
 				break;
 			case UBMT_UAV:
 			case UBMT_RDG_TEXTURE_UAV:
@@ -186,20 +226,6 @@ bool BuildResourceTableMapping(
 	return true;
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-// Deprecated version of function
-bool BuildResourceTableMapping(
-	const TMap<FString, FResourceTableEntry>& ResourceTableMap,
-	const TMap<FString, FUniformBufferEntry>& UniformBufferMap,
-	TBitArray<>& UsedUniformBufferSlots,
-	FShaderParameterMap& ParameterMap,
-	FShaderCompilerResourceTable& OutSRT)
-{
-	UE_LOG(LogShaders, Error, TEXT("Using unimplemented deprecated version of BuildResourceTableMapping -- use version that accepts FShaderResourceTableMap instead."));
-	return false;
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 void CullGlobalUniformBuffers(const TMap<FString, FUniformBufferEntry>& UniformBufferMap, FShaderParameterMap& ParameterMap)
 {
 	TArray<FString> ParameterNames;
@@ -215,7 +241,7 @@ void CullGlobalUniformBuffers(const TMap<FString, FUniformBufferEntry>& UniformB
 				continue;
 			}
 
-			ParameterMap.RemoveParameterAllocation(*Name);
+			ParameterMap.RemoveParameterAllocation(Name);
 		}
 	}
 }
@@ -397,7 +423,7 @@ bool UE::ShaderCompilerCommon::ValidatePackedResourceCounts(FShaderCompilerOutpu
 	{
 		auto GetAllResourcesOfType = [&](EShaderParameterType InType)
 		{
-			const TArray<FString> AllNames = Output.ParameterMap.GetAllParameterNamesOfType(InType);
+			const TArray<FStringView> AllNames = Output.ParameterMap.GetAllParameterNamesOfType(InType);
 			if (AllNames.IsEmpty())
 			{
 				return FString();
@@ -561,32 +587,41 @@ void HandleReflectedGlobalConstantBufferMember(
 	FShaderCompilerOutput& Output
 )
 {
-	FString MemberName = InMemberName;
+	FStringView MemberName = InMemberName;
 	const EShaderParameterType ParameterType = FShaderParameterParser::ParseAndRemoveBindlessParameterPrefix(MemberName);
 
 	Output.ParameterMap.AddParameterAllocation(
-		*MemberName,
+		MemberName,
 		ConstantBufferIndex,
 		ReflectionOffset,
 		ReflectionSize,
-		ParameterType);
+		ParameterType
+	);
 }
 
 void HandleReflectedUniformBufferConstantBufferMember(
+	EUniformBufferMemberReflectionReason Reason,
+	FStringView UniformBufferName,
 	int32 UniformBufferSlot,
-	const FString& InMemberName,
+	FStringView InMemberName,
 	int32 ReflectionOffset,
 	int32 ReflectionSize,
 	FShaderCompilerOutput& Output
 )
 {
-	FString MemberName = InMemberName;
+	FStringView MemberName = InMemberName;
 	const EShaderParameterType ParameterType = FShaderParameterParser::ParseAndRemoveBindlessParameterPrefix(MemberName);
 
-	if (ParameterType != EShaderParameterType::LooseData)
+	bool bAdd = EnumHasAnyFlags(Reason, EUniformBufferMemberReflectionReason::NeedsReflection);
+	if (EnumHasAnyFlags(Reason, EUniformBufferMemberReflectionReason::Bindless))
+	{
+		bAdd |= (ParameterType != EShaderParameterType::LooseData);
+	}
+
+	if (bAdd)
 	{
 		Output.ParameterMap.AddParameterAllocation(
-			*MemberName,
+			MemberName,
 			UniformBufferSlot,
 			ReflectionOffset,
 			1,
@@ -598,21 +633,27 @@ void HandleReflectedUniformBufferConstantBufferMember(
 void HandleReflectedRootConstantBufferMember(
 	const FShaderCompilerInput& Input,
 	const FShaderParameterParser& ShaderParameterParser,
-	const FString& MemberName,
+	const FString& InMemberName,
 	int32 ReflectionOffset,
 	int32 ReflectionSize,
 	FShaderCompilerOutput& Output
 )
 {
-	ShaderParameterParser.ValidateShaderParameterType(Input, MemberName, ReflectionOffset, ReflectionSize, Output);
+	ShaderParameterParser.ValidateShaderParameterType(Input, InMemberName, ReflectionOffset, ReflectionSize, Output);
 
-	HandleReflectedUniformBufferConstantBufferMember(
-		FShaderParametersMetadata::kRootCBufferBindingIndex,
-		MemberName,
-		ReflectionOffset,
-		ReflectionSize,
-		Output
-	);
+	FStringView MemberName = InMemberName;
+	const EShaderParameterType ParameterType = FShaderParameterParser::ParseAndRemoveBindlessParameterPrefix(MemberName);
+
+	if (ParameterType != EShaderParameterType::LooseData)
+	{
+		Output.ParameterMap.AddParameterAllocation(
+			MemberName,
+			FShaderParametersMetadata::kRootCBufferBindingIndex,
+			ReflectionOffset,
+			1,
+			ParameterType
+		);
+	}
 }
 
 void HandleReflectedRootConstantBuffer(
@@ -639,12 +680,29 @@ void HandleReflectedUniformBuffer(
 	FString AdjustedUniformBufferName(UE::ShaderCompilerCommon::RemoveConstantBufferPrefix(UniformBufferName));
 
 	CompilerOutput.ParameterMap.AddParameterAllocation(
-		*AdjustedUniformBufferName,
+		AdjustedUniformBufferName,
 		ReflectionSlot,
 		BaseIndex,
 		BufferSize,
 		EShaderParameterType::UniformBuffer
 	);
+}
+
+EUniformBufferMemberReflectionReason ShouldReflectUniformBufferMembers(const FShaderCompilerInput& Input, FStringView UniformBufferName)
+{
+	EUniformBufferMemberReflectionReason Reason{};
+
+	if (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessResources) || Input.Environment.CompilerFlags.Contains(CFLAG_BindlessSamplers))
+	{
+		Reason |= EUniformBufferMemberReflectionReason::Bindless;
+	}
+
+	if (DoesUniformBufferNeedReflectedMembers(Input.Environment.UniformBufferMap, UniformBufferName))
+	{
+		Reason |= EUniformBufferMemberReflectionReason::NeedsReflection;
+	}
+
+	return Reason;
 }
 
 void HandleReflectedShaderResource(
@@ -656,7 +714,7 @@ void HandleReflectedShaderResource(
 )
 {
 	CompilerOutput.ParameterMap.AddParameterAllocation(
-		*ResourceName,
+		ResourceName,
 		BindOffset,
 		ReflectionSlot,
 		BindCount,
@@ -722,7 +780,7 @@ void HandleReflectedShaderUAV(
 )
 {
 	CompilerOutput.ParameterMap.AddParameterAllocation(
-		*UAVName,
+		UAVName,
 		BindOffset,
 		ReflectionSlot,
 		BindCount,
@@ -739,7 +797,7 @@ void HandleReflectedShaderSampler(
 )
 {
 	CompilerOutput.ParameterMap.AddParameterAllocation(
-		*SamplerName,
+		SamplerName,
 		BindOffset,
 		ReflectionSlot,
 		BindCount,
@@ -1409,7 +1467,7 @@ void CleanupUniformBufferCode(const FShaderCompilerEnvironment& Environment, FSh
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FString CreateShaderCompilerWorkerDirectCommandLine(const FShaderCompilerInput& Input)
+FString CreateShaderCompilerWorkerDirectCommandLine(const FShaderCompilerInput& Input, const UE::ShaderCompilerCommon::FDebugShaderDataOptions& Options, const TCHAR* Suffix = nullptr)
 {
 	FString Text(TEXT("-directcompile -format="));
 	Text += Input.ShaderFormat.GetPlainNameString();
@@ -1429,12 +1487,12 @@ FString CreateShaderCompilerWorkerDirectCommandLine(const FShaderCompilerInput& 
 	case SF_Geometry:		Text += TEXT(" -gs"); break;
 	case SF_Pixel:			Text += TEXT(" -ps"); break;
 	case SF_Compute:		Text += TEXT(" -cs"); break;
-#if RHI_RAYTRACING
 	case SF_RayGen:			Text += TEXT(" -rgs"); break;
 	case SF_RayMiss:		Text += TEXT(" -rms"); break;
 	case SF_RayHitGroup:	Text += TEXT(" -rhs"); break;
 	case SF_RayCallable:	Text += TEXT(" -rcs"); break;
-#endif // RHI_RAYTRACING
+	case SF_WorkGraphRoot:			Text += TEXT(" -wrs"); break;
+	case SF_WorkGraphComputeNode:	Text += TEXT(" -wcs"); break;
 	default: break;
 	}
 	if (Input.bCompilingForShaderPipeline)
@@ -1455,7 +1513,7 @@ FString CreateShaderCompilerWorkerDirectCommandLine(const FShaderCompilerInput& 
 	}
 
 	Text += TEXT(" ");
-	Text += Input.DumpDebugInfoPath / Input.GetSourceFilename();
+	Text += Options.GetDebugShaderPath(Input, Suffix);
 
 	// When we're running in directcompile mode, we don't to spam the crash reporter
 	Text += TEXT(" -nocrashreports");
@@ -1505,24 +1563,25 @@ SHADERCOMPILERCOMMON_API void WriteShaderConductorCommandLine(const FShaderCompi
 	}
 }
 
-static uint32 Mali_ExtractNumberInstructions(const FString &MaliOutput)
+static uint32 OfflineCompiler_ExtractStats(const FString& CompilerOutput, const TArray<FString>& InstructionStrings)
 {
 	uint32 ReturnedNum = 0;
 
 	// Parse the instruction count
-	int32 InstructionStringLength = FPlatformString::Strlen(TEXT("Instructions Emitted:"));
-	int32 InstructionsIndex = MaliOutput.Find(TEXT("Instructions Emitted:"));
-
-	// new version of mali offline compiler uses a different string in its output
-	if (InstructionsIndex == INDEX_NONE)
+	int32 InstructionStringLength = 0, InstructionsIndex = 0;
+	for (const FString& InstrStr : InstructionStrings)
 	{
-		InstructionStringLength = FPlatformString::Strlen(TEXT("Total instruction cycles:"));
-		InstructionsIndex = MaliOutput.Find(TEXT("Total instruction cycles:"));
+		InstructionStringLength = InstrStr.Len();
+		InstructionsIndex = CompilerOutput.Find(*InstrStr);
+		if (InstructionsIndex != INDEX_NONE)
+		{
+			break;
+		}
 	}
 
-	if (InstructionsIndex != INDEX_NONE && InstructionsIndex + InstructionStringLength < MaliOutput.Len())
+	if (InstructionsIndex != INDEX_NONE && InstructionsIndex + InstructionStringLength < CompilerOutput.Len())
 	{
-		const int32 EndIndex = MaliOutput.Find(TEXT("\n"), ESearchCase::IgnoreCase, ESearchDir::FromStart, InstructionsIndex + InstructionStringLength);
+		const int32 EndIndex = CompilerOutput.Find(TEXT("\n"), ESearchCase::IgnoreCase, ESearchDir::FromStart, InstructionsIndex + InstructionStringLength);
 
 		if (EndIndex != INDEX_NONE)
 		{
@@ -1533,17 +1592,17 @@ static uint32 Mali_ExtractNumberInstructions(const FString &MaliOutput)
 
 			while (StartIndex < EndIndex)
 			{
-				if (FChar::IsDigit(MaliOutput[StartIndex]) && !bFoundNrStart)
+				if (FChar::IsDigit(CompilerOutput[StartIndex]) && !bFoundNrStart)
 				{
 					// found number's beginning
 					bFoundNrStart = true;
 					NumberIndex = StartIndex;
 				}
-				else if (FChar::IsWhitespace(MaliOutput[StartIndex]) && bFoundNrStart)
+				else if (FChar::IsWhitespace(CompilerOutput[StartIndex]) && bFoundNrStart)
 				{
 					// found number's end
 					bFoundNrStart = false;
-					const FString NumberString = MaliOutput.Mid(NumberIndex, StartIndex - NumberIndex);
+					const FString NumberString = CompilerOutput.Mid(NumberIndex, StartIndex - NumberIndex);
 					const float fNrInstructions = FCString::Atof(*NumberString);
 					ReturnedNum += (uint32)FMath::Max(0.0, ceil(fNrInstructions));
 				}
@@ -1556,24 +1615,24 @@ static uint32 Mali_ExtractNumberInstructions(const FString &MaliOutput)
 	return ReturnedNum;
 }
 
-static FString Mali_ExtractErrors(const FString &MaliOutput)
+static FString OfflineCompiler_ExtractErrors(const FString& CompilerOutput)
 {
 	FString ReturnedErrors;
 
-	const int32 GlobalErrorIndex = MaliOutput.Find(TEXT("Compilation failed."));
+	const int32 GlobalErrorIndex = CompilerOutput.Find(TEXT("Compilation failed."));
 
 	// find each 'line' that begins with token "ERROR:" and copy it to the returned string
 	if (GlobalErrorIndex != INDEX_NONE)
 	{
-		int32 CompilationErrorIndex = MaliOutput.Find(TEXT("ERROR:"));
+		int32 CompilationErrorIndex = CompilerOutput.Find(TEXT("ERROR:"));
 		while (CompilationErrorIndex != INDEX_NONE)
 		{
-			int32 EndLineIndex = MaliOutput.Find(TEXT("\n"), ESearchCase::CaseSensitive, ESearchDir::FromStart, CompilationErrorIndex + 1);
-			EndLineIndex = EndLineIndex == INDEX_NONE ? MaliOutput.Len() - 1 : EndLineIndex;
+			int32 EndLineIndex = CompilerOutput.Find(TEXT("\n"), ESearchCase::CaseSensitive, ESearchDir::FromStart, CompilationErrorIndex + 1);
+			EndLineIndex = EndLineIndex == INDEX_NONE ? CompilerOutput.Len() - 1 : EndLineIndex;
 
-			ReturnedErrors += MaliOutput.Mid(CompilationErrorIndex, EndLineIndex - CompilationErrorIndex + 1);
+			ReturnedErrors += CompilerOutput.Mid(CompilationErrorIndex, EndLineIndex - CompilationErrorIndex + 1);
 
-			CompilationErrorIndex = MaliOutput.Find(TEXT("ERROR:"), ESearchCase::CaseSensitive, ESearchDir::FromStart, EndLineIndex);
+			CompilationErrorIndex = CompilerOutput.Find(TEXT("ERROR:"), ESearchCase::CaseSensitive, ESearchDir::FromStart, EndLineIndex);
 		}
 	}
 
@@ -1582,58 +1641,142 @@ static FString Mali_ExtractErrors(const FString &MaliOutput)
 
 void CompileOfflineMali(const FShaderCompilerInput& Input, FShaderCompilerOutput& ShaderOutput, const ANSICHAR* ShaderSource, const int32 SourceSize, bool bVulkanSpirV, const ANSICHAR* VulkanSpirVEntryPoint)
 {
-	const bool bCompilerExecutableExists = FPaths::FileExists(Input.ExtraSettings.OfflineCompilerPath);
+	return CompileShaderOffline(Input, ShaderOutput, ShaderSource, SourceSize, bVulkanSpirV, VulkanSpirVEntryPoint);
+}
 
-	if (bCompilerExecutableExists)
+/**
+* OfflineShaderCompiler's compilation command line options.
+* Each OfflineShaderCompiler should specify its own FOfflineShaderCompilerOptions. If one option is not supported by this OfflineShaderCompiler, leave it empty.
+* Frequency (VS/PS/etc.) here is called as stage sometime, too.
+*/
+class FOfflineShaderCompilerOptions
+{
+public:
+	/** Options applied to all shaders. */
+	FString CommonOptions;
+	/** MultiView option if it's enabled. */
+	FString MultiViewOption;
+	/** GPUTarget option*/
+	FString GPUTargetOption;
+	/** Default GPUTarget*/
+	FString DefaultGPUTarget;
+	/** Dump All*/
+	FString DumpAll;
+	/** SpirV file extension name*/
+	FString SpirVExt;
+	/** Default file extension name*/
+	FString DefaultGLSLExt;
+	/** GLSL source file extension used to specify which shader stage is being compiled. */
+	TMap<EShaderFrequency, FString> FrequencyGLSLExts;
+	/** Option to specify which shader stage is being compiled. */
+	TMap<EShaderFrequency, FString> FrequencyOptions;
+	/** Entrypoint option used to specify the entry point of each shader frequency. */
+	TMap<EShaderFrequency, FString> FrequencyEntryPoints;
+	/** Extra option of each shader frequency. */
+	TMap<EShaderFrequency, FString> FrequencyExtraOption;
+	/** Entrypoint option used to specify the entry point of all shader frequencies. */
+	TCHAR* DefaultEntryPoint;
+
+	/** Used to parse stats output to find total instruction count. Using array to support multiple compiler versions*/
+	TArray<FString> NumInstructionNames;
+	/** Used to parse stats output to find each stat. Each item of this array is for one stat AND it is also an array to support multiple compiler versions. */
+	TArray<TArray<FString>> StatsNames;
+
+	static FString GetFrequenceName(EShaderFrequency Freq)
 	{
-		const auto Frequency = (EShaderFrequency)Input.Target.Frequency;
-		const FString WorkingDir(FPlatformProcess::ShaderDir());
-
-		FString CompilerPath = Input.ExtraSettings.OfflineCompilerPath;
-
-		FString CompilerCommand = "";
-
-		// add process and thread ids to the file name to avoid collision between workers
-		auto ProcID = FPlatformProcess::GetCurrentProcessId();
-		auto ThreadID = FPlatformTLS::GetCurrentThreadId();
-		FString GLSLSourceFile = WorkingDir / TEXT("GLSLSource#") + FString::FromInt(ProcID) + TEXT("#") + FString::FromInt(ThreadID);
-
-		// setup compilation arguments
-		TCHAR *FileExt = nullptr;
-		switch (Frequency)
+		static FString FrequencyName[SF_NumFrequencies] =
 		{
-			case SF_Vertex:
-				GLSLSourceFile += bVulkanSpirV ? TEXT(".spv") : TEXT(".vert");
-				CompilerCommand += TEXT(" -v");
-			break;
-			case SF_Pixel:
-				GLSLSourceFile += bVulkanSpirV ? TEXT(".spv") : TEXT(".frag");
-				CompilerCommand += TEXT(" -f");
-			break;
-			case SF_Geometry:
-				GLSLSourceFile += bVulkanSpirV ? TEXT(".spv") : TEXT(".geom");
-				CompilerCommand += TEXT(" -g");
-			break;
-			case SF_Compute:
-				GLSLSourceFile += bVulkanSpirV ? TEXT(".spv") : TEXT(".comp");
-				CompilerCommand += TEXT(" -C");
-			break;
-
-			default:
-				GLSLSourceFile += TEXT(".shd");
-			break;
-		}
-
-		if (bVulkanSpirV)
+			TEXT("VS"), // SF_Vertex
+			TEXT("MS"), // SF_Mesh
+			TEXT("AS"), // SF_Amplification
+			TEXT("FS"), // SF_Pixel
+			TEXT("GS"), // SF_Geometry
+			TEXT("CS")  // SF_Compute
+		};
+		if (Freq <= SF_Compute)
 		{
-			CompilerCommand += FString::Printf(TEXT(" -y %s -p"), ANSI_TO_TCHAR(VulkanSpirVEntryPoint));
+			return FrequencyName[Freq];
 		}
 		else
 		{
-			CompilerCommand += TEXT(" -s");
+			return FString("Unknown");
 		}
+	}
+};
 
-		FArchive* Ar = IFileManager::Get().CreateFileWriter(*GLSLSourceFile, FILEWRITE_EvenIfReadOnly);
+void CompileShaderOffline(const FShaderCompilerInput& Input,
+	FShaderCompilerOutput& ShaderOutput,
+	const ANSICHAR* ShaderSource,
+	const int32 SourceSize,
+	bool bVulkanSpirV,
+	const FOfflineShaderCompilerOptions& Options,
+	const ANSICHAR* VulkanSpirVEntryPoint)
+{
+	const auto Frequency = (EShaderFrequency)Input.Target.Frequency;
+	const FString WorkingDir(FPlatformProcess::ShaderDir());
+
+	FString CompilerPath = Input.ExtraSettings.OfflineCompilerPath;
+
+	// add process and thread ids to the file name to avoid collision between workers
+	auto ProcID = FPlatformProcess::GetCurrentProcessId();
+	auto ThreadID = FPlatformTLS::GetCurrentThreadId();
+
+	auto GetFileName = [&](FString FileType, FString Ext, int NumInst = 0)
+	{
+		return WorkingDir
+			/ FOfflineShaderCompilerOptions::GetFrequenceName(Frequency) + (NumInst ? TEXT("-") + FString::FromInt(NumInst) : TEXT(""))
+			+ FString::Printf(TEXT("-%s"), (VulkanSpirVEntryPoint ? ANSI_TO_TCHAR(VulkanSpirVEntryPoint) : TEXT("")))
+			+ *FileType + TEXT("-") + FString::FromInt(ProcID) + TEXT("-") + FString::FromInt(ThreadID)
+			+ *Ext;
+	};
+
+	FString ShaderSrcExt;
+	if (bVulkanSpirV)
+	{
+		ShaderSrcExt = Options.SpirVExt;
+	}
+	else
+	{
+		if (const FString* Ext = Options.FrequencyGLSLExts.Find(Frequency))
+		{
+			ShaderSrcExt = *Ext;
+		}
+		else
+		{
+			ShaderSrcExt = Options.DefaultGLSLExt;
+		}
+	}
+	
+	FString ShaderSourceFile = GetFileName(FString("-Source"), ShaderSrcExt);
+	FString CompilerCommand = Options.CommonOptions;
+	if (!Options.GPUTargetOption.IsEmpty())
+	{
+		FString GPUTarget = Input.ExtraSettings.GPUTarget;
+		if (GPUTarget.IsEmpty())
+		{
+			GPUTarget = Options.DefaultGPUTarget;			
+		}
+		CompilerCommand += FString::Printf(TEXT("%s=%s"), *Options.GPUTargetOption, *GPUTarget);
+	}
+	
+	if (Input.ExtraSettings.bMobileMultiView)
+	{
+		CompilerCommand += Options.MultiViewOption;
+	}
+
+	CompilerCommand += Options.FrequencyOptions[Frequency];
+
+	if (bVulkanSpirV)
+	{
+		CompilerCommand += FString::Printf(TEXT("%s %s"), *Options.FrequencyEntryPoints[Frequency], ANSI_TO_TCHAR(VulkanSpirVEntryPoint));
+	}
+
+	if (const FString* ExtraOption = Options.FrequencyExtraOption.Find(Frequency)) 
+	{
+		CompilerCommand += *ExtraOption;
+	}
+
+	FArchive* Ar = IFileManager::Get().CreateFileWriter(*ShaderSourceFile, FILEWRITE_EvenIfReadOnly);
 
 		if (Ar == nullptr)
 		{
@@ -1651,18 +1794,18 @@ void CompileOfflineMali(const FShaderCompilerInput& Input, FShaderCompilerOutput
 		// Since v6.2.0, Mali compiler needs to be started in the executable folder or it won't find "external/glslangValidator" for Vulkan
 		FString CompilerWorkingDirectory = FPaths::GetPath(CompilerPath);
 
-		if (!CompilerWorkingDirectory.IsEmpty() && FPaths::DirectoryExists(CompilerWorkingDirectory))
-		{
-			// compiler command line contains flags and the GLSL source file name
-			CompilerCommand += " " + FPaths::ConvertRelativePathToFull(GLSLSourceFile);
+	if (!CompilerWorkingDirectory.IsEmpty() && FPaths::DirectoryExists(CompilerWorkingDirectory))
+	{
+		// compiler command line contains flags and the GLSL source file name
+		CompilerCommand += " " + FPaths::ConvertRelativePathToFull(ShaderSourceFile);
 
-			// Run Mali shader compiler and wait for completion
-			FPlatformProcess::ExecProcess(*CompilerPath, *CompilerCommand, &ReturnCode, &StdOut, &StdErr, *CompilerWorkingDirectory);
-		}
-		else
-		{
-			StdErr = "Couldn't find Mali offline compiler at " + CompilerPath;
-		}
+		// Run shader compiler and wait for completion
+		FPlatformProcess::ExecProcess(*CompilerPath, *CompilerCommand, &ReturnCode, &StdOut, &StdErr, *CompilerWorkingDirectory);
+	}
+	else
+	{
+		StdErr = "Couldn't find offline compiler at " + CompilerPath;
+	}
 
 		// parse Mali's output and extract instruction count or eventual errors
 		ShaderOutput.bSucceeded = (ReturnCode >= 0);
@@ -1674,16 +1817,16 @@ void CompileOfflineMali(const FShaderCompilerInput& Input, FShaderCompilerOutput
 				ShaderOutput.bSucceeded = false;
 
 				FShaderCompilerError& NewError = ShaderOutput.Errors.AddDefaulted_GetRef();
-				NewError.StrippedErrorMessage = TEXT("[Mali Offline Complier]\n") + StdErr;
+				NewError.StrippedErrorMessage = TEXT("[Offline Complier]\n") + StdErr;
 			}
 			else
 			{
-				FString Errors = Mali_ExtractErrors(StdOut);
+				FString Errors = OfflineCompiler_ExtractErrors(StdOut);
 
 				if (Errors.Len())
 				{
 					FShaderCompilerError& NewError = ShaderOutput.Errors.AddDefaulted_GetRef();
-					NewError.StrippedErrorMessage = TEXT("[Mali Offline Complier]\n") + Errors;
+					NewError.StrippedErrorMessage = TEXT("[Offline Complier]\n") + Errors;
 					ShaderOutput.bSucceeded = false;
 				}
 			}
@@ -1691,12 +1834,188 @@ void CompileOfflineMali(const FShaderCompilerInput& Input, FShaderCompilerOutput
 			// extract instruction count
 			if (ShaderOutput.bSucceeded)
 			{
-				ShaderOutput.NumInstructions = Mali_ExtractNumberInstructions(StdOut);
+				ShaderOutput.NumInstructions = OfflineCompiler_ExtractStats(StdOut, Options.NumInstructionNames);
+				FString OutputStatsFile = GetFileName(FString("-Stats"), FString(".txt"), ShaderOutput.NumInstructions);
+				for (auto& StatNames : Options.StatsNames)
+				{
+					if(StatNames.Num())
+					{
+						ShaderOutput.AddStatistic<uint32>(*StatNames[0], OfflineCompiler_ExtractStats(StdOut, StatNames));
+					}
+				}
+				if (Input.ExtraSettings.bSaveCompilerStatsFiles)
+				{
+					FArchive* ArOutput = IFileManager::Get().CreateFileWriter(*OutputStatsFile, FILEWRITE_EvenIfReadOnly);
+					if (ArOutput == nullptr)
+					{
+						return;
+					}
+					if (!Options.DumpAll.IsEmpty())
+					{
+						CompilerCommand += Options.DumpAll;
+						//TODO: It's expensive to run the process twice. Better to run it once with DumpAll and parse the StdOut to get Stats.
+						// But to do that, we need to know the preserved keyword for Stats.
+						FPlatformProcess::ExecProcess(*CompilerPath, *CompilerCommand, &ReturnCode, &StdOut, &StdErr, *CompilerWorkingDirectory);
+					}
+					FString StatsOutput = CompilerCommand + FString("\n") + StdOut;
+					const int32 StatsLen = StatsOutput.Len();
+					TSharedPtr<ANSICHAR> ShaderStats = MakeShareable(new ANSICHAR[StatsLen + 1]);
+					FCStringAnsi::Strcpy(ShaderStats.Get(), StatsLen + 1, TCHAR_TO_ANSI(*StatsOutput));
+					ArOutput->Serialize((void*)ShaderStats.Get(), StatsLen);
+					delete ArOutput;
+				}
 			}
-		}
+	}
 
 		// we're done so delete the shader file
-		IFileManager::Get().Delete(*GLSLSourceFile, true, true);
+	if (Input.ExtraSettings.bSaveCompilerStatsFiles)
+	{
+		FString DstShaderSourceFile = GetFileName(FString("-Source"), ShaderSrcExt, ShaderOutput.NumInstructions);
+		IFileManager::Get().Move(*DstShaderSourceFile, *ShaderSourceFile, true, true);
+		IFileManager::Get().Delete(*ShaderSourceFile, true, true);
+	}
+	IFileManager::Get().Delete(*ShaderSourceFile, true, true);
+}
+
+void CompileShaderOffline_Mali(const FShaderCompilerInput& Input,
+	FShaderCompilerOutput& ShaderOutput,
+	const ANSICHAR* ShaderSource,
+	const int32 SourceSize,
+	bool bVulkanSpirV,
+	const ANSICHAR* VulkanSpirVEntryPoint)
+{
+	static FOfflineShaderCompilerOptions Options;
+	if (bVulkanSpirV)
+	{
+		Options.CommonOptions = TEXT(" -p");
+	}
+	else
+	{
+		Options.CommonOptions = TEXT(" -s");
+	}
+
+	if (Options.SpirVExt.IsEmpty())
+	{
+		Options.SpirVExt = TEXT(".spv");
+		Options.DefaultGLSLExt = TEXT(".shd");
+		Options.FrequencyGLSLExts.Emplace(SF_Vertex, TEXT(".vert"));
+		Options.FrequencyGLSLExts.Emplace(SF_Pixel, TEXT(".frag"));
+		Options.FrequencyGLSLExts.Emplace(SF_Geometry, TEXT(".geom"));
+		Options.FrequencyGLSLExts.Emplace(SF_Compute, TEXT(".comp"));
+
+		Options.FrequencyOptions.Emplace(SF_Vertex, FString(" -v"));
+		Options.FrequencyOptions.Emplace(SF_Pixel, FString(" -f"));
+		Options.FrequencyOptions.Emplace(SF_Geometry, FString(" -g"));
+		Options.FrequencyOptions.Emplace(SF_Compute, FString(" -C"));
+
+		Options.FrequencyEntryPoints.Emplace(SF_Vertex, TEXT(" -y"));
+		Options.FrequencyEntryPoints.Emplace(SF_Pixel, TEXT(" -y"));
+		Options.FrequencyEntryPoints.Emplace(SF_Geometry, TEXT(" -y"));
+		Options.FrequencyEntryPoints.Emplace(SF_Compute, TEXT(" -y"));
+
+		Options.NumInstructionNames.Add("Instructions Emitted:");
+		Options.NumInstructionNames.Add("Total instruction cycles:");
+	}
+
+	CompileShaderOffline(Input, ShaderOutput, ShaderSource, SourceSize, bVulkanSpirV, Options, VulkanSpirVEntryPoint);
+}
+
+void CompileShaderOffline_Adreno(const FShaderCompilerInput& Input,
+	FShaderCompilerOutput& ShaderOutput,
+	const ANSICHAR* ShaderSource,
+	const int32 SourceSize,
+	bool bVulkanSpirV,
+	const ANSICHAR* VulkanSpirVEntryPoint)
+{
+	static FOfflineShaderCompilerOptions Options;
+	if (bVulkanSpirV)
+	{
+		Options.CommonOptions = TEXT(" -api=Vulkan");
+	}
+
+	if (Options.MultiViewOption.IsEmpty())
+	{
+		Options.MultiViewOption = TEXT(" -view_mask=0x3");
+		Options.GPUTargetOption = TEXT(" -arch");
+		Options.DefaultGPUTarget = TEXT("a650");
+
+		Options.SpirVExt = TEXT(".spv");
+		Options.DefaultGLSLExt = TEXT(".shd");
+		Options.FrequencyGLSLExts.Emplace(SF_Vertex, TEXT(".vert"));
+		Options.FrequencyGLSLExts.Emplace(SF_Pixel, TEXT(".frag"));
+		Options.FrequencyGLSLExts.Emplace(SF_Geometry, TEXT(".geom"));
+		Options.FrequencyGLSLExts.Emplace(SF_Compute, TEXT(".comp"));
+
+		Options.FrequencyOptions.Emplace(SF_Vertex, FString(" -vs"));
+		Options.FrequencyOptions.Emplace(SF_Pixel, FString(" -fs"));
+		Options.FrequencyOptions.Emplace(SF_Geometry, FString(" -gs"));
+		Options.FrequencyOptions.Emplace(SF_Compute, FString(" -cs"));
+
+		Options.FrequencyEntryPoints.Emplace(SF_Vertex, TEXT(" -entry_point_vs"));
+		Options.FrequencyEntryPoints.Emplace(SF_Pixel, TEXT(" -entry_point_ps"));
+		Options.FrequencyEntryPoints.Emplace(SF_Geometry, TEXT(" -entry_point_gs"));
+		Options.FrequencyEntryPoints.Emplace(SF_Compute, TEXT(" -entry_point_cs"));
+
+		Options.FrequencyExtraOption.Emplace(SF_Vertex, TEXT(" -link_with_fs"));
+
+		Options.NumInstructionNames.Add("Total instruction count");
+		
+		Options.StatsNames.Add(TArray<FString>{TEXT("ALU instruction count - 32 bit")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("ALU instruction count - 16 bit")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Complex instruction count - 32 bit")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Complex instruction count - 16 bit")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Flow control instruction count")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Barrier and fence Instruction count")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Short latency sync instruction count")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Long latency sync instruction count")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Texture read instruction count")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Memory read instruction count")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Memory write instruction count")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Miscellaneous instruction count")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Full precision register footprint per shader instance")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Half precision register footprint per shader instance")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Overall register footprint per shader instance")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Scratch memory usage per shader instance")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Loop count")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Output component count")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("Input component count")});
+		Options.StatsNames.Add(TArray<FString>{TEXT("ALU fiber occupancy percentage")});
+		
+	}
+
+	if (Input.ExtraSettings.bDumpAll) 
+	{
+		Options.DumpAll = " -dump=all";
+	}
+
+	CompileShaderOffline(Input, ShaderOutput, ShaderSource, SourceSize, bVulkanSpirV, Options, VulkanSpirVEntryPoint);
+}
+
+void CompileShaderOffline(const FShaderCompilerInput& Input,
+	FShaderCompilerOutput& ShaderOutput,
+	const ANSICHAR* ShaderSource,
+	const int32 SourceSize,
+	bool bVulkanSpirV,
+	const ANSICHAR* VulkanSpirVEntryPoint)
+{
+	const bool bCompilerExecutableExists = FPaths::FileExists(Input.ExtraSettings.OfflineCompilerPath);
+	if (!bCompilerExecutableExists)
+	{
+		return;
+	}
+	EOfflineShaderCompilerType OfflineCompiler = Input.ExtraSettings.OfflineCompiler;
+	switch (OfflineCompiler)
+	{
+	case EOfflineShaderCompilerType::Mali:
+		CompileShaderOffline_Mali(Input, ShaderOutput, ShaderSource, SourceSize, bVulkanSpirV, VulkanSpirVEntryPoint);
+		break;
+	case EOfflineShaderCompilerType::Adreno:
+		CompileShaderOffline_Adreno(Input, ShaderOutput, ShaderSource, SourceSize, bVulkanSpirV, VulkanSpirVEntryPoint);
+		break;
+	case EOfflineShaderCompilerType::Num:
+		break;
+	default:
+		break;
 	}
 }
 
@@ -1704,13 +2023,21 @@ void CompileOfflineMali(const FShaderCompilerInput& Input, FShaderCompilerOutput
 const FString GetDebugFileName(
 	const FShaderCompilerInput& Input, 
 	const UE::ShaderCompilerCommon::FDebugShaderDataOptions& Options, 
-	const TCHAR* BaseFilename)
+	const TCHAR* BaseFilename,
+	const TCHAR* Suffix = nullptr)
 {
 	TStringBuilder<512> PathBuilder;
 	const TCHAR* Prefix = (Options.FilenamePrefix && *Options.FilenamePrefix) ? Options.FilenamePrefix : TEXT("");
 	FStringView Filename = (BaseFilename && *BaseFilename) ? BaseFilename : Input.GetSourceFilenameView();
+	FStringView Ext = FPathViews::GetExtension(Filename, true);
+	FStringView FilenameNoExt = Filename.LeftChop(Ext.Len());
 	FPathViews::Append(PathBuilder, Input.DumpDebugInfoPath, Prefix);
-	PathBuilder << Filename;
+	PathBuilder << FilenameNoExt;
+	if (Suffix)
+	{
+		PathBuilder << Suffix;
+	}
+	PathBuilder << Ext;
 	return PathBuilder.ToString();
 }
 
@@ -1765,9 +2092,9 @@ namespace UE::ShaderCompilerCommon
 		return bSuccess;
 	}
 
-	FString FDebugShaderDataOptions::GetDebugShaderPath(const FShaderCompilerInput& Input) const
+	FString FDebugShaderDataOptions::GetDebugShaderPath(const FShaderCompilerInput& Input, const TCHAR* Suffix) const
 	{
-		return GetDebugFileName(Input, *this, OverrideBaseFilename);
+		return GetDebugFileName(Input, *this, OverrideBaseFilename, Suffix);
 	}
 
 	bool FBaseShaderFormat::PreprocessShader(
@@ -1786,19 +2113,19 @@ namespace UE::ShaderCompilerCommon
 		DumpExtendedDebugShaderData(Input, PreprocessOutput, Output);
 	}
 
-	void DumpDebugShaderData(const FShaderCompilerInput& Input, FStringView PreprocessedSource, const FDebugShaderDataOptions& Options)
+	void DumpDebugShaderData(const FShaderCompilerInput& Input, FStringView PreprocessedSource, const FDebugShaderDataOptions& Options, const TCHAR* Suffix)
 	{
 		if (!Input.DumpDebugInfoEnabled())
 		{
 			return;
 		}
 
-		FString Contents = UE::ShaderCompilerCommon::GetDebugShaderContents(Input, PreprocessedSource, Options);
-		FFileHelper::SaveStringToFile(Contents, *Options.GetDebugShaderPath(Input));
+		FString Contents = UE::ShaderCompilerCommon::GetDebugShaderContents(Input, PreprocessedSource, Options, Suffix);
+		FFileHelper::SaveStringToFile(Contents, *Options.GetDebugShaderPath(Input, Suffix));
 
 		if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::DirectCompileCommandLine) && !Options.bSourceOnly)
 		{
-			FFileHelper::SaveStringToFile(CreateShaderCompilerWorkerDirectCommandLine(Input), *GetDebugFileName(Input, Options, TEXT("DirectCompile.txt")));
+			FFileHelper::SaveStringToFile(CreateShaderCompilerWorkerDirectCommandLine(Input, Options, Suffix), *GetDebugFileName(Input, Options, TEXT("DirectCompile.txt")));
 		}
 	}
 
@@ -1808,32 +2135,38 @@ namespace UE::ShaderCompilerCommon
 		const FShaderCompilerOutput& Output,
 		const FDebugShaderDataOptions& Options)
 	{
-		if (Input.bCachePreprocessed && EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::DetailedSource))
+		if (!Input.Environment.CompilerFlags.Contains(CFLAG_DisableSourceStripping) && EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::DetailedSource))
 		{
-			FDebugShaderDataOptions PrefixedOptions(Options);
-			uint32 SlackLen = Options.FilenamePrefix ? FCString::Strlen(Options.FilenamePrefix) : 0;
-			FString StrippedPrefix(TEXT("Stripped_"), SlackLen);
-			FString PreprocessedPrefix(TEXT("Preprocessed_"), SlackLen);
-			if (Options.FilenamePrefix)
-			{
-				StrippedPrefix += Options.FilenamePrefix;
-				PreprocessedPrefix += Options.FilenamePrefix;
-			}
-			
-			PrefixedOptions.FilenamePrefix = *StrippedPrefix;
-			FFileHelper::SaveStringToFile(PreprocessOutput.GetSourceViewWide(), *PrefixedOptions.GetDebugShaderPath(Input));
+			const TCHAR* StrippedSuffix = TEXT("_Stripped");
+			FFileHelper::SaveStringToFile(GetDebugShaderContents(Input, PreprocessOutput.GetSourceViewWide(), Options, StrippedSuffix), *Options.GetDebugShaderPath(Input, StrippedSuffix));
+		}
 
-			PrefixedOptions.FilenamePrefix = *PreprocessedPrefix;
-			FFileHelper::SaveStringToFile(PreprocessOutput.GetUnstrippedSourceView(), *PrefixedOptions.GetDebugShaderPath(Input));
-		}
-		if (Output.ModifiedShaderSource.IsEmpty())
+		bool bHasModifiedSource = !Output.ModifiedShaderSource.IsEmpty();
+		if (bHasModifiedSource)
 		{
-			DumpDebugShaderData(Input, PreprocessOutput.GetSourceViewWide(), Options);
+			// If the compile step applies modifications to the source, output this as the "default" USF; it's not directcompile-compatible but backends
+			// which output compile batch files rely on this being the copy of the source that can be passed directly to the platform compiler.
+			FFileHelper::SaveStringToFile(Output.ModifiedShaderSource, *Options.GetDebugShaderPath(Input));
 		}
-		else
+
+		// if no modifications to source are made in the compile step, output just the single usf which is the unstripped version compatible with launching
+		// SCW in directcompile mode (the stripped version is less useful for debugging via this mechanism, so is only output in "detailed source" mode)
+		// if modifications were made, this is output as an additional artifact, appending "_DirectCompile" to the path to indicate that it can be used as such.
+		DumpDebugShaderData(Input, PreprocessOutput.GetUnstrippedSourceView(), Options, bHasModifiedSource ? TEXT("_DirectCompile") : nullptr);
+
+		if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::ShaderCodePlatformHashes))
 		{
-			DumpDebugShaderData(Input, FStringView(Output.ModifiedShaderSource), Options);
+			// if the platform has registered a CodeHash stat, output a file containing this as well
+			const FGenericShaderStat* Hash = Output.ShaderStatistics.FindByPredicate([](const FGenericShaderStat& Stat)
+				{
+					return Stat.StatName == kPlatformHashStatName;
+				});
+			if (Hash)
+			{
+				FFileHelper::SaveStringToFile(Hash->Value.Get<FString>(), *GetDebugFileName(Input, Options, TEXT("PlatformHash.txt")), FFileHelper::EEncodingOptions::ForceAnsi);
+			}
 		}
+
 		FFileHelper::SaveStringToFile(Output.OutputHash.ToString(), *GetDebugFileName(Input, Options, TEXT("OutputHash.txt")), FFileHelper::EEncodingOptions::ForceAnsi);
 
 		if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::Diagnostics))
@@ -1848,10 +2181,29 @@ namespace UE::ShaderCompilerCommon
 				FFileHelper::SaveStringToFile(Merged, *GetDebugFileName(Input, Options, TEXT("Diagnostics.txt")), FFileHelper::EEncodingOptions::ForceAnsi);
 			}
 		}
+		
+		// delete old DebugHash_* files so we don't clutter the debug info folder (these change every time the deadstripped source code changes)
+		IFileManager::Get().IterateDirectory(*Input.DumpDebugInfoPath, [](const TCHAR* FilenameOrDirectory, bool bIsDirectory)
+			{
+				if (!bIsDirectory)
+				{
+					FStringView Filename = FPathViews::GetCleanFilename(FilenameOrDirectory);
+					if (Filename.StartsWith(GetShaderSourceDebugHashPrefixWide()))
+					{
+						IFileManager::Get().Delete(FilenameOrDirectory);
+					}
+				}
+				return true;
+			});
 
-		if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::InputHash))
+		if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::InputHash) || Output.CompileTime > 0.0f)
 		{
-			FFileHelper::SaveStringToFile(LexToString(Input.Hash), *GetDebugFileName(Input, Options, TEXT("InputHash.txt")), FFileHelper::EEncodingOptions::ForceAnsi);
+			// If compile time was > 0, this was the copy of the job that actually compiled; we write an empty file with the shader hash in it so it can be
+			// found easily using the ShaderHash comment printed on the first line of the stripped source code.
+			// We don't do this for cache hits or duplicate jobs unless explicitly requested (via the InputHash debug info flags), so that _all_ debug artifacts
+			// (including those only generated by the compile process) are available in the folder containing this file.
+			FString InputHashStr = LexToString(Input.Hash);
+			FFileHelper::SaveStringToFile(FStringView(), *GetDebugFileName(Input, Options, GetShaderSourceDebugHashPrefixWide().GetData(), *InputHashStr));
 		}
 
 		if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::ShaderCodeBinary))
@@ -1862,12 +2214,12 @@ namespace UE::ShaderCompilerCommon
 				// always output decompressed code as it's slightly more useful for A/B comparisons
 				TArray<uint8> DecompressedCode;
 				DecompressedCode.SetNum(Output.ShaderCode.GetUncompressedSize());
-				bool bSucceed = FCompression::UncompressMemory(NAME_Oodle, DecompressedCode.GetData(), DecompressedCode.Num(), Output.ShaderCode.GetReadAccess().GetData(), Output.ShaderCode.GetShaderCodeSize());
+				bool bSucceed = FCompression::UncompressMemory(NAME_Oodle, DecompressedCode.GetData(), DecompressedCode.Num(), Output.ShaderCode.GetReadView().GetData(), Output.ShaderCode.GetShaderCodeSize());
 				FFileHelper::SaveArrayToFile(DecompressedCode, *ShaderCodeFileName);
 			}
 			else
 			{
-				FFileHelper::SaveArrayToFile(Output.ShaderCode.GetReadAccess(), *ShaderCodeFileName);
+				FFileHelper::SaveArrayToFile(Output.ShaderCode.GetReadView(), *ShaderCodeFileName);
 			}
 		}
 
@@ -1910,17 +2262,16 @@ namespace UE::ShaderCompilerCommon
 		Env.SerializeCompilationDependencies(Ar);
 	}
 
-	FString GetDebugShaderContents(const FShaderCompilerInput& Input, FStringView PreprocessedSource, const FDebugShaderDataOptions& Options)
+	FString GetDebugShaderContents(const FShaderCompilerInput& Input, FStringView PreprocessedSource, const FDebugShaderDataOptions& Options, const TCHAR* Suffix)
 	{
-		// If preprocessed cache is enabled, debug dump occurs in the cook process rather than the workers, and
-		// in that case the env in Input.Environment has not been merged with the shared env. Do so here.
+		// Debug dump occurs in the cook process, so we need to merge the env in Input.Environment with the shared env (this is done in the compile step as well)
 		FShaderCompilerEnvironment MergedEnvironment(Input.Environment);
-		if (Input.bCachePreprocessed && IsValidRef(Input.SharedEnvironment))
+		if (IsValidRef(Input.SharedEnvironment))
 		{
 			MergedEnvironment.Merge(*Input.SharedEnvironment);
 		}
 
-		FString Contents = Options.AppendPreSource ? Options.AppendPreSource() : FString();
+		FString Contents = MergedEnvironment.GetDefinitionsAsCommentedCode();
 
 		if (Options.AppendPreSource)
 		{
@@ -1937,7 +2288,7 @@ namespace UE::ShaderCompilerCommon
 		Contents += TEXT("\n");
 		Contents += SerializeEnvironmentToBase64(MergedEnvironment);
 		Contents += TEXT("/* DIRECT COMPILE\n");
-		Contents += CreateShaderCompilerWorkerDirectCommandLine(Input);
+		Contents += CreateShaderCompilerWorkerDirectCommandLine(Input, Options, Suffix);
 		Contents += TEXT("\nDIRECT COMPILE */\n");
 		if (!Input.DebugDescription.IsEmpty())
 		{
@@ -2242,6 +2593,8 @@ namespace CrossCompiler
 		TEXT("RayMiss"),
 		TEXT("RayHitGroup"),
 		TEXT("RayCallable"),
+		TEXT("WorkGraphRoot"),
+		TEXT("WorkGraphComputeNode"),
 	};
 
 	/** Compile time check to verify that the GL mapping tables are up-to-date. */

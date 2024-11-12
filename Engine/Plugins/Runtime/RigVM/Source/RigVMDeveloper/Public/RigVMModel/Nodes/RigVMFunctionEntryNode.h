@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "RigVMModel/Nodes/RigVMTemplateNode.h"
+#include "RigVMModel/Nodes/RigVMFunctionInterfaceNode.h"
 #include "RigVMFunctionEntryNode.generated.h"
 
 /**
@@ -10,7 +10,7 @@
  * input pins of the library node for links within.
  */
 UCLASS(BlueprintType)
-class RIGVMDEVELOPER_API URigVMFunctionEntryNode : public URigVMTemplateNode
+class RIGVMDEVELOPER_API URigVMFunctionEntryNode : public URigVMFunctionInterfaceNode
 {
 	GENERATED_BODY()
 
@@ -20,17 +20,12 @@ public:
 	virtual UScriptStruct* GetScriptStruct() const override { return nullptr; }
 	virtual const FRigVMTemplate* GetTemplate() const override { return nullptr; }
 	virtual FName GetNotation() const override { return NAME_None; }
-	virtual uint32 GetStructureHash() const override;
 
 	// Override node functions
-	virtual FLinearColor GetNodeColor() const override;
-	virtual bool IsDefinedAsVarying() const override;
 	virtual bool IsWithinLoop() const override;
 
 	// URigVMNode interface
 	virtual FString GetNodeTitle() const override;
-	virtual  FText GetToolTipText() const override;
-	virtual FText GetToolTipTextForPin(const URigVMPin* InPin) const override;
 
 private:
 

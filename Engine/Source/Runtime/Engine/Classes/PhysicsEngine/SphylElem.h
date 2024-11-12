@@ -65,6 +65,8 @@ struct FKSphylElem : public FKShapeElem
 
 	}
 
+	ENGINE_API virtual ~FKSphylElem();
+
 #if WITH_EDITORONLY_DATA
 	void FixupDeprecated( FArchive& Ar );
 #endif

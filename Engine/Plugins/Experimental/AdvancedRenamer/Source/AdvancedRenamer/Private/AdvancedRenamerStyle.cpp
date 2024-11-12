@@ -1,15 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AdvancedRenamerStyle.h"
-#include "Brushes/SlateImageBrush.h"
 #include "Interfaces/IPluginManager.h"
-#include "Misc/Paths.h"
 #include "Styling/AppStyle.h"
-#include "Styling/ISlateStyle.h"
+#include "Styling/CoreStyle.h"
 #include "Styling/SlateStyle.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "Styling/SlateTypes.h"
-#include "Styling/StyleColors.h"
+
+#define IMAGE_BRUSH(RelativePath, ...) FSlateImageBrush(StyleInstance->RootToContentDir(RelativePath, TEXT(".png") ), __VA_ARGS__)
 
 TSharedPtr<FSlateStyleSet> FAdvancedRenamerStyle::StyleInstance = nullptr;
 
@@ -17,7 +16,7 @@ void FAdvancedRenamerStyle::Initialize()
 {
 	if (!StyleInstance.IsValid())
 	{
-		StyleInstance = Create();
+		InitStyle();
 		FSlateStyleRegistry::RegisterSlateStyle(*StyleInstance);
 	}
 }
@@ -38,37 +37,47 @@ FName FAdvancedRenamerStyle::GetStyleSetName()
 	return StyleSetName;
 }
 
-TSharedRef<FSlateStyleSet> FAdvancedRenamerStyle::Create()
+void FAdvancedRenamerStyle::InitStyle()
 {
-	TSharedRef<FSlateStyleSet> Style = MakeShared<FSlateStyleSet>("AdvancedRenamer");
-
-	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("AdvancedRenamer"));
-	check(Plugin.IsValid());
-
-	if (Plugin.IsValid())
+	if (StyleInstance.IsValid())
 	{
-		Style->SetContentRoot(FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources")));
+		return;
 	}
 
-	Style->Set("AdvancedRenamer.Image.Radio.BlackBackground", new FSlateVectorImageBrush(
-		FPaths::Combine(Style->GetContentRootDir(), "/Icons/radio-background.svg"), 
-		FVector2D(16.f, 16.f), FStyleColors::Foldout.GetSpecifiedColor()
-	));
+	StyleInstance = MakeShared<FSlateStyleSet>("AdvancedRenamer");
 
-	FCheckBoxStyle BlackRadioButton = FAppStyle::GetWidgetStyle<FCheckBoxStyle>("RadioButton");
-	BlackRadioButton.SetBackgroundImage(*Style->GetBrush("AdvancedRenamer.Image.Radio.BlackBackground"));
+	// Same ContentDir and CoreRootContentDir as the ContentBrowser
+	StyleInstance->SetContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate"));
+	StyleInstance->SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Slate"));
 
-	Style->Set("AdvancedRenamer.Style.BlackRadioButton", BlackRadioButton);
+	const FSplitterStyle SplitterStyle = FSplitterStyle()
+		.SetHandleNormalBrush(FSlateNoResource())
+		.SetHandleHighlightBrush(FSlateNoResource());
+	
+	StyleInstance->Set("AdvancedRenamer.Style.Splitter", SplitterStyle);
 
-	const FButtonStyle DarkButton = FButtonStyle(FAppStyle::Get().GetWidgetStyle<FButtonStyle>("SimpleButton"))
-		.SetNormal(FSlateColorBrush(FStyleColors::Recessed))
-		.SetHovered(FSlateColorBrush(FStyleColors::Hover))
-		.SetPressed(FSlateColorBrush(FStyleColors::Header))
-		.SetDisabled(FSlateColorBrush(FStyleColors::Dropdown));
+	FSlateBrush* BackgroundBorderBrush = new FSlateColorBrush(FLinearColor::FromSRGBColor(FColor(36, 36, 36)));
 
-	Style->Set("AdvancedRenamer.Style.DarkButton", DarkButton);
+	StyleInstance->Set("AdvancedRenamer.Style.BackgroundBorder", BackgroundBorderBrush);
 
-	return Style;
+	const FTableViewStyle ListViewStyle = FTableViewStyle()
+		.SetBackgroundBrush(*FAdvancedRenamerStyle::Get().GetBrush("AdvancedRenamer.Style.BackgroundBorder"));
+
+	StyleInstance->Set("AdvancedRenamer.Style.ListView", ListViewStyle);
+
+	FHeaderRowStyle HeaderRowStyle = FAppStyle::Get().GetWidgetStyle<FHeaderRowStyle>("TableView.Header");
+	HeaderRowStyle.SetHorizontalSeparatorThickness(0);
+	HeaderRowStyle.SetHorizontalSeparatorBrush(FSlateNoResource());
+	HeaderRowStyle.SetBackgroundBrush(FSlateColorBrush(FLinearColor::FromSRGBColor(FColor(47, 47, 47))));
+
+	StyleInstance->Set("AdvancedRenamer.Style.HeaderRow", HeaderRowStyle);
+
+	StyleInstance->Set("AdvancedRenamer.Style.TitleFont", FCoreStyle::GetDefaultFontStyle("Regular", 12));
+	StyleInstance->Set("AdvancedRenamer.Style.RegularFont", FCoreStyle::GetDefaultFontStyle("Regular", 10));
+
+	// Commands Icon
+	StyleInstance->Set("AdvancedRenamer.BatchRenameObject", new IMAGE_BRUSH("Icons/Icon_Asset_Rename_16x", FVector2D(16.f, 16.f)));
+	StyleInstance->Set("AdvancedRenamer.BatchRenameSharedClassActors", new IMAGE_BRUSH("Icons/Icon_Asset_Rename_16x", FVector2D(16.f, 16.f)));
 }
 
 const ISlateStyle& FAdvancedRenamerStyle::Get()
@@ -80,3 +89,5 @@ const ISlateStyle& FAdvancedRenamerStyle::Get()
 
 	return *StyleInstance;
 }
+
+#undef IMAGE_BRUSH

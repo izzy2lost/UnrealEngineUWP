@@ -1370,7 +1370,6 @@ void SNiagaraConsoleInputBox::Construct(const FArguments& InArgs)
 				.SelectionMode(ESelectionMode::Single)							// Ideally the mouse over would not highlight while keyboard controls the UI
 				.OnGenerateRow(this, &SNiagaraConsoleInputBox::MakeSuggestionListItemWidget)
 				.OnSelectionChanged(this, &SNiagaraConsoleInputBox::SuggestionSelectionChanged)
-				.ItemHeight(18)
 			]
 		]
 	)
@@ -1473,13 +1472,7 @@ void SNiagaraConsoleInputBox::OnTextChanged(const FText& InText)
 
 		auto OnConsoleVariable = [&AutoCompleteList](const TCHAR* Name, IConsoleObject* CVar)
 		{
-#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			if (CVar->TestFlags(ECVF_Cheat))
-			{
-				return;
-			}
-#endif // (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			if (CVar->TestFlags(ECVF_Unregistered))
+			if (!CVar->IsEnabled())
 			{
 				return;
 			}

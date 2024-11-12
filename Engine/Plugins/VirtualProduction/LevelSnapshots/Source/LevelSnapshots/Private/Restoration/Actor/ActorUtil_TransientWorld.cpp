@@ -313,7 +313,7 @@ TOptional<TNonNullPtr<AActor>> UE::LevelSnapshots::Private::GetDeserializedActor
 	const TOptional<TNonNullPtr<AActor>> Result = Internal::GetDeserialized(OriginalObjectPath, WorldData, Cache, LocalisationSnapshotPackage, bWarnIfNotFound);
 	// Look up cache again because GetDeserialized might have reallocated Cache.ActorCache hence CacheBeforeDeserialize is no longer valid
 	const FActorSnapshotCache& CacheAfterDeserialize = Cache.ActorCache.FindOrAdd(OriginalObjectPath);
-	Internal::ConditionallyRerunConstructionScript(Result.Get(nullptr), CacheAfterDeserialize.ObjectDependencies, WorldData, Cache, LocalisationSnapshotPackage);
+	Internal::ConditionallyRerunConstructionScript(GetRawPointerOrNull(Result), CacheAfterDeserialize.ObjectDependencies, WorldData, Cache, LocalisationSnapshotPackage);
 	return Result;
 }
 

@@ -5,7 +5,6 @@
 #include "EditorUndoClient.h"
 #include "Widgets/SDMXPixelMappingSurface.h"
 
-class FDMXPixelMappingComponentReference;
 class FDMXPixelMappingDragDropOp;
 class FDMXPixelMappingToolkit;
 class SBorder;
@@ -21,11 +20,8 @@ class UDMXPixelMapping;
 class UDMXPixelMappingBaseComponent;
 class UDMXPixelMappingOutputComponent;
 class UDMXPixelMappingRendererComponent;
-namespace UE::DMX
-{
-	class IDMXPixelMappingOutputComponentWidgetInterface;
-}
-
+namespace UE::DMX { class IDMXPixelMappingOutputComponentWidgetInterface; }
+struct FDMXPixelMappingComponentReference;
 
 class SDMXPixelMappingDesignerView
 	: public SDMXPixelMappingSurface
@@ -44,6 +40,7 @@ private:
 			: WidgetArranged(SNullWidget::NullWidget, FGeometry())
 		{}
 	};
+
 public:
 	SLATE_BEGIN_ARGS(SDMXPixelMappingDesignerView) 
 	{}

@@ -1,10 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AsyncTestStep.h"
-#include "CoreMinimal.h"
-
-#include <catch2/catch_test_macros.hpp>
-
 #include "OnlineCatchHelper.h"
 #include "Online/DelegateAdapter.h"
 #include "Online/MulticastAdapter.h"
@@ -37,7 +33,7 @@ AST_ERROR_TEST_CASE("Basic test- confirm all of async steps, lambdas, and async 
 	bool bHasRun = false;
 	bool bDidComplete = false;
 
-	GetLoginPipeline(0)
+	GetPipeline()
 		.EmplaceStep<FAsyncTestStepHelper>(bHasRun)
 		.EmplaceLambda([&](SubsystemType Type)
 		{

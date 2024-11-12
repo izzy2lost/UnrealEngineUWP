@@ -39,6 +39,10 @@ public:
 
 	void SetPreviewScene(UE::Chaos::ClothAsset::FChaosClothPreviewScene* PreviewScene);
 
+	/* Whether the preview viewport should pause animation and simulation while Play In Editor (PIE) or Simulate In Editor is active */
+	UPROPERTY(EditAnywhere, Transient, Category = "Viewport")
+	bool bPauseWhilePlayingInEditor = true;
+
 	// Skeletal Mesh source asset
 	UPROPERTY(EditAnywhere, Transient, Category="SkeletalMesh")
 	TObjectPtr<USkeletalMesh> SkeletalMeshAsset;
@@ -49,25 +53,24 @@ public:
 	UPROPERTY(EditAnywhere, Transient, Category = "SkeletalMesh")
 	bool bPostProcessBlueprint;
 
-	UPROPERTY(EditAnywhere, Transient, Category = "Transform", Meta=(DisplayName="Location"))
+	UPROPERTY(EditAnywhere, Transient, Category = "Transform", Meta = (EditCondition = "bValidSelectionForTransform", HideEditConditionToggle))
 	FVector3d Translation = FVector3d::ZeroVector;
 
-	UPROPERTY(EditAnywhere, Transient, Category = "Transform")
+	UPROPERTY(EditAnywhere, Transient, Category = "Transform", Meta = (EditCondition = "bValidSelectionForTransform", HideEditConditionToggle))
 	FVector3d Rotation = FVector3d::ZeroVector;
 
-	UPROPERTY(EditAnywhere, Transient, Category = "Transform", Meta = (AllowPreserveRatio))
+	UPROPERTY(EditAnywhere, Transient, Category = "Transform", Meta = (AllowPreserveRatio, EditCondition = "bValidSelectionForTransform", HideEditConditionToggle))
 	FVector3d Scale = FVector3d::OneVector;
 
-	// TODO: We should be able to hook this boolean property up to the EditCondition meta tag for the properties above and toggle it
-	// on and off when the selection changes in the scene. However the EditCondition does not seem to propagate for some reason, 
-	// even if we manually call PostEditChangeProperty() after toggling it. It will take some more digging to figure out exactly
-	// what's going on. (UE-189504)
-	//UPROPERTY(Transient)
-	//bool bValidSelectionForTransform = true;
+	UPROPERTY(EditAnywhere, Transient, Category = "ClothComponent", Meta = (UIMin = 0.0, UIMax = 10.0, ClampMin = 0.0, ClampMax = 10000.0))
+	float SolverGeometryScale = 1.f;
 
-private:
+	UPROPERTY(Transient)
+	bool bValidSelectionForTransform = false;
 
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+
+private:
 
 	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
 
@@ -112,6 +115,8 @@ public:
 
 private:
 
+	virtual void Tick(float DeltaT) override;
+
 	// Create the PreviewAnimationInstance if the AnimationAsset and SkeletalMesh both exist, and set the animation to run on the SkeletalMeshComponent
 	void UpdateSkeletalMeshAnimation();
 
@@ -120,11 +125,14 @@ private:
 
 	bool IsComponentSelected(const UPrimitiveComponent* InComponent);
 
+	void SaveAnimationState();
+	void RestoreSavedAnimationState();
+	void HandlePackageReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent);
+	void HandleReimportManagerPostReimport(UObject* ReimportedObject, bool bWasSuccessful);
+
 	TObjectPtr<UChaosClothPreviewSceneDescription> PreviewSceneDescription;
 
 	TSharedPtr<FAssetEditorModeManager> ClothPreviewEditorModeManager;
-
-	TObjectPtr<UAnimSingleNodeInstance> PreviewAnimInstance;
 
 	TObjectPtr<AActor> SceneActor;
 
@@ -133,6 +141,18 @@ private:
 	TObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent;
 
 	TSharedPtr<FTransformGizmoDataBinder> DataBinder = nullptr;
+
+	struct FAnimState
+	{
+		float Time;
+		bool bIsReverse;
+		bool bIsLooping;
+		bool bIsPlaying;
+	};
+	TOptional<FAnimState> SavedAnimState;
+
+	FDelegateHandle OnPackageReloadedDelegateHandle;
+	FDelegateHandle OnPostReimportDelegateHandle;
 };
 } // namespace UE::Chaos::ClothAsset
 

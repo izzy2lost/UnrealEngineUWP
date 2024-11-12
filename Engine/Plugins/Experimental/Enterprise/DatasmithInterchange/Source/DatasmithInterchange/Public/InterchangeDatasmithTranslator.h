@@ -14,6 +14,8 @@
 #include "Texture/InterchangeTextureLightProfilePayloadInterface.h"
 #include "Scene/InterchangeVariantSetPayloadInterface.h"
 
+#include "DatasmithImportOptions.h"
+
 #include "Async/Async.h"
 #include "ExternalSource.h"
 #include "UObject/GCObjectScopeGuard.h"
@@ -27,9 +29,11 @@ class IDatasmithBaseAnimationElement;
 class IDatasmithCameraActorElement;
 class IDatasmithLightActorElement;
 class IDatasmithDecalActorElement;
+class IDatasmithMeshElement;
 class IDatasmithScene;
 class IDatasmithTransformAnimationElement;
 class UDatasmithOptionsBase;
+class UDatasmithInterchangeStaticMeshDataNode;
 class UInterchangePhysicalCameraNode;
 class UInterchangeBaseLightNode;
 class UInterchangeDecalNode;
@@ -55,14 +59,22 @@ namespace UE::DatasmithInterchange::AnimUtils
 	extern bool GetAnimationPayloadData(const IDatasmithBaseAnimationElement& AnimationElement, float FrameRate, EInterchangeAnimationPayLoadType PayLoadType, UE::Interchange::FAnimationPayloadData& PayLoadData);
 }
 
+UENUM()
+enum class EInterchangeMesherType : uint8
+{
+	UseCADKernel UMETA(DisplayName = "Use CADKernel"),
+	UseTechSoft,
+	UseNativeTessellator,
+};
+
 UCLASS(BlueprintType, editinlinenew, MinimalAPI)
 class UInterchangeDatasmithTranslatorSettings : public UInterchangeTranslatorSettings
 {
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditAnywhere, Instanced, BlueprintReadWrite, Category = "Datasmith Interchange", meta = (ShowOnlyInnerProperties))
-	TObjectPtr<UDatasmithOptionsBase> ImportOptions;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Datasmith Options")
+	TObjectPtr<UDatasmithOptionsBase> DatasmithOption;
 };
 
 UCLASS(BlueprintType, Experimental)
@@ -112,15 +124,16 @@ public:
 	/* IInterchangeTextureLightProfilePayloadInterface End */
 
 	/* IInterchangeStaticMeshPayloadInterface Begin */
-	virtual TFuture<TOptional<UE::Interchange::FMeshPayloadData>> GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const override;
+	virtual TOptional<UE::Interchange::FMeshPayloadData> GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const override;
 	/* IInterchangeStaticMeshPayloadInterface End */
 
 	/* IInterchangeAnimationPayloadInterface Begin */
-	virtual TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> GetAnimationPayloadData(const FInterchangeAnimationPayLoadKey& PayLoadKey, const double BakeFrequency = 0, const double RangeStartSecond = 0, const double RangeStopSecond = 0) const override;
+	TOptional<UE::Interchange::FAnimationPayloadData> GetAnimationPayloadData(const UE::Interchange::FAnimationPayloadQuery& PayloadQuery) const;
+	virtual TArray<UE::Interchange::FAnimationPayloadData> GetAnimationPayloadData(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries) const override;
 	/* IInterchangeAnimationPayloadInterface End */
 
 	/* IInterchangeVariantSetPayloadInterface Begin */
-	virtual TFuture<TOptional<UE::Interchange::FVariantSetPayloadData>> GetVariantSetPayloadData(const FString& PayloadKey) const override;
+	virtual TOptional<UE::Interchange::FVariantSetPayloadData> GetVariantSetPayloadData(const FString& PayloadKey) const override;
 	/* IInterchangeVariantSetPayloadInterface End */
 
 private:
@@ -135,11 +148,18 @@ private:
 
 	void ProcessIesProfile(UInterchangeBaseNodeContainer& BaseNodeContainer, const IDatasmithLightActorElement& LightElement, UInterchangeLightNode* LightNode) const;
 
+	bool GetMeshDescription(const TSharedPtr<IDatasmithMeshElement>& MeshElement, const FTransform& MeshGlobalTransform, UE::Interchange::FMeshPayloadData& PayloadData) const;
+
 	mutable TSharedPtr<UE::DatasmithImporter::FExternalSource> LoadedExternalSource;
 
 	mutable uint64 StartTime = 0;
 	mutable FString FileName;
+
+	UPROPERTY(Transient, DuplicateTransient)
 	mutable TObjectPtr<UInterchangeDatasmithTranslatorSettings> CachedSettings = nullptr;
 
 	mutable TMap<FString, UE::DatasmithInterchange::AnimUtils::FAnimationPayloadDesc> AnimationPayLoadMapping;
+
+	mutable TObjectPtr<UDatasmithInterchangeStaticMeshDataNode> StaticMeshDataNode;
+	mutable EAsyncExecution AsyncMode = EAsyncExecution::TaskGraph;
 };

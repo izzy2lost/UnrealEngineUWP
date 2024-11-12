@@ -441,6 +441,7 @@ void UploadCS(int2 DispatchThreadId : SV_DispatchThreadID)
 	In.MaxStateCount = ShaderPrintData.MaxStateCount;
 	In.MaxLineCount = ShaderPrintData.MaxLineCount;
 	In.MaxTriangleCount = ShaderPrintData.MaxTriangleCount;
+	In.bIsDrawLocked = ShaderPrintData.IsDrawLocked;
 	PackShaderPrintConfig(In);
 
 	// Clear counters

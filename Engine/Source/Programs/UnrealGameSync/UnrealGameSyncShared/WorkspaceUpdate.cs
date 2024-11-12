@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -39,6 +40,7 @@ namespace UnrealGameSync
 		RemoveFilteredFiles = 0x4000,
 		Clobber = 0x8000,
 		Refilter = 0x10000,
+		UprojectSpecificSolution = 0x20000,
 	}
 
 	public enum WorkspaceUpdateResult
@@ -64,6 +66,7 @@ namespace UnrealGameSync
 		public const int DefaultMaxCommandsPerBatch = 200;
 		public const int DefaultMaxSizePerBatch = 128 * 1024 * 1024;
 		public const int DefaultNumSyncErrorRetries = 0;
+		public const int DefaultSyncErrorRetryDelay = 0;
 
 		public int? NumThreads { get; set; }
 
@@ -71,6 +74,7 @@ namespace UnrealGameSync
 		public int? MaxSizePerBatch { get; set; }
 
 		public int? NumSyncErrorRetries { get; set; }
+		public int? SyncErrorRetryDelay { get; set; }
 
 		public PerforceSyncOptions Clone()
 		{
@@ -124,11 +128,15 @@ namespace UnrealGameSync
 			}
 			if (workspaceSettings.Filter.AllProjects ?? globalSettings.Filter.AllProjects ?? false)
 			{
-				options |= WorkspaceUpdateOptions.SyncAllProjects | WorkspaceUpdateOptions.IncludeAllProjectsInSolution;
+				options |= WorkspaceUpdateOptions.SyncAllProjects;
 			}
 			if (workspaceSettings.Filter.AllProjectsInSln ?? globalSettings.Filter.AllProjectsInSln ?? false)
 			{
 				options |= WorkspaceUpdateOptions.IncludeAllProjectsInSolution;
+			}
+			if (workspaceSettings.Filter.UprojectSpecificSln ?? globalSettings.Filter.UprojectSpecificSln ?? false)
+			{
+				options |= WorkspaceUpdateOptions.UprojectSpecificSolution;
 			}
 			return options;
 		}
@@ -596,6 +604,8 @@ namespace UnrealGameSync
 				{
 					logger.LogInformation("Syncing to {Change} on {ServerAndPort} as {UserName}...", Context.ChangeNumber, perforceSettings.ServerAndPort, perforceSettings.UserName);
 
+					syncTelemetryStopwatch.AddData(new { MachineName = System.Net.Dns.GetHostName(), DomainName = Environment.UserDomainName, ServerAndPort = perforce.Settings.ServerAndPort, ClientName = perforce.Settings.ClientName, UserName = perforce.Settings.UserName });
+
 					// Make sure we're logged in
 					PerforceResponse<LoginRecord> loginResponse = await perforce.TryGetLoginStateAsync(cancellationToken);
 					if (!loginResponse.Succeeded)
@@ -637,6 +647,8 @@ namespace UnrealGameSync
 						{
 							logger.LogInformation("Filter has changed ({PrevHash} -> {NextHash}); finding files in workspace that need to be removed.", (String.IsNullOrEmpty(state.CurrentSyncFilterHash)) ? "None" : state.CurrentSyncFilterHash, nextSyncFilterHash);
 
+							filterStopwatch.AddData(new { MachineName = System.Net.Dns.GetHostName(), DomainName = Environment.UserDomainName, ServerAndPort = perforce.Settings.ServerAndPort, ClientName = perforce.Settings.ClientName, UserName = perforce.Settings.UserName });
+
 							// Find all the files that are in this workspace
 							List<HaveRecord> haveFiles = Context.HaveFiles;
 							if (haveFiles.Count == 0)
@@ -667,25 +679,26 @@ namespace UnrealGameSync
 
 							// Remove all the files that are not included by the filter
 							const int MaxLogFiles = 1000;
-							List<string> removeDepotPaths = new List<string>();
-							foreach (HaveRecord haveFile in haveFiles)
+							ConcurrentBag<string> removeDepotPathsBag = new ConcurrentBag<string>();
+							Parallel.ForEach(haveFiles, haveFile =>
 							{
 								try
 								{
 									FileReference fullPath = new FileReference(haveFile.Path);
 									if (MatchFilter(project, fullPath, syncPathsFilter) && !MatchFilter(project, fullPath, userFilter))
 									{
-										if (removeDepotPaths.Count <= MaxLogFiles)
-										{
-											logger.LogInformation("  {DepotFile}", haveFile.DepotFile);
-										}
-										removeDepotPaths.Add(haveFile.DepotFile);
+										removeDepotPathsBag.Add(haveFile.DepotFile);
 									}
 								}
 								catch (PathTooLongException)
 								{
 									// We don't actually care about this when looking for files to remove. Perforce may think that it's synced the path, and silently failed. Just ignore it.
 								}
+							});
+							List<string> removeDepotPaths = removeDepotPathsBag.ToList();
+							for (int i=0; i<Math.Min(removeDepotPaths.Count, MaxLogFiles); i++)
+							{
+								logger.LogInformation("  {DepotFile}", removeDepotPaths[i]);
 							}
 							if (removeDepotPaths.Count > MaxLogFiles)
 							{
@@ -833,7 +846,7 @@ namespace UnrealGameSync
 								OpenedRecord record = response.Data;
 								if (!String.IsNullOrEmpty(record.DepotFile) && !String.IsNullOrEmpty(record.ClientFile))
 								{
-									if (record.Action != FileAction.Add || record.Action != FileAction.Branch || record.Action != FileAction.MoveAdd)
+									if (record.Action != FileAction.Add && record.Action != FileAction.Branch && record.Action != FileAction.MoveAdd)
 									{
 										string relativePath = PerforceUtils.GetClientRelativePath(record.ClientFile);
 										syncFiles.Add(new SyncFile(record.DepotFile, relativePath, 0));
@@ -842,32 +855,38 @@ namespace UnrealGameSync
 							}
 
 							// Enumerate all the files to be synced. NOTE: depotPath is escaped, whereas clientPath is not.
+							List<string> syncRelativePaths = new();
 							foreach (SyncFile syncRecord in syncFiles)
 							{
 								if (filter.Matches(syncRecord.RelativePath))
 								{
 									syncTree.IncludeFile(PerforceUtils.EscapePath(syncRecord.RelativePath), syncRecord.Size, logger);
 									syncDepotPaths.Add(syncRecord.DepotFile);
+									syncRelativePaths.Add(syncRecord.RelativePath);
 									requiredFreeSpace += syncRecord.Size;
-
-									// If the file exists the required free space can be reduced as those bytes will be replaced.
-									FileInfo localFileInfo = FileReference.Combine(project.LocalRootPath, syncRecord.RelativePath).ToFileInfo();
-									if (localFileInfo.Exists)
-									{
-										requiredFreeSpace -= localFileInfo.Length;
-									}
 								}
 								else
 								{
 									syncTree.ExcludeFile(PerforceUtils.EscapePath(syncRecord.RelativePath));
 								}
 							}
+
+							Parallel.ForEach(syncRelativePaths, syncRelativePath =>
+							{
+								// If the file exists the required free space can be reduced as those bytes will be replaced.
+								FileInfo localFileInfo = FileReference.Combine(project.LocalRootPath, syncRelativePath).ToFileInfo();
+								if (localFileInfo.Exists)
+								{
+									Interlocked.Add(ref requiredFreeSpace, -localFileInfo.Length);
+								}
+							});
+
 						}
 
 						try
 						{
 							DirectoryInfo localRootInfo = project.LocalRootPath.ToDirectoryInfo();
-							DriveInfo drive = new DriveInfo(localRootInfo.Root.FullName);
+							DriveInfo drive = new DriveInfo(localRootInfo.FullName);
 
 							if (drive.AvailableFreeSpace < requiredFreeSpace)
 							{
@@ -898,7 +917,7 @@ namespace UnrealGameSync
 
 					using (TelemetryStopwatch transferStopwatch = new TelemetryStopwatch("Workspace_Sync_TransferFiles", project.TelemetryProjectIdentifier))
 					{
-						transferStopwatch.AddData(new { MachineName = System.Net.Dns.GetHostName(), DomainName = Environment.UserDomainName, ServerAndPort = perforce.Settings.ServerAndPort, UserName = perforce.Settings.UserName, IncludedFiles = syncTree.TotalIncludedFiles, ExcludedFiles = syncTree.TotalExcludedFiles, Size = syncTree.TotalSize, NumThreads = Context.PerforceSyncOptions?.NumThreads ?? PerforceSyncOptions.DefaultNumThreads });
+						transferStopwatch.AddData(new { MachineName = System.Net.Dns.GetHostName(), DomainName = Environment.UserDomainName, ServerAndPort = perforce.Settings.ServerAndPort, ClientName = perforce.Settings.ClientName, UserName = perforce.Settings.UserName, IncludedFiles = syncTree.TotalIncludedFiles, ExcludedFiles = syncTree.TotalExcludedFiles, Size = syncTree.TotalSize, NumThreads = Context.PerforceSyncOptions?.NumThreads ?? PerforceSyncOptions.DefaultNumThreads });
 
 						(WorkspaceUpdateResult, string) syncResult = await SyncFileRevisions(perforce, "Syncing files...", Context, batchBuilder.Batches, remainingDepotPaths, Progress, logger, cancellationToken);
 						if (syncResult.Item1 != WorkspaceUpdateResult.Success)
@@ -1149,6 +1168,8 @@ namespace UnrealGameSync
 			{
 				using (TelemetryStopwatch stopwatch = new TelemetryStopwatch("Workspace_SyncArchives", project.TelemetryProjectIdentifier))
 				{
+					stopwatch.AddData(new { MachineName = System.Net.Dns.GetHostName(), DomainName = Environment.UserDomainName, ServerAndPort = perforce.Settings.ServerAndPort, ClientName = perforce.Settings.ClientName, UserName = perforce.Settings.UserName });
+
 					// Create the directory for extracted archive manifests
 					DirectoryReference manifestDirectoryName;
 					if (project.LocalFileName.HasExtension(".uproject"))
@@ -1237,13 +1258,21 @@ namespace UnrealGameSync
 				{
 					Progress.Set("Generating project files...", 0.0f);
 
+					stopwatch.AddData(new { MachineName = System.Net.Dns.GetHostName(), DomainName = Environment.UserDomainName, ServerAndPort = perforce.Settings.ServerAndPort, ClientName = perforce.Settings.ClientName, UserName = perforce.Settings.UserName });
+
 					StringBuilder commandLine = new StringBuilder();
 					commandLine.AppendFormat("\"{0}\"", FileReference.Combine(project.LocalRootPath, $"GenerateProjectFiles.{ShellScriptExt}"));
-					if ((Context.Options & WorkspaceUpdateOptions.SyncAllProjects) == 0 && (Context.Options & WorkspaceUpdateOptions.IncludeAllProjectsInSolution) == 0)
+					if (!Context.Options.HasFlag(WorkspaceUpdateOptions.IncludeAllProjectsInSolution))
 					{
 						if (project.LocalFileName.HasExtension(".uproject"))
 						{
-							commandLine.AppendFormat(" \"{0}\"", project.LocalFileName);
+							commandLine.AppendFormat(" -Project=\"{0}\"", project.LocalFileName);
+
+							// Uproject specific solutions are only valid if a Source folder exists
+							if (Context.Options.HasFlag(WorkspaceUpdateOptions.UprojectSpecificSolution) && DirectoryReference.Exists(DirectoryReference.Combine(project.LocalFileName.Directory, "Source")))
+							{
+								commandLine.Append(" -Game");
+							}
 						}
 					}
 					commandLine.Append(" -progress");
@@ -1319,6 +1348,8 @@ namespace UnrealGameSync
 				{
 					Progress.Set("Starting build...", 0.0f);
 
+					stopwatch.AddData(new { MachineName = System.Net.Dns.GetHostName(), DomainName = Environment.UserDomainName, ServerAndPort = perforce.Settings.ServerAndPort, ClientName = perforce.Settings.ClientName, UserName = perforce.Settings.UserName });
+
 					// Execute all the steps
 					float maxProgressFraction = 0.0f;
 					foreach (BuildStep step in buildSteps)
@@ -1356,6 +1387,7 @@ namespace UnrealGameSync
 								case BuildStepType.Compile:
 									using (TelemetryStopwatch stepStopwatch = new TelemetryStopwatch("Workspace_Execute_Compile", project.TelemetryProjectIdentifier))
 									{
+										stepStopwatch.AddData(new { MachineName = System.Net.Dns.GetHostName(), DomainName = Environment.UserDomainName, ServerAndPort = perforce.Settings.ServerAndPort, ClientName = perforce.Settings.ClientName, UserName = perforce.Settings.UserName });
 										stepStopwatch.AddData(new { Target = step.Target });
 
 										FileReference buildBat = FileReference.Combine(batchFilesDir, $"Build.{ShellScriptExt}");
@@ -1393,6 +1425,7 @@ namespace UnrealGameSync
 								case BuildStepType.Cook:
 									using (TelemetryStopwatch stepStopwatch = new TelemetryStopwatch("Workspace_Execute_Cook", project.TelemetryProjectIdentifier))
 									{
+										stepStopwatch.AddData(new { MachineName = System.Net.Dns.GetHostName(), DomainName = Environment.UserDomainName, ServerAndPort = perforce.Settings.ServerAndPort, ClientName = perforce.Settings.ClientName, UserName = perforce.Settings.UserName });
 										stepStopwatch.AddData(new { Project = Path.GetFileNameWithoutExtension(step.FileName) });
 
 										FileReference localRunUat = FileReference.Combine(batchFilesDir, $"RunUAT.{ShellScriptExt}");
@@ -1412,6 +1445,7 @@ namespace UnrealGameSync
 								case BuildStepType.Other:
 									using (TelemetryStopwatch stepStopwatch = new TelemetryStopwatch("Workspace_Execute_Custom", project.TelemetryProjectIdentifier))
 									{
+										stepStopwatch.AddData(new { MachineName = System.Net.Dns.GetHostName(), DomainName = Environment.UserDomainName, ServerAndPort = perforce.Settings.ServerAndPort, ClientName = perforce.Settings.ClientName, UserName = perforce.Settings.UserName });
 										stepStopwatch.AddData(new { FileName = Path.GetFileNameWithoutExtension(step.FileName) });
 
 										FileReference toolFileName = FileReference.Combine(project.LocalRootPath, Utility.ExpandVariables(step.FileName ?? "unknown", variables));
@@ -1723,6 +1757,8 @@ namespace UnrealGameSync
 				string statusMessage = "";
 
 				int maxRetries = context.PerforceSyncOptions?.NumSyncErrorRetries ?? PerforceSyncOptions.DefaultNumSyncErrorRetries;
+				int retryDelay = context.PerforceSyncOptions?.SyncErrorRetryDelay ?? PerforceSyncOptions.DefaultSyncErrorRetryDelay;
+				
 				for (int attempt = 0; ; attempt++)
 				{
 					// Sync the files
@@ -1732,7 +1768,13 @@ namespace UnrealGameSync
 					{
 						break;
 					}
-					threadLog.LogWarning("Sync error ({Message}); retrying... ({Count}/{MaxCount})", errorMessage ?? "unknown", attempt + 1, maxRetries);
+
+					threadLog.LogWarning("Sync error ({Message}); waiting ({RetryDelay}ms) and retrying... ({Count}/{MaxCount})", errorMessage ?? "unknown", retryDelay, attempt + 1, maxRetries);
+
+					if (retryDelay > 0)
+					{ 
+						await Task.Delay(retryDelay, cancellationToken);
+					}
 				}
 
 				// If it failed, try to set it on the state if nothing else has failed first

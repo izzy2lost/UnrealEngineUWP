@@ -43,7 +43,7 @@ namespace Audio
 			uint32 InNumFramesDesired,
 			FWasapiOnAudioCaptureFunction InCallback);
 
-		virtual ~FWasapiInputStream();
+		~FWasapiInputStream();
 
 		FWasapiInputStream& operator=(FWasapiInputStream&& InOther) = delete;
 		FWasapiInputStream& operator=(const FWasapiInputStream& InOther) = delete;
@@ -70,8 +70,6 @@ namespace Audio
 
 	private:
 
-		/** Indicates if this object has been successfully initialized. */
-		bool bIsInitialized = false;
 		/** COM pointer to the WASAPI audio client object. */
 		TComPtr<IAudioClient3> AudioClient;
 		/** COM pointer to the WASAPI capture client object. */
@@ -79,10 +77,9 @@ namespace Audio
 
 		/** Holds the audio format configuration for this stream. */
 		FWasapiAudioFormat AudioFormat;
-		/** The callback used to periodically deliver new audio data during capture. */
-		FWasapiOnAudioCaptureFunction OnAudioCaptureCallback;
-		/** Buffer used when WASAPI indicates that silence should be output for a given callback. */
-		TArray<uint8> SilienceBuffer;
+
+		/** Indicates if this object has been successfully initialized. */
+		bool bIsInitialized = false;
 
 		/** Number of frames of audio data which will be used for each audio callback during capture. */
 		uint32 NumFramesPerBuffer = 0;
@@ -93,6 +90,11 @@ namespace Audio
 		 * object each quanta when a buffer of audio has been captured and is ready to be consumed downstream.
 		 */
 		HANDLE EventHandle = nullptr;
+
+		/** The callback used to periodically deliver new audio data during capture. */
+		FWasapiOnAudioCaptureFunction OnAudioCaptureCallback;
+		/** Buffer used when WASAPI indicates that silence should be output for a given callback. */
+		TArray<uint8> SilienceBuffer;
 
 		/**
 		 * DrainInputBuffer - Prepares the capture client by draining the input buffer of any audio data

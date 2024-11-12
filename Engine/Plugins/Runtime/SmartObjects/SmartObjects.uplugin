@@ -43,11 +43,11 @@
 			"Enabled": true
 		},
 		{
-			"Name": "StructUtils",
+			"Name": "WorldConditions",
 			"Enabled": true
 		},
 		{
-			"Name": "WorldConditions",
+			"Name": "PropertyAccessEditor",
 			"Enabled": true
 		},
 		{

@@ -18,6 +18,7 @@ public class ColorCorrectRegionsEditor : ModuleRules
 				"Slate",
 				"SlateCore",
 				"ColorCorrectRegions",
+				"ColorGradingEditor",
 				"PlacementMode",
 				"SceneOutliner",
 			}

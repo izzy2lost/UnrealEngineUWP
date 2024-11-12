@@ -335,6 +335,7 @@ public:
 	 * @return	String representing the Portable Object that can be written directly to a file.
 	 */
 	FString ToString();
+	void ToString(FString& OutString);
 
 	/**
 	 * Parses Portable Object elements from a string.

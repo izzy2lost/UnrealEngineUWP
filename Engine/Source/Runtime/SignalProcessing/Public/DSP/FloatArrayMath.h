@@ -116,6 +116,9 @@ namespace Audio
 	 */
 	SIGNALPROCESSING_API float ArrayMaxAbsValue(const TArrayView<const float> InView);
 
+	/** Multiply the second buffer by the first buffer. */
+	SIGNALPROCESSING_API void ArrayMultiply(TArrayView<const float> InFloatBufferA, TArrayView<const float> InFloatBufferB, TArrayView<float> OutBuffer);
+
 	/** Multiply the second buffer in place by the first buffer. */
 	SIGNALPROCESSING_API void ArrayMultiplyInPlace(TArrayView<const float> InFloatBuffer, TArrayView<float> BufferToMultiply);
 
@@ -124,6 +127,12 @@ namespace Audio
 	 * Stores result in InValues2
 	 */
 	SIGNALPROCESSING_API void ArrayComplexMultiplyInPlace(TArrayView<const float> InValues1, TArrayView<float> InValues2);
+
+	/** Multiplies two complex valued arrays element-wise.
+	 * This assumes elements are in interleaved format [real_0, imag_0, ..., real_N, imag_N]
+	 * Adds result to OutArray
+	 */
+	SIGNALPROCESSING_API void ArrayComplexMultiplyAdd(TArrayView<const float> InValues1, TArrayView<const float> InValues2, TArrayView<float> OutArray);
 
 	/** Multiplies the input float buffer with the given value. */
 	SIGNALPROCESSING_API void ArrayMultiplyByConstant(TArrayView<const float> InFloatBuffer, float InValue, TArrayView<float> OutFloatBuffer);
@@ -203,6 +212,7 @@ namespace Audio
 	SIGNALPROCESSING_API void ArrayComplexToPower(TArrayView<const float> InRealSamples, TArrayView<const float> InImaginarySamples, TArrayView<float> OutPowerSamples);
 
 	/* Sets a values to zero if value is denormal. Denormal numbers significantly slow down floating point operations. */
+	UE_DEPRECATED(5.5, "Audio code relies on denormals flush to zero floating point mode from now on. Please use FScopedFTZFloatMode instead of this API")
 	SIGNALPROCESSING_API void ArrayUnderflowClamp(TArrayView<float> InOutBuffer);
 
 	/* Clamps the values in a buffer between a min and max value.*/
@@ -236,6 +246,15 @@ namespace Audio
 	SIGNALPROCESSING_API void ArrayFloatToPcm16(TArrayView<const float> InView, TArrayView<int16> OutView);
 	SIGNALPROCESSING_API void ArrayPcm16ToFloat(TArrayView<const int16> InView, TArrayView<float> OutView);
 
+	/** Converts float PCM data to 24 bit integer PCM data */
+	SIGNALPROCESSING_API void ArrayFloatToPcm24(TArrayView<const float> InView, TArrayView<int8> OutView);
+	/** Copies 24 bits of a 32 bit integer (assumes data has been clamped to 24-bits) */
+	SIGNALPROCESSING_API void AssignPcm24Value(int8* OutPtr, const int32 InValue, const bool bIsOutputLittleEndian);
+	/** Converts float PCM data to 32 bit integer PCM data */
+	SIGNALPROCESSING_API void ArrayFloatToPcm32(TArrayView<const float> InView, TArrayView<int32> OutView);
+	/** Converts float PCM data to double PCM data */
+	SIGNALPROCESSING_API void ArrayFloatToPcmDouble(TArrayView<const float> InView, TArrayView<double> OutView);
+
 	/** Interleaves samples from an array of input buffers */
 	SIGNALPROCESSING_API void ArrayInterleave(const TArray<FAlignedFloatBuffer>& InBuffers, FAlignedFloatBuffer& OutBuffer);
 
@@ -246,10 +265,48 @@ namespace Audio
 	SIGNALPROCESSING_API void ArrayDeinterleave(const FAlignedFloatBuffer& InBuffer, TArray<FAlignedFloatBuffer>& OutBuffers, const int32 InChannels);
 
 	/** Interleaves samples from an array of input buffers */
+	SIGNALPROCESSING_API void ArrayDeinterleave(const TArrayView<const float> InView, TArray<FAlignedFloatBuffer>& OutBuffers, const int32 InChannels);
+
+	/** Interleaves samples from an array of input buffers */
 	SIGNALPROCESSING_API void ArrayDeinterleave(const float* RESTRICT InBuffer, float* const* RESTRICT OutBuffers, const int32 InFrames, const int32 InChannels);
 
 	/** Interpolates a Mono audio buffer. */
 	SIGNALPROCESSING_API void ArrayInterpolate(const float* RESTRICT InBuffer, float* RESTRICT OutBuffer, const int32 NumInSamples, const int32 NumOutSamples);
+
+	/** Vectorized 16-bit integer byte swapping. */
+	SIGNALPROCESSING_API void ArrayInt16SwapBytes(TArrayView<int16> InView);
+
+	/** Vectorized 24-bit integer byte swapping. */
+	SIGNALPROCESSING_API void ArrayInt24SwapBytes(TArrayView<int8> InView);
+
+	/** Vectorized 32-bit integer byte swapping. */
+	SIGNALPROCESSING_API void ArrayInt32SwapBytes(TArrayView<int32> InView);
+
+	/** Vectorized 32-bit float byte swapping. */
+	SIGNALPROCESSING_API void ArrayFloatSwapBytes(TArrayView<float> InView);
+
+	/** Vectorized 64-bit float byte swapping. */
+	SIGNALPROCESSING_API void ArrayDoubleSwapBytes(TArrayView<double> InView);
+
+	/** Returns true if host has little endian byte ordering */
+	UE_DEPRECATED(5.5, "Big Endian platforms are no longer supported.")
+	SIGNALPROCESSING_API constexpr bool IsHostLittleEndian()
+	{
+#if PLATFORM_LITTLE_ENDIAN
+		return true;
+#else
+		return false;
+#endif // PLATFORM_LITTLE_ENDIAN
+	}
+
+	/** All Pass Filter with a long delay. */
+	SIGNALPROCESSING_API void ArrayAPFLongDelayProcess(const float* InSamples, const float* InDelaySamples, const int32 InNum, float* OutSamples, float* OutDelaySamples, const float Gain);
+
+	/** Fractional delay using linear interpolation. */
+	SIGNALPROCESSING_API void ArrayLerpFractionalDelay(const float* InSamples, const float* InDelays, const float* DelayData, const int* IntegerDelays, int* UpperDelayPos, int* LowerDelayPos, const int32 InNum, float* OutSamples, const float MaxDelay);
+
+	/** Perform complex conjugate as well as scale. */
+	SIGNALPROCESSING_API void ArrayScaledComplexConjugate(const float* RESTRICT InValues, const int32 Num, float* RESTRICT OutValues, const float Scale);
 
 	/** FContiguousSparse2DKernelTransform
 	 *

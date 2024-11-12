@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -56,7 +56,7 @@ namespace EpicGames.Core
 		public override bool Equals(object? obj)
 		{
 			VersionNumber? version = obj as VersionNumber;
-			return !ReferenceEquals(version, null) && this == version;
+			return version is not null && this == version;
 		}
 
 		/// <summary>
@@ -81,14 +81,7 @@ namespace EpicGames.Core
 		/// <returns>True if the versions are equal.</returns>
 		public static bool operator ==(VersionNumber? lhs, VersionNumber? rhs)
 		{
-			if (Object.ReferenceEquals(lhs, null))
-			{
-				return Object.ReferenceEquals(rhs, null);
-			}
-			else
-			{
-				return !Object.ReferenceEquals(rhs, null) && Compare(lhs, rhs) == 0;
-			}
+			return lhs is null ? rhs is null : rhs is not null && Compare(lhs, rhs) == 0;
 		}
 
 		/// <summary>
@@ -153,7 +146,7 @@ namespace EpicGames.Core
 		/// <returns>A negative value if this version is before Other, a positive value if this version is after Other, and zero otherwise.</returns>
 		public int CompareTo(VersionNumber? other)
 		{
-			return ReferenceEquals(other, null) ? 1 : Compare(this, other);
+			return other is null ? 1 : Compare(this, other);
 		}
 
 		/// <summary>

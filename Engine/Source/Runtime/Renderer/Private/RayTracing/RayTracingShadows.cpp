@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "RayTracingShadows.h"
 #include "DeferredShadingRenderer.h"
 #include "PostProcess/SceneRenderTargets.h"
 #include "ScenePrivate.h"
+#include "RayTracing.h"
 
 #if RHI_RAYTRACING
 
@@ -37,7 +39,7 @@ static FAutoConsoleVariableRef CVarRayTracingShadowsEnableMaterials(
 	ECVF_RenderThreadSafe
 );
 
-static float GRayTracingShadowsAvoidSelfIntersectionTraceDistance = 0.0f;
+static float GRayTracingShadowsAvoidSelfIntersectionTraceDistance = 1.0f;
 static FAutoConsoleVariableRef CVarRayTracingShadowsAvoidSelfIntersectionTraceDistance(
 	TEXT("r.RayTracing.Shadows.AvoidSelfIntersectionTraceDistance"),
 	GRayTracingShadowsAvoidSelfIntersectionTraceDistance,
@@ -116,6 +118,7 @@ static TAutoConsoleVariable<int32> CVarRayTracingShadowsTranslucency(
 	TEXT("1: Translucent material cast approximate translucent shadows based on opacity (Very expensive)."),
 	ECVF_RenderThreadSafe
 );
+
 static TAutoConsoleVariable<int32> CVarRayTracingShadowsMaxTranslucencyHitCount(
 	TEXT("r.RayTracing.Shadows.MaxTranslucencyHitCount"),
 	-1,
@@ -124,6 +127,14 @@ static TAutoConsoleVariable<int32> CVarRayTracingShadowsMaxTranslucencyHitCount(
 	TEXT(">0: Limit the number of intersections."),
 	ECVF_RenderThreadSafe
 );
+
+void RayTracingShadows::SetRayTracingSceneOptions(bool bSceneHasLightsWithRayTracedShadows, RayTracing::FSceneOptions& SceneOptions)
+{
+	if (bSceneHasLightsWithRayTracedShadows && CVarRayTracingShadowsTranslucency.GetValueOnRenderThread() != 0)
+	{
+		SceneOptions.bTranslucentGeometry = true;
+	}
+};
 
 int32 GetRayTracingShadowsMaxTranslucencyHitCount()
 {
@@ -189,6 +200,11 @@ class FOcclusionRGS : public FGlobalShader
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
 	{
 		return ERayTracingPayloadType::RayTracingMaterial;
+	}
+
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
 	}
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
@@ -306,7 +322,12 @@ void FDeferredShadingSceneRenderer::PrepareRayTracingShadows(const FViewInfo& Vi
 	// We have to check if ray tracing is enabled on any of the scene lights. The Scene.bHasRayTracedLights is computed using ShouldRenderRayTracingShadowsForLight() helper, 
 	// which handles various override conditions.
 
-	if (Scene.bHasRayTracedLights == false)
+	if (!ShouldRenderRayTracingEffect(true, ERayTracingPipelineCompatibilityFlags::FullPipeline, View))
+	{
+		return;
+	}
+
+	if (Scene.bHasLightsWithRayTracedShadows == false)
 	{
 		return;
 	}
@@ -417,7 +438,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 		CommonPassParameters->AvoidSelfIntersectionTraceDistance = GRayTracingShadowsAvoidSelfIntersectionTraceDistance;
 		CommonPassParameters->bAcceptFirstHit = CVarRayTracingShadowsAcceptFirstHit.GetValueOnRenderThread();
 		CommonPassParameters->bTwoSidedGeometry = EnableRayTracingShadowTwoSidedGeometry() ? 1 : 0;
-		CommonPassParameters->TranslucentShadow = CVarRayTracingShadowsTranslucency.GetValueOnRenderThread();
+		CommonPassParameters->TranslucentShadow = CVarRayTracingShadowsTranslucency.GetValueOnRenderThread() != 0;
 		CommonPassParameters->MaxTranslucencyHitCount = GetRayTracingShadowsMaxTranslucencyHitCount();
 		CommonPassParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
 		CommonPassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
@@ -487,16 +508,17 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 				RDG_EVENT_NAME("RayTracedShadow (INLINE) (spp=%d) %dx%d", RayTracingConfig.RayCountPerPixel, Resolution.X, Resolution.Y),
 				InlinePassParameters,
 				ERDGPassFlags::Compute,
-				[InlinePassParameters, ComputeShader, GroupCount](FRHICommandListImmediate& RHICmdList)
+				[InlinePassParameters, ComputeShader, GroupCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 				{
-					
-					FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *InlinePassParameters, GroupCount);	
+					FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *InlinePassParameters, GroupCount);
 				});
 
 			//FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("RayTracedShadow (INLINE) (spp=%d) %dx%d", RayTracingConfig.RayCountPerPixel, Resolution.X, Resolution.Y), ComputeShader, InlinePassParameters, GroupCount);
 		}
 		else
 		{
+			const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
+
 			TShaderMapRef<FOcclusionRGS> RayGenerationShader(GetGlobalShaderMap(FeatureLevel), PermutationVector);
 
 			ClearUnusedGraphResources(RayGenerationShader, CommonPassParameters);
@@ -508,40 +530,51 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 				Resolution = ScissorRect.Size();
 			}
 
+			FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
+
 			GraphBuilder.AddPass(
 				RDG_EVENT_NAME("RayTracedShadow (spp=%d) %dx%d", RayTracingConfig.RayCountPerPixel, Resolution.X, Resolution.Y),
 				CommonPassParameters,
 				ERDGPassFlags::Compute,
-				[this, &View, RayGenerationShader, CommonPassParameters, Resolution](FRHIRayTracingCommandList& RHICmdList)
+				[this, &View, SceneUniformBuffer, RayGenerationShader, CommonPassParameters, Resolution, &RayTracingScene](FRHICommandList& RHICmdList)
 				{
-					FRayTracingShaderBindingsWriter GlobalResources;
+					FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 					SetShaderParameters(GlobalResources, RayGenerationShader, *CommonPassParameters);
-
-					FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
+					TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope = RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, RHICmdList);
 
 					if (GRayTracingShadowsEnableMaterials)
 					{
-						RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources, Resolution.X, Resolution.Y);
+						RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), View.RayTracingSBT, GlobalResources, Resolution.X, Resolution.Y);
 					}
 					else
 					{
 						FRayTracingPipelineStateInitializer Initializer;
 
 						Initializer.MaxPayloadSizeInBytes = GetRayTracingPayloadTypeMaxSize(ERayTracingPayloadType::RayTracingMaterial);
+						
+						const FShaderBindingLayout* ShaderBindingLayout = RayTracing::GetShaderBindingLayout(ShaderPlatform);
+						if (ShaderBindingLayout)
+						{
+							Initializer.ShaderBindingLayout = &ShaderBindingLayout->RHILayout;
+						}
 
 						FRHIRayTracingShader* RayGenShaderTable[] = { RayGenerationShader.GetRayTracingShader() };
 						Initializer.SetRayGenShaderTable(RayGenShaderTable);
 
 						FRHIRayTracingShader* HitGroupTable[] = { GetRayTracingDefaultOpaqueShader(View.ShaderMap) };
 						Initializer.SetHitGroupTable(HitGroupTable);
-						Initializer.bAllowHitGroupIndexing = false; // Use the same hit shader for all geometry in the scene by disabling SBT indexing.
 
 						FRHIRayTracingShader* MissGroupTable[] = { GetRayTracingDefaultMissShader(View.ShaderMap) };
 						Initializer.SetMissShaderTable(MissGroupTable);
 
 						FRayTracingPipelineState* Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
-						RHICmdList.SetRayTracingMissShader(RayTracingSceneRHI, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
-						RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources, Resolution.X, Resolution.Y);
+
+						FShaderBindingTableRHIRef SBT = Scene->RayTracingSBT.AllocateRHI(RHICmdList, ERayTracingShaderBindingMode::RTPSO, ERayTracingHitGroupIndexingMode::Disallow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
+						
+						RHICmdList.SetDefaultRayTracingHitGroup(SBT, Pipeline, 0);
+						RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+						RHICmdList.CommitShaderBindingTable(SBT);
+						RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), SBT, GlobalResources, Resolution.X, Resolution.Y);
 					}
 				}
 			);
@@ -572,10 +605,10 @@ void FDeferredShadingSceneRenderer::RenderDitheredLODFadingOutMask(FRDGBuilder& 
 		RDG_EVENT_NAME("DitheredLODFadingOutMask"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[this, &View, PassParameters](FRHICommandList& RHICmdList)
+		[&View, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
-		View.ParallelMeshDrawCommandPasses[EMeshPass::DitheredLODFadingOutMaskPass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+		View.ParallelMeshDrawCommandPasses[EMeshPass::DitheredLODFadingOutMaskPass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 	});
 }

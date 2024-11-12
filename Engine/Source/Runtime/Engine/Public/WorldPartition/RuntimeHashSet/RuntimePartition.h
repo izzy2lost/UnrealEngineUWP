@@ -5,6 +5,15 @@
 #include "WorldPartition/WorldPartitionStreamingGenerationContext.h"
 #include "RuntimePartition.generated.h"
 
+/** Chooses a method for how to compute streaming cells bounds */
+UENUM()
+enum class ERuntimePartitionCellBoundsMethod : uint8
+{
+	UseContent,
+	UseCellBounds,
+	UseMinContentCellBounds
+};
+
 UCLASS(Abstract, CollapseCategories)
 class URuntimePartition : public UObject
 {
@@ -24,10 +33,10 @@ public:
 	struct FCellDesc
 	{
 		FName Name;
-		FBox Bounds = FBox(ForceInit);
 		bool bIsSpatiallyLoaded;
 		bool bBlockOnSlowStreaming;
 		bool bClientOnlyVisible;
+		bool bIs2D;
 		int32 Priority;
 
 		/** Optional level value that can be used to filter debug display */
@@ -44,12 +53,7 @@ public:
 	 */
 	struct FCellDescInstance : public FCellDesc
 	{
-		FCellDescInstance(const FCellDesc& InCellDesc, URuntimePartition* InSourcePartition, const TArray<const UDataLayerInstance*>& InDataLayerInstances, const FGuid& InContentBundleID)
-			: FCellDesc(InCellDesc)
-			, SourcePartition(InSourcePartition)
-			, DataLayerInstances(InDataLayerInstances)
-			, ContentBundleID(InContentBundleID)
-		{}
+		FCellDescInstance(const FCellDesc& InCellDesc, URuntimePartition* InSourcePartition, const TArray<const UDataLayerInstance*>& InDataLayerInstances, const FGuid& InContentBundleID);
 
 		URuntimePartition* SourcePartition;
 		TArray<const UDataLayerInstance*> DataLayerInstances;
@@ -69,23 +73,28 @@ public:
 	virtual void SetDefaultValues();
 	virtual bool SupportsHLODs() const PURE_VIRTUAL(URuntimePartition::SupportsHLODs, return true;);
 	virtual void InitHLODRuntimePartitionFrom(const URuntimePartition* InRuntimePartition, int32 InHLODIndex);
+	virtual void UpdateHLODRuntimePartitionFrom(const URuntimePartition* InRuntimePartition) {}
+#endif
 	virtual bool IsValidPartitionTokens(const TArray<FName>& InPartitionTokens) const PURE_VIRTUAL(URuntimePartition::IsValidPartitionTokens, return false;);
+#if WITH_EDITOR
 	virtual bool GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult) PURE_VIRTUAL(URuntimePartition::GenerateStreaming, return false;);
 	virtual FArchive& AppendCellGuid(FArchive& InAr) { return InAr << Name << HLODIndex; }
 #endif
 
-#if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	FName Name;
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "HLODIndex == INDEX_NONE", EditConditionHides, HideEditConditionToggle))
-	bool bBlockOnSlowStreaming;
+	bool bBlockOnSlowStreaming = false;
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "HLODIndex == INDEX_NONE", EditConditionHides, HideEditConditionToggle))
 	bool bClientOnlyVisible;
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "HLODIndex == INDEX_NONE", EditConditionHides, HideEditConditionToggle))
 	int32 Priority;
+
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "HLODIndex == INDEX_NONE", EditConditionHides, HideEditConditionToggle))
+	ERuntimePartitionCellBoundsMethod BoundsMethod;
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
 	int32 LoadingRange;
@@ -95,7 +104,6 @@ public:
 
 	UPROPERTY()
 	int32 HLODIndex;
-#endif
 
 protected:
 #if WITH_EDITOR

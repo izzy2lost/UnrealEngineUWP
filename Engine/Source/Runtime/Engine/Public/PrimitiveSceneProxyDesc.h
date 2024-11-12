@@ -61,6 +61,7 @@ struct FPrimitiveSceneProxyDesc
 		bIsOwnerEditorOnly = false;
 		bIsInstancedStaticMesh = false;
 		bHoldout = false;
+		bIsFirstPerson = false;
 
 		bHasStaticLighting = false;
 		bHasValidSettingsForStaticLighting = false;
@@ -76,8 +77,11 @@ struct FPrimitiveSceneProxyDesc
 
 	ENGINE_API FPrimitiveSceneProxyDesc(const UPrimitiveComponent*);
 
-	void InitializeFrom(const UPrimitiveComponent*);
+	void InitializeFromPrimitiveComponent(const UPrimitiveComponent*);
 	
+	UE_DEPRECATED(5.5, "Use InitializeFromPrimitiveComponent instead.")
+	void InitializeFrom(const UPrimitiveComponent* InComponent) { InitializeFromPrimitiveComponent(InComponent); }
+
 	virtual ~FPrimitiveSceneProxyDesc() = default;
 
 	uint32 CastShadow : 1;
@@ -119,6 +123,7 @@ struct FPrimitiveSceneProxyDesc
 	uint32 bHiddenInSceneCapture : 1;
 	uint32 bRayTracingFarField : 1;
 	uint32 bHoldout : 1;
+	uint32 bIsFirstPerson : 1;
 
 	// not mirrored from UPrimitiveComponent
 	uint32 bIsVisible : 1;
@@ -126,6 +131,7 @@ struct FPrimitiveSceneProxyDesc
 	uint32 bSelected : 1;
 	uint32 bIndividuallySelected : 1;
 	uint32 bShouldRenderSelected : 1;
+	uint32 bWantsEditorEffects : 1;
 	uint32 bCollisionEnabled : 1;
 	uint32 bIsHidden : 1;
 	uint32 bIsHiddenEd : 1;
@@ -181,6 +187,9 @@ struct FPrimitiveSceneProxyDesc
 
 	uint64 HiddenEditorViews = 0;	
 
+#if WITH_EDITOR
+	FColor OverlayColor = FColor(EForceInit::ForceInitToZero);
+#endif
 #if MESH_DRAW_COMMAND_STATS
 	FName MeshDrawCommandStatsCategory;
 	FName GetMeshDrawCommandStatsCategory() const { return MeshDrawCommandStatsCategory; }

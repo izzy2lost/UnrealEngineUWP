@@ -126,14 +126,15 @@ bool UDisplayClusterInFrustumFitCameraComponent::IsEnabled() const
 	return bEnableCameraProjection;
 }
 
-UCameraComponent* UDisplayClusterInFrustumFitCameraComponent::GetExternalCameraComponent() const
+bool UDisplayClusterInFrustumFitCameraComponent::IsICVFXCameraBeingUsed() const
 {
-	if (ACineCameraActor* CineCamera = ExternalCameraActor.Get())
+	// When using InFrustum projection, ignore the camera component from the parent class
+	if (IsEnabled())
 	{
-		return CineCamera->GetCameraComponent();
+		return false;
 	}
 
-	return nullptr;
+	return Super::IsICVFXCameraBeingUsed();
 }
 
 void UDisplayClusterInFrustumFitCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -149,31 +150,6 @@ void UDisplayClusterInFrustumFitCameraComponent::TickComponent(float DeltaTime, 
 			}
 		}
 	}
-}
-
-void UDisplayClusterInFrustumFitCameraComponent::GetDesiredView(IDisplayClusterViewportConfiguration& InViewportConfiguration, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane)
-{
-	const UDisplayClusterInFrustumFitCameraComponent& ConfigurationCameraComponent = GetConfigurationInFrustumFitCameraComponent(InViewportConfiguration);
-	if (ConfigurationCameraComponent.IsEnabled())
-	{
-		if (ADisplayClusterRootActor* SceneRootActor = InViewportConfiguration.GetRootActor(EDisplayClusterRootActorType::Scene))
-		{
-			if (IDisplayClusterViewport::GetCameraComponentView(ConfigurationCameraComponent.GetExternalCameraComponent(), SceneRootActor->GetWorldDeltaSeconds(), ConfigurationCameraComponent.bUseCameraPostprocess, InOutViewInfo, OutCustomNearClippingPlane))
-			{
-				// 1. Use external camera for rendering
-				return;
-			}
-		}
-
-		if (IDisplayClusterViewport::GetPlayerCameraView(InViewportConfiguration.GetCurrentWorld(), ConfigurationCameraComponent.bUseCameraPostprocess, InOutViewInfo))
-		{
-			// 2. Use active game camera
-			return;
-		}
-	}
-
-	// use default logic
-	return UDisplayClusterCameraComponent::GetDesiredView(InViewportConfiguration, InOutViewInfo, OutCustomNearClippingPlane);
 }
 
 bool UDisplayClusterInFrustumFitCameraComponent::ShouldUseEntireClusterViewports(IDisplayClusterViewportManager* InViewportManager) const
@@ -216,33 +192,47 @@ void UDisplayClusterInFrustumFitCameraComponent::OnRegister()
 		if (SpriteComponent)
 		{
 			SpriteComponent->SpriteInfo.Category = TEXT("NDisplayCameraViewOrigin");
-			SpriteComponent->SpriteInfo.DisplayName = NSLOCTEXT("DisplayClusterInFrustumFitCameraComponent", "DisplayClusterInFrustumFitCameraComponentSpriteInfo", "nDisplay InFrustumFit View Origin");
+			SpriteComponent->SpriteInfo.DisplayName = NSLOCTEXT("DisplayClusterInFrustumFitCameraComponent", "DisplayClusterInFrustumFitCameraComponentSpriteInfo", "nDisplay InFrustumFit View Point");
 		}
 	}
 
 	RefreshVisualRepresentation();
 #endif
-
 }
 
 #if WITH_EDITOR
-bool UDisplayClusterInFrustumFitCameraComponent::GetEditorPreviewInfo(float DeltaTime, FMinimalViewInfo& ViewOut)
+bool UDisplayClusterInFrustumFitCameraComponent::CanEditChange(const FProperty* InProperty) const
 {
-	if (UCameraComponent* CameraComponent = GetExternalCameraComponent())
+	// If other logic prevents editing, we want to respect that
+	bool bIsEditable = Super::CanEditChange(InProperty);
+	if (bIsEditable && InProperty)
 	{
-		return CameraComponent->GetEditorPreviewInfo(DeltaTime, ViewOut);
+		// InFrustum projection requires external cinecamera
+		const FName PropertyName = InProperty->GetFName();
+		if (PropertyName == GET_MEMBER_NAME_CHECKED(UDisplayClusterCameraComponent, ICVFXCameraComponentName))
+		{
+			return !IsEnabled();
+		}
 	}
 
-	return false;
+	return bIsEditable;
 }
 
-TSharedPtr<SWidget> UDisplayClusterInFrustumFitCameraComponent::GetCustomEditorPreviewWidget()
+void UDisplayClusterInFrustumFitCameraComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	if (UCameraComponent* CameraComponent = GetExternalCameraComponent())
+	const FName PropertyName = (PropertyChangedEvent.Property != nullptr) ? PropertyChangedEvent.Property->GetFName() : NAME_None;
+
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDisplayClusterCameraComponent, TargetCameraType)
+	|| PropertyName == GET_MEMBER_NAME_CHECKED(UDisplayClusterInFrustumFitCameraComponent, bEnableCameraProjection))
 	{
-		return CameraComponent->GetCustomEditorPreviewWidget();
+		if (IsEnabled() && TargetCameraType == EDisplayClusterTargetCameraType::ICVFXCameraComponent)
+		{
+			// When using projection, the internal target camera type cannot be used.
+			// We have to switch to the external target camera type.
+			TargetCameraType = EDisplayClusterTargetCameraType::None;
+		}
 	}
 
-	return nullptr;
+	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 #endif

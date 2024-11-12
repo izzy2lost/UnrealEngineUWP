@@ -91,7 +91,7 @@ public:
 	 * @returns false if there is an error (if the overlay does not have an element for one of the vids)
 	 */
 	template<typename StorageType, int ElementSize, typename ElementType>
-	bool GetLoopOverlayMap(const FEdgeLoop& LoopIn,
+	GEOMETRYCORE_API bool GetLoopOverlayMap(const FEdgeLoop& LoopIn,
 		const TDynamicMeshOverlay<StorageType, ElementSize>& Overlay,
 		VidOverlayMap<ElementType>& LoopVidsToOverlayElementsOut);
 
@@ -102,7 +102,7 @@ public:
 	 * and remove any UV elements that no longer exist (because the vertex was on a UV seam).
 	 */
 	template<typename StorageType, int ElementSize, typename ElementType>
-	void UpdateLoopOverlayMapValidity(VidOverlayMap<ElementType>& LoopVidsToOverlayElements,
+	GEOMETRYCORE_API void UpdateLoopOverlayMapValidity(VidOverlayMap<ElementType>& LoopVidsToOverlayElements,
 		const TDynamicMeshOverlay<StorageType, ElementSize>& Overlay);
 
 	/**

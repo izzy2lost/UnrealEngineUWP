@@ -10,7 +10,7 @@
 	"DocsURL": "",
 	"MarketplaceURL": "",
 	"SupportURL": "",
-    "EnabledByDefault": false,
+	"EnabledByDefault": false,
 	"CanContainContent": true,
 	"IsBetaVersion": true,
 	"Installed": false,
@@ -24,8 +24,16 @@
 			"Name": "EditorScriptableToolsFramework",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
-		}		
+		}
 	],
 	"Plugins": [
+		{
+			"Name": "MeshModelingToolset",
+			"Enabled": true
+		},
+		{
+			"Name": "MeshModelingToolsetExp",
+			"Enabled": true
+		}
 	]
 }

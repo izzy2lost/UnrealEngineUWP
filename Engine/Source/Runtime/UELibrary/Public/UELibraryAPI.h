@@ -6,6 +6,8 @@
 
 #if PLATFORM_WINDOWS
 
+#include "Windows/WindowsHWrapper.h"
+
 #ifndef _WIN64
 	#error "UELibrary is currently only supported under 64-bit Windows"
 #endif

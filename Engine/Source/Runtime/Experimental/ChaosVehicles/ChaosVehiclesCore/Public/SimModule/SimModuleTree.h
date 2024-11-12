@@ -4,9 +4,21 @@
 
 #include "SimModule/DeferredForcesModular.h"
 #include "SimModule/SimulationModuleBase.h"
+#include "SimModule/ModuleInput.h"
+#include "SimModule/VehicleBlackboard.h"
 
+#include "SimModuleTree.generated.h"
 
 DECLARE_STATS_GROUP(TEXT("ModularVehicle.SimTree"), STATGROUP_ModularVehicleSimTree, STATGROUP_Advanced);
+
+UENUM(BlueprintType)
+enum ESimTreeProcessingOrder : int8
+{
+	ManualOverride = 0,	// User calls simulate on the child modules
+	LeafFirst = 1,		// modules simulation from the leaf first
+	RootFirst = 2,		// modules simulate from the root first
+	LeafFirstBFS = 3
+};
 
 class FGeometryCollectionPhysicsProxy;
 namespace Chaos
@@ -14,7 +26,6 @@ namespace Chaos
 	class ISimulationModuleBase;
 	class FClusterUnionPhysicsProxy;
 	struct FAllInputs;
-
 
 	struct FPendingModuleAdds
 	{
@@ -32,7 +43,6 @@ namespace Chaos
 	};
 
 	// Each update tree has it's own local tree hierarchy, this will be translated into the actual tree hierarchy.
-	// The root in here will always translate to the root in the main sim tree
 	class FSimTreeUpdates
 	{
 	public:
@@ -103,10 +113,13 @@ namespace Chaos
 		{
 			bAnimationEnabled = true;
 			bSimulationEnabled = true;
+			SimTreeProcessingOrder = ESimTreeProcessingOrder::LeafFirst;
+			SimBlackboard = MakeUnique<FVehicleBlackboard>();
 		}
 
 		~FSimModuleTree()
 		{
+			SimBlackboard.Reset();
 			DeleteNodesBelow(0);
 		}
 
@@ -140,6 +153,10 @@ namespace Chaos
 
 		void Simulate(float DeltaTime, FAllInputs& Inputs, FClusterUnionPhysicsProxy* PhysicsProxy);
 
+		void OnContactModification(FCollisionContactModifier& Modifier, FClusterUnionPhysicsProxy* PhysicsProxy);
+
+		void SetSimTreeProcessingOrder(ESimTreeProcessingOrder OrderIn) { SimTreeProcessingOrder = OrderIn; }
+
 		FDeferredForcesModular& AccessDeferredForces() { return DeferredForces; }
 		const FDeferredForcesModular& GetDeferredForces() const { return DeferredForces; }
 		const TArray<FSimModuleNode>& GetSimulationModuleTree() { return SimulationModuleTree; }
@@ -149,21 +166,18 @@ namespace Chaos
 		void SetSimulationEnabled(bool bInEnabled) { bSimulationEnabled = bInEnabled; }
 		bool IsSimulationEnabled() { return bSimulationEnabled; }
 
-		FControlInputs& GetControlInputs()
-		{
-			return AllInputs.ControlInputs;
-		}
 
 		const FVehicleState& GetVehicleState() const
 		{
 			return VehicleState;
 		}
 
-		FSimModuleNode* LocateNodeByType(Chaos::eSimType InType)
+		template <typename T>
+		FSimModuleNode* LocateNodeByType()
 		{
 			for (FSimModuleNode& Node : SimulationModuleTree)
 			{
-				if (Node.SimModule && Node.SimModule->GetSimType() == InType)
+				if (Node.SimModule && Node.SimModule->IsSimType<T>())
 				{
 					return &Node;
 				}
@@ -193,8 +207,17 @@ namespace Chaos
 		void SetSimState(const Chaos::FModuleNetDataArray& ModuleDatas);
 		void InterpolateState(const float LerpFactor, Chaos::FModuleNetDataArray& LerpDatas, const Chaos::FModuleNetDataArray& MinDatas, const Chaos::FModuleNetDataArray& MaxDatas);
 
+		FVehicleBlackboard* GetSimBlackboard()
+		{
+			return SimBlackboard.Get();
+		}
+
 	protected:
 		void SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeIdx, FClusterUnionPhysicsProxy* PhysicsProxy);
+
+		void OnContactModificationInternal(int NodeIndex, FCollisionContactModifier& Modifier, FClusterUnionPhysicsProxy* PhysicsProxy);
+
+		void SimulateNodeBFS(float DeltaTime, FAllInputs& Inputs, const TArray<int>& RootNodes, FClusterUnionPhysicsProxy* PhysicsProxy);
 
 		void DeleteNodesBelow(int NodeIdx);
 
@@ -215,6 +238,9 @@ namespace Chaos
 		bool bSimulationEnabled;
 
 		FVehicleState VehicleState;
+		ESimTreeProcessingOrder SimTreeProcessingOrder;
+
+		TUniquePtr<FVehicleBlackboard> SimBlackboard;
 	};
 
 

@@ -9,7 +9,9 @@
 #include "UObject/WeakInterfacePtr.h"
 
 class FAvaTransitionExecutorBuilder;
+class FReferenceCollector;
 class IAvaTransitionBehavior;
+class UAvaTransitionTree;
 struct FAvaTransitionExecutionContext;
 
 /** Struct containing Instance Data for a Transition Behavior running or about to run */
@@ -37,6 +39,8 @@ struct FAvaTransitionBehaviorInstance
 	/** Gets the Behavior this Instance is based on */
 	AVALANCHETRANSITION_API IAvaTransitionBehavior* GetBehavior() const;
 
+	AVALANCHETRANSITION_API const UAvaTransitionTree* GetTransitionTree() const;
+
 	AVALANCHETRANSITION_API FAvaTagHandle GetTransitionLayer() const;
 
 	AVALANCHETRANSITION_API EAvaTransitionType GetTransitionType() const;
@@ -47,6 +51,8 @@ struct FAvaTransitionBehaviorInstance
 	AVALANCHETRANSITION_API const FAvaTransitionContext& GetTransitionContext() const;
 
 	FAvaTransitionContext& GetTransitionContext();
+
+	FAvaTransitionSceneOwner GetTransitionSceneOwner() const;
 
 	void SetTransitionType(EAvaTransitionType InTransitionType);
 
@@ -61,6 +67,8 @@ struct FAvaTransitionBehaviorInstance
 	void SetOverrideLayer(const FAvaTagHandle& InOverrideLayer);
 
 	void SetLogContext(const FString& InContext);
+
+	void AddReferencedObjects(FReferenceCollector& InCollector);
 
 private:
 	/** Stops Execution if the Tree is no longer running */

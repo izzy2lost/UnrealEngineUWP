@@ -753,7 +753,6 @@ void SEventGraph::Construct( const FArguments& InArgs )
 											.OnGenerateRow(this, &SEventGraph::EventGraph_OnGenerateRow)
 											.OnSelectionChanged(this, &SEventGraph::EventGraph_OnSelectionChanged)
 											.OnContextMenuOpening(FOnContextMenuOpening::CreateSP(this, &SEventGraph::EventGraph_GetMenuContent))
-											.ItemHeight(12.0f)
 											.HeaderRow
 											(
 												SAssignNew(TreeViewHeaderRow,SHeaderRow)
@@ -3191,7 +3190,7 @@ void SEventGraph::ClearHistory_Execute()
 		const FEventGraphStateRef It = EventGraphStatesHistory[Nx];
 		if( It->MaximumEventGraph == EventGraphState->MaximumEventGraph && It->HistoryType != EEventHistoryTypes::NewEventGraph )
 		{
-			EventGraphStatesHistory.RemoveAt( Nx, 1, EAllowShrinking::No);
+			EventGraphStatesHistory.RemoveAt( Nx, EAllowShrinking::No);
 			Nx--;
 		}
 	}

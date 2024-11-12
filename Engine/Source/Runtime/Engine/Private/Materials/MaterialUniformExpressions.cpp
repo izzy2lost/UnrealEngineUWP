@@ -6,6 +6,7 @@
 
 #include "Materials/MaterialUniformExpressions.h"
 #include "Engine/Texture.h"
+#include "Engine/TextureCollection.h"
 #include "SceneManagement.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialParameterCollection.h"
@@ -143,6 +144,14 @@ void FMaterialRenderContext::GetTextureParameterValue(const FHashedMaterialParam
 	}
 }
 
+void FMaterialRenderContext::GetTextureCollectionParameterValue(const FHashedMaterialParameterInfo& ParameterInfo, int32 TextureCollectionIndex, const UTextureCollection*& OutValue) const
+{
+	if (ParameterInfo.Name.IsNone() || !MaterialRenderProxy || !MaterialRenderProxy->GetTextureCollectionValue(ParameterInfo, &OutValue, *this))
+	{
+		OutValue = GetIndexedTextureCollection(Material, TextureCollectionIndex);
+	}
+}
+
 FMaterialUniformExpressionType::FMaterialUniformExpressionType(const TCHAR* InName)
 	: Name(InName)
 {
@@ -183,47 +192,51 @@ bool FUniformParameterOverrides::GetNumericOverride(EMaterialParameterType Type,
 	return false;
 }
 
-void FUniformParameterOverrides::SetTextureOverride(EMaterialTextureParameterType Type, const FHashedMaterialParameterInfo& ParameterInfo, UTexture* Texture)
+void FUniformParameterOverrides::SetTextureOverride(EMaterialTextureParameterType Type, const FMaterialTextureParameterInfo& ParameterInfo, UTexture* Texture)
 {
 	check(IsInGameThread());
 	const uint32 TypeIndex = (uint32)Type;
+	const FTextureParameterKey Key{ ParameterInfo.ParameterInfo, ParameterInfo.TextureIndex };
+
 	if (Texture)
 	{
-		GameThreadTextureOverides[TypeIndex].FindOrAdd(ParameterInfo) = Texture;
+		GameThreadTextureOverides[TypeIndex].FindOrAdd(Key) = Texture;
 	}
 	else
 	{
-		GameThreadTextureOverides[TypeIndex].Remove(ParameterInfo);
+		GameThreadTextureOverides[TypeIndex].Remove(Key);
 	}
 
 	FUniformParameterOverrides* Self = this;
 	ENQUEUE_RENDER_COMMAND(SetTextureOverrideCommand)(
-		[Self, TypeIndex, ParameterInfo, Texture](FRHICommandListImmediate& RHICmdList)
+		[Self, TypeIndex, Key, Texture](FRHICommandListImmediate& RHICmdList)
 	{
 		if (Texture)
 		{
-			Self->RenderThreadTextureOverrides[TypeIndex].FindOrAdd(ParameterInfo) = Texture;
+			Self->RenderThreadTextureOverrides[TypeIndex].FindOrAdd(Key) = Texture;
 		}
 		else
 		{
-			Self->RenderThreadTextureOverrides[TypeIndex].Remove(ParameterInfo);
+			Self->RenderThreadTextureOverrides[TypeIndex].Remove(Key);
 		}
 	});
 }
 
-UTexture* FUniformParameterOverrides::GetTextureOverride_GameThread(EMaterialTextureParameterType Type, const FHashedMaterialParameterInfo& ParameterInfo) const
+UTexture* FUniformParameterOverrides::GetTextureOverride_GameThread(EMaterialTextureParameterType Type, const FMaterialTextureParameterInfo& ParameterInfo) const
 {
 	check(IsInGameThread());
 	const uint32 TypeIndex = (uint32)Type;
-	UTexture* const* Result = GameThreadTextureOverides[TypeIndex].Find(ParameterInfo);
+	const FTextureParameterKey Key{ ParameterInfo.ParameterInfo, ParameterInfo.TextureIndex };
+	UTexture* const* Result = GameThreadTextureOverides[TypeIndex].Find(Key);
 	return Result ? *Result : nullptr;
 }
 
-UTexture* FUniformParameterOverrides::GetTextureOverride_RenderThread(EMaterialTextureParameterType Type, const FHashedMaterialParameterInfo& ParameterInfo) const
+UTexture* FUniformParameterOverrides::GetTextureOverride_RenderThread(EMaterialTextureParameterType Type, const FMaterialTextureParameterInfo& ParameterInfo) const
 {
 	check(IsInParallelRenderingThread());
 	const uint32 TypeIndex = (uint32)Type;
-	UTexture* const* Result = RenderThreadTextureOverrides[TypeIndex].Find(ParameterInfo);
+	const FTextureParameterKey Key{ ParameterInfo.ParameterInfo, ParameterInfo.TextureIndex };
+	UTexture* const* Result = RenderThreadTextureOverrides[TypeIndex].Find(Key);
 	return Result ? *Result : nullptr;
 }
 
@@ -240,6 +253,7 @@ bool FUniformExpressionSet::IsEmpty() const
 	return UniformNumericParameters.Num() == 0
 		&& UniformPreshaders.Num() == 0
 		&& UniformExternalTextureParameters.Num() == 0
+		&& UniformTextureCollectionParameters.Num() == 0
 		&& VTStacks.Num() == 0
 		&& ParameterCollections.Num() == 0;
 }
@@ -257,6 +271,7 @@ bool FUniformExpressionSet::operator==(const FUniformExpressionSet& ReferenceSet
 	if (UniformNumericParameters.Num() != ReferenceSet.UniformNumericParameters.Num()
 		|| UniformPreshaders.Num() != ReferenceSet.UniformPreshaders.Num()
 		|| UniformExternalTextureParameters.Num() != ReferenceSet.UniformExternalTextureParameters.Num()
+		|| UniformTextureCollectionParameters.Num() != ReferenceSet.UniformTextureCollectionParameters.Num()
 		|| VTStacks.Num() != ReferenceSet.VTStacks.Num()
 		|| ParameterCollections.Num() != ReferenceSet.ParameterCollections.Num())
 	{
@@ -298,6 +313,15 @@ bool FUniformExpressionSet::operator==(const FUniformExpressionSet& ReferenceSet
 		}
 	}
 
+
+	for (int32 i = 0; i < UniformTextureCollectionParameters.Num(); i++)
+	{
+		if (UniformTextureCollectionParameters[i] != ReferenceSet.UniformTextureCollectionParameters[i])
+		{
+			return false;
+		}
+	}
+
 	for (int32 i = 0; i < VTStacks.Num(); i++)
 	{
 		if (VTStacks[i] != ReferenceSet.VTStacks[i])
@@ -324,7 +348,7 @@ bool FUniformExpressionSet::operator==(const FUniformExpressionSet& ReferenceSet
 
 FString FUniformExpressionSet::GetSummaryString() const
 {
-	return FString::Printf(TEXT("(%u preshaders, %u 2d tex, %u cube tex, %u 2darray tex, %u cubearray tex, %u 3d tex, %u virtual tex, %u sparse volume tex, %u external tex, %u VT stacks, %u collections)"),
+	return FString::Printf(TEXT("(%u preshaders, %u 2d tex, %u cube tex, %u 2darray tex, %u cubearray tex, %u 3d tex, %u virtual tex, %u sparse volume tex, %u external tex, %u tex collections, %u VT stacks, %u collections)"),
 		UniformPreshaders.Num(),
 		UniformTextureParameters[(uint32)EMaterialTextureParameterType::Standard2D].Num(),
 		UniformTextureParameters[(uint32)EMaterialTextureParameterType::Cube].Num(),
@@ -334,6 +358,7 @@ FString FUniformExpressionSet::GetSummaryString() const
 		UniformTextureParameters[(uint32)EMaterialTextureParameterType::Virtual].Num(),
 		UniformTextureParameters[(uint32)EMaterialTextureParameterType::SparseVolume].Num(),
 		UniformExternalTextureParameters.Num(),
+		UniformTextureCollectionParameters.Num(),
 		VTStacks.Num(),
 		ParameterCollections.Num()
 		);
@@ -397,6 +422,7 @@ FShaderParametersMetadata* FUniformExpressionSet::CreateBufferStruct()
 	static FString VolumeTextureNames[128];
 	static FString VolumeTextureSamplerNames[128];
 	static FString ExternalTextureNames[128];
+	static FString TextureCollectionNames[128];
 	static FString MediaTextureSamplerNames[128];
 	static FString VirtualTexturePageTableNames0[128];
 	static FString VirtualTexturePageTableNames1[128];
@@ -424,6 +450,7 @@ FShaderParametersMetadata* FUniformExpressionSet::CreateBufferStruct()
 			VolumeTextureNames[i] = FString::Printf(TEXT("VolumeTexture_%d"), i);
 			VolumeTextureSamplerNames[i] = FString::Printf(TEXT("VolumeTexture_%dSampler"), i);
 			ExternalTextureNames[i] = FString::Printf(TEXT("ExternalTexture_%d"), i);
+			TextureCollectionNames[i] = FString::Printf(TEXT("TextureCollection_%d"), i);
 			MediaTextureSamplerNames[i] = FString::Printf(TEXT("ExternalTexture_%dSampler"), i);
 			VirtualTexturePageTableNames0[i] = FString::Printf(TEXT("VirtualTexturePageTable0_%d"), i);
 			VirtualTexturePageTableNames1[i] = FString::Printf(TEXT("VirtualTexturePageTable1_%d"), i);
@@ -524,6 +551,13 @@ FShaderParametersMetadata* FUniformExpressionSet::CreateBufferStruct()
 		NextMemberOffset += SHADER_PARAMETER_POINTER_ALIGNMENT;
 	}
 
+	for (int32 i = 0; i < UniformTextureCollectionParameters.Num(); ++i)
+	{
+		check((NextMemberOffset % SHADER_PARAMETER_POINTER_ALIGNMENT) == 0);
+		new(Members) FShaderParametersMetadata::FMember(*TextureCollectionNames[i], TEXT("FResourceCollection"), __LINE__, NextMemberOffset, UBMT_RESOURCE_COLLECTION, EShaderPrecisionModifier::Float, 1, 1, 0, NULL);
+		NextMemberOffset += SHADER_PARAMETER_POINTER_ALIGNMENT;
+	}
+
 	for (int32 i = 0; i < VTStacks.Num(); ++i)
 	{
 		const FMaterialVirtualTextureStack& Stack = VTStacks[i];
@@ -617,6 +651,19 @@ int32 FUniformExpressionSet::FindOrAddTextureParameter(EMaterialTextureParameter
 	return UniformTextureParameters[(int32)Type].Add(Info);
 }
 
+int32 FUniformExpressionSet::FindOrAddTextureCollectionParameter(const FMaterialTextureCollectionParameterInfo& Info)
+{
+	for (int32 Index = 0; Index < UniformTextureCollectionParameters.Num(); Index++)
+	{
+		if (UniformTextureCollectionParameters[Index] == Info)
+		{
+			return Index;
+		}
+	}
+
+	return UniformTextureCollectionParameters.Add(Info);
+}
+
 int32 FUniformExpressionSet::FindOrAddExternalTextureParameter(const FMaterialExternalTextureParameterInfo& Info)
 {
 	for (int32 i = 0; i < UniformExternalTextureParameters.Num(); ++i)
@@ -682,7 +729,7 @@ void FUniformExpressionSet::GetGameThreadTextureValue(EMaterialTextureParameterT
 #if WITH_EDITOR
 	if (bAllowOverride)
 	{
-		UTexture* OverrideTexture = Material.TransientOverrides.GetTextureOverride_GameThread(Type, Parameter.ParameterInfo);
+		UTexture* OverrideTexture = Material.TransientOverrides.GetTextureOverride_GameThread(Type, Parameter);
 		if (OverrideTexture)
 		{
 			OutValue = OverrideTexture;
@@ -699,7 +746,7 @@ void FUniformExpressionSet::GetTextureValue(EMaterialTextureParameterType Type, 
 	const FMaterialTextureParameterInfo& Parameter = GetTextureParameter(Type, Index);
 #if WITH_EDITOR
 	{
-		UTexture* OverrideTexture = Material.TransientOverrides.GetTextureOverride_RenderThread(Type, Parameter.ParameterInfo);
+		UTexture* OverrideTexture = Material.TransientOverrides.GetTextureOverride_RenderThread(Type, Parameter);
 		if (OverrideTexture)
 		{
 			OutValue = OverrideTexture;
@@ -998,6 +1045,7 @@ void FUniformExpressionSet::FillUniformBuffer(const FMaterialRenderContext& Mate
 				+ UniformTextureParameters[(uint32)EMaterialTextureParameterType::Volume].Num() * 2
 				+ UniformTextureParameters[(uint32)EMaterialTextureParameterType::SparseVolume].Num() * 4
 				+ UniformExternalTextureParameters.Num() * 2
+				+ UniformTextureCollectionParameters.Num()
 				+ UniformTextureParameters[(uint32)EMaterialTextureParameterType::Virtual].Num() * 2
 				+ NumPageTableTextures
 				+ NumPageTableIndirectionTextures
@@ -1333,6 +1381,28 @@ void FUniformExpressionSet::FillUniformBuffer(const FMaterialRenderContext& Mate
 			}
 		}
 
+		for (const FMaterialTextureCollectionParameterInfo& ParameterInfo : UniformTextureCollectionParameters)
+		{
+			void** ResourceTableBufferPtr = reinterpret_cast<void**>(BufferCursor);
+			BufferCursor = reinterpret_cast<uint8*>(BufferCursor) + SHADER_PARAMETER_POINTER_ALIGNMENT;
+			check(BufferCursor <= TempBuffer + TempBufferSize);
+
+			const UTextureCollection* TextureCollection = nullptr;
+			ParameterInfo.GetTextureCollection(MaterialRenderContext, TextureCollection);
+
+			if (TextureCollection != nullptr)
+			{
+				FTextureCollectionResource* Resource = TextureCollection->GetResource();
+				check(Resource);
+				*ResourceTableBufferPtr = Resource->GetRHI();
+			}
+			else
+			{
+				// TODO: christopher.waters - implement default texture collections
+				unimplemented();
+			}
+		}
+
 		// Cache virtual texture page table uniform expressions.
 		for (int32 VTStackIndex = 0; VTStackIndex < VTStacks.Num(); ++VTStackIndex)
 		{
@@ -1571,6 +1641,71 @@ bool FMaterialUniformExpressionTexture::IsIdentical(const FMaterialUniformExpres
 		bVirtualTexture == OtherTextureExpression->bVirtualTexture;
 }
 
+// FMaterialUniformExpressionTextureCollection
+
+FMaterialUniformExpressionTextureCollection::FMaterialUniformExpressionTextureCollection(int32 InTextureCollectionIndex)
+	: TextureCollectionIndex(InTextureCollectionIndex)
+{
+}
+
+bool FMaterialUniformExpressionTextureCollection::IsIdentical(const FMaterialUniformExpression* OtherExpression) const
+{
+	if (GetType() != OtherExpression->GetType())
+	{
+		return false;
+	}
+
+	const FMaterialUniformExpressionTextureCollection* OtherTextureCollectionExpression = static_cast<const FMaterialUniformExpressionTextureCollection*>(OtherExpression);
+	return TextureCollectionIndex == OtherTextureCollectionExpression->TextureCollectionIndex;
+}
+
+FMaterialUniformExpressionTextureCollectionParameter* FMaterialUniformExpressionTextureCollection::GetTextureCollectionParameterUniformExpression()
+{
+	return nullptr;
+}
+
+void FMaterialUniformExpressionTextureCollection::GetTextureCollectionParameterInfo(FMaterialTextureCollectionParameterInfo& OutParameter) const
+{
+	OutParameter.TextureCollectionIndex = this->TextureCollectionIndex;
+}
+
+// FMaterialUniformExpressionTextureCollectionParameter
+
+FMaterialUniformExpressionTextureCollectionParameter::FMaterialUniformExpressionTextureCollectionParameter(const FMaterialParameterInfo& InParameterInfo, int32 InTextureCollectionIndex)
+	: Super(InTextureCollectionIndex)
+	, ParameterInfo(InParameterInfo)
+{
+}
+
+bool FMaterialUniformExpressionTextureCollectionParameter::IsIdentical(const FMaterialUniformExpression* OtherExpression) const
+{
+	if (GetType() != OtherExpression->GetType())
+	{
+		return false;
+	}
+
+	const FMaterialUniformExpressionTextureCollectionParameter* OtherParameter = static_cast<const FMaterialUniformExpressionTextureCollectionParameter*>(OtherExpression);
+	return ParameterInfo == OtherParameter->ParameterInfo && Super::IsIdentical(OtherParameter);
+}
+
+bool FMaterialUniformExpressionTextureCollectionParameter::IsConstant() const
+{
+	return false;
+}
+
+FMaterialUniformExpressionTextureCollectionParameter* FMaterialUniformExpressionTextureCollectionParameter::GetTextureCollectionParameterUniformExpression()
+{
+	return this;
+}
+
+void FMaterialUniformExpressionTextureCollectionParameter::GetTextureCollectionParameterInfo(FMaterialTextureCollectionParameterInfo& OutParameter) const
+{
+	Super::GetTextureCollectionParameterInfo(OutParameter);
+	OutParameter.ParameterInfo = ParameterInfo;
+}
+
+// FMaterialUniformExpressionExternalTextureBase
+
 FMaterialUniformExpressionExternalTextureBase::FMaterialUniformExpressionExternalTextureBase(int32 InSourceTextureIndex)
 	: SourceTextureIndex(InSourceTextureIndex)
 {}
@@ -1634,6 +1769,11 @@ void FMaterialTextureParameterInfo::GetGameThreadTextureValue(const UMaterialInt
 	{
 		OutValue = GetIndexedTexture<UTexture>(Material, TextureIndex);
 	}
+}
+
+void FMaterialTextureCollectionParameterInfo::GetTextureCollection(const FMaterialRenderContext& Context, const UTextureCollection*& OutTextureCollection) const
+{
+	Context.GetTextureCollectionParameterValue(ParameterInfo, TextureCollectionIndex, OutTextureCollection);
 }
 
 void FMaterialTextureParameterInfo::GetGameThreadTextureValue(const UMaterialInterface* MaterialInterface, const FMaterial& Material, USparseVolumeTexture*& OutValue) const
@@ -1773,6 +1913,8 @@ class FMaterialUniformExpressionRuntimeVirtualTextureParameter_DEPRECATED : publ
 };
 
 IMPLEMENT_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionTexture);
+IMPLEMENT_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionTextureCollection);
+IMPLEMENT_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionTextureCollectionParameter);
 IMPLEMENT_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionConstant);
 IMPLEMENT_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionGenericConstant);
 IMPLEMENT_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionNumericParameter);
@@ -1808,6 +1950,7 @@ IMPLEMENT_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionFloor);
 IMPLEMENT_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionCeil);
 IMPLEMENT_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionFrac);
 IMPLEMENT_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionFmod);
+IMPLEMENT_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionModulo);
 IMPLEMENT_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionAbs);
 IMPLEMENT_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionTextureProperty);
 IMPLEMENT_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionTrigMath);

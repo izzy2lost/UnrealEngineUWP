@@ -2,6 +2,8 @@
 
 
 #include "MetalRHIPrivate.h"
+#include "MetalDynamicRHI.h"
+#include "MetalRHIContext.h"
 #include "MetalRHIStagingBuffer.h"
 #include "MetalCommandBuffer.h"
 #include "RenderUtils.h"
@@ -32,23 +34,25 @@ void FMetalResourceViewBase::Invalidate()
 		switch (GetMetalType())
 		{
 		case EMetalType::TextureView:
-			SafeReleaseMetalTexture(Storage.Get<MTLTexturePtr>());
+			FMetalDynamicRHI::Get().DeferredDelete(Storage.Get<MTLTexturePtr>());
 			break;
 
 		case EMetalType::BufferView:
-			SafeReleaseMetalBuffer(Storage.Get<FBufferView>().Buffer);
+			FMetalDynamicRHI::Get().DeferredDelete(Storage.Get<FBufferView>().Buffer);
 			break;
                 
         case EMetalType::TextureBufferBacked:
             FTextureBufferBacked & View = Storage.Get<FTextureBufferBacked>();
-            if (View.bIsBuffer)
-            {
-                SafeReleaseMetalTexture(View.Texture);
-            }
-            else
-            {
-                SafeReleaseMetalBuffer(View.Buffer);
-            }
+			// If it is a buffer we don't own the resource
+			if (View.bIsBuffer)
+			{
+				FMetalDynamicRHI::Get().DeferredDelete(View.Texture);
+			}
+			else
+			{
+				FMetalDynamicRHI::Get().DeferredDelete(View.Buffer);
+				FMetalDynamicRHI::Get().DeferredDelete(View.Texture);
+			}
             break;
 		}
 	}
@@ -76,17 +80,20 @@ void FMetalResourceViewBase::InitAsTextureBufferBacked(MTLTexturePtr Texture, FM
     Storage.Emplace<FTextureBufferBacked>(Texture, Buffer, Offset, Size, Format, bIsBuffer);
 }
 
-FMetalShaderResourceView::FMetalShaderResourceView(FRHICommandListBase& RHICmdList, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc)
-	: FRHIShaderResourceView(InResource, InViewDesc)
+FMetalShaderResourceView::FMetalShaderResourceView(FMetalDevice& InDevice, FRHICommandListBase& RHICmdList, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc)
+	: FRHIShaderResourceView(InResource, InViewDesc),
+	  FMetalResourceViewBase(InDevice)
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+	FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
     check(BindlessDescriptorManager);
 
 	if(IsMetalBindlessEnabled())
 	{
 		BindlessHandle = BindlessDescriptorManager->ReserveDescriptor(ERHIDescriptorHeapType::Standard);
 	}
+	
+	SurfaceOverride = nullptr;
 #endif
 
 	RHICmdList.EnqueueLambda([this](FRHICommandListBase&)
@@ -99,13 +106,13 @@ FMetalShaderResourceView::FMetalShaderResourceView(FRHICommandListBase& RHICmdLi
 FMetalShaderResourceView::~FMetalShaderResourceView()
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-        FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
-        check(BindlessDescriptorManager);
+	FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
+	check(BindlessDescriptorManager);
 
-		if(IsMetalBindlessEnabled())
-		{
-			BindlessDescriptorManager->FreeDescriptor(BindlessHandle);
-		}
+	if(IsMetalBindlessEnabled())
+	{
+		BindlessDescriptorManager->FreeDescriptor(BindlessHandle);
+	}
 #endif
 }
 
@@ -159,7 +166,7 @@ MTL::TextureType UAVDimensionToMetalTextureType(FRHIViewDesc::EDimension Dimensi
     return MTL::TextureType2D;
 }
 
-MTL::TextureType SRVDimensionToMetalTextureType(FRHIViewDesc::EDimension Dimension)
+MTL::TextureType SRVDimensionToMetalTextureType(FMetalDevice& Device, FRHIViewDesc::EDimension Dimension)
 {
     switch (Dimension)
     {
@@ -170,7 +177,7 @@ MTL::TextureType SRVDimensionToMetalTextureType(FRHIViewDesc::EDimension Dimensi
         case FRHIViewDesc::EDimension::TextureCube:
             return MTL::TextureTypeCube;
         case FRHIViewDesc::EDimension::TextureCubeArray:
-			if(FMetalCommandQueue::SupportsFeature(EMetalFeaturesCubemapArrays))
+			if(Device.SupportsFeature(EMetalFeaturesCubemapArrays))
 			{
 				return MTL::TextureTypeCubeArray;
 			}
@@ -207,12 +214,12 @@ void FMetalShaderResourceView::UpdateView()
 		{
 		case FRHIViewDesc::EBufferType::Typed:
 			{
-				check(FMetalCommandQueue::SupportsFeature(EMetalFeaturesTextureBuffers));
+				check(Device.SupportsFeature(EMetalFeaturesTextureBuffers));
 
 				MTL::PixelFormat Format = (MTL::PixelFormat)GMetalBufferFormats[Info.Format].LinearTextureFormat;
 				NS::UInteger Options = ((NS::UInteger)Buffer->Mode) << MTL::ResourceStorageModeShift;
 
-				const uint32 MinimumByteAlignment = GetMetalDeviceContext().GetDevice()->minimumLinearTextureAlignmentForPixelFormat(Format);
+				const uint32 MinimumByteAlignment = Device.GetDevice()->minimumLinearTextureAlignmentForPixelFormat(Format);
 				const uint32 MinimumElementAlignment = MinimumByteAlignment / Info.StrideInBytes;
 				uint32 NumElements = Align(Info.NumElements, MinimumElementAlignment);
 				uint32 SizeInBytes = NumElements * Info.StrideInBytes;
@@ -245,6 +252,14 @@ void FMetalShaderResourceView::UpdateView()
 			break;
 		}
 	}
+#if METAL_USE_METAL_SHADER_CONVERTER
+	else if (SurfaceOverride != nullptr)
+	{
+		MTLTexturePtr View = SurfaceOverride->Texture;
+		InitAsTextureView(View);
+		bOwnsResource = false;
+	}
+#endif
 	else
 	{
 		FMetalSurface* Texture = ResourceCast(GetTexture());
@@ -258,7 +273,7 @@ void FMetalShaderResourceView::UpdateView()
 		check(Texture->Texture->storageMode() != MTL::StorageModeMemoryless);
 #endif
 
-		MTL::PixelFormat MetalFormat = UEToMetalFormat(Info.Format, Info.bSRGB);
+		MTL::PixelFormat MetalFormat = UEToMetalFormat(Device, Info.Format, Info.bSRGB);
         MTL::TextureType TextureType = Texture->Texture->textureType();
 
         if (EnumHasAnyFlags(Texture->GetDesc().Flags, TexCreate_SRGB) && !Info.bSRGB)
@@ -287,7 +302,9 @@ void FMetalShaderResourceView::UpdateView()
         }
         
         bool bUseSourceTexture = Info.bAllMips && Info.bAllSlices && MetalFormat == Texture->Texture->pixelFormat() &&
-                                SRVDimensionToMetalTextureType(Info.Dimension) == TextureType;
+                                SRVDimensionToMetalTextureType(Device, Info.Dimension) == TextureType;
+		
+		check(TextureType != MTL::TextureType1D);
 		
 		bool bIsBindless = IsMetalBindlessEnabled();
         
@@ -312,12 +329,25 @@ void FMetalShaderResourceView::UpdateView()
             
             if(TextureType != MTL::TextureType2DMultisample)
             {
-                TextureType = SRVDimensionToMetalTextureType(Info.Dimension);
+                TextureType = SRVDimensionToMetalTextureType(Device, Info.Dimension);
             }
 			
 			if(bIsBindless)
 			{
 				ModifyTextureTypeForBindless(TextureType);
+			}
+			else
+			{
+				// We don't support Texture2DArray with atomic compatible so
+				// ensure we are creating a view on a Texture2D with the correct size
+				bool bIsAtomicCompatible = EnumHasAllFlags(Texture->GetDesc().Flags, TexCreate_AtomicCompatible)  ||
+											EnumHasAllFlags(Texture->GetDesc().Flags, ETextureCreateFlags::Atomic64Compatible);
+				
+				if(TextureType == MTL::TextureType2D && bIsAtomicCompatible)
+				{
+					ArrayStart = 0;
+					ArraySize = 1;
+				}
 			}
             
             MTLTexturePtr View = NS::TransferPtr(Texture->Texture->newTextureView(
@@ -335,7 +365,7 @@ void FMetalShaderResourceView::UpdateView()
 	}
 	
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+	FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
     check(BindlessDescriptorManager);
 
 	if(IsMetalBindlessEnabled())
@@ -345,11 +375,13 @@ void FMetalShaderResourceView::UpdateView()
 #endif
 }
 
-FMetalUnorderedAccessView::FMetalUnorderedAccessView(FRHICommandListBase& RHICmdList, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc)
+FMetalUnorderedAccessView::FMetalUnorderedAccessView(FMetalDevice& InDevice, FRHICommandListBase& RHICmdList,
+													FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc)
 	: FRHIUnorderedAccessView(InResource, InViewDesc)
+	, FMetalResourceViewBase(InDevice)
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
 	check(BindlessDescriptorManager);
 
 	if(IsMetalBindlessEnabled())
@@ -368,7 +400,7 @@ FMetalUnorderedAccessView::FMetalUnorderedAccessView(FRHICommandListBase& RHICmd
 FMetalUnorderedAccessView::~FMetalUnorderedAccessView()
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+	FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
 	check(BindlessDescriptorManager);
 
 	if(IsMetalBindlessEnabled())
@@ -404,12 +436,12 @@ void FMetalUnorderedAccessView::UpdateView()
 			{
 			case FRHIViewDesc::EBufferType::Typed:
 			{
-				check(FMetalCommandQueue::SupportsFeature(EMetalFeaturesTextureBuffers));
+				check(Device.SupportsFeature(EMetalFeaturesTextureBuffers));
 
 				MTL::PixelFormat Format = (MTL::PixelFormat)GMetalBufferFormats[Info.Format].LinearTextureFormat;
                 NS::UInteger Options = ((NS::UInteger)Buffer->Mode) << MTL::ResourceStorageModeShift;
 
-                const uint32 MinimumByteAlignment = GetMetalDeviceContext().GetDevice()->minimumLinearTextureAlignmentForPixelFormat(Format);
+                const uint32 MinimumByteAlignment = Device.GetDevice()->minimumLinearTextureAlignmentForPixelFormat(Format);
                 const uint32 MinimumElementAlignment = MinimumByteAlignment / Info.StrideInBytes;
                 uint32 NumElements = Align(Info.NumElements, MinimumElementAlignment);
                 uint32 SizeInBytes = NumElements * Info.StrideInBytes;
@@ -455,7 +487,7 @@ void FMetalUnorderedAccessView::UpdateView()
 		check(Texture->Texture->storageMode() != MTL::StorageModeMemoryless);
 #endif
 
-        MTL::PixelFormat MetalFormat = UEToMetalFormat(Info.Format, false);
+        MTL::PixelFormat MetalFormat = UEToMetalFormat(Device, Info.Format, false);
         MTL::TextureType TextureType = Texture->Texture->textureType();
 
         if (EnumHasAnyFlags(Texture->GetDesc().Flags, TexCreate_SRGB))
@@ -486,6 +518,8 @@ void FMetalUnorderedAccessView::UpdateView()
         bool bUseSourceTexture = Info.bAllMips && Info.bAllSlices &&
                                 UAVDimensionToMetalTextureType(Info.Dimension) == TextureType && MetalFormat == Texture->Texture->pixelFormat();
         
+		check(TextureType != MTL::TextureType1D);
+		
         bool bIsAtomicCompatible = EnumHasAllFlags(Texture->GetDesc().Flags, TexCreate_AtomicCompatible) ||
                                             EnumHasAllFlags(Texture->GetDesc().Flags, ETextureCreateFlags::Atomic64Compatible);
         
@@ -507,7 +541,7 @@ void FMetalUnorderedAccessView::UpdateView()
             // If we are using texture atomics then we need to bind them as buffers because Metal lacks texture atomics
             if(bBufferBacked && Texture->Texture->buffer())
             {
-                FMetalBufferPtr MetalBuffer = FMetalBufferPtr(new FMetalBuffer(NS::RetainPtr(Texture->Texture->buffer())));
+                FMetalBufferPtr MetalBuffer = FMetalBufferPtr(new FMetalBuffer(Texture->Texture->buffer(), FMetalBuffer::FreePolicy::Temporary));
                 InitAsTextureBufferBacked(Texture->Texture, MetalBuffer,
                                         Texture->Texture->bufferOffset(),
                                         Texture->Texture->buffer()->length(), Info.Format, false);
@@ -557,7 +591,7 @@ void FMetalUnorderedAccessView::UpdateView()
             // If we are using texture atomics then we need to bind them as buffers because Metal lacks texture atomics
             if((EnumHasAllFlags(Texture->GetDesc().Flags, TexCreate_UAV | TexCreate_NoTiling) || (!bIsBindless && bIsAtomicCompatible)) && Texture->Texture->buffer())
             {
-                FMetalBufferPtr MetalBuffer = FMetalBufferPtr(new FMetalBuffer(NS::RetainPtr(Texture->Texture->buffer())));
+                FMetalBufferPtr MetalBuffer = FMetalBufferPtr(new FMetalBuffer(Texture->Texture->buffer(), FMetalBuffer::FreePolicy::Temporary));
                 InitAsTextureBufferBacked(MetalTexture, MetalBuffer,
                                           Texture->Texture->bufferOffset(),
                                           Texture->Texture->buffer()->length(), Info.Format, false);
@@ -573,7 +607,7 @@ void FMetalUnorderedAccessView::UpdateView()
         }
 	}
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
 	check(BindlessDescriptorManager);
 
 	if(IsMetalBindlessEnabled())
@@ -585,17 +619,17 @@ void FMetalUnorderedAccessView::UpdateView()
 
 FShaderResourceViewRHIRef FMetalDynamicRHI::RHICreateShaderResourceView(FRHICommandListBase& RHICmdList, FRHIViewableResource* Resource, FRHIViewDesc const& ViewDesc)
 {
-    return new FMetalShaderResourceView(RHICmdList, Resource, ViewDesc);
+    return new FMetalShaderResourceView(*Device, RHICmdList, Resource, ViewDesc);
 }
 
 FUnorderedAccessViewRHIRef FMetalDynamicRHI::RHICreateUnorderedAccessView(FRHICommandListBase& RHICmdList, FRHIViewableResource* Resource, FRHIViewDesc const& ViewDesc)
 {
-    return new FMetalUnorderedAccessView(RHICmdList, Resource, ViewDesc);
+    return new FMetalUnorderedAccessView(*Device, RHICmdList, Resource, ViewDesc);
 }
 
-
 #if UE_METAL_RHI_SUPPORT_CLEAR_UAV_WITH_BLIT_ENCODER
-void FMetalUnorderedAccessView::ClearUAVWithBlitEncoder(TRHICommandList_RecursiveHazardous<FMetalRHICommandContext>& RHICmdList, uint32 Pattern)
+void FMetalUnorderedAccessView::ClearUAVWithBlitEncoder(TRHICommandList_RecursiveHazardous<FMetalRHICommandContext>& RHICmdList,
+														uint32 Pattern)
 {
 	RHICmdList.RunOnContext([this, Pattern](FMetalRHICommandContext& Context)
 	{
@@ -606,9 +640,9 @@ void FMetalUnorderedAccessView::ClearUAVWithBlitEncoder(TRHICommandList_Recursiv
 		FMetalBufferPtr Buffer = SourceBuffer->GetCurrentBuffer();
 		uint32 Size = Info.SizeInBytes;
 		uint32 AlignedSize = Align(Size, BufferOffsetAlignment);
-		FMetalPooledBufferArgs Args(Context.GetInternalContext().GetDevice(), AlignedSize, BUF_Dynamic, MTL::StorageModeShared);
+		FMetalPooledBufferArgs Args(&Device, AlignedSize, BUF_Dynamic, MTL::StorageModeShared);
 
-		FMetalBufferPtr Temp = Context.GetInternalContext().CreatePooledBuffer(Args);
+		FMetalBufferPtr Temp = Device.CreatePooledBuffer(Args);
 
 		uint32* ContentBytes = (uint32*)Temp->Contents();
 		for (uint32 Element = 0; Element < (AlignedSize >> 2); ++Element)
@@ -616,8 +650,8 @@ void FMetalUnorderedAccessView::ClearUAVWithBlitEncoder(TRHICommandList_Recursiv
 			ContentBytes[Element] = Pattern;
 		}
 
-		Context.GetInternalContext().CopyFromBufferToBuffer(Temp, 0, Buffer, Info.OffsetInBytes, Size);
-		Context.GetInternalContext().ReleaseBuffer(Temp);
+		Context.CopyFromBufferToBuffer(Temp, 0, Buffer, Info.OffsetInBytes, Size);
+		FMetalDynamicRHI::Get().DeferredDelete(Temp);
 	});
 }
 #endif // UE_METAL_RHI_SUPPORT_CLEAR_UAV_WITH_BLIT_ENCODER
@@ -640,7 +674,9 @@ void FMetalUnorderedAccessView::ClearUAV(TRHICommandList_RecursiveHazardous<FMet
     auto GetValueType = [&](EPixelFormat InFormat)
     {
         if (bFloat)
-            return EClearReplacementValueType::Float;
+		{
+			return EClearReplacementValueType::Float;
+		}
 
         // The Metal validation layer will complain about resources with a
         // signed format bound against an unsigned data format type as the
@@ -774,14 +810,14 @@ void FMetalRHICommandContext::RHICopyToStagingBuffer(FRHIBuffer* SourceBufferRHI
     {
         if (ReadbackBuffer)
         {
-            SafeReleaseMetalBuffer(ReadbackBuffer);
+			FMetalDynamicRHI::Get().DeferredDelete(ReadbackBuffer);
         }
-        FMetalPooledBufferArgs ArgsCPU(GetMetalDeviceContext().GetDevice(), NumBytes, BUF_Dynamic, MTL::StorageModeShared);
-        ReadbackBuffer = GetMetalDeviceContext().CreatePooledBuffer(ArgsCPU);
+        FMetalPooledBufferArgs ArgsCPU(&Device, NumBytes, BUF_Dynamic, MTL::StorageModeShared);
+        ReadbackBuffer = Device.CreatePooledBuffer(ArgsCPU);
     }
 
     // Inline copy from the actual buffer to the shadow
-    GetMetalDeviceContext().CopyFromBufferToBuffer(SourceBuffer->GetCurrentBuffer(), Offset, ReadbackBuffer, 0, NumBytes);
+    CopyFromBufferToBuffer(SourceBuffer->GetCurrentBuffer(), Offset, ReadbackBuffer, 0, NumBytes);
 }
 
 void FMetalRHICommandContext::RHIWriteGPUFence(FRHIGPUFence* FenceRHI)
@@ -790,7 +826,7 @@ void FMetalRHICommandContext::RHIWriteGPUFence(FRHIGPUFence* FenceRHI)
     
     check(FenceRHI);
     FMetalGPUFence* Fence = ResourceCast(FenceRHI);
-    Fence->WriteInternal(Context->GetCurrentCommandBuffer());
+    Fence->WriteInternal(CurrentEncoder.GetCommandBuffer());
 }
 
 FGPUFenceRHIRef FMetalDynamicRHI::RHICreateGPUFence(const FName &Name)

@@ -2,7 +2,9 @@
 
 #include "Helpers/Sessions/CreateSessionHelper.h"
 #include "Helpers/Sessions/StartMatchmakingSessionHelper.h"
-#include "OnlineCatchHelper.h"
+#include "Helpers/Sessions/LeaveSessionHelper.h"
+#include "Logging/LogScopedVerbosityOverride.h"
+#include "Online/OnlineServicesLog.h"
 
 #define SESSIONS_TAG "[suite_sessions]"
 #define EG_SESSIONS_STARTMATCHMAKING_TAG SESSIONS_TAG "[startmatchmaking]"
@@ -18,7 +20,7 @@ SESSIONS_TEST_CASE("If I call StartMatchmaking with an invalid account id, I get
 	StartMatchmakingHelperParams.OpParams->SessionCreationParameters.LocalAccountId = FAccountId();
 	StartMatchmakingHelperParams.ExpectedError = TOnlineResult<FStartMatchmaking>(Errors::InvalidParams());
 
-	GetLoginPipeline()
+	GetPipeline()
 		.EmplaceStep<FStartMatchmakingHelper>(MoveTemp(StartMatchmakingHelperParams));
 		
 	RunToCompletion();
@@ -34,7 +36,7 @@ SESSIONS_TEST_CASE("If I call StartMatchmaking with an empty session name, I get
 	StartMatchmakingHelperParams.OpParams->SessionCreationParameters.SessionName = TEXT("");
 	StartMatchmakingHelperParams.ExpectedError = TOnlineResult<FStartMatchmaking>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	StartMatchmakingHelperParams.OpParams->SessionCreationParameters.LocalAccountId = AccountId;
 
@@ -55,7 +57,7 @@ SESSIONS_TEST_CASE("If I call StartMatchmaking with an empty schema name in sett
 	StartMatchmakingHelperParams.OpParams->SessionCreationParameters.SessionSettings.SchemaName = TEXT("");
 	StartMatchmakingHelperParams.ExpectedError = TOnlineResult<FStartMatchmaking>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	StartMatchmakingHelperParams.OpParams->SessionCreationParameters.LocalAccountId = AccountId;
 
@@ -77,7 +79,7 @@ SESSIONS_TEST_CASE("If I call StartMatchmaking with an invalid max connections n
 	StartMatchmakingHelperParams.OpParams->SessionCreationParameters.SessionSettings.NumMaxConnections = 0;
 	StartMatchmakingHelperParams.ExpectedError = TOnlineResult<FStartMatchmaking>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	StartMatchmakingHelperParams.OpParams->SessionCreationParameters.LocalAccountId = AccountId;
 
@@ -100,7 +102,7 @@ SESSIONS_TEST_CASE("If I call StartMatchmaking with an empty custom setting name
 	StartMatchmakingHelperParams.OpParams->SessionCreationParameters.SessionSettings.CustomSettings.Emplace(FName(""), FCustomSessionSetting{FSchemaVariant(false), ESchemaAttributeVisibility::Public});
 	StartMatchmakingHelperParams.ExpectedError = TOnlineResult<FStartMatchmaking>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	StartMatchmakingHelperParams.OpParams->SessionCreationParameters.LocalAccountId = AccountId;
 
@@ -123,7 +125,7 @@ SESSIONS_TEST_CASE("If I call StartMatchmaking with an empty search filter key, 
 	StartMatchmakingHelperParams.OpParams->SessionSearchFilters.Emplace(FFindSessionsSearchFilter{ FName(""), ESchemaAttributeComparisonOp::Equals, FSchemaVariant(100.0)});
 	StartMatchmakingHelperParams.ExpectedError = TOnlineResult<FStartMatchmaking>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	StartMatchmakingHelperParams.OpParams->SessionCreationParameters.LocalAccountId = AccountId;
 
@@ -135,6 +137,8 @@ SESSIONS_TEST_CASE("If I call StartMatchmaking with an empty search filter key, 
 
 SESSIONS_TEST_CASE("If I call StartMatchmaking with session override id less than 16 chars or more than 64, I get an error", EG_SESSIONS_STARTMATCHMAKINGEOS_TAG)
 {
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogOnlineServices, ELogVerbosity::NoLogging);
+
 	DestroyCurrentServiceModule();
 
 	FAccountId AccountId;
@@ -157,7 +161,7 @@ SESSIONS_TEST_CASE("If I call StartMatchmaking with session override id less tha
 	SecondStartMatchmakingHelperParams.OpParams->SessionCreationParameters.SessionIdOverride = TEXT("SessionIdOverrideSessionIdOverrideSessionIdOverrideSessionIdOverride");
 	SecondStartMatchmakingHelperParams.ExpectedError = TOnlineResult<FStartMatchmaking>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FirstStartMatchmakingHelperParams.OpParams->SessionCreationParameters.LocalAccountId = AccountId;
 	SecondStartMatchmakingHelperParams.OpParams->SessionCreationParameters.LocalAccountId = AccountId;
@@ -172,8 +176,8 @@ SESSIONS_TEST_CASE("If I call StartMatchmaking with session override id less tha
 SESSIONS_TEST_CASE("If I call StartMatchmaking with name already in use, I get an error", EG_SESSIONS_STARTMATCHMAKING_TAG)
 {
 	DestroyCurrentServiceModule();
-	ResetAccountStatus();
 
+	int32 UserNumToLogin = 7;
 	FAccountId AccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -192,14 +196,22 @@ SESSIONS_TEST_CASE("If I call StartMatchmaking with name already in use, I get a
 	StartMatchmakingHelperParams.OpParams->SessionCreationParameters.SessionSettings.NumMaxConnections = 2;
 	StartMatchmakingHelperParams.ExpectedError = TOnlineResult<FStartMatchmaking>(Errors::InvalidState());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("StartMatchmakingAlreadyInUseSessionName");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 	StartMatchmakingHelperParams.OpParams->SessionCreationParameters.LocalAccountId = AccountId;
+	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;
 
 	LoginPipeline
 		.EmplaceStep<FCreateSessionHelper>(MoveTemp(CreateSessionHelperParams))
-		.EmplaceStep<FStartMatchmakingHelper>(MoveTemp(StartMatchmakingHelperParams));
+		.EmplaceStep<FStartMatchmakingHelper>(MoveTemp(StartMatchmakingHelperParams))
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
 
 	RunToCompletion();
 }
@@ -216,7 +228,7 @@ SESSIONS_TEST_CASE("If I call StartMatchmaking with valid data, the operation wi
 	StartMatchmakingHelperParams.OpParams->SessionCreationParameters.SessionSettings.NumMaxConnections = 2;
 	StartMatchmakingHelperParams.ExpectedError = TOnlineResult<FStartMatchmaking>(Errors::NotImplemented());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	StartMatchmakingHelperParams.OpParams->SessionCreationParameters.LocalAccountId = AccountId;
 

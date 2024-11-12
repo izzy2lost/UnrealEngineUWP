@@ -24,10 +24,13 @@ struct IDMMaterialBuildStateInterface
 {
 	virtual ~IDMMaterialBuildStateInterface() = default;
 
+	/** Returns the dynamic material being built. */
 	virtual UMaterial* GetDynamicMaterial() const = 0;
 
+	/** Returns the material model for the material being build. */
 	virtual UDynamicMaterialModel* GetMaterialModel() const = 0;
 
+	/** Returns the build utils object for this build state, holding helpful material utilities. */
 	virtual IDMMaterialBuildUtilsInterface& GetBuildUtils() const = 0;
 
 	/** Material Values */

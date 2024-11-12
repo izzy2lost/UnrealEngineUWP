@@ -2,13 +2,14 @@
 
 #include "AvaSVGEditorModule.h"
 #include "AvaInteractiveToolsDelegates.h"
+#include "GameFramework/Actor.h"
 #include "IAvalancheInteractiveToolsModule.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Modifiers/AvaBevelModifier.h"
 #include "Modifiers/AvaExtrudeModifier.h"
-#include "Modules/ModuleObserver.h"
 #include "ProceduralMeshes/SVGDynamicMeshComponent.h"
 #include "SVGEngineSubsystem.h"
+#include "SVGImporter.h"
 #include "SVGShapesParentActor.h"
 #include "Subsystems/ActorModifierCoreSubsystem.h"
 #include "Tool/AvaSVGActorTool.h"
@@ -20,6 +21,7 @@ void FAvaSVGEditorModule::StartupModule()
 	FAvaInteractiveToolsDelegates::GetRegisterToolsDelegate().AddRaw(this, &FAvaSVGEditorModule::RegisterTools);
 
 	USVGEngineSubsystem::OnSVGActorSplit().BindRaw(this, &FAvaSVGEditorModule::OnSVGActorSplit);
+	USVGEngineSubsystem::OnSVGShapesUpdated().BindRaw(this, &FAvaSVGEditorModule::OnSVGShapesUpdated);
 }
 
 void FAvaSVGEditorModule::ShutdownModule()
@@ -27,26 +29,22 @@ void FAvaSVGEditorModule::ShutdownModule()
 	FAvaInteractiveToolsDelegates::GetRegisterToolsDelegate().RemoveAll(this);
 
 	USVGEngineSubsystem::OnSVGActorSplit().Unbind();
+	USVGEngineSubsystem::OnSVGShapesUpdated().Unbind();
 }
 
 void FAvaSVGEditorModule::RegisterTools(IAvalancheInteractiveToolsModule* InModule)
 {
-	// Use module observer to make sure SVGImporterEditor is loaded
-	FModuleObserver ModuleObserver(
-		"SVGImporterEditor",
-		FSimpleDelegate::CreateLambda([InModule]()
-		{
-			if (!InModule)
-			{
-				return;
-			}
+	if (!InModule)
+	{
+		return;
+	}
 
-			InModule->RegisterTool(
-				IAvalancheInteractiveToolsModule::Get().CategoryNameActor,
-				GetDefault<UAvaSVGActorTool>()->GetToolParameters()
-			);
-		}),
-		FSimpleDelegate()
+	// Load svg module
+	FSVGImporterModule::Get();
+
+	InModule->RegisterTool(
+		IAvalancheInteractiveToolsModule::Get().CategoryNameActor,
+		GetDefault<UAvaSVGActorTool>()->GetToolParameters()
 	);
 }
 
@@ -141,6 +139,25 @@ void FAvaSVGEditorModule::OnSVGActorSplit(ASVGShapesParentActor* InSVGShapesPare
 	}
 }
 
+void FAvaSVGEditorModule::OnSVGShapesUpdated(AActor* InActor) const
+{
+	const UActorModifierCoreSubsystem* ModifierCoreSubsystem = UActorModifierCoreSubsystem::Get();
+
+	if (!ModifierCoreSubsystem)
+	{
+		return;
+	}
+
+	UActorModifierCoreStack* ModifierStack = ModifierCoreSubsystem->GetActorModifierStack(InActor);
+
+	if (!ModifierStack)
+	{
+		return;
+	}
+
+ 	ModifierStack->MarkModifierDirty();
+}
+
 #undef LOCTEXT_NAMESPACE
 
-IMPLEMENT_MODULE(FAvaSVGEditorModule, AvalancheSVGEditorModule)
+IMPLEMENT_MODULE(FAvaSVGEditorModule, AvalancheSVGEditor)

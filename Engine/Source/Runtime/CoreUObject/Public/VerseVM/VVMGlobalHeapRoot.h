@@ -18,6 +18,7 @@ struct FMarkStackVisitor;
 struct FGlobalHeapRoot
 {
 	COREUOBJECT_API FGlobalHeapRoot();
+	virtual ~FGlobalHeapRoot() = default;
 
 	// Implement these visit any strong references in the root
 	virtual void Visit(FMarkStackVisitor& Visitor) = 0;

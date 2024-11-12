@@ -41,9 +41,7 @@ bool FPCGMergeElement::ExecuteInternal(FPCGContext* Context) const
 	check(Context);
 
 	const UPCGMergeSettings* Settings = Context->GetInputSettings<UPCGMergeSettings>();
-	check(Settings);
-
-	const bool bMergeMetadata = Settings->bMergeMetadata;
+	const bool bMergeMetadata = !Settings || Settings->bMergeMetadata;
 
 	TArray<FPCGTaggedData> Sources = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
@@ -82,7 +80,7 @@ bool FPCGMergeElement::ExecuteInternal(FPCGContext* Context) const
 			// Second valid data - we'll create the actual merged data at this point
 			check(TargetTaggedData);
 
-			TargetPointData = NewObject<UPCGPointData>();
+			TargetPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 			TargetPointData->InitializeFromData(CastChecked<const UPCGPointData>(TargetTaggedData->Data), nullptr, bMergeMetadata);
 			TargetTaggedData->Data = TargetPointData;
 		}

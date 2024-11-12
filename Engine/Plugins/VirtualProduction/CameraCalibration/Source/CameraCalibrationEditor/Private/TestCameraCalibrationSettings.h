@@ -101,6 +101,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "Calibrate Camera Solver Settings")
 	bool bFixExtrinsics = false;
 
+	/** If true, the solver will not try to solve for distortion */
+	UPROPERTY(config, EditAnywhere, Category = "Calibrate Camera Solver Settings")
+	bool bFixDistortion = false;
+
 	/** If true, the solver will not try to solve for distortion, and will assume there is zero distortion in the image */
 	UPROPERTY(config, EditAnywhere, Category = "Calibrate Camera Solver Settings")
 	bool bFixZeroDistortion = false;

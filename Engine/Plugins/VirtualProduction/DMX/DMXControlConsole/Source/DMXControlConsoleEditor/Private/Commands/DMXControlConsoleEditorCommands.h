@@ -34,6 +34,7 @@ public:
 	TSharedPtr<FUICommandInfo> ClearAll;
 	TSharedPtr<FUICommandInfo> ResetToDefault;
 	TSharedPtr<FUICommandInfo> ResetToZero;
+	TSharedPtr<FUICommandInfo> Reload;
 
 	TSharedPtr<FUICommandInfo> Enable;
 	TSharedPtr<FUICommandInfo> EnableAll;

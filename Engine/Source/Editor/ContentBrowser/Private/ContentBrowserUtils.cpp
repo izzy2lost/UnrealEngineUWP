@@ -18,6 +18,7 @@
 #include "Framework/Application/IMenu.h"
 #include "Framework/Application/MenuStack.h"
 #include "Framework/Application/SlateApplication.h"
+#include "FrontendFilterBase.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "HAL/PlatformCrt.h"
@@ -40,6 +41,8 @@
 #include "Misc/Optional.h"
 #include "Misc/Paths.h"
 #include "SAssetView.h"
+#include "Settings/ContentBrowserSettings.h"
+#include "SFilterList.h"
 #include "SPathView.h"
 #include "SlateOptMacros.h"
 #include "SlotBase.h"
@@ -58,6 +61,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Algo/Transform.h"
+#include "ContentBrowserStyle.h"
 
 class SWidget;
 struct FGeometry;
@@ -104,7 +108,8 @@ public:
 				.VAlign(VAlign_Center)
 				.Padding(0.f, 0.f, 4.f, 0.f)
 				[
-					SNew(SImage) .Image( FAppStyle::GetBrush("ContentBrowser.PopupMessageIcon") )
+					SNew(SImage)
+					.Image(UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetBrush("ContentBrowser.PopupMessageIcon"))
 				]
 
 				+SHorizontalBox::Slot()
@@ -332,6 +337,46 @@ FString ContentBrowserUtils::GetItemReferencesText(const TArray<FContentBrowserI
 	return Result;
 }
 
+FString ContentBrowserUtils::GetItemObjectPathText(const TArray<FContentBrowserItem>& Items)
+{
+	TArray<FContentBrowserItem> SortedItems = Items;
+	SortedItems.Sort([](const FContentBrowserItem& One, const FContentBrowserItem& Two)
+	{
+		return One.GetVirtualPath().Compare(Two.GetVirtualPath()) < 0;
+	});
+
+	FString Result;
+	for (const FContentBrowserItem& Item : SortedItems)
+	{
+		if (ensure(!Item.IsFolder()))
+		{
+			Item.AppendItemObjectPath(Result);
+		}
+	}
+
+	return Result;
+}
+
+FString ContentBrowserUtils::GetItemPackageNameText(const TArray<FContentBrowserItem>& Items)
+{
+	TArray<FContentBrowserItem> SortedItems = Items;
+	SortedItems.Sort([](const FContentBrowserItem& One, const FContentBrowserItem& Two)
+	{
+		return One.GetVirtualPath().Compare(Two.GetVirtualPath()) < 0;
+	});
+
+	FString Result;
+	for (const FContentBrowserItem& Item : SortedItems)
+	{
+		if (ensure(!Item.IsFolder()))
+		{
+			Item.AppendItemPackageName(Result);
+		}
+	}
+
+	return Result;
+}
+
 FString ContentBrowserUtils::GetFolderReferencesText(const TArray<FContentBrowserItem>& Folders)
 {
 	TArray<FContentBrowserItem> SortedItems = Folders;
@@ -359,6 +404,24 @@ FString ContentBrowserUtils::GetFolderReferencesText(const TArray<FContentBrowse
 void ContentBrowserUtils::CopyItemReferencesToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy)
 {
 	FString Text = GetItemReferencesText(ItemsToCopy);
+	if (!Text.IsEmpty())
+	{
+		FPlatformApplicationMisc::ClipboardCopy(*Text);
+	}
+}
+
+void ContentBrowserUtils::CopyItemObjectPathToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy)
+{
+	FString Text = GetItemObjectPathText(ItemsToCopy);
+	if (!Text.IsEmpty())
+	{
+		FPlatformApplicationMisc::ClipboardCopy(*Text);
+	}
+}
+
+void ContentBrowserUtils::CopyItemPackageNameToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy)
+{
+	FString Text = GetItemPackageNameText(ItemsToCopy);
 	if (!Text.IsEmpty())
 	{
 		FPlatformApplicationMisc::ClipboardCopy(*Text);
@@ -454,6 +517,82 @@ bool ContentBrowserUtils::IsItemPluginRootFolder(const FContentBrowserItem& InIt
 		return false; // Contains a second slash, is not a root
 	}
 	return IsItemPluginContent(InItem);
+}
+
+bool ContentBrowserUtils::TryGetFolderBrushAndShadowName(const FContentBrowserItem& InFolder, FName& OutBrushName, FName& OutShadowBrushName)
+{
+	if (!InFolder.IsValid() || !InFolder.IsFolder())
+	{
+		return false;
+	}
+
+	OutShadowBrushName = TEXT("ContentBrowser.FolderItem.DropShadow");
+	const bool bDeveloperFolder = IsItemDeveloperContent(InFolder);
+	const bool bCodeFolder = EnumHasAnyFlags(InFolder.GetItemCategory(), EContentBrowserItemFlags::Category_Class);
+	const FContentBrowserItemDataAttributeValue VirtualAttributeValue = InFolder.GetItemAttribute(ContentBrowserItemAttributes::ItemIsCustomVirtualFolder);
+	const bool bVirtualFolder = VirtualAttributeValue.IsValid() && VirtualAttributeValue.GetValue<bool>();
+	const bool bPluginFolder = IsItemPluginRootFolder(InFolder);
+
+	if (bDeveloperFolder)
+	{
+		OutBrushName = TEXT("ContentBrowser.ListViewDeveloperFolderIcon");
+	}
+	else if (bCodeFolder)
+	{
+		OutBrushName = TEXT("ContentBrowser.ListViewCodeFolderIcon");
+	}
+	else if (bVirtualFolder && ShouldShowCustomVirtualFolderIcon())
+	{
+		OutBrushName = TEXT("ContentBrowser.ListViewVirtualFolderIcon");
+		OutShadowBrushName = TEXT("ContentBrowser.ListViewVirtualFolderShadow");
+	}
+	else if (bPluginFolder && ShouldShowPluginFolderIcon())
+	{
+		OutBrushName = TEXT("ContentBrowser.ListViewPluginFolderIcon");
+	}
+	else
+	{
+		OutBrushName = TEXT("ContentBrowser.ListViewFolderIcon");
+	}
+	return true;
+}
+
+bool ContentBrowserUtils::TryGetFolderBrushAndShadowNameSmall(const FContentBrowserItem& InFolder, FName& OutBrushName, FName& OutShadowBrushName)
+{
+	if (!InFolder.IsValid() || !InFolder.IsFolder())
+	{
+		return false;
+	}
+
+	OutShadowBrushName = TEXT("ContentBrowser.FolderItem.DropShadow");
+	const bool bDeveloperFolder = IsItemDeveloperContent(InFolder);
+	const bool bCodeFolder = EnumHasAnyFlags(InFolder.GetItemCategory(), EContentBrowserItemFlags::Category_Class);
+	const FContentBrowserItemDataAttributeValue VirtualAttributeValue = InFolder.GetItemAttribute(ContentBrowserItemAttributes::ItemIsCustomVirtualFolder);
+	const bool bVirtualFolder = VirtualAttributeValue.IsValid() && VirtualAttributeValue.GetValue<bool>();
+	const bool bPluginFolder = IsItemPluginRootFolder(InFolder);
+
+	if (bDeveloperFolder)
+	{
+		OutBrushName = TEXT("ContentBrowser.AssetTreeFolderClosedDeveloper");
+	}
+	else if (bCodeFolder)
+	{
+		OutBrushName = TEXT("ContentBrowser.AssetTreeFolderClosedCode");
+	}
+	else if (bVirtualFolder && ShouldShowCustomVirtualFolderIcon())
+	{
+		OutBrushName = TEXT("ContentBrowser.AssetTreeFolderClosedVirtual");
+		OutShadowBrushName = TEXT("ContentBrowser.ListViewVirtualFolderShadow");
+	}
+	else if (bPluginFolder && ShouldShowPluginFolderIcon())
+	{
+		OutBrushName = TEXT("ContentBrowser.AssetTreeFolderClosedPluginRoot");
+	}
+	else
+	{
+		OutBrushName = TEXT("ContentBrowser.AssetTreeFolderClosed");
+	}
+	return true;
 }
 
 bool ContentBrowserUtils::IsCollectionPath(const FString& InPath, FName* OutCollectionName, ECollectionShareType::Type* OutCollectionShareType)
@@ -785,7 +924,9 @@ FName ContentBrowserUtils::GetInvariantPath(const FContentBrowserItemPath& ItemP
 
 EContentBrowserIsFolderVisibleFlags ContentBrowserUtils::GetIsFolderVisibleFlags(const bool bDisplayEmpty)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return EContentBrowserIsFolderVisibleFlags::Default | (bDisplayEmpty ? EContentBrowserIsFolderVisibleFlags::None : EContentBrowserIsFolderVisibleFlags::HideEmptyFolders);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 bool ContentBrowserUtils::IsFavoriteFolder(const FString& FolderPath)
@@ -921,4 +1062,199 @@ bool ContentBrowserUtils::ShouldShowPluginFolderIcon()
 	return CVarShowPluginFolderIcon->GetBool();
 }
 
+bool ContentBrowserUtils::ShouldShowRedirectors(TSharedPtr<SFilterList> Filters)
+{
+	if (Filters.IsValid())
+	{
+		TSharedPtr<FFrontendFilter> ShowRedirectorsFilter = Filters->GetFrontendFilter(TEXT("ShowRedirectorsBackend"));
+		if (ShowRedirectorsFilter.IsValid())
+		{
+			return Filters->IsFrontendFilterActive(ShowRedirectorsFilter);
+		}
+	}
+	return false;
+}
+
+FContentBrowserInstanceConfig* ContentBrowserUtils::GetContentBrowserConfig(FName InstanceName)
+{
+	if (InstanceName.IsNone())
+	{
+		return nullptr;
+	}
+
+	FContentBrowserInstanceConfig* Config = UContentBrowserConfig::Get()->Instances.Find(InstanceName);
+	if (Config == nullptr)
+	{
+		return nullptr;
+	}
+
+	return Config;
+}
+
+FPathViewConfig* ContentBrowserUtils::GetPathViewConfig(FName InstanceName)
+{
+	if (InstanceName.IsNone())
+	{
+		return nullptr;
+	}
+
+	FContentBrowserInstanceConfig* Config = UContentBrowserConfig::Get()->Instances.Find(InstanceName);
+	if (Config == nullptr)
+	{
+		return nullptr;
+	}
+
+	return &Config->PathView;
+}
+
+EContentBrowserItemAttributeFilter ContentBrowserUtils::GetContentBrowserItemAttributeFilter(FName InstanceName)
+{
+	const UContentBrowserSettings* ContentBrowserSettings = GetDefault<UContentBrowserSettings>();
+	bool bDisplayEngineContent = ContentBrowserSettings->GetDisplayEngineFolder();
+	bool bDisplayPluginContent = ContentBrowserSettings->GetDisplayPluginFolders();
+	bool bDisplayDevelopersContent = ContentBrowserSettings->GetDisplayDevelopersFolder();
+	bool bDisplayL10NContent = ContentBrowserSettings->GetDisplayL10NFolder();
+
+	// check to see if we have an instance config that overrides the defaults in UContentBrowserSettings
+	if (FContentBrowserInstanceConfig* EditorConfig = GetContentBrowserConfig(InstanceName))
+	{
+		bDisplayEngineContent = EditorConfig->bShowEngineContent;
+		bDisplayPluginContent = EditorConfig->bShowPluginContent;
+		bDisplayDevelopersContent = EditorConfig->bShowDeveloperContent;
+		bDisplayL10NContent = EditorConfig->bShowLocalizedContent;
+	}
+
+	return EContentBrowserItemAttributeFilter::IncludeProject
+		 | (bDisplayEngineContent ? EContentBrowserItemAttributeFilter::IncludeEngine : EContentBrowserItemAttributeFilter::IncludeNone)
+		 | (bDisplayPluginContent ? EContentBrowserItemAttributeFilter::IncludePlugins : EContentBrowserItemAttributeFilter::IncludeNone)
+		 | (bDisplayDevelopersContent ? EContentBrowserItemAttributeFilter::IncludeDeveloper : EContentBrowserItemAttributeFilter::IncludeNone)
+		 | (bDisplayL10NContent ? EContentBrowserItemAttributeFilter::IncludeLocalized : EContentBrowserItemAttributeFilter::IncludeNone);
+}
+
+FContentBrowserItem ContentBrowserUtils::TryGetItemFromUserProvidedPath(FStringView RequestedPathView)
+{
+	// For all types of accepted input we can trim a trailing slash if it exists
+	if (RequestedPathView.EndsWith('/'))
+	{
+		RequestedPathView.LeftChopInline(1);
+	}
+
+	UContentBrowserDataSubsystem* ContentBrowserData = IContentBrowserDataModule::Get().GetSubsystem();
+	FName RequestedPath(RequestedPathView);
+
+	// If the path is already a valid virtual path, go there
+	FContentBrowserItem Item = ContentBrowserData->GetItemAtPath(RequestedPath, EContentBrowserItemTypeFilter::IncludeAll);
+	if (Item.IsValid())
+	{
+		return Item;
+	}
+
+	// If the path is a non-virtual path like /Game/Maps transform it into a virtual path and try and find an item there
+	FName VirtualPath = ContentBrowserData->ConvertInternalPathToVirtual(RequestedPath);
+	if (!VirtualPath.IsNone())
+	{
+		Item = ContentBrowserData->GetItemAtPath(VirtualPath, EContentBrowserItemTypeFilter::IncludeAll);
+		if (Item.IsValid())
+		{
+			return Item;
+		}
+	}
+
+	// If the string is a complete object path (with or without class), sync to that asset
+	FStringView ObjectPathView = RequestedPathView;
+	if (FPackageName::IsValidObjectPath(ObjectPathView) || FPackageName::ParseExportTextPath(RequestedPathView, nullptr, &ObjectPathView))
+	{
+		VirtualPath = ContentBrowserData->ConvertInternalPathToVirtual(FName(ObjectPathView));
+		Item = ContentBrowserData->GetItemAtPath(VirtualPath, EContentBrowserItemTypeFilter::IncludeFiles);
+		if (Item.IsValid())
+		{
+			return Item;
+		}
+	}
+
+	auto GetItemFromPackageName = [ContentBrowserData](const FString& PackageName) -> FContentBrowserItem {
+		// Packages like /Game/Characters/Knight do not map to virtual paths in data source, assets like /Game/Characters/Knight.Knight do.
+		// See if there's an item if we duplicate the last part of the path 
+		FName InternalPath(TStringBuilder<320>(InPlace, PackageName, TEXTVIEW("."), FPackageName::GetShortName(PackageName)));
+		FName VirtualPath = ContentBrowserData->ConvertInternalPathToVirtual(InternalPath);
+		FContentBrowserItem Item = ContentBrowserData->GetItemAtPath(VirtualPath, EContentBrowserItemTypeFilter::IncludeFiles);
+		if (Item.IsValid())
+		{
+			return Item;
+		}
+
+		// Otherwise go up to the package path and enumerate items to see if there's an asset with the desired package name 
+		FString PackagePath = FPackageName::GetLongPackagePath(PackageName);
+		VirtualPath = ContentBrowserData->ConvertInternalPathToVirtual(FName(PackagePath));
+		FContentBrowserDataFilter Filter;
+		Filter.bRecursivePaths = false;
+		Filter.ItemTypeFilter = EContentBrowserItemTypeFilter::IncludeFiles;
+		ContentBrowserData->EnumerateItemsUnderPath(VirtualPath, Filter, [&Item, &PackageName](FContentBrowserItem&& InItem) { 
+			FName InternalPath = InItem.GetInternalPath();	
+			if (WriteToString<256>(InternalPath).ToView().StartsWith(PackageName))
+			{
+				Item = MoveTemp(InItem);
+				return false; 
+			}
+			return true;
+		});
+		if (Item.IsValid())
+		{
+			return Item;
+		}
+		return FContentBrowserItem();
+	};
+
+	// If the string is an incomplete virtual path that looks more like a package name 
+	// e.g. /All/Game/Maps/Arena rather than /Game/Maps/Arena or /All/Game/Maps/Arena.Arena
+	// try and convert it to an internal path, then try and use it as a package name 
+	{
+		FName ConvertedPath;
+		FString PackageName;
+		if (ContentBrowserData->TryConvertVirtualPath(RequestedPath, ConvertedPath) == EContentBrowserPathType::Internal)
+		{
+			if (FPackageName::IsValidLongPackageName(WriteToString<256>(ConvertedPath)))
+			{
+				PackageName = ConvertedPath.ToString();
+				Item = GetItemFromPackageName(PackageName);
+				if (Item.IsValid())
+				{
+					return Item;
+				}
+			}
+		}
+	}
+
+	// If the string is a filesystem path to a package, sync to that asset
+	FString PackageName;
+	if (FPackageName::IsValidLongPackageName(PackageName) || FPackageName::TryConvertFilenameToLongPackageName(FString(RequestedPathView), PackageName))
+	{
+		Item = GetItemFromPackageName(PackageName);
+		if (Item.IsValid())
+		{
+			return Item;
+		}
+	}
+
+	// Try and remove elements from the end of the path until it's a valid virtual path 
+	FPathViews::IterateAncestors(RequestedPathView, [RequestedPathView, ContentBrowserData, &Item](FStringView InAncestor){
+		if (RequestedPathView == InAncestor)
+		{
+			return true;
+		}
+		FName AncestorName(InAncestor);
+		Item = ContentBrowserData->GetItemAtPath(AncestorName, EContentBrowserItemTypeFilter::IncludeFolders);
+		if (Item.IsValid())
+		{
+			return false;
+		}
+		return true;
+	});
+	if (Item.IsValid())
+	{
+		return Item;
+	}
+
+	return FContentBrowserItem();
+}
 #undef LOCTEXT_NAMESPACE

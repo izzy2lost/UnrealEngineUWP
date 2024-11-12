@@ -17,6 +17,7 @@
 #include "DetailCategoryBuilder.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformModule.h"
+#include "Interfaces/ITargetPlatformSettingsModule.h"
 #include "SExternalImageReference.h"
 #include "Widgets/Input/SNumericDropDown.h"
 #include "Dialogs/Dialogs.h"
@@ -81,11 +82,9 @@ static FString GetSplashFilename(EMacImageScope::Type Scope, bool bIsEditorSplas
 /* Helper function used to generate filenames for icons */
 static FString GetIconFilename(EMacImageScope::Type Scope)
 {
-	const FString& PlatformName = FModuleManager::GetModuleChecked<ITargetPlatformModule>("MacTargetPlatform").GetTargetPlatforms()[0]->PlatformName();
-
 	if (Scope == EMacImageScope::Engine)
 	{
-		FString Filename = FPaths::EngineDir() / FString(TEXT("Source/Runtime/Launch/Resources")) / PlatformName / FString("UnrealEngine.icns");
+		FString Filename = FPaths::EngineDir() / FString(TEXT("Source/Runtime/Launch/Resources/Mac/UnrealEngine.icns"));
 		return FPaths::ConvertRelativePathToFull(Filename);
 	}
 	else
@@ -93,7 +92,7 @@ static FString GetIconFilename(EMacImageScope::Type Scope)
 		FString Filename = FPaths::ProjectDir() / TEXT("Build/Mac/Application.icns");
 		if(!FPaths::FileExists(Filename))
 		{
-			FString LegacyFilename = FPaths::GameSourceDir() / FString(FApp::GetProjectName()) / FString(TEXT("Resources")) / PlatformName / FString(FApp::GetProjectName()) + TEXT(".icns");
+			FString LegacyFilename = FPaths::GameSourceDir() / FString(FApp::GetProjectName()) / FString(TEXT("Resources/Mac")) / FString(FApp::GetProjectName()) + TEXT(".icns");
 			if(FPaths::FileExists(LegacyFilename))
 			{
 				Filename = LegacyFilename;
@@ -138,7 +137,7 @@ static FText GetFriendlyNameFromRHINameMac(FName InRHIName)
 		FriendlyRHIName = LOCTEXT("MetalSM5", "Mac Metal Desktop Renderer (SM5, Metal 2.4+, macOS Monterey 12.0 or later)");
 		break;
     case SP_METAL_SM6:
-        FriendlyRHIName = LOCTEXT("MetalSM6", "Mac Metal Desktop Renderer Beta (SM6, Metal 2.4+, macOS 14.0 or later, M2+)");
+        FriendlyRHIName = LOCTEXT("MetalSM6", "Mac Metal Desktop Renderer Beta (SM6, Metal 3.0+, macOS 15.0 or later, M2+)");
         break;
 	case SP_METAL_SIM:
 		FriendlyRHIName = LOCTEXT("MetalSim", "iOS Metal Simulator Mobile Renderer (Simulator, Metal 2.4+, iOS 15.0 or later)");
@@ -172,12 +171,11 @@ void FMacTargetSettingsDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBu
 {
 	FSimpleDelegate OnUpdateShaderStandardWarning = FSimpleDelegate::CreateSP(this, &FMacTargetSettingsDetails::UpdateShaderStandardWarning);
 	
-	ITargetPlatform* TargetPlatform = FModuleManager::GetModuleChecked<ITargetPlatformModule>("MacTargetPlatform").GetTargetPlatforms()[0];
-    
+	ITargetPlatformSettings* TargetPlatformSettings = FModuleManager::GetModuleChecked<ITargetPlatformSettingsModule>("MacTargetPlatformSettings").GetTargetPlatformSettings()[0];
 	// Setup the supported/targeted RHI property view
 	TargetShaderFormatsDetails = MakeShareable(new FShaderFormatsPropertyDetails(&DetailBuilder, TEXT("TargetedRHIs"), TEXT("Targeted RHIs")));
 	TargetShaderFormatsDetails->SetOnUpdateShaderWarning(OnUpdateShaderStandardWarning);
-	TargetShaderFormatsDetails->CreateTargetShaderFormatsPropertyView(TargetPlatform, &GetFriendlyNameFromRHINameMac);
+	TargetShaderFormatsDetails->CreateTargetShaderFormatsPropertyView(TargetPlatformSettings, &GetFriendlyNameFromRHINameMac);
 	
 	// Setup the shader version property view
     // Handle max. shader version a little specially.
@@ -358,7 +356,7 @@ TSharedRef<SWidget> FMacTargetSettingsDetails::OnGetShaderVersionContent()
 {
 	FMenuBuilder MenuBuilder(true, NULL);
 	
-	UEnum* Enum = FindObjectChecked<UEnum>(nullptr, TEXT("/Script/MacTargetPlatform.EMacMetalShaderStandard"), true);
+	UEnum* Enum = FindObjectChecked<UEnum>(nullptr, TEXT("/Script/MacTargetPlatformSettings.EMacMetalShaderStandard"), true);
 	
 	for (int32 i = 0; i < Enum->GetMaxEnumValue(); i++)
 	{
@@ -381,7 +379,7 @@ FText FMacTargetSettingsDetails::GetShaderVersionDesc() const
     int32 EnumValue;
     ShaderVersionPropertyHandle->GetValue(EnumValue);
 	
-	UEnum* Enum = FindObjectChecked<UEnum>(nullptr, TEXT("/Script/MacTargetPlatform.EMacMetalShaderStandard"), true);
+	UEnum* Enum = FindObjectChecked<UEnum>(nullptr, TEXT("/Script/MacTargetPlatformSettings.EMacMetalShaderStandard"), true);
 	
 	if (EnumValue < Enum->GetMaxEnumValue() && Enum->IsValidEnumValue(EnumValue))
 	{

@@ -20,6 +20,9 @@ public:
 
 	UPROPERTY(Instanced)
 	TObjectPtr<class UWidget> Content;
+
+	UFUNCTION(BlueprintCallable, Category = "Layout|Panel Slot")
+	UMG_API UWidget* GetContent() const;
 	
 #if WITH_EDITOR
 	UMG_API bool IsDesignTime() const;

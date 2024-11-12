@@ -92,7 +92,7 @@ void LODMapping::addIndices(std::uint16_t index, const std::uint16_t* source, st
     if (index >= indices.size()) {
         indices.resize(index + 1ul);
     }
-    indices[index].reserve(count);
+    indices[index].reserve(indices[index].size() + count);
     indices[index].insert(indices[index].end(), source, source + count);
 }
 
@@ -113,6 +113,12 @@ void LODMapping::filterIndices(std::function<bool(std::uint16_t)> filterer) {
                 it = row.erase(it);
             }
         }
+    }
+}
+
+void LODMapping::sortIndices() {
+    for (auto& row : indices) {
+        std::sort(row.begin(), row.end());
     }
 }
 

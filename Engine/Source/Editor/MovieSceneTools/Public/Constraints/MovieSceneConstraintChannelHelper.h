@@ -73,12 +73,14 @@ public:
 	static void Compensate(
 		const TSharedPtr<ISequencer>& InSequencer,
 		const UTickableTransformConstraint* InConstraint,
-		const TOptional<FFrameNumber>& InOptTime);
+		const TOptional<FFrameNumber>& InOptTime,
+		const bool bCompPreviousTick);
 	
 	static void CompensateIfNeeded(
 		const TSharedPtr<ISequencer>& InSequencer,
 		IMovieSceneConstrainedSection* Section,
 		const TOptional<FFrameNumber>& OptionalTime,
+		const bool bCompPreviousTick,
 		const int32 InChildHash = INDEX_NONE);
 		
 	static void HandleConstraintRemoved(

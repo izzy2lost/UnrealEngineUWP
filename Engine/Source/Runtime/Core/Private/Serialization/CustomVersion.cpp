@@ -12,6 +12,8 @@
 #include "HAL/CriticalSection.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/ScopeRWLock.h"
+#include "Misc/TransactionallySafeRWLock.h"
+#include "Misc/TransactionallySafeRWScopeLock.h"
 #include "Serialization/Archive.h"
 #include "Serialization/StructuredArchive.h"
 #include "Serialization/StructuredArchiveAdapters.h"
@@ -94,7 +96,7 @@ struct FStaticCustomVersionRegistry
 	};
 	typedef TMap<FGuid, FPendingRegistration, TInlineSetAllocator<64>> RegistrationQueue;
 
-	FRWLock Lock;
+	FTransactionallySafeRWLock Lock;
 	FCustomVersionContainer Registered;
 	RegistrationQueue Queue;
 
@@ -179,7 +181,7 @@ FCustomVersionContainer FCurrentCustomVersions::GetAll()
 	FStaticCustomVersionRegistry& Registry = FStaticCustomVersionRegistry::Get();
 
 	{
-		FReadScopeLock Scope(Registry.Lock);
+		FTransactionallySafeReadScopeLock Scope(Registry.Lock);
 
 		if (Registry.Queue.Num() == 0)
 		{
@@ -187,7 +189,7 @@ FCustomVersionContainer FCurrentCustomVersions::GetAll()
 		}
 	}
 
-	FWriteScopeLock Scope(Registry.Lock);
+	FTransactionallySafeWriteScopeLock Scope(Registry.Lock);
 	Registry.RegisterQueue();
 	return Registry.Registered;
 }
@@ -196,7 +198,7 @@ TOptional<FCustomVersion> FCurrentCustomVersions::Get(const FGuid& Guid)
 {
 	FStaticCustomVersionRegistry& Registry = FStaticCustomVersionRegistry::Get();
 
-	FReadScopeLock Scope(Registry.Lock);
+	FTransactionallySafeReadScopeLock Scope(Registry.Lock);
 	return Registry.Find(Guid);
 }
 
@@ -208,7 +210,7 @@ TArray<FCustomVersionDifference> FCurrentCustomVersions::Compare(const FCustomVe
 	{
 		FStaticCustomVersionRegistry& Registry = FStaticCustomVersionRegistry::Get();
 
-		FReadScopeLock Scope(Registry.Lock);
+		FTransactionallySafeReadScopeLock Scope(Registry.Lock);
 
 		for (const FCustomVersion& CompareVersion : CompareVersions)
 		{
@@ -238,7 +240,7 @@ void FCurrentCustomVersions::Register(const FGuid& Key, int32 Version, const TCH
 {
 	FStaticCustomVersionRegistry& Registry = FStaticCustomVersionRegistry::Get();
 
-	FWriteScopeLock Scope(Registry.Lock);
+	FTransactionallySafeWriteScopeLock Scope(Registry.Lock);
 	check(Registry.Queue.Find(Key) == nullptr);
 	Registry.Queue.Add(Key, { Version, Name, ValidatorFunc });
 }
@@ -247,7 +249,7 @@ void FCurrentCustomVersions::Unregister(const FGuid& Key)
 {
 	FStaticCustomVersionRegistry& Registry = FStaticCustomVersionRegistry::Get();
 
-	FWriteScopeLock Scope(Registry.Lock);
+	FTransactionallySafeWriteScopeLock Scope(Registry.Lock);
 	Registry.Unregister(Key);
 }
 
@@ -268,7 +270,7 @@ const FCustomVersionContainer& FCustomVersionContainer::GetRegistered()
 	FStaticCustomVersionRegistry& Registry = FStaticCustomVersionRegistry::Get();
 
 	// Even though returning a reference isn't thread-safe, we can still synchronize access to the queue
-	FWriteScopeLock Scope(Registry.Lock);
+	FTransactionallySafeWriteScopeLock Scope(Registry.Lock);
 	Registry.RegisterQueue();
 	return Registry.Registered;
 }
@@ -417,9 +419,9 @@ void FCustomVersionContainer::SetVersionUsingRegistry(FGuid CustomKey, ESetCusto
 		}
 
 		TOptional<FCustomVersion> RegisteredVersion;
-		UE_AUTORTFM_OPEN({
+		UE_AUTORTFM_OPEN{
 			RegisteredVersion = FCurrentCustomVersions::Get(CustomKey);
-		});
+		};
 		checkf(RegisteredVersion, TEXT("Attempted to set a version that is not registered"));
 
 		Found->Version      = RegisteredVersion->Version;
@@ -428,9 +430,9 @@ void FCustomVersionContainer::SetVersionUsingRegistry(FGuid CustomKey, ESetCusto
 	else
 	{
 		TOptional<FCustomVersion> RegisteredVersion;
-		UE_AUTORTFM_OPEN({
+		UE_AUTORTFM_OPEN{
 			RegisteredVersion = FCurrentCustomVersions::Get(CustomKey);
-		});
+		};
 
 		checkf(RegisteredVersion, TEXT("Attempted to set a version that is not registered"));
 

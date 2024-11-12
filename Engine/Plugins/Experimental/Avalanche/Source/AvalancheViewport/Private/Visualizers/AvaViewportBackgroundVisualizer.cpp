@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Visualizers/AvaViewportBackgroundVisualizer.h"
+#include "AvalancheViewportModule.h"
 #include "AvaViewportPostProcessManager.h"
 #include "AvaViewportSettings.h"
 #include "AvaViewportUtils.h"
@@ -9,9 +10,6 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/Package.h"
-#include "Viewport/Interaction/AvaViewportPostProcessInfo.h"
-#include "Viewport/Interaction/IAvaViewportDataProvider.h"
-#include "Viewport/Interaction/IAvaViewportDataProxy.h"
 #include "ViewportClient/IAvaViewportClient.h"
 
 #define LOCTEXT_NAMESPACE "AvaViewportBackgroundVisualizer"
@@ -36,6 +34,7 @@ FAvaViewportBackgroundVisualizer::FAvaViewportBackgroundVisualizer(TSharedRef<IA
 
 	if (!ViewportSettings)
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportBackgroundVisualizer::FAvaViewportBackgroundVisualizer: Unable to find viewport settings."));
 		return;
 	}
 
@@ -43,6 +42,7 @@ FAvaViewportBackgroundVisualizer::FAvaViewportBackgroundVisualizer(TSharedRef<IA
 
 	if (!BackgroundMaterial)
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportBackgroundVisualizer::FAvaViewportBackgroundVisualizer: Unable to find background material."));
 		return;
 	}
 
@@ -83,8 +83,8 @@ FString FAvaViewportBackgroundVisualizer::GetReferencerName() const
 	return UE::AvaViewport::Private::BackgroundReferencerName;
 }
 
-void FAvaViewportBackgroundVisualizer::UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InWidgetSize, 
-	const FVector2f& InCameraOffset)
+void FAvaViewportBackgroundVisualizer::UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InVisibleAreaOffset, 
+	const FVector2f& InWidgetSize, const FVector2f& InCameraOffset)
 {
 	if (FMath::IsNearlyZero(PostProcessOpacity) || !Texture || !PostProcessMaterial)
 	{
@@ -110,9 +110,6 @@ void FAvaViewportBackgroundVisualizer::UpdateForViewport(const FAvaVisibleArea& 
 
 	using namespace UE::AvaViewport::Private;
 
-	const float ImageAspectRatio = ImageSize.X / ImageSize.Y;
-	const float WidgetAspectRatio = InWidgetSize.X / InWidgetSize.Y;
-	const float ViewportAspectRatio = InVisibleArea.AbsoluteSize.X / InVisibleArea.AbsoluteSize.Y;
 	const FVector2f WidgetBasedScale = InVisibleArea.AbsoluteSize / InWidgetSize;
 	const float VisibleAreaFraction = InVisibleArea.GetVisibleAreaFraction();
 	const FVector2f Scale = WidgetBasedScale / VisibleAreaFraction;
@@ -126,37 +123,13 @@ void FAvaViewportBackgroundVisualizer::UpdateForViewport(const FAvaVisibleArea& 
 		PostProcessMaterial->SetVectorParameterValue(TextureScaleName, TextureScale);
 	}
 
-	FVector2f Offset = ((InWidgetSize - InVisibleArea.AbsoluteSize) * 0.5f)
-		+ InCameraOffset * Scale;
+	const FVector2f TopLeft = (InVisibleArea.GetVisiblePosition(FVector2f::ZeroVector) + InVisibleAreaOffset) * InVisibleArea.DPIScale;
 
-	if (InVisibleArea.IsZoomedView())
+	if (!FMath::IsNearlyEqual(TextureOffset.X, TopLeft.X)
+		|| !FMath::IsNearlyEqual(TextureOffset.Y, TopLeft.Y))
 	{
-		Offset -= InVisibleArea.GetInvisibleSize() / InVisibleArea.VisibleSize * InVisibleArea.AbsoluteSize * 0.5f;
-	}
-
-	if (!FMath::IsNearlyEqual(WidgetAspectRatio, ViewportAspectRatio))
-	{
-		if (WidgetAspectRatio > ViewportAspectRatio)
-		{
-			const float Distance = InWidgetSize.X - InVisibleArea.AbsoluteSize.X;
-			const float Scalar = InVisibleArea.VisibleSize.X;
-			const float OffsetX = Distance * InCameraOffset.X / Scalar;
-			Offset.X += OffsetX * Scale.X * InVisibleArea.GetVisibleAreaFraction();
-		}
-		else
-		{
-			const float Distance = InWidgetSize.Y - InVisibleArea.AbsoluteSize.Y;
-			const float Scalar = InVisibleArea.VisibleSize.Y;
-			const float OffsetY = Distance * InCameraOffset.Y / Scalar;
-			Offset.Y += OffsetY * Scale.Y * InVisibleArea.GetVisibleAreaFraction();
-		}
-	}
-
-	if (!FMath::IsNearlyEqual(TextureOffset.X, Offset.X)
-		|| !FMath::IsNearlyEqual(TextureOffset.Y, Offset.Y))
-	{
-		TextureOffset.X = Offset.X;
-		TextureOffset.Y = Offset.Y;
+		TextureOffset.X = TopLeft.X;
+		TextureOffset.Y = TopLeft.Y;
 		TextureOffset.Z = 0.f;
 		PostProcessMaterial->SetVectorParameterValue(TextureOffsetName, TextureOffset);
 	}
@@ -180,6 +153,7 @@ void FAvaViewportBackgroundVisualizer::UpdatePostProcessMaterial()
 {
 	if (!PostProcessMaterial)
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportBackgroundVisualizer::UpdatePostProcessMaterial: Invalid post process material."));
 		return;
 	}
 

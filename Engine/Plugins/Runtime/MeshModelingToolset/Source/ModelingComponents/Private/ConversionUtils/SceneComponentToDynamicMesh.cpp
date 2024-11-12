@@ -29,6 +29,7 @@
 #include "MeshDescriptionToDynamicMesh.h"
 #include "Physics/ComponentCollisionUtil.h"
 #include "PlanarCut.h"
+#include "SkeletalMeshOperations.h"
 #include "StaticMeshAttributes.h"
 #include "StaticMeshLODResourcesToDynamicMesh.h"
 #include "StaticMeshOperations.h"
@@ -94,23 +95,75 @@ namespace Private::ConversionHelper
 	// Static mesh conversion functions (from geometry script MeshAssetFunctions.cpp)
 	// TODO: these static mesh conversion helpers should be pulled out to their own StaticMeshToDynamicMesh converter method
 
-	struct FStaticMeshConversionOptions
+
+	// helper for the material ID remapping used for source LODs
+	// note: returns empty array if no remapping needed (or if not WITH_EDITOR)
+	TArray<int32> MapSectionToMaterialID(const UStaticMesh* Mesh, int32 SourceLOD, bool bHighResLOD)
 	{
-		// Whether to apply Build Settings during the mesh copy.
-		bool bApplyBuildSettings = true;
+#if WITH_EDITOR
+		check(Mesh);
+		TMap<int32, int32> SectionToMaterial;
+		const int32 NumMaterials = Mesh->GetStaticMaterials().Num();
+		int32 NumSectionIndex = 0;
+		if (bHighResLOD)
+		{
+			// custom path for HiResSource, where the section info map isn't available so we use mesh description slot names
+			// (note that in practice this info seems to be incorrect for some meshes; prefer the section info map where available)
+			const FMeshDescription* MeshDescription = Mesh->GetHiResMeshDescription();
+			if (!MeshDescription)
+			{
+				// fall back to empty array (treated as identity map)
+				return TArray<int32>();
+			}
+			const FStaticMeshConstAttributes MeshDescriptionAttributes(*MeshDescription);
+			TPolygonGroupAttributesConstRef<FName> MaterialSlotNames = MeshDescriptionAttributes.GetPolygonGroupMaterialSlotNames();
+			int32 SectionIndex = 0;
+			for (FPolygonGroupID PolygonGroupID : MeshDescription->PolygonGroups().GetElementIDs())
+			{
+				int32 MaterialIndex = PolygonGroupID >= 0 && PolygonGroupID < MaterialSlotNames.GetNumElements() ? Mesh->GetStaticMaterials().IndexOfByPredicate(
+					[&MaterialSlotName = MaterialSlotNames[PolygonGroupID]](const FStaticMaterial& StaticMaterial) { return StaticMaterial.MaterialSlotName == MaterialSlotName; }
+					) : INDEX_NONE;
+				if (MaterialIndex != INDEX_NONE)
+				{
+					SectionToMaterial.Add(SectionIndex, MaterialIndex);
+				}
+				++SectionIndex;
+			}
+			NumSectionIndex = SectionIndex;
+		}
+		else
+		{
+			int32 UseLOD = SourceLOD;
+			const FMeshSectionInfoMap& SectionMap = Mesh->GetSectionInfoMap();
+			int32 LODSectionNum = SectionMap.GetSectionNumber(UseLOD);
+			TArray<int32> Result;
+			for (int32 SectionIndex = 0; SectionIndex < LODSectionNum; ++SectionIndex)
+			{
+				if (SectionMap.IsValidSection(UseLOD, SectionIndex))
+				{
+					int32 MaterialIndex = SectionMap.Get(UseLOD, SectionIndex).MaterialIndex;
+					SectionToMaterial.Add(SectionIndex, MaterialIndex);
+				}
+			}
+			NumSectionIndex = LODSectionNum;
+		}
 
-		// Whether to request tangents on the copied mesh. If tangents are not requested, tangent-related build settings will also be ignored.
-		bool bRequestTangents = true;
-
-		// Whether to ignore the 'remove degenerates' option from Build Settings. Note: Only applies if 'Apply Build Settings' is enabled.
-		bool bIgnoreRemoveDegenerates = true;
-
-		// Whether to scale the copied mesh by the Build Setting's 'Build Scale'. Note: This is considered separately from the 'Apply Build Settings' option.
-		bool bUseBuildScale = true;
-
-		// Whether to request the vertex colors of the component instancing the static mesh, rather than the static mesh asset
-		bool bRequestInstanceVertexColors = true;
-	};
+		TArray<int32> Result;
+		Result.SetNumUninitialized(NumSectionIndex);
+		// Fill in identity mapping first to cover any unmapped indices
+		for (int32 Idx = 0; Idx < Result.Num(); ++Idx)
+		{
+			Result[Idx] = Idx;
+		}
+		for (TPair<int32, int32> SectionMaterial : SectionToMaterial)
+		{
+			Result[SectionMaterial.Key] = FMath::Clamp(SectionMaterial.Value, 0, NumMaterials - 1);
+		}
+		return Result;
+#else
+		return TArray<int32>();
+#endif
+	}
 
 	static bool CopyMeshFromStaticMesh_SourceData(
 		UStaticMesh* FromStaticMeshAsset,
@@ -147,6 +200,8 @@ namespace Private::ConversionHelper
 
 		const FMeshDescription* SourceMesh = nullptr;
 		const FMeshBuildSettings* BuildSettings = nullptr;
+
+		TArray<int32> PolygonGroupToMaterialMap = GetPolygonGroupToMaterialIndexMap(FromStaticMeshAsset, LODType, LODIndex);
 
 		if ((LODType == EMeshLODType::HiResSourceModel) ||
 			(LODType == EMeshLODType::MaxAvailable && FromStaticMeshAsset->IsHiResMeshDescriptionValid()))
@@ -216,6 +271,11 @@ namespace Private::ConversionHelper
 		}
 
 		FMeshDescriptionToDynamicMesh Converter;
+		Converter.bVIDsFromNonManifoldMeshDescriptionAttr = AssetOptions.bIncludeNonManifoldSrcInfo;
+		if (!AssetOptions.bUseSectionMaterialIndices)
+		{
+			Converter.SetPolygonGroupToMaterialIndexMap(PolygonGroupToMaterialMap);
+		}
 		Converter.Convert(SourceMesh, OutMesh, AssetOptions.bRequestTangents);
 
 		bSuccess = true;
@@ -234,6 +294,7 @@ namespace Private::ConversionHelper
 		FStaticMeshConversionOptions AssetOptions,
 		EMeshLODType LODType,
 		int32 LODIndex,
+		bool bRequestInstanceVertexColors,
 		FDynamicMesh3& OutMesh,
 		FText& OutErrorMessage
 	)
@@ -271,22 +332,25 @@ namespace Private::ConversionHelper
 
 		FStaticMeshLODResourcesToDynamicMesh::ConversionOptions ConvertOptions;
 #if WITH_EDITOR
-		if (AssetOptions.bUseBuildScale)
+		const bool bIsSourceModelValid = FromStaticMeshAsset->IsSourceModelValid(UseLODIndex);
+		if (AssetOptions.bUseBuildScale && bIsSourceModelValid)
 		{
 			// respect BuildScale build setting
 			const FMeshBuildSettings& LODBuildSettings = FromStaticMeshAsset->GetSourceModel(UseLODIndex).BuildSettings;
 			ConvertOptions.BuildScale = (FVector3d)LODBuildSettings.BuildScale3D;
 		}
+		// In case of cooked editor, Source model won't be valid, so it will follow the same rules as the runtime path.
+		else if (!AssetOptions.bUseBuildScale && !bIsSourceModelValid)
 #else
 		if (!AssetOptions.bUseBuildScale)
+#endif
 		{
 			OutErrorMessage = LOCTEXT("CopyMeshFromStaticMesh_BuildScaleAlreadyBaked", "Requested mesh without BuildScale, but BuildScale is already baked into the RenderData.");
 			return false;
 		}
-#endif
 
 		FStaticMeshLODResourcesToDynamicMesh Converter;
-		if (AssetOptions.bRequestInstanceVertexColors && StaticMeshComponent && StaticMeshComponent->LODData.IsValidIndex(UseLODIndex))
+		if (bRequestInstanceVertexColors && StaticMeshComponent && StaticMeshComponent->LODData.IsValidIndex(UseLODIndex))
 		{
 			FStaticMeshComponentLODInfo* InstanceMeshLODInfo = &StaticMeshComponent->LODData[UseLODIndex];
 			const bool bValidInstanceData = InstanceMeshLODInfo
@@ -314,6 +378,7 @@ namespace Private::ConversionHelper
 		EMeshLODType LODType,
 		int32 LODIndex,
 		bool bUseClosestLOD,
+		bool bRequestInstanceVertexColors,
 		FDynamicMesh3& OutMesh,
 		FText& OutErrorMessage
 	)
@@ -360,15 +425,154 @@ namespace Private::ConversionHelper
 
 		if (LODType == EMeshLODType::RenderData)
 		{
-			return CopyMeshFromStaticMesh_RenderData(FromStaticMeshAsset, StaticMeshComponent, AssetOptions, LODType, LODIndex, OutMesh, OutErrorMessage);
+			return CopyMeshFromStaticMesh_RenderData(FromStaticMeshAsset, StaticMeshComponent, AssetOptions, LODType, LODIndex, bRequestInstanceVertexColors, OutMesh, OutErrorMessage);
 		}
 		else
 		{
 			return CopyMeshFromStaticMesh_SourceData(FromStaticMeshAsset, AssetOptions, LODType, LODIndex, OutMesh, OutErrorMessage);
 		}
 	}
+	
+	
+	static bool CopyMeshFromSkinnedAsset(
+		USkinnedAsset* FromSkinnedAsset,
+		USkinnedMeshComponent* SkinnedMeshComponent,
+		EMeshLODType LODType,
+		int32 LODIndex,
+		bool bUseClosestLOD,
+		bool bWantTangents,
+		FDynamicMesh3& OutMesh,
+		FText& OutErrorMessage
+	)
+	{
+		if (!FromSkinnedAsset)
+		{
+			OutErrorMessage = LOCTEXT("CopyMeshFromSkinnedAsset_NullMesh", "Skinned mesh is null");
+			return false;
+		}
+
+		USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(FromSkinnedAsset);
+
+		// If using non-skeletal mesh variations of skinned meshes, just go straight to render data.
+		if (!SkeletalMesh)
+		{
+			LODType = EMeshLODType::RenderData;
+		}
+
+		if (bUseClosestLOD)
+		{
+			// attempt to detect if an unavailable LOD was requested, and if so re-map to an available one
+			if (LODType == EMeshLODType::MaxAvailable || LODType == EMeshLODType::HiResSourceModel)
+			{
+				LODIndex = 0;
+			}
+#if WITH_EDITOR
+			if (LODType == EMeshLODType::MaxAvailable || LODType == EMeshLODType::HiResSourceModel)
+			{
+				LODType = EMeshLODType::SourceModel;
+			}
+			if (LODType == EMeshLODType::SourceModel)
+			{
+				LODIndex = FMath::Clamp(LODIndex, 0, SkeletalMesh->GetNumSourceModels() - 1);
+				if (!SkeletalMesh->GetSourceModel(LODIndex).HasMeshDescription())
+				{
+					LODType = EMeshLODType::RenderData;
+				}
+			}
+			if (LODType == EMeshLODType::RenderData)
+			{
+				LODIndex = FMath::Clamp(LODIndex, 0, FromSkinnedAsset->GetLODNum() - 1);
+			}
+#else
+			LODType = EMeshLODType::RenderData;
+			LODIndex = FMath::Clamp(LODIndex, 0, FromSkinnedAsset->GetLODNum() - 1);
+#endif
+		}
+
+		if (LODType == EMeshLODType::RenderData)
+		{
+			return SkinnedMeshComponentToDynamicMesh(*SkinnedMeshComponent, OutMesh, LODIndex, bWantTangents);
+		}
+		else
+		{
+#if WITH_EDITOR
+			const FMeshDescription* SourceMesh = nullptr;
+
+			// Check first if we have bulk data available and non-empty.
+			if (SkeletalMesh->HasMeshDescription(LODIndex))
+			{
+				SourceMesh = SkeletalMesh->GetMeshDescription(LODIndex); 
+			}
+			if (SourceMesh == nullptr)
+			{
+				OutErrorMessage = LOCTEXT("CopyMeshFromSkinnedAsset_LODNotAvailable", "Requested LOD source mesh is not available");
+				return false;
+			}
+
+			TMap<FName, float> MorphTargetWeights;
+
+			for (const TPair<const UMorphTarget*, int32>& MorphTarget: SkinnedMeshComponent->ActiveMorphTargets)
+			{
+				const FName MorphName = MorphTarget.Key->GetFName();
+				const float MorphWeight = SkinnedMeshComponent->MorphTargetWeights[MorphTarget.Value];
+
+				MorphTargetWeights.Add(MorphName, MorphWeight);
+			}
+			
+			const TArray<FTransform>& ComponentSpaceTransforms = SkinnedMeshComponent->GetComponentSpaceTransforms();
+			FMeshDescription DeformedMesh;
+			if (!FSkeletalMeshOperations::GetPosedMesh(*SourceMesh, DeformedMesh, ComponentSpaceTransforms, NAME_None, MorphTargetWeights))
+			{
+				OutErrorMessage = LOCTEXT("CopyMeshFromSkinnedAsset_CannotPose", "Unable to pose the source mesh");
+				return false;
+			}
+			
+			FDynamicMesh3 NewMesh;
+			FMeshDescriptionToDynamicMesh Converter;
+
+			// Leave this on, since the set morph target node uses this. 
+			Converter.bVIDsFromNonManifoldMeshDescriptionAttr = true;
+			
+			Converter.Convert(&DeformedMesh, OutMesh, bWantTangents);
+		
+			return true;
+#else
+			OutErrorMessage = LOCTEXT("CopyMeshFromSkinnedAsset_EditorOnly", "Source Models are not available at Runtime");
+			return false;
+#endif
+		}
+	}
+	
 }
 
+TArray<int32> GetPolygonGroupToMaterialIndexMap(const UStaticMesh* StaticMesh, EMeshLODType LODType, int32 LODIndex)
+{
+#if WITH_EDITOR
+	if (LODType == EMeshLODType::RenderData)
+	{
+		// don't need to remap material indices for render LODs
+		return TArray<int32>();
+	}
+	// map the 'max available' lod type
+	if (LODType == EMeshLODType::MaxAvailable)
+	{
+		LODType = StaticMesh->IsHiResMeshDescriptionValid() ? EMeshLODType::HiResSourceModel : EMeshLODType::SourceModel;
+		LODIndex = 0;
+	}
+	return Private::ConversionHelper::MapSectionToMaterialID(StaticMesh, LODIndex, LODType == EMeshLODType::HiResSourceModel);
+#else
+	return TArray<int32>();
+#endif
+}
+
+bool StaticMeshToDynamicMesh(UStaticMesh* InMesh, Geometry::FDynamicMesh3& OutMesh, FText& OutErrorMessage,
+	const FStaticMeshConversionOptions& ConversionOptions, EMeshLODType LODType, int32 LODIndex, bool bUseClosestLOD)
+{
+	constexpr UStaticMeshComponent* StaticMeshComponent = nullptr; // ok to leave this null when converting from asset
+	constexpr bool bRequestInstanceVertexColors = false; // cannot request instance colors from the asset
+	return Private::ConversionHelper::CopyMeshFromStaticMesh(
+		InMesh, StaticMeshComponent, ConversionOptions, LODType, LODIndex, bUseClosestLOD, bRequestInstanceVertexColors, OutMesh, OutErrorMessage);
+}
 
 bool SceneComponentToDynamicMesh(USceneComponent* Component, const FToMeshOptions& Options, bool bTransformToWorld, 
 	Geometry::FDynamicMesh3& OutMesh, FTransform& OutLocalToWorld, FText& OutErrorMessage,
@@ -422,41 +626,40 @@ bool SceneComponentToDynamicMesh(USceneComponent* Component, const FToMeshOption
 		}
 		else
 		{
-			USkinnedAsset* SkinnedAsset = SkinnedMeshComponent->GetSkinnedAsset();
-			if (SkinnedAsset)
+			if (USkinnedAsset* SkinnedAsset = SkinnedMeshComponent->GetSkinnedAsset())
 			{
-				SkinnedMeshComponentToDynamicMesh(*SkinnedMeshComponent, OutMesh, RequestedLOD, Options.bWantTangents);
-				OutMesh.DiscardTriangleGroups();
-
-				if (OutAssetMaterials)
+				bSuccess = Private::ConversionHelper::CopyMeshFromSkinnedAsset(SkinnedAsset, SkinnedMeshComponent, Options.LODType, Options.LODIndex, Options.bUseClosestLOD, Options.bWantTangents, OutMesh, OutErrorMessage);
+				if (bSuccess)
 				{
-					const TArray<FSkeletalMaterial>& Materials = SkinnedAsset->GetMaterials();
-					OutAssetMaterials->SetNum(Materials.Num());
-					for (int32 k = 0; k < Materials.Num(); ++k)
+					OutMesh.DiscardTriangleGroups();
+
+					if (OutAssetMaterials)
 					{
-						(*OutAssetMaterials)[k] = Materials[k].MaterialInterface;
+						const TArray<FSkeletalMaterial>& Materials = SkinnedAsset->GetMaterials();
+						OutAssetMaterials->SetNum(Materials.Num());
+						for (int32 k = 0; k < Materials.Num(); ++k)
+						{
+							(*OutAssetMaterials)[k] = Materials[k].MaterialInterface;
+						}
 					}
 				}
-				bSuccess = true;
 			}
 			else
 			{
 				OutErrorMessage = LOCTEXT("CopyMeshFromComponent_MissingSkinnedAsset", "SkinnedMeshComponent has a null SkinnedAsset");
 			}
 		}
-
 	}
 	else if (USplineMeshComponent* SplineMeshComponent = Cast<USplineMeshComponent>(Component))
 	{
 		UStaticMesh* StaticMesh = SplineMeshComponent->GetStaticMesh();
 		if (StaticMesh)
 		{
-			Private::ConversionHelper::FStaticMeshConversionOptions AssetOptions;
+			FStaticMeshConversionOptions AssetOptions;
 			AssetOptions.bApplyBuildSettings = (Options.bWantNormals || Options.bWantTangents);
 			AssetOptions.bRequestTangents = Options.bWantTangents;
-			AssetOptions.bRequestInstanceVertexColors = Options.bWantInstanceColors;
 			bSuccess = Private::ConversionHelper::CopyMeshFromStaticMesh(
-				StaticMesh, SplineMeshComponent, AssetOptions, Options.LODType, Options.LODIndex, Options.bUseClosestLOD, OutMesh, OutErrorMessage);
+				StaticMesh, SplineMeshComponent, AssetOptions, Options.LODType, Options.LODIndex, Options.bUseClosestLOD, Options.bWantInstanceColors, OutMesh, OutErrorMessage);
 
 			// deform the dynamic mesh and its tangent space with the spline
 			if (bSuccess)
@@ -485,12 +688,12 @@ bool SceneComponentToDynamicMesh(USceneComponent* Component, const FToMeshOption
 		UStaticMesh* StaticMesh = StaticMeshComponent->GetStaticMesh();
 		if (StaticMesh)
 		{
-			Private::ConversionHelper::FStaticMeshConversionOptions AssetOptions;
+			FStaticMeshConversionOptions AssetOptions;
 			AssetOptions.bApplyBuildSettings = (Options.bWantNormals || Options.bWantTangents);
 			AssetOptions.bRequestTangents = Options.bWantTangents;
-			AssetOptions.bRequestInstanceVertexColors = Options.bWantInstanceColors;
+			bool bRequestInstanceVertexColors = Options.bWantInstanceColors;
 			bSuccess = Private::ConversionHelper::CopyMeshFromStaticMesh(
-				StaticMesh, StaticMeshComponent, AssetOptions, Options.LODType, Options.LODIndex, Options.bUseClosestLOD, OutMesh, OutErrorMessage);
+				StaticMesh, StaticMeshComponent, AssetOptions, Options.LODType, Options.LODIndex, Options.bUseClosestLOD, bRequestInstanceVertexColors, OutMesh, OutErrorMessage);
 
 			// if we have an ISMC, append instances
 			if (UInstancedStaticMeshComponent* ISMComponent = Cast<UInstancedStaticMeshComponent>(StaticMeshComponent))

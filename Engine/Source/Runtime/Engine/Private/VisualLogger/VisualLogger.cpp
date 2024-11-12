@@ -200,6 +200,12 @@ namespace
 			World =  GEngine->GetWorld();
 		}
 
+		// In last resort we fall back on the global world (i.e., logs produced while world gets GCed)
+		if (World == nullptr)
+		{
+			World = GWorld;
+		}
+
 		return World;
 	}
 }
@@ -268,10 +274,12 @@ double FVisualLogger::GetTimeStampForObject(const UObject* Object) const
 	UEditorEngine* EditorEngine = GIsEditor ? Cast<UEditorEngine>(GEngine) : nullptr;
 	if (EditorEngine)
 	{
-		// We will always have the Editor world to use.  This will ensure a consistent clock since it does not reset
-		// when more clients are added or removed and can exist before a PIE session is started.
+		// Using the Editor world to ensure a consistent clock since it does not reset when more clients are added or removed
+		// and can exist before a PIE session is started.
+
+		// We should always have the Editor world to use, but in some edge cases it can no longer be valid (e.g., world getting GCed).
 		WorldForTimeStamp = EditorEngine->GetEditorWorldContext().World();
-		if (ensureMsgf(WorldForTimeStamp, TEXT("We always expect to have an EditorWorld in Editor")))
+		if (WorldForTimeStamp)
 		{
 			using namespace UE::VisLog::Private;
 			if (EditorOnly::EditorBaseTimeStamp <= 0.0)
@@ -381,7 +389,7 @@ FVisualLogEntry* FVisualLogger::GetLastEntryForObject(const UObject* Object)
 {
 	const UObject* LogOwner = nullptr;
 	{
-		FReadScopeLock Lock(RedirectRWLock);
+		FTransactionallySafeReadScopeLock Lock(RedirectRWLock);
 		LogOwner = FindRedirectionInternal(Object);
 	}
 	if (LogOwner == nullptr)
@@ -397,7 +405,7 @@ FVisualLogEntry* FVisualLogger::GetEntryToWrite(const UObject* Object, const dou
 {
 	const UObject* LogOwner = nullptr;
 	{
-		FReadScopeLock Lock(RedirectRWLock);
+		FTransactionallySafeReadScopeLock Lock(RedirectRWLock);
 		LogOwner = FindRedirectionInternal(Object);
 	}
 	if (LogOwner == nullptr)
@@ -505,10 +513,11 @@ FVisualLogEntry* FVisualLogger::GetEntryToWriteInternal(const UObject* Object, c
 
 		const UWorld* World = GetWorldForVisualLogger(LogOwner);
 		const bool bIsStandalone = (World == nullptr || World->GetNetMode() == NM_Standalone);
-		const FName LogName(*FString::Printf(TEXT("%s%s%s"),
+		const FName LogName(*FString::Printf(TEXT("%s%s%s%s"),
 			*UniqueLogPrefix,
 			bIsStandalone ? TEXT("") : *FString::Printf(TEXT("(%s) "), *GetDebugStringForWorld(World)),
-			*LogOwner->GetName()));
+			*LogOwner->GetName(),
+			bForceUniqueLogNames ? *FString::Printf(TEXT(" [%d]"), LogOwner->GetUniqueID()) : TEXT("")));
 
 		ObjectToNameMap.Add(LogOwner, LogName);
 		ObjectToClassNameMap.Add(LogOwner, *(LogOwner->GetClass()->GetName()));
@@ -539,7 +548,7 @@ FVisualLogEntry* FVisualLogger::GetEntryToWriteInternal(const UObject* Object, c
 			CurrentEntry->bIsLocationValid = true;
 		}
 
-		FReadScopeLock RedirectScopeLock(RedirectRWLock);
+		FTransactionallySafeReadScopeLock RedirectScopeLock(RedirectRWLock);
 		FOwnerToChildrenRedirectionMap& RedirectionMap = GetRedirectionMap(LogOwner);
 		if (const IVisualLoggerDebugSnapshotInterface* DebugSnapshotInterface = Cast<const IVisualLoggerDebugSnapshotInterface>(LogOwner))
 		{
@@ -1039,7 +1048,7 @@ UObject* FVisualLogger::FindRedirectionInternal(const UObject* Object) const
 
 void FVisualLogger::CleanupRedirects()
 {
-	FWriteScopeLock Lock(RedirectRWLock);
+	FTransactionallySafeWriteScopeLock Lock(RedirectRWLock);
 	for (auto It = ChildToOwnerMap.CreateIterator(); It; ++It)
 	{
 		if(!It.Value().IsValid())

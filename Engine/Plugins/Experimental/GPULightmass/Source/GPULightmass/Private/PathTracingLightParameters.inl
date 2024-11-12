@@ -80,8 +80,7 @@ void SetupPathTracingLightParameters(
 		DestLight.TranslatedWorldPosition = FVector3f(Light.Position + View.ViewMatrices.GetPreViewTranslation());
 		DestLight.Color = (FVector3f)(Light.Color);
 		DestLight.Normal = (FVector3f)Light.Direction;
-		DestLight.dPdu = (FVector3f)FVector::CrossProduct(Light.Tangent, Light.Direction);
-		DestLight.dPdv = (FVector3f)Light.Tangent;
+		DestLight.Tangent = (FVector3f)Light.Tangent;
 
 		DestLight.Dimensions = FVector2f(Light.SourceRadius, Light.SourceLength);
 		DestLight.Attenuation = 1.0f / Light.AttenuationRadius;
@@ -102,8 +101,7 @@ void SetupPathTracingLightParameters(
 
 		DestLight.TranslatedWorldPosition = FVector3f(Light.Position + View.ViewMatrices.GetPreViewTranslation());
 		DestLight.Normal = (FVector3f)Light.Direction;
-		DestLight.dPdu = (FVector3f)FVector::CrossProduct(Light.Tangent, Light.Direction);
-		DestLight.dPdv = (FVector3f)Light.Tangent;
+		DestLight.Tangent = (FVector3f)Light.Tangent;
 		DestLight.Color = FVector3f(Light.Color);
 		DestLight.Dimensions = FVector2f(Light.SourceRadius, Light.SourceLength);
 		DestLight.Shaping = FVector2f(Light.SpotAngles);
@@ -125,8 +123,7 @@ void SetupPathTracingLightParameters(
 
 		DestLight.TranslatedWorldPosition = FVector3f(Light.Position + View.ViewMatrices.GetPreViewTranslation());
 		DestLight.Normal = (FVector3f)Light.Direction;
-		DestLight.dPdu = (FVector3f)FVector::CrossProduct(Light.Tangent, -Light.Direction);
-		DestLight.dPdv = (FVector3f)Light.Tangent;
+		DestLight.Tangent = (FVector3f)Light.Tangent;
 
 		FLinearColor LightColor = Light.Color;
 		LightColor /= 0.5f * Light.SourceWidth * Light.SourceHeight;

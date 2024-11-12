@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MetalRHIPrivate.h"
 #include "MetalCaptureManager.h"
+#include "MetalRHIPrivate.h"
 #include "MetalCommandQueue.h"
 
 bool GMetalSupportsCaptureManager = false;

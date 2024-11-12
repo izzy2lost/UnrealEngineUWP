@@ -11,8 +11,9 @@
 
 
 
-FLensDataCategoryItem::FLensDataCategoryItem(ULensFile* InLensFile, TWeakPtr<FLensDataCategoryItem> InParent, ELensDataCategory InCategory, FName InLabel)
+FLensDataCategoryItem::FLensDataCategoryItem(ULensFile* InLensFile, TWeakPtr<FLensDataCategoryItem> InParent, ELensDataCategory InCategory, int32 InParameterIndex, FName InLabel)
 	: Category(InCategory)
+	, ParameterIndex(InParameterIndex)
 	, Label(InLabel)
 	, Parent(InParent)
 	, LensFile(InLensFile)

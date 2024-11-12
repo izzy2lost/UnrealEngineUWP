@@ -5,6 +5,7 @@
 #include "UObject/Object.h"
 #include "UObject/SoftObjectPtr.h"
 #include "AssetRegistry/AssetData.h"
+#include "Framework/SlateDelegates.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Toolkits/IToolkit.h"
 #include "Misc/AssetFilterData.h"
@@ -13,7 +14,10 @@
 
 class IToolkitHost;
 class UThumbnailInfo;
+struct FAssetDisplayInfo;
 struct FSlateBrush;
+class IAssetSystemInfoProvider;
+class IAssetStatusInfoProvider;
 class ISourceControlRevision;
 class SWidget;
 
@@ -248,7 +252,13 @@ struct FAssetDiffArgs
 
 struct FAssetOpenSupportArgs
 {
-	EAssetOpenMethod OpenMethod = EAssetOpenMethod::Edit;
+	FAssetOpenSupportArgs(EAssetOpenMethod InOpenMethod = EAssetOpenMethod::Edit)
+		: OpenMethod(InOpenMethod)
+	{
+		
+	}
+	
+	EAssetOpenMethod OpenMethod;
 };
 
 
@@ -318,6 +328,24 @@ public:
 	TArray<FAssetFilterData> Filters;
 };
 
+
+struct FAssetActionThumbnailOverlayInfo
+{
+public:
+	/** Image widget displayed in the top left border */
+	TSharedPtr<SWidget> ActionImageWidget;
+
+	/** Button widget displayed in the center when hovering the thumbnail */
+	TSharedPtr<SWidget> ActionButtonWidget;
+};
+
+struct FAssetButtonActionExtension
+{
+public:
+	TAttribute<FText> PickTooltipAttribute;
+	TAttribute<const FSlateBrush*> PickBrushAttribute;
+	FOnClicked OnClicked;
+};
 
 /**
  * Asset Definitions represent top level assets that are known to the editor.
@@ -559,12 +587,35 @@ public:
 	{
 		return nullptr;
 	}
-	
+
+	UE_DEPRECATED(5.5, "Please use the new GetThumbnailActionOverlay function")
 	/** Optionally returns a custom widget to overlay on top of this assets' thumbnail */
 	virtual TSharedPtr<SWidget> GetThumbnailOverlay(const FAssetData& InAssetData) const
 	{
 		return TSharedPtr<SWidget>();
 	}
+
+	virtual bool GetThumbnailActionOverlay(const FAssetData& InAssetData, FAssetActionThumbnailOverlayInfo& OutActionOverlayInfo) const
+	{
+		return false;
+	}
+
+#if UE_CONTENTBROWSER_NEW_STYLE
+	// Implementation will change in the AssetDefinitionDefault in a later update
+	virtual void GetAssetStatusInfo(const TSharedPtr<IAssetStatusInfoProvider>& InAssetStatusInfoProvider, TArray<FAssetDisplayInfo>& OutStatusInfo) const
+	{
+		return;
+	}
+#endif
+
+	/**Optionally adds custom Asset Picker buttons to the Property Editor for the selected AssetDefinition, using the provided extension data this function returns.*/
+	virtual void GetAssetActionButtonExtensions(const FAssetData& InAssetData, TArray<FAssetButtonActionExtension>& OutExtensions) const { };
+
+	/** Whether this asset has external packages associated with it (impacts saving and dirty-state behavior) */
+	virtual bool ShouldSaveExternalPackages() const
+	{
+		return false;
+	}	
 
 	// DEVELOPER NOTE:
 	// Originally this class was based on the IAssetTypeActions implementation.  Several of the functions on there

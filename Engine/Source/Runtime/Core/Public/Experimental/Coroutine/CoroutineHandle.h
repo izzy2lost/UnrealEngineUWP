@@ -9,7 +9,7 @@
 #pragma once
 
 #ifndef WITH_CPP_COROUTINES
-#define WITH_CPP_COROUTINES 1
+#define WITH_CPP_COROUTINES 0
 #endif
 
 #if WITH_CPP_COROUTINES

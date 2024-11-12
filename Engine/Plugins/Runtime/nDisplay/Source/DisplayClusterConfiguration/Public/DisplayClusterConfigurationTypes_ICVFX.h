@@ -23,6 +23,7 @@
 #include "DisplayClusterConfigurationTypes_ICVFX.generated.h"
 
 class UCineCameraComponent;
+class UDisplayClusterConfigurationViewport;
 
 USTRUCT(Blueprintable)
 struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationICVFX_LightcardCustomOCIO
@@ -116,8 +117,10 @@ public:
 	bool IsVisibilityListValid() const;
 
 public:
-	/** Actor Layers */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Layers", ToolTip = "{LayersTooltip}"))
+	/** Actor layers.
+	* Warning: This option has a very expensive performance cost, especially on big projects.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Layers"))
 	TArray<FActorLayer> ActorLayers;
 
 	/** Actor references */
@@ -132,38 +135,60 @@ public:
 	TArray<TSoftObjectPtr<AActor>> AutoAddedActors;
 };
 
+/** Custom resolution settings for ICVFX. */
 USTRUCT(Blueprintable)
 struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationICVFX_CustomSize
 {
 	GENERATED_BODY()
 
 public:
-	// Use custom size
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay)
+	/** Enabling this option will allow these custom settings to be used instead of the default settings. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Use Custom Resolution"))
 	bool bUseCustomSize = false;
 
-	// Used when enabled "bUseCustomSize"
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (ClampMin = "32", UIMin = "32"))
+	/** Custom Width, in pixels. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Custom Width", ClampMin = "32", UIMin = "32", EditCondition = "bUseCustomSize"))
 	int CustomWidth = 2560;
 
-	// Used when enabled "bUseCustomSize"
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (ClampMin = "32", UIMin = "32"))
+	/** Custom Height, in pixels. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Custom Height", ClampMin = "32", UIMin = "32", EditCondition = "bUseCustomSize"))
 	int CustomHeight = 1440;
+
+	/** Automatically adapts resolution to be proportional
+	* to the filmback aspect ratio for the ICVFX Camera
+	* while continuing to render the same total amount of
+	* pixels as specified by the size. Enabling this can help
+	* avoid visual artifacts without affecting the
+	* performance budget.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Adapt Resolution to Match Filmback Aspect Ratio", EditCondition = "bUseCustomSize"))
+	bool bAdaptSize = true;
 };
 
+/** Default resolution settings for ICVFX. */
 USTRUCT(Blueprintable)
 struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationICVFX_Size
 {
 	GENERATED_BODY()
 
 public:
-	// Viewport width in pixels
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (ClampMin = "32", UIMin = "32"))
+	/** The default width of In-Cameras, in pixels. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Default Width", ClampMin = "32", UIMin = "32"))
 	int Width = 2560;
 
-	// Viewport height  in pixels
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (ClampMin = "32", UIMin = "32"))
+	/** The default height of In-Cameras, in pixels. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Default Height", ClampMin = "32", UIMin = "32"))
 	int Height = 1440;
+
+	/** Automatically adapts the default frame resolution to be proportional
+	* to the filmback aspect ratio for the ICVFX Camera
+	* while continuing to render the same total amount of
+	* pixels as specified by the size. Enabling this can help
+	* avoid visual artifacts without affecting the
+	* performance budget.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Adapt Resolution to Match Filmback Aspect Ratio"))
+	bool bAdaptSize = true;
 };
 
 USTRUCT(Blueprintable)
@@ -180,13 +205,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (ClampMin = "0.01", UIMin = "0.01", ClampMax = "1.0", UIMax = "1.0"))
 	float RenderTargetRatio = 1;
 
-	// Performance, Multi-GPU: Asign GPU for viewport rendering. The Value '-1' used to default gpu mapping (EYE_LEFT and EYE_RIGHT GPU)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay)
-	int GPUIndex = -1;
+	/**
+	* Specifies the GPU index for the ICVFX viewport (LC or CK).
+	* A value of '-1' means using the same GPU index as defined in the base viewport:
+	* - The In-Camera viewport is used as the base viewport for the Chromakey (CK) viewport.
+	* - An outer viewport is used as the base viewport for the Light Card (LC) viewport.
+	* Used to improve rendering performance by spreading the load across multiple GPUs.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "GPU Index", ClampMin = "-1", UIMin = "-1", ClampMax = "8", UIMax = "8"))
+	int GPUIndex = INDEX_NONE;
 
-	// Performance, Multi-GPU: Customize GPU for stereo mode second view (EYE_RIGHT GPU)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay)
-	int StereoGPUIndex = -1;
+	/**
+	* Specifies the GPU index for the ICVFX viewport (LC or CK) in stereo rendering for the second eye.
+	* A value of '-1' means to use the value from the GPU Index parameter. (the same value is used for both eyes).
+	* Used to improve rendering performance by spreading the load across multiple GPUs.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Stereo GPU Index", ClampMin = "-1", UIMin = "-1", ClampMax = "8", UIMax = "8"))
+	int StereoGPUIndex = INDEX_NONE;
 
 	// Performance: force monoscopic render, resolved to stereo viewport
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay)
@@ -228,9 +263,14 @@ public:
 	UPROPERTY(BlueprintReadWrite,Category = NDisplay)
 	bool bReplaceCameraViewport = false;
 
-	// Performance: Use custom size (low-res) for chromakey RTT frame. Default size same as camera frame
-	UPROPERTY(BlueprintReadWrite, Category = NDisplay)
-	FDisplayClusterConfigurationICVFX_CustomSize CustomSize;
+	/** Custom resolution of the chromakey RTT. If it is not used, the Default Frame Resolution value is used by default. */
+	UE_DEPRECATED(5.5, "Use the 'ChromakeySizeMult' instead")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use the 'Chromakey Resolution Multiplier' instead"))
+	FDisplayClusterConfigurationICVFX_CustomSize CustomSize_DEPRECATED;
+
+	/** Resolution multiplier for RTT chromakey. The default is the ICVFX camera frame resolution. */
+	UPROPERTY(BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Chromakey Resolution Multiplier", ClampMin = "0.05", UIMin = "0.05", ClampMax = "1.0", UIMax = "1.0"))
+	float ChromakeySizeMult = 1.f;
 
 	/** Content specified here will be overridden to use the chromakey color specified and include chromakey markers if enabled. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Custom Chromakey Content"))
@@ -416,6 +456,12 @@ public:
 	/* Returns true if the use of the UVLightCard is allowed */
 	bool ShouldUseUVLightCard(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;
 
+	/** Get lightcard render mode. */
+	EDisplayClusterShaderParametersICVFX_LightCardRenderMode GetLightCardRenderMode(const EDisplayClusterConfigurationICVFX_PerLightcardRenderMode InPerLightcardRenderMode, const UDisplayClusterConfigurationViewport* InViewportConfiguration = nullptr) const;
+
+	/** Get LC render mode override. */
+	EDisplayClusterShaderParametersICVFX_LightCardRenderMode GetLightCardRenderModeOverride(const UDisplayClusterConfigurationViewport* InViewportConfiguration) const;
+
 public:
 	/** Enable Light Cards */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Cards", meta = (DisplayName = "Enable Light Cards"))
@@ -456,13 +502,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (ClampMin = "0.01", UIMin = "0.01", ClampMax = "1.0", UIMax = "1.0"))
 	float RenderTargetRatio = 1;
 
-	// Performance, Multi-GPU: Asign GPU for viewport rendering. The Value '-1' used to default gpu mapping (EYE_LEFT and EYE_RIGHT GPU)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay)
-	int GPUIndex = -1;
+	/**
+	* Specifies the GPU index for the ICVFX camera viewport.
+	* Value '-1' means do not use multi-GPU
+	* Used to improve rendering performance by spreading the load across multiple GPUs.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "GPU Index", ClampMin = "-1", UIMin = "-1", ClampMax = "8", UIMax = "8"))
+	int GPUIndex = INDEX_NONE;
 
-	// Performance, Multi-GPU: Customize GPU for stereo mode second view (EYE_RIGHT GPU)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay)
-	int StereoGPUIndex = -1;
+	/**
+	* Specifies the GPU index for the ICVFX camera viewport in stereo rendering for the second eye.
+	* A value of '-1' means to use the value from the GPU Index parameter. (the same value is used for both eyes).
+	* Used to improve rendering performance by spreading the load across multiple GPUs.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Stereo GPU Index", ClampMin = "-1", UIMin = "-1", ClampMax = "8", UIMax = "8"))
+	int StereoGPUIndex = INDEX_NONE;
 
 	// Performance: force monoscopic render, resolved to stereo viewport
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay)
@@ -483,8 +537,8 @@ public:
 	FDisplayClusterConfigurationICVFX_CameraRenderSettings();
 
 public:
-	// Define custom inner camera viewport size
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay)
+	/** Custom resolution of the ICVFX Camera. If it is not used, the Default Frame Resolution value is used by default. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Custom Frame Resolution"))
 	FDisplayClusterConfigurationICVFX_CustomSize CustomFrameSize;
 
 	// Camera render order, bigger value is over
@@ -503,7 +557,7 @@ public:
 	FDisplayClusterConfigurationPostRender_Override Replace;
 
 	// Media settings
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Media"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Media", ShowOnlyInnerProperties))
 	FDisplayClusterConfigurationMediaICVFX Media;
 
 	UPROPERTY()
@@ -521,6 +575,7 @@ public:
 	/** Propagates general render related settings to the view info. */
 	void SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo) const;
 };
+
 
 USTRUCT(BlueprintType)
 struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationICVFX_CameraMotionBlurOverridePPS
@@ -574,6 +629,13 @@ struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationICVFX_CameraD
 	GENERATED_BODY()
 
 public:
+	/** Get the CompensationLUT texture corresponding to the current settings.
+	* 
+	* @param InStageSettings - it can be used for global LUT settings.
+	*/
+	UTexture2D* GetCompensationLUT(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;
+
+public:
 	/** Enables depth of field correction on the wall, which dynamically adjusts the size of the defocus circle of confusion to compensate for the real-world camera blur when shooting the wall */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NDisplay)
 	bool bEnableDepthOfFieldCompensation = false;
@@ -600,7 +662,7 @@ public:
 
 	/** Actual LUT to use with the depth of field pipeline, copied and modified from CompensationLUT */
 	UPROPERTY(Transient)
-	UTexture2D* DynamicCompensationLUT = nullptr;
+	TObjectPtr<UTexture2D> DynamicCompensationLUT = nullptr;
 
 public:
 	/** Processes the compensation LUT by adding any needed DoF gain and writes the result to the dynamic compensation LUT texture */
@@ -648,12 +710,15 @@ struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationICVFX_CameraC
 {
 	GENERATED_BODY()
 
+	/** Expected ICVFX camera resolution when both 'Adapt Resolution' and 'Enable Inner Frustum Overscan' are enabled. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = NDisplay)
 	FIntPoint EstimatedOverscanResolution = { 2560, 1440 };
 	
+	/** Real ICVFX camera resolution for current settings. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = NDisplay)
 	FIntPoint InnerFrustumResolution = { 2560, 1440 };
 
+	/** This value shows the ratio of "Overscan Estimated Resolution" pixels to "Frustum Internal Resolution" pixels. */
 	UPROPERTY(BlueprintReadOnly, Category = NDisplay, meta = (HideInDetailPanel))
 	float OverscanPixelsIncrease = 0.f;
 
@@ -716,6 +781,12 @@ public:
 	**/
 	bool IsICVFXEnabled(const class UDisplayClusterConfigurationData& InConfigurationData, const FString& InClusterNodeId) const;
 
+	/** Returns the CineCameraActor from the 'ExternalCameraActor' parameter. */
+	ACineCameraActor* GetExternalCineCameraActor() const;
+
+	/** Returns the CineCameraComponent from the 'ExternalCameraActor' parameter. */
+	UCineCameraComponent* GetExternalCineCameraComponent() const;
+
 public:
 	FDisplayClusterConfigurationICVFX_CameraSettings();
 
@@ -729,19 +800,23 @@ public:
 	bool IsChromakeyViewportSettingsEqual(const FString& InClusterNodeId1, const FString& InClusterNodeId2) const;
 
 	/** Return calculated soft edges values. */
-	FVector4 GetCameraSoftEdge(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const UCineCameraComponent& InCineCameraComponent) const;
+	UE_DEPRECATED(5.5, "Use the UDisplayClusterICVFXCameraComponent::GetICVFXCameraShaderParameters() instead")
+	FVector4 GetCameraSoftEdge(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const UCineCameraComponent& InCineCameraComponent) const { return FVector4(); }
 
 	/** Get camera buffer ratio. */
 	float GetCameraBufferRatio(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;
 
-	/** Get camera frame size. */
-	FIntPoint GetCameraFrameSize(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const UCineCameraComponent& InCineCameraComponent) const;
+	/** Get camera frame resolution. */
+	UE_DEPRECATED(5.5, "Use the UDisplayClusterICVFXCameraComponent::GetICVFXCameraFrameSize() instead")
+	FIntPoint GetCameraFrameSize(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const UCineCameraComponent& InCineCameraComponent) const { return FIntPoint(0, 0); }
 
 	/** Get camera frame aspect ratio. */
-	float GetCameraFrameAspectRatio(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const UCineCameraComponent& InCineCameraComponent) const;
+	UE_DEPRECATED(5.5, "Use the UDisplayClusterICVFXCameraComponent::GetICVFXCameraFrameSize() instead")
+	float GetCameraFrameAspectRatio(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const UCineCameraComponent& InCineCameraComponent) const { return 0.f; }
 
 	/** Get camera border settings. */
-	bool GetCameraBorder(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FLinearColor& OutBorderColor, float& OutBorderThickness) const;
+	UE_DEPRECATED(5.5, "Use the UDisplayClusterICVFXCameraComponent::GetICVFXCameraShaderParameters() instead")
+	bool GetCameraBorder(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FLinearColor& OutBorderColor, float& OutBorderThickness) const { return false; }
 
 	/** Sets up view info for each relevant setting such as render, custom frustrum and motion blur settings. */
 	void SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo);
@@ -846,8 +921,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "In Camera VFX", meta = (DisplayName = "Enable Inner Frustum Chromakey Overlap"))
 	bool bEnableInnerFrustumChromakeyOverlap = false;
 
-	/** Default incameras RTT texture size. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Configuration)
+	/** Default In-Cameras texture resolution. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Configuration, meta = (DisplayName = "Default Frame Resolution"))
 	FDisplayClusterConfigurationICVFX_Size DefaultFrameSize;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Cards", meta = (ExpandProperties))

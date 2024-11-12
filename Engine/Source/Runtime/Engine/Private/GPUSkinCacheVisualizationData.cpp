@@ -30,7 +30,6 @@ void FGPUSkinCacheVisualizationData::Initialize()
 			LOCTEXT("MemoryDesc", "Memory usage"),
 			FModeType::Memory);
 
-#if RHI_RAYTRACING
 		if (IsRayTracingEnabled())
 		{
 			AddVisualizationMode(
@@ -39,7 +38,6 @@ void FGPUSkinCacheVisualizationData::Initialize()
 				LOCTEXT("RayTracingLODOffsetDesc", "Ray Tracing LOD index offset from rasterization"),
 				FModeType::RayTracingLODOffset);
 		}
-#endif
 
 		ConfigureConsoleCommand();
 

@@ -16,7 +16,7 @@
 #include "EdGraph/EdGraph.h"
 #endif // WITH_EDITOR
 #include "SoundWaveLoadingBehavior.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 
 #include "SoundClass.generated.h"
 

@@ -118,13 +118,13 @@ void AWorldPartitionReplay::Uninitialize(UWorld* World)
 		if (ensure(WorldPartition && WorldPartition->Replay))
 		{
 			World->DestroyActor(WorldPartition->Replay);
-			WorldPartition->Replay->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+			WorldPartition->Replay->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional);
 			WorldPartition->Replay = nullptr;
 		}
 	}
 }
 
-bool AWorldPartitionReplay::IsPlaybackEnabled(UWorld* World)
+bool AWorldPartitionReplay::IsPlaybackEnabled(const UWorld* World)
 {
 	if (GUseReplayStreamingSources && World->IsPlayingReplay())
 	{
@@ -133,11 +133,11 @@ bool AWorldPartitionReplay::IsPlaybackEnabled(UWorld* World)
 			return !!WorldPartition->Replay;
 		}
 	}
-	
+
 	return false;
 }
 
-bool AWorldPartitionReplay::IsRecordingEnabled(UWorld* World)
+bool AWorldPartitionReplay::IsRecordingEnabled(const UWorld* World)
 {
 	if (GRecordReplayStreamingSources && World->IsRecordingReplay())
 	{
@@ -146,7 +146,7 @@ bool AWorldPartitionReplay::IsRecordingEnabled(UWorld* World)
 			return !!WorldPartition->Replay;
 		}
 	}
-		
+
 	return false;
 }
 
@@ -181,7 +181,7 @@ void AWorldPartitionReplay::PreReplication(IRepChangedPropertyTracker& ChangedPr
 
 bool AWorldPartitionReplay::GetReplayStreamingSources(TArray<FWorldPartitionStreamingSource>& OutStreamingSources)
 {
-	UWorld* World = GetWorld();
+	const UWorld* World = GetWorld();
 	verify(IsPlaybackEnabled(World));
 
 	UDemoNetDriver* DemoNetDriver = World->GetDemoNetDriver();

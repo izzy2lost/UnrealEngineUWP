@@ -9,6 +9,7 @@
 #include "Presentation/PropertyEditor/PropertyEditor.h"
 #include "UserInterface/PropertyEditor/PropertyEditorConstants.h"
 #include "PropertyCustomizationHelpers.h"
+#include "Widgets/Input/SSegmentedControl.h"
 
 class SPropertyComboBox;
 
@@ -30,6 +31,7 @@ public:
 private:
 	void GenerateComboBoxStrings( TArray< TSharedPtr<FString> >& OutComboBoxStrings, TArray<TSharedPtr<class SToolTip>>& OutToolTips, TArray<bool>& OutRestrictedItems );
 	void OnComboSelectionChanged( TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo );
+	void OnSegmentedControlSelectionChanged( FString NewValue );
 	void OnResetToDefault();
 	void OnComboOpening();
 
@@ -54,6 +56,10 @@ private:
 
 	/** Fills out with generated strings. */
 	TSharedPtr<class SPropertyComboBox> ComboBox;
+
+	/** Alternative display widget. */
+	TSharedPtr<SSegmentedControl<FString>> SegmentControl;
+	FTextBlockStyle ParameterTextStyle;
 
 	/** Arguments used to construct the combo box */
 	FPropertyComboBoxArgs ComboArgs;

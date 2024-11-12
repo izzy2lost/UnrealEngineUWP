@@ -31,16 +31,47 @@ CUSTOM_ASSERT_TEST_CLASS(CustomAsserts, "TestFramework.CQTest.Core")
 template<typename Derived, typename AsserterType>
 struct TCustomBaseClass : public TTest<Derived, AsserterType>
 {
+	inline static uint32 BaseValue = 0;
 	uint32 SpecialValue = 42;
+
+	BEFORE_ALL()
+	{
+		BaseValue = 42;
+	}
+
+	AFTER_ALL()
+	{
+		BaseValue = 0;
+	}
 };
 
 #define CUSTOM_BASE_TEST_CLASS(_ClassName, _TestDir) TEST_CLASS_WITH_BASE(_ClassName, _TestDir, TCustomBaseClass)
 
-CUSTOM_BASE_TEST_CLASS(CustomBase, "TestFramework.CQTest.Core")
+CUSTOM_BASE_TEST_CLASS(DerivedTest, "TestFramework.CQTest.Core")
 {
-	TEST_METHOD(CustomTestClass_WithCustomBase_InheritsFromBaseClass)
+	inline static uint32 DerivedValue = 0;
+
+	BEFORE_ALL()
+	{
+		TCustomBaseClass::BeforeAll(FString());
+		DerivedValue = BaseValue;
+	}
+
+	AFTER_ALL()
+	{
+		DerivedValue = 0;
+		TCustomBaseClass::AfterAll(FString());
+	}
+
+	TEST_METHOD(DerivedTestClass_WithCustomBase_InheritsFromBaseClass)
 	{
 		ASSERT_THAT(AreEqual(42, SpecialValue));
+	}
+
+	TEST_METHOD(DerivedTestClass_WithBeforeAll_CanUseBaseBeforeAll)
+	{
+		ASSERT_THAT(AreEqual(42, BaseValue));
+		ASSERT_THAT(AreEqual(BaseValue, DerivedValue));
 	}
 };
 

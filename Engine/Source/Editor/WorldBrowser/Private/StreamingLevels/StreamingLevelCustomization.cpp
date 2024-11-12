@@ -429,7 +429,7 @@ bool FStreamingLevelCustomization::LevelViewportTransformAllowed() const
 	if (CollectionModel.IsValid() && CollectionModel->IsOneLevelSelected())
 	{
 		auto SelectedLevel = CollectionModel->GetSelectedLevels()[0];
-		return SelectedLevel->IsEditable() && SelectedLevel->IsVisible();
+		return SelectedLevel->IsEditable() && SelectedLevel->IsVisibleInEditor();
 	}
 
 	return false;

@@ -10,6 +10,7 @@
 
 class IMappedFileRegion;
 class IMappedFileHandle;
+class FCbPackage;
 
 namespace TraceServices {
 
@@ -40,9 +41,14 @@ private:
 	struct FFileContents
 	{
 		// Current file format version
-		static constexpr uint32 CurrentVersion = 1;
-		// Number of bytes at the start of the file reserved for table of contents.
-		static constexpr uint32 ReservedSize = 512 * 1024;
+		static constexpr uint32 CurrentVersion = 2;
+		// Number of bytes at the start of the file reserved for table of contents and header.
+		static constexpr uint32 ReservedSizeV1 = 512 * 1024;
+		static constexpr uint32 ReservedSizeV2 = 1024 * 1024;
+		// Offset of the table of contents in bytes
+		static constexpr uint32 IndexOffset = 6;
+		// Size for the index object 
+		static constexpr uint32 ReservedSizeIndex = ReservedSizeV2 - IndexOffset;
 		// Number of bytes allocated for user data (per named entry)
 		static constexpr uint32 UserDataSize = 64;
 
@@ -83,6 +89,17 @@ private:
 		TArray<FBlockEntry> Blocks;
 		// When this is set blocks or table of contents are never written.
 		bool bTransientMode = false;
+		uint32 Version = 0;
+
+	private:
+		static uint32 ReadHeader(IFileHandle* File);
+		static bool WriteHeader(IFileHandle* File, uint32 Version);
+		void LoadVersion1Index(const FCbPackage& Package);
+		void SaveVersion1Index(FCbWriter& Writer);
+		bool SaveVersion1(IFileHandle* File);
+		bool SaveVersion2(IFileHandle* File);
+		bool LoadVersion1(IFileHandle* File);
+		bool LoadVersion2(IFileHandle* File);
 	};
 
 	/**

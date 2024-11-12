@@ -58,6 +58,16 @@ struct FConcertPackageInfo
 	/** Was this update caused by an auto-save? */
 	UPROPERTY()
 	bool bAutoSave = false;
+
+	/**
+	 * Can we skip hot reload on this package? Hot reload is required to update changes to a loaded asset to a newer versoin
+	 * modified in a multi-user session.  Take recordings are packages that do not need to go through hot reload as they have no live assets.
+	 * This flag can be set to true to indicate to the replay system the package can bypass hot reload.
+	 *
+	 * @see IConcertClientClientPackageBridge::RegisterPackageHotReloadHint
+	 */
+	UPROPERTY()
+	bool bCanSkipHotReload = false;
 };
 
 USTRUCT()

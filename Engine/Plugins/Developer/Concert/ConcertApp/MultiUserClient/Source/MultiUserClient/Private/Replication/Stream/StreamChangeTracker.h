@@ -5,7 +5,7 @@
 #include "IClientStreamSynchronizer.h"
 #include "Replication/Data/ObjectReplicationMap.h"
 #include "Replication/Messages/ChangeStream.h"
-#include "Replication/Util/StreamRequestUtils.h"
+#include "Replication/Misc/Util/StreamRequestUtils.h"
 
 #include "Async/Future.h"
 #include "Containers/Set.h"
@@ -17,7 +17,7 @@ class IConcertSyncClient;
 struct FConcertReplication_ChangeStream_Response;
 struct FConcertReplication_ChangeStream_Request;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/**
 	 * Knows of the local client's registered replication streams and builds a changelist. The changelist tracks the

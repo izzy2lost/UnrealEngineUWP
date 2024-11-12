@@ -122,9 +122,23 @@ static void GetUnrealTraceHome(FPath& Out, bool Make=false)
 	Out = Buffer;
 	Out /= "UnrealEngine/Common/UnrealTrace";
 #else
-	int UserId = getuid();
-	const passwd* Passwd = getpwuid(UserId);
-	Out = Passwd->pw_dir;
+	if (const char* Home = getenv("HOME"))
+	{
+		Out = Home;
+	}
+	else
+	{
+		int UserId = getuid();
+		const passwd* Passwd = getpwuid(UserId);
+		if (Passwd)
+		{
+			Out = Passwd->pw_dir;
+		}
+		else 
+		{
+			Out = "/";
+		}
+	}
 	Out /= "UnrealEngine/UnrealTrace";
 #endif
 
@@ -148,11 +162,7 @@ public:
 	};
 
 	FOptions()
-		: Options("UnrealTraceServer", "Unreal Trace Server"
-			"\n\nUnrealTraceServer acts as a hub between runtimes that are tracing performance "
-			"instrumentation and tools like Unreal Insights that consume and present that "
-			"data for analysis. TCP ports 1981 and 1989 are used, where the former receives "
-			"trace data, and the latter is used by tools to query the server's store.\n")
+		: Options("UnrealTraceServer", FOptions::GetMainHelpString())
 		, CurrentCommand(nullptr)
 	{
 		// Positional arguments
@@ -163,7 +173,8 @@ public:
 		Options.positional_help("<cmd>");
 
 		Options.add_options()
-			("help", "Prints help message for each command");
+			("h,help", "Prints help message for each command")
+			("d,detach", "Detach from console when started.");
 
 		// Fork and daemon options
 		Options.add_options("settings")
@@ -175,12 +186,12 @@ public:
 		// AddProc options
 		Options.add_options("sponsor")
 			("sponsor", "Pid to add as sponsor. Required if running in sponsored mode.", cxxopts::value<uint32>()->default_value("0"))
-			;
+			("sponsor-mode", "Set sponsor mode. Zero to disable, non-zero to enable.", cxxopts::value<uint32>());
 	}
 
 	ParseResults Parse(int ArgC, char** ArgV)
 	{
-		Parsed = MoveTemp(Options.parse(ArgC, ArgV));
+		Parsed = Options.parse(ArgC, ArgV);
 		const bool bCommandOk = Parsed["command"].count() == 1;
 		const bool bHelp = Parsed["help"].count() > 0;
 
@@ -247,6 +258,12 @@ public:
 		{
 			Settings->StoreDir = Value;
 		}
+
+		if (Parsed.count("sponsor-mode"))
+		{
+			uint32 Value = Parsed["sponsor-mode"].as<uint32>();
+			Settings->Sponsored = Value;
+		}
 	}
 
 	bool GetSponsorPid(uint32& OutSponsorPid) const
@@ -259,12 +276,18 @@ public:
 		return false;
 	}
 
+	bool GetDetach() const
+	{
+		return Parsed["detach"].count() > 0;
+	}
+
 	void PrintHelp() const
 	{
 		std::string HelpText;
 		if (!CurrentCommand)
 		{
 			HelpText = Options.help({"dummy"});
+			HelpText += "Use \"<Command> --help\" to get extended help about specific commands.\n\n";
 		}
 		else
 		{
@@ -281,8 +304,29 @@ public:
 
 
 private:
+
 	cxxopts::Options Options;
 	cxxopts::ParseResult Parsed;
+
+	static FString GetMainHelpString()
+	{
+		FString Help = "\nUnrealTraceServer acts as a hub between runtimes that are tracing performance "
+			"instrumentation and tools like Unreal Insights that consume and present that "
+			"data for analysis. TCP ports 1981 and 1989 are used, where the former receives "
+			"trace data, and the latter is used by tools to query the server's store.\n\n"
+			"UnrealTraceServer will look for a configuration file in \"";
+
+		// Add the settings file path
+#if TS_USING(TS_PLATFORM_WINDOWS)
+		Help += "%LOCALAPPDATA%/UnrealEngine/Common/UnrealTrace/Settings.ini";
+#else
+		Help += "~/UnrealEngine/UnrealTrace/Settings.ini";
+#endif
+		Help += "\". If no file is found default values are used. "
+			"Command line arguments takes precedence over values in the configuration file.\n";
+			
+		return Help;
+	}
 	
 	static struct FCommandHelp
 	{
@@ -292,18 +336,19 @@ private:
 		std::vector<const char*> HelpGroups;
 	} CommandHelp[];
 
+	FString ConfigurationHelp;
 	const FCommandHelp* CurrentCommand;
 };
 
 FOptions::FCommandHelp FOptions::CommandHelp[] = {
-	"fork", "	Starts a background server, upgrading any existing instance. ", 
+	{"fork", "	Starts a background server, upgrading any existing instance. ", 
 				"Checks if there is an existing instance running. If the running version is the same "
 				"version or newer that instance is used. If a sponsor pid is specified that pid is added "
-				"to the running instance.", {"settings", "sponsor"},
-	"daemon", "The mode that a background server runs in. ", "", {"sponsor"},
-	"kill", "	Shuts down a currently running instance. ", "", {},
-	"test", "	Run tests. ", "", {},
-	nullptr, nullptr, nullptr, {}
+				"to the running instance.", {"settings", "sponsor"}},
+	{"daemon", "The mode that a background server runs in. ", "", {"sponsor"}},
+	{"kill", "	Shuts down a currently running instance. ", "", {}},
+	{"test", "	Run tests. ", "", {}},
+	{nullptr, nullptr, nullptr, {}}
 };
 
 // {{{1 return codes -----------------------------------------------------------
@@ -720,7 +765,7 @@ static int MainFork(int ArgC, char** ArgV, const FOptions& Options)
 #if TS_USING(TS_DAEMON_THREAD)
 	std::thread DaemonThread([=] () { MainDaemon(ArgC, ArgV, Options); });
 #else
-	std::wstring CommandLine = L"UnrealTraceServer.exe daemon";
+	std::wstring CommandLine = L"UnrealTraceServer.exe daemon -d ";
 
 	auto ContainsSpace = [](LPCWSTR Arg) -> bool {
 		for (uint32 c = 0, Len = (uint32)wcslen(Arg); c < Len; ++c)
@@ -864,6 +909,12 @@ static int MainDaemon(int ArgC, char** ArgV, const FOptions& Options)
 	// Fire up the store
 	FStoreService* StoreService = FStoreService::Create(Settings, InstanceInfo);
 	OnScopeExit([StoreService]() { delete StoreService; });
+
+	if (Options.GetDetach())
+	{
+		TS_LOG("Detaching from console now.");
+		FreeConsole();
+	}
 
 	// Let every one know we've started.
 	{
@@ -1385,10 +1436,10 @@ int main(int ArgC, char** ArgV)
 		const char*	Verb;
 		int			(*Entry)(int, char**, const FOptions&);
 	} Dispatches[] = {
-		"fork",		MainFork,
-		"daemon",	MainDaemon,
-		"test",		MainTest,
-		"kill",		MainKill,
+		{"fork",		MainFork},
+		{"daemon",		MainDaemon},
+		{"test",		MainTest},
+		{"kill",		MainKill},
 	};
 
 	for (const auto& Dispatch : Dispatches)

@@ -109,7 +109,7 @@ namespace UnrealVS
 
 			// Get the project clicked in the solution explorer by accessing the current selection and converting to a Project if possible.
 			UnrealVSPackage.Instance.SelectionManager.GetCurrentSelection(out IntPtr HierarchyPtr, out uint ProjectItemId, out IVsMultiItemSelect MultiItemSelect, out IntPtr SelectionContainerPtr);
-			if (HierarchyPtr == null) return;
+			if (HierarchyPtr == IntPtr.Zero) return;
 
 			if (!(Marshal.GetTypedObjectForIUnknown(HierarchyPtr, typeof(IVsHierarchy)) is IVsHierarchy SelectedHierarchy)) return;
 

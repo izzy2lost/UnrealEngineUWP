@@ -78,13 +78,6 @@ void FLocalizationResourceTextSource::LoadLocalizedResources(const ELocalization
 		return LocalizationPaths;
 	};
 
-	auto GetCookedEditorLocalizationPaths = [&AppendChunkedLocalizationPaths]()
-	{
-		TArray<FString> LocalizationPaths = FPaths::GetCookedEditorLocalizationPaths();
-		AppendChunkedLocalizationPaths(LocalizationPaths);
-		return LocalizationPaths;
-	};
-
 	// Collect the localization paths to load from.
 	TArray<FString> GameNativePaths;
 	TArray<FString> GameLocalizationPaths;
@@ -102,9 +95,6 @@ void FLocalizationResourceTextSource::LoadLocalizedResources(const ELocalization
 	if (ShouldLoadEditor(InLoadFlags))
 	{
 		EditorLocalizationPaths += FPaths::GetEditorLocalizationPaths();
-#if UE_IS_COOKED_EDITOR
-		EditorLocalizationPaths += GetCookedEditorLocalizationPaths();
-#endif
 		EditorLocalizationPaths += FPaths::GetToolTipLocalizationPaths();
 
 		bool bShouldUseLocalizedPropertyNames = false;
@@ -191,7 +181,7 @@ void FLocalizationResourceTextSource::LoadLocalizedResourcesFromPaths(TArrayView
 	};
 
 	// Load the native texts first to ensure we always apply translations to a consistent base
-	if (InPrioritizedNativePaths.Num() > 0)
+	if (ShouldLoadNative(InLoadFlags) && InPrioritizedNativePaths.Num() > 0)
 	{
 		for (const FString& LocalizationPath : InPrioritizedNativePaths)
 		{

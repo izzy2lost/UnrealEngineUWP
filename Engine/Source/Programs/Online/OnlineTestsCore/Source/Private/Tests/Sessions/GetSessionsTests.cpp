@@ -3,8 +3,10 @@
 #include "Helpers/Sessions/CreateSessionHelper.h"
 #include "Helpers/Sessions/LeaveSessionHelper.h"
 #include "Helpers/Sessions/SendRejectSessionInviteHelper.h"
+#include "Logging/LogScopedVerbosityOverride.h"
+#include "Online/OnlineServicesLog.h"
+#include "EOSShared.h"
 #include "Helpers/TickForTime.h"
-#include "OnlineCatchHelper.h"
 
 #define SESSIONS_TAG "[suite_sessions]"
 #define EG_SESSIONS_GETSESSIONS_TAG SESSIONS_TAG "[getsessions]"
@@ -13,7 +15,7 @@
 
 SESSIONS_TEST_CASE("If I call GetAllSessions with an invalid account id, I get an error", EG_SESSIONS_GETSESSIONS_TAG)
 {
-	GetLoginPipeline()
+	GetPipeline()
 		.EmplaceLambda([](SubsystemType OnlineSubsystem)
 			{
 				FGetAllSessions::Params OpGetAllParams;
@@ -31,9 +33,10 @@ SESSIONS_TEST_CASE("If I call GetAllSessions with an invalid account id, I get a
 SESSIONS_TEST_CASE("If I call GetAllSessions before creating or joining any sessions, I get a successful result which is an empty array", EG_SESSIONS_GETSESSIONS_TAG)
 {
 	DestroyCurrentServiceModule();
+	ReturnAccounts();
 
 	FAccountId AccountId;
-	GetLoginPipeline(AccountId)
+	GetLoginPipeline({ AccountId })
 		.EmplaceLambda([&AccountId](SubsystemType OnlineSubsystem)
 			{
 				FGetAllSessions::Params OpParams;
@@ -50,6 +53,8 @@ SESSIONS_TEST_CASE("If I call GetAllSessions before creating or joining any sess
 
 SESSIONS_TEST_CASE("If I call GetAllSessions with valid conditions, I get a valid array of session references", EG_SESSIONS_GETSESSIONS_TAG)
 {
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogOnlineServices, ELogVerbosity::NoLogging);
+
 	FAccountId AccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -60,9 +65,16 @@ SESSIONS_TEST_CASE("If I call GetAllSessions with valid conditions, I get a vali
 	CreateSessionHelperParams.OpParams->SessionSettings.NumMaxConnections = 4;
 	CreateSessionHelperParams.OpParams->bPresenceEnabled = true;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("GetAllSessionsValidName");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
+	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;
 
 	uint32_t ExpectedSessionsFound = 1;
 
@@ -77,7 +89,9 @@ SESSIONS_TEST_CASE("If I call GetAllSessions with valid conditions, I get a vali
 				TOnlineResult<FGetAllSessions> Result = SessionsInterface->GetAllSessions(MoveTemp(OpGetAllParams));
 				REQUIRE_OP(Result);
 				CHECK(Result.GetOkValue().Sessions.Num() == ExpectedSessionsFound);
-			});
+			})
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
+
 
 	RunToCompletion();
 }
@@ -88,7 +102,7 @@ SESSIONS_TEST_CASE("If I call GetSessionByName with an empty session name, I get
 
 	FAccountId AccountId;
 
-	GetLoginPipeline(AccountId)
+	GetLoginPipeline({ AccountId })
 		.EmplaceLambda([](SubsystemType OnlineSubsystem)
 			{
 				FGetSessionByName::Params OpParams;
@@ -107,7 +121,7 @@ SESSIONS_TEST_CASE("If I call GetSessionByName with an unregistered session name
 {
 	FAccountId AccountId;
 
-	GetLoginPipeline(AccountId)
+	GetLoginPipeline({ AccountId })
 		.EmplaceLambda([](SubsystemType OnlineSubsystem)
 			{
 				FGetSessionByName::Params OpGetByNameParams;
@@ -124,7 +138,9 @@ SESSIONS_TEST_CASE("If I call GetSessionByName with an unregistered session name
 
 SESSIONS_TEST_CASE("If I call GetSessionByName with valid information, it returns a valid session reference", EG_SESSIONS_GETSESSIONS_TAG)
 {
-	ResetAccountStatus();
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogOnlineServices, ELogVerbosity::NoLogging);
+
+	DestroyCurrentServiceModule();
 
 	FAccountId AccountId;
 
@@ -136,9 +152,16 @@ SESSIONS_TEST_CASE("If I call GetSessionByName with valid information, it return
 	CreateSessionHelperParams.OpParams->SessionSettings.NumMaxConnections = 2;
 	CreateSessionHelperParams.OpParams->bPresenceEnabled = true;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("GetSessionByNameValidName");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
+	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;
 	
 	LoginPipeline
 		.EmplaceStep<FCreateSessionHelper>(MoveTemp(CreateSessionHelperParams))
@@ -150,7 +173,8 @@ SESSIONS_TEST_CASE("If I call GetSessionByName with valid information, it return
 				ISessionsPtr SessionsInterface = OnlineSubsystem->GetSessionsInterface();
 				TOnlineResult<FGetSessionByName> Result = SessionsInterface->GetSessionByName(MoveTemp(OpGetByNameParams));
 				REQUIRE_OP(Result);
-			});
+			})
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
 
 	RunToCompletion();
 }
@@ -161,7 +185,7 @@ SESSIONS_TEST_CASE("If I call GetSessionById with an invalid session id, I get a
 
 	FAccountId AccountId;
 
-	GetLoginPipeline(AccountId)
+	GetLoginPipeline({ AccountId })
 		.EmplaceLambda([](SubsystemType OnlineSubsystem)
 			{
 				FGetSessionById::Params OpGetByIdParams;
@@ -178,7 +202,9 @@ SESSIONS_TEST_CASE("If I call GetSessionById with an invalid session id, I get a
 
 SESSIONS_TEST_CASE("If I call GetSessionById with a valid but unregistered session id, I get an error", EG_SESSIONS_GETSESSIONS_TAG)
 {
-	ResetAccountStatus();
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogOnlineServices, ELogVerbosity::NoLogging);
+
+	DestroyCurrentServiceModule();
 
 	FAccountId AccountId;
 
@@ -198,7 +224,7 @@ SESSIONS_TEST_CASE("If I call GetSessionById with a valid but unregistered sessi
 
 	FGetSessionById::Params OpGetByIdParams;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;
@@ -227,6 +253,8 @@ SESSIONS_TEST_CASE("If I call GetSessionById with a valid but unregistered sessi
 
 SESSIONS_TEST_CASE("If I call GetSessionById with a valid id for a valid session, I get a valid session reference in return", EG_SESSIONS_GETSESSIONS_TAG)
 {
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogEOSSDK, ELogVerbosity::NoLogging);
+
 	FAccountId AccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -236,11 +264,18 @@ SESSIONS_TEST_CASE("If I call GetSessionById with a valid id for a valid session
 	CreateSessionHelperParams.OpParams->SessionSettings.SchemaName = TEXT("SchemaName");
 	CreateSessionHelperParams.OpParams->SessionSettings.NumMaxConnections = 2;
 
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("GetSessionByValidIdName");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
 	FGetSessionById::Params OpGetByIdParams;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
+	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;
 
 	LoginPipeline
 		.EmplaceStep<FCreateSessionHelper>(MoveTemp(CreateSessionHelperParams))
@@ -258,17 +293,16 @@ SESSIONS_TEST_CASE("If I call GetSessionById with a valid id for a valid session
 				TOnlineResult<FGetSessionById> Result = SessionsInterface->GetSessionById(MoveTemp(OpGetByIdParams));
 				REQUIRE_OP(Result);
 				CHECK(Result.GetOkValue().Session->GetSessionId() == OpGetByIdParams.SessionId);
-			});
+			})
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
+
 
 	RunToCompletion();
 }
 
 SESSIONS_TEST_CASE("If I call GetPresenceSession with an invalid id, I get an error", EG_SESSIONS_GETSESSIONS_TAG)
 {
-
-	const int32 NumUsersToLogin = 0;
-
-	GetLoginPipeline(NumUsersToLogin)
+	GetPipeline()
 		.EmplaceLambda([](SubsystemType OnlineSubsystem)
 			{
 				FGetPresenceSession::Params OpGetPresenceParams;
@@ -287,7 +321,7 @@ SESSIONS_TEST_CASE("If I call GetPresenceSession with an unregistered id, I get 
 {
 	FAccountId AccountId;
 
-	GetLoginPipeline(AccountId)
+	GetLoginPipeline({ AccountId })
 		.EmplaceLambda([&AccountId](SubsystemType OnlineSubsystem)
 			{
 				FGetPresenceSession::Params OpGetPresenceParams;
@@ -305,8 +339,6 @@ SESSIONS_TEST_CASE("If I call GetPresenceSession with an unregistered id, I get 
 SESSIONS_TEST_CASE("If I call GetPresenceSession with a valid id, I get a valid reference to the session", EG_SESSIONS_GETSESSIONS_TAG)
 {
 	DestroyCurrentServiceModule();
-	ResetAccountStatus();
-
 
 	FAccountId AccountId;
 
@@ -324,7 +356,7 @@ SESSIONS_TEST_CASE("If I call GetPresenceSession with a valid id, I get a valid 
 	LeaveSessionHelperParams.OpParams->SessionName = TEXT("GetPresenceSessionWithValidIdName");
 	LeaveSessionHelperParams.OpParams->bDestroySession = true;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;
@@ -350,7 +382,7 @@ SESSIONS_TEST_CASE("If I call GetSessionInviteById with an invalid account id, I
 	FGetSessionInviteById::Params OpGetInviteByIdParams;
 	OpGetInviteByIdParams.LocalAccountId = FAccountId();
 
-	GetLoginPipeline()
+	GetPipeline()
 		.EmplaceLambda([&OpGetInviteByIdParams](SubsystemType OnlineSubsystem)
 			{
 				ISessionsPtr SessionsInterface = OnlineSubsystem->GetSessionsInterface();
@@ -371,7 +403,7 @@ SESSIONS_TEST_CASE("If I call GetSessionInviteById with an invalid session invit
 	FGetSessionInviteById::Params OpGetInviteByIdParams;
 	OpGetInviteByIdParams.SessionInviteId = FSessionInviteId();
 	
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	OpGetInviteByIdParams.LocalAccountId = AccountId;
 
@@ -393,6 +425,7 @@ SESSIONS_TEST_CASE("If I call GetSessionInviteById with a valid account id, but 
 {
 	DestroyCurrentServiceModule();
 
+	int32 UserNumToLogin = 7;
 	FAccountId FirstAccountId, SecondAccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -410,12 +443,19 @@ SESSIONS_TEST_CASE("If I call GetSessionInviteById with a valid account id, but 
 
 	FGetSessionInviteById::Params OpGetInviteByIdParams;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("GetInviteByIdWithValidAccountIdName");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { FirstAccountId, SecondAccountId });
 
 	OpGetInviteByIdParams.LocalAccountId = FirstAccountId;
 	CreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SendSessionInviteHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SendSessionInviteHelperParams.OpParams->TargetUsers.Add(SecondAccountId);
+	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
 	LoginPipeline
 		.EmplaceStep<FCreateSessionHelper>(MoveTemp(CreateSessionHelperParams))
@@ -431,16 +471,20 @@ SESSIONS_TEST_CASE("If I call GetSessionInviteById with a valid account id, but 
 				TOnlineResult<FGetSessionInviteById> Result = SessionsInterface->GetSessionInviteById(MoveTemp(OpGetInviteByIdParams));
 				REQUIRE(Result.IsError());
 				CHECK(Result.GetErrorValue() == Errors::InvalidState());
-			});
+			})
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
+
 
 	RunToCompletion();
 }
 
 SESSIONS_TEST_CASE("If I call GetSessionInviteById with valid invite id, but without invite, I get an error", EG_SESSIONS_GETSESSIONSEOS_TAG)
 {
-	DestroyCurrentServiceModule();
-	ResetAccountStatus();
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogEOSSDK, ELogVerbosity::NoLogging);
 
+	DestroyCurrentServiceModule();
+
+	int32 UserNumToLogin = 7;
 	FAccountId FirstAccountId, SecondAccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -462,13 +506,20 @@ SESSIONS_TEST_CASE("If I call GetSessionInviteById with valid invite id, but wit
 
 	FGetSessionInviteById::Params OpGetInviteByIdParams;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("GetInviteByIdWithValidInviteIdName");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { FirstAccountId, SecondAccountId });
 
 	OpGetInviteByIdParams.LocalAccountId = SecondAccountId;
 	CreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SendSessionInviteHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SendSessionInviteHelperParams.OpParams->TargetUsers.Add(SecondAccountId);
 	RejectSessionInviteHelperParams.OpParams->LocalAccountId = SecondAccountId;
+	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
 	LoginPipeline
 		.EmplaceStep<FCreateSessionHelper>(MoveTemp(CreateSessionHelperParams))
@@ -486,7 +537,9 @@ SESSIONS_TEST_CASE("If I call GetSessionInviteById with valid invite id, but wit
 				TOnlineResult<FGetSessionInviteById> Result = SessionsInterface->GetSessionInviteById(MoveTemp(OpGetInviteByIdParams));
 				REQUIRE(Result.IsError());
 				CHECK(Result.GetErrorValue() == Errors::NotFound());
-			});
+			})
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
+
 
 	RunToCompletion();
 }
@@ -494,8 +547,8 @@ SESSIONS_TEST_CASE("If I call GetSessionInviteById with valid invite id, but wit
 SESSIONS_TEST_CASE("If I call GetSessionInviteById with a valid data, I get a valid reference to the session invite", EG_SESSIONS_GETSESSIONSEOS_TAG)
 {
 	DestroyCurrentServiceModule();
-	ResetAccountStatus();
 
+	int32 UserNumToLogin = 7;
 	FAccountId FirstAccountId, SecondAccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -513,12 +566,19 @@ SESSIONS_TEST_CASE("If I call GetSessionInviteById with a valid data, I get a va
 
 	FGetSessionInviteById::Params OpGetInviteByIdParams;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("GetInviteByIdValidName");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { FirstAccountId, SecondAccountId });
 
 	OpGetInviteByIdParams.LocalAccountId = SecondAccountId;
 	CreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SendSessionInviteHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SendSessionInviteHelperParams.OpParams->TargetUsers.Add(SecondAccountId);
+	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
 	LoginPipeline
 		.EmplaceStep<FCreateSessionHelper>(MoveTemp(CreateSessionHelperParams))
@@ -534,7 +594,8 @@ SESSIONS_TEST_CASE("If I call GetSessionInviteById with a valid data, I get a va
 				TOnlineResult<FGetSessionInviteById> Result = SessionsInterface->GetSessionInviteById(MoveTemp(OpGetInviteByIdParams));
 				REQUIRE(Result.GetOkValue().SessionInvite->GetInviteId().IsValid());
 				CHECK(Result.GetOkValue().SessionInvite->GetSenderId() == FirstAccountId);
-			});
+			})
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
 
 	RunToCompletion();
 }

@@ -3,14 +3,12 @@
 #pragma once
 
 #include "Containers/ContainerAllocationPolicies.h"
-#include "Containers/ContainerAllocationPolicies.h"
 #include "CoreTypes.h"
 #include "HAL/PlatformAtomics.h"
 #include "HAL/PlatformCrt.h"
 #include "HAL/UnrealMemory.h"
 #include "Math/UnrealMathUtility.h"
 #include "Misc/AssertionMacros.h"
-#include "Serialization/MemoryImageWriter.h"
 #include "Serialization/MemoryImageWriter.h"
 #include "Serialization/MemoryLayout.h"
 #include "Templates/UnrealTemplate.h"
@@ -56,7 +54,24 @@ static FORCEINLINE uint32 Murmur32( std::initializer_list< uint32 > InitList )
 		Hash = Hash * 5 + 0xe6546b64;
 	}
 
-	return MurmurFinalize32(Hash);
+	return MurmurFinalize32( Hash );
+}
+
+static FORCEINLINE uint64 Murmur64( std::initializer_list< uint64 > InitList )
+{
+	uint64 Hash = 0;
+	for( auto Element : InitList )
+	{
+		Element *= 0x87c37b91114253d5ull;
+		Element = ( Element << 31 ) | ( Element >> (64 - 31) );
+		Element *= 0x4cf5ad432745937full;
+
+		Hash ^= Element;
+		Hash = ( Hash << 27 ) | ( Hash >> (64 - 27) );
+		Hash = Hash * 5 + 0x52dce729;
+	}
+
+	return MurmurFinalize64( Hash );
 }
 
 /*-----------------------------------------------------------------------------
@@ -195,13 +210,21 @@ class FHashTable
 {
 public:
 					FHashTable( uint32 InHashSize = 1024, uint32 InIndexSize = 0 );
-					FHashTable( const FHashTable& Other );
+					FHashTable(const FHashTable& Other);
+					FHashTable(FHashTable&& Other);
 					~FHashTable();
 
 	void			Clear();
 	void			Clear( uint32 InHashSize, uint32 InIndexSize = 0 );
 	void			Free();
+	/** 
+	 * Increases or decreases the size of the index but not the hash lookup.
+	 * If the previous size was empty, allocates the hash at its desired size.
+	 */
 	CORE_API void	Resize( uint32 NewIndexSize );
+	inline uint32	GetIndexSize() const { return IndexSize; }
+	inline uint32	GetHashSize() const { return HashSize; }
+	CORE_API SIZE_T	GetAllocatedSize() const;
 
 	// Functions used to search
 	uint32			First( uint32 Key ) const;
@@ -209,6 +232,7 @@ public:
 	bool			IsValid( uint32 Index ) const;
 	
 	void			Add( uint32 Key, uint32 Index );
+	// Safe to call concurrently with other threads calling Add_Concurrent with different values for Index.
 	void			Add_Concurrent( uint32 Key, uint32 Index );
 	void			Remove( uint32 Key, uint32 Index );
 
@@ -216,6 +240,7 @@ public:
 	CORE_API float	AverageSearch() const;
 
 	FHashTable&		operator=(const FHashTable& Other);
+	FHashTable&		operator=(FHashTable&& Other);
 
 protected:
 	// Avoids allocating hash until first add
@@ -267,6 +292,20 @@ FORCEINLINE FHashTable::FHashTable( const FHashTable& Other )
 	}
 }
 
+FORCEINLINE FHashTable::FHashTable(FHashTable&& Other )
+	: HashSize( Other.HashSize )
+	, HashMask( Other.HashMask )
+	, IndexSize( Other.IndexSize )
+	, Hash(Other.Hash)
+	, NextIndex(Other.NextIndex)
+{
+	Other.HashSize = 0;
+	Other.HashMask = 0;
+	Other.IndexSize = 0;
+	Other.Hash = EmptyHash;
+	Other.NextIndex = nullptr;
+}
+
 FORCEINLINE FHashTable& FHashTable::operator=(const FHashTable& Other)
 {
 	Free();
@@ -282,6 +321,24 @@ FORCEINLINE FHashTable& FHashTable::operator=(const FHashTable& Other)
 		FMemory::Memcpy(Hash, Other.Hash, HashSize * 4);
 		FMemory::Memcpy(NextIndex, Other.NextIndex, IndexSize * 4);
 	}
+	return *this;
+}
+
+FORCEINLINE FHashTable& FHashTable::operator=(FHashTable&& Other)
+{
+	Free();
+
+	HashSize = Other.HashSize;
+	HashMask = Other.HashMask;
+	IndexSize = Other.IndexSize;
+	Hash = Other.Hash;
+	NextIndex = Other.NextIndex;
+
+	Other.HashSize = 0;
+	Other.HashMask = 0;
+	Other.IndexSize = 0;
+	Other.Hash = EmptyHash;
+	Other.NextIndex = nullptr;
 	return *this;
 }
 
@@ -470,13 +527,13 @@ public:
 	{
 		if constexpr (TAllocatorTraits<Allocator>::SupportsFreezeMemoryImage)
 		{
-			THashTable* DstTable = new(Dst) THashTable(this->HashMask + 1u, this->IndexSize);
+			THashTable* DstTable = ::new(Dst) THashTable(this->HashMask + 1u, this->IndexSize);
 			FMemory::Memcpy(DstTable->Hash.GetAllocation(), this->Hash.GetAllocation(), (this->HashMask + 1u) * 4);
 			FMemory::Memcpy(DstTable->NextIndex.GetAllocation(), this->NextIndex.GetAllocation(), this->IndexSize * 4);
 		}
 		else
 		{
-			new(Dst) THashTable();
+			::new(Dst) THashTable();
 		}
 	}
 };

@@ -14,6 +14,7 @@
 #include "Iris/Stats/NetStatsContext.h"
 
 #include "Net/Core/Trace/NetDebugName.h"
+#include "HAL/IConsoleManager.h"
 
 namespace UE::Net::Private
 {
@@ -30,41 +31,6 @@ FObjectPoller::FObjectPoller(const FInitParams& InitParams)
 	GarbageCollectionAffectedObjects = MakeNetBitArrayView(ObjectReplicationBridge->GarbageCollectionAffectedObjects);
 
 	// DirtyObjectsThisFrame is acquired only during polling 
-}
-
-void FObjectPoller::PreUpdatePass(const FNetBitArrayView& ObjectsConsideredForPolling)
-{
-	IRIS_PROFILER_SCOPE_VERBOSE(PreUpdatePass);
-	NetStatsContext = ReplicationSystemInternal->GetNetTypeStats().GetNetStatsContext();
-
-	ObjectsConsideredForPolling.ForAllSetBits([this](FInternalNetRefIndex Objectindex)
-	{
-		CallPreUpdate(Objectindex);
-	});
-
-	NetStatsContext = nullptr;
-}
-
-void FObjectPoller::CallPreUpdate(FInternalNetRefIndex ObjectIndex)
-{
-	FNetRefHandleManager::FReplicatedObjectData& ObjectData = LocalNetRefHandleManager.GetReplicatedObjectDataNoCheck(ObjectIndex);
-	if (UNLIKELY(ObjectData.InstanceProtocol == nullptr))
-	{
-		return;
-	}
-
-	IRIS_PROFILER_PROTOCOL_NAME(ObjectData.Protocol->DebugName->Name);
-
-	// Call per-instance PreUpdate function
-	if (ObjectReplicationBridge->PreUpdateInstanceFunction && EnumHasAnyFlags(ObjectData.InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPreSendUpdate))
-	{
-		UE_NET_IRIS_STATS_TIMER(Timer, NetStatsContext);
-	
-		ObjectReplicationBridge->PreUpdateInstanceFunction(ObjectData.RefHandle, ReplicatedInstances[ObjectIndex], ObjectReplicationBridge);
-		++PollStats.PreUpdatedObjectCount;
-		
-		UE_NET_IRIS_STATS_ADD_TIME_AND_COUNT_FOR_OBJECT(Timer, PreUpdate, ObjectIndex);
-	}
 }
 
 void FObjectPoller::PollAndCopyObjects(const FNetBitArrayView& ObjectsConsideredForPolling)
@@ -94,23 +60,16 @@ void FObjectPoller::PollAndCopyObjects(const FNetBitArrayView& ObjectsConsidered
 	NetStatsContext = nullptr;
 }
 
-void FObjectPoller::PollAndCopySingleObject(FNetRefHandle Handle)
+void FObjectPoller::PollAndCopySingleObject(FInternalNetRefIndex ObjectIndex)
 {
-	if (uint32 InternalObjectIndex = LocalNetRefHandleManager.GetInternalIndex(Handle))
-	{
-		NetStatsContext = ReplicationSystemInternal->GetNetTypeStats().GetNetStatsContext();
+	FDirtyObjectsAccessor DirtyObjectsAccessor(ReplicationSystemInternal->GetDirtyNetObjectTracker());
+	DirtyObjectsThisFrame = DirtyObjectsAccessor.GetDirtyNetObjects();
 
-		CallPreUpdate(InternalObjectIndex);
+	ForcePollObject(ObjectIndex);
 
-		FDirtyObjectsAccessor DirtyObjectsAccessor(ReplicationSystemInternal->GetDirtyNetObjectTracker());
-		DirtyObjectsThisFrame = DirtyObjectsAccessor.GetDirtyNetObjects();
-
-		ForcePollObject(InternalObjectIndex);
-
-		// Clear ref to locked dirty bit array
-		DirtyObjectsThisFrame = FNetBitArrayView();
-		NetStatsContext = nullptr;
-	}
+	// Clear ref to locked dirty bit array
+	DirtyObjectsThisFrame = FNetBitArrayView();
+	NetStatsContext = nullptr;
 }
 
 void FObjectPoller::ForcePollObject(FInternalNetRefIndex ObjectIndex)

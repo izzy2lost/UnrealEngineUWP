@@ -228,6 +228,7 @@ void ALevelSequenceActor::PostInitializeComponents()
 	// Initialize this player for tick as soon as possible to ensure that a persistent
 	// reference to the tick manager is maintained
 	GetSequencePlayer()->InitializeForTick(this);
+	GetSequencePlayer()->SetPlaybackSettings(PlaybackSettings);
 
 	InitializePlayer();
 }

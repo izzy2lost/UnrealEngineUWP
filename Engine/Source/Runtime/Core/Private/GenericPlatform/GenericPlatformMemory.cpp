@@ -12,6 +12,7 @@
 #include "Containers/Ticker.h"
 #include "Misc/FeedbackContext.h"
 #include "Async/Async.h"
+#include "Async/Mutex.h"
 #include "HAL/MallocAnsi.h"
 #include "GenericPlatform/GenericPlatformMemoryPoolStats.h"
 #include "HAL/MemoryMisc.h"
@@ -108,34 +109,43 @@ struct FGenericStatsUpdater
 	/** Gathers and sets all platform memory statistics into the corresponding stats. */
 	static void DoUpdateStats()
 	{
-        QUICK_SCOPE_CYCLE_COUNTER(STAT_FGenericStatsUpdater_DoUpdateStats);
+		static UE::FMutex Mutex;
+		// Avoid race in case the ticker runs faster than the background tasks
+		// and just skip the update if another one is already running so that
+		// we can keep up with the ticker.
+		if (Mutex.TryLock())
+		{
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_FGenericStatsUpdater_DoUpdateStats);
 
-		// This is slow, so do it on the task graph.
-		FPlatformMemoryStats MemoryStats = FPlatformMemory::GetStats();
-		SET_MEMORY_STAT( STAT_TotalPhysical, MemoryStats.TotalPhysical );
-		SET_MEMORY_STAT( STAT_TotalVirtual, MemoryStats.TotalVirtual );
-		SET_MEMORY_STAT( STAT_PageSize, MemoryStats.PageSize );
-		SET_MEMORY_STAT( STAT_TotalPhysicalGB, MemoryStats.TotalPhysicalGB );
+			// This is slow, so do it on the task graph.
+			FPlatformMemoryStats MemoryStats = FPlatformMemory::GetStats();
+			SET_MEMORY_STAT(STAT_TotalPhysical, MemoryStats.TotalPhysical);
+			SET_MEMORY_STAT(STAT_TotalVirtual, MemoryStats.TotalVirtual);
+			SET_MEMORY_STAT(STAT_PageSize, MemoryStats.PageSize);
+			SET_MEMORY_STAT(STAT_TotalPhysicalGB, MemoryStats.TotalPhysicalGB);
 
-		SET_MEMORY_STAT( STAT_AvailablePhysical, MemoryStats.AvailablePhysical );
-		SET_MEMORY_STAT( STAT_AvailableVirtual, MemoryStats.AvailableVirtual );
-		SET_MEMORY_STAT( STAT_UsedPhysical, MemoryStats.UsedPhysical );
-		SET_MEMORY_STAT( STAT_PeakUsedPhysical, MemoryStats.PeakUsedPhysical );
-		SET_MEMORY_STAT( STAT_UsedVirtual, MemoryStats.UsedVirtual );
-		SET_MEMORY_STAT( STAT_PeakUsedVirtual, MemoryStats.PeakUsedVirtual );
+			SET_MEMORY_STAT(STAT_AvailablePhysical, MemoryStats.AvailablePhysical);
+			SET_MEMORY_STAT(STAT_AvailableVirtual, MemoryStats.AvailableVirtual);
+			SET_MEMORY_STAT(STAT_UsedPhysical, MemoryStats.UsedPhysical);
+			SET_MEMORY_STAT(STAT_PeakUsedPhysical, MemoryStats.PeakUsedPhysical);
+			SET_MEMORY_STAT(STAT_UsedVirtual, MemoryStats.UsedVirtual);
+			SET_MEMORY_STAT(STAT_PeakUsedVirtual, MemoryStats.PeakUsedVirtual);
 
-		TRACE_COUNTER_SET(PlatformMemoryTotalPhysical, MemoryStats.TotalPhysical);
-		TRACE_COUNTER_SET(PlatformMemoryTotalVirtual, MemoryStats.TotalVirtual);
-		TRACE_COUNTER_SET(PlatformMemoryPageSize, MemoryStats.PageSize);
-		TRACE_COUNTER_SET(PlatformMemoryAvailablePhysical, MemoryStats.AvailablePhysical);
-		TRACE_COUNTER_SET(PlatformMemoryAvailableVirtual, MemoryStats.AvailableVirtual);
-		TRACE_COUNTER_SET(PlatformMemoryUsedPhysical, MemoryStats.UsedPhysical);
-		TRACE_COUNTER_SET(PlatformMemoryPeakUsedPhysical, MemoryStats.PeakUsedPhysical);
-		TRACE_COUNTER_SET(PlatformMemoryUsedVirtual, MemoryStats.UsedVirtual);
-		TRACE_COUNTER_SET(PlatformMemoryPeakUsedVirtual, MemoryStats.PeakUsedVirtual);
+			TRACE_COUNTER_SET(PlatformMemoryTotalPhysical, MemoryStats.TotalPhysical);
+			TRACE_COUNTER_SET(PlatformMemoryTotalVirtual, MemoryStats.TotalVirtual);
+			TRACE_COUNTER_SET(PlatformMemoryPageSize, MemoryStats.PageSize);
+			TRACE_COUNTER_SET(PlatformMemoryAvailablePhysical, MemoryStats.AvailablePhysical);
+			TRACE_COUNTER_SET(PlatformMemoryAvailableVirtual, MemoryStats.AvailableVirtual);
+			TRACE_COUNTER_SET(PlatformMemoryUsedPhysical, MemoryStats.UsedPhysical);
+			TRACE_COUNTER_SET(PlatformMemoryPeakUsedPhysical, MemoryStats.PeakUsedPhysical);
+			TRACE_COUNTER_SET(PlatformMemoryUsedVirtual, MemoryStats.UsedVirtual);
+			TRACE_COUNTER_SET(PlatformMemoryPeakUsedVirtual, MemoryStats.PeakUsedVirtual);
 
-		// Platform specific stats.
-		FPlatformMemory::InternalUpdateStats( MemoryStats );
+			// Platform specific stats.
+			FPlatformMemory::InternalUpdateStats(MemoryStats);
+
+			Mutex.Unlock();
+		}
 	}
 };
 
@@ -164,7 +174,7 @@ uint64 FGenericPlatformMemory::OOMAllocationSize = 0;
 uint32 FGenericPlatformMemory::OOMAllocationAlignment = 0;
 FGenericPlatformMemory::EMemoryAllocatorToUse FGenericPlatformMemory::AllocatorToUse = Platform;
 void* FGenericPlatformMemory::BackupOOMMemoryPool = nullptr;
-
+uint64 FGenericPlatformMemory::ProgramSize = 0;
 
 void FGenericPlatformMemory::SetupMemoryPools()
 {
@@ -279,6 +289,11 @@ FPlatformMemoryStats FGenericPlatformMemory::GetStats()
 FPlatformMemoryStats FGenericPlatformMemory::GetStatsRaw()
 {
 	return FPlatformMemory::GetStats();
+}
+
+uint64 FGenericPlatformMemory::GetMemoryUsedFast()
+{
+	return FPlatformMemory::GetStats().UsedPhysical;
 }
 
 void FGenericPlatformMemory::GetStatsForMallocProfiler( FGenericMemoryStats& out_Stats )
@@ -572,4 +587,33 @@ uint64 FGenericPlatformMemoryStats::GetAvailablePhysical(bool bExcludeExtraDevMe
 #endif
 
 	return BytesAvailable;
+}
+
+FString FGenericPlatformMemory::PrettyMemory(uint64 Memory)
+{
+	static const TCHAR* Units[] = { TEXT("B"), TEXT("KB"), TEXT("MB"), TEXT("GB"), TEXT("TB"), TEXT("PB"), TEXT("EB") };
+			
+	uint64 UnitIndex = 0;
+	uint64 Remainder = 0;
+
+	while ((Memory > 1024) && (UnitIndex++ < (UE_ARRAY_COUNT(Units) - 1)))
+	{
+		Remainder = Memory & 1023;
+		Memory >>= 10llu;
+	}
+
+	// Convert remainder to percentage
+	const uint64 RemainderPerc = (Remainder * 100) >> 10;
+
+	if (RemainderPerc)
+	{
+		if (RemainderPerc % 10)
+		{
+			return FString::Printf(TEXT("%llu.%02llu%s"), Memory, RemainderPerc, Units[UnitIndex]);
+		}
+
+		return FString::Printf(TEXT("%llu.%llu%s"), Memory, RemainderPerc / 10, Units[UnitIndex]);
+	}
+
+	return FString::Printf(TEXT("%llu%s"), Memory, Units[UnitIndex]);
 }

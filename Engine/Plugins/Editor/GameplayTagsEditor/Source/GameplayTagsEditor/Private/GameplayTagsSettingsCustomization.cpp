@@ -5,10 +5,13 @@
 #include "GameplayTagsModule.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
+#include "Editor.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Framework/Docking/TabManager.h"
 #include "SGameplayTagPicker.h"
 #include "SAddNewGameplayTagSourceWidget.h"
+#include "SCleanupUnusedGameplayTagsWidget.h"
 #include "Widgets/Input/SButton.h"
-#include "Editor.h"
 
 #define LOCTEXT_NAMESPACE "FGameplayTagsSettingsCustomization"
 
@@ -38,6 +41,9 @@ void FGameplayTagsSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& 
 
 		TSharedPtr<IPropertyHandle> NewTagSourceProperty = DetailLayout.GetProperty(GET_MEMBER_NAME_CHECKED(UGameplayTagsSettings, NewTagSource));
 		NewTagSourceProperty->MarkHiddenByCustomization();
+
+		TSharedPtr<IPropertyHandle> CleanupUnusedTagsProperty = DetailLayout.GetProperty(GET_MEMBER_NAME_CHECKED(UGameplayTagsSettings, CleanupUnusedTags));
+		CleanupUnusedTagsProperty->MarkHiddenByCustomization();
 
 		for (TSharedPtr<IPropertyHandle> Property : GameplayTagsProperties)
 		{
@@ -128,6 +134,67 @@ void FGameplayTagsSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& 
 						[
 							SNew(STextBlock)
 							.Text(LOCTEXT("AddNewGameplayTagSource", "Add new Gameplay Tag source..."))
+						]
+					]
+				];
+			}
+			else if (Property->GetProperty() == CleanupUnusedTagsProperty->GetProperty())
+			{
+				// Button to open add source dialog
+				GameplayTagsCategory.AddCustomRow(CleanupUnusedTagsProperty->GetPropertyDisplayName(), /*bForAdvanced*/false)
+				.NameContent()
+				[
+					CleanupUnusedTagsProperty->CreatePropertyNameWidget()
+				]
+				.ValueContent()
+				[
+					SNew(SButton)
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Center)
+					.OnClicked_Lambda([this]()
+					{
+						const TSharedRef<SWindow> Window = SNew(SWindow)
+							.Title(LOCTEXT("CleanupUnusedTagsTitle", "Cleanup Unused Tags"))
+							.SizingRule(ESizingRule::UserSized)
+							.ClientSize(FVector2D(700, 700))
+							.SupportsMinimize(false)
+							.Content()
+							[
+								SNew(SBox)
+								.MinDesiredWidth(100.f)
+								.MinDesiredHeight(100.f)
+								[
+									SNew(SCleanupUnusedGameplayTagsWidget)
+								]
+							];
+
+						TSharedPtr<SWindow> RootWindow = FGlobalTabmanager::Get()->GetRootWindow();
+						if (RootWindow.IsValid())
+						{
+							FSlateApplication::Get().AddWindowAsNativeChild(Window, RootWindow.ToSharedRef());
+						}
+						else
+						{
+							FSlateApplication::Get().AddWindow(Window);
+						}
+
+						return FReply::Handled();
+					})
+					[
+						SNew(SHorizontalBox)
+						+SHorizontalBox::Slot()
+						.AutoWidth()
+						.Padding(FMargin(0,0,4,0))
+						[
+							SNew( SImage )
+							.Image(FAppStyle::GetBrush("Icons.Delete"))
+							.ColorAndOpacity(FSlateColor::UseForeground())
+						]
+						+SHorizontalBox::Slot()
+						.AutoWidth()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("CleanupUnusedTags", "Cleanup Unused Tags..."))
 						]
 					]
 				];

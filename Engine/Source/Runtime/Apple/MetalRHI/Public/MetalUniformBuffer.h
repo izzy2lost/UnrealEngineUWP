@@ -6,13 +6,14 @@
 //  Implements handles to linearly allocated per-frame constant buffers for shared memory systems.
 //
 
-#import <Metal/Metal.h>
-
+#import "MetalThirdParty.h"
+#include "MetalBuffer.h"
 #include "RHIResources.h"
 
 #define METAL_UNIFORM_BUFFER_VALIDATION !UE_BUILD_SHIPPING
 
 class FMetalStateCache;
+class FMetalDevice;
 
 class FMetalSuballocatedUniformBuffer : public FRHIUniformBuffer
 {
@@ -20,16 +21,15 @@ class FMetalSuballocatedUniformBuffer : public FRHIUniformBuffer
 public:
     // The last render thread frame this uniform buffer updated or pushed contents to the GPU backing
     uint32 LastFrameUpdated;
-    // Offset within the GPU backing this uniform buffer owns
-    uint32 Offset;
-    // The GPU backing buffer for this uniform buffer. Many FMetalMobileUniformBuffers can own regions.
-    // This UB does not own a reference to the backing buffer.
-    // This Backing is recycled at the end of every frame so you MUST update it if LastFrameUpdated != this frame or contents are undefined.
-    MTLBufferPtr Backing;
-    // CPU side shadow memory to hold updates for single-draw or multi-frame buffers.
+	
+    FMetalBufferPtr BackingBuffer;
+    
+	// CPU side shadow memory to hold updates for single-draw or multi-frame buffers.
     // This allows you to upload on a frame but actually use this UB later on
     void* Shadow;
+	
 private:
+	FMetalDevice& Device;
 #if METAL_UNIFORM_BUFFER_VALIDATION
     EUniformBufferValidation Validation;
 #endif
@@ -37,7 +37,8 @@ private:
 public:
     // Creates a uniform buffer.
     // If Usage is SingleDraw or MultiFrame we will keep a copy of the data
-    FMetalSuballocatedUniformBuffer(const void* Contents, const FRHIUniformBufferLayout* Layout, EUniformBufferUsage Usage, EUniformBufferValidation Validation);
+    FMetalSuballocatedUniformBuffer(FMetalDevice& Device, const void* Contents, const FRHIUniformBufferLayout* Layout,
+									EUniformBufferUsage Usage, EUniformBufferValidation Validation);
     ~FMetalSuballocatedUniformBuffer();
 
 	void Update(const void* Contents);

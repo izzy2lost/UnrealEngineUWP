@@ -155,14 +155,16 @@ void ComputeCollisionFromMesh(
 	GeneratedCollision = NewCollision.AggGeom;
 }
 
-
-
-static void SetStaticMeshSimpleCollision(UStaticMesh* StaticMeshAsset, const FKAggregateGeom& NewSimpleCollision, bool bEmitTransaction, bool bMarkCollisionAsCustomized = true)
+static void UpdateStaticMeshCollision(UStaticMesh* StaticMeshAsset, TFunctionRef<bool(UStaticMesh*, UBodySetup*)> ApplyUpdate, bool bEmitTransaction, bool bMarkCollisionAsCustomized = true)
 {
+	if (!ensure(StaticMeshAsset))
+	{
+		return;
+	}
 #if WITH_EDITOR
 	if (bEmitTransaction && GEditor)
 	{
-		GEditor->BeginTransaction(LOCTEXT("UpdateStaticMesh", "Set Simple Collision"));
+		GEditor->BeginTransaction(LOCTEXT("UpdateStaticMesh", "Update Static Mesh Collision"));
 
 		StaticMeshAsset->Modify();
 	}
@@ -171,25 +173,22 @@ static void SetStaticMeshSimpleCollision(UStaticMesh* StaticMeshAsset, const FKA
 	UBodySetup* BodySetup = StaticMeshAsset->GetBodySetup();
 	if (BodySetup != nullptr)
 	{
-		// mark the BodySetup for modification. Do we need to modify the UStaticMesh??
+		// mark the BodySetup for modification.
 #if WITH_EDITOR
 		if (bEmitTransaction)
 		{
 			BodySetup->Modify();
 		}
 #endif
+	}
 
-		// clear existing simple collision. This will call BodySetup->InvalidatePhysicsData()
-		BodySetup->RemoveSimpleCollision();
-
-		// set new collision geometry
-		BodySetup->AggGeom = NewSimpleCollision;
-
-		// update collision type
-		//BodySetup->CollisionTraceFlag = (ECollisionTraceFlag)(int32)Settings->SetCollisionType;
-
-		// rebuild physics meshes
-		BodySetup->CreatePhysicsMeshes();
+	if (ApplyUpdate(StaticMeshAsset, BodySetup))
+	{
+		if (BodySetup)
+		{
+			// rebuild physics meshes
+			BodySetup->CreatePhysicsMeshes();
+		}
 
 		StaticMeshAsset->RecreateNavCollision();
 
@@ -229,6 +228,27 @@ static void SetStaticMeshSimpleCollision(UStaticMesh* StaticMeshAsset, const FKA
 
 }
 
+static void SetStaticMeshSimpleCollision(UStaticMesh* StaticMeshAsset, const FKAggregateGeom& NewSimpleCollision, bool bEmitTransaction, bool bMarkCollisionAsCustomized = true)
+{
+	UpdateStaticMeshCollision(StaticMeshAsset, [&NewSimpleCollision](UStaticMesh*, UBodySetup* BodySetup) -> bool
+	{
+		if (!BodySetup)
+		{
+			return false;
+		}
+		// clear existing simple collision. This will call BodySetup->InvalidatePhysicsData()
+		BodySetup->RemoveSimpleCollision();
+
+		// set new collision geometry
+		BodySetup->AggGeom = NewSimpleCollision;
+
+		// update collision type
+		//BodySetup->CollisionTraceFlag = (ECollisionTraceFlag)(int32)Settings->SetCollisionType;
+
+		return true;
+	}, bEmitTransaction, bMarkCollisionAsCustomized);
+}
+
 
 // local helper to convert the blueprint-accessible enum to the geometrycore equivalent
 static UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod ConvertNegativeSpaceSampleMethodEnum(ENegativeSpaceSampleMethod SampleMethod)
@@ -239,6 +259,8 @@ static UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod ConvertNegative
 		return UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod::Uniform;
 	case ENegativeSpaceSampleMethod::VoxelSearch:
 		return UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod::VoxelSearch;
+	case ENegativeSpaceSampleMethod::NavigableVoxelSearch:
+		return UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod::NavigableVoxelSearch;
 	}
 	return UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod::Uniform;
 }
@@ -293,6 +315,43 @@ static double GetConvexElemVolume(const FKConvexElem& Convex)
 
 }		// end namespace UELocal
 
+
+bool UGeometryScriptLibrary_CollisionFunctions::SetStaticMeshCustomComplexCollision(
+	UStaticMesh* StaticMeshAsset,
+	UStaticMesh* StaticMeshCollisionAsset,
+	bool bEmitTransaction,
+	bool bMarkCollisionAsCustomized,
+	UGeometryScriptDebug* Debug
+)
+{
+	if (StaticMeshAsset == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SetStaticMeshCustomComplexCollision_InvalidInput", "SetStaticMeshCustomComplexCollision: StaticMeshAsset is Null"));
+		return false;
+	}
+	if (StaticMeshCollisionAsset == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SetStaticMeshCustomComplexCollision_InvalidInput2", "SetStaticMeshCustomComplexCollision: StaticMeshCollisionAsset is Null"));
+		return false;
+	}
+#if WITH_EDITORONLY_DATA
+	UELocal::UpdateStaticMeshCollision(StaticMeshAsset, [StaticMeshCollisionAsset](UStaticMesh* UpdateStaticMesh, UBodySetup* BodySetup) -> bool
+	{
+		if (BodySetup)
+		{
+			BodySetup->InvalidatePhysicsData();
+		}
+
+		// set new collision geometry
+		UpdateStaticMesh->ComplexCollisionMesh = StaticMeshCollisionAsset;
+
+		return true;
+	}, bEmitTransaction, bMarkCollisionAsCustomized);
+	return true;
+#else
+	return false;
+#endif
+}
 
 UDynamicMesh* UGeometryScriptLibrary_CollisionFunctions::SetStaticMeshCollisionFromMesh(
 	UDynamicMesh* FromDynamicMesh,
@@ -358,6 +417,11 @@ void UGeometryScriptLibrary_CollisionFunctions::SetStaticMeshCollisionFromCompon
 bool UGeometryScriptLibrary_CollisionFunctions::StaticMeshHasCustomizedCollision(UStaticMesh* StaticMeshAsset)
 {
 #if WITH_EDITORONLY_DATA
+	if (!StaticMeshAsset)
+	{
+		UE_LOG(LogGeometry, Warning, TEXT("StaticMeshHasCustomizedCollision: StaticMeshAsset is Null"));
+		return false;
+	}
 	return StaticMeshAsset->bCustomizedCollision;
 #else
 	return false;
@@ -470,6 +534,34 @@ void UGeometryScriptLibrary_CollisionFunctions::ResetDynamicMeshCollision(
 
 }
 
+void UGeometryScriptLibrary_CollisionFunctions::ResetSimpleCollision(FGeometryScriptSimpleCollision & SimpleCollision)
+{
+	SimpleCollision.AggGeom.EmptyElements();
+}
+
+
+FGeometryScriptSimpleCollision
+UGeometryScriptLibrary_CollisionFunctions::GenerateCollisionFromMesh(
+	UDynamicMesh* FromDynamicMesh,
+	FGeometryScriptCollisionFromMeshOptions Options,
+	UGeometryScriptDebug* Debug)
+{
+	FGeometryScriptSimpleCollision ToRet;
+	
+	if (FromDynamicMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GenerateCollisionFromMesh_InvalidInput", "GenerateCollisionFromMesh: FromDynamicMesh is Null"));
+		return ToRet;
+	}
+
+	FromDynamicMesh->ProcessMesh([&ToRet, &Options](const FDynamicMesh3& ReadMesh)
+	{
+		UELocal::ComputeCollisionFromMesh(ReadMesh, ToRet.AggGeom, Options);
+	});
+
+	return ToRet;
+}
+
 
 FGeometryScriptSimpleCollision
 UGeometryScriptLibrary_CollisionFunctions::GetSimpleCollisionFromComponent(
@@ -568,6 +660,11 @@ void UGeometryScriptLibrary_CollisionFunctions::SetSimpleCollisionOfStaticMesh(
 	FGeometryScriptSetStaticMeshCollisionOptions StaticMeshCollisionOptions,
 	UGeometryScriptDebug* Debug)
 {
+	if (StaticMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SetSimpleCollisionOfStaticMesh_InvalidStaticMesh", "SetSimpleCollisionOfStaticMesh: Input Mesh is Null"));
+		return;
+	}
 	UELocal::SetStaticMeshSimpleCollision(StaticMesh, SimpleCollision.AggGeom, Options.bEmitTransaction, StaticMeshCollisionOptions.bMarkAsCustomized);
 }
 
@@ -834,6 +931,19 @@ void UGeometryScriptLibrary_CollisionFunctions::CombineSimpleCollision(
 	Collision.AggGeom.TaperedCapsuleElems.Append(AppendCollision.AggGeom.TaperedCapsuleElems);
 	Collision.AggGeom.LevelSetElems.Append(AppendCollision.AggGeom.LevelSetElems);
 	Collision.AggGeom.SkinnedLevelSetElems.Append(AppendCollision.AggGeom.SkinnedLevelSetElems);
+}
+
+
+void UGeometryScriptLibrary_CollisionFunctions::CombineSimpleCollisionArray(
+	const TArray<FGeometryScriptSimpleCollision>& SimpleCollisionArray,
+	FGeometryScriptSimpleCollision& SimpleCollision,
+	UGeometryScriptDebug* Debug
+)
+{
+	for (const FGeometryScriptSimpleCollision& Coll : SimpleCollisionArray)
+	{
+		CombineSimpleCollision(SimpleCollision, Coll, Debug);
+	}
 }
 
 void UGeometryScriptLibrary_CollisionFunctions::SimplifyConvexHulls(
@@ -1302,6 +1412,113 @@ FGeometryScriptSphereCovering UGeometryScriptLibrary_CollisionFunctions::Compute
 	ToRet.Spheres->AddNegativeSpace(*MeshBVH.FWNTree, UseSettings, false);
 	return ToRet;
 }
+
+FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::ComputeNavigableConvexDecomposition(
+	const UDynamicMesh* TargetMesh,
+	const FNavigableConvexDecompositionOptions& NegativeSpaceOptions,
+	UGeometryScriptDebug* Debug)
+{
+	FGeometryScriptSimpleCollision ToReturn;
+	
+	if (!TargetMesh)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("ComputeNavigableConvexDecomposition_NullInput", "ComputeNavigableConvexDecomposition: Dynamic Mesh is Null"));
+		return ToReturn;
+	}
+
+	TargetMesh->ProcessMesh([&NegativeSpaceOptions, &ToReturn](const FDynamicMesh3& Mesh) -> void
+	{
+		FConvexDecomposition3::FPreprocessMeshOptions PreprocessOptions;
+		PreprocessOptions.bMergeEdges = true;
+		PreprocessOptions.CustomPreprocess = [](FDynamicMesh3& ProcessMesh, const FAxisAlignedBox3d& Bounds) -> void
+		{
+			// for solid inputs, flip orientation if the initial volume is negative
+			if (ProcessMesh.IsClosed())
+			{
+				double InitialVolume = TMeshQueries<FDynamicMesh3>::GetVolumeArea(ProcessMesh).X;
+				if (InitialVolume < 0)
+				{
+					ProcessMesh.ReverseOrientation();
+				}
+			}
+			// Note: If we add options to simplify the input mesh, should be applied here.
+		};
+
+		FConvexDecomposition3 ConvexDecomposition(Mesh, PreprocessOptions);
+		const bool bIsSolid = ConvexDecomposition.IsInputSolid();
+		ConvexDecomposition.bTreatAsSolid = bIsSolid;
+
+		FNegativeSpaceSampleSettings NegativeSpaceSettings;
+		NegativeSpaceSettings.ApplyDefaults();
+		NegativeSpaceSettings.SampleMethod = FNegativeSpaceSampleSettings::ESampleMethod::NavigableVoxelSearch;
+		NegativeSpaceSettings.bDeterministic = true;
+		NegativeSpaceSettings.bRequireSearchSampleCoverage = true;
+		NegativeSpaceSettings.bOnlyConnectedToHull = NegativeSpaceOptions.bIgnoreUnreachableInternalSpace;
+		NegativeSpaceSettings.TargetNumSamples = 0;
+		NegativeSpaceSettings.bAllowSamplesInsideMesh = !bIsSolid;
+
+		NegativeSpaceSettings.ReduceRadiusMargin = NegativeSpaceOptions.Tolerance;
+		NegativeSpaceSettings.MinRadius = NegativeSpaceOptions.MinRadius;
+		NegativeSpaceSettings.MinSpacing = 0;
+
+		if (!NegativeSpaceOptions.UnreachablePlanes.IsEmpty())
+		{
+			NegativeSpaceSettings.OptionalObstacleSDF = [&NegativeSpaceOptions](FVector Pos)
+			{
+				double SDF = FMathd::MaxReal;
+				for (const FPlane& Plane : NegativeSpaceOptions.UnreachablePlanes)
+				{
+					double PlaneSDF = Plane.PlaneDot(Pos);
+					SDF = FMath::Min(PlaneSDF, SDF);
+				}
+				return SDF;
+			};
+		}
+		
+
+		ConvexDecomposition.InitializeNegativeSpace(NegativeSpaceSettings, NegativeSpaceOptions.CustomNavigablePositions);
+
+		ConvexDecomposition.MaxConvexEdgePlanes = 4;
+		ConvexDecomposition.bSplitDisconnectedComponents = false;
+		ConvexDecomposition.ConvexEdgeAngleMoreSamplesThreshold = 180;
+		ConvexDecomposition.ThickenAfterHullFailure = FMath::Max(FMathd::ZeroTolerance, NegativeSpaceSettings.ReduceRadiusMargin * .01);
+		constexpr int32 MaxAllowedSplits = 1000000; // more parts than any expected / reasonable decomposition
+		for (int32 Split = 0; ; Split++)
+		{
+			int32 NumSplit = ConvexDecomposition.SplitWorst(false, -1, true, NegativeSpaceSettings.ReduceRadiusMargin * .5);
+
+			if (NumSplit == 0)
+			{
+				break;
+			}
+
+			if (!ensureMsgf(Split < MaxAllowedSplits, TEXT("Convex decomposition split the input %d times; likely stuck in a loop"), Split))
+			{
+				break;
+			}
+		}
+
+		ConvexDecomposition.FixHullOverlapsInNegativeSpace();
+			
+		int32 NumHullsBefore = ConvexDecomposition.NumHulls();
+		constexpr double MinThicknessToleranceWorldSpace = 0;
+		int32 NumMerged = ConvexDecomposition.MergeBest(-1, 0, MinThicknessToleranceWorldSpace, true);
+
+		// transfer to output
+		for (int32 HullIdx = 0; HullIdx < ConvexDecomposition.Decomposition.Num(); ++HullIdx)
+		{
+			const FConvexDecomposition3::FConvexPart& Part = ConvexDecomposition.Decomposition[HullIdx];
+			// Add the merged part
+			FKConvexElem& Convex = ToReturn.AggGeom.ConvexElems.Emplace_GetRef();
+			Convex.VertexData = ConvexDecomposition.GetVertices<double>(HullIdx);
+			Convex.UpdateElemBox(); // Note: In addition to updating the bounding box, this also re-computes hull indices.
+		}
+
+	});
+	return ToReturn;
+
+}
+
 
 TArray<FSphere> UGeometryScriptLibrary_CollisionFunctions::Conv_GeometryScriptSphereCoveringToSphereArray(const FGeometryScriptSphereCovering& SphereCovering)
 {

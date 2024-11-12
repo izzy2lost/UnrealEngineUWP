@@ -40,6 +40,12 @@ struct POSESEARCH_API FPoseSearchTrajectorySample
 	UPROPERTY(EditAnywhere, Category = Config)
 	float Weight = 1.f;
 
+	// if set, all the channels of the same class with the same cardinality, and the same NormalizationGroup, will be normalized together.
+	// for example in a locomotion database of a character holding a weapon, containing non mirrorable animations, you'd still want to normalize together 
+	// left foot and right foot position and velocity
+	UPROPERTY(EditAnywhere, Category = Config)
+	FName NormalizationGroup;
+
 	UPROPERTY(EditAnywhere, Category = Config, meta = (ExcludeFromHash, DisplayPriority = 0))
 	FLinearColor DebugColor = FLinearColor::Blue;
 #endif // WITH_EDITORONLY_DATA

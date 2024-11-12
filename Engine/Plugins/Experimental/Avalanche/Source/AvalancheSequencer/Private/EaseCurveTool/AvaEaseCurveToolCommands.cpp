@@ -220,24 +220,6 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 	UI_COMMAND(SetKeyInterpToggleWeighted, "Weighted Tangents", "Toggle weighted tangents for cubic interpolation modes. Only supported on some curve types", EUserInterfaceActionType::ToggleButton, FInputChord(EModifierKey::Control, EKeys::W));
 
 	FUICommandInfo::MakeCommandInfo(SharedThis
-		, SelectNextChannelKey
-		, TEXT("SelectNextChannelKey")
-		, LOCTEXT("SelectNextChannelKey_Label", "Select Next Channel Key")
-		, LOCTEXT("SelectNextChannelKey_ToolTip", "Select the next key on the same channel.")
-		, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Wizard.NextIcon"))
-		, EUserInterfaceActionType::Button
-		, FInputChord(EKeys::Period, EModifierKey::Control));
-
-	FUICommandInfo::MakeCommandInfo(SharedThis
-		, SelectPreviousChannelKey
-		, TEXT("SelectsPreviousChannelKey")
-		, LOCTEXT("SelectsPreviousChannelKey_Label", "Selects Previous Channel Key")
-		, LOCTEXT("SelectsPreviousChannelKey_ToolTip", "Select the previous key on the same channel.")
-		, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Wizard.BackIcon"))
-		, EUserInterfaceActionType::Button
-		, FInputChord(EKeys::Comma, EModifierKey::Control));
-
-	FUICommandInfo::MakeCommandInfo(SharedThis
 		, QuickEase
 		, TEXT("QuickEase")
 		, LOCTEXT("QuickEase_Label", "Quick Ease")

@@ -18,6 +18,7 @@
 struct FPaintPlaybackRangeArgs;
 class SSearchBox;
 class UAnimSingleNodeInstance;
+struct FTimeSliderArgs;
 enum class EViewRangeInterpolation;
 enum class EFrameNumberDisplayFormats : uint8;
 
@@ -65,6 +66,8 @@ namespace UE::MLDeformer
 		void SetTrainingAnimNames(const TArray<TSharedPtr<FMLDeformerTrainingInputAnimName>>& Names);
 
 		void OnDeletedTrainingInputAnim(int32 Index);
+
+		void UpdateTimeSliderArgs(FTimeSliderArgs& TimeSliderArgs);
 
 	private:
 		/**

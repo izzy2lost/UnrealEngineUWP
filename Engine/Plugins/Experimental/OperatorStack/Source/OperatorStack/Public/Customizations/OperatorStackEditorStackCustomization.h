@@ -52,11 +52,17 @@ public:
 	/** Checks if this customization is supported for this item */
 	bool IsCustomizationSupportedFor(const FOperatorStackEditorItemPtr& InItem) const;
 
-	/**
-	 * Transform a context item in items that this customization supports or returns false when not supported
-	 * For example, context item is an actor but this customization supports a specific component then look into actor for this component here
-	 */
-	virtual bool TransformContextItem(const FOperatorStackEditorItemPtr& InItem, TArray<FOperatorStackEditorItemPtr>& OutTransformedItems) const { return false; }
+	/** Retrieves root supported item out of the provided context, Children classes must implement this */
+	virtual bool GetRootItem(const FOperatorStackEditorContext& InContext, FOperatorStackEditorItemPtr& OutRootItem) const
+	{
+		return OutRootItem.IsValid() && OutRootItem->HasValue();
+	}
+
+	/** Retrieves the supported children items based out of a parent item, Children classes must implement this */
+	virtual bool GetChildrenItem(const FOperatorStackEditorItemPtr& InItem, TArray<FOperatorStackEditorItemPtr>& OutChildrenItems) const
+	{
+		return !OutChildrenItems.IsEmpty();
+	}
 
 	/** Customize the header for a context */
 	virtual void CustomizeStackHeader(const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorHeaderBuilder& InStackHeaderBuilder) {}
@@ -72,6 +78,12 @@ public:
 
 	/** Customize the body for a supported item */
 	virtual void CustomizeItemFooter(const FOperatorStackEditorItemPtr& InItem, const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorFooterBuilder& InFooterBuilder) {}
+
+	/** Can an item be selected */
+	virtual bool OnIsItemSelectable(const FOperatorStackEditorItemPtr& InItem)
+	{
+		return true;
+	}
 
 	/** Can an item be dragged */
 	virtual bool OnIsItemDraggable(const FOperatorStackEditorItemPtr& InItem)

@@ -387,7 +387,7 @@ namespace PCGGeneratedResourcesLogging
 #endif
 	}
 
-	void LogManagedComponentHidden(UPCGManagedComponent* InResource)
+	void LogManagedComponentHidden(UPCGManagedResource* InResource)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())
@@ -405,7 +405,7 @@ namespace PCGGeneratedResourcesLogging
 #endif
 	}
 
-	void LogManagedComponentDeleteNull(UPCGManagedComponent* InResource)
+	void LogManagedComponentDeleteNull(UPCGManagedResource* InResource)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())

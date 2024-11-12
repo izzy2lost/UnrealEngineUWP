@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Features/IModularFeature.h"
 #include "Templates/Function.h"
 #include "UObject/Interface.h"
 #include "UObject/ObjectKey.h"
@@ -11,27 +12,15 @@
 #include "UObject/StrongObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-#include "TypedElementDataStorageCompatibilityInterface.generated.h"
-
-struct FTypedElementDatabaseCompatibilityObjectTypeInfo;
-
-UINTERFACE(MinimalAPI)
-class UTypedElementDataStorageCompatibilityInterface : public UInterface
-{
-	GENERATED_BODY()
-};
-
 /**
  * Interface to provide compatibility with existing systems that don't directly
  * support the data storage.
  */
-class ITypedElementDataStorageCompatibilityInterface
+class IEditorDataStorageCompatibilityProvider : public IModularFeature
 {
-	GENERATED_BODY()
-
 public:
-	using ObjectRegistrationFilter = TFunction<bool(const ITypedElementDataStorageCompatibilityInterface&, const UObject*)>;
-	using ObjectToRowDealiaser = TFunction<TypedElementRowHandle(const ITypedElementDataStorageCompatibilityInterface&, const UObject*)>;
+	using ObjectRegistrationFilter = TFunction<bool(const IEditorDataStorageCompatibilityProvider&, const UObject*)>;
+	using ObjectToRowDealiaser = TFunction<UE::Editor::DataStorage::RowHandle(const IEditorDataStorageCompatibilityProvider&, const UObject*)>;
 	
 	/**
 	 * @section Type-agnostic functions
@@ -46,14 +35,14 @@ public:
 	 * with a row and to setup the initial row data.
 	 */
 	template<typename ObjectType>
-	TypedElementRowHandle AddCompatibleObject(ObjectType&& Object);
+	UE::Editor::DataStorage::RowHandle AddCompatibleObject(ObjectType&& Object);
 	
 	/** Removes a previously registered object from the data storage. */
 	template<typename ObjectType>
 	void RemoveCompatibleObject(ObjectType&& Object);
 
 	template<typename ObjectType>
-	TypedElementRowHandle FindRowWithCompatibleObject(ObjectType&& Object) const;
+	UE::Editor::DataStorage::RowHandle FindRowWithCompatibleObject(ObjectType&& Object) const;
 
 	/**
 	 * @section Callback registration
@@ -78,7 +67,7 @@ public:
 	 * will be used to find the closest match in the registered types and use the associated table. E.g. actors derive from uobjects so
 	 * if the type information of an actor is registered the actor table will be used instead of the uobject table.
 	 */
-	virtual void RegisterTypeTableAssociation(TObjectPtr<UStruct> TypeInfo, TypedElementDataStorage::TableHandle Table) = 0;
+	virtual void RegisterTypeTableAssociation(TObjectPtr<UStruct> TypeInfo, UE::Editor::DataStorage::TableHandle Table) = 0;
 
 	/**
 	 * @section Explicit functions
@@ -86,9 +75,9 @@ public:
 	 */
 
 	/** Adds a UObject to the data storage. */
-	virtual TypedElementRowHandle AddCompatibleObjectExplicit(UObject* Object) = 0;
+	virtual UE::Editor::DataStorage::RowHandle AddCompatibleObjectExplicit(UObject* Object) = 0;
 	/** Adds an FStruct to the data storage. */
-	virtual TypedElementRowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<const UScriptStruct> TypeInfo) = 0;
+	virtual UE::Editor::DataStorage::RowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo) = 0;
 	
 	/** Removes a UObject from the data storage. */
 	virtual void RemoveCompatibleObjectExplicit(UObject* Object) = 0;
@@ -96,9 +85,18 @@ public:
 	virtual void RemoveCompatibleObjectExplicit(void* Object) = 0;
 
 	/** Finds a previously stored UObject. If not found an invalid row handle will be returned. */
-	virtual TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const UObject* Object) const = 0;
+	virtual UE::Editor::DataStorage::RowHandle FindRowWithCompatibleObjectExplicit(const UObject* Object) const = 0;
 	/** Finds a previously stored FStruct. If not found an invalid row handle will be returned. */
-	virtual TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const = 0;
+	virtual UE::Editor::DataStorage::RowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const = 0;
+
+	/**
+	 * @section Miscellaneous functions
+	 */
+
+	/** Check if a custom extension is supported. This can be used to check for in-development features, custom extensions, etc. */
+	virtual bool SupportsExtension(FName Extension) const = 0;
+	/** Provides a list of all extensions that are enabled. */
+	virtual void ListExtensions(TFunctionRef<void(FName)> Callback) const = 0;
 };
 
 template<typename Type> Type* GetRawPointer(const TWeakObjectPtr<Type> Object)	{ return Object.Get(); }
@@ -111,7 +109,7 @@ template<typename Type> Type* GetRawPointer(Type* Object)						{ return Object; 
 template<typename Type> Type* GetRawPointer(Type& Object)						{ return &Object; }
 
 template<typename ObjectType>
-TypedElementRowHandle ITypedElementDataStorageCompatibilityInterface::AddCompatibleObject(ObjectType&& Object)
+UE::Editor::DataStorage::RowHandle IEditorDataStorageCompatibilityProvider::AddCompatibleObject(ObjectType&& Object)
 {
 	auto RawPointer = GetRawPointer(Forward<ObjectType>(Object));
 	using BaseType = std::remove_cv_t<std::remove_pointer_t<decltype(RawPointer)>>;
@@ -127,13 +125,13 @@ TypedElementRowHandle ITypedElementDataStorageCompatibilityInterface::AddCompati
 }
 
 template<typename ObjectType>
-void ITypedElementDataStorageCompatibilityInterface::RemoveCompatibleObject(ObjectType&& Object)
+void IEditorDataStorageCompatibilityProvider::RemoveCompatibleObject(ObjectType&& Object)
 {
 	RemoveCompatibleObjectExplicit(GetRawPointer(Forward<ObjectType>(Object)));
 }
 
 template<typename ObjectType>
-TypedElementRowHandle ITypedElementDataStorageCompatibilityInterface::FindRowWithCompatibleObject(ObjectType&& Object) const
+UE::Editor::DataStorage::RowHandle IEditorDataStorageCompatibilityProvider::FindRowWithCompatibleObject(ObjectType&& Object) const
 {
 	return FindRowWithCompatibleObjectExplicit(GetRawPointer(Forward<ObjectType>(Object)));
 }

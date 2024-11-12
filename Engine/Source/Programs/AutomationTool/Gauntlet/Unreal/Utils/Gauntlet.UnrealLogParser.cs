@@ -8,6 +8,8 @@ using System.Text;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using Logging = Microsoft.Extensions.Logging;
+using AutomationUtils.Matchers;
+using AutomationTool;
 
 namespace Gauntlet
 {
@@ -49,6 +51,11 @@ namespace Gauntlet
 			public string Category { get; private set; }
 
 			/// <summary>
+			/// Full channel name
+			/// </summary>
+			public string LongChannelName => Prefix + Category;
+
+			/// <summary>
 			/// Represents the level of the entry
 			/// </summary>
 			public LogLevel Level { get; private set; }
@@ -68,17 +75,18 @@ namespace Gauntlet
 				// Match how Unreal does not display the level for 'Log' level messages
 				if (Level == LogLevel.Log)
 				{
-					return string.Format("{0}{1}: {2}", Prefix, Category, Message);
+					return string.Format("{0}: {1}", LongChannelName, Message);
 				}
 				else
 				{
-					return string.Format("{0}{1}: {2}: {3}", Prefix, Category, Level, Message);
+					return string.Format("{0}: {1}: {2}", LongChannelName, Level, Message);
 				}
 			}
 
 			/// <summary>
 			/// Constructor that requires all info
 			/// </summary>
+			/// <param name="InPrefix"></param>
 			/// <param name="InCategory"></param>
 			/// <param name="InLevel"></param>
 			/// <param name="InMessage"></param>
@@ -100,7 +108,7 @@ namespace Gauntlet
 			public string Message;
 			public string[] Callstack;
 			public bool IsEnsure;
-			public bool IsPostMortem;
+			public bool IsSanReport;
 
 			/// <summary>
 			/// Generate a string that represents a CallstackMessage formatted to be inserted into a log file.
@@ -138,20 +146,75 @@ namespace Gauntlet
 			public int Changelist;
 		}
 
+		private UnrealLogParser _parser;
+
+		public UnrealLog(UnrealLogParser InParser)
+		{
+			_parser = InParser;
+			_loggedBuildInfo = new(() => _parser.GetBuildInfo());
+			_loggedPlatformInfo = new(() => _parser.GetPlatformInfo());
+			_logEntries = new(() => _parser.LogEntries);
+			_fatalError = new(() => _parser.GetFatalError());
+			_ensures = new(() => _parser.GetEnsures());
+			_lineCount = new(() => _parser.GetLogReader().GetAvailableLineCount());
+			_hasTestExitCode = new(() => _parser.GetTestExitCode(out _testExitCode));
+			_engineInitialized = new(() => HasEngineInitialized());
+			_hasParseRequestedExitReason = new(() => GetRequestedExitReason());
+		}
+
+		private bool GetRequestedExitReason()
+		{
+			// Check request exit and reason
+			_parser.MatchAndApplyGroups(@"Engine exit requested \(reason:\s*(.+)\)", (Groups) =>
+			{
+				_requestedExit = true;
+				_requestedExitReason = Groups[1];
+			});
+
+			if (!_requestedExit)
+			{
+				var Completion = _parser.GetAllMatchingLines("F[a-zA-Z0-9]+::RequestExit");
+				var ErrorCompletion = _parser.GetAllMatchingLines("StaticShutdownAfterError");
+
+				if (Completion.Any() || ErrorCompletion.Any())
+				{
+					_requestedExit = true;
+					_requestedExitReason = "Unidentified";
+				}
+			}
+
+			return true;
+		}
+
+		private bool HasEngineInitialized()
+		{
+			// Search for Engine initialized pattern.
+			return _parser.GetAllMatches(EngineInitializedPattern).Any();
+		}
+
+		/// <summary>
+		/// Return the log parser attached to it
+		/// </summary>
+		/// <returns></returns>
+		public UnrealLogParser GetParser() => _parser;
+
 		/// <summary>
 		/// Build info from the log
 		/// </summary>
-		public BuildInfo LoggedBuildInfo;
+		public BuildInfo LoggedBuildInfo => _loggedBuildInfo.Value;
+		private Lazy<BuildInfo> _loggedBuildInfo;
 
 		/// <summary>
 		/// Platform info from the log
 		/// </summary>
-		public PlatformInfo LoggedPlatformInfo;
+		public PlatformInfo LoggedPlatformInfo => _loggedPlatformInfo.Value;
+		private Lazy<PlatformInfo> _loggedPlatformInfo;
 
 		/// <summary>
 		/// Entries in the log
 		/// </summary>
-		public IEnumerable<LogEntry> LogEntries = Enumerable.Empty<LogEntry>();
+		public IEnumerable<LogEntry> LogEntries { get { return _logEntries.Value; } set { _logEntries = new(value); } }
+		private Lazy<IEnumerable<LogEntry>> _logEntries;
 
 		/// <summary>
 		/// Warnings for this role
@@ -166,33 +229,47 @@ namespace Gauntlet
 		/// <summary>
 		/// Fatal error instance if one occurred
 		/// </summary>
-		public CallstackMessage FatalError;
+		public CallstackMessage FatalError { get { return _fatalError.Value; } set { _fatalError = new(value); } }
+		private Lazy<CallstackMessage> _fatalError;
 
 		/// <summary>
 		/// A list of ensures if any occurred
 		/// </summary>
-		public IEnumerable<CallstackMessage> Ensures = Enumerable.Empty<CallstackMessage>();
+		public IEnumerable<CallstackMessage> Ensures { get { return _ensures.Value; } set { _ensures = new(value); } }
+		private Lazy<IEnumerable<CallstackMessage>> _ensures;
 
 		/// <summary>
 		/// Number of lines in the log
 		/// </summary>
-		public int LineCount;
+		public int LineCount => _lineCount.Value;
+		private Lazy<int> _lineCount;
 
 		/// <summary>
 		/// True if the engine reached initialization
 		/// </summary>
-		public bool EngineInitialized;
+		public bool EngineInitialized { get { return _engineInitialized.Value; } set { _engineInitialized = new(() => value); } }
+		private Lazy<bool> _engineInitialized;
+
+		/// <summary>
+		/// Regex pattern used to detect if the engine was initialized
+		/// </summary>
+		public string EngineInitializedPattern = @"LogInit.+Engine is initialized\.";
 
 		/// <summary>
 		/// True if the instance requested exit
 		/// </summary>
-		public bool RequestedExit;
-		public string RequestedExitReason;
-		public bool HasTestExitCode;
-		public int TestExitCode;
+		public bool RequestedExit { get { return _hasParseRequestedExitReason.Value ? _requestedExit : false; } set { _requestedExit = value; _hasParseRequestedExitReason = new(() => true); } }
+		private bool _requestedExit;
+		public string RequestedExitReason { get { return _hasParseRequestedExitReason.Value ? _requestedExitReason : string.Empty; } set { _requestedExitReason = value; _hasParseRequestedExitReason = new(() => true); } }
+		private string _requestedExitReason;
+		private Lazy<bool> _hasParseRequestedExitReason;
+		public bool HasTestExitCode { get { return _hasTestExitCode.Value; } set { _hasTestExitCode = new(() => value); } }
+		private Lazy<bool> _hasTestExitCode;
+		public int TestExitCode { get { return HasTestExitCode ? _testExitCode : -1; } set { _testExitCode = value; } }
+		protected int _testExitCode;
 
-		// Temp for migrating some code
-		public string FullLogContent;
+		// DEPRECATED - it is slow. Get attached parser instead through call of GetParser()
+		public string FullLogContent => _parser.GetLogReader().GetContent();
 
 		/// <summary>
 		/// Returns true if this log indicates the Unreal instance exited abnormally
@@ -214,21 +291,41 @@ namespace Gauntlet
 	/// </summary>
 	public class UnrealLogStreamParser
 	{
+		protected List<UnrealLog.LogEntry> LogEvents { get; private set; }
 
-		static class LogEventProperties
-		{
-			public static readonly string Channel = "_channel";
-			public static readonly string Severity = "_severity";
-		}
+		private HashSet<string> UnidentifiedLogLevels { get; set; }
 
-		protected List<LogEvent> LogEvents { get; private set; }
-
-		private List<string> UnidentifiedLogLevels { get; set; }
+		private ILogStreamReader LogReader { get; set; }
 
 		public UnrealLogStreamParser()
 		{
-			LogEvents = new List<LogEvent>();
-			UnidentifiedLogLevels = new List<string>();
+			LogEvents = new();
+			UnidentifiedLogLevels = new HashSet<string>();
+			LogReader = null;
+		}
+
+		public UnrealLogStreamParser(ILogStreamReader InLogReader)
+			: this()
+		{
+			LogReader = InLogReader;
+		}
+
+		/// <summary>
+		/// Set the internal log stream reader
+		/// </summary>
+		/// <param name="InLogReader"></param>
+		public void SetLogReader(ILogStreamReader InLogReader)
+		{
+			LogReader = InLogReader;
+		}
+
+		/// <summary>
+		/// Return true if the internal log reader was set.
+		/// </summary>
+		/// <returns></returns>
+		public bool IsAttachedToLogReader()
+		{
+			return LogReader != null;
 		}
 
 		/// <summary>
@@ -240,199 +337,134 @@ namespace Gauntlet
 		}
 
 		/// <summary>
+		/// Parse a string as log and aggregate identified unreal log lines using internal Log reader
+		/// </summary>
+		/// <param name="LineOffset">Line offset to start parsing and aggregate. Default is set to use the internal LogReader cursor.</param>
+		/// <param name="bClearAggregatedLines">Whether to clear the previously aggregated lines</param>
+		/// <returns>The number of line parsed</returns>
+		public int ReadStream(int LineOffset = -1, bool bClearAggregatedLines = true)
+		{
+			if (!IsAttachedToLogReader())
+			{
+				throw new AutomationException("Internal Log reader is not set. Use SetLogReader() to set it.");
+			}
+			return ReadStream(LogReader, LineOffset, bClearAggregatedLines);
+		}
+
+		/// <summary>
 		/// Parse a string as log and aggregate identified unreal log lines
 		/// </summary>
 		/// <param name="InContent"></param>
-		/// <param name="LineOffset">Line offset to start parsing and aggregate</param>
+		/// <param name="LineOffset">Line offset to start parsing and aggregate. By passing -1, it will use the internal LogReader cursor.</param>
+		/// <param name="bClearAggregatedLines">Whether to clear the previously aggregated lines</param>
 		/// <returns>The number of line parsed</returns>
-		public int ReadStream(string InContent, int LineOffset = 0)
+		public int ReadStream(string InContent, int LineOffset = 0, bool bClearAggregatedLines = true)
 		{
-			int Cursor = 0;
+			return ReadStream(new DynamicStringReader(() => InContent), LineOffset, bClearAggregatedLines);
+		}
 
-			for (int BaseIdx = 0; BaseIdx < InContent.Length;)
+		/// <summary>
+		/// Parse a string as log and aggregate identified unreal log lines
+		/// </summary>
+		/// <param name="LogReader"></param>
+		/// <param name="LineOffset">Line offset to start parsing and aggregate. By passing -1, it will use the internal LogReader cursor.</param>
+		/// <param name="bClearAggregatedLines">Whether to clear the previously aggregated lines</param>
+		/// <returns>The number of line parsed</returns>
+		public int ReadStream(ILogStreamReader LogReader, int LineOffset = 0, bool bClearAggregatedLines = true)
+		{
+			if (bClearAggregatedLines)
 			{
-				// Extract the next line
-				int EndIdx = InContent.IndexOf('\n', BaseIdx);
-				if (EndIdx == -1)
-				{
-					break;
-				}
+				Clear();
+			}
 
-				// Position Cursor
-				if (Cursor < LineOffset)
-				{
-					// Skip to next line
-					Cursor++;
-					BaseIdx = EndIdx + 1;
-					continue;
-				}
+			Regex UELogLinePattern = new Regex(@"(?<channel>[A-Za-z][\w\d]+):\s(?:(?<level>Display|Verbose|VeryVerbose|Warning|Error|Fatal):\s)?");
 
-				// Skip over any windows CR-LF line endings
-				int LineEndIdx = EndIdx;
-				if (LineEndIdx > BaseIdx && InContent[LineEndIdx - 1] == '\r')
-				{
-					LineEndIdx--;
-				}
-
-				// Grab a line
-				string Line = InContent.Substring(BaseIdx, LineEndIdx - BaseIdx);
-				// Move to the next line
-				Cursor++;
-				BaseIdx = EndIdx + 1;
-
-				// Parse the line
-				if (Line.Length > 0 && Line[0] == '{')
-				{
-
-					try
-					{
-						byte[] Buffer = Encoding.UTF8.GetBytes(Line);
-						LogEvent LogEntry = LogEvent.Read(JsonLogEvent.Parse(Buffer).Data.Span);
-						LogEvents.Add(LogEntry);
-						continue;
-					}
-					catch { /* Ignore the exception and handle the line like a regular log line then */ }
-				}
-
+			if (LineOffset >= 0)
+			{
+				LogReader.SetLineIndex(LineOffset);
+			}
+			foreach(string Line in LogReader.EnumerateNextLines())
+			{
+				UnrealLog.LogEntry Entry = null;
 				// Parse the line as Unreal legacy line
-				Match MatchLine = Regex.Match(Line, @"(?<channel>[A-Za-z][\w\d]+):\s(?:(?<level>Display|Verbose|VeryVerbose|Warning|Error|Fatal):\s)?(?<message>.*)");
-
+				Match MatchLine = UELogLinePattern.Match(Line);
 				if (MatchLine.Success)
 				{
-					string Channel = MatchLine.Groups["channel"].ToString();
-					string LevelStr = MatchLine.Groups["level"].ToString();
-					string Message = MatchLine.Groups["message"].ToString();
+					string Channel = MatchLine.Groups["channel"].Value;
+					string Message = Line.Substring(MatchLine.Index + MatchLine.Length);
+					ReadOnlySpan<char> LevelSpan = MatchLine.Groups["level"].ValueSpan;
 
-					Logging.LogLevel Level = Logging.LogLevel.Information;
-					switch (LevelStr)
+					UnrealLog.LogLevel Level = UnrealLog.LogLevel.Log;
+					if (!LevelSpan.IsEmpty)
 					{
-						case "Display":
-							Level = Logging.LogLevel.Information;
-							break;
-
-						case "Verbose":
-						case "VeryVerbose":
-							Level = Logging.LogLevel.Debug;
-							break;
-
-						default:
-							if (!string.IsNullOrEmpty(LevelStr))
+						if (!Enum.TryParse(LevelSpan, out Level))
+						{
+							string LevelStr = LevelSpan.ToString();
+							// only show a warning once
+							if (!UnidentifiedLogLevels.Contains(LevelStr))
 							{
-								if (!Enum.TryParse(LevelStr, out Level))
-								{
-									// only show a warning once
-									if (!UnidentifiedLogLevels.Contains(LevelStr))
-									{
-										UnidentifiedLogLevels.Add(LevelStr);
-										Log.Warning("Failed to match log level {0} to enum!", LevelStr);
-									}
-								}
+								UnidentifiedLogLevels.Add(LevelStr);
+								Log.Warning("Failed to match log level {0} to enum!", LevelStr);
 							}
-							break;
+						}
 					}
 
-					Dictionary<string, object> Properties = new Dictionary<string, object>();
-					string Format = Message;
-					if (!string.IsNullOrEmpty(LevelStr))
+					string Prefix = string.Empty;
+					if (Channel.StartsWith("log", StringComparison.OrdinalIgnoreCase))
 					{
-						Properties.Add(LogEventProperties.Severity, new LogValue(LogValueType.Severity, LevelStr));
-						Format = $"{{{LogEventProperties.Severity}}}: {Format}";
+						Prefix = Channel.Substring(0, 3);
+						Channel = Channel.Substring(3);
 					}
-					Properties.Add(LogEventProperties.Channel, new LogValue(LogValueType.Channel, Channel));
-					Format = $"{{{LogEventProperties.Channel}}}: {Format}";
-
-					LogEvents.Add(new LogEvent(new DateTime(0), Level, KnownLogEvents.Engine_LogChannel, 0, 1, MatchLine.Groups[0].ToString(), Format, Properties, null));
+					Entry = new(Prefix, Channel, Level, Message);
 				}
 				else
 				{
 					// Not an Unreal Engine log line
-					LogEvents.Add(new LogEvent(new DateTime(0), Logging.LogLevel.Information, new EventId(0), 0, 1, Line, Line, null, null));
+					Entry = new(string.Empty, string.Empty, UnrealLog.LogLevel.Log, Line);
 				}
+
+				LogEvents.Add(Entry);
 			}
-			return Cursor - LineOffset;
+
+			return LogReader.GetLineIndex() - LineOffset;
 		}
 
 		/// <summary>
 		/// Return All the LogEvent instances
 		/// </summary>
 		/// <returns></returns>
-		public IEnumerable<LogEvent> GetEvents()
+		public IEnumerable<UnrealLog.LogEntry> GetEvents()
 		{
 			return LogEvents;
 		}
 
 		/// <summary>
-		/// Return the LogEvent instances which property type and value match requirements
+		/// Return the LogEvent instances which channel name match
 		/// </summary>
-		/// <param name="PropertyName">The property name type to match the value</param>
-		/// <param name="InValues">The property values to match</param>
+		/// <param name="InValues">The channel names to match</param>
 		/// <param name="ExactMatch">Whether to use an exact match or partial match</param>
+		/// <param name="UseLongName">Whether to use the long channel name to match</param>
 		/// <returns></returns>
-		public IEnumerable<LogEvent> GetEventsFromProperty(string PropertyName, IEnumerable<string> InValues, bool ExactMatch = false)
+		private IEnumerable<UnrealLog.LogEntry> InternalGetEventsFromChannels(IEnumerable<string> InValues, bool ExactMatch = false, bool UseLongName = true)
 		{
-			IEnumerable<LogEvent> Events;
-
 			if (ExactMatch)
 			{
-				Events = LogEvents.Where(E =>
-				{
-					LogValue PropertyValue = null;
-					if (E.TryGetProperty(PropertyName, out PropertyValue))
-					{
-						return InValues.Contains(PropertyValue.Text, StringComparer.OrdinalIgnoreCase);
-					}
-
-					return false;
-
-				});
+				return LogEvents.Where(E => InValues.Contains(UseLongName? E.LongChannelName : E.Category, StringComparer.OrdinalIgnoreCase));
 			}
-			else
+			// partial match
+			return LogEvents.Where(E =>
 			{
-				// partial match
-				Events = LogEvents.Where(E =>
+				string Name = UseLongName? E.LongChannelName : E.Category;
+				foreach (string Value in InValues)
 				{
-					LogValue PropertyValue = null;
-					if (!E.TryGetProperty(PropertyName, out PropertyValue))
+					if (Name.IndexOf(Value, StringComparison.OrdinalIgnoreCase) >= 0)
 					{
-						return false;
+						return true;
 					}
-
-					foreach (string Value in InValues)
-					{
-						if (PropertyValue.Text.IndexOf(Value, StringComparison.OrdinalIgnoreCase) >= 0)
-						{
-							return true;
-						}
-					}
-
-					return false;
-				});
-			}
-			return Events;
-		}
-
-		/// <summary>
-		/// Return the LogEvent instances which property value meet predicate
-		/// </summary>
-		/// <param name="PropertyName"></param>
-		/// <param name="InPredicate"></param>
-		/// <returns></returns>
-		public IEnumerable<LogEvent> GetEventsFromProperty(string PropertyName, Predicate<string> InPredicate)
-		{
-			IEnumerable<LogEvent> Events;
-
-			Events = LogEvents.Where(E =>
-			{
-				LogValue PropertyValue = null;
-				if (E.TryGetProperty(PropertyName, out PropertyValue))
-				{
-					return InPredicate(PropertyValue.Text);
 				}
 
 				return false;
 			});
-
-			return Events;
 		}
 
 		/// <summary>
@@ -441,28 +473,18 @@ namespace Gauntlet
 		/// <param name="Channels">The names of the channel to match</param>
 		/// <param name="ExactMatch"></param>
 		/// <returns></returns>
-		public IEnumerable<LogEvent> GetEventsFromChannels(IEnumerable<string> Channels, bool ExactMatch = true)
+		public IEnumerable<UnrealLog.LogEntry> GetEventsFromChannels(IEnumerable<string> Channels, bool ExactMatch = true)
 		{
-			return GetEventsFromProperty(LogEventProperties.Channel, Channels, ExactMatch);
-		}
-
-		/// <summary>
-		/// Return the LogEvent instances which Channel property meet predicate
-		/// </summary>
-		/// <param name="InPredicate"></param>
-		/// <returns></returns>
-		public IEnumerable<LogEvent> GetEventsFromChannels(Predicate<string> InPredicate)
-		{
-			return GetEventsFromProperty(LogEventProperties.Channel, InPredicate);
+			return InternalGetEventsFromChannels(Channels, ExactMatch);
 		}
 
 		/// <summary>
 		/// Return the LogEvent instances that match the Editor busy channels
 		/// </summary>
 		/// <returns></returns>
-		public IEnumerable<LogEvent> GetEventsFromEditorBusyChannels()
+		public IEnumerable<UnrealLog.LogEntry> GetEventsFromEditorBusyChannels()
 		{
-			return GetEventsFromChannels(UnrealLog.EditorBusyChannels, false);
+			return InternalGetEventsFromChannels(UnrealLog.EditorBusyChannels, false);
 		}
 
 		/// <summary>
@@ -473,7 +495,7 @@ namespace Gauntlet
 		/// <returns></returns>
 		public IEnumerable<string> GetLogFromChannels(IEnumerable<string> Channels, bool ExactMatch = true)
 		{
-			return GetEventsFromChannels(Channels, ExactMatch).Select(E => E.Message);
+			return InternalGetEventsFromChannels(Channels, ExactMatch).Select(E => E.ToString());
 		}
 
 		/// <summary>
@@ -483,12 +505,7 @@ namespace Gauntlet
 		/// <returns></returns>
 		public IEnumerable<string> GetLogFromShortNameChannels(IEnumerable<string> Channels)
 		{
-			return GetEventsFromChannels(
-				V => Channels.Contains(
-					V.StartsWith("log", StringComparison.OrdinalIgnoreCase)? V.Substring(3) : V,
-					StringComparer.OrdinalIgnoreCase
-				)
-			).Select(E => E.Message);
+			return InternalGetEventsFromChannels(Channels, UseLongName: false).Select(E => E.ToString());
 		}
 
 		/// <summary>
@@ -512,22 +529,12 @@ namespace Gauntlet
 		}
 
 		/// <summary>
-		/// Return the log lines that match the severity name
-		/// </summary>
-		/// <param name="Severity">The severity string to match</param>
-		/// <returns></returns>
-		public IEnumerable<string> GetLogFromSeverity(string Severity)
-		{
-			return GetEventsFromProperty(LogEventProperties.Severity, new string[] { Severity }, true).Select(E => E.Message);
-		}
-
-		/// <summary>
 		/// Return all the aggregated log lines 
 		/// </summary>
 		/// <returns></returns>
 		public IEnumerable<string> GetLogLines()
 		{
-			return LogEvents.Select(E => E.Message);
+			return LogEvents.Select(E => E.ToString());
 		}
 
 		/// <summary>
@@ -558,51 +565,84 @@ namespace Gauntlet
 	public class UnrealLogParser
 	{
 		/// <summary>
-		/// Our current content
+		/// DEPRECATED - Use GetLogReader() to read through the log stream efficiently.
 		/// </summary>
-		public string Content { get; protected set; }
+		public string Content => _logReader.GetContent();
+
+		/// <summary>
+		/// Allow reading log line by line with an internal cursor
+		/// </summary>
+		public ILogStreamReader GetLogReader() => _logReader.Clone();
+		private ILogStreamReader _logReader { get; set; }
 
 		/// <summary>
 		/// All entries in the log
 		/// </summary>
-		public IEnumerable<UnrealLog.LogEntry> LogEntries { get; protected set; }
+		public IEnumerable<UnrealLog.LogEntry> LogEntries => _logEntries.Value;
+		private Lazy<IEnumerable<UnrealLog.LogEntry>> _logEntries;
 
 		/// <summary>
 		/// Summary of the log
 		/// </summary>
-		private UnrealLog Summary;
+		private Lazy<UnrealLog> _summary;
 
 		// Track log levels we couldn't identify
 		protected static HashSet<string> UnidentifiedLogLevels = new HashSet<string>();
+
+		/// <summary>
+		/// Constructor that takes a ILogStreamReader instance
+		/// </summary>
+		/// <param name="InLogReader"></param>
+		public UnrealLogParser(ILogStreamReader InLogReader)
+		{
+			_logReader = InLogReader;
+			_logEntries = new(() => ParseEntries());
+			_summary = new(() => CreateSummary());
+		}
 
 		/// <summary>
 		/// Constructor that takes the content to parse
 		/// </summary>
 		/// <param name="InContent"></param>
 		/// <returns></returns>
-		public UnrealLogParser(string InContent)
-		{
-			Content = SanitizeLogText(InContent);
+		public UnrealLogParser(string InContent) : this(new DynamicStringReader(() => InContent))
+		{ }
 
+		/// <summary>
+		/// Constructor that takes a UnrealLog instance
+		/// </summary>
+		/// <param name="InLog"></param>
+		public UnrealLogParser(UnrealLog InLog) : this(InLog.GetParser().GetLogReader())
+		{
+			_logEntries = new(() => InLog.GetParser().LogEntries);
+		}
+
+		protected List<UnrealLog.LogEntry> ParseEntries()
+		{
 			// Search for LogFoo: <Display|Error|etc>: Message
 			// Also need to handle 'Log' not always being present, and the category being empty for a level of 'Log'
-			MatchCollection MC = Regex.Matches(Content, @"(?<prefix>Log)?(?<category>[A-Za-z][\w\d]+):\s(?<level>Display|Verbose|VeryVerbose|Warning|Error|Fatal)?(?::\s)?(?<message>.*)");
+			Regex Pattern = new Regex(@"(?<prefix>Log)?(?<category>[A-Za-z][\w\d]+):\s(?<level>Display|Verbose|VeryVerbose|Warning|Error|Fatal)?(?::\s)?");
 
 			List<UnrealLog.LogEntry> ParsedEntries = new List<UnrealLog.LogEntry>();
 
-			foreach (Match M in MC)
+			_logReader.SetLineIndex(0);
+			foreach (string Line in _logReader.EnumerateNextLines())
 			{
-				string Prefix = M.Groups["prefix"].ToString();
-				string Category = M.Groups["category"].ToString();
-				string LevelStr = M.Groups["level"].ToString();
-				string Message = M.Groups["message"].ToString();
+				var M = Pattern.Match(Line);
+				if (!M.Success) continue;
 
+				string Prefix = M.Groups["prefix"].Value;
+				string Category = M.Groups["category"].Value;
+				string Message = Line.Substring(M.Index + M.Length);
+
+				ReadOnlySpan<char> LevelSpan = M.Groups["level"].ValueSpan;
 				UnrealLog.LogLevel Level = UnrealLog.LogLevel.Log;
 
-				if (!string.IsNullOrEmpty(LevelStr))
+				if (!LevelSpan.IsEmpty)
 				{
-					if (!Enum.TryParse(LevelStr, out Level))
+					if (!Enum.TryParse(LevelSpan, out Level))
 					{
+						string LevelStr = LevelSpan.ToString();
 						// only show a warning once
 						if (!UnidentifiedLogLevels.Contains(LevelStr))
 						{
@@ -615,7 +655,7 @@ namespace Gauntlet
 				ParsedEntries.Add(new UnrealLog.LogEntry(Prefix, Category, Level, Message));
 			}
 
-			LogEntries = ParsedEntries;
+			return ParsedEntries;
 		}
 
 		public static string SanitizeLogText(string InContent)
@@ -640,26 +680,19 @@ namespace Gauntlet
 
 				// Render any JSON log events
 				string Line = InContent.Substring(BaseIdx, LineEndIdx - BaseIdx);
-				if (Line.Length > 0 && Line[0] == '{')
+				try
 				{
-					try
-					{
-						byte[] Buffer = Encoding.UTF8.GetBytes(Line);
-						JsonLogEvent JsonEvent = JsonLogEvent.Parse(Buffer);
-						Line = JsonEvent.GetLegacyLogLine();
-					}
-					catch (Exception ex)
-					{
-						EpicGames.Core.Log.Logger.LogDebug(ex, "Unable to parse log line: {Line}, Exception: {Ex}", Line, ex.ToString());
+					Line = SanitizeJsonOutputLine(Line, true);
+				}
+				catch
+				{
+					int MinIdx = Math.Max(BaseIdx - 2048, 0);
+					int MaxIdx = Math.Min(BaseIdx + 2048, InContent.Length);
 
-						int MinIdx = Math.Max(BaseIdx - 2048, 0);
-						int MaxIdx = Math.Min(BaseIdx + 2048, InContent.Length);
-
-						string[] Context = InContent.Substring(MinIdx, MaxIdx - MinIdx).Split('\n');
-						for (int idx = 1; idx < Context.Length - 1; idx++)
-						{
-							EpicGames.Core.Log.Logger.LogDebug("Context {Idx}: {Line}", idx, Context[idx].TrimEnd());
-						}
+					string[] Context = InContent.Substring(MinIdx, MaxIdx - MinIdx).Split('\n');
+					for (int idx = 1; idx < Context.Length - 1; idx++)
+					{
+						EpicGames.Core.Log.Logger.LogDebug("Context {Idx}: {Line}", idx, Context[idx].TrimEnd());
 					}
 				}
 
@@ -673,96 +706,128 @@ namespace Gauntlet
 			return ContentBuilder.ToString();
 		}
 
-		public UnrealLog GetSummary()
+		public static string SanitizeJsonOutputLine(string Line, bool ThrowOnFailure = false)
 		{
-			if (Summary == null)
+			if (Line.Length > 0 && Line[0] == '{')
 			{
-				Summary = CreateSummary();
-			}
-
-			return Summary;
-		}
-
-		protected UnrealLog CreateSummary()
-		{
-			UnrealLog NewSummary = new UnrealLog();
-
-			NewSummary.LoggedBuildInfo = GetBuildInfo();
-			NewSummary.LoggedPlatformInfo = GetPlatformInfo();
-			NewSummary.LogEntries = LogEntries;
-			NewSummary.FatalError = GetFatalError();
-			NewSummary.Ensures = GetEnsures();
-			NewSummary.LineCount = Content.Split('\n').Count();
-			NewSummary.HasTestExitCode = GetTestExitCode(out NewSummary.TestExitCode);
-
-			NewSummary.EngineInitialized = GetAllMatches(@"LogInit.+Engine is initialized\.").Any();
-			NewSummary.FullLogContent = this.Content;
-
-			// Check request exit and reason
-			RegexUtil.MatchAndApplyGroups(Content, @"Engine exit requested \(reason:\s*(.+)\)", (Groups) =>
-			{
-				NewSummary.RequestedExit = true;
-				NewSummary.RequestedExitReason = Groups[1].ToString();
-			});
-
-			if (!NewSummary.RequestedExit)
-			{
-				string[] Completion = GetAllMatchingLines("F[a-zA-Z0-9]+::RequestExit");
-				string[] ErrorCompletion = GetAllMatchingLines("StaticShutdownAfterError");
-
-				if (Completion.Length > 0 || ErrorCompletion.Length > 0)
+				try
 				{
-					NewSummary.RequestedExit = true;
-					NewSummary.RequestedExitReason = "Unidentified";
+					byte[] Buffer = Encoding.UTF8.GetBytes(Line);
+					JsonLogEvent JsonEvent = JsonLogEvent.Parse(Buffer);
+					Line = JsonEvent.GetLegacyLogLine();
+				}
+				catch (Exception ex)
+				{
+					EpicGames.Core.Log.Logger.LogDebug(ex, "Unable to parse log line: {Line}, Exception: {Ex}", Line, ex.ToString());
+					if (ThrowOnFailure)
+					{
+						throw;
+					}
 				}
 			}
 
-			return NewSummary;
+			return Line;
 		}
 
+		public UnrealLog GetSummary() => _summary.Value;
+		protected UnrealLog CreateSummary() => new UnrealLog(this);
+
+
+		/// <summary>
+		/// Returns all lines from the specified content match the specified regex
+		/// </summary>
+		/// <param name="InLogReader"></param>
+		/// <param name="InPattern"></param>
+		/// <param name="InOptions"></param>
+		/// <returns></returns>
+		protected IEnumerable<Match> GetAllMatches(ILogStreamReader InLogReader, string InPattern, RegexOptions InOptions = RegexOptions.None)
+		{
+			Regex regex = new Regex(InPattern, InOptions);
+
+			InLogReader.SetLineIndex(0);
+			foreach (string Line in InLogReader.EnumerateNextLines())
+			{
+				Match M = regex.Match(Line);
+				if (!M.Success) continue;
+				yield return M;
+			}
+		}
+
+		/// <summary>
+		/// Returns all lines from the specified content match the specified regex
+		/// </summary>
+		/// <param name="InLogReader"></param>
+		/// <param name="InPattern"></param>
+		/// <param name="InOptions"></param>
+		/// <returns></returns>
+		protected IEnumerable<string> GetAllMatchingLines(ILogStreamReader InLogReader, string InPattern, RegexOptions InOptions = RegexOptions.None)
+		{
+			return GetAllMatches(InLogReader, InPattern, InOptions).Select(M => M.Value);
+		}
 
 		/// <summary>
 		/// Returns all lines from the specified content match the specified regex
 		/// </summary>
 		/// <param name="InContent"></param>
 		/// <param name="InPattern"></param>
+		/// <param name="InOptions"></param>
 		/// <returns></returns>
-		protected IEnumerable<Match> GetAllMatches(string InContent, string InPattern)
+		protected string[] GetAllMatchingLines(string InContent, string InPattern, RegexOptions InOptions = RegexOptions.None)
 		{
-			Regex regex = new Regex(InPattern);
-
-			return regex.Matches(InContent).Cast<Match>();
-		}
-
-		/// <summary>
-		/// Returns all lines from the specified content match the specified regex
-		/// </summary>
-		/// <param name="InContent"></param>
-		/// <param name="InPattern"></param>
-		/// <returns></returns>
-		protected string[] GetAllMatchingLines(string InContent, string InPattern)
-		{
-			return GetAllMatches(InContent, InPattern).Select(M => M.Value).ToArray();
+			return GetAllMatchingLines(new DynamicStringReader(new(() => InContent)), InPattern, InOptions).ToArray();
 		}
 
 		/// <summary>
 		/// Returns all lines that match the specified regex
 		/// </summary>
 		/// <param name="InPattern"></param>
+		/// <param name="InOptions"></param>
 		/// <returns></returns>
-		public string[] GetAllMatchingLines(string InPattern)
+		public string[] GetAllMatchingLines(string InPattern, RegexOptions InOptions = RegexOptions.None)
 		{
-			return GetAllMatchingLines(Content, InPattern);
+			return GetAllMatchingLines(_logReader, InPattern, InOptions).ToArray();
 		}
 
 		/// <summary>
 		/// Returns all Matches that match the specified regex
 		/// </summary>
 		/// <param name="InPattern"></param>
+		/// <param name="InOptions"></param>
 		/// <returns></returns>
-		public IEnumerable<Match> GetAllMatches(string InPattern)
+		public IEnumerable<Match> GetAllMatches(string InPattern, RegexOptions InOptions = RegexOptions.None)
 		{
-			return GetAllMatches(Content, InPattern);
+			return GetAllMatches(_logReader, InPattern, InOptions);
+		}
+
+		/// <summary>
+		/// Returns all lines containing the specified substring
+		/// </summary>
+		/// <param name="Substring"></param>
+		/// <param name="Options"></param>
+		/// <returns></returns>
+		public IEnumerable<string> GetAllContainingLines(string Substring, StringComparison Options = StringComparison.Ordinal)
+		{
+			_logReader.SetLineIndex(0);
+			foreach (string Line in _logReader.EnumerateNextLines())
+			{
+				if (!Line.Contains(Substring, Options)) continue;
+				yield return Line;
+			}
+		}
+
+		/// <summary>
+		/// Match regex pattern and execute callback with group values passed as argument 
+		/// </summary>
+		/// <param name="InPattern"></param>
+		/// <param name="InFunc"></param>
+		/// <param name="InOptions"></param>
+		public void MatchAndApplyGroups(string InPattern, Action<string[]> InFunc, RegexOptions InOptions = RegexOptions.None)
+		{
+			Match M = GetAllMatches(InPattern, InOptions).FirstOrDefault();
+			if (M != null && M.Success)
+			{
+				InFunc(M.Groups.Values.Select(G => G.Value).ToArray());
+			}
 		}
 
 		/// <summary>
@@ -773,9 +838,8 @@ namespace Gauntlet
 		{
 			var Info = new UnrealLog.PlatformInfo();
 
-			var InfoRegEx = @"LogInit.+OS:\s*(.+?)\s*(\((.+)\))?,\s*CPU:\s*(.+)\s*,\s*GPU:\s*(.+)";
-
-			RegexUtil.MatchAndApplyGroups(Content, InfoRegEx, (Groups) =>
+			const string InfoRegEx = @"LogInit.+OS:\s*(.+?)\s*(\((.+)\))?,\s*CPU:\s*(.+)\s*,\s*GPU:\s*(.+)";
+			MatchAndApplyGroups(InfoRegEx, (Groups) =>
 			{
 				Info.OSName = Groups[1];
 				Info.OSVersion = Groups[3];
@@ -795,26 +859,23 @@ namespace Gauntlet
 			var Info = new UnrealLog.BuildInfo();
 
 			// pull from Branch Name: <name>
-			Match M = Regex.Match(Content, @"LogInit.+Name:\s*(.*)", RegexOptions.IgnoreCase);
-
-			if (M.Success)
+			Match M = GetAllMatches(@"LogInit.+Name:\s*(.*)", RegexOptions.IgnoreCase).FirstOrDefault();
+			if (M != null && M.Success)
 			{
-				Info.BranchName = M.Groups[1].ToString();
+				Info.BranchName = M.Groups[1].Value;
 				Info.BranchName = Info.BranchName.Replace("+", "/");
 			}
 
-			M = Regex.Match(Content, @"LogInit.+CL-(\d+)", RegexOptions.IgnoreCase);
-
-			if (M.Success)
+			M = GetAllMatches(@"LogInit.+CL-(\d+)", RegexOptions.IgnoreCase).FirstOrDefault();
+			if (M != null && M.Success)
 			{
-				Info.Changelist = Convert.ToInt32(M.Groups[1].ToString());
+				Info.Changelist = Convert.ToInt32(M.Groups[1].Value);
 			}
 
-			M = Regex.Match(Content, @"LogInit.+Build:\s*(\+.*)", RegexOptions.IgnoreCase);
-
-			if (M.Success)
+			M = GetAllMatches(@"LogInit.+Build:\s*(\+.*)", RegexOptions.IgnoreCase).FirstOrDefault();
+			if (M != null && M.Success)
 			{
-				Info.BuildVersion = M.Groups[1].ToString();
+				Info.BuildVersion = M.Groups[1].Value;
 			}
 
 			return Info;
@@ -823,7 +884,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Returns all entries from the log that have the specified level
 		/// </summary>
-		/// <param name="InChannel">Optional channel to restrict search to</param>
+		/// <param name="InLevel"></param>
 		/// <returns></returns>
 		public IEnumerable<UnrealLog.LogEntry> GetEntriesOfLevel(UnrealLog.LogLevel InLevel)
 		{
@@ -834,7 +895,8 @@ namespace Gauntlet
 		/// <summary>
 		/// Returns all warnings from the log
 		/// </summary>
-		/// <param name="InChannel">Optional channel to restrict search to</param>
+		/// <param name="InCategories"></param>
+		/// <param name="ExactMatch"></param>
 		/// <returns></returns>
 		public IEnumerable<UnrealLog.LogEntry> GetEntriesOfCategories(IEnumerable<string> InCategories, bool ExactMatch = false)
 		{
@@ -850,7 +912,7 @@ namespace Gauntlet
 				// with both ShaderCompiler and ShaderManager
 				Entries = LogEntries.Where(E =>
 				{
-					string LogEntryCategory = E.Category.ToString();
+					string LogEntryCategory = E.Category;
 					foreach (string Cat in InCategories)
 					{
 						if (LogEntryCategory.IndexOf(Cat, StringComparison.OrdinalIgnoreCase) >= 0)
@@ -869,7 +931,8 @@ namespace Gauntlet
 		/// Return all entries for the specified channel. E.g. "OrionGame" will
 		/// return all entries starting with LogOrionGame
 		/// </summary>
-		/// <param name="Channel"></param>
+		/// <param name="Channels"></param>
+		/// <param name="ExactMatch"></param>
 		/// <returns></returns>
 		public IEnumerable<string> GetLogChannels(IEnumerable<string> Channels, bool ExactMatch = true)
 		{
@@ -890,6 +953,7 @@ namespace Gauntlet
 		/// return all entries starting with LogOrionGame
 		/// </summary>
 		/// <param name="Channel"></param>
+		/// <param name="ExactMatch"></param>
 		/// <returns></returns>
 		public IEnumerable<string> GetLogChannel(string Channel, bool ExactMatch = true)
 		{
@@ -937,7 +1001,7 @@ namespace Gauntlet
 		/// <returns></returns>
 		public IEnumerable<UnrealLog.CallstackMessage> GetEnsures()
 		{
-			IEnumerable<UnrealLog.CallstackMessage> Ensures = ParseTracedErrors(new[] { @"Log.+:\s{0,1}Error:\s{0,1}(Ensure condition failed:.+)" }, false);
+			IEnumerable<UnrealLog.CallstackMessage> Ensures = ParseTracedErrors(new[] { @"Log.+:\s{0,1}Error:\s{0,1}(Ensure condition failed:.+)" }, 10);
 
 			foreach (UnrealLog.CallstackMessage Error in Ensures)
 			{
@@ -950,17 +1014,22 @@ namespace Gauntlet
 		/// <summary>
 		/// If the log contains a fatal error return that information
 		/// </summary>
-		/// <param name="ErrorInfo"></param>
 		/// <returns></returns>
 		public UnrealLog.CallstackMessage GetFatalError()
 		{
-			string[] ErrorMsgMatches = new string[] { @"(Fatal Error:.+)", @"Critical error: =+[\s\n]+(?:.+?\s*Error:\s*)?(.+)", @"(Assertion Failed:.+)", @"(Unhandled Exception:.+)", @"(LowLevelFatalError.+)" };
+			string[] ErrorMsgMatches = new string[] { @"(Fatal Error:.+)", @"Critical error: =+\s+(?:[\S\s]+?\s*Error: +)?(.+)", @"(Assertion Failed:.+)", @"(Unhandled Exception:.+)", @"(LowLevelFatalError.+)", @"(Postmortem Cause:.*)" };
 
-			var Traces = ParseTracedErrors(ErrorMsgMatches).Concat(GetASanErrors());
+			var Traces = ParseTracedErrors(ErrorMsgMatches, 5).Concat(GetASanErrors());
+
+			// If we have a post-mortem error, return that one (on some devices the post-mortem info is way more informative).
+			var PostMortemTraces = Traces.Where(T => T.Message.IndexOf("Postmortem Cause:", StringComparison.OrdinalIgnoreCase) > -1);
+			if (PostMortemTraces.Any())
+			{
+				Traces = PostMortemTraces;
+			}
 
 			// Keep the one with the most information.
-			Traces.OrderBy(T => T.Callstack.Length);
-			return Traces.Count() > 0 ? Traces.Last() : null;
+			return Traces.Count() > 0 ? Traces.OrderBy(T => T.Callstack.Length).Last() : null;
 		}
 
 		/// <summary>
@@ -969,59 +1038,68 @@ namespace Gauntlet
 		/// <returns></returns>
 		public IEnumerable<UnrealLog.CallstackMessage> GetASanErrors()
 		{
-			/// Match:
-			/// ==5077==ERROR: AddressSanitizer: alloc - dealloc - mismatch(operator new vs free) on 0x602014ab4790
-			/// Then for gathering the callstack, match
-			/// ==5077==ABORTING
-			/// remove anything inside the callstack starting with [2022.12.02-15.22.40:688][618]
+			// Match:
+			// ==5077==ERROR: AddressSanitizer: alloc - dealloc - mismatch(operator new vs free) on 0x602014ab4790
+			// Then for gathering the callstack, match
+			// ==5077==ABORTING
+			// remove anything inside the callstack starting with [2022.12.02-15.22.40:688][618]
 
 			List<UnrealLog.CallstackMessage> ASanReports = new List<UnrealLog.CallstackMessage>();
-			string InitPattern = @"==([0-9]+)==ERROR: ([^\n]+)";
-			string LineStartsWithTimeStamp = @"^\[[0-9.:-]+\]\[[0-9]+\]";
+			Regex InitPattern = SanitizerEventMatcher.ReportLevelPattern;
+			Regex EndPattern = SanitizerEventMatcher.ReportEndPattern;
+			Regex LineStartsWithTimeStamp = new Regex(@"^[\s\t]*\[[0-9.:-]+\]\[[\s0-9]+\]");
 
-			MatchCollection Matches = Regex.Matches(Content, InitPattern, RegexOptions.IgnoreCase);
+			UnrealLog.CallstackMessage NewTrace = null;
+			List<string> Backtrace = null;
 
-			foreach (Match TraceInitMatch in Matches)
+			Action AddTraceToList = () =>
 			{
-				string TraceID = TraceInitMatch.Groups[1].Value;
-				string EndPattern = @$"=={TraceID}==ABORTING";
-				int TraceInitIndex = TraceInitMatch.Index + TraceInitMatch.Length;
-
-				UnrealLog.CallstackMessage NewTrace = new UnrealLog.CallstackMessage();
-				NewTrace.Position = TraceInitMatch.Index;
-				NewTrace.Message = TraceInitMatch.Groups[2].Value;
-
-				// If the regex matches the very end of the string, the substring will get an invalid range.
-				string ErrorContent = Content.Length <= TraceInitIndex
-					? string.Empty : Content.Substring(TraceInitIndex + 1);
-
-				if (!string.IsNullOrEmpty(ErrorContent))
+				if (Backtrace.Count == 0)
 				{
-					Match MsgMatch = Regex.Match(ErrorContent, EndPattern);
-					if (MsgMatch.Success)
-					{
-						string MsgContent = ErrorContent.Substring(0, MsgMatch.Index);
-						// Prune the line with time stamp
-						List<string> Backtrace = new List<string>();
-						foreach (string Line in MsgContent.Split("\n"))
-						{
-							Match IsTimeStampLine = Regex.Match(Line, LineStartsWithTimeStamp);
-							if (!IsTimeStampLine.Success)
-							{
-								Backtrace.Add(Line);
-							}
-						}
+					Backtrace.Add("Unable to parse callstack from log");
+				}
+				NewTrace.Callstack = Backtrace.ToArray();
+				ASanReports.Add(NewTrace);
+				NewTrace = null;
+				Backtrace = null;
+			};
 
-						NewTrace.Callstack = Backtrace.ToArray();
+			_logReader.SetLineIndex(0);
+			foreach (string Line in _logReader.EnumerateNextLines())
+			{
+				if (NewTrace == null)
+				{
+					Match TraceInitMatch = InitPattern.Match(Line);
+					if (TraceInitMatch.Success && SanitizerEventMatcher.ConvertReportLevel(TraceInitMatch.Groups["ReportLevel"].Value) == Logging.LogLevel.Error)
+					{
+						NewTrace = new UnrealLog.CallstackMessage();
+						NewTrace.IsSanReport = true;
+						NewTrace.Position = _logReader.GetLineIndex() - 1;
+						NewTrace.Message = $"{TraceInitMatch.Groups["SanitizerName"].Value}Sanitizer: {TraceInitMatch.Groups["Summary"].Value}";
+						Backtrace = new List<string>();
+					}
+
+					continue;
+				}
+
+				if (EndPattern.IsMatch(Line))
+				{
+					AddTraceToList();
+				}
+				else
+				{
+					// Prune the line with UE log timestamp
+					if (!LineStartsWithTimeStamp.IsMatch(Line))
+					{
+						Backtrace.Add(Line);
 					}
 				}
+			}
 
-				if(NewTrace.Callstack == null)
-				{
-					NewTrace.Callstack = new string[] { "Unable to parse callstack from log" };
-				}
-
-				ASanReports.Add(NewTrace);
+			if (NewTrace != null)
+			{
+				// Happen if end of log is reached before the EndPattern is found
+				AddTraceToList();
 			}
 
 			return ASanReports;
@@ -1031,12 +1109,7 @@ namespace Gauntlet
 		/// Returns true if the log contains a test complete marker
 		/// </summary>
 		/// <returns></returns>
-		public bool HasTestCompleteMarker()
-		{
-			string[] Completion = GetAllMatchingLines(@"\*\*\* TEST COMPLETE.+");
-
-			return Completion.Length > 0;
-		}
+		public bool HasTestCompleteMarker() => GetAllMatchingLines(@"\*\*\* TEST COMPLETE.+").Any();
 
 		/// <summary>
 		/// Returns true if the log contains a request to exit that was not due to an error
@@ -1059,18 +1132,24 @@ namespace Gauntlet
 			Regex StartRegex = new Regex(StartPattern, PatternOptions);
 			Regex EndRegex = new Regex(EndPattern, PatternOptions);
 			List<string> Blocks = new List<string>();
+			List<string> Block = null;
 
-			foreach (Match StartMatch in StartRegex.Matches(Content))
+			_logReader.SetLineIndex(0);
+			foreach (string Line in _logReader.EnumerateNextLines())
 			{
-				int StartIndex = Content.LastIndexOf('\n', StartMatch.Index) + 1;
-				Match EndMatch = EndRegex.Match(Content, StartMatch.Index + StartMatch.Length);
-				int EndIndex = Content.IndexOf('\n', EndMatch.Index);
-
-				if (EndIndex > StartIndex)
+				if (Block == null)
 				{
-					string Block = Content.Substring(StartIndex, EndIndex - StartIndex);
-
-					Blocks.Add(Block);
+					if (!StartRegex.IsMatch(Line)) continue;
+					Block = new(){ Line };
+				}
+				else
+				{
+					Block.Add(Line);
+					if (EndRegex.IsMatch(Line))
+					{
+						Blocks.Add(string.Join('\n', Block));
+						Block = null;
+					}
 				}
 			}
 
@@ -1082,30 +1161,31 @@ namespace Gauntlet
 		/// </summary>
 		/// <param name="Pattern">Regex to match the first line</param>
 		/// <param name="LineCount">Number of lines in the returned block</param>
+		/// <param name="PatternOptions"></param>
 		/// <returns>Array of strings for each found block of lines. Lines within each string are delimited by newline character.</returns>
 		public string[] GetGroupsOfLinesStartingWith(string Pattern, int LineCount, RegexOptions PatternOptions = RegexOptions.IgnoreCase)
 		{
-			Regex regex = new Regex(Pattern, PatternOptions);
-
+			Regex RegexPattern = new Regex(Pattern, PatternOptions);
 			List<string> Blocks = new List<string>();
+			List<string> Block = null;
 
-			foreach (Match match in regex.Matches(Content))
+			_logReader.SetLineIndex(0);
+			foreach (string Line in _logReader.EnumerateNextLines())
 			{
-				int Location = match.Index;
-
-				int Start = Content.LastIndexOf('\n', Location) + 1;
-				int End = Location;
-
-				for (int i = 0; i < LineCount; i++)
+				if (Block == null)
 				{
-					End = Content.IndexOf('\n', End) + 1;
+					if (!RegexPattern.IsMatch(Line)) continue;
+					Block = new() { Line };
+				}
+				else
+				{
+					Block.Add(Line);
 				}
 
-				if (End > Start)
+				if (Block.Count >= LineCount)
 				{
-					string Block = Content.Substring(Start, End - Start);
-
-					Blocks.Add(Block);
+					Blocks.Add(string.Join('\n', Block));
+					Block = null;
 				}
 			}
 
@@ -1116,204 +1196,186 @@ namespace Gauntlet
 		/// Finds all callstack-based errors with the specified pattern
 		/// </summary>
 		/// <param name="Patterns"></param>
+		/// <param name="Limit">Limit the number of errors to parse with trace per pattern. Zero means no limit.</param>
 		/// <returns></returns>
-		protected IEnumerable<UnrealLog.CallstackMessage> ParseTracedErrors(string[] Patterns, bool IncludePostmortem = true)
+		protected IEnumerable<UnrealLog.CallstackMessage> ParseTracedErrors(string[] Patterns, int Limit = 0)
 		{
 			List<UnrealLog.CallstackMessage> Traces = new List<UnrealLog.CallstackMessage>();
-
-			// As well as what was requested, search for a postmortem stack...
-			IEnumerable<string> AllPatterns = IncludePostmortem ? Patterns.Concat(new[] { "(Postmortem Cause:.*)" }) : Patterns;
-
-			// Try and find an error message
-			foreach (string Pattern in AllPatterns)
+			Dictionary<string, (Regex Pattern, int Remaining)> RegexPatterns = new();
+			foreach(string Pattern in Patterns)
 			{
-				MatchCollection Matches = Regex.Matches(Content, Pattern, RegexOptions.IgnoreCase);
-
-				foreach (Match TraceMatch in Matches)
+				RegexPatterns.Add(Pattern, (new Regex(Pattern, RegexOptions.IgnoreCase), Limit));
+			};
+			_logReader.SetLineIndex(0);
+			foreach (string Line in _logReader.EnumerateNextLines())
+			{
+				if (Limit > 0 && RegexPatterns.Count == 0) break;
+				if (string.IsNullOrEmpty(Line)) continue;
+				// Try and find an error message
+				string SelectedPattern = null;
+				foreach (var Entry in RegexPatterns)
 				{
-					UnrealLog.CallstackMessage NewTrace = new UnrealLog.CallstackMessage();
-
-					NewTrace.Position = TraceMatch.Index;
-					NewTrace.Message = TraceMatch.Groups[1].Value;
-
-					// If the regex matches the very end of the string, the substring will get an invalid range.
-					string ErrorContent = Content.Length <= TraceMatch.Index + TraceMatch.Length
-						? string.Empty : Content.Substring(TraceMatch.Index + TraceMatch.Length + 1);
-
-					Match MsgMatch = Regex.Match(ErrorContent, @".+:\s*Error:\s*(.+)");
-
-					if (MsgMatch.Success)
+					Match TraceMatch = Entry.Value.Pattern.Match(Line);
+					if (TraceMatch.Success)
 					{
-						string MsgString = MsgMatch.Groups[1].ToString();
-						if (!MsgMatch.Groups[0].ToString().Contains("\n") /* avoid a bug where .+ match \n */
-							&& !string.IsNullOrEmpty(MsgString)
-							&& Regex.Match(MsgString, @"0[xX][0-9A-f]{8,16}").Success == false)
-						{
-							NewTrace.Message = NewTrace.Message + "\n" + MsgString;
-						}
+						UnrealLog.CallstackMessage NewTrace = new UnrealLog.CallstackMessage();
+						NewTrace.Position = _logReader.GetLineIndex() - 1;
+						NewTrace.Message = TraceMatch.Groups[1].Value;
+						SelectedPattern = Entry.Key;
+						Traces.Add(NewTrace);
+						break;
 					}
-
-					//
-					// Handing callstacks-
-					//
-					// Unreal now uses a canonical format for printing callstacks during errors which is 
-					//
-					//0xaddress module!func [file]
-					// 
-					// E.g. 0x045C8D01 OrionClient.self!UEngine::PerformError() [D:\Epic\Orion\Engine\Source\Runtime\Engine\Private\UnrealEngine.cpp:6481]
-					//
-					// Module may be omitted, everything else should be present, or substituted with a string that conforms to the expected type
-					//
-					// E.g 0x00000000 UnknownFunction []
-					//
-					// A calstack as part of an ensure, check, or exception will look something like this -
-					// 
-					//
-					//[2017.08.21-03.28.40:667][313]LogWindows:Error: Assertion failed: false [File:D:\Epic\Orion\Release-Next\Engine\Plugins\NotForLicensees\Gauntlet\Source\Gauntlet\Private\GauntletTestControllerErrorTest.cpp] [Line: 29] 
-					//[2017.08.21-03.28.40:667][313]LogWindows:Error: Asserting as requested
-					//[2017.08.21-03.28.40:667][313]LogWindows:Error: 
-					//[2017.08.21-03.28.40:667][313]LogWindows:Error: 
-					//[2017.08.21-03.28.40:667][313]LogWindows:Error: [Callstack] 0x00000000FDC2A06D KERNELBASE.dll!UnknownFunction []
-					//[2017.08.21-03.28.40:667][313]LogWindows:Error: [Callstack] 0x00000000418C0119 OrionClient.exe!FOutputDeviceWindowsError::Serialize() [d:\epic\orion\release-next\engine\source\runtime\core\private\windows\windowsplatformoutputdevices.cpp:120]
-					//[2017.08.21-03.28.40:667][313]LogWindows:Error: [Callstack] 0x00000000416AC12B OrionClient.exe!FOutputDevice::Logf__VA() [d:\epic\orion\release-next\engine\source\runtime\core\private\misc\outputdevice.cpp:70]
-					//[2017.08.21-03.28.40:667][313]LogWindows:Error: [Callstack] 0x00000000418BD124 OrionClient.exe!FDebug::AssertFailed() [d:\epic\orion\release-next\engine\source\runtime\core\private\misc\assertionmacros.cpp:373]
-					//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x000000004604A879 OrionClient.exe!UGauntletTestControllerErrorTest::OnTick() [d:\epic\orion\release-next\engine\plugins\notforlicensees\gauntlet\source\gauntlet\private\gauntlettestcontrollererrortest.cpp:29]
-					//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x0000000046049166 OrionClient.exe!FGauntletModuleImpl::InnerTick() [d:\epic\orion\release-next\engine\plugins\notforlicensees\gauntlet\source\gauntlet\private\gauntletmodule.cpp:315]
-					//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x0000000046048472 OrionClient.exe!TBaseFunctorDelegateInstance<bool __cdecl(float),<lambda_b2e6da8e95d7ed933c391f0ec034aa11> >::Execute() [d:\epic\orion\release-next\engine\source\runtime\core\public\delegates\delegateinstancesimpl.h:1132]
-					//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x00000000415101BE OrionClient.exe!FTicker::Tick() [d:\epic\orion\release-next\engine\source\runtime\core\private\containers\ticker.cpp:82]
-					//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x00000000402887DD OrionClient.exe!FEngineLoop::Tick() [d:\epic\orion\release-next\engine\source\runtime\launch\private\launchengineloop.cpp:3295]
-					//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x00000000402961FC OrionClient.exe!GuardedMain() [d:\epic\orion\release-next\engine\source\runtime\launch\private\launch.cpp:166]
-					//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x000000004029625A OrionClient.exe!GuardedMainWrapper() [d:\epic\orion\release-next\engine\source\runtime\launch\private\windows\launchwindows.cpp:134]
-					//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x00000000402A2D68 OrionClient.exe!WinMain() [d:\epic\orion\release-next\engine\source\runtime\launch\private\windows\launchwindows.cpp:210]
-					//[2017.08.21-03.28.40:669][313]LogWindows:Error: [Callstack] 0x0000000046EEC0CB OrionClient.exe!__scrt_common_main_seh() [f:\dd\vctools\crt\vcstartup\src\startup\exe_common.inl:253]
-					//[2017.08.21-03.28.40:669][313]LogWindows:Error: [Callstack] 0x0000000077A759CD kernel32.dll!UnknownFunction []
-					//[2017.08.21-03.28.40:669][313]LogWindows:Error: [Callstack] 0x0000000077CAA561 ntdll.dll!UnknownFunction []
-					//[2017.08.21-03.28.40:669][313]LogWindows:Error: [Callstack] 0x0000000077CAA561 ntdll.dll!UnknownFunction []
-					//
-					// So the code below starts at the point of the error message, and searches subsequent lines for things that look like a callstack. If we go too many lines without 
-					// finding one then we break. Note that it's possible that log messages from another thread may be intermixed, so we can't just break on a change of verbosity or 
-					// channel
-					// 
-
-					string SearchContent = ErrorContent;
-
-					int LinesWithoutBacktrace = 0;
-
-					List<string> Backtrace = new List<string>();
-
-					do
+				}
+				// Track pattern match limit
+				if (Limit > 0 && !string.IsNullOrEmpty(SelectedPattern))
+				{
+					var SelectedItem = RegexPatterns[SelectedPattern];
+					int Remaining = SelectedItem.Remaining - 1;
+					if (Remaining <= 0)
 					{
-						int EOL = SearchContent.IndexOf("\n");
-
-						if (EOL == -1)
-						{
-							break;
-						}
-
-						string Line = SearchContent.Substring(0, EOL);
-
-						// collapse inline function
-						Line = Line.Replace("[Inline Function] ", "[InlineFunction]");
-
-						// Must have [Callstack] 0x00123456
-						// The module name is optional, must start with whitespace, and continues until next whites[ace
-						// filename is optional, must be in [file]
-						// module address is optional, must be in quotes() after address
-						// Note - Unreal callstacks are always meant to omit all three with placeholders for missing values, but
-						// we'll assume that may not happen...
-						Match CSMatch = Regex.Match(Line, @"(0[xX][0-9A-f]{8,16})(?:\s+\(0[xX][0-9A-f]{8,16}\))?\s+(.+)\s+\[(.*?)\]$", RegexOptions.IgnoreCase);
-
-						if (CSMatch.Success)
-						{
-							string Address = CSMatch.Groups[1].Value;
-							string Func = CSMatch.Groups[2].Value;
-							string File = CSMatch.Groups[3].Value;
-
-							if (string.IsNullOrEmpty(File))
-							{
-								File = "Unknown File";
-							}
-
-							// Remove any exe
-							const string StripFrom = ".exe!";
-
-							if (Func.IndexOf(StripFrom) > 0)
-							{
-								Func = Func.Substring(Func.IndexOf(StripFrom) + StripFrom.Length);
-							}
-
-							string NewLine = string.Format("{0} {1} [{2}]", Address, Func, File);
-
-							Backtrace.Add(NewLine);
-
-							LinesWithoutBacktrace = 0;
-						}
-						else
-						{
-							LinesWithoutBacktrace++;
-						}
-
-						SearchContent = SearchContent.Substring(EOL + 1);
-
-					} while (LinesWithoutBacktrace < 10);
-
-					if (Backtrace.Count > 0)
-					{
-						NewTrace.Callstack = Backtrace.Distinct().ToArray();
+						// Limit reached, we remove the pattern from collection
+						RegexPatterns.Remove(SelectedPattern);
 					}
 					else
 					{
-						NewTrace.Callstack = new[] { "Unable to parse callstack from log" };
+						// Update count
+						RegexPatterns[SelectedPattern] = (SelectedItem.Pattern, Remaining);
 					}
-					Traces.Add(NewTrace);
 				}
 			}
+			//
+			// Handing callstacks-
+			//
+			// Unreal now uses a canonical format for printing callstacks during errors which is 
+			//
+			//0xaddress module!func [file]
+			// 
+			// E.g. 0x045C8D01 OrionClient.self!UEngine::PerformError() [D:\Epic\Orion\Engine\Source\Runtime\Engine\Private\UnrealEngine.cpp:6481]
+			//
+			// Module may be omitted, everything else should be present, or substituted with a string that conforms to the expected type
+			//
+			// E.g 0x00000000 UnknownFunction []
+			//
+			// A callstack as part of an ensure, check, or exception will look something like this -
+			// 
+			//
+			//[2017.08.21-03.28.40:667][313]LogWindows:Error: Assertion failed: false [File:D:\Epic\Orion\Release-Next\Engine\Plugins\NotForLicensees\Gauntlet\Source\Gauntlet\Private\GauntletTestControllerErrorTest.cpp] [Line: 29] 
+			//[2017.08.21-03.28.40:667][313]LogWindows:Error: Asserting as requested
+			//[2017.08.21-03.28.40:667][313]LogWindows:Error: 
+			//[2017.08.21-03.28.40:667][313]LogWindows:Error: 
+			//[2017.08.21-03.28.40:667][313]LogWindows:Error: [Callstack] 0x00000000FDC2A06D KERNELBASE.dll!UnknownFunction []
+			//[2017.08.21-03.28.40:667][313]LogWindows:Error: [Callstack] 0x00000000418C0119 OrionClient.exe!FOutputDeviceWindowsError::Serialize() [d:\epic\orion\release-next\engine\source\runtime\core\private\windows\windowsplatformoutputdevices.cpp:120]
+			//[2017.08.21-03.28.40:667][313]LogWindows:Error: [Callstack] 0x00000000416AC12B OrionClient.exe!FOutputDevice::Logf__VA() [d:\epic\orion\release-next\engine\source\runtime\core\private\misc\outputdevice.cpp:70]
+			//[2017.08.21-03.28.40:667][313]LogWindows:Error: [Callstack] 0x00000000418BD124 OrionClient.exe!FDebug::AssertFailed() [d:\epic\orion\release-next\engine\source\runtime\core\private\misc\assertionmacros.cpp:373]
+			//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x000000004604A879 OrionClient.exe!UGauntletTestControllerErrorTest::OnTick() [d:\epic\orion\release-next\engine\plugins\notforlicensees\gauntlet\source\gauntlet\private\gauntlettestcontrollererrortest.cpp:29]
+			//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x0000000046049166 OrionClient.exe!FGauntletModuleImpl::InnerTick() [d:\epic\orion\release-next\engine\plugins\notforlicensees\gauntlet\source\gauntlet\private\gauntletmodule.cpp:315]
+			//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x0000000046048472 OrionClient.exe!TBaseFunctorDelegateInstance<bool __cdecl(float),<lambda_b2e6da8e95d7ed933c391f0ec034aa11> >::Execute() [d:\epic\orion\release-next\engine\source\runtime\core\public\delegates\delegateinstancesimpl.h:1132]
+			//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x00000000415101BE OrionClient.exe!FTicker::Tick() [d:\epic\orion\release-next\engine\source\runtime\core\private\containers\ticker.cpp:82]
+			//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x00000000402887DD OrionClient.exe!FEngineLoop::Tick() [d:\epic\orion\release-next\engine\source\runtime\launch\private\launchengineloop.cpp:3295]
+			//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x00000000402961FC OrionClient.exe!GuardedMain() [d:\epic\orion\release-next\engine\source\runtime\launch\private\launch.cpp:166]
+			//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x000000004029625A OrionClient.exe!GuardedMainWrapper() [d:\epic\orion\release-next\engine\source\runtime\launch\private\windows\launchwindows.cpp:134]
+			//[2017.08.21-03.28.40:668][313]LogWindows:Error: [Callstack] 0x00000000402A2D68 OrionClient.exe!WinMain() [d:\epic\orion\release-next\engine\source\runtime\launch\private\windows\launchwindows.cpp:210]
+			//[2017.08.21-03.28.40:669][313]LogWindows:Error: [Callstack] 0x0000000046EEC0CB OrionClient.exe!__scrt_common_main_seh() [f:\dd\vctools\crt\vcstartup\src\startup\exe_common.inl:253]
+			//[2017.08.21-03.28.40:669][313]LogWindows:Error: [Callstack] 0x0000000077A759CD kernel32.dll!UnknownFunction []
+			//[2017.08.21-03.28.40:669][313]LogWindows:Error: [Callstack] 0x0000000077CAA561 ntdll.dll!UnknownFunction []
+			//[2017.08.21-03.28.40:669][313]LogWindows:Error: [Callstack] 0x0000000077CAA561 ntdll.dll!UnknownFunction []
+			//
+			// So the code below starts at the point of the error message, and searches subsequent lines for things that look like a callstack. If we go too many lines without 
+			// finding one then we break. Note that it's possible that log messages from another thread may be intermixed, so we can't just break on a change of verbosity or 
+			// channel
+			// 
+			// Must contain 0x00123456 module name [filename]
+			// The module name is optional, must start with whitespace, and continues until next white space follow by [
+			// filename is optional, must be in [filename]
+			// module address is optional, must be in quotes() after address
+			// Note - Unreal callstacks are always meant to omit all three with placeholders for missing values, but
+			// we'll assume that may not happen...
 
-			// Now, because platforms sometimes dump asserts to the log and low-level logging, and we might have a post-mortem stack, we
-			// need to prune out redundancies. Basic approach - find errors with the same assert message and keep the one with the
-			// longest callstack. If we have a post-mortem error, overwrite the previous trace with its info (on some devices the post-mortem
-			// info is way more informative).
-
-			List<UnrealLog.CallstackMessage> FilteredTraces = new List<UnrealLog.CallstackMessage>();
-
-
-			for (int i = 0; i < Traces.Count; i++)
+			Regex CallstackMatch = new Regex(@"(0[xX][0-9A-f]{8,16})(?:\s+\(0[xX][0-9A-f]{8,16}\))?\s+(.+?)\s+\[(.*?)\][^\w]*$");
+			Regex ExtraErrorLine = new Regex(@".+:\s*Error:\s*");
+			foreach (UnrealLog.CallstackMessage NewTrace in Traces)
 			{
-				var Trace = Traces[i];
-
-				// check the next trace to see if it's a dupe of us
-				if (i + 1 < Traces.Count)
+				List<string> Backtrace = new List<string>();
+				int LinesWithoutBacktrace = 0;
+				// Move to Trace next line index
+				_logReader.SetLineIndex(NewTrace.Position + 1);
+				foreach (string Line in _logReader.EnumerateNextLines())
 				{
-					var NextTrace = Traces[i + 1];
-
-					if (Trace.Message.Equals(NextTrace.Message, StringComparison.OrdinalIgnoreCase))
+					if (string.IsNullOrEmpty(Line)) continue;
+					Match CSMatch = CallstackMatch.Match(Line);
+					if (CSMatch.Success)
 					{
-						if (Trace.Callstack.Length < NextTrace.Callstack.Length)
+						// Callstack pattern found
+						string Address = CSMatch.Groups[1].Value;
+						string Func = CSMatch.Groups[2].Value;
+						string File = CSMatch.Groups[3].Value;
+
+						if (string.IsNullOrEmpty(File))
 						{
-							Trace.Callstack = NextTrace.Callstack;
-							// skip the next error as we stole its callstack already
-							i++;
+							File = "Unknown File";
 						}
+
+						// Remove any exe
+						const string StripFrom = ".exe!";
+						if (Func.IndexOf(StripFrom) > 0)
+						{
+							Func = Func.Substring(Func.IndexOf(StripFrom) + StripFrom.Length);
+						}
+
+						Backtrace.Add($"{Address} {Func} [{File}]");
+
+						LinesWithoutBacktrace = 0;
+					}
+					else
+					{
+						if (Backtrace.Count == 0)
+						{
+							// Add additional summary error lines before backtrace lines are found
+							if (Line[0] != '[')
+							{ // Line with no time stamp
+								NewTrace.Message += "\n" + Line;
+							}
+							else
+							{ // Line with error tag
+								Match MsgMatch = ExtraErrorLine.Match(Line);
+								if (MsgMatch.Success)
+								{
+									string MsgString = Line.Substring(MsgMatch.Index + MsgMatch.Length).Trim();
+									if (string.IsNullOrEmpty(MsgString)) continue;
+									NewTrace.Message += "\n" + MsgString;
+								}
+							}
+						}
+
+						LinesWithoutBacktrace++;
+					}
+
+					if (LinesWithoutBacktrace >= 10)
+					{
+						// No more callstack line found, stop parsing
+						break;
 					}
 				}
 
-				// check this trace to see if it's postmortem
-				if (Trace.Message.IndexOf("Postmortem Cause:", StringComparison.OrdinalIgnoreCase) != -1)
-				{
-					// we have post-mortem info, which should be much better than the game-generated stuff and will be sorted to first position
-					Trace.IsPostMortem = true;
-				}
-
-				FilteredTraces.Add(Trace);
+				NewTrace.Callstack = Backtrace.Count > 0? Backtrace.Distinct().ToArray() :  new[] { "Unable to parse callstack from log" };
 			}
 
-			// If we have a post mortem crash, sort it to the front
-			if (FilteredTraces.FirstOrDefault((Trace) => { return Trace.IsPostMortem; }) != null)
+			UnrealLog.CallstackMessage PreviousTrace = null;
+			return Traces.Where(Trace =>
 			{
-				FilteredTraces.Sort((Trace1, Trace2) => { if (!Trace1.IsPostMortem && !Trace2.IsPostMortem) return 0; return Trace1.IsPostMortem ? -1 : 1; });
-			}
-
-			return FilteredTraces;
+				// Because platforms sometimes dump asserts to the log and low-level logging, we need to prune out redundancies.
+				// Basic approach: find errors with the same assert message and keep the one with the longest callstack.
+				if (PreviousTrace != null && Trace.Message.Equals(PreviousTrace.Message, StringComparison.OrdinalIgnoreCase))
+				{
+					if (PreviousTrace.Callstack.Length < Trace.Callstack.Length)
+					{
+						PreviousTrace.Callstack = Trace.Callstack;
+					}
+					return false;
+				}
+				PreviousTrace = Trace;
+				return true;
+			}).ToList(); // Force execution here with ToList() to have the duplicates pruned only once.
 		}
 
 		/// <summary>
@@ -1323,27 +1385,21 @@ namespace Gauntlet
 		/// <returns></returns>
 		public bool GetTestExitCode(out int ExitCode)
 		{
-			Regex Reg = new Regex(@"\*\s+TEST COMPLETE. EXIT CODE:\s*(-?\d?)\s+\*");
-
-			Match M = Reg.Match(Content);
-
-			if (M.Groups.Count > 1)
+			Match M = GetAllMatches(@"\*\s+TEST COMPLETE. EXIT CODE:\s*(-?\d?)\s+\*").FirstOrDefault();
+			if (M != null && M.Success && M.Groups.Count > 1)
 			{
 				ExitCode = Convert.ToInt32(M.Groups[1].Value);
 				return true;
 			}
 
-			Reg = new Regex(@"RequestExitWithStatus\(\d+,\s*(\d+).*\)");
-
-			M = Reg.Match(Content);
-
-			if (M.Groups.Count > 1)
+			M = GetAllMatches(@"RequestExitWithStatus\(\d+,\s*(\d+).*\)").FirstOrDefault();
+			if (M != null && M.Success && M.Groups.Count > 1)
 			{
 				ExitCode = Convert.ToInt32(M.Groups[1].Value);
 				return true;
 			}
 
-			if (Content.Contains("EnvironmentalPerfTest summary"))
+			if (GetAllContainingLines("EnvironmentalPerfTest summary").Any())
 			{
 				Log.Warning("Found - 'EnvironmentalPerfTest summary', using temp workaround and assuming success (!)");
 				ExitCode = 0;

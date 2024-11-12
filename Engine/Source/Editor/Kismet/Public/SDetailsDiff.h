@@ -1,7 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "AsyncDetailViewDiff.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "CoreMinimal.h"
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "DiffUtils.h"
 #include "IAssetTypeActions.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
@@ -14,6 +17,7 @@ class FTabManager;
 class IDiffControl;
 class FUICommandList;
 class SDetailsSplitter;
+class FDetailsDiffControl;
 enum class EAssetEditorCloseReason : uint8;
 
 /** Panel used to display the details */
@@ -39,13 +43,28 @@ private:
 class  KISMET_API SDetailsDiff: public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS( SDetailsDiff ){}
-			SLATE_ARGUMENT( const class UObject*, AssetOld )
-			SLATE_ARGUMENT( const class UObject*, AssetNew )
-			SLATE_ARGUMENT( struct FRevisionInfo, OldRevision )
-			SLATE_ARGUMENT( struct FRevisionInfo, NewRevision )
-			SLATE_ARGUMENT( bool, ShowAssetNames )
-			SLATE_ARGUMENT(TSharedPtr<SWindow>, ParentWindow)
+
+	DECLARE_DELEGATE_OneParam(FOnCustomizeDetailsWidget, const TSharedRef<IDetailsView>&)
+	DECLARE_DELEGATE_RetVal_OneParam(FLinearColor, FRowHighlightColor, const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>&)
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FShouldHighlightRow, const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>&)
+
+	SLATE_BEGIN_ARGS(SDetailsDiff) {}
+		SLATE_ARGUMENT_DEPRECATED(const class UObject*, AssetOld, 5.5, "Use OldAsset instead")
+		SLATE_ARGUMENT_DEPRECATED(const class UObject*, AssetNew, 5.5, "Use NewAsset instead")
+		SLATE_ARGUMENT(const class UObject*, OldAsset)
+		SLATE_ARGUMENT(const class UObject*, NewAsset)
+		SLATE_ARGUMENT(struct FRevisionInfo, OldRevision)
+		SLATE_ARGUMENT(struct FRevisionInfo, NewRevision)
+		SLATE_ARGUMENT(bool, ShowAssetNames)
+		SLATE_ARGUMENT(TSharedPtr<SWindow>, ParentWindow)
+		SLATE_ARGUMENT(TSharedPtr<IDetailPropertyExtensionHandler>, ExtensionHandler)
+
+		SLATE_EVENT(FOnCustomizeDetailsWidget, OnCustomizeDetailsWidget)
+		SLATE_EVENT(DiffUtils::FOnGenerateCustomDiffEntries, OnGenerateCustomDiffEntries)
+		SLATE_EVENT(DiffUtils::FOnGenerateCustomDiffEntryWidget, OnGenerateCustomDiffEntryWidget)
+		SLATE_EVENT(DiffUtils::FOnOrganizeDiffEntries, OnOrganizeDiffEntries)
+		SLATE_EVENT(FShouldHighlightRow, ShouldHighlightRow)
+		SLATE_EVENT(FRowHighlightColor, RowHighlightColor)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -123,7 +142,7 @@ protected:
 
 	FName CurrentMode;
 
-	/*The two panels used to show the old & new revision*/ 
+	/** The two panels used to show the old & new revision */
 	FDetailsDiffPanel PanelOld;
 	FDetailsDiffPanel PanelNew;
 	
@@ -132,6 +151,13 @@ protected:
 
 	DECLARE_MULTICAST_DELEGATE(FOnSetOutputObjectEvent)
 	FOnSetOutputObjectEvent OnOutputObjectSetEvent;
+
+	FOnCustomizeDetailsWidget OnCustomizeDetailsWidget;
+	DiffUtils::FOnGenerateCustomDiffEntries OnGenerateCustomDiffEntries;
+	DiffUtils::FOnGenerateCustomDiffEntryWidget OnGenerateCustomDiffEntryWidget;
+	DiffUtils::FOnOrganizeDiffEntries OnOrganizeDiffEntries;
+	FShouldHighlightRow ShouldHighlightRow;
+	FRowHighlightColor RowHighlightColor;
 
 	/** Contents widget that we swap when mode changes (defaults, components, etc) */
 	TSharedPtr<SBox> ModeContents;

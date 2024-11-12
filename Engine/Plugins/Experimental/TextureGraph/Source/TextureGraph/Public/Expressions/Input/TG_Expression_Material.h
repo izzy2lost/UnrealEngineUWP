@@ -17,6 +17,8 @@ class TEXTUREGRAPH_API UTG_Expression_Material : public UTG_Expression_MaterialB
 {
 	GENERATED_BODY()
 public:
+	UTG_Expression_Material();
+	virtual ~UTG_Expression_Material();
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditUndo() override;
@@ -43,6 +45,10 @@ public:
 	virtual FText GetTooltipText() const override { return FText::FromString(TEXT("Renders a material into a quad and makes it available. It is automatically exposed as a graph input parameter.")); } 
 
 protected:
+	// Transient and per instance Data, recreated on every new instance from the reference material
+	UPROPERTY(Transient, DuplicateTransient)
+	TObjectPtr<UMaterialInterface> MaterialCopy = nullptr;
+
 	virtual void SetMaterialInternal(UMaterialInterface* InMaterial) override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "")
@@ -58,7 +64,13 @@ public:
 	virtual FName GetCategory() const override { return TG_Category::Input;}
 	
 protected:
-	virtual TObjectPtr<UMaterialInterface> GetMaterial() const override { return Material;};
+	virtual TObjectPtr<UMaterialInterface> GetMaterial() const override { return MaterialCopy;};
 	virtual EDrawMaterialAttributeTarget GetRenderedAttributeId()  override;
+
+#if WITH_EDITOR // Listener for referenced material being saved to update the integration in TG 
+	FDelegateHandle PreSaveHandle; 
+	void OnReferencedObjectPreSave(UObject* Object, FObjectPreSaveContext SaveContext);
+#endif
+
 };
 

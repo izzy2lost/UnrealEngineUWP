@@ -11,9 +11,11 @@
 #include "MaterialDomain.h"
 #include "MaterialShaderType.h"
 #include "MaterialShader.h"
+#include "Materials/Material.h"
 #include "MeshPassProcessor.h"
 #include "MeshMaterialShader.h"
 #include "MeshPassProcessor.inl"
+#include "DataDrivenShaderPlatformInfo.h"
 
 BEGIN_UNIFORM_BUFFER_STRUCT(FVLMVoxelizationParams, )
 	SHADER_PARAMETER(FVector4f, VolumeCenter)

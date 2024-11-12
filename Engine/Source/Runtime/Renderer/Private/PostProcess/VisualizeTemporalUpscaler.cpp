@@ -134,6 +134,7 @@ FScreenPassTexture AddVisualizeTemporalUpscalerPass(FRDGBuilder& GraphBuilder, c
 			PassInputs.SceneColor = Inputs.Outputs.FullRes;
 			PassInputs.SceneDepth = Inputs.Inputs.SceneDepth;
 			PassInputs.SceneVelocity = Inputs.Inputs.SceneVelocity;
+			PassInputs.LensDistortionLUT = Inputs.Inputs.LensDistortionLUT;
 
 			FVisualizeBufferTile& Tile = Tiles[4 * 1 + 0];
 			Tile.Input = FScreenPassTexture(AddVisualizeMotionBlurPass(GraphBuilder, View, PassInputs));
@@ -147,6 +148,7 @@ FScreenPassTexture AddVisualizeTemporalUpscalerPass(FRDGBuilder& GraphBuilder, c
 			PassInputs.SceneColor = Inputs.SceneColor;
 			PassInputs.SceneDepth = Inputs.Inputs.SceneDepth;
 			PassInputs.SceneVelocity = Inputs.Inputs.SceneVelocity;
+			PassInputs.LensDistortionLUT = Inputs.Inputs.LensDistortionLUT;
 
 			FVisualizeBufferTile& Tile = Tiles[4 * 2 + 0];
 			Tile.Input = AddVisualizeMotionVectorsPass(GraphBuilder, View, PassInputs, EVisualizeMotionVectors::ReprojectionAlignment);
@@ -325,6 +327,10 @@ FScreenPassTexture AddVisualizeTemporalUpscalerPass(FRDGBuilder& GraphBuilder, c
 				QuickDrawSummary(/* Location = */ 6, Sharpen > 0 ? FString::Printf(TEXT("Tonemapper Sharpen: %f"), Sharpen) : TEXT("Tonemapper Sharpen: Off"));
 			}
 
+			// Display if doing any lens distortion
+			{
+				QuickDrawSummary(/* Location = */ 7, View.LensDistortionLUT.IsEnabled() ? FString::Printf(TEXT("Lens Distortion: Enabled (%3.1f%% Additional Upscale)"), View.LensDistortionLUT.ResolutionFraction * 100.0f) : TEXT("Lens Distortion: Disabled"));
+			}
 		});
 
 	}

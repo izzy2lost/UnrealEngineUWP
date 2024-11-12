@@ -28,7 +28,6 @@ DECLARE_GPU_STAT_NAMED(RayTracingWaterReflections, TEXT("Ray Tracing Water Refle
 
 DECLARE_GPU_DRAWCALL_STAT(SingleLayerWaterDepthPrepass);
 DECLARE_GPU_DRAWCALL_STAT(SingleLayerWater);
-DECLARE_CYCLE_STAT(TEXT("WaterSingleLayer"), STAT_CLP_WaterSingleLayerPass, STATGROUP_ParallelCommandListMarkers);
 
 static TAutoConsoleVariable<int32> CVarWaterSingleLayer(
 	TEXT("r.Water.SingleLayer"), 1,
@@ -108,10 +107,6 @@ static TAutoConsoleVariable<int32> CVarParallelSingleLayerWaterPass(
 	TEXT("Toggles parallel single layer water pass rendering. Parallel rendering must be enabled for this to have an effect."),
 	ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarRHICmdFlushRenderThreadTasksSingleLayerWater(
-	TEXT("r.RHICmdFlushRenderThreadTasksSingleLayerWater"), 0,
-	TEXT("Wait for completion of parallel render thread tasks at the end of Single layer water. A more granular version of r.RHICmdFlushRenderThreadTasks. If either r.RHICmdFlushRenderThreadTasks or r.RHICmdFlushRenderThreadTasksSingleLayerWater is > 0 we will flush."));
-
 static TAutoConsoleVariable<int32> CVarWaterSingleLayerDepthPrepass(
 	TEXT("r.Water.SingleLayer.DepthPrepass"), 1,
 	TEXT("Enable a depth prepass for single layer water. Necessary for proper Virtual Shadow Maps support."),
@@ -183,6 +178,7 @@ bool ShouldRenderScreenSpaceReflectionsWater(const FViewInfo& View)
 	const bool bSSRDefault = ReflectionsMethod == ESingleLayerWaterReflections::Enabled && View.FinalPostProcessSettings.ReflectionMethod != EReflectionMethod::None;
 
 	if (!View.Family->EngineShowFlags.ScreenSpaceReflections
+		|| !View.Family->EngineShowFlags.Lighting
 		|| (!bSSROverride && !bSSRDefault)
 		|| HasRayTracedOverlay(*View.Family)
 		|| !View.State /*no view state(e.g.thumbnail rendering ? ), no HZB(no screen space reflections or occlusion culling)*/
@@ -207,7 +203,7 @@ bool ShouldRenderScreenSpaceReflectionsWater(const FViewInfo& View)
 bool ShouldRenderLumenReflectionsWater(const FViewInfo& View, bool bSkipTracingDataCheck, bool bSkipProjectCheck)
 {
 	// This only returns true if using the default reflections method and having Lumen enabled in the scene. It can't be forced with r.Water.SingleLayer.Reflection.
-	return !View.bIsReflectionCapture 
+	return !View.bIsReflectionCapture  && View.Family->EngineShowFlags.Lighting
 		&& GetSingleLayerWaterReflectionTechnique() == ESingleLayerWaterReflections::Enabled
 		&& ShouldRenderLumenReflections(View, bSkipTracingDataCheck, bSkipProjectCheck);
 }
@@ -237,11 +233,6 @@ bool IsWaterDistanceFieldShadowEnabled_Runtime(const FStaticShaderPlatform Platf
 bool IsWaterVirtualShadowMapFilteringEnabled_Runtime(const FStaticShaderPlatform Platform)
 {
 	return IsWaterVirtualShadowMapFilteringEnabled(Platform) && UseVirtualShadowMaps(Platform, GetMaxSupportedFeatureLevel(Platform)) && CVarWaterSingleLayerVSMFiltering.GetValueOnRenderThread() > 0;
-}
-
-bool NeedsSeparatedMainDirectionalLightTexture(const FStaticShaderPlatform Platform)
-{
-	return IsWaterDistanceFieldShadowEnabled(Platform) || IsWaterVirtualShadowMapFilteringEnabled(Platform);
 }
 
 bool NeedsSeparatedMainDirectionalLightTexture_Runtime(const FStaticShaderPlatform Platform)
@@ -307,15 +298,18 @@ class FWaterTileCategorisationMarkCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FWaterTileCategorisationMarkCS, FGlobalShader)
 
 	class FUsePrepassStencil : SHADER_PERMUTATION_BOOL("USE_WATER_PRE_PASS_STENCIL");
-	using FPermutationDomain = TShaderPermutationDomain<FUsePrepassStencil>;
+	class FBuildFroxels : SHADER_PERMUTATION_BOOL("GENERATE_FROXELS");
+	using FPermutationDomain = TShaderPermutationDomain<FUsePrepassStencil, FBuildFroxels>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)	// Water scene texture
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, WaterDepthStencilTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, WaterDepthTexture)
 		SHADER_PARAMETER(FIntPoint, TiledViewRes)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, TileMaskBufferOut)
+		SHADER_PARAMETER_STRUCT_INCLUDE(Froxel::FBuilderParameters, FroxelBuilder)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
@@ -325,6 +319,15 @@ class FWaterTileCategorisationMarkCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		// No need for froxels on non-VSM platforms
+		if (PermutationVector.Get<FBuildFroxels>() 
+			// only compile if on a supported platform & we have depth stencil avaliable
+			&& (!DoesPlatformSupportVirtualShadowMaps(Parameters.Platform) || !PermutationVector.Get<FUsePrepassStencil>()))
+		{
+			return false;
+		}
+
 		return UseSingleLayerWaterIndirectDraw(Parameters.Platform);
 	}
 
@@ -459,7 +462,7 @@ static FSingleLayerWaterDepthPassParameters* GetSingleLayerWaterDepthPassParamet
  * Build lists of 8x8 tiles used by water pixels
  * Mark and build list steps are separated in order to build a more coherent list (z-ordered over a larger region), which is important for the performance of future passes like ray traced Lumen reflections
  */
-static FSingleLayerWaterTileClassification ClassifyTiles(FRDGBuilder& GraphBuilder, const FViewInfo &View, const FSceneTextures& SceneTextures, const FRDGTextureRef& DepthPrepassTexture)
+static FSingleLayerWaterTileClassification ClassifyTiles(FRDGBuilder& GraphBuilder, const FViewInfo &View, const FSceneTextures& SceneTextures, const FRDGTextureRef& DepthPrepassTexture, const Froxel::FViewData* OutFroxelViewData)
 {
 	FSingleLayerWaterTileClassification Result;
 	const bool bRunTiled = UseSingleLayerWaterIndirectDraw(View.GetShaderPlatform()) && CVarWaterSingleLayerTiledComposite.GetValueOnRenderThread();
@@ -486,10 +489,15 @@ static FSingleLayerWaterTileClassification ClassifyTiles(FRDGBuilder& GraphBuild
 		AddClearUAVPass(GraphBuilder, DrawIndirectParametersBufferUAV, 0);
 		AddClearUAVPass(GraphBuilder, DispatchIndirectParametersBufferUAV, 0);
 
+		// Can't produce froxels unless we have depth data
+		bool bProduceFroxelData = OutFroxelViewData != nullptr && DepthPrepassTexture != nullptr;
+
 		// Mark used tiles based on SHADING_MODEL_ID
 		{
 			FWaterTileCategorisationMarkCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FWaterTileCategorisationMarkCS::FUsePrepassStencil>(DepthPrepassTexture != nullptr);
+			PermutationVector.Set<FWaterTileCategorisationMarkCS::FBuildFroxels>(bProduceFroxelData);
+
 			TShaderMapRef<FWaterTileCategorisationMarkCS> ComputeShader(View.ShaderMap, PermutationVector);
 
 			FWaterTileCategorisationMarkCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FWaterTileCategorisationMarkCS::FParameters>();
@@ -499,8 +507,12 @@ static FSingleLayerWaterTileClassification ClassifyTiles(FRDGBuilder& GraphBuild
 			PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 			PassParameters->TiledViewRes = Result.TiledViewRes;
 			PassParameters->WaterDepthStencilTexture = DepthPrepassTexture ? GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateWithPixelFormat(DepthPrepassTexture, PF_X24_G8)) : nullptr;
+			PassParameters->WaterDepthTexture = DepthPrepassTexture ? DepthPrepassTexture : nullptr;
 			PassParameters->TileMaskBufferOut = TileMaskBufferUAV;
-
+			if (bProduceFroxelData)
+			{
+				PassParameters->FroxelBuilder = OutFroxelViewData->GetBuilderParameters(GraphBuilder);
+			}
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
 				RDG_EVENT_NAME("SLW::TileCategorisationMarkTiles"),
@@ -536,16 +548,16 @@ static FSingleLayerWaterTileClassification ClassifyTiles(FRDGBuilder& GraphBuild
 	return Result;
 }
 
-FSingleLayerWaterPrePassResult* FDeferredShadingSceneRenderer::RenderSingleLayerWaterDepthPrepass(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures)
+FSingleLayerWaterPrePassResult* FDeferredShadingSceneRenderer::RenderSingleLayerWaterDepthPrepass(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> InViews, const FSceneTextures& SceneTextures)
 {
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, Water);
 	SCOPED_NAMED_EVENT(FDeferredShadingSceneRenderer_RenderSingleLayerWaterDepthPrepass, FColor::Emerald);
 	SCOPE_CYCLE_COUNTER(STAT_WaterPassDrawTime);
-	RDG_EVENT_SCOPE(GraphBuilder, "SingleLayerWaterDepthPrepass");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SingleLayerWaterDepthPrepass, "SingleLayerWaterDepthPrepass");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SingleLayerWaterDepthPrepass);
 
 	FSingleLayerWaterPrePassResult* Result = GraphBuilder.AllocObject<FSingleLayerWaterPrePassResult>();
-	Result->ViewTileClassification.SetNum(Views.Num());
+	Result->ViewTileClassification.SetNum(InViews.Num());
 
 	FRDGTextureMSAA &OutDepthPrepassTexture = Result->DepthPrepassTexture;
 	// Create an identical copy of the main depth buffer
@@ -590,9 +602,9 @@ FSingleLayerWaterPrePassResult* FDeferredShadingSceneRenderer::RenderSingleLayer
 			TShaderMapRef<FCopyDepthPS> PixelShader(ShaderMap, PermutationVector);
 
 			FIntRect Viewport(0, 0, DepthPrepassTextureDesc.Extent.X, DepthPrepassTextureDesc.Extent.Y);
-			if (bOptimizedClear && Views.Num() == 1)
+			if (bOptimizedClear && InViews.Num() == 1)
 			{
-				Viewport = Views[0].ViewRect;
+				Viewport = InViews[0].ViewRect;
 			}
 
 			// Set depth test to always pass and stencil test to replace all pixels with zero, essentially also clearing stencil while doing the depth copy.
@@ -622,9 +634,9 @@ FSingleLayerWaterPrePassResult* FDeferredShadingSceneRenderer::RenderSingleLayer
 
 	const bool bRenderInParallel = GRHICommandList.UseParallelAlgorithms() && CVarParallelSingleLayerWaterPass.GetValueOnRenderThread() == 1;
 
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+	for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ++ViewIndex)
 	{
-		FViewInfo& View = Views[ViewIndex];
+		FViewInfo& View = InViews[ViewIndex];
 
 		if (!View.ShouldRenderView())
 		{
@@ -632,7 +644,7 @@ FSingleLayerWaterPrePassResult* FDeferredShadingSceneRenderer::RenderSingleLayer
 		}
 
 		RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
-		RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Views.Num() > 1, "View%d", ViewIndex);
+		RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, InViews.Num() > 1, "View%d", ViewIndex);
 		View.BeginRenderView();
 
 		FSingleLayerWaterDepthPassParameters* PassParameters = GetSingleLayerWaterDepthPassParameters(GraphBuilder, View, OutDepthPrepassTexture.Target);
@@ -641,14 +653,13 @@ FSingleLayerWaterPrePassResult* FDeferredShadingSceneRenderer::RenderSingleLayer
 
 		if (bRenderInParallel)
 		{
-			GraphBuilder.AddPass(
+			GraphBuilder.AddDispatchPass(
 				RDG_EVENT_NAME("SingleLayerWaterDepthPrepassParallel"),
 				PassParameters,
-				ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-				[this, &View, PassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
+				ERDGPassFlags::Raster,
+				[&View, PassParameters](FRDGDispatchPassBuilder& DispatchPassBuilder)
 				{
-					FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, GET_STATID(STAT_CLP_WaterSingleLayerPass), View, FParallelCommandListBindings(PassParameters));
-					View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterDepthPrepass].DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+					View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterDepthPrepass].Dispatch(DispatchPassBuilder, &PassParameters->InstanceCullingDrawParams);
 				});
 		}
 		else
@@ -657,23 +668,25 @@ FSingleLayerWaterPrePassResult* FDeferredShadingSceneRenderer::RenderSingleLayer
 				RDG_EVENT_NAME("SingleLayerWaterDepthPrepass"),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[this, &View, PassParameters](FRHICommandList& RHICmdList)
+				[this, &View, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					SetStereoViewport(RHICmdList, View, 1.0f);
-					View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterDepthPrepass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+					View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterDepthPrepass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 				});
 		}
 	}
 
-	AddResolveSceneDepthPass(GraphBuilder, Views, OutDepthPrepassTexture);
+	AddResolveSceneDepthPass(GraphBuilder, InViews, OutDepthPrepassTexture);
 
 	// Run classification pass.
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+	if (UseSingleLayerWaterIndirectDraw(ShaderPlatform) && CVarWaterSingleLayerTiledComposite.GetValueOnRenderThread())
 	{
-		FViewInfo& View = Views[ViewIndex];
-		if (UseSingleLayerWaterIndirectDraw(View.GetShaderPlatform()) && CVarWaterSingleLayerTiledComposite.GetValueOnRenderThread())
+		Result->Froxels = Froxel::FRenderer(DoesVSMWantFroxels(ShaderPlatform), GraphBuilder, Views);
+
+		for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ++ViewIndex)
 		{
-			Result->ViewTileClassification[ViewIndex] = ClassifyTiles(GraphBuilder, View, SceneTextures, OutDepthPrepassTexture.Resolve);
+			FViewInfo& View = InViews[ViewIndex];
+			Result->ViewTileClassification[ViewIndex] = ClassifyTiles(GraphBuilder, View, SceneTextures, OutDepthPrepassTexture.Resolve, Result->Froxels.GetView(ViewIndex));
 		}
 	}
 
@@ -808,6 +821,7 @@ END_SHADER_PARAMETER_STRUCT()
 
 void FDeferredShadingSceneRenderer::RenderSingleLayerWaterReflections(
 	FRDGBuilder& GraphBuilder,
+	TArrayView<FViewInfo> InViews,
 	const FSceneTextures& SceneTextures,
 	const FSceneWithoutWaterTextures& SceneWithoutWaterTextures,
 	const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult,
@@ -821,9 +835,9 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterReflections(
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 	FRDGTextureRef SceneColorTexture = SceneTextures.Color.Resolve;
 
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ViewIndex++)
 	{
-		FViewInfo& View = Views[ViewIndex];
+		FViewInfo& View = InViews[ViewIndex];
 
 		// Unfortunately, reflections cannot handle two views at once (yet?) - because of that, allow the secondary pass here.
 		// Note: not completely removing ShouldRenderView in case some other reason to not render it is valid.
@@ -833,7 +847,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterReflections(
 		}
 
 		RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
-		RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Views.Num() > 1, "View%d", ViewIndex);
+		RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, InViews.Num() > 1, "View%d", ViewIndex);
 
 		FRDGTextureRef ReflectionsColor = nullptr;
 		FRDGTextureRef BlackDummyTexture = SystemTextures.Black;
@@ -886,7 +900,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterReflections(
 			}
 			else
 			{
-				SingleLayerWaterTileClassification = ClassifyTiles(GraphBuilder, View, SceneTextures, nullptr);
+				SingleLayerWaterTileClassification = ClassifyTiles(GraphBuilder, View, SceneTextures, nullptr, nullptr);
 			}
 		}
 		FTiledReflection& TiledScreenSpaceReflection = SingleLayerWaterTileClassification.TiledReflection;
@@ -996,7 +1010,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterReflections(
 		}
 
 		// ReflectionsMethodWater can also be Disabled when only reflection captures are requested, so check CVarWaterSingleLayerReflection directly before early exiting.
-		if (GetSingleLayerWaterReflectionTechnique() == ESingleLayerWaterReflections::Disabled)
+		if (GetSingleLayerWaterReflectionTechnique() == ESingleLayerWaterReflections::Disabled || !View.Family->EngineShowFlags.Lighting)
 		{
 			continue;
 		}
@@ -1102,7 +1116,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterReflections(
 					RDG_EVENT_NAME("SLW::Composite %dx%d", View.ViewRect.Width(), View.ViewRect.Height()),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[PassParameters, &View, TiledScreenSpaceReflection, VertexShader, PixelShader, bRunTiled](FRHICommandList& InRHICmdList)
+					[PassParameters, &View, TiledScreenSpaceReflection, VertexShader, PixelShader, bRunTiled](FRDGAsyncTask, FRHICommandList& InRHICmdList)
 				{
 					InRHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
@@ -1129,7 +1143,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterReflections(
 					RDG_EVENT_NAME("SLW::Composite %dx%d", View.ViewRect.Width(), View.ViewRect.Height()),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[PassParameters, &View, TiledScreenSpaceReflection, PixelShader, bRunTiled](FRHICommandList& InRHICmdList)
+					[PassParameters, &View, TiledScreenSpaceReflection, PixelShader, bRunTiled](FRDGAsyncTask, FRHICommandList& InRHICmdList)
 				{
 					InRHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
@@ -1150,6 +1164,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterReflections(
 
 void FDeferredShadingSceneRenderer::RenderSingleLayerWater(
 	FRDGBuilder& GraphBuilder,
+	TArrayView<FViewInfo> InViews,
 	const FSceneTextures& SceneTextures,
 	const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult,
 	bool bShouldRenderVolumetricCloud,
@@ -1157,28 +1172,34 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWater(
 	FLumenSceneFrameTemporaries& LumenFrameTemporaries,
 	bool bIsCameraUnderWater)
 {
-	RDG_EVENT_SCOPE(GraphBuilder, "SingleLayerWater");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SingleLayerWater, "SingleLayerWater");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SingleLayerWater);
 	SCOPED_NAMED_EVENT(SingleLayerWater, FColor::Emerald);
 
 	// Copy the texture to be available for the water surface to refract
-	SceneWithoutWaterTextures = AddCopySceneWithoutWaterPass(GraphBuilder, ViewFamily, Views, SceneTextures.Color.Resolve, SceneTextures.Depth.Resolve);
+	SceneWithoutWaterTextures = AddCopySceneWithoutWaterPass(GraphBuilder, ViewFamily, InViews, SceneTextures.Color.Resolve, SceneTextures.Depth.Resolve);
 
-	// Render height fog over the color buffer if it is allocated, e.g. SingleLayerWaterUsesSimpleShading is true.
-	if (!bIsCameraUnderWater && SceneWithoutWaterTextures.ColorTexture && ShouldRenderFog(ViewFamily))
+	// Check if this is depth or base pass only renderer, where the final scene color isn't relevant, and we don't need fog, clouds, or reflections
+	bool bFinalSceneColor = !InViews[0].CustomRenderPass && GetRendererOutput() == ERendererOutput::FinalSceneColor;
+
+	if (bFinalSceneColor)
 	{
-		RenderUnderWaterFog(GraphBuilder, SceneWithoutWaterTextures, SceneTextures.UniformBuffer);
-	}
-	if (!bIsCameraUnderWater && SceneWithoutWaterTextures.ColorTexture && bShouldRenderVolumetricCloud)
-	{
-		// This path is only taken when rendering the clouds in a render target that can be composited
-		ComposeVolumetricRenderTargetOverSceneUnderWater(GraphBuilder, Views, SceneWithoutWaterTextures, SceneTextures);
+		// Render height fog over the color buffer if it is allocated, e.g. SingleLayerWaterUsesSimpleShading is true.
+		if (!bIsCameraUnderWater && SceneWithoutWaterTextures.ColorTexture && ShouldRenderFog(ViewFamily))
+		{
+			RenderUnderWaterFog(GraphBuilder, SceneWithoutWaterTextures, SceneTextures.UniformBuffer);
+		}
+		if (!bIsCameraUnderWater && SceneWithoutWaterTextures.ColorTexture && bShouldRenderVolumetricCloud)
+		{
+			// This path is only taken when rendering the clouds in a render target that can be composited
+			ComposeVolumetricRenderTargetOverSceneUnderWater(GraphBuilder, InViews, SceneWithoutWaterTextures, SceneTextures);
+		}
 	}
 
-	RenderSingleLayerWaterInner(GraphBuilder, SceneTextures, SceneWithoutWaterTextures, SingleLayerWaterPrePassResult);
+	RenderSingleLayerWaterInner(GraphBuilder, InViews, SceneTextures, SceneWithoutWaterTextures, SingleLayerWaterPrePassResult);
 
 	// No SSR or composite needed in Forward. Reflections are applied in the WaterGBuffer pass.
-	if (!IsForwardShadingEnabled(ShaderPlatform))
+	if (!IsForwardShadingEnabled(ShaderPlatform) && bFinalSceneColor)
 	{
 		// Reflection composite expects the depth buffer in FSceneTextures to contain water but the swap of the main depth buffer with the water prepass depth buffer
 		// is only done at the call site after this function returns (for visibility and to keep SceneTextures const), so we need to swap the depth buffers on an internal copy.
@@ -1191,7 +1212,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWater(
 		}
 
 		// If supported render SSR, the composite pass in non deferred and/or under water effect.
-		RenderSingleLayerWaterReflections(GraphBuilder, SceneTexturesInternal, SceneWithoutWaterTextures, SingleLayerWaterPrePassResult, LumenFrameTemporaries);
+		RenderSingleLayerWaterReflections(GraphBuilder, InViews, SceneTexturesInternal, SceneWithoutWaterTextures, SingleLayerWaterPrePassResult, LumenFrameTemporaries);
 	}
 }
 
@@ -1231,6 +1252,7 @@ bool IsVSMTranslucentHighQualityEnabled();
 
 void FDeferredShadingSceneRenderer::RenderSingleLayerWaterInner(
 	FRDGBuilder& GraphBuilder,
+	TArrayView<FViewInfo> InViews,
 	const FSceneTextures& SceneTextures,
 	const FSceneWithoutWaterTextures& SceneWithoutWaterTextures,
 	const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult)
@@ -1246,7 +1268,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterInner(
 
 	TStaticArray<FTextureRenderTargetBinding, MaxSimultaneousRenderTargets> BasePassTextures;
 	uint32 BasePassTextureCount = SceneTextures.GetGBufferRenderTargets(BasePassTextures);
-	if(NeedsSeparatedMainDirectionalLightTexture(Scene->GetShaderPlatform()))
+	if(IsWaterSeparateMainDirLightEnabled(Scene->GetShaderPlatform()))
 	{
 		const bool bNeverClear = true;
 		BasePassTextures[BasePassTextureCount++] = FTextureRenderTargetBinding(SceneWithoutWaterTextures.SeparatedMainDirLightTexture, bNeverClear);
@@ -1267,9 +1289,9 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterInner(
 		DepthStencilBinding = FDepthStencilBinding(SceneTextures.Depth.Target, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthWrite_StencilNop);
 	}
 
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+	for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ++ViewIndex)
 	{
-		FViewInfo& View = Views[ViewIndex];
+		FViewInfo& View = InViews[ViewIndex];
 
 		if (!View.ShouldRenderView())
 		{
@@ -1277,7 +1299,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterInner(
 		}
 
 		RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
-		RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Views.Num() > 1, "View%d", ViewIndex);
+		RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, InViews.Num() > 1, "View%d", ViewIndex);
 		View.BeginRenderView();
 
 		FSingleLayerWaterPassUniformParameters& SLWUniformParameters = *GraphBuilder.AllocParameters<FSingleLayerWaterPassUniformParameters>();
@@ -1317,7 +1339,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterInner(
 		PassParameters->View = View.GetShaderParameters();
 		PassParameters->ReflectionCapture = View.ReflectionCaptureUniformBuffer;
 		PassParameters->BasePass = CreateOpaqueBasePassUniformBuffer(GraphBuilder, View, ViewIndex);
-		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 		PassParameters->SingleLayerWater = GraphBuilder.CreateUniformBuffer(&SLWUniformParameters);
 		PassParameters->RenderTargets = GetRenderTargetBindings(ERenderTargetLoadAction::ELoad, BasePassTexturesView);
 		PassParameters->RenderTargets.DepthStencil = DepthStencilBinding;
@@ -1326,14 +1348,13 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterInner(
 
 		if (bRenderInParallel)
 		{
-			GraphBuilder.AddPass(
+			GraphBuilder.AddDispatchPass(
 				RDG_EVENT_NAME("SingleLayerWaterParallel"),
 				PassParameters,
-				ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-				[this, &View, PassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
+				ERDGPassFlags::Raster,
+				[&View, PassParameters](FRDGDispatchPassBuilder& DispatchPassBuilder)
 			{
-				FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, GET_STATID(STAT_CLP_WaterSingleLayerPass), View, FParallelCommandListBindings(PassParameters));
-				View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterPass].DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+				View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterPass].Dispatch(DispatchPassBuilder, &PassParameters->InstanceCullingDrawParams);
 			});
 		}
 		else
@@ -1342,17 +1363,17 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterInner(
 				RDG_EVENT_NAME("SingleLayerWater"),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[this, &View, PassParameters](FRHICommandList& RHICmdList)
+				[&View, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				SetStereoViewport(RHICmdList, View, 1.0f);
-				View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterPass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+				View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterPass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 			});
 		}
 	}
 
 	if (!bHasDepthPrepass)
 	{
-		AddResolveSceneDepthPass(GraphBuilder, Views, SceneTextures.Depth);
+		AddResolveSceneDepthPass(GraphBuilder, InViews, SceneTextures.Depth);
 	}
 }
 
@@ -1524,7 +1545,7 @@ void FSingleLayerWaterPassMeshProcessor::CollectPSOInitializers(const FSceneText
 
 		FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
 		SetupGBufferRenderTargetInfo(SceneTexturesConfig, RenderTargetsInfo, true /*bSetupDepthStencil*/);
-		if (NeedsSeparatedMainDirectionalLightTexture(GMaxRHIShaderPlatform))
+		if (IsWaterSeparateMainDirLightEnabled(GMaxRHIShaderPlatform))
 		{
 			AddRenderTargetInfo(PF_FloatR11G11B10, TexCreate_ShaderResource | TexCreate_RenderTargetable, RenderTargetsInfo);
 		}
@@ -1663,12 +1684,11 @@ bool FSingleLayerWaterDepthPrepassMeshProcessor::TryAddMeshBatch(
 		const ERasterizerFillMode MeshFillMode = ComputeMeshFillMode(Material, OverrideSettings);
 		const ERasterizerCullMode MeshCullMode = ComputeMeshCullMode(Material, OverrideSettings);
 		const bool bVFTypeSupportsNullPixelShader = MeshBatch.VertexFactory->SupportsNullPixelShader();
-		const bool bEvaluateWPO = Material.MaterialModifiesMeshPosition_RenderThread()
-			&& (!ShouldOptimizedWPOAffectNonNaniteShaderSelection() || PrimitiveSceneProxy->EvaluateWorldPositionOffset());
+		const bool bModifiesMeshPosition = DoMaterialAndPrimitiveModifyMeshPosition(Material, PrimitiveSceneProxy);
 
 		if (IsOpaqueBlendMode(Material)
 			&& MeshBatch.VertexFactory->SupportsPositionOnlyStream()
-			&& !bEvaluateWPO
+			&& !bModifiesMeshPosition
 			&& Material.WritesEveryPixel(false, bVFTypeSupportsNullPixelShader))
 		{
 			const FMaterialRenderProxy& DefaultProxy = *UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();
@@ -1681,7 +1701,7 @@ bool FSingleLayerWaterDepthPrepassMeshProcessor::TryAddMeshBatch(
 			const FMaterialRenderProxy* EffectiveMaterialRenderProxy = &MaterialRenderProxy;
 			const FMaterial* EffectiveMaterial = &Material;
 
-			if (!bMaterialMasked && !bEvaluateWPO)
+			if (!bMaterialMasked && !bModifiesMeshPosition)
 			{
 				// Override with the default material for opaque materials that are not two sided
 				EffectiveMaterialRenderProxy = UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();

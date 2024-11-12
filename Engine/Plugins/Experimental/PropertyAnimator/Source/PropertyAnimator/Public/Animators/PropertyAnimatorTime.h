@@ -2,24 +2,20 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorFloatBase.h"
+#include "Animators/PropertyAnimatorNumericBase.h"
 #include "PropertyAnimatorTime.generated.h"
 
 /**
  * Applies an additive time movement with various options on supported float properties
  */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorTime : public UPropertyAnimatorFloatBase
+class UPropertyAnimatorTime : public UPropertyAnimatorNumericBase
 {
 	GENERATED_BODY()
 
-public:
-	static constexpr const TCHAR* DefaultControllerName = TEXT("Time");
-
-	UPropertyAnimatorTime();
-
 protected:
 	//~ Begin UPropertyAnimatorFloatBase
-	virtual float Evaluate(double InTimeElapsed, const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorFloatContext* InOptions) const override;
+	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
+	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const override;
 	//~ End UPropertyAnimatorFloatBase
 };

@@ -19,6 +19,7 @@ struct PAPER2D_API FAlphaBitmap
 
 	void ExtractFromTexture(UTexture* SourceTexture)
 	{
+#if WITH_EDITORONLY_DATA
 		// use the source art if it exists
 		FTextureSource* TextureSource = nullptr;
 		if ((SourceTexture != nullptr) && SourceTexture->Source.IsValid())
@@ -66,6 +67,7 @@ struct PAPER2D_API FAlphaBitmap
 				}
 			}
 		}
+#endif
 	}
 
 	// Create an empty bitmap

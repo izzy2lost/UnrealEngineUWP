@@ -5,6 +5,7 @@
 #include "AudioDefines.h"
 #include "Containers/Ticker.h"
 #include "IAudioInsightsModule.h"
+#include "IAudioInsightsTraceModule.h"
 #include "Messages/AnalyzerMessageQueue.h"
 #include "Modules/ModuleManager.h"
 #include "Templates/SharedPointer.h"
@@ -15,14 +16,15 @@
 
 namespace UE::Audio::Insights
 {
-	class AUDIOINSIGHTS_API FTraceProviderBase
-		: public TraceServices::IEditableProvider
+	class AUDIOINSIGHTS_API FTraceProviderBase : public TraceServices::IProvider, public TraceServices::IEditableProvider
 	{
 	public:
-		FTraceProviderBase(FName InName);
-		virtual ~FTraceProviderBase() = default;
+		FTraceProviderBase() = delete;
+		explicit FTraceProviderBase(FName InName);
 
-		virtual Trace::IAnalyzer* ConstructAnalyzer() = 0;
+		virtual ~FTraceProviderBase();
+
+		virtual Trace::IAnalyzer* ConstructAnalyzer(TraceServices::IAnalysisSession& InSession) = 0;
 		FName GetName() const;
 
 		virtual void Reset()
@@ -46,6 +48,11 @@ namespace UE::Audio::Insights
 		{
 			return GetLastMessageId() == LastUpdateId;
 		}
+
+#if !WITH_EDITOR
+		virtual void InitSessionCachedMessages(TraceServices::IAnalysisSession& InSession) {}
+		virtual void OnTimingViewTimeMarkerChanged(double TimeMarker) { ++LastMessageId; };
+#endif // !WITH_EDITOR
 
 	protected:
 		class AUDIOINSIGHTS_API FTraceAnalyzerBase : public Trace::IAnalyzer
@@ -120,10 +127,15 @@ namespace UE::Audio::Insights
 
 		const FDeviceData* FindFilteredDeviceData() const
 		{
-			const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-			const ::Audio::FDeviceId DeviceId = InsightsModule.GetDeviceId();
+#if WITH_EDITOR
+			const IAudioInsightsModule& AudioInsightsModule = IAudioInsightsModule::GetEditorChecked();
+			const ::Audio::FDeviceId AudioDeviceId = AudioInsightsModule.GetDeviceId();
+#else
+			const IAudioInsightsModule& AudioInsightsModule = IAudioInsightsModule::GetChecked();
+			const ::Audio::FDeviceId AudioDeviceId = AudioInsightsModule.GetDeviceId();
+#endif // WITH_EDITOR
 
-			return DeviceDataMap.Find(DeviceId);
+			return DeviceDataMap.Find(AudioDeviceId);
 		}
 
 	protected:
@@ -174,10 +186,15 @@ namespace UE::Audio::Insights
 
 		FDeviceData* FindFilteredDeviceData()
 		{
-			const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-			const ::Audio::FDeviceId DeviceId = InsightsModule.GetDeviceId();
+#if WITH_EDITOR
+			const IAudioInsightsModule& AudioInsightsModule = IAudioInsightsModule::GetEditorChecked();
+			const ::Audio::FDeviceId AudioDeviceId = AudioInsightsModule.GetDeviceId();
+#else
+			const IAudioInsightsModule& AudioInsightsModule = IAudioInsightsModule::GetChecked();
+			const ::Audio::FDeviceId AudioDeviceId = AudioInsightsModule.GetDeviceId();
+#endif // WITH_EDITOR
 
-			return DeviceDataMap.Find(DeviceId);
+			return DeviceDataMap.Find(AudioDeviceId);
 		}
 
 		bool RemoveDeviceEntry(::Audio::FDeviceId InDeviceId, const EntryKey& InKey)

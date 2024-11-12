@@ -92,8 +92,16 @@ public:
 	/** Generates Layout Rows by the given Control Console Data */
 	void GenerateLayoutByControlConsoleData(const UDMXControlConsoleData* ControlConsoleData);
 
-	/** Clears all Layout Rows */
-	void ClearAll(const bool bOnlyPatchedFaderGroups = false);
+	/** Sorts the the Controllers in the layout by their universe id */
+	void SortLayoutByUniverseID();
+
+	/**
+	* Clears all Layout Rows
+	*
+	* @param bPatchedControllers True to clear all patched Fader Group Controllers
+	* @param bUnpatchedControllers True to clear all unpatched Fader Group Controllers
+	*/
+	void ClearAll(const bool bPatchedControllers, const bool bUnpatchedControllers);
 
 	/** Clears all empty Layout Rows in the layout */
 	void ClearEmptyLayoutRows();
@@ -108,7 +116,6 @@ public:
 	bool IsRegistered() const { return bIsRegistered; }
 
 	//~ Begin UObject interface
-	virtual void BeginDestroy() override;
 	virtual void PostLoad() override;
 	//~ End UObject interface
 
@@ -121,17 +128,29 @@ public:
 	FString LayoutName;
 
 private:
+	/** True if this layout is the Default Layout */
+	bool IsDefaultLayout() const;
+
+	/** Gets a map where each Fader Group Controllers in this layout is sorted by universe id */
+	TMap<int32, TArray<UDMXControlConsoleFaderGroupController*>> GetUniverseIDToControllersMap() const;
+
+	/** Updates this layout according to its Controllers data, if it's the active layout */
+	void UpdateActiveLayoutByControllersData() const;
+
 	/** Called when the active layout has changed */
-	void OnActiveLayoutchanged(const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout);
+	void OnActiveLayoutChanged(const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout);
 
 	/** Called when a Fixture Patch was removed from a DMX Library */
 	void OnFixturePatchRemovedFromLibrary(UDMXLibrary* Library, TArray<UDMXEntity*> Entities);
 
 	/** Called when a Fader Group was added to the Control Console Data */
-	void OnFaderGroupAddedToData(const UDMXControlConsoleFaderGroup* FaderGroup, UDMXControlConsoleData* ControlConsoleData);
+	void OnFaderGroupAddedToData(const UDMXControlConsoleFaderGroup* FaderGroup);
 
-	/** Called to clean this layout from all the unpatched Fader Groups */
-	void CleanLayoutFromUnpatchedFaderGroupControllers();
+	/** Called to clean this layout from specified Fader Group Controllers */
+	void CleanLayoutFromFaderGroupControllers(const bool bHasFixturePatch);
+
+	/** Called to clean the default layout from unpatched Fader Groups */
+	void CleanDefaultLayoutFromUnpatchedFaderGroups();
 
 	/** Reference to the Layout Rows array */
 	UPROPERTY()

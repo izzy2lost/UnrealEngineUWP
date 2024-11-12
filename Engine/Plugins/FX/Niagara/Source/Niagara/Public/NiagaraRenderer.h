@@ -34,7 +34,7 @@ struct FNiagaraDynamicDataBase
 	UE_NONCOPYABLE(FNiagaraDynamicDataBase);
 
 	NIAGARA_API bool IsGpuLowLatencyTranslucencyEnabled() const;
-	NIAGARA_API FNiagaraDataBuffer* GetParticleDataToRender(bool bIsLowLatencyTranslucent = false) const;
+	NIAGARA_API FNiagaraDataBuffer* GetParticleDataToRender(FRHICommandListBase& RHICmdList, bool bIsLowLatencyTranslucent = false) const;
 	FORCEINLINE FMaterialRelevance GetMaterialRelevance() const { return MaterialRelevance; }
 
 	FORCEINLINE void SetMaterialRelevance(FMaterialRelevance NewRelevance) { MaterialRelevance = NewRelevance; }
@@ -105,7 +105,11 @@ public:
 	FORCEINLINE bool IsMotionBlurEnabled() const { return bMotionBlurEnabled; }
 
 #if RHI_RAYTRACING
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "Use FRayTracingInstanceCollector instead.")
 	virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances, const FNiagaraSceneProxy* Proxy) {}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector, const FNiagaraSceneProxy* Proxy) {}
 #endif
 
 	FORCEINLINE static FRHIShaderResourceView* GetSrvOrDefaultFloat(const FRWBuffer& RWBuffer) { return RWBuffer.SRV.IsValid() ? (FRHIShaderResourceView*)RWBuffer.SRV : GetDummyFloatBuffer(); }

@@ -10,6 +10,7 @@
 #include "Misc/TransactionObjectEvent.h"
 #include "MovieEdGraph.h"
 #include "MovieGraphSchema.h"
+#include "ScopedTransaction.h"
 #include "ToolMenu.h"
 #include "EdGraph/EdGraphSchema.h"
 #include "GraphEditorActions.h"
@@ -136,7 +137,7 @@ FEdGraphPinType UMoviePipelineEdGraphNodeBase::GetPinType(EMovieGraphValueType V
 
 FEdGraphPinType UMoviePipelineEdGraphNodeBase::GetPinType(const UMovieGraphPin* InPin)
 {
-	return GetPinType(InPin->Properties.Type, InPin->Properties.bIsBranch);
+	return GetPinType(InPin->Properties.Type, InPin->Properties.bIsBranch, InPin->Properties.TypeObject);
 }
 
 EMovieGraphValueType UMoviePipelineEdGraphNodeBase::GetValueTypeFromPinType(const FEdGraphPinType& InPinType)
@@ -274,6 +275,9 @@ void UMoviePipelineEdGraphNode::GetNodeContextMenuActions(UToolMenu* Menu, UGrap
 
 void UMoviePipelineEdGraphNode::GetPropertyPromotionContextMenuActions(UToolMenu* Menu, const UGraphNodeContextMenuContext* Context) const
 {
+	// Before fetching the overrideable properties, update dynamic properties (dynamic properties may be included in overrideable properties)
+	RuntimeNode->UpdateDynamicProperties();
+	
 	const TArray<FMovieGraphPropertyInfo>& OverrideablePropertyInfo = RuntimeNode->GetOverrideablePropertyInfo();
 	
 	FToolMenuSection& PinActionsSection = Menu->FindOrAddSection("EdGraphSchemaPinActions");
@@ -309,9 +313,15 @@ void UMoviePipelineEdGraphNode::GetPropertyPromotionContextMenuActions(UToolMenu
 	FToolMenuSection& ExposeAsPinSection = Menu->AddSection("MoviePipelineGraphExposeAsPin", LOCTEXT("ExposeAsPin", "Expose Property as Pin"));
 	for (const FMovieGraphPropertyInfo& PropertyInfo : OverrideablePropertyInfo)
 	{
+		// If a property is permanently exposed on the node, don't allow it to be toggled off
+		if (PropertyInfo.bIsPermanentlyExposed)
+		{
+			continue;
+		}
+		
 		ExposeAsPinSection.AddMenuEntry(
 			PropertyInfo.Name,
-			FText::FromName(PropertyInfo.Name),
+			PropertyInfo.ContextMenuName.IsEmpty() ? FText::FromName(PropertyInfo.Name) : PropertyInfo.ContextMenuName,
 			LOCTEXT("PromotePropertyToPin", "Promote this property to a pin on this node."),
 			FSlateIcon(),
 			FUIAction(
@@ -342,12 +352,32 @@ void UMoviePipelineEdGraphNode::GetPropertyPromotionContextMenuActions(UToolMenu
 
 void UMoviePipelineEdGraphNode::PromotePropertyToVariable(const FMovieGraphPropertyInfo& TargetProperty) const
 {
+	FScopedTransaction ScopedTransaction(LOCTEXT("PromotePropertyToVariable_Transaction", "Promote Property to Variable"));
+	
+	const FName PromotedVariableName = TargetProperty.PromotionName.IsNone() ? TargetProperty.Name : TargetProperty.PromotionName;
+	
 	// Note: AddVariable() will take care of determining a unique name if there is already a variable with the property's name
-	if (UMovieGraphVariable* NewGraphVariable = RuntimeNode->GetGraph()->AddVariable(TargetProperty.Name))
+	if (UMovieGraphVariable* NewGraphVariable = RuntimeNode->GetGraph()->AddVariable(PromotedVariableName))
 	{
 		// Set the new variable's type to match the property that is being promoted
 		UObject* ValueTypeObject = const_cast<UObject*>(TargetProperty.ValueTypeObject.Get());
 		NewGraphVariable->SetValueType(TargetProperty.ValueType, ValueTypeObject);
+
+		// When promoting, set the variable's default value to the connected property's current value. That will ensure that there's no
+		// behavior change in the graph after the promotion.
+		{
+			FString TargetPropertyValue;
+			if (TargetProperty.bIsDynamicProperty)
+			{
+				RuntimeNode->GetDynamicPropertyValue(TargetProperty.Name, TargetPropertyValue); 
+			}
+			else if (const FProperty* TargetFProperty = FindFProperty<FProperty>(RuntimeNode->GetClass(), TargetProperty.Name))
+			{
+				TargetFProperty->ExportTextItem_InContainer(TargetPropertyValue, RuntimeNode, nullptr, RuntimeNode, PPF_None);
+			}
+			
+			NewGraphVariable->SetValueSerializedString(TargetPropertyValue);
+		}
 
 		// When creating the new action, since it's only being used to create a node, the category, display name, and tooltip can just be empty
 		const TSharedPtr<FMovieGraphSchemaAction_NewVariableNode> NewAction = MakeShared<FMovieGraphSchemaAction_NewVariableNode>(
@@ -365,6 +395,8 @@ void UMoviePipelineEdGraphNode::PromotePropertyToVariable(const FMovieGraphPrope
 
 void UMoviePipelineEdGraphNode::TogglePromotePropertyToPin(const FName PropertyName) const
 {
+	FScopedTransaction ScopedTransaction(LOCTEXT("PromotePropertyToPin_Transaction", "Promote Property to Pin"));
+	
 	RuntimeNode->TogglePromotePropertyToPin(PropertyName);
 }
 
@@ -443,11 +475,11 @@ void UMoviePipelineEdGraphNodeBase::AutowireNewNode(UEdGraphPin* FromPin)
 	}
 
 	const bool bFromPinIsInput = FromPin->Direction == EEdGraphPinDirection::EGPD_Input;
-	const TArray<TObjectPtr<UMovieGraphPin>>& OtherPinsList = bFromPinIsInput ? RuntimeNode->GetOutputPins() : RuntimeNode->GetInputPins();
+	const TArray<UMovieGraphPin*>& OtherPinsList = bFromPinIsInput ? RuntimeNode->GetOutputPins() : RuntimeNode->GetInputPins();
 
 	// Try to connect to the first compatible pin
 	bool bDidAutoconnect = false;
-	for (const TObjectPtr<UMovieGraphPin>& OtherPin : OtherPinsList)
+	for (const UMovieGraphPin* OtherPin : OtherPinsList)
 	{
 		check(OtherPin);
 
@@ -540,6 +572,20 @@ void UMoviePipelineEdGraphNodeBase::OnRuntimeNodeChanged(const UMovieGraphNode* 
 void UMoviePipelineEdGraphNodeBase::PostLoad()
 {
 	Super::PostLoad();
+
+	// Some older nodes did not have the pin type properly set on the editor pin (specifically the value type object).
+	for (UEdGraphPin* Pin : GetAllPins())
+	{
+		const UMovieGraphPin* RuntimePin = Pin->Direction == EGPD_Input
+			? RuntimeNode->GetInputPin(Pin->PinName)
+			: RuntimeNode->GetOutputPin(Pin->PinName);
+		
+		if (RuntimePin)
+		{
+			UObject* NonConstValueTypeObject = const_cast<UObject*>(RuntimePin->Properties.TypeObject.Get());
+			Pin->PinType.PinSubCategoryObject = MakeWeakObjectPtr(NonConstValueTypeObject);
+		}
+	}
 
 	RegisterDelegates();	
 }

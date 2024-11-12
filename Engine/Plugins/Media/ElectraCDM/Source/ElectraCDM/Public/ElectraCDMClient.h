@@ -73,7 +73,7 @@ public:
 
 	virtual FString GetLastErrorMessage() = 0;
 
-	
+
 	//-------------------------------------------------------------------------
 	// License acquisition
 	//
@@ -85,7 +85,7 @@ public:
 		EDRMFlg_None = 0,
 		EDRMFlg_AllowCustomKeyStorage = 1U << 31
 	};
-	
+
 	// Overrides the URL to the license server that may have been set in the initial configuration data.
 	virtual void SetLicenseServerURL(const FString& InLicenseServerURL) = 0;
 	// Returns the URL to the license server, either from configuration data or the overrride.
@@ -130,8 +130,8 @@ public:
 
 	// Update from a URL and additional scheme specific elements.
 	virtual ECDMError UpdateFromURL(const FString& InURL, const FString& InAdditionalElements) = 0;
-	
-	
+
+
 	//-------------------------------------------------------------------------
 	// Decryption
 	//
@@ -147,9 +147,12 @@ public:
 
 	// Decrypt a streaming cipher that requires input of fixed cipher block lengths and possibly padding at the end (eg. AES 128 CBC with PKCS#7 padding).
 	// This needs a running state during decryption that needs to be created and released.
-	struct IStreamDecryptHandle;
-	virtual ECDMError BlockStreamDecryptStart(IStreamDecryptHandle*& OutStreamDecryptContext) = 0;
-	virtual ECDMError BlockStreamDecryptInPlace(IStreamDecryptHandle* InOutStreamDecryptContext, int32& OutNumBytesDecrypted, uint8* InOutData, int32 InNumDataBytes, const FMediaCDMSampleInfo& InSampleInfo, bool bIsLastBlock) = 0;
+	struct IStreamDecryptHandle
+	{
+		int32 BlockSize = 0;
+	};
+	virtual ECDMError BlockStreamDecryptStart(IStreamDecryptHandle*& OutStreamDecryptContext, const FMediaCDMSampleInfo& InSampleInfo) = 0;
+	virtual ECDMError BlockStreamDecryptInPlace(IStreamDecryptHandle* InOutStreamDecryptContext, int32& OutNumBytesDecrypted, uint8* InOutData, int32 InNumDataBytes, bool bIsLastBlock) = 0;
 	virtual ECDMError BlockStreamDecryptEnd(IStreamDecryptHandle* InStreamDecryptContext) = 0;
 };
 

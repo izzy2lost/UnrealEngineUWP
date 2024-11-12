@@ -15,6 +15,7 @@
 #include "ToolBuilderUtil.h"
 #include "ToolSetupUtil.h"
 #include "DynamicMeshToMeshDescription.h"
+#include "DynamicSubmesh3.h"
 #include "DynamicMesh/MeshTransforms.h"
 #include "Algo/ForEach.h"
 #include "Operations/FFDLattice.h"
@@ -24,6 +25,8 @@
 #include "TargetInterfaces/MeshDescriptionProvider.h"
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 #include "ModelingToolTargetUtil.h"
+#include "ToolTargetManager.h"
+#include "Selection/StoredMeshSelectionUtil.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LatticeDeformerTool)
 
@@ -105,9 +108,20 @@ void ULatticeDeformerToolProperties::PostAction(ELatticeDeformerToolAction Actio
 
 // Tool builder
 
-USingleSelectionMeshEditingTool* ULatticeDeformerToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
+UMultiTargetWithSelectionTool* ULatticeDeformerToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
 {
 	return NewObject<ULatticeDeformerTool>(SceneState.ToolManager);
+}
+
+bool ULatticeDeformerToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
+{
+	if (RequiresInputSelection() && UE::Geometry::HaveAvailableGeometrySelection(SceneState) == false )
+	{
+		return false;
+	}
+
+	// disable multi-selection for now
+	return SceneState.TargetManager->CountSelectedAndTargetable(SceneState, GetTargetRequirements()) == 1;
 }
 
 
@@ -120,12 +134,28 @@ TUniquePtr<FDynamicMeshOperator> ULatticeDeformerOperatorFactory::MakeNewOperato
 		ELatticeInterpolation::Cubic :
 		ELatticeInterpolation::Linear;
 
-	TUniquePtr<FLatticeDeformerOp> LatticeDeformOp = MakeUnique<FLatticeDeformerOp>(
+	TUniquePtr<FLatticeDeformerOp> LatticeDeformOp = nullptr;
+
+	if (!LatticeDeformerTool->bHasSelection)
+	{
+		LatticeDeformOp = MakeUnique<FLatticeDeformerOp>(
 		LatticeDeformerTool->OriginalMesh,
 		LatticeDeformerTool->Lattice,
 		LatticeDeformerTool->ControlPointsMechanic->GetControlPoints(),
 		OpInterpolationType,
 		LatticeDeformerTool->Settings->bDeformNormals);
+	}
+	else
+	{
+		LatticeDeformOp = MakeUnique<FLatticeDeformerOp>(
+		LatticeDeformerTool->OriginalMesh,
+		LatticeDeformerTool->Submesh,
+		LatticeDeformerTool->WorldTransform,
+		LatticeDeformerTool->Lattice,
+		LatticeDeformerTool->ControlPointsMechanic->GetControlPoints(),
+		OpInterpolationType,
+		LatticeDeformerTool->Settings->bDeformNormals);
+	}
 
 	return LatticeDeformOp;
 }
@@ -150,12 +180,23 @@ bool ULatticeDeformerTool::CanAccept() const
 
 void ULatticeDeformerTool::InitializeLattice(TArray<FVector3d>& OutLatticePoints, TArray<FVector2i>& OutLatticeEdges)
 {
-	Lattice = MakeShared<FFFDLattice, ESPMode::ThreadSafe>(GetLatticeResolution(), *OriginalMesh, Settings->Padding);
+	UE::Geometry::FDynamicMesh3* MeshToDeform = nullptr;
+	
+	if (bHasSelection && Submesh)
+	{
+		MeshToDeform = &Submesh->GetSubmesh();
+	}
+	else
+	{
+		MeshToDeform = OriginalMesh.Get();
+	}
+	Lattice = MakeShared<FFFDLattice, ESPMode::ThreadSafe>(GetLatticeResolution(), *MeshToDeform, Settings->Padding);
+
 
 	Lattice->GenerateInitialLatticePositions(OutLatticePoints);
 
 	// Put the lattice in world space
-	FTransform3d LocalToWorld(Cast<IPrimitiveComponentBackedTarget>(Target)->GetWorldTransform());
+	FTransform3d LocalToWorld(Cast<IPrimitiveComponentBackedTarget>(Targets[0])->GetWorldTransform());
 	Algo::ForEach(OutLatticePoints, [&LocalToWorld](FVector3d& Point) {
 		Point = LocalToWorld.TransformPosition(Point);
 	});
@@ -171,12 +212,24 @@ void ULatticeDeformerTool::Setup()
 	GetToolManager()->DisplayMessage(LOCTEXT("LatticeDeformerToolMessage", 
 		"Drag the lattice control points to deform the mesh"), EToolMessageLevel::UserNotification);
 
+	// for now only supports one target
+	// TODO: include support for multiple targets
 	OriginalMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
-	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert(UE::ToolTarget::GetMeshDescription(Target), *OriginalMesh);
+	*OriginalMesh = UE::ToolTarget::GetDynamicMeshCopy(Targets[0]);
+	
+	bHasSelection = HasGeometrySelection(0);
+	if (bHasSelection)
+	{
+		TSet<int32> SelectionTriangleROI;
+		const FGeometrySelection& InputSelection = GetGeometrySelection(0);
+		EnumerateSelectionTriangles(InputSelection, *OriginalMesh,
+			[&](int32 TriangleID) { SelectionTriangleROI.Add(TriangleID);});
+
+		Submesh = MakeShared<FDynamicSubmesh3, ESPMode::ThreadSafe>(OriginalMesh.Get(), SelectionTriangleROI.Array());
+	}
 
 	// Note: Mesh will be implicitly transformed to world space by transforming the lattice; we account for whether that would invert the mesh here
-	MeshTransforms::ReverseOrientationIfNeeded(*OriginalMesh, (Cast<IPrimitiveComponentBackedTarget>(Target)->GetWorldTransform()));
+	MeshTransforms::ReverseOrientationIfNeeded(*OriginalMesh, (Cast<IPrimitiveComponentBackedTarget>(Targets[0])->GetWorldTransform()));
 
 	Settings = NewObject<ULatticeDeformerToolProperties>(this, TEXT("Lattice Deformer Tool Settings"));
 	Settings->Initialize(this);
@@ -221,7 +274,8 @@ void ULatticeDeformerTool::Setup()
 	ControlPointsMechanic = NewObject<ULatticeControlPointsMechanic>(this);
 	ControlPointsMechanic->Setup(this);
 	ControlPointsMechanic->SetWorld(GetTargetWorld());
-	FTransform3d LocalToWorld(Cast<IPrimitiveComponentBackedTarget>(Target)->GetWorldTransform());
+	FTransform3d LocalToWorld(Cast<IPrimitiveComponentBackedTarget>(Targets[0])->GetWorldTransform());
+	WorldTransform = LocalToWorld;
 	ControlPointsMechanic->Initialize(LatticePoints, LatticeEdges, LocalToWorld);
 
 	auto OnPointsChangedLambda = [this]()
@@ -360,7 +414,7 @@ void ULatticeDeformerTool::OnShutdown(EToolShutdownType ShutdownType)
 	Settings->SaveProperties(this);
 	ControlPointsMechanic->Shutdown();
 
-	IPrimitiveComponentBackedTarget* TargetComponent = Cast<IPrimitiveComponentBackedTarget>(Target);
+	IPrimitiveComponentBackedTarget* TargetComponent = Cast<IPrimitiveComponentBackedTarget>(Targets[0]);
 	TargetComponent->SetOwnerVisibility(true);
 
 	if (Preview)
@@ -379,7 +433,7 @@ void ULatticeDeformerTool::OnShutdown(EToolShutdownType ShutdownType)
 			FTransform3d LocalToWorld(TargetComponent->GetWorldTransform());
 			MeshTransforms::ApplyTransformInverse(*DynamicMeshResult, LocalToWorld, true);
 
-			UE::ToolTarget::CommitMeshDescriptionUpdateViaDynamicMesh(Target, *DynamicMeshResult, true);
+			UE::ToolTarget::CommitDynamicMeshUpdate(Targets[0], *DynamicMeshResult, true);
 
 			GetToolManager()->EndUndoTransaction();
 		}
@@ -394,12 +448,12 @@ void ULatticeDeformerTool::StartPreview()
 
 	Preview = NewObject<UMeshOpPreviewWithBackgroundCompute>(LatticeDeformOpCreator);
 	Preview->Setup(GetTargetWorld(), LatticeDeformOpCreator);
-	ToolSetupUtil::ApplyRenderingConfigurationToPreview(Preview->PreviewMesh, Target);
+	ToolSetupUtil::ApplyRenderingConfigurationToPreview(Preview->PreviewMesh, Targets[0]);
 
 	Preview->SetIsMeshTopologyConstant(true, EMeshRenderAttributeFlags::Positions | EMeshRenderAttributeFlags::VertexNormals);
 
 	FComponentMaterialSet MaterialSet;
-	Cast<IMaterialProvider>(Target)->GetMaterialSet(MaterialSet);
+	Cast<IMaterialProvider>(Targets[0])->GetMaterialSet(MaterialSet);
 	Preview->ConfigureMaterials(MaterialSet.Materials,
 								ToolSetupUtil::GetDefaultWorkingMaterial(GetToolManager())
 	);
@@ -415,7 +469,7 @@ void ULatticeDeformerTool::StartPreview()
 	Preview->SetVisibility(true);
 	Preview->InvalidateResult();
 
-	Cast<IPrimitiveComponentBackedTarget>(Target)->SetOwnerVisibility(false);
+	Cast<IPrimitiveComponentBackedTarget>(Targets[0])->SetOwnerVisibility(false);
 }
 
 
@@ -451,7 +505,7 @@ void ULatticeDeformerTool::OnTick(float DeltaTime)
 			TArray<FVector3d> LatticePoints;
 			TArray<FVector2i> LatticeEdges;
 			InitializeLattice(LatticePoints, LatticeEdges);
-			FTransform3d LocalToWorld(Cast<IPrimitiveComponentBackedTarget>(Target)->GetWorldTransform());
+			FTransform3d LocalToWorld(Cast<IPrimitiveComponentBackedTarget>(Targets[0])->GetWorldTransform());
 			ControlPointsMechanic->Initialize(LatticePoints, LatticeEdges, LocalToWorld);
 			Preview->InvalidateResult();
 			bShouldRebuild = false;

@@ -48,4 +48,6 @@ void UInsightsSkeletalMeshComponent::InitAnim(bool bForceReInit)
 
 		MorphTargetWeights.SetNumZeroed(GetSkeletalMeshAsset()->GetMorphTargets().Num());
 	}
+
+	USkeletalMeshComponent::InitAnim(bForceReInit);
 }

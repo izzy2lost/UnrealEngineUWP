@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "Templates/Requires.h"
+
+#include <type_traits>
 
 #include "MeshPaintingToolsetTypes.generated.h"
 
@@ -81,7 +84,6 @@ public:
 	bool bWriteAlpha;
 	int32 TotalWeightCount;
 	int32 PaintWeightIndex;
-	int32 UVChannel;
 	FApplyVertexPaintData ApplyVertexDataDelegate;
 	FVector2f BrushPosition2D;
 	bool bUseFillBucket = false;
@@ -100,16 +102,22 @@ struct FPaintableTexture
 {
 	UTexture*	Texture;
 	int32		UVChannelIndex;
+	bool		bIsMeshTexture;
 
 	FPaintableTexture()
 		: Texture(nullptr)
 		, UVChannelIndex(0)
+		, bIsMeshTexture(false)
 	{}
 
-	template<typename T, decltype(ImplicitConv<UTexture*>(DeclVal<T>()))* = nullptr>
-	FPaintableTexture(T InTexture = nullptr, uint32 InUVChannelIndex = 0)
+	template <
+		typename T
+		UE_REQUIRES(std::is_convertible_v<T, UTexture*>)
+	>
+	FPaintableTexture(T InTexture = nullptr, uint32 InUVChannelIndex = 0, bool bInIsMeshTexture = false)
 		: Texture(InTexture)
 		, UVChannelIndex(InUVChannelIndex)
+		, bIsMeshTexture(bInIsMeshTexture)
 	{}
 
 	/** Overloaded equality operator for use with TArrays Contains method. */
@@ -124,37 +132,53 @@ USTRUCT()
 struct FPaintTexture2DData
 {
 	GENERATED_BODY()
+
 	/** The original texture that we're painting */
 	UPROPERTY(Transient)
-	TObjectPtr<UTexture2D> PaintingTexture2D = nullptr;
-
-	UPROPERTY(Transient)
-	bool bIsPaintingTexture2DModified = false;
-
-	/** Texture used to store the paint modifications for the transactions */
-	UPROPERTY(Transient)
-	TObjectPtr<UTexture2D> ScratchTexture = nullptr;
+	TObjectPtr<UTexture2D> PaintingTexture2D;
 
 	/** Render target texture for painting */
 	UPROPERTY(Transient)
-	TObjectPtr<UTextureRenderTarget2D> PaintRenderTargetTexture = nullptr;
+	TObjectPtr<UTextureRenderTarget2D> PaintRenderTargetTexture;
 
-	/** List of component we are painting on */
+	/** Optional virtual texture adapter that we can use to visualize PaintRenderTargetTexture in materials that sample virtual textures */
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UMeshComponent>> PaintedComponents;
-	
+	TObjectPtr<class UVirtualTextureAdapter> PaintRenderTargetTextureAdapter;
+
+	/** Array of components that have the PaintRenderTargetTexture set as a texture override */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMeshComponent>> TextureOverrideComponents;
+
 	/** Optional render target texture used as an input while painting that contains a clone of the texture painting brush */
 	UPROPERTY(Transient)
-	TObjectPtr<UTextureRenderTarget2D> PaintBrushRenderTargetTexture = nullptr;
+	TObjectPtr<UTextureRenderTarget2D> PaintBrushRenderTargetTexture;
+
+	/** Temporary render target used to draw incremental paint to */
+	UPROPERTY(Transient)
+	TObjectPtr<UTextureRenderTarget2D> BrushRenderTargetTexture;
+
+	/** Temporary render target used to store a mask of the affected paint region, updated every time we add incremental texture paint */
+	UPROPERTY(Transient)
+	TObjectPtr<UTextureRenderTarget2D> BrushMaskRenderTargetTexture;
+
+	/** True if we need to generate a texture seam mask used for texture dilation */
+	UPROPERTY(Transient)
+	bool bGenerateSeamMask = false;
+
+	/** Optional render target used to store generated mask for texture seams. We create this by projecting object triangles into texture space using the selected UV channel. */
+	UPROPERTY(Transient)
+	TObjectPtr<UTextureRenderTarget2D> SeamMaskRenderTargetTexture;
+
+	/** True if we have some painting applied to the PaintRenderTargetTexture. */
+	UPROPERTY(Transient)
+	bool bIsPaintingTexture2DModified = false;
 
 	FPaintTexture2DData() = default;
 
-	FPaintTexture2DData(UTexture2D* InPaintingTexture2D, bool InbIsPaintingTexture2DModified = false)
+	FPaintTexture2DData(UTexture2D* InPaintingTexture2D)
 		: PaintingTexture2D(InPaintingTexture2D)
-		, bIsPaintingTexture2DModified(InbIsPaintingTexture2DModified)
 	{
 	}
-
 };
 
 USTRUCT()

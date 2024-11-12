@@ -4,19 +4,15 @@
 #include "IOS/ApplePlatformBackgroundHttpManager.h"
 #include "IOS/ApplePlatformBackgroundHttpRequest.h"
 #include "IOS/ApplePlatformBackgroundHttpResponse.h"
-#include "IOS/IOSBackgroundURLSessionHandler.h"
 
 #include "Misc/Paths.h"
 
 void FApplePlatformBackgroundHttp::Initialize()
 {
-	const FString DefaultIdentifier = TEXT("com.epicgames.backgroundhttp");
-	ensureAlwaysMsgf(FBackgroundURLSessionHandler::InitBackgroundSession(DefaultIdentifier), TEXT("Failure to create a background download session with identifier %s"), *DefaultIdentifier);
 }
 
 void FApplePlatformBackgroundHttp::Shutdown()
 {
-	FBackgroundURLSessionHandler::ShutdownBackgroundSession();
 }
 
 FBackgroundHttpManagerPtr FApplePlatformBackgroundHttp::CreatePlatformBackgroundHttpManager()

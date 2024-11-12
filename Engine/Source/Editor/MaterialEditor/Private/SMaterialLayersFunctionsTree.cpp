@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SMaterialLayersFunctionsTree.h"
+#include "SMaterialSubstrateTree.h"
 #include "MaterialEditor/DEditorFontParameterValue.h"
 #include "MaterialEditor/DEditorMaterialLayersParameterValue.h"
 #include "MaterialEditor/DEditorRuntimeVirtualTextureParameterValue.h"
@@ -157,13 +158,14 @@ FReply SMaterialLayersFunctionsInstanceTreeItem::OnLayerDrop(const FDragDropEven
 	TSharedPtr<SMaterialLayersFunctionsInstanceTreeItem> LayerPtr = nullptr;
 	if (ArrayDropOp.IsValid() && ArrayDropOp->OwningStack.IsValid())
 	{
-		LayerPtr = ArrayDropOp->OwningStack.Pin();
-		LayerPtr->bIsBeingDragged = false;
+		LayerPtr = StaticCastWeakPtr<SMaterialLayersFunctionsInstanceTreeItem>(ArrayDropOp->OwningStack).Pin();
 	}
 	if (!LayerPtr.IsValid())
 	{
 		return FReply::Unhandled();
 	}
+	
+	LayerPtr->bIsBeingDragged = false;
 	TSharedPtr<FSortedParamData> SwappingPropertyData = LayerPtr->StackParameterData;
 	TSharedPtr<FSortedParamData> SwappablePropertyData = StackParameterData;
 	if (SwappingPropertyData.IsValid() && SwappablePropertyData.IsValid())
@@ -900,6 +902,10 @@ void SMaterialLayersFunctionsInstanceTreeItem::Construct(const FArguments& InArg
 						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 					]
 				];
+			}
+			else
+			{
+				Row.ToolTip(FMaterialPropertyHelpers::GetParameterExpressionDescription(StackParameterData->Parameter, MaterialEditorInstance));
 			}
 
 			bisPaddedProperty = true;
@@ -1777,20 +1783,76 @@ void SMaterialLayersFunctionsInstanceWrapper::Refresh()
 	TSharedPtr<SHorizontalBox> HeaderBox;
 	NestedTree->CreateGroupsWidget();
 	LayerParameter = NestedTree->FunctionParameter;
-	FOnClicked 	OnChildButtonClicked = FOnClicked::CreateStatic(&FMaterialPropertyHelpers::OnClickedSaveNewMaterialInstance, ImplicitConv<UMaterialInterface*>(MaterialEditorInstance->SourceInstance), ImplicitConv<UObject*>(MaterialEditorInstance));
-	FOnClicked	OnSiblingButtonClicked = FOnClicked::CreateStatic(&FMaterialPropertyHelpers::OnClickedSaveNewMaterialInstance, MaterialEditorInstance->SourceInstance->Parent, ImplicitConv<UObject*>(MaterialEditorInstance));
+	FOnClicked 	OnChildButtonClicked = FOnClicked::CreateStatic(&FMaterialPropertyHelpers::OnClickedSaveNewMaterialInstance, MaterialEditorInstance->GetMaterialInterface(), ImplicitConv<UObject*>(MaterialEditorInstance));
+	FOnClicked	OnSiblingButtonClicked = FOnClicked::CreateStatic(&FMaterialPropertyHelpers::OnClickedSaveNewMaterialInstance, MaterialEditorInstance->GetParentMaterialInterface(), ImplicitConv<UObject*>(MaterialEditorInstance));
 
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	const float ThumbnailSize = 64.0f;
+	TSharedPtr<SBox> ThumbnailBox;
+	UObject* ThumbnailObject = MaterialEditorInstance->GetMaterialInterface().Get();
+	const TSharedPtr<FAssetThumbnail> AssetThumbnail = MakeShareable(new FAssetThumbnail(ThumbnailObject, ThumbnailSize, ThumbnailSize, NestedTree->GetTreeThumbnailPool()));
+	TSharedRef<SWidget> ThumbnailWidget = AssetThumbnail->MakeThumbnailWidget();
+	FText MaterialName = FText::FromName(MaterialEditorInstance->GetMaterialInterface()->GetFName());
+	
+#endif
+	
 	if (LayerParameter != nullptr)
 	{
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+		FOnClicked OnRelinkToParent = FOnClicked::CreateSP(NestedTree.ToSharedRef(), &SMaterialSubstrateTree::RelinkLayersToParent);
+#else
 		FOnClicked OnRelinkToParent = FOnClicked::CreateSP(NestedTree.ToSharedRef(), &SMaterialLayersFunctionsInstanceTree::RelinkLayersToParent);
-
+#endif
+		
 		this->ChildSlot
 			[
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot()
-				.Padding(0.0f)
+				.Padding(FMargin(0.0f, 0.0f, 0.0f, 10.0f))
 				.AutoHeight()
 				[
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+					SAssignNew(HeaderBox, SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+							.HAlign(HAlign_Center)
+							.VAlign(VAlign_Center)
+							.Padding(4.0f)
+							.MaxWidth(ThumbnailSize)
+							[
+								SAssignNew(ThumbnailBox, SBox)
+								.MaxDesiredWidth(ThumbnailSize)
+								.MaxDesiredWidth(ThumbnailSize)
+								.MaxDesiredHeight(ThumbnailSize)
+								.MinDesiredHeight(ThumbnailSize)
+								[
+									ThumbnailWidget
+								]
+							]
+
+					+ SHorizontalBox::Slot()
+					.VAlign(VAlign_Center)
+					.AutoWidth()
+					.Padding(5.0f)
+					[
+						SNew(SVerticalBox)
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						[
+							SNew(STextBlock)
+							.Text(MaterialName)
+							.TextStyle(FAppStyle::Get(), "LargeText")
+						]
+
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("MaterialInstance", "Material Instance"))
+							.TextStyle(FAppStyle::Get(), "NormalText.Important")
+						]
+					]
+#else
 					SAssignNew(HeaderBox, SHorizontalBox)
 					+ SHorizontalBox::Slot()
 					.Padding(FMargin(4.0f, 0.0f))
@@ -1801,6 +1863,7 @@ void SMaterialLayersFunctionsInstanceWrapper::Refresh()
 						SNew(STextBlock)
 						.Text(LOCTEXT("MaterialLayers", "Material Layers"))
 					]
+#endif
 				]
 				+ SVerticalBox::Slot()
 				.Padding(FMargin(0.0f))
@@ -1815,9 +1878,15 @@ void SMaterialLayersFunctionsInstanceWrapper::Refresh()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
 				[
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+				PropertyCustomizationHelpers::MakeAddButton(FSimpleDelegate::CreateSP(NestedTree.Get(), &SMaterialSubstrateTree::AddRootNodeLayer))
+#else
 					PropertyCustomizationHelpers::MakeAddButton(FSimpleDelegate::CreateSP(NestedTree.Get(), &SMaterialLayersFunctionsInstanceTree::AddLayer))
+#endif
 				];
 		}
+
+#ifndef ENABLE_MATERIAL_LAYER_PROTOTYPE
 		HeaderBox->AddSlot()
 			.FillWidth(1.0f)
 			[
@@ -1854,6 +1923,7 @@ void SMaterialLayersFunctionsInstanceWrapper::Refresh()
 				.OnClicked(OnChildButtonClicked)
 				.ToolTipText(LOCTEXT("SaveToChildInstance", "Save To Child Instance"))
 			];
+#endif
 	}
 	else
 	{
@@ -1873,10 +1943,19 @@ void SMaterialLayersFunctionsInstanceWrapper::Refresh()
 
 void SMaterialLayersFunctionsInstanceWrapper::Construct(const FArguments& InArgs)
 {
-	NestedTree = SNew(SMaterialLayersFunctionsInstanceTree)
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	NestedTree = SNew(SMaterialSubstrateTree)
 		.InMaterialEditorInstance(InArgs._InMaterialEditorInstance)
+		.InGenerator(InArgs._InGenerator)
 		.InWrapper(this)
 		.InShowHiddenDelegate(InArgs._InShowHiddenDelegate);
+#else
+	NestedTree = SNew(SMaterialLayersFunctionsInstanceTree)
+		.InMaterialEditorInstance(Cast<UMaterialEditorInstanceConstant>(InArgs._InMaterialEditorInstance))
+		.InWrapper(this)
+		.InShowHiddenDelegate(InArgs._InShowHiddenDelegate);
+#endif
+	
 
 	LayerParameter = NestedTree->FunctionParameter;
 
@@ -1885,10 +1964,20 @@ void SMaterialLayersFunctionsInstanceWrapper::Construct(const FArguments& InArgs
 
 }
 
-void SMaterialLayersFunctionsInstanceWrapper::SetEditorInstance(UMaterialEditorInstanceConstant* InMaterialEditorInstance)
+void SMaterialLayersFunctionsInstanceWrapper::SetEditorInstance(UMaterialEditorParameters* InMaterialEditorInstance)
 {
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
 	NestedTree->MaterialEditorInstance = InMaterialEditorInstance;
+#else
+	NestedTree->MaterialEditorInstance = Cast<UMaterialEditorInstanceConstant>(InMaterialEditorInstance);
+#endif
+	
 	Refresh();
+}
+
+TSharedPtr<IPropertyRowGenerator> SMaterialLayersFunctionsInstanceWrapper::GetGenerator()
+{
+	return Generator.Pin();
 }
 
 
@@ -2456,6 +2545,10 @@ void SMaterialLayersFunctionsMaterialTreeItem::Construct(const FArguments& InArg
 						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 					]
 				];
+			}
+			else
+			{
+				Row.ToolTip(FMaterialPropertyHelpers::GetParameterExpressionDescription(StackParameterData->Parameter, MaterialEditorInstance));
 			}
 		}
 
@@ -3150,9 +3243,11 @@ void SMaterialLayersFunctionsMaterialWrapper::Construct(const FArguments& InArgs
 	TSharedPtr<IPropertyRowGenerator> InGenerator = InArgs._InGenerator;
 	Generator = InGenerator;
 
+
 	NestedTree = SNew(SMaterialLayersFunctionsMaterialTree)
 		.InMaterialEditorInstance(InArgs._InMaterialEditorInstance)
 		.InWrapper(this);
+
 
 	LayerParameter = NestedTree->FunctionParameter;
 

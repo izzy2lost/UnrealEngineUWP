@@ -11,12 +11,12 @@
 class PIXELCAPTURE_API FPixelCaptureInputFrameRHI : public IPixelCaptureInputFrame
 {
 public:
-	FPixelCaptureInputFrameRHI(FTexture2DRHIRef InFrameTexture);
+	FPixelCaptureInputFrameRHI(FTextureRHIRef InFrameTexture);
 	virtual ~FPixelCaptureInputFrameRHI() = default;
 
 	virtual int32 GetType() const override;
 	virtual int32 GetWidth() const override;
 	virtual int32 GetHeight() const override;
 
-	FTexture2DRHIRef FrameTexture;
+	FTextureRHIRef FrameTexture;
 };

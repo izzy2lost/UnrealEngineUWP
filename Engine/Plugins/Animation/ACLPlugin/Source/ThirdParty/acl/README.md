@@ -53,6 +53,7 @@ Much thought was put into designing the library for it to be as flexible and pow
 *  Android (NDK 21) ARMv7-A and ARM64
 *  iOS (Xcode 10.3, 11.7, 12.5, 13.2, 14.2) ARM64
 *  Emscripten (1.39.11) WASM
+*  MSYS2 x64
 
 The above supported platform list is only what is tested every release but if it compiles, it should run just fine.
 
@@ -112,6 +113,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/GermanAizek"><img src="https://avatars.githubusercontent.com/u/21138600?v=4?s=100" width="100px;" alt="Herman Semenov"/><br /><sub><b>Herman Semenov</b></sub></a><br /><a href="https://github.com/nfrechette/acl/commits?author=GermanAizek" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Dreaming381"><img src="https://avatars.githubusercontent.com/u/25555355?v=4?s=100" width="100px;" alt="Tyler"/><br /><sub><b>Tyler</b></sub></a><br /><a href="https://github.com/nfrechette/acl/commits?author=Dreaming381" title="Code">💻</a> <a href="#ideas-Dreaming381" title="Ideas, Planning, & Feedback">🤔</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/naetherm"><img src="https://avatars.githubusercontent.com/u/16878712?v=4?s=100" width="100px;" alt="naetherm"/><br /><sub><b>naetherm</b></sub></a><br /><a href="https://github.com/nfrechette/acl/commits?author=naetherm" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/TetraSomia"><img src="https://avatars.githubusercontent.com/u/19408647?v=4?s=100" width="100px;" alt="Arthur Josso"/><br /><sub><b>Arthur Josso</b></sub></a><br /><a href="https://github.com/nfrechette/acl/commits?author=TetraSomia" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>

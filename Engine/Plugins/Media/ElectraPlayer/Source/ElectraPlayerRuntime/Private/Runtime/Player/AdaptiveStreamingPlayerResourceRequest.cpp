@@ -15,7 +15,7 @@ namespace Electra
 FHTTPResourceRequest::FHTTPResourceRequest()
 {
 	Request = MakeSharedTS<IElectraHttpManager::FRequest>();
-	ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
+	ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
 	ProgressListener = MakeSharedTS<IElectraHttpManager::FProgressListener>();
 	ProgressListener->ProgressDelegate   = IElectraHttpManager::FProgressListener::FProgressDelegate::CreateRaw(this, &FHTTPResourceRequest::HTTPProgressCallback);
 	ProgressListener->CompletionDelegate = IElectraHttpManager::FProgressListener::FCompletionDelegate::CreateRaw(this, &FHTTPResourceRequest::HTTPCompletionCallback);
@@ -152,35 +152,36 @@ void FHTTPResourceRequest::Cancel()
 
 void FHTTPResourceRequest::StaticDataReady()
 {
-	if (Request.IsValid())
+	TSharedPtrTS<IElectraHttpManager::FRequest> Req = Request;
+	if (Req.IsValid())
 	{
 		// Was static data actually set or was there no data provided?
 		if (!bStaticDataReady)
 		{
 			// Do the actual HTTP request now.
 			// Is an external reader to be used?
-			if (!Request->ExternalDataReader.IsValid())
+			if (!Req->ExternalDataReader.IsValid())
 			{
-				Request->ExternalDataReader = PlayerSessionServices->GetExternalDataReader();
+				Req->ExternalDataReader = PlayerSessionServices->GetExternalDataReader();
 			}
 			bWasAdded = true;
 			TSharedPtrTS<IElectraHttpManager> PinnedHTTPManager = HTTPManager.Pin();
 			if (PinnedHTTPManager.IsValid())
 			{
-				PinnedHTTPManager->AddRequest(Request, false);
+				PinnedHTTPManager->AddRequest(Req, false);
 			}
 		}
 		else
 		{
-			HTTP::FConnectionInfo& ci = Request->ConnectionInfo;
-			ci.EffectiveURL = Request->Parameters.URL;
-			ci.bIsConnected = true;
-			ci.bHaveResponseHeaders  = true;
-			ci.bWasAborted = false;
-			ci.bHasFinished = true;
-			ci.HTTPVersionReceived = 11;
-			ci.StatusInfo.HTTPStatus = Request->Parameters.Range.IsSet() ? 206 : 200;
-			ci.ContentLength = ci.BytesReadSoFar = ReceiveBuffer.IsValid() ? ReceiveBuffer->Buffer.Num() : 0;
+			ConnectionInfo = Req->ConnectionInfo;
+			ConnectionInfo.EffectiveURL = Req->Parameters.URL;
+			ConnectionInfo.bIsConnected = true;
+			ConnectionInfo.bHaveResponseHeaders  = true;
+			ConnectionInfo.bWasAborted = false;
+			ConnectionInfo.bHasFinished = true;
+			ConnectionInfo.HTTPVersionReceived = 11;
+			ConnectionInfo.StatusInfo.HTTPStatus = Req->Parameters.Range.IsSet() ? 206 : 200;
+			ConnectionInfo.ContentLength = ConnectionInfo.BytesReadSoFar = ReceiveBuffer.IsValid() ? ReceiveBuffer->Num() : 0;
 
 			bInCallback = true;
 			CompletedCallback.ExecuteIfBound(AsShared());
@@ -199,29 +200,30 @@ void FHTTPResourceRequest::HTTPCompletionCallback(const IElectraHttpManager::FRe
 	TSharedPtrTS<FHTTPResourceRequest> Self = AsShared();
 	if (Self.IsValid())
 	{
-		if (Request.IsValid())
+		TSharedPtrTS<IElectraHttpManager::FRequest> Req = Request;
+		if (Req.IsValid())
 		{
-			const HTTP::FConnectionInfo& ConnInfo = Request->ConnectionInfo;
-			if (!ConnInfo.bWasAborted)
+			ConnectionInfo = Req->ConnectionInfo;
+			if (!ConnectionInfo.bWasAborted)
 			{
 				Error = 0;
-				if (Request->ConnectionInfo.StatusInfo.ErrorDetail.IsError())
+				if (Req->ConnectionInfo.StatusInfo.ErrorDetail.IsError())
 				{
-					if (ConnInfo.StatusInfo.ConnectionTimeoutAfterMilliseconds)
+					if (ConnectionInfo.StatusInfo.ConnectionTimeoutAfterMilliseconds)
 					{
 						Error = 1;
 					}
-					else if (ConnInfo.StatusInfo.NoDataTimeoutAfterMilliseconds)
+					else if (ConnectionInfo.StatusInfo.NoDataTimeoutAfterMilliseconds)
 					{
 						Error = 2;
 					}
-					else if (ConnInfo.StatusInfo.bReadError)
+					else if (ConnectionInfo.StatusInfo.bReadError)
 					{
 						Error = 3;
 					}
 					else
 					{
-						Error = ConnInfo.StatusInfo.HTTPStatus ? ConnInfo.StatusInfo.HTTPStatus : 4;
+						Error = ConnectionInfo.StatusInfo.HTTPStatus ? ConnectionInfo.StatusInfo.HTTPStatus : 4;
 					}
 				}
 

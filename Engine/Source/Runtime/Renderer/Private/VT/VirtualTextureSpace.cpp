@@ -79,6 +79,22 @@ FVirtualTextureSpace::FVirtualTextureSpace(FVirtualTextureSystem* InSystem, uint
 		++PageTableIndex;
 	}
 
+#if !UE_BUILD_SHIPPING
+	const uint32 NumPageTableTextures = GetNumPageTableTextures();
+	check (NumPageTableTextures == PageTableIndex);
+	for (uint32 TextureIndex = 0; TextureIndex < NumPageTableTextures; ++TextureIndex)
+	{
+		if (PageTableIndex > 1u)
+		{
+			PageTableDebugNames[TextureIndex] = FString::Printf(TEXT("VirtualTexture_PageTable (%s) %d/%d"), GPixelFormats[TexturePixelFormat[TextureIndex]].Name, TextureIndex + 1, NumPageTableTextures);
+		}
+		else
+		{
+			PageTableDebugNames[TextureIndex] = FString::Printf(TEXT("VirtualTexture_PageTable (%s)"), GPixelFormats[TexturePixelFormat[TextureIndex]].Name);
+		}
+	}
+#endif
+
 	Allocator.Initialize(Description.MaxSpaceSize);
 
 	bNeedToAllocatePageTableIndirection = InDesc.IndirectionTextureSize > 0;
@@ -286,9 +302,6 @@ void FVirtualTextureSpace::AllocateTextures(FRDGBuilder& GraphBuilder)
 	{
 		RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
-		const TCHAR* TextureNames[] = { TEXT("VirtualPageTable_0"), TEXT("VirtualPageTable_1") };
-		static_assert(UE_ARRAY_COUNT(TextureNames) == TextureCapacity, "");
-
 		const FUintPoint RequiredPageTableSize = GetRequiredPageTableAllocationSize();
 		CachedPageTableWidth = RequiredPageTableSize.X;
 		CachedPageTableHeight = RequiredPageTableSize.Y;
@@ -305,7 +318,7 @@ void FVirtualTextureSpace::AllocateTextures(FRDGBuilder& GraphBuilder)
 				TexCreate_RenderTargetable | TexCreate_ShaderResource,
 				CachedNumPageTableLevels);
 
-			FRDGTextureRef DstTexture = GraphBuilder.CreateTexture(Desc, TextureNames[TextureIndex]);
+			FRDGTextureRef DstTexture = GraphBuilder.CreateTexture(Desc, TEXT("VirtualTexture_PageTable"));
 
 			if (TextureEntry.RenderTarget)
 			{
@@ -341,7 +354,7 @@ void FVirtualTextureSpace::AllocateTextures(FRDGBuilder& GraphBuilder)
 				FClearValueBinding::None,
 				TexCreate_UAV | TexCreate_ShaderResource);
 
-			FRDGTextureRef PageTableIndirectionTexture = GraphBuilder.CreateTexture(Desc, TEXT("PageTableIndirection"));
+			FRDGTextureRef PageTableIndirectionTexture = GraphBuilder.CreateTexture(Desc, TEXT("VirtualTexture_PageTableAdaptiveIndirection"));
 			AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(PageTableIndirectionTexture), FUintVector4(ForceInitToZero));
 			PageTableIndirection.RenderTarget = GraphBuilder.ConvertToExternalTexture(PageTableIndirectionTexture);
 			RHIUpdateTextureReference(PageTableIndirection.TextureReferenceRHI, PageTableIndirection.RenderTarget->GetRHI());
@@ -352,11 +365,11 @@ void FVirtualTextureSpace::AllocateTextures(FRDGBuilder& GraphBuilder)
 }
 
 
-void FVirtualTextureSpace::ApplyUpdates(FVirtualTextureSystem* System, FRDGBuilder& GraphBuilder)
+void FVirtualTextureSpace::ApplyUpdates(FVirtualTextureSystem* System, FRDGBuilder& GraphBuilder, FRDGExternalAccessQueue& ExternalAccessQueue)
 {
 	ON_SCOPE_EXIT
 	{
-		FinalizeTextures(GraphBuilder);
+		FinalizeTextures(GraphBuilder, ExternalAccessQueue);
 	};
 
 	static TArray<FPageTableUpdate> ExpandedUpdates[VIRTUALTEXTURE_SPACE_MAXLAYERS][16];
@@ -428,7 +441,7 @@ void FVirtualTextureSpace::ApplyUpdates(FVirtualTextureSystem* System, FRDGBuild
 			NewBufferSize = FMath::Max(NewBufferSize, UpdateBuffer->GetSize() * 2u);
 		}
 
-		FRHIResourceCreateInfo CreateInfo(TEXT("FVirtualTextureSpace_UpdateBuffer"));
+		FRHIResourceCreateInfo CreateInfo(TEXT("VirtualTexture_PageTableUpdateBuffer"));
 		UpdateBuffer = RHICmdList.CreateVertexBuffer(NewBufferSize, BUF_ShaderResource | BUF_Volatile, CreateInfo);
 		UpdateBufferSRV = RHICmdList.CreateShaderResourceView(UpdateBuffer, sizeof(FPageTableUpdate), PF_R16G16B16A16_UINT);
 	}
@@ -514,7 +527,7 @@ void FVirtualTextureSpace::ApplyUpdates(FVirtualTextureSystem* System, FRDGBuild
 					RDG_EVENT_NAME("PageTableUpdate (Mip: %d)", Mip),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[this, VertexShader, PixelShader, BlendStateRHI, FirstUpdate, NumUpdates, MipWidth, MipHeight](FRHICommandList& RHICmdList)
+					[this, VertexShader, PixelShader, BlendStateRHI, FirstUpdate, NumUpdates, MipWidth, MipHeight](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					RHICmdList.SetViewport(0, 0, 0.0f, MipWidth, MipHeight, 1.0f);
 
@@ -553,7 +566,7 @@ void FVirtualTextureSpace::ApplyUpdates(FVirtualTextureSystem* System, FRDGBuild
 	}
 }
 
-void FVirtualTextureSpace::FinalizeTextures(FRDGBuilder& GraphBuilder)
+void FVirtualTextureSpace::FinalizeTextures(FRDGBuilder& GraphBuilder, FRDGExternalAccessQueue& ExternalAccessQueue)
 {
 	for (uint32 LayerIndex = 0u; LayerIndex < Description.NumPageTableLayers; ++LayerIndex)
 	{
@@ -564,7 +577,7 @@ void FVirtualTextureSpace::FinalizeTextures(FRDGBuilder& GraphBuilder)
 			// It's only necessary to enable external access mode on textures modified by RDG this frame.
 			if (FRDGTexture* Texture = GraphBuilder.FindExternalTexture(PageTableEntry.RenderTarget))
 			{
-				GraphBuilder.UseExternalAccessMode(Texture, ERHIAccess::SRVMask);
+				ExternalAccessQueue.Add(Texture, ERHIAccess::SRVMask, ERHIPipeline::All);
 			}
 		}
 	}

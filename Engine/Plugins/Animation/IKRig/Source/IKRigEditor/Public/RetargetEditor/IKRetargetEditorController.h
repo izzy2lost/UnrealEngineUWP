@@ -130,6 +130,9 @@ public:
 	UDebugSkelMeshComponent* GetSkeletalMeshComponent(const ERetargetSourceOrTarget SourceOrTarget) const;
 	UDebugSkelMeshComponent* SourceSkelMeshComponent;
 	UDebugSkelMeshComponent* TargetSkelMeshComponent;
+	// this root component is used as a parent of the source skeletal mesh to allow us to translate the source.
+	// we can't offset the source mesh component itself because that conflicts with root motion
+	USceneComponent* SourceRootComponent;
 
 	// viewport anim instance
 	UIKRetargetAnimInstance* GetAnimInstance(const ERetargetSourceOrTarget SourceOrTarget) const;
@@ -227,12 +230,6 @@ public:
 		const bool bFromHierarchyView = false);
 	const TArray<FName>& GetSelectedBones() const {return SelectedBoneNames[CurrentlyEditingSourceOrTarget]; };
 	// END bone selection
-	
-	// SELECTION - MESHES (viewport view)
-	void SetSelectedMesh(UPrimitiveComponent* InComponent);
-	UPrimitiveComponent* GetSelectedMesh() const;
-	void AddOffsetToMeshComponent(const FVector& Offset, USceneComponent* MeshComponent) const;
-	// END mesh selection
 
 	// SELECTION - CHAINS (viewport or chains view)
 	void EditChainSelection(
@@ -320,6 +317,8 @@ public:
 
 	// render the skeleton's in the viewport (either source or target)
 	void RenderSkeleton(FPrimitiveDrawInterface* PDI, ERetargetSourceOrTarget SourceOrTarget) const;
+
+	void UpdateMeshOffset(ERetargetSourceOrTarget SourceOrTarget) const;
 
 private:
 

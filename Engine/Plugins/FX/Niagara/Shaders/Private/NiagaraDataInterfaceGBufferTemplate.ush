@@ -1,6 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "/Engine/Private/DeferredShadingCommon.ush"
+
+#define NEEDS_SCENE_TEXTURES 1
+#define SCENE_TEXTURES_DISABLED 0
+#define SubstratePublicStruct SubstratePublic
 #include "/Engine/Public/SubstratePublic.ush"
 
 #define NDIGBUFFER_HAS_GBUFFER				(FEATURE_LEVEL >= FEATURE_LEVEL_SM5)
@@ -11,6 +15,14 @@
 
 Texture2D {ParameterName}_VelocityTexture;
 SamplerState {ParameterName}_VelocityTextureSampler;
+
+#if SUBSTRATE_ENABLED
+FSubstrateGBuffer GetNiagaraSubstrateGBuffer_{ParameterName}(in float2 ScreenUV)
+{
+	uint2 ScreenPos = uint2(ScreenUV * View.BufferSizeAndInvSize.xy);
+	return SubstratePublic_GetSubstrateGBufferFromFirstBSDF(ScreenPos);
+}
+#endif
 
 float2 ApplyViewportOffset_{ParameterName}(float2 UV, bool bApplyViewportOffset)
 {
@@ -25,9 +37,15 @@ void DecodeDiffuseColor_{ParameterName}(in float2 ScreenUV, in bool bApplyViewpo
 {
 #if NDIGBUFFER_HAS_GBUFFER
 	ScreenUV = ApplyViewportOffset_{ParameterName}(ScreenUV, bApplyViewportOffset);
-	FGBufferData GBufferData = GetGBufferData(ScreenUV);
 	IsValid = true;
-	OutValue = GBufferData.DiffuseColor;
+
+	#if SUBSTRATE_ENABLED
+		uint2 ScreenPos = uint2(ScreenUV * View.BufferSizeAndInvSize.xy);
+		OutValue = SubstratePublic_GetWorldNormal(ScreenPos);
+	#else
+		FGBufferData GBufferData = GetGBufferData(ScreenUV);
+		OutValue = GBufferData.DiffuseColor;
+	#endif
 #else
 	IsValid = false;
 	OutValue = 0;
@@ -40,7 +58,7 @@ void DecodeWorldNormal_{ParameterName}(in float2 ScreenUV, in bool bApplyViewpor
 	ScreenUV = ApplyViewportOffset_{ParameterName}(ScreenUV, bApplyViewportOffset);
 	IsValid = true;
 
-	#if Substrate_ENABLED
+	#if SUBSTRATE_ENABLED
 		uint2 ScreenPos = uint2(ScreenUV * View.BufferSizeAndInvSize.xy);
 		OutValue = SubstratePublic_GetWorldNormal(ScreenPos);
 	#else
@@ -97,7 +115,7 @@ void DecodeWorldVelocity_{ParameterName}(in float2 ScreenUV, in bool bApplyViewp
 		float SceneDeviceZ = LookupDeviceZ(ScreenUV);
 		float SceneDepth = ConvertFromDeviceZ(SceneDeviceZ);
  		float2 ScreenPosition = (ScreenUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
-		float3 TranslatedWorldPosition = mul(float4(ScreenPosition * SceneDepth, SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;
+		float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;
  
 		float PrevSceneDepth = 0;
 	#if VELOCITY_ENCODE_DEPTH
@@ -107,7 +125,7 @@ void DecodeWorldVelocity_{ParameterName}(in float2 ScreenUV, in bool bApplyViewp
 		PrevSceneDepth = SceneDepth; // CalcPrevSceneDepth(PrevScreenUV);
 	#endif
 		float2 PrevScreenPosition = ScreenPosition - Velocity.xy;
-		float3 PrevTranslatedWorldPosition = mul(float4(PrevScreenPosition * PrevSceneDepth, PrevSceneDepth, 1), PrimaryView.PrevScreenToTranslatedWorld).xyz;
+		float3 PrevTranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(PrevScreenPosition, PrevSceneDepth), PrevSceneDepth, 1), PrimaryView.PrevScreenToTranslatedWorld).xyz;
 
 		float3 PreViewTranslationOffset = DFFastLocalSubtractDemote(PrimaryView.PreViewTranslation, PrimaryView.PrevPreViewTranslation);
  
@@ -120,9 +138,15 @@ void DecodeBaseColor_{ParameterName}(in float2 ScreenUV, in bool bApplyViewportO
 {
 #if NDIGBUFFER_HAS_GBUFFER
 	ScreenUV = ApplyViewportOffset_{ParameterName}(ScreenUV, bApplyViewportOffset);
-	FGBufferData GBufferData = GetGBufferData(ScreenUV);
 	IsValid = true;
-	OutValue = GBufferData.BaseColor;
+
+	#if SUBSTRATE_ENABLED
+		OutValue = GetNiagaraSubstrateGBuffer_{ParameterName}(ScreenUV).BaseColor;
+	#else
+		FGBufferData GBufferData = GetGBufferData(ScreenUV);
+		OutValue = GBufferData.BaseColor;
+	#endif
+
 #else
 	IsValid = false;
 	OutValue = 0;
@@ -133,9 +157,15 @@ void DecodeMetallic_{ParameterName}(in float2 ScreenUV, in bool bApplyViewportOf
 {
 #if NDIGBUFFER_HAS_GBUFFER
 	ScreenUV = ApplyViewportOffset_{ParameterName}(ScreenUV, bApplyViewportOffset);
-	FGBufferData GBufferData = GetGBufferData(ScreenUV);
 	IsValid = true;
-	OutValue = GBufferData.Metallic;
+
+	#if SUBSTRATE_ENABLED
+		OutValue = GetNiagaraSubstrateGBuffer_{ParameterName}(ScreenUV).Metallic;
+	#else
+		FGBufferData GBufferData = GetGBufferData(ScreenUV);
+		OutValue = GBufferData.Metallic;
+	#endif
+
 #else
 	IsValid = false;
 	OutValue = 0;
@@ -146,9 +176,15 @@ void DecodeSpecular_{ParameterName}(in float2 ScreenUV, in bool bApplyViewportOf
 {
 #if NDIGBUFFER_HAS_GBUFFER
 	ScreenUV = ApplyViewportOffset_{ParameterName}(ScreenUV, bApplyViewportOffset);
-	FGBufferData GBufferData = GetGBufferData(ScreenUV);
 	IsValid = true;
-	OutValue = GBufferData.Specular;
+
+	#if SUBSTRATE_ENABLED
+		OutValue = GetNiagaraSubstrateGBuffer_{ParameterName}(ScreenUV).Specular;
+	#else
+		FGBufferData GBufferData = GetGBufferData(ScreenUV);
+		OutValue = GBufferData.Specular;
+	#endif
+
 #else
 	IsValid = false;
 	OutValue = 0;
@@ -159,9 +195,16 @@ void DecodeRoughness_{ParameterName}(in float2 ScreenUV, in bool bApplyViewportO
 {
 #if NDIGBUFFER_HAS_GBUFFER
 	ScreenUV = ApplyViewportOffset_{ParameterName}(ScreenUV, bApplyViewportOffset);
-	FGBufferData GBufferData = GetGBufferData(ScreenUV);
 	IsValid = true;
-	OutValue = GBufferData.Roughness;
+
+	#if SUBSTRATE_ENABLED
+		uint2 ScreenPos = uint2(ScreenUV * View.BufferSizeAndInvSize.xy);
+		OutValue = SubstratePublic_GetRoughness(ScreenPos);
+	#else
+		FGBufferData GBufferData = GetGBufferData(ScreenUV);
+		OutValue = GBufferData.Roughness;
+	#endif
+
 #else
 	IsValid = false;
 	OutValue = 0;
@@ -255,9 +298,15 @@ void DecodeShadingModelID_{ParameterName}(in float2 ScreenUV, in bool bApplyView
 {
 #if NDIGBUFFER_HAS_GBUFFER
 	ScreenUV = ApplyViewportOffset_{ParameterName}(ScreenUV, bApplyViewportOffset);
-	FGBufferData GBufferData = GetGBufferData(ScreenUV);
 	IsValid = true;
-	OutValue = GBufferData.ShadingModelID;
+
+	#if SUBSTRATE_ENABLED
+		OutValue = int(GetNiagaraSubstrateGBuffer_{ParameterName}(ScreenUV).ShadingModelID);
+	#else
+		FGBufferData GBufferData = GetGBufferData(ScreenUV);
+		OutValue = GBufferData.ShadingModelID;
+	#endif
+
 #else
 	IsValid = false;
 	OutValue = 0;

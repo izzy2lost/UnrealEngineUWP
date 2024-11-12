@@ -85,7 +85,9 @@ struct FCycleParams
 		if (FMath::Abs(CycleCount) % 2 == 1)
 		{
 			bMirrorCurve = true;
-			Time = MinFrame + (FFrameTime(MaxFrame) - Time);
+
+			const int64 Offset = int64(MaxFrame) - int64(Time.FrameNumber.Value);
+			Time = FFrameTime(MinFrame) + FFrameTime(static_cast<int32>(Offset)) - FFrameTime(0, Time.GetSubFrame());
 		}
 	}
 };

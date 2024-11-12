@@ -48,10 +48,12 @@ public class MsQuic : ModuleRules
                 string IncludePath = Path.Combine(MsQuicSdkPath, "win64", "include");
                 PublicSystemIncludePaths.Add(IncludePath);
 
-                string LibPath = Path.Combine(MsQuicSdkPath, "win64", "lib");
+				string ArchPath = (Target.Architecture == UnrealArch.Arm64) ? Path.Combine("win64", "arm64") : "win64";
+
+                string LibPath = Path.Combine(MsQuicSdkPath, ArchPath, "lib");
                 string MsQuicLib = Path.Combine(LibPath, "msquic.lib");
 
-                string DllPath = Path.Combine(MsQuicBinariesPath, "win64");
+                string DllPath = Path.Combine(MsQuicBinariesPath, ArchPath);
                 string MsQuicDll = Path.Combine(DllPath, "msquic.dll");
 				
 				PublicAdditionalLibraries.Add(MsQuicLib);

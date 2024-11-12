@@ -16,7 +16,7 @@ namespace UE::Private::FitKDop3Helpers
 	template<typename RealType>
 	bool FitKDopImpl3(TArrayView<const UE::Math::TVector<RealType>> PlaneDirections,
 		const int32 NumPoints, TFunctionRef<UE::Math::TVector<RealType>(int32)> GetPointFunc, TFunctionRef<bool(int32)> FilterFunc,
-		TArray<UE::Math::TVector<RealType>>& OutVertices, TArray<UE::Math::TPlane<RealType>>* OptionalOutPlanes, RealType Epsilon, RealType VertexSnapDistance)
+		TArray<UE::Math::TVector<RealType>>& OutVertices, TArray<UE::Math::TPlane<RealType>>* OptionalOutPlanes, RealType Epsilon, RealType VertexSnapDistance, RealType Inflate)
 	{
 		using namespace UE::Math;
 
@@ -41,6 +41,11 @@ namespace UE::Private::FitKDop3Helpers
 				RealType Dist = Point.Dot(PlaneDirections[DirIdx]);
 				PlaneDists[DirIdx] = FMath::Max(PlaneDists[DirIdx], Dist);
 			}
+		}
+
+		for (RealType& Dist : PlaneDists)
+		{
+			Dist += Inflate;
 		}
 
 		TArray<TPlane<RealType>> LocalPlanes;
@@ -129,22 +134,22 @@ namespace UE::Geometry
 	bool FitKDOPVertices3(
 		TArrayView<const UE::Math::TVector<RealType>> PlaneDirections,
 		const int32 NumPoints, TFunctionRef<UE::Math::TVector<RealType>(int32)> GetPointFunc, TFunctionRef<bool(int32)> FilterFunc,
-		TArray<UE::Math::TVector<RealType>>& OutVertices, TArray<UE::Math::TPlane<RealType>>* OptionalOutPlanes, RealType Epsilon, RealType VertexSnapDistance)
+		TArray<UE::Math::TVector<RealType>>& OutVertices, TArray<UE::Math::TPlane<RealType>>* OptionalOutPlanes, RealType Epsilon, RealType VertexSnapDistance, RealType Inflate)
 	{
 		return UE::Private::FitKDop3Helpers::FitKDopImpl3(PlaneDirections,
 			NumPoints, GetPointFunc, FilterFunc,
 			OutVertices, OptionalOutPlanes,
-			Epsilon, VertexSnapDistance);
+			Epsilon, VertexSnapDistance, Inflate);
 	}
 
 
 	// explicit instantiations
 	template bool GEOMETRYCORE_API FitKDOPVertices3<float>(
 		TArrayView<const UE::Math::TVector<float>> PlaneDirections, const int32 NumPoints, TFunctionRef<UE::Math::TVector<float>(int32)> GetPointFunc, TFunctionRef<bool(int32)> FilterFunc,
-		TArray<UE::Math::TVector<float>>& OutVertices, TArray<UE::Math::TPlane<float>>* OptionalOutPlanes, float Epsilon, float VertexSnapDistance);
+		TArray<UE::Math::TVector<float>>& OutVertices, TArray<UE::Math::TPlane<float>>* OptionalOutPlanes, float Epsilon, float VertexSnapDistance, float Inflate);
 	template bool GEOMETRYCORE_API FitKDOPVertices3<double>(
 		TArrayView<const UE::Math::TVector<double>> PlaneDirections, const int32 NumPoints, TFunctionRef<UE::Math::TVector<double>(int32)> GetPointFunc, TFunctionRef<bool(int32)> FilterFunc,
-		TArray<UE::Math::TVector<double>>& OutVertices, TArray<UE::Math::TPlane<double>>* OptionalOutPlanes, double Epsilon, double VertexSnapDistance);
+		TArray<UE::Math::TVector<double>>& OutVertices, TArray<UE::Math::TPlane<double>>* OptionalOutPlanes, double Epsilon, double VertexSnapDistance, double Inflate);
 	
 
 } /// namespace UE::Geometry

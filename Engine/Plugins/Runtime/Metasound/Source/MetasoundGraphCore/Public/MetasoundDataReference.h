@@ -27,7 +27,7 @@ namespace Metasound
 /** Convert a EDataReferenceAccessType to FString. */
 FString METASOUNDGRAPHCORE_API LexToString(Metasound::EDataReferenceAccessType InAccessType);
 
-using FMetasoundDataTypeId = void const*;
+using FMetasoundDataTypeId = void const* const;
 
 namespace Metasound
 {
@@ -84,7 +84,7 @@ namespace Metasound
 	template<typename DataType>
 	const void* const GetMetasoundDataTypeId()
 	{
-		return TDataReferenceTypeInfo<std::decay_t<DataType>>::TypeId;
+		return TDataReferenceTypeInfo<std::decay_t<DataType>>::GetTypeId();
 	}
 
 	/** Returns array type associated with the base datatype provided(ex. 'Float:Array' if 'Float' is provided) */

@@ -9,6 +9,7 @@
 #include "IKeyArea.h"
 #include "Internationalization/Internationalization.h"
 #include "Internationalization/Text.h"
+#include "ISequencer.h"
 #include "Layout/Geometry.h"
 #include "Layout/PaintGeometry.h"
 #include "Math/Color.h"
@@ -195,7 +196,7 @@ FReply FParameterSection::OnKeyDoubleClicked(const TArray<FKeyHandle> &KeyHandle
 
 	for (FColorParameterNameAndCurves& NameAndCurve : ParameterSection->GetColorParameterNamesAndCurves())
 	{
-		FMovieSceneKeyColorPicker KeyColorPicker(ParameterSection, &NameAndCurve.RedCurve, &NameAndCurve.GreenCurve, &NameAndCurve.BlueCurve, &NameAndCurve.AlphaCurve, KeyHandles);
+		FMovieSceneKeyColorPicker KeyColorPicker(ParameterSection, &NameAndCurve.RedCurve, &NameAndCurve.GreenCurve, &NameAndCurve.BlueCurve, &NameAndCurve.AlphaCurve, KeyHandles, WeakSequencer);
 	}
 
 	return FReply::Handled();

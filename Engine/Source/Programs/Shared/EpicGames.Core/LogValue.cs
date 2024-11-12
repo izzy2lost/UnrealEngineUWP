@@ -65,7 +65,7 @@ namespace EpicGames.Core
 		/// <summary>
 		/// Properties associated with the value
 		/// </summary>
-		public Dictionary<Utf8String, object>? Properties { get; }
+		public Dictionary<Utf8String, object?>? Properties { get; }
 
 		/// <summary>
 		/// Constructor
@@ -73,7 +73,7 @@ namespace EpicGames.Core
 		/// <param name="type">Type of the value</param>
 		/// <param name="text">Rendering of the value as text</param>
 		/// <param name="properties">Additional properties for this value</param>
-		public LogValue(Utf8String type, string text, Dictionary<Utf8String, object>? properties = null)
+		public LogValue(Utf8String type, string text, Dictionary<Utf8String, object?>? properties = null)
 		{
 			Type = type;
 			Text = text;
@@ -87,7 +87,7 @@ namespace EpicGames.Core
 		/// <param name="text">Display text for the fiel</param>
 		public static LogValue SourceFile(FileReference file, string text)
 		{
-			return new LogValue(LogValueType.SourceFile, text, new Dictionary<Utf8String, object> { [LogEventPropertyName.File] = file.FullName });
+			return new LogValue(LogValueType.SourceFile, text, new Dictionary<Utf8String, object?> { [LogEventPropertyName.File] = file.FullName });
 		}
 
 		/// <summary>
@@ -106,7 +106,7 @@ namespace EpicGames.Core
 		/// <param name="text">Text to render for the link</param>
 		public static LogValue Link(Uri target, string text)
 		{
-			return new LogValue(LogValueType.Link, text, new Dictionary<Utf8String, object> { [LogEventPropertyName.Target] = target.ToString() });
+			return new LogValue(LogValueType.Link, text, new Dictionary<Utf8String, object?> { [LogEventPropertyName.Target] = target.ToString() });
 		}
 
 		/// <summary>
@@ -127,13 +127,13 @@ namespace EpicGames.Core
 		{
 			Type objType = obj.GetType();
 
-			Dictionary<Utf8String, object>? properties = null;
+			Dictionary<Utf8String, object?>? properties = null;
 			foreach (PropertyInfo propertyInfo in objType.GetProperties())
 			{
 				if (propertyInfo.GetCustomAttribute<JsonIgnoreAttribute>() == null)
 				{
 					string name = propertyInfo.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? propertyInfo.Name;
-					properties ??= new Dictionary<Utf8String, object>();
+					properties ??= new Dictionary<Utf8String, object?>();
 					properties[new Utf8String(name)] = propertyInfo.GetValue(obj)!;
 				}
 			}

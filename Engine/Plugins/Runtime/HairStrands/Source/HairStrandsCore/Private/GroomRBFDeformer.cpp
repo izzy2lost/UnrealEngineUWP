@@ -14,6 +14,7 @@
 #include "Engine/TextureDefines.h"
 #include "Engine/Texture.h"
 #include "GroomBindingBuilder.h"
+#include "GroomBindingCommon.h"
 
 #define ALLOW_CURVE_SHUFFLING 0
 
@@ -101,6 +102,7 @@ void DeformStrands(
 	const TArray<FHairStrandsMeshTrianglePositionFormat::Type>& UniqueTrianglePositionBuffer_Deformed,
 	uint32 VertexCount,
 	uint32 SampleCount,
+	const bool bHasRBF,
 	const TArray<FVector3f>& RestPosePositionBuffer,
 	const TArray<FVector4f>& RestSamplePositionsBuffer,
 	const TArray<FVector3f>& MeshSampleWeightsBuffer,
@@ -113,7 +115,7 @@ void DeformStrands(
 	{
 		const FVector3f& ControlPoint = RestPosePositionBuffer[VertexIndex];
 		const FVector3f DisplacedPosition = DisplacePosition(ControlPoint, SampleCount, RestSamplePositionsBuffer, MeshSampleWeightsBuffer);
-		OutDeformedPositionBuffer[VertexIndex] = DisplacedPosition;
+		OutDeformedPositionBuffer[VertexIndex] = bHasRBF ? DisplacedPosition : ControlPoint;
 	});
 
 	// Build curve shuffling indices
@@ -155,7 +157,7 @@ void DeformStrands(
 
 		const uint32 PackedBarycentric = RootBarycentricBuffer[ShuffleRootIndex];
 		const FVector2f B0 = FVector2f(FHairStrandsRootUtils::UnpackBarycentrics(PackedBarycentric));
-		const FVector3f   B  = FVector3f(B0.X, B0.Y, 1.f - B0.X - B0.Y);
+		const FVector3f B  = FVector3f(B0.X, B0.Y, 1.f - B0.X - B0.Y);
 
 		/* Strand hair roots translation and rotation in rest position relative to the bound triangle. Positions are relative to the rest root center */
 		const FVector3f& Rest_V0 = UniqueTrianglePositionBuffer_Rest[TriangleIndex * 3 + 0];
@@ -185,50 +187,11 @@ void DeformStrands(
 	});
 }
 
-// Compute the triangle positions for each curve's roots
-void ExtractUniqueTrianglePositions(
-	const FHairStrandsRootData& RestLODData,
-	const uint32 MeshLODIndex,
-	const FSkeletalMeshRenderData* InMeshRenderData, 
-	TArray<FHairStrandsMeshTrianglePositionFormat::Type>& OutDeformUniqueTrianglePositionBuffer)
-{
-	const uint32 UniqueTriangleCount = RestLODData.UniqueTriangleIndexBuffer.Num();
-	OutDeformUniqueTrianglePositionBuffer.SetNum(UniqueTriangleCount * 3);
-
-	const uint32 SectionCount = InMeshRenderData->LODRenderData[MeshLODIndex].RenderSections.Num();
-	TArray<uint32> IndexBuffer;
-	InMeshRenderData->LODRenderData[MeshLODIndex].MultiSizeIndexContainer.GetIndexBuffer(IndexBuffer);
-
-	for (uint32 UniqueTriangleIndex = 0; UniqueTriangleIndex < UniqueTriangleCount; ++UniqueTriangleIndex)
-	{
-		const uint32 PackedTriangleIndex = RestLODData.UniqueTriangleIndexBuffer[UniqueTriangleIndex];
-		uint32 TriangleIndex = 0;
-		uint32 SectionIndex = 0;
-		FHairStrandsRootUtils::UnpackTriangleIndex(PackedTriangleIndex, TriangleIndex, SectionIndex);
-
-		check(SectionIndex < SectionCount)
-		const uint32 TriangleCount = InMeshRenderData->LODRenderData[MeshLODIndex].RenderSections[SectionIndex].NumTriangles;
-		const uint32 SectionBaseIndex = InMeshRenderData->LODRenderData[MeshLODIndex].RenderSections[SectionIndex].BaseIndex;
-
-		const uint32 I0 = IndexBuffer[SectionBaseIndex + TriangleIndex * 3 + 0];
-		const uint32 I1 = IndexBuffer[SectionBaseIndex + TriangleIndex * 3 + 1];
-		const uint32 I2 = IndexBuffer[SectionBaseIndex + TriangleIndex * 3 + 2];
-
-		const FVector3f P0 = InMeshRenderData->LODRenderData[MeshLODIndex].StaticVertexBuffers.PositionVertexBuffer.VertexPosition(I0);
-		const FVector3f P1 = InMeshRenderData->LODRenderData[MeshLODIndex].StaticVertexBuffers.PositionVertexBuffer.VertexPosition(I1);
-		const FVector3f P2 = InMeshRenderData->LODRenderData[MeshLODIndex].StaticVertexBuffers.PositionVertexBuffer.VertexPosition(I2);
-
-		OutDeformUniqueTrianglePositionBuffer[UniqueTriangleIndex * 3 + 0] = P0;
-		OutDeformUniqueTrianglePositionBuffer[UniqueTriangleIndex * 3 + 1] = P1;
-		OutDeformUniqueTrianglePositionBuffer[UniqueTriangleIndex * 3 + 2] = P2;
-	}
-}
-
 TArray<FVector3f> GetDeformedHairStrandsPositions(
 	const TArray<FVector3f>& MeshVertexPositionsBuffer_Target,
 	const FHairStrandsDatas& HairStrandsData,
 	const uint32 MeshLODIndex,
-	const FSkeletalMeshRenderData* InMeshRenderData,
+	const bool bHasRBF,
 	const TArray<FHairStrandsIndexFormat::Type>& PointToCurveBuffer,
 	const FHairStrandsRootData& RestLODData)
 {
@@ -258,12 +221,8 @@ TArray<FVector3f> GetDeformedHairStrandsPositions(
 
 	// Use the vertex position of the binding, as the source asset might not have the same topology (in case the groom has been transfered from one mesh toanother using UV sharing)
 	TArray<FHairStrandsMeshTrianglePositionFormat::Type> UniqueTrianglePositionBuffer_Rest = RestLODData.RestUniqueTrianglePositionBuffer;
-	TArray<FHairStrandsMeshTrianglePositionFormat::Type> UniqueTrianglePositionBuffer_Deformed;
-	ExtractUniqueTrianglePositions(
-		RestLODData,
-		MeshLODIndex,
-		InMeshRenderData,
-		UniqueTrianglePositionBuffer_Deformed);
+	TArray<FHairStrandsMeshTrianglePositionFormat::Type> UniqueTrianglePositionBuffer_Deformed = RestLODData.RestUniqueTrianglePositionBuffer_TargetNonTransfered;
+	check(UniqueTrianglePositionBuffer_Rest.Num() == UniqueTrianglePositionBuffer_Deformed.Num());
 
 	// Deform the strands vertices with the deformed mesh samples
 	const TArray<FVector3f>& RestPosePositionBuffer = OutPositions;
@@ -280,6 +239,7 @@ TArray<FVector3f> GetDeformedHairStrandsPositions(
 		UniqueTrianglePositionBuffer_Deformed,
 		VertexCount, 
 		MaxSampleCount, 
+		bHasRBF,
 		RestPosePositionBuffer, 
 		RestSamplePositionsBuffer, 
 		MeshSampleWeightsBuffer, 
@@ -654,42 +614,52 @@ static float SampleMaskTexture(const FVector2f& InUV, const FUintPoint& InResolu
 	return 1.0f;
 }
 
-void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset, const UGroomBindingAsset* BindingAsset, FTextureSource* MaskTextureSource, const float MaskScale, UGroomAsset* OutGroomAsset)
+void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset, const UGroomBindingAsset* BindingAsset, FTextureSource* MaskTextureSource, const float MaskScale, UGroomAsset* OutGroomAsset, const ITargetPlatform* TargetPlatform)
 {
 #if WITH_EDITORONLY_DATA
 	if (InGroomAsset && BindingAsset && BindingAsset->GetTargetSkeletalMesh() && BindingAsset->GetSourceSkeletalMesh())
 	{
-		// Get the skel. mesh render data for the current platform
-		// This similar to how we fetch skel. mesh data when building groom binding. This is requires in order to get 
-		// identical skel. mesh render data and ensure that the hair deformation is done correctly.
-		check(BindingAsset->GetGroomBindingType() == EGroomBindingMeshType::SkeletalMesh);
-		USkeletalMesh* TargetSkeletalMesh = BindingAsset->GetTargetSkeletalMesh();
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		FScopedSkeletalMeshRenderData TargetSkeletalMeshScopedData(TargetSkeletalMesh);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		{
-			ITargetPlatform* RunningPlatform = GetTargetPlatformManagerRef().GetRunningTargetPlatform();
-			FSkinnedAssetAsyncBuildScope AsyncBuildScope(TargetSkeletalMesh);
-			USkeletalMesh::GetPlatformSkeletalMeshRenderData(RunningPlatform, TargetSkeletalMeshScopedData);
-		}
-
 		// Use the LOD0 skeletal mesh to extract the vertices used for the RBF weight computation
 		const int32 MeshLODIndex = 0;
-
-		// Get the target mesh vertices (source and target)
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		const FSkeletalMeshRenderData* SkeletalMeshData_Target = TargetSkeletalMeshScopedData.GetData();
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		TArray<FVector3f> MeshVertexPositionsBuffer_Target;
-		ExtractSkeletalVertexPosition(SkeletalMeshData_Target, MeshLODIndex, MeshVertexPositionsBuffer_Target);
 
 		// Apply RBF deformation to each group of guides and render strands
 		const int32 NumGroups = BindingAsset->GetHairGroupsPlatformData().Num();
 
+		FGroomBindingBuilder::FInput Input;
+		{
+			Input.BindingType = EGroomBindingMeshType::SkeletalMesh;
+			Input.NumInterpolationPoints = BindingAsset->GetNumInterpolationPoints();
+			Input.MatchingSection = BindingAsset->GetMatchingSection();
+			Input.bHasValidTarget = BindingAsset->HasValidTarget();
+			Input.GroomAsset = BindingAsset->GetGroom();
+			Input.SourceSkeletalMesh = BindingAsset->GetSourceSkeletalMesh();
+			Input.TargetSkeletalMesh = BindingAsset->GetTargetSkeletalMesh();
+			Input.SourceGeometryCache = nullptr;
+			Input.TargetGeometryCache = nullptr;
+		}
+
+		// Compute root datas
+		TArray<FHairRootGroupData> RootDatas;
+		{
+			if (TargetPlatform == nullptr)
+			{
+				TargetPlatform = GetTargetPlatformManagerRef().GetRunningTargetPlatform();
+			}
+
+			RootDatas.SetNum(NumGroups);
+			for (int32 GroupIt = 0; GroupIt < NumGroups; ++GroupIt)
+			{
+				const bool bSucceed = BuildHairRootGroupData(Input, GroupIt, TargetPlatform, RootDatas[GroupIt]);
+				check(bSucceed);
+			}
+		}
+
 		// Use the vertices positions from the HairDescription instead of the GroomAsset since the latter
 		// may contain decimated or auto-generated guides depending on the import settings
+		// When building the hair description groups, do not add control points at the end of each curves, 
+		// as this would make cause a mismatch ordering of the flatten CP's position vs. the hair description CP's positions
 		FHairDescriptionGroups HairDescriptionGroups;
-		FGroomBuilder::BuildHairDescriptionGroups(InGroomAsset->GetHairDescription(), HairDescriptionGroups);
+		FGroomBuilder::BuildHairDescriptionGroups(InGroomAsset->GetHairDescription(), HairDescriptionGroups, false /*bAllowAddEndControlPoint*/);
 
 		TArray<FRBFDeformedPositions> DeformedPositions;
 		DeformedPositions.SetNum(NumGroups);
@@ -742,6 +712,9 @@ void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset
 			check(BindingAsset->GetHairGroupsPlatformData()[GroupIndex].SimRootBulkDatas.IsValidIndex(MeshLODIndex));
 			check(BindingAsset->GetHairGroupsPlatformData()[GroupIndex].RenRootBulkDatas.IsValidIndex(MeshLODIndex));
 
+			// Get the deformed positions (== target mesh positions), i.e. the non-transfered position.
+			TArray<FVector3f> MeshVertexPositionsBuffer_Target = RootDatas[GroupIndex].MeshPositions[MeshLODIndex];
+
 			// Get deformed guides
 			// If the groom override the value, we output dummy value for the guides, since they won't be used
 			if (InGroomAsset->GetHairGroupsInterpolation()[GroupIndex].InterpolationSettings.GuideType != EGroomGuideType::Imported)
@@ -751,29 +724,27 @@ void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset
 			}
 			else
 			{
-				FHairStrandsRootData SimRootData;
-				FGroomBindingBuilder::GetRootData(SimRootData, BindingAsset->GetHairGroupsPlatformData()[GroupIndex].SimRootBulkDatas[MeshLODIndex]);
+				FHairStrandsRootData SimRootData = RootDatas[GroupIndex].SimRootDatas[MeshLODIndex];
+
+				const bool bHasRBF = InGroomAsset->IsGlobalInterpolationEnable(GroupIndex, 0/*HairLODIndex*/);
 
 				DeformedPositions[GroupIndex].GuideStrands = GetDeformedHairStrandsPositions(
 					MeshVertexPositionsBuffer_Target,
 					GuidesData,
 					MeshLODIndex,
-					SkeletalMeshData_Target,
+					bHasRBF,
 					SimRootDataPointToCurveBuffer,
 					SimRootData);
 			}
 
 			// Get deformed render strands
 			{
-				FHairStrandsRootData RenRootData;
-				FGroomBindingBuilder::GetRootData(RenRootData, BindingAsset->GetHairGroupsPlatformData()[GroupIndex].RenRootBulkDatas[MeshLODIndex]);
+				FHairStrandsRootData RenRootData = RootDatas[GroupIndex].RenRootDatas[MeshLODIndex];
 
 				// Transfer RBF weights from SimRootData to RenRootData, as RenRootData does not hold RBF sample data
 				// This is transient data.
 				{
-
-					FHairStrandsRootData SimRootData;
-					FGroomBindingBuilder::GetRootData(SimRootData, BindingAsset->GetHairGroupsPlatformData()[GroupIndex].SimRootBulkDatas[MeshLODIndex]);
+					FHairStrandsRootData SimRootData = RootDatas[GroupIndex].SimRootDatas[MeshLODIndex];
 
 					FHairStrandsRootData& SimLODData = SimRootData;
 					FHairStrandsRootData& RenLODData = RenRootData;
@@ -786,11 +757,13 @@ void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset
 					RenLODData.MeshSectionCount					= SimLODData.MeshSectionCount;
 				}
 
+				const bool bHasRBF = InGroomAsset->IsGlobalInterpolationEnable(GroupIndex, 0/*HairLODIndex*/);
+
 				DeformedPositions[GroupIndex].RenderStrands = GetDeformedHairStrandsPositions(
 					MeshVertexPositionsBuffer_Target,
 					StrandsData,
 					MeshLODIndex,
-					SkeletalMeshData_Target,
+					bHasRBF,
 					RenRootDataPointToCurveBuffer,
 					RenRootData);
 			}
@@ -893,9 +866,10 @@ void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset
 					check(BindingAsset->GetHairGroupsPlatformData()[Desc.GroupIndex].SimRootBulkDatas.IsValidIndex(MeshLODIndex));
 
 					// Load Sim root data, as they contains RBF weights
-					FHairStrandsRootData SimRootData;
-					FGroomBindingBuilder::GetRootData(SimRootData, BindingAsset->GetHairGroupsPlatformData()[Desc.GroupIndex].SimRootBulkDatas[MeshLODIndex]);
+					FHairStrandsRootData SimRootData = RootDatas[Desc.GroupIndex].SimRootDatas[MeshLODIndex];
 	
+					// Get the deformed positions (== target mesh positions), i.e. the non-transfered position.
+					const TArray<FVector3f>& MeshVertexPositionsBuffer_Target = RootDatas[Desc.GroupIndex].MeshPositions[MeshLODIndex];
 					DeformStaticMeshPositions(Mesh, MeshVertexPositionsBuffer_Target, SimRootData);
 				}
 			}
@@ -916,9 +890,10 @@ void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset
 				check(BindingAsset->GetHairGroupsPlatformData()[Desc.GroupIndex].SimRootBulkDatas.IsValidIndex(MeshLODIndex));
 
 				// Load Sim root data, as they contains RBF weights
-				FHairStrandsRootData SimRootData;
-				FGroomBindingBuilder::GetRootData(SimRootData, BindingAsset->GetHairGroupsPlatformData()[Desc.GroupIndex].SimRootBulkDatas[MeshLODIndex]);
+				FHairStrandsRootData SimRootData = RootDatas[Desc.GroupIndex].SimRootDatas[MeshLODIndex];
 
+				// Get the deformed positions (== target mesh positions), i.e. the non-transfered position.
+				const TArray<FVector3f>& MeshVertexPositionsBuffer_Target = RootDatas[Desc.GroupIndex].MeshPositions[MeshLODIndex];
 				DeformStaticMeshPositions(Mesh, MeshVertexPositionsBuffer_Target, SimRootData);
 			}
 		}

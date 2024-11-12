@@ -78,6 +78,11 @@ FString UBlackboardKeyType_Enum::DescribeArithmeticParam(int32 IntValue, float F
 	return EnumType ? EnumType->GetDisplayNameTextByValue(IntValue).ToString() : FString("UNKNOWN!");
 }
 
+void UBlackboardKeyType_Enum::InitializeMemory(UBlackboardComponent& OwnerComp, uint8* MemoryBlock)
+{
+	SetValue(this, MemoryBlock, DefaultValue);
+}
+
 #if WITH_EDITOR
 void UBlackboardKeyType_Enum::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {

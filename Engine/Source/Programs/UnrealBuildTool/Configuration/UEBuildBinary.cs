@@ -98,6 +98,12 @@ namespace UnrealBuildTool
 		public bool bBuildAdditionalConsoleApp = false;
 
 		/// <summary>
+		/// If true, replaces the executable with a console application. Hack for Windows, where it's not possible to conditionally inherit a parent's console Window depending on how
+		/// the application is invoked
+		/// </summary>
+		public bool bBuildConsoleAppOnly = false;
+
+		/// <summary>
 		/// 
 		/// </summary>
 		public bool bUsePrecompiled;
@@ -123,6 +129,16 @@ namespace UnrealBuildTool
 		public readonly List<ModuleRules.RuntimeDependency> RuntimeDependencies = new List<ModuleRules.RuntimeDependency>();
 
 		/// <summary>
+		/// If compiled objects will have unused exports stripped, only affects objects compiled into modular libraries.
+		/// </summary>
+		public bool bStripUnusedExports = false;
+
+		/// <summary>
+		/// List of all objects that would be linked.
+		/// </summary>
+		public readonly HashSet<FileItem> InputObjects = new();
+
+		/// <summary>
 		/// Create an instance of the class with the given configuration data
 		/// </summary>
 		/// <param name="Type"></param>
@@ -130,6 +146,7 @@ namespace UnrealBuildTool
 		/// <param name="IntermediateDirectory"></param>
 		/// <param name="bAllowExports"></param>
 		/// <param name="bBuildAdditionalConsoleApp"></param>
+		/// <param name="bBuildConsoleAppOnly"></param>
 		/// <param name="PrimaryModule"></param>
 		/// <param name="bUsePrecompiled"></param>
 		public UEBuildBinary(
@@ -138,6 +155,7 @@ namespace UnrealBuildTool
 				DirectoryReference IntermediateDirectory,
 				bool bAllowExports,
 				bool bBuildAdditionalConsoleApp,
+				bool bBuildConsoleAppOnly,
 				UEBuildModuleCPP PrimaryModule,
 				bool bUsePrecompiled
 			)
@@ -148,6 +166,7 @@ namespace UnrealBuildTool
 			this.IntermediateDirectory = IntermediateDirectory;
 			this.bAllowExports = bAllowExports;
 			this.bBuildAdditionalConsoleApp = bBuildAdditionalConsoleApp;
+			this.bBuildConsoleAppOnly = bBuildConsoleAppOnly;
 			this.PrimaryModule = PrimaryModule;
 			this.bUsePrecompiled = bUsePrecompiled;
 
@@ -273,6 +292,33 @@ namespace UnrealBuildTool
 			// Create the import library if needed
 			OutputFiles.AddRange(ToolChain.LinkImportLibrary(BinaryLinkEnvironment, Graph));
 
+			// Override the build to be a console app (i.e. only build a console app)
+			if (bBuildConsoleAppOnly)
+			{
+				BinaryLinkEnvironment.bIsBuildingConsoleApplication = true;
+				BinaryLinkEnvironment.bCodeCoverage = CompileEnvironment.bCodeCoverage;
+				BinaryLinkEnvironment.WindowsEntryPointOverride = "WinMainCRTStartup";       // For WinMain() instead of "main()" for Launch module
+				BinaryLinkEnvironment.OutputFilePaths = BinaryLinkEnvironment.OutputFilePaths.Select(Path => GetAdditionalConsoleAppPath(Path)).ToList();
+			}
+			else if (bBuildAdditionalConsoleApp)
+			{
+				// Produce additional binary but link it as a console app
+				LinkEnvironment ConsoleAppLinkEnvironment = new LinkEnvironment(BinaryLinkEnvironment);
+				ConsoleAppLinkEnvironment.bIsBuildingConsoleApplication = true;
+				ConsoleAppLinkEnvironment.bCodeCoverage = CompileEnvironment.bCodeCoverage;
+				ConsoleAppLinkEnvironment.WindowsEntryPointOverride = "WinMainCRTStartup";       // For WinMain() instead of "main()" for Launch module
+				ConsoleAppLinkEnvironment.OutputFilePaths = ConsoleAppLinkEnvironment.OutputFilePaths.Select(Path => GetAdditionalConsoleAppPath(Path)).ToList();
+
+				// Link the console app executable
+				FileItem[] ConsoleAppOutputFiles = ToolChain.LinkAllFiles(ConsoleAppLinkEnvironment, false, Graph);
+				OutputFiles.AddRange(ConsoleAppOutputFiles);
+
+				foreach (FileItem Executable in ConsoleAppOutputFiles)
+				{
+					OutputFiles.AddRange(ToolChain.PostBuild(Target, Executable, ConsoleAppLinkEnvironment, Graph));
+				}
+			}
+
 			// Link the binary.
 			FileItem[] Executables = ToolChain.LinkAllFiles(BinaryLinkEnvironment, false, Graph);
 			OutputFiles.AddRange(Executables);
@@ -281,26 +327,6 @@ namespace UnrealBuildTool
 			if (Target.LinkType == TargetLinkType.Modular)
 			{
 				Graph.SetOutputItemsForModule(PrimaryModule.Name, OutputFiles.ToArray());
-			}
-
-			// Produce additional console app if requested
-			if (bBuildAdditionalConsoleApp)
-			{
-				// Produce additional binary but link it as a console app
-				LinkEnvironment ConsoleAppLinkEvironment = new LinkEnvironment(BinaryLinkEnvironment);
-				ConsoleAppLinkEvironment.bIsBuildingConsoleApplication = true;
-				ConsoleAppLinkEvironment.bCodeCoverage = CompileEnvironment.bCodeCoverage;
-				ConsoleAppLinkEvironment.WindowsEntryPointOverride = "WinMainCRTStartup";       // For WinMain() instead of "main()" for Launch module
-				ConsoleAppLinkEvironment.OutputFilePaths = ConsoleAppLinkEvironment.OutputFilePaths.Select(Path => GetAdditionalConsoleAppPath(Path)).ToList();
-
-				// Link the console app executable
-				FileItem[] ConsoleAppOutputFiles = ToolChain.LinkAllFiles(ConsoleAppLinkEvironment, false, Graph);
-				OutputFiles.AddRange(ConsoleAppOutputFiles);
-
-				foreach (FileItem Executable in ConsoleAppOutputFiles)
-				{
-					OutputFiles.AddRange(ToolChain.PostBuild(Target, Executable, ConsoleAppLinkEvironment, Graph));
-				}
 			}
 
 			foreach (FileItem Executable in Executables)
@@ -540,13 +566,24 @@ namespace UnrealBuildTool
 
 				// Add the primary build products
 				string[] DebugExtensions = UEBuildPlatform.GetBuildPlatform(Target.Platform).GetDebugInfoExtensions(Target, Type);
-				foreach (FileReference OutputFilePath in OutputFilePaths)
+
+				if (Type == UEBuildBinaryType.Executable && bBuildConsoleAppOnly)
 				{
-					AddBuildProductAndDebugFiles(OutputFilePath, OutputType, DebugExtensions, BuildProducts, ToolChain, bCreateDebugInfo);
+					foreach (FileReference OutputFilePath in OutputFilePaths)
+					{
+						AddBuildProductAndDebugFiles(GetAdditionalConsoleAppPath(OutputFilePath), OutputType, DebugExtensions, BuildProducts, ToolChain, bCreateDebugInfo);
+					}
+				}
+				else
+				{
+					foreach (FileReference OutputFilePath in OutputFilePaths)
+					{
+						AddBuildProductAndDebugFiles(OutputFilePath, OutputType, DebugExtensions, BuildProducts, ToolChain, bCreateDebugInfo);
+					}
 				}
 
 				// Add the console app, if there is one
-				if (Type == UEBuildBinaryType.Executable && bBuildAdditionalConsoleApp)
+				if (Type == UEBuildBinaryType.Executable && !bBuildConsoleAppOnly && bBuildAdditionalConsoleApp)
 				{
 					foreach (FileReference OutputFilePath in OutputFilePaths)
 					{
@@ -741,6 +778,9 @@ namespace UnrealBuildTool
 
 			HashSet<FileItem> InputFilesLookup = new();
 
+			int KeepLevel = 0;
+			FileItem? PerModuleItemToKeep = null;
+
 			foreach (UEBuildModule Module in UEBuildModule.StableTopologicalSort(Modules))
 			{
 				if (Module.Binary == null || Module.Binary == this)
@@ -748,6 +788,58 @@ namespace UnrealBuildTool
 					// Compile each module.
 					Logger.LogDebug("Compile module: {ModuleName}", Module.Name);
 					List<FileItem> LinkInputFiles = Module.Compile(Target, ToolChain, BinaryCompileEnvironment, WorkingSet, Graph, Logger);
+
+					// If modules are merged we will have multiple PerModuleInline which will cause duplicated symbols. So let's only keep one of those
+					// The used PerModuleInline file should be picked in order "Any", "Core", "If owning module is in project", "If module has define set"
+					// Ideally it should be "Any", "Core", "If module has define set" but unfortunately define is not set for depending modules at this point
+					// so we can have merged binaries that has 10 modules where all depends on the module that has the define... and in that case any of them would work to pick the PerModuleInline file
+					// This code is very inefficient and need to be improved.
+					if (Target.bMergeModules)
+					{
+						FileItem? PerModuleItem = LinkInputFiles.FirstOrDefault(x => x!.Name.Contains("PerModuleInline.gen.cpp"), null);
+						if (PerModuleItem != null)
+						{
+							// If we don't have a PerModuleItem, use any
+							if (KeepLevel == 0)
+							{
+								if (PerModuleItemToKeep == null)
+								{
+									PerModuleItemToKeep = PerModuleItem;
+									KeepLevel = 1;
+								}
+							}
+							else if (KeepLevel == 1 && Module.Name == "Core") // If we have one we look for Core
+							{
+								PerModuleItemToKeep = PerModuleItem;
+								KeepLevel = 2;
+
+							}
+							else if (KeepLevel <= 2) 
+							{
+								if (Target.ProjectFile != null && Module.RulesFile.IsUnderDirectory(Target.ProjectFile.Directory))  // TODO: THIS IS WRONG AND CAN EASILY GO WRONG
+								{
+									PerModuleItemToKeep = PerModuleItem;
+									KeepLevel = 3;
+								}
+							}
+							else if (KeepLevel <= 3)
+							{
+								foreach (string Def in Module.PublicDefinitions)
+								{
+									if (Def.StartsWith("PER_MODULE_INLINE_FILE"))
+									{
+										PerModuleItemToKeep = PerModuleItem;
+										KeepLevel = 4;
+										break;
+									}
+								}
+							}
+
+							LinkInputFiles.Remove(PerModuleItem);
+						}
+					}
+
+					InputObjects.UnionWith(LinkInputFiles.Where(x => x.HasExtension(".obj") || x.HasExtension(".o")));
 
 					// Save the module outputs. In monolithic builds, this is just the object files.
 					if (Target.LinkType == TargetLinkType.Monolithic)
@@ -779,6 +871,12 @@ namespace UnrealBuildTool
 				Module.SetupPrivateLinkEnvironment(this, BinaryLinkEnvironment, BinaryDependencies, LinkEnvironmentVisitedModules, ExeDir);
 			}
 
+			if (PerModuleItemToKeep != null)
+			{
+				BinaryLinkEnvironment.InputFiles.Add(PerModuleItemToKeep);
+				InputObjects.Add(PerModuleItemToKeep);
+			}
+
 			// Allow the binary dependencies to modify the link environment.
 			foreach (UEBuildBinary BinaryDependency in BinaryDependencies)
 			{
@@ -794,7 +892,7 @@ namespace UnrealBuildTool
 			// Set the link output file.
 			BinaryLinkEnvironment.OutputFilePaths = OutputFilePaths.ToList();
 
-			// Rembmer the link type
+			// Remember the link type
 			BinaryLinkEnvironment.LinkType = Target.LinkType;
 
 			// Set whether the link is allowed to have exports.
@@ -809,6 +907,17 @@ namespace UnrealBuildTool
 			// Setup link output type
 			BinaryLinkEnvironment.bIsBuildingDLL = IsBuildingDll(Type);
 			BinaryLinkEnvironment.bIsBuildingLibrary = IsBuildingLibrary(Type);
+
+			// Setup object export stripping
+			if (Target.bStripExports)
+			{
+				bStripUnusedExports = true;
+
+				string Name = OutputFilePaths.First().GetFileNameWithoutExtension();
+				string Ext = ToolChain.GetExtraLinkFileExtension();
+				FileReference extraObj = FileReference.Combine(IntermediateDirectory!, $"{Name}.extra.{Ext}");
+				BinaryLinkEnvironment.InputFiles.Add(FileItem.GetItemByFileReference(extraObj));
+			}
 
 			// Code coverage inherited from compile environment
 			BinaryLinkEnvironment.bCodeCoverage = CompileEnvironment.bCodeCoverage;
@@ -829,6 +938,12 @@ namespace UnrealBuildTool
 					{
 						// Get the intermediate directory
 						DirectoryReference ResourceIntermediateDirectory = BinaryLinkEnvironment.IntermediateDirectory;
+
+						// Place resource intermediate files for executables in a subfolder
+						if (!BinaryLinkEnvironment.bIsBuildingDLL && !BinaryLinkEnvironment.bIsBuildingLibrary)
+						{
+							ResourceIntermediateDirectory = DirectoryReference.Combine(ResourceIntermediateDirectory, OutputFilePaths[0].GetFileName());
+						}
 
 						// Create a compile environment for resource files
 						CppCompileEnvironment ResourceCompileEnvironment = new CppCompileEnvironment(BinaryCompileEnvironment);

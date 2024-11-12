@@ -38,11 +38,6 @@ void UContentBundleEngineSubsystem::Deinitialize()
 
 TSharedPtr<FContentBundleClient> UContentBundleEngineSubsystem::RegisterContentBundle(const UContentBundleDescriptor* Descriptor, const FString& ClientDisplayName)
 {
-	if (ContentBundleClients.IsEmpty())
-	{
-		UE_SET_LOG_VERBOSITY(LogContentBundle, Verbose);
-	}
-
 	if (Descriptor != nullptr)
 	{
 		TSharedPtr<FContentBundleClient>* RegisteredClient = FindRegisteredClient(Descriptor);

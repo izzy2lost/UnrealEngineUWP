@@ -5,6 +5,14 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LiveLinkSourceSettings)
 
+ULiveLinkSourceSettings::ULiveLinkSourceSettings()
+{
+	if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+	{
+		BufferSettings.MaxNumberOfFrameToBuffered = GetDefault<ULiveLinkDefaultSourceSettings>()->DefaultSourceFrameBufferSize;
+	}
+}
+
 void ULiveLinkSourceSettings::Serialize(FArchive& Ar)
 {
 	Super::Serialize(Ar);
@@ -37,4 +45,3 @@ bool ULiveLinkSourceSettings::CanEditChange(const FProperty* InProperty) const
 	return false;
 }
 #endif //WITH_EDITOR
-

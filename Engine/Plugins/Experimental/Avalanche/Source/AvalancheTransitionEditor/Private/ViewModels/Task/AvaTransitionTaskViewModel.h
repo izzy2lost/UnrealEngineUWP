@@ -5,8 +5,10 @@
 #include "Extensions/IAvaTransitionWidgetExtension.h"
 #include "ViewModels/AvaTransitionNodeViewModel.h"
 
-struct FStateTreeTaskBase;
 struct EVisibility;
+struct FSlateBrush;
+struct FSlateColor;
+struct FStateTreeTaskBase;
 
 /** View Model for a Task Node */
 class FAvaTransitionTaskViewModel : public FAvaTransitionNodeViewModel, public IAvaTransitionWidgetExtension
@@ -17,6 +19,14 @@ public:
 	explicit FAvaTransitionTaskViewModel(const FStateTreeEditorNode& InEditorNode);
 
 	FText GetTaskDescription() const;
+
+	FSlateColor GetTaskColor() const;
+
+	EVisibility GetTaskIconVisibility() const;
+
+	const FSlateBrush* GetTaskIcon() const;
+
+	FSlateColor GetTaskIconColor() const;
 
 	bool IsEnabled() const;
 

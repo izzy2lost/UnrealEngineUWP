@@ -35,7 +35,7 @@ public:
 
 	NIAGARA_API void RegisterToSubmix();
 
-	NIAGARA_API virtual ~FNiagaraSubmixListener();
+	NIAGARA_API virtual ~FNiagaraSubmixListener() override = default;
 
 	/** Returns the current sample rate of the current submix. */
 	NIAGARA_API float GetSampleRate() const;

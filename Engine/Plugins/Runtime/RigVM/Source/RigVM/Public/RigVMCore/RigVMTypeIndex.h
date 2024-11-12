@@ -81,7 +81,7 @@ protected:
 	FName Name;
 	int32 Index;
 
-	friend struct FRigVMRegistry;
+	friend struct FRigVMRegistry_NoLock;
 	friend struct FRigVMTemplateArgument;
 };
 #else

@@ -361,34 +361,6 @@ namespace UnrealBuildTool
 			{
 				Text.AppendLine(InterfaceOrientation);
 			}
-			Text.AppendLine("\t<key>UISupportedInterfaceOrientations</key>");
-			Text.AppendLine("\t<array>");
-			foreach (string Line in SupportedOrientations.Split("\n".ToCharArray()))
-			{
-				if (!String.IsNullOrWhiteSpace(Line))
-				{
-					Text.AppendLine(Line);
-				}
-			}
-			Text.AppendLine("\t</array>");
-
-			bool bEnableSplitView = false;
-			Ini.GetBool("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "bEnableSplitView", out bEnableSplitView);
-			if (bEnableSplitView)
-			{
-				// As this is (currently) an iPad only feature, use the iPad descriminator to set it for iPad only
-				// as it also requires supporting all UIOrientations
-				Text.AppendLine("\t<key>UIRequiresFullScreen~ipad</key>");
-				Text.AppendLine("\t<false/>");
-
-				Text.AppendLine("\t<key>UISupportedInterfaceOrientations~ipad</key>");
-				Text.AppendLine("\t<array>");
-					Text.AppendLine($"\t\t<string>UIInterfaceOrientationPortrait</string>");
-					Text.AppendLine($"\t\t<string>UIInterfaceOrientationPortraitUpsideDown</string>");
-					Text.AppendLine($"\t\t<string>UIInterfaceOrientationLandscapeLeft</string>");
-					Text.AppendLine($"\t\t<string>UIInterfaceOrientationLandscapeRight</string>");
-				Text.AppendLine("\t</array>");
-			}
 
 			Text.AppendLine("\t<key>UIRequiredDeviceCapabilities</key>");
 			Text.AppendLine("\t<array>");
@@ -410,9 +382,19 @@ namespace UnrealBuildTool
 				Text.AppendLine("\t<key>CADisableMinimumFrameDurationOnPhone</key><true/>");
 			}
 
-			// disable exempt encryption
+			// set exempt encryption
+			bool bUsesNonExemptEncryption = false;
+			string ITSEncryptionExportComplianceCode = "";
+			Ini.GetBool("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "bUsesNonExemptEncryption", out bUsesNonExemptEncryption);
+			Ini.GetString("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "ITSEncryptionExportComplianceCode", out ITSEncryptionExportComplianceCode);
 			Text.AppendLine("\t<key>ITSAppUsesNonExemptEncryption</key>");
-			Text.AppendLine("\t<false/>");
+			Text.AppendLine(String.Format("\t<{0}/>", bUsesNonExemptEncryption ? "true" : "false"));
+			if (bUsesNonExemptEncryption && !String.IsNullOrWhiteSpace(ITSEncryptionExportComplianceCode))
+			{
+				Text.AppendLine("\t<key>ITSEncryptionExportComplianceCode</key>");
+				Text.AppendLine(String.Format("\t<string>{0}</string>", ITSEncryptionExportComplianceCode));
+			}
+			
 			// add location services descriptions if used
 			if (!String.IsNullOrWhiteSpace(LocationAlwaysUsageDescription))
 			{
@@ -516,7 +498,8 @@ namespace UnrealBuildTool
 			// generate the Info.plist for future use
 			string BuildDirectory = ProjectDirectory + "/Build/IOS";
 			string IntermediateDirectory = ProjectDirectory + "/Intermediate/IOS";
-			string PListFile = IntermediateDirectory + "/" + GameName + "-Info.plist"; ;
+			string PListFile = IntermediateDirectory + "/" + GameName + "-Info.plist";
+			;
 			ProjectName = !String.IsNullOrEmpty(ProjectName) ? ProjectName : GameName;
 			VersionUtilities.BuildDirectory = BuildDirectory;
 			VersionUtilities.GameName = GameName;
@@ -525,13 +508,18 @@ namespace UnrealBuildTool
 
 			if (BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Mac && !bBuildAsFramework)
 			{
-				FileReference FinalPlistFile;
-				FinalPlistFile = new FileReference($"{ProjectDirectory}/Build/IOS/UBTGenerated/Info.Template.plist");
+				// need to make sure touching this plist is in the same lock as FinalizeAppWithXcode()
+				string MutexName = SingleInstanceMutex.GetUniqueMutexForPath("UnrealBuildTool_XcodeBuild", Unreal.RootDirectory.FullName);
+				using (new SingleInstanceMutex(MutexName, true))
+				{
+					FileReference FinalPlistFile;
+					FinalPlistFile = new FileReference($"{ProjectDirectory}/Build/IOS/UBTGenerated/Info.Template.plist");
 
-				DirectoryReference.CreateDirectory(FinalPlistFile.Directory);
-				// @todo: writeifdifferent is better
-				FileReference.Delete(FinalPlistFile);
-				File.Copy(PListFile, FinalPlistFile.FullName);
+					DirectoryReference.CreateDirectory(FinalPlistFile.Directory);
+					// @todo: writeifdifferent is better
+					FileReference.Delete(FinalPlistFile);
+					File.Copy(PListFile, FinalPlistFile.FullName);
+				}
 			}
 
 			return true;
@@ -997,7 +985,7 @@ namespace UnrealBuildTool
 
 			string RelativeEnginePath = Unreal.EngineDirectory.MakeRelativeTo(DirectoryReference.GetCurrentDirectory());
 
-			UnrealPluginLanguage UPL = new UnrealPluginLanguage(ProjectFile, UPLScripts, ProjectArches, "", "", UnrealTargetPlatform.IOS, Logger);
+			UnrealPluginLanguage UPL = new UnrealPluginLanguage(ProjectFile, UPLScripts, ProjectArches, null, UnrealTargetPlatform.IOS, Logger);
 
 			// Passing in true for distribution is not ideal here but given the way that ios packaging happens and this call chain it seems unavoidable for now, maybe there is a way to correctly pass it in that I can't find?
 			UPL.Init(ProjectArches, true, RelativeEnginePath, BundlePath, ProjectDirectory, Config.ToString(), false);
@@ -1097,11 +1085,11 @@ namespace UnrealBuildTool
 						if (LocalFileExists)
 						{
 							DestFileInfo = new FileInfo(LocalProvisionFile);
-							DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+							DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 						}
 						File.Copy(Provision, LocalProvisionFile, true);
 						DestFileInfo = new FileInfo(LocalProvisionFile);
-						DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+						DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 					}
 				}
 			}
@@ -1211,11 +1199,11 @@ namespace UnrealBuildTool
 				if (File.Exists(Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + ProjectProvision))
 				{
 					DestFileInfo = new FileInfo(Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + ProjectProvision);
-					DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+					DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 				}
 				File.Copy(ProvisionWithPrefix, Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + ProjectProvision, true);
 				DestFileInfo = new FileInfo(Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + ProjectProvision);
-				DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+				DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 			}
 			if (!File.Exists(ProvisionWithPrefix) || Unreal.IsBuildMachine())
 			{
@@ -1252,11 +1240,11 @@ namespace UnrealBuildTool
 				if (File.Exists(Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + InProjectName + "_Distro.mobileprovision"))
 				{
 					DestFileInfo = new FileInfo(Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + InProjectName + "_Distro.mobileprovision");
-					DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+					DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 				}
 				File.Copy(ProvisionWithPrefix, Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + InProjectName + "_Distro.mobileprovision", true);
 				DestFileInfo = new FileInfo(Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + InProjectName + "_Distro.mobileprovision");
-				DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+				DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 			}
 
 			GeneratePList(ProjectFile, Config, InProjectDirectory, bIsUnrealGame, GameExeName, false, InProjectName, InEngineDir, AppDirectory, UPLScripts, BundleID, bBuildAsFramework);
@@ -1265,7 +1253,7 @@ namespace UnrealBuildTool
 			if (File.Exists(AppDirectory + "/" + GameName))
 			{
 				FileInfo GameFileInfo = new FileInfo(AppDirectory + "/" + GameName);
-				GameFileInfo.Attributes = GameFileInfo.Attributes & ~FileAttributes.ReadOnly;
+				GameFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 			}
 
 			// copy the GameName binary

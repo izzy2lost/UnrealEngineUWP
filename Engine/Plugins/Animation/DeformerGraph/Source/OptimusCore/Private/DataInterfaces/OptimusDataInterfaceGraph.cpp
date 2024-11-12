@@ -9,6 +9,8 @@
 #include "OptimusDeformerInstance.h"
 #include "OptimusHelpers.h"
 #include "OptimusVariableDescription.h"
+#include "RenderGraphBuilder.h"
+#include "RenderGraphResources.h"
 #include "ShaderParameterMetadataBuilder.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusDataInterfaceGraph)
@@ -44,6 +46,21 @@ void UOptimusGraphDataInterface::Init(TArray<FOptimusGraphVariableDescription> c
 		delete AllocatedData;
 	}
 }
+
+int32 UOptimusGraphDataInterface::FindFunctionIndex(const FOptimusValueIdentifier& InValueId) const
+{
+	for (int32 Index = 0 ; Index < Variables.Num(); Index++)
+	{
+		if (Variables[Index].ValueId == InValueId)
+		{
+			return Index;
+		}
+	}
+
+	return INDEX_NONE;
+}
+
+
 
 void UOptimusGraphDataInterface::GetSupportedInputs(TArray<FShaderFunctionDefinition>& OutFunctions) const
 {
@@ -92,34 +109,62 @@ void UOptimusGraphDataInterface::GetHLSL(FString& OutHLSL, FString const& InData
 UComputeDataProvider* UOptimusGraphDataInterface::CreateDataProvider(TObjectPtr<UObject> InBinding, uint64 InInputMask, uint64 InOutputMask) const
 {
 	UOptimusGraphDataProvider* Provider = NewObject<UOptimusGraphDataProvider>();
-	Provider->MeshComponent = Cast<UMeshComponent>(InBinding);
-	Provider->Variables = Variables;
+	Provider->Init(Cast<UMeshComponent>(InBinding), Variables, ParameterBufferSize);
 
-	for (FOptimusGraphVariableDescription& Variable : Provider->Variables)
-	{
-		// When source object was introduced, we also appended a unique index to the value name provided by each value provider
-		// so instead of using the name directly, we need to do this extra step
-		if (!Variable.SourceObject.IsNull())
-		{
-			Variable.CachedSourceValueName = Optimus::ExtractSourceValueName(Variable.Name);
-		}
-	}
+
 	
-	Provider->ParameterBufferSize = ParameterBufferSize;
+	
 	return Provider;
 }
 
-
-void UOptimusGraphDataProvider::SetConstant(TSoftObjectPtr<UObject> InSourceObject, TArray<uint8> const& InValue)
+void UOptimusGraphDataInterface::PostLoad()
 {
-	for (int32 VariableIndex = 0; VariableIndex < Variables.Num(); ++VariableIndex)
+	Super::PostLoad();
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	for (FOptimusGraphVariableDescription& VariableDescription : Variables)
 	{
-		if (Variables[VariableIndex].SourceObject == InSourceObject)
+		if (!VariableDescription.Value_DEPRECATED.IsEmpty())
 		{
-			if (ensure(Variables[VariableIndex].Value.Num() == InValue.Num()))
+			FOptimusDataTypeHandle DataType = FOptimusDataTypeRegistry::Get().FindType(VariableDescription.ValueType);
+			VariableDescription.ShaderValue_DEPRECATED = DataType->MakeShaderValue();
+			check(VariableDescription.ShaderValue_DEPRECATED.ArrayList.Num() == 0);
+			VariableDescription.ShaderValue_DEPRECATED.ShaderValue = VariableDescription.Value_DEPRECATED;
+			VariableDescription.Value_DEPRECATED.Reset();
+		}
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+
+void UOptimusGraphDataProvider::Init(UMeshComponent* InMeshComponent, const TArray<FOptimusGraphVariableDescription>& InVariables, int32 InParameterBufferSize)
+{
+	MeshComponent = InMeshComponent;
+	Variables = InVariables;
+	ParameterBufferSize = InParameterBufferSize;
+
+	int32 TotalNumArrays = 0;
+	for (FOptimusGraphVariableDescription& Variable : Variables)
+	{
+		const TArray<FOptimusDataTypeRegistry::FArrayMetadata>& TypeArrayMetadata = FOptimusDataTypeRegistry::Get().FindArrayMetadata(FOptimusDataTypeRegistry::Get().FindType(Variable.ValueType)->TypeName);
+
+		Variable.CachedArrayIndexStart = TotalNumArrays;
+		TotalNumArrays += TypeArrayMetadata.Num();
+	}
+	
+	ParameterArrayMetadata.AddDefaulted(TotalNumArrays);
+	
+	for (FOptimusGraphVariableDescription const& Variable : Variables)
+	{
+		const TArray<FOptimusDataTypeRegistry::FArrayMetadata>& TypeArrayMetadata = FOptimusDataTypeRegistry::Get().FindArrayMetadata(FOptimusDataTypeRegistry::Get().FindType(Variable.ValueType)->TypeName);
+
+		for (int32 ArrayIndex = 0; ArrayIndex < TypeArrayMetadata.Num(); ArrayIndex++)
+		{
+			const int32 TopLevelArrayIndex = Variable.CachedArrayIndexStart + ArrayIndex;
+			if (ensure(ParameterArrayMetadata.IsValidIndex(TopLevelArrayIndex)))
 			{
-				Variables[VariableIndex].Value = InValue;
-				break;
+				ParameterArrayMetadata[TopLevelArrayIndex].Offset = Variable.Offset + TypeArrayMetadata[ArrayIndex].ShaderValueOffset;
+				ParameterArrayMetadata[TopLevelArrayIndex].ElementSize = TypeArrayMetadata[ArrayIndex].ElementShaderValueSize;
 			}
 		}
 	}
@@ -127,7 +172,7 @@ void UOptimusGraphDataProvider::SetConstant(TSoftObjectPtr<UObject> InSourceObje
 
 FComputeDataProviderRenderProxy* UOptimusGraphDataProvider::GetRenderProxy()
 {
-	return new FOptimusGraphDataProviderProxy(DeformerInstance, Variables, ParameterBufferSize);
+	return new FOptimusGraphDataProviderProxy(DeformerInstance, Variables, ParameterBufferSize, ParameterArrayMetadata);
 }
 
 void UOptimusGraphDataProvider::SetDeformerInstance(UOptimusDeformerInstance* InInstance)
@@ -135,81 +180,46 @@ void UOptimusGraphDataProvider::SetDeformerInstance(UOptimusDeformerInstance* In
 	DeformerInstance = InInstance;
 }
 
-UOptimusDeformerInstance* UOptimusGraphDataProvider::GetDeformerInstance() const
-{
-	return DeformerInstance;
-}
-
-FOptimusGraphDataProviderProxy::FOptimusGraphDataProviderProxy(UOptimusDeformerInstance const* DeformerInstance, TArray<FOptimusGraphVariableDescription> const& Variables, int32 ParameterBufferSize)
+FOptimusGraphDataProviderProxy::FOptimusGraphDataProviderProxy(
+	UOptimusDeformerInstance const* DeformerInstance,
+	TArray<FOptimusGraphVariableDescription> const& Variables,
+	int32 ParameterBufferSize,
+	TArray<UOptimusGraphDataProvider::FArrayMetadata> const& InParameterArrayMetadata)
 {
 	// Get all variables from deformer instance and fill buffer.
 	ParameterData.AddZeroed(ParameterBufferSize);
 
+	ParameterArrayMetadata = InParameterArrayMetadata;
+	ParameterArrayData.AddDefaulted(ParameterArrayMetadata.Num());
+	
 	if (DeformerInstance == nullptr)
 	{
 		return;
 	}
 
-	TArray<UOptimusVariableDescription*> const& VariableValues = DeformerInstance->GetVariables();
+	auto CopyVariableToBuffer = [this](int32 InOffset, int32 InArrayIndexStart, const FShaderValueContainer& InShaderValue)
+	{
+    	if (ensure(ParameterData.Num() >= InOffset + InShaderValue.ShaderValue.Num()))
+    	{
+    		FMemory::Memcpy(&ParameterData[InOffset], InShaderValue.ShaderValue.GetData(), InShaderValue.ShaderValue.Num());
+    	
+    		for (int32 ArrayIndex = 0; ArrayIndex < InShaderValue.ArrayList.Num(); ArrayIndex++)
+    		{
+    			const int32 ToplevelArrayIndex = InArrayIndexStart+ ArrayIndex;
+    			if (ensure(ParameterArrayData.IsValidIndex(ToplevelArrayIndex)))
+    			{
+    				ParameterArrayData[ToplevelArrayIndex] = InShaderValue.ArrayList[ArrayIndex];
+    			}
+    		}
+    	}	
+	};
+
+	
 	for (FOptimusGraphVariableDescription const& Variable : Variables)
 	{
-		if (Variable.Value.Num())
-		{
-			// Use the constant value.
-			if (ensure(ParameterData.Num() >= Variable.Offset + Variable.Value.Num()))
-			{
-				FMemory::Memcpy(&ParameterData[Variable.Offset], Variable.Value.GetData(), Variable.Value.Num());
-			}
-		}
-		else
-		{
-			// Find value from variables on the deformer instance.
-			// todo[CF]: Use a map for more efficient look up? Or something even faster like having a fixed location per variable?
-			for (UOptimusVariableDescription const* VariableValue : VariableValues)
-			{
-				if (VariableValue != nullptr)
-				{
-					if (Variable.ValueType != VariableValue->DataType->ShaderValueType)
-					{
-						continue;
-					}
+		const FShaderValueContainer& ShaderValue = DeformerInstance->GetShaderValue(Variable.ValueId);
 
-					bool bNameMatch = false;
-					
-					// Once upon a time when these values had no source objects, they also just have simple names
-					// so we can directly use the name to find the matching variable
-					if (Variable.SourceObject.IsNull())
-					{
-						// Using GetPlainNameString here because back then variables in the graph data interface were
-						// also generated using GetPlainNameString. This certainly creates an issue where
-						// multiple variables were sharing the same name, but at least the first matching variable
-						// would still work
-						if (Variable.Name == VariableValue->VariableName.GetPlainNameString())
-						{
-							bNameMatch = true;
-						}	
-					}
-					else
-					{
-						// When source object was introduced, we also appended a unique index to the value name
-						// so instead of using the name directly we use the source value name
-						if (Variable.CachedSourceValueName == VariableValue->VariableName)
-						{
-							bNameMatch = true;
-						}	
-					}
-
-					if (bNameMatch)
-					{
-						if (ensure(ParameterData.Num() >= Variable.Offset + VariableValue->ValueData.Num()))
-						{
-							FMemory::Memcpy(&ParameterData[Variable.Offset], VariableValue->ValueData.GetData(), VariableValue->ValueData.Num());
-						}
-						break;
-					}
-				}
-			}
-		}
+		CopyVariableToBuffer(Variable.Offset, Variable.CachedArrayIndexStart, ShaderValue);
 	}
 }
 
@@ -229,11 +239,38 @@ bool FOptimusGraphDataProviderProxy::IsValid(FValidationData const& InValidation
 	return true;
 }
 
+void FOptimusGraphDataProviderProxy::AllocateResources(FRDGBuilder& GraphBuilder)
+{
+	ParameterArrayBuffers.Reset();
+	ParameterArrayBufferSRVs.Reset();
+
+
+	for (int32 ArrayIndex = 0; ArrayIndex < ParameterArrayMetadata.Num(); ArrayIndex++)
+	{
+		const UOptimusGraphDataProvider::FArrayMetadata& ArrayMetadata = ParameterArrayMetadata[ArrayIndex];
+		const TArray<uint8>& ArrayData = ParameterArrayData[ArrayIndex].ArrayOfValues;
+		
+		ParameterArrayBuffers.Add(
+			GraphBuilder.CreateBuffer(
+				FRDGBufferDesc::CreateStructuredDesc(
+					ArrayMetadata.ElementSize,
+					FMath::Max(ArrayData.Num() / ArrayMetadata.ElementSize, 1)), TEXT("Optimus.GraphDataInterfaceInnerBuffer")));
+		ParameterArrayBufferSRVs.Add(GraphBuilder.CreateSRV(ParameterArrayBuffers.Last()));
+		GraphBuilder.QueueBufferUpload(ParameterArrayBuffers.Last(), ArrayData.GetData(), ArrayData.Num(), ERDGInitialDataFlags::None);	
+	}
+}
+
 void FOptimusGraphDataProviderProxy::GatherDispatchData(FDispatchData const& InDispatchData)
 {
 	for (int32 InvocationIndex = 0; InvocationIndex < InDispatchData.NumInvocations; ++InvocationIndex)
 	{
-		void* ParameterBuffer = (void*)(InDispatchData.ParameterBuffer + InDispatchData.ParameterBufferOffset + InDispatchData.ParameterBufferStride * InvocationIndex);
+		uint8* ParameterBuffer = (uint8*)(InDispatchData.ParameterBuffer + InDispatchData.ParameterBufferOffset + InDispatchData.ParameterBufferStride * InvocationIndex);
 		FMemory::Memcpy(ParameterBuffer, ParameterData.GetData(), ParameterData.Num());
+
+		for (int32 ArrayIndex = 0; ArrayIndex < ParameterArrayMetadata.Num(); ArrayIndex++)
+		{
+			const UOptimusGraphDataProvider::FArrayMetadata& ArrayMetadata = ParameterArrayMetadata[ArrayIndex];
+			*((FRDGBufferSRV**)(ParameterBuffer + ArrayMetadata.Offset)) = ParameterArrayBufferSRVs[ArrayIndex];
+		}
 	}
 }

@@ -25,7 +25,9 @@
 #include "NiagaraSystemImpl.h"
 #include "NiagaraSystemInstance.h"
 #include "NiagaraSystemSimulation.h"
+#include "PhysicsEngine/BodySetup.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "PrimitiveSceneInfo.h"
 #include "SceneInterface.h"
 #include "SceneView.h"
@@ -54,6 +56,7 @@ struct FNiagaraRigidMeshCollisionDIFunctionVersion
 		LargeWorldCoordinates = 1,
 		SetMaxDistance = 2,
 		FindActorRotation = 3,
+		MaxEncodedDistance = 4,
 
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
@@ -103,6 +106,7 @@ static const FName GetClosestDistanceName(TEXT("GetClosestDistance"));
 static const FName GetClosestPointMeshDistanceFieldName(TEXT("GetClosestPointMeshDistanceField"));
 static const FName GetClosestPointMeshDistanceFieldAccurateName(TEXT("GetClosestPointMeshDistanceFieldAccurate"));
 static const FName GetClosestPointMeshDistanceFieldNoNormalName(TEXT("GetClosestPointMeshDistanceFieldNoNormal"));
+static const FName GetMaxEncodedDistanceMeshDistanceFieldName(TEXT("GetMaxEncodedDistanceMeshDistanceField"));
 
 static const FText OverlapOriginDescription = IF_WITH_EDITORONLY_DATA(
 	LOCTEXT("RigidBodyOverlapOriginDescription", "The center point, in world space, where the overlap trace will be performed."),
@@ -801,10 +805,10 @@ void FNDIRigidMeshCollisionData::ReleaseBuffers()
 {
 	if (AssetBuffer)
 	{
-		BeginReleaseResource(AssetBuffer);
 		ENQUEUE_RENDER_COMMAND(DeleteResource)(
 			[ParamPointerToRelease = AssetBuffer](FRHICommandListImmediate& RHICmdList)
 			{
+				ParamPointerToRelease->ReleaseResource();
 				delete ParamPointerToRelease;
 			});
 		AssetBuffer = nullptr;
@@ -1052,7 +1056,7 @@ struct FNDIRigidMeshCollisionProxy : public FNiagaraDataInterfaceProxy
 	}
 
 	/** Launch all pre stage functions */
-	virtual void PreStage(const FNDIGpuComputePostStageContext& Context) override
+	virtual void PreStage(const FNDIGpuComputePreStageContext& Context) override
 	{
 		using namespace NDIRigidMeshCollisionLocal;
 
@@ -1601,7 +1605,7 @@ void UNiagaraDataInterfaceRigidMeshCollisionQuery::GetFunctionsInternal(TArray<F
 	{
 		FNiagaraFunctionSignature Sig;
 		Sig.Name = GetElementPointMeshDistanceFieldNoNormalName;
-		Sig.SetDescription(LOCTEXT("GetClosestElementPointMeshDistanceFieldNoNormalDescription", "Given a world space position and an element index, computes the static mesh's closest point. Also returns normal and velocity for that point."));
+		Sig.SetDescription(LOCTEXT("GetClosestElementPointMeshDistanceFieldNoNormalDescription", "Given a world space position and an element index, computes the static mesh's closest distance and velocity."));
 		Sig.SetFunctionVersion(FNiagaraRigidMeshCollisionDIFunctionVersion::LatestVersion);
 		Sig.bSupportsGPU = true;
 		Sig.bSupportsCPU = false;
@@ -1667,6 +1671,7 @@ void UNiagaraDataInterfaceRigidMeshCollisionQuery::GetFunctionsInternal(TArray<F
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Closest Normal")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Closest Velocity")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Normal Is Valid")));		
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Max Encoded Distance")));
 		OutFunctions.Add(Sig);
 	}
 
@@ -1688,13 +1693,14 @@ void UNiagaraDataInterfaceRigidMeshCollisionQuery::GetFunctionsInternal(TArray<F
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Closest Normal")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Closest Velocity")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Normal Is Valid")));
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Max Encoded Distance")));
 		OutFunctions.Add(Sig);
 	}
 
 	{
 		FNiagaraFunctionSignature Sig;
 		Sig.Name = GetClosestPointMeshDistanceFieldNoNormalName;
-		Sig.SetDescription(LOCTEXT("GetClosestPointMeshDistanceFieldNNDescription", "Given a world space position, computes the distance to the closest point for the static mesh, using the mesh's distance field.\nSkips the normal calculation and is more performant than it's counterpart with normal."));
+		Sig.SetDescription(LOCTEXT("GetClosestPointMeshDistanceFieldNNDescription", "Given a world space position, computes the accurate closest distance and velocity for static meshes.  The closest position is approximate and computed by proximity to the physics assets and not the mesh itself."));
 		Sig.SetFunctionVersion(FNiagaraRigidMeshCollisionDIFunctionVersion::LatestVersion);
 		Sig.bSupportsGPU = true;
 		Sig.bSupportsCPU = false;
@@ -1710,6 +1716,22 @@ void UNiagaraDataInterfaceRigidMeshCollisionQuery::GetFunctionsInternal(TArray<F
 
 		OutFunctions.Add(Sig);
 	}
+
+	{
+		FNiagaraFunctionSignature Sig;
+		Sig.Name = GetMaxEncodedDistanceMeshDistanceFieldName;
+		Sig.SetDescription(LOCTEXT("GetMaxEncodedDistanceMeshDistanceFieldDescription", "Returns the maximum distance stored in the SDF according to the bandwidth it was created with"));
+		Sig.SetFunctionVersion(FNiagaraRigidMeshCollisionDIFunctionVersion::LatestVersion);
+		Sig.bSupportsGPU = true;
+		Sig.bSupportsCPU = false;
+		Sig.bMemberFunction = true;
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Collision DI")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Element Index")));		
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Max Distance")));
+
+		OutFunctions.Add(Sig);
+	}
+
 }
 #endif
 
@@ -1759,7 +1781,8 @@ bool UNiagaraDataInterfaceRigidMeshCollisionQuery::GetFunctionHLSL(const FNiagar
 		(FunctionInfo.DefinitionName == GetClosestDistanceName) ||
 		(FunctionInfo.DefinitionName == GetClosestPointMeshDistanceFieldName) ||
 		(FunctionInfo.DefinitionName == GetClosestPointMeshDistanceFieldAccurateName) ||
-		(FunctionInfo.DefinitionName == GetClosestPointMeshDistanceFieldNoNormalName) )
+		(FunctionInfo.DefinitionName == GetClosestPointMeshDistanceFieldNoNormalName) ||
+		(FunctionInfo.DefinitionName == GetMaxEncodedDistanceMeshDistanceFieldName) )
 	{
 		return true;
 	}
@@ -1846,6 +1869,15 @@ bool UNiagaraDataInterfaceRigidMeshCollisionQuery::UpgradeFunctionCall(FNiagaraF
 
 			FunctionSignature.Inputs.Insert(OverlapRotation, 2);
 			FunctionSignature.InputDescriptions.Add(OverlapRotation, OverlapRotationDescription);
+			bChanged = true;
+		}
+	}
+
+	if (FunctionSignature.FunctionVersion < FNiagaraRigidMeshCollisionDIFunctionVersion::MaxEncodedDistance)
+	{
+		if (FunctionSignature.Name == GetClosestPointMeshDistanceFieldName || FunctionSignature.Name == GetClosestPointMeshDistanceFieldAccurateName)
+		{
+			FunctionSignature.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Max Encoded Distance")));
 			bChanged = true;
 		}
 	}

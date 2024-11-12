@@ -105,6 +105,11 @@ namespace UE::AvaMRQEditor::Private
 
 	void RenderSequence(FAvaMRQScopedRender& InScopedRender, UWorld* InWorld, const UAvaRundown& InRundown, const FAvaRundownPage& InPage, UAvaSequence* InSequence)
 	{
+		if (!InSequence)
+		{
+			return;
+		}
+
 		UMoviePipelineExecutorJob* Job = InScopedRender.AllocateJob();
 		if (!Job)
 		{
@@ -127,7 +132,7 @@ namespace UE::AvaMRQEditor::Private
 
 		UAvaMRQRundownPageSetting* RundownPageSetting;
 		CreatePipelineSetting(RundownPageSetting);
-		RundownPageSetting->RundownPage.Rundown = &InRundown;
+		RundownPageSetting->RundownPage.Rundown = const_cast<UAvaRundown*>(&InRundown);
 		RundownPageSetting->RundownPage.PageId  = InPage.GetPageId();
 
 		UE_LOG(LogAvaMRQEditorRundown, Log

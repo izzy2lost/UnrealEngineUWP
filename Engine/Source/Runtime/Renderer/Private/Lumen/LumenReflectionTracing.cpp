@@ -21,6 +21,17 @@ FAutoConsoleVariableRef CVarLumenReflectionScreenTraces(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+// Rendering project setting
+int32 GLumenScreenTracingSource = 0;
+FAutoConsoleVariableRef CVarLumenScreenTracingSource(
+	TEXT("r.Lumen.ScreenTracingSource"),
+	GLumenScreenTracingSource,
+	TEXT("Specifies the source texture for Lumen's screen trace hits\n")
+	TEXT("0: Scene Color (no translucency and noise from small emissive elements)\n")
+	TEXT("1: Anti-aliased Scene Color (translucency intersected with the opaque depths, less noise from small emissive elements)"),
+	ECVF_RenderThreadSafe
+);
+
 int32 GLumenReflectionHierarchicalScreenTracesMaxIterations = 50;
 FAutoConsoleVariableRef CVarLumenReflectionHierarchicalScreenTracesMaxIterations(
 	TEXT("r.Lumen.Reflections.HierarchicalScreenTraces.MaxIterations"),
@@ -45,7 +56,7 @@ FAutoConsoleVariableRef GVarLumenReflectionHierarchicalScreenTraceRelativeDepthT
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-float GLumenReflectionHierarchicalScreenTraceHistoryDepthTestRelativeThickness = .01f;
+float GLumenReflectionHierarchicalScreenTraceHistoryDepthTestRelativeThickness = .005f;
 FAutoConsoleVariableRef GVarLumenReflectionHierarchicalScreenTraceHistoryDepthTestRelativeThickness(
 	TEXT("r.Lumen.Reflections.HierarchicalScreenTraces.HistoryDepthTestRelativeThickness"),
 	GLumenReflectionHierarchicalScreenTraceHistoryDepthTestRelativeThickness,
@@ -93,7 +104,7 @@ FAutoConsoleVariableRef CVarLumenReflectionsSampleSceneColorAtHit(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-float GLumenReflectionSampleSceneColorRelativeDepthThreshold = .05f;
+float GLumenReflectionSampleSceneColorRelativeDepthThreshold = .01f;
 FAutoConsoleVariableRef GVarLumenReflectionSampleSceneColorRelativeDepthThreshold(
 	TEXT("r.Lumen.Reflections.SampleSceneColorRelativeDepthThickness"),
 	GLumenReflectionSampleSceneColorRelativeDepthThreshold,
@@ -152,6 +163,16 @@ static TAutoConsoleVariable<int32> CVarLumenReflectionsHardwareRayTracingTranslu
 	TEXT("The maximum count of refraction event to trace."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
+
+bool LumenReflections::UseScreenTraces(const FViewInfo& View)
+{
+	return GLumenReflectionScreenTraces != 0 && View.Family->EngineShowFlags.LumenScreenTraces && View.FinalPostProcessSettings.LumenReflectionsScreenTraces;
+}
+
+bool LumenReflections::UseDistantScreenTraces(const FViewInfo& View)
+{
+	return GLumenReflectionsDistantScreenTraces != 0 && UseScreenTraces(View);
+}
 
 float LumenReflections::GetSampleSceneColorNormalTreshold()
 {
@@ -528,6 +549,45 @@ class FReflectionTraceVoxelsCS : public FGlobalShader
 		return DoesPlatformSupportLumenGI(Parameters.Platform);
 	}
 
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		// If derived from engine show flags then precache request is optional if not set because debug modes may allow those permutations to be used
+		FEngineShowFlags EngineShowFlags(ESFIM_Game);
+		const bool bScreenTraces = GLumenReflectionScreenTraces != 0 && EngineShowFlags.LumenScreenTraces;
+		const bool bSampleSceneColorAtHit = (GLumenReflectionsSampleSceneColorAtHit != 0 && bScreenTraces) || GLumenReflectionsSampleSceneColorAtHit == 2;
+		const bool bDistantScreenTraces = GLumenReflectionsDistantScreenTraces && bScreenTraces;
+
+		const FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FThreadGroupSize32>() != Lumen::UseThreadGroupSize32())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		// Different than default game engine show flags then it's a development only feature
+		if (PermutationVector.Get<FTraceGlobalSDF>() != Lumen::UseGlobalSDFTracing(EngineShowFlags))
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		// Different than default game engine show flags then it's a development only feature
+		if (PermutationVector.Get<FSimpleCoverageBasedExpand>() != (Lumen::UseGlobalSDFTracing(EngineShowFlags) && Lumen::UseGlobalSDFSimpleCoverageBasedExpand()))
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		if (PermutationVector.Get<FSampleSceneColor>() != bSampleSceneColorAtHit)
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		if (PermutationVector.Get<FDistantScreenTraces>() != bDistantScreenTraces)
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
+	}
+
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -762,8 +822,7 @@ void SetupIndirectTracingParametersForReflections(const FViewInfo& View, FLumenI
 FLumenHZBScreenTraceParameters SetupHZBScreenTraceParameters(
 	FRDGBuilder& GraphBuilder, 
 	const FViewInfo& View,
-	const FSceneTextures& SceneTextures,
-	bool bBindLumenHistory)
+	const FSceneTextures& SceneTextures)
 {
 	FRDGTextureRef CurrentSceneColor = SceneTextures.Color.Resolve;
 
@@ -771,6 +830,7 @@ FLumenHZBScreenTraceParameters SetupHZBScreenTraceParameters(
 	FIntPoint ViewportOffset = View.ViewRect.Min;
 	FIntPoint ViewportExtent = View.ViewRect.Size();
 	FIntPoint PrevColorBufferSize = SceneTextures.Config.Extent;
+	int32 InputColorSliceIndex = INDEX_NONE;
 
 	if (View.PrevViewInfo.CustomSSRInput.IsValid())
 	{
@@ -778,6 +838,18 @@ FLumenHZBScreenTraceParameters SetupHZBScreenTraceParameters(
 		ViewportOffset = View.PrevViewInfo.CustomSSRInput.ViewportRect.Min;
 		ViewportExtent = View.PrevViewInfo.CustomSSRInput.ViewportRect.Size();
 		PrevColorBufferSize = InputColor->Desc.Extent;
+	}
+	else if (View.PrevViewInfo.TemporalAAHistory.IsValid() && GLumenScreenTracingSource == 1)
+	{
+		InputColor = GraphBuilder.RegisterExternalTexture(View.PrevViewInfo.TemporalAAHistory.RT[0]);
+		ViewportOffset = View.PrevViewInfo.TemporalAAHistory.ViewportRect.Min;
+		ViewportExtent = View.PrevViewInfo.TemporalAAHistory.ViewportRect.Size();
+		PrevColorBufferSize = InputColor->Desc.Extent;
+
+		if (InputColor->Desc.ArraySize > 1)
+		{
+			InputColorSliceIndex = View.PrevViewInfo.TemporalAAHistory.OutputSliceIndex;
+		}
 	}
 	else if (View.PrevViewInfo.ScreenSpaceRayTracingInput.IsValid())
 	{
@@ -833,8 +905,10 @@ FLumenHZBScreenTraceParameters SetupHZBScreenTraceParameters(
 
 	Parameters.PrevSceneColorPreExposureCorrection = InputColor != CurrentSceneColor ? View.PreExposure / View.PrevViewInfo.SceneColorPreExposure : 1.0f;
 
-	Parameters.PrevSceneColorTexture = InputColor;
-	Parameters.HistorySceneDepth = bBindLumenHistory && View.ViewState->Lumen.DepthHistoryRT ? GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.DepthHistoryRT) : SceneTextures.Depth.Target;
+	Parameters.PrevSceneColorTexture = InputColorSliceIndex >= 0 ?
+		GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(InputColor, InputColorSliceIndex)) :
+		GraphBuilder.CreateSRV(InputColor);
+	Parameters.HistorySceneDepth = View.ViewState && View.ViewState->StochasticLighting.SceneDepthHistory ? GraphBuilder.RegisterExternalTexture(View.ViewState->StochasticLighting.SceneDepthHistory) : SceneTextures.Depth.Target;
 
 	checkf(View.ClosestHZB, TEXT("Lumen screen tracing: ClosestHZB was not setup, should have been setup by FDeferredShadingSceneRenderer::RenderHzb"));
 	Parameters.ClosestHZBTexture = View.ClosestHZB;
@@ -854,7 +928,7 @@ void TraceReflections(
 	const FLumenReflectionTileParameters& ReflectionTileParameters,
 	const FLumenMeshSDFGridParameters& InMeshSDFGridParameters,
 	bool bUseRadianceCache,
-	bool bLumenGIEnabled,
+	EDiffuseIndirectMethod DiffuseIndirectMethod,
 	const LumenRadianceCache::FRadianceCacheInterpolationParameters& RadianceCacheParameters,
 	ERDGPassFlags ComputePassFlags)
 {
@@ -886,9 +960,9 @@ void TraceReflections(
 
 	const FSceneTextureParameters& SceneTextureParameters = GetSceneTextureParameters(GraphBuilder, SceneTextures);
 
-	const bool bScreenTraces = GLumenReflectionScreenTraces != 0 && View.Family->EngineShowFlags.LumenScreenTraces && View.FinalPostProcessSettings.LumenReflectionsScreenTraces;
+	const bool bScreenTraces = LumenReflections::UseScreenTraces(View);
 	const bool bSampleSceneColorAtHit = (GLumenReflectionsSampleSceneColorAtHit != 0 && bScreenTraces) || GLumenReflectionsSampleSceneColorAtHit == 2;
-	const bool bDistantScreenTraces = GLumenReflectionsDistantScreenTraces && bScreenTraces;
+	const bool bDistantScreenTraces = LumenReflections::UseDistantScreenTraces(View);
 
 	if (bScreenTraces)
 	{
@@ -899,7 +973,7 @@ void TraceReflections(
 		
 		PassParameters->SceneTextures = SceneTextureParameters;
 
-		if (PassParameters->HZBScreenTraceParameters.PrevSceneColorTexture == SceneTextures.Color.Resolve || !PassParameters->SceneTextures.GBufferVelocityTexture)
+		if (PassParameters->HZBScreenTraceParameters.PrevSceneColorTexture->GetParent() == SceneTextures.Color.Resolve || !PassParameters->SceneTextures.GBufferVelocityTexture)
 		{
 			PassParameters->SceneTextures.GBufferVelocityTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
 		}
@@ -958,7 +1032,7 @@ void TraceReflections(
 			bUseRadianceCache,
 			RadianceCacheParameters,
 			bSampleSceneColorAtHit,
-			bLumenGIEnabled,
+			DiffuseIndirectMethod,
 			ComputePassFlags
 		);
 	}
@@ -1060,7 +1134,7 @@ void TraceReflections(
 			PassParameters->HZBScreenTraceParameters = SetupHZBScreenTraceParameters(GraphBuilder, View, SceneTextures);
 			PassParameters->SceneTextures = SceneTextureParameters;
 
-			if (PassParameters->HZBScreenTraceParameters.PrevSceneColorTexture == SceneTextures.Color.Resolve || !PassParameters->SceneTextures.GBufferVelocityTexture)
+			if (PassParameters->HZBScreenTraceParameters.PrevSceneColorTexture->GetParent() == SceneTextures.Color.Resolve || !PassParameters->SceneTextures.GBufferVelocityTexture)
 			{
 				PassParameters->SceneTextures.GBufferVelocityTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
 			}
@@ -1074,8 +1148,8 @@ void TraceReflections(
 
 			FReflectionTraceVoxelsCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set< FReflectionTraceVoxelsCS::FThreadGroupSize32 >(Lumen::UseThreadGroupSize32());
-			PermutationVector.Set< FReflectionTraceVoxelsCS::FTraceGlobalSDF >(Lumen::UseGlobalSDFTracing(*View.Family));
-			PermutationVector.Set< FReflectionTraceVoxelsCS::FSimpleCoverageBasedExpand>(Lumen::UseGlobalSDFTracing(*View.Family) && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
+			PermutationVector.Set< FReflectionTraceVoxelsCS::FTraceGlobalSDF >(Lumen::UseGlobalSDFTracing(View.Family->EngineShowFlags));
+			PermutationVector.Set< FReflectionTraceVoxelsCS::FSimpleCoverageBasedExpand>(Lumen::UseGlobalSDFTracing(View.Family->EngineShowFlags) && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
 			PermutationVector.Set< FReflectionTraceVoxelsCS::FHairStrands >(bNeedTraceHairVoxel);
 			PermutationVector.Set< FReflectionTraceVoxelsCS::FRadianceCache >(bUseRadianceCache);
 			PermutationVector.Set< FReflectionTraceVoxelsCS::FSampleSceneColor >(bSampleSceneColorAtHit);

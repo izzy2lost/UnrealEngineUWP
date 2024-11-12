@@ -2,10 +2,12 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+
 #include "Logging/LogMacros.h"
 
-#include "TraceServices/Model/TimingProfiler.h"
+// TraceServices
+#include "TraceServices/Model/TimingProfiler.h" // for TraceServices::EEventSortOrder
 
 DECLARE_LOG_CATEGORY_EXTERN(TimingProfilerTests, Log, All);
 
@@ -25,9 +27,8 @@ public:
 		uint64 EventCount = 0;
 		uint32 SumDepth = 0;
 		uint32 SumTimerIndex = 0;
-		double SessionDuration = 0;
-
-		double EnumerationDuration = 0;
+		double SessionDuration = 0.0;
+		double EnumerationDuration = 0.0;
 	};
 
 	struct FEnumerateTestParams

@@ -63,8 +63,8 @@ namespace UE
 		template <typename... ArgTypes>
 		bool EnqueueAndReturnWasEmpty(ArgTypes&&... Args)
 		{
-			FNode* New = new(AllocatorType::Malloc(sizeof(FNode), alignof(FNode))) FNode;
-			new (&New->Value) T(Forward<ArgTypes>(Args)...);
+			FNode* New = ::new(AllocatorType::Malloc(sizeof(FNode), alignof(FNode))) FNode;
+			::new ((void*)&New->Value) T(Forward<ArgTypes>(Args)...);
 
 			// switch `Tail` to the new node and only then link the old tail to the new one. The list is not fully linked between these ops,
 			// this is explicitly handled by the consumer by waiting for the link

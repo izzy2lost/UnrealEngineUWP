@@ -4,6 +4,7 @@
 
 #include "Styling/AppStyle.h"
 #include "Framework/Commands/InputChord.h"
+#include "UVEditorBrushSelectTool.h"
 #include "UVEditorStyle.h"
 
 #define LOCTEXT_NAMESPACE "FUVEditorCommands"
@@ -33,13 +34,18 @@ void FUVEditorCommands::RegisterCommands()
 	UI_COMMAND(BeginChannelEditTool, "Channels", "Modify UV channels", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(BeginSeamTool, "Seam", "Edit UV seams", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(BeginRecomputeUVsTool, "Unwrap", "Perform UV unwrapping", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(BeginBrushSelectTool, "Brush", "Brush select triangles", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(BeginUVSnapshotTool, "Snapshot", "Export a texture asset of a UV Layout", EUserInterfaceActionType::ToggleButton, FInputChord());
 
-	// These currently get linked to actions inside the select tool, but will eventually have their own buttons among the tools
-	// once selection is pulled out to mode-level.
+	// These get linked to one-off tool actions.
 	UI_COMMAND(SewAction, "Sew", "Sew edges highlighted in red to edges highlighted in green", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(SplitAction, "Split",
 	           "Given an edge selection, split those edges. Given a vertex selection, split any selected bowtie vertices. Given a triangle selection, split along selection boundaries.",
 	           EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(MakeIslandAction, "Island", "Given a triangle selection, make the selection into a single separate UV Island.",
+		EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(UnsetUVsAction, "UnsetUVs", "Unset the UVs on the given triangle selection.",
+		EUserInterfaceActionType::Button, FInputChord());
 
 	// These allow us to link up to pressed keys
 	UI_COMMAND(AcceptOrCompleteActiveTool, "Accept", "Accept the active tool", EUserInterfaceActionType::Button, FInputChord(EKeys::Enter));
@@ -60,6 +66,50 @@ void FUVEditorCommands::RegisterCommands()
 	UI_COMMAND(ToggleBackground, "Toggle Background", "Toggle background display", EUserInterfaceActionType::ToggleButton,
 	           FInputChord(EModifierKey::Alt, EKeys::B));
 }
+
+//~ Modeled on ModelingToolsActions.cpp
+UE::Geometry::FUVEditorToolActionCommands::FUVEditorToolActionCommands() :
+	TInteractiveToolCommands<FUVEditorToolActionCommands>(
+		"UVEditorHotkeys", // Context name for fast lookup
+		LOCTEXT("HotkeysCategory", "UV Editor Hotkeys"), // Localized context name for displaying
+		NAME_None, // Parent
+		FUVEditorStyle::Get().GetStyleSetName() // Icon Style Set
+	)
+{
+}
+void UE::Geometry::FUVEditorToolActionCommands::GetToolDefaultObjectList(TArray<UInteractiveTool*>& ToolCDOs)
+{
+}
+void UE::Geometry::FUVEditorToolActionCommands::RegisterAllToolActions()
+{
+	UE::Geometry::FUVEditorBrushSelectToolCommands::Register();
+}
+void UE::Geometry::FUVEditorToolActionCommands::UnregisterAllToolActions()
+{
+	UE::Geometry::FUVEditorBrushSelectToolCommands::Unregister();
+}
+void UE::Geometry::FUVEditorToolActionCommands::UpdateToolCommandBinding(UInteractiveTool* Tool, TSharedPtr<FUICommandList> UICommandList, bool bUnbind)
+{
+#define UPDATE_BINDING(CommandsType)  if (!bUnbind) \
+	CommandsType::Get().BindCommandsForCurrentTool(UICommandList, Tool); \
+	else CommandsType::Get().UnbindActiveCommands(UICommandList);
+
+	if (ExactCast<UUVEditorBrushSelectTool>(Tool))
+	{
+		UPDATE_BINDING(UE::Geometry::FUVEditorBrushSelectToolCommands);
+	}
+}
+
+//~ Modeled on ModelingToolsActions.cpp
+#define DEFINE_TOOL_ACTION_COMMANDS(CommandsClassName, ContextNameString, SettingsDialogString, ToolClassName ) \
+UE::Geometry::CommandsClassName::CommandsClassName() : TInteractiveToolCommands<CommandsClassName>( \
+ContextNameString, NSLOCTEXT("Contexts", ContextNameString, SettingsDialogString), NAME_None, FUVEditorStyle::Get().GetStyleSetName()) {} \
+void UE::Geometry::CommandsClassName::GetToolDefaultObjectList(TArray<UInteractiveTool*>& ToolCDOs) \
+{\
+	ToolCDOs.Add(GetMutableDefault<ToolClassName>()); \
+}
+
+DEFINE_TOOL_ACTION_COMMANDS(FUVEditorBrushSelectToolCommands, "UVBrushSelect", "UV Editor - Brush Select", UUVEditorBrushSelectTool);
 
 
 #undef LOCTEXT_NAMESPACE

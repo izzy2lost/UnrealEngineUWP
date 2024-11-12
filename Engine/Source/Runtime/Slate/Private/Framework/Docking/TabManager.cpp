@@ -751,6 +751,15 @@ void FTabManager::FPrivateApi::HideWindows()
 	SetWindowVisibility(TabManager.DockAreas, false);
 }
 
+void FTabManager::FPrivateApi::SetCanDoDeferredLayoutSave(bool bInCanDoDeferredLayoutSave)
+{
+	if (!bInCanDoDeferredLayoutSave)
+	{
+		TabManager.ClearPendingLayoutSave();
+	}
+	TabManager.bCanDoDeferredLayoutSave = bInCanDoDeferredLayoutSave;
+}
+
 FTabManager::FPrivateApi& FTabManager::GetPrivateApi()
 {
 	return *PrivateApi;
@@ -963,6 +972,11 @@ void FTabManager::RequestSavePersistentLayout()
 	// if we already have a request pending, remove it and schedule a new one
 	// this is to avoid hitches when eg. resizing a docked tab
 	ClearPendingLayoutSave();
+
+	if (!bCanDoDeferredLayoutSave)
+	{
+		return;
+	}
 
 	auto OnTick = [ThisWeak = AsWeak()](float FrameTime)
 	{
@@ -1636,6 +1650,10 @@ TSharedPtr<SDockingArea> FTabManager::RestoreArea(const TSharedRef<FArea>& AreaT
 TSharedPtr<SDockingNode> FTabManager::RestoreArea_Helper(const TSharedRef<FLayoutNode>& LayoutNode, const TSharedPtr<SWindow>& ParentWindow, const bool bEmbedTitleAreaContent,
 	FSidebarTabLists& OutSidebarTabs, const EOutputCanBeNullptr OutputCanBeNullptr, bool bForceOpenWindowIfNeeded)
 {
+#if WITH_EDITOR
+	FSlateApplication::FScopedPreventDebuggingMode Scope(LOCTEXT("RestoringTabsDebugScope", "Disabling debug due to being in tab restore, breakpoints in constructors can infinitely stall during restore."));
+#endif
+
 	TSharedPtr<FTabManager::FStack> NodeAsStack = LayoutNode->AsStack();
 	TSharedPtr<FTabManager::FSplitter> NodeAsSplitter = LayoutNode->AsSplitter();
 	TSharedPtr<FTabManager::FArea> NodeAsArea = LayoutNode->AsArea();
@@ -1683,7 +1701,8 @@ TSharedPtr<SDockingNode> FTabManager::RestoreArea_Helper(const TSharedRef<FLayou
 		{
 			if ((SomeTab.TabState == ETabState::OpenedTab || SomeTab.TabState == ETabState::SidebarTab) && IsValidTabForSpawning(SomeTab))
 			{
-				const TSharedPtr<SDockTab> NewTabWidget = SpawnTab(SomeTab.TabId, ParentWindow, bCanOutputBeNullptr);
+				const bool bCanUnrecognizedTabBeNullptr = true;
+				const TSharedPtr<SDockTab> NewTabWidget = SpawnTab(SomeTab.TabId, ParentWindow, bCanUnrecognizedTabBeNullptr);
 
 				if (NewTabWidget.IsValid())
 				{

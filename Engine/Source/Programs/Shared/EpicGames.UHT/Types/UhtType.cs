@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -17,11 +18,6 @@ namespace EpicGames.UHT.Types
 	/// </summary>
 	public enum UhtEngineType
 	{
-
-		/// <summary>
-		/// Type is a header file (UhtHeader)
-		/// </summary>
-		Header,
 
 		/// <summary>
 		/// Type is a package (UhtPackage)
@@ -85,7 +81,6 @@ namespace EpicGames.UHT.Types
 		{
 			switch (engineType)
 			{
-				case UhtEngineType.Header: return "header";
 				case UhtEngineType.Package: return "package";
 				case UhtEngineType.Class:
 				case UhtEngineType.Interface:
@@ -110,7 +105,6 @@ namespace EpicGames.UHT.Types
 		{
 			switch (engineType)
 			{
-				case UhtEngineType.Header: return "Header";
 				case UhtEngineType.Package: return "Package";
 				case UhtEngineType.Class:
 				case UhtEngineType.Interface:
@@ -135,7 +129,6 @@ namespace EpicGames.UHT.Types
 		{
 			switch (engineType)
 			{
-				case UhtEngineType.Header: return "header";
 				case UhtEngineType.Package: return "package";
 				case UhtEngineType.Class: return "class";
 				case UhtEngineType.Interface: return "interface";
@@ -160,7 +153,6 @@ namespace EpicGames.UHT.Types
 		{
 			switch (engineType)
 			{
-				case UhtEngineType.Header: return "Header";
 				case UhtEngineType.Package: return "Package";
 				case UhtEngineType.Class: return "Class";
 				case UhtEngineType.Interface: return "Interface";
@@ -277,7 +269,6 @@ namespace EpicGames.UHT.Types
 		{
 			switch (engineType)
 			{
-				case UhtEngineType.Header: return 0;
 				case UhtEngineType.Package: return 0;
 				case UhtEngineType.Class: return UhtFindOptions.Class;
 				case UhtEngineType.Interface: return UhtFindOptions.Class;
@@ -528,6 +519,7 @@ namespace EpicGames.UHT.Types
 	/// Not all types support the given options.
 	/// </summary>
 	[Flags]
+	[SuppressMessage("Usage", "CA2217:Do not mark enums with FlagsAttribute")]
 	public enum UhtDefineScope
 	{
 
@@ -727,7 +719,19 @@ namespace EpicGames.UHT.Types
 		/// All UHT runs are associated with a given session.  The session holds all the global information for a run.
 		/// </summary>
 		[JsonIgnore]
-		public UhtSession Session { get; set; }
+		public UhtSession Session => Module.Session;
+
+		/// <summary>
+		/// UHT module of the package (1 to 1 relationship)
+		/// </summary>
+		[JsonIgnore]
+		public UhtModule Module { get; }
+
+		/// <summary>
+		/// The header file containing the type
+		/// </summary>
+		[JsonIgnore]
+		public UhtHeaderFile HeaderFile => _headerFile ?? throw new UhtIceException("Attempt to fetch the header file for a type that isn't associated with a header");
 
 		/// <summary>
 		/// Every type in a session is assigned a unique, non-zero id.
@@ -755,23 +759,6 @@ namespace EpicGames.UHT.Types
 					type = type.Outer;
 				}
 				return (UhtPackage)type;
-			}
-		}
-
-		/// <summary>
-		/// The header file containing the type
-		/// </summary>
-		[JsonIgnore]
-		public virtual UhtHeaderFile HeaderFile
-		{
-			get
-			{
-				UhtType type = this;
-				while (type.Outer != null && type.Outer.Outer != null)
-				{
-					type = type.Outer;
-				}
-				return (UhtHeaderFile)type;
 			}
 		}
 
@@ -812,6 +799,12 @@ namespace EpicGames.UHT.Types
 		/// </summary>
 		[JsonConverter(typeof(JsonStringEnumConverter))]
 		public UhtDefineScope DefineScope { get; set; } = UhtDefineScope.None;
+
+		/// <summary>
+		/// If true, the type has not been marked as invalid.
+		/// </summary>
+		[JsonIgnore]
+		public bool IsValid { get; set; } = true;
 
 		/// <summary>
 		/// Return a combination of the engine type name followed by the path name of the type
@@ -874,6 +867,7 @@ namespace EpicGames.UHT.Types
 
 		private string? _engineName = null;
 		private List<UhtType>? _children = null;
+		private readonly UhtHeaderFile? _headerFile = null;
 		private int _resolveState = (int)UhtResolvePhase.None * 2;
 
 		#region IUHTMessageSite implementation
@@ -898,26 +892,28 @@ namespace EpicGames.UHT.Types
 		/// Construct the base type information.  This constructor is used exclusively by UhtPackage which is at 
 		/// the root of all type hierarchies.
 		/// </summary>
-		/// <param name="session"></param>
-		protected UhtType(UhtSession session)
+		/// <param name="module>"></param>
+		protected UhtType(UhtModule module)
 		{
-			Session = session;
+			Module = module;
 			Outer = null;
 			SourceName = String.Empty;
 			LineNumber = 1;
-			TypeIndex = session.GetNextTypeIndex();
+			TypeIndex = Session.GetNextTypeIndex();
 			MetaData = new UhtMetaData(this, Session.Config);
 		}
 
 		/// <summary>
 		/// Construct instance of the type given a parent type.
 		/// </summary>
+		/// <param name="headerFile">Header file being parsed</param>
 		/// <param name="outer">The outer type of the type being constructed.  For example, a class defined in a given header will have the header as the outer.</param>
 		/// <param name="lineNumber">The line number in the source file where the type was defined.</param>
 		/// <param name="metaData">Optional meta data to be associated with the type.</param>
-		protected UhtType(UhtType outer, int lineNumber, UhtMetaData? metaData = null)
+		protected UhtType(UhtHeaderFile headerFile, UhtType outer, int lineNumber, UhtMetaData? metaData = null)
 		{
-			Session = outer.Session;
+			Module = headerFile.Module;
+			_headerFile = headerFile;
 			Outer = outer;
 			SourceName = String.Empty;
 			LineNumber = lineNumber;
@@ -933,38 +929,38 @@ namespace EpicGames.UHT.Types
 		/// <param name="child">The child to be added.</param>
 		public virtual void AddChild(UhtType child)
 		{
-			if (_children == null)
-			{
-				_children = new List<UhtType>();
-			}
+			AddChildDirectly(child);
+		}
+
+		/// <summary>
+		/// Non-virtual method that always adds the child directly to the child list
+		/// </summary>
+		/// <param name="child">Child to be added</param>
+		public void AddChildDirectly(UhtType child)
+		{
+			_children ??= new();
 			_children.Add(child);
 		}
 
 		/// <summary>
-		/// Return the list of children attached to the type.  The 
-		/// list associated with the type is cleared.
+		/// Move all children from the given source type to this type
 		/// </summary>
-		/// <returns>The current list of children</returns>
-		public List<UhtType>? DetachChildren()
+		/// <param name="source">Source of the children</param>
+		public void MoveChildren(UhtType source)
 		{
-			List<UhtType>? children = _children;
-			_children = null;
-			return children;
-		}
-
-		/// <summary>
-		/// Merge the list children into the type.  The child's outer is set.
-		/// </summary>
-		/// <param name="children">List of children to add.</param>
-		public void AddChildren(List<UhtType>? children)
-		{
-			if (children != null)
+			if (_headerFile == null || _headerFile != source._headerFile)
 			{
-				foreach (UhtType child in children)
+				throw new UhtIceException("Children can not be moved to a package or between header files");
+			}
+			if (source._children != null)
+			{
+				_children ??= new();
+				foreach (UhtType child in source._children)
 				{
 					child.Outer = this;
-					AddChild(child);
+					_children.Add(child);
 				}
+				source._children = null;
 			}
 		}
 
@@ -1048,31 +1044,70 @@ namespace EpicGames.UHT.Types
 		{
 			if (_children != null)
 			{
-				if (phase == UhtResolvePhase.InvalidCheck)
+				ResolveChildren(_children, phase);
+			}
+		}
+
+		/// <summary>
+		/// Helper method to resolve a list of types
+		/// </summary>
+		/// <param name="children">Children to resolve</param>
+		/// <param name="phase">Phase of the resolve</param>
+		public static void ResolveChildren(List<UhtType> children, UhtResolvePhase phase)
+		{
+			if (phase == UhtResolvePhase.InvalidCheck)
+			{
+				int outIndex = 0;
+				for (int index = 0; index < children.Count; ++index)
 				{
-					int outIndex = 0;
-					for (int index = 0; index < _children.Count; ++index)
+					UhtType child = children[index];
+					if (child.Resolve(phase))
 					{
-						UhtType child = _children[index];
-						if (child.Resolve(phase))
-						{
-							_children[outIndex++] = child;
-						}
+						children[outIndex++] = child;
 					}
-					if (outIndex < _children.Count)
+					else
 					{
-						_children.RemoveRange(outIndex, _children.Count - outIndex);
+						child.IsValid = false;
 					}
 				}
-				else
+				if (outIndex < children.Count)
 				{
-					foreach (UhtType child in _children)
-					{
-						child.Resolve(phase);
-					}
+					children.RemoveRange(outIndex, children.Count - outIndex);
+				}
+			}
+			else
+			{
+				foreach (UhtType child in children)
+				{
+					child.Resolve(phase);
 				}
 			}
 		}
+
+		/// <summary>
+		/// Remove any invalid children that were previously marked bad.  This is only
+		/// executed on a UhtPackage
+		/// </summary>
+		public void RemoveInvalidChildren()
+		{
+			if (_children != null)
+			{
+				int outIndex = 0;
+				for (int index = 0; index < _children.Count; ++index)
+				{
+					UhtType child = _children[index];
+					if (child.IsValid)
+					{
+						_children[outIndex++] = child;
+					}
+				}
+				if (outIndex < _children.Count)
+				{
+					_children.RemoveRange(outIndex, _children.Count - outIndex);
+				}
+			}
+		}
+
 
 		/// <summary>
 		/// Resolve all the super and base structures and classes
@@ -1251,8 +1286,7 @@ namespace EpicGames.UHT.Types
 					outer.AppendPathName(builder, stopOuter);
 
 					// SubObjectDelimiter is used to indicate that this object's outer is not a UPackage
-					// In the C# version of UHT, we key off the header file
-					if (outer is not UhtHeaderFile && outer.Outer is UhtHeaderFile)
+					if (outer is not UhtPackage && outer.Outer is UhtPackage)
 					{
 						builder.Append(UhtFCString.SubObjectDelimiter);
 					}
@@ -1366,7 +1400,7 @@ namespace EpicGames.UHT.Types
 			else if (outer is UhtScriptStruct)
 			{
 				// Structs can also have UPackage outer.
-				if (outer.Outer is not UhtHeaderFile)
+				if (outer.Outer is not UhtPackage)
 				{
 					AppendOuterNames(builder, outer.Outer);
 				}
@@ -1376,12 +1410,7 @@ namespace EpicGames.UHT.Types
 			else if (outer is UhtPackage package)
 			{
 				builder.Append('_');
-				builder.Append(package.ShortName);
-			}
-			else if (outer is UhtHeaderFile)
-			{
-				// Pickup the package
-				AppendOuterNames(builder, outer.Outer);
+				builder.Append(package.Module.ShortName);
 			}
 			else
 			{

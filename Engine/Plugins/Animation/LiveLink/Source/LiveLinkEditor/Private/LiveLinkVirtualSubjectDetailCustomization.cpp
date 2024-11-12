@@ -6,7 +6,10 @@
 #include "DetailWidgetRow.h"
 #include "Framework/Views/TableViewMetadata.h"
 #include "ILiveLinkClient.h"
+#include "LiveLinkRole.h"
 #include "LiveLinkVirtualSubject.h"
+#include "Roles/LiveLinkAnimationRole.h"
+#include "Roles/LiveLinkBasicRole.h"
 #include "ScopedTransaction.h"
 #include "Widgets/Input/SCheckBox.h"
 
@@ -50,10 +53,14 @@ void FLiveLinkVirtualSubjectDetailCustomization::CustomizeDetails(IDetailLayoutB
 
 	if (Client)
 	{
-		TArray<FLiveLinkSubjectKey> SubjectKeys = Client->GetSubjectsSupportingRole(Subject->GetRole(), /*bIncludeDisabledSubject*/ false, /*bIncludeVirtualSubject*/ false);
+		TArray<FLiveLinkSubjectKey> SubjectKeys = Client->GetSubjects(/*bIncludeDisabledSubject*/ false, /*bIncludeVirtualSubject*/ false);
 		for (const FLiveLinkSubjectKey& SubjectKey : SubjectKeys)
 		{
-			SubjectsListItems.AddUnique(MakeShared<FName>(SubjectKey.SubjectName.Name));
+			TSubclassOf<ULiveLinkRole> LiveLinkRole = Client->GetSubjectRole_AnyThread(SubjectKey);
+			if (LiveLinkRole && (LiveLinkRole->IsChildOf(ULiveLinkAnimationRole::StaticClass()) || LiveLinkRole == ULiveLinkBasicRole::StaticClass()))
+			{
+				SubjectsListItems.AddUnique(MakeShared<FName>(SubjectKey.SubjectName.Name));
+			}
 		}
 	}
 
@@ -165,8 +172,10 @@ FSlateColor FLiveLinkVirtualSubjectDetailCustomization::HandleSubjectItemColor(F
 	if (ULiveLinkVirtualSubject* Subject = SubjectPtr.Get())
 	{
 		const FName ThisItem = *InItem.Get();
-		TArray<FLiveLinkSubjectKey> SubjectKeys = Client->GetSubjectsSupportingRole(Subject->GetRole(), /*bIncludeDisabledSubject*/ false, /*bIncludeVirtualSubject*/ false);
-		if (false == SubjectKeys.ContainsByPredicate([ThisItem](const FLiveLinkSubjectKey& Other) { return Other.SubjectName.Name == ThisItem; }))
+
+
+		TArray<FLiveLinkSubjectKey> SubjectKeys = Client->GetSubjects(/*bIncludeDisabledSubject*/ false, /*bIncludeVirtualSubject*/ false);
+		if (!SubjectKeys.ContainsByPredicate([ThisItem](const FLiveLinkSubjectKey& Other) { return Other.SubjectName.Name == ThisItem; }))
 		{
 			Result = FLinearColor::Red;
 		}
@@ -182,8 +191,8 @@ FText FLiveLinkVirtualSubjectDetailCustomization::HandleSubjectItemToolTip(FSubj
 	if (ULiveLinkVirtualSubject* Subject = SubjectPtr.Get())
 	{
 		const FName ThisItem = *InItem.Get();
-		TArray<FLiveLinkSubjectKey> SubjectKeys = Client->GetSubjectsSupportingRole(Subject->GetRole(), /*bIncludeDisabledSubject*/ false, /*bIncludeVirtualSubject*/ false);
-		if (false == SubjectKeys.ContainsByPredicate([ThisItem](const FLiveLinkSubjectKey& Other) { return Other.SubjectName.Name == ThisItem; }))
+		TArray<FLiveLinkSubjectKey> SubjectKeys = Client->GetSubjects(/*bIncludeDisabledSubject*/ false, /*bIncludeVirtualSubject*/ false);
+		if (!SubjectKeys.ContainsByPredicate([ThisItem](const FLiveLinkSubjectKey& Other) { return Other.SubjectName.Name == ThisItem; }))
 		{
 			Result = LOCTEXT("LinkedSubjectToolTip", "This subject was not found in the list of available LiveLink subjects. VirtualSubject might not work properly.");
 		}

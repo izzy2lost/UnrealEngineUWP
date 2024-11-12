@@ -3,21 +3,32 @@
 #include "VCamPixelStreamingSubsystem.h"
 
 #include "BuiltinProviders/VCamPixelStreamingSession.h"
-#include "VCamPixelStreamingLiveLink.h"
 
 #include "Engine/Engine.h"
 #include "Features/IModularFeatures.h"
 #include "ILiveLinkClient.h"
-#include "IPixelStreamingEditorModule.h"
+#include "PixelStreamingVCamLog.h"
+#include "LiveLink/VCamPixelStreamingLiveLink.h"
+
+UVCamPixelStreamingSubsystem* UVCamPixelStreamingSubsystem::Get()
+{
+	return GEngine ? GEngine->GetEngineSubsystem<UVCamPixelStreamingSubsystem>() : nullptr;
+}
 
 void UVCamPixelStreamingSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+
+	MissingSignallingServerNotifier = MakeUnique<UE::PixelStreamingVCam::FMissingSignallingServerNotifier>(*this);
+	SignalingServerLifecycle = MakeUnique<UE::PixelStreamingVCam::FSignalingServerLifecycle>(*this);
+	LiveLinkManager = MakeUnique<UE::PixelStreamingVCam::FLiveLinkManager>();
 }
 
 void UVCamPixelStreamingSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
+	RegisteredSessions.Empty();
+	
 	IModularFeatures& ModularFeatures = IModularFeatures::Get();
 	if (LiveLinkSource && ModularFeatures.IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
 	{
@@ -25,64 +36,31 @@ void UVCamPixelStreamingSubsystem::Deinitialize()
 		LiveLinkClient->RemoveSource(LiveLinkSource);
 	}
 	LiveLinkSource.Reset();
-}
 
-UVCamPixelStreamingSubsystem* UVCamPixelStreamingSubsystem::Get()
-{
-	return GEngine ? GEngine->GetEngineSubsystem<UVCamPixelStreamingSubsystem>() : nullptr;
+	MissingSignallingServerNotifier.Reset();
+	SignalingServerLifecycle.Reset();
 }
 
 void UVCamPixelStreamingSubsystem::RegisterActiveOutputProvider(UVCamPixelStreamingSession* OutputProvider)
 {
-	if (ensure(OutputProvider) && LiveLinkSource)
-	{
-		FName SubjectName = FName(OutputProvider->StreamerId);
-		LiveLinkSource->CreateSubject(SubjectName);
-		LiveLinkSource->PushTransformForSubject(SubjectName, FTransform::Identity);
-	}
+	check(OutputProvider);
+	RegisteredSessions.AddUnique(OutputProvider);
+	LiveLinkManager->CreateOrRefreshSubjectFor(*OutputProvider);
 }
 
 void UVCamPixelStreamingSubsystem::UnregisterActiveOutputProvider(UVCamPixelStreamingSession* OutputProvider)
 {
-	if (ensure(OutputProvider) && LiveLinkSource)
-	{
-		FName SubjectName = FName(OutputProvider->StreamerId);
-		LiveLinkSource->RemoveSubject(SubjectName);
-	}
+	check(OutputProvider);
+	RegisteredSessions.RemoveSingle(OutputProvider);
+	LiveLinkManager->DestroySubjectFor(*OutputProvider);
 }
 
-TSharedPtr<FPixelStreamingLiveLinkSource> UVCamPixelStreamingSubsystem::TryGetLiveLinkSource(UVCamPixelStreamingSession* OutputProvider)
+void UVCamPixelStreamingSubsystem::LaunchSignallingServerIfNeeded(UVCamPixelStreamingSession& Session)
 {
-	IModularFeatures& ModularFeatures = IModularFeatures::Get();
-	if (!ModularFeatures.IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
-	{
-		return nullptr;
-	}
-
-	ILiveLinkClient* LiveLinkClient = &ModularFeatures.GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
-	if (!LiveLinkSource.IsValid()
-		// User can manually remove live link sources via UI
-		|| !LiveLinkClient->HasSourceBeenAdded(LiveLinkSource))
-	{
-		LiveLinkSource = MakeShared<FPixelStreamingLiveLinkSource>();
-		LiveLinkClient->AddSource(LiveLinkSource);
-
-		if (IsValid(OutputProvider))
-		{
-			FName SubjectName = FName(OutputProvider->StreamerId);
-			LiveLinkSource->CreateSubject(SubjectName);
-			LiveLinkSource->PushTransformForSubject(SubjectName, FTransform::Identity);
-		}
-	}
-	return LiveLinkSource;
+	SignalingServerLifecycle->LaunchSignallingServerIfNeeded(Session);
 }
 
-void UVCamPixelStreamingSubsystem::LaunchSignallingServer()
+void UVCamPixelStreamingSubsystem::StopSignallingServerIfNeeded(UVCamPixelStreamingSession& Session)
 {
-	IPixelStreamingEditorModule::Get().StartSignalling();
-}
-
-void UVCamPixelStreamingSubsystem::StopSignallingServer()
-{
-	IPixelStreamingEditorModule::Get().StopSignalling();
+	SignalingServerLifecycle->StopSignallingServerIfNeeded(Session);
 }

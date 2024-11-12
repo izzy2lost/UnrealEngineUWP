@@ -180,6 +180,9 @@ private:
 	/** Whether to send analytics events to the backend - sent from controller */
 	bool bSendAnalytics;
 
+	/** Whether to prune log events from test report on success */
+	bool bPruneLogsOnSuccess;
+
 	/** Whether the controller has requested that the network command should execute */
 	bool bExecuteNextNetworkCommand;
 
@@ -194,4 +197,7 @@ private:
 
 	/** Tracking of active section */
 	FString ActiveSection;
+
+	/** Tracking of the active screenshot comparison ID **/
+	FGuid ActiveScreenshotComparisonId;
 };

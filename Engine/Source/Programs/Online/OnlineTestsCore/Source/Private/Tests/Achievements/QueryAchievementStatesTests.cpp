@@ -7,12 +7,10 @@
 #include "Helpers/LambdaStep.h"
 #include "OnlineCatchHelper.h"
 
-
 #define ACHIEVEMENTS_TAG "[suite_achievements]"
 #define EG_ACHIEVEMENTS_QUERYACHIEVEMENTSTATES_TAG ACHIEVEMENTS_TAG "[queryachievementstates]"
 
 #define ACHIEVEMENTS_TEST_CASE(x, ...) ONLINE_TEST_CASE(x, ACHIEVEMENTS_TAG __VA_ARGS__)
-
 
 ACHIEVEMENTS_TEST_CASE("Query Achievement States (Invalid User)", EG_ACHIEVEMENTS_QUERYACHIEVEMENTSTATES_TAG)
 {
@@ -21,7 +19,7 @@ ACHIEVEMENTS_TEST_CASE("Query Achievement States (Invalid User)", EG_ACHIEVEMENT
 	FQueryAchievementStatesHelper::FHelperParams QueryStatesHelperParams;
 	QueryStatesHelperParams.ExpectedError = FQueryAchievementStatesHelper::ResultType(UE::Online::Errors::InvalidUser());
 
-	GetLoginPipeline(AccountId)
+	GetLoginPipeline({ AccountId })
 		.EmplaceStep<FQueryAchievementStatesHelper>(MoveTemp(QueryStatesHelperParams));
 
 	RunToCompletion();
@@ -33,7 +31,7 @@ ACHIEVEMENTS_TEST_CASE("Query Achievement States (Invalid State)", EG_ACHIEVEMEN
 
 	FAccountId AccountId;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FQueryAchievementStatesHelper::FHelperParams QueryStatesHelperParams;
 	QueryStatesHelperParams.ExpectedError = FQueryAchievementStatesHelper::ResultType(UE::Online::Errors::InvalidState());
@@ -48,7 +46,7 @@ ACHIEVEMENTS_TEST_CASE("Query Achievement States (Success)", EG_ACHIEVEMENTS_QUE
 {
 	FAccountId AccountId;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 	
 	FQueryAchievementDefinitionsHelper::FHelperParams QueryDefinitionsHelperParams;
 	QueryDefinitionsHelperParams.OpParams.LocalAccountId = AccountId;
@@ -66,7 +64,7 @@ ACHIEVEMENTS_TEST_CASE("Get Achievement State (Invalid User)", EG_ACHIEVEMENTS_Q
 {
 	FAccountId AccountId;
 
-	GetLoginPipeline(AccountId)
+	GetLoginPipeline({ AccountId })
 		.EmplaceLambda([](SubsystemType OnlineSubsystem)
 			{
 				UE::Online::FGetAchievementState::Params Params;

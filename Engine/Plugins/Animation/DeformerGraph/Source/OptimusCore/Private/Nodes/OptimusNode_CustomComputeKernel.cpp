@@ -18,7 +18,7 @@
 #include "IOptimusDeprecatedExecutionDataInterface.h"
 #include "IOptimusUnnamedNodePinProvider.h"
 #include "OptimusNode_ResourceAccessorBase.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusNode_CustomComputeKernel)
 
@@ -102,7 +102,7 @@ UOptimusNode_CustomComputeKernel::UOptimusNode_CustomComputeKernel()
 
 FString UOptimusNode_CustomComputeKernel::GetKernelSourceText() const
 {
-	return Optimus::GetCookedKernelSource(GetPathName(), ShaderSource.ShaderText, KernelName.ToString(), GroupSize);
+	return Optimus::GetCookedKernelSource(GetPathName(), ShaderSource.ShaderText, GetKernelHlslName(), GroupSize);
 }
 
 FOptimusExecutionDomain UOptimusNode_CustomComputeKernel::GetExecutionDomain() const
@@ -275,7 +275,7 @@ EOptimusDataTypeUsageFlags UOptimusNode_CustomComputeKernel::GetTypeUsageFlags(c
 		return EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::AnimAttributes | EOptimusDataTypeUsageFlags::DataInterfaceOutput;
 	}
 
-	return EOptimusDataTypeUsageFlags::Resource;
+	return EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::PerBoneAnimAttribute;
 }
 
 
@@ -676,6 +676,62 @@ void UOptimusNode_CustomComputeKernel::OnDataTypeChanged(FName InTypeName)
 	Super::OnDataTypeChanged(InTypeName);
 	
 	UpdatePreamble();
+}
+
+void UOptimusNode_CustomComputeKernel::PostLoadNodeSpecificData()
+{
+	Super::PostLoadNodeSpecificData();
+
+	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::SwitchToParameterBindingArrayStruct)
+	{
+		Modify();
+		InputBindingArray.InnerArray = InputBindings_DEPRECATED;
+		OutputBindingArray.InnerArray = OutputBindings_DEPRECATED;
+	}
+	
+	if (!Parameters_DEPRECATED.IsEmpty())
+	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS		
+		TArray<FOptimusParameterBinding> ParameterInputBindings;
+
+		for (const FOptimus_ShaderBinding& OldBinding: Parameters_DEPRECATED)
+		{
+			FOptimusParameterBinding NewBinding;
+			NewBinding.Name = OldBinding.Name;
+			NewBinding.DataType = OldBinding.DataType;
+			NewBinding.DataDomain = FOptimusDataDomain();
+			
+			ParameterInputBindings.Add(NewBinding);
+		}
+		
+		InputBindingArray.InnerArray.Insert(ParameterInputBindings, 0);
+		
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+	
+	
+	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::KernelDataInterface)
+	{
+		PostLoadExtractExecutionDomain();
+		PostLoadAddMissingPrimaryGroupPin();
+	}
+
+	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::KernelParameterBindingToggleAtomic)
+	{
+		PostLoadExtractAtomicModeFromConnectedResource();
+	}
+
+	SetDisplayName(FText::FromName(KernelName));	
+}
+
+FString UOptimusNode_CustomComputeKernel::GetKernelHlslName() const
+{
+	// We need to append the node name here because of a weird issue on Mac where
+	// if the last word of the name of a shader parameter matches the kernel name, the value
+	// for the parameter is always zero for unknown reasons. (e.g. AnimAttribute named "XXXBend" & Kernel also named "Bend")
+	// Adding this bit of "random" string after the user provided kernel name should
+	// greatly reduce the chance of things like that happening
+	return KernelName.ToString() + TEXT("_") + GetName();
 }
 
 
@@ -1494,51 +1550,6 @@ void UOptimusNode_CustomComputeKernel::PropertyArrayItemMoved(
 
 #endif
 
-void UOptimusNode_CustomComputeKernel::PostLoad()
-{
-	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::SwitchToParameterBindingArrayStruct)
-	{
-		Modify();
-		InputBindingArray.InnerArray = InputBindings_DEPRECATED;
-		OutputBindingArray.InnerArray = OutputBindings_DEPRECATED;
-	}
-	
-	if (!Parameters_DEPRECATED.IsEmpty())
-	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS		
-		TArray<FOptimusParameterBinding> ParameterInputBindings;
-
-		for (const FOptimus_ShaderBinding& OldBinding: Parameters_DEPRECATED)
-		{
-			FOptimusParameterBinding NewBinding;
-			NewBinding.Name = OldBinding.Name;
-			NewBinding.DataType = OldBinding.DataType;
-			NewBinding.DataDomain = FOptimusDataDomain();
-			
-			ParameterInputBindings.Add(NewBinding);
-		}
-		
-		InputBindingArray.InnerArray.Insert(ParameterInputBindings, 0);
-		
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-	
-	Super::PostLoad();
-	
-	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::KernelDataInterface)
-	{
-		PostLoadExtractExecutionDomain();
-		PostLoadAddMissingPrimaryGroupPin();
-	}
-
-	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::KernelParameterBindingToggleAtomic)
-	{
-		PostLoadExtractAtomicModeFromConnectedResource();
-	}
-
-	SetDisplayName(FText::FromName(KernelName));
-}
-
 
 void UOptimusNode_CustomComputeKernel::ConstructNode()
 {
@@ -1761,7 +1772,7 @@ void UOptimusNode_CustomComputeKernel::PostLoadExtractExecutionDomain()
 {
 	ExecutionDomain = {};
 	// Check if there's an execution node connected and grab the domain from it.
-	FOptimusDataTypeHandle IntVector3Type = FOptimusDataTypeRegistry::Get().FindType(Optimus::GetTypeName(TBaseStructure<FIntVector3>::Get()));
+	FOptimusDataTypeHandle IntVector3Type = FOptimusDataTypeRegistry::Get().FindType(TBaseStructure<FIntVector3>::Get());
 
 	for (UOptimusNodePin* Pin: GetPins())
 	{

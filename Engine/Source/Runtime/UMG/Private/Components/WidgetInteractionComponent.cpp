@@ -132,7 +132,7 @@ UWidgetInteractionComponent::FWidgetTraceResult UWidgetInteractionComponent::Per
 
 	TArray<FHitResult> MultiHits;
 
-	FVector WorldDirection;
+	FVector WorldDirection = FVector::ZeroVector;
 
 	switch( InteractionSource )
 	{

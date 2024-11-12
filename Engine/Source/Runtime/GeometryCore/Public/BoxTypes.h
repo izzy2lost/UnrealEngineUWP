@@ -327,13 +327,15 @@ struct TAxisAlignedBox3
 	}
 
 
-	explicit operator FBox() const
+	template<typename OutRealType>
+	explicit operator TBox<OutRealType>() const
 	{
-		FBox ToRet((FVector)Min, (FVector)Max);
+		TBox<OutRealType> ToRet((TVector<OutRealType>)Min, (TVector<OutRealType>)Max);
 		ToRet.IsValid = !IsEmpty();
 		return ToRet;
 	}
-	TAxisAlignedBox3(const FBox& Box)
+	template<typename InRealType>
+	TAxisAlignedBox3(const TBox<InRealType>& Box)
 	{
 		if (Box.IsValid)
 		{
@@ -477,6 +479,15 @@ struct TAxisAlignedBox3
 	bool Contains(const TAxisAlignedBox3<RealType>& Box) const
 	{
 		return Contains(Box.Min) && Contains(Box.Max);
+	}
+
+	TVector<RealType> Clamp(const TVector<RealType>& V)
+	{
+		return TVector<RealType>(
+			FMath::Clamp(V.X, Min.X, Max.X),
+			FMath::Clamp(V.Y, Min.Y, Max.Y),
+			FMath::Clamp(V.Z, Min.Z, Max.Z)
+		);
 	}
 
 	TAxisAlignedBox3<RealType> Intersect(const TAxisAlignedBox3<RealType>& Box) const
@@ -647,18 +658,20 @@ struct TAxisAlignedBox2
 		this->Max = TVector2<RealType>(Center.X + HalfWidth, Center.Y + HalfWidth);
 	}
 
-	explicit operator FBox2D() const
+	template<typename OutRealType>
+	explicit operator TBox2<OutRealType>() const
 	{
-		FBox2D ToRet((FVector2D)Min, (FVector2D)Max);
+		TBox2<OutRealType> ToRet((TVector2<OutRealType>)Min, (TVector2<OutRealType>)Max);
 		ToRet.bIsValid = !IsEmpty();
 		return ToRet;
 	}
-	TAxisAlignedBox2(const FBox2D& Box)
+	template<typename InRealType>
+	TAxisAlignedBox2(const TBox2<InRealType>& Box)
 	{
 		if (Box.bIsValid)
 		{
-			Min = Box.Min;
-			Max = Box.Max;
+			Min = TVector2<RealType>(Box.Min);
+			Max = TVector2<RealType>(Box.Max);
 		}
 		else
 		{
@@ -750,6 +763,14 @@ struct TAxisAlignedBox2
 	bool Contains(const TAxisAlignedBox2<RealType>& Box) const
 	{
 		return Contains(Box.Min) && Contains(Box.Max);
+	}
+
+	TVector<RealType> Clamp(const TVector2<RealType>& V)
+	{
+		return TVector2<RealType>(
+			FMath::Clamp(V.X, Min.X, Max.X),
+			FMath::Clamp(V.Y, Min.Y, Max.Y)
+		);
 	}
 
 	bool Intersects(const TAxisAlignedBox2<RealType>& Box) const

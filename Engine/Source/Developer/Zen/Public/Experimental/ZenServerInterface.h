@@ -44,8 +44,14 @@ struct FServiceAutoLaunchSettings
 	bool bShowConsole = false;
 	bool bIsDefaultDataPath = false;
 	bool bLimitProcessLifetime = false;
+	bool bAllowRemoteNetworkService = false;
 	bool bSendUnattendedBugReports = false;
 	bool bIsDefaultSharedRunContext = true;
+	enum class EInstallMode
+	{
+		Copy,
+		Link
+	} InstallMode = EInstallMode::Copy;
 };
 
 struct FServiceSettings
@@ -204,8 +210,8 @@ public:
 private:
 
 	void Initialize();
-	FString ConditionalUpdateLocalInstall();
-	static bool AutoLaunch(const FServiceAutoLaunchSettings& InSettings, FString&& ExecutablePath, FString& OutHostName, uint16& OutPort);
+	bool ConditionalUpdateLocalInstall(FServiceAutoLaunchSettings::EInstallMode InstallMode);
+	static bool AutoLaunch(const FServiceAutoLaunchSettings& InSettings, const FString& ExecutablePath, const FString& ExecutionContextFilePath, FString& OutHostName, uint16& OutPort);
 	
 	mutable TPimplPtr<class FZenHttpRequest> GCStatusHttpRequest;
 	mutable TFuture<TOptional<FGCStatus>> GCStatusRequest;

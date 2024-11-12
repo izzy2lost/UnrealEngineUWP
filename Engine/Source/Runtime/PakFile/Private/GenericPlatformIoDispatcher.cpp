@@ -11,6 +11,13 @@
 
 //PRAGMA_DISABLE_OPTIMIZATION
 
+bool GIoDispatcherCullCancelledReadRequests = true;
+static FAutoConsoleVariableRef CVar_IoDispatcherCullCancelledReadRequests(
+	TEXT("s.IoDispatcherCullCancelledReadRequests"),
+	GIoDispatcherCullCancelledReadRequests,
+	TEXT("Process cancelled file read requests before starting I/O.")
+	TEXT("This can prevent the I/O dispatcher thread to stall due to the request queue getting too big.")
+);
 
 TRACE_DECLARE_INT_COUNTER_EXTERN(IoDispatcherFileBackendSequentialReads);
 TRACE_DECLARE_INT_COUNTER_EXTERN(IoDispatcherFileBackendForwardSeeks);
@@ -50,13 +57,22 @@ FGenericFileIoStoreImpl::~FGenericFileIoStoreImpl()
 
 bool FGenericFileIoStoreImpl::OpenContainer(const TCHAR* ContainerFilePath, uint64& ContainerFileHandle, uint64& ContainerFileSize)
 {
-	IPlatformFile& Ipf = IPlatformFile::GetPlatformPhysical();
-	int64 FileSize = Ipf.FileSize(ContainerFilePath);
+	IPlatformFile* Ipf = nullptr;
+	if (UE::IsUsingZenPakFileStreaming())
+	{
+		Ipf = &FPlatformFileManager::Get().GetPlatformFile();
+	}
+	else
+	{
+		Ipf = &IPlatformFile::GetPlatformPhysical();
+	}
+
+	const int64 FileSize = Ipf->FileSize(ContainerFilePath);
 	if (FileSize < 0)
 	{
 		return false;
 	}
-	IFileHandle* FileHandle = Ipf.OpenReadNoBuffering(ContainerFilePath);
+	IFileHandle* FileHandle = Ipf->OpenReadNoBuffering(ContainerFilePath);
 	if (!FileHandle)
 	{
 		return false;
@@ -75,6 +91,23 @@ void FGenericFileIoStoreImpl::CloseContainer(uint64 ContainerFileHandle)
 
 bool FGenericFileIoStoreImpl::StartRequests(FFileIoStoreRequestQueue& RequestQueue)
 {
+	if (GIoDispatcherCullCancelledReadRequests)
+	{
+		TArray<FFileIoStoreReadRequest*> Cancelled;
+		RequestQueue.PopCancelled(Cancelled);
+		if (!Cancelled.IsEmpty())
+		{
+			{
+				FScopeLock _(&CompletedRequestsCritical);
+				for (FFileIoStoreReadRequest* Request : Cancelled)
+				{
+					CompletedRequests.Add(Request);
+				}
+			}
+			WakeUpDispatcherThreadDelegate->Execute();
+		}
+	}
+
 	if (!AcquiredBuffer)
 	{
 		AcquiredBuffer = BufferAllocator->AllocBuffer();

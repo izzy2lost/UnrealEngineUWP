@@ -108,9 +108,9 @@ class UGameplayTagsSettings : public UGameplayTagsList
 	UPROPERTY(config, EditAnywhere, Category = GameplayTags, meta = (ConfigRestartRequired = true))
 	bool WarnOnInvalidTags;
 
-	/** If true, will clear any invalid tags when reading in saved tag references that are not in the dictionary */
-	UPROPERTY(config, EditAnywhere, Category = GameplayTags, meta = (ConfigRestartRequired = true))
-	bool ClearInvalidTags;
+	UE_DEPRECATED(5.5, "We never clear invalid tags when reading saved tag references as the loading order of native tags is not guaranteed.")
+	UPROPERTY(config)
+	bool ClearInvalidTags = false;
 
 	/** If true, will allow unloading of tags in the editor when plugins are removed */
 	UPROPERTY(config, EditAnywhere, Category = "Advanced Gameplay Tags")
@@ -123,6 +123,10 @@ class UGameplayTagsSettings : public UGameplayTagsList
 	/** If true, will replicate gameplay tags by index instead of name. For this to work, tags must be identical on client and server */
 	UPROPERTY(config, EditAnywhere, Category = "Advanced Replication")
 	bool FastReplication;
+
+	/** If true, will replicate gameplay tags dynamically by index per connection. Slightly higher cost than FastReplication, but tags can differ between client and server */
+	UPROPERTY(config, EditAnywhere, Category = "Advanced Replication", meta=(EditCondition="!FastReplication"))
+	bool bDynamicReplication;
 
 	/** These characters cannot be used in gameplay tags, in addition to special ones like newline*/
 	UPROPERTY(config, EditAnywhere, Category = GameplayTags)
@@ -168,6 +172,10 @@ class UGameplayTagsSettings : public UGameplayTagsList
 	/** Add a new gameplay tag config file for saving plugin or game-specific tags. */
 	UPROPERTY(EditAnywhere, transient, Category = "GameplayTags")
 	FString NewTagSource;
+
+	/** Find and remove unused tags */
+	UPROPERTY(EditAnywhere, transient, Category = "GameplayTags")
+	FString CleanupUnusedTags;
 #endif
 
 #if WITH_EDITOR

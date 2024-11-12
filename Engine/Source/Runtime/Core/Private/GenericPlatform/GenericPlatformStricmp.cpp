@@ -124,7 +124,7 @@ int32 FGenericPlatformStricmp::Strnicmp(const UTF32CHAR* Str1, const ANSICHAR*  
 
 #include "Misc/AutomationTest.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGenericPlatformStricmpTest, "System.Core.GenericPlatform.Stricmp", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGenericPlatformStricmpTest, "System.Core.GenericPlatform.Stricmp", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 
 // Simpler reference implementation based on ToLower() instead of a lookup table.
 // Used to verify correctness on non-Windows platforms

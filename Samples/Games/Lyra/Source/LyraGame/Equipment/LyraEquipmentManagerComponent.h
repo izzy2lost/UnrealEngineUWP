@@ -110,7 +110,7 @@ struct TStructOpsTypeTraits<FLyraEquipmentList> : public TStructOpsTypeTraitsBas
  * Manages equipment applied to a pawn
  */
 UCLASS(BlueprintType, Const)
-class ULyraEquipmentManagerComponent : public UPawnComponent
+class LYRAGAME_API ULyraEquipmentManagerComponent : public UPawnComponent
 {
 	GENERATED_BODY()
 

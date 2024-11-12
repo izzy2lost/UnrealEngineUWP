@@ -23,7 +23,7 @@ class CONTROLRIGDEVELOPER_API UControlRigGraphSchema : public URigVMEdGraphSchem
 
 public:
 	/** Name constants */
-	static const FName GraphName_ControlRig;
+	static inline const FLazyName GraphName_ControlRig = FLazyName(TEXT("Rig"));
 
 public:
 	UControlRigGraphSchema();
@@ -32,6 +32,6 @@ public:
 	virtual FLinearColor GetPinTypeColor(const FEdGraphPinType& PinType) const override;
 
 	// URigVMEdGraphSchema interface
-	virtual const FName& GetRootGraphName() const override { return GraphName_ControlRig; }
+	virtual const FLazyName& GetRootGraphName() const override { return GraphName_ControlRig; }
 	virtual bool IsRigVMDefaultEvent(const FName& InEventName) const override;
 };

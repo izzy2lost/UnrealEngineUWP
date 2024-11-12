@@ -59,7 +59,7 @@ public:
 
 	virtual void Tick() override;
 
-	virtual TSharedPtr<struct FCompareRowByColumnBase> GetPropertySorter(FProperty* Property, EColumnSortMode::Type SortMode) override;
+	virtual TSharedPtr<struct FCompareRowByColumnBase> GetPropertySorter(const FProperty* Property, EColumnSortMode::Type SortMode) override;
 
 	DECLARE_DERIVED_EVENT( FPropertyTableColumn, IPropertyTableColumn::FFrozenStateChanged, FFrozenStateChanged );
 	FFrozenStateChanged* OnFrozenStateChanged() override { return &FrozenStateChanged; }

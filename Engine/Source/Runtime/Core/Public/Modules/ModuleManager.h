@@ -60,7 +60,10 @@ enum class EModuleLoadResult
 	CouldNotBeLoadedByOS,
 
 	/** Module initialization failed. */
-	FailedToInitialize
+	FailedToInitialize,
+
+	/** A thread attempted to load the module before the Game thread did. */
+	NotLoadedByGameThread
 };
 
 /**
@@ -337,6 +340,8 @@ public:
 private:
 	static CORE_API IModuleInterface* GetModulePtr_Internal(FName ModuleName);
 
+	IModuleInterface* GetOrLoadModule(const FName InModuleName, EModuleLoadResult& OutFailureReason, ELoadModuleFlags InLoadModuleFlags = ELoadModuleFlags::None);
+
 public:
 
 	/**
@@ -510,19 +515,22 @@ public:
 	 *
 	 * @return The multicast delegate.
 	 */
-	using FModulesChangedEvent = TTSMulticastDelegate<void(FName ModuleName, EModuleChangeReason ChangeReason)>;
-	FModulesChangedEvent& OnModulesChanged( )
+	using FModulesChangedEvent UE_DEPRECATED(5.5, "The FModulesChangedEvent typedef has been deprecated - use TTSMulticastDelegateRegistration<void(FName, EModuleChangeReason)> instead.") = TTSMulticastDelegate<void(FName ModuleName, EModuleChangeReason ChangeReason)>;
+	TTSMulticastDelegateRegistration<void(FName ModuleName, EModuleChangeReason ChangeReason)>& OnModulesChanged( )
 	{
 		return ModulesChangedEvent;
 	}
 
 	/**
 	 * Gets a multicast delegate that is executed when any UObjects need processing after a module was loaded.
+	 * Do not use this delegate if you wish to monitor the registration of UObjects for a module. 
+	 * Use either CompiledInUObjectsRegisteredDelegate in CoreUObject to reliably receive notifications after UObjects 
+	 * have been registered.
 	 *
 	 * @return The delegate.
 	 */
-	DECLARE_EVENT_TwoParams(FModuleManager, ProcessLoadedObjectsEvent, FName, bool);
-	ProcessLoadedObjectsEvent& OnProcessLoadedObjectsCallback()
+	using ProcessLoadedObjectsEvent UE_DEPRECATED(5.5, "The ProcessLoadedObjectsEvent typedef has been deprecated - use TMulticastDelegateRegistration<void(FName, bool)> instead.") = TMulticastDelegate<void(FName, bool)>;
+	TMulticastDelegateRegistration<void(FName, bool)>& OnProcessLoadedObjectsCallback()
 	{
 		return ProcessLoadedObjectsCallback;
 	}
@@ -652,6 +660,13 @@ private:
 
 	/** Refreshes the filename of a new module from the manifest */
 	CORE_API void RefreshModuleFilenameFromManifestImpl(const FName InModuleName, FModuleInfo& ModuleInfo);
+
+	/** Load the library for a given module */
+	void* InternalLoadLibrary(FName ModuleName, const FString& ModuleFileToLoad);
+
+	/** Attempt to free the backing library for a module */
+	void InternalFreeLibrary(FName ModuleName, void* Handle);
+
 #endif
 
 	/** Adds pending module initializer registrations to the StaticallyLinkedModuleInitializers map. */
@@ -660,6 +675,24 @@ private:
 private:
 	/** Map of all modules.  Maps the case-insensitive module name to information about that module, loaded or not. */
 	FModuleMap Modules;
+
+#if UE_MERGED_MODULES
+
+	struct FModuleManagerLibraryTracker
+	{
+		FModuleManagerLibraryTracker()
+			: Handle(nullptr)
+			, Users()
+		{}
+
+		void* Handle;
+		TArray<FName> Users;
+	};
+
+	/** Map of loaded DLL handles for when merged modular build is in use */
+	TMap<FString, FModuleManagerLibraryTracker> LoadedDynamicLibraries;
+
+#endif // UE_MERGED_MODULES
 
 	/** Pending registrations of module names */
 	/** We use an array here to stop comparisons (and thus FNames being constructed) when they are registered. */
@@ -680,10 +713,10 @@ private:
 
 	/** Multicast delegate that will broadcast a notification when modules are loaded, unloaded, or
 		our set of known modules changes */
-	FModulesChangedEvent ModulesChangedEvent;
+	TTSMulticastDelegate<void(FName ModuleName, EModuleChangeReason ChangeReason)> ModulesChangedEvent;
 	
 	/** Multicast delegate called to process any new loaded objects. */
-	ProcessLoadedObjectsEvent ProcessLoadedObjectsCallback;
+	TMulticastDelegate<void(FName, bool)> ProcessLoadedObjectsCallback;
 
 	/** When module manager is linked against an application that supports UObjects, this delegate will be primed
 		at startup to provide information about whether a UObject package is loaded into memory. */
@@ -741,16 +774,36 @@ public:
 	}
 };
 
-
 /**
  * Function pointer type for InitializeModule().
  *
- * All modules must have an InitializeModule() function. Usually this is declared automatically using
- * the IMPLEMENT_MODULE macro below. The function must be declared using as 'extern "C"' so that the
+ * All modules must have a FModuleInitializerEntry instance or an InitializeModule() function. Usually this is declared automatically using
+ * the IMPLEMENT_MODULE macro below. If using the function it must be declared using as 'extern "C"' so that the
  * name remains undecorated. The object returned will be "owned" by the caller, and will be deleted
  * by the caller before the module is unloaded.
  */
 typedef IModuleInterface* ( *FInitializeModuleFunctionPtr )( void );
+
+
+/**
+ * Intrusive linked list containing name and initializer function pointer of loaded modules.
+ * Use this instead of "InitializeModule()" when possible
+ */
+class FModuleInitializerEntry
+{
+public:
+	CORE_API FModuleInitializerEntry(const TCHAR* InName, FInitializeModuleFunctionPtr InFunction, const TCHAR* InName2 = nullptr);
+	CORE_API ~FModuleInitializerEntry();
+
+	static FInitializeModuleFunctionPtr FindModule(const TCHAR* Name);
+
+private:
+	FModuleInitializerEntry* Prev;
+	FModuleInitializerEntry* Next;
+	const TCHAR* Name;
+	const TCHAR* Name2;
+	FInitializeModuleFunctionPtr Function;
+};
 
 
 /**
@@ -793,14 +846,36 @@ class FDefaultGameModuleImpl
  *
  * @see IMPLEMENT_GAME_MODULE
  */
-#if IS_MONOLITHIC
+
+namespace UE::Core::Private
+{
+	constexpr bool ModuleNameEquals(const char* Lhs, const char* Rhs)
+	{
+		for (;;)
+		{
+			if (*Lhs != *Rhs)
+			{
+				return false;
+			}
+
+			if (*Lhs == '\0')
+			{
+				return true;
+			}
+
+			++Lhs;
+			++Rhs;
+		}
+	}
+}
+#if IS_MONOLITHIC || UE_MERGED_MODULES
 
 	// If we're linking monolithically we assume all modules are linked in with the main binary.
 	#define IMPLEMENT_MODULE( ModuleImplClass, ModuleName ) \
 		/** Global registrant object for this module when linked statically */ \
 		static FStaticallyLinkedModuleRegistrant< ModuleImplClass > ModuleRegistrant##ModuleName( TEXT(#ModuleName) ); \
 		/* Forced reference to this function is added by the linker to check that each module uses IMPLEMENT_MODULE */ \
-		extern "C" void IMPLEMENT_MODULE_##ModuleName() { } \
+		extern "C" void IMPLEMENT_MODULE_##ModuleName() { UE_STATIC_ASSERT_WARN(UE::Core::Private::ModuleNameEquals(#ModuleName, UE_MODULE_NAME ), "Module name mismatch (" #ModuleName " != " UE_MODULE_NAME "). Please ensure module name passed to IMPLEMENT_MODULE is " UE_MODULE_NAME " to avoid runtime errors in monolithic builds."); } \
 		PER_MODULE_BOILERPLATE_ANYLINK(ModuleImplClass, ModuleName)
 
 #else
@@ -812,13 +887,13 @@ class FDefaultGameModuleImpl
 		/**/ \
 		/* @return	Returns an instance of this module */ \
 		/**/ \
-		extern "C" DLLEXPORT IModuleInterface* InitializeModule() \
+		static IModuleInterface* Initialize##ModuleName##Module() \
 		{ \
 			return new ModuleImplClass(); \
 		} \
+		static FModuleInitializerEntry ModuleName##InitializerEntry(TEXT(#ModuleName), Initialize##ModuleName##Module, TEXT(UE_MODULE_NAME)); \
 		/* Forced reference to this function is added by the linker to check that each module uses IMPLEMENT_MODULE */ \
-		extern "C" void IMPLEMENT_MODULE_##ModuleName() { } \
-		PER_MODULE_BOILERPLATE \
+		extern "C" void IMPLEMENT_MODULE_##ModuleName() { UE_STATIC_ASSERT_WARN(UE::Core::Private::ModuleNameEquals(#ModuleName, UE_MODULE_NAME ), "Module name mismatch (" #ModuleName " != " UE_MODULE_NAME "). Please ensure module name passed to IMPLEMENT_MODULE is " UE_MODULE_NAME " to avoid runtime errors in monolithic builds."); } \
 		PER_MODULE_BOILERPLATE_ANYLINK(ModuleImplClass, ModuleName)
 
 #endif //IS_MONOLITHIC
@@ -849,21 +924,6 @@ class FDefaultGameModuleImpl
 	#endif
 #else
 	#define IMPLEMENT_FOREIGN_ENGINE_DIR() 
-#endif
-
-/**
- * Macros for setting the source directories for live coding builds. This allows locally packaging a target and patching code into it.
- */
-#ifdef UE_LIVE_CODING_ENGINE_DIR
-	#define IMPLEMENT_LIVE_CODING_ENGINE_DIR() const TCHAR* GLiveCodingEngineDir = TEXT(UE_LIVE_CODING_ENGINE_DIR);
-	#ifdef UE_LIVE_CODING_PROJECT
-		#define IMPLEMENT_LIVE_CODING_PROJECT() const TCHAR* GLiveCodingProject = TEXT(UE_LIVE_CODING_PROJECT);
-	#else
-		#define IMPLEMENT_LIVE_CODING_PROJECT() const TCHAR* GLiveCodingProject = nullptr;
-	#endif
-#else
-	#define IMPLEMENT_LIVE_CODING_ENGINE_DIR()
-	#define IMPLEMENT_LIVE_CODING_PROJECT()
 #endif
 
 /**
@@ -936,8 +996,6 @@ class FDefaultGameModuleImpl
 			/* For monolithic builds, we must statically define the game's name string (See Core.h) */ \
 			TCHAR GInternalProjectName[64] = TEXT( GameName ); \
 			IMPLEMENT_FOREIGN_ENGINE_DIR() \
-			IMPLEMENT_LIVE_CODING_ENGINE_DIR() \
-			IMPLEMENT_LIVE_CODING_PROJECT() \
 			IMPLEMENT_SIGNING_KEY_REGISTRATION() \
 			IMPLEMENT_ENCRYPTION_KEY_REGISTRATION() \
 			IMPLEMENT_GAME_MODULE(FDefaultGameModuleImpl, ModuleName) \
@@ -955,9 +1013,6 @@ class FDefaultGameModuleImpl
 					FCString::Strncpy(GInternalProjectName, TEXT( GameName ), UE_ARRAY_COUNT(GInternalProjectName)); \
 				} \
 			} AutoSet##ModuleName; \
-			IMPLEMENT_LIVE_CODING_ENGINE_DIR() \
-			IMPLEMENT_LIVE_CODING_PROJECT() \
-			PER_MODULE_BOILERPLATE \
 			PER_MODULE_BOILERPLATE_ANYLINK(FDefaultGameModuleImpl, ModuleName) \
 			FEngineLoop GEngineLoop;
 	#endif
@@ -976,8 +1031,6 @@ class FDefaultGameModuleImpl
 			/* Implement the GIsGameAgnosticExe variable (See Core.h). */ \
 			bool GIsGameAgnosticExe = false; \
 			IMPLEMENT_FOREIGN_ENGINE_DIR() \
-			IMPLEMENT_LIVE_CODING_ENGINE_DIR() \
-			IMPLEMENT_LIVE_CODING_PROJECT() \
 			IMPLEMENT_SIGNING_KEY_REGISTRATION() \
 			IMPLEMENT_ENCRYPTION_KEY_REGISTRATION() \
 			IMPLEMENT_TARGET_NAME_REGISTRATION() \
@@ -991,8 +1044,6 @@ class FDefaultGameModuleImpl
 			TCHAR GInternalProjectName[64] = TEXT( PREPROCESSOR_TO_STRING(UE_PROJECT_NAME) ); \
 			PER_MODULE_BOILERPLATE \
 			IMPLEMENT_FOREIGN_ENGINE_DIR() \
-			IMPLEMENT_LIVE_CODING_ENGINE_DIR() \
-			IMPLEMENT_LIVE_CODING_PROJECT() \
 			IMPLEMENT_SIGNING_KEY_REGISTRATION() \
 			IMPLEMENT_ENCRYPTION_KEY_REGISTRATION() \
 			IMPLEMENT_TARGET_NAME_REGISTRATION() \

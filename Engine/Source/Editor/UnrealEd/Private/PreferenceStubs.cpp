@@ -45,12 +45,15 @@ UPhysicsAssetEditorOptions::UPhysicsAssetEditorOptions(const FObjectInitializer&
 	bShowConstraintsAsPoints = false;
 	bDrawViolatedLimits = false;
 	bSimulationFloorCollisionEnabled = true;
+	COMRenderSize = 1.0f;
 	ConstraintDrawSize = 1.0f;
 
 	// view options
 	MeshViewMode = EPhysicsAssetEditorMeshViewMode::Solid;
+	CenterOfMassViewMode = EPhysicsAssetEditorCenterOfMassViewMode::None;
 	CollisionViewMode = EPhysicsAssetEditorCollisionViewMode::Solid;
 	ConstraintViewMode = EPhysicsAssetEditorConstraintViewMode::AllLimits;
+	SimulationCenterOfMassViewMode = EPhysicsAssetEditorCenterOfMassViewMode::None;
 	SimulationMeshViewMode = EPhysicsAssetEditorMeshViewMode::Solid;
 	SimulationCollisionViewMode = EPhysicsAssetEditorCollisionViewMode::Solid;
 	SimulationConstraintViewMode = EPhysicsAssetEditorConstraintViewMode::None;
@@ -59,6 +62,7 @@ UPhysicsAssetEditorOptions::UPhysicsAssetEditorOptions(const FObjectInitializer&
 	bSolidRenderingForSelectedOnly = false;
 	bHideSimulatedBodies = false;
 	bHideKinematicBodies = false;
+	bHideBodyMass = true;
 	bResetClothWhenSimulating = false;
 }
 

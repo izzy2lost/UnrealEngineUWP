@@ -110,8 +110,8 @@ public class ZipUtils : BuildCommand
 	/// </summary>
 	/// <param name="ZipFileName">Filename for the zip</param>
 	/// <param name="Filter">Filter which selects files to be included in the zip</param>
+	/// <param name="CompressionLevel"></param>
 	/// <param name="BaseDirectory">Base directory to store relative paths in the zip file to</param>
-	/// <param name="CopyModeOnly">No compression will be done. Only acts like a container. The default value is set to false.</param>
 	internal static void InternalZipFiles(FileReference ZipFileName, DirectoryReference BaseDirectory, FileFilter Filter, int CompressionLevel = 0)
 	{
 		using (Ionic.Zip.ZipFile Zip = new Ionic.Zip.ZipFile())

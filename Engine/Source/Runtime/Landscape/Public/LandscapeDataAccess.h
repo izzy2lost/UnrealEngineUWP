@@ -45,7 +45,7 @@ namespace LandscapeDataAccess
 
 	FORCEINLINE float UnpackHeight(const FColor& InHeightmapSample)
 	{
-		uint16 Height = (InHeightmapSample.R << 8) + InHeightmapSample.G;
+		uint16 Height = (uint16)(InHeightmapSample.R << 8) | (uint16)InHeightmapSample.G;
 		return GetLocalHeight(Height);
 	}
 
@@ -211,7 +211,7 @@ struct FLandscapeComponentDataInterfaceBase
 	uint16 GetHeight(int32 LocalX, int32 LocalY, const TArray<FColor>& HeightAndNormals) const
 	{
 		const FColor* Texel = GetHeightData(LocalX, LocalY, HeightAndNormals);
-		return (Texel->R << 8) + Texel->G;
+		return (uint16)(Texel->R << 8) | (uint16)Texel->G;
 	}
 
 	float GetScaleFactor() const
@@ -223,7 +223,7 @@ struct FLandscapeComponentDataInterfaceBase
 	{
 		const float ScaleFactor = GetScaleFactor();
 		
-		return FVector(LocalX * ScaleFactor , LocalY * ScaleFactor, LandscapeDataAccess::GetLocalHeight(GetHeight(LocalX, LocalY, HeightAndNormals)));
+		return FVector(ScaleFactor * (float)LocalX, ScaleFactor * (float)LocalY, LandscapeDataAccess::GetLocalHeight(GetHeight(LocalX, LocalY, HeightAndNormals)));
 	}
 
 	float GetLocalHeight(int32 LocalX, int32 LocalY, const TArray<FColor>& HeightAndNormals) const
@@ -327,7 +327,7 @@ struct FLandscapeComponentDataInterface : public FLandscapeComponentDataInterfac
 	uint16 GetHeight( int32 LocalX, int32 LocalY ) const
 	{
 		FColor* Texel = GetHeightData(LocalX, LocalY);
-		return (Texel->R << 8) + Texel->G;
+		return (uint16)(Texel->R << 8) | (uint16)Texel->G;
 	}
 
 	uint16 GetHeight( int32 VertexIndex ) const

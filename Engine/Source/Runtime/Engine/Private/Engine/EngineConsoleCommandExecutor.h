@@ -19,7 +19,7 @@ public:
 	FText GetDescription() const final;
 	FText GetHintText() const final;
 
-	void GetAutoCompleteSuggestions(const TCHAR* Input, TArray<FString>& Out) final;
+	void GetSuggestedCompletions(const TCHAR* Input, TArray<FConsoleSuggestion>& Out) final;
 	void GetExecHistory(TArray<FString>& Out) final;
 	bool Exec(const TCHAR* Input) final;
 

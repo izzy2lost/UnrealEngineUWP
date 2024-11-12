@@ -2,16 +2,20 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
+
 #include "Async/TaskTrace.h"
+
+// TraceServices
 #include "TraceServices/Model/TasksProfiler.h"
 
-// Insights
-#include "Insights/TaskGraphProfiler/ViewModels/TaskTable.h"
+// TraceInsights
 #include "Insights/Table/Widgets/SSessionTableTreeView.h"
+#include "Insights/TaskGraphProfiler/ViewModels/TaskTable.h"
 
 class FMenuBuilder;
 
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -137,4 +141,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler

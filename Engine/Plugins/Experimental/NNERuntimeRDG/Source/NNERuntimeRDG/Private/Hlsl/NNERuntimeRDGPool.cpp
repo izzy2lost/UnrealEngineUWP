@@ -1,8 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGPool.h"
+
 #include "NNEHlslShadersConvCS.h"
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersPoolCS.h"
+#include "NNEHlslShadersTypeHelper.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
@@ -37,6 +40,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		TArray<int32> KernelShape;
 		int32 CeilMode = 0; // 0 is floor, 1 is ceil
 		int32 KernelVolume = 0;
+		EPixelFormat BufferPixelFormat;
 
 	public:
 
@@ -101,7 +105,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				check(OutputTensorDescs.Num() >= 1);
 				if (OutputTensorDescs.Num() > 1)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("MaxPool 2nd optional output 'Indices' is not supported."));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("MaxPool: 2nd optional output 'Indices' is not supported."));
 					return false;
 				}
 			}
@@ -115,7 +119,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (Input.GetShape().Rank() < 3)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("%s input should be at least of rank 3, to have 1+ spatial dimension(s) but is of rank %d"), GetOperatorName(), Input.GetShape().Rank());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("%s : Input should be at least of rank 3, to have 1+ spatial dimension(s) but is of rank %d"), GetOperatorName(), Input.GetShape().Rank());
 				return false;
 			}
 			NumSpatialDimensions = Input.GetShape().Rank() - 2;
@@ -137,22 +141,22 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (KernelShape.Num() != NumSpatialDimensions)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("%s KernelShape should have as many elements as the spatial dimensions of the input, got %d while input have %d."), GetOperatorName(), KernelShape.Num(), NumSpatialDimensions);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("%s: KernelShape should have as many elements as the spatial dimensions of the input, got %d while input have %d."), GetOperatorName(), KernelShape.Num(), NumSpatialDimensions);
 				return false;
 			}
 			if (Strides.Num() != NumSpatialDimensions)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("%s Strides should have as many elements as the spatial dimensions of the input, got %d while input have %d."), GetOperatorName(), Strides.Num(), NumSpatialDimensions);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("%s: Strides should have as many elements as the spatial dimensions of the input, got %d while input have %d."), GetOperatorName(), Strides.Num(), NumSpatialDimensions);
 				return false;
 			}
 			if (Dilations.Num() != NumSpatialDimensions)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("%s Dilations should have as many elements as the spatial dimensions of the input, got %d while input have %d."), GetOperatorName(), Dilations.Num(), NumSpatialDimensions);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("%s: Dilations should have as many elements as the spatial dimensions of the input, got %d while input have %d."), GetOperatorName(), Dilations.Num(), NumSpatialDimensions);
 				return false;
 			}
 			if (Pads.Num() != 2*NumSpatialDimensions)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("%s Pads should have twice as many elements as the spatial dimensions of the input, got %d while input have %d."), GetOperatorName(), Pads.Num(), NumSpatialDimensions);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("%s: Pads should have twice as many elements as the spatial dimensions of the input, got %d while input have %d."), GetOperatorName(), Pads.Num(), NumSpatialDimensions);
 				return false;
 			}
 
@@ -169,6 +173,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 					}
 				}
 			}
+			BufferPixelFormat = UE::NNEHlslShaders::Internal::TensorDataTypeToPixelFormat(Input.GetDataType());
 
 			return true;
 		}
@@ -184,8 +189,8 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			const FTensorRDG& Input = *InputTensors[0];
 			const FTensorRDG& Output = *OutputTensors[0];
-			const FRDGBufferSRVRef InputSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input.GetBuffer(), PF_R32_FLOAT));
-			const FRDGBufferUAVRef OutputUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output.GetBuffer(), PF_R32_FLOAT));
+			const FRDGBufferSRVRef InputSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input.GetBuffer(), BufferPixelFormat));
+			const FRDGBufferUAVRef OutputUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output.GetBuffer(), BufferPixelFormat));
 			const FIntVector ThreadGroupCount = ComputeElementWiseThreadGroups(Output.GetVolume(), FPoolConstants::NUM_GROUP_THREADS);
 
 			// Set parameters
@@ -223,7 +228,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			
 			if constexpr (PoolOperatorType == EPoolOperatorType::MAX_POOL)
 			{
-				RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.MaxPool");
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorMaxPool, "NNE.Operator.Hlsl.MaxPool");
 				RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorMaxPool);
 
 				FComputeShaderUtils::AddPass(
@@ -236,7 +241,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			}
 			else
 			{
-				RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.AveragePool");
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorAveragePool, "NNE.Operator.Hlsl.AveragePool");
 				RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorAveragePool);
 
 				FComputeShaderUtils::AddPass(
@@ -287,6 +292,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 		FInputValidator InputValidator;
 		InputValidator.AddSupportedType(ENNETensorDataType::Float);
+		InputValidator.AddSupportedType(ENNETensorDataType::Half);
 		InputValidator.AddRequired();
 		bIsValid &= InputValidator.Validate(InputTypes);
 

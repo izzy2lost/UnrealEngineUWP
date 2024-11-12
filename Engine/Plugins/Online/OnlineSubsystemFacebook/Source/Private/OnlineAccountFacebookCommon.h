@@ -111,6 +111,8 @@ protected:
 	FUserOnlineFacebookPicture Picture;
 	/** Ticket which is provided to user once authenticated by the online service */
 	FString AuthTicket;
+	/** Authorization Token received when using limited login*/
+	FString AuthToken;
 	/** Any addition account data associated with the user */
 	FJsonSerializableKeyValueMap AccountData;
 

@@ -51,7 +51,7 @@ public:
 	TSharedPtr<IDNAReader> GetGeometryReader();
 #endif
 
-	UPROPERTY(VisibleAnywhere, AssetRegistrySearchable, Category = ImportSettings)
+	UPROPERTY(AssetRegistrySearchable)
 	FString DnaFileName;
 
 	/** In non-editor builds, the DNA source data will be unloaded to save memory after the runtime
@@ -91,17 +91,15 @@ public:
 	  * deleted without affecting the other.
 	 **/
 	void InitializeForRuntimeFrom(UDNAAsset* Other);
+	TSharedPtr<FSharedRigRuntimeContext> GetRigRuntimeContext();
+	TSharedPtr<FDNAIndexMapping> GetDNAIndexMapping(const USkeleton* Skeleton, const USkeletalMesh* SkeletalMesh);
 
 private:
 	friend struct FAnimNode_RigLogic;
 	friend struct FRigUnit_RigLogic;
 
-	TSharedPtr<FSharedRigRuntimeContext> GetRigRuntimeContext();
 	void InvalidateRigRuntimeContext();
 	void InitializeRigRuntimeContext();
-	TSharedPtr<FDNAIndexMapping> GetDNAIndexMapping(const USkeleton* Skeleton,
-													const USkeletalMesh* SkeletalMesh,
-													const USkeletalMeshComponent* SkeletalMeshComponent);
 
 private:
 	// Synchronize DNA updates

@@ -9,16 +9,24 @@
 #include "Styling/ToolBarStyle.h"
 #include "Widgets/Images/SLayeredImage.h"
 
-
-FToolBarComboButtonBlock::FToolBarComboButtonBlock( const FUIAction& InAction, const FOnGetContent& InMenuContentGenerator, const TAttribute<FText>& InLabel, const TAttribute<FText>& InToolTip, const TAttribute<FSlateIcon>& InIcon, bool bInSimpleComboBox )
-	: FMultiBlock( InAction, NAME_None, EMultiBlockType::ToolBarComboButton )
-	, MenuContentGenerator( InMenuContentGenerator )
-	, Label( InLabel )
-	, ToolTip( InToolTip )
-	, Icon( InIcon )
+FToolBarComboButtonBlock::FToolBarComboButtonBlock(
+	const FUIAction& InAction,
+	const FOnGetContent& InMenuContentGenerator,
+	const TAttribute<FText>& InLabel,
+	const TAttribute<FText>& InToolTip,
+	const TAttribute<FSlateIcon>& InIcon,
+	bool bInSimpleComboBox,
+	TAttribute<FText> InToolbarLabelOverride
+)
+	: FMultiBlock(InAction, NAME_None, EMultiBlockType::ToolBarComboButton)
+	, MenuContentGenerator(InMenuContentGenerator)
+	, Label(InLabel)
+	, ToolbarLabelOverride(InToolbarLabelOverride)
+	, ToolTip(InToolTip)
+	, Icon(InIcon)
 	, LabelVisibility()
-	, bSimpleComboBox( bInSimpleComboBox )
-	, bForceSmallIcons( false )
+	, bSimpleComboBox(bInSimpleComboBox)
+	, bForceSmallIcons(false)
 {
 }
 
@@ -111,7 +119,14 @@ void SToolBarComboButtonBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet
 			IconWidget = ActualIconWidget;
 		}
 
-		Label = ToolBarComboButtonBlock->Label;
+		if (ToolBarComboButtonBlock->ToolbarLabelOverride.IsSet())
+		{
+			Label = ToolBarComboButtonBlock->ToolbarLabelOverride;
+		}
+		else
+		{
+			Label = ToolBarComboButtonBlock->Label;
+		}
 	}
 
 	// Add this widget to the search list of the multibox
@@ -246,6 +261,17 @@ bool SToolBarComboButtonBlock::IsEnabled() const
 
 EVisibility SToolBarComboButtonBlock::GetVisibility() const
 {
+	// Let the visibility override take prescedence here.
+	// However, if it returns Visible, let the other methods have a chance to change that.
+	if (MultiBlock->GetVisibilityOverride().IsSet())
+	{
+		const EVisibility OverrideVisibility = MultiBlock->GetVisibilityOverride().Get();
+		if (OverrideVisibility != EVisibility::Visible)
+		{
+			return OverrideVisibility;
+		}
+	}
+
 	const FUIAction& UIAction = MultiBlock->GetDirectActions();
 	if (UIAction.IsActionVisibleDelegate.IsBound())
 	{

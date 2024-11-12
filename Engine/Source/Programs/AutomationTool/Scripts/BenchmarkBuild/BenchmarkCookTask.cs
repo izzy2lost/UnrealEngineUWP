@@ -70,7 +70,7 @@ namespace AutomationTool.Benchmark
 		{
 			string Arguments = GetBasicEditorCommandLine(false);
 			// will throw an exception if it fails
-			CommandUtils.RunCommandlet(ProjectTarget.ProjectFile, "UnrealEditor-Cmd.exe", "Cook", String.Format("-TargetPlatform={0} {1}", CookPlatformName, Arguments));
+			CommandUtils.RunCommandlet(ProjectTarget.ProjectFile, UnrealExe:null, "Cook", String.Format("-TargetPlatform={0} {1}", CookPlatformName, Arguments));
 			return true;
 		}
 	}

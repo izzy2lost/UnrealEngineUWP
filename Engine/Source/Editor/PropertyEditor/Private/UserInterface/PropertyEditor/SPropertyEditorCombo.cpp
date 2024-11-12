@@ -2,7 +2,7 @@
 
 #include "UserInterface/PropertyEditor/SPropertyEditorCombo.h"
 #include "IDocumentation.h"
-
+#include "Widgets/SToolTip.h"
 #include "PropertyEditorHelpers.h"
 #include "UserInterface/PropertyEditor/SPropertyComboBox.h"
 
@@ -39,12 +39,14 @@ void SPropertyEditorCombo::Construct( const FArguments& InArgs, const TSharedPtr
 	PropertyEditor = InPropertyEditor;
 	ComboArgs = InArgs._ComboArgs;
 
+	bool bSegmentedDisplay = false;
 	if (PropertyEditor.IsValid())
 	{
 		ComboArgs.PropertyHandle = PropertyEditor->GetPropertyHandle();
 		if (ComboArgs.PropertyHandle.IsValid())
 		{
 			ComboArgs.PropertyHandle->SetOnPropertyResetToDefault(FSimpleDelegate::CreateSP(this, &SPropertyEditorCombo::OnResetToDefault));
+			bSegmentedDisplay = ComboArgs.PropertyHandle->GetBoolMetaData(TEXT("SegmentedDisplay"));
 		}
 	}
 
@@ -61,21 +63,62 @@ void SPropertyEditorCombo::Construct( const FArguments& InArgs, const TSharedPtr
 
 	GenerateComboBoxStrings(ComboItems, RichToolTips, Restrictions);
 
-	SAssignNew(ComboBox, SPropertyComboBox)
-		.Font( ComboArgs.Font )
-		.RichToolTipList( RichToolTips )
-		.ComboItemList( ComboItems )
-		.RestrictedList( Restrictions )
-		.OnSelectionChanged( this, &SPropertyEditorCombo::OnComboSelectionChanged )
-		.OnComboBoxOpening( this, &SPropertyEditorCombo::OnComboOpening )
-		.VisibleText( this, &SPropertyEditorCombo::GetDisplayValueAsString )
-		.ToolTipText( this, &SPropertyEditorCombo::GetValueToolTip )
-		.ShowSearchForItemCount( ComboArgs.ShowSearchForItemCount );
+	if (bSegmentedDisplay)
+	{
+		ParameterTextStyle = FTextBlockStyle(FAppStyle::GetWidgetStyle<FTextBlockStyle>("NormalText"))
+			.SetFont(ComboArgs.Font);
+		
+		SAssignNew(SegmentControl, SSegmentedControl<FString>)
+			.UniformPadding(FMargin(10, 5))
+			.TextStyle(&ParameterTextStyle)
+			.Value(this, &SPropertyEditorCombo::GetDisplayValueAsString)
+			.OnValueChanged(this, &SPropertyEditorCombo::OnSegmentedControlSelectionChanged);
 
-	ChildSlot
-	[
-		ComboBox.ToSharedRef()
-	];
+		for (int ItemIndex = 0; ItemIndex < ComboItems.Num(); ItemIndex++)
+		{
+			const FString& ComboItem = *ComboItems[ItemIndex];
+			SSegmentedControl<FString>::FScopedWidgetSlotArguments Slot = SegmentControl->AddSlot(ComboItem);
+			
+			FText DisplayName = FText::FromString(ComboItem);
+			FText TooltipText = DisplayName;
+			if (RichToolTips.IsValidIndex(ItemIndex) && !RichToolTips[ItemIndex]->IsEmpty())
+			{
+				Slot.ToolTipWidget(RichToolTips[ItemIndex]);
+			}
+			else
+			{
+				Slot.ToolTip(DisplayName);
+			}
+			
+			Slot
+			  .HAlign(HAlign_Center)
+			  .VAlign(VAlign_Center)
+			  .Text(DisplayName);
+		}
+		
+		ChildSlot
+		[
+			SegmentControl.ToSharedRef()
+		];
+	}
+	else
+	{
+		SAssignNew(ComboBox, SPropertyComboBox)
+			.Font( ComboArgs.Font )
+			.RichToolTipList( RichToolTips )
+			.ComboItemList( ComboItems )
+			.RestrictedList( Restrictions )
+			.OnSelectionChanged( this, &SPropertyEditorCombo::OnComboSelectionChanged )
+			.OnComboBoxOpening( this, &SPropertyEditorCombo::OnComboOpening )
+			.VisibleText( this, &SPropertyEditorCombo::GetDisplayValueAsString )
+			.ToolTipText( this, &SPropertyEditorCombo::GetValueToolTip )
+			.ShowSearchForItemCount( ComboArgs.ShowSearchForItemCount );
+
+		ChildSlot
+		[
+			ComboBox.ToSharedRef()
+		];
+	}
 
 	SetEnabled( TAttribute<bool>( this, &SPropertyEditorCombo::CanEdit ) );
 	SetToolTipText( TAttribute<FText>( this, &SPropertyEditorCombo::GetValueToolTip) );
@@ -150,10 +193,40 @@ void SPropertyEditorCombo::GenerateComboBoxStrings( TArray< TSharedPtr<FString> 
 		return;
 	}
 
+	TArray<FString> ValueStrings;
 	TArray<FText> BasicTooltips;
+	TArray<FText> DisplayNames;
+	
+	bUsesAlternateDisplayValues = ComboArgs.PropertyHandle->GeneratePossibleValues(ValueStrings, BasicTooltips, OutRestrictedItems, &DisplayNames);
 
-	bUsesAlternateDisplayValues = ComboArgs.PropertyHandle->GeneratePossibleValues(OutComboBoxStrings, BasicTooltips, OutRestrictedItems);
-
+	// Build the reverse LUT for alternate display values
+	AlternateDisplayValueToInternalValue.Reset();
+	InternalValueToAlternateDisplayValue.Reset();
+	if (const FProperty* Property = ComboArgs.PropertyHandle->GetProperty();
+		bUsesAlternateDisplayValues)
+	{
+		if (ensureMsgf(ValueStrings.Num() == DisplayNames.Num(), TEXT("Mismatched Value and DisplayNames Array")))
+		{
+			AlternateDisplayValueToInternalValue.Reserve(ValueStrings.Num());
+			InternalValueToAlternateDisplayValue.Reserve(ValueStrings.Num());
+			for (int32 Index = 0, End = ValueStrings.Num(); Index < End; ++Index)
+			{
+				AlternateDisplayValueToInternalValue.Emplace(DisplayNames[Index].ToString(), ValueStrings[Index]);
+				InternalValueToAlternateDisplayValue.Emplace(ValueStrings[Index], DisplayNames[Index].ToString());
+			}
+			Algo::Transform(DisplayNames, OutComboBoxStrings, [](const FText& Str) { return MakeShared<FString>(Str.ToString()); });
+		}
+		else
+		{
+			bUsesAlternateDisplayValues = false;
+			Algo::Transform(ValueStrings, OutComboBoxStrings, [](const FString& Str) { return MakeShared<FString>(Str); });
+		}
+	}
+	else
+	{
+		Algo::Transform(ValueStrings, OutComboBoxStrings, [](const FString& Str) { return MakeShared<FString>(Str); });
+	}
+	
 	// If we regenerate the entries, let's make sure that the currently selected item has the same shared pointer as
 	// the newly generated item with the same value, so that the generation of elements won't immediately result in a
 	// value changed event (i.e. at every single `OnComboOpening`).
@@ -171,73 +244,6 @@ void SPropertyEditorCombo::GenerateComboBoxStrings( TArray< TSharedPtr<FString> 
 						break;
 					}
 				}
-			}
-		}
-	}
-
-	// Build the reverse LUT for alternate display values
-	AlternateDisplayValueToInternalValue.Reset();
-	InternalValueToAlternateDisplayValue.Reset();
-	if (const FProperty* Property = ComboArgs.PropertyHandle->GetProperty();
-		bUsesAlternateDisplayValues && !Property->IsA(FStrProperty::StaticClass()))
-	{
-		// currently only enum properties can use alternate display values; this 
-		// might change, so assert here so that if support is expanded to other 
-		// property types without updating this block of code, we'll catch it quickly
-		const UEnum* Enum = nullptr;
-		if (const FByteProperty* ByteProperty = CastField<FByteProperty>(Property))
-		{
-			Enum = ByteProperty->Enum;
-		}
-		else if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
-		{
-			Enum = EnumProperty->GetEnum();
-		}
-		check(Enum != nullptr);
-
-		const TMap<FName, FText> EnumValueDisplayNameOverrides = PropertyEditorHelpers::GetEnumValueDisplayNamesFromPropertyOverride(Property, Enum);
-		auto FindEnumValueIndex = [&EnumValueDisplayNameOverrides, &Enum](const FString& ValueString) -> int32
-		{
-			for (const TTuple<FName, FText>& EnumValueDisplayNameOverridePair : EnumValueDisplayNameOverrides)
-			{
-				if (EnumValueDisplayNameOverridePair.Value.ToString() == ValueString)
-				{
-					return Enum->GetIndexByName(EnumValueDisplayNameOverridePair.Key);
-				}
-			}
-
-			for (int32 ValIndex = 0; ValIndex < Enum->NumEnums() - 1; ++ValIndex)
-			{
-				const FString EnumName = Enum->GetNameStringByIndex(ValIndex);
-				const FString DisplayName = Enum->GetDisplayNameTextByIndex(ValIndex).ToString();
-
-				if (DisplayName.Len() > 0)
-				{
-					if (DisplayName == ValueString)
-					{
-						return ValIndex;
-					}
-				}
-
-				if (EnumName == ValueString)
-				{
-					return ValIndex;
-				}
-			}
-
-			return INDEX_NONE;
-		};
-
-		for (const TSharedPtr<FString>& ValueStringPtr : OutComboBoxStrings)
-		{
-			const int32 EnumIndex = FindEnumValueIndex(*ValueStringPtr);
-			check(EnumIndex != INDEX_NONE);
-
-			const FString EnumValue = Enum->GetNameStringByIndex(EnumIndex);
-			if (EnumValue != *ValueStringPtr)
-			{
-				AlternateDisplayValueToInternalValue.Add(*ValueStringPtr, EnumValue);
-				InternalValueToAlternateDisplayValue.Add(EnumValue, *ValueStringPtr);
 			}
 		}
 	}
@@ -308,10 +314,22 @@ void SPropertyEditorCombo::OnComboSelectionChanged( TSharedPtr<FString> NewValue
 	}
 }
 
+void SPropertyEditorCombo::OnSegmentedControlSelectionChanged(FString NewValue)
+{
+	SendToObjects(NewValue);
+}
+
 void SPropertyEditorCombo::OnResetToDefault()
 {
 	FString CurrentDisplayValue = GetDisplayValueAsString();
-	ComboBox->SetSelectedItem(CurrentDisplayValue);
+	if (ComboBox)
+	{
+		ComboBox->SetSelectedItem(CurrentDisplayValue);
+	}
+	if (SegmentControl)
+	{
+		SegmentControl->SetValue(CurrentDisplayValue);
+	}
 }
 
 void SPropertyEditorCombo::OnComboOpening()

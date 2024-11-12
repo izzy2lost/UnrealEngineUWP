@@ -15,6 +15,8 @@
 #if WITH_EDITOR
 #include "WorldPartition/ContentBundle/ContentBundleEditor.h"
 #include "Editor.h"
+#include "Logging/MessageLog.h"
+#include "Misc/MapErrors.h"
 #else
 #include "Engine/Engine.h"
 #endif
@@ -33,14 +35,7 @@ void UContentBundleManager::Initialize()
 		PIEDuplicateHelper->Initialize();
 	}
 #endif
-	// Any world can be converted to a world partition world before the content bundle manager has been initialized.
-	if (UWorldPartition* WorldPartition = GetWorld()->GetWorldPartition())
-	{
-		if (WorldPartition->IsInitialized())
-		{
-			OnWorldPartitionInitialized(WorldPartition);
-		}
-	}
+
 	GetWorld()->OnWorldPartitionInitialized().AddUObject(this, &UContentBundleManager::OnWorldPartitionInitialized);
 	GetWorld()->OnWorldPartitionUninitialized().AddUObject(this, &UContentBundleManager::OnWorldPartitionUninitialized);
 }
@@ -77,6 +72,8 @@ bool UContentBundleManager::CanInject() const
 
 void UContentBundleManager::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	UContentBundleManager* Subsystem = CastChecked<UContentBundleManager>(InThis);
 	for (TUniquePtr<FContentBundleContainer>& ContentBundleContainer : Subsystem->ContentBundleContainers)
 	{
@@ -109,7 +106,10 @@ void UContentBundleManager::DrawContentBundlesStatus(const UWorld* InWorld, UCan
 
 				(*ContentBundleContainer)->ForEachContentBundle([&Offset, &Canvas, &Pos, &MaxTextWidth](FContentBundleBase* ContentBundle)
 				{
-					FWorldPartitionDebugHelper::DrawLegendItem(Canvas, *FString::Printf(TEXT("%s [%s]"), *ContentBundle->GetDisplayName(), *UContentBundleDescriptor::GetContentBundleCompactString(ContentBundle->GetDescriptor()->GetGuid())), GEngine->GetSmallFont(), ContentBundle->GetDebugColor(), FColor::White, Pos, &MaxTextWidth);
+					if (ContentBundle->HasContent())
+					{
+						FWorldPartitionDebugHelper::DrawLegendItem(Canvas, *FString::Printf(TEXT("%s [%s]"), *ContentBundle->GetDisplayName(), *UContentBundleDescriptor::GetContentBundleCompactString(ContentBundle->GetDescriptor()->GetGuid())), GEngine->GetSmallFont(), ContentBundle->GetDebugColor(), FColor::White, Pos, &MaxTextWidth);
+					}
 				});
 			}
 
@@ -175,6 +175,28 @@ TSharedPtr<FContentBundleEditor> UContentBundleManager::GetEditorContentBundle(c
 	return nullptr;
 }
 
+void UContentBundleManager::CheckForErrors() const
+{
+	TMap<FGuid, const TSharedPtr<FContentBundleEditor>> ContentBundlesEditor;
+
+	for (const TUniquePtr<FContentBundleContainer>& ContentBundleContainer : ContentBundleContainers)
+	{
+		for (const TSharedPtr<FContentBundleEditor>& ContentBundleEditor : ContentBundleContainer->GetEditorContentBundles())
+		{
+			const TSharedPtr<FContentBundleEditor>& ExistingValue = ContentBundlesEditor.FindOrAdd(ContentBundleEditor->GetDescriptor()->GetGuid(), ContentBundleEditor);
+			if (ExistingValue.Get() != ContentBundleEditor.Get())
+			{
+				const FText DuplicateGuidText = FText::FromString(ContentBundleEditor->GetDescriptor()->GetGuid().ToString());
+
+				FMessageLog("MapCheck").Error()
+					->AddToken(FTextToken::Create(FText::Format(NSLOCTEXT("ContentBundle", "ContentBundleErrorDuplicateGUIDs", "Found content bundles sharing the same GUID ({0}):"), DuplicateGuidText)))
+					->AddToken(FAssetNameToken::Create(ExistingValue->GetDescriptor()->GetPathName()))
+					->AddToken(FAssetNameToken::Create(ContentBundleEditor->GetDescriptor()->GetPathName()));
+			}
+		}
+	}
+}
+
 #endif
 
 uint32 UContentBundleManager::GetContentBundleContainerIndex(const UWorld* InjectedWorld) const
@@ -208,6 +230,11 @@ void UContentBundleManager::OnWorldPartitionInitialized(UWorldPartition* InWorld
 		return;
 	}
 
+	if (!InWorldPartition->IsContentBundleEnabled())
+	{
+		return;
+	}
+
 	check(GetContentBundleContainer(InWorldPartition->GetTypedOuter<UWorld>()) == nullptr);
 	TUniquePtr<FContentBundleContainer>& ContentBundleContainer = ContentBundleContainers.Emplace_GetRef(MakeUnique<FContentBundleContainer>(InWorldPartition->GetTypedOuter<UWorld>()));
 	ContentBundleContainer->Initialize();
@@ -221,7 +248,12 @@ void UContentBundleManager::OnWorldPartitionUninitialized(UWorldPartition* InWor
 	}
 
 	uint32 ContainerIndex = GetContentBundleContainerIndex(InWorldPartition->GetTypedOuter<UWorld>());
-	check(ContainerIndex != INDEX_NONE);
+	if (ContainerIndex == INDEX_NONE)
+	{
+		return;
+	}
+
+	check(ContentBundleContainers.IsValidIndex(ContainerIndex));
 	ContentBundleContainers[ContainerIndex]->Deinitialize();
 	ContentBundleContainers.RemoveAtSwap(ContainerIndex);
 }

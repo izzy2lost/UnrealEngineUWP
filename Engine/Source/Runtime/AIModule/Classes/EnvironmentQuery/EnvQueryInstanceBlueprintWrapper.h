@@ -83,6 +83,9 @@ public:
 
 	AIMODULE_API void SetInstigator(const UObject* Object);
 
+	/** Used in UMassEQSBlueprintLibrary::GetEnviromentQueryResultAsEntityInfo */
+	AIMODULE_API FORCEINLINE EEnvQueryRunMode::Type GetRunMode() const { return RunMode; };
+
 	FEQSQueryDoneSignature& GetOnQueryFinishedEvent() { return OnQueryFinishedEvent; }
 
 protected:

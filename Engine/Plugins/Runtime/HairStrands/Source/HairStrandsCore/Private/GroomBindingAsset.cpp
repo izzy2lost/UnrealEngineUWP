@@ -6,14 +6,18 @@
 #include "GeometryCache.h"
 #include "GeometryCacheMeshData.h"
 #include "GroomAsset.h"
+#include "GroomBindingCompiler.h"
 #include "GroomBindingBuilder.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "Serialization/MemoryReader.h"
+#include "UObject/UObjectIterator.h"
 #include "UObject/AnimObjectVersion.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/DevObjectVersion.h"
 #include "Misc/CoreMisc.h"
+#include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
+#include "GroomComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GroomBindingAsset)
 
@@ -23,7 +27,7 @@
 #include "DerivedDataCacheInterface.h"
 #include "Serialization/LargeMemoryReader.h"
 #include "Serialization/LargeMemoryWriter.h"
-#include "GroomComponent.h"
+#include "Engine/SkinnedAssetAsyncCompileUtils.h"
 #endif
 
 LLM_DECLARE_TAG(Groom);
@@ -124,6 +128,108 @@ static void InternalSerializePlatformDatas(FArchive& Ar, UObject* Owner, TArray<
 	}
 }
 
+/*-----------------------------------------------------------------------------
+	FGroomBindingAsyncBuildScope
+-----------------------------------------------------------------------------*/
+thread_local const UGroomBindingAsset* FGroomBindingAsyncBuildScope::Asset = nullptr;
+
+FGroomBindingAsyncBuildScope::FGroomBindingAsyncBuildScope(const UGroomBindingAsset* InAsset)
+{
+	PreviousScope = Asset;
+	Asset = InAsset;
+}
+
+FGroomBindingAsyncBuildScope::~FGroomBindingAsyncBuildScope()
+{
+	check(Asset);
+	Asset = PreviousScope;
+}
+
+bool FGroomBindingAsyncBuildScope::ShouldWaitOnLockedProperties(const UGroomBindingAsset* InAsset)
+{
+	return Asset != InAsset;
+}
+
+/*-----------------------------------------------------------------------------
+	FGroomBindingAsyncBuildWorker
+-----------------------------------------------------------------------------*/
+void FGroomBindingAsyncBuildWorker::DoWork()
+{
+#if WITH_EDITOR
+	if (BuildContext.IsSet())
+	{
+		GroomBinding->ExecuteCacheDerivedDatas(*BuildContext);
+	}
+#endif
+}
+
+void UGroomBindingAsset::WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties AsyncProperties, EGroomBindingAsyncPropertyLockType LockType) const
+{
+#if WITH_EDITOR
+	// We need to protect internal asset data from race conditions during async build
+	if (IsCompiling())
+	{
+		if (FGroomBindingAsyncBuildScope::ShouldWaitOnLockedProperties(this))
+		{
+			bool bIsLocked = true;
+			// We can remove the lock if we're accessing in read-only and there is no write-lock
+			if ((LockType & EGroomBindingAsyncPropertyLockType::ReadOnly) == EGroomBindingAsyncPropertyLockType::ReadOnly)
+			{
+				// Maintain the lock if the write-lock bit is non-zero
+				bIsLocked &= (ModifiedProperties & (uint64)AsyncProperties) != 0;
+			}
+
+			if (bIsLocked)
+			{
+				FString PropertyName = StaticEnum<EGroomBindingAsyncProperties>()->GetNameByValue((int64)AsyncProperties).ToString();
+				TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("GroomBindingCompilationStall %s"), *PropertyName));
+
+				if (IsInGameThread())
+				{
+					UE_LOG(
+						LogHairStrands,
+						Verbose,
+						TEXT("Accessing property %s of the GroomBindingAsset while it is still being built asynchronously will force it to be compiled before continuing. "
+							"For better performance, consider making the caller async aware so it can wait until the groom binding is ready to access this property."
+							"To better understand where those calls are coming from, you can use Editor.AsyncAssetDumpStallStacks on the console."),
+						*PropertyName
+					);
+
+					FGroomBindingCompilingManager::Get().FinishCompilation({ const_cast<UGroomBindingAsset*>(this) });
+				}
+				else
+				{
+					// Trying to access a property from another thread that cannot force finish the compilation is invalid
+					ensureMsgf(
+						false,
+						TEXT("Accessing property %s of the GroomBindingAsset while it is still being built asynchronously is only supported on the game-thread. "
+							"To avoid any race-condition, consider finishing the compilation before pushing tasks to other threads or making higher-level game-thread code async aware so it "
+							"schedules the task only when the groom binding's compilation is finished. If this is a blocker, you can disable async groom binding compilation from the editor experimental settings."),
+						*PropertyName
+					);
+				}
+			}
+		}
+		// If we're accessing this property from the async build thread, make sure the property is still protected from access from other threads.
+		else
+		{
+			bool bIsLocked = true;
+			if ((LockType & EGroomBindingAsyncPropertyLockType::ReadOnly) == EGroomBindingAsyncPropertyLockType::ReadOnly)
+			{
+				bIsLocked &= (AccessedProperties & (uint64)AsyncProperties) != 0;
+			}
+
+			if ((LockType & EGroomBindingAsyncPropertyLockType::WriteOnly) == EGroomBindingAsyncPropertyLockType::WriteOnly)
+			{
+				bIsLocked &= (ModifiedProperties & (uint64)AsyncProperties) != 0;
+			}
+			ensureMsgf(bIsLocked, TEXT("Property %s has not been locked properly for use by async build"), *StaticEnum<EGroomBindingAsyncProperties>()->GetNameByValue((int64)AsyncProperties).ToString());
+		}
+	}
+#endif
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void UGroomBindingAsset::Serialize(FArchive& Ar)
@@ -133,6 +239,21 @@ void UGroomBindingAsset::Serialize(FArchive& Ar)
 	if (GetGroom())
 	{
 		Flags = GetGroom()->GenerateClassStripFlags(Ar);
+	}
+
+	if (IsCompiling())
+	{
+		// Skip serialization during compilation if told to do so.
+		if (Ar.ShouldSkipCompilingAssets())
+		{
+			return;
+		}
+
+		// Since UPROPERTY are accessed directly by offset during serialization instead of using accessors,
+		// the protection put in place to automatically finish compilation if a locked property is accessed will not work.
+		// We have no choice but to force finish the compilation here to avoid potential race conditions between 
+		// async compilation and the serialization.
+		FGroomBindingCompilingManager::Get().FinishCompilation({ this });
 	}
 #endif
 
@@ -309,8 +430,48 @@ void UGroomBindingAsset::ReleaseResource(bool bResetLoadedSize)
 	}
 }
 
+void UGroomBindingAsset::FlushRenderingCommandIfUsed(const UGroomBindingAsset* In)
+{
+	bool bNeedFlushRenderingCommand = false;
+	for (TObjectIterator<UGroomComponent> HairStrandsComponentIt; HairStrandsComponentIt; ++HairStrandsComponentIt)
+	{
+		if (HairStrandsComponentIt->BindingAsset == In
+			#if WITH_EDITORONLY_DATA
+			|| HairStrandsComponentIt->BindingAssetBeingLoaded == In
+			#endif
+			)
+		{
+			if (HairStrandsComponentIt->IsRenderStateCreated())
+			{
+				HairStrandsComponentIt->DestroyRenderState_Concurrent();
+				bNeedFlushRenderingCommand = true;
+			}
+		}
+	}
+	if (bNeedFlushRenderingCommand)
+	{
+		FlushRenderingCommands();
+	}
+}
+
+void UGroomBindingAsset::StreamInForCPUAccess(bool bWait)
+{
+	check(IsValid());
+
+	for (UGroomBindingAsset::FHairGroupPlatformData& Data : GetHairGroupsPlatformData())
+	{
+		for (FHairStrandsRootBulkData& BulkData : Data.RenRootBulkDatas)
+		{
+			FHairStreamingRequest R;
+			R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, BulkData, bWait, true /*bFillBulkdata*/, false /*bWarmCache*/, GetFName());
+		}
+	}
+}
+
 void UGroomBindingAsset::Reset()
 {
+	FlushRenderingCommandIfUsed(this);
+
 	// No need for resetting LoadedSize as the bulk datas are removed (e.g., when reloading/reimporting a groom asset)
 	ReleaseResource(false/*bResetLoadedSize*/);
 	for (UGroomBindingAsset::FHairGroupPlatformData& Data : GetHairGroupsPlatformData())
@@ -328,13 +489,26 @@ void UGroomBindingAsset::Reset()
 }
 
 #if WITH_EDITORONLY_DATA
+bool UGroomBindingAsset::HasAnyDependenciesCompiling() const
+{
+	return 
+		(GetTargetSkeletalMesh() && GetTargetSkeletalMesh()->IsCompiling()) ||
+		(GetSourceSkeletalMesh() && GetSourceSkeletalMesh()->IsCompiling());
+}
+
 void UGroomBindingAsset::InvalidateBinding(class USkeletalMesh*)
 {
-	CacheDerivedDatas();
+	InvalidateBinding();
 }
 
 void UGroomBindingAsset::InvalidateBinding()
 {
+	// Nothing else to do as we're going to be rebuilt when our dependencies finish caching anyway
+	if (HasAnyDependenciesCompiling())
+	{
+		return;
+	}
+
 	CacheDerivedDatas();
 }
 
@@ -355,29 +529,30 @@ void UGroomBindingAsset::PostLoad()
 		LocalGroom->ConditionalPostLoad();
 
 	#if WITH_EDITOR
-		CacheDerivedDatas();
-
-		// Sanity check. This function will report back warnings/issues into the log for user.
-		UGroomBindingAsset::IsCompatible(LocalGroom, this, true);
-
-		if (USkeletalMesh* LocalTargetSkeletalMesh = GetTargetSkeletalMesh())
+		if (GetTargetSkeletalMesh())
 		{
-			LocalTargetSkeletalMesh->OnPostMeshCached().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
-			bRegisterTargetMeshCallback = true;
+			GetTargetSkeletalMesh()->ConditionalPostLoad();
 		}
 
-		if (USkeletalMesh* LocalSourceSkeletalMesh = GetSourceSkeletalMesh())
+		if (GetSourceSkeletalMesh())
 		{
-			LocalSourceSkeletalMesh->OnPostMeshCached().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
-			bRegisterSourceMeshCallback = true;
+			GetSourceSkeletalMesh()->ConditionalPostLoad();
 		}
 
-		if (LocalGroom)
+		if (GetTargetGeometryCache())
 		{
-			LocalGroom->GetOnGroomAssetChanged().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
-			LocalGroom->GetOnGroomAssetResourcesChanged().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
-			bRegisterGroomAssetCallback = true;
+			GetTargetGeometryCache()->ConditionalPostLoad();
 		}
+		
+		if (GetSourceGeometryCache())
+		{
+			GetSourceGeometryCache()->ConditionalPostLoad();
+		}
+
+		RegisterSkeletalMeshDelegates();
+		RegisterGroomDelegates();
+
+		InvalidateBinding();
 	#endif
 	}
 
@@ -427,24 +602,9 @@ void UGroomBindingAsset::BeginDestroy()
 	Super::BeginDestroy();
 
 #if WITH_EDITOR
-	if (GetTargetSkeletalMesh() && bRegisterTargetMeshCallback)
-	{
-		GetTargetSkeletalMesh()->OnPostMeshCached().RemoveAll(this);
-		bRegisterTargetMeshCallback = false;
-	}
+	UnregisterSkeletalMeshDelegates();
 
-	if (GetSourceSkeletalMesh() && bRegisterSourceMeshCallback)
-	{
-		GetSourceSkeletalMesh()->OnPostMeshCached().RemoveAll(this);
-		bRegisterSourceMeshCallback = false;
-	}
-
-	if (GetGroom() && bRegisterGroomAssetCallback)
-	{
-		GetGroom()->GetOnGroomAssetResourcesChanged().RemoveAll(this);
-		GetGroom()->GetOnGroomAssetChanged().RemoveAll(this);
-		bRegisterGroomAssetCallback = false;
-	}
+	UnregisterGroomDelegates();
 #endif
 }
 
@@ -776,6 +936,54 @@ void UpdateGroomBindingAssetInfos(UGroomBindingAsset* In)
 // * Release : Engine\Source\Runtime\Core\Private\UObject\UE5ReleaseStreamObjectVersion.cpp
 // * ...
 
+static void ForceSkeletalMeshDataCachingForCookingOnly(const ITargetPlatform* TargetPlatform, USkeletalMesh* InSourceSkeletalMesh, USkeletalMesh* InTargetSkeletalMesh)
+{
+	// If a skeletal mesh build or preedit is called while we're async compiling groom bindings, the groom binding compiler
+	// will take care of finishing any groom binding that depends on the skeletal mesh being modified. So this is 
+	// safe to do asynchronously without locks on the render data. We assume that the skeletal mesh's render data is
+	// immutable once it has been built and can only be rebuilt throught a call to PreEditChange first.
+	const bool bAsyncCompiling = !IsInGameThread();
+
+	// * Only for SkeletalMesh: Take scoped lock on the skeletal render mesh data during the entire groom binding building
+	// * Then use an async build scope to allow accessing skeletal mesh property safely.
+	//   If skel.meshes are nullptr, this will act as a NOP
+	InSourceSkeletalMesh = InSourceSkeletalMesh == InTargetSkeletalMesh ? nullptr : InSourceSkeletalMesh;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FScopedSkeletalMeshRenderData SourceSkeletalMeshScopedData(bAsyncCompiling ? nullptr : InSourceSkeletalMesh);
+	FScopedSkeletalMeshRenderData TargetSkeletalMeshScopedData(bAsyncCompiling ? nullptr : InTargetSkeletalMesh);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	if (InSourceSkeletalMesh)
+	{
+		if (bAsyncCompiling)
+		{
+			const ITargetPlatform* RunningPlatform = GetTargetPlatformManagerRef().GetRunningTargetPlatform();
+			checkf(TargetPlatform == RunningPlatform, TEXT("It is only safe to query the running platform's render data asynchronously from the skeletal mesh"));
+			InSourceSkeletalMesh->GetResourceForRendering();
+		}
+		else
+		{
+			FSkinnedAssetAsyncBuildScope AsyncBuildScope(InSourceSkeletalMesh);
+			USkeletalMesh::GetPlatformSkeletalMeshRenderData(TargetPlatform, SourceSkeletalMeshScopedData);
+		}
+	}
+
+	if (InTargetSkeletalMesh)
+	{
+		if (bAsyncCompiling)
+		{
+			const ITargetPlatform* RunningPlatform = GetTargetPlatformManagerRef().GetRunningTargetPlatform();
+			checkf(TargetPlatform == RunningPlatform, TEXT("It is only safe to query the running platform's render data asynchronously from the skeletal mesh"));
+			InTargetSkeletalMesh->GetResourceForRendering();
+		}
+		else
+		{
+			FSkinnedAssetAsyncBuildScope AsyncBuildScope(InTargetSkeletalMesh);
+			USkeletalMesh::GetPlatformSkeletalMeshRenderData(TargetPlatform, TargetSkeletalMeshScopedData);
+		}
+	}
+}
+
 namespace GroomBindingDerivedDataCacheUtils
 {
 	const FString& GetGroomBindingDerivedDataVersion()
@@ -786,11 +994,11 @@ namespace GroomBindingDerivedDataCacheUtils
 
 	FString BuildGroomBindingDerivedDataKey(const FString& KeySuffix)
 	{
-		return FDerivedDataCacheInterface::BuildCacheKey(*(TEXT("GROOM_BINDING_V") + FGroomBindingBuilder::GetVersion() + TEXT("_")), *GetGroomBindingDerivedDataVersion(), *KeySuffix);
+		return FDerivedDataCacheInterface::BuildCacheKey(*(TEXT("GROOMBINDING_V") + FGroomBindingBuilder::GetVersion() + TEXT("_")), *GetGroomBindingDerivedDataVersion(), *KeySuffix);
 	}
 }
 
-static FString BuildDerivedDataKeySuffix(const UGroomBindingAsset& BindingAsset, const ITargetPlatform* TargetPlatform)
+static FString BuildDerivedDataKeySuffix(const UGroomBindingAsset& BindingAsset, const ITargetPlatform* TargetPlatform, bool bForceSkelMeshDataCachingForCookingOnly=false)
 {
 	FString BindingType;
 	FString SourceKey;
@@ -798,6 +1006,12 @@ static FString BuildDerivedDataKeySuffix(const UGroomBindingAsset& BindingAsset,
 
 	if (BindingAsset.GetGroomBindingType() == EGroomBindingMeshType::SkeletalMesh)
 	{
+		// Force skel. mesh data caching, in order to produce later an valid/up-to-date DDC key
+		if (bForceSkelMeshDataCachingForCookingOnly)
+		{
+			ForceSkeletalMeshDataCachingForCookingOnly(TargetPlatform, BindingAsset.GetSourceSkeletalMesh(), BindingAsset.GetTargetSkeletalMesh());
+		}
+
 		// Binding type is implicitly SkeletalMesh so keep BindingType empty to prevent triggering rebuild of old binding for nothing
 		SourceKey = BindingAsset.GetSourceSkeletalMesh() ? BindingAsset.GetSourceSkeletalMesh()->BuildDerivedDataKey(TargetPlatform) : FString();
 		TargetKey = BindingAsset.GetTargetSkeletalMesh() ? BindingAsset.GetTargetSkeletalMesh()->BuildDerivedDataKey(TargetPlatform) : FString();
@@ -833,7 +1047,7 @@ static FString BuildDerivedDataKeyGroup(const FString& InDeriveDataKeySuffix , u
 	return GroomBindingDerivedDataCacheUtils::BuildGroomBindingDerivedDataKey(InDeriveDataKeySuffix + FString(TEXT("_Group")) + FString::FromInt(InGroupIndex));
 }
 
-static TArray<FString> GetGroupDerivedDataKeys(const UGroomBindingAsset* In, const ITargetPlatform* TargetPlatform);
+static TArray<FString> GetGroupDerivedDataKeys(const UGroomBindingAsset* In, const ITargetPlatform* TargetPlatform, bool bForceSkelMeshDataCaching=false);
 static void CacheDerivedDatas(UGroomBindingAsset* In, const uint32 InGroupIndex, const FString& DerivedDataKey, bool& bOutValid, const ITargetPlatform* TargetPlatform, UGroomBindingAsset::FHairGroupPlatformData& OutPlatformData);
 
 void UGroomBindingAsset::CacheDerivedDatas()
@@ -842,6 +1056,64 @@ void UGroomBindingAsset::CacheDerivedDatas()
 	{
 		return;
 	}
+
+	if (IsCompiling())
+	{
+		FGroomBindingCompilingManager::Get().FinishCompilation({ this });
+	}
+
+	if (HasAnyDependenciesCompiling())
+	{
+		FGroomBindingCompilingManager::Get().AddGroomBindingsWithPendingDependencies({ this });
+		return;
+	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(UGroomBindingAsset::CacheDerivedDatas);
+
+	// Flush the rendering commands generated by the detachments.
+	FlushRenderingCommandIfUsed(this);
+
+	FGroomBindingBuildContext Context;
+#if WITH_EDITOR
+	// Acquire everything in readonly so that any thread trying to write a property locked for read-only will wait until the build is finished
+	AcquireAsyncProperty(MAX_uint64, EGroomBindingAsyncPropertyLockType::ReadOnly);
+
+	// Acquire the resource modified by the build so that any thread trying to read those will wait until the build is finished
+	// If we forget something here and the build uses it, we will get an assert on the build thread because we're writing to an unlocked property
+	AcquireAsyncProperty((uint64)EGroomBindingAsyncProperties::HairGroupResources, EGroomBindingAsyncPropertyLockType::WriteOnly);
+	AcquireAsyncProperty((uint64)EGroomBindingAsyncProperties::HairGroupPlatformData, EGroomBindingAsyncPropertyLockType::WriteOnly);
+	AcquireAsyncProperty((uint64)EGroomBindingAsyncProperties::GroupInfos, EGroomBindingAsyncPropertyLockType::WriteOnly);
+
+	// Dependency management should have been taken care of already. Just making sure.
+	check(GetTargetSkeletalMesh() == nullptr || GetTargetSkeletalMesh()->IsCompiling() == false);
+	check(GetSourceSkeletalMesh() == nullptr || GetSourceSkeletalMesh()->IsCompiling() == false);
+
+	// Do synchronous build until GeometryCache is thread-safe
+	const bool bIsAsyncBuildSupported = GetTargetGeometryCache() == nullptr && GetSourceGeometryCache() == nullptr;
+
+	// Inline reduction is not thread-safe, prevent async build until this is fixed.
+	if (bIsAsyncBuildSupported && FGroomBindingCompilingManager::Get().IsAsyncCompilationAllowed(this))
+	{
+		FQueuedThreadPool* ThreadPool = FGroomBindingCompilingManager::Get().GetThreadPool();
+		EQueuedWorkPriority BasePriority = FGroomBindingCompilingManager::Get().GetBasePriority(this);
+		check(AsyncTask == nullptr);
+		AsyncTask = MakeUnique<FGroomBindingAsyncBuildTask>(this, MoveTemp(Context));
+		AsyncTask->StartBackgroundTask(ThreadPool, BasePriority, EQueuedWorkFlags::DoNotRunInsideBusyWait);
+		FGroomBindingCompilingManager::Get().AddGroomBindings({ this });
+	}
+	else
+#endif
+	{
+		ExecuteCacheDerivedDatas(Context);
+		FinishCacheDerivedDatas(Context);
+	}
+}
+
+void UGroomBindingAsset::ExecuteCacheDerivedDatas(FGroomBindingBuildContext& Context)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UGroomBindingAsset::ExecuteCacheDerivedDatas);
+
+	FGroomBindingAsyncBuildScope BuildScope(this);
 
 	// 1. Set group count to the groom target
 	const uint32 GroupCount = GetGroom()->GetNumHairGroups();
@@ -864,8 +1136,6 @@ void UGroomBindingAsset::CacheDerivedDatas()
 	bool bReloadResource = false;
 	if (bAnyGroupNeedRebuild)
 	{
-		FGroomComponentRecreateRenderStateContext RecreateRenderContext(GetGroom());
-
 		for (uint32 GroupIndex = 0; GroupIndex < GroupCount; ++GroupIndex)
 		{
 			// 1. Build data
@@ -911,11 +1181,7 @@ void UGroomBindingAsset::CacheDerivedDatas()
 		//    use the binding infos to know if curve count match between GroomAsset and GroomBindingAsset
 		UpdateGroomBindingAssetInfos(this);
 
-		// 4. Reload resources if needed
-		if (bReloadResource)
-		{
-			InitResource();
-		}
+		Context.bReloadResource |= bReloadResource;
 	}
 	else
 	{
@@ -928,6 +1194,7 @@ static void CacheDerivedDatas(UGroomBindingAsset* In, const uint32 InGroupIndex,
 {
 	{
 		bOutValid = false;
+		using namespace UE;
 		using namespace UE::DerivedData;
 
 		const FCacheKey HeaderKey = ConvertLegacyCacheKey(DerivedDataKey + FString(TEXT("_Header")));
@@ -954,7 +1221,7 @@ static void CacheDerivedDatas(UGroomBindingAsset* In, const uint32 InGroupIndex,
 		bool bHasDataInCache = false;
 		if (Data)
 		{
-			UE_CLOG(IsHairStrandsDDCLogEnable(), LogHairStrands, Log, TEXT("[GroomBinding/DDC] Found (GroomBinding:%s)."), *In->GetName());
+			UE_CLOG(IsHairStrandsDDCLogEnable(), LogHairStrands, Log, TEXT("[GroomBinding/DDC] Found (GroomBinding:%s TargetPlatform:%s Async:%s)."), *In->GetName(), *TargetPlatform->PlatformName(), IsInGameThread() ? TEXT("No") : TEXT("Yes"));
 
 			// Header
 			FMemoryReaderView Ar(Data, /*bIsPersistent*/ true);
@@ -976,7 +1243,7 @@ static void CacheDerivedDatas(UGroomBindingAsset* In, const uint32 InGroupIndex,
 		}
 		if (!bHasDataInCache)
 		{
-			UE_CLOG(IsHairStrandsDDCLogEnable(), LogHairStrands, Log, TEXT("[GroomBinding/DDC] Not found (GroomBinding:%s)."), *In->GetName());
+			UE_CLOG(IsHairStrandsDDCLogEnable(), LogHairStrands, Log, TEXT("[GroomBinding/DDC] Not found (GroomBinding:%s TargetPlatform:%s Async:%s)."), *In->GetName(), *TargetPlatform->PlatformName(), IsInGameThread() ? TEXT("No") : TEXT("Yes"));
 
 			// Build groom binding data
 			FGroomBindingBuilder::FInput BuilderInput;
@@ -1022,12 +1289,38 @@ static void CacheDerivedDatas(UGroomBindingAsset* In, const uint32 InGroupIndex,
 	}
 }
 
-static TArray<FString> GetGroupDerivedDataKeys(const UGroomBindingAsset* In, const ITargetPlatform* TargetPlatform)
+void UGroomBindingAsset::FinishCacheDerivedDatas(FGroomBindingBuildContext& Context)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UGroomBindingAsset::FinishCacheDerivedDatas);
+
+	ReleaseAsyncProperty();
+
+	if (!IsTemplate() && Context.bReloadResource && IsValid())
+	{
+		InitResource();
+	}
+
+	for (TObjectIterator<UGroomComponent> HairStrandsComponentIt; HairStrandsComponentIt; ++HairStrandsComponentIt)
+	{
+		if (HairStrandsComponentIt->BindingAsset == this ||
+			HairStrandsComponentIt->BindingAssetBeingLoaded == this) // A GroomAsset was set on the component while it was still loading
+		{
+			HairStrandsComponentIt->PostCompilation();
+
+			if (HairStrandsComponentIt->IsRegistered())
+			{
+				HairStrandsComponentIt->RecreateRenderState_Concurrent();
+			}
+		}
+	}
+}
+
+static TArray<FString> GetGroupDerivedDataKeys(const UGroomBindingAsset* In, const ITargetPlatform* TargetPlatform, bool bForceSkelMeshDataCachingForCookingOnly )
 {
 	check(In);
 	check(TargetPlatform);
 
-	const FString KeySuffix = BuildDerivedDataKeySuffix(*In, TargetPlatform);
+	const FString KeySuffix = BuildDerivedDataKeySuffix(*In, TargetPlatform, bForceSkelMeshDataCachingForCookingOnly );
 	const uint32 GroupCount = In->GetGroupInfos().Num();
 
 	TArray<FString> Out;
@@ -1053,10 +1346,16 @@ static UGroomBindingAsset::FCachedCookedPlatformData* FindCachedCookedPlatformDa
 
 void UGroomBindingAsset::BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform)
 {
+	// Finish any async compilation of the editor target before building other platforms
+	if (IsCompiling())
+	{
+		FGroomBindingCompilingManager::Get().FinishCompilation({ this });
+	}
+
 	Super::BeginCacheForCookedPlatformData(TargetPlatform);
 
 	// 1. Build the key for each group
-	const TArray<FString> GroupDerivedDataKeys = GetGroupDerivedDataKeys(this, TargetPlatform);
+	const TArray<FString> GroupDerivedDataKeys = GetGroupDerivedDataKeys(this, TargetPlatform, false /*bForceSkelMeshDataCachingForCookingOnly */);
 
 	// 2. Find existing cached cooked data
 	UGroomBindingAsset::FCachedCookedPlatformData* TargetPlatformData = FindCachedCookedPlatformData(GroupDerivedDataKeys, CachedCookedPlatformDatas);
@@ -1064,36 +1363,51 @@ void UGroomBindingAsset::BeginCacheForCookedPlatformData(const ITargetPlatform* 
 	// 3. If the target cooked data does not already exist, we build it
 	if (TargetPlatformData == nullptr && GetGroom() != nullptr)
 	{
-		// 3.1 Build cooked derived data
-		const uint32 GroupCount = GroupDerivedDataKeys.Num();
-		TargetPlatformData = new FCachedCookedPlatformData();
-		TargetPlatformData->GroupDerivedDataKeys = GroupDerivedDataKeys;
-		TargetPlatformData->GroupPlatformDatas.SetNum(GroupCount);
-		for (uint32 GroupIndex = 0; GroupIndex < GroupCount; ++GroupIndex)
+		auto BuildTargetPlatformData = [TargetPlatform](const TArray<FString>& InGroupDerivedDataKeys, UGroomBindingAsset* BindingAsset)
 		{
-			bool bGroupValid = true;
-			::CacheDerivedDatas(this, GroupIndex, TargetPlatformData->GroupDerivedDataKeys[GroupIndex], bGroupValid, TargetPlatform, TargetPlatformData->GroupPlatformDatas[GroupIndex]);
-			if (!bGroupValid)
+			// 3.a Build cooked derived data
+			const uint32 GroupCount = InGroupDerivedDataKeys.Num();
+			UGroomBindingAsset::FCachedCookedPlatformData* NewTargetPlatformData = new FCachedCookedPlatformData();
+			NewTargetPlatformData->GroupDerivedDataKeys = InGroupDerivedDataKeys;
+			NewTargetPlatformData->GroupPlatformDatas.SetNum(GroupCount);
+			for (uint32 GroupIndex = 0; GroupIndex < GroupCount; ++GroupIndex)
 			{
-				UE_LOG(LogHairStrands, Error, TEXT("[Groom] The binding asset (%s) couldn't be built. This binding asset won't be used."), *GetName());
+				bool bGroupValid = true;
+				::CacheDerivedDatas(BindingAsset, GroupIndex, NewTargetPlatformData->GroupDerivedDataKeys[GroupIndex], bGroupValid, TargetPlatform, NewTargetPlatformData->GroupPlatformDatas[GroupIndex]);
+				if (!bGroupValid)
+				{
+					UE_LOG(LogHairStrands, Error, TEXT("[Groom] The binding asset (%s) couldn't be built. This binding asset won't be used."), *BindingAsset->GetName());
+				}
 			}
-		}
 
-		// 3.2 Place cooked derived data into their bulk data. 
-		// This is done only for strands, which support DDC streaming
-		// When cooking data, force loading of *all* bulk data prior to saving them
-		// Note: bFillBulkdata is true for filling in the bulkdata container prior to serialization. This also forces the resources loading 
-		// from the 'start' (i.e., without offset)
-		for (uint32 GroupIndex = 0; GroupIndex < GroupCount; ++GroupIndex)
+			// 3.b Place cooked derived data into their bulk data. 
+			// This is done only for strands, which support DDC streaming
+			// When cooking data, force loading of *all* bulk data prior to saving them
+			// Note: bFillBulkdata is true for filling in the bulkdata container prior to serialization. This also forces the resources loading 
+			// from the 'start' (i.e., without offset)
+			for (uint32 GroupIndex = 0; GroupIndex < GroupCount; ++GroupIndex)
+			{
+				TArray<FHairStrandsRootBulkData>& RenRootBulkDatas = NewTargetPlatformData->GroupPlatformDatas[GroupIndex].RenRootBulkDatas;
+				for (int32 MeshLODIndex = 0, MeshLODCount = RenRootBulkDatas.Num(); MeshLODIndex < MeshLODCount; ++MeshLODIndex)
+				{
+					FHairStreamingRequest R; R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, RenRootBulkDatas[MeshLODIndex], true /*bWait*/, true /*bFillBulkdata*/, true /*bWarmCache*/, BindingAsset->GetFName());
+				}
+			}
+
+			BindingAsset->CachedCookedPlatformDatas.Add(NewTargetPlatformData);
+		};
+
+		// 3.1 Build binding data for the target platform
+		BuildTargetPlatformData(GroupDerivedDataKeys, this);
+
+		// 3.2 Check if the derived data keys are unchanged. If they have change, recompute the target platform binding data again.
+		// This can happen when a skel. mesh asset hasn't be resaved correct. While being cached, the skel. mesh data will update/transform 
+		// its DDC key, causing the binding data to be cached as the incorrect DDC key.
+		const TArray<FString> UpdatedGroupDerivedDataKeys = GetGroupDerivedDataKeys(this, TargetPlatform, false /*bForceSkelMeshDataCachingForCookingOnly */);
+		if (UpdatedGroupDerivedDataKeys != GroupDerivedDataKeys)
 		{
-			TArray<FHairStrandsRootBulkData>& RenRootBulkDatas = TargetPlatformData->GroupPlatformDatas[GroupIndex].RenRootBulkDatas;
-			for (int32 MeshLODIndex = 0, MeshLODCount = RenRootBulkDatas.Num(); MeshLODIndex < MeshLODCount; ++MeshLODIndex)
-			{
-				FHairStreamingRequest R; R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, RenRootBulkDatas[MeshLODIndex], true /*bWait*/, true /*bFillBulkdata*/, true /*bWarmCache*/, GetFName());
-			}
+			BuildTargetPlatformData(UpdatedGroupDerivedDataKeys, this);
 		}
-
-		CachedCookedPlatformDatas.Add(TargetPlatformData);
 	}
 }
 
@@ -1157,41 +1471,168 @@ FName UGroomBindingAsset::GetAssetPathName(int32 LODIndex)
 #endif
 }
 
-#define DEFINE_GROOMBINDING_MEMBER_ACCESSOR(Type, Access, Name, GetConst, SetConst)\
+#define DEFINE_GROOMBINDING_MEMBER_NAME(Name)\
 	FName UGroomBindingAsset::Get##Name##MemberName()\
 	{\
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS\
 		return FName(TEXT(#Name));\
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS\
-	}\
+	}
+
+#define DEFINE_GROOMBINDING_MEMBER_GETTER(Type, Access, Name, GetConst, SetConst)\
 	UFUNCTION(BlueprintGetter)\
 	GetConst Type Access UGroomBindingAsset::Get##Name() const\
 	{\
+		WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::Name, EGroomBindingAsyncPropertyLockType::ReadOnly); \
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS\
 		return Name;\
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS\
-	}\
+	}
+
+#define DEFINE_GROOMBINDING_MEMBER_SETTER(Type, Access, Name, GetConst, SetConst)\
 	UFUNCTION(BlueprintSetter)\
 	void UGroomBindingAsset::Set##Name(SetConst Type Access In##Name)\
 	{\
+		WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::Name, EGroomBindingAsyncPropertyLockType::WriteOnly); \
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS\
 		Name = In##Name;\
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS\
 	}
 
+#define DEFINE_GROOMBINDING_MEMBER_ACCESSOR(Type, Access, Name, GetConst, SetConst)\
+	DEFINE_GROOMBINDING_MEMBER_NAME(Name) \
+	DEFINE_GROOMBINDING_MEMBER_GETTER(Type, Access, Name, GetConst, SetConst) \
+	DEFINE_GROOMBINDING_MEMBER_SETTER(Type, Access, Name, GetConst, SetConst)
+
 // Define most of the binding member accessor
 DEFINE_GROOMBINDING_MEMBER_ACCESSOR(EGroomBindingMeshType, , GroomBindingType, , );
-DEFINE_GROOMBINDING_MEMBER_ACCESSOR(UGroomAsset, *, Groom, , );
-DEFINE_GROOMBINDING_MEMBER_ACCESSOR(USkeletalMesh, *, SourceSkeletalMesh, , );
-DEFINE_GROOMBINDING_MEMBER_ACCESSOR(USkeletalMesh, *, TargetSkeletalMesh, , );
+DEFINE_GROOMBINDING_MEMBER_NAME(Groom);
+DEFINE_GROOMBINDING_MEMBER_GETTER(UGroomAsset, *, Groom, , );
+DEFINE_GROOMBINDING_MEMBER_NAME(SourceSkeletalMesh);
+DEFINE_GROOMBINDING_MEMBER_NAME(TargetSkeletalMesh);
+DEFINE_GROOMBINDING_MEMBER_GETTER(USkeletalMesh, *, SourceSkeletalMesh, , );
+DEFINE_GROOMBINDING_MEMBER_GETTER(USkeletalMesh, *, TargetSkeletalMesh, , );
 DEFINE_GROOMBINDING_MEMBER_ACCESSOR(UGeometryCache, *, SourceGeometryCache, , );
 DEFINE_GROOMBINDING_MEMBER_ACCESSOR(UGeometryCache, *, TargetGeometryCache, , );
 DEFINE_GROOMBINDING_MEMBER_ACCESSOR(int32, , NumInterpolationPoints, , );
 DEFINE_GROOMBINDING_MEMBER_ACCESSOR(int32, , MatchingSection, , );
 DEFINE_GROOMBINDING_MEMBER_ACCESSOR(TArray<FGoomBindingGroupInfo>, &, GroupInfos, const, const);
 
+#if WITH_EDITORONLY_DATA
+
+void UGroomBindingAsset::UnregisterGroomDelegates()
+{
+	if (GetGroom())
+	{
+		GetGroom()->GetOnGroomAssetResourcesChanged().RemoveAll(this);
+		GetGroom()->GetOnGroomAssetChanged().RemoveAll(this);
+	}
+}
+
+void UGroomBindingAsset::RegisterGroomDelegates()
+{
+	if (GetGroom())
+	{
+		GetGroom()->GetOnGroomAssetChanged().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
+		GetGroom()->GetOnGroomAssetResourcesChanged().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
+	}
+}
+
+void UGroomBindingAsset::UnregisterSkeletalMeshDelegates()
+{
+	if (GetTargetSkeletalMesh())
+	{
+		GetTargetSkeletalMesh()->OnPostMeshCached().RemoveAll(this);
+	}
+
+	if (GetSourceSkeletalMesh())
+	{
+		GetSourceSkeletalMesh()->OnPostMeshCached().RemoveAll(this);
+	}
+}
+
+void UGroomBindingAsset::RegisterSkeletalMeshDelegates()
+{
+	if (GetTargetSkeletalMesh())
+	{
+		GetTargetSkeletalMesh()->OnPostMeshCached().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
+	}
+
+	// Do not register the same skeletal mesh twice as it will make us invalidate bindings twice in a row and cause a stall.
+	if (GetSourceSkeletalMesh() && GetSourceSkeletalMesh() != GetTargetSkeletalMesh())
+	{
+		GetSourceSkeletalMesh()->OnPostMeshCached().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
+	}
+}
+
+#endif // WITH_EDITORONLY_DATA
+
+void UGroomBindingAsset::SetGroom(UGroomAsset* InGroom)
+{
+	if (GetGroom() == InGroom)
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	UnregisterGroomDelegates();
+#endif
+
+	WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::Groom, EGroomBindingAsyncPropertyLockType::WriteOnly);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	Groom = InGroom;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+#if WITH_EDITOR
+	RegisterGroomDelegates();
+#endif
+}
+
+void UGroomBindingAsset::SetSourceSkeletalMesh(USkeletalMesh* InSourceSkeletalMesh)
+{
+	if (GetSourceSkeletalMesh() == InSourceSkeletalMesh)
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	UnregisterSkeletalMeshDelegates();
+#endif
+
+	WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::SourceSkeletalMesh, EGroomBindingAsyncPropertyLockType::WriteOnly);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	SourceSkeletalMesh = InSourceSkeletalMesh;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+#if WITH_EDITOR
+	RegisterSkeletalMeshDelegates();
+#endif
+}
+
+void UGroomBindingAsset::SetTargetSkeletalMesh(USkeletalMesh* InTargetSkeletalMesh)
+{
+	if (GetTargetSkeletalMesh() == InTargetSkeletalMesh)
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	UnregisterSkeletalMeshDelegates();
+#endif
+
+	WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::TargetSkeletalMesh, EGroomBindingAsyncPropertyLockType::WriteOnly);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	TargetSkeletalMesh = InTargetSkeletalMesh;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+#if WITH_EDITOR
+	RegisterSkeletalMeshDelegates();
+#endif
+}
+
 TArray<FGoomBindingGroupInfo>& UGroomBindingAsset::GetGroupInfos()
 {
+	WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::GroupInfos, EGroomBindingAsyncPropertyLockType::ReadWrite);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return GroupInfos;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -1220,6 +1661,7 @@ FName UGroomBindingAsset::GetHairGroupResourcesMemberName()
 
 UGroomBindingAsset::FHairGroupResources& UGroomBindingAsset::GetHairGroupResources()
 {
+	WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::HairGroupResources, EGroomBindingAsyncPropertyLockType::ReadWrite);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return HairGroupResources;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -1227,6 +1669,7 @@ UGroomBindingAsset::FHairGroupResources& UGroomBindingAsset::GetHairGroupResourc
 
 const UGroomBindingAsset::FHairGroupResources& UGroomBindingAsset::GetHairGroupResources() const
 {
+	WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::HairGroupResources, EGroomBindingAsyncPropertyLockType::ReadOnly);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return HairGroupResources;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -1234,6 +1677,7 @@ const UGroomBindingAsset::FHairGroupResources& UGroomBindingAsset::GetHairGroupR
 
 void UGroomBindingAsset::SetHairGroupResources(UGroomBindingAsset::FHairGroupResources InHairGroupResources)
 {
+	WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::HairGroupResources, EGroomBindingAsyncPropertyLockType::WriteOnly);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	HairGroupResources = InHairGroupResources;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -1248,6 +1692,7 @@ FName UGroomBindingAsset::GetHairGroupPlatformDataMemberName()
 
 const TArray<UGroomBindingAsset::FHairGroupPlatformData>& UGroomBindingAsset::GetHairGroupsPlatformData() const
 {
+	WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::HairGroupPlatformData, EGroomBindingAsyncPropertyLockType::ReadOnly);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return HairGroupsPlatformData;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -1255,6 +1700,7 @@ const TArray<UGroomBindingAsset::FHairGroupPlatformData>& UGroomBindingAsset::Ge
 
 TArray<UGroomBindingAsset::FHairGroupPlatformData>& UGroomBindingAsset::GetHairGroupsPlatformData()
 {
+	WaitUntilAsyncPropertyReleased(EGroomBindingAsyncProperties::HairGroupPlatformData, EGroomBindingAsyncPropertyLockType::ReadWrite);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return HairGroupsPlatformData;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS

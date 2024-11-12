@@ -42,6 +42,15 @@ public:
 	 */
 	virtual void GetSessions( TArray<TSharedPtr<ISessionInfo>>& OutSessions ) const = 0;
 
+
+	/**
+	 * Attempts to retrieve an instance by it's unique instance id.
+	 * 
+	 * @param Id Instance id
+	 * @return Instance if it exist, otherwise a nullptr
+	 */
+	virtual TSharedPtr<ISessionInstanceInfo> GetInstance(const FGuid& Id) const = 0;
+
 	/**
 	 * Checks whether the given instance is currently selected.
 	 *

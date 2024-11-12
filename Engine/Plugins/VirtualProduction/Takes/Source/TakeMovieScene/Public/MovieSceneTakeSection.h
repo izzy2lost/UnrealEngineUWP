@@ -38,6 +38,16 @@ private:
 
 public:
 
+	struct FSectionData
+	{
+		FTimecode Timecode;
+		FString Slate;
+		float Rate = 24.0f;
+	};
+
+	/** Evaluate the curve data at the specified time and form a timecode / rate and slate values. If any curves failed to evaluate then the optional will be unset. */
+	TAKEMOVIESCENE_API TOptional<FSectionData> Evaluate(FFrameTime InTime) const;
+
 	/** Hours curve data */
 	UPROPERTY()
 	FMovieSceneIntegerChannel HoursCurve;
@@ -57,6 +67,10 @@ public:
 	/** Subframes curve data */
 	UPROPERTY()
 	FMovieSceneFloatChannel SubFramesCurve;
+
+	/** Timecode rate curve data */
+	UPROPERTY()
+	FMovieSceneFloatChannel RateCurve;
 
 	/** Slate data */
 	UPROPERTY()

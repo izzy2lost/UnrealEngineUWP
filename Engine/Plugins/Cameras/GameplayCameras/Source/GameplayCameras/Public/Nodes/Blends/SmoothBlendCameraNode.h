@@ -17,7 +17,7 @@ enum class ESmoothCameraBlendType
 };
 
 /**
- * A blend camera mode that implements the smoothstep and smoothersteps algorithms.
+ * A blend camera rig that implements the smoothstep and smoothersteps algorithms.
  */
 UCLASS(MinimalAPI)
 class USmoothBlendCameraNode : public USimpleFixedTimeBlendCameraNode
@@ -26,7 +26,7 @@ class USmoothBlendCameraNode : public USimpleFixedTimeBlendCameraNode
 
 protected:
 
-	virtual void OnComputeBlendFactor(const FCameraNodeRunParams& Params, FSimpleBlendCameraNodeRunResult& OutResult) override;
+	virtual FCameraNodeEvaluatorPtr OnBuildEvaluator(FCameraNodeEvaluatorBuilder& Builder) const override;
 	
 public:
 

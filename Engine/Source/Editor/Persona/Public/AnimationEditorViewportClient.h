@@ -106,6 +106,9 @@ public:
 	UE_DEPRECATED(5.1, "This version of InputAxis is deprecated. Please use the version that takes DeviceId instead.")
 	virtual bool InputAxis(FViewport* InViewport, int32 ControllerId, FKey Key, float Delta, float DeltaTime, int32 NumSamples = 1, bool bGamepad = false) override;
 	virtual bool InputAxis(FViewport* InViewport, FInputDeviceId DeviceId, FKey Key, float Delta, float DeltaTime, int32 NumSamples = 1, bool bGamepad = false) override;
+
+	// Sets what bones are drawn by DrawMeshBones and ShowBoneNames
+	virtual void UpdateBonesToDraw();
 	
 //	virtual void ProcessClick(class FSceneView& View, class HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY) override;
 //	virtual bool InputWidgetDelta( FViewport* Viewport, EAxisList::Type CurrentAxis, FVector& Drag, FRotator& Rot, FVector& Scale ) override;
@@ -404,6 +407,11 @@ private:
 	/* Member use to unregister OnMeshChanged for our preview skeletal mesh */
 	FDelegateHandle OnMeshChangedDelegateHandle;
 
+	/* Bit field indexed on bone index that stores what bones are visible in the viewport, updated with UpdateBonesToDraw */
+	TBitArray<> BonesToDraw;
+
+	FDelegateHandle OnSelectedBoneChangedHandle;
+
 private:
 
 	void SetCameraTargetLocation(const FSphere &BoundSphere, float DeltaSeconds);
@@ -425,7 +433,7 @@ private:
 	/** Draw Bones for non retargeted animation. */
 	void DrawMeshBonesBakedAnimation(UDebugSkelMeshComponent * MeshComponent, FPrimitiveDrawInterface* PDI) const;
 	/** Draw Bones from skeleton reference pose. */
-	void DrawBonesFromSkeleton(const USkeleton* Skeleton, const TArray<int32>& InSelectedBones, FPrimitiveDrawInterface* PDI) const;
+	void DrawBonesFromSkeleton(UDebugSkelMeshComponent * MeshComponent, const USkeleton* Skeleton, const TArray<int32>& InSelectedBones, FPrimitiveDrawInterface* PDI) const;
 	/** Draws Bones for RequiredBones with WorldTransform **/
 	void DrawBones(
 		const FVector& ComponentOrigin,
@@ -436,12 +444,26 @@ private:
 		const TArray<FLinearColor>& BoneColors,
 		FPrimitiveDrawInterface* PDI,
 		bool bForceDraw,
-		bool bAddHitProxy) const;
-	/** Draw Sub set of Bones **/
-	void DrawMeshSubsetBones(const UDebugSkelMeshComponent* MeshComponent, const TArray<int32>& BonesOfInterest, FPrimitiveDrawInterface* PDI) const;
+		bool bAddHitProxy,
+		bool bUseMultiColors) const;
 
 	/** Draws active transform attributes */
 	void DrawAttributes(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI) const;
+
+	/** Draws visualization from animation notifies into viewport. */
+	void DrawNotifies(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI) const;
+
+	/* Draws visualization from animation notifies into canvas. */
+	void DrawCanvasNotifies(UDebugSkelMeshComponent* MeshComponent, FCanvas& Canvas, FSceneView& View) const;
+
+	/* Draws visualization from Asset User Data into viewport. */
+	void DrawAssetUserData(FPrimitiveDrawInterface* PDI) const;
+
+	/* Draws visualization from Asset User Data into canvas. */
+	void DrawCanvasAssetUserData(FCanvas& Canvas, FSceneView& View) const;
+
+	/** Draws root motion trajectory */
+	void DrawRootMotionTrajectory(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI) const;
 
 	/** Draws bones from watched poses*/
 	void DrawWatchedPoses(UDebugSkelMeshComponent * MeshComponent, FPrimitiveDrawInterface* PDI);
@@ -483,6 +505,15 @@ private:
 	void HandlePreviewScenePostTick();
 
 private:
+	struct FTimecodeDisplayInfo
+	{
+		FQualifiedFrameTime QualifiedTime;
+		FString	  Slate;
+	};
+
+	/** @return array of AssetUserData interfaces from editable objects on associated asset toolkit. */
+	TArray<IInterface_AssetUserData*> GetEditedObjectsWithAssetUserData() const;
+	
 	/** Custom Animation speed in the viewport. Transient setting. */
 	float CustomAnimationSpeed = 1.0f;
 
@@ -512,4 +543,7 @@ private:
 
 	/** True when the preview animation should resume playing upon finishing tracking */
 	bool bResumeAfterTracking;
+
+	/** Timecode/slate information from current animation sequence. */
+	TOptional<FTimecodeDisplayInfo> TimecodeDisplay;
 };

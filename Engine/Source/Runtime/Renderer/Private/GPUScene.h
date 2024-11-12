@@ -13,6 +13,7 @@
 #include "LightSceneData.h"
 #include "SceneUniformBuffer.h"
 #include "UnifiedBuffer.h"
+#include "ScenePrimitiveUpdates.h"
 
 class FRDGExternalAccessQueue;
 class FRHICommandList;
@@ -178,6 +179,13 @@ private:
 
 struct FGPUSceneInstanceRange
 {
+	FGPUSceneInstanceRange(FPersistentPrimitiveIndex InPrimitive, uint32 InInstanceSceneDataOffset, uint32 InNumInstanceSceneDataEntries)
+		: Primitive(InPrimitive)
+		, InstanceSceneDataOffset(InInstanceSceneDataOffset)
+		, NumInstanceSceneDataEntries(InNumInstanceSceneDataEntries)
+	{}
+
+	FPersistentPrimitiveIndex Primitive;
 	uint32 InstanceSceneDataOffset;
 	uint32 NumInstanceSceneDataEntries;
 };
@@ -187,6 +195,8 @@ class FGPUScene
 public:
 	FGPUScene(FScene &InScene);
 	~FGPUScene();
+
+	using FUpdateFromComputeCommands = FScenePrimitiveUpdates::TPayloadRangeView<FUpdateInstanceFromComputeCommand>;
 
 	void SetEnabled(ERHIFeatureLevel::Type InFeatureLevel);
 	bool IsEnabled() const { return bIsEnabled; }
@@ -207,7 +217,7 @@ public:
 	 * returns the offset to the first instance or INDEX_NONE if either the allocation failed or NumInstanceSceneDataEntries was zero.
 	 * Marks the instances as requiring update (actual update is handled later).
 	 */
-	int32 AllocateInstanceSceneDataSlots(int32 NumInstanceSceneDataEntries);
+	int32 AllocateInstanceSceneDataSlots(FPersistentPrimitiveIndex PersistentPrimitiveIndex, int32 NumInstanceSceneDataEntries);
 	
 	/**
 	 * Free the instance data slots for reuse.
@@ -220,7 +230,7 @@ public:
 	/**
 	 * Upload primitives from View.DynamicPrimitiveCollector.
 	 */
-	void UploadDynamicPrimitiveShaderDataForView(FRDGBuilder& GraphBuilder, FViewInfo& View, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances = nullptr);
+	void UploadDynamicPrimitiveShaderDataForView(FRDGBuilder& GraphBuilder, FViewInfo& View, bool bRayTracing = false, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances = nullptr);
 
 	/**
 	 * Modifies the GPUScene specific scene UB parameters to the current versions. Returns true if any of the parameters changed.
@@ -230,7 +240,7 @@ public:
 	/**
 	 * Pull all pending updates from Scene and upload primitive & instance data.
 	 */
-	void Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FRDGExternalAccessQueue& ExternalAccessQueue, const UE::Tasks::FTask& UpdateTaskPrerequisites = {});
+	void Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FRDGExternalAccessQueue& ExternalAccessQueue, const FUpdateFromComputeCommands& UpdatesFromCompute, const UE::Tasks::FTask& UpdateTaskPrerequisites = {});
 
 	/**
 	 * Queue the given primitive for upload to GPU at next call to Update.
@@ -380,6 +390,8 @@ private:
 		int32 ViewId = INDEX_NONE;
 		uint32 PrimitiveId = INDEX_NONE;
 		uint32 InstanceSceneDataOffset = INDEX_NONE;
+		uint32 NumCustomDataFloats = INDEX_NONE;
+		uint32 PackedInstanceSceneDataFlags = 0u;
 	};
 
 	static constexpr uint32 NumDeferredGPUWritePasses = uint32(EGPUSceneGPUWritePass::Num);
@@ -426,11 +438,11 @@ private:
 	 */
 	void UpdateGPULights(FRDGBuilder& GraphBuilder, const UE::Tasks::FTask& PrerequisiteTask);
 
-	static void InitLightData(const FLightSceneInfoCompact& LightInfoCompact, bool bAllowStaticLighting, FLightSceneData& DataOut);
+	static void InitLightData(const FLightSceneInfoCompact& LightInfoCompact, bool bAllowStaticLighting, uint32 LightShaderParameterFlags, FLightSceneData& DataOut);
 
-	void UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& GraphBuilder, FViewInfo& View, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances);
+	void UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& GraphBuilder, FViewInfo& View, bool bRayTracing, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances);
 
-	void UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FRDGExternalAccessQueue& ExternalAccessQueue, const UE::Tasks::FTask& UpdateTaskPrerequisites);
+	void UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FRDGExternalAccessQueue& ExternalAccessQueue, const UE::Tasks::FTask& UpdateTaskPrerequisites, const FUpdateFromComputeCommands& UpdatesFromCompute);
 
 	void AddUpdatePrimitiveIdsPass(FRDGBuilder& GraphBuilder, FInstanceGPULoadBalancer& IdOnlyUpdateItems);
 

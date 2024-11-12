@@ -49,8 +49,27 @@ public:
 
 	static CORE_API FString GetCanonicalName(const FString& Name);
 
+	/**
+	 * Given a well-formed UE culture name (eg, "en-US"), convert it to its equivalent Verse identifier (eg, "en_US").
+	 */
+	static CORE_API FString CultureNameToVerseIdentifier(const FString& Name);
+
+	/**
+	 * Given a well-formed Verse culture identifier (eg, "en_US"), convert it to its equivalent UE culture name (eg, "en-US").
+	 * @note GetCanonicalName will also perform this conversion, with additional validation.
+	 */
+	static CORE_API FString CultureNameFromVerseIdentifier(const FString& VerseIdentifer);
+
+	/**
+	 * Get the name of this culture, eg, "en-US"
+	 */
 	CORE_API const FString& GetName() const;
 	
+	/**
+	 * Get the name of this culture as a Verse identifier (for a Verse path), eg, "en_US"
+	 */
+	CORE_API const FString& GetVerseIdentifier() const;
+
 	CORE_API const FString& GetNativeName() const;
 
 	CORE_API const FString& GetUnrealLegacyThreeLetterISOLanguageName() const;
@@ -109,6 +128,7 @@ private:
 	FString CachedDisplayName;
 	FString CachedEnglishName;
 	FString CachedName;
+	FString CachedVerseIdentifier;
 	FString CachedNativeName;
 	FString CachedUnrealLegacyThreeLetterISOLanguageName;
 	FString CachedThreeLetterISOLanguageName;

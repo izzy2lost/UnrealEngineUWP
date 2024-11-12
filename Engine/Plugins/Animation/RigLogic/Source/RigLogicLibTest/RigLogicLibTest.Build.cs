@@ -12,7 +12,9 @@ namespace UnrealBuildTool.Rules
 			bUseUnity = false; // A windows include is preprocessing some method names causing compile failures.
 			bDisableStaticAnalysis = true;
 
-			if (Target.Platform == UnrealTargetPlatform.Win64)
+			PrivateDefinitions.Add("RL_BUILD_WITH_XYZ_ROTATION_ORDER=1");
+
+			if (Target.Platform == UnrealTargetPlatform.Win64 && Target.Architecture == UnrealArch.X64)
 			{
 				PrivateDefinitions.Add("RL_BUILD_WITH_SSE=1");
 				PublicDefinitions.Add("GTEST_OS_WINDOWS=1");
@@ -20,7 +22,7 @@ namespace UnrealBuildTool.Rules
 
 			string RigLogicLibPath = Path.GetFullPath(Path.Combine(ModuleDirectory, "../RigLogicLib"));
 
-			if (Target.LinkType == TargetLinkType.Monolithic)
+			if (Target.LinkType == TargetLinkType.Monolithic || Target.bMergeModules)
 			{
 				PublicDependencyModuleNames.Add("RigLogicLib");
 				PrivateIncludePaths.Add(Path.Combine(RigLogicLibPath, "Private"));

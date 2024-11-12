@@ -27,6 +27,7 @@
 #include "Async/ParallelFor.h"
 #include "Misc/ScopeRWLock.h"
 #include "Algo/Accumulate.h"
+#include "Algo/Find.h"
 #include "Algo/Reverse.h"
 #include "Containers/VersePath.h"
 #include "Internationalization/TextLocalizationManager.h"
@@ -95,19 +96,14 @@ namespace PluginSystemDefs
 	static const TCHAR* PluginDescriptorFileExtension = TEXT( ".uplugin" );
 
 	/**
-	 * Parsing the command line and loads any foreign plugins that were
-	 * specified using the -PLUGIN= command.
+	 * Append all paths specified using the -PLUGIN= switch.
 	 *
-	 * @param  CommandLine    The commandline used to launch the editor.
-	 * @param  SearchPathsOut 
-	 * @return The number of plugins that were specified using the -PLUGIN param.
+	 * @param  PluginPathsOut Has a value added for each -PLUGIN=value pair.
 	 */
-	static int32 GetAdditionalPluginPaths(TSet<FString>& PluginPathsOut)
+	static void GetCmdLinePluginPaths(TSet<FExternalPluginPath>& PluginPathsOut)
 	{
 		const TCHAR* SwitchStr = TEXT("PLUGIN=");
 		const int32  SwitchLen = FCString::Strlen(SwitchStr);
-
-		int32 PluginCount = 0;
 
 		const TCHAR* SearchStr = FCommandLine::Get();
 		do
@@ -118,9 +114,7 @@ namespace PluginSystemDefs
 			if (FParse::Value(SearchStr, SwitchStr, PluginPath))
 			{
 				FString PluginDir = FPaths::GetPath(PluginPath);
-				PluginPathsOut.Add(PluginDir);
-
-				++PluginCount;
+				PluginPathsOut.Add(FExternalPluginPath{ PluginDir, EPluginExternalSource::CommandLine });
 				SearchStr += SwitchLen + PluginPath.Len();
 			}
 			else
@@ -128,23 +122,20 @@ namespace PluginSystemDefs
 				break;
 			}
 		} while (SearchStr != nullptr);
+	}
 
+	/**
+	 * Retrieve a list of all paths specified via the UE_ADDITIONAL_PLUGIN_PATHS environment variable.
+	 *
+	 * @param  PluginPathsOut A list of values split from the environment variable.
+	 */
+	static void GetEnvPluginPaths(TSet<FExternalPluginPath>& PluginPathsOut)
+	{
 		TArray<FString> AdditionalEnvPaths = UE::PluginManager::Private::GetAdditionalExternalPluginsByEnvVar();
 		for (const FString& Path : AdditionalEnvPaths)
 		{
-			PluginPathsOut.Add(Path);
+			PluginPathsOut.Add(FExternalPluginPath{ Path, EPluginExternalSource::Environment });
 		}
-		return PluginCount;
-	}
-
-
-	bool IsCachingIniFilesForProcessing()
-	{
-#if PLATFORM_DESKTOP // with the reduced set of plugin files to scan, this is likely unnecessary on any platform, but DESKTOP platforms may have Saved/Cooked directories around are slooow to scan
-		return false;
-#else
-		return true;
-#endif
 	}
 }
 
@@ -152,7 +143,7 @@ namespace PluginSystemDefs
  * Set of simple (ideally inlinable) helper methods intended to obscure how 
  * `FDiscoveredPluginMap` is implemented (so that we can more easily change out it's type as needed).
  * 
- * Also dictactes how we separate the one "offered"  plugin out from other versions of the same plugin 
+ * Also dictates how we separate the one "offered"  plugin out from other versions of the same plugin 
  * (see DiscoveredPluginMapUtils::EInsertionType).
  */
 namespace DiscoveredPluginMapUtils
@@ -379,7 +370,6 @@ FPlugin::FPlugin(const FString& InFileName, const FPluginDescriptor& InDescripto
 	, Type(InType)
 	, bEnabled(false)
 	, bIsMounted(false)
-	, bIsExplicitlyLoadedLocalizationDataMounted(false)
 {
 
 }
@@ -748,7 +738,13 @@ void FPluginManager::DiscoverAllPlugins()
 {
 	ensure( AllPlugins.Num() == 0 );		// Should not have already been initialized!
 
-	PluginSystemDefs::GetAdditionalPluginPaths(PluginDiscoveryPaths);
+	PluginSystemDefs::GetCmdLinePluginPaths(ExternalPluginSources);
+	PluginSystemDefs::GetEnvPluginPaths(ExternalPluginSources);
+	for (const FExternalPluginPath& ExternalSource : ExternalPluginSources)
+	{
+		PluginDiscoveryPaths.Add(ExternalSource.Path);
+	}
+
 	ReadAllPlugins(AllPlugins, PluginDiscoveryPaths);
 
 	PluginsToConfigure.Reserve(AllPlugins.Num());
@@ -792,7 +788,7 @@ void FPluginManager::ReadAllPlugins(FDiscoveredPluginMap& Plugins, const TSet<FS
 
 		SlowTask_ReadAll.EnterProgressFrame(0.5f);
 		// Find "built-in" plugins.  That is, plugins situated right within the Engine directory.
-		TArray<FString> EnginePluginDirs = FPaths::GetExtensionDirs(FPaths::EngineDir(), TEXT("Plugins"), !GIsEditor);
+		TArray<FString> EnginePluginDirs = FPaths::GetExtensionDirs(FPaths::EngineDir(), TEXT("Plugins"));
 		if (OutPluginSources)
 		{
 			OptionalOutPluginRoots.Append(EnginePluginDirs);
@@ -812,7 +808,7 @@ void FPluginManager::ReadAllPlugins(FDiscoveredPluginMap& Plugins, const TSet<FS
 		// assume that the game plugin version is preferred.
 		if (Project != nullptr)
 		{
-			TArray<FString> ProjectPluginDirs = FPaths::GetExtensionDirs(FPaths::GetPath(FPaths::GetProjectFilePath()), TEXT("Plugins"), !GIsEditor);
+			TArray<FString> ProjectPluginDirs = FPaths::GetExtensionDirs(FPaths::GetPath(FPaths::GetProjectFilePath()), TEXT("Plugins"));
 			if (OutPluginSources)
 			{
 				OptionalOutPluginRoots.Append(ProjectPluginDirs);
@@ -1346,14 +1342,12 @@ bool FPluginManager::IntegratePluginsIntoConfig(FConfigCacheIni& ConfigSystem, c
 			{
 				FString BaseConfigFile = *FPaths::GetBaseFilename(ConfigFile);
 
-				// Use GetConfigFilename to find the proper config file to combine into, since it manages command line overrides and path sanitization
-				FString PluginConfigFilename = ConfigSystem.GetConfigFilename(*BaseConfigFile);
-				FConfigFile* FoundConfig = ConfigSystem.FindConfigFile(PluginConfigFilename);
-				if (FoundConfig != nullptr)
+				FConfigBranch* FoundBranch = ConfigSystem.FindBranch(*BaseConfigFile, TEXT(""));
+				if (FoundBranch != nullptr)
 				{
-					UE_LOG(LogPluginManager, Log, TEXT("Found config from plugin[%s] %s"), *Plugin.GetName(), *PluginConfigFilename);
+					UE_LOG(LogPluginManager, Log, TEXT("Found config from plugin[%s] %s"), *Plugin.GetName(), *BaseConfigFile);
 
-					FoundConfig->AddDynamicLayerToHierarchy(FPaths::Combine(PluginConfigDir, ConfigFile));
+					FoundBranch->AddDynamicLayerToHierarchy(FPaths::Combine(PluginConfigDir, ConfigFile));
 				}
 			}
 
@@ -1411,33 +1405,59 @@ bool FPluginManager::ConfigureEnabledPlugins()
 		FString DefaultEditorTarget;
 		GConfig->GetString(TEXT("/Script/BuildSettings.BuildSettings"), TEXT("DefaultEditorTarget"), DefaultEditorTarget, GEngineIni);
 
-		auto FindFirstMatchingTargetFile = [&DefaultEditorTarget](const FString& ReceiptWildcard) -> TUniquePtr<FTargetReceipt>
+		auto FindMatchingTargetFile = [&DefaultEditorTarget](const FString& ReceiptWildcard) -> TUniquePtr<FTargetReceipt>
 		{
 			TArray<FString> AllTargetFilesWithoutPath;
 			const FString ReceiptPath = FPaths::GetPath(ReceiptWildcard);
 			IFileManager::Get().FindFiles(AllTargetFilesWithoutPath, *ReceiptWildcard, true, false);
 
+			// Used as a fallback in lieu of an exact match (only for EBuildTargetType::Editor).
+			TPair<FString, TUniquePtr<FTargetReceipt>> BestMatch;
+
 			for (const FString& TargetFileWithoutPath : AllTargetFilesWithoutPath)
 			{
-				const FString TargetFile = FPaths::Combine(ReceiptPath, TargetFileWithoutPath);
+				FString TargetFile = FPaths::Combine(ReceiptPath, TargetFileWithoutPath);
 				TUniquePtr<FTargetReceipt> Receipt = MakeUnique<FTargetReceipt>();
 				if (Receipt->Read(TargetFile))
 				{
 					if (Receipt->TargetType == FApp::GetBuildTargetType() && Receipt->Configuration == FApp::GetBuildConfiguration())
 					{
-						bool bIsDefaultTarget = Receipt->TargetType != EBuildTargetType::Editor || (DefaultEditorTarget.Len() == 0) || (DefaultEditorTarget == Receipt->TargetName);
-						if (bIsDefaultTarget)
+						// Priority:
+						// - If we are non-editor, first non-editor receipt
+						// - Otherwise, first that matches the running executable
+						// - Otherwise, first corresponding to DefaultEditorTarget (if specified)
+						// - Otherwise, first editor receipt
+						if (Receipt->TargetType != EBuildTargetType::Editor || Receipt->LaunchesCurrentExecutable())
 						{
+							UE_LOG(LogPluginManager, Log, TEXT("Found matching target receipt: %s"), *TargetFile);
 							return Receipt;
+						}
+
+						const bool bIsDefaultTarget = (DefaultEditorTarget.Len() != 0) && (DefaultEditorTarget == Receipt->TargetName);
+						if (bIsDefaultTarget || !BestMatch.Value)
+						{
+							BestMatch = { MoveTemp(TargetFile), MoveTemp(Receipt) };
+							// `TargetFile` and `Receipt` are now invalidated by virtue of being moved-from.
 						}
 					}
 				}
 			}
-			return TUniquePtr<FTargetReceipt>();
+
+			if (BestMatch.Value)
+			{
+				UE_LOG(LogPluginManager, Log, TEXT("Found target receipt: %s"), *BestMatch.Key);
+			}
+			else
+			{
+				UE_LOG(LogPluginManager, Log, TEXT("Unable to find target receipt in path: %s"), *ReceiptWildcard);
+			}
+
+			// Might be null.
+			return MoveTemp(BestMatch.Value);
 		};
 #endif // READ_TARGET_ENABLED_PLUGINS_FROM_RECEIPT
 
-#if !WITH_EDITOR
+#if UE_BUILD_SHIPPING
 		// const to ensure it to stays empty
 		const TSet<FString> AllowedOptionalDependencies;
 #else
@@ -1449,11 +1469,11 @@ bool FPluginManager::ConfigureEnabledPlugins()
 			SCOPED_BOOT_TIMING("ReadTargetBuildPluginsFromReceipt");
 
 			// Read the build plugins from the target file using the target receipt file. This controls which optional plugin references can be enabled.
-			auto ReadBuildPluginsFromFirstMatchingTargetFile = [&FindFirstMatchingTargetFile, &AllowedOptionalDependencies](const TCHAR* BaseDir) -> bool
+			auto ReadBuildPluginsFromFirstMatchingTargetFile = [&FindMatchingTargetFile, &AllowedOptionalDependencies](const TCHAR* BaseDir) -> bool
 			{
 				const FString ReceiptWildcard = FTargetReceipt::GetDefaultPath(BaseDir, TEXT("*"), FPlatformProcess::GetBinariesSubdirectory(), FApp::GetBuildConfiguration(), nullptr);
 
-				TUniquePtr<FTargetReceipt> Receipt = FindFirstMatchingTargetFile(ReceiptWildcard);
+				TUniquePtr<FTargetReceipt> Receipt = FindMatchingTargetFile(ReceiptWildcard);
 				if (Receipt.IsValid())
 				{
 					AllowedOptionalDependencies.Append(Receipt->BuildPlugins);
@@ -1462,6 +1482,7 @@ bool FPluginManager::ConfigureEnabledPlugins()
 				return false;
 			};
 
+			UE_LOG(LogPluginManager, Log, TEXT("Looking for build plugins target receipt"));
 			if (!ReadBuildPluginsFromFirstMatchingTargetFile(FPlatformMisc::ProjectDir()))
 			{
 				ReadBuildPluginsFromFirstMatchingTargetFile(FPlatformMisc::EngineDir());
@@ -1474,7 +1495,7 @@ bool FPluginManager::ConfigureEnabledPlugins()
 			AllowedOptionalDependencies.Append({ UBT_TARGET_BUILD_PLUGINS });
 		}
 #endif // READ_TARGET_ENABLED_PLUGINS_FROM_RECEIPT
-#endif // !WITH_EDITOR
+#endif // UE_BUILD_SHIPPING
 
 		// Check which plugins have been enabled or excluded via the command line
 		{
@@ -1538,9 +1559,9 @@ bool FPluginManager::ConfigureEnabledPlugins()
 			}
 			if (ExtraPluginsToEnable.Num() > 0)
 			{
-#if WITH_EDITOR
+#if !UE_BUILD_SHIPPING
 				AllowedOptionalDependencies.Append(ExtraPluginsToEnable);
-#endif // WITH_EDITOR
+#endif
 
 				auto IsRestrictedPlugin = [this](const FString& PluginName)
 				{
@@ -1594,16 +1615,28 @@ bool FPluginManager::ConfigureEnabledPlugins()
 		{
 			SCOPED_BOOT_TIMING("EnginePlugins");
 
+			// May be overridden later by receipt or project descriptor.
+			bool bAllowEnginePluginsEnabledByDefault = true;
+
 #if READ_TARGET_ENABLED_PLUGINS_FROM_RECEIPT
 			// Configure the plugins that were enabled or disabled from the target file using the target receipt file
-			auto ConfigurePluginsFromFirstMatchingTargetFile = [this, &FindFirstMatchingTargetFile, &ConfiguredPluginNames, &EnabledPlugins, &AllowedOptionalDependencies](const TCHAR* BaseDir, bool& bOutError) -> bool
+			auto ConfigurePluginsFromFirstMatchingTargetFile = [this, &FindMatchingTargetFile, &ConfiguredPluginNames,
+				&EnabledPlugins, &AllowedOptionalDependencies, &bAllowEnginePluginsEnabledByDefault]
+				(const TCHAR* BaseDir, bool& bOutError) -> bool
 			{
 				const FString ReceiptWildcard = FTargetReceipt::GetDefaultPath(BaseDir, TEXT("*"), FPlatformProcess::GetBinariesSubdirectory(), FApp::GetBuildConfiguration(), nullptr);
 				FString SourceDescription = FString::Printf(TEXT("Receipt files %s"), *ReceiptWildcard);
 
-				TUniquePtr<FTargetReceipt> Receipt = FindFirstMatchingTargetFile(ReceiptWildcard);
+				TUniquePtr<FTargetReceipt> Receipt = FindMatchingTargetFile(ReceiptWildcard);
 				if (Receipt.IsValid())
 				{
+					FReceiptProperty* AllowDefaultProperty = Algo::FindByPredicate(Receipt->AdditionalProperties,
+						[](const FReceiptProperty& InProp) -> bool { return InProp.Name == TEXT("bAllowEnginePluginsEnabledByDefault"); });
+					if (AllowDefaultProperty && !FCString::Stricmp(*AllowDefaultProperty->Value, TEXT("false")))
+					{
+						bAllowEnginePluginsEnabledByDefault = false;
+					}
+
 					for (const TPair<FString, bool>& Pair : Receipt->PluginNameToEnabledState)
 					{
 						const FString& PluginName = Pair.Key;
@@ -1628,6 +1661,7 @@ bool FPluginManager::ConfigureEnabledPlugins()
 
 			{
 				SCOPED_BOOT_TIMING("ConfigureTargetEnabledPluginsFromReceipt");
+				UE_LOG(LogPluginManager, Log, TEXT("Looking for enabled plugins target receipt"));
 				bool bErrorConfiguring = false;
 				if (!ConfigurePluginsFromFirstMatchingTargetFile(FPlatformMisc::ProjectDir(), bErrorConfiguring))
 				{
@@ -1695,7 +1729,6 @@ bool FPluginManager::ConfigureEnabledPlugins()
 				return true;
 			};
 
-			bool bAllowEnginePluginsEnabledByDefault = true;
 			// Find all the plugin references in the project file
 			const FProjectDescriptor* ProjectDescriptor = IProjectManager::Get().GetCurrentProject();
 			{
@@ -1842,6 +1875,15 @@ bool FPluginManager::ConfigureEnabledPlugins()
 			}
 		}
 
+		PluginsEnabledForTarget.Reserve(EnabledPlugins.Num());
+		for (const TPair<FString, FPlugin*>& Pair : EnabledPlugins)
+		{
+			if (Pair.Value->bEnabled)
+			{
+				PluginsEnabledForTarget.Add(Pair.Key);
+			}
+		}
+
 		// If we made it here, we have all the required plugins
 		bHaveAllRequiredPlugins = true;
 
@@ -1905,23 +1947,6 @@ bool FPluginManager::ConfigureEnabledPlugins()
 
 			TArray<FString> ConfigFilesPluginsCannotOverride;
 			GConfig->GetArray(TEXT("Plugins"), TEXT("ConfigFilesPluginsCannotOverride"), ConfigFilesPluginsCannotOverride, GEngineIni);
-
-			TSet<FString> AllIniFiles;
-
-			if (PluginSystemDefs::IsCachingIniFilesForProcessing())
-			{
-				SCOPED_BOOT_TIMING("ParallelPluginEnabling::FindIniFiles");
-				TArray<FString> AllIniFilesList;
-				
-				// Using ProjectDir and EngineDir are really broad, but they also cover all plugin config directories individually
-				// and should cover all of the extension directories as well.
-				IFileManager::Get().FindFilesRecursive(AllIniFilesList, *FPaths::EngineDir(), TEXT("*.ini"), /*Files=*/true, /*Directories=*/false, /*bClearFileNames=*/false);
-				IFileManager::Get().FindFilesRecursive(AllIniFilesList, *FPaths::ProjectDir(), TEXT("*.ini"), /*Files=*/true, /*Directories=*/false, /*bClearFileNames=*/false);
-				IFileManager::Get().FindFilesRecursive(AllIniFilesList, *FPaths::ProjectSavedDir(), TEXT("*.ini"), /*Files=*/true, /*Directories=*/false, /*bClearFileNames=*/false);
-
-				AllIniFiles.Append(AllIniFilesList);
-			}
-
 			
 			FCriticalSection ConfigCS;
 			FCriticalSection PluginPakCS;
@@ -1936,102 +1961,37 @@ bool FPluginManager::ConfigureEnabledPlugins()
 			TMap<FString, TArray<FPendingConfigFile>> PendingConfigs;
 
 			// Mount all the enabled plugins
-			ParallelFor(PluginsArray.Num(), [&PluginsArray, &ConfigCS, &PluginPakCS, &PendingConfigsCS, &PendingConfigs, &ConfigFilesPluginsCannotOverride, &AllIniFiles, this](int32 Index)
+			FConfigModificationTracker ChangeTracker;
+			ChangeTracker.bTrackLoadedFiles = true;
+
+			// walk over each plugin, and add the config files that are named for the plugin
+			// this is a separate loop so that a plugin can modify another plugin's configs in the second loop below
+			for (TSharedRef<FPlugin> PluginPtr : PluginsArray)
 			{
-				FString PlatformName = FPlatformProperties::PlatformName();
-				FPlugin& Plugin = *PluginsArray[Index];
+				FPlugin& Plugin = *PluginPtr;
+				FName PluginName(*Plugin.Name);
 				UE_LOG(LogPluginManager, Log, TEXT("Mounting %s plugin %s"), *EnumToString(Plugin.Type), *Plugin.GetName());
 				UE_LOG(LogPluginManager, Verbose, TEXT("Plugin path: %s"), *Plugin.FileName);
+				
+				// register this plugin, so it can be found right now, but also when loading other platforms, or when modifying it by other plugins
+				const bool bIncludePluginNameInBranchName = false;
+				FConfigCacheIni::RegisterPlugin(PluginName, Plugin.GetBaseDir(), Plugin.GetExtensionBaseDirs(), DynamicLayerPriority::Plugin, bIncludePluginNameInBranchName);
+				
+				FConfigContext Context = FConfigContext::ReadIntoGConfig();
+				Context.ChangeTracker = &ChangeTracker;
+				Context.ConfigFileTag = *Plugin.Name;
+				Context.Load(*Plugin.Name);
+			}
 
-				auto AppendPluginConfigData = [&ConfigFilesPluginsCannotOverride](FConfigFile& DestinationPluginConfig, const FString& DestinationPluginConfigFilename, const FString& SourcePluginName, const FString& SourcePluginConfigDir, const FString& SourcePluginConfigFile)
-				{
-					UE_LOG(LogPluginManager, Log, TEXT("Found config from plugin[%s] %s"), *SourcePluginName, *DestinationPluginConfigFilename);
+			// walk over each plugin, modify existing ini's, mount the content, etc
+			ParallelFor(PluginsArray.Num(), [&PluginsArray, &ConfigCS, &PluginPakCS, &PendingConfigsCS, &PendingConfigs, &ConfigFilesPluginsCannotOverride, &ChangeTracker, this](int32 Index)
+			{
+				FPlugin& Plugin = *PluginsArray[Index];
+				FName PluginName(*Plugin.Name);
 
-					FString BaseConfigFile = *FPaths::GetBaseFilename(SourcePluginConfigFile);
-					if (ConfigFilesPluginsCannotOverride.Contains(BaseConfigFile))
-					{
-						// Not allowed, skip it
-						FText FailureMessage = FText::Format(LOCTEXT("PluginOverrideFailureFormat", "Plugin '{0}' cannot override config file: '{1}'"), FText::FromString(SourcePluginName), FText::FromString(BaseConfigFile));
-						FText DialogTitle = LOCTEXT("PluginConfigFileOverride", "Plugin config file override");
-						UE_LOG(LogPluginManager, Error, TEXT("%s"), *FailureMessage.ToString());
-						FMessageDialog::Open(EAppMsgType::Ok, FailureMessage, DialogTitle);
-						return;
-					}
+				// handle any overrides for Engine.ini, etc in the plugin
+				FConfigCacheIni::AddPluginToAllBranches(PluginName, &ChangeTracker);
 
-					DestinationPluginConfig.AddDynamicLayerToHierarchy(FPaths::Combine(SourcePluginConfigDir, SourcePluginConfigFile));
-
-#if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
-					// Don't allow plugins to stomp command line overrides, so re-apply them
-					FConfigFile::OverrideFromCommandline(&DestinationPluginConfig, DestinationPluginConfigFilename);
-#endif // ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
-				};
-
-				// Build the config system key for PluginName.ini
-				FString PluginConfigFilename = GConfig->GetConfigFilename(*Plugin.Name);
-				{
-					FScopeLock Locker(&ConfigCS);
-
-					FConfigFile& PluginConfig = GConfig->Add(PluginConfigFilename, FConfigFile());
-
-					FConfigContext Context = FConfigContext::ReadIntoPluginFile(PluginConfig, FPaths::GetPath(Plugin.FileName), Plugin.GetExtensionBaseDirs());
-
-					if (PluginSystemDefs::IsCachingIniFilesForProcessing())
-					{
-						Context.IniCacheSet = &AllIniFiles;
-					}
-
-					if (Context.Load(*Plugin.Name))
-					{
-						// Process anything relevant that was discovered before we loaded
-						FScopeLock PendingConfigsLock(&PendingConfigsCS);
-						if (const TArray<FPendingConfigFile>* PendingConfigArray = PendingConfigs.Find(Plugin.Name))
-						{
-							for (const FPendingConfigFile& PendingConfigFile : *PendingConfigArray)
-							{
-								AppendPluginConfigData(PluginConfig, PluginConfigFilename, PendingConfigFile.PluginName, PendingConfigFile.PluginConfigDir, PendingConfigFile.PluginConfigFile);
-							}
-						}
-					}
-					else
-					{
-						// Nothing to add, remove from map
-						GConfig->Remove(PluginConfigFilename);
-					}
-				}
-
-				// Load <PluginName>.ini config file if it exists
-				FString PluginConfigDir = FPaths::GetPath(Plugin.FileName) / TEXT("Config/");
-
-				// override config cache entries with plugin configs (Engine.ini, Game.ini, etc in <PluginDir>\Config\)
-				TArray<FString> PluginConfigs;
-				IFileManager::Get().FindFiles(PluginConfigs, *PluginConfigDir, TEXT("ini"));
-				for (const FString& ConfigFile : PluginConfigs)
-				{
-					FString BaseConfigFile = *FPaths::GetBaseFilename(ConfigFile);					
-
-					if (BaseConfigFile == Plugin.Name)
-					{
-						// We just handled this, skip it
-						continue;
-					}
-
-					// Build the config system key for the overridden config
-					PluginConfigFilename = GConfig->GetConfigFilename(*BaseConfigFile);
-					{
-						FScopeLock Locker(&ConfigCS);
-						FConfigFile* FoundConfig = GConfig->FindConfigFile(PluginConfigFilename);
-
-						if (FoundConfig != nullptr)
-						{
-							AppendPluginConfigData(*FoundConfig, PluginConfigFilename, Plugin.GetName(), PluginConfigDir, ConfigFile);
-						}
-						else if (PluginsToConfigure.Contains(BaseConfigFile))
-						{
-							FScopeLock PendingConfigsLock(&PendingConfigsCS);
-							PendingConfigs.FindOrAdd(BaseConfigFile).Add(FPendingConfigFile{ Plugin.GetName(), PluginConfigDir, ConfigFile });
-						}
-					}
-				}
 
 				// Build the list of content folders
 				if (Plugin.Descriptor.bCanContainContent)
@@ -2608,7 +2568,7 @@ bool FPluginManager::ConfigureEnabledPluginForTarget(const FPluginReferenceDescr
 				return false;
 			}
 
-#if WITH_EDITOR
+#if !UE_BUILD_SHIPPING
 			// Allowed optional plugins are compiled enabled or enabled via the commandline. Ignore those that are not.
 			if (NextReference.bOptional && !AllowedOptionalDependencies.IsEmpty() && !AllowedOptionalDependencies.Contains(NextReference.Name))
 			{
@@ -2914,6 +2874,11 @@ bool FPluginManager::LoadModulesForEnabledPlugins( const ELoadingPhase::Type Loa
 			UE_SCOPED_ENGINE_ACTIVITY("Preloading all plugin binaries");
 			for (const FDiscoveredPluginMap::ElementType& PluginPair : AllPlugins)
 			{
+				if (!CanEnablePluginInCurrentTarget(PluginPair.Key))
+				{
+					UE_LOG(LogPluginManager, Display, TEXT("Skipping loading modules for %s. Plugin is not enabled for current target."), *PluginPair.Key);
+					continue;
+				}
 				for (auto& ModuleName : DiscoveredPluginMapUtils::ResolvePluginFromMapVal(PluginPair.Value)->Descriptor.Modules)
 				{
 					if (ModuleName.IsCompiledInCurrentConfiguration())
@@ -2955,7 +2920,7 @@ void FPluginManager::GetLocalizationPathsForEnabledPlugins( TArray<FString>& Out
 	for (const FDiscoveredPluginMap::ElementType& PluginPair : AllPlugins)
 	{
 		const TSharedRef<FPlugin>& Plugin = DiscoveredPluginMapUtils::ResolvePluginFromMapVal(PluginPair.Value);
-		if (!Plugin->bEnabled || (Plugin->GetDescriptor().bExplicitlyLoaded && !Plugin->bIsExplicitlyLoadedLocalizationDataMounted) || Plugin->GetDescriptor().LocalizationTargets.Num() == 0)
+		if (!Plugin->bEnabled || (Plugin->GetDescriptor().bExplicitlyLoaded && Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount == 0) || Plugin->GetDescriptor().LocalizationTargets.Num() == 0)
 		{
 			continue;
 		}
@@ -2972,11 +2937,6 @@ void FPluginManager::SetRegisterMountPointDelegate( const FRegisterMountPointDel
 void FPluginManager::SetUnRegisterMountPointDelegate( const FRegisterMountPointDelegate& Delegate )
 {
 	UnRegisterMountPointDelegate = Delegate;
-}
-
-void FPluginManager::SetUpdatePackageLocalizationCacheDelegate( const FUpdatePackageLocalizationCacheDelegate& Delegate )
-{
-	UpdatePackageLocalizationCacheDelegate = Delegate;
 }
 
 bool FPluginManager::AreRequiredPluginsAvailable()
@@ -3109,6 +3069,16 @@ TSharedPtr<IPlugin> FPluginManager::FindEnabledPluginFromDescriptor(const FPlugi
 	}
 }
 
+bool FPluginManager::CanEnablePluginInCurrentTarget(const FStringView Name)
+{
+	if (ConfigureEnabledPlugins())
+	{
+		const uint32 NameHash = GetTypeHash(Name);
+		return PluginsEnabledForTarget.ContainsByHash(NameHash, Name);
+	}
+	return false;
+}
+
 TArray<TSharedRef<IPlugin>> FPluginManager::GetEnabledPlugins()
 {
 	TArray<TSharedRef<IPlugin>> Plugins;
@@ -3204,18 +3174,50 @@ TSharedPtr<IPlugin> FPluginManager::GetModuleOwnerPlugin(FName ModuleName) const
 
 bool FPluginManager::AddPluginSearchPath(const FString& ExtraDiscoveryPath, bool bRefresh)
 {
+	const FString FullPath = FPaths::ConvertRelativePathToFull(ExtraDiscoveryPath);
+
 	bool bAlreadyExists = false;
-	PluginDiscoveryPaths.Add(FPaths::ConvertRelativePathToFull(ExtraDiscoveryPath), &bAlreadyExists);
+	ExternalPluginSources.Add(FExternalPluginPath{ FullPath, EPluginExternalSource::Other });
+	PluginDiscoveryPaths.Add(FullPath, &bAlreadyExists);
+
 	if (bRefresh)
 	{
 		RefreshPluginsList();
 	}
+
 	return !bAlreadyExists;
+}
+
+bool FPluginManager::RemovePluginSearchPath(const FString& PathToRemove, bool bRefresh)
+{
+	const FString FullPath = FPaths::ConvertRelativePathToFull(PathToRemove);
+
+	const bool bPathWasPresent = PluginDiscoveryPaths.Contains(FullPath);
+
+	ExternalPluginSources.Remove(FExternalPluginPath{ FullPath, EPluginExternalSource::Other });
+	PluginDiscoveryPaths.Remove(FullPath);
+
+	if (bRefresh)
+	{
+		RefreshPluginsList();
+	}
+
+	return bPathWasPresent;
 }
 
 const TSet<FString>& FPluginManager::GetAdditionalPluginSearchPaths() const
 {
 	return PluginDiscoveryPaths;
+}
+
+void FPluginManager::GetExternalPluginSources(TSet<FExternalPluginPath>& OutPluginSources) const
+{
+	OutPluginSources.Append(ExternalPluginSources);
+
+	for (const FString& ProjectPath : IProjectManager::Get().GetAdditionalPluginDirectories())
+	{
+		OutPluginSources.Add(FExternalPluginPath{ ProjectPath, EPluginExternalSource::ProjectDescriptor });
+	}
 }
 
 TArray<TSharedRef<IPlugin>> FPluginManager::GetPluginsWithPakFile() const
@@ -3308,10 +3310,11 @@ bool FPluginManager::MountExplicitlyLoadedPluginLocalizationData(const FString& 
 		return false;
 	}
 
-	if (Plugin->bIsExplicitlyLoadedLocalizationDataMounted)
+	if (Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount > 0)
 	{
 		// Already loaded
-		UE_LOG(LogPluginManager, Verbose, TEXT("Ignoring request to mount plugin localization for '%s' as the localization data was already mounted."), *PluginName);
+		UE_LOG(LogPluginManager, Verbose, TEXT("Ignoring request to mount plugin localization for '%s' as it was already referenced (ref-count: %d -> %d)."), *PluginName, Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount, Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount + 1);
+		++Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount;
 		return false;
 	}
 
@@ -3323,7 +3326,7 @@ bool FPluginManager::MountExplicitlyLoadedPluginLocalizationData(const FString& 
 	}
 
 	UE_LOG(LogPluginManager, Log, TEXT("Mounting plugin localization for '%s'..."), *PluginName);
-	Plugin->bIsExplicitlyLoadedLocalizationDataMounted = true;
+	Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount = 1;
 
 	// Notify that additional localization data should be loaded
 	TArray<FString> AdditionalLocResPaths;
@@ -3351,7 +3354,15 @@ bool FPluginManager::UnmountExplicitlyLoadedPluginLocalizationData(const FString
 		return false;
 	}
 
-	if (!Plugin->bIsExplicitlyLoadedLocalizationDataMounted)
+	if (Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount > 1)
+	{
+		// Not possible to unload yet
+		UE_LOG(LogPluginManager, Verbose, TEXT("Ignoring request to unmount plugin localization for '%s' as it is still referenced (ref-count: %d -> %d)."), *PluginName, Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount, Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount - 1);
+		--Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount;
+		return false;
+	}
+
+	if (Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount == 0)
 	{
 		// Already unloaded
 		UE_LOG(LogPluginManager, Verbose, TEXT("Ignoring request to unmount plugin localization for '%s' as the localization data was not mounted."), *PluginName);
@@ -3373,7 +3384,7 @@ bool FPluginManager::UnmountExplicitlyLoadedPluginLocalizationData(const FString
 	}
 
 	UE_LOG(LogPluginManager, Log, TEXT("Unmounting plugin localization for '%s'..."), *PluginName);
-	Plugin->bIsExplicitlyLoadedLocalizationDataMounted = false;
+	Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount = 0;
 
 	// Notify that additional localization data should be unloaded
 	TArray<FString> AdditionalLocResPaths;
@@ -3425,6 +3436,7 @@ void FPluginManager::MountPluginFromExternalSource(const TSharedRef<FPlugin>& Pl
 
 	// Mark the plugin as enabled
 	Plugin->bEnabled = true;
+	PluginsEnabledForTarget.Add(Plugin->GetName());
 
 	// Mount the plugin content directory
 	const bool bHasContentOrVerse = (Plugin->CanContainContent() || Plugin->CanContainVerse()) && ensure(RegisterMountPointDelegate.IsBound());
@@ -3445,9 +3457,6 @@ void FPluginManager::MountPluginFromExternalSource(const TSharedRef<FPlugin>& Pl
 			{
 				EngineConfigFile->AddUniqueToSection(TEXT("Core.System"), "Paths", MoveTemp(ContentDir));
 			}
-
-			// Update the localization cache for the newly added content directory
-			UpdatePackageLocalizationCacheDelegate.ExecuteIfBound();
 		}
 	}
 
@@ -3564,9 +3573,9 @@ bool FPluginManager::UnmountExplicitlyLoadedPlugin(const FString& PluginName, FT
 	}
 
 	// Notify that additional localization data should be unloaded
-	if (Plugin->bIsExplicitlyLoadedLocalizationDataMounted && Plugin->Descriptor.LocalizationTargets.Num() > 0 && !IsEngineExitRequested())
+	if (Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount > 0 && Plugin->Descriptor.LocalizationTargets.Num() > 0 && !IsEngineExitRequested())
 	{
-		Plugin->bIsExplicitlyLoadedLocalizationDataMounted = false;
+		Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount = 0;
 
 		TArray<FString> AdditionalLocResPaths;
 		PluginLocalizationUtils::GetLocalizationPathsForPlugin(*Plugin, AdditionalLocResPaths);
@@ -3612,6 +3621,22 @@ bool FPluginManager::UnmountExplicitlyLoadedPlugin(const FString& PluginName, FT
 	Plugin->bEnabled = false;
 
 	return true;
+}
+
+void FPluginManager::SuppressPluginUnloadGC()
+{
+	if (UE::PluginManager::Private::CoreUObjectPluginHandler)
+	{
+		UE::PluginManager::Private::CoreUObjectPluginHandler->SuppressPluginUnloadGC();
+	}
+}
+
+void FPluginManager::ResumePluginUnloadGC()
+{
+	if (UE::PluginManager::Private::CoreUObjectPluginHandler)
+	{
+		UE::PluginManager::Private::CoreUObjectPluginHandler->ResumePluginUnloadGC();
+	}
 }
 
 FName FPluginManager::PackageNameFromModuleName(FName ModuleName)
@@ -3699,5 +3724,37 @@ void FPluginManager::RemoveFromModuleNameToPluginMap(const TSharedRef<FPlugin>& 
 	}
 }
 #endif //if WITH_EDITOR
+
+void FPluginManager::GetExplanationForUnavailablePackage(const FName& UnavailablePackageName, FStringBuilderBase& InOutExplanation)
+{
+	FString UnavailablePackageNameString = UnavailablePackageName.ToString();
+	FPlugin* Plugin = static_cast<FPlugin*>(FindPluginFromPath(UnavailablePackageNameString).Get());
+
+	if (Plugin != nullptr)
+	{
+		if (!Plugin->IsMounted())
+		{
+			InOutExplanation.Appendf(TEXT("Skipped package %s was expected to be found in plugin %s, however that plugin is not mounted. [ExplicitlyLoaded = %s, Enabled = %s]."),
+				*UnavailablePackageNameString,
+				*Plugin->GetFriendlyName(),
+				Plugin->GetDescriptor().bExplicitlyLoaded ? TEXT("TRUE") : TEXT("FALSE"),
+				Plugin->IsEnabled() ? TEXT("TRUE") : TEXT("FALSE"));
+		}
+	}
+	else
+	{
+		// If we don't have a valid plugin, we have nothing to add
+	}
+
+	// Give higher level systems a chance to provide further information
+	GetExplanationForUnavailablePackageWithPluginInfoDelegate().Broadcast(UnavailablePackageNameString, Plugin, InOutExplanation);
+}
+
+IPluginManager::FGetExplanationForUnavailablePackageWithPluginInfoDelegate& FPluginManager::GetExplanationForUnavailablePackageWithPluginInfoDelegate()
+{
+	static FGetExplanationForUnavailablePackageWithPluginInfoDelegate Delegate;
+	return Delegate;
+}
+
 
 #undef LOCTEXT_NAMESPACE

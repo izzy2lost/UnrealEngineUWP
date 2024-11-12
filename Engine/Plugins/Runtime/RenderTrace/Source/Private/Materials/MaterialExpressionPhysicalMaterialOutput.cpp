@@ -75,7 +75,7 @@ TArrayView<FExpressionInput*> UMaterialExpressionPhysicalMaterialOutput::GetInpu
 
 FExpressionInput* UMaterialExpressionPhysicalMaterialOutput::GetInput(int32 InputIndex)
 {
-	return &Inputs[InputIndex].Input;
+	return Inputs.IsValidIndex(InputIndex) ? &Inputs[InputIndex].Input : nullptr;
 }
 
 FName UMaterialExpressionPhysicalMaterialOutput::GetInputName(int32 InputIndex) const

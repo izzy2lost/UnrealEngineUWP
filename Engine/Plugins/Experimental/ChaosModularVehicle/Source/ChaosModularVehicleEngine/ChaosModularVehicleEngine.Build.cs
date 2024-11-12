@@ -17,6 +17,7 @@ namespace UnrealBuildTool.Rules
 					"Engine",
 					"RenderCore",
 					"RHI",
+					"AnimGraphRuntime",
 					"Renderer",
 					"ChaosVehiclesCore",
 					"ChaosModularVehicle",

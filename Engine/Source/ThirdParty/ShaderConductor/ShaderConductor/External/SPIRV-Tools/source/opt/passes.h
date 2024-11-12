@@ -17,6 +17,9 @@
 
 // A single header to include all passes.
 
+// UE Change Begin: Interface variable scalar replacement pass rewrite
+#include "source/opt/adv_interface_var_sroa.h"
+// UE Change End: Interface variable scalar replacement pass rewrite
 #include "source/opt/aggressive_dead_code_elim_pass.h"
 #include "source/opt/amd_ext_to_khr.h"
 #include "source/opt/analyze_live_input_pass.h"
@@ -67,6 +70,7 @@
 #include "source/opt/inst_debug_printf_pass.h"
 #include "source/opt/interface_var_sroa.h"
 #include "source/opt/interp_fixup_pass.h"
+#include "source/opt/invocation_interlock_placement_pass.h"
 #include "source/opt/licm_pass.h"
 #include "source/opt/local_access_chain_convert_pass.h"
 #include "source/opt/local_redundancy_elimination.h"
@@ -78,6 +82,7 @@
 #include "source/opt/loop_unroller.h"
 #include "source/opt/loop_unswitch_pass.h"
 #include "source/opt/merge_return_pass.h"
+#include "source/opt/modify_maximal_reconvergence.h"
 #include "source/opt/null_pass.h"
 #include "source/opt/private_to_local_pass.h"
 #include "source/opt/reduce_load_size.h"
@@ -96,6 +101,11 @@
 #include "source/opt/strength_reduction_pass.h"
 #include "source/opt/strip_debug_info_pass.h"
 #include "source/opt/strip_nonsemantic_info_pass.h"
+// UE Change Begin: Pack struct field offsets
+#include "source/opt/struct_packing_pass.h"
+// UE Change ENd: Pack struct field offsets
+#include "source/opt/switch_descriptorset_pass.h"
+#include "source/opt/trim_capabilities_pass.h"
 #include "source/opt/unify_const_pass.h"
 #include "source/opt/upgrade_memory_model.h"
 #include "source/opt/vector_dce.h"

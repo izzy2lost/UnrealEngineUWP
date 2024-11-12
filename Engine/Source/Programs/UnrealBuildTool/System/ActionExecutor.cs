@@ -65,6 +65,24 @@ namespace UnrealBuildTool
 		public abstract Task<bool> ExecuteActionsAsync(IEnumerable<LinkedAction> ActionsToExecute, ILogger Logger, IActionArtifactCache? actionArtifactCache = null);
 
 		/// <summary>
+		/// When completed, get a populated telemetry event for this executor
+		/// </summary>
+		/// <returns></returns>
+		public abstract TelemetryExecutorEvent? GetTelemetryEvent();
+
+		/// <summary>
+		/// Post a telemetry event if enabled
+		/// </summary>
+		public void PostTelemetryEvent()
+		{
+			TelemetryExecutorEvent? telemetryEvent = GetTelemetryEvent();
+			if (telemetryEvent != null)
+			{
+				TelemetryService.Get().RecordEvent(telemetryEvent);
+			}
+		}
+
+		/// <summary>
 		/// Will verify that produced items exists on disk
 		/// </summary>
 		public virtual bool VerifyOutputs => true;

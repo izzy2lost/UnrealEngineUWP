@@ -140,6 +140,15 @@ DECLARE_MULTICAST_DELEGATE_FourParams(FOnLoginStatusChanged, int32 /*LocalUserNu
 typedef FOnLoginStatusChanged::FDelegate FOnLoginStatusChangedDelegate;
 
 /**
+ * Delegate called when an auth session is about to expire and a new auth token is needed.
+ * The code bound to it is expected to respond by getting a new auth token and use it to re-call Login to refresh auth and keep the player logged in.
+ * 
+ * param LocalUserNum the controller number of the user whose auth is about to expire
+ */
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnAuthAboutToExpire, int32 /*LocalUserNum*/);
+typedef FOnAuthAboutToExpire::FDelegate FOnAuthAboutToExpireDelegate;
+
+/**
  * Delegate called when a controller-user pairing changes
  *
  * @param LocalUserNum the logged-in user number of the user who owned the device whose pairing changed. If no previous owner, the user number of the new owner.
@@ -267,6 +276,14 @@ public:
 	 * @param NewId the new id to associate with the user
 	 */
 	DEFINE_ONLINE_PLAYER_DELEGATE_THREE_PARAM(MAX_LOCAL_PLAYERS, OnLoginStatusChanged, ELoginStatus::Type /*OldStatus*/, ELoginStatus::Type /*NewStatus*/, const FUniqueNetId& /*NewId*/);
+
+	/**
+	 * Delegate called when an auth session is about to expire and a new auth token is needed.
+	 * The code bound to it is expected to respond by getting a new auth token and use it to re-call Login to refresh auth and keep the player logged in.
+	 * 
+	 * param LocalUserNum the controller number of the user whose auth is about to expire
+	 */
+	DEFINE_ONLINE_DELEGATE_ONE_PARAM(OnAuthAboutToExpire, int32 /*LocalUserNum*/);
 
 	/**
 	 * Delegate called when a controller-user pairing changes
@@ -476,12 +493,6 @@ public:
 	{
 		FExternalAuthToken EmptyToken;
 		Delegate.ExecuteIfBound(LocalUserNum, false, EmptyToken);
-	}
-
-	UE_DEPRECATED(5.2, "Please use GetLinkedAccountAuthToken taking a TokenType")
-	virtual void GetLinkedAccountAuthToken(int32 LocalUserNum, const FOnGetLinkedAccountAuthTokenCompleteDelegate& Delegate) const
-	{
-		GetLinkedAccountAuthToken(LocalUserNum, FString(), Delegate);
 	}
 
 	/**

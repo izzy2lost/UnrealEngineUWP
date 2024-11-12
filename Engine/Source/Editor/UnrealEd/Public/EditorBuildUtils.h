@@ -219,13 +219,15 @@ public:
 	 * @param BuildAllExtensionPoint If a valid name, run this build *before* running the build with this id when performing a Build All.
 	 * @param MenuEntryLabel If non empty, will be used as label for the command in the menu. Otherwise `Build {FText::FromName(Id)}` will be used.
 	 * @param MenuSectionLabel If non empty, will be used a label for a new submenu for this build type. Otherwise the entry will be created under `External Types`.
+	 * @param bExternalProcess If build spawns an external process.
 	 */
 	static UNREALED_API void RegisterCustomBuildType(
 		const FName Id,
 		const FDoEditorBuildDelegate& DoBuild,
 		const FName BuildAllExtensionPoint,
 		const FText& MenuEntryLabel = FText::GetEmpty(),
-		const FText& MenuSectionLabel = FText::GetEmpty());
+		const FText& MenuSectionLabel = FText::GetEmpty(),
+		bool bExternalProcess = false);
 	
 	/**
 	 * Register a custom build type.
@@ -235,6 +237,7 @@ public:
 	 * @param BuildAllExtensionPoint If a valid name, run this build *before* running the build with this id when performing a Build All.
 	 * @param MenuEntryLabel If non empty, will be used as label for the command in the menu. Otherwise `Build {FText::FromName(Id)}` will be used.
 	 * @param MenuSectionLabel If non empty, will be used a label for a new submenu for this build type. Otherwise the entry will be created under `External Types`.
+	 * @param bExternalProcess If build spawns an external process.
 	 */
 	static UNREALED_API void RegisterCustomBuildType(
 		const FName Id,
@@ -242,7 +245,8 @@ public:
 		const FDoEditorBuildDelegate& DoBuild,
 		const FName BuildAllExtensionPoint,
 		const FText& MenuEntryLabel = FText::GetEmpty(),
-		const FText& MenuSectionLabel = FText::GetEmpty()
+		const FText& MenuSectionLabel = FText::GetEmpty(),
+		bool bExternalProcess = false
 		);
 
 	/**
@@ -381,16 +385,19 @@ private:
 		FName BuildAllExtensionPoint;
 		const FText MenuEntryLabel;
 		const FText MenuSectionLabel;
+		bool bExternalProcess;
 
 		FCustomBuildType(
 			const FDoEditorBuildDelegate& InDoBuild,
 			const FName InBuildAllExtensionPoint,
 			const FText& InMenuEntryLabel,
-			const FText& InMenuSectionLabel)
+			const FText& InMenuSectionLabel,
+			bool bInExternalProcess)
 			: DoBuild(InDoBuild)
 			, BuildAllExtensionPoint(InBuildAllExtensionPoint)
 			, MenuEntryLabel(InMenuEntryLabel)
 			, MenuSectionLabel(InMenuSectionLabel)
+			, bExternalProcess(bInExternalProcess)
 		{}
 
 		FCustomBuildType(
@@ -398,8 +405,9 @@ private:
 			const FDoEditorBuildDelegate& InDoBuild,
 			const FName InBuildAllExtensionPoint,
 			const FText& InMenuEntryLabel,
-			const FText& InMenuSectionLabel)
-			: FCustomBuildType(InDoBuild, InBuildAllExtensionPoint, InMenuEntryLabel, InMenuSectionLabel)
+			const FText& InMenuSectionLabel,
+			bool bInExternalProcess)
+			: FCustomBuildType(InDoBuild, InBuildAllExtensionPoint, InMenuEntryLabel, InMenuSectionLabel, bInExternalProcess)
 		{
 			CanDoBuild = InCanDoBuild;
 		}

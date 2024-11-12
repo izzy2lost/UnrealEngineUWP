@@ -7,7 +7,7 @@
 #include "Misc/PackageName.h"
 #include "StormSyncDrivesSettings.h"
 
-BEGIN_DEFINE_SPEC(FStormSyncDrivesModuleSpec, "StormSync.StormSyncDrives", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FStormSyncDrivesModuleSpec, "StormSync.StormSyncDrives", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	FString TestMountPoint;
 	FString TestContentPath;

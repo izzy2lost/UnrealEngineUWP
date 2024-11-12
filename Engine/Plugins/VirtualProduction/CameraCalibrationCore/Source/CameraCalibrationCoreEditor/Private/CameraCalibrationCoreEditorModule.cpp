@@ -85,7 +85,7 @@ const FPlacementCategoryInfo* FCameraCalibrationCoreEditorModule::GetVirtualProd
 			TEXT("PMVirtualProduction"),
 			25 // Determines where the category shows up in the list with respect to the others.
 		);
-
+		Info.ShortDisplayName = LOCTEXT("VirtualProductionShortCategoryName", "VP");
 		IPlacementModeModule::Get().RegisterPlacementCategory(Info);
 
 		return PlacementModeModule.GetRegisteredPlacementCategory(FLevelEditorOutlinerBuiltInCategories::VirtualProduction());

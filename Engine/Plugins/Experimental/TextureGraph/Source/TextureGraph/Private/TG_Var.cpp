@@ -10,6 +10,7 @@
 #include "Model/ModelObject.h"
 
 #include "Expressions/TG_Expression.h"
+#include "Expressions/Procedural/TG_Expression_Pattern.h"
 
 template <> FString TG_Var_LogValue(uint8& Value)
 {
@@ -41,7 +42,10 @@ template <> FString TG_Var_LogValue(FName& Value)
 	FString LogMessage = Value.ToString();
 	return LogMessage;
 }
-
+template <> FString TG_Var_LogValue(FString& Value)
+{
+	return Value;
+}
 template <> FString TG_Var_LogValue(FLinearColor& Value)
 {
 	FString LogMessage = Value.ToString();
@@ -75,6 +79,36 @@ template <> FString TG_Var_LogValue(FTG_OutputSettings& Value)
 	return LogMessage;
 }
 
+template <> FString TG_Var_LogValue(FPatternMaskPlacement_TS& Value)
+{
+	FString LogMessage = Value.ToString();
+	return LogMessage;
+}
+
+template <> FString TG_Var_LogValue(FPatternMaskJitter_TS& Value)
+{
+	FString LogMessage = Value.ToString();
+	return LogMessage;
+}
+
+template <> FString TG_Var_LogValue(FPatternMaskBevel_TS& Value)
+{
+	FString LogMessage = Value.ToString();
+	return LogMessage;
+}
+
+template <> FString TG_Var_LogValue(FPatternMaskCutout_TS& Value)
+{
+	FString LogMessage = Value.ToString();
+	return LogMessage;
+}
+
+template <> FString TG_Var_LogValue(FGradientDir_TS& Value)
+{
+	FString LogMessage = Value.ToString();
+	return LogMessage;
+}
+
 template <> void TG_Var_SetValueFromString(int& Value, const FString& StrVal)
 {
 	Value = FCString::Atoi(*StrVal);
@@ -96,7 +130,10 @@ template <> void TG_Var_SetValueFromString(FName& Value, const FString& StrVal)
 {
 	Value = FName(StrVal);
 }
-
+template <> void TG_Var_SetValueFromString(FString& Value, const FString& StrVal)
+{
+	Value = StrVal;
+}
 template <> void TG_Var_SetValueFromString(FLinearColor& Value, const FString& StrVal)
 {
 	Value.InitFromString(StrVal);
@@ -129,6 +166,26 @@ template <> void TG_Var_SetValueFromString(FTG_OutputSettings& Value, const FStr
 {
 	Value.InitFromString(StrVal);
 }
+template <> void TG_Var_SetValueFromString(FPatternMaskPlacement_TS& Value, const FString& StrVal)
+{
+	Value.InitFromString(StrVal);
+}
+template <> void TG_Var_SetValueFromString(FPatternMaskJitter_TS& Value, const FString& StrVal)
+{
+	Value.InitFromString(StrVal);
+}
+template <> void TG_Var_SetValueFromString(FPatternMaskBevel_TS& Value, const FString& StrVal)
+{
+	Value.InitFromString(StrVal);
+}
+template <> void TG_Var_SetValueFromString(FPatternMaskCutout_TS& Value, const FString& StrVal)
+{
+	Value.InitFromString(StrVal);
+}
+template <> void TG_Var_SetValueFromString(FGradientDir_TS& Value, const FString& StrVal)
+{
+	Value.InitFromString(StrVal);
+}
 
 
 FString FTG_Var::LogHead() const
@@ -149,7 +206,10 @@ void Generic_Simple_Serializer(FTG_Var::VarPropertySerialInfo& Info)
 	const T_ValueType VarValue = Info.Var->GetAs<T_ValueType>();
 
 	if (Info.CopyVarToProperty)
-		TProperty->SetPropertyValue(TProperty->template ContainerPtrToValuePtr<T_ValueType>(Info.Owner, Info.ClampedIndex()), VarValue);
+	{
+		// This calls the Setter method if the UProperty has a Setter
+		TProperty->SetValue_InContainer(Info.Owner, VarValue);
+	}
 	else
 		Info.Var->EditAs<T_ValueType>() = TProperty->GetPropertyValue(TProperty->template ContainerPtrToValuePtr<T_ValueType>(Info.Owner, Info.ClampedIndex()));
 }
@@ -217,14 +277,29 @@ void VarPropertySerializer_float(FTG_Var::VarPropertySerialInfo& Info)
 
 void VarPropertySerializer_bool(FTG_Var::VarPropertySerialInfo& Info)
 {
-	Generic_Simple_Serializer<FBoolProperty, bool>(Info);
+	//Generic_Simple_Serializer<FBoolProperty, bool>(Info);
+	FProperty* Property = Info.Owner->GetClass()->FindPropertyByName(Info.Arg.GetName());
+
+	const FBoolProperty* TProperty = CastField<FBoolProperty>(Property);
+	const bool VarValue = Info.Var->GetAs<bool>();
+
+	if (Info.CopyVarToProperty)
+	{
+		TProperty->SetPropertyValue(TProperty->template ContainerPtrToValuePtr<bool>(Info.Owner, Info.ClampedIndex()), VarValue);
+		//TProperty->SetValue_InContainer(Info.Owner, VarValue);
+	}
+	else
+		Info.Var->EditAs<bool>() = TProperty->GetPropertyValue(TProperty->template ContainerPtrToValuePtr<bool>(Info.Owner, Info.ClampedIndex()));
 }
 
 void VarPropertySerializer_FName(FTG_Var::VarPropertySerialInfo& Info)
 {
 	Generic_Simple_Serializer<FNameProperty, FName>(Info);
 }
-
+void VarPropertySerializer_FString(FTG_Var::VarPropertySerialInfo& Info)
+{
+	Generic_Simple_Serializer<FStrProperty, FString>(Info);
+}
 void VarPropertySerializer_UObjectPtr(FTG_Var::VarPropertySerialInfo& Info)
 {
 	Generic_Struct_Serializer<FTG_Texture>(Info);
@@ -289,7 +364,7 @@ void VarPropertySerializer_StructProperty(FTG_Var::VarPropertySerialInfo& Info)
 	if (!WriterIt)
 	{
 		/// TODO: Perhaps think about doing a simple memcpy?
-		UE_LOG(LogTextureGraph, Log, TEXT("Fails serialize Var %s - Property %s FPClass %s CPPType %s"),
+		UE_LOG(LogTextureGraph, Warning, TEXT("Fails serialize Var %s - Property %s FPClass %s CPPType %s"),
 			*Info.Var->LogHead(),
 			*Info.Arg.GetName().ToString(),
 			*TypeName.ToString(),
@@ -348,6 +423,26 @@ void VarPropertySerializer_FTG_OutputSettings(FTG_Var::VarPropertySerialInfo& In
 	Generic_Struct_Serializer<FTG_OutputSettings>(Info);
 }
 
+void VarPropertySerializer_FGradientDir_TS(FTG_Var::VarPropertySerialInfo& Info)
+{
+	Generic_Struct_Serializer<FGradientDir_TS>(Info);
+}
+void VarPropertySerializer_FPatternMaskCutout_TS(FTG_Var::VarPropertySerialInfo& Info)
+{
+	Generic_Struct_Serializer<FPatternMaskCutout_TS>(Info);
+}
+void VarPropertySerializer_FPatternMaskBevel_TS(FTG_Var::VarPropertySerialInfo& Info)
+{
+	Generic_Struct_Serializer<FPatternMaskBevel_TS>(Info);
+}
+void VarPropertySerializer_FPatternMaskJitter_TS(FTG_Var::VarPropertySerialInfo& Info)
+{
+	Generic_Struct_Serializer<FPatternMaskJitter_TS>(Info);
+}
+void VarPropertySerializer_FPatternMaskPlacement_TS(FTG_Var::VarPropertySerialInfo& Info)
+{
+	Generic_Struct_Serializer<FPatternMaskPlacement_TS>(Info);
+}
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 FTG_Var::VarPropertySerializerMap FTG_Var::DefaultPropertySerializers
 (
@@ -361,12 +456,18 @@ FTG_Var::VarPropertySerializerMap FTG_Var::DefaultPropertySerializers
 		VAR_PROPERTY_SERIALIZER_DEF(uint32),
 		VAR_PROPERTY_SERIALIZER_DEF(float),
 		VAR_PROPERTY_SERIALIZER_DEF(FName),
+		VAR_PROPERTY_SERIALIZER_DEF(FString),
 		VAR_PROPERTY_SERIALIZER_DEF(FTG_Texture),
 		VAR_PROPERTY_SERIALIZER_DEF(FVector4f),
 		VAR_PROPERTY_SERIALIZER_DEF(FVector2f),
 		VAR_PROPERTY_SERIALIZER_DEF(FLinearColor),
 		VAR_PROPERTY_SERIALIZER_DEF(FTG_OutputSettings),
 		VAR_PROPERTY_SERIALIZER_DEF(FTG_Variant),
+		VAR_PROPERTY_SERIALIZER_DEF(FGradientDir_TS),
+		VAR_PROPERTY_SERIALIZER_DEF(FPatternMaskCutout_TS),
+		VAR_PROPERTY_SERIALIZER_DEF(FPatternMaskBevel_TS),
+		VAR_PROPERTY_SERIALIZER_DEF(FPatternMaskJitter_TS),
+		VAR_PROPERTY_SERIALIZER_DEF(FPatternMaskPlacement_TS),
 	}
 );
 
@@ -405,7 +506,7 @@ bool FTG_Var::CopyGeneric(UTG_Expression* Owner, const FTG_Argument& Arg, bool C
 
 			if (!SerializerIt)
 			{
-				UE_LOG(LogTextureGraph, Log, TEXT("Fails serialize Var %s - Property %s FPClass %s CPPType %s"),
+				UE_LOG(LogTextureGraph, Warning, TEXT("Fails serialize Var %s - Property %s FPClass %s CPPType %s"),
 					*LogHead(),
 					*Arg.GetName().ToString(),
 					*PropertyClassName.ToString(),
@@ -464,11 +565,11 @@ void Generic_Simple_ArSerializer(FTG_Var::VarArchiveSerialInfo& Info)
 		Info.Var->ResetAs<T_ValueType>();
 	}
 	if (Info.Ar.IsSaving())
-		UE_LOG(LogTextureGraph, Log, TEXT("        Save Var %s: %s"), *Info.Var->GetId().ToString(), *Info.Var->LogValue());
+		UE_LOG(LogTextureGraph, VeryVerbose, TEXT("        Save Var %s: %s"), *Info.Var->GetId().ToString(), *Info.Var->LogValue());
 	T_ValueType& Value = Info.Var->EditAs<T_ValueType>();
 	Info.Ar << Value;
 	if (Info.Ar.IsLoading())
-		UE_LOG(LogTextureGraph, Log, TEXT("        Loaded Var %s: %s"), *Info.Var->GetId().ToString(), *Info.Var->LogValue());
+		UE_LOG(LogTextureGraph, VeryVerbose, TEXT("        Loaded Var %s: %s"), *Info.Var->GetId().ToString(), *Info.Var->LogValue());
 
 }
 
@@ -548,7 +649,7 @@ void FTG_Var::Serialize(FArchive& Ar, FTG_Id InPinId, const FTG_Argument& InArgu
 		}
 		else
 		{
-			UE_LOG(LogTextureGraph, Log, TEXT("serialize Var %s: NOT FOUND for %s"), *LogHead(), *InArgument.GetCPPTypeName().ToString());
+			UE_LOG(LogTextureGraph, Warning, TEXT("serialize Var %s: NOT FOUND for %s"), *LogHead(), *InArgument.GetCPPTypeName().ToString());
 		}
 	}
 }

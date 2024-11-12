@@ -35,6 +35,7 @@ namespace uba
 #pragma pack(pop)
 
 	constexpr CasKey CasKeyZero;
+	constexpr CasKey CasKeyInvalid(~0ull, ~0ull, ~0u);
 
 	// Use 36+1 characters
 	inline void GuidToStr(tchar* out, u32 capacity, const Guid& g)
@@ -100,6 +101,7 @@ namespace uba
 	};
 
 	StringKey ToStringKey(const tchar* str, u64 strLen);
+	StringKey ToStringKeyLower(const tchar* str, u64 strLen);
 	StringKey ToStringKey(const StringBufferBase& b);
 	StringKey ToStringKeyLower(const StringBufferBase& b);
 	StringKey ToStringKey(const StringKeyHasher& hasher, const tchar* str, u64 strLen);
@@ -112,21 +114,24 @@ namespace uba
 	inline bool IsCompressed(const CasKey& key)
 	{
 		UBA_ASSERT(key != CasKeyZero);
-		return ((u8*)&key)[19] != 0;
+		return (((u8*)&key)[19] & 1) == 1;
 	}
 
 	inline CasKey AsCompressed(const CasKey& key, bool compressed)
 	{
 		UBA_ASSERT(key != CasKeyZero);
 		CasKey newKey = key;
-		((u8*)&newKey)[19] = compressed ? 1 : 0;
+		#ifndef __clang_analyzer__
+		u8 flagField = ((u8*)&key)[19];
+		((u8*)&newKey)[19] = compressed ? (flagField | u8(1)) : (flagField & ~u8(1));
+		#endif
 		return newKey;
 	}
 
 	struct CasKeyHasher
 	{
 		CasKeyHasher();
-		void Update(const void* data, u64 bytes);
+		CasKeyHasher& Update(const void* data, u64 bytes);
 		u64 hasher[1912/sizeof(u64)];
 	};
 
@@ -134,6 +139,7 @@ namespace uba
 
 	inline CasKey CasKeyFromString(const tchar* str)
 	{
+		UBA_ASSERT(TStrlen(str) == 40);
 		CasKey key;
 		u8* data = (u8*)&key;
 		const tchar* pos = str;
@@ -195,7 +201,19 @@ namespace uba
 	#endif
 }
 
-template<> struct std::hash<uba::Guid> { size_t operator()(const uba::Guid& g) const { std::hash<uba::u64> hash; return hash(((uba::u64*)&g)[0]) ^ hash(((uba::u64*)&g)[1]); } };
-template<> struct std::hash<uba::StringKey> { size_t operator()(const uba::StringKey& g) const { return g.a ^ g.b; } };
-template<> struct std::hash<uba::CasKey> { size_t operator()(const uba::CasKey& g) const { return g.a ^ g.b ^ g.c; } };
+//template<> struct std::hash<uba::Guid> { size_t operator()(const uba::Guid& g) const { std::hash<uba::u64> hash; return hash(((uba::u64*)&g)[0]) ^ hash(((uba::u64*)&g)[1]); } };
+template<> struct std::hash<uba::StringKey> { size_t operator()(const uba::StringKey& g) const { return g.a; } };
+template<> struct std::hash<uba::CasKey> { size_t operator()(const uba::CasKey& g) const { return g.a; } };
 
+template <class Map> 
+void PrintMapInfo(const char* name, const Map& map)
+{
+    double l = map.size() / double(map.bucket_count());
+    double c = 0.0;
+    for (auto& kv : map)
+        c += map.bucket_size(map.bucket(kv.first));
+    c /= map.size();
+
+    double quality = 1.0 - std::max(0.0, c / (1 + l) - 1);
+	printf("%s Size: %llu Buckets: %llu Quality: %f\r\n", name, map.size(), map.bucket_count(), quality);
+}

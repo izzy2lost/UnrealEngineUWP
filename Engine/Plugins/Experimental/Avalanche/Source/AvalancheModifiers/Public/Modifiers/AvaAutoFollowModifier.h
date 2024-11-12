@@ -24,85 +24,85 @@ class UAvaAutoFollowModifier : public UAvaAttachmentBaseModifier
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AutoFollow")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|AutoFollow")
 	AVALANCHEMODIFIERS_API void SetReferenceActor(const FAvaSceneTreeActor& InReferenceActor);
 
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AutoFollow")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|AutoFollow")
 	const FAvaSceneTreeActor& GetReferenceActor() const
 	{
 		return ReferenceActor;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AutoFollow")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|AutoFollow")
 	AVALANCHEMODIFIERS_API void SetFollowedAxis(int32 InFollowedAxis);
 
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AutoFollow")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|AutoFollow")
 	int32 GetFollowedAxis() const
 	{
 		return FollowedAxis;
 	}
 
 	/** Sets the distance from this actor to the followed actor. */
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AutoFollow")
-	AVALANCHEMODIFIERS_API void SetDefaultDistance(const FVector& NewDefaultDistance);
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|AutoFollow")
+	AVALANCHEMODIFIERS_API void SetDefaultDistance(const FVector& InDefaultDistance);
 
 	/** Gets the distance from this actor to the followed actor. */
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AutoFollow")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|AutoFollow")
 	FVector GetDefaultDistance() const
 	{
 		return DefaultDistance;
 	}
 
 	/** Sets the maximum distance from this actor to the followed actor. */
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AutoFollow")
-	AVALANCHEMODIFIERS_API void SetMaxDistance(const FVector& NewMaxDistance);
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|AutoFollow")
+	AVALANCHEMODIFIERS_API void SetMaxDistance(const FVector& InMaxDistance);
 
 	/** Gets the maximum distance from this actor to the followed actor. */
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AutoFollow")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|AutoFollow")
 	FVector GetMaxDistance() const
 	{
 		return MaxDistance;
 	}
 
 	/** Sets the percent % progress from the maximum distance to the default distance. */
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AutoFollow")
-	AVALANCHEMODIFIERS_API void SetProgress(const FVector& NewProgress);
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|AutoFollow")
+	AVALANCHEMODIFIERS_API void SetProgress(const FVector& InProgress);
 
 	/** Gets the percent % progress from the maximum distance to the default distance. */
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AutoFollow")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|AutoFollow")
 	FVector GetProgress() const
 	{
 		return Progress;
 	}
 
 	/** Sets the alignment for the followed actor's center. */
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AutoFollow")
-	AVALANCHEMODIFIERS_API void SetFollowedAlignment(const FAvaAnchorAlignment& NewFollowedAlignment);
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|AutoFollow")
+	AVALANCHEMODIFIERS_API void SetFollowedAlignment(const FAvaAnchorAlignment& InFollowedAlignment);
 
 	/** Gets the alignment for the followed actor's center. */
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AutoFollow")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|AutoFollow")
 	FAvaAnchorAlignment GetFollowedAlignment() const
 	{
 		return FollowedAlignment;
 	}
 
 	/** Sets the alignment for this actor's center. */
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AutoFollow")
-	AVALANCHEMODIFIERS_API void SetLocalAlignment(const FAvaAnchorAlignment& NewLocalAlignment);
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|AutoFollow")
+	AVALANCHEMODIFIERS_API void SetLocalAlignment(const FAvaAnchorAlignment& InLocalAlignment);
 
 	/** Gets the alignment for this actor's center. */
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AutoFollow")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|AutoFollow")
 	FAvaAnchorAlignment GetLocalAlignment() const
 	{
 		return LocalAlignment;
 	}
 
 	/** Sets the axis direction to offset this actor from the followed actor's bounds. */
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AutoFollow")
-	AVALANCHEMODIFIERS_API void SetOffsetAxis(const FVector& NewOffsetAxis);
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|AutoFollow")
+	AVALANCHEMODIFIERS_API void SetOffsetAxis(const FVector& InOffsetAxis);
 
 	/** Gets the axis direction to offset this actor from the followed actor's bounds. */
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AutoFollow")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|AutoFollow")
 	FVector GetOffsetAxis() const
 	{
 		return OffsetAxis;
@@ -145,7 +145,7 @@ protected:
 
 	void OnFollowedAxisChanged();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetReferenceActor", Getter="GetReferenceActor", Category="AutoFollow", meta=(ShowOnlyInnerProperties, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetReferenceActor", Getter="GetReferenceActor", Category="AutoFollow", meta=(ShowOnlyInnerProperties, AllowPrivateAccess="true"))
 	FAvaSceneTreeActor ReferenceActor;
 
 	/** The method for finding a reference actor based on it's position in the parent's hierarchy. */
@@ -161,34 +161,34 @@ protected:
 	bool bIgnoreHiddenActors_DEPRECATED = false;
 
 	/** Which axis should we follow */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetFollowedAxis", Getter="GetFollowedAxis", Category="AutoFollow", meta=(Bitmask, BitmaskEnum="/Script/AvalancheModifiers.EAvaModifiersAxis", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetFollowedAxis", Getter="GetFollowedAxis", Category="AutoFollow", meta=(Bitmask, BitmaskEnum="/Script/AvalancheModifiers.EAvaModifiersAxis", AllowPrivateAccess="true"))
 	int32 FollowedAxis = static_cast<int32>(
 		EAvaModifiersAxis::Y |
 		EAvaModifiersAxis::Z
 	);
 
 	/** Based on followed axis, the direction to offset this actor from the followed actor's bounds. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetOffsetAxis", Getter="GetOffsetAxis", Interp, Category="AutoFollow", meta=(UIMin="-1.0", UIMax="1.0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetOffsetAxis", Getter="GetOffsetAxis", Interp, Category="AutoFollow", meta=(UIMin="-1.0", UIMax="1.0", AllowPrivateAccess="true"))
 	FVector OffsetAxis = FVector(0, 1, 0);
 
 	/** The alignment for the followed actor's center. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetFollowedAlignment", Getter="GetFollowedAlignment", Category="AutoFollow", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetFollowedAlignment", Getter="GetFollowedAlignment", Category="AutoFollow", meta=(AllowPrivateAccess="true"))
 	FAvaAnchorAlignment FollowedAlignment;
 
 	/** The alignment for this actor's center. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetLocalAlignment", Getter="GetLocalAlignment", Category="AutoFollow", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetLocalAlignment", Getter="GetLocalAlignment", Category="AutoFollow", meta=(AllowPrivateAccess="true"))
 	FAvaAnchorAlignment LocalAlignment;
 
 	/** The distance from this actor to the followed actor. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetDefaultDistance", Getter="GetDefaultDistance", Interp, Category="AutoFollow", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetDefaultDistance", Getter="GetDefaultDistance", Interp, DisplayName="Start Padding", Category="AutoFollow", meta=(AllowPrivateAccess="true"))
 	FVector DefaultDistance;
 
 	/** The maximum distance from this actor to the followed actor. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetMaxDistance", Getter="GetMaxDistance", Interp, Category="AutoFollow", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetMaxDistance", Getter="GetMaxDistance", Interp, DisplayName="End Padding", Category="AutoFollow", meta=(AllowPrivateAccess="true"))
 	FVector MaxDistance;
 
 	/** Percent % progress from the maximum distance to the default distance. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetProgress", Getter="GetProgress", Interp, Category="AutoFollow", meta=(ClampMin="0.0", UIMin="0.0", ClampMax="100.0", UIMax="100.0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetProgress", Getter="GetProgress", Interp, DisplayName="Padding Progress", Category="AutoFollow", meta=(ClampMin="0.0", UIMin="0.0", ClampMax="100.0", UIMax="100.0", AllowPrivateAccess="true"))
 	FVector Progress;
 
 private:

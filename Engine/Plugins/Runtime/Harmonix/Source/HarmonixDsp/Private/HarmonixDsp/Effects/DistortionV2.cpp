@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "HarmonixDsp/Effects/DistortionV2.h"
 
-#include "HarmonixDsp/StridePointer.h"
 #include "Misc/ScopeLock.h"
 
 namespace Harmonix::Dsp::Effects
@@ -75,7 +75,7 @@ namespace Harmonix::Dsp::Effects
 
 		// allow for 4x oversampling
 		int32 NumFrames = InMaxRenderBufferSize * 4;
-		UpsampleBuffer.Configure(1, NumFrames, EAudioBufferCleanupMode::Delete, (float)SampleRate);
+		UpsampleBuffer.SetNumUninitialized(NumFrames);
 	}
 
 	void FDistortionV2::SetInputGainDb(float InGainDb, bool Snap)
@@ -305,10 +305,7 @@ namespace Harmonix::Dsp::Effects
 			}
 
 			// make sure up-sample buffer can fit enough samples for 4x oversampling...
-			if (UpsampleBuffer.GetMaxConfig().GetNumFrames() < InRenderBufferSizeFrames)
-			{
-				UpsampleBuffer.Configure(1, InRenderBufferSizeFrames * 4, EAudioBufferCleanupMode::Delete, (float)SampleRate);
-			}
+			UpsampleBuffer.SetNumUninitialized(InRenderBufferSizeFrames * 4);
 		}
 		DoOversampling = InDoOversample;
 	}
@@ -322,7 +319,6 @@ namespace Harmonix::Dsp::Effects
 
 		FScopeLock Lock(&SettingsLock);
 		SampleRate = InSampleRate;
-		UpsampleBuffer.SetSampleRate((float)SampleRate);
 		for (int32 i = 0; i < FDistortionSettingsV2::kNumFilters; ++i)
 		{
 			FilterCoefs[i].SetTarget(FBiquadFilterCoefs(FilterSettings[i], (float)SampleRate));
@@ -361,7 +357,7 @@ namespace Harmonix::Dsp::Effects
 		}
 	}
 
-	void FDistortionV2::Process(TAudioBuffer<float>& InBuffer, TAudioBuffer<float>& OutBuffer)
+	void FDistortionV2::Process(const TArray<TArrayView<const float>>& InBuffer, const TArray<TArrayView<float>>& OutBuffer)
 	{
 		FScopeLock Lock(&SettingsLock);
 		TLinearRamper<float>  InputGainTemp = InputGain;
@@ -372,12 +368,15 @@ namespace Harmonix::Dsp::Effects
 		TLinearRamper<FBiquadFilterCoefs> FilterCoefsTemp[FDistortionSettingsV2::kNumFilters];
 		TLinearRamper<float>  FilterGainTemp[FDistortionSettingsV2::kNumFilters];
 
-		for (int32 ch = 0; ch < InBuffer.GetNumValidChannels(); ++ch)
-		{
-			TDynamicStridePtr<float> StrideInPtr = InBuffer.GetStridingChannelDataPointer(ch);
-			TDynamicStridePtr<float> StrideOutPtr = OutBuffer.GetStridingChannelDataPointer(ch);
-			int32 NumFrames = InBuffer.GetNumValidFrames();
+		const int32 NumChannels = InBuffer.Num();
+		check(NumChannels > 0);
+		check(OutBuffer.Num() == NumChannels);
 
+		const int32 NumFrames = InBuffer[0].Num();
+		check(OutBuffer[0].Num() == NumFrames);
+
+		for (int32 ch = 0; ch < NumChannels; ++ch)
+		{
 			// process "pre-clip" filters...
 			bool DidFilter = false;
 			for (int32 i = 0; i < FDistortionSettingsV2::kNumFilters; ++i)
@@ -386,37 +385,40 @@ namespace Harmonix::Dsp::Effects
 				FilterGainTemp[i] = FilterGain[i];
 				if (FilterSettings[i].IsEnabled && FilterPreClip[i])
 				{
-					TDynamicStridePtr<float> InAlias = StrideInPtr;
-					TDynamicStridePtr<float> OutAlias = StrideOutPtr;
+					const float* InPtr = InBuffer[ch].GetData();
+					float* OutPtr = OutBuffer[ch].GetData();
+					
 					for (int32 f = 0; f < NumFrames; f += kRampHops)
 					{
 						FilterCoefsTemp[i].Ramp();
 						FilterGainTemp[i].Ramp();
-						Filter[i][ch].ProcessInterleaved(InAlias, OutAlias, kRampHops, FilterCoefsTemp[i], (double)FilterGainTemp[i], FilterPasses[i]);
-						InAlias += kRampHops;
-						OutAlias += kRampHops;
+						Filter[i][ch].Process(InPtr, OutPtr, kRampHops, FilterCoefsTemp[i], (double)FilterGainTemp[i], FilterPasses[i]);
+						InPtr += kRampHops;
+						OutPtr += kRampHops;
 					}
 					DidFilter = true;
 				}
 			}
 
-			TDynamicStridePtr<float> ProcInPtr = (DidFilter) ? StrideOutPtr : StrideInPtr;
-			TDynamicStridePtr<float> ProcOutPtr = StrideOutPtr;
+			const float* ProcInPtr = (DidFilter) ? OutBuffer[ch].GetData() : InBuffer[ch].GetData();
+			float* ProcOutPtr = OutBuffer[ch].GetData();
 			int32 ProcFrames = NumFrames;
 
 
 			if (DoOversampling)
 			{
 				// up sample...
-				check(NumFrames * 4 <= UpsampleBuffer.GetLengthInFrames());
-				float* FilterOut = UpsampleBuffer.GetValidChannelData(0);
+				check(NumFrames * 4 <= UpsampleBuffer.Num());
+				float* FilterOut = UpsampleBuffer.GetData();
+				
 				for (int32 i = 0; i < NumFrames; ++i)
 				{
 					OversampleFilterUp[ch].Upsample4x(ProcInPtr[i] * 4.0f, FilterOut);
 					FilterOut += 4;
 				}
-				ProcInPtr = UpsampleBuffer.GetStridingChannelDataPointer(0);
-				ProcOutPtr = UpsampleBuffer.GetStridingChannelDataPointer(0);
+				
+				ProcInPtr = UpsampleBuffer.GetData();
+				ProcOutPtr = UpsampleBuffer.GetData();
 				ProcFrames = NumFrames * 4;
 			}
 
@@ -581,16 +583,18 @@ namespace Harmonix::Dsp::Effects
 				}
 			}
 			break;
+			default:
+				checkNoEntry();
 			}
 			if (DoOversampling)
 			{
 				// down sample...
-				float* FilterIn = UpsampleBuffer.GetValidChannelData(0);
+				float* FilterIn = UpsampleBuffer.GetData();
 				for (int32 i = 0; i < NumFrames; ++i)
 				{
 					OversampleFilterDown[ch].AddData(FilterIn, 4);
 					FilterIn += 4;
-					StrideOutPtr[i] = OversampleFilterDown[ch].GetSample();
+					OutBuffer[ch][i] = OversampleFilterDown[ch].GetSample();
 				}
 			}
 
@@ -599,15 +603,15 @@ namespace Harmonix::Dsp::Effects
 			{
 				if (FilterSettings[i].IsEnabled && !FilterPreClip[i])
 				{
-					TDynamicStridePtr<float> InAlias = StrideOutPtr;
-					TDynamicStridePtr<float> OutAlias = StrideOutPtr;
+					const float* InPtr = OutBuffer[ch].GetData();
+					float* OutPtr = OutBuffer[ch].GetData();
 					for (int32 f = 0; f < NumFrames; f += kRampHops)
 					{
 						FilterCoefsTemp[i].Ramp();
 						FilterGainTemp[i].Ramp();
-						Filter[i][ch].ProcessInterleaved(InAlias, OutAlias, kRampHops, FilterCoefsTemp[i], FilterGainTemp[i], FilterPasses[i]);
-						InAlias += kRampHops;
-						OutAlias += kRampHops;
+						Filter[i][ch].Process(InPtr, OutPtr, kRampHops, FilterCoefsTemp[i], FilterGainTemp[i], FilterPasses[i]);
+						InPtr += kRampHops;
+						OutPtr += kRampHops;
 					}
 				}
 			}
@@ -620,7 +624,7 @@ namespace Harmonix::Dsp::Effects
 					WetGainTemp.Ramp();
 					DryGainTemp.Ramp();
 				}
-				StrideOutPtr[i] = FMath::Clamp(StrideOutPtr[i] * WetGainTemp + StrideInPtr[i] * DryGainTemp, -1.0f, 1.0f);
+				OutBuffer[ch][i] = FMath::Clamp(OutBuffer[ch][i] * WetGainTemp + InBuffer[ch][i] * DryGainTemp, -1.0f, 1.0f);
 			}
 		}
 		InputGain = InputGainTemp;

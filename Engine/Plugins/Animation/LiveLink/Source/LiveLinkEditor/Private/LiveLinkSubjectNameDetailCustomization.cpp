@@ -62,12 +62,16 @@ void FLiveLinkSubjectNameDetailCustomization::SetValue(SLiveLinkSubjectRepresent
 
 	TArray<void*> RawData;
 	StructPropertyHandle->AccessRawData(RawData);
-	FLiveLinkSubjectName* PreviousValue = reinterpret_cast<FLiveLinkSubjectName*>(RawData[0]);
-	FLiveLinkSubjectName NewSubjectNameValue = NewValue.Subject;
 
-	FString TextValue;
-	StructProperty->Struct->ExportText(TextValue, &NewSubjectNameValue, PreviousValue, nullptr, EPropertyPortFlags::PPF_None, nullptr);
-	ensure(StructPropertyHandle->SetValueFromFormattedString(TextValue, EPropertyValueSetFlags::DefaultFlags) == FPropertyAccess::Result::Success);
+	if (ensure(RawData.Num()))
+	{
+		FLiveLinkSubjectName* PreviousValue = reinterpret_cast<FLiveLinkSubjectName*>(RawData[0]);
+		FLiveLinkSubjectName NewSubjectNameValue = NewValue.Subject;
+
+		FString TextValue;
+		StructProperty->Struct->ExportText(TextValue, &NewSubjectNameValue, PreviousValue, nullptr, EPropertyPortFlags::PPF_None, nullptr);
+		ensure(StructPropertyHandle->SetValueFromFormattedString(TextValue, EPropertyValueSetFlags::DefaultFlags) == FPropertyAccess::Result::Success);
+	}
 }
 
 bool FLiveLinkSubjectNameDetailCustomization::HasMultipleValues() const

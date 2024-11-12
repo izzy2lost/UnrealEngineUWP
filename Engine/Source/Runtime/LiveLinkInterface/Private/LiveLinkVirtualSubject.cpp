@@ -7,6 +7,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LiveLinkVirtualSubject)
 
+DEFINE_LOG_CATEGORY_STATIC(LogLiveLinkVirtualSubject, Log, All);
 
 void ULiveLinkVirtualSubject::Initialize(FLiveLinkSubjectKey InSubjectKey, TSubclassOf<ULiveLinkRole> InRole, ILiveLinkClient* InLiveLinkClient)
 {
@@ -115,4 +116,43 @@ void ULiveLinkVirtualSubject::InvalidateFrameData()
 	CurrentFrameSnapshot.FrameData.Reset();
 }
 
+bool ULiveLinkVirtualSubject::ValidateTranslators()
+{
+	UClass* RoleClass = Role.Get();
+	if (RoleClass == nullptr)
+	{
+		FrameTranslators.Reset();
+		return false;
+	}
+	else
+	{
+		for (int32 Index = 0; Index < FrameTranslators.Num(); ++Index)
+		{
+			if (ULiveLinkFrameTranslator* Translator = FrameTranslators[Index])
+			{
+				check(Translator->GetFromRole() != nullptr);
+				if (!RoleClass->IsChildOf(Translator->GetFromRole()))
+				{
+					UE_LOG(LogLiveLinkVirtualSubject, Warning, TEXT("Role '%s' is not supported by translator '%s'"), *RoleClass->GetName(), *Translator->GetName());
+					FrameTranslators[Index] = nullptr;
+					return false;
+				}
+			}
+		}
+	}
 
+	return true;
+}
+
+#if WITH_EDITOR
+void ULiveLinkVirtualSubject::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(ULiveLinkVirtualSubject, FrameTranslators))
+	{
+		ValidateTranslators();
+		SetStaticDataAsRebroadcasted(false);
+	}
+}
+#endif

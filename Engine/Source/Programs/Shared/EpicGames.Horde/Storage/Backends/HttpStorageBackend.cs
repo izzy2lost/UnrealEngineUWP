@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -96,7 +97,7 @@ namespace EpicGames.Horde.Storage.Backends
 						}
 
 						HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
-						response.EnsureSuccessStatusCode();
+						await EnsureSuccessAsync(response, cancellationToken);
 
 						Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
 
@@ -136,13 +137,21 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task<BlobLocator> WriteBlobAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default)
+		public Task WriteBlobAsync(BlobLocator locator, Stream stream, IReadOnlyCollection<BlobLocator>? imports, CancellationToken cancellationToken = default)
+			=> WriteBlobAsync(locator, stream, imports, null, cancellationToken);
+
+		/// <inheritdoc/>
+		public Task<BlobLocator> WriteBlobAsync(Stream stream, IReadOnlyCollection<BlobLocator>? imports, string? prefix = null, CancellationToken cancellationToken = default)
+			=> WriteBlobAsync(null, stream, imports, prefix, cancellationToken);
+
+		/// <inheritdoc/>
+		public async Task<BlobLocator> WriteBlobAsync(BlobLocator? locator, Stream stream, IReadOnlyCollection<BlobLocator>? imports, string? prefix = null, CancellationToken cancellationToken = default)
 		{
 			using StreamContent streamContent = new StreamContent(stream);
 
 			if (_supportsUploadRedirects)
 			{
-				WriteBlobResponse redirectResponse = await SendWriteRequestAsync(null, prefix, cancellationToken);
+				WriteBlobResponse redirectResponse = await SendWriteRequestAsync(locator, null, imports, prefix, cancellationToken);
 				if (redirectResponse.UploadUrl != null)
 				{
 					using HttpClient uploadRedirectClient = _createUploadRedirectClient();
@@ -150,7 +159,7 @@ namespace EpicGames.Horde.Storage.Backends
 					if (!uploadResponse.IsSuccessStatusCode)
 					{
 						string body = await uploadResponse.Content.ReadAsStringAsync(cancellationToken);
-						throw new StorageException($"Unable to upload data to redirected URL: {body}");
+						throw new StorageException($"Unable to upload data to redirected URL {redirectResponse.UploadUrl}. Status:{uploadResponse.StatusCode} Reason:{uploadResponse.ReasonPhrase} Response:{body}");
 					}
 
 					_logger.LogDebug("Written {Locator} (using redirect)", redirectResponse.Blob);
@@ -158,26 +167,39 @@ namespace EpicGames.Horde.Storage.Backends
 				}
 			}
 
-			WriteBlobResponse response = await SendWriteRequestAsync(streamContent, prefix, cancellationToken);
+			WriteBlobResponse response = await SendWriteRequestAsync(null, streamContent, imports, prefix, cancellationToken);
 			_supportsUploadRedirects = response.SupportsRedirects ?? false;
 			_logger.LogDebug("Written {Locator} (direct)", response.Blob);
 			return new BlobLocator(response.Blob);
 		}
 
-		async Task<WriteBlobResponse> SendWriteRequestAsync(StreamContent? streamContent, string? prefix = null, CancellationToken cancellationToken = default)
+		async Task<WriteBlobResponse> SendWriteRequestAsync(BlobLocator? locator, StreamContent? streamContent, IReadOnlyCollection<BlobLocator>? imports = null, string? prefix = null, CancellationToken cancellationToken = default)
 		{
 			using (HttpClient httpClient = _createClient())
 			{
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{_basePath}/blobs"))
+				using (HttpRequestMessage request = (locator != null)
+					? new HttpRequestMessage(HttpMethod.Put, $"{_basePath}/blobs/{locator.Value}")
+					: new HttpRequestMessage(HttpMethod.Post, $"{_basePath}/blobs"))
 				{
-					using StringContent stringContent = new StringContent(prefix ?? String.Empty);
-
-					MultipartFormDataContent form = new MultipartFormDataContent();
+					using MultipartFormDataContent form = new MultipartFormDataContent();
 					if (streamContent != null)
 					{
 						form.Add(streamContent, "file", "filename");
 					}
-					form.Add(stringContent, "prefix");
+#pragma warning disable CA2000 // Disposed by form
+					if (imports != null)
+					{
+						foreach (BlobLocator import in imports)
+						{
+							form.Add(new StringContent(import.ToString()), "import");
+						}
+						if (imports.Count == 0)
+						{
+							form.Add(new StringContent("true"), "leaf");
+						}
+					}
+					form.Add(new StringContent(prefix ?? String.Empty), "prefix");
+#pragma warning restore CA2000
 
 					request.Content = form;
 					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
@@ -203,11 +225,25 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default)
+		public async ValueTask<Uri?> TryGetBlobWriteRedirectAsync(BlobLocator locator, IReadOnlyCollection<BlobLocator> imports, CancellationToken cancellationToken = default)
 		{
 			if (_supportsUploadRedirects)
 			{
-				WriteBlobResponse redirectResponse = await SendWriteRequestAsync(null, prefix, cancellationToken);
+				WriteBlobResponse redirectResponse = await SendWriteRequestAsync(locator, null, imports, null, cancellationToken);
+				if (redirectResponse.UploadUrl != null)
+				{
+					return redirectResponse.UploadUrl;
+				}
+			}
+			return null;
+		}
+
+		/// <inheritdoc/>
+		public async ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(IReadOnlyCollection<BlobLocator>? imports = null, string? prefix = null, CancellationToken cancellationToken = default)
+		{
+			if (_supportsUploadRedirects)
+			{
+				WriteBlobResponse redirectResponse = await SendWriteRequestAsync(null, null, imports, prefix, cancellationToken);
 				if (redirectResponse.UploadUrl != null)
 				{
 					return (new BlobLocator(redirectResponse.Blob), redirectResponse.UploadUrl);
@@ -221,15 +257,29 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Aliases
 
 		/// <inheritdoc/>
-		public Task AddAliasAsync(string name, BlobLocator target, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+		public async Task AddAliasAsync(string name, BlobLocator target, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
 		{
-			throw new NotSupportedException("Http storage client does not currently support aliases.");
+			using (HttpClient httpClient = _createClient())
+			{
+				UpdateNamespaceRequest request = new UpdateNamespaceRequest();
+				request.AddAliases.Add(new AddAliasRequest { Name = name, Target = target, Rank = rank, Data = data.ToArray() });
+
+				using HttpResponseMessage response = await httpClient.PostAsJsonAsync($"{_basePath}", request, cancellationToken: cancellationToken);
+				await EnsureSuccessAsync(response, cancellationToken);
+			}
 		}
 
 		/// <inheritdoc/>
-		public Task RemoveAliasAsync(string name, BlobLocator target, CancellationToken cancellationToken = default)
+		public async Task RemoveAliasAsync(string name, BlobLocator target, CancellationToken cancellationToken = default)
 		{
-			throw new NotSupportedException("Http storage client does not currently support aliases.");
+			using (HttpClient httpClient = _createClient())
+			{
+				UpdateNamespaceRequest request = new UpdateNamespaceRequest();
+				request.RemoveAliases.Add(new RemoveAliasRequest { Name = name, Target = target });
+
+				using HttpResponseMessage response = await httpClient.PostAsJsonAsync($"{_basePath}", request, cancellationToken: cancellationToken);
+				await EnsureSuccessAsync(response, cancellationToken);
+			}
 		}
 
 		/// <inheritdoc/>
@@ -248,7 +298,7 @@ namespace EpicGames.Horde.Storage.Backends
 				{
 					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
 					{
-						response.EnsureSuccessStatusCode();
+						await EnsureSuccessAsync(response, cancellationToken);
 
 						FindNodesResponse? message = await response.Content.ReadFromJsonAsync<FindNodesResponse>(cancellationToken: cancellationToken);
 
@@ -288,7 +338,7 @@ namespace EpicGames.Horde.Storage.Backends
 							return false;
 						}
 
-						response.EnsureSuccessStatusCode();
+						await EnsureSuccessAsync(response, cancellationToken);
 						return false;
 					}
 				}
@@ -296,7 +346,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task<BlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public async Task<HashedBlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
 			using (HttpClient httpClient = _createClient())
 			{
@@ -321,11 +371,12 @@ namespace EpicGames.Horde.Storage.Backends
 						}
 						else
 						{
-							response.EnsureSuccessStatusCode();
+							await EnsureSuccessAsync(response, cancellationToken);
+
 							ReadRefResponse? data = await response.Content.ReadFromJsonAsync<ReadRefResponse>(cancellationToken: cancellationToken);
 							_logger.LogDebug("Read ref {RefName} -> {Hash} / {Locator}", name, data!.Hash, data!.Target);
 
-							return new BlobRefValue(data.Hash, data.Target);
+							return new HashedBlobRefValue(data.Hash, data.Target);
 						}
 					}
 				}
@@ -333,7 +384,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteRefAsync(RefName name, BlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public async Task WriteRefAsync(RefName name, HashedBlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			_logger.LogDebug("Writing ref {RefName} -> {Hash} / {Locator}", name, value.Hash, value.Locator);
 			using (HttpClient httpClient = _createClient())
@@ -345,7 +396,7 @@ namespace EpicGames.Horde.Storage.Backends
 
 				using (HttpResponseMessage response = await httpClient.PutAsync($"{_basePath}/refs/{name}", request, cancellationToken))
 				{
-					response.EnsureSuccessStatusCode();
+					await EnsureSuccessAsync(response, cancellationToken);
 				}
 			}
 		}
@@ -361,6 +412,15 @@ namespace EpicGames.Horde.Storage.Backends
 			{
 				stats.Add("backend.http.speed_mb_sec", (long)(_numBytes / (1024.0 * 1024.0 * _readTime.Elapsed.TotalSeconds)));
 				stats.Add("backend.http.concurrency_ratio", (long)(_sequentialReadTime.TotalSeconds * 100.0 / _readTime.Elapsed.TotalSeconds));
+			}
+		}
+
+		static async Task EnsureSuccessAsync(HttpResponseMessage message, CancellationToken cancellationToken)
+		{
+			if (!message.IsSuccessStatusCode)
+			{
+				string response = await message.Content.ReadAsStringAsync(cancellationToken);
+				throw new StorageException($"Http response {message.StatusCode} (Content: {response})");
 			}
 		}
 	}
@@ -385,7 +445,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <summary>
-		/// Creates a new HTTP storage client
+		/// Creates a new HTTP storage backend
 		/// </summary>
 		/// <param name="basePath">Base path for all requests</param>
 		/// <param name="accessToken">Custom access token to use for requests</param>
@@ -414,7 +474,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <summary>
-		/// Creates a new HTTP storage client
+		/// Creates a new HTTP storage backend
 		/// </summary>
 		/// <param name="namespaceId">Namespace to create a client for</param>
 		/// <param name="accessToken">Custom access token to use for requests</param>

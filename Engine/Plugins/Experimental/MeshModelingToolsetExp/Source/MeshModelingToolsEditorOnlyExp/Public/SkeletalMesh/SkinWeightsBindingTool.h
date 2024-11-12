@@ -34,6 +34,9 @@ class MESHMODELINGTOOLSEDITORONLYEXP_API USkinWeightsBindingToolBuilder : public
 public:
 	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
 	virtual UMultiSelectionMeshEditingTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
+
+protected:
+	virtual const FToolTargetTypeRequirements& GetTargetRequirements() const override;
 };
 
 // A mirror of UE::Geometry::ESkinBindingType
@@ -131,4 +134,7 @@ protected:
 	
 	// ISkeletalMeshEditionInterface
 	virtual void HandleSkeletalMeshModified(const TArray<FName>& InBoneNames, const ESkeletalMeshNotifyType InNotifyType) override;
+
+	// Pending update function */
+	TFunction<void()> PendingUpdateFunction;
 };

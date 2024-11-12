@@ -49,7 +49,7 @@ public:
 	FVulkanViewport(FVulkanDevice* InDevice, void* InWindowHandle, uint32 InSizeX,uint32 InSizeY,bool bInIsFullscreen, EPixelFormat InPreferredPixelFormat);
 	~FVulkanViewport();
 
-	FTexture2DRHIRef GetBackBuffer(FRHICommandListImmediate& RHICmdList);
+	FTextureRHIRef GetBackBuffer(FRHICommandListImmediate& RHICmdList);
 	void AdvanceBackBufferFrame(FRHICommandListImmediate& RHICmdList);
 
 	virtual void WaitForFrameEventCompletion() override;
@@ -94,7 +94,7 @@ public:
 	{
 		if (BackBufferImages.Num() > 0)
 		{
-			return BackBufferImages[Index];
+			return BackBufferImages[Index]->Image;
 		}
 		else
 		{
@@ -107,12 +107,11 @@ public:
 		return SwapChain;
 	}
 
-	VkSurfaceTransformFlagBitsKHR GetSwapchainQCOMRenderPassTransform() const;
 	VkFormat GetSwapchainImageFormat() const;
 
 protected:
 	// NUM_BUFFERS don't have to match exactly as the driver can require a minimum number larger than NUM_BUFFERS. Provide some slack
-	TArray<VkImage, TInlineAllocator<NUM_BUFFERS*2>> BackBufferImages;
+	TArray<TRefCountPtr<FVulkanTexture>, TInlineAllocator<NUM_BUFFERS*2>> BackBufferImages;
 	TArray<VulkanRHI::FSemaphore*, TInlineAllocator<NUM_BUFFERS*2>> RenderingDoneSemaphores;
 	TIndirectArray<FVulkanView, TInlineAllocator<NUM_BUFFERS*2>> TextureViews;
 	TRefCountPtr<FVulkanBackBuffer> RHIBackBuffer;
@@ -142,6 +141,9 @@ protected:
 
 	FVulkanCmdBuffer* LastFrameCommandBuffer = nullptr;
 	uint64 LastFrameFenceCounter = 0;
+
+	EDeviceScreenOrientation CachedOrientation = EDeviceScreenOrientation::Unknown;
+	void OnSystemResolutionChanged(uint32 ResX, uint32 ResY);
 
 	void CreateSwapchain(struct FVulkanSwapChainRecreateInfo* RecreateInfo);
 	void DestroySwapchain(struct FVulkanSwapChainRecreateInfo* RecreateInfo);

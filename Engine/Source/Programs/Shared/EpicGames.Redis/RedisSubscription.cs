@@ -97,15 +97,15 @@ namespace EpicGames.Redis
 		/// <inheritdoc cref="ISubscriber.SubscribeAsync(RedisChannel, Action{RedisChannel, RedisValue}, CommandFlags)"/>
 		public static Task<RedisSubscription> SubscribeAsync<T>(this IConnectionMultiplexer connection, RedisChannel<T> channel, Action<T> handler, CommandFlags flags = CommandFlags.None)
 		{
-			Action<RedisChannel, RedisValue> action = (_, v) => handler(RedisSerializer.Deserialize<T>(v));
-			return SubscribeAsync(connection, channel.Channel, action, flags);
+			void Action(RedisChannel _, RedisValue v) => handler(RedisSerializer.Deserialize<T>(v));
+			return SubscribeAsync(connection, channel.Channel, Action, flags);
 		}
 
 		/// <inheritdoc cref="ISubscriber.SubscribeAsync(RedisChannel, Action{RedisChannel, RedisValue}, CommandFlags)"/>
 		public static Task<RedisSubscription> SubscribeAsync<T>(this IConnectionMultiplexer connection, RedisChannel<T> channel, Action<RedisChannel<T>, T> handler, CommandFlags flags = CommandFlags.None)
 		{
-			Action<RedisChannel, RedisValue> action = (_, v) => handler(channel, RedisSerializer.Deserialize<T>(v));
-			return SubscribeAsync(connection, channel.Channel, action, flags);
+			void Action(RedisChannel _, RedisValue v) => handler(channel, RedisSerializer.Deserialize<T>(v));
+			return SubscribeAsync(connection, channel.Channel, Action, flags);
 		}
 
 		#endregion

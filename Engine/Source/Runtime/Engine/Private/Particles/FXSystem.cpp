@@ -14,7 +14,6 @@
 #include "VectorField/VectorField.h"
 #include "Components/VectorFieldComponent.h"
 #include "SceneInterface.h"
-#include "RenderCore.h" // needed for STATGROUP_CommandListMarkers
 #include "DataDrivenShaderPlatformInfo.h"
 #include "FXRenderingUtils.h"
 #include "Containers/StridedView.h"
@@ -480,13 +479,6 @@ bool FFXSystem::RequiresRayTracingScene() const
 	return false;
 }
 
-DECLARE_CYCLE_STAT(TEXT("FXPreRender_Prepare"), STAT_CLM_FXPreRender_Prepare, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("FXPreRender_Simulate"), STAT_CLM_FXPreRender_Simulate, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("FXPreRender_Finalize"), STAT_CLM_FXPreRender_Finalize, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("FXPreRender_PrepareCDF"), STAT_CLM_FXPreRender_PrepareCDF, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("FXPreRender_SimulateCDF"), STAT_CLM_FXPreRender_SimulateCDF, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("FXPreRender_FinalizeCDF"), STAT_CLM_FXPreRender_FinalizeCDF, STATGROUP_CommandListMarkers);
-
 DECLARE_GPU_DRAWCALL_STAT(FXSystemPreRender);
 DECLARE_GPU_DRAWCALL_STAT(FXSystemPostRenderOpaque);
 
@@ -496,6 +488,7 @@ void FFXSystem::PreRender(FRDGBuilder& GraphBuilder, TConstStridedView<FSceneVie
 
 	if (RHISupportsGPUParticles() && bAllowGPUParticleSceneUpdate)
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, FXSystemPreRender, "FXSystemPreRender");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, FXSystemPreRender);
 		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, FXSystem);
 
@@ -512,24 +505,15 @@ void FFXSystem::PreRender(FRDGBuilder& GraphBuilder, TConstStridedView<FSceneVie
 				SCOPED_DRAW_EVENT(RHICmdList, GPUParticles_PreRender);
 				UpdateMultiGPUResources(RHICmdList);
 
-				RHICmdList.SetCurrentStat(GET_STATID(STAT_CLM_FXPreRender_Prepare));
 				PrepareGPUSimulation(RHICmdList);
-
-				RHICmdList.SetCurrentStat(GET_STATID(STAT_CLM_FXPreRender_Simulate));
 				SimulateGPUParticles(RHICmdList, EParticleSimulatePhase::Main, {}, nullptr);
-
-				RHICmdList.SetCurrentStat(GET_STATID(STAT_CLM_FXPreRender_Finalize));
 				FinalizeGPUSimulation(RHICmdList);
 
 				if (IsParticleCollisionModeSupported(GetShaderPlatform(), PCM_DistanceField))
 				{
-					RHICmdList.SetCurrentStat(GET_STATID(STAT_CLM_FXPreRender_PrepareCDF));
 					PrepareGPUSimulation(RHICmdList);
-
-					RHICmdList.SetCurrentStat(GET_STATID(STAT_CLM_FXPreRender_SimulateCDF));
 					SimulateGPUParticles(RHICmdList, EParticleSimulatePhase::CollisionDistanceField, ViewUniformBuffer, GlobalDistanceFieldParameterData);
 					//particles rendered during basepass may need to read pos/velocity buffers; must finalize unless we know for sure that nothing in base pass will read it.
-					RHICmdList.SetCurrentStat(GET_STATID(STAT_CLM_FXPreRender_FinalizeCDF));
 					FinalizeGPUSimulation(RHICmdList);
 				}
 			}
@@ -543,6 +527,7 @@ void FFXSystem::PostRenderOpaque(FRDGBuilder& GraphBuilder, TConstStridedView<FS
 
 	if (RHISupportsGPUParticles() && IsParticleCollisionModeSupported(GetShaderPlatform(), PCM_DepthBuffer) && bAllowGPUParticleUpdate)
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, FXSystemPostRenderOpaque, "FXSystemPostRenderOpaque");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, FXSystemPostRenderOpaque);
 		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, FXSystem);
 

@@ -27,15 +27,15 @@ public:
 
 private:
 	FText HandleBoneNameComboBoxContentText() const;
-	TSharedRef<SWidget> HandleBoneNameComboBoxGenerateWidget(TSharedPtr<FName> StringItem);
-	void HandleBoneNameComboBoxSelectionChanged(TSharedPtr<FName> StringItem, ESelectInfo::Type SelectInfo);
+	TSharedRef<SWidget> HandleBoneNameComboBoxGenerateWidget(FName StringItem);
+	void HandleBoneNameComboBoxSelectionChanged(FName StringItem, ESelectInfo::Type SelectInfo);
 
 	void OnComboOpening();
 
 	/** The mesh object whose details we're customizing. */
-	USkeletalMesh * MeshObject;
+	USkeletalMesh* MeshObject;
 
-	TArray<TSharedPtr<FName>> PossibleBoneNames;
+	TArray<FName> PossibleBoneNames;
 
 	TSharedPtr<IPropertyHandle> BoneNameHandle;
 };

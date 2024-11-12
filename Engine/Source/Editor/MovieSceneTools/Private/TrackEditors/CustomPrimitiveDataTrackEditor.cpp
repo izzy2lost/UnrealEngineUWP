@@ -34,7 +34,7 @@ TSharedRef<ISequencerSection> FCustomPrimitiveDataTrackEditor::MakeSectionInterf
 	UMovieSceneCustomPrimitiveDataSection* CustomPrimitiveDataSection = Cast<UMovieSceneCustomPrimitiveDataSection>(&SectionObject);
 	checkf(CustomPrimitiveDataSection != nullptr, TEXT("Unsupported section type."));
 
-	return MakeShareable(new FParameterSection(*CustomPrimitiveDataSection));
+	return MakeShareable(new FParameterSection(*CustomPrimitiveDataSection, GetSequencer()));
 }
 
 TSharedPtr<SWidget> FCustomPrimitiveDataTrackEditor::BuildOutlinerEditWidget(const FGuid& ObjectBinding, UMovieSceneTrack* Track, const FBuildEditWidgetParams& Params)

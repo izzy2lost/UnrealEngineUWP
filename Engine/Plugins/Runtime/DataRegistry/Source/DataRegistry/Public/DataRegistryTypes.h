@@ -540,7 +540,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FDataRegistryCacheVersionCallback, class UDa
 DECLARE_MULTICAST_DELEGATE(FDataRegistrySubsystemInitializedCallback);
 
 
-DECLARE_LOG_CATEGORY_EXTERN(LogDataRegistry, Log, All);
+DATAREGISTRY_API DECLARE_LOG_CATEGORY_EXTERN(LogDataRegistry, Log, All);
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"

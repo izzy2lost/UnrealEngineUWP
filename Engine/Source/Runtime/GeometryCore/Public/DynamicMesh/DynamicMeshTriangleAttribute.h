@@ -159,7 +159,7 @@ public:
 	}
 
 
-	/** Initialize the attribute values to the given max triangle ID */
+	/** Initialize the attribute values with InitialValue, and resize to the parent mesh's max triangle ID */
 	void Initialize(AttribValueType InitialValue = (AttribValueType)0)
 	{
 		check(ParentMesh != nullptr);
@@ -299,6 +299,7 @@ public:
 				return true;
 			}
 		}
+		return false;
 	}
 
 
@@ -343,6 +344,12 @@ public:
 	void OnMergeEdges(const DynamicMeshInfo::FMergeEdgesInfo& MergeInfo) override
 	{
 		// nothing to do here because triangles did not change
+	}
+
+	void OnMergeVertices(const DynamicMeshInfo::FMergeVerticesInfo& MergeInfo) override
+	{
+		// This resolves as either an edge collapse, edge weld, or merge of disconnected vertices. 
+		//  The triangles either get removed or unchanged- nothing more to do here.
 	}
 
 	/** Update the overlay to reflect a vertex split in the parent */

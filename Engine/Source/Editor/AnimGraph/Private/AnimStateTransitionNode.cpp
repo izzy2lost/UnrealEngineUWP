@@ -140,6 +140,15 @@ void UAnimStateTransitionNode::PostLoad()
 	{
 		ValidateBlendProfile();
 	}
+
+	// Fix up previously pasted graphs that were not correctly added to the parent sub-graphs
+	if (BoundGraph)
+	{
+		if (UEdGraph* ParentGraph = GetGraph())
+		{
+			ParentGraph->SubGraphs.AddUnique(BoundGraph);
+		}
+	}
 }
 
 bool UAnimStateTransitionNode::ValidateBlendProfile()
@@ -176,6 +185,15 @@ void UAnimStateTransitionNode::PostPasteNode()
 	{
 		// fail-safe, create empty transition graph
 		CreateBoundGraph();
+	}
+
+	// Ensure transition graph is added to blueprint
+	if (BoundGraph)
+	{
+		if (UEdGraph* ParentGraph = GetGraph())
+		{
+			ParentGraph->SubGraphs.AddUnique(BoundGraph);
+		}
 	}
 
 	for (UEdGraphNode* GraphNode : BoundGraph->Nodes)

@@ -4,6 +4,8 @@
 NiagaraDataInterfaceRigidMeshCollisionQuery.ush 
 =============================================================================*/
 
+#include "/Plugin/FX/Niagara/Private/NiagaraDistanceFieldQueries.ush"
+
 /* -----------------------------------------------------------------
  * static mesh constants and context
  * -----------------------------------------------------------------
@@ -498,8 +500,19 @@ void GetClosestDistance_{ParameterName}(in float3 WorldPosition, in float TimeFr
 	}
 }
 
+void EvaluateWorldPositionOnElement_{ParameterName}(int ElementIndex, float3 WorldPosition, float DeltaTime, float TimeFraction, out float3 OutPosition, out float3 OutVelocity)
+{
+	const float3 LocalPosition = mul(GetInverseTransform_{ParameterName}(ElementIndex), float4(WorldPosition,1.0)).xyz;			
+
+	const float3 PreviousPosition = mul(GetPreviousTransform_{ParameterName}(ElementIndex), float4(LocalPosition,1.0)).xyz;
+	const float3 CurrentPosition = mul(GetCurrentTransform_{ParameterName}(ElementIndex), float4(LocalPosition,1.0)).xyz;
+	
+	OutVelocity = ( CurrentPosition - PreviousPosition ) / DeltaTime;
+	OutPosition = PreviousPosition + TimeFraction * (CurrentPosition-PreviousPosition);
+}
+
 // Given a world space position (WorldPosition) compute the static mesh closest point (position,normal,velocity)
-void GetClosestPointMeshDistanceField_{ParameterName}(in float3 WorldPosition, in float DeltaTime, in float TimeFraction, in float MaxDistance, out float OutClosestDistance, out float3 OutClosestPosition, out float3 OutClosestNormal, out float3 OutClosestVelocity, out bool NormalIsValid)
+void GetClosestPointMeshDistanceField_{ParameterName}(in float3 WorldPosition, in float DeltaTime, in float TimeFraction, in float MaxDistance, out float OutClosestDistance, out float3 OutClosestPosition, out float3 OutClosestNormal, out float3 OutClosestVelocity, out bool NormalIsValid, out float MaxEncodedDistance)
 {
 	const FDFVector3 LWCWorldPosition = DFFromTileOffset_Hack(MakeLWCVector3({ParameterName}_SystemLWCTile, WorldPosition));
 
@@ -510,6 +523,8 @@ void GetClosestPointMeshDistanceField_{ParameterName}(in float3 WorldPosition, i
 	OutClosestNormal = float3(0,0,0);
 	OutClosestPosition = float3(0,0,0);
 	OutClosestVelocity = float3(0,0,0);
+
+	MaxEncodedDistance = 0;
 
 	NormalIsValid = false;
 
@@ -522,42 +537,24 @@ void GetClosestPointMeshDistanceField_{ParameterName}(in float3 WorldPosition, i
 
 		if (DFIndex >= 0 && DFIndex < NumSceneObjects)
 		{
-			// #todo(dmp): this does a dynamic branch based on intersecting the bbox.  Maybe we can factor that out due to the broadphase here?
-			// #todo(dmp): Check the distance from the physics asset for a speedup?
-			MaxDistance = max(.001, MaxDistance);
-			OutClosestDistance = DistanceToNearestSurfaceForObject(DFIndex, LWCWorldPosition, MaxDistance);
+			MaxDistance = max(0.001f, MaxDistance);
 
-			FDFObjectData DFObjectData = LoadDFObjectData(DFIndex);
-			uint NumMips = LoadDFAssetData(DFObjectData.AssetIndex, 0).NumMips;
-			FDFAssetData DFAssetData = LoadDFAssetData(DFObjectData.AssetIndex, NumMips - 1);
-
-			float3 VolumePosition = DFMultiplyDemote(LWCWorldPosition, DFObjectData.WorldToVolume);
-			float3 VolumeGradient = CalculateMeshSDFGradient(VolumePosition, DFAssetData);
-			float VolumeGradientLength = length(VolumeGradient);
-			float3 VolumeNormal = VolumeGradientLength > 0.0f ? VolumeGradient / VolumeGradientLength : 0;
-			// Transform by transposed inverse to handle non-uniform scaling
-			float4x4 WorldToVolume = DFHackToFloat(DFObjectData.WorldToVolume);
-			float3 WorldGradient = mul(VolumeNormal, transpose((float3x3)WorldToVolume));
-			float WorldGradientLength = length(WorldGradient);
-			OutClosestNormal = WorldGradientLength > 0.0f ? WorldGradient / WorldGradientLength : 0;
+			OutClosestDistance = GetDistanceToMeshDistanceField(DFIndex, LWCWorldPosition, MaxDistance);
 			
-			CollisionPosition = WorldPosition - OutClosestNormal * OutClosestDistance;			
-			const float3 LocalCollisionPosition = mul(GetInverseTransform_{ParameterName}(ElementIndex), float4(CollisionPosition,1.0)).xyz;			
-			
-			const float3 PreviousPosition = mul(GetPreviousTransform_{ParameterName}(ElementIndex), float4(LocalCollisionPosition,1.0)).xyz;
-			const float3 CurrentPosition = mul(GetCurrentTransform_{ParameterName}(ElementIndex), float4(LocalCollisionPosition,1.0)).xyz;
-			OutClosestVelocity = ( CurrentPosition - PreviousPosition ) / DeltaTime;
-			OutClosestPosition = PreviousPosition + TimeFraction * (CurrentPosition-PreviousPosition);
+			float3 SampledWorldPosition;
+			ComputeClosestPointMeshDistanceField(DFIndex, LWCWorldPosition, OutClosestDistance, SampledWorldPosition, OutClosestNormal, MaxEncodedDistance, NormalIsValid);
 
-			// output 			
-			NormalIsValid =  all(step(-DFObjectData.VolumePositionExtent, VolumePosition) * step(VolumePosition, DFObjectData.VolumePositionExtent));
-			OutClosestPosition = NormalIsValid ? OutClosestPosition : float3(0,0,0);
+			if (NormalIsValid)
+			{
+				EvaluateWorldPositionOnElement_{ParameterName}(ElementIndex, SampledWorldPosition, DeltaTime, TimeFraction, OutClosestPosition, OutClosestVelocity);
+				OutClosestDistance = length(WorldPosition - SampledWorldPosition) * sign(OutClosestDistanceTmp);				
+			}
 		}
 	}
 }
 
 // Given a world space position (WorldPosition) compute the static mesh closest point (position,normal,velocity) by querying all overlapping mesh distance fields
-void GetClosestPointMeshDistanceFieldAccurate_{ParameterName}(in float3 WorldPosition, in float DeltaTime, in float TimeFraction, in float MaxDistance, out float OutClosestDistance, out float3 OutClosestPosition, out float3 OutClosestNormal, out float3 OutClosestVelocity, out bool NormalIsValid)
+void GetClosestPointMeshDistanceFieldAccurate_{ParameterName}(in float3 WorldPosition, in float DeltaTime, in float TimeFraction, in float MaxDistance, out float OutClosestDistance, out float3 OutClosestPosition, out float3 OutClosestNormal, out float3 OutClosestVelocity, out bool NormalIsValid, out float MaxEncodedDistance)
 {
 	const FDFVector3 LWCWorldPosition = DFFromTileOffset_Hack(MakeLWCVector3({ParameterName}_SystemLWCTile, WorldPosition));
 
@@ -569,6 +566,8 @@ void GetClosestPointMeshDistanceFieldAccurate_{ParameterName}(in float3 WorldPos
 	OutClosestPosition = float3(0,0,0);
 	OutClosestVelocity = float3(0,0,0);
 	
+	MaxEncodedDistance = 0;
+
 	NormalIsValid = false;
 
 	for (int ElementIndex = 0; ElementIndex < {ParameterName}_ElementOffsets[NUM_ELEMENTS_INDEX]; ++ElementIndex)
@@ -578,36 +577,20 @@ void GetClosestPointMeshDistanceFieldAccurate_{ParameterName}(in float3 WorldPos
 		// #todo(dmp): this does a dynamic branch based on intersecting the bbox.  Maybe we can factor that out due to the broadphase here?
 		// #todo(dmp): Check the distance from the physics asset for a speedup?
 		MaxDistance = max(.001, MaxDistance);
-		float OutClosestDistanceTmp = DistanceToNearestSurfaceForObject(DFIndex, LWCWorldPosition, MaxDistance);
+		float OutClosestDistanceTmp = GetDistanceToMeshDistanceField(DFIndex, LWCWorldPosition, MaxDistance);
 
 		if (OutClosestDistanceTmp < OutClosestDistance)
 		{
 			OutClosestDistance = OutClosestDistanceTmp;
-			FDFObjectData DFObjectData = LoadDFObjectData(DFIndex);
-			uint NumMips = LoadDFAssetData(DFObjectData.AssetIndex, 0).NumMips;
-			FDFAssetData DFAssetData = LoadDFAssetData(DFObjectData.AssetIndex, NumMips - 1);
 
-			float3 VolumePosition = DFMultiplyDemote(LWCWorldPosition, DFObjectData.WorldToVolume);
-			float3 VolumeGradient = CalculateMeshSDFGradient(VolumePosition, DFAssetData);
-			float VolumeGradientLength = length(VolumeGradient);
-			float3 VolumeNormal = VolumeGradientLength > 0.0f ? VolumeGradient / VolumeGradientLength : 0;
-			// Transform by transposed inverse to handle non-uniform scaling
-			float4x4 WorldToVolume = DFHackToFloat(DFObjectData.WorldToVolume);
-			float3 WorldGradient = mul(VolumeNormal, transpose((float3x3)WorldToVolume));
-			float WorldGradientLength = length(WorldGradient);
-			OutClosestNormal = WorldGradientLength > 0.0f ? WorldGradient / WorldGradientLength : 0;
+			float3 SampledWorldPosition;
+			ComputeClosestPointMeshDistanceField(DFIndex, LWCWorldPosition, OutClosestDistance, SampledWorldPosition, OutClosestNormal, MaxEncodedDistance, NormalIsValid);
 			
-			CollisionPosition = WorldPosition - OutClosestNormal * OutClosestDistance;			
-			const float3 LocalCollisionPosition = mul(GetInverseTransform_{ParameterName}(ElementIndex), float4(CollisionPosition,1.0)).xyz;			
-			
-			const float3 PreviousPosition = mul(GetPreviousTransform_{ParameterName}(ElementIndex), float4(LocalCollisionPosition,1.0)).xyz;
-			const float3 CurrentPosition = mul(GetCurrentTransform_{ParameterName}(ElementIndex), float4(LocalCollisionPosition,1.0)).xyz;
-			OutClosestVelocity = ( CurrentPosition - PreviousPosition ) / DeltaTime;
-			OutClosestPosition = PreviousPosition + TimeFraction * (CurrentPosition-PreviousPosition);
-
-			// output 			
-			NormalIsValid =  all(step(-DFObjectData.VolumePositionExtent, VolumePosition) * step(VolumePosition, DFObjectData.VolumePositionExtent));
-			OutClosestPosition = NormalIsValid ? OutClosestPosition : float3(0,0,0);
+			if (NormalIsValid)
+			{
+				EvaluateWorldPositionOnElement_{ParameterName}(ElementIndex, SampledWorldPosition, DeltaTime, TimeFraction, OutClosestPosition, OutClosestVelocity);
+				OutClosestDistance = length(WorldPosition - SampledWorldPosition) * sign(OutClosestDistanceTmp);				
+			}
 		}
 	}	
 }
@@ -648,6 +631,24 @@ void GetClosestPointMeshDistanceFieldNoNormal_{ParameterName}(in float3 WorldPos
 		const float3 CurrentPosition = mul(GetCurrentTransform_{ParameterName}(ElementIndex), float4(CollisionPosition,1.0)).xyz;
 		OutClosestVelocity = ( CurrentPosition - PreviousPosition ) / DeltaTime;
 		OutClosestPosition = PreviousPosition + TimeFraction * (CurrentPosition-PreviousPosition);
+	}
+}
+
+void GetMaxEncodedDistanceMeshDistanceField_{ParameterName}(in int ElementIndex, out float MaxEncodedDistance)
+{
+	MaxEncodedDistance = 0;
+	if (ElementIndex != -1)
+	{
+		uint DFIndex = {ParameterName}_DFIndexBuffer[ElementIndex];
+
+		if (DFIndex >= 0 && DFIndex < NumSceneObjects)
+		{
+			FDFObjectData DFObjectData = LoadDFObjectData(DFIndex);
+
+			uint NumMips = LoadDFAssetData(DFObjectData.AssetIndex, 0).NumMips;
+			FDFAssetData DFAssetData = LoadDFAssetData(DFObjectData.AssetIndex, NumMips - 1);
+			MaxEncodedDistance = (DFAssetData.DistanceFieldToVolumeScaleBias.x + DFAssetData.DistanceFieldToVolumeScaleBias.y) * DFObjectData.VolumeScale;
+		}
 	}
 }
 

@@ -236,7 +236,7 @@ bool UNiagaraSystemAuditCommandlet::ProcessNiagaraSystems()
 	UPackage* CurrentPackage = nullptr;
 
 	const bool bColledGarbage = NiagaraValidationIssues.IsValid();
-	const int32 CollectGarbageFrequency = 1024;
+	const int32 CollectGarbageFrequency = 256;
 	int32 CollectGarabageCounter = 0;
 
 	for (const FAssetData& AssetIt : AssetList)
@@ -315,9 +315,14 @@ bool UNiagaraSystemAuditCommandlet::ProcessNiagaraSystems()
 		FString EmittersWithSimulationStages;
 		bool bHasLights = false;
 		bool bHasEvents = false;
+		bool bHasGPUEmitters = false;
+		bool bHasCPUEmitters = false;
+		bool bHasStatelessEmitters = false;
 
 		for (const FNiagaraEmitterHandle& EmitterHandle : NiagaraSystem->GetEmitterHandles())
 		{
+			bHasStatelessEmitters |= (EmitterHandle.GetEmitterMode() == ENiagaraEmitterMode::Stateless) && EmitterHandle.GetStatelessEmitter();
+
 			FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
 			if (EmitterData == nullptr)
 			{
@@ -328,6 +333,9 @@ bool UNiagaraSystemAuditCommandlet::ProcessNiagaraSystems()
 			{
 				continue;
 			}
+
+			bHasGPUEmitters |= EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim;
+			bHasCPUEmitters |= EmitterData->SimTarget != ENiagaraSimTarget::GPUComputeSim;
 
 			if (EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim)
 			{
@@ -441,7 +449,15 @@ bool UNiagaraSystemAuditCommandlet::ProcessNiagaraSystems()
 
 			if ( (EmitterData->CalculateBoundsMode == ENiagaraEmitterCalculateBoundMode::Dynamic) && !NiagaraSystem->bFixedBounds )
 			{
-				EmittersWithDynamicBounds.Append(EmitterData->GetDebugSimName());
+				const FString EmitterName = EmitterHandle.GetUniqueInstanceName();
+				if (EmittersWithDynamicBounds.Find(EmitterName) == INDEX_NONE)
+				{
+					if (EmittersWithDynamicBounds.Len() != 0)
+					{
+						EmittersWithDynamicBounds.Append(TEXT(" "));
+					}
+					EmittersWithDynamicBounds.Append(EmitterName);
+				}
 			}
 		}
 
@@ -459,6 +475,11 @@ bool UNiagaraSystemAuditCommandlet::ProcessNiagaraSystems()
 		if (bHasEvents)
 		{
 			NiagaraSystemsWithEvents.Add(NiagaraSystem->GetPathName());
+		}
+
+		if (bHasStatelessEmitters)
+		{
+			NiagaraSystemsWithStatelessEmitters.Add(NiagaraSystem->GetPathName());
 		}
 
 		if (SystemDataInterfacesWihPrereqs.Num() > 0)
@@ -480,9 +501,26 @@ bool UNiagaraSystemAuditCommandlet::ProcessNiagaraSystems()
 			NiagaraSystemsWithSimulationStages.Add(FString::Printf(TEXT("%s,%s"), *NiagaraSystem->GetPathName(), *EmittersWithSimulationStages));
 		}
 
+		if (NiagaraSystem->ShouldCompressAttributes())
+		{
+			TStringBuilder<256> StringBuilder;
+			StringBuilder.Append(NiagaraSystem->GetPathName());
+			StringBuilder.Append(",");
+			if (bHasGPUEmitters)
+			{
+				StringBuilder.Append("GPU ");
+			}
+			if (bHasCPUEmitters)
+			{
+				StringBuilder.Append("CPU ");
+			}
+
+			NiagaraSystemsWithCompression.Add(StringBuilder.ToString());
+		}
+
 		if ( !EmittersWithDynamicBounds.IsEmpty() )
 		{
-			NiagaraSystemsWithDynamicBounds.Add(EmittersWithDynamicBounds);
+			NiagaraSystemsWithDynamicBounds.Add(FString::Printf(TEXT("%s,%s"), *NiagaraSystem->GetPathName(), *EmittersWithDynamicBounds));
 		}
 
 		if (SystemUserDataInterfaces.Num() > 0)
@@ -554,6 +592,8 @@ void UNiagaraSystemAuditCommandlet::DumpResults()
 		DumpSimpleSet(NiagaraSystemsWithGPUEmitters, TEXT("NiagaraSystemsWithGPUEmitters"), HeaderString.ToString());
 	}
 	DumpSimpleSet(NiagaraSystemsWithSimulationStages, TEXT("NiagaraSystemsWithSimulationStages"), TEXT("System,Emitters"));
+	DumpSimpleSet(NiagaraSystemsWithCompression, TEXT("NiagaraSystemsWithCompression"), TEXT("System,ExecutionTypes"));
+	DumpSimpleSet(NiagaraSystemsWithStatelessEmitters, TEXT("NiagaraSystemsWithStatelessEmitters"), TEXT("System"));
 
 	if (NiagaraDataInterfaceUsage.Num() > 0)
 	{

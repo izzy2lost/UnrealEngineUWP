@@ -1,14 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/DMMaterialLayer.h"
+
 #include "Components/DMMaterialEffect.h"
 #include "Components/DMMaterialEffectStack.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "DMComponentPath.h"
-#include "DMPrivate.h"
 #include "Dom/JsonObject.h"
-#include "DynamicMaterialEditorModule.h"
 #include "Factories.h"
 #include "JsonObjectConverter.h"
 #include "Misc/ReverseIterate.h"
@@ -17,6 +16,7 @@
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialLayer"
 
@@ -58,6 +58,7 @@ UDMMaterialLayerObject* UDMMaterialLayerObject::CreateLayer(UDMMaterialSlot* InS
 	const TArray<UDMMaterialStage*>& InStages)
 {
 	check(InSlot);
+	check(InMaterialProperty != EDMMaterialPropertyType::None);
 
 	UDMMaterialLayerObject* NewLayer = NewObject<UDMMaterialLayerObject>(InSlot, NAME_None, RF_Transactional);
 	NewLayer->MaterialProperty = InMaterialProperty;
@@ -172,7 +173,7 @@ bool UDMMaterialLayerObject::SetMaterialProperty(EDMMaterialPropertyType InMater
 
 	MaterialProperty = InMaterialProperty;
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 
 	return true;
 }
@@ -191,7 +192,7 @@ bool UDMMaterialLayerObject::SetTextureUVLinkEnabled(bool bInValue)
 
 	bLinkedUVs = bInValue;
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 
 	return true;
 }
@@ -365,25 +366,17 @@ bool UDMMaterialLayerObject::SetStage(EDMMaterialLayerStage InStageType, UDMMate
 
 	Stages[Index] = InStage;
 
-	if (IsComponentAdded())
+	if (IsValid(InStage))
 	{
-		Stages[Index]->SetComponentState(EDMComponentLifetimeState::Added);
-	}
+		InStage->Rename(nullptr, this, UE::DynamicMaterial::RenameFlags);
 
-	return true;
-}
-
-UDMMaterialStage* UDMMaterialLayerObject::GetFirstStageBeingEdited(EDMMaterialLayerStage InStageScope) const
-{
-	for (UDMMaterialStage* Stage : GetStages(InStageScope))
-	{
-		if (IsValid(Stage) && Stage->IsBeingEdited())
+		if (IsComponentAdded())
 		{
-			return Stage;
+			InStage->SetComponentState(EDMComponentLifetimeState::Added);
 		}
 	}
 
-	return nullptr;
+	return true;
 }
 
 void UDMMaterialLayerObject::ForEachValidStage(EDMMaterialLayerStage InStageScope, FStageCallbackFunc InCallback) const
@@ -486,7 +479,7 @@ bool UDMMaterialLayerObject::SetEnabled(bool bInIsEnabled)
 
 	bEnabled = bInIsEnabled;
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 
 	return true;
 }
@@ -496,16 +489,6 @@ bool UDMMaterialLayerObject::IsStageEnabled(EDMMaterialLayerStage InStageType) c
 	if (UDMMaterialStage* Stage = GetStage(InStageType))
 	{
 		return Stage->IsEnabled();
-	}
-
-	return false;
-}
-
-bool UDMMaterialLayerObject::IsStageBeingEdited(EDMMaterialLayerStage InStageType) const
-{
-	if (UDMMaterialStage* Stage = GetStage(InStageType))
-	{
-		return Stage->IsBeingEdited();
 	}
 
 	return false;
@@ -644,10 +627,17 @@ bool UDMMaterialLayerObject::CanMoveLayerBelow(UDMMaterialLayerObject* InLayer) 
 		return false;
 	}
 
+	const UDMMaterialSlot* const ThisSlot = GetSlot();
+
+	if (!IsValid(ThisSlot))
+	{
+		return false;
+	}
+
 	const int32 ThisIndex = FindIndex();
 
-	// Already top level - or invalid.
-	if (ThisIndex == 0 || ThisIndex == INDEX_NONE)
+	// Already bottom level - or invalid.
+	if (ThisIndex == (ThisSlot->GetLayers().Num() - 1) || ThisIndex == INDEX_NONE)
 	{
 		return false;
 	}
@@ -655,13 +645,6 @@ bool UDMMaterialLayerObject::CanMoveLayerBelow(UDMMaterialLayerObject* InLayer) 
 	const int32 DraggedLayerIndex = InLayer->FindIndex();
 
 	if (DraggedLayerIndex == INDEX_NONE)
-	{
-		return false;
-	}
-
-	const UDMMaterialSlot* const ThisSlot = GetSlot();
-
-	if (!IsValid(ThisSlot))
 	{
 		return false;
 	}
@@ -761,7 +744,7 @@ UDMMaterialComponent* UDMMaterialLayerObject::GetParentComponent() const
 FString UDMMaterialLayerObject::GetComponentPathComponent() const
 {
 	return FString::Printf(
-		TEXT("%s%hc%i%hc"),
+		TEXT("%s%c%i%c"),
 		*UDMMaterialSlot::LayersPathToken,
 		FDMComponentPath::ParameterOpen,
 		FindIndex(),
@@ -781,8 +764,13 @@ FText UDMMaterialLayerObject::GetComponentDescription() const
 	return LayerName;
 }
 
-void UDMMaterialLayerObject::Update(EDMUpdateType InUpdateType)
+void UDMMaterialLayerObject::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (!IsComponentValid())
 	{
 		return;
@@ -797,23 +785,23 @@ void UDMMaterialLayerObject::Update(EDMUpdateType InUpdateType)
 	{
 		if (UDMMaterialStage* FirstStage = NextLayer->GetFirstEnabledStage(EDMMaterialLayerStage::All))
 		{
-			FirstStage->Update(InUpdateType);
+			FirstStage->Update(InSource, InUpdateType);
 		}
 		else if (UDMMaterialEffectStack* NextEffectStack = NextLayer->GetEffectStack())
 		{
-			NextEffectStack->Update(InUpdateType);
+			NextEffectStack->Update(InSource, InUpdateType);
 		}
 		else
 		{
-			NextLayer->Update(InUpdateType);
+			NextLayer->Update(InSource, InUpdateType);
 		}
 	}
 	else if (UDMMaterialSlot* Slot = GetSlot())
 	{
-		Slot->Update(InUpdateType);
+		Slot->Update(InSource, InUpdateType);
 	}
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 }
 
 void UDMMaterialLayerObject::PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent)
@@ -868,7 +856,7 @@ void UDMMaterialLayerObject::PostEditUndo()
 
 	MarkComponentDirty();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 UDMMaterialComponent* UDMMaterialLayerObject::GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const

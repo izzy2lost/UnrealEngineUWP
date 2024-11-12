@@ -241,6 +241,11 @@ const FTempoInfoPoint* FTempoMap::GetTempoPointAtTick(int32 Tick) const
 	return FMusicMapUtl::GetPointInfoForTick(Points, Tick);
 }
 
+int32 FTempoMap::GetTempoPointIndexAtTick(int32 Tick) const
+{
+	return FMusicMapUtl::GetPointIndexForTick(Points, Tick);
+}
+
 int32 FTempoMap::GetNumTempoChangePoints() const
 {
 	return Points.Num();

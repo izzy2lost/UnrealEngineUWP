@@ -13,9 +13,9 @@
 // This should be good enough for ray tracing and avoids having to bind an extra buffer
 #define EYE_ADAPTATION_PREV_FRAME_EXPOSURE 1
 
-
 #if SUBSTRATE_ENABLED
 #define SUBSTRATE_INLINE_SHADING 1
+#define SUBSTRATE_USES_FORCED_COMPLEXITY 0
 #endif
 
 #include "/Engine/Private/Common.ush"
@@ -233,8 +233,10 @@ void GetMaterialPayload(
 	const float Dither = 0.5f;
 	float3 EmissiveLuminance = 0.0f;
 	float TotalCoverage = 1.f;
+	float3 TransmittancePreCoverage = 0.0f;
 	bool bSubstrateSubsurfaceEnable = false;
 	const float3 WorldBentNormal0 = GetWorldBentNormalZero(MaterialParameters);
+	const float3 CamVector = MaterialParameters.CameraVector;
 
 	// Initialise a Substrate header with normal in registers
 	FSubstrateData SubstrateData = PixelMaterialInputs.GetFrontSubstrateData();
@@ -248,16 +250,19 @@ void GetMaterialPayload(
 	float3	UnlitSurfaceNormal = 0.0f;
 	SubstratePixelHeader.SubstrateUpdateTreeUnlit(
 		uint2(MaterialParameters.SvPosition.xy),
-		MaterialParameters.CameraVector,
+		CamVector,
 		SubstrateData,
 		UnlitSurfaceLuminancePostCoverage,
 		UnlitSurfaceCoverage,
 		UnlitSurfaceTransmittancePreCoverage,
 		UnlitSurfaceNormal);
 	EmissiveLuminance = UnlitSurfaceLuminancePostCoverage;
+
 	#if !SUBSTRATE_OPAQUE_MATERIAL
 	TotalCoverage = UnlitSurfaceCoverage;
+	TransmittancePreCoverage = UnlitSurfaceTransmittancePreCoverage;
 	#endif
+
   #else // SUBSTRATE_OPTIMIZED_UNLIT
 	SubstratePixelHeader.IrradianceAO.MaterialAO = GetMaterialAmbientOcclusion(PixelMaterialInputs);
 	SubstratePixelHeader.SetCastContactShadow(GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_CAST_CONTACT_SHADOW);
@@ -275,18 +280,16 @@ void GetMaterialPayload(
 	#if MATERIALBLENDING_ANY_TRANSLUCENT
 	if (SubstratePixelHeader.SubstrateTree.BSDFCount > 0)
 	{
-		float TransmittancePreCoverage = 0.f;
 		SubstratePixelHeader.SubstrateUpdateTree(
 			SubstrateData, 
-			MaterialParameters.CameraVector, 
+			CamVector,
 			Settings, 
 			TotalCoverage, 
 			TransmittancePreCoverage);
-		TotalCoverage *= (1.f-dot(TransmittancePreCoverage, float(1.f/3.f).xxx));
+
 	}
 	#endif
 
-	const float3 CamVector = MaterialParameters.CameraVector;
 	Payload.SubstrateData = InitialiseRWSubstrateMaterialContainer();
 	PackSubstrateOut(
 		Payload.SubstrateData,
@@ -311,6 +314,8 @@ void GetMaterialPayload(
 
 	// Opacity
 	Payload.Opacity = TotalCoverage;
+	Payload.TransmittancePreCoverage = TransmittancePreCoverage;
+
 	#if MATERIALBLENDING_MASKED
 	// regular masked mode - binary decision
 	if (GetMaterialMask(PixelMaterialInputs) < 0)
@@ -318,6 +323,8 @@ void GetMaterialPayload(
 		Payload.Opacity = 0;
 	}
 	#endif // MATERIALBLENDING_MASKED
+
+
   #endif // MATERIAL_IS_SUBSTRATE
 }
 #else // SUBSTRATE_ENABLED
@@ -414,10 +421,10 @@ void GetMaterialPayload(
 	{
 		const float3 ScatteringCoeff = max(0.0f, DFDemote(GetSingleLayerWaterMaterialOutput0(MaterialParameters)));
 		const float3 AbsorptionCoeff = max(0.0f, DFDemote(GetSingleLayerWaterMaterialOutput1(MaterialParameters)));
-		const float PhaseG = clamp(DFDemote(GetSingleLayerWaterMaterialOutput2(MaterialParameters)), -1.0f, 1.0f);
+		const float PhaseG = clamp(DFDemote(GetSingleLayerWaterMaterialOutput2(MaterialParameters).x), -1.0f, 1.0f);
 
 		const float3 WaterExtinction = ScatteringCoeff + AbsorptionCoeff;
-		const float3 WaterAlbedo = ScatteringCoeff / WaterExtinction;
+		const float3 WaterAlbedo = ScatteringCoeff / max(WaterExtinction, 0.000001);
 
 		Payload.BaseColor.xyz = WaterAlbedo;
 		Payload.CustomData.xyz = WaterExtinction;
@@ -475,10 +482,23 @@ void GetMaterialPayload(
 	// Restore global mip bias after lightmaps are sampled.
 	GlobalTextureMipBias = OldGlobalMipBias;
 
-	Payload.DiffuseColor = BaseColor - BaseColor * Metallic;
-	Payload.SpecularColor = ComputeF0(Specular, BaseColor, Metallic);
+	#if MATERIAL_SHADINGMODEL_UNLIT
+	if (Payload.ShadingModelID == SHADINGMODELID_UNLIT)
+	{
+		Payload.Specular = 0;
+		Payload.BaseColor = 0;
+		Payload.DiffuseColor = 0;
+		Payload.SpecularColor = 0;
+		Payload.IndirectIrradiance = 0;
+	}
+	else
+	#endif
+	{
+		Payload.DiffuseColor = BaseColor - BaseColor * Metallic;
+		Payload.SpecularColor = ComputeF0(Specular, BaseColor, Metallic);
+		Payload.IndirectIrradiance += DiffuseIndirectLighting; // Contains both lightmap & skylight
+	}
 	
-	Payload.IndirectIrradiance += DiffuseIndirectLighting; // Contains both lightmap & skylight
 }
 #endif // SUBSTRATE_ENABLED
 
@@ -511,14 +531,8 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(MaterialCHS,
 	bool bIsLumenPayload = PackedPayload.IsLumenPayload();
 	if (bIsLumenPayload)
 	{
-		const float3 SurfaceNormal = GeoNormal;
-		const int PrimitiveIndex = GetInstanceUserData();
-		const int PrimitiveInstanceIndex = InstanceIndex() - GetBaseInstanceIndex();
-
-		PackedPayload.SetGeometryNormal(SurfaceNormal);
-		PackedPayload.SetSceneInstanceIndex(
-			GetGPUSceneInstanceIndex(PrimitiveIndex, PrimitiveInstanceIndex)
-		);
+		PackedPayload.SetGeometryNormal(GeoNormal);
+		PackedPayload.SetSceneInstanceIndex(GetInstanceUserData());
 	}
 
 	if (PackedPayload.IsMinimalPayloadMode())
@@ -603,7 +617,11 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(MaterialCHS,
 	if (bIsHoldout && bIsCameraRay)
 	{
 #if SUBSTRATE_ENABLED
-		// SUBSTRATE_TODO: Need to clear the material data and set a black unlit material in this case
+		Payload.SubstrateData = (FSubstrateRaytracingPayload)0;
+		Payload.ShadingModelID = SHADINGMODELID_UNLIT;
+		Payload.Radiance = 0.0;
+		Payload.Opacity = 1.0;
+		Payload.TransmittancePreCoverage = 0.0;
 #else
 		Payload.ShadingModelID = SHADINGMODELID_UNLIT;
 		Payload.Radiance = 0.0;
@@ -618,9 +636,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(MaterialCHS,
 	// Override packed payload with custom Lumen data
 	if (bIsLumenPayload)
 	{
-		const int PrimitiveIndex = GetInstanceUserData();
-		const int PrimitiveInstanceIndex = InstanceIndex() - GetBaseInstanceIndex();
-		PackedPayload.SetSceneInstanceIndex(GetGPUSceneInstanceIndex(PrimitiveIndex, PrimitiveInstanceIndex));
+		PackedPayload.SetSceneInstanceIndex(GetInstanceUserData());
 		PackedPayload.SetGeometryNormal(GeoNormal);
 	}
 

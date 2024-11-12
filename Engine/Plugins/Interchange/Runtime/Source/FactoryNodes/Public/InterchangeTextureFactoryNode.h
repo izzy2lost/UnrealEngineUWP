@@ -528,6 +528,13 @@ public:
 		IMPLEMENT_NODE_ATTRIBUTE_SETTER(UInterchangeTextureFactoryNode, VirtualTextureStreaming, bool, UTexture)
 	}
 
+	/** Return false if the Attribute was not set previously.*/
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Texture")
+	bool GetCustomColorSpace(ETextureColorSpace& AttributeValue) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Texture")
+	bool SetCustomColorSpace(ETextureColorSpace AttributeValue, bool bAddApplyDelegate = true);
+
 	//////////////////////////////////////////////////////////////////////////
 	//Level of Detail
 
@@ -725,6 +732,7 @@ public:
 			COPY_NODE_DELEGATES(TextureFactoryNode, MipGenSettings, uint8, UTexture)
 			COPY_NODE_DELEGATES(TextureFactoryNode, CompositeTextureMode, uint8, UTexture)
 			COPY_NODE_DELEGATES(TextureFactoryNode, CompositePower, float, UTexture)
+			COPY_NODE_DELEGATES_WITH_CUSTOM_DELEGATE(TextureFactoryNode, UInterchangeTextureFactoryNode, ColorSpace, ETextureColorSpace, UTexture::StaticClass())
 #endif
 			COPY_NODE_DELEGATES(TextureFactoryNode, VirtualTextureStreaming, bool, UTexture)
 			COPY_NODE_DELEGATES(TextureFactoryNode, CompressionSettings, uint8, UTexture)
@@ -779,6 +787,7 @@ private:
 	IMPLEMENT_NODE_ATTRIBUTE_KEY(SRGB)
 	IMPLEMENT_NODE_ATTRIBUTE_KEY(bUseLegacyGamma)
 	IMPLEMENT_NODE_ATTRIBUTE_KEY(VirtualTextureStreaming)
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(ColorSpace)
 
 	// Level of Detail
 	IMPLEMENT_NODE_ATTRIBUTE_KEY(bPreserveBorder)
@@ -841,4 +850,10 @@ private:
 		}
 		return false;
 	}
+
+#if WITH_EDITORONLY_DATA
+	bool ApplyCustomColorSpaceToAsset(UObject* Asset) const;
+
+	bool FillCustomColorSpaceFromAsset(UObject* Asset);
+#endif // WITH_EDITORONLY_DATA
 };

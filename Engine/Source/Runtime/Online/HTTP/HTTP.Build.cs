@@ -4,8 +4,9 @@ using UnrealBuildTool;
 
 public class HTTP : ModuleRules
 {
-	// Currently there is a random event loop crash when shutdown HTTP manager on PC
-	protected virtual bool bPlatformEventLoopEnabledByDefault { get { return !Target.Platform.IsInGroup(UnrealPlatformGroup.Windows); } }
+	protected virtual bool bPlatformEventLoopEnabledByDefault { get { return true; } }
+
+	protected virtual bool bPlatformSupportToIncreaseMaxRequestsAtRuntime { get { return true; } }
 
 	protected virtual bool bPlatformSupportsWinHttp
 	{
@@ -31,6 +32,18 @@ public class HTTP : ModuleRules
 
 	protected virtual bool bPlatformSupportsCurlMultiWait { get { return false; } }
 	protected virtual bool bPlatformSupportsCurlQuickExit { get { return !bPlatformSupportsXCurl; } }
+	protected virtual bool bPlatformConnectionTimeoutSupportRetry { get { return true; } }
+	protected virtual bool bPlatformSupportsLocalHttpServer 
+	{ 
+		get 
+		{ 
+			return !bPlatformSupportsXCurl && 
+				!Target.IsInPlatformGroup(UnrealPlatformGroup.Android) && 
+				!Target.IsInPlatformGroup(UnrealPlatformGroup.IOS); 
+		} 
+	}
+
+	protected virtual int DefaultMaxConcurrentRequests { get { return int.MaxValue; } }
 
 	private bool bPlatformSupportsCurl { get { return bPlatformSupportsLibCurl || bPlatformSupportsXCurl; } }
 
@@ -41,6 +54,15 @@ public class HTTP : ModuleRules
 			return Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) ||
 				Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) ||
 				Target.IsInPlatformGroup(UnrealPlatformGroup.Android);
+		}
+	}
+
+	protected virtual bool bPlatformSupportsUnixSockets
+	{
+		get
+		{
+			return (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) && !Target.WindowsPlatform.bUseXCurl) ||
+				Target.IsInPlatformGroup(UnrealPlatformGroup.Unix);
 		}
 	}
 
@@ -85,8 +107,9 @@ public class HTTP : ModuleRules
 		}
 
 		PrivateDefinitions.Add("UE_HTTP_EVENT_LOOP_ENABLE_CHANCE_BY_DEFAULT=" + (bPlatformEventLoopEnabledByDefault ? "100" : "0"));
+		PrivateDefinitions.Add("UE_HTTP_SUPPORT_TO_INCREASE_MAX_REQUESTS_AT_RUNTIME=" + (bPlatformSupportToIncreaseMaxRequestsAtRuntime ? "1" : "0"));
 		PrivateDefinitions.Add("WITH_CURL_LIBCURL =" + (bPlatformSupportsLibCurl ? "1" : "0"));
-		PublicDefinitions.Add("WITH_CURL_XCURL=" + (bPlatformSupportsXCurl ? "1" : "0"));
+		PrivateDefinitions.Add("WITH_CURL_XCURL=" + (bPlatformSupportsXCurl ? "1" : "0"));
 		PrivateDefinitions.Add("WITH_CURL_MULTIPOLL=" + (bPlatformSupportsCurlMultiPoll ? "1" : "0"));
 		PrivateDefinitions.Add("WITH_CURL_MULTIWAIT=" + (bPlatformSupportsCurlMultiWait ? "1" : "0"));
 		PrivateDefinitions.Add("WITH_CURL_MULTISOCKET=" + (bPlatformSupportsCurlMultiSocket ? "1" : "0"));
@@ -118,5 +141,22 @@ public class HTTP : ModuleRules
 		{
 			PublicFrameworks.Add("Security");
 		}
+
+		PrivateDefinitions.Add("UE_HTTP_DEFAULT_MAX_CONCURRENT_REQUESTS=" + DefaultMaxConcurrentRequests);
+
+		float PlatformConnectionTimeoutMaxDeviation = 0.5f;
+		if (bPlatformSupportsXCurl)
+		{
+			PlatformConnectionTimeoutMaxDeviation = 4.5f;
+		}
+		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Apple))
+		{
+			PlatformConnectionTimeoutMaxDeviation = 1.5f;
+		}
+		PublicDefinitions.Add("UE_HTTP_CONNECTION_TIMEOUT_MAX_DEVIATION=" + PlatformConnectionTimeoutMaxDeviation);
+		PublicDefinitions.Add("UE_HTTP_CONNECTION_TIMEOUT_SUPPORT_RETRY=" + (bPlatformConnectionTimeoutSupportRetry ? "1" : "0"));
+		PublicDefinitions.Add("UE_HTTP_ACTIVITY_TIMER_START_AFTER_RECEIVED_DATA=" + ((bPlatformSupportsXCurl || Target.IsInPlatformGroup(UnrealPlatformGroup.Apple)) ? "1" : "0"));
+		PublicDefinitions.Add("UE_HTTP_SUPPORT_LOCAL_SERVER=" + (bPlatformSupportsLocalHttpServer ? "1" : "0"));
+		PublicDefinitions.Add("UE_HTTP_SUPPORT_UNIX_SOCKET=" + (bPlatformSupportsUnixSockets ? "1" : "0"));
 	}
 }

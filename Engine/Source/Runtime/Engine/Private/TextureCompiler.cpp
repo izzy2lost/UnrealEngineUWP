@@ -205,6 +205,20 @@ void FTextureCompilingManager::PostCompilation(UTexture* Texture)
 	UE_LOG(LogTexture, Verbose, TEXT("Refreshing texture %s because it is ready"), *Texture->GetName());
 
 	Texture->FinishCachePlatformData();
+
+	// Track the DDC key suffix of the texture we are done with so that if we re-enter we can
+	// log info and hopefully be able to do some post-mortem on it.
+	CurrentPostCompilationTexture = Texture;
+	CurrentPostCompilationDDCKey.Empty();
+	if (FTexturePlatformData** RunningPlatformData = Texture->GetRunningPlatformData(); RunningPlatformData && *RunningPlatformData)
+	{
+		// only works for ddc1 right now... 
+		if (FString* DDCKey = RunningPlatformData[0]->DerivedDataKey.TryGet<FString>(); DDCKey)
+		{
+			CurrentPostCompilationDDCKey = *DDCKey;
+		}
+	}
+
 	Texture->UpdateResource();
 
 	// Generate an empty property changed event, to force the asset registry tag
@@ -251,12 +265,56 @@ void FTextureCompilingManager::AddTextures(TArrayView<UTexture* const> InTexture
 	// and then immediately tried again - and then tried to launch another build because the ddc keys changed. This means that
 	// during the async build, a property or otherwise that is an input to the ddc key changed. This shouldn't happen because
 	// PreEditChange completes the async build before allowing the change.
-	// Debugging this can be a huge pain. If you have a repro, IMO the best way is to hack GetTextureDerivedDataKeySuffix
-	// to strcmp on the name of the repro texture and just log the full key suffix. Then you should immediately see the changed
-	// keys right before the crash and you can backsolve what value changed. Once you have that, you can set a data breakpoint on
-	// the property and see who is poking it.
-	checkf(bIsRoutingPostCompilation == false,
-		TEXT("Registering a texture to the compile manager from inside a texture postcompilation is not supported and usually indicate that the previous async operation wasn't completed (i.e. missing call to PreEditChange) before modifying a texture property."));
+	// Debugging this can be a huge pain. NEW AND IMPROVED: We should now be printing the relevant DDC keys below (if DDC1). This
+	// should facilitate at least finding out what property is getting changed, as well as what texture. If you can't divine what's
+	// causing the change from that, you'll need to put a data breakpoint on it and see who is doing it.
+	//
+	// **
+	//
+	// One thing to be aware of is this can be caused by a system manually calling FinishCachePlatformData + UpdateResource
+	// instead of calling BlockOnAnyAsyncBuild. This causes the async task to become null,
+	// which prevents any IsCompiling / BlockOnAnyAsyncBuild from detecting it, even though it's still pending a PostCompilation
+	// in here. As a result you can edit the DDC key any time between the FinishCachePlatformData and the subsequent CreateResource
+	// call and get this crash. If you have a repro, best bet is to try and get a breakpoint on FinishCachePlatformData for the texture
+	// in question - only the compilation manager shoulid be calling that for editor resources.
+	if (bIsRoutingPostCompilation)
+	{
+		UE_LOG(LogTexture, Error, TEXT("PostCompilation Texture: %s"), CurrentPostCompilationTexture ? *CurrentPostCompilationTexture->GetPathName() : TEXT("<nullptr>"));
+
+		// Empty keys most likely means we are on ddc2.
+		UE_LOG(LogTexture, Error, TEXT("PostCompilation DDCKey: %s"), *CurrentPostCompilationDDCKey);
+		UE_LOG(LogTexture, Error, TEXT("AddTextures Count: %d"), InTextures.Num());
+
+		for (const UTexture* ConstTexture : InTextures)
+		{
+			// We're about to crash anyway.
+			UTexture* Texture = const_cast<UTexture*>(ConstTexture);
+
+			UE_LOG(LogTexture, Error, TEXT("%s:"), *Texture->GetPathName());
+
+			FTexturePlatformData** RunningPlatformData = Texture->GetRunningPlatformData();
+			if (!RunningPlatformData || !RunningPlatformData[0])
+			{
+				UE_LOG(LogTexture, Error, TEXT("   -> No RunningPlatformData!"));
+			}
+			else
+			{
+				FString* Key = RunningPlatformData[0]->FetchFirstDerivedDataKey.TryGet<FString>();
+				UE_LOG(LogTexture, Error, TEXT("    FetchFirstKey: %s"), Key ? **Key : TEXT("<empty, likely new texture build flow?>"));
+				Key = RunningPlatformData[0]->FetchOrBuildDerivedDataKey.TryGet<FString>();
+				UE_LOG(LogTexture, Error, TEXT("    FetchOrBuildKey: %s"), Key ? **Key : TEXT("<empty, likely new texture build flow?>"));
+			}
+		}
+
+		// This has been updated to Fatal because it potentially modifies RegisteredTextureBuckets below which is iterated upon
+		// during PostCompilation routing. That modification can put us in an unstable state and crash in unexpected and rather
+		// undebuggable ways.
+		UE_LOG(LogTexture, Fatal, 
+			TEXT("Registering a texture to the compile manager from inside a texture postcompilation is not supported and usually")
+			TEXT(" indicates that the previous async operation wasn't completed (i.e. missing call to PreEditChange) before modifying a texture property.")
+			);
+	}
+		
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FTextureCompilingManager::AddTextures)
 
@@ -321,6 +379,25 @@ void FTextureCompilingManager::FinishCompilationForObjects(TArrayView<UObject* c
 void FTextureCompilingManager::FinishCompilation(TArrayView<UTexture* const> InTextures)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FTextureCompilingManager::FinishCompilation);
+
+	if (InTextures.Num() == 0)
+	{
+		return;
+	}
+
+	if (bIsRoutingPostCompilation)
+	{
+		// This ends up modifying the registered texture buckets which is not allowed
+		// when we are routing PostCompilation. Plus, it doesn't make much sense to 
+		// be calling FinishCompilation while we are in the middle of finishing
+		// compilations!
+		// This is likely because a worker task got scheduled during a wait inside
+		// PostCompilation and it's randomly running during the wait, causing crashes.
+		// Workers that need to interact with textures should do that work in response to
+		// a game tick via e.g. ExecuteOnGameThread
+		UE_LOG(LogTexture, Fatal, TEXT("Calling FinishCompilation is not allowed during PostCompilation. NumTextures = %d, Texture[0] = %s"), InTextures.Num(), *InTextures[0]->GetPathName());
+	}
+
 
 	using namespace TextureCompilingManagerImpl;
 	check(IsInGameThread());
@@ -731,6 +808,16 @@ void FTextureCompilingManager::ProcessAsyncTasks(bool bLimitExecutionTime)
 
 void FTextureCompilingManager::ProcessAsyncTasks(const AssetCompilation::FProcessAsyncTaskParams& Params)
 {
+	if (bIsRoutingPostCompilation)
+	{
+		// This potentially affects RegisteredTextureBuckets which can't be touched inside PostCompilation.
+		// This is likely because a worker task got scheduled during a wait inside
+		// PostCompilation and it's randomly running during the wait, causing crashes.
+		// Workers that need to interact with textures should do that work in response to
+		// a game tick via e.g. ExecuteOnGameThread
+		UE_LOG(LogTexture, Fatal, TEXT("Calling ProcessAsyncTasks is not allowed during PostCompilation."));
+	}
+
 	FObjectCacheContextScope ObjectCacheScope;
 	ProcessDeferredRequests();
 	FinishCompilationsForGame();

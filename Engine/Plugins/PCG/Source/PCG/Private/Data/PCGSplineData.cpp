@@ -2,6 +2,7 @@
 
 #include "Data/PCGSplineData.h"
 
+#include "PCGContext.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGPolyLineData.h"
 #include "Data/PCGProjectionData.h"
@@ -10,6 +11,7 @@
 #include "Helpers/PCGHelpers.h"
 
 #include "Components/SplineComponent.h"
+#include "Serialization/ArchiveCrc32.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGSplineData)
 
@@ -70,7 +72,7 @@ void UPCGSplineData::Initialize(const FPCGSplineStruct& InSplineStruct)
 	CachedBounds = CachedBounds.TransformBy(SplineStruct.Transform);
 }
 
-void UPCGSplineData::ApplyTo(USplineComponent* InSplineComponent)
+void UPCGSplineData::ApplyTo(USplineComponent* InSplineComponent) const
 {
 	SplineStruct.ApplyTo(InSplineComponent);
 }
@@ -79,8 +81,15 @@ void UPCGSplineData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 {
 	Super::AddToCrc(Ar, bFullDataCrc);
 
-	// This data does not have a bespoke CRC implementation so just use a global unique data CRC.
-	AddUIDToCrc(Ar);
+	if (Metadata)
+	{
+		Metadata->AddToCrc(Ar, bFullDataCrc);
+	}
+
+	uint32 UniqueTypeID = StaticClass()->GetDefaultObject()->GetUniqueID();
+	Ar << UniqueTypeID;
+
+	Ar << SplineStruct;
 }
 
 FTransform UPCGSplineData::GetTransform() const
@@ -152,16 +161,26 @@ FVector::FReal UPCGSplineData::GetDistanceAtSegmentStart(int SegmentIndex) const
 	return SplineStruct.GetDistanceAlongSplineAtSplinePoint(SegmentIndex);
 }
 
+FVector UPCGSplineData::GetLocationAtAlpha(float Alpha) const
+{
+	return SplineStruct.GetLocationAtSplineInputKey(GetInputKeyAtAlpha(Alpha), ESplineCoordinateSpace::World);
+}
+
+FTransform UPCGSplineData::GetTransformAtAlpha(float Alpha) const
+{
+	return SplineStruct.GetTransformAtSplineInputKey(GetInputKeyAtAlpha(Alpha), ESplineCoordinateSpace::World);
+}
+
 const UPCGPointData* UPCGSplineData::CreatePointData(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGSplineData::CreatePointData);
-	UPCGPointData* Data = NewObject<UPCGPointData>();
+	UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	Data->InitializeFromData(this);
 
 	FPCGSplineSamplerParams SamplerParams;
 	SamplerParams.Mode = EPCGSplineSamplingMode::Distance;
 
-	PCGSplineSamplerHelpers::SampleLineData(this, /*InBoundingShape=*/nullptr, /*InProjectionTarget=*/nullptr, /*InProjectionParams=*/{}, SamplerParams, Data);
+	PCGSplineSamplerHelpers::SampleLineData(Context, this, /*InBoundingShape=*/nullptr, /*InProjectionTarget=*/nullptr, /*InProjectionParams=*/{}, SamplerParams, Data);
 	UE_LOG(LogPCG, Verbose, TEXT("Spline generated %d points"), Data->GetPoints().Num());
 
 	return Data;
@@ -202,23 +221,23 @@ bool UPCGSplineData::SamplePoint(const FTransform& InTransform, const FBox& InBo
 	}
 }
 
-UPCGSpatialData* UPCGSplineData::ProjectOn(const UPCGSpatialData* InOther, const FPCGProjectionParams& InParams) const
+UPCGSpatialData* UPCGSplineData::ProjectOn(FPCGContext* InContext, const UPCGSpatialData* InOther, const FPCGProjectionParams& InParams) const
 {
 	if (InOther->GetDimension() == 2)
 	{
-		UPCGSplineProjectionData* SplineProjectionData = NewObject<UPCGSplineProjectionData>();
+		UPCGSplineProjectionData* SplineProjectionData = FPCGContext::NewObject_AnyThread<UPCGSplineProjectionData>(InContext);
 		SplineProjectionData->Initialize(this, InOther, InParams);
 		return SplineProjectionData;
 	}
 	else
 	{
-		return Super::ProjectOn(InOther, InParams);
+		return Super::ProjectOn(InContext, InOther, InParams);
 	}
 }
 
-UPCGSpatialData* UPCGSplineData::CopyInternal() const
+UPCGSpatialData* UPCGSplineData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGSplineData* NewSplineData = NewObject<UPCGSplineData>();
+	UPCGSplineData* NewSplineData = FPCGContext::NewObject_AnyThread<UPCGSplineData>(Context);
 
 	CopySplineData(NewSplineData);
 
@@ -380,9 +399,9 @@ const UPCGSpatialData* UPCGSplineProjectionData::GetSurface() const
 	return Target;
 }
 
-UPCGSpatialData* UPCGSplineProjectionData::CopyInternal() const
+UPCGSpatialData* UPCGSplineProjectionData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGSplineProjectionData* NewProjectionData = NewObject<UPCGSplineProjectionData>();
+	UPCGSplineProjectionData* NewProjectionData = FPCGContext::NewObject_AnyThread<UPCGSplineProjectionData>(Context);
 
 	CopyBaseProjectionClass(NewProjectionData);
 

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 // DRAW PRIMITIVE DEBUGGER
 // 
@@ -10,6 +10,8 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
+
+#define WITH_PRIMITIVE_DEBUGGER !UE_BUILD_SHIPPING && !UE_SERVER
 
 DECLARE_LOG_CATEGORY_EXTERN(LogDrawPrimitiveDebugger, All, All);
 
@@ -57,6 +59,11 @@ public:
 	 * Disables capturing debug data each frame.
 	 */
 	virtual void DisableLiveCapture() = 0;
+
+	/**
+	 * Discards the current snapshot data in memory and resets the debugger window.
+	 */
+	virtual void DiscardCaptureData() = 0;
 
 	/**
 	 * Opens the graphics debugger window if it is available.

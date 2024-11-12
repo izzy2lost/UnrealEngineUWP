@@ -61,7 +61,88 @@ Think of a Gameplay Ability as the bundle of functions that correspond to the ac
 [Developer Community Gameplay Abilities docs](https://dev.epicgames.com/documentation/unreal-engine/using-gameplay-abilities-in-unreal-engine)
 
 ## Gameplay Ability Tasks {#gameplay-ability-tasks}
+
 Gameplay Abilities often make use of [Gameplay Ability Tasks](https://dev.epicgames.com/documentation/unreal-engine/gameplay-ability-tasks-in-unreal-engine).  Gameplay Ability Tasks are latent Blueprint nodes that allow your Gameplay Ability to 'pause' for the frame while it awaits some event.  They can also perform network functionality which hide complex implementation details from the Blueprint designer.
+
+## Gameplay Ability Specs
+
+The Gameplay Ability Specs are runtime-defined data which augment and tie together parameters used for the Gameplay Ability.  It serves two purposes:
+
+1. To configure the Gameplay Ability parameters prior to giving/granting the ability.  For instance, it defines what 'Level' of the ability you are granting.
+2. To store information about the granted Gameplay Ability that is shared between all instances of the Gameplay Ability.
+
+A lot of the [Ability System Component](#asc)'s interface deals with Gameplay Ability Specs, or after being granted, typically a Gameplay Ability Spec Handle.  The Handles are a way to succinctly refer to a Gameplay Ability Spec in both native and Blueprint code without worrying about the dangers of holding onto a pointer (and having that pointer be reallocated).  Whenever you want to refer to an already-granted Ability, use an Ability Spec Handle instead.
+
+The corresponding class for [FGameplayAbilitySpec](./Source/GameplayAbilities/Public/GameplayAbilitySpec.h) and [FGameplayAbilitySpecHandle](./Source/GameplayAbilities/Public/GameplayAbilitySpecHandle.h).
+
+## Gameplay Ability Instancing Policy
+
+The instancing policy determines when a Gameplay Ability is instanced (the Gameplay Ability object is created) and thus controls the lifetime of the GA.  The safest, and most feature-supported choice is InstancedPerActor.
+
+### InstancedPerActor
+
+When choosing InstancedPerActor, the Gameplay Ability will be instanced when its corresponding Gameplay Ability Spec is first given (granted) to the Actor.  The instance lives until the Gameplay Ability Spec is removed from the Actor.  This lifetime mimics what most users expect:  You are granted an ability and immediately have an instance of it.
+
+The lifetime semantics come with some pitfalls you should be aware of:
+
+- Since the ability continues to exist after it has ended, none of the variables will be reset for next activation.  Thus it's the user's responsibility to reset the variables to the defaults in EndAbility.
+- Prior to UE5.5, you could receive function calls such as OnGiveAbility/OnRemoveAbility on the _instance_ immediately, before the ability had ever been activated.  This isn't true of the other instancing types, which execute said functions on the CDO.  UE5.5 deprecates such functions in favor of explicit execution on the CDO.
+- There is a function you may see often called GetPrimaryInstance.  The Primary Instance refers to the InstancedPerActor's one-and-only instance; it does not apply to other instancing types.
+
+### InstancedPerExecution
+
+When choosing InstancedPerExecution, you receive a new instance of the Gameplay Ability for each and every activation.  Some things you should be aware of:
+
+- The instancing happens on activation (not prior to it).  It is possible to Grant & Revoke an InstancedPerExecution ability without ever instancing it.
+- Replicated Gameplay Abilities (GA's which contain RPC's or Replicated Variables) are relatively expensive, as a new GA must be sent for every activation.
+- Unlike InstancedPerActor, an individual instance is always active (otherwise it would have not been created).  It is garbage collected immediately upon ending.
+
+### NonInstanced (Deprecated)
+
+Prior to UE5.5, we had functionality for Non-Instanced Gameplay Abilities.  Since these Gameplay Abilities were never instanced, they could not be replicated or even hold state (e.g. contain variables).  All functions were called on the ClassDefaultObject and thus all state had to be held on the Gameplay Ability Spec.  This made them very confusing to use.  The same functionality can be achieved by simply using InstancedPerActor and never revoking it; the cost is just a single allocation (instance) of a UGameplayAbility.
+
+## Replication
+
+There is a replication policy variable on the Gameplay Abilities.  The setting controls whether or not you are able to use Remote Procedure Calls (RPC's) or Replicated Variables (now deprecated, see below).  It does *not* control if a Gameplay Ability will activate both on Server & Client -- that is controlled via the Execution Policy.
+
+Keep in mind that Gameplay Abilities exist only on the locally controlled actors and on the server.  As such, you cannot replicate data meant to be visible on Simulated Proxies using Gameplay Abilities.  You would have to use other mechanisms, such as Attributes for replicated variables, or use RPC's directly on the Actors.
+
+### Replicated Variables in Gameplay Abilities
+
+The usage of replicated variables is deprecated as of UE5.5.  The deprecation warning is controlled by a Console Variable "AbilitySystem.DeprecateReplicatedProperties", so that users can turn off the warning and continue using the feature until they are ready to fix the issue.
+
+The reasoning is to prevent users from stumbling upon an impossible-to-solve bug regarding replication ordering:
+
+- Replicated variables are guaranteed to be delivered, but not in any particular order with respect to each other or RPC functions.
+- Gameplay Ability activation (and most synchronizing functions such as Target Data) rely on RPC's exchanged between the Client and Server.
+- Therefore, when executing an RPC (e.g. Gameplay Ability Activation) and performing operations on a replicated variable, you would never be guaranteed to have an up-to-date or stale value.
+
+For more information, see the [EDC article on object replication order](https://dev.epicgames.com/documentation/en-us/unreal-engine/replicated-object-execution-order-in-unreal-engine).
+
+If you believe you need a replicated variable, the solution is to instead use a Reliable RPC to send that data over.  Using a Reliable RPC will ensure proper ordering with the underlying synchronization mechanisms of GAS.
+
+### Remote Procedure Calls in Gameplay Abilities
+
+Remote Procedure Calls (RPC's) are the preferred method of communicating data between the client/server.  By making a Reliable RPC, you can ensure proper ordering with the other Gameplay Ability functions that support replication such as Activation.  There is currently no restriction against Unreliable RPC's, but know that order or delivery is not guaranteed.
+
+Using a Multicast RPC will produce a validation warning (typically visible when compiling the Blueprint).  Since Gameplay Abilities never exist on Simulated Proxies, Multicast RPC's make little sense in the context of a Gameplay Ability.
+
+### RPC Batching to Ensure Proper Activation and ReplicatedTargetData Order
+
+There is a trick Epic uses internally to bundle the Gameplay Ability activation and Replicated Target Data.  Normally, if one were to implement a Locally Predicted Gameplay Ability that calls Activate() which in turn sets Replicated Target Data, the two would arrive at the Server in separate RPC's:
+
+1. ServerTryActivateAbility (which will in turn call Activate)
+2. ServerSetReplicatedTargetData (which will then set the data to the desired value -- but Activate has already run!)
+
+There is a structure called [FScopedServerAbilityRPCBatcher](./Source/GameplayAbilities/Public/GameplayAbilityTypes.h) which is designed to use a single RPC to send both Activation and Target Data.  To use it, do the following:
+
+1. In your `UAbilitySystemComponent`-derived class, override `ShouldDoServerAbilityRPCBatch` to return true.
+2. In native code, Create an FScopedServerAbilityRPCBatcher on the stack.
+3. Activate your Ability through your desired function (e.g. TryActivateAbility).
+4. During the initial Activation of your ability, perform any CallServerSetReplicatedTargetData call.
+5. When the destructor of the FScopedServerAbilityRPCBatcher executes (by going out of scope), it will call a batched RPC that contains both the Activation and the ReplicatedTargetData.
+
+By using this structure, you will be guaranteed that the Server has the desired RPC data prior to calling the Gameplay Ability's activation function.
 
 ---
 
@@ -103,7 +184,7 @@ The Gameplay Ability System uses Gameplay Tags extensively throughout.  See the 
 
 ---
 
-# Gameplay Cues (#gameplay-cues)
+# Gameplay Cues {#gameplay-cues}
 
 Gameplay Cues are a system for decoupling visual and audio fx from gameplay code.  On start-up, special Gameplay Cue asset folders are scanned for [Gameplay Cue Sets](./Source/GameplayAbilities/Public/GameplayCueSet.h), and *Gameplay Cue Notify* classes.
 
@@ -117,11 +198,49 @@ Due to these Gameplay Cues needing to obey network relevancy (i.e. far away play
 
 An advanced form of replication proxies also exists for the property replication so it may follow the same relevancy rules.  See `FMinimalGameplayCueReplicationProxy` in the [GameplayCueInterface](./Source/GameplayAbilities/Public/GameplayCueInterface.h).
 
+Due to the Burst Cues being replicated by RPC and the Looping Cues being replicated by replicated variables, one can run into an issue where the unreliable burst RPC gets dropped but the looping events (OnBecomeRelevant/OnCeaseRelevant) arrive.  Less obvious, the unreliable OnBurst RPC can arrive but the OnBecomeRelevant/OnCeaseRelevant can be dropped if the Cue is removed on the server quick enough to result in no state changes for network serialization.
+
+See the section on [Gameplay Cue Events](#gc-events) below for guidelines on how to implement your Gameplay Cue while taking into consideration network replication.
+
+## Gameplay Cue Events {#gc-events}
+
+When implementing a Gameplay Cue Notify Actor, the (legacy) naming of the functions may be confusing.  In UE5.5 the Blueprint (user-facing) names have changed in order to better represent what each function does.  They are laid out below.
+
+### OnExecute
+
+The execute function is the easiest to reason about:  It happens when you *Execute* a one-shot Gameplay Cue (aka a Static Notify / non-Looping Gameplay Cue).  The code path to Execute a Gameplay Cue (for Static Notifies) is different than the code path to Add a Gameplay Cue (for Looping Gameplay Cues aka Actor Notifies).
+
+Due to the code path for execution being different, the caller of the Gameplay Cue must know that the receiver of the Gameplay Cue is a Static Notify in order for this to execute properly.  The call should route through ExecuteGameplayCue see [GameplayCueFunctionLibrary](./Source/GameplayAbilities/Public/GameplayCueFunctionLibrary.h).
+
+### OnBurst (native: OnActive)
+
+This event executes only once when a *Looping Gameplay Cue* first fires.  Due to it being delivered by unreliable RPC, it can be dropped silently by a client.  You can use this to implement cosmetic effects that are only relevant if a client witnessed the Gameplay Cue triggering.
+
+### OnBecomeRelevant (native: WhileActive)
+
+This event executes when the *Looping Gameplay Cue* first comes into network relevancy (usually when it's first added).  For instance, PawnA can have a Gameplay Cue activated, PawnB can join the game and still receive PawnA's OnBecomeRelevant -- but not receive OnBurst.
+
+This is important to understand as OnBecomeRelevant and OnCeaseRelevant are both guaranteed to fire on the same Cue, whereas OnBurst is not guaranteed.
+
+### OnCeaseRelevant (native: OnRemove)
+
+This event executes when the *Looping Gameplay Cue* gets removed from network relevancy.  Usually that's when the server executes the removal of the Cue, but could also be when the client loses relevancy (e.g. by distance) of the viewed Cue.
+
+In UE5.5, a warning is introduced if a Gameplay Cue implements OnBurst and OnCeaseRelevant and not OnBecomeRelevant.  The reasoning is that the opposite of OnCeaseRelevant is OnBecomeRelevant, not OnBurst and it's likely that the old naming scheme (OnActive/OnRemove) was a source of confusion.
+
 ---
 
 # How Gameplay Prediction Works
 
 There is documentation for how the Gameplay Prediction mechanisms work at the top of [GameplayPrediction.h](./Source/GameplayAbilities/Public/GameplayPrediction.h).
+
+---
+
+# Ability System Globals
+
+There is a class called [AbilitySystemGlobals](./Source/GameplayAbilities/Public/AbilitySystemGlobals.h) which provide project customization points for how to handle specific base Ability System scenarios.  For example, there a functions you can override to implement derived classes of types used throughout the code (such as `AllocGameplayEffectContext`).
+
+In UE5.5, a lot of these settings have started migrating to the [GameplayAbilitiesDeveloperSettings](./Source/GameplayAbilities/Public/GameplayAbilitiesDeveloperSettings.h) (which can be accessed using the Editor and choose the Project Settings menu item).  The rough division of responsibilities:  If it's a global setting (like a variable) then it should be configurable through Gameplay Abilities Developer Settings; if it's functionality (such as allocating project-specific classes) it should be in [AbilitySystemGlobals](./Source/GameplayAbilities/Public/AbilitySystemGlobals.h).
 
 ---
 

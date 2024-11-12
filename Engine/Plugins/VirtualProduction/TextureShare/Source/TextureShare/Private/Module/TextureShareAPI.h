@@ -58,7 +58,7 @@ private:
 	void OnResolvedSceneColor_RenderThread(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures);
 
 	/** Slate app callback before present to share app backbuffer */
-	void OnBackBufferReadyToPresent_RenderThread(SWindow&, const FTexture2DRHIRef&);
+	void OnBackBufferReadyToPresent_RenderThread(SWindow&, const FTextureRHIRef&);
 	
 	void RegisterCallbacks();
 	void UnregisterCallbacks();

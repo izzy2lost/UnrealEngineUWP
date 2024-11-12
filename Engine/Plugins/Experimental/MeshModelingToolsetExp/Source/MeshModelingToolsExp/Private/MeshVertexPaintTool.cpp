@@ -25,6 +25,9 @@
 #include "DynamicMesh/Operations/SplitAttributeWelder.h"
 #include "MeshDescriptionToDynamicMesh.h"
 #include "DynamicMeshToMeshDescription.h"
+#include "TargetInterfaces/MeshDescriptionProvider.h"
+#include "TargetInterfaces/MeshDescriptionCommitter.h"
+#include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 
 #include "Changes/MeshVertexChange.h"
 #include "Changes/MeshPolygroupChange.h"
@@ -77,6 +80,16 @@ bool UMeshVertexPaintToolBuilder::CanBuildTool(const FToolBuilderState& SceneSta
 			[](UActorComponent& Component) { return Cast<UMeshComponent>(&Component) != nullptr; }) > 0;
 }
 
+const FToolTargetTypeRequirements& UMeshVertexPaintToolBuilder::GetTargetRequirements() const
+{
+	static FToolTargetTypeRequirements TypeRequirements({
+		UMaterialProvider::StaticClass(),
+		UMeshDescriptionProvider::StaticClass(),
+		UMeshDescriptionCommitter::StaticClass(),
+		UPrimitiveComponentBackedTarget::StaticClass()
+		});
+	return TypeRequirements;
+}
 
 /*
  * Properties

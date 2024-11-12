@@ -67,6 +67,8 @@ public:
 		bool bInLimitCornerRadius = false,
 		int InNumArcVertices = 3);
 
+	GEOMETRYCORE_API ~FPolygonEdgeMeshGenerator();
+
 	// Generate triangulation
 	// TODO: Enable more subdivisions along the width and length dimensions if requested
 	GEOMETRYCORE_API virtual FMeshShapeGenerator& Generate() final;

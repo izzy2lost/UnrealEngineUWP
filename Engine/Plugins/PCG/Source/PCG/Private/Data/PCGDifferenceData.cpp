@@ -7,6 +7,7 @@
 #include "Data/PCGSpatialData.h"
 #include "Data/PCGSpatialDataTpl.h"
 #include "Data/PCGUnionData.h"
+#include "Elements/PCGExecuteBlueprint.h"
 #include "Helpers/PCGAsync.h"
 
 #include "Serialization/ArchiveCrc32.h"
@@ -46,7 +47,12 @@ void UPCGDifferenceData::Initialize(const UPCGSpatialData* InData)
 	Metadata->Initialize(Source->Metadata);
 }
 
-void UPCGDifferenceData::AddDifference(const UPCGSpatialData* InDifference)
+void UPCGDifferenceData::K2_AddDifference(const UPCGSpatialData* InDifference)
+{
+	return AddDifference(UPCGBlueprintElement::ResolveContext(), InDifference);
+}
+
+void UPCGDifferenceData::AddDifference(FPCGContext* InContext, const UPCGSpatialData* InDifference)
 {
 	check(InDifference);
 
@@ -69,7 +75,7 @@ void UPCGDifferenceData::AddDifference(const UPCGSpatialData* InDifference)
 	{
 		if (!DifferencesUnion)
 		{
-			DifferencesUnion = NewObject<UPCGUnionData>();
+			DifferencesUnion = FPCGContext::NewObject_AnyThread<UPCGUnionData>(InContext);
 			DifferencesUnion->AddData(Difference);
 			DifferencesUnion->SetDensityFunction(PCGDifferenceDataUtils::ToUnionDensityFunction(DensityFunction));
 			Difference = DifferencesUnion;
@@ -158,8 +164,13 @@ void UPCGDifferenceData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 {
 	Super::AddToCrc(Ar, bFullDataCrc);
 
+	// Implementation note: no metadata in composite data at this point.
+
 	uint32 UniqueTypeID = StaticClass()->GetDefaultObject()->GetUniqueID();
 	Ar << UniqueTypeID;
+
+	uint32 DiffMetadata = bDiffMetadata ? 1 : 0;
+	Ar << DiffMetadata;
 
 	uint32 DensityFunctionValue = static_cast<uint32>(DensityFunction);
 	Ar << DensityFunctionValue;
@@ -244,7 +255,7 @@ const UPCGPointData* UPCGDifferenceData::CreatePointData(FPCGContext* Context) c
 	const UPCGMetadata* SourceMetadata = SourcePointData->Metadata;
 	const TArray<FPCGPoint>& SourcePoints = SourcePointData->GetPoints();
 
-	UPCGPointData* Data = NewObject<UPCGPointData>();
+	UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	Data->InitializeFromData(this, SourceMetadata);
 	
 	UPCGMetadata* OutMetadata = Data->Metadata;
@@ -254,7 +265,7 @@ const UPCGPointData* UPCGDifferenceData::CreatePointData(FPCGContext* Context) c
 	UPCGMetadata* TempDiffMetadata = nullptr;
 	if (bDiffMetadata && OutMetadata && DifferenceMetadata)
 	{
-		TempDiffMetadata = NewObject<UPCGMetadata>();
+		TempDiffMetadata = FPCGContext::NewObject_AnyThread<UPCGMetadata>(Context);
 		TempDiffMetadata->Initialize(DifferenceMetadata);
 	}
 
@@ -310,16 +321,16 @@ const UPCGPointData* UPCGDifferenceData::CreatePointData(FPCGContext* Context) c
 	return Data;
 }
 
-UPCGSpatialData* UPCGDifferenceData::CopyInternal() const
+UPCGSpatialData* UPCGDifferenceData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGDifferenceData* NewDifferenceData = NewObject<UPCGDifferenceData>();
+	UPCGDifferenceData* NewDifferenceData = FPCGContext::NewObject_AnyThread<UPCGDifferenceData>(Context);
 
 	NewDifferenceData->Source = Source;
 	NewDifferenceData->Difference = Difference;
 	NewDifferenceData->DensityFunction = DensityFunction;
 	if (DifferencesUnion)
 	{
-		NewDifferenceData->DifferencesUnion = static_cast<UPCGUnionData*>(DifferencesUnion->DuplicateData());
+		NewDifferenceData->DifferencesUnion = static_cast<UPCGUnionData*>(DifferencesUnion->DuplicateData(Context));
 
 #if WITH_EDITOR
 		NewDifferenceData->RawPointerDifferencesUnion = NewDifferenceData->DifferencesUnion;

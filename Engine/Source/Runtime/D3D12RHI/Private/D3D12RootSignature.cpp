@@ -4,10 +4,12 @@
 	D3D12RootSignature.cpp: D3D12 Root Signatures
 =============================================================================*/
 
+#include "D3D12RootSignature.h"
 #include "D3D12RHIPrivate.h"
 #include "D3D12AmdExtensions.h"
 #include "D3D12RootSignatureDefinitions.h"
 #include "RayTracingBuiltInResources.h"
+#include "D3D12RayTracing.h"
 
 #ifndef FD3D12_ROOT_SIGNATURE_FLAG_GLOBAL_ROOT_SIGNATURE
 #define FD3D12_ROOT_SIGNATURE_FLAG_GLOBAL_ROOT_SIGNATURE D3D12_ROOT_SIGNATURE_FLAG_NONE
@@ -151,54 +153,83 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 
 	const bool bUseShaderDiagnosticBuffer = D3D12_ALLOW_SHADER_DIAGNOSTIC_BUFFER
 		&& QBSS.bUseDiagnosticBuffer
-		&& QBSS.RootSignatureType != RS_RayTracingLocal;
+		&& QBSS.RootSignatureType != RS_RayTracingLocal
+		&& QBSS.RootSignatureType != RS_WorkGraphLocal;
+
+	if (QBSS.RootSignatureType == RS_WorkGraphLocal)
+	{
+		BindingSpace = UE_HLSL_SPACE_WORK_GRAPH_LOCAL;
+	}
+	else if (QBSS.RootSignatureType == RS_WorkGraphGlobal)
+	{
+		BindingSpace = UE_HLSL_SPACE_WORK_GRAPH_GLOBAL;
+	}
 
 #if D3D12_RHI_RAYTRACING
 	if (QBSS.RootSignatureType == RS_RayTracingLocal)
 	{
 		BindingSpace = UE_HLSL_SPACE_RAY_TRACING_LOCAL;
 
-		// Add standard root parameters for hit groups, as per FHitGroupSystemParameters declaration in D3D12RayTracing.cpp and RayTracingHitGroupCommon.ush:
-		//          Resources:
-		// 8 bytes: index buffer as root SRV (raw buffer)
-		// 8 bytes: vertex buffer as root SRV (raw buffer)
+		// Add standard root parameters for hit groups, as per FD3D12HitGroupSystemParameters declaration in D3D12Util.h 
+		// and RayTracingHitGroupCommon.ush (Non-Bindless) and D3DCommon.ush (Bindless):
 		//          FHitGroupSystemRootConstants:
 		// 4 bytes: index/vertex fetch configuration as root constant (bitfield defining index and vertex formats)
 		// 4 bytes: index buffer offset in bytes
 		// 4 bytes: first primitive of the segment (as set in FRayTracingGeometrySegment)
 		// 4 bytes: hit group user data
-		// 4 bytes: index of the first instance that belongs to the current batch.
-		// 4 bytes: unused padding to ensure the next parameter is aligned to 8-byte boundary
+		//          Non-Bindless Resources:
+		// 8 bytes: index buffer as root SRV (raw buffer)
+		// 8 bytes: vertex buffer as root SRV (raw buffer)
+		//          Bindless Resources:
+		// 4 bytes: index buffer bindless resource index (raw buffer)
+		// 4 bytes: vertex buffer bindless resource index (raw buffer)
+		// 8 bytes: union padding with non-bindless data
+
 		// -----------
-		// 40 bytes
+		// 32 bytes
 
 		check(RootParameterCount == 0 && RootParametersSize == 0); // We expect system RT parameters to come first
-
-		// Index buffer descriptor
-		{
+		
+		// Bindless FD3D12HitGroupSystemParameters structure
+		if (QBSS.bUseDirectlyIndexedResourceHeap)
+		{			
 			check(RootParameterCount < MaxRootParameters);
-			TableSlots[RootParameterCount].InitAsShaderResourceView(RAY_TRACING_SYSTEM_INDEXBUFFER_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
-			RootParameterCount++;
-			RootParametersSize += RootDescriptorCost;
-		}
+			static_assert(sizeof(FD3D12HitGroupSystemParameters) % 8 == 0, "FD3D12HitGroupSystemParameters structure must be 8-byte aligned");
 
-		// Vertex buffer descriptor
-		{
-			check(RootParameterCount < MaxRootParameters);
-			TableSlots[RootParameterCount].InitAsShaderResourceView(RAY_TRACING_SYSTEM_VERTEXBUFFER_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
-			RootParameterCount++;
-			RootParametersSize += RootDescriptorCost;
-		}
-
-		// FHitGroupSystemRootConstants structure
-		{
-			check(RootParameterCount < MaxRootParameters);
-			static_assert(sizeof(FHitGroupSystemRootConstants) % 8 == 0, "FHitGroupSystemRootConstants structure must be 8-byte aligned");
-			const uint32 NumConstants = sizeof(FHitGroupSystemRootConstants) / sizeof(uint32);
+			// Num constants could be 2 smaller if non-bindless data is removed (24 bytes instead of 32)
+			const uint32 NumConstants = sizeof(FD3D12HitGroupSystemParameters) / sizeof(uint32);
 			TableSlots[RootParameterCount].InitAsConstants(NumConstants, RAY_TRACING_SYSTEM_ROOTCONSTANT_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
 			RootParameterCount++;
 			RootParametersSize += NumConstants * RootConstantCost;
 		}
+		else
+		{
+			// FHitGroupSystemRootConstants structure
+			{
+				check(RootParameterCount < MaxRootParameters);
+				static_assert(sizeof(FHitGroupSystemRootConstants) % 8 == 0, "FHitGroupSystemRootConstants structure must be 8-byte aligned");
+				const uint32 NumConstants = sizeof(FHitGroupSystemRootConstants) / sizeof(uint32);
+				TableSlots[RootParameterCount].InitAsConstants(NumConstants, RAY_TRACING_SYSTEM_ROOTCONSTANT_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
+				RootParameterCount++;
+				RootParametersSize += NumConstants * RootConstantCost;
+			}
+
+			// Index buffer descriptor
+			{
+				check(RootParameterCount < MaxRootParameters);
+				TableSlots[RootParameterCount].InitAsShaderResourceView(RAY_TRACING_SYSTEM_INDEXBUFFER_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
+				RootParameterCount++;
+				RootParametersSize += RootDescriptorCost;
+			}
+
+			// Vertex buffer descriptor
+			{
+				check(RootParameterCount < MaxRootParameters);
+				TableSlots[RootParameterCount].InitAsShaderResourceView(RAY_TRACING_SYSTEM_VERTEXBUFFER_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
+				RootParameterCount++;
+				RootParametersSize += RootDescriptorCost;
+			}
+		}	
 	}
 	else if (QBSS.RootSignatureType == RS_RayTracingGlobal)
 	{
@@ -206,7 +237,7 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 	}
 #endif //D3D12_RHI_RAYTRACING
 
-	const uint32 RootDescriptorTableCost = QBSS.RootSignatureType == RS_RayTracingLocal ? RootDescriptorTableCostLocal : RootDescriptorTableCostGlobal;
+	const uint32 RootDescriptorTableCost = QBSS.RootSignatureType == RS_RayTracingLocal || QBSS.RootSignatureType == RS_WorkGraphLocal ? RootDescriptorTableCostLocal : RootDescriptorTableCostGlobal;
 
 	// For each root parameter type...
 	for (uint32 RootParameterTypeIndex = 0; RootParameterTypeIndex < UE_ARRAY_COUNT(RootParameterTypePriorityOrder); RootParameterTypeIndex++)
@@ -234,7 +265,7 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 
 				if (Shader.ConstantBufferCount > MAX_ROOT_CBVS)
 				{
-					checkf(QBSS.RootSignatureType != RS_RayTracingLocal, TEXT("CBV descriptor tables are not implemented for local root signatures"));
+					checkf(QBSS.RootSignatureType != RS_RayTracingLocal && QBSS.RootSignatureType != RS_WorkGraphLocal, TEXT("CBV descriptor tables are not implemented for local root signatures"));
 
 					// Use a descriptor table for the 'excess' CBVs
 					check(RootParameterCount < MaxRootParameters);
@@ -296,11 +327,11 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 	}
 
 #if D3D12_RHI_RAYTRACING
-	if (QBSS.RootSignatureType == RS_RayTracingLocal)
+	if (QBSS.RootSignatureType == RS_RayTracingLocal || QBSS.RootSignatureType == RS_WorkGraphLocal)
 	{
 		Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 	}
-	else if(QBSS.RootSignatureType == RS_RayTracingGlobal)
+	else if(QBSS.RootSignatureType == RS_RayTracingGlobal || QBSS.RootSignatureType == RS_WorkGraphGlobal)
 	{
 		Flags |= FD3D12_ROOT_SIGNATURE_FLAG_GLOBAL_ROOT_SIGNATURE;
 	}
@@ -314,17 +345,21 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 			Flags |= D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 		}
 
-		for (uint32 ShaderVisibilityIndex = 0; ShaderVisibilityIndex < UE_ARRAY_COUNT(ShaderVisibilityPriorityOrder); ShaderVisibilityIndex++)
+		// don't set deny flags when static shader resource table is used
+		if (QBSS.ShaderBindingLayout.GetNumUniformBufferEntries() == 0)
 		{
-			const EShaderVisibility Visibility = ShaderVisibilityPriorityOrder[ShaderVisibilityIndex];
-			const FShaderRegisterCounts& Shader = QBSS.RegisterCounts[Visibility];
-			if ((Shader.ShaderResourceCount == 0) &&
-				(Shader.ConstantBufferCount == 0) &&
-				(Shader.UnorderedAccessCount == 0) &&
-				(Shader.SamplerCount == 0))
+			for (uint32 ShaderVisibilityIndex = 0; ShaderVisibilityIndex < UE_ARRAY_COUNT(ShaderVisibilityPriorityOrder); ShaderVisibilityIndex++)
 			{
-				// This shader stage doesn't use any descriptors, deny access to the shader stage in the root signature.
-				Flags = (Flags | GetD3D12RootSignatureDenyFlag(Visibility));
+				const EShaderVisibility Visibility = ShaderVisibilityPriorityOrder[ShaderVisibilityIndex];
+				const FShaderRegisterCounts& Shader = QBSS.RegisterCounts[Visibility];
+				if ((Shader.ShaderResourceCount == 0) &&
+					(Shader.ConstantBufferCount == 0) &&
+					(Shader.UnorderedAccessCount == 0) &&
+					(Shader.SamplerCount == 0))
+				{
+					// This shader stage doesn't use any descriptors, deny access to the shader stage in the root signature.
+					Flags = (Flags | GetD3D12RootSignatureDenyFlag(Visibility));
+				}
 			}
 		}
 	}
@@ -338,6 +373,25 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 		RootParametersSize += RootDescriptorCost;
 	}
 #endif
+	
+	// Add all the static defined uniform buffers
+	if (QBSS.ShaderBindingLayout.GetNumUniformBufferEntries() > 0)
+	{
+		StaticShaderBindingSlot = int8(RootParameterCount);
+		StaticShaderBindingCount = 0;
+		for (uint32 Index = 0; Index < QBSS.ShaderBindingLayout.GetNumUniformBufferEntries(); ++Index)
+		{
+			const FRHIUniformBufferShaderBindingLayout& UniformBufferSBLayout = QBSS.ShaderBindingLayout.GetUniformBufferEntry(Index);
+			
+			check(RootParameterCount < MaxRootParameters);
+			check(UniformBufferSBLayout.RegisterSpace > 0);
+			TableSlots[RootParameterCount].InitAsConstantBufferView(UniformBufferSBLayout.CBVResourceIndex, UniformBufferSBLayout.RegisterSpace, CBVRootDescriptorFlags, D3D12_SHADER_VISIBILITY_ALL);
+			StaticShaderBindingCount = FMath::Max(StaticShaderBindingCount, int8(UniformBufferSBLayout.CBVResourceIndex + 1));
+
+			RootParameterCount++;
+			RootParametersSize += RootDescriptorCost;
+		}
+	}
 
 	if (QBSS.bUseRootConstants)
 	{
@@ -367,7 +421,7 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 #endif
 
 #if D3D12_RHI_RAYTRACING
-	if (QBSS.RootSignatureType == RS_RayTracingLocal)
+	if (QBSS.RootSignatureType == RS_RayTracingLocal || QBSS.RootSignatureType == RS_WorkGraphLocal)
 	{
 		// Local root signatures don't need to provide static samplers as they are provided by global RS already.
 		// Providing static sampler bindings in global and local RS simultaneously is invalid due to overlapping register ranges.
@@ -390,61 +444,67 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 
 }
 
-void FD3D12RootSignature::InitStaticGraphicsRootSignature(ED3D12RootSignatureFlags InFlags)
+void FD3D12RootSignature::InitStaticGraphicsRootSignature(EShaderBindingLayoutFlags InFlags)
 {
 	D3D12ShaderUtils::FBinaryRootSignatureCreator Creator;
 	D3D12ShaderUtils::CreateGfxRootSignature(Creator, InFlags);
 	Init(Creator.Finalize());
 
-	if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::RootConstants))
+	for (int32 ParameterSlot = 0; ParameterSlot < Creator.Parameters.Num(); ++ParameterSlot)
 	{
-		for (int32 ParameterSlot = 0; ParameterSlot < Creator.Parameters.Num(); ++ParameterSlot)
+		const CD3DX12_ROOT_PARAMETER1 RootParameter = Creator.Parameters[ParameterSlot];
+
+		if (RootParameter.ParameterType == D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS
+			&& RootParameter.Constants.RegisterSpace == UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS
+			&& RootParameter.Constants.ShaderRegister == 0)
 		{
-			const CD3DX12_ROOT_PARAMETER1 RootParameter = Creator.Parameters[ParameterSlot];
-			if (RootParameter.ParameterType == D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS)
-			{
-				if (RootParameter.Constants.RegisterSpace == UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS && RootParameter.Constants.ShaderRegister == 0)
-				{
-					RootConstantsSlot = int8(ParameterSlot);
-					break;
-				}
-			}
+			RootConstantsSlot = int8(ParameterSlot);
+		}
+
+		if (RootParameter.ParameterType == D3D12_ROOT_PARAMETER_TYPE_UAV
+			&& RootParameter.Descriptor.RegisterSpace == UE_HLSL_SPACE_DIAGNOSTIC
+			&& RootParameter.Descriptor.ShaderRegister == 0)
+		{
+			DiagnosticBufferSlot = int8(ParameterSlot);
 		}
 	}
 }
 
-void FD3D12RootSignature::InitStaticComputeRootSignatureDesc(ED3D12RootSignatureFlags InFlags)
+void FD3D12RootSignature::InitStaticComputeRootSignatureDesc(EShaderBindingLayoutFlags InFlags)
 {
 	D3D12ShaderUtils::FBinaryRootSignatureCreator Creator;
 	D3D12ShaderUtils::CreateComputeRootSignature(Creator, InFlags);
 	Init(Creator.Finalize());
 
-	if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::RootConstants))
+	for (int32 ParameterSlot = 0; ParameterSlot < Creator.Parameters.Num(); ++ParameterSlot)
 	{
-		for (int32 ParameterSlot = 0; ParameterSlot < Creator.Parameters.Num(); ++ParameterSlot)
+		const CD3DX12_ROOT_PARAMETER1 RootParameter = Creator.Parameters[ParameterSlot];
+
+		if (RootParameter.ParameterType == D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS
+			&& RootParameter.Constants.RegisterSpace == UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS
+			&& RootParameter.Constants.ShaderRegister == 0)
 		{
-			const CD3DX12_ROOT_PARAMETER1 RootParameter = Creator.Parameters[ParameterSlot];
-			if (RootParameter.ParameterType == D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS)
-			{
-				if (RootParameter.Constants.RegisterSpace == UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS && RootParameter.Constants.ShaderRegister == 0)
-				{
-					RootConstantsSlot = int8(ParameterSlot);
-					break;
-				}
-			}
+			RootConstantsSlot = int8(ParameterSlot);
+		}
+
+		if (RootParameter.ParameterType == D3D12_ROOT_PARAMETER_TYPE_UAV
+			&& RootParameter.Descriptor.RegisterSpace == UE_HLSL_SPACE_DIAGNOSTIC
+			&& RootParameter.Descriptor.ShaderRegister == 0)
+		{
+			DiagnosticBufferSlot = int8(ParameterSlot);
 		}
 	}
 }
 
 #if D3D12_RHI_RAYTRACING
-void FD3D12RootSignature::InitStaticRayTracingGlobalRootSignatureDesc(ED3D12RootSignatureFlags InFlags)
+void FD3D12RootSignature::InitStaticRayTracingGlobalRootSignatureDesc(EShaderBindingLayoutFlags InFlags)
 {
 	D3D12ShaderUtils::FBinaryRootSignatureCreator Creator;
 	D3D12ShaderUtils::CreateRayTracingSignature(Creator, false, FD3D12_ROOT_SIGNATURE_FLAG_GLOBAL_ROOT_SIGNATURE, InFlags);
 	Init(Creator.Finalize(), UE_HLSL_SPACE_RAY_TRACING_GLOBAL);
 }
 
-void FD3D12RootSignature::InitStaticRayTracingLocalRootSignatureDesc(ED3D12RootSignatureFlags InFlags)
+void FD3D12RootSignature::InitStaticRayTracingLocalRootSignatureDesc(EShaderBindingLayoutFlags InFlags)
 {
 	D3D12ShaderUtils::FBinaryRootSignatureCreator Creator;
 	D3D12ShaderUtils::CreateRayTracingSignature(Creator, true, D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE, InFlags);
@@ -460,11 +520,21 @@ void FD3D12RootSignature::Init(const FD3D12QuantizedBoundShaderState& InQBSS)
 	FD3D12RootSignatureDesc Desc(InQBSS, ResourceBindingTier);
 
 	RootConstantsSlot = Desc.GetRootConstantsSlot();
+	StaticShaderBindingSlot = Desc.GetStaticShaderBindingSlot();
+	StaticShaderBindingCount = Desc.GetStaticShaderBindingCount();
 	DiagnosticBufferSlot = Desc.GetDiagnosticBufferSlot();
 
 	uint32 BindingSpace = 0; // Default binding space for D3D 11 & 12 shaders
 
-	if (InQBSS.RootSignatureType == RS_RayTracingGlobal)
+	if (InQBSS.RootSignatureType == RS_WorkGraphLocal)
+	{
+		BindingSpace = UE_HLSL_SPACE_WORK_GRAPH_LOCAL;
+	}
+	else if (InQBSS.RootSignatureType == RS_WorkGraphGlobal)
+	{
+		BindingSpace = UE_HLSL_SPACE_WORK_GRAPH_GLOBAL;
+	}
+	else if (InQBSS.RootSignatureType == RS_RayTracingGlobal)
 	{
 		BindingSpace = UE_HLSL_SPACE_RAY_TRACING_GLOBAL;
 	}
@@ -523,7 +593,7 @@ void FD3D12RootSignature::InternalAnalyzeSignature(const RootSignatureDescType& 
 {
 	// Reset members to default values.
 	{
-		FMemory::Memset(BindSlotMap, 0xFF, sizeof(BindSlotMap));
+		FMemory::Memset(BindSlotMap, InvalidBindSlotMapIndex, sizeof(BindSlotMap));
 		bHasUAVs = false;
 		bHasSRVs = false;
 		bHasCBVs = false;
@@ -685,7 +755,7 @@ void FD3D12RootSignature::InternalAnalyzeSignature(const RootSignatureDescType& 
 				UpdateCBVRegisterMaskWithDescriptor(CurrentVisibleSF, CurrentParameter.Descriptor);
 
 				// The first CBV for this stage must come first in the root signature, and subsequent root CBVs for this stage must be contiguous.
-				check(0xFF != CBVRDBindSlot(CurrentVisibleSF, 0));
+				check(InvalidBindSlotMapIndex != CBVRDBindSlot(CurrentVisibleSF, 0));
 				check(i == CBVRDBindSlot(CurrentVisibleSF, 0) + CurrentParameter.Descriptor.ShaderRegister);
 			}
 			break;

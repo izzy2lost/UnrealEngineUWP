@@ -37,7 +37,16 @@ class UBrushComponent : public UPrimitiveComponent
 
 	//~ Begin UObject Interface
 	virtual void PostLoad() override;
+#if WITH_EDITOR
+	ENGINE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	//~ End UObject Interface
+
+	//~Begin UActorComponent Interface
+	ENGINE_API virtual void OnRegister() override;
+	//~End UActorComponent Interface
+
+	void ConditionalRebuildAlteredBSP() const;
+#endif //WITH_EDITOR
 
 	//~ Begin USceneComponent Interface
 	virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const override;

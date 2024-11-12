@@ -8,15 +8,15 @@
 namespace UE::ConcertSyncCore
 {
 	FObjectReplicationProcessor::FObjectReplicationProcessor(
-		TSharedRef<IReplicationDataSource> DataSource
+		IReplicationDataSource& DataSource
 		)
-		: DataSource(MoveTemp(DataSource))
+		: DataSource(DataSource)
 	{}
 
 	void FObjectReplicationProcessor::ProcessObjects(const FProcessObjectsParams& Params)
 	{
 		// TODO UE-190714: Respect time budget and prioritize objects
-		DataSource->ForEachPendingObject([this](const FConcertReplicatedObjectId& ObjectInfo)
+		DataSource.ForEachPendingObject([this](const FPendingObjectReplicationInfo& ObjectInfo)
 		{
 			ProcessObject({ ObjectInfo });
 		});

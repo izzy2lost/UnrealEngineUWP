@@ -6,7 +6,7 @@ import { GetServerInfoResponse } from '../backend/Api';
 import { getHordeStyling } from '../styles/Styles';
 
 export const VersionModal: React.FC<{ show: boolean, onClose: () => void }> = ({ show, onClose }) => {
-   
+
    const [version, setVersion] = useState<{ serverInfo?: GetServerInfoResponse, querying?: boolean }>({});
    const { hordeClasses } = getHordeStyling();
 
@@ -27,7 +27,7 @@ export const VersionModal: React.FC<{ show: boolean, onClose: () => void }> = ({
 
          const serverInfo = await backend.getServerInfo();
 
-         setVersion({ serverInfo: serverInfo})
+         setVersion({ serverInfo: serverInfo })
       })()
 
    }
@@ -42,14 +42,14 @@ export const VersionModal: React.FC<{ show: boolean, onClose: () => void }> = ({
    let dashboardVersion: string | undefined;
 
    try {
-      // note: this must be exactly `process.env.REACT_APP_VERSION_INFO`
+      // note: this must be exactly `import.meta.env.VITE_VERSION_INFO`
       // as webpack does a simple find and replace to the value in the .env
-      // so process?.env?.REACT_APP_VERSION_INFO for example is invalid
-      dashboardVersion = process.env.REACT_APP_VERSION_INFO;
+      // so import?.meta?.env?.VITE_VERSION_INFO for example is invalid
+      dashboardVersion = import.meta.env.VITE_VERSION_INFO;
    } catch (reason) {
       console.log("Process env error:", reason);
    }
-   
+
    if (dashboardVersion) {
       versionItems.push({ name: "Dashboard", value: dashboardVersion });
    }
@@ -60,6 +60,17 @@ export const VersionModal: React.FC<{ show: boolean, onClose: () => void }> = ({
       versionItems.push({ name: "Agent", value: version.serverInfo?.agentVersion });
    }
 
+   if (version.serverInfo?.plugins?.length) {
+
+      versionItems.push({ name: "Plugins:", value: "" });
+
+      version.serverInfo?.plugins.forEach(p => {
+         versionItems.push({ name: p.name, value: p.version ?? "" });
+      })
+   
+   }
+
+
    const onRenderItemColumn = (item: GeneralItem, index?: number, columnIn?: IColumn) => {
 
       const column = columnIn!;
@@ -67,7 +78,7 @@ export const VersionModal: React.FC<{ show: boolean, onClose: () => void }> = ({
       // simple cases
       switch (column.name) {
          case 'Name':
-            return <Text variant="medium" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>{item.name}:</Text>
+            return <Text variant="medium" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>{item.name}</Text>
          case 'Value':
             if (item.value) {
                return <Text variant="medium" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>{item.value}</Text>

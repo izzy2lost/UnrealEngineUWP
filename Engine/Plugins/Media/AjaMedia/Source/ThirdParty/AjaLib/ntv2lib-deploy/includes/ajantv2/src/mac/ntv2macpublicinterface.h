@@ -2,7 +2,7 @@
 /**
 	@file		ntv2macpublicinterface.h
 	@brief		Declares MacOS-only enums used by the Mac driver and the SDK.
-	@copyright	(C) 2012-2021 AJA Video Systems, Inc.  All rights reserved.
+	@copyright	(C) 2012-2022 AJA Video Systems, Inc.  All rights reserved.
 **/
 
 #ifndef NTV2MACPUBLICINTERFACE_H
@@ -60,8 +60,8 @@ typedef enum
 	kDriverAutoCirculateStatus							= 22,
 	kDriverAutoCirculateTransfer						= 23,
 	kDriverAutoCirculateFramestamp						= 24,
-	kDriverSetDefaultDeviceForPID						= 25,
-	kDriverIsDefaultDeviceForPID						= 26,
+	kDriverSetDefaultDeviceForPID						= 25,	//	Unsupported when classic QuickTime dropped after SDK 14
+	kDriverIsDefaultDeviceForPID						= 26,	//	Unsupported when classic QuickTime dropped after SDK 14
 	kDriverSystemControl								= 27,
 	kDriverSystemStatus									= 28,
 	kDriverDMATransferEx								= 29,

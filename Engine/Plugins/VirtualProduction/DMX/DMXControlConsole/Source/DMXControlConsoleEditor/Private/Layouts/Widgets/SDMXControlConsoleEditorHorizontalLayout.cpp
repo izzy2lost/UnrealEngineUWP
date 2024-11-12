@@ -8,6 +8,7 @@
 #include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Models/DMXControlConsoleFaderGroupControllerModel.h"
 #include "ScopedTransaction.h"
@@ -103,8 +104,15 @@ namespace UE::DMX::Private
 		}
 
 		const TArray<UDMXControlConsoleFaderGroupController*> AllFaderGroupControllers = ActiveLayout->GetAllFaderGroupControllers();
+		
+		const float NumSteps = AllFaderGroupControllers.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("OnHorizontalLayoutElementAddedSlowTask", "Updating Control Console..."));
+		Task.MakeDialogDelayed(.5f);
+		
 		for (UDMXControlConsoleFaderGroupController* FaderGroupController : AllFaderGroupControllers)
 		{
+			Task.EnterProgressFrame();
+
 			if (!FaderGroupController)
 			{
 				continue;

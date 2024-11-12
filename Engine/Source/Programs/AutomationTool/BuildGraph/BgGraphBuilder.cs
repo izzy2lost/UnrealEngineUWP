@@ -1,12 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.BuildGraph;
 using EpicGames.BuildGraph.Expressions;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Text;
+
+#nullable enable
 
 namespace AutomationTool
 {

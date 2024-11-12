@@ -2,6 +2,7 @@
 
 #include "ContentBrowserDataUtils.h"
 
+#include "AssetRegistry/AssetData.h"
 #include "Containers/StringView.h"
 #include "Interfaces/IPluginManager.h"
 #include "Internationalization/Internationalization.h"
@@ -72,6 +73,8 @@ int32 ContentBrowserDataUtils::GetMaxFolderDepthRequiredForAttributeFilter()
  
 bool ContentBrowserDataUtils::PathPassesAttributeFilter(const FStringView InPath, const int32 InAlreadyCheckedDepth, const EContentBrowserItemAttributeFilter InAttributeFilter)
 {
+	// Note Keep the implementation of that function pure as it is called from outside of the game thread
+
 	static const FString ProjectContentRootName = TEXT("Game");
 	static const FString EngineContentRootName = TEXT("Engine");
 	static const FString LocalizationFolderName = TEXT("L10N");
@@ -275,6 +278,34 @@ FText ContentBrowserDataUtils::GetFolderItemDisplayNameOverride(const FName InFo
 	}
 
 	return FolderDisplayNameOverride;
+}
+
+bool ContentBrowserDataUtils::IsPrimaryAsset(const FAssetData& InAssetData)
+{
+	// Both GetOptionalOuterPathName and IsUAsset currently do not work on cooked assets
+	//
+	// GetOptionalOuterPathName is not serialized to the asset registry during cook
+	// IsUAsset when called on compiled blueprint class compares Name_C vs Name and returns false
+	if (InAssetData.HasAnyPackageFlags(PKG_Cooked | PKG_FilterEditorOnly))
+	{
+		// Check for the asset being a redirector first, as currently only class 
+		// redirectors emit non-primary assets from the Asset Registry
+		return !InAssetData.IsRedirector() || InAssetData.IsUAsset();
+	}
+	else
+	{
+		// External assets are not displayed in the Content Browser or other asset pickers
+		bool bIsExternalAsset = !InAssetData.GetOptionalOuterPathName().IsNone();
+		return !bIsExternalAsset && InAssetData.IsUAsset();
+	}
+}
+
+bool ContentBrowserDataUtils::IsPrimaryAsset(UObject* InObject)
+{
+		// External assets are not displayed in the Content Browser or other asset pickers
+	const bool bIsExternalAsset = InObject->IsPackageExternal();
+	
+	return !bIsExternalAsset && FAssetData::IsUAsset(InObject);
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -89,14 +89,17 @@ FSlateUTextureResource::FSlateUTextureResource(UTexture* InTexture)
 		Proxy->Resource = this;
 
 		CachedSlatePostBuffers = ESlatePostRT::None;
-		for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : USlateRHIRendererSettings::Get()->GetSlatePostSettings())
+		if (const USlateRHIRendererSettings* RendererSettings = USlateRHIRendererSettings::Get())
 		{
-			const ESlatePostRT SlatePostBitflag = SlatePostSetting.Key;
-			const FSlatePostSettings& SlatePostSettingValue = SlatePostSetting.Value;
-
-			if (SlatePostSettingValue.bEnabled && InTexture && InTexture->GetPathName() == SlatePostSettingValue.GetPathToSlatePostRT())
+			for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : RendererSettings->GetSlatePostSettings())
 			{
-				CachedSlatePostBuffers |= SlatePostBitflag;
+				const ESlatePostRT SlatePostBitflag = SlatePostSetting.Key;
+				const FSlatePostSettings& SlatePostSettingValue = SlatePostSetting.Value;
+
+				if (SlatePostSettingValue.bEnabled && InTexture && InTexture->GetPathName() == SlatePostSettingValue.GetPathToSlatePostRT())
+				{
+					CachedSlatePostBuffers |= SlatePostBitflag;
+				}
 			}
 		}
 	}
@@ -127,14 +130,17 @@ void FSlateUTextureResource::UpdateTexture(UTexture* InTexture)
 	if (Proxy && TextureObject)
 	{
 		CachedSlatePostBuffers = ESlatePostRT::None;
-		for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : USlateRHIRendererSettings::Get()->GetSlatePostSettings())
+		if (const USlateRHIRendererSettings* RendererSettings = USlateRHIRendererSettings::Get())
 		{
-			const ESlatePostRT SlatePostBitflag = SlatePostSetting.Key;
-			const FSlatePostSettings& SlatePostSettingValue = SlatePostSetting.Value;
-
-			if (SlatePostSettingValue.bEnabled && InTexture && InTexture->GetPathName() == SlatePostSettingValue.GetPathToSlatePostRT())
+			for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : RendererSettings->GetSlatePostSettings())
 			{
-				CachedSlatePostBuffers |= SlatePostBitflag;
+				const ESlatePostRT SlatePostBitflag = SlatePostSetting.Key;
+				const FSlatePostSettings& SlatePostSettingValue = SlatePostSetting.Value;
+
+				if (SlatePostSettingValue.bEnabled && InTexture && InTexture->GetPathName() == SlatePostSettingValue.GetPathToSlatePostRT())
+				{
+					CachedSlatePostBuffers |= SlatePostBitflag;
+				}
 			}
 		}
 

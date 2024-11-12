@@ -413,6 +413,56 @@ void SwappyVk_getStats(VkSwapchainKHR swapchain, SwappyStats *swappyStats);
  */
 void SwappyVk_clearStats(VkSwapchainKHR swapchain);
 
+/**
+ * @brief Reset the swappy pacing mechanism
+ *
+ * In cases where the frame timing history is irrelevant (for example during
+ * scene/level transitions or after loading screens), calling this would
+ * remove all the history for frame pacing. Calling this entry point
+ * would reset the frame rate to the initial state at the end of the current frame.
+ * Then swappy would just pace as normal with fresh state from next frame. There
+ * are no error conditions associated with this call.
+ *
+ * @param[in]  swapchain   - The swapchain for which frame pacing is reset.
+ */
+void SwappyVk_resetFramePacing(VkSwapchainKHR swapchain);
+
+/**
+ * @brief Enable/Disable the swappy pacing mechanism
+ *
+ * By default frame pacing is enabled when swappy is used, however it can be
+ * disabled at runtime by calling `SwappyVk_enableFramePacing(swapchain, false)`. When the
+ * frame pacing is disabled, ::SwappyVk_enableBlockingWait will control whether
+ * ::SwappyVk_queuePresent will return immediately, or will block until the previous
+ * frame's GPU work is completed. All enabling/disabling effects take place from
+ * next frame. Once disabled,
+ * `SwappyVk_enableFramePacing(swapchain, true)` will enable frame pacing again with a
+ * fresh frame time state - equivalent of calling ::SwappyVk_resetFramePacing().
+ *
+ * @param[in]  swapchain   - The swapchain for which stats are being queried.
+ * @param      enable      - If true, enables frame pacing otherwise disables it
+ */
+void SwappyVk_enableFramePacing(VkSwapchainKHR swapchain, bool enable);
+
+/**
+ * @brief Enable/Disable blocking wait when frame-pacing is disabled
+ *
+ * By default ::SwappyVk_queuePresent will do a blocking wait until previous frame's GPU
+ * work is completed. However when frame pacing is disabled, calling
+ * `SwappyVk_enableBlockingWait(swapchain, false)` will ensure that ::SwappyVk_queuePresent returns
+ * without waiting for previous frame's GPU work. This behaviour impacts the
+ * GPU time returned in the ::SwappyPostWaitCallback callback. If the last
+ * frame's GPU work is done by the time ::SwappyVk_queuePresent for this frame is
+ * called, then the previous frame's GPU time will be returned otherwise `-1`
+ * will be delivered in the callback for the frame. This setting has no impact
+ * when frame pacing is enabled.
+ *
+ * @param[in]  swapchain   - The swapchain for which stats are being queried.
+ * @param      enable      - If true, ::SwappyVk_queuePresent will block until the previous frame's
+ *                           GPU work is complete.
+ */
+void SwappyVk_enableBlockingWait(VkSwapchainKHR swapchain, bool enable);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

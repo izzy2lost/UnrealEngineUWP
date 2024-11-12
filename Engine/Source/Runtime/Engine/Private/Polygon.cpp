@@ -461,7 +461,6 @@ void FPoly::Transform
 	const FVector3f&		PostAdd
 )
 {
-	FVector 	Temp;
 	int32 		i;
 
 	Base += PostAdd;

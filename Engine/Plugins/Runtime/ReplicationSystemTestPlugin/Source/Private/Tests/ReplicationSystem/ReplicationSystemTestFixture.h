@@ -5,9 +5,14 @@
 #include "NetworkAutomationTest.h"
 #include "NetworkAutomationTestMacros.h"
 #include "ReplicatedTestObject.h"
+#include "Containers/Array.h"
+#include "Templates/UniquePtr.h"
 #include "Iris/Core/IrisLog.h"
 #include "Iris/ReplicationSystem/ReplicationProtocolManager.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
+#include "Iris/ReplicationSystem/StringTokenStore.h"
+#include "Iris/ReplicationSystem/NameTokenStore.h"
+#include "Net/Core/NetToken/NetToken.h"
 
 namespace UE::Net
 {
@@ -25,16 +30,33 @@ public:
 protected:
 	virtual void SetUp() override
 	{
+		const bool bIsServer = true;
+		// Init NetTokenStore
+		{
+			using namespace UE::Net;
+
+			NetTokenStore = MakeUnique<FNetTokenStore>();
+
+			FNetTokenStore::FInitParams NetTokenStoreInitParams;
+			NetTokenStoreInitParams.Authority = bIsServer ? FNetToken::ENetTokenAuthority::Authority : FNetToken::ENetTokenAuthority::None;
+			NetTokenStore->Init(NetTokenStoreInitParams);
+
+			// Register data stores for supported types, $TODO: make this configurable.
+			NetTokenStore->CreateAndRegisterDataStore<FStringTokenStore>();
+			NetTokenStore->CreateAndRegisterDataStore<FNameTokenStore>();
+		}
+
 		ReplicationBridge = NewObject<UReplicatedTestObjectBridge>();
 		CreatedObjects.Add(TStrongObjectPtr<UObject>(ReplicationBridge));
 
 		UReplicationSystem::FReplicationSystemParams Params;
 		Params.ReplicationBridge = ReplicationBridge;
-		Params.bIsServer = true;
+		Params.bIsServer = bIsServer;
 		Params.bAllowObjectReplication = true;
+		Params.NetTokenStore =  NetTokenStore.Get();
 
 		// In a testing environment without configs the creation of the ReplicationSystem can be quite spammy
-		auto IrisLogVerbosity = UE_GET_LOG_VERBOSITY(LogIris);
+		ELogVerbosity::Type IrisLogVerbosity = UE_GET_LOG_VERBOSITY(LogIris);
 		LogIris.SetVerbosity(ELogVerbosity::Error);
 		ReplicationSystem = FReplicationSystemFactory::CreateReplicationSystem(Params);
 		LogIris.SetVerbosity(IrisLogVerbosity);
@@ -44,7 +66,10 @@ protected:
 
 	virtual void TearDown() override
 	{
+		const ELogVerbosity::Type IrisLogVerbosity = UE_GET_LOG_VERBOSITY(LogIris);
+		LogIris.SetVerbosity(ELogVerbosity::Error);
 		FReplicationSystemFactory::DestroyReplicationSystem(ReplicationSystem);
+		LogIris.SetVerbosity(IrisLogVerbosity);
 		CreatedObjects.Empty();
 	}
 
@@ -99,9 +124,9 @@ protected:
 		return CreatedObject;
 	}
 
+	TUniquePtr<UE::Net::FNetTokenStore> NetTokenStore;
 	UReplicationSystem* ReplicationSystem;
 	UReplicatedTestObjectBridge* ReplicationBridge;
-	Private::FReplicationProtocolManager ReplicationProtocolManager;
 	
 	TArray<TStrongObjectPtr<UObject>> CreatedObjects;
 };

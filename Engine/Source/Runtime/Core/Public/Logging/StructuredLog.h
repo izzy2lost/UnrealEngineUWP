@@ -12,6 +12,7 @@
 #include "Serialization/CompactBinaryWriter.h"
 #include "Templates/IsArrayOrRefOfType.h"
 #include "Templates/Models.h"
+#include "Templates/Requires.h"
 #include "Templates/UnrealTypeTraits.h"
 
 #include <atomic>
@@ -134,6 +135,7 @@ class FLogTime
 {
 public:
 	UE_API static FLogTime Now();
+	UE_API static FLogTime FromUtcTime(const FDateTime& UtcTime);
 
 	constexpr FLogTime() = default;
 
@@ -207,6 +209,16 @@ private:
 	const TCHAR* TextNamespace = nullptr;
 	const TCHAR* TextKey = nullptr;
 };
+
+/**
+ * Advanced function to dispatch a log record to active output devices.
+ *
+ * Always use UE_LOGFMT or its variants when possible.
+ * Dynamic dispatch bypasses many optimizations provided by the macros.
+ * Anything pointed to by the record MUST remain valid until threaded logs have been flushed.
+ * Filtering by category or verbosity is the responsibility of the caller.
+ */
+UE_API void DispatchDynamicLogRecord(const FLogRecord& Record);
 
 /**
  * Serializes the value to be used in a log message.
@@ -407,7 +419,7 @@ struct TFieldArgType<TLogFieldName<NameType>>
 
 /** Log with fields created from the arguments, which may be values or pairs of name/value. */
 template <typename... FieldArgTypes, typename LogType>
-FORCENOINLINE UE_DEBUG_SECTION void LogWithFields(const FLogCategoryBase& Category, const LogType& Log, typename TFieldArgType<FieldArgTypes>::Type... FieldArgs)
+UE_COLD UE_DEBUG_SECTION void LogWithFields(const FLogCategoryBase& Category, const LogType& Log, typename TFieldArgType<FieldArgTypes>::Type... FieldArgs)
 {
 	constexpr int32 FieldCount = FLogFieldCreator::template GetCount<FieldArgTypes...>();
 	static_assert(FieldCount > 0);
@@ -418,7 +430,7 @@ FORCENOINLINE UE_DEBUG_SECTION void LogWithFields(const FLogCategoryBase& Catego
 
 /** Fatal log with fields created from the arguments, which may be values or pairs of name/value. */
 template <typename... FieldArgTypes, typename LogType>
-inline void FatalLogWithFields(const FLogCategoryBase& Category, const LogType& Log, typename TFieldArgType<FieldArgTypes>::Type... FieldArgs)
+inline void UE_COLD FatalLogWithFields(const FLogCategoryBase& Category, const LogType& Log, typename TFieldArgType<FieldArgTypes>::Type... FieldArgs)
 {
 	constexpr int32 FieldCount = FLogFieldCreator::template GetCount<FieldArgTypes...>();
 	static_assert(FieldCount > 0);

@@ -65,7 +65,7 @@ struct FMovieSceneCameraShakeSourceTriggerChannel : public FMovieSceneChannel
 
 	FORCEINLINE TMovieSceneChannelData<FMovieSceneCameraShakeSourceTrigger> GetData()
 	{
-		return TMovieSceneChannelData<FMovieSceneCameraShakeSourceTrigger>(&KeyTimes, &KeyValues, &KeyHandles);
+		return TMovieSceneChannelData<FMovieSceneCameraShakeSourceTrigger>(&KeyTimes, &KeyValues, this, &KeyHandles);
 	}
 
 	FORCEINLINE TMovieSceneChannelData<const FMovieSceneCameraShakeSourceTrigger> GetData() const

@@ -2,9 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Framework/Commands/UIAction.h"
+#include "CoreTypes.h"
+
 #include "Framework/Commands/Commands.h"
+#include "Framework/Commands/UIAction.h"
+
+namespace UE::Insights
+{
+
+class FInsightsManager;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
@@ -86,5 +92,9 @@ protected:
 
 protected:
 	/** Reference to the global instance of the Insights manager. */
-	class FInsightsManager* This;
+	FInsightsManager* This;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights

@@ -6,7 +6,6 @@
 #include "Widgets/SToolTip.h"
 #include "Widgets/SCanvas.h"
 #include "Fonts/FontMeasure.h"
-#include "HAL/IConsoleManager.h"
 #include "EngineUtils.h"
 #include "LevelEditor.h"
 #include "SourceControlHelpers.h"
@@ -16,13 +15,6 @@
 #include "GameFramework/Actor.h"
 
 #define LOCTEXT_NAMESPACE "SourceControlViewportToolTips"
-
-static bool bEnableViewportToolTips = false;
-TAutoConsoleVariable<bool> CVarSourceControlEnableViewportToolTips(
-	TEXT("SourceControl.ViewportToolTips.Enable"),
-	bEnableViewportToolTips,
-	TEXT("Enables source control tooltips in the viewport."),
-	ECVF_Default);
 
 FSourceControlViewportToolTips::FSourceControlViewportToolTips()
 {
@@ -39,6 +31,11 @@ void FSourceControlViewportToolTips::Init()
 	TickHandle = FTSTicker::GetCoreTicker().AddTicker(
 		FTickerDelegate::CreateRaw(this, &FSourceControlViewportToolTips::Tick)
 	);
+}
+
+void FSourceControlViewportToolTips::SetEnabled(bool bInEnabled)
+{
+	bEnabled = bInEnabled;
 }
 
 bool FSourceControlViewportToolTips::Tick(float DeltaTime)
@@ -62,11 +59,9 @@ void FSourceControlViewportToolTips::UpdateCanvas(float DeltaTime)
 		}
 	}
 
-	bool bEnabled = CVarSourceControlEnableViewportToolTips.GetValueOnGameThread();
-
 	if (CanvasWidget.IsValid() && !bEnabled)
 	{
-		// Remove the canvas if the CVar got disabled.
+		// Remove the canvas if the tooltips got disabled.
 		RemoveCanvas();
 	}
 
@@ -78,41 +73,50 @@ void FSourceControlViewportToolTips::UpdateCanvas(float DeltaTime)
 
 	if (CanvasWidget.IsValid() && ToolTipWidget.IsValid() && ViewportWidget.IsValid())
 	{
-		FViewport* Viewport = ViewportWidget->GetViewportClient()->Viewport;
-		check(Viewport);
-
-		int32 MouseX = Viewport->GetMouseX();
-		int32 MouseY = Viewport->GetMouseY();
-		if (ActorMouseX != MouseX || ActorMouseY != MouseY)
+		if (TSharedPtr<SLevelViewport> ViewportWidgetPtr = ViewportWidget.Pin())
 		{
-			Actor.Reset();
-			UpdateToolTip();
-
-			ActorMouseX = MouseX;
-			ActorMouseY = MouseY;
-		}
-
-		HActor* ActorHitProxy = HitProxyCast<HActor>(Viewport->GetHitProxy(MouseX, MouseY));
-		if (ActorHitProxy == nullptr)
-		{
-			Actor.Reset();
-			UpdateToolTip();
-		}
-		if (ActorHitProxy != nullptr && ActorHitProxy->Actor != Actor)
-		{
-			Actor.Reset();
-			UpdateToolTip();
-
-			Actor = MakeWeakObjectPtr(ActorHitProxy->Actor);
-			ActorTime = FPlatformTime::Seconds();
-			DelayTime = 0;
-		}
-
-		if (Actor.IsValid())
-		{
-			DelayTime += DeltaTime;
-			if (DelayTime >= 0.5f)
+			FViewport* Viewport = ViewportWidgetPtr->GetViewportClient()->Viewport;
+			if (Viewport && Viewport->GetRenderTargetTexture())
 			{
+				int32 MouseX = Viewport->GetMouseX();
+				int32 MouseY = Viewport->GetMouseY();
+				if (ActorMouseX != MouseX || ActorMouseY != MouseY)
+				{
+					Actor.Reset();
+					UpdateToolTip();
+
+					ActorMouseX = MouseX;
+					ActorMouseY = MouseY;
+				}
+
+				HActor* ActorHitProxy = HitProxyCast<HActor>(Viewport->GetHitProxy(MouseX, MouseY));
+				if (ActorHitProxy == nullptr)
+				{
+					Actor.Reset();
+					UpdateToolTip();
+				}
+				if (ActorHitProxy != nullptr && ActorHitProxy->Actor != Actor)
+				{
+					Actor.Reset();
+					UpdateToolTip();
+
+					Actor = MakeWeakObjectPtr(ActorHitProxy->Actor);
+					ActorTime = FPlatformTime::Seconds();
+					DelayTime = 0;
+				}
+
+				if (Actor.IsValid())
+				{
+					DelayTime += DeltaTime;
+					if (DelayTime >= 0.15f) // See: Slate.TooltipSummonDelay
+					{
+						UpdateToolTip();
+					}
+				}
+			}
+			else
+			{
+				Actor.Reset();
 				UpdateToolTip();
 			}
 		}
@@ -125,44 +129,59 @@ void FSourceControlViewportToolTips::UpdateToolTip()
 
 	if (Actor.IsValid())
 	{
-		if (UPackage* Package = Actor->GetPackage())
+		bool bExternal = Actor->IsPackageExternal();
+		bool bIgnored = !bExternal;
+		bool bSelected = Actor->IsSelected();
+		bool bHidden = Actor->IsHidden();
+		if (!bIgnored && !bSelected && !bHidden)
 		{
-			FString SourceFileName = SourceControlHelpers::PackageFilename(Package);
-
-			ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
-			ISourceControlProvider& SourceControlProvider = SourceControlModule.GetProvider();
-			if (SourceControlModule.IsEnabled())
+			if (UPackage* Package = Actor->GetPackage())
 			{
-				FSourceControlStatePtr State = SourceControlProvider.GetState(SourceFileName, EStateCacheUsage::Use);
-				if (State.IsValid() && State->IsSourceControlled())
+				FString SourceFileName = SourceControlHelpers::PackageFilename(Package);
+
+				ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
+				ISourceControlProvider& SourceControlProvider = SourceControlModule.GetProvider();
+				if (SourceControlModule.IsEnabled())
 				{
-					FString Who;
+					FSourceControlStatePtr State = SourceControlProvider.GetState(SourceFileName, EStateCacheUsage::Use);
+					if (State.IsValid() && State->IsSourceControlled())
+					{
+						FString Who;
 
-					bool bNotAtHeadRevision = !State->IsCurrent();
-					bool bCheckedOutByOtherUser = State->IsCheckedOutOther(&Who);
-					bool bCheckedOut = State->IsCheckedOut();
-					bool bOpenForAdd = State->IsAdded();
+						bool bNotAtHeadRevision = !State->IsCurrent();
+						bool bCheckedOutByOtherUser = State->IsCheckedOutOther(&Who);
+						bool bCheckedOut = State->IsCheckedOut();
+						bool bOpenForAdd = State->IsAdded();
 
-					bool bNotAtHeadRevisionEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidget->GetViewportClient().Get(), ESourceControlStatus::NotAtHeadRevision);
-					bool bCheckedOutByOtherUserEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidget->GetViewportClient().Get(), ESourceControlStatus::CheckedOutByOtherUser);
-					bool bCheckedOutEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidget->GetViewportClient().Get(), ESourceControlStatus::CheckedOut);
-					bool bOpenForAddEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidget->GetViewportClient().Get(), ESourceControlStatus::OpenForAdd);
+						bool bNotAtHeadRevisionEnabled = false;
+						bool bCheckedOutByOtherUserEnabled = false;
+						bool bCheckedOutEnabled = false;
+						bool bOpenForAddEnabled = false;
 
-					if (bNotAtHeadRevision && bNotAtHeadRevisionEnabled)
-					{
-						ToolTipText = LOCTEXT("NotAtHeadRevision", "File(s) out of sync");
-					}
-					else if (bCheckedOutByOtherUser && bCheckedOutByOtherUserEnabled)
-					{
-						ToolTipText = FText::Format(LOCTEXT("CheckedOutOtherUser", "File(s) checked out by {0}"), FText::FromString(Who));
-					}
-					else if (bCheckedOut && bCheckedOutEnabled)
-					{
-						ToolTipText = LOCTEXT("CheckedOut", "File(s) checked out by you");
-					}
-					else if (bOpenForAdd && bOpenForAddEnabled)
-					{
-						ToolTipText = LOCTEXT("OpenForAdd", "File(s) added by you");
+						if (TSharedPtr<SLevelViewport> ViewportWidgetPtr = ViewportWidget.Pin())
+						{
+							bNotAtHeadRevisionEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidgetPtr->GetViewportClient().Get(), ESourceControlStatus::NotAtHeadRevision);
+							bCheckedOutByOtherUserEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidgetPtr->GetViewportClient().Get(), ESourceControlStatus::CheckedOutByOtherUser);
+							bCheckedOutEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidgetPtr->GetViewportClient().Get(), ESourceControlStatus::CheckedOut);
+							bOpenForAddEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidgetPtr->GetViewportClient().Get(), ESourceControlStatus::OpenForAdd);
+						}
+
+						if (bNotAtHeadRevision && bNotAtHeadRevisionEnabled)
+						{
+							ToolTipText = LOCTEXT("NotAtHeadRevision", "File(s) out of sync");
+						}
+						else if (bCheckedOutByOtherUser && bCheckedOutByOtherUserEnabled)
+						{
+							ToolTipText = FText::Format(LOCTEXT("CheckedOutOtherUser", "File(s) checked out by {0}"), FText::FromString(Who));
+						}
+						else if (bCheckedOut && bCheckedOutEnabled)
+						{
+							ToolTipText = LOCTEXT("CheckedOut", "File(s) checked out by you");
+						}
+						else if (bOpenForAdd && bOpenForAddEnabled)
+						{
+							ToolTipText = LOCTEXT("OpenForAdd", "File(s) added by you");
+						}
 					}
 				}
 			}
@@ -195,16 +214,16 @@ void FSourceControlViewportToolTips::InsertCanvas()
 			];
 
 			ViewportWidget = LevelViewport;
-			ViewportWidget->AddOverlayWidget(CanvasWidget.ToSharedRef());
+			ViewportWidget.Pin()->AddOverlayWidget(CanvasWidget.ToSharedRef());
 		}
 	}
 }
 
 void FSourceControlViewportToolTips::RemoveCanvas()
 {
-	if (ViewportWidget.IsValid())
+	if (TSharedPtr<SLevelViewport> ViewportWidgetPtr = ViewportWidget.Pin())
 	{
-		ViewportWidget->RemoveOverlayWidget(CanvasWidget.ToSharedRef());
+		ViewportWidgetPtr->RemoveOverlayWidget(CanvasWidget.ToSharedRef());
 	}
 
 	CanvasWidget.Reset();
@@ -220,15 +239,15 @@ FVector2D FSourceControlViewportToolTips::GetToolTipPosition() const
 	static const FVector2f TooltipOffsetFromMouse(12.0f, 8.0f);
 	static const FVector2f TooltipOffsetFromForceField(4.0f, 3.0f);
 
-	if (ViewportWidget.IsValid())
+	if (TSharedPtr<SLevelViewport> ViewportWidgetPtr = ViewportWidget.Pin())
 	{
 		FIntPoint ViewportOrigin;
 		FIntPoint ViewportSize;
-		ViewportWidget->GetViewportClient()->GetViewportDimensions(ViewportOrigin, ViewportSize);
+		ViewportWidgetPtr->GetViewportClient()->GetViewportDimensions(ViewportOrigin, ViewportSize);
 
 		int32 MouseX = 0;
 		int32 MouseY = 0;
-		if (FViewport* Viewport = ViewportWidget->GetViewportClient()->Viewport)
+		if (FViewport* Viewport = ViewportWidgetPtr->GetViewportClient()->Viewport)
 		{
 			MouseX = Viewport->GetMouseX();
 			MouseY = Viewport->GetMouseY();

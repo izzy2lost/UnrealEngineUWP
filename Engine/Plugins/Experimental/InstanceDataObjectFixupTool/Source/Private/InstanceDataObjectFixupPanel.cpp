@@ -9,13 +9,23 @@
 #include "InstanceDataObjectFixupDetailCustomization.h"
 #include "Modules/ModuleManager.h"
 #include "Editor.h"
+#include "Editor/PropertyEditor/Private/PropertyNode.h"
 #include "UObject/PropertyBagRepository.h"
+
+#include "Elements/Columns/TypedElementAlertColumns.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
 
 #include "UObject/OverriddenPropertySet.h"
 #include "UObject/OverridableManager.h"
 #include "UObject/TextProperty.h"
+#include "UObject/UObjectThreadContext.h"
 
 #define LOCTEXT_NAMESPACE "InstanceDataObjectFixupPanel"
+
+static const FName NAME_IsLooseMetadata(TEXT("IsLoose"));
+static const FName NAME_ContainsLoosePropertiesMetadata(ANSITEXTVIEW("ContainsLooseProperties"));
 
 FRedirectedPropertyNode::FRedirectedPropertyNode(const FRedirectedPropertyNode& Other)
 	: PropertyName(Other.PropertyName)
@@ -31,13 +41,15 @@ FRedirectedPropertyNode::FRedirectedPropertyNode(const FRedirectedPropertyNode& 
 
 FRedirectedPropertyNode::FRedirectedPropertyNode(const FPropertyInfo& InInfo, const TWeakPtr<FRedirectedPropertyNode>& InParent)
 	: PropertyName(InInfo.Property->GetFName())
-	, Type(InInfo.Property->GetID())
 	, ArrayIndex(InInfo.ArrayIndex)
 	, Parent(InParent)
 {
+	UE::FPropertyTypeNameBuilder TypeBuilder;
+	InInfo.Property->SaveTypeName(TypeBuilder);
+	Type = TypeBuilder.Build();
 }
 
-FRedirectedPropertyNode::FRedirectedPropertyNode(FName InPropertyName, FName InType, int32 InArrayIndex, const TWeakPtr<FRedirectedPropertyNode>& InParent)
+FRedirectedPropertyNode::FRedirectedPropertyNode(FName InPropertyName, const UE::FPropertyTypeName& InType, int32 InArrayIndex, const TWeakPtr<FRedirectedPropertyNode>& InParent)
 	: PropertyName(InPropertyName)
 	, Type(InType)
 	, ArrayIndex(InArrayIndex)
@@ -69,7 +81,7 @@ TSharedPtr<FRedirectedPropertyNode> FRedirectedPropertyNode::FindOrAdd(const FPr
 	return Child;
 }
 
-TSharedPtr<FRedirectedPropertyNode> FRedirectedPropertyNode::FindOrAdd(FName ChildPropertyName, FName ChildType, int32 ChildArrayIndex)
+TSharedPtr<FRedirectedPropertyNode> FRedirectedPropertyNode::FindOrAdd(FName ChildPropertyName, const UE::FPropertyTypeName& ChildType, int32 ChildArrayIndex)
 {
 	TSharedPtr<FRedirectedPropertyNode> Child = Find(ChildPropertyName, ChildType, ChildArrayIndex);
 	if (!Child)
@@ -109,7 +121,7 @@ bool FRedirectedPropertyNode::Remove(const FPropertyInfo& ChildInfo)
 	return false;
 }
 
-bool FRedirectedPropertyNode::Remove(FName ChildPropertyName, FName ChildType, int32 ChildArrayIndex)
+bool FRedirectedPropertyNode::Remove(FName ChildPropertyName, const UE::FPropertyTypeName& ChildType, int32 ChildArrayIndex)
 {
 	const int32 Index = FindIndex(ChildPropertyName, ChildType, ChildArrayIndex);
 	if (Index != INDEX_NONE)
@@ -146,7 +158,7 @@ TSharedPtr<FRedirectedPropertyNode> FRedirectedPropertyNode::Find(const FPropert
 	return {};
 }
 
-TSharedPtr<FRedirectedPropertyNode> FRedirectedPropertyNode::Find(FName ChildPropertyName, FName ChildType, int32 ChildArrayIndex) const
+TSharedPtr<FRedirectedPropertyNode> FRedirectedPropertyNode::Find(FName ChildPropertyName, const UE::FPropertyTypeName& ChildType, int32 ChildArrayIndex) const
 {
 	const int32 Index = FindIndex(ChildPropertyName, ChildType, ChildArrayIndex);
 	if (Index != INDEX_NONE)
@@ -185,10 +197,12 @@ bool FRedirectedPropertyNode::Move(const FPropertyPath& FromPath, const FPropert
 
 int32 FRedirectedPropertyNode::FindIndex(const FPropertyInfo& ChildInfo) const
 {
-	return FindIndex(ChildInfo.Property->GetFName(), ChildInfo.Property->GetID(), ChildInfo.ArrayIndex);
+	UE::FPropertyTypeNameBuilder ChildTypeBuilder;
+	ChildInfo.Property->SaveTypeName(ChildTypeBuilder);
+	return FindIndex(ChildInfo.Property->GetFName(), ChildTypeBuilder.Build(), ChildInfo.ArrayIndex);
 }
 
-int32 FRedirectedPropertyNode::FindIndex(FName ChildPropertyName, FName ChildType, int32 ChildArrayIndex) const
+int32 FRedirectedPropertyNode::FindIndex(FName ChildPropertyName, const UE::FPropertyTypeName& ChildType, int32 ChildArrayIndex) const
 {
 	return Children.IndexOfByPredicate([ChildPropertyName, ChildType, ChildArrayIndex](const TSharedPtr<FRedirectedPropertyNode>& Child)
 	{
@@ -201,12 +215,71 @@ int32 FRedirectedPropertyNode::FindIndex(FName ChildPropertyName, FName ChildTyp
 	});
 }
 
-FInstanceDataObjectFixupPanel::FInstanceDataObjectFixupPanel(TConstArrayView<TObjectPtr<UObject>> InstanceDataObjects, EViewFlags InViewFlags)
+FInstanceDataObjectFixupPanel::FInstanceDataObjectFixupPanel(
+	TConstArrayView<TObjectPtr<UObject>> InstanceDataObjects, TObjectPtr<UObject> InstanceDataObjectsOwner, EViewFlags InViewFlags)
 	: Instances(InstanceDataObjects)
+	, InstancesOwner(InstanceDataObjectsOwner)
 	, RedirectedPropertyTree(MakeShared<FRedirectedPropertyNode>())
 	, ViewFlags(InViewFlags)
 {
 	InitRedirectedPropertyTree();
+}
+
+static bool ObjectHasLoosePropertiesThatNeedFixup(UObject* Object)
+{
+	bool bNeedsFixup = false;
+	Object->GetClass()->Visit(Object, [&bNeedsFixup](const FPropertyVisitorPath& Path, const FPropertyVisitorData& Data)->EPropertyVisitorControlFlow
+	{
+		const FProperty* Property = Path.Top().Property;
+		if (!Property->HasAnyPropertyFlags(CPF_SkipSerialization) && Property->GetBoolMetaData(NAME_IsLooseMetadata))
+		{
+			bNeedsFixup = true;
+			return EPropertyVisitorControlFlow::Stop;
+		}
+		if (!Property->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata))
+		{
+			// if this sub-struct doesn't contain loose properties, it won't need fixup
+			return EPropertyVisitorControlFlow::StepOver;
+		}
+		return EPropertyVisitorControlFlow::StepInto;
+	});
+	return bNeedsFixup;
+}
+
+FInstanceDataObjectFixupPanel::~FInstanceDataObjectFixupPanel()
+{
+	using namespace UE::Editor::DataStorage;
+
+	IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+	IEditorDataStorageCompatibilityProvider* DataStorageCompatibility = GetMutableDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName);
+
+	if (DataStorageCompatibility != nullptr && DataStorage != nullptr)
+	{
+		for (UObject* Instance : Instances)
+		{
+			if (!ObjectHasLoosePropertiesThatNeedFixup(Instance))
+			{
+				UE::FPropertyBagRepository& Repository = UE::FPropertyBagRepository::Get();
+				Repository.MarkAsFixedUp(Repository.FindInstanceForDataObject(Instance));
+
+				// If a UObject isn't registered with TEDS, there's a chance its parent is registered and is the one
+				// with the alert column on it, so search upward until the nearest registered parent is found.
+				RowHandle Row = DataStorageCompatibility->FindRowWithCompatibleObject(InstancesOwner ? InstancesOwner.Get() : Instance);
+				DataStorage->RemoveColumns<FTypedElementAlertColumn>(Row);
+			}
+		}
+	}
+	else
+	{
+		for (UObject* Instance : Instances)
+		{
+			if (!ObjectHasLoosePropertiesThatNeedFixup(Instance))
+			{
+				UE::FPropertyBagRepository& Repository = UE::FPropertyBagRepository::Get();
+				Repository.MarkAsFixedUp(Repository.FindInstanceForDataObject(Instance));
+			}
+		}
+	}
 }
 
 int32 FInstanceDataObjectFixupPanel::Find(UObject* Value) const
@@ -217,7 +290,6 @@ int32 FInstanceDataObjectFixupPanel::Find(UObject* Value) const
 static bool RemoveCustomizationsWithLooseProperties(const FFieldVariant& FieldVariant, const TSharedPtr<IDetailsView>& DetailsView)
 {
 #if WITH_EDITORONLY_DATA
-	static const FName NAME_IsLooseMetadata(TEXT("IsLoose"));
 	if (FStructProperty* AsStructProperty = FieldVariant.Get<FStructProperty>())
 	{
 		if (RemoveCustomizationsWithLooseProperties(AsStructProperty->Struct, DetailsView))
@@ -297,30 +369,21 @@ TSharedPtr<IDetailsView>& FInstanceDataObjectFixupPanel::GenerateDetailsView(boo
 	DetailsViewArgs.ExternalScrollbar = SAssignNew(LinkableScrollBar, SLinkableScrollBar);
 	DetailsViewArgs.ScrollbarAlignment = bScrollbarOnLeft ? HAlign_Left : HAlign_Right;
 	DetailsViewArgs.DetailsNameWidgetOverrideCustomization = MakeShared<FInstanceDataObjectNameWidgetOverride>(SharedThis(this));
+	DetailsViewArgs.bShowLooseProperties = !HasViewFlag(EViewFlags::HideLooseProperties);
+
+	if (HasViewFlag(EViewFlags::IncludeOnlySetBySerialization))
+	{
+		DetailsViewArgs.ShouldForceHideProperty.BindLambda([this](const TSharedRef<FPropertyNode>& PropertyNode)->bool
+		{
+			return !IsInRedirectedPropertyTree(*FPropertyNode::CreatePropertyPath(PropertyNode));
+		});
+	}
 	
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 	for (const UObject* Instance : Instances)
 	{
 		RemoveCustomizationsWithLooseProperties(Instance->GetClass(), DetailsView);
-	}
-
-	for (const UObject* Object : Instances)
-	{
-		if (HasViewFlag(EViewFlags::HideLooseProperties))
-		{
-			DetailsView->RegisterInstancedCustomPropertyLayout(Object->GetClass(), FOnGetDetailCustomizationInstance::CreateLambda([]()
-			{
-				return MakeShared<FHideLoosePropertiesCustomization>();
-			}));
-		}
-		else if (HasViewFlag(EViewFlags::AllowRemapLooseProperties))
-		{
-			DetailsView->RegisterInstancedCustomPropertyLayout(Object->GetClass(), FOnGetDetailCustomizationInstance::CreateLambda([DiffPanel = SharedThis(this)]()
-			{
-				return MakeShared<FInstanceDataObjectFixupDetailCustomization>(DiffPanel);
-			}));
-		}
 	}
 	
 	DetailsView->SetObjects(Instances, true);
@@ -364,28 +427,14 @@ bool FInstanceDataObjectFixupPanel::ShouldSplitterIgnoreRow(const TWeakPtr<FDeta
 
 bool FInstanceDataObjectFixupPanel::AreAllConflictsRedirected() const
 {
-	bool bFoundConflict = false;
-	if (const TSharedPtr<FAsyncDetailViewDiff> Diff = DiffAgainstRight.Pin())
+	for (UObject* Instance : Instances)
 	{
-		Diff->ForEach(ETreeTraverseOrder::PreOrder,
-		[this, &bFoundConflict](const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>& DiffNode)->ETreeTraverseControl
+		if (ObjectHasLoosePropertiesThatNeedFixup(Instance))
 		{
-			const TSharedPtr<FDetailTreeNode> TreeNode = DiffNode->ValueA.Pin();
-			if (DiffNode->DiffResult == ETreeDiffResult::MissingFromTree2 && TreeNode)
-			{
-				if (const TSharedPtr<IPropertyHandle> Handle = TreeNode->CreatePropertyHandle())
-				{
-					if (!Handle->IsCategoryHandle() && !MarkedForDelete.Contains(*Handle->CreateFPropertyPath()))
-					{
-						bFoundConflict = true;
-						return ETreeTraverseControl::Break;
-					}
-				}
-			}
-			return ETreeTraverseControl::Continue;
-		});
+			return false;
+		}
 	}
-	return !bFoundConflict;
+	return true;
 }
 
 void FInstanceDataObjectFixupPanel::AutoApplyMarkDeletedActions()
@@ -527,18 +576,22 @@ FText FInstanceDataObjectFixupPanel::FTypeConverter::GetWarning() const
 
 bool FInstanceDataObjectFixupPanel::FTypeConverter::TryConvert(FProperty* SourceProperty, const void* SourceData, FProperty* DestinationProperty, void* DestinationData)
 {
+	
+	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+	TGuardValue<bool> ScopedImpersonateProperties(SerializeContext->bImpersonateProperties, true);
 	TArray<uint8, TInlineAllocator<64>> Buffer;
 	TMemoryWriterBase<TInlineAllocator<64>> MemoryWriter(Buffer);
 	FStructuredArchiveFromArchive StructuredWriter(MemoryWriter);
-	SourceProperty->SerializeItem(StructuredWriter.GetSlot(), (uint8*)SourceData);
+	// todo: handle static arrays
+	FPropertyTag SourceTag(SourceProperty, 0, (uint8*)SourceData);
+	SourceTag.SerializeTaggedProperty(StructuredWriter.GetSlot(), SourceProperty, (uint8*)SourceData, nullptr);
+	
 	FMemoryReaderView MemoryReader(Buffer);
 	FStructuredArchiveFromArchive StructuredReader(MemoryReader);
 
 	// TODO: this breaks for static array elements.
 	void* DestinationContainer = static_cast<uint8*>(DestinationData) - DestinationProperty->GetOffset_ForInternal();
 
-	// todo: handle static arrays
-	FPropertyTag SourceTag(SourceProperty, 0, (uint8*)SourceData);
 
 	bool bResult = false;
 	switch(DestinationProperty->ConvertFromType(SourceTag, StructuredReader.GetSlot(), (uint8*)DestinationContainer, SourceProperty->GetOwnerStruct(), nullptr))
@@ -546,7 +599,7 @@ bool FInstanceDataObjectFixupPanel::FTypeConverter::TryConvert(FProperty* Source
 	case EConvertFromTypeResult::UseSerializeItem:
 		if (SourceProperty->GetID() == DestinationProperty->GetID())
 		{
-			SourceTag.SerializeTaggedProperty(StructuredReader.GetSlot(), DestinationProperty, (uint8*)DestinationContainer, nullptr);
+			SourceTag.SerializeTaggedProperty(StructuredReader.GetSlot(), DestinationProperty, (uint8*)DestinationData, nullptr);
 			bResult = true;
 		}
 		break;
@@ -606,7 +659,7 @@ FInstanceDataObjectFixupPanel::FTypeConverter::EWarning FInstanceDataObjectFixup
 {
 	// convert from source to destination in a temp buffer to see if it's possible
 	TArray<uint8, TInlineAllocator<64>> SourceToDest;
-	SourceToDest.SetNumUninitialized(DestinationProperty->ElementSize);
+	SourceToDest.SetNumUninitialized(DestinationProperty->GetElementSize());
 	DestinationProperty->InitializeValue(SourceToDest.GetData());
 	if (!TryConvert(SourceProperty, SourceData, DestinationProperty, SourceToDest.GetData()))
 	{
@@ -615,7 +668,7 @@ FInstanceDataObjectFixupPanel::FTypeConverter::EWarning FInstanceDataObjectFixup
 
 	// convert from destination to source in a temp buffer to see if it's possible
 	TArray<uint8, TInlineAllocator<64>> DestToSource;
-	DestToSource.SetNumUninitialized(SourceProperty->ElementSize);
+	DestToSource.SetNumUninitialized(SourceProperty->GetElementSize());
 	SourceProperty->InitializeValue(DestToSource.GetData());
 	if (!TryConvert(DestinationProperty, SourceToDest.GetData(), SourceProperty, DestToSource.GetData()))
 	{
@@ -659,16 +712,16 @@ void FInstanceDataObjectFixupPanel::RedirectPropertyHelper(const FPropertyPath& 
 		FromRevertInfo = *Info;
 		if (DestinationProperty)
 		{
-			if (DestinationProperty->HasAnyPropertyFlags(CPF_Transient) != Info->bWasTransient)
-            {
-            	// toggle transient flag if needed
-            	DestinationProperty->PropertyFlags ^= CPF_Transient;
-            }
-            if (!Info->bWasHidden)
-            {
-            	DestinationProperty->RemoveMetaData(TEXT("Hidden"));
-            }
-            DestinationProperty->RemoveMetaData(TEXT("Redirected"));
+			if (DestinationProperty->HasAnyPropertyFlags(CPF_SkipSerialization) != Info->bHadSkipSerialization)
+			{
+				// toggle CPF_SkipSerialization flag if needed
+				DestinationProperty->PropertyFlags ^= CPF_SkipSerialization;
+			}
+			if (!Info->bWasHidden)
+			{
+				DestinationProperty->RemoveMetaData(TEXT("Hidden"));
+			}
+			DestinationProperty->RemoveMetaData(TEXT("Redirected"));
 		}
 		
 		
@@ -678,7 +731,7 @@ void FInstanceDataObjectFixupPanel::RedirectPropertyHelper(const FPropertyPath& 
 			
 			ToRevertInfo = &RevertInfo.Add(To, {
 				.OriginalPath = Info->OriginalPath,
-				.bWasTransient = SourceProperty->HasAnyPropertyFlags(CPF_Transient),
+				.bHadSkipSerialization = SourceProperty->HasAnyPropertyFlags(CPF_SkipSerialization),
 				.bWasHidden = SourceProperty->HasMetaData(TEXT("Hidden"))
 			});
 		}
@@ -691,7 +744,7 @@ void FInstanceDataObjectFixupPanel::RedirectPropertyHelper(const FPropertyPath& 
 		{
 			ToRevertInfo = &RevertInfo.Add(To, {
 				.OriginalPath = From,
-				.bWasTransient = SourceProperty->HasAnyPropertyFlags(CPF_Transient)
+				.bHadSkipSerialization = SourceProperty->HasAnyPropertyFlags(CPF_SkipSerialization)
 			});
 			MarkedForDelete.Remove(From);
 		}
@@ -699,15 +752,31 @@ void FInstanceDataObjectFixupPanel::RedirectPropertyHelper(const FPropertyPath& 
 	
 	if (To != From)
 	{
+		auto OnHidden = [](FProperty* Property)
+		{
+			if (Property->HasMetaData(NAME_IsLooseMetadata))
+			{
+				Property->PropertyFlags |= CPF_SkipSerialization;
+				Property->SetMetaData(TEXT("Hidden"), TEXT("True"));
+				Property->SetMetaData(TEXT("Redirected"), TEXT("True"));
+			}
+		};
 		if (To.IsValid())
 		{
 			RedirectedPropertyTree->Move(From, To);
+			for (FPropertyPath Path = From; Path.IsValid(); Path = Path.TrimPath(1).Get())
+			{
+				// because RedirectedPropertyTree->Move could've removed multiple properties in the path, we need to check each of them
+				if (!MarkedForDelete.Find(Path) && RedirectedPropertyTree->Find(Path))
+				{
+					break;
+				}
+				OnHidden(Path.GetLeafMostProperty().Property.Get());
+			}
 		}
-		if (SourceProperty->HasMetaData(TEXT("isLoose")))
+		else
 		{
-			SourceProperty->PropertyFlags |= CPF_Transient;
-			SourceProperty->SetMetaData(TEXT("Hidden"), TEXT("True"));
-			SourceProperty->SetMetaData(TEXT("Redirected"), TEXT("True"));
+			OnHidden(SourceProperty);
 		}
 	}
 
@@ -716,7 +785,7 @@ void FInstanceDataObjectFixupPanel::RedirectPropertyHelper(const FPropertyPath& 
 
 void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, const FPropertyPath& To)
 {
-	FProperty* SourceProperty = From.GetLeafMostProperty().Property.Get();
+	const FProperty* SourceProperty = From.GetLeafMostProperty().Property.Get();
 	check(SourceProperty);
 	FProperty* DestinationProperty = To.IsValid() ? To.GetLeafMostProperty().Property.Get() : nullptr;
 	
@@ -748,13 +817,13 @@ void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, 
 		FEditPropertyChain Chain;
 		TMap<FString, int32> ArrayIndices;
 		FPropertyChangedEvent ChangeEvent = ConstructChangeEventForRedirect(To, Chain, ArrayIndices);
-		FOverridableManager::Get().PreOverrideProperty(*Instance, Chain);
-		Instance->PreEditChange(ChangeEvent.Property);
+		FPropertyChangedChainEvent ChangedChainEvent(Chain, ChangeEvent);
+		Instance->PreEditChange(Chain);
 
 		if (ToRevertInfo)
 		{
 			// cache the destination value so it can be reverted later
-			const int32 Size = DestinationProperty->ArrayDim * DestinationProperty->ElementSize;
+			const int32 Size = DestinationProperty->ArrayDim * DestinationProperty->GetElementSize();
 			ToRevertInfo->OriginalValue.AddZeroed(Size);
 			uint8* Buffer = ToRevertInfo->OriginalValue.GetData() + (ToRevertInfo->OriginalValue.Num() - Size);
 			DestinationProperty->CopyCompleteValue(Buffer, Destination);
@@ -776,10 +845,9 @@ void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, 
 		{
 			// apply FromRevertInfo to From
 			SourceProperty->CopyCompleteValue(Source, FromRevertInfoItr);
-			FromRevertInfoItr += DestinationProperty->ArrayDim * DestinationProperty->ElementSize;
+			FromRevertInfoItr += DestinationProperty->ArrayDim * DestinationProperty->GetElementSize();
 		}
-		Instance->PostEditChangeProperty(ChangeEvent);
-		FOverridableManager::Get().PostOverrideProperty(*Instance, ChangeEvent, Chain);
+		Instance->PostEditChangeChainProperty(ChangedChainEvent);
 	}
 
 	GEditor->EndTransaction();
@@ -815,13 +883,12 @@ void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, 
 		Chains.Emplace();
 		TMap<FString, int32> ArrayIndices;
 		ChangeEvents.Add(ConstructChangeEventForRedirect(To, Chains.Last(), ArrayIndices));
-		FOverridableManager::Get().PreOverrideProperty(*Instance, Chains.Last());
-		Instance->PreEditChange(ChangeEvents.Last().Property);
+		Instance->PreEditChange(Chains.Last());
 
 		if (ToRevertInfo)
 		{
 			// cache the destination value so it can be reverted later
-			const int32 Size = DestinationProperty->ArrayDim * DestinationProperty->ElementSize;
+			const int32 Size = DestinationProperty->ArrayDim * DestinationProperty->GetElementSize();
 			ToRevertInfo->OriginalValue.AddZeroed(Size);
 			uint8* Buffer = ToRevertInfo->OriginalValue.GetData() + (ToRevertInfo->OriginalValue.Num() - Size);
 			DestinationProperty->CopyCompleteValue(Buffer, Destination);
@@ -840,10 +907,10 @@ void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, 
 		{
 			// apply FromRevertInfo to From
 			SourceProperty->CopyCompleteValue(Source, FromRevertInfoItr);
-			FromRevertInfoItr += DestinationProperty->ArrayDim * DestinationProperty->ElementSize;
+			FromRevertInfoItr += DestinationProperty->ArrayDim * DestinationProperty->GetElementSize();
 		}
-		Instance->PostEditChangeProperty(ChangeEvents[I]);
-		FOverridableManager::Get().PostOverrideProperty(*Instance, ChangeEvents[I], Chains[I]);
+		FPropertyChangedChainEvent ChangedChainEvent(Chains[I], ChangeEvents[I]);
+		Instance->PostEditChangeChainProperty(ChangedChainEvent);
 	}
 
 	GEditor->EndTransaction();
@@ -868,7 +935,7 @@ static void InitRedirectedPropertyTreeRec(const TSharedPtr<FRedirectedPropertyNo
 	{
 		if (Property->ArrayDim == 1)
 		{
-			if (UE::FPropertyBagRepository::WasPropertySetBySerialization(Struct, StructValue, Property))
+			if (UE::FPropertyBagRepository::WasPropertyValueSerialized(Struct, StructValue, Property))
 			{
 				const TSharedPtr<FRedirectedPropertyNode>& ChildNode = Node->FindOrAdd(FPropertyInfo(Property));
 				void* Value = Property->ContainerPtrToValuePtr<void>(StructValue);
@@ -879,7 +946,7 @@ static void InitRedirectedPropertyTreeRec(const TSharedPtr<FRedirectedPropertyNo
 		{
 			for (int32 StaticArrayIndex = 0; StaticArrayIndex < Property->ArrayDim; ++StaticArrayIndex)
             {
-            	if (UE::FPropertyBagRepository::WasPropertySetBySerialization(Struct, StructValue, Property, StaticArrayIndex))
+            	if (UE::FPropertyBagRepository::WasPropertyValueSerialized(Struct, StructValue, Property, StaticArrayIndex))
             	{
             		const TSharedPtr<FRedirectedPropertyNode>& ChildNode = Node->FindOrAdd(FPropertyInfo(Property, StaticArrayIndex));
             		void* Value = Property->ContainerPtrToValuePtr<void>(StructValue, StaticArrayIndex);

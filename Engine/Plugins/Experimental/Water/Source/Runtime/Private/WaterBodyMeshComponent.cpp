@@ -113,12 +113,35 @@ void UWaterBodyMeshComponent::FixupCollisionOnBodySetup()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(WaterBodyMeshComponent::FixupCollisionOnBodySetup);
 
-	// Fix for a bug that existing where the body setup was not created with bNeverNeedsCookedCollisionData, and also address an issue where bNeverNeedsCookedCollisionData was allowing meshes to generate cooked data.
-	UBodySetup* BodySetup = GetBodySetup();
+	// We had a bug where the body setup was not created with bNeverNeedsCookedCollisionData,
+	// and another where bNeverNeedsCookedCollisionData was allowing meshes to generate cooked data.
+	// This attempts to clean up the resulting mess.
 	UStaticMesh* Mesh = GetStaticMesh();
-	const bool bResetBodySetup = Mesh != nullptr && (BodySetup == nullptr || !BodySetup->bNeverNeedsCookedCollisionData || BodySetup->bHasCookedCollisionData);
-	if (bResetBodySetup)
+	if (!Mesh)
 	{
+		return;
+	}
+
+	UBodySetup* BodySetup = GetBodySetup();
+
+	if (BodySetup && BodySetup->bNeverNeedsCookedCollisionData)
+	{
+		// We could still have cooked collision data attached, but shouldn't.
+		// Quietly remove the cooked collision data without invalidating the GUID,
+		// because the latter leads to cook non-determinism for affected instances.
+		//
+		// This is effectively just stripping cached data, and referring back to
+		// any cooked collision data in the DDC under the same GUID is totally
+		// valid if there were no other modifications that actually truly
+		// invalidate physics data.
+		FGuid OriginalBodySetupGuid = BodySetup->BodySetupGuid;
+		BodySetup->InvalidatePhysicsData();
+		BodySetup->BodySetupGuid = OriginalBodySetupGuid;
+	}
+	else if (!BodySetup || !BodySetup->bNeverNeedsCookedCollisionData)
+	{
+		// We don't have a body setup, or it's set up the wrong
+		// way. Create a new one.
 		Mesh->CreateBodySetup();
 		BodySetup = GetBodySetup();
 		BodySetup->bNeverNeedsCookedCollisionData = true;

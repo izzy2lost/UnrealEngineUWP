@@ -119,14 +119,29 @@ void FLogProvider::UpdateMessageSpec(uint64 LogPoint, uint64 InCategoryPointer, 
 	LogMessageSpec.Verbosity = InVerbosity;
 }
 
+FLogMessageInternal& FLogProvider::AppendMessageInternal(double Time)
+{
+	// Performs binary search, resulting in position of the first log message with time > provided time value.
+	uint64 Index = TraceServices::PagedArrayAlgo::UpperBoundBy(Messages, Time,
+			[](const FLogMessageInternal& Item) { return Item.Time; });
+
+	if (Index < Messages.Num())
+	{
+		++NumInserts;
+	}
+
+	FLogMessageInternal& InternalMessage = Messages.Insert(Index);
+	InternalMessage.Time = Time;
+	return InternalMessage;
+}
+
 void FLogProvider::AppendMessage(uint64 LogPoint, double Time, const uint8* FormatArgs)
 {
 	Session.WriteAccessCheck();
 	FLogMessageSpec** FindSpec = SpecMap.Find(LogPoint);
 	if (FindSpec && (*FindSpec)->Verbosity != ELogVerbosity::SetColor)
 	{
-		FLogMessageInternal& InternalMessage = Messages.PushBack();
-		InternalMessage.Time = Time;
+		FLogMessageInternal& InternalMessage = AppendMessageInternal(Time);
 		InternalMessage.Spec = *FindSpec;
 		FFormatArgsHelper::Format(FormatBuffer, FormatBufferSize - 1, TempBuffer, FormatBufferSize - 1, InternalMessage.Spec->FormatString, FormatArgs);
 		InternalMessage.Message = Session.StoreString(FormatBuffer);
@@ -140,88 +155,121 @@ void FLogProvider::AppendMessage(uint64 LogPoint, double Time, const TCHAR* Text
 	FLogMessageSpec** FindSpec = SpecMap.Find(LogPoint);
 	if (FindSpec && (*FindSpec)->Verbosity != ELogVerbosity::SetColor)
 	{
-		FLogMessageInternal& InternalMessage = Messages.PushBack();
-		InternalMessage.Time = Time;
+		FLogMessageInternal& InternalMessage = AppendMessageInternal(Time);
 		InternalMessage.Spec = *FindSpec;
 		InternalMessage.Message = Text;
 		Session.UpdateDurationSeconds(Time);
 	}
 }
 
-void FLogProvider::AppendMessage(uint64 LogPoint, double Time, const FString& Message)
+void FLogProvider::AppendMessage(uint64 LogPoint, double Time, const FStringView Message)
 {
 	Session.WriteAccessCheck();
 	FLogMessageSpec** FindSpec = SpecMap.Find(LogPoint);
 	if (FindSpec && (*FindSpec)->Verbosity != ELogVerbosity::SetColor)
 	{
-		FLogMessageInternal& InternalMessage = Messages.PushBack();
-		InternalMessage.Time = Time;
+		FLogMessageInternal& InternalMessage = AppendMessageInternal(Time);
 		InternalMessage.Spec = *FindSpec;
 		InternalMessage.Message = Session.StoreString(Message);
 		Session.UpdateDurationSeconds(Time);
 	}
 }
 
-uint64 FLogProvider::GetMessageCount() const
-{
-	Session.ReadAccessCheck();
-	return Messages.Num();
-}
-
 bool FLogProvider::ReadMessage(uint64 Index, TFunctionRef<void(const FLogMessageInfo&)> Callback) const
 {
 	Session.ReadAccessCheck();
+
 	if (Index >= Messages.Num())
 	{
 		return false;
 	}
-	ConstructMessage(Index, Callback);
+
+	ConstructMessage(Messages[Index], Index, Callback);
+
 	return true;
 }
 
-void FLogProvider::EnumerateMessages(double IntervalStart, double IntervalEnd, TFunctionRef<void(const FLogMessageInfo&)> Callback) const
+void FLogProvider::EnumerateMessagesByIndex(uint64 StartIndex, uint64 EndIndex, TFunctionRef<void(const FLogMessageInfo&)> Callback) const
 {
 	Session.ReadAccessCheck();
-	if (IntervalStart > IntervalEnd)
-	{
-		return;
-	}
-	uint64 MessageCount = Messages.Num();
-	for (uint64 Index = 0; Index < MessageCount; ++Index)
-	{
-		double Time = Messages[Index].Time;
-		if (IntervalStart <= Time && Time <= IntervalEnd)
-		{
-			ConstructMessage(Index, Callback);
-		}
-	}
-}
 
-void FLogProvider::EnumerateMessagesByIndex(uint64 Start, uint64 End, TFunctionRef<void(const FLogMessageInfo&)> Callback) const
-{
-	Session.ReadAccessCheck();
 	uint64 Count = Messages.Num();
-	if (Start >= Count)
+	if (EndIndex > Count)
+	{
+		EndIndex = Count;
+	}
+	if (StartIndex >= EndIndex)
 	{
 		return;
 	}
-	if (End > Count)
+
+	for (auto It = Messages.GetIteratorFromItem(StartIndex); It && It.GetCurrentItemIndex() < EndIndex; ++It)
 	{
-		End = Count;
-	}
-	if (Start >= End)
-	{
-		return;
-	}
-	for (uint64 Index = Start; Index < End; ++Index)
-	{
-		ConstructMessage(Index, Callback);
+		ConstructMessage(*It.GetCurrentItem(), It.GetCurrentItemIndex(), Callback);
 	}
 }
 
-void FLogProvider::ConstructMessage(uint64 Index, TFunctionRef<void(const FLogMessageInfo&)> Callback) const
+void FLogProvider::EnumerateMessages(double StartTime, double EndTime, TFunctionRef<void(const FLogMessageInfo&)> Callback) const
 {
-	const FLogMessageInternal& InternalMessage = Messages[Index];
+	Session.ReadAccessCheck();
+
+	if (StartTime > EndTime)
+	{
+		return;
+	}
+
+	uint64 MessageCount = Messages.Num();
+	if (MessageCount == 0)
+	{
+		return;
+	}
+
+	// Find the first log message with Time >= StartTime.
+	uint64 StartIndex = TraceServices::PagedArrayAlgo::LowerBoundBy(Messages, StartTime,
+		[](const FLogMessageInternal& Item) { return Item.Time; });
+	if (StartIndex >= Messages.Num())
+	{
+		return;
+	}
+
+	// Iterate from StartIndex and stop at first log message with Time > EndTime.
+	for (auto It = Messages.GetIteratorFromItem(StartIndex); It; ++It)
+	{
+		double Time = It.GetCurrentItem()->Time;
+		if (Time > EndTime)
+		{
+			break;
+		}
+		ConstructMessage(*It.GetCurrentItem(), It.GetCurrentItemIndex(), Callback);
+	}
+}
+
+uint64 FLogProvider::LowerBoundByTime(double Time) const
+{
+	Session.ReadAccessCheck();
+
+	return TraceServices::PagedArrayAlgo::LowerBoundBy(Messages, Time,
+		[](const FLogMessageInternal& Item) { return Item.Time; });
+}
+
+uint64 FLogProvider::UpperBoundByTime(double Time) const
+{
+	Session.ReadAccessCheck();
+
+	return TraceServices::PagedArrayAlgo::UpperBoundBy(Messages, Time,
+		[](const FLogMessageInternal& Item) { return Item.Time; });
+}
+
+uint64 FLogProvider::BinarySearchClosestByTime(double Time) const
+{
+	Session.ReadAccessCheck();
+
+	return TraceServices::PagedArrayAlgo::BinarySearchClosestBy(Messages, Time,
+		[](const FLogMessageInternal& Item) { return Item.Time; });
+}
+
+void FLogProvider::ConstructMessage(const FLogMessageInternal& InternalMessage, uint64 Index, TFunctionRef<void(const FLogMessageInfo&)> Callback) const
+{
 	FLogMessageInfo Message;
 	Message.Index = Index;
 	Message.Time = InternalMessage.Time;

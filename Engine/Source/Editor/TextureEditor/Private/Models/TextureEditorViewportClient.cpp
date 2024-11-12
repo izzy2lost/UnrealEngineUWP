@@ -39,7 +39,10 @@ static TAutoConsoleVariable<int32> CVarEnableVTFeedback(
 struct FTextureErrorLogger : public FOutputDevice
 {
 	UTexture* TextureToMonitor = nullptr;
+	FCriticalSection LogLinesLock; // Locks RelevantLogLings since Serialize can be called while we are drawing the lines.
 	TArray<TPair<bool, FString>> RelevantLogLines;
+
+	double CaptureUntilTime = 0;
 	bool bCurrentlyCapturing = false;
 
 	FTextureErrorLogger(UTexture* InTextureToMonitor)
@@ -64,6 +67,42 @@ struct FTextureErrorLogger : public FOutputDevice
 			return;
 		}
 
+
+		// Here we aren't capturing yet.
+		// See if the string relates to us.
+		if (FCString::Stristr(V, *TextureToMonitor->GetName()))
+		{
+			// It turns out we can't rely on a startup message with the new build flow (IBuild), so
+			// we just start capturing if we ever see a warning or error with our name in it.
+			// 
+			// If it's any of the launching messages then we clear our backlog.
+			if (Verbosity == ELogVerbosity::Error || 
+				Verbosity == ELogVerbosity::Warning)
+			{
+				bCurrentlyCapturing = true;
+			}
+
+			// If it's "Building textures" then we started a new build and need to empty our list.
+			// For shared linear we also might only get a "Tiling" message... but we don't want to clear
+			// on that one since we'll likely get it after the Building textures message
+			if (FCString::Stristr(V, TEXT("Building textures")))
+			{
+				FScopeLock _(&LogLinesLock);
+				RelevantLogLines.Empty();
+				bCurrentlyCapturing = true;
+			}
+			static FName TextureBuildFunctionCategory = "LogTextureBuildFunction";
+			if (Category == TextureBuildFunctionCategory)
+			{
+				if (FCString::Stristr(V, TEXT("Compressing")))
+				{
+					FScopeLock _(&LogLinesLock);
+					RelevantLogLines.Empty();
+					bCurrentlyCapturing = true;
+				}
+			}
+		}
+
 		//
 		// Error messages don't reliably put the texture name in the messages, and we don't necessarily know
 		// that the error will come from a texture category if it's something like bulk data. However, we do
@@ -72,40 +111,47 @@ struct FTextureErrorLogger : public FOutputDevice
 		// for ourselves and when the texture async build is complete.
 		if (bCurrentlyCapturing)
 		{
-			if (TextureToMonitor->IsAsyncCacheComplete())
+			// There's a race condition here because the log messages take a while to get to us, so an
+			// async texture build can finish well before we see any messages about it, so we keep watching for a second.
+			if (CaptureUntilTime)
 			{
-				bCurrentlyCapturing = false;
-				return;
+				double CurrentTime = FPlatformTime::Seconds();
+				if (CurrentTime > CaptureUntilTime)
+				{
+					bCurrentlyCapturing = false;
+					CaptureUntilTime = 0;
+					return;
+				}
+			}
+			else if (TextureToMonitor->IsAsyncCacheComplete())
+			{
+				// Logs might not have gotten to us, so we keep capturing for another second.
+				CaptureUntilTime = FPlatformTime::Seconds() + 1;
 			}
 
 			// Add any errors or warnings to the list
-			if (Verbosity == ELogVerbosity::Error)
+			if (Verbosity == ELogVerbosity::Error ||
+				Verbosity == ELogVerbosity::Warning)
 			{
-				RelevantLogLines.Add(TPair<bool, FString>(true, FString(V)));
-			}
-			else if (Verbosity == ELogVerbosity::Warning)
-			{
-				RelevantLogLines.Add(TPair<bool, FString>(false, FString(V)));
-			}
-			if (RelevantLogLines.Num() == 10)
-			{
-				RelevantLogLines.Add(TPair<bool, FString>(false, TEXT("Too much to show: check Output Log")));
-				bCurrentlyCapturing = false;
+				FScopeLock _(&LogLinesLock);
+				if (Verbosity == ELogVerbosity::Error)
+				{
+					RelevantLogLines.Add(TPair<bool, FString>(true, FString(V)));
+				}
+				else if (Verbosity == ELogVerbosity::Warning)
+				{
+					RelevantLogLines.Add(TPair<bool, FString>(false, FString(V)));
+				}
+				if (RelevantLogLines.Num() == 10)
+				{
+					RelevantLogLines.Add(TPair<bool, FString>(false, TEXT("Too much to show: check Output Log")));
+					bCurrentlyCapturing = false;
+					CaptureUntilTime = 0;
+				}
 			}
 			return;
 		}
 
-		// Here we aren't capturing yet.
-		// See if the string relates to us.
-		if (FCString::Stristr(V, *TextureToMonitor->GetName()))
-		{
-			// If it's "Building textures" then we started a new build and need to empty our list.
-			if (FCString::Stristr(V, TEXT("Building textures")))
-			{
-				RelevantLogLines.Empty();
-				bCurrentlyCapturing = true;
-			}
-		}
 	}
 };
 
@@ -156,8 +202,31 @@ void FTextureEditorViewportClient::Draw(FViewport* Viewport, FCanvas* Canvas)
 	
 	UpdateScrollBars();
 
-
 	Canvas->Clear( Settings.BackgroundColor );
+	
+	UFont* ReportingFont = GEngine->GetLargeFont();
+	const int32 ReportingLineHeight = FMath::CeilToInt(ReportingFont->GetMaxCharHeight()) + 2; // 2 for line spacing
+	const int32 ReportingLineX = 8;
+	int32 ReportingLineY = 8;
+
+	// make sure error messages are shown last, no matter if we return early or not
+	ON_SCOPE_EXIT {
+		// Print any warnings/errors that we saw in the output log.
+		FScopeLock _(&TextureConsoleCapture->LogLinesLock);
+		for (TPair<bool, FString>& ReportedLine : TextureConsoleCapture->RelevantLogLines)
+		{
+			Canvas->DrawShadowedText(ReportingLineX, ReportingLineY, FText::FromString(ReportedLine.Value), ReportingFont, ReportedLine.Key ? FLinearColor::Red : FLinearColor::Yellow);
+			ReportingLineY += ReportingLineHeight;
+		}
+	};
+
+	if ( Texture->IsCompiling() )
+	{
+		const FText Message = NSLOCTEXT("TextureEditor", "Compiling", "Compiling...");
+		Canvas->DrawShadowedText(ReportingLineX, ReportingLineY, Message, ReportingFont, FLinearColor::White);
+		ReportingLineY += ReportingLineHeight;
+		return;
+	}
 
 	UTexture2D* Texture2D = Cast<UTexture2D>(Texture);
 	UTextureCube* TextureCube = Cast<UTextureCube>(Texture);
@@ -227,7 +296,6 @@ void FTextureEditorViewportClient::Draw(FViewport* Viewport, FCanvas* Canvas)
 		{
 			BatchedElementParameters = new FBatchedElementVolumeTexturePreviewParameters(
 				TextureEditorPinned->GetVolumeViewMode() == TextureEditorVolumeViewMode_DepthSlices,
-				FMath::Max<int32>(VolumeTexture->GetSizeZ(), 1), 
 				MipLevel, 
 				(float)TextureEditorPinned->GetVolumeOpacity(),
 				true, 
@@ -238,7 +306,6 @@ void FTextureEditorViewportClient::Draw(FViewport* Viewport, FCanvas* Canvas)
 		{
 			BatchedElementParameters = new FBatchedElementVolumeTexturePreviewParameters(
 				TextureEditorPinned->GetVolumeViewMode() == TextureEditorVolumeViewMode_DepthSlices,
-				FMath::Max<int32>(RTTextureVolume->SizeZ >> RTTextureVolume->GetCachedLODBias(), 1),
 				MipLevel,
 				(float)TextureEditorPinned->GetVolumeOpacity(),
 				true,
@@ -344,12 +411,6 @@ void FTextureEditorViewportClient::Draw(FViewport* Viewport, FCanvas* Canvas)
 			});
 		}
 	}
-
-	UFont* ReportingFont = GEngine->GetLargeFont();
-	const int32 ReportingLineHeight = FMath::CeilToInt(ReportingFont->GetMaxCharHeight()) + 2; // 2 for line spacing
-	const int32 ReportingLineX = 8;
-	int32 ReportingLineY = 8;
-
 
 	// If we are requesting an explicit mip level of a VT asset, test to see if we can even display it properly and warn about it
 	if (bIsVirtualTexture && MipLevel >= 0.f)
@@ -471,12 +532,6 @@ void FTextureEditorViewportClient::Draw(FViewport* Viewport, FCanvas* Canvas)
 		} // end if valid result metadata
 	} // end if not deferring
 
-	// Print any warnings/errors that we saw in the output log.
-	for (TPair<bool, FString>& ReportedLine : TextureConsoleCapture->RelevantLogLines)
-	{
-		Canvas->DrawShadowedText(ReportingLineX, ReportingLineY, FText::FromString(ReportedLine.Value), GEngine->GetLargeFont(), ReportedLine.Key ? FLinearColor::Red : FLinearColor::Yellow);
-		ReportingLineY += ReportingLineHeight;
-	}
 }
 
 

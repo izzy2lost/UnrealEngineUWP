@@ -19,13 +19,12 @@ public class StudioTelemetry : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"CoreUObject",
-				"Engine",
                 "EngineSettings",
                 "BuildSettings",
                 "Analytics",
                 "AnalyticsET",
 				"TelemetryUtils",
-				"RHI"
+				"RHI",
 			}
 		);
 
@@ -33,15 +32,7 @@ public class StudioTelemetry : ModuleRules
 		{
 			PrivateDependencyModuleNames.AddRange(
 				new string[] {
-					"Horde",
-					"AssetRegistry",
-					"UnrealEd",
-					"DerivedDataCache",
-					"Zen",
-					"IoStoreOnDemand",
-					"ContentBrowser",
-					"ContentBrowserData",
-					"TelemetryUtils"
+					"Horde"
 				}
 			);
 		}

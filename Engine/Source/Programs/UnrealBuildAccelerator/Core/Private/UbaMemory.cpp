@@ -3,14 +3,25 @@
 #include "UbaMemory.h"
 #include "UbaPlatform.h"
 
+#if PLATFORM_LINUX
+#include <linux/mman.h>
+#if defined(MAP_HUGE_2MB)
+#define UBA_SUPPORTS_HUGE_PAGES 1
+#endif
+#endif
+
+#if !defined(UBA_SUPPORTS_HUGE_PAGES)
+#define UBA_SUPPORTS_HUGE_PAGES 0
+#endif
+
 namespace uba
 {
-	ANALYSIS_NORETURN void FatalError(u32 code, const tchar* format, ...);
+	constexpr u64 MemoryBlock_ReserveAlign = 1 * 1024 * 1024;
 
 
 	MemoryBlock::MemoryBlock(u64 reserveSize_, void* baseAddress_)
 	{
-		Init(reserveSize_, baseAddress_);
+		Init(reserveSize_, baseAddress_, false);
 	}
 
 	MemoryBlock::MemoryBlock(u8* baseAddress_)
@@ -23,22 +34,39 @@ namespace uba
 		Deinit();
 	}
 
-	void MemoryBlock::Init(u64 reserveSize_, void* baseAddress_)
+	bool MemoryBlock::Init(u64 reserveSize_, void* baseAddress_, bool useHugePages)
 	{
-		reserveSize = AlignUp(reserveSize_, 1024 * 1024);
-
 		#if PLATFORM_WINDOWS
+		reserveSize = AlignUp(reserveSize_, MemoryBlock_ReserveAlign);
 		memory = (u8*)VirtualAlloc(baseAddress_, reserveSize, MEM_RESERVE, PAGE_READWRITE); // Max size of obj file?
 		if (!memory)
 			FatalError(1347, TC("Failed to reserve virtual memory (%u)"), GetLastError());
 		#else
-		memory = (u8*)mmap(baseAddress_, reserveSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+
+		int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+		int reserveAlign = MemoryBlock_ReserveAlign;
+		#if UBA_SUPPORTS_HUGE_PAGES
+		if (useHugePages)
+		{
+			flags |= MAP_HUGETLB | MAP_HUGE_2MB;
+			reserveAlign = 2 * 1024 * 1024;
+		}
+		#endif
+
+		reserveSize = AlignUp(reserveSize_, reserveAlign);
+		memory = (u8*)mmap(baseAddress_, reserveSize, PROT_READ | PROT_WRITE, flags, -1, 0);
+
 		if (memory == MAP_FAILED)
-			FatalError(1347, "mmap failed to reserve %llu bytes: %s", reserveSize, strerror(errno));
+		{
+			if (useHugePages)
+				return false;
+			FatalError(1347, "mmap failed to reserve %llu bytes (asking for %llu): %s", reserveSize, reserveSize_, strerror(errno));
+		}
 		#endif
 
 		if (baseAddress_ && baseAddress_ != memory)
 			FatalError(9881, TC("Failed to reserve virtual memory at address (%u)"), GetLastError());
+		return true;
 	}
 
 	void MemoryBlock::Deinit()
@@ -75,7 +103,7 @@ namespace uba
 		#if PLATFORM_WINDOWS
 		if (newPos > mappedSize)
 		{
-			u64 toCommit = AlignUp(newPos - mappedSize, 1024 * 1024);
+			u64 toCommit = AlignUp(newPos - mappedSize, MemoryBlock_ReserveAlign);
 			if (mappedSize + toCommit > reserveSize)
 				toCommit = reserveSize - mappedSize;
 			if (!VirtualAlloc(memory + mappedSize, toCommit, MEM_COMMIT, PAGE_READWRITE))
@@ -87,6 +115,21 @@ namespace uba
 		void* ret = memory + startPos;
 		writtenSize = newPos;
 		return ret;
+	}
+
+	void MemoryBlock::ReserveNoLock(u64 bytes, const tchar* hint)
+	{
+		#if PLATFORM_WINDOWS
+		u64 newPos = Min(writtenSize + bytes, reserveSize);
+		if (newPos <= mappedSize)
+			return;
+		u64 toCommit = AlignUp(newPos - mappedSize, MemoryBlock_ReserveAlign);
+		if (mappedSize + toCommit > reserveSize)
+			toCommit = reserveSize - mappedSize;
+		if (!VirtualAlloc(memory + mappedSize, toCommit, MEM_COMMIT, PAGE_READWRITE))
+			FatalError(9883, TC("Failed to commit virtual memory for memory block. Total size %llu (%u) (%s)"), mappedSize + toCommit, GetLastError(), hint);
+		mappedSize += toCommit;
+		#endif
 	}
 
 	void MemoryBlock::Free(void* p)
@@ -105,4 +148,40 @@ namespace uba
 		return (tchar*)mem;
 	}
 
+	void MemoryBlock::Swap(MemoryBlock& other)
+	{
+		u8* m = memory;
+		u64 rs = reserveSize;
+		u64 ws = writtenSize;
+		u64 ms = mappedSize;
+
+		memory = other.memory;
+		reserveSize = other.reserveSize;
+		writtenSize = other.writtenSize;
+		mappedSize = other.mappedSize;
+
+		other.memory = m;
+		other.reserveSize = rs;
+		other.writtenSize = ws;
+		other.mappedSize = ms;
+	}
+
+	bool SupportsHugePages()
+	{
+		return UBA_SUPPORTS_HUGE_PAGES != 0;
+	}
+	u64 GetHugePageCount()
+	{
+#if UBA_SUPPORTS_HUGE_PAGES
+		FILE* f = fopen("/proc/sys/vm/nr_hugepages", "r");
+		if (!f)
+			return 0;
+		u32 pageCount = 0;
+		fscanf(f, "%u", &pageCount);
+		fclose(f);
+		return pageCount;
+#else
+		return 0;
+#endif
+	}
 }

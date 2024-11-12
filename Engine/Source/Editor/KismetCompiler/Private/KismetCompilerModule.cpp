@@ -24,7 +24,7 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 
 #include "UserDefinedStructureCompilerUtils.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "IMessageLogListing.h"
 #include "Engine/Engine.h"
 
@@ -106,7 +106,7 @@ void FKismet2CompilerModule::RefreshVariables(UBlueprint* Blueprint)
 		// move old cdo aside:
 		if(OldCDO)
 		{
-			OldCDO->Rename(NULL, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+			OldCDO->Rename(NULL, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_AllowPackageLinkerMismatch);
 		}
 		Blueprint->GeneratedClass->ClassDefaultObject = nullptr;
 

@@ -10,25 +10,14 @@
 #include "MetasoundVertex.h"
 #include "MetasoundVertexData.h"
 #include "Misc/Guid.h"
+#include "Misc/ReverseIterate.h"
 #include "Templates/UniquePtr.h"
 
 namespace Metasound
 {
-	FRebindableGraphOperator::FRebindableGraphOperator(DirectedGraphAlgo::FGraphOperatorData&& InOperatorData)
-	: GraphOperatorData(MoveTemp(InOperatorData))
+	FRebindableGraphOperator::FRebindableGraphOperator(const FOperatorSettings& InOperatorSettings)
+	: GraphOperatorData(InOperatorSettings)
 	{
-	}
-
-	FDataReferenceCollection FRebindableGraphOperator::GetInputs() const
-	{
-		checkNoEntry();
-		return FDataReferenceCollection();
-	}
-
-	FDataReferenceCollection FRebindableGraphOperator::GetOutputs() const
-	{
-		checkNoEntry();
-		return FDataReferenceCollection();
 	}
 
 	// Bind the graph's interface data references to FVertexInterfaceData.
@@ -60,7 +49,9 @@ namespace Metasound
 	{
 		using namespace DynamicGraph;
 
-		for (FPostExecuteEntry& Entry : GraphOperatorData.PostExecuteTable)
+		// Reverse iterate over post execute to keep inputs to operators unchanged
+		// between calls to Execute() and PostExecute()
+		for (FPostExecuteEntry& Entry : ReverseIterate(GraphOperatorData.PostExecuteTable))
 		{
 			Entry.PostExecute();
 		}
@@ -85,6 +76,11 @@ namespace Metasound
 	{
 		check(InOperator);
 		static_cast<FRebindableGraphOperator*>(InOperator)->PostExecute();
+	}
+
+	DynamicGraph::FDynamicGraphOperatorData& FRebindableGraphOperator::GetDynamicGraphOperatorData()
+	{
+		return GraphOperatorData;
 	}
 }
 

@@ -1,9 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTransitionCommands.h"
-
-#include "AvaTransitionEditorStyle.h"
 #include "Styling/AppStyle.h"
+#include "Styling/AvaTransitionEditorStyle.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionEditorCommands"
 

@@ -16,6 +16,7 @@ namespace Nanite
 struct FBuilderSettings
 {
 	uint32	NumTexCoords		= 0;
+	uint32	NumBoneInfluences	= 0;
 	float	MaxEdgeLengthFactor	= 0.0f;
 	bool	bHasTangents		: 1 = false;
 	bool	bHasColors			: 1 = false;
@@ -24,7 +25,7 @@ struct FBuilderSettings
 
 	FORCEINLINE uint32 GetVertSize() const
 	{
-		return 6 + ( bHasTangents ? 4 : 0 ) + ( bHasColors ? 4 : 0 ) + NumTexCoords * 2;
+		return 6 + ( bHasTangents ? 4 : 0 ) + ( bHasColors ? 4 : 0 ) + (NumTexCoords * 2) + (NumBoneInfluences * 2);
 	}
 
 	FORCEINLINE uint32 GetColorOffset() const
@@ -36,15 +37,11 @@ struct FBuilderSettings
 	{
 		return 6 + ( bHasTangents ? 4 : 0 ) + ( bHasColors ? 4 : 0 );
 	}
-};
 
-struct FMaterialTriangle
-{
-	uint32 Index0;
-	uint32 Index1;
-	uint32 Index2;
-	uint32 MaterialIndex;
-	uint32 RangeCount;
+	FORCEINLINE uint32 GetBoneInfluenceOffset() const
+	{
+		return 6 + (bHasTangents ? 4 : 0) + (bHasColors ? 4 : 0) + (NumTexCoords * 2);
+	}
 };
 
 struct FMaterialRange
@@ -76,16 +73,26 @@ public:
 		const TConstArrayView< const uint32 >& InIndexes,
 		const TConstArrayView< const int32 >& InMaterialIndexes,
 		FBuilderSettings& InSettings,
-		uint32 TriBegin, uint32 TriEnd, const FGraphPartitioner& Partitioner, const FAdjacency& Adjacency );
+		uint32 TriBegin, uint32 TriEnd,
+		const TConstArrayView< const uint32 >& TriIndexes,
+		const TConstArrayView< const uint32 >& SortedTo,
+		const FAdjacency& Adjacency );
 
-	FCluster( FCluster& SrcCluster, uint32 TriBegin, uint32 TriEnd, const FGraphPartitioner& Partitioner, const FAdjacency& Adjacency );
-	FCluster( const TArray< const FCluster*, TInlineAllocator<32> >& MergeList );
+	FCluster(
+		FCluster& SrcCluster,
+		uint32 TriBegin, uint32 TriEnd,
+		const TConstArrayView< const uint32 >& TriIndexes,
+		const TConstArrayView< const uint32 >& SortedTo,
+		const FAdjacency& Adjacency );
+
+	FCluster( TArrayView< const FCluster* > Children );
 
 	float		Simplify( uint32 TargetNumTris, float TargetError = 0.0f, uint32 LimitNumTris = 0 );
-	float		SimplifyFallback( uint32 TargetNumTris, float TargetError = 0.0f, uint32 LimitNumTris = 0 );
 	FAdjacency	BuildAdjacency() const;
 	void		Split( FGraphPartitioner& Partitioner, const FAdjacency& Adjacency ) const;
 	void		Bound();
+	void		Voxelize( float VoxelSize );
+	void		BuildMaterialRanges();
 
 private:
 	uint32		AddVert( const float* Vert, FHashTable& HashTable );
@@ -99,6 +106,7 @@ public:
 	float&				GetTangentYSign( uint32 VertIndex );
 	FLinearColor&		GetColor( uint32 VertIndex );
 	FVector2f*			GetUVs( uint32 VertIndex );
+	FVector2f*			GetBoneInfluences(uint32 VertIndex);
 
 	const FVector3f&	GetPosition( uint32 VertIndex ) const;
 	const FVector3f&	GetNormal( uint32 VertIndex ) const;
@@ -106,6 +114,7 @@ public:
 	const float&		GetTangentYSign( uint32 VertIndex ) const;
 	const FLinearColor&	GetColor( uint32 VertIndex ) const;
 	const FVector2f*	GetUVs( uint32 VertIndex ) const;
+	const FVector2f*	GetBoneInfluences(uint32 VertIndex) const;
 
 	void				SanitizeVertexData();
 
@@ -122,7 +131,9 @@ public:
 	TArray< uint32 >	Indexes;
 	TArray< int32 >		MaterialIndexes;
 	TArray< int8 >		ExternalEdges;
-	uint32				NumExternalEdges;
+	uint32				NumExternalEdges = 0;
+
+	TArray< uint32 >	ExtendedData;
 
 	TMap< uint32, uint32 >	AdjacentClusters;
 
@@ -220,6 +231,16 @@ FORCEINLINE FVector2f* FCluster::GetUVs( uint32 VertIndex )
 FORCEINLINE const FVector2f* FCluster::GetUVs( uint32 VertIndex ) const
 {
 	return reinterpret_cast< const FVector2f* >( &Verts[ VertIndex * GetVertSize() + Settings.GetUVOffset() ] );
+}
+
+FORCEINLINE FVector2f* FCluster::GetBoneInfluences(uint32 VertIndex)
+{
+	return reinterpret_cast<FVector2f*>(&Verts[VertIndex * GetVertSize() + Settings.GetBoneInfluenceOffset()]);
+}
+
+FORCEINLINE const FVector2f* FCluster::GetBoneInfluences(uint32 VertIndex) const
+{
+	return reinterpret_cast<const FVector2f*>(&Verts[VertIndex * GetVertSize() + Settings.GetBoneInfluenceOffset()]);
 }
 
 } // namespace Nanite

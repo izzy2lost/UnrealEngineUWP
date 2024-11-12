@@ -15,11 +15,6 @@
 
 #define LOCTEXT_NAMESPACE "PCGTransformPointsElement"
 
-UPCGTransformPointsSettings::UPCGTransformPointsSettings()
-{
-	bUseSeed = true;
-}
-
 FPCGElementPtr UPCGTransformPointsSettings::CreateElement() const
 {
 	return MakeShared<FPCGTransformPointsElement>();
@@ -101,7 +96,7 @@ bool FPCGTransformPointsElement::ExecuteInternal(FPCGContext* Context) const
 
 		const TArray<FPCGPoint>& Points = PointData->GetPoints();
 
-		UPCGPointData* OutputData = NewObject<UPCGPointData>();
+		UPCGPointData* OutputData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		OutputData->InitializeFromData(PointData);
 		TArray<FPCGPoint>& OutputPoints = OutputData->GetMutablePoints();
 		Output.Data = OutputData;

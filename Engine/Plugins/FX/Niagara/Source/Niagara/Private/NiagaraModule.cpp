@@ -67,6 +67,14 @@ static FAutoConsoleVariableRef CVarLogCompileIdGeneration(
 float INiagaraModule::EngineGlobalSpawnCountScale = 1.0f;
 float INiagaraModule::EngineGlobalSystemCountScale = 1.0f;
 
+const FNiagaraAssetTagDefinition INiagaraModule::LightweightTagDefinition = {
+	LOCTEXT("LightweightDisplayName", "Lightweight")
+	, (int32) (ENiagaraAssetLibraryAssetTypes::Systems)
+	, FText::GetEmpty()
+	, ENiagaraAssetTagDefinitionImportance::Primary
+	, FLinearColor::Red
+	, FGuid(0xE1737BF2, 0x52264191, 0xB9B9AA5F, 0xFB8C7412)};
+
 const FNiagaraAssetTagDefinition INiagaraModule::TemplateTagDefinition = {
 	LOCTEXT("TemplateDisplayName", "Template")
 	, (int32) (ENiagaraAssetLibraryAssetTypes::Emitters) | (int32) (ENiagaraAssetLibraryAssetTypes::Systems)
@@ -82,6 +90,22 @@ const FNiagaraAssetTagDefinition INiagaraModule::LearningContentTagDefinition = 
 	, ENiagaraAssetTagDefinitionImportance::Primary
 	, FLinearColor::Green
 	, FGuid(0xFCF21AFA, 0x50764BFA, 0xB9B2E618, 0xF2A0CD6F)};
+
+const FNiagaraAssetTagDefinition INiagaraModule::HiddenAssetTagDefinition = {
+	LOCTEXT("HiddenDisplayName", "Hidden in Asset Browser")
+	, (int32) (ENiagaraAssetLibraryAssetTypes::Emitters) | (int32) (ENiagaraAssetLibraryAssetTypes::Systems) | (int32) (ENiagaraAssetLibraryAssetTypes::Scripts)
+	, FText::GetEmpty()
+	, ENiagaraAssetTagDefinitionImportance::Internal
+	, FLinearColor::Black
+	, FGuid(0xC7B2F2A1, 0x71762AFB, 0x51BDE232, 0x8CA4BBA3)};
+
+const FNiagaraAssetTagDefinition INiagaraModule::DeprecatedTagDefinition = {
+	LOCTEXT("DeprecatedDisplayName", "Deprecated")
+	, (int32) (ENiagaraAssetLibraryAssetTypes::Emitters) | (int32) (ENiagaraAssetLibraryAssetTypes::Systems) | (int32) (ENiagaraAssetLibraryAssetTypes::Scripts)
+	, FText::GetEmpty()
+	, ENiagaraAssetTagDefinitionImportance::Internal
+	, FLinearColor::Black
+	, FGuid(0xF1F2F2FB, 0x50C64AF9, 0xB6BCE631, 0x32C4CC61)};
 
 std::atomic<bool> INiagaraModule::bDataChannelRefreshRequested = false;
 
@@ -174,12 +198,12 @@ void INiagaraModule::OnDataChannelsEnabledChanged(IConsoleVariable* Variable)
 // these two globals are intended to help ensure that a global variable is accessible to natvis (as defined in Niagara.natvis)
 // while debugging.  GCoreTypeRegistrySingletonPtr is the pointer to the actual data stored within the TLazySingleton<FNiagaraTypeRegistry>
 // while GTypeRegistrySingletonPtr can be declared in each module to ensure that it can be accessed while debugging any Niagara
-// module.  See UE4_VISUALIZERS_HELPERS.  Note that currently it seems like we can effectively debug NiagaraEditor/NiagaraShader without
+// module.  See UE_VISUALIZERS_HELPERS.  Note that currently it seems like we can effectively debug NiagaraEditor/NiagaraShader without
 // further declarations, which is nice, so will be leaving it as it is.
 namespace NiagaraDebugVisHelper
 {
 	const FNiagaraTypeRegistry* GCoreTypeRegistrySingletonPtr = nullptr;
-	const FNiagaraTypeRegistry*& GTypeRegistrySingletonPtr = GCoreTypeRegistrySingletonPtr;
+	UE_SELECT_ANY const FNiagaraTypeRegistry*& GTypeRegistrySingletonPtr = GCoreTypeRegistrySingletonPtr;
 }
 
 FNiagaraVariable INiagaraModule::Engine_WorldDeltaTime;
@@ -254,6 +278,7 @@ FNiagaraVariable INiagaraModule::Particles_Position;
 FNiagaraVariable INiagaraModule::Particles_Velocity;
 FNiagaraVariable INiagaraModule::Particles_Color;
 FNiagaraVariable INiagaraModule::Particles_SpriteRotation;
+FNiagaraVariable INiagaraModule::Particles_Age;
 FNiagaraVariable INiagaraModule::Particles_NormalizedAge;
 FNiagaraVariable INiagaraModule::Particles_SpriteSize;
 FNiagaraVariable INiagaraModule::Particles_SpriteFacing;
@@ -275,6 +300,7 @@ FNiagaraVariable INiagaraModule::Particles_LightExponent;
 FNiagaraVariable INiagaraModule::Particles_LightEnabled;
 FNiagaraVariable INiagaraModule::Particles_LightVolumetricScattering;
 FNiagaraVariable INiagaraModule::Particles_LightSpecularScale;
+FNiagaraVariable INiagaraModule::Particles_LightDiffuseScale;
 FNiagaraVariable INiagaraModule::Particles_RibbonID;
 FNiagaraVariable INiagaraModule::Particles_RibbonWidth;
 FNiagaraVariable INiagaraModule::Particles_RibbonTwist;
@@ -417,6 +443,7 @@ void INiagaraModule::StartupModule()
 	Particles_Velocity = FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Particles.Velocity"));
 	Particles_Color = FNiagaraVariable(FNiagaraTypeDefinition::GetColorDef(), TEXT("Particles.Color"));
 	Particles_SpriteRotation = FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Particles.SpriteRotation"));
+	Particles_Age = FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Particles.Age"));
 	Particles_NormalizedAge = FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Particles.NormalizedAge"));
 	Particles_SpriteSize = FNiagaraVariable(FNiagaraTypeDefinition::GetVec2Def(), TEXT("Particles.SpriteSize"));
 	Particles_SpriteFacing = FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Particles.SpriteFacing"));
@@ -438,6 +465,7 @@ void INiagaraModule::StartupModule()
 	Particles_LightEnabled = FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Particles.LightEnabled"));
 	Particles_LightVolumetricScattering = FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Particles.LightVolumetricScattering"));
 	Particles_LightSpecularScale = FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Particles.LightSpecularScale"));
+	Particles_LightDiffuseScale = FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Particles.LightDiffuseScale"));
 	Particles_RibbonID = FNiagaraVariable(FNiagaraTypeDefinition::GetIDDef(), TEXT("Particles.RibbonID"));
 	Particles_RibbonWidth = FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Particles.RibbonWidth"));
 	Particles_RibbonTwist = FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Particles.RibbonTwist"));
@@ -524,6 +552,7 @@ void INiagaraModule::OnPostEngineInit()
 	);
 
 	FNiagaraComponentSettings::UpdateSettings();
+	NiagaraStatelessCommon::UpdateSettings();
 }
 
 void INiagaraModule::OnPreExit()
@@ -596,6 +625,7 @@ void INiagaraModule::OnPostGarbageCollect()
 void INiagaraModule::OnBeginFrame()
 {
 	FNiagaraComponentSettings::UpdateSettings();
+	NiagaraStatelessCommon::UpdateSettings();
 	FNiagaraPlatformSet::RefreshScalability();
 }
 
@@ -1897,7 +1927,10 @@ void INiagaraModule::RegisterInternalAssetTagDefinitions()
 {
 	// All internal tags have to be manually assigned a unique and stable guid so that names can be changed without affecting assigned assets.
 	InternalAssetTagDefinitions.Add(&TemplateTagDefinition);
+	InternalAssetTagDefinitions.Add(&LightweightTagDefinition);
 	InternalAssetTagDefinitions.Add(&LearningContentTagDefinition);
+	InternalAssetTagDefinitions.Add(&HiddenAssetTagDefinition);
+	InternalAssetTagDefinitions.Add(&DeprecatedTagDefinition);
 }
 
 #if NIAGARA_PERF_BASELINES

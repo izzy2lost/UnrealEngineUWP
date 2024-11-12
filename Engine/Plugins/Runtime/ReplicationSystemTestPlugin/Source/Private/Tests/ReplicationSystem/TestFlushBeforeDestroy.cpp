@@ -5,6 +5,7 @@
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
 #include "NetBlob/PartialNetBlobTestFixture.h"
 #include "NetBlob/MockNetBlob.h"
+#include "Misc/ScopeExit.h"
 
 namespace UE::Net::Private
 {
@@ -52,12 +53,199 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentFlushe
 	Server->PostSendUpdate();
 
 	// Verify that object is destroyed
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
+}
+
+UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestObjectCreatedAndDestroyedSameFrameReplicatesIfFlushed)
+{
+	FReplicationSystemTestClient* Client = CreateClient();
+	RegisterNetBlobHandlers(Client);
+
+	// Create and start to replicate object
+	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
+	FNetRefHandle ObjectHandle = ServerObject->NetRefHandle;
+
+	// Destroy object indicating that it should be flushed that is that the final state should be replicated to all clients with the object in scope, this invalidates the creationinfo which has to be cached in order for this to work.
+	Server->DestroyObject(ServerObject, EEndReplicationFlags::Destroy | EEndReplicationFlags::Flush);
+
+	// Send update, it should send the data.
+	Server->UpdateAndSend({Client});
+
+	// Verify that object is created
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
+
+	// Deliver a packet, make sure that object is destroyed on the client.
+	Server->UpdateAndSend({Client});
+
+	// Verify that object is destroyed
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
+}
+
+UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestObjectAndSubObjectCreatedAndDestroyedSameFrameReplicatesIfFlushed)
+{
+	FReplicationSystemTestClient* Client = CreateClient();
+	RegisterNetBlobHandlers(Client);
+
+	// Create and start to replicate object
+	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
+	FNetRefHandle ObjectHandle = ServerObject->NetRefHandle;
+	UReplicatedTestObject* ServerSubObject = Server->CreateSubObject(ObjectHandle, 0, 0);
+	FNetRefHandle SubObjectHandle = ServerSubObject->NetRefHandle;
+
+	// Destroy object indicating that it should be flushed that is that the final state should be replicated to all clients with the object in scope, this invalidates the creationinfo which has to be cached in order for this to work.
+	Server->DestroyObject(ServerObject, EEndReplicationFlags::Destroy | EEndReplicationFlags::Flush);
+
+	// Send update, it should send the data.
+	Server->UpdateAndSend({Client});
+
+	// Verify that objects are created
+	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle) != nullptr);
+	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(SubObjectHandle) != nullptr);
+
+	// Deliver a packet, make sure that object is destroyed on the client.
+	Server->UpdateAndSend({Client});
+
+	// Verify that objects are destroyed
 	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle) == nullptr);
+	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(SubObjectHandle) == nullptr);
+}
+
+UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestSubObjectCreatedAndDestroyedSameFrameReplicatesIfFlushed)
+{
+	FReplicationSystemTestClient* Client = CreateClient();
+	RegisterNetBlobHandlers(Client);
+
+	// Create and start to replicate object
+	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
+	FNetRefHandle ObjectHandle = ServerObject->NetRefHandle;
+	UReplicatedTestObject* ServerSubObject = Server->CreateSubObject(ObjectHandle, 0, 0);
+	FNetRefHandle SubObjectHandle = ServerSubObject->NetRefHandle;
+
+	// Destroy SubObject indicating that it should be flushed that is that the final state should be replicated to all clients with the object in scope, this invalidates the creationinfo which has to be cached in order for this to work.
+	Server->DestroyObject(ServerSubObject, EEndReplicationFlags::Destroy | EEndReplicationFlags::Flush);
+
+	// Send update, it should send the data.
+	Server->UpdateAndSend({Client});
+
+	// Verify that objects are created
+	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle) != nullptr);
+	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(SubObjectHandle) != nullptr);
+
+	// Deliver a packet, make sure that object is destroyed on the client.
+	Server->UpdateAndSend({Client});
+
+	// Verify that objects are destroyed
+	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle) != nullptr);
+	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(SubObjectHandle) == nullptr);
+}
+
+UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentFlushedBeforeDestroyIfObjectCreatedAndDestroyedSameFrame)
+{
+	FReplicationSystemTestClient* Client = CreateClient();
+	RegisterNetBlobHandlers(Client);
+
+	// Create and start to replicate object
+	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
+	FNetRefHandle ObjectHandle = ServerObject->NetRefHandle;
+
+	// Create attachment
+	{
+		constexpr uint32 PayloadBitCount = 24;
+		const TRefCountPtr<FNetObjectAttachment>& Attachment = MockNetObjectAttachmentHandler->CreateReliableNetObjectAttachment(PayloadBitCount);
+		FNetObjectReference AttachmentTarget = FObjectReferenceCache::MakeNetObjectReference(ServerObject->NetRefHandle);
+		Server->GetReplicationSystem()->QueueNetObjectAttachment(Client->ConnectionIdOnServer, AttachmentTarget, Attachment);
+	}
+
+	// Destroy object, it should be implicitly flushed due to pending attachment.
+	Server->DestroyObject(ServerObject, EEndReplicationFlags::Destroy);
+
+	// Send update, it should send the data.
+	Server->UpdateAndSend({Client});
+
+	// Verify that the attachment has been received
+	UE_NET_ASSERT_EQ(ClientMockNetObjectAttachmentHandler->GetFunctionCallCounts().OnNetBlobReceived, 1U);
+
+	// Deliver a packet, make sure that object is destroyed on the client.
+	Server->UpdateAndSend({Client});
+
+	// Verify that object is destroyed
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
+}
+
+UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentForSubObjectFlushedBeforeDestroyIfObjectCreatedAndDestroyedSameFrame)
+{
+	FReplicationSystemTestClient* Client = CreateClient();
+	RegisterNetBlobHandlers(Client);
+
+	// Create and start to replicate object with subobject
+	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
+	FNetRefHandle ObjectHandle = ServerObject->NetRefHandle;
+	UReplicatedTestObject* ServerSubObject = Server->CreateSubObject(ObjectHandle, 0, 0);
+	FNetRefHandle SubObjectHandle = ServerSubObject->NetRefHandle;
+
+	// Create attachment
+	{
+		constexpr uint32 PayloadBitCount = 24;
+		const TRefCountPtr<FNetObjectAttachment>& Attachment = MockNetObjectAttachmentHandler->CreateReliableNetObjectAttachment(PayloadBitCount);
+		FNetObjectReference AttachmentTarget = FObjectReferenceCache::MakeNetObjectReference(SubObjectHandle);
+		Server->GetReplicationSystem()->QueueNetObjectAttachment(Client->ConnectionIdOnServer, AttachmentTarget, Attachment);
+	}
+
+	// Destroy object, it should be implicitly flushed due to pending attachment.
+	Server->DestroyObject(ServerObject, EEndReplicationFlags::Destroy);
+
+	// Send update, it should send the data.
+	Server->UpdateAndSend({Client});
+
+	// Verify that the attachment has been received
+	UE_NET_ASSERT_EQ(ClientMockNetObjectAttachmentHandler->GetFunctionCallCounts().OnNetBlobReceived, 1U);
+
+	// Deliver a packet, make sure that objects is destroyed on the client.
+	Server->UpdateAndSend({Client});
+
+	// Verify that objects are destroyed
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(SubObjectHandle), nullptr);
+}
+
+UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentForSubObjecFlushedBeforeDestroyIfSubObjectCreatedAndDestroyedSameFrame)
+{
+	FReplicationSystemTestClient* Client = CreateClient();
+	RegisterNetBlobHandlers(Client);
+
+	// Create and start to replicate object with subobject
+	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
+	FNetRefHandle ObjectHandle = ServerObject->NetRefHandle;
+	UReplicatedTestObject* ServerSubObject = Server->CreateSubObject(ObjectHandle, 0, 0);
+	FNetRefHandle SubObjectHandle = ServerSubObject->NetRefHandle;
+
+	// Create attachment
+	{
+		constexpr uint32 PayloadBitCount = 24;
+		const TRefCountPtr<FNetObjectAttachment>& Attachment = MockNetObjectAttachmentHandler->CreateReliableNetObjectAttachment(PayloadBitCount);
+		FNetObjectReference AttachmentTarget = FObjectReferenceCache::MakeNetObjectReference(SubObjectHandle);
+		Server->GetReplicationSystem()->QueueNetObjectAttachment(Client->ConnectionIdOnServer, AttachmentTarget, Attachment);
+	}
+
+	// Destroy subobject, it should be implicitly flushed due to pending attachment.
+	Server->DestroyObject(ServerSubObject, EEndReplicationFlags::Destroy);
+
+	// Send update, it should send the data.
+	Server->UpdateAndSend({Client});
+
+	// Verify that the attachment has been received
+	UE_NET_ASSERT_EQ(ClientMockNetObjectAttachmentHandler->GetFunctionCallCounts().OnNetBlobReceived, 1U);
+
+	// Deliver a packet, make sure that object is destroyed on the client.
+	Server->UpdateAndSend({Client});
+
+	// Verify that objects is destroyed
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(SubObjectHandle), nullptr);
 }
 
 UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentFlushedWithDataInflightBeforeDestroy)
 {
-
 	FReplicationSystemTestClient* Client = CreateClient();
 	RegisterNetBlobHandlers(Client);
 
@@ -103,7 +291,7 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentFlushe
 	Server->PostSendUpdate();
 
 	// Verify that object is destroyed
-	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle) == nullptr);
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
 }
 
 // This test exercises what was a bad case where we was posting RPC:s to a not yet confirmed objects which also was marked for destroy
@@ -112,6 +300,18 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentFlushe
 // destroyed objects.
 UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentFlushedWithPendingCreationLostBeforeDestroy)
 {
+	// Disable flushing / caching for this test as we want to keep exercising the bad path regardless of if we force flushing or not.
+	IConsoleVariable* CVarEnableFlushReliableRPCOnDestroy = IConsoleManager::Get().FindConsoleVariable(TEXT("net.Iris.EnableFlushReliableRPCOnDestroy"));
+	check(CVarEnableFlushReliableRPCOnDestroy != nullptr && CVarEnableFlushReliableRPCOnDestroy->IsVariableBool());
+	const bool bPrevEnableFlushReliableRPCOnDestroy = CVarEnableFlushReliableRPCOnDestroy->GetBool();
+	CVarEnableFlushReliableRPCOnDestroy->Set(false, ECVF_SetByCode);
+
+	ON_SCOPE_EXIT
+	{
+		// Restore cvars
+		CVarEnableFlushReliableRPCOnDestroy->Set(bPrevEnableFlushReliableRPCOnDestroy, ECVF_SetByCode);
+	};
+
 	FReplicationSystemTestClient* Client = CreateClient();
 	RegisterNetBlobHandlers(Client);
 
@@ -161,7 +361,7 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentFlushe
 	UE_NET_ASSERT_EQ(ClientMockNetObjectAttachmentHandler->GetFunctionCallCounts().OnNetBlobReceived, 0U);
 
 	// Verify that object does not exist
-	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle) == nullptr);
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
 }
 
 UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentFlushedWithPendingCreationInflightBeforeDestroy)
@@ -213,7 +413,7 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentFlushe
 	Server->SendAndDeliverTo(Client, DeliverPacket, TEXT("WaitOnFlush"));
 	Server->PostSendUpdate();
 
-	// Verify that the attachment has not received
+	// Verify that the attachment has been received
 	UE_NET_ASSERT_EQ(ClientMockNetObjectAttachmentHandler->GetFunctionCallCounts().OnNetBlobReceived, 1U);
 
 	// Expected to destroy the object
@@ -222,8 +422,78 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentFlushe
 	Server->PostSendUpdate();
 
 	// Verify that object does not exist
-	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle) == nullptr);
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
 }
+
+UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentFlushedWithLostPendingCreationInflightBeforeDestroy)
+{
+	FReplicationSystemTestClient* Client = CreateClient();
+	RegisterNetBlobHandlers(Client);
+
+	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
+	FNetRefHandle ObjectHandle = ServerObject->NetRefHandle;
+
+	// Setup a situation where we have creation info in flight when the object is destroyed
+
+	// Send creation info
+	Server->PreSendUpdate();
+	Server->SendTo(Client, TEXT("WaitOnCreateConfirmation"));
+	Server->PostSendUpdate();
+
+	// Create attachment
+	{
+		constexpr uint32 PayloadBitCount = 24;
+		const TRefCountPtr<FNetObjectAttachment>& Attachment = MockNetObjectAttachmentHandler->CreateReliableNetObjectAttachment(PayloadBitCount);
+		FNetObjectReference AttachmentTarget = FObjectReferenceCache::MakeNetObjectReference(ServerObject->NetRefHandle);
+		Server->GetReplicationSystem()->QueueNetObjectAttachment(Client->ConnectionIdOnServer, AttachmentTarget, Attachment);
+	}
+
+	// Destroy object, on server
+	Server->DestroyObject(ServerObject, EEndReplicationFlags::Destroy | EEndReplicationFlags::Flush);
+
+	// Previously this would issue a flush and send data before creation is confirmed.
+	Server->PreSendUpdate();
+	const bool bDataWasSentInError = Server->SendTo(Client, TEXT("State should still be WaitOnCreateConfirmation"));
+	Server->PostSendUpdate();
+	
+	// We do not expect any data to be in this packet.
+	UE_NET_ASSERT_FALSE(bDataWasSentInError);
+
+	// Drop initial creation info.
+	Server->DeliverTo(Client, false);
+
+	// Deliver data if we sent data.
+	if (bDataWasSentInError)
+	{
+		// Caused bitstream error on client.
+		Server->DeliverTo(Client, true);
+	}
+
+	// Expected to create object and send attachment
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, DeliverPacket, TEXT("CreateResend"));
+	Server->PostSendUpdate();
+
+	// Verify that object does not exist
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
+
+	// Verify that the attachment has been received
+	UE_NET_ASSERT_EQ(ClientMockNetObjectAttachmentHandler->GetFunctionCallCounts().OnNetBlobReceived, 1U);
+
+	// Expected to write the attachment
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, DeliverPacket, TEXT("WaitOnFlush"));
+	Server->PostSendUpdate();
+
+	// Expected to destroy the object
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, DeliverPacket, TEXT("Destroy"));
+	Server->PostSendUpdate();
+
+	// Verify that object has been destroyed
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
+}
+
 
 UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentSubObjectFlushedBeforeDestroy)
 {
@@ -266,7 +536,7 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentSubObj
 	Server->PostSendUpdate();
 
 	// Verify that object is destroyed
-	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(SubObjectHandle) == nullptr);
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(SubObjectHandle), nullptr);
 }
 
 UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentSubObjectFlushedBeforeDestroyIfOwnerIsDestroyed)
@@ -310,8 +580,8 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentSubObj
 	Server->PostSendUpdate();
 
 	// Verify that both object and subobject are destroyed
-	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(SubObjectHandle) == nullptr);
-	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle) == nullptr);
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(SubObjectHandle), nullptr);
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
 }
 
 UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestStateFlushedBeforeDestroy)
@@ -354,7 +624,7 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestStateFlushedBeforeDestro
 	Server->PostSendUpdate();
 
 	// Verify that object is destroyed
-	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle) == nullptr);
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
 }
 
 UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestStateInFlightFlushedBeforeDestroy)
@@ -408,7 +678,210 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestStateInFlightFlushedBefo
 	Server->PostSendUpdate();
 
 	// Verify that object is destroyed
-	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle) == nullptr);
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
+}
+
+UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestDroppedPendingTearOffIsCancelledByEndReplication)
+{
+	// As we are testing old behavior, we need to make sure to allow double endreplication so we hit the path we want to test.
+	IConsoleVariable* CVarAllowDestroyToCancelFlushAndTearOff = IConsoleManager::Get().FindConsoleVariable(TEXT("net.Iris.AllowDestroyToCancelFlushAndTearOff"), false);
+	UE_NET_ASSERT_NE(CVarAllowDestroyToCancelFlushAndTearOff, nullptr);
+	UE_NET_ASSERT_TRUE(CVarAllowDestroyToCancelFlushAndTearOff->IsVariableBool());
+
+	const bool bOldAllowDestroyToCancelFlushAndTearOff = CVarAllowDestroyToCancelFlushAndTearOff->GetBool();
+	ON_SCOPE_EXIT { CVarAllowDestroyToCancelFlushAndTearOff->Set(bOldAllowDestroyToCancelFlushAndTearOff, ECVF_SetByCode); };
+
+	CVarAllowDestroyToCancelFlushAndTearOff->Set(true, ECVF_SetByCode);
+
+	FReplicationSystemTestClient* Client = CreateClient();
+	RegisterNetBlobHandlers(Client);
+
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, DeliverPacket);
+	Server->PostSendUpdate();
+
+	// Setup case where we have a new object for which we have an attachment which should execute a tearoff after we have confirmed creation
+	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
+	FNetRefHandle ObjectHandle = ServerObject->NetRefHandle;
+
+	// Create attachment
+	{
+		constexpr uint32 PayloadBitCount = 24;
+		const TRefCountPtr<FNetObjectAttachment>& Attachment = MockNetObjectAttachmentHandler->CreateReliableNetObjectAttachment(PayloadBitCount);
+		FNetObjectReference AttachmentTarget = FObjectReferenceCache::MakeNetObjectReference(ServerObject->NetRefHandle);
+		Server->GetReplicationSystem()->QueueNetObjectAttachment(Client->ConnectionIdOnServer, AttachmentTarget, Attachment);
+	}
+
+	// Request tearoff
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::TearOff);
+
+	// Send packet so that we have creationdata in flight
+	Server->PreSendUpdate();
+	Server->SendTo(Client);
+	Server->PostSendUpdate();
+
+	// Force destroy object already pending tearoff/flush. DestroyLocalNetHandle will invalidate cached creationinfo.
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::Destroy);
+
+	// Drop and notify that the packet while object still is the state waitoncreateconfirmation as we have not yet updated scope.
+	// When this failed it did put the state of the object back in PendingCreate even though we no longer had any cached creationinfo.
+	Server->DeliverTo(Client, false);
+
+	// Deliver a packet, this should flush the object and deliver the attachment
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, DeliverPacket);
+	Server->PostSendUpdate();
+
+	// Verify that the attachment has not been received
+	UE_NET_ASSERT_NE(ClientMockNetObjectAttachmentHandler->GetFunctionCallCounts().OnNetBlobReceived, 1U);
+
+	// Deliver a packet. Should destroy the object on the client unless that was already done
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, DeliverPacket);
+	Server->PostSendUpdate();
+
+	// Verify that object is destroyed
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
+}
+
+UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestPendingCreateTearOffIsCancelledByEndReplication)
+{
+	// As we are testing old behavior, we need to make sure to allow double endreplication so we hit the path we want to test.
+	IConsoleVariable* CVarAllowDestroyToCancelFlushAndTearOff = IConsoleManager::Get().FindConsoleVariable(TEXT("net.Iris.AllowDestroyToCancelFlushAndTearOff"), false);
+	UE_NET_ASSERT_NE(CVarAllowDestroyToCancelFlushAndTearOff, nullptr);
+	UE_NET_ASSERT_TRUE(CVarAllowDestroyToCancelFlushAndTearOff->IsVariableBool());
+
+	const bool bOldAllowDestroyToCancelFlushAndTearOff = CVarAllowDestroyToCancelFlushAndTearOff->GetBool();
+	ON_SCOPE_EXIT { CVarAllowDestroyToCancelFlushAndTearOff->Set(bOldAllowDestroyToCancelFlushAndTearOff, ECVF_SetByCode); };
+
+	CVarAllowDestroyToCancelFlushAndTearOff->Set(true, ECVF_SetByCode);
+
+	FReplicationSystemTestClient* Client = CreateClient();
+	RegisterNetBlobHandlers(Client);
+
+	// Setup case where we have a new object for which we have an attachment which should execute a tearoff after we have confirmed creation
+	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
+	FNetRefHandle ObjectHandle = ServerObject->NetRefHandle;
+
+	// Create attachment
+	{
+		constexpr uint32 PayloadBitCount = 24;
+		const TRefCountPtr<FNetObjectAttachment>& Attachment = MockNetObjectAttachmentHandler->CreateReliableNetObjectAttachment(PayloadBitCount);
+		FNetObjectReference AttachmentTarget = FObjectReferenceCache::MakeNetObjectReference(ServerObject->NetRefHandle);
+		Server->GetReplicationSystem()->QueueNetObjectAttachment(Client->ConnectionIdOnServer, AttachmentTarget, Attachment);
+	}
+
+	// Request tearoff
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::TearOff);
+
+	// PreUpdate to update scoping to get the object into the PendingCreate state.
+	Server->PreSendUpdate();
+	Server->PostSendUpdate();
+
+	// Force destroy object already pending tearoff/flush. DestroyLocalNetHandle will invalidate cached creationinfo.
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::Destroy);
+
+	// Send a packet.
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, DeliverPacket);
+	Server->PostSendUpdate();
+
+	// Verify that the attachment has not been received.
+	UE_NET_ASSERT_NE(ClientMockNetObjectAttachmentHandler->GetFunctionCallCounts().OnNetBlobReceived, 1U);
+
+	// Verify that the object is not created.
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
+}
+
+UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestPendingCreateTearOffIsNotCancelledByEndReplication)
+{
+	FReplicationSystemTestClient* Client = CreateClient();
+	RegisterNetBlobHandlers(Client);
+
+	// Setup case where we have a new object for which we have an attachment which should execute a tearoff after we have confirmed creation
+	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
+	FNetRefHandle ObjectHandle = ServerObject->NetRefHandle;
+
+	// Create attachment
+	{
+		constexpr uint32 PayloadBitCount = 24;
+		const TRefCountPtr<FNetObjectAttachment>& Attachment = MockNetObjectAttachmentHandler->CreateReliableNetObjectAttachment(PayloadBitCount);
+		FNetObjectReference AttachmentTarget = FObjectReferenceCache::MakeNetObjectReference(ServerObject->NetRefHandle);
+		Server->GetReplicationSystem()->QueueNetObjectAttachment(Client->ConnectionIdOnServer, AttachmentTarget, Attachment);
+	}
+
+	// Request tearoff
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::TearOff);
+
+	// PreUpdate to update scoping to get the object into the PendingCreate state.
+	Server->PreSendUpdate();
+	Server->PostSendUpdate();
+
+	// This should be ignored as we are already pending tear off.
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::Destroy);
+
+	// Deliver a packet, this should flush the object and deliver the attachment
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, DeliverPacket);
+	Server->PostSendUpdate();
+
+	// Verify that the attachment has been received
+	UE_NET_ASSERT_EQ(ClientMockNetObjectAttachmentHandler->GetFunctionCallCounts().OnNetBlobReceived, 1U);
+
+	// Verify that object is created
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
+}
+
+UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestDroppedTearOffIsNotCancelledByEndReplication)
+{
+	FReplicationSystemTestClient* Client = CreateClient();
+	RegisterNetBlobHandlers(Client);
+
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, DeliverPacket);
+	Server->PostSendUpdate();
+
+	// Setup case where we have a new object for which we have an attachment which should execute a tearoff after we have confirmed creation
+	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
+	FNetRefHandle ObjectHandle = ServerObject->NetRefHandle;
+
+	// Create attachment
+	{
+		constexpr uint32 PayloadBitCount = 24;
+		const TRefCountPtr<FNetObjectAttachment>& Attachment = MockNetObjectAttachmentHandler->CreateReliableNetObjectAttachment(PayloadBitCount);
+		FNetObjectReference AttachmentTarget = FObjectReferenceCache::MakeNetObjectReference(ServerObject->NetRefHandle);
+		Server->GetReplicationSystem()->QueueNetObjectAttachment(Client->ConnectionIdOnServer, AttachmentTarget, Attachment);
+	}
+
+	// Request tearoff
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::TearOff);
+
+	// Send packet so that we have creationdata in flight
+	Server->PreSendUpdate();
+	Server->SendTo(Client);
+	Server->PostSendUpdate();
+
+	// Force destroy object already pending tearoff/flush. This should be ignored
+	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::Destroy);
+
+	// Drop and notify that the packet while object still is the state waitoncreateconfirmation as we have not yet updated scope.
+	Server->DeliverTo(Client, false);
+
+	// Deliver a packet, this should flush the object and deliver the attachment
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, DeliverPacket);
+	Server->PostSendUpdate();
+
+	// Verify that the attachment has been received
+	UE_NET_ASSERT_EQ(ClientMockNetObjectAttachmentHandler->GetFunctionCallCounts().OnNetBlobReceived, 1U);
+
+	// Deliver a packet. Should tear off the object on the client
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, DeliverPacket);
+	Server->PostSendUpdate();
+
+	// Verify that object is not findable
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle), nullptr);
 }
 
 UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestSubObjectStateFlushedBeforeOwnerDestroy)
@@ -809,7 +1282,7 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestCancelPendingDestroyWait
 	Server->PostSendUpdate();
 
 	// Filter out object to cause a flush for Client0
-	FNetObjectGroupHandle ExclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle ExclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(ExclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddExclusionFilterGroup(ExclusionGroupHandle);
 

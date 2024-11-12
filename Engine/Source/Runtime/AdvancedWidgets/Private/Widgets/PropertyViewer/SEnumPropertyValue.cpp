@@ -71,23 +71,17 @@ int32 SEnumPropertyValue::GetCurrentValue() const
 {
 	if (const UEnum* EnumPtr = EnumType.Get())
 	{
-		int64 CurrentValue = INDEX_NONE;
-		if (const FNumericProperty* NumericProperty = CastField<const FNumericProperty>(Path.GetLastProperty()))
+		if (const void* Container = Path.GetContainerPtr())
 		{
-			if (const void* Container = Path.GetContainerPtr())
+			if (const FNumericProperty* NumericProperty = CastField<const FNumericProperty>(Path.GetLastProperty()))
 			{
-				CurrentValue = NumericProperty->GetSignedIntPropertyValue(NumericProperty->ContainerPtrToValuePtr<const void*>(Container));
+					return NumericProperty->GetSignedIntPropertyValue(NumericProperty->ContainerPtrToValuePtr<const void*>(Container));
+			}
+			else if (const FEnumProperty* EnumProperty = CastField<const FEnumProperty>(Path.GetLastProperty()))
+			{
+				return EnumProperty->GetUnderlyingProperty()->GetSignedIntPropertyValue(EnumProperty->ContainerPtrToValuePtr<const void*>(Container));
 			}
 		}
-		else if (const FEnumProperty* EnumProperty = CastField<const FEnumProperty>(Path.GetLastProperty()))
-		{
-			if (const void* Container = Path.GetContainerPtr())
-			{
-				CurrentValue = EnumProperty->GetUnderlyingProperty()->GetSignedIntPropertyValue(EnumProperty->ContainerPtrToValuePtr<const void*>(Container));
-			}
-		}
-
-		return CurrentValue;
 	}
 	return 0;
 }
@@ -141,10 +135,10 @@ void SEnumPropertyValue::SetEnumEntry(int32 Index)
 {
 	if (const UEnum* EnumPtr = EnumType.Get())
 	{
-		int64 NewValue = EnumPtr->GetValueByIndex(Index);
-		if (const FNumericProperty* NumericProperty = CastField<const FNumericProperty>(Path.GetLastProperty()))
+		if (void* Container = Path.GetContainerPtr())
 		{
-			if (void* Container = Path.GetContainerPtr())
+			int64 NewValue = EnumPtr->GetValueByIndex(Index);
+			if (const FNumericProperty* NumericProperty = CastField<const FNumericProperty>(Path.GetLastProperty()))
 			{
 				if (NotifyHook)
 				{
@@ -156,20 +150,17 @@ void SEnumPropertyValue::SetEnumEntry(int32 Index)
 					NotifyHook->OnPostValueChange(Path);
 				}
 			}
-		}
-		else if (const FEnumProperty* EnumProperty = CastField<const FEnumProperty>(Path.GetLastProperty()))
-		{
-			if (void* Container = Path.GetContainerPtr())
+			else if (const FEnumProperty* EnumProperty = CastField<const FEnumProperty>(Path.GetLastProperty()))
 			{
 				if (NotifyHook)
 				{
 					NotifyHook->OnPreValueChange(Path);
 				}
 				EnumProperty->GetUnderlyingProperty()->SetIntPropertyValue(EnumProperty->ContainerPtrToValuePtr<const void*>(Container), NewValue);
-				 if (NotifyHook)
-				 {
-					 NotifyHook->OnPostValueChange(Path);
-				 }
+				if (NotifyHook)
+				{
+					NotifyHook->OnPostValueChange(Path);
+				}
 			}
 		}
 	}

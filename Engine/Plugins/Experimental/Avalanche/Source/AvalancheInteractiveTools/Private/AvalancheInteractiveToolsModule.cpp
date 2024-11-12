@@ -102,12 +102,6 @@ void FAvalancheInteractiveToolsModule::RegisterTool(FName InCategory, FAvaIntera
 		return;
 	}
 
-	if (InToolParams.Factory)
-	{
-		// Hotfix-version of the GC fix. Not permanent.
-		InToolParams.Factory->AddToRoot();
-	}
-
 	Tools[InCategory].Add(MoveTemp(InToolParams));
 
 	using namespace UE::AvaInteractiveTools::Private;
@@ -136,6 +130,26 @@ const TArray<FAvaInteractiveToolsToolParameters>* FAvalancheInteractiveToolsModu
 bool FAvalancheInteractiveToolsModule::HasActiveTool() const
 {
 	return bHasActiveTool;
+}
+
+void FAvalancheInteractiveToolsModule::AddReferencedObjects(FReferenceCollector& InCollector)
+{
+	for (TPair<FName, TArray<FAvaInteractiveToolsToolParameters>>& CategoryPair : Tools)
+	{
+		for (FAvaInteractiveToolsToolParameters& ToolParams : CategoryPair.Value)
+		{
+			if (ToolParams.Factory)
+			{
+				InCollector.AddReferencedObject<UActorFactory>(ToolParams.Factory);
+			}
+		}
+	}
+}
+
+FString FAvalancheInteractiveToolsModule::GetReferencerName() const
+{
+	static const FString ReferencerName = "AvaITFModule";
+	return ReferencerName;
 }
 
 void FAvalancheInteractiveToolsModule::OnToolActivated()
@@ -187,9 +201,9 @@ void FAvalancheInteractiveToolsModule::BroadcastRegisterCategories()
 
 void FAvalancheInteractiveToolsModule::RegisterDefaultCategories()
 {
-	RegisterCategory(CategoryName2D, FAvaInteractiveToolsCommands::Get().Category_2D, 41);
-	RegisterCategory(CategoryName3D, FAvaInteractiveToolsCommands::Get().Category_3D, 42);
-	RegisterCategory(CategoryNameActor, FAvaInteractiveToolsCommands::Get().Category_Actor, 43);
+	RegisterCategory(CategoryName2D,     FAvaInteractiveToolsCommands::Get().Category_2D, 41);
+	RegisterCategory(CategoryName3D,     FAvaInteractiveToolsCommands::Get().Category_3D, 42);
+	RegisterCategory(CategoryNameActor,  FAvaInteractiveToolsCommands::Get().Category_Actor, 43);
 }
 
 void FAvalancheInteractiveToolsModule::BroadcastRegisterTools()
@@ -245,8 +259,8 @@ void FAvalancheInteractiveToolsModule::OnPlacementCategoryRefreshed(FName InCate
 		if (Tool.Factory)
 		{
 			PlaceableItem = MakeShared<FPlaceableItem>(
-				Tool.Factory,
-				FAssetData(Tool.Factory->NewActorClass->GetDefaultObject()),
+				Tool.Factory.Get(),
+				FAssetData(Tool.Factory->NewActorClass.GetDefaultObject()),
 				Tool.Priority
 			);
 		}
@@ -254,7 +268,7 @@ void FAvalancheInteractiveToolsModule::OnPlacementCategoryRefreshed(FName InCate
 		{
 			PlaceableItem = MakeShared<FPlaceableItem>(
 				*Tool.FactoryClass.Get(),
-				FAssetData(Tool.FactoryClass.Get()),
+				FAssetData(Tool.FactoryClass.Get()->GetDefaultObject()),
 				NAME_None,
 				NAME_None,
 				TOptional<FLinearColor>(),

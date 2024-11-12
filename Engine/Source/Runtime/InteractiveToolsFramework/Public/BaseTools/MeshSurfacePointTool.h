@@ -153,5 +153,8 @@ protected:
 
 	UPROPERTY()
 	TWeakObjectPtr<UWorld> TargetWorld = nullptr;
+
+	static constexpr int ShiftModifier = 1;
+	static constexpr int CtrlModifier = 2;
 };
 

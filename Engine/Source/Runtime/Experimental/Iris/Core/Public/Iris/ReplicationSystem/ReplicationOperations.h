@@ -47,6 +47,9 @@ struct FReplicationStateOperations
 	/** Compare two quantized states return false if they are different */
 	static IRISCORE_API bool IsEqualQuantizedState(FNetSerializationContext& Context, const uint8* RESTRICT Source0, const uint8* RESTRICT Source1, const FReplicationStateDescriptor* Descriptor);
 
+	/** Debug method to output the per member defaultstate hash */
+	static IRISCORE_API void OutputDefaultStateMembersHashToString(UReplicationSystem* ReplicationSystem, FStringBuilderBase& StringBuilder, const FReplicationStateDescriptor* Descriptor);
+
 	/** Serialize a Replication state from internal buffer to BitStream */
 	static IRISCORE_API void Serialize(FNetSerializationContext& Context, const uint8* RESTRICT SrcInternalBuffer, const FReplicationStateDescriptor* Descriptor);
 
@@ -114,6 +117,10 @@ struct FReplicationInstanceOperations
 
 	/** Dequantize the default state for a replicated object with a given protocol and output the state to string. */
 	static IRISCORE_API void OutputInternalDefaultStateToString(FNetSerializationContext& NetSerializationContext, FStringBuilderBase& StringBuilder, const FReplicationFragments& Fragments);
+
+	/** Serialize and output per member default state hashes to string. */
+	static IRISCORE_API void OutputInternalDefaultStateMemberHashesToString(UReplicationSystem* ReplicationSystem, FStringBuilderBase& StringBuilder, const FReplicationFragments& Fragments);
+
 };
 
 struct FReplicationProtocolOperations

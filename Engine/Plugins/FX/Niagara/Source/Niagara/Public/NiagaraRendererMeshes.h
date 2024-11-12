@@ -35,7 +35,7 @@ public:
 	NIAGARA_API virtual int32 GetDynamicDataSize()const override;
 	NIAGARA_API virtual bool IsMaterialValid(const UMaterialInterface* Mat)const override;
 #if RHI_RAYTRACING
-	NIAGARA_API virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances, const FNiagaraSceneProxy* Proxy) final override;
+	NIAGARA_API virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector, const FNiagaraSceneProxy* Proxy) final override;
 #endif
 	//FNiagaraRenderer Interface END
 
@@ -129,8 +129,8 @@ protected:
 		virtual ~FGPUSceneUpdateResource() {}
 	};
 
-	NIAGARA_API void PrepareParticleMeshRenderData(FParticleMeshRenderData& ParticleMeshRenderData, const FSceneViewFamily& ViewFamily, FMeshElementCollector& Collector, FNiagaraDynamicDataBase* InDynamicData, const FNiagaraSceneProxy* SceneProxy, bool bRayTracing, ENiagaraGpuComputeTickStage::Type GpuReadyTickStage) const;
-	NIAGARA_API bool CalculateMeshUsed(FParticleMeshRenderData& ParticleMeshRenderData) const;
+	NIAGARA_API void PrepareParticleMeshRenderData(FRHICommandListBase& RHICmdList, FParticleMeshRenderData& ParticleMeshRenderData, const FSceneViewFamily& ViewFamily, FMeshElementCollector& Collector, FNiagaraDynamicDataBase* InDynamicData, const FNiagaraSceneProxy* SceneProxy, bool bRayTracing, ENiagaraGpuComputeTickStage::Type GpuReadyTickStage) const;
+	NIAGARA_API bool CalculateMeshUsed(FRHICommandListBase& RHICmdList, FParticleMeshRenderData& ParticleMeshRenderData) const;
 	NIAGARA_API void PrepareParticleRenderBuffers(FRHICommandListBase& RHICmdList, FParticleMeshRenderData& ParticleMeshRenderData, FGlobalDynamicReadBuffer& DynamicReadBuffer) const;
 	NIAGARA_API void InitializeSortInfo(const FParticleMeshRenderData& ParticleMeshRenderData, const FNiagaraSceneProxy& SceneProxy, const FSceneView& View, int32 ViewIndex, bool bIsInstancedStereo, FNiagaraGPUSortInfo& OutSortInfo) const;
 	NIAGARA_API void PreparePerMeshData(FParticleMeshRenderData& ParticleMeshRenderData, const FNiagaraMeshVertexFactory& VertexFactory, const FNiagaraSceneProxy& SceneProxy, const FMeshData& MeshData) const;

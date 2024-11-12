@@ -8,7 +8,9 @@
 class STableViewBase;
 class UStateTreeState;
 enum class EStateTreeTransitionTrigger : uint8;
+enum EStateTreeNodeFormatting : uint8;
 struct FStateTreeStateLink;
+struct FStateTreeEditorNode;
 
 class UStateTreeEditorData;
 class SStateTreeView;
@@ -29,14 +31,17 @@ public:
 	void RequestRename() const;
 
 private:
-	TSharedRef<SHorizontalBox> CreateTasksWidget();
+	TSharedRef<SWidget> MakeTasksWidget(const TSharedPtr<SScrollBox>& ViewBox);
+	TSharedRef<SWidget> MakeConditionsWidget(const TSharedPtr<SScrollBox>& ViewBox);
 
-	FSlateColor GetTitleColor() const;
+	FSlateColor GetTitleColor(const float Alpha = 1.0f, const float Lighten = 0.0f) const;
 	FSlateColor GetActiveStateColor() const;
-	FSlateColor GetSubTreeMarkerColor() const;
 	FText GetStateDesc() const;
 	FText GetStateIDDesc() const;
 
+	FSlateColor GetSubTreeMarkerColor() const;
+	EVisibility GetSubTreeVisibility() const;
+	
 	EVisibility GetConditionVisibility() const;
 	EVisibility GetStateBreakpointVisibility() const;
 	FText GetStateBreakpointTooltipText() const;
@@ -45,34 +50,31 @@ private:
 	FText GetSelectorTooltip() const;
 	FText GetStateTypeTooltip() const;
 
-	EVisibility GetTasksVisibility() const;
+	const FStateTreeEditorNode* GetTaskNodeByID(FGuid TaskID) const;
+	EVisibility GetTaskIconVisibility(FGuid TaskID) const;
+	const FSlateBrush* GetTaskIcon(FGuid TaskID) const;
+	FSlateColor GetTaskIconColor(FGuid TaskID) const;
+	FText GetTaskDesc(FGuid TaskID, EStateTreeNodeFormatting Formatting) const;
 
+	const FStateTreeEditorNode* GetConditionNodeByID(FGuid ConditionID) const;
+	EVisibility GetConditionIconVisibility(FGuid ConditionID) const;
+	const FSlateBrush* GetConditionIcon(FGuid ConditionID) const;
+	FSlateColor GetConditionIconColor(FGuid ConditionID) const;
+	FText GetConditionDesc(FGuid ConditionID, EStateTreeNodeFormatting Formatting) const;
+
+	FText GetOperandText(const int32 ConditionIndex) const;
+	FText GetOpenParens(const int32 ConditionIndex) const;
+	FText GetCloseParens(const int32 ConditionIndex) const;
+	
 	EVisibility GetLinkedStateVisibility() const;
 	FText GetLinkedStateDesc() const;
 
-	EVisibility GetCompletedTransitionVisibility() const;
-	EVisibility GetCompletedTransitionBreakpointVisibility() const;
-	FText GetCompletedTransitionsDesc() const;
-	FText GetCompletedTransitionWithBreakpointDesc() const;
-	FText GetCompletedTransitionsIcon() const;
+	bool GetStateWarnings(FText* OutText) const;
+	EVisibility GetWarningsVisibility() const;
+	FText GetWarningsTooltipText() const;
 
-	EVisibility GetSucceededTransitionVisibility() const;
-	EVisibility GetSucceededTransitionBreakpointVisibility() const;
-	FText GetSucceededTransitionDesc() const;
-	FText GetSucceededTransitionWithBreakpointDesc() const;
-	FText GetSucceededTransitionIcon() const;
-
-	EVisibility GetFailedTransitionVisibility() const;
-	EVisibility GetFailedTransitionBreakpointVisibility() const;
-	FText GetFailedTransitionDesc() const;
-	FText GetFailedTransitionWithBreakpointDesc() const;
-	FText GetFailedTransitionIcon() const;
-
-	EVisibility GetConditionalTransitionsVisibility() const;
-	EVisibility GetConditionalTransitionsBreakpointVisibility() const;
-	FText GetConditionalTransitionsDesc() const;
-	FText GetConditionalTransitionsWithBreakpointDesc() const;
-
+	EVisibility GetTransitionDashVisibility() const;
+	
 	enum class ETransitionDescRequirement : uint8
 	{
 		Any,
@@ -93,25 +95,30 @@ private:
 		bool bUseMask = false;
 	};
 
-	static FText GetLinkDescription(const FStateTreeStateLink& Link);
-	FText GetTransitionsDesc(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger, const FTransitionDescFilterOptions FilterOptions = {}) const;
-	FText GetTransitionsIcon(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger, const FTransitionDescFilterOptions FilterOptions = {}) const;
-	EVisibility GetTransitionsVisibility(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger) const;
-	EVisibility GetTransitionsBreakpointVisibility(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger) const;
+	TSharedRef<SWidget> MakeTransitionWidgets(const EStateTreeTransitionTrigger Trigger, const FTransitionDescFilterOptions FilterOptions = {});
+
+	FText GetLinkTooltip(const FStateTreeStateLink& Link, const FGuid NodeID) const;
+	FText GetTransitionsDesc(const EStateTreeTransitionTrigger Trigger, const FTransitionDescFilterOptions FilterOptions = {}) const;
+	const FSlateBrush* GetTransitionsIcon(const EStateTreeTransitionTrigger Trigger) const;
+	EVisibility GetTransitionsVisibility(const EStateTreeTransitionTrigger Trigger) const;
+	EVisibility GetTransitionsBreakpointVisibility(const EStateTreeTransitionTrigger Trigger) const;
 
 	bool HasParentTransitionForTrigger(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger) const;
 
 	bool IsRootState() const;
+	bool IsLeafState() const;
 	bool IsStateSelected() const;
 
+	bool HandleVerifyNodeLabelTextChanged(const FText& InText, FText& OutErrorMessage) const;
 	void HandleNodeLabelTextCommitted(const FText& NewLabel, ETextCommit::Type CommitType) const;
 
 	FReply HandleDragDetected(const FGeometry&, const FPointerEvent&) const;
+	void HandleDragLeave(const FDragDropEvent& DragDropEvent) const;
 	TOptional<EItemDropZone> HandleCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TWeakObjectPtr<UStateTreeState> TargetState) const;
 	FReply HandleAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TWeakObjectPtr<UStateTreeState> TargetState) const;
-	
+
 	TSharedPtr<FStateTreeViewModel> StateTreeViewModel;
 	TWeakObjectPtr<UStateTreeState> WeakState;
-	TWeakObjectPtr<UStateTreeEditorData> WeakTreeData;
+	TWeakObjectPtr<UStateTreeEditorData> WeakEditorData;
 	TSharedPtr<SInlineEditableTextBlock> NameTextBlock;
 };

@@ -18,25 +18,25 @@
 			"Name": "ChaosClothAssetEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
-			"PlatformAllowList": [ "Win64" ]
+			"PlatformAllowList": [ "Win64", "Mac", "Linux" ]
 		},
 		{
 			"Name": "ChaosClothAssetEditorTools",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
-			"PlatformAllowList": [ "Win64" ]
+			"PlatformAllowList": [ "Win64", "Mac", "Linux" ]
 		},
 		{
 			"Name": "ChaosClothAssetDataflowNodes",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
-			"PlatformAllowList": [ "Win64" ]
+			"PlatformAllowList": [ "Win64", "Mac", "Linux" ]
 		},
 		{
 			"Name": "ChaosClothAssetTools",
 			"Type": "UncookedOnly",
 			"LoadingPhase": "Default",
-			"PlatformAllowList": [ "Win64" ]
+			"PlatformAllowList": [ "Win64", "Mac", "Linux" ]
 		}
 	],
 	"Plugins": [
@@ -67,21 +67,10 @@
 			"Enabled": true
 		},
 		{
-			"Name": "DatasmithImporter",
-			"Enabled": true
-		},
-		{
-			"Name": "DatasmithCloTranslator",
-			"Enabled": true,
-			"SupportedTargetPlatforms": [
-				"Win64"
-			]
-		},
-		{
 			"Name": "USDImporter",
 			"Enabled": true,
 			"SupportedTargetPlatforms": [
-				"Win64"
+				"Win64", "Mac", "Linux"
 			]
 		}
 	]

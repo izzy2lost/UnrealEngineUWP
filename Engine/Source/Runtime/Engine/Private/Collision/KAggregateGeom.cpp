@@ -19,6 +19,7 @@
 #include "Chaos/Levelset.h"
 #include "PhysicsEngine/TaperedCapsuleElem.h"
 #include "Chaos/WeightedLatticeImplicitObject.h"
+#include "AutoRTFM/AutoRTFM.h"
 #if INTEL_ISPC
 #include "KAggregateGeom.ispc.generated.h"
 #endif
@@ -310,12 +311,16 @@ static bool EnsureHullIsValid(TArray<FVector>& InVerts)
 ///////////// FKShapeElem ////////////
 ///////////////////////////////////////
 
+FKShapeElem::~FKShapeElem() = default;
+
 EAggCollisionShape::Type FKShapeElem::StaticShapeType = EAggCollisionShape::Unknown;
 
 
 ///////////////////////////////////////
 ///////////// FKSphereElem ////////////
 ///////////////////////////////////////
+
+FKSphereElem::~FKSphereElem() = default;
 
 EAggCollisionShape::Type FKSphereElem::StaticShapeType = EAggCollisionShape::Sphere;
 
@@ -336,6 +341,8 @@ FBox FKSphereElem::CalcAABB(const FTransform& BoneTM, float Scale) const
 ////////////// FKBoxElem //////////////
 ///////////////////////////////////////
 
+FKBoxElem::~FKBoxElem() = default;
+
 EAggCollisionShape::Type FKBoxElem::StaticShapeType = EAggCollisionShape::Box;
 
 FBox FKBoxElem::CalcAABB(const FTransform& BoneTM, float Scale) const
@@ -344,16 +351,18 @@ FBox FKBoxElem::CalcAABB(const FTransform& BoneTM, float Scale) const
 	{
 #if INTEL_ISPC
 		FBox LocalBox(ForceInit);
-		ispc::BoxCalcAABB(
-			(ispc::FBox&)LocalBox,
-			(ispc::FTransform&)BoneTM,
-			Scale,
-			(ispc::FRotator&)Rotation,
-			(ispc::FVector&)Center,
-			X,
-			Y,
-			Z);
-
+		UE_AUTORTFM_OPEN
+		{
+			ispc::BoxCalcAABB(
+				reinterpret_cast<ispc::FBox&>(LocalBox),
+				reinterpret_cast<const ispc::FTransform&>(BoneTM),
+				Scale,
+				reinterpret_cast<const ispc::FRotator&>(Rotation),
+				reinterpret_cast<const ispc::FVector&>(Center),
+				X,
+				Y,
+				Z);
+		};
 		return LocalBox;
 #endif
 	}
@@ -375,6 +384,8 @@ FBox FKBoxElem::CalcAABB(const FTransform& BoneTM, float Scale) const
 ////////////// FKSphylElem ////////////
 ///////////////////////////////////////
 
+FKSphylElem::~FKSphylElem() = default;
+
 EAggCollisionShape::Type FKSphylElem::StaticShapeType = EAggCollisionShape::Sphyl;
 
 FBox FKSphylElem::CalcAABB(const FTransform& BoneTM, float Scale) const
@@ -383,15 +394,17 @@ FBox FKSphylElem::CalcAABB(const FTransform& BoneTM, float Scale) const
 	{
 #if INTEL_ISPC
 		FBox Result(ForceInit);
-		ispc::SPhylCalcAABB(
-			(ispc::FBox&)Result,
-			(ispc::FTransform&)BoneTM,
-			Scale,
-			(ispc::FRotator&)Rotation,
-			(ispc::FVector&)Center,
-			Radius,
-			Length);
-
+		UE_AUTORTFM_OPEN
+		{
+			ispc::SPhylCalcAABB(
+				reinterpret_cast<ispc::FBox&>(Result),
+				reinterpret_cast<const ispc::FTransform&>(BoneTM),
+				Scale,
+				reinterpret_cast<const ispc::FRotator&>(Rotation),
+				reinterpret_cast<const ispc::FVector&>(Center),
+				Radius,
+				Length);
+		};
 		return Result;
 #endif
 	}
@@ -460,6 +473,29 @@ void FKConvexElem::GetPlanes(TArray<FPlane>& Planes) const
 ///////////////////////////////////////
 //////// FKTaperedCapsuleElem /////////
 ///////////////////////////////////////
+
+FKTaperedCapsuleElem::FKTaperedCapsuleElem()
+: FKShapeElem(EAggCollisionShape::TaperedCapsule)
+, Center(FVector::ZeroVector)
+, Rotation(FRotator::ZeroRotator)
+, Radius0(1.0f)
+, Radius1(1.0f)
+, Length(1.0f)
+{
+}
+
+FKTaperedCapsuleElem::FKTaperedCapsuleElem( float InRadius0, float InRadius1, float InLength )
+: FKShapeElem(EAggCollisionShape::TaperedCapsule)
+, Center(FVector::ZeroVector)
+, Rotation(FRotator::ZeroRotator)
+, Radius0(InRadius0)
+, Radius1(InRadius1)
+, Length(InLength)
+{
+}
+
+FKTaperedCapsuleElem::FKTaperedCapsuleElem(const FKTaperedCapsuleElem&) = default;
+FKTaperedCapsuleElem::~FKTaperedCapsuleElem() = default;
 
 EAggCollisionShape::Type FKTaperedCapsuleElem::StaticShapeType = EAggCollisionShape::TaperedCapsule;
 

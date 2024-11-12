@@ -4,6 +4,8 @@
 
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
+#include "Presets/PropertyAnimatorCorePropertyPreset.h"
+#include "Styles/PropertyAnimatorCoreEditorStyle.h"
 #include "Subsystems/PropertyAnimatorCoreEditorSubsystem.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
 #include "ToolMenus.h"
@@ -19,7 +21,7 @@
 void FPropertyAnimatorCoreEditorDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& InDetailBuilder)
 {
 	const TSharedPtr<IPropertyHandle> LinkedPropertiesHandle = InDetailBuilder.GetProperty(
-		GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, LinkedProperties),
+		UPropertyAnimatorCoreBase::GetLinkedPropertiesPropertyName(),
 		UPropertyAnimatorCoreBase::StaticClass()
 	);
 
@@ -29,13 +31,15 @@ void FPropertyAnimatorCoreEditorDetailCustomization::CustomizeDetails(IDetailLay
 	}
 
 	TArray<TWeakObjectPtr<UPropertyAnimatorCoreBase>> AnimatorsWeak = InDetailBuilder.GetObjectsOfTypeBeingCustomized<UPropertyAnimatorCoreBase>();
+	UPropertyAnimatorCoreBase* Animator = AnimatorsWeak.IsValidIndex(0) ? AnimatorsWeak[0].Get() : nullptr;
 
-	if (AnimatorsWeak.Num() != 1 || !AnimatorsWeak[0].IsValid())
+	if (!Animator)
 	{
 		return;
 	}
 
-	AnimatorWeak = AnimatorsWeak[0].Get();
+	AnimatorWeak = Animator;
+
 	IDetailPropertyRow* PropertyRow = InDetailBuilder.EditDefaultProperty(LinkedPropertiesHandle);
 
 	if (!PropertyRow)
@@ -77,6 +81,21 @@ void FPropertyAnimatorCoreEditorDetailCustomization::CustomizeDetails(IDetailLay
 				SNew(SImage)
 				.DesiredSizeOverride(FVector2D(16.f))
 				.Image(FAppStyle::Get().GetBrush("Icons.Plus"))
+			]
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(2.f, 0.f)
+		[
+			SNew(SButton)
+			.ContentPadding(2.f)
+			.ButtonStyle(&FCoreStyle::Get().GetWidgetStyle<FButtonStyle>("Button"))
+			.ToolTipText(LOCTEXT("CreatePropertyPreset", "Create a preset from these properties"))
+			.OnClicked(this, &FPropertyAnimatorCoreEditorDetailCustomization::OnCreatePropertyPresetClicked)
+			[
+				SNew(SImage)
+				.DesiredSizeOverride(FVector2D(16.f))
+				.Image(FPropertyAnimatorCoreEditorStyle::Get().GetBrush("PropertyControlIcon.Export"))
 			]
 		];
 
@@ -236,6 +255,22 @@ FReply FPropertyAnimatorCoreEditorDetailCustomization::UnlinkProperties() const
 	{
 		const TSet<FPropertyAnimatorCoreData> LinkedProperties = Animator->GetLinkedProperties();
 		AnimatorSubsystem->UnlinkAnimatorProperties(Animator, LinkedProperties, true);
+	}
+
+	return FReply::Handled();
+}
+
+FReply FPropertyAnimatorCoreEditorDetailCustomization::OnCreatePropertyPresetClicked() const
+{
+	UPropertyAnimatorCoreBase* Animator = AnimatorWeak.Get();
+	if (!Animator)
+	{
+		return FReply::Handled();
+	}
+
+	if (UPropertyAnimatorCoreEditorSubsystem* AnimatorEditorSubsystem = UPropertyAnimatorCoreEditorSubsystem::Get())
+	{
+		AnimatorEditorSubsystem->CreatePresetAsset(UPropertyAnimatorCorePropertyPreset::StaticClass(), TArray<IPropertyAnimatorCorePresetable*>{Animator->GetLinkedPropertiesContext()});
 	}
 
 	return FReply::Handled();

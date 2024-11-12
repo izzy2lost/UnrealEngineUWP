@@ -148,7 +148,9 @@ void FNiagaraGPUInstanceCountManager::ReleaseCounts()
 
 uint32 FNiagaraGPUInstanceCountManager::AcquireEntry()
 {
-	checkSlow(IsInRenderingThread());
+	check(IsInParallelRenderingThread());
+
+	UE::TScopeLock LockGuard(AcquireEntryGuard);
 
 	if (FreeEntries.Num())
 	{
@@ -161,16 +163,13 @@ uint32 FNiagaraGPUInstanceCountManager::AcquireEntry()
 	}
 	else
 	{
-		// @TODO : add realloc the buffer and copy the current content to it. Might require reallocating the readback in FNiagaraGPUInstanceCountManager::EnqueueGPUReadback()
-		ensure(UsedInstanceCounts < AllocatedInstanceCounts);
-		//UE_LOG(LogNiagara, Error, TEXT("Niagara.MinGPUInstanceCount too small. UsedInstanceCounts: %d < AllocatedInstanceCounts: %d"), UsedInstanceCounts, AllocatedInstanceCounts);
 		return INDEX_NONE;
 	}
 }
 
 uint32 FNiagaraGPUInstanceCountManager::AcquireOrAllocateEntry(FRHICommandListImmediate& RHICmdList)
 {
-	checkSlow(IsInRenderingThread());
+	check(IsInRenderingThread());
 
 	// Free entries?
 	if (FreeEntries.Num())
@@ -191,7 +190,7 @@ uint32 FNiagaraGPUInstanceCountManager::AcquireOrAllocateEntry(FRHICommandListIm
 
 void FNiagaraGPUInstanceCountManager::FreeEntry(uint32& BufferOffset)
 {
-	checkSlow(IsInRenderingThread());
+	check(IsInRenderingThread());
 
 	if (BufferOffset != INDEX_NONE)
 	{
@@ -205,7 +204,7 @@ void FNiagaraGPUInstanceCountManager::FreeEntry(uint32& BufferOffset)
 
 void FNiagaraGPUInstanceCountManager::FreeEntryArray(TConstArrayView<uint32> EntryArray)
 {
-	checkSlow(IsInRenderingThread());
+	check(IsInRenderingThread());
 
 	const int32 NumToFree = EntryArray.Num();
 	if (NumToFree > 0)
@@ -223,6 +222,8 @@ void FNiagaraGPUInstanceCountManager::FreeEntryArray(TConstArrayView<uint32> Ent
 
 FRWBuffer* FNiagaraGPUInstanceCountManager::AcquireCulledCountsBuffer(FRHICommandListImmediate& RHICmdList)
 {
+	check(IsInRenderingThread());
+
 	if (RequiredCulledCounts > 0)
 	{
 		if (!bAcquiredCulledCounts)
@@ -317,13 +318,15 @@ void FNiagaraGPUInstanceCountManager::ResizeBuffers(FRHICommandListImmediate& RH
 
 void FNiagaraGPUInstanceCountManager::FlushIndirectArgsPool(FRHICommandListBase& RHICmdList)
 {
+	check(IsInRenderingThread());
+
 	// Cull indirect draw pool entries so that we only keep the last pool
 	while (DrawIndirectPool.Num() > 1)
 	{
 		FIndirectArgsPoolEntryPtr& PoolEntry = DrawIndirectPool[0];
 		PoolEntry->Buffer.Release();
 
-		DrawIndirectPool.RemoveAt(0, 1, EAllowShrinking::No);
+		DrawIndirectPool.RemoveAt(0, EAllowShrinking::No);
 	}
 
 	// If shrinking is allowed and we've been under the low water mark
@@ -348,7 +351,7 @@ void FNiagaraGPUInstanceCountManager::FlushIndirectArgsPool(FRHICommandListBase&
 
 FNiagaraGPUInstanceCountManager::FIndirectArgSlot FNiagaraGPUInstanceCountManager::AddDrawIndirect(FRHICommandListBase& RHICmdList, uint32 InstanceCountBufferOffset, uint32 NumIndicesPerInstance, uint32 StartIndexLocation, bool bIsInstancedStereoEnabled, bool bCulled, ENiagaraGpuComputeTickStage::Type ReadyTickStage)
 {
-
+	UE::TScopeLock Lock(AddDrawIndirectGuard);
 
 	const ENiagaraDrawIndirectArgGenTaskFlags TaskFlags =
 		(bIsInstancedStereoEnabled ? ENiagaraDrawIndirectArgGenTaskFlags::InstancedStereo : ENiagaraDrawIndirectArgGenTaskFlags::None)
@@ -395,6 +398,8 @@ FNiagaraGPUInstanceCountManager::FIndirectArgSlot FNiagaraGPUInstanceCountManage
 
 void FNiagaraGPUInstanceCountManager::UpdateDrawIndirectBuffers(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface, FRHICommandList& RHICmdList, ENiagaraGPUCountUpdatePhase::Type CountPhase)
 {
+	check(IsInRenderingThread());
+
 	// Anything to process?
 	TArray<FNiagaraDrawIndirectArgGenTaskInfo>& ArgTasks = DrawIndirectArgGenTasks[CountPhase];
 	const bool bClearCounts = (CountPhase == ENiagaraGPUCountUpdatePhase::PreOpaque) && (InstanceCountClearTasks.Num() > 0) && ComputeDispatchInterface->IsFirstViewFamily();
@@ -613,6 +618,8 @@ void FNiagaraGPUInstanceCountManager::UpdateDrawIndirectBuffers(FNiagaraGpuCompu
 
 const uint32* FNiagaraGPUInstanceCountManager::GetGPUReadback()
 {
+	check(IsInRenderingThread());
+
 	if (CountReadback && CountReadbackSize && CountReadback->IsReady())
 	{
 		SCOPE_CYCLE_COUNTER(STAT_NiagaraGPUReadbackLock);
@@ -626,6 +633,7 @@ const uint32* FNiagaraGPUInstanceCountManager::GetGPUReadback()
 
 void FNiagaraGPUInstanceCountManager::ReleaseGPUReadback()
 {
+	check(IsInRenderingThread());
 	check(CountReadback && CountReadbackSize);
 	CountReadback->Unlock();
 	// Readback can only ever be done once, to prevent misusage with index lifetime
@@ -634,6 +642,7 @@ void FNiagaraGPUInstanceCountManager::ReleaseGPUReadback()
 
 void FNiagaraGPUInstanceCountManager::EnqueueGPUReadback(FRHICommandListImmediate& RHICmdList)
 {
+	check(IsInRenderingThread());
 	if (UsedInstanceCounts > 0 && (UsedInstanceCounts != FreeEntries.Num()))
 	{
 		if (!CountReadback)
@@ -649,11 +658,13 @@ void FNiagaraGPUInstanceCountManager::EnqueueGPUReadback(FRHICommandListImmediat
 
 bool FNiagaraGPUInstanceCountManager::HasPendingGPUReadback() const
 {
+	check(IsInRenderingThread());
 	return CountReadback && CountReadbackSize;
 }
 
 void FNiagaraGPUInstanceCountManager::CopyToMultiViewCountBuffer(FRHICommandListImmediate& RHICmdList)
 {
+	check(IsInRenderingThread());
 	if (AllocatedInstanceCounts > 0)
 	{
 		// Need to copy on all GPUs
@@ -678,3 +689,73 @@ void FNiagaraGPUInstanceCountManager::CopyToMultiViewCountBuffer(FRHICommandList
 	}
 }
 
+
+void FNiagaraGPUInstanceCountManager::ProcessInitInstanceCountTasks(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface, FRHICommandList& RHICmdList)
+{
+	if(InstanceCountInitTasks.NumBytes() == 0)
+	{
+		return;
+	}
+
+	SCOPED_DRAW_EVENT(RHICmdList, NiagaraProcessInitInstanceCountTasks);
+
+	const int32 NumTasks = InstanceCountInitTasks.Num() / 2;
+
+	// Allocate task buffer
+	FReadBuffer TaskInfosBuffer;
+	{
+		const uint32 TaskBufferSize = InstanceCountInitTasks.Num() * sizeof(uint32);
+		TaskInfosBuffer.Initialize(RHICmdList, TEXT("NiagaraInitCountsTaskInfosBuffer"), sizeof(uint32), InstanceCountInitTasks.Num(), EPixelFormat::PF_R32_UINT, BUF_Volatile);
+
+		uint8* TaskBufferData = (uint8*)RHICmdList.LockBuffer(TaskInfosBuffer.Buffer, 0, TaskBufferSize, RLM_WriteOnly);
+		FMemory::Memcpy(TaskBufferData, InstanceCountInitTasks.GetData(), TaskBufferSize);
+		RHICmdList.UnlockBuffer(TaskInfosBuffer.Buffer);
+	}
+
+	FNiagaraEmptyUAVPoolScopedAccess UAVPoolAccessScope(ComputeDispatchInterface->GetEmptyUAVPool());
+	TArray<FRHITransitionInfo, TInlineAllocator<10>> Transitions;
+	Transitions.Reserve(1);
+	FRWBuffer& CurrentCountBuffer = CountBuffer;
+
+	// Get counts buffer
+	FUnorderedAccessViewRHIRef CountsUAV = nullptr;
+	const bool bCountBufferIsValid = CurrentCountBuffer.UAV.IsValid();
+	if (bCountBufferIsValid)
+	{
+		// treat the incoming UAV as being unknown to be sure a barrier is inserted in the case
+		// where the preceding dispatch wrote to the counts buffer
+		Transitions.Emplace(CurrentCountBuffer.UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
+		CountsUAV = CurrentCountBuffer.UAV;
+	}
+	else
+	{
+		// This can happen if there are no InstanceCountClearTasks and all DrawIndirectArgGenTasks_PreOpaque are using culled counts
+		CountsUAV = ComputeDispatchInterface->GetEmptyUAVFromPool(RHICmdList, PF_R32_UINT, ENiagaraEmptyUAVType::Buffer);
+	}
+
+	RHICmdList.Transition(Transitions);
+
+
+	FNiagaraInstanceCountsInitCS::FParameters InitCountParameters;
+	InitCountParameters.TaskInfos = TaskInfosBuffer.SRV;
+	InitCountParameters.RWInstanceCounts = CountsUAV;
+	InitCountParameters.TaskCount.X = NumTasks;
+	
+
+	FNiagaraInstanceCountsInitCS::FPermutationDomain PermutationVectorResetCounts;
+	TShaderMapRef<FNiagaraInstanceCountsInitCS> InitCountsCS(GetGlobalShaderMap(FeatureLevel), PermutationVectorResetCounts);
+	FComputeShaderUtils::Dispatch(RHICmdList, InitCountsCS, InitCountParameters, FIntVector(FMath::DivideAndRoundUp(NumTasks, NIAGARA_DRAW_INDIRECT_ARGS_GEN_THREAD_COUNT), 1, 1));
+
+	// Generate and execute transitions
+	Transitions.Reset();
+	Transitions.Emplace(CurrentCountBuffer.UAV, ERHIAccess::UAVCompute, kCountBufferDefaultState);
+	RHICmdList.Transition(Transitions);
+
+	InstanceCountInitTasks.Reset();
+}
+
+void FNiagaraGPUInstanceCountManager::AddInstanceCountInitTask(uint32 Offset, uint32 Value)
+{
+ 	InstanceCountInitTasks.Emplace(Offset);
+ 	InstanceCountInitTasks.Emplace(Value);
+}

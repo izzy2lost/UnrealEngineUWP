@@ -82,7 +82,10 @@ public:
 		// This will make the window and show it.
 		FSlateApplication::Get().AddWindow(NewWindow, true);
 
+		// Fullscreen support for Mac causes a lock up. Disabling until it gets fixed.
+#if !PLATFORM_MAC
 		NewWindow->SetWindowMode(EWindowMode::Type::WindowedFullscreen);
+#endif
 
 		Window = NewWindow;
 
@@ -113,7 +116,7 @@ UAvaBroadcastDisplayMediaCapture::~UAvaBroadcastDisplayMediaCapture()
 	delete CaptureInstance;
 }
 
-void UAvaBroadcastDisplayMediaCapture::OnRHIResourceCaptured_RenderingThread(const FCaptureBaseData& InBaseData, TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, FTextureRHIRef InTexture)
+void UAvaBroadcastDisplayMediaCapture::OnRHIResourceCaptured_RenderingThread(FRHICommandListImmediate& RHICmdList, const FCaptureBaseData& InBaseData, TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, FTextureRHIRef InTexture)
 {
 	FScopeLock ScopeLock(&CaptureInstanceCriticalSection);
 	if (CaptureInstance)
@@ -137,7 +140,6 @@ void UAvaBroadcastDisplayMediaCapture::OnRHIResourceCaptured_RenderingThread(con
 
 		if (Target.IsValid())
 		{
-			FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 			UE::AvaBroadcastRenderTargetMediaUtils::CopyTexture(RHICmdList, InTexture, Target);
 		}
 	}
@@ -151,7 +153,7 @@ bool UAvaBroadcastDisplayMediaCapture::InitializeCapture()
 bool UAvaBroadcastDisplayMediaCapture::PostInitializeCaptureViewport(TSharedPtr<FSceneViewport>& InSceneViewport)
 {
 	bool bSuccess = false;
-	const FTexture2DRHIRef& BackBuffer = InSceneViewport->GetRenderTargetTexture();
+	const FTextureRHIRef& BackBuffer = InSceneViewport->GetRenderTargetTexture();
 	if (BackBuffer.IsValid())
 	{
 		const FRHITextureDesc& Desc = BackBuffer->GetDesc();

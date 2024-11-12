@@ -3,6 +3,7 @@
 #pragma once
 
 #include "InterchangeGenericAssetsPipelineSharedSettings.h"
+#include "InterchangeMeshDefinitions.h"
 #include "InterchangePipelineBase.h"
 #include "InterchangeSourceData.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
@@ -30,6 +31,8 @@ class INTERCHANGEPIPELINES_API UInterchangeGenericMeshPipeline : public UInterch
 	GENERATED_BODY()
 
 public:
+	//IInterchangeGenericPipelineCategoryInterface
+	static FString GetPipelineCategory(UClass* AssetClass);
 
 	//Common Meshes Properties Settings Pointer
 	UPROPERTY(Transient)
@@ -50,14 +53,25 @@ public:
 	bool bCombineStaticMeshes = false;
 
 	/** The LOD group that will be assigned to this mesh. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta=(DisplayName="LOD Group"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta=(DisplayName = "LOD Group"), meta = (ReimportRestrict = "true"))
 	FName LodGroup = NAME_None;
+
+	/** If enabled, LOD Screen Sizes would be auto-computed. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta=(ReimportRestrict = "true"))
+	bool bAutoComputeLODScreenSizes = true;
+
+	/** This setting is only used if the Auto Compute LOD Screen Sizes setting is disabled. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta=(EditCondition = "!bAutoComputeLODScreenSizes", DisplayName = "LOD Screen Sizes", ReimportRestrict="true"))
+	TArray<float> LODScreenSizes;
+
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use Collision instead."))
+	bool bImportCollision_DEPRECATED = true;
 
 	/** If enabled, custom collision will be imported. If enabled and there is no custom collision, a generic collision will be automatically generated.
 	 * If disabled, no collision will be created or imported.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta = (SubCategory = "Collision"))
-	bool bImportCollision = true;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta = (DisplayName = "Import Collisions", SubCategory = "Collision"))
+	bool bCollision = true;
 
 	/**
 	 * If enabled, meshes with certain prefixes will be imported as collision primitives for the mesh with the corresponding unprefixed name.
@@ -68,26 +82,30 @@ public:
 	 * USP_ Sphere collision
 	 * UCX_ Convex collision
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta = (SubCategory = "Collision", editcondition = "bImportCollision"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta = (DisplayName = "Import Collisions According To Mesh Name", SubCategory = "Collision", editcondition = "bCollision == true"))
 	bool bImportCollisionAccordingToMeshName = true;
 
 	/** If enabled, each UCX collision mesh will be imported as a single convex hull. If disabled, a UCX mesh will be decomposed into its separate pieces and a convex hull generated for each. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta = (SubCategory = "Collision", editcondition = "bImportCollision && bImportCollisionAccordingToMeshName"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta = (SubCategory = "Collision", editcondition = "bCollision == true && bImportCollisionAccordingToMeshName"))
 	bool bOneConvexHullPerUCX = true;
+
+	/** Type used to generate a collision when no custom collisions are present in the file. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta = (ScriptName = "FallbackCollisionType", DisplayName = "Fallback Collision Type", SubCategory = "Collision", editcondition = "bCollision == true"))
+	EInterchangeMeshCollision Collision = EInterchangeMeshCollision::Convex18DOP;
 
 	//////	Static Meshes Build settings Properties //////
 
 	/** If enabled, imported meshes will be rendered by Nanite at runtime. Make sure your meshes and materials meet the requirements for Nanite. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta = (SubCategory = "Build"))
-	bool bBuildNanite = false;
+	bool bBuildNanite = true;
 
 	/** If enabled, builds a reversed index buffer for each static mesh. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta = (SubCategory = "Build"))
-	bool bBuildReversedIndexBuffer = true;
+	bool bBuildReversedIndexBuffer = false;
 	
 	/** If enabled, generates lightmap UVs for each static mesh. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta = (SubCategory = "Build"))
-	bool bGenerateLightmapUVs = true;
+	bool bGenerateLightmapUVs = false;
 	
 	/** 
 	 * Determines whether to generate the distance field treating every triangle hit as a front face.  
@@ -152,13 +170,32 @@ public:
 	UPROPERTY()
 	EInterchangeSkeletalMeshContentType LastSkeletalMeshImportContentType;
 
+	UE_DEPRECATED(5.5, "bCombineSkeletalMeshes is no longer used")
+	UFUNCTION(BlueprintGetter, meta = (DeprecatedFunction, DeprecationMessage = "bCombineSkeletalMeshes is no longer used"))
+	bool GetCombineSkeletalMeshes() const
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return bCombineSkeletalMeshes_DEPRECATED;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	UE_DEPRECATED(5.5, "bCombineSkeletalMeshes is no longer used")
+	UFUNCTION(BlueprintSetter, meta = (DeprecatedFunction, DeprecationMessage = "bCombineSkeletalMeshes is no longer used"))
+	void SetCombineSkeletalMeshes(bool InbCombineSkeletalMeshes) {}
+
 	/** If enabled, all skinned mesh nodes that belong to the same skeleton root joint are combined into a single skeletal mesh. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Meshes")
-	bool bCombineSkeletalMeshes = true;
+	UE_DEPRECATED(5.5, "Please do not access this member. It will be remove in the next version.")
+	UPROPERTY(BlueprintReadWrite, BlueprintGetter = GetCombineSkeletalMeshes, BlueprintSetter = SetCombineSkeletalMeshes, Category = "Skeletal Meshes")
+	bool bCombineSkeletalMeshes_DEPRECATED = true;
+
 
 	/** If enabled, imports all morph target shapes found in the source. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Meshes")
 	bool bImportMorphTargets = true;
+
+	/** If enabled, all morph target shapes with the same name will be merge together. Turn it to false if you want to control those morph with different values. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Meshes", meta = (EditCondition = "bImportMorphTargets"))
+	bool bMergeMorphTargetsWithSameName = true;
 
 	/** If enabled, imports per-vertex attributes from the FBX file. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Meshes", meta = (ToolTip = "If enabled, creates named vertex attributes for secondary vertex color data."))
@@ -204,18 +241,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Meshes", meta = (SubCategory = "Build"))
 	int32 BoneInfluenceLimit = 0;
 
-	virtual void AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset) override;
+	virtual void AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams) override;
 
 	virtual void PreDialogCleanup(const FName PipelineStackName) override;
 
 #if WITH_EDITOR
-	virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const override;
 	virtual bool GetPropertyPossibleValues(const FName PropertyPath, TArray<FString>& PossibleValues) override;
+
+	virtual void GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const override;
 #endif
 
 	static UInterchangePipelineMeshesUtilities* CreateMeshPipelineUtilities(UInterchangeBaseNodeContainer* InBaseNodeContainer
-		, const UInterchangeGenericMeshPipeline* Pipeline
-		, const bool bAutoDetectType);
+		, const UInterchangeGenericMeshPipeline* Pipeline);
 
 protected:
 	virtual void ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas, const FString& ContentBasePath) override;
@@ -314,7 +352,7 @@ private:
 	 * This function can create a UInterchangeStaticMeshFactoryNode
 	 * @param MeshUidsPerLodIndex - The MeshUids can represent a SceneNode pointing on a MeshNode or directly a MeshNode
 	 */
-	UInterchangeStaticMeshFactoryNode* CreateStaticMeshFactoryNode(const TMap<int32, TArray<FString>>& MeshUidsPerLodIndex);
+	UInterchangeStaticMeshFactoryNode* CreateStaticMeshFactoryNode(const TMap<int32, TArray<FString>>& MeshUidsPerLodIndex, const TArray<FString>& ReferencingMeshInstanceUids = TArray<FString>());
 
 	/** This function can create a UInterchangeStaticMeshLodDataNode which represents the LOD data needed by the factory to create a lod mesh */
 	UInterchangeStaticMeshLodDataNode* CreateStaticMeshLodDataNode(const FString& NodeName, const FString& NodeUniqueID);
@@ -333,8 +371,21 @@ private:
 	/* Static mesh API END                                                */
 	/************************************************************************/
 
-private:
+	/**
+	 * Fill all reference parameter from the translated node found in the container
+	 */
+	void GetMeshesInformationFromTranslatedData(const UInterchangeBaseNodeContainer* InBaseNodeContainer
+		, bool& bAutoDetectConvertStaticMeshToSkeletalMesh
+		, bool& bContainStaticMesh
+		, bool& bContainSkeletalMesh
+		, bool& bContainStaticMeshAnimationNode
+		, bool& bIgnoreStaticMeshes) const;
 
+public:
+
+		virtual void PostLoad() override;
+
+protected:
 	UInterchangeBaseNodeContainer* BaseNodeContainer = nullptr;
 	TArray<const UInterchangeSourceData*> SourceDatas;
 

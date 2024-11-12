@@ -8,8 +8,15 @@
 #include "Dataflow/DataflowSelection.h"
 #include "Math/MathFwd.h"
 #include "Math/Sphere.h"
+#include "Dataflow/DataflowConnectionTypes.h"
+
 #include "GeometryCollectionSelectionNodes.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dataflow instead.") Dataflow {}
+#endif
 
 class FGeometryCollection;
 
@@ -30,19 +37,19 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionAllDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionAllDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -79,19 +86,19 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Compare");
 	ESetOperationEnum Operation = ESetOperationEnum::Dataflow_SetOperation_AND;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DisplayName = "TransformSelectionA", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelectionA;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DisplayName = "TransformSelectionB", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelectionB;
 
-	/** Array of the selected bone indicies after operation*/
+	/** Array of the selected bone indices after operation*/
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection", DataflowPassthrough = "TransformSelectionA"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionSetOperationDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionSetOperationDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&TransformSelectionA);
@@ -99,7 +106,7 @@ public:
 		RegisterOutputConnection(&TransformSelection, &TransformSelectionA);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -116,7 +123,7 @@ struct FCollectionTransformSelectionInfoDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionTransformSelectionInfoDataflowNode, "CollectionTransformSelectionInfo", "GeometryCollection|Selection|Transform", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DisplayName = "TransformSelection", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelection;
 
@@ -128,7 +135,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	FString String;
 
-	FCollectionTransformSelectionInfoDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionInfoDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&TransformSelection);
@@ -136,7 +143,7 @@ public:
 		RegisterOutputConnection(&String);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -157,19 +164,19 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionNoneDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionNoneDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -186,18 +193,18 @@ struct FCollectionTransformSelectionInvertDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionTransformSelectionInvertDataflowNode, "CollectionTransformSelectInvert", "GeometryCollection|Selection|Transform", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "TransformSelection", DataflowPassthrough = "TransformSelection", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionInvertDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionInvertDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&TransformSelection);
 		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -230,22 +237,22 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionRandomDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionRandomDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RandomSeed = FMath::FRandRange(-1e5, 1e5);
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&RandomSeed);
 		RegisterInputConnection(&RandomThreshold);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -266,19 +273,19 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionRootDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionRootDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -302,22 +309,22 @@ public:
 
 	/** Space separated list of bone indices to specify the selection */
 	UPROPERTY(EditAnywhere, Category = "Selection", meta=(DisplayName="Bone Indices"))
-	FString BoneIndicies = FString();
+	FString BoneIndicies = FString(); //Fix typo for v2
 
 	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionCustomDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionCustomDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&BoneIndicies);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -346,16 +353,16 @@ public:
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionFromIndexArrayDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionFromIndexArrayDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&BoneIndices);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -372,7 +379,7 @@ struct FCollectionTransformSelectionParentDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionTransformSelectionParentDataflowNode, "CollectionTransformSelectParent", "GeometryCollection|Selection|Transform", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "TransformSelection", DataflowPassthrough = "TransformSelection", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelection;
 
@@ -380,16 +387,16 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	FCollectionTransformSelectionParentDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionParentDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&TransformSelection);
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -406,7 +413,7 @@ struct FCollectionTransformSelectionByPercentageDataflowNode : public FDataflowN
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionTransformSelectionByPercentageDataflowNode, "CollectionTransformSelectByPercentage", "GeometryCollection|Selection|Transform", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "TransformSelection", DataflowPassthrough = "TransformSelection", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelection;
 
@@ -422,7 +429,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Random", meta = (DataflowInput, EditCondition = "bDeterministic"))
 	float RandomSeed = 0.f;
 
-	FCollectionTransformSelectionByPercentageDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionByPercentageDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RandomSeed = FMath::RandRange(-100000, 100000);
@@ -432,7 +439,7 @@ public:
 		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -449,7 +456,7 @@ struct FCollectionTransformSelectionChildrenDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionTransformSelectionChildrenDataflowNode, "CollectionTransformSelectChildren", "GeometryCollection|Selection|Transform", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "TransformSelection", DataflowPassthrough = "TransformSelection", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelection;
 
@@ -457,16 +464,16 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	FCollectionTransformSelectionChildrenDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionChildrenDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&TransformSelection);
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -483,7 +490,7 @@ struct FCollectionTransformSelectionSiblingsDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionTransformSelectionSiblingsDataflowNode, "CollectionTransformSelectSiblings", "GeometryCollection|Selection|Transform", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "TransformSelection", DataflowPassthrough = "TransformSelection", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelection;
 
@@ -491,16 +498,16 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	FCollectionTransformSelectionSiblingsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionSiblingsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&TransformSelection);
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -525,16 +532,16 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	FCollectionTransformSelectionLevelDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionLevelDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&TransformSelection);
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -567,16 +574,16 @@ public:
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionTargetLevelDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionTargetLevelDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&TargetLevel);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -594,7 +601,7 @@ struct FCollectionTransformSelectionContactDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionTransformSelectionContactDataflowNode, "CollectionTransformSelectContact", "GeometryCollection|Selection|Transform", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "TransformSelection", DataflowPassthrough = "TransformSelection", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelection;
 
@@ -602,16 +609,20 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	FCollectionTransformSelectionContactDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	/** Whether to allow contact with bones that are in a parent level */
+	UPROPERTY(EditAnywhere, Category = Options)
+	bool bAllowContactInParentLevels = true;
+
+	FCollectionTransformSelectionContactDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&TransformSelection);
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -632,19 +643,19 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionLeafDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionLeafDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -652,9 +663,11 @@ public:
 /**
  *
  * Selects the clusters in the Collection
+ * Deprecated : this node had the wrong behavior and select the leaves instead
+ *				Replace it by CollectionTransformSelectLeaf or use the second version of CollectionTransformSelectCluster
  *
  */
-USTRUCT(meta = (DataflowGeometryCollection))
+USTRUCT(meta = (Deprecated = "5.5"))
 struct FCollectionTransformSelectionClusterDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -665,19 +678,52 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionClusterDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionClusterDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+
+};
+
+
+/**
+ *
+ * Selects the clusters in the Collection
+ * this version works properly and address the issues found in the deprecated version 1
+ */
+USTRUCT()
+struct FCollectionTransformSelectionClusterDataflowNode_v2 : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionTransformSelectionClusterDataflowNode_v2, "CollectionTransformSelectCluster", "GeometryCollection|Selection|Transform", "")
+
+public:
+	/** GeometryCollection for the selection */
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
+	FManagedArrayCollection Collection;
+
+	/** Array of the selected bone indices */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
+	FDataflowTransformSelection TransformSelection;
+
+	FCollectionTransformSelectionClusterDataflowNode_v2(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
+	}
+
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -731,7 +777,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	TArray<int> Indices;
 
-	FSelectFloatArrayIndicesInRangeDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FSelectFloatArrayIndicesInRangeDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Values);
@@ -740,7 +786,7 @@ public:
 		RegisterOutputConnection(&Indices);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -781,21 +827,21 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Size")
 	bool bUseRelativeSize = true;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionBySizeDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionBySizeDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&SizeMin);
 		RegisterInputConnection(&SizeMax);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -832,21 +878,21 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Volume")
 	bool bInclusive = true;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionByVolumeDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionByVolumeDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&VolumeMin);
 		RegisterInputConnection(&VolumeMax);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -897,21 +943,21 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Select", meta = (EditCondition = "Type == ESelectSubjectTypeEnum::Dataflow_SelectSubjectType_Vertices"))
 	bool bAllVerticesMustContainedInBox = true;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionInBoxDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionInBoxDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&Box);
 		RegisterInputConnection(&Transform);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -948,21 +994,21 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Select", meta = (EditCondition = "Type == ESelectSubjectTypeEnum::Dataflow_SelectSubjectType_Vertices"))
 	bool bAllVerticesMustContainedInSphere = true;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionInSphereDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionInSphereDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&Sphere);
 		RegisterInputConnection(&Transform);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1007,21 +1053,21 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Attribute")
 	bool bInclusive = true;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionByFloatAttrDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionByFloatAttrDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&Min);
 		RegisterInputConnection(&Max);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1066,21 +1112,21 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Attribute")
 	bool bInclusive = true;
 
-	/** Transform selection including the new indicies */
+	/** Transform selection including the new indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	FCollectionTransformSelectionByIntAttrDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionTransformSelectionByIntAttrDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&Min);
 		RegisterInputConnection(&Max);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1102,24 +1148,24 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Space separated list of vertex indicies to specify the selection */
+	/** Space separated list of vertex indices to specify the selection */
 	UPROPERTY(EditAnywhere, Category = "Selection")
-	FString VertexIndicies = FString();
+	FString VertexIndicies = FString(); //Fix typo for v2
 
-	/** Vertex selection including the new indicies */
+	/** Vertex selection including the new indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "VertexSelection"))
 	FDataflowVertexSelection VertexSelection;
 
-	FCollectionVertexSelectionCustomDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionVertexSelectionCustomDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&VertexIndicies);
-		RegisterOutputConnection(&VertexSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&VertexSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1141,24 +1187,24 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Space separated list of face indicies to specify the selection */
+	/** Space separated list of face indices to specify the selection */
 	UPROPERTY(EditAnywhere, Category = "Selection")
-	FString FaceIndicies = FString();
+	FString FaceIndicies = FString(); //Fix typo for v2
 
-	/** Face selection including the new indicies */
+	/** Face selection including the new indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "FaceSelection"))
 	FDataflowFaceSelection FaceSelection;
 
-	FCollectionFaceSelectionCustomDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionFaceSelectionCustomDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&FaceIndicies);
-		RegisterOutputConnection(&FaceSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&FaceSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1179,15 +1225,15 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Transform selection including the new indicies */
+	/** Transform selection including the new indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "TransformSelection", DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	/** Face selection including the new indicies */
+	/** Face selection including the new indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "FaceSelection", DisplayName = "FaceSelection"))
 	FDataflowFaceSelection FaceSelection;
 
-	/** Vertex selection including the new indicies */
+	/** Vertex selection including the new indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "VertexSelection", DisplayName = "VertexSelection"))
 	FDataflowVertexSelection VertexSelection;
 	
@@ -1195,20 +1241,20 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Selection")
 	bool bAllElementsMustBeSelected = false;
 
-	FCollectionSelectionConvertDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionSelectionConvertDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&VertexSelection);
 		RegisterInputConnection(&FaceSelection);
 		RegisterInputConnection(&TransformSelection);
+		RegisterOutputConnection(&Collection, &Collection);
 		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 		RegisterOutputConnection(&FaceSelection, &FaceSelection);
 		RegisterOutputConnection(&VertexSelection, &VertexSelection);
-		RegisterOutputConnection(&Collection, &Collection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1225,18 +1271,18 @@ struct FCollectionFaceSelectionInvertDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionFaceSelectionInvertDataflowNode, "CollectionFaceSelectInvert", "GeometryCollection|Selection|Face", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "FaceSelection", DataflowPassthrough = "FaceSelection", DataflowIntrinsic))
 	FDataflowFaceSelection FaceSelection;
 
-	FCollectionFaceSelectionInvertDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionFaceSelectionInvertDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&FaceSelection);
 		RegisterOutputConnection(&FaceSelection, &FaceSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1253,7 +1299,7 @@ struct FCollectionVertexSelectionByPercentageDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionVertexSelectionByPercentageDataflowNode, "CollectionVertexSelectByPercentage", "GeometryCollection|Selection|Vertex", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "VertexSelection", DataflowPassthrough = "VertexSelection", DataflowIntrinsic))
 	FDataflowVertexSelection VertexSelection;
 
@@ -1269,7 +1315,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Random", meta = (DataflowInput, EditCondition = "bDeterministic"))
 	float RandomSeed = 0.f;
 
-	FCollectionVertexSelectionByPercentageDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionVertexSelectionByPercentageDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RandomSeed = FMath::RandRange(-100000, 100000);
@@ -1279,7 +1325,7 @@ public:
 		RegisterOutputConnection(&VertexSelection, &VertexSelection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1300,19 +1346,19 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Compare");
 	ESetOperationEnum Operation = ESetOperationEnum::Dataflow_SetOperation_AND;
 
-	/** Array of the selected vertex indicies */
+	/** Array of the selected vertex indices */
 	UPROPERTY(meta = (DataflowInput, DisplayName = "VertexSelectionA", DataflowIntrinsic))
 	FDataflowVertexSelection VertexSelectionA;
 
-	/** Array of the selected vertex indicies */
+	/** Array of the selected vertex indices */
 	UPROPERTY(meta = (DataflowInput, DisplayName = "VertexSelectionB", DataflowIntrinsic))
 	FDataflowVertexSelection VertexSelectionB;
 
-	/** Array of the selected vertex indicies after operation */
+	/** Array of the selected vertex indices after operation */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "VertexSelection", DataflowPassthrough = "VertexSelectionA"))
 	FDataflowVertexSelection VertexSelection;
 
-	FCollectionVertexSelectionSetOperationDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionVertexSelectionSetOperationDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&VertexSelectionA);
@@ -1320,11 +1366,158 @@ public:
 		RegisterOutputConnection(&VertexSelection, &VertexSelectionA);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
-namespace Dataflow
+UENUM(BlueprintType)
+enum class ESelectionByAttrGroup : uint8
+{
+	Vertices UMETA(DisplayName = "Vertices"),
+	Faces UMETA(DisplayName = "Faces"),
+	Transform UMETA(DisplayName = "Transform"),
+	Geometry UMETA(DisplayName = "Geometry"),
+	Material UMETA(DisplayName = "Material")
+};
+
+namespace UE::Dataflow::Private
+{
+	inline FName GetAttributeFromEnumAsName(const ESelectionByAttrGroup Value)
+	{
+		static const UEnum* SelectionByAttrGroupEnum = StaticEnum<ESelectionByAttrGroup>();
+		return *SelectionByAttrGroupEnum->GetNameStringByValue((int64)Value);
+	}
+}
+
+UENUM(BlueprintType)
+enum class ESelectionByAttrOperation : uint8
+{
+	/** Select faces which attribute value equal with specified value */
+	Equal UMETA(DisplayName = "=="),
+	/** Select faces which attribute value not equal with specified value */
+	NotEqual UMETA(DisplayName = "!="),
+	/** Select faces which attribute value greater than specified value */
+	Greater UMETA(DisplayName = ">"),
+	/** Select faces which attribute value greater or equal than specified value */
+	GreaterOrEqual UMETA(DisplayName = ">="),
+	/** Select faces which attribute value smaller than specified value */
+	Smaller UMETA(DisplayName = "<"),
+	/** Select faces which attribute value greater than specified value */
+	SmallerOrEqual UMETA(DisplayName = "<=")
+};
+
+/**
+ *
+ * Selects specified Vertices/Faces/Transforms in the GeometryCollection by using an attribute value
+ * Currently supported attribute types: float, int32, String, bool
+ *
+ */
+USTRUCT(meta = (DataflowGeometryCollection))
+struct FCollectionSelectionByAttrDataflowNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionSelectionByAttrDataflowNode, "CollectionSelectByAttr", "GeometryCollection|Selection|All", "")
+
+public:
+	/** GeometryCollection for the selection */
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
+	FManagedArrayCollection Collection;
+
+	/** AttributeKey input */
+	UPROPERTY(meta = (DataflowInput))
+	FCollectionAttributeKey AttributeKey;
+
+	/** Group */
+	UPROPERTY(EditAnywhere, Category = "Selection")
+	ESelectionByAttrGroup Group = ESelectionByAttrGroup::Faces;
+
+	/** Attribute for the selection */
+	UPROPERTY(EditAnywhere, Category = "Selection")
+	FString Attribute = FString("Internal");
+
+	/** Operation */
+	UPROPERTY(EditAnywhere, Category = "Selection")
+	ESelectionByAttrOperation Operation = ESelectionByAttrOperation::Equal;
+
+	/** Attribute value for the operation */
+	UPROPERTY(EditAnywhere, Category = "Selection")
+	FString Value = FString("true");
+
+	/** Vertex selection output */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "VertexSelection"))
+	FDataflowVertexSelection VertexSelection;
+
+	/** Face selection output */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "FaceSelection"))
+	FDataflowFaceSelection FaceSelection;
+
+	/** Transform selection output */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
+	FDataflowTransformSelection TransformSelection;
+
+	/** Geometry selection output */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "GeometrySelection"))
+	FDataflowGeometrySelection GeometrySelection;
+
+	/** Material selection output */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "MaterialSelection"))
+	FDataflowMaterialSelection MaterialSelection;
+
+	FCollectionSelectionByAttrDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&AttributeKey);
+		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&VertexSelection);
+		RegisterOutputConnection(&FaceSelection);
+		RegisterOutputConnection(&TransformSelection);
+		RegisterOutputConnection(&GeometrySelection);
+		RegisterOutputConnection(&MaterialSelection);
+	}
+
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};
+
+/**
+ * Converts GeometrySelection to VertexSelection
+ */
+USTRUCT(meta = (DataflowGeometryCollection))
+struct FGeometrySelectionToVertexSelectionDataflowNode final : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FGeometrySelectionToVertexSelectionDataflowNode, "GeometrySelectionToVertexSelection", "GeometryCollection|Selection|All", "")
+
+public:
+	/** GeometryCollection */
+	UPROPERTY(meta = (DataflowInput))
+	FManagedArrayCollection Collection;
+
+	/** Space separated list of geometry indices to specify the selection when GeometrySelection is not connected*/
+	UPROPERTY(EditAnywhere, Category = "Selection")
+	FString GeometryIndices = FString();
+
+	/** Input geometry selection */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "GeometrySelection"))
+	FDataflowGeometrySelection GeometrySelection;
+
+	/** Vertex selection output */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "VertexSelection"))
+	FDataflowVertexSelection VertexSelection;
+
+	FGeometrySelectionToVertexSelectionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&GeometrySelection);
+		RegisterOutputConnection(&VertexSelection);
+	}
+
+private:
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};
+
+namespace UE::Dataflow
 {
 	void GeometryCollectionSelectionNodes();
 }

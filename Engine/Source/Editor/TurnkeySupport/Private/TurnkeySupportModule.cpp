@@ -936,7 +936,14 @@ static void TurnkeyInstallSdk(FString IniPlatformName, bool bPreferFull, bool bF
 			RenderUtilsInit();
 #endif
 
-			FTurnkeyEditorSupport::ShowRestartToast();
+			if (FDataDrivenPlatformInfoRegistry::HasCompiledSupportForPlatform(*IniPlatformName, FDataDrivenPlatformInfoRegistry::EPlatformNameType::Ini))
+			{
+				FTurnkeyEditorSupport::ShowRestartToast();
+			}
+			else
+			{
+				FTurnkeyEditorSupport::ShowRebuildToast();
+			}
 		});
 	}
 	);
@@ -967,7 +974,7 @@ static TAttribute<FText> MakeSdkStatusAttribute(FName IniPlatformName, TSharedPt
 
 static FSlateIcon MakePlatformSdkIconAttribute(FName IniPlatformName, TSharedPtr< ITargetDeviceProxy> DeviceProxy)
 {
-	FString DeviceId = DeviceProxy ? DeviceProxy->GetTargetDeviceId(NAME_None) : FString();
+	FString DeviceId = DeviceProxy ? DeviceProxy->GetTargetDeviceId(DeviceProxy->GetVanillaPlatformId(NAME_None)) : FString();
 
 	// get the status, or Unknown if it's not there
 	ETurnkeyPlatformSdkStatus Status = DeviceId.Len() ? ITurnkeySupportModule::Get().GetSdkInfoForDeviceId(DeviceId).Status : ITurnkeySupportModule::Get().GetSdkInfo(IniPlatformName, false).Status;
@@ -1790,12 +1797,22 @@ void FTurnkeySupportModule::MakeQuickLaunchItems(class UToolMenu* Menu, FOnQuick
 			}
 
 			// look for devices for all platforms, even if the platform isn't installed - Turnkey can install Sdk after selecting LaunchOn
-			TArray<TSharedPtr<ITargetDeviceProxy>> AllDeviceProxies;
-			TargetDeviceServicesModule->GetDeviceProxyManager()->GetAllProxies(PlatformName, AllDeviceProxies);
+			TArray<TSharedPtr<ITargetDeviceProxy>> DeviceProxies;
+			TargetDeviceServicesModule->GetDeviceProxyManager()->GetAllProxies(PlatformName, DeviceProxies);
+			
+			const ITargetPlatform* Platform = GetTargetPlatformManager()->FindTargetPlatform(PlatformName.ToString());
+
+			// Remove Aggregate Device
+			if (Platform && !Platform->SupportsFeature(ETargetPlatformFeatures::ShowAggregateDevice))
+			{
+				DeviceProxies = DeviceProxies.FilterByPredicate([](const TSharedPtr<ITargetDeviceProxy>& Device)
+				{
+					return !Device->IsAggregated();
+				});
+			}
 
 			// Remove any Simulator based devices
-			TArray<TSharedPtr<ITargetDeviceProxy>> DeviceProxies;
-			DeviceProxies = AllDeviceProxies.FilterByPredicate([](const TSharedPtr<ITargetDeviceProxy>& Device)
+			DeviceProxies = DeviceProxies.FilterByPredicate([](const TSharedPtr<ITargetDeviceProxy>& Device)
 			{
 				return Device->GetConnectionType() != TEXT("Simulator");
 			});
@@ -1815,16 +1832,13 @@ void FTurnkeySupportModule::MakeQuickLaunchItems(class UToolMenu* Menu, FOnQuick
 				Algo::Sort(DeviceProxies, [&LastChosen = std::as_const(LastChosen)](TSharedPtr<ITargetDeviceProxy> A, TSharedPtr<ITargetDeviceProxy> B)
 						   { return A->GetName() == LastChosen; });
 
-				// always use the first one, after sorting
-				FUIAction Action;
-				FText Tooltip;
 
-				GenerateDeviceProxyMenuParams(DeviceProxies[0], PlatformName, Action, Tooltip, ExternalOnClickDelegate);
-
- 				const ITargetPlatform* Platform = GetTargetPlatformManager()->FindTargetPlatform(PlatformName.ToString());
-				bool bGroupDevices = Platform->SupportsFeature(ETargetPlatformFeatures::ShowAsPlatformGroup);
-				if (DeviceProxies.Num() == 1 && !bGroupDevices)
+				if (DeviceProxies.Num() == 1)
 				{
+					FUIAction Action;
+					FText Tooltip;
+					GenerateDeviceProxyMenuParams(DeviceProxies[0], PlatformName, Action, Tooltip, ExternalOnClickDelegate);
+
 					DynamicSection.AddMenuEntry(
 						NAME_None,
 						MakeSdkStatusAttribute(PlatformName, DeviceProxies[0]),
@@ -1837,35 +1851,43 @@ void FTurnkeySupportModule::MakeQuickLaunchItems(class UToolMenu* Menu, FOnQuick
 				{
 					DynamicSection.AddSubMenu(
 						NAME_None,
-						MakeSdkStatusAttribute(PlatformName, bGroupDevices?nullptr:DeviceProxies[0]),
-						Tooltip,
-						FNewToolMenuDelegate::CreateLambda([TargetDeviceServicesModule, PlatformName, LastChosen, ExternalOnClickDelegate](UToolMenu* SubToolMenu)
+						MakeSdkStatusAttribute(PlatformName, nullptr),
+						FText::FromString(PlatformName.ToString()),
+						FNewToolMenuDelegate::CreateLambda(
+							[TargetDeviceServicesModule, PlatformName, LastChosen, ExternalOnClickDelegate](UToolMenu* SubToolMenu)
 							{
 								FToolMenuSection& Section = SubToolMenu->AddSection(NAME_None);
 
 								// re-get the proxies, just in case they changed
-								TArray<TSharedPtr<ITargetDeviceProxy>> AllDeviceProxies;
-								TargetDeviceServicesModule->GetDeviceProxyManager()->GetAllProxies(PlatformName, AllDeviceProxies);
+								TArray<TSharedPtr<ITargetDeviceProxy>> DeviceProxies;
+								TargetDeviceServicesModule->GetDeviceProxyManager()->GetAllProxies(PlatformName, DeviceProxies);
+								const ITargetPlatform* Platform = GetTargetPlatformManager()->FindTargetPlatform(PlatformName.ToString());
+
+								// Remove Aggregate Device
+								if (Platform && !Platform->SupportsFeature(ETargetPlatformFeatures::ShowAggregateDevice))
+								{
+									DeviceProxies = DeviceProxies.FilterByPredicate([](const TSharedPtr<ITargetDeviceProxy>& Device)
+									{
+										return !Device->IsAggregated();
+									});
+								}
 
 								// Remove any Simulator based devices
-								TArray<TSharedPtr<ITargetDeviceProxy>> DeviceProxies;
-								DeviceProxies = AllDeviceProxies.FilterByPredicate([](const TSharedPtr<ITargetDeviceProxy> &Device)
-													{ 
-														return Device->GetConnectionType() != TEXT("Simulator"); 
-													});
+								DeviceProxies = DeviceProxies.FilterByPredicate([](const TSharedPtr<ITargetDeviceProxy>& Device)
+								{
+									return Device->GetConnectionType() != TEXT("Simulator");
+								});
+								
+								Algo::Sort(DeviceProxies, [&LastChosen = std::as_const(LastChosen)](TSharedPtr<ITargetDeviceProxy> A, TSharedPtr<ITargetDeviceProxy> B)
+									{ return A->GetName() == LastChosen; });
 
 								// for each one, put an entry (even the one that was in the outer menu, for less confusion)
 								for (const TSharedPtr<ITargetDeviceProxy>& Proxy : DeviceProxies)
 								{
-									// Skip over the top level menu item
-									if (LastChosen == Proxy->GetName())
-									{
-										continue;
-									}
-									
 									FUIAction SubAction;
 									FText SubTooltip;
 									GenerateDeviceProxyMenuParams(Proxy, PlatformName, SubAction, SubTooltip, ExternalOnClickDelegate);
+									
 									Section.AddMenuEntry(
 										NAME_None,
 										MakeSdkStatusAttribute(PlatformName, Proxy),
@@ -1876,19 +1898,19 @@ void FTurnkeySupportModule::MakeQuickLaunchItems(class UToolMenu* Menu, FOnQuick
 									);
 								}
 							}),
-						Action,
+						{},
 						EUserInterfaceActionType::Check,
 						false,
-						MakePlatformSdkIconAttribute(PlatformName, bGroupDevices?nullptr:DeviceProxies[0]),
+						MakePlatformSdkIconAttribute(PlatformName, nullptr),
 						true
-						);
+					);
 				}
 
 				ITurnkeySupportModule& TurnkeySupport = ITurnkeySupportModule::Get();
 				// gather any unknown status devices to query at the end
 				for (const TSharedPtr<ITargetDeviceProxy>& Proxy : DeviceProxies)
 				{
-					FString DeviceId = Proxy->GetTargetDeviceId(NAME_None);
+					FString DeviceId = Proxy->GetTargetDeviceId(Proxy->GetVanillaPlatformId(NAME_None));
 					if (TurnkeySupport.GetSdkInfoForDeviceId(DeviceId).Status == ETurnkeyPlatformSdkStatus::Unknown)
 					{
 						DeviceIdsToQuery.Add(DeviceId);
@@ -2380,11 +2402,11 @@ bool GetSdkInfoFromTurnkey(FString Line, FName& PlatformName, FString& DeviceId,
 		FParse::Value(*Info, *FString::Printf(TEXT("Allowed_%s="), *Name), Max);
 		FParse::Value(*Info, *FString::Printf(TEXT("Current_%s="), *Name), Current);
 		// also handle no name at all (for device, etc)
-		FParse::Value(*Info, *FString::Printf(TEXT("MinAllowed="), *Name), Min);
-		FParse::Value(*Info, *FString::Printf(TEXT("MaxAllowed="), *Name), Max);
-		FParse::Value(*Info, *FString::Printf(TEXT("Allowed="), *Name), Min);
-		FParse::Value(*Info, *FString::Printf(TEXT("Allowed="), *Name), Max);
-		FParse::Value(*Info, *FString::Printf(TEXT("Current=")), Current);
+		FParse::Value(*Info, TEXT("MinAllowed="), Min);
+		FParse::Value(*Info, TEXT("MaxAllowed="), Max);
+		FParse::Value(*Info, TEXT("Allowed="), Min);
+		FParse::Value(*Info, TEXT("Allowed="), Max);
+		FParse::Value(*Info, TEXT("Current="), Current);
 		SdkInfo.SDKVersions.Add(Name, { Min, Max, Current });
 	}
 
@@ -2672,7 +2694,7 @@ void FTurnkeySupportModule::UpdateSdkInfoForProxy(const TSharedRef<ITargetDevice
 {
 	bool bIsNeeded;
 
-	FString DeviceId = AddedProxy->GetTargetDeviceId(NAME_None);
+	FString DeviceId = AddedProxy->GetTargetDeviceId(AddedProxy->GetVanillaPlatformId(NAME_None));
 	{
 		FScopeLock Lock(&GTurnkeySection);
 		bIsNeeded = GetSdkInfoForDeviceId(DeviceId).Status == ETurnkeyPlatformSdkStatus::Unknown;

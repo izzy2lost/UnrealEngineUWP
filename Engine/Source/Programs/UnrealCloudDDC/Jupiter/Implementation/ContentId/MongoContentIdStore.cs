@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 using Microsoft.Extensions.Options;
@@ -25,7 +26,7 @@ namespace Jupiter.Implementation
 			IndexKeysDefinitionBuilder<MongoContentIdModelV0> indexKeysDefinitionBuilder = Builders<MongoContentIdModelV0>.IndexKeys;
 			CreateIndexModel<MongoContentIdModelV0> indexModel = new CreateIndexModel<MongoContentIdModelV0>(
 				indexKeysDefinitionBuilder.Combine(
-					indexKeysDefinitionBuilder.Ascending(m => m.Ns), 
+					indexKeysDefinitionBuilder.Ascending(m => m.Ns),
 					indexKeysDefinitionBuilder.Ascending(m => m.ContentId)
 					)
 				, new CreateIndexOptions()
@@ -36,14 +37,14 @@ namespace Jupiter.Implementation
 			AddIndexFor<MongoContentIdModelV0>().CreateOne(indexModel);
 		}
 
-		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId)
+		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId, CancellationToken cancellationToken)
 		{
 			IMongoCollection<MongoContentIdModelV0> collection = GetCollection<MongoContentIdModelV0>();
 
 			IAsyncCursor<MongoContentIdModelV0> cursor =
-				await collection.FindAsync(model => model.Ns.Equals(ns.ToString(), StringComparison.OrdinalIgnoreCase) && model.ContentId.Equals(contentId.ToString(), StringComparison.Ordinal));
+				await collection.FindAsync(model => model.Ns.Equals(ns.ToString(), StringComparison.OrdinalIgnoreCase) && model.ContentId.Equals(contentId.ToString(), StringComparison.Ordinal), cancellationToken: cancellationToken);
 
-			MongoContentIdModelV0 model = await cursor.FirstOrDefaultAsync();
+			MongoContentIdModelV0 model = await cursor.FirstOrDefaultAsync(cancellationToken);
 			if (model != null)
 			{
 				foreach (int weight in model.ContentWeightToBlobsMap.Keys.OrderBy(contentWeight => contentWeight))
@@ -51,7 +52,7 @@ namespace Jupiter.Implementation
 					BlobId[] blobs = model.ContentWeightToBlobsMap[weight].Select(s => new BlobId(s)).ToArray();
 
 					{
-						BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, blobs);
+						BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, blobs, cancellationToken);
 						if (missingBlobs.Length == 0)
 						{
 							return blobs;
@@ -64,7 +65,7 @@ namespace Jupiter.Implementation
 
 			BlobId contentIdAsBlobIdentifier = contentId.AsBlobIdentifier();
 			// no content id where all blobs are present, check if its present in the blob store as a uncompressed version of the blob
-			if (!mustBeContentId && await _blobStore.ExistsAsync(ns, contentIdAsBlobIdentifier))
+			if (!mustBeContentId && await _blobStore.ExistsAsync(ns, contentIdAsBlobIdentifier, cancellationToken: cancellationToken))
 			{
 				return new[] { contentIdAsBlobIdentifier };
 			}
@@ -72,7 +73,7 @@ namespace Jupiter.Implementation
 			return null;
 		}
 
-		public async Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
+		public async Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight, CancellationToken cancellationToken)
 		{
 			IMongoCollection<MongoContentIdModelV0> collection = GetCollection<MongoContentIdModelV0>();
 
@@ -82,7 +83,7 @@ namespace Jupiter.Implementation
 			await collection.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<MongoContentIdModelV0>()
 			{
 				IsUpsert = true
-			});
+			}, cancellationToken);
 		}
 	}
 

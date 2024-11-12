@@ -7,6 +7,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Object.h"
 #include "WorldPartition/DataLayer/DataLayerType.h"
+#include "WorldPartition/ErrorHandling/WorldPartitionStreamingGenerationErrorHandler.h"
 
 #include "DataLayerInstance.generated.h"
 
@@ -31,6 +32,17 @@ enum class EDataLayerRuntimeState : uint8
 
 	// Activated (meaning loaded and visible)
 	Activated
+};
+
+UENUM(BlueprintType)
+enum class EOverrideBlockOnSlowStreaming : uint8
+{
+	// Uses default runtime partition 'Block on Slow Streaming' setting
+	NoOverride,
+	// Blocks on slow streaming (Overrides runtime partition 'Block on Slow Streaming' setting)
+	Blocking,
+	// Doesn't block on slow streaming (Overrides runtime partition 'Block on Slow Streaming' setting)
+	NotBlocking
 };
 
 const inline TCHAR* GetDataLayerRuntimeStateName(EDataLayerRuntimeState State)
@@ -91,6 +103,7 @@ public:
 	ENGINE_API bool IsLoadedInEditorChangedByUserOperation() const { return bIsLoadedInEditorChangedByUserOperation; }
 	ENGINE_API virtual bool IsReadOnly(FText* OutReason = nullptr) const;
 	virtual bool IsIncludedInActorFilterDefault() const { return false; }
+	ENGINE_API EOverrideBlockOnSlowStreaming GetOverrideBlockOnSlowStreaming() const { return OverrideBlockOnSlowStreaming; }
 
 	// Data Layer Instance features support
 	ENGINE_API bool CanBeChildOf(const UDataLayerInstance* InParent, FText* OutReason = nullptr) const;
@@ -169,7 +182,7 @@ public:
 	virtual FColor GetDebugColor() const { return FColor::Black; }
 
 	UFUNCTION(Category = "Data Layer|Runtime", BlueprintCallable)
-	EDataLayerRuntimeState GetInitialRuntimeState() const { return IsRuntime() && !IsClientOnly() && !IsServerOnly() ? InitialRuntimeState : EDataLayerRuntimeState::Unloaded; }
+	EDataLayerRuntimeState GetInitialRuntimeState() const { return IsRuntime() ? InitialRuntimeState : EDataLayerRuntimeState::Unloaded; }
 
 	UFUNCTION(Category = "Data Layer", BlueprintCallable)
 	virtual FString GetDataLayerShortName() const { return TEXT("Invalid Data Layer"); }
@@ -209,7 +222,7 @@ private:
 protected:
 #if WITH_EDITOR
 	ENGINE_API bool IsLocked(FText* OutReason) const;
-	ENGINE_API bool IsParentDataLayerTypeCompatible(const UDataLayerInstance* InParent, FText* OutReason = nullptr) const;
+	ENGINE_API bool IsParentDataLayerTypeCompatible(const UDataLayerInstance* InParent, FText* OutReasonText = nullptr, IStreamingGenerationErrorHandler::EDataLayerHierarchyInvalidReason* OutReason = nullptr) const;
 
 	virtual bool PerformAddActor(AActor* InActor) const { return false; }
 	virtual bool PerformRemoveActor(AActor* InActor) const { return false;  }
@@ -241,6 +254,9 @@ protected:
 	/** Whether this data layer is locked, which means the user can't change actors assignation, remove or rename it */
 	UPROPERTY()
 	uint32 bIsLocked : 1;
+
+	UPROPERTY(Category = "Runtime|Advanced", EditAnywhere)
+	EOverrideBlockOnSlowStreaming OverrideBlockOnSlowStreaming;
 #endif
 
 	/** Initial runtime state of this data layer instance. Only supported if it's runtime and not client/server only. */

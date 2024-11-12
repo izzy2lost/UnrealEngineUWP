@@ -3,6 +3,7 @@
 #include "LevelInstance/LevelInstanceActor.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
 #include "LevelInstance/LevelInstanceComponent.h"
+#include "Engine/Level.h"
 #include "Engine/World.h"
 #include "LevelInstancePrivate.h"
 #include "Net/UnrealNetwork.h"
@@ -10,6 +11,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LevelInstanceActor)
 
 #if WITH_EDITOR
+#include "Cooker/CookDependency.h"
 #include "UObject/ObjectSaveContext.h"
 #include "WorldPartition/LevelInstance/LevelInstanceActorDesc.h"
 #include "LevelInstance/LevelInstanceEditorPivotActor.h"
@@ -26,6 +28,7 @@ ALevelInstance::ALevelInstance()
 	RootComponent->Mobility = EComponentMobility::Static;
 
 #if WITH_EDITORONLY_DATA
+	bIsEditorOnlyActor = true;
 	DesiredRuntimeBehavior = ELevelInstanceRuntimeBehavior::Partitioned;
 #endif
 }
@@ -99,7 +102,7 @@ bool ALevelInstance::IsLoadingEnabled() const
 const TSoftObjectPtr<UWorld>& ALevelInstance::GetWorldAsset() const
 {
 #if WITH_EDITORONLY_DATA
-	return WorldAsset;
+	return GetPropertyOverrideAsset() ? GetPropertyOverrideAsset()->GetWorldAsset() : WorldAsset;
 #else
 	return CookedWorldAsset;
 #endif
@@ -126,6 +129,17 @@ void ALevelInstance::OnLevelInstanceLoaded()
 }
 
 #if WITH_EDITOR
+
+void ALevelInstance::SetPropertyOverrideAsset(ULevelInstancePropertyOverrideAsset* InPropertyOverrideAsset)
+{
+	if (PropertyOverrides != InPropertyOverrideAsset)
+	{
+		Modify();
+		PropertyOverrides = InPropertyOverrideAsset;
+	}
+}
+
+
 ULevelInstanceComponent* ALevelInstance::GetLevelInstanceComponent() const
 {
 	return Cast<ULevelInstanceComponent>(RootComponent);
@@ -139,6 +153,16 @@ TSubclassOf<AActor> ALevelInstance::GetEditorPivotClass() const
 bool ALevelInstance::SupportsPartialEditorLoading() const
 {
 	return ILevelInstanceInterface::SupportsPartialEditorLoading() && LevelInstanceActorImpl.SupportsPartialEditorLoading();
+}
+
+bool ALevelInstance::SupportsPropertyOverrides() const
+{
+	return LevelInstanceActorImpl.SupportsPropertyOverrides();
+}
+
+ULevelInstancePropertyOverrideAsset* ALevelInstance::GetPropertyOverrideAsset() const
+{
+	return SupportsPropertyOverrides() ? PropertyOverrides : nullptr;
 }
 
 TUniquePtr<FWorldPartitionActorDesc> ALevelInstance::CreateClassActorDesc() const
@@ -158,19 +182,28 @@ void ALevelInstance::PostLoad()
 #if WITH_EDITORONLY_DATA
 	if (IsRunningCookCommandlet() && ShouldCookWorldAsset())
 	{
-		CookedWorldAsset = WorldAsset;
+		CookedWorldAsset = GetWorldAsset();
 	}
 #endif
 }
 
-#if WITH_EDITOR
+void ALevelInstance::PreSave(FObjectPreSaveContext SaveContext)
+{
+	Super::PreSave(SaveContext);
+
+	FName WorldPackageName = FName(GetWorldAsset().GetLongPackageName());
+	if (!WorldPackageName.IsNone())
+	{
+		SaveContext.AddCookBuildDependency(UE::Cook::FCookDependency::Package(WorldPackageName));
+	}
+}
+
 bool ALevelInstance::ShouldCookWorldAsset() const
 {
 	// If ALevelInstance actor gets loaded it means it needs to Cook its WorldAsset (World Partition Embedded Level Instances don't get loaded as they aren't runtime relevant)
 	// If ALevelInstnace is a template then we only need to Cook its WorldAsset if it's desired runtime behavior is to be Level Streamed
 	return !IsTemplate() || GetDesiredRuntimeBehavior() == ELevelInstanceRuntimeBehavior::LevelStreaming;
 }
-#endif
 
 void ALevelInstance::PreEditUndo()
 {
@@ -261,15 +294,21 @@ void ALevelInstance::EditorGetUnderlyingActors(TSet<AActor*>& OutUnderlyingActor
 	LevelInstanceActorImpl.EditorGetUnderlyingActors(OutUnderlyingActors);
 }
 
-FBox ALevelInstance::GetStreamingBounds() const
+void ALevelInstance::GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const
 {
-	FBox LevelInstanceBounds;
-	if (LevelInstanceActorImpl.GetBounds(LevelInstanceBounds))
+	Super::GetStreamingBounds(OutRuntimeBounds, OutEditorBounds);
+	
+	FBox LevelInstanceRuntimeBounds;
+	if (LevelInstanceActorImpl.GetBounds(LevelInstanceRuntimeBounds))
 	{
-		return LevelInstanceBounds;
+		OutRuntimeBounds = LevelInstanceRuntimeBounds;
 	}
 
-	return Super::GetStreamingBounds();
+	FBox LevelInstanceEditorBounds;
+	if (LevelInstanceActorImpl.GetEditorBounds(LevelInstanceEditorBounds))
+	{
+		OutEditorBounds = LevelInstanceEditorBounds;
+	}
 }
 
 bool ALevelInstance::IsUserManaged() const
@@ -300,9 +339,9 @@ bool ALevelInstance::GetReferencedContentObjects(TArray<UObject*>& Objects) cons
 
 bool ALevelInstance::GetSoftReferencedContentObjects(TArray<FSoftObjectPath>& SoftObjects) const
 {
-	if (WorldAsset.ToSoftObjectPath().IsValid())
+	if (GetWorldAsset().ToSoftObjectPath().IsValid())
 	{
-		SoftObjects.Add(WorldAsset.ToSoftObjectPath());
+		SoftObjects.Add(GetWorldAsset().ToSoftObjectPath());
 		return true;
 	}
 	return false;
@@ -324,6 +363,21 @@ bool ALevelInstance::EditorCanAttachFrom(const AActor* InChild, FText& OutReason
 	if (IsEditing())
 	{
 		return true;
+	}
+
+	return false;
+}
+
+bool ALevelInstance::IsEditorOnly() const
+{
+	if (IsRunningCookCommandlet() && GetLevel() && !GetLevel()->bIsPartitioned)
+	{
+		return false;
+	}
+
+	if (DesiredRuntimeBehavior == ELevelInstanceRuntimeBehavior::Partitioned)
+	{
+		return Super::IsEditorOnly();
 	}
 
 	return false;
@@ -356,7 +410,7 @@ void ALevelInstance::PushLevelInstanceEditingStateToProxies(bool bInEditingState
 	LevelInstanceActorImpl.PushLevelInstanceEditingStateToProxies(bInEditingState);
 }
 
-#endif
+#endif // WITH_EDITOR
 
 #undef LOCTEXT_NAMESPACE
 

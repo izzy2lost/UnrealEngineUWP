@@ -161,7 +161,7 @@ public:
 	 * @param bSRGBSource					If the source texture is sRGB
 	 */
 	UE_DEPRECATED(5.3, "Removed without replacement. Please use core engine methods to draw texture to rectangle.")
-	virtual void RenderTextureToRectangle(const FTextureResource* InTextureResource, const FTexture2DRHIRef InRenderTargetTexture, FVector2D InSize, bool bSRGBSource) const = 0;
+	virtual void RenderTextureToRectangle(const FTextureResource* InTextureResource, const FTextureRHIRef InRenderTargetTexture, FVector2D InSize, bool bSRGBSource) const = 0;
 
 #if WITH_EDITOR
 	/**

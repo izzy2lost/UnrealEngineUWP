@@ -136,6 +136,9 @@ struct FRenderingObjectVersion
 		// Custom material expression includes are now serialized & used for DDC key generation
 		AddedMaterialExpressionIncludesHash,
 
+		// Do not serialize deprecated high res source mesh
+		DeprecatedHighResSourceMesh,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

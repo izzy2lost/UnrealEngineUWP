@@ -76,7 +76,7 @@ class FHairProjectionHairDebugCS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FHairProjectionHairDebugCS);
 	SHADER_USE_PARAMETER_STRUCT(FHairProjectionHairDebugCS, FGlobalShader);	
 
-	class FInputType : SHADER_PERMUTATION_INT("PERMUTATION_INPUT_TYPE", 3);
+	class FInputType : SHADER_PERMUTATION_INT("PERMUTATION_INPUT_TYPE", 2);
 	using FPermutationDomain = TShaderPermutationDomain<FInputType>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
@@ -116,6 +116,8 @@ class FHairProjectionHairDebugCS : public FGlobalShader
 		return IsHairStrandsSupported(EHairStrandsShaderType::All, Parameters.Platform) && ShaderPrint::IsSupported(Parameters.Platform);
 	}
 
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters) { return EShaderPermutationPrecacheRequest::NotPrecached; }
+
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -129,8 +131,7 @@ IMPLEMENT_GLOBAL_SHADER(FHairProjectionHairDebugCS, "/Engine/Private/HairStrands
 
 enum class EDebugProjectionHairType
 {
-	HairFrame,
-	HairTriangle,
+	HairRoots,
 	HairSamples,
 };
 
@@ -163,7 +164,6 @@ static void AddDebugProjectionHairPass(
 		return;
 	}
 	
-	const EPrimitiveType PrimitiveType = GeometryType == EDebugProjectionHairType::HairFrame ? PT_LineList : GeometryType == EDebugProjectionHairType::HairTriangle ? PT_TriangleList : PT_LineList;
 	const uint32 RootCount = EDebugProjectionHairType::HairSamples == GeometryType ? 3 * RestRootResources->GetLOD(MeshLODIndex)->SampleCount : RestRootResources->GetRootCount();
 	const uint32 PrimitiveCount = RootCount;
 
@@ -177,10 +177,10 @@ static void AddDebugProjectionHairPass(
 		return;
 	}
 
-	ShaderPrint::RequestSpaceForLines(PrimitiveCount * 4 /* 1 hair root + 3 triangles */);
+	ShaderPrint::RequestSpaceForLines(PrimitiveCount * 10 /* 3+1 hair root + 3 triangles + 3 normals */);
 	ShaderPrint::RequestSpaceForTriangles(PrimitiveCount * 3);
 
-	if (EDebugProjectionHairType::HairFrame == GeometryType &&
+	if (EDebugProjectionHairType::HairRoots == GeometryType &&
 		!RestRootResources->GetLOD(MeshLODIndex)->RootBarycentricBuffer.Buffer)
 	{
 		return;
@@ -189,7 +189,7 @@ static void AddDebugProjectionHairPass(
 	if (EDebugProjectionHairType::HairSamples == GeometryType &&
 		!RestRootResources->GetLOD(MeshLODIndex)->RestSamplePositionsBuffer.Buffer)
 	{
-			return;
+		return;
 	}
 
 	const FHairStrandsLODRestRootResource& RestLODDatas = *RestRootResources->GetLOD(MeshLODIndex);
@@ -228,7 +228,7 @@ static void AddDebugProjectionHairPass(
 	Parameters->Sim_HairDeformedFrames		= GHairDebugMeshProjection_Sim_HairDeformedFrames > 0 ? 1u : 0u;
 	Parameters->Sim_HairDeformedSamples		= GHairDebugMeshProjection_Sim_HairDeformedSamples > 0 ? 1u : 0u;
 
-	if (EDebugProjectionHairType::HairFrame == GeometryType)
+	if (EDebugProjectionHairType::HairRoots == GeometryType)
 	{
 		Parameters->RootBarycentricBuffer = RegisterAsSRV(GraphBuilder, RestLODDatas.RootBarycentricBuffer);
 	}
@@ -245,14 +245,14 @@ static void AddDebugProjectionHairPass(
 	ShaderPrint::SetParameters(GraphBuilder, *ShaderPrintData, Parameters->ShaderPrintUniformBuffer);
 
 	FHairProjectionHairDebugCS::FPermutationDomain PermutationVector;
-	PermutationVector.Set<FHairProjectionHairDebugCS::FInputType>(GeometryType == EDebugProjectionHairType::HairFrame ? 0 : GeometryType == EDebugProjectionHairType::HairTriangle ? 1 : 2);
+	PermutationVector.Set<FHairProjectionHairDebugCS::FInputType>(GeometryType == EDebugProjectionHairType::HairRoots ? 0 : 1);
 
 	TShaderMapRef<FHairProjectionHairDebugCS> ComputeShader(ShaderMap, PermutationVector);
 	ClearUnusedGraphResources(ComputeShader, Parameters);
 
 	FComputeShaderUtils::AddPass(
 		GraphBuilder,
-		RDG_EVENT_NAME("HairStrands::MeshProjectionDebug(Hair, %s)", GeometryType == EDebugProjectionHairType::HairFrame ? TEXT("Frame") : GeometryType == EDebugProjectionHairType::HairTriangle ? TEXT("Triangle") : TEXT("Samples")),
+		RDG_EVENT_NAME("HairStrands::MeshProjectionDebug(Hair, %s)", GeometryType == EDebugProjectionHairType::HairRoots ? TEXT("Root") : TEXT("Samples")),
 		ComputeShader,
 		Parameters,
 		FIntVector(FMath::DivideAndRoundUp(PrimitiveCount, 256u), 1, 1));
@@ -282,6 +282,7 @@ class FDrawDebugClusterAABBCS : public FGlobalShader
 public:
 	static uint32 GetGroupSize() { return 64; }
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::Strands, Parameters.Platform) && ShaderPrint::IsSupported(Parameters.Platform); }
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters) { return EShaderPermutationPrecacheRequest::NotPrecached; }
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -376,6 +377,7 @@ class FDrawDebugCardAtlasCS : public FGlobalShader
 
 public:
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::Cards, Parameters.Platform) && ShaderPrint::IsSupported(Parameters.Platform); }
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters) { return EShaderPermutationPrecacheRequest::NotPrecached; }
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -445,15 +447,19 @@ class FDrawDebugStrandsCVsCS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER(uint32, MaxVertexCount)
+		SHADER_PARAMETER(uint32, InstanceIt)
+		SHADER_PARAMETER(FVector3f, GroupColor)
 		SHADER_PARAMETER(FMatrix44f, LocalToWorld)
 		SHADER_PARAMETER_SAMPLER(SamplerState, LinearSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, DepthTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, ColorTexture)
 		SHADER_PARAMETER_STRUCT_REF(FHairStrandsVertexFactoryUniformShaderParameters, HairStrandsVF)
+		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintParameters)
 	END_SHADER_PARAMETER_STRUCT()
 
 public:
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::Strands, Parameters.Platform); }
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters) { return EShaderPermutationPrecacheRequest::NotPrecached; }
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -463,15 +469,28 @@ public:
 
 IMPLEMENT_GLOBAL_SHADER(FDrawDebugStrandsCVsCS, "/Engine/Private/HairStrands/HairStrandsDebug.usf", "MainCS", SF_Compute);
 
+const FLinearColor GetHairGroupDebugColor(int32 GroupIt);
+
 static void AddDrawDebugStrandsCVsPass(
 	FRDGBuilder& GraphBuilder,
 	const FSceneView& View,
 	FGlobalShaderMap* ShaderMap,
 	const FHairGroupInstance* Instance,
 	const FShaderPrintData* ShaderPrintData,
+	const uint32 InIndex,
 	FRDGTextureRef ColorTexture,
 	FRDGTextureRef DepthTexture)
 {
+	if (!ShaderPrint::IsSupported(View.GetShaderPlatform()))
+	{
+		return;
+	}
+
+	// Force ShaderPrint on.
+	ShaderPrint::SetEnabled(true);
+	ShaderPrint::RequestSpaceForLines(256);
+	ShaderPrint::RequestSpaceForCharacters(256);
+
 	if (Instance->HairGroupPublicData->VFInput.GeometryType != EHairGeometryType::Strands || ShaderPrintData == nullptr)
 	{
 		return;
@@ -491,6 +510,10 @@ static void AddDrawDebugStrandsCVsPass(
 	Parameters->ColorTexture = GraphBuilder.CreateUAV(ColorTexture);
 	Parameters->DepthTexture = DepthTexture;
 	Parameters->LinearSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	Parameters->InstanceIt = InIndex;
+	Parameters->GroupColor = FVector3f(GetHairGroupDebugColor(Instance->Debug.GroupIndex));
+
+	ShaderPrint::SetParameters(GraphBuilder, *ShaderPrintData, Parameters->ShaderPrintParameters);
 
 	const uint32 PointCount = Instance->HairGroupPublicData->VFInput.Strands.Common.PointCount;
 	FComputeShaderUtils::AddPass(
@@ -534,6 +557,7 @@ class FDrawDebugCardGuidesCS : public FGlobalShader
 
 public:
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::Cards, Parameters.Platform) && ShaderPrint::IsSupported(Parameters.Platform); }
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters) { return EShaderPermutationPrecacheRequest::NotPrecached; }
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -725,6 +749,7 @@ class FHairDebugPrintInstanceCS : public FGlobalShader
 
 public:
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::All, Parameters.Platform) && ShaderPrint::IsSupported(Parameters.Platform); }
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters) { return EShaderPermutationPrecacheRequest::NotPrecached; }
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		// Skip optimization for avoiding long compilation time due to large UAV writes
@@ -968,6 +993,7 @@ class FHairDebugPrintMemoryCS : public FGlobalShader
 
 public:
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::All, Parameters.Platform) && ShaderPrint::IsSupported(Parameters.Platform); }
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters) { return EShaderPermutationPrecacheRequest::NotPrecached; }
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		// Skip optimization for avoiding long compilation time due to large UAV writes
@@ -1263,11 +1289,9 @@ void RunHairStrandsDebug(
 
 					const int32 MeshLODIndex = Instance->Debug.MeshLODIndex;
 
-					AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, DrawIndex++, bSim, EDebugProjectionHairType::HairTriangle, HairStrandsTriangleType::RestPose);
-					AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, DrawIndex++, bSim, EDebugProjectionHairType::HairFrame,    HairStrandsTriangleType::RestPose);
+					AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, DrawIndex++, bSim, EDebugProjectionHairType::HairRoots,    HairStrandsTriangleType::RestPose);
 					AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, DrawIndex++, bSim, EDebugProjectionHairType::HairSamples,  HairStrandsTriangleType::RestPose);
-					AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, DrawIndex++, bSim, EDebugProjectionHairType::HairTriangle, HairStrandsTriangleType::DeformedPose);
-					AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, DrawIndex++, bSim, EDebugProjectionHairType::HairFrame,    HairStrandsTriangleType::DeformedPose);
+					AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, DrawIndex++, bSim, EDebugProjectionHairType::HairRoots,    HairStrandsTriangleType::DeformedPose);
 					AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, DrawIndex++, bSim, EDebugProjectionHairType::HairSamples,  HairStrandsTriangleType::DeformedPose);
 				}
 			};
@@ -1294,6 +1318,7 @@ void RunHairStrandsDebug(
 
 	if (bEnabled)
 	{	
+		uint32 Index = 0;
 		for (FHairStrandsInstance* AbstractInstance : Instances)
 		{
 			FHairGroupInstance* Instance = static_cast<FHairGroupInstance*>(AbstractInstance);
@@ -1310,8 +1335,9 @@ void RunHairStrandsDebug(
 	
 			if (ViewMode == EGroomViewMode::ControlPoints)
 			{
-				AddDrawDebugStrandsCVsPass(GraphBuilder, View, ShaderMap, Instance, ShaderPrintData, SceneColorTexture, SceneDepthTexture);
+				AddDrawDebugStrandsCVsPass(GraphBuilder, View, ShaderMap, Instance, ShaderPrintData, Index, SceneColorTexture, SceneDepthTexture);
 			}
+			++Index;
 		}
 	}
 

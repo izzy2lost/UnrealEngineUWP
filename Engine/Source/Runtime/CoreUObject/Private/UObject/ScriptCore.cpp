@@ -20,6 +20,7 @@
 #include "UObject/Object.h"
 #include "UObject/CoreNative.h"
 #include "UObject/Class.h"
+#include "UObject/Package.h"
 #include "Templates/Casts.h"
 #include "Serialization/NullArchive.h"
 #include "UObject/SoftObjectPtr.h"
@@ -32,6 +33,9 @@
 #include "UObject/ScriptMacros.h"
 #include "UObject/UObjectThreadContext.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/LowLevelMemTracker.h"
+#include "HAL/LowLevelMemStats.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "AutoRTFM/AutoRTFM.h"
 
 DEFINE_LOG_CATEGORY(LogScriptFrame);
@@ -189,7 +193,7 @@ FBlueprintContext* FBlueprintContextGetThreadSingletonImpl()
 FBlueprintContext* FBlueprintContext::GetThreadSingleton()
 {
 	FBlueprintContext* Result;
-	UE_AUTORTFM_OPEN({ Result = FBlueprintContextGetThreadSingletonImpl(); });
+	UE_AUTORTFM_OPEN{ Result = FBlueprintContextGetThreadSingletonImpl(); };
 	return Result;
 }
 
@@ -905,7 +909,7 @@ void UObject::SkipFunction(FFrame& Stack, RESULT_DECL, UFunction* Function)
 		// destroy old value if necessary
 		ReturnProp->DestroyValue(RESULT_PARAM);
 		// copy zero value for return property into Result
-		FMemory::Memzero(RESULT_PARAM, ReturnProp->ArrayDim * ReturnProp->ElementSize);
+		FMemory::Memzero(RESULT_PARAM, ReturnProp->ArrayDim * ReturnProp->GetElementSize());
 	}
 }
 
@@ -1085,6 +1089,10 @@ void UObject::CallFunction( FFrame& Stack, RESULT_DECL, UFunction* Function )
 #endif // PER_FUNCTION_SCRIPT_STATS
 
 	SCOPE_CYCLE_UOBJECT(ContextScope, GVerboseScriptStats ? this : nullptr);
+	LLM_SCOPE(ELLMTag::UObject);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetPackage(), ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetClass(), ELLMTagSet::AssetClasses);
+	UE_TRACE_METADATA_SCOPE_ASSET(this, GetClass());
 
 	checkSlow(Function);
 
@@ -1156,7 +1164,7 @@ void ClearReturnValue(FProperty* ReturnProp, RESULT_DECL)
 	if (ReturnProp != NULL)
 	{
 		uint8* Data = (uint8*)RESULT_PARAM;
-		for (int32 ArrayIdx = 0; ArrayIdx < ReturnProp->ArrayDim; ArrayIdx++, Data += ReturnProp->ElementSize)
+		for (int32 ArrayIdx = 0; ArrayIdx < ReturnProp->ArrayDim; ArrayIdx++, Data += ReturnProp->GetElementSize())
 		{
 			// Clear the property. This assumes that it has already been initialized, and that the caller will destroy it.
 			ReturnProp->ClearValue(Data);
@@ -1262,18 +1270,36 @@ void ProcessLocalScriptFunction(UObject* Context, FFrame& Stack, RESULT_DECL)
 void ProcessLocalFunction(UObject* Context, UFunction* Fn, FFrame& Stack, RESULT_DECL)
 {
 	checkSlow(Fn);
-	if(Fn->HasAnyFunctionFlags(FUNC_Native))
+
+	auto ContinueProcessLocalFuntionInner = [&]() {
+		if(Fn->HasAnyFunctionFlags(FUNC_Native))
+		{
+			FScopeCycleCounterUObject NativeContextScope(GVerboseScriptStats ? Context : nullptr);
+			Fn->Invoke(Context, Stack, RESULT_PARAM);
+		}
+		else
+		{
+	#if PER_FUNCTION_SCRIPT_STATS
+			const bool bShouldTrackFunction = (Stack.DepthCounter <= GMaxFunctionStatDepth);
+			SCOPE_CYCLE_UOBJECT(FunctionScope, bShouldTrackFunction ? Fn : nullptr);
+	#endif // PER_FUNCTION_SCRIPT_STATS
+			ProcessScriptFunction(Context, Fn, Stack, RESULT_PARAM, ProcessLocalScriptFunction);
+		}
+	};
+
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
+	if (Context && FLowLevelMemTracker::IsEnabled())
 	{
-		FScopeCycleCounterUObject NativeContextScope(GVerboseScriptStats ? Context : nullptr);
-		Fn->Invoke(Context, Stack, RESULT_PARAM);
+		LLM_SCOPE(ELLMTag::UObject);
+		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Context->GetPackage(), ELLMTagSet::Assets);
+		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Context->GetClass(), ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_SCOPE_ASSET(Context, Context->GetClass());
+		return ContinueProcessLocalFuntionInner();
 	}
 	else
+#endif
 	{
-#if PER_FUNCTION_SCRIPT_STATS
-		const bool bShouldTrackFunction = (Stack.DepthCounter <= GMaxFunctionStatDepth);
-		SCOPE_CYCLE_UOBJECT(FunctionScope, bShouldTrackFunction ? Fn : nullptr);
-#endif // PER_FUNCTION_SCRIPT_STATS
-		ProcessScriptFunction(Context, Fn, Stack, RESULT_PARAM, ProcessLocalScriptFunction);
+		return ContinueProcessLocalFuntionInner();
 	}
 }
 
@@ -2024,6 +2050,11 @@ void UObject::ProcessEvent( UFunction* Function, void* Parms )
 
 	SCOPE_CYCLE_UOBJECT(ContextScope, GVerboseScriptStats ? this : nullptr);
 
+	LLM_SCOPE(ELLMTag::UObject);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetPackage(), ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetClass(), ELLMTagSet::AssetClasses);
+	UE_TRACE_METADATA_SCOPE_ASSET(this, GetClass());
+
 #if LIGHTWEIGHT_PROCESS_EVENT_COUNTER
 	TGuardValue<int32> PECounter(ProcessEventCounter, ProcessEventCounter + 1);
 	CONDITIONAL_SCOPE_CYCLE_COUNTER(STAT_BlueprintTime, IsInGameThread() && ProcessEventCounter == 1);
@@ -2153,7 +2184,7 @@ void UObject::ProcessEvent( UFunction* Function, void* Parms )
 				}
 				else if (!(P->PropertyFlags & CPF_OutParm))
 				{
-					FMemory::Memcpy(P->ContainerPtrToValuePtr<uint8>(Parms), P->ContainerPtrToValuePtr<uint8>(NewStack.Locals), P->ArrayDim * P->ElementSize);
+					FMemory::Memcpy(P->ContainerPtrToValuePtr<uint8>(Parms), P->ContainerPtrToValuePtr<uint8>(NewStack.Locals), P->ArrayDim * P->GetElementSize());
 				}
 			}
 		}
@@ -3093,7 +3124,7 @@ void UObject::ProcessContextOpcode( FFrame& Stack, RESULT_DECL, bool bCanFailSil
 
 		if (!bCanFailSilently)
 		{
-			UE_AUTORTFM_OPEN(
+			UE_AUTORTFM_OPEN
 			{
 				if (NewContext && !IsValid(NewContext))
 				{
@@ -3130,7 +3161,7 @@ void UObject::ProcessContextOpcode( FFrame& Stack, RESULT_DECL, bool bCanFailSil
 					);
 					FBlueprintCoreDelegates::ThrowScriptException(this, Stack, ExceptionInfo);
 				}
-			});
+			};
 		}
 
 		const CodeSkipSizeType wSkip = Stack.ReadCodeSkipCount(); // Code offset for NULL expressions. Code += sizeof(CodeSkipSizeType)
@@ -3430,7 +3461,7 @@ DEFINE_FUNCTION(UObject::execTextConst)
 			FString Namespace;
 			Stack.Step(Stack.Object, &Namespace);
 
-			*(FText*)RESULT_PARAM = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*SourceString, *Namespace, *KeyString);
+			*(FText*)RESULT_PARAM = FText::AsLocalizable_Advanced(Namespace, KeyString, MoveTemp(SourceString));
 		}
 		break;
 
@@ -4071,7 +4102,7 @@ DEFINE_FUNCTION(UObject::execAutoRtfmTransact)
 
 					case EAutoRtfmStopTransactMode::AbortingExitAndAbortParent:
 						// abort this transaction and also abort the parent
-						UE_AUTORTFM_OPEN({ bAbortParentOnCommit = true; });
+						UE_AUTORTFM_OPEN{ bAbortParentOnCommit = true; };
 						AutoRTFM::AbortTransaction();
 						break;
 					}
@@ -4085,6 +4116,21 @@ DEFINE_FUNCTION(UObject::execAutoRtfmTransact)
 	});
 
 	P_NATIVE_BEGIN;
+
+	if (UNLIKELY(Result == AutoRTFM::ETransactionResult::AbortedByLanguage))
+	{
+		FBlueprintExceptionInfo AbortedByLanguage(
+			EBlueprintExceptionType::FatalError,
+			LOCTEXT("AbortedByLanguage", "AutoRTFM aborted because of unhandled constructs in the code (atomics, unhandled function calls, etc)")
+		);
+
+		FBlueprintCoreDelegates::ThrowScriptException(Context, Stack, AbortedByLanguage);
+
+		if (AutoRTFM::IsTransactional())
+		{
+			AutoRTFM::CascadingAbortTransaction();
+		}
+	}
 
 	if (Result != AutoRTFM::ETransactionResult::Committed)
 	{

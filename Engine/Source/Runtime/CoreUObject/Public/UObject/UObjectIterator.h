@@ -10,6 +10,7 @@
 #include "UObject/GarbageCollectionGlobals.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/UObjectArray.h"
+#include "UObject/ObjectVisibility.h"
 #include "UObject/Object.h"
 #include "UObject/Class.h"
 
@@ -57,14 +58,7 @@ enum class EObjectIteratorThreadSafetyOptions : uint8
 
 inline EInternalObjectFlags GetObjectIteratorDefaultInternalExclusionFlags(EInternalObjectFlags InternalExclusionFlags)
 {
-	InternalExclusionFlags |= UE::GC::GUnreachableObjectFlag | EInternalObjectFlags::PendingConstruction;
-	if (!IsInAsyncLoadingThread())
-	{
-		// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.
-		InternalExclusionFlags |= EInternalObjectFlags::AsyncLoading;
-	}
-
-	return InternalExclusionFlags;
+	return InternalExclusionFlags | EInternalObjectFlags::Unreachable | EInternalObjectFlags::PendingConstruction | UE::GetAsyncLoadingInternalFlagsExclusion();
 }
 
 /**
@@ -178,7 +172,7 @@ public:
 	{
 		//@warning: behavior is partially mirrored in UnObjGC.cpp. Make sure to adapt code there as well if you make changes below.
 		// verify that the async loading exclusion flag still matches (i.e. we didn't start/stop async loading within the scope of the iterator)
-		checkSlow(IsInAsyncLoadingThread() || int32(InternalExclusionFlags & EInternalObjectFlags::AsyncLoading));
+		checkSlow(IsInAsyncLoadingThread() || int32(InternalExclusionFlags & EInternalObjectFlags_AsyncLoading));
 
 		while (AdvanceIterator())
 		{
@@ -401,7 +395,7 @@ public:
 	void operator++()
 	{
 		// verify that the async loading exclusion flag still matches (i.e. we didn't start/stop async loading within the scope of the iterator)
-		checkSlow(IsInAsyncLoadingThread() || int32(InternalExclusionFlags & EInternalObjectFlags::AsyncLoading));
+		checkSlow(IsInAsyncLoadingThread() || int32(InternalExclusionFlags & EInternalObjectFlags_AsyncLoading));
 		while (AdvanceIterator())
 		{
 			if (!(*this)->HasAnyFlags(ExclusionFlags) && !(*this)->HasAnyInternalFlags(InternalExclusionFlags))

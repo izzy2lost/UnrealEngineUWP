@@ -212,9 +212,10 @@ namespace UnrealBuildTool
 		/// <returns>New plugin descriptor</returns>
 		public static ProjectDescriptor FromFile(FileReference FileName)
 		{
-			JsonObject RawObject = JsonObject.Read(FileName);
 			try
 			{
+				JsonObject RawObject = JsonObject.Read(FileName);
+
 				ProjectDescriptor Descriptor = new ProjectDescriptor(RawObject, FileName.Directory, FileName);
 				if (Descriptor.Modules != null)
 				{
@@ -227,8 +228,34 @@ namespace UnrealBuildTool
 			}
 			catch (JsonException ex)
 			{
-				throw new JsonException($"{ex.Message} (in {FileName})", ex.Source ?? FileName.FullName, ex.LineNumber, ex.BytePositionInLine, ex);
+				throw new JsonException($"{ex.Message} (in {FileName})", FileName.FullName, ex.LineNumber, ex.BytePositionInLine, ex);
 			}
+		}
+
+		/// <summary>
+		/// Creates a plugin descriptor based on a directory, searching for best uproject
+		/// </summary>
+		/// <param name="DirectoryName">The directory to search for a uproject</param>
+		/// <returns>New plugin descriptor</returns>
+		public static ProjectDescriptor FromDirectory(DirectoryReference DirectoryName)
+		{
+			FileReference ProjectFile = FileReference.Combine(DirectoryName, DirectoryName.GetDirectoryName() + ".uproject");
+			if (FileReference.Exists(ProjectFile))
+			{
+				return ProjectDescriptor.FromFile(ProjectFile);
+			}
+
+			// find any uproject file, in case the name doesn't match
+			IEnumerable<FileReference> FoundProjects = DirectoryReference.EnumerateFiles(DirectoryName, "*.uproject", SearchOption.TopDirectoryOnly);
+			if (FoundProjects.Count() == 0)
+			{
+				throw new FileNotFoundException($"Unable to find a .uproject file in {DirectoryName}");
+			}
+			if (FoundProjects.Count() > 1)
+			{
+				Log.TraceWarningOnce("Found multiple uproject files in {0}, choosing {1}", DirectoryName, FoundProjects.First().GetFileName());
+			}
+			return ProjectDescriptor.FromFile(FoundProjects.First());
 		}
 
 		/// <summary>
@@ -312,18 +339,9 @@ namespace UnrealBuildTool
 			}
 
 			// Write the custom build steps
-			if (InitSteps != null)
-			{
-				InitSteps.Write(Writer, "InitSteps");
-			}
-			if (PreBuildSteps != null)
-			{
-				PreBuildSteps.Write(Writer, "PreBuildSteps");
-			}
-			if (PostBuildSteps != null)
-			{
-				PostBuildSteps.Write(Writer, "PostBuildSteps");
-			}
+			InitSteps?.Write(Writer, "InitSteps");
+			PreBuildSteps?.Write(Writer, "PreBuildSteps");
+			PostBuildSteps?.Write(Writer, "PostBuildSteps");
 		}
 	}
 }

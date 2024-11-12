@@ -8,6 +8,7 @@
 #include "VirtualShadowMaps/VirtualShadowMapCacheManager.h"
 #include "VirtualShadowMaps/VirtualShadowMapProjection.h"
 #include "SceneCulling/SceneCulling.h"
+#include "Rendering/NaniteStreamingManager.h"
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 #include "DynamicPrimitiveDrawing.h"
@@ -49,11 +50,19 @@ static TAutoConsoleVariable<float> CVarDistantLightForceCacheFootprintFraction(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<bool> CVarUseConservativeDistantLightThreshold(
+	TEXT("r.Shadow.Virtual.UseConservativeDistantLightThreshold"),
+	false,
+	TEXT("Base the distant light cutoff on the minimum mip level instead of the shadow resolution calculated through the old path.\n")
+	TEXT("  This fixes problems around the use of an inscribed sphere."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<float> CVarNaniteShadowsLODBias(
 	TEXT("r.Shadow.NaniteLODBias"),
 	1.0f,
 	TEXT("LOD bias for nanite geometry in shadows. 0 = full detail. >0 = reduced detail."),
-	ECVF_RenderThreadSafe);
+	ECVF_Scalability | ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<int32> CVarVirtualShadowOnePassProjection(
 	TEXT("r.Shadow.Virtual.OnePassProjection"),
@@ -77,14 +86,20 @@ static TAutoConsoleVariable<float> CVarResolutionLodBiasLocalMoving(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+extern TAutoConsoleVariable<int32> CVarMarkPixelPagesMipModeLocal;
+
+bool IsVSMOnePassProjectionEnabled(const FEngineShowFlags& ShowFlags)
+{
+	return CVarVirtualShadowOnePassProjection.GetValueOnAnyThread() 
+		// Debug outputs from projection pass do not support one pass projection
+		&& (ShowFlags.VisualizeVirtualShadowMap == 0);
+}
+
 DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Total Raster Bins"), STAT_VSMNaniteBasePassTotalRasterBins, STATGROUP_ShadowRendering);
 DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Visible Raster Bins"), STAT_VSMNaniteBasePassVisibleRasterBins, STATGROUP_ShadowRendering);
 
 DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Total Shading Bins"), STAT_VSMNaniteBasePassTotalShadingBins, STATGROUP_ShadowRendering);
 DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Visible Shading Bins"), STAT_VSMNaniteBasePassVisibleShadingBins, STATGROUP_ShadowRendering);
-
-DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Total Shading Draws"), STAT_VSMNaniteBasePassTotalShadingDraws, STATGROUP_ShadowRendering);
-DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Visible Shading Draws"), STAT_VSMNaniteBassPassVisibleShadingDraws, STATGROUP_ShadowRendering);
 
 DECLARE_DWORD_COUNTER_STAT(TEXT("Distant Light Count"), STAT_DistantLightCount, STATGROUP_ShadowRendering);
 DECLARE_DWORD_COUNTER_STAT(TEXT("Distant Cached Count"), STAT_DistantCachedCount, STATGROUP_ShadowRendering);
@@ -98,12 +113,14 @@ FShadowSceneRenderer::FShadowSceneRenderer(FDeferredShadingSceneRenderer& InScen
 	, Scene(*InSceneRenderer.Scene)
 	, ShadowScene(*Scene.ShadowScene)
 	, VirtualShadowMapArray(InSceneRenderer.VirtualShadowMapArray)
+	, bUseConservativeDistantLightThreshold(CVarUseConservativeDistantLightThreshold.GetValueOnAnyThread())
+	, DistantLightMode(CVarDistantLightMode.GetValueOnAnyThread())
 {
 }
 
 float FShadowSceneRenderer::ComputeNaniteShadowsLODScaleFactor()
 {
-	return FMath::Pow(2.0f, -CVarNaniteShadowsLODBias.GetValueOnRenderThread());
+	return FMath::Pow(2.0f, -CVarNaniteShadowsLODBias.GetValueOnRenderThread()) * Nanite::GStreamingManager.GetQualityScaleFactor();
 }
 
 namespace
@@ -122,6 +139,25 @@ struct FHeapPair
 
 void FShadowSceneRenderer::BeginRender(FRDGBuilder& GraphBuilder)
 {
+	bNeedVSMProjection = false;
+	bNeedMegaLightsProjection = false;
+
+	ViewDatas.Reserve(SceneRenderer.Views.Num());
+	for (const FViewInfo& View : SceneRenderer.Views)
+	{
+		const FVector2f ViewSize = FVector2f(View.ViewRect.Size());
+		FVector2f RadiusClipXY = FVector2f(2.0f) / ViewSize;
+
+		const FMatrix &ViewToClip = View.ViewMatrices.GetProjectionMatrix();
+		// TODO: is RadiusXY always symmetrical?
+		FVector2f ProjScaleXY = FVector2f(static_cast<float>(ViewToClip.M[0][0]), static_cast<float>(ViewToClip.M[1][1]));
+		FVector2f RadiusXY = RadiusClipXY / ProjScaleXY;
+		float MinRadiusXY = FMath::Min(RadiusXY.X, RadiusXY.Y);
+		float ClipToViewSizeScale = ViewToClip.M[2][3] * MinRadiusXY;
+		float ClipToViewSizeBias = ViewToClip.M[3][3] * MinRadiusXY;
+		ViewDatas.Emplace(FViewData{ ClipToViewSizeScale, ClipToViewSizeBias });
+	}
+
 	// Kick off shadow scene updates.
 	ShadowScene.UpdateForRenderedFrame(GraphBuilder);
 
@@ -173,10 +209,11 @@ void FShadowSceneRenderer::BeginRender(FRDGBuilder& GraphBuilder)
 UE::Renderer::Private::IShadowInvalidatingInstances *FShadowSceneRenderer::GetInvalidatingInstancesInterface(const FSceneView *SceneView)
 {
 	// No need to collect invalidations if there is nothing to invalidate.
-	if (Scene.VirtualShadowMapCache && Scene.VirtualShadowMapCache->IsCacheDataAvailable())
+	FVirtualShadowMapArrayCacheManager* CacheManager = Scene.GetVirtualShadowMapCache();
+	if (CacheManager && CacheManager->IsCacheDataAvailable())
 	{
 		// TODO: Make use of the SceneView parameter to register invalidations for view-dependent shadows appropriately.
-		return Scene.VirtualShadowMapCache->GetInvalidatingInstancesInterface();
+		return CacheManager->GetInvalidatingInstancesInterface();
 	}
 	return nullptr;
 }
@@ -224,6 +261,32 @@ FVirtualShadowMapProjectionShaderData FShadowSceneRenderer::GetLocalLightProject
 	return Data;
 }
 
+
+/**
+ * Calculate the radius in world-space units of a single pixel at a given depth.
+ */
+static float GetWorldSpacePixelFootprint(float ViewSpaceDepth, float ClipToViewSizeScale, float ClipToViewSizeBias)
+{
+	return ViewSpaceDepth * ClipToViewSizeScale + ClipToViewSizeBias;
+}
+
+/**
+ * Compute the lowest (highest res) mip level that might be marked by any pixels inside the light influence radius for a given scene primary view.
+ */
+static uint32 GetConservativeMipLevelLocal(const FViewInfo& View, float ClipToViewSizeScale, float ClipToViewSizeBias, const FVector& LightOrigin, float LightRadius, float WorldToShadowFootprintScale, float ResolutionLodBias, float GlobalResolutionLodBias, uint32 MipModeLocal)
+{
+	// Note: not just a rotation, full world-space DP.
+	FVector ViewSpaceOrigin = View.ShadowViewMatrices.GetViewMatrix().TransformPosition(LightOrigin);
+
+	// Remove radius to arrive at minimum possible z-distance in view space, from primary view.
+	float RadiusWorld = GetWorldSpacePixelFootprint(FMath::Max(0.0f, float(ViewSpaceOrigin.Z) - LightRadius), ClipToViewSizeScale, ClipToViewSizeBias);
+
+	// Radius is the max possible shadow view space Z, which would require the max res.
+	float ShadowFootprint = RadiusWorld * WorldToShadowFootprintScale / LightRadius;
+
+	return UE::HLSL::GetMipLevelLocal(ShadowFootprint, MipModeLocal, ResolutionLodBias, GlobalResolutionLodBias);
+}
+
 TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FShadowSceneRenderer::AddLocalLightShadow(const FWholeSceneProjectedShadowInitializer& ProjectedShadowInitializer, FProjectedShadowInfo* ProjectedShadowInfo, FLightSceneInfo* LightSceneInfo, float MaxScreenRadius)
 {
 	FVirtualShadowMapArrayCacheManager* CacheManager = VirtualShadowMapArray.CacheManager;
@@ -236,22 +299,68 @@ TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FShadowSceneRenderer::AddLocalLi
 	const FLightSceneProxy* LightSceneProxy = ProjectedShadowInfo->GetLightSceneInfo().Proxy;
 	const float ResolutionLODBiasLocal = GetResolutionLODBiasLocal(ShadowScene.GetLightMobilityFactor(LightSceneInfo->Id), LightSceneProxy->GetVSMResolutionLodBias());
 
-	// Single page res, at this point we force the VSM to be single page
-	// TODO: this computation does not match up with page marking logic super-well, particularly for long spot lights,
-	//       we can absolutely mirror the page marking calc better, just unclear how much it helps. 
-	//       Also possible to feed back from gpu - which would be more accurate wrt partially visible lights (e.g., a spot going through the ground).
-	//       Of course this creates jumps if visibility changes, which may or may not create unsolvable artifacts.	
-	const float BiasedFootprintThreshold = float(FVirtualShadowMap::PageSize) * FMath::Exp2(ResolutionLODBiasLocal);
-	const bool bIsDistantLight = CVarDistantLightMode.GetValueOnRenderThread() != 0
-		&& (MaxScreenRadius <= BiasedFootprintThreshold || CVarDistantLightMode.GetValueOnRenderThread() == 2);
+	// Compute conservative mip level estimate based on radius of the bounding sphere.
+	// TODO: can probably do better by finding  closest point on cone for certain scenarios? Not as important as it might seem as the worst case is for a narrow cone, but then the narrow FOV limits the required resolution.
+
+	const FVector2f ShadowViewSize = FVector2f(FVirtualShadowMap::VirtualMaxResolutionXY, FVirtualShadowMap::VirtualMaxResolutionXY);
+	const FMatrix &ShadowViewToClip = ProjectedShadowInfo->bOnePassPointLightShadow ? ProjectedShadowInfo->OnePassShadowFaceProjectionMatrix : ProjectedShadowInfo->ViewToClipOuter;
+	float ShadowProjScale = ShadowViewToClip.M[0][0]; // always symmetrical
+	const float WorldToShadowFootprintScale = ShadowProjScale * ShadowViewSize.X;
+
+	uint32 MinMipLevel = FVirtualShadowMap::MaxMipLevels;
+	for (int32 ViewIndex = 0; ViewIndex < SceneRenderer.Views.Num(); ++ViewIndex)
+	{
+		const FViewInfo& View = SceneRenderer.Views[ViewIndex];
+		const FViewData& ViewData = ViewDatas[ViewIndex];
+
+		MinMipLevel = FMath::Min(MinMipLevel, GetConservativeMipLevelLocal(
+			View, 
+			ViewData.ClipToViewSizeScale,
+			ViewData.ClipToViewSizeBias,
+			LightSceneProxy->GetOrigin(), 
+			LightSceneProxy->GetRadius(),
+			WorldToShadowFootprintScale,
+			ResolutionLODBiasLocal, 
+			CacheManager->GetGlobalResolutionLodBias(), 
+			CVarMarkPixelPagesMipModeLocal.GetValueOnRenderThread()
+			));
+	}
+	
+	bool bIsDistantLight = DistantLightMode == 2;
+	bool bShouldForceTimeSliceDistantUpdate = false;
+
+	if (DistantLightMode == 1)
+	{
+		if (bUseConservativeDistantLightThreshold)
+		{
+			// use distant light only if we are sure that there's only one mip level.
+			bIsDistantLight = MinMipLevel == (FVirtualShadowMap::MaxMipLevels - 1);
+			bShouldForceTimeSliceDistantUpdate = false;// TODO: (bIsDistantLight && MaxScreenRadius <= BiasedFootprintThreshold * DistantLightForceCacheFootprintFraction); ??
+		}
+		else
+		{
+			// Single page res, at this point we force the VSM to be single page
+			const float BiasedFootprintThreshold = float(FVirtualShadowMap::PageSize) * FMath::Exp2(ResolutionLODBiasLocal - LightSceneProxy->GetVSMResolutionLodBias());
+			bIsDistantLight = MaxScreenRadius <= BiasedFootprintThreshold;
+			
+			const float DistantLightForceCacheFootprintFraction = FMath::Clamp(CVarDistantLightForceCacheFootprintFraction.GetValueOnRenderThread(), 0.0f, 1.0f);
+			bShouldForceTimeSliceDistantUpdate = (bIsDistantLight && MaxScreenRadius <= BiasedFootprintThreshold * DistantLightForceCacheFootprintFraction);
+
+		}
+	}
+
 
 	const int32 NumMaps = ProjectedShadowInitializer.bOnePassPointLightShadow ? 6 : 1;
 	TSharedPtr<FVirtualShadowMapPerLightCacheEntry> PerLightCacheEntry = CacheManager->FindCreateLightCacheEntry(LightSceneInfo->Id, 0, NumMaps);
 			
-	const float DistantLightForceCacheFootprintFraction = FMath::Clamp(CVarDistantLightForceCacheFootprintFraction.GetValueOnRenderThread(), 0.0f, 1.0f);
-	bool bShouldForceTimeSliceDistantUpdate = (bIsDistantLight && MaxScreenRadius <= BiasedFootprintThreshold * DistantLightForceCacheFootprintFraction);
 	LocalLightShadowFrameSetup.PerLightCacheEntry = PerLightCacheEntry;
-	bool bIsCached = PerLightCacheEntry->UpdateLocal(ProjectedShadowInitializer, bIsDistantLight, CacheManager->IsCacheEnabled(), !bShouldForceTimeSliceDistantUpdate);
+	bool bIsCached = PerLightCacheEntry->UpdateLocal(
+		ProjectedShadowInitializer,
+		LightSceneProxy->GetOrigin(),
+		LightSceneProxy->GetRadius(),
+		bIsDistantLight,
+		CacheManager->IsCacheEnabled(),
+		!bShouldForceTimeSliceDistantUpdate);
 
 	if (bIsCached && bIsDistantLight && PerLightCacheEntry->Prev.ScheduledFrameNumber == Scene.GetFrameNumber())
 	{
@@ -271,6 +380,23 @@ TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FShadowSceneRenderer::AddLocalLi
 		VirtualSmCacheEntry.Update(VirtualShadowMapArray, *PerLightCacheEntry, FaceVirtualShadowMapId);
 		// Update projection data
 		VirtualSmCacheEntry.ProjectionData = GetLocalLightProjectionShaderData(ResolutionLODBiasLocal, ProjectedShadowInfo, Index);
+		VirtualSmCacheEntry.ProjectionData.MinMipLevel = MinMipLevel;
+	}
+
+	FLightOcclusionType OcclusionType = GetLightOcclusionType(*LightSceneInfo->Proxy, SceneRenderer.ViewFamily);
+	// Depending on which type of projection we're going to use, mark that we need to associated path for later
+	if (OcclusionType == FLightOcclusionType::Shadowmap)
+	{
+		bNeedVSMProjection = true;
+	}
+	else if (OcclusionType == FLightOcclusionType::MegaLightsVSM)
+	{
+		bNeedMegaLightsProjection = true;
+	}
+	else
+	{
+		// ??? Should not get into this path with other projection types
+		check(false);
 	}
 
 	return PerLightCacheEntry;
@@ -334,8 +460,7 @@ void FShadowSceneRenderer::PostInitDynamicShadowsSetup()
 					Scene,
 					NaniteCullingViewsVolumes,
 					&Scene.NaniteRasterPipelines[ENaniteMeshPass::BasePass],
-					&Scene.NaniteShadingPipelines[ENaniteMeshPass::BasePass],
-					&Scene.NaniteMaterials[ENaniteMeshPass::BasePass]
+					&Scene.NaniteShadingPipelines[ENaniteMeshPass::BasePass]
 				);
 			}
 		}
@@ -362,23 +487,15 @@ void FShadowSceneRenderer::RenderVirtualShadowMaps(FRDGBuilder& GraphBuilder, bo
 			uint32 VisibleShadingBins = 0;
 			VisibilityResults.GetShadingBinStats(VisibleShadingBins, TotalShadingBins);
 
-			uint32 TotalShadingDraws = 0;
-			uint32 VisibleShadingDraws = 0;
-			VisibilityResults.GetShadingDrawStats(VisibleShadingDraws, TotalShadingDraws);
-
 			SET_DWORD_STAT(STAT_VSMNaniteBasePassTotalRasterBins, TotalRasterBins);
 			SET_DWORD_STAT(STAT_VSMNaniteBasePassVisibleRasterBins, VisibleRasterBins);
 
 			SET_DWORD_STAT(STAT_VSMNaniteBasePassTotalShadingBins, TotalShadingBins);
 			SET_DWORD_STAT(STAT_VSMNaniteBasePassVisibleShadingBins, VisibleShadingBins);
 
-			SET_DWORD_STAT(STAT_VSMNaniteBasePassTotalShadingDraws, TotalShadingDraws);
-			SET_DWORD_STAT(STAT_VSMNaniteBassPassVisibleShadingDraws, VisibleShadingDraws);
-
 		}, Nanite::GetVisibilityTask(NaniteVisibilityQuery));
 #endif
 	}
-
 
 	const TArray<FProjectedShadowInfo*, SceneRenderingAllocator>& VirtualShadowMapShadows = SceneRenderer.SortedShadowsForShadowDepthPass.VirtualShadowMapShadows;
 	TArray<TSharedPtr<FVirtualShadowMapClipmap>, SceneRenderingAllocator>& VirtualShadowMapClipmaps = SceneRenderer.SortedShadowsForShadowDepthPass.VirtualShadowMapClipmaps;
@@ -478,15 +595,10 @@ void FShadowSceneRenderer::RenderVirtualShadowMapProjectionMaskBits(
 	FRDGBuilder& GraphBuilder,
 	FMinimalSceneTextures& SceneTextures)
 {
-	// VSM one pass projection (done first as it may be needed by clustered shading)
 	bShouldUseVirtualShadowMapOnePassProjection =
 		VirtualShadowMapArray.IsAllocated() &&
-		CVarVirtualShadowOnePassProjection.GetValueOnRenderThread();
-
-	if (!VirtualShadowMapArray.HasAnyShadowData())
-	{
-		return;
-	}
+		IsVSMOnePassProjectionEnabled(SceneRenderer.ViewFamily.EngineShowFlags) &&
+		bNeedVSMProjection;
 
 	if (bShouldUseVirtualShadowMapOnePassProjection)
 	{
@@ -521,7 +633,7 @@ void FShadowSceneRenderer::RenderVirtualShadowMapProjectionMaskBits(
 					VirtualShadowMapMaskBitsHairStrands);
 
 				// Transmittance bits
-				HairTransmittanceMaskBits = RenderHairStrandsOnePassTransmittanceMask(GraphBuilder, View, VirtualShadowMapMaskBitsHairStrands, VirtualShadowMapArray).TransmittanceMask;
+				HairTransmittanceMaskBits = RenderHairStrandsOnePassTransmittanceMask(GraphBuilder, View, ViewIndex, VirtualShadowMapMaskBitsHairStrands, VirtualShadowMapArray).TransmittanceMask;
 			}
 		}
 	}
@@ -546,6 +658,12 @@ void FShadowSceneRenderer::ApplyVirtualShadowMapProjectionForLight(
 	}
 
 	const FVisibleLightInfo& VisibleLightInfo = SceneRenderer.VisibleLightInfos[LightSceneInfo->Id];
+
+	if (!VisibleLightInfo.HasVirtualShadowMap())
+	{
+		return;
+	}
+
 	FSceneTextureParameters SceneTextureParameters = GetSceneTextureParameters(GraphBuilder, SceneTextures.UniformBuffer);
 
 	for (int32 ViewIndex = 0; ViewIndex < SceneRenderer.Views.Num(); ViewIndex++)
@@ -591,7 +709,7 @@ void FShadowSceneRenderer::ApplyVirtualShadowMapProjectionForLight(
 					CompositeVirtualShadowMapFromMaskBits(
 						GraphBuilder,
 						SceneTextures,
-						View,
+						View, ViewIndex,
 						ScissorRect,
 						VirtualShadowMapArray,
 						EVirtualShadowMapProjectionInputType::GBuffer,
@@ -640,7 +758,7 @@ void FShadowSceneRenderer::ApplyVirtualShadowMapProjectionForLight(
 					CompositeVirtualShadowMapFromMaskBits(
 						GraphBuilder,
 						SceneTextures,
-						View,
+						View, ViewIndex,
 						ScissorRect,
 						VirtualShadowMapArray,
 						EVirtualShadowMapProjectionInputType::HairStrands,

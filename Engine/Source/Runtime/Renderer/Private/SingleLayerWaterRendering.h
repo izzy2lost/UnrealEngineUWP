@@ -6,6 +6,7 @@
 #include "PixelShaderUtils.h"
 #include "ScreenSpaceRayTracing.h"
 #include "SingleLayerWaterDefinitions.h"
+#include "Froxel/Froxel.h"
 
 class FViewInfo;
 
@@ -18,6 +19,7 @@ struct FSingleLayerWaterTileClassification
 
 struct FSingleLayerWaterPrePassResult
 {
+	Froxel::FRenderer Froxels;
 	FRDGTextureMSAA DepthPrepassTexture;
 	TArray<FSingleLayerWaterTileClassification> ViewTileClassification;
 };
@@ -101,7 +103,7 @@ void SingleLayerWaterAddTiledFullscreenPass(
 			Forward<FRDGEventName>(PassName),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[PassParameters, GlobalShaderMap, Viewport, TiledScreenSpaceReflection, VertexShader, PixelShader, BlendState, RasterizerState, DepthStencilState, StencilRef](FRHICommandList& RHICmdList)
+			[PassParameters, GlobalShaderMap, Viewport, TiledScreenSpaceReflection, VertexShader, PixelShader, BlendState, RasterizerState, DepthStencilState, StencilRef](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(Viewport.Min.X, Viewport.Min.Y, 0.0f, Viewport.Max.X, Viewport.Max.Y, 1.0f);
 
@@ -130,7 +132,7 @@ void SingleLayerWaterAddTiledFullscreenPass(
 			Forward<FRDGEventName>(PassName),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[PassParameters, GlobalShaderMap, Viewport, PixelShader, BlendState, RasterizerState, DepthStencilState, StencilRef](FRHICommandList& RHICmdList)
+			[PassParameters, GlobalShaderMap, Viewport, PixelShader, BlendState, RasterizerState, DepthStencilState, StencilRef](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(Viewport.Min.X, Viewport.Min.Y, 0.0f, Viewport.Max.X, Viewport.Max.Y, 1.0f);
 

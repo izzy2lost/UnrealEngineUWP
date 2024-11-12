@@ -12,7 +12,12 @@
 
 #if COMPILER_DXC && COMPILER_VULKAN && PLATFORM_SUPPORTS_INLINE_RAY_TRACING
 
-#define PLATFORM_SUPPORTS_INLINE_RAY_TRACING_TRIANGLE_ATTRIBUTES 1
+#ifndef VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH
+#define VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH 0
+#endif
+
+// Metadata buffer is not allocated when position_fetch is available
+#define PLATFORM_SUPPORTS_INLINE_RAY_TRACING_TRIANGLE_ATTRIBUTES !VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH
 
 #if EMULATE_VKDEVICEADRESS
 inline uint2 AddEmulated64(uint2 a, uint b)
@@ -68,6 +73,50 @@ float3 VulkanLoadVertexPositionFloat3(VK_ADDR_TYPE SourceBufferBaseAddress, uint
 	return asfloat(VK_RAW_BUFFER_LOAD(uint3, SourceBufferBaseAddress, OffsetInBytes));
 }
 
+#if VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH
+
+#define PLATFORM_SUPPORTS_INLINE_RAY_TRACING_TRIANGLE_NORMALS 1
+
+[[vk::ext_capability(5391 /* RayQueryPositionFetchKHR */)]]
+[[vk::ext_extension("SPV_KHR_ray_tracing_position_fetch")]]
+[[vk::ext_instruction(5340 /* OpRayQueryGetIntersectionTriangleVertexPositionsKHR */)]]
+float3 RayQueryGetIntersectionTriangleVertexPositionsKHR(
+#if ENABLE_TRACE_RAY_INLINE_PROCEDURAL_PRIMITIVE
+	[[vk::ext_reference]] RayQuery<RAY_FLAG_NONE> RayQ,
+#else
+	[[vk::ext_reference]] RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> RayQ,
+#endif // ENABLE_TRACE_RAY_INLINE_PROCEDURAL_PRIMITIVE
+int committed)[3];
+
+float3 GetInlineRayTracingWorldGeometryNormal(
+#if ENABLE_TRACE_RAY_INLINE_PROCEDURAL_PRIMITIVE
+	RayQuery<RAY_FLAG_NONE> RayQ,
+#else
+	RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> RayQ,
+#endif
+	float3x4 WorldToObject3x4,
+	bool Committed)
+{
+	FTriangleBaseAttributes Result = (FTriangleBaseAttributes)0;
+
+	float3 LocalNormal;
+	if (Committed)
+	{
+		float3 LocalPositions[3] = RayQueryGetIntersectionTriangleVertexPositionsKHR(RayQ, 1 /* RayQueryCommittedIntersectionKHR */);
+		LocalNormal = cross(LocalPositions[2] - LocalPositions[0], LocalPositions[1] - LocalPositions[0]);
+	}
+	else
+	{
+		float3 LocalPositions[3] = RayQueryGetIntersectionTriangleVertexPositionsKHR(RayQ, 0 /* RayQueryCandidateIntersectionKHR */);
+		LocalNormal = cross(LocalPositions[2] - LocalPositions[0], LocalPositions[1] - LocalPositions[0]);
+	}
+
+	float3 WorldNormal = normalize(mul(LocalNormal, (float3x3)WorldToObject3x4));
+	return WorldNormal;
+}
+
+#else // VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH
+
 // Counterpart of FVulkanRayTracingGeometryParameters in VulkanRayTracing.cpp
 struct FVulkanRayTracingGeometryParameters
 {
@@ -122,5 +171,7 @@ FTriangleBaseAttributes LoadInlineRayTracingTriangleAttributes(
 
 	return Result;
 }
+
+#endif // VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH
 
 #endif // COMPILER_DXC && COMPILER_VULKAN && PLATFORM_SUPPORTS_INLINE_RAY_TRACING

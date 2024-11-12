@@ -50,17 +50,19 @@ namespace Chaos
 			Cache.W = Particle.GetW();
 		}
 
-		void ReloadParticlePostSolve(FPBDRigidParticleHandle& Particle) const
+		bool ReloadParticlePostSolve(FPBDRigidParticleHandle& Particle) const
 		{
 			//if this function is called it means the particle is in sync, which means we should have a cached value
 			const FPBDSolveCache* Cache = ParticleToCachedSolve.Find(Particle.UniqueIdx());
-			if (Cache)
+			if (Cache && (Particle.GetP() != Cache->P || Particle.GetQ() != Cache->Q || Particle.GetV() != Cache->V || Particle.GetW() != Cache->W))
 			{
 				Particle.SetP(Cache->P);
 				Particle.SetQ(Cache->Q);
 				Particle.SetV(Cache->V);
 				Particle.SetW(Cache->W);
+				return true;
 			}
+			return false;
 		}
 
 		void SaveConstraints(TArrayView<const FPBDCollisionConstraint* const> CollisionsArray)

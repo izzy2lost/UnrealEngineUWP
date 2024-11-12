@@ -2,17 +2,20 @@
 
 #pragma once
 
-#include "Engine/DeveloperSettings.h"
 #include "Containers/Array.h"
+#include "DMDefs.h"
+#include "Engine/DeveloperSettings.h"
 #include "Engine/Texture.h"
 #include "PropertyEditorDelegates.h"
 #include "UObject/SoftObjectPtr.h"
 #include "DynamicMaterialEditorSettings.generated.h"
 
 class FModifierKeysState;
+class UDynamicMaterialModel;
 class UMaterialFunctionInterface;
-struct FPropertyChangedEvent;
 enum EOrientation : int;
+struct FDMMaterialChannelListPreset;
+struct FPropertyChangedEvent;
 
 USTRUCT(BlueprintType)
 struct FDMMaterialEffectList
@@ -24,6 +27,144 @@ struct FDMMaterialEffectList
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Effects")
 	TArray<TSoftObjectPtr<UMaterialFunctionInterface>> Effects;
+};
+
+UENUM(BlueprintType)
+enum class EDMDefaultMaterialPropertySlotValueType : uint8
+{
+	Texture,
+	Color
+};
+
+USTRUCT(BlueprintType)
+struct FDMDefaultMaterialPropertySlotValue
+{
+	GENERATED_BODY()
+
+	FDMDefaultMaterialPropertySlotValue();
+	FDMDefaultMaterialPropertySlotValue(const TSoftObjectPtr<UTexture>& InTexture);
+	FDMDefaultMaterialPropertySlotValue(const FLinearColor& InColor);
+	FDMDefaultMaterialPropertySlotValue(EDMDefaultMaterialPropertySlotValueType InDefaultType, 
+		const TSoftObjectPtr<UTexture>& InTexture, const FLinearColor& InColor);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material Designer")
+	EDMDefaultMaterialPropertySlotValueType DefaultType;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material Designer")
+	TSoftObjectPtr<UTexture> Texture;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material Designer")
+	FLinearColor Color;
+};
+
+USTRUCT(BlueprintType)
+struct FDMMaterialChannelListPreset
+{
+	GENERATED_BODY()
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Channel")
+	FName Name;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Channel")
+	bool bBaseColor = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Channel")
+	bool bEmissive = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bOpacity = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bRoughness = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bSpecular = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bMetallic = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bNormal = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bPixelDepthOffset = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bWorldPositionOffset = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bAmbientOcclusion = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bAnisotropy = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bRefraction = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bTangent = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bDisplacement = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bSubsurfaceColor = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bSurfaceThickness = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	TEnumAsByte<EBlendMode> DefaultBlendMode = BLEND_Opaque;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	EDMMaterialShadingModel DefaultShadingModel = EDMMaterialShadingModel::Unlit;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bDefaultAnimated = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bDefaultTwoSided = true;
+
+	bool IsPropertyEnabled(EDMMaterialPropertyType InProperty) const;
+};
+
+UENUM(BlueprintType)
+enum class EDMMaterialPreviewMesh : uint8
+{
+	Plane,
+	Cube,
+	Sphere,
+	Cylinder,
+	Custom
+};
+
+UENUM(BlueprintType)
+enum class EDMMaterialEditorLayout : uint8
+{
+	Top,
+	TopSlim,
+	Left,
+
+	First = Top,
+	Last = Left
+};
+
+USTRUCT()
+struct FDMContentBrowserThumbnailSettings
+{
+	GENERATED_BODY()
+
+	UPROPERTY(Config, EditAnywhere, Category = "Preview")
+	EDMMaterialPreviewMesh PreviewMesh = EDMMaterialPreviewMesh::Custom;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Preview", meta = (EditCondition = "PreviewMesh == EDMMaterialPreviewMesh::Custom", EditConditionHides))
+	float CustomMeshOrbitPitch = -30.f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Preview", meta = (EditCondition = "PreviewMesh == EDMMaterialPreviewMesh::Custom", EditConditionHides))
+	float CustomMeshOrbitYaw = 152.f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Preview", meta = (EditCondition = "PreviewMesh == EDMMaterialPreviewMesh::Custom", EditConditionHides))
+	float CustomMeshZoom = -409.f;
 };
 
 /**
@@ -41,82 +182,60 @@ public:
 	static UDynamicMaterialEditorSettings* Get();
 
 	/** Changes the currently active material in the designer following actor/object selection. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Editor")
 	bool bFollowSelection;
 
-	/** Adjusts the the spin box value sensitivity. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Layout", meta = (
-		ClampMin = "0.01", UIMin = "0.01", ClampMax = "1.0", UIMax = "1.0"))
-	float SpinBoxValueMultiplier_Default;
-
-	/** Adjusts the the spin box value sensitivity. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Layout", meta = (
-		ClampMin = "0.01", UIMin = "0.01", ClampMax = "1.0", UIMax = "1.0"))
-	float SpinBoxValueMultiplier_Shift;
-
-	/** Adjusts the the spin box value sensitivity. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Layout", meta = (
-		ClampMin = "0.01", UIMin = "0.01", ClampMax = "1.0", UIMax = "1.0"))
-	float SpinBoxValueMultiplier_AltShift;
-
-	/** Adjusts the the spin box value sensitivity. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Layout", meta = (
-		ClampMin = "0.01", UIMin = "0.01", ClampMax = "1.0", UIMax = "1.0"))
-	float SpinBoxValueMultiplier_Cmd;
-
-	/** Adjusts the the spin box value sensitivity. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Layout", meta = (
-		ClampMin = "0.01", UIMin = "0.01", ClampMax = "1.0", UIMax = "1.0"))
-	float SpinBoxValueMultiplier_AltCmd;
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout")
+	EDMMaterialEditorLayout Layout;
 
 	/** Adjusts the vertical size of the material layer view. */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout", meta = (
 		ClampMin = "0.05", UIMin = "0.05", ClampMax = "0.95", UIMax = "0.95"))
 	float SplitterLocation;
 
-	/** Sets the maximum width for float-based sliders in the editor */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWRite, Category = "Layout", meta = (
-		ClampMin = "100", UIMin = "100", ClampMax = "1000", UIMax = "1000"))
-	float MaxFloatSliderWidth;
+	/** Adjusts the vertical size of the material layer view. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout", meta = (
+		ClampMin = "0.05", UIMin = "0.05", ClampMax = "0.95", UIMax = "0.95"))
+	float PreviewSplitterLocation;
 
-	/** The size of the material layer preview images. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview", meta = (ClampMin = "32", UIMin = "32", ClampMax = "128", UIMax = "128"))
-	int32 LayerPreviewSize;
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout")
+	bool bUVVisualizerVisible;
 
-	/** The size of the material slot preview images. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview", meta = (ClampMin = "40", UIMin = "40", ClampMax = "128", UIMax = "128"))
-	int32 SlotPreviewSize;
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout")
+	bool bUseFullChannelNamesInTopSlimLayout;
 
-	/** The size of the material layer details preview images. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview", meta = (ClampMin = "32", UIMin = "32", ClampMax = "128", UIMax = "128"))
-	int32 DetailsPreviewSize;
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout")
+	float StagePreviewSize;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout", meta = (DisplayName = "Channel Preview Size"))
+	float PropertyPreviewSize;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Thumnnails")
+	double ThumbnailSize;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
+	EDMMaterialPreviewMesh PreviewMesh;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
+	TSoftObjectPtr<UStaticMesh> CustomPreviewMesh;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Preview")
+	FDMContentBrowserThumbnailSettings ContentBrowserThumbnail;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
+	bool bShowPreviewBackground;
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
 	bool bPreviewImagesUseTextureUVs;
 
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
+	TSoftObjectPtr<UTexture> DefaultMask;
+
 	/**
-	 * If true, will display the hovered preview image in an enlarged format inside the tooltip.
-	 * 
-	 * NOTE: The Material Designer must be re-opened for changes to take effect.
+	 * Overrides the default values given to slots created in the given material property.
 	 */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "ToolTips")
-	bool bShowTooltipPreview;
-
-	/** The size of the preview image when displayed in the tooltip. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "ToolTips", meta = (EditCondition = "bShowTooltipPreview == true", ClampMin = "128", UIMin = "128", ClampMax = "2048", UIMax = "2048"))
-	int32 TooltipTextureSize;
-
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview", meta=(DisplayName = "Default RGB Texture"))
-	TSoftObjectPtr<UTexture> DefaultRGBTexture;
-
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
-	TSoftObjectPtr<UTexture> DefaultOpaqueTexture;
-
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
-	TSoftObjectPtr<UTexture> DefaultPreviewCanvasTexture;
-
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
-	TSoftObjectPtr<UTexture> DefaultOpacitySlotMask;
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channels")
+	TMap<EDMMaterialPropertyType, FDMDefaultMaterialPropertySlotValue> DefaultSlotValueOverrides;
 
 	/*
 	 * Add paths to search for custom effects.
@@ -135,18 +254,39 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Effects")
 	TArray<FName> CustomEffectsFolders;
 
-	FOnFinishedChangingProperties OnSettingsChanged;
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channels", meta = (TitleProperty = Name))
+	TArray<FDMMaterialChannelListPreset> MaterialChannelPresets;
 
-	//~ Begin UObject
-	virtual void PostInitProperties() override;
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
-	//~ End UObject
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Material Functions")
+	bool bUseLinearColorForVectors;
+
+	UPROPERTY(Config)
+	bool bValidatedPresets = false;
+
+	/** This variable is accessed in multiple places, so this is a quick accessor. */
+	static bool IsUseLinearColorForVectorsEnabled();
 
 	void OpenEditorSettingsWindow() const;
 
 	void ResetAllLayoutSettings();
 
-	float GetSpinboxValueChangeMultiplier(const FModifierKeysState& InModifierKeys) const;
-
 	TArray<FDMMaterialEffectList> GetEffectList() const;
+
+	const FDMDefaultMaterialPropertySlotValue& GetDefaultSlotValue(EDMMaterialPropertyType InProperty) const;
+
+	const FDMMaterialChannelListPreset* GetPresetByName(FName InName) const;
+
+	FOnFinishedChangingProperties::RegistrationType& GetOnSettingsChanged();
+
+	//~ Begin UObject
+	virtual void PostInitProperties() override;
+	virtual void PreEditChange(FEditPropertyChain& InPropertyAboutToChange) override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+	//~ End UObject
+
+private:
+	TArray<FName> PreEditPresetNames;
+	FOnFinishedChangingProperties OnSettingsChanged;
+
+	void EnsureUniqueChannelPresetNames();
 };

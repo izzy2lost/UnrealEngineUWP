@@ -147,8 +147,6 @@ extern ENGINE_API float GLevelStreamingUnregisterComponentsTimeLimit;
 extern ENGINE_API int32 GLevelStreamingForceGCAfterLevelStreamedOut;
 /** Whether to kick off incremental GC when there are over the specified amount of levels still waiting to be purged. */
 extern ENGINE_API int32 GLevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurge;
-/** Whether to override GLevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurge temporarily until at least one level needs to be purged.  */
-extern ENGINE_API int32 GLevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurgeOverride;
 /** Enables level streaming requests while async loading (of anything) while the match is already in progress and no loading screen is up. */
 extern ENGINE_API int32 GLevelStreamingAllowLevelRequestsWhileAsyncLoadingInMatch;
 /** When we're already loading this many levels and actively in match, don't allow any more requests until one of those completes.  Set to zero to disable. */
@@ -195,11 +193,6 @@ protected:
 	uint32 IncrementalBeginDestroyEnabled : 1;
 
 	UPROPERTY(EditAnywhere, config, Category = Optimization, meta = (
-		ConsoleVariable = "gc.MultithreadedDestructionEnabled", DisplayName = "Multithreaded Destruction Enabled",
-		ToolTip = "If true, the engine will free objects' memory on a worker thread."))
-	uint32 MultithreadedDestructionEnabled : 1;
-
-	UPROPERTY(EditAnywhere, config, Category = Optimization, meta = (
 		ConsoleVariable = "gc.CreateGCClusters", DisplayName = "Create Garbage Collector UObject Clusters",
 		ToolTip = "If true, the engine will attempt to create clusters of objects for better garbage collection performance."))
 	uint32 CreateGCClusters : 1;
@@ -213,11 +206,6 @@ protected:
 		ConsoleVariable = "gc.ActorClusteringEnabled", DisplayName = "Actor Clustering Enabled",
 		ToolTip = "Whether to allow levels to create actor clusters for GC."))
 	uint32 ActorClusteringEnabled : 1;
-
-	UPROPERTY(EditAnywhere, config, Category = Optimization, meta = (
-		ConsoleVariable = "gc.UseDisregardForGCOnDedicatedServers", DisplayName = "Use DisregardForGC On Dedicated Servers",
-		ToolTip = "If false, DisregardForGC will be disabled for dedicated servers."))
-	uint32 UseDisregardForGCOnDedicatedServers : 1;
 
 	UPROPERTY(EditAnywhere, config, Category = Debug, meta = (
 		ConsoleVariable = "gc.VerifyUObjectsAreNotFGCObjects", DisplayName = "Verify UObjects Are Not FGCObjects",
@@ -248,11 +236,6 @@ protected:
 		ConsoleVariable = "gc.MaxObjectsNotConsideredByGC", DisplayName = "Maximum Object Count Not Considered By GC",
 		ToolTip = "Maximum Object Count Not Considered By GC. Works only in cooked builds."))
 	int32 MaxObjectsNotConsideredByGC;
-
-	UPROPERTY(EditAnywhere, config, Category = Optimization, meta = (
-		ConsoleVariable = "gc.SizeOfPermanentObjectPool", DisplayName = "Size Of Permanent Object Pool",
-		ToolTip = "Size Of Permanent Object Pool (bytes). Works only in cooked builds."))
-	int32 SizeOfPermanentObjectPool;
 
 	UPROPERTY(EditAnywhere, config, Category = Optimization, meta = (
 		ConsoleVariable = "gc.MaxObjectsInGame", DisplayName = "Maximum number of UObjects that can exist in cooked game",

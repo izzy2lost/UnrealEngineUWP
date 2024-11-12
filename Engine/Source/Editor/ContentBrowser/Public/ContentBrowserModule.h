@@ -8,6 +8,7 @@
 #include "ContentBrowserDelegates.h"
 #include "CoreMinimal.h"
 #include "Delegates/Delegate.h"
+#include "Experimental/ContentBrowserViewExtender.h"
 #include "HAL/PlatformCrt.h"
 #include "MRUFavoritesList.h"
 #include "Modules/ModuleInterface.h"
@@ -125,6 +126,8 @@ public:
 	DECLARE_DELEGATE_OneParam( FDefaultSelectedPathsDelegate, TArray<FName>& /*VirtualPaths*/ );
 	/** */
 	DECLARE_DELEGATE_OneParam( FDefaultPathsToExpandDelegate, TArray<FName>& /*VirtualPaths*/ );
+	/** Delegate that creates an instance of the custom view extender */
+	DECLARE_DELEGATE_RetVal(TSharedPtr<IContentBrowserViewExtender>, FCreateViewExtender);
 	
 	/**
 	 * Called right after the plugin DLL has been loaded and the plugin object has been created
@@ -173,6 +176,11 @@ public:
 	/** Delegates to be called to extend list of content browser Plugin Filters*/
 	virtual TArray<FAddPathViewPluginFilters>& GetAddPathViewPluginFilters() { return PathViewPluginFilters; }
 
+	/** Register a delegate that creates a custom view that can show up inside SAssetView in the Content Browser */
+	virtual void SetContentBrowserViewExtender(const FCreateViewExtender& InCreateViewExtender);
+	/** Get the currently registered custom view */
+	virtual FCreateViewExtender GetContentBrowserViewExtender();
+
 	/** Delegate accessors */
 	FOnFilterChanged& GetOnFilterChanged() { return OnFilterChanged; } 
 	FOnSearchBoxChanged& GetOnSearchBoxChanged() { return OnSearchBoxChanged; } 
@@ -207,6 +215,10 @@ public:
 		return AssetClassesRequiringDynamicTags.Contains(InName);
 	}
 	
+	FOnSetFolderColor& GetOnSetFolderColor()
+	{
+		return OnSetFolderColor;
+	}
 	
 
 private:
@@ -215,6 +227,9 @@ private:
 	
 	/** List of asset classes whose tags are dynamic and therefore we should union all asset's tags rather than grabbing the first available. */
 	TArray<FName> AssetClassesRequiringDynamicTags;
+
+	/** Called when a custom folder color is set on a folder */
+	FOnSetFolderColor OnSetFolderColor;
 
 private:
 	IContentBrowserSingleton* ContentBrowserSingleton;
@@ -248,4 +263,7 @@ private:
 
 	FDefaultSelectedPathsDelegate DefaultSelectedPathsDelegate;
 	FDefaultPathsToExpandDelegate DefaultPathsToExpandDelegate;
+
+	/** Extension used to provide a custom view to the Content Browser */
+	FCreateViewExtender ContentBrowserViewExtender;
 };

@@ -446,12 +446,16 @@ void SSequencerPlayRateCombo::PopulateCustomClockSourceMenu(FMenuBuilder& MenuBu
 		// Only display actors that are not possessed already
 		InitOptions.Filters->AddFilterPredicate<FActorTreeItem>(FActorTreeItem::FFilterPredicate::CreateLambda( IsActorValid ) );
 
+		TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
+		const float WidthOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+		const float HeightOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
 		// actor selector to allow the user to choose an actor
 		FSceneOutlinerModule& SceneOutlinerModule = FModuleManager::LoadModuleChecked<FSceneOutlinerModule>("SceneOutliner");
 		ActorMenuBuilder.AddWidget(
 			SNew(SBox)
-			.MaxDesiredHeight(400.0f)
-			.WidthOverride(300.0f)
+			.WidthOverride(WidthOverride)
+			.HeightOverride(HeightOverride)
 			[
 				SceneOutlinerModule.CreateActorPicker(InitOptions, FOnActorPicked::CreateLambda([this](AActor* In){ this->SetCustomClockSource(In); }))
 			],

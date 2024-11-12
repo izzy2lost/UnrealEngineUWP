@@ -3,6 +3,7 @@
 #include "SocketEOS.h"
 #include "SocketSubsystemEOS.h"
 #include "EOSShared.h"
+#include "Misc/ConfigCacheIni.h"
 
 #if WITH_EOS_SDK
 	#include "eos_p2p.h"
@@ -20,6 +21,18 @@ FSocketEOS::FSocketEOS(FSocketSubsystemEOS& InSocketSubsystem, const FString& In
 #endif
 {
 	CallbackAliveTracker = MakeShared<FCallbackBase>();
+
+#if WITH_EOS_SDK
+	FString PacketReliabilityTypeStr;
+	if (GConfig->GetString(TEXT("SocketSubsystemEOS"), TEXT("PacketReliabilityType"), PacketReliabilityTypeStr, GEngineIni))
+	{
+		EOS_EPacketReliability PacketReliabilityType;
+		if (LexFromString(PacketReliabilityType, *PacketReliabilityTypeStr))
+		{
+			PacketReliability = PacketReliabilityType;
+		}
+	}
+#endif
 }
 
 FSocketEOS::~FSocketEOS()
@@ -73,7 +86,7 @@ bool FSocketEOS::Close()
 
 		EOS_EResult Result = EOS_P2P_CloseConnections(SocketSubsystem.GetP2PHandle(), &Options);
 
-		UE_LOG(LogSocketSubsystemEOS, Log, TEXT("Closing socket (%s) with result (%s)"), *LocalAddress.ToString(true), ANSI_TO_TCHAR(EOS_EResult_ToString(Result)));
+		UE_LOG(LogSocketSubsystemEOS, Log, TEXT("Closing socket (%s) with result (%s)"), *LocalAddress.ToString(true), *LexToString(Result));
 
 		ClosedRemotes.Empty();
 	}
@@ -89,14 +102,6 @@ bool FSocketEOS::Bind(const FInternetAddr& Addr)
 	{
 		UE_LOG(LogSocketSubsystemEOS, Warning, TEXT("Attempted to bind to invalid address. Address = (%s)"), *Addr.ToString(true));
 		SocketSubsystem.SetLastSocketError(ESocketErrors::SE_EADDRNOTAVAIL);
-		return false;
-	}
-
-	// Ensure we called Initialize so we know who we are
-	if (LocalAddress.GetRemoteUserId() != nullptr)
-	{
-		UE_LOG(LogSocketSubsystemEOS, Warning, TEXT("Attempted to bind on a socket that was not initialized. Address = (%s)"), *Addr.ToString(true));
-		SocketSubsystem.SetLastSocketError(ESocketErrors::SE_NOTINITIALISED);
 		return false;
 	}
 
@@ -195,7 +200,7 @@ bool FSocketEOS::Listen(int32)
 			}
 			else
 			{
-				UE_LOG(LogSocketSubsystemEOS, Error, TEXT("EOS_P2P_AcceptConnection from (%s) on socket (%s) failed with (%s)"), *RemoteUser, UTF8_TO_TCHAR(Info->SocketId->SocketName), ANSI_TO_TCHAR(EOS_EResult_ToString(AcceptResult)));
+				UE_LOG(LogSocketSubsystemEOS, Error, TEXT("EOS_P2P_AcceptConnection from (%s) on socket (%s) failed with (%s)"), *RemoteUser, UTF8_TO_TCHAR(Info->SocketId->SocketName), *LexToString(AcceptResult));
 			}
 		}
 		else
@@ -242,7 +247,7 @@ bool FSocketEOS::HasPendingData(uint32& PendingDataSize)
 	}
 	if (Result != EOS_EResult::EOS_Success)
 	{
-		UE_LOG(LogSocketSubsystemEOS, Warning, TEXT("Unable to check for data on address (%s) result code = (%s)"), *LocalAddress.ToString(true), ANSI_TO_TCHAR(EOS_EResult_ToString(Result)));
+		UE_LOG(LogSocketSubsystemEOS, Warning, TEXT("Unable to check for data on address (%s) result code = (%s)"), *LocalAddress.ToString(true), *LexToString(Result));
 
 		// @todo joeg - map EOS codes to UE4's
 		SocketSubsystem.SetLastSocketError(ESocketErrors::SE_EINVAL);
@@ -351,14 +356,14 @@ bool FSocketEOS::SendTo(const uint8* Data, int32 Count, int32& OutBytesSent, con
 	Options.RemoteUserId = DestinationAddress.GetRemoteUserId();
 	Options.SocketId = &SocketId;
 	Options.bAllowDelayedDelivery = EOS_TRUE;
-	Options.Reliability = EOS_EPacketReliability::EOS_PR_UnreliableUnordered;
+	Options.Reliability = PacketReliability;
 	Options.Channel = DestinationAddress.GetChannel();
 	Options.DataLengthBytes = Count;
 	Options.Data = Data;
 	EOS_EResult Result = EOS_P2P_SendPacket(SocketSubsystem.GetP2PHandle(), &Options);
 	if (Result != EOS_EResult::EOS_Success)
 	{
-		UE_LOG(LogSocketSubsystemEOS, Error, TEXT("Unable to send data to (%s) result code = (%s)"), *Destination.ToString(true), ANSI_TO_TCHAR(EOS_EResult_ToString(Result)));
+		UE_LOG(LogSocketSubsystemEOS, Error, TEXT("Unable to send data to (%s) result code = (%s)"), *Destination.ToString(true), *LexToString(Result));
 
 		// @todo joeg - map EOS codes to UE4's
 		SocketSubsystem.SetLastSocketError(ESocketErrors::SE_EINVAL);
@@ -422,7 +427,7 @@ bool FSocketEOS::RecvFrom(uint8* Data, int32 BufferSize, int32& BytesRead, FInte
 	}
 	else if (Result != EOS_EResult::EOS_Success)
 	{
-		UE_LOG(LogSocketSubsystemEOS, Error, TEXT("Unable to receive data result code = (%s)"), ANSI_TO_TCHAR(EOS_EResult_ToString(Result)));
+		UE_LOG(LogSocketSubsystemEOS, Error, TEXT("Unable to receive data result code = (%s)"), *LexToString(Result));
 
 		// @todo joeg - map EOS codes to UE4's
 		SocketSubsystem.SetLastSocketError(ESocketErrors::SE_EINVAL);
@@ -592,7 +597,7 @@ bool FSocketEOS::Close(const FInternetAddrEOS& RemoteAddress)
 	EOS_EResult Result = EOS_P2P_CloseConnection(SocketSubsystem.GetP2PHandle(), &Options);
 	if (Result != EOS_EResult::EOS_Success)
 	{
-		UE_LOG(LogSocketSubsystemEOS, Error, TEXT("Unable to close socket with remote address RemoteAddress (%s) due to error (%s)"), *RemoteAddress.ToString(true), ANSI_TO_TCHAR(EOS_EResult_ToString(Result)));
+		UE_LOG(LogSocketSubsystemEOS, Error, TEXT("Unable to close socket with remote address RemoteAddress (%s) due to error (%s)"), *RemoteAddress.ToString(true), *LexToString(Result));
 
 		// @todo joeg - map EOS codes to UE4's
 		SocketSubsystem.SetLastSocketError(ESocketErrors::SE_EINVAL);

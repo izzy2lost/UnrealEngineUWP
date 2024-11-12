@@ -20,6 +20,7 @@ LandscapeEditInterface.cpp: Landscape editing interface
 #include "LandscapeDataAccess.h"
 #include "LandscapeEdit.h"
 #include "LandscapeRender.h"
+#include "LandscapePrivate.h"
 #include "ComponentReregisterContext.h"
 #include "Algo/Transform.h"
 #include "TextureCompiler.h"
@@ -274,7 +275,7 @@ void FLandscapeEditDataInterface::SetHeightData(int32 X1, int32 Y1, int32 X2, in
 	check(ComponentSizeQuads > 0);
 	// Find component range for this block of data
 	int32 ComponentIndexX1, ComponentIndexY1, ComponentIndexX2, ComponentIndexY2;
-	ALandscape::CalcComponentIndicesOverlap(X1, Y1, X2, Y2, ComponentSizeQuads, ComponentIndexX1, ComponentIndexY1, ComponentIndexX2, ComponentIndexY2);
+	ALandscape::CalcComponentIndicesNoOverlap(X1, Y1, X2, Y2, ComponentSizeQuads, ComponentIndexX1, ComponentIndexY1, ComponentIndexX2, ComponentIndexY2);
 
 	FVector* VertexNormals = nullptr;
 	if (InCalcNormals)
@@ -508,9 +509,6 @@ void FLandscapeEditDataInterface::SetHeightData(int32 X1, int32 Y1, int32 X2, in
 				// In Layer, cumulate dirty collision region (will be used next time UpdateCollisionHeightData is called)
 				Component->UpdateDirtyCollisionHeightData(FIntRect(ComponentX1, ComponentY1, ComponentX2, ComponentY2));
 			}
-			
-			// Update GUID for Platform Data
-			FPlatformMisc::CreateGuid(Component->StateId);
 		}
 	}
 
@@ -723,10 +721,10 @@ void FLandscapeEditDataInterface::GetHeightDataTemplFast(const int32 X1, const i
 }
 
 template<typename TData, typename TStoreData, typename FType>
-void FLandscapeEditDataInterface::CalcMissingValues(const int32& X1, const int32& X2, const int32& Y1, const int32& Y2, 
-								   const int32& ComponentIndexX1, const int32& ComponentIndexX2, const int32& ComponentIndexY1, const int32& ComponentIndexY2, 
-								   const int32& ComponentSizeX, const int32& ComponentSizeY, TData* CornerValues, 
-								   TArray<bool>& NoBorderY1, TArray<bool>& NoBorderY2, TArray<bool>& ComponentDataExist, TStoreData& StoreData)
+void FLandscapeEditDataInterface::CalcMissingValues(const int32 X1, const int32 X2, const int32 Y1, const int32 Y2,
+	const int32 ComponentIndexX1, const int32 ComponentIndexX2, const int32 ComponentIndexY1, const int32 ComponentIndexY2,
+	const int32 ComponentSizeX, const int32 ComponentSizeY, TData* CornerValues,
+	TArray<bool>& NoBorderY1, TArray<bool>& NoBorderY2, TArray<bool>& ComponentDataExist, TStoreData& StoreData)
 {
 	bool NoBorderX1 = false, NoBorderX2 = false;
 	// Init data...
@@ -1052,8 +1050,8 @@ void FLandscapeEditDataInterface::GetHeightDataInternal(int32& ValidX1, int32& V
 	ValidX1 = INT_MAX; ValidX2 = INT_MIN; ValidY1 = INT_MAX; ValidY2 = INT_MIN;
 
 	int32 ComponentIndexX1, ComponentIndexY1, ComponentIndexX2, ComponentIndexY2;
-	ALandscape::CalcComponentIndicesOverlap(X1, Y1, X2, Y2, ComponentSizeQuads, ComponentIndexX1, ComponentIndexY1, ComponentIndexX2, ComponentIndexY2);
-
+	ALandscape::CalcComponentIndicesNoOverlap(X1, Y1, X2, Y2, ComponentSizeQuads, ComponentIndexX1, ComponentIndexY1, ComponentIndexX2, ComponentIndexY2);
+	
 	int32 ComponentSizeX = ComponentIndexX2-ComponentIndexX1+1;
 	int32 ComponentSizeY = ComponentIndexY2-ComponentIndexY1+1;
 
@@ -1899,7 +1897,7 @@ void ULandscapeComponent::FillLayer(ULandscapeLayerInfoObject* LayerInfo, FLands
 	{
 		FillLayerIdx = ComponentWeightmapLayerAllocations.Num();
 		ComponentWeightmapLayerAllocations.Add(FWeightmapLayerAllocationInfo(LayerInfo));
-		Component->ReallocateWeightmapsInternal(&LandscapeEdit, EditLayerGuid);
+		Component->ReallocateWeightmaps(/*DataInterface =*/&LandscapeEdit, EditLayerGuid, /*bInSaveToTransactionBuffer = */true, /*bool bInForceReallocate = */false, /*InTargetProxy = */nullptr, /*InRestrictSharingToComponents = */nullptr);
 	}
 
 	check(FillLayerIdx != INDEX_NONE);
@@ -2349,15 +2347,11 @@ void FLandscapeEditDataInterface::ReplaceLayer(ULandscapeLayerInfoObject* FromLa
 	if (LandscapeInfo->LandscapeActor.IsValid() && LandscapeInfo->LandscapeActor->HasLayersContent())
 	{
 		LandscapeInfo->LandscapeActor->Modify(GetShouldDirtyPackage());
-		LandscapeInfo->LandscapeActor->ForEachLayer([&](FLandscapeLayer& CurrentLayer)
+		LandscapeInfo->LandscapeActor->ReplaceLayerSubstractiveBlendStatus(FromLayerInfo, ToLayerInfo, GetShouldDirtyPackage());
+		LandscapeInfo->LandscapeActor->ForEachLayerConst([DoReplace](const FLandscapeLayer& CurrentLayer)
 		{
-			bool OutValue;
-			if (CurrentLayer.WeightmapLayerAllocationBlend.RemoveAndCopyValue(FromLayerInfo, OutValue))
-			{
-				CurrentLayer.WeightmapLayerAllocationBlend.Add(ToLayerInfo, OutValue);
-			}
-
 			DoReplace(CurrentLayer.Guid);
+			return true;
 		});
 		LandscapeInfo->LandscapeActor->RequestLayersContentUpdateForceAll(ELandscapeLayerUpdateMode::Update_Weightmap_All);
 	}
@@ -2869,7 +2863,7 @@ void FLandscapeEditDataInterface::SetAlphaData(ULandscapeLayerInfoObject* const 
 
 				UpdateLayerIdx = ComponentWeightmapLayerAllocations.Num();
 				new (ComponentWeightmapLayerAllocations) FWeightmapLayerAllocationInfo(LayerInfo);
-				Component->ReallocateWeightmapsInternal(this, GetEditLayer());
+				Component->ReallocateWeightmaps(/*DataInterface =*/this, GetEditLayer(), /*bInSaveToTransactionBuffer = */true, /*bool bInForceReallocate = */false, /*InTargetProxy = */nullptr, /*InRestrictSharingToComponents = */nullptr);
 
 				if (!Component->GetLandscapeProxy()->HasLayersContent())
 				{
@@ -3323,7 +3317,7 @@ void FLandscapeEditDataInterface::SetAlphaData(const TSet<ULandscapeLayerInfoObj
 						}
 						ComponentWeightmapLayerAllocations.Emplace(LayerInfoNeedingAllocation);
 					}
-					Component->ReallocateWeightmapsInternal(this, GetEditLayer());
+					Component->ReallocateWeightmaps(/*DataInterface =*/this, GetEditLayer(), /*bInSaveToTransactionBuffer = */true, /*bool bInForceReallocate = */false, /*InTargetProxy = */nullptr, /*InRestrictSharingToComponents = */nullptr);
 					
 					if (!Component->GetLandscapeProxy()->HasLayersContent())
 					{
@@ -4283,10 +4277,10 @@ void FLandscapeEditDataInterface::GetWeightDataTempl(ULandscapeLayerInfoObject* 
 			ComponentSizeX, ComponentSizeY, CornerValues,
 			NoBorderY1, NoBorderY2, ComponentDataExist, StoreData );
 		// Update valid region
-		ValidX1 = FMath::Min<int32>(X1, ValidX1);
-		ValidX2 = FMath::Max<int32>(X2, ValidX2);
-		ValidY1 = FMath::Min<int32>(Y1, ValidY1);
-		ValidY2 = FMath::Max<int32>(Y2, ValidY2);
+		ValidX1 = FMath::Max<int32>(X1, ValidX1);
+		ValidX2 = FMath::Min<int32>(X2, ValidX2);
+		ValidY1 = FMath::Max<int32>(Y1, ValidY1);
+		ValidY2 = FMath::Min<int32>(Y2, ValidY2);
 	}
 	else
 	{
@@ -4362,7 +4356,20 @@ void FLandscapeTextureDataInterface::CopyTextureChannel(UTexture2D* Dest, int32 
 	int32 MipSize = Dest->Source.GetSizeX();
 	check(Dest->Source.GetSizeX() == Dest->Source.GetSizeY() && Src->Source.GetSizeX() == Dest->Source.GetSizeX());
 
-	for( int32 MipIdx=0;MipIdx<DestDataInfo->NumMips();MipIdx++ )
+	int32 NumMips = DestDataInfo->NumMips();
+	int32 SrcMips = SrcDataInfo->NumMips();
+	if (SrcMips != NumMips)
+	{
+		// We could migrate data from an old landscape that still had multiple mips in its edit layer data so it's not worth displaying a warning then since no data loss will actually occur : 
+		if (SrcMips < NumMips)
+		{
+			UE_LOG(LogLandscape, Warning, TEXT("Unexpected mip count mismatch when copying landscape texture channels from '%s' (%d mips) to '%s' (%d mips) -- mip data may be lost, or left uninitialized"),
+				*Src->GetPathName(), SrcMips, *Dest->GetPathName(), NumMips);
+		}
+		NumMips = FMath::Min(NumMips, SrcMips);
+	}
+
+	for( int32 MipIdx=0;MipIdx< NumMips;MipIdx++ )
 	{
 		uint8* DestTextureData = (uint8*)DestDataInfo->GetMipData(MipIdx);
 		uint8* SrcTextureData = (uint8*)SrcDataInfo->GetMipData(MipIdx);
@@ -4571,7 +4578,7 @@ void FLandscapeEditDataInterface::SetSelectData(int32 X1, int32 Y1, int32 X2, in
 		check(Component);
 		return static_cast<UTexture2D*&>(Component->EditToolRenderData.DataTexture);
 	};
-	SetEditToolTextureData(X1, Y1, X2, Y2, Data, Stride, ReturnComponentTexture);
+	SetEditToolTextureData(X1, Y1, X2, Y2, Data, Stride, ReturnComponentTexture, TEXTUREGROUP_8BitData);
 }
 
 template<typename TStoreData>
@@ -4609,7 +4616,7 @@ void FLandscapeEditDataInterface::SetLayerContributionData(int32 X1, int32 Y1, i
 		check(Component);
 		return static_cast<UTexture2D*&>(Component->EditToolRenderData.LayerContributionTexture);
 	};
-	SetEditToolTextureData(X1, Y1, X2, Y2, Data, Stride, ReturnComponentTexture);
+	SetEditToolTextureData(X1, Y1, X2, Y2, Data, Stride, ReturnComponentTexture, TEXTUREGROUP_8BitData);
 }
 
 template<typename TStoreData>
@@ -5019,7 +5026,7 @@ void FLandscapeEditDataInterface::GetXYOffsetDataTempl(int32& ValidX1, int32& Va
 	ValidX1 = INT_MAX; ValidX2 = INT_MIN; ValidY1 = INT_MAX; ValidY2 = INT_MIN;
 
 	int32 ComponentIndexX1, ComponentIndexY1, ComponentIndexX2, ComponentIndexY2;
-	ALandscape::CalcComponentIndicesOverlap(X1, Y1, X2, Y2, ComponentSizeQuads, ComponentIndexX1, ComponentIndexY1, ComponentIndexX2, ComponentIndexY2);
+	ALandscape::CalcComponentIndicesNoOverlap(X1, Y1, X2, Y2, ComponentSizeQuads, ComponentIndexX1, ComponentIndexY1, ComponentIndexX2, ComponentIndexY2);
 
 	int32 ComponentSizeX = ComponentIndexX2 - ComponentIndexX1 + 1;
 	int32 ComponentSizeY = ComponentIndexY2 - ComponentIndexY1 + 1;

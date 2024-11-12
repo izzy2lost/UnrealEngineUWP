@@ -14,6 +14,7 @@
 #include "Internationalization/Internationalization.h"
 #include "K2Node.h"
 #include "Misc/Guid.h"
+#include "ObjectTools.h"
 #include "Settings/EditorStyleSettings.h"
 #include "Templates/Casts.h"
 #include "UObject/Class.h"
@@ -34,7 +35,7 @@ FText UK2Node_CallParentFunction::GetNodeTitle(ENodeTitleType::Type TitleType) c
 
 	if (Function)
 	{
-		FunctionName = GetUserFacingFunctionName( Function );
+		FunctionName = ObjectTools::GetUserFacingFunctionName( Function );
 	}
 	else if ( GEditor && GetDefault<UEditorStyleSettings>()->bShowFriendlyNames )
 	{
@@ -65,10 +66,9 @@ void UK2Node_CallParentFunction::AllocateDefaultPins()
 
 void UK2Node_CallParentFunction::SetFromFunction(const UFunction* Function)
 {
-	if (Function != NULL)
+	if (Function != nullptr)
 	{
-		bIsPureFunc = Function->HasAnyFunctionFlags(FUNC_BlueprintPure);
-		bIsConstFunc = Function->HasAnyFunctionFlags(FUNC_Const);
+		bDefaultsToPureFunc = Function->HasAnyFunctionFlags(FUNC_BlueprintPure);
 
 		UClass* OwnerClass = Function->GetOwnerClass();
 
@@ -79,7 +79,8 @@ void UK2Node_CallParentFunction::SetFromFunction(const UFunction* Function)
 			UBlueprint::GetGuidFromClassByFieldName<UFunction>(OwnerClass, Function->GetFName(), FunctionGuid);
 		}
 
-		FunctionReference.SetDirect(Function->GetFName(), FunctionGuid, OwnerClass, /*bIsConsideredSelfContext =*/false);
+		const bool bIsConsideredSelfContext = false;
+		FunctionReference.SetDirect(Function->GetFName(), FunctionGuid, OwnerClass, bIsConsideredSelfContext);
 	}
 }
 

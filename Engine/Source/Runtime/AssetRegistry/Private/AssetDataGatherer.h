@@ -29,6 +29,8 @@ struct FAssetData;
 class FDiskCachedAssetData;
 class FAssetRegistryReader;
 class FAssetRegistryWriter; // Not defined if !ALLOW_NAME_BATCH_SAVING
+namespace UE::AssetRegistry { class FAssetRegistryImpl; }
+
 namespace UE::AssetDataGather::Private
 {
 class FAssetDataDiscovery;
@@ -58,6 +60,8 @@ struct FAssetGatherDiagnostics
 	float DiscoveryTimeSeconds;
 	/** Time spent reading asset files on disk / from cache */
 	float GatherTimeSeconds;
+	/** Time in between gatherer start and the call to GetDiagnostics. */
+	float WallTimeSeconds;
 	/** How many directories in the search results were read from the cache. */
 	int32 NumCachedDirectories;
 	/** How many directories in the search results were not in the cache and were read by scanning the disk. */
@@ -75,16 +79,10 @@ class FAssetDataGatherer : public FRunnable
 {
 public:
 	FAssetDataGatherer(const TArray<FString>& InLongPackageNamesDenyList,
-		const TArray<FString>& InMountRelativePathsDenyList, bool bInAsyncEnabled);
+		const TArray<FString>& InMountRelativePathsDenyList, bool bInAsyncEnabled, UE::AssetRegistry::FAssetRegistryImpl& InRegistryImpl);
 	virtual ~FAssetDataGatherer();
 
 	void OnInitialSearchCompleted();
-
-	// Extra at-construction configuration 
-
-	/** Configure the gatherer to use a single monolithic cache, and read/write this cache during ticks. */
-	void ActivateMonolithicCache();
-
 
 	// Controlling Async behavior
 
@@ -106,24 +104,28 @@ public:
 	// Receiving Results (possibly while tick is running)
 	struct FResults
 	{
-		TMultiMap<FName, FAssetData*> Assets;
+		TMultiMap<FName, TUniquePtr<FAssetData>> Assets;
+		TMultiMap<FName, TUniquePtr<FAssetData>> AssetsForGameThread;
 		TRingBuffer<FString> Paths;
 		TMultiMap<FName, FPackageDependencyData> Dependencies;
+		TMultiMap<FName, FPackageDependencyData> DependenciesForGameThread;
 		TRingBuffer<FString> CookedPackageNamesWithoutAssetData;
 		TRingBuffer<FName> VerseFiles;
 		TArray<FString> BlockedFiles;
 
 		SIZE_T GetAllocatedSize() const
 		{
-			return Assets.GetAllocatedSize() + Paths.GetAllocatedSize() + Dependencies.GetAllocatedSize() +
-				CookedPackageNamesWithoutAssetData.GetAllocatedSize() + VerseFiles.GetAllocatedSize() +
+			return Assets.GetAllocatedSize() + AssetsForGameThread.GetAllocatedSize() + Paths.GetAllocatedSize() + Dependencies.GetAllocatedSize() +
+				DependenciesForGameThread.GetAllocatedSize() + 	CookedPackageNamesWithoutAssetData.GetAllocatedSize() + VerseFiles.GetAllocatedSize() +
 				BlockedFiles.GetAllocatedSize();
 		}
 		void Shrink()
 		{
 			Assets.Shrink();
+			AssetsForGameThread.Shrink();
 			Paths.Trim();
 			Dependencies.Shrink();
+			DependenciesForGameThread.Shrink();
 			CookedPackageNamesWithoutAssetData.Trim();
 			VerseFiles.Trim();
 			BlockedFiles.Shrink();
@@ -142,9 +144,8 @@ public:
 	void GetAndTrimSearchResults(FResults& InOutResults, FResultContext& OutContext);
 	/** Get diagnostics for telemetry or logging. */
 	FAssetGatherDiagnostics GetDiagnostics();
-	/** Gets just the AssetResults and DependencyResults from the data gatherer. */
-	void GetPackageResults(TMultiMap<FName, FAssetData*>& OutAssetResults,
-		TMultiMap<FName, FPackageDependencyData>& OutDependencyResults);
+	/** Gets just the Assets, AssetsForGameThread, Dependencies, and DependenciesForGameThread from the data gatherer. */
+	void GetPackageResults(FResults& InOutResults);
 	/**
 	 * Wait for all monitored assets under the given path to be added to search results.
 	 * Returns immediately if the given path is not monitored.
@@ -160,11 +161,8 @@ public:
 	 * Add a set of paths to the allow list, optionally force rescanning and ignore deny list on them,
 	 * and wait for all assets in the paths to be added to search results.
 	 * Wait time is minimized by prioritizing the paths and transferring async scanning to the current thread.
-	 * If SaveCacheFilename is non-empty, save a cachefile to it with all discovered paths that are in one of
-	 * the SaveCacheLongPackageNameDirs paths.
 	 */
-	void ScanPathsSynchronous(const TArray<FString>& InPaths, bool bForceRescan, bool bIgnoreDenyListScanFilters,
-		const FString& SaveCacheFilename, const TArray<FString>& SaveCacheLongPackageNameDirs);
+	void ScanPathsSynchronous(const TArray<FString>& InPaths, bool bForceRescan, bool bIgnoreDenyListScanFilters);
 	/** Wait for all monitored assets to be added to search results. */
 	void WaitForIdle(float TimeoutSeconds = -1.0f);
 	/**
@@ -185,10 +183,6 @@ public:
 	bool IsCacheReadEnabled() const;
 	/** Return whether the current process enables writing AssetDataGatherer cache files. */
 	bool IsCacheWriteEnabled() const;
-	/** Calculate the cache filename that should be used for the given list of package paths. */
-	FString GetCacheFilename(TConstArrayView<FString> CacheFilePackagePaths);
-	/** Attempt to read the cache file at the given LocalPath, and store all of its results in the in-memory cache. */
-	void LoadCacheFiles(TConstArrayView<FString> CacheFilename);
 	/** Return the memory used by the gatherer. Used for performance metrics. */
 	SIZE_T GetAllocatedSize() const;
 
@@ -230,6 +224,8 @@ public:
 
 	/** Determine, based on the file extension, if the given file path is a Verse file */
 	static bool IsVerseFile(FStringView FilePath);
+	/** Return the list of extensions that indicate verse files. */
+	static TConstArrayView<const TCHAR*> GetVerseFileExtensions();
 
 	/**
 	 * Reads FAssetData information out of a previously initialized package reader
@@ -243,6 +239,16 @@ public:
 	static bool ReadAssetFile(FPackageReader& PackageReader, TArray<FAssetData*>& AssetDataList,
 		FPackageDependencyData& DependencyData, TArray<FString>& CookedPackagesToLoadUponDiscovery,
 		FPackageReader::EReadOptions Options);
+
+	/** Callable by the main thread to request that this thread pause/resume processing data. Gathering can 
+	 *  still proceed during this time.
+	 */
+	void PauseProcessing() { IsProcessingPaused.fetch_add(1, std::memory_order_relaxed); }
+	void ResumeProcessing() { IsProcessingPaused.fetch_sub(1, std::memory_order_relaxed); }
+	bool IsProcessingPauseRequested() const { return IsProcessingPaused.load(std::memory_order_relaxed) != 0; }
+
+	void SetGatherOnGameThreadOnly(bool bValue);
+	bool IsGatherOnGameThreadOnly() const;
 
 private:
 	enum class ETickResult
@@ -279,8 +285,7 @@ private:
 	 * Wait for all monitored assets under the given path to be added to search results.
 	 * Returns immediately if the given path are not monitored.
 	 */
-	void WaitOnPathsInternal(TArrayView<UE::AssetDataGather::Private::FPathExistence> QueryPaths,
-		const FString& SaveCacheFilename, const TArray<FString>& SaveCacheFilterDirs);
+	void WaitOnPathsInternal(TArrayView<UE::AssetDataGather::Private::FPathExistence> QueryPaths);
 
 	/** Sort the pending list of filepaths so that assets under the given directory/filename are processed first. */
 	void SortPathsByPriority(TArrayView<UE::AssetDataGather::Private::FPathExistence> QueryPaths,
@@ -304,14 +309,12 @@ private:
 	/** Add the given AssetDatas into DiskCachedAssetDataMap and DiskCachedAssetBlocks. */
 	void ConsumeCacheFiles(TArray<UE::AssetDataGather::Private::FCachePayload> Payloads);
 	/**
-	 * If a save of the monolithic cache has been triggered, get the cache filename and pointers to all elements that
+	 * If a cache save has been triggered, get the cache filename and pointers to all elements that
 	 * should be saved, for later saving outside of the critical section.
 	 */
-	void TryReserveSaveMonolithicCache(bool& bOutShouldSave, TArray<TPair<FName,FDiskCachedAssetData*>>& AssetsToSave);
-	/** 
-	 * Save a monolithic cache for the main asset discovery process, possibly sharded into multiple files.
-	*/
-	void SaveMonolithicCacheFile(const TArray<TPair<FName,FDiskCachedAssetData*>>& AssetsToSave);
+	void TryReserveSaveCache(bool& bOutShouldSave, TArray<TPair<FName,FDiskCachedAssetData*>>& AssetsToSave);
+	/** Save cache file for the assetdatas read from package headers, possibly sharded into multiple files. */
+	void SaveCacheFile(const TArray<TPair<FName,FDiskCachedAssetData*>>& AssetsToSave);
 	/**
 	 * If the CacheFilename/AssetsToSave are non empty, save the cache file. 
 	 * This function reads the read-only-after-creation data from each FDiskCachedAssetData*, but otherwise does not use
@@ -327,10 +330,10 @@ private:
 	void GetAssetsToSave(TArrayView<const FString> SaveCacheLongPackageNameDirs,
 		TArray<TPair<FName,FDiskCachedAssetData*>>& OutAssetsToSave);
 	/**
-	 * Get the list of FDiskCachedAssetData* for saving into the monolithic cache.
-	 * Includes both assets that were loaded in the gatherer and assets which were loaded from the monolithic cache and have not been pruned.
+	 * Get the list of FDiskCachedAssetData* for saving into the cache.
+	 * Includes both assets that were loaded in the gatherer and assets which were loaded from the cache and have not been pruned.
 	 */
-	void GetMonolithicCacheAssetsToSave(TArray<TPair<FName,FDiskCachedAssetData*>>& OutAssetsToSave);
+	void GetCacheAssetsToSave(TArray<TPair<FName,FDiskCachedAssetData*>>& OutAssetsToSave);
 
 	/* Adds the given pair into NewCachedAssetDataMap. Detects collisions for multiple files with the same PackageName */
 	void AddToCache(FName PackageName, FDiskCachedAssetData* DiskCachedAssetData);
@@ -346,10 +349,10 @@ private:
 	void Shrink();
 
 	/** Scoped guard for pausing the asynchronous tick. */
-	struct FScopedPause
+	struct FScopedGatheringPause
 	{
-		FScopedPause(const FAssetDataGatherer& InOwner);
-		~FScopedPause();
+		FScopedGatheringPause(const FAssetDataGatherer& InOwner);
+		~FScopedGatheringPause();
 		const FAssetDataGatherer& Owner;
 	};
 
@@ -358,7 +361,6 @@ private:
 	/** Convert the LongPackageName into our normalized version. */
 	static FStringView NormalizeLongPackageName(FStringView LongPackageName);
 
-	void OnAllModuleLoadingPhasesComplete();
 private:
 
 	/**
@@ -372,8 +374,8 @@ private:
 	 */
 	mutable FGathererCriticalSection ResultsLock;
 
-
 	// Variable section for variables that are constant during threading.
+	UE::AssetRegistry::FAssetRegistryImpl& AssetRegistry;
 
 	/**
 	 * Thread to run async Ticks on. Constant during threading.
@@ -398,17 +400,19 @@ private:
 
 	// Variable section for variables that are atomics read/writable from outside critical sections.
 
-	/** > 0 if we've been asked to abort work in progress at the next opportunity. */
+	/** > 0 if we've been asked to abort gathering work in progress at the next opportunity. */
 	std::atomic<uint32> IsStopped;
-	/** > 0 if we've been asked to pause the worker thread so a synchronous function can take over the tick. */
-	mutable std::atomic<uint32> IsPaused;
+	/** > 0 if we've been asked to pause the worker thread gathering work so a synchronous function can take over the tick. */
+	mutable std::atomic<uint32> IsGatheringPaused;
+	
+	/** > 0 if we've been asked to pause processing work (but not gathering work) at the next opportunity */
+	mutable std::atomic<uint32> IsProcessingPaused;
+
 	/**
 	 * Discovery subsystem; decides which paths to search and queries the FileManager to search directories.
 	 * Pointer is constant during threading. Object pointed to internally provides threadsafety.
 	 */
 	TUniquePtr<UE::AssetDataGather::Private::FAssetDataDiscovery> Discovery;
-	/** Async only. Set to true once initial plugins have been loaded. */
-	std::atomic<bool> bInitialPluginsLoaded;
 	/** True when TickInternal requests periodic or final save of the async cache. */
 	std::atomic<bool> bSaveAsyncCacheTriggered;
 	/** True if the current process allows reading of AssetDataGatherer cache files. */
@@ -422,9 +426,13 @@ private:
 	TUniquePtr<UE::AssetDataGather::Private::FFilesToSearch> FilesToSearch;
 
 	/** The asset data gathered from the searched files. */
-	TArray<FAssetData*> AssetResults;
+	TArray<TUniquePtr<FAssetData>> AssetResults;
+	/** Like AssetResults but for assets that must be processed on the game thread */
+	TArray<TUniquePtr<FAssetData>> AssetResultsForGameThread;
 	/** Dependency data gathered from the searched files packages. */
 	TArray<FPackageDependencyData> DependencyResults;
+	/** Like DependencyResults but for assets that must be processed on the game thread */
+	TArray<FPackageDependencyData> DependencyResultsForGameThread;
 	/**
 	 * A list of cooked packages that did not have asset data in them.
 	 * These assets may still contain assets (if they were older for example). 
@@ -453,16 +461,8 @@ private:
 	int32 NumCachedAssetFiles = 0;
 	/** The total number of files in the search results that were not in the cache and were read by parsing the file. */
 	int32 NumUncachedAssetFiles = 0;
-	/**
-	 * Track whether we are allowed to read from a monolithic cache that should be loaded during tick.
-	 * Even if we are or not, if bCacheReadEnabled the AssetRegistry can also call LoadCacheFile/ScanPathsSynchronous to
-	 * load/save smaller files.
-	 */
-	bool bReadMonolithicCache;
-	/** Track whether we are allowed to write to the monolithic cache. */
-	bool bWriteMonolithicCache;
-	/** If bHasLoadedMonolithicCache is true, track whether the cache has been loaded. */
-	bool bHasLoadedMonolithicCache;
+	/** Track whether the cache has been loaded. */
+	bool bHasLoadedCache;
 	/** Track whether the Discovery subsystem has gone idle and we have read all filenames from it. */
 	bool bDiscoveryIsComplete;
 	/** Track whether this Gather has gone idle and a caller has read all search data from it. */
@@ -473,6 +473,9 @@ private:
 	bool bFirstTickAfterIdle;
 	/** True if we have finished discovering our first wave of files, to report metrics for that most-important wave. */
 	bool bFinishedInitialDiscovery;
+	/** True if OnInitialSearchCompleted has been called. */
+	std::atomic<bool> bIsInitialSearchCompleted;
+	std::atomic<bool> bGatherOnGameThreadOnly;
 
 	// Variable section for variables that are read/writable only within TickLock.
 
@@ -492,7 +495,7 @@ private:
 	/** Used to block on gather results. If non-negative, tick should end when WaitBatchCount files have been processed. */
 	int32 WaitBatchCount;
 	/** How many uncached asset files had been discovered at the last async cache save */
-	int32 LastMonolithicCacheSaveUncachedAssetFiles;
+	int32 LastCacheSaveNumUncachedAssetFiles;
 	/**
 	 * Incremented when a thread is in the middle of saving any cache and therefore the cache cannot be deleted,
 	 * decremented when the thread is done. Only incremented when bCacheEnabled has been recently confirmed to be true.
@@ -508,3 +511,19 @@ private:
 	/** Packages can be marked for retry up until bInitialPluginsLoaded is set. After it is set, we retry them once. */
 	bool bFlushedRetryFiles;
 };
+
+
+///////////////////////////////////////////////////////
+// Inline implementations
+///////////////////////////////////////////////////////
+
+
+inline void FAssetDataGatherer::SetGatherOnGameThreadOnly(bool bValue)
+{
+	bGatherOnGameThreadOnly.store(bValue, std::memory_order_relaxed);
+}
+
+inline bool FAssetDataGatherer::IsGatherOnGameThreadOnly() const
+{
+	return bGatherOnGameThreadOnly.load(std::memory_order_relaxed);
+}

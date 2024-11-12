@@ -174,6 +174,9 @@ public:
 	/** Unregisters a delegate to be called when the preview mesh's LOD has changed */
 	virtual void UnregisterOnLODChanged(void* Thing) = 0;
 
+	/** Broadcasts that we want to force an update, after preview mesh's LOD has changed */
+	virtual void BroadcastOnLODChanged() = 0;
+
 	/** Registers a delegate to be called when the preview mesh's morph targets has changed */
 	virtual void RegisterOnMorphTargetsChanged(const FSimpleDelegate& Delegate) = 0;
 

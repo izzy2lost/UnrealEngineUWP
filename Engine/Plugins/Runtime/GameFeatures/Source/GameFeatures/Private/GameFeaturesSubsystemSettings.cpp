@@ -19,27 +19,32 @@ UGameFeaturesSubsystemSettings::UGameFeaturesSubsystemSettings()
 bool UGameFeaturesSubsystemSettings::IsValidGameFeaturePlugin(const FString& PluginDescriptorFilename) const
 {
 	// Build the cache of game feature plugin folders the first time this is called
-	if (BuiltInGameFeaturePluginsFolders.IsEmpty())
+	static struct FBuiltInGameFeaturePluginsFolders
 	{
-		// Get all the existing game feature paths
-		BuiltInGameFeaturePluginsFolders.Append(
-			FPaths::GetExtensionDirs(FPaths::ProjectDir(), FPaths::Combine(TEXT("Plugins"), TEXT("GameFeatures")))
-		);
-
-		// The base directory may not exist yet, add it if empty
-		if (BuiltInGameFeaturePluginsFolders.IsEmpty())
+		FBuiltInGameFeaturePluginsFolders()
 		{
-			BuiltInGameFeaturePluginsFolders.Add(FPaths::Combine(FPaths::ProjectDir(), TEXT("Plugins"), TEXT("GameFeatures")));
+			// Get all the existing game feature paths
+			BuiltInGameFeaturePluginsFolders.Append(
+				FPaths::GetExtensionDirs(FPaths::ProjectDir(), FPaths::Combine(TEXT("Plugins"), TEXT("GameFeatures")))
+			);
+
+			// The base directory may not exist yet, add it if empty
+			if (BuiltInGameFeaturePluginsFolders.IsEmpty())
+			{
+				BuiltInGameFeaturePluginsFolders.Add(FPaths::Combine(FPaths::ProjectDir(), TEXT("Plugins"), TEXT("GameFeatures")));
+			}
+
+			for (FString& BuiltInFolder : BuiltInGameFeaturePluginsFolders)
+			{
+				BuiltInFolder = FPaths::ConvertRelativePathToFull(BuiltInFolder + TEXT("/"));
+			}
 		}
 
-		for (FString& BuiltInFolder : BuiltInGameFeaturePluginsFolders)
-		{
-			BuiltInFolder = FPaths::ConvertRelativePathToFull(BuiltInFolder + TEXT("/"));
-		}
-	}
+		TArray<FString> BuiltInGameFeaturePluginsFolders;
+	} Lazy;
 
 	// Check to see if the filename is rooted in a game feature plugin folder
-	for (const FString& BuiltInFolder : BuiltInGameFeaturePluginsFolders)
+	for (const FString& BuiltInFolder : Lazy.BuiltInGameFeaturePluginsFolders)
 	{
 		if (FPathViews::IsParentPathOf(BuiltInFolder, PluginDescriptorFilename))
 		{

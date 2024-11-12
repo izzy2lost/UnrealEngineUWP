@@ -96,6 +96,9 @@ public:
 
 	/** Build the exposure menu using EV100 settings */
 	UNREALED_API TSharedRef<SWidget> BuildFixedEV100Menu()  const;
+	
+	/** Build the slider to adjust wireframe opacity */
+	UNREALED_API TSharedRef<SWidget> BuildWireframeMenu()  const;
 
 	/**
  * Called when the user wants to show the in-viewport context menu
@@ -142,8 +145,17 @@ protected:
 	/** Called to know whether the fixed EV100 slider is enabled. */
 	UNREALED_API bool IsFixedEV100Enabled() const;
 
+	/** Adjustable wireframe opacity */
+	UNREALED_API void OnWireframeOpacityChanged(float Opacity);
+	UNREALED_API float OnGetWireframeOpacity() const;
 
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() = 0;
+
+	// Implement this to add a viewport toolbar above the viewport that does not cover the viewport.
+	virtual TSharedPtr<SWidget> BuildViewportToolbar()
+	{
+		return TSharedPtr<SWidget>(nullptr);
+	}
 
 	// Implement this to add a viewport toolbar to the inside top of the viewport
 	virtual TSharedPtr<SWidget> MakeViewportToolbar() { return TSharedPtr<SWidget>(nullptr); }
@@ -152,7 +164,8 @@ protected:
 	virtual void PopulateViewportOverlays(TSharedRef<SOverlay> Overlay) { }
 
 	UNREALED_API virtual void BindCommands();
-	virtual const FSlateBrush* OnGetViewportBorderBrush() const { return NULL; }
+	UNREALED_API virtual void BindShowCommands( FUICommandList& OutCommandList );
+	virtual const FSlateBrush* OnGetViewportBorderBrush() const { return nullptr; }
 	virtual FSlateColor OnGetViewportBorderColorAndOpacity() const { return FLinearColor::Black; }
 	
 	/**
@@ -253,6 +266,15 @@ protected:
 	 */
 	static UNREALED_API bool OnIsSurfaceSnapEnabled();
 
+	/**
+	 * Called when rotation matching surface normal has been enabled/disabled
+	 */
+	static UNREALED_API void OnToggleRotateToSurfaceNormal();
+
+	/**
+	 * Called to test whether rotation matching surface normal is enabled or not
+	 */
+	static UNREALED_API bool IsRotateToSurfaceNormalEnabled();
 
 protected:
 	TSharedPtr<SOverlay> ViewportOverlay;

@@ -50,25 +50,15 @@ namespace Chaos
 
 	};
 
-	class CHAOSVEHICLESCORE_API FAerofoilSimModule : public ISimulationModuleBase, public TSimModuleSettings<FAerofoilSettings>
+	class CHAOSVEHICLESCORE_API FAerofoilSimModule : public ISimulationModuleBase, public TSimModuleSettings<FAerofoilSettings>, public TSimulationModuleTypeable<FAerofoilSimModule>
 	{
 	public:
-
-		FAerofoilSimModule(const FAerofoilSettings& Settings) : TSimModuleSettings<FAerofoilSettings>(Settings)
-			, CurrentAirDensity(RealWorldConsts::AirDensity())
-			, AngleOfAttack(0.f)
-			, ControlSurfaceAngle(0.f)
-			, AirflowNormal(FVector::ZeroVector)
-			, AerofoilId(0)
-		{
-
-		}
+		DEFINE_CHAOSSIMTYPENAME(FAerofoilSimModule);
+		FAerofoilSimModule(const FAerofoilSettings& Settings);
 
 		virtual ~FAerofoilSimModule() {}
 
-		virtual TSharedPtr<FModuleNetData> GenerateNetData(int NodeArrayIndex) const { return nullptr; }
-
-		virtual eSimType GetSimType() const { return eSimType::Aerofoil; }
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(const int32 NodeArrayIndex) const override { return nullptr; }
 
 		virtual const FString GetDebugName() const { return TEXT("Aerofoil"); }
 

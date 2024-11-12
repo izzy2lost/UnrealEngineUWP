@@ -28,8 +28,9 @@ public:
 	/**
 	 * Try and find an existing cached entry for the given data, or construct and cache a new entry if one cannot be found.
 	 */
-	FText FindOrCache(const TCHAR* InTextLiteral, const TCHAR* InNamespace, const TCHAR* InKey);
 	FText FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextId);
+	FText FindOrCache(FStringView InTextLiteral, const FTextId& InTextId);
+	FText FindOrCache(FString&& InTextLiteral, const FTextId& InTextId);
 
 	/**
 	 * Remove any cached entries for the given text IDs.

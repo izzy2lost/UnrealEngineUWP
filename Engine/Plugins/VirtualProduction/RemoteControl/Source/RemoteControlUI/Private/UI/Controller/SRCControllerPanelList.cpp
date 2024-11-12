@@ -7,6 +7,7 @@
 #include "Commands/RemoteControlCommands.h"
 #include "Controller/RCController.h"
 #include "Controller/RCControllerContainer.h"
+#include "Controller/RCControllerUtilities.h"
 #include "Controller/RCCustomControllerUtilities.h"
 #include "Engine/Texture.h"
 #include "Engine/Texture2D.h"
@@ -58,49 +59,6 @@ namespace UE::RCControllerPanelList
 		const FName DragHandle = TEXT("Drag Handle");
 		const FName FieldId = TEXT("Controller Field Id");
 		const FName ValueTypeSelection = TEXT("Value Type Selection");
-	}
-
-	const TSet<UScriptStruct*>& GetSupportedStructs()
-	{
-		static const TSet<UScriptStruct*> SupportedStructs = {
-			TBaseStructure<FVector>::Get(),
-			TBaseStructure<FVector2D>::Get(),
-			TBaseStructure<FRotator>::Get(),
-			TBaseStructure<FColor>::Get()
-		};
-		
-		return SupportedStructs;
-	}
-
-	const TSet<UClass*>& GetSupportedObjects()
-	{
-		static const TSet<UClass*> SupportedObjects = {
-			UTexture::StaticClass(),
-			UStaticMesh::StaticClass(),
-			UMaterialInterface::StaticClass(),
-		};
-		
-		return SupportedObjects;
-	}
-	
-	bool IsStructPropertyTypeSupported(const FStructProperty* InStructProperty)
-	{
-		if (InStructProperty)
-		{
-			return GetSupportedStructs().Contains(InStructProperty->Struct);
-		}
-
-		return false;
-	}
-
-	bool IsObjectPropertyTypeSupported(const FObjectProperty* InObjectProperty)
-	{
-		if (InObjectProperty)
-		{
-			return GetSupportedObjects().Contains(InObjectProperty->PropertyClass);
-		}
-
-		return false;
 	}
 
 	class SControllerItemListRow : public SMultiColumnTableRow<TSharedRef<FRCControllerModel>>
@@ -241,7 +199,7 @@ namespace UE::RCControllerPanelList
 				if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = StaticCastSharedPtr<FExposedEntityDragDrop>(DragDropOperation))
 				{
 					// Fetch the Exposed Entity
-					const TArray<FGuid>& ExposedEntitiesIds = DragDropOp->GetSelectedIds();
+					const TArray<FGuid>& ExposedEntitiesIds = DragDropOp->GetSelectedFieldsId();
 
 					if (ExposedEntitiesIds.Num() == 1)
 					{
@@ -293,7 +251,7 @@ namespace UE::RCControllerPanelList
 						if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = StaticCastSharedPtr<FExposedEntityDragDrop>(DragDropOperation))
 						{
 							// Fetch the Exposed Entity
-							const TArray<FGuid>& ExposedEntitiesIds = DragDropOp->GetSelectedIds();
+							const TArray<FGuid>& ExposedEntitiesIds = DragDropOp->GetSelectedFieldsId();
 
 							if (ExposedEntitiesIds.Num() == 1)
 							{
@@ -359,12 +317,12 @@ void SRCControllerPanelList::Construct(const FArguments& InArgs, const TSharedRe
 			.Style(&RCPanelStyle->HeaderRowStyle)
 
 			+ SHeaderRow::Column(UE::RCControllerPanelList::Columns::TypeColor)
-			.DefaultLabel(LOCTEXT("ControllerColorColumnName", ""))
+			.DefaultLabel(FText())
 			.FixedWidth(15)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 			+ SHeaderRow::Column(UE::RCControllerPanelList::Columns::DragHandle)
-			.DefaultLabel(FText::GetEmpty())
+			.DefaultLabel(FText())
 			.FixedWidth(15)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
@@ -440,7 +398,10 @@ void SRCControllerPanelList::Reset()
 			ControllerModel->OnValueTypeChanged.RemoveAll(this);
 		}
 	}
-	
+
+	// Cache Controller Selection
+	const TArray<TSharedPtr<FRCControllerModel>> SelectedControllers = ListView->GetSelectedItems();
+
 	ControllerItems.Empty();
 
 	check(ControllerPanelWeakPtr.IsValid());
@@ -476,11 +437,6 @@ void SRCControllerPanelList::Reset()
 			FProperty* Property = Child->CreatePropertyHandle()->GetProperty();
 			check(Property);
 
-			if (Property->IsA<FStrProperty>() || Property->IsA<FTextProperty>())
-			{
-				Property->AppendMetaData({{TEXT("multiline"), TEXT("true")}});
-			}
-
 			if (URCVirtualPropertyBase* Controller = Preset->GetController(Property->GetFName()))
 			{
 				bool bIsVisible = true;
@@ -506,14 +462,13 @@ void SRCControllerPanelList::Reset()
 					if (ensureAlways(ControllerItems.IsValidIndex(Controller->DisplayIndex)))
 					{
 						const TSharedRef<FRCControllerModel> ControllerModel = MakeShared<FRCControllerModel>(Controller, Child, RemoteControlPanel);
-						ControllerItems[Controller->DisplayIndex] = ControllerModel;
-
+						ControllerModel->OnValueChanged.AddSP(this, &SRCControllerPanelList::OnControllerValueChanged, bIsMultiController);
 						if (bIsMultiController)
 						{
 							ControllerModel->SetMultiController(bIsMultiController);
 							ControllerModel->OnValueTypeChanged.AddSP(this, &SRCControllerPanelList::OnControllerValueTypeChanged);
-							ControllerModel->OnValueChanged.AddSP(this, &SRCControllerPanelList::OnControllerValueChanged);
 						}
+						ControllerItems[Controller->DisplayIndex] = ControllerModel;
 					}
 				}
 			}
@@ -565,6 +520,27 @@ void SRCControllerPanelList::Reset()
 	}
 	
 	ListView->RebuildList();
+
+	// Restore Controller Selection
+	for (const TSharedPtr<FRCControllerModel>& ControllerModel : SelectedControllers)
+	{
+		if (ControllerModel.IsValid())
+		{
+			const FName SelectedControllerName = ControllerModel->GetPropertyName();
+
+			const TSharedPtr<FRCControllerModel>* SelectedController = ControllerItems.FindByPredicate([&SelectedControllerName]
+				(const TSharedPtr<FRCControllerModel>& InControllerModel)
+				{
+					// Internal PropertyName is unique, so we use that
+					return InControllerModel.IsValid() && SelectedControllerName == InControllerModel->GetPropertyName();
+				});
+
+			if (SelectedController)
+			{
+				ListView->SetItemSelection(*SelectedController, true);
+			}
+		}
+	}
 }
 
 TSharedRef<ITableRow> SRCControllerPanelList::OnGenerateWidgetForList(TSharedPtr<FRCControllerModel> InItem, const TSharedRef<STableViewBase>& OwnerTable)
@@ -576,7 +552,7 @@ TSharedRef<ITableRow> SRCControllerPanelList::OnGenerateWidgetForList(TSharedPtr
 		.Padding(FMargin(4.5f));
 }
 
-void SRCControllerPanelList::OnTreeSelectionChanged(TSharedPtr<FRCControllerModel> InItem, ESelectInfo::Type)
+void SRCControllerPanelList::OnTreeSelectionChanged(TSharedPtr<FRCControllerModel> InItem, ESelectInfo::Type InSelectInfo)
 {
 	if (TSharedPtr<SRCControllerPanel> ControllerPanel = ControllerPanelWeakPtr.Pin())
 	{
@@ -585,7 +561,7 @@ void SRCControllerPanelList::OnTreeSelectionChanged(TSharedPtr<FRCControllerMode
 			if (InItem != SelectedControllerItemWeakPtr.Pin())
 			{
 				SelectedControllerItemWeakPtr = InItem;
-				RemoteControlPanel->OnControllerSelectionChanged.Broadcast(InItem);
+				RemoteControlPanel->OnControllerSelectionChanged.Broadcast(InItem, InSelectInfo);
 				RemoteControlPanel->OnBehaviourSelectionChanged.Broadcast(InItem.IsValid() ? InItem->GetSelectedBehaviourModel() : nullptr);
 			}
 		}
@@ -640,16 +616,25 @@ void SRCControllerPanelList::OnControllerValueTypeChanged(URCVirtualPropertyBase
 	}
 }
 
-void SRCControllerPanelList::OnControllerValueChanged(URCVirtualPropertyBase* InController)
-{	
-	const FName& FieldId = InController->FieldId;
-
-	FRCMultiController MultiController = MultiControllers.GetMultiController(FieldId);
-
-	if (MultiController.IsValid())
+void SRCControllerPanelList::OnControllerValueChanged(TSharedPtr<FRCControllerModel> InControllerModel, bool bInIsMultiController)
+{
+	if (bInIsMultiController)
 	{
-		MultiController.UpdateHandledControllersValue();
-	}	
+		if (const URCVirtualPropertyBase* Controller = InControllerModel->GetVirtualProperty())
+		{
+			FRCMultiController MultiController = MultiControllers.GetMultiController(Controller->FieldId);
+
+			if (MultiController.IsValid())
+			{
+				MultiController.UpdateHandledControllersValue();
+			}
+		}
+	}
+
+	if (const TSharedPtr<SRemoteControlPanel>& RemoteControlPanel = GetRemoteControlPanel())
+	{
+		RemoteControlPanel->OnControllerValueChangedDelegate.Broadcast(InControllerModel);
+	}
 }
 
 
@@ -659,7 +644,7 @@ void SRCControllerPanelList::OnEmptyControllers()
 	{
 		if (TSharedPtr<SRemoteControlPanel> RemoteControlPanel = ControllerPanel->GetRemoteControlPanel())
 		{
-			RemoteControlPanel->OnControllerSelectionChanged.Broadcast(nullptr);
+			RemoteControlPanel->OnControllerSelectionChanged.Broadcast(nullptr, ESelectInfo::Direct);
 			RemoteControlPanel->OnBehaviourSelectionChanged.Broadcast(nullptr);
 		}
 
@@ -676,7 +661,7 @@ void SRCControllerPanelList::BroadcastOnItemRemoved()
 {
 	if (const TSharedPtr<SRemoteControlPanel> RemoteControlPanel = ControllerPanelWeakPtr.Pin()->GetRemoteControlPanel())
 	{
-		RemoteControlPanel->OnControllerSelectionChanged.Broadcast(nullptr);
+		RemoteControlPanel->OnControllerSelectionChanged.Broadcast(nullptr, ESelectInfo::Direct);
 		RemoteControlPanel->OnBehaviourSelectionChanged.Broadcast(nullptr);
 	}
 }
@@ -841,29 +826,7 @@ bool SRCControllerPanelList::IsEntitySupported(const FGuid ExposedEntityId)
 
 			if (RemoteControlProperty->FieldType == EExposedFieldType::Property)
 			{
-				const FProperty* Property = RemoteControlProperty->GetProperty();
-				
-				if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
-				{
-					if (const UEnum* Enum = EnumProperty->GetEnum())
-					{
-						const int64 MaxEnumValue = Enum->GetMaxEnumValue();
-						const uint32 NeededBits = FMath::RoundUpToPowerOfTwo(MaxEnumValue);
-
-						// 8 bits enums only
-						return NeededBits <= 256;
-					}
-				}
-				else if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
-				{
-					return UE::RCControllerPanelList::IsStructPropertyTypeSupported(StructProperty);
-				}
-				else if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
-				{
-					return UE::RCControllerPanelList::IsObjectPropertyTypeSupported(ObjectProperty);
-				}
-
-				return true;
+				return UE::RCControllers::CanCreateControllerFromProperty(RemoteControlProperty->GetProperty());
 			}
 		}
 	}
@@ -886,7 +849,7 @@ bool SRCControllerPanelList::OnAllowDrop(TSharedPtr<FDragDropOperation> DragDrop
 	if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = GetExposedEntityDragDrop(DragDropOperation))
 	{
 		// Fetch the Exposed Entity
-		const TArray<FGuid>& ExposedEntitiesIds = DragDropOp->GetSelectedIds();
+		const TArray<FGuid>& ExposedEntitiesIds = DragDropOp->GetSelectedFieldsId();
 
 		// Check if Entity is supported by controllers and currently only 1 dragged entity dragged is supported
 		return ExposedEntitiesIds.Num() == 1 && IsEntitySupported(ExposedEntitiesIds[0]);

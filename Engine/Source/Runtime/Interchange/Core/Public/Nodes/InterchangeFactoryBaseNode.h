@@ -224,6 +224,18 @@ public:
 	INTERCHANGECORE_API bool SetCustomSubPath(const FString& AttributeValue);
 
 	/**
+	 * If this node represent a scene asset (actor), return a specific level in which we will create this scene asset.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | ActorFactory")
+	INTERCHANGECORE_API bool GetCustomLevelUid(FString& AttributeValue) const;
+
+	/**
+	 * If this node represent a scene asset (actor), you can set a specific level in which we will create this scene asset.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | ActorFactory")
+	INTERCHANGECORE_API bool SetCustomLevelUid(const FString& AttributeValue);
+
+	/**
 	 * Retrieve the number of factory dependencies for this object.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node")
@@ -317,6 +329,12 @@ public:
 	INTERCHANGECORE_API void FillAllCustomAttributeFromObject(UObject* Object) const;
 
 	/**
+	 * Removes all custom attribute delegates registered for the provided class.
+	 * @param Class				The class used to pick which delegates to remove.
+	 */
+	INTERCHANGECORE_API void RemoveCustomAttributesForClass(UClass* Class);
+
+	/**
 	 * Copies all the custom attributes from SourceNode to this node, and
 	 * gets the appropriate values from Object.
 	 * @param SourceNode		The source factory node to copy from.
@@ -343,6 +361,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node")
 	INTERCHANGECORE_API bool UnsetForceNodeReimport();
 
+	/**
+	 * Return if the import of the class is allowed at runtime.
+	 *
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node")
+	INTERCHANGECORE_API virtual bool IsRuntimeImportAllowed() const
+	{
+		return true;
+	}
+
 protected:
 	/**
 	 * Those dependencies are used by the Interchange parsing task to make sure the assets are created in the correct order.
@@ -358,6 +386,7 @@ protected:
 private:
 
 	const UE::Interchange::FAttributeKey Macro_CustomSubPathKey = UE::Interchange::FAttributeKey(TEXT("SubPath"));
+	const UE::Interchange::FAttributeKey Macro_CustomLevelUidKey = UE::Interchange::FAttributeKey(TEXT("LevelUid"));
 	const UE::Interchange::FAttributeKey Macro_CustomReferenceObjectKey = UE::Interchange::FAttributeKey(TEXT("ReferenceObject"));
 };
 

@@ -12,6 +12,7 @@
 #include "INiagaraMergeManager.h"
 #include "NiagaraAssetTagDefinitions.h"
 #include "NiagaraEffectType.h"
+#include "NiagaraDataInterfaceEmitterBinding.h"
 #include "NiagaraDataSetAccessor.h"
 #include "NiagaraBoundsCalculator.h"
 #include "NiagaraRendererProperties.h"
@@ -261,7 +262,7 @@ struct FVersionedNiagaraEmitterData
 	FFilePath ScriptAsset;
 #endif //WITH_EDITORONLY_DATA
 
-	/* If this emitter is no longer meant to be used, this option should be set.*/
+	/* If this emitter version is no longer meant to be used, this option should be set.*/
 	UPROPERTY()
 	bool bDeprecated = false;
 
@@ -294,14 +295,14 @@ struct FVersionedNiagaraEmitterData
 	uint32 bGpuAlwaysRunParticleUpdateScript : 1;
 #endif
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Emitter")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Emitter", meta = (SegmentedDisplay))
 	ENiagaraSimTarget SimTarget = ENiagaraSimTarget::CPUSim;
 
 	/**
 	How should we calculate bounds for the emitter.
 	Note: If this is greyed out it means fixed bounds are enabled in the System Properties and these bounds are therefore ignored.
 	*/
-	UPROPERTY(EditAnywhere, Category = "Emitter")
+	UPROPERTY(EditAnywhere, Category = "Emitter", meta = (SegmentedDisplay))
 	ENiagaraEmitterCalculateBoundMode CalculateBoundsMode = ENiagaraEmitterCalculateBoundMode::Dynamic;
 	
 	/**
@@ -333,7 +334,7 @@ struct FVersionedNiagaraEmitterData
 	To prevent reallocations, the emitter should allocate as much memory as is needed for the max particle count.
 	This setting controls if the allocation size should be automatically determined or manually entered.
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Emitter")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Emitter", meta = (SegmentedDisplay))
 	EParticleAllocationMode AllocationMode = EParticleAllocationMode::AutomaticEstimate;
 	
 	/** 
@@ -342,6 +343,14 @@ struct FVersionedNiagaraEmitterData
 	*/
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Emitter", meta = (EditCondition = "AllocationMode != EParticleAllocationMode::AutomaticEstimate", EditConditionHides))
 	int32 PreAllocationCount = 0;
+
+	/**
+	List of emitter dependencies to use when calculating the execution order for emitter particle scripts.
+	This is generally only required when you are using advanced features, such as reading / writing to a data interface in different emitters
+	and need to ensure the emitters can not run concurrently with one another, either on the CPU or the GPU.
+	**/
+	UPROPERTY(EditAnywhere, Category = "Emitter")
+	TArray<FNiagaraDataInterfaceEmitterBinding> EmitterDependencies;
 
 	UPROPERTY()
 	FNiagaraEmitterScriptProperties UpdateScriptProps;
@@ -438,7 +447,7 @@ struct FVersionedNiagaraEmitterData
 	TArray<FString> AttributesToPreserve;
 
 	/** This determines how emitters will be added to a system by default. If summary view is setup, consider setting this to 'Summary'. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options")
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", meta = (SegmentedDisplay))
 	ENiagaraEmitterDefaultSummaryState AddEmitterDefaultViewState = ENiagaraEmitterDefaultSummaryState::Default;
 	
 	UPROPERTY()
@@ -566,8 +575,11 @@ private:
 };
 
 /** 
- *	Niagara Emitters are particle spawners that can be reused for different effects by putting them into Niagara Systems.
+ *	Niagara Emitters are particle spawners that can be reused for different effects by putting them into Niagara systems.
  *	Emitters render their particles using different renderers, such as Sprite Renderers or Mesh Renderers to produce different effects.
+ *
+ *	Emitter assets cannot be spawned or used in a level directly, but need to be placed in a Niagara system. Emitters support inheritance, so that
+ *	changes to the base asset are automatically picked up by child emitter assets and emitters in system assets.
  */
 UCLASS(MinimalAPI)
 class UNiagaraEmitter : public UObject, public INiagaraParameterDefinitionsSubscriber, public FNiagaraVersionedObject

@@ -19,8 +19,8 @@ class INPUTBLUEPRINTNODES_API UK2Node_InputDebugKey : public UK2Node, public IK2
 {
 	GENERATED_UCLASS_BODY()
 
-	// The key that is bound
-	UPROPERTY(EditAnywhere, Category="Input")
+	// The key that is bound to this debug event. Pressing this key while the game is running will trigger this node's events.
+	UPROPERTY(VisibleDefaultsOnly, Category="Input")
 	FKey InputKey;
 
 	// Should the binding execute even when the game is paused

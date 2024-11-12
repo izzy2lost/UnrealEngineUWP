@@ -80,4 +80,12 @@ public:
 		int32 NumInterpolationPoints = 100,
 		UGeometryCache* SourceGeometryCacheForTransfer = nullptr,
 		int32 MatchingSection = 0);
+
+	/**
+	 * Check for strands support in the world of a given Actor Component
+	 * @param InWorld The world to check
+	 * @return true if strands are going to be rendered for the world's scene and false otherwise
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Groom", meta = (WorldContext="WorldContextObject"))
+	static bool IsHairStrandsSupportedInWorld(const UObject* WorldContextObject);
 };

@@ -82,6 +82,7 @@ enum class EPayloadFilterReason : uint16
 	/** Filtered because the package is either a UMap or the owning editor bulkdata is under a UMapBuildDataRegistry */
 	MapContent = 1 << 4,
 };
+constexpr uint16 NumPayloadFilterReasons = 6;
 
 ENUM_CLASS_FLAGS(EPayloadFilterReason);
 

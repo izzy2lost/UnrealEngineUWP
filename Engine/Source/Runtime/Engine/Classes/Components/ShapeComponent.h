@@ -40,7 +40,7 @@ class UShapeComponent : public UPrimitiveComponent
 #endif // WITH_EDITORONLY_DATA
 
 	/** Color used to draw the shape. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Shape)
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=Shape)
 	FColor ShapeColor;
 
 	/** Only show this component if the actor is selected */
@@ -56,23 +56,23 @@ class UShapeComponent : public UPrimitiveComponent
 	uint8 bDynamicObstacle : 1;
 
 protected:
+	/** Uses FNavigationSystem::GetDefaultObstacleArea() by default instead of AreaClassOverride, bDynamicObstacle must be true to use this.  */
+	UPROPERTY(EditAnywhere, Category = Navigation, meta = (EditCondition = "bDynamicObstacle"))
+	uint8 bUseSystemDefaultObstacleAreaClass : 1;
+
+	/** If the body setup can be shared (i.e. there have been no alterations compared to the CDO)*/
+	uint8 bUseArchetypeBodySetup : 1;
+
 	/** Navigation area type override, null / none = no change to nav mesh.
 	 *  bDynamicObstacle must be true and bUseSystemDefaultAreaClass false to use this.
 	 */
 	UPROPERTY(EditAnywhere, Category = Navigation, meta = (EditCondition = "bDynamicObstacle && !bUseSystemDefaultObstacleAreaClass"))
 	TSubclassOf<class UNavAreaBase> AreaClassOverride;
 
-	/** Uses FNavigationSystem::GetDefaultObstacleArea() by default instead of AreaClassOverride, bDynamicObstacle must be true to use this.  */
-	UPROPERTY(EditAnywhere, Category = Navigation, meta = (EditCondition = "bDynamicObstacle"))
-	uint8 bUseSystemDefaultObstacleAreaClass : 1;
-
 	/** Used to control the line thickness when rendering */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Shape)
 	float LineThickness;
 	
-	/** If the body setup can be shared (i.e. there have been no alterations compared to the CDO)*/
-	uint8 bUseArchetypeBodySetup : 1;
-
 	/** Checks if a shared body setup is available (and if we're eligible for it). If successful you must still check for staleness */
 	template<typename ComponentType>
 	bool PrepareSharedBodySetup()

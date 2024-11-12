@@ -27,6 +27,9 @@ namespace UE::Chaos::ClothAsset
 		/** Component to world transform. */
 		FTransform ComponentTransform;
 
+		/** Scale applied to solver. */
+		float SolverGeometryScale;
+
 		/** Component space bone transforms of the owning component. */
 		TArray<FTransform> BoneTransforms;
 

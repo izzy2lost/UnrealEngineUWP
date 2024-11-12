@@ -42,7 +42,7 @@ struct FMovieSceneAudioTriggerChannel : public FMovieSceneChannel
 	 */
 	FORCEINLINE TMovieSceneChannelData<bool> GetData()
 	{
-		return TMovieSceneChannelData<bool>(&Times, &Values, &KeyHandles);
+		return TMovieSceneChannelData<bool>(&Times, &Values, this, &KeyHandles);
 	}
 
 	/**

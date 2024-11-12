@@ -12,11 +12,12 @@
 #include "Misc/Optional.h"
 #include "Misc/Timecode.h"
 #include "Misc/Timespan.h"
+#include "Misc/FrameRate.h"
 #include "Templates/SharedPointer.h"
 
 #include "HDRHelper.h"
-#include "ColorManagementDefines.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorManagementDefines.h"
+#include "ColorManagement/ColorSpace.h"
 #include "MediaShaders.h"
 
 #if WITH_ENGINE
@@ -121,6 +122,9 @@ enum class EMediaTextureSampleFormat
 
 	/** ARGB 16-bit per component, big endian */
 	ARGB16_BIG,
+
+	/** External texture with 4 components (VYUX) per texel. */
+	ExternalVYU,
 };
 
 namespace MediaTextureSampleFormat
@@ -149,7 +153,16 @@ enum class EMediaOrientation
 	CW270
 };
 
-static constexpr float kMediaSample_HDR_NitsNormalizationFactor = 1.0f / 100.0f;
+namespace MediaTextureSample
+{
+	/* This the reference white level for mapping UE scene-referred colors to nits (see TonemapCommon.ush). */
+	static constexpr float kLinearToNitsScale_UE = 100.0f;
+
+	/* This the reference white level for mapping SDR 1.0 to nits, as defined by ITU-R Report BT.2408. */
+	static constexpr float kLinearToNitsScale_BT2408 = 203.0f;
+}
+
+static constexpr float kMediaSample_HDR_NitsNormalizationFactor = 1.0f / MediaTextureSample::kLinearToNitsScale_UE;
 
 /**
  * Interface for media texture samples.
@@ -247,6 +260,12 @@ public:
 	 */
 	virtual uint32 GetStride() const = 0;
 
+	/**
+	 * Whether samples should be converted based on a mismatch with the working color space.
+	 * If this is false, samples will not go through the conversion process even if their encoding or chromaticity doesn't match the working color space.
+	 */
+	virtual bool ShouldApplyColorConversion() const { return true; }
+
 #if WITH_ENGINE
 
 	/**
@@ -263,8 +282,8 @@ public:
 	 * @return texture sample converter
 	 */
 	virtual IMediaTextureSampleConverter* GetMediaTextureSampleConverter()
-	{ 
-		return nullptr; 
+	{
+		return nullptr;
 	}
 
 	/**
@@ -273,8 +292,8 @@ public:
 	 * @return texture sample color converter
 	 */
 	virtual IMediaTextureSampleColorConverter* GetMediaTextureSampleColorConverter()
-	{ 
-		return nullptr; 
+	{
+		return nullptr;
 	}
 
 #endif //WITH_ENGINE
@@ -296,6 +315,15 @@ public:
 	 * @see GetTime
 	 */
 	virtual TOptional<FTimecode> GetTimecode() const { return TOptional<FTimecode>(); }
+
+	/**
+	 * Get the sample framerate if available. This is the rate in which the timecode
+	 * is measured. It is not necessarily the display frame rate.
+	 *
+	 * @return Sample framerate. May be needed for converting GetTimecode().
+	 * @see GetTime
+	 */
+	virtual TOptional<FFrameRate> GetFramerate() const { return TOptional<FFrameRate>(); }
 
 	/**
 	 * Whether the sample can be held in a cache.
@@ -380,7 +408,7 @@ public:
 	{
 		return false;
 	}
-	
+
 	/**
 	* Get complete 4x4 matrix to apply to the sample's pixels to yield RGB data in the sample's gamut
 	 *
@@ -405,36 +433,39 @@ public:
 		return FMatrix44f(MediaShaders::YuvToRgbRec709Scaled * Pre);	// assumes sRGB & video range
 	}
 
-	/**
-	 * Get Colorspace conversion matrix to convert to CIE1931 XYZ space
-	 * 
-	 * @return Conversion Matrix
-	 */
+	/*
+	* Get sample source color space (defaults to the sRGB/Rec709 gamut)
+	*/
+	virtual const UE::Color::FColorSpace& GetSourceColorSpace() const
+	{
+		return UE::Color::FColorSpace::GetSRGB();
+	}
+
+	UE_DEPRECATED(5.5, "GetGamutToXYZMatrix is deprecated, please use GetSourceColorSpace instead.")
 	virtual FMatrix44d GetGamutToXYZMatrix() const
 	{
 		return FMatrix44d(GamutToXYZMatrix(EDisplayColorGamut::sRGB_D65));
 	}
 
-	/**
-	 * Get white point of color space of the data contain in the sample
-	 * 
-	 * @return White point
-	 */
+	UE_DEPRECATED(5.5, "GetWhitePoint is deprecated, please use GetSourceColorSpace instead.")
 	virtual FVector2d GetWhitePoint() const
 	{
 		return UE::Color::GetWhitePoint(UE::Color::EWhitePoint::CIE1931_D65);
 	}
 
+	UE_DEPRECATED(5.5, "GetDisplayPrimaryRed is deprecated, please use GetMasteringDisplayColorSpace instead.")
 	virtual FVector2d GetDisplayPrimaryRed() const
 	{
 		return FVector2d(0.64, 0.33);
 	}
 
+	UE_DEPRECATED(5.5, "GetDisplayPrimaryGreen is deprecated, please use GetMasteringDisplayColorSpace instead.")
 	virtual FVector2d GetDisplayPrimaryGreen() const
 	{
 		return FVector2d(0.30, 0.60);
 	}
 
+	UE_DEPRECATED(5.5, "GetDisplayPrimaryBlue is deprecated, please use GetMasteringDisplayColorSpace instead.")
 	virtual FVector2d GetDisplayPrimaryBlue() const
 	{
 		return FVector2d(0.15, 0.06);
@@ -465,6 +496,14 @@ public:
 	}
 
 	/**
+	 * Get display mastering color space
+	 */
+	virtual TOptional<UE::Color::FColorSpace> GetDisplayMasteringColorSpace() const
+	{
+		return TOptional<UE::Color::FColorSpace>();
+	}
+
+	/**
 	 * Get maximum luminance information
 	 */
 	virtual bool GetMaxLuminanceLevels(uint16& OutCLL, uint16& OutFALL) const
@@ -473,10 +512,18 @@ public:
 	}
 
 	/**
+	 * Get an optional tonemapping method, for application on HDR inputs.
+	 */
+	virtual MediaShaders::EToneMapMethod GetToneMapMethod() const
+	{
+		return MediaShaders::EToneMapMethod::None;
+	}
+
+	/**
 	 * Reset sample to empty state
 	 */
 	virtual void Reset() { }
-	
+
 public:
 
 	/** Virtual destructor. */

@@ -590,6 +590,7 @@ void RandomSectionTriangle_{ParameterName}(NiagaraRandInfo RandInfo, int Section
 	int SectionTriangleCount;
 	GetSectionTriangleCount_{ParameterName}(Section, SectionTriangleCount);
 
+	Tri = 0;
 	if (SectionTriangleCount > 0)
 	{
 		int SectionTriangleOffset = {ParameterName}_SectionInfos[Section].x;

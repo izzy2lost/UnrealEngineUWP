@@ -12,6 +12,10 @@
 void SScrollBox::FSlot::Construct(const FChildren& SlotOwner, FSlotArguments&& InArgs)
 {
 	TBasicLayoutWidgetSlot<FSlot>::Construct(SlotOwner, MoveTemp(InArgs));
+	if (InArgs._MinSize.IsSet())
+	{
+		SetMinSize(MoveTemp(InArgs._MinSize));
+	}
 	if (InArgs._MaxSize.IsSet())
 	{
 		SetMaxSize(MoveTemp(InArgs._MaxSize));
@@ -25,8 +29,13 @@ void SScrollBox::FSlot::Construct(const FChildren& SlotOwner, FSlotArguments&& I
 void SScrollBox::FSlot::RegisterAttributes(FSlateWidgetSlotAttributeInitializer& AttributeInitializer)
 {
 	TBasicLayoutWidgetSlot<FSlot>::RegisterAttributes(AttributeInitializer);
+	SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(FSlot, AttributeInitializer, "Slot.MinSize", MinSize, EInvalidateWidgetReason::Layout);
 	SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(FSlot, AttributeInitializer, "Slot.MaxSize", MaxSize, EInvalidateWidgetReason::Layout);
 	SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(FSlot, AttributeInitializer, "Slot.SizeValue", SizeValue, EInvalidateWidgetReason::Layout)
+		.UpdatePrerequisite("Slot.MinSize")
+		.UpdatePrerequisite("Slot.MaxSize");
+	SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(FSlot, AttributeInitializer, "Slot.ShrinkSizeValue", ShrinkSizeValue, EInvalidateWidgetReason::Layout)
+		.UpdatePrerequisite("Slot.MinSize")
 		.UpdatePrerequisite("Slot.MaxSize");
 }
 
@@ -34,22 +43,6 @@ SScrollBox::FSlot::FSlotArguments SScrollBox::Slot()
 {
 	return FSlot::FSlotArguments(MakeUnique<FSlot>());
 }
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void SScrollPanel::Construct(const FArguments& InArgs, const TArray<SScrollBox::FSlot*>& InSlots)
-{
-	PhysicalOffset = 0;
-	Children.Reserve(InSlots.Num());
-	for (int32 SlotIndex = 0; SlotIndex < InSlots.Num(); ++SlotIndex)
-	{
-		Children.Add(InSlots[SlotIndex]);
-	}
-	Orientation = InArgs._Orientation;
-	BackPadScrolling = InArgs._BackPadScrolling;
-	FrontPadScrolling = InArgs._FrontPadScrolling;
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 
 void SScrollPanel::Construct(const FArguments& InArgs, TArray<SScrollBox::FSlot::FSlotArguments> InSlots)
 {
@@ -112,6 +105,8 @@ SScrollBox::SScrollBox()
 	bClippingProxy = true;
 }
 
+SScrollBox::~SScrollBox() = default;
+
 void SScrollBox::Construct( const FArguments& InArgs )
 {
 	check(InArgs._Style);
@@ -121,6 +116,7 @@ void SScrollBox::Construct( const FArguments& InArgs )
 	DesiredScrollOffset = 0;
 	bIsScrolling = false;
 	bAnimateScroll = false;
+	ScrollingAnimationInterpolationSpeed = InArgs._ScrollAnimationInterpSpeed;
 	AmountScrolledWhileRightMouseDown = 0;
 	PendingScrollTriggerAmount = 0;
 	bShowSoftwareCursor = false;
@@ -138,6 +134,7 @@ void SScrollBox::Construct( const FArguments& InArgs )
 	FrontPadScrolling = InArgs._FrontPadScrolling;
 	bAnimateWheelScrolling = InArgs._AnimateWheelScrolling;
 	WheelScrollMultiplier = InArgs._WheelScrollMultiplier;
+	bEnableTouchScrolling = InArgs._EnableTouchScrolling;
 	NavigationScrollPadding = InArgs._NavigationScrollPadding;
 	NavigationDestination = InArgs._NavigationDestination;
 	ScrollWhenFocusChanges = InArgs._ScrollWhenFocusChanges;
@@ -313,13 +310,34 @@ void SScrollBox::ConstructHorizontalLayout()
 /** Adds a slot to SScrollBox */
 SScrollBox::FScopedWidgetSlotArguments SScrollBox::AddSlot()
 {
-	return FScopedWidgetSlotArguments{ MakeUnique<FSlot>(), ScrollPanel->Children, INDEX_NONE };
+	return InsertSlot(INDEX_NONE);
 }
 
-/** Removes a slot at the specified location */
+SScrollBox::FScopedWidgetSlotArguments SScrollBox::InsertSlot(int32 Index)
+{
+	return FScopedWidgetSlotArguments{ MakeUnique<FSlot>(), ScrollPanel->Children, Index };
+}
+
+const SScrollBox::FSlot& SScrollBox::GetSlot(int32 SlotIndex) const
+{
+	check(ScrollPanel->Children.IsValidIndex(SlotIndex));
+	const FSlotBase& BaseSlot = static_cast<const FSlotBase&>(ScrollPanel->Children[SlotIndex]);
+	return static_cast<const FSlot&>(BaseSlot);
+}
+
+SScrollBox::FSlot& SScrollBox::GetSlot(int32 SlotIndex)
+{
+	return const_cast<FSlot&>(const_cast<const SScrollBox*>(this)->GetSlot(SlotIndex));
+}
+
 void SScrollBox::RemoveSlot( const TSharedRef<SWidget>& WidgetToRemove )
 {
 	ScrollPanel->Children.Remove(WidgetToRemove);
+}
+
+int32 SScrollBox::NumSlots() const
+{
+	return ScrollPanel->Children.Num();
 }
 
 void SScrollBox::ClearChildren()
@@ -660,7 +678,7 @@ void SScrollBox::Tick( const FGeometry& AllottedGeometry, const double InCurrent
 	const float ViewFraction = GetViewFraction();
 	const float TargetViewOffset = GetViewOffsetFraction();
 	
-	const float CurrentViewOffset = bAnimateScroll ? FMath::FInterpTo(ScrollBar->DistanceFromTop(), TargetViewOffset, InDeltaTime, 15.f) : TargetViewOffset;
+	const float CurrentViewOffset = bAnimateScroll ? FMath::FInterpTo(ScrollBar->DistanceFromTop(), TargetViewOffset, InDeltaTime, ScrollingAnimationInterpolationSpeed) : TargetViewOffset;
 
 	// Update the scrollbar with the clamped version of the offset
 	float NewPhysicalOffset = GetScrollComponentFromVector(CurrentViewOffset * ScrollPanel->GetDesiredSize());
@@ -694,7 +712,7 @@ bool SScrollBox::ComputeVolatility() const
 
 FReply SScrollBox::OnPreviewMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	if (MouseEvent.IsTouchEvent() && !bFingerOwningTouchInteraction.IsSet())
+	if (bEnableTouchScrolling && MouseEvent.IsTouchEvent() && !bFingerOwningTouchInteraction.IsSet())
 	{
 		// Clear any inertia 
 		InertialScrollManager.ClearScrollVelocity();
@@ -859,7 +877,7 @@ FReply SScrollBox::OnMouseMove( const FGeometry& MyGeometry, const FPointerEvent
 
 void SScrollBox::OnMouseEnter( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent )
 {
-	if ( MouseEvent.IsTouchEvent() )
+	if (bEnableTouchScrolling && MouseEvent.IsTouchEvent())
 	{
 		if ( !bFingerOwningTouchInteraction.IsSet() )
 		{
@@ -1193,9 +1211,20 @@ void SScrollBox::SetAnimateWheelScrolling(bool bInAnimateWheelScrolling)
 	bAnimateWheelScrolling = bInAnimateWheelScrolling;
 }
 
+void SScrollBox::SetScrollingAnimationInterpolationSpeed(float NewScrollingAnimationInterpolationSpeed)
+{
+	ScrollingAnimationInterpolationSpeed = NewScrollingAnimationInterpolationSpeed;
+}
+
 void SScrollBox::SetWheelScrollMultiplier(float NewWheelScrollMultiplier)
 {
 	WheelScrollMultiplier = NewWheelScrollMultiplier;
+}
+
+void SScrollBox::SetIsTouchScrollingEnabled(const bool bInEnableTouchScrolling)
+{
+	bEnableTouchScrolling = bInEnableTouchScrolling;
+	ensureMsgf(!bFingerOwningTouchInteraction.IsSet(), TEXT("TouchScrollingEnabled flag should not be changed while scrolling."));
 }
 
 void SScrollBox::SetScrollWhenFocusChanges(EScrollWhenFocusChanges NewScrollWhenFocusChanges)

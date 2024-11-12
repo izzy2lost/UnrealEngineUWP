@@ -7,6 +7,9 @@
 // This define is for the light function common evaluation to only be based on UV stored in the light vector only.
 #define LIGHT_FUNCTION_ATLAS 1
 
+// Used to trigger shader recompiles, guid should be regenerated on merge conflicts
+#pragma message("UESHADERMETADATA_VERSION D13B08DE-2E66-447C-AF33-27D896D280CA")
+
 #include "../Common.ush"
 #include "/Engine/Generated/Material.ush"
 #include "../LightFunctionCommon.ush"

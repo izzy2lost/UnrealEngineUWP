@@ -51,9 +51,9 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotAnnotation : public FSmartObjectDe
 	UE_DEPRECATED(5.3, "Use HasTransform() and GetWorldTransform() instead.")
 	virtual TOptional<FTransform> GetWorldTransform(const FTransform& SlotTransform) const final { return TOptional<FTransform>(); }
 
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_GAMEPLAY_DEBUGGER_MENU
 	virtual void CollectDataForGameplayDebugger(FSmartObjectAnnotationGameplayDebugContext& DebugContext) const {}
-#endif // WITH_GAMEPLAY_DEBUGGER	
+#endif // WITH_GAMEPLAY_DEBUGGER_MENU
 	
 };
 

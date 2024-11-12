@@ -46,8 +46,22 @@ public:
 	bool AllowObjectReplication() const { return bAllowObjectReplication; }
 
 	bool QueueNetObjectAttachment(uint32 ConnectionId, const FNetObjectReference& TargetRef, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
-	bool SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
-	bool SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
+
+	struct FSendRPCContext
+	{
+		const UObject* RootObject = nullptr;
+		const UObject* SubObject = nullptr;
+		const UFunction* Function = nullptr;
+	};
+
+	// Multicast RPC
+	bool SendMulticastRPC(const FSendRPCContext& Context, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
+
+	// Unicast RPC
+	bool SendUnicastRPC(uint32 ConnectionId, const FSendRPCContext& Context, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
+
+	bool HasUnprocessedReliableAttachments(FInternalNetRefIndex InternalIndex) const;
+	bool HasAnyUnprocessedReliableAttachments() const;
 
 	enum class EProcessMode 
 	{
@@ -72,6 +86,7 @@ public:
 	void RemoveConnection(uint32 ConnectionId);
 
 private:
+
 	void RegisterDefaultHandlers();
 
 	struct FRPCOwner
@@ -85,7 +100,7 @@ private:
 		FInternalNetRefIndex RootObjectIndex = FNetRefHandleManager::InvalidInternalIndex;
 		FInternalNetRefIndex SubObjectIndex = FNetRefHandleManager::InvalidInternalIndex;
 	};
-	bool GetRPCOwner(FRPCOwner& OutOwnerInfo, const UObject* RootObject, const UObject* SubObject, const UFunction* Function) const;
+	bool GetRPCOwner(FRPCOwner& OutOwnerInfo, const FSendRPCContext& Context) const;
 
 	/** 
 	* Validates that RootObjectRefHandle is a true root object and return it's index
@@ -116,12 +131,15 @@ private:
 		void Enqueue(uint32 ConnectionId, FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags);
 
 		// Multicast
-		void Enqueue(FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags);
+		void Enqueue(FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags, FNetBitArray OpenConnections);
 
 		void PrepareProcessQueue(FReplicationConnections* InConnections, const FNetRefHandleManager* InNetRefHandleManager);
 		void ProcessQueue(EProcessMode ProcessMode);
 		void ResetProcessQueue();
 		void PrepareAndProcessOOBAttachmentQueue(FReplicationConnections* InConnections, const FNetRefHandleManager* InNetRefHandleManager, FNetBitArray& OutConnetionsPendingImmediateSend);
+
+		bool HasUnprocessedReliableAttachments(FInternalNetRefIndex InternalIndex)  const;
+		bool HasAnyUnprocessedReliableAttachments()  const;
 	
 	private:
 		struct FNetObjectAttachmentQueueEntry
@@ -131,6 +149,7 @@ private:
 			FInternalNetRefIndex SubObjectIndex;
 			ENetObjectAttachmentSendPolicyFlags SendFlags;
 			TRefCountPtr<FNetObjectAttachment> Attachment;
+			FNetBitArray MulticastConnections;
 		};
 		typedef TArray<FNetObjectAttachmentQueueEntry> FQueue;
 
@@ -157,7 +176,7 @@ private:
 				Connections = nullptr;
 				NetRefHandleManager = nullptr;
 				QueueToProcess = nullptr;
-				ConnectionsPendingSendInPostDispatch.Reset();
+				ConnectionsPendingSendInPostDispatch.ClearAllBits();
 			}
 
 			bool IsValid() const { return NetRefHandleManager != nullptr; }
@@ -171,6 +190,9 @@ private:
 	TStrongObjectPtr<UNetRPCHandler> RPCHandler;
 	TStrongObjectPtr<UPartialNetObjectAttachmentHandler> PartialNetObjectAttachmentHandler;
 	TStrongObjectPtr<UNetObjectBlobHandler> NetObjectBlobHandler;
+
+	/** Track if a warning was already logged for a specific RPC. */
+	mutable TMap<FName, bool> RPCWarningThrottler;
 
 	UReplicationSystem* ReplicationSystem = nullptr;
 	FObjectReferenceCache* ObjectReferenceCache = nullptr;

@@ -7,7 +7,7 @@
  * @param StatName key name to search for
  * @return KeyValuePair if found, NULL otherwise
  */
-FVariantData* FOnlineStats::FindStatByName(const FName& StatName)
+FVariantData* FOnlineStats::FindStatByName(const FString& StatName)
 {
 	return Properties.Find(StatName);
 }
@@ -19,7 +19,7 @@ FVariantData* FOnlineStats::FindStatByName(const FName& StatName)
  * @param StatName the stat to change the value of
  * @param Value the new value to assign to the stat
  */
-void FOnlineStats::SetFloatStat(const FName& StatName, float Value)
+void FOnlineStats::SetFloatStat(const FString& StatName, float Value)
 {
 	FVariantData* Stat = FindStatByName(StatName);
 	if (Stat != NULL)
@@ -44,7 +44,7 @@ void FOnlineStats::SetFloatStat(const FName& StatName, float Value)
  * @param StatName the stat to change the value of
  * @param Value the new value to assign to the stat
  */
-void FOnlineStats::SetIntStat(const FName& StatName, int32 Value)
+void FOnlineStats::SetIntStat(const FString& StatName, int32 Value)
 {
 	FVariantData* Stat = FindStatByName(StatName);
 	if (Stat != NULL && Stat->GetType() == EOnlineKeyValuePairDataType::Int32)
@@ -66,7 +66,7 @@ void FOnlineStats::SetIntStat(const FName& StatName, int32 Value)
  * @param StatName the stat to increment
  * @param IncBy the value to increment by
  */
-void FOnlineStats::IncrementFloatStat(const FName& StatName, float IncBy)
+void FOnlineStats::IncrementFloatStat(const FString& StatName, float IncBy)
 {
 	FVariantData* Stat = FindStatByName(StatName);
 	if (Stat != NULL && Stat->GetType() == EOnlineKeyValuePairDataType::Float)
@@ -88,7 +88,7 @@ void FOnlineStats::IncrementFloatStat(const FName& StatName, float IncBy)
  * @param StatName the stat to increment
  * @param IncBy the value to increment by
  */
-void FOnlineStats::IncrementIntStat(const FName& StatName, int32 IncBy)
+void FOnlineStats::IncrementIntStat(const FString& StatName, int32 IncBy)
 {
 	FVariantData* Stat = FindStatByName(StatName);
 	if (Stat != NULL && Stat->GetType() == EOnlineKeyValuePairDataType::Int32)
@@ -110,7 +110,7 @@ void FOnlineStats::IncrementIntStat(const FName& StatName, int32 IncBy)
  * @param StatName the stat to decrement
  * @param DecBy the value to decrement by
  */
-void FOnlineStats::DecrementFloatStat(const FName& StatName, float DecBy)
+void FOnlineStats::DecrementFloatStat(const FString& StatName, float DecBy)
 {
 	FVariantData* Stat = FindStatByName(StatName);
 	if (Stat != NULL && Stat->GetType() == EOnlineKeyValuePairDataType::Float)
@@ -132,7 +132,7 @@ void FOnlineStats::DecrementFloatStat(const FName& StatName, float DecBy)
  * @param StatName the stat to decrement
  * @param DecBy the value to decrement by
  */
-void FOnlineStats::DecrementIntStat(const FName& StatName, int32 DecBy)
+void FOnlineStats::DecrementIntStat(const FString& StatName, int32 DecBy)
 {
 	FVariantData* Stat = FindStatByName(StatName);
 	if (Stat != NULL && Stat->GetType() == EOnlineKeyValuePairDataType::Int32)
@@ -151,9 +151,9 @@ FString FOnlineStatsRow::ToLogString() const
 {
 	FString LogString = FString::Printf(TEXT("%d : %s"), Rank, *NickName);
 
-	for (const TPair<FName, FVariantData>& Column : Columns)
+	for (const TPair<FString, FVariantData>& Column : Columns)
 	{
-		LogString += FString::Printf(TEXT("\t\t%s : %s"), *Column.Key.ToString(), *Column.Value.ToString());
+		LogString += FString::Printf(TEXT("\t\t%s : %s"), *Column.Key, *Column.Value.ToString());
 	}
 
 	return LogString;
@@ -161,7 +161,7 @@ FString FOnlineStatsRow::ToLogString() const
 
 FString FOnlineLeaderboardRead::ToLogString() const
 {
-	FString LogString = FString::Printf(TEXT("\nLeaderboardName: %s\nSortedColumn: %s\nRows:\n"), *LeaderboardName.ToString(), *SortedColumn.ToString());
+	FString LogString = FString::Printf(TEXT("\nLeaderboardName: %s\nSortedColumn: %s\nRows:\n"), *LeaderboardName, *SortedColumn);
 
 	for (const FOnlineStatsRow& Row : Rows)
 	{

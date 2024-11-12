@@ -451,7 +451,7 @@ uint32 GetTypeHash(const FActorInstanceHandle& Handle)
 	uint32 Hash = 0;
 	if (const AActor* Actor = Handle.GetCachedActor())
 	{
-		FCrc::StrCrc32(*(Actor->GetPathName()), Hash);
+		Hash = FCrc::StrCrc32(*(Actor->GetPathName()), Hash);
 	}
 	if (UObject* ManagerInterfaceObject = Handle.ManagerInterface.GetObject())
 	{
@@ -490,6 +490,15 @@ FArchive& operator<<(FArchive& Ar, FActorInstanceHandle& Handle)
 	if (Ar.IsLoading())
 	{
 		Handle.ManagerInterface = FActorInstanceManagerInterface(WeakManagerObject.Get());
+		IActorInstanceManagerInterface* AsManager = Handle.ManagerInterface.Get();
+
+		if (AsManager && Handle.InstanceIndex != INDEX_NONE
+			&& Handle.ManagerInterface.GetObject() == Handle.ReferenceObject)
+		{
+			Handle.ResolutionStatus = FActorInstanceHandle::EResolutionStatus::Invalid;
+			Handle.ReferenceObject = nullptr;
+			Handle.ReferenceObject = AsManager->FindActor(Handle);
+		}
 		Handle.ResolutionStatus = FActorInstanceHandle::EResolutionStatus::Resolved;
 	}
 

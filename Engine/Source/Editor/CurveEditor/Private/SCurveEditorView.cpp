@@ -6,6 +6,7 @@
 #include "CurveDataAbstraction.h"
 #include "CurveDrawInfo.h"
 #include "CurveEditor.h"
+#include "CurveEditorAxis.h"
 #include "CurveEditorHelpers.h"
 #include "CurveEditorScreenSpace.h"
 #include "CurveEditorSelection.h"
@@ -31,18 +32,65 @@ SCurveEditorView::SCurveEditorView()
 	, bFixedOutputBounds(0)
 	, bAutoSize(1)
 	, bAllowEmpty(0)
+	, bAllowModelViewTransforms(1)
+	, bUpdateModelViewTransforms(0)
+	, bNeedsDefaultGridLinesH(1)
+	, bNeedsDefaultGridLinesV(1)
 {
 	CurveCacheFlags = ECurveCacheFlags::All;
 	CachedValues.CachedActiveCurvesSerialNumber = 0xFFFFFFFF;
 	CachedValues.CachedSelectionSerialNumber = 0xFFFFFFFF;
-	CachedValues.CachedGeometrySize.X = -1.;
+	CachedValues.CachedGeometrySize.X = -1;
 	CachedValues.CachedGeometrySize.Y = -1;
+}
+
+SCurveEditorView::~SCurveEditorView()
+{
 }
 
 FVector2D SCurveEditorView::ComputeDesiredSize(float LayoutScaleMultiplier) const
 {
 	FVector2D ContentDesiredSize = SCompoundWidget::ComputeDesiredSize(LayoutScaleMultiplier);
 	return FVector2D(ContentDesiredSize.X, FixedHeight.Get(ContentDesiredSize.Y));
+}
+
+void SCurveEditorView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+
+	if (bAllowModelViewTransforms)
+	{
+		UpdateCurveViewTransformsFromModels();
+	}
+}
+
+void SCurveEditorView::UpdateCurveViewTransformsFromModels()
+{
+	TSharedPtr<FCurveEditor> CurveEditor = WeakCurveEditor.Pin();
+
+	if (!CurveEditor)
+	{
+		return;
+	}
+
+	bool bTransformChanged = false;
+	for (TPair<FCurveModelID, FCurveInfo>& CurveInfo : CurveInfoByID)
+	{
+		const FCurveModel* CurveModel = CurveEditor->FindCurve(CurveInfo.Key);
+		if (CurveModel)
+		{
+			FTransform2d PreviousTransform = CurveInfo.Value.ViewToCurveTransform;
+
+			CurveInfo.Value.ViewToCurveTransform = CurveModel->GetCurveTransform();
+
+			bTransformChanged |= (CurveInfo.Value.ViewToCurveTransform != PreviousTransform);
+		}
+	}
+
+	if (bTransformChanged)
+	{
+		CurveCacheFlags = ECurveCacheFlags::All;
+	}
 }
 
 void SCurveEditorView::GetInputBounds(double& OutInputMin, double& OutInputMax) const
@@ -81,10 +129,96 @@ FCurveEditorScreenSpace SCurveEditorView::GetViewSpace() const
 	return FCurveEditorScreenSpace(GetCachedGeometry().GetLocalSize(), InputMin, InputMax, OutputMin, OutputMax);
 }
 
+FCurveEditorScreenSpace SCurveEditorView::GetCurveSpace(FCurveModelID CurveID) const
+{
+	const_cast<SCurveEditorView*>(this)->UpdateCustomAxes();
+
+	FCurveInfo CurveInfo = CurveInfoByID.FindRef(CurveID);
+
+	FTransform2d CurveTransform = CurveInfo.ViewToCurveTransform;
+	FScale2d     AxisScale(0.0, 0.0);
+
+	double InputMin = 0.0, InputMax = 1.0;
+	GetInputBounds(InputMin, InputMax);
+
+	double AxisOutputMin = OutputMin;
+	double AxisOutputMax = OutputMax;
+	if (CurveInfo.HorizontalAxis)
+	{
+		InputMin = CustomHorizontalAxes[CurveInfo.HorizontalAxis.Index].Min;
+		InputMax = CustomHorizontalAxes[CurveInfo.HorizontalAxis.Index].Max;
+	}
+	if (CurveInfo.VerticalAxis)
+	{
+		AxisOutputMin = CustomVerticalAxes[CurveInfo.VerticalAxis.Index].Min;
+		AxisOutputMax = CustomVerticalAxes[CurveInfo.VerticalAxis.Index].Max;
+	}
+
+	return FCurveEditorScreenSpace(GetCachedGeometry().GetLocalSize(), InputMin, InputMax, AxisOutputMin, AxisOutputMax).ToCurveSpace(CurveTransform);
+}
+
+FCurveEditorScreenSpaceH SCurveEditorView::GetHorizontalAxisSpace(FCurveEditorViewAxisID ID) const
+{
+	double Min = 0.0;
+	double Max = 1.0;
+
+	if (ID)
+	{
+		Min = CustomHorizontalAxes[ID].Min;
+		Max = CustomHorizontalAxes[ID].Max;
+	}
+	else
+	{
+		GetInputBounds(Min, Max);
+	}
+
+	return FCurveEditorScreenSpaceH(GetCachedGeometry().GetLocalSize().X, Min, Max);
+}
+
+FCurveEditorScreenSpaceV SCurveEditorView::GetVerticalAxisSpace(FCurveEditorViewAxisID ID) const
+{
+	double Min = OutputMin;
+	double Max = OutputMax;
+
+	if (ID)
+	{
+		Min = CustomVerticalAxes[ID].Min;
+		Max = CustomVerticalAxes[ID].Max;
+	}
+	return FCurveEditorScreenSpaceV(GetCachedGeometry().GetLocalSize().X, Min, Max);
+}
+
+FCurveEditorViewAxisID SCurveEditorView::GetAxisForCurve(FCurveModelID CurveID, ECurveEditorAxisOrientation Axis) const
+{
+	const_cast<SCurveEditorView*>(this)->UpdateCustomAxes();
+
+	FCurveInfo CurveInfo = CurveInfoByID.FindRef(CurveID);
+
+	return (Axis == ECurveEditorAxisOrientation::Horizontal)
+		? CurveInfo.HorizontalAxis
+		: CurveInfo.VerticalAxis;
+}
+
+TSharedPtr<FCurveEditorAxis> SCurveEditorView::GetAxis(FCurveEditorViewAxisID ID, ECurveEditorAxisOrientation Axis) const
+{
+	if (!ID)
+	{
+		return nullptr;
+	}
+
+	return (Axis == ECurveEditorAxisOrientation::Horizontal)
+		? CustomHorizontalAxes[ID.Index].Axis
+		: CustomVerticalAxes[ID.Index].Axis;
+}
+
 void SCurveEditorView::AddCurve(FCurveModelID CurveID)
 {
 	CurveInfoByID.Add(CurveID, FCurveInfo{CurveInfoByID.Num()});
 	OnCurveListChanged();
+	if (bAllowModelViewTransforms)
+	{
+		bUpdateModelViewTransforms = true;
+	}
 }
 
 void SCurveEditorView::RemoveCurve(FCurveModelID CurveID)
@@ -105,21 +239,262 @@ void SCurveEditorView::RemoveCurve(FCurveModelID CurveID)
 		}
 
 		OnCurveListChanged();
+		if (bAllowModelViewTransforms)
+		{
+			bUpdateModelViewTransforms = true;
+		}
 	}
 }
 
-void SCurveEditorView::FrameVertical(double InOutputMin, double InOutputMax)
+void SCurveEditorView::UpdateCustomAxes()
 {
-	//default just set's output if it can
-	SetOutputBounds(InOutputMin, InOutputMax);
+	if (!bUpdateModelViewTransforms)
+	{
+		return;
+	}
+
+	TSharedPtr<FCurveEditor> CurveEditor = WeakCurveEditor.Pin();
+	check(CurveEditor.IsValid());
+
+	bUpdateModelViewTransforms = false;
+
+	bool bHasAnyCustomAxesH = false;
+	bool bHasAnyCustomAxesV = false;
+
+	bool bHasAnyDefaultAxesH = false;
+	bool bHasAnyDefaultAxesV = false;
+
+	TSortedMap<int32, int32> OldHorizontalToNew;
+
+	struct FWorkingAxisInfo
+	{
+		FAxisInfo Info;
+		FCurveEditorViewAxisID ID;
+	};
+	TMap<TSharedPtr<FCurveEditorAxis>, FCurveEditorViewAxisID> NewCustomHorizontalAxes;
+	TMap<TSharedPtr<FCurveEditorAxis>, FCurveEditorViewAxisID> NewCustomVerticalAxes;
+
+	TArray<FWorkingAxisInfo> HorizontalAxisIdMap, VerticalAxisIdMap;
+
+
+	// Populate existing axes with 0 use-counts to preserve scale
+	for (const FAxisInfo& Info : CustomHorizontalAxes)
+	{
+		FWorkingAxisInfo WorkingInfo;
+		WorkingInfo.Info = Info;
+		WorkingInfo.ID = HorizontalAxisIdMap.Num();
+		NewCustomHorizontalAxes.Add(Info.Axis, WorkingInfo.ID);
+		HorizontalAxisIdMap.Add(WorkingInfo);
+	}
+	for (const FAxisInfo& Info : CustomVerticalAxes)
+	{
+		FWorkingAxisInfo WorkingInfo;
+		WorkingInfo.Info = Info;
+		WorkingInfo.ID = VerticalAxisIdMap.Num();
+		NewCustomVerticalAxes.Add(Info.Axis, WorkingInfo.ID);
+		VerticalAxisIdMap.Add(WorkingInfo);
+	}
+
+
+	// Iterate all curves and allocate axes
+	for (TTuple<FCurveModelID, FCurveInfo>& Pair : CurveInfoByID)
+	{
+		FCurveModel* CurveModel = CurveEditor->FindCurve(Pair.Key);
+		FCurveEditorViewAxisID HorizontalAxisID, VerticalAxisID;
+
+		if (ensureAlways(CurveModel))
+		{
+			TSharedPtr<FCurveEditorAxis> HorizontalAxis = nullptr;
+			TSharedPtr<FCurveEditorAxis> VerticalAxis = nullptr;
+
+			CurveModel->AllocateAxes(CurveEditor.Get(), HorizontalAxis, VerticalAxis);
+
+			// Horizontal Axis
+			if (HorizontalAxis)
+			{
+				HorizontalAxisID = NewCustomHorizontalAxes.FindRef(HorizontalAxis);
+				if (!HorizontalAxisID)
+				{
+					HorizontalAxisID = HorizontalAxisIdMap.Num();
+					HorizontalAxisIdMap.Add(FWorkingAxisInfo{ FAxisInfo{HorizontalAxis}, HorizontalAxisID });
+					NewCustomHorizontalAxes.Add(HorizontalAxis, HorizontalAxisID);
+				}
+
+				HorizontalAxisIdMap[HorizontalAxisID.Index].Info.UseCount += 1;
+				bHasAnyCustomAxesH = true;
+			}
+			else
+			{
+				bHasAnyDefaultAxesH = true;
+			}
+
+			// Vertical Axis
+			if (VerticalAxis)
+			{
+				VerticalAxisID = NewCustomVerticalAxes.FindRef(VerticalAxis);
+				if (!VerticalAxisID)
+				{
+					VerticalAxisID = VerticalAxisIdMap.Num();
+					VerticalAxisIdMap.Add(FWorkingAxisInfo{ FAxisInfo{VerticalAxis}, VerticalAxisID });
+					NewCustomVerticalAxes.Add(VerticalAxis, VerticalAxisID);
+				}
+
+				VerticalAxisIdMap[VerticalAxisID.Index].Info.UseCount += 1;
+				bHasAnyCustomAxesV = true;
+			}
+			else
+			{
+				bHasAnyDefaultAxesV = true;
+			}
+		}
+
+		Pair.Value.HorizontalAxis = HorizontalAxisID;
+		Pair.Value.VerticalAxis   = VerticalAxisID;
+	}
+
+	CustomHorizontalAxes.SetNum(HorizontalAxisIdMap.Num());
+	CustomVerticalAxes.SetNum(VerticalAxisIdMap.Num());
+
+	// Sort the IDs by use-count descending
+	Algo::SortBy(HorizontalAxisIdMap, [](const FWorkingAxisInfo& In){ return In.Info.UseCount; }, TGreater<>());
+	Algo::SortBy(VerticalAxisIdMap,   [](const FWorkingAxisInfo& In){ return In.Info.UseCount; }, TGreater<>());
+
+	// Assign new axis IDs
+	TArray<FCurveEditorViewAxisID> ReverseHorizontalLookup, ReverseVerticalLookup;
+
+	ReverseHorizontalLookup.SetNum(HorizontalAxisIdMap.Num());
+	for (int32 Index = 0; Index < HorizontalAxisIdMap.Num(); ++Index)
+	{
+		FCurveEditorViewAxisID OldId = HorizontalAxisIdMap[Index].ID;
+		ReverseHorizontalLookup[OldId.Index] = Index;
+		CustomHorizontalAxes[Index] = HorizontalAxisIdMap[Index].Info;
+	}
+
+	ReverseVerticalLookup.SetNum(VerticalAxisIdMap.Num());
+	for (int32 Index = 0; Index < VerticalAxisIdMap.Num(); ++Index)
+	{
+		FCurveEditorViewAxisID OldId = VerticalAxisIdMap[Index].ID;
+		ReverseVerticalLookup[OldId.Index] = Index;
+		CustomVerticalAxes[Index] = VerticalAxisIdMap[Index].Info;
+	}
+
+	for (TTuple<FCurveModelID, FCurveInfo>& Pair : CurveInfoByID)
+	{
+		if (Pair.Value.HorizontalAxis)
+		{
+			Pair.Value.HorizontalAxis = ReverseHorizontalLookup[Pair.Value.HorizontalAxis.Index];
+		}
+		if (Pair.Value.VerticalAxis)
+		{
+			Pair.Value.VerticalAxis = ReverseVerticalLookup[Pair.Value.VerticalAxis.Index];
+		}
+	}
+
+
+	bNeedsDefaultGridLinesH = bHasAnyDefaultAxesH;
+	bNeedsDefaultGridLinesV = bHasAnyDefaultAxesV;
 }
 
-void SCurveEditorView::SetOutputBounds(double InOutputMin, double InOutputMax)
+void SCurveEditorView::FrameVertical(double InOutputMin, double InOutputMax, FCurveEditorViewAxisID AxisID)
 {
-	if (!bFixedOutputBounds)
+	if (!bFixedOutputBounds && InOutputMin < InOutputMax)
 	{
-		OutputMin = InOutputMin;
-		OutputMax = InOutputMax;
+		if (AxisID)
+		{
+			FAxisInfo& AxisInfo = CustomVerticalAxes[AxisID];
+			AxisInfo.Min = InOutputMin;
+			AxisInfo.Max = InOutputMax;
+		}
+		else if (TSharedPtr<FCurveEditor> CurveEditor = WeakCurveEditor.Pin())
+		{
+			OutputMin = InOutputMin;
+			OutputMax = InOutputMax;
+		}
+	}
+}
+
+void SCurveEditorView::FrameHorizontal(double InInputMin, double InInputMax, FCurveEditorViewAxisID AxisID)
+{
+	if (InInputMin < InInputMax)
+	{
+		if (AxisID)
+		{
+			FAxisInfo& AxisInfo = CustomHorizontalAxes[AxisID];
+			AxisInfo.Min = InInputMin;
+			AxisInfo.Max = InInputMax;
+		}
+		else if (TSharedPtr<FCurveEditor> CurveEditor = WeakCurveEditor.Pin())
+		{
+			CurveEditor->GetBounds().SetInputBounds(InInputMin, InInputMax);
+		}
+	}
+}
+
+void SCurveEditorView::SetOutputBounds(double InOutputMin, double InOutputMax, FCurveEditorViewAxisID AxisID)
+{
+	if (!bFixedOutputBounds && InOutputMin < InOutputMax)
+	{
+		if (AxisID)
+		{
+			FAxisInfo& AxisInfo = CustomVerticalAxes[AxisID];
+			AxisInfo.Min = InOutputMin;
+			AxisInfo.Max = InOutputMax;
+		}
+
+		// When no axis ID is specified, we scale all axes based on the change
+		else if (TSharedPtr<FCurveEditor> CurveEditor = WeakCurveEditor.Pin())
+		{
+			double CurrentRange = (OutputMax - OutputMin);
+			double OffsetFactor = (InOutputMin - OutputMin) / CurrentRange;
+			double Scale        = (InOutputMax - InOutputMin) / CurrentRange;
+
+			OutputMin = InOutputMin;
+			OutputMax = InOutputMax;
+
+			// Set all axes scale
+			for (FAxisInfo& AxisInfo : CustomVerticalAxes)
+			{
+				double AxisRange = (AxisInfo.Max - AxisInfo.Min);
+
+				AxisInfo.Min += AxisRange * OffsetFactor;
+				AxisInfo.Max  = AxisInfo.Min + AxisRange * Scale;
+			}
+		}
+	}
+}
+
+void SCurveEditorView::SetInputBounds(double InInputMin, double InInputMax, FCurveEditorViewAxisID AxisID)
+{
+	if (InInputMin < InInputMax)
+	{
+		if (AxisID)
+		{
+			FAxisInfo& AxisInfo = CustomHorizontalAxes[AxisID];
+			AxisInfo.Min = InInputMin;
+			AxisInfo.Max = InInputMax;
+		}
+		// When no axis ID is specified, we scale all axes based on the change
+		else if (TSharedPtr<FCurveEditor> CurveEditor = WeakCurveEditor.Pin())
+		{
+			double CurrentInputMin = 0.0, CurrentInputMax = 1.0;
+			CurveEditor->GetBounds().GetInputBounds(CurrentInputMin, CurrentInputMax);
+
+			double CurrentRange = (CurrentInputMax - CurrentInputMin);
+			double OffsetFactor = (InInputMin - CurrentInputMin) / CurrentRange;
+			double Scale        = (InInputMax - InInputMin) / CurrentRange;
+
+			// Set global scale
+			CurveEditor->GetBounds().SetInputBounds(InInputMin, InInputMax);
+
+			// Set all axes scale
+			for (FAxisInfo& AxisInfo : CustomHorizontalAxes)
+			{
+				double AxisRange = (AxisInfo.Max - AxisInfo.Min);
+
+				AxisInfo.Min += AxisRange * OffsetFactor;
+				AxisInfo.Max  = AxisInfo.Min + AxisRange * Scale;
+			}
+		}
 	}
 }
 
@@ -143,22 +518,41 @@ void SCurveEditorView::ZoomAround(const FVector2D& Amount, double InputOrigin, d
 		double InputMin = 0.0, InputMax = 1.0;
 		CurveEditor->GetBounds().GetInputBounds(InputMin, InputMax);
 
+		const double OriginAlpha = (InputOrigin - InputMin) / (InputMax - InputMin);
+
 		InputMin = InputOrigin - (InputOrigin - InputMin) * Amount.X;
 		InputMax = InputOrigin + (InputMax - InputOrigin) * Amount.X;
 
 		CurveEditor->GetBounds().SetInputBounds(InputMin, InputMax);
+
+		for (FAxisInfo& AxisInfo : CustomHorizontalAxes)
+		{
+			const double AxisInputOrigin = AxisInfo.Min + (AxisInfo.Max - AxisInfo.Min)*OriginAlpha;
+
+			AxisInfo.Min = AxisInputOrigin - (AxisInputOrigin - AxisInfo.Min) * Amount.Y;
+			AxisInfo.Max = AxisInputOrigin + (AxisInfo.Max - AxisInputOrigin) * Amount.Y;
+		}
 	}
 
 	if (Amount.Y != 0.f)
 	{
+		const double OriginAlpha = (OutputOrigin - OutputMin) / (OutputMax - OutputMin);
+
 		OutputMin = OutputOrigin - (OutputOrigin - OutputMin) * Amount.Y;
 		OutputMax = OutputOrigin + (OutputMax - OutputOrigin) * Amount.Y;
+
+		for (FAxisInfo& AxisInfo : CustomVerticalAxes)
+		{
+			const double AxisOutputOrigin = AxisInfo.Min + (AxisInfo.Max - AxisInfo.Min)*OriginAlpha;
+
+			AxisInfo.Min = AxisOutputOrigin - (AxisOutputOrigin - AxisInfo.Min) * Amount.Y;
+			AxisInfo.Max = AxisOutputOrigin + (AxisInfo.Max - AxisOutputOrigin) * Amount.Y;
+		}
 	}
 }
 
 void SCurveEditorView::GetCurveDrawParams(TArray<FCurveDrawParams>& OutDrawParams) 
 {
-
 	TSharedPtr<FCurveEditor> CurveEditor = WeakCurveEditor.Pin();
 	if (!CurveEditor)
 	{
@@ -170,7 +564,7 @@ void SCurveEditorView::GetCurveDrawParams(TArray<FCurveDrawParams>& OutDrawParam
 	GetInputBounds(InputMin, InputMax);
 
 	//make sure the transform is set up
-	UpdateViewToTransformCurves(InputMin,InputMax);
+	UpdateViewToTransformCurves(InputMin, InputMax);
 
 	OutDrawParams.Reset(CurveInfoByID.Num());
 
@@ -184,29 +578,33 @@ void SCurveEditorView::GetCurveDrawParams(TArray<FCurveDrawParams>& OutDrawParam
 			continue;
 		}
 
-		GetCurveDrawParam(CurveEditor, Pair.Key, CurveModel,InputMin, InputMax, Params);
+		GetCurveDrawParam(CurveEditor, Pair.Key, CurveModel, Params);
 		OutDrawParams.Add(MoveTemp(Params));
 	}
 }
 
-void SCurveEditorView::GetCurveDrawParam(TSharedPtr<FCurveEditor>& CurveEditor,const FCurveModelID& ModelID, FCurveModel* CurveModel, 
-	double InputMin, double InputMax, FCurveDrawParams& Params) const
+void SCurveEditorView::GetCurveDrawParam(TSharedPtr<FCurveEditor>& CurveEditor,const FCurveModelID& ModelID, FCurveModel* CurveModel, FCurveDrawParams& Params) const
 {
-
 	FCurveEditorScreenSpace CurveSpace = GetCurveSpace(ModelID);
+
+	const double InputMin = CurveSpace.GetInputMin();
+	const double InputMax = CurveSpace.GetInputMax();
+
 	const double DisplayRatio = (CurveSpace.PixelsPerOutput() / CurveSpace.PixelsPerInput());
 
 	const FKeyHandleSet* SelectedKeys = CurveEditor->GetSelection().GetAll().Find(ModelID);
 
 	// Create a new set of Curve Drawing Parameters to represent this particular Curve
 	Params.Color = CurveModel->GetColor();
+	Params.Thickness = CurveModel->GetThickness();
+	Params.DashLengthPx = CurveModel->GetDashLength();
 	Params.bKeyDrawEnabled = CurveModel->IsKeyDrawEnabled();
 
 	// Gather the display metrics to use for each key type. This allows a Curve Model to override
 	// whether or not the curve supports Keys, Arrive/Leave Tangents, etc. If the Curve Model doesn't
 	// support a particular capability we can skip drawing them.
 	CurveModel->GetKeyDrawInfo(ECurvePointType::ArriveTangent, FKeyHandle::Invalid(), Params.ArriveTangentDrawInfo);
-	CurveModel->GetKeyDrawInfo(ECurvePointType::LeaveTangent, FKeyHandle::Invalid(), Params.LeaveTangentDrawInfo);
+	CurveModel->GetKeyDrawInfo(ECurvePointType::LeaveTangent,  FKeyHandle::Invalid(), Params.LeaveTangentDrawInfo);
 
 	// Gather the interpolating points in input/output space
 	TArray<TTuple<double, double>> InterpolatingPoints;
@@ -229,7 +627,7 @@ void SCurveEditorView::GetCurveDrawParam(TSharedPtr<FCurveEditor>& CurveEditor,c
 	}
 
 	TArray<FKeyHandle> VisibleKeys;
-	CurveModel->GetKeys(*CurveEditor, InputMin, InputMax, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), VisibleKeys);
+	CurveModel->GetKeys(InputMin, InputMax, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), VisibleKeys);
 
 	// Always reset the points to cover case going from 1 to 0 keys
 	Params.Points.Reset(VisibleKeys.Num());
@@ -408,7 +806,12 @@ void SCurveEditorView::CheckCacheAndInvalidateIfNeeded()
 				if (CurveModel->HasChangedAndResetTest())
 				{
 					bSomethingChanged = true;
-					GetCurveDrawParam(CurveEditor, Params.GetID(), CurveModel, CachedValues.CachedInputMin, CachedValues.CachedInputMax, Params);
+					if (bAllowModelViewTransforms)
+					{
+						bUpdateModelViewTransforms = true;
+						UpdateCustomAxes();
+					}
+					GetCurveDrawParam(CurveEditor, Params.GetID(), CurveModel, Params);
 				}
 			}
 			if (bSomethingChanged)

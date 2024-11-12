@@ -396,18 +396,18 @@ void RenderFrontLayerTranslucencyGBuffer(
 		RDG_EVENT_NAME("TranslucencyGBuffer"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[&View, &SceneRenderer, MeshPass, PassParameters, ViewportScale, GBufferViewRect](FRHICommandListImmediate& RHICmdList)
+		[&View, &SceneRenderer, MeshPass, PassParameters, ViewportScale, GBufferViewRect](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FSceneRenderer::SetStereoViewport(RHICmdList, View, ViewportScale);
-		View.ParallelMeshDrawCommandPasses[MeshPass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+		View.ParallelMeshDrawCommandPasses[MeshPass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 	});
 
 	// Extract front layer depth depth (only needed when VSM high quality shadow on translucency is enabled)
 	if (View.ViewState && !View.bStatePrevViewInfoIsReadOnly && IsVSMTranslucentHighQualityEnabled())
 	{
 		// Queue updating the view state's render target reference with the new values
-		GraphBuilder.QueueTextureExtraction(FrontLayerTranslucencyData.SceneDepth, &View.ViewState->Lumen.TranslucentReflectionState.DepthHistoryRT);
-		GraphBuilder.QueueTextureExtraction(FrontLayerTranslucencyData.Normal, &View.ViewState->Lumen.TranslucentReflectionState.NormalHistoryRT);
+		GraphBuilder.QueueTextureExtraction(FrontLayerTranslucencyData.SceneDepth, &View.ViewState->Lumen.TranslucentReflectionState.LayerSceneDepthHistory);
+		GraphBuilder.QueueTextureExtraction(FrontLayerTranslucencyData.Normal, &View.ViewState->Lumen.TranslucentReflectionState.LayerSceneNormalHistory);
 	}
 }
 
@@ -420,8 +420,8 @@ bool IsLumenFrontLayerHistoryValid(const FViewInfo& View)
 { 
 	return View.ViewState && 
 		View.ViewState->PrevFrameNumber == View.ViewState->Lumen.TranslucentReflectionState.HistoryFrameIndex && 
-		View.ViewState->Lumen.TranslucentReflectionState.DepthHistoryRT != nullptr && 
-		View.ViewState->Lumen.TranslucentReflectionState.NormalHistoryRT != nullptr;
+		View.ViewState->Lumen.TranslucentReflectionState.LayerSceneDepthHistory != nullptr &&
+		View.ViewState->Lumen.TranslucentReflectionState.LayerSceneNormalHistory != nullptr;
 }
 
 FFrontLayerTranslucencyData FDeferredShadingSceneRenderer::RenderFrontLayerTranslucency(
@@ -522,7 +522,7 @@ void FDeferredShadingSceneRenderer::RenderLumenFrontLayerTranslucencyReflections
 	FRDGBuilder& GraphBuilder,
 	FViewInfo& View,
 	const FSceneTextures& SceneTextures,
-	const FLumenSceneFrameTemporaries& LumenFrameTemporaries, 
+	FLumenSceneFrameTemporaries& LumenFrameTemporaries, 
 	const FFrontLayerTranslucencyData& FrontLayerTranslucencyData)
 {
 	if (Lumen::UseLumenFrontLayerTranslucencyReflections(View) && View.bTranslucentSurfaceLighting)

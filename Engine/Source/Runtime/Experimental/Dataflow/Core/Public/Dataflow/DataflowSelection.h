@@ -11,6 +11,7 @@ struct FDataflowSelection
 
 	DATAFLOWCORE_API void Initialize(int32 NumBits, bool Value);
 	DATAFLOWCORE_API void Initialize(const FDataflowSelection& Other);
+	DATAFLOWCORE_API void Clear();
 	int32 Num() const { return SelectionArray.Num(); }
 	DATAFLOWCORE_API int32 NumSelected() const;
 	DATAFLOWCORE_API bool AnySelected() const;
@@ -64,3 +65,14 @@ struct FDataflowFaceSelection : public FDataflowSelection
 	GENERATED_USTRUCT_BODY()
 };
 
+USTRUCT()
+struct FDataflowGeometrySelection : public FDataflowSelection
+{
+	GENERATED_USTRUCT_BODY()
+};
+
+USTRUCT()
+struct FDataflowMaterialSelection : public FDataflowSelection
+{
+	GENERATED_USTRUCT_BODY()
+};

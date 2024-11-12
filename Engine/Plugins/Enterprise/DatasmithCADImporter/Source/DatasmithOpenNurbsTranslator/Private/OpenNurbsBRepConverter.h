@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Math/UnrealMathUtility.h"
+
 class ON_Brep;
 class ON_3dVector;
 

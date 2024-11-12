@@ -10,6 +10,7 @@ class IAvaPlaybackClient;
 namespace UE::AvaPlaybackClient::Delegates
 {
 	struct FPlaybackSequenceEventArgs;
+	struct FPlaybackStatusChangedArgs;
 }
 
 UCLASS(NotBlueprintable, BlueprintType, ClassGroup = "Motion Design Playable",
@@ -28,7 +29,6 @@ public:
 	virtual IAvaSceneInterface* GetSceneInterface() const override;
 	virtual EAvaPlayableCommandResult ExecuteAnimationCommand(EAvaPlaybackAnimAction InAnimAction, const FAvaPlaybackAnimPlaySettings& InAnimPlaySettings) override;
 	virtual EAvaPlayableCommandResult UpdateRemoteControlCommand(const TSharedRef<FAvaPlayableRemoteControlValues>& InRemoteControlValues) override;
-	virtual bool ApplyCamera() override;
 	virtual bool IsRemoteProxy() const override { return true; }
 	virtual void SetUserData(const FString& InUserData) override;
 
@@ -45,15 +45,25 @@ protected:
 	void RegisterClientEventHandlers();
 	void UnregisterClientEventHandlers() const;
 
-	static TArray<FString> GetOnlineServerForChannel(const FName& InChannelName);
-	
-	void HandleAvaPlaybackSequenceEvent(IAvaPlaybackClient& InPlaybackClient,
+	void HandlePlaybackSequenceEvent(IAvaPlaybackClient& InPlaybackClient,
 		const UE::AvaPlaybackClient::Delegates::FPlaybackSequenceEventArgs& InEventArgs);
-	
+
+	void HandlePlaybackStatusChanged(IAvaPlaybackClient& InPlaybackClient,
+		const UE::AvaPlaybackClient::Delegates::FPlaybackStatusChangedArgs& InEventArgs);
+
 protected:
 	/** Channel name this playable is playing on. */
 	FName PlayingChannelFName;
 	FString PlayingChannelName;
 
 	FSoftObjectPath SourceAssetPath;
+
+	/**
+	 * Internal forked channel's status reconciling needs to keep track of the expected series of events.
+	 * If should be loaded, expected sequence is: loading, loaded, making visible, visible.
+	 * If it should be unloaded the sequence is inverted.
+	 * The reconciling logic will select the "slowest" node. Example: for loading process, the status
+	 * is loading as long as there is one node still loading.
+	 */
+	bool bShouldBeLoaded = false;
 };

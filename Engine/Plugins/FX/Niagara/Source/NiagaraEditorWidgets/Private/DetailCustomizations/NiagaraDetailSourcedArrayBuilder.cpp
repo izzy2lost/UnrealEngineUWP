@@ -94,7 +94,7 @@ void FNiagaraDetailSourcedArrayBuilder::OnGenerateEntry(TSharedRef<IPropertyHand
 	}
 }
 
-void FNiagaraDetailSourcedArrayBuilder::SetSourceArray(TArray<TSharedPtr<FName>>& InOptionsSource)
+void FNiagaraDetailSourcedArrayBuilder::SetSourceArray(const TArray<TSharedPtr<FName>>& InOptionsSource)
 {
 	OptionsSourceList = InOptionsSource;
 	RefreshChildren();

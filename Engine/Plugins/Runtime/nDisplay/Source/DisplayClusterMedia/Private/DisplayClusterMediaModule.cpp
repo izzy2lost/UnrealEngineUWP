@@ -51,6 +51,7 @@ void FDisplayClusterMediaModule::OnPreSubmitViewFamilies(TArray<FSceneViewFamily
 	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPreSubmitViewFamilies().RemoveAll(this);
 
 	InitializeMedia();
+
 	StartCapture();
 	PlayMedia();
 }
@@ -289,7 +290,7 @@ void FDisplayClusterMediaModule::InitializeViewportOutput(const UDisplayClusterC
 	}
 }
 
-void FDisplayClusterMediaModule::InitializeICVFXCameraFullFrameInput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId)
+void FDisplayClusterMediaModule::InitializeICVFXCameraFullFrameInput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId, const FString& ExplicitCameraName)
 {
 	checkSlow(ICVFXCameraComponent);
 
@@ -299,8 +300,12 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraFullFrameInput(const UDisp
 
 		if (MediaSettings.bEnable && MediaSettings.SplitType == EDisplayClusterConfigurationMediaSplitType::FullFrame)
 		{
-			const FString ICVFXCameraName = ICVFXCameraComponent->GetName();
+			const FString ICVFXCameraName = ExplicitCameraName.IsEmpty() ? ICVFXCameraComponent->GetName() : ExplicitCameraName;
 			const FString ICVFXViewportId = DisplayClusterMediaHelpers::GenerateICVFXViewportName(ClusterNodeId, ICVFXCameraName);
+
+			// Determine whether it's necessary to activate the late OCIO on media side
+			const bool bEnabledOCIO = ICVFXCameraComponent->CameraSettings.CameraOCIO.AllNodesOCIOConfiguration.bIsEnabled;
+			const bool bUseLateOCIO = MediaSettings.bLateOCIOPass && bEnabledOCIO;
 
 			if (UMediaSource* MediaSource = MediaSettings.GetMediaSource(ClusterNodeId))
 			{
@@ -314,9 +319,8 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraFullFrameInput(const UDisp
 				TSharedPtr<FDisplayClusterMediaInputViewport> NewICVFXInput = MakeShared<FDisplayClusterMediaInputViewport>(
 					MediaInputId, ClusterNodeId,
 					ICVFXViewportId,
-					MediaSource);
-
-				NewICVFXInput->bForceLateOCIOPass = MediaSettings.bLateOCIOPass;
+					MediaSource,
+					bUseLateOCIO);
 
 				InputViewports.Emplace(MediaInputId, MoveTemp(NewICVFXInput));
 			}
@@ -324,7 +328,7 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraFullFrameInput(const UDisp
 	}
 }
 
-void FDisplayClusterMediaModule::InitializeICVFXCameraFullFrameOutput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId)
+void FDisplayClusterMediaModule::InitializeICVFXCameraFullFrameOutput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId, const FString& ExplicitCameraName)
 {
 	checkSlow(ICVFXCameraComponent);
 
@@ -334,8 +338,12 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraFullFrameOutput(const UDis
 
 		if (MediaSettings.bEnable && MediaSettings.SplitType == EDisplayClusterConfigurationMediaSplitType::FullFrame)
 		{
-			const FString ICVFXCameraName = ICVFXCameraComponent->GetName();
+			const FString ICVFXCameraName = ExplicitCameraName.IsEmpty() ? ICVFXCameraComponent->GetName() : ExplicitCameraName;
 			const FString ICVFXViewportId = DisplayClusterMediaHelpers::GenerateICVFXViewportName(ClusterNodeId, ICVFXCameraName);
+
+			// Determine whether it's necessary to activate the late OCIO on media side
+			const bool bEnabledOCIO = ICVFXCameraComponent->CameraSettings.CameraOCIO.AllNodesOCIOConfiguration.bIsEnabled;
+			const bool bUseLateOCIO = MediaSettings.bLateOCIOPass && bEnabledOCIO;
 
 			// Media capture (full frame)
 			const TArray<FDisplayClusterConfigurationMediaOutputGroup> MediaOutputItems = MediaSettings.GetMediaOutputGroups(ClusterNodeId);
@@ -355,9 +363,8 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraFullFrameOutput(const UDis
 						MediaCaptureId, ClusterNodeId,
 						ICVFXCameraName, ICVFXViewportId,
 						MediaOutputItem.MediaOutput,
-						MediaOutputItem.OutputSyncPolicy);
-
-					NewICVFXCapture->bForceLateOCIOPass = MediaSettings.bLateOCIOPass;
+						MediaOutputItem.OutputSyncPolicy,
+						bUseLateOCIO);
 
 					CaptureViewports.Emplace(MediaCaptureId, MoveTemp(NewICVFXCapture));
 				}
@@ -368,7 +375,7 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraFullFrameOutput(const UDis
 	}
 }
 
-void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesInput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId)
+void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesInput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId, const FString& ExplicitCameraName)
 {
 	checkSlow(ICVFXCameraComponent);
 
@@ -378,15 +385,19 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesInput(const UD
 
 		if (MediaSettings.bEnable && MediaSettings.SplitType == EDisplayClusterConfigurationMediaSplitType::UniformTiles)
 		{
-			const FString ICVFXCameraName = ICVFXCameraComponent->GetName();
-			const FString ICVFXViewportId = DisplayClusterMediaHelpers::GenerateICVFXViewportName(ClusterNodeId, ICVFXCameraName);
-
 			// Find corresponsing media group
 			TArray<FDisplayClusterConfigurationMediaUniformTileInput> MediaInputTiles;
 			const bool bMediaInputGroupFound = MediaSettings.GetMediaInputTiles(ClusterNodeId, MediaInputTiles);
 
 			if (bMediaInputGroupFound)
 			{
+				const FString ICVFXCameraName = ExplicitCameraName.IsEmpty() ? ICVFXCameraComponent->GetName() : ExplicitCameraName;
+				const FString ICVFXViewportId = DisplayClusterMediaHelpers::GenerateICVFXViewportName(ClusterNodeId, ICVFXCameraName);
+
+				// Determine whether it's necessary to activate the late OCIO on media side
+				const bool bEnabledOCIO = ICVFXCameraComponent->CameraSettings.CameraOCIO.AllNodesOCIOConfiguration.bIsEnabled;
+				const bool bUseLateOCIO = MediaSettings.bLateOCIOPass && bEnabledOCIO;
+
 				uint8 Index = 0;
 				for (const FDisplayClusterConfigurationMediaUniformTileInput& MediaInputTile : MediaInputTiles)
 				{
@@ -406,9 +417,8 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesInput(const UD
 						TSharedPtr<FDisplayClusterMediaInputViewport> NewICVFXTileInput = MakeShared<FDisplayClusterMediaInputViewport>(
 							MediaInputId, ClusterNodeId,
 							ICVFXViewportTileId,
-							MediaInputTile.MediaSource);
-
-						NewICVFXTileInput->bForceLateOCIOPass = MediaSettings.bLateOCIOPass;
+							MediaInputTile.MediaSource,
+							bUseLateOCIO);
 
 						InputViewports.Emplace(MediaInputId, MoveTemp(NewICVFXTileInput));
 					}
@@ -420,7 +430,7 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesInput(const UD
 	}
 }
 
-void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesOutput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId)
+void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesOutput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId, const FString& ExplicitCameraName)
 {
 	checkSlow(ICVFXCameraComponent);
 
@@ -430,15 +440,19 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesOutput(const U
 
 		if (MediaSettings.bEnable && MediaSettings.SplitType == EDisplayClusterConfigurationMediaSplitType::UniformTiles)
 		{
-			const FString ICVFXCameraName = ICVFXCameraComponent->GetName();
-			const FString ICVFXViewportId = DisplayClusterMediaHelpers::GenerateICVFXViewportName(ClusterNodeId, ICVFXCameraName);
-
 			// Find corresponsing media group
 			TArray<FDisplayClusterConfigurationMediaUniformTileOutput> MediaOutputTiles;
 			const bool bMediaOutputGroupFound = MediaSettings.GetMediaOutputTiles(ClusterNodeId, MediaOutputTiles);
 
 			if (bMediaOutputGroupFound)
 			{
+				const FString ICVFXCameraName = ExplicitCameraName.IsEmpty() ? ICVFXCameraComponent->GetName() : ExplicitCameraName;
+				const FString ICVFXViewportId = DisplayClusterMediaHelpers::GenerateICVFXViewportName(ClusterNodeId, ICVFXCameraName);
+
+				// Determine whether it's necessary to activate the late OCIO on media side
+				const bool bEnabledOCIO = ICVFXCameraComponent->CameraSettings.CameraOCIO.AllNodesOCIOConfiguration.bIsEnabled;
+				const bool bUseLateOCIO = MediaSettings.bLateOCIOPass && bEnabledOCIO;
+
 				uint8 Index = 0;
 				for (const FDisplayClusterConfigurationMediaUniformTileOutput& MediaOutputTile : MediaOutputTiles)
 				{
@@ -458,9 +472,9 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesOutput(const U
 						TSharedPtr<FDisplayClusterMediaCaptureTile> NewICVFXTileOutput = MakeShared<FDisplayClusterMediaCaptureTile>(
 							MediaOutputId, ClusterNodeId,
 							ICVFXViewportTileId,
-							MediaOutputTile.MediaOutput);
-
-						NewICVFXTileOutput->bForceLateOCIOPass = MediaSettings.bLateOCIOPass;
+							MediaOutputTile.MediaOutput,
+							nullptr, // no sync for tiles as it's basically for in-cluster use
+							bUseLateOCIO);
 
 						CaptureViewports.Emplace(MediaOutputId, MoveTemp(NewICVFXTileOutput));
 					}
@@ -471,6 +485,5 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesOutput(const U
 		}
 	}
 }
-
 
 IMPLEMENT_MODULE(FDisplayClusterMediaModule, DisplayClusterMedia);

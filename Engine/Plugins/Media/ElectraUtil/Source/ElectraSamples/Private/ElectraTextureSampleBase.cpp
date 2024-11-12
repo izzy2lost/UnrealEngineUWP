@@ -4,6 +4,7 @@
 
 #if !UE_SERVER
 
+#include "HAL/IConsoleManager.h"
 #include "HAL/Platform.h"
 #include "ElectraTextureSample.h"
 #include "ElectraTextureSampleUtils.h"
@@ -11,11 +12,53 @@
 
 // -------------------------------------------------------------------------------------------------------------------------------------------------------
 
+namespace
+{
+
+static TOptional<FTimecode> CreateTimecodeFromMPEGDefinition(TOptional<FFrameRate>& OutFramerate, const IVideoDecoderTimecode::FMPEGDefinition* InMPEGTimecode)
+{
+	if (InMPEGTimecode->timing_info_present_flag)
+	{
+		const FTimespan ts(Electra::FTimeValue(InMPEGTimecode->clockTimestamp, InMPEGTimecode->time_scale).GetAsTimespan());
+		OutFramerate = FFrameRate(InMPEGTimecode->time_scale, InMPEGTimecode->num_units_in_tick);
+		return FTimecode::FromTimespan(ts, OutFramerate.GetValue(), InMPEGTimecode->ct_type > 1, false);
+	}
+	return TOptional<FTimecode>();
+}
+
+}
+
+static TAutoConsoleVariable<float> CVarElectraHdrWhiteLevel(
+	TEXT("Electra.HDR.WhiteLevel"),
+	MediaTextureSample::kLinearToNitsScale_BT2408,
+	TEXT("White level as a linear to nits scale factor.\n")
+	TEXT("(default: 203.0)"),
+	ECVF_Default);
+
+static TAutoConsoleVariable<int32> CVarElectraHdrToneMapMethod(
+	TEXT("Electra.HDR.ToneMapMethod"),
+	static_cast<int32>(MediaShaders::EToneMapMethod::Hable),
+	TEXT("Tone mapping method applied on source HDR media:\n")
+	TEXT(" 0: None\n")
+	TEXT(" 1: Hable (default)\n")
+	TEXT(" 2: SimpleReinhard\n"),
+	ECVF_Default);
+
+// -------------------------------------------------------------------------------------------------------------------------------------------------------
+
 void IElectraTextureSampleBase::Initialize(FVideoDecoderOutput* InVideoDecoderOutput)
 {
 	VideoDecoderOutput = StaticCastSharedPtr<FVideoDecoderOutput, IDecoderOutputPoolable, ESPMode::ThreadSafe>(InVideoDecoderOutput->AsShared());
-	HDRInfo = VideoDecoderOutput->GetHDRInformation();
 	Colorimetry = VideoDecoderOutput->GetColorimetry();
+	HDRInfo = VideoDecoderOutput->GetHDRInformation();
+	TSharedPtr<const IVideoDecoderTimecode, ESPMode::ThreadSafe> TimecodePtr = VideoDecoderOutput->GetTimecode();
+
+	if (TimecodePtr.IsValid())
+	{
+		// Store this in case this is needed again.
+		DecoderTimecode = TimecodePtr;
+		Timecode = CreateTimecodeFromMPEGDefinition(Framerate, TimecodePtr->GetMPEGDefinition());
+	}
 
 	// Get various basic MP4-style colorimetry values (we default to video range Rec709 SDR)
 	bool bFullRange = false;
@@ -57,7 +100,7 @@ void IElectraTextureSampleBase::Initialize(FVideoDecoderOutput* InVideoDecoderOu
 	const FMatrix* Mtx = nullptr;
 
 	// Defaults in case no HDR info is present
-	bDisplayColorSpaceValid = false;
+	DisplayMasteringColorSpace.Reset();
 	DisplayMasteringLuminanceMin = -1.0f;
 	DisplayMasteringLuminanceMax = -1.0f;
 	MaxCLL = 0;
@@ -81,11 +124,10 @@ void IElectraTextureSampleBase::Initialize(FVideoDecoderOutput* InVideoDecoderOu
 				ColorVolume->display_primaries_x[2] <= ColorVolume->display_primaries_x[1] && 													// Blue's X is smaller or same than Green's
 				ColorVolume->display_primaries_x[1] <= ColorVolume->display_primaries_x[0]) 													// Red's X is greater or same than Green's
 			{
-				DisplayColorSpace = UE::Color::FColorSpace(FVector2d(ColorVolume->display_primaries_x[0], ColorVolume->display_primaries_y[0]),
+				DisplayMasteringColorSpace = UE::Color::FColorSpace(FVector2d(ColorVolume->display_primaries_x[0], ColorVolume->display_primaries_y[0]),
 														   FVector2d(ColorVolume->display_primaries_x[1], ColorVolume->display_primaries_y[1]),
 														   FVector2d(ColorVolume->display_primaries_x[2], ColorVolume->display_primaries_y[2]),
 														   FVector2d(ColorVolume->white_point_x, ColorVolume->white_point_y));
-				bDisplayColorSpaceValid = true;
 			}
 
 			DisplayMasteringLuminanceMin = ColorVolume->min_display_mastering_luminance;
@@ -100,8 +142,8 @@ void IElectraTextureSampleBase::Initialize(FVideoDecoderOutput* InVideoDecoderOu
 		}
 	}
 
-	// The sample color space is always defined by the color primaries value
-	SampleColorSpace = UE::Color::FColorSpace(ElectraColorimetryUtils::TranslateMPEGColorPrimaries(ColorPrimaries));
+	// The sample source color space is always defined by the color primaries value
+	SourceColorSpace = UE::Color::FColorSpace(ElectraColorimetryUtils::TranslateMPEGColorPrimaries(ColorPrimaries));
 
 	// Select the YUV-RGB conversion matrix to use
 	switch (ElectraColorimetryUtils::TranslateMPEGMatrixCoefficients(MatrixCoefficients))
@@ -142,7 +184,7 @@ void IElectraTextureSampleBase::Initialize(FVideoDecoderOutput* InVideoDecoderOu
 
 	// Compute scale to make correct towards the max value (P010 will max out at 0xffc0 not 0xffff - so if it is present we need to adjust the scale a bit)
 	float NormScale = (VideoDecoderOutput->GetFormat() == PF_P010) ? (65535.0f / 65472.0f) : 1.0f;
- 
+
 	// Matrix to transform sample data to standard YUV values
 	FMatrix PreMtx = FMatrix::Identity;
 	PreMtx.M[0][0] = DataScale * NormScale;
@@ -198,6 +240,14 @@ FMediaTimeStamp IElectraTextureSampleBase::GetTime() const
 	return FMediaTimeStamp();
 }
 
+void IElectraTextureSampleBase::SetTime(const FMediaTimeStamp& InTime)
+{
+	if (VideoDecoderOutput)
+	{
+		VideoDecoderOutput->SetTime(FDecoderTimeStamp(InTime.Time, InTime.SequenceIndex));
+	}
+}
+
 
 FTimespan IElectraTextureSampleBase::GetDuration() const
 {
@@ -232,34 +282,26 @@ FMatrix44f IElectraTextureSampleBase::GetSampleToRGBMatrix() const
 	return SampleToRgbMtx;
 }
 
-FMatrix44d IElectraTextureSampleBase::GetGamutToXYZMatrix() const
+const UE::Color::FColorSpace& IElectraTextureSampleBase::GetSourceColorSpace() const
 {
-	return SampleColorSpace.GetRgbToXYZ().GetTransposed();
-}
-
-FVector2d IElectraTextureSampleBase::GetWhitePoint() const
-{
-	return bDisplayColorSpaceValid ? DisplayColorSpace.GetWhiteChromaticity() : FVector2d(-1.0, -1.0);
-}
-
-FVector2d IElectraTextureSampleBase::GetDisplayPrimaryRed() const
-{
-	return bDisplayColorSpaceValid ? DisplayColorSpace.GetRedChromaticity() : FVector2d(-1.0, -1.0);
-}
-
-FVector2d IElectraTextureSampleBase::GetDisplayPrimaryGreen() const
-{
-	return bDisplayColorSpaceValid ? DisplayColorSpace.GetGreenChromaticity() : FVector2d(-1.0, -1.0);
-}
-
-FVector2d IElectraTextureSampleBase::GetDisplayPrimaryBlue() const
-{
-	return bDisplayColorSpaceValid ? DisplayColorSpace.GetBlueChromaticity() : FVector2d(-1.0, -1.0);
+	return SourceColorSpace;
 }
 
 UE::Color::EEncoding IElectraTextureSampleBase::GetEncodingType() const
 {
 	return ColorEncoding;
+}
+
+float IElectraTextureSampleBase::GetHDRNitsNormalizationFactor() const
+{
+	if (GetEncodingType() == UE::Color::EEncoding::sRGB || GetEncodingType() == UE::Color::EEncoding::Linear)
+	{
+		return 1.0f;
+	}
+	else
+	{
+		return 1.0f / CVarElectraHdrWhiteLevel->GetFloat();
+	}
 }
 
 bool IElectraTextureSampleBase::GetDisplayMasteringLuminance(float& OutMin, float& OutMax) const
@@ -274,6 +316,11 @@ bool IElectraTextureSampleBase::GetDisplayMasteringLuminance(float& OutMin, floa
 	return true;
 }
 
+TOptional<UE::Color::FColorSpace> IElectraTextureSampleBase::GetDisplayMasteringColorSpace() const
+{
+	return DisplayMasteringColorSpace;
+}
+
 bool IElectraTextureSampleBase::GetMaxLuminanceLevels(uint16& OutCLL, uint16& OutFALL) const
 {
 	if (MaxCLL == 0 && MaxFALL == 0)
@@ -284,6 +331,20 @@ bool IElectraTextureSampleBase::GetMaxLuminanceLevels(uint16& OutCLL, uint16& Ou
 	OutCLL = MaxCLL;
 	OutFALL = MaxFALL;
 	return true;
+}
+
+MediaShaders::EToneMapMethod IElectraTextureSampleBase::GetToneMapMethod() const
+{
+	if (GetEncodingType() == UE::Color::EEncoding::sRGB || GetEncodingType() == UE::Color::EEncoding::Linear)
+	{
+		return MediaShaders::EToneMapMethod::None;
+	}
+	else
+	{
+		const int32 ToneMapMethod = FMath::Clamp(CVarElectraHdrToneMapMethod->GetInt(), 0, static_cast<int32>(MediaShaders::EToneMapMethod::MAX) - 1);
+
+		return static_cast<MediaShaders::EToneMapMethod>(ToneMapMethod);
+	}
 }
 
 #endif

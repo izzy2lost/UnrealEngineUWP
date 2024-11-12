@@ -1223,7 +1223,7 @@ bool FVideoDecoderH264_WindowsImpl::InternalDecoderCreate()
 			}
 			else if (FAILED(Result = Decoder->ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, reinterpret_cast<ULONG_PTR>(DXDeviceInfo.DxDeviceManager.GetReference()))))
 			{
-				FallbackToSwDecoding(FString::Printf(TEXT("Failed to set MFT_MESSAGE_SET_D3D_MANAGER: 0x%X %s"), Result, *GetComErrorDescription(Result)));
+				FallbackToSwDecoding(FString::Printf(TEXT("Failed to set MFT_MESSAGE_SET_D3D_MANAGER: 0x%X %s"), (uint32)Result, *GetComErrorDescription(Result)));
 			}
 		}
 	#if 0	// PLATFORM_WINDOWS

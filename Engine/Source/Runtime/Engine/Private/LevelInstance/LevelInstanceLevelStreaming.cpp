@@ -21,6 +21,8 @@
 
 #if WITH_EDITOR
 #include "LevelInstance/LevelInstanceEditorInstanceActor.h"
+#include "WorldPartition/LevelInstance/LevelInstanceContainerInstance.h"
+#include "LevelInstance/LevelInstancePropertyOverrideAsset.h"
 #include "LevelUtils.h"
 #include "ActorFolder.h"
 #include "Misc/LazySingleton.h"
@@ -134,12 +136,106 @@ FBox ULevelStreamingLevelInstance::GetBounds() const
 	return CachedBounds;
 }
 
+void ULevelStreamingLevelInstance::OnActorReplacedEvent(FWorldPartitionActorDescInstance* InActorDescInstance)
+{
+	if (ILevelInstanceInterface* LevelInstance = GetLevelInstance())
+	{
+		ULevelInstanceSubsystem* LevelInstanceSubsystem = LevelInstance->GetLevelInstanceSubsystem();
+		check(LevelInstanceSubsystem);
+		if (AActor* Actor = InActorDescInstance->GetActor())
+		{
+			ApplyPropertyOverrides({ Actor }, true, EApplyPropertieOverrideType::PreAndPostConstruction);
+		}
+	}
+}
+
 void ULevelStreamingLevelInstance::OnLoadedActorsAddedToLevelPreEvent(const TArray<AActor*>& InActors)
+{
+	InitializeActors(InActors);
+	ApplyPropertyOverrides(InActors, false, EApplyPropertieOverrideType::PreConstruction);
+}
+
+void ULevelStreamingLevelInstance::ApplyPropertyOverrides(const TArray<AActor*>& InActors, bool bInAlreadyAppliedTransformOnActors, EApplyPropertieOverrideType InApplyPropertyOverrideType)
 {
 	if (IsEditorWorldMode())
 	{
 		if (ILevelInstanceInterface* LevelInstance = GetLevelInstance())
 		{
+			ULevelInstanceSubsystem* LevelInstanceSubsystem = LevelInstance->GetLevelInstanceSubsystem();
+			check(LevelInstanceSubsystem);
+
+			const FActorContainerID ContainerID = LevelInstance->GetLevelInstanceID().GetContainerID();
+			const FActorContainerID ContextContainerID = LevelInstanceSubsystem->GetLevelInstancePropertyOverridesContext(LevelInstance);
+
+			for (AActor* Actor : InActors)
+			{
+				if (IsValid(Actor))
+				{
+					// Gather Contextual Property Overrides and apply them
+					TArray<FLevelInstanceActorPropertyOverride> LevelInstanceActorPropertyOverrides;
+					if (LevelInstanceSubsystem->GetLevelInstancePropertyOverridesForActor(Actor, ContextContainerID, LevelInstanceActorPropertyOverrides))
+					{
+						// If we have Property Overrides we need to Remove the level transform before applying them in case the Relative transform of the actors was modified
+						if (bInAlreadyAppliedTransformOnActors && Actor->GetRootComponent())
+						{
+							FLevelUtils::RemoveEditorTransform(this, false, Actor);
+						}
+
+						bool bAppliedProperties = false;
+						if (InApplyPropertyOverrideType == EApplyPropertieOverrideType::PreConstruction || InApplyPropertyOverrideType == EApplyPropertieOverrideType::PreAndPostConstruction)
+						{
+							for (const FLevelInstanceActorPropertyOverride& LevelInstanceActorPropertyOverride : LevelInstanceActorPropertyOverrides)
+							{
+								bAppliedProperties |= ULevelInstancePropertyOverrideAsset::ApplyPropertyOverrides(LevelInstanceActorPropertyOverride.ActorPropertyOverride, Actor, false);
+							}
+						}
+
+						// If we did apply some properties re-run construction script on actor
+						if (bAppliedProperties && InApplyPropertyOverrideType == EApplyPropertieOverrideType::PreAndPostConstruction)
+						{
+							Actor->RerunConstructionScripts();
+						}
+
+						if (InApplyPropertyOverrideType == EApplyPropertieOverrideType::PostConstruction || InApplyPropertyOverrideType == EApplyPropertieOverrideType::PreAndPostConstruction)
+						{
+							for (const FLevelInstanceActorPropertyOverride& LevelInstanceActorPropertyOverride : LevelInstanceActorPropertyOverrides)
+							{
+								ULevelInstancePropertyOverrideAsset::ApplyPropertyOverrides(LevelInstanceActorPropertyOverride.ActorPropertyOverride, Actor, true);
+							}
+						}
+						
+						if (bInAlreadyAppliedTransformOnActors && Actor->GetRootComponent())
+						{
+							FLevelUtils::ApplyEditorTransform(this, true, Actor);
+							Actor->GetRootComponent()->UpdateComponentToWorld();
+							Actor->MarkComponentsRenderStateDirty();
+						}
+
+						// Flag actor as being overriden
+						ELevelInstanceFlags FlagsToAdd = ELevelInstanceFlags::HasPropertyOverrides;
+						if (LevelInstanceSubsystem->HasEditableLevelInstancePropertyOverrides(LevelInstanceActorPropertyOverrides))
+						{
+							EnumAddFlags(FlagsToAdd, ELevelInstanceFlags::HasEditablePropertyOverrides);
+						}
+						FAddActorLevelInstanceFlags AddFlags(Actor, FlagsToAdd);
+					}
+				}
+			}
+		}
+	}
+}
+
+void ULevelStreamingLevelInstance::InitializeActors(const TArray<AActor*>& InActors)
+{
+	if (IsEditorWorldMode())
+	{
+		if (ILevelInstanceInterface* LevelInstance = GetLevelInstance())
+		{
+			const AActor* LevelInstanceActor = CastChecked<AActor>(LevelInstance);
+			const bool bIsHiddenEdLayer = LevelInstanceActor->bHiddenEdLayer;
+			const bool bIsHiddenEdTemporary = LevelInstanceActor->IsTemporarilyHiddenInEditor();
+			const FActorContainerID ContainerID = LevelInstance->GetLevelInstanceID().GetContainerID();
+		
 			for (AActor* Actor : InActors)
 			{
 				if (IsValid(Actor))
@@ -157,15 +253,15 @@ void ULevelStreamingLevelInstance::OnLoadedActorsAddedToLevelPreEvent(const TArr
 								}
 							}, /*bIncludeNestedObjects*/ true);
 						}
-
-						FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(Actor->GetExternalPackage());
 					}
 
+					Actor->SetIsHiddenEdLayer(bIsHiddenEdLayer);
+					Actor->SetIsTemporarilyHiddenInEditor(bIsHiddenEdTemporary);
+
 					// Must happen before the actors are registered with the world, which is the case for this delegate.
-					const FActorContainerID& ContainerID = LevelInstance->GetLevelInstanceID().GetContainerID();
 					FSetActorInstanceGuid SetActorInstanceGuid(Actor, ContainerID.GetActorGuid(Actor->GetActorGuid()));
 
-					FSetActorIsInLevelInstance SetIsInLevelInstance(Actor);
+					FSetActorIsInLevelInstance SetIsInLevelInstance(Actor, ELevelInstanceType::LevelInstance);
 				}
 			}
 		}
@@ -180,15 +276,20 @@ void ULevelStreamingLevelInstance::OnLoadedActorsAddedToLevelPostEvent(const TAr
 		{
 			if (ILevelInstanceInterface* LevelInstance = GetLevelInstance())
 			{
+				const AActor* LevelInstanceActor = CastChecked<AActor>(LevelInstance);
+				const bool bIsInEditLevelInstanceHierarchy = LevelInstanceActor->IsInEditLevelInstanceHierarchy();
+
 				for (AActor* Actor : InActors)
 				{
 					if (IsValid(Actor))
 					{
-						Actor->PushSelectionToProxies();
-						if (LevelInstance)
+						if (Actor->IsPackageExternal())
 						{
-							Actor->PushLevelInstanceEditingStateToProxies(CastChecked<AActor>(LevelInstance)->IsInEditLevelInstanceHierarchy());
+							FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(Actor->GetExternalPackage());
 						}
+
+						Actor->PushSelectionToProxies();
+						Actor->PushLevelInstanceEditingStateToProxies(bIsInEditLevelInstanceHierarchy);
 
 						if (LevelInstanceEditorInstanceActor.IsValid())
 						{
@@ -200,6 +301,8 @@ void ULevelStreamingLevelInstance::OnLoadedActorsAddedToLevelPostEvent(const TAr
 					}
 				}
 			}
+
+			ApplyPropertyOverrides(InActors, true, EApplyPropertieOverrideType::PostConstruction);
 		}
 	}
 }
@@ -264,8 +367,17 @@ void ULevelStreamingLevelInstance::OnPreInitializeContainerInstance(UActorDescCo
 	
 	// In Editor it is possible to have a non WP parent world in which case we pass in null to the SetParent method, this will ensure that in editor the Level Instance container ID won't be a IsMainContainer() and will properly handle IsMainWorldOnly actors
 	InInitParams.SetParent(OwningWorldPartition ? OwningWorldPartition->GetActorDescContainerInstance() : nullptr, LevelInstanceActor->GetActorGuid());
+		
+	// Apply Override Container
+	if (OwningWorldPartition)
+	{
+		if (FWorldPartitionActorDescInstance* LevelInstanceActorDescInstance = OwningWorldPartition->GetActorDescInstance(LevelInstanceActor->GetActorGuid()); LevelInstanceActorDescInstance && LevelInstanceActorDescInstance->IsChildContainerInstance())
+		{
+			ULevelInstanceContainerInstance* LevelInstanceContainerInstance = CastChecked<ULevelInstanceContainerInstance>(InContainerInstance);
+			LevelInstanceContainerInstance->SetOverrideContainerAndAsset(LevelInstanceActorDescInstance->GetActorDesc()->GetChildContainer(), GetLevelInstance()->GetPropertyOverrideAsset());
+		}
+	}
 }
-
 #endif
 
 ULevelStreamingLevelInstance* ULevelStreamingLevelInstance::LoadInstance(ILevelInstanceInterface* LevelInstance)
@@ -330,9 +442,10 @@ ULevelStreamingLevelInstance* ULevelStreamingLevelInstance::LoadInstance(ILevelI
 }
 
 #if WITH_EDITOR
-void ULevelStreamingLevelInstance::OnLevelStreamingStateChanged(UWorld* InWorld, const ULevelStreaming* InLevelStreaming, ULevel* InLevelIfLoaded, ELevelStreamingState InPrevState, ELevelStreamingState InNewState)
+void ULevelStreamingLevelInstance::OnCurrentStateChanged(ELevelStreamingState InPrevState, ELevelStreamingState InNewState)
 {
-	if (InNewState == ELevelStreamingState::LoadedVisible && InLevelStreaming == this)
+	Super::OnCurrentStateChanged(InPrevState, InNewState);
+	if (InNewState == ELevelStreamingState::LoadedVisible && IsEditorWorldMode())
 	{
 		ILevelInstanceInterface* LevelInstance = GetLevelInstance();
 
@@ -344,16 +457,17 @@ void ULevelStreamingLevelInstance::OnLevelStreamingStateChanged(UWorld* InWorld,
 
 		ForEachObjectWithOuter(Level, [](UObject* InObject)
 		{
-			// Skip actors as they are already handled in OnLoadedActorsAddedToLevelPreEvent
-			if (InObject && InObject->IsPackageExternal() && !InObject->IsA<AActor>())
+			if (InObject && InObject->IsPackageExternal())
 			{
 				FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(InObject->GetPackage());
 			}
 		}, /*bIncludeNestedObjects*/ true);
 
-		OnLoadedActorsAddedToLevelPreEvent(Level->Actors);
+		// Initialize Deferred (Async Actors)s
+		check(Level->bAlreadyMovedActors);
+		ApplyPropertyOverrides(Level->Actors, true, EApplyPropertieOverrideType::PostConstruction);
 
-		Level->OnLoadedActorAddedToLevelPreEvent.AddUObject(this, &ULevelStreamingLevelInstance::OnLoadedActorsAddedToLevelPreEvent);
+		// Currently only used for Attachement which doesn't do anything before the ALevelInstanceEditorInstanceActor::Create call that follows
 		Level->OnLoadedActorAddedToLevelPostEvent.AddUObject(this, &ULevelStreamingLevelInstance::OnLoadedActorsAddedToLevelPostEvent);
 		Level->OnLoadedActorRemovedFromLevelPreEvent.AddUObject(this, &ULevelStreamingLevelInstance::OnLoadedActorsRemovedFromLevelPostEvent);
 
@@ -363,9 +477,6 @@ void ULevelStreamingLevelInstance::OnLevelStreamingStateChanged(UWorld* InWorld,
 		// Push editing state to child actors
 		AActor* LevelInstanceActor = CastChecked<AActor>(LevelInstance);
 		LevelInstanceActor->PushLevelInstanceEditingStateToProxies(LevelInstanceActor->IsInEditLevelInstanceHierarchy());
-
-		// Unregister
-		FLevelStreamingDelegates::OnLevelStreamingStateChanged.RemoveAll(this);
 	}
 }
 #endif
@@ -375,13 +486,16 @@ void ULevelStreamingLevelInstance::UnloadInstance(ULevelStreamingLevelInstance* 
 #if WITH_EDITOR
 	if (LevelStreaming->IsEditorWorldMode())
 	{
-		FLevelStreamingDelegates::OnLevelStreamingStateChanged.RemoveAll(LevelStreaming);
-
 		ULevel* LoadedLevel = LevelStreaming->GetLoadedLevel();
 		LoadedLevel->OnLoadedActorAddedToLevelPreEvent.RemoveAll(LevelStreaming);
 		LoadedLevel->OnLoadedActorAddedToLevelPostEvent.RemoveAll(LevelStreaming);
 		LoadedLevel->OnLoadedActorRemovedFromLevelPreEvent.RemoveAll(LevelStreaming);
 		LevelStreaming->LevelInstanceEditorInstanceActor.Reset();
+
+		if (UWorldPartition* OuterWorldPartition = LoadedLevel->GetWorldPartition())
+		{
+			OuterWorldPartition->OnActorReplacedEvent.RemoveAll(LevelStreaming);
+		}
 
 		// Check if we need to flush the Trans buffer...
 		UWorld* OuterWorld = LoadedLevel->GetTypedOuter<UWorld>();
@@ -418,11 +532,12 @@ void ULevelStreamingLevelInstance::OnLevelLoadedChanged(ULevel* InLevel)
 	{
 #if WITH_EDITOR
 		if (IsEditorWorldMode())
-		{
-			FLevelStreamingDelegates::OnLevelStreamingStateChanged.AddUObject(this, &ULevelStreamingLevelInstance::OnLevelStreamingStateChanged);
+		{	
+			InitializeActors(InLevel->Actors);
+			ApplyPropertyOverrides(InLevel->Actors, false, EApplyPropertieOverrideType::PreConstruction);
+			NewLoadedLevel->OnLoadedActorAddedToLevelPreEvent.AddUObject(this, &ULevelStreamingLevelInstance::OnLoadedActorsAddedToLevelPreEvent);
 		}
 #endif
-
 		check(InLevel == NewLoadedLevel);
 		if (!NewLoadedLevel->bAlreadyMovedActors)
 		{
@@ -445,6 +560,8 @@ void ULevelStreamingLevelInstance::OnLevelLoadedChanged(ULevel* InLevel)
 				if (IsEditorWorldMode())
 				{
 					OuterWorldPartition->OnActorDescContainerInstancePreInitialize.BindUObject(this, &ULevelStreamingLevelInstance::OnPreInitializeContainerInstance);
+					OuterWorldPartition->SetContainerInstanceClass(ULevelInstanceContainerInstance::StaticClass());
+					OuterWorldPartition->OnActorReplacedEvent.AddUObject(this, &ULevelStreamingLevelInstance::OnActorReplacedEvent);
 				}
 
 				if (UWorldPartition* OwningWorldPartition = GetWorld()->GetWorldPartition(); OwningWorldPartition && OwningWorldPartition->IsStreamingEnabled())

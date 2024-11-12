@@ -11,6 +11,7 @@ EStateTreeRunStatus FAvaTransitionDiscardSceneTask::EnterState(FStateTreeExecuti
 	if (FAvaTransitionScene* TransitionScene = TransitionContext.GetTransitionScene())
 	{
 		TransitionScene->SetFlags(EAvaTransitionSceneFlags::NeedsDiscard);
+		return EStateTreeRunStatus::Succeeded;
 	}
 
 	return EStateTreeRunStatus::Failed;

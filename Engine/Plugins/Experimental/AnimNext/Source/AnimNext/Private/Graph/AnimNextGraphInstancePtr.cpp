@@ -2,12 +2,10 @@
 
 #include "Graph/AnimNextGraphInstancePtr.h"
 
-#include "Graph/AnimNextGraph.h"
+#include "Graph/AnimNextAnimationGraph.h"
 #include "Graph/AnimNextGraphInstance.h"
 
 FAnimNextGraphInstancePtr::FAnimNextGraphInstancePtr() = default;
-FAnimNextGraphInstancePtr::FAnimNextGraphInstancePtr(FAnimNextGraphInstancePtr&&) = default;
-FAnimNextGraphInstancePtr& FAnimNextGraphInstancePtr::operator=(FAnimNextGraphInstancePtr&&) = default;
 
 FAnimNextGraphInstancePtr::~FAnimNextGraphInstancePtr()
 {
@@ -16,23 +14,7 @@ FAnimNextGraphInstancePtr::~FAnimNextGraphInstancePtr()
 
 void FAnimNextGraphInstancePtr::Release()
 {
-	if (Impl)
-	{
-#if WITH_EDITORONLY_DATA
-		{
-			const UAnimNextGraph* Graph = Impl->GetGraph();
-			FScopeLock Lock(&Graph->GraphInstancesLock);
-			check(Graph->GraphInstances.Contains(Impl.Get()));
-			Graph->GraphInstances.Remove(Impl.Get());
-		}
-#endif
-
-		// Destroy the graph instance
-		Impl->Release();
-
-		// Reset our unique ptr
-		Impl.Reset();
-	}
+	Impl.Reset();
 }
 
 bool FAnimNextGraphInstancePtr::IsValid() const
@@ -40,14 +22,14 @@ bool FAnimNextGraphInstancePtr::IsValid() const
 	return Impl && Impl->IsValid();
 }
 
-const UAnimNextGraph* FAnimNextGraphInstancePtr::GetGraph() const
+const UAnimNextAnimationGraph* FAnimNextGraphInstancePtr::GetAnimationGraph() const
 {
-	return Impl ? Impl->GetGraph() : nullptr;
+	return Impl->GetAnimationGraph();
 }
 
-UE::AnimNext::FWeakDecoratorPtr FAnimNextGraphInstancePtr::GetGraphRootPtr() const
+UE::AnimNext::FWeakTraitPtr FAnimNextGraphInstancePtr::GetGraphRootPtr() const
 {
-	return Impl ? Impl->GetGraphRootPtr() : UE::AnimNext::FWeakDecoratorPtr();
+	return Impl ? Impl->GetGraphRootPtr() : UE::AnimNext::FWeakTraitPtr();
 }
 
 FAnimNextGraphInstance* FAnimNextGraphInstancePtr::GetImpl() const
@@ -55,9 +37,9 @@ FAnimNextGraphInstance* FAnimNextGraphInstancePtr::GetImpl() const
 	return Impl.Get();
 }
 
-bool FAnimNextGraphInstancePtr::UsesGraph(const UAnimNextGraph* InGraph) const
+bool FAnimNextGraphInstancePtr::UsesAnimationGraph(const UAnimNextAnimationGraph* InAnimationGraph) const
 {
-	return Impl ? Impl->UsesGraph(InGraph) : false;
+	return Impl ? Impl->UsesAnimationGraph(InAnimationGraph) : false;
 }
 
 bool FAnimNextGraphInstancePtr::IsRoot() const
@@ -65,10 +47,17 @@ bool FAnimNextGraphInstancePtr::IsRoot() const
 	return Impl ? Impl->IsRoot() : true;
 }
 
+bool FAnimNextGraphInstancePtr::HasUpdated() const
+{
+	return Impl ? Impl->HasUpdated() : false;
+}
+
 void FAnimNextGraphInstancePtr::AddStructReferencedObjects(FReferenceCollector& Collector)
 {
 	if (Impl)
 	{
+		FAnimNextGraphInstance* ImplPtr = Impl.Get();
+		Collector.AddPropertyReferences(FAnimNextGraphInstance::StaticStruct(), ImplPtr);
 		Impl->AddStructReferencedObjects(Collector);
 	}
 }
@@ -88,4 +77,28 @@ GraphInstanceComponentMapType::TConstIterator FAnimNextGraphInstancePtr::GetComp
 {
 	check(Impl);
 	return Impl->GetComponentIterator();
+}
+
+void FAnimNextGraphInstancePtr::Update() const
+{
+	check(Impl);
+	Impl->Update();
+}
+
+FRigVMExtendedExecuteContext& FAnimNextGraphInstancePtr::GetExtendedExecuteContext() const
+{
+	check(Impl);
+	return Impl->GetExtendedExecuteContext();
+}
+
+bool FAnimNextGraphInstancePtr::RequiresPublicVariableBinding() const
+{
+	check(Impl);
+	return Impl->PublicVariablesState == FAnimNextGraphInstance::EPublicVariablesState::Unbound;
+}
+
+void FAnimNextGraphInstancePtr::BindPublicVariables(TConstArrayView<UE::AnimNext::IDataInterfaceHost*> InHosts) const
+{
+	check(Impl);
+	return Impl->BindPublicVariables(InHosts);
 }

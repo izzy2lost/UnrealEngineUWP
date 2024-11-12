@@ -34,7 +34,7 @@ public:
 	TArray< uint32 >	SortedTo;
 
 public:
-				FGraphPartitioner( uint32 InNumElements );
+				FGraphPartitioner( uint32 InNumElements, int32 InMinPartitionSize, int32 InMaxPartitionSize );
 
 	FGraphData*	NewGraph( uint32 NumAdjacency ) const;
 
@@ -44,16 +44,16 @@ public:
 	template< typename FGetCenter >
 	void		BuildLocalityLinks( FDisjointSet& DisjointSet, const FBounds3f& Bounds, TConstArrayView< const int32 > GroupIndexes, FGetCenter& GetCenter );
 
-	void		Partition( FGraphData* Graph, int32 InMinPartitionSize, int32 InMaxPartitionSize );
-	void		PartitionStrict( FGraphData* Graph, int32 InMinPartitionSize, int32 InMaxPartitionSize, bool bThreaded );
+	void		Partition( FGraphData* Graph );
+	void		PartitionStrict( FGraphData* Graph, bool bThreaded );
 
 private:
 	void		BisectGraph( FGraphData* Graph, FGraphData* ChildGraphs[2] );
 	void		RecursiveBisectGraph( FGraphData* Graph );
 
 	uint32		NumElements;
-	int32		MinPartitionSize = 0;
-	int32		MaxPartitionSize = 0;
+	int32		MinPartitionSize;
+	int32		MaxPartitionSize;
 
 	TAtomic< uint32 >	NumPartitions;
 
@@ -99,7 +99,7 @@ void FGraphPartitioner::BuildLocalityLinks( FDisjointSet& DisjointSet, const FBo
 			Morton |= FMath::MortonCode3( uint32( CenterLocal.Y * 1023 ) ) << 1;
 			Morton |= FMath::MortonCode3( uint32( CenterLocal.Z * 1023 ) ) << 2;
 			SortKeys[ Index ] = Morton;
-		});
+		} );
 
 	RadixSort32( SortedTo.GetData(), Indexes.GetData(), NumElements,
 		[&]( uint32 Index )

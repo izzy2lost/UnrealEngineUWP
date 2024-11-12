@@ -47,6 +47,8 @@ public:
 	virtual void GetStructDeclarations(TSet<FString>& OutStructsSeen, TArray<FString>& OutStructs) const {}
 	/** Gather the shader code for this data provider. */
 	virtual void GetHLSL(FString& OutHLSL, FString const& InDataInterfaceName) const {}
+	/** Whether a GPU->CPU readback should be scheduled after this data is used as a kernel output. */
+	virtual bool GetRequiresReadback() const { return false; }
 	/** Get class of UObject required to instantiate a UComputeDataProvider from this interface. */
 	virtual UClass* GetBindingType() const { return nullptr; }
 	/** Instantiate an associated UComputeDataProvider. */

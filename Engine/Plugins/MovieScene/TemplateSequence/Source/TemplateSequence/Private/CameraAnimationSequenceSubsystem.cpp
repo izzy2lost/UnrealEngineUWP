@@ -5,9 +5,12 @@
 #include "EntitySystem/MovieSceneComponentRegistry.h"
 #include "EntitySystem/MovieSceneEntityMutations.h"
 #include "EntitySystem/MovieSceneEntitySystemRunner.h"
+#include "EntitySystem/MovieSceneEntitySystemTask.h"
 #include "EntitySystem/MovieSceneInstanceRegistry.h"
 #include "EntitySystem/MovieSceneRootInstantiatorSystem.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "IMovieScenePlayer.h"
+#include "MovieSceneSpawnRegister.h"
 #include "Systems/MovieScenePropertyInstantiator.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CameraAnimationSequenceSubsystem)
@@ -48,22 +51,17 @@ struct FCameraAnimationInstantiationMutation : IMovieSceneEntityMutation
 			{
 				BindObjectImpl(InstanceHandles[Index], ObjectBindings[Index], OutBoundObjects[Index]);
 			}
-		}
-		else if (AllocationType.Contains(BuiltInComponents->SceneComponentBinding))
-		{
-			// Initialize bound scene components.
-			TComponentReader<FGuid> SceneComponentBindings = Allocation->ReadComponents(BuiltInComponents->SceneComponentBinding);
-			for (int32 Index = 0; Index < Num; ++Index)
-			{
-				BindObjectImpl(InstanceHandles[Index], SceneComponentBindings[Index], OutBoundObjects[Index]);
-			}
+
+			// @NOTE: Camera animations intentionally do not use bound object resolvers because they explicitly
+			//        always use a camera stand in object.
 		}
 	}
+
 	void BindObjectImpl(const FInstanceHandle& InstanceHandle, const FGuid& ObjectBinding, UObject*& OutBoundObject) const
 	{
 		const FSequenceInstance& Instance = InstanceRegistry.GetInstance(InstanceHandle);
-		IMovieScenePlayer* Player = Instance.GetPlayer();
-		TArrayView<TWeakObjectPtr<>> BoundObjects = Player->FindBoundObjects(ObjectBinding, Instance.GetSequenceID());
+		TSharedRef<const FSharedPlaybackState> SharedPlaybackState = Instance.GetSharedPlaybackState();
+		TArrayView<TWeakObjectPtr<>> BoundObjects = SharedPlaybackState->FindBoundObjects(ObjectBinding, Instance.GetSequenceID());
 		if (ensure(BoundObjects.Num() > 0))
 		{
 			// In theory we should get the scene component from the object, but we know that camera animations are
@@ -108,10 +106,11 @@ void UCameraAnimationSpawnableSystem::OnRun(FSystemTaskPrerequisites& InPrerequi
 			// We won't actually be spawning anything, because our player's spawn register will simply 
 			// return the fake camera "stand-in" object.
 			const FSequenceInstance& Instance = InstanceRegistry->GetInstance(InstanceHandle);
-			IMovieScenePlayer* Player = Instance.GetPlayer();
-			const UMovieSceneSequence* Sequence = Player->State.FindSequence(Instance.GetSequenceID());
-			UObject* SpawnedObject = Player->GetSpawnRegister().SpawnObject(
-				SpawnableBinding, *Sequence->GetMovieScene(), Instance.GetSequenceID(), *Player);
+			TSharedRef<const FSharedPlaybackState> SharedPlaybackState = Instance.GetSharedPlaybackState();
+			const UMovieSceneSequence* Sequence = SharedPlaybackState->GetSequence(Instance.GetSequenceID());
+			FMovieSceneSpawnRegister* SpawnRegister = SharedPlaybackState->FindCapability<FMovieSceneSpawnRegister>();
+			UObject* SpawnedObject = SpawnRegister->SpawnObject(
+				SpawnableBinding, *Sequence->GetMovieScene(), Instance.GetSequenceID(), SharedPlaybackState);
 			ensure(SpawnedObject);
 		});
 }
@@ -146,8 +145,7 @@ void UCameraAnimationBoundObjectInstantiator::OnRun(FSystemTaskPrerequisites& In
 	// Initialize all new allocations with bound objects and output components.
 	FCameraAnimationInstantiationMutation Mutation(*Linker->GetInstanceRegistry());
 	FEntityComponentFilter Filter = FEntityComponentFilter()
-		.Any({ BuiltInComponents->GenericObjectBinding, 
-				BuiltInComponents->SceneComponentBinding })
+		.Any({ BuiltInComponents->GenericObjectBinding })
 		.All({ BuiltInComponents->InstanceHandle, BuiltInComponents->Tags.NeedsLink })
 		.None({ BuiltInComponents->Tags.NeedsUnlink });
 	Linker->EntityManager.MutateAll(Filter, Mutation, EMutuallyInclusiveComponentType::All);
@@ -211,18 +209,11 @@ UCameraAnimationSequenceSubsystem::~UCameraAnimationSequenceSubsystem()
 
 void UCameraAnimationSequenceSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-	Runner = MakeShared<FMovieSceneEntitySystemRunner>();
 }
 
 void UCameraAnimationSequenceSubsystem::Deinitialize()
 {
-	// We check if the runner still has a valid pointer on the linker because the linker could
-	// have been GC'ed just now, which would make DetachFromLinker complain.
-	if (Runner->GetLinker())
-	{
-		Runner->DetachFromLinker();
-		Runner = nullptr;
-	}
+	Runner = nullptr;
 	Linker = nullptr;
 
 	Super::Deinitialize();
@@ -233,7 +224,7 @@ UMovieSceneEntitySystemLinker* UCameraAnimationSequenceSubsystem::GetLinker(bool
 	if (!Linker && bAutoCreate)
 	{
 		Linker = CreateLinker(this, TEXT("CameraAnimationSequenceSubsystemLinker"));
-		Runner->AttachToLinker(Linker);
+		Runner = Linker->GetRunner();
 	}
 	return Linker;
 }

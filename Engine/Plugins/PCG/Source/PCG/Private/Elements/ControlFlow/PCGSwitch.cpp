@@ -46,6 +46,15 @@ void UPCGSwitchSettings::PostLoad()
 #endif // WITH_EDITOR
 }
 
+void UPCGSwitchSettings::OnOverrideSettingsDuplicatedInternal(bool bSkippedPostLoad)
+{
+	Super::OnOverrideSettingsDuplicatedInternal(bSkippedPostLoad);
+	if (bSkippedPostLoad)
+	{
+		CachePinLabels();
+	}
+}
+
 #if WITH_EDITOR
 void UPCGSwitchSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {

@@ -6,6 +6,7 @@
 #include "VT/VirtualTexture.h"
 #include "SceneInterface.h"
 #include "SceneUtils.h"
+#include "TextureCompiler.h"
 
 #if WITH_EDITOR
 #include "Interfaces/ITargetPlatform.h"
@@ -15,7 +16,6 @@
 
 UVirtualTextureBuilder::UVirtualTextureBuilder(const FObjectInitializer& ObjectInitializer)
 	: UObject(ObjectInitializer)
-	, EnableCookPerPlatform(true)
 {
 }
 
@@ -33,13 +33,6 @@ void UVirtualTextureBuilder::Serialize(FArchive& Ar)
 		
 		// Clear Texture during cook for platforms that don't support virtual texturing
 		if (!UseVirtualTexturing(GMaxRHIShaderPlatform, Ar.CookingTarget()))
-		{
-			Texture = nullptr;
-			TextureMobile = nullptr;
-		}
-
-		// Clear during cook for platforms that have explicitly disabled cooking in the asset settings.
-		if (!EnableCookPerPlatform.GetValueForPlatform(*Ar.CookingTarget()->PlatformName()))
 		{
 			Texture = nullptr;
 			TextureMobile = nullptr;
@@ -98,7 +91,26 @@ UVirtualTexture2D* UVirtualTextureBuilder::GetVirtualTexture(EShadingPath Shadin
 
 #if WITH_EDITOR
 
-static void BuildVirtualTexture2D(UVirtualTexture2D* Texture, FVirtualTextureBuildDesc const& BuildDesc)
+bool UVirtualTextureBuilder::CanEditChange(const FProperty* InProperty) const
+{
+	bool bCanEdit = Super::CanEditChange(InProperty);
+
+	static const TConsoleVariableData<int32>* CVarVirtualTextureOnMobile = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.VirtualTextures"));
+	check(CVarVirtualTextureOnMobile);
+	const bool bEnableVirtualTextureOnMobile = (CVarVirtualTextureOnMobile->GetValueOnGameThread() != 0);
+
+	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UVirtualTextureBuilder, bSeparateTextureForMobile))
+	{
+		bCanEdit &= bEnableVirtualTextureOnMobile;
+	}
+	else if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UVirtualTextureBuilder, TextureMobile))
+	{
+		bCanEdit &= bEnableVirtualTextureOnMobile && bSeparateTextureForMobile;
+	}
+	return bCanEdit;
+}
+
+static void BuildVirtualTexture2D(UVirtualTexture2D* Texture, FVirtualTextureBuildDesc const& BuildDesc, bool bWaitForCompilation)
 {
 	Texture->VirtualTextureStreaming = true;
 	Texture->LODGroup = BuildDesc.LODGroup;
@@ -118,10 +130,15 @@ static void BuildVirtualTexture2D(UVirtualTexture2D* Texture, FVirtualTextureBui
 
 	Texture->Source.InitLayered(BuildDesc.InSizeX, BuildDesc.InSizeY, 1, BuildDesc.LayerCount, 1, BuildDesc.LayerFormats.GetData(), BuildDesc.InData);
 	Texture->PostEditChange();
+
+	if (bWaitForCompilation)
+	{
+		FTextureCompilingManager::Get().FinishCompilation({ Texture });
+	}
 }
 
 
-void UVirtualTextureBuilder::BuildTexture(EShadingPath ShadingPath, FVirtualTextureBuildDesc const& BuildDesc)
+void UVirtualTextureBuilder::BuildTexture(EShadingPath ShadingPath, FVirtualTextureBuildDesc const& BuildDesc, bool bWaitForCompilation)
 {
 	if (!bSeparateTextureForMobile)
 	{
@@ -138,13 +155,13 @@ void UVirtualTextureBuilder::BuildTexture(EShadingPath ShadingPath, FVirtualText
 		
 		BuildHash = BuildDesc.BuildHash;
 		TextureMobile = NewObject<UVirtualTexture2D>(this, TEXT("TextureMobile"));
-		BuildVirtualTexture2D(TextureMobile, BuildDesc);
+		BuildVirtualTexture2D(TextureMobile, BuildDesc, bWaitForCompilation);
 	}
 	else
 	{
 		BuildHash = BuildDesc.BuildHash;
 		Texture = NewObject<UVirtualTexture2D>(this, TEXT("Texture"));
-		BuildVirtualTexture2D(Texture, BuildDesc);
+		BuildVirtualTexture2D(Texture, BuildDesc, bWaitForCompilation);
 	}
 }
 

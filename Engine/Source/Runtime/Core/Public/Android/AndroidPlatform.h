@@ -72,6 +72,12 @@ typedef FAndroidTypes FPlatformTypes;
 #define PLATFORM_ENABLE_VECTORINTRINSICS			1
 #define PLATFORM_ENABLE_VECTORINTRINSICS_NEON		PLATFORM_ANDROID_ARM64
 
+// Ensure we can use this builtin - seems to be present on Clang 9, GCC 11 and MSVC 19.26,
+// but gives spurious "non-void function 'BitCast' should return a value" errors on some
+// Mac and Android toolchains when building PCHs, so avoid those.
+#undef PLATFORM_COMPILER_SUPPORTS_BUILTIN_BITCAST
+#define PLATFORM_COMPILER_SUPPORTS_BUILTIN_BITCAST (__clang_major__ >= 13)
+
 // some android platform overrides that sub-platforms can disable
 #ifndef USE_ANDROID_JNI
 	#define USE_ANDROID_JNI							1
@@ -93,6 +99,9 @@ typedef FAndroidTypes FPlatformTypes;
 #endif
 #ifndef USE_ANDROID_STANDALONE
 	#define USE_ANDROID_STANDALONE					0
+#endif
+#ifndef USE_ANDROID_ALTERNATIVE_SUSPEND
+	#define USE_ANDROID_ALTERNATIVE_SUSPEND			0
 #endif
 
 

@@ -13,17 +13,18 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(RayTracingDebugMainCHS,
 {
 	Payload.HitT = RayTCurrent();
 
-	const int ScenePrimitiveIndex = GetInstanceUserData();
-	const int ScenePrimitiveInstanceIndex = InstanceIndex() - GetBaseInstanceIndex();
-	Payload.InstanceHash = MurmurAdd(ScenePrimitiveIndex, ScenePrimitiveInstanceIndex);
+	const uint GPUSceneInstanceId = GetInstanceUserData();
+
+	const FInstanceSceneData InstanceSceneData = GetInstanceSceneData(GPUSceneInstanceId, Scene.GPUScene.InstanceDataSOAStride);
+
+	Payload.InstanceHash = MurmurAdd(InstanceSceneData.PrimitiveId, InstanceSceneData.RelativeId);
 
 	Payload.TriangleIndex = PrimitiveIndex();
 
 	Payload.WorldNormal = GetGeometryNormalFromTriangleBaseAttributes(PrimitiveIndex());
-	Payload.GeometryInstanceIndex = GetHitGroupUserData();
 	Payload.InstanceIndex = InstanceIndex();
 	Payload.GeometryIndex = 0; // GeometryIndex();
-	Payload.ScenePrimitiveIndex = ScenePrimitiveIndex;
+	Payload.ScenePrimitiveIndex = InstanceSceneData.PrimitiveId;
 }
 
 RAY_TRACING_ENTRY_ANY_HIT(RayTracingDebugAHS,

@@ -16,6 +16,7 @@
 #include "ContentBrowserMenuContexts.h"
 #include "ContentBrowserModule.h"
 #include "ContentBrowserSingleton.h"
+#include "ContentBrowserStyle.h"
 #include "ContentBrowserUtils.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/GenericCommands.h"
@@ -244,7 +245,7 @@ void FPathContextMenu::MakePathViewContextMenu(UToolMenu* Menu)
 						"DisallowPrivateContentEditing",
 						LOCTEXT("DisallowPrivateContentEditing", "Disallow Private Content Editing"),
 						LOCTEXT("DisallowPrivateContentEditingTooltip", "Hides Private Content and prevents editing the Public/Private state of content in this folder"),
-						FSlateIcon(FAppStyle::GetAppStyleSetName(), "ContentBrowser.PrivateContentEdit"),
+						FSlateIcon(UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetStyleSetName(), "ContentBrowser.PrivateContentEdit"),
 						FUIAction(FExecuteAction::CreateSP(this, &FPathContextMenu::ExecutePrivateContentEdit))
 					);
 				}
@@ -254,7 +255,7 @@ void FPathContextMenu::MakePathViewContextMenu(UToolMenu* Menu)
 						"AllowPrivateContentEditing",
 						LOCTEXT("AllowPrivateContentEditing", "Allow Private Content Editing"),
 						LOCTEXT("AllowPrivateContentEditingTooltip", "Reveals Private Content and allows editing the Public/Private state of content in this folder"),
-						FSlateIcon(FAppStyle::GetAppStyleSetName(), "ContentBrowser.PrivateContentEdit"),
+						FSlateIcon(UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetStyleSetName(), "ContentBrowser.PrivateContentEdit"),
 						FUIAction(FExecuteAction::CreateSP(this, &FPathContextMenu::ExecutePrivateContentEdit))
 					);
 				}

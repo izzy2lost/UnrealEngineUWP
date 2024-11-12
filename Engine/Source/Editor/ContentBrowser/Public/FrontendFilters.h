@@ -35,6 +35,7 @@ class FMenuBuilder;
 struct FAssetCompileData;
 
 /** A filter for text search */
+UE_DEPRECATED(5.5, "FFrontendFilter_Text has been deprecated in favor of FAssetTextFilter, used by SAssetView to perform text filtering in parallel.");
 class CONTENTBROWSER_API FFrontendFilter_Text : public FFrontendFilter
 {
 public:
@@ -233,7 +234,8 @@ public:
 };
 
 /** An inverse filter that allows display of content in developer folders that are not the current user's */
-class CONTENTBROWSER_API FFrontendFilter_ShowOtherDevelopers : public FFrontendFilter
+class UE_DEPRECATED(5.5, "This frontend filter has been deprecated and replaced with backend filtering. see FFilter_HideOtherDevelopers.")
+CONTENTBROWSER_API FFrontendFilter_ShowOtherDevelopers : public FFrontendFilter
 {
 public:
 	/** Constructor */
@@ -265,7 +267,8 @@ private:
 };
 
 /** An inverse filter that allows display of object redirectors */
-class CONTENTBROWSER_API FFrontendFilter_ShowRedirectors : public FFrontendFilter
+class UE_DEPRECATED(5.5, "FFrontendFilter_ShowRedirectors is deprecated. FFilter_ShowRedirectors is a virtual filter which controls backend search state instead.")
+	CONTENTBROWSER_API FFrontendFilter_ShowRedirectors : public FFrontendFilter
 {
 public:
 	/** Constructor */

@@ -33,9 +33,9 @@ static const FName DetailsMode = FName(TEXT("DetailsMode"));
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SDetailsDiff::Construct( const FArguments& InArgs)
 {
-	check(InArgs._AssetOld || InArgs._AssetNew);
-	PanelOld.Object = InArgs._AssetOld;
-	PanelNew.Object = InArgs._AssetNew;
+	check(InArgs._OldAsset || InArgs._NewAsset);
+	PanelOld.Object = InArgs._OldAsset;
+	PanelNew.Object = InArgs._NewAsset;
 	PanelOld.RevisionInfo = InArgs._OldRevision;
 	PanelNew.RevisionInfo = InArgs._NewRevision;
 
@@ -43,6 +43,13 @@ void SDetailsDiff::Construct( const FArguments& InArgs)
 	// not the same asset in each panel)
 	PanelOld.bShowAssetName = InArgs._ShowAssetNames;
 	PanelNew.bShowAssetName = InArgs._ShowAssetNames;
+
+	OnCustomizeDetailsWidget = InArgs._OnCustomizeDetailsWidget;
+	OnGenerateCustomDiffEntries = InArgs._OnGenerateCustomDiffEntries;
+	OnGenerateCustomDiffEntryWidget = InArgs._OnGenerateCustomDiffEntryWidget;
+	OnOrganizeDiffEntries = InArgs._OnOrganizeDiffEntries;
+	ShouldHighlightRow = InArgs._ShouldHighlightRow;
+	RowHighlightColor = InArgs._RowHighlightColor;
 
 	if (InArgs._ParentWindow.IsValid())
 	{
@@ -262,8 +269,8 @@ TSharedRef<SDetailsDiff> SDetailsDiff::CreateDiffWindow(FText WindowTitle, const
 		.ClientSize(FVector2D(1000.f, 800.f));
 
 	TSharedRef<SDetailsDiff> DetailsDiff = SNew(SDetailsDiff)
-		.AssetOld(OldObject)
-		.AssetNew(NewObject)
+		.OldAsset(OldObject)
+		.NewAsset(NewObject)
 		.OldRevision(OldRevision)
 		.NewRevision(NewRevision)
 		.ShowAssetNames(!bIsSingleAsset)
@@ -394,12 +401,23 @@ SDetailsDiff::FDiffControl SDetailsDiff::GenerateDetailsPanel(const TFunction<co
 {
 	const UObject* OldObject = Redirector ? Redirector(PanelOld.Object) : PanelOld.Object;
 	const UObject* NewObject = Redirector ? Redirector(PanelNew.Object) : PanelNew.Object;
-	
+
 	const TSharedPtr<FDetailsDiffControl> NewDiffControl = MakeShared<FDetailsDiffControl>(OldObject, NewObject, FOnDiffEntryFocused::CreateRaw(this, &SDetailsDiff::SetCurrentMode, DetailsMode), true);
 	NewDiffControl->EnableComments(DifferencesTreeView.ToWeakPtr());
 	NewDiffControl->GenerateTreeEntries(PrimaryDifferencesList, RealDifferences);
-	
-	const TSharedRef<SDetailsSplitter> Splitter = SNew(SDetailsSplitter);
+	NewDiffControl->GenerateCustomEntriesCallback = OnGenerateCustomDiffEntries;
+	NewDiffControl->GenerateCustomEntryWidgetCallback = OnGenerateCustomDiffEntryWidget;
+	NewDiffControl->OrganizeEntriesCallback = OnOrganizeDiffEntries;
+	if (OnCustomizeDetailsWidget.IsBound())
+	{
+		OnCustomizeDetailsWidget.Execute(NewDiffControl->GetDetailsWidget(OldObject));
+		OnCustomizeDetailsWidget.Execute(NewDiffControl->GetDetailsWidget(NewObject));
+	}
+
+	const TSharedRef<SDetailsSplitter> Splitter = SNew(SDetailsSplitter)
+		.ShouldHighlightRow(ShouldHighlightRow)
+		.RowHighlightColor(RowHighlightColor);
+
 	if (OldObject)
 	{
 		Splitter->AddSlot(

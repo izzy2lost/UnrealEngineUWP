@@ -404,10 +404,10 @@ bool FOpenCVHelper::IdentifyArucoMarkers(TArray<FColor>& Image, FIntPoint ImageS
 
 		const std::vector<cv::Point2f>& MarkerCorners = Corners[MarkerIndex];
 
-		NewMarker.Corners[0] = FVector2f(MarkerCorners[0].x, MarkerCorners[0].y);
-		NewMarker.Corners[1] = FVector2f(MarkerCorners[1].x, MarkerCorners[1].y);
-		NewMarker.Corners[2] = FVector2f(MarkerCorners[2].x, MarkerCorners[2].y);
-		NewMarker.Corners[3] = FVector2f(MarkerCorners[3].x, MarkerCorners[3].y);
+		NewMarker.Corners[0] = FVector2f(MarkerCorners[0].x, MarkerCorners[0].y); // TopLeft
+		NewMarker.Corners[1] = FVector2f(MarkerCorners[1].x, MarkerCorners[1].y); // TopRight
+		NewMarker.Corners[2] = FVector2f(MarkerCorners[2].x, MarkerCorners[2].y); // BottomRight
+		NewMarker.Corners[3] = FVector2f(MarkerCorners[3].x, MarkerCorners[3].y); // BottomLeft
 
 		OutMarkers.Add(NewMarker);
 	}
@@ -481,10 +481,32 @@ bool FOpenCVHelper::DrawArucoMarkers(const TArray<FArucoMarker>& Markers, UTextu
 
 bool FOpenCVHelper::IdentifyCheckerboard(TArray<FColor>& Image, FIntPoint ImageSize, FIntPoint CheckerboardDimensions, TArray<FVector2f>& OutCorners)
 {
+	FIntRect FullImageRect = FIntRect(FIntPoint(0), ImageSize);
+	return IdentifyCheckerboard(Image, ImageSize, FullImageRect, CheckerboardDimensions, OutCorners);
+}
+
+bool FOpenCVHelper::IdentifyCheckerboard(TArray<FColor>& Image, FIntPoint ImageSize, FIntRect RegionOfInterest, FIntPoint CheckerboardDimensions, TArray<FVector2f>& OutCorners)
+{
 #if WITH_OPENCV
 	// Initialize an OpenCV matrix header to point at the input image data. 
 	// The format for FColor is B8G8R8A8, so the corresponding OpenCV format is CV_8UC4 (8-bit per channel, 4 channels)
-	const cv::Mat ImageMat = cv::Mat(ImageSize.Y, ImageSize.X, CV_8UC4, Image.GetData());
+	const cv::Mat WholeImageMat = cv::Mat(ImageSize.Y, ImageSize.X, CV_8UC4, Image.GetData());
+
+	// Sanitize the ROI to ensure that it lies completely within the bounds of the full size image
+	RegionOfInterest.Min.X = FMath::Clamp(RegionOfInterest.Min.X, 0, ImageSize.X);
+	RegionOfInterest.Min.Y = FMath::Clamp(RegionOfInterest.Min.Y, 0, ImageSize.Y);
+	RegionOfInterest.Max.X = FMath::Clamp(RegionOfInterest.Max.X, 0, ImageSize.X);
+	RegionOfInterest.Max.Y = FMath::Clamp(RegionOfInterest.Max.Y, 0, ImageSize.Y);
+
+	if ((RegionOfInterest.Width() <= 0) || (RegionOfInterest.Height() <= 0))
+	{
+		OutCorners.Empty();
+		return false;
+	}
+
+	// Create a header for the region of interest
+	const cv::Rect CvROI = cv::Rect(RegionOfInterest.Min.X, RegionOfInterest.Min.Y, RegionOfInterest.Size().X, RegionOfInterest.Size().Y);
+	const cv::Mat ImageMat = cv::Mat(WholeImageMat, CvROI);
 
 	// Convert the image to grayscale before attempting to detect checkerboard corners
 	cv::Mat GrayImage;
@@ -521,6 +543,12 @@ bool FOpenCVHelper::IdentifyCheckerboard(TArray<FColor>& Image, FIntPoint ImageS
 		Algo::Reverse(OutCorners);
 	}
 
+	// Adjust the detected corners to be relative to the full image, not the ROI
+	for (FVector2f& Corner : OutCorners)
+	{
+		Corner += RegionOfInterest.Min;
+	}
+
 	return true;
 #else
 	return false;
@@ -555,6 +583,18 @@ bool FOpenCVHelper::DrawCheckerboardCorners(const TArray<FVector2f>& Corners, FI
 #else
 	return false;
 #endif // WITH_OPENCV
+}
+
+bool FOpenCVHelper::DrawCheckerboardCorners(const TArray<FVector2D>& Corners, FIntPoint CheckerboardDimensions, UTexture2D* DebugTexture)
+{
+	TArray<FVector2f> CornersFloat;
+	CornersFloat.Reserve(Corners.Num());
+	for (const FVector2D& Corner : Corners)
+	{
+		CornersFloat.Add(FVector2f(Corner.X, Corner.Y));
+	}
+
+	return DrawCheckerboardCorners(CornersFloat, CheckerboardDimensions, DebugTexture);
 }
 
 bool FOpenCVHelper::SolvePnP(const TArray<FVector>& ObjectPoints, const TArray<FVector2f>& ImagePoints, const FVector2D& FocalLength, const FVector2D& ImageCenter, const TArray<float>& DistortionParameters, FTransform& OutCameraPose)
@@ -627,6 +667,21 @@ bool FOpenCVHelper::SolvePnP(const TArray<FVector>& ObjectPoints, const TArray<F
 
 bool FOpenCVHelper::ProjectPoints(const TArray<FVector>& ObjectPoints, const FVector2D& FocalLength, const FVector2D& ImageCenter, const TArray<float>& DistortionParameters, const FTransform& CameraPose, TArray<FVector2f>& OutImagePoints)
 {
+	TArray<FVector2D> OutImagePointsDoublePrecision;
+	if (ProjectPoints(ObjectPoints, FocalLength, ImageCenter, DistortionParameters, CameraPose, OutImagePointsDoublePrecision))
+	{
+		for (const FVector2D& Point : OutImagePointsDoublePrecision)
+		{
+			OutImagePoints.Add(FVector2f(Point.X, Point.Y));
+		}
+
+		return true;
+	}
+	return false;
+}
+
+bool FOpenCVHelper::ProjectPoints(const TArray<FVector>& ObjectPoints, const FVector2D& FocalLength, const FVector2D& ImageCenter, const TArray<float>& DistortionParameters, const FTransform& CameraPose, TArray<FVector2D>& OutImagePoints)
+{
 #if WITH_OPENCV
 	const int32 NumPoints = ObjectPoints.Num();
 
@@ -655,17 +710,10 @@ bool FOpenCVHelper::ProjectPoints(const TArray<FVector>& ObjectPoints, const FVe
 
 	cv::Mat DistortionParametersMat = cv::Mat(DistortionParameters.Num(), 1, CV_32FC1, (void*)DistortionParameters.GetData());
 
-	// cv::projectPoints requires that the 3D points and 2D points have the same bit depth, so we compute projected points with double precision, and then convert them back to floats before outputting
-	TArray<FVector2D> ImagePointsDoublePrecision;
-	ImagePointsDoublePrecision.Init(FVector2D(0.0, 0.0), NumPoints);
-	cv::Mat ImagePointsMat = cv::Mat(NumPoints, 1, CV_64FC2, (void*)ImagePointsDoublePrecision.GetData());
+	OutImagePoints.Init(FVector2D(0.0, 0.0), NumPoints);
+	cv::Mat ImagePointsMat = cv::Mat(NumPoints, 1, CV_64FC2, (void*)OutImagePoints.GetData());
 
 	cv::projectPoints(ObjectPointsMat, Rotation, Translation, CameraMatrix, DistortionParametersMat, ImagePointsMat);
-
-	for (const FVector2D& Point : ImagePointsDoublePrecision)
-	{
-		OutImagePoints.Add(FVector2f(Point.X, Point.Y));
-	}
 
 	return true;
 #else

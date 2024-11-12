@@ -7,9 +7,11 @@
 #include "RenderUtils.h"
 #include "SceneInterface.h"
 #include "StereoRenderTargetManager.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 FSceneTexturesConfig FSceneTexturesConfig::GlobalInstance;
 
+DEFINE_LOG_CATEGORY_STATIC(LogSceneTextures, Log, All);
 IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(SceneTextures);
 IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FSceneTextureUniformParameters, "SceneTexturesStruct", SceneTextures);
 IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FMobileSceneTextureUniformParameters, "MobileSceneTextures", SceneTextures);
@@ -122,8 +124,13 @@ static EPixelFormat GetSceneColorFormat(bool bRequiresAlphaChannel)
 		Format = PF_FloatRGBA;
 	}
 
-	if (bRequiresAlphaChannel)
+	if (bRequiresAlphaChannel && Format != PF_FloatRGBA)
 	{
+		UE_CALL_ONCE([]()
+			{
+				UE_LOG(LogSceneTextures, Warning, TEXT("Enforcing FloatRGBA scene color format due to alpha channel requirement."));
+			}
+		);
 		Format = PF_FloatRGBA;
 	}
 
@@ -166,10 +173,11 @@ void GetSceneColorFormatAndCreateFlags(ERHIFeatureLevel::Type FeatureLevel, bool
 	SceneColorCreateFlags |= sRGBFlag;
 }
 
-static ETextureCreateFlags GetSceneDepthStencilCreateFlags(uint32 NumSamples, bool bKeepDepthContent, bool bMemorylessMSAA, ETextureCreateFlags ExtraSceneDepthCreateFlags)
+static ETextureCreateFlags GetSceneDepthStencilCreateFlags(uint32 NumSamples, bool bKeepDepthContent, bool bMemorylessMSAA, EShaderPlatform ShaderPlatform, ETextureCreateFlags ExtraSceneDepthCreateFlags) //ericado
 {
 	ETextureCreateFlags DepthCreateFlags = TexCreate_DepthStencilTargetable | TexCreate_ShaderResource | TexCreate_InputAttachmentRead | ExtraSceneDepthCreateFlags;
-	if (!bKeepDepthContent || (NumSamples > 1 && bMemorylessMSAA))
+	// We can't discard the SceneDepth MSAA target if full depth prepass is enabled because it will be used in the base pass later on.
+	if (!bKeepDepthContent || (NumSamples > 1 && bMemorylessMSAA && (!IsMobilePlatform(ShaderPlatform) || !MobileUsesFullDepthPrepass(ShaderPlatform))))
 	{
 		DepthCreateFlags |= TexCreate_Memoryless;
 	}
@@ -180,7 +188,7 @@ static ETextureCreateFlags GetSceneDepthStencilCreateFlags(uint32 NumSamples, bo
 	return DepthCreateFlags;
 }
 
-static uint32 GetEditorPrimitiveNumSamples(ERHIFeatureLevel::Type FeatureLevel)
+uint32 FSceneTexturesConfig::GetEditorPrimitiveNumSamples(ERHIFeatureLevel::Type FeatureLevel)
 {
 	uint32 SampleCount = 1;
 
@@ -256,6 +264,16 @@ static void SetupMobileGBufferFlags(FGBufferBindings GBufferBindings[GBL_Num], b
 	}
 }
 
+static bool MobileRequiresPreciseSceneDepthAux(EShaderPlatform ShaderPlatform)
+{
+	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.SceneDepthAux"));
+	if (IsMobileDeferredShadingEnabled(ShaderPlatform) || CVar->GetValueOnAnyThread() == 2)
+	{
+		return true;
+	}
+	return false;
+}
+
 void FSceneTexturesConfig::Init(const FSceneTexturesConfigInitSettings& InitSettings)
 {
 	FeatureLevel			= InitSettings.FeatureLevel;
@@ -323,6 +341,13 @@ void FSceneTexturesConfig::Init(const FSceneTexturesConfigInitSettings& InitSett
 			GBufferBindings[Layout] = BindingCache.Bindings[Layout];
 		}
 	}
+
+	if (ShadingPath == EShadingPath::Mobile)
+	{
+		bRequiresDepthAux = MobileRequiresSceneDepthAux(ShaderPlatform) && !IsMobileTonemapSubpassEnabled(ShaderPlatform, InitSettings.bRequireMultiView);
+		bPreciseDepthAux = bPreciseDepthAux || MobileRequiresPreciseSceneDepthAux(ShaderPlatform);
+		bCustomResolveSubpass = IsMobileTonemapSubpassEnabledInline(ShaderPlatform, InitSettings.bRequireMultiView, NumSamples);
+	}
 }
 
 void FSceneTexturesConfig::SetupMobileGBufferFlags(bool bRequiresMultiPass)
@@ -333,13 +358,12 @@ void FSceneTexturesConfig::SetupMobileGBufferFlags(bool bRequiresMultiPass)
 void FSceneTexturesConfig::BuildSceneColorAndDepthFlags()
 {
     GetSceneColorFormatAndCreateFlags(FeatureLevel, bRequiresAlphaChannel, ExtraSceneColorCreateFlags, NumSamples, bMemorylessMSAA, ColorFormat, ColorCreateFlags);
-    DepthCreateFlags = GetSceneDepthStencilCreateFlags(NumSamples, bKeepDepthContent, bMemorylessMSAA, ExtraSceneDepthCreateFlags);
+    DepthCreateFlags = GetSceneDepthStencilCreateFlags(NumSamples, bKeepDepthContent, bMemorylessMSAA, ShaderPlatform, ExtraSceneDepthCreateFlags);
 }
 
 uint32 FSceneTexturesConfig::GetGBufferRenderTargetsInfo(FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo, EGBufferLayout Layout) const 
 {
-	// Assume 1 sample for now
-	RenderTargetsInfo.NumSamples = 1;
+	RenderTargetsInfo.NumSamples = NumSamples;
 
 	uint32 RenderTargetCount = 0;
 
@@ -374,6 +398,20 @@ uint32 FSceneTexturesConfig::GetGBufferRenderTargetsInfo(FGraphicsPipelineRender
 		const FGBufferBinding& GBufferVelocity = GBufferBindings[GBL_Default].GBufferVelocity;
 		RenderTargetsInfo.RenderTargetFormats[RenderTargetCount] = GBufferVelocity.Format;
 		RenderTargetsInfo.RenderTargetFlags[RenderTargetCount++] = GBufferVelocity.Flags;
+	}
+
+	if (bRequiresDepthAux)
+	{
+		RenderTargetsInfo.RenderTargetFormats[RenderTargetCount] = bPreciseDepthAux ? PF_R32_FLOAT : PF_R16F;
+		RenderTargetsInfo.RenderTargetFlags[RenderTargetCount++] = TexCreate_RenderTargetable | TexCreate_ShaderResource | TexCreate_InputAttachmentRead;
+	}
+	
+	if (bCustomResolveSubpass)
+	{
+		// resolve target as an additional color attachment
+		// this is supposed to be be a swapchain pixel format, but atm there is no way to query it
+		RenderTargetsInfo.RenderTargetFormats[RenderTargetCount] = IsAndroidPlatform(ShaderPlatform) ? PF_R8G8B8A8 : PF_B8G8R8A8;
+		RenderTargetsInfo.RenderTargetFlags[RenderTargetCount++] = TexCreate_RenderTargetable | TexCreate_ShaderResource;
 	}
 
 	// Store final number of render targets

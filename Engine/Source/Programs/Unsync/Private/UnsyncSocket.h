@@ -89,6 +89,8 @@ struct FSocketBase
 	virtual int RecvAll(void* Data, size_t DataSize)	= 0;
 	virtual int RecvAny(void* Data, size_t DataSize)	= 0;
 
+	virtual bool IsEncrypted() const = 0;
+
 	FSocketHandle	Handle	 = {};
 	ESocketSecurity Security = ESocketSecurity::None;
 };
@@ -100,6 +102,14 @@ struct FSocketRaw : FSocketBase
 	virtual int Send(const void* Data, size_t DataSize) override;
 	virtual int RecvAll(void* Data, size_t DataSize) override;
 	virtual int RecvAny(void* Data, size_t DataSize) override;
+
+	virtual bool IsEncrypted() const override { return false; }
+};
+
+enum class ETlsRequirement : uint8 {
+	None,		// Use defaults for the underlying protocol
+	Preferred,	// Try TLS connection, but allow falling back to plaintext if server supports it
+	Required,	// Only allow connections with TLS
 };
 
 struct FTlsClientSettings
@@ -115,11 +125,13 @@ struct FSocketTls : FSocketBase
 	FSocketTls(FSocketHandle InHandle, FTlsClientSettings ClientSettings);
 	~FSocketTls();
 
-	bool IsTlsValid() { return TlsCtx != nullptr; }
+	bool IsTlsValid() const { return TlsCtx != nullptr; }
 
 	virtual int Send(const void* Data, size_t DataSize) override;
 	virtual int RecvAll(void* Data, size_t DataSize) override;
 	virtual int RecvAny(void* Data, size_t DataSize) override;
+
+	virtual bool IsEncrypted() const override { return IsTlsValid(); }
 
 	tls* TlsCtx = {};
 };

@@ -23,7 +23,6 @@ class UMovieSceneTrack;
 class FMenuBuilder;
 class FPropertyPath;
 class FStructOnScope;
-struct FMovieSceneDynamicBinding;
 enum class ECheckBoxState : uint8;
 
 namespace UE
@@ -103,6 +102,7 @@ public:
 	void BuildContextMenu(FMenuBuilder& MenuBuilder) override;
 	void BuildOrganizeContextMenu(FMenuBuilder& MenuBuilder) override;
 	bool GetDefaultExpansionState() const override;
+	void BuildSidebarMenu(FMenuBuilder& MenuBuilder) override;
 
 	/*~ IDraggableOutlinerExtension */
 	bool CanDrag() const override;
@@ -124,9 +124,6 @@ public:
 public:
 
 	TSharedRef<SWidget> GetAddTrackMenuContent();
-
-	/** Build a sub-menu for editing the given dynamic binding */
-	void AddDynamicBindingMenu(FMenuBuilder& MenuBuilder, FMovieSceneDynamicBinding& DynamicBinding);
 
 protected:
 

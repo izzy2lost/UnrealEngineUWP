@@ -55,6 +55,12 @@ public class DownloadDescription
 	public long TotalBytesNeeded = 0;
 	public long TotalDownloadedBytes = 0;
 	public DownloadProgressListener ProgressListener = null;
+
+	// Fields used to calculate the total download time
+	public long DownloadStartTime = 0;
+	public long DownloadPauseTime = 0;
+	public long TotalPausedTime = 0;
+
 	public DownloadDescription()
 	{
 		URLs = new ArrayList<String>();
@@ -70,16 +76,6 @@ public class DownloadDescription
 	public static boolean WriteDownloadDescriptionListToFile(String FileName, ArrayList<DownloadDescription> DownloadDescriptions)
 	{
 		boolean bSucceeded = true;
-		
-		//Generate our JSON output for the file
-		org.json.JSONArray DescriptionJsonArray = new org.json.JSONArray();
-		{
-			for (int DescriptionIndex = 0; DescriptionIndex < DownloadDescriptions.size(); ++DescriptionIndex)
-			{
-				DownloadDescription Description = DownloadDescriptions.get(DescriptionIndex);
-				DescriptionJsonArray.put(Description.ToJSON());
-			}
-		}
 		
 		//Attempt to write out JSONArray string to file
 		FileWriter JsonFile = null;
@@ -104,9 +100,23 @@ public class DownloadDescription
 				JsonFile = new FileWriter(NewFile, false);
 				
 				//Can actually write the json array out to the file now
-				JsonFile.write(DescriptionJsonArray.toString());
+				JsonFile.write("[");
+				for (int DescriptionIndex = 0; DescriptionIndex < DownloadDescriptions.size(); ++DescriptionIndex)
+				{
+					if (DescriptionIndex > 0) {
+						JsonFile.write(",\n");
+					}
+					DownloadDescription Description = DownloadDescriptions.get(DescriptionIndex);
+					JsonFile.write(Description.ToJSON().toString());
+				}
+				JsonFile.write("]\n");
 			}
 			catch (IOException e)
+			{
+				bSucceeded = false;
+				e.printStackTrace();
+			}
+			catch (Exception e)
 			{
 				bSucceeded = false;
 				e.printStackTrace();

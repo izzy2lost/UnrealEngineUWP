@@ -30,7 +30,7 @@ namespace UE::UniversalObjectLocator
 				if (ExistingObject)
 				{
 					FName DefunctName = MakeUniqueObjectName(World->PersistentLevel.Get(), ExistingObject->GetClass());
-					ExistingObject->Rename(*DefunctName.ToString(), nullptr, REN_ForceNoResetLoaders);
+					ExistingObject->Rename(*DefunctName.ToString(), nullptr);
 				}
 			}
 

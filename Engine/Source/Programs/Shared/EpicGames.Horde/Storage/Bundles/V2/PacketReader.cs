@@ -7,7 +7,7 @@ using EpicGames.Core;
 namespace EpicGames.Horde.Storage.Bundles.V2
 {
 	/// <summary>
-	/// Counters used for tracking operations performed by a BundleStorageClient
+	/// Counters used for tracking operations performed by a BundleStorageNamespace
 	/// </summary>
 	class PacketReaderStats
 	{
@@ -23,7 +23,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		}
 	}
 
-	record struct PacketReaderCacheKey(BundleHandle Bundle, int Offset)
+	readonly record struct PacketReaderCacheKey(BundleHandle Bundle, int Offset)
 	{
 		public override string ToString()
 			=> $"packet-reader:{Bundle}@{Offset}";
@@ -34,7 +34,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// </summary>
 	sealed class PacketReader : IDisposable
 	{
-		readonly BundleStorageClient _storageClient;
+		readonly BundleStorageNamespace _storageNamespace;
 		readonly BundleCache _cache;
 		readonly BundleHandle _bundleHandle;
 		readonly FlushedPacketHandle _packetHandle;
@@ -51,15 +51,15 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="storageClient"></param>
+		/// <param name="storageNamespace"></param>
 		/// <param name="cache"></param>
 		/// <param name="bundleHandle"></param>
 		/// <param name="packetHandle"></param>
 		/// <param name="decodedPacket">Data for the packet</param>
 		/// <param name="memoryOwner">Owner for the packet data</param>
-		public PacketReader(BundleStorageClient storageClient, BundleCache cache, BundleHandle bundleHandle, FlushedPacketHandle packetHandle, Packet decodedPacket, IRefCountedHandle memoryOwner)
+		public PacketReader(BundleStorageNamespace storageNamespace, BundleCache cache, BundleHandle bundleHandle, FlushedPacketHandle packetHandle, Packet decodedPacket, IRefCountedHandle memoryOwner)
 		{
-			_storageClient = storageClient;
+			_storageNamespace = storageNamespace;
 			_cache = cache;
 			_bundleHandle = bundleHandle;
 			_packetHandle = packetHandle;
@@ -86,7 +86,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// </summary>
 		public BlobData Read()
 		{
-			IBlobHandle[] imports = new IBlobHandle[_decodedPacket.GetImportCount()];
+			IBlobRef[] imports = new IBlobRef[_decodedPacket.GetImportCount()];
 			for (int idx = 0; idx < imports.Length; idx++)
 			{
 				imports[idx] = GetImportedBlobHandle(idx);
@@ -105,7 +105,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 			BlobType type = _decodedPacket.GetType(exportHeader.TypeIdx);
 
-			IBlobHandle[] imports = new IBlobHandle[exportHeader.Imports.Length];
+			IBlobRef[] imports = new IBlobRef[exportHeader.Imports.Length];
 			for (int idx = 0; idx < exportHeader.Imports.Length; idx++)
 			{
 				imports[idx] = GetImportedBlobHandle(exportHeader.Imports[idx]);
@@ -134,9 +134,9 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <summary>
 		/// Gets an import handle for the packet
 		/// </summary>
-		IBlobHandle GetImportedBlobHandle(int blobIdx)
+		IBlobRef GetImportedBlobHandle(int blobIdx)
 		{
-			IBlobHandle? blobHandle = _cachedImportHandles[blobIdx] as IBlobHandle;
+			IBlobRef? blobHandle = _cachedImportHandles[blobIdx] as IBlobRef;
 			if (blobHandle is null)
 			{
 				PacketImport blobImportInfo = _decodedPacket.GetImport(blobIdx);
@@ -167,7 +167,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				int bundleIdx = packetImport.BaseIdx;
 				BundleHandle bundleHandle = GetImportedBundleHandle(bundleIdx);
 
-				packetHandle = new FlushedPacketHandle(_storageClient, bundleHandle, packetImport.Fragment, _cache);
+				packetHandle = new FlushedPacketHandle(_storageNamespace, bundleHandle, packetImport.Fragment, _cache);
 				_cachedImportHandles[packetIdx] = packetHandle;
 			}
 			return packetHandle;
@@ -186,7 +186,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				PacketImport bundleImport = _decodedPacket.GetImport(bundleIdx);
 				Trace.Assert(bundleImport.BaseIdx == -1);
 
-				bundleHandle = new FlushedBundleHandle(_storageClient, new BlobLocator(bundleImport.Fragment.Clone()));
+				bundleHandle = new FlushedBundleHandle(_storageNamespace, new BlobLocator(bundleImport.Fragment.Clone()));
 				_cachedImportHandles[bundleIdx] = bundleHandle;
 			}
 			return bundleHandle;

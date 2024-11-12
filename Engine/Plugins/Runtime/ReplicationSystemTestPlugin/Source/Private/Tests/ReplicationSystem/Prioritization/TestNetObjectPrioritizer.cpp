@@ -13,10 +13,10 @@
 namespace UE::Net::Private
 {
 
-class FTestNetPrioritizerFixture : public FReplicationSystemTestFixture
+class FTestNetObjectPrioritizerAPIFixture : public FReplicationSystemTestFixture
 {
 public:
-	FTestNetPrioritizerFixture() : MockNetObjectPrioritizer(nullptr) {}
+	FTestNetObjectPrioritizerAPIFixture() : MockNetObjectPrioritizer(nullptr) {}
 
 protected:
 	virtual void SetUp() override
@@ -85,19 +85,19 @@ private:
 	TArray<FNetObjectPrioritizerDefinition> OriginalPrioritizerDefinitions;
 };
 
-UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, CanGetPrioritizerHandle)
+UE_NET_TEST_FIXTURE(FTestNetObjectPrioritizerAPIFixture, CanGetPrioritizerHandle)
 {
 	UE_NET_ASSERT_NE(MockPrioritizerHandle, InvalidNetObjectPrioritizerHandle);
 }
 
-UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, PrioritizerInitWasCalled)
+UE_NET_TEST_FIXTURE(FTestNetObjectPrioritizerAPIFixture, PrioritizerInitWasCalled)
 {
 	const UMockNetObjectPrioritizer::FFunctionCallStatus& FunctionCallStatus = MockNetObjectPrioritizer->GetFunctionCallStatus();
 	UE_NET_ASSERT_EQ(FunctionCallStatus.CallCounts.Init, 1U);
 	UE_NET_ASSERT_EQ(FunctionCallStatus.SuccessfulCallCounts.Init, 1U);
 }
 
-UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, PrioritizerAddObjectSucceedsAndRemoveObjectIsCalledWhenObjectIsDestroyed)
+UE_NET_TEST_FIXTURE(FTestNetObjectPrioritizerAPIFixture, PrioritizerAddObjectSucceedsAndRemoveObjectIsCalledWhenObjectIsDestroyed)
 {
 	UTestReplicatedIrisObject* TestObject = CreateObject(0, 0);
 	UE_NET_ASSERT_NE(TestObject, nullptr);
@@ -143,7 +143,7 @@ UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, PrioritizerAddObjectSucceedsAndR
 	}
 }
 
-UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, PrioritizerAddObjectFailsAndRemoveObjectIsNotCalledWhenObjectIsDestroyed)
+UE_NET_TEST_FIXTURE(FTestNetObjectPrioritizerAPIFixture, PrioritizerAddObjectFailsAndRemoveObjectIsNotCalledWhenObjectIsDestroyed)
 {
 	UTestReplicatedIrisObject* TestObject = CreateObject(0, 0);
 	UE_NET_ASSERT_NE(TestObject, nullptr);
@@ -187,7 +187,7 @@ UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, PrioritizerAddObjectFailsAndRemo
 	}
 }
 
-UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, SwitchingPrioritizersCallsRemoveObjectOnPreviousPrioritizer)
+UE_NET_TEST_FIXTURE(FTestNetObjectPrioritizerAPIFixture, SwitchingPrioritizersCallsRemoveObjectOnPreviousPrioritizer)
 {
 	UTestReplicatedIrisObject* TestObject = CreateObject(0, 0);
 	UE_NET_ASSERT_NE(TestObject, nullptr);
@@ -232,7 +232,7 @@ UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, SwitchingPrioritizersCallsRemove
 	}
 }
 
-UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, PrioritizeIsNotCalledWhenNoObjectsAreAddedToIt)
+UE_NET_TEST_FIXTURE(FTestNetObjectPrioritizerAPIFixture, PrioritizeIsNotCalledWhenNoObjectsAreAddedToIt)
 {
 	UTestReplicatedIrisObject* TestObject = CreateObject(0, 0);
 	UE_NET_ASSERT_NE(TestObject, nullptr);
@@ -253,7 +253,7 @@ UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, PrioritizeIsNotCalledWhenNoObjec
 	}
 }
 
-UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, PrioritizeIsNotCalledWhenThereAreNoConnections)
+UE_NET_TEST_FIXTURE(FTestNetObjectPrioritizerAPIFixture, PrioritizeIsNotCalledWhenThereAreNoConnections)
 {
 	UTestReplicatedIrisObject* TestObject = CreateObject(0, 0);
 	UE_NET_ASSERT_NE(TestObject, nullptr);
@@ -281,7 +281,7 @@ UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, PrioritizeIsNotCalledWhenThereAr
 	}
 }
 
-UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, PrioritizeIsCalledWhenThereAreConnections)
+UE_NET_TEST_FIXTURE(FTestNetObjectPrioritizerAPIFixture, PrioritizeIsCalledWhenThereAreConnections)
 {
 	// Setup a couple of connections with valid views
 	{
@@ -331,7 +331,7 @@ UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, PrioritizeIsCalledWhenThereAreCo
 	}
 }
 
-UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, UpdateObjectsIsCalledForDirtyObject)
+UE_NET_TEST_FIXTURE(FTestNetObjectPrioritizerAPIFixture, UpdateObjectsIsCalledForDirtyObject)
 {
 	UTestReplicatedIrisObject* TestObject1 = CreateObject(0, 0);
 	UE_NET_ASSERT_NE(TestObject1, nullptr);
@@ -369,7 +369,7 @@ UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, UpdateObjectsIsCalledForDirtyObj
 	}
 }
 
-UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, UpdateObjectsIsNotCalledWhenNoObjectIsDirty)
+UE_NET_TEST_FIXTURE(FTestNetObjectPrioritizerAPIFixture, UpdateObjectsIsNotCalledWhenNoObjectIsDirty)
 {
 	UTestReplicatedIrisObject* TestObject1 = CreateObject(0, 0);
 	UE_NET_ASSERT_NE(TestObject1, nullptr);
@@ -404,7 +404,7 @@ UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, UpdateObjectsIsNotCalledWhenNoOb
 	}
 }
 
-UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, NativeIrisObjectGetsPriorityFromStart)
+UE_NET_TEST_FIXTURE(FTestNetObjectPrioritizerAPIFixture, NativeIrisObjectGetsPriorityFromStart)
 {
 	UTestPrioritizationNativeIrisObject* Object = CreateObject<UTestPrioritizationNativeIrisObject>();
 
@@ -428,7 +428,7 @@ UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, NativeIrisObjectGetsPriorityFrom
 	UE_NET_ASSERT_EQ(Priority, ObjectPriority);
 }
 
-UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, NativeIrisObjectGetsUpdatedPriority)
+UE_NET_TEST_FIXTURE(FTestNetObjectPrioritizerAPIFixture, NativeIrisObjectGetsUpdatedPriority)
 {
 	UTestPrioritizationNativeIrisObject* Object = CreateObject<UTestPrioritizationNativeIrisObject>();
 
@@ -455,7 +455,7 @@ UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, NativeIrisObjectGetsUpdatedPrior
 	UE_NET_ASSERT_EQ(Priority, UpdatedPriority);
 }
 
-UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, ObjectGetsPriorityFromStart)
+UE_NET_TEST_FIXTURE(FTestNetObjectPrioritizerAPIFixture, ObjectGetsPriorityFromStart)
 {
 	UTestPrioritizationObject* Object = CreateObject<UTestPrioritizationObject>();
 
@@ -479,7 +479,7 @@ UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, ObjectGetsPriorityFromStart)
 	UE_NET_ASSERT_EQ(Priority, ObjectPriority);
 }
 
-UE_NET_TEST_FIXTURE(FTestNetPrioritizerFixture, ObjectGetsUpdatedPriority)
+UE_NET_TEST_FIXTURE(FTestNetObjectPrioritizerAPIFixture, ObjectGetsUpdatedPriority)
 {
 	UTestPrioritizationObject* Object = CreateObject<UTestPrioritizationObject>();
 

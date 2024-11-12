@@ -201,11 +201,12 @@ bool UPCGMetadataMakeVectorSettings::DoesInputSupportDefaultValue(uint32 Index) 
 	return true;
 }
 
-UPCGParamData* UPCGMetadataMakeVectorSettings::CreateDefaultValueParam(uint32 Index) const
+UPCGParamData* UPCGMetadataMakeVectorSettings::CreateDefaultValueParam(FPCGContext* Context, uint32 Index) const
 {
 	// Use labels since the logic is already done there.
 	FName Label = GetInputPinLabel(Index);
-	UPCGParamData* NewParamData = NewObject<UPCGParamData>();
+
+	UPCGParamData* NewParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 
 	if (Label == PCGMetadataMakeVectorConstants::XYZLabel)
 	{
@@ -257,17 +258,17 @@ bool FPCGMetadataMakeVectorElement::DoOperation(PCGMetadataOps::FOperationData& 
 
 	if (Settings->OutputType == EPCGMetadataTypes::Vector2)
 	{
-		DoBinaryOp<double, double>(OperationData, PCGMetadataMakeVectorSettings::MakeVector2);
+		return DoBinaryOp<double, double>(OperationData, PCGMetadataMakeVectorSettings::MakeVector2);
 	}
 	else if (Settings->OutputType == EPCGMetadataTypes::Vector)
 	{
 		if (Settings->MakeVector3Op == EPCGMetadataMakeVector3::ThreeValues)
 		{
-			DoTernaryOp<double, double, double>(OperationData, PCGMetadataMakeVectorSettings::MakeVector3);
+			return DoTernaryOp<double, double, double>(OperationData, PCGMetadataMakeVectorSettings::MakeVector3);
 		}
 		else
 		{
-			DoBinaryOp<FVector2D, double>(OperationData, PCGMetadataMakeVectorSettings::MakeVector3Vec2);
+			return DoBinaryOp<FVector2D, double>(OperationData, PCGMetadataMakeVectorSettings::MakeVector3Vec2);
 		}
 	}
 	else
@@ -275,21 +276,16 @@ bool FPCGMetadataMakeVectorElement::DoOperation(PCGMetadataOps::FOperationData& 
 		switch (Settings->MakeVector4Op)
 		{
 		case EPCGMetadataMakeVector4::FourValues:
-			DoQuaternaryOp<double, double, double, double>(OperationData, PCGMetadataMakeVectorSettings::MakeVector4);
-			break;
+			return DoQuaternaryOp<double, double, double, double>(OperationData, PCGMetadataMakeVectorSettings::MakeVector4);
 		case EPCGMetadataMakeVector4::TwoVector2:
-			DoBinaryOp<FVector2D, FVector2D>(OperationData, PCGMetadataMakeVectorSettings::MakeVector4TwoVec2);
-			break;
+			return DoBinaryOp<FVector2D, FVector2D>(OperationData, PCGMetadataMakeVectorSettings::MakeVector4TwoVec2);
 		case EPCGMetadataMakeVector4::Vector2AndTwoValues:
-			DoTernaryOp<FVector2D, double, double>(OperationData, PCGMetadataMakeVectorSettings::MakeVector4Vec2);
-			break;
+			return DoTernaryOp<FVector2D, double, double>(OperationData, PCGMetadataMakeVectorSettings::MakeVector4Vec2);
 		case EPCGMetadataMakeVector4::Vector3AndValue:
-			DoBinaryOp<FVector, double>(OperationData, PCGMetadataMakeVectorSettings::MakeVector4Vec3);
-			break;
+			return DoBinaryOp<FVector, double>(OperationData, PCGMetadataMakeVectorSettings::MakeVector4Vec3);
 		default:
-			break;
+			ensure(false);
+			return true;
 		}
 	}
-
-	return true;
 }

@@ -163,6 +163,18 @@ public:
 	/** Convert an absolute import path so that it's relative to either this object's package, BaseDir() or leave it absolute */
 	static ENGINE_API FString SanitizeImportFilename(const FString& InPath, const UPackage* Outermost);
 	static ENGINE_API FString SanitizeImportFilename(const FString& InPath, const FString& PackagePath);
+#if WITH_EDITOR
+	/**
+	 * This function is call when we duplicate asset import data and assign the new copy to a new asset type.
+	 * 
+	 * @note - A use case is when we convert static mesh to skeletal mesh, Interchange need to change the pipeline context
+	 * for the new asset type so we show the correct properties in the re-import dialog.
+	 */
+	ENGINE_API virtual bool ConvertAssetImportDataToNewOwner(UObject* Owner)
+	{
+		return false;
+	}
+#endif
 
 	ENGINE_API virtual void PostLoad() override;
 

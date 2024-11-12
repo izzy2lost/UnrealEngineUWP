@@ -6,7 +6,7 @@
 #include "Framework/Docking/TabManager.h"
 
 namespace TraceServices { class IAnalysisSession; }
-namespace Insights { class ITimingViewSession; }
+namespace UE::Insights::Timing { class ITimingViewSession; }
 class FObjectEventsTrack;
 class FObjectPropertiesTrack;
 class FSkeletalMeshPoseTrack;
@@ -19,13 +19,13 @@ class FGameplaySharedData
 public:
 	FGameplaySharedData();
 
-	void OnBeginSession(Insights::ITimingViewSession& InTimingViewSession);
-	void OnEndSession(Insights::ITimingViewSession& InTimingViewSession);
-	void Tick(Insights::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession);
+	void OnBeginSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession);
+	void OnEndSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession);
+	void Tick(UE::Insights::Timing::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession);
 	void ExtendFilterMenu(FMenuBuilder& InMenuBuilder);
 
 	// Helper function. Builds object track hierarchy on-demand and returns a track for the supplied object info.
-	TSharedRef<FObjectEventsTrack> GetObjectEventsTrackForId(Insights::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession, const FObjectInfo& InObjectInfo);
+	TSharedRef<FObjectEventsTrack> GetObjectEventsTrackForId(UE::Insights::Timing::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession, const FObjectInfo& InObjectInfo);
 
 	// Helper function to make tracks visible when children are first added
 	void MakeTrackAndAncestorsVisible(const TSharedRef<FObjectEventsTrack>& InObjectEventsTrack, bool bInVisible);
@@ -40,7 +40,7 @@ public:
 	const TraceServices::IAnalysisSession& GetAnalysisSession() const { return *AnalysisSession; }
 
 	// Get the timing view session
-	Insights::ITimingViewSession& GetTimingViewSession() { return *TimingViewSession; }
+	UE::Insights::Timing::ITimingViewSession& GetTimingViewSession() { return *TimingViewSession; }
 
 	// Check the validity of the analysis session
 	bool IsAnalysisSessionValid() const { return AnalysisSession != nullptr; }
@@ -97,7 +97,7 @@ private:
 	const TraceServices::IAnalysisSession* AnalysisSession;
 
 	// Cached timing view session, set in OnBeginSession/OnEndSession
-	Insights::ITimingViewSession* TimingViewSession;
+	UE::Insights::Timing::ITimingViewSession* TimingViewSession;
 
 	// Delegate fired when tracks change
 	FSimpleMulticastDelegate OnTracksChangedDelegate;

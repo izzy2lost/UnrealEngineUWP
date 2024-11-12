@@ -206,6 +206,10 @@ class Cherrypick(flow.cmd.Cmd):
         P4.change(i=True).run(input_data=cl_spec)
         dest_cl = P4.changes(c=info.clientName, m=1, s="pending").change
 
+        server_version = 0.0
+        if m := re.match(r".*\/(20\d+\.\d+)\/.*", info.serverVersion):
+            server_version = float(m.groups()[0])
+
         # Integrate or unshelve each input changelist
         specs = {}
         self.print_info("Cherrypicking into", dest_cl)
@@ -239,6 +243,11 @@ class Cherrypick(flow.cmd.Cmd):
                 "v" : self.args.virtual,
                 "c" : dest_cl,
             }
+
+            # 2024.1 no longer allows branch spec merges by default so we must also pass -F
+            if server_version >= 2024.1:
+                p4_args["F"] = True
+
             if desc.status == "pending":
                 p4_args["-bypass-exclusive-lock"] = True
                 print(f"Unshelving {cl} from", src_root, end="")
@@ -337,9 +346,9 @@ class Cherrypick(flow.cmd.Cmd):
                 stream_info = P4.stream(stream, o=True).run()
                 parent = stream_info.Parent
                 while parent.startswith("//"):
-                    stream_info = P4.stream(parent, o=True).run()
                     if stream_info.Type != "virtual":
                         break
+                    stream_info = P4.stream(parent, o=True).run()
                     parent = stream_info.Parent
                 return parent
 

@@ -304,7 +304,7 @@ void FVirtualTextureUploadCache::Finalize(FRDGBuilder& GraphBuilder)
 			}
 
 			FRHITextureCreateDesc Desc =
-				FRHITextureCreateDesc::Create2D(TEXT("FVirtualTextureUploadCache_StagingTexture"), TileSize * WidthInTiles, TileSize * HeightInTiles, PoolEntry.Format);
+				FRHITextureCreateDesc::Create2D(TEXT("VirtualTexture_UploadCacheStagingTexture"), TileSize * WidthInTiles, TileSize * HeightInTiles, PoolEntry.Format);
 
 			if (bIsCpuWritable)
 			{
@@ -361,7 +361,7 @@ void FVirtualTextureUploadCache::Finalize(FRDGBuilder& GraphBuilder)
 
 			if (!UpdatedTextures.Contains(Entry.RHISubmitTexture))
 			{
-				RHICmdList.Transition(FRHITransitionInfo(Entry.RHISubmitTexture, ERHIAccess::Unknown, ERHIAccess::CopyDest));
+				RHICmdList.Transition(FRHITransitionInfo(Entry.RHISubmitTexture, ERHIAccess::Unknown, ERHIAccess::CopyDest), ERHITransitionCreateFlags::NoFence);
 				UpdatedTextures.Add(Entry.RHISubmitTexture);
 			}
 
@@ -384,14 +384,13 @@ void FVirtualTextureUploadCache::Finalize(FRDGBuilder& GraphBuilder)
 	{
 		SRVTransitions.Add(FRHITransitionInfo(UpdatedTextures[Index], ERHIAccess::CopyDest, ERHIAccess::SRVMask));
 	}
-	RHICmdList.Transition(SRVTransitions);
+	RHICmdList.Transition(SRVTransitions, ERHIPipeline::Graphics, ERHIPipeline::All);
 	UpdatedTextures.Reset();
 }
 
 void FVirtualTextureUploadCache::ReleaseRHI()
 {
-	check(IsInRenderingThread());
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
 	// Complete/Cancel all work will release allocated staging buffers.
 	UpdateFreeList(RHICmdList, true);
@@ -421,7 +420,7 @@ FVTUploadTileHandle FVirtualTextureUploadCache::PrepareTileForUpload(FRHICommand
 	return FVTUploadTileHandle(Index);
 }
 
-void FVirtualTextureUploadCache::SubmitTile(FRHICommandList& RHICmdList, const FVTUploadTileHandle& InHandle, FRHITexture2D* InDestTexture, int InDestX, int InDestY, int InSkipBorderSize)
+void FVirtualTextureUploadCache::SubmitTile(FRHICommandList& RHICmdList, const FVTUploadTileHandle& InHandle, FRHITexture* InDestTexture, int InDestX, int InDestY, int InSkipBorderSize)
 {
 	checkSlow(IsInParallelRenderingThread());
 
@@ -437,7 +436,7 @@ void FVirtualTextureUploadCache::SubmitTile(FRHICommandList& RHICmdList, const F
 	{
 		if (!UpdatedTextures.Contains(InDestTexture))
 		{
-			RHICmdList.Transition(FRHITransitionInfo(InDestTexture, ERHIAccess::Unknown, ERHIAccess::CopyDest));
+			RHICmdList.Transition(FRHITransitionInfo(InDestTexture, ERHIAccess::Unknown, ERHIAccess::CopyDest), ERHITransitionCreateFlags::NoFence);
 			UpdatedTextures.Add(InDestTexture);
 		}
 
@@ -453,7 +452,7 @@ void FVirtualTextureUploadCache::SubmitTile(FRHICommandList& RHICmdList, const F
 	{
 		if (!UpdatedTextures.Contains(InDestTexture))
 		{
-			RHICmdList.Transition(FRHITransitionInfo(InDestTexture, ERHIAccess::Unknown, ERHIAccess::CopyDest));
+			RHICmdList.Transition(FRHITransitionInfo(InDestTexture, ERHIAccess::Unknown, ERHIAccess::CopyDest), ERHITransitionCreateFlags::NoFence);
 			UpdatedTextures.Add(InDestTexture);
 		}
 

@@ -49,7 +49,8 @@ public:
 
 	void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override
 	{
-		IDetailCategoryBuilder& TakeSync = DetailLayout.EditCategory("Multi-user");
+		IDetailCategoryBuilder& TakeSync = DetailLayout.EditCategory("MultiUserSynchronization");
+		TakeSync.SetDisplayName(LOCTEXT("MultiUserSynchronization", "Multi-User Synchronization"));
 
 		TSharedPtr<IPropertyHandle> SyncTakeRecordingProperty = DetailLayout.GetProperty(
 			GET_MEMBER_NAME_CHECKED(UConcertCVarSynchronization, bSyncCVarTransactions));

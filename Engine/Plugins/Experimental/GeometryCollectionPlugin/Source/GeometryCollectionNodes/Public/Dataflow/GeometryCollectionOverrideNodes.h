@@ -8,6 +8,12 @@
 
 #include "GeometryCollectionOverrideNodes.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dataflow instead.") Dataflow {}
+#endif
+
 /**
  *
  * 
@@ -26,14 +32,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float FloatDefault = 0.f;
 
-	FGetFloatOverrideFromAssetDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetFloatOverrideFromAssetDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowOverrideNode(InParam, InGuid)
 	{
 		RegisterOutputConnection(&Float);
 		RegisterOutputConnection(&FloatDefault);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -54,14 +60,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 IntDefault = 0;
 
-	FGetIntOverrideFromAssetDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetIntOverrideFromAssetDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowOverrideNode(InParam, InGuid)
 	{
 		RegisterOutputConnection(&Int);
 		RegisterOutputConnection(&IntDefault);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -82,14 +88,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	bool BoolDefault = false;
 
-	FGetBoolOverrideFromAssetDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetBoolOverrideFromAssetDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowOverrideNode(InParam, InGuid)
 	{
 		RegisterOutputConnection(&Bool);
 		RegisterOutputConnection(&BoolDefault);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -110,17 +116,17 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	FString StringDefault;
 
-	FGetStringOverrideFromAssetDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetStringOverrideFromAssetDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowOverrideNode(InParam, InGuid)
 	{
 		RegisterOutputConnection(&String);
 		RegisterOutputConnection(&StringDefault);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void GeometryCollectionOverrideNodes();
 }

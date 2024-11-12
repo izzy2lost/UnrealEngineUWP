@@ -50,4 +50,6 @@ protected:
 	ENGINE_API virtual bool PerformRemoveActor(AActor* Actor) const override;
 	//~ End UDataLayerInstanceWithAsset Interface
 #endif
+
+	friend class FExternalDataLayerHelper;
 };

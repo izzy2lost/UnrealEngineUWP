@@ -21,6 +21,7 @@
 #include "LandscapeSubsystem.h"
 #include "LandscapeSettings.h"
 #include "LandscapeTiledImage.h"
+#include "LandscapeEditLayer.h"
 
 #include "EditorSupportDelegates.h"
 #include "ScopedTransaction.h"
@@ -74,7 +75,7 @@ void FLandscapeTool::SetEditRenderType()
 	GLandscapeEditRenderMode = ELandscapeEditRenderMode::SelectRegion | (GLandscapeEditRenderMode & ELandscapeEditRenderMode::BitMaskForMask);
 }
 
-namespace LandscapeTool
+namespace UE::Landscape::Editor::Tool
 {
 	UMaterialInstance* CreateMaterialInstance(UMaterialInterface* BaseMaterial)
 	{
@@ -87,12 +88,22 @@ namespace LandscapeTool
 		MaterialInstance->PostEditChange();
 		return MaterialInstance;
 	}
+}
+// namespace UE::Landscape::Editor::Tool
 
+namespace UE::Landscape::Editor::Private
+{
 	/** Indicates the user is currently moving the landscape gizmo object by dragging the mouse. */
 	bool GIsGizmoDragging = false;
 	/** Indicates the user is currently changing the landscape brush radius/falloff by dragging the mouse. */
 	bool GIsAdjustingBrush = false;
+
+	static FAutoConsoleVariable CVarVisualLogShowBrushPhysics(
+		TEXT("landscape.VisualLog.ShowBrushPhysics"),
+		false,
+		TEXT("When visual log is active, allows to leave a visual log of the physics queries made for the purpose of the landscape brush"));
 }
+// namespace UE::Landscape::Editor::Private
 
 //
 // FEdModeLandscape
@@ -118,17 +129,19 @@ FEdModeLandscape::FEdModeLandscape()
 	, ToolActiveViewport(nullptr)
 	, bIsPaintingInVR(false)
 	, InteractorPainting(nullptr)
-	, bNeedsUpdateShownLayerList(false)
+	, bNeedsUpdateLayerUsageInformation(false)
 	, bUpdatingLandscapeInfo(false)
 {
-	GLayerDebugColorMaterial = LandscapeTool::CreateMaterialInstance(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorLandscapeResources/LayerVisMaterial.LayerVisMaterial")));
-	GSelectionColorMaterial  = LandscapeTool::CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/SelectBrushMaterial_Selected.SelectBrushMaterial_Selected")));
-	GSelectionRegionMaterial = LandscapeTool::CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/SelectBrushMaterial_SelectedRegion.SelectBrushMaterial_SelectedRegion")));
-	GMaskRegionMaterial      = LandscapeTool::CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/MaskBrushMaterial_MaskedRegion.MaskBrushMaterial_MaskedRegion")));
-	GColorMaskRegionMaterial = LandscapeTool::CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/ColorMaskBrushMaterial_MaskedRegion.ColorMaskBrushMaterial_MaskedRegion")));
-	GLandscapeDirtyMaterial		 = LandscapeTool::CreateMaterialInstance(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorLandscapeResources/LandscapeDirtyMaterial.LandscapeDirtyMaterial")));
-	GLandscapeBlackTexture   = LoadObject<UTexture2D>(nullptr, TEXT("/Engine/EngineResources/Black.Black"));
-	GLandscapeLayerUsageMaterial = LandscapeTool::CreateMaterialInstance(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorLandscapeResources/LandscapeLayerUsageMaterial.LandscapeLayerUsageMaterial")));
+	using namespace UE::Landscape::Editor::Tool;
+
+	GLayerDebugColorMaterial = CreateMaterialInstance(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorLandscapeResources/LayerVisMaterial.LayerVisMaterial")));
+	GSelectionColorMaterial = CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/SelectBrushMaterial_Selected.SelectBrushMaterial_Selected")));
+	GSelectionRegionMaterial = CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/SelectBrushMaterial_SelectedRegion.SelectBrushMaterial_SelectedRegion")));
+	GMaskRegionMaterial = CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/MaskBrushMaterial_MaskedRegion.MaskBrushMaterial_MaskedRegion")));
+	GColorMaskRegionMaterial = CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/ColorMaskBrushMaterial_MaskedRegion.ColorMaskBrushMaterial_MaskedRegion")));
+	GLandscapeDirtyMaterial = CreateMaterialInstance(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorLandscapeResources/LandscapeDirtyMaterial.LandscapeDirtyMaterial")));
+	GLandscapeBlackTexture = LoadObject<UTexture2D>(nullptr, TEXT("/Engine/EngineResources/Black.Black"));
+	GLandscapeLayerUsageMaterial = CreateMaterialInstance(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorLandscapeResources/LandscapeLayerUsageMaterial.LandscapeLayerUsageMaterial")));
 	
 	// Initialize modes
 	UpdateToolModes();
@@ -291,6 +304,7 @@ void FEdModeLandscape::UpdateToolModes()
 	ToolMode_Paint->ValidTools.Add(TEXT("Flatten"));
 	ToolMode_Paint->ValidTools.Add(TEXT("Noise"));
 	ToolMode_Paint->ValidTools.Add(TEXT("Visibility"));
+	ToolMode_Paint->ValidTools.Add(TEXT("Mask"));
 
 	if (CanHaveLandscapeLayersContent())
 	{
@@ -329,9 +343,9 @@ void FEdModeLandscape::OnCanHaveLayersContentChanged()
 
 void FEdModeLandscape::PostUpdateLayerContent()
 {
-	if (bNeedsUpdateShownLayerList)
+	if (bNeedsUpdateLayerUsageInformation)
 	{
-		UpdateShownLayerList();
+		UpdateLayerUsageInformation();
 	}
 }
 
@@ -431,6 +445,8 @@ int32 FEdModeLandscape::GetNewLandscapeResolutionY() const
 /** FEdMode: Called when the mode is entered */
 void FEdModeLandscape::Enter()
 {
+	using namespace UE::Landscape::Editor::Private;
+
 	ErrorReasonOnMouseUp = FText::GetEmpty();
 
 	// Call parent implementation
@@ -505,10 +521,7 @@ void FEdModeLandscape::Enter()
 			Landscape->OnBlueprintBrushChangedDelegate().AddRaw(this, &FEdModeLandscape::RefreshDetailPanel);
 			if (Landscape->HasLayersContent())
 			{
-				if (Landscape->GetLandscapeSplinesReservedLayer())
-				{
-					Landscape->RequestSplineLayerUpdate();
-				}
+				Landscape->RequestSplineLayerUpdate();
 				Landscape->RequestLayersContentUpdateForceAll();
 			}
 		}
@@ -599,7 +612,6 @@ void FEdModeLandscape::Enter()
 
 	// It is cleared on exit so update here even if LandscapeInfo hasn't changed
 	UpdateTargetList();
-	UpdateShownLayerList();
 
 	FName ToolkitPalette = NAME_None;
 
@@ -645,16 +657,18 @@ void FEdModeLandscape::Enter()
 	}
 
 	// Reset mouse tracking info : 
-	LandscapeTool::GIsGizmoDragging = false;
-	LandscapeTool::GIsAdjustingBrush  = false;
+	GIsGizmoDragging = false;
+	GIsAdjustingBrush  = false;
 }
 
 /** FEdMode: Called when the mode is exited */
 void FEdModeLandscape::Exit()
 {
+	using namespace UE::Landscape::Editor::Private;
+
 	// Reset mouse tracking info : 
-	LandscapeTool::GIsGizmoDragging = false;
-	LandscapeTool::GIsAdjustingBrush  = false;
+	GIsGizmoDragging = false;
+	GIsAdjustingBrush  = false;
 
 	if (UWorld* World = GetWorld())
 	{
@@ -857,6 +871,39 @@ void FEdModeLandscape::Tick(FEditorViewportClient* ViewportClient, float DeltaTi
 	}
 }
 
+/** FEdMode: Called when the mouse enters the viewport area */
+bool FEdModeLandscape::MouseEnter(FEditorViewportClient* InViewportClient, FViewport* InViewport, int32 MouseX, int32 MouseY)
+{
+	if (!IsEditingEnabled())
+	{
+		return false;
+	}
+
+	bool bHandled = false;
+	if (CurrentTool)
+	{
+		bHandled = CurrentTool->MouseEnter(InViewportClient, InViewport, MouseX, MouseY);
+	}
+
+	return bHandled;
+}
+
+/** FEdMode: Called when the mouse exits the viewport area */
+bool FEdModeLandscape::MouseLeave(FEditorViewportClient * InViewportClient, FViewport * InViewport)
+{
+	if (!IsEditingEnabled())
+	{
+		return false;
+	}
+
+	bool bHandled = false;
+	if (CurrentTool)
+	{
+		bHandled = CurrentTool->MouseLeave(InViewportClient, InViewport);
+	}
+
+	return bHandled;
+}
 
 /** FEdMode: Called when the mouse is moved over the viewport */
 bool FEdModeLandscape::MouseMove(FEditorViewportClient* InViewportClient, FViewport* InViewport, int32 MouseX, int32 MouseY)
@@ -1043,14 +1090,16 @@ bool FEdModeLandscape::CapturedMouseMove(FEditorViewportClient* ViewportClient, 
 /** FEdMode: Called when a mouse button is pressed */
 bool FEdModeLandscape::StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
 {
+	using namespace UE::Landscape::Editor::Private;
+
 	if (CurrentGizmoActor.IsValid() && CurrentGizmoActor->IsSelected() && GLandscapeEditRenderMode & ELandscapeEditRenderMode::Gizmo)
 	{
-		LandscapeTool::GIsGizmoDragging = true;
+		GIsGizmoDragging = true;
 		return true;
 	}
 	else if (IsAdjustingBrush(InViewportClient))
 	{ 
-		LandscapeTool::GIsAdjustingBrush = true;
+		GIsAdjustingBrush = true;
 		// We're adjusting the brush via mouse tracking, return true in order to prevent the viewport client from doing any mouse dragging operation while we're doing it
 		return true;
 	}
@@ -1062,14 +1111,16 @@ bool FEdModeLandscape::StartTracking(FEditorViewportClient* InViewportClient, FV
 /** FEdMode: Called when the a mouse button is released */
 bool FEdModeLandscape::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
 {
-	if (LandscapeTool::GIsGizmoDragging)
+	using namespace UE::Landscape::Editor::Private;
+
+	if (GIsGizmoDragging)
 	{
-		LandscapeTool::GIsGizmoDragging = false;
+		GIsGizmoDragging = false;
 		return true;
 	}
-	if (LandscapeTool::GIsAdjustingBrush)
+	if (GIsAdjustingBrush)
 	{
-		LandscapeTool::GIsAdjustingBrush = false;
+		GIsAdjustingBrush = false;
 		return true;
 	}
 	return false;
@@ -1157,6 +1208,8 @@ bool FEdModeLandscape::ProcessLandscapeTraceHits(const TArray<FHitResult>& InRes
 
 bool FEdModeLandscape::LandscapeTrace(const FVector& InRayOrigin, const FVector& InRayEnd, const FVector& InDirection, FVector& OutHitLocation)
 {
+	using namespace UE::Landscape::Editor::Private;
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(FEdModeLandscape_LandscapeTrace);
 	if (!CurrentTool || !CurrentToolTarget.LandscapeInfo.IsValid())
 	{
@@ -1189,14 +1242,14 @@ bool FEdModeLandscape::LandscapeTrace(const FVector& InRayOrigin, const FVector&
 			{
 				OutHitLocation = ProcessResult.LandscapeProxy->LandscapeActorToWorld().InverseTransformPosition(ProcessResult.HitLocation);
 			
-				UE_VLOG_SEGMENT_THICK(World, LogLandscapeEdMode, VeryVerbose, InRayOrigin, InRayEnd, FColor(100,255,100), 4, TEXT("landscape:ray-hit"));
-				UE_VLOG_LOCATION(World, LogLandscapeEdMode, VeryVerbose,  ProcessResult.LandscapeProxy->LandscapeActorToWorld().TransformPosition(OutHitLocation), 20.0,  FColor(100,100,255), TEXT("landscape:point-hit"));
+				UE_CVLOG_SEGMENT_THICK(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose, InRayOrigin, InRayEnd, FColor(100,255,100), 4, TEXT("landscape:ray-hit"));
+				UE_CVLOG_LOCATION(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose,  ProcessResult.LandscapeProxy->LandscapeActorToWorld().TransformPosition(OutHitLocation), 20.0,  FColor(100,100,255), TEXT("landscape:point-hit"));
 				return true;
 			}
 		}
 	}
 
-	UE_VLOG_SEGMENT_THICK(World, LogLandscapeEdMode, VeryVerbose, InRayOrigin, InRayEnd, FColor(255,100,100), 2, TEXT("landscape:ray-miss"));
+	UE_CVLOG_SEGMENT_THICK(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose, InRayOrigin, InRayEnd, FColor(255,100,100), 2, TEXT("landscape:ray-miss"));
 		
 	if (CurrentTool->UseSphereTrace())
 	{
@@ -1231,8 +1284,8 @@ bool FEdModeLandscape::LandscapeTrace(const FVector& InRayOrigin, const FVector&
 			{
 				if (FProcessLandscapeTraceHitsResult ProcessResult; ProcessLandscapeTraceHits(Results, ProcessResult))
 				{
-					UE_VLOG_SEGMENT_THICK(World, LogLandscapeEdMode, VeryVerbose, AdjustedRayStart, AdjustedRayEnd, FColor(100, 255, 100), 4, TEXT("landscape:ray-hit"));
-					UE_VLOG_LOCATION(World, LogLandscapeEdMode, VeryVerbose, ProcessResult.HitLocation, 20.0, FColor(100, 100, 255), TEXT("landscape:point-hit"));
+					UE_CVLOG_SEGMENT_THICK(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose, AdjustedRayStart, AdjustedRayEnd, FColor(100, 255, 100), 4, TEXT("landscape:ray-hit"));
+					UE_CVLOG_LOCATION(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose, ProcessResult.HitLocation, 20.0, FColor(100, 100, 255), TEXT("landscape:point-hit"));
 
 					HitDistance = (ProcessResult.HitLocation - Start).Length();
 					return ProcessResult;
@@ -1240,7 +1293,7 @@ bool FEdModeLandscape::LandscapeTrace(const FVector& InRayOrigin, const FVector&
 			}
 			else
 			{
-				UE_VLOG_SEGMENT_THICK(World, LogLandscapeEdMode, VeryVerbose, AdjustedRayStart, AdjustedRayEnd, FColor(255, 100, 100), 2, TEXT("landscape:ray-miss"));
+				UE_CVLOG_SEGMENT_THICK(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose, AdjustedRayStart, AdjustedRayEnd, FColor(255, 100, 100), 2, TEXT("landscape:ray-miss"));
 			}
 			return TOptional<FProcessLandscapeTraceHitsResult>();
 		};
@@ -1292,7 +1345,7 @@ bool FEdModeLandscape::LandscapeTrace(const FVector& InRayOrigin, const FVector&
 			MeanHeight /= (float)Count;
 			PointOnPlane.Z = MeanHeight;
 
-			UE_VLOG_LOCATION(World, LogLandscapeEdMode, VeryVerbose, PointOnPlane, 10.0, FColor(100, 100, 255), TEXT("landscape:point-on-plane"));
+			UE_CVLOG_LOCATION(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose, PointOnPlane, 10.0, FColor(100, 100, 255), TEXT("landscape:point-on-plane"));
 
 			if (FMath::Abs(FVector::DotProduct(InDirection, FVector::ZAxisVector)) < SMALL_NUMBER)
 			{
@@ -1304,7 +1357,7 @@ bool FEdModeLandscape::LandscapeTrace(const FVector& InRayOrigin, const FVector&
 			FVector EstimatedHitLocation = FMath::RayPlaneIntersection(Start, InDirection, Plane);
 			check(!EstimatedHitLocation.ContainsNaN());
 
-			UE_VLOG_LOCATION(World, LogLandscapeEdMode, VeryVerbose, EstimatedHitLocation, 10.0, FColor(100, 100, 255), TEXT("landscape:estimated-hit-location"));
+			UE_CVLOG_LOCATION(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose, EstimatedHitLocation, 10.0, FColor(100, 100, 255), TEXT("landscape:estimated-hit-location"));
 
 			OutHitLocation = BestHitResult->LandscapeProxy->LandscapeActorToWorld().InverseTransformPosition(EstimatedHitLocation);
 			return true;
@@ -1605,11 +1658,11 @@ bool FEdModeLandscape::ProcessEditPaste()
 	bool Result = false;
 
 	
-	FLandscapeLayer* SplinesLayer = nullptr;
+	const FLandscapeLayer* SplinesLayer = nullptr;
 	if (CurrentTool == (FLandscapeTool*)SplinesTool)
 	{
 		ALandscape* Landscape = GetLandscape();
-		SplinesLayer = Landscape ? Landscape->GetLandscapeSplinesReservedLayer() : nullptr;
+		SplinesLayer = Landscape ? Landscape->FindLayerOfType(ULandscapeEditLayerSplines::StaticClass()) : nullptr;
 	}
 	FText Reason;
 	if (!CanEditLayer(&Reason, SplinesLayer))
@@ -2273,16 +2326,6 @@ const TArray<FLandscapeListInfo>& FEdModeLandscape::GetLandscapeList()
 	return LandscapeList;
 }
 
-void FEdModeLandscape::AddLayerInfo(ULandscapeLayerInfoObject* LayerInfo)
-{
-	if (CurrentToolTarget.LandscapeInfo.IsValid() && CurrentToolTarget.LandscapeInfo->GetLayerInfoIndex(LayerInfo) == INDEX_NONE)
-	{
-		ALandscapeProxy* Proxy = CurrentToolTarget.LandscapeInfo->GetLandscapeProxy();
-		CurrentToolTarget.LandscapeInfo->Layers.Add(FLandscapeInfoLayerSettings(LayerInfo, Proxy));
-		UpdateTargetList();
-	}
-}
-
 int32 FEdModeLandscape::UpdateLandscapeList()
 {
 	LandscapeList.Empty();
@@ -2355,7 +2398,7 @@ int32 FEdModeLandscape::UpdateLandscapeList()
 
 			SetCurrentLayer(0);
 
-			UpdateShownLayerList();
+			UpdateLayerUsageInformation();
 						
 			if (!CurrentToolName.IsNone())
 			{
@@ -2431,7 +2474,7 @@ void FEdModeLandscape::SetTargetLandscape(const TWeakObjectPtr<ULandscapeInfo>& 
 		}
 	}
 
-	UpdateShownLayerList();
+	UpdateLayerUsageInformation();
 }
 
 bool FEdModeLandscape::CanEditCurrentTarget(FText* Reason) const
@@ -2545,8 +2588,8 @@ void FEdModeLandscape::UpdateTargetList()
 					}
 
 					// Construct Thumbnail MIC
-					UMaterialInterface* LandscapeMaterial = LayerSettings.Owner ? LayerSettings.Owner->GetLandscapeMaterial() : UMaterial::GetDefaultMaterial(MD_Surface);
-					LayerSettings.ThumbnailMIC = ALandscapeProxy::GetLayerThumbnailMIC(LandscapeMaterial, LayerName, ThumbnailWeightmap, ThumbnailHeightmap, LayerSettings.Owner);
+					UMaterialInterface* LandscapeMaterial = LayerSettings.Owner.IsValid() ? LayerSettings.Owner.Get()->GetLandscapeMaterial() : UMaterial::GetDefaultMaterial(MD_Surface);
+					LayerSettings.ThumbnailMIC = ALandscapeProxy::GetLayerThumbnailMIC(LandscapeMaterial, LayerName, ThumbnailWeightmap, ThumbnailHeightmap, LayerSettings.Owner.Get());
 				}
 
 				// Add the layer
@@ -2567,7 +2610,7 @@ void FEdModeLandscape::UpdateTargetList()
 
 	TargetsListUpdated.Broadcast();
 
-	UpdateShownLayerList();
+	UpdateLayerUsageInformation();
 }
 
 void FEdModeLandscape::UpdateTargetLayerDisplayOrder(ELandscapeLayerDisplayMode InTargetDisplayOrder)
@@ -2687,68 +2730,20 @@ void FEdModeLandscape::OnLandscapeMaterialChangedDelegate()
 	UpdateTargetList();
 }
 
-void FEdModeLandscape::RequestUpdateShownLayerList()
+void FEdModeLandscape::RequestUpdateLayerUsageInformation()
 {
-	bNeedsUpdateShownLayerList = true;
+	bNeedsUpdateLayerUsageInformation = true;
 
 	if (CurrentToolTarget.LandscapeInfo.IsValid() && !CurrentToolTarget.LandscapeInfo->CanHaveLayersContent())
 	{
-		UpdateShownLayerList(); // do it sync when not in lanscape mode.
-	}
-}
-
-void FEdModeLandscape::UpdateShownLayerList()
-{
-	bNeedsUpdateShownLayerList = false;
-
-	if (!CurrentToolTarget.LandscapeInfo.IsValid())
-	{
-		return;
-	}
-
-	// Make sure usage information is up to date
-	UpdateLayerUsageInformation();
-
-	bool DetailPanelRefreshRequired = false;
-
-	ShownTargetLayerList.Empty();
-
-	const TArray<FName>* DisplayOrderList = GetTargetDisplayOrderList();
-
-	if (DisplayOrderList == nullptr)
-	{
-		return;
-	}
-
-	for (const FName& LayerName : *DisplayOrderList)
-	{
-		for (const TSharedRef<FLandscapeTargetListInfo>& TargetInfo : GetTargetList())
-		{
-			if (TargetInfo->LayerName == LayerName)
-			{
-				// Keep a mapping of visible layer name to display order list so we can drag & drop proper items
-				if (ShouldShowLayer(TargetInfo))
-				{
-					ShownTargetLayerList.Add(TargetInfo->LayerName);
-					DetailPanelRefreshRequired = true;
-				}
-
-				break;
-			}
-		}
-	}	
-
-	if (DetailPanelRefreshRequired)
-	{
-		if (Toolkit.IsValid())
-		{
-			StaticCastSharedPtr<FLandscapeToolKit>(Toolkit)->RefreshDetailPanel();
-		}
+		UpdateLayerUsageInformation(); // do it synchronously when not in edit layers mode
 	}
 }
 
 void FEdModeLandscape::UpdateLayerUsageInformation(TWeakObjectPtr<ULandscapeLayerInfoObject>* LayerInfoObjectThatChanged)
 {
+	bNeedsUpdateLayerUsageInformation = false;
+
 	if (!CurrentToolTarget.LandscapeInfo.IsValid())
 	{
 		return;
@@ -2808,17 +2803,47 @@ void FEdModeLandscape::UpdateLayerUsageInformation(TWeakObjectPtr<ULandscapeLaye
 
 bool FEdModeLandscape::ShouldShowLayer(TSharedRef<FLandscapeTargetListInfo> Target) const
 {
-	if (!UISettings->ShowUnusedLayers)
+	if (CurrentToolTarget.TargetType == ELandscapeToolTargetType::Heightmap)
 	{
-		return Target->LayerInfoObj.IsValid() && Target->LayerInfoObj.Get()->IsReferencedFromLoadedData;
+		return (Target->TargetType == ELandscapeToolTargetType::Heightmap);
+	}
+	else if (CurrentToolTarget.TargetType == ELandscapeToolTargetType::Visibility)
+	{
+		return (Target->TargetType == ELandscapeToolTargetType::Visibility);
+	}
+
+	// Weightmap case : 
+	if (Target->TargetType != ELandscapeToolTargetType::Weightmap)
+	{
+		return false;
+	}
+
+	if (!UISettings->ShowUnusedLayers && (!Target->LayerInfoObj.IsValid() || !Target->LayerInfoObj.Get()->IsReferencedFromLoadedData))
+	{
+		return false;
+	}
+
+	// check each string in the filter strings list against our layer name
+	if (!UISettings->TargetLayersFilterString.IsEmpty())
+	{
+		// Build a list of strings that must be matched
+		TArray<FString> FilterStrings;
+
+		FString FilterString = UISettings->TargetLayersFilterString;
+		FilterString.TrimStartAndEndInline();
+		FilterString.ParseIntoArray(FilterStrings, TEXT(" "), true /*bCullEmpty*/);
+
+		const FString LayerName = Target->GetLayerName().ToString();
+		for (const FString& String : FilterStrings)
+		{
+			if (!LayerName.Contains(String))
+			{
+				return false;
+			}
+		}
 	}
 
 	return true;
-}
-
-const TArray<FName>& FEdModeLandscape::GetTargetShownList() const
-{
-	return ShownTargetLayerList;
 }
 
 int32 FEdModeLandscape::GetTargetLayerStartingIndex() const
@@ -2864,8 +2889,7 @@ void FEdModeLandscape::MoveTargetLayerDisplayOrder(int32 IndexToMove, int32 Inde
 	LandscapeProxy->TargetDisplayOrder = ELandscapeLayerDisplayMode::UserSpecific;
 	UISettings->TargetDisplayOrder = ELandscapeLayerDisplayMode::UserSpecific;
 
-	// Everytime we move something from the display order we must rebuild the shown layer list
-	UpdateShownLayerList();
+	RefreshDetailPanel();
 }
 
 FEdModeLandscape::FTargetsListUpdated FEdModeLandscape::TargetsListUpdated;
@@ -2893,6 +2917,7 @@ void FEdModeLandscape::HandleLevelsChanged()
 
 void FEdModeLandscape::OnMaterialCompilationFinished(UMaterialInterface* MaterialInterface)
 {
+	// TODO [jonathan.bard] : we should remove this now that the target layer list is not automatically filled anymore
 	if (CurrentToolTarget.LandscapeInfo.IsValid() &&
 		CurrentToolTarget.LandscapeInfo->GetLandscapeProxy() != nullptr &&
 		CurrentToolTarget.LandscapeInfo->GetLandscapeProxy()->GetLandscapeMaterial() != nullptr &&
@@ -3161,7 +3186,7 @@ void FEdModeLandscape::ReimportData(const FLandscapeTargetListInfo& TargetInfo)
 }
 
 template<class T>
-void ImportDataInternal(ULandscapeInfo* LandscapeInfo, const FString& Filename, FName LayerName, bool bSingleFile, bool bFlipYAxis, const FIntRect& ImportRegionVerts, ELandscapeImportTransformType TransformType, FIntPoint Offset, TFunctionRef<void(int32, int32, int32, int32, const TArray<T>&)> SetDataFunc)
+void ImportDataInternal(ULandscapeInfo* LandscapeInfo, const FString& Filename, bool bSingleFile, bool bFlipYAxis, const FIntRect& ImportRegionVerts, ELandscapeImportTransformType TransformType, FIntPoint Offset, TFunctionRef<void(int32, int32, int32, int32, const TArray<T>&)> SetDataFunc)
 {
 	if (!LandscapeInfo)
 	{
@@ -3169,7 +3194,7 @@ void ImportDataInternal(ULandscapeInfo* LandscapeInfo, const FString& Filename, 
 	}
 
 	FLandscapeTiledImage TiledImage;
-	TiledImage.Load(*Filename);
+	TiledImage.Load<T>(*Filename);
 	FIntPoint ImportResolution = TiledImage.GetResolution();
 
 	bool bResolutionMismatch = false;
@@ -3234,7 +3259,7 @@ void FEdModeLandscape::ImportHeightData(ULandscapeInfo* LandscapeInfo, const FGu
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FEdModeLandscape::ImportHeightData);
 
-	ImportDataInternal<uint16>(LandscapeInfo, Filename, NAME_None, UseSingleFileImport(), bFlipYAxis, ImportRegionVerts, TransformType, Offset, [LandscapeInfo, LayerGuid, PaintRestriction](int32 MinX, int32 MinY, int32 MaxX, int32 MaxY, const TArray<uint16>& Data)
+	ImportDataInternal<uint16>(LandscapeInfo, Filename, UseSingleFileImport(), bFlipYAxis, ImportRegionVerts, TransformType, Offset, [LandscapeInfo, LayerGuid, PaintRestriction](int32 MinX, int32 MinY, int32 MaxX, int32 MaxY, const TArray<uint16>& Data)
 	{
 		ALandscape* Landscape = LandscapeInfo->LandscapeActor.Get();
 		FScopedSetLandscapeEditingLayer Scope(Landscape, LayerGuid, [&] { check(Landscape); Landscape->RequestLayersContentUpdate(ELandscapeLayerUpdateMode::Update_Heightmap_All); });
@@ -3250,7 +3275,7 @@ void FEdModeLandscape::ImportWeightData(ULandscapeInfo* LandscapeInfo, const FGu
 {
 	if (LayerInfo)
 	{
-		ImportDataInternal<uint8>(LandscapeInfo, Filename, LayerInfo->LayerName, UseSingleFileImport(), bFlipYAxis, ImportRegionVerts, TransformType, Offset, [LandscapeInfo, LayerGuid, LayerInfo, PaintRestriction](int32 MinX, int32 MinY, int32 MaxX, int32 MaxY, const TArray<uint8>& Data)
+		ImportDataInternal<uint8>(LandscapeInfo, Filename, UseSingleFileImport(), bFlipYAxis, ImportRegionVerts, TransformType, Offset, [LandscapeInfo, LayerGuid, LayerInfo, PaintRestriction](int32 MinX, int32 MinY, int32 MaxX, int32 MaxY, const TArray<uint8>& Data)
 		{
 			ALandscape* Landscape = LandscapeInfo->LandscapeActor.Get();
 			FScopedSetLandscapeEditingLayer Scope(Landscape, LayerGuid, [&] { check(Landscape); Landscape->RequestLayersContentUpdate(ELandscapeLayerUpdateMode::Update_Weightmap_All); });
@@ -3619,7 +3644,7 @@ ALandscape* FEdModeLandscape::ChangeComponentSetting(int32 NumComponentsX, int32
 				{
 					int32 HeightCount = 0;
 
-					for (const FLandscapeLayer& OldLayer : OldLandscape->LandscapeLayers)
+					for (const FLandscapeLayer& OldLayer : OldLandscape->GetLayers())
 					{
 						FScopedSetLandscapeEditingLayer Scope(OldLandscape, OldLayer.Guid);
 
@@ -3680,9 +3705,6 @@ ALandscape* FEdModeLandscape::ChangeComponentSetting(int32 NumComponentsX, int32
 			NewLandscape->bIncludeGridSizeInNameForLandscapeActors = OldLandscape->bIncludeGridSizeInNameForLandscapeActors;
 			NewLandscape->bUseGeneratedLandscapeSplineMeshesActors = OldLandscape->bUseGeneratedLandscapeSplineMeshesActors;
 
-			const FVector OldScale = OldLandscape->GetActorScale();
-			NewLandscape->SetActorRelativeScale3D(FVector(OldScale.X * LandscapeScaleFactor, OldScale.Y * LandscapeScaleFactor, OldScale.Z));
-
 			// Copy all of the shared property settings over
 			NewLandscape->CopySharedProperties(OldLandscape);
 
@@ -3690,49 +3712,19 @@ ALandscape* FEdModeLandscape::ChangeComponentSetting(int32 NumComponentsX, int32
 			check(NewLandscape->GetPerLODOverrideMaterials().Num() == OldLandscape->GetPerLODOverrideMaterials().Num());
 			check(NewLandscape->RuntimeVirtualTextures.Num() == OldLandscape->RuntimeVirtualTextures.Num());
 			check(NewLandscape->LandscapeMaterial == OldLandscape->LandscapeMaterial);
+			
+			const FVector OldScale = OldLandscape->GetActorScale();
+			NewLandscape->SetActorRelativeScale3D(FVector(OldScale.X * LandscapeScaleFactor, OldScale.Y * LandscapeScaleFactor, OldScale.Z));
 
 			// LandscapeGuid is stomped by CopySharedProperties, but original guid is not -- fix the mismatch or it will complain during Import
  			NewLandscape->SetLandscapeGuid(FGuid(), /* bValidateGuid= */ false);
-			
-			// Copy settings that are not copied by CopySharedProperties
-			NewLandscape->ExportLOD = OldLandscape->ExportLOD;
-			NewLandscape->StaticLightingLOD = OldLandscape->StaticLightingLOD;
-			NewLandscape->StreamingDistanceMultiplier = OldLandscape->StreamingDistanceMultiplier;
-			NewLandscape->StaticLightingResolution = OldLandscape->StaticLightingResolution;
-			NewLandscape->ShadowCacheInvalidationBehavior = OldLandscape->ShadowCacheInvalidationBehavior;
-			NewLandscape->bUseMaterialPositionOffsetInStaticLighting = OldLandscape->bUseMaterialPositionOffsetInStaticLighting;
-			NewLandscape->bUseDynamicMaterialInstance = OldLandscape->bUseDynamicMaterialInstance;
-			NewLandscape->bGenerateOverlapEvents = OldLandscape->bGenerateOverlapEvents;
-			NewLandscape->bBakeMaterialPositionOffsetIntoCollision = OldLandscape->bBakeMaterialPositionOffsetIntoCollision;
-			NewLandscape->bFillCollisionUnderLandscapeForNavmesh = OldLandscape->bFillCollisionUnderLandscapeForNavmesh;
-			NewLandscape->NavigationGeometryGatheringMode = OldLandscape->NavigationGeometryGatheringMode;
-			NewLandscape->bUseLandscapeForCullingInvisibleHLODVertices = OldLandscape->bUseLandscapeForCullingInvisibleHLODVertices;
-			NewLandscape->NonNaniteVirtualShadowMapConstantDepthBias = OldLandscape->NonNaniteVirtualShadowMapConstantDepthBias;
-			NewLandscape->NonNaniteVirtualShadowMapInvalidationHeightErrorThreshold = OldLandscape->NonNaniteVirtualShadowMapInvalidationHeightErrorThreshold;
-			NewLandscape->NonNaniteVirtualShadowMapInvalidationScreenSizeLimit = OldLandscape->NonNaniteVirtualShadowMapInvalidationScreenSizeLimit;
 
-			NewLandscape->BodyInstance.SetCollisionProfileName(OldLandscape->BodyInstance.GetCollisionProfileName());
-			if (NewLandscape->BodyInstance.DoesUseCollisionProfile() == false)
+			TArrayView<const FLandscapeLayer> LandscapeLayers;
+			if (CanHaveLandscapeLayersContent())
 			{
-				NewLandscape->BodyInstance.SetCollisionEnabled(OldLandscape->BodyInstance.GetCollisionEnabled());
-				NewLandscape->BodyInstance.SetObjectType(OldLandscape->BodyInstance.GetObjectType());
-				NewLandscape->BodyInstance.SetResponseToChannels(OldLandscape->BodyInstance.GetResponseToChannels());
-			}
-			NewLandscape->EditorLayerSettings = OldLandscape->EditorLayerSettings;
-			NewLandscape->bUsedForNavigation = OldLandscape->bUsedForNavigation;
-			NewLandscape->MaxPaintedLayersPerComponent = OldLandscape->MaxPaintedLayersPerComponent;
-
-			TArray<FLandscapeLayer>* LandscapeLayers = CanHaveLandscapeLayersContent() ? &OldLandscape->LandscapeLayers : nullptr;
-
+				LandscapeLayers = OldLandscape->GetLayers();
+			} 
 			NewLandscape->Import(FGuid::NewGuid(), NewMinX, NewMinY, NewMaxX, NewMaxY, NumSubsections, SubsectionSizeQuads, HeightDataPerLayers, *OldLandscape->ReimportHeightmapFilePath, ImportMaterialLayerInfosPerLayers, ELandscapeImportAlphamapType::Additive, LandscapeLayers);
-
-			// Find the new layer that corresponds to the splines reserved layer in the original, if any, and setup the new Guid : 
-			if (const FLandscapeLayer* OldSplinesReservedLayer = OldLandscape->GetLandscapeSplinesReservedLayer())
-			{
-				const FLandscapeLayer* NewSplinesReservedLayer = NewLandscape->GetLayer(OldSplinesReservedLayer->Name);
-				check(NewSplinesReservedLayer != nullptr);
-				NewLandscape->LandscapeSplinesTargetLayerGuid = NewSplinesReservedLayer->Guid;
-			}
 
 			ULandscapeInfo* NewLandscapeInfo = NewLandscape->GetLandscapeInfo();
 			check(NewLandscapeInfo);
@@ -3864,6 +3856,7 @@ ALandscape* FEdModeLandscape::ChangeComponentSetting(int32 NumComponentsX, int32
 				}
 			}
 
+			FString OldLandscapeActorLabel = OldLandscape->GetActorLabel();
 			// Delete the old Landscape and all its proxies
 			for (ALandscapeStreamingProxy* Proxy : TActorRange<ALandscapeStreamingProxy>(OldLandscape->GetWorld()))
 			{
@@ -3873,6 +3866,8 @@ ALandscape* FEdModeLandscape::ChangeComponentSetting(int32 NumComponentsX, int32
 				}
 			}
 			OldLandscape->Destroy();
+
+			NewLandscape->SetActorLabel(OldLandscapeActorLabel);
 		}
 	}
 
@@ -3935,8 +3930,10 @@ void FEdModeLandscape::SetCurrentLayer(int32 InLayerIndex)
 
 	if (ALandscape* Landscape = GetLandscape())
 	{
-		const FLandscapeLayer* SplineLayer = Landscape->GetLandscapeSplinesReservedLayer();
-		if (SplineLayer != nullptr && SplineLayer == Landscape->GetLayer(InLayerIndex))
+		const FLandscapeLayer* Layer = Landscape->GetLayerConst(InLayerIndex);
+		if (Landscape->HasLayersContent() 
+			&& ensure(Layer && Layer->EditLayer)
+			&& Layer->EditLayer->IsA<ULandscapeEditLayerSplines>())
 		{
 			SetCurrentToolMode("ToolMode_Manage", false);
 			SetCurrentTool(FName("Splines"));
@@ -3957,15 +3954,15 @@ ALandscape* FEdModeLandscape::GetLandscape() const
 	return CurrentToolTarget.LandscapeInfo.IsValid() ? CurrentToolTarget.LandscapeInfo->LandscapeActor.Get() : nullptr;
 }
 
-FLandscapeLayer* FEdModeLandscape::GetLayer(int32 InLayerIndex) const
+const FLandscapeLayer* FEdModeLandscape::GetLayer(int32 InLayerIndex) const
 {
-	ALandscape* Landscape = GetLandscape();
-	return Landscape ? Landscape->GetLayer(InLayerIndex) : nullptr;
+	const ALandscape* Landscape = GetLandscape();
+	return Landscape ? Landscape->GetLayerConst(InLayerIndex) : nullptr;
 }
 
 FName FEdModeLandscape::GetLayerName(int32 InLayerIndex) const
 {
-	FLandscapeLayer* Layer = GetLayer(InLayerIndex);
+	const FLandscapeLayer* Layer = GetLayer(InLayerIndex);
 	return Layer ? Layer->Name : NAME_None;
 }
 
@@ -4026,6 +4023,21 @@ float FEdModeLandscape::GetLayerAlpha(int32 InLayerIndex) const
 	return 1.0f;
 }
 
+const ULandscapeEditLayerBase* FEdModeLandscape::GetEditLayer(int32 InLayerIndex) const
+{
+	const ALandscape* Landscape = GetLandscape();
+	if (Landscape)
+	{
+		if (const FLandscapeLayer* EditLayer = Landscape->GetLayerConst(InLayerIndex))
+		{
+			check(EditLayer->EditLayer != nullptr);
+			return EditLayer->EditLayer;
+		}
+	}
+	return nullptr;
+}
+
+
 void FEdModeLandscape::SetLayerAlpha(int32 InLayerIndex, float InAlpha)
 {
 	ALandscape* Landscape = GetLandscape();
@@ -4040,7 +4052,7 @@ void FEdModeLandscape::SetLayerAlpha(int32 InLayerIndex, float InAlpha)
 
 bool FEdModeLandscape::IsLayerVisible(int32 InLayerIndex) const
 {
-	FLandscapeLayer* Layer = GetLayer(InLayerIndex);
+	const FLandscapeLayer* Layer = GetLayer(InLayerIndex);
 	return Layer ? Layer->bVisible : false;
 }
 
@@ -4171,7 +4183,7 @@ void FEdModeLandscape::SetCurrentLayerSubstractiveBlendStatus(bool InStatus, con
 	}
 }
 
-FLandscapeLayer* FEdModeLandscape::GetCurrentLayer() const
+const FLandscapeLayer* FEdModeLandscape::GetCurrentLayer() const
 {
 	return GetLayer(GetCurrentLayerIndex());
 }
@@ -4182,7 +4194,7 @@ void FEdModeLandscape::AutoUpdateDirtyLandscapeSplines()
 	{
 		// Only auto-update if a layer is reserved for landscape splines
 		ALandscape* Landscape = GetLandscape();
-		if (Landscape && Landscape->GetLandscapeSplinesReservedLayer())
+		if (Landscape)
 		{
 			// TODO : Only update dirty regions
 			Landscape->RequestSplineLayerUpdate();
@@ -4190,12 +4202,12 @@ void FEdModeLandscape::AutoUpdateDirtyLandscapeSplines()
 	}
 }
 
-bool FEdModeLandscape::CanEditLayer(FText* Reason /*=nullptr*/, FLandscapeLayer* InLayer /*= nullptr*/)
+bool FEdModeLandscape::CanEditLayer(FText* Reason /*=nullptr*/, const FLandscapeLayer* InLayer /*= nullptr*/)
 {
 	if (CanHaveLandscapeLayersContent())
 	{
 		ALandscape* Landscape = GetLandscape();
-		FLandscapeLayer* TargetLayer = InLayer ? InLayer : GetCurrentLayer();
+		const FLandscapeLayer* TargetLayer = InLayer ? InLayer : GetCurrentLayer();
 		if (!TargetLayer)
 		{
 			if (Reason)
@@ -4204,7 +4216,9 @@ bool FEdModeLandscape::CanEditLayer(FText* Reason /*=nullptr*/, FLandscapeLayer*
 			}
 			return false;
 		}
-		else if (!TargetLayer->bVisible)
+
+		check(TargetLayer->EditLayer != nullptr);
+		if (!TargetLayer->bVisible)
 		{
 			if (Reason)
 			{
@@ -4222,21 +4236,32 @@ bool FEdModeLandscape::CanEditLayer(FText* Reason /*=nullptr*/, FLandscapeLayer*
 		}
 		else if (CurrentTool)
 		{
-			int32 TargetLayerIndex = Landscape ? Landscape->LandscapeLayers.IndexOfByPredicate([TargetLayeyGuid = TargetLayer->Guid](const FLandscapeLayer& OtherLayer) { return OtherLayer.Guid == TargetLayeyGuid; }) : INDEX_NONE;
-
-			if ((CurrentTool != (FLandscapeTool*)SplinesTool) && Landscape && (TargetLayer == Landscape->GetLandscapeSplinesReservedLayer()))
+			// Special case for the splines tool, which is supported on the splines layer : 
+			if (CurrentTool != (FLandscapeTool*)SplinesTool)
 			{
-				if (Reason)
+				if (Landscape && (TargetLayer == Landscape->FindLayerOfType(ULandscapeEditLayerSplines::StaticClass())))
 				{
-					*Reason = NSLOCTEXT("UnrealEd", "LandscapeLayerReservedForSplines", "This layer is reserved for Landscape Splines.");
+					if (Reason)
+					{
+						*Reason = NSLOCTEXT("UnrealEd", "LandscapeLayerReservedForSplines", "This layer is reserved for Landscape Splines.");
+					}
+					return false;
 				}
-				return false;
+
+				if (!TargetLayer->EditLayer->SupportsEditingTools())
+				{
+					if (Reason)
+					{
+						*Reason = FText::Format(NSLOCTEXT("UnrealEd", "LandscapeLayerEditLayerDoesntSupportEditing", "This layer's type ({0}) doesn't support direct editing."), TargetLayer->EditLayer->GetClass()->GetDisplayNameText());
+					}
+					return false;
+				}
 			}
-			else if (CurrentTool->GetToolName() == FName("Retopologize"))
+			if (CurrentTool->GetToolName() == FName("Retopologize"))
 			{
 				if (Reason)
 				{
-					*Reason = FText::Format(NSLOCTEXT("UnrealEd", "LandscapeLayersNoSupportForRetopologize", "{0} Tool is not available with the Landscape Layer System."), CurrentTool->GetDisplayName());
+					*Reason = FText::Format(NSLOCTEXT("UnrealEd", "LandscapeLayersNoSupportForRetopologize", "{0} Tool is not available with the Landscape Edit Layer System and will be entirely deprecated for all landscape types in UE5.6."), CurrentTool->GetDisplayName());
 				}
 				return false;
 			}
@@ -4280,7 +4305,7 @@ void FEdModeLandscape::UpdateLandscapeSplines(bool bUpdateOnlySelected /* = fals
 
 FGuid FEdModeLandscape::GetCurrentLayerGuid() const
 {
-	FLandscapeLayer* CurrentLayer = GetCurrentLayer();
+	const FLandscapeLayer* CurrentLayer = GetCurrentLayer();
 	return CurrentLayer ? CurrentLayer->Guid : FGuid();
 }
 
@@ -4299,7 +4324,7 @@ bool FEdModeLandscape::NeedToFillEmptyMaterialLayers() const
 
 		if (Landscape != nullptr)
 		{
-			for (FLandscapeLayer& Layer : Landscape->LandscapeLayers)
+			for (const FLandscapeLayer& Layer : Landscape->GetLayers())
 			{
 				for (ULandscapeComponent* Component : Proxy->LandscapeComponents)
 				{

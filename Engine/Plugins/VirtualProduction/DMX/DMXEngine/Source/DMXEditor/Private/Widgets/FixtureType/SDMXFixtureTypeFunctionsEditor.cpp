@@ -123,7 +123,6 @@ void SDMXFixtureTypeFunctionsEditor::RebuildList()
 				(
 					SAssignNew(ListView, SListView<TSharedPtr<FDMXFixtureTypeFunctionsEditorItemBase>>)
 					.HeaderRow(GenerateHeaderRow())
-					.ItemHeight(40.0f)
 					.ListItemsSource(&ListSource)
 					.OnGenerateRow(this, &SDMXFixtureTypeFunctionsEditor::OnGenerateRow)
 					.OnSelectionChanged(this, &SDMXFixtureTypeFunctionsEditor::OnListSelectionChanged)
@@ -380,7 +379,7 @@ TSharedRef<SHeaderRow> SDMXFixtureTypeFunctionsEditor::GenerateHeaderRow()
 	HeaderRow->AddColumn(
 		SHeaderRow::FColumn::FArguments()
 		.ColumnId(SDMXFixtureTypeFunctionsEditor::FCollumnID::Status)
-		.DefaultLabel(LOCTEXT("StatusColumnLabel", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(StatusColumnWidth)
 	);
 
@@ -408,7 +407,7 @@ TSharedRef<SHeaderRow> SDMXFixtureTypeFunctionsEditor::GenerateHeaderRow()
 	HeaderRow->AddColumn(
 		SHeaderRow::FColumn::FArguments()
 		.ColumnId(SDMXFixtureTypeFunctionsEditor::FCollumnID::DeleteAttribute)
-		.DefaultLabel(LOCTEXT("DeleteAttributeColumnLabel", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(DeleteAttributeColumnWidth)
 	);
 

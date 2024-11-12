@@ -214,4 +214,55 @@ public:
 	}
 };
 
+
+class FTG_OutputExpressionInfoCustomization : public IPropertyTypeCustomization
+{
+public:
+	static TSharedRef<IPropertyTypeCustomization> Create()
+	{
+		return MakeShareable(new FTG_OutputExpressionInfoCustomization);
+	}
+
+	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils) override
+	{
+		HeaderRow.Visibility(EVisibility::Collapsed);
+	}
+
+	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override
+	{
+		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+		TArray<void*> RawData;
+		PropertyHandle->AccessRawData(RawData);
+
+		FOutputExpressionInfo* OutputExpressionInfo = reinterpret_cast<FOutputExpressionInfo*>(RawData[0]);
+		TArray<UObject*> ExternalObjects;
+
+		PropertyHandle->GetOuterObjects(ExternalObjects);
+		UObject* OutermostObject = ExternalObjects[0]->GetOutermostObject();
+		UTextureGraph* TextureGraph = CastChecked<UTextureGraph>(OutermostObject);
+
+		FTG_Id OutputNodeId = OutputExpressionInfo->OutputNodeID;
+
+		UTG_Expression_Output* OutputExpression = Cast<UTG_Expression_Output>(TextureGraph->Graph()->GetNode(OutputNodeId)->GetExpression());
+		
+		ExternalObjects.Empty();
+		ExternalObjects.Add(OutputExpression);
+		
+		IDetailPropertyRow* Row = ChildBuilder.AddExternalObjectProperty(ExternalObjects, GET_MEMBER_NAME_CHECKED(UTG_Expression_Output, OutputSettings), FAddPropertyParams().HideRootObjectNode(true).CreateCategoryNodes(false));
+		Row->DisplayName(FText::FromName(OutputExpression->GetTitleName()));
+		
+		// Custom edit condition for OutputSettings
+		TAttribute<bool> OutputSettingsEditCondition = TAttribute<bool>::Create(
+			[this, OutputExpression]()
+			{
+				return OutputExpression->GetShouldExport();
+			});
+		
+		Row->EditCondition(OutputSettingsEditCondition, FOnBooleanValueChanged::CreateLambda([this, OutputExpression](bool NewValue)
+			{
+				OutputExpression->SetShouldExport(NewValue);
+			}));
+	}
+};
+
 #undef LOCTEXT_NAMESPACE

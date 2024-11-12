@@ -40,6 +40,13 @@ public:
 
 protected:
 	TSharedRef<ITableRow> OnGenerateRow(TSharedPtr<FUsdReference> InDisplayNode, const TSharedRef<STableViewBase>& OwnerTable);
+	TSharedPtr<SWidget> ConstructLayerContextMenu();
+
+	bool CanRemoveReference() const;
+	void RemoveReference();
+
+	bool CanReloadReference() const;
+	void ReloadReference();
 
 private:
 	FUsdReferencesViewModel ViewModel;

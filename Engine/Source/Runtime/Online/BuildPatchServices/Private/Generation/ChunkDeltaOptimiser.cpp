@@ -297,7 +297,8 @@ namespace DeltaFactories
 				100,
 				Dependancies.MemoryEvictionPolicy.Get(),
 				nullptr,
-				MemoryChunkStoreStat.Get()));
+				MemoryChunkStoreStat.Get(),
+				nullptr));
 			Dependancies.ConnectionCount.Reset(BuildPatchServices::FDownloadConnectionCountFactory::Create(ConnectionCountConfig, nullptr));
 			ICloudChunkSource* CloudChunkSource = BuildPatchServices::FCloudChunkSourceFactory::Create(
 				CloudSourceConfig,

@@ -2,6 +2,7 @@
 
 #include "Elements/Framework/TypedElementRegistry.h"
 
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/ScopeLock.h"
@@ -64,57 +65,50 @@ UTypedElementRegistry* UTypedElementRegistry::GetInstance()
 	return Instance.Get();
 }
 
-ITypedElementDataStorageInterface* UTypedElementRegistry::GetMutableDataStorage()
+IEditorDataStorageProvider* UTypedElementRegistry::GetMutableDataStorage()
 {
-	return DataStorage;
+	using namespace UE::Editor::DataStorage;
+	return GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 }
 
-const ITypedElementDataStorageInterface* UTypedElementRegistry::GetDataStorage() const
+const IEditorDataStorageProvider* UTypedElementRegistry::GetDataStorage() const
 {
-	return DataStorage;
+	using namespace UE::Editor::DataStorage;
+	return GetDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 }
 
-void UTypedElementRegistry::SetDataStorage(ITypedElementDataStorageInterface* Storage)
+IEditorDataStorageCompatibilityProvider* UTypedElementRegistry::GetMutableDataStorageCompatibility()
 {
-	DataStorage = Storage;
-	CallDataStorageInterfacesSetDelegateIfNeeded();
+	using namespace UE::Editor::DataStorage;
+	return GetMutableDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName);
 }
 
-ITypedElementDataStorageCompatibilityInterface* UTypedElementRegistry::GetMutableDataStorageCompatibility()
+const IEditorDataStorageCompatibilityProvider* UTypedElementRegistry::GetDataStorageCompatibility() const
 {
-	return DataStorageCompatibility;
+	using namespace UE::Editor::DataStorage;
+	return GetDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName);
 }
 
-const ITypedElementDataStorageCompatibilityInterface* UTypedElementRegistry::GetDataStorageCompatibility() const
+IEditorDataStorageUiProvider* UTypedElementRegistry::GetMutableDataStorageUi()
 {
-	return DataStorageCompatibility;
+	using namespace UE::Editor::DataStorage;
+	return GetMutableDataStorageFeature<IEditorDataStorageUiProvider>(UiFeatureName);
 }
 
-void UTypedElementRegistry::SetDataStorageCompatibility(ITypedElementDataStorageCompatibilityInterface* Storage)
+const IEditorDataStorageUiProvider* UTypedElementRegistry::GetDataStorageUi() const
 {
-	DataStorageCompatibility = Storage;
-	CallDataStorageInterfacesSetDelegateIfNeeded();
-}
-
-ITypedElementDataStorageUiInterface* UTypedElementRegistry::GetMutableDataStorageUi()
-{
-	return DataStorageUi;
-}
-
-const ITypedElementDataStorageUiInterface* UTypedElementRegistry::GetDataStorageUi() const
-{
-	return DataStorageUi;
-}
-
-void UTypedElementRegistry::SetDataStorageUi(ITypedElementDataStorageUiInterface* Storage)
-{
-	DataStorageUi = Storage;
-	CallDataStorageInterfacesSetDelegateIfNeeded();
+	using namespace UE::Editor::DataStorage;
+	return GetDataStorageFeature<IEditorDataStorageUiProvider>(UiFeatureName);
 }
 
 bool UTypedElementRegistry::AreDataStorageInterfacesSet() const
 {
-	return DataStorage && DataStorageCompatibility && DataStorageUi;
+	return UE::Editor::DataStorage::AreEditorDataStorageFeaturesEnabled();
+}
+
+FSimpleMulticastDelegate& UTypedElementRegistry::OnDataStorageInterfacesSet()
+{
+	return UE::Editor::DataStorage::OnEditorDataStorageFeaturesEnabled();
 }
 
 void UTypedElementRegistry::FinishDestroy()
@@ -404,13 +398,5 @@ void UTypedElementRegistry::OnPostGarbageCollect()
 	if (DisableElementDestructionOnGCCount == 0)
 	{
 		ProcessDeferredElementsToDestroy();
-	}
-}
-
-void UTypedElementRegistry::CallDataStorageInterfacesSetDelegateIfNeeded()
-{
-	if (OnDataStorageInterfacesSetDelegate.IsBound() && AreDataStorageInterfacesSet())
-	{
-		OnDataStorageInterfacesSetDelegate.Broadcast();
 	}
 }

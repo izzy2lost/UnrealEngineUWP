@@ -31,6 +31,17 @@ inline FIntRect GetDownscaledRect(FIntRect Rect, FIntPoint Divisor)
 	return Rect;
 }
 
+// The normal GetDownscaledRect can produce overlapping rects where multiple viewports are present, because the Min rounds down, while the
+// Max rounds up.  This variation rounds up for the far edges of the viewport, but rounds down for everything else, avoiding this issue.
+inline FIntRect GetDownscaledViewRect(FIntRect Rect, FIntPoint ViewExtent, FIntPoint Divisor)
+{
+	Rect.Min /= Divisor;
+	Rect.Max.X = (Rect.Max.X == ViewExtent.X) ? FMath::DivideAndRoundUp(ViewExtent.X, Divisor.X) : Rect.Max.X / Divisor.X;
+	Rect.Max.Y = (Rect.Max.Y == ViewExtent.Y) ? FMath::DivideAndRoundUp(ViewExtent.Y, Divisor.Y) : Rect.Max.Y / Divisor.Y;
+	Rect.Max = Rect.Max.ComponentMax(Rect.Min + FIntPoint(1, 1));
+	return Rect;
+}
+
 inline FIntRect GetScaledRect(FIntRect Rect, FVector2D Multiplier)
 {
 	Rect.Min.X *= Multiplier.X;
@@ -72,13 +83,23 @@ inline FScreenPassTexture::FScreenPassTexture(FRDGTextureRef InTexture)
 	}
 }
 
+inline void FScreenPassTexture::UpdateVisualizeTextureExtent()
+{
+	if (Texture)
+	{
+		Texture->EncloseVisualizeExtent(ViewRect.Max);
+	}
+}
+
 inline FScreenPassTexture::FScreenPassTexture(FRDGTextureRef InTexture, FIntRect InViewRect)
 	: Texture(InTexture)
 	, ViewRect(InViewRect)
-{ }
+{
+	UpdateVisualizeTextureExtent();
+}
 
 inline FScreenPassTexture::FScreenPassTexture(const FScreenPassTextureSlice& ScreenTexture)
-	: Texture(ScreenTexture.TextureSRV->Desc.Texture)
+	: Texture(ScreenTexture.TextureSRV ? ScreenTexture.TextureSRV->Desc.Texture : nullptr)
 	, ViewRect(ScreenTexture.ViewRect)
 {
 	if (Texture && Texture->Desc.IsTextureArray())
@@ -86,6 +107,8 @@ inline FScreenPassTexture::FScreenPassTexture(const FScreenPassTextureSlice& Scr
 		check(ScreenTexture.TextureSRV->Desc.FirstArraySlice == 0);
 		check(ScreenTexture.TextureSRV->Desc.NumArraySlices == 1);
 	}
+
+	UpdateVisualizeTextureExtent();
 }
 
 inline bool FScreenPassTexture::IsValid() const

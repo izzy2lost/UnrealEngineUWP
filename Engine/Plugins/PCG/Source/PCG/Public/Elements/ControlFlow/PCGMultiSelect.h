@@ -28,9 +28,9 @@ public:
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::ControlFlow; }
-	virtual bool HasDynamicPins() const override { return true; }
 #endif // WITH_EDITOR
 
+	virtual bool HasDynamicPins() const override { return true; }
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* Pin) const override;
 	virtual FString GetAdditionalTitleInformation() const override;
 	virtual bool HasFlippedTitleLines() const override { return true; }
@@ -39,6 +39,7 @@ protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;
+	virtual void OnOverrideSettingsDuplicatedInternal(bool bSkippedPostLoad) override;
 	//~End UPCGSettings interface
 
 public:

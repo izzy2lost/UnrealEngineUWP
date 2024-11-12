@@ -45,7 +45,7 @@ bool UCommonGameViewportClient::InputKey(const FInputKeyEventArgs& InEventArgs)
 	}
 
 	// The input is fair game for handling - the UI gets first dibs
-#if !UE_BUILD_SHIPPING
+#if ALLOW_CONSOLE
 	if (ViewportConsole && !ViewportConsole->ConsoleState.IsEqual(NAME_Typing) && !ViewportConsole->ConsoleState.IsEqual(NAME_Open))
 #endif
 	{		
@@ -82,7 +82,7 @@ bool UCommonGameViewportClient::InputAxis(FViewport* InViewport, FInputDeviceId 
 
 bool UCommonGameViewportClient::InputTouch(FViewport* InViewport, int32 ControllerId, uint32 Handle, ETouchType::Type Type, const FVector2D& TouchLocation, float Force, FDateTime DeviceTimestamp, uint32 TouchpadIndex)
 {
-#if !UE_BUILD_SHIPPING
+#if ALLOW_CONSOLE
 	if (ViewportConsole != NULL && (ViewportConsole->ConsoleState != NAME_Typing) && (ViewportConsole->ConsoleState != NAME_Open))
 #endif
 	{
@@ -99,6 +99,22 @@ bool UCommonGameViewportClient::InputTouch(FViewport* InViewport, int32 Controll
 	}
 
 	return Super::InputTouch(InViewport, ControllerId, Handle, Type, TouchLocation, Force, DeviceTimestamp, TouchpadIndex);
+}
+
+void UCommonGameViewportClient::MouseMove(FViewport* InViewport, int32 X, int32 Y)
+{
+	if (ViewportConsole)
+	{
+		ViewportConsole->MouseMove(InViewport, X, Y);
+	}
+}
+
+void UCommonGameViewportClient::CapturedMouseMove(FViewport* InViewport, int32 X, int32 Y)
+{
+	if (ViewportConsole)
+	{
+		ViewportConsole->CapturedMouseMove(InViewport, X, Y);
+	}
 }
 
 void UCommonGameViewportClient::HandleRerouteInput(FInputDeviceId DeviceId, FKey Key, EInputEvent EventType, FReply& Reply)
@@ -207,7 +223,7 @@ void UCommonGameViewportClient::HandleRerouteTouch(int32 ControllerId, uint32 To
 
 bool UCommonGameViewportClient::IsKeyPriorityAboveUI(const FInputKeyEventArgs& EventArgs)
 {
-#if !UE_BUILD_SHIPPING
+#if ALLOW_CONSOLE
 	// First priority goes to the viewport console regardless any state or setting
 	if (ViewportConsole && ViewportConsole->InputKey(EventArgs.InputDevice, EventArgs.Key, EventArgs.Event, EventArgs.AmountDepressed, EventArgs.IsGamepad()))
 	{

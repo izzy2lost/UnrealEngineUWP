@@ -467,7 +467,7 @@ struct ENHANCEDINPUT_API FPlayerMappableKeyProfileCreationArgs final
  * To customize this for your game, you can create a subclass of it and change the "UserSettingsClass" in the
  * Enhanced Input Project Settings.
  */
-UCLASS(config=GameUserSettings, DisplayName="Enhanced Input User Settings (Experimental)", Category="Enhanced Input|User Settings")
+UCLASS(config=GameUserSettings, DisplayName="Enhanced Input User Settings", Category="Enhanced Input|User Settings")
 class ENHANCEDINPUT_API UEnhancedInputUserSettings : public USaveGame
 {
 	GENERATED_BODY()

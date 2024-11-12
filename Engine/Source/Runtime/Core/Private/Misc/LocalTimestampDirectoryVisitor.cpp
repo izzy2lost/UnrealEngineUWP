@@ -30,6 +30,7 @@ FLocalTimestampDirectoryVisitor::FLocalTimestampDirectoryVisitor( IPlatformFile&
 	}
 }
 
+FLocalTimestampDirectoryVisitor::~FLocalTimestampDirectoryVisitor() = default;
 
 /* FLocalTimestampVisitor interface
  *****************************************************************************/

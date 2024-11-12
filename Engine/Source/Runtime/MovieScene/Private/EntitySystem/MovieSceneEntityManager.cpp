@@ -9,13 +9,16 @@
 #include "Algo/Find.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Containers/SortedMap.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #include "HAL/PlatformProcess.h"
 #include "Misc/FeedbackContext.h"
 
 #include "EntitySystem/EntityAllocationIterator.h"
 
-UE::MovieScene::FEntityManager*& GEntityManagerForDebugging = UE::MovieScene::GEntityManagerForDebuggingVisualizers;
+#include "AutoRTFM/AutoRTFM.h"
+
+UE_SELECT_ANY UE::MovieScene::FEntityManager*& GEntityManagerForDebugging = UE::MovieScene::GEntityManagerForDebuggingVisualizers;
 
 #if DO_GUARD_SLOW
 
@@ -52,6 +55,16 @@ FAutoConsoleVariableRef CVarThreadedEvaluationEntityThreshold(
 	TEXT("(Default: 256) Defines the number of entities that need to exist to justify threaded evaluation.\n"),
 	ECVF_Default
 );
+
+#if UE_MOVIESCENE_ENTITY_DEBUG
+bool GRichComponentDebuggingInitialized = false;
+bool GRichComponentDebugging = false;
+FAutoConsoleVariableRef CVarRichComponentDebugging(
+	TEXT("Sequencer.RichComponentDebugging"),
+	GRichComponentDebugging,
+	TEXT("(Default: false. Whether to enable rich component debugging within Sequencer.")
+	);
+#endif // UE_MOVIESCENE_ENTITY_DEBUG
 
 FEntityManager* GEntityManagerForDebuggingVisualizers = nullptr;
 
@@ -211,10 +224,28 @@ struct FEntityInitializer
 
 			for (FComponentMaskIterator It = EntityComponentMask.Iterate(); It; ++It, ++Header)
 			{
-				new (Header) FComponentHeader();
-
 				FComponentTypeID ComponentTypeID = FComponentTypeID::FromBitIndex(It.GetIndex());
 				const FComponentTypeInfo& TypeInfo = EntityManager.GetComponents()->GetComponentTypeChecked(ComponentTypeID);
+
+#if UE_MOVIESCENE_ENTITY_DEBUG
+				if (GRichComponentDebugging)
+				{
+					TypeInfo.DebugInfo->InitializeComponentHeader(Header);
+					Header->Size = &Allocation->Size;
+				}
+				else
+#endif
+				{
+					UE_AUTORTFM_OPEN
+					{
+						new (Header) FComponentHeader();
+					};
+						
+					UE_AUTORTFM_ONABORT(Header)
+					{
+						Header->~FComponentHeader();
+					};
+				}
 
 				Header->ComponentType = ComponentTypeID;
 				Header->Sizeof = TypeInfo.Sizeof;
@@ -235,6 +266,13 @@ struct FEntityInitializer
 					check(IsAligned(Header->Components, TypeInfo.Alignment));
 
 					ComponentDataPtr += TypeInfo.Sizeof * InitInfo.InitialCapacity;
+
+#if UE_MOVIESCENE_ENTITY_DEBUG
+					if (GRichComponentDebugging)
+					{
+						TypeInfo.DebugInfo->InitializeDebugComponentData(*Header, InitInfo.InitialCapacity);
+					}
+#endif
 				}
 			}
 		}
@@ -376,6 +414,14 @@ FEntityManager::FEntityManager()
 	SystemSerialNumber = 1;
 	StructureMutationSystemSerialNumber = 0;
 	ThreadingModel = EEntityThreadingModel::NoThreading;
+
+#if UE_MOVIESCENE_ENTITY_DEBUG
+	if (!GRichComponentDebuggingInitialized)
+	{
+		GRichComponentDebugging = FPlatformMisc::IsDebuggerPresent();
+		GRichComponentDebuggingInitialized = true;
+	}
+#endif
 }
 
 FEntityManager::~FEntityManager()
@@ -423,6 +469,7 @@ void FEntityManager::Destroy()
 	AllocationsWithCapacity.Reset();
 	EntityAllocationMasks.Reset();
 	EntityAllocations.Reset();
+	ParentToChild.Reset();
 
 	OnStructureChanged();
 }
@@ -1002,13 +1049,13 @@ void FEntityManager::AccumulateMask(const FEntityComponentFilter& InFilter, FCom
 
 void FEntityManager::EnterIteration() const
 {
-	++IterationCount;
+	IterationCount.Increment(ThreadingModel);
 }
 
 void FEntityManager::ExitIteration() const
 {
-	checkSlow(static_cast<uint16>(IterationCount) > 0);
-	--IterationCount;
+	checkSlow(IterationCount.Load(ThreadingModel) > 0);
+	IterationCount.Decrement(ThreadingModel);
 }
 
 FEntityAllocation* FEntityManager::CreateEntityAllocation(const FComponentMask& EntityComponentMask, uint16 InitialCapacity, uint16 MaxCapacity, FEntityAllocation* MigrateComponentDataFrom)

@@ -76,12 +76,17 @@ namespace Gauntlet
 	public interface ITestEvent
 	{
 		/// <summary>
-		/// Level of severity that descrives this event
+		/// Level of severity that describes this event
 		/// </summary>
 		EventSeverity Severity { get; }
 
 		/// <summary>
-		/// High level single-line summary of what occurred. Should neber be null
+		/// Time at which the event was fired
+		/// </summary>
+		DateTime Time { get; }
+
+		/// <summary>
+		/// High level single-line summary of what occurred. Should never be null
 		/// </summary>
 		string Summary { get; }
 
@@ -148,7 +153,8 @@ namespace Gauntlet
 		/// Begin executing the provided test. At this point .Status should return InProgress and the test will eventually receive
 		/// OnComplete and ShutdownTest calls
 		/// </summary>
-		/// <param name="Node"></param>
+		/// <param name="Pass"></param>
+		/// <param name="NumPasses"></param>
 		/// <returns>true/false based on whether the test successfully launched</returns>
 		bool StartTest(int Pass, int NumPasses);
 
@@ -175,7 +181,6 @@ namespace Gauntlet
 		/// Allows the node to restart with the same assigned devices. Only called if the expresses 
 		/// a .Result of TestResult.WantRetry while running.
 		/// </summary>
-		/// <param name="Node"></param>
 		/// <returns></returns>
 		bool RestartTest();
 
@@ -225,7 +230,6 @@ namespace Gauntlet
 		/// Called to request any that any necessary cleanup be performed. After CleanupTest is called no further calls will be
 		/// made to this test and thus all resources should be released.
 		/// </summary>
-		/// <param name="Node"></param>
 		/// <returns></returns>
 		void CleanupTest();
 

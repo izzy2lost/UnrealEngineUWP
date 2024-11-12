@@ -9,6 +9,52 @@
 
 namespace Electra
 {
+	class IGenericDataReader
+	{
+	public:
+		virtual ~IGenericDataReader() = default;
+		/**
+		 * Read n bytes of data starting at offset o into the provided buffer.
+		 *
+		 * Reading must return the number of bytes asked to get, if necessary by blocking.
+		 * If a read error prevents reading the number of bytes -1 must be returned.
+		 *
+		 * @param IntoBuffer Buffer into which to store the data bytes. If nullptr is passed the data must be skipped over.
+		 * @param NumBytesToRead The number of bytes to read. Must not read more bytes and should be no less than requested.
+		 * @return The number of bytes read or -1 on a read error. If the read would go beyond the size of the file then
+		 *         returning fewer bytes than requested is permitted in this case ONLY.
+		 */
+		virtual int64 ReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset) = 0;
+
+		/**
+		 * Returns the current internal read offset.
+		 */
+		virtual int64 GetCurrentOffset() const = 0;
+
+		/**
+		 * Returns the total size of the file.
+		 * The size should be available at least after the first call to ReadData().
+		 * If the total length is not known, return -1.
+		 */
+		virtual int64 GetTotalSize() const = 0;
+
+		/**
+		 * Checks if reading of the file and therefore parsing has been aborted.
+		 *
+		 * @return true if reading/parsing has been aborted, false otherwise.
+		 */
+		virtual bool HasReadBeenAborted() const = 0;
+
+		/**
+		 * Checks if the data source has reached the End Of File (EOF) and cannot provide any additional data.
+		 *
+		 * @return If EOF has been reached returns true, otherwise false.
+		 */
+		virtual bool HasReachedEOF() const = 0;
+	};
+
+
+
 	class FBufferedDataReader
 	{
 	public:
@@ -38,8 +84,8 @@ namespace Electra
 		}
 
 		int64 GetCurrentOffset() const
-		{ 
-			return CurrentOffset; 
+		{
+			return CurrentOffset;
 		}
 
 		int64 GetTotalDataSize() const

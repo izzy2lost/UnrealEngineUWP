@@ -6,14 +6,16 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/World.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionISMPoolComponent)
 
 // Don't release ISM components when they empty, but keep them (and their scene proxy) alive.
 // This can remove the high cost associated with repeated registration, scene proxy creation and mesh draw command creation.
-static bool GComponentKeepAlive = true;
-FAutoConsoleVariableRef CVarISMPoolComponentKeepAlive(
-	TEXT("r.ISMPool.ComponentKeepAlive"),
+// But it can also have a high memory overhead since the ISMs retain hard references to their static meshes.
+static bool GComponentKeepAlive = false; 
+FAutoConsoleVariableRef CVarGCISMPoolComponentKeepAlive(
+	TEXT("r.GC.ISMPool.ComponentKeepAlive"),
 	GComponentKeepAlive,
 	TEXT("Keep ISM components alive when all their instances are removed."));
 
@@ -24,22 +26,23 @@ FAutoConsoleVariableRef CVarISMPoolComponentKeepAlive(
 // But there is more CPU cost to recycling a component then to simply keeping it alive because scene proxy creation and mesh draw command caching isn't cheap.
 // The component memory cost is kept bounded when compared to keeping components alive.
 static bool GComponentRecycle = true;
-FAutoConsoleVariableRef CVarISMPoolComponentRecycle(
-	TEXT("r.ISMPool.ComponentRecycle"),
+FAutoConsoleVariableRef CVarGCISMPoolComponentRecycle(
+	TEXT("r.GC.ISMPool.ComponentRecycle"),
 	GComponentRecycle,
 	TEXT("Recycle ISM components to a free list for reuse when all their instances are removed."));
 
 // Target free list size when recycling ISM components.
 // We try to maintain a pool of free components for fast allocation, but want to clean up when numbers get too high.
 static int32 GComponentFreeListTargetSize = 50;
-FAutoConsoleVariableRef CVarISMPoolComponentFreeListTargetSize(
-	TEXT("r.ISMPool.ComponentFreeListTargetSize"),
+FAutoConsoleVariableRef CVarGCISMPoolComponentFreeListTargetSize(
+	TEXT("r.GC.ISMPool.ComponentFreeListTargetSize"),
 	GComponentFreeListTargetSize,
 	TEXT("Target size for number of ISM components in the recycling free list."));
 
+// Keep copies of all custom instance data for restoration on readding an instance.
 static bool GShadowCopyCustomData = false;
 FAutoConsoleVariableRef CVarShadowCopyCustomData(
-	TEXT("r.ISMPool.ShadowCopyCustomData"),
+	TEXT("r.GC.ISMPool.ShadowCopyCustomData"),
 	GShadowCopyCustomData,
 	TEXT("Keeps a copy of custom instance data so it can be restored if the instance is removed and readded."));
 
@@ -101,19 +104,29 @@ void FGeometryCollectionMeshGroup::RemoveAllMeshes(FGeometryCollectionISMPool& I
 	MeshInfos.Empty();
 }
 
-void FGeometryCollectionISM::CreateISM(AActor* InOwningActor)
+void FGeometryCollectionISM::CreateISM(USceneComponent* InOwningComponent)
 {
-	check(InOwningActor);
+	check(InOwningComponent);
 
-	ISMComponent = NewObject<UInstancedStaticMeshComponent>(InOwningActor, NAME_None, RF_Transient | RF_DuplicateTransient);
+	AActor* OwningActor = InOwningComponent->GetOwner();
+	USceneComponent* RootComponent = OwningActor->GetRootComponent();
+
+	ISMComponent = NewObject<UInstancedStaticMeshComponent>(InOwningComponent, NAME_None, RF_Transient | RF_DuplicateTransient);
 
 	ISMComponent->SetRemoveSwap();
 	ISMComponent->SetCanEverAffectNavigation(false);
 	ISMComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	ISMComponent->SetupAttachment(InOwningActor->GetRootComponent());
-	
-	InOwningActor->AddInstanceComponent(ISMComponent);
+	ISMComponent->SetupAttachment(RootComponent);
 	ISMComponent->RegisterComponent();
+
+#if WITH_EDITOR
+	UWorld const* World = InOwningComponent->GetWorld();
+	const bool bShowInWorldOutliner = World && World->IsGameWorld();
+	if (bShowInWorldOutliner)
+	{
+		OwningActor->AddInstanceComponent(ISMComponent);
+	}
+#endif
 }
 
 void FGeometryCollectionISM::InitISM(const FGeometryCollectionStaticMeshInstance& InMeshInstance, bool bKeepAlive, bool bOverrideTransformUpdates)
@@ -134,6 +147,8 @@ void FGeometryCollectionISM::InitISM(const FGeometryCollectionStaticMeshInstance
 	ISMComponent->bUseAttachParentBound = bOverrideTransformUpdates;
 	ISMComponent->SetAbsolute(bOverrideTransformUpdates, bOverrideTransformUpdates, bOverrideTransformUpdates);
 
+	bool bDisallowNanite = false;
+
 	ISMComponent->EmptyOverrideMaterials();
 	for (int32 MaterialIndex = 0; MaterialIndex < MeshInstance.MaterialsOverrides.Num(); MaterialIndex++)
 	{
@@ -141,6 +156,9 @@ void FGeometryCollectionISM::InitISM(const FGeometryCollectionStaticMeshInstance
 		// We should only get here for valid material objects.
 		check(Material != nullptr);
 		ISMComponent->SetMaterial(MaterialIndex, Material);
+
+		// Nanite doesn't support translucent materials.
+		bDisallowNanite |= Material->GetBlendMode() == BLEND_Translucent;
 	}
 
 	ISMComponent->SetStaticMesh(StaticMesh);
@@ -199,8 +217,13 @@ void FGeometryCollectionISM::InitISM(const FGeometryCollectionStaticMeshInstance
 	ISMComponent->SetLODDistanceScale(MeshInstance.Desc.LodScale);
 	ISMComponent->SetUseConservativeBounds(true);
 	ISMComponent->bComputeFastLocalBounds = true;
+	ISMComponent->bDisallowNanite = bDisallowNanite;
 	ISMComponent->SetMeshDrawCommandStatsCategory(MeshInstance.Desc.StatsCategory);
 	ISMComponent->ComponentTags = MeshInstance.Desc.Tags;
+
+	// Use a fixed seed to avoid getting a different seed at every run (see UInstancedStaticMeshComponent::OnRegister())
+	// A possible improvement would be to compute an hash from the owner Geometry Collection component and use that as the seed.
+	ISMComponent->InstancingRandomSeed = 1;	
 }
 
 FInstanceGroups::FInstanceGroupId FGeometryCollectionISM::AddInstanceGroup(int32 InstanceCount, TArrayView<const float> CustomDataFloats)
@@ -266,12 +289,12 @@ FGeometryCollectionISMPool::FISMIndex FGeometryCollectionISMPool::GetOrAddISM(UG
 	{
 		ISMIndex = FreeList.Last();
 		FreeList.RemoveAt(FreeList.Num() - 1);
-		ISMs[ISMIndex].CreateISM(OwningComponent->GetOwner());
+		ISMs[ISMIndex].CreateISM(OwningComponent);
 	}
 	else
 	{
 		ISMIndex = ISMs.AddDefaulted();
-		ISMs[ISMIndex].CreateISM(OwningComponent->GetOwner());
+		ISMs[ISMIndex].CreateISM(OwningComponent);
 	}
 	
 	ISMs[ISMIndex].InitISM(MeshInstance, bCachedKeepAlive, bDisableBoundsAndTransformUpdate);
@@ -437,9 +460,7 @@ void FGeometryCollectionISMPool::RemoveISM(FISMIndex ISMIndex, bool bKeepAlive, 
 	else
 	{
 		// Completely unregister and destroy the component and mark the ISM slot as free.
-		ISM.ISMComponent->UnregisterComponent();
 		ISM.ISMComponent->DestroyComponent();
-		ISM.ISMComponent->GetOwner()->RemoveInstanceComponent(ISM.ISMComponent);
 		ISM.ISMComponent = nullptr;
 		
 		FreeList.Add(ISMIndex);
@@ -458,9 +479,7 @@ void FGeometryCollectionISMPool::Clear()
 		{
 			for(FGeometryCollectionISM& ISM : ISMs)
 			{
-				ISM.ISMComponent->UnregisterComponent();
 				ISM.ISMComponent->DestroyComponent();
-				OwningActor->RemoveInstanceComponent(ISM.ISMComponent);
 			}
 		}
 		ISMs.Reset();

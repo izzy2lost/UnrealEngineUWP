@@ -14,6 +14,12 @@
 
 #define LOCTEXT_NAMESPACE "ContentBrowser"
 
+struct FNavigationCrumb
+{
+	FString Path;
+	bool bHasChildren; // Whether to show the > button next to this location allowing navigation to children
+};
+
 // Category of list view item to choose an icon
 enum class ELocationSource
 {
@@ -45,7 +51,6 @@ public:
 		using SSuper = SListView<TSharedPtr<FLocationItem>>;
 		SSuper::Construct(SSuper::FArguments()
 			.ListItemsSource(&Items)
-			.ItemHeight(18.0f)
 			.SelectionMode(ESelectionMode::Single)
 			.OnGenerateRow(InArgs._OnGenerateRow)
 			.OnSelectionChanged(InArgs._OnSelectionChanged)
@@ -104,6 +109,8 @@ void SNavigationBar::Construct(const FArguments& InArgs)
 	OnCompletePrefix = InArgs._OnCompletePrefix;
 	OnNavigateToPath = InArgs._OnNavigateToPath;
 	OnCanEditPathAsText = InArgs._OnCanEditPathAsText;
+	OnPathClicked = InArgs._OnPathClicked;
+	OnGetPathMenuContent = InArgs._GetPathMenuContent;
 
 	ComboBoxStyle = InArgs._ComboBoxStyle;
 	TextBoxStyle = InArgs._TextBoxStyle;
@@ -125,29 +132,43 @@ void SNavigationBar::Construct(const FArguments& InArgs)
 			.HAlign(HAlign_Fill)
 			[
 				SNew(SOverlay)
-				// Invisible button under visible controls to handle clicking in blank space
+				// Breadcrumb trail aligned to left in combo box
 				+ SOverlay::Slot()
 				.HAlign(HAlign_Fill)
 				.VAlign(VAlign_Fill)
 				[
+					// Invisible button under visible controls to handle clicking in blank space
 					SNew(SButton)
 					.OnClicked(this, &SNavigationBar::HandleBlankSpaceClicked)	
 					.ButtonStyle( FAppStyle::Get(), "NoBorder" )
-				]
-				// Breadcrumb trail aligned to left in combo box
-				+ SOverlay::Slot()
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Fill)
-				[
-					SAssignNew(BreadcrumbBar, SBreadcrumbTrail<FString>)
-					.Visibility(this, &SNavigationBar::GetNonEditVisibility)
-					.TextStyle(InArgs._BreadcrumbTextStyle)
-					.ButtonStyle(InArgs._BreadcrumbButtonStyle)
-					.ButtonContentPadding(InArgs._BreadcrumbButtonContentPadding)
-					.DelimiterImage(InArgs._BreadcrumbDelimiterImage)
-					.OnCrumbClicked(InArgs._OnPathClicked)
-					.HasCrumbMenuContent(InArgs._HasPathMenuContent)
-					.GetCrumbMenuContent(InArgs._GetPathMenuContent)
+					[
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.HAlign(HAlign_Fill)
+						.VAlign(VAlign_Fill)
+						.FillWidth(1.0f)
+						[
+							SAssignNew(BreadcrumbBar, SBreadcrumbTrail<FNavigationCrumb>)
+							.Visibility(this, &SNavigationBar::GetNonEditVisibility)
+							.TextStyle(InArgs._BreadcrumbTextStyle)
+							.ButtonStyle(InArgs._BreadcrumbButtonStyle)
+							.ButtonContentPadding(InArgs._BreadcrumbButtonContentPadding)
+							.DelimiterImage(InArgs._BreadcrumbDelimiterImage)
+							.OnCrumbClicked(this, &SNavigationBar::HandleCrumbClicked)
+							.HasCrumbMenuContent(this, &SNavigationBar::HandleHasCrumbMenuContent)
+							.GetCrumbMenuContent(this, &SNavigationBar::HandleGetCrumbMenuContent)
+						]
+						// Spacer to allow some blank space to enter edit mode always
+						+ SHorizontalBox::Slot()
+						.HAlign(HAlign_Right)
+						.VAlign(VAlign_Fill)
+						.AutoWidth()
+						[
+							SNew(SImage)
+							.Image(FAppStyle::GetNoBrush())
+							.DesiredSizeOverride(FVector2D(10.0f, 1.0f))
+						]
+					]
 				]
 				// Editable text box taking up all space
 				+ SOverlay::Slot()
@@ -158,7 +179,7 @@ void SNavigationBar::Construct(const FArguments& InArgs)
 					.Visibility(this, &SNavigationBar::GetEditTextVisibility)
 					.OnTextCommitted(this, &SNavigationBar::HandleTextCommitted)
 					.OnTextChanged(this, &SNavigationBar::HandleTextChanged)
-					.SelectAllTextWhenFocused(false)
+					.SelectAllTextWhenFocused(true) 
 					.ClearKeyboardFocusOnCommit(true)
 					.OnKeyDownHandler(this, &SNavigationBar::HandleEditableTextKeyDown)
 				]
@@ -206,6 +227,7 @@ void SNavigationBar::Construct(const FArguments& InArgs)
 		]
 	);
 
+	BreadcrumbBar->ScrollToEnd();
 	ComboListView->SetBackgroundBrush(FStyleDefaults::GetNoBrush());
 	EditableText->SetTextBlockStyle(&TextBoxStyle->TextStyle);
 	SetMenuContentWidgetToFocus(ComboListView);
@@ -216,9 +238,29 @@ void SNavigationBar::ClearPaths()
 	BreadcrumbBar->ClearCrumbs();
 }
 
-void SNavigationBar::PushPath(const FText& ElementText, const FString& FullPath)
+void SNavigationBar::PushPath(const FText& ElementText, const FString& FullPath, bool bHasChildren)
 {
-	BreadcrumbBar->PushCrumb(ElementText, FullPath);	
+	BreadcrumbBar->PushCrumb(ElementText, FNavigationCrumb{FullPath, bHasChildren});	
+	BreadcrumbBar->ScrollToEnd();
+}
+
+void SNavigationBar::HandleCrumbClicked(const FNavigationCrumb& Crumb)
+{
+	OnPathClicked.ExecuteIfBound(Crumb.Path);
+}
+
+bool SNavigationBar::HandleHasCrumbMenuContent(const FNavigationCrumb& Crumb)
+{
+	return Crumb.bHasChildren;
+}
+
+TSharedRef<SWidget> SNavigationBar::HandleGetCrumbMenuContent(const FNavigationCrumb& Crumb)
+{
+	if (OnGetPathMenuContent.IsBound())
+	{
+		return OnGetPathMenuContent.Execute(Crumb.Path);
+	}
+	return SNullWidget::NullWidget;
 }
 
 bool SNavigationBar::SupportsKeyboardFocus() const 
@@ -289,6 +331,7 @@ FReply SNavigationBar::HandleComboKeyChar(const FGeometry& MyGeometry, const FCh
 		FString NewText = SelectedItems[0]->VirtualPath;
 		NewText += InCharEvent.GetCharacter();
 		EditableText->SetText(FText::FromString(NewText));
+		EditableText->SetSelectAllTextWhenFocused(false);
 
 		return FReply::Handled().SetUserFocus(EditableText.ToSharedRef());
 	}
@@ -333,6 +376,7 @@ FReply SNavigationBar::HandleComboKeyDown(const FGeometry& MyGeometry, const FKe
 		{
 			FString NewText = SelectedItems[0]->VirtualPath + TEXT("/"); // TODO: Ideally only add slash if this prefix has children itself 
 			EditableText->SetText(FText::FromString(NewText));
+			EditableText->SetSelectAllTextWhenFocused(false);
 			return FReply::Handled().SetUserFocus(EditableText.ToSharedRef(), EFocusCause::SetDirectly);
 		}
 		return FReply::Handled(); // Swallow event to avoid confusion with items being selected or not 
@@ -390,12 +434,13 @@ void SNavigationBar::StartEditingPath()
 	FText Text = FText::GetEmpty();
 	if (BreadcrumbBar->HasCrumbs())
 	{
-		FString Path = BreadcrumbBar->PeekCrumb();
-		if (OnCanEditPathAsText.IsBound() && OnCanEditPathAsText.Execute(Path))
+		FNavigationCrumb Crumb = BreadcrumbBar->PeekCrumb();
+		if (OnCanEditPathAsText.IsBound() && OnCanEditPathAsText.Execute(Crumb.Path))
 		{
-			Text = FText::FromString(Path);
+			Text = FText::FromString(Crumb.Path);
 		}
 	}
+	EditableText->SetSelectAllTextWhenFocused(true);
 	EditableText->SetText(Text);
 	FSlateApplication::Get().SetKeyboardFocus(EditableText.ToSharedRef(), EFocusCause::SetDirectly);
 }
@@ -412,7 +457,6 @@ void SNavigationBar::HandleTextChanged(const FText& NewText)
 		CompletionTimerHandle = RegisterActiveTimer(0.1f, FWidgetActiveTimerDelegate::CreateSP(this, &SNavigationBar::HandleUpdateCompletionOptions));
 	}
 }
-
 	
 void SNavigationBar::HandleTextCommitted(const FText& InText, ETextCommit::Type CommitType)
 {
@@ -425,6 +469,7 @@ void SNavigationBar::HandleTextCommitted(const FText& InText, ETextCommit::Type 
 	}
 
 	// Stop editing and navigate to new path
+	EditableText->SetSelectAllTextWhenFocused(true);
 	EditTextVisibility = EVisibility::Hidden;
 	SetIsOpen(false, false);
 	OnNavigateToPath.ExecuteIfBound(InText.ToString());

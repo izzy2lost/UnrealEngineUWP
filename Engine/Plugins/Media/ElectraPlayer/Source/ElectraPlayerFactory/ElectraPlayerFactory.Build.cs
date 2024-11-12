@@ -24,6 +24,7 @@ namespace UnrealBuildTool.Rules
 
             if (bSupportedPlatform)
             {
+                PrivateDependencyModuleNames.Add("ElectraBase");
                 PrivateIncludePathModuleNames.Add("ElectraPlayerPlugin");
                 PublicDefinitions.Add("UE_PLATFORM_ELECTRAPLAYER=1");
             }

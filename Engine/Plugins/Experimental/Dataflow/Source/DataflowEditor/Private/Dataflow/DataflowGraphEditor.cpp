@@ -3,8 +3,10 @@
 #include "Dataflow/DataflowGraphEditor.h"
 
 #include "BoneDragDropOp.h"
+#include "Dataflow/DataflowEditor.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "Dataflow/DataflowEngine.h"
+#include "Dataflow/DataflowSEditorInterface.h"
 #include "Dataflow/DataflowSNodeFactories.h"
 #include "Dataflow/DataflowSCommentNode.h"
 #include "Dataflow/DataflowNodeParameters.h"
@@ -19,6 +21,9 @@
 
 #define LOCTEXT_NAMESPACE "DataflowGraphEditor"
 
+TSharedPtr<FDataflowGraphEditorNodeFactory> SDataflowGraphEditor::NodeFactory;
+TWeakPtr<SDataflowGraphEditor> SDataflowGraphEditor::SelectedGraphEditor;
+
 void SDataflowGraphEditor::Construct(const FArguments& InArgs, UObject* InAssetOwner)
 {
 	check(InArgs._GraphToEdit);
@@ -27,12 +32,12 @@ void SDataflowGraphEditor::Construct(const FArguments& InArgs, UObject* InAssetO
 	DetailsView = InArgs._DetailsView;
 	EvaluateGraphCallback = InArgs._EvaluateGraph;
 	OnDragDropEventCallback = InArgs._OnDragDropEvent;
+	DataflowEditor = InArgs._DataflowEditor;
 
 	FGraphAppearanceInfo AppearanceInfo;
 	AppearanceInfo.CornerText = FText::FromString("Dataflow");
 
 	FGraphEditorCommands::Register();
-	FDataflowEditorCommands::Register();
 	if (!GraphEditorCommands.IsValid())
 	{
 		GraphEditorCommands = MakeShareable(new FUICommandList);
@@ -137,6 +142,11 @@ void SDataflowGraphEditor::Construct(const FArguments& InArgs, UObject* InAssetO
 				FGenericCommands::Get().Paste,
 				FExecuteAction::CreateSP(this, &SDataflowGraphEditor::PasteSelectedNodes)
 			);
+			GraphEditorCommands->MapAction(
+				FGenericCommands::Get().Rename,
+				FExecuteAction::CreateSP(this, &SDataflowGraphEditor::RenameNode),
+				FCanExecuteAction::CreateSP(this, &SDataflowGraphEditor::CanRenameNode)
+			);
 		}
 	}
 
@@ -152,24 +162,59 @@ void SDataflowGraphEditor::Construct(const FArguments& InArgs, UObject* InAssetO
 
 	SGraphEditor::Construct(Arguments);
 
+	SetNodeFactory( MakeShared<FDataflowGraphNodeFactory>(this) );
 }
 
+TSharedPtr<UE::Dataflow::FContext> SDataflowGraphEditor::GetDataflowContext() const
+{
+	if (DataflowEditor)
+	{
+		if (DataflowEditor->GetEditorContent())
+		{
+			return DataflowEditor->GetEditorContent()->GetDataflowContext();
+		}
+	}
+	return TSharedPtr<UE::Dataflow::FContext>();
+}
 
 void SDataflowGraphEditor::EvaluateNode()
 {
-	if (EvaluateGraphCallback)
-	{
-		FDataflowEditorCommands::EvaluateSelectedNodes(GetSelectedNodes(), EvaluateGraphCallback);
-	}
-	else
-	{
-		FDataflowEditorCommands::FGraphEvaluationCallback LocalEvaluateCallback = [](FDataflowNode* Node, FDataflowOutput* Out)
-		{
-			using namespace Dataflow;
-			FContextThreaded(FPlatformTime::Cycles64()).Evaluate(Node, Out);
-		};
+	UE_LOG(LogChaosDataflow, VeryVerbose, TEXT("SDataflowGraphEditor::EvaluateNode(): Nodes [%s]"),
+		*FString::JoinBy(GetSelectedNodes().Array(), TEXT(", "), [](const UObject* SelectedNode)
+			{
+				return Cast<UDataflowEdNode>(SelectedNode) && Cast<UDataflowEdNode>(SelectedNode)->GetDataflowNode() ? 
+					Cast<UDataflowEdNode>(SelectedNode)->GetDataflowNode()->GetName().ToString() : FString();
+			}));
 
-		FDataflowEditorCommands::EvaluateSelectedNodes(GetSelectedNodes(), LocalEvaluateCallback);
+	using namespace UE::Dataflow;
+
+	TOptional<FContextThreaded> DefaultContext(EvaluateGraphCallback ? TOptional<FContextThreaded>() : TOptional<FContextThreaded>(FContextThreaded()));
+
+	for (UObject* Node : GetSelectedNodes())
+	{
+		if (UDataflowEdNode* const EdNode = Cast<UDataflowEdNode>(Node))
+		{
+			if (const TSharedPtr<FGraph> DataflowGraph = EdNode->GetDataflowGraph())
+			{
+				if (const TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(EdNode->GetDataflowNodeGuid()))
+				{
+					if (DataflowNode->bActive)
+					{
+						DataflowNode->Invalidate();  // Force evaluation
+
+						if (EvaluateGraphCallback)
+						{
+							EvaluateGraphCallback(DataflowNode.Get(), nullptr);  // Evaluation processes all outputs when passing a null Output
+						}
+						else
+						{
+							check(DefaultContext);
+							DefaultContext->Evaluate(DataflowNode.Get(), nullptr);
+						}
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -185,21 +230,87 @@ void SDataflowGraphEditor::DeleteNode()
 		const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
 		if (SelectedNodes.Num() > 0)
 		{
-			FDataflowEditorCommands::DeleteNodes(DataflowAsset.Get(), SelectedNodes);
+			if (UDataflow* const Graph = DataflowAsset.Get())
+			{
+				const FScopedTransaction Transaction(LOCTEXT("DeleteSelectedNodes", "Delete selected nodes"));
 
-			OnNodeDeletedMulticast.Broadcast(SelectedNodes);
+				Graph->Modify();
+
+				for (FGraphPanelSelectionSet::TConstIterator It(SelectedNodes); It; ++It)
+				{
+					(*It)->Modify();
+				}
+
+				FDataflowEditorCommands::DeleteNodes(Graph, SelectedNodes);
+
+				OnNodeDeletedMulticast.Broadcast(SelectedNodes);
+			}
 		}
 	}
 }
 
+void SDataflowGraphEditor::RenameNode()
+{
+	if (UDataflow* Graph = DataflowAsset.Get())
+	{
+		const TSharedPtr<SDataflowGraphEditor>& DataflowGraphEditor = SharedThis(this);
+		const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
+
+		if (SelectedNodes.Num() == 1)
+		{
+			if (CanRenameNode())
+			{
+				if (UDataflowEdNode* SelectedNode = Cast<UDataflowEdNode>(*SelectedNodes.CreateConstIterator()))
+				{
+					FDataflowEditorCommands::RenameNode(DataflowGraphEditor, SelectedNode);
+				}
+				else if (UEdGraphNode_Comment* SelectedCommentNode = Cast<UEdGraphNode_Comment>(*SelectedNodes.CreateConstIterator()))
+				{
+					FDataflowEditorCommands::RenameNode(DataflowGraphEditor, SelectedCommentNode);
+				}
+			}
+		}
+	}
+}
+
+bool SDataflowGraphEditor::CanRenameNode() const
+{
+	const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
+	if (SelectedNodes.Num() == 1)
+	{
+		if (UDataflowEdNode* SelectedNode = Cast<UDataflowEdNode>(*SelectedNodes.CreateConstIterator()))
+		{
+			return SelectedNode->bCanRenameNode;
+		}
+		else if (UEdGraphNode_Comment* SelectedCommentNode = Cast<UEdGraphNode_Comment>(*SelectedNodes.CreateConstIterator()))
+		{
+			return SelectedCommentNode->bCanRenameNode;
+		}
+	}
+
+	return false;
+}
+
 void SDataflowGraphEditor::OnSelectedNodesChanged(const TSet<UObject*>& NewSelection)
 {
-	OnSelectionChangedMulticast.Broadcast(NewSelection);  // Broadcast the selection change before refreshing the DetailsView, the nodes' specific UI data have to be updated before the UI is being redrawn
+	// Set the currently selected graph editor before running any callback
+	ensureMsgf(!SelectedGraphEditor.IsValid(), TEXT("Two different editors cannot have their selection changed at once."));
+	SelectedGraphEditor = StaticCastSharedRef<SDataflowGraphEditor>(AsShared()).ToWeakPtr();
+
+	OnSelectionChangedMulticast.Broadcast(NewSelection);
 
 	if (DataflowAsset.Get() && DetailsView)
 	{
-		FDataflowEditorCommands::OnSelectedNodesChanged(DetailsView, AssetOwner.Get(), DataflowAsset.Get(), NewSelection);
+		auto AsObjectPointers = [](const TSet<UObject*>& Set) {
+			TSet<TObjectPtr<UObject> > Objs; for (UObject* Elem : Set) Objs.Add(Elem);
+			return Objs;
+		};
+
+		FDataflowEditorCommands::OnSelectedNodesChanged(DetailsView, AssetOwner.Get(), DataflowAsset.Get(), AsObjectPointers(NewSelection) );
 	}
+
+	// Clear the current selected editor
+	SelectedGraphEditor.Reset();
 }
 
 FReply SDataflowGraphEditor::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
@@ -212,12 +323,32 @@ FReply SDataflowGraphEditor::OnKeyDown(const FGeometry& MyGeometry, const FKeyEv
 	{
 		RightControlKeyDown = true;
 	}
+	if (InKeyEvent.GetKey() == EKeys::LeftAlt)
+	{
+		LeftAltKeyDown = true;
+	}
+	if (InKeyEvent.GetKey() == EKeys::RightAlt)
+	{
+		RightAltKeyDown = true;
+	}
 	if (InKeyEvent.GetKey() == EKeys::V)
 	{
 		VKeyDown = true;
 	}
 	return SGraphEditor::OnKeyUp(MyGeometry, InKeyEvent);
 }
+
+bool SDataflowGraphEditor::IsControlDown() const
+{
+	return LeftControlKeyDown || RightControlKeyDown;
+}
+
+bool SDataflowGraphEditor::IsAltDown() const
+{
+	return LeftAltKeyDown || RightAltKeyDown;
+}
+
+
 
 
 FReply SDataflowGraphEditor::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
@@ -246,6 +377,14 @@ FReply SDataflowGraphEditor::OnKeyUp(const FGeometry& MyGeometry, const FKeyEven
 	if (InKeyEvent.GetKey() == EKeys::RightControl)
 	{
 		RightControlKeyDown = false;
+	}
+	if (InKeyEvent.GetKey() == EKeys::LeftAlt)
+	{
+		LeftAltKeyDown = false;
+	}
+	if (InKeyEvent.GetKey() == EKeys::RightAlt)
+	{
+		RightAltKeyDown = false;
 	}
 	if (InKeyEvent.GetKey() == EKeys::V)
 	{
@@ -325,7 +464,7 @@ void SDataflowGraphEditor::CreateVertexSelectionNode(const FString & InArray)
 		if (UEdGraphNode* NewEdNode = NodeAction->PerformAction(Graph, nullptr, GetGraphEditor()->GetPasteLocation(), false))
 		{
 			FDataflowAssetEdit Edit = Graph->EditDataflow();
-			if (Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
+			if (UE::Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
 			{
 				if (TSharedPtr<FDataflowNode> Node = DataflowGraph->FindBaseNode(((UDataflowEdNode*)NewEdNode)->DataflowNodeGuid))
 				{
@@ -393,7 +532,7 @@ void SDataflowGraphEditor::OnAddOptionPin()
 {
 	UDataflow* const Graph = DataflowAsset.Get();
 	FDataflowAssetEdit Edit = Graph->EditDataflow();
-	if (Dataflow::FGraph* const DataflowGraph = Edit.GetGraph())
+	if (UE::Dataflow::FGraph* const DataflowGraph = Edit.GetGraph())
 	{
 		const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
 
@@ -407,6 +546,7 @@ void SDataflowGraphEditor::OnAddOptionPin()
 				if (Node->CanAddPin())
 				{
 					const FScopedTransaction Transaction(LOCTEXT("AddOptionPin", "Add Option Pin"));
+					Graph->Modify();
 					EdNode->Modify();
 
 					EdNode->AddOptionPin();
@@ -424,7 +564,7 @@ bool SDataflowGraphEditor::CanAddOptionPin() const
 	bool bCanAddOptionPin = false;
 
 	const UDataflow* const Graph = DataflowAsset.Get();
-	if (const Dataflow::FGraph* const DataflowGraph = Graph->GetDataflow().Get())
+	if (const UE::Dataflow::FGraph* const DataflowGraph = Graph->GetDataflow().Get())
 	{
 		const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
 
@@ -457,7 +597,7 @@ void SDataflowGraphEditor::OnRemoveOptionPin()
 {
 	UDataflow* const Graph = DataflowAsset.Get();
 	FDataflowAssetEdit Edit = Graph->EditDataflow();
-	if (Dataflow::FGraph* const DataflowGraph = Edit.GetGraph())
+	if (UE::Dataflow::FGraph* const DataflowGraph = Edit.GetGraph())
 	{
 		const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
 
@@ -471,6 +611,7 @@ void SDataflowGraphEditor::OnRemoveOptionPin()
 				if (Node->CanRemovePin())
 				{
 					const FScopedTransaction Transaction(LOCTEXT("RemoveOptionPin", "Remove Option Pin"));
+					Graph->Modify();
 					EdNode->Modify();
 
 					EdNode->RemoveOptionPin();
@@ -488,7 +629,7 @@ bool SDataflowGraphEditor::CanRemoveOptionPin() const
 	bool bCanRemoveOptionPin = false;
 
 	const UDataflow* const Graph = DataflowAsset.Get();
-	if (const Dataflow::FGraph* const DataflowGraph = Graph->GetDataflow().Get())
+	if (const UE::Dataflow::FGraph* const DataflowGraph = Graph->GetDataflow().Get())
 	{
 		const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
 

@@ -59,6 +59,7 @@ public:
 	virtual bool GetCustomLoader(PFN_xrGetInstanceProcAddr* OutGetProcAddr) override;
 	virtual bool IsStandaloneStereoOnlyDevice() override { return true; }
 	virtual class FOpenXRRenderBridge* GetCustomRenderBridge(XrInstance InInstance) override;
+	virtual bool RequiresRHIContext() const override { return true; }
     virtual void OnBeginRendering_GameThread(XrSession InSession) override;
 	virtual void OnBeginRendering_RenderThread(XrSession InSession) override;
 

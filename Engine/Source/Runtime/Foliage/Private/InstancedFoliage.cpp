@@ -1698,9 +1698,9 @@ void FFoliageStaticMesh::UpdateComponentSettings(const UFoliageType_InstancedSta
 			bNeedsMarkRenderStateDirty = true;
 			bNeedsInvalidateLightingCache = true;
 		}
-		if (Component->LightmapType != FoliageType->LightmapType)
+		if (Component->GetLightmapType() != FoliageType->LightmapType)
 		{
-			Component->LightmapType = FoliageType->LightmapType;
+			Component->SetLightmapType(FoliageType->LightmapType);
 			bNeedsMarkRenderStateDirty = true;
 			bNeedsInvalidateLightingCache = true;
 		}
@@ -2444,7 +2444,7 @@ void FFoliageInfo::RemoveInstancesImpl(TArrayView<const int32> InInstancesToRemo
 		SelectedIndices.Remove(InstanceIndex);
 
 		// remove from instances array
-		Instances.RemoveAtSwap(InstanceIndex, 1, EAllowShrinking::No);
+		Instances.RemoveAtSwap(InstanceIndex, EAllowShrinking::No);
 
 		// update hashes for swapped instance
 		if (InstanceIndex != Instances.Num() && Instances.Num() > 0)
@@ -4599,8 +4599,7 @@ void AInstancedFoliageActor::PostLoad()
 
 			if (GetLinkerCustomVersion(FFoliageCustomVersion::GUID) < FFoliageCustomVersion::HierarchicalISMCNonTransactional)
 			{
-				check(Info.Type == EFoliageImplType::StaticMesh);
-				if (Info.Type == EFoliageImplType::StaticMesh)
+				if (ensure(Info.Type == EFoliageImplType::StaticMesh))
 				{
 					FFoliageStaticMesh* FoliageStaticMesh = StaticCast<FFoliageStaticMesh*>(Info.Implementation.Get());
 					if (FoliageStaticMesh->Component)
@@ -4622,8 +4621,7 @@ void AInstancedFoliageActor::PostLoad()
 			// Upgrade foliage component
 			if (GetLinkerCustomVersion(FFoliageCustomVersion::GUID) < FFoliageCustomVersion::FoliageUsingFoliageISMC)
 			{
-				check(Info.Type == EFoliageImplType::StaticMesh);
-				if (Info.Type == EFoliageImplType::StaticMesh)
+				if (ensure(Info.Type == EFoliageImplType::StaticMesh))
 				{
 					FFoliageStaticMesh* FoliageStaticMesh = StaticCast<FFoliageStaticMesh*>(Info.Implementation.Get());
 					UFoliageType_InstancedStaticMesh* FoliageType_InstancedStaticMesh = Cast<UFoliageType_InstancedStaticMesh>(FoliageType);

@@ -7,6 +7,7 @@
 #include "UniversalObjectLocatorFwd.h"
 #include "UniversalObjectLocatorFragmentType.h"
 #include "UniversalObjectLocatorFragmentTypeHandle.h"
+#include "UniversalObjectLocatorFragmentDebugging.h"
 #include "Templates/Function.h"
 #include "UniversalObjectLocatorFragment.generated.h"
 
@@ -45,9 +46,9 @@ struct alignas(8) FUniversalObjectLocatorFragment
 
 	/** Make our inline data buffer larger in-editor to support editor-only data without allocation */
 #if WITH_EDITORONLY_DATA
-	static constexpr SIZE_T Size = 64;
+	static constexpr SIZE_T SizeInMemory = 64;
 #else
-	static constexpr SIZE_T Size = 32;
+	static constexpr SIZE_T SizeInMemory = 32;
 #endif
 
 
@@ -275,9 +276,37 @@ protected:
 protected:
 
 	/**
+	 * Describes a UOL fragment payload after it has been allocated
+	 * Where UE_UNIVERSALOBJECTLOCATOR_DEBUG is enabled, the allocation will be laid out as such:
+	 * 0..								8..															8+sizeof(T)
+	 * [TFragmentPayload<T>				| T Payload													]
+	 *
+	 * When UE_UNIVERSALOBJECTLOCATOR_DEBUG is disabled, the allocation is simply:
+	 * 0..															sizeof(T)
+	 * | T Payload													]
+	 */
+	struct FAllocatedPayload
+	{
+#if UE_UNIVERSALOBJECTLOCATOR_DEBUG
+		/** Pointer to artificially inserted vtable ptr that identifies the fragment data polymorphically */
+		void* DebugVFTablePtr;
+#endif
+		/** Pointer to the actual typed fragment data */
+		void* Payload;
+	};
+
+	/**
+	 * Allocate (but do not initialize) the fragment payload using the specified size and alignment,
+	 *     accounting for enough space to fit a debug vftable ptr whern UE_UNIVERSALOBJECTLOCATOR_DEBUG is enabled.
+	 * 
+	 * @return Structure identifying the payload
+	 */
+	UNIVERSALOBJECTLOCATOR_API FAllocatedPayload AllocatePayload(size_t Size, size_t Alignment);
+
+	/**
 	 * Default-initialize the fragment payload using the specified type
 	 */
-	void InitializePayload(const UScriptStruct* StructType);
+	void DefaultConstructPayload(const UE::UniversalObjectLocator::FFragmentType& InFragmentType);
 
 	/**
 	 * Destroy the payload (if valid) by calling its destructor and freeing the memory (if necessary)
@@ -286,18 +315,32 @@ protected:
 
 private:
 
-	/*~ Utility symbol name to guarantee that FFragmentType can be resolved within the context of a FUniversalObjectLocatorFragment within natvis expressions */
-	struct FDebuggableFragmentType : UE::UniversalObjectLocator::FFragmentType
+	uint32 GetDebugHeaderOffset() const
 	{
+		// Special case for DebugHeaderSizeLog2==0 which signifies no offset rather than 2^0 = 1 byte.
+		// We do this using a branchless bitmask that always unsets the first bit (which can never be set, because we always return a power of 2 > 1)
+		return (1ul << DebugHeaderSizeLog2) & (~1ul);
+	}
+
+#if UE_UNIVERSALOBJECTLOCATOR_DEBUG
+	/*~ Utility symbol name to guarantee that FFragmentType can be resolved within the context of a FUniversalObjectLocatorFragment within natvis expressions */
+	struct FDebuggableFragmentType
+	{
+		using Type = UE::UniversalObjectLocator::FFragmentType;
 	};
+	struct FDebuggableFragment
+	{
+		using Type = UE::UniversalObjectLocator::IFragmentPayload;
+	};
+#endif
 
 	/*
 	 * Payload data - implicitly aligned to a 8 byte boundary since it's the first member.
 	 * Given payload type T, this is either a type-erased T() value (where bIsInline==1),
 	 *    or a T* to a heap allocated T (where bIsInline==0)
-	 * Size is specifically defined by the desired overall size of FUniversalObjectLocatorFragment::Size, minus space for other members
+	 * SizeInMemory is specifically defined by the desired overall size of FUniversalObjectLocatorFragment::SizeInMemory, minus space for other members
 	 */
-	uint8 Data[Size-2];
+	uint8 Data[SizeInMemory-2];
 
 	/** 1 Byte - the fragment type portion of the universal fragment */
 	UE::UniversalObjectLocator::FFragmentTypeHandle FragmentType;
@@ -307,6 +350,8 @@ private:
 	uint8 bIsInitialized : 1;
 	/** True if Data is an inline allocation of FragmentType::PayloadType, false means Data is a (void*) to the heap allocated data. */
 	uint8 bIsInline : 1;
+	/** Offset from the allocated memory to the fragment payload stored as a power of 2. Only non-zero when UE_UNIVERSALOBJECTLOCATOR_DEBUG is enabled. */
+	uint8 DebugHeaderSizeLog2 : 6;
 };
 
 template<>
@@ -327,20 +372,22 @@ struct TStructOpsTypeTraits<FUniversalObjectLocatorFragment> : public TStructOps
 template<typename T, typename ...ArgTypes>
 FUniversalObjectLocatorFragment::FUniversalObjectLocatorFragment(UE::UniversalObjectLocator::TFragmentTypeHandle<T> InHandle, ArgTypes&& ...InArgs)
 	: FragmentType(InHandle)
-	, bIsInitialized(1)
+	, bIsInitialized(0)
+	, DebugHeaderSizeLog2(0)
 {
+	using namespace UE::UniversalObjectLocator;
+
 	checkf(InHandle, TEXT("Attempting to construct a new fragment from an invalid fragment type handle - was it registered?"));
 
-	bIsInline = sizeof(T) <= sizeof(Data) && alignof(T) <= alignof(FUniversalObjectLocatorFragment);
-	if (!bIsInline)
-	{
-		// We have to allocate this struct on the heap
-		void* HeapAllocation = FMemory::Malloc(sizeof(T), alignof(T));
-		*reinterpret_cast<void**>(Data) = HeapAllocation;
-	}
+	FAllocatedPayload Allocation = AllocatePayload(sizeof(T), alignof(T));
+
+#if UE_UNIVERSALOBJECTLOCATOR_DEBUG
+	// Initialize the fragment vftable if necessary. We can do this without needing the fragment type since we know the type
+	new (Allocation.DebugVFTablePtr) TFragmentPayload<T>;
+#endif
 
 	// Placement new the payload
-	new (GetPayload()) T{ Forward<ArgTypes>(InArgs)... };
+	new (Allocation.Payload) T{ Forward<ArgTypes>(InArgs)... };
 }
 
 template<typename T>

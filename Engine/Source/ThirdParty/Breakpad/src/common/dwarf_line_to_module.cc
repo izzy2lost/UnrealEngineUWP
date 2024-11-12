@@ -1,5 +1,4 @@
-// Copyright (c) 2010 Google Inc.
-// All rights reserved.
+// Copyright 2010 Google LLC
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -11,7 +10,7 @@
 // copyright notice, this list of conditions and the following disclaimer
 // in the documentation and/or other materials provided with the
 // distribution.
-//     * Neither the name of Google Inc. nor the names of its
+//     * Neither the name of Google LLC nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
 //
@@ -32,6 +31,10 @@
 // dwarf_line_to_module.cc: Implementation of DwarfLineToModule class.
 // See dwarf_line_to_module.h for details. 
 
+#ifdef HAVE_CONFIG_H
+#include <config.h>  // Must come first
+#endif
+
 #include <stdio.h>
 
 #include <string>
@@ -49,14 +52,14 @@ static bool PathIsAbsolute(const string &path) {
   return (path.size() >= 1 && path[0] == '/') || path.find(":\\") != std::string::npos || path.find(":/") != std::string::npos;
 }
 
-static bool HasTrailingSlash(const string &path) {
+static bool HasTrailingSlash(const string& path) {
   return (path.size() >= 1 && path[path.size() - 1] == '/');
 }
 
 // If PATH is an absolute path, return PATH.  If PATH is a relative path,
 // treat it as relative to BASE and return the combined path.
-static string ExpandPath(const string &path,
-                         const string &base) {
+static string ExpandPath(const string& path,
+                         const string& base) {
   if (PathIsAbsolute(path) || base.empty())
     return path;
   return base + (HasTrailingSlash(base) ? "" : "/") + path;
@@ -64,16 +67,16 @@ static string ExpandPath(const string &path,
 
 namespace google_breakpad {
 
-void DwarfLineToModule::DefineDir(const string &name, uint32 dir_num) {
+void DwarfLineToModule::DefineDir(const string& name, uint32_t dir_num) {
   // Directory number zero is reserved to mean the compilation
   // directory. Silently ignore attempts to redefine it.
   if (dir_num != 0)
     directories_[dir_num] = ExpandPath(name, compilation_dir_);
 }
 
-void DwarfLineToModule::DefineFile(const string &name, int32 file_num,
-                                   uint32 dir_num, uint64 mod_time,
-                                   uint64 length) {
+void DwarfLineToModule::DefineFile(const string& name, int32_t file_num,
+                                   uint32_t dir_num, uint64_t mod_time,
+                                   uint64_t length) {
   if (file_num == -1)
     file_num = ++highest_file_number_;
   else if (file_num > highest_file_number_)
@@ -101,12 +104,12 @@ void DwarfLineToModule::DefineFile(const string &name, int32 file_num,
 
   // Find a Module::File object of the given name, and add it to the
   // file table.
-  files_[file_num] = module_->FindFile(full_name);
+  (*files_)[file_num] = module_->FindFile(full_name);
 }
 
-void DwarfLineToModule::AddLine(uint64 address, uint64 length,
-                                uint32 file_num, uint32 line_num,
-                                uint32 column_num) {
+void DwarfLineToModule::AddLine(uint64_t address, uint64_t length,
+                                uint32_t file_num, uint32_t line_num,
+                                uint32_t column_num) {
   if (length == 0)
     return;
 
@@ -122,24 +125,8 @@ void DwarfLineToModule::AddLine(uint64 address, uint64 length,
     omitted_line_end_ = 0;
   }
 
-/* EG BEGIN */
-#ifdef DUMP_SYMS_WITH_EPIC_EXTENSIONS
-  // Look for our inline entries and see if we have a more
-  // accurate call site from the inline information
-  if (inline_entries_) {
-    auto it = inline_entries_->upper_bound(address);
-    if (it != inline_entries_->end()) {
-      if (address >= it->second.low_pc && address < it->first) {
-        file_num = it->second.call_file;
-        line_num = it->second.call_line;
-      }
-    }
-  }
-#endif /* DUMP_SYMS_WITH_EPIC_EXTENSIONS */
-/* EG END */
-
   // Find the source file being referred to.
-  Module::File *file = files_[file_num];
+  Module::File *file = (*files_)[file_num];
   if (!file) {
     if (!warned_bad_file_number_) {
       fprintf(stderr, "warning: DWARF line number data refers to "

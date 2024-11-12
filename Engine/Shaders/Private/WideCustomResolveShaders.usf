@@ -29,7 +29,7 @@ float ModifySampleWeight(float3 Sample)
 float CalcSampleWeight(float w, float3 Sample)
 {
 	// Inverse luminance filtering
-	float lum = dot(Sample, MaterialFloat3(0.3, 0.59, 0.11)/w);
+	float lum = Luminance(Sample)/w;
 	return rcp(1.0/w + lum);
 }
 

@@ -109,7 +109,7 @@ static void ConditionallyDisplayBurnInTime(uint32 RecordedCL, float CurrentDemoT
 {
 	if (CVarWithDemoTimeBurnIn.GetValueOnAnyThread() != 0)
 	{
-		GEngine->AddOnScreenDebugMessage(INDEX_NONE, 0.f, FColor::Red, FString::Printf(TEXT("Current CL: %lu | Recorded CL: %lu | Time: %f"), FEngineVersion::Current().GetChangelist(), RecordedCL, CurrentDemoTime), true, FVector2D(3.f, 3.f));
+		GEngine->AddOnScreenDebugMessage(INDEX_NONE, 0.f, FColor::Red, FString::Printf(TEXT("Current CL: %u | Recorded CL: %u | Time: %f"), FEngineVersion::Current().GetChangelist(), RecordedCL, CurrentDemoTime), true, FVector2D(3.f, 3.f));
 	}
 }
 
@@ -925,7 +925,7 @@ void UDemoNetDriver::FinishDestroy()
 	
 	if (World)
 	{
-		World->RemoveOnActorDestroyededHandler(DelegateHandleActorPreDestroy);
+		World->RemoveOnActorDestroyedHandler(DelegateHandleActorPreDestroy);
 	}
 
 	Super::FinishDestroy();
@@ -2278,7 +2278,7 @@ bool UDemoNetDriver::ReplicatePrioritizedActor(const FActorPriority& ActorPriori
 		}
 
 		// Use NetUpdateFrequency for this actor, but clamp it to RECORD_HZ.
-		const float ClampedNetUpdateFrequency = FMath::Clamp(Actor->NetUpdateFrequency, Params.MinRecordHz, Params.MaxRecordHz);
+		const float ClampedNetUpdateFrequency = FMath::Clamp(Actor->GetNetUpdateFrequency(), Params.MinRecordHz, Params.MaxRecordHz);
 		const double NetUpdateDelay = 1.0 / ClampedNetUpdateFrequency;
 
 		// Set defaults if this actor is replicating for first time
@@ -2292,7 +2292,7 @@ bool UDemoNetDriver::ReplicatePrioritizedActor(const FActorPriority& ActorPriori
 
 		// Calculate min delta (max rate actor will update), and max delta (slowest rate actor will update)
 		const float MinOptimalDelta = NetUpdateDelay;										// Don't go faster than NetUpdateFrequency
-		const float MinNetUpdateFrequency = (Actor->MinNetUpdateFrequency == 0.0f) ? 2.0f : Actor->MinNetUpdateFrequency;
+		const float MinNetUpdateFrequency = (Actor->GetMinNetUpdateFrequency() == 0.0f) ? 2.0f : Actor->GetMinNetUpdateFrequency();
 		const float MaxOptimalDelta = FMath::Max(1.0f / MinNetUpdateFrequency, MinOptimalDelta);	// Don't go slower than MinNetUpdateFrequency (or NetUpdateFrequency if it's slower)
 
 		const float ScaleDownStartTime = 2.0f;
@@ -3388,7 +3388,7 @@ void UDemoNetDriver::RespawnNecessaryNetStartupActors(TArray<AActor*>& SpawnedAc
 		if (ExistingActor)
 		{
 			ensureMsgf((!IsValidChecked(ExistingActor) || ExistingActor->IsUnreachable()), TEXT("RespawnNecessaryNetStartupActors: Renaming rollback actor that wasn't destroyed: %s"), *GetFullNameSafe(ExistingActor));
-			ExistingActor->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+			ExistingActor->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 		}
 
 		FActorSpawnParameters SpawnInfo;
@@ -5659,7 +5659,7 @@ void UDemoNetDriver::SetWorld(UWorld* InWorld)
 {
 	if (World)
 	{
-		World->RemoveOnActorDestroyededHandler(DelegateHandleActorPreDestroy);
+		World->RemoveOnActorDestroyedHandler(DelegateHandleActorPreDestroy);
 	}
 
 	Super::SetWorld(InWorld);

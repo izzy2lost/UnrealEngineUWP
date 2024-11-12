@@ -35,4 +35,13 @@ public:
 
 	UPROPERTY(VisibleAnywhere, Category = "Motion Matching State", meta = (ForceUnits = "deg/s"))
 	float AnimAngularVelocity;
+
+	UPROPERTY(VisibleAnywhere, Category = "Motion Matching State", meta = (ForceUnits = "s"))
+	float Playrate;
+
+	UPROPERTY(VisibleAnywhere, Category = "Motion Matching State", meta = (ForceUnits = "cm/s"))
+	float AnimLinearVelocityNoTimescale;
+
+	UPROPERTY(VisibleAnywhere, Category = "Motion Matching State", meta = (ForceUnits = "deg/s"))
+	float AnimAngularVelocityNoTimescale;
 };

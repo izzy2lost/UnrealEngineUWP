@@ -17,7 +17,7 @@
 #include "Internationalization/TextPackageNamespaceUtil.h"
 #include "ScopedTransaction.h"
 #include "UObject/PropertyIterator.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Kismet2/StructureEditorUtils.h"
 
 #define LOCTEXT_NAMESPACE "Enum"
@@ -595,8 +595,7 @@ void FEnumEditorUtils::EnsureAllDisplayNamesExist(UUserDefinedEnum* Enum)
 					const FString PackageNamespace = GIsEditor ? TextNamespaceUtil::EnsurePackageNamespace(Enum) : TextNamespaceUtil::GetPackageNamespace(Enum);
 					const FString TextNamespace = TextNamespaceUtil::BuildFullNamespace(FString(), PackageNamespace, true);
 					const FString TextKey = FGuid::NewGuid().ToString();
-					const FString EnumEntryDisplayName = EnumEntryName.ToString();
-					DisplayNameToSet = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*EnumEntryDisplayName, *TextNamespace, *TextKey);
+					DisplayNameToSet = FText::AsLocalizable_Advanced(TextNamespace, TextKey, EnumEntryName.ToString());
 				}
 #else  // USE_STABLE_LOCALIZATION_KEYS
 				DisplayNameToSet = FText::FromName(EnumEntryName);
@@ -633,7 +632,7 @@ void FEnumEditorUtils::UpgradeDisplayNamesFromMetaData(UUserDefinedEnum* Enum)
 					const FString PackageNamespace = GIsEditor ? TextNamespaceUtil::EnsurePackageNamespace(Enum) : TextNamespaceUtil::GetPackageNamespace(Enum);
 					const FString TextNamespace = TextNamespaceUtil::BuildFullNamespace(TEXT(""), PackageNamespace, true);
 					const FString TextKey = FGuid::NewGuid().ToString();
-					DisplayNameToSet = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*MetaDataEntryDisplayName, *TextNamespace, *TextKey);
+					DisplayNameToSet = FText::AsLocalizable_Advanced(TextNamespace, TextKey, MetaDataEntryDisplayName);
 				}
 #else  // USE_STABLE_LOCALIZATION_KEYS
 				DisplayNameToSet = FText::FromName(EnumEntryName);

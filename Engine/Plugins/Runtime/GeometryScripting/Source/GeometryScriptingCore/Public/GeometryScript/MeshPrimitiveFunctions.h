@@ -61,6 +61,10 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	EGeometryScriptPrimitiveUVMode UVMode = EGeometryScriptPrimitiveUVMode::Uniform;
+
+	// Material ID to set on primitive mesh triangles
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int32 MaterialID = 0;
 };
 
 
@@ -173,12 +177,49 @@ public:
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
+	 * Appends a 3D box to the Target Mesh
+	 * Also creates matching simple collision
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	AppendBoxWithCollision(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptSimpleCollision &SimpleCollision,
+		FGeometryScriptPrimitiveOptions PrimitiveOptions,
+		FTransform Transform,
+		float DimensionX = 100,
+		float DimensionY = 100,
+		float DimensionZ = 100,
+		int32 StepsX = 0,
+		int32 StepsY = 0,
+		int32 StepsZ = 0,
+		EGeometryScriptPrimitiveOriginMode Origin = EGeometryScriptPrimitiveOriginMode::Base,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
 	 * Appends a 3D box to the Target Mesh with dimensions and origin taken from the input Box
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	AppendBoundingBox( 
 		UDynamicMesh* TargetMesh, 
+		FGeometryScriptPrimitiveOptions PrimitiveOptions,
+		FTransform Transform,
+		FBox Box,
+		int32 StepsX = 0,
+		int32 StepsY = 0,
+		int32 StepsZ = 0,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Appends a 3D box to the Target Mesh with dimensions and origin taken from the input Box
+	 * Also creates matching simple collision
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	AppendBoundingBoxWithCollision( 
+		UDynamicMesh* TargetMesh, 
+		FGeometryScriptSimpleCollision& SimpleCollision,
 		FGeometryScriptPrimitiveOptions PrimitiveOptions,
 		FTransform Transform,
 		FBox Box,
@@ -195,6 +236,24 @@ public:
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	AppendSphereLatLong( 
 		UDynamicMesh* TargetMesh, 
+		FGeometryScriptPrimitiveOptions PrimitiveOptions,
+		FTransform Transform,
+		float Radius = 50,
+		int32 StepsPhi = 10,
+		int32 StepsTheta = 16,
+		EGeometryScriptPrimitiveOriginMode Origin = EGeometryScriptPrimitiveOriginMode::Center,
+		UGeometryScriptDebug* Debug = nullptr);
+	
+	/**
+	* Appends a 3D Sphere triangulated using latitude/longitude topology to the Target Mesh.
+	* Also creates matching simple collision. Note: If transform has non-uniform scale, collision shape will be a uniform-scale approximation
+	* matching the behavior of the physics system -- specifically, it will scale the sphere radius by the smallest axis scale.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	AppendSphereLatLongWithCollision( 
+		UDynamicMesh* TargetMesh, 
+		FGeometryScriptSimpleCollision& SimpleCollision,
 		FGeometryScriptPrimitiveOptions PrimitiveOptions,
 		FTransform Transform,
 		float Radius = 50,
@@ -220,6 +279,25 @@ public:
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
+	 * Appends a 3D sphere triangulated using box topology to the Target Mesh.
+	 * Also creates matching simple collision. Note: If transform has non-uniform scale, collision shape will be a uniform-scale approximation
+	 * matching the behavior of the physics system -- specifically, it will scale the sphere radius by the smallest axis scale.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	AppendSphereBoxWithCollision(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptSimpleCollision& SimpleCollision,
+		FGeometryScriptPrimitiveOptions PrimitiveOptions,
+		FTransform Transform,
+		float Radius = 50,
+		int32 StepsX = 6,
+		int32 StepsY = 6,
+		int32 StepsZ = 6,
+		EGeometryScriptPrimitiveOriginMode Origin = EGeometryScriptPrimitiveOriginMode::Center,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
 	* Appends a 3D Capsule to the Target Mesh.
 	*/ 
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod))
@@ -232,8 +310,45 @@ public:
 		float LineLength = 75,
 		int32 HemisphereSteps = 5,
 		int32 CircleSteps = 8,
+		int32 SegmentSteps = 0,
 		EGeometryScriptPrimitiveOriginMode Origin = EGeometryScriptPrimitiveOriginMode::Base,
 		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Appends a 3D Capsule to the Target Mesh.
+	 * Also creates matching simple collision. Note: If transform has non-uniform scale, collision shape will be a uniform-scale approximation
+	 * matching the behavior of the physics system -- specifically, it will scale the radius by the larger of the X, Y axis scales, and the length by the Z axis scale
+	*/ 
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	AppendCapsuleWithCollision( 
+		UDynamicMesh* TargetMesh, 
+		FGeometryScriptSimpleCollision& SimpleCollision,
+		FGeometryScriptPrimitiveOptions PrimitiveOptions,
+		FTransform Transform,
+		float Radius = 30,
+		float LineLength = 75,
+		int32 HemisphereSteps = 5,
+		int32 CircleSteps = 8,
+		int32 SegmentSteps = 0,
+		EGeometryScriptPrimitiveOriginMode Origin = EGeometryScriptPrimitiveOriginMode::Base,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	// Version of append capsule without SegmentSteps parameter
+	UE_DEPRECATED(5.5, "Use AppendCapsule with the SegmentSteps parameter, instead")
+	static UDynamicMesh* AppendCapsule(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptPrimitiveOptions PrimitiveOptions,
+		FTransform Transform,
+		float Radius = 30,
+		float LineLength = 75,
+		int32 HemisphereSteps = 5,
+		int32 CircleSteps = 8,
+		EGeometryScriptPrimitiveOriginMode Origin = EGeometryScriptPrimitiveOriginMode::Base,
+		UGeometryScriptDebug* Debug = nullptr)
+	{
+		return AppendCapsule(TargetMesh, PrimitiveOptions, Transform, Radius, LineLength, HemisphereSteps, CircleSteps, 0, Origin, Debug);
+	}
 
 	/**
 	* Appends a 3D Cylinder (with optional end caps) to the Target Mesh.
@@ -347,6 +462,7 @@ public:
 	 * @param StartScale uniform scaling applied to the 2D polygon at the start of the path. Interpolated via arc length to EndScale at the end of the path.
 	 * @param EndScale uniform scaling applied to the 2D polygon at the end of the path
 	 * @param RotationAngleDeg Rotation applied to the 2D Polygon. Positive rotation rotates clockwise, ie Up/+Z/+V towards Right/+Y/+U. This Rotation is applied before any rotation in the SweepPath Transforms.
+	 * @param MiterLimit If > 1, maximum scaling to apply at sharp turns in the curve path to keep the apparent swept profile from shrinking, and sweep path frames will be aligned to the path direction
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod, AutoCreateRefTerm="PolylineTexParamU, SweepPathTexParamV"))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
@@ -362,6 +478,7 @@ public:
 		float StartScale = 1.0f,
 		float EndScale = 1.0f,
 		float RotationAngleDeg = 0.0f,
+		float MiterLimit = 1.0f,
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
@@ -382,8 +499,16 @@ public:
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
-	* Sweeps a 2D polygon along an arbitrary 3D path, appending the result to the Target Mesh.
-	*/
+	 * Sweeps a 2D polygon along an arbitrary 3D path, appending the result to the Target Mesh.
+	 * @param PolygonVertices vertices of the closed 2D polyon that will be swept along the SweepPath
+	 * @param SweepPath defines the 3D sweep path curve
+	 * @param bLoop if true, SweepPath is considered to be a Loop and a section connecting the end and start of the path is added (bCapped is ignored)
+	 * @param bCapped if true the open ends of the swept generalized cylinder are triangulated
+	 * @param StartScale uniform scaling applied to the 2D polygon at the start of the path. Interpolated via arc length to EndScale at the end of the path.
+	 * @param EndScale uniform scaling applied to the 2D polygon at the end of the path
+	 * @param RotationAngleDeg Rotation applied to the 2D Polygon. Positive rotation rotates clockwise, ie Up/+Z/+V towards Right/+Y/+U
+	 * @param MiterLimit If > 1, maximum scaling to apply at sharp turns in the curve path to keep the apparent swept profile from shrinking
+	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	AppendSimpleSweptPolygon( 
@@ -396,6 +521,8 @@ public:
 		bool bCapped = true,
 		float StartScale = 1.0f,
 		float EndScale = 1.0f,
+		float RotationAngleDeg = 0.0f,
+		float MiterLimit = 1.0f,
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
@@ -408,7 +535,8 @@ public:
 	 * @param bCapped if true the open ends of the swept generalized cylinder are triangulated
 	 * @param StartScale uniform scaling applied to the 2D polygon at the start of the path. Interpolated via arc length to EndScale at the end of the path.
 	 * @param EndScale uniform scaling applied to the 2D polygon at the end of the path
-	 * @param RotationAngleDeg Rotation applied to the 2D Polygon. Positive rotation rotates clockwise, ie Up/+Z/+V towards Right/+Y/+U
+	 * @param RotationAngleDeg Rotation applied to the 2D Polygon. Positive rotation rotates clockwise, ie Up/+Z/+V towards Right/+Y/+U. This Rotation is applied before any rotation in the SweepPath Transforms.
+	 * @param MiterLimit If > 1, maximum scaling to apply at sharp turns in the curve path to keep the apparent swept profile from shrinking, and sweep path frames will be aligned to the path direction
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
@@ -423,6 +551,7 @@ public:
 		float StartScale = 1.0f,
 		float EndScale = 1.0f,
 		float RotationAngleDeg = 0.0f,
+		float MiterLimit = 1.0f,
 		UGeometryScriptDebug* Debug = nullptr);
 
 
@@ -569,6 +698,22 @@ public:
 		TArray<int32>& PositionsToVertexIDs,
 		bool& bHasDuplicateVertices,
 		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Intended for use with AppendDelaunayTriangulation2D:
+	 * Create a loop of edges through sequential vertices
+	 * e.g., a Loop(3,0) will construct edges (2,0), (0,1) and (1,2)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives")
+	static TArray<FIntPoint> CreateConstrainedEdgesLoop(int32 NumVertices, int32 Start = 0);
+
+	/**
+	 * Intended for use with AppendDelaunayTriangulation2D:
+	 * Create a chain of edges through sequential vertices
+	 * e.g., a Chain(3,0) will construct edges (0,1) and (1,2)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives")
+	static TArray<FIntPoint> CreateConstrainedEdgesChain(int32 NumVertices, int32 Start = 0);
 
 
 	/**

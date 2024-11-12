@@ -72,11 +72,12 @@ void FBlueprintMemberReferenceDetails::CustomizeHeader(TSharedRef<IPropertyHandl
 			return;
 		}
 		
+		const bool bAllowOnlyVisibleProperties = InStructPropertyHandle->HasMetaData("AllowOnlyVisibleProperties");
 		const bool bFunctionReference = InStructPropertyHandle->HasMetaData("FunctionReference");
 		const bool bPropertyReference = InStructPropertyHandle->HasMetaData("PropertyReference");
-		if(bPropertyReference || !bFunctionReference)
+		if(!bPropertyReference && !bFunctionReference)
 		{
-			// Only function references are supported right now
+			// Only property and function references are supported right now
 			return;
 		}
 
@@ -96,9 +97,19 @@ void FBlueprintMemberReferenceDetails::CustomizeHeader(TSharedRef<IPropertyHandl
 			return DefaultBindingName;
 		};
 		
-		auto OnCanBindProperty = [](FProperty* InProperty)
+		auto OnCanBindProperty = [bPropertyReference, bAllowOnlyVisibleProperties](FProperty* InPropertyOnCanBindProperty, TConstArrayView<FBindingChainElement> InBindingChain)
 		{
-			return true;
+			if (bPropertyReference)
+			{
+				if (bAllowOnlyVisibleProperties && InPropertyOnCanBindProperty)
+				{
+					return InPropertyOnCanBindProperty->HasAnyPropertyFlags(CPF_Edit)
+							&& (!InPropertyOnCanBindProperty->HasAnyPropertyFlags(CPF_NativeAccessSpecifierPrivate | CPF_NativeAccessSpecifierProtected)
+								|| InPropertyOnCanBindProperty->GetBoolMetaData(FBlueprintMetadata::MD_AllowPrivateAccess));
+				}
+				return true;
+			}
+			return false;
 		};
 
 		auto OnGoToBinding = [InStructPropertyHandle, Blueprint](FName InPropertyName)
@@ -125,23 +136,27 @@ void FBlueprintMemberReferenceDetails::CustomizeHeader(TSharedRef<IPropertyHandl
 			return false;
 		};
 		
-		auto OnCanGotoBinding = [InStructPropertyHandle](FName InPropertyName)
+		auto OnCanGotoBinding = [InStructPropertyHandle, Blueprint](FName InPropertyName)
 		{
 			void* StructData = nullptr;
 			const FPropertyAccess::Result Result = InStructPropertyHandle->GetValueData(StructData);
 			if(Result == FPropertyAccess::Success)
 			{
 				check(StructData);
-				FMemberReference* MemberReference = static_cast<FMemberReference*>(StructData);
-				return MemberReference->GetMemberName() != NAME_None;
+				const FMemberReference* MemberReference = static_cast<FMemberReference*>(StructData);
+				// Only support to go to functions for now.
+				const bool bHasValidFunction = MemberReference->ResolveMember<UFunction>(Blueprint->SkeletonGeneratedClass) != nullptr;
+				
+				return bHasValidFunction;
 			}
 			
 			return false;
 		};
 		
-		auto OnCanBindFunction = [PrototypeFunction](UFunction* InFunction)
+		auto OnCanBindFunction = [PrototypeFunction, bFunctionReference](UFunction* InFunction)
 		{
-			if(PrototypeFunction != nullptr)
+			if (PrototypeFunction != nullptr
+				&& bFunctionReference)
 			{
 				return PrototypeFunction->IsSignatureCompatibleWith(InFunction)
 					&& FBlueprintEditorUtils::HasFunctionBlueprintThreadSafeMetaData(PrototypeFunction) == FBlueprintEditorUtils::HasFunctionBlueprintThreadSafeMetaData(InFunction);
@@ -160,15 +175,29 @@ void FBlueprintMemberReferenceDetails::CustomizeHeader(TSharedRef<IPropertyHandl
 				
 				check(StructData);
 				FMemberReference* MemberReference = static_cast<FMemberReference*>(StructData);
-				UFunction* Function = InBindingChain[0].Field.Get<UFunction>();
-				UClass* OwnerClass = Function ? Function->GetOwnerClass() : nullptr;
-				bool bSelfContext = false;
-				if(OwnerClass != nullptr)
+				
+				if (UFunction* Function = InBindingChain[0].Field.Get<UFunction>())
 				{
-					bSelfContext = (Blueprint->GeneratedClass != nullptr && Blueprint->GeneratedClass->IsChildOf(OwnerClass)) ||
-									(Blueprint->SkeletonGeneratedClass != nullptr && Blueprint->SkeletonGeneratedClass->IsChildOf(OwnerClass));
+					UClass* OwnerClass = Function ? Function->GetOwnerClass() : nullptr;
+					bool bSelfContext = false;
+					if(OwnerClass != nullptr)
+					{
+						bSelfContext = (Blueprint->GeneratedClass != nullptr && Blueprint->GeneratedClass->IsChildOf(OwnerClass)) ||
+										(Blueprint->SkeletonGeneratedClass != nullptr && Blueprint->SkeletonGeneratedClass->IsChildOf(OwnerClass));
+					}
+					MemberReference->SetFromField<UFunction>(Function, bSelfContext);
 				}
-				MemberReference->SetFromField<UFunction>(Function, bSelfContext);
+				else if (const FProperty* Property = InBindingChain[0].Field.Get<FProperty>())
+				{
+					UClass* OwnerClass = Property ? Property->GetOwnerClass() : nullptr;
+					bool bSelfContext = false;
+					if(OwnerClass != nullptr)
+					{
+						bSelfContext = (Blueprint->GeneratedClass != nullptr && Blueprint->GeneratedClass->IsChildOf(OwnerClass)) ||
+										(Blueprint->SkeletonGeneratedClass != nullptr && Blueprint->SkeletonGeneratedClass->IsChildOf(OwnerClass));
+					}
+					MemberReference->SetFromField<FProperty>(Property, bSelfContext);
+				}
 
 				InStructPropertyHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
 			}
@@ -218,7 +247,7 @@ void FBlueprintMemberReferenceDetails::CustomizeHeader(TSharedRef<IPropertyHandl
 			}
 		};
 
-		auto CurrentBindingText = [bFunctionReference, Blueprint, InStructPropertyHandle]()
+		auto CurrentBindingText = [Blueprint, InStructPropertyHandle]()
 		{
 			void* StructData = nullptr;
 			const FPropertyAccess::Result Result = InStructPropertyHandle->GetValueData(StructData);
@@ -226,18 +255,16 @@ void FBlueprintMemberReferenceDetails::CustomizeHeader(TSharedRef<IPropertyHandl
 			{
 				check(StructData);
 				FMemberReference* MemberReference = static_cast<FMemberReference*>(StructData);
-				if(bFunctionReference)
+
+				if (UFunction* Function = MemberReference->ResolveMember<UFunction>(Blueprint->SkeletonGeneratedClass))
 				{
-					UFunction* Function = MemberReference->ResolveMember<UFunction>(Blueprint->SkeletonGeneratedClass);
-					if(Function)
-					{
-						return FText::FromName(Function->GetFName());
-					}
-					else
-					{
-						return FText::FromName(MemberReference->GetMemberName());
-					}
+					return FText::FromName(Function->GetFName());
 				}
+				else if (const FProperty* Property = MemberReference->ResolveMember<FProperty>(Blueprint->SkeletonGeneratedClass))
+				{
+					return FText::FromName(Property->GetFName());
+				}
+				return FText::FromName(MemberReference->GetMemberName());
 			}
 			else if(Result == FPropertyAccess::MultipleValues)
 			{
@@ -264,11 +291,57 @@ void FBlueprintMemberReferenceDetails::CustomizeHeader(TSharedRef<IPropertyHandl
 
 			return FText::GetEmpty();
 		};
+
+		auto CurrentBindingImage = [Blueprint, InStructPropertyHandle]() -> const FSlateBrush*
+		{
+			void* StructData = nullptr;
+			const FPropertyAccess::Result Result = InStructPropertyHandle->GetValueData(StructData);
+			if(Result == FPropertyAccess::Success)
+			{
+				check(StructData);
+				FMemberReference* MemberReference = static_cast<FMemberReference*>(StructData);
+
+				if (MemberReference->ResolveMember<UFunction>(Blueprint->SkeletonGeneratedClass))
+				{
+					return FAppStyle::GetBrush("GraphEditor.Function_16x");
+				}
+				else if (MemberReference->ResolveMember<FProperty>(Blueprint->SkeletonGeneratedClass))
+				{
+					return FAppStyle::GetBrush("Kismet.Tabs.Variables");
+				}
+			}
+			return nullptr;
+		};
+
+		auto CurrentBindingColor = [Blueprint, InStructPropertyHandle]() -> FLinearColor
+		{
+			void* StructData = nullptr;
+			const FPropertyAccess::Result Result = InStructPropertyHandle->GetValueData(StructData);
+			if(Result == FPropertyAccess::Success)
+			{
+				check(StructData);
+				FMemberReference* MemberReference = static_cast<FMemberReference*>(StructData);
+
+				if (MemberReference->ResolveMember<UFunction>(Blueprint->SkeletonGeneratedClass))
+				{
+					return FAppStyle::GetSlateColor("Colors.Foreground").GetSpecifiedColor();
+				}
+				else if (const FProperty* Property = MemberReference->ResolveMember<FProperty>(Blueprint->SkeletonGeneratedClass))
+				{
+					const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
+					check(Schema);
+					FEdGraphPinType PinType;
+					Schema->ConvertPropertyToPinType(Property, PinType);
+					return Schema->GetPinTypeColor(PinType);
+				}
+			}
+			return FAppStyle::GetSlateColor("Colors.Foreground").GetSpecifiedColor();
+		};
 	
 		FPropertyBindingWidgetArgs Args;
 		Args.BindableSignature = PrototypeFunction;
 		Args.OnGenerateBindingName = FOnGenerateBindingName::CreateLambda(OnGenerateBindingName);
-		Args.OnCanBindProperty = FOnCanBindProperty::CreateLambda(OnCanBindProperty);
+		Args.OnCanBindPropertyWithBindingChain = FOnCanBindPropertyWithBindingChain::CreateLambda(OnCanBindProperty);
 		Args.OnGotoBinding = FOnGotoBinding::CreateLambda(OnGoToBinding);
 		Args.OnCanGotoBinding = FOnCanGotoBinding::CreateLambda(OnCanGotoBinding);
 		Args.OnCanBindFunction = FOnCanBindFunction::CreateLambda(OnCanBindFunction);
@@ -279,13 +352,13 @@ void FBlueprintMemberReferenceDetails::CustomizeHeader(TSharedRef<IPropertyHandl
 		Args.OnNewFunctionBindingCreated = FOnNewFunctionBindingCreated::CreateLambda(OnNewFunctionBindingCreated);
 		Args.CurrentBindingText = MakeAttributeLambda(CurrentBindingText);
 		Args.CurrentBindingToolTipText = MakeAttributeLambda(CurrentBindingToolTipText);
-		Args.CurrentBindingImage = FAppStyle::GetBrush("GraphEditor.Function_16x");
-		Args.CurrentBindingColor = FAppStyle::GetSlateColor("Colors.Foreground").GetSpecifiedColor();
-		Args.bGeneratePureBindings = false;
+		Args.CurrentBindingImage = MakeAttributeLambda(CurrentBindingImage);
+		Args.CurrentBindingColor = MakeAttributeLambda(CurrentBindingColor);
+		Args.bGeneratePureBindings = bPropertyReference;
 		Args.bAllowFunctionBindings = bFunctionReference;
 		Args.bAllowFunctionLibraryBindings = bAllowFunctionLibraryReferences;
-		Args.bAllowPropertyBindings = false;
-		Args.bAllowNewBindings = true;
+		Args.bAllowPropertyBindings = bPropertyReference;
+		Args.bAllowNewBindings = bFunctionReference;
 		Args.bAllowArrayElementBindings = false;
 		Args.bAllowUObjectFunctions = false;
 		Args.bAllowStructFunctions = false;

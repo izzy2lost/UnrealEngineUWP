@@ -28,6 +28,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMPin)
 
+TAutoConsoleVariable<bool> CVarRigVMEnablePinDefaultTypes(TEXT("RigVM.EnablePinDefaultTypes"), false, TEXT("enables the use of pin default types"));
+
 #if WITH_EDITOR
 #include "UObject/CoreRedirects.h"
 #endif
@@ -54,7 +56,6 @@ URigVMInjectionInfo::FWeakInfo URigVMInjectionInfo::GetWeakInfo() const
 
 const URigVMPin::FPinOverrideMap URigVMPin::EmptyPinOverrideMap;
 const URigVMPin::FPinOverride URigVMPin::EmptyPinOverride = URigVMPin::FPinOverride(FRigVMASTProxy(), EmptyPinOverrideMap);
-const FString URigVMPin::OrphanPinPrefix = TEXT("Orphan::");
 
 bool URigVMPin::SplitPinPathAtStart(const FString& InPinPath, FString& LeftMost, FString& Right)
 {
@@ -113,6 +114,9 @@ URigVMPin::URigVMPin()
 	, CPPTypeObject(nullptr)
 	, CPPTypeObjectPath(NAME_None)
 	, DefaultValue(FString())
+	, DefaultValueType(ERigVMPinDefaultValueType::AutoDetect)
+	, CustomWidgetName(NAME_None)
+	, IndexInCategory(INDEX_NONE)
 	, BoundVariablePath_DEPRECATED()
 	, LastKnownTypeIndex(INDEX_NONE)
 {
@@ -220,6 +224,38 @@ FString URigVMPin::GetSubPinPath(const URigVMPin* InParentPin, bool bIncludePare
 		}
 	}
 	return GetName();
+}
+
+FString URigVMPin::GetCategory() const
+{
+	if (UserDefinedCategory.IsEmpty())
+	{
+		if(const URigVMNode* Node = GetNode())
+		{
+			const FString CategoryFromNode = Node->GetCategoryForPin(this->GetSegmentPath(true));
+			if(!CategoryFromNode.IsEmpty())
+			{
+				return CategoryFromNode;
+			}
+		}
+	}
+	return UserDefinedCategory;
+}
+
+int32 URigVMPin::GetIndexInCategory() const
+{
+	if(IndexInCategory == INDEX_NONE)
+	{
+		if(const URigVMNode* Node = GetNode())
+		{
+			int32 IndexFromNode = Node->GetIndexInCategoryForPin(this->GetSegmentPath(true));
+			if(IndexFromNode != INDEX_NONE)
+			{
+				return IndexFromNode;
+			}
+		}
+	}
+	return IndexInCategory;
 }
 
 FString URigVMPin::GetSegmentPath(bool bIncludeRootPin) const
@@ -364,12 +400,17 @@ FName URigVMPin::GetDisplayName() const
 {
 	if (DisplayName == NAME_None)
 	{
-		if(const URigVMTemplateNode* Node = Cast<URigVMTemplateNode>(GetNode()))
+		if(IsArrayElement())
 		{
-			const FName DisplayNameForArgument = Node->GetDisplayNameForPin(*this->GetSegmentPath(true));
-			if(!DisplayNameForArgument.IsNone())
+			return *FString::FromInt(GetPinIndex());
+		}
+		
+		if(const URigVMNode* Node = GetNode())
+		{
+			const FName DisplayNameFromNode = Node->GetDisplayNameForPin(this->GetSegmentPath(true));
+			if(!DisplayNameFromNode.IsNone())
 			{
-				return DisplayNameForArgument;
+				return DisplayNameFromNode;
 			}
 		}
 		return GetFName();
@@ -685,6 +726,16 @@ bool URigVMPin::ShouldOnlyShowSubPins() const
 	{
 		if(const URigVMNode* Node = GetNode())
 		{
+			if(IsStruct())
+			{
+				// Never show sub-pins for custom import/export text as we cant do memberwise manipulations in the graph via text
+				// This change is to allow things like FUniversalObjectLocator (with its native text serialization) to be used on RigVM pins.
+				if((GetScriptStruct()->StructFlags & (STRUCT_ExportTextItemNative | STRUCT_ImportTextItemNative)) != 0)
+				{
+					return false;
+				}
+			}
+
 			if(const URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(Node))
 			{
 				if(const UScriptStruct* Struct = UnitNode->GetScriptStruct())
@@ -721,6 +772,15 @@ bool URigVMPin::ShouldHideSubPins() const
 	{
 		if(const URigVMNode* Node = GetNode())
 		{
+			if(IsStruct())
+			{
+				// Hide sub-pins for custom import/export text as we cant do memberwise manipulations in the graph via text
+				if((GetScriptStruct()->StructFlags & (STRUCT_ExportTextItemNative | STRUCT_ImportTextItemNative)) != 0)
+				{
+					return true;
+				}
+			}
+
 			if(const URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(Node))
 			{
 				if(const UScriptStruct* Struct = UnitNode->GetScriptStruct())
@@ -743,6 +803,15 @@ bool URigVMPin::ShouldHideSubPins() const
 #endif
 
 	return false;
+}
+
+FString URigVMPin::GetOriginalDefaultValue() const
+{
+	if(const URigVMNode* Node = GetNode())
+	{
+		return Node->GetOriginalPinDefaultValue(this);
+	}
+	return FString();
 }
 
 FString URigVMPin::GetDefaultValue() const
@@ -799,9 +868,26 @@ FString URigVMPin::GetDefaultValue(const URigVMPin::FPinOverride& InOverride, bo
 	}
 	else if (IsStruct())
 	{
-		if (SubPins.Num() > 0)
+		static const FString EmptyStructDefaultValue = TEXT("()");
+		
+		// for trait pins, there are cases where a pin is not created for a property (see ShouldCreatePinForProperty())
+		// so we store the value of that property in the default value of the struct pin containing that property
+		// as a result, to retrieve the default value we need to combine the default value on the struct pin, with additional overrides in the available sub pins
+		if (SubPins.Num() > 0 || IsTraitPin())
 		{
-			TArray<FString> MemberDefaultValues;
+			FString FinalDefaultValue = DefaultValue;
+			
+			// root trait pin store their default value in a separate property bag so that
+			// things like soft object ptr can be used and tracked in a uproperty
+			if (IsTraitPin() && IsRootPin())
+			{
+				FRigVMTraitDefaultValueStruct* DefaultValueStructPtr = GetNode()->TraitDefaultValues.Find(GetName());
+				if (ensure(DefaultValueStructPtr))
+				{
+					FinalDefaultValue = DefaultValueStructPtr->GetValue();
+				}
+			}
+
 			for (const URigVMPin* SubPin : SubPins)
 			{
 				FString MemberDefaultValue = SubPin->GetDefaultValue(InOverride, bAdaptValueForPinType);
@@ -813,26 +899,24 @@ FString URigVMPin::GetDefaultValue(const URigVMPin::FPinOverride& InOverride, bo
 				{
 					continue;
 				}
-				MemberDefaultValues.Add(FString::Printf(TEXT("%s=%s"), *SubPin->GetName(), *MemberDefaultValue));
+
+				URigVMController::OverrideDefaultValueMember(SubPin->GetName(), MemberDefaultValue, FinalDefaultValue);
 			}
-			if (MemberDefaultValues.Num() == 0)
-			{
-				return TEXT("()");
-			}
-			return FString::Printf(TEXT("(%s)"), *FString::Join(MemberDefaultValues, TEXT(",")));
+
+			return !FinalDefaultValue.IsEmpty() ? FinalDefaultValue : EmptyStructDefaultValue;
 		}
 
 		// special case certain pin types to adapt their values from
 		// alternative representations.
-		static const FString EmptyStructDefaultValue = TEXT("()");
+		
 		if(bAdaptValueForPinType && !DefaultValue.IsEmpty() && DefaultValue != EmptyStructDefaultValue)
 		{
 			if(GetScriptStruct() == TBaseStructure<FQuat>::Get())
 			{
 				// quaternions also allow default values stored as rotators
-				FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+				FRigVMPinDefaultValueImportErrorContext ErrorPipe(ELogVerbosity::Verbose);
 				FRotator Rotator = FRotator::ZeroRotator;
-				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose); 
+				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ErrorPipe.GetMaxVerbosity()); 
 				TBaseStructure<FRotator>::Get()->ImportText(*DefaultValue, &Rotator, nullptr, PPF_None, &ErrorPipe, TBaseStructure<FRotator>::Get()->GetName());
 				if(ErrorPipe.NumErrors == 0)
 				{
@@ -956,9 +1040,9 @@ bool URigVMPin::IsValidDefaultValue(const FString& InDefaultValue) const
 			if(ScriptStruct == TBaseStructure<FQuat>::Get())
 			{
 				// quaternions also allow default values stored as rotators
-				FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+				FRigVMPinDefaultValueImportErrorContext ErrorPipe(ELogVerbosity::Verbose);
 				FRotator Rotator = FRotator::ZeroRotator;
-				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose); 
+				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ErrorPipe.GetMaxVerbosity()); 
 				TBaseStructure<FRotator>::Get()->ImportText(*Value, &Rotator, nullptr, PPF_None, &ErrorPipe, TBaseStructure<FRotator>::Get()->GetName());
 				if(ErrorPipe.NumErrors == 0)
 				{
@@ -970,10 +1054,10 @@ bool URigVMPin::IsValidDefaultValue(const FString& InDefaultValue) const
 			TempStructBuffer.AddUninitialized(ScriptStruct->GetStructureSize());
 			ScriptStruct->InitializeDefaultValue(TempStructBuffer.GetData());
 
-			FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+			FRigVMPinDefaultValueImportErrorContext ErrorPipe(ELogVerbosity::Verbose);
 			{
 				// force logging to the error pipe for error detection
-				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose); 
+				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ErrorPipe.GetMaxVerbosity()); 
 				ScriptStruct->ImportText(*Value, TempStructBuffer.GetData(), nullptr, PPF_None, &ErrorPipe, ScriptStruct->GetName()); 
 			}
 
@@ -1037,6 +1121,53 @@ bool URigVMPin::IsValidDefaultValue(const FString& InDefaultValue) const
 		}
 	}
 
+	return true;
+}
+
+bool URigVMPin::HasUserProvidedDefaultValue() const
+{
+	if(!CVarRigVMEnablePinDefaultTypes.GetValueOnAnyThread())
+	{
+		return false;
+	}
+	
+	if(!CanProvideDefaultValue())
+	{
+		return false;
+	}
+	
+	if(DefaultValueType == ERigVMPinDefaultValueType::Override)
+	{
+		return true;
+	}
+
+	for(const TObjectPtr<URigVMPin>& SubPin : SubPins)
+	{
+		if(SubPin->HasUserProvidedDefaultValue())
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool URigVMPin::CanProvideDefaultValue() const
+{
+	if((GetDirection() != ERigVMPinDirection::Input) &&
+		(GetDirection() != ERigVMPinDirection::IO) &&
+		(GetDirection() != ERigVMPinDirection::Visible))
+	{
+		return false;
+	}
+	if(IsWildCard() && !IsArray())
+	{
+		return false;
+	}
+	if(IsExecuteContext())
+	{
+		return false;
+	}
 	return true;
 }
 
@@ -1144,9 +1275,9 @@ FString URigVMPin::GetMetaData(FName InKey) const
 #if WITH_EDITOR
 	if(const URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(GetNode()))
 	{
-		if(IsDecoratorPin())
+		if(IsTraitPin())
 		{
-			if(const UScriptStruct* Struct = GetDecoratorScriptStruct())
+			if(const UScriptStruct* Struct = GetTraitScriptStruct())
 			{
 				if(const FProperty* Property = Struct->FindPropertyByName(GetFName()))
 				{
@@ -1158,13 +1289,13 @@ FString URigVMPin::GetMetaData(FName InKey) const
 				}
 				else
 				{
-					// Possible the pin was programmatically generated from the decorator's shared struct
-					TSharedPtr<FStructOnScope> DecoratorScope = GetDecoratorInstance();
-					if(DecoratorScope.IsValid())
+					// Possible the pin was programmatically generated from the trait's shared struct
+					TSharedPtr<FStructOnScope> TraitScope = GetTraitInstance();
+					if(TraitScope.IsValid())
 					{
-						const FRigVMDecorator* VMDecorator = (FRigVMDecorator*)DecoratorScope->GetStructMemory();
-						Struct = VMDecorator->GetDecoratorSharedDataStruct();
-						Property = Struct->FindPropertyByName(GetFName());
+						const FRigVMTrait* VMTrait = (FRigVMTrait*)TraitScope->GetStructMemory();
+						Struct = VMTrait->GetTraitSharedDataStruct();
+						Property = Struct != nullptr ? Struct->FindPropertyByName(GetFName()) : nullptr;
 						if(Property)
 						{
 							const FString MetaData = Property->GetMetaData(InKey);
@@ -1467,31 +1598,64 @@ uint32 URigVMPin::GetStructureHash() const
 	return Hash;
 }
 
-bool URigVMPin::IsDecoratorPin() const
+bool URigVMPin::IsTraitPin() const
 {
 	if(const URigVMNode* Node = GetNode())
 	{
-		return Node->IsDecoratorPin(GetRootPin());
+		return Node->IsTraitPin(GetRootPin());
 	}
 	return false;
 }
 
-TSharedPtr<FStructOnScope> URigVMPin::GetDecoratorInstance(bool bUseDefaultValueFromPin) const
+bool URigVMPin::IsProgrammaticPin() const
 {
-	if(const URigVMNode* Node = GetNode())
+	// Traits can generate their own programmatic pins via FRigVMTrait::GetProgrammaticPins. We account for these as additional expressions if the
+	// pin is not part of the set of sub-pins exposed on the struct
+	if(const URigVMPin* ParentPin = GetParentPin())
 	{
-		return Node->GetDecoratorInstance(GetRootPin(), bUseDefaultValueFromPin);
+		UScriptStruct* ScriptStruct = ParentPin->GetScriptStruct();
+		if(ScriptStruct && ScriptStruct->IsChildOf(FRigVMTrait::StaticStruct()))
+		{
+			if(ScriptStruct->FindPropertyByName(GetFName()) == nullptr)
+			{
+				return true;
+			}
+		}
 	}
 
-	static const TSharedPtr<FStructOnScope> EmptyDecorator;
-	return EmptyDecorator;
+	return false;
 }
 
-UScriptStruct* URigVMPin::GetDecoratorScriptStruct() const
+TArray<URigVMPin*> URigVMPin::GetProgrammaticSubPins() const
+{
+	TArray<URigVMPin*> ProgrammaticPins;
+	for(URigVMPin* SubPin : SubPins)
+	{
+		if(SubPin->IsProgrammaticPin())
+		{
+			ProgrammaticPins.Add(SubPin);
+		}
+	}
+
+	return ProgrammaticPins;
+}
+
+TSharedPtr<FStructOnScope> URigVMPin::GetTraitInstance(bool bUseDefaultValueFromPin) const
 {
 	if(const URigVMNode* Node = GetNode())
 	{
-		return Node->GetDecoratorScriptStruct(GetRootPin());
+		return Node->GetTraitInstance(GetRootPin(), bUseDefaultValueFromPin);
+	}
+
+	static const TSharedPtr<FStructOnScope> EmptyTrait;
+	return EmptyTrait;
+}
+
+UScriptStruct* URigVMPin::GetTraitScriptStruct() const
+{
+	if(const URigVMNode* Node = GetNode())
+	{
+		return Node->GetTraitScriptStruct(GetRootPin());
 	}
 
 	return nullptr;
@@ -1638,6 +1802,17 @@ URigVMPin* URigVMPin::GetOriginalPinFromInjectedNode() const
 const TArray<URigVMPin*>& URigVMPin::GetSubPins() const
 {
 	return SubPins;
+}
+
+TArray<URigVMPin*> URigVMPin::GetAllSubPinsRecursively() const
+{
+	TArray<URigVMPin*> AllSubPins;
+	AllSubPins.Append(SubPins);
+	for(const TObjectPtr<URigVMPin>& SubPin : SubPins)
+	{
+		AllSubPins.Append(SubPin->GetAllSubPinsRecursively());
+	}
+	return AllSubPins;
 }
 
 URigVMPin* URigVMPin::FindSubPin(const FString& InPinPath) const
@@ -1860,12 +2035,12 @@ bool URigVMPin::CanLink(const URigVMPin* InSourcePin, const URigVMPin* InTargetP
 		return false;
 	}
 
-	if((InSourcePin->IsDecoratorPin() && InSourcePin->IsRootPin()) ||
-		(InTargetPin->IsDecoratorPin() && InTargetPin->IsRootPin()))
+	if((InSourcePin->IsTraitPin() && InSourcePin->IsRootPin()) ||
+		(InTargetPin->IsTraitPin() && InTargetPin->IsRootPin()))
 	{
 		if(OutFailureReason)
 		{
-			*OutFailureReason = TEXT("Cannot add link to root decorator pins.");
+			*OutFailureReason = TEXT("Cannot add link to root trait pins.");
 		}
 		return false;
 	}
@@ -2217,7 +2392,11 @@ bool URigVMPin::CanLink(const URigVMPin* InSourcePin, const URigVMPin* InTargetP
 
 						return false;
 					}
-					SourceNodes.Append(SourceNodes[SourceNodeIndex]->GetLinkedSourceNodes());
+					const TArray<URigVMNode*> LinkedSourceNodes = SourceNodes[SourceNodeIndex]->GetLinkedSourceNodes();
+					for(URigVMNode* LinkedSourceNode : LinkedSourceNodes)
+					{
+						SourceNodes.AddUnique(LinkedSourceNode);
+					}
 				}
 			}
 		}

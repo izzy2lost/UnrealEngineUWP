@@ -7,9 +7,13 @@
 #include "Config/LiveLinkHubFileUtilities.h"
 #include "DesktopPlatformModule.h"
 #include "EditorDirectories.h"
+#include "Engine/Engine.h"
 #include "HAL/CriticalSection.h"
 #include "IDesktopPlatform.h"
 #include "LiveLinkHubClient.h"
+#include "LiveLinkHubLog.h"
+#include "LiveLinkSourceSettings.h"
+#include "Settings/LiveLinkHubSettings.h"
 
 #define LOCTEXT_NAMESPACE "LiveLinkHub.SessionManager"
 
@@ -26,7 +30,7 @@ public:
 	/** Delegate called when a UE client is removed from the current session, returning it to the list of discovered clients. */
 	virtual FOnClientRemovedFromSession& OnClientRemovedFromSession() = 0;
 
-	/** Delegate called wehen the active session changes, which will change the list of sources, subjects and clients. */
+	/** Delegate called when the active session changes, which will change the list of sources, subjects and clients. */
 	virtual FOnActiveSessionChanged& OnActiveSessionChanged() = 0;
 
 	/** Get the current session, which holds information about which sources, subjects and clients that should be enabled in the hub at the moment. */
@@ -46,6 +50,9 @@ public:
 
 	/** Returns whether the current session has as already been saved to disk before. */
 	virtual bool CanSaveCurrentSession() const = 0;
+
+	/** Returns the last used config path. */
+	virtual const FString& GetLastConfigPath() const = 0;
 };
 
 class FLiveLinkHubSessionManager : public ILiveLinkHubSessionManager
@@ -135,31 +142,40 @@ public:
 		TSharedPtr<FLiveLinkHubSession> CurrentSessionPtr;
 		{
 			FScopeLock Lock(&CurrentSessionCS);
-			CurrentSessionPtr =  CurrentSession;
+			CurrentSessionPtr = CurrentSession;
 		}
 
-		FLiveLinkHubPersistedSessionData LiveLinkHubSessionData = StaticCastSharedPtr<FLiveLinkHubSession>(CurrentSessionPtr)->SessionData;
+		ULiveLinkHubSessionData* LiveLinkHubSessionData = CastChecked<ULiveLinkHubSessionData>(StaticCastSharedPtr<FLiveLinkHubSession>(CurrentSessionPtr)->SessionData.Get());
 
+		LiveLinkHubSessionData->Sources.Empty();
+		LiveLinkHubSessionData->Subjects.Empty();
+		
 		TArray<FGuid> SourceGuids = LiveLinkHubClient->GetSources();
 		for (const FGuid& SourceGuid : SourceGuids)
 		{
-			LiveLinkHubSessionData.Sources.Add(LiveLinkHubClient->GetSourcePreset(SourceGuid, nullptr));
+			LiveLinkHubSessionData->Sources.Add(LiveLinkHubClient->GetSourcePreset(SourceGuid, nullptr));
 		}
 
 		TArray<FLiveLinkSubjectKey> Subjects = LiveLinkHubClient->GetSubjects(true, true);
 		for (const FLiveLinkSubjectKey& Subject : Subjects)
 		{
-			LiveLinkHubSessionData.Subjects.Add(LiveLinkHubClient->GetSubjectPreset(Subject, nullptr));
+			LiveLinkHubSessionData->Subjects.Add(LiveLinkHubClient->GetSubjectPreset(Subject, nullptr));
 		}
 
 		const TMap<FLiveLinkHubClientId, FLiveLinkHubUEClientInfo>& ClientMap = LiveLinkProvider->GetClientsMap();
 
 		for (const TTuple<FLiveLinkHubClientId, FLiveLinkHubUEClientInfo>& ClientKeyVal : ClientMap)
 		{
-			LiveLinkHubSessionData.Clients.Add(ClientKeyVal.Value);
+			LiveLinkHubSessionData->Clients.Add(ClientKeyVal.Value);
 		}
 
-		LastConfigPath = SavePath;
+		const FLiveLinkHubTimecodeSettings& TimecodeSettings = LiveLinkProvider->GetTimecodeSettings();
+		LiveLinkHubSessionData->TimecodeSettings = TimecodeSettings;
+		
+		if (!SavePath.IsEmpty())
+		{
+			LastConfigPath = SavePath;
+		}
 		FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_SAVE, FPaths::GetPath(LastConfigPath));
 
 		UE::LiveLinkHub::FileUtilities::Private::SaveConfig(LiveLinkHubSessionData, LastConfigPath);
@@ -172,8 +188,6 @@ public:
 		const FString FileTypes = FString::Printf(TEXT("%s (*.%s)|*.%s"), *FileDescription, *Extensions, *Extensions);
 
 		const FString DefaultFile = UE::LiveLinkHub::FileUtilities::Private::ConfigDefaultFileName;
-
-		ClearSession();
 
 		TArray<FString> OpenFileNames;
 
@@ -190,6 +204,10 @@ public:
 
 		if (bFileSelected && OpenFileNames.Num() > 0)
 		{
+			// Certain sources may take time to clean up. If they don't complete in time then the new config being loaded may not create
+			// duplicate sources correctly. There should be errors in the logs of the sources that failed to remove or were unable to be added.
+			constexpr bool bWaitForSourceRemoval = true;
+			ClearSession(bWaitForSourceRemoval);
 			RestoreSession(OpenFileNames[0]);
 		}
 	}
@@ -198,6 +216,12 @@ public:
 	{
 		return !LastConfigPath.IsEmpty();
 	}
+
+	virtual const FString& GetLastConfigPath() const override
+	{
+		return LastConfigPath;
+	}
+	
 	//~ End LiveLinkHubSessionManager
 
 private:
@@ -207,54 +231,73 @@ private:
 		LastConfigPath = Path;
 		FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_OPEN, FPaths::GetPath(LastConfigPath));
 
-		const TSharedPtr<FLiveLinkHubPersistedSessionData> SessionData = UE::LiveLinkHub::FileUtilities::Private::LoadConfig(LastConfigPath);
-
-		FLiveLinkHubClient* LiveLinkHubClient = static_cast<FLiveLinkHubClient*>(&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName));
-
-		const FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
-		const TSharedPtr<FLiveLinkHubProvider> LiveLinkProvider = LiveLinkHubModule.GetLiveLinkProvider();
-
-		check(LiveLinkHubClient);
-		check(LiveLinkProvider);
-
-		if (SessionData.IsValid())
+		if (ULiveLinkHubSessionData* SessionData = UE::LiveLinkHub::FileUtilities::Private::LoadConfig(LastConfigPath))
 		{
-			for (const FLiveLinkSourcePreset& SourcePreset : SessionData->Sources)
+			FLiveLinkHubClient* LiveLinkHubClient = static_cast<FLiveLinkHubClient*>(&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName));
+
+			const FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+			const TSharedPtr<FLiveLinkHubProvider> LiveLinkProvider = LiveLinkHubModule.GetLiveLinkProvider();
+
+			check(LiveLinkHubClient);
+			check(LiveLinkProvider);
+
+			if (SessionData)
 			{
-				LiveLinkHubClient->CreateSource(SourcePreset);
+				for (const FLiveLinkSourcePreset& SourcePreset : SessionData->Sources)
+				{
+					LiveLinkHubClient->CreateSource(SourcePreset);
+					// Ensure stored source settings persist. CreateSource will call Source->InitializeSettings, which passes in
+					// a mutable settings object. Some sources may set "default" values on the settings object overriding the
+					// saved values from the config. We want to prevent that behavior, but we still have to call InitializeSettings, because
+					// other sources may set internal values based on the current settings' values, which is behavior we want to keep.
+					if (ULiveLinkSourceSettings* PresetSettings = SourcePreset.Settings.Get())
+					{
+						if (ULiveLinkSourceSettings* CreatedSettings = LiveLinkHubClient->GetSourceSettings(SourcePreset.Guid))
+						{
+							UEngine::FCopyPropertiesForUnrelatedObjectsParams CopyParams;
+							CopyParams.bDoDelta = false;
+							UEngine::CopyPropertiesForUnrelatedObjects(PresetSettings, CreatedSettings, CopyParams);
+						}
+					}
+				}
+
+				for (const FLiveLinkSubjectPreset& SubjectPreset : SessionData->Subjects)
+				{
+					LiveLinkHubClient->CreateSubject(SubjectPreset);
+				}
 			}
 
-			for (const FLiveLinkSubjectPreset& SubjectPreset : SessionData->Subjects)
+			SessionData->TimecodeSettings.AssignTimecodeSettingsAsProviderToEngine();
+			LiveLinkProvider->SetTimecodeSettings(SessionData->TimecodeSettings);
+
+			TSharedPtr<FLiveLinkHubSession> CurrentSessionPtr;
 			{
-				LiveLinkHubClient->CreateSubject(SubjectPreset);
+				FScopeLock Lock(&CurrentSessionCS);
+				CurrentSessionPtr = CurrentSession = MakeShared<FLiveLinkHubSession>(SessionData, OnClientAddedToSessionDelegate, OnClientRemovedFromSessionDelegate);
 			}
-		}
 
-		TSharedPtr<FLiveLinkHubSession> CurrentSessionPtr;
-		{
-			FScopeLock Lock(&CurrentSessionCS);
-			CurrentSessionPtr = CurrentSession = MakeShared<FLiveLinkHubSession>(*SessionData, OnClientAddedToSessionDelegate, OnClientRemovedFromSessionDelegate);
+			for (FLiveLinkHubUEClientInfo& Client : SessionData->Clients)
+			{
+				CurrentSessionPtr->AddRestoredClient(Client);
+			}
+			OnActiveSessionChangedDelegate.Broadcast(CurrentSessionPtr.ToSharedRef());
 		}
-
-		for (FLiveLinkHubUEClientInfo& Client : SessionData->Clients)
-		{
-			CurrentSessionPtr->AddRestoredClient(Client);
-		}
-
-		OnActiveSessionChangedDelegate.Broadcast(CurrentSessionPtr.ToSharedRef());
 	}
 
 	/** Clear the hub data contained in the current session, resetting the hub to its default state. */
-	void ClearSession()
+	void ClearSession(bool bWaitForSourceRemoval = false)
 	{
 		FLiveLinkHubClient* LiveLinkHubClient = static_cast<FLiveLinkHubClient*>(&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName));
 		check(LiveLinkHubClient);
-
-		LiveLinkHubClient->RemoveAllSources();
-
-		// Removing sources only sets bPendingKill to true, need to tick to make sure they are removed.
-		LiveLinkHubClient->ForceTick();
-
+		
+		const float TimeToWaitForRemoval = bWaitForSourceRemoval ? GetDefault<ULiveLinkHubSettings>()->SourceMaxCleanupTime : 0.f;
+		const bool bRemovedAllSources = LiveLinkHubClient->RemoveAllSourcesWithTimeout(TimeToWaitForRemoval);
+		
+		if (!bRemovedAllSources && bWaitForSourceRemoval)
+		{
+			UE_LOG(LogLiveLinkHub, Warning, TEXT("Could not remove all existing sources in time. Sources may still be getting cleaned up."));
+		}
+		
 		TSharedPtr<FLiveLinkHubSession> CurrentSessionPtr;
 		{
 			FScopeLock Lock(&CurrentSessionCS);

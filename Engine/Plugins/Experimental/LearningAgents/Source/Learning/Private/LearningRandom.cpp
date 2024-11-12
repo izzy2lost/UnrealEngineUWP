@@ -61,6 +61,17 @@ namespace UE::Learning::Random
 			Float(State ^ 0x0eedb850)) + Mean;
 	}
 
+	FVector VectorGaussian(
+		const uint32 State,
+		const FVector Mean,
+		const FVector Std)
+	{
+		return FVector(
+			Gaussian(State ^ 0x0c7eaaf3, Mean.X, Std.X),
+			Gaussian(State ^ 0x109be32d, Mean.Y, Std.Y),
+			Gaussian(State ^ 0xed839d93, Mean.Z, Std.Z));
+	}
+
 	float ClippedGaussian(
 		const uint32 State,
 		const float Mean,
@@ -432,6 +443,15 @@ namespace UE::Learning::Random
 	{
 		State = Int(State ^ 0xca0ae9bd);
 		return Gaussian(State ^ 0x5df36815, Mean, Std);
+	}
+
+	FVector SampleVectorGaussian(
+		uint32& State,
+		const FVector Mean,
+		const FVector Std)
+	{
+		State = Int(State ^ 0x9efa29b7);
+		return VectorGaussian(State ^ 0x57167b59, Mean, Std);
 	}
 
 	float SampleClippedGaussian(

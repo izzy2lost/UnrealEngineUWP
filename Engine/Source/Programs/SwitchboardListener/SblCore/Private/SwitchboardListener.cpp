@@ -3,7 +3,7 @@
 #include "SwitchboardListener.h"
 
 #include "CpuUtilizationMonitor.h"
-#include "SBLHelperClient.h"
+#include "GpuClockerManager.h"
 #include "SwitchboardAuth.h"
 #include "SwitchboardListenerApp.h"
 #include "SwitchboardMessageFuture.h"
@@ -50,7 +50,7 @@
 #endif
 
 
-#define QUIC_ENSURE(X)		ensure(QUIC_SUCCEEDED(X))
+#define QUIC_ENSURE(X) ensure(QUIC_SUCCEEDED(X))
 
 
 const FIPv4Endpoint FSwitchboardListener::InvalidEndpoint(FIPv4Address::LanBroadcast, 0);
@@ -123,6 +123,40 @@ namespace
 
 		Endpoint.Port = QuicAddrGetPort(&QuicAddr);
 		return Endpoint;
+	}
+
+	FString GetQuicErrorStr(QUIC_STATUS InStatus)
+	{
+		static TMap<QUIC_STATUS, FString> StatStringMap = {
+			{QUIC_STATUS_SUCCESS			 , TEXT("The operation completed successfully.")},
+			{QUIC_STATUS_PENDING			 , TEXT("The operation is pending.")},
+			{QUIC_STATUS_CONTINUE			 , TEXT("The operation will continue.")},
+			{QUIC_STATUS_OUT_OF_MEMORY		 , TEXT("Allocation of memory failed.")},
+			{QUIC_STATUS_INVALID_PARAMETER	 , TEXT("An invalid parameter was encountered.")},
+			{QUIC_STATUS_INVALID_STATE		 , TEXT("The current state was not valid for this operation.")},
+			{QUIC_STATUS_NOT_SUPPORTED	     , TEXT("The operation was not supported.")},
+			{QUIC_STATUS_NOT_FOUND	         , TEXT("The object was not found.")},
+			{QUIC_STATUS_BUFFER_TOO_SMALL	 , TEXT("The buffer was too small for the operation.")},
+			{QUIC_STATUS_HANDSHAKE_FAILURE	 , TEXT("The connection handshake failed.")},
+			{QUIC_STATUS_ABORTED			 , TEXT("The connection or stream was aborted.")},
+			{QUIC_STATUS_ADDRESS_IN_USE		 , TEXT("The local address is already in use.")},
+			{QUIC_STATUS_INVALID_ADDRESS	 , TEXT("Binding to socket failed, likely caused by a family mismatch between local and remote address.")},
+			{QUIC_STATUS_CONNECTION_TIMEOUT	 , TEXT("The connection timed out waiting for a response from the peer.")},
+			{QUIC_STATUS_CONNECTION_IDLE	 , TEXT("The connection timed out from inactivity.")},
+			{QUIC_STATUS_INTERNAL_ERROR		 , TEXT("An internal error was encountered.")},
+			{QUIC_STATUS_UNREACHABLE		 , TEXT("The server is currently unreachable.")},
+			{QUIC_STATUS_CONNECTION_REFUSED	 , TEXT("The server refused the connection.")},
+			{QUIC_STATUS_PROTOCOL_ERROR		 , TEXT("A protocol error was encountered.")},
+			{QUIC_STATUS_VER_NEG_ERROR		 , TEXT("A version negotiation error was encountered.")},
+			{QUIC_STATUS_USER_CANCELED		 , TEXT("The peer app/user canceled the connection during the handshake.")},
+			{QUIC_STATUS_ALPN_NEG_FAILURE	 , TEXT("The connection handshake failed to negotiate a common ALPN.")},
+			{QUIC_STATUS_STREAM_LIMIT_REACHED , TEXT("A stream failed to start because the peer doesn't allow any more to be open at this time.")}
+		};
+		if (FString* ErrorString = StatStringMap.Find(InStatus))
+		{
+			return *ErrorString;
+		}
+		return TEXT("Unknown MsQuic error.");
 	}
 
 #if PLATFORM_WINDOWS
@@ -336,7 +370,7 @@ FString FSwitchboardCommandLineOptions::ToString(bool bIncludeRedeploy /* = fals
 FSwitchboardListener::FSwitchboardListener(const FSwitchboardCommandLineOptions& InOptions)
 	: Options(InOptions)
 	, CpuMonitor(MakeShared<FCpuUtilizationMonitor>())
-	, SBLHelper(MakeShared<FSBLHelperClient>())
+	, GpuClockerManager(MakeShared<FGpuClockerManager>())
 	, CachedMosaicToposLock(MakeShared<FRWLock>())
 	, CachedMosaicTopos(MakeShared<TArray<FMosaicTopo>>())
 {
@@ -432,7 +466,7 @@ bool FSwitchboardListener::StartListening()
 	QUIC_STATUS Status;
 	if (QUIC_FAILED(Status = MsQuicOpen2(&QuicApi)))
 	{
-		UE_LOGFMT(LogSwitchboard, Error, "MsQuicOpen2 failed with status {Status}", static_cast<int64>(Status));
+		UE_LOGFMT(LogSwitchboard, Error, "MsQuicOpen2 failed with status: {Status}", *GetQuicErrorStr(Status));
 		return false;
 	}
 
@@ -441,7 +475,7 @@ bool FSwitchboardListener::StartListening()
 	// the execution profile, using the default "low latency" profile.
 	const QUIC_REGISTRATION_CONFIG RegConfig = { "switchboardlistener", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
 	if (QUIC_FAILED(Status = QuicApi->RegistrationOpen(&RegConfig, &QuicRegistration))) {
-		UE_LOGFMT(LogSwitchboard, Error, "MsQuic RegistrationOpen failed with status {Status}", static_cast<int64>(Status));
+		UE_LOGFMT(LogSwitchboard, Error, "MsQuic RegistrationOpen failed with status: {Status}", *GetQuicErrorStr(Status));
 		return false;
 	}
 
@@ -488,21 +522,21 @@ bool FSwitchboardListener::StartListening()
 	// Allocate/initialize the configuration object with the configured ALPN and settings.
 	if (QUIC_FAILED(Status = QuicApi->ConfigurationOpen(QuicRegistration, &SblAlpn, 1, &Settings, sizeof(Settings), NULL, &QuicConfiguration)))
 	{
-		UE_LOGFMT(LogSwitchboard, Error, "MsQuic ConfigurationOpen failed with status {Status}", static_cast<int64>(Status));
+		UE_LOGFMT(LogSwitchboard, Error, "MsQuic ConfigurationOpen failed with status: {Status}", *GetQuicErrorStr(Status));
 		return false;
 	}
 
 	// Loads the TLS credential part of the configuration.
 	if (QUIC_FAILED(Status = QuicApi->ConfigurationLoadCredential(QuicConfiguration, &CredConfig)))
 	{
-		UE_LOGFMT(LogSwitchboard, Error, "MsQuic ConfigurationLoadCredential failed with status {Status}", static_cast<int64>(Status));
+		UE_LOGFMT(LogSwitchboard, Error, "MsQuic ConfigurationLoadCredential failed with status: {Status}", *GetQuicErrorStr(Status));
 		return false;
 	}
 
 	// Create/allocate a new listener object.
 	if (QUIC_FAILED(Status = QuicApi->ListenerOpen(QuicRegistration, QuicListenerThunk, this, &QuicListener))) 
 	{
-		UE_LOGFMT(LogSwitchboard, Error, "MsQuic ListenerOpen failed with status {Status}", static_cast<int64>(Status));
+		UE_LOGFMT(LogSwitchboard, Error, "MsQuic ListenerOpen failed with status: {Status}", *GetQuicErrorStr(Status));
 		return false;
 	}
 
@@ -510,7 +544,7 @@ bool FSwitchboardListener::StartListening()
 	QUIC_ADDR QuicAddr = QuicAddrFromEndpoint(*ListenerEndpoint);
 	if (QUIC_FAILED(Status = QuicApi->ListenerStart(QuicListener, &SblAlpn, 1, &QuicAddr))) 
 	{
-		UE_LOGFMT(LogSwitchboard, Error, "MsQuic ListenerStart failed with status {Status}", static_cast<int64>(Status));
+		UE_LOGFMT(LogSwitchboard, Error, "MsQuic ListenerStart failed with status: {Status}", *GetQuicErrorStr(Status));
 		return false;
 	}
 
@@ -585,7 +619,7 @@ void FSwitchboardListener::Tick()
 	HandleRunningProcesses(RunningProcesses, true);
 	HandleRunningProcesses(FlipModeMonitors, false);
 	SendMessageFutures();
-	SBLHelper->Tick();
+	GpuClockerManager->Tick();
 
 #if PLATFORM_WINDOWS
 	FWorkaroundForHitchingAfterHours::Get().Tick();
@@ -1008,58 +1042,9 @@ bool FSwitchboardListener::Task_StartProcess(const FSwitchboardStartTask& InRunT
 	}
 
 	// Lock Gpu Clocks for the lifetime of this PID, if requested
-	if (InRunTask.bLockGpuClock && SBLHelper.IsValid())
+	if (InRunTask.bLockGpuClock && GpuClockerManager.IsValid())
 	{
-		// Try to connect to the SBLHelper server if we haven't already
-		if (!SBLHelper->IsConnected())
-		{
-			FSBLHelperClient::FConnectionParams ConnectionParams;
-
-			uint16 Port = 8010; // Default tcp port
-
-			// Apply command line port number override, if present
-			{
-				static uint16 CmdLinePortOverride = 0;
-				static bool bCmdLinePortOverrideParsed = false;
-				static bool bCmdLinePortOverrideValid = false;
-
-				if (!bCmdLinePortOverrideParsed)
-				{
-					bCmdLinePortOverrideParsed = true;
-
-					bCmdLinePortOverrideValid = FParse::Value(FCommandLine::Get(), TEXT("sblhport="), CmdLinePortOverride);
-				}
-
-				if (bCmdLinePortOverrideValid)
-				{
-					Port = CmdLinePortOverride;
-				}
-			}
-
-			const FString HostName = FString::Printf(TEXT("localhost:%d"), Port);
-			FIPv4Endpoint::FromHostAndPort(*HostName, ConnectionParams.Endpoint);
-
-			SBLHelper->Connect(ConnectionParams);
-		}
-
-		if (SBLHelper->IsConnected())
-		{
-			const bool bSentMessage = SBLHelper->LockGpuClock(NewProcess->PID);
-
-			if (!bSentMessage)
-			{
-				UE_LOG(LogSwitchboard, Error, TEXT("Failed to send message to SBLHelper server to request gpu clock locking"));
-			}
-
-			// We disconnect right away because launches happen only far and in between.
-			SBLHelper->Disconnect();
-		}
-		else
-		{
-			UE_LOG(LogSwitchboard, Warning, TEXT("Lock Gpu clocks was requested but could not connect to SwitchboardListenerHelper process. "
-				"Please verify that it is running as admin (elevated privileges are required to lock Gpu clocks). "
-			    "If locking Gpu clocks is not desired, this option can be disabled in Switchboard."));
-		}
+		GpuClockerManager->LockGpuClocksForPid(NewProcess->PID);
 	}
 
 	UE_LOG(LogSwitchboard, Display, TEXT("Started process %d: %s %s"), NewProcess->PID, *InRunTask.Command, *InRunTask.Arguments);
@@ -1310,7 +1295,7 @@ bool FSwitchboardListener::Task_ReceiveFileFromClient(const FSwitchboardReceiveF
 
 		if (TempDir.EndsWith(TEXT("/")) || TempDir.EndsWith(TEXT("\\")))
 		{
-			TempDir.LeftChopInline(1, false);
+			TempDir.LeftChopInline(1, EAllowShrinking::No);
 		}
 
 		Destination.ReplaceInline(TEXT("%TEMP%"), *TempDir);
@@ -2035,7 +2020,17 @@ static void FillOutFlipMode(FSyncStatus& SyncStatus, FRunningProcess* FlipModeMo
 
 		const int32 PresentMonIdx = 11;
 
-		SyncStatus.FlipModeHistory.Add(Fields[PresentMonIdx]); // The first one will be "PresentMode". This is ok. 
+		// Skip "PresentMode", which is not a real flip mode.
+		if (Fields[PresentMonIdx] == TEXT("PresentMode"))
+		{
+			continue;
+		}
+
+		// Only add if it's different from the last entry
+		if ((SyncStatus.FlipModeHistory.Num() == 0) || (SyncStatus.FlipModeHistory.Last() != Fields[PresentMonIdx]))
+		{
+			SyncStatus.FlipModeHistory.Add(Fields[PresentMonIdx]);
+		}
 	}
 }
 #endif // PLATFORM_WINDOWS
@@ -2495,6 +2490,12 @@ void FSwitchboardListener::HandleRunningProcesses(TArray<TSharedPtr<FRunningProc
 					UE_LOG(LogSwitchboard, Display, TEXT("Output:\n%.*s"), StdoutConv.Length(), StdoutConv.Get());
 				}
 
+				// Let the clock manager know that the Pid ended.
+				if (GpuClockerManager.IsValid())
+				{
+					GpuClockerManager->PidEnded(Process->PID);
+				}
+
 				// Notify remote client, which implies that this is a program managed by it.
 				if (bNotifyThatProgramEnded)
 				{
@@ -2564,7 +2565,7 @@ bool FSwitchboardListener::SendMessage(const FString& InMessage, const FIPv4Endp
 
 	FConnectionRef Connection = ConnectionsByEndpoint[InEndpoint];
 
-	UE_LOG(LogSwitchboardProtocol, Verbose, TEXT("Sending message %s"), *InMessage);
+	UE_LOG(LogSwitchboardProtocol, Verbose, TEXT("Sending message to client '%s' : %s"), *InEndpoint.ToString(), *InMessage);
 
 	uint64 Utf8Length = FPlatformString::ConvertedLength<UTF8CHAR>(*InMessage, InMessage.Len() + 1);
 	FByteArrayRef SendArray = MakeShared<TArray<uint8>>();

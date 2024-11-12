@@ -22,9 +22,10 @@
 #include "Templates/UniquePtr.h"
 #include "UObject/NameTypes.h"
 
-class FAsyncIODelete;
 class FAssetRegistryState;
+class FAsyncIODelete;
 class FLargeMemoryWriter;
+class FLooseFilesCookArtifactReader;
 class FMD5;
 class ITargetPlatform;
 template <typename ReferencedType> class TRefCountPtr;
@@ -39,12 +40,20 @@ public:
 
 	FLooseCookedPackageWriter(const FString& OutputPath, const FString& MetadataDirectoryPath,
 		const ITargetPlatform* TargetPlatform, FAsyncIODelete& InAsyncIODelete,
-		UE::Cook::FCookSandbox& InSandboxFile, FBeginCacheCallback&& InBeginCacheCallback);
+		UE::Cook::FCookSandbox& InSandboxFile, FBeginCacheCallback&& InBeginCacheCallback,
+		FRegisterDeterminismHelperCallback&& InRegisterDeterminismHelperCallback, TSharedRef<FLooseFilesCookArtifactReader> CookArtifactReader);
 	~FLooseCookedPackageWriter();
+
+	virtual FCapabilities GetCapabilities() const override
+	{
+		FCapabilities Result = Super::GetCapabilities();
+		Result.bDeterminismDebug = (bool)RegisterDeterminismHelperCallback;
+		return Result;
+	}
 
 	virtual FCookCapabilities GetCookCapabilities() const override
 	{
-		FCookCapabilities Result;
+		FCookCapabilities Result = Super::GetCookCapabilities();
 		Result.bDiffModeSupported = true;
 		return Result;
 	}
@@ -53,6 +62,8 @@ public:
 	virtual int64 GetExportsFooterSize() override;
 
 	virtual FDateTime GetPreviousCookTime() const override;
+	virtual void RegisterDeterminismHelper(UObject* SourceObject,
+		const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper) override;
 	virtual void Initialize(const FCookInfo& Info) override;
 	virtual void BeginCook(const FCookInfo& Info) override;
 	virtual void EndCook(const FCookInfo& Info) override;
@@ -152,6 +163,8 @@ private:
 		return AllPackageHashes;
 	}
 
+	TSharedRef<FLooseFilesCookArtifactReader> CookArtifactReader;
+
 	// If EWriteOptions::ComputeHash is not set, the package will not get added to this.
 	TMap<FName, TRefCountPtr<FPackageHashes>> AllPackageHashes;
 
@@ -166,6 +179,7 @@ private:
 	UE::Cook::FCookSandbox& SandboxFile;
 	FAsyncIODelete& AsyncIODelete;
 	FBeginCacheCallback BeginCacheCallback;
+	FRegisterDeterminismHelperCallback RegisterDeterminismHelperCallback;
 	bool bIterateSharedBuild = false;
 	bool bProvidePerPackageResults = false;
 };

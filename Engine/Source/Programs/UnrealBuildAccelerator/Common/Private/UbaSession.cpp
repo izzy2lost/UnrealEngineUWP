@@ -2,30 +2,36 @@
 
 #include "UbaSession.h"
 #include "UbaBottleneck.h"
+#include "UbaCompressedObjFileHeader.h"
+#include "UbaConfig.h"
 #include "UbaFileAccessor.h"
+#include "UbaObjectFile.h"
 #include "UbaProcess.h"
 #include "UbaStorage.h"
 #include "UbaDirectoryIterator.h"
 #include "UbaApplicationRules.h"
 #include "UbaPathUtils.h"
 #include "UbaProtocol.h"
+#include "UbaStorageUtils.h"
 #include "UbaWorkManager.h"
 
 #if PLATFORM_WINDOWS
 #include "UbaWinBinDependencyParser.h"
 #include <powerbase.h>
 #pragma comment(lib, "Powrprof.lib")
-#endif
-
-// Used to get Memory Information
-#if PLATFORM_MAC
+#elif PLATFORM_MAC
+#include "UbaMacBinDependencyParser.h"
 #include <mach/vm_statistics.h>
 #include <mach/mach_types.h>
 #include <mach/mach_init.h>
 #include <mach/mach_host.h>
 #include <mach/mach.h>
 extern char **environ;
+#else // PLATFORM_LINUX
+#include "UbaLinuxBinDependencyParser.h"
 #endif
+
+#define UBA_DEBUG_TRACK_DIR 0 // UBA_DEBUG_LOGGER
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +53,18 @@ namespace uba
 	ProcessStartInfo::ProcessStartInfo() = default;
 	ProcessStartInfo::~ProcessStartInfo() = default;
 	ProcessStartInfo::ProcessStartInfo(const ProcessStartInfo&) = default;
+
+	const tchar* ProcessStartInfo::GetDescription() const
+	{
+		if (description && *description)
+			return description;
+		const tchar* d = application;
+		if (const tchar* lps = TStrrchr(d, PathSeparator))
+			d = lps + 1;
+		if (const tchar* lps2 = TStrrchr(d, NonPathSeparator))
+			d = lps2 + 1;
+		return d;
+	}
 
 	ProcessHandle::ProcessHandle()
 	:	m_process(nullptr)
@@ -138,6 +156,11 @@ namespace uba
 		UBA_ASSERT(m_process);
 		return m_process->GetTrackedInputs();
 	}
+	const Vector<u8>& ProcessHandle::GetTrackedOutputs() const
+	{
+		UBA_ASSERT(m_process);
+		return m_process->GetTrackedOutputs();
+	}
 	u64 ProcessHandle::GetTotalProcessorTime() const
 	{
 		UBA_ASSERT(m_process);
@@ -163,15 +186,42 @@ namespace uba
 		UBA_ASSERT(m_process);
 		return m_process->IsRemote();
 	}
-	bool ProcessHandle::IsDetoured() const
+	ProcessExecutionType ProcessHandle::GetExecutionType() const
 	{
 		UBA_ASSERT(m_process);
-		return m_process->IsDetoured();
+		return m_process->GetExecutionType();
 	}
 	ProcessHandle::ProcessHandle(Process* process)
 	{
 		m_process = process;
 		process->AddRef();
+	}
+
+	void SessionCreateInfo::Apply(Config& config)
+	{
+		const ConfigTable* tablePtr = config.GetTable(TC("Session"));
+		if (!tablePtr)
+			return;
+		const ConfigTable& table = *tablePtr;
+		table.GetValueAsString(rootDir, TC("RootDir"));
+		table.GetValueAsString(traceName, TC("TraceName"));
+		table.GetValueAsString(traceOutputFile, TC("TraceOutputFile"));
+		table.GetValueAsString(extraInfo, TC("ExtraInfo"));
+		table.GetValueAsBool(logToFile, TC("LogToFile"));
+		table.GetValueAsBool(useUniqueId, TC("UseUniqueId"));
+		table.GetValueAsBool(disableCustomAllocator, TC("DisableCustomAllocator"));
+		table.GetValueAsBool(launchVisualizer, TC("LaunchVisualizer"));
+		table.GetValueAsBool(allowMemoryMaps, TC("AllowMemoryMaps"));
+		table.GetValueAsBool(allowKeepFilesInMemory, TC("AllowKeepFilesInMemory"));
+		table.GetValueAsBool(allowOutputFiles, TC("AllowOutputFiles"));
+		table.GetValueAsBool(allowSpecialApplications, TC("AllowSpecialApplications"));
+		table.GetValueAsBool(suppressLogging, TC("SuppressLogging"));
+		table.GetValueAsBool(shouldWriteToDisk, TC("ShouldWriteToDisk"));
+		table.GetValueAsBool(traceEnabled, TC("TraceEnabled"));
+		table.GetValueAsBool(detailedTrace, TC("DetailedTrace"));
+		table.GetValueAsBool(traceChildProcesses, TC("TraceChildProcesses"));
+		table.GetValueAsBool(storeObjFilesCompressed, TC("StoreObjFilesCompressed"));
+		table.GetValueAsBool(extractObjFilesSymbols, TC("ExtractObjFilesSymbols"));
 	}
 
 	void Session::AddEnvironmentVariableNoLock(const tchar* key, const tchar* value)
@@ -211,7 +261,7 @@ namespace uba
 			hasher.Update(forHash.data, forHash.count);
 		}
 
-		#if UBA_DEBUG_LOGGER
+		#if UBA_DEBUG_TRACK_DIR
 		g_debugLogger.BeginScope();
 		auto dg = MakeGuard([]() { g_debugLogger.EndScope(); });
 		g_debugLogger.Info(TC("TRACKDIR %s\n"), dirPath);
@@ -235,7 +285,7 @@ namespace uba
 				UBA_ASSERT(e.attributes);
 				memoryWriter.WriteString(e.name, e.nameLen);
 
-				#if UBA_DEBUG_LOGGER
+				#if UBA_DEBUG_TRACK_DIR
 				g_debugLogger.Info(TC("    %s (Size: %llu, Key: %s, Id: %llu)\n"), e.name, e.size, KeyToString(fileKey).data, e.id);
 				#endif
 
@@ -379,10 +429,13 @@ namespace uba
 		WriteDirectoryEntriesRecursive(parentKey, dirPath, parentOffset);
 	}
 
-	u32 Session::WriteDirectoryEntries(const StringKey& dirKey, tchar* dirPath, u32& outTableOffset)
+	u32 Session::WriteDirectoryEntries(const StringKey& dirKey, tchar* dirPath, u32* outTableOffset)
 	{
 		auto& dirTable = m_directoryTable;
-		WriteDirectoryEntriesRecursive(dirKey, dirPath, outTableOffset);
+		u32 temp;
+		if (!outTableOffset)
+			outTableOffset = &temp;
+		WriteDirectoryEntriesRecursive(dirKey, dirPath, *outTableOffset);
 		SCOPED_READ_LOCK(dirTable.m_memoryLock, memoryLock);
 		return dirTable.m_memorySize;
 	}
@@ -502,7 +555,7 @@ namespace uba
 
 			if (isCompressed)
 			{
-				if (!m_storage.DecompressFileToMemory(fileName, fileHandle, mappedView.memory, size))
+				if (!m_storage.DecompressFileToMemory(fileName, fileHandle, mappedView.memory, size, TC("MappedMemory")))
 					return false;
 			}
 			else
@@ -589,7 +642,7 @@ namespace uba
 				auto mappedViewWrite = m_fileMappingBuffer.AllocAndMapView(MappedView_Transient, size, alignment, fileName);
 				auto unmapGuard = MakeGuard([&](){ m_fileMappingBuffer.UnmapView(mappedViewWrite, fileName); });
 
-				if (!m_storage.DecompressMemoryToMemory(readMemory, mappedViewWrite.memory, size, fileName))
+				if (!m_storage.DecompressMemoryToMemory(readMemory, mappedViewWrite.memory, size, fileName, TC("TransientMapping")))
 					return false;
 				unmapGuard.Execute();
 
@@ -625,21 +678,20 @@ namespace uba
 		return true;
 	}
 
-	bool GetDirKey(StringKey& outDirKey, StringBufferBase& outDirName, const tchar*& outLastSlash, const tchar* fileName)
+	bool GetDirKey(StringKey& outDirKey, StringBufferBase& outDirName, const tchar*& outLastSlash, const StringView& fileName)
 	{
-		outLastSlash = TStrrchr(fileName, PathSeparator);
-		UBA_ASSERTF(outLastSlash, TC("Can't get dir key for path %s"), fileName);
+		outLastSlash = TStrrchr(fileName.data, PathSeparator);
+		UBA_ASSERTF(outLastSlash, TC("Can't get dir key for path %s"), fileName.data);
 		if (!outLastSlash)
 			return false;
 
-		u64 dirLen = u64(outLastSlash - fileName);
-		outDirName.Append(fileName, dirLen);
+		u64 dirLen = u64(outLastSlash - fileName.data);
+		outDirName.Append(fileName.data, dirLen);
 		outDirKey = CaseInsensitiveFs ? ToStringKeyLower(outDirName) : ToStringKey(outDirName);
 		return true;
 	}
 
-
-	bool Session::RegisterCreateFileForWrite(StringKey fileNameKey, const tchar* fileName, u64 fileNameLen, bool registerRealFile, u64 fileSize, u64 lastWriteTime)
+	bool Session::RegisterCreateFileForWrite(StringKey fileNameKey, const StringView& fileName, bool registerRealFile, u64 fileSize, u64 lastWriteTime, bool invalidateStorage)
 	{
 		// Remote is not updating its own directory table
 		if (m_runningRemote)
@@ -667,13 +719,12 @@ namespace uba
 		}
 		#endif
 
-		bool shouldWriteToDisk = registerRealFile && ShouldWriteToDisk(fileName, fileNameLen);
+		bool shouldWriteToDisk = registerRealFile && ShouldWriteToDisk(fileName);
 
 		// When not writing to disk we need to populate lookup before adding non-written files.. otherwise they will be lost once lookup is actually populated
 		if (!shouldWriteToDisk)
 		{
-			u32 offset;
-			u32 res = WriteDirectoryEntries(dirKey, dirName.data, offset);
+			u32 res = WriteDirectoryEntries(dirKey, dirName.data);
 			UBA_ASSERT(res); (void)res;
 		}
 
@@ -699,9 +750,8 @@ namespace uba
 		// If adding a file, clearly it does exist.. so let's reparse it.
 		if (dir.parseOffset == 2)
 		{
-			u32 offset;
 			dirLock.Leave();
-			u32 res = WriteDirectoryEntries(dirKey, dirName.data, offset);
+			u32 res = WriteDirectoryEntries(dirKey, dirName.data);
 			UBA_ASSERT(res); (void)res;
 			dirLock.Enter();
 		}
@@ -710,7 +760,7 @@ namespace uba
 		if (fileNameKey == StringKeyZero)
 		{
 			StringBuffer<> forKey;
-			forKey.Append(fileName, fileNameLen);
+			forKey.Append(fileName);
 			if (CaseInsensitiveFs)
 				forKey.MakeLower();
 			fileNameKey = ToStringKey(forKey);
@@ -724,8 +774,8 @@ namespace uba
 		if (shouldWriteToDisk)
 		{
 			FileInformation info;
-			if (!GetFileInformation(info, m_logger, fileName))
-				return m_logger.Error(TC("Failed to get file information for %s while checking file added for write. This should not happen! (%s)"), fileName, LastErrorToText().data);
+			if (!GetFileInformation(info, m_logger, fileName.data))
+				return m_logger.Error(TC("Failed to get file information for %s while checking file added for write. This should not happen! (%s)"), fileName.data, LastErrorToText().data);
 
 			attributes = info.attributes;
 			volumeSerial = info.volumeSerialNumber;
@@ -762,6 +812,11 @@ namespace uba
 			}
 		}
 
+		// There are directory crawlers happening in parallel so we need to really make sure to invalidate this one since a crawler can actually
+		// hit this file with information from a query before it was written.. and then it will turn it back to "verified" using old info
+		if (registerRealFile && invalidateStorage)
+			m_storage.InvalidateCachedFileInfo(fileNameKey);
+
 		FileEntryAdded(fileNameKey, lastWriteTime, fileSize);
 
 		u8 temp[1024];
@@ -782,8 +837,8 @@ namespace uba
 			written = writer.GetPosition();
 		}
 
-		#if UBA_DEBUG_LOGGER
-		g_debugLogger.Info(TC("TRACKADD    %s (Size: %llu, Key: %s, Id: %llu)\n"), fileName, fileSize, KeyToString(fileNameKey).data, fileIndex);
+		#if UBA_DEBUG_TRACK_DIR
+		g_debugLogger.Info(TC("TRACKADD    %s (Size: %llu, Key: %s, Id: %llu)\n"), fileName.data, fileSize, KeyToString(fileNameKey).data, fileIndex);
 		#endif
 
 
@@ -800,7 +855,7 @@ namespace uba
 		return true;
 	}
 
-	u32 Session::RegisterDeleteFile(StringKey fileNameKey, const tchar* fileName)
+	u32 Session::RegisterDeleteFile(StringKey fileNameKey, const StringView& fileName)
 	{
 		// Remote is not updating its own directory table
 		if (m_runningRemote)
@@ -859,8 +914,8 @@ namespace uba
 			written = writer.GetPosition();
 		}
 
-		#if UBA_DEBUG_LOGGER
-		g_debugLogger.Info(TC("TRACKDEL    %s (Key: %s)\n"), fileName, KeyToString(fileNameKey).data);
+		#if UBA_DEBUG_TRACK_DIR
+		g_debugLogger.Info(TC("TRACKDEL    %s (Key: %s)\n"), fileName.data, KeyToString(fileNameKey).data);
 		#endif
 
 		SCOPED_WRITE_LOCK(dirTable.m_memoryLock, memoryLock);
@@ -875,52 +930,76 @@ namespace uba
 		return dirTable.m_memorySize;
 	}
 
-	bool Session::CopyImports(Vector<BinaryModule>& out, const tchar* library, tchar* applicationDir, tchar* applicationDirEnd, UnorderedSet<TString>& handledImports)
+	bool Session::CopyImports(Vector<BinaryModule>& out, const tchar* library, tchar* applicationDir, tchar* applicationDirEnd, UnorderedSet<TString>& handledImports, const char* const* loaderPaths)
 	{
-		#if PLATFORM_WINDOWS
 		if (!handledImports.insert(library).second)
 			return true;
-		swprintf_s(applicationDirEnd, 512 - (applicationDirEnd - applicationDir), TC("%s"), library);
+		TSprintf_s(applicationDirEnd, 512 - (applicationDirEnd - applicationDir), TC("%s"), library);
 		const tchar* applicationName = applicationDir;
 		u32 attr = GetFileAttributesW(applicationName); // TODO: Use attributes table
 		tchar temp[512];
 		tchar temp2[512];
+		StringBuffer<512> temp3;
+		bool result = true;
+
 		if (attr == INVALID_FILE_ATTRIBUTES)
 		{
+			#if PLATFORM_WINDOWS
 			if (!SearchPathW(NULL, library, NULL, 512, temp, NULL))
 				return true; // TODO: We have to return true here because there are scenarios where failing is actually ok (it seems it can return false on crt shim libraries such as api-ms-win-crt*)
+			#elif PLATFORM_MAC
+			if (!loaderPaths)
+				return m_logger.Error("Failed to find file %s", applicationName);
+			for (auto it = loaderPaths; *it; ++it)
+			{
+				StringBuffer<> absolutePath;
+				absolutePath.Append(applicationDir, applicationDirEnd - applicationDir).Append(*it).EnsureEndsWithSlash().Append(library);
+				FixPath(absolutePath.data, nullptr, 0, temp3.Clear());
+				attr = GetFileAttributesW(temp3.data);
+				if (attr == INVALID_FILE_ATTRIBUTES)
+					continue;
+				memcpy(temp, temp3.data, temp3.count+1);
+				break;
+			}
+			if (attr == INVALID_FILE_ATTRIBUTES)
+				return m_logger.Error("Failed to find file %s", applicationName);
+			//UBA_ASSERTF(false, TC("DIR NOT FOUND: %s"), applicationName);
+			#else
+			return m_logger.Error("Code path not implemented for linux!");
+			#endif
 
 			applicationName = temp;
 			attr = DefaultAttributes();
 
-			tchar* lastSlash = TStrrchr(temp, '\\');
-			UBA_ASSERT(lastSlash);
+			tchar* lastSlash = TStrrchr(temp, PathSeparator);
+			UBA_ASSERTF(lastSlash, TC("No slash found in path %s"), temp);
 			u64 applicationDirLen = u64(lastSlash + 1 - temp);
 			memcpy(temp2, temp, applicationDirLen * sizeof(tchar));
 			applicationDir = temp2;
 			applicationDirEnd = temp2 + applicationDirLen;
 		}
 
-		StringBuffer<512> temp3;
-		FixPath(applicationName, nullptr, 0, temp3);
+		FixPath(applicationName, nullptr, 0, temp3.Clear());
 
 		bool isSystem = StartsWith(applicationName, m_systemPath.data);
 		if (isSystem && IsKnownSystemFile(applicationName))
 			return true;
 
-
 		out.push_back({ library, temp3.data, attr, isSystem });
 
-		bool result = true;
-		FindImports(applicationName, [&](const tchar* importName, bool isKnown)
+		StringBuffer<> errorStr;
+		FindImports(applicationName, [&](const tchar* importName, bool isKnown, const char* const* importLoaderPaths)
 			{
 				if (result && !isKnown)
-					result = CopyImports(out, importName, applicationDir, applicationDirEnd, handledImports);
-			});
+					result = CopyImports(out, importName, applicationDir, applicationDirEnd, handledImports, importLoaderPaths);
+			}, errorStr);
+		if (errorStr.count)
+			return m_logger.Error(errorStr.data);
+
+		// This code is needed if application is compiled with tsan
+		//strcpy(applicationDirEnd, "libclang_rt.tsan.so");
+		//out.push_back({ "libclang_rt.tsan.so", applicationDir, S_IRUSR | S_IWUSR });
 		return result;
-		#else
-		return true;
-		#endif
 	}
 
 	Session::Session(const SessionCreateInfo& info, const tchar* logPrefix, bool runningRemote, WorkManager* workManager)
@@ -948,11 +1027,14 @@ namespace uba
 		UBA_ASSERTF(info.rootDir && *info.rootDir, TC("No root dir set when creating session"));
 		m_rootDir.count = GetFullPathNameW(info.rootDir, m_rootDir.capacity, m_rootDir.data, NULL);
 		m_rootDir.Replace('/', PathSeparator).EnsureEndsWithSlash();
-		m_uid = u32(HashString()(m_rootDir.data));
 
 		m_runningRemote = runningRemote;
 		m_disableCustomAllocator = info.disableCustomAllocator;
 		m_allowMemoryMaps = info.allowMemoryMaps;
+		m_allowKeepFilesInMemory = info.allowKeepFilesInMemory;
+		m_allowOutputFiles = info.allowOutputFiles;
+		m_allowSpecialApplications = info.allowSpecialApplications;
+		m_suppressLogging = info.suppressLogging;
 		if (!info.allowMemoryMaps)
 			m_keepOutputFileMemoryMapsThreshold = 0;
 		else
@@ -960,7 +1042,10 @@ namespace uba
 		m_shouldWriteToDisk = info.shouldWriteToDisk;
 		UBA_ASSERTF(m_shouldWriteToDisk || m_allowMemoryMaps, TC("Can't disable both should write to disk and allow memory maps"));
 
+		m_storeObjFilesCompressed = info.storeObjFilesCompressed;
+
 		m_detailedTrace = info.detailedTrace;
+		m_traceChildProcesses = info.traceChildProcesses;
 		m_logToFile = info.logToFile;
 		if (info.extraInfo)
 			m_extraInfo = info.extraInfo;
@@ -1063,7 +1148,13 @@ namespace uba
 		if (info.traceName && *info.traceName)
 			traceName.Append(info.traceName);
 		else if (info.launchVisualizer || !m_traceOutputFile.IsEmpty() || info.traceEnabled)
+		{
 			traceName.Append(m_id);
+
+			OwnerInfo ownerInfo = GetOwnerInfo();
+			if (ownerInfo.pid)
+				traceName.Appendf(TC("_%s%u"), ownerInfo.id, ownerInfo.pid);
+		}
 
 		if (!traceName.IsEmpty())
 			StartTrace(IsWindows ? traceName.data : nullptr); // non-windows named shared memory not implemented (only needed for UbaVisualizer which you can't run on linux either way)
@@ -1122,8 +1213,6 @@ namespace uba
 
 	void Session::CancelAllProcessesAndWait(bool terminate)
 	{
-		m_logger.isMuted = true;
-
 		bool isEmpty = false;
 		bool isFirst = true;
 		while (!isEmpty)
@@ -1142,6 +1231,7 @@ namespace uba
 				isFirst = false;
 				if (!processes.empty())
 					m_logger.Info(TC("Cancelling %llu processes and wait for them to exit"), processes.size());
+				++m_logger.isMuted;
 			}
 
 			for (auto& process : processes)
@@ -1160,7 +1250,7 @@ namespace uba
 				process.WaitForExit(100000);
 		}
 
-		m_logger.isMuted = false;
+		--m_logger.isMuted;
 	}
 
 	ProcessHandle Session::RunProcess(const ProcessStartInfo& startInfo, bool async, bool enableDetour)
@@ -1173,22 +1263,17 @@ namespace uba
 	void Session::ValidateStartInfo(const ProcessStartInfo& startInfo)
 	{
 		UBA_ASSERTF(startInfo.workingDir && *startInfo.workingDir, TC("Working dir must be set when spawning process"));
-		UBA_ASSERTF(!TStrchr(startInfo.application, '~'), TC("Application path must use long name (%s)"), startInfo.application);
 		UBA_ASSERTF(!TStrchr(startInfo.workingDir, '~'), TC("WorkingDir path must use long name (%s)"), startInfo.workingDir);
 	}
 
 	ProcessHandle Session::InternalRunProcess(const ProcessStartInfo& startInfo, bool async, ProcessImpl* parent, bool enableDetour)
 	{
-		StringBuffer<> realApplication(startInfo.application);
-		const tchar* realWorkingDir = startInfo.workingDir;
-
-		if (!PrepareProcess(startInfo, parent != nullptr, realApplication, realWorkingDir))
-			return {};
-
 		auto& si = const_cast<ProcessStartInfo&>(startInfo);
 		si.useCustomAllocator &= !m_disableCustomAllocator;
 		const tchar* originalLogFile = si.logFile;
 		
+		u32 processId = CreateProcessId();
+
 		StringBuffer<> logFile;
 		if (si.logFile && *si.logFile)
 		{
@@ -1201,16 +1286,19 @@ namespace uba
 		else if (m_logToFile)
 		{
 			logFile.Append(m_sessionLogDir);
-			GetNameFromArguments(logFile, startInfo.arguments, true);
+			GenerateNameForProcess(logFile, startInfo.arguments, processId);
 			logFile.Append(TC(".log"));
 			si.logFile = logFile.data;
 		}
 
+		if (!si.rules)
+			si.rules = GetRules(si);
+
 		void* env = GetProcessEnvironmentVariables();
-		u32 id = ++m_processIdCounter;
-		auto process = new ProcessImpl(*this, id, parent);
+		auto process = new ProcessImpl(*this, processId, parent);
 		ProcessHandle h(process);
-		process->Start(startInfo, realApplication.data, realWorkingDir, m_runningRemote, env, async, enableDetour);
+		if (!process->Start(startInfo, m_runningRemote, env, async, enableDetour))
+			return {};
 
 		si.logFile = originalLogFile;
 		return h;
@@ -1251,12 +1339,18 @@ namespace uba
 
 	StringKey GetKeyAndFixedName(StringBuffer<>& fixedFilePath, const tchar* filePath)
 	{
-		FixPath2(filePath, nullptr, 0, fixedFilePath.data, fixedFilePath.capacity, &fixedFilePath.count);
+		StringBuffer<> workingDir;
+		if (!IsAbsolutePath(filePath))
+		{
+			GetCurrentDirectoryW(workingDir);
+			workingDir.EnsureEndsWithSlash();
+		}
+		FixPath2(filePath, workingDir.data, workingDir.count, fixedFilePath.data, fixedFilePath.capacity, &fixedFilePath.count);
 
 		StringKey dirKey;
 		StringBuffer<> dirNameForHash;
 		const tchar* baseFileName;
-		GetDirKey(dirKey, dirNameForHash, baseFileName, fixedFilePath.data);
+		GetDirKey(dirKey, dirNameForHash, baseFileName, fixedFilePath);
 
 		if (CaseInsensitiveFs)
 			dirNameForHash.MakeLower();
@@ -1271,12 +1365,12 @@ namespace uba
 		return ToStringKey(hasher, baseFileNameForHash.data, baseFileNameForHash.count);
 	}
 
-	void Session::RegisterNewFile(const tchar* filePath)
+	bool Session::RegisterNewFile(const tchar* filePath)
 	{
 		UBA_ASSERT(!m_runningRemote);
 		StringBuffer<> fixedFilePath;
 		auto key = GetKeyAndFixedName(fixedFilePath, filePath);
-		RegisterCreateFileForWrite(key, fixedFilePath.data, fixedFilePath.count, true);
+		return RegisterCreateFileForWrite(key, fixedFilePath, true);
 	}
 
 	void Session::RegisterDeleteFile(const tchar* filePath)
@@ -1284,7 +1378,7 @@ namespace uba
 		UBA_ASSERT(!m_runningRemote);
 		StringBuffer<> fixedFilePath;
 		auto key = GetKeyAndFixedName(fixedFilePath, filePath);
-		RegisterDeleteFile(key, fixedFilePath.data);
+		RegisterDeleteFile(key, fixedFilePath);
 	}
 
 	void Session::RegisterCustomService(CustomServiceFunction&& function)
@@ -1299,18 +1393,101 @@ namespace uba
 
 	const tchar* Session::GetId() { return m_id.data; }
 	Storage& Session::GetStorage() { return m_storage; }
-	Logger& Session::GetLogger() { return m_logger; }
+	MutableLogger& Session::GetLogger() { return m_logger; }
 	LogWriter& Session::GetLogWriter() { return m_logger.m_writer; }
+	Trace& Session::GetTrace() { return m_trace; }
+
+	const ApplicationRules* Session::GetRules(const ProcessStartInfo& si)
+	{
+		u32 exeNameStart = 0;
+		u32 exeNameEnd = TStrlen(si.application);
+		const tchar* lastSeparator = TStrrchr(si.application, PathSeparator);
+		if (lastSeparator)
+			exeNameStart = u32(lastSeparator - si.application + 1);
+		else if (si.application[exeNameStart] == '"')
+			++exeNameStart;
+		if (si.application[exeNameEnd - 1] == '"')
+			--exeNameEnd;
+		StringBuffer<128> exeName;
+		exeName.Append(si.application + exeNameStart, exeNameEnd - exeNameStart);
+		
+		auto rules = GetApplicationRules();
+		
+		while (true)
+		{
+			for (u32 i = 1;; ++i)
+			{
+				const tchar* app = rules[i].app;
+				if (!app)
+					break;
+				if (!exeName.Equals(app))
+					continue;
+				return GetApplicationRules()[i].rules;
+			}
+
+			if (!exeName.Equals(TC("dotnet.exe")))
+				return GetApplicationRules()[0].rules;
+			
+			u32 firstArgumentStart = 0;
+			u32 firstArgumentEnd = 0;
+			bool quoted = false;
+			for (u32 i = 0, e = TStrlen(si.arguments); i != e; ++i)
+			{
+				tchar c = si.arguments[i];
+				if (firstArgumentEnd)
+				{
+					if (c == '\\')
+						firstArgumentStart = i + 1;
+					if ((quoted && c != '"') || (!quoted && c != ' ' && c != '\t'))
+						continue;
+					firstArgumentEnd = i;
+					break;
+				}
+				else
+				{
+					if (c == ' ' || c == '\t')
+					{
+						++firstArgumentStart;
+						continue;
+					}
+					if (c == '"')
+					{
+						++firstArgumentStart;
+						quoted = true;
+					}
+					firstArgumentEnd = firstArgumentStart + 1;
+				}
+			}
+			exeName.Clear().Append(si.arguments + firstArgumentStart, firstArgumentEnd - firstArgumentStart);
+		}
+		return GetApplicationRules()[0].rules;
+	}
+
+	const tchar* Session::GetTempPath()
+	{
+		return m_tempPath.data;
+	}
+	
+	const tchar* Session::GetRootDir()
+	{
+		return m_rootDir.data;
+	}
+
+	u32 Session::CreateProcessId()
+	{
+		return ++m_processIdCounter;
+	}
 
 	void Session::ProcessAdded(Process& process, u32 sessionId)
 	{
 		u32 processId = process.GetId();
 
-		if (!process.IsChild())
-			m_trace.ProcessAdded(sessionId, processId, process.GetStartInfo().description);
+		if (!process.IsChild() || m_traceChildProcesses)
+			m_trace.ProcessAdded(sessionId, processId, process.GetStartInfo().GetDescription());
 
 		SCOPED_WRITE_LOCK(m_processesLock, lock);
-		m_processes.try_emplace(processId, ProcessHandle(&process));
+		bool success = m_processes.try_emplace(processId, ProcessHandle(&process)).second;
+		UBA_ASSERT(success);(void)success;
 	}
 
 	void Session::ProcessExited(ProcessImpl& process, u64 executionTime)
@@ -1323,14 +1500,16 @@ namespace uba
 
 		u32 id = process.GetId();
 
-		if (!process.IsChild())
+		if (!process.IsChild() || m_traceChildProcesses)
 		{
 			StackBinaryWriter<1024> writer;
 			process.m_processStats.Write(writer);
+			process.m_storageStats.Write(writer);
+			process.m_kernelStats.Write(writer);
 			u32 exitCode = process.GetExitCode();
 			Vector<ProcessLogLine> emptyLines;
 			auto& logLines = (exitCode != 0 || m_detailedTrace) ? process.m_logLines : emptyLines;
-			m_trace.ProcessExited(id, exitCode, writer.GetData(), writer.GetPosition(), logLines);
+			m_trace.ProcessExited(id, exitCode, writer.GetData(), writer.GetPosition(), logLines, process.GetStartInfo().breadcrumbs);
 			SCOPED_WRITE_LOCK(m_processStatsLock, lock);
 			m_processStats.Add(process.m_processStats);
 			m_stats.Add(process.m_sessionStats);
@@ -1341,7 +1520,8 @@ namespace uba
 		auto& stats = m_applicationStats[applicationName.data];
 		stats.count++;
 		stats.time += executionTime;
-		m_processes.erase(id);
+		auto count = m_processes.erase(id);
+		UBA_ASSERT(count == 1);(void)count;
 	}
 
 	void Session::FlushDeadProcesses()
@@ -1440,7 +1620,7 @@ namespace uba
 	void Session::PrintSummary(Logger& logger)
 	{
 		logger.BeginScope();
-		logger.Info(TC("  ----- Uba process stats summary -----"));
+		logger.Info(TC("  ------- Detours stats summary -------"));
 		m_processStats.Print(logger);
 		logger.Info(TC(""));
 
@@ -1456,7 +1636,7 @@ namespace uba
 		}
 		logger.Info(TC(""));
 
-		logger.Info(TC("  ----- Uba session stats summary -----"));
+		logger.Info(TC("  ------- Session stats summary -------"));
 
 		PrintSessionStats(logger);
 		logger.EndScope();
@@ -1475,19 +1655,8 @@ namespace uba
 		memcpy(applicationDir, application, applicationDirLen * sizeof(tchar));
 		tchar* applicationDirEnd = applicationDir + applicationDirLen;
 
-#if PLATFORM_WINDOWS
-
 		UnorderedSet<TString> handledImports;
-		CopyImports(out, applicationName, applicationDir, applicationDirEnd, handledImports);
-#else
-		// TODO: This. Does non-windows have dlls that needs to be downloaded here?
-		out.push_back({ TString(applicationName), TString(application), S_IRUSR | S_IWUSR | S_IXUSR });
-		
-		// This code is needed if application is compiled with tsan
-		//strcpy(applicationDirEnd, "libclang_rt.tsan.so");
-		//out.push_back({ "libclang_rt.tsan.so", applicationDir, S_IRUSR | S_IWUSR });
-#endif
-		return true;
+		return CopyImports(out, applicationName, applicationDir, applicationDirEnd, handledImports, nullptr);
 	}
 
 	void Session::Free(Vector<BinaryModule>& v)
@@ -1498,12 +1667,12 @@ namespace uba
 
 	bool Session::IsRarelyRead(ProcessImpl& process, const StringBufferBase& fileName) const
 	{
-		return GetApplicationRules()[process.m_rulesIndex].rules->IsRarelyRead(fileName);
+		return process.m_startInfo.rules->IsRarelyRead(fileName);
 	}
 
-	bool Session::IsRarelyReadAfterWritten(ProcessImpl& process, const tchar* fileName, u64 fileNameLen) const
+	bool Session::IsRarelyReadAfterWritten(ProcessImpl& process, const StringView& fileName) const
 	{
-		return GetApplicationRules()[process.m_rulesIndex].rules->IsRarelyReadAfterWritten(fileName, fileNameLen);
+		return process.m_startInfo.rules->IsRarelyReadAfterWritten(fileName);
 	}
 
 	bool Session::IsKnownSystemFile(const tchar* applicationName)
@@ -1515,37 +1684,45 @@ namespace uba
 #endif
 	}
 
-	bool Session::ShouldWriteToDisk(const tchar* fileName, u64 fileNameLen)
+	bool Session::ShouldWriteToDisk(const StringView& fileName)
 	{
 		if (m_shouldWriteToDisk)
 			return true;
-		return EndsWith(fileName, fileNameLen, TC(".h"));
+		return fileName.EndsWith(TC(".h"));
 	}
 
-	bool Session::PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir)
+	bool Session::PrepareProcess(ProcessStartInfoHolder& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir)
 	{
+		if (StartsWith(startInfo.application, TC("ubacopy")))
+			return true;
+		if (IsAbsolutePath(startInfo.application))
+			return true;
+		if (!SearchPathForFile(m_logger, outRealApplication.Clear(), startInfo.application, startInfo.workingDir))
+			return false;
+		startInfo.applicationStr = outRealApplication.data;
+		startInfo.application = startInfo.applicationStr.c_str();
 		return true;
 	}
 
-	u32 Session::GetMemoryMapAlignment(const tchar* fileName, u64 fileNameLen) const
+	u32 Session::GetMemoryMapAlignment(const StringView& fileName) const
 	{
 		// It is not necessarily better to make mem maps of everything.. only things that are read more than once in the build.
 		// Reason is because there is additional overhead to use memory mappings.
 		// Upside is that all things that are memory mapped can be stored compressed in cas storage so it saves space.
 
-		if (EndsWith(fileName, fileNameLen, TC(".pch")))
+		if (fileName.EndsWith(TC(".pch")))
 			return 64 * 1024; // pch needs 64k alignment
-		if (EndsWith(fileName, fileNameLen, TC(".h")) || EndsWith(fileName, fileNameLen, TC(".inl")) || EndsWith(fileName, fileNameLen, TC(".gch")))
+		if (fileName.EndsWith(TC(".h")) || fileName.EndsWith(TC(".inl")) || fileName.EndsWith(TC(".gch")))
 			return 4 * 1024; // clang seems to need 4k alignment? Is it a coincidence it works or what is happening inside the code? (msvc works with alignment 1byte here)
-		if (EndsWith(fileName, fileNameLen, TC(".h.obj")))
+		if (fileName.EndsWith(TC(".h.obj")))
 			return 4 * 1024;
-		//if (EndsWith(fileName, fileNameLen, TC(".lib")))
+		//if (fileName.EndsWith(TC(".lib")))
 		//	return 4 * 1024;
-		//if (EndsWith(fileName, fileNameLen, TC(".rc2.res")))
+		//if (fileName.EndsWith(TC(".rc2.res")))
 		//	return 64;
-		//if (EndsWith(fileName, fileNameLen, TC(".rsp")))
+		//if (fileName.EndsWith(TC(".rsp")))
 		//	return 4 * 1024; // rsp is read over and over again
-		//if (EndsWith(fileName, fileNameLen, TC(".h.obj")) || EndsWith(fileName, fileNameLen, TC(".lib")))
+		//if (fileName.EndsWith(TC(".h.obj")) || fileName.EndsWith(TC(".lib")))
 		//	return 4 * 1024; // rsp is read over and over again
 		return 0;
 	}
@@ -1557,59 +1734,73 @@ namespace uba
 			return m_environmentVariables.data();
 
 #if PLATFORM_WINDOWS
-		auto strs = GetEnvironmentStringsW();
-		for (auto it = strs; *it; it += TStrlen(it) + 1)
+		auto HandleEnvironmentVar = [&](const tchar* env)
 		{
 			StringBuffer<> varName;
-			varName.Append(it, TStrchr(it, '=') - it);
-			const tchar* varValue = it + varName.count + 1;
+			varName.Append(env, TStrchr(env, '=') - env);
+			const tchar* varValue = env + varName.count + 1;
 
 			if (m_runningRemote && varName.Equals(TC("PATH")))
 			{
 				AddEnvironmentVariableNoLock(TC("PATH"), TC("c:\\noenvironment"));
-				continue;
+				return;
 			}
 			if (varName.Equals(TC("TEMP")) || varName.Equals(TC("TMP")))
 			{
 				AddEnvironmentVariableNoLock(varName.data, m_tempPath.data);
-				continue;
+				return;
 			}
 			if (varName.Equals(TC("_CL_")) || varName.Equals(TC("CL")))
 			{
-				continue;
+				return;
 			}
 
 			AddEnvironmentVariableNoLock(varName.data, varValue);
+		};
+
+		if (m_environmentMemory.empty())
+		{
+			auto strs = GetEnvironmentStringsW();
+			for (auto env = strs; *env; env += TStrlen(env) + 1)
+				HandleEnvironmentVar(env);
+			FreeEnvironmentStrings(strs);
 		}
-
-		FreeEnvironmentStrings(strs);
-
+		else
+		{
+			BinaryReader reader(m_environmentMemory.data(), 0, m_environmentMemory.size());
+			while (reader.GetLeft())
+				HandleEnvironmentVar(reader.ReadString().c_str());
+		}
 		AddEnvironmentVariableNoLock(TC("MSBUILDDISABLENODEREUSE"), TC("1")); // msbuild will reuse existing helper nodes but since those are not detoured we can't let that happen
 		AddEnvironmentVariableNoLock(TC("DOTNET_CLI_USE_MSBUILD_SERVER"), TC("0")); // Disable msbuild server
 		AddEnvironmentVariableNoLock(TC("DOTNET_CLI_TELEMETRY_OPTOUT"), TC("1")); // Stop talking to telemetry service
 #else
-		int i = 0;
-		while (char* env = environ[i++])
+		auto HandleEnvironmentVar = [&](const tchar* env)
 		{
 			if (StartsWith(env, "TMPDIR="))
-				continue;
+				return;
 
 			if (!StartsWith(env, "PATH="))
 			{
 				m_environmentVariables.insert(m_environmentVariables.end(), env, env + TStrlen(env) + 1);
-				continue;
+				return;
 			}
 
 			TString paths;
 
 			const char* start = env + 5;
 			const char* it = start;
-			while (*it)
+			bool isLast = false;
+			while (!isLast)
 			{
 				if (*it != ':')
 				{
-					++it;
-					continue;
+					if (*it)
+					{
+						++it;
+						continue;
+					}
+					isLast = true;
 				}
 
 				const char* s = start;
@@ -1623,9 +1814,25 @@ namespace uba
 				paths.append(s, e);
 			}
 			AddEnvironmentVariableNoLock("PATH", paths.c_str());
+		};
+
+		if (m_environmentMemory.empty())
+		{
+			int i = 0;
+			while (char* env = environ[i++])
+				HandleEnvironmentVar(env);
+		}
+		else
+		{
+			BinaryReader reader(m_environmentMemory.data(), 0, m_environmentMemory.size());
+			while (reader.GetLeft())
+				HandleEnvironmentVar(reader.ReadString().c_str());
 		}
 		AddEnvironmentVariableNoLock("TMPDIR", m_tempPath.data);
 #endif
+
+		AddEnvironmentVariableNoLock(TC("UBA_DETOURED"), TC("1"));
+
 		m_environmentVariables.push_back(0);
 		return m_environmentVariables.data();
 	}
@@ -1651,7 +1858,7 @@ namespace uba
 		
 			if (fileName.EndsWith(TC(".dll")) || fileName.EndsWith(TC(".exe")))
 			{
-				UBA_ASSERTF(fileName[1] == ':', TC("Got bad filename from process %s"), fileName.data);
+				UBA_ASSERTF(IsAbsolutePath(fileName.data), TC("Got bad filename from process %s"), fileName.data);
 				AddFileMapping(fileNameKey, fileName.data, TC("#"));
 				out.fileName.Append(TC("#"));
 				return true;
@@ -1659,7 +1866,7 @@ namespace uba
 			
 			if (m_allowMemoryMaps)
 			{
-				if (u64 alignment = GetMemoryMapAlignment(fileName.data, fileName.count))
+				if (u64 alignment = GetMemoryMapAlignment(fileName))
 				{
 					MemoryMap map;
 					if (CreateMemoryMapFromFile(map, fileNameKey, fileName.data, false, alignment))
@@ -1687,7 +1894,7 @@ namespace uba
 		}
 		
 		// if ((message.Access & FileAccess.Write) != 0)
-		m_storage.ReportFileWrite(fileName.data);
+		m_storage.ReportFileWrite(fileNameKey, fileName.data);
 
 		if (m_runningRemote && !fileName.StartsWith(m_tempPath.data))
 		{
@@ -1777,22 +1984,9 @@ namespace uba
 			auto insres = msg.process.m_writtenFiles.try_emplace(name);
 			WrittenFile& writtenFile = insres.first->second;
 
-			UBA_ASSERT(writtenFile.owner == nullptr || writtenFile.owner == &msg.process);
+			UBA_ASSERTF(writtenFile.owner == nullptr || writtenFile.owner == &msg.process || !m_allowOutputFiles, TC("File %s changed owner.. should not happen"), name);
 			writtenFile.owner = &msg.process;
 			writtenFile.attributes = msg.attributes;
-
-			auto GetNowFileTime = []()
-				{
-					#if PLATFORM_WINDOWS
-					FILETIME ft;
-					SYSTEMTIME st;
-					GetSystemTime(&st);
-					SystemTimeToFileTime(&st, &ft);
-					return (u64&)ft;
-					#else
-					return 0ull;
-					#endif
-				};
 
 			bool addMapping = true;
 			if (!insres.second)
@@ -1808,7 +2002,7 @@ namespace uba
 					if (msg.mappingWritten)
 					{
 						writtenFile.mappingWritten = msg.mappingWritten;
-						writtenFile.lastWriteTime = GetNowFileTime();
+						writtenFile.lastWriteTime = GetSystemTimeAsFileTime();
 					}
 					addMapping = false;
 				}
@@ -1837,7 +2031,7 @@ namespace uba
 				writtenFile.mappingHandle = mappingHandle;
 				writtenFile.mappingWritten = msg.mappingWritten;
 				writtenFile.originalMappingHandle = msg.mappingHandle;
-				writtenFile.lastWriteTime = GetNowFileTime();
+				writtenFile.lastWriteTime = GetSystemTimeAsFileTime();
 			}
 
 			if (writtenFile.mappingHandle.IsValid())
@@ -1846,17 +2040,21 @@ namespace uba
 				fileSize = writtenFile.mappingWritten;
 				lastWriteTime = writtenFile.lastWriteTime;
 			}
+
+			if (msg.process.m_extractExports && msg.process.m_startInfo.rules->ShouldExtractSymbols(file.name))
+				if (!ExtractSymbolsFromObjectFile(msg, name, fileSize))
+					return false;
 		}
 
 		if (!msg.newName.IsEmpty())
 		{
-			RegisterDeleteFile(file.nameKey, file.name.c_str());
-			RegisterCreateFileForWrite(msg.newNameKey, msg.newName.data, msg.newName.count, registerRealFile, fileSize, lastWriteTime);
+			RegisterDeleteFile(file.nameKey, file.name);
+			RegisterCreateFileForWrite(msg.newNameKey, msg.newName, registerRealFile, fileSize, lastWriteTime);
 		}
 		else if (msg.deleteOnClose)
-			RegisterDeleteFile(file.nameKey, file.name.c_str());
+			RegisterDeleteFile(file.nameKey, file.name);
 		else
-			RegisterCreateFileForWrite(file.nameKey, file.name.c_str(), file.name.size(), registerRealFile, fileSize, lastWriteTime);
+			RegisterCreateFileForWrite(file.nameKey, file.name, registerRealFile, fileSize, lastWriteTime);
 
 		out.directoryTableSize = GetDirectoryTableSize();
 		return true;
@@ -1879,7 +2077,7 @@ namespace uba
 
 		out.result = uba::DeleteFileW(msg.fileName.data);
 		out.errorCode = GetLastError();
-		out.directoryTableSize = RegisterDeleteFile(msg.fileNameKey, msg.fileName.data);
+		out.directoryTableSize = RegisterDeleteFile(msg.fileNameKey, msg.fileName);
 		return true;
 	}
 
@@ -1904,8 +2102,8 @@ namespace uba
 		out.errorCode = ERROR_SUCCESS;
 		if (!out.result)
 			out.errorCode = GetLastError();
-		RegisterCreateFileForWrite(msg.toKey, msg.toName.data, msg.toName.count, true);
-		out.directoryTableSize = RegisterDeleteFile(msg.fromKey, msg.fromName.data);
+		RegisterCreateFileForWrite(msg.toKey, msg.toName, true);
+		out.directoryTableSize = RegisterDeleteFile(msg.fromKey, msg.fromName);
 		return true;
 	}
 
@@ -1917,7 +2115,7 @@ namespace uba
 		out.errorCode = 0;
 		if (chmod(msg.fileName.data, (mode_t)msg.fileMode) == 0)
 		{
-			RegisterCreateFileForWrite(msg.fileNameKey, msg.fileName.data, msg.fileName.count, true);
+			RegisterCreateFileForWrite(msg.fileNameKey, msg.fileName, true);
 			return true;
 		}
 		out.errorCode = errno;
@@ -1929,21 +2127,52 @@ namespace uba
 	{
 		out.result = uba::CreateDirectoryW(msg.name.data);
 		if (out.result)
-			RegisterCreateFileForWrite(msg.nameKey, msg.name.data, msg.name.count, true);
-		out.errorCode = GetLastError();
+		{
+			StringKey dirKey;
+			const tchar* lastSlash;
+			StringBuffer<> dirName;
+			if (!GetDirKey(dirKey, dirName, lastSlash, msg.name))
+				return true;
+			// Both these functions need to be called. otherwise we can get created directories that does not end up in directory table
+			RegisterCreateFileForWrite(msg.nameKey, msg.name, true);
+			WriteDirectoryEntries(dirKey, dirName.data);
+		}
+		else
+		{
+			out.errorCode = GetLastError();
+		}
+
+		out.directoryTableSize = GetDirectoryTableSize();
+		return true;
+	}
+
+	bool Session::RemoveDirectory(RemoveDirectoryResponse& out, const RemoveDirectoryMessage& msg)
+	{
+		out.result = uba::RemoveDirectoryW(msg.name.data);
+		if (out.result)
+			RegisterDeleteFile(msg.nameKey, msg.name);
+		else
+			out.errorCode = GetLastError();
+		out.directoryTableSize = GetDirectoryTableSize();
 		return true;
 	}
 
 	bool Session::GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg)
 	{
-		UBA_ASSERTF(false, TC("SHOULD NOT HAPPEN (only remote)"));
-		return SearchPathForFile(m_logger, out.fileName, msg.fileName.data, msg.process.m_virtualApplicationDir.c_str());
+		UBA_ASSERTF(false, TC("SHOULD NOT HAPPEN (only remote).. %s"), msg.fileName.data);
+		return false;
+	}
+
+	bool Session::GetLongPathName(GetLongPathNameResponse& out, const GetLongPathNameMessage& msg)
+	{
+		UBA_ASSERTF(false, TC("SHOULD NOT HAPPEN (only remote).. %s"), msg.fileName.data);
+		return false;
 	}
 
 	bool Session::GetListDirectoryInfo(ListDirectoryResponse& out, tchar* dirName, const StringKey& dirKey)
 	{
 		u32 tableOffset;
-		u32 tableSize = WriteDirectoryEntries(dirKey, dirName, tableOffset);
+		u32 tableSize = WriteDirectoryEntries(dirKey, dirName, &tableOffset);
 		out.tableOffset = tableOffset;
 		out.tableSize = tableSize;
 		return true;
@@ -1954,7 +2183,9 @@ namespace uba
 
 		auto writeFile = [&](WrittenFile& file)
 		{
-			if (ShouldWriteToDisk(file.name.c_str(), file.name.size()))
+			bool shouldEvictFromMemory = IsRarelyReadAfterWritten(process, file.name) || file.mappingWritten > m_keepOutputFileMemoryMapsThreshold;
+
+			if (ShouldWriteToDisk(file.name))
 			{
 				// This is to kill I/O when writing lots of pdb/dlls in parallel
 				#if PLATFORM_WINDOWS
@@ -1978,45 +2209,64 @@ namespace uba
 
 				auto memClose = MakeGuard([&](){ UnmapViewOfFile(mem, fileSize, file.name.c_str()); });
 
-				// Seems like best combo (for windows at least) is to use writes with overlap and max 16 at the same time.
-				// On one machine we get twice as fast without overlap if no bottleneck. On another machine (ntfs compression on) we get twice as slow without overlap
-				// Both machines behaves well with overlap AND bottleneck. Both machine are 128 logical core thread rippers.
-				bool useFileMapForWrite = fileSize > 0; // ::CreateFileMappingW does not work for zero-length files
-				bool useOverlap = false;//fileSize > 8 * 1024 * 1024;
-
-
-				u32 attributes = DefaultAttributes();
-				if (useOverlap)
-					attributes |= FILE_FLAG_OVERLAPPED;
-
-				FileAccessor destinationFile(m_logger, file.name.c_str());
-
-				if (useFileMapForWrite)
+				if (m_storeObjFilesCompressed && process.m_startInfo.rules->StoreFileCompressed(file.name))
 				{
-					if (!destinationFile.CreateMemoryWrite(false, attributes, fileSize, m_tempPath.data))
+					Storage::WriteResult res;
+					CompressedObjFileHeader header { CalculateCasKey(mem, fileSize, true, m_workManager, file.name.c_str()) };
+
+					if (!m_storage.WriteCompressed(res, TC("MemoryMap"), InvalidFileHandle, mem, fileSize, file.name.c_str(), &header, sizeof(header), file.lastWriteTime))
 						return false;
-					memcpy(destinationFile.GetData(), mem, fileSize);
+
+					shouldEvictFromMemory = false; // Can't evict without properly update filemappingtable.. the file on disk does now not match what was registered for write
 				}
 				else
 				{
-					if (!destinationFile.CreateWrite(false, attributes, fileSize, m_tempPath.data))
-						return false;
 
-					#if PLATFORM_WINDOWS
-					//shouldBottleneck = fileSize > 64 * 1024 * 1024;
-					//if (shouldBottleneck)
-					//	bottleneck.Enter();
-					#endif
+					// Seems like best combo (for windows at least) is to use writes with overlap and max 16 at the same time.
+					// On one machine we get twice as fast without overlap if no bottleneck. On another machine (ntfs compression on) we get twice as slow without overlap
+					// Both machines behaves well with overlap AND bottleneck. Both machine are 128 logical core thread rippers.
+					bool useFileMapForWrite = fileSize > 0; // ::CreateFileMappingW does not work for zero-length files
+					bool useOverlap = false;//fileSize > 8 * 1024 * 1024;
 
-					if (!destinationFile.Write(mem, fileSize))
+
+					u32 attributes = DefaultAttributes();
+					if (useOverlap)
+						attributes |= FILE_FLAG_OVERLAPPED;
+
+					FileAccessor destinationFile(m_logger, file.name.c_str());
+
+					if (useFileMapForWrite)
+					{
+						if (!destinationFile.CreateMemoryWrite(false, attributes, fileSize, m_tempPath.data))
+							return false;
+						MapMemoryCopy(destinationFile.GetData(), mem, fileSize);
+					}
+					else
+					{
+						if (!destinationFile.CreateWrite(false, attributes, fileSize, m_tempPath.data))
+							return false;
+
+						#if PLATFORM_WINDOWS
+						//shouldBottleneck = fileSize > 64 * 1024 * 1024;
+						//if (shouldBottleneck)
+						//	bottleneck.Enter();
+						#endif
+
+						if (!destinationFile.Write(mem, fileSize))
+							return false;
+					}
+
+					if (u64 time = file.lastWriteTime)
+						if (!SetFileLastWriteTime(destinationFile.GetHandle(), time))
+							return m_logger.Error(TC("Failed to set file time on filehandle for %s"), file.name.c_str());
+
+					if (!destinationFile.Close(file.lastWriteTime ? nullptr : &file.lastWriteTime))
 						return false;
 				}
-				if (u64 time = file.lastWriteTime)
-					if (!SetFileLastWriteTime(destinationFile.GetHandle(), time))
-						return m_logger.Error(TC("Failed to set file time on filehandle for %s"), file.name.c_str());
 
-				if (!destinationFile.Close())
-					return false;
+				// There are directory crawlers happening in parallel so we need to really make sure to invalidate this one since a crawler can actually
+				// hit this file with information from a query before it was written.. and then it will turn it back to "verified" using old info
+				m_storage.InvalidateCachedFileInfo(file.key);
 			}
 			else
 			{
@@ -2024,7 +2274,7 @@ namespace uba
 				uba::DeleteFileW(file.name.c_str());
 			}
 
-			if (IsRarelyReadAfterWritten(process, file.name.c_str(), file.name.size()) || file.mappingWritten > m_keepOutputFileMemoryMapsThreshold)
+			if (shouldEvictFromMemory)
 			{
 				m_workManager->AddWork([mh = file.mappingHandle]()
 					{
@@ -2120,6 +2370,55 @@ namespace uba
 		return true;
 	}
 
+	bool Session::SHGetKnownFolderPath(Process& process, BinaryReader& reader, BinaryWriter& writer)
+	{
+		UBA_ASSERT(false); // Should only be called on UbaSessionClient
+		return false;
+	}
+
+	bool Session::HostRun(BinaryReader& reader, BinaryWriter& writer)
+	{
+		#if !PLATFORM_WINDOWS
+
+		Vector<TString> args;
+		while (reader.GetLeft())
+			args.push_back(reader.ReadString());
+		bool success = false;
+
+		StringBuffer<> command;
+		for (auto& arg : args)
+		{
+			if (command.count)
+				command.Append(' ');
+			command.Append(arg);
+		}
+
+		char result[4096];
+		if (FILE* fp = popen(command.data, "r"))
+		{
+			char* dest = result;
+			errno = 0;
+			while (true)
+			{
+				if (!fgets(dest, sizeof(result) - (dest - result), fp))
+				{
+					success = errno == 0;
+					if (!success)
+						snprintf(result, sizeof(result), "fgets failed with command: %s", command.data);
+					break;
+				}
+				dest += strlen(dest);
+			}
+			pclose(fp);
+		}
+		else
+			snprintf(result, sizeof(result), "popen failed with command: %s", command.data);
+		writer.WriteBool(success);
+		writer.WriteString(result);
+		#endif
+		return true;
+	}
+
 	void Session::FileEntryAdded(StringKey fileNameKey, u64 lastWritten, u64 size)
 	{
 	}
@@ -2137,12 +2436,17 @@ namespace uba
 		process.m_processStats.Write(writer);
 		process.m_sessionStats.Write(writer);
 		process.m_storageStats.Write(writer);
-		process.m_systemStats.Write(writer);
+		process.m_kernelStats.Write(writer);
 		m_trace.ProcessEnvironmentUpdated(process.GetId(), reason, writer.GetData(), writer.GetPosition());
 		process.m_processStats = {};
 		process.m_sessionStats = {};
 		process.m_storageStats = {};
-		process.m_systemStats = {};
+		process.m_kernelStats = {};
+		return true;
+	}
+
+	bool Session::LogLine(ProcessImpl& process, const tchar* line, LogEntryType logType)
+	{
 		return true;
 	}
 
@@ -2188,10 +2492,22 @@ namespace uba
 		#if PLATFORM_WINDOWS
 		GetPhysicallyInstalledSystemMemory(&totalMemoryInKilobytes);
 
-		Vector<PROCESSOR_POWER_INFORMATION> procInfos;
-		procInfos.resize(cpuCount);
-		if (CallNtPowerInformation(ProcessorInformation, NULL, 0, procInfos.data(), cpuCount*sizeof(PROCESSOR_POWER_INFORMATION)) == STATUS_SUCCESS)
-			hzStr.Appendf(TC(" @ %.1fGHz"), float(procInfos[0].MaxMhz) / 1000.0f);
+		{
+			u32 maxMHz = 0;
+			DWORD valueSize = 4;
+			const tchar* key = TC("HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0");
+			LSTATUS res = RegGetValueW(HKEY_LOCAL_MACHINE, key, TC("~MHz"), RRF_RT_REG_DWORD, NULL, &maxMHz, &valueSize);
+			if (res != ERROR_SUCCESS)
+			{
+				// This will not always be the same and since we use the system info as part of key for client uniqueness it is annoying to get multiple sessions for same instance
+				Vector<PROCESSOR_POWER_INFORMATION> procInfos;
+				procInfos.resize(cpuCount);
+				if (CallNtPowerInformation(ProcessorInformation, NULL, 0, procInfos.data(), cpuCount*sizeof(PROCESSOR_POWER_INFORMATION)) == STATUS_SUCCESS)
+					maxMHz = procInfos[0].MaxMhz;
+			}
+			hzStr.Appendf(TC(" @ %.1fGHz"), float(maxMHz) / 1000.0f);
+		}
+
 		#else
 		u64 throwAway;
 		GetMemoryInfo(throwAway, totalMemoryInKilobytes);
@@ -2216,7 +2532,8 @@ namespace uba
 		{
 			DWORD value = 0;
 			DWORD valueSize = 4;
-			LSTATUS res = RegGetValueW(HKEY_LOCAL_MACHINE, TC("SYSTEM\\CurrentControlSet\\Control\\FileSystem"), TC("NtfsDisableLastAccessUpdate"), RRF_RT_REG_DWORD, NULL, &value, &valueSize);
+			const tchar* fsKey = TC("SYSTEM\\CurrentControlSet\\Control\\FileSystem");
+			LSTATUS res = RegGetValueW(HKEY_LOCAL_MACHINE, fsKey, TC("NtfsDisableLastAccessUpdate"), RRF_RT_REG_DWORD, NULL, &value, &valueSize);
 			if (res != ERROR_SUCCESS)
 			{
 				m_logger.Detail(TC("Failed to retreive ntfs registry key (%i)"), res);
@@ -2227,6 +2544,21 @@ namespace uba
 				if (lastAccessSettingsValue == 0 || lastAccessSettingsValue == 2)
 					out.Append(TC(" NtfsLastAccessEnabled"));
 			}
+			value = 0;
+			res = RegGetValueW(HKEY_LOCAL_MACHINE, fsKey, TC("NtfsDisable8dot3NameCreation"), RRF_RT_REG_DWORD, NULL, &value, &valueSize);
+			if (res == ERROR_SUCCESS)
+				if (value == 0)
+					out.Append(TC(" NtfsShortNamesEnabled"));
+		}
+		else
+		{
+			StringBuffer<> testDir;
+			testDir.Append(m_rootDir).Append(TC("UbaTestShortNames"));
+			::RemoveDirectory(testDir.data);
+			wchar_t shortName[1024];
+			if (::CreateDirectoryW(testDir.data, NULL))
+				if (GetShortPathName(testDir.data, shortName, 1024) != 0 && !Contains(shortName, TC("UbaTestShortNames")))
+					out.Append(TC(" NtfsShortNamesEnabled"));
 		}
 		#endif
 
@@ -2480,14 +2812,80 @@ namespace uba
 		return m_cpuLoad;
 	}
 
+	bool Session::ExtractSymbolsFromObjectFile(const CloseFileMessage& msg, const tchar* fileName, u64 fileSize)
+	{
+		if (!msg.mappingHandle)
+			return m_logger.Error(TC("Can't extract symbols from obj file that is written directly to disk (%s writing %s)"), msg.process.m_startInfo.application, fileName);
+
+		FileMappingHandle source;
+		source.FromU64(msg.mappingHandle);
+		FileMappingHandle objectFileMappingHandle;
+
+		if (!DuplicateFileMapping(msg.process.m_nativeProcessHandle, source, GetCurrentProcessHandle(), &objectFileMappingHandle, FILE_MAP_ALL_ACCESS, false, 0))
+			return m_logger.Error(TC("Failed to duplicate file mapping handle for %s"), fileName);
+		auto ofmh = MakeGuard([&]() { CloseFileMapping(objectFileMappingHandle); });
+
+		u8* mem = MapViewOfFile(objectFileMappingHandle, FILE_MAP_ALL_ACCESS, 0, fileSize);
+		if (!mem)
+			return m_logger.Error(TC("Failed to map view of filehandle for read %s (%s)"), fileName, LastErrorToText().data);
+		auto memClose = MakeGuard([&](){ UnmapViewOfFile(mem, fileSize, fileName); });
+
+		ObjectFile* objectFile = ObjectFile::Parse(m_logger, mem, fileSize, fileName);
+		if (!objectFile)
+			return false;
+		auto ofg = MakeGuard([&]() { delete objectFile; });
+
+		if (!objectFile->StripExports(m_logger))
+			return false;
+
+		const tchar* lastDot = TStrrchr(fileName, '.');
+		UBA_ASSERT(lastDot);
+		StringBuffer<> exportsFile;
+		exportsFile.Append(fileName, lastDot - fileName).Append(TC(".exi"));
+
+		MemoryBlock memoryBlock(8*1024*1024);
+		if (!objectFile->WriteImportsAndExports(m_logger, memoryBlock))
+			return false;
+
+		FileMappingHandle symHandle = CreateMemoryMappingW(m_logger, PAGE_READWRITE, memoryBlock.writtenSize);
+		if (!symHandle.IsValid())
+			return false;
+
+		u8* mem2 = MapViewOfFile(symHandle, FILE_MAP_ALL_ACCESS, 0, memoryBlock.writtenSize);
+		if (!mem2)
+			return false;
+
+		MapMemoryCopy(mem2, memoryBlock.memory, memoryBlock.writtenSize);
+		UnmapViewOfFile(mem2, memoryBlock.writtenSize, TC(""));
+
+		StringKey symFileKey = CaseInsensitiveFs ? ToStringKeyLower(exportsFile) : ToStringKey(exportsFile);
+		u64 lastWriteTime = GetSystemTimeAsFileTime();
+
+		if (!RegisterCreateFileForWrite(symFileKey, exportsFile, false, memoryBlock.writtenSize, lastWriteTime))
+			return false;
+
+		auto insres = msg.process.m_writtenFiles.try_emplace(exportsFile.data);
+		WrittenFile& writtenFile = insres.first->second;
+
+		UBA_ASSERT(writtenFile.owner == nullptr || writtenFile.owner == &msg.process);
+		writtenFile.key = symFileKey;
+		writtenFile.owner = &msg.process;
+		writtenFile.attributes = msg.attributes;
+		writtenFile.mappingHandle = symHandle;
+		writtenFile.mappingWritten = memoryBlock.writtenSize;
+		writtenFile.lastWriteTime = lastWriteTime;
+		writtenFile.name = insres.first->first;
+
+		return true;
+	}
 
 	void Session::ThreadTraceLoop()
 	{
 		while (true)
 		{
+			TraceSessionUpdate();
 			if (m_traceThreadEvent.IsSet(500))
 				break;
-			TraceSessionUpdate();
 		}
 	}
 
@@ -2495,7 +2893,7 @@ namespace uba
 	{
 	}
 
-	void GetNameFromArguments(StringBufferBase& out, const tchar* arguments, bool addCounterSuffix)
+	void GenerateNameForProcess(StringBufferBase& out, const tchar* arguments, u32 counterSuffix)
 	{
 		const tchar* start = arguments;
 		const tchar* it = arguments;
@@ -2526,8 +2924,30 @@ namespace uba
 		if (out.IsEmpty())
 			out.Append(TC("NoGoodName"));
 
-		static Atomic<u32> counter;
-		if (addCounterSuffix)
-			out.Append('_').AppendValue(counter++);
+		if (counterSuffix)
+			out.Appendf(TC("_%03u"), counterSuffix);
+	}
+
+	bool GetZone(StringBufferBase& outZone)
+	{
+		outZone.count = GetEnvironmentVariableW(TC("UBA_ZONE"), outZone.data, outZone.capacity);
+		if (outZone.count)
+			return true;
+
+		// TODO: Remove.
+		#if PLATFORM_MAC
+		if (!GetComputerNameW(outZone.data, outZone.capacity))
+			return false;
+
+		outZone.count = TStrlen(outZone.data);
+		if (outZone.StartsWith(TC("dc4-mac")) || outZone.StartsWith(TC("rdu-mac")))
+		{
+			outZone.Resize(7);
+			return true;
+		}
+		outZone.count = 0;
+		#endif
+
+		return false;
 	}
 }

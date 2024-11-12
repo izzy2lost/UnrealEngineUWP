@@ -6,6 +6,7 @@
 
 #include "Chaos/Core.h"
 #include "Math/VectorRegister.h"
+#include "Chaos/AABB.h"
 
 namespace Chaos
 {
@@ -58,6 +59,16 @@ namespace Chaos
 			VectorStoreAligned(MaxSimd, AlignedArray);
 			const FVec3  Max(static_cast<FReal>(AlignedArray[0]), static_cast<FReal>(AlignedArray[1]), static_cast<FReal>(AlignedArray[2]));
 			return FAABB3(Min, Max);
+		}
+
+
+		FORCEINLINE bool IsTooBigForSinglePrecision() const
+		{
+			constexpr FRealSingle SqrSideThreshold = 100000.0f*100000.0f;
+			// If two sides are quite small, the third one cannot be huge
+			const VectorRegister4Float BigSide = VectorMax(VectorAbs(VectorSubtract(A, B)), VectorAbs(VectorSubtract(B, C)));
+			// Warning this could 
+			return VectorDot3Scalar(BigSide, BigSide) > SqrSideThreshold;
 		}
 
 

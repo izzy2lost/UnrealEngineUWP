@@ -6,7 +6,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.IO;
 using EpicGames.Core;
 using UnrealBuildBase;
@@ -28,6 +27,7 @@ public class BuildDerivedDataCache : BuildCommand
 		string RelativePakPath = ParseParamValue("RelativePakPath", "Engine/DerivedDataCache/Compressed.ddp");
 		bool bSkipEngine = ParseParam("SkipEngine");
 		string EngineContentExtraArgs = ParseParamValue("EngineContentExtraArgs", string.Empty);
+		string FeaturePackExtraArgs = ParseParamValue("FeaturePackExtraArgs", string.Empty);
 
 		// Get paths to everything within the temporary directory
 		string EditorExe = CommandUtils.GetEditorCommandletExe(TempDir, HostPlatform);
@@ -45,7 +45,7 @@ public class BuildDerivedDataCache : BuildCommand
 				string FeaturePackPath = CommandUtils.CombinePaths(Unreal.RootDirectory.FullName, FeaturePack);
 				if (!CommandUtils.FileExists(FeaturePackPath))
 				{
-					throw new AutomationException("Could not find project: " + FeaturePack);
+					throw new AutomationException($"Could not find project: {FeaturePack}");
 				}
 				FeaturePackPaths.Add(FeaturePackPath);
 			}
@@ -54,10 +54,17 @@ public class BuildDerivedDataCache : BuildCommand
 		// loop through all the paths and generate ddc data for them
 		foreach (string FeaturePackPath in FeaturePackPaths)
 		{
+			StringBuilder FeaturePackParameters = new StringBuilder();
 			string ProjectSpecificPlatforms = TargetPlatforms;
 			FileReference FileRef = new FileReference(FeaturePackPath);
 			string GameName = FileRef.GetFileNameWithoutAnyExtensions();
 			ProjectDescriptor Project = ProjectDescriptor.FromFile(FileRef);
+
+			FeaturePackParameters.Append($"-fill -DDC={BackendName} -ProjectOnly");
+			if (!string.IsNullOrEmpty(FeaturePackExtraArgs))
+			{
+				FeaturePackParameters.Append($" {FeaturePackExtraArgs} ");
+			}
 
 			if (Project.TargetPlatforms != null && Project.TargetPlatforms.Length > 0)
 			{
@@ -86,9 +93,9 @@ public class BuildDerivedDataCache : BuildCommand
 				ProjectSpecificPlatforms = CommandUtils.CombineCommandletParams(FilteredPlatforms.Distinct().ToArray());
 			}
 			Logger.LogInformation("Generating DDC data for {GameName} on {ProjectSpecificPlatforms}", GameName, ProjectSpecificPlatforms);
-			CommandUtils.DDCCommandlet(FileRef, EditorExe, null, ProjectSpecificPlatforms, String.Format("-fill -DDC={0} -ProjectOnly", BackendName));
+			CommandUtils.DDCCommandlet(FileRef, EditorExe, null, ProjectSpecificPlatforms, FeaturePackParameters.ToString());
 
-			string ProjectPakFile = CommandUtils.CombinePaths(Path.GetDirectoryName(OutputPakFile), String.Format("Compressed-{0}.ddp", GameName));
+			string ProjectPakFile = CommandUtils.CombinePaths(Path.GetDirectoryName(OutputPakFile), $"Compressed-{GameName}.ddp");
 			CommandUtils.DeleteFile(ProjectPakFile);
 			CommandUtils.RenameFile(OutputPakFile, ProjectPakFile);
 

@@ -19,6 +19,10 @@
 		{
 			"Name": "PCGBiomeCore",
 			"Enabled": true
+		},
+		{
+			"Name": "PCG",
+			"Enabled": true
 		}
 	]
 }

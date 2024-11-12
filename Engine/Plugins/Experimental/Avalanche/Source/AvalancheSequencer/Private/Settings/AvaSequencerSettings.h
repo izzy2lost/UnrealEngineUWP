@@ -5,6 +5,7 @@
 #include "AvaSequencePreset.h"
 #include "AvaSequencerDisplayRate.h"
 #include "Engine/DeveloperSettings.h"
+#include "Sidebar/SidebarState.h"
 #include "UObject/Object.h"
 #include "AvaSequencerSettings.generated.h"
 
@@ -41,6 +42,16 @@ public:
 		return CustomSequencePresets;
 	}
 
+	FSidebarState& GetSidebarState()
+	{
+		return SidebarState;
+	}
+
+	void SetSidebarState(const FSidebarState& InSidebarState)
+	{
+		SidebarState = InSidebarState;
+	}
+
 private:
 	/** The default display rate to use for new sequences */
 	UPROPERTY(Config, EditAnywhere, Category = "Playback")
@@ -57,4 +68,8 @@ private:
 	/** Sequence Presets that are uniquely identified by their Preset Name */
 	UPROPERTY(Config, EditAnywhere, Category = "Sequencer")
 	TSet<FAvaSequencePreset> CustomSequencePresets;
+
+	/** The state of a sidebar to be restored when Sequencer is initialized */
+	UPROPERTY(Config)
+	FSidebarState SidebarState;
 };

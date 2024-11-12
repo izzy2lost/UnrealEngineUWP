@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "PoseSearchDatabaseAssetTreeNode.h"
+#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 
 class FUICommandList;
@@ -39,19 +40,20 @@ namespace UE::PoseSearch
 		virtual FReply OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
 
 		
-		EVisibility GetSelectedActorIconVisbility() const;
+		EVisibility GetSelectedActorIconVisibility() const;
 
-		FSlateColor GetNameTextColorAndOpacity() const;
+		void OnAssetPickerObjectChanged(const FAssetData& AssetData);
+		FString GetAssetPickerObjectPath() const;
+		bool GetAssetPickerIsEnabled() const;
+		EVisibility GetAssetPickerCustomContentSlotVisibility() const;
+		FText GetAssetPickerText() const;
+		FSlateColor GetAssetPickerCustomContentSlotTextColor() const;
 		
 		FSlateColor GetLoopingColorAndOpacity() const;
 		FText GetLoopingToolTip() const;
 		
 		FSlateColor GetRootMotionColorAndOpacity() const;
 		FText GetRootMotionOptionToolTip() const;
-		
-		const FSlateBrush* GetMirrorOptionSlateBrush() const;
-		FText GetMirrorOptionToolTip() const;
-		FReply MirrorOptionOnMouseButtonDown(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent);
 		
 		FText GetDisableReselectionToolTip() const;
 		ECheckBoxState GetDisableReselectionChecked() const;
@@ -64,6 +66,9 @@ namespace UE::PoseSearch
 		TWeakPtr<FDatabaseAssetTreeNode> WeakAssetTreeNode;
 		TWeakPtr<FDatabaseViewModel> EditorViewModel;
 		TWeakPtr<SDatabaseAssetTree> SkeletonView;
+		
+		FColor AssetTypeColor;
+		TSharedPtr<SOverlay> AssetThumbnailOverlay;
 	};
 }
 

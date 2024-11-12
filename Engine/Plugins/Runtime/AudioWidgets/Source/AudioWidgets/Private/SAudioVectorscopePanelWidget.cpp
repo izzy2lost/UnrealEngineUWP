@@ -115,13 +115,13 @@ void SAudioVectorscopePanelWidget::CreateLayout()
 				.FillHeight(0.2f)
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("Vectorscope_TimeWindow_Display_Label", "Persistence"))
+					.Text(LOCTEXT("Vectorscope_DisplayPersistence_Display_Label", "Persistence"))
 					.Justification(ETextJustify::Center)
 				]
 				+ SVerticalBox::Slot()
 				.FillHeight(0.8f)
 				[
-					TimeWindowKnob.ToSharedRef()
+					DisplayPersistenceKnob.ToSharedRef()
 				]
 			];
 
@@ -213,29 +213,29 @@ void SAudioVectorscopePanelWidget::CreateSequenceVectorViewer(const FFixedSample
 	.SequenceDrawingParams(SampledSequenceDrawingUtils::FSampledSequenceDrawingParams());
 }
 
-void SAudioVectorscopePanelWidget::CreateTimeWindowKnob()
+void SAudioVectorscopePanelWidget::CreateDisplayPersistenceKnob()
 {
 	auto OnValueChangedLambda = [this](float Value)
 	{
-		if (TimeWindowKnob.IsValid())
+		if (DisplayPersistenceKnob.IsValid())
 		{
 			if (!bIsInputWidgetTransacting)
 			{
 			#if WITH_EDITOR
 				if (GEditor)
 				{
-					GEditor->BeginTransaction(LOCTEXT("Vectorscope_TimeWindow_Knob_Changed_Msg", "Set vectorscope Time Window value."));
+					GEditor->BeginTransaction(LOCTEXT("Vectorscope_DisplayPersistence_Knob_Changed_Msg", "Set vectorscope Time Window value."));
 				}
 			#endif
 				bIsInputWidgetTransacting = true;
 			}
 
-			if (const float TimeWindowKnobValue = TimeWindowKnob->GetOutputValue(Value);
-				TimeWindowKnobValue != TimeWindowValue)
+			if (const float DisplayPersistenceKnobValue = DisplayPersistenceKnob->GetOutputValue(Value);
+				DisplayPersistenceKnobValue != DisplayPersistenceValue)
 			{
-				TimeWindowValue = TimeWindowKnobValue;
+				DisplayPersistenceValue = DisplayPersistenceKnobValue;
 
-				OnTimeWindowValueChanged.Broadcast(TimeWindowValue);
+				OnDisplayPersistenceValueChanged.Broadcast(DisplayPersistenceValue);
 			}
 		}
 	};
@@ -247,7 +247,7 @@ void SAudioVectorscopePanelWidget::CreateTimeWindowKnob()
 		#if WITH_EDITOR
 			if (GEditor)
 			{
-				GEditor->BeginTransaction(LOCTEXT("Vectorscope_TimeWindow_Knob_CaptureBegin_Msg", "Set vectorscope Time Window value."));
+				GEditor->BeginTransaction(LOCTEXT("Vectorscope_DisplayPersistence_Knob_CaptureBegin_Msg", "Set vectorscope Time Window value."));
 			}
 		#endif
 			bIsInputWidgetTransacting = true;
@@ -272,15 +272,15 @@ void SAudioVectorscopePanelWidget::CreateTimeWindowKnob()
 		}
 	};
 
-	TimeWindowKnob = SNew(SAudioRadialSlider)
+	DisplayPersistenceKnob = SNew(SAudioRadialSlider)
 	.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
 	.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda)
 	.SliderValue(0.0f);
 
-	TimeWindowKnob->SetOutputRange(FVector2D(10.0f, 500.0f));
-	TimeWindowKnob->SetUnitsText(FText::FromString("ms"));
+	DisplayPersistenceKnob->SetOutputRange(DisplayPersistenceKnobOutputRange);
+	DisplayPersistenceKnob->SetUnitsText(FText::FromString("ms"));
 
-	TimeWindowKnob->OnValueChanged.BindLambda(OnValueChangedLambda);
+	DisplayPersistenceKnob->OnValueChanged.BindLambda(OnValueChangedLambda);
 }
 
 void SAudioVectorscopePanelWidget::CreateScaleKnob()
@@ -347,7 +347,7 @@ void SAudioVectorscopePanelWidget::CreateScaleKnob()
 	.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda)
 	.SliderValue(1.0f);
 
-	ScaleKnob->SetOutputRange(FVector2D(0.0f, 1.0f));
+	ScaleKnob->SetOutputRange(ScaleFactorOutputKnobRange);
 	ScaleKnob->SetShowUnitsText(false);
 
 	ScaleKnob->OnValueChanged.BindLambda(OnValueChangedLambda);
@@ -355,7 +355,7 @@ void SAudioVectorscopePanelWidget::CreateScaleKnob()
 
 void SAudioVectorscopePanelWidget::CreateVectorscopeControls()
 {
-	CreateTimeWindowKnob();
+	CreateDisplayPersistenceKnob();
 	CreateScaleKnob();
 }
 
@@ -371,9 +371,32 @@ void SAudioVectorscopePanelWidget::SetValueGridOverlayMaxNumDivisions(const uint
 	ValueGridOverlayYAxis->SetMaxDivisionParameter(InGridMaxNumDivisions);
 }
 
+void SAudioVectorscopePanelWidget::SetMaxDisplayPersistence(const float InMaxDisplayPersistenceInMs)
+{
+	DisplayPersistenceKnobOutputRange.Y = InMaxDisplayPersistenceInMs;
+
+	if (DisplayPersistenceKnob.IsValid())
+	{
+		DisplayPersistenceKnob->SetOutputRange(DisplayPersistenceKnobOutputRange);
+	}
+}
+
+void SAudioVectorscopePanelWidget::SetDisplayPersistence(const float InDisplayPersistenceInMs)
+{
+	if (DisplayPersistenceKnob.IsValid())
+	{
+		DisplayPersistenceKnob->SetSliderValue(FMath::GetMappedRangeValueUnclamped(DisplayPersistenceKnobOutputRange, { 0.0, 1.0 }, InDisplayPersistenceInMs));
+	}
+}
+
 void SAudioVectorscopePanelWidget::SetVectorViewerScaleFactor(const float InScaleFactor)
 {
 	SequenceVectorViewer->SetScaleFactor(InScaleFactor);
+
+	if (ScaleKnob.IsValid())
+	{
+		ScaleKnob->SetSliderValue(FMath::GetMappedRangeValueUnclamped(ScaleFactorOutputKnobRange, { 0.0, 1.0 }, InScaleFactor));
+	}
 }
 
 void SAudioVectorscopePanelWidget::UpdateValueGridOverlayStyle(const FSampledSequenceValueGridOverlayStyle UpdatedStyle)

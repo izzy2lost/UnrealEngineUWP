@@ -33,9 +33,6 @@ namespace uba
 
 	bool TestLocalScheduleReuse(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
-		if (!IsWindows)
-			return true;
-
 		return RunLocal(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 			{
 				SchedulerCreateInfo info(session);
@@ -64,9 +61,6 @@ namespace uba
 
 	bool TestRemoteScheduleReuse(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
-		if (!IsWindows)
-			return true;
-
 		return RunRemote(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 			{
 				SchedulerCreateInfo info(session);
@@ -88,6 +82,8 @@ namespace uba
 
 				u32 queued, activeLocal, activeRemote, finished;
 				do { scheduler.GetStats(queued, activeLocal, activeRemote, finished); } while (finished != 1);
+
+				session.GetServer().DisconnectClients(); // Must make sure all is disconnected since scheduler goes out of scope
 
 				scheduler.Stop();
 				return true;

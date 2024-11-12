@@ -20,13 +20,13 @@ namespace PCGIndirectionSettings
 #if WITH_EDITOR
 void UPCGIndirectionSettings::GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
 {
-	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGIndirectionSettings, Settings)) || Settings.IsNull())
+	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGIndirectionSettings, Settings)) || !Settings)
 	{
 		// Dynamic tracking or null settings
 		return;
 	}
 
-	FPCGSelectionKey Key = FPCGSelectionKey::CreateFromPath(Settings.ToSoftObjectPath());
+	FPCGSelectionKey Key = FPCGSelectionKey::CreateFromPath(Settings);
 
 	OutKeysToSettings.FindOrAdd(Key).Emplace(this, /*bCulling=*/false);
 }
@@ -73,7 +73,7 @@ FString UPCGIndirectionSettings::GetAdditionalTitleInformation() const
 		}
 		break;
 	case EPCGProxyInterfaceMode::BySettings:
-		if (const UPCGSettings* SettingsPtr = Settings.LoadSynchronous())
+		if (const UPCGSettings* SettingsPtr = Settings.Get())
 		{
 			return SettingsPtr->GetName();
 		}
@@ -110,7 +110,7 @@ TArray<FPCGPinProperties> UPCGIndirectionSettings::InputPinProperties() const
 			}
 			break;
 		case EPCGProxyInterfaceMode::BySettings:
-			if (const UPCGSettings* SettingsPtr = Settings.LoadSynchronous())
+			if (const UPCGSettings* SettingsPtr = Settings.Get())
 			{
 				InputProperties = SettingsPtr->DefaultInputPinProperties();
 				bSetProperties = true;
@@ -159,7 +159,7 @@ TArray<FPCGPinProperties> UPCGIndirectionSettings::OutputPinProperties() const
 			}
 			break;
 		case EPCGProxyInterfaceMode::BySettings:
-			if (const UPCGSettings* SettingsPtr = Settings.LoadSynchronous())
+			if (const UPCGSettings* SettingsPtr = Settings.Get())
 			{
 				OutputProperties = SettingsPtr->DefaultOutputPinProperties();
 			}
@@ -228,7 +228,7 @@ bool FPCGIndirectionElement::PrepareDataInternal(FPCGContext* InContext) const
 	const UPCGIndirectionSettings* Settings = Context->GetInputSettings<UPCGIndirectionSettings>();
 	check(Settings);
 
-	Context->InnerSettings = Settings->Settings.LoadSynchronous();
+	Context->InnerSettings = Settings->Settings.Get();
 
 	if(UPCGSettings* InnerSettings = Context->InnerSettings)
 	{
@@ -299,6 +299,13 @@ bool FPCGIndirectionElement::ExecuteInternal(FPCGContext* InContext) const
 	// If Settings has not been set or overriden, act as passthrough
 	if (Context->bShouldActAsPassthrough || !Context->InnerElement || !Context->InnerContext)
 	{
+		Context->OutputData = Context->InputData;
+		return true;
+	}
+
+	if (Context->InnerSettings && Context->InnerSettings->ShouldExecuteOnGPU())
+	{
+		PCGE_LOG(Error, GraphAndLog, LOCTEXT("UnsupportedGPUProxyNode", "GPU nodes do not currently support execution via proxy."));
 		Context->OutputData = Context->InputData;
 		return true;
 	}

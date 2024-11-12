@@ -148,6 +148,9 @@ public:
 	/** DEPRECATED */
 	TSet<UMovieSceneTrack*> GetSelectedTracks() const;
 
+	/** DEPRECATED */
+	TSet<TPair<UMovieSceneTrack*, int32>> GetSelectedTrackRows() const;
+
 	/*~ END BACKWARDS COMPAT
 	~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 

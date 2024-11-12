@@ -35,6 +35,7 @@ DECLARE_EMPTY_GLOBAL_SHADER_DERIVED_FROM(FSH_Subtract, FSH_BasicMathOp);
 DECLARE_EMPTY_GLOBAL_SHADER_DERIVED_FROM(FSH_Dot, FSH_BasicMathOp);
 DECLARE_EMPTY_GLOBAL_SHADER_DERIVED_FROM(FSH_Cross, FSH_BasicMathOp);
 DECLARE_EMPTY_GLOBAL_SHADER_DERIVED_FROM(FSH_Pow, FSH_BasicMathOp);
+DECLARE_EMPTY_GLOBAL_SHADER_DERIVED_FROM(FSH_Step, FSH_BasicMathOp);
 
 //////////////////////////////////////////////////////////////////////////
 /// Comparison ops
@@ -119,6 +120,7 @@ public:
 	static TiledBlobPtr				CreateDot(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredOutputDesc, int32 TargetId, TiledBlobPtr Operand1, TiledBlobPtr Operand2);
 	static TiledBlobPtr				CreateCross(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredOutputDesc, int32 TargetId, TiledBlobPtr Operand1, TiledBlobPtr Operand2);
 	static TiledBlobPtr				CreatePow(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredOutputDesc, int32 TargetId, TiledBlobPtr Operand1, TiledBlobPtr Operand2);
+	static TiledBlobPtr				CreateStep(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredOutputDesc, int32 TargetId, TiledBlobPtr Operand1, TiledBlobPtr Operand2);
 	
 	static TiledBlobPtr				CreateIfThenElse(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredOutputDesc, int32 TargetId,
 		TiledBlobPtr LHS, TiledBlobPtr RHS, TiledBlobPtr Then, TiledBlobPtr Else, EIfThenElseOperator Operator, EIfThenElseType Type);

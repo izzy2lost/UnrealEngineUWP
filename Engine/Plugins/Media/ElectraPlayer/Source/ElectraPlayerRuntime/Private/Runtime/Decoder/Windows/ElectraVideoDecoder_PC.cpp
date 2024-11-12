@@ -14,7 +14,7 @@ THIRD_PARTY_INCLUDES_START
 #include "mfapi.h"
 #include "mferror.h"
 #include "mfidl.h"
-#if defined(NTDDI_WIN10_NI)
+#if 0 // defined(NTDDI_WIN10_NI) // Currently disabled as this causes trouble on AMD GPU
 #include "mfd3d12.h"
 #define ALLOW_MFSAMPLE_WITH_DX12	1	// Windows SDK 22621 and up do feature APIs to support DX12 texture resources with WMF transforms
 #else
@@ -221,7 +221,7 @@ void FElectraPlayerVideoDecoderOutputPC::InitializeWithResource(const TRefCountP
 		// We get here only after the instance came back from the pool! Hence we can be sure any old texture is no longer actively used.
 		TextureDX12 = nullptr;
 
-		if (!D3D12ResourcePool.IsValid())
+		if (!D3D12ResourcePool.IsValid() || !D3D12ResourcePool->IsCompatibleAsTexture(MaxOutputBuffers + kElectraDecoderPipelineExtraFrames, MaxWidth, MaxHeight, DXGIFmt))
 		{
 			D3D12ResourcePool = MakeShared<FElectraMediaDecoderOutputBufferPool_DX12>(InD3D12Device, MaxOutputBuffers + kElectraDecoderPipelineExtraFrames, MaxWidth, MaxHeight, DXGIFmt, D3D12_HEAP_TYPE_DEFAULT);
 			if (!D3D12ResourcePool.IsValid())
@@ -231,7 +231,7 @@ void FElectraPlayerVideoDecoderOutputPC::InitializeWithResource(const TRefCountP
 			}
 			InOutD3D12ResourcePool = D3D12ResourcePool;
 		}
-		
+
 		FElectraMediaDecoderOutputBufferPool_DX12::FOutputData OutputData;
 		if (!D3D12ResourcePool->AllocateOutputDataAsTexture(OutputData, SampleDim.X, SampleDim.Y, DXGIFmt))
 		{
@@ -359,24 +359,28 @@ void FElectraPlayerVideoDecoderOutputPC::InitializeWithResource(const TRefCountP
 		auto ElectraDecoderResourceDelegate = Electra::FElectraDecoderResourceManagerWindows::GetDelegate();
 
 		// Note: we capture "this" as we ensure that this instance only dies once the copy triggered here is actually done, hence ensuring any reference to "this" is done
-		bTriggerOk = ElectraDecoderResourceDelegate->RunCodeAsync([D3DCmdList=this->D3DCmdList, D3DFence=this->D3DFence, FenceValue=this->FenceValue, OutputSync, ResourceDelegate = InResourceDelegate.Pin()]()
+		bTriggerOk = ElectraDecoderResourceDelegate->RunCodeAsync([D3DCmdList=this->D3DCmdList, D3DCmdAllocator=this->D3DCmdAllocator, D3DFence=this->D3DFence, FenceValue=this->FenceValue, OutputSync, ResourceDelegate = InResourceDelegate.Pin()]()
 			{
-				TriggerDataCopy(D3DCmdList, D3DFence, FenceValue, OutputSync, ResourceDelegate.Get());
+				TriggerDataCopy(D3DCmdList, D3DCmdAllocator, D3DFence, FenceValue, OutputSync, ResourceDelegate.Get());
 			}, OutputSync.TaskSync.Get());
 	}
 
 	if (!bTriggerOk)
 	{
 		// We could not run the trigger async. Schedule the copy right away. Any needed synchronization will be done in the copy-queue by the GPU
-		TriggerDataCopy(D3DCmdList, D3DFence, FenceValue, OutputSync, InResourceDelegate.Pin().Get());
+		TriggerDataCopy(D3DCmdList, D3DCmdAllocator, D3DFence, FenceValue, OutputSync, InResourceDelegate.Pin().Get());
 	}
 }
 
-void FElectraPlayerVideoDecoderOutputPC::TriggerDataCopy(TRefCountPtr<ID3D12GraphicsCommandList> D3DCmdList, TRefCountPtr<ID3D12Fence> D3DFence, uint64 FenceValue, const FElectraDecoderOutputSync& OutputSync, Electra::IVideoDecoderResourceDelegate* InResourceDelegate)
+void FElectraPlayerVideoDecoderOutputPC::TriggerDataCopy(TRefCountPtr<ID3D12GraphicsCommandList> D3DCmdList, TRefCountPtr<ID3D12CommandAllocator> D3DCmdAllocator, TRefCountPtr<ID3D12Fence> D3DFence, uint64 FenceValue, const FElectraDecoderOutputSync& OutputSync, Electra::IVideoDecoderResourceDelegate* InResourceDelegate)
 {
+	if (!InResourceDelegate)
+	{
+		return;
+	}
 	// Trigger copy (this will eventually execute on the submission thread of RHI if running in UE)
 	// (note: we pass in all of FElectraDecoderOutputSync to guarantee any references needed to make the decoder output sync work are passed along, too!)
-	InResourceDelegate->ExecuteCodeWithCopyCommandQueueUsage([CmdList = D3DCmdList, DestFence = D3DFence, DestFenceValue = FenceValue, OutputSync](ID3D12CommandQueue* D3DCmdQueue)
+	InResourceDelegate->ExecuteCodeWithCopyCommandQueueUsage([CmdList = D3DCmdList, CmdAllocator = D3DCmdAllocator, DestFence = D3DFence, DestFenceValue = FenceValue, OutputSync](ID3D12CommandQueue* D3DCmdQueue)
 		{
 			TRefCountPtr<ID3D12Fence> ResourceFence;
 	#if ALLOW_MFSAMPLE_WITH_DX12

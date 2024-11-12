@@ -272,7 +272,7 @@ int32 UMovieSceneAsyncAction_SequencePrediction::ImportTransformEntities(UObject
 	if (UMovieSceneSequence* Sequence = CompiledEntry.GetSequence())
 	{
 		const bool bIsSpawnable = SpawnableAnnotation && SpawnableAnnotation->SequenceID == MovieSceneSequenceID::Root;
-		FGuid FoundID = bIsSpawnable ? SpawnableAnnotation->ObjectBindingID : Sequence->FindBindingFromObject(PredicateObject, ObjectContext);
+		FGuid FoundID = bIsSpawnable ? SpawnableAnnotation->ObjectBindingID : Sequence->FindBindingFromObject(PredicateObject, SequencePlayer->GetSharedPlaybackState());
 
 		if (FoundID.IsValid())
 		{
@@ -303,7 +303,7 @@ int32 UMovieSceneAsyncAction_SequencePrediction::ImportTransformEntities(UObject
 						if (SubDataID.IsValid())
 						{
 							const bool bIsSpawnable = SpawnableAnnotation && SpawnableAnnotation->SequenceID == SubSequenceIt->SequenceID;
-							FGuid FoundID = bIsSpawnable ? SpawnableAnnotation->ObjectBindingID : SubSequence->FindBindingFromObject(PredicateObject, ObjectContext);
+							FGuid FoundID = bIsSpawnable ? SpawnableAnnotation->ObjectBindingID : SubSequence->FindBindingFromObject(PredicateObject, SequencePlayer->GetSharedPlaybackState());
 
 							if (FoundID.IsValid())
 							{
@@ -408,11 +408,7 @@ void UMovieScenePredictionSystem::OnRun(FSystemTaskPrerequisites& InPrerequisite
 {
 	using namespace UE::MovieScene;
 
-	FMovieSceneEntitySystemRunner* Runner = Linker->GetActiveRunner();
-	if (!ensure(Runner))
-	{
-		return;
-	}
+	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
 
 	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
 

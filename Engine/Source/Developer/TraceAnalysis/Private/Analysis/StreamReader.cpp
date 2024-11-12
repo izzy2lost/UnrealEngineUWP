@@ -7,7 +7,7 @@ namespace UE {
 namespace Trace {
 
 ////////////////////////////////////////////////////////////////////////////////
-const uint8* FStreamReader::GetPointer(uint32 Size)
+const uint8* FStreamReader::GetPointer(uint32 Size) const
 {
 	if (Cursor + Size > End)
 	{

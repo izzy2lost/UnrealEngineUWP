@@ -126,6 +126,6 @@ bool FDMComponentPathSegment::GetParameter(FString& OutParameter) const
 		return false;
 	}
 
-	OutParameter = FString(Parameter.Len(), Parameter.GetData());
+	OutParameter = FString::ConstructFromPtrSize(Parameter.GetData(), Parameter.Len());
 	return true;
 }

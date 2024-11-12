@@ -45,7 +45,7 @@ namespace UE::PixelStreaming
 			{
 				const size_t DescriptorSize = (RawBuffer.data.size() - 1) / sizeof(TCHAR);
 				const TCHAR* DescPtr = reinterpret_cast<const TCHAR*>(RawBuffer.data.data() + 1);
-				const FString JsonRaw(DescriptorSize, DescPtr);
+				const FString JsonRaw = FString::ConstructFromPtrSize(DescPtr, DescriptorSize);
 
 				TSharedPtr<FJsonObject> JsonParsed;
 				TSharedRef<TJsonReader<TCHAR>> JsonReader = TJsonReaderFactory<TCHAR>::Create(JsonRaw);

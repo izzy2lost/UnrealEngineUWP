@@ -9,7 +9,7 @@
 #include "Tests/Framework/AvaTestUtils.h"
 
 BEGIN_DEFINE_SPEC(AvalancheModifiersRadialArrange, "Avalanche.Modifiers.RadialArrange",
-                  EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+                  EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	AAvaTestDynamicMeshActor* ParentActor;
 	TArray<AAvaTestDynamicMeshActor*> ChildActors;
@@ -57,10 +57,10 @@ void AvalancheModifiersRadialArrange::Define()
 		It("Should arrange child actors in a radial layout around parent actor", [this]
 		{
 			TArray<FVector> ExpectedChildrenLocations = {
-				FVector(0, -InnerRadius, 0),
-				FVector(0, 0, InnerRadius),
+				FVector(-InnerRadius, 0, 0),
 				FVector(0, InnerRadius, 0),
-				FVector(0, 0, -InnerRadius)
+				FVector(InnerRadius, 0, 0),
+				FVector(0, -InnerRadius, 0)
 			};
 
 			for (int32 i = 0; i < ChildActors.Num(); i++)

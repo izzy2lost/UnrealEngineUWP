@@ -3,11 +3,12 @@
 #include "PhysicsMover/Modes/PhysicsDrivenSwimmingMode.h"
 
 #include "Chaos/Character/CharacterGroundConstraint.h"
-#include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
+#include "DefaultMovementSet/InstantMovementEffects/BasicInstantMovementEffects.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "GameFramework/PhysicsVolume.h"
 #include "Math/UnitConversion.h"
 #include "MoveLibrary/FloorQueryUtils.h"
+#include "MoveLibrary/MovementUtils.h"
 #include "MoveLibrary/WaterMovementUtils.h"
 #include "MoverComponent.h"
 #include "PhysicsMover/PhysicsMovementUtils.h"
@@ -54,11 +55,11 @@ void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& P
 	const UMoverComponent* MoverComp = GetMoverComponent();
 
 	const FMoverTickStartData& StartState = Params.StartState;
-	USceneComponent* UpdatedComponent = Params.UpdatedComponent;
-	UPrimitiveComponent* UpdatedPrimitive = Params.UpdatedPrimitive;
+	USceneComponent* UpdatedComponent = Params.MovingComps.UpdatedComponent.Get();
+	UPrimitiveComponent* UpdatedPrimitive = Params.MovingComps.UpdatedPrimitive.Get();
 	FProposedMove ProposedMove = Params.ProposedMove;
 	
-	const FVector UpDir = GetMoverComponent()->GetUpDirection();
+	const FVector UpDir = MoverComp->GetUpDirection();
 	
 	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 
@@ -69,14 +70,13 @@ void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& P
 
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
 
-	if ((ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), StartingSyncState->GetVelocity_WorldSpace(), OutputState)) ||	// Teleport
-		(CharacterInputs->bIsJumpJustPressed && AttemptJump(SurfaceSwimmingWaterControlSettings.JumpMultiplier*CommonLegacySettings->JumpUpwardsSpeed, OutputState)))
+	if (CharacterInputs->bIsJumpJustPressed && AttemptJump(SurfaceSwimmingWaterControlSettings.JumpMultiplier*CommonLegacySettings->JumpUpwardsSpeed, OutputState))
 	{
 		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs;
 		return;
 	}
 	
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable();
 	if (!SimBlackboard)
 	{
 		OutputSyncState = *StartingSyncState;
@@ -97,7 +97,7 @@ void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& P
 
 	const float QueryDistance= 2.0f * PawnHalfHeight;
 	
-	UPhysicsMovementUtils::FloorSweep(StartingSyncState->GetLocation_WorldSpace(), StartingSyncState->GetVelocity_WorldSpace() * DeltaSeconds,
+	UPhysicsMovementUtils::FloorSweep_Internal(StartingSyncState->GetLocation_WorldSpace(), StartingSyncState->GetVelocity_WorldSpace() * DeltaSeconds,
 		UpdatedPrimitive, UpDir, PawnRadius, QueryDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, FloorResult, WaterResult);
 
 	SimBlackboard->Set(CommonBlackboard::LastFloorResult, FloorResult);
@@ -110,7 +110,7 @@ void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& P
 		const bool bFallTrigger = FMath::Clamp((WaterResult.WaterSplineData.ImmersionDepth + TargetHeight) / (2 * TargetHeight), -2.f, 2.f) < -1.f;
 	
 		FRotator TargetOrient = StartingSyncState->GetOrientation_WorldSpace();
-		if (!ProposedMove.AngularVelocity.IsZero())
+		if (!UMovementUtils::IsAngularVelocityZero(ProposedMove.AngularVelocity))
 		{
 			TargetOrient += (ProposedMove.AngularVelocity * DeltaSeconds);
 		}
@@ -132,20 +132,16 @@ void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& P
 	
 		if (bWalkTrigger && bIsWithinReach)
 		{
-			OutputState.MovementEndState.NextModeName = DefaultModeNames::Walking;
+			OutputState.MovementEndState.NextModeName = CommonLegacySettings->GroundMovementModeName;
 		}
 		else if (bFallTrigger)
 		{
-			OutputState.MovementEndState.NextModeName = DefaultModeNames::Falling;
-		}
-		else
-		{
-			OutputState.MovementEndState.NextModeName = DefaultModeNames::Swimming;
+			OutputState.MovementEndState.NextModeName = CommonLegacySettings->AirMovementModeName;
 		}
 	}
 	else
 	{
-		OutputState.MovementEndState.NextModeName = DefaultModeNames::Falling;
+		OutputState.MovementEndState.NextModeName = CommonLegacySettings->AirMovementModeName;
 	}
 	
 	OutputState.MovementEndState.RemainingMs = 0.0f;
@@ -154,29 +150,10 @@ void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& P
 bool UPhysicsDrivenSwimmingMode::AttemptJump(float UpwardsSpeed, FMoverTickEndData& OutputState)
 {
 	// TODO: This should check if a jump is even allowed
- 	TSharedPtr<FLayeredMove_JumpImpulse> JumpMove = MakeShared<FLayeredMove_JumpImpulse>();
+ 	TSharedPtr<FJumpImpulseEffect> JumpMove = MakeShared<FJumpImpulseEffect>();
 	JumpMove->UpwardsSpeed = UpwardsSpeed;
-	OutputState.SyncState.LayeredMoves.QueueLayeredMove(JumpMove);
-	OutputState.MovementEndState.NextModeName = DefaultModeNames::Falling;
-	return true;
-}
-
-bool UPhysicsDrivenSwimmingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FVector& PriorVelocity, FMoverTickEndData& Output)
-{
-	FMoverDefaultSyncState& OutputSyncState = Output.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
-
-	OutputSyncState.SetTransforms_WorldSpace(TeleportPos,
-		TeleportRot,
-		PriorVelocity,
-		nullptr); // no movement base
-
-	// TODO: instead of invalidating it, consider checking for a floor. Possibly a dynamic base?
-	if (UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable())
-	{
-		SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);
-		SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
-	}
-
+	GetMoverComponent()->QueueInstantMovementEffect(JumpMove);
+	
 	return true;
 }
 

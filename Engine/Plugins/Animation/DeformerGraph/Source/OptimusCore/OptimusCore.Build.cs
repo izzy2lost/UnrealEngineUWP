@@ -26,8 +26,22 @@ namespace UnrealBuildTool.Rules
 					"RenderCore",
 					"Renderer",
 					"RHI",
+					"RigVM",
+					"ControlRig"
 				}
 			);
+
+            if (Target.bBuildEditor == true)
+            {
+	            PrivateDependencyModuleNames.AddRange(
+		            new string[]
+		            {
+			            "RigVMDeveloper",
+		            }
+	            );
+            }
+			
+			bDisableAutoRTFMInstrumentation = true;
         }
     }
 }

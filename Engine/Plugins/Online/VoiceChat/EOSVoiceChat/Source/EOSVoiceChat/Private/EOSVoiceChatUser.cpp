@@ -1525,114 +1525,114 @@ void FEOSVoiceChatUser::LeaveChannelInternal(const FString& ChannelName, const F
 
 void FEOSVoiceChatUser::LogoutInternal(const FOnVoiceChatLogoutCompleteDelegate& Delegate)
 {
-	check(LoginSession.State == ELoginState::LoggedIn
-		|| LoginSession.State == ELoginState::LoggingOut);
-
-	if(LoginSession.State == ELoginState::LoggingOut)
+	if (ensure(LoginSession.State == ELoginState::LoggedIn || LoginSession.State == ELoginState::LoggingOut))
 	{
-		check(LoginSession.LogoutState.IsSet());
-		LoginSession.LogoutState->CompletionDelegates.Emplace(Delegate);
-	}
-	else if (LoginSession.State == ELoginState::LoggedIn)
-	{
-		LoginSession.State = ELoginState::LoggingOut;
-
-		// We have to actually leave all the channels, because there is no concept of "connected" or "logged in" in RTC, so no API calls we can call to "leave everything" like in vivox
-		TSet<FString> JoinedChannelNames;
-		TSet<FString> LeavingChannelNames;
-		TSet<FString> LobbyIds;
+		if(LoginSession.State == ELoginState::LoggingOut)
 		{
-			for (const TPair<FString, FChannelSession>& Pair : LoginSession.ChannelSessions)
-			{
-				const FChannelSession& ChannelSession = Pair.Value;
-				if (ChannelSession.IsLobbySession())
-				{
-					LobbyIds.Add(ChannelSession.LobbyId);
-				}
-				else if (ChannelSession.JoinState >= EChannelJoinState::Joining)
-				{
-					JoinedChannelNames.Add(ChannelSession.ChannelName);
-				}
-				else if (ChannelSession.JoinState == EChannelJoinState::Leaving)
-				{
-					LeavingChannelNames.Add(ChannelSession.ChannelName);
-				}
-			}
-		}
-
-		for (const FString& LobbyId : LobbyIds)
-		{
-			RemoveLobbyRoom(LobbyId);
-		}
-
-		FVoiceChatResult Result = FVoiceChatResult::CreateSuccess();
-		if (JoinedChannelNames.Num() > 0 || LeavingChannelNames.Num() > 0)
-		{
-			// Channels are connected, so we fire leave requests in parallel, wait for them to complete, then return success/failure
-			FLoginSession::FLogoutState& LogoutState = LoginSession.LogoutState.Emplace();
-			LogoutState.CompletionDelegates.Emplace(Delegate);
-			LogoutState.ChannelNamesExpectingCallback.Reserve(JoinedChannelNames.Num() + LeavingChannelNames.Num());
-			LogoutState.ChannelNamesExpectingCallback.Append(JoinedChannelNames);
-			LogoutState.ChannelNamesExpectingCallback.Append(LeavingChannelNames);
-
-			FOnVoiceChatChannelLeaveCompleteDelegate LeaveCompleteDelegate = FOnVoiceChatChannelLeaveCompleteDelegate::CreateLambda([this](const FString& ChannelName, const FVoiceChatResult& LambdaResult)
-			{
-				if (!LambdaResult.IsSuccess())
-				{
-					EOSVOICECHATUSER_LOG(Warning, TEXT("LogoutInternal LeaveChannelInternal ChannelName=[%s] %s"), *ChannelName, *LexToString(LambdaResult));
-					LoginSession.LogoutState->Result = LambdaResult;
-				}
-				LoginSession.LogoutState->ChannelNamesExpectingCallback.Remove(ChannelName);
-				if (LoginSession.LogoutState->ChannelNamesExpectingCallback.Num() == 0)
-				{
-					const FVoiceChatResult Result = MoveTemp(LoginSession.LogoutState->Result);
-					const TArray<FOnVoiceChatLogoutCompleteDelegate> LogoutCompleteDelegates = MoveTemp(LoginSession.LogoutState->CompletionDelegates);
-					if (Result.IsSuccess())
-					{
-						// All the LeaveChannel requests succeeded, so clear the login session
-						const FString PlayerName = MoveTemp(LoginSession.PlayerName);
-						ClearLoginSession();
-
-						for (const FOnVoiceChatLogoutCompleteDelegate& Delegate : LogoutCompleteDelegates)
-						{
-							Delegate.ExecuteIfBound(PlayerName, FVoiceChatResult::CreateSuccess());
-						}
-						OnVoiceChatLoggedOutDelegate.Broadcast(PlayerName);
-					}
-					else
-					{
-						// One of the LeaveChannel requests failed, so we stay logged in
-						LoginSession.State = ELoginState::LoggedIn;
-						LoginSession.LogoutState.Reset();
-
-						for (const FOnVoiceChatLogoutCompleteDelegate& Delegate : LogoutCompleteDelegates)
-						{
-							Delegate.ExecuteIfBound(LoginSession.PlayerName, Result);
-						}
-					}
-				}
-			});
-
-			for (const FString& ChannelName : JoinedChannelNames)
-			{
-				// Actually leave joined/joining channels
-				LeaveChannelInternal(ChannelName, LeaveCompleteDelegate);
-			}
-
-			for (const FString& ChannelName : LeavingChannelNames)
-			{
-				// Add to the LeaveDelegates of already leaving channels
-				GetChannelSession(ChannelName).LeaveDelegates.Add(LeaveCompleteDelegate);
-			}
+			check(LoginSession.LogoutState.IsSet());
+			LoginSession.LogoutState->CompletionDelegates.Emplace(Delegate);
 		}
 		else
 		{
-			// No channels connected, so just clear the LoginSession and fire successes
-			const FString PlayerName = MoveTemp(LoginSession.PlayerName);
-			ClearLoginSession();
+			LoginSession.State = ELoginState::LoggingOut;
 
-			Delegate.ExecuteIfBound(PlayerName, FVoiceChatResult::CreateSuccess());
-			OnVoiceChatLoggedOutDelegate.Broadcast(PlayerName);
+			// We have to actually leave all the channels, because there is no concept of "connected" or "logged in" in RTC, so no API calls we can call to "leave everything" like in vivox
+			TSet<FString> JoinedChannelNames;
+			TSet<FString> LeavingChannelNames;
+			TSet<FString> LobbyIds;
+			{
+				for (const TPair<FString, FChannelSession>& Pair : LoginSession.ChannelSessions)
+				{
+					const FChannelSession& ChannelSession = Pair.Value;
+					if (ChannelSession.IsLobbySession())
+					{
+						LobbyIds.Add(ChannelSession.LobbyId);
+					}
+					else if (ChannelSession.JoinState >= EChannelJoinState::Joining)
+					{
+						JoinedChannelNames.Add(ChannelSession.ChannelName);
+					}
+					else if (ChannelSession.JoinState == EChannelJoinState::Leaving)
+					{
+						LeavingChannelNames.Add(ChannelSession.ChannelName);
+					}
+				}
+			}
+
+			for (const FString& LobbyId : LobbyIds)
+			{
+				RemoveLobbyRoom(LobbyId);
+			}
+
+			FVoiceChatResult Result = FVoiceChatResult::CreateSuccess();
+			if (JoinedChannelNames.Num() > 0 || LeavingChannelNames.Num() > 0)
+			{
+				// Channels are connected, so we fire leave requests in parallel, wait for them to complete, then return success/failure
+				FLoginSession::FLogoutState& LogoutState = LoginSession.LogoutState.Emplace();
+				LogoutState.CompletionDelegates.Emplace(Delegate);
+				LogoutState.ChannelNamesExpectingCallback.Reserve(JoinedChannelNames.Num() + LeavingChannelNames.Num());
+				LogoutState.ChannelNamesExpectingCallback.Append(JoinedChannelNames);
+				LogoutState.ChannelNamesExpectingCallback.Append(LeavingChannelNames);
+
+				FOnVoiceChatChannelLeaveCompleteDelegate LeaveCompleteDelegate = FOnVoiceChatChannelLeaveCompleteDelegate::CreateLambda([this](const FString& ChannelName, const FVoiceChatResult& LambdaResult)
+				{
+					if (!LambdaResult.IsSuccess())
+					{
+						EOSVOICECHATUSER_LOG(Warning, TEXT("LogoutInternal LeaveChannelInternal ChannelName=[%s] %s"), *ChannelName, *LexToString(LambdaResult));
+						LoginSession.LogoutState->Result = LambdaResult;
+					}
+					LoginSession.LogoutState->ChannelNamesExpectingCallback.Remove(ChannelName);
+					if (LoginSession.LogoutState->ChannelNamesExpectingCallback.Num() == 0)
+					{
+						const FVoiceChatResult Result = MoveTemp(LoginSession.LogoutState->Result);
+						const TArray<FOnVoiceChatLogoutCompleteDelegate> LogoutCompleteDelegates = MoveTemp(LoginSession.LogoutState->CompletionDelegates);
+						if (Result.IsSuccess())
+						{
+							// All the LeaveChannel requests succeeded, so clear the login session
+							const FString PlayerName = MoveTemp(LoginSession.PlayerName);
+							ClearLoginSession();
+
+							for (const FOnVoiceChatLogoutCompleteDelegate& Delegate : LogoutCompleteDelegates)
+							{
+								Delegate.ExecuteIfBound(PlayerName, FVoiceChatResult::CreateSuccess());
+							}
+							OnVoiceChatLoggedOutDelegate.Broadcast(PlayerName);
+						}
+						else
+						{
+							// One of the LeaveChannel requests failed, so we stay logged in
+							LoginSession.State = ELoginState::LoggedIn;
+							LoginSession.LogoutState.Reset();
+
+							for (const FOnVoiceChatLogoutCompleteDelegate& Delegate : LogoutCompleteDelegates)
+							{
+								Delegate.ExecuteIfBound(LoginSession.PlayerName, Result);
+							}
+						}
+					}
+				});
+
+				for (const FString& ChannelName : JoinedChannelNames)
+				{
+					// Actually leave joined/joining channels
+					LeaveChannelInternal(ChannelName, LeaveCompleteDelegate);
+				}
+
+				for (const FString& ChannelName : LeavingChannelNames)
+				{
+					// Add to the LeaveDelegates of already leaving channels
+					GetChannelSession(ChannelName).LeaveDelegates.Add(LeaveCompleteDelegate);
+				}
+			}
+			else
+			{
+				// No channels connected, so just clear the LoginSession and fire successes
+				const FString PlayerName = MoveTemp(LoginSession.PlayerName);
+				ClearLoginSession();
+
+				Delegate.ExecuteIfBound(PlayerName, FVoiceChatResult::CreateSuccess());
+				OnVoiceChatLoggedOutDelegate.Broadcast(PlayerName);
+			}
 		}
 	}
 }

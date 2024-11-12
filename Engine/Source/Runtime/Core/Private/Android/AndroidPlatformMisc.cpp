@@ -146,9 +146,15 @@ extern void AndroidThunkCpp_ForceQuit();
 
 extern void AndroidThunkCpp_SetOrientation(int32 Value);
 
-extern void AndroidThunkCpp_SetCellularPreference(int32 Value);
-
-extern int32 AndroidThunkCpp_GetCellularPreference();
+#if USE_ANDROID_JNI
+extern bool AndroidThunkCpp_HasSharedPreference(const FString& Group, const FString& Key);
+extern void AndroidThunkCpp_SetSharedPreferenceInt(const FString& Group, const FString& Key, int32 Value);
+extern int32 AndroidThunkCpp_GetSharedPreferenceInt(const FString& Group, const FString& Key, int32 DefaultValue);
+extern void AndroidThunkCpp_SetSharedPreferenceString(const FString& Group, const FString& Key, const FString& Value);
+extern bool AndroidThunkCpp_GetSharedPreferenceStringTypeSafe(const FString& Group, const FString& Key, FString& OutValue);
+extern void AndroidThunkCpp_DeleteSharedPreference(const FString& Group, const FString& Key);
+extern void AndroidThunkCpp_DeleteSharedPreferenceGroup(const FString& Group);
+#endif
 
 // From AndroidFile.cpp
 extern FString GFontPathBase;
@@ -789,6 +795,70 @@ bool FAndroidMisc::HasPlatformFeature(const TCHAR* FeatureName)
 	return FGenericPlatformMisc::HasPlatformFeature(FeatureName);
 }
 
+static FString FixUpStoredValueSectionName(const FString& InSectionName)
+{
+	// We need to remove file separator character because SectionName is used as a file name by the OS
+	if (InSectionName.Contains(TEXT("/")))
+	{
+		// Use extended replacement to avoid foo/bar and foo_bar mapping to each other
+		return InSectionName.Replace(TEXT("/"), TEXT("___"));
+	}
+	else
+	{
+		return InSectionName;
+	}
+}
+
+bool FAndroidMisc::SetStoredValue(const FString& InStoreId, const FString& InSectionName, const FString& InKeyName, const FString& InValue)
+{
+#if USE_ANDROID_JNI
+	const FString FixedSectionValue = FixUpStoredValueSectionName(InSectionName);
+	AndroidThunkCpp_SetSharedPreferenceString(FixedSectionValue, InKeyName, InValue);
+	return true;
+#else
+	return FGenericPlatformMisc::SetStoredValue(InStoreId, InSectionName, InKeyName, InValue);
+#endif
+}
+
+bool FAndroidMisc::GetStoredValue(const FString& InStoreId, const FString& InSectionName, const FString& InKeyName, FString& OutValue)
+{
+#if USE_ANDROID_JNI
+	const FString FixedSectionValue = FixUpStoredValueSectionName(InSectionName);
+	if (AndroidThunkCpp_GetSharedPreferenceStringTypeSafe(FixedSectionValue, InKeyName, OutValue))
+	{
+		return true;
+	}
+#endif
+
+	// fallback to FGenericPlatformMisc::GetStoredValue
+	return FGenericPlatformMisc::GetStoredValue(InStoreId, InSectionName, InKeyName, OutValue);
+}
+
+bool FAndroidMisc::DeleteStoredValue(const FString& InStoreId, const FString& InSectionName, const FString& InKeyName)
+{
+	bool bResult = false;
+#if USE_ANDROID_JNI
+	const FString FixedSectionValue = FixUpStoredValueSectionName(InSectionName);
+	// delete doesn't have a return value, our best effort is to check for preference existence first
+	bResult = AndroidThunkCpp_HasSharedPreference(FixedSectionValue, InKeyName);
+	AndroidThunkCpp_DeleteSharedPreference(FixedSectionValue, InKeyName);
+#endif
+	// always delete in both places just in case
+	bResult |= FGenericPlatformMisc::DeleteStoredValue(InStoreId, InSectionName, InKeyName);
+	return bResult;
+}
+
+bool FAndroidMisc::DeleteStoredSection(const FString& InStoreId, const FString& InSectionName)
+{
+#if USE_ANDROID_JNI
+	const FString FixedSectionValue = FixUpStoredValueSectionName(InSectionName);
+	// can't easily check if section exists as Context.getSharedPreferences will create object if it doesn't exist
+	AndroidThunkCpp_DeleteSharedPreferenceGroup(FixedSectionValue);
+#endif
+	// always delete in both places just in case
+	return FGenericPlatformMisc::DeleteStoredSection(InStoreId, InSectionName);
+}
+
 bool FAndroidMisc::UseRenderThread()
 {
 	// if we in general don't want to use the render thread due to commandline, etc, then don't
@@ -870,7 +940,7 @@ int32 FAndroidMisc::NumberOfCoresIncludingHyperthreads()
 static FAndroidMisc::FCPUState CurrentCPUState;
 
 FAndroidMisc::FCPUState& FAndroidMisc::GetCPUState(){
-	uint64_t UserTime, NiceTime, SystemTime, SoftIRQTime, IRQTime, IdleTime, IOWaitTime;
+	uint64_t UserTime, NiceTime, SystemTime, SoftIRQTime, IRQTime, IdleTime, WallTime, IOWaitTime;
 	int32		Index = 0;
 	ANSICHAR	Buffer[500];
 
@@ -919,12 +989,9 @@ FAndroidMisc::FCPUState& FAndroidMisc::GetCPUState(){
 		}
 		fclose(FileHandle);
 
-		uint64_t WallTime;
-		double CPULoad[CurrentCPUState.CoreCount];
 		CurrentCPUState.AverageUtilization = 0.0;
 		for (size_t n = 0; n < CurrentCPUState.CoreCount; n++) {
 			if (CurrentCPUState.CurrentUsage[n].TotalTime <= CurrentCPUState.PreviousUsage[n].TotalTime) {
-				CPULoad[n] = 0;
 				continue;
 			}
 
@@ -932,12 +999,10 @@ FAndroidMisc::FCPUState& FAndroidMisc::GetCPUState(){
 			IdleTime = CurrentCPUState.CurrentUsage[n].IdleTime - CurrentCPUState.PreviousUsage[n].IdleTime;
 
 			if (!WallTime || WallTime <= IdleTime) {
-				CPULoad[n] = 0;
 				continue;
 			}
-			CPULoad[n] = ((double)WallTime - (double)IdleTime) * 100.0 / (double)WallTime;
-			CurrentCPUState.Utilization[n] = CPULoad[n];
-			CurrentCPUState.AverageUtilization += CPULoad[n];
+			CurrentCPUState.Utilization[n] = ((double)WallTime - (double)IdleTime) * 100.0 / (double)WallTime;
+			CurrentCPUState.AverageUtilization += CurrentCPUState.Utilization[n];
 		}
 		CurrentCPUState.AverageUtilization /= (double)CurrentCPUState.CoreCount;
 	}else{
@@ -1841,6 +1906,16 @@ bool FAndroidMisc::IsSupportedAndroidDevice()
 }
 #endif
 
+enum class EDeviceVulkanSupportStatus
+{
+	Uninitialized,
+	NotSupported,
+	Supported
+};
+
+static FString VulkanVersionString;
+static EDeviceVulkanSupportStatus VulkanSupport = EDeviceVulkanSupportStatus::Uninitialized;
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Extracted from vk_platform.h and vulkan.h with modifications just to allow
@@ -1850,7 +1925,9 @@ bool FAndroidMisc::IsSupportedAndroidDevice()
 // late) and vulkan.h header not guaranteed to be available. This part of the header
 // is unlikely to change in future so safe enough to use this truncated version.
 //
-
+// Namespace here to avoid conflicts with real headers
+namespace AndroidPlatformMisc
+{
 #if PLATFORM_ANDROID_ARM
 // On Android/ARMv7a, Vulkan functions use the armeabi-v7a-hard calling
 #define VKAPI_ATTR __attribute__((pcs("aapcs-vfp")))
@@ -2112,16 +2189,6 @@ typedef VkResult(VKAPI_PTR *PFN_vkEnumerateDeviceExtensionProperties)(VkPhysical
 
 #define UE_VK_API_VERSION	VK_MAKE_VERSION(1, 1, 0)
 
-enum class EDeviceVulkanSupportStatus
-{
-	Uninitialized,
-	NotSupported,
-	Supported
-};
-
-static FString VulkanVersionString;
-static EDeviceVulkanSupportStatus VulkanSupport = EDeviceVulkanSupportStatus::Uninitialized;
-
 static EDeviceVulkanSupportStatus AttemptVulkanInit(void* VulkanLib)
 {
 	if (VulkanLib == nullptr)
@@ -2236,6 +2303,9 @@ static EDeviceVulkanSupportStatus AttemptVulkanInit(void* VulkanLib)
 	return EDeviceVulkanSupportStatus::Supported;
 }
 
+} // Namespace
+
+
 bool FAndroidMisc::HasVulkanDriverSupport()
 {
 // @todo Lumin: this isn't really the best #define to check here - but basically, without JNI and other version checking, we can't safely do it - we'll need
@@ -2266,13 +2336,13 @@ bool FAndroidMisc::HasVulkanDriverSupport()
 				if (VulkanVersion >= UE_VK_API_VERSION)
 				{
 					// final check, try initializing the instance
-					VulkanSupport = AttemptVulkanInit(VulkanLib);
+					VulkanSupport = AndroidPlatformMisc::AttemptVulkanInit(VulkanLib);
 				}
 			}
 			else
 			{
 				// otherwise, we need to try initializing the instance
-				VulkanSupport = AttemptVulkanInit(VulkanLib);
+				VulkanSupport = AndroidPlatformMisc::AttemptVulkanInit(VulkanLib);
 			}
 
 			dlclose(VulkanLib);
@@ -3130,17 +3200,17 @@ void FAndroidMisc::SetDeviceOrientation(EDeviceScreenOrientation NewDeviceOrenta
 void FAndroidMisc::SetCellularPreference(int32 Value)
 {
 #if USE_ANDROID_JNI
-	AndroidThunkCpp_SetCellularPreference(Value);
+	AndroidThunkCpp_SetSharedPreferenceInt(TEXT("CellularNetworkPreferences"), TEXT("AllowCellular"), Value);
 #endif // USE_ANDROID_JNI
 }
 
 int32 FAndroidMisc::GetCellularPreference()
 {
-	int32 value = 0;
+	int32 Result = 0;
 #if USE_ANDROID_JNI
-	value = AndroidThunkCpp_GetCellularPreference();
+	Result = AndroidThunkCpp_GetSharedPreferenceInt(TEXT("CellularNetworkPreferences"), TEXT("AllowCellular"), Result);
 #endif // USE_ANDROID_JNI
-	return value;
+	return Result;
 }
 
 void FAndroidMisc::SetAllowedDeviceOrientation(EDeviceScreenOrientation NewAllowedDeviceOrientation)

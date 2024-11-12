@@ -34,7 +34,8 @@
 #include "HierarchicalLODUtilitiesModule.h"
 #include "Rendering/StaticLightingSystemInterface.h"
 #include "Streaming/ActorTextureStreamingBuildDataComponent.h"
-#endif
+#include "Templates/UnrealTemplate.h"
+#endif // WITH_EDITOR
 #include "LightMap.h"
 #include "ShadowMap.h"
 #include "AI/Navigation/NavCollisionBase.h"
@@ -48,6 +49,8 @@
 #include "Rendering/NaniteResources.h"
 #include "NaniteVertexFactory.h"
 #include "StaticMeshSceneProxyDesc.h"
+#include "VT/MeshPaintVirtualTexture.h"
+#include "WorldPartition/ActorInstanceGuids.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StaticMeshComponent)
 
@@ -64,6 +67,7 @@ FStaticMeshComponentInstanceData::FStaticMeshComponentInstanceData(const UStatic
 {
 	for (const FStaticMeshComponentLODInfo& LODDataEntry : SourceComponent->LODData)
 	{
+		CachedStaticLighting.Add(LODDataEntry.OriginalMapBuildDataId);
 		CachedStaticLighting.Add(LODDataEntry.MapBuildDataId);
 	}
 
@@ -141,9 +145,10 @@ bool FStaticMeshComponentInstanceData::ApplyVertexColorData(UStaticMeshComponent
 		for(int32 LODIndex = 0; LODIndex < StaticMeshComponent->LODData.Num(); ++LODIndex)
 		{
 			FStaticMeshComponentLODInfo& LODInfo = StaticMeshComponent->LODData[LODIndex];
-			if(CachedStaticLighting.IsValidIndex(LODIndex))
+			if(CachedStaticLighting.IsValidIndex((LODIndex*2)+1))
 			{
-				LODInfo.MapBuildDataId = CachedStaticLighting[LODIndex];
+				LODInfo.OriginalMapBuildDataId = CachedStaticLighting[(LODIndex*2)];
+				LODInfo.MapBuildDataId = CachedStaticLighting[(LODIndex*2)+1];
 			}
 		}
 
@@ -201,7 +206,9 @@ UStaticMeshComponent::UStaticMeshComponent(const FObjectInitializer& ObjectIniti
 	bHasCustomNavigableGeometry = EHasCustomNavigableGeometry::Yes;
 	bOverrideNavigationExport = false;
 	bForceNavigationObstacle = true;
-	bDisallowMeshPaintPerInstance = false;
+	bSupportMeshPainting = true;
+	bEnableVertexColorMeshPainting = true;
+	bEnableTextureColorMeshPainting = true;
 	bForceNaniteForMasked = false;
 	bDisallowNanite = false;
 	bForceDisableNanite = false;
@@ -223,6 +230,7 @@ UStaticMeshComponent::UStaticMeshComponent(const FObjectInitializer& ObjectIniti
 	bDisplayVertexColors = false;
 	bDisplayPhysicalMaterialMasks = false;
 	bDisplayNaniteFallbackMesh = false;
+	bRegistering = false;
 #endif
 }
 
@@ -373,7 +381,7 @@ void UStaticMeshComponent::Serialize(FArchive& Ar)
 			if (LODData[LODIndex].LegacyMapBuildData)
 			{
 				LODData[LODIndex].LegacyMapBuildData->IrrelevantLights = IrrelevantLights_DEPRECATED;
-				LegacyComponentData.Data.Emplace(LODData[LODIndex].MapBuildDataId, LODData[LODIndex].LegacyMapBuildData);
+				LegacyComponentData.Data.Emplace(LODData[LODIndex].OriginalMapBuildDataId, LODData[LODIndex].LegacyMapBuildData);
 				LODData[LODIndex].LegacyMapBuildData = nullptr;
 			}
 		}
@@ -413,6 +421,46 @@ void UStaticMeshComponent::Serialize(FArchive& Ar)
 	if (Ar.IsLoading())
 	{
 		bInitialEvaluateWorldPositionOffset = bEvaluateWorldPositionOffset;
+	}
+
+	// Handle stripping the MeshPaintTexture resource from the cook for platforms where MeshPaintVirtualTexture is not supported.
+	const bool bMeshPaintTextureUsesEditorOnly = Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::MeshPaintTextureUsesEditorOnly;
+	if (bMeshPaintTextureUsesEditorOnly)
+	{
+		bool bSerializeAsCookedData = Ar.IsCooking();
+		Ar << bSerializeAsCookedData;
+
+		if (bSerializeAsCookedData)
+		{
+			// In cooked data we serialize a UObject* here in the native serializer.
+			if (Ar.IsSaving())
+			{
+#if WITH_EDITORONLY_DATA
+				// If we are choosing to strip from cook because of platform support then serialize nullptr.
+				const bool bCookMeshPaintTexture = MeshPaintVirtualTexture::IsSupported(Ar.CookingTarget());
+				UObject* SavedMeshPaintTexture = bCookMeshPaintTexture ? MeshPaintTexture : nullptr;
+#else
+				// Use MeshPaintTextureCooked.
+				UObject* SavedMeshPaintTexture = MeshPaintTextureCooked;
+#endif
+				Ar << SavedMeshPaintTexture;
+			}
+			else
+			{
+#if WITH_EDITORONLY_DATA
+				// If we are loading a cooked package in an environment that has EditorOnlyData, load into MeshPaintTexture.
+				Ar << MeshPaintTexture;
+#else
+				// Use MeshPaintTextureCooked.
+				Ar << MeshPaintTextureCooked;
+#endif
+			}
+		}
+		else
+		{
+			// In non-cooked data we do not serialize a UObject* here.
+			// Note that the EditorOnlyData MeshPaintTexture is serialized through default property serialization.
+		}
 	}
 }
 
@@ -476,6 +524,22 @@ void UStaticMeshComponent::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	Super::PreSave(ObjectSaveContext);
 
 	CachePaintedDataIfNecessary();
+	
+	// Detect when to create MapBuildDataID
+	// To avoid having to resubmit all Actors on 1st Static Lighting computation we want this GUID to always be created and serialized as soon as possible. 
+	// But we only create it for the editor save context, on cook builds we avoid creating it since if it's missing it won't link to anything and it'll make the
+	// cook non-deterministic
+	if (!ObjectSaveContext.IsCooking() && !IsTemplate())
+	{
+		UpdateStaticLightingData();
+
+		int32 LODIndex = 0;
+		for (FStaticMeshComponentLODInfo& LODInfo : LODData)
+		{
+			LODInfo.CreateMapBuildDataId(LODIndex);
+			LODIndex++;
+		}
+	}
 }
 #endif // WITH_EDITORONLY_DATA
 
@@ -483,16 +547,7 @@ void UStaticMeshComponent::PreSave(FObjectPreSaveContext ObjectSaveContext)
 void UStaticMeshComponent::CheckForErrors()
 {
 	Super::CheckForErrors();
-
-	const FCoreTexts& CoreTexts = FCoreTexts::Get();
-
-	// Get the mesh owner's name.
 	AActor* Owner = GetOwner();
-	FString OwnerName(*(CoreTexts.None.ToString()));
-	if ( Owner )
-	{
-		OwnerName = Owner->GetName();
-	}
 
 	if (GetStaticMesh() != nullptr && GetStaticMesh()->IsNaniteEnabled() != 0)
 	{
@@ -645,31 +700,9 @@ const FMeshMapBuildData* UStaticMeshComponent::GetMeshMapBuildData(const FStatic
 		return LODInfo.OverrideMapBuildData.Get();
 	}
 
-	AActor* Owner = GetOwner();
-
-	if (Owner)
+	if (UMapBuildDataRegistry* MapBuildData = UMapBuildDataRegistry::Get(this))
 	{
-		ULevel* OwnerLevel = Owner->GetLevel();
-
-		if (OwnerLevel && OwnerLevel->OwningWorld)
-		{
-			ULevel* ActiveLightingScenario = OwnerLevel->OwningWorld->GetActiveLightingScenario();
-			UMapBuildDataRegistry* MapBuildData = NULL;
-
-			if (ActiveLightingScenario && ActiveLightingScenario->MapBuildData)
-			{
-				MapBuildData = ActiveLightingScenario->MapBuildData;
-			}
-			else if (OwnerLevel->MapBuildData)
-			{
-				MapBuildData = OwnerLevel->MapBuildData;
-			}
-
-			if (MapBuildData)
-			{
-				return bCheckForResourceCluster ? MapBuildData->GetMeshBuildData(LODInfo.MapBuildDataId) : MapBuildData->GetMeshBuildDataDuringBuild(LODInfo.MapBuildDataId);
-			}
-		}
+		return bCheckForResourceCluster ? MapBuildData->GetMeshBuildData(LODInfo.MapBuildDataId) : MapBuildData->GetMeshBuildDataDuringBuild(LODInfo.MapBuildDataId);
 	}
 	
 	return NULL;
@@ -727,6 +760,22 @@ void UStaticMeshComponent::InitializeComponent()
 
 void UStaticMeshComponent::PostDuplicate(bool bDuplicateForPIE)
 {
+	if (!bDuplicateForPIE && MeshPaintTexture)
+	{
+		UMeshPaintVirtualTexture* NewTexture = nullptr;
+		
+		FImage Image;
+		if (MeshPaintTexture->Source.GetMipImage(Image, 0))
+		{
+			NewTexture = NewObject<UMeshPaintVirtualTexture>(GetOutermost());
+			NewTexture->Source.Init(Image);
+			NewTexture->OwningComponent = MakeWeakObjectPtr(this);
+			NewTexture->UpdateResource();
+		}
+
+		MeshPaintTexture = NewTexture;
+	}
+
 	NotifyIfStaticMeshChanged();
 
 	Super::PostDuplicate(bDuplicateForPIE);
@@ -743,6 +792,10 @@ void UStaticMeshComponent::PostEditImport()
 
 void UStaticMeshComponent::OnRegister()
 {
+#if WITH_EDITORONLY_DATA
+	FGuardValue_Bitfield(bRegistering, true);
+#endif
+
 	NotifyIfStaticMeshChanged();
 
 	UpdateCollisionFromStaticMesh();
@@ -784,6 +837,8 @@ void UStaticMeshComponent::OnRegister()
 		StaticMeshImportVersion = GetStaticMesh()->ImportVersion;
 	}
 #endif //WITH_EDITORONLY_DATA
+
+	UpdateMapBuildDataId();
 
 	Super::OnRegister();
 
@@ -829,17 +884,6 @@ void UStaticMeshComponent::OnDestroyPhysicsState()
 }
 
 #if WITH_EDITORONLY_DATA
-
-/** Return the total number of LOD sections in the LOD resources */
-static int32 GetNumberOfElements(const TIndirectArray<FStaticMeshLODResources>& LODResources)
-{
-	int32 Count = 0;
-	for (int32 LODIndex = 0; LODIndex < LODResources.Num(); ++LODIndex)
-	{
-		Count += LODResources[LODIndex].Sections.Num();
-	}
-	return Count;
-}
 
 /**
  *	Pack the texture into data ready for saving. Also ensures a single entry per texture.
@@ -1103,14 +1147,6 @@ void UStaticMeshComponent::GetStreamingRenderAssetInfo(FStreamingTextureLevelCon
 
 	// Since GetTextureStreamingTransformScale can be slow for certain component types, only call it if necessary
 	TOptional<float> LazyTransformScale;
-	auto GetTransformScale = [this, &LazyTransformScale]()
-	{
-		if (!LazyTransformScale.IsSet())
-		{
-			LazyTransformScale = GetTextureStreamingTransformScale();
-		}
-		return *LazyTransformScale;
-	};
 	
 	if (!CanSkipGetTextureStreamingRenderAssetInfo())
 	{
@@ -1157,6 +1193,16 @@ void UStaticMeshComponent::GetStreamingRenderAssetInfo(FStreamingTextureLevelCon
 	}
 }
 
+void UStaticMeshComponent::GetUsedTextures(TArray<UTexture*>& OutTextures, EMaterialQualityLevel::Type QualityLevel)
+{
+	if (UTexture* Texture = GetMeshPaintTexture())
+	{
+		OutTextures.AddUnique(Texture);
+	}
+
+	Super::GetUsedTextures(OutTextures, QualityLevel);
+}
+
 UBodySetup* UStaticMeshComponent::GetBodySetup()
 {
 	if (GetStaticMesh())
@@ -1185,28 +1231,7 @@ FColor UStaticMeshComponent::GetWireframeColor() const
 	{
 		return WireframeColorOverride;
 	}
-	else
-	{
-		if(Mobility == EComponentMobility::Static)
-		{
-			return FColor(0, 255, 255, 255);
-		}
-		else if(Mobility == EComponentMobility::Stationary)
-		{
-			return FColor(128, 128, 255, 255);
-		}
-		else // Movable
-		{
-			if(BodyInstance.bSimulatePhysics)
-			{
-				return FColor(0, 255, 128, 255);
-			}
-			else
-			{
-				return FColor(255, 0, 255, 255);
-			}
-		}
-	}
+	return Super::GetWireframeColorForSceneProxy();
 }
 
 
@@ -1261,7 +1286,7 @@ FTransform UStaticMeshComponent::GetSocketTransform(FName InSocketName, ERelativ
 					{
 						if( const AActor* Actor = GetOwner() )
 						{
-							return SocketWorldTransform.GetRelativeTransform( GetOwner()->GetTransform() );
+							return SocketWorldTransform.GetRelativeTransform( Actor->GetTransform() );
 						}
 						break;
 					}
@@ -1282,6 +1307,15 @@ bool UStaticMeshComponent::RequiresOverrideVertexColorsFixup()
 {
 	UStaticMesh* Mesh = GetStaticMesh();
 	if (!Mesh)
+	{
+		return false;
+	}
+	
+	// Don't attempt tofixup vertex colours if the base mesh is cooked. We don't have the source data in order
+	// to do it correctly, and we'll end up discarding the old data and lose the overrides altogether.
+	// Serialization during cooking should discard the overrides if the stream is incompatible with the static
+	// mesh, so we shouldn't end up with mismatching streams at runtime.
+	if (Mesh->GetPackage() && Mesh->GetPackage()->HasAllPackagesFlags(PKG_Cooked))
 	{
 		return false;
 	}
@@ -1390,12 +1424,10 @@ void UStaticMeshComponent::CopyInstanceVertexColorsIfCompatible( const UStaticMe
 		// Copy vertex colors from Source to Target (this)
 		for ( int32 CurrentLOD = 0; CurrentLOD != NumSourceLODs; CurrentLOD++ )
 		{
-			FStaticMeshLODResources& SourceLODModel = SourceComponent->GetStaticMesh()->GetRenderData()->LODResources[CurrentLOD];
 			if (SourceComponent->LODData.IsValidIndex(CurrentLOD))
 			{
 				const FStaticMeshComponentLODInfo& SourceLODInfo = SourceComponent->LODData[CurrentLOD];
 
-				FStaticMeshLODResources& TargetLODModel = GetStaticMesh()->GetRenderData()->LODResources[CurrentLOD];
 				FStaticMeshComponentLODInfo& TargetLODInfo = LODData[CurrentLOD];
 
 				if ( SourceLODInfo.OverrideVertexColors != nullptr )
@@ -1666,15 +1698,7 @@ void UStaticMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& Base
 	
 	if (ShouldCreateNaniteProxy())
 	{
-		if (NaniteLegacyMaterialsSupported())
-		{
-			CollectPSOPrecacheDataImpl(&Nanite::FVertexFactory::StaticType, BasePrecachePSOParams, SMC_GetElements, OutParams);
-		}
-
-		if (NaniteComputeMaterialsSupported())
-		{
-			CollectPSOPrecacheDataImpl(&FNaniteVertexFactory::StaticType, BasePrecachePSOParams, SMC_GetElements, OutParams);
-		}
+		CollectPSOPrecacheDataImpl(&FNaniteVertexFactory::StaticType, BasePrecachePSOParams, SMC_GetElements, OutParams);
 	}
 	else
 	{
@@ -1813,7 +1837,6 @@ void UStaticMeshComponent::UpdatePreCulledData(int32 LODIndex, const TArray<uint
 
 		for (int32 SectionIndex = 0; SectionIndex < StaticMeshLODResources.Sections.Num(); SectionIndex++)
 		{
-			const FStaticMeshSection& Section = StaticMeshLODResources.Sections[SectionIndex];
 			FPreCulledStaticMeshSection PreCulledSection;
 			PreCulledSection.FirstIndex = FirstIndex;
 			PreCulledSection.NumTriangles = NumTrianglesPerSection[SectionIndex];
@@ -2083,6 +2106,16 @@ bool UStaticMeshComponent::CanEditChange(const FProperty* InProperty) const
 		{
 			return bOverrideDistanceFieldSelfShadowBias && bAffectDistanceFieldLighting;
 		}
+
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UStaticMeshComponent, bEnableVertexColorMeshPainting))
+		{
+			return bSupportMeshPainting;
+		}
+
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UStaticMeshComponent, bEnableTextureColorMeshPainting))
+		{
+			return bSupportMeshPainting;
+		}
 	}
 
 	return Super::CanEditChange(InProperty);
@@ -2200,6 +2233,12 @@ void UStaticMeshComponent::PostLoad()
 		{
 			LOD.PaintedVertices.Empty();
 		}
+	}
+
+	// Handle deprecation of bDisallowMeshPaintPerInstance -> bEnableVertexColorMeshPainting.
+	if (bDisallowMeshPaintPerInstance_DEPRECATED)
+	{
+		bEnableVertexColorMeshPainting = false;
 	}
 
 	// Legacy content may contain a lightmap resolution of 0, which was valid when vertex lightmaps were supported, but not anymore with only texture lightmaps
@@ -2324,6 +2363,8 @@ bool UStaticMeshComponent::SetStaticMesh(UStaticMesh* NewMesh)
 
 	// Since we have new mesh, we need to update bounds
 	UpdateBounds();
+
+	FNavigationSystem::UpdateComponentData(*this);
 
 	// Mark cached material parameter names dirty
 	MarkCachedMaterialParameterNameIndicesDirty();
@@ -2466,7 +2507,7 @@ void UStaticMeshComponent::SetEvaluateWorldPositionOffsetInRayTracing(bool NewVa
 	{
 		// Update render thread data
 		ENQUEUE_RENDER_COMMAND(UpdateEvaluateWPORTCmd)
-		([NewValue, Scene = GetScene(), PrimitiveSceneProxy = static_cast<FStaticMeshSceneProxy*>(SceneProxy)](FRHICommandList& RHICmdList)
+		([NewValue, PrimitiveSceneProxy = static_cast<FStaticMeshSceneProxy*>(SceneProxy)](FRHICommandList& RHICmdList)
 		{
 			PrimitiveSceneProxy->SetEvaluateWorldPositionOffsetInRayTracing(RHICmdList, NewValue);
 		});
@@ -2859,6 +2900,7 @@ UMaterialInterface* UStaticMeshComponent::GetNaniteAuditMaterial(int32 MaterialI
 	return GetMaterial(MaterialIndex, true);
 }
 
+#if WITH_EDITOR
 UMaterialInterface* UStaticMeshComponent::GetEditorMaterial(int32 MaterialIndex) const
 {
 	// Same logic as GetMaterial() but without the nanite override.
@@ -2873,6 +2915,7 @@ UMaterialInterface* UStaticMeshComponent::GetEditorMaterial(int32 MaterialIndex)
 	}
 	return nullptr;
 }
+#endif
 
 void UStaticMeshComponent::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials) const
 {
@@ -2954,7 +2997,7 @@ void UStaticMeshComponent::ApplyComponentInstanceData(FStaticMeshComponentInstan
 		return;
 	}
 
-	const int32 NumLODLightMaps = StaticMeshInstanceData->CachedStaticLighting.Num();
+	const int32 NumLODLightMaps = StaticMeshInstanceData->CachedStaticLighting.Num()/2;
 
 	if (HasStaticLighting() && NumLODLightMaps > 0)
 	{
@@ -2965,7 +3008,8 @@ void UStaticMeshComponent::ApplyComponentInstanceData(FStaticMeshComponentInstan
 
 			for (int32 i = 0; i < NumLODLightMaps; ++i)
 			{
-				LODData[i].MapBuildDataId = StaticMeshInstanceData->CachedStaticLighting[i];
+				LODData[i].OriginalMapBuildDataId = StaticMeshInstanceData->CachedStaticLighting[(i*2)];
+				LODData[i].MapBuildDataId = StaticMeshInstanceData->CachedStaticLighting[(i*2)+1];
 			}
 		}
 		else
@@ -2982,7 +3026,7 @@ void UStaticMeshComponent::ApplyComponentInstanceData(FStaticMeshComponentInstan
 		}
 	}
 
-	if (!bDisallowMeshPaintPerInstance)
+	if (bSupportMeshPainting && bEnableVertexColorMeshPainting)
 	{
 		FComponentReregisterContext ReregisterStaticMesh(this);
 		StaticMeshInstanceData->ApplyVertexColorData(this);
@@ -3143,6 +3187,106 @@ bool UStaticMeshComponent::PrestreamMeshLODs(float Seconds)
 	return false;
 }
 
+UTexture* UStaticMeshComponent::GetMeshPaintTexture() const 
+{
+#if WITH_EDITORONLY_DATA
+	return MeshPaintTexture;
+#else
+	return MeshPaintTextureCooked;
+#endif
+}
+
+void UStaticMeshComponent::SetMeshPaintTexture(UTexture* InTexture)
+{
+	if (GetMeshPaintTexture() != InTexture)
+	{
+#if WITH_EDITORONLY_DATA
+		MeshPaintTexture = InTexture;
+#else
+		MeshPaintTextureCooked = InTexture;
+#endif
+		MarkRenderStateDirty();
+	}
+}
+
+void UStaticMeshComponent::SetMeshPaintTextureOverride(UTexture* OverrideTexture)
+{
+	if (MeshPaintTextureOverride != OverrideTexture)
+	{
+		MeshPaintTextureOverride = OverrideTexture;
+		MarkRenderStateDirty();
+	}
+}
+
+int32 UStaticMeshComponent::GetMeshPaintTextureCoordinateIndex() const
+{
+	const int32 NumTexCoords = StaticMesh->GetNumTexCoords(0);
+	if (bOverrideMeshPaintTextureCoordinateIndex)
+	{
+		return FMath::Clamp(OverriddenMeshPaintTextureCoordinateIndex, 0, NumTexCoords - 1);
+	}
+	if (StaticMesh != nullptr)
+	{
+		return FMath::Clamp(StaticMesh->MeshPaintTextureCoordinateIndex, 0, NumTexCoords - 1);
+	}
+	return 0;
+}
+
+int32 UStaticMeshComponent::GetMeshPaintTextureResolution() const
+{
+	int32 TextureResolution = 0;
+	if (bOverrideMeshPaintTextureResolution)
+	{
+		TextureResolution = OverriddenMeshPaintTextureResolution;
+	}
+	else if (StaticMesh != nullptr)
+	{
+		TextureResolution = StaticMesh->MeshPaintTextureResolution;
+	}
+	
+	if (TextureResolution > 0)
+	{
+		return MeshPaintVirtualTexture::GetAlignedTextureSize(TextureResolution);
+	}
+
+	const int32 NumVertices = StaticMesh != nullptr ? StaticMesh->GetNumVertices(0) : 0;
+	return MeshPaintVirtualTexture::GetDefaultTextureSize(NumVertices);
+}
+
+bool UStaticMeshComponent::CanMeshPaintVertexColors() const
+{
+	if (!bSupportMeshPainting || !bEnableVertexColorMeshPainting)
+	{
+		return false;
+	}
+	if (ShouldCreateNaniteProxy())
+	{
+		// Don't vertex paint on nanite.
+		return false;
+	}
+	return true;
+}
+
+bool UStaticMeshComponent::CanMeshPaintTextureColors() const 
+{
+	if (!bSupportMeshPainting || !bEnableTextureColorMeshPainting)
+	{
+		return false;
+	}
+	if (StaticMesh == nullptr || !StaticMesh->CanMeshPaintTextureColors())
+	{
+		return false;
+	}
+	if (FSceneInterface* Scene = GetScene())
+	{
+		if (!MeshPaintVirtualTexture::IsSupported(Scene->GetShaderPlatform()))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 bool UStaticMeshComponent::IsNavigationRelevant() const
 {
 	if (const UStaticMesh* Mesh = GetStaticMesh())
@@ -3158,7 +3302,10 @@ FBox UStaticMeshComponent::GetNavigationBounds() const
 {
 	if (const UStaticMesh* Mesh = GetStaticMesh())
 	{
-		if (ensureMsgf(!Mesh->IsCompiling(), TEXT("%s is not considered relevant to navigation until associated mesh is compiled."), *GetFullName()))
+#if WITH_EDITOR
+		// @see GetNavigationData
+		if (!Mesh->IsCompiling())
+#endif // WITH_EDITOR
 		{
 			return Mesh->GetNavigationBounds(GetComponentTransform());
 		}
@@ -3176,7 +3323,14 @@ void UStaticMeshComponent::GetNavigationData(FNavigationRelevantData& Data) cons
 	{
 		if (const UStaticMesh* Mesh = GetStaticMesh())
 		{
-			if (ensureMsgf(!Mesh->IsCompiling(), TEXT("%s is not considered relevant to navigation until associated mesh is compiled."), *GetFullName()))
+#if WITH_EDITOR
+			// In Editor it's possible that compilation of a StaticMesh gets triggered on a newly registered component for
+			// which a pending update is queued for the Navigation system.
+			// Then GetNavigationData is called when the pending update is processed but we don't consider the current component
+			// relevant to navigation until associated mesh is compiled.
+			// On mesh post compilation the component will reregister with the right mesh.
+			if (!Mesh->IsCompiling())
+#endif // WITH_EDITOR
 			{
 				if (UNavCollisionBase* NavCollision = Mesh->GetNavCollision())
 				{
@@ -3212,8 +3366,20 @@ void UStaticMeshComponent::UpdateBounds()
 	Super::UpdateBounds();
 }
 
+void UStaticMeshComponent::PreStaticMeshCompilation()
+{
+	FNavigationSystem::UnregisterComponent(*this);
+}
+
 void UStaticMeshComponent::PostStaticMeshCompilation()
 {
+	// Flag indicates that the component is currently registering and all the following actions
+	// are going to be handled by the registration itself. No need to perform them in that case.
+	if (bRegistering)
+	{
+		return;
+	}
+
 	CachePaintedDataIfNecessary();
 
 	FixupOverrideColorsIfNecessary(true);
@@ -3224,10 +3390,10 @@ void UStaticMeshComponent::PostStaticMeshCompilation()
 
 	RecreatePhysicsState();
 
-	FNavigationSystem::UpdateComponentData(*this);
-
 	if (IsRegistered())
 	{
+		FNavigationSystem::UpdateComponentData(*this);
+
 		FStaticLightingSystemInterface::OnPrimitiveComponentUnregistered.Broadcast(this);
 		if (HasValidSettingsForStaticLighting(false))
 		{
@@ -3462,6 +3628,59 @@ bool UStaticMeshComponent::ComponentIsTouchingSelectionFrustum(const FConvexVolu
 #endif // #if WITH_EDITOR
 
 
+FGuid GetMapDataIdForLOD(const FGuid& LOD0Guid, uint32 LodIndex)
+{
+	FString GuidBaseString = LOD0Guid.ToString(EGuidFormats::Digits);
+	GuidBaseString += TEXT("LOD_") + FString::FromInt(LodIndex);
+
+	FSHA1 Sha;
+	Sha.Update((uint8*)*GuidBaseString, GuidBaseString.Len() * sizeof(TCHAR));
+	Sha.Final();
+	// Retrieve the hash and use it to construct a pseudo-GUID.
+	uint32 Hash[5];
+	Sha.GetHash((uint8*)Hash);
+	return FGuid(Hash[0] ^ Hash[4], Hash[1], Hash[2], Hash[3]);
+}
+
+void UStaticMeshComponent::UpdateStaticLightingData()
+{
+	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
+	const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnGameThread() != 0);
+
+	if (!bAllowStaticLighting)
+		return;
+
+	if (HasStaticLighting() && StaticMesh && (LODData.Num() != StaticMesh->GetNumLODs()))
+	{		
+		SetLODDataCount(StaticMesh->GetNumLODs(), LODData.Num());	
+	}
+
+	for (int32 LODIndex = 0; LODIndex < LODData.Num(); LODIndex++)
+	{
+		LODData[LODIndex].CreateMapBuildDataId(LODIndex);
+	}	
+}
+
+void UStaticMeshComponent::UpdateMapBuildDataId()
+{	
+	if (GetOwner())	
+	{
+		//@todo_ow: Detect cases where MapBuildDataId has been successfully set on cook and skip?
+		if (LODData.Num() && LODData[0].OriginalMapBuildDataId.IsValid())
+		{
+			FGuid ActorInstanceGuid = FActorInstanceGuid::GetActorInstanceGuid(*GetOwner());
+
+			// We already have a GUID, but in case of a LevelInstance Actor we must adjust it to be unique
+			LODData[0].MapBuildDataId = FGuid::Combine(LODData[0].OriginalMapBuildDataId, ActorInstanceGuid);
+			
+			for (int i = 1; i < LODData.Num(); i++)
+			{
+				LODData[i].OriginalMapBuildDataId = GetMapDataIdForLOD(LODData[0].OriginalMapBuildDataId, i);
+				LODData[i].MapBuildDataId = FGuid::Combine(LODData[i].OriginalMapBuildDataId, ActorInstanceGuid);
+			}
+		}
+	}
+}
 //////////////////////////////////////////////////////////////////////////
 // StaticMeshComponentLODInfo
 
@@ -3488,30 +3707,35 @@ FStaticMeshComponentLODInfo::FStaticMeshComponentLODInfo(UStaticMeshComponent* I
 
 bool FStaticMeshComponentLODInfo::CreateMapBuildDataId(int32 LodIndex)
 {
-	if (!MapBuildDataId.IsValid())
+	bool bReturnVal = false;
+
+	if (!OriginalMapBuildDataId.IsValid())
 	{
 		if (LodIndex == 0 || OwningComponent == nullptr)
 		{
-			MapBuildDataId = FGuid::NewGuid();
+			OriginalMapBuildDataId = FGuid::NewGuid();
+#if WITH_EDITOR
+			bMapBuildDataChanged = true;
+#endif
 		}
 		else
 		{
-			FString GuidBaseString = OwningComponent->LODData[0].MapBuildDataId.ToString(EGuidFormats::Digits);
-			GuidBaseString += TEXT("LOD_") + FString::FromInt(LodIndex);
-
-			FSHA1 Sha;
-			Sha.Update((uint8*)*GuidBaseString, GuidBaseString.Len() * sizeof(TCHAR));
-			Sha.Final();
-			// Retrieve the hash and use it to construct a pseudo-GUID.
-			uint32 Hash[5];
-			Sha.GetHash((uint8*)Hash);
-			MapBuildDataId = FGuid(Hash[0] ^ Hash[4], Hash[1], Hash[2], Hash[3]);
+			OriginalMapBuildDataId = GetMapDataIdForLOD(OwningComponent->LODData[0].OriginalMapBuildDataId, LodIndex);
+#if WITH_EDITOR
+			bMapBuildDataChanged = true;
+#endif
 		}
 
-		return true;
+		bReturnVal = true;
 	}
 
-	return false;
+	if (!MapBuildDataId.IsValid() && OwningComponent)
+	{
+		OwningComponent->UpdateMapBuildDataId();
+		bReturnVal = true;
+	}
+
+	return bReturnVal;
 }
 
 /** Destructor */
@@ -3578,7 +3802,7 @@ void FStaticMeshComponentLODInfo::ExportText(FString& ValueStr)
 		FPaintedVertex& Vert = PaintedVertices[i];
 
 		ValueStr += FString::Printf(TEXT("((Position=(X=%.6f,Y=%.6f,Z=%.6f),"), Vert.Position.X, Vert.Position.Y, Vert.Position.Z);
-		ValueStr += FString::Printf(TEXT("(Normal=(X=%d,Y=%d,Z=%d,W=%d),"), Vert.Normal.X, Vert.Normal.Y, Vert.Normal.Z, Vert.Normal.W);
+		ValueStr += FString::Printf(TEXT("(Normal=(X=%f,Y=%f,Z=%f,W=%f),"), Vert.Normal.X, Vert.Normal.Y, Vert.Normal.Z, Vert.Normal.W);
 		ValueStr += FString::Printf(TEXT("(Color=(B=%d,G=%d,R=%d,A=%d))"), Vert.Color.B, Vert.Color.G, Vert.Color.R, Vert.Color.A);
 
 		// Seperate each vertex entry with a comma
@@ -3709,14 +3933,20 @@ FArchive& operator<<(FArchive& Ar,FStaticMeshComponentLODInfo& I)
 	{
 		if (Ar.IsLoading() && Ar.CustomVer(FRenderingObjectVersion::GUID) < FRenderingObjectVersion::MapBuildDataSeparatePackage)
 		{
-			I.MapBuildDataId = FGuid::NewGuid();
+			I.OriginalMapBuildDataId = FGuid::NewGuid();
 			I.LegacyMapBuildData = new FMeshMapBuildData();
 			Ar << I.LegacyMapBuildData->LightMap;
 			Ar << I.LegacyMapBuildData->ShadowMap;
 		}
 		else
-		{
-			Ar << I.MapBuildDataId;
+		{	
+			//@todo_ow: Serialize only MapBuildDataId for cooked versions? Doesn't work in runtime instanced levels
+			// so we'd need to know if the ID we have is the original or has the ActorInstanceGuid mixed in
+			if (Ar.IsCooking() || Ar.IsLoadingFromCookedPackage())
+			{
+				Ar << I.MapBuildDataId;
+			}
+			Ar << I.OriginalMapBuildDataId;
 		}
 	}
 
@@ -3769,9 +3999,27 @@ FArchive& operator<<(FArchive& Ar,FStaticMeshComponentLODInfo& I)
 
 void UStaticMeshComponent::GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const
 {
-	if (StaticMesh)
+	if (StaticMesh && StaticMesh->GetRenderData())
 	{
-		PrimitiveStats.NbTriangles = StaticMesh->GetNumTriangles(PrimitiveStats.ForLOD);
+		const FStaticMeshLODResourcesArray& LODResources = StaticMesh->GetRenderData()->LODResources;
+		PrimitiveStats.LODStats.Reserve(LODResources.Num());
+		int32 LOD = 0;
+		for (const FStaticMeshLODResources& LODResource : LODResources)
+		{
+			FPrimitiveLODStats& LODStats = PrimitiveStats.LODStats.EmplaceAt_GetRef(LOD, LOD);
+			LODStats.Sections = LODResource.Sections.Num();
+			LODStats.bIsOptionalLOD = LODResource.bIsOptionalLOD;
+			LODStats.bIsAvailable = LODResource.bBuffersInlined || LODResource.StreamingBulkData.DoesExist();
+			FResourceSizeEx ResourceSize;
+			LODResource.GetResourceSizeEx(ResourceSize);
+			LODStats.TotalResourceSize = ResourceSize.GetTotalMemoryBytes();
+			for (const auto& Section : LODResource.Sections)
+			{
+				LODStats.MaterialIndices.Add(Section.MaterialIndex);
+				LODStats.Triangles += Section.NumTriangles;
+			}
+			LOD++;
+		}
 	}
 }
 
@@ -3779,6 +4027,11 @@ void UStaticMeshComponent::GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) co
 void FActorStaticMeshComponentInterface::OnMeshRebuild(bool bRenderDataChanged)
 {
 	UStaticMeshComponent::GetStaticMeshComponent(this)->OnMeshRebuild(bRenderDataChanged);
+}
+
+void FActorStaticMeshComponentInterface::PreStaticMeshCompilation()
+{
+	UStaticMeshComponent::GetStaticMeshComponent(this)->PreStaticMeshCompilation();
 }
 
 void FActorStaticMeshComponentInterface::PostStaticMeshCompilation()

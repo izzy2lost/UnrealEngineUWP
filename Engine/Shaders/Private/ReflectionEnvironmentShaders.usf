@@ -393,28 +393,34 @@ void DownsampleIntegrateCubemapIlluminancePS(
 
 
 
-#ifdef USE_COMPUTE
-float4 LowerHemisphereSolidColor;
-[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
-void ApplyLowerHemisphereColorCS(uint3 ThreadId : SV_DispatchThreadID)
-{
-	const uint2 FaceCoord = uint2(ThreadId.x % uint(FaceThreadGroupSize), ThreadId.y);
-	if (any(FaceCoord >= uint2(ValidDispatchCoord)))
-	{
-		return;
-	}
-	const int SelectedCubeFace = int(ThreadId.x) / FaceThreadGroupSize;
-	float2 ScaledUVs = ((float2(FaceCoord) + 0.5f) / float2(ValidDispatchCoord)) * 2.0f - 1.0f;
-	float4 OutColor;
+#if APPLY_LOWER_HEMISPHERE_COLOR_PIXELSHADER
 
-	float3 CubeCoordinates = GetCubemapVector(ScaledUVs, SelectedCubeFace);
+float4 LowerHemisphereSolidColor;
+
+// This pixel shader is designed to work with RenderRealTimeReflectionHeightFogVS
+void ApplyLowerHemisphereColorPS(
+	in float4 SVPos : SV_POSITION,
+	out float4 OutLuminanceAlpha : SV_Target0)
+{
+	float2 UV = SVPos.xy * SvPositionToUVScale;
+	float2 ScaledUVs = UV * 2 - 1;
+
+	float3 CubeCoordinates = GetCubemapVector(ScaledUVs, CubeFace);
 	float3 N = normalize(CubeCoordinates);
+
+	OutLuminanceAlpha = float4(0.0f, 0.0f, 0.0f, 1.0f);
 	if (N.z < 0.0f)
 	{
-		OutTextureMipColor[uint3(FaceCoord, SelectedCubeFace)] = float4(LowerHemisphereSolidColor.rgb * LowerHemisphereSolidColor.a, 1.0f);
+		float Coverage = 0.0f;
+		Coverage = pow(saturate(LowerHemisphereSolidColor.a), 2.2);
+		Coverage = saturate(LowerHemisphereSolidColor.a);
+		OutLuminanceAlpha = float4(LowerHemisphereSolidColor.rgb * Coverage, 1.0 - Coverage);
 	}
 }
+
 #endif
+
+
 
 int NumCaptureArrayMips;
 
@@ -879,8 +885,6 @@ void RenderRealTimeReflectionHeightFogPS(
 )
 {
 	ResolvedView = ResolveView();
-
-	float4 WorldVector = mul(float4((SVPos.xy / 128.0f) * float2(2.0, -2.0) + float2(1.0, -1.0), 0.0, 0), ResolvedView.ScreenToTranslatedWorld);
 
 #if PERMUTATION_DEPTHTEXTURE
 	float DeviceZ = DepthTexture.Load(int3(SVPos.xy, 0)).x;

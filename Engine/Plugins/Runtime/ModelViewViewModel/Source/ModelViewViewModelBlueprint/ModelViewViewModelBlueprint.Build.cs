@@ -17,7 +17,6 @@ public class ModelViewViewModelBlueprint : ModuleRules
 				"Engine",
 				"FieldNotification",
 				"ModelViewViewModel",
-				"StructUtils",
 			});
 
 		PrivateDependencyModuleNames.AddRange(

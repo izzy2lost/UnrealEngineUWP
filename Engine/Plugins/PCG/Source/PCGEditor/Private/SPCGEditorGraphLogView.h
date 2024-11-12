@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Widgets/Views/ITableRow.h"
+#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 
 class STableViewBase;
@@ -58,6 +59,8 @@ public:
 	~SPCGEditorGraphLogView();
 
 	void Construct(const FArguments& InArgs, TSharedPtr<FPCGEditor> InPCGEditor);
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+	void RequestRefresh() { bNeedsRefresh = true; }
 
 private:
 	TSharedRef<SHeaderRow> CreateHeaderRowWidget();
@@ -65,8 +68,6 @@ private:
 
 	void OnDebugStackChanged(const FPCGStack& InPCGStack);
 
-	void OnGenerateUpdated(UPCGComponent* InPCGComponent);
-	
 	// Callbacks
 	FReply Refresh();
 	FReply Clear();
@@ -82,11 +83,13 @@ private:
 	UPCGEditorGraph* PCGEditorGraph = nullptr;
 
 	/** Cached PCGComponent being viewed */
-	TWeakObjectPtr<UPCGComponent> PCGComponent;
+	TWeakObjectPtr<UPCGComponent> GetPCGComponent() const;
 
 	TSharedPtr<SHeaderRow> ListViewHeader;
 	TSharedPtr<SListView<PCGLogListViewItemPtr>> ListView;
 	TArray<PCGLogListViewItemPtr> ListViewItems;
+
+	bool bNeedsRefresh : 1 = false;
 
 	// To allow sorting
 	FName SortingColumn = PCGEditorGraphLogView::NAME_Order;

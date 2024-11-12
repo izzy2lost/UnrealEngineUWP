@@ -2,7 +2,10 @@
 
 #include "TaskEntry.h"
 
-namespace Insights
+// TraceServices
+#include "TraceServices/Model/TasksProfiler.h"
+
+namespace UE::Insights::TaskGraphProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -35,4 +38,4 @@ FTaskEntry::FTaskEntry(const TraceServices::FTaskInfo& TaskInfo)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler

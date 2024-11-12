@@ -9,18 +9,20 @@
 #include "PropertyAnimatorCoreEditorSubsystem.generated.h"
 
 class IDetailTreeNode;
+class IPropertyAnimatorCorePresetable;
 class IPropertyHandle;
 class SPropertyAnimatorCoreEditorEditPanel;
 class SWidget;
 class UPropertyAnimatorCoreBase;
 class UPropertyAnimatorCoreEditorMenuContext;
+class UPropertyAnimatorCorePresetBase;
 class UToolMenu;
 struct FPropertyAnimatorCoreData;
 struct FPropertyAnimatorCoreEditorEditPanelOptions;
 struct FOnGenerateGlobalRowExtensionArgs;
 struct FPropertyRowExtensionButton;
 
-/** Singleton class that handles editor operations for property control such as windows */
+/** Singleton class that handles editor operations for property animators */
 UCLASS()
 class UPropertyAnimatorCoreEditorSubsystem : public UEditorSubsystem
 {
@@ -35,17 +37,11 @@ public:
 	virtual void Deinitialize() override;
 	//~ End UEditorSubsystem
 
-	/** Gets or creates the property control window, single instance only allowed */
-	FPropertyAnimatorCoreEditorEditPanelOptions& OpenPropertyControlWindow();
-
-	/** Closes the property control window */
-	void ClosePropertyControlWindow() const;
-
-	/** Checks whether the single window instance is opened */
-	bool IsPropertyControlWindowOpened() const;
-
 	/** Fills a menu based on context objects and menu options */
 	PROPERTYANIMATORCOREEDITOR_API bool FillAnimatorMenu(UToolMenu* InMenu, const FPropertyAnimatorCoreEditorMenuContext& InContext, const FPropertyAnimatorCoreEditorMenuOptions& InOptions);
+
+	/** Creates a preset asset for an item */
+	PROPERTYANIMATORCOREEDITOR_API UPropertyAnimatorCorePresetBase* CreatePresetAsset(TSubclassOf<UPropertyAnimatorCorePresetBase> InPresetClass, const TArray<IPropertyAnimatorCorePresetable*>& InPresetables);
 
 protected:
 	/** Setup details panel button customization */

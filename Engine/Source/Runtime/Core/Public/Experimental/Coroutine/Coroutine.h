@@ -291,7 +291,7 @@ namespace CoroTask_Detail
 			if(!CoroutineHandle.done())
 			{
 				TraceId = TaskTrace::GenerateTaskId();
-				TaskTrace::Launched(TraceId, GetDebugName(), true, ENamedThreads::Type::AnyThread);
+				TaskTrace::Launched(TraceId, GetDebugName(), true, ENamedThreads::Type::AnyThread, 0);
 				TaskTrace::SubsequentAdded(TraceId, OldTraceId);
 				if(Prerequisite != nullptr)
 				{
@@ -311,7 +311,7 @@ namespace CoroTask_Detail
 		{
 			coroCheck(Prerequisite == nullptr);
 			IncrementRefCount();
-			COROTASKTRACE(TaskTrace::Launched(TraceId, DebugName, true, ENamedThreads::Type::AnyThread));
+			COROTASKTRACE(TaskTrace::Launched(TraceId, DebugName, true, ENamedThreads::Type::AnyThread, 0));
 			Task.Init(DebugName, Priority, FTaskExecutor(this), Flags);
 			COROTASKTRACE(TaskTrace::Scheduled(TraceId));
 			coroVerify(LowLevelTasks::TryLaunch(Task, QueuePreference));
@@ -322,7 +322,7 @@ namespace CoroTask_Detail
 			ensureMsgf(bAllowNested || !FCoroLocalState::IsCoroLaunchedTask(), TEXT("Unconnected Expedition within a CoroTask, connect the Callstacks for better Performance."));
 
 			coroCheck(IsExpeditable());
-			if (!Task.TryCancel(LowLevelTasks::ECancellationFlags::PrelaunchCancellation)) 
+			if (!Task.TryCancel(LowLevelTasks::ECancellationFlags::PrelaunchCancellation))
 			{
 				return CoroutineHandle.done();
 			}
@@ -386,7 +386,7 @@ namespace CoroTask_Detail
 
 		COROFORCEINLINE bool InvokeOnceAndLaunch(const TCHAR* DebugName = nullptr, LowLevelTasks::ETaskPriority Priority = LowLevelTasks::ETaskPriority::Inherit, LowLevelTasks::ETaskFlags Flags = LowLevelTasks::ETaskFlags::DefaultFlags)
 		{
-			COROTASKTRACE(TaskTrace::Launched(TraceId, DebugName, true, ENamedThreads::Type::AnyThread));
+			COROTASKTRACE(TaskTrace::Launched(TraceId, DebugName, true, ENamedThreads::Type::AnyThread, 0));
 			COROTASKTRACE(TaskTrace::Scheduled(TraceId));
 			Execute();
 			if(!CoroutineHandle.done())

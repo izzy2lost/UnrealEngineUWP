@@ -6,12 +6,14 @@
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "StateTreeConditionBase.h"
+#include "StateTreeConsiderationBase.h"
 #include "StateTreeEvaluatorBase.h"
 #include "StateTreeExecutionContext.h"
 #include "StateTreeTaskBase.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Tasks/StateTreeAITask.h"
 #include "VisualLogger/VisualLogger.h"
+#include "StateTreePropertyFunctionBase.h"
 
 UStateTreeComponentSchema::UStateTreeComponentSchema()
 	: ContextActorClass(AActor::StaticClass())
@@ -23,7 +25,9 @@ bool UStateTreeComponentSchema::IsStructAllowed(const UScriptStruct* InScriptStr
 {
 	return InScriptStruct->IsChildOf(FStateTreeConditionCommonBase::StaticStruct())
 	|| InScriptStruct->IsChildOf(FStateTreeEvaluatorCommonBase::StaticStruct())
-	|| InScriptStruct->IsChildOf(FStateTreeTaskCommonBase::StaticStruct());
+	|| InScriptStruct->IsChildOf(FStateTreeTaskCommonBase::StaticStruct())
+	|| InScriptStruct->IsChildOf(FStateTreeConsiderationCommonBase::StaticStruct())
+	|| InScriptStruct->IsChildOf(FStateTreePropertyFunctionCommonBase::StaticStruct());
 }
 
 bool UStateTreeComponentSchema::IsClassAllowed(const UClass* InClass) const

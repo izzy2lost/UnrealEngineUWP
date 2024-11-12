@@ -13,25 +13,37 @@ class UAvaPlaneCutModifier : public UAvaGeometryBaseModifier
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|PlaneCut")
 	AVALANCHEMODIFIERS_API void SetPlaneOrigin(float InOrigin);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|PlaneCut")
 	float GetPlaneOrigin() const
 	{
 		return PlaneOrigin;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|PlaneCut")
 	AVALANCHEMODIFIERS_API void SetPlaneRotation(const FRotator& InRotation);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|PlaneCut")
 	const FRotator& GetPlaneRotation() const
 	{
 		return PlaneRotation;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|PlaneCut")
 	AVALANCHEMODIFIERS_API void SetInvertCut(bool bInInvertCut);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|PlaneCut")
 	bool GetInvertCut() const
 	{
 		return bInvertCut;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|PlaneCut")
 	AVALANCHEMODIFIERS_API void SetFillHoles(bool bInFillHoles);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|PlaneCut")
 	bool GetFillHoles() const
 	{
 		return bFillHoles;
@@ -67,20 +79,20 @@ protected:
 	void UpdatePreviewComponent();
 #endif
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetPlaneOrigin", Getter="GetPlaneOrigin", Category="PlaneCut", meta=(Delta="0.5", LinearDeltaSensitivity="1", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetPlaneOrigin", Getter="GetPlaneOrigin", Category="PlaneCut", meta=(Delta="0.5", LinearDeltaSensitivity="1", AllowPrivateAccess="true"))
 	float PlaneOrigin = 0.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetPlaneRotation", Getter="GetPlaneRotation", Category="PlaneCut", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetPlaneRotation", Getter="GetPlaneRotation", Category="PlaneCut", meta=(AllowPrivateAccess="true"))
 	FRotator PlaneRotation = FRotator(0, 0, 90);
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetInvertCut", Getter="GetInvertCut", Category="PlaneCut", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetInvertCut", Getter="GetInvertCut", Category="PlaneCut", meta=(AllowPrivateAccess="true"))
 	bool bInvertCut = false;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetFillHoles", Getter="GetFillHoles", Category="PlaneCut", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetFillHoles", Getter="GetFillHoles", Category="PlaneCut", meta=(AllowPrivateAccess="true"))
 	bool bFillHoles = true;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="PlaneCut", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Category="PlaneCut", meta=(AllowPrivateAccess="true"))
 	bool bUsePreview = false;
 
 private:

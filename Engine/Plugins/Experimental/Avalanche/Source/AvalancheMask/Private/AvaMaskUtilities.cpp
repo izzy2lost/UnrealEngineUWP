@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaMaskUtilities.h"
 
@@ -26,7 +26,7 @@ namespace UE::AvaMask::Internal
 	{
 		FSoftComponentReference ComponentReference;
 
-		const AActor* ComponentOwner = InComponent->GetOwner();
+		AActor* ComponentOwner = InComponent->GetOwner();
 		ComponentReference.OtherActor = ComponentOwner == InOwner ? nullptr : ComponentOwner;
 		ComponentReference.PathToComponent = InComponent->GetPathName(ComponentOwner);
 	
@@ -76,7 +76,7 @@ namespace UE::AvaMask::Internal
 		if (!Component)
 		{
 #if WITH_EDITOR
-			InActor->Modify();
+			InActor->Modify(/*bAlwaysMarkDirty*/false);
 #endif
 
 			// Construct the new component and attach as needed
@@ -85,8 +85,10 @@ namespace UE::AvaMask::Internal
 				, MakeUniqueObjectName(InActor, ComponentClass)
 				, RF_Transactional);
 
+			Component->CreationMethod = EComponentCreationMethod::Instance;
+
 			// Add to SerializedComponents array so it gets saved
-			InActor->AddInstanceComponent(Component);
+			InActor->AddOwnedComponent(Component);
 			Component->OnComponentCreated();
 			Component->RegisterComponent();
 

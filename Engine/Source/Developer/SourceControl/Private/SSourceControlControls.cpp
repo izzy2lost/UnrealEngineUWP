@@ -13,7 +13,8 @@
 
 #define LOCTEXT_NAMESPACE "SSkeinSourceControlWidgets"
 
-int32 SSourceControlControls::NumConflictsRemaining = 0;
+FNumConflicts SSourceControlControls::NumConflictsRemaining;
+FNumConflicts SSourceControlControls::NumConflictsUpcoming;
 
 FIsEnabled SSourceControlControls::IsSyncLatestEnabled;
 FIsEnabled SSourceControlControls::IsCheckInChangesEnabled;
@@ -26,6 +27,50 @@ FIsVisible SSourceControlControls::IsRestoreAsLatestVisible;
 FOnClicked SSourceControlControls::OnSyncLatestClicked;
 FOnClicked SSourceControlControls::OnCheckInChangesClicked;
 FOnClicked SSourceControlControls::OnRestoreAsLatestClicked;
+
+static bool DisplaySyncStatus()
+{
+	bool bDisplaySourceControlSyncStatus = false;
+	GConfig->GetBool(TEXT("SourceControlSettings"), TEXT("DisplaySourceControlSyncStatus"), bDisplaySourceControlSyncStatus, GEditorIni);
+
+	if (bDisplaySourceControlSyncStatus)
+	{
+		ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
+		if (SourceControlModule.IsEnabled() &&
+			SourceControlModule.GetProvider().IsAvailable() &&
+			SourceControlModule.GetProvider().IsAtLatestRevision().IsSet()) // Only providers that implement IsAtLatestRevision are supported.
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static bool DisplayCheckInStatus()
+{
+	bool bDisplaySourceControlCheckInStatus = false;
+	GConfig->GetBool(TEXT("SourceControlSettings"), TEXT("DisplaySourceControlCheckInStatus"), bDisplaySourceControlCheckInStatus, GEditorIni);
+
+	if (bDisplaySourceControlCheckInStatus)
+	{
+		ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
+		if (SourceControlModule.IsEnabled() &&
+			SourceControlModule.GetProvider().IsAvailable() &&
+			SourceControlModule.GetProvider().GetNumLocalChanges().IsSet()) // Only providers that implement GetNumLocalChanges are supported.
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static bool DisplayRestoreAsLatestStatus()
+{
+	// The 'Restore as Latest' button is a replacement for the 'Check in Changes' button.
+	return DisplayCheckInStatus();
+}
 
 /**
  * Construct this widget
@@ -165,58 +210,16 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 			.Orientation(EOrientation::Orient_Vertical)
 		]
 	];
-
-	CheckSourceControlStatus();
-}
-
-void SSourceControlControls::CheckSourceControlStatus()
-{
-	ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
-
-	if (!SourceControlProviderChangedHandle.IsValid())
-	{
-		SourceControlProviderChangedHandle = SourceControlModule.RegisterProviderChanged(
-			FSourceControlProviderChanged::FDelegate::CreateSP(this, &SSourceControlControls::OnSourceControlProviderChanged)
-		);
-		SourceControlStateChangedHandle = SourceControlModule.GetProvider().RegisterSourceControlStateChanged_Handle(
-			FSourceControlStateChanged::FDelegate::CreateSP(this, &SSourceControlControls::OnSourceControlStateChanged)
-		);
-	}
-}
-
-void SSourceControlControls::OnSourceControlProviderChanged(ISourceControlProvider& OldProvider, ISourceControlProvider& NewProvider)
-{
-	if (SourceControlStateChangedHandle.IsValid())
-	{
-		OldProvider.UnregisterSourceControlStateChanged_Handle(SourceControlStateChangedHandle);
-		SourceControlStateChangedHandle.Reset();
-	}
-
-	if (!IsEngineExitRequested())
-	{
-		SourceControlStateChangedHandle = NewProvider.RegisterSourceControlStateChanged_Handle(
-			FSourceControlStateChanged::FDelegate::CreateSP(this, &SSourceControlControls::OnSourceControlStateChanged)
-		);
-	}
-}
-
-void SSourceControlControls::OnSourceControlStateChanged()
-{
-	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
-
-	TArray<FSourceControlStateRef> Conflicts = SourceControlProvider.GetCachedStateByPredicate(
-		[](const FSourceControlStateRef& State)
-		{
-			return State->IsConflicted();
-		}
-	);
-
-	NumConflictsRemaining = Conflicts.Num(); // Atomic write.
 }
 
 int32 SSourceControlControls::GetNumConflictsRemaining()
 {
-	return NumConflictsRemaining;
+	return NumConflictsRemaining.IsBound() ? NumConflictsRemaining.Execute() : 0;
+}
+
+int32 SSourceControlControls::GetNumConflictsUpcoming()
+{
+	return NumConflictsUpcoming.IsBound() ? NumConflictsUpcoming.Execute() : 0;
 }
 
 /** Sync Status */
@@ -258,24 +261,16 @@ EVisibility SSourceControlControls::GetSourceControlSyncStatusVisibility()
 		return EVisibility::Visible;
 	}
 
-	bool bVisibleSourceControlSyncStatus = true;
+	bool bVisibleSourceControlSyncStatus = false;
 	if (IsSyncLatestVisible.IsBound())
 	{
 		bVisibleSourceControlSyncStatus = IsSyncLatestVisible.Execute();
 	}
 
-	bool bDisplaySourceControlSyncStatus = false;
-	GConfig->GetBool(TEXT("SourceControlSettings"), TEXT("DisplaySourceControlSyncStatus"), bDisplaySourceControlSyncStatus, GEditorIni);
-
+	bool bDisplaySourceControlSyncStatus = DisplaySyncStatus();
 	if (bVisibleSourceControlSyncStatus && bDisplaySourceControlSyncStatus)
 	{
-		ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
-		if (SourceControlModule.IsEnabled() &&
-			SourceControlModule.GetProvider().IsAvailable() &&
-			SourceControlModule.GetProvider().IsAtLatestRevision().IsSet()) // Only providers that implement IsAtLatestRevision are supported.
-		{
-			return EVisibility::Visible;
-		}
+		return EVisibility::Visible;
 	}
 
 	return EVisibility::Collapsed;
@@ -308,6 +303,10 @@ FText SSourceControlControls::GetSourceControlSyncStatusToolTipText()
 	{
 		return LOCTEXT("SyncLatestButtonNotAtHeadTooltipTextConflict", "Some of your local changes conflict with the latest snapshot of the project. Click here to review these conflicts.");
 	}
+	if (GetNumConflictsUpcoming() > 0)
+	{
+		return LOCTEXT("SyncLatestButtonNotAtHeadTooltipTextConflictUpcoming", "Some of your local changes conflict with the latest snapshot of the project. Click here to review these conflicts.");
+	}
 	if (HasSourceControlChangesToSync())
 	{
 		return LOCTEXT("SyncLatestButtonNotAtHeadTooltipText", "Sync to the latest Snapshot for this project");
@@ -323,6 +322,10 @@ const FSlateBrush* SSourceControlControls::GetSourceControlSyncStatusIcon()
 	static const FSlateBrush* NotAtHeadBrush = FRevisionControlStyleManager::Get().GetBrush("RevisionControl.StatusBar.NotAtLatestRevision");
 
 	if (GetNumConflictsRemaining() > 0)
+	{
+		return ConflictBrush;
+	}
+	if (GetNumConflictsUpcoming() > 0)
 	{
 		return ConflictBrush;
 	}
@@ -397,24 +400,16 @@ EVisibility SSourceControlControls::GetSourceControlCheckInStatusVisibility()
 		return EVisibility::Visible;
 	}
 
-	bool bVisibleSourceControlCheckInStatus = true;
+	bool bVisibleSourceControlCheckInStatus = false;
 	if (IsCheckInChangesVisible.IsBound())
 	{
 		bVisibleSourceControlCheckInStatus = IsCheckInChangesVisible.Execute();
 	}
 
-	bool bDisplaySourceControlCheckInStatus = false;
-	GConfig->GetBool(TEXT("SourceControlSettings"), TEXT("DisplaySourceControlCheckInStatus"), bDisplaySourceControlCheckInStatus, GEditorIni);
-
+	bool bDisplaySourceControlCheckInStatus = DisplayCheckInStatus();
 	if (bVisibleSourceControlCheckInStatus && bDisplaySourceControlCheckInStatus)
 	{
-		ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
-		if (SourceControlModule.IsEnabled() &&
-			SourceControlModule.GetProvider().IsAvailable() &&
-			SourceControlModule.GetProvider().GetNumLocalChanges().IsSet()) // Only providers that implement GetNumLocalChanges are supported.
-		{
-			return EVisibility::Visible;
-		}
+		return EVisibility::Visible;
 	}
 
 	return EVisibility::Collapsed;
@@ -447,6 +442,10 @@ FText SSourceControlControls::GetSourceControlCheckInStatusToolTipText()
 	{
 		return LOCTEXT("CheckInButtonChangesTooltipTextConflict", "Some of your local changes conflict with the latest snapshot of the project. Click here to review these conflicts.");
 	}
+	if (GetNumConflictsUpcoming() > 0)
+	{
+		return LOCTEXT("CheckInButtonChangesTooltipTextConflictUpcoming", "Some of your local changes conflict with the latest snapshot of the project. Click here to review these conflicts.");
+	}
 	if (HasSourceControlChangesToCheckIn())
 	{
 		return FText::Format(LOCTEXT("CheckInButtonChangesTooltipText", "Check-in {0} change(s) to this project"), GetNumLocalChanges());
@@ -462,6 +461,10 @@ const FSlateBrush* SSourceControlControls::GetSourceControlCheckInStatusIcon()
 	static const FSlateBrush* HasLocalChangesBrush = FRevisionControlStyleManager::Get().GetBrush("RevisionControl.StatusBar.HasLocalChanges");
 
 	if (GetNumConflictsRemaining() > 0)
+	{
+		return ConflictBrush;
+	}
+	if (GetNumConflictsUpcoming() > 0)
 	{
 		return ConflictBrush;
 	}
@@ -507,9 +510,16 @@ bool SSourceControlControls::IsSourceControlRestoreAsLatestEnabled()
 
 EVisibility SSourceControlControls::GetSourceControlRestoreAsLatestVisibility()
 {
+	bool bVisibleSourceControlRestoreAsLatestStatus = false;
 	if (IsRestoreAsLatestVisible.IsBound())
 	{
-		return IsRestoreAsLatestVisible.Execute() ? EVisibility::Visible : EVisibility::Collapsed;
+		bVisibleSourceControlRestoreAsLatestStatus = IsRestoreAsLatestVisible.Execute();
+	}
+
+	bool bDisplaySourceControlRestoreAsLatestStatus = DisplayRestoreAsLatestStatus();
+	if (bVisibleSourceControlRestoreAsLatestStatus && bDisplaySourceControlRestoreAsLatestStatus)
+	{
+		return EVisibility::Visible;
 	}
 
 	return EVisibility::Collapsed;

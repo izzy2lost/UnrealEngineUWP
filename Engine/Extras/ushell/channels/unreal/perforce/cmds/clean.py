@@ -192,7 +192,9 @@ class Clean(flow.cmd.Cmd):
         self.print_info("Finding directories and files to clean")
         root_dirs = [
             engine_dir,
+            *(x for x in engine_dir.glob("Platforms/*") if x.is_dir()),
             *(x for x in engine_dir.glob("Programs/*") if x.is_dir()),
+            *(x for x in engine_dir.glob("Restricted/*") if x.is_dir()),
         ]
 
         print("Enumerating...", end="")

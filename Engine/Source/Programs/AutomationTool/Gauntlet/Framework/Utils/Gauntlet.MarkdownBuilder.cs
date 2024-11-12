@@ -130,7 +130,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Insert an H5 header
 		/// </summary>
-		/// <param name="Text"></param>
+		/// <param name="Count"></param>
 		/// <returns></returns>
 		public MarkdownBuilder HorizontalLine(int Count=80)
 		{

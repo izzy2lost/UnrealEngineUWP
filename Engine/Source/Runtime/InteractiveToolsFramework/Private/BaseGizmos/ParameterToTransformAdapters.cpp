@@ -180,20 +180,42 @@ void UGizmoUniformScaleParameterSource::SetParameter(const FVector2D& NewValue)
 	// This possibly be exposed as a TFunction to allow customization?
 	double SignedDelta = LastChange.GetChangeDelta().X + LastChange.GetChangeDelta().Y;
 	SignedDelta *= ScaleMultiplier;
-	SignedDelta += 1.0;
 
 	FTransform NewTransform = InitialTransform;
-	FVector StartScale = InitialTransform.GetScale3D();
-	FVector NewScale = SignedDelta * StartScale;
-	NewTransform.SetScale3D(NewScale);
+	const FVector StartScale = InitialTransform.GetScale3D();
+	
+	double SnappedDelta;
+	bool bIsSnapped = false;
 
-	// apply position constraint
-	//FVector SnappedPos;
-	//if (PositionConstraintFunction(NewTransform.GetScale(), SnappedPos))
-	//{
-	//	FVector PlanePos = GizmoMath::ProjectPointOntoPlane(SnappedPos, CurTranslationOrigin, CurTranslationNormal);
-	//	NewTransform.SetTranslation(PlanePos);
-	//}
+	// if using snapping while scaling
+	if (ScaleAxisDeltaConstraintFunction(SignedDelta, SnappedDelta))
+	{
+		SignedDelta = SnappedDelta;
+		bIsSnapped = true;
+	}
+
+	FVector NewScale;
+	// if the initial scale is uniform and snapping is on, we can use an additive method to scale up or down
+	if (StartScale.IsUniform() && bIsSnapped)
+	{
+		NewScale = FVector(SignedDelta) + StartScale;
+	}
+	// otherwise, we need to use multiplication to scale
+	// ex: initial scale is (1,2,4) and scale delta is .5 -> next incremented scale should be (1.5, 3, 6)
+	//     to preserve proportions. Addition would result in (1.5, 2.5, 4.5) which does not keep original proportions.
+	//     Additionally, using multiplication when scale is uniform would result in an ex where InitScale=(2,2,2) and
+	//     ScaleDelta = .5 where next scale would be (3,3,3), where the intermediate scale of (2.5,2.5,2.5) is unreachable
+	else
+	{
+		NewScale = SignedDelta * StartScale + StartScale;
+	}
+
+	// currently calling ScaleConstraintFunction has no effect (no changes made to SignedDelta) because this constraint function
+	// is intended to relate to WorldGridSnapping. Currently WorldGridSnapping has no effect on scaling, with or without normal snapping
+	// because the viewport scale mode fixes the transform space to local
+	SignedDelta = ScaleConstraintFunction(SignedDelta);
+
+	NewTransform.SetScale3D(NewScale);
 
 	TransformSource->SetTransform(NewTransform);
 
@@ -225,14 +247,33 @@ void UGizmoAxisScaleParameterSource::SetParameter(float NewValue)
 {
 	Parameter = NewValue;
 	LastChange.CurrentValue = NewValue;
+	
+	double ScaleDelta = LastChange.GetChangeDelta();
+	ScaleDelta *= ScaleMultiplier;
 
-	// construct translation as delta from initial position
-	float ScaleDelta = LastChange.GetChangeDelta() * ScaleMultiplier;
-
-	// translate the initial transform
 	FTransform NewTransform = InitialTransform;
-	FVector StartScale = InitialTransform.GetScale3D();
-	FVector NewScale = StartScale + ScaleDelta * CurScaleAxis;
+	const FVector StartScale = InitialTransform.GetScale3D();
+
+	FVector NewScale;
+	double SnappedDelta;
+	
+	// check for any constraints on the delta value
+	if (ScaleAxisDeltaConstraintFunction(ScaleDelta, SnappedDelta))
+	{
+		ScaleDelta = SnappedDelta;
+		// use additive scaling when snap is on
+		NewScale = StartScale + ScaleDelta * CurScaleAxis;
+	}
+	else
+	{
+		// use multiplicative scaling when snap is off
+		NewScale = StartScale * (FVector3d{1} + (ScaleDelta * CurScaleAxis));
+	}
+
+	// currently calling ScaleConstraintFunction has no effect (no changes made to ScaleDelta) because this constraint function
+	// is intended to relate to WorldGridSnapping. Currently WorldGridSnapping has no effect on scaling, with or without normal snapping
+	// because the viewport scale mode fixes the transform space to local
+	ScaleDelta = ScaleConstraintFunction(ScaleDelta);
 
 	if (bClampToZero)
 	{
@@ -240,15 +281,6 @@ void UGizmoAxisScaleParameterSource::SetParameter(float NewValue)
 	}
 
 	NewTransform.SetScale3D(NewScale);
-
-
-	// apply position constraint
-	//FVector SnappedPos;
-	//if (ScaleConstraintFunction(NewTransform.GetTranslation(), SnappedPos))
-	//{
-	//	FVector SnappedLinePos = GizmoMath::ProjectPointOntoLine(SnappedPos, CurTranslationOrigin, CurTranslationAxis);
-	//	NewTransform.SetTranslation(SnappedLinePos);
-	//}
 
 	TransformSource->SetTransform(NewTransform);
 
@@ -281,16 +313,69 @@ void UGizmoPlaneScaleParameterSource::SetParameter(const FVector2D& NewValue)
 	LastChange.CurrentValue = NewValue;
 
 	// construct Scale as delta from initial position
-	FVector2D Delta = LastChange.GetChangeDelta() * ScaleMultiplier;
+	FVector2D ScaleDelta = LastChange.GetChangeDelta() * ScaleMultiplier;
 
 	if (bUseEqualScaling)
 	{
-		Delta = FVector2D(Delta.X + Delta.Y);
+		ScaleDelta = FVector2D(ScaleDelta.X + ScaleDelta.Y);
 	}
 
 	FTransform NewTransform = InitialTransform;
-	FVector StartScale = InitialTransform.GetScale3D();
-	FVector NewScale = StartScale + Delta.X*CurScaleAxisX + Delta.Y*CurScaleAxisY;
+	const FVector StartScale = InitialTransform.GetScale3D();
+
+	double UseScaleDeltaX = ScaleDelta.X;
+	double UseScaleDeltaY = ScaleDelta.Y;
+	
+	FVector NewScale;
+
+	if (bUseEqualScaling)
+	{
+		double SnappedDeltaX = 0.0, SnappedDeltaY = 0.0;
+		bool bIsSnapped = true;
+		
+		// if using snapping while scaling on X and Y axis
+		if (ScaleAxisXDeltaConstraintFunction(UseScaleDeltaX, SnappedDeltaX))
+		{
+			UseScaleDeltaX = SnappedDeltaX;
+		}
+		else
+		{
+			bIsSnapped = false;
+		}
+		if (ScaleAxisYDeltaConstraintFunction(UseScaleDeltaY, SnappedDeltaY))
+		{
+			UseScaleDeltaY = SnappedDeltaY;
+		}
+		else
+		{
+			bIsSnapped = false;
+		}
+
+		// determines if the initial scales of the 2 affected axes are equivalent, and if we can therefore use uniform scaling (additive function)
+		const FVector AffectedValuesVector  = StartScale*CurScaleAxisX + StartScale*CurScaleAxisY;
+		const bool bIsUniformAcrossScaleAxes = (AffectedValuesVector.X == AffectedValuesVector.Y) || (AffectedValuesVector.X == AffectedValuesVector.Z) || (AffectedValuesVector.Y == AffectedValuesVector.Z);
+
+		// will use additive if scale is uniform across 2 axes of the plane AND snapping is on
+		if (bIsUniformAcrossScaleAxes && bIsSnapped)
+		{
+			// uses an additive function to scale when both initial values are equal
+			// ex: allows for a case where InitScale= (2,2,1) scaling by 1 across Z axis, next increment will be (3,3,1) instead of (4,4,1)
+			NewScale = StartScale + UseScaleDeltaX*CurScaleAxisX + UseScaleDeltaY*CurScaleAxisY;
+		}
+		else
+		{
+			NewScale = StartScale + (UseScaleDeltaX * StartScale * CurScaleAxisX) + (UseScaleDeltaY * StartScale * CurScaleAxisY);
+		}
+	}
+	else
+	{
+		NewScale = StartScale + (UseScaleDeltaX * StartScale * CurScaleAxisX) + (UseScaleDeltaY * StartScale * CurScaleAxisY);
+	}
+	
+	// currently calling ScaleConstraintFunction has no effect (no changes made to SignedDelta) because this constraint function
+	// is intended to relate to WorldGridSnapping. Currently WorldGridSnapping has no effect on scaling, with or without normal snapping
+	// because the viewport scale mode fixes the transform space to local
+	ScaleDelta = ScaleConstraintFunction(ScaleDelta);
 
 	if (bClampToZero)
 	{
@@ -298,14 +383,6 @@ void UGizmoPlaneScaleParameterSource::SetParameter(const FVector2D& NewValue)
 	}
 
 	NewTransform.SetScale3D(NewScale);
-
-	// apply position constraint
-	//FVector SnappedPos;
-	//if (PositionConstraintFunction(NewTransform.GetScale(), SnappedPos))
-	//{
-	//	FVector PlanePos = GizmoMath::ProjectPointOntoPlane(SnappedPos, CurTranslationOrigin, CurTranslationNormal);
-	//	NewTransform.SetTranslation(PlanePos);
-	//}
 
 	TransformSource->SetTransform(NewTransform);
 

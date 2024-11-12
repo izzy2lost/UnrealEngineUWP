@@ -6,8 +6,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMInvokeEntryNode)
 
-const FString URigVMInvokeEntryNode::EntryName = TEXT("Entry");
-
 URigVMInvokeEntryNode::URigVMInvokeEntryNode()
 {
 }

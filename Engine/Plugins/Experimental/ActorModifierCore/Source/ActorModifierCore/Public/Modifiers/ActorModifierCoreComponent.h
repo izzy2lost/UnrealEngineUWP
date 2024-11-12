@@ -13,12 +13,15 @@ class UActorModifierCoreComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
+	friend class UActorModifierCoreBase;
+
 public:
 	/** Create this component for a specific actor and exposes it to the editor and for serialization */
 	static UActorModifierCoreComponent* CreateAndExposeComponent(AActor* InParentActor);
 
 	UActorModifierCoreComponent();
 
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers")
 	UActorModifierCoreStack* GetModifierStack() const
 	{
 		return ModifierStack;
@@ -31,17 +34,15 @@ protected:
 	//~ End UActorComponent
 
 	//~ Begin UObject
+	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditUndo() override;
 #endif
 	//~ End UObject
 
-	/** Initialize the inner root stack for the actor it is attached */
-	void InitializeStack();
-
 	virtual void TickComponent(float InDeltaTime, ELevelTick InTickType, FActorComponentTickFunction* InThisTickFunction) override;
 
 	/** This is the root stack that will contain all modifiers for this actor */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, NoClear, Export, Instanced, Category="Modifiers")
+	UPROPERTY(VisibleInstanceOnly, NoClear, Export, Instanced, Category="Modifiers")
 	TObjectPtr<UActorModifierCoreStack> ModifierStack = nullptr;
 };

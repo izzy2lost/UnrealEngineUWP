@@ -96,7 +96,7 @@ void AddSimpleMeshPass(FRDGBuilder& GraphBuilder, PassParametersType* PassParame
 		MoveTemp(PassName),
 		PassParameters,
 		PassFlags,
-		[SimpleMeshDrawCommandPass, PassParameters, PassPrologueCallback](FRHICommandList& RHICmdList)
+		[SimpleMeshDrawCommandPass, PassParameters, PassPrologueCallback](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			PassPrologueCallback(RHICmdList);
 
@@ -171,7 +171,7 @@ void AddSimpleMeshPass(FRDGBuilder& GraphBuilder, PassParametersType* PassParame
 		MoveTemp(PassName),
 		PassParameters,
 		PassFlags,
-		[SimpleMeshDrawCommandPass, PassParameters, PassPrologueCallback](FRHICommandList& RHICmdList)
+		[SimpleMeshDrawCommandPass, PassParameters, PassPrologueCallback](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			PassPrologueCallback(RHICmdList);
 

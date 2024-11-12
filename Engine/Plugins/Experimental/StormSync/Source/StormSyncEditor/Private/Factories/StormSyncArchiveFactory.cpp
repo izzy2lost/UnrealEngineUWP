@@ -122,7 +122,7 @@ void UStormSyncArchiveFactory::OnFileImported(const FString& InFilename)
 		if (UObject* AssetObject = FoundAssetPath->ResolveObject())
 		{
 			// Since deletion can be delayed, rename to avoid future name collision
-			AssetObject->Rename( nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders );
+			AssetObject->Rename( nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 
 			// Mark the object for GC (eventually).
 			AssetObject->RemoveFromRoot();

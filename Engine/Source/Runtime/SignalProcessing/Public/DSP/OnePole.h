@@ -48,8 +48,7 @@ namespace Audio
 
 		FORCEINLINE float ProcessAudioSample(const float InputSample)
 		{
-			float Yn = InputSample*A0 + B1*Z1;
-			Yn = UnderflowClamp(Yn);
+			const float Yn = InputSample*A0 + B1*Z1;
 			Z1 = Yn;
 			return Yn;
 		}
@@ -127,8 +126,7 @@ namespace Audio
 		{			
 			for (int32 i = 0; i < NumChannels; ++i)
 			{
-				float Yn = InputFrame[i] * A0 + B1*DelayPtr[i];
-				Yn = UnderflowClamp(Yn);
+				const float Yn = InputFrame[i] * A0 + B1*DelayPtr[i];
 				DelayPtr[i] = Yn;
 				OutputFrame[i] = Yn;
 			}

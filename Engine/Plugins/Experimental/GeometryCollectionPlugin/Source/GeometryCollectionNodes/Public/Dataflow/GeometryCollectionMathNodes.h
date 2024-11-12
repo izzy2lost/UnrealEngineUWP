@@ -7,6 +7,12 @@
 
 #include "GeometryCollectionMathNodes.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dataflow instead.") Dataflow {}
+#endif
+
 /**
 *
 * 
@@ -28,7 +34,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FAddDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FAddDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&FloatA);
@@ -36,7 +42,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -60,7 +66,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FSubtractDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FSubtractDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&FloatA);
@@ -68,7 +74,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -92,7 +98,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FMultiplyDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FMultiplyDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&FloatA);
@@ -100,7 +106,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -124,7 +130,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FSafeDivideDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FSafeDivideDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&FloatA);
@@ -132,7 +138,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 USTRUCT(meta = (DataflowGeometryCollection))
@@ -142,7 +148,7 @@ struct FDivideDataflowNode : public FSafeDivideDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FDivideDataflowNode, "Divide", "Math|Float", "")
 
 public:
-	FDivideDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FDivideDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FSafeDivideDataflowNode(InParam, InGuid)
 	{}
 };
@@ -171,7 +177,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 ReturnValue = 0.f;
 
-	FDivisionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FDivisionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Dividend);
@@ -180,7 +186,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -201,14 +207,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FSafeReciprocalDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FSafeReciprocalDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -229,14 +235,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FSquareDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FSquareDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -257,14 +263,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FSquareRootDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FSquareRootDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -285,14 +291,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FInverseSqrtDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FInverseSqrtDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -313,14 +319,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FCubeDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCubeDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -341,14 +347,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FNegateDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FNegateDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -369,14 +375,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FAbsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FAbsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -397,14 +403,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FFloorDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FFloorDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -425,14 +431,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FCeilDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCeilDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -453,14 +459,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FRoundDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FRoundDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -481,14 +487,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FTruncDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FTruncDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -509,14 +515,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FFracDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FFracDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -540,7 +546,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FMinDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FMinDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&FloatA);
@@ -548,7 +554,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -572,7 +578,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 		float ReturnValue = 0.f;
 
-	FMaxDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FMaxDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&FloatA);
@@ -580,7 +586,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -607,7 +613,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 		float ReturnValue = 0.f;
 
-	FMin3DataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FMin3DataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&FloatA);
@@ -616,7 +622,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -643,7 +649,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FMax3DataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FMax3DataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&FloatA);
@@ -652,7 +658,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -673,14 +679,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FSignDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FSignDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -707,7 +713,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FClampDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FClampDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
@@ -716,7 +722,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -750,7 +756,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FFitDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FFitDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
@@ -761,7 +767,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -795,7 +801,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FEFitDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FEFitDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
@@ -806,7 +812,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -830,7 +836,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FPowDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FPowDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Base);
@@ -838,7 +844,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -862,7 +868,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FLogDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FLogDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&A);
@@ -870,7 +876,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -891,14 +897,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FLogeDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FLogeDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&A);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -925,7 +931,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FLerpDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FLerpDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&A);
@@ -934,7 +940,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -961,7 +967,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FWrapDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FWrapDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
@@ -970,7 +976,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -991,14 +997,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FExpDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FExpDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1019,14 +1025,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FSinDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FSinDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1047,14 +1053,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FArcSinDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FArcSinDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1075,14 +1081,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FCosDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCosDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1103,14 +1109,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FArcCosDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FArcCosDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1131,14 +1137,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FTanDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FTanDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1159,14 +1165,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FArcTanDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FArcTanDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1190,7 +1196,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FArcTan2DataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FArcTan2DataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Y);
@@ -1198,7 +1204,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1225,7 +1231,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FNormalizeToRangeDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FNormalizeToRangeDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
@@ -1234,7 +1240,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1258,7 +1264,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	FVector ScaledVector = FVector(0.f);
 
-	FScaleVectorDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FScaleVectorDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Vector);
@@ -1266,7 +1272,7 @@ public:
 		RegisterOutputConnection(&ScaledVector);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1290,7 +1296,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FDotProductDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FDotProductDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&VectorA);
@@ -1298,7 +1304,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1322,7 +1328,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	FVector ReturnValue = FVector(0.f);
 
-	FCrossProductDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCrossProductDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&VectorA);
@@ -1330,7 +1336,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1354,7 +1360,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	FVector ReturnValue = FVector(0.f);
 
-	FNormalizeDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FNormalizeDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&VectorA);
@@ -1362,7 +1368,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1383,14 +1389,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FLengthDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FLengthDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Vector);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1414,7 +1420,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FDistanceDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FDistanceDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&PointA);
@@ -1422,7 +1428,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1443,14 +1449,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	bool ReturnValue = false;
 
-	FIsNearlyZeroDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FIsNearlyZeroDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Float);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1474,7 +1480,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FRandomFloatDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FRandomFloatDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RandomSeed = FMath::FRandRange(-1e5, 1e5);
@@ -1482,7 +1488,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1513,7 +1519,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FRandomFloatInRangeDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FRandomFloatInRangeDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RandomSeed = FMath::FRandRange(-1e5, 1e5);
@@ -1523,7 +1529,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1549,7 +1555,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	FVector ReturnValue = FVector(0.0);
 
-	FRandomUnitVectorDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FRandomUnitVectorDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RandomSeed = FMath::FRandRange(-1e5, 1e5);
@@ -1557,7 +1563,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1591,7 +1597,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	FVector ReturnValue = FVector(0.0);
 
-	FRandomUnitVectorInConeDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FRandomUnitVectorInConeDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RandomSeed = FMath::FRandRange(-1e5, 1e5);
@@ -1601,7 +1607,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1624,14 +1630,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float Degrees = 0.f;
 
-	FRadiansToDegreesDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FRadiansToDegreesDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Radians);
 		RegisterOutputConnection(&Degrees);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1654,14 +1660,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float Radians = 0.f;
 
-	FDegreesToRadiansDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FDegreesToRadiansDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Degrees);
 		RegisterOutputConnection(&Radians);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1707,13 +1713,13 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0;
 
-	FMathConstantsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FMathConstantsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1735,18 +1741,87 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FOneMinusDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FOneMinusDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&A);
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
+/**
+*
+* Expression node for floats
+*
+*/
+USTRUCT()
+struct FFloatMathExpressionDataflowNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FFloatMathExpressionDataflowNode, "FloatMathExpression", "Math|Float", "")
 
-namespace Dataflow
+public:
+	UPROPERTY(EditAnywhere, Category = "Variables", meta = (DataflowInput));
+	float A = 0.f;
+
+	UPROPERTY(EditAnywhere, Category = "Variables", meta = (DataflowInput));
+	float B = 0.f;
+
+	UPROPERTY(EditAnywhere, Category = "Variables", meta = (DataflowInput));
+	float C = 0.f;
+
+	UPROPERTY(EditAnywhere, Category = "Variables", meta = (DataflowInput));
+	float D = 0.f;
+
+	UPROPERTY(EditAnywhere, Category = "Expression");
+	FString Expression;
+
+	UPROPERTY(meta = (DataflowOutput))
+	float ReturnValue = 0.f;
+
+	FFloatMathExpressionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};
+
+/**
+*
+* Expression node for floats
+*
+*/
+USTRUCT()
+struct FMathExpressionDataflowNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FMathExpressionDataflowNode, "MathExpression", "Math", "")
+
+public:
+	UPROPERTY(EditAnywhere, Category = Inputs, meta = (DataflowInput));
+	FDataflowNumericTypes A;
+
+	UPROPERTY(EditAnywhere, Category = Inputs, meta = (DataflowInput));
+	FDataflowNumericTypes B;
+
+	UPROPERTY(EditAnywhere, Category = Inputs, meta = (DataflowInput));
+	FDataflowNumericTypes C;
+
+	UPROPERTY(EditAnywhere, Category = Inputs, meta = (DataflowInput));
+	FDataflowNumericTypes D;
+
+	UPROPERTY(EditAnywhere, Category = Expression);
+	FString Expression;
+
+	UPROPERTY(meta = (DataflowOutput))
+	FDataflowNumericTypes ReturnValue;
+
+	FMathExpressionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};
+
+namespace UE::Dataflow
 {
 	void GeometryCollectionMathNodes();
 }

@@ -19,11 +19,11 @@ struct FWaterBodyRenderData
 	bool IsOcean() const { return WaterBodyType == 2; }
 
 	/** The standard material to be used for this water body */
-	UMaterialInterface* Material = nullptr;
+	FMaterialRenderProxy* Material = nullptr;
 
 	/** Transition materials (Only set up for river water bodies) */
-	UMaterialInterface* RiverToLakeMaterial = nullptr;
-	UMaterialInterface* RiverToOceanMaterial = nullptr;
+	FMaterialRenderProxy* RiverToLakeMaterial = nullptr;
+	FMaterialRenderProxy* RiverToOceanMaterial = nullptr;
 
 	/** World Z position of the waterbody, this is where the tiles for this water body will be rendered*/
 	double SurfaceBaseHeight = 0.0;
@@ -156,7 +156,7 @@ struct FWaterQuadTree
 	void AddLake(const TArray<FVector2D>& InPoly, const FBox& InLakeBounds, uint32 InWaterBodyIndex);
 
 	/** Add an automatically generated mesh (8 quads) skirt around InInnerRegion which extends out InFarDistanceMeshExtent, is placed at Z value InFarDistanceMeshHeight and is rendered using InFarMeshMaterial */
-	void AddFarMesh(const UMaterialInterface* InFarMeshMaterial, const FBox2D& InInnerRegion, double InFarDistanceMeshExtent, double InFarDistanceMeshHeight);
+	void AddFarMesh(FMaterialRenderProxy* InFarMeshMaterial, const FBox2D& InInnerRegion, double InFarDistanceMeshExtent, double InFarDistanceMeshHeight);
 
 	/** Assign an index to each material */
 	void BuildMaterialIndices();
@@ -335,7 +335,7 @@ private:
 		TArray<FFarMeshInstanceData> InstanceData;
 
 		/** Material for the Far Distance Mesh, its material render proxy will be cached in WaterMaterials when BuildMaterialIndices is called */
-		const UMaterialInterface* Material = nullptr;
+		FMaterialRenderProxy* Material = nullptr;
 
 		void Clear()
 		{

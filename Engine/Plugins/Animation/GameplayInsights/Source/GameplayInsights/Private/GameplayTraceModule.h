@@ -6,7 +6,6 @@
 #include "TraceServices/ModuleService.h"
 
 class IAnimationProvider;
-namespace Insights { class ITimingViewSession; }
 
 class FGameplayTraceModule : public TraceServices::IModule
 {

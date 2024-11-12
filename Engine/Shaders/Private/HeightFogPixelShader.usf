@@ -18,6 +18,7 @@ float UpsampleJitterMultiplier;
 
 float bOnlyOnRenderedOpaque;
 uint bUseWaterDepthTexture;
+uint bPropagateAlpha;
 
 float4 WaterDepthTextureMinMaxUV;
 float4 OcclusionTextureMinMaxUV;
@@ -128,12 +129,16 @@ void ExponentialPixelMain(
 		FogInscatteringAndOpacity.a = 1;
 	}
 	
-#if POST_PROCESS_ALPHA
-	// We need to output coverage so that we can potentially apply alpha hold out blending. See RenderViewFog.
-	OutColor = RETURN_COLOR(float4(FogInscatteringAndOpacity.rgb, 1.0 - FogInscatteringAndOpacity.w));
-#else
-	OutColor = RETURN_COLOR(float4(FogInscatteringAndOpacity.rgb, FogInscatteringAndOpacity.w));
-#endif
+	FLATTEN
+	if (bPropagateAlpha)
+	{
+		// We need to output coverage so that we can potentially apply alpha hold out blending. See RenderViewFog.
+		OutColor = RETURN_COLOR(float4(FogInscatteringAndOpacity.rgb, 1.0 - FogInscatteringAndOpacity.w));
+	}
+	else
+	{
+		OutColor = RETURN_COLOR(float4(FogInscatteringAndOpacity.rgb, FogInscatteringAndOpacity.w));
+	}
 	
 #endif // PERMUTATION_SAMPLE_FOG_ON_CLOUDS
 }

@@ -807,7 +807,7 @@ bool RawBuffer::UncompressGeneric(FName InName)
 	return FCompression::UncompressMemory(InName, (void*)Data, (int32)Length, (const void*)CompressedData, (int32)CompressedLength);
 }
 
-void RawBuffer::GetAsLinearColor(TArray<FLinearColor>& Pixels)
+void RawBuffer::GetAsLinearColor(TArray<FLinearColor>& Pixels) const
 {
 	Pixels.AddDefaulted(Desc.Width * Desc.Height);
 
@@ -914,7 +914,7 @@ void RawBuffer::GetAsLinearColor(TArray<FLinearColor>& Pixels)
 	}*/
 }
 
-FLinearColor RawBuffer::GetAsLinearColor(int PixelIndex)
+FLinearColor RawBuffer::GetAsLinearColor(int PixelIndex) const
 {
 	FLinearColor LinearColor = FLinearColor::Black;
 

@@ -8,6 +8,7 @@
 #include "Internationalization/TextKey.h"
 #include "Internationalization/TextPackageNamespaceUtil.h"
 #include "Misc/RuntimeErrors.h"
+#include "UObject/EnumProperty.h"
 
 #define LOCTEXT_NAMESPACE "Kismet"
 
@@ -146,7 +147,7 @@ FText UKismetTextLibrary::GetEmptyText()
 
 bool UKismetTextLibrary::FindTextInLocalizationTable(const FString& Namespace, const FString& Key, FText& OutText, const FString& SourceString)
 {
-	return FText::FindText(Namespace, Key, OutText, SourceString.IsEmpty() ? nullptr : &SourceString);
+	return FText::FindTextInLiveTable_Advanced(Namespace, Key, OutText, SourceString.IsEmpty() ? nullptr : &SourceString);
 }
 
 bool UKismetTextLibrary::EqualEqual_IgnoreCase_TextText(const FText& A, const FText& B)
@@ -271,39 +272,52 @@ FText UKismetTextLibrary::AsPercent_Float(float Value, TEnumAsByte<ERoundingMode
 	return FText::AsPercent(Value, &NumberFormatOptions);
 }
 
-FText UKismetTextLibrary::AsDate_DateTime(const FDateTime& InDateTime)
+FText UKismetTextLibrary::AsDate_DateTime(const FDateTime& InDateTime, TEnumAsByte<EDateTimeStyle::Type> InDateStyle)
 {
-	return FText::AsDate(InDateTime, EDateTimeStyle::Default, FText::GetInvariantTimeZone());
+	return FText::AsDate(InDateTime, InDateStyle, FText::GetInvariantTimeZone());
 }
 
-FText UKismetTextLibrary::AsTimeZoneDate_DateTime(const FDateTime& InDateTime, const FString& InTimeZone)
+FText UKismetTextLibrary::AsTimeZoneDate_DateTime(const FDateTime& InDateTime, const FString& InTimeZone, TEnumAsByte<EDateTimeStyle::Type> InDateStyle)
 {
-	return FText::AsDate(InDateTime, EDateTimeStyle::Default, InTimeZone);
+	return FText::AsDate(InDateTime, InDateStyle, InTimeZone);
 }
 
-FText UKismetTextLibrary::AsDateTime_DateTime(const FDateTime& InDateTime)
+FText UKismetTextLibrary::AsDateTime_DateTime(const FDateTime& InDateTime, TEnumAsByte<EDateTimeStyle::Type> InDateStyle, TEnumAsByte<EDateTimeStyle::Type> InTimeStyle)
 {
-	return FText::AsDateTime(InDateTime, EDateTimeStyle::Default, EDateTimeStyle::Default, FText::GetInvariantTimeZone());
+	return FText::AsDateTime(InDateTime, InDateStyle, InTimeStyle, FText::GetInvariantTimeZone());
 }
 
-FText UKismetTextLibrary::AsTimeZoneDateTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone)
+FText UKismetTextLibrary::AsTimeZoneDateTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone, TEnumAsByte<EDateTimeStyle::Type> InDateStyle, TEnumAsByte<EDateTimeStyle::Type> InTimeStyle)
 {
-	return FText::AsDateTime(InDateTime, EDateTimeStyle::Default, EDateTimeStyle::Default, InTimeZone);
+	return FText::AsDateTime(InDateTime, InDateStyle, InTimeStyle, InTimeZone);
 }
 
-FText UKismetTextLibrary::AsTime_DateTime(const FDateTime& InDateTime)
+FText UKismetTextLibrary::AsTime_DateTime(const FDateTime& InDateTime, TEnumAsByte<EDateTimeStyle::Type> InTimeStyle)
 {
-	return FText::AsTime(InDateTime, EDateTimeStyle::Default, FText::GetInvariantTimeZone());
+	return FText::AsTime(InDateTime, InTimeStyle, FText::GetInvariantTimeZone());
 }
 
-FText UKismetTextLibrary::AsTimeZoneTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone)
+FText UKismetTextLibrary::AsTimeZoneTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone, TEnumAsByte<EDateTimeStyle::Type> InTimeStyle)
 {
-	return FText::AsTime(InDateTime, EDateTimeStyle::Default, InTimeZone);
+	return FText::AsTime(InDateTime, InTimeStyle, InTimeZone);
 }
 
 FText UKismetTextLibrary::AsTimespan_Timespan(const FTimespan& InTimespan)
 {
 	return FText::AsTimespan(InTimespan);
+}
+
+FText UKismetTextLibrary::AsMemory(int64 NumBytes, TEnumAsByte<EMemoryUnitStandard> UnitStandard, bool bUseGrouping, int32 MinimumIntegralDigits, int32 MaximumIntegralDigits, int32 MinimumFractionalDigits, int32 MaximumFractionalDigits)
+{
+	FNumberFormattingOptions NumberFormatOptions;
+	NumberFormatOptions.UseGrouping = bUseGrouping;
+	NumberFormatOptions.MinimumIntegralDigits = MinimumIntegralDigits;
+	NumberFormatOptions.MaximumIntegralDigits = MaximumIntegralDigits;
+	NumberFormatOptions.MinimumFractionalDigits = MinimumFractionalDigits;
+	NumberFormatOptions.MaximumFractionalDigits = MaximumFractionalDigits;
+
+	uint64 UnsignedNumBytes = static_cast<uint64>(FMath::Max(0, NumBytes));
+	return FText::AsMemory(UnsignedNumBytes, &NumberFormatOptions, nullptr, UnitStandard);
 }
 
 FText UKismetTextLibrary::Format(FText InPattern, TArray<FFormatArgumentData> InArgs)
@@ -331,8 +345,8 @@ bool UKismetTextLibrary::GetTextId(FText Text, FString& OutNamespace, FString& O
 	const FTextId TextId = FTextInspector::GetTextId(Text);
 	if (!TextId.IsEmpty())
 	{
-		OutNamespace = TextId.GetNamespace().GetChars();
-		OutKey = TextId.GetKey().GetChars();
+		TextId.GetNamespace().ToString(OutNamespace);
+		TextId.GetKey().ToString(OutKey);
 		return true;
 	}
 	return false;
@@ -421,6 +435,64 @@ DEFINE_FUNCTION(UKismetTextLibrary::execEditTextSourceString)
 		{
 			*(bool*)RESULT_PARAM = true;
 			Text = TextProperty->GetPropertyValue_InContainer(TextOwner);
+		}
+	}
+	P_NATIVE_END;
+}
+
+FText UKismetTextLibrary::Conv_NumericPropertyToText(const int32& Value)
+{
+	// We should never hit this! Stubbed to avoid NoExport on the class.
+	check(0);
+	return FText::GetEmpty();
+}
+
+DEFINE_FUNCTION(UKismetTextLibrary::execConv_NumericPropertyToText)
+{
+	Stack.StepCompiledIn<FProperty>(nullptr);
+	const FProperty* SourceProperty = Stack.MostRecentProperty;
+	void* SourceValuePtr = Stack.MostRecentPropertyAddress;
+
+	P_FINISH;
+
+	P_NATIVE_BEGIN;
+	{
+		*(FText*)RESULT_PARAM = FText::GetEmpty();
+
+		if (SourceProperty == nullptr || SourceValuePtr == nullptr)
+		{
+			LogRuntimeWarning(LOCTEXT("GenericToText.Warning.NullProperty", "The property is invalid!"));
+			return;
+		}
+
+
+		if (const FNumericProperty* NumericProperty = CastField<FNumericProperty>(SourceProperty))
+		{
+			if (NumericProperty->IsFloatingPoint())
+			{
+				double Value = NumericProperty->GetFloatingPointPropertyValue(SourceValuePtr);
+				*(FText*)RESULT_PARAM = FText::AsNumber(Value);
+			}
+			else if (UEnum* Enum = NumericProperty->GetIntPropertyEnum())
+			{
+				int64 Value = NumericProperty->GetSignedIntPropertyValue(SourceValuePtr);
+				*(FText*)RESULT_PARAM = Enum->GetDisplayNameTextByValue(Value);
+			}
+			else if (NumericProperty->IsInteger())
+			{
+				// Value from BP are always signed.
+				int64 Value = NumericProperty->GetSignedIntPropertyValue(SourceValuePtr);
+				*(FText*)RESULT_PARAM = FText::AsNumber(Value);
+			}
+		}
+		else if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(SourceProperty))
+		{
+			const int64 Value = EnumProperty->GetUnderlyingProperty()->GetSignedIntPropertyValue(SourceValuePtr);
+			*(FText*)RESULT_PARAM = EnumProperty->GetEnum()->GetDisplayNameTextByValue(Value);
+		}
+		else
+		{
+			LogRuntimeWarning(LOCTEXT("GenericToText.Warning.NotSupported", "The property not supported"));
 		}
 	}
 	P_NATIVE_END;

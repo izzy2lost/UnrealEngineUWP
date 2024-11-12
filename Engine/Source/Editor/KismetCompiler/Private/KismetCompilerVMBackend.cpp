@@ -19,7 +19,7 @@
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraph/EdGraphPin.h"
 #include "Engine/LatentActionManager.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "BPTerminal.h"
 #include "EdGraphSchema_K2.h"
 #include "K2Node_MacroInstance.h"
@@ -32,6 +32,7 @@
 #include "KismetCompilerBackend.h"
 
 #include "Misc/DefaultValueHelper.h"
+#include "ProjectUtilities/BuildTargetSet.h"
 
 #include "Kismet2/StructureEditorUtils.h"
 #include "Kismet2/KismetDebugUtilities.h"
@@ -94,7 +95,11 @@ public:
 
 	FArchive& operator<<(FObjectPtr& Res) override
 	{
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 		ScriptPointerType D = (ScriptPointerType)Res.GetHandle().PointerOrRef;
+#else
+		ScriptPointerType D = (ScriptPointerType)Res.GetHandle();
+#endif
 		FArchive& Ar = *this;
 
 		Ar << D;
@@ -626,6 +631,7 @@ public:
 
 	void EmitTermExpr(FBPTerminal* Term, const FProperty* CoerceProperty = NULL, bool bAllowStaticArray = false, bool bCallerRequiresBit = false)
 	{
+		constexpr EPropertyPortFlags ImportTextPortFlags = EPropertyPortFlags::PPF_SerializedAsImportText;
 		if (Term->bIsLiteral)
 		{
 			check(!Term->Type.IsContainer() || CoerceProperty);
@@ -715,8 +721,8 @@ public:
 					{
 						// BP bytecode always removes the package localization ID to match how text works at runtime
 						// If we're gathering editor-only text then we'll pick up the version with the package localization ID from the property/pin rather than the bytecode
-						const FString Namespace = TextNamespaceUtil::StripPackageNamespace(TextId.GetNamespace().GetChars());
-						const FString Key = TextId.GetKey().GetChars();
+						const FString Namespace = TextNamespaceUtil::StripPackageNamespace(TextId.GetNamespace().ToString());
+						const FString Key = TextId.GetKey().ToString();
 
 						Writer << EBlueprintTextLiteralType::LocalizedText;
 						EmitStringLiteral(*SourceString);
@@ -873,7 +879,7 @@ public:
 						const bool bParsedUsingCustomFormat = FDefaultValueHelper::ParseVector(Term->Name, /*out*/ V);
 						if (!bParsedUsingCustomFormat)
 						{
-							Struct->ImportText(*Term->Name, &V, nullptr, PPF_None, GWarn, GetPathNameSafe(StructProperty));
+							Struct->ImportText(*Term->Name, &V, nullptr, ImportTextPortFlags, GWarn, GetPathNameSafe(StructProperty));
 						}
 					}
 					Writer << EX_VectorConst;
@@ -887,7 +893,7 @@ public:
 						const bool bParsedUsingCustomFormat = FDefaultValueHelper::ParseVector(Term->Name, /*out*/ V);
 						if (!bParsedUsingCustomFormat)
 						{
-							Struct->ImportText(*Term->Name, &V, nullptr, PPF_None, GWarn, GetPathNameSafe(StructProperty));
+							Struct->ImportText(*Term->Name, &V, nullptr, ImportTextPortFlags, GWarn, GetPathNameSafe(StructProperty));
 						}
 					}
 					Writer << EX_Vector3fConst;
@@ -901,7 +907,7 @@ public:
 						const bool bParsedUsingCustomFormat = FDefaultValueHelper::ParseRotator(Term->Name, /*out*/ R);
 						if (!bParsedUsingCustomFormat)
 						{
-							Struct->ImportText(*Term->Name, &R, nullptr, PPF_None, GWarn, GetPathNameSafe(StructProperty));
+							Struct->ImportText(*Term->Name, &R, nullptr, ImportTextPortFlags, GWarn, GetPathNameSafe(StructProperty));
 						}
 					}
 					Writer << EX_RotationConst;
@@ -915,7 +921,7 @@ public:
 						const bool bParsedUsingCustomFormat = T.InitFromString(Term->Name);
 						if (!bParsedUsingCustomFormat)
 						{
-							Struct->ImportText(*Term->Name, &T, nullptr, PPF_None, GWarn, GetPathNameSafe(StructProperty));
+							Struct->ImportText(*Term->Name, &T, nullptr, ImportTextPortFlags, GWarn, GetPathNameSafe(StructProperty));
 						}
 					}
 					Writer << EX_TransformConst;
@@ -933,7 +939,7 @@ public:
 					}
 
 					// Assume that any errors on the import of the name string have been caught in the function call generation
-					Struct->ImportText(Term->Name.IsEmpty() ? TEXT("()") : *Term->Name, StructData, nullptr, PPF_None, GLog, GetPathNameSafe(StructProperty));
+					Struct->ImportText(Term->Name.IsEmpty() ? TEXT("()") : *Term->Name, StructData, nullptr, ImportTextPortFlags, GLog, GetPathNameSafe(StructProperty));
 
  					Writer << EX_StructConst;
 					Writer << Struct;
@@ -988,7 +994,7 @@ public:
 				FProperty* InnerProp = ArrayPropr->Inner;
 				ensure(InnerProp);
 				FScriptArray ScriptArray;
-				ArrayPropr->ImportText_Direct(*Term->Name, &ScriptArray, NULL, 0, GLog);
+				ArrayPropr->ImportText_Direct(*Term->Name, &ScriptArray, NULL, ImportTextPortFlags, GLog);
 
 				FScriptArrayHelper ScriptArrayHelper(ArrayPropr, &ScriptArray);
 				int32 ElementNum = ScriptArrayHelper.Num();
@@ -1009,7 +1015,7 @@ public:
 				ensure(InnerProp);
 
 				FScriptSet ScriptSet;
-				SetPropr->ImportText_Direct(*Term->Name, &ScriptSet, NULL, 0, GLog);
+				SetPropr->ImportText_Direct(*Term->Name, &ScriptSet, NULL, ImportTextPortFlags, GLog);
 				int32 ElementNum = ScriptSet.Num();
 
 				FScriptSetHelper ScriptSetHelper(SetPropr, &ScriptSet);
@@ -1032,7 +1038,7 @@ public:
 				ensure(KeyProp && ValProp);
 
 				FScriptMap ScriptMap;
-				MapPropr->ImportText_Direct(*Term->Name, &ScriptMap, NULL, 0, GLog);
+				MapPropr->ImportText_Direct(*Term->Name, &ScriptMap, NULL, ImportTextPortFlags, GLog);
 				int32 ElementNum = ScriptMap.Num();
 
 				FScriptMapHelper ScriptMapHelper(MapPropr, &ScriptMap);
@@ -1300,6 +1306,7 @@ public:
 		}
 
 		const bool bFinalFunction = FunctionToCall->HasAnyFunctionFlags(FUNC_Final) || Statement.bIsParentContext;
+		using namespace UE::ProjectUtilities;
 		const bool bMathCall = bFinalFunction
 			&& FunctionToCall->HasAllFunctionFlags(FUNC_Static|FUNC_Final|FUNC_Native)
 			&& !FunctionToCall->HasAnyFunctionFlags(FUNC_NetFuncFlags|FUNC_BlueprintAuthorityOnly|FUNC_BlueprintCosmetic|FUNC_NetRequest|FUNC_NetResponse)
@@ -1308,7 +1315,9 @@ public:
 			// is doing things with reflection data at runtime and will therefore benefit from
 			// the safety of a 'context' based function call (e.g. if context is invalid or
 			// 'bArrayContextFailed' we can skip the function call):
-			&& !UEdGraphSchema_K2::HasWildcardParams(FunctionToCall);
+			&& !UEdGraphSchema_K2::HasWildcardParams(FunctionToCall)
+			// Don't emit math calls if the target function may disapear on us at loadtime/runtime:
+			&& FBuildTargetSet::GetCallerTargetsUnsupportedByCallee(ClassBeingBuilt, FunctionToCall) == FBuildTargetSet();
 
 		const bool bLocalScriptFunction = 
 			!FunctionToCall->HasAnyFunctionFlags(FUNC_Native|FUNC_NetFuncFlags|FUNC_BlueprintAuthorityOnly|FUNC_BlueprintCosmetic|FUNC_NetRequest|FUNC_NetResponse);
@@ -2289,7 +2298,7 @@ void FKismetCompilerVMBackend::GenerateCodeFromClass(UClass* SourceClass, TIndir
 
 	// Remove duplicates from CalledFunctions:
 	UBlueprintGeneratedClass* ClassBeingBuilt = CastChecked<UBlueprintGeneratedClass>(SourceClass);
-	TSet<UFunction*> Unique(ClassBeingBuilt->CalledFunctions);
+	TSet<TObjectPtr<UFunction>> Unique(ClassBeingBuilt->CalledFunctions);
 	ClassBeingBuilt->CalledFunctions = Unique.Array();
 }
 

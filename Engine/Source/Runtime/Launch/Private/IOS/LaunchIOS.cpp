@@ -57,6 +57,8 @@ void FAppEntry::Suspend(bool bIsInterrupt)
 	{
 		GetMoviePlayer()->Suspend();
 	}
+	
+	FPreLoadScreenManager::EnableRendering(false);
 
 	// if background audio is active, then we don't want to do suspend any audio
 	if ([[IOSAppDelegate GetDelegate] IsFeatureActive:EAudioFeature::BackgroundAudio] == false)
@@ -150,6 +152,8 @@ void FAppEntry::Resume(bool bIsInterrupt)
 	{
 		GetMoviePlayer()->Resume();
 	}
+	
+	FPreLoadScreenManager::EnableRendering(true);
 
 	// if background audio is active, then we don't want to do suspend any audio
 	// @todo: should this check if we were suspended, in case this changes while in the background? (suspend with background off, but resume with background audio on? is that a thing?)
@@ -417,8 +421,6 @@ void FAppEntry::Init()
 {
 	SCOPED_BOOT_TIMING("FAppEntry::Init()");
 	
-	FPlatformProcess::SetRealTimeMode();
-	
 	//extern TCHAR GCmdLine[16384];
 	GEngineLoop.PreInit(FCommandLine::Get());
 
@@ -495,11 +497,7 @@ static double GPreviousSuspendTime = FPlatformTime::Seconds();
 void FAppEntry::Tick()
 {
 #if BUILD_EMBEDDED_APP
-	if (GWasTickSuspended)
-	{
-		FPlatformProcess::SetRealTimeMode();
-		GWasTickSuspended = false;
-	}
+	GWasTickSuspended = false;
 #endif
     
 	if (AudioContextResumeTime != 0)

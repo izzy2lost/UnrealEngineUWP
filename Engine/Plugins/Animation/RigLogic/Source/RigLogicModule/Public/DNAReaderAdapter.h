@@ -3,6 +3,7 @@
 #pragma once
 
 #include "DNAReader.h"
+#include "DNAUtils.h"
 #include "FMemoryResource.h"
 
 template <class TWrappedReader>
@@ -135,6 +136,49 @@ public:
 	TArrayView<const float> GetNeuralNetworkLayerActivationFunctionParameters(uint16 NetIndex, uint16 LayerIndex) const override;
 	TArrayView<const float> GetNeuralNetworkLayerBiases(uint16 NetIndex, uint16 LayerIndex) const override;
 	TArrayView<const float> GetNeuralNetworkLayerWeights(uint16 NetIndex, uint16 LayerIndex) const override;
+	// JointBehaviorMetadataReader
+	ETranslationRepresentation GetJointTranslationRepresentation(uint16 JointIndex) const override;
+	ERotationRepresentation GetJointRotationRepresentation(uint16 JointIndex) const override;
+	EScaleRepresentation GetJointScaleRepresentation(uint16 JointIndex) const override;
+	// RBFBehavior
+	uint16 GetRBFPoseCount() const override;
+	FString GetRBFPoseName(uint16 PoseIndex) const override;
+	TArrayView<const uint16> GetRBFPoseJointOutputIndices(uint16 PoseIndex) const override;
+	TArrayView<const uint16> GetRBFPoseBlendShapeChannelOutputIndices(uint16 PoseIndex) const override;
+	TArrayView<const uint16> GetRBFPoseAnimatedMapOutputIndices(uint16 PoseIndex) const override;
+	TArrayView<const float> GetRBFPoseJointOutputValues(uint16 PoseIndex) const override;
+	float GetRBFPoseScale(uint16 PoseIndex) const override;
+	uint16 GetRBFPoseControlCount() const override;
+	FString GetRBFPoseControlName(uint16 PoseControlIndex) const override;
+	TArrayView<const uint16> GetRBFPoseInputControlIndices(uint16 PoseIndex) const override;
+	TArrayView<const uint16> GetRBFPoseOutputControlIndices(uint16 PoseIndex) const override;
+	TArrayView<const float> GetRBFPoseOutputControlWeights(uint16 PoseIndex) const override;
+	uint16 GetRBFSolverCount() const override;
+	uint16 GetRBFSolverIndexListCount() const override;
+	TArrayView<const uint16> GetRBFSolverIndicesForLOD(uint16 LOD) const override;
+	FString GetRBFSolverName(uint16 SolverIndex) const override;
+	TArrayView<const uint16> GetRBFSolverRawControlIndices(uint16 SolverIndex) const override;
+	TArrayView<const uint16> GetRBFSolverPoseIndices(uint16 SolverIndex) const override;
+	TArrayView<const float> GetRBFSolverRawControlValues(uint16 SolverIndex) const override;
+	ERBFSolverType GetRBFSolverType(uint16 SolverIndex) const override;
+	float GetRBFSolverRadius(uint16 SolverIndex) const override;
+	EAutomaticRadius GetRBFSolverAutomaticRadius(uint16 SolverIndex) const override;
+	float GetRBFSolverWeightThreshold(uint16 SolverIndex) const override;
+	ERBFDistanceMethod GetRBFSolverDistanceMethod(uint16 SolverIndex) const override;
+	ERBFNormalizeMethod GetRBFSolverNormalizeMethod(uint16 SolverIndex) const override;
+	ERBFFunctionType GetRBFSolverFunctionType(uint16 SolverIndex) const override;
+	ETwistAxis GetRBFSolverTwistAxis(uint16 SolverIndex) const override;
+	// TwistSwingBehavior
+	uint16 GetTwistCount() const override;
+	ETwistAxis GetTwistSetupTwistAxis(uint16 TwistIndex) const override;
+	TArrayView<const uint16> GetTwistInputControlIndices(uint16 TwistIndex) const override;
+	TArrayView<const uint16> GetTwistOutputJointIndices(uint16 TwistIndex) const override;
+	TArrayView<const float> GetTwistBlendWeights(uint16 TwistIndex) const override;
+	uint16 GetSwingCount() const override;
+	ETwistAxis GetSwingSetupTwistAxis(uint16 SwingIndex) const override;
+	TArrayView<const uint16> GetSwingInputControlIndices(uint16 SwingIndex) const override;
+	TArrayView<const uint16> GetSwingOutputJointIndices(uint16 SwingIndex) const override;
+	TArrayView<const float> GetSwingBlendWeights(uint16 SwingIndex) const override;
 
 	void Unload(EDNADataLayer Layer) override;
 
@@ -167,7 +211,7 @@ dna::Reader* FDNAReader<TWrappedReader>::Unwrap() const
 template <class TWrappedReader>
 void FDNAReader<TWrappedReader>::Unload(EDNADataLayer Layer)
 {
-	ReaderPtr->unload(static_cast<dna::DataLayer>(Layer));
+	ReaderPtr->unload(CalculateDNADataLayerBitmask(Layer));
 }
 
 template <class TWrappedReader>
@@ -249,7 +293,8 @@ template <class TWrappedReader>
 FCoordinateSystem FDNAReader<TWrappedReader>::GetCoordinateSystem() const
 {
 	const auto System = ReaderPtr->getCoordinateSystem();
-	return FCoordinateSystem{
+	return FCoordinateSystem
+	{
 		static_cast<EDirection>(System.xAxis),
 		static_cast<EDirection>(System.yAxis),
 		static_cast<EDirection>(System.zAxis)
@@ -914,5 +959,263 @@ template <class TWrappedReader>
 TArrayView<const float> FDNAReader<TWrappedReader>::GetNeuralNetworkLayerWeights(uint16 NetIndex, uint16 LayerIndex) const
 {
 	const auto Values = ReaderPtr->getNeuralNetworkLayerWeights(NetIndex, LayerIndex);
+	return TArrayView<const float>(Values.data(), static_cast<int32>(Values.size()));
+}
+
+template <class TWrappedReader>
+ETranslationRepresentation FDNAReader<TWrappedReader>::GetJointTranslationRepresentation(uint16 JointIndex) const
+{
+	return static_cast<ETranslationRepresentation>(ReaderPtr->getJointTranslationRepresentation(JointIndex));
+}
+
+template <class TWrappedReader>
+ERotationRepresentation FDNAReader<TWrappedReader>::GetJointRotationRepresentation(uint16 JointIndex) const
+{
+	return static_cast<ERotationRepresentation>(ReaderPtr->getJointRotationRepresentation(JointIndex));
+}
+
+template <class TWrappedReader>
+EScaleRepresentation FDNAReader<TWrappedReader>::GetJointScaleRepresentation(uint16 JointIndex) const
+{
+	return static_cast<EScaleRepresentation>(ReaderPtr->getJointScaleRepresentation(JointIndex));
+}
+
+template <class TWrappedReader>
+uint16 FDNAReader<TWrappedReader>::GetRBFPoseCount() const
+{
+	return ReaderPtr->getRBFPoseCount();
+}
+
+template <class TWrappedReader>
+FString FDNAReader<TWrappedReader>::GetRBFPoseName(uint16 PoseIndex) const
+{
+	return FString(ANSI_TO_TCHAR(ReaderPtr->getRBFPoseName(PoseIndex).data()));
+}
+
+template <class TWrappedReader>
+TArrayView<const uint16> FDNAReader<TWrappedReader>::GetRBFPoseJointOutputIndices(uint16 PoseIndex) const
+{
+	const auto Indices = ReaderPtr->getRBFPoseJointOutputIndices(PoseIndex);
+	return TArrayView<const uint16>(Indices.data(), static_cast<int32>(Indices.size()));
+}
+
+template <class TWrappedReader>
+TArrayView<const uint16> FDNAReader<TWrappedReader>::GetRBFPoseBlendShapeChannelOutputIndices(uint16 PoseIndex) const
+{
+	const auto Indices = ReaderPtr->getRBFPoseBlendShapeChannelOutputIndices(PoseIndex);
+	return TArrayView<const uint16>(Indices.data(), static_cast<int32>(Indices.size()));
+}
+
+template <class TWrappedReader>
+TArrayView<const uint16> FDNAReader<TWrappedReader>::GetRBFPoseAnimatedMapOutputIndices(uint16 PoseIndex) const
+{
+	const auto Indices = ReaderPtr->getRBFPoseAnimatedMapOutputIndices(PoseIndex);
+	return TArrayView<const uint16>(Indices.data(), static_cast<int32>(Indices.size()));
+}
+
+template <class TWrappedReader>
+TArrayView<const float> FDNAReader<TWrappedReader>::GetRBFPoseJointOutputValues(uint16 PoseIndex) const
+{
+	const auto Values = ReaderPtr->getRBFPoseJointOutputValues(PoseIndex);
+	return TArrayView<const float>(Values.data(), static_cast<int32>(Values.size()));
+}
+
+template <class TWrappedReader>
+float FDNAReader<TWrappedReader>::GetRBFPoseScale(uint16 PoseIndex) const
+{
+	return ReaderPtr->getRBFPoseScale(PoseIndex);
+}
+
+template <class TWrappedReader>
+uint16 FDNAReader<TWrappedReader>::GetRBFPoseControlCount() const
+{
+	return ReaderPtr->getRBFPoseControlCount();
+}
+
+template <class TWrappedReader>
+FString FDNAReader<TWrappedReader>::GetRBFPoseControlName(uint16 PoseControlIndex) const
+{
+	return FString(ANSI_TO_TCHAR(ReaderPtr->getRBFPoseControlName(PoseControlIndex).data()));
+}
+
+template <class TWrappedReader>
+TArrayView<const uint16> FDNAReader<TWrappedReader>::GetRBFPoseInputControlIndices(uint16 PoseIndex) const
+{
+	const auto Indices = ReaderPtr->getRBFPoseInputControlIndices(PoseIndex);
+	return TArrayView<const uint16>(Indices.data(), static_cast<int32>(Indices.size()));
+}
+
+template <class TWrappedReader>
+TArrayView<const uint16> FDNAReader<TWrappedReader>::GetRBFPoseOutputControlIndices(uint16 PoseIndex) const
+{
+	const auto Indices = ReaderPtr->getRBFPoseOutputControlIndices(PoseIndex);
+	return TArrayView<const uint16>(Indices.data(), static_cast<int32>(Indices.size()));
+}
+
+template <class TWrappedReader>
+TArrayView<const float> FDNAReader<TWrappedReader>::GetRBFPoseOutputControlWeights(uint16 PoseIndex) const
+{
+	const auto Values = ReaderPtr->getRBFPoseOutputControlWeights(PoseIndex);
+	return TArrayView<const float>(Values.data(), static_cast<int32>(Values.size()));
+}
+
+template <class TWrappedReader>
+uint16 FDNAReader<TWrappedReader>::GetRBFSolverCount() const
+{
+	return ReaderPtr->getRBFSolverCount();
+}
+
+template <class TWrappedReader>
+uint16 FDNAReader<TWrappedReader>::GetRBFSolverIndexListCount() const
+{
+	return ReaderPtr->getRBFSolverIndexListCount();
+}
+
+template <class TWrappedReader>
+TArrayView<const uint16> FDNAReader<TWrappedReader>::GetRBFSolverIndicesForLOD(uint16 LOD) const
+{
+	const auto Indices = ReaderPtr->getRBFSolverIndicesForLOD(LOD);
+	return TArrayView<const uint16>(Indices.data(), static_cast<int32>(Indices.size()));
+}
+
+template <class TWrappedReader>
+FString FDNAReader<TWrappedReader>::GetRBFSolverName(uint16 SolverIndex) const
+{
+	return FString(ANSI_TO_TCHAR(ReaderPtr->getRBFSolverName(SolverIndex).data()));
+}
+
+template <class TWrappedReader>
+TArrayView<const uint16> FDNAReader<TWrappedReader>::GetRBFSolverRawControlIndices(uint16 SolverIndex) const
+{
+	const auto Indices = ReaderPtr->getRBFSolverRawControlIndices(SolverIndex);
+	return TArrayView<const uint16>(Indices.data(), static_cast<int32>(Indices.size()));
+}
+
+template <class TWrappedReader>
+TArrayView<const uint16> FDNAReader<TWrappedReader>::GetRBFSolverPoseIndices(uint16 SolverIndex) const
+{
+	const auto Indices = ReaderPtr->getRBFSolverPoseIndices(SolverIndex);
+	return TArrayView<const uint16>(Indices.data(), static_cast<int32>(Indices.size()));
+}
+
+template <class TWrappedReader>
+TArrayView<const float> FDNAReader<TWrappedReader>::GetRBFSolverRawControlValues(uint16 SolverIndex) const
+{
+	const auto Values = ReaderPtr->getRBFSolverRawControlValues(SolverIndex);
+	return TArrayView<const float>(Values.data(), static_cast<int32>(Values.size()));
+}
+
+template <class TWrappedReader>
+ERBFSolverType FDNAReader<TWrappedReader>::GetRBFSolverType(uint16 SolverIndex) const
+{
+	return static_cast<ERBFSolverType>(ReaderPtr->getRBFSolverType(SolverIndex));
+}
+
+template <class TWrappedReader>
+float FDNAReader<TWrappedReader>::GetRBFSolverRadius(uint16 SolverIndex) const
+{
+	return ReaderPtr->getRBFSolverRadius(SolverIndex);
+}
+
+template <class TWrappedReader>
+EAutomaticRadius FDNAReader<TWrappedReader>::GetRBFSolverAutomaticRadius(uint16 SolverIndex) const
+{
+	return static_cast<EAutomaticRadius>(ReaderPtr->getRBFSolverAutomaticRadius(SolverIndex));
+}
+
+template <class TWrappedReader>
+float FDNAReader<TWrappedReader>::GetRBFSolverWeightThreshold(uint16 SolverIndex) const
+{
+	return ReaderPtr->getRBFSolverWeightThreshold(SolverIndex);
+}
+
+template <class TWrappedReader>
+ERBFDistanceMethod FDNAReader<TWrappedReader>::GetRBFSolverDistanceMethod(uint16 SolverIndex) const
+{
+	return static_cast<ERBFDistanceMethod>(ReaderPtr->getRBFSolverDistanceMethod(SolverIndex));
+}
+
+template <class TWrappedReader>
+ERBFNormalizeMethod FDNAReader<TWrappedReader>::GetRBFSolverNormalizeMethod(uint16 SolverIndex) const
+{
+	return static_cast<ERBFNormalizeMethod>(ReaderPtr->getRBFSolverNormalizeMethod(SolverIndex));
+}
+
+template <class TWrappedReader>
+ERBFFunctionType FDNAReader<TWrappedReader>::GetRBFSolverFunctionType(uint16 SolverIndex) const
+{
+	return static_cast<ERBFFunctionType>(ReaderPtr->getRBFSolverFunctionType(SolverIndex));
+}
+
+template <class TWrappedReader>
+ETwistAxis FDNAReader<TWrappedReader>::GetRBFSolverTwistAxis(uint16 SolverIndex) const
+{
+	return static_cast<ETwistAxis>(ReaderPtr->getRBFSolverTwistAxis(SolverIndex));
+}
+
+template <class TWrappedReader>
+uint16 FDNAReader<TWrappedReader>::GetTwistCount() const
+{
+	return ReaderPtr->getTwistCount();
+}
+
+template <class TWrappedReader>
+ETwistAxis FDNAReader<TWrappedReader>::GetTwistSetupTwistAxis(uint16 TwistIndex) const
+{
+	return static_cast<ETwistAxis>(ReaderPtr->getTwistSetupTwistAxis(TwistIndex));
+}
+
+template <class TWrappedReader>
+TArrayView<const uint16> FDNAReader<TWrappedReader>::GetTwistInputControlIndices(uint16 TwistIndex) const
+{
+	const auto Indices = ReaderPtr->getTwistInputControlIndices(TwistIndex);
+	return TArrayView<const uint16>(Indices.data(), static_cast<int32>(Indices.size()));
+}
+
+template <class TWrappedReader>
+TArrayView<const uint16> FDNAReader<TWrappedReader>::GetTwistOutputJointIndices(uint16 TwistIndex) const
+{
+	const auto Indices = ReaderPtr->getTwistOutputJointIndices(TwistIndex);
+	return TArrayView<const uint16>(Indices.data(), static_cast<int32>(Indices.size()));
+}
+
+template <class TWrappedReader>
+TArrayView<const float> FDNAReader<TWrappedReader>::GetTwistBlendWeights(uint16 TwistIndex) const
+{
+	const auto Values = ReaderPtr->getTwistBlendWeights(TwistIndex);
+	return TArrayView<const float>(Values.data(), static_cast<int32>(Values.size()));
+}
+
+template <class TWrappedReader>
+uint16 FDNAReader<TWrappedReader>::GetSwingCount() const
+{
+	return ReaderPtr->getSwingCount();
+}
+
+template <class TWrappedReader>
+ETwistAxis FDNAReader<TWrappedReader>::GetSwingSetupTwistAxis(uint16 SwingIndex) const
+{
+	return static_cast<ETwistAxis>(ReaderPtr->getSwingSetupTwistAxis(SwingIndex));
+
+}
+
+template <class TWrappedReader>
+TArrayView<const uint16> FDNAReader<TWrappedReader>::GetSwingInputControlIndices(uint16 SwingIndex) const
+{
+	const auto Indices = ReaderPtr->getSwingInputControlIndices(SwingIndex);
+	return TArrayView<const uint16>(Indices.data(), static_cast<int32>(Indices.size()));
+}
+
+template <class TWrappedReader>
+TArrayView<const uint16> FDNAReader<TWrappedReader>::GetSwingOutputJointIndices(uint16 SwingIndex) const
+{
+	const auto Indices = ReaderPtr->getSwingOutputJointIndices(SwingIndex);
+	return TArrayView<const uint16>(Indices.data(), static_cast<int32>(Indices.size()));
+}
+
+template <class TWrappedReader>
+TArrayView<const float> FDNAReader<TWrappedReader>::GetSwingBlendWeights(uint16 SwingIndex) const
+{
+	const auto Values = ReaderPtr->getSwingBlendWeights(SwingIndex);
 	return TArrayView<const float>(Values.data(), static_cast<int32>(Values.size()));
 }

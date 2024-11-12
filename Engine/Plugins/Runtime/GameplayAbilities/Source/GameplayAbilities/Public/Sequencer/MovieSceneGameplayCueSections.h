@@ -87,7 +87,7 @@ struct FMovieSceneGameplayCueChannel : public FMovieSceneChannel
 	 */
 	FORCEINLINE TMovieSceneChannelData<FMovieSceneGameplayCueKey> GetData()
 	{
-		return TMovieSceneChannelData<FMovieSceneGameplayCueKey>(&KeyTimes, &KeyValues, &KeyHandles);
+		return TMovieSceneChannelData<FMovieSceneGameplayCueKey>(&KeyTimes, &KeyValues, this, &KeyHandles);
 	}
 
 	/**
@@ -165,7 +165,7 @@ public:
 private:
 
 	virtual EMovieSceneChannelProxyType CacheChannelProxy() override;
-	virtual void Trigger(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const override;
+	virtual void Trigger(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const override;
 	virtual TArrayView<const FFrameNumber> GetTriggerTimes() const { return Channel.GetData().GetTimes(); }
 
 	UPROPERTY(AssetRegistrySearchable)
@@ -188,9 +188,9 @@ public:
 
 private:
 
-	virtual void Begin(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const override;
-	virtual void Update(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const override;
-	virtual void End(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const override;
+	virtual void Begin(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const override;
+	virtual void Update(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const override;
+	virtual void End(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const override;
 
 	UPROPERTY(EditAnywhere, AssetRegistrySearchable, Category="Cue", meta=(ShowOnlyInnerProperties))
 	FMovieSceneGameplayCueKey Cue;

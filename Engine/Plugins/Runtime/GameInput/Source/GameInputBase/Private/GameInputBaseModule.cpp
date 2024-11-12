@@ -197,13 +197,6 @@ void FGameInputBaseModule::InitializeGameInputKeys()
 	//
 
 	// Button Types
-	EKeys::AddKey(FKeyDetails(FGameInputKeys::ArcadeStick_None, LOCTEXT("GameInput_ArcadeStick_None", "Game Input Arcade Stick None"), FKeyDetails::GamepadKey, MenuCategory));
-	EKeys::AddKey(FKeyDetails(FGameInputKeys::ArcadeStick_Menu, LOCTEXT("GameInput_ArcadeStick_Menu", "Game Input Arcade Stick Menu"), FKeyDetails::GamepadKey, MenuCategory));
-	EKeys::AddKey(FKeyDetails(FGameInputKeys::ArcadeStick_View, LOCTEXT("GameInput_ArcadeStick_View", "Game Input Arcade Stick View"), FKeyDetails::GamepadKey, MenuCategory));
-	EKeys::AddKey(FKeyDetails(FGameInputKeys::ArcadeStick_Up, LOCTEXT("GameInput_ArcadeStick_Up", "Game Input Arcade Stick Up"), FKeyDetails::GamepadKey, MenuCategory));
-	EKeys::AddKey(FKeyDetails(FGameInputKeys::ArcadeStick_Down, LOCTEXT("GameInput_ArcadeStick_Down", "Game Input Arcade Stick Down"), FKeyDetails::GamepadKey, MenuCategory));
-	EKeys::AddKey(FKeyDetails(FGameInputKeys::ArcadeStick_Left, LOCTEXT("GameInput_ArcadeStick_Left", "Game Input Arcade Stick Left"), FKeyDetails::GamepadKey, MenuCategory));
-	EKeys::AddKey(FKeyDetails(FGameInputKeys::ArcadeStick_Right, LOCTEXT("GameInput_ArcadeStick_Right", "Game Input Arcade Stick Right"), FKeyDetails::GamepadKey, MenuCategory));
 	EKeys::AddKey(FKeyDetails(FGameInputKeys::ArcadeStick_Action1, LOCTEXT("GameInput_ArcadeStick_Action1", "Game Input Arcade Stick Action 1"), FKeyDetails::GamepadKey, MenuCategory));
 	EKeys::AddKey(FKeyDetails(FGameInputKeys::ArcadeStick_Action2, LOCTEXT("GameInput_ArcadeStick_Action2", "Game Input Arcade Stick Action 2"), FKeyDetails::GamepadKey, MenuCategory));
 	EKeys::AddKey(FKeyDetails(FGameInputKeys::ArcadeStick_Action3, LOCTEXT("GameInput_ArcadeStick_Action3", "Game Input Arcade Stick Action 3"), FKeyDetails::GamepadKey, MenuCategory));

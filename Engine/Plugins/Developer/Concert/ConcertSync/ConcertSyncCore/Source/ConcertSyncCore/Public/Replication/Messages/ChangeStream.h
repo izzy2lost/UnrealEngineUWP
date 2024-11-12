@@ -63,7 +63,7 @@ struct FConcertReplication_ChangeStream_PutObject
 	CONCERTSYNCCORE_API TOptional<FConcertReplicatedObjectInfo> MakeObjectInfoIfValid() const;
 };
 
-UENUM()
+UENUM(Flags)
 enum class EConcertReplicationChangeFrequencyFlags : uint8
 {
 	None = 0,
@@ -294,7 +294,7 @@ struct FConcertReplication_ChangeStream_Response
 	UPROPERTY()
 	TMap<FConcertObjectInStreamID, EConcertPutObjectErrorCode> ObjectsToPutSemanticErrors;
 	
-	/** Streams that were in StreamsToAdd but that were not created. */
+	/** Streams that were in StreamsToAdd but that were not created (stream was already registered, or was empty). */
 	UPROPERTY()
 	TSet<FGuid> FailedStreamCreation;
 

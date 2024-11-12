@@ -138,7 +138,7 @@ uint32 GetTypeHash(const FAssetRegistryExportPath& Path)
 static FString ToComplexString(const FText& In)
 {
 	FString Out;
-	FTextStringHelper::WriteToBuffer(Out, In);
+	FTextStringHelper::WriteToBuffer(Out, In, /*bRequireQuotes*/false, /*bStripPackageNamespace*/true);
 	return Out;
 }
 
@@ -1172,9 +1172,9 @@ namespace FixedTagPrivate
 		void Save(const FStoreData& Store)
 		{
 			SaveItem(BeginMagic);
-			VisitViews(Store, [&] (auto Array) { SaveItem(Array.Num()); });
+			VisitViews(Store, [&](auto& Array) { SaveItem(Array.Num()); });
 			SaveTextData(MakeArrayView(Store.Texts));
-			VisitViews<EOrder::SkipText>(Store, [&] (auto Array) { SaveViewData(MakeArrayView(Array)); });
+			VisitViews<EOrder::SkipText>(Store, [&] (auto& Array) { SaveViewData(MakeArrayView(Array)); });
 			SaveItem(EndMagic);
 		}
 
@@ -1638,7 +1638,7 @@ SIZE_T FAssetDataTagMapSharedView::FMemoryCounter::GetFixedSize() const
 #include "Misc/AutomationTest.h"
 #include "Serialization/MemoryReader.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAssetRegistryExportPathTest, "System.AssetRegistry.ExportPath", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAssetRegistryExportPathTest, "System.AssetRegistry.ExportPath", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 
 bool FAssetRegistryExportPathTest::RunTest(const FString& Parameters)
 {
@@ -1656,7 +1656,7 @@ bool FAssetRegistryExportPathTest::RunTest(const FString& Parameters)
 namespace FixedTagPrivate
 {
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCompactExportPathTest, "System.AssetRegistry.FixedTag.NumberlessExportPath", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCompactExportPathTest, "System.AssetRegistry.FixedTag.NumberlessExportPath", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 
 bool FCompactExportPathTest::RunTest(const FString& Parameters)
 {
@@ -1668,7 +1668,7 @@ bool FCompactExportPathTest::RunTest(const FString& Parameters)
 }
 
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStoreTest, "System.AssetRegistry.FixedTag.Store", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStoreTest, "System.AssetRegistry.FixedTag.Store", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 
 static TRefCountPtr<const FStore> MakeTestStore(FStoreData& Data)
 {

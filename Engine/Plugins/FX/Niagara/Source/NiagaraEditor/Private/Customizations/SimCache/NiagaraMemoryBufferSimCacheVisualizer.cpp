@@ -20,7 +20,7 @@ namespace NDIMemoryBufferSimCacheVisualizerLocal
 static const FName NAME_ElementOffset = FName("_ElementOffset");
 
 template<typename TType>
-TConstArrayView<TType> GetCurrentData(const TSharedPtr<FNiagaraSimCacheViewModel>& ViewModel, UNDIMemoryBufferSimCacheData* CacheData, ENiagaraSimTarget SimTarget)
+TConstArrayView<TType> GetCurrentData(const TSharedPtr<FNiagaraSimCacheViewModel>& ViewModel, const UNDIMemoryBufferSimCacheData* CacheData, ENiagaraSimTarget SimTarget)
 {
 	const int32 FrameIndex = ViewModel->GetFrameIndex();
 	if (CacheData->FrameData.IsValidIndex(FrameIndex))
@@ -54,7 +54,7 @@ class SVisualizerRowWidget : public SMultiColumnTableRow<TSharedPtr<int32>>
 public:
 	SLATE_BEGIN_ARGS(SVisualizerRowWidget) {}
 		SLATE_ARGUMENT(TSharedPtr<FNiagaraSimCacheViewModel>,	ViewModel)
-		SLATE_ARGUMENT(UNDIMemoryBufferSimCacheData*,			CacheData)
+		SLATE_ARGUMENT(const UNDIMemoryBufferSimCacheData*,		CacheData)
 		SLATE_ARGUMENT(TSharedPtr<int32>,						RowIndexPtr)
 		SLATE_ATTRIBUTE(ENiagaraSimTarget,						DisplaySimTarget)
 		SLATE_ATTRIBUTE(ENDIMemoryBufferViewType,				DisplayAsType)
@@ -149,11 +149,11 @@ public:
 		return SNullWidget::NullWidget;
 	}
 
-	TSharedPtr<FNiagaraSimCacheViewModel>			ViewModel;
-	TStrongObjectPtr<UNDIMemoryBufferSimCacheData>	CacheData;
-	TAttribute<ENiagaraSimTarget>					DisplaySimTarget = ENiagaraSimTarget::CPUSim;
-	TAttribute<ENDIMemoryBufferViewType>			DisplayAsType = ENDIMemoryBufferViewType::Integer;
-	TSharedPtr<int32>								RowIndexPtr;
+	TSharedPtr<FNiagaraSimCacheViewModel>					ViewModel;
+	TStrongObjectPtr<const UNDIMemoryBufferSimCacheData>	CacheData;
+	TAttribute<ENiagaraSimTarget>							DisplaySimTarget = ENiagaraSimTarget::CPUSim;
+	TAttribute<ENDIMemoryBufferViewType>					DisplayAsType = ENDIMemoryBufferViewType::Integer;
+	TSharedPtr<int32>										RowIndexPtr;
 };
 
 class SSimCacheView : public SCompoundWidget
@@ -168,7 +168,7 @@ public:
 		ViewModel->OnViewDataChanged().RemoveAll(this);
 	}
 
-	void Construct(const FArguments& InArgs, TSharedPtr<FNiagaraSimCacheViewModel> InViewModel, UNDIMemoryBufferSimCacheData* InCacheData)
+	void Construct(const FArguments& InArgs, TSharedPtr<FNiagaraSimCacheViewModel> InViewModel, const UNDIMemoryBufferSimCacheData* InCacheData)
 	{
 		ViewModel = InViewModel;
 		CacheData.Reset(InCacheData);
@@ -404,8 +404,8 @@ public:
 	}
 
 private:
-	TSharedPtr<FNiagaraSimCacheViewModel>			ViewModel;
-	TStrongObjectPtr<UNDIMemoryBufferSimCacheData>	CacheData;
+	TSharedPtr<FNiagaraSimCacheViewModel>					ViewModel;
+	TStrongObjectPtr<const UNDIMemoryBufferSimCacheData>	CacheData;
 
 	int32											DisplayColumns = 1;
 	ENiagaraSimTarget								DisplaySimTarget = ENiagaraSimTarget::CPUSim;
@@ -420,11 +420,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<SWidget> FNiagaraMemoryBufferSimCacheVisualizer::CreateWidgetFor(UObject* InCachedData, TSharedPtr<FNiagaraSimCacheViewModel> ViewModel)
+TSharedPtr<SWidget> FNiagaraMemoryBufferSimCacheVisualizer::CreateWidgetFor(const UObject* InCachedData, TSharedPtr<FNiagaraSimCacheViewModel> ViewModel)
 {
 	using namespace NDIMemoryBufferSimCacheVisualizer;
 
-	if (UNDIMemoryBufferSimCacheData* CachedData = Cast<UNDIMemoryBufferSimCacheData>(InCachedData))
+	if (const UNDIMemoryBufferSimCacheData* CachedData = Cast<const UNDIMemoryBufferSimCacheData>(InCachedData))
 	{
 		return SNew(SSimCacheView, ViewModel, CachedData);
 	}

@@ -41,7 +41,7 @@ namespace Metasound
 			{
 				const FNodeClassMetadata& Metadata = ActiveNode->GetMetadata();
 
-				NodeClassNameAndVersion = FString::Format(TEXT("{0} v{1}.{2}"), {Metadata.ClassName.GetFullName().ToString(), Metadata.MajorVersion, Metadata.MinorVersion});
+				NodeClassNameAndVersion = FString::Format(TEXT("{0} v{1}.{2}"), {Metadata.ClassName.ToString(), Metadata.MajorVersion, Metadata.MinorVersion});
 			}
 			else
 			{

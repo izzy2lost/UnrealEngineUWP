@@ -6,7 +6,7 @@
 
 //#include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionEmbedNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	void GeometryCollectionEmbedNodes()

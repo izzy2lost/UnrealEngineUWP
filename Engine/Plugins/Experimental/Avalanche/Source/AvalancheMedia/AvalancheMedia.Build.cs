@@ -28,7 +28,6 @@ public class AvalancheMedia : ModuleRules
 				"MediaIOCore",
 				"RemoteControl",
 				"RemoteControlLogic",
-				"StructUtils"
 			}
 		);
 
@@ -40,9 +39,12 @@ public class AvalancheMedia : ModuleRules
 				"AvalancheRemoteControl",
 				"HeadMountedDisplay",
 				"Json",
+				"JsonUtilities",
+				"ImageCore",
 				"InputCore",
 				"Projects",
 				"RHI",
+				"RemoteControlCommon",
 				"RenderCore",
 				"Renderer",
 				"Slate",

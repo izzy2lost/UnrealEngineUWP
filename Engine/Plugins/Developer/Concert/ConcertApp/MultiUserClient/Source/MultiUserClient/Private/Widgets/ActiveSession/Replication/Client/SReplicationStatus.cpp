@@ -2,7 +2,7 @@
 
 #include "SReplicationStatus.h"
 
-#include "Replication/Util/GlobalAuthorityCache.h"
+#include "Replication/Misc/GlobalAuthorityCache.h"
 
 #include "Algo/AnyOf.h"
 #include "Styling/AppStyle.h"
@@ -12,7 +12,7 @@
 
 #define LOCTEXT_NAMESPACE "SReplicationStatus"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	namespace Private
 	{
@@ -60,8 +60,8 @@ namespace UE::MultiUserClient
 			.Padding(4, 0, 4, 3)
 			[
 				SNew(SReplicationStatus, InAuthorityCache)
-				.DisplayedClients(InArgs._DisplayedClients)
-				.ForEachReplicatedObject(InArgs._ForEachReplicatedObject)
+				.ReplicatableClients(InArgs._ReplicatableClients)
+				.ForEachObjectInStream(InArgs._ForEachObjectInStream)
 			];
 	}
 
@@ -69,10 +69,10 @@ namespace UE::MultiUserClient
 	{
 		AuthorityCache = &InAuthorityCache;
 		
-		DisplayedClientsAttribute = InArgs._DisplayedClients;
-		check(DisplayedClientsAttribute.IsBound() || DisplayedClientsAttribute.IsSet());
-		ForEachReplicatedObjectDelegate = InArgs._ForEachReplicatedObject;
-		check(ForEachReplicatedObjectDelegate.IsBound());
+		ReplicatableClientsAttribute = InArgs._ReplicatableClients;
+		check(ReplicatableClientsAttribute.IsBound() || ReplicatableClientsAttribute.IsSet());
+		ForEachObjectInStreamDelegate = InArgs._ForEachObjectInStream;
+		check(ForEachObjectInStreamDelegate.IsBound());
 
 		AuthorityCache->OnCacheChanged().AddSP(this, &SReplicationStatus::OnAuthorityCacheChanged);
 		ChildSlot
@@ -114,15 +114,15 @@ namespace UE::MultiUserClient
 
 	void SReplicationStatus::RefreshStatusText()
 	{
-		const TSet<FGuid> DisplayedClients = DisplayedClientsAttribute.Get();
+		const TSet<FGuid> ReplicatingClients = ReplicatableClientsAttribute.Get();
 
 		TSet<FSoftObjectPath> ReplicatedActors;
 		TSet<FSoftObjectPath> ReplicatedObjects;
-		ForEachReplicatedObjectDelegate.Execute([this, &DisplayedClients, &ReplicatedActors, &ReplicatedObjects](const FSoftObjectPath& Path)
+		ForEachObjectInStreamDelegate.Execute([this, &ReplicatingClients, &ReplicatedActors, &ReplicatedObjects](const FSoftObjectPath& Path)
 		{
-			const bool bIsReplicated = Algo::AnyOf(AuthorityCache->GetClientsWithAuthorityOverObject(Path), [&DisplayedClients](const FGuid& ClientId)
+			const bool bIsReplicated = Algo::AnyOf(AuthorityCache->GetClientsWithAuthorityOverObject(Path), [&ReplicatingClients](const FGuid& ClientId)
 			{
-				return DisplayedClients.Contains(ClientId);
+				return ReplicatingClients.Contains(ClientId);
 			});
 			if (bIsReplicated)
 			{

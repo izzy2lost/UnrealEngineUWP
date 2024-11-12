@@ -22,6 +22,10 @@
 #define MOBILE_QL_FORCE_DISABLE_PREINTEGRATEDGF 0
 #endif
 
+#if SUBSTRATE_ENABLED && MERGED_LOCAL_LIGHTS_MOBILE == 2
+#define ALLOW_LOCAL_LIGHT_DISTANCE_ATTENUATION 1
+#endif
+
 #define UseBasePassSkylightDiffuse  (1)
 #define UseBasePassSkylightSpecular (MobileBasePass.ReflectionsParameters.SkyLightParameters.y)
 
@@ -80,23 +84,27 @@
 #define NONMETAL (MATERIAL_NONMETAL || MOBILE_QL_FORCE_NONMETAL)
 #define FORCE_VERTEX_NORMAL (MOBILE_QL_DISABLE_MATERIAL_NORMAL)
 #define SUPPORT_SPOTLIGHTS_SHADOW (MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED) && PROJECT_MOBILE_ENABLE_MOVABLE_SPOTLIGHT_SHADOWS
-#define MOBILE_USE_GBUBUFFER (MOBILE_DEFERRED_SHADING && ((MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED) && !MATERIAL_SHADINGMODEL_SINGLELAYERWATER))
-#define MATERIAL_WORKS_WITH_DUAL_SOURCE_COLOR_BLENDING (MATERIAL_SHADINGMODEL_THIN_TRANSLUCENT || SUBSTRATE_BLENDING_TRANSLUCENT_COLOREDTRANSMITTANCE )
+#define MOBILE_USE_GBUFFER (MOBILE_DEFERRED_SHADING && ((MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED) && !MATERIAL_SHADINGMODEL_SINGLELAYERWATER))
 
-// Force FORWARD_SHADING on mobile when MOBILE_DEFERRED_SHADING is disabled
-#ifndef FORWARD_SHADING
-#define FORWARD_SHADING (!MOBILE_DEFERRED_SHADING)
-#elif defined(FORWARD_SHADING)
-#undef  FORWARD_SHADING
-#define FORWARD_SHADING (!MOBILE_DEFERRED_SHADING)
+#if MATERIAL_SHADINGMODEL_THIN_TRANSLUCENT || SUBSTRATE_BLENDING_TRANSLUCENT_COLOREDTRANSMITTANCE
+	#define MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE 1
+	
+#else
+	#define MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE 0
+	#undef MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE_DUAL_SRC_BLENDING
+	#undef MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE_PROGRAMMABLE_BLENDING
+	#undef MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE_SINGLE_SRC_BLENDING
+	#define MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE_DUAL_SRC_BLENDING 0
+	#define MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE_PROGRAMMABLE_BLENDING 0
+	#define MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE_SINGLE_SRC_BLENDING 0
 #endif
 
 // SceneDepthAux always enabled for IOS, on other platforms only enabled when in forward and MobileHDR=true
-#define HAS_SCENE_DEPTH_AUX_OUTPUT (USE_SCENE_DEPTH_AUX && (MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED))
+#define HAS_SCENE_DEPTH_AUX_OUTPUT (USE_SCENE_DEPTH_AUX && (MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED) && !MATERIAL_SHADINGMODEL_SINGLELAYERWATER)
 
-#if MOBILE_USE_GBUBUFFER && MOBILE_EXTENDED_GBUFFER
+#if MOBILE_USE_GBUFFER && MOBILE_EXTENDED_GBUFFER
 	#define SV_TargetDepthAux SV_Target5	
-#elif MOBILE_USE_GBUBUFFER
+#elif MOBILE_USE_GBUFFER
 	#define SV_TargetDepthAux SV_Target4	
 #else
 	#define SV_TargetDepthAux SV_Target1
@@ -293,7 +301,7 @@ void Main(
 	, FMobileBasePassInterpolantsVSToPS BasePassInterpolants
 	, in float4 SvPosition : SV_Position
 	OPTIONAL_IsFrontFace
-#if MOBILE_USE_GBUBUFFER
+#if MOBILE_USE_GBUFFER
 	#if USE_GLES_FBF_DEFERRED
 	, out HALF4_TYPE OutProxy : SV_Target0
 	#elif MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE_PROGRAMMABLE_BLENDING
@@ -325,7 +333,7 @@ void Main(
 #endif
 	)
 {  
-#if MOBILE_USE_GBUBUFFER 
+#if MOBILE_USE_GBUFFER 
 	#if USE_GLES_FBF_DEFERRED && !MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE_PROGRAMMABLE_BLENDING
 		half4 OutColor;
 	#endif
@@ -356,6 +364,9 @@ void Main(
 	FMaterialPixelParameters MaterialParameters = GetMaterialPixelParameters(Interpolants, SvPosition);
 	FPixelMaterialInputs PixelMaterialInputs;
 	{
+#if MOBILE_MULTI_VIEW
+		MaterialParameters.ViewId = BasePassInterpolants.MultiViewId;
+#endif
 		float4 ScreenPosition = SvPositionToResolvedScreenPosition(SvPosition);
 		float3 WorldPosition = BasePassInterpolants.PixelPosition.xyz;
 		float3 WorldPositionExcludingWPO = BasePassInterpolants.PixelPosition.xyz;
@@ -474,17 +485,25 @@ void Main(
 		if (ValidDBufferTargetMask)
 		{
 			float2 BufferUV = SvPositionToBufferUV(SvPosition);
+		#if MOBILE_MULTI_VIEW
+			const uint EyeIndex = BasePassInterpolants.MultiViewId;
+		#else
+			const uint EyeIndex = 0;
+		#endif
+
 		#if SUBSTRATE_ENABLED 
 			#if SUBSTRATE_INLINE_SHADING && !SUBSTRATE_OPTIMIZED_UNLIT
-			const FSubstrateDBuffer SubstrateBufferData = GetDBufferData(BufferUV, ValidDBufferTargetMask);
+			const FSubstrateDBuffer SubstrateBufferData = GetDBufferData(BufferUV, ValidDBufferTargetMask, EyeIndex);
 			ApplyDBufferData(SubstrateBufferData, SubstratePixelHeader, SubstrateData);
 			DBufferOpacity = SubstrateBufferData.Coverage;
 			#endif
 		#else
-			FDBufferData DBufferData = GetDBufferData(BufferUV, ValidDBufferTargetMask);
+			FDBufferData DBufferData = GetDBufferData(BufferUV, ValidDBufferTargetMask, EyeIndex);
 			ApplyDBufferData(DBufferData, MaterialParameters.WorldNormal, SubsurfaceColor, Roughness, BaseColor, Metallic, Specular);
 			DBufferOpacity = (DBufferData.ColorOpacity + DBufferData.NormalOpacity + DBufferData.RoughnessOpacity) * (1.0f / 3.0f);
 		#endif // SUBSTRATE_ENABLED
+			
+			MaterialParameters.ReflectionVector = ReflectionAboutCustomWorldNormal(MaterialParameters, MaterialParameters.WorldNormal, false);
 		}
 	}
 #endif
@@ -667,6 +686,7 @@ void Main(
 	half3 CameraVector = -MaterialParameters.CameraVector;
 	float2 ScreenUV = ScreenPositionToBufferUV(MaterialParameters.ScreenPosition);
 
+#if (SUBSTRATE_TRANSLUCENT_FORWARD || SUBSTRATE_FORWARD_SHADING)
 	#define SUBSTRATE_DEBUG_ENABLE_LIGHTING 1
 	#if SUBSTRATE_DEBUG_ENABLE_LIGHTING
 	if (SubstratePixelHeader.ClosureCount > 0)
@@ -712,6 +732,7 @@ void Main(
 	#endif
 	}
 	#endif // SUBSTRATE_DEBUG_ENABLE_LIGHTING
+#endif // SUBSTRATE_TRANSLUCENT_FORWARD || SUBSTRATE_FORWARD_SHADING
 
   #else // SUBSTRATE_OPTIMIZED_UNLIT
 
@@ -766,11 +787,14 @@ void Main(
 		half3 FoggedColor = lerp(float3(1, 1, 1), DualBlendSurfaceTransmittancePreCoverage, Fogging.aaa* DualBlendSurfaceCoverage);
 		OutColor = half4(FoggedColor, 1.0f);
 	#elif SUBSTRATE_BLENDING_ALPHAHOLDOUT
-		float AdjustedAlpha = saturate(1 - dot(AdjustedDualBlendMul, float3(1.0f, 1.0f, 1.0f) / 3.0f));
+		half AdjustedAlpha = saturate(1 - dot(AdjustedDualBlendMul, half3(1.0f, 1.0f, 1.0f) / 3.0f));
 		OutColor = half4(0.0f.xxx, AdjustedAlpha);
+	#elif MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE && MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE_DUAL_SRC_BLENDING
+		OutColor = half4(AdjustedDualBlendAdd, 0.0);
+		OutColor1 = half4(AdjustedDualBlendMul, 1.0);
 	#else
 		// Pre multipled alpha blending
-		float AdjustedAlpha = saturate(1 - dot(AdjustedDualBlendMul, float3(1.0f, 1.0f, 1.0f) / 3.0f));
+		half AdjustedAlpha = saturate(1 - dot(AdjustedDualBlendMul, half3(1.0f, 1.0f, 1.0f) / 3.0f));
 		#if SUBSTRATE_USES_CONVERSION_FROM_LEGACY && MATERIALBLENDING_ADDITIVE
 			AdjustedAlpha = 0.0f;
 		#endif
@@ -832,6 +856,7 @@ void Main(
 	// We also keep the SpecularColor for sun/water interactions.
 	GBuffer.DiffuseColor *= BaseMaterialCoverageOverWater;
 	DiffuseColor *= BaseMaterialCoverageOverWater;
+	DiffuseColorForIndirect *= BaseMaterialCoverageOverWater;
 #endif
 
 	FLightAccumulator DirectLighting = (FLightAccumulator)0;
@@ -839,7 +864,7 @@ void Main(
 
 	GBuffer.PrecomputedShadowFactors = GetPrimaryPrecomputedShadowMask(LightmapVTPageTableResult, Interpolants, MaterialParameters);
 
-#if MOBILE_USE_GBUBUFFER && !MATERIAL_SHADINGMODEL_UNLIT
+#if MOBILE_USE_GBUFFER && !MATERIAL_SHADINGMODEL_UNLIT
 	GBuffer.IndirectIrradiance = IndirectIrradiance;
 	MobileEncodeGBuffer(GBuffer, OutGBufferA, OutGBufferB, OutGBufferC, OutGBufferD);
 #else
@@ -851,7 +876,12 @@ void Main(
 
 	// Directional light
 #if !MATERIAL_SHADINGMODEL_UNLIT
-	AccumulateDirectionalLighting(GBuffer, MaterialParameters.WorldPosition_CamRelative, CameraVector, MaterialParameters.ScreenPosition, SvPosition, DynamicShadowFactors, DirectionalLightShadow, DirectLighting);
+#if MOBILE_MULTI_VIEW
+	const uint EyeIndex = BasePassInterpolants.MultiViewId;
+#else 
+	const uint EyeIndex = 0;
+#endif
+	AccumulateDirectionalLighting(GBuffer, MaterialParameters.WorldPosition_CamRelative, CameraVector, MaterialParameters.ScreenPosition, SvPosition, DynamicShadowFactors, DirectionalLightShadow, DirectLighting, EyeIndex);
 #endif
 
 	float2 LocalPosition = SvPosition.xy - ResolvedView.ViewRectMin.xy;
@@ -860,6 +890,7 @@ void Main(
 #if MATERIALBLENDING_MASKED || MATERIALBLENDING_SOLID || TRANSLUCENCY_LIGHTING_SURFACE_FORWARDSHADING || TRANSLUCENCY_LIGHTING_SURFACE_LIGHTINGVOLUME || MATERIAL_SHADINGMODEL_SINGLELAYERWATER
 	// Reflection IBL
 	AccumulateReflection(GBuffer
+		, SvPosition
 		, CameraVector
 		, MaterialParameters.WorldPosition_CamRelative
 		, MaterialParameters.ReflectionVector
@@ -880,6 +911,7 @@ void Main(
 		MergedLightData.Tangent			= 0;
 		MergedLightData.SoftSourceRadius= 0;
 		MergedLightData.SpecularScale	= LocalLightB.a;
+		MergedLightData.DiffuseScale	= 1.f; // Diffuse scale is not handled with merged light
 		MergedLightData.bSpotLight		= false;
 		MergedLightData.bRectLight		= false;
 		MergedLightData.Color = LocalLightA.rgb;
@@ -890,7 +922,7 @@ void Main(
 
 		MergedLightData.Direction = OctahedronToUnitVector(Pack888To1212(LocalLightB.rgb) * 2 - 1);
 
-		FLightAccumulator NewLighting = AccumulateDynamicLighting(MaterialParameters.WorldPosition_CamRelative, CameraVector, GBuffer, 1, GBuffer.ShadingModelID, MergedLightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
+		FLightAccumulator NewLighting = AccumulateDynamicLighting(MaterialParameters.WorldPosition_CamRelative, CameraVector, GBuffer, 1, MergedLightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
 		DirectLighting = LightAccumulator_Add(DirectLighting, NewLighting);
 	}
 #elif  MERGED_LOCAL_LIGHTS_MOBILE == 2
@@ -901,13 +933,13 @@ void Main(
 		const uint EyeIndex = 0;
 #endif
 
-		const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
+		const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 
 		float3 MergedLightColor = uint3(0.f, 0.f , 0.f);
 		float3 MergedLightL = float3(0,0,0);
 		float MergedSpecularScale = 0.f;
 		float MergedTotalWeight = 0;
-		MergeLocalLights(CulledLightGridData, MaterialParameters.WorldPosition_CamRelative, EyeIndex, false, MergedLightColor, MergedLightL, MergedSpecularScale, MergedTotalWeight, GBuffer.WorldNormal);
+		MergeLocalLights(CulledLightGridHeader, MaterialParameters.WorldPosition_CamRelative, EyeIndex, false, MergedLightColor, MergedLightL, MergedSpecularScale, MergedTotalWeight, GBuffer.WorldNormal);
 
 		if(MergedTotalWeight > 0.f)
 		{
@@ -920,6 +952,7 @@ void Main(
 			MergedLightData.Tangent			= 0;
 			MergedLightData.SoftSourceRadius= 0;
 			MergedLightData.SpecularScale	= MergedSpecularScale;
+			MergedLightData.DiffuseScale	= 1.f; // Diffuse scale is not handled with merged light
 			MergedLightData.bSpotLight		= false;
 			MergedLightData.bRectLight		= false;
 			MergedLightData.Color = MergedLightColor;
@@ -930,7 +963,7 @@ void Main(
 
 			MergedLightData.Direction = MergedLightL;
 
-			FLightAccumulator NewLighting = AccumulateDynamicLighting(MaterialParameters.WorldPosition_CamRelative, CameraVector, GBuffer, 1, GBuffer.ShadingModelID, MergedLightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
+			FLightAccumulator NewLighting = AccumulateDynamicLighting(MaterialParameters.WorldPosition_CamRelative, CameraVector, GBuffer, 1, MergedLightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
 			DirectLighting = LightAccumulator_Add(DirectLighting, NewLighting);
 		}
 	}
@@ -942,7 +975,7 @@ void Main(
 		const uint EyeIndex = 0;
 #endif
 
-		const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
+		const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 
 		half4 LocalLightDynamicShadowFactors = 1.0f;
 
@@ -951,7 +984,7 @@ void Main(
 		#endif
 		
 		uint LightingChannelMask = GetPrimitive_LightingChannelMask(MaterialParameters.PrimitiveId);
-		AccumulateLightGridLocalLighting(CulledLightGridData, GBuffer, MaterialParameters.WorldPosition_CamRelative, CameraVector, EyeIndex, 0, LocalLightDynamicShadowFactors, LightingChannelMask, DirectLighting);
+		AccumulateLightGridLocalLighting(CulledLightGridHeader, GBuffer, MaterialParameters.WorldPosition_CamRelative, CameraVector, EyeIndex, 0, LocalLightDynamicShadowFactors, LightingChannelMask, DirectLighting);
 	}
 #endif
 
@@ -961,8 +994,13 @@ void Main(
 		float3 SeparatedWaterMainDirLightLuminance = float3(0, 0, 0);
 
 		const bool CameraIsUnderWater = false;	// Fade out the material contribution over to water contribution according to material opacity.
-		const float3 SunIlluminance = ResolvedView.DirectionalLightColor.rgb * PI;			// times PI because it is divided by PI on CPU (=luminance) and we want illuminance here. 
-		const float3 WaterDiffuseIndirectIlluminance = WaterDiffuseIndirectLuminance * PI;	// DiffuseIndirectLighting is luminance. So we need to multiply by PI to get illuminance.
+		float3 SunIlluminance = ResolvedView.DirectionalLightColor.rgb * PI;			// times PI because it is divided by PI on CPU (=luminance) and we want illuminance here. 
+		float3 WaterDiffuseIndirectIlluminance = WaterDiffuseIndirectLuminance * PI;	// DiffuseIndirectLighting is luminance. So we need to multiply by PI to get illuminance.
+#if MOBILE_EMULATION
+		SunIlluminance = lerp(SunIlluminance, 0.0f, View.UnlitViewmodeMask);
+		WaterDiffuseIndirectIlluminance = lerp(WaterDiffuseIndirectIlluminance, PI, View.UnlitViewmodeMask);
+#endif
+
 		half3 N = GBuffer.WorldNormal;
 		half3 V = MaterialParameters.CameraVector;
 		half NoV = saturate(abs(dot(N, V)) + 1e-5);
@@ -980,6 +1018,9 @@ void Main(
 		// Accumulate luminance and occlude the background according to transmittance to view and mean transmittance to lights.
 		LightAccumulator_AddSplit(DirectLighting, WaterLighting.Luminance, 0.0f, WaterLighting.Luminance, 1.0f, false);
 		Opacity = 1.0 - ((1.0 - Opacity) * dot(WaterLighting.WaterToSceneToLightTransmittance, float3(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0)));
+#if MOBILE_EMULATION
+		DiffuseColorForIndirect += WaterLighting.Luminance;
+#endif
 	}
 #endif // MATERIAL_SHADINGMODEL_SINGLELAYERWATER
 
@@ -1006,14 +1047,14 @@ void Main(
 #endif
 #endif
 	// NEEDS_BASEPASS_PIXEL_FOGGING is not allowed on mobile for the sake of performance.
-				 
-	half3 Emissive = GetMaterialEmissive(PixelMaterialInputs);
-
-	Color += Emissive;
-
+	
 #if !MATERIAL_SHADINGMODEL_UNLIT && MOBILE_EMULATION
 	Color = lerp(Color, DiffuseColorForIndirect, ResolvedView.UnlitViewmodeMask);
 #endif
+
+	half3 Emissive = GetMaterialEmissive(PixelMaterialInputs);
+
+	Color += Emissive;
 
 #if MATERIAL_SHADINGMODEL_THIN_TRANSLUCENT && !SUBSTRATE_ENABLED
 	half3 DualBlendSurfaceLuminancePostCoverage = 0.0f;
@@ -1037,7 +1078,7 @@ void Main(
 #endif // MATERIAL_SHADINGMODEL_THIN_TRANSLUCENT
 	
 	// MATERIAL_SHADINGMODEL_THIN_TRANSLUCENT must come first because it also has MATERIALBLENDING_TRANSLUCENT defined
-	#if MATERIAL_WORKS_WITH_DUAL_SOURCE_COLOR_BLENDING
+	#if MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE
 
 		// Add fog luminance according to surfacecoverage and reduce surface luminance according to fog coverage.
 		half3 AdjustedDualBlendAdd = DualBlendSurfaceCoverage * VertexFog.rgb + VertexFog.a * DualBlendSurfaceLuminancePostCoverage;
@@ -1087,7 +1128,19 @@ void Main(
 	OutColor.rgb *= ResolvedView.PreExposure;
 #endif
 
-#if MATERIAL_IS_SKY || (!MATERIAL_SHADINGMODEL_UNLIT && !MOBILE_USE_GBUBUFFER)
+#if MATERIAL_IS_SKY
+	if (MobileBasePass.bApplyHalfResLocalFogToSkyMeshes)
+	{
+		// Apply the half resolution texture to the sky dome mesh when needed.
+		const float2 ResolutionRatioCorrection = (ResolvedView.ViewSizeAndInvSize.xy * MobileBasePass.LFV.HalfResTextureSizeAndInvSize.zw * 0.5);
+		const float2 HalfResSourceTexCoord = float2(SvPosition.xy - ResolvedView.ViewRectMin.xy) * ResolvedView.ViewSizeAndInvSize.zw * ResolutionRatioCorrection;
+		float4 LFVContribution = Texture2DSampleLevel(MobileBasePass.HalfResLocalFogVolumeViewTexture, MobileBasePass.HalfResLocalFogVolumeViewSampler, HalfResSourceTexCoord, 0.0f);
+
+		OutColor.rgb = OutColor.rgb * LFVContribution.aaa + LFVContribution.rgb;
+	}
+#endif
+
+#if MATERIAL_IS_SKY || (!MATERIAL_SHADINGMODEL_UNLIT && !MOBILE_USE_GBUFFER)
 	// clamp lit color to avoid overflows
 	OutColor.rgb = SafeGetOutColor(OutColor.rgb);
 #endif
@@ -1116,7 +1169,7 @@ void Main(
 	);
 #endif
 
-#if MOBILE_USE_GBUBUFFER && USE_GLES_FBF_DEFERRED
+#if MOBILE_USE_GBUFFER && USE_GLES_FBF_DEFERRED
 	OutProxy.rgb = OutColor.rgb;
 #elif MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE_PROGRAMMABLE_BLENDING
 	OutProgrammableBlending = OutColor1 * FramebufferFetchColor0() + OutColor;

@@ -5,9 +5,6 @@
 #include "CoreMinimal.h"
 #include "RenderResource.h"
 #include "Textures/SlateTextureData.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RenderingThread.h"
-#endif
 #include "RenderDeferredCleanup.h"
 #include "Textures/SlateShaderResource.h"
 #include "TextureResource.h"
@@ -17,10 +14,10 @@
 /**
  * Encapsulates a Texture2DRHIRef for use by a Slate rendering implementation                   
  */
-class FSlateTexture2DRHIRef : public TSlateTexture<FTexture2DRHIRef>, public FSlateUpdatableTexture, public FDeferredCleanupInterface, public FRenderResource
+class FSlateTexture2DRHIRef : public TSlateTexture<FTextureRHIRef>, public FSlateUpdatableTexture, public FDeferredCleanupInterface, public FRenderResource
 {
 public:
-	ENGINE_API FSlateTexture2DRHIRef( FTexture2DRHIRef InRef, uint32 InWidth, uint32 InHeight );
+	ENGINE_API FSlateTexture2DRHIRef( FTextureRHIRef InRef, uint32 InWidth, uint32 InHeight );
 	ENGINE_API FSlateTexture2DRHIRef( uint32 InWidth, uint32 InHeight, EPixelFormat InPixelFormat, TSharedPtr<FSlateTextureData, ESPMode::ThreadSafe> InTextureData, ETextureCreateFlags InTexCreateFlags = TexCreate_None, bool bCreateEmptyTexture = false );
 
 	ENGINE_API virtual ~FSlateTexture2DRHIRef();
@@ -49,9 +46,9 @@ public:
 	/** 
 	 *  Sets the RHI Ref to use. 
 	 */
-	ENGINE_API void SetRHIRef( FTexture2DRHIRef InRenderTargetTexture, uint32 InWidth, uint32 InHeight );
+	ENGINE_API void SetRHIRef( FTextureRHIRef InRenderTargetTexture, uint32 InWidth, uint32 InHeight );
 
-	FTexture2DRHIRef GetRHIRef() const { return ShaderResource; }
+	FTextureRHIRef GetRHIRef() const { return ShaderResource; }
 
 	/**
 	 * Sets the bulk data for this texture.  Note: Does not reinitialize the resource,  Can only be used on the render thread
@@ -110,10 +107,10 @@ private:
 /**
  * Encapsulates a render target for use by a Slate rendering implementation                   
  */
-class FSlateRenderTargetRHI : public TSlateTexture<FTexture2DRHIRef>, public FRenderResource
+class FSlateRenderTargetRHI : public TSlateTexture<FTextureRHIRef>, public FRenderResource
 {
 public:
-	FSlateRenderTargetRHI( FTexture2DRHIRef InRenderTargetTexture, uint32 InWidth, uint32 InHeight )
+	FSlateRenderTargetRHI( FTextureRHIRef InRenderTargetTexture, uint32 InWidth, uint32 InHeight )
 		: TSlateTexture( InRenderTargetTexture )
 		, Width( InWidth )
 		, Height( InHeight )
@@ -136,9 +133,9 @@ public:
 	/** 
 	 *  Sets the RHI Ref to use.  Useful for reusing this class for multiple render targets
 	 */
-	ENGINE_API void SetRHIRef( FTexture2DRHIRef InRenderTargetTexture, uint32 InWidth, uint32 InHeight );
+	ENGINE_API void SetRHIRef( FTextureRHIRef InRenderTargetTexture, uint32 InWidth, uint32 InHeight );
 
-	FTexture2DRHIRef GetRHIRef() const { return ShaderResource; }
+	FTextureRHIRef GetRHIRef() const { return ShaderResource; }
 private:
 	/** Width of this texture */
 	uint32 Width;

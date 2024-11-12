@@ -645,6 +645,15 @@ void UE_STRING_CLASS::InsertAt(int32 Index, const UE_STRING_CLASS& Characters)
 	}
 }
 
+void UE_STRING_CLASS::RemoveAt(int32 Index, EAllowShrinking AllowShrinking)
+{
+	// The clamping behavior below that we are inheriting from the (Index, Count, AllowShrinking) overload is unfortunate, as it pessimizes this call.
+	if (FMath::Clamp(1, 0, Len()-Index) == 1)
+	{
+		Data.RemoveAt(Index, AllowShrinking);
+	}
+}
+
 void UE_STRING_CLASS::RemoveAt(int32 Index, int32 Count, EAllowShrinking AllowShrinking)
 {
 	Data.RemoveAt(Index, FMath::Clamp(Count, 0, Len()-Index), AllowShrinking);
@@ -1116,7 +1125,7 @@ UE_STRING_CLASS UE_STRING_CLASS::FromBlob(const uint8* SrcBuffer,const uint32 Sr
 	// Convert and append each byte in the buffer
 	for (uint32 Count = 0; Count < SrcSize; Count++)
 	{
-		Result += UE_STRING_CLASS::Printf(CHARTEXT(ElementType, "%03d"),(uint8)SrcBuffer[Count]);
+		Result += UE_STRING_CLASS::Printf(CHARTEXT(FmtCharType, "%03d"),(uint8)SrcBuffer[Count]);
 	}
 	return Result;
 }
@@ -1151,7 +1160,7 @@ UE_STRING_CLASS UE_STRING_CLASS::FromHexBlob( const uint8* SrcBuffer, const uint
 	// Convert and append each byte in the buffer
 	for (uint32 Count = 0; Count < SrcSize; Count++)
 	{
-		Result += UE_STRING_CLASS::Printf( CHARTEXT(ElementType,  "%02X" ), (uint8)SrcBuffer[Count] );
+		Result += UE_STRING_CLASS::Printf(CHARTEXT(FmtCharType, "%02X"), (uint8)SrcBuffer[Count]);
 	}
 	return Result;
 }
@@ -1185,7 +1194,7 @@ UE_STRING_CLASS UE_STRING_CLASS::SanitizeFloat( double InFloat, const int32 InMi
 	UE::Core::Private::StripNegativeZero(InFloat);
 
 	// First create the string
-	UE_STRING_CLASS TempString = UE_STRING_CLASS::Printf(CHARTEXT(ElementType, "%f"), InFloat);
+	UE_STRING_CLASS TempString = UE_STRING_CLASS::Printf(CHARTEXT(FmtCharType, "%f"), InFloat);
 	if (!TempString.IsNumeric())
 	{
 		// String did not format as a valid decimal number so avoid messing with it
@@ -1391,57 +1400,54 @@ int32 UE_STRING_CLASS::ParseIntoArray(TArray<UE_STRING_CLASS>& OutArray, const E
 	OutArray.Reset();
 	const ElementType* Start = Data.GetData();
 	const int32 Length = Len();
-	if (Start)
-	{
-		int32 SubstringBeginIndex = 0;
+	int32 SubstringBeginIndex = 0;
 
 		// Iterate through string.
-		for(int32 i = 0; i < Len();)
+	for(int32 i = 0; i < Length;)
+	{
+		int32 SubstringEndIndex = INDEX_NONE;
+		int32 DelimiterLength = 0;
+
+		// Attempt each delimiter.
+		for(int32 DelimIndex = 0; DelimIndex < NumDelims; ++DelimIndex)
 		{
-			int32 SubstringEndIndex = INDEX_NONE;
-			int32 DelimiterLength = 0;
+			DelimiterLength = TCString<ElementType>::Strlen(DelimArray[DelimIndex]);
 
-			// Attempt each delimiter.
-			for(int32 DelimIndex = 0; DelimIndex < NumDelims; ++DelimIndex)
+			// If we found a delimiter...
+			if (TCString<ElementType>::Strncmp(Start + i, DelimArray[DelimIndex], DelimiterLength) == 0)
 			{
-				DelimiterLength = TCString<ElementType>::Strlen(DelimArray[DelimIndex]);
-
-				// If we found a delimiter...
-				if (TCString<ElementType>::Strncmp(Start + i, DelimArray[DelimIndex], DelimiterLength) == 0)
-				{
-					// Mark the end of the substring.
-					SubstringEndIndex = i;
-					break;
-				}
-			}
-
-			if (SubstringEndIndex != INDEX_NONE)
-			{
-				const int32 SubstringLength = SubstringEndIndex - SubstringBeginIndex;
-				// If we're not culling empty strings or if we are but the string isn't empty anyways...
-				if(!InCullEmpty || SubstringLength != 0)
-				{
-					// ... add new string from substring beginning up to the beginning of this delimiter.
-					OutArray.Add(UE_STRING_CLASS::ConstructFromPtrSize(Start + SubstringBeginIndex, SubstringEndIndex - SubstringBeginIndex));
-				}
-				// Next substring begins at the end of the discovered delimiter.
-				SubstringBeginIndex = SubstringEndIndex + DelimiterLength;
-				i = SubstringBeginIndex;
-			}
-			else
-			{
-				++i;
+				// Mark the end of the substring.
+				SubstringEndIndex = i;
+				break;
 			}
 		}
 
-		// Add any remaining characters after the last delimiter.
-		const int32 SubstringLength = Length - SubstringBeginIndex;
-		// If we're not culling empty strings or if we are but the string isn't empty anyways...
-		if(!InCullEmpty || SubstringLength != 0)
+		if (SubstringEndIndex != INDEX_NONE)
 		{
-			// ... add new string from substring beginning up to the beginning of this delimiter.
-			OutArray.Emplace(TStringView<ElementType>(Start + SubstringBeginIndex, SubstringLength));
+			const int32 SubstringLength = SubstringEndIndex - SubstringBeginIndex;
+			// If we're not culling empty strings or if we are but the string isn't empty anyways...
+			if(!InCullEmpty || SubstringLength != 0)
+			{
+				// ... add new string from substring beginning up to the beginning of this delimiter.
+				OutArray.Add(UE_STRING_CLASS::ConstructFromPtrSize(Start + SubstringBeginIndex, SubstringEndIndex - SubstringBeginIndex));
+			}
+			// Next substring begins at the end of the discovered delimiter.
+			SubstringBeginIndex = SubstringEndIndex + DelimiterLength;
+			i = SubstringBeginIndex;
 		}
+		else
+		{
+			++i;
+		}
+	}
+
+	// Add any remaining characters after the last delimiter.
+	const int32 SubstringLength = Length - SubstringBeginIndex;
+	// If we're not culling empty strings or if we are but the string isn't empty anyways...
+	if(!InCullEmpty || SubstringLength != 0)
+	{
+		// ... add new string from substring beginning up to the beginning of this delimiter.
+		OutArray.Emplace(TStringView<ElementType>(Start + SubstringBeginIndex, SubstringLength));
 	}
 
 	return OutArray.Num();

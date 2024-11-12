@@ -399,16 +399,16 @@ void FObjectReplicator::InitRecentProperties(uint8* Source)
 	// If acting as a server and are IsInternalAck, that means we're recording.
 	// In that case, we don't need to create any receiving state, as no one will be sending data to us.
 	ECreateRepStateFlags Flags = (Connection->IsInternalAck() && bIsServer) ? ECreateRepStateFlags::SkipCreateReceivingState : ECreateRepStateFlags::None;
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN
 	{
 		RepState = LocalRepLayout.CreateRepState(Source, RepChangedPropertyTracker, Flags);
-	});
+	};
 
 	// RepState not valid at the start of this function so just go back to being a nullptr, and let the memory be cleaned up 
-	UE_AUTORTFM_ONABORT(
+	UE_AUTORTFM_ONABORT(this)
 	{
 		RepState = nullptr;
-	});
+	};
 
 	if (!bCreateSendingState)
 	{
@@ -438,6 +438,8 @@ void FObjectReplicator::InitRecentProperties(uint8* Source)
 		for (uint16 CustomDeltaProperty = 0; CustomDeltaProperty < NumLifetimeCustomDeltaProperties; ++CustomDeltaProperty)
 		{
 			FOutBunch DeltaState(Connection->PackageMap);
+			UE::Net::FNetTokenExportScope NetTokenExportScope(DeltaState, ConnectionDriver->GetNetTokenStore(), DeltaState.NetTokensPendingExport, "SendPropertiesForRPC");
+
 			TSharedPtr<INetDeltaBaseState>& NewState = SendingRepState->RecentCustomDeltaState[CustomDeltaProperty];
 			NewState.Reset();
 
@@ -1281,9 +1283,16 @@ bool FObjectReplicator::ReceivedRPC(FNetBitReader& Reader, const FReplicationFla
 		HANDLE_INCOMPATIBLE_RPC
 	}
 
-	if ((Function->FunctionFlags & (bIsServer ? FUNC_NetServer : (FUNC_NetClient | FUNC_NetMulticast))) == 0)
+	// If NetServer, NetClient, or NetMulticast flags are present, filter the RPC based on them. If not, accept the RPC for servers and clients.
+	if ((Function->FunctionFlags & FUNC_NetServer) && !bIsServer)
 	{
-		UE_LOG(LogRep, Error, TEXT("Rejected RPC function due to access rights. Object: %s, Function: %s"), *Object->GetFullName(), *FunctionName.ToString());
+		UE_LOG(LogRep, Error, TEXT("Rejected server RPC function due to access rights. Object: %s, Function: %s"), *Object->GetFullName(), *FunctionName.ToString());
+		HANDLE_INCOMPATIBLE_RPC
+	}
+
+	if ((Function->FunctionFlags & (FUNC_NetClient | FUNC_NetMulticast)) && bIsServer)
+	{
+		UE_LOG(LogRep, Error, TEXT("Rejected client RPC function due to access rights. Object: %s, Function: %s"), *Object->GetFullName(), *FunctionName.ToString());
 		HANDLE_INCOMPATIBLE_RPC
 	}
 
@@ -1602,6 +1611,9 @@ void FObjectReplicator::ReplicateCustomDeltaProperties( FNetBitWriter & Bunch, F
 	
 	const bool bIsConnectionInternalAck = Connection->IsInternalAck();
 
+	// We must forward the current NetToken export context from the bunch to the temporary NetBitWriter into which this data will be written
+	TempBitWriter.NetTokenExportContext.Set(Bunch.NetTokenExportContext.Get());
+	
 	// Replicate those properties.
 	for (uint16 CustomDeltaProperty = 0; CustomDeltaProperty < NumLifetimeCustomDeltaProperties; ++CustomDeltaProperty)
 	{
@@ -1745,7 +1757,7 @@ bool FObjectReplicator::CanSkipUpdate(FReplicationFlags RepFlags)
 	if (bHasNoRepLayout)
 	{
 		// No properties to replicate and no RPCs queued, let's skip!
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		++GNumSkippedObjectEmptyUpdates;
 #endif
 
@@ -1799,7 +1811,7 @@ bool FObjectReplicator::CanSkipUpdate(FReplicationFlags RepFlags)
 
 	if (bCanSkip)
 	{
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		++GNumSkippedObjectEmptyUpdates;
 #endif
 
@@ -1826,11 +1838,11 @@ bool FObjectReplicator::ReplicateProperties(FOutBunch& Bunch, FReplicationFlags 
 }
 
 /** Replicates properties to the Bunch. Returns true if it wrote anything */
-bool FObjectReplicator::ReplicateProperties_r( FOutBunch & Bunch, FReplicationFlags RepFlags, FNetBitWriter& Writer)
+bool FObjectReplicator::ReplicateProperties_r(FOutBunch& Bunch, FReplicationFlags RepFlags, FNetBitWriter& Writer)
 {
 	UObject* Object = GetObject();
 
-	if ( Object == nullptr )
+	if (Object == nullptr)
 	{
 		UE_LOG(LogRep, Verbose, TEXT("ReplicateProperties: Object == nullptr"));
 		return false;
@@ -1849,11 +1861,22 @@ bool FObjectReplicator::ReplicateProperties_r( FOutBunch & Bunch, FReplicationFl
 
 	UNetConnection* OwningChannelConnection = OwningChannel->Connection;
 
+	// Pass on NetTokenExportContext
+	Writer.NetTokenExportContext.Set(Bunch.NetTokenExportContext.Get());
+
 #if UE_NET_TRACE_ENABLED
 	// Create trace collector if tracing is enabled for the target bunch
 	SetTraceCollector(Writer, GetTraceCollector(Bunch) ? UE_NET_TRACE_CREATE_COLLECTOR(ENetTraceVerbosity::Trace) : nullptr);
-    ON_SCOPE_EXIT { UE_NET_TRACE_DESTROY_COLLECTOR(GetTraceCollector(Writer)); };
 #endif
+
+    ON_SCOPE_EXIT 
+	{
+#if UE_NET_TRACE_ENABLED		
+		UE_NET_TRACE_DESTROY_COLLECTOR(GetTraceCollector(Writer)); 
+#endif
+		// Just to be safe, restore context on exit as we technically do not own the Writer.
+		Writer.NetTokenExportContext.Set(nullptr);
+	};
  
 	// TODO: Maybe ReplicateProperties could just take the RepState, Changelist Manger, Writer, and OwningChannel
 	//		and all the work could just be done in a single place.
@@ -1976,6 +1999,11 @@ bool FObjectReplicator::ReplicateProperties_r( FOutBunch & Bunch, FReplicationFl
 		}
 
 		Writer.SerializeBits( RemoteFunctions->GetData(), RemoteFunctions->GetNumBits() );
+
+		// Append potential NetToken exports from queued remote functions.
+		Writer.NetTokenExportContext.Get()->AppendNetTokensPendingExport(RemoteFunctions->NetTokensPendingExport);		
+		RemoteFunctions->NetTokensPendingExport.Reset();
+
 		RemoteFunctions->Reset();
 		RemoteFuncInfo.Empty();
 
@@ -2212,6 +2240,10 @@ void FObjectReplicator::QueueRemoteFunctionBunch( UFunction* Func, FOutBunch &Bu
 
 	RemoteFunctions->SerializeBits(Bunch.GetData(), Bunch.GetNumBits());
 
+	// Save potential NetToken exports for export when we actually commit the RemoteFunctions
+	RemoteFunctions->NetTokensPendingExport.Append(Bunch.NetTokensPendingExport);
+	Bunch.NetTokensPendingExport.Reset();
+
 	if (Connection->PackageMap != nullptr)
 	{
 		UPackageMapClient* PackageMapClient = CastChecked<UPackageMapClient>(Connection->PackageMap);
@@ -2225,8 +2257,9 @@ void FObjectReplicator::QueueRemoteFunctionBunch( UFunction* Func, FOutBunch &Bu
 
 		if (!Connection->IsInternalAck())
 		{
-			// Copy over any exported bunches
-			PackageMapClient->AppendExportBunches(OwningChannel->QueuedExportBunches);
+			// Copy over any additionally required bunches
+			TArray<FOutBunch*> AdditionalBunches = PackageMapClient->GetAdditionalRequiredBunches(Bunch, EChannelGetAdditionalRequiredBunchesFlags::None);
+			OwningChannel->QueuedExportBunches.Append(MoveTemp(AdditionalBunches));
 		}
 	}
 }
@@ -2242,10 +2275,7 @@ bool FObjectReplicator::ReadyForDormancy(bool bSuppressLogs)
 	// Can't go dormant until last update produced no new property updates
 	if (!bLastUpdateEmpty)
 	{
-		if (!bSuppressLogs)
-		{
-			UE_LOG(LogRepTraffic, Verbose, TEXT("    [%d] Not ready for dormancy. bLastUpdateEmpty = false"), OwningChannel->ChIndex);
-		}
+		UE_CLOG(!bSuppressLogs, LogRepTraffic, Verbose, TEXT("    [%d] Not ready for dormancy. bLastUpdateEmpty = false"), OwningChannel->ChIndex);
 
 		return false;
 	}
@@ -2278,10 +2308,7 @@ bool FObjectReplicator::ReadyForDormancy(bool bSuppressLogs)
 		{
 			if (Retirement.Next != nullptr)
 			{
-				if (!bSuppressLogs)
-				{
-					UE_LOG(LogRepTraffic, Verbose, TEXT("    [%d] OutAckPacketId: %d First: %d Last: %d "), OwningChannel->ChIndex, OwningChannel->Connection->OutAckPacketId, Retirement.OutPacketIdRange.First, Retirement.OutPacketIdRange.Last);
-				}
+				UE_CLOG(!bSuppressLogs, LogRepTraffic, Verbose, TEXT("    [%d] Not ready for dormancy. OutAckPacketId: %d First: %d Last: %d "), OwningChannel->ChIndex, OwningChannel->Connection->OutAckPacketId, Retirement.OutPacketIdRange.First, Retirement.OutPacketIdRange.Last);
 				return false;
 			}
 		}

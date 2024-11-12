@@ -20,10 +20,13 @@ DECLARE_CYCLE_STAT(TEXT("Buoyancy_Subsystem_BuildSubmersions"), STAT_BuoyancySub
 DECLARE_CYCLE_STAT(TEXT("Buoyancy_Subsystem_BuildSubmersionCallbackData"), STAT_BuoyancySubsystem_BuildSubmersionCallbackData, STATGROUP_Buoyancy);
 DECLARE_CYCLE_STAT(TEXT("Buoyancy_Subsystem_ApplyBuoyantForces"), STAT_BuoyancySubsystem_ApplyBuoyantForces, STATGROUP_Buoyancy);
 DECLARE_CYCLE_STAT(TEXT("Buoyancy_Subsystem_ProduceSurfaceTouches"), STAT_BuoyancySubsystem_ProduceSurfaceTouches, STATGROUP_Buoyancy);
+DECLARE_CYCLE_STAT(TEXT("Buoyancy_Subsystem_GenerateAllocationData"), STAT_BuoyancySubsystem_GenerateAllocationData, STATGROUP_Buoyancy);
 DECLARE_CYCLE_STAT(TEXT("Buoyancy_Subsystem_Tick"), STAT_BuoyancySubsystem_Tick, STATGROUP_Buoyancy);
 DECLARE_CYCLE_STAT(TEXT("Buoyancy_Subsystem_UpdateBuoyancySettings"), STAT_BuoyancySubsystem_UpdateBuoyancySettings, STATGROUP_Buoyancy);
 DECLARE_CYCLE_STAT(TEXT("Buoyancy_Subsystem_UpdateWaterBodiesList"), STAT_BuoyancySubsystem_UpdateWaterBodiesList, STATGROUP_Buoyancy);
 DECLARE_CYCLE_STAT(TEXT("Buoyancy_Subsystem_DispatchCallbacks"), STAT_BuoyancySubsystem_DispatchCallbacks, STATGROUP_Buoyancy);
+DECLARE_CYCLE_STAT(TEXT("Buoyancy_Subsystem_ShallowWaterIntegrateForces"), STAT_BuoyancySubsystem_ShallowWaterIntegrateForces, STATGROUP_Buoyancy);
+DECLARE_CYCLE_STAT(TEXT("Buoyancy_Subsystem_ProcessInteraction"), STAT_BuoyancySubsystem_ProcessInteraction, STATGROUP_Buoyancy);
 
 // Algorithms
 DECLARE_CYCLE_STAT(TEXT("Buoyancy_Algorithms_ComputeSubmergedVolume"), STAT_BuoyancyAlgorithms_ComputeSubmergedVolume, STATGROUP_Buoyancy);
@@ -32,4 +35,18 @@ DECLARE_CYCLE_STAT(TEXT("Buoyancy_Algorithms_ScaleSubmergedVolume"), STAT_Buoyan
 DECLARE_CYCLE_STAT(TEXT("Buoyancy_Algorithms_SubdivideBounds"), STAT_BuoyancyAlgorithms_SubdivideBounds, STATGROUP_Buoyancy);
 DECLARE_CYCLE_STAT(TEXT("Buoyancy_Algorithms_ComputeBuoyantForces"), STAT_BuoyancyAlgorithms_ComputeBuoyantForces, STATGROUP_Buoyancy);
 DECLARE_CYCLE_STAT(TEXT("Buoyancy_Algorithms_SubmergeShapeInternal"), STAT_BuoyancyAlgorithms_SubmergeShapeInternal, STATGROUP_Buoyancy);
+DECLARE_CYCLE_STAT(TEXT("Buoyancy_Algorithms_ComputeSubmergedVolumeAndForcesForParticle"), STAT_BuoyancyAlgorithms_ComputeSubmergedVolumeAndForcesForParticle, STATGROUP_Buoyancy);
+DECLARE_CYCLE_STAT(TEXT("Buoyancy_Algorithms_ComputeSubmergedVolumeAndForcesForShape"), STAT_BuoyancyAlgorithms_ComputeSubmergedVolumeAndForcesForShape, STATGROUP_Buoyancy);
+DECLARE_CYCLE_STAT(TEXT("Buoyancy_Algorithms_FindAllIntersectionPoints"), STAT_BuoyancyAlgorithms_FindAllIntersectionPoints, STATGROUP_Buoyancy);
+DECLARE_CYCLE_STAT(TEXT("Buoyancy_Algorithms_SortIntersectionPointsByAngle"), STAT_BuoyancyAlgorithms_SortIntersectionPointsByAngle, STATGROUP_Buoyancy);
+DECLARE_CYCLE_STAT(TEXT("Buoyancy_Algorithms_ComputeTriangleAreaAndVolume"), STAT_BuoyancyAlgorithms_ComputeTriangleAreaAndVolume, STATGROUP_Buoyancy);
+DECLARE_CYCLE_STAT(TEXT("Buoyancy_Algorithms_ComputeFluidForceForTriangle"), STAT_BuoyancyAlgorithms_ComputeFluidForceForTriangle, STATGROUP_Buoyancy);
+DECLARE_CYCLE_STAT(TEXT("Buoyancy_Algorithms_ComputeBuoyantForceForShape"), STAT_BuoyancyAlgorithms_ComputeBuoyantForceForShape, STATGROUP_Buoyancy);
 
+// Particle Data
+DECLARE_CYCLE_STAT(TEXT("Buoyancy_ParticleData_GetData"), STAT_BuoyancyParticleData_GetData, STATGROUP_Buoyancy);
+DECLARE_CYCLE_STAT(TEXT("Buoyancy_ParticleData_Reset"), STAT_BuoyancyParticleData_Reset, STATGROUP_Buoyancy);
+DECLARE_CYCLE_STAT(TEXT("Buoyancy_ParticleData_OptimizeMemory"), STAT_BuoyancyParticleData_OptimizeMemory, STATGROUP_Buoyancy);
+
+// Memory tracking tags
+LLM_DECLARE_TAG(BuoyancyParticleDataTag);

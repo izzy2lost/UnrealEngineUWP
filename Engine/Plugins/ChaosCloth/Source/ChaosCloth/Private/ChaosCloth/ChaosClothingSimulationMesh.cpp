@@ -4,14 +4,14 @@
 #include "ChaosCloth/ChaosWeightMapTarget.h"
 #include "ChaosCloth/ChaosClothPrivate.h"
 #include "ClothingSimulation.h"
-#if !defined(CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT) || !CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Components/SkeletalMeshComponent.h"
 #include "ClothingAsset.h"
-#else
-#include "Components/SkinnedMeshComponent.h"
 #endif
+#include "Components/SkinnedMeshComponent.h"
 #include "Containers/ArrayView.h"
 #include "Async/ParallelFor.h"
+#include "SkeletalMeshTypes.h"  // For FMeshToMeshVertData
 #if INTEL_ISPC
 #include "ChaosClothingSimulationMesh.ispc.generated.h"
 #endif
@@ -34,286 +34,14 @@ DECLARE_CYCLE_STAT(TEXT("Chaos Cloth Wrap Deform Cloth LOD"), STAT_ChaosClothWra
 namespace Chaos
 {
 
-#if !defined(CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT) || !CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
-
 FClothingSimulationMesh::FClothingSimulationMesh(const FString& InDebugName)
-	: Asset(nullptr)
-	, SkeletalMeshComponent(nullptr)
 #if !UE_BUILD_SHIPPING
-	, DebugName(InDebugName)
-#endif
-{
-}
-
-FClothingSimulationMesh::FClothingSimulationMesh(const UClothingAssetCommon* InAsset, const USkeletalMeshComponent* InSkeletalMeshComponent)
-	: Asset(InAsset)
-	, SkeletalMeshComponent(InSkeletalMeshComponent)
-#if !UE_BUILD_SHIPPING
-	, DebugName(InSkeletalMeshComponent->GetOwner() ?
-		FString::Format(TEXT("{0}|{1}"), { InSkeletalMeshComponent->GetOwner()->GetName(), InSkeletalMeshComponent->GetName() } ) :
-		InSkeletalMeshComponent->GetName())
+	: DebugName(InDebugName)
 #endif
 {
 }
 
 FClothingSimulationMesh::~FClothingSimulationMesh() = default;
-
-int32 FClothingSimulationMesh::GetNumLODs() const
-{
-	return Asset ? Asset->LodData.Num() : 0;
-}
-
-int32 FClothingSimulationMesh::GetLODIndex() const
-{
-	int32 LODIndex = INDEX_NONE;
-
-	if (Asset && SkeletalMeshComponent)
-	{
-		const int32 MeshLODIndex = SkeletalMeshComponent->GetPredictedLODLevel();
-		if (Asset->LodMap.IsValidIndex(MeshLODIndex))
-		{
-			const int32 ClothLODIndex = Asset->LodMap[MeshLODIndex];
-			if (Asset->LodData.IsValidIndex(ClothLODIndex))
-			{
-				LODIndex = ClothLODIndex;
-			}
-		}
-	}
-	return LODIndex;
-}
-
-bool FClothingSimulationMesh::IsValidLODIndex(int32 LODIndex) const
-{
-	return Asset && Asset->LodData.IsValidIndex(LODIndex);
-}
-
-int32 FClothingSimulationMesh::GetOwnerLODIndex(int32 LODIndex) const
-{
-	const int32 OwnerLODIndex = Asset ? Asset->LodMap.Find(LODIndex) : INDEX_NONE;
-	return OwnerLODIndex != INDEX_NONE ? OwnerLODIndex : 0;  // Safer to return the default LOD 0 than INDEX_NONE in this case
-}
-
-int32 FClothingSimulationMesh::GetNumPoints(int32 LODIndex) const
-{
-	return IsValidLODIndex(LODIndex) ? Asset->LodData[LODIndex].PhysicalMeshData.Vertices.Num() : 0;
-}
-
-int32 FClothingSimulationMesh::GetNumPatternPoints(int32 LODIndex) const
-{
-	return 0;
-}
-
-TConstArrayView<FVector3f> FClothingSimulationMesh::GetPositions(int32 LODIndex) const
-{
-	if (IsValidLODIndex(LODIndex))
-	{
-		const FClothLODDataCommon& ClothLODData = Asset->LodData[LODIndex];
-		const FClothPhysicalMeshData& ClothPhysicalMeshData = ClothLODData.PhysicalMeshData;
-		return TConstArrayView<FVector3f>(ClothPhysicalMeshData.Vertices);
-	}
-	return TConstArrayView<FVector3f>();
-}
-
-TConstArrayView<FVector2f> FClothingSimulationMesh::GetPatternPositions(int32 LODIndex) const
-{
-	return TConstArrayView<FVector2f>();
-}
-
-TConstArrayView<FVector3f> FClothingSimulationMesh::GetNormals(int32 LODIndex) const
-{
-	if (IsValidLODIndex(LODIndex))
-	{
-		const FClothLODDataCommon& ClothLODData = Asset->LodData[LODIndex];
-		const FClothPhysicalMeshData& ClothPhysicalMeshData = ClothLODData.PhysicalMeshData;
-		return TConstArrayView<FVector3f>(ClothPhysicalMeshData.Normals);
-	}
-	return TConstArrayView<FVector3f>();
-}
-
-TConstArrayView<uint32> FClothingSimulationMesh::GetIndices(int32 LODIndex) const
-{
-	return IsValidLODIndex(LODIndex) ?
-		TConstArrayView<uint32>(Asset->LodData[LODIndex].PhysicalMeshData.Indices) :
-		TConstArrayView<uint32>();
-}
-
-TConstArrayView<uint32> FClothingSimulationMesh::GetPatternIndices(int32 LODIndex) const
-{
-	return TConstArrayView<uint32>();
-}
-
-TConstArrayView<uint32> FClothingSimulationMesh::GetPatternToWeldedIndices(int32 LODIndex) const
-{
-	return TConstArrayView<uint32>();
-}
-
-TArray<FName> FClothingSimulationMesh::GetWeightMapNames(int32 LODIndex) const
-{
-	TArray<FName> WeightMapNames;
-	if (IsValidLODIndex(LODIndex))
-	{
-		// This must match the order of GetWeightMaps
-		const FClothLODDataCommon& ClothLODData = Asset->LodData[LODIndex];
-		const FClothPhysicalMeshData& ClothPhysicalMeshData = ClothLODData.PhysicalMeshData;
-		WeightMapNames.Reserve(ClothPhysicalMeshData.WeightMaps.Num());
-
-		const UEnum* const ChaosWeightMapTargetEnum = StaticEnum<EChaosWeightMapTarget>();
-		for (const TPair<uint32, FPointWeightMap>& TargetIDAndMap : ClothPhysicalMeshData.WeightMaps)
-		{
-			WeightMapNames.Add(FName(ChaosWeightMapTargetEnum->GetNameStringByValue(TargetIDAndMap.Get<0>())));
-		}
-	}
-
-	return WeightMapNames;
-}
-
-TMap<FString, int32> FClothingSimulationMesh::GetWeightMapIndices(int32 LODIndex) const
-{
-	TMap<FString, int32> WeightMapIndices;
-	const TArray<FName> WeightMapNames = GetWeightMapNames(LODIndex);
-	WeightMapIndices.Reserve(WeightMapNames.Num());
-	for (int32 WeightMapIndex = 0; WeightMapIndex < WeightMapNames.Num(); ++WeightMapIndex)
-	{
-		const FName& WeightMapName = WeightMapNames[WeightMapIndex];
-		WeightMapIndices.Emplace(WeightMapName.ToString(), WeightMapIndex);
-	}
-	return WeightMapIndices;
-}
-
-TArray<TConstArrayView<FRealSingle>> FClothingSimulationMesh::GetWeightMaps(int32 LODIndex) const
-{
-	TArray<TConstArrayView<FRealSingle>> WeightMaps;
-	if (IsValidLODIndex(LODIndex))
-	{
-		// This must match the order of GetWeightMapNames
-		const FClothLODDataCommon& ClothLODData = Asset->LodData[LODIndex];
-		const FClothPhysicalMeshData& ClothPhysicalMeshData = ClothLODData.PhysicalMeshData;
-
-		WeightMaps.Reserve(ClothPhysicalMeshData.WeightMaps.Num());
-		for (const TPair<uint32, FPointWeightMap>& TargetIDAndMap : ClothPhysicalMeshData.WeightMaps)
-		{
-			WeightMaps.Add(TargetIDAndMap.Get<1>().Values);
-		}
-	}
-	return WeightMaps;
-}
-
-TMap<FString, const TSet<int32>*> FClothingSimulationMesh::GetVertexSets(int32 LODIndex) const
-{
-	// Not supported
-	return TMap<FString, const TSet<int32>*>();
-}
-
-TMap<FString, const TSet<int32>*> FClothingSimulationMesh::GetFaceSets(int32 LODIndex) const
-{
-	// Not supported
-	return TMap<FString, const TSet<int32>*>();
-}
-
-TMap<FString, TConstArrayView<int32>> FClothingSimulationMesh::GetFaceIntMaps(int32 LODIndex) const
-{
-	// Not supported
-	return TMap<FString, TConstArrayView<int32>>();
-}
-
-TArray<TConstArrayView<TTuple<int32, int32, float>>> FClothingSimulationMesh::GetTethers(int32 LODIndex, bool bUseGeodesicTethers) const
-{
-	TArray<TConstArrayView<TTuple<int32, int32, float>>> Tethers;
-	if (IsValidLODIndex(LODIndex))
-	{
-		const FClothLODDataCommon& ClothLODData = Asset->LodData[LODIndex];
-		const FClothPhysicalMeshData& ClothPhysicalMeshData = ClothLODData.PhysicalMeshData;
-		const FClothTetherData& ClothTetherData = bUseGeodesicTethers ? ClothPhysicalMeshData.GeodesicTethers : ClothPhysicalMeshData.EuclideanTethers;
-		
-		const int32 NumTetherBatches = ClothTetherData.Tethers.Num();
-		Tethers.Reserve(NumTetherBatches);
-		for (int32 Index = 0; Index < NumTetherBatches; ++Index)
-		{
-			Tethers.Emplace(TConstArrayView<TTuple<int32, int32, float>>(ClothTetherData.Tethers[Index]));
-		}
-	}
-	return Tethers;
-}
-
-int32 FClothingSimulationMesh::GetReferenceBoneIndex() const
-{
-	return Asset ? Asset->ReferenceBoneIndex : INDEX_NONE;
-}
-
-FTransform FClothingSimulationMesh::GetReferenceBoneTransform() const
-{
-	if (const FClothingSimulationContextCommon* const Context = GetContext())
-	{
-		const int32 ReferenceBoneIndex = GetReferenceBoneIndex();
-		const TArray<FTransform>& BoneTransforms = Context->BoneTransforms;
-
-		return BoneTransforms.IsValidIndex(ReferenceBoneIndex) ?
-			BoneTransforms[ReferenceBoneIndex] * Context->ComponentToWorld :
-			Context->ComponentToWorld;
-	}
-	return FTransform::Identity;
-}
-
-const TArray<FTransform>& FClothingSimulationMesh::GetBoneTransforms() const
-{
-	return GetContext()->BoneTransforms;
-}
-
-const FTransform& FClothingSimulationMesh::GetComponentToWorldTransform() const
-{
-	return GetContext() ? GetContext()->ComponentToWorld : FTransform::Identity;
-}
-
-const TArray<FMatrix44f>& FClothingSimulationMesh::GetRefToLocalMatrices() const
-{
-	static TArray<FMatrix44f> EmptyArray;
-	return GetContext() ? GetContext()->RefToLocals : EmptyArray;
-}
-
-TConstArrayView<int32> FClothingSimulationMesh::GetBoneMap() const
-{
-	return Asset ? Asset->UsedBoneIndices : TConstArrayView<int32>();
-}
-
-TConstArrayView<FClothVertBoneData> FClothingSimulationMesh::GetBoneData(int32 LODIndex) const
-{
-	if (IsValidLODIndex(LODIndex))
-	{
-		const FClothLODDataCommon& ClothLODData = Asset->LodData[LODIndex];
-		const FClothPhysicalMeshData& ClothPhysicalMeshData = ClothLODData.PhysicalMeshData;
-		UE_CLOG(ClothPhysicalMeshData.MaxBoneWeights > 12, LogChaosCloth, Warning, TEXT("The cloth physics mesh skinning code can't cope with more than 12 bone influences."));
-		return ClothPhysicalMeshData.BoneData;
-	}
-	static TArray<FClothVertBoneData> EmptyArray;
-	return EmptyArray;
-}
-
-TConstArrayView<FMeshToMeshVertData> FClothingSimulationMesh::GetTransitionUpSkinData(int32 LODIndex) const
-{
-	return IsValidLODIndex(LODIndex) ? TConstArrayView<FMeshToMeshVertData>(Asset->LodData[LODIndex].TransitionUpSkinData) : TConstArrayView<FMeshToMeshVertData>();
-}
-
-TConstArrayView<FMeshToMeshVertData> FClothingSimulationMesh::GetTransitionDownSkinData(int32 LODIndex) const
-{
-	return IsValidLODIndex(LODIndex) ? TConstArrayView<FMeshToMeshVertData>(Asset->LodData[LODIndex].TransitionDownSkinData) : TConstArrayView<FMeshToMeshVertData>();
-}
-
-const FClothingSimulationContextCommon* FClothingSimulationMesh::GetContext() const
-{
-	return GetSkeletalMeshComponent() ?
-		static_cast<const FClothingSimulationContextCommon*>(GetSkeletalMeshComponent()->GetClothingSimulationContext()) :
-		nullptr;
-}
-
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-#else
-FClothingSimulationMesh::FClothingSimulationMesh() = default;
-
-FClothingSimulationMesh::~FClothingSimulationMesh() = default;
-#endif
 
 Softs::FSolverReal FClothingSimulationMesh::GetScale() const
 {
@@ -404,6 +132,52 @@ bool FClothingSimulationMesh::WrapDeformLOD(
 	return true;
 }
 
+bool FClothingSimulationMesh::WrapDeformLOD(
+	int32 PrevLODIndex,
+	int32 LODIndex,
+	const TConstArrayView<Softs::FSolverVec3>& Positions,
+	const TConstArrayView<Softs::FSolverVec3>& Normals,
+	TArrayView<Softs::FSolverVec3>& OutPositions,
+	TArrayView<Softs::FSolverVec3>& OutNormals) const
+{
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(FClothingSimulationMesh_WrapDeformLOD);
+	SCOPE_CYCLE_COUNTER(STAT_ChaosClothWrapDeformMesh);
+
+	const int32 NumLODsPassed = FMath::Abs(LODIndex - PrevLODIndex);
+	if (NumLODsPassed != 1 || !IsValidLODIndex(PrevLODIndex) || !IsValidLODIndex(LODIndex))
+	{
+		return false;
+	}
+
+	const int32 NumPoints = OutPositions.Num();
+
+	const TConstArrayView<FMeshToMeshVertData> SkinData = (PrevLODIndex < LODIndex) ?
+		GetTransitionUpSkinData(LODIndex) :
+		GetTransitionDownSkinData(LODIndex);
+
+	for (int32 Index = 0; Index < NumPoints; ++Index)  // TODO: Profile for parallel for
+	{
+		const FMeshToMeshVertData& VertData = SkinData[Index];
+
+		const int32 VertIndex0 = (int32)VertData.SourceMeshVertIndices[0];  // Note: The source is uint16. Watch out for large mesh sections!
+		const int32 VertIndex1 = (int32)VertData.SourceMeshVertIndices[1];
+		const int32 VertIndex2 = (int32)VertData.SourceMeshVertIndices[2];
+
+		OutPositions[Index] =
+			Positions[VertIndex0] * (FSolverReal)VertData.PositionBaryCoordsAndDist.X + Normals[VertIndex0] * (FSolverReal)VertData.PositionBaryCoordsAndDist.W +
+			Positions[VertIndex1] * (FSolverReal)VertData.PositionBaryCoordsAndDist.Y + Normals[VertIndex1] * (FSolverReal)VertData.PositionBaryCoordsAndDist.W +
+			Positions[VertIndex2] * (FSolverReal)VertData.PositionBaryCoordsAndDist.Z + Normals[VertIndex2] * (FSolverReal)VertData.PositionBaryCoordsAndDist.W;
+
+		OutNormals[Index] =
+			(Normals[VertIndex0] * (FSolverReal)VertData.PositionBaryCoordsAndDist.X +
+			Normals[VertIndex1] * (FSolverReal)VertData.PositionBaryCoordsAndDist.Y +
+			Normals[VertIndex2] * (FSolverReal)VertData.PositionBaryCoordsAndDist.Z).GetSafeNormal();
+	}
+
+	return true;
+}
+
 // Inline function used to force the unrolling of the skinning loop, LWC: note skinning is all done in float to match the asset data type
 FORCEINLINE static void AddInfluence(FVector3f& OutPosition, FVector3f& OutNormal, const FVector3f& RefParticle, const FVector3f& RefNormal, const FMatrix44f& BoneMatrix, const float Weight)
 {
@@ -411,7 +185,7 @@ FORCEINLINE static void AddInfluence(FVector3f& OutPosition, FVector3f& OutNorma
 	OutNormal += BoneMatrix.TransformVector(RefNormal) * Weight;
 }
 
-void FClothingSimulationMesh::SkinPhysicsMesh(int32 LODIndex, const FVec3& LocalSpaceLocation, FSolverVec3* OutPositions, FSolverVec3* OutNormals) const
+void FClothingSimulationMesh::SkinPhysicsMesh(int32 LODIndex, const FReal LocalSpaceScale, const FVec3& LocalSpaceLocation, TArrayView<Softs::FSolverVec3>& OutPositions, TArrayView<Softs::FSolverVec3>& OutNormals) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FClothingSimulationMesh_SkinPhysicsMesh);
 	SCOPE_CYCLE_COUNTER(STAT_ChaosClothSkinPhysicsMesh);
@@ -419,6 +193,10 @@ void FClothingSimulationMesh::SkinPhysicsMesh(int32 LODIndex, const FVec3& Local
 
 	FTransform ComponentToLocalSpaceReal = GetComponentToWorldTransform();
 	ComponentToLocalSpaceReal.AddToTranslation(-LocalSpaceLocation);
+	check(LocalSpaceScale > UE_SMALL_NUMBER);
+	const FReal LocalSpaceScaleInv = 1. / LocalSpaceScale;
+	ComponentToLocalSpaceReal.MultiplyScale3D(FVec3(LocalSpaceScaleInv));
+	ComponentToLocalSpaceReal.ScaleTranslation(LocalSpaceScaleInv);
 	const FTransform3f ComponentToLocalSpace(ComponentToLocalSpaceReal);  // LWC: Now in local space, therefore it is safe to use single precision which is the asset data format
 
 	const int32* const RESTRICT BoneMap = GetBoneMap().GetData();
@@ -426,6 +204,8 @@ void FClothingSimulationMesh::SkinPhysicsMesh(int32 LODIndex, const FVec3& Local
 
 	check(IsValidLODIndex(LODIndex));
 	const uint32 NumPoints = GetNumPoints(LODIndex);
+	check(NumPoints == OutPositions.Num());
+	check(NumPoints == OutNormals.Num());
 	const TConstArrayView<FClothVertBoneData> BoneData = GetBoneData(LODIndex);
 	const TConstArrayView<FVector3f> Positions = GetPositions(LODIndex);
 	const TConstArrayView<FVector3f> Normals = GetNormals(LODIndex);
@@ -434,8 +214,8 @@ void FClothingSimulationMesh::SkinPhysicsMesh(int32 LODIndex, const FVec3& Local
 	if (bChaos_SkinPhysicsMesh_ISPC_Enabled)
 	{
 		ispc::SkinPhysicsMesh(
-			(ispc::FVector3f*)OutPositions,
-			(ispc::FVector3f*)OutNormals,
+			(ispc::FVector3f*)OutPositions.GetData(),
+			(ispc::FVector3f*)OutNormals.GetData(),
 			(ispc::FVector3f*)Positions.GetData(),
 			(ispc::FVector3f*)Normals.GetData(),
 			(ispc::FClothVertBoneData*)BoneData.GetData(),
@@ -504,30 +284,30 @@ void FClothingSimulationMesh::Update(
 	}
 
 	// Skin current LOD positions
+	const FReal LocalSpaceScale = Solver->GetLocalSpaceScale();
 	const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
-	FSolverVec3* const OutPositions = Solver->GetAnimationPositions(ParticleRangeId);
-	FSolverVec3* const OutNormals = Solver->GetAnimationNormals(ParticleRangeId);
+	TArrayView<FSolverVec3> OutPositions = Solver->GetAnimationPositionsView(ParticleRangeId);
+	TArrayView<FSolverVec3> OutNormals = Solver->GetAnimationNormalsView(ParticleRangeId);
 	
-	SkinPhysicsMesh(LODIndex, LocalSpaceLocation, OutPositions, OutNormals);
+	SkinPhysicsMesh(LODIndex, LocalSpaceScale, LocalSpaceLocation, OutPositions, OutNormals);
 
 	// Update old positions after LOD Switching
 	if (LODIndex != PrevLODIndex)
 	{
 		// TODO: Using the more accurate skinning method here would require double buffering the context at the skeletal mesh level
-		const FSolverVec3* const SrcWrapNormals = Solver->GetAnimationNormals(PrevParticleRangeId);  // No need to keep an old normals array around, since the LOD has just changed
-		const FSolverVec3* const SrcWrapPositions = Solver->GetOldAnimationPositions(PrevParticleRangeId);
-		FSolverVec3* const OutOldPositions = Solver->GetOldAnimationPositions(ParticleRangeId);
+		const TConstArrayView<FSolverVec3> SrcWrapPositions = Solver->GetOldAnimationPositionsView(PrevParticleRangeId);
+		const TConstArrayView<FSolverVec3> SrcWrapNormals = Solver->GetOldAnimationNormalsView(PrevParticleRangeId);
+		TArrayView<FSolverVec3> OutOldPositions = Solver->GetOldAnimationPositionsView(ParticleRangeId);
+		TArrayView<FSolverVec3> OutOldNormals = Solver->GetOldAnimationNormalsView(ParticleRangeId);
 
-		const bool bValidWrap = WrapDeformLOD(PrevLODIndex, LODIndex, SrcWrapNormals, SrcWrapPositions, OutOldPositions);
-	
+		const bool bValidWrap = WrapDeformLOD(PrevLODIndex, LODIndex, SrcWrapPositions, SrcWrapNormals, OutOldPositions, OutOldNormals);
 		if (!bValidWrap)
 		{
 			// The previous LOD is invalid, reset old positions with the new LOD
-			const int32 NumPoints = GetNumPoints(LODIndex);
-
-			for (int32 Index = 0; Index < NumPoints; ++Index)
+			for (int32 Index = 0; Index < OutOldPositions.Num(); ++Index)
 			{
 				OutOldPositions[Index] = OutPositions[Index];
+				OutOldNormals[Index] = OutNormals[Index];
 			}
 		}
 	}

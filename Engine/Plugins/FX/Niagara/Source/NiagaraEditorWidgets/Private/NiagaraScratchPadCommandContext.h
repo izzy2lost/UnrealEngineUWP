@@ -23,6 +23,12 @@ public:
 private:
 	void SetupCommands();
 
+	void RenameSelectedScript() const;
+
+	bool CanRenameSelectedScript() const;
+
+	FText GetCanRenameSelectedScriptToolTip() const;
+
 	bool CanCutSelectedScripts() const;
 
 	FText GetCanCutSelectedScriptsToolTip() const;

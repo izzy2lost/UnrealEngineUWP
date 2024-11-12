@@ -428,6 +428,45 @@ public:
 	// returns false if an entry can not be executed
 	bool CanExecuteEntry(const FRigVMExtendedExecuteContext& Context, const FName& InEntryName, bool bLogErrorForMissingEntry = true) const;
 
+	// returns the traits for this VM's bytecode and Context
+	TMap<int32, TArray<FRigVMTraitScope>> GetTraits(FRigVMExtendedExecuteContext& InContext, const UScriptStruct* InScriptStruct = nullptr)
+	{
+		return GetByteCode().GetTraits(*GetLiteralMemory(), InContext.WorkMemoryStorage, InScriptStruct);
+	}
+
+	// returns the traits of a given type for this VM's bytecode and Context
+	template<typename T>
+	TMap<int32, TArray<FRigVMTraitScope>> GetTraits(FRigVMExtendedExecuteContext& InContext)
+	{
+		return GetByteCode().GetTraits<T>(*GetLiteralMemory(), InContext.WorkMemoryStorage);
+	}
+
+	// returns the traits for this VM's bytecode and Context, as well as any additional memory handles
+	TMap<int32, TArray<FRigVMTraitScope>> GetTraits(FRigVMExtendedExecuteContext& InContext, TArray<FRigVMMemoryHandle>& OutAdditionalMemoryHandles, const UScriptStruct* InScriptStruct = nullptr)
+	{
+		return GetByteCode().GetTraits(*GetLiteralMemory(), InContext.WorkMemoryStorage, OutAdditionalMemoryHandles, InScriptStruct);
+	}
+
+	// returns the traits of a given type for this VM's bytecode and Context, as well as any additional memory handles
+	template<typename T>
+	TMap<int32, TArray<FRigVMTraitScope>> GetTraits(FRigVMExtendedExecuteContext& InContext, TArray<FRigVMMemoryHandle>& OutAdditionalMemoryHandles)
+	{
+		return GetByteCode().GetTraits<T>(*GetLiteralMemory(), InContext.WorkMemoryStorage, OutAdditionalMemoryHandles);
+	}
+	
+	// returns the traits for the provided memory for a single instruction
+	TArray<FRigVMTraitScope> GetTraitsForInstruction(const FRigVMInstruction& InInstruction, FRigVMExtendedExecuteContext& InContext, const UScriptStruct* InScriptStruct = nullptr)
+	{
+		return GetByteCode().GetTraitsForInstruction(InInstruction, *GetLiteralMemory(), InContext.WorkMemoryStorage, InScriptStruct);
+	}
+
+	// returns the traits of a given type for the provided memory for a single instruction
+	template<typename T>
+	TArray<FRigVMTraitScope> GetTraitsForInstruction(const FRigVMInstruction& InInstruction, FRigVMExtendedExecuteContext& InContext)
+	{
+		return GetByteCode().GetTraitsForInstruction<T>(InInstruction, *GetLiteralMemory(), InContext.WorkMemoryStorage);
+	}
+
 #if WITH_EDITOR
 	
 	UE_DEPRECATED(5.3, "Please, use WasInstructionVisitedDuringLastRun with Context param")

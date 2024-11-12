@@ -32,6 +32,7 @@
 #include "Engine/Console.h"
 #include "Net/UnrealNetwork.h"
 #include "Net/Core/Misc/NetConditionGroupManager.h"
+#include "Net/Core/PushModel/PushModel.h"
 #include "Engine/WorldComposition.h"
 #include "Engine/LevelScriptActor.h"
 #include "GameFramework/GameNetworkManager.h"
@@ -65,14 +66,12 @@
 #include "Particles/EmitterCameraLensEffectBase.h"
 #include "LevelUtils.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
-#include "Physics/AsyncPhysicsInputComponent.h"
-#include "Physics/NetworkPhysicsComponent.h"
 #include "PBDRigidsSolver.h"
 #include "PhysicsEngine/PhysicsSettings.h"
 
 #if UE_WITH_IRIS
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
-#include "Net/Iris/ReplicationSystem/ActorReplicationBridge.h"
+#include "Net/Iris/ReplicationSystem/EngineReplicationBridge.h"
 #include "Net/Iris/ReplicationSystem/ReplicationSystemUtil.h"
 #endif // UE_WITH_IRIS
 
@@ -88,54 +87,77 @@ DECLARE_CYCLE_STAT(TEXT("PC Build Input Stack"), STAT_PC_BuildInputStack, STATGR
 DECLARE_CYCLE_STAT(TEXT("PC Process Input Stack"), STAT_PC_ProcessInputStack, STATGROUP_PlayerController);
 
 // CVars
-namespace PlayerControllerCVars
+namespace UE::Gameplay::CVars
 {
 	// Resync timestamps on pawn ack
-	static int32 NetResetServerPredictionDataOnPawnAck = 1;
-	FAutoConsoleVariableRef CVarNetResetServerPredictionDataOnPawnAck(
+	int32 NetResetServerPredictionDataOnPawnAck = 1;
+	static FAutoConsoleVariableRef CVarNetResetServerPredictionDataOnPawnAck(
 		TEXT("PlayerController.NetResetServerPredictionDataOnPawnAck"),
 		NetResetServerPredictionDataOnPawnAck,
 		TEXT("Whether to reset server prediction data for the possessed Pawn when the pawn ack handshake completes.\n")
 		TEXT("0: Disable, 1: Enable"),
 		ECVF_Default);
 
-	static int32 ForceUsingCameraAsStreamingSource = 0;
-	FAutoConsoleVariableRef CVarForceUsingCameraAsStreamingSource(
+	int32 ForceUsingCameraAsStreamingSource = 0;
+	static FAutoConsoleVariableRef CVarForceUsingCameraAsStreamingSource(
 		TEXT("wp.Runtime.PlayerController.ForceUsingCameraAsStreamingSource"),
 		ForceUsingCameraAsStreamingSource,
 		TEXT("Whether to force the use of the camera as the streaming source for World Partition. By default the player pawn is used.\n")
 		TEXT("0: Use pawn as streaming source, 1: Use camera as streaming source"));
+
+	bool bIsPlayerControllerPushBased = false;
+	static FAutoConsoleVariableRef CVarIsPlayerControllerPushBased(
+		TEXT("PlayerController.IsPushBased"), bIsPlayerControllerPushBased,
+		TEXT("If true, APlayerController's replicated properties will use push-based networking, and will therefore need to be marked dirty when changed."),
+		ECVF_Default);
+
+	extern bool bAlwaysNotifyClientOnControllerChange;
 }
 
 namespace NetworkPhysicsCvars
 {
-	/* DEPRECATED 5.4 */
-	int32 NumRedundantCmds = 3;
-	FAutoConsoleVariableRef CVarNumRedundantCmds(TEXT("np2.NumRedundantCmds"), NumRedundantCmds, TEXT("(DEPRECATED 5.4, only part of the legacy physics frame offset logic) Number of redundant user cmds to send per frame"));
+		/* DEPRECATED 5.4 */
+		int32 NumRedundantCmds = 3;
+		FAutoConsoleVariableRef CVarNumRedundantCmds(TEXT("np2.NumRedundantCmds"), NumRedundantCmds, TEXT("(DEPRECATED 5.4, only part of the legacy physics frame offset logic) Number of redundant user cmds to send per frame"));
 
 #if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	int32 EnableDebugRPC = 0;
+		int32 EnableDebugRPC = 0;
 #else
-	int32 EnableDebugRPC = 1;
+		int32 EnableDebugRPC = 1;
 #endif
-	/* DEPRECATED 5.4 */
-	FAutoConsoleVariableRef CVarEnableDebugRPC(TEXT("np2.EnableDebugRPC"), EnableDebugRPC, TEXT("(DEPRECATED 5.4, only part of the legacy physics frame offset logic) Sends extra debug information to clients about server side input buffering"));
-	
-	/* DEPRECATED 5.4 */
-	int32 NetworkPhysicsPredictionFrameOffset = 4;
-	FAutoConsoleVariableRef CVarNetworkPhysicsPredictionFrameOffset(TEXT("np2.NetworkPhysicsPredictionFrameOffset"), NetworkPhysicsPredictionFrameOffset, TEXT("(DEPRECATED 5.4, use np2.PredictionAsyncFrameBuffer instead) Additional frame offset to be added to the local to server offset used by network prediction"));
-	
-	int32 PredictionAsyncFrameBuffer = 3;
-	FAutoConsoleVariableRef CVarPredictionAsyncFrameBuffer(TEXT("np2.PredictionAsyncFrameBuffer"), PredictionAsyncFrameBuffer, TEXT("Additional frame offset to be added to the local to server offset used by network prediction"));
+		/* DEPRECATED 5.4 */
+		FAutoConsoleVariableRef CVarEnableDebugRPC(TEXT("np2.EnableDebugRPC"), EnableDebugRPC, TEXT("(DEPRECATED 5.4, only part of the legacy physics frame offset logic) Sends extra debug information to clients about server side input buffering"));
 
-	int32 TickOffsetUpdateInterval = 10;
-	FAutoConsoleVariableRef CVarTickOffsetUpdateInterval(TEXT("np2.TickOffsetUpdateInterval"), TickOffsetUpdateInterval, TEXT("How many physics ticks to wait between each tick offset update. Lowest viable value = 1, which means update each tick. Deactivate physics offset updates by setting to 0 or negative value."));
-	
-	int32 TickOffsetCorrectionLimit = 10;
-	FAutoConsoleVariableRef CVarTickOffsetCorrectionLimit(TEXT("np2.TickOffsetCorrectionLimit"), TickOffsetCorrectionLimit, TEXT("If the client gets out of sync with physics ticks more than this limit, cut the losses and reset the offset."));
-	
-	float TimeDilationAmount = 0.01f;
-	FAutoConsoleVariableRef CVarTimeDilationAmount(TEXT("np2.TimeDilationAmount"), TimeDilationAmount, TEXT("Server-side CVar, Disable TimeDilation by setting to 0 | Default: 0.01 | Value is in percent where 0.01 = 1% dilation. Example: 1.0/0.01 = 100, meaning that over the time it usually takes to tick 100 physics steps we will tick 99 or 101 depending on if we dilate up or down."));
+		/* DEPRECATED 5.4 */
+		int32 NetworkPhysicsPredictionFrameOffset = 4;
+		FAutoConsoleVariableRef CVarNetworkPhysicsPredictionFrameOffset(TEXT("np2.NetworkPhysicsPredictionFrameOffset"), NetworkPhysicsPredictionFrameOffset, TEXT("(DEPRECATED 5.4, use np2.PredictionAsyncFrameBuffer instead) Additional frame offset to be added to the local to server offset used by network prediction"));
+
+		/* DEPRECATED 5.5 */
+		int32 PredictionAsyncFrameBuffer = 3;
+		FAutoConsoleVariableRef CVarPredictionAsyncFrameBuffer(TEXT("np2.PredictionAsyncFrameBuffer"), PredictionAsyncFrameBuffer, TEXT("(DEPRECATED 5.5, Use np2.TickOffsetBufferTime instead) Additional frame offset to be added to the local to server offset used by network prediction"));
+
+		/* DEPRECATED 5.5 */
+		int32 TickOffsetUpdateInterval = 10;
+		FAutoConsoleVariableRef CVarTickOffsetUpdateInterval(TEXT("np2.TickOffsetUpdateInterval"), TickOffsetUpdateInterval, TEXT("(DEPRECATED 5.5, Use np2.TickOffsetUpdateIntervalTime instead) How many physics ticks to wait between each tick offset update. Lowest viable value = 1, which means update each tick. Deactivate physics offset updates by setting to 0 or negative value."));
+
+		/* DEPRECATED 5.5 */
+		int32 TickOffsetCorrectionLimit = 10;
+		FAutoConsoleVariableRef CVarTickOffsetCorrectionLimit(TEXT("np2.TickOffsetCorrectionLimit"), TickOffsetCorrectionLimit, TEXT("(DEPRECATED 5.5, Use np2.TickOffsetCorrectionSizeTimeLimit instead) If the client gets out of sync with physics ticks more than this limit, cut the losses and reset the offset."));
+
+	int32 TickOffsetUpdateIntervalTime = 100;
+	FAutoConsoleVariableRef CVarTickOffsetUpdateIntervalTime(TEXT("np2.TickOffsetUpdateIntervalTime"), TickOffsetUpdateIntervalTime, TEXT("Value in milliseconds, default 100. How long time between syncing the tick offset between client and server. Deactivate syncing by setting value 0."));
+
+	int32 TickOffsetBufferTime = 90;
+	FAutoConsoleVariableRef CVarTickOffsetBufferTime(TEXT("np2.TickOffsetBufferTime"), TickOffsetBufferTime, TEXT("Value in milliseconds, default 60. Additional offset to be added to the local to server offset used by network prediction, this results in a buffer server-side for incoming data that uses the client/server physics offset."));
+
+	int32 TickOffsetCorrectionSizeTimeLimit = 2000;
+	FAutoConsoleVariableRef CVarTickOffsetCorrectionSizeTimeLimit(TEXT("np2.TickOffsetCorrectionSizeTimeLimit"), TickOffsetCorrectionSizeTimeLimit, TEXT("Value in milliseconds. Note: Keep this equal to or larger than np2.TickOffsetBufferTime. If the client gets out of sync with physics ticks and the desync is larger than this value, reset the offset."));
+
+	int32 TickOffsetCorrectionTimeLimit = 5000;
+	FAutoConsoleVariableRef CVarTickOffsetCorrectionTimeLimit(TEXT("np2.TickOffsetCorrectionTimeLimit"), TickOffsetCorrectionTimeLimit, TEXT("Value in milliseconds. If the client gets out of sync with physics ticks and can't get in sync again for this amount of time, reset the offset."));
+
+	float TimeDilationAmount = 0.025f;
+	FAutoConsoleVariableRef CVarTimeDilationAmount(TEXT("np2.TimeDilationAmount"), TimeDilationAmount, TEXT("Server-side CVar, Disable TimeDilation by setting to 0 | Value is in percent where 0.01 = 1% dilation. Example: 1.0/0.01 = 100, meaning that over the time it usually takes to tick 100 physics steps we will tick 99 or 101 depending on if we dilate up or down."));
 
 	bool TimeDilationEscalation = true;
 	FAutoConsoleVariableRef CVarTimeDilationEscalation(TEXT("np2.TimeDilationEscalation"), TimeDilationEscalation, TEXT("Server-side CVar, Dilate the time more depending on how many ticks we need to adjust. When set to false we use the set TimeDilationAmount and wait the amount of time it takes to perform correct the offset. When set to true we multiply the TimeDilationAmount with the buffer offset count which will correct the offset in one TimeDilationAmount cycle."));
@@ -146,10 +168,10 @@ namespace NetworkPhysicsCvars
 	float TimeDilationEscalationDecayMax = 0.5f;
 	FAutoConsoleVariableRef CVarTimeDilationEscalationDecayMax(TEXT("np2.TimeDilationEscalationDecayMax"), TimeDilationEscalationDecayMax, TEXT("Value is a multiplier, Default: 0.5. The max decay value for escalated time dilation. Lower value means higher decay."));
 
-	float TimeDilationMax = 1.1f;
+	float TimeDilationMax = 1.25f;
 	FAutoConsoleVariableRef CVarTimeDilationMax(TEXT("np2.TimeDilationMax"), TimeDilationMax, TEXT("Max value of the time dilation multiplier."));
 
-	float TimeDilationMin = 0.9f;
+	float TimeDilationMin = 0.75f;
 	FAutoConsoleVariableRef CVarTimeDilationMin(TEXT("np2.TimeDilationMin"), TimeDilationMin, TEXT("Min value of the time dilation multiplier"));
 }
 
@@ -239,10 +261,6 @@ APlayerController::APlayerController(const FObjectInitializer& ObjectInitializer
 		RootComponent->SetUsingAbsoluteRotation(true);
 	}
 
-	if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction)
-	{
-		bAsyncPhysicsTickEnabled = true;
-	}
 #if UE_ENABLE_DEBUG_DRAWING
 	CurrentInputModeDebugString = TEXT("Default");
 #endif	// UE_ENABLE_DEBUG_DRAWING
@@ -281,14 +299,10 @@ UNetConnection* APlayerController::GetNetConnection() const
 
 bool APlayerController::DestroyNetworkActorHandled()
 {
-	UNetConnection* C = Cast<UNetConnection>(Player);
-	if (C)
+	UNetConnection* Connection = Cast<UNetConnection>(Player);
+	if (Connection)
 	{
-		if (C->Channels[0] && C->GetConnectionState() != USOCK_Closed)
-		{
-			C->bPendingDestroy = true;
-			C->Channels[0]->Close(EChannelCloseReason::Destroyed);
-		}
+		Connection->GracefulClose(ENetCloseResult::ControlChannelClose);
 		return true;
 	}
 
@@ -812,7 +826,15 @@ void APlayerController::ClientRestart_Implementation(APawn* NewPawn)
 	if (OldController != this)
 	{
 		// In case this is received before APawn::OnRep_Controller is called
-		GetPawn()->NotifyControllerChanged();
+		if (UE::Gameplay::CVars::bAlwaysNotifyClientOnControllerChange)
+		{
+			// When not in backward compatibility mode, OnRep_Controller will properly call NotifyControllerChanged
+			GetPawn()->OnRep_Controller();
+		}
+		else
+		{
+			GetPawn()->NotifyControllerChanged();
+		}
 	}
 	GetPawn()->DispatchRestart(true);
 	
@@ -1094,7 +1116,7 @@ void APlayerController::ServerShortTimeout_Implementation()
 				float NetUpdateTimeOffset = (World->GetAuthGameMode()->GetNumPlayers() < 8) ? 0.2f : 0.5f;
 				auto ValidActorTest = [](const AActor* const Actor)
 				{
-					return (Actor->NetUpdateFrequency < 1) && !Actor->bOnlyRelevantToOwner;
+					return (Actor->GetNetUpdateFrequency() < 1) && !Actor->bOnlyRelevantToOwner;
 				};
 				World->GetNetDriver()->ForceAllActorsNetUpdateTime(NetUpdateTimeOffset, ValidActorTest);
 			}
@@ -1284,7 +1306,7 @@ void APlayerController::ServerAcknowledgePossession_Implementation(APawn* P)
 	UE_LOG(LogPlayerController, Verbose, TEXT("ServerAcknowledgePossession_Implementation %s"), *GetNameSafe(P));
 	AcknowledgedPawn = P;
 
-	if (PlayerControllerCVars::NetResetServerPredictionDataOnPawnAck != 0)
+	if (UE::Gameplay::CVars::NetResetServerPredictionDataOnPawnAck != 0)
 	{
 		if (AcknowledgedPawn && AcknowledgedPawn == GetPawn())
 		{
@@ -1355,7 +1377,7 @@ void APlayerController::CleanupPlayerState()
 		// By default this destroys it, but games can override
 		PlayerState->OnDeactivated();
 	}
-	PlayerState = NULL;
+	SetPlayerState(NULL);
 }
 
 void APlayerController::OnActorChannelOpen(FInBunch& InBunch, UNetConnection* Connection)
@@ -1833,8 +1855,15 @@ void APlayerController::UpdatePing(float InPing)
 
 void APlayerController::SetSpawnLocation(const FVector& NewLocation)
 {
-	SpawnLocation = NewLocation;
 	LastSpectatorSyncLocation = NewLocation;
+
+	if (UE::Gameplay::CVars::bIsPlayerControllerPushBased)
+	{
+		COMPARE_ASSIGN_AND_MARK_PROPERTY_DIRTY(APlayerController, SpawnLocation, NewLocation, this);
+		return;
+	}
+	
+	SpawnLocation = NewLocation;
 }
 
 
@@ -2247,8 +2276,8 @@ bool APlayerController::ProjectWorldLocationToScreenWithDistance(FVector WorldLo
 					ScreenPosition2D -= FVector2D(ProjectionData.GetConstrainedViewRect().Min);
 				}
 
-				ScreenLocation = FVector(ScreenPosition2D.X, ScreenPosition2D.Y, FVector::Dist(ProjectionData.ViewOrigin, WorldLocation));
 				PostProcessWorldToScreen(WorldLocation, ScreenPosition2D, bPlayerViewportRelative);
+				ScreenLocation = FVector(ScreenPosition2D.X, ScreenPosition2D.Y, FVector::Dist(ProjectionData.ViewOrigin, WorldLocation));
 
 				return true;
 			}
@@ -2331,6 +2360,15 @@ void APlayerController::SetMouseLocation(const int X, const int Y)
 /* PlayerTick is only called if the PlayerController has a PlayerInput object.  Therefore, it will not be called on servers for non-locally controlled playercontrollers. */
 void APlayerController::PlayerTick( float DeltaTime )
 {
+#if WITH_CHAOS_VISUAL_DEBUGGER
+
+	if (bNetworkPhysicsTickOffsetAssigned)
+	{
+		CVD_TRACE_NETWORK_TICK_OFFSET(NetworkPhysicsTickOffset, CVD_TRACE_GET_SOLVER_ID_FROM_WORLD(GetWorld()));
+	}
+
+#endif
+
 	if (!bShortConnectTimeOut)
 	{
 		bShortConnectTimeOut = true;
@@ -2708,7 +2746,7 @@ void APlayerController::BuildInputStack(TArray<UInputComponent*>& InputStack)
 	for (int32 Idx=0; Idx<CurrentInputStack.Num(); ++Idx)
 	{
 		UInputComponent* IC = CurrentInputStack[Idx].Get();
-		if (IC)
+		if (IsValid(IC))
 		{
 			InputStack.Push(IC);
 		}
@@ -3393,7 +3431,7 @@ void APlayerController::DisplayDebug(class UCanvas* Canvas, const FDebugDisplayI
 		{
 			if (CurrentTime > ForceFeedbackEffectHistoryEntries[i].TimeShown + 5.0f)
 			{
-				ForceFeedbackEffectHistoryEntries.RemoveAtSwap(i, 1, EAllowShrinking::No);
+				ForceFeedbackEffectHistoryEntries.RemoveAtSwap(i, EAllowShrinking::No);
 			}
 			else
 			{
@@ -3626,7 +3664,7 @@ void APlayerController::SeamlessTravelFrom(APlayerController* OldPC)
 
 		//@fixme: need a way to replace PlayerStates that doesn't cause incorrect "player left the game"/"player entered the game" messages
 		OldPC->PlayerState->Destroy();
-		OldPC->PlayerState = NULL;
+		OldPC->SetPlayerState(NULL);
 	}
 
 	// Copy seamless travel state
@@ -3671,7 +3709,7 @@ void APlayerController::OnRemovedFromPlayerControllerList()
 
 void APlayerController::GetStreamingSourceLocationAndRotation(FVector& OutLocation, FRotator& OutRotation) const
 {
-	if (!PlayerControllerCVars::ForceUsingCameraAsStreamingSource)
+	if (!UE::Gameplay::CVars::ForceUsingCameraAsStreamingSource)
 	{
 		if (const AActor* ViewTarget = GetViewTarget())
 		{
@@ -4567,6 +4605,48 @@ void APlayerController::ResetControllerLightColor()
 	}
 }
 
+void APlayerController::SetControllerDeadZones(const float LeftDeadZone, const float RightDeadZone)
+{
+	if (Player == nullptr)
+	{
+		return;
+	}
+
+	if (FSlateApplication::IsInitialized())
+	{
+		IInputInterface* InputInterface = FSlateApplication::Get().GetInputInterface();
+		if (InputInterface)
+		{
+			const int32 ControllerId = CastChecked<ULocalPlayer>(Player)->GetControllerId();
+			FInputDeviceAnalogStickDeadZoneProperty DeadZoneLeft(EInputDeviceAnalogStickMask::Left, LeftDeadZone);
+			InputInterface->SetDeviceProperty(ControllerId, &DeadZoneLeft);
+			FInputDeviceAnalogStickDeadZoneProperty DeadZoneRight(EInputDeviceAnalogStickMask::Right, RightDeadZone);
+			InputInterface->SetDeviceProperty(ControllerId, &DeadZoneRight);
+		}
+	}
+}
+
+void APlayerController::ResetControllerDeadZones()
+{
+	if (Player == nullptr)
+	{
+		return;
+	}
+
+	if (FSlateApplication::IsInitialized())
+	{
+		IInputInterface* InputInterface = FSlateApplication::Get().GetInputInterface();
+		if (InputInterface)
+		{
+			const int32 ControllerId = CastChecked<ULocalPlayer>(Player)->GetControllerId();
+			FInputDeviceAnalogStickDeadZoneProperty DeadZoneLeft(EInputDeviceAnalogStickMask::Left, 0.f);
+			InputInterface->SetDeviceProperty(ControllerId, &DeadZoneLeft);
+			FInputDeviceAnalogStickDeadZoneProperty DeadZoneRight(EInputDeviceAnalogStickMask::Right, 0.f);
+			InputInterface->SetDeviceProperty(ControllerId, &DeadZoneRight);
+		}
+	}
+}
+
 void APlayerController::ProcessForceFeedbackAndHaptics(const float DeltaTime, const bool bGamePaused)
 {
 	if (Player == nullptr)
@@ -4867,20 +4947,29 @@ void APlayerController::SetPawn(APawn* InPawn)
 void APlayerController::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-
-	DISABLE_REPLICATED_PROPERTY(APlayerController, AsyncPhysicsDataComponent_DEPRECARED);
-
+	
+	FDoRepLifetimeParams Params;
+	Params.bIsPushBased = UE::Gameplay::CVars::bIsPlayerControllerPushBased;
+	Params.Condition = COND_OwnerOnly;
 	// These used to only replicate if PlayerCameraManager->GetViewTargetPawn() != GetPawn()
 	// But, since they also don't update unless that condition is true, these values won't change, thus won't send
 	// This is a little less efficient, but fits into the new condition system well, and shouldn't really add much overhead
-	DOREPLIFETIME_CONDITION(APlayerController, TargetViewRotation, COND_OwnerOnly);
+	DOREPLIFETIME_WITH_PARAMS_FAST(APlayerController, TargetViewRotation, Params);
 
 	// Replicate SpawnLocation for remote spectators
-	DOREPLIFETIME_CONDITION(APlayerController, SpawnLocation, COND_OwnerOnly);
+	DOREPLIFETIME_WITH_PARAMS_FAST(APlayerController, SpawnLocation, Params);
 }
 
-void APlayerController::OnRep_AsyncPhysicsDataComponent()
-{}
+void APlayerController::SetTargetViewRotation(const FRotator& InRotation)
+{
+	if (UE::Gameplay::CVars::bIsPlayerControllerPushBased)
+	{
+		COMPARE_ASSIGN_AND_MARK_PROPERTY_DIRTY(APlayerController, TargetViewRotation, InRotation, this);
+		return;
+	}
+
+	TargetViewRotation = InRotation;
+}
 
 void APlayerController::SetPlayer( UPlayer* InPlayer )
 {
@@ -5106,17 +5195,9 @@ void APlayerController::TickActor( float DeltaSeconds, ELevelTick TickType, FAct
 
 								if (PawnTimeSinceForcingUpdates > PawnTimeForcedUpdateMaxDuration)
 								{
-									if (ServerData->bLastRequestNeedsForcedUpdates)
-									{
-										// No valid updates, don't reset anything but don't mark as exceeded either
-										// Keep forced updates going until new and valid move request is received
-									}
-									else
-									{
-										// Waiting for ServerTimeStamp to advance from a client move.
-										UE_LOG(LogNetPlayerMovement, Log, TEXT("Setting bForcedUpdateDurationExceeded=true (PawnTimeSinceForcingUpdates %.6f > PawnTimeForcedUpdateMaxDuration %.6f)"), PawnTimeSinceForcingUpdates, PawnTimeForcedUpdateMaxDuration);
-										ServerData->bForcedUpdateDurationExceeded = true;
-									}
+									// Waiting for ServerTimeStamp to advance from a client move.
+									UE_LOG(LogNetPlayerMovement, Log, TEXT("Setting bForcedUpdateDurationExceeded=true (PawnTimeSinceForcingUpdates %.6f > PawnTimeForcedUpdateMaxDuration %.6f) (bLastRequestNeedsForcedUpdates:%d)"), PawnTimeSinceForcingUpdates, PawnTimeForcedUpdateMaxDuration, (int32)ServerData->bLastRequestNeedsForcedUpdates);
+									ServerData->bForcedUpdateDurationExceeded = true;
 								}
 							}
 						}
@@ -5135,7 +5216,8 @@ void APlayerController::TickActor( float DeltaSeconds, ELevelTick TickType, FAct
 						{
 							//UE_LOG(LogPlayerController, Warning, TEXT("ForcedMovementTick. PawnTimeSinceUpdate: %f, DeltaSeconds: %f, DeltaSeconds+: %f"), PawnTimeSinceUpdate, DeltaSeconds, DeltaSeconds+0.06f);
 							const USkeletalMeshComponent* PawnMesh = GetPawn()->FindComponentByClass<USkeletalMeshComponent>();
-							if (!ServerData->bForcedUpdateDurationExceeded && (!PawnMesh || !PawnMesh->IsSimulatingPhysics()))
+							const bool bShouldForceUpdate = !ServerData->bForcedUpdateDurationExceeded || ServerData->bLastRequestNeedsForcedUpdates;
+							if (bShouldForceUpdate && (!PawnMesh || !PawnMesh->IsSimulatingPhysics()))
 							{
 								const bool bDidUpdate = NetworkPredictionInterface->ForcePositionUpdate(PawnTimeSinceUpdate);
 
@@ -5176,7 +5258,7 @@ void APlayerController::TickActor( float DeltaSeconds, ELevelTick TickType, FAct
 			
 			if ((TargetPawn != GetPawn()) && (TargetPawn != nullptr))
 			{
-				TargetViewRotation = TargetPawn->GetViewRotation();
+				SetTargetViewRotation(TargetPawn->GetViewRotation());
 			}
 		}
 	}
@@ -5234,9 +5316,22 @@ void APlayerController::TickActor( float DeltaSeconds, ELevelTick TickType, FAct
 	// Clear old axis inputs since we are done with them. 
 	RotationInput = FRotator::ZeroRotator;
 
-	if(UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction && GetLocalRole() == ROLE_AutonomousProxy && bIsClient)
+	if (bIsClient && UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction && GetLocalRole() == ROLE_AutonomousProxy)
 	{
-		UpdateServerAsyncPhysicsTickOffset();
+		if (UWorld* World = GetWorld())
+		{
+			if (FPhysScene* PhysScene = World->GetPhysicsScene())
+			{
+				if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())
+				{
+					if (Solver->IsUsingFixedDt())
+					{
+						TickOffsetSyncCountdown += DeltaSeconds;
+						UpdateServerAsyncPhysicsTickOffset();
+					}
+				}
+			}
+		}
 	}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -5521,11 +5616,23 @@ void APlayerController::EndSpectatingState()
 
 void APlayerController::BeginInactiveState()
 {
-	if ( (GetPawn() != NULL) && (GetPawn()->Controller == this) )
+	if ( (GetPawn() != nullptr) && (GetPawn()->Controller == this) )
 	{
-		GetPawn()->Controller = NULL;
+		GetPawn()->Controller = nullptr;
+		if (UE::Gameplay::CVars::bAlwaysNotifyClientOnControllerChange)
+		{
+			if (HasAuthority())
+			{
+				// OnRep is not called on the server so call notify directly
+				GetPawn()->NotifyControllerChanged();
+			}
+			else
+			{
+				GetPawn()->OnRep_Controller();
+			}
+		}
 	}
-	SetPawn(NULL);
+	SetPawn(nullptr);
 
 	GetWorldTimerManager().SetTimer(TimerHandle_UnFreeze, this, &APlayerController::UnFreeze, GetMinRespawnDelay());
 }
@@ -6123,16 +6230,6 @@ void APlayerController::BeginReplication()
 }
 #endif // UE_WITH_IRIS
 
-UAsyncPhysicsData* APlayerController::GetAsyncPhysicsDataToWrite() const
-{
-	return nullptr;
-}
-
-const UAsyncPhysicsData* APlayerController::GetAsyncPhysicsDataToConsume() const
-{
-	return nullptr;  
-}
-
 void APlayerController::ExecuteAsyncPhysicsCommand(const FAsyncPhysicsTimestamp& AsyncPhysicsTimestamp, UObject* OwningObject, const TFunction<void()>& Command, const bool bEnableResim)
 {
 	if(UWorld* World = GetWorld())
@@ -6196,16 +6293,13 @@ FAsyncPhysicsTimestamp APlayerController::GetPhysicsTimestamp(float DeltaSeconds
 
 void APlayerController::UpdateServerAsyncPhysicsTickOffset()
 {
-	FAsyncPhysicsTimestamp Timestamp = GetPhysicsTimestamp();
-	if (NetworkPhysicsCvars::TickOffsetUpdateInterval <= 0 || ClientLatestAsyncPhysicsStepSent + NetworkPhysicsCvars::TickOffsetUpdateInterval > Timestamp.LocalFrame)
+	if (NetworkPhysicsCvars::TickOffsetUpdateIntervalTime <= 0 || TickOffsetSyncCountdown < (NetworkPhysicsCvars::TickOffsetUpdateIntervalTime / 1000.0f))
 	{
-		//Only send a new timestamp if enough physics ticks have passed, based on CVar.
-		//If GT is running faster than physics sim the physics timestep will not have changed, so no need to send another update to server
-		//This ensures monotonic increase
 		return;
 	}
+	TickOffsetSyncCountdown = 0.0f;
 
-	ClientLatestAsyncPhysicsStepSent = Timestamp.LocalFrame;
+	FAsyncPhysicsTimestamp Timestamp = GetPhysicsTimestamp();
 	Timestamp.ServerFrame = bNetworkPhysicsTickOffsetAssigned ? Timestamp.ServerFrame : INDEX_NONE; // If offset is not yet assigned, set an invalid ServerFrame
 	ServerSendLatestAsyncPhysicsTimestamp(Timestamp);
 }
@@ -6213,15 +6307,6 @@ void APlayerController::UpdateServerAsyncPhysicsTickOffset()
 void APlayerController::ServerSendLatestAsyncPhysicsTimestamp_Implementation(FAsyncPhysicsTimestamp Timestamp)
 {
 	ensure(UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction);
-
-	//This tells the server how the client thinks the async physics tick will line up.
-	//If we have already received a more up to date timestamp from the client, early out
-	if (Timestamp.LocalFrame <= ServerLatestAsyncPhysicsStepReceived)
-	{
-		return;
-	}
-
-	ServerLatestAsyncPhysicsStepReceived = Timestamp.LocalFrame;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// Only cache the most up to date timestamp based on LocalFrame
@@ -6231,20 +6316,49 @@ void APlayerController::ServerSendLatestAsyncPhysicsTimestamp_Implementation(FAs
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+	// Get the fixed timestep from project settings
+	float AsyncFixedTimeStepSize = UPhysicsSettings::Get()->AsyncFixedTimeStepSize;
+
+	if (UWorld* World = GetWorld())
+	{
+		if (FPhysScene* PhysScene = World->GetPhysicsScene())
+		{
+			if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())
+			{
+				// Get fixed timestep from solver since it can have been altered
+				AsyncFixedTimeStepSize = Solver->GetAsyncDeltaTime();
+			}
+		}
+	}
+
 	// Get current server timestamp and add the frame buffer to the ServerFrame
 	FAsyncPhysicsTimestamp ActualTimestamp = GetPhysicsTimestamp();
-	ActualTimestamp.ServerFrame += NetworkPhysicsCvars::PredictionAsyncFrameBuffer;
+	const int32 BufferTickSize = FMath::CeilToInt((NetworkPhysicsCvars::TickOffsetBufferTime / 1000.f) / AsyncFixedTimeStepSize);
+	ActualTimestamp.ServerFrame += BufferTickSize;
 
 	// Mark offset as assigned when we get a valid predicted server frame.
 	const int32 PredictedServerFrame = Timestamp.ServerFrame;
 	bNetworkPhysicsTickOffsetAssigned |= PredictedServerFrame != INDEX_NONE;
 
-	// Send update to client if offset is not assigned or over correction limit
+	const float CurrentTime = GetWorld()->GetTimeSeconds();
+	const int32 TimestampDiff = FMath::Abs(PredictedServerFrame - ActualTimestamp.ServerFrame);
+	const float TimestampTimeDiff = TimestampDiff * AsyncFixedTimeStepSize;
+	NetworkPhysicsTickOffsetDesyncAccumulatedTime = (TimestampDiff == 0) ? CurrentTime : NetworkPhysicsTickOffsetDesyncAccumulatedTime;
+
+	// Send update to client if offset is not assigned or over correction limits
 	// Note that we are sending the current ServerFrame along with the frame buffer added, to the client.
-	if (!bNetworkPhysicsTickOffsetAssigned || FMath::Abs(PredictedServerFrame - ActualTimestamp.ServerFrame) > NetworkPhysicsCvars::TickOffsetCorrectionLimit)
+	if (!bNetworkPhysicsTickOffsetAssigned
+		|| TimestampTimeDiff > (NetworkPhysicsCvars::TickOffsetCorrectionSizeTimeLimit / 1000.f)
+		|| CurrentTime - NetworkPhysicsTickOffsetDesyncAccumulatedTime > (NetworkPhysicsCvars::TickOffsetCorrectionTimeLimit / 1000.0f))
 	{
 		Timestamp.ServerFrame = ActualTimestamp.ServerFrame;
-		NetworkPhysicsTickOffset = Timestamp.ServerFrame - Timestamp.LocalFrame;
+		NetworkPhysicsTickOffsetDesyncAccumulatedTime = CurrentTime;
+
+#if DEBUG_NETWORK_PHYSICS
+		UE_LOG(LogPlayerController, Log, TEXT("APlayerController::ServerSendLatestAsyncPhysicsTimestamp_Implementation. Sync physics tick with client. ClientFrame: %d, ServerFrame: %d, BufferSize: %d, PredictedFrame: %d)")
+			, Timestamp.LocalFrame, Timestamp.ServerFrame, BufferTickSize, PredictedServerFrame);
+#endif
+
 		ClientSetupNetworkPhysicsTimestamp(Timestamp); /* Reliable RPC */
 	}
 
@@ -6257,7 +6371,7 @@ void APlayerController::ServerSendLatestAsyncPhysicsTimestamp_Implementation(FAs
 	{
 		// Get the buffer offset amount that deviates from the target buffer (Note: the buffer is already added to ActualTimestamp.ServerFrame here and in the PredictedServerFrame received from the client)
 		// 0 means buffer is perfect, positive value means the buffer is too large, negative value means the buffer is too small
-		int32 CurrentFrameBufferOffset = PredictedServerFrame - ActualTimestamp.ServerFrame;
+		int32 CurrentFrameBufferOffset = Timestamp.ServerFrame - ActualTimestamp.ServerFrame;
 
 		if (NetworkPhysicsCvars::TimeDilationEscalation == false)
 		{
@@ -6318,17 +6432,16 @@ void APlayerController::ClientSetupNetworkPhysicsTimestamp_Implementation(FAsync
 	// Assign async physics tick offset
 	bNetworkPhysicsTickOffsetAssigned = true;
 	NetworkPhysicsTickOffset = Timestamp.ServerFrame - Timestamp.LocalFrame;
+
+#if DEBUG_NETWORK_PHYSICS
+	UE_LOG(LogPlayerController, Log, TEXT("APlayerController::ClientSetupNetworkPhysicsTimestamp_Implementation. ClientFrame: %d, ServerFrame: %d, NetworkPhysicsTickOffset: %d)")
+		, Timestamp.LocalFrame, Timestamp.ServerFrame, NetworkPhysicsTickOffset);
+#endif
 }
 
 void APlayerController::ClientAckTimeDilation_Implementation(float TimeDilation, int32 ServerStep)
 {
-	if (ServerStep <= ClientLatestTimeDilationServerStep)
-	{
-		return;
-	}
-	ClientLatestTimeDilationServerStep = ServerStep;
-
-	if(UWorld* World = GetWorld())
+	if (UWorld* World = GetWorld())
 	{
 		World->GetPhysicsScene()->SetNetworkDeltaTimeScale(TimeDilation);
 	}
@@ -6348,12 +6461,6 @@ void APlayerController::UpdateServerTimestampToCorrect()
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
-
-void APlayerController::AsyncPhysicsTickActor(float DeltaTime, float SimTime)
-{
-	Super::AsyncPhysicsTickActor(DeltaTime, SimTime);
-}
-
 
 #undef LOCTEXT_NAMESPACE
 

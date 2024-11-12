@@ -5,19 +5,13 @@
 #include "Properties/PropertyAnimatorCoreContext.h"
 #include "PropertyAnimatorFloatContext.generated.h"
 
-/** Property context used by float driving animator */
+/** Property context used by animator for float/double properties */
 UCLASS(MinimalAPI, BlueprintType)
 class UPropertyAnimatorFloatContext : public UPropertyAnimatorCoreContext
 {
 	GENERATED_BODY()
 
 public:
-	PROPERTYANIMATOR_API void SetMagnitude(float InMagnitude);
-	float GetMagnitude() const
-	{
-		return Magnitude;
-	}
-
 	PROPERTYANIMATOR_API void SetAmplitudeMin(double InAmplitude);
 	double GetAmplitudeMin() const
 	{
@@ -30,40 +24,35 @@ public:
 		return AmplitudeMax;
 	}
 
-	PROPERTYANIMATOR_API void SetFrequency(float InFrequency);
-	float GetFrequency() const
-	{
-		return Frequency;
-	}
-
-	PROPERTYANIMATOR_API void SetTimeOffset(double InTimeOffset);
-	double GetTimeOffset() const
-	{
-		return TimeOffset;
-	}
-
 protected:
+	//~ Begin UObject
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+#endif
+	//~ End UObject
+
 	//~ Begin UPropertyAnimatorCoreContext
+	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InProperty, const FInstancedPropertyBag& InAnimatorResult, FInstancedPropertyBag& OutEvaluatedValues) override;
 	virtual void OnAnimatedPropertyLinked() override;
+	virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue) override;
+	virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const override;
 	//~ End UPropertyAnimatorCoreContext
 
-	/** Magnitude of the effect */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Interp, Category="Animator", meta=(ClampMin="0.0", ClampMax="1.0"))
-	float Magnitude = 1.f;
+	double GetClampedAmplitude(double InAmplitude);
 
 	/** The minimum value should be remapped to that values */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Interp, Category="Animator")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
 	double AmplitudeMin = -1.f;
 
+	/** Some properties are clamped and cannot go past a specific min value */
+	UPROPERTY()
+	TOptional<double> AmplitudeClampMin;
+
 	/** The maximum value should be remapped to that values */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Interp, Category="Animator")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
 	double AmplitudeMax = 1.f;
 
-	/** Number of repetition every seconds for the effect */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Interp, Category="Animator", meta=(ClampMin="0"))
-	float Frequency = 1.f;
-
-	/** Time offset variation for evaluation */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Interp, Category="Animator")
-	double TimeOffset = 0.f;
+	/** Some properties are clamped and cannot go past a specific min value */
+	UPROPERTY()
+	TOptional<double> AmplitudeClampMax;
 };

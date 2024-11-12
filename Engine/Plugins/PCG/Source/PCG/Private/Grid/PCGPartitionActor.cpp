@@ -11,6 +11,11 @@
 
 #include "Components/BoxComponent.h"
 #include "Engine/World.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
+
+#if WITH_EDITOR
+#include "Grid/PCGPartitionActorDesc.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGPartitionActor)
 
@@ -64,6 +69,14 @@ void APCGPartitionActor::PostLoad()
 	if (GetGridSize() != PCGGridSize)
 	{
 		SetGridSize(PCGGridSize);
+	}
+#endif
+
+#if WITH_EDITORONLY_DATA
+	// Prior to this version bUse2DGrid was dependant of the PCGWorldActor so make sure we update it one last time upon registration
+	if (GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::PCGGridDescriptor)
+	{
+		bRequiresUse2DGridFixup = true;
 	}
 #endif
 
@@ -173,18 +186,23 @@ void APCGPartitionActor::PostRegisterAllComponents()
 	UpdateBoundsComponentExtents();
 #endif // WITH_EDITOR
 
+	RebuildOriginalToLocal();
+
+	// Make the Partition actor register itself to the PCG Subsystem. RuntimeGen components should only register in the PostCreation path.
+	if (PCGGridSize != InvalidPCGGridSizeValue && !IsRuntimeGenerated())
+	{
+		RegisterPCG();
+	}
+}
+
+void APCGPartitionActor::RebuildOriginalToLocal()
+{
 	// Reset the OriginalToLocal and build it from the local map
 	OriginalToLocal.Reset();
 	OriginalToLocal.Reserve(LocalToOriginal.Num());
 	for (const auto& It : LocalToOriginal)
 	{
 		OriginalToLocal.Add(It.Value.Get(), It.Key);
-	}
-
-	// Make the Partition actor register itself to the PCG Subsystem. RuntimeGen components should only register in the PostCreation path.
-	if (PCGGridSize != InvalidPCGGridSizeValue && !IsRuntimeGenerated())
-	{
-		RegisterPCG();
 	}
 }
 
@@ -225,6 +243,16 @@ void APCGPartitionActor::BeginPlay()
 
 void APCGPartitionActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	// It is possible for a PA to get called EndPlay before its original volume actor so make sure to cleanup properly here
+	if (IsRuntimeGenerated())
+	{
+		TMap<TObjectPtr<UPCGComponent>, TObjectPtr<UPCGComponent>> OriginalToLocalCopy(OriginalToLocal);
+		for (const TTuple<TObjectPtr<UPCGComponent>, TObjectPtr<UPCGComponent>>& OriginalToLocalItem : OriginalToLocalCopy)
+		{
+			RemoveGraphInstance(OriginalToLocalItem.Key.Get());
+		}
+	}
+
 	UnregisterPCG();
 
 	Super::EndPlay(EndPlayReason);
@@ -240,6 +268,46 @@ uint32 APCGPartitionActor::GetDefaultGridSize(UWorld* InWorld) const
 
 	UE_LOG(LogPCG, Error, TEXT("[APCGPartitionActor::InternalGetDefaultGridSize] PCG World Actor was null. Returning default value"));
 	return APCGWorldActor::DefaultPartitionGridSize;
+}
+
+TUniquePtr<class FWorldPartitionActorDesc> APCGPartitionActor::CreateClassActorDesc() const
+{
+	return TUniquePtr<FWorldPartitionActorDesc>(new FPCGPartitionActorDesc());
+}
+
+bool APCGPartitionActor::IsUserManaged() const
+{
+	// Allows actor to be deleted
+	if (IsInvalidForPCG())
+	{
+		return true;
+	}
+
+	return Super::IsUserManaged();
+}
+
+void APCGPartitionActor::UpdateUse2DGridIfNeeded(bool bInUse2DGrid)
+{
+	if (bRequiresUse2DGridFixup)
+	{
+		bUse2DGrid = bInUse2DGrid;
+		bRequiresUse2DGridFixup = false;
+	}
+}
+
+void APCGPartitionActor::SetInvalidForPCG()
+{
+	if (!bIsInvalidForPCG)
+	{
+		bIsInvalidForPCG = true;
+		SetActorLabel(TEXT("TO_DELETE_") + GetActorLabel());
+	}
+}
+
+TSoftObjectPtr<UPCGComponent> APCGPartitionActor::GetOriginalComponentSoftObjectPtr(UPCGComponent* LocalComponent) const
+{
+	const TSoftObjectPtr<UPCGComponent>* OriginalComponent = LocalToOriginal.Find(LocalComponent);
+	return OriginalComponent ? *OriginalComponent : TSoftObjectPtr<UPCGComponent>();
 }
 #endif
 
@@ -263,6 +331,29 @@ FIntVector APCGPartitionActor::GetGridCoord() const
 {
 	const FVector Center = GetActorLocation();
 	return UPCGActorHelpers::GetCellCoord(Center, PCGGridSize, bUse2DGrid);
+}
+
+FPCGGridDescriptor APCGPartitionActor::GetGridDescriptor() const
+{
+	FPCGGridDescriptor GridDescriptor = FPCGGridDescriptor()
+		.SetGridSize(GetPCGGridSize())
+		.SetIs2DGrid(bUse2DGrid)
+		.SetIsRuntime(IsRuntimeGenerated());
+
+#if WITH_EDITORONLY_DATA
+	if (GetWorld() && GetWorld()->IsPlayInEditor())
+	{
+		GridDescriptor.SetRuntimeHash(RuntimeGridDescriptorHash);
+	}
+	else
+	{
+		GridDescriptor.SetDataLayerAssets(GetDataLayerAssets());
+	}
+#else
+	GridDescriptor.SetRuntimeHash(RuntimeGridDescriptorHash);
+#endif
+
+	return GridDescriptor;
 }
 
 bool APCGPartitionActor::Teleport(const FVector& NewLocation)
@@ -313,8 +404,22 @@ void APCGPartitionActor::GetActorBounds(bool bOnlyCollidingComponents, FVector& 
 
 UPCGComponent* APCGPartitionActor::GetLocalComponent(const UPCGComponent* OriginalComponent) const
 {
-	const TObjectPtr<UPCGComponent>* LocalComponent = OriginalToLocal.Find(OriginalComponent);
-	return LocalComponent ? *LocalComponent : nullptr;
+	return GetLocalComponent(OriginalComponent, /*bRebuildMappingOnNullEntries=*/true);
+}
+
+UPCGComponent* APCGPartitionActor::GetLocalComponent(const UPCGComponent* OriginalComponent, bool bRebuildMappingOnNullEntries) const
+{
+	if (const TObjectPtr<UPCGComponent>* LocalComponent = OriginalToLocal.Find(OriginalComponent))
+	{
+		return *LocalComponent;
+	}
+	else if (bRebuildMappingOnNullEntries && OriginalToLocal.Contains(nullptr))
+	{
+		const_cast<APCGPartitionActor*>(this)->RebuildOriginalToLocal();
+		return GetLocalComponent(OriginalComponent, /*bRebuildMappingOnNullEntries=*/false);
+	}
+
+	return nullptr;
 }
 
 UPCGComponent* APCGPartitionActor::GetOriginalComponent(const UPCGComponent* LocalComponent) const
@@ -518,23 +623,27 @@ AActor* APCGPartitionActor::GetSceneOutlinerParent() const
 }
 #endif // WITH_EDITOR
 
-void APCGPartitionActor::PostCreation(const FGuid& InGridGUID, uint32 InGridSize)
+void APCGPartitionActor::PostCreation(const FPCGGridDescriptor& GridDescriptor)
 {
-	PCGGuid = InGridGUID;
-	PCGGridSize = InGridSize;
-
-	// Put in cache if we use the 2D grid or not.
-	if (APCGWorldActor* PCGActor = PCGHelpers::GetPCGWorldActor(GetWorld()))
-	{
-		bUse2DGrid = PCGActor->bUse2DGrid;
-	}
-	else
-	{
-		bUse2DGrid = true;
-	}
+	PCGGridSize = GridDescriptor.GetGridSize();
+	bUse2DGrid = GridDescriptor.Is2DGrid();
 
 #if WITH_EDITOR
+	// Fetch Non External Assets and assign
+	TArray<TSoftObjectPtr<UDataLayerAsset>> DescriptorDataLayerAssets;
+	const UExternalDataLayerAsset* DescriptorExternalDataLayerAsset = nullptr;
+	GridDescriptor.GetDataLayerAssets(DescriptorDataLayerAssets, DescriptorExternalDataLayerAsset);
+
+	// External DataLayer should have been assigned on Spawn
+	ensure(ExternalDataLayerAsset == DescriptorExternalDataLayerAsset);
+
+	DataLayerAssets = DescriptorDataLayerAssets;
+	// Set only once upon creation, can't change for a Partition Actor
+	RuntimeGridDescriptorHash = GridDescriptor.GetRuntimeHash();
+	SetGridSize(PCGGridSize);
 	UpdateBoundsComponentExtents();
+
+	ensure(GetGridDescriptor() == GridDescriptor);
 #endif // WITH_EDITOR
 
 	RegisterPCG();
@@ -632,19 +741,13 @@ void APCGPartitionActor::UpdateBoundsComponentExtents()
 
 FString APCGPartitionActor::GetPCGPartitionActorName(uint32 GridSize, const FIntVector& GridCoords, bool bRuntimeGenerated)
 {
-	TStringBuilderWithBuffer<TCHAR, NAME_SIZE> ActorNameBuilder;
+	FPCGGridDescriptor GridDescriptor = FPCGGridDescriptor()
+		.SetGridSize(GridSize)
+		.SetIsRuntime(bRuntimeGenerated);
+	return GetPCGPartitionActorName(GridDescriptor, GridCoords);
+}
 
-	if (bRuntimeGenerated)
-	{
-		ActorNameBuilder += TEXT("PCGRuntimeGenPartitionActor_");
-	}
-	else
-	{
-		ActorNameBuilder += TEXT("PCGPartitionActor_");
-	}
-
-	ActorNameBuilder += FString::Printf(TEXT("%d_"), GridSize);
-	ActorNameBuilder += FString::Printf(TEXT("%d_%d_%d"), GridCoords.X, GridCoords.Y, GridCoords.Z);
-
-	return ActorNameBuilder.ToString();
+FString APCGPartitionActor::GetPCGPartitionActorName(const FPCGGridDescriptor& GridDescriptor, const FIntVector& GridCoords)
+{
+	return GridDescriptor.GetPartitionActorName(GridCoords);
 }

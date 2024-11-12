@@ -11,7 +11,7 @@ class IHttpTaskTimerHandle;
 /**
  * Contains implementation of some common functions that don't vary between implementations of different platforms
  */
-class FHttpRequestCommon : public FHttpRequestImpl
+class UE_DEPRECATED(5.5, "FHttpRequestCommon is deprecated and will be moved to internal") FHttpRequestCommon : public FHttpRequestImpl
 {
 public:
 	FHttpRequestCommon();
@@ -25,9 +25,12 @@ public:
 	HTTP_API virtual EHttpFailureReason GetFailureReason() const override;
 	HTTP_API virtual void SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy InDelegateThreadPolicy) override;
 	HTTP_API virtual EHttpRequestDelegateThreadPolicy GetDelegateThreadPolicy() const override;
+	HTTP_API virtual FString GetOption(const FName Option) const override;
+	HTTP_API virtual void SetOption(const FName Option, const FString & OptionValue) override;
 
 	HTTP_API virtual void SetTimeout(float InTimeoutSecs) override;
 	HTTP_API virtual void ClearTimeout() override;
+	HTTP_API virtual void ResetTimeoutStatus() override;
 	HTTP_API virtual TOptional<float> GetTimeout() const override;
 	HTTP_API float GetTimeoutOrDefault() const;
 
@@ -46,12 +49,22 @@ public:
 
 	HTTP_API virtual bool SetResponseBodyReceiveStream(TSharedRef<FArchive> Stream) override;
 
+	HTTP_API virtual float GetElapsedTime() const override;
+
+	HTTP_API virtual bool IsThreadedRequestComplete() = 0;
+	HTTP_API virtual bool StartThreadedRequest() = 0;
+	HTTP_API virtual void TickThreadedRequest(float DeltaSeconds) = 0;
+
+	HTTP_API void StartWaitingInQueue();
+	HTTP_API float GetTimeStartedWaitingInQueue() const;
+
 protected:
 	/**
 	 * Check if this request is valid or allowed, before actually process the request
 	 */
 	HTTP_API bool PreProcess();
 	HTTP_API void PostProcess();
+	HTTP_API void PopulateUserAgentHeader();
 	HTTP_API virtual bool SetupRequest() = 0;
 	HTTP_API bool PreCheck() const;
 	HTTP_API virtual void ClearInCaseOfRetry();
@@ -65,6 +78,7 @@ protected:
 	HTTP_API void FinishRequestNotInHttpManager();
 
 	HTTP_API void HandleRequestSucceed(TSharedPtr<IHttpResponse> InResponse);
+	HTTP_API void HandleRequestFailed(TSharedPtr<IHttpResponse> InResponse);
 
 	HTTP_API void StartActivityTimeoutTimer();
 	HTTP_API void StartActivityTimeoutTimerBy(double DelayToTrigger);
@@ -79,6 +93,7 @@ protected:
 
 	HTTP_API virtual void CleanupRequest() = 0;
 
+	HTTP_API void HandleStatusCodeReceived(int32 StatusCode);
 	HTTP_API void TriggerStatusCodeReceivedDelegate(int32 StatusCode);
 
 	HTTP_API void SetEffectiveURL(const FString& InEffectiveURL);
@@ -91,6 +106,15 @@ protected:
 	HTTP_API bool SetContentAsStreamedFileDefaultImpl(const FString& Filename);
 	HTTP_API bool OpenRequestPayloadDefaultImpl();
 	HTTP_API void CloseRequestPayloadDefaultImpl();
+
+	HTTP_API void LogResponse(const TSharedPtr<IHttpResponse>& InResponse);
+	HTTP_API bool WillTriggerMockFailure();
+
+	HTTP_API void InitResponse();
+
+	HTTP_API virtual FHttpResponsePtr CreateResponse() = 0;
+	// The function for each impl to make sure when mocking response code, the internal state is valid for finishing request successfully
+	HTTP_API virtual void MockResponseData() = 0;
 
 protected:
 	/** Current status of request being processed */
@@ -141,7 +165,9 @@ protected:
 	FString EffectiveURL;
 
 	/** The response object which we will use to pair with this request */
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TSharedPtr<FHttpResponseCommon> ResponseCommon;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** The stream to receive response body */
 	TSharedPtr<FArchive> ResponseBodyReceiveStream;
@@ -155,4 +181,13 @@ protected:
 
 	/** Payload to use with the request. Typically for POST, PUT, or PATCH */
 	TUniquePtr<FRequestPayload> RequestPayload;
+
+	/** Options for this request. */
+	TMap<const FName, FString> Options;
+
+	/** Total elapsed time in seconds since the start of the request */
+	float ElapsedTime = 0.0f;
+
+	/** Record the time started to wait in the queue */
+	float TimeStartedWaitingInQueue = 0.0f;
 };

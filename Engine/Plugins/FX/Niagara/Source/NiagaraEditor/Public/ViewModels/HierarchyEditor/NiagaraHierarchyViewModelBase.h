@@ -3,13 +3,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "NiagaraEditorUtilities.h"
 #include "PropertyEditorDelegates.h"
-#include "ViewModels/Stack/NiagaraStackFunctionInput.h"
 #include "ToolMenuSection.h"
 #include "IPropertyRowGenerator.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "ScopedTransaction.h"
+#include "EditorUndoClient.h"
+#include "Widgets/Views/STableRow.h"
+#include "TickableEditorObject.h"
+#include "Engine/TimerHandle.h"
 #include "NiagaraHierarchyViewModelBase.generated.h"
 
 USTRUCT()
@@ -71,12 +73,12 @@ FORCEINLINE uint32 GetTypeHash(const FNiagaraHierarchyIdentity& Identity)
 	
 	for(const FGuid& Guid : Identity.Guids)
 	{
-		HashCombine(Hash, GetTypeHash(Guid));
+		Hash = HashCombine(Hash, GetTypeHash(Guid));
 	}
 	
 	for(const FName& Name : Identity.Names)
 	{
-		HashCombine(Hash, GetTypeHash(Name));
+		Hash = HashCombine(Hash, GetTypeHash(Name));
 	}
 	
 	return Hash;
@@ -125,7 +127,8 @@ public:
 	void SortChildren(const PREDICATE_CLASS& Predicate, bool bRecursive = false);
 	
 	virtual FString ToString() const { return GetName(); }
-
+	FText ToText() const { return FText::FromString(ToString()); }
+	
 	/** An identity can be optionally set to create a mapping from previously existing guids or names to hierarchy items that represent them. */
 	void SetIdentity(FNiagaraHierarchyIdentity InIdentity) { Identity = InIdentity; }
 	FNiagaraHierarchyIdentity GetPersistentIdentity() const { return Identity; }
@@ -308,6 +311,7 @@ public:
 	NIAGARAEDITOR_API void SetSectionNameAsText(const FText& Text);
 	FText GetSectionNameAsText() const { return FText::FromName(Section); }
 
+	void SetTooltip(const FText& InTooltip) { Tooltip = InTooltip; }
 	FText GetTooltip() const { return Tooltip; }
 
 	virtual FString ToString() const override { return Section.ToString(); }
@@ -392,10 +396,13 @@ public:
 
 	void Initialize();
 	void Finalize();
-	
+
+	virtual TSubclassOf<UNiagaraHierarchyCategory> GetCategoryDataClass() const;
 	void AddCategory(TSharedPtr<FNiagaraHierarchyItemViewModelBase> CategoryParent) const;
 	void AddSection() const;
 
+	// adds a new child item to the hierarchy root
+	NIAGARAEDITOR_API UNiagaraHierarchyItemBase* AddItem(TSubclassOf<UNiagaraHierarchyItemBase> NewChildClass, FNiagaraHierarchyIdentity ChildIdentity);
 	NIAGARAEDITOR_API void DeleteItemWithIdentity(FNiagaraHierarchyIdentity Identity);
 	NIAGARAEDITOR_API void DeleteItemsWithIdentities(TArray<FNiagaraHierarchyIdentity> Identities);
 
@@ -409,7 +416,9 @@ public:
 	/** The hierarchy root the widget is editing. This should point to persistent data stored somewhere else as the serialized root of the hierarchy. */
 	virtual UNiagaraHierarchyRoot* GetHierarchyRoot() const PURE_VIRTUAL(UNiagaraHierarchyViewModelBase::GetHierarchyRoot, return nullptr;);
 	TSharedPtr<struct FNiagaraHierarchyRootViewModel> GetHierarchyRootViewModel() const { return HierarchyRootViewModel; }
-	
+
+	/** Create the root view model for the root entry. Handled separately from all other elements. */
+	virtual TSharedPtr<FNiagaraHierarchyRootViewModel> CreateRootViewModelForData(UNiagaraHierarchyRoot* Root, bool bIsForHierarchy);
 	/** This function will create the view model for a given item. Override to customize view model behavior by providing custom classes. */
 	virtual TSharedPtr<FNiagaraHierarchyItemViewModelBase> CreateViewModelForData(UNiagaraHierarchyItemBase* ItemBase, TSharedPtr<FNiagaraHierarchyItemViewModelBase> Parent);
 	
@@ -549,10 +558,14 @@ struct FNiagaraHierarchyItemViewModelBase : TSharedFromThis<FNiagaraHierarchyIte
 
 	NIAGARAEDITOR_API void RefreshChildrenData();
 	NIAGARAEDITOR_API void SyncViewModelsToData();
+	
+	/** Every item view model can define its own sort order for its children. By default we put categories above items. */
+	virtual void SortChildrenData() const;
+	
 	const TArray<TSharedPtr<FNiagaraHierarchyItemViewModelBase>>& GetChildren() const { return Children; }
 	TArray<TSharedPtr<FNiagaraHierarchyItemViewModelBase>>& GetChildrenMutable() { return Children; }
 	NIAGARAEDITOR_API const TArray<TSharedPtr<FNiagaraHierarchyItemViewModelBase>>& GetFilteredChildren() const;
-
+	
 	NIAGARAEDITOR_API void AddChildFilter(FOnFilterChild InFilterChild);
 	
 	template<class DataClass, class ViewModelChildClass>
@@ -662,6 +675,9 @@ struct FNiagaraHierarchyItemViewModelBase : TSharedFromThis<FNiagaraHierarchyIte
 
 	/** The UObject we display in the details panel when this item is selected. By default it's the item the view model represents. */
 	virtual UObject* GetDataForEditing() { return ItemBase; }
+	/** Source items are transient, which is why we don't allow editing by default.
+	 * This is useful to override if source data points at actual data to edit. */
+	virtual bool AllowEditingInDetailsPanel() const { return bIsForHierarchy; }
 	
 	/** Used to create customized drag drop ops. */
 	NIAGARAEDITOR_API TSharedRef<class FNiagaraHierarchyDragDropOp> CreateDragDropOp();
@@ -825,7 +841,7 @@ struct FNiagaraHierarchyItemViewModel : FNiagaraHierarchyItemViewModelBase
 	virtual bool CanHaveChildren() const override { return false; }
 	virtual FCanPerformActionResults CanDragInternal() override { return true; }
 
-	NIAGARAEDITOR_API virtual FCanPerformActionResults CanDropOnInternal(TSharedPtr<FNiagaraHierarchyItemViewModelBase>, EItemDropZone ItemDropZone) override;
+	NIAGARAEDITOR_API virtual FCanPerformActionResults CanDropOnInternal(TSharedPtr<FNiagaraHierarchyItemViewModelBase> DraggedItem, EItemDropZone ItemDropZone) override;
 	NIAGARAEDITOR_API virtual void OnDroppedOnInternal(TSharedPtr<FNiagaraHierarchyItemViewModelBase> DroppedItem, EItemDropZone ItemDropZone) override;
 };
 

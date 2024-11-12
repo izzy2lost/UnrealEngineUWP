@@ -33,6 +33,7 @@
 #include "UnrealClient.h"
 #include "Widgets/SViewport.h"
 #include <Rendering/Texture2DResource.h>
+#include "Math/GuardedInt.h"
 
 #include "Profiling/StatGroup.h"
 #include "UObject/Package.h"
@@ -52,7 +53,6 @@
 #pragma pop_macro("DLLEXPORT")
 
 DECLARE_CYCLE_STAT(TEXT("Tex_InitRT"), STAT_Tex_InitRT, STATGROUP_TextureGraphEngine);
-extern ENGINE_API UEngine* GEngine;
 
 TexDescriptor::TexDescriptor()
 {
@@ -62,7 +62,7 @@ TexDescriptor::TexDescriptor(uint32 InWidth, uint32 InHeight, EPixelFormat InFor
 	: Name(Util::RandomID())
 	, Width(InWidth)
 	, Height(InHeight)
-	, Format(InFormat)
+	, Format(Format)
 	, NumChannels(TextureHelper::GetChannelsFromPixelFormat(InFormat))
 {
 }
@@ -261,7 +261,12 @@ void Tex::FreeRT(UTextureRenderTarget2D** RT)
 void Tex::Free()
 {
 	check(IsInGameThread());
-	/// IMPORTANT: Do not free the _image in this function
+
+#if WITH_EDITOR
+	/// Make it insensitive to the order of mixer engine destruction
+	if (TextureGraphEngine::IsDestroying())
+		return;
+#endif 
 	FreeTexture(ToRawPtr(MutableView(Texture)));
 	FreeRT(ToRawPtr(MutableView(RT)));
 }
@@ -497,23 +502,63 @@ AsyncActionResultPtr Tex::LoadFlat()
 	});
 }
 
-
 UTexture2D* Tex::CreateTexture(uint32 Width, uint32 Height, EPixelFormat Format, bool sRGB, UObject* Package)
 {
-	UTexture2D* NewTexture = NULL;
+	UTexture2D* NewTexture = nullptr;
 
 	if (Width > 0 && Height > 0 &&
 		(Width % GPixelFormats[Format].BlockSizeX) == 0 &&
 		(Height % GPixelFormats[Format].BlockSizeY) == 0)
 	{
-		NewTexture = UTexture2D::CreateTransient(Width, Height, Format, *Desc.Name);
+		if (!Package)
+			Package = Util::GetTexturesPackage();
+
+		const FName UniqueName = MakeUniqueObjectName(Package, UTexture2D::StaticClass(), *Desc.Name);
+		NewTexture = NewObject<UTexture2D>(Package, UniqueName);
 		NewTexture->SRGB = sRGB;
-		//NewObject<UTexture2D>(Package, *_desc.Name, UModelObject::s_maskNoGC);
-	//	NewTexture->PlatformData->PixelFormat = Format;
-	//	NewTexture->PlatformData = new FTexturePlatformData();
-	//	NewTexture->PlatformData->SizeX = Width;
-	//	NewTexture->PlatformData->SizeY = Height;
-	////	NewTexture->PlatformData->PixelFormat = Format;
+
+		const int32 NumBlocksX = Width / GPixelFormats[Format].BlockSizeX;
+		const int32 NumBlocksY = Height / GPixelFormats[Format].BlockSizeY;
+
+		if (Width <= 0 || Height <= 0)
+		{
+			UE_LOG(LogTexture, Warning, TEXT("Negative size specified for UTexture2D::CreateTransient()"));
+			return nullptr;
+		}
+
+		if ((Width % GPixelFormats[Format].BlockSizeX) ||
+			(Height % GPixelFormats[Format].BlockSizeY))
+		{
+			UE_LOG(LogTexture, Warning, TEXT("Size specified isn't valid for block-based pixel format in UTexture2D::CreateTransient()"));
+			return nullptr;
+		}
+
+		FGuardedInt64 BytesForImageValidation = FGuardedInt64(NumBlocksX) * NumBlocksY * GPixelFormats[Format].BlockBytes;
+		if (BytesForImageValidation.IsValid() == false)
+		{
+			UE_LOG(LogTexture, Warning, TEXT("Size specified overflows in UTexture2D::CreateTransient()"));
+			return nullptr;
+		}
+
+		int64 BytesForImage = BytesForImageValidation.Get(0);
+
+		NewTexture->SetPlatformData(new FTexturePlatformData());
+		NewTexture->GetPlatformData()->SizeX = Width;
+		NewTexture->GetPlatformData()->SizeY = Height;
+		NewTexture->GetPlatformData()->SetNumSlices(1);
+		NewTexture->GetPlatformData()->PixelFormat = Format;
+
+		// Allocate first mipmap.
+		FTexture2DMipMap* Mip = new FTexture2DMipMap(Width, Height, 1);
+		NewTexture->GetPlatformData()->Mips.Add(Mip);
+		Mip->BulkData.Lock(LOCK_READ_WRITE);
+		void* DestImageData = Mip->BulkData.Realloc(BytesForImage);
+		memset(DestImageData, 0, BytesForImage);
+		Mip->BulkData.Unlock();
+
+		NewTexture->UpdateResource();
+
+		return NewTexture;
 
 	}
 	else
@@ -638,14 +683,32 @@ UTexture2D* Tex::InitTextureDefault(int32 Width, int32 Height, EPixelFormat Pixe
 	check(IsInGameThread());
 	check(UncompressedData);
 
-	UTexture2D* NewTexture;
-	
 	Desc.Name += MakeUniqueObjectName(Package, UTexture2D::StaticClass()).ToString(); // , FName());
 
-	NewTexture = CreateTexture(Width, Height, PixelFormat, Desc.bIsSRGB, Package);
+	UTexture2D* NewTexture = CreateTexture(Width, Height, PixelFormat, Desc.bIsSRGB, Package);
 
 	if (NewTexture)
 	{
+#if 0
+		check(UncompressedData && UncompressedDataSize);
+
+		NewTexture->SetPlatformData(new FTexturePlatformData());
+		NewTexture->GetPlatformData()->SizeX = Width;
+		NewTexture->GetPlatformData()->SizeY = Height;
+		NewTexture->GetPlatformData()->SetNumSlices(1);
+		NewTexture->GetPlatformData()->PixelFormat = PixelFormat;
+
+		// Allocate first mipmap.
+		FTexture2DMipMap* Mip = new FTexture2DMipMap(Width, Height, 1);
+		NewTexture->GetPlatformData()->Mips.Add(Mip);
+
+		Mip->BulkData.Lock(LOCK_READ_WRITE);
+		void* DestImageData = Mip->BulkData.Realloc(UncompressedDataSize);
+		FMemory::Memcpy(DestImageData, UncompressedData, UncompressedDataSize);
+		Mip->BulkData.Unlock();
+		NewTexture->UpdateResource();
+#endif 
+
 		uint8* MipData = static_cast<uint8*>(NewTexture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
 		int64 MipSize = NewTexture->GetPlatformData()->Mips[0].BulkData.GetBulkDataSize();
 
@@ -653,16 +716,9 @@ UTexture2D* Tex::InitTextureDefault(int32 Width, int32 Height, EPixelFormat Pixe
 
 		// Bulk Data was already allocated for the correct size when we called CreateTransient above
 		FMemory::Memcpy(MipData, UncompressedData, MipSize);
-
 		NewTexture->GetPlatformData()->Mips[0].BulkData.Unlock();
-		
-		// If mipmaps are required, this Tex will be turned into a rendertarget and autogenerate mips from mip0
-		// If needed, We could allocate and fill the mipmaps from sys mem Data in the flow here
-		// if (_desc.mipmaps)
-		//		AllocateTextureMips(_texture, some_init_data_for_the_mipmaps);
 
 		NewTexture->UpdateResource();
-		
 	}
 
 	return NewTexture;
@@ -711,7 +767,7 @@ bool UncompressJpeg(const ERGBFormat Format, int32 BitDepth, int32 Width, int32 
 	check(compressedData.Num());
 
 	UncompressedData.Reset(Width * Height * NumChannels);
-	UncompressedData.AddUninitialized(Width * Width * NumChannels);
+	UncompressedData.AddUninitialized(Width * Height * NumChannels);
 
 	int Flag = TJFLAG_PROGRESSIVE;
 	if (tjDecompress2(Decompressor, compressedData.GetData(), compressedData.Num(), UncompressedData.GetData(), Width, 0, Height, TJPixelFormat, Flag) != 0)
@@ -1041,7 +1097,18 @@ AsyncTiledBlobRef Tex::ToBlob(int32 XTiles, int32 YTiles, uint32 Width /* = 0 */
 	Desc.Width = Width;
 	Desc.Height = Height;
 
-	if (!TextureHelper::CanSplitToTiles(Texture,XTiles,YTiles))
+	int32 CheckSizeX = Width;
+	int32 CheckSizeY = Height;
+
+#if WITH_EDITOR
+	if (Texture->Source.IsValid())
+	{
+		CheckSizeX = Texture->Source.GetSizeX();
+		CheckSizeY = Texture->Source.GetSizeY();
+	} 
+#endif 
+
+	if (!TextureHelper::CanSplitToTiles(CheckSizeX, CheckSizeY, XTiles, YTiles))
 	{
 		/// TOOD: need to properly calculate Hash over here
 		return ToSingleBlob(nullptr, TransferToRT);
@@ -1176,7 +1243,7 @@ bool Tex::IsValidVirtualTexture()
 	return(IsValid(Texture) && Texture->IsCurrentlyVirtualTextured()); 
 }
 
-void Tex::LoadAsset(FSoftObjectPath& SoftPath, const DesiredImageProperties* Props /* = nullptr */)
+bool Tex::LoadAsset(FSoftObjectPath& SoftPath, const DesiredImageProperties* Props /* = nullptr */)
 {
 	check(IsInGameThread());
 
@@ -1196,6 +1263,16 @@ void Tex::LoadAsset(FSoftObjectPath& SoftPath, const DesiredImageProperties* Pro
 	check(Obj);
 
 	Texture = static_cast<UTexture2D*>(Obj);
+
+	//For now in case of virtual texture we are making a duplicate of texture and turning off the VirtualTextureStreaming
+	//so that it can be loaded like a normal texture 2D. This is a workaround until we find a way to reliably convert the virtual texture to render target
+	if (Texture->IsCurrentlyVirtualTextured())
+	{
+		Texture = (UTexture2D*)StaticDuplicateObject(Obj, GetTransientPackage(), NAME_None, RF_Transient, UTexture2D::StaticClass());
+		Texture->Modify();
+		Texture->VirtualTextureStreaming = false;
+	}
+
 	Desc = TexDescriptor(Texture);
 
 	// override descriptor based on source properties
@@ -1219,9 +1296,10 @@ void Tex::LoadAsset(FSoftObjectPath& SoftPath, const DesiredImageProperties* Pro
 	Desc.Format = OutPixelFormat;
 #endif
 	
+	return true;
 }
 
-AsyncActionResultPtr Tex::LoadAsync(const FString& Filename, const DesiredImageProperties* Props /* = nullptr */)
+bool Tex::LoadFile(const FString& Filename, const DesiredImageProperties* Props /* = nullptr */)
 {
 	if (Props)
 	{
@@ -1235,69 +1313,65 @@ AsyncActionResultPtr Tex::LoadAsync(const FString& Filename, const DesiredImageP
 			Desc.bMipMaps = true;
 	}
 
-	return cti::make_continuable<ActionResultPtr>([this, Filename](auto&& LoadPromise)
+	TArray<uint8> Buffer;
+	UE_LOG(LogTexture, Log, TEXT("Trying to load file %s"), *Filename);
+	bool DidLoadBuffer = false;
+
+	if (FFileHelper::LoadFileToArray(Buffer, *Filename))
 	{
-		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, Filename, FWD_PROMISE(LoadPromise)]() mutable
+		EPixelFormat PixelFormat;
+		int32 Width;
+		int32 Height;
+		TArray<uint8> UncompressedData;
+
+		bool Success = CopyImageToBuffer(PixelFormat, Width, Height, Buffer, UncompressedData);
+
+		if (Success)
 		{
-			TArray<uint8> Buffer;
-			UE_LOG(LogTexture, Log, TEXT("Trying to load file %s"), *Filename);
-			bool DidLoadBuffer = false;
+			DidLoadBuffer = true;
+			UE_LOG(LogTexture, Log, TEXT("Loading file %s Success"), *Filename);
 
-			if (FFileHelper::LoadFileToArray(Buffer, *Filename))
+			try
 			{
-				EPixelFormat PixelFormat;
-				int32 Width;
-				int32 Height;
-				TArray<uint8> UncompressedData;
+				auto Package = Util::GetTexturesPackage();
+				UTexture2D* NewTexture = nullptr;
 
-				bool Success = CopyImageToBuffer(PixelFormat, Width, Height, Buffer, UncompressedData);
-
-				if (Success)
+				if (FPaths::GetExtension(Filename) == TEXT("HDR"))
 				{
-					DidLoadBuffer = true;
-					UE_LOG(LogTexture, Log, TEXT("Loading file %s Success"), *Filename);
-					AsyncTask(ENamedThreads::GameThread, [this, Filename, PixelFormat, Width, Height, UncompressedData = std::move(UncompressedData), LoadPromise = std::forward<decltype(LoadPromise)>(LoadPromise)]() mutable
-					{
-						try
-						{
-							auto Package = Util::GetTexturesPackage();
-							UTexture2D* NewTexture = nullptr;
-
-							if (FPaths::GetExtension(Filename) == TEXT("HDR"))
-							{
-								//NewTexture = InitTextureHDR(Buffer, Package);
-							}
-							else
-							{
-								NewTexture = InitTextureDefault(Width, Height, PixelFormat, UncompressedData.GetData(), UncompressedData.Num(), Package);
-							}
-
-							 TexDescriptor NewDesc(NewTexture);
-
-							 NewDesc.ClearColor = Desc.ClearColor;
-							 NewDesc.bMipMaps = Desc.bMipMaps;
-							 Desc = NewDesc;
-
-							Texture = NewTexture;
-
-							LoadPromise.set_value(std::make_shared<ActionResult>(nullptr));
-						}
-						catch (const std::exception_ptr e)
-						{
-							LoadPromise.set_exception(e);
-						}
-					});
+					//NewTexture = InitTextureHDR(Buffer, Package);
 				}
-			}
+				else
+				{
+					NewTexture = InitTextureDefault(Width, Height, PixelFormat, UncompressedData.GetData(), UncompressedData.Num(), Package);
+				}
 
-			if (!DidLoadBuffer)
-			{
-				/// Set the error on the Promise
-				LoadPromise.set_exception(std::make_exception_ptr(std::runtime_error("Unable to load image Buffer!")));
-				UE_LOG(LogTexture, Log, TEXT("Loading file %s failed"), *Filename);
+				TexDescriptor NewDesc(NewTexture);
+
+				NewDesc.ClearColor = Desc.ClearColor;
+				NewDesc.bMipMaps = Desc.bMipMaps;
+				Desc = NewDesc;
+
+				Texture = NewTexture;
 			}
-		});
-	});
+			catch (const std::exception_ptr e)
+			{
+				UE_LOG(LogTexture, Error, TEXT("Exception while loading filename: %s"), *Filename);
+				return false;
+			}
+		}
+		else
+		{
+			UE_LOG(LogTexture, Log, TEXT("CopyImageToBuffer failed for file: "), *Filename);
+			return false;
+		}
+	}
+	else
+	{
+		UE_LOG(LogTexture, Log, TEXT("FFileHelper::LoadFileToArray failed for file: "), *Filename);
+		return false;
+	}
+
+	return true;
 }
 
 UTexture* Tex::GetTexture() const
@@ -1320,7 +1394,7 @@ UTexture* Tex::GetTexture() const
 //	return nullptr;
 //}
 
-FRHITexture2D* Tex::GetRHITexture() const
+FRHITexture* Tex::GetRHITexture() const
 {
 	if (RT)
 		return RT->GetResource()->GetTextureRHI();

@@ -5,6 +5,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 
 #if WITH_EDITOR
+#include "Components/MaterialValuesDynamic/DMMaterialValueTextureDynamic.h"
 #include "DMDefs.h"
 #include "Engine/Texture2D.h"
 #include "Engine/TextureCube.h"
@@ -14,7 +15,10 @@
 #include "Model/IDMMaterialBuildStateInterface.h"
 #include "Model/IDMMaterialBuildUtilsInterface.h"
 #include "RenderUtils.h"
+#include "Utils/DMUtils.h"
 #endif
+
+#define LOCTEXT_NAMESPACE "DMMaterialValueTexture"
 
 #if WITH_EDITOR
 namespace UE::DynamicMaterial::Private
@@ -59,16 +63,12 @@ FDMGetDefaultRGBTexture UDMMaterialValueTexture::GetDefaultRGBTexture;
 
 UDMMaterialValueTexture::UDMMaterialValueTexture()
 	: UDMMaterialValue(EDMValueType::VT_Texture)
+	, Value(nullptr)
 #if WITH_EDITORONLY_DATA
+	, DefaultValue(nullptr)
 	, OldValue(nullptr)
 #endif
 {
-#if WITH_EDITOR
-	ResetDefaultValue();
-	Value = DefaultValue;
-#else
-	Value = nullptr;
-#endif
 }
 
 #if WITH_EDITOR
@@ -84,31 +84,37 @@ void UDMMaterialValueTexture::GenerateExpression(const TSharedRef<IDMMaterialBui
 		return;
 	}
 
-	UMaterialExpressionTextureObjectParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionTextureObjectParameter>(GetMaterialParameterName(), UE_DM_NodeComment_Default, Value);
+	UMaterialExpressionTextureObjectParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionTextureObjectParameter>(
+		GetMaterialParameterName(), 
+		GetParameterGroup(), 
+		UE_DM_NodeComment_Default, 
+		Value
+	);
+
 	check(NewExpression);
 
 	InBuildState->AddValueExpressions(this, {NewExpression});
 }
  
-UDMMaterialValueTexture* UDMMaterialValueTexture::CreateMaterialValueTexture(UObject* Outer, UTexture* InTexture)
+UDMMaterialValueTexture* UDMMaterialValueTexture::CreateMaterialValueTexture(UObject* InOuter, UTexture* InTexture)
 {
 	check(InTexture);
  
-	UDMMaterialValueTexture* TextureValue = NewObject<UDMMaterialValueTexture>(Outer, NAME_None, RF_Transactional);
+	UDMMaterialValueTexture* TextureValue = NewObject<UDMMaterialValueTexture>(InOuter, NAME_None, RF_Transactional);
 	TextureValue->SetValue(InTexture);
 	return TextureValue;
 }
  
-void UDMMaterialValueTexture::PreEditChange(FProperty* PropertyAboutToChange)
+void UDMMaterialValueTexture::PreEditChange(FProperty* InPropertyAboutToChange)
 {
-	Super::PreEditChange(PropertyAboutToChange);
+	Super::PreEditChange(InPropertyAboutToChange);
  
 	if (!IsComponentValid())
 	{
 		return;
 	}
 
-	if (PropertyAboutToChange->GetFName() == ValueName)
+	if (InPropertyAboutToChange->GetFName() == ValueName)
 	{
 		OldValue = GetValue();
 	}
@@ -119,39 +125,26 @@ bool UDMMaterialValueTexture::IsDefaultValue() const
 	return Value == DefaultValue;
 }
 
-void UDMMaterialValueTexture::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+void UDMMaterialValueTexture::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	// Skip parent class because we need to do extra logic.
-	Super::Super::PostEditChangeProperty(PropertyChangedEvent);
+	Super::Super::PostEditChangeProperty(InPropertyChangedEvent);
 
 	if (!IsComponentValid())
 	{
 		return;
 	}
 
-	FName MemberPropertyName = PropertyChangedEvent.GetMemberPropertyName();
+	const FName MemberPropertyName = InPropertyChangedEvent.GetMemberPropertyName();
 
-	if (MemberPropertyName == NAME_None)
+	if (MemberPropertyName.IsNone())
 	{
 		return;
 	}
 
-	for (const FName& EditableProperty : EditableProperties)
+	if (MemberPropertyName == ValueName)
 	{
-		if (EditableProperty == MemberPropertyName)
-		{
-			if (EditableProperty == ValueName)
-			{
-				const TextureCompressionSettings CurrentCompression = OldValue ? OldValue->CompressionSettings.GetValue() : TextureCompressionSettings::TC_MAX;
-				const TextureCompressionSettings NewCompression = Value ? Value->CompressionSettings.GetValue() : TextureCompressionSettings::TC_MAX;
-
-				OnValueUpdated(CurrentCompression != NewCompression);
-				return;
-			}
-
-			OnValueUpdated(/* bForceStructureUpdate */ true);
-			return;
-		}
+		OnValueChanged(EDMUpdateType::Value | EDMUpdateType::AllowParentUpdate);
 	}
 }
 #endif
@@ -179,6 +172,42 @@ void UDMMaterialValueTexture::ResetDefaultValue()
 	}
 }
 
+UDMMaterialValueDynamic* UDMMaterialValueTexture::ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic)
+{
+	UDMMaterialValueTextureDynamic* ValueDynamic = UDMMaterialValueDynamic::CreateValueDynamic<UDMMaterialValueTextureDynamic>(InMaterialModelDynamic, this);
+	ValueDynamic->SetValue(Value);
+
+	return ValueDynamic;
+}
+
+FString UDMMaterialValueTexture::GetComponentPathComponent() const
+{
+	return TEXT("Texture");
+}
+
+FText UDMMaterialValueTexture::GetComponentDescription() const
+{
+	return LOCTEXT("Texture", "Texture");
+}
+
+TSharedPtr<FJsonValue> UDMMaterialValueTexture::JsonSerialize() const
+{
+	return FDMJsonUtils::Serialize(Value);
+}
+
+bool UDMMaterialValueTexture::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	UTexture* ValueJson;
+
+	if (FDMJsonUtils::Deserialize(InJsonValue, ValueJson))
+	{
+		SetValue(ValueJson);
+		return true;
+	}
+
+	return false;
+}
+
 void UDMMaterialValueTexture::SetDefaultValue(UTexture* InDefaultValue)
 {
 	DefaultValue = InDefaultValue;
@@ -202,12 +231,9 @@ void UDMMaterialValueTexture::SetValue(UTexture* InValue)
 		return;
 	}
 
-	const TextureCompressionSettings CurrentCompression = Value ? Value->CompressionSettings.GetValue() : TextureCompressionSettings::TC_MAX;
-	const TextureCompressionSettings NewCompression = InValue ? InValue->CompressionSettings.GetValue() : TextureCompressionSettings::TC_MAX;
-
 	Value = InValue;
 
-	OnValueUpdated(CurrentCompression != NewCompression);
+	OnValueChanged(EDMUpdateType::Value | EDMUpdateType::AllowParentUpdate);
 }
 
 void UDMMaterialValueTexture::SetMIDParameter(UMaterialInstanceDynamic* InMID) const
@@ -221,3 +247,5 @@ void UDMMaterialValueTexture::SetMIDParameter(UMaterialInstanceDynamic* InMID) c
 
 	InMID->SetTextureParameterValue(GetMaterialParameterName(), Value);
 }
+
+#undef LOCTEXT_NAMESPACE

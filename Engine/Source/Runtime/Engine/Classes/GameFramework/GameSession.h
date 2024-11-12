@@ -83,15 +83,6 @@ class AGameSession : public AInfo
 	 * @param UniqueId uniqueId they sent over on Login
 	 * @param bWasFromInvite was this from an invite
 	 */
-	UE_DEPRECATED(5.0, "Use RegisterPlayer with FUniqueNetIdRepl")
-	ENGINE_API virtual void RegisterPlayer(APlayerController* NewPlayer, const FUniqueNetIdPtr& UniqueId, bool bWasFromInvite);
-
-	/**
-	 * Register a player with the online service session
-	 * @param NewPlayer player to register
-	 * @param UniqueId uniqueId they sent over on Login
-	 * @param bWasFromInvite was this from an invite
-	 */
 	ENGINE_API virtual void RegisterPlayer(APlayerController* NewPlayer, const FUniqueNetIdRepl& UniqueId, bool bWasFromInvite);
 
 	/**
@@ -130,14 +121,6 @@ class AGameSession : public AInfo
 	 */
 	ENGINE_API virtual void UnregisterPlayer(FName InSessionName, const FUniqueNetIdRepl& UniqueId);
 
-	/**
-	 * Unregister players from the online service session
-	 *
-	 * @param SessionName name of session to unregister from
-	 * @param Players ids of the players to unregister
-	 */
-	UE_DEPRECATED(5.0, "Use UnregisterPlayers with FUniqueNetIdRepl")
-	ENGINE_API virtual void UnregisterPlayers(FName InSessionName, const TArray< FUniqueNetIdRef >& Players);
 	ENGINE_API virtual void UnregisterPlayers(FName InSessionName, const TArray< FUniqueNetIdRepl >& Players);
 	
 	/**
@@ -284,14 +267,6 @@ private:
 	/** Override for the default value of MaxSpectators passed to InitOptions. */
 	TOptional<int32> MaxSpectatorsOptionOverride;
 };
-
-/** 
- * Returns the player controller associated with this net id
- * @param PlayerNetId the id to search for
- * @return the player controller if found, otherwise NULL
- */
-UE_DEPRECATED(5.0, "Use GetPlayerControllerFromNetId with FUniqueNetIdRepl")
-ENGINE_API APlayerController* GetPlayerControllerFromNetId(UWorld* World, const FUniqueNetId& PlayerNetId);
 
 /**
  * Returns the player controller associated with this net id

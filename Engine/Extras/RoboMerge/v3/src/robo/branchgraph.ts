@@ -81,7 +81,7 @@ if (botname === '__TEST__') {
 	private propagateSourcePropertiesToEdges() {
 		// also flag for applying reverse entry too? would apply to branchspecs, not so simple for resolver
 		const propertiesToPropagate: [keyof NodeOptions, keyof EdgeOptions, ConfigBlendMode | null][] = [
-			['additionalSlackChannelForBlockages', 'additionalSlackChannel', null],
+			['additionalSlackChannelForBlockages', 'additionalSlackChannel', 'override'],
 			['postMessagesToAdditionalChannelOnly', 'postOnlyToAdditionalChannel', null],
 			['lastGoodCLPath', 'lastGoodCLPath', null],
 			['waitingForCISLink', 'waitingForCISLink', null],
@@ -220,7 +220,6 @@ if (botname === '__TEST__') {
 		let branch: EditableBranch = {
 			name: name,
 			parent: this,
-			workspace: options.workspace || null,
 			branchspec: new Map<string, BranchSpec>(),
 			edgeProperties: new Map(),
 			upperName: nameUpper,
@@ -228,6 +227,7 @@ if (botname === '__TEST__') {
 			config: options,
 			depot: "", // will compute
 			rootPath: options.rootPath || "",
+			uniqueBranch: options.uniqueBranch || false,
 			badgeProject: options.badgeProject || null,
 			isDefaultBot: BranchGraph._getBoolConfig(options.isDefaultBot, this.config.isDefaultBot),
 			emailOnBlockage: BranchGraph._getBoolConfig(options.emailOnBlockage, this.config.emailOnBlockage),

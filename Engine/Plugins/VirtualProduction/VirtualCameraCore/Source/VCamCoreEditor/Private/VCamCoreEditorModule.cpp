@@ -5,7 +5,6 @@
 #include "Customizations/OutputProvider/ConnectionRemapCustomization_StateSwitcher.h"
 #include "Customizations/OutputProvider/ConnectionRemapCustomization_VCamWidget.h"
 #include "Customizations/OutputProvider/OutputProviderLayoutCustomization.h"
-#include "Customizations/OutputProvider/OutputProviderTypeCustomization.h"
 #include "Customizations/StateSwitcher/VCamStateSwitcherWidgetCustomization.h"
 #include "Customizations/StateSwitcher/WidgetConnectionConfigTypeCustomization.h"
 #include "Customizations/TargetSettings/ConnectionTargetSettingsTypeCustomization.h"
@@ -17,6 +16,8 @@
 #include "Customizations/VCamViewportLockerTypeCustomization.h"
 #include "Customizations/WidgetReference/ChildWidgetReferenceCustomization.h"
 #include "Customizations/WidgetReference/VCamChildWidgetReferenceCustomization.h"
+#include "EditorOnlyVCamModifier.h"
+#include "EditorOnlyVCamModifierBlueprint.h"
 #include "Input/VCamInputDeviceConfig.h"
 #include "LogVCamEditor.h"
 #include "Modifier/VCamModifier.h"
@@ -32,6 +33,7 @@
 #include "ConcertTransactionEvents.h"
 #include "IConcertSyncClient.h"
 #include "IConcertSyncClientModule.h"
+#include "KismetCompilerModule.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
@@ -41,7 +43,7 @@
 
 #define LOCTEXT_NAMESPACE "FVCamCoreEditorModule"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	TSharedPtr<IConnectionRemapCustomization> FVCamCoreEditorModule::CreateConnectionRemapCustomization(TSubclassOf<UVCamWidget> Class) const
 	{
@@ -65,6 +67,10 @@ namespace UE::VCamCoreEditor::Private
 		CompilationExtensionManager = MakeShared<FCompilationExtensionManager>();
 		CompilationExtensionManager->Init();
 
+		// Use a custom UBlueprint, so we can get the editor to show editor-only functions in it.
+		IKismetCompilerInterface& KismetCompilerModule = FModuleManager::LoadModuleChecked<IKismetCompilerInterface>("KismetCompiler");
+		KismetCompilerModule.OverrideBPTypeForClass(UEditorOnlyVCamModifier::StaticClass(), UEditorOnlyVCamModifierBlueprint::StaticClass());
+		
 		FCoreDelegates::OnPostEngineInit.AddRaw(this, &FVCamCoreEditorModule::RegisterMultiUserFilters);
 	}
 	
@@ -162,11 +168,6 @@ namespace UE::VCamCoreEditor::Private
 			FWidgetConnectionConfig::StaticStruct()->GetFName(), 
 			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FWidgetConnectionConfigTypeCustomization::MakeInstance)
 		);
-		// Must be set up as IPropertyTypeCustomization as well to work on Instanced properties
-		PropertyModule.RegisterCustomPropertyTypeLayout(
-			UVCamOutputProviderBase::StaticClass()->GetFName(), 
-			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FOutputProviderTypeCustomization::MakeInstance)
-		);
 		PropertyModule.RegisterCustomPropertyTypeLayout(
 			FVCamViewportLocker::StaticStruct()->GetFName(), 
 			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FVCamViewportLockerTypeCustomization::MakeInstance)
@@ -237,20 +238,20 @@ namespace UE::VCamCoreEditor::Private
 			IConcertClientTransactionBridge* TransactionBridge = Client->GetTransactionBridge();
 			TransactionBridge->RegisterTransactionFilter(
 				TEXT("VCam"),
-				FTransactionFilterDelegate::CreateRaw(this, &FVCamCoreEditorModule::ShouldObjectBeTransacted)
+				FOnFilterTransactionDelegate::CreateRaw(this, &FVCamCoreEditorModule::ShouldObjectBeTransacted)
 				);
 		}
 	}
 
-	ETransactionFilterResult FVCamCoreEditorModule::ShouldObjectBeTransacted(UObject* Object, UPackage* Package) const
+	ETransactionFilterResult FVCamCoreEditorModule::ShouldObjectBeTransacted(const FConcertTransactionFilterArgs& FilterArgs) const
 	{
 		// This will allow output providers, modifiers, and the UVCamBlueprintAssetUserData
-		const bool bIsInVCam = Object->IsInA(UVCamComponent::StaticClass());
+		const bool bIsInVCam = FilterArgs.ObjectToFilter && FilterArgs.ObjectToFilter->IsInA(UVCamComponent::StaticClass());
 		return bIsInVCam ? ETransactionFilterResult::IncludeObject : ETransactionFilterResult::UseDefault;
 	}
 }
 
-IMPLEMENT_MODULE(UE::VCamCoreEditor::Private::FVCamCoreEditorModule, VCamCoreEditor);
+IMPLEMENT_MODULE(UE::VCamCoreEditor::FVCamCoreEditorModule, VCamCoreEditor);
 
 	
 #undef LOCTEXT_NAMESPACE

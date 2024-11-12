@@ -15,7 +15,7 @@ public class DataLayerEditor : ModuleRules
 				"EditorSubsystem",
 				"PropertyEditor",
 				"Engine",
-                "InputCore",
+				"InputCore",
 				"Slate",
 				"SlateCore",
 				"UnrealEd",

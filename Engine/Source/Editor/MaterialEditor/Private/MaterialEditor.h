@@ -88,6 +88,7 @@ public:
 	virtual bool ShouldCache(EShaderPlatform Platform, const FShaderType* ShaderType, const FVertexFactoryType* VertexFactoryType) const override;
 
 	virtual TArrayView<const TObjectPtr<UObject>> GetReferencedTextures() const override;
+	virtual TConstArrayView<TObjectPtr<UTextureCollection>> GetReferencedTextureCollections() const override;
 
 	////////////////
 	// FMaterialRenderProxy interface.
@@ -128,6 +129,8 @@ public:
 	virtual bool IsDitheredLODTransition() const override { return false; }
 	virtual bool IsLightFunction() const override { return false; }
 	virtual bool IsDeferredDecal() const override { return false; }
+	virtual bool IsUIMaterial() const override { return false; }
+	virtual bool IsPostProcessMaterial() const override { return false; }
 	virtual bool IsVolumetricPrimitive() const override { return false; }
 	virtual bool IsSpecialEngineMaterial() const override { return false; }
 	virtual bool IsWireframe() const override { return false; }
@@ -184,6 +187,7 @@ private:
 	TUniquePtr<FMaterialCachedHLSLTree> CachedHLSLTree;
 	TWeakObjectPtr<UMaterialExpression> Expression;
 	TArray<TObjectPtr<UObject>> ReferencedTextures;
+	TArray<TObjectPtr<UTextureCollection>> ReferencedTextureCollections;
 	FGuid Id;
 };
 
@@ -451,12 +455,21 @@ public:
 	/** Overrides function in FEditorUndoClient. Called to see if the context of the current undo/redo operation is a match for the client. */
 	virtual bool MatchesContext(const FTransactionContext& InContext, const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const override;
 
+	/**
+	 * Notifies all other editors that the given material with a UserSceneTexture output was loaded or unloaded, so they can refresh their preview window
+	 * if needed.  Utility function shared between UMaterial and UMaterialInstance editors.
+	 */
+	static void NotifyAllUserSceneTextureLoadOrUnload(UMaterialInterface* MaterialInterface);
+
 public:
 	/** Set to true when modifications have been made to the material */
 	bool bMaterialDirty;
 
 	/** Set to true if stats should be displayed from the preview material. */
 	bool bStatsFromPreviewMaterial;
+
+	/** Set to true when editor is being destructed */
+	bool bDestructing = false;
 
 	/** The material applied to the preview mesh. */
 	TObjectPtr<UMaterial> Material;
@@ -541,6 +554,9 @@ protected:
 	 * @return	FReply	Whether chord was handled
 	 */
 	FReply OnSpawnGraphNodeByShortcut(FInputChord InChord, const FVector2D& InPosition, UEdGraph* InGraph);
+
+	/** Calls Modify() on the Material and its editor only data, as well as MaterialFunction (and its editor only data) if present */
+	void ModifyMaterial();
 
 	/** Select every node in the graph */
 	void SelectAllNodes();
@@ -632,6 +648,9 @@ private:
 
 	/** Updates the 3D and UI preview viewport visibility based on material domain */
 	void UpdatePreviewViewportsVisibility();
+
+	/** Called to notify other material editors when a post process material with a UserSceneTexture output is loaded or unloaded, as the material may be used in their preview */
+	void NotifyUserSceneTextureLoadOrUnload();
 
 	//@TODO: these methods are mostly C&P from BlueprintEditor, consider consolidating logic to graph editor. Note: We don't support macros / functions / tunnels / split pins, and also have material expression specific considerations. */
 	// void CollapseNodesIntoGraph(UEdGraphNode* InGatewayNode, UMaterialGraphNode* InEntryNode, UMaterialGraphNode* InResultNode, UEdGraph* InSourceGraph, UEdGraph* InDestinationGraph, TSet<UEdGraphNode*>& InCollapsableNodes);
@@ -984,8 +1003,11 @@ private:
 	TSharedPtr<class SMaterialCustomPrimitiveDataPanel> MaterialCustomPrimitiveDataWidget;
 
 	/** Layer Properties View */
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	TSharedPtr<class SMaterialLayersFunctionsInstanceWrapper> MaterialLayersFunctionsInstance;
+#else
 	TSharedPtr<class SMaterialLayersFunctionsMaterialWrapper> MaterialLayersFunctionsInstance;
-
+#endif
 	/** The current transaction. */
 	FScopedTransaction* ScopedTransaction;
 

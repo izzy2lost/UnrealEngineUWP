@@ -72,7 +72,7 @@ namespace UE::RivermaxCore::Private
 	struct FInputStreamData
 	{
 		uint64 LastSequenceNumber = 0;
-		void* CurrentFrame = nullptr;
+		void* CurrentFrameVideoBuffer = nullptr;
 		uint32 WritingOffset = 0;
 		uint32 ReceivedSize = 0;
 		uint32 ExpectedSize = 0;
@@ -82,6 +82,9 @@ namespace UE::RivermaxCore::Private
 		const void* DeviceWritePointerTwo = nullptr;
 		uint32 SizeToWriteOne = 0;
 		uint32 SizeToWriteTwo = 0;
+
+		// A map of samples for the current frame. 
+		TMap<IRivermaxSample::ESampleType, TSharedPtr<IRivermaxSample>> CurrentSamples;
 	};
 
 	/** Incoming frame description tracker. Used to detect variable SRD length across a frame for now but should be used to help auto detect incoming frame */
@@ -157,7 +160,7 @@ namespace UE::RivermaxCore::Private
 	private:
 
 		/** Process reception state. i.e Extract RTP, tracks data received, etc... */
-		void FrameReceptionState(const FRTPHeader& RTPHeader, const uint8* DataPtr);
+		void FrameReceptionState(const FRTPHeader& RTPHeader, const uint8* DataPtr, TSharedPtr<IRivermaxSample> InSample);
 
 		/** State where we just wait to receive an end of frame in RTP. Used to align for the first frame and when an error occurs during reception */
 		void WaitForMarkerState(const FRTPHeader& RTPHeader);
@@ -178,10 +181,10 @@ namespace UE::RivermaxCore::Private
 		void ProcessSRD(const FRTPHeader& RTPHeader, const uint8* DataPtr);
 
 		/** Handles wrapping up of a frame when marker bit is detected (last SRD). Will notify listener of a new frame received */
-		void ProcessLastSRD(const FRTPHeader& RTPHeader, const uint8* DataPtr);
+		void ProcessLastSRD(const FRTPHeader& RTPHeader, const uint8* DataPtr, TSharedPtr<IRivermaxSample> InSample);
 
 		/** Requests a new frame from our listener. If it fails, it will fall in error state waiting for the next one */
-		bool PrepareNextFrame(const FRTPHeader& RTPHeader);
+		TSharedPtr<IRivermaxVideoSample> GetVideoSampleForReception(const FRTPHeader& RTPHeader);
 
 		/** If enabled, will printout reception stats to logs */
 		void LogStats();

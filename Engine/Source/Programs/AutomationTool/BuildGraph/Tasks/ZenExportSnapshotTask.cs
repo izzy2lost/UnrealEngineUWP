@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -13,8 +12,9 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using EpicGames.Serialization;
+using EpicGames.Horde;
 using EpicGames.ProjectStore;
+using Microsoft.Extensions.Logging;
 
 namespace AutomationTool.Tasks
 {
@@ -50,99 +50,116 @@ namespace AutomationTool.Tasks
 		/// The project from which to export the snapshot
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference Project;
+		public FileReference Project { get; set; }
 
 		/// <summary>
 		/// The target platform(s) to export the snapshot for
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Platform;
+		public string Platform { get; set; }
 
 		/// <summary>
 		/// A file to read with information about the snapshot that should be used as a base when exporting this new snapshot
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference SnapshotBaseDescriptorFile;
+		public FileReference SnapshotBaseDescriptorFile { get; set; }
 
 		/// <summary>
 		/// A file to create with information about the snapshot that was exported
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference SnapshotDescriptorFile;
+		public FileReference SnapshotDescriptorFile { get; set; }
 
 		/// <summary>
 		/// The type of destination to export the snapshot to (cloud, ...)
 		/// </summary>
 		[TaskParameter]
-		public string DestinationStorageType;
+		public string DestinationStorageType { get; set; }
 
 		/// <summary>
 		/// The identifier to use when exporting to a destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DestinationIdentifier;
+		public string DestinationIdentifier { get; set; }
 
 		/// <summary>
 		/// The host name to use when exporting to a cloud destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DestinationCloudHost;
+		public string DestinationCloudHost { get; set; }
 
 		/// <summary>
 		/// The host name to use when writing a snapshot descriptor for a cloud destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string SnapshotDescriptorCloudHost;
+		public string SnapshotDescriptorCloudHost { get; set; }
+
+		/// <summary>
+		/// The target platform to use when writing a snapshot descriptor
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string SnapshotDescriptorPlatform { get; set; }
 
 		/// <summary>
 		/// The http version to use when exporting to a cloud destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DestinationCloudHttpVersion;
+		public string DestinationCloudHttpVersion { get; set; }
 
 		/// <summary>
 		/// The http version to use when writing a snapshot descriptor for a cloud destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string SnapshotDescriptorCloudHttpVersion;
+		public string SnapshotDescriptorCloudHttpVersion { get; set; }
 
 		/// <summary>
 		/// The namespace to use when exporting to a cloud destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DestinationCloudNamespace;
+		public string DestinationCloudNamespace { get; set; }
 
 		/// <summary>
 		/// A custom bucket name to use when exporting to a cloud destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DestinationCloudBucket;
+		public string DestinationCloudBucket { get; set; }
+
+		/// <summary>
+		/// The host name to use when exporting to a zen destination
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string DestinationZenHost { get; set; }
 
 		/// <summary>
 		/// The directory to use when exporting to a file destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public DirectoryReference DestinationFileDir;
+		public DirectoryReference DestinationFileDir { get; set; }
 
 		/// <summary>
 		/// The filename to use when exporting to a file destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DestinationFileName;
+		public string DestinationFileName { get; set; }
 
 		/// <summary>
 		/// Optional. Where to look for the ue.projectstore
 		/// The pattern {Platform} can be used for exporting multiple platforms at once.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string OverridePlatformCookedDir;
+		public string OverridePlatformCookedDir { get; set; }
 
 		/// <summary>
 		/// Optional. Whether to force export of data even if the destination claims to have them.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Force = false;
+		public bool ForceExport { get; set; } = false;
 
+		/// <summary>
+		/// Optional. Whether to entirely bypass the exporting of data and write a snapshot descriptor as if the data had been exported.
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public bool SkipExport { get; set; } = false;
 	}
 
 	/// <summary>
@@ -154,7 +171,7 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Metadata about a snapshot
 		/// </summary>
-		public class SnapshotDescriptor
+		class SnapshotDescriptor
 		{
 			/// <summary>
 			/// Name of the snapshot
@@ -170,7 +187,7 @@ namespace AutomationTool.Tasks
 			/// Target platform for this snapshot
 			/// </summary>
 			public string TargetPlatform { get; set; }
-			
+
 			/// <summary>
 			/// For cloud snapshots, the host they are stored on.
 			/// </summary>
@@ -190,7 +207,7 @@ namespace AutomationTool.Tasks
 			/// For cloud snapshots, the key they are stored in.
 			/// </summary>
 			public string Key { get; set; }
-			
+
 			/// <summary>
 			/// For file snapshots, the directory it is stored in.
 			/// </summary>
@@ -204,36 +221,37 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// A collection of one or more snapshot descriptors
 		/// </summary>
-		public class SnapshotDescriptorCollection
+		class SnapshotDescriptorCollection
 		{
 			/// <summary>
 			/// The list of snapshots contained within this collection.
 			/// </summary>
 			public List<SnapshotDescriptor> Snapshots { get; set; }
 		}
+
 		private class ExportSourceData
 		{
-			public bool IsLocalHost;
-			public string HostName;
-			public int HostPort;
-			public string ProjectId;
-			public string OplogId;
-			public string TargetPlatform;
-			public SnapshotDescriptor SnapshotBaseDescriptor;
+			public bool _isLocalHost;
+			public string _hostName;
+			public int _hostPort;
+			public string _projectId;
+			public string _oplogId;
+			public string _targetPlatform;
+			public SnapshotDescriptor _snapshotBaseDescriptor;
 		}
 
 		/// <summary>
 		/// Parameters for the task
 		/// </summary>
-		ZenExportSnapshotTaskParameters Parameters;
+		readonly ZenExportSnapshotTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor.
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public ZenExportSnapshotTask(ZenExportSnapshotTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public ZenExportSnapshotTask(ZenExportSnapshotTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
@@ -245,24 +263,23 @@ namespace AutomationTool.Tasks
 			return ResolveFile(String.Format("Engine/Binaries/{0}/zen{1}", HostPlatform.Current.HostEditorPlatform.ToString(), RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : ""));
 		}
 
-
 		/// <summary>
 		/// Ensures that ZenServer is running on this current machine. This is needed before running any oplog commands
 		/// This passes the sponsor'd process Id to launch zen.
 		/// This ensures that zen does not live longer than the lifetime of a particular a process that needs Zen to be running
 		/// </summary>
-		/// <param name="ProjectFile"></param>
-		public static void ZenLaunch(FileReference ProjectFile)
+		/// <param name="projectFile"></param>
+		public static void ZenLaunch(FileReference projectFile)
 		{
 			// Get the ZenLaunch executable path
-			FileReference ZenLaunchExe = ResolveFile(String.Format("Engine/Binaries/{0}/ZenLaunch{1}", HostPlatform.Current.HostEditorPlatform.ToString(), RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : ""));
+			FileReference zenLaunchExe = ResolveFile(String.Format("Engine/Binaries/{0}/ZenLaunch{1}", HostPlatform.Current.HostEditorPlatform.ToString(), RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : ""));
 
-			StringBuilder ZenLaunchCommandline = new StringBuilder();
-			ZenLaunchCommandline.AppendFormat("{0} -SponsorProcessID={1}", CommandUtils.MakePathSafeToUseWithCommandLine(ProjectFile.FullName), Environment.ProcessId);
+			StringBuilder zenLaunchCommandline = new StringBuilder();
+			zenLaunchCommandline.AppendFormat("{0} -SponsorProcessID={1}", CommandUtils.MakePathSafeToUseWithCommandLine(projectFile.FullName), Environment.ProcessId);
 
-			CommandUtils.RunAndLog(CommandUtils.CmdEnv, ZenLaunchExe.FullName, ZenLaunchCommandline.ToString(), Options: CommandUtils.ERunOptions.Default);
+			CommandUtils.RunAndLog(CommandUtils.CmdEnv, zenLaunchExe.FullName, zenLaunchCommandline.ToString(), Options: CommandUtils.ERunOptions.Default);
 		}
-		
+
 		static JsonSerializerOptions GetDefaultJsonSerializerOptions()
 		{
 			JsonSerializerOptions options = new JsonSerializerOptions();
@@ -287,22 +304,10 @@ namespace AutomationTool.Tasks
 				obj = LoadJson<T>(file);
 				return true;
 			}
-			catch(Exception)
+			catch (Exception)
 			{
 				obj = null;
 				return false;
-			}
-		}
-
-		static T? TryDeserializeJson<T>(byte[] data) where T : class
-		{
-			try
-			{
-				return JsonSerializer.Deserialize<T>(data, GetDefaultJsonSerializerOptions())!;
-			}
-			catch (Exception)
-			{
-				return null;
 			}
 		}
 
@@ -311,172 +316,239 @@ namespace AutomationTool.Tasks
 			byte[] data = FileReference.ReadAllBytes(file);
 			return JsonSerializer.Deserialize<T>(data, GetDefaultJsonSerializerOptions())!;
 		}
-		private void WriteExportSource(JsonWriter Writer, SnapshotStorageType DestinationStorageType, ExportSourceData ExportSource, string Name)
+
+		static string SanitizeOplogName(string name)
 		{
-			Writer.WriteObjectStart();
-			switch (DestinationStorageType)
+			return name.Replace('/', '_').Replace(' ', '_').Replace('+', '_').Replace('-', '_');
+		}
+
+		private void WriteExportSource(JsonWriter writer, SnapshotStorageType destinationStorageType, ExportSourceData exportSource, string name)
+		{
+			string targetPlatform = _parameters.SnapshotDescriptorPlatform;
+			if (string.IsNullOrEmpty(targetPlatform))
+			{
+				targetPlatform = exportSource._targetPlatform;
+			}
+			writer.WriteObjectStart();
+			switch (destinationStorageType)
 			{
 				case SnapshotStorageType.Cloud:
-					string BucketName = Parameters.DestinationCloudBucket;
-					string ProjectNameAsBucketName = Parameters.Project.GetFileNameWithoutAnyExtensions().ToLowerInvariant();
-					if (string.IsNullOrEmpty(BucketName))
+					string bucketName = _parameters.DestinationCloudBucket;
+					string projectNameAsBucketName = _parameters.Project.GetFileNameWithoutAnyExtensions().ToLowerInvariant();
+					if (string.IsNullOrEmpty(bucketName))
 					{
-						BucketName = ProjectNameAsBucketName;
+						bucketName = projectNameAsBucketName;
+					}
+					bucketName = SanitizeBucketName(bucketName);
+
+					string hostName = _parameters.SnapshotDescriptorCloudHost;
+					if (string.IsNullOrEmpty(hostName))
+					{
+						hostName = _parameters.DestinationCloudHost;
 					}
 
-					string HostName = Parameters.SnapshotDescriptorCloudHost;
-					if (string.IsNullOrEmpty(HostName))
+					string httpVersion = _parameters.SnapshotDescriptorCloudHttpVersion;
+					if (string.IsNullOrEmpty(httpVersion))
 					{
-						HostName = Parameters.DestinationCloudHost;
+						httpVersion = _parameters.DestinationCloudHttpVersion;
 					}
 
-					string HttpVersion = Parameters.SnapshotDescriptorCloudHttpVersion;
-					if (string.IsNullOrEmpty(HttpVersion))
+					IoHash destinationKeyHash = IoHash.Compute(Encoding.UTF8.GetBytes(name));
+					writer.WriteValue("name", name);
+					writer.WriteValue("type", "cloud");
+					writer.WriteValue("targetplatform", targetPlatform);
+					writer.WriteValue("host", hostName);
+					if (!string.IsNullOrEmpty(httpVersion) && !httpVersion.Equals("None", StringComparison.OrdinalIgnoreCase))
 					{
-						HostName = Parameters.DestinationCloudHttpVersion;
+						writer.WriteValue("httpversion", httpVersion);
 					}
+					writer.WriteValue("namespace", _parameters.DestinationCloudNamespace);
+					writer.WriteValue("bucket", bucketName);
+					writer.WriteValue("key", destinationKeyHash.ToString().ToLowerInvariant());
+					break;
+				case SnapshotStorageType.Zen:
+					string projectName = _parameters.Project.GetFileNameWithoutAnyExtensions().ToLowerInvariant() + ".oplog";
 
-					IoHash DestinationKeyHash = IoHash.Compute(Encoding.UTF8.GetBytes(Name));
-					Writer.WriteValue("name", Name);
-					Writer.WriteValue("type", "cloud");
-					Writer.WriteValue("targetplatform", ExportSource.TargetPlatform);
-					Writer.WriteValue("host", HostName);
-					if (!string.IsNullOrEmpty(HttpVersion) && !HttpVersion.Equals("None", StringComparison.InvariantCultureIgnoreCase))
-					{
-						Writer.WriteValue("httpversion", HttpVersion);
-					}
-					Writer.WriteValue("namespace", Parameters.DestinationCloudNamespace);
-					Writer.WriteValue("bucket", BucketName);
-					Writer.WriteValue("key", DestinationKeyHash.ToString().ToLowerInvariant());
+					writer.WriteValue("name", name);
+					writer.WriteValue("type", "zen");
+					writer.WriteValue("targetplatform", targetPlatform);
+					writer.WriteValue("host", _parameters.DestinationZenHost);
+					writer.WriteValue("projectid", projectName);
+					writer.WriteValue("oplogid", SanitizeOplogName(name));
 					break;
 				case SnapshotStorageType.File:
-					Writer.WriteValue("name", Name);
-					Writer.WriteValue("type", "file");
-					Writer.WriteValue("targetplatform", ExportSource.TargetPlatform);
-					Writer.WriteValue("directory", Parameters.DestinationFileDir.FullName);
-					Writer.WriteValue("filename", Parameters.DestinationFileName);
+					writer.WriteValue("name", name);
+					writer.WriteValue("type", "file");
+					writer.WriteValue("targetplatform", targetPlatform);
+					writer.WriteValue("directory", _parameters.DestinationFileDir.FullName);
+					writer.WriteValue("filename", _parameters.DestinationFileName);
 					break;
 			}
-			Writer.WriteObjectEnd();
+			writer.WriteObjectEnd();
+		}
+
+		private static bool TryRunAndLogWithoutSpew(string app, string commandLine, bool ignoreFailure)
+		{
+			ProcessResult.SpewFilterCallbackType silentOutputFilter = new ProcessResult.SpewFilterCallbackType(line =>
+				{
+					return null;
+				});
+			try
+			{
+				CommandUtils.RunAndLog(CommandUtils.CmdEnv, app, commandLine, MaxSuccessCode: 0, Options: CommandUtils.ERunOptions.Default, SpewFilterCallback: silentOutputFilter);
+			}
+			catch (CommandUtils.CommandFailedException e)
+			{
+				if (!ignoreFailure)
+				{
+					Logger.LogWarning("{Text}", e.ToString());
+				}
+				return false;
+			}
+			return true;
+		}
+
+		private static bool TryExportOplogCommand(string app, string commandLine)
+		{
+			int attemptLimit = 2;
+			int attempt = 0;
+			while (attempt < attemptLimit)
+			{
+				if (TryRunAndLogWithoutSpew(app, commandLine, false))
+				{
+					return true;
+				}
+				Logger.LogWarning("Attempt {AttemptNum} of exporting the oplog failed, {Action}...", attempt + 1, attempt < (attemptLimit - 1) ? "retrying" : "abandoning");
+
+				attempt = attempt + 1;
+			}
+			return false;
+		}
+
+		private static string SanitizeBucketName(string inString)
+		{
+			return StringId.Sanitize(inString).ToString();
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			SnapshotStorageType DestinationStorageType = SnapshotStorageType.Invalid;
-			if (!string.IsNullOrEmpty(Parameters.DestinationStorageType))
+			SnapshotStorageType destinationStorageType = SnapshotStorageType.Invalid;
+			if (!String.IsNullOrEmpty(_parameters.DestinationStorageType))
 			{
-				DestinationStorageType = (SnapshotStorageType)Enum.Parse(typeof(SnapshotStorageType), Parameters.DestinationStorageType);
+				destinationStorageType = (SnapshotStorageType)Enum.Parse(typeof(SnapshotStorageType), _parameters.DestinationStorageType);
 			}
 
-			FileReference ProjectFile = Parameters.Project;
-			if(!FileReference.Exists(ProjectFile))
+			FileReference projectFile = _parameters.Project;
+			if (!FileReference.Exists(projectFile))
 			{
-				throw new AutomationException("Missing project file - {0}", ProjectFile.FullName);
+				throw new AutomationException("Missing project file - {0}", projectFile.FullName);
 			}
 
-			ZenLaunch(ProjectFile);
+			ZenLaunch(projectFile);
 
-			List<ExportSourceData> ExportSources = new List<ExportSourceData>();
-			foreach (string Platform in Parameters.Platform.Split('+'))
+			List<ExportSourceData> exportSources = new List<ExportSourceData>();
+			foreach (string platform in _parameters.Platform.Split('+'))
 			{
-				DirectoryReference PlatformCookedDirectory;
-				if (string.IsNullOrEmpty(Parameters.OverridePlatformCookedDir))
+				DirectoryReference platformCookedDirectory;
+				if (string.IsNullOrEmpty(_parameters.OverridePlatformCookedDir))
 				{
-					PlatformCookedDirectory = DirectoryReference.Combine(ProjectFile.Directory, "Saved", "Cooked", Platform);
+					platformCookedDirectory = DirectoryReference.Combine(projectFile.Directory, "Saved", "Cooked", platform);
 				}
 				else
 				{
-					PlatformCookedDirectory = new DirectoryReference(Parameters.OverridePlatformCookedDir.Replace("{Platform}", Platform, StringComparison.InvariantCultureIgnoreCase));
+					platformCookedDirectory = new DirectoryReference(_parameters.OverridePlatformCookedDir.Replace("{Platform}", platform, StringComparison.InvariantCultureIgnoreCase));
 				}
-				if (!DirectoryReference.Exists(PlatformCookedDirectory))
+				if (!DirectoryReference.Exists(platformCookedDirectory))
 				{
-					throw new AutomationException("Cook output directory not found ({0})", PlatformCookedDirectory.FullName);
+					throw new AutomationException("Cook output directory not found ({0})", platformCookedDirectory.FullName);
 				}
 
-				FileReference ProjectStoreFile = FileReference.Combine(PlatformCookedDirectory, "ue.projectstore");
-				ProjectStoreData? ParsedProjectStore = null;
-				if (TryLoadJson(ProjectStoreFile, out ParsedProjectStore) && (ParsedProjectStore != null) && (ParsedProjectStore.ZenServer != null))
+				FileReference projectStoreFile = FileReference.Combine(platformCookedDirectory, "ue.projectstore");
+				ProjectStoreData? parsedProjectStore = null;
+				if (TryLoadJson(projectStoreFile, out parsedProjectStore) && (parsedProjectStore != null) && (parsedProjectStore.ZenServer != null))
 				{
-					ExportSourceData NewExportSource = new ExportSourceData();
-					NewExportSource.IsLocalHost = ParsedProjectStore.ZenServer.IsLocalHost;
-					NewExportSource.HostName = ParsedProjectStore.ZenServer.HostName;
-					NewExportSource.HostPort = ParsedProjectStore.ZenServer.HostPort;
-					NewExportSource.ProjectId = ParsedProjectStore.ZenServer.ProjectId;
-					NewExportSource.OplogId = ParsedProjectStore.ZenServer.OplogId;
-					NewExportSource.TargetPlatform = Platform;
-					NewExportSource.SnapshotBaseDescriptor = null;
+					ExportSourceData newExportSource = new ExportSourceData();
+					newExportSource._isLocalHost = parsedProjectStore.ZenServer.IsLocalHost;
+					newExportSource._hostName = parsedProjectStore.ZenServer.HostName;
+					newExportSource._hostPort = parsedProjectStore.ZenServer.HostPort;
+					newExportSource._projectId = parsedProjectStore.ZenServer.ProjectId;
+					newExportSource._oplogId = parsedProjectStore.ZenServer.OplogId;
+					newExportSource._targetPlatform = platform;
+					newExportSource._snapshotBaseDescriptor = null;
 
-					if (Parameters.SnapshotBaseDescriptorFile != null)
+					if (_parameters.SnapshotBaseDescriptorFile != null)
 					{
-						FileReference PlatformSnapshotBase = new FileReference(Parameters.SnapshotBaseDescriptorFile.FullName.Replace("{Platform}", Platform, StringComparison.InvariantCultureIgnoreCase));
+						FileReference platformSnapshotBase = new FileReference(_parameters.SnapshotBaseDescriptorFile.FullName.Replace("{Platform}", platform, StringComparison.InvariantCultureIgnoreCase));
 
-						SnapshotDescriptorCollection? ParsedDescriptorCollection = null;
-						if (TryLoadJson(PlatformSnapshotBase, out ParsedDescriptorCollection) && (ParsedDescriptorCollection != null) && (ParsedDescriptorCollection.Snapshots != null))
+						SnapshotDescriptorCollection? parsedDescriptorCollection = null;
+						if (TryLoadJson(platformSnapshotBase, out parsedDescriptorCollection) && (parsedDescriptorCollection != null) && (parsedDescriptorCollection.Snapshots != null))
 						{
-							foreach (SnapshotDescriptor ParsedDescriptor in ParsedDescriptorCollection.Snapshots)
+							foreach (SnapshotDescriptor parsedDescriptor in parsedDescriptorCollection.Snapshots)
 							{
-								if (ParsedDescriptor.TargetPlatform == Platform)
+								if (parsedDescriptor.TargetPlatform == platform)
 								{
-									NewExportSource.SnapshotBaseDescriptor = ParsedDescriptor;
+									newExportSource._snapshotBaseDescriptor = parsedDescriptor;
 									break;
 								}
 							}
 						}
 					}
 
-					ExportSources.Add(NewExportSource);
+					exportSources.Add(newExportSource);
 				}
 			}
-			int ExportIndex = 0;
-			string[] ExportNames = new string[ExportSources.Count];
+			int exportIndex;
+			string[] exportNames = new string[exportSources.Count];
+			List<ExportSourceData> successfullyExportedSources = new List<ExportSourceData>();
 
 			// Get the Zen executable path
-			FileReference ZenExe = ZenExeFileReference();
+			FileReference zenExe = ZenExeFileReference();
 
 			// Format the command line
-			StringBuilder OplogExportCommandline = new StringBuilder();
-			OplogExportCommandline.Append("oplog-export");
-			if (Parameters.Force)
+			StringBuilder oplogExportCommandline = new StringBuilder();
+			oplogExportCommandline.Append("oplog-export --embedloosefiles");
+			if (_parameters.ForceExport)
 			{
-				OplogExportCommandline.Append(" --force");
+				oplogExportCommandline.Append(" --force");
 			}
 
-			switch (DestinationStorageType)
+			switch (destinationStorageType)
 			{
 				case SnapshotStorageType.Cloud:
-					if (string.IsNullOrEmpty(Parameters.DestinationCloudHost))
+					if (string.IsNullOrEmpty(_parameters.DestinationCloudHost))
 					{
 						throw new AutomationException("Missing destination cloud host");
 					}
-					if (string.IsNullOrEmpty(Parameters.DestinationCloudNamespace))
+					if (string.IsNullOrEmpty(_parameters.DestinationCloudNamespace))
 					{
 						throw new AutomationException("Missing destination cloud namespace");
 					}
-					if (string.IsNullOrEmpty(Parameters.DestinationIdentifier))
+					if (string.IsNullOrEmpty(_parameters.DestinationIdentifier))
 					{
 						throw new AutomationException("Missing destination identifier when exporting to cloud");
 					}
 
-					string BucketName = Parameters.DestinationCloudBucket;
-					string ProjectNameAsBucketName = ProjectFile.GetFileNameWithoutAnyExtensions().ToLowerInvariant();
-					if (string.IsNullOrEmpty(BucketName))
+					string bucketName = _parameters.DestinationCloudBucket;
+					string projectNameAsBucketName = projectFile.GetFileNameWithoutAnyExtensions().ToLowerInvariant();
+					if (string.IsNullOrEmpty(bucketName))
 					{
-						BucketName = ProjectNameAsBucketName;
+						bucketName = projectNameAsBucketName;
 					}
+					bucketName = SanitizeBucketName(bucketName);
 
-					OplogExportCommandline.AppendFormat(" --cloud {0} --namespace {1} --bucket {2}", Parameters.DestinationCloudHost, Parameters.DestinationCloudNamespace, BucketName);
+					oplogExportCommandline.AppendFormat(" --cloud {0} --namespace {1} --bucket {2}", _parameters.DestinationCloudHost, _parameters.DestinationCloudNamespace, bucketName);
 
-					if (!string.IsNullOrEmpty(Parameters.DestinationCloudHttpVersion))
+					if (!string.IsNullOrEmpty(_parameters.DestinationCloudHttpVersion))
 					{
-						if (Parameters.DestinationCloudHttpVersion.Equals("http2-only", StringComparison.InvariantCultureIgnoreCase))
+						if (_parameters.DestinationCloudHttpVersion.Equals("http2-only", StringComparison.OrdinalIgnoreCase))
 						{
-							OplogExportCommandline.Append(" --assume-http2");
+							oplogExportCommandline.Append(" --assume-http2");
 						}
 						else
 						{
@@ -484,72 +556,112 @@ namespace AutomationTool.Tasks
 						}
 					}
 
-					ExportIndex = 0;
-					foreach (ExportSourceData ExportSource in ExportSources)
+					exportIndex = 0;
+					foreach (ExportSourceData exportSource in exportSources)
 					{
-						string HostUrlArg = string.Format("--hosturl http://{0}:{1}", ExportSource.IsLocalHost ? "localhost" : ExportSource.HostName, ExportSource.HostPort);
-						
-						string BaseKeyArg = string.Empty;
-						if ((ExportSource.SnapshotBaseDescriptor != null) && !string.IsNullOrEmpty(ExportSource.SnapshotBaseDescriptor.Key))
+						string hostUrlArg = string.Format("--hosturl http://{0}:{1}", exportSource._isLocalHost ? "localhost" : exportSource._hostName, exportSource._hostPort);
+
+						string baseKeyArg = string.Empty;
+						if ((exportSource._snapshotBaseDescriptor != null) && !string.IsNullOrEmpty(exportSource._snapshotBaseDescriptor.Key))
 						{
-							if (ExportSource.SnapshotBaseDescriptor.Type == SnapshotStorageType.Cloud)
+							if (exportSource._snapshotBaseDescriptor.Type == SnapshotStorageType.Cloud)
 							{
-								BaseKeyArg = " --basekey " + ExportSource.SnapshotBaseDescriptor.Key;
+								baseKeyArg = " --basekey " + exportSource._snapshotBaseDescriptor.Key;
 							}
 							else
 							{
-								Logger.LogWarning("Base snapshot descriptor was for a snapshot storage type {0}, but we're producing a snapshot of type cloud.  Skipping use of base snapshot.", ExportSource.SnapshotBaseDescriptor.Type);
+								Logger.LogWarning("Base snapshot descriptor was for a snapshot storage type {Type}, but we're producing a snapshot of type cloud.  Skipping use of base snapshot.", exportSource._snapshotBaseDescriptor.Type);
 							}
 						}
 
-						StringBuilder ExportSingleSourceCommandline = new StringBuilder(OplogExportCommandline.Length);
-						ExportSingleSourceCommandline.Append(OplogExportCommandline);
+						StringBuilder exportSingleSourceCommandline = new StringBuilder(oplogExportCommandline.Length);
+						exportSingleSourceCommandline.Append(oplogExportCommandline);
 
-						StringBuilder DestinationKeyBuilder = new StringBuilder();
-						DestinationKeyBuilder.AppendFormat("{0}.{1}.{2}", ProjectNameAsBucketName, Parameters.DestinationIdentifier, ExportSource.OplogId);
-						ExportNames[ExportIndex] = DestinationKeyBuilder.ToString().ToLowerInvariant();
-						IoHash DestinationKeyHash = IoHash.Compute(Encoding.UTF8.GetBytes(ExportNames[ExportIndex]));
+						StringBuilder destinationKeyBuilder = new StringBuilder();
+						destinationKeyBuilder.AppendFormat("{0}.{1}.{2}", projectNameAsBucketName, _parameters.DestinationIdentifier, exportSource._oplogId);
+						exportNames[exportIndex] = destinationKeyBuilder.ToString().ToLowerInvariant();
+						IoHash destinationKeyHash = IoHash.Compute(Encoding.UTF8.GetBytes(exportNames[exportIndex]));
 
-						ProcessResult.SpewFilterCallbackType SilentOutputFilter = new ProcessResult.SpewFilterCallbackType(Line =>
-							{
-								return null;
-							});
-						ExportSingleSourceCommandline.AppendFormat(" {0} --embedloosefiles --key {1} {2} {3} {4}", HostUrlArg, DestinationKeyHash.ToString().ToLowerInvariant(), BaseKeyArg, ExportSource.ProjectId, ExportSource.OplogId);
-						CommandUtils.RunAndLog(CommandUtils.CmdEnv, ZenExe.FullName, ExportSingleSourceCommandline.ToString(), MaxSuccessCode: int.MaxValue, Options: CommandUtils.ERunOptions.Default, SpewFilterCallback: SilentOutputFilter);
+						exportSingleSourceCommandline.AppendFormat(" {0} --key {1} {2} {3} {4}", hostUrlArg, destinationKeyHash.ToString().ToLowerInvariant(), baseKeyArg, exportSource._projectId, exportSource._oplogId);
+						if (_parameters.SkipExport || TryExportOplogCommand(zenExe.FullName, exportSingleSourceCommandline.ToString()))
+						{
+							successfullyExportedSources.Add(exportSource);
+						}
 
-						ExportIndex = ExportIndex + 1;
+						exportIndex = exportIndex + 1;
+					}
+
+					break;
+				case SnapshotStorageType.Zen:
+					if (string.IsNullOrEmpty(_parameters.DestinationZenHost))
+					{
+						throw new AutomationException("Missing destination zen host");
+					}
+					if (string.IsNullOrEmpty(_parameters.DestinationIdentifier))
+					{
+						throw new AutomationException("Missing destination identifier when exporting to zen");
+					}
+
+					string projectName = projectFile.GetFileNameWithoutAnyExtensions().ToLowerInvariant() + ".oplog";
+
+					StringBuilder createProjectCommandline = new StringBuilder();
+					createProjectCommandline.AppendFormat("project-create --hosturl {0} {1}", _parameters.DestinationZenHost, projectName);
+					TryRunAndLogWithoutSpew(zenExe.FullName, createProjectCommandline.ToString(), true);
+
+					oplogExportCommandline.AppendFormat(" --zen {0}", _parameters.DestinationZenHost);
+
+					exportIndex = 0;
+					foreach (ExportSourceData exportSource in exportSources)
+					{
+						string hostUrlArg = string.Format("--hosturl http://{0}:{1}", exportSource._isLocalHost ? "localhost" : exportSource._hostName, exportSource._hostPort);
+
+						StringBuilder exportSingleSourceCommandline = new StringBuilder(oplogExportCommandline.Length);
+						exportSingleSourceCommandline.Append(oplogExportCommandline);
+
+						StringBuilder destinationKeyBuilder = new StringBuilder();
+						destinationKeyBuilder.AppendFormat("{0}.{1}", _parameters.DestinationIdentifier, exportSource._oplogId);
+						exportNames[exportIndex] = destinationKeyBuilder.ToString().ToLowerInvariant();
+						string destinationOplog = SanitizeOplogName(exportNames[exportIndex]);
+
+						exportSingleSourceCommandline.AppendFormat(" {0} --target-project {1} --target-oplog {2} {3} {4}", hostUrlArg, projectName, destinationOplog, exportSource._projectId, exportSource._oplogId);
+						if (_parameters.SkipExport || TryExportOplogCommand(zenExe.FullName, exportSingleSourceCommandline.ToString()))
+						{
+							successfullyExportedSources.Add(exportSource);
+						}
+
+						exportIndex = exportIndex + 1;
 					}
 
 					break;
 				case SnapshotStorageType.File:
-					string DefaultProjectId = ProjectUtils.GetProjectPathId(ProjectFile);
-					ExportIndex = 0;
-					foreach (ExportSourceData ExportSource in ExportSources)
+					string defaultProjectId = ProjectUtils.GetProjectPathId(projectFile);
+					exportIndex = 0;
+					foreach (ExportSourceData exportSource in exportSources)
 					{
-						StringBuilder ExportNameBuilder = new StringBuilder();
-						ExportNameBuilder.AppendFormat("{0}.{1}.{2}", ProjectFile.GetFileNameWithoutAnyExtensions().ToLowerInvariant(), Parameters.DestinationIdentifier, ExportSource.OplogId);
-						ExportNames[ExportIndex] = ExportNameBuilder.ToString().ToLowerInvariant();
+						StringBuilder exportNameBuilder = new StringBuilder();
+						exportNameBuilder.AppendFormat("{0}.{1}.{2}", projectFile.GetFileNameWithoutAnyExtensions().ToLowerInvariant(), _parameters.DestinationIdentifier, exportSource._oplogId);
+						exportNames[exportIndex] = exportNameBuilder.ToString().ToLowerInvariant();
 
-						StringBuilder ExportSingleSourceCommandline = new StringBuilder(OplogExportCommandline.Length);
-						ExportSingleSourceCommandline.Append(OplogExportCommandline);
+						StringBuilder exportSingleSourceCommandline = new StringBuilder(oplogExportCommandline.Length);
+						exportSingleSourceCommandline.Append(oplogExportCommandline);
 
-						string DestinationFileName = ExportSource.OplogId;
-						if (!string.IsNullOrEmpty(Parameters.DestinationFileName))
+						string destinationFileName = exportSource._oplogId;
+						if (!string.IsNullOrEmpty(_parameters.DestinationFileName))
 						{
-							DestinationFileName = Parameters.DestinationFileName.Replace("{Platform}", ExportSource.TargetPlatform, StringComparison.InvariantCultureIgnoreCase);
+							destinationFileName = _parameters.DestinationFileName.Replace("{Platform}", exportSource._targetPlatform, StringComparison.InvariantCultureIgnoreCase);
 						}
 
-						string ProjectId = string.IsNullOrEmpty(ExportSource.ProjectId) ? DefaultProjectId : ExportSource.ProjectId;
-						string BaseNameArg = string.Empty;
-						DirectoryReference PlatformDestinationFileDir = new DirectoryReference(Parameters.DestinationFileDir.FullName.Replace("{Platform}", ExportSource.TargetPlatform, StringComparison.InvariantCultureIgnoreCase));
-						if ((ExportSource.SnapshotBaseDescriptor != null) && !string.IsNullOrEmpty(ExportSource.SnapshotBaseDescriptor.Directory) && !string.IsNullOrEmpty(ExportSource.SnapshotBaseDescriptor.Filename))
+						string projectId = string.IsNullOrEmpty(exportSource._projectId) ? defaultProjectId : exportSource._projectId;
+						string baseNameArg = string.Empty;
+						DirectoryReference platformDestinationFileDir = new DirectoryReference(_parameters.DestinationFileDir.FullName.Replace("{Platform}", exportSource._targetPlatform, StringComparison.InvariantCultureIgnoreCase));
+						if ((exportSource._snapshotBaseDescriptor != null) && !string.IsNullOrEmpty(exportSource._snapshotBaseDescriptor.Directory) && !string.IsNullOrEmpty(exportSource._snapshotBaseDescriptor.Filename))
 						{
-							if (ExportSource.SnapshotBaseDescriptor.Type == SnapshotStorageType.File)
+							if (exportSource._snapshotBaseDescriptor.Type == SnapshotStorageType.File)
 							{
-								FileReference BaseSnapshotFile = new FileReference(Path.Combine(ExportSource.SnapshotBaseDescriptor.Directory, ExportSource.SnapshotBaseDescriptor.Filename));
-								if (FileReference.Exists(BaseSnapshotFile))
+								FileReference baseSnapshotFile = new FileReference(Path.Combine(exportSource._snapshotBaseDescriptor.Directory, exportSource._snapshotBaseDescriptor.Filename));
+								if (FileReference.Exists(baseSnapshotFile))
 								{
-									BaseNameArg = " --basename " + CommandUtils.MakePathSafeToUseWithCommandLine(BaseSnapshotFile.FullName);
+									baseNameArg = " --basename " + CommandUtils.MakePathSafeToUseWithCommandLine(baseSnapshotFile.FullName);
 								}
 								else
 								{
@@ -558,64 +670,65 @@ namespace AutomationTool.Tasks
 							}
 							else
 							{
-								Logger.LogWarning("Base snapshot descriptor was for a snapshot storage type {0}, but we're producing a snapshot of type file.  Skipping use of base snapshot.", ExportSource.SnapshotBaseDescriptor.Type);
+								Logger.LogWarning("Base snapshot descriptor was for a snapshot storage type {Type}, but we're producing a snapshot of type file.  Skipping use of base snapshot.", exportSource._snapshotBaseDescriptor.Type);
 							}
 						}
-						ExportSingleSourceCommandline.AppendFormat(" --file {0} --name {1} {2} {3} {4}", CommandUtils.MakePathSafeToUseWithCommandLine(PlatformDestinationFileDir.FullName), DestinationFileName, BaseNameArg, ProjectId, ExportSource.OplogId);
+						exportSingleSourceCommandline.AppendFormat(" --file {0} --name {1} {2} {3} {4}", CommandUtils.MakePathSafeToUseWithCommandLine(platformDestinationFileDir.FullName), destinationFileName, baseNameArg, projectId, exportSource._oplogId);
 
-						CommandUtils.RunAndLog(CommandUtils.CmdEnv, ZenExe.FullName, ExportSingleSourceCommandline.ToString(), Options: CommandUtils.ERunOptions.Default);
+						if (_parameters.SkipExport || TryExportOplogCommand(zenExe.FullName, exportSingleSourceCommandline.ToString()))
+						{
+							successfullyExportedSources.Add(exportSource);
+						}
 
-						ExportIndex = ExportIndex + 1;
+						exportIndex = exportIndex + 1;
 					}
 					break;
 				default:
-					throw new AutomationException("Unknown/invalid/unimplemented destination storage type - {0}", Parameters.DestinationStorageType);
+					throw new AutomationException("Unknown/invalid/unimplemented destination storage type - {0}", _parameters.DestinationStorageType);
 			}
-			
 
-			if ((Parameters.SnapshotDescriptorFile != null) && ExportSources.Any())
+			if ((_parameters.SnapshotDescriptorFile != null) && successfullyExportedSources.Any())
 			{
-				if (Parameters.SnapshotDescriptorFile.FullName.Contains("{Platform}"))
+				if (_parameters.SnapshotDescriptorFile.FullName.Contains("{Platform}", StringComparison.OrdinalIgnoreCase))
 				{
 					// Separate descriptor file per platform
-					ExportIndex = 0;
-					foreach (ExportSourceData ExportSource in ExportSources)
+					exportIndex = 0;
+					foreach (ExportSourceData exportSource in successfullyExportedSources)
 					{
-						FileReference PlatformSnapshotDescriptorFile = new FileReference(Parameters.SnapshotDescriptorFile.FullName.Replace("{Platform}", ExportSource.TargetPlatform, StringComparison.InvariantCultureIgnoreCase));
-						DirectoryReference.CreateDirectory(PlatformSnapshotDescriptorFile.Directory);
-						using (JsonWriter Writer = new JsonWriter(PlatformSnapshotDescriptorFile))
+						FileReference platformSnapshotDescriptorFile = new FileReference(_parameters.SnapshotDescriptorFile.FullName.Replace("{Platform}", exportSource._targetPlatform, StringComparison.InvariantCultureIgnoreCase));
+						DirectoryReference.CreateDirectory(platformSnapshotDescriptorFile.Directory);
+						using (JsonWriter writer = new JsonWriter(platformSnapshotDescriptorFile))
 						{
-							Writer.WriteObjectStart();
-							Writer.WriteArrayStart("snapshots");
-							WriteExportSource(Writer, DestinationStorageType, ExportSource, ExportNames[ExportIndex]);
-							Writer.WriteArrayEnd();
-							Writer.WriteObjectEnd();
+							writer.WriteObjectStart();
+							writer.WriteArrayStart("snapshots");
+							WriteExportSource(writer, destinationStorageType, exportSource, exportNames[exportIndex]);
+							writer.WriteArrayEnd();
+							writer.WriteObjectEnd();
 						}
-						ExportIndex = ExportIndex + 1;
+						exportIndex = exportIndex + 1;
 					}
 				}
 				else
 				{
 					// Write out a single snapshot descriptor with info about all snapshots
-					DirectoryReference.CreateDirectory(Parameters.SnapshotDescriptorFile.Directory);
-					using (JsonWriter Writer = new JsonWriter(Parameters.SnapshotDescriptorFile))
+					DirectoryReference.CreateDirectory(_parameters.SnapshotDescriptorFile.Directory);
+					using (JsonWriter writer = new JsonWriter(_parameters.SnapshotDescriptorFile))
 					{
-						Writer.WriteObjectStart();
-						Writer.WriteArrayStart("snapshots");
-								
-						ExportIndex = 0;
-						foreach (ExportSourceData ExportSource in ExportSources)
+						writer.WriteObjectStart();
+						writer.WriteArrayStart("snapshots");
+
+						exportIndex = 0;
+						foreach (ExportSourceData exportSource in successfullyExportedSources)
 						{
-							WriteExportSource(Writer, DestinationStorageType, ExportSource, ExportNames[ExportIndex]);
-							ExportIndex = ExportIndex + 1;
+							WriteExportSource(writer, destinationStorageType, exportSource, exportNames[exportIndex]);
+							exportIndex = exportIndex + 1;
 						}
 
-						Writer.WriteArrayEnd();
-						Writer.WriteObjectEnd();
+						writer.WriteArrayEnd();
+						writer.WriteObjectEnd();
 					}
 				}
 			}
-
 
 			return Task.CompletedTask;
 		}
@@ -623,9 +736,9 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>

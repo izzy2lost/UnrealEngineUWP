@@ -11,6 +11,7 @@
 #include "PhysicsAssetEditorActions.h"
 #include "PhysicsAssetEditor.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "PhysicsAssetEditorSkeletalMeshComponent.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "EditorFontGlyphs.h"

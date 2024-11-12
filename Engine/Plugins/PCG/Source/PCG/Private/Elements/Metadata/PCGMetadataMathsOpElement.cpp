@@ -103,6 +103,12 @@ namespace PCGMetadataMathsSettings
 			return PCGMetadataMaths::Ceil(Value);
 		case EPCGMetadataMathsOperation::OneMinus:
 			return PCGMetadataMaths::OneMinus(Value);
+		case EPCGMetadataMathsOperation::Inc:
+			return PCGMetadataMaths::Inc(Value);
+		case EPCGMetadataMathsOperation::Dec:
+			return PCGMetadataMaths::Dec(Value);
+		case EPCGMetadataMathsOperation::Negate:
+			return PCGMetadataMaths::Negate(Value);
 		default:
 			return T{};
 		}
@@ -121,14 +127,12 @@ namespace PCGMetadataMathsSettings
 			return Value1 * Value2;
 		case EPCGMetadataMathsOperation::Divide:
 			return (Value2 != T{0}) ? (Value1 / Value2) : T{0}; // To mirror FMath
-		case EPCGMetadataMathsOperation::Max:
-			return PCGMetadataMaths::Max(Value1, Value2);
-		case EPCGMetadataMathsOperation::Min:
-			return PCGMetadataMaths::Min(Value1, Value2);
+		case EPCGMetadataMathsOperation::Max: // fall-through
 		case EPCGMetadataMathsOperation::ClampMin:
-			return PCGMetadataMaths::Clamp(Value1, Value2, Value1);
+			return PCGMetadataMaths::Max(Value1, Value2);
+		case EPCGMetadataMathsOperation::Min: // fall-through
 		case EPCGMetadataMathsOperation::ClampMax:
-			return PCGMetadataMaths::Clamp(Value1, Value1, Value2);
+			return PCGMetadataMaths::Min(Value1, Value2);
 		case EPCGMetadataMathsOperation::Pow:
 			return PCGMetadataMaths::Pow(Value1, Value2);
 		case EPCGMetadataMathsOperation::Modulo:
@@ -277,7 +281,7 @@ FString UPCGMetadataMathsSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataMathsOperation>())
 	{
-		return EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
+		return EnumPtr->GetDisplayNameTextByValue(static_cast<int64>(Operation)).ToString();
 	}
 	else
 	{
@@ -324,14 +328,13 @@ bool FPCGMetadataMathsElement::DoOperation(PCGMetadataOps::FOperationData& Opera
 
 	const UPCGMetadataMathsSettings* Settings = CastChecked<UPCGMetadataMathsSettings>(OperationData.Settings);
 
-	auto MathFunc = [this, Operation = Settings->Operation, &OperationData](auto DummyOutValue) -> void
+	auto MathFunc = [this, Operation = Settings->Operation, &OperationData]<typename AttributeType>(AttributeType) -> bool
 	{
-		using AttributeType = decltype(DummyOutValue);
-
 		// Need to remove types that would not compile
 		if constexpr (!PCG::Private::IsOfTypes<AttributeType, float, double, int32, int64, FVector2D, FVector, FVector4>())
 		{
-			return;
+			ensure(false);
+			return true;
 		}
 		else
 		{
@@ -343,22 +346,27 @@ bool FPCGMetadataMathsElement::DoOperation(PCGMetadataOps::FOperationData& Opera
 
 				if (OperationData.OutputType == PCG::Private::MetadataTypes<int64>::Id)
 				{
-					DoUnaryOp<AttributeType>(OperationData, [Operation](const AttributeType& Value) -> OverriddenOutputType { return static_cast<OverriddenOutputType>(PCGMetadataMathsSettings::UnaryOp<AttributeType>(Value, Operation)); });
+					return DoUnaryOp<AttributeType>(OperationData, [Operation](const AttributeType& Value) -> OverriddenOutputType { return static_cast<OverriddenOutputType>(PCGMetadataMathsSettings::UnaryOp<AttributeType>(Value, Operation)); });
 				}
 				else
 				{
-					DoUnaryOp<AttributeType>(OperationData, [Operation](const AttributeType& Value) -> AttributeType { return PCGMetadataMathsSettings::UnaryOp(Value, Operation); });
+					return DoUnaryOp<AttributeType>(OperationData, [Operation](const AttributeType& Value) -> AttributeType { return PCGMetadataMathsSettings::UnaryOp(Value, Operation); });
 				}
 			}
 			else if (PCGMetadataMathsSettings::IsBinaryOp(Operation))
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataMathsElement::ExecuteInternal::BinaryOp);
-				DoBinaryOp<AttributeType, AttributeType>(OperationData, [Operation](const AttributeType& Value1, const AttributeType& Value2) -> AttributeType { return PCGMetadataMathsSettings::BinaryOp(Value1, Value2, Operation); });
+				return DoBinaryOp<AttributeType, AttributeType>(OperationData, [Operation](const AttributeType& Value1, const AttributeType& Value2) -> AttributeType { return PCGMetadataMathsSettings::BinaryOp(Value1, Value2, Operation); });
 			}
 			else if (PCGMetadataMathsSettings::IsTernaryOp(Operation))
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataMathsElement::ExecuteInternal::TernaryOp);
-				DoTernaryOp<AttributeType, AttributeType, AttributeType>(OperationData, [Operation](const AttributeType& Value1, const AttributeType& Value2, const AttributeType& Value3) -> AttributeType { return PCGMetadataMathsSettings::TernaryOp(Value1, Value2, Value3, Operation); });
+				return DoTernaryOp<AttributeType, AttributeType, AttributeType>(OperationData, [Operation](const AttributeType& Value1, const AttributeType& Value2, const AttributeType& Value3) -> AttributeType { return PCGMetadataMathsSettings::TernaryOp(Value1, Value2, Value3, Operation); });
+			}
+			else
+			{
+				ensure(false);
+				return true;
 			}
 		}
 	};
@@ -366,12 +374,10 @@ bool FPCGMetadataMathsElement::DoOperation(PCGMetadataOps::FOperationData& Opera
 	// If the output is double, force all to double.
 	if (OperationData.OutputType == PCG::Private::MetadataTypes<double>::Id)
 	{
-		MathFunc(double{});
+		return MathFunc(double{});
 	}
 	else
 	{
-		PCGMetadataAttribute::CallbackWithRightType(OperationData.MostComplexInputType, MathFunc);
+		return PCGMetadataAttribute::CallbackWithRightType(OperationData.MostComplexInputType, MathFunc);
 	}
-
-	return true;
 }

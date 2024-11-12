@@ -58,6 +58,8 @@ struct FDetailLayoutCustomization
 	FDetailWidgetRow GetWidgetRow() const;
 	/** @return properties being customized */
 	TArrayView<TSharedPtr<IPropertyHandle>> GetPropertyHandles() const;
+	/** @return the filter text associated with this row, if any */
+	FText GetFilterTextString() const;
 	/** Whether or not this customization is considered an advanced property. */
 	bool bAdvanced { false };
 	/** Whether or not this customization is custom or a default one. */
@@ -143,11 +145,8 @@ public:
 	/**
 	 * @return Whether or not we need to display a group border around a list of details.
 	 */
-	bool ShouldShowGroup(FName RequiredGroupName) const
-	{
-		// Should show the group if the group name is not empty and there are more than two entries in the list where one of them is not the default "none" entry (represents the base object)
-		return RequiredGroupName != NAME_None && Layouts.Num() > 1 && (Layouts.Num() > 2 || !bContainsBaseInstance);
-	}
+	bool ShouldShowGroup(FName RequiredGroupName) const;
+
 private:
 	TArray<FDetailLayout> Layouts;
 	bool bContainsBaseInstance;
@@ -176,7 +175,7 @@ public:
 	virtual IDetailPropertyRow* AddExternalStructureProperty(TSharedPtr<FStructOnScope> StructData, FName PropertyName, EPropertyLocation::Type Location = EPropertyLocation::Default, const FAddPropertyParams& Params = FAddPropertyParams()) override;
 	virtual IDetailPropertyRow* AddExternalStructureProperty(TSharedPtr<IStructureDataProvider> StructData, FName PropertyName, EPropertyLocation::Type Location = EPropertyLocation::Default, const FAddPropertyParams& Params = FAddPropertyParams()) override;
 	virtual TArray<TSharedPtr<IPropertyHandle>> AddAllExternalStructureProperties(TSharedRef<FStructOnScope> StructData, EPropertyLocation::Type Location = EPropertyLocation::Default, TArray<IDetailPropertyRow*>* OutPropertiesRow = nullptr) override;
-	virtual TArray<TSharedPtr<IPropertyHandle>> AddAllExternalStructureProperties(TSharedPtr<IStructureDataProvider> StructProvider, EPropertyLocation::Type Location, TArray<IDetailPropertyRow*>* OutPropertiesRow = nullptr) override;
+	virtual TArray<TSharedPtr<IPropertyHandle>> AddAllExternalStructureProperties(TSharedPtr<IStructureDataProvider> StructProvider, EPropertyLocation::Type Location = EPropertyLocation::Default, TArray<IDetailPropertyRow*>* OutPropertiesRow = nullptr) override;
 	virtual bool IsParentLayoutValid() const override { return DetailLayoutBuilder.IsValid(); }
 	virtual IDetailLayoutBuilder& GetParentLayout() const override { return *DetailLayoutBuilder.Pin(); }
 	virtual FDetailWidgetRow& AddCustomRow(const FText& FilterString, bool bForAdvanced = false) override;
@@ -185,6 +184,8 @@ public:
 	virtual void GetDefaultProperties(TArray<TSharedRef<IPropertyHandle> >& OutAllProperties, bool bSimpleProperties = true, bool bAdvancedProperties = true) override;
 	virtual const FText& GetDisplayName() const override { return DisplayName; }
 	virtual void SetDisplayName(const FText& InDisplayName) override;
+	virtual const TOptional<FText>& GetToolTip() const override;
+	virtual void SetToolTip(const FText& ToolTip) override;
 	virtual void SetCategoryVisibility(bool bIsVisible) override;
 	virtual void SetShowAdvanced(bool bShowAdvanced) override;
 	virtual int32 GetSortOrder() const override;
@@ -434,6 +435,8 @@ private:
 	FOnBooleanValueChanged OnExpansionChangedDelegate;
 	/** The display name of the category */
 	FText DisplayName;
+	/** ToolTip for this category */
+    TOptional<FText> ToolTip;
 	/** The path name of the category */
 	FString CategoryPathName;
 	/** Custom header content displayed to the right of the category name */

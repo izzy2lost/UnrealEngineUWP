@@ -22,5 +22,5 @@ namespace UE::NNEHlslShaders::Internal
 			NumBatch);
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(FConvMatmulCS, "/NNE/NNEHlslShadersConvMatmul.usf", "ConvMatmul", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(FConvMatmulCS, "/NNEHlslShaders/NNEHlslShadersConvMatmul.usf", "ConvMatmul", SF_Compute);
 } // UE::NNEHlslShaders::Internal

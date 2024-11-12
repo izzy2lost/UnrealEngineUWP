@@ -18,7 +18,7 @@
 #include "Units/RigUnitTest.h"
 #include "RigUnit_RigLogic.h"
 
-const uint8 FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT = 9;
+const uint8 FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT = 10;
 
 FRigUnit_RigLogic::TestAccessor::TestAccessor(FRigUnit_RigLogic* Unit)
 {
@@ -168,25 +168,26 @@ void FRigUnit_RigLogic::TestAccessor::Exec_MapMaskMultipliers(URigHierarchy* Tes
 void FRigUnit_RigLogic::TestAccessor::AddToTransformArray(float* InArray, FTransform& Transform)
 {
 	uint32 FirstAttributeIndex = 0;
-	
-	FVector Rotation = Transform.GetRotation().Euler();
-	InArray[FirstAttributeIndex + 0] = Rotation.X;
-	InArray[FirstAttributeIndex + 1] = Rotation.Y;
-	InArray[FirstAttributeIndex + 2] = Rotation.Z;
 
 	FVector Translation = Transform.GetTranslation();
-	InArray[FirstAttributeIndex + 3] = Translation.X;
-	InArray[FirstAttributeIndex + 4] = Translation.Y;
-	InArray[FirstAttributeIndex + 5] = Translation.Z;
+	InArray[FirstAttributeIndex + 0] = Translation.X;
+	InArray[FirstAttributeIndex + 1] = Translation.Y;
+	InArray[FirstAttributeIndex + 2] = Translation.Z;
+
+	FQuat Rotation = Transform.GetRotation();
+	InArray[FirstAttributeIndex + 3] = Rotation.X;
+	InArray[FirstAttributeIndex + 4] = Rotation.Y;
+	InArray[FirstAttributeIndex + 5] = Rotation.Z;
+	InArray[FirstAttributeIndex + 6] = Rotation.W;
 
 	FVector Scale = Transform.GetScale3D();
-	InArray[FirstAttributeIndex + 6] = Scale.X;
-	InArray[FirstAttributeIndex + 7] = Scale.Y;
-	InArray[FirstAttributeIndex + 8] = Scale.Z;
+	InArray[FirstAttributeIndex + 7] = Scale.X;
+	InArray[FirstAttributeIndex + 8] = Scale.Y;
+	InArray[FirstAttributeIndex + 9] = Scale.Z;
 }
 
 
-FTransformArrayView FRigUnit_RigLogic::TestAccessor::CreateTwoJointNeutralTransforms(float *InValueArray)
+TArrayView<const float> FRigUnit_RigLogic::TestAccessor::CreateTwoJointNeutralTransforms(float *InValueArray)
 {
 	float* Transform1Ptr = InValueArray;
 
@@ -204,7 +205,7 @@ FTransformArrayView FRigUnit_RigLogic::TestAccessor::CreateTwoJointNeutralTransf
 	AddToTransformArray(Transform2Ptr, Joint2Transform);
 
 	const float* ValuesPtr = InValueArray;
-	return FTransformArrayView(ValuesPtr, sizeof(FTransform));
+	return TArrayView<const float>(ValuesPtr, 2 * MAX_ATTRS_PER_JOINT);
 }
 
 TArrayView<const uint16> FRigUnit_RigLogic::TestAccessor::CreateTwoJointVariableAttributes(uint16* InVariableAttributeIndices, uint8 LOD)
@@ -218,19 +219,20 @@ TArrayView<const uint16> FRigUnit_RigLogic::TestAccessor::CreateTwoJointVariable
 	InVariableAttributeIndices[6] = 6;
 	InVariableAttributeIndices[7] = 7;
 	InVariableAttributeIndices[8] = 8;
+	InVariableAttributeIndices[9] = 9;
 
 	if (LOD == 0) //LOD0 includes attributes for both bones
 	{
-		InVariableAttributeIndices[9 + 0] = 9 + 0;
-		InVariableAttributeIndices[9 + 1] = 9 + 1;
-		InVariableAttributeIndices[9 + 2] = 9 + 2;
-		InVariableAttributeIndices[9 + 3] = 9 + 3;
-		InVariableAttributeIndices[9 + 4] = 9 + 4;
-		InVariableAttributeIndices[9 + 5] = 9 + 5;
-		InVariableAttributeIndices[9 + 6] = 9 + 6;
-		InVariableAttributeIndices[9 + 7] = 9 + 7;
-		InVariableAttributeIndices[9 + 8] = 9 + 8;
-	
+		InVariableAttributeIndices[FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 0] = FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 0;
+		InVariableAttributeIndices[FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 1] = FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 1;
+		InVariableAttributeIndices[FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 2] = FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 2;
+		InVariableAttributeIndices[FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 3] = FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 3;
+		InVariableAttributeIndices[FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 4] = FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 4;
+		InVariableAttributeIndices[FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 5] = FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 5;
+		InVariableAttributeIndices[FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 6] = FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 6;
+		InVariableAttributeIndices[FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 7] = FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 7;
+		InVariableAttributeIndices[FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 8] = FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 8;
+		InVariableAttributeIndices[FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 9] = FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT + 9;
 		return TArrayView<const uint16>(InVariableAttributeIndices, 2 * FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT);
 	}
 
@@ -273,7 +275,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_RigLogic)
 	}
 
 	Test.GetData()->SkelMeshComponent = SkelMeshComponent;
-	Unit.ExecuteContext.Hierarchy = Hierarchy;
+	Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 
 	//Test
 	Execute();
@@ -757,18 +759,23 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_RigLogic)
 	//create neutral transforms for two bones
 	const uint8 TransformArraySize = 2 * FRigUnit_RigLogic::TestAccessor::MAX_ATTRS_PER_JOINT;
 	float NeutralValues[TransformArraySize];  //two bones, nine attributes
-	FTransformArrayView TwoJointNeutralTransforms = Test.CreateTwoJointNeutralTransforms(NeutralValues);
+	TArrayView<const float> TwoJointNeutralTransforms = Test.CreateTwoJointNeutralTransforms(NeutralValues);
 	//create delta transforms
 	float DeltaTransformData[TransformArraySize] = { 0.f };
 	//first bone translation
 	DeltaTransformData[0] = 1.f;
 	DeltaTransformData[1] = 0.f;
 	DeltaTransformData[2] = 0.f;
+	// first bone rotation
+	DeltaTransformData[6] = 1.0f;
 	//second bone translation
-	DeltaTransformData[9] = 1.f;
-	DeltaTransformData[10] = 2.f;
-	DeltaTransformData[11] = 7.f;
-	FTransformArrayView DeltaTransforms = FTransformArrayView(DeltaTransformData, TransformArraySize);
+	DeltaTransformData[10] = 1.f;
+	DeltaTransformData[11] = 2.f;
+	DeltaTransformData[12] = 7.f;
+	// second bone rotation
+	DeltaTransformData[16] = 1.0f;
+
+	TArrayView<const float> DeltaTransforms = TArrayView<const float>(DeltaTransformData, TransformArraySize);
 	//create variable joint index arrays for two bones
 	SharedRigRuntimeContext->VariableJointIndicesPerLOD.Reset();
 	SharedRigRuntimeContext->VariableJointIndicesPerLOD.AddDefaulted(1);
@@ -779,7 +786,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_RigLogic)
 	//Assert
 	//Note that BoneB.GlobalTransform.Z should be zero since the scale.Z is zero. Also, translation Y becomes -Y 
 	AddErrorIfFalse(TestHierarchyTwoBones->GetGlobalTransform(0).GetTranslation().Equals(FVector(1.f, 0.f, 0.f)), TEXT("UpdateJoints LOD0 Bone 01 - unexpected transform"));
-	AddErrorIfFalse(TestHierarchyTwoBones->GetGlobalTransform(1).GetTranslation().Equals(FVector(2.f, -2.f, 0.f)), TEXT("UpdateJoints LOD0 Bone 02 - unexpected transform"));
+	AddErrorIfFalse(TestHierarchyTwoBones->GetGlobalTransform(1).GetTranslation().Equals(FVector(2.f, 2.f, 0.f)), TEXT("UpdateJoints LOD0 Bone 02 - unexpected transform"));
 
 	return true;
 }

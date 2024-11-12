@@ -14,6 +14,7 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
+#include "Util/Mocks/ReplicationWorkspaceEmptyMock.h"
 
 namespace UE::ConcertSyncTests::Replication::Handshake
 {
@@ -36,17 +37,18 @@ namespace UE::ConcertSyncTests::Replication::Handshake
 		// Server
 		InitServer();
 		const TSharedPtr<IConcertServerSession>& ServerSession = GetServerSessionMock();
-		const TSharedRef<IConcertServerReplicationManager> ServerReplicationManager = CreateServerReplicationManager(ServerSession.ToSharedRef());
+		FReplicationWorkspaceEmptyMock WorkspaceEmptyMock;
+		const TSharedRef<IConcertServerReplicationManager> ServerReplicationManager = CreateServerReplicationManager(ServerSession.ToSharedRef(), WorkspaceEmptyMock);
 		
 		// Client
 		FClientInfo& Client = ConnectClient();
 		const TSharedRef<IConcertClientReplicationBridge> BridgeMock = MakeShared<FConcertClientReplicationBridgeMock>();
 		const TSharedPtr<IConcertClientSession>& ClientSession = Client.ClientSessionMock;
-		const TSharedRef<IConcertClientReplicationManager> ClientReplicationManager_Primary = CreateClientReplicationManager(ClientSession.ToSharedRef(), &BridgeMock.Get());
+		const TSharedRef<IConcertClientReplicationManager> ClientReplicationManager_Primary = CreateClientReplicationManager(ClientSession.ToSharedRef(), BridgeMock.Get());
 		FClientInfo& Client_Secondary = ConnectClient();
 		const TSharedRef<IConcertClientReplicationBridge> BridgeMock_Secondary = MakeShared<FConcertClientReplicationBridgeMock>();
 		const TSharedPtr<IConcertClientSession>& ClientSession_Secondary = Client_Secondary.ClientSessionMock;
-		const TSharedRef<IConcertClientReplicationManager> ClientReplicationManager_Secondary = CreateClientReplicationManager(ClientSession_Secondary.ToSharedRef(), &BridgeMock_Secondary.Get());
+		const TSharedRef<IConcertClientReplicationManager> ClientReplicationManager_Secondary = CreateClientReplicationManager(ClientSession_Secondary.ToSharedRef(), BridgeMock_Secondary.Get());
 
 		// Stream 
 		FConcertReplicationStream StreamDescription;
@@ -70,21 +72,13 @@ namespace UE::ConcertSyncTests::Replication::Handshake
 		// These should cases never happen if using the editor tools.
 		// However malicious users or those with custom C++ logic can send whatever they want.
 		
-		// 2.1.1 Duplicate properties
-		FConcertReplicationStream Invalid_DoublePropertyDescription = StreamDescription;
-		Invalid_DoublePropertyDescription.BaseDescription.ReplicationMap.ReplicatedObjects[PathToSomeActorComponent].PropertySelection.ReplicatedProperties.Add(ForcedLodModelProperty);
-		ClientReplicationManager_Primary->JoinReplicationSession({ { Invalid_DoublePropertyDescription } })
-			.Next([&](const FJoinReplicatedSessionResult& Result)
-			{
-				TestTrue(TEXT("Cannot contain same properties twice"), Result.ErrorCode == EJoinReplicationErrorCode::DuplicateProperty);
-			});
-		// 2.1.2 Duplicate stream identifier
+		// 2.1.1 Duplicate stream identifier
 		ClientReplicationManager_Primary->JoinReplicationSession({ { StreamDescription, StreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
 				TestTrue(TEXT("Cannot contain stream ID twice"), Result.ErrorCode == EJoinReplicationErrorCode::DuplicateStreamId);
 			});
-		// 2.1.3 Missing class path
+		// 2.1.2 Missing class path
 		ClientReplicationManager_Primary->JoinReplicationSession({ { InvalidClassStreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{

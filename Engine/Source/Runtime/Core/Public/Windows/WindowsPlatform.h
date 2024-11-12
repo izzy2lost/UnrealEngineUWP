@@ -18,6 +18,16 @@
 	#error "Windows Vista and earlier are no longer supported"
 #endif
 
+#ifndef PLATFORM_COMPILER_CLANG
+#if defined(__clang__)
+#define PLATFORM_COMPILER_CLANG			1
+#else
+#define PLATFORM_COMPILER_CLANG			0
+#endif // defined(__clang__)
+#endif
+
+#include "GenericPlatform/GenericPlatform.h"	//for FGenericPlatformTypes
+
 /**
 * Windows specific types
 **/
@@ -54,13 +64,15 @@ typedef FWindowsPlatformTypes FPlatformTypes;
 
 #define PLATFORM_LITTLE_ENDIAN								1
 #define PLATFORM_SUPPORTS_UNALIGNED_LOADS					1
+#define PLATFORM_SUPPORTS_FLIP_TRACKING						1
 
 #define PLATFORM_SUPPORTS_PRAGMA_PACK						1
-#if defined(_M_ARM) || defined(_M_ARM64) || defined(_M_ARM64EC)
+#if (defined(__arm__) || defined(_M_ARM) || defined(__aarch64__) || defined(_M_ARM64) || defined(_M_ARM64EC))
 	#define PLATFORM_CPU_ARM_FAMILY							1
 	#define PLATFORM_ENABLE_VECTORINTRINSICS_NEON			1
 	#define PLATFORM_ENABLE_VECTORINTRINSICS				1
 #elif (defined(_M_IX86) || defined(_M_X64))
+	#define PLATFORM_CPU_ARM_FAMILY							0
 	#define PLATFORM_CPU_X86_FAMILY							1
 	#define PLATFORM_ENABLE_VECTORINTRINSICS				1
 
@@ -108,6 +120,7 @@ typedef FWindowsPlatformTypes FPlatformTypes;
 #define PLATFORM_SUPPORTS_BORDERLESS_WINDOW					1
 
 #define PLATFORM_RETURN_ADDRESS_FOR_CALLSTACKTRACING		PLATFORM_RETURN_ADDRESS_POINTER
+#define PLATFORM_USE_CALLSTACK_ADDRESS_POINTER				1
 
 #define WINDOWS_USE_FEATURE_APPLICATIONMISC_CLASS			1
 #define WINDOWS_USE_FEATURE_PLATFORMMISC_CLASS				1
@@ -136,7 +149,11 @@ typedef FWindowsPlatformTypes FPlatformTypes;
 #define STDCALL		__stdcall										/* Standard calling convention */
 #define FORCEINLINE __forceinline									/* Force code to be inline */
 #define FORCENOINLINE __declspec(noinline)							/* Force code to NOT be inline */
+
+// When using clang-cl we will pick up the ClangPlatform.h definition of this macro before this, so check first!
+#ifndef FUNCTION_NON_NULL_RETURN_START
 #define FUNCTION_NON_NULL_RETURN_START _Ret_notnull_				/* Indicate that the function never returns nullptr. */
+#endif
 
 #define DECLARE_UINT64(x)	x
 

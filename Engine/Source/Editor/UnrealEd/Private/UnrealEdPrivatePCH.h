@@ -40,7 +40,6 @@
 #include "GenericPlatform/GenericPlatformMath.h"
 #include "Templates/MemoryOps.h"
 #include "Templates/IsTriviallyCopyAssignable.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Math/NumericLimits.h"
 #include "Serialization/Archive.h"
 #include "Templates/IsEnumClass.h"
@@ -470,9 +469,6 @@
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintCore.h"
 #include "AI/Navigation/NavigationTypes.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
-#include "NavFilters/NavigationQueryFilter.h"
-#endif
 #include "Engine/LatentActionManager.h"
 #include "Engine/World.h"
 #include "WorldCollision.h"
@@ -485,7 +481,6 @@
 #include "Interfaces/Interface_CollisionDataProvider.h"
 #include "Engine/BlendableInterface.h"
 #include "HitProxies.h"
-#include "Engine/MeshMerging.h"
 #include "RawIndexBuffer.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Brush.h"
@@ -653,3 +648,12 @@
 #include "PackageTools.h"
 #include "Commandlets/GatherTextCommandletBase.h"
 #include "Dialogs/Dialogs.h"
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "NavFilters/NavigationQueryFilter.h"
+#endif
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Engine/MeshMerging.h"
+#include "Templates/IsTriviallyDestructible.h"
+#endif

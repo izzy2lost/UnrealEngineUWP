@@ -90,13 +90,13 @@ public:
 	* Converts Triangle List to Triangle Array by populating with the appropriate integer triplets.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|ListUtils", meta=(ScriptMethod))
-	static void ConvertTriangleListToArray(FGeometryScriptTriangleList TriangleList, TArray<FIntVector>& TriangleArray);
+	static void ConvertTriangleListToArray(FGeometryScriptTriangleList TriangleList, UPARAM(DisplayName = "Triangle Tuple Array") TArray<FIntVector>& TriangleArray);
 
 	/**
 	* Converts a Triangle Array of integer triplets to a Triangle List.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|ListUtils")
-	static void ConvertArrayToTriangleList(const TArray<FIntVector>& TriangleArray, FGeometryScriptTriangleList& TriangleList);
+	static void ConvertArrayToTriangleList(UPARAM(DisplayName = "Triangle Tuple Array") const TArray<FIntVector>& TriangleArray, FGeometryScriptTriangleList& TriangleList);
 
 
 	/**

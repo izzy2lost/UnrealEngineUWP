@@ -3,29 +3,36 @@
 #include "SNetStatsViewTooltip.h"
 
 #include "SlateOptMacros.h"
-#include "TraceServices/Model/NetProfiler.h"
 #include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SToolTip.h"
 #include "Widgets/Text/STextBlock.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/NetProfiler.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/Table.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
-#include "Insights/Table/ViewModels/Table.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
 #include "Insights/NetworkingProfiler/ViewModels/NetEventNode.h"
 #include "Insights/NetworkingProfiler/ViewModels/NetEventNodeHelper.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define LOCTEXT_NAMESPACE "SNetStatsView"
+#define LOCTEXT_NAMESPACE "UE::Insights::NetworkingProfiler::SNetStatsView"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
-TSharedPtr<SToolTip> SNetStatsViewTooltip::GetTableTooltip(const Insights::FTable& Table)
+TSharedPtr<SToolTip> SNetStatsViewTooltip::GetTableTooltip(const FTable& Table)
 {
 	TSharedPtr<SToolTip> ColumnTooltip =
 		SNew(SToolTip)
@@ -56,7 +63,7 @@ TSharedPtr<SToolTip> SNetStatsViewTooltip::GetTableTooltip(const Insights::FTabl
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<SToolTip> SNetStatsViewTooltip::GetColumnTooltip(const Insights::FTableColumn& Column)
+TSharedPtr<SToolTip> SNetStatsViewTooltip::GetColumnTooltip(const FTableColumn& Column)
 {
 	TSharedPtr<SToolTip> ColumnTooltip =
 		SNew(SToolTip)
@@ -316,5 +323,7 @@ void SNetStatsViewTooltip::AddStatsRow(TSharedPtr<SGridPanel> Grid, int32& Row, 
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef LOCTEXT_NAMESPACE

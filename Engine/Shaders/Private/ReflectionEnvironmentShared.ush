@@ -16,6 +16,10 @@ float GetSkyLightCubemapBrightness()
 #define REFLECTION_CAPTURE_ROUGHEST_MIP 1
 #define REFLECTION_CAPTURE_ROUGHNESS_MIP_SCALE 1.2
 
+// This sampler cannot be shared because they come from the texture assets setup by users. We could enforce those to be min/mag/mip trilinear filtering.
+#define SharedSkyLightCubemapSampler					ReflectionStruct.SkyLightCubemapSampler
+#define SharedSkyLightBlendDestinationCubemapSampler	ReflectionStruct.SkyLightBlendDestinationCubemapSampler
+
 /** 
  * Compute absolute mip for a reflection capture cubemap given a roughness.
  */
@@ -39,7 +43,7 @@ float ComputeReflectionCaptureRoughnessFromMip(float Mip, half CubemapMaxMip)
 float3 GetSkyLightReflection(float3 ReflectionVector, float Roughness, out float OutSkyAverageBrightness)
 {
 	float AbsoluteSpecularMip = ComputeReflectionCaptureMipFromRoughness(Roughness, ReflectionStruct.SkyLightParameters.x);
-	float3 Reflection = TextureCubeSampleLevel(ReflectionStruct.SkyLightCubemap, ReflectionStruct.SkyLightCubemapSampler, ReflectionVector, AbsoluteSpecularMip).rgb;
+	float3 Reflection = TextureCubeSampleLevel(ReflectionStruct.SkyLightCubemap, SharedSkyLightCubemapSampler, ReflectionVector, AbsoluteSpecularMip).rgb;
 
 	OutSkyAverageBrightness = GetSkyLightCubemapBrightness() * Luminance(View.SkyLightColor.rgb);
 	return Reflection * View.SkyLightColor.rgb;
@@ -53,7 +57,7 @@ float3 GetSkyLightReflectionSupportingBlend(float3 ReflectionVector, float Rough
 	if (ReflectionStruct.SkyLightParameters.w > 0)
 	{
 		float AbsoluteSpecularMip = ComputeReflectionCaptureMipFromRoughness(Roughness, ReflectionStruct.SkyLightParameters.x);
-		float3 BlendDestinationReflection = TextureCubeSampleLevel(ReflectionStruct.SkyLightBlendDestinationCubemap, ReflectionStruct.SkyLightBlendDestinationCubemapSampler, ReflectionVector, AbsoluteSpecularMip).rgb;
+		float3 BlendDestinationReflection = TextureCubeSampleLevel(ReflectionStruct.SkyLightBlendDestinationCubemap, SharedSkyLightBlendDestinationCubemapSampler, ReflectionVector, AbsoluteSpecularMip).rgb;
 
 		Reflection = lerp(Reflection, BlendDestinationReflection * View.SkyLightColor.rgb, ReflectionStruct.SkyLightParameters.w);
 	}

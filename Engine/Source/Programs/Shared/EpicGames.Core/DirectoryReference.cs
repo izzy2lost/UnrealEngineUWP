@@ -223,6 +223,14 @@ namespace EpicGames.Core
 		public static bool operator >=(DirectoryReference left, DirectoryReference right) => left is null ? right is null : left.CompareTo(right) >= 0;
 
 		/// <summary>
+		/// Moves a directory from one location to another
+		/// </summary>
+		/// <param name="sourceDir">The source directory</param>
+		/// <param name="destDir">The destination directory</param>
+		public static void Move(DirectoryReference sourceDir, DirectoryReference destDir)
+			=> Directory.Move(sourceDir.FullName, destDir.FullName);
+
+		/// <summary>
 		/// Helper function to create a remote directory reference. Unlike normal DirectoryReference objects, these aren't converted to a full path in the local filesystem.
 		/// </summary>
 		/// <param name="absolutePath">The absolute path in the remote file system</param>
@@ -234,7 +242,7 @@ namespace EpicGames.Core
 		/// </summary>
 		/// <param name="file">The file to create a directory reference for</param>
 		/// <returns>The directory containing the file  </returns>
-		[return: NotNullIfNotNull("file")]
+		[return: NotNullIfNotNull(nameof(file))]
 		public static DirectoryReference? FromFile(FileReference? file) => file?.Directory;
 
 		/// <summary>

@@ -4,6 +4,24 @@
 #include "InterchangeManager.h"
 #include "InterchangeSourceData.h"
 
+#if WITH_EDITOR
+void UInterchangeProjectSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	FProperty* PropertyThatChanged = PropertyChangedEvent.MemberProperty;
+	const FString PropertyName = PropertyThatChanged ? PropertyThatChanged->GetName() : TEXT("");
+
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UInterchangeProjectSettings, InterchangeGroups))
+	{
+		if (UInterchangeEditorSettings* InterchangeEditorSettings = GetMutableDefault<UInterchangeEditorSettings>())
+		{
+			InterchangeEditorSettings->UpdateUsedGroupName();
+		}
+	}
+}
+#endif
+
 const FInterchangeImportSettings& FInterchangeProjectSettingsUtils::GetImportSettings(const UInterchangeProjectSettings& InterchangeProjectSettings, const bool bIsSceneImport)
 {
 	if (bIsSceneImport)
@@ -41,8 +59,12 @@ FInterchangeImportSettings& FInterchangeProjectSettingsUtils::GetMutableDefaultI
 FName FInterchangeProjectSettingsUtils::GetDefaultPipelineStackName(const bool bIsSceneImport, const UInterchangeSourceData& SourceData)
 {
 	const FInterchangeImportSettings& ImportSettings = GetDefaultImportSettings(bIsSceneImport);
+	
+	FInterchangeGroup::EUsedGroupStatus UsedGroupStatus;
+	const FInterchangeGroup& UsedInterchangeGroup = FInterchangeProjectSettingsUtils::GetUsedGroup(UsedGroupStatus);
+	bool bInterchangeGroupUsed = (UsedGroupStatus == FInterchangeGroup::EUsedGroupStatus::SetAndValid);
 
-	FName DefaultPipelineStack = ImportSettings.DefaultPipelineStack;
+	FName DefaultPipelineStack = bInterchangeGroupUsed ? UsedInterchangeGroup.DefaultPipelineStack : ImportSettings.DefaultPipelineStack;
 
 	if (!bIsSceneImport)
 	{
@@ -52,8 +74,9 @@ FName FInterchangeProjectSettingsUtils::GetDefaultPipelineStackName(const bool b
 		{
 			EInterchangeTranslatorAssetType SupportedAssetTypes = Translator->GetSupportedAssetTypes();
 
-			const FInterchangeContentImportSettings& ContentImportSettings = GetDefault<UInterchangeProjectSettings>()->ContentImportSettings;
-			for (TMap<EInterchangeTranslatorAssetType, FName>::TConstIterator StackOverridesIt = ContentImportSettings.DefaultPipelineStackOverride.CreateConstIterator(); StackOverridesIt; ++StackOverridesIt)
+			const TMap<EInterchangeTranslatorAssetType, FName>& DefaultPipelineStackOverride = bInterchangeGroupUsed ? UsedInterchangeGroup.DefaultPipelineStackOverride : GetDefault<UInterchangeProjectSettings>()->ContentImportSettings.DefaultPipelineStackOverride;
+
+			for (TMap<EInterchangeTranslatorAssetType, FName>::TConstIterator StackOverridesIt = DefaultPipelineStackOverride.CreateConstIterator(); StackOverridesIt; ++StackOverridesIt)
 			{
 				if ((SupportedAssetTypes ^ StackOverridesIt->Key) < StackOverridesIt->Key)
 				{
@@ -106,11 +129,16 @@ void FInterchangeProjectSettingsUtils::SetDefaultPipelineStackName(const bool bI
 	GetMutableDefault<UInterchangeProjectSettings>()->SaveConfig();
 }
 
-bool FInterchangeProjectSettingsUtils::ShouldShowPipelineStacksConfigurationDialog(const bool bIsSceneImport, const UInterchangeSourceData& SourceData)
+bool FInterchangeProjectSettingsUtils::ShouldShowPipelineStacksConfigurationDialog(const bool bIsSceneImport, const bool bReImport, const UInterchangeSourceData& SourceData)
 {
-	const FInterchangeImportSettings& ImportSettings = GetDefaultImportSettings(bIsSceneImport);
+	bool bShowImportDialog = true; 
 
-	bool bShowImportDialog = ImportSettings.bShowImportDialog;
+	FInterchangeGroup::EUsedGroupStatus UsedGroupStatus;
+	const FInterchangeGroup& UsedInterchangeGroup = FInterchangeProjectSettingsUtils::GetUsedGroup(UsedGroupStatus);
+	bool bInterchangeGroupUsed = (UsedGroupStatus == FInterchangeGroup::EUsedGroupStatus::SetAndValid);
+
+	bShowImportDialog = bInterchangeGroupUsed ? UsedInterchangeGroup.bShowImportDialog : GetDefaultImportSettings(bIsSceneImport).bShowImportDialog;
+	
 
 	if (!bIsSceneImport)
 	{
@@ -124,8 +152,9 @@ bool FInterchangeProjectSettingsUtils::ShouldShowPipelineStacksConfigurationDial
 			//Iterate all override, if there is at least one override that show the imnport dialog we will show it.
 			bool bFoundOverride = false;
 			bool bShowFromOverrideStack = false;
-			const FInterchangeContentImportSettings& ContentImportSettings = GetDefault<UInterchangeProjectSettings>()->ContentImportSettings;
-			for (const TPair<EInterchangeTranslatorAssetType, FInterchangeDialogOverride>& ShowImportDialog : ContentImportSettings.ShowImportDialogOverride)
+			const TMap<EInterchangeTranslatorAssetType, FInterchangeDialogOverride>& ShowImportDialogOverride = bInterchangeGroupUsed ? UsedInterchangeGroup.ShowImportDialogOverride : GetDefault<UInterchangeProjectSettings>()->ContentImportSettings.ShowImportDialogOverride;
+
+			for (const TPair<EInterchangeTranslatorAssetType, FInterchangeDialogOverride>& ShowImportDialog : ShowImportDialogOverride)
 			{
 				if ((ShowImportDialog.Key == EInterchangeTranslatorAssetType::None && SupportedAssetTypes == EInterchangeTranslatorAssetType::None)
 					|| (static_cast<uint8>(ShowImportDialog.Key & SupportedAssetTypes) > 0))
@@ -155,5 +184,124 @@ bool FInterchangeProjectSettingsUtils::ShouldShowPipelineStacksConfigurationDial
 		}
 	}
 
+	if (const UInterchangeEditorSettings* InterchangeEditorSettings = GetDefault<UInterchangeEditorSettings>())
+	{
+		bShowImportDialog &= (bReImport ? InterchangeEditorSettings->bShowImportDialogAtReimport : true);
+	}
+
 	return bShowImportDialog;
 }
+
+const FInterchangeGroup& FInterchangeProjectSettingsUtils::GetUsedGroup(FInterchangeGroup::EUsedGroupStatus& UsedGroupStatus)
+{
+	static const FInterchangeGroup InterchangeGroupNone;
+
+	UsedGroupStatus = FInterchangeGroup::EUsedGroupStatus::NotSet;
+
+	if (const UInterchangeEditorSettings* InterchangeEditorSettings = GetDefault<UInterchangeEditorSettings>())
+	{
+		const FGuid& InterchangeUsedGroupUID = InterchangeEditorSettings->GetUsedGroupUID();
+		if (InterchangeUsedGroupUID.IsValid())
+		{
+			const UInterchangeProjectSettings* ImportSettings = GetDefault<UInterchangeProjectSettings>();
+			for (const FInterchangeGroup& Group : ImportSettings->InterchangeGroups)
+			{
+				if (Group.UniqueID == InterchangeUsedGroupUID)
+				{
+					UsedGroupStatus = FInterchangeGroup::EUsedGroupStatus::SetAndValid;
+					return Group;
+				}
+			}
+
+			UsedGroupStatus = FInterchangeGroup::EUsedGroupStatus::SetAndInvalid;
+		}
+	}
+
+	return InterchangeGroupNone;
+}
+
+TArray<FName> FInterchangeProjectSettingsUtils::GetGroupNames()
+{
+	TArray<FName> GroupNames;
+	GroupNames.Add(FName());
+
+	const TArray<FInterchangeGroup>& Groups = GetDefault<UInterchangeProjectSettings>()->InterchangeGroups;
+	for (const FInterchangeGroup& Group : Groups)
+	{
+		GroupNames.Add(Group.DisplayName);
+	}
+
+	return GroupNames;
+}
+
+void UInterchangeEditorSettings::SetUsedGroupName(const FName& InUsedGroupName)
+{
+	UsedGroupName = InUsedGroupName;
+
+	UpdateUsedGroupUIDFromGroupName();
+}
+
+TArray<FName> UInterchangeEditorSettings::GetSelectableItems() const
+{
+	return FInterchangeProjectSettingsUtils::GetGroupNames();
+}
+
+void UInterchangeEditorSettings::UpdateUsedGroupName()
+{
+	FInterchangeGroup::EUsedGroupStatus UsedGroupStatus;
+	const FInterchangeGroup& UsedInterchangeGroup = FInterchangeProjectSettingsUtils::GetUsedGroup(UsedGroupStatus);
+
+	switch (UsedGroupStatus)
+	{
+		case FInterchangeGroup::NotSet:
+			UsedGroupName = FName();
+			break;
+		case FInterchangeGroup::SetAndValid:
+			UsedGroupName = UsedInterchangeGroup.DisplayName;
+			break;
+		case FInterchangeGroup::SetAndInvalid:
+			UsedGroupName = FName("Invalid Group Used, Defaulting to No Group usage.");
+			break;
+		default:
+			break;
+	}
+}
+
+void UInterchangeEditorSettings::UpdateUsedGroupUIDFromGroupName()
+{
+	UsedGroupUID = FGuid();
+
+	const UInterchangeProjectSettings* ImportSettings = GetDefault<UInterchangeProjectSettings>();
+	for (const FInterchangeGroup& Group : ImportSettings->InterchangeGroups)
+	{
+		if (Group.DisplayName == UsedGroupName)
+		{
+			UsedGroupUID = Group.UniqueID;
+		}
+	}
+
+	UpdateUsedGroupName();
+}
+
+#if WITH_EDITOR
+void UInterchangeEditorSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	FProperty* PropertyThatChanged = PropertyChangedEvent.MemberProperty;
+	const FString PropertyName = PropertyThatChanged ? PropertyThatChanged->GetName() : TEXT("");
+
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UInterchangeEditorSettings, UsedGroupName))
+	{
+		UpdateUsedGroupUIDFromGroupName();
+	}
+}
+
+void UInterchangeEditorSettings::PostInitProperties()
+{
+	Super::PostInitProperties();
+
+	UpdateUsedGroupName();
+}
+
+#endif

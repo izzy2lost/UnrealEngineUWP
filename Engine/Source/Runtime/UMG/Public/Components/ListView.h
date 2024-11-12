@@ -106,6 +106,14 @@ public:
 	/** Sets the new selection mode, preserving the current selection where possible. */
 	UFUNCTION(BlueprintCallable, Category = ListView)
 	UMG_API void SetSelectionMode(TEnumAsByte<ESelectionMode::Type> SelectionMode);
+	
+	/* Sets ScrollIntoViewAlignment which allows to stick the selected item to either side or center */
+	UFUNCTION(BlueprintCallable, Category = ListView)
+	UMG_API void SetScrollIntoViewAlignment (EScrollIntoViewAlignment NewScrollIntoViewAlignment);
+
+	/** Sets padding around the scrollbar. */
+	UFUNCTION(Category = ListView)
+	UMG_API void SetScrollBarPadding(const FMargin& InScrollBarPadding);
 
 	/** Returns true if a refresh is pending and the list will be rebuilt on the next tick */
 	UFUNCTION(BlueprintCallable, Category = ListView)
@@ -166,6 +174,8 @@ protected:
 		Args.Orientation = Orientation;
 		Args.ListViewStyle = &WidgetStyle;
 		Args.ScrollBarStyle = &ScrollBarStyle;
+		Args.ScrollBarPadding = ScrollBarPadding;
+		Args.ScrollIntoViewAlignment = ScrollIntoViewAlignment;
 		MyListView = ITypedUMGListView<UObject*>::ConstructListView<ListViewT>(this, ListItems, Args);
 		
 		MyListView->SetOnEntryInitialized(SListView<UObject*>::FOnEntryInitialized::CreateUObject(this, &UListView::HandleOnEntryInitializedInternal));
@@ -203,6 +213,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = ListView)
 	bool bReturnFocusToSelection = false;
 
+	/** Sets where to scroll a widget to when using explicit navigation */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Scrolling)
+	EScrollIntoViewAlignment ScrollIntoViewAlignment = EScrollIntoViewAlignment::CenterAligned;
+
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UObject>> ListItems;
 
@@ -223,6 +237,9 @@ private:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Getter, Category = ListView, meta = (ClampMin = 0, AllowPrivateAccess = "true"))
 	float VerticalEntrySpacing = 0.f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = ListView, meta = (AllowPrivateAccess = "true", DisplayAfter="ScrollBarStyle"))
+	FMargin ScrollBarPadding;
 
 public:
 	/** Get the horizontal spacing between entries. */
@@ -232,6 +249,10 @@ public:
 	/** Get the vertical spacing between entries. */
 	UFUNCTION(BlueprintCallable, Category = ListView)
 	float GetVerticalEntrySpacing() const { return VerticalEntrySpacing; }
+
+	/** Gets padding around the scrollbar. */
+	UFUNCTION(Category = ListView)
+	FMargin GetScrollBarPadding() const { return ScrollBarPadding; }
 
 protected:
 	UMG_API void InitHorizontalEntrySpacing(float InHorizontalEntrySpacing);

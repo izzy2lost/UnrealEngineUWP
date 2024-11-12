@@ -34,6 +34,14 @@ FJsonArchiveInputFormatter::FJsonArchiveInputFormatter(FArchive& InInner, TFunct
 	ArrayValuesRemainingStack.Reserve(64);
 }
 
+FJsonArchiveInputFormatter::FJsonArchiveInputFormatter(FArchive& InInner, TFunction<UObject* (const FPackageIndex)>&& InResolveObject, TSharedPtr<FJsonValue>&& RootObject) 
+	: Inner(InInner)
+	, ResolveObject(MoveTemp(InResolveObject))
+{
+	ValueStack.Reserve(64);
+	ValueStack.Push(MoveTemp(RootObject));
+}
+
 FJsonArchiveInputFormatter::~FJsonArchiveInputFormatter()
 {
 }
@@ -45,9 +53,7 @@ FArchive& FJsonArchiveInputFormatter::GetUnderlyingArchive()
 
 FStructuredArchiveFormatter* FJsonArchiveInputFormatter::CreateSubtreeReader()
 {
-	FJsonArchiveInputFormatter* Cloned = new FJsonArchiveInputFormatter(this->Inner, this->ResolveObject);
-	Cloned->ValueStack.Push(ValueStack.Top());
-
+	FJsonArchiveInputFormatter* Cloned = new FJsonArchiveInputFormatter(this->Inner, CopyTemp(this->ResolveObject), CopyTemp(ValueStack.Top()));
 	return Cloned;
 }
 

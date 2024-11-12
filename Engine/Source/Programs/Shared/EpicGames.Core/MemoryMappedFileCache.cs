@@ -4,7 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.MemoryMappedFiles;
+using System.Linq;
 using System.Threading;
+using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Core
 {
@@ -19,6 +21,7 @@ namespace EpicGames.Core
 			public FileReference Key { get; }
 			public LinkedListNode<MappedFile> ListNode { get; }
 
+			readonly MemoryMappedFileCache _cache;
 			readonly FileInfo _fileInfo;
 
 			MemoryMappedFile? _memoryMappedFile;
@@ -33,8 +36,10 @@ namespace EpicGames.Core
 
 			public ulong MappedSize => _memoryMappedViewAccessor?.SafeMemoryMappedViewHandle.ByteLength ?? 0UL;
 
-			public MappedFile(FileReference locator, FileInfo fileInfo)
+			public MappedFile(MemoryMappedFileCache cache, FileReference locator, FileInfo fileInfo)
 			{
+				_cache = cache;
+
 				Key = locator;
 				ListNode = new LinkedListNode<MappedFile>(this);
 
@@ -46,7 +51,8 @@ namespace EpicGames.Core
 					_memoryMappedViewAccessor = _memoryMappedFile.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
 					_memoryMappedView = new MemoryMappedView(_memoryMappedViewAccessor);
 
-					_data = _memoryMappedView.GetMemory(0, (int)fileInfo.Length);
+					_data = _memoryMappedView.GetMemory(0, (int)Math.Min(fileInfo.Length, Int32.MaxValue));
+					Interlocked.Add(ref _cache._mappedSize, _data.Length);
 				}
 				catch
 				{
@@ -57,6 +63,7 @@ namespace EpicGames.Core
 
 			public void Dispose()
 			{
+				Interlocked.Add(ref _cache._mappedSize, -_data.Length);
 				_data = ReadOnlyMemory<byte>.Empty;
 
 				if (_memoryMappedView != null)
@@ -171,14 +178,20 @@ namespace EpicGames.Core
 			_maxMappedCount = maxMappedCount;
 		}
 
-		/// <inheritdoc/>
-		public void Dispose()
+		/// <summary>
+		/// Removes any cached files
+		/// </summary>
+		public void Clear()
 		{
 			lock (_lockObject)
 			{
 				UnmapFiles(0, 0);
 			}
 		}
+
+		/// <inheritdoc/>
+		public void Dispose()
+			=> Clear();
 
 		/// <summary>
 		/// Maps data for a file into memory
@@ -248,11 +261,9 @@ namespace EpicGames.Core
 					UnmapFiles(maxSize, _maxMappedCount - 1);
 				}
 
-				mappedFile = new MappedFile(key, fileInfo);
+				mappedFile = new MappedFile(this, key, fileInfo);
 				_pathToMappedFile.Add(key, mappedFile);
 				_mappedFiles.AddFirst(mappedFile.ListNode);
-
-				_mappedSize += (long)mappedFile.MappedSize;
 			}
 			return mappedFile;
 		}
@@ -274,6 +285,28 @@ namespace EpicGames.Core
 					listNode.Value.Release();
 				}
 				listNode = nextListNode;
+			}
+		}
+
+		/// <summary>
+		/// Prints stats about the number of outstanding references to items in the cache
+		/// </summary>
+		public void WriteRefStats(ILogger logger)
+		{
+			lock (_lockObject)
+			{
+				logger.LogInformation("Memory mapped file cache using {NumEntries:n0}/{MaxEntries:n0} ({Size:n0}mb/{MaxSize:n0}mb)", _mappedFiles.Count, _maxMappedCount, _mappedSize, _maxMappedSize);
+
+				int referencedCount = 0;
+				ulong referencedSize = 0;
+				foreach (MappedFile mappedFile in _mappedFiles.OrderByDescending(x => x.RefCount).ThenBy(x => x.Key).TakeWhile(x => x.RefCount > 1))
+				{
+					logger.LogInformation("Mapped file {File} has {NumRefs} references", mappedFile.Key, mappedFile.RefCount);
+					referencedCount++;
+					referencedSize += mappedFile.MappedSize;
+				}
+
+				logger.LogInformation("{NumFiles:n0} files have more than one reference count ({SizeMb:n1}mb)", referencedCount, referencedSize / (1024.0 * 1024.0));
 			}
 		}
 	}

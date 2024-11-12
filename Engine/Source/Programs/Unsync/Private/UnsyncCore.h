@@ -21,8 +21,7 @@
 namespace unsync {
 
 extern bool GDryRun;
-
-static constexpr uint32 MAX_ACTIVE_READERS = 64;
+extern bool GExperimental;
 
 class FProxy;
 class FProxyPool;
@@ -32,6 +31,10 @@ struct FRemoteDesc;
 struct FIOReader;
 struct FIOWriter;
 struct FIOReaderWriter;
+struct FPackWriteContext;
+struct FSyncFilter;
+
+enum class ESourceType : uint8;
 
 struct FIdentityHash32
 {
@@ -90,6 +93,7 @@ class FBlockCache
 public:
 	FBuffer							BlockData;
 	THashMap<FHash128, FBufferView> BlockMap;  // Decompressed block data by hash
+	FTimeDuration					InitDuration; // How long it took to create the cache (i.e. download / read all the blocks)
 };
 
 inline uint64
@@ -126,9 +130,13 @@ struct FNeedListSize
 
 FNeedListSize ComputeNeedListSize(const FNeedList& NeedList);
 
-const std::string& GetVersionString();
+struct FBlockSourceInfo
+{
+	// FPath  FilePath; // TODO: pass this in to allow filtering by name, etc.
+	uint64 TotalSize = 0;  // Total size of the input file/buffer from which the block was generated
+};
 
-using FOnBlockGenerated = std::function<void(const FGenericBlock& Block, FBufferView Data)>;
+using FOnBlockGenerated = std::function<void(const FGenericBlock& Block, const FBlockSourceInfo& Source, FBufferView Data)>;
 
 struct FComputeBlocksParams
 {
@@ -147,71 +155,8 @@ struct FComputeBlocksParams
 	bool bAllowThreading = true;
 };
 
-struct FComputeBlocksResult
-{
-	FGenericBlockArray Blocks;
-	FGenericBlockArray MacroBlocks;
-};
-
-FComputeBlocksResult ComputeBlocks(FIOReader& Reader, const FComputeBlocksParams& Params);
-FComputeBlocksResult ComputeBlocks(const uint8* Data, uint64 Size, const FComputeBlocksParams& Params);
-FComputeBlocksResult ComputeBlocksVariable(FIOReader& Reader, const FComputeBlocksParams& Params);
-
-FGenericBlockArray ComputeBlocks(FIOReader& Reader, uint32 BlockSize, FAlgorithmOptions Algorithm);
-FGenericBlockArray ComputeBlocks(const uint8* Data, uint64 Size, uint32 BlockSize, FAlgorithmOptions Algorithm);
-FGenericBlockArray ComputeBlocksVariable(FIOReader&				Reader,
-										 uint32					BlockSize,
-										 EWeakHashAlgorithmID	WeakHasher,
-										 EStrongHashAlgorithmID StrongHasher);
-
-
-FNeedList DiffBlocks(const uint8*			   BaseData,
-					 uint64					   BaseDataSize,
-					 uint32					   BlockSize,
-					 EWeakHashAlgorithmID	   WeakHasher,
-					 EStrongHashAlgorithmID	   StrongHasher,
-					 const FGenericBlockArray& SourceBlocks);
-
-FNeedList DiffBlocksParallel(const uint8*			   BaseData,
-							 uint64					   BaseDataSize,
-							 uint32					   BlockSize,
-							 EWeakHashAlgorithmID	   WeakHasher,
-							 EStrongHashAlgorithmID	   StrongHasher,
-							 const FGenericBlockArray& SourceBlocks,
-							 uint64					   BytesPerTask);
-
-FNeedList DiffBlocks(FIOReader&				   BaseDataReader,
-					 uint32					   BlockSize,
-					 EWeakHashAlgorithmID	   WeakHasher,
-					 EStrongHashAlgorithmID	   StrongHasher,
-					 const FGenericBlockArray& SourceBlocks);
-
-FNeedList DiffBlocksParallel(FIOReader&				   BaseDataReader,
-							 uint32					   BlockSize,
-							 EWeakHashAlgorithmID	   WeakHasher,
-							 EStrongHashAlgorithmID	   StrongHasher,
-							 const FGenericBlockArray& SourceBlocks,
-							 uint64					   BytesPerTask);
-
-FNeedList DiffBlocksVariable(FIOReader&				   BaseDataReader,
-							 uint32					   BlockSize,
-							 EWeakHashAlgorithmID	   WeakHasher,
-							 EStrongHashAlgorithmID	   StrongHasher,
-							 const FGenericBlockArray& SourceBlocks);
-
-FNeedList DiffManifestBlocks(const FGenericBlockArray& SourceBlocks, const FGenericBlockArray& BaseBlocks);
 
 std::vector<FCopyCommand> OptimizeNeedList(const std::vector<FNeedBlock>& Input, uint64 MaxMergedBlockSize = 8_MB);
-
-
-FBuffer GeneratePatch(const uint8*			 BaseData,
-					  uint64				 BaseDataSize,
-					  const uint8*			 SourceData,
-					  uint64				 SourceDataSize,
-					  uint32				 BlockSize,
-					  EWeakHashAlgorithmID	 WeakHasher,
-					  EStrongHashAlgorithmID StrongHasher,
-					  int32					 CompressionLevel = 3);
 
 bool IsSynchronized(const FNeedList& NeedList, const FGenericBlockArray& SourceBlocks);
 
@@ -224,6 +169,7 @@ enum class EFileSyncStatus
 	ErrorFinalRename,
 	ErrorTargetFileCreate,
 	ErrorBuildTargetFailed,
+	ErrorInvalidParameters,
 };
 
 const wchar_t* ToString(EFileSyncStatus Status);
@@ -242,6 +188,8 @@ struct FFileSyncTask
 	uint64 NeedBytesFromSource = 0;
 	uint64 NeedBytesFromBase   = 0;
 	uint64 TotalSizeBytes	   = 0;
+
+	uint32 SourceId = 0;
 
 	bool IsBaseValid() const { return !BaseFilePath.empty(); }
 };
@@ -267,6 +215,8 @@ struct FSyncFileOptions
 	FScavengeDatabase* ScavengeDatabase = nullptr;
 
 	bool bValidateTargetFiles = true;  // WARNING: turning this off is intended only for testing/profiling
+
+	ESourceType SourceType = (ESourceType)0;
 };
 
 FFileSyncResult SyncFile(const FPath&			   SourceFilePath,
@@ -280,41 +230,9 @@ FFileSyncResult SyncFile(const FPath&			 SourceFilePath,
 						 const FPath&			 TargetFilePath,
 						 const FSyncFileOptions& Options);
 
-struct FSyncFilter
-{
-	FSyncFilter() = default;
-
-	// By default all files will be included, calling this will include only files containing these substrings
-	void IncludeInSync(const std::wstring& CommaSeparatedWords);
-	void ExcludeFromSync(const std::wstring& CommaSeparatedWords);
-	void ExcludeFromCleanup(const std::wstring& CommaSeparatedWords);
-
-	bool  ShouldSync(const FPath& Filename) const;
-	bool  ShouldSync(const std::wstring& Filename) const;
-
-	bool  ShouldCleanup(const FPath& Filename) const;
-	bool  ShouldCleanup(const std::wstring& Filename) const;
-
-	FPath Resolve(const FPath& Filename) const;
-
-	std::vector<std::wstring> SyncIncludedWords;
-	std::vector<std::wstring> SyncExcludedWords; // any paths that contain these words will not be synced
-	std::vector<std::wstring> CleanupExcludedWords; // any paths that contain these words will not be deleted after sync
-
-	std::vector<FDfsAlias>	  DfsAliases;
-};
-
-enum class ESyncSourceType
-{
-	Unknown,
-	FileSystem,
-	Server,
-	ServerWithManifestHash,
-};
-
 struct FSyncDirectoryOptions
 {
-	ESyncSourceType	   SourceType;
+	ESourceType		   SourceType = (ESourceType)0;
 	FPath			   Source;			   // remote data location
 	FPath			   Target;			   // output target location
 	FPath			   Base;			   // base data location, which typically is the same as sync target
@@ -330,6 +248,7 @@ struct FSyncDirectoryOptions
 	bool			   bFullDifference = true;	// whether to run full file difference algorithm, even when there is an existing manifest
 	bool			   bCheckAvailableSpace		  = true;  // whether to abort the sync if target path does not have enough available space
 	uint64			   BackgroundTaskMemoryBudget = 2_GB;
+	uint64			   MaxFilesPerTask			  = 1000;
 };
 
 bool SyncDirectory(const FSyncDirectoryOptions& SyncOptions);
@@ -338,13 +257,23 @@ bool SyncDirectory(const FSyncDirectoryOptions& SyncOptions);
 FBlock128			   ToBlock128(const FGenericBlock& GenericBlock);
 std::vector<FBlock128> ToBlock128(FGenericBlockArray& GenericBlocks);
 
-struct FCmdInfoOptions
+template<typename BlockType>
+bool
+ValidateBlockListT(const std::vector<BlockType>& Blocks)
 {
-	FPath InputA;
-	FPath InputB;
-	bool bListFiles = false;
-	const FSyncFilter* SyncFilter = nullptr;
-};
-int32 CmdInfo(const FCmdInfoOptions& Options);
+	uint64 CurrentOffset = 0;
+	for (const BlockType& Block : Blocks)
+	{
+		if (CurrentOffset != Block.Offset)
+		{
+			UNSYNC_ERROR(L"Found block at unexpected offset. Blocks are expected to be ordered by offset and contiguous.");
+			return false;
+		}
+
+		CurrentOffset += Block.Size;
+	}
+
+	return true;
+}
 
 }  // namespace unsync

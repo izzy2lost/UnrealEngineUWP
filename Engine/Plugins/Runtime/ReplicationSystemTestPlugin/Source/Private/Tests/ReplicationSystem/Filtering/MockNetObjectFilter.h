@@ -66,7 +66,9 @@ public:
 	inline void ResetFunctionCallStatus() { CallStatus = FFunctionCallStatus({}); }
 
 protected:
-	virtual void OnInit(FNetObjectFilterInitParams&) override;
+	virtual void OnInit(const FNetObjectFilterInitParams&) override;
+	virtual void OnDeinit() override;
+	virtual void OnMaxInternalNetRefIndexIncreased(uint32 NewMaxInternalIndex) override;
 	virtual void AddConnection(uint32 ConnectionId) override;
 	virtual void RemoveConnection(uint32 ConnectionId) override;
 	virtual bool AddObject(uint32 ObjectIndex, FNetObjectFilterAddObjectParams&) override;
@@ -89,28 +91,6 @@ protected:
 };
 
 /**
- * Filter that reads fragment data to decide if an object is filtered out or not
- */
-UCLASS()
-class UMockNetObjectFilterUsingFragmentData : public UMockNetObjectFilter
-{
-	GENERATED_BODY()
-
-protected:
-
-	virtual void OnInit(FNetObjectFilterInitParams&) override;
-	virtual bool AddObject(uint32 ObjectIndex, FNetObjectFilterAddObjectParams&) override;
-	virtual void RemoveObject(uint32 ObjectIndex, const FNetObjectFilteringInfo&) override;
-	virtual void UpdateObjects(FNetObjectFilterUpdateParams&) override;
-	virtual void Filter(FNetObjectFilteringParams&) override;
-
-private:
-
-	TMap<uint32, UPTRINT> ObjectToFilterOutOffset;
-	TMap<uint32, bool> ObjectToFilterOut;
-};
-
-/**
  * Filter that checks object data to decide to filter out an object.
  */
 UCLASS()
@@ -120,7 +100,7 @@ class UMockNetObjectFilterWithCondition : public UMockNetObjectFilter
 
 protected:
 
-	virtual void OnInit(FNetObjectFilterInitParams&) override;
+	virtual void OnInit(const FNetObjectFilterInitParams&) override;
 	virtual bool AddObject(uint32 ObjectIndex, FNetObjectFilterAddObjectParams&) override;
 	virtual void Filter(FNetObjectFilteringParams&) override;
 

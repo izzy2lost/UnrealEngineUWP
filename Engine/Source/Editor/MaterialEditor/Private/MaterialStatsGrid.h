@@ -182,7 +182,8 @@ public:
 	enum class EShaderClass
 	{
 		VertexShader,
-		FragmentShader
+		FragmentShader,
+		ComputeShader
 	};
 
 private:

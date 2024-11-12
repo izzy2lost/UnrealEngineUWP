@@ -36,6 +36,14 @@ CORE_API void FHashTable::Resize( uint32 NewIndexSize )
 	NextIndex = NewNextIndex;
 }
 
+SIZE_T FHashTable::GetAllocatedSize() const
+{
+	return
+		sizeof(EmptyHash) +
+		(sizeof(uint32*) * 2) +
+		(sizeof(uint32) * (3 + IndexSize + HashSize));
+}
+
 CORE_API float FHashTable::AverageSearch() const
 {
 	uint32 SumAvgSearch = 0;

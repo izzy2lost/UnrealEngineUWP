@@ -1,11 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace EpicGames.Horde
@@ -21,12 +22,23 @@ namespace EpicGames.Horde
 		/// <param name="serviceCollection">Collection to register services with</param>
 		public static void AddHorde(this IServiceCollection serviceCollection)
 		{
-			serviceCollection.AddHordeHttpClient();
+			static StorageBackendCache CreateBackendCache(IServiceProvider serviceProvider)
+			{
+				StorageBackendCacheOptions options = serviceProvider.GetRequiredService<IOptions<HordeOptions>>().Value.BackendCache;
+				DirectoryReference? cacheDir = String.IsNullOrEmpty(options.CacheDir) ? null : new DirectoryReference(options.CacheDir);
+				return new StorageBackendCache(cacheDir, options.MaxSize, serviceProvider.GetRequiredService<ILogger<StorageBackendCache>>());
+			}
+
+			serviceCollection.AddLogging();
+
+			serviceCollection.AddHttpClient();
 			serviceCollection.AddSingleton<BundleCache>(sp => new BundleCache(sp.GetRequiredService<IOptions<HordeOptions>>().Value.BundleCache));
-			serviceCollection.AddSingleton<StorageBackendCache>();
+			serviceCollection.AddSingleton<StorageBackendCache>(CreateBackendCache);
 			serviceCollection.AddSingleton<HttpStorageBackendFactory>();
-			serviceCollection.AddSingleton<HttpStorageClientFactory>();
-			serviceCollection.AddSingleton<IHordeClient, HordeClient>();
+			serviceCollection.AddSingleton<HttpStorageClient>();
+			serviceCollection.AddSingleton<IHordeHttpMessageHandler, HordeHttpMessageHandler>();
+			serviceCollection.AddSingleton<IHordeClient>(sp => sp.GetRequiredService<HordeClientFactory>().Create());
+			serviceCollection.AddSingleton<HordeClientFactory>();
 		}
 
 		/// <summary>

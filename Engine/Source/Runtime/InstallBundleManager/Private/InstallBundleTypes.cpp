@@ -2,10 +2,13 @@
 
 #include "InstallBundleTypes.h"
 
+#include "Containers/ContainerAllocationPolicies.h"
 #include "InstallBundleManagerPrivate.h"
 #include "InstallBundleUtils.h"
+#include "InstallBundleManagerInterface.h"
 #include "Misc/CString.h"
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 const TCHAR* LexToString(EInstallBundleSourceType Type)
 {
 	static const TCHAR* Strings[] =
@@ -20,9 +23,13 @@ const TCHAR* LexToString(EInstallBundleSourceType Type)
 		TEXT("Streaming"),
 	};
 
-	return InstallBundleUtil::TLexToString(Type, Strings);
+	// Clang has issues with the not silencing deprecation warnings for TLexToString here,
+	// so explicitly pass the types to make it happy.
+	return InstallBundleUtil::TLexToString<EInstallBundleSourceType, decltype(Strings), EInstallBundleSourceType::Count>(Type, Strings);
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void LexFromString(EInstallBundleSourceType& OutType, const TCHAR* String)
 {
 	OutType = EInstallBundleSourceType::Count;
@@ -36,6 +43,74 @@ void LexFromString(EInstallBundleSourceType& OutType, const TCHAR* String)
 			break;
 		}
 	}
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+class FInstallBundleSourceTypeNameTable
+{
+public:
+	FInstallBundleSourceTypeNameTable()
+	{
+		check(IsInGameThread());
+
+		// Find all possible sources from config
+		TArray<FString> ConfgSources;
+		TMap<FString, FString> ConfigFallbackSources;
+		if (!InstallBundleUtil::GetConfiguredBundleSources(ConfgSources, ConfigFallbackSources))
+		{
+			return;
+		}
+
+		for (FString& Source : ConfgSources)
+		{
+			NameTable.AddUnique(MoveTemp(Source));
+		}
+
+		for (TPair<FString, FString>& Pair : ConfigFallbackSources)
+		{
+			NameTable.AddUnique(MoveTemp(Pair.Key));
+			NameTable.AddUnique(MoveTemp(Pair.Value));
+		}
+	}
+
+	FStringView FindBundleSourceTypeByName(FStringView InName) const
+	{
+		for (const FString& Str : NameTable)
+		{
+			if (Str == InName)
+			{
+				return Str;
+			}
+		}
+
+		return FStringView(TEXTVIEW(""));
+	}
+
+private:
+	TArray<FString, TInlineAllocator<8>> NameTable;
+};
+
+static const FInstallBundleSourceTypeNameTable& GetInstallBundleSourceTypeNameTable()
+{
+	static FInstallBundleSourceTypeNameTable InstallBundleSourceTypeNameTable;
+	return InstallBundleSourceTypeNameTable;
+}
+
+FInstallBundleSourceType::FInstallBundleSourceType(FStringView InNameStr)
+	: NameStr(GetInstallBundleSourceTypeNameTable().FindBundleSourceTypeByName(InNameStr))
+{
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+FInstallBundleSourceType::FInstallBundleSourceType(EInstallBundleSourceType InLegacySourceType)
+	: NameStr(GetInstallBundleSourceTypeNameTable().FindBundleSourceTypeByName(LexToString(InLegacySourceType)))
+{
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+const TCHAR* LexToString(FInstallBundleSourceType Type)
+{
+	return Type.GetNameCStr();
 }
 
 const TCHAR* LexToString(EInstallBundleManagerInitResult Result)
@@ -88,6 +163,7 @@ const TCHAR* LexToString(EInstallBundleResult Result)
 		TEXT("UserCancelledError"),
 		TEXT("InitializationError"),
 		TEXT("InitializationPending"),
+		TEXT("MetadataError"),
 	};
 
 	return InstallBundleUtil::TLexToString(Result, Strings);
@@ -100,6 +176,7 @@ const TCHAR* LexToString(EInstallBundleReleaseResult Result)
 		TEXT("OK"),
 		TEXT("ManifestArchiveError"),
 		TEXT("UserCancelledError"),
+		TEXT("MetadataError"),
 	};
 
 	return InstallBundleUtil::TLexToString(Result, Strings);

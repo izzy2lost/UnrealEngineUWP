@@ -21,16 +21,16 @@ namespace UE::MultiUserServer::Private
 	}
 }
 
-FLiveServerSessionHistoryController::FLiveServerSessionHistoryController(TSharedRef<IConcertServerSession> InspectedSession, TSharedRef<IConcertSyncServer> SyncServer)
-	: FServerSessionHistoryControllerBase(InspectedSession->GetId(), UE::MultiUserServer::Private::MakeLiveTabSessionHistoryArguments())
-	, SyncServer(MoveTemp(SyncServer))
+FLiveServerSessionHistoryController::FLiveServerSessionHistoryController(TSharedRef<IConcertServerSession> InInspectedSession, TSharedRef<IConcertSyncServer> InSyncServer)
+	: FServerSessionHistoryControllerBase(InInspectedSession->GetId(), UE::MultiUserServer::Private::MakeLiveTabSessionHistoryArguments())
+	, SyncServer(MoveTemp(InSyncServer))
 {
 	ReloadActivities();
 	UMultiUserServerColumnVisibilitySettings::GetSettings()->OnLiveActivityBrowserColumnVisibility().AddRaw(this, &FLiveServerSessionHistoryController::OnActivityListColumnVisibilitySettingsUpdated);
 
 	if (const TOptional<FConcertSyncSessionDatabaseNonNullPtr> Database = SyncServer->GetLiveSessionDatabase(GetSessionId()))
 	{
-		Database->OnActivityProduced().AddRaw(this, &FLiveServerSessionHistoryController::OnSessionProduced);
+		(*Database)->OnActivityProduced().AddRaw(this, &FLiveServerSessionHistoryController::OnSessionProduced);
 	}
 }
 
@@ -42,7 +42,7 @@ FLiveServerSessionHistoryController::~FLiveServerSessionHistoryController()
 	}
 	if (const TOptional<FConcertSyncSessionDatabaseNonNullPtr> Database = SyncServer->GetLiveSessionDatabase(GetSessionId()))
 	{
-		Database->OnActivityProduced().RemoveAll(this);
+		(*Database)->OnActivityProduced().RemoveAll(this);
 	}
 }
 

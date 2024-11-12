@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using UnrealBuildTool;
 
+[Obsolete("Profiler is deprecated since UE 5.0 - use Trace/UnrealInsights instead.")]
 public class Profiler : ModuleRules
 {
-	public Profiler( ReadOnlyTargetRules Target ) : base(Target)
+	public Profiler(ReadOnlyTargetRules Target) : base(Target)
 	{
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 

@@ -36,7 +36,7 @@ public:
 	}
 	virtual bool GetRequiredExtensions(TArray<const ANSICHAR*>& OutExtensions) override;
 	virtual void PostCreateInstance(XrInstance InInstance) override;
-	virtual bool GetInteractionProfile(XrInstance InInstance, FString& OutKeyPrefix, XrPath& OutPath, bool& OutHasHaptics) override;
+	virtual bool GetInteractionProfiles(XrInstance InInstance, TArray<FString>& OutKeyPrefixes, TArray<XrPath>& OutPaths, TArray<bool>& OutHasHaptics) override;
 	virtual void AttachActionSets(TSet<XrActionSet>& OutActionSets) override;
 	virtual const void* OnBeginSession(XrSession InSession, const void* InNext) override;
 	virtual void OnDestroySession(XrSession InSession) override;

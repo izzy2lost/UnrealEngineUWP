@@ -6,7 +6,6 @@
 #include "AssetTypeActions/AssetTypeActions_DialogueWave.h"
 #include "AssetTypeActions/AssetTypeActions_SoundClass.h"
 #include "AssetTypeActions/AssetTypeActions_SoundEffectPreset.h"
-#include "AssetTypeActions/AssetTypeActions_SoundWave.h"
 #include "AssetTypeActions/AssetTypeActions_SoundSubmix.h"
 #include "ClassTemplateEditorSubsystem.h"
 #include "Components/SynthComponent.h"
@@ -179,7 +178,6 @@ public:
 
 		AssetTools.RegisterAssetTypeActions(MakeShared<FAssetTypeActions_DialogueWave>());
 		AssetTools.RegisterAssetTypeActions(MakeShared<FAssetTypeActions_SoundClass>());
-		AssetTools.RegisterAssetTypeActions(MakeShared<FAssetTypeActions_SoundWave>());
 	}
 
 	virtual void RegisterAudioMixerAssetActions() override

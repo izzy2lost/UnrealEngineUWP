@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "VulkanRHIPrivate.h"
+#include "VulkanDevice.h"
 #include "VulkanResources.h"
 #include "VulkanContext.h"
 #include "VulkanCommandBuffer.h"
@@ -134,7 +135,8 @@ bool FVulkanOcclusionQueryPool::InternalTryGetResults(bool bWait)
 					FTaskGraphInterface::Get().ProcessThreadUntilIdle(RenderThread_Local);
 				}
 
-				if (VulkanRHI::vkGetEventStatus(Device->GetInstanceHandle(), ResetEvent) == VK_EVENT_SET)
+				Result = VulkanRHI::vkGetEventStatus(Device->GetInstanceHandle(), ResetEvent);
+				if (Result == VK_EVENT_SET)
 				{
 					Result = VulkanRHI::vkGetQueryPoolResults(Device->GetInstanceHandle(), QueryPool, 0, NumUsedQueries, NumUsedQueries * sizeof(uint64), QueryOutput.GetData(), sizeof(uint64), VK_QUERY_RESULT_64_BIT);
 				}
@@ -144,7 +146,7 @@ bool FVulkanOcclusionQueryPool::InternalTryGetResults(bool bWait)
 					bSuccess = true;
 					break;
 				}
-				else if (Result == VK_NOT_READY)
+				else if ((Result == VK_NOT_READY) || (Result == VK_EVENT_RESET))
 				{
 					bSuccess = false;
 				}
@@ -384,11 +386,12 @@ void FVulkanOcclusionQuery::ReleaseFromPool()
 	IndexInPool = UINT32_MAX;
 }
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 void FVulkanCommandListContext::ReadAndCalculateGPUFrameTime()
 {
 	check(IsImmediate());
 
-	if (FVulkanPlatform::SupportsTimestampRenderQueries() && FrameTiming)
+	if (GSupportsTimestampRenderQueries && FrameTiming)
 	{
 		uint64 Delta = 0;
 		
@@ -411,6 +414,7 @@ void FVulkanCommandListContext::ReadAndCalculateGPUFrameTime()
 		GGPUFrameTime = 0;
 	}
 }
+#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 
 FRenderQueryRHIRef FVulkanDynamicRHI::RHICreateRenderQuery(ERenderQueryType QueryType)
@@ -436,13 +440,20 @@ FRenderQueryRHIRef FVulkanDynamicRHI::RHICreateRenderQuery(ERenderQueryType Quer
 
 bool FVulkanDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint64& OutNumPixels, bool bWait, uint32 GPUIndex)
 {
-	auto ToMicroseconds = [](uint64 Timestamp)
+	auto ToMicroseconds = [](uint64 Timestamp) -> uint64
 	{
+#if RHI_NEW_GPU_PROFILER
+		checkNoEntry(); // @todo - new gpu profiler
+		return 0;
+#else
 		const double Frequency = double(FVulkanGPUTiming::GetTimingFrequency());
 		uint64 Microseconds = (uint64)((double(Timestamp) / Frequency) * 1000.0 * 1000.0);
 		return Microseconds;
+#endif
 	};
-	check(IsInRenderingThread());
+
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+
 	FVulkanRenderQuery* BaseQuery = ResourceCast(QueryRHI);
 	if (BaseQuery->QueryType == RQT_Occlusion)
 	{
@@ -481,7 +492,7 @@ bool FVulkanDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint6
 			}
 
 			// Blocking was requested, so, we need to wait for the RHI thread to catch up.
-			FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+			RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 			check(Query->Pool != nullptr);
 		}
 
@@ -522,7 +533,7 @@ bool FVulkanDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint6
 					bool bWaitForStart = StartQuerySyncPoint.FenceCounter == StartQuerySyncPoint.CmdBuffer->GetFenceSignaledCounter();
 					if (bWaitForStart)
 					{
-						FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+						RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 
 						// Need to submit the open command lists.
 						Device->SubmitCommandsAndFlushGPU();
@@ -625,6 +636,7 @@ void FVulkanCommandListContext::RHIEndRenderQuery(FRHIRenderQuery* QueryRHI)
 	}
 }
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 void FVulkanCommandListContext::RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery)
 {
 	if (Device->GetOptionalExtensions().HasEXTCalibratedTimestamps)
@@ -634,15 +646,20 @@ void FVulkanCommandListContext::RHICalibrateTimers(FRHITimestampCalibrationQuery
 		CalibrationQuery->GPUMicroseconds[0] = CalibrationTimestamp.GPUMicroseconds;
 	}
 }
+#endif
 
 void FVulkanCommandListContext::WriteBeginTimestamp(FVulkanCmdBuffer* CmdBuffer)
 {
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FrameTiming->StartTiming(CmdBuffer);
+#endif
 }
 
 void FVulkanCommandListContext::WriteEndTimestamp(FVulkanCmdBuffer* CmdBuffer)
 {
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FrameTiming->EndTiming(CmdBuffer);
+#endif
 }
 
 FVulkanTimingQuery::FVulkanTimingQuery()

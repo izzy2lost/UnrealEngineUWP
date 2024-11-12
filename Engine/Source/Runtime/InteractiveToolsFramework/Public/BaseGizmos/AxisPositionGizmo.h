@@ -27,6 +27,11 @@ class UClickDragInputBehavior;
 class UGizmoViewContext;
 class UObject;
 struct FToolBuilderState;
+namespace UE::GizmoUtil
+{
+	struct FTransformSubGizmoCommonParams;
+	struct FTransformSubGizmoSharedState;
+}
 
 UCLASS(MinimalAPI)
 class UAxisPositionGizmoBuilder : public UInteractiveGizmoBuilder
@@ -60,6 +65,22 @@ class UAxisPositionGizmo : public UInteractiveGizmo, public IClickDragBehaviorTa
 	GENERATED_BODY()
 
 public:
+	/**
+	 * Helper that initializes AxisSource, ParameterSource, HitTarget, and StateTarget for the common case
+	 *  of being used to control the translation of a transform. Safe to use for reinitialization.
+	 */
+	INTERACTIVETOOLSFRAMEWORK_API bool InitializeAsTranslateGizmo(
+		const UE::GizmoUtil::FTransformSubGizmoCommonParams& InitializationParams,
+		UE::GizmoUtil::FTransformSubGizmoSharedState* SharedState);
+	/**
+	 * Helper that initializes AxisSource, ParameterSource, HitTarget, and StateTarget for the common case
+	 *  of being used to control the scale of a transform. Safe to use for reinitialization.
+	 */
+	INTERACTIVETOOLSFRAMEWORK_API bool InitializeAsScaleGizmo(
+		const UE::GizmoUtil::FTransformSubGizmoCommonParams& InitializationParams,
+		bool bDisallowNegativeScaling,
+		UE::GizmoUtil::FTransformSubGizmoSharedState* SharedState);
+
 	// UInteractiveGizmo overrides
 
 	INTERACTIVETOOLSFRAMEWORK_API virtual void Setup() override;
@@ -80,6 +101,10 @@ public:
 
 
 public:
+
+	// The below properties can be manipulated for more fine-grained control, but typically it is sufficient
+	// to use one of the initialization methods above.
+
 	/** AxisSource provides the 3D line on which the interaction happens */
 	UPROPERTY()
 	TScriptInterface<IGizmoAxisSource> AxisSource;
@@ -88,6 +113,7 @@ public:
 	UPROPERTY()
 	TScriptInterface<IGizmoFloatParameterSource> ParameterSource;
 
+	UE_DEPRECATED(5.5, "UAxisPositionGizmo does not use GizmoViewContext itself (it is used in gizmo components for hit testing).")
 	UPROPERTY()
 	TObjectPtr<UGizmoViewContext> GizmoViewContext;
 

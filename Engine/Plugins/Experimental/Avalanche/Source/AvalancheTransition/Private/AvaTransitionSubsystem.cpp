@@ -8,14 +8,27 @@
 #include "Execution/IAvaTransitionExecutor.h"
 #include "StateTreeExecutionTypes.h"
 
-void UAvaTransitionSubsystem::RegisterTransitionBehavior(ULevel* InLevel, IAvaTransitionBehavior* InBehavior)
+void UAvaTransitionSubsystem::RegisterTransitionBehavior(const ULevel* InLevel, IAvaTransitionBehavior* InBehavior)
 {
 	TransitionBehaviors.Add(InLevel, TWeakInterfacePtr<IAvaTransitionBehavior>(InBehavior));
 }
 
 IAvaTransitionBehavior* UAvaTransitionSubsystem::GetOrCreateTransitionBehavior(ULevel* InLevel)
 {
-	if (!EnsureLevelIsAppropriate(InLevel))
+	UWorld* const World = GetWorld();
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	// if passed in nullptr, set it to the persistent level
+	if (!InLevel)
+	{
+		InLevel = World->PersistentLevel;
+	}
+
+	// Ensure the provided level belongs to the world of this subsystem
+	if (!InLevel || !ensureAlways(InLevel->OwningWorld == World))
 	{
 		return nullptr;
 	}
@@ -36,9 +49,22 @@ IAvaTransitionBehavior* UAvaTransitionSubsystem::GetOrCreateTransitionBehavior(U
 	return InLevel->OwningWorld->SpawnActor<AAvaTransitionBehaviorActor>(SpawnParameters);		
 }
 
-IAvaTransitionBehavior* UAvaTransitionSubsystem::GetTransitionBehavior(ULevel* InLevel) const
+IAvaTransitionBehavior* UAvaTransitionSubsystem::GetTransitionBehavior(const ULevel* InLevel) const
 {
-	if (!EnsureLevelIsAppropriate(InLevel))
+	UWorld* const World = GetWorld();
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	// if passed in nullptr, set it to the persistent level
+	if (!InLevel)
+	{
+		InLevel = World->PersistentLevel;
+	}
+
+	// Ensure the provided level belongs to the world of this subsystem
+	if (!InLevel || !ensureAlways(InLevel->OwningWorld == World))
 	{
 		return nullptr;
 	}
@@ -60,7 +86,7 @@ IAvaTransitionBehavior* UAvaTransitionSubsystem::GetTransitionBehavior(ULevel* I
 	return nullptr;
 }
 
-IAvaTransitionBehavior* UAvaTransitionSubsystem::FindTransitionBehavior(ULevel* InLevel)
+IAvaTransitionBehavior* UAvaTransitionSubsystem::FindTransitionBehavior(const ULevel* InLevel)
 {
 	// find existing transition behavior actor in level
 	AAvaTransitionBehaviorActor* TransitionBehaviorActor;
@@ -126,22 +152,4 @@ void UAvaTransitionSubsystem::PostInitialize()
 			RegisterTransitionBehavior(Level, TransitionStateActor);
 		}
 	}
-}
-
-bool UAvaTransitionSubsystem::EnsureLevelIsAppropriate(ULevel*& InLevel) const
-{
-	UWorld* const World = GetWorld();
-	if (!World)
-	{
-		return false;
-	}
-
-	// if passed in nullptr, set it to the persistent level
-	if (!InLevel)
-	{
-		InLevel = World->PersistentLevel;
-	}
-
-	// Ensure the provided level belongs to the world of this subsystem
-	return InLevel && ensureAlways(InLevel->OwningWorld == World);
 }

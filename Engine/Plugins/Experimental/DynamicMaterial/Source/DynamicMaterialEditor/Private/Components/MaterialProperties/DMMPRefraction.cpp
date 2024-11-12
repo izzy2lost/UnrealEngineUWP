@@ -10,20 +10,6 @@ UDMMaterialPropertyRefraction::UDMMaterialPropertyRefraction()
 {
 }
 
-bool UDMMaterialPropertyRefraction::IsValidForModel(UDynamicMaterialModelEditorOnlyData& InModelEditorOnlyData) const
-{
-	switch (InModelEditorOnlyData.GetBlendMode())
-	{
-		case EBlendMode::BLEND_Translucent:
-		case EBlendMode::BLEND_Additive:
-		case EBlendMode::BLEND_AlphaComposite:
-			return true;
-
-		default:
-			return false;
-	}
-}
-
 UMaterialExpression* UDMMaterialPropertyRefraction::GetDefaultInput(
 	const TSharedRef<FDMMaterialBuildState>& InBuildState) const
 {

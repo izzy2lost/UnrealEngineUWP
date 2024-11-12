@@ -4,7 +4,7 @@
 
 #include "Converters/GLTFConverter.h"
 #include "Converters/GLTFMeshSection.h"
-#include "Converters/GLTFIndexArray.h"
+#include "Converters/GLTFMeshAttributesArray.h"
 
 template <typename MeshType>
 class TGLTFMeshSectionConverter : public TGLTFConverter<const FGLTFMeshSection*, const MeshType*, int32, FGLTFIndexArray>

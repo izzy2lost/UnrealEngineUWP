@@ -77,6 +77,20 @@ bool UAnimBoneCompressionSettings::AreSettingsValid() const
 	return NumValidCodecs != 0;
 }
 
+bool UAnimBoneCompressionSettings::IsHighFidelity(const FCompressibleAnimData& CompressibleAnimData) const
+{
+	for (const UAnimBoneCompressionCodec* Codec : Codecs)
+	{
+		if (Codec != nullptr && Codec->IsHighFidelity(CompressibleAnimData))
+		{
+			// At least one codec is high fidelity
+			return true;
+		}
+	}
+
+	return false;
+}
+
 struct FAnimBoneCompressionContext
 {
 	/** The animation sequence we are compressing. */

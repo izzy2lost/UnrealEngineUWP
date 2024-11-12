@@ -13,17 +13,13 @@
 #define INTERNAL_DECORATOR_COMPUTE(Method) CmdList.GetComputeContext().Method
 #endif
 
-#include "RHIResourceUpdates.h"
-
 class FRHICommandListBase;
 class IRHIComputeContext;
 struct FComputedBSS;
 struct FComputedUniformBuffer;
 struct FMemory;
 struct FRHICommandBeginDrawingViewport;
-struct FRHICommandBeginFrame;
 struct FRHICommandBeginRenderQuery;
-struct FRHICommandBeginScene;
 struct FRHICommandBuildLocalBoundShaderState;
 struct FRHICommandBuildLocalGraphicsPipelineState;
 struct FRHICommandBuildLocalUniformBuffer;
@@ -35,10 +31,8 @@ struct FRHICommandDrawPrimitiveIndirect;
 struct FRHICommandMultiDrawPrimitiveIndirect;
 struct FRHICommandSetDepthBounds;
 struct FRHICommandEndDrawingViewport;
-struct FRHICommandEndFrame;
 struct FRHICommandEndOcclusionQueryBatch;
 struct FRHICommandEndRenderQuery;
-struct FRHICommandEndScene;
 struct FRHICommandSetBlendFactor;
 struct FRHICommandSetBoundShaderState;
 struct FRHICommandSetLocalGraphicsPipelineState;
@@ -55,8 +49,9 @@ struct FRHICommandTransitionTexturesPipeline;
 struct FRHICommandTransitionTexturesDepth;
 struct FRHICommandTransitionTexturesArray;
 struct FRHICommandClearRayTracingBindings;
+struct FRHICommandClearBindings;
 struct FRHICommandRayTraceDispatch;
-struct FRHICommandSetRayTracingBindings;
+struct FRHICommandSetBindings;
 
 template <typename TRHIShader> struct FRHICommandSetLocalUniformBuffer;
 
@@ -122,25 +117,25 @@ void FRHICommandSetStencilRef::Execute(FRHICommandListBase& CmdList)
 	INTERNAL_DECORATOR(RHISetStencilRef)(StencilRef);
 }
 
-template<> RHI_API void FRHICommandSetShaderParameters<FRHIComputeShader>::Execute(FRHICommandListBase& CmdList)
+template<> RHI_EXECUTE_API void FRHICommandSetShaderParameters<FRHIComputeShader>::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(SetShaderParameters);
 	INTERNAL_DECORATOR_COMPUTE(RHISetShaderParameters)(Shader, ParametersData, Parameters, ResourceParameters, BindlessParameters);
 }
 
-template<> RHI_API void FRHICommandSetShaderParameters<FRHIGraphicsShader>::Execute(FRHICommandListBase& CmdList)
+template<> RHI_EXECUTE_API void FRHICommandSetShaderParameters<FRHIGraphicsShader>::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(SetShaderParameters);
 	INTERNAL_DECORATOR(RHISetShaderParameters)(Shader, ParametersData, Parameters, ResourceParameters, BindlessParameters);
 }
 
-template<> RHI_API void FRHICommandSetShaderUnbinds<FRHIComputeShader>::Execute(FRHICommandListBase& CmdList)
+template<> RHI_EXECUTE_API void FRHICommandSetShaderUnbinds<FRHIComputeShader>::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(SetShaderUnbinds);
 	INTERNAL_DECORATOR_COMPUTE(RHISetShaderUnbinds)(Shader, Unbinds);
 }
 
-template<> RHI_API void FRHICommandSetShaderUnbinds<FRHIGraphicsShader>::Execute(FRHICommandListBase& CmdList)
+template<> RHI_EXECUTE_API void FRHICommandSetShaderUnbinds<FRHIGraphicsShader>::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(SetShaderUnbinds);
 	INTERNAL_DECORATOR(RHISetShaderUnbinds)(Shader, Unbinds);
@@ -242,19 +237,34 @@ void FRHICommandDispatchIndirectComputeShader::Execute(FRHICommandListBase& CmdL
 	INTERNAL_DECORATOR_COMPUTE(RHIDispatchIndirectComputeShader)(ArgumentBuffer, ArgumentOffset);
 }
 
-void FRHICommandDispatchShaderBundle::Execute(FRHICommandListBase& CmdList)
+void FRHICommandDispatchComputeShaderBundle::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(DispatchShaderBundle);
 	extern RHI_API FRHIComputePipelineState* ExecuteSetComputePipelineState(FComputePipelineState* ComputePipelineState);
 	for (int32 DispatchIndex = 0; DispatchIndex < Dispatches.Num(); ++DispatchIndex)
 	{
-		FRHIShaderBundleDispatch& Dispatch = Dispatches[DispatchIndex];
-		if (Dispatch.RecordIndex != ~uint32(0u))
+		FRHIShaderBundleComputeDispatch& Dispatch = Dispatches[DispatchIndex];
+		if (Dispatch.RecordIndex != ~uint32(0u) && Dispatch.PipelineState)
 		{
 			Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
 		}
 	}
-	INTERNAL_DECORATOR_COMPUTE(RHIDispatchShaderBundle)(ShaderBundle, RecordArgBufferSRV, Dispatches, bEmulated);
+	INTERNAL_DECORATOR_COMPUTE(RHIDispatchComputeShaderBundle)(ShaderBundle, RecordArgBuffer, SharedBindlessParameters, Dispatches, bEmulated);
+}
+
+void FRHICommandDispatchGraphicsShaderBundle::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(DispatchShaderBundle);
+	extern RHI_API FRHIGraphicsPipelineState* ExecuteSetGraphicsPipelineState(FGraphicsPipelineState* GraphicsPipelineState);
+	for (int32 DispatchIndex = 0; DispatchIndex < Dispatches.Num(); ++DispatchIndex)
+	{
+		FRHIShaderBundleGraphicsDispatch& Dispatch = Dispatches[DispatchIndex];
+		if (Dispatch.RecordIndex != ~uint32(0u))
+		{
+			Dispatch.RHIPipeline = ExecuteSetGraphicsPipelineState(Dispatch.PipelineState);
+		}
+	}
+	INTERNAL_DECORATOR_COMPUTE(RHIDispatchGraphicsShaderBundle)(ShaderBundle, RecordArgBuffer, BundleState, SharedBindlessParameters, Dispatches, bEmulated);
 }
 
 void FRHICommandSetShaderRootConstants::Execute(FRHICommandListBase& CmdList)
@@ -460,30 +470,16 @@ void FRHICommandCalibrateTimers::Execute(FRHICommandListBase& CmdList)
 	INTERNAL_DECORATOR(RHICalibrateTimers)(CalibrationQuery);
 }
 
-void FRHICommandSubmitCommandsHint::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(SubmitCommandsHint);
-	INTERNAL_DECORATOR_COMPUTE(RHISubmitCommandsHint)();
-}
-
 void FRHICommandPostExternalCommandsReset::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(PostExternalCommandsReset);
 	INTERNAL_DECORATOR(RHIPostExternalCommandsReset)();
 }
 
-void FRHICommandPollOcclusionQueries::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(PollOcclusionQueries);
-	INTERNAL_DECORATOR(RHIPollOcclusionQueries)();
-}
-
 void FRHICommandCopyBufferRegion::Execute(FRHICommandListBase& CmdList)
 {
 	INTERNAL_DECORATOR(RHICopyBufferRegion)(DestBuffer, DstOffset, SourceBuffer, SrcOffset, NumBytes);
 }
-
-#if RHI_RAYTRACING
 
 void FRHICommandBindAccelerationStructureMemory::Execute(FRHICommandListBase& CmdList)
 {
@@ -496,10 +492,28 @@ void FRHICommandBuildAccelerationStructure::Execute(FRHICommandListBase& CmdList
 	INTERNAL_DECORATOR_COMPUTE(RHIBuildAccelerationStructure)(SceneBuildParams);
 }
 
+void FRHICommandCommitRayTracingBindings::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(CommitRayTracingBindings);
+	INTERNAL_DECORATOR(RHICommitRayTracingBindings)(Scene);
+}
+
 void FRHICommandClearRayTracingBindings::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(ClearRayTracingBindings);
 	INTERNAL_DECORATOR(RHIClearRayTracingBindings)(Scene);
+}
+
+void FRHICommandCommitShaderBindingTable::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(CommitShaderBindingTable);
+	INTERNAL_DECORATOR(RHICommitShaderBindingTable)(SBT);
+}
+
+void FRHICommandClearShaderBindingTable::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(ClearShaderBindingTable);
+	INTERNAL_DECORATOR(RHIClearShaderBindingTable)(SBT);
 }
 
 void FRHICommandBuildAccelerationStructures::Execute(FRHICommandListBase& CmdList)
@@ -512,134 +526,41 @@ void FRHICommandRayTraceDispatch::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(RayTraceDispatch);
 	extern RHI_API FRHIRayTracingPipelineState* GetRHIRayTracingPipelineState(FRayTracingPipelineState*);
+	
+	FRHIRayTracingPipelineState* RayTracingPipelineState = GetRHIRayTracingPipelineState(Pipeline);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (SBT == nullptr)
+	{
+		SBT = Scene->FindOrCreateShaderBindingTable(RayTracingPipelineState);
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	if (ArgumentBuffer)
 	{
-		INTERNAL_DECORATOR(RHIRayTraceDispatchIndirect)(GetRHIRayTracingPipelineState(Pipeline), RayGenShader, Scene, GlobalResourceBindings, ArgumentBuffer, ArgumentOffset);
+		INTERNAL_DECORATOR(RHIRayTraceDispatchIndirect)(RayTracingPipelineState, RayGenShader, SBT, GlobalResourceBindings, ArgumentBuffer, ArgumentOffset);
 	}
 	else
 	{
-		INTERNAL_DECORATOR(RHIRayTraceDispatch)(GetRHIRayTracingPipelineState(Pipeline), RayGenShader, Scene, GlobalResourceBindings, Width, Height);
+		INTERNAL_DECORATOR(RHIRayTraceDispatch)(RayTracingPipelineState, RayGenShader, SBT, GlobalResourceBindings, Width, Height);
 	}
 }
 
-void FRHICommandSetRayTracingBindings::Execute(FRHICommandListBase& CmdList)
+void FRHICommandSetBindingsOnShaderBindingTable::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(SetRayTracingHitGroup);
 	extern RHI_API FRHIRayTracingPipelineState* GetRHIRayTracingPipelineState(FRayTracingPipelineState*);
-	if (NumBindings >= 0)
-	{
-		check(Bindings != nullptr);
-		INTERNAL_DECORATOR(RHISetRayTracingBindings)(Scene, GetRHIRayTracingPipelineState(Pipeline), NumBindings, Bindings, BindingType);
-	}
-	else if (BindingType == ERayTracingBindingType::HitGroup)
-	{
-		INTERNAL_DECORATOR(RHISetRayTracingHitGroup)(Scene, InstanceIndex, SegmentIndex, ShaderSlot, GetRHIRayTracingPipelineState(Pipeline), ShaderIndex,
-			NumUniformBuffers, UniformBuffers,
-			LooseParameterDataSize, LooseParameterData,
-			UserData);
-	}
-	else if (BindingType == ERayTracingBindingType::CallableShader)
-	{
-		INTERNAL_DECORATOR(RHISetRayTracingCallableShader)(Scene, ShaderSlot, GetRHIRayTracingPipelineState(Pipeline), ShaderIndex, NumUniformBuffers, UniformBuffers, UserData);
-	}
-	else if(BindingType == ERayTracingBindingType::MissShader)
-	{
-		INTERNAL_DECORATOR(RHISetRayTracingMissShader)(Scene, ShaderSlot, GetRHIRayTracingPipelineState(Pipeline), ShaderIndex, NumUniformBuffers, UniformBuffers, UserData);
-	}
-	else
-	{
-		checkNoEntry();
-	}
-}
+	
+	FRHIRayTracingPipelineState* RayTracingPipelineState = GetRHIRayTracingPipelineState(Pipeline);
 
-#endif // RHI_RAYTRACING
-
-void FRHIResourceUpdateInfo::ReleaseRefs()
-{
-	switch (Type)
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (SBT == nullptr)
 	{
-	case UT_Buffer:
-		Buffer.DestBuffer->Release();
-		if (Buffer.SrcBuffer)
-		{
-			Buffer.SrcBuffer->Release();
-		}
-		break;
-	case UT_RayTracingGeometry:
-		RayTracingGeometry.DestGeometry->Release();
-		if (RayTracingGeometry.SrcGeometry)
-		{
-			RayTracingGeometry.SrcGeometry->Release();
-		}
-	default:
-		// Unrecognized type, do nothing
-		break;
+		SBT = Scene->FindOrCreateShaderBindingTable(RayTracingPipelineState);
 	}
-}
-
-FRHICommandUpdateRHIResources::~FRHICommandUpdateRHIResources()
-{
-	if (bNeedReleaseRefs)
-	{
-		for (int32 Idx = 0; Idx < Num; ++Idx)
-		{
-			UpdateInfos[Idx].ReleaseRefs();
-		}
-	}
-}
-
-void FRHICommandUpdateRHIResources::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(UpdateRHIResources);
-	for (int32 Idx = 0; Idx < Num; ++Idx)
-	{
-		FRHIResourceUpdateInfo& Info = UpdateInfos[Idx];
-		switch (Info.Type)
-		{
-		case FRHIResourceUpdateInfo::UT_Buffer:
-			GDynamicRHI->RHITransferBufferUnderlyingResource(
-				CmdList,
-				Info.Buffer.DestBuffer,
-				Info.Buffer.SrcBuffer);
-			break;
-#if RHI_RAYTRACING
-		case FRHIResourceUpdateInfo::UT_RayTracingGeometry:
-			GDynamicRHI->RHITransferRayTracingGeometryUnderlyingResource(
-				CmdList,
-				Info.RayTracingGeometry.DestGeometry,
-				Info.RayTracingGeometry.SrcGeometry);
-			break;
-#endif // RHI_RAYTRACING
-		default:
-			// Unrecognized type, do nothing
-			break;
-		}
-	}
-}
-
-void FRHICommandBeginScene::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(BeginScene);
-	INTERNAL_DECORATOR(RHIBeginScene)();
-}
-
-void FRHICommandEndScene::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(EndScene);
-	INTERNAL_DECORATOR(RHIEndScene)();
-}
-
-void FRHICommandBeginFrame::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(BeginFrame);
-	CmdList.GetAsImmediate().ProcessStats();
-	INTERNAL_DECORATOR(RHIBeginFrame)();
-}
-
-void FRHICommandEndFrame::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(EndFrame);
-	INTERNAL_DECORATOR(RHIEndFrame)();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		
+	INTERNAL_DECORATOR(RHISetBindingsOnShaderBindingTable)(SBT, RayTracingPipelineState, NumBindings, Bindings, BindingType);
 }
 
 void FRHICommandBeginDrawingViewport::Execute(FRHICommandListBase& CmdList)
@@ -652,32 +573,6 @@ void FRHICommandEndDrawingViewport::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(EndDrawingViewport);
 	INTERNAL_DECORATOR(RHIEndDrawingViewport)(Viewport, bPresent, bLockToVsync);
-}
-
-void FRHICommandPushEvent::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(PushEvent);
-	INTERNAL_DECORATOR_COMPUTE(RHIPushEvent)(Name, Color);
-}
-
-void FRHICommandPopEvent::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(PopEvent);
-	INTERNAL_DECORATOR_COMPUTE(RHIPopEvent)();
-}
-
-#if RHI_WANT_BREADCRUMB_EVENTS
-void FRHICommandSetBreadcrumbStackTop::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(RHISetBreadcrumbStackTop);
-	CmdList.Breadcrumbs.SetStackTop(Breadcrumb);
-}
-#endif
-
-void FRHICommandInvalidateCachedState::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(RHIInvalidateCachedState);
-	INTERNAL_DECORATOR(RHIInvalidateCachedState)();
 }
 
 void FRHICommandDiscardRenderTargets::Execute(FRHICommandListBase& CmdList)

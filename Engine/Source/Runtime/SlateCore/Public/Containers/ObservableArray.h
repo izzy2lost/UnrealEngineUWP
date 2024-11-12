@@ -331,13 +331,20 @@ public:
 		return RemoveSingleSwap(Item, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
-	void RemoveAt(SizeType Index)
+	void RemoveAt(SizeType Index, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
-		RemoveAt(Index, 1, EAllowShrinking::Yes);
-	}
+		check((Index >= 0) & (Index < Num()));
 
-	template <typename CountType>
-	void RemoveAt(SizeType Index, CountType NumToRemove = 1, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
+		ElementType RemovedElement = MoveTemp(Array[Index]);
+
+		Array.RemoveAt(Index, AllowShrinking);
+		ArrayChangedDelegate.Broadcast(ObservableArrayChangedArgsType::MakeRemoveAction({ &RemovedElement, 1 }, Index));
+	}
+	template <
+		typename CountType
+		UE_REQUIRES(std::is_integral_v<CountType>)
+	>
+	void RemoveAt(SizeType Index, CountType NumToRemove, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		static_assert(!std::is_same_v<CountType, bool>, "TObservableArray::RemoveAt: unexpected bool passed as the Count argument");
 		check((NumToRemove > 0) & (Index >= 0) & (Index + NumToRemove <= Num()));
@@ -371,13 +378,21 @@ public:
 		RemoveAt(Index, NumToRemove, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
-	void RemoveAtSwap(SizeType Index)
+	void RemoveAtSwap(SizeType Index, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
-		RemoveAtSwap(Index, 1, EAllowShrinking::Yes);
+		SizeType PreviousNum = Array.Num();
+		SizeType SwapAmount = FPlatformMath::Min(1, PreviousNum - (Index + 1));
+
+		ElementType RemovedElement = MoveTemp(Array[Index]);
+
+		Array.RemoveAtSwap(Index, AllowShrinking);
+		ArrayChangedDelegate.Broadcast(ObservableArrayChangedArgsType::MakeRemoveSwapAction({ &RemovedElement, 1 }, Index, PreviousNum - SwapAmount));
 	}
-	
-	template <typename CountType>
-	void RemoveAtSwap(SizeType Index, CountType NumToRemove = 1, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
+	template <
+		typename CountType
+		UE_REQUIRES(std::is_integral_v<CountType>)
+	>
+	void RemoveAtSwap(SizeType Index, CountType NumToRemove, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		static_assert(!std::is_same_v<CountType, bool>, "TObservableArray::RemoveAtSwap: unexpected bool passed as the Count argument");
 		check((NumToRemove > 0) & (Index >= 0) & (Index + NumToRemove <= Num()));

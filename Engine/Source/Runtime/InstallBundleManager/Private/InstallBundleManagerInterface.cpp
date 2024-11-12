@@ -5,6 +5,8 @@
 
 FInstallBundleManagerInitCompleteMultiDelegate IInstallBundleManager::InitCompleteDelegate;
 
+FInstallBundleChunkDownloadMetricsMultiDelegate IInstallBundleManager::InstallBundleChunkDownloadMetricsDelegate;
+
 FInstallBundleCompleteMultiDelegate IInstallBundleManager::InstallBundleCompleteDelegate;
 
 FInstallBundlePausedMultiDelegate IInstallBundleManager::PausedBundleDelegate;
@@ -48,7 +50,7 @@ TSharedPtr<IInstallBundleManager> IInstallBundleManager::GetPlatformInstallBundl
 	return {};
 }
 
-const TSharedPtr<IInstallBundleSource> IInstallBundleManager::GetBundleSource(EInstallBundleSourceType SourceType) const
+const TSharedPtr<IInstallBundleSource> IInstallBundleManager::GetBundleSource(FInstallBundleSourceType SourceType) const
 {
 	return {};
 }

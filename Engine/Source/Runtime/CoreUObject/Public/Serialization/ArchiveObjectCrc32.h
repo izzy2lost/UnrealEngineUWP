@@ -27,6 +27,7 @@ public:
 	* Default constructor.
 	*/
 	COREUOBJECT_API FArchiveObjectCrc32();
+	COREUOBJECT_API ~FArchiveObjectCrc32();
 
 	//~ Begin FArchive Interface
 	COREUOBJECT_API virtual void Serialize(void* Data, int64 Length);

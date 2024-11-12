@@ -11,6 +11,7 @@
 #include "RendererInterface.h"
 #include "RenderingThread.h"
 #include "TextureResource.h"
+#include "RenderGraphBuilder.h"
 #include "VT/RuntimeVirtualTexture.h"
 
 #if WITH_EDITOR
@@ -237,6 +238,47 @@ bool FMaterialRenderProxy::GetTextureValue(const FHashedMaterialParameterInfo& P
 		return true;
 	}
 	return false;
+}
+
+bool FMaterialRenderProxy::GetTextureCollectionValue(const FHashedMaterialParameterInfo& ParameterInfo, const UTextureCollection** OutValue, const FMaterialRenderContext& Context) const
+{
+	FMaterialParameterValue Value;
+	if (GetParameterValue(EMaterialParameterType::TextureCollection, ParameterInfo, Value, Context))
+	{
+		*OutValue = Value.TextureCollection;
+		return true;
+	}
+	return false;
+}
+
+FName FMaterialRenderProxy::GetUserSceneTextureOutput(const FMaterial* Base) const
+{
+	FName Result = NAME_None;
+
+	// Replacing tonemapper can't override output.
+	if (Base->GetBlendableLocation() != BL_ReplacingTonemapper)
+	{
+		// UserSceneTexture output overrides are stored under key "NAME_None".  We store them in the override lookup to save space
+		// in the base structure, by avoiding a separate field just for the output override.
+		if (!GetUserSceneTextureOverride(Result) && Base)
+		{
+			// If no override was found, get the result from the base material
+			Result = FName(Base->GetRenderingThreadShaderMap()->GetUserSceneTextureOutput());
+		}
+	}
+	return Result;
+}
+
+EBlendableLocation FMaterialRenderProxy::GetBlendableLocation(const FMaterial* Base) const
+{
+	check(Base);
+	return (EBlendableLocation)Base->GetBlendableLocation();
+}
+
+int32 FMaterialRenderProxy::GetBlendablePriority(const FMaterial* Base) const
+{
+	check(Base);
+	return Base->GetBlendablePriority();
 }
 
 static void OnVirtualTextureDestroyedCB(const FVirtualTextureProducerHandle& InHandle, void* Baton)
@@ -509,6 +551,9 @@ void FMaterialRenderProxy::InvalidateUniformExpressionCache(bool bRecreateUnifor
 {
 	GUniformExpressionCacheAsyncUpdateTask.Wait();
 
+	// Async RDG tasks can call FMaterialShader::SetParameters which touch the material uniform expression cache.
+	FRDGBuilder::WaitForAsyncExecuteTask();
+
 #if WITH_EDITOR
 	FStaticLightingSystemInterface::OnMaterialInvalidated.Broadcast(this);
 #endif
@@ -537,7 +582,7 @@ void FMaterialRenderProxy::InvalidateUniformExpressionCache(bool bRecreateUnifor
 	}
 }
 
-void FMaterialRenderProxy::UpdateUniformExpressionCacheIfNeeded(FRHICommandListBase& RHICmdList, ERHIFeatureLevel::Type InFeatureLevel) const
+const FMaterial* FMaterialRenderProxy::UpdateUniformExpressionCacheIfNeeded(FRHICommandListBase& RHICmdList, ERHIFeatureLevel::Type InFeatureLevel) const
 {
 	// Don't cache uniform expressions if an entirely different FMaterialRenderProxy is going to be used for rendering
 	const FMaterial* Material = GetMaterialNoFallback(InFeatureLevel);
@@ -546,10 +591,14 @@ void FMaterialRenderProxy::UpdateUniformExpressionCacheIfNeeded(FRHICommandListB
 	UE::TScopeLock Lock(Mutex);
 	if (Material && Material->GetRenderingThreadShaderMap() != UniformExpressionCache[InFeatureLevel].CachedUniformExpressionShaderMap)
 	{
+		// Async RDG tasks can call FMaterialShader::SetParameters which touch the material uniform expression cache.
+		FRDGBuilder::WaitForAsyncExecuteTask();
 		FMaterialRenderContext MaterialRenderContext(this, *Material, nullptr);
 		MaterialRenderContext.bShowSelection = GIsEditor;
 		EvaluateUniformExpressions(RHICmdList, UniformExpressionCache[InFeatureLevel], MaterialRenderContext, nullptr);
 	}
+
+	return Material;
 }
 
 void FMaterialRenderProxy::UpdateUniformExpressionCacheIfNeeded(ERHIFeatureLevel::Type InFeatureLevel) const

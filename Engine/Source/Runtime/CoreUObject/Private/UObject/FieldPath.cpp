@@ -191,7 +191,7 @@ UStruct* FFieldPath::TryToResolveOwnerFromLinker(FLinkerLoad* InLinker) const
 {
 	UStruct* OwnerStruct = nullptr;
 	check(InLinker);
-	FUObjectSerializeContext* Context = InLinker->GetSerializeContext();
+	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
 	if (Context && Context->SerializedObject && Context->SerializedObject->IsA<UStruct>())
 	{
 		TArray<FName> StructPath;
@@ -263,18 +263,14 @@ FField* FFieldPath::TryToResolvePath(UStruct* InCurrentStruct, FFieldPath::EPath
 		Owner = TryToResolveOwnerFromStruct(InCurrentStruct, InResolveType);
 	}
 	// At this point the owner should've been fully resolved
-	if (Owner && Path.Num())
+	if (Owner && Path.Num() > 0)
 	{
 		int32 PathIndex = Path.Num() - 1;
-		check(PathIndex <= 1);
-		Result = FindFProperty<FField>(Owner, Path[PathIndex]);
-		if (Result)
+		Result = FindFProperty<FField>(Owner, Path[PathIndex--]);
+		while (Result && PathIndex >= 0)
 		{
-			if (PathIndex > 0)
-			{
-				// Nested property
-				Result = Result->GetInnerFieldByName(Path[0]);
-			}
+			// Nested property
+			Result = Result->GetInnerFieldByName(Path[PathIndex--]);
 		}
 	}
 	return Result;

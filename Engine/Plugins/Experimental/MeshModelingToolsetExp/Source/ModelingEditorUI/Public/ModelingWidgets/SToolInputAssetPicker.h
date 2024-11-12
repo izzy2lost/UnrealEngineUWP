@@ -12,7 +12,7 @@
 #include "IContentBrowserSingleton.h"
 #include "SourcesData.h"
 
-class FFrontendFilter_Text;
+class FAssetTextFilter;
 class FUICommandList;
 class SAssetSearchBox;
 class SAssetView;
@@ -118,7 +118,7 @@ private:
 
 	/** Filters needed for filtering the assets */
 	TSharedPtr< FAssetFilterCollectionType > FilterCollection;
-	TSharedPtr< FFrontendFilter_Text > TextFilter;
+	TSharedPtr<FAssetTextFilter> TextFilter;
 
 	EAssetTypeCategories::Type DefaultFilterMenuExpansion;
 

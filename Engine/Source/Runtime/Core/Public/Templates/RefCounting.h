@@ -12,6 +12,7 @@
 #include "Serialization/Archive.h"
 #include "Serialization/MemoryLayout.h"
 #include "Templates/TypeHash.h"
+#include "Templates/Requires.h"
 #include <atomic>
 #include <type_traits>
 
@@ -253,11 +254,11 @@ public:
 
 			uint32 Count = 0;
 
-			UE_AUTORTFM_OPEN(
+			UE_AUTORTFM_OPEN
 			{
 				// This reference count may be accessed by multiple threads
 				Count = RefCount.load(std::memory_order_relaxed);
-			});
+			};
 
 			return Count;
 		}

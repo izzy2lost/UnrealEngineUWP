@@ -13,6 +13,7 @@
 class FComputePipelineState;
 class FGraphicsPipelineState;
 class FRayTracingPipelineState;
+class FWorkGraphPipelineState;
 
 // Utility flags for modifying render target behavior on a PSO
 enum class EApplyRendertargetOption : int
@@ -23,6 +24,16 @@ enum class EApplyRendertargetOption : int
 };
 
 ENUM_CLASS_FLAGS(EApplyRendertargetOption);
+
+/**
+ * PSO Precache request priority
+ */
+enum class EPSOPrecachePriority : uint8
+{
+	Medium,
+	High,
+	Highest,
+};
 
 enum class ERayTracingPipelineCacheFlags : uint8
 {
@@ -49,6 +60,8 @@ enum class EPSOPrecacheResult
 	NotSupported,		//< PSO precache not supported (VertexFactory or MeshPassProcessor doesn't support/implement precaching)
 	Untracked,			//< PSO is not tracked at all (Global shader or not coming from MeshDrawCommands)
 };
+
+extern RHI_API const TCHAR* LexToString(EPSOPrecacheResult Result);
 
 // Unique request ID of PSOPrecache which can be used to boost the priority of a PSO precache requests if it's needed for rendering
 struct FPSOPrecacheRequestID
@@ -97,24 +110,23 @@ struct FPSOPrecacheRequestResult
 	FGraphEventRef AsyncCompileEvent;
 };
 
-extern RHI_API void SetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader, EPSOPrecacheResult PSOPrecacheResult = EPSOPrecacheResult::Untracked);
-extern RHI_API void SetGraphicsPipelineState(FRHICommandList& RHICmdList, const FGraphicsPipelineStateInitializer& Initializer, uint32 StencilRef, EApplyRendertargetOption ApplyFlags = EApplyRendertargetOption::CheckApply, bool bApplyAdditionalState = true, EPSOPrecacheResult PSOPrecacheResult = EPSOPrecacheResult::Untracked);
-
-UE_DEPRECATED(5.0, "SetGraphicsPipelineState now requires a StencilRef argument and EApplyRendertargetOption::ForceApply will soon be removed")
-inline void SetGraphicsPipelineState(FRHICommandList& RHICmdList, const FGraphicsPipelineStateInitializer& Initializer, EApplyRendertargetOption ApplyFlags = EApplyRendertargetOption::CheckApply, bool bApplyAdditionalState = true)
-{
-	SetGraphicsPipelineState(RHICmdList, Initializer, 0, ApplyFlags, bApplyAdditionalState);
-}
+extern RHI_API void SetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader);
+extern RHI_API void SetGraphicsPipelineStateCheckApply(FRHICommandList& RHICmdList, const FGraphicsPipelineStateInitializer& Initializer, uint32 StencilRef, bool bApplyAdditionalState = true);
+extern RHI_API void SetGraphicsPipelineState(FRHICommandList& RHICmdList, const FGraphicsPipelineStateInitializer& Initializer, uint32 StencilRef, EApplyRendertargetOption ApplyFlags = EApplyRendertargetOption::CheckApply, bool bApplyAdditionalState = true);
 
 namespace PipelineStateCache
 {
 	extern RHI_API uint64					RetrieveGraphicsPipelineStateSortKey(const FGraphicsPipelineState* GraphicsPipelineState);
 
-	extern RHI_API FComputePipelineState*	GetAndOrCreateComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader, bool bFromFileCache, EPSOPrecacheResult PSOPrecacheResult);
+	extern RHI_API FComputePipelineState*	GetAndOrCreateComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader, bool bFromFileCache);
 
-	extern RHI_API FGraphicsPipelineState*	GetAndOrCreateGraphicsPipelineState(FRHICommandList& RHICmdList, const FGraphicsPipelineStateInitializer& OriginalInitializer, EApplyRendertargetOption ApplyFlags, EPSOPrecacheResult PSOPrecacheResult);
+	extern RHI_API FWorkGraphPipelineState* GetAndOrCreateWorkGraphPipelineState(FRHIComputeCommandList& RHICmdList, const FWorkGraphPipelineStateInitializer& Initializer);
+
+	extern RHI_API FGraphicsPipelineState*	GetAndOrCreateGraphicsPipelineState(FRHICommandList& RHICmdList, const FGraphicsPipelineStateInitializer& OriginalInitializer, EApplyRendertargetOption ApplyFlags);
 
 	extern RHI_API FComputePipelineState*	FindComputePipelineState(FRHIComputeShader* ComputeShader, bool bVerifyUse = true);
+
+	extern RHI_API FWorkGraphPipelineState*	FindWorkGraphPipelineState(const FWorkGraphPipelineStateInitializer& Initializer, bool bVerifyUse = true);
 
 	extern RHI_API FGraphicsPipelineState*	FindGraphicsPipelineState(const FGraphicsPipelineStateInitializer& Initializer, bool bVerifyUse = true);
 
@@ -135,6 +147,12 @@ namespace PipelineStateCache
 
 	extern RHI_API void ReportFrameHitchToCSV();
 
+	// Waits for any pending tasks to complete.
+	extern RHI_API void WaitForAllTasks();
+
+	// Initializes any required component.
+	extern RHI_API void Init();
+
 	/* Clears all pipeline cached state. Called on shutdown, calling GetAndOrCreate after this will recreate state */
 	extern RHI_API void Shutdown();
 
@@ -148,7 +166,7 @@ namespace PipelineStateCache
 	extern RHI_API bool						IsPSOPrecachingEnabled();
 
 	/* Precache the compute shader and return a request ID if precached async */
-	extern RHI_API FPSOPrecacheRequestResult PrecacheComputePipelineState(FRHIComputeShader* ComputeShader, bool bForcePrecache = false);
+	extern RHI_API FPSOPrecacheRequestResult PrecacheComputePipelineState(FRHIComputeShader* ComputeShader, const TCHAR* Name = nullptr, bool bForcePrecache = false);
 
 	/* Precache the graphic PSO and return an optional graph event if precached async */
 	extern RHI_API FPSOPrecacheRequestResult PrecacheGraphicsPipelineState(const FGraphicsPipelineStateInitializer& PipelineStateInitializer);
@@ -172,10 +190,16 @@ namespace PipelineStateCache
 	extern RHI_API bool						IsPrecaching();
 
 	/* Boost the priority of the given PSO request ID */
-	extern RHI_API void						BoostPrecachePriority(const FPSOPrecacheRequestID& PSOPrecacheRequestID);
+	extern RHI_API void						BoostPrecachePriority(EPSOPrecachePriority PSOPrecachePriority, const FPSOPrecacheRequestID& PSOPrecacheRequestID);
 
 	/* Return number of active or pending PSO precache requests */
 	extern RHI_API uint32					NumActivePrecacheRequests();
+
+	/* Set all subsequent high priority requests to highest priority, useful in non-interactive scenarios where maximum PSO throughput is preferable. */
+	extern RHI_API void						PrecachePSOsBoostToHighestPriority(bool bForceHighest);
+
+	/* Reset the PSO hitch tracking counters */
+	extern RHI_API void						ResetPSOHitchTrackingStats();
 }
 
 // Returns the shader index within the ray tracing pipeline or INDEX_NONE if given shader does not exist.

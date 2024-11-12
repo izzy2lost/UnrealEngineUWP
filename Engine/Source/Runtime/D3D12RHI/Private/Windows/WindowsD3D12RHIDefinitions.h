@@ -2,6 +2,10 @@
 
 #pragma once
 
+#include "D3D12ThirdParty.h"
+
+constexpr uint32 GD3D12RHINumBackBuffers = 3;
+
 // Windows uses the graphics command list interface for the copy queue.
 typedef ID3D12GraphicsCommandList ID3D12CopyCommandList;
 
@@ -22,7 +26,10 @@ typedef ID3D12GraphicsCommandList ID3D12CopyCommandList;
 
 #define USE_STATIC_ROOT_SIGNATURE			0
 #define D3D12RHI_USE_CONSTANT_BUFFER_VIEWS	0
-#define D3D12_USE_DUMMY_BACKBUFFER			1
+#define D3D12RHI_USE_DUMMY_BACKBUFFER		1
+#define D3D12RHI_USE_SDR_BACKBUFFER			0
+#define D3D12RHI_SUPPORTS_UAV_BACKBUFFER	0
+#define D3D12RHI_USE_DXGI_COLOR_SPACE		1
 
 // Only enable pipeline statistics if we've got the stats system enabled to display them
 #define D3D12RHI_ENABLE_PIPELINE_STATISTICS (1 && STATS)

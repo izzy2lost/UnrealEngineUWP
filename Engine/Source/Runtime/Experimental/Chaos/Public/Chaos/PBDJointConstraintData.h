@@ -14,17 +14,19 @@ namespace Chaos
 
 	enum class EJointConstraintFlags : uint64_t
 	{
-		JointTransforms             = static_cast<uint64_t>(1) << 0,
-		CollisionEnabled            = static_cast<uint64_t>(1) << 1,
-		Projection                  = static_cast<uint64_t>(1) << 2,
-		ParentInvMassScale          = static_cast<uint64_t>(1) << 3,
-		LinearBreakForce            = static_cast<uint64_t>(1) << 4,
-		AngularBreakTorque          = static_cast<uint64_t>(1) << 5,
-		UserData                    = static_cast<uint64_t>(1) << 6,
-		LinearDrive                 = static_cast<uint64_t>(1) << 7,
-		AngularDrive                = static_cast<uint64_t>(1) << 8,
-		Stiffness                   = static_cast<uint64_t>(1) << 9,
-		Limits                      = static_cast<uint64_t>(1) << 10,
+		JointTransforms                     = static_cast<uint64_t>(1) << 0,
+		CollisionEnabled                    = static_cast<uint64_t>(1) << 1,
+		Projection                          = static_cast<uint64_t>(1) << 2,
+		ParentInvMassScale                  = static_cast<uint64_t>(1) << 3,
+		LinearBreakForce                    = static_cast<uint64_t>(1) << 4,
+		AngularBreakTorque                  = static_cast<uint64_t>(1) << 5,
+		UserData                            = static_cast<uint64_t>(1) << 6,
+		LinearDrive                         = static_cast<uint64_t>(1) << 7,
+		AngularDrive                        = static_cast<uint64_t>(1) << 8,
+		Stiffness                           = static_cast<uint64_t>(1) << 9,
+		Limits                              = static_cast<uint64_t>(1) << 10,
+		LinearViolationCallbackThreshold    = static_cast<uint64_t>(1) << 11,
+		AngularViolationCallbackThreshold   = static_cast<uint64_t>(1) << 12,
 
 		DummyFlag
 	};
@@ -66,6 +68,9 @@ namespace Chaos
 			bool bDriveTargetChanged = false;
 			FVector Force = FVector(0);
 			FVector Torque = FVector(0);
+			bool bIsViolating = false;
+			float LinearViolation = 0.f;
+			float AngularViolation = 0.f;
 		};
 		FOutputData& GetOutputData() { return Output; }
 

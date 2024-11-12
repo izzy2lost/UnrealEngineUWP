@@ -11,7 +11,6 @@
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "MVVM/SharedViewModelData.h"
 #include "MVVM/Selection/Selection.h"
-
 #include "CurveEditor.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/Commands/UIAction.h"
@@ -29,6 +28,13 @@
 #include "Tree/SCurveEditorTreeSelect.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SSpacer.h"
+#include "SequencerCommonHelpers.h"
+#include "MVVM/ViewModels/TrackRowModel.h"
+#include "PropertyEditorModule.h"
+#include "IStructureDetailsView.h"
+#include "IStructureDataProvider.h"
+#include "Conditions/MovieSceneConditionCustomization.h"
+#include "Conditions/MovieSceneDirectorBlueprintConditionCustomization.h"
 
 #define LOCTEXT_NAMESPACE "OutlinerItemModel"
 
@@ -37,94 +43,121 @@ namespace UE
 namespace Sequencer
 {
 
-static bool NodeMatchesTextFilterTerm(TSharedPtr<const UE::Sequencer::IOutlinerExtension> Node, const FCurveEditorTreeTextFilterTerm& Term)
+static bool NodeMatchesTextFilterTerm(TViewModelPtr<const UE::Sequencer::IOutlinerExtension> Node, const FCurveEditorTreeTextFilterTerm& Term)
 {
 	using namespace UE::Sequencer;
 
-	bool bMatched = false;
+	FCurveEditorTreeTextFilterTerm::FMatchResult Match(Term.ChildToParentTokens);
 
-	for (const FCurveEditorTreeTextFilterToken& Token : Term.ChildToParentTokens)
+	while (Node && Match.IsPartialMatch())
 	{
-		if (!Node)
+		FCurveEditorTreeTextFilterTerm::FMatchResult NewMatch = Match.Match(Node->GetLabel().ToString());
+		if (NewMatch.IsAnyMatch())
 		{
-			// No match - ran out of parents
-			return false;
+			// If we matched, keep searching parents using the remaining match result
+			Match = NewMatch;
 		}
-		else if (!Token.Match(*Node->GetIdentifier().ToString()))
-		{
-			return false;
-		}
-
-		bMatched = true;
-		//Node = Node->GetParent();
-		break;
+		Node = Node.AsModel()->FindAncestorOfType<const IOutlinerExtension>();
 	}
 
-	return bMatched;
+	return Match.IsTotalMatch();
 }
 
-void AddEvalOptionsPropertyMenuItem(FMenuBuilder& MenuBuilder, FCanExecuteAction InCanExecute, const TArray<UMovieSceneTrack*>& AllTracks, const FBoolProperty* Property, TFunction<bool(UMovieSceneTrack*)> Validator = nullptr)
+void FOutlinerItemModelMixin::AddEvalOptionsPropertyMenuItem(FMenuBuilder& InMenuBuilder, const FBoolProperty* InProperty, TFunction<bool(UMovieSceneTrack*)> InValidator)
 {
-	bool bIsChecked = AllTracks.ContainsByPredicate(
-		[=](UMovieSceneTrack* InTrack)
-		{
-			return (!Validator || Validator(InTrack)) && Property->GetPropertyValue(Property->ContainerPtrToValuePtr<void>(&InTrack->EvalOptions));
-		});
+	auto IsChecked = [InProperty, InValidator](const TArray<UMovieSceneTrack*>& InTracks) -> bool
+	{
+		return InTracks.ContainsByPredicate(
+			[InValidator, InProperty](UMovieSceneTrack* InTrack)
+			{
+				return (!InValidator || InValidator(InTrack)) && InProperty->GetPropertyValue(InProperty->ContainerPtrToValuePtr<void>(&InTrack->EvalOptions));
+			});
+	};
 
-	MenuBuilder.AddMenuEntry(
-		Property->GetDisplayNameText(),
-		Property->GetToolTipText(),
+	InMenuBuilder.AddMenuEntry(
+		InProperty->GetDisplayNameText(),
+		InProperty->GetToolTipText(),
 		FSlateIcon(),
 		FUIAction(
-			FExecuteAction::CreateLambda([AllTracks, Property, Validator, bIsChecked]{
-				FScopedTransaction Transaction(FText::Format(NSLOCTEXT("Sequencer", "TrackNodeSetRoundEvaluation", "Set '{0}'"), Property->GetDisplayNameText()));
+			FExecuteAction::CreateLambda([this, InProperty, InValidator, IsChecked]
+			{
+				FScopedTransaction Transaction(FText::Format(NSLOCTEXT("Sequencer", "TrackNodeSetRoundEvaluation", "Set '{0}'"), InProperty->GetDisplayNameText()));
+				const TArray<UMovieSceneTrack*> AllTracks = GetSelectedTracks();
 				for (UMovieSceneTrack* Track : AllTracks)
 				{
-					if (Validator && !Validator(Track))
+					if (InValidator && !InValidator(Track))
 					{
 						continue;
 					}
-					void* PropertyContainer = Property->ContainerPtrToValuePtr<void>(&Track->EvalOptions);
+					void* PropertyContainer = InProperty->ContainerPtrToValuePtr<void>(&Track->EvalOptions);
 					Track->Modify();
-					Property->SetPropertyValue(PropertyContainer, !bIsChecked);
+					InProperty->SetPropertyValue(PropertyContainer, !IsChecked(AllTracks));
 				}
 			}),
-			InCanExecute,
-			FIsActionChecked::CreateLambda([=]{ return bIsChecked; })
+			FCanExecuteAction::CreateLambda([this]
+			{
+				const TSharedPtr<FSequencer> Sequencer = GetEditor()->GetSequencerImpl();
+				if (Sequencer)
+				{
+					return !Sequencer->IsReadOnly();
+				}
+				return false;
+			}),
+			FIsActionChecked::CreateLambda([this, IsChecked]
+			{
+				const TArray<UMovieSceneTrack*> AllTracks = GetSelectedTracks();
+				return IsChecked(AllTracks);
+			})
 		),
 		NAME_None,
 		EUserInterfaceActionType::Check
 	);
 }
 
-void AddDisplayOptionsPropertyMenuItem(FMenuBuilder& MenuBuilder, FCanExecuteAction InCanExecute, const TArray<UMovieSceneTrack*>& AllTracks, const FBoolProperty* Property, TFunction<bool(UMovieSceneTrack*)> Validator = nullptr)
+void FOutlinerItemModelMixin::AddDisplayOptionsPropertyMenuItem(FMenuBuilder& InMenuBuilder, const FBoolProperty* InProperty, TFunction<bool(UMovieSceneTrack*)> InValidator)
 {
-	bool bIsChecked = AllTracks.ContainsByPredicate(
-		[=](UMovieSceneTrack* InTrack)
+	auto IsChecked = [InProperty, InValidator](const TArray<UMovieSceneTrack*>& InTracks) -> bool
 	{
-		return (!Validator || Validator(InTrack)) && Property->GetPropertyValue(Property->ContainerPtrToValuePtr<void>(&InTrack->DisplayOptions));
-	});
+		return InTracks.ContainsByPredicate(
+			[InValidator, InProperty](UMovieSceneTrack* InTrack)
+			{
+				return (!InValidator || InValidator(InTrack)) && InProperty->GetPropertyValue(InProperty->ContainerPtrToValuePtr<void>(&InTrack->DisplayOptions));
+			});
+	};
 
-	MenuBuilder.AddMenuEntry(
-		Property->GetDisplayNameText(),
-		Property->GetToolTipText(),
+	InMenuBuilder.AddMenuEntry(
+		InProperty->GetDisplayNameText(),
+		InProperty->GetToolTipText(),
 		FSlateIcon(),
 		FUIAction(
-			FExecuteAction::CreateLambda([AllTracks, Property, Validator, bIsChecked] {
-				FScopedTransaction Transaction(FText::Format(NSLOCTEXT("Sequencer", "TrackNodeSetDisplayOption", "Set '{0}'"), Property->GetDisplayNameText()));
+			FExecuteAction::CreateLambda([this, InProperty, InValidator, IsChecked] {
+				FScopedTransaction Transaction(FText::Format(NSLOCTEXT("Sequencer", "TrackNodeSetDisplayOption", "Set '{0}'"), InProperty->GetDisplayNameText()));
+				const TArray<UMovieSceneTrack*> AllTracks = GetSelectedTracks();
 				for (UMovieSceneTrack* Track : AllTracks)
 				{
-					if (Validator && !Validator(Track))
+					if (InValidator && !InValidator(Track))
 					{
 						continue;
 					}
-					void* PropertyContainer = Property->ContainerPtrToValuePtr<void>(&Track->DisplayOptions);
+					void* PropertyContainer = InProperty->ContainerPtrToValuePtr<void>(&Track->DisplayOptions);
 					Track->Modify();
-					Property->SetPropertyValue(PropertyContainer, !bIsChecked);
+					InProperty->SetPropertyValue(PropertyContainer, !IsChecked(AllTracks));
 				}
 			}),
-			InCanExecute,
-			FIsActionChecked::CreateLambda([=] { return bIsChecked; })
+			FCanExecuteAction::CreateLambda([this]
+			{
+				const TSharedPtr<FSequencer> Sequencer = GetEditor()->GetSequencerImpl();
+				if (Sequencer)
+				{
+					return !Sequencer->IsReadOnly();
+				}
+				return false;
+			}),
+			FIsActionChecked::CreateLambda([this, IsChecked]
+			{
+				const TArray<UMovieSceneTrack*> AllTracks = GetSelectedTracks();
+				return IsChecked(AllTracks);
+			})
 		),
 		NAME_None,
 		EUserInterfaceActionType::Check
@@ -535,78 +568,42 @@ void FOutlinerItemModelMixin::BuildContextMenu(FMenuBuilder& MenuBuilder)
 	}
 	MenuBuilder.EndSection();
 
-	TArray<UMovieSceneTrack*> AllTracks;
-	for (TViewModelPtr<ITrackExtension> TrackExtension : Sequencer->GetViewModel()->GetSelection()->Outliner.Filter<ITrackExtension>())
-	{
-		UMovieSceneTrack* Track = TrackExtension->GetTrack();
-		if (Track)
-		{
-			AllTracks.Add(Track);
-		}
-	}
-
 	MenuBuilder.BeginSection("Organize", LOCTEXT("OrganizeContextMenuSectionName", "Organize"));
 	BuildOrganizeContextMenu(MenuBuilder);
 	MenuBuilder.EndSection();
 
+	const TArray<UMovieSceneTrack*> AllTracks = GetSelectedTracks();
 	if (AllTracks.Num())
 	{
-		MenuBuilder.BeginSection("GeneralTrackOptions", NSLOCTEXT("Sequencer", "TrackNodeGeneralOptions", "Track Options"));
-		{
-			UStruct* EvalOptionsStruct = FMovieSceneTrackEvalOptions::StaticStruct();
-
-			const FBoolProperty* NearestSectionProperty = CastField<FBoolProperty>(EvalOptionsStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FMovieSceneTrackEvalOptions, bEvalNearestSection)));
-			auto CanEvaluateNearest = [](UMovieSceneTrack* InTrack) { return InTrack->EvalOptions.bCanEvaluateNearestSection != 0; };
-			if (NearestSectionProperty && AllTracks.ContainsByPredicate(CanEvaluateNearest))
-			{
-				TFunction<bool(UMovieSceneTrack*)> Validator = CanEvaluateNearest;
-				AddEvalOptionsPropertyMenuItem(MenuBuilder, CanExecute, AllTracks, NearestSectionProperty, Validator);
-			}
-
-			const FBoolProperty* PrerollProperty = CastField<FBoolProperty>(EvalOptionsStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FMovieSceneTrackEvalOptions, bEvaluateInPreroll)));
-			if (PrerollProperty)
-			{
-				AddEvalOptionsPropertyMenuItem(MenuBuilder, CanExecute, AllTracks, PrerollProperty);
-			}
-
-			const FBoolProperty* PostrollProperty = CastField<FBoolProperty>(EvalOptionsStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FMovieSceneTrackEvalOptions, bEvaluateInPostroll)));
-			if (PostrollProperty)
-			{
-				AddEvalOptionsPropertyMenuItem(MenuBuilder, CanExecute, AllTracks, PostrollProperty);
-			}
-		}
-		MenuBuilder.EndSection();
-
-		MenuBuilder.BeginSection("TrackDisplayOptions", NSLOCTEXT("Sequencer", "TrackNodeDisplayOptions", "Display Options"));
-		{
-			MenuBuilder.AddSubMenu(
-				LOCTEXT("SetColorTint", "Set Color Tint"),
-				LOCTEXT("SetColorTintTooltip", "Set color tint from the preferences for the selected sections or the track's sections"),
-				FNewMenuDelegate::CreateSP(SharedThis, &FOutlinerItemModelMixin::BuildSectionColorTintsContextMenu));
-
-			UStruct* DisplayOptionsStruct = FMovieSceneTrackDisplayOptions::StaticStruct();
-
-			const FBoolProperty* ShowVerticalFramesProperty = CastField<FBoolProperty>(DisplayOptionsStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FMovieSceneTrackDisplayOptions, bShowVerticalFrames)));
-			if (ShowVerticalFramesProperty)
-			{
-				AddDisplayOptionsPropertyMenuItem(MenuBuilder, CanExecute, AllTracks, ShowVerticalFramesProperty);
-			}
-		}
-		MenuBuilder.EndSection();
+		BuildTrackOptionsMenu(MenuBuilder, AllTracks);
+		BuildTrackRowOptionsMenu(MenuBuilder);
+		BuildDisplayOptionsMenu(MenuBuilder);
 	}
 }
 
 void FOutlinerItemModelMixin::BuildOrganizeContextMenu(FMenuBuilder& MenuBuilder)
 {
+	const TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	if (!EditorViewModel.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<FSequencer> Sequencer = EditorViewModel->GetSequencerImpl();
+	if (!Sequencer.IsValid())
+	{
+		return;
+	}
+
+	FSequencer* const SequencerRaw = Sequencer.Get();
 	TSharedRef<FViewModel> ThisNode = AsViewModel()->AsShared();
-	TSharedPtr<FSequencer> Sequencer = GetEditor()->GetSequencerImpl();
 
 	const bool bFilterableNode = (ThisNode->IsA<ITrackExtension>() || ThisNode->IsA<IObjectBindingExtension>() || ThisNode->IsA<FFolderModel>());
 	const bool bIsReadOnly = Sequencer->IsReadOnly();
 	
 	TArray<UMovieSceneTrack*> AllTracks;
 	TArray<TSharedPtr<FViewModel> > DraggableNodes;
-	for (FViewModelPtr Node : Sequencer->GetViewModel()->GetSelection()->Outliner)
+	for (const FViewModelPtr Node : EditorViewModel->GetSelection()->Outliner)
 	{
 		if (ITrackExtension* TrackExtension = Node->CastThis<ITrackExtension>())
 		{
@@ -631,8 +628,7 @@ void FOutlinerItemModelMixin::BuildOrganizeContextMenu(FMenuBuilder& MenuBuilder
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("AddNodesToNodeGroup", "Add to Group"),
 			LOCTEXT("AddNodesToNodeGroupTooltip", "Add selected nodes to a group"),
-			FNewMenuDelegate::CreateSP(Sequencer.Get(), &FSequencer::BuildAddSelectedToNodeGroupMenu));
-
+			FNewMenuDelegate::CreateSP(SequencerRaw, &FSequencer::BuildAddSelectedToNodeGroupMenu));
 	}
 
 	if (DraggableNodes.Num() && !bIsReadOnly)
@@ -640,68 +636,300 @@ void FOutlinerItemModelMixin::BuildOrganizeContextMenu(FMenuBuilder& MenuBuilder
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("MoveToFolder", "Move to Folder"),
 			LOCTEXT("MoveToFolderTooltip", "Move the selected nodes to a folder"),
-			FNewMenuDelegate::CreateSP(Sequencer.Get(), &FSequencer::BuildAddSelectedToFolderMenu));
+			FNewMenuDelegate::CreateSP(SequencerRaw, &FSequencer::BuildAddSelectedToFolderMenu));
 
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("RemoveFromFolder", "Remove from Folder"),
 			LOCTEXT("RemoveFromFolderTooltip", "Remove selected nodes from their folders"),
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateSP(Sequencer.Get(), &FSequencer::RemoveSelectedNodesFromFolders),
-				FCanExecuteAction::CreateLambda( [Sequencer] { return Sequencer->GetSelectedNodesInFolders().Num() > 0; } )));
+				FExecuteAction::CreateSP(SequencerRaw, &FSequencer::RemoveSelectedNodesFromFolders),
+				FCanExecuteAction::CreateLambda([SequencerRaw] { return SequencerRaw->GetSelectedNodesInFolders().Num() > 0; } )));
 	}
 }
 
-void FOutlinerItemModelMixin::BuildSectionColorTintsContextMenu(FMenuBuilder& MenuBuilder)
+void FOutlinerItemModelMixin::BuildDisplayOptionsMenu(FMenuBuilder& MenuBuilder)
 {
-	TSharedPtr<FSequencer> Sequencer = GetEditor()->GetSequencerImpl();
-	TSharedPtr<FSequencerSelection> Selection = Sequencer->GetViewModel()->GetSelection();
-
-	TArray<UMovieSceneSection*> Sections;
-	for (TViewModelPtr<FSectionModel> SectionModel : Selection->Outliner.Filter<FSectionModel>())
+	const TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	if (!EditorViewModel.IsValid())
 	{
-		if (UMovieSceneSection* Section = SectionModel->GetSection())
+		return;
+	}
+
+	const TSharedPtr<ISequencer> Sequencer = EditorViewModel->GetSequencer();
+	if (!Sequencer.IsValid())
+	{
+		return;
+	}
+
+	const TSharedRef<FOutlinerItemModelMixin> SharedThis(AsViewModel()->AsShared(), this);
+
+	const bool bIsReadOnly = Sequencer->IsReadOnly();
+	const FCanExecuteAction CanExecute = FCanExecuteAction::CreateLambda([bIsReadOnly]{ return !bIsReadOnly; });
+
+	TArray<UMovieSceneTrack*> AllTracks = GetSelectedTracks();
+	if (AllTracks.IsEmpty())
+	{
+		return;
+	}
+
+	MenuBuilder.BeginSection(TEXT("TrackDisplayOptions"), LOCTEXT("TrackNodeDisplayOptions", "Display Options"));
+	{
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("SetColorTint", "Set Color Tint"),
+			LOCTEXT("SetColorTintTooltip", "Set color tint from the preferences for the selected sections or the track's sections"),
+			FNewMenuDelegate::CreateSP(SharedThis, &FOutlinerItemModelMixin::BuildSectionColorTintsMenu));
+
+		UStruct* const DisplayOptionsStruct = FMovieSceneTrackDisplayOptions::StaticStruct();
+
+		const FBoolProperty* const ShowVerticalFramesProperty = CastField<FBoolProperty>(DisplayOptionsStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FMovieSceneTrackDisplayOptions, bShowVerticalFrames)));
+		if (ShowVerticalFramesProperty)
+		{
+			AddDisplayOptionsPropertyMenuItem(MenuBuilder, ShowVerticalFramesProperty);
+		}
+	}
+	MenuBuilder.EndSection();
+}
+
+void FOutlinerItemModelMixin::BuildTrackOptionsMenu(FMenuBuilder& MenuBuilder, const TArray<UMovieSceneTrack*>& InTracks)
+{
+	if (InTracks.IsEmpty())
+	{
+		return;
+	}
+	
+	MenuBuilder.BeginSection(TEXT("GeneralTrackOptions"), LOCTEXT("TrackNodeGeneralOptions", "Track Options"));
+	{
+		UStruct* const EvalOptionsStruct = FMovieSceneTrackEvalOptions::StaticStruct();
+
+		const FBoolProperty* const NearestSectionProperty = CastField<FBoolProperty>(EvalOptionsStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FMovieSceneTrackEvalOptions, bEvalNearestSection)));
+		auto CanEvaluateNearest = [](const UMovieSceneTrack* const InTrack) { return InTrack->EvalOptions.bCanEvaluateNearestSection != 0; };
+		if (NearestSectionProperty && InTracks.ContainsByPredicate(CanEvaluateNearest))
+		{
+			TFunction<bool(UMovieSceneTrack*)> Validator = CanEvaluateNearest;
+			AddEvalOptionsPropertyMenuItem(MenuBuilder, NearestSectionProperty, Validator);
+		}
+
+		const FBoolProperty* const PrerollProperty = CastField<FBoolProperty>(EvalOptionsStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FMovieSceneTrackEvalOptions, bEvaluateInPreroll)));
+		if (PrerollProperty)
+		{
+			AddEvalOptionsPropertyMenuItem(MenuBuilder, PrerollProperty);
+		}
+
+		const FBoolProperty* const PostrollProperty = CastField<FBoolProperty>(EvalOptionsStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FMovieSceneTrackEvalOptions, bEvaluateInPostroll)));
+		if (PostrollProperty)
+		{
+			AddEvalOptionsPropertyMenuItem(MenuBuilder, PostrollProperty);
+		}
+	}
+	MenuBuilder.EndSection();
+}
+
+void FOutlinerItemModelMixin::BuildTrackRowOptionsMenu(FMenuBuilder& MenuBuilder)
+{
+	// Don't show track row metadata if we don't allow conditions, as for now this is the only item in track row metadata
+	FViewModel* ViewModel = AsViewModel();
+	TSharedPtr<FSequenceModel> SequenceModel = ViewModel ? ViewModel->FindAncestorOfType<FSequenceModel>() : nullptr;
+
+	if (SequenceModel)
+	{
+		if (UMovieScene* MovieScene = SequenceModel->GetMovieScene())
+		{
+			if (!MovieScene->IsConditionClassAllowed(UMovieSceneCondition::StaticClass()))
+			{
+				return;	
+			}
+		}
+	}
+	
+	TArray<TPair<UMovieSceneTrack*, int32>> AllTrackRows = GetSelectedTrackRows();
+	if (AllTrackRows.IsEmpty())
+	{
+		return;
+	}
+
+	// Only show track row options for tracks that allow multiple rows
+	if (Algo::AnyOf(AllTrackRows, [](const TPair<UMovieSceneTrack*, int32> TrackRow) {
+		return TrackRow.Key && !TrackRow.Key->SupportsMultipleRows();
+		}))
+	{
+		return;
+	}
+
+	MenuBuilder.BeginSection(TEXT("TrackRowMetadata"));
+	{
+		// Empty here, will be implemented by extension.
+	}
+	MenuBuilder.EndSection();
+}
+
+void FOutlinerItemModelMixin::BuildSidebarMenu(FMenuBuilder& MenuBuilder)
+{
+	MenuBuilder.BeginSection(TEXT("Organize"), LOCTEXT("OrganizeContextMenuSectionName", "Organize"));
+	BuildOrganizeContextMenu(MenuBuilder);
+	MenuBuilder.EndSection();
+
+	BuildTrackOptionsMenu(MenuBuilder, GetSelectedTracks());
+	BuildTrackRowOptionsMenu(MenuBuilder);
+	BuildDisplayOptionsMenu(MenuBuilder);
+}
+
+TArray<UMovieSceneSection*> FOutlinerItemModelMixin::GetSelectedSections() const
+{
+	TArray<UMovieSceneSection*> Sections;
+
+	const TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	if (!EditorViewModel.IsValid())
+	{
+		return Sections;
+	}
+
+	const TSharedPtr<ISequencer> Sequencer = EditorViewModel->GetSequencer();
+	if (!Sequencer.IsValid())
+	{
+		return Sections;
+	}
+
+	const TSharedPtr<FSequencerSelection> Selection = EditorViewModel->GetSelection();
+	if (!Selection.IsValid())
+	{
+		return Sections;
+	}
+
+	for (const TViewModelPtr<FSectionModel> SectionModel : Selection->Outliner.Filter<FSectionModel>())
+	{
+		if (UMovieSceneSection* const Section = SectionModel->GetSection())
 		{
 			Sections.Add(Section);
 		}
 	}
 
-	if (!Sections.Num())
+	if (Sections.IsEmpty())
 	{
-		for (TViewModelPtr<ITrackExtension> TrackExtension : Selection->Outliner.Filter<ITrackExtension>())
+		for (const TViewModelPtr<ITrackExtension> TrackExtension : Selection->Outliner.Filter<ITrackExtension>())
 		{
-			for (UMovieSceneSection* Section : TrackExtension->GetSections())
+			for (UMovieSceneSection* const Section : TrackExtension->GetSections())
 			{
 				Sections.Add(Section);
 			}
 		}
 	}
 
-	if (!Sections.Num())
+	return Sections;
+}
+
+TArray<UMovieSceneTrack*> FOutlinerItemModelMixin::GetSelectedTracks() const
+{
+	TArray<UMovieSceneTrack*> AllTracks;
+
+	const TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	if (!EditorViewModel.IsValid())
+	{
+		return AllTracks;
+	}
+
+	const TSharedPtr<ISequencer> Sequencer = EditorViewModel->GetSequencer();
+	if (!Sequencer.IsValid())
+	{
+		return AllTracks;
+	}
+
+	const TSharedPtr<FSequencerSelection> Selection = EditorViewModel->GetSelection();
+	if (!Selection.IsValid())
+	{
+		return AllTracks;
+	}
+
+	return Selection->GetSelectedTracks().Array();
+}
+
+TArray<TPair<UMovieSceneTrack*, int32>> FOutlinerItemModelMixin::GetSelectedTrackRows() const
+{
+	TArray<TPair<UMovieSceneTrack*, int32>> AllTrackRows;
+
+	const TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	if (!EditorViewModel.IsValid())
+	{
+		return AllTrackRows;
+	}
+
+	const TSharedPtr<FSequencerSelection> Selection = EditorViewModel->GetSelection();
+	if (!Selection.IsValid())
+	{
+		return AllTrackRows;
+	}
+
+	for (const TViewModelPtr<ITrackExtension> TrackExtension : Selection->Outliner.Filter<ITrackExtension>())
+	{
+		UMovieSceneTrack* const Track = TrackExtension->GetTrack();
+		if (IsValid(Track))
+		{
+			AllTrackRows.Add(TPair<UMovieSceneTrack*, int32>(Track, TrackExtension->GetRowIndex()));
+		}
+	}
+
+	return AllTrackRows;
+}
+
+void FOutlinerItemModelMixin::BuildSectionColorTintsMenu(FMenuBuilder& MenuBuilder)
+{
+	const TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	if (!EditorViewModel.IsValid())
 	{
 		return;
 	}
 
-	const bool bIsReadOnly = Sequencer->IsReadOnly();
-	FCanExecuteAction CanExecute = FCanExecuteAction::CreateLambda([bIsReadOnly] { return !bIsReadOnly; });
+	const TSharedPtr<FSequencer> Sequencer = EditorViewModel->GetSequencerImpl();
+	if (!Sequencer.IsValid())
+	{
+		return;
+	}
 
-	TArray<FColor> SectionColorTints = Sequencer->GetSequencerSettings()->GetSectionColorTints();
+	const TArray<UMovieSceneSection*> Sections = GetSelectedSections();
+	if (Sections.IsEmpty())
+	{
+		return;
+	}
+
+	const TWeakPtr<FSequencer> WeakSequencer = Sequencer;
+
+	FCanExecuteAction CanExecuteAction = FCanExecuteAction::CreateLambda([WeakSequencer]
+		{
+			return WeakSequencer.IsValid() ? !WeakSequencer.Pin()->IsReadOnly() : false;
+		});
+
+	const TArray<FColor> SectionColorTints = Sequencer->GetSequencerSettings()->GetSectionColorTints();
 
 	for (const FColor& SectionColorTint : SectionColorTints)
 	{
 		TSharedPtr<SBox> ColorWidget = SNew(SBox)
 			.WidthOverride(70.f)
 			.HeightOverride(20.f)
-		[
-			SNew(SBorder)
-				.BorderImage(FAppStyle::GetBrush("WhiteBrush"))
+			[
+				SNew(SBorder)
+				.BorderImage(FAppStyle::GetBrush(TEXT("WhiteBrush")))
 				.BorderBackgroundColor(FLinearColor::FromSRGBColor(SectionColorTint))
-		];
+			];
 
 		MenuBuilder.AddMenuEntry(
 			FUIAction(
-				FExecuteAction::CreateSP(Sequencer.Get(), &FSequencer::SetSectionColorTint, Sections, SectionColorTint),
-				CanExecute),
+				FExecuteAction::CreateLambda([this, WeakSequencer, SectionColorTint]
+					{
+						const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
+						if (!Sequencer)
+						{
+							return;
+						}
+
+						const TArray<UMovieSceneSection*> Sections = GetSelectedSections();
+						if (Sections.IsEmpty())
+						{
+							return;
+						}
+
+						Sequencer->SetSectionColorTint(Sections, SectionColorTint);
+					}),
+				CanExecuteAction),
 			ColorWidget.ToSharedRef());
 	}
 
@@ -713,8 +941,23 @@ void FOutlinerItemModelMixin::BuildSectionColorTintsContextMenu(FMenuBuilder& Me
 		LOCTEXT("ClearColorTintTooltip", "Clear any assigned color tints"),
 		FSlateIcon(),
 		FUIAction(
-			FExecuteAction::CreateSP(Sequencer.Get(), &FSequencer::SetSectionColorTint, Sections, FColor(0, 0, 0, 0)),
-			CanExecute));
+			FExecuteAction::CreateLambda([this, WeakSequencer]
+				{
+					const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
+					if (!Sequencer)
+					{
+						return;
+					}
+
+					const TArray<UMovieSceneSection*> Sections = GetSelectedSections();
+					if (Sections.IsEmpty())
+					{
+						return;
+					}
+
+					Sequencer->SetSectionColorTint(Sections, FColor(0, 0, 0, 0));
+				}),
+			CanExecuteAction));
 
 	// Pop up preferences to edit custom color tints
 	MenuBuilder.AddMenuEntry(
@@ -722,9 +965,22 @@ void FOutlinerItemModelMixin::BuildSectionColorTintsContextMenu(FMenuBuilder& Me
 		LOCTEXT("EditColorTintTooltip", "Edit the custom color tints"),
 		FSlateIcon(),
 		FUIAction(
-			FExecuteAction::CreateLambda([=] { 
-				FString SettingsName = Sequencer->GetSequencerSettings()->GetName();
-				return FModuleManager::LoadModuleChecked<ISettingsModule>("Settings").ShowViewer("Editor", "ContentEditors", *SettingsName); 
+			FExecuteAction::CreateLambda([WeakSequencer]
+			{
+				const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
+				if (!Sequencer)
+				{
+					return;
+				}
+
+				const USequencerSettings* SequencerSettings = Sequencer->GetSequencerSettings();
+				if (!IsValid(SequencerSettings))
+				{
+					return;
+				}
+
+				ISettingsModule& SettingsModule = FModuleManager::LoadModuleChecked<ISettingsModule>(TEXT("Settings"));
+				SettingsModule.ShowViewer("Editor", "ContentEditors", *SequencerSettings->GetName()); 
 			})
 		));
 }
@@ -839,16 +1095,18 @@ bool FOutlinerItemModelMixin::PassesFilter(const FCurveEditorTreeFilter* InFilte
 	{
 		const FCurveEditorTreeTextFilter* Filter = static_cast<const FCurveEditorTreeTextFilter*>(InFilter);
 
-		TSharedPtr<const IOutlinerExtension> This = AsViewModel()->CastThisShared<IOutlinerExtension>();
+		TViewModelPtr<const IOutlinerExtension> This = AsViewModel()->CastThisShared<IOutlinerExtension>();
+
+		// Must match all text tokens
 		for (const FCurveEditorTreeTextFilterTerm& Term : Filter->GetTerms())
 		{
-			if (NodeMatchesTextFilterTerm(This, Term))
+			if (!NodeMatchesTextFilterTerm(This, Term))
 			{
-				return true;
+				return false;
 			}
 		}
 
-		return false;
+		return true;
 	}
 	else if (InFilter->GetType() == ISequencerModule::GetSequencerSelectionFilterType())
 	{

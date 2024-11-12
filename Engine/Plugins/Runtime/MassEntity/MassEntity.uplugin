@@ -3,7 +3,7 @@
 	"Version": 1,
 	"VersionName": "0.4",
 	"FriendlyName": "MassEntity",
-	"Description": "Gameplay-focused framework supporting data-oriented processing",
+	"Description": "Gameplay-focused framework supporting data-oriented processing. This plugin is now DEPRECATED. All of MassEntity code has been moved to the engine and there's no need to enable this plugin anymore.'",
 	"Category": "Gameplay",
 	"CreatedBy": "Epic Games, Inc.",
 	"CreatedByURL": "https://epicgames.com",
@@ -14,34 +14,7 @@
 	"IsBetaVersion": true,
 	"Installed": false,
 	"EnabledByDefault": false,
-	"Modules": [
-		{
-			"Name": "MassEntity",
-			"Type": "Runtime",
-			"LoadingPhase": "PreLoadingScreen"
-		},
-		{
-			"Name": "MassEntityTestSuite",
-			"Type": "UncookedOnly",
-			"LoadingPhase": "Default"
-		},
-		{
-			"Name": "MassEntityEditor",
-			"Type": "Editor"
-		},
-		{
-			"Name": "MassEntityDebugger",
-			"Type": "DeveloperTool"
-		},
-		{
-			"Name": "MassEntityDebugger",
-			"Type": "Editor"
-		}
-	],
-	"Plugins": [
-		{
-			"Name": "StructUtils",
-			"Enabled": true
-		}
-	]
+	"DeprecatedEngineVersion": "5.5",
+	"Modules": [],
+	"Plugins": []
 }

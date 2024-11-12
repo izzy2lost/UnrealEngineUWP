@@ -72,7 +72,7 @@ namespace ElectraDecodersUtil
 				{
 					return static_cast<const uint8*>(GetRemainingData());
 				}
-				
+
 				bool more_rbsp_data()
 				{
 					// There is definitely more data available unless we are in the last byte.
@@ -174,13 +174,14 @@ namespace ElectraDecodersUtil
 					max_dec_frame_buffering = 0;
 					nal_hrd_parameters.Reset();
 					vcl_hrd_parameters.Reset();
-					
+
 					ExpectedDeltaPerPicOrderCntCycle = 0;
 				}
 				int32 GetMaxDPBSize() const;
 				int32 GetDPBSize() const;
 				int32 GetWidth() const;
 				int32 GetHeight() const;
+				void GetDisplaySize(int32& OutWidth, int32& OutHeight) const;
 				void GetCrop(int32& OutLeft, int32& OutRight, int32& OutTop, int32& OutBottom) const;
 				void GetAspect(int32& OutSarW, int32& OutSarH) const;
 				FFractionalValue GetTiming() const;
@@ -255,7 +256,7 @@ namespace ElectraDecodersUtil
 				uint32 max_bits_per_mb_denom;								// ue(v), 0-16, default 1
 				uint32 log2_max_mv_length_horizontal;						// ue(v), 0-15, default 15
 				uint32 log2_max_mv_length_vertical;							// ue(v), 0-15, default 15
-				uint32 max_num_reorder_frames;								// ue(v), 0-max_dec_frame_buffering, 
+				uint32 max_num_reorder_frames;								// ue(v), 0-max_dec_frame_buffering,
 																			//	defaults to: if profile_idc in [44,86,100,110,122,144] and constraint_set3_flag==1 then 0
 																			//               otherwise MaxDpbFrames.
 				uint32 max_dec_frame_buffering;								// ue(v), >= max_num_ref_frames
@@ -468,14 +469,17 @@ namespace ElectraDecodersUtil
 
 				// Call this to get the current short- and long-term reference frames.
 				void GetCurrentReferenceFrames(TArray<FReferenceFrameListEntry>& OutCurrentReferenceFrames);
-				
+
 				// Call this per slice to get the list of references needed for decoding the slice.
 				bool GetReferenceFrameLists(TArray<FReferenceFrameListEntry>& OutReferenceFrameList0, TArray<FReferenceFrameListEntry>& OutReferenceFrameList1, const FSliceHeader& InSliceHeader);
 
 				// Call this on the first slice of an image to be decoded.
 				bool BeginFrame(uint8 InNalUnitType, uint8 InNalRefIdc, const FSliceHeader& InSliceHeader, const FSequenceParameterSet& InSequenceParameterSet, const FPictureParameterSet& InPictureParameterSet);
-
+				// Call this next to see if there are any missing frames between this and the last.
+				bool HandleMissingFrames(TArray<FOutputFrameInfo>& OutOutputFrameInfos, TArray<FOutputFrameInfo>& OutUnrefFrameInfos, uint8 InNalUnitType, uint8 InNalRefIdc, const FSliceHeader& InSliceHeader, const FSequenceParameterSet& InSequenceParameterSet);
+				// Update the POC values for the current frame.
 				bool UpdatePOC(uint8 InNalUnitType, uint8 InNalRefIdc, const FSliceHeader& InSliceHeader, const FSequenceParameterSet& InSequenceParameterSet);
+				// Undo the POC value updates in case the decoding process could not run.
 				void UndoPOCUpdate();
 
 				int32 GetFramePOC() const
@@ -486,11 +490,11 @@ namespace ElectraDecodersUtil
 				{ return CurrentPOC.BottomPOC; }
 
 				// Call this when decoding of the entire frame (all slices) is done.
-				bool EndFrame(TArray<FOutputFrameInfo>& OutOutputFrameInfos, TArray<FOutputFrameInfo>& OutUnrefFrameInfos, const FOutputFrameInfo& InOutputFrameInfo, uint8 InNalUnitType, uint8 InNalRefIdc, const FSliceHeader& InSliceHeader);
+				bool EndFrame(TArray<FOutputFrameInfo>& OutOutputFrameInfos, TArray<FOutputFrameInfo>& OutUnrefFrameInfos, const FOutputFrameInfo& InOutputFrameInfo, uint8 InNalUnitType, uint8 InNalRefIdc, const FSliceHeader& InSliceHeader, bool bIsNonExisting);
 
 				// Call this to get all pending frame infos and clear the structure.
 				void Flush(TArray<FOutputFrameInfo>& OutRemainingFrameInfos, TArray<FOutputFrameInfo>& OutUnrefFrameInfos);
-				
+
 				// Call this to reset this structure.
 				void Reset();
 
@@ -513,6 +517,7 @@ namespace ElectraDecodersUtil
 					bool bHasBeenOutput = false;
 				};
 
+				void UpdatePOCInternal(uint8 InNalUnitType, uint8 InNalRefIdc, const FSliceHeader& InSliceHeader, const FSequenceParameterSet& InSequenceParameterSet);
 				void UpdateRefLists();
 				FSmallestPOC GetSmallestPOC();
 				bool ReorderRefPicList(TArray<FReferenceFrameListEntry>& InOutReferenceFrameList, const FSliceHeader& InSliceHeader, int32 InListNum);
@@ -566,11 +571,12 @@ namespace ElectraDecodersUtil
 				TArray<TSharedPtr<FFrameInDPBInfo>> FrameDPBInfos;
 				TArray<TSharedPtr<FFrameInDPBInfo>> ShortTermRefs;
 				TArray<TSharedPtr<FFrameInDPBInfo>> LongTermRefs;
-				
+
 				FString LastErrorMsg;
 			};
 
 
+			bool ELECTRADECODERS_API ParseSequenceParameterSet(FSequenceParameterSet& OutSequenceParameterSet, const uint8* InBitstream, uint64 InBitstreamLenInBytes);
 			bool ELECTRADECODERS_API ParseSequenceParameterSet(TMap<uint32, FSequenceParameterSet>& InOutSequenceParameterSets, const uint8* InBitstream, uint64 InBitstreamLenInBytes);
 			bool ELECTRADECODERS_API ParsePictureParameterSet(TMap<uint32, FPictureParameterSet>& InOutPictureParameterSets, const TMap<uint32, FSequenceParameterSet>& InSequenceParameterSets, const uint8* InBitstream, uint64 InBitstreamLenInBytes);
 			bool ELECTRADECODERS_API ParseSliceHeader(TUniquePtr<FRBSP>& OutRBSP, FBitstreamReader& OutRBSPReader, FSliceHeader& OutSlice, const TMap<uint32, FSequenceParameterSet>& InSequenceParameterSets, const TMap<uint32, FPictureParameterSet>& InPictureParameterSets, const uint8* InBitstream, uint64 InBitstreamLenInBytes);

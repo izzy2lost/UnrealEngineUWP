@@ -7,6 +7,7 @@
 struct FRaytracingDerivatives
 {
 	TDual< float3 > WorldPosition;
+	TDual< float3 > WorldGeoNormals;
 	TDual< float4 > ScreenPosition;
 	
 #if NUM_TEX_COORD_INTERPOLATORS
@@ -26,6 +27,7 @@ void CalcInterpolants(
 
 	float4 ClipPositions[3];
 	float3 WorldPositions[3];
+	float3 WorldGeoNormals[3];
 	float2 TexCoords[3];
 #if NUM_TEX_COORD_INTERPOLATORS
 	float2 TexCoords_Custom[NUM_TEX_COORD_INTERPOLATORS][3];
@@ -47,6 +49,7 @@ void CalcInterpolants(
 		Interpolated = VertexFactoryInterpolate(PerVertexInterpolants, UVW[i], Interpolated, 1.0);
 
 		WorldPositions[i] = WorldPositionExcludingWPO.xyz;
+		WorldGeoNormals[i] = VertexFactoryGetWorldNormal(Input, VFIntermediates);
 		TexCoords[i] = VertexFactoryGetRayTracingTextureCoordinate(PerVertexInterpolants);
 
 		#if (NUM_TEX_COORD_INTERPOLATORS)
@@ -62,7 +65,6 @@ void CalcInterpolants(
 		#endif
 
 		ClipPositions[i] = mul(float4(WorldPositions[i], 1), View.TranslatedWorldToClip);
-		ClipPositions[i]/= ClipPositions[i].w;
 	}
 
 	OutInterpolants = VertexFactoryAssignInterpolants(Interpolated);
@@ -90,7 +92,8 @@ void CalcInterpolants(
 	const float2 PixelClip = (SvPosition.xy - View.ViewRectMin.xy) * View.ViewSizeAndInvSize.zw * float2(2, -2) + float2(-1, 1);
 	FBarycentrics Barycentrics = CalculateTriangleBarycentrics(PixelClip, ClipPositions[0], ClipPositions[1], ClipPositions[2], View.ViewSizeAndInvSize.zw);
 	OutDerivateData.WorldPosition = Lerp( WorldPositions[0], WorldPositions[1], WorldPositions[2], Barycentrics );
-	OutDerivateData.ScreenPosition = Lerp( ClipPositions[0], ClipPositions[1], ClipPositions[2], Barycentrics );
+	OutDerivateData.WorldGeoNormals = Lerp( WorldGeoNormals[0], WorldGeoNormals[1], WorldGeoNormals[2], Barycentrics );
+	OutDerivateData.ScreenPosition = Lerp( ClipPositions[0] * rcp(ClipPositions[0].w), ClipPositions[1] * rcp(ClipPositions[1].w), ClipPositions[2] * rcp(ClipPositions[2].w), Barycentrics );
 
 #if NUM_TEX_COORD_INTERPOLATORS > 0
 	UNROLL
@@ -122,6 +125,9 @@ void ApplyRaytracingDerivatives(inout FMaterialPixelParameters Out, in FRaytraci
 
 	Out.ScreenPosition_DDX = In.ScreenPosition.Value_dx;
 	Out.ScreenPosition_DDY = In.ScreenPosition.Value_dy;
+
+	Out.WorldGeoNormal_DDX = In.WorldGeoNormals.Value_dx;
+	Out.WorldGeoNormal_DDY = In.WorldGeoNormals.Value_dy;
 
 #if NUM_TEX_COORD_INTERPOLATORS
 	UNROLL

@@ -26,8 +26,11 @@ public:
 	TMirrorMatrix( const TPlane<T>& Plane );
 
 	// Conversion to other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
-	explicit TMirrorMatrix(const TMirrorMatrix<FArg>& From) : TMatrix<T>(From) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
+	explicit TMirrorMatrix(const TMirrorMatrix<FArg>& From)
+		: TMatrix<T>(From)
+	{
+	}
 };
 
 template<typename T>

@@ -110,7 +110,7 @@ public:
 	void CreateHairSimulation(const int32 GroupIndex, const int32 LODIndex);
 
 	/** Enable/Disable hair simulation while transitioning from one LOD to another one */
-	void SwitchSimulationLOD(const int32 PreviousLOD, const int32 CurrentLOD);
+	void SwitchSimulationLOD(const int32 PreviousLOD, const int32 CurrentLOD, const EHairLODSelectionType InLODSelectionType);
 
 	/** Check if the simulation is enabled or not */
 	bool IsSimulationEnable(int32 GroupIndex, int32 LODIndex) const;
@@ -136,7 +136,7 @@ public:
 	virtual void OnAttachmentChanged() override;
 	virtual void DetachFromComponent(const FDetachmentTransformRules& DetachmentRules) override;
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
-	virtual void SendRenderTransform_Concurrent() override;
+
 	virtual void CreateRenderState_Concurrent(FRegisterComponentContext* Context) override;
 	virtual void SendRenderDynamicData_Concurrent() override;
 	virtual void DestroyRenderState_Concurrent() override;
@@ -166,7 +166,6 @@ public:
 	FHairStrandsRestRootResource* GetGuideStrandsRestRootResource(uint32 GroupIndex);
 	FHairStrandsDeformedRootResource* GetGuideStrandsDeformedRootResource(uint32 GroupIndex);
 
-
 #if WITH_EDITOR
 	virtual void CheckForErrors() override;
 	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
@@ -175,6 +174,11 @@ public:
 	void ValidateMaterials(bool bMapCheck) const;
 	void Invalidate();
 	void InvalidateAndRecreate();
+	void PostCompilation();
+	
+	//~ Begin IInterface_AsyncCompilation Interface.
+	virtual bool IsCompiling() const override;
+	//~ End IInterface_AsyncCompilation Interface.
 #endif
 
 #if WITH_EDITOR
@@ -307,6 +311,7 @@ public:
 	//~ End INiagaraPhysicsAssetDICollectorInterface Interface
 
 private:
+	void InitIfDependenciesReady(const bool bUpdateSimulation = true);
 	void UpdateGroomCache(float Time);
 
 	UPROPERTY(EditAnywhere, Category = GroomCache)
@@ -334,17 +339,11 @@ private:
 	TObjectPtr<UGroomBindingAsset> BindingAssetBeingLoaded;
 #endif
 
-protected:
-	// Used for tracking if a Niagara component is attached or not
-	virtual void OnChildAttached(USceneComponent* ChildComponent) override;
-	virtual void OnChildDetached(USceneComponent* ChildComponent) override;
-
 private:
 	void DeleteDeferredHairGroupInstances();
 	void* InitializedResources;
 	class UMeshComponent* RegisteredMeshComponent;
 	class UMeshComponent* DeformedMeshComponent;
-	FVector SkeletalPreviousPositionOffset;
 	bool bIsGroomAssetCallbackRegistered;
 	bool bIsGroomBindingAssetCallbackRegistered;
 	bool bValidationEnable = true;
@@ -358,6 +357,7 @@ private:
 	void InitResources(bool bIsBindingReloading=false);
 	void ReleaseResources();
 
+	friend class UGroomBindingAsset;
 	friend class FGroomComponentRecreateRenderStateContext;
 	friend class FHairStrandsSceneProxy;
 	friend class FHairCardsSceneProxy;

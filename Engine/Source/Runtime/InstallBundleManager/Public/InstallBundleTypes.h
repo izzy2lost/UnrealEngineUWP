@@ -20,7 +20,7 @@
 	#define WITH_PLATFORM_INSTALL_BUNDLE_SOURCE 0
 #endif
 
-enum class EInstallBundleSourceType : int
+enum class UE_DEPRECATED(5.5, "Use FInstallBundleSourceType") EInstallBundleSourceType : int
 {
 	Bulk,
 	Launcher,
@@ -32,9 +32,46 @@ enum class EInstallBundleSourceType : int
 	Streaming,
 	Count,
 };
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 ENUM_RANGE_BY_COUNT(EInstallBundleSourceType, EInstallBundleSourceType::Count);
+UE_DEPRECATED(5.5, "Use FInstallBundleSourceType")
 INSTALLBUNDLEMANAGER_API const TCHAR* LexToString(EInstallBundleSourceType Type);
+UE_DEPRECATED(5.5, "Use FInstallBundleSourceType")
 INSTALLBUNDLEMANAGER_API void LexFromString(EInstallBundleSourceType& OutType, const TCHAR* String);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+
+class FInstallBundleSourceType
+{
+private:
+	FStringView NameStr;
+
+public:
+	INSTALLBUNDLEMANAGER_API explicit FInstallBundleSourceType(FStringView InNameStr);
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	INSTALLBUNDLEMANAGER_API FInstallBundleSourceType(EInstallBundleSourceType InLegacySourceType);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	FStringView GetName() const { return NameStr; }
+	FString GetNameStr() const { return FString(NameStr); }
+	const TCHAR* GetNameCStr() const { return NameStr.GetData(); }
+
+	bool IsValid() const { return !NameStr.IsEmpty(); }
+
+	bool operator==(const FInstallBundleSourceType Other) const
+	{
+		// These should always point to constant strings
+		return NameStr.GetData() == Other.NameStr.GetData();
+	}
+
+	friend inline uint32 GetTypeHash(FInstallBundleSourceType In)
+	{
+		// These should always point to constant strings
+		return PointerHash(In.NameStr.GetData());
+	}
+};
+INSTALLBUNDLEMANAGER_API const TCHAR* LexToString(FInstallBundleSourceType Type);
 
 enum class EInstallBundleManagerInitState : int
 {
@@ -84,16 +121,17 @@ struct FInstallBundleContentState
 {
 	EInstallBundleInstallState State = EInstallBundleInstallState::NotInstalled;
 	float Weight = 0.0f;
-	TMap<EInstallBundleSourceType, FString> Version;
+	TMap<FInstallBundleSourceType, FString> Version;
 };
 
 struct FInstallBundleCombinedContentState
 {
 	TMap<FName, FInstallBundleContentState> IndividualBundleStates;
-	TMap<EInstallBundleSourceType, FString> CurrentVersion;
+	TMap<FInstallBundleSourceType, FString> CurrentVersion;
 	uint64 DownloadSize = 0;
 	uint64 InstallSize = 0;
 	uint64 InstallOverheadSize = 0;
+	uint64 MaxDiskSpaceRequired = 0;
 	uint64 FreeSpace = 0;
 
 	INSTALLBUNDLEMANAGER_API bool GetAllBundlesHaveState(EInstallBundleInstallState State, TArrayView<const FName> ExcludedBundles = TArrayView<const FName>()) const;	
@@ -137,6 +175,7 @@ enum class EInstallBundleResult : uint32
 	UserCancelledError,
 	InitializationError,
 	InitializationPending,
+	MetadataError,
 	Count,
 };
 INSTALLBUNDLEMANAGER_API const TCHAR* LexToString(EInstallBundleResult Result);
@@ -161,6 +200,7 @@ enum class EInstallBundleReleaseResult : uint32
 	OK,
 	ManifestArchiveError,
 	UserCancelledError,
+	MetadataError,
 	Count,
 };
 INSTALLBUNDLEMANAGER_API const TCHAR* LexToString(EInstallBundleReleaseResult Result);
@@ -169,7 +209,8 @@ enum class EInstallBundleReleaseRequestFlags : uint32
 {
 	None = 0,
 	RemoveFilesIfPossible = (1 << 0),  // Bundle sources must support removal, and bundle must not be part of the source's cache
-	ExplicitRemoveList = (1 << 1),	   // Only attempt to remove explicitly supplied bundles instead of automatically removing dependencies 
+	ExplicitRemoveList = (1 << 1),	   // Only attempt to remove explicitly supplied bundles instead of automatically removing dependencies
+	SkipReleaseUnmountOnly = (1 << 2),   // Unmount but leave content referenced. The inverse of EInstallBundleRequestFlags::SkipMount
 };
 ENUM_CLASS_FLAGS(EInstallBundleReleaseRequestFlags)
 
@@ -244,6 +285,7 @@ struct FInstallBundleSourceUpdateBundleInfo
 	FDateTime LastAccessTime = FDateTime::MinValue(); // If cached, used to decide eviction order
 	EInstallBundleInstallState BundleContentState = EInstallBundleInstallState::NotInstalled; // Whether this bundle is up to date
 	bool bIsCached = false; // Whether this bundle should be cached if this source has a bundle cache
+	// TODO: this appears to be unused
 	bool bUseChunkDBs = false; // Whether this bundle should attempt to use ChunkDBs at all
 };
 
@@ -290,6 +332,7 @@ struct FInstallBundleSourceUpdateContentResultInfo
 	TArray<FString> AdditionalRootDirs;
 	// Support platforms that need shaderlibs in the physical FS
 	TSet<FString> NonUFSShaderLibPaths;
+	FString ProjectName;
 
 	uint64 CurrentInstallSize = 0;
 	FDateTime LastAccessTime = FDateTime::MinValue(); // If cached, used to decide eviction order

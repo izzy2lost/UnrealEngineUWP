@@ -31,6 +31,7 @@ SBackgroundBlur::SBackgroundBlur()
 {
 }
 
+SBackgroundBlur::~SBackgroundBlur() = default;
 
 void SBackgroundBlur::Construct(const FArguments& InArgs)
 {

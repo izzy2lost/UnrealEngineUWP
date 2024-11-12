@@ -356,6 +356,8 @@ public:
 
 void FInputEditorModule::StartupModule()
 {
+	LLM_SCOPE_BYNAME(TEXT("EnhancedInput/Editor"));
+	
 	// Register customizations
 	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyModule.RegisterCustomClassLayout("InputMappingContext", FOnGetDetailCustomizationInstance::CreateStatic(&FInputContextDetails::MakeInstance));
@@ -507,7 +509,7 @@ void FInputEditorModule::AutoUpgradeDefaultInputClasses()
 const UPlayerMappableKeySettings* FInputEditorModule::FindMappingByName(const FName InName)
 {
 	// Instanced objects that have been deleted will have an outer of the transient package, and we don't want to include them
-	for (TObjectIterator<UPlayerMappableKeySettings> Itr(RF_ClassDefaultObject | RF_Transient, true, EInternalObjectFlags::Garbage | UE::GC::GUnreachableObjectFlag); Itr; ++Itr)
+	for (TObjectIterator<UPlayerMappableKeySettings> Itr(RF_ClassDefaultObject | RF_Transient, true, EInternalObjectFlags::Garbage | EInternalObjectFlags::Unreachable); Itr; ++Itr)
 	{
 		const UPlayerMappableKeySettings* Settings = *Itr;
 		if (Settings && Settings->GetOuter() != GetTransientPackage() && Settings->Name == InName)

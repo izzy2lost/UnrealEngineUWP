@@ -57,10 +57,17 @@ bool UDisplayClusterStageGeometryComponent::GetStageDistanceAndNormal(const FVec
 
 		auto GetPixel = [&GeometryMap](uint32 InX, uint32 InY)
 		{
-			uint32 ClampedX = FMath::Clamp(InX, (uint32)0, GeometryMapSize - 1);
-			uint32 ClampedY = FMath::Clamp(InY, (uint32)0, GeometryMapSize - 1);
+			const uint32 ClampedX = FMath::Clamp(InX, (uint32)0, GeometryMapSize - 1);
+			const uint32 ClampedY = FMath::Clamp(InY, (uint32)0, GeometryMapSize - 1);
 
-			return GeometryMap.GeometryData[ClampedY * GeometryMapSize + ClampedX].GetFloats();
+			const uint32 PixelIndex = ClampedY * GeometryMapSize + ClampedX;
+			if (!GeometryMap.GeometryData.IsValidIndex(PixelIndex))
+			{
+				// Deny access to a pixel that is out of range.
+				return FLinearColor::Black;
+			}
+
+			return GeometryMap.GeometryData[PixelIndex].GetFloats();
 		};
 
 		// Use the view matrix of the geometry map to convert from world coordinates to view coordinates, then convert those coordinates into dome projection space

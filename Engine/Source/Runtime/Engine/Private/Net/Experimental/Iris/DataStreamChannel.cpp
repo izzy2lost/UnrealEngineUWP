@@ -23,6 +23,9 @@
 #include "Net/Core/Trace/NetTrace.h"
 #include "Net/Core/Connection/NetResult.h"
 #include "Net/DataChannel.h"
+#include "Net/Iris/ReplicationSystem/EngineReplicationBridge.h"
+#include "Net/Iris/ReplicationSystem/ReplicationSystemUtil.h"
+
 
 #include "PacketHandler.h"
 #include "ProfilingDebugging/CsvProfiler.h"
@@ -71,9 +74,22 @@ void UDataStreamChannel::Init(UNetConnection* InConnection, int32 InChIndex, ECh
 	if (UReplicationSystem* ReplicationSystem = InConnection->Driver->GetReplicationSystem())
 	{
 		bIsReadyToHandshake = 1U;
-		ReplicationSystem->InitDataStreams(InConnection->GetConnectionId(), DataStreamManager);
+		ReplicationSystem->InitDataStreams(InConnection->GetConnectionHandle().GetParentConnectionId(), DataStreamManager);
 	}
 #endif // UE_WITH_IRIS
+}
+
+void UDataStreamChannel::ReInit()
+{
+	check(Connection);
+
+#if UE_WITH_IRIS
+	if (UReplicationSystem* ReplicationSystem = Connection->Driver->GetReplicationSystem())
+	{
+		bIsReadyToHandshake = 1U;
+		ReplicationSystem->InitDataStreams(Connection->GetConnectionHandle().GetParentConnectionId(), DataStreamManager);
+	}
+#endif
 }
 
 bool UDataStreamChannel::CleanUp(const bool bForDestroy, EChannelCloseReason CloseReason)
@@ -136,9 +152,11 @@ void UDataStreamChannel::ReceivedBunch(FInBunch& Bunch)
 			TNetResult<ENetCloseResult> NetResult(ENetCloseResult::IrisNetRefHandleError, FString::Printf(TEXT("IrisNetRefHandleError=%s"), *SerializationContext.GetErrorHandleContext().ToString()));
 			AddToChainResultPtr(Bunch.ExtendedError, MoveTemp(NetResult));
 
-			uint32 ErrorType = 0; //TBD
-			uint64 RawHandleId = SerializationContext.GetErrorHandleContext().GetId();
-			FNetControlMessage<NMT_IrisNetRefHandleError>::Send(Connection, ErrorType, RawHandleId);
+			UEngineReplicationBridge* ActorBridge = FReplicationSystemUtil::GetActorReplicationBridge(Connection);
+			if (ActorBridge)
+			{
+				ActorBridge->SendErrorWithNetRefHandle(UE::Net::ENetRefHandleError::BitstreamCorrupted, SerializationContext.GetErrorHandleContext(), Connection->GetConnectionHandle().GetParentConnectionId());
+			}
 		}
 		Bunch.SetError();
 	}
@@ -453,12 +471,14 @@ void UDataStreamChannel::ReceivedNak(int32 PacketId)
 // Some DataStreams require perfect acking. If the ack sequence window is full we would get NAKs for packets thay may have been received.
 bool UDataStreamChannel::IsPacketWindowFull() const
 {
+#if UE_WITH_IRIS
 	const uint32 IrisPacketSequenceSafetyMarginUnsigned = static_cast<uint32>(FPlatformMath::Max(0, UE::Net::Private::IrisPacketSequenceSafetyMargin));
 	if (Connection->IsPacketSequenceWindowFull(IrisPacketSequenceSafetyMarginUnsigned))
 	{
 		UE_LOG(LogIris, Verbose, TEXT("Packet window full."));
 		return true;
 	}
+#endif // UE_WITH_IRIS
 
 	return WriteRecords.Count() >= WriteRecords.AllocatedCapacity();
 }
@@ -466,10 +486,12 @@ bool UDataStreamChannel::IsPacketWindowFull() const
 void UDataStreamChannel::AddReferencedObjects(UObject* Object, FReferenceCollector& Collector)
 {
 	UDataStreamChannel* Channel = CastChecked<UDataStreamChannel>(Object);
+#if UE_WITH_IRIS
 	if (Channel->DataStreamManager)
 	{
 		Collector.AddReferencedObject(Channel->DataStreamManager);
 	}
+#endif
 
 	Super::AddReferencedObjects(Channel, Collector);
 }
@@ -478,6 +500,24 @@ void UDataStreamChannel::AppendExportBunches(TArray<FOutBunch*>& OutExportBunche
 {
 }
 
+TArray<FOutBunch*> UDataStreamChannel::GetAdditionalRequiredBunches(const FOutBunch& OutgoingBunch, EChannelGetAdditionalRequiredBunchesFlags Flags)
+{
+	// Base version assumed we have a UPackageMapClient, so override it
+	return TArray<FOutBunch*>{};
+}
+
 void UDataStreamChannel::AppendMustBeMappedGuids(FOutBunch* Bunch)
 {
+}
+
+bool UDataStreamChannel::HasAcknowledgedAllReliableData() const
+{
+#if UE_WITH_IRIS
+	if (DataStreamManager)
+	{
+		return DataStreamManager->HasAcknowledgedAllReliableData();
+	}
+#endif
+
+	return true;
 }

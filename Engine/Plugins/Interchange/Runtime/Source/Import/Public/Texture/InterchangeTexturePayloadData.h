@@ -36,8 +36,6 @@ namespace UE
 
 			void Init2DWithParams(int32 InSizeX, int32 InSizeY, ETextureSourceFormat InFormat, bool bInSRGB, bool bShouldAllocateRawData = true);
 			void Init2DWithParams(int32 InSizeX, int32 InSizeY, int32 InNumMips, ETextureSourceFormat InFormat, bool bInSRGB, bool bShouldAllocateRawData = true);
-			void Init2DWithOneMip(int32 InSizeX, int32 InSizeY, ETextureSourceFormat InFormat, const void* InData = nullptr);
-			void Init2DWithMips(int32 InSizeX, int32 InSizeY, int32 InNumMips, ETextureSourceFormat InFormat, const void* InData = nullptr);
 
 			virtual int64 GetMipSize(int32 InMipIndex) const;
 			virtual int64 ComputeBufferSize() const;
@@ -46,20 +44,6 @@ namespace UE
 			virtual bool IsValid() const;
 		};
 
-		struct INTERCHANGEIMPORT_API FImportImageHelper
-		{
-			/**
-			 * Tests if the given height and width specify a supported texture resolution to import; Can optionally check if the height/width are powers of two
-			 *
-			 * @param Width The width of an imported texture whose validity should be checked
-			 * @param Height The height of an imported texture whose validity should be checked
-			 * @param bAllowNonPowerOfTwo Whether or not non-power-of-two textures are allowed
-			 * @param OutErrorMessage Optional output for an error message
-			 *
-			 * @return bool true if the given height/width represent a supported texture resolution, false if not
-			 */
-			static bool IsImportResolutionValid(int64 Width, int64 Height, bool bAllowNonPowerOfTwo, FText* OutErrorMessage = nullptr);
-		};
 	}//ns Interchange
 }//ns UE
 

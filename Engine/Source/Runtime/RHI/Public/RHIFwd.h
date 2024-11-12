@@ -34,8 +34,13 @@ class FRHIComputeCommandList;
 class FRHICommandList;
 class FRHICommandListImmediate;
 
-struct FRHIResourceUpdateInfo;
-struct FRHIResourceUpdateBatcher;
+// Contexts
+class IRHIComputeContext;
+class IRHICommandContext;
+class FRHIContextArray;
+
+class FRHIResourceReplaceInfo;
+class FRHIResourceReplaceBatcher;
 
 struct FSamplerStateInitializerRHI;
 struct FRasterizerStateInitializerRHI;
@@ -61,12 +66,15 @@ class FRHIRasterizerState;
 class FRHIRayTracingGeometry;
 class FRHIRayTracingPipelineState;
 class FRHIRayTracingScene;
+class FRHIShaderBindingTable;
 class FRHIRayTracingShader;
 class FRHIRenderQuery;
 class FRHIRenderQueryPool;
 class FRHIResource;
+class FRHIResourceCollection;
 class FRHISamplerState;
 class FRHIShader;
+class FRHIShaderData;
 class FRHIShaderLibrary;
 class FRHIShaderResourceView;
 class FRHIShaderBundle;
@@ -80,6 +88,9 @@ class FRHIVertexDeclaration;
 class FRHIVertexShader;
 class FRHIViewableResource;
 class FRHIViewport;
+class FRHIWorkGraphPipelineState;
+class FRHIWorkGraphShader;
+class FRHIStreamSourceSlot;
 
 struct FRHIUniformBufferLayout;
 
@@ -103,10 +114,13 @@ using FRayTracingGeometryRHIRef        = TRefCountPtr<FRHIRayTracingGeometry>;
 using FRayTracingPipelineStateRHIRef   = TRefCountPtr<FRHIRayTracingPipelineState>;
 using FRayTracingSceneRHIRef           = TRefCountPtr<FRHIRayTracingScene>;
 using FRayTracingShaderRHIRef          = TRefCountPtr<FRHIRayTracingShader>;
+using FShaderBindingTableRHIRef        = TRefCountPtr<FRHIShaderBindingTable>;
 using FRenderQueryPoolRHIRef           = TRefCountPtr<FRHIRenderQueryPool>;
 using FRenderQueryRHIRef               = TRefCountPtr<FRHIRenderQuery>;
+using FRHIResourceCollectionRef        = TRefCountPtr<FRHIResourceCollection>;
 using FRHIPipelineBinaryLibraryRef     = TRefCountPtr<FRHIPipelineBinaryLibrary>;
 using FRHIShaderLibraryRef             = TRefCountPtr<FRHIShaderLibrary>;
+using FRHIShaderResourceViewRef        = TRefCountPtr<FRHIShaderResourceView>;
 using FSamplerStateRHIRef              = TRefCountPtr<FRHISamplerState>;
 using FShaderResourceViewRHIRef        = TRefCountPtr<FRHIShaderResourceView>;
 using FShaderBundleRHIRef              = TRefCountPtr<FRHIShaderBundle>;
@@ -120,13 +134,16 @@ using FUnorderedAccessViewRHIRef       = TRefCountPtr<FRHIUnorderedAccessView>;
 using FVertexDeclarationRHIRef         = TRefCountPtr<FRHIVertexDeclaration>;
 using FVertexShaderRHIRef              = TRefCountPtr<FRHIVertexShader>;
 using FViewportRHIRef                  = TRefCountPtr<FRHIViewport>;
+using FWorkGraphPipelineStateRHIRef    = TRefCountPtr<FRHIWorkGraphPipelineState>;
+using FStreamSourceSlotRHIRef          = TRefCountPtr<FRHIStreamSourceSlot>;
+using FWorkGraphShaderRHIRef           = TRefCountPtr<FRHIWorkGraphShader>;
 
 // Deprecated typenames
-using FRHITexture2D                    = FRHITexture;
-using FRHITexture2DArray               = FRHITexture;
-using FRHITexture3D                    = FRHITexture;
-using FRHITextureCube                  = FRHITexture;
-using FTexture2DRHIRef                 = FTextureRHIRef;
-using FTexture2DArrayRHIRef            = FTextureRHIRef;
-using FTexture3DRHIRef                 = FTextureRHIRef;
-using FTextureCubeRHIRef               = FTextureRHIRef;
+using FRHITexture2D         UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FRHITexture2D is now deprecated. Use FRHITexture instead."           ) = FRHITexture;
+using FRHITexture2DArray    UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FRHITexture2DArray is now deprecated. Use FRHITexture instead."      ) = FRHITexture;
+using FRHITexture3D         UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FRHITexture3D is now deprecated. Use FRHITexture instead."           ) = FRHITexture;
+using FRHITextureCube       UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FRHITextureCube is now deprecated. Use FRHITexture instead."         ) = FRHITexture;
+using FTexture2DRHIRef      UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FTexture2DRHIRef is now deprecated. Use FTextureRHIRef instead."     ) = FTextureRHIRef;
+using FTexture2DArrayRHIRef UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FTexture2DArrayRHIRef is now deprecated. Use FTextureRHIRef instead.") = FTextureRHIRef;
+using FTexture3DRHIRef      UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FTexture3DRHIRef is now deprecated. Use FTextureRHIRef instead."     ) = FTextureRHIRef;
+using FTextureCubeRHIRef    UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FTextureCubeRHIRef is now deprecated. Use FTextureRHIRef instead."   ) = FTextureRHIRef;

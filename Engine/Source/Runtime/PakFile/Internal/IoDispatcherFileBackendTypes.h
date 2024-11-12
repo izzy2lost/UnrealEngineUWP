@@ -19,7 +19,7 @@
 #define PLATFORM_IODISPATCHER_MODULE PREPROCESSOR_TO_STRING(PREPROCESSOR_JOIN(PLATFORM_HEADER_NAME, PlatformIoDispatcher))
 #endif
 
-#define UE_FILEIOSTORE_STATS_ENABLED (COUNTERSTRACE_ENABLED || CSV_PROFILER)
+#define UE_FILEIOSTORE_STATS_ENABLED (COUNTERSTRACE_ENABLED || CSV_PROFILER_STATS)
 
 struct FFileIoStoreCompressionContext;
 
@@ -639,6 +639,7 @@ public:
 	PAKFILE_API TArray<FFileIoStoreReadRequest*> StealRequests();
 	// Remove all requests whose priority has been changed to something other than the Priority of this queue
 	PAKFILE_API TArray<FFileIoStoreReadRequest*> RemoveMisprioritizedRequests();
+	PAKFILE_API void RemoveCancelledRequests(TArray<FFileIoStoreReadRequest*>& OutCancelled);
 
 	PAKFILE_API FFileIoStoreReadRequest* Pop(FFileIoStoreReadRequestSortKey LastSortKey);
 	PAKFILE_API void Push(FFileIoStoreReadRequest* Request);
@@ -665,6 +666,7 @@ class FFileIoStoreRequestQueue
 {
 public:
 	PAKFILE_API FFileIoStoreReadRequest* Pop();
+	PAKFILE_API void PopCancelled(TArray<FFileIoStoreReadRequest*>& OutCancelled);
 	PAKFILE_API void Push(FFileIoStoreReadRequest& Request);	// Takes ownership of Request and rewrites its intrustive linked list pointers
 	PAKFILE_API void Push(FFileIoStoreReadRequestList& Requests); // Consumes the request list and overwrites all intrustive linked list pointers
 	PAKFILE_API void UpdateOrder();
@@ -902,7 +904,7 @@ private:
 	FCountersTrace::TCounter<std::atomic<int64>, TraceCounterType_Int> AvailableBuffersCounter;
 #endif
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	uint64 QueuedFilesystemReadBytes = 0;
 	uint64 QueuedFilesystemReads = 0;
 

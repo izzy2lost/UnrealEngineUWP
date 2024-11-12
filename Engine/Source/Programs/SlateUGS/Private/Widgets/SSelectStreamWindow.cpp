@@ -36,7 +36,7 @@ void SSelectStreamWindow::Construct(const FArguments& InArgs, UGSTab* InTab, FSt
 	PopulateStreamsTree();
 
 	SWindow::Construct(SWindow::FArguments()
-	.Title(LOCTEXT("WindowTitle", "Select Stream"))
+	.Title(LOCTEXT("WindowTitleSelect", "Select Stream"))
 	.SizingRule(ESizingRule::FixedSize)
 	.ClientSize(FVector2D(600, 500))
 	[

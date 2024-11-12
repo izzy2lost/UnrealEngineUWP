@@ -277,6 +277,13 @@ namespace HarmonixMetasound::DelayNode
 			if (Inputs.MidiClock.IsSet())
 			{
 				InVertexData.BindReadVertex(Inputs::MidiClockName, *Inputs.MidiClock);
+
+				// Set the tempo and speed after we bind here
+				const FMidiClockReadRef Clock = *Inputs.MidiClock;
+				LastTempo = Clock->GetTempoAtStartOfBlock();
+				LastSpeed = Clock->GetSpeedAtStartOfBlock();
+				Delay.SetTempo(LastTempo);
+				Delay.SetSpeed(LastSpeed);
 			}
 			InVertexData.BindReadVertex(Inputs::DelayTimeTypeName, Inputs.DelayTimeType);
 			InVertexData.BindReadVertex(Inputs::DelayTimeName, Inputs.DelayTime);
@@ -325,8 +332,6 @@ namespace HarmonixMetasound::DelayNode
 			Delay.Prepare(Params.OperatorSettings.GetSampleRate(), Constants::NumChannels, Constants::MaxDelayTime);
 			LastTempo = -1;
 			LastSpeed = -1;
-			ScratchBuffer.Initialize();
-			ScratchBuffer.Configure(Constants::NumChannels, Params.OperatorSettings.GetNumFramesPerBlock(), EAudioBufferCleanupMode::DontDelete);
 			Outputs.AudioLeft->Zero();
 			Outputs.AudioRight->Zero();
 		}
@@ -361,26 +366,29 @@ namespace HarmonixMetasound::DelayNode
 				int32 SamplesRendered = 0;
 				
 				// if the tempo or speed changes, render in chunks
-				for (int SampleIdx = 0; SampleIdx < NumSamplesInBlock; ++SampleIdx)
+				for (const FMidiClockEvent& ClockEvent : Clock->GetMidiClockEventsInBlock())
 				{
 					bool ShouldRenderNow = false;
 					
-					if (const float Tempo = Clock->GetTempoAtBlockSampleFrame(SampleIdx); Tempo != LastTempo)
+					const MidiClockMessageTypes::FTempoChange* AsTempoChange = ClockEvent.TryGet<MidiClockMessageTypes::FTempoChange>();
+					const MidiClockMessageTypes::FSpeedChange* AsSpeedChange = ClockEvent.TryGet<MidiClockMessageTypes::FSpeedChange>();
+
+					if (AsTempoChange && AsTempoChange->Tempo != LastTempo)
 					{
-						LastTempo = Tempo;
+						LastTempo = AsTempoChange->Tempo;
 						ShouldRenderNow = true;
 					}
 
-					if (const float Speed = Clock->GetSpeedAtBlockSampleFrame(SampleIdx); Speed != LastSpeed)
+					if (AsSpeedChange && AsSpeedChange->Speed != LastSpeed)
 					{
-						LastSpeed = Speed;
+						LastSpeed = AsSpeedChange->Speed;
 						ShouldRenderNow = true;
 					}
 
 					if (ShouldRenderNow)
 					{
 						// render the delay
-						const int32 SamplesToRender = SampleIdx - SamplesRendered;
+						const int32 SamplesToRender = ClockEvent.BlockFrameIndex - SamplesRendered;
 						RenderSubBlock(SamplesRendered, SamplesToRender);
 						SamplesRendered += SamplesToRender;
 
@@ -416,26 +424,17 @@ namespace HarmonixMetasound::DelayNode
 				return;
 			}
 
-			// copy the input audio to the output, then alias and process in place
-			const float* InputAudio[Constants::NumChannels];
-			InputAudio[0] = Inputs.AudioLeft->GetData() + StartSample;
-			InputAudio[1] = Inputs.AudioRight->GetData() + StartSample;
-			float* OutputAudio[Constants::NumChannels];
-			OutputAudio[0] = Outputs.AudioLeft->GetData() + StartSample;
-			OutputAudio[1] = Outputs.AudioRight->GetData() + StartSample;
-			for (int32 i = 0; i < Constants::NumChannels; ++i)
-			{
-				FMemory::Memcpy(OutputAudio[i], InputAudio[i], NumSamples * sizeof(float));
-			}
-			const FAudioBufferConfig Config{ Constants::NumChannels, NumSamples, Delay.GetSampleRate() };
-			ScratchBuffer.AliasChannelDataPointers(Config, OutputAudio);
-
-			// process
-			Delay.Process(ScratchBuffer);
+			// copy the input audio to the output, then process in place
+			FMemory::Memcpy(Outputs.AudioLeft->GetData() + StartSample, Inputs.AudioLeft->GetData() + StartSample, NumSamples * sizeof(float));
+			FMemory::Memcpy(Outputs.AudioRight->GetData() + StartSample, Inputs.AudioRight->GetData() + StartSample, NumSamples * sizeof(float));
+			BufferView.Reset();
+			BufferView.Emplace(Outputs.AudioLeft->GetData() + StartSample, NumSamples);
+			BufferView.Emplace(Outputs.AudioRight->GetData() + StartSample, NumSamples);
+			Delay.Process(BufferView);
 		}
 		
 		Harmonix::Dsp::Effects::FDelay Delay;
-		TAudioBuffer<float> ScratchBuffer;
+		Audio::FMultichannelBufferView BufferView;
 		float LastTempo{ -1 };
 		float LastSpeed{ -1 };
 		FInputs Inputs;

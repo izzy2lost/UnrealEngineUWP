@@ -32,7 +32,7 @@ static TAutoConsoleVariable<int32> CVarAVTMaxPageResidency(
 
 static TAutoConsoleVariable<int32> CVarAVTAgeToFree(
 	TEXT("r.VT.AVT.AgeToFree"),
-	60,
+	0,
 	TEXT("Number of frames for an allocation to be unused before it is considered for free"),
 	ECVF_RenderThreadSafe
 );
@@ -199,19 +199,14 @@ IAllocatedVirtualTexture* FAdaptiveVirtualTexture::AllocateVirtualTexture(
 }
 
 /** Destroy an allocated virtual texture and release its producers. */
-void FAdaptiveVirtualTexture::DestroyVirtualTexture(FVirtualTextureSystem* InSystem, IAllocatedVirtualTexture* InAllocatedVT)
+void FAdaptiveVirtualTexture::DestroyVirtualTexture(FVirtualTextureSystem* InSystem, IAllocatedVirtualTexture* InAllocatedVT, TArray<FVirtualTextureProducerHandle>& OutProducersToRelease)
 {
 	FAllocatedVTDescription const& Desc = InAllocatedVT->GetDescription();
-	TArray<FVirtualTextureProducerHandle, TInlineAllocator<8>> ProducersToRelease;
 	for (int32 LayerIndex = 0; LayerIndex < Desc.NumTextureLayers; ++LayerIndex)
 	{
-		ProducersToRelease.AddUnique(Desc.ProducerHandle[LayerIndex]);
+		OutProducersToRelease.AddUnique(Desc.ProducerHandle[LayerIndex]);
 	}
 	InSystem->DestroyVirtualTexture(InAllocatedVT);
-	for (int32 ProducerIndex = 0; ProducerIndex < ProducersToRelease.Num(); ++ProducerIndex)
-	{
-		InSystem->ReleaseProducer(ProducersToRelease[ProducerIndex]);
-	}
 }
 
 /** Remaps the page mappings from one allocated virtual texture to another. */
@@ -275,14 +270,19 @@ void FAdaptiveVirtualTexture::Init(FRHICommandListBase& RHICmdList, FVirtualText
 
 void FAdaptiveVirtualTexture::Destroy(FVirtualTextureSystem* InSystem)
 {
-	DestroyVirtualTexture(InSystem, AllocatedVirtualTextureLowMips);
+	DestroyVirtualTexture(InSystem, AllocatedVirtualTextureLowMips, ProducersToRelease);
 
 	for (FAllocation& Allocation : AllocationSlots)
 	{
 		if (Allocation.AllocatedVT != nullptr)
 		{
-			DestroyVirtualTexture(InSystem, Allocation.AllocatedVT);
+			DestroyVirtualTexture(InSystem, Allocation.AllocatedVT, ProducersToRelease);
 		}
+	}
+
+	for (FVirtualTextureProducerHandle Handle : ProducersToRelease)
+	{
+		InSystem->ReleaseProducer(Handle);
 	}
 
 	delete this;
@@ -557,7 +557,7 @@ void FAdaptiveVirtualTexture::Allocate(FRHICommandListBase& RHICmdList, FVirtual
 	{
 		// Remap the old allocated virtual texture before destroying it.
 		RemapVirtualTexturePages(InSystem, OldAllocatedVT, NewAllocatedVT, InFrame);
-		DestroyVirtualTexture(InSystem, OldAllocatedVT);
+		DestroyVirtualTexture(InSystem, OldAllocatedVT, ProducersToRelease);
 
 		// Adjust allocation structures.
 		AllocatedVTMap.Remove(GetAllocatedVTHash(OldAllocatedVT), InAllocationIndex);
@@ -612,7 +612,7 @@ void FAdaptiveVirtualTexture::Free(FVirtualTextureSystem* InSystem, uint32 InAll
 	// Destroy allocated virtual texture.
 	const uint32 GridIndex = AllocationSlots[InAllocationIndex].GridIndex;
 	FAllocatedVirtualTexture* OldAllocatedVT = AllocationSlots[InAllocationIndex].AllocatedVT;
-	DestroyVirtualTexture(InSystem, OldAllocatedVT);
+	DestroyVirtualTexture(InSystem, OldAllocatedVT, ProducersToRelease);
 
 	// Remove from all allocation structures.
 	GridIndexMap.Remove(GetGridIndexHash(GridIndex), InAllocationIndex);
@@ -678,12 +678,15 @@ void FAdaptiveVirtualTexture::UpdateAllocations(FVirtualTextureSystem* InSystem,
 	{
 		// Free old unused pages if there is no other work to do.
 		const uint32 FrameAgeToFree = CVarAVTAgeToFree.GetValueOnRenderThread();
-		const int32 NumToFree = FMath::Min(NumAllocated, CVarAVTMaxFreePerFrame.GetValueOnRenderThread());
-
-		bool bFreeSuccess = true;
-		for (int32 FreeCount = 0; bFreeSuccess && FreeCount < NumToFree; FreeCount++)
+		if (FrameAgeToFree > 0)
 		{
-			bFreeSuccess = FreeLRU(RHICmdList, InSystem, InFrame, FrameAgeToFree);
+			const int32 NumToFree = FMath::Min(NumAllocated, CVarAVTMaxFreePerFrame.GetValueOnRenderThread());
+
+			bool bFreeSuccess = true;
+			for (int32 FreeCount = 0; bFreeSuccess && FreeCount < NumToFree; FreeCount++)
+			{
+				bFreeSuccess = FreeLRU(RHICmdList, InSystem, InFrame, FrameAgeToFree);
+			}
 		}
 	}
 	else
@@ -711,7 +714,7 @@ void FAdaptiveVirtualTexture::UpdateAllocations(FVirtualTextureSystem* InSystem,
 			int32 RequestIndex = FMath::Rand() % RequestsToMap.Num();
 			uint32 PackedRequest = RequestsToMap[RequestIndex];
 			Allocate(RHICmdList, InSystem, PackedRequest, InFrame);
-			RequestsToMap.RemoveAtSwap(RequestIndex, 1, EAllowShrinking::No);
+			RequestsToMap.RemoveAtSwap(RequestIndex, EAllowShrinking::No);
 		}
 	}
 
@@ -752,7 +755,7 @@ void FAdaptiveVirtualTexture::UpdateAllocations(FVirtualTextureSystem* InSystem,
 		for (FIndirectionTextureUpdate& TextureUpdate : TextureUpdates)
 		{
 			const FUpdateTextureRegion2D Region(TextureUpdate.X, TextureUpdate.Y, 0, 0, 1, 1);
-			RHIUpdateTexture2D((FRHITexture2D*)Texture, 0, Region, 4, (uint8*)&TextureUpdate.Value);
+			RHIUpdateTexture2D((FRHITexture*)Texture, 0, Region, 4, (uint8*)&TextureUpdate.Value);
 		}
 		RHICmdList.Transition(FRHITransitionInfo(Texture, ERHIAccess::UAVCompute, ERHIAccess::SRVMask));
 	}
@@ -760,4 +763,13 @@ void FAdaptiveVirtualTexture::UpdateAllocations(FVirtualTextureSystem* InSystem,
 	// Clear requests
 	RequestsToMap.Reset();
 	TextureUpdates.Reset();
+
+	// Release any producers
+	for (int32 ProducerIndex = ProducersToRelease.Num() - 1; ProducerIndex >= 0; ProducerIndex--)
+	{
+		if (InSystem->TryReleaseProducer(ProducersToRelease[ProducerIndex]))
+		{
+			ProducersToRelease.RemoveAt(ProducerIndex, 1, EAllowShrinking::No);
+		}
+	}
 }

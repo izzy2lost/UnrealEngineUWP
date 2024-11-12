@@ -91,7 +91,9 @@ void FGameplayAbilityAuditRow::FillDataFromGameplayAbility(const UGameplayAbilit
 	}
 
 	// Gather all of the other GameplayTagContainer referenced Tags (will also include AssetTags).
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FProperty* AbilityTagsProperty = UGameplayAbility::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UGameplayAbility, AbilityTags));
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	for (TPropertyValueIterator<FStructProperty> It(GameplayAbility.GetClass(), &GameplayAbility); It; ++It)
 	{
 		const bool bIsTagContainer = It.Key()->SameType(AbilityTagsProperty);
@@ -110,7 +112,7 @@ void FGameplayAbilityAuditRow::FillDataFromGameplayAbility(const UGameplayAbilit
 	}
 
 	// Asset Tags should go in its own field because of its importance
-	for (const FGameplayTag& GameplayTag : GameplayAbility.AbilityTags)
+	for (const FGameplayTag& GameplayTag : GameplayAbility.GetAssetTags())
 	{
 		AuditRow.AssetTags.Emplace(GameplayTag.GetTagName());
 	}

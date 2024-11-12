@@ -24,6 +24,7 @@
 struct FLightAccumulator
 {
 	float3 TotalLight;
+	float TotalLightLuminance;
 
 	// only actually used SUBSURFACE_CHANNEL_MODE == 1
 	// assumed to be compiled out otherwise (not compiled out with #if so we can use if() instead of #if for better readability and compiler error checking)
@@ -50,6 +51,7 @@ struct FDeferredLightingSplit
 {
 	float4 DiffuseLighting;
 	float4 SpecularLighting;
+	float LightingLuminance;
 };
 
 // accumulate light, can be called multiple times
@@ -57,6 +59,7 @@ void LightAccumulator_AddSplit(inout FLightAccumulator In, float3 DiffuseTotalLi
 {
 	// 3 mad
 	In.TotalLight += (DiffuseTotalLight + SpecularTotalLight) * CommonMultiplier;
+	In.TotalLightLuminance += Luminance((DiffuseTotalLight + SpecularTotalLight) * CommonMultiplier);
 
 	// This should ideally be evaluated statically outside of this function to avoid the branch
 	if (bNeedsSeparateSubsurfaceLightAccumulation)
@@ -170,6 +173,7 @@ FDeferredLightingSplit LightAccumulator_GetResultSplit(FLightAccumulator In)
 	FDeferredLightingSplit Ret;
 	Ret.DiffuseLighting = RetDiffuse;
 	Ret.SpecularLighting = RetSpecular;
+	Ret.LightingLuminance = In.TotalLightLuminance;
 
 	return Ret;
 }
@@ -185,6 +189,9 @@ struct FSubstrateDeferredLighting
 	// only used for development (not compiled out with #if so we can use if() instead of #if for better readability and compiler error checking)
 	// assumed to be compiled out otherwise
 	float EstimatedCost;
+
+	float3 TotalDiffuseLighting;
+	float3 TotalSpecularLighting;
 };
 
 FSubstrateDeferredLighting GetInitialisedSubstrateDeferredLighting()

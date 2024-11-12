@@ -186,7 +186,7 @@ private:
 	 * Called when a Controller Value changes.
 	 * Currently used to update handled controllers, in case of MultiControllers.
 	 */
-	void OnControllerValueChanged(URCVirtualPropertyBase* InController);
+	void OnControllerValueChanged(TSharedPtr<FRCControllerModel> InControllerModel, bool bInIsMultiController);
 
 	/** Creates a new Controller for the given Remote Control Property and also binds to it */
 	void CreateAutoBindForProperty(TSharedPtr<const FRemoteControlProperty> RemoteControlProperty);

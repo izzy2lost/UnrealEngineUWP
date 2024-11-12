@@ -22,13 +22,15 @@ bool SupportsAnisotropicMaterials(ERHIFeatureLevel::Type FeatureLevel, EShaderPl
 {
 	return GAnisotropicMaterials
 		&& FeatureLevel >= ERHIFeatureLevel::SM5
-		&& FDataDrivenShaderPlatformInfo::GetSupportsAnisotropicMaterials(ShaderPlatform);
+		&& FDataDrivenShaderPlatformInfo::GetSupportsAnisotropicMaterials(ShaderPlatform)
+		&& !Substrate::IsSubstrateEnabled(); // Substrate renders anisotropy surface natively, without extra pass.;
 }
 
 static bool IsAnisotropyPassCompatible(const EShaderPlatform Platform, FMaterialShaderParameters MaterialParameters)
 {
 	return 
 		FDataDrivenShaderPlatformInfo::GetSupportsAnisotropicMaterials(Platform) &&
+		!Substrate::IsSubstrateEnabled() && // Substrate renders anisotropy surface natively, without extra pass.
 		MaterialParameters.bHasAnisotropyConnected &&
 		!IsTranslucentBlendMode(MaterialParameters) &&
 		MaterialParameters.ShadingModels.HasAnyShadingModel({ MSM_DefaultLit, MSM_ClearCoat });
@@ -80,8 +82,6 @@ public:
 IMPLEMENT_SHADER_TYPE(, FAnisotropyVS, TEXT("/Engine/Private/AnisotropyPassShader.usf"), TEXT("MainVertexShader"), SF_Vertex);
 IMPLEMENT_SHADER_TYPE(, FAnisotropyPS, TEXT("/Engine/Private/AnisotropyPassShader.usf"), TEXT("MainPixelShader"), SF_Pixel);
 IMPLEMENT_SHADERPIPELINE_TYPE_VSPS(AnisotropyPipeline, FAnisotropyVS, FAnisotropyPS, true);
-
-DECLARE_CYCLE_STAT(TEXT("AnisotropyPass"), STAT_CLP_AnisotropyPass, STATGROUP_ParallelCommandListMarkers);
 
 FAnisotropyMeshProcessor::FAnisotropyMeshProcessor(
 	const FScene* Scene, 
@@ -238,6 +238,7 @@ bool FAnisotropyMeshProcessor::Process(
 	return true;
 }
 
+
 void FAnisotropyMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	if (ShouldDraw(Material, Material.MaterialUsesAnisotropy_GameThread()) && 
@@ -297,6 +298,12 @@ bool ShouldRenderAnisotropyPass(const FViewInfo& View)
 		return false;
 	}
 
+	// The anisotropy GBuffer is used for lighting, and not needed for custom render passes, which don't run lighting.
+	if (View.CustomRenderPass)
+	{
+		return false;
+	}
+
 	if (View.ShouldRenderView() && View.ParallelMeshDrawCommandPasses[EMeshPass::AnisotropyPass].HasAnyDraw())
 	{
 		return true;
@@ -326,18 +333,21 @@ END_SHADER_PARAMETER_STRUCT()
 
 void FDeferredShadingSceneRenderer::RenderAnisotropyPass(
 	FRDGBuilder& GraphBuilder, 
+	TArrayView<FViewInfo> InViews,
 	FSceneTextures& SceneTextures,
-	bool bDoParallelPass
-)
+	const FScene* Scene,
+	bool bDoParallelPass)
 {
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderAnisotropyPass);
 	SCOPED_NAMED_EVENT(FDeferredShadingSceneRenderer_RenderAnisotropyPass, FColor::Emerald);
 	SCOPE_CYCLE_COUNTER(STAT_AnisotropyPassDrawTime);
+
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, RenderAnisotropyPass, "RenderAnisotropyPass");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, RenderAnisotropyPass);
 
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ViewIndex++)
 	{
-		FViewInfo& View = Views[ViewIndex];
+		FViewInfo& View = InViews[ViewIndex];
 
 		if (View.ShouldRenderView())
 		{
@@ -361,15 +371,13 @@ void FDeferredShadingSceneRenderer::RenderAnisotropyPass(
 
 				PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneTextures.GBufferF, ERenderTargetLoadAction::ELoad);
 
-				GraphBuilder.AddPass(
+				GraphBuilder.AddDispatchPass(
 					RDG_EVENT_NAME("AnisotropyPassParallel"),
 					PassParameters,
-					ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-					[this, &View, &ParallelMeshPass, PassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
+					ERDGPassFlags::Raster,
+					[&View, &ParallelMeshPass, PassParameters](FRDGDispatchPassBuilder& DispatchPassBuilder)
 				{
-					FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, GET_STATID(STAT_CLP_AnisotropyPass), View, FParallelCommandListBindings(PassParameters));
-
-					ParallelMeshPass.DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+					ParallelMeshPass.Dispatch(DispatchPassBuilder, &PassParameters->InstanceCullingDrawParams);
 				});
 			}
 			else
@@ -380,11 +388,11 @@ void FDeferredShadingSceneRenderer::RenderAnisotropyPass(
 					RDG_EVENT_NAME("AnisotropyPass"),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[this, &View, &ParallelMeshPass, PassParameters](FRHICommandList& RHICmdList)
+					[&View, &ParallelMeshPass, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					SetStereoViewport(RHICmdList, View);
 
-					ParallelMeshPass.DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+					ParallelMeshPass.Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 				});
 			}
 		}

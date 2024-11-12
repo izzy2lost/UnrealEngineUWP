@@ -22,13 +22,13 @@ namespace UE::AbilitySystem::Private
 		TEXT("How many prediction keys can be dropped before StaleKeyBehavior is run."));
 
 	// What should we do with these old stale FPredictionKeys?  Prior to UE5.5, we always CaughtUp.  I believe it's actually safer to drop.
-	int32 CVarStaleKeyBehaviorValue = 0;
+	int32 CVarStaleKeyBehaviorValue = 2;
 	FAutoConsoleVariableRef CVarStaleKeyBehavior(TEXT("AbilitySystem.PredictionKey.StaleKeyBehavior"), CVarStaleKeyBehaviorValue,
 		TEXT("How do we handle stale keys? 0 = CaughtUp. 1 = Reject. 2 = Drop"));
 
 	// How should we deal with dependent keys (in a chain)?  Prior to UE5.5, old keys implied new keys.  We introduced some new functionality (explained in the help text).
-	// 0 (no bitmask) is legacy behavior.  Logically, (0x1 | 0x2) = 3 is the correct value. The long-term fix will be a value of 3.
-	int32 CVarDependentChainBehaviorValue = 0;
+	// 0 (no bitmask) is legacy behavior.  Logically, (0x1 | 0x2) = 3 is the correct value. We default to 1 to move towards a long-term fix (of value 3).
+	int32 CVarDependentChainBehaviorValue = 1;
 	FAutoConsoleVariableRef CVarDependentChainBehavior(TEXT("AbilitySystem.PredictionKey.DepChainBehavior"), CVarDependentChainBehaviorValue,
 		TEXT("How do we handle dependency key chains? Bitmask: 0 = Old Accept/Rejected Implies Newer Accepted/Rejected. 0x1 = Newer Accepted also implies Older Accepted. 0x2 = Old Accepted Does NOT imply Newer Accepted"));
 
@@ -124,7 +124,7 @@ bool FPredictionKey::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bO
 		 *	or if the owning connection is this connection (Server only sends the prediction key to the client who gave it to us)
 		 *  or if this is a server initiated key (valid on all connections)
 		 */		
-		ValidKeyForConnection = (PredictiveConnectionKey == 0 || ((UPTRINT)Map == PredictiveConnectionKey) || bIsServerInitiated) && (Current > 0);
+		ValidKeyForConnection = (Current > 0) && (bIsServerInitiated || (PredictiveConnectionObjectKey == FObjectKey()) || (PredictiveConnectionObjectKey == FObjectKey(Map)));
 	}
 	Ar.SerializeBits(&ValidKeyForConnection, 1);
 
@@ -159,7 +159,7 @@ bool FPredictionKey::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bO
 		// We are reading this key: the connection that gave us this key is the predictive connection, and we will only serialize this key back to it.
 		if (!bIsServerInitiated)
 		{
-			PredictiveConnectionKey = (UPTRINT)Map;
+			PredictiveConnectionObjectKey = FObjectKey(Map);
 		}
 	}
 
@@ -517,6 +517,55 @@ FScopedPredictionWindow::~FScopedPredictionWindow()
 		if (ClearScopedPredictionKey)
 		{
 			OwnerPtr->ScopedPredictionKey = RestoreKey;
+		}
+	}
+}
+
+// -----------------------------------
+
+FScopedDiscardPredictions::FScopedDiscardPredictions(UAbilitySystemComponent* AbilitySystemComponent, EGasPredictionKeyResult HowToHandlePredictions)
+	: PredictionKeyChainResult(HowToHandlePredictions)
+{
+	if (AbilitySystemComponent && !AbilitySystemComponent->IsOwnerActorAuthoritative())
+	{
+		Owner = AbilitySystemComponent;
+		KeyToRestoreOnOwner = AbilitySystemComponent->ScopedPredictionKey;
+
+		if (HowToHandlePredictions == EGasPredictionKeyResult::SilentlyDrop)
+		{
+			AbilitySystemComponent->ScopedPredictionKey = FPredictionKey{};
+		}
+		else
+		{
+			// Warn here because we're using a behavior that explicitly says Accept or Reject this key, and we could be using a CVar that doesn't behave as the user expects (hopefully this will be removed when fix the behavior and remove this CVar).
+			UE_CLOG(!GIsAutomationTesting && (UE::AbilitySystem::Private::CVarDependentChainBehaviorValue != 3), LogPredictionKey, Warning, TEXT("%hs using EGasPredictionKeyResult = %d (which is != EGasPredicitonKeyResult::SilentlyDrop) with CVarDependentChainBehavior not set to proper value."), __func__, static_cast<int>(HowToHandlePredictions));
+			AbilitySystemComponent->ScopedPredictionKey.GenerateDependentPredictionKey();
+			BaseKeyToAck = AbilitySystemComponent->ScopedPredictionKey;
+		}
+	}
+}
+
+FScopedDiscardPredictions::~FScopedDiscardPredictions()
+{
+	if (UAbilitySystemComponent* ASC = Owner.Get())
+	{
+		ASC->ScopedPredictionKey = KeyToRestoreOnOwner;
+		if (BaseKeyToAck.IsValidKey())
+		{
+			if (PredictionKeyChainResult == EGasPredictionKeyResult::Accept)
+			{
+				UE_LOG(LogPredictionKey, Verbose, TEXT("%hs Accepting chain ending with %s"), __func__, *BaseKeyToAck.ToString());
+				FPredictionKeyDelegates::CatchUpTo(BaseKeyToAck.Current);
+			}
+			else if (PredictionKeyChainResult == EGasPredictionKeyResult::Reject)
+			{
+				UE_LOG(LogPredictionKey, Verbose, TEXT("%hs Rejecting chain starting with %s"), __func__, *BaseKeyToAck.ToString());
+				FPredictionKeyDelegates::Reject(BaseKeyToAck.Current);
+			}
+			else
+			{
+				UE_LOG(LogPredictionKey, Error, TEXT("%hs had a valid BaseKeyToAck (%s) but we were configured to Drop the Key (it should have been invalid)"), __func__, *BaseKeyToAck.ToString());
+			}
 		}
 	}
 }

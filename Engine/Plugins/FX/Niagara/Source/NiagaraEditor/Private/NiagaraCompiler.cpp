@@ -2225,9 +2225,9 @@ TOptional<FNiagaraCompileResults> FHlslNiagaraCompiler::GetCompileResult(int32 J
 	FVectorVMCompilationOutput CompilationOutput;
 	if (CompilationJob->ShaderCompileJob->bSucceeded)
 	{
-		const TArray<uint8>& Code = CompilationJob->ShaderCompileJob->Output.ShaderCode.GetReadAccess();
+		TConstArrayView<uint8> Code = CompilationJob->ShaderCompileJob->Output.ShaderCode.GetReadView();
 		FShaderCodeReader ShaderCode(Code);
-		FMemoryReader Ar(Code, true);
+		FMemoryReaderView Ar(Code, true);
 		Ar.SetLimitSize(ShaderCode.GetActualShaderCodeSize());
 		Ar << CompilationOutput;
 
@@ -2249,18 +2249,7 @@ TOptional<FNiagaraCompileResults> FHlslNiagaraCompiler::GetCompileResult(int32 J
 		DumpHLSLText(Results.Data->LastHlslTranslation, CompilationJob->CompileResults.DumpDebugInfoPath);
 	}
 
-	if (!Results.bVMSucceeded)
-	{
-		//For now we just copy the shader code over into the script. 
-		Results.Data->ByteCode.Reset();
-		Results.Data->Attributes.Empty();
-		Results.Data->Parameters.Empty();
-		Results.Data->InternalParameters.Empty();
-		Results.Data->DataInterfaceInfo.Empty();
-		Results.Data->UObjectInfos.Empty();
-		//Eventually Niagara will have all the shader plumbing and do things like materials.
-	}
-	else
+	if (Results.bVMSucceeded)
 	{
 			//Build internal parameters
 		SCOPE_CYCLE_COUNTER(STAT_NiagaraEditor_HlslCompiler_CompileShader_VectorVMSucceeded);
@@ -2370,6 +2359,17 @@ TOptional<FNiagaraCompileResults> FHlslNiagaraCompiler::GetCompileResult(int32 J
 			}
 		}
 	}
+
+	if (!Results.bVMSucceeded)
+	{
+		Results.Data->ByteCode.Reset();
+		Results.Data->Attributes.Empty();
+		Results.Data->Parameters.Empty();
+		Results.Data->InternalParameters.Empty();
+		Results.Data->DataInterfaceInfo.Empty();
+		Results.Data->UObjectInfos.Empty();
+	}
+
 	DumpDebugInfo(CompileResults, CompilationJob->ShaderCompileJob->Input, false);
 
 	//Seems like Results is a bit of a cobbled together mess at this point.
@@ -2430,7 +2430,8 @@ void FNiagaraShaderMapCompiler::CompileScript(
 	const FNiagaraCompileOptions& CompileOptions,
 	const FNiagaraTranslateResults& TranslateResults,
 	const FNiagaraTranslatorOutput& TranslatorOutput,
-	const FString& TranslatedHLSL)
+	const FString& TranslatedHLSL,
+	TConstArrayView<UNiagaraDataInterface*> DataInterfaces)
 {
 	TArray<TRefCountPtr<FShaderCommonCompileJob>> CompileJobs;
 
@@ -2445,6 +2446,11 @@ void FNiagaraShaderMapCompiler::CompileScript(
 		if (IsMetalPlatform(ActiveCompilation.ShaderPlatform))
 		{
 			CompilationEnvironment->CompilerFlags.Add(CFLAG_NoFastMath);
+		}
+
+		for (UNiagaraDataInterface* DataInterface : DataInterfaces)
+		{
+			DataInterface->ModifyCompilationEnvironment(ActiveCompilation.ShaderPlatform, *CompilationEnvironment.GetReference());
 		}
 
 		ActiveCompilation.ShaderMap->CreateCompileJobs(
@@ -2481,11 +2487,18 @@ bool FNiagaraShaderMapCompiler::ProcessCompileResults(bool bWait)
 
 	for (TArray<FActiveCompilation>::TIterator CompileIt = ActiveCompilations.CreateIterator(); CompileIt; ++CompileIt)
 	{
-		// make sure that all of the shader compile jobs have been released and finalized
-		const bool bReadyToProcess = !CompileIt->ShaderCompileJobs.ContainsByPredicate([](const FShaderCommonCompileJobPtr& CompileJob) -> bool
+		auto IsCompileJobIncomplete = [](const FShaderCommonCompileJobPtr& CompileJob) -> bool
 		{
-			return !CompileJob->bReleased || !CompileJob->bFinalized;
-		});
+			return !CompileJob.IsValid() || !CompileJob->bReleased || !CompileJob->bFinalized;
+		};
+
+		auto IsCompileJobError = [](const FShaderCommonCompileJobPtr& CompileJob) -> bool
+		{
+			return !CompileJob->bSucceeded;
+		};
+
+		// make sure that all of the shader compile jobs have been released and finalized
+		const bool bReadyToProcess = !CompileIt->ShaderCompileJobs.ContainsByPredicate(IsCompileJobIncomplete);
 
 		if (!bReadyToProcess)
 		{
@@ -2498,19 +2511,26 @@ bool FNiagaraShaderMapCompiler::ProcessCompileResults(bool bWait)
 		FActiveCompilation& CurrentCompilation = *CompileIt;
 		FCompletedCompilation& CompletedCompilation = CompletedCompilations.AddDefaulted_GetRef();
 
-		// for now we'll process all shaders at once (need to measure the cost here)
-		for (const FShaderCommonCompileJobPtr& ShaderCompileJob : CurrentCompilation.ShaderCompileJobs)
+		// do a first pass over all of the ShaderCompileJobs to see if any of them failed.  If it did, then we don't need
+		// to worry about pushing out our incomplete ShaderMap and we should just report the errors
+		const bool bSuccessfulCompilation = !CurrentCompilation.ShaderCompileJobs.ContainsByPredicate(IsCompileJobError);
+
+		if (bSuccessfulCompilation)
 		{
-			if (ShaderCompileJob.IsValid() && ShaderCompileJob->bSucceeded)
+			// for now we'll process all shaders at once (need to measure the cost here)
+			for (const FShaderCommonCompileJobPtr& ShaderCompileJob : CurrentCompilation.ShaderCompileJobs)
 			{
 				CurrentCompilation.ShaderMap->ProcessAndFinalizeShaderCompileJob(ShaderCompileJob);
 			}
-			else
-			{
-				CurrentCompilation.ShaderMap->SetCompiledSuccessfully(false);
-			}
+		}
+		else
+		{
+			CurrentCompilation.ShaderMap->SetCompiledSuccessfully(false);
+		}
 
-			// pass on error/warning info
+		// pass on error/warning info
+		for (const FShaderCommonCompileJobPtr& ShaderCompileJob : CurrentCompilation.ShaderCompileJobs)
+		{
 			if (const FShaderCompileJob* SingleShaderJob = ShaderCompileJob->GetSingleShaderJob())
 			{
 				CompletedCompilation.CompilationErrors.Append(SingleShaderJob->Output.Errors);

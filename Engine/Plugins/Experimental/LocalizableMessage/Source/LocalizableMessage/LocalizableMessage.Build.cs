@@ -14,10 +14,7 @@ namespace UnrealBuildTool.Rules
 
 			PublicDependencyModuleNames.AddRange(
 				new string[] {
-					"StructUtils" // used in header
 				});
-
-			bAllowAutoRTFMInstrumentation = true;
 		}
 	}
 }

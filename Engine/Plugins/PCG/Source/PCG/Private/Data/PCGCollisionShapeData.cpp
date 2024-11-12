@@ -45,6 +45,8 @@ void UPCGCollisionShapeData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) cons
 {
 	Super::AddToCrc(Ar, bFullDataCrc);
 
+	// Implementation note: no metadata at this point yet.
+
 	uint32 UniqueTypeID = StaticClass()->GetDefaultObject()->GetUniqueID();
 	Ar << UniqueTypeID;
 
@@ -106,9 +108,9 @@ const UPCGPointData* UPCGCollisionShapeData::CreatePointData(FPCGContext* Contex
 	return Data;
 }
 
-UPCGSpatialData* UPCGCollisionShapeData::CopyInternal() const
+UPCGSpatialData* UPCGCollisionShapeData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGCollisionShapeData* NewShapeData = NewObject<UPCGCollisionShapeData>();
+	UPCGCollisionShapeData* NewShapeData = FPCGContext::NewObject_AnyThread<UPCGCollisionShapeData>(Context);
 
 	NewShapeData->Transform = Transform;
 	NewShapeData->Shape = Shape;

@@ -33,12 +33,30 @@ TSharedRef<IPropertyTypeCustomization> FMovieSceneDynamicBindingCustomization::M
 	return Instance;
 }
 
-TSharedRef<IPropertyTypeCustomization> FMovieSceneDynamicBindingCustomization::MakeInstance(UMovieScene* InMovieScene, FGuid InObjectBinding)
+TSharedRef<IPropertyTypeCustomization> FMovieSceneDynamicBindingCustomization::MakeInstance(UMovieScene* InMovieScene, FGuid InObjectBinding, int32 InBindingIndex)
 {
 	TSharedRef<FMovieSceneDynamicBindingCustomization> Instance = MakeShared<FMovieSceneDynamicBindingCustomization>();
 	Instance->EditedMovieScene = InMovieScene;
 	Instance->ObjectBinding = InObjectBinding;
+	Instance->BindingIndex = InBindingIndex;
 	return Instance;
+}
+
+void FMovieSceneDynamicBindingCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
+{
+	FMovieSceneDirectorBlueprintEndpointCustomization::CustomizeChildren(InPropertyHandle, ChildBuilder, CustomizationUtils);
+	FStringView PropertyPath = InPropertyHandle->GetPropertyPath();
+	BindingIndex = 0;
+	if (PropertyPath.StartsWith(TEXT("Bindings[")))
+	{
+		int32 RightBounds;
+		if (PropertyPath.FindChar(']', RightBounds))
+		{
+			FStringView BindingIndexStr = PropertyPath.Mid(9, RightBounds);
+			// Grab the BindingIndex out of the PropertyPath
+			BindingIndex = FCString::Atoi(BindingIndexStr.GetData());
+		}
+	}
 }
 
 void FMovieSceneDynamicBindingCustomization::GetPayloadVariables(UObject* EditObject, void* RawData, FPayloadVariableMap& OutPayloadVariables) const
@@ -148,10 +166,10 @@ FMovieSceneDirectorBlueprintEndpointDefinition FMovieSceneDynamicBindingCustomiz
 	if (FMovieScenePossessable* Possessable = MovieScene->FindPossessable(ObjectBinding))
 	{
 		Definition.EndpointName = Possessable->GetName() + "_DynamicBinding";
-	}
-	else if (FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectBinding))
-	{
-		Definition.EndpointName = Spawnable->GetName() + "_DynamicBinding";
+		if (BindingIndex > 0)
+		{
+			Definition.EndpointName += "_" + FString::FromInt(BindingIndex);
+		}
 	}
 
 	return Definition;
@@ -170,6 +188,12 @@ void FMovieSceneDynamicBindingCustomization::OnCreateEndpoint(UMovieSceneSequenc
 			TEXT("Editing dynamic binding endpoint for a different sequence"));
 
 		FMovieSceneDynamicBinding* DynamicBinding = static_cast<FMovieSceneDynamicBinding*>(RawData[Index]);
+
+		// Default call in editor to true
+		if (UK2Node_FunctionEntry* CallFunction = Cast<UK2Node_FunctionEntry>(NewEndpoint))
+		{
+			CallFunction->MetaData.bCallInEditor = true;
+		}
 
 		FMovieSceneDynamicBindingUtils::SetEndpoint(MovieScene, DynamicBinding, NewEndpoint);
 	}

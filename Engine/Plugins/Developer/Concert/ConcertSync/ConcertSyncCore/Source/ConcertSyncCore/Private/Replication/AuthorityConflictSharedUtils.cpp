@@ -5,6 +5,7 @@
 #include "Replication/Data/ReplicationStream.h"
 #include "Replication/Messages/ChangeAuthority.h"
 #include "Replication/Messages/ChangeStream.h"
+#include "Replication/Misc/IReplicationGroundTruth.h"
 
 namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 {
@@ -17,7 +18,7 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
             const IReplicationGroundTruth& GroundTruth
             )
 		{
-			GroundTruth.ForEachSendingClient([&Object, &Callback, &IgnoredClients, &GroundTruth](const FGuid& ClientEndpointId)
+			GroundTruth.ForEachClient([&Object, &Callback, &IgnoredClients, &GroundTruth](const FGuid& ClientEndpointId)
 			{
 				if (IgnoredClients.Contains(ClientEndpointId))
 				{
@@ -53,7 +54,7 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 	EAuthorityConflict EnumerateAuthorityConflicts(
 		const FGuid& ClientId,
 		const FSoftObjectPath& Object,
-		TConstArrayView<FConcertPropertyChain> OverwriteProperties,
+		const TSet<FConcertPropertyChain>& OverwriteProperties,
 		const IReplicationGroundTruth& GroundTruth,
 		FProcessAuthorityConflict ProcessConflict
 		)
@@ -101,7 +102,7 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 				}
 
 				const FSoftObjectPath& ObjectPath = Change.Key;
-				const TArray<FConcertPropertyChain>& Properties = ObjectInfo->PropertySelection.ReplicatedProperties;
+				const TSet<FConcertPropertyChain>& Properties = ObjectInfo->PropertySelection.ReplicatedProperties;
 				const EAuthorityConflict Conflict = EnumerateAuthorityConflicts(SendingClient, ObjectPath, Properties, GroundTruth);
 
 				const bool bHasConflict = Conflict == EAuthorityConflict::Conflict;

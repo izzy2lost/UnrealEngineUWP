@@ -118,13 +118,20 @@ namespace MenuExtension_BlueprintGeneratedClass
 							const TAttribute<FText> ToolTip = TAttribute<FText>::CreateLambda([GeneratedClassAsset]()
 							{
 								const uint32 BPFlags = GeneratedClassAsset.GetTagValueRef<uint32>(FBlueprintTags::ClassFlags);
-								if ((BPFlags & (CLASS_Deprecated)) == 0)
+								const EBlueprintType BPType = static_cast<EBlueprintType>(GeneratedClassAsset.GetTagValueRef<int32>(FBlueprintTags::BlueprintType));
+								
+								if ((BPFlags & (CLASS_Deprecated)) != 0)
 								{
-									return LOCTEXT("Blueprint_NewDerivedBlueprintTooltip", "Creates a Child Blueprint Class based on the current Blueprint, allowing you to create variants easily.");
+									return LOCTEXT("Blueprint_NewDerivedBlueprintIsDeprecatedTooltip", "Blueprint class is deprecated, cannot derive a child Blueprint!");
+								}
+								else if (BPType == BPTYPE_FunctionLibrary)
+								{
+									return LOCTEXT("Blueprint_NewDerivedBlueprintIsFunctionLibraryTooltip", "Cannot derive from Blueprint Function Libraries!");
 								}
 								else
 								{
-									return LOCTEXT("Blueprint_NewDerivedBlueprintIsDeprecatedTooltip", "Blueprint class is deprecated, cannot derive a child Blueprint!");
+									return LOCTEXT("Blueprint_NewDerivedBlueprintTooltip", "Creates a Child Blueprint Class based on the current Blueprint, allowing you to create variants easily.");
+									
 								}
 							});
 							const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Blueprint");

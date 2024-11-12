@@ -7,11 +7,14 @@
 #include "RemoteControlPreset.h"
 #include "SRCPanelExposedEntitiesGroup.h"
 #include "SRCPanelTreeNode.h"
+#include "UI/Filters/RCFilter.h"
+#include "UI/RCFieldGroupOrder.h"
+#include "UI/RCFieldGroupType.h"
+#include "UI/RCPanelExposedEntitiesListSettingsData.h"
+#include "UObject/StrongObjectPtr.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/STreeView.h"
-#include "UI/Filters/RCFilter.h"
-#include "UObject/StrongObjectPtr.h"
 
 struct FRCPanelGroup;
 class FRCPanelWidgetRegistry;
@@ -40,14 +43,6 @@ enum class EEntitiesListMode : uint8
 	Protocols
 };
 
-/** Ordering types while grouping is active */
-enum class ERCGroupOrder
-{
-	None,
-	Ascending,
-	Descending
-};
-
 /** Holds information about a group drag and drop event  */
 struct FGroupDragEvent
 {
@@ -72,6 +67,7 @@ class SRCPanelExposedEntitiesList : public SCompoundWidget
 public:
 	SLATE_BEGIN_ARGS(SRCPanelExposedEntitiesList)
 		: _LiveMode(false)
+		, _ProtocolsMode(false)
 	{}
 		SLATE_ATTRIBUTE(bool, LiveMode)
 		SLATE_ATTRIBUTE(bool, ProtocolsMode)
@@ -190,7 +186,7 @@ private:
 	 * Called when the group type changed, if the new group type is the same as the current one it will be set to none
 	 * @param InFieldGroupType New grouping type
 	 */
-	void OnCreateFieldGroup(EFieldGroupType InFieldGroupType);
+	void OnCreateFieldGroup(ERCFieldGroupType InFieldGroupType);
 
 	/** Group fields based on the current group type (PropertyId/Owner) */
 	void CreateFieldGroup();
@@ -199,7 +195,7 @@ private:
 	 * Called when the order type changed, if the new order type is the same as the current one it will be set to none
 	 * @param InGroupOrder New group order
 	 */
-	void OnGroupOrderChanged(ERCGroupOrder InGroupOrder);
+	void OnGroupOrderChanged(ERCFieldGroupOrder InGroupOrder);
 
 	/** Order the groups based on the current order assigned (Ascending/Descending) */
 	void OrderGroups();
@@ -264,6 +260,12 @@ private:
 	/** Executed when a drag is detected, will create the Drag and Drop widget of the node(s) */
 	FReply OnNodeDragDetected(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, TSharedPtr<SRCPanelTreeNode> InNode);
 
+	/** Stores the list settings */
+	void StoreListSettings();
+
+	/** Recalls the list settings */
+	void RecallListSettings();
+
 private:
 	/** Holds the Groups list view. */
 	TSharedPtr<SListView<TSharedPtr<SRCPanelTreeNode>>> GroupsListView;
@@ -278,9 +280,9 @@ private:
 	/** Holds all the exposed entities groups. */
 	TArray<TSharedPtr<SRCPanelExposedEntitiesGroup>> ExposedEntitiesGroups;
 	/** Holds the current group type */
-	EFieldGroupType CurrentGroupType = EFieldGroupType::None;
+	ERCFieldGroupType CurrentGroupType = ERCFieldGroupType::None;
 	/** Holds the current sorting type */
-	ERCGroupOrder CurrentGroupSortType = ERCGroupOrder::None;
+	ERCFieldGroupOrder CurrentGroupSortType = ERCFieldGroupOrder::None;
 	/** Holds all the entities groups currently in the list */
 	TArray<TSharedPtr<SRCPanelExposedEntitiesGroup>> FieldEntitiesGroups;
 	/** Map of field ids to field widgets. */
@@ -333,7 +335,9 @@ private:
 	static TSet<FName> DefaultProtocolColumns;
 	/** Holds identifier of the selected group. */
 	FGuid CurrentlySelectedGroup;
-
+	/** Default settings for this entities list */
+	FRCPanelExposedEntitiesListSettingsData DefaultSettings;
+	
 	bool bRefreshRequested = false;
 	bool bRefreshEntitiesGroups = false;
 

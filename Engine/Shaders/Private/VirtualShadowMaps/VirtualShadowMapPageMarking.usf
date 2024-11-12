@@ -19,6 +19,8 @@
 #include "VirtualShadowMapProjectionCommon.ush"
 #include "VirtualShadowMapStats.ush"
 #include "VirtualShadowMapLightGrid.ush"
+#include "../ShaderPrint.ush"
+#include "../Froxel/Froxel.ush"
 
 // Type of input data consume by the page allocation (i.e., data read from the source buffer: Gbuffer, HairStrands data, ...)
 #define INPUT_TYPE_GBUFFER 0
@@ -99,7 +101,7 @@ void MarkPage(uint VirtualShadowMapId, uint MipLevel, float3 TranslatedWorldPosi
 		return;
 	}
 	// Normal pages marked through pixel processing are not "coarse" and should include "detail geometry" - i.e., all geometry
-	uint Flags = VSM_ALLOCATED_FLAG | VSM_DETAIL_GEOMETRY_FLAG;
+	uint Flags = VSM_FLAG_ALLOCATED | VSM_FLAG_DETAIL_GEOMETRY;
 
 	uint MaxPageAddress = CalcLevelDimsPages(MipLevel) - 1U;
 	float2 PageAddressFloat = ShadowUVz.xy * CalcLevelDimsPages(MipLevel);
@@ -139,7 +141,8 @@ void MarkPageClipmap(
 	}
 }
 
-// 
+uint MinLocalLightIndex;
+uint MaxLocalLightIndex;
 RWStructuredBuffer<uint> OutPrunedLightGridData;
 RWStructuredBuffer<uint> OutPrunedNumCulledLightsGrid;
 
@@ -153,20 +156,30 @@ void PruneLightGridCS(uint GridLinearIndex : SV_DispatchThreadID)
 	{
 		return;
 	}
-	const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridLinearIndex, EyeIndex);
+	const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridLinearIndex, EyeIndex);
 
 	uint NumRetainedLights = 0U;
+	uint FirstLightWithVSM = CulledLightGridHeader.NumLights;
+	uint LastLightWithVSM = 0U;
+
+	uint MaxIndex = min(MaxLocalLightIndex, CulledLightGridHeader.NumLights);
 
 	// First pass add the non-distant lights with VSMs
 	LOOP
-	for (uint Index = 0; Index < CulledLightGridData.NumLights; ++Index)
+	for (uint Index = MinLocalLightIndex; Index < MaxIndex; ++Index)
 	{
-		int VirtualShadowMapId = GetLocalLightData(CulledLightGridData.DataStartIndex + Index, EyeIndex).VirtualShadowMapId;
-		if (VirtualShadowMapId != INDEX_NONE && !IsSinglePageVirtualShadowMap(VirtualShadowMapId))
+		int VirtualShadowMapId = GetLocalLightData(CulledLightGridHeader.DataStartIndex + Index, EyeIndex).VirtualShadowMapId;
+		if (VirtualShadowMapId != INDEX_NONE)
 		{
-			// Copy light grid data index
-			checkStructuredBufferAccessSlow(OutPrunedLightGridData, CulledLightGridData.DataStartIndex + NumRetainedLights);
-			OutPrunedLightGridData[CulledLightGridData.DataStartIndex + NumRetainedLights++] = GetCulledLightDataGrid(CulledLightGridData.DataStartIndex + Index);
+			FirstLightWithVSM = min(FirstLightWithVSM, Index);
+			LastLightWithVSM = max(LastLightWithVSM, Index);
+
+			if (!IsSinglePageVirtualShadowMap(VirtualShadowMapId))
+			{
+				// Copy light grid data index
+				checkStructuredBufferAccessSlow(OutPrunedLightGridData, CulledLightGridHeader.DataStartIndex + NumRetainedLights);
+				OutPrunedLightGridData[CulledLightGridHeader.DataStartIndex + NumRetainedLights++] = GetCulledLightDataGrid(CulledLightGridHeader.DataStartIndex + Index);
+			}
 		}
 	}
 
@@ -174,14 +187,14 @@ void PruneLightGridCS(uint GridLinearIndex : SV_DispatchThreadID)
 	// NOTE: We could add these to the end in the first pass and then re-pack them instead, but this works
 	// well enough for moderate light counts.
 	LOOP
-	for (uint Index = 0; Index < CulledLightGridData.NumLights; ++Index)
+	for (uint Index = FirstLightWithVSM; Index <= LastLightWithVSM; ++Index)
 	{
-		int VirtualShadowMapId = GetLocalLightData(CulledLightGridData.DataStartIndex + Index, EyeIndex).VirtualShadowMapId;
+		int VirtualShadowMapId = GetLocalLightData(CulledLightGridHeader.DataStartIndex + Index, EyeIndex).VirtualShadowMapId;
 		// Discard any light without a VSM
 		if (VirtualShadowMapId != INDEX_NONE && IsSinglePageVirtualShadowMap(VirtualShadowMapId))
 		{
-			checkStructuredBufferAccessSlow(OutPrunedLightGridData, CulledLightGridData.DataStartIndex + NumRetainedLights);
-			OutPrunedLightGridData[CulledLightGridData.DataStartIndex + NumRetainedLights++] = GetCulledLightDataGrid(CulledLightGridData.DataStartIndex + Index);
+			checkStructuredBufferAccessSlow(OutPrunedLightGridData, CulledLightGridHeader.DataStartIndex + NumRetainedLights);
+			OutPrunedLightGridData[CulledLightGridHeader.DataStartIndex + NumRetainedLights++] = GetCulledLightDataGrid(CulledLightGridHeader.DataStartIndex + Index);
 		}
 	}
 
@@ -441,12 +454,12 @@ void GeneratePageFlagsFromPixels(
 		const float2 PageDilationOffset = PageDilationBorderSizeLocal * PageDilationDither;
 				
 		uint2 LocalPosition = PixelPos - uint2(View.ViewRectMin.xy);
-		const FCulledLightsGridData LightGridData = VirtualShadowMapGetLightsGrid(LocalPosition, Primary.SceneDepth);
+		const FCulledLightsGridHeader LightGridHeader = VirtualShadowMapGetLightsGrid(LocalPosition, Primary.SceneDepth);
 
 		LOOP
-		for (uint Index = 0; Index < LightGridData.NumLights; ++Index)
+		for (uint Index = 0; Index < LightGridHeader.NumLights; ++Index)
 		{
-			const FLocalLightData LightData = VirtualShadowMapGetLocalLightData(LightGridData, Index);
+			const FLocalLightData LightData = VirtualShadowMapGetLocalLightData(LightGridHeader, Index);
 
 			// If we hit a distant light, we're done as we sorted those to the end. See PruneLightGridCS.
 			if (IsSinglePageVirtualShadowMap(LightData.VirtualShadowMapId))
@@ -507,6 +520,171 @@ void GeneratePageFlagsFromPixels(
 	}
 }
 
+#ifdef GeneratePageFlagsFromFroxelsCS
+
+StructuredBuffer<FPackedFroxel>	Froxels;
+Buffer<uint>			FroxelArgs;
+
+int3 LoadFroxel(uint Index)
+{
+	return UnpackFroxel(Froxels[Index]);
+}
+
+FCulledLightsGridHeader VirtualShadowMapGetLightsGridForFroxel(int3 FroxelCoord, float FroxelCenterViewZ)
+{
+	// Has no effect unless INSTANCED_STEREO is enabled. Used in GetLightGridData to select ForwardLightData or ForwardLightDataISR, but then only uses redundant parameters anyway.
+	uint EyeIndex = 0U;
+
+	// Pick center point in froxel in pixels
+	uint2 PixelPos = FroxelCoord.xy * FROXEL_TILE_SIZE + FROXEL_TILE_SIZE / 2;
+
+	// TODO: calculate mapping directly?
+	uint GridLinearIndex = ComputeLightGridCellIndex(PixelPos, FroxelCenterViewZ, EyeIndex);
+	FCulledLightsGridHeader CulledLightGridData = GetCulledLightsGridHeader(GridLinearIndex, EyeIndex);
+
+	// Replace light count with our pruned count
+	CulledLightGridData.NumLights = VirtualShadowMap.NumCulledLightsGrid[GridLinearIndex];
+	return CulledLightGridData;
+}
+
+uint bShouldMarkLocaLights;
+int PassId;
+float DebugRange;
+
+[numthreads(FROXEL_INDIRECT_ARG_WORKGROUP_SIZE, 1, 1)]
+void GeneratePageFlagsFromFroxelsCS(uint FroxelIndex : SV_DispatchThreadID)
+{
+#if DEBUG_DRAW_GENERATE_FROM_FROXELS
+	FShaderPrintContext Context = InitShaderPrintContext();
+#endif
+	uint FroxelCount = FroxelArgs[3];
+
+	if (FroxelIndex >= FroxelCount)
+	{
+		return;
+	}
+	int3 FroxelCoord = LoadFroxel(FroxelIndex);
+
+	float3 FroxelCenterView = GetFroxelViewSpaceCenter(FroxelCoord);
+	float3 FroxelCenterTranslatedWorld = mul(float4(FroxelCenterView, 1.0f), View.ViewToTranslatedWorld).xyz;
+
+#if DEBUG_DRAW_GENERATE_FROM_FROXELS
+	if (FroxelIndex == 0)
+	{
+		float XLoc = 0.2;
+		Context.Pos.y = 0.13f + 0.02f * float(PassId);
+		Context.Pos.x = XLoc;
+		Print(Context, float(FroxelCount) / 1000, FontGreen);
+	}
+	if (!Context.IsDrawLocked())
+	{
+		float Range = length(float2(View.CursorPosition / FROXEL_TILE_SIZE) - float2(FroxelCoord.xy));
+		if (Range < DebugRange)
+		{
+			FFroxelClipBounds ClipBounds = GetFroxelClipBounds(FroxelCoord);
+			float Fade = saturate(8.0f * (DebugRange - Range) / DebugRange);
+			float4 Color = float4(IntToColor(FroxelCoord.x + FroxelCoord.y * 13791 + FroxelCoord.z * 93113791), Fade);
+			AddOBBTWS(Context, ClipBounds.ClipMin, ClipBounds.ClipMax, Color, View.ClipToTranslatedWorld, true);
+
+			// Draw the center as well
+			// AddSphereTWS(Context, FroxelCenterTranslatedWorld, 0.1f, Color);
+			// And the view space bounds.
+			//FFroxelViewBounds ViewBounds = GetFroxelViewSpaceAABB(FroxelCoord);
+			//AddOBBTWS(Context, ViewBounds.Min, ViewBounds.Max, Color, DFHackToFloat(View.ViewToTranslatedWorld));
+		}
+	}
+#endif
+	// Dither pattern for page dilation
+	// We don't need to to check all 8 adjacent pages; as long as there's at least a single pixel near the edge
+	// the adjacent one will get mapped. In practice only checking one diagonal seems to work fine and have minimal
+	// overhead.
+	const float2 PageDilationDither = float2(
+		(FroxelIndex & 1) ? 1.0f : -1.0f,
+		(FroxelIndex & 2) ? 1.0f : -1.0f);
+		
+	// Directional lights
+	{
+		const bool bUsePageDilation = PageDilationBorderSizeDirectional > 0.0f;
+		const float2 PageDilationOffset = PageDilationBorderSizeDirectional * PageDilationDither;
+
+		for (uint Index = 0; Index < NumDirectionalLightSmInds; ++Index)
+		{
+			int VirtualShadowMapId = DirectionalLightIds[Index];
+			FVirtualShadowMapProjectionShaderData ProjectionData = GetVirtualShadowMapProjectionData(VirtualShadowMapId);
+
+			MarkPageClipmap(ProjectionData, bUsePageDilation, PageDilationOffset, FroxelCenterTranslatedWorld);
+		}
+	}
+
+	// Local lights
+	if (bShouldMarkLocaLights != 0)
+	{
+		const bool bUsePageDilation = PageDilationBorderSizeLocal > 0.0f;
+		const float2 PageDilationOffset = PageDilationBorderSizeLocal * PageDilationDither;
+				
+		const FCulledLightsGridHeader LightGridData = VirtualShadowMapGetLightsGridForFroxel(FroxelCoord, FroxelCenterView.z);
+
+		LOOP
+		for (uint Index = 0; Index < LightGridData.NumLights; ++Index)
+		{
+			const FLocalLightData LightData = VirtualShadowMapGetLocalLightData(LightGridData, Index);
+
+			// If we hit a distant light, we're done as we sorted those to the end. See PruneLightGridCS.
+			if (IsSinglePageVirtualShadowMap(LightData.VirtualShadowMapId))
+			{
+				break;
+			}
+
+
+			// Relative to PrimaryView
+			const float3 LightTranslatedWorldPosition = LightData.LightPositionAndInvRadius.xyz;
+			float3 LocToLight = LightTranslatedWorldPosition - FroxelCenterTranslatedWorld;
+			float LengthSquared = length2(LocToLight);
+
+			if (LengthSquared > Square(1.0f / LightData.LightPositionAndInvRadius.w))
+			{
+				continue;
+			}
+
+			float3 ToLight = normalize(LocToLight);
+
+			// TODO: Can optimize these tests by fusing them together
+			// Also do precise cone test, since froxels are pretty coarse at times.
+			if (dot(ToLight, LightData.LightDirectionAndShadowMask.xyz) < GetLightSpotAngles(LightData).x)
+			{
+				continue;
+			}
+
+			const uint LightTypeAndPackedShadowMapChannelMask = asuint(LightData.LightDirectionAndShadowMask.w);
+			const uint LightType = UnpackLightType(LightTypeAndPackedShadowMapChannelMask);
+			
+			const bool bIsRectLight = LightType == LIGHT_TYPE_RECT;
+			if (bIsRectLight)
+			{
+				const bool bIsBehindRectLight = dot(ToLight, LightData.LightDirectionAndShadowMask.xyz) < 0;
+				if (bIsBehindRectLight)
+				{
+					continue;
+				}
+			}
+
+			// TODO: Precise radius test necessary?
+
+			int VirtualShadowMapId = LightData.VirtualShadowMapId;
+			bool bSpotLight = GetLightSpotAngles(LightData).x > -2.0f;
+			if( !bSpotLight )
+			{
+				VirtualShadowMapId += VirtualShadowMapGetCubeFace(-ToLight);
+			}
+
+			uint MipLevel = GetMipLevelLocal(VirtualShadowMapId, FroxelCenterTranslatedWorld, FroxelCenterView.z);
+			MarkPage(VirtualShadowMapId, MipLevel, FroxelCenterTranslatedWorld, bUsePageDilation, PageDilationOffset);
+		}
+	}
+}
+
+#endif 
+
 uint bMarkCoarsePagesLocal;
 int ClipmapFirstLevel;
 uint ClipmapIndexMask;
@@ -534,7 +712,7 @@ void MarkCoarsePages(uint DispatchThreadId : SV_DispatchThreadID)
 		
 	// NOTE: Coarse pages are very large and tend to get invalidated a lot due to anything in the scene moving
 	// Rendering non-nanite geometry into these pages can be very expensive and thus isn't always desirable.
-	uint Flags = VSM_ALLOCATED_FLAG;
+	uint Flags = VSM_FLAG_ALLOCATED;
 				
 	if (ProjectionData.bUnreferenced)
 	{

@@ -23,6 +23,8 @@ enum class EPropertyTagSerializeType : uint8
 {
 	/** Tag was loaded from an older version or has not yet been saved. */
 	Unknown,
+	/** Serialization of the property value was skipped. Tag has no value. */
+	Skipped,
 	/** Serialized with tagged property serialization. */
 	Property,
 	/** Serialized with binary or native serialization. */

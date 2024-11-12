@@ -77,14 +77,6 @@ public:
 		}
 
 	public:
-#if WITH_EDITORONLY_DATA
-		UE_DEPRECATED(5.0, "Direct access to PositionAttr is now deprecated. Use the getter or setter.")
-		TSlateDeprecatedTAttribute<FVector2D> PositionAttr;
-		UE_DEPRECATED(5.0, "Direct access to SizeAttr is now deprecated. Use the getter or setter.")
-		TSlateDeprecatedTAttribute<FVector2D> SizeAttr;
-#endif
-
-	public:
 		/** Default values for a slot. */
 		FSlot()
 			: TWidgetSlotWithAttributeSupport<FSlot>()
@@ -114,6 +106,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SCanvas();
+	SLATE_API virtual ~SCanvas();
 
 	/**
 	 * Construct this widget

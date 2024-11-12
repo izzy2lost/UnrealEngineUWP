@@ -15,7 +15,7 @@
 
 #if PLATFORM_WINDOWS
 
-#include "Windows/COMPointer.h"
+#include "Microsoft/COMPointer.h"
 #include "ScopedCom.h"					// FScopedComString
 
 #include "Windows/AllowWindowsPlatformTypes.h"
@@ -27,7 +27,7 @@ THIRD_PARTY_INCLUDES_END
 
 #include "WindowsMMNotificationClient.h"
 #include "WindowsMMDeviceInfoCache.h"
-#include "ToStringHelpers.h"
+#include "WindowsMMStringUtils.h"
 
 namespace Audio
 {	
@@ -55,7 +55,7 @@ namespace Audio
 			// Shared (This is a COM object, so we don't delete it, just derecement the ref counter).
 			WindowsNotificationClient = TSharedPtr<FWindowsMMNotificationClient>(
 				new FWindowsMMNotificationClient, 
-				[](FWindowsMMNotificationClient* InPtr) { InPtr->Release(); }
+				[](FWindowsMMNotificationClient* InPtr) { InPtr->ReleaseClient(); }
 			);
 		}
 		if (!DeviceInfoCache.IsValid())

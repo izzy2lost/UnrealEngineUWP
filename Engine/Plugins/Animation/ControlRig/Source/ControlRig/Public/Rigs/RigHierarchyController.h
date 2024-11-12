@@ -201,20 +201,22 @@ public:
         );
 
 	/**
-	* Adds a rigidbody to the hierarchy
-	* @param InName The suggested name of the new rigidbody - will eventually be corrected by the namespace
-	* @param InParent The (optional) parent of the new rigidbody. If you don't need a parent, pass FRigElementKey()
-	* @param InSettings All of the rigidbody's settings
-	* @param InLocalTransform The transform for the new rigidbody - in the space of the provided parent
+	* Adds a physics element to the hierarchy
+	* @param InName The suggested name of the new physics element - will eventually be corrected by the namespace
+	* @param InParent The (optional) parent of the new physics element. If you don't need a parent, pass FRigElementKey()
+	* @param InSolver The guid identifying the solver to use
+	* @param InSettings All of the physics element's settings
+	* @param InLocalTransform The transform for the new physics element - in the space of the provided parent
 	* @param bSetupUndo If set to true the stack will record the change for undo / redo
 	* @param bPrintPythonCommand If set to true a python command equivalent to this call will be printed out
-	* @return The key for the newly created rigidbody.
+	* @return The key for the newly created physics element.
 	*/
 	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
-    FRigElementKey AddRigidBody(
+    FRigElementKey AddPhysicsElement(
     	FName InName,
     	FRigElementKey InParent,
-        FRigRigidBodySettings InSettings,
+    	FRigPhysicsSolverID InSolver,
+        FRigPhysicsSettings InSettings,
     	FTransform InLocalTransform,
     	bool bSetupUndo = false,
 		bool bPrintPythonCommand = false);
@@ -342,6 +344,18 @@ public:
 #endif
 
 	/**
+	 * Imports all curves from an anim curve metadata object to the hierarchy
+	 * @param InAnimCurvesMetadata The anim curve metadata object to import the curves from
+	 * @param InNameSpace The namespace to prefix the bone names with
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @return The keys of the imported elements
+	 */
+	TArray<FRigElementKey> ImportCurves(
+		UAnimCurveMetaData* InAnimCurvesMetadata, 
+		FName InNameSpace = NAME_None,
+		bool bSetupUndo = false);
+
+	/**
 	 * Imports all curves from a skeleton to the hierarchy
 	 * @param InSkeleton The skeleton to import the curves from
 	 * @param InNameSpace The namespace to prefix the bone names with
@@ -352,6 +366,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
 	TArray<FRigElementKey> ImportCurves(
 		USkeleton* InSkeleton, 
+		FName InNameSpace = NAME_None,  
+		bool bSelectCurves = false,
+		bool bSetupUndo = false,
+		bool bPrintPythonCommand = false);
+
+	/**
+	 * Imports all curves from a skeletalmesh to the hierarchy
+	 * @param InSkeletalMesh The skeletalmesh to import the curves from
+	 * @param InNameSpace The namespace to prefix the bone names with
+	 * @param bSelectCurves If true the curves will be selected upon import
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @return The keys of the imported elements
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
+	TArray<FRigElementKey> ImportCurvesFromSkeletalMesh(
+		USkeletalMesh* InSkeletalMesh, 
 		FName InNameSpace = NAME_None,  
 		bool bSelectCurves = false,
 		bool bSetupUndo = false,
@@ -524,6 +554,64 @@ public:
 	bool SetParent(FRigElementKey InChild, FRigElementKey InParent, bool bMaintainGlobalTransform = true, bool bSetupUndo = false, bool bPrintPythonCommand = false);
 
 	/**
+	 * Adds a new available space to the given control
+	 * @param InControl The control to add the available space for
+	 * @param InSpace The space to add to the available spaces list
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @param bPrintPythonCommand If set to true a python command equivalent to this call will be printed out
+	 * @return Returns true if successful.
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
+	bool AddAvailableSpace(FRigElementKey InControl, FRigElementKey InSpace, bool bSetupUndo = false, bool bPrintPythonCommand = false);
+
+	/**
+	 * Removes an available space from the given control
+	 * @param InControl The control to remove the available space from
+	 * @param InSpace The space to remove from the available spaces list
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @param bPrintPythonCommand If set to true a python command equivalent to this call will be printed out
+	 * @return Returns true if successful.
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
+	bool RemoveAvailableSpace(FRigElementKey InControl, FRigElementKey InSpace, bool bSetupUndo = false, bool bPrintPythonCommand = false);
+
+	/**
+	 * Reorders an available space for the given control
+	 * @param InControl The control to reorder the host for
+	 * @param InSpace The space to set the new index for
+	 * @param InIndex The new index of the available space
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @param bPrintPythonCommand If set to true a python command equivalent to this call will be printed out
+	 * @return Returns true if successful.
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
+	bool SetAvailableSpaceIndex(FRigElementKey InControl, FRigElementKey InSpace, int32 InIndex, bool bSetupUndo = false, bool bPrintPythonCommand = false);
+
+	/**
+	 * Adds a new channel host to the animation channel
+	 * @note This is just an overload of AddAvailableSpace for readability
+	 * @param InChannel The animation channel to add the channel host for
+	 * @param InHost The host to add to the channel to
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @param bPrintPythonCommand If set to true a python command equivalent to this call will be printed out
+	 * @return Returns true if successful.
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
+	bool AddChannelHost(FRigElementKey InChannel, FRigElementKey InHost, bool bSetupUndo = false, bool bPrintPythonCommand = false);
+
+	/**
+	 * Removes an channel host from the animation channel
+	 * @note This is just an overload of RemoveAvailableSpace for readability
+	 * @param InChannel The animation channel to remove the channel host from
+	 * @param InHost The host to remove from the channel from
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @param bPrintPythonCommand If set to true a python command equivalent to this call will be printed out
+	 * @return Returns true if successful.
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
+	bool RemoveChannelHost(FRigElementKey InChannel, FRigElementKey InHost, bool bSetupUndo = false, bool bPrintPythonCommand = false);
+
+	/**
 	 * Duplicate the given elements
 	 * @param InKeys The keys of the elements to duplicate
 	 * @param bSelectNewElements If set to true the new elements will be selected
@@ -611,7 +699,7 @@ public:
 
 	TArray<FString> GetAddCurvePythonCommands(FRigCurveElement* Curve) const;
 
-	TArray<FString> GetAddRigidBodyPythonCommands(FRigRigidBodyElement* RigidBody) const;
+	TArray<FString> GetAddPhysicsElementPythonCommands(FRigPhysicsElement* PhysicsElement) const;
 
 	TArray<FString> GetAddConnectorPythonCommands(FRigConnectorElement* Connector) const;
 
@@ -719,6 +807,31 @@ private:
 	bool SetParent(FRigBaseElement* InChild, FRigBaseElement* InParent, bool bMaintainGlobalTransform = true);
 
 	/**
+	 * Adds a new available space to the given control
+	 * @param InControlElement The control element to add the available space for
+	 * @param InSpaceElement The space element to add to the available spaces list
+	 * @return Returns true if successful.
+	 */
+	bool AddAvailableSpace(FRigControlElement* InControlElement, const FRigTransformElement* InSpaceElement);
+
+	/**
+	 * Removes an available space from the given control
+	 * @param InControlElement The control element to remove the available space from
+	 * @param InSpaceElement The space element to remove from the available spaces list
+	 * @return Returns true if successful.
+	 */
+	bool RemoveAvailableSpace(FRigControlElement* InControlElement, const FRigTransformElement* InSpaceElement);
+
+	/**
+	 * Reorders an available space for the given control
+	 * @param InControlElement The control element to remove the available space from
+	 * @param InSpaceElement The space element to remove from the available spaces list
+	 * @param InIndex The new index of the available space
+	 * @return Returns true if successful.
+	 */
+	bool SetAvailableSpaceIndex(FRigControlElement* InControlElement, const FRigTransformElement* InSpaceElement, int32 InIndex);
+
+	/**
 	 * Adds a new element to the dirty list of the given parent.
 	 * This function is recursive and will affect all parents in the tree.
 	 * @param InParent The parent element to change the dirty list for
@@ -736,6 +849,7 @@ private:
 	void RemoveElementToDirty(FRigBaseElement* InParent, FRigBaseElement* InElementToRemove) const;
 
 #if WITH_EDITOR
+	static USkeletalMesh* GetSkeletalMeshFromAssetPath(const FString& InAssetPath);
 	static USkeleton* GetSkeletonFromAssetPath(const FString& InAssetPath);
 #endif
 
@@ -765,9 +879,9 @@ private:
 	TFunction<void(EMessageSeverity::Type,const FString&)> LogFunction = nullptr;
 
 	template<typename T>
-	T* MakeElement()
+	T* MakeElement(bool bAllocateStorage = false)
 	{
-		T* Element = GetHierarchy()->NewElement<T>();
+		T* Element = GetHierarchy()->NewElement<T>(1, bAllocateStorage);
 		Element->CreatedAtInstructionIndex = CurrentInstructionIndex;
 		return Element;
 	}

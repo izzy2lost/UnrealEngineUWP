@@ -6,6 +6,7 @@
 #include "IMediaClockSink.h"
 #include "IMediaModule.h"
 #include "MediaPlayer.h"
+#include "MediaPlaylist.h"
 #include "MediaSource.h"
 #include "Modules/ModuleManager.h"
 #include "MovieScene.h"
@@ -369,7 +370,11 @@ void UMovieSceneMediaTrack::StartGetDuration(UMediaSource* MediaSource, UMovieSc
 
 	// Open the media.
 	MediaPlayer->PlayOnOpen = false;
-	if (MediaPlayer->OpenSource(MediaSource))
+	FMediaPlayerOptions PlayerOptions;
+	PlayerOptions.SetAllAsOptional();
+	PlayerOptions.InternalCustomOptions.Emplace(MediaPlayerOptionValues::ParseTimecodeInfo(), FVariant());
+	
+	if (MediaPlayer->OpenSourceWithOptions(MediaSource, PlayerOptions))
 	{
 		NewSections.Emplace(MediaPlayer, Section);
 	}
@@ -389,29 +394,52 @@ void UMovieSceneMediaTrack::StartGetDuration(UMediaSource* MediaSource, UMovieSc
 	}
 }
 
+namespace UE::MovieSceneMediaTrack::Private
+{
+	FString GetTimecodeStringFromMediaPlayer(const UMediaPlayer* InMediaPlayer)
+	{
+		if (UMediaPlaylist* Playlist = InMediaPlayer->GetPlaylist())
+		{
+			if (const UMediaSource* MediaSource = Playlist->Get(InMediaPlayer->GetPlaylistIndex()))
+			{
+				return MediaSource->GetMediaOption(UMediaPlayer::MediaInfoNameStartTimecodeValue.Resolve(), FString());
+			}
+		}
+		return FString();
+	}
+}
+
 bool UMovieSceneMediaTrack::GetDuration(
 	const TStrongObjectPtr<UMediaPlayer>& MediaPlayer, TWeakObjectPtr<UMovieSceneSection>& NewSection)
 {
-	bool bIsDone = false;
-
 	// Check everything is ok.
-	if ((MediaPlayer.IsValid() == false) || (MediaPlayer->HasError()) || (MediaPlayer->IsClosed()) ||
-		(NewSection.IsValid() == false))
-	{
-		bIsDone = true;
-	}
-	else
+	bool bIsDone = (MediaPlayer.IsValid() == false) || (MediaPlayer->HasError()) || (MediaPlayer->IsClosed()) || (NewSection.IsValid() == false);
+
+	if (!bIsDone)
 	{
 		// Get the duration.
-		FTimespan Duration = MediaPlayer->GetDuration();
+		const FTimespan Duration = MediaPlayer->GetDuration();
 		if (Duration != 0)
 		{
 			// Once it is non zero, then set the length of the section.
-			FFrameRate TickResolution = NewSection->GetTypedOuter<UMovieScene>()->GetTickResolution();
-			FFrameNumber StartFrame = NewSection->GetInclusiveStartFrame();
-			FFrameNumber EndFrame = StartFrame + (Duration.GetTotalSeconds() * TickResolution).FrameNumber;
+			const FFrameRate TickResolution = NewSection->GetTypedOuter<UMovieScene>()->GetTickResolution();
+			const FFrameNumber StartFrame = NewSection->GetInclusiveStartFrame();
+			const FFrameNumber EndFrame = StartFrame + (Duration.GetTotalSeconds() * TickResolution).FrameNumber;
 			NewSection->SetEndFrame(TRangeBound<FFrameNumber>::Exclusive(EndFrame));
 			bIsDone = true;
+
+			// Timecode from the source. Either player's meta data or media source.
+			using namespace UE::MovieSceneMediaTrack::Private;
+			const FVariant Value = MediaPlayer->GetMediaInfo(UMediaPlayer::MediaInfoNameStartTimecodeValue.Resolve());
+			const FString TimecodeString = Value.IsEmpty() ? GetTimecodeStringFromMediaPlayer(MediaPlayer.Get()) : Value.GetValue<FString>();  
+			if (!TimecodeString.IsEmpty())
+			{
+				const TOptional<FTimecode> Timecode = FTimecode::ParseTimecode(*TimecodeString);
+				if (Timecode.IsSet())
+				{
+					NewSection->TimecodeSource = FMovieSceneTimecodeSource(Timecode.GetValue());
+				}
+			}
 		}
 	}
 

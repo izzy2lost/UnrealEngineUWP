@@ -130,7 +130,9 @@ FMeshDescription* FSkeletalMeshSourceModel::GetMeshDescription() const
 	
 	if (MeshDescriptionBulkData->HasCachedMeshDescription())
 	{
-		return &MeshDescriptionBulkData->GetMeshDescription()->GetMeshDescription();
+		FMeshDescription& MeshDescription = MeshDescriptionBulkData->GetMeshDescription()->GetMeshDescription();
+		UpdateBonesDataIfNeeded(MeshDescription);
+		return &MeshDescription;
 	}
 
 	return nullptr;
@@ -215,6 +217,24 @@ const FMeshDescriptionBulkData* FSkeletalMeshSourceModel::GetMeshDescriptionBulk
 	return &MeshDescriptionBulkData->GetBulkData();
 }
 
+
+TConstArrayView<FName> FSkeletalMeshSourceModel::GetSkinWeightProfileNames() const
+{
+	if (CachedSkinWeightProfileNames.Num() == 1 && CachedSkinWeightProfileNames[0] == NAME_None)
+	{
+		const_cast<FSkeletalMeshSourceModel*>(this)->UpdateCachedMeshStatisticsFromBulkIfNeeded();
+	}
+	return CachedSkinWeightProfileNames;
+}
+
+TConstArrayView<FName> FSkeletalMeshSourceModel::GetMorphTargetNames() const
+{
+	if (CachedMorphTargetNames.Num() == 1 && CachedMorphTargetNames[0] == NAME_None)
+	{
+		const_cast<FSkeletalMeshSourceModel*>(this)->UpdateCachedMeshStatisticsFromBulkIfNeeded();
+	}
+	return CachedMorphTargetNames;
+}
 
 USkeletalMesh* FSkeletalMeshSourceModel::GetOwner() const
 {
@@ -349,13 +369,98 @@ void FSkeletalMeshSourceModel::UpdateCachedMeshStatistics(const FMeshDescription
 		TriangleCount = InMeshDescription->Triangles().Num();
 		VertexCount = InMeshDescription->Vertices().Num();
 		Bounds = InMeshDescription->GetBounds();
+		
+		FSkeletalMeshConstAttributes Attributes(*InMeshDescription);
+		constexpr bool bInUserDefinedOnly = true;
+		CachedSkinWeightProfileNames = Attributes.GetSkinWeightProfileNames(bInUserDefinedOnly);
+		CachedMorphTargetNames = Attributes.GetMorphTargetNames();
 	}
 	else
 	{
 		TriangleCount = VertexCount = 0;
 		Bounds = FBoxSphereBounds{ForceInitToZero};
+		CachedSkinWeightProfileNames.Reset();
+		CachedMorphTargetNames.Reset();
 	}
 }
 
+void FSkeletalMeshSourceModel::UpdateCachedMeshStatisticsFromBulkIfNeeded()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FSkeletalMeshSourceData::UpdateCachedMeshStatisticsFromBulkIfNeeded);
+
+	FScopeLock Lock(&MeshDescriptionBulkDataMutex);
+
+	if (!ensure(MeshDescriptionBulkData))
+	{
+		return;
+	}
+	
+	if (MeshDescriptionBulkData->HasCachedMeshDescription())
+	{
+		UpdateCachedMeshStatistics(&MeshDescriptionBulkData->GetMeshDescription()->GetMeshDescription());
+	}
+
+	if (!MeshDescriptionBulkData->IsBulkDataValid())
+	{
+		if (RawMeshBulkData.IsValid())
+		{
+			// This call will implicitly update the mesh statistics.
+			ConvertRawMeshToMeshDescriptionBulkData();
+		}
+		else
+		{
+			UpdateCachedMeshStatistics(nullptr);
+		}
+	}
+	else
+	{
+		// Temporarily load the mesh description from the bulk data, we don't care about fixing up the morph targets
+		// in this instance (as would be the case with LoadMeshDescriptionFromBulkData).
+		FMeshDescription MeshDescription;
+		MeshDescriptionBulkData->GetBulkData().LoadMeshDescription(MeshDescription);
+
+		UpdateCachedMeshStatistics(&MeshDescription);
+	}
+}
+
+void FSkeletalMeshSourceModel::UpdateBonesDataIfNeeded(FMeshDescription& InOutMeshDescription) const
+{
+	FSkeletalMeshAttributes MeshAttributes(InOutMeshDescription);
+	if (!MeshAttributes.HasBones())
+	{
+		MeshAttributes.Register(true);
+	}
+
+	const USkeletalMesh* SkeletalMesh = GetOwner();
+	if (!SkeletalMesh)
+	{
+		return;
+	}
+	
+	const int32 NumMeshDescBones = MeshAttributes.GetNumBones();
+	const FReferenceSkeleton RefSkeleton = SkeletalMesh->GetRefSkeleton();
+	const int32 NumRefBones = SkeletalMesh->GetRefSkeleton().GetRawBoneNum();
+	if (NumMeshDescBones != NumRefBones && NumRefBones > 0)
+	{
+		MeshAttributes.Bones().Reset(NumRefBones);
+	
+		FSkeletalMeshAttributes::FBoneNameAttributesRef BoneNames = MeshAttributes.GetBoneNames();
+		FSkeletalMeshAttributes::FBoneParentIndexAttributesRef BoneParentIndices = MeshAttributes.GetBoneParentIndices();
+		FSkeletalMeshAttributes::FBonePoseAttributesRef BonePoses = MeshAttributes.GetBonePoses();
+
+
+		for (int Index = 0; Index < NumRefBones; ++Index)
+		{
+			const FMeshBoneInfo& BoneInfo = RefSkeleton.GetRawRefBoneInfo()[Index];
+			const FTransform& BoneTransform = RefSkeleton.GetRawRefBonePose()[Index];
+
+			const FBoneID BoneID = MeshAttributes.CreateBone();
+
+			BoneNames.Set(BoneID, BoneInfo.Name);
+			BoneParentIndices.Set(BoneID, BoneInfo.ParentIndex);
+			BonePoses.Set(BoneID, BoneTransform);
+		}
+	}
+}
 
 #endif

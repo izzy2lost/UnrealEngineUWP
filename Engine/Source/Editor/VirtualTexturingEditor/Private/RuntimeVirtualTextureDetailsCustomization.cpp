@@ -13,6 +13,7 @@
 #include "RuntimeVirtualTextureBuildStreamingMips.h"
 #include "RuntimeVirtualTextureSetBounds.h"
 #include "ScopedTransaction.h"
+#include "SEnumCombo.h"
 #include "SResetToDefaultMenu.h"
 #include "VirtualTextureBuilderFactory.h"
 #include "VT/RuntimeVirtualTexture.h"
@@ -26,7 +27,6 @@
 #define LOCTEXT_NAMESPACE "VirtualTexturingEditorModule"
 
 FRuntimeVirtualTextureDetailsCustomization::FRuntimeVirtualTextureDetailsCustomization()
-	: VirtualTexture(nullptr)
 {
 }
 
@@ -101,6 +101,37 @@ void FRuntimeVirtualTextureDetailsCustomization::CustomizeDetails(IDetailLayoutB
 		return;
 	}
 
+	RefreshMaterialTypes();
+
+	TSharedRef<IPropertyHandle> MaterialTypePropertyHandle = DetailBuilder.GetProperty(TEXT("MaterialType"));
+	DetailBuilder.EditDefaultProperty(MaterialTypePropertyHandle)->CustomWidget()
+	.NameContent()
+	[
+		MaterialTypePropertyHandle->CreatePropertyNameWidget()
+	]
+	.ValueContent()
+	[
+		SNew(SEnumComboBox, StaticEnum<ERuntimeVirtualTextureMaterialType>())
+			.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+			.EnumValueSubset(SupportedMaterialTypes)
+			.CurrentValue_Lambda([this]()
+			{
+				if (URuntimeVirtualTexture* Texture = VirtualTexture.Get())
+				{
+					return (int32)Texture->GetMaterialType();
+				}
+				return 0;
+			})
+			.OnEnumSelectionChanged_Lambda([this](uint32 NewValue, ESelectInfo::Type)
+			{
+				if (URuntimeVirtualTexture* Texture = VirtualTexture.Get())
+				{
+					Texture->MaterialType = (ERuntimeVirtualTextureMaterialType)NewValue;
+					RefreshDetailsView();
+				}
+			})
+	];
+
 	// Set UIMax dependent on adaptive page table setting
 	FString MaxTileCountString = FString::Printf(TEXT("%d"), URuntimeVirtualTexture::GetMaxTileCountLog2(VirtualTexture->GetAdaptivePageTable()));
 	DetailBuilder.GetProperty(FName(TEXT("TileCount")))->SetInstanceMetaData("UIMax", MaxTileCountString);
@@ -153,37 +184,62 @@ void FRuntimeVirtualTextureDetailsCustomization::CustomizeDetails(IDetailLayoutB
 	RefreshTextDetails();
 }
 
+void FRuntimeVirtualTextureDetailsCustomization::RefreshMaterialTypes()
+{
+	// Filter for enabled material types.
+	SupportedMaterialTypes.Reset();
+	SupportedMaterialTypes.Reserve((int32)ERuntimeVirtualTextureMaterialType::Count);
+	
+	// Include currently selected type even if it is disabled.
+	ERuntimeVirtualTextureMaterialType CurrentType = ERuntimeVirtualTextureMaterialType::Count;
+	if (URuntimeVirtualTexture* Texture = VirtualTexture.Get())
+	{
+		CurrentType = Texture->GetMaterialType();
+	}
+
+	for (ERuntimeVirtualTextureMaterialType Type : TEnumRange<ERuntimeVirtualTextureMaterialType>())
+	{
+		if (RuntimeVirtualTexture::IsMaterialTypeSupported(Type) || Type == CurrentType)
+		{
+			SupportedMaterialTypes.Add((int32)Type);
+		}
+	}
+}
+
 void FRuntimeVirtualTextureDetailsCustomization::RefreshTextDetails()
 {
-	FNumberFormattingOptions SizeOptions;
-	SizeOptions.UseGrouping = false;
-	SizeOptions.MaximumFractionalDigits = 0;
-
- 	TileCountText->SetText(FText::Format(LOCTEXT("Details_Number", "{0}"), FText::AsNumber(VirtualTexture->GetTileCount(), &SizeOptions)));
-	TileSizeText->SetText(FText::Format(LOCTEXT("Details_Number", "{0}"), FText::AsNumber(VirtualTexture->GetTileSize(), &SizeOptions)));
- 	TileBorderSizeText->SetText(FText::Format(LOCTEXT("Details_Number", "{0}"), FText::AsNumber(VirtualTexture->GetTileBorderSize(), &SizeOptions)));
-
-	FString SizeUnits = TEXT("Texels");
-	int32 Size = VirtualTexture->GetSize();
-	int32 SizeLog2 = FMath::CeilLogTwo(Size);
-	if (SizeLog2 >= 30)
+	if (URuntimeVirtualTexture* Texture = VirtualTexture.Get())
 	{
-		Size = Size >> 30;
-		SizeUnits = TEXT("GiTexels");
-	}
-	else if (SizeLog2 >= 20)
-	{
-		Size = Size >> 20;
-		SizeUnits = TEXT("MiTexels");
-	}
-	else if (SizeLog2 >= 10)
-	{
-		Size = Size >> 10;
-		SizeUnits = TEXT("KiTexels");
-	}
-	SizeText->SetText(FText::Format(LOCTEXT("Details_Number_Units", "{0} {1}"), FText::AsNumber(Size, &SizeOptions), FText::FromString(SizeUnits)));
+		FNumberFormattingOptions SizeOptions;
+		SizeOptions.UseGrouping = false;
+		SizeOptions.MaximumFractionalDigits = 0;
 
-	PageTableSizeText->SetText(FText::Format(LOCTEXT("Details_Number", "{0}"), FText::AsNumber(VirtualTexture->GetPageTableSize(), &SizeOptions)));
+		TileCountText->SetText(FText::Format(LOCTEXT("Details_Number", "{0}"), FText::AsNumber(Texture->GetTileCount(), &SizeOptions)));
+		TileSizeText->SetText(FText::Format(LOCTEXT("Details_Number", "{0}"), FText::AsNumber(Texture->GetTileSize(), &SizeOptions)));
+		TileBorderSizeText->SetText(FText::Format(LOCTEXT("Details_Number", "{0}"), FText::AsNumber(Texture->GetTileBorderSize(), &SizeOptions)));
+
+		FString SizeUnits = TEXT("Texels");
+		int32 Size = Texture->GetSize();
+		int32 SizeLog2 = FMath::CeilLogTwo(Size);
+		if (SizeLog2 >= 30)
+		{
+			Size = Size >> 30;
+			SizeUnits = TEXT("GiTexels");
+		}
+		else if (SizeLog2 >= 20)
+		{
+			Size = Size >> 20;
+			SizeUnits = TEXT("MiTexels");
+		}
+		else if (SizeLog2 >= 10)
+		{
+			Size = Size >> 10;
+			SizeUnits = TEXT("KiTexels");
+		}
+		SizeText->SetText(FText::Format(LOCTEXT("Details_Number_Units", "{0} {1}"), FText::AsNumber(Size, &SizeOptions), FText::FromString(SizeUnits)));
+
+		PageTableSizeText->SetText(FText::Format(LOCTEXT("Details_Number", "{0}"), FText::AsNumber(Texture->GetPageTableSize(), &SizeOptions)));
+	}
 }
 
 void FRuntimeVirtualTextureDetailsCustomization::RefreshDetailsView()
@@ -235,11 +291,15 @@ void FRuntimeVirtualTextureComponentDetailsCustomization::CustomizeDetails(IDeta
 		SNew(SButton)
 		.VAlign(VAlign_Center)
 		.HAlign(HAlign_Center)
-		.ContentPadding(2)
+		.ContentPadding(2.f)
 		.Text(LOCTEXT("Button_SetBounds", "Set Bounds"))
 		.OnClicked(this, &FRuntimeVirtualTextureComponentDetailsCustomization::SetBounds)
 		.IsEnabled(this, &FRuntimeVirtualTextureComponentDetailsCustomization::IsSetBoundsEnabled)
 	];
+
+	FText BuildButtonText = LOCTEXT("Button_Build_Tooltip", "Build the low mips as streaming virtual texture data. \n\
+		If \"Separate Texture For Mobile\" is enabled in the Streaming Texture, only the mobile version of the texture will be updated when hitting this button \
+		while the mobile preview mode is active (and only the desktop version otherwise).");
 
 	// Apply custom widget for BuildStreamingMips.
 	TSharedRef<IPropertyHandle> BuildStreamingMipsPropertyHandle = DetailBuilder.GetProperty(TEXT("bBuildStreamingMipsButton"));
@@ -249,7 +309,7 @@ void FRuntimeVirtualTextureComponentDetailsCustomization::CustomizeDetails(IDeta
 		SNew(STextBlock)
 		.Font(IDetailLayoutBuilder::GetDetailFont())
 		.Text(LOCTEXT("Button_BuildStreamingTexture", "Build Streaming Texture"))
-		.ToolTipText(LOCTEXT("Button_Build_Tooltip", "Build the low mips as streaming virtual texture data"))
+		.ToolTipText(BuildButtonText)
 	]
 	.ValueContent()
 	[
@@ -260,8 +320,9 @@ void FRuntimeVirtualTextureComponentDetailsCustomization::CustomizeDetails(IDeta
 			SNew(SButton)
 			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
-			.ContentPadding(2)
+			.ContentPadding(2.f)
 			.Text(LOCTEXT("Button_Build", "Build"))
+			.ToolTipText(BuildButtonText)
 			.OnClicked(this, &FRuntimeVirtualTextureComponentDetailsCustomization::BuildStreamedMips)
 			.IsEnabled(this, &FRuntimeVirtualTextureComponentDetailsCustomization::IsBuildStreamedMipsEnabled)
 		]
@@ -270,7 +331,7 @@ void FRuntimeVirtualTextureComponentDetailsCustomization::CustomizeDetails(IDeta
 		.VAlign(VAlign_Center)
 		[
 			SNew(SImage)
-			.Image(FAppStyle::GetBrush("Icons.Warning"))
+			.Image(FCoreStyle::Get().GetBrush("Icons.Warning"))
 			.Visibility(this, &FRuntimeVirtualTextureComponentDetailsCustomization::IsBuildWarningIconVisible)
 			.ToolTipText(LOCTEXT("Warning_Build_Tooltip", "The settings have changed since the Streaming Texture was last rebuilt. Streaming mips are disabled."))
 		]
@@ -279,71 +340,90 @@ void FRuntimeVirtualTextureComponentDetailsCustomization::CustomizeDetails(IDeta
 
 bool FRuntimeVirtualTextureComponentDetailsCustomization::IsSetBoundsEnabled() const
 {
-	return RuntimeVirtualTextureComponent->GetVirtualTexture() != nullptr;
+	if (URuntimeVirtualTextureComponent* Component = RuntimeVirtualTextureComponent.Get())
+	{
+		return Component->GetVirtualTexture() != nullptr;
+	}
+	return false;
 }
 
 FReply FRuntimeVirtualTextureComponentDetailsCustomization::SetBounds()
 {
-	if (RuntimeVirtualTextureComponent->GetVirtualTexture() != nullptr)
+	if (URuntimeVirtualTextureComponent* Component = RuntimeVirtualTextureComponent.Get())
 	{
-		const FScopedTransaction Transaction(LOCTEXT("Transaction_SetBounds", "Set RuntimeVirtualTextureComponent Bounds"));
-		RuntimeVirtualTexture::SetBounds(RuntimeVirtualTextureComponent);
-		// Force update of editor view widget.
-		GEditor->NoteSelectionChange(false);
-		return FReply::Handled();
+		if (Component->GetVirtualTexture() != nullptr)
+		{
+			const FScopedTransaction Transaction(LOCTEXT("Transaction_SetBounds", "Set RuntimeVirtualTextureComponent Bounds"));
+			RuntimeVirtualTexture::SetBounds(Component);
+			// Force update of editor view widget.
+			GEditor->NoteSelectionChange(false);
+			return FReply::Handled();
+		}
 	}
 	return FReply::Unhandled();
 }
 
 bool FRuntimeVirtualTextureComponentDetailsCustomization::IsBuildStreamedMipsEnabled() const
 {
-	return RuntimeVirtualTextureComponent->GetVirtualTexture() != nullptr;
+	if (URuntimeVirtualTextureComponent* Component = RuntimeVirtualTextureComponent.Get())
+	{
+		return Component->GetVirtualTexture() != nullptr && Component->NumStreamingMips() > 0;
+	}
+	return false;
 }
 
 EVisibility FRuntimeVirtualTextureComponentDetailsCustomization::IsBuildWarningIconVisible() const
 {
-	const bool bVisible = RuntimeVirtualTextureComponent->IsStreamingTextureInvalid();
-	return bVisible ? EVisibility::Visible : EVisibility::Hidden;
+	if (URuntimeVirtualTextureComponent* Component = RuntimeVirtualTextureComponent.Get())
+	{
+		const bool bVisible = RuntimeVirtualTextureComponent->IsStreamingTextureInvalid();
+		return bVisible ? EVisibility::Visible : EVisibility::Hidden;
+	}
+	return EVisibility::Hidden;
 }
 
 FReply FRuntimeVirtualTextureComponentDetailsCustomization::BuildStreamedMips()
 {
-	// Create a new asset if none is already bound
-	UVirtualTextureBuilder* CreatedTexture = nullptr;
-	if (RuntimeVirtualTextureComponent->GetVirtualTexture() != nullptr && RuntimeVirtualTextureComponent->GetStreamingTexture() == nullptr)
+	if (URuntimeVirtualTextureComponent* Component = RuntimeVirtualTextureComponent.Get())
 	{
-		FAssetToolsModule& AssetToolsModule = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools");
-
-		const FString DefaultPath = FPackageName::GetLongPackagePath(RuntimeVirtualTextureComponent->GetVirtualTexture()->GetPathName());
-		const FString DefaultName = FPackageName::GetShortName(RuntimeVirtualTextureComponent->GetVirtualTexture()->GetName() + TEXT("_SVT"));
-
-		UFactory* Factory = NewObject<UVirtualTextureBuilderFactory>();
-		UObject* Object = AssetToolsModule.Get().CreateAssetWithDialog(DefaultName, DefaultPath, UVirtualTextureBuilder::StaticClass(), Factory);
-		CreatedTexture = Cast<UVirtualTextureBuilder>(Object);
-	}
-
-	// Build the texture contents
-	bool bOK = false;
-	if (RuntimeVirtualTextureComponent->GetStreamingTexture() != nullptr || CreatedTexture != nullptr)
-	{
-		const FScopedTransaction Transaction(LOCTEXT("Transaction_BuildDebugStreamingTexture", "Build Streaming Texture"));
-
-		if (CreatedTexture != nullptr)
+		// Create a new asset if none is already bound
+		UVirtualTextureBuilder* CreatedTexture = nullptr;
+		if (Component->GetVirtualTexture() != nullptr && Component->GetStreamingTexture() == nullptr)
 		{
-			RuntimeVirtualTextureComponent->Modify();
-			RuntimeVirtualTextureComponent->SetStreamingTexture(CreatedTexture);
+			FAssetToolsModule& AssetToolsModule = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools");
+
+			const FString DefaultPath = FPackageName::GetLongPackagePath(Component->GetVirtualTexture()->GetPathName());
+			const FString DefaultName = FPackageName::GetShortName(Component->GetVirtualTexture()->GetName() + TEXT("_SVT"));
+
+			UFactory* Factory = NewObject<UVirtualTextureBuilderFactory>();
+			UObject* Object = AssetToolsModule.Get().CreateAssetWithDialog(DefaultName, DefaultPath, UVirtualTextureBuilder::StaticClass(), Factory);
+			CreatedTexture = Cast<UVirtualTextureBuilder>(Object);
 		}
 
-		RuntimeVirtualTextureComponent->GetStreamingTexture()->Modify();
-
-		const FLinearColor FixedColor = RuntimeVirtualTextureComponent->GetStreamingMipsFixedColor();
-		if (RuntimeVirtualTexture::BuildStreamedMips(RuntimeVirtualTextureComponent, FixedColor))
+		// Build the texture contents
+		bool bOK = false;
+		if (Component->GetStreamingTexture() != nullptr || CreatedTexture != nullptr)
 		{
-			bOK = true;
-		}
-	}
+			const FScopedTransaction Transaction(LOCTEXT("Transaction_BuildDebugStreamingTexture", "Build Streaming Texture"));
 
-	return bOK ? FReply::Handled() : FReply::Unhandled();
+			if (CreatedTexture != nullptr)
+			{
+				Component->Modify();
+				Component->SetStreamingTexture(CreatedTexture);
+			}
+
+			Component->GetStreamingTexture()->Modify();
+
+			const FLinearColor FixedColor = Component->GetStreamingMipsFixedColor();
+			if (RuntimeVirtualTexture::BuildStreamedMips(Component, FixedColor))
+			{
+				bOK = true;
+			}
+		}
+
+		return bOK ? FReply::Handled() : FReply::Unhandled();
+	}
+	return FReply::Unhandled();
 }
 
 #undef LOCTEXT_NAMESPACE

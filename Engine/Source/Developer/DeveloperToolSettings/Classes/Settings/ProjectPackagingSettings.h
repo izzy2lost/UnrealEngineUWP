@@ -163,6 +163,8 @@ struct FProjectBuildSettings
 	 *   {iniif:-iostore:bUseIoStore}
 	 * Additionally, the ini settings can have an optional search and replace modifier, to easily modify the string. The Replace can be blank:
 	 *   {inivalue:BuildConfiguration|PPBC_=} - This will get the BuildConfiguration from the settings, and then remove the PPBC_ enum prefix from the string, to just get say Development
+	 * 
+	 * Adding -device={DeviceId} will show the command per-device in the platforms menu
 	 */
 	UPROPERTY(EditAnywhere, Category="Packaging")
 	FString BuildCookRunParams;
@@ -265,8 +267,8 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = Packaging)
 	bool bUseIoStore;
 
-	/** If enabled, use Zen storage server for storing and fetching cooked data instead of using the local file system.  */
-	UPROPERTY(config, EditAnywhere, Category = Packaging)
+	/** If enabled, use Zen Server for storing and fetching cooked data instead of using the local file system.  */
+	UPROPERTY(config, EditAnywhere, Category = Packaging, meta=(DisplayName="Use Zen Server as cooked output store"))
 	bool bUseZenStore;
 
 	/** If enabled, staging will make a binary config file for faster loading. */
@@ -327,7 +329,7 @@ public:
 	EAssetRegistryWritebackMethod WriteBackMetadataToAssetRegistry;
 
 	/**
-	* Whether or not to write a json summary file that contains size information to the cooked Metadata/PluginJsons directory
+	* Whether or not to write a json summary file that contains size information to the cooked Metadata directory
 	*/
 	UPROPERTY(config, EditAnywhere, Category = Packaging, AdvancedDisplay, meta = (EditCondition = "WriteBackMetadataToAssetRegistry != EAssetRegistryWritebackMethod::Disabled"))
 	bool bWritePluginSizeSummaryJsons;
@@ -462,8 +464,8 @@ public:
 	UPROPERTY(config, EditAnywhere, Category=Packaging, AdvancedDisplay, meta=(DisplayName="Internationalization Support"))
 	EProjectPackagingInternationalizationPresets InternationalizationPreset;
 
-	/** Cultures whose data should be cooked, staged, and packaged. */
-	UPROPERTY(config, EditAnywhere, Category=Packaging, AdvancedDisplay, meta=(DisplayName="Localizations to Package"))
+	/** Languages whose data should be cooked, staged, and packaged. */
+	UPROPERTY(config, EditAnywhere, Category=Packaging, AdvancedDisplay, meta=(DisplayName="Languages to Package"))
 	TArray<FString> CulturesToStage;
 
 	/** List of localization targets that should be chunked during cooking (if using chunks) */
@@ -485,6 +487,12 @@ public:
 	 */
 	UPROPERTY(config, EditAnywhere, Category=Packaging, AdvancedDisplay, meta=(DisplayName="Cook only maps (this only affects cookall)"))
 	bool bCookMapsOnly;
+
+	/**
+	 * Cook with Warnings As Errors
+	 */
+	UPROPERTY(config, EditAnywhere, Category=Packaging, AdvancedDisplay, meta=(DisplayName="Cook with Warnings As Errors enabled"))
+	bool bTreatWarningsAsErrorsOnCook;
 
 	/**
 	* Encrypt ini files inside of the pak file
@@ -627,7 +635,7 @@ public:
 	/**
 	 * A list of custom builds that will show up in the Platforms menu to allow customized builds that make sense for your project. Will show up near Package Project in the Platforms menu.
 	 */
-	UPROPERTY(config, EditAnywhere, Category=Packaging, meta=(DisplayName = "Additional builds for this project."))
+	UPROPERTY(config, EditAnywhere, Category=CustomBuilds, meta=(DisplayName = "Additional builds for this project.", TitleProperty="Name"))
 	TArray<FProjectBuildSettings> ProjectCustomBuilds;
 
 	/** If set, platforms that destructively edit the iostore containers during packaging will save a copy prior to doing so. */

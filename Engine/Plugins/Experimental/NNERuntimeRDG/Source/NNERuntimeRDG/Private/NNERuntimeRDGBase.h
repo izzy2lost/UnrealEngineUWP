@@ -4,11 +4,11 @@
 
 #include "NNEAttributeMap.h"
 #include "NNEAttributeValue.h"
-#include "NNETensor.h"
-#include "NNETypes.h"
-#include "NNE.h"
+#include "NNEHlslShadersLog.h"
 #include "NNEModelOptimizerInterface.h"
 #include "NNERuntimeFormat.h"
+#include "NNETensor.h"
+#include "NNETypes.h"
 #include "RenderGraphResources.h"
 #include "Serialization/MemoryReader.h"
 #include "ShaderParameterUtils.h"
@@ -64,6 +64,7 @@ public:
 		return TensorRDG;
 	}
 
+	bool IsValid() const { return HasBuffer() || GetVolume() == 0; }
 	bool HasBuffer() const { return Buffer != FRDGBufferRef{}; }
 	void SetBuffer(FRDGBufferRef Inbuffer){ Buffer = Inbuffer; }
 	FRDGBufferRef GetBuffer() const { return Buffer; }
@@ -87,8 +88,8 @@ public:
 	bool Validate(TConstArrayView<ENNETensorDataType> InputTypes);
 
 private:
-	TArray<TArray<ENNETensorDataType>> TemplateTypes;
-	TArray<int32> InputTemplateIndices;
+	TArray<TSet<ENNETensorDataType>, TInlineAllocator<16>> TemplateTypes;
+	FIntArray InputTemplateIndices;
 	int32 NumRequiredInput;
 	int32 NumOptionalInput;
 };
@@ -186,7 +187,7 @@ public:
 		const FOperatorFunctions* OperatorFunctions = OpFindFunctions(OpDesc);
 		if(OperatorFunctions == nullptr)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator: %s is not registered"), *OpDesc.GetFullName());
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Operator: %s is not registered"), *OpDesc.GetFullName());
 			return nullptr;
 		}
 
@@ -198,7 +199,7 @@ public:
 		const FOperatorFunctions* OperatorFunctions = OpFindFunctions(OpDesc);
 		if(OperatorFunctions == nullptr)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator: %s is not registered"), *OpDesc.GetFullName());
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Operator: %s is not registered"), *OpDesc.GetFullName());
 			return nullptr;
 		}
 
@@ -213,12 +214,12 @@ public:
 			const FOperatorFunctions* OperatorFunctions = VersionToFunctions->Find(OpDesc.Version);
 			if(OperatorFunctions != nullptr)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator is already registered: %s"), *OpDesc.GetFullName());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Operator is already registered: %s"), *OpDesc.GetFullName());
 				return false;
 			}
 			else if(!OpDesc.Version.IsSet() || VersionToFunctions->Find(TOptional<TOperatorVersionType>()) != nullptr)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator %s is unversioned, can't register a version of it"), *FOperatorDesc{{OpDesc}}.GetFullName());
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Operator %s is unversioned, can't register a version of it"), *FOperatorDesc{{OpDesc}}.GetFullName());
 				return false;
 			}
 			VersionToFunctions->Add(OpDesc.Version, FOperatorFunctions{CreateFunc, ValidateFunc});
@@ -231,6 +232,78 @@ public:
 		}
 		
 		return true;
+	}
+
+	FString ListAllRegisteredOperators() const
+	{
+		class FLoggableOperatorDesc
+		{
+			FString OpDomainAndName;
+			FString SupportedOpsets;
+
+		public:
+
+			FLoggableOperatorDesc(const FOperatorDescUnversioned& InOpDesc, TArrayView<TOptional<TOperatorVersionType>> InOpVersions)
+			{
+				OpDomainAndName = FString::Printf(TEXT("%s,%s"), *InOpDesc.DomainName, *InOpDesc.OpName);
+
+				TArray<TOptional<TOperatorVersionType>, TInlineAllocator<8>> OpVersions(InOpVersions);
+
+				OpVersions.Sort([](const TOptional<TOperatorVersionType>& lhs, const TOptional<TOperatorVersionType>& rhs)
+					{
+						if (!lhs.IsSet())
+						{
+							return true;
+						}
+						else if (!rhs.IsSet())
+						{
+							return false;
+						}
+						else
+						{
+							return *lhs < *rhs;
+						}
+					});
+
+				for (const TOptional<TOperatorVersionType>& OpVersion : OpVersions)
+				{
+					SupportedOpsets += (OpVersion.IsSet() ? FString::Printf(TEXT(",%d"), *OpVersion) : TEXT(",Unversioned"));
+				}
+			}
+
+			const FString& GetDomainAndName() const
+			{
+				return OpDomainAndName;
+			}
+			const FString& GetSupportedOpset() const
+			{
+				return SupportedOpsets;
+			}
+		};
+
+		TArray<FLoggableOperatorDesc> LoggableOperatorDesc;
+		TArray<TOptional<TOperatorVersionType>> Versions;
+
+		for (const TPair<FOperatorDescUnversioned, TOperatorVersionToFunctionsMap>& Pair : Operators)
+		{
+			Pair.Value.GenerateKeyArray(Versions);
+			LoggableOperatorDesc.Emplace(Pair.Key, Versions);
+		}
+
+		LoggableOperatorDesc.Sort([](const FLoggableOperatorDesc& lhs, const FLoggableOperatorDesc& rhs) 
+		{
+			return lhs.GetDomainAndName() < rhs.GetDomainAndName();
+		});
+
+		FString OpListWithOpset;
+		for (const FLoggableOperatorDesc& LoggableOp : LoggableOperatorDesc)
+		{
+			OpListWithOpset += LoggableOp.GetDomainAndName();
+			OpListWithOpset += LoggableOp.GetSupportedOpset();
+			OpListWithOpset += TEXT("\n");
+		}
+
+		return OpListWithOpset;
 	}
 
 private:
@@ -256,7 +329,7 @@ private:
 			}
 		}
 
-		UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator: %s is not registered"), *OpDesc.GetFullName());
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Operator: %s is not registered"), *OpDesc.GetFullName());
 		return nullptr;
 	}
 
@@ -285,11 +358,12 @@ public:
 		ENNEInferenceFormat FormatType = InputModel.Format;
 		if (FormatType != ENNEInferenceFormat::NNERT)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Unsupported format type for validator %s"), *GetName());
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Unsupported format type for validator %s"), *GetName());
 			return false;
 		}
 
-		FMemoryReader Reader(InputModel.Data);
+		FMemoryReader Reader(InputModel.Data, /*bIsPersitent =*/ true);
+		Reader.SetIsPersistent(true);
 
 		Format.Serialize(Reader);
 
@@ -318,13 +392,13 @@ public:
 
 			if (!ValidationFn)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("RDG MLOperatorRegistry failed to find validation for operator:%s"), *OpType);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("OperatorRegistry failed to find validation for operator:%s"), *OpType);
 				return false;
 			}
 			
 			if (!ValidationFn(AttributeMap, InputTensorTypes, InputTensorShapes))
 			{
-				UE_LOG(LogNNE, Warning, TEXT("RDG MLOperatorRegistry failed to validate operator:%s"), *OpType);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("OperatorRegistry failed to validate operator:%s"), *OpType);
 				return false;
 			}
 		}

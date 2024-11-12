@@ -7,7 +7,7 @@
 #pragma once
 
 // Update this GUID to invalidate shader recompilation for only Metal shaders
-#pragma message("UESHADERMETADATA_VERSION E4FA73AD-5066-4067-8B47-814FDC0D6332")
+#pragma message("UESHADERMETADATA_VERSION 1271B4C0-CB27-43E9-BD07-8FFC49447346")
 
 #if VERTEXSHADER && HULLSHADER
 #ifndef TESSELLATIONSHADER
@@ -20,8 +20,6 @@
 
 #if METAL_SM6_PROFILE == 1
     #define PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS 1
-    // Disable WaveVote due to bugs
-    #define COMPILER_SUPPORTS_WAVE_VOTE 0
 #endif
 
 #if IS_BASE_PASS && COMPUTE_SHADED && !defined(USE_FORCE_TEXTURE_MIP)
@@ -46,9 +44,14 @@
 	// 4 components: RGBA_0
 	Texture2D<float4> gl_LastFragDataRGBA_0;
 	#define SubpassFetchRGBA_0() gl_LastFragDataRGBA_0.Load(uint3(0, 0, 0), 0)
+	
 	// 1 component: R_4
 	Texture2D<float> gl_LastFragDataR_4;
 	#define SubpassFetchR_4() gl_LastFragDataR_4.Load(uint3(0, 0, 0), 0)
+	
+	// 1 component: R_5
+	Texture2D<float> gl_LastFragDataR_5;
+	#define SubpassFetchR_5() gl_LastFragDataR_5.Load(uint3(0, 0, 0), 0)
 
 	Texture2D<float> gl_LastFragDataR_1;
 	#define SubpassFetchR_1() gl_LastFragDataR_1.Load(uint3(0, 0, 0), 0)
@@ -56,7 +59,11 @@
 	// Rest of SubpassFetch can be found in MetalSubpassSupport.ush
 	//
 	#if MOBILE_DEFERRED_SHADING
-		#define DepthbufferFetchES2() SubpassFetchR_4()
+		#if MOBILE_EXTENDED_GBUFFER
+			#define DepthbufferFetchES2() SubpassFetchR_5()
+		#else
+			#define DepthbufferFetchES2() SubpassFetchR_4()
+		#endif
 	#else
 		#define DepthbufferFetchES2() SubpassFetchR_1()
 	#endif
@@ -64,6 +71,7 @@
 	#define SubpassFetchRGBA_0() ((float4)0.0)
 	#define SubpassFetchR_0() (0.0)
 	#define SubpassFetchR_4() (0.0)
+	#define SubpassFetchR_5() (0.0)
 #endif //IOS && PIXELSHADER
 
 #if METAL_SM6_PROFILE == 1
@@ -89,6 +97,12 @@
         {
             InterlockedMax(Dest[Coord], Value);
         }
+
+		void ImageInterlockedAddUInt64(RWTexture2D<UlongType> Dest, uint2 Coord, UlongType Value)
+		{
+			InterlockedAdd(Dest[Coord], Value);
+		}
+
     #endif
     
     #if PLATFORM_SUPPORTS_BINDLESS

@@ -57,6 +57,8 @@ private:
 	bool IsWidgetCDOSelected() const;
 
 	EVisibility GetNameAreaVisibility() const;
+	
+	EVisibility GetAddComponentAreaVisibility() const;
 
 	const FSlateBrush* GetNameIcon() const;
 
@@ -76,6 +78,8 @@ private:
 	EVisibility GetCategoryAreaVisibility() const;
 	FText GetCategoryText() const;
 	void HandleCategoryTextCommitted(const FText& Text, ETextCommit::Type CommitType);
+
+	FReply OnAddComponentButtonClicked(TSharedPtr<FWidgetBlueprintEditor> InBlueprintEditor);
 
 private:
 	/** The editor that owns this details view */

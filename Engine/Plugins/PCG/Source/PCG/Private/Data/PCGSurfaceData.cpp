@@ -8,4 +8,5 @@
 void UPCGSurfaceData::CopyBaseSurfaceData(UPCGSurfaceData* NewSurfaceData) const
 {
 	NewSurfaceData->Transform = Transform;
+	NewSurfaceData->bKeepZeroDensityPoints = bKeepZeroDensityPoints;
 }

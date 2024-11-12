@@ -7,7 +7,7 @@
 #include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/UserDefinedEnum.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Logging/TokenizedMessage.h"
 #include "Misc/PackageName.h"
 #include "AssetRegistry/AssetData.h"
@@ -181,6 +181,7 @@
 #include "BlueprintActionDatabase.h"
 #include "Algo/MinElement.h"
 #include "Editor/EditorEngine.h"
+#include "EditorViewportSelectabilityBridge.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogBlueprintEditor, Log, All);
 
@@ -406,11 +407,9 @@ namespace BlueprintEditorImpl
 		FPermissionsPinTypeSelectorFilter(TConstArrayView<UBlueprint*> InBlueprints)
 		{
 			FAssetReferenceFilterContext Context;
-			Context.ReferencingAssets.Reserve(InBlueprints.Num());
-
 			for (UBlueprint* Blueprint : InBlueprints)
 			{
-				Context.ReferencingAssets.Add(FAssetData(Blueprint));
+				Context.AddReferencingAsset(FAssetData(Blueprint));
 			}
 
 			AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(Context);
@@ -2461,6 +2460,11 @@ void FBlueprintEditor::InitBlueprintEditor(
 		.AddRaw(this, &FBlueprintEditor::OnBlueprintEditorPreferencesChanged);
 	BlueprintProjectSettingsChangedHandle = GetMutableDefault<UBlueprintEditorProjectSettings>()->OnSettingChanged()
 		.AddRaw(this, &FBlueprintEditor::OnBlueprintProjectSettingsChanged);
+
+	if (const TSharedPtr<SSCSEditorViewport> Viewport = GetSubobjectViewport())
+	{
+		ViewportSelectabilityBridge = MakeUnique<FEditorViewportSelectabilityBridge>(Viewport->GetViewportClient());
+	}
 }
 
 void FBlueprintEditor::InitToolMenuContext(FToolMenuContext& MenuContext)
@@ -3024,6 +3028,8 @@ void FBlueprintEditor::CreateSubobjectEditors()
 		.OnItemDoubleClicked(this, &FBlueprintEditor::OnComponentDoubleClicked)
 		.SubobjectClassListFilters(ClassFilters);
 	
+	LLM_SCOPE_BYNAME(TEXT("BPCreateSubobjectEditorViewportClient"));
+
 	SubobjectViewport = SAssignNew(SubobjectViewport, SSCSEditorViewport)
 		.BlueprintEditor(SharedThis(this));
 
@@ -10000,6 +10006,10 @@ void FBlueprintEditor::OnNodeTitleCommitted(const FText& NewText, ETextCommit::T
 		const FScopedTransaction Transaction( NSLOCTEXT( "K2_RenameNode", "RenameNode", "Rename Node" ) );
 		NodeBeingChanged->Modify();
 		NodeBeingChanged->OnRenameNode(NewText.ToString());
+		if (BookmarksWidget.IsValid())
+		{
+			BookmarksWidget->RefreshBookmarksTree();
+		}
 	}
 }
 
@@ -10878,6 +10888,11 @@ bool FBlueprintEditor::AreMacrosAllowed() const
 bool FBlueprintEditor::AreDelegatesAllowed() const
 {
 	return true;
+}
+
+FEditorViewportSelectabilityBridge* FBlueprintEditor::GetViewportSelectabilityBridge()
+{
+	return ViewportSelectabilityBridge.Get();
 }
 
 /////////////////////////////////////////////////////

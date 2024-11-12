@@ -8,6 +8,7 @@
 
 #include "Algo/Find.h"
 #include "Algo/FindLast.h"
+#include "AssetRegistry/AssetData.h"
 #include "Containers/DirectoryTree.h"
 #include "Containers/StringView.h"
 #include "Containers/VersePath.h"
@@ -18,7 +19,9 @@
 #include "Interfaces/IPluginManager.h"
 #include "Internationalization/PackageLocalizationManager.h"
 #include "IO/IoDispatcher.h"
+#include "IO/IoDispatcherInternal.h"
 #include "Misc/App.h"
+#include "Misc/AssetRegistryInterface.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/EnumClassFlags.h"
@@ -787,7 +790,7 @@ void FPackageName::InternalFilenameToLongPackageName(FStringView InFilename, FSt
 	OutPackageName << Result;
 }
 
-bool FPackageName::TryConvertFilenameToLongPackageName(const FString& InFilename, FString& OutPackageName, FString* OutFailureReason)
+bool FPackageName::TryConvertFilenameToLongPackageName(const FString& InFilename, FString& OutPackageName, FString* OutFailureReason, const EConvertFlags Flags)
 {
 	TStringBuilder<256> FailureReasonBuilder;
 	FStringBuilderBase* FailureReasonBuilderPtr = nullptr;
@@ -797,7 +800,7 @@ bool FPackageName::TryConvertFilenameToLongPackageName(const FString& InFilename
 	}
 
 	TStringBuilder<256> PackageNameBuilder;
-	const bool bResult = TryConvertFilenameToLongPackageName(MakeStringView(InFilename), PackageNameBuilder, FailureReasonBuilderPtr);
+	const bool bResult = TryConvertFilenameToLongPackageName(MakeStringView(InFilename), PackageNameBuilder, FailureReasonBuilderPtr, Flags);
 	if (bResult)
 	{
 		OutPackageName = PackageNameBuilder.ToView();
@@ -809,7 +812,7 @@ bool FPackageName::TryConvertFilenameToLongPackageName(const FString& InFilename
 	return bResult;
 }
 
-bool FPackageName::TryConvertFilenameToLongPackageName(FStringView InFilename, FStringBuilderBase& OutPackageName, FStringBuilderBase* OutFailureReason /*= nullptr*/)
+bool FPackageName::TryConvertFilenameToLongPackageName(FStringView InFilename, FStringBuilderBase& OutPackageName, FStringBuilderBase* OutFailureReason /*= nullptr*/, const EConvertFlags Flags)
 {
 	TStringBuilder<256> LongPackageNameBuilder;
 	InternalFilenameToLongPackageName(InFilename, LongPackageNameBuilder);
@@ -833,7 +836,8 @@ bool FPackageName::TryConvertFilenameToLongPackageName(FStringView InFilename, F
 	const bool bContainsBackslash = LongPackageName.FindChar(TEXT('\\'), CharacterIndex);
 	const bool bContainsColon = LongPackageName.FindChar(TEXT(':'), CharacterIndex);
 
-	if (!(bContainsDot || bContainsBackslash || bContainsColon))
+	// For Verse files, the filenames can have dots in them to allow for `*.*.verse` to be considered as valid Verse snippets.
+	if (!((!EnumHasAnyFlags(Flags, EConvertFlags::AllowDots) && bContainsDot) || bContainsBackslash || bContainsColon))
 	{
 		OutPackageName = LongPackageName;
 		return true;
@@ -847,7 +851,7 @@ bool FPackageName::TryConvertFilenameToLongPackageName(FStringView InFilename, F
 		FPathViews::ToAbsolutePath(InFilename, AbsPath);
 		if (!FPathViews::IsRelativePath(AbsPath) && AbsPath.Len() > 1)
 		{
-			if (TryConvertFilenameToLongPackageName(AbsPath, OutPackageName, nullptr))
+			if (TryConvertFilenameToLongPackageName(AbsPath, OutPackageName, nullptr, Flags))
 			{
 				return true;
 			}
@@ -1140,6 +1144,65 @@ void FPackageName::SplitFullObjectPath(FStringView InFullObjectPath, FStringView
 		OutPackageName = Remaining;
 		OutObjectName = FStringView();
 		OutSubObjectName = FStringView();
+	}
+}
+
+void FPackageName::SplitFullObjectPath(const FString& InFullObjectPath, FString& OutClassName,
+	FString& OutPackageName, FString& OutObjectName, TArray<FString>& OutSubobjectNames, bool bDetectClassName)
+{
+	FStringView ClassName;
+	FStringView PackageName;
+	FStringView ObjectName;
+	TArray<FStringView> SubObjectNames;
+	SplitFullObjectPath(InFullObjectPath, ClassName, PackageName, ObjectName, SubObjectNames, bDetectClassName);
+	OutClassName = ClassName;
+	OutPackageName = PackageName;
+	OutObjectName = ObjectName;
+	OutSubobjectNames.Empty();
+	OutSubobjectNames.Append(SubObjectNames);
+}
+
+void FPackageName::SplitFullObjectPath(FStringView InFullObjectPath, FStringView& OutClassName,
+	FStringView& OutPackageName, FStringView& OutObjectName, TArray<FStringView>& OutSubobjectNames, bool bDetectClassName)
+{
+	FStringView FullSubobjectString;
+	SplitFullObjectPath(InFullObjectPath, OutClassName, OutPackageName, OutObjectName, FullSubobjectString, bDetectClassName);
+
+	if (FullSubobjectString.Len() > 0)
+	{
+		OutSubobjectNames.Empty();
+
+		auto ExtractBeforeDotDelim = [&FullSubobjectString](FStringView& OutStringView)
+		{
+			int32 DelimIndex;
+			if (FullSubobjectString.FindChar(TCHAR('.'), DelimIndex))
+			{
+				OutStringView = FullSubobjectString.Left(DelimIndex);
+				FullSubobjectString.RightChopInline(DelimIndex + 1);
+				return true;
+			}
+			else
+			{
+				OutStringView.Reset();
+				return false;
+			}
+		};
+
+		bool bFoundDelim = false;
+		do
+		{
+			FStringView SubobjectName;
+			bFoundDelim = ExtractBeforeDotDelim(SubobjectName);
+			const bool bSubobjectNameIsNotEmpty = (SubobjectName.Len() > 0);
+			if (bFoundDelim && bSubobjectNameIsNotEmpty)
+			{
+				OutSubobjectNames.Add(SubobjectName);
+			}
+			else if (FullSubobjectString.Len() > 0)
+			{
+				OutSubobjectNames.Add(FullSubobjectString);
+			}
+		} while (bFoundDelim);
 	}
 }
 
@@ -1693,6 +1756,66 @@ bool FPackageName::TryGetMountPointForPath(FStringView InFilePathOrPackageName, 
 	return false;
 }
 
+FPackageName::FGetExplanationForUnavailablePackageDelegate& FPackageName::GetExplanationForUnavailablePackageDelegate()
+{
+	static FPackageName::FGetExplanationForUnavailablePackageDelegate Delegate;
+	return Delegate;
+}
+
+void FPackageName::GetExplanationForUnavailablePackage(const FName& UnavailablePackageName, FStringBuilderBase& InOutExplanation)
+{
+	FString PackageRoot = FString::Printf(TEXT("/%s"), *FPackageName::SplitPackageNameRoot(UnavailablePackageName, nullptr));
+	if (FPackageName::MountPointExists(PackageRoot))
+	{
+		// The mount point exists but we failed to load the asset. Maybe the package itself didn't exist?
+		const EPackageLocationFilter BothLocationsMask = (EPackageLocationFilter)((uint8)EPackageLocationFilter::FileSystem | (uint8)EPackageLocationFilter::IoDispatcher);
+		FPackagePath SkippedPackagePath;
+		const FString& UnavailablePackageNameString = UnavailablePackageName.ToString();
+		bool ConvertedToPath = FPackagePath::TryFromMountedName(UnavailablePackageNameString, SkippedPackagePath);
+		if (ensure(ConvertedToPath))
+		{
+			EPackageLocationFilter PackageLocations = DoesPackageExistEx(SkippedPackagePath, BothLocationsMask);
+
+			if (PackageLocations == EPackageLocationFilter::None)
+			{
+				InOutExplanation.Appendf(TEXT("FPackageName: Skipped package %s has a valid, mounted, mount point but does not exist either on disk or in iostore."),
+					*UnavailablePackageNameString);
+				const FString& LocalFullPath = SkippedPackagePath.GetLocalFullPath();
+				if (LocalFullPath.Len())
+				{
+					FString PathToPrint = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*LocalFullPath);
+					if (PathToPrint.Len() == 0)
+					{
+						PathToPrint = LocalFullPath;
+					}
+					InOutExplanation.Appendf(TEXT(" The uncooked file would be expected on disk at '%s'. Perhaps it has been deleted or was not synced?\n"), *PathToPrint);
+				}
+				else
+				{
+					InOutExplanation.Append(TEXT("\n"));
+				}
+			}
+			else
+			{
+				InOutExplanation.Appendf(TEXT("FPackageName: Skipped package %s was found %s but for some reason could not be found or used by the loader. This could occur if the loader is only considering cooked packages but the package exists only on disk.\n"),
+					*UnavailablePackageNameString,
+					(PackageLocations == BothLocationsMask) ? TEXT("on disk and in iodispatcher") :
+					((PackageLocations == EPackageLocationFilter::FileSystem) ? TEXT("on disk") : TEXT("in iodispatcher")));
+			}
+		}
+	}
+	else
+	{
+		InOutExplanation.Appendf(TEXT("FPackageName: Unable to identify a valid mount point associated with skipped package %s. The package root is unknown.\n"), *UnavailablePackageName.ToString());
+	}
+
+	// The plugin manager needs to be called directly rather than via delegate due to dependency issue (CoreUObject depends on Projects and not vice versa)
+	IPluginManager::Get().GetExplanationForUnavailablePackage(UnavailablePackageName, InOutExplanation);
+
+	// Give other systems an opportunity to add to this explanation
+	GetExplanationForUnavailablePackageDelegate().Broadcast(UnavailablePackageName, InOutExplanation);
+}
+
 FString FPackageName::GetModuleScriptPackageName(FStringView InModuleName)
 {
 	return FString::Printf(TEXT("/Script/%.*s"), InModuleName.Len(), InModuleName.GetData());
@@ -1802,24 +1925,13 @@ bool FPackageName::FixPackageNameCase(FString& LongPackageName, FStringView Exte
 
 bool FPackageName::DoesPackageExist(const FString& LongPackageName, FString* OutFilename, bool InAllowTextFormats)
 {
-	// Make sure interpreting LongPackageName as a filename is supported.
 	FPackagePath PackagePath;
+	EErrorCode FailureReason;
+	if (!TryConvertToMountedPackagePath(LongPackageName, PackagePath, FailureReason))
 	{
-		SCOPED_LOADTIMER(FPackageName_DoesPackageExist);
-		TStringBuilder<64> PackageNameRoot;
-		TStringBuilder<64> FilePathRoot;
-		TStringBuilder<256> RelPath;
-		TStringBuilder<64> UnusedObjectName; // DoesPackageExist accepts ObjectPaths and ignores the ObjectName portion and uses only the PackageName
-		TStringBuilder<16> CustomExtension;
-		EPackageExtension Extension;
-		EErrorCode FailureReason;
-		if (!FPackageName::TryConvertToMountedPathComponents(LongPackageName, PackageNameRoot, FilePathRoot, RelPath, UnusedObjectName, Extension, CustomExtension, nullptr /* OutFlexNameType */, &FailureReason))
-		{
-			FString Message = FString::Printf(TEXT("DoesPackageExist called on PackageName that will always return false. Reason: %s"), *FormatErrorAsString(LongPackageName, FailureReason));
-			UE_LOG(LogPackageName, Warning, TEXT("%s"), *Message);
-			return false;
-		}
-		PackagePath = FPackagePath::FromMountedComponents(PackageNameRoot, FilePathRoot, RelPath, Extension, CustomExtension);
+		FString Message = FString::Printf(TEXT("DoesPackageExist called on PackageName that will always return false. Reason: %s"), *FormatErrorAsString(LongPackageName, FailureReason));
+		UE_LOG(LogPackageName, Warning, TEXT("%s"), *Message);
+		return false;
 	}
 	if (!DoesPackageExist(PackagePath, false /* bMatchCaseOnDisk */, &PackagePath))
 	{
@@ -1855,6 +1967,76 @@ FPackageName::EPackageLocationFilter FPackageName::DoesPackageExistEx(const FPac
 	{
 		return EPackageLocationFilter::None;
 	}
+
+
+#if WITH_EDITOR
+	IAssetRegistryInterface* AssetRegistry = IAssetRegistryInterface::GetPtr();
+
+	// Todo: The AssetRegistry currently cannot determine if a package comes from the Filesystem 
+	// or cooked content so we avoid registry lookups since we can't provide a reliable Location
+	if (AssetRegistry && ((uint8)Filter & (uint8)EPackageLocationFilter::FileSystem) && (!FIoDispatcher::IsInitialized() || !FIoDispatcherInternal::HasPackageData()))
+	{
+		FName PackageName = PackagePath.GetPackageFName();
+		FName CorrectCasePackageName;
+		FAssetPackageData AssetPackageData;
+		if (AssetRegistry->TryGetAssetPackageData(PackageName, AssetPackageData, CorrectCasePackageName) == UE::AssetRegistry::EExists::Exists)
+		{
+			if (OutPackagePath)
+			{
+				if (AssetPackageData.Extension != EPackageExtension::Unspecified && AssetPackageData.Extension != EPackageExtension::Custom)
+				{
+					*OutPackagePath = FPackagePath::FromPackageNameUnchecked(MoveTemp(CorrectCasePackageName));
+					OutPackagePath->SetHeaderExtension(AssetPackageData.Extension);
+					return EPackageLocationFilter::FileSystem;
+				}
+				// Intentionally do not return a EPackageLocationFilter if an OutPackagePath was provided but a custom or 
+				// unspecified extension was used. In such cases we must use the disk scanning code futher down to allow the 
+				// PackageResourceManager to handle the unspecified and custom extension cases
+			}
+			else
+			{
+				return EPackageLocationFilter::FileSystem;
+			}
+		}
+	}
+#endif
+
+	return InternalDoesPackageExistEx(PackagePath, Filter, bMatchCaseOnDisk, OutPackagePath);
+}
+
+bool FPackageName::TryConvertToMountedPackagePath(const FString& InPath, FPackagePath& OutPackagePath, EErrorCode& OutFailureReason)
+{
+	SCOPED_LOADTIMER(TryConvertToPackagePath);
+	TStringBuilder<64> PackageNameRoot;
+	TStringBuilder<64> FilePathRoot;
+	TStringBuilder<256> RelPath;
+	TStringBuilder<64> UnusedObjectName; // DoesPackageExist accepts ObjectPaths and ignores the ObjectName portion and uses only the PackageName
+	TStringBuilder<16> CustomExtension;
+	EPackageExtension Extension;
+	if (!FPackageName::TryConvertToMountedPathComponents(InPath, PackageNameRoot, FilePathRoot, RelPath, UnusedObjectName, Extension, CustomExtension, nullptr /* OutFlexNameType */, &OutFailureReason))
+	{
+		return false;
+	}
+	OutPackagePath = FPackagePath::FromMountedComponents(PackageNameRoot, FilePathRoot, RelPath, Extension, CustomExtension);
+	return true;
+}
+
+FPackageName::EPackageLocationFilter FPackageName::InternalDoesPackageExistEx(const FString& LongPackageName, EPackageLocationFilter Filter, bool bMatchCaseOnDisk, FPackagePath* OutPackagePath)
+{
+	FPackagePath PackagePath;
+	EErrorCode FailureReason;
+	if (!TryConvertToMountedPackagePath(LongPackageName, PackagePath, FailureReason))
+	{
+		FString Message = FString::Printf(TEXT("DoesPackageExist called on PackageName that will always return false. Reason: %s"), *FormatErrorAsString(LongPackageName, FailureReason));
+		UE_LOG(LogPackageName, Warning, TEXT("%s"), *Message);
+		return EPackageLocationFilter::None;
+	}
+
+	return InternalDoesPackageExistEx(PackagePath, Filter, bMatchCaseOnDisk, OutPackagePath);
+}
+
+FPackageName::EPackageLocationFilter FPackageName::InternalDoesPackageExistEx(const FPackagePath& PackagePath, EPackageLocationFilter Filter, bool bMatchCaseOnDisk, FPackagePath* OutPackagePath)
+{
 	TStringBuilder<256> PackageName;
 	PackagePath.AppendPackageName(PackageName);
 
@@ -1870,9 +2052,9 @@ FPackageName::EPackageLocationFilter FPackageName::DoesPackageExistEx(const FPac
 	}
 
 	FText Reason;
-	if ( !FPackageName::IsValidTextForLongPackageName( PackageName, &Reason ) )
+	if (!FPackageName::IsValidTextForLongPackageName(PackageName, &Reason))
 	{
-		UE_LOG(LogPackageName, Error, TEXT( "DoesPackageExist: DoesPackageExist FAILED: '%s' is not a long packagename name. Reason: %s"), PackageName.ToString(), *Reason.ToString() );
+		UE_LOG(LogPackageName, Error, TEXT("DoesPackageExist: DoesPackageExist FAILED: '%s' is not a long packagename name. Reason: %s"), PackageName.ToString(), *Reason.ToString());
 		return EPackageLocationFilter::None;
 	}
 
@@ -2385,6 +2567,48 @@ bool FPackageName::IsMapPackageExtension(const TCHAR* Ext)
 	}
 }
 
+bool FPackageName::IsVerseExtension(const TCHAR* Ext)
+{
+	FStringView VerseExtension = TEXTVIEW(".verse");
+	FStringView VModuleExtension = TEXTVIEW(".vmodule");
+	if (*Ext != TEXT('.'))
+	{
+		return (VerseExtension.RightChop(1) == Ext) || (VModuleExtension.RightChop(1) == Ext);
+	}
+	else
+	{
+		return (VerseExtension == Ext) || (VModuleExtension == Ext);
+	}
+}
+
+const TCHAR* FPackageName::GetGeneratedPackageSubPath()
+{
+	return TEXT("_Generated_");
+}
+
+bool FPackageName::IsUnderGeneratedPackageSubPath(FStringView FileOrLongPackagePath)
+{
+	FStringView GeneratedSubDir(GetGeneratedPackageSubPath());
+	int32 Index = FileOrLongPackagePath.Find(GeneratedSubDir, ESearchCase::IgnoreCase);
+	if (Index < 0)
+	{
+		return false;
+	}
+	if (Index == 0 || !FPathViews::IsSeparator(FileOrLongPackagePath[Index - 1]))
+	{
+		// "_Generated_/..." or ".../Prefix_Generated_/...", not the /_Generated_/ subfolder we're looking for.
+		return false;
+	}
+	if (Index + GeneratedSubDir.Len() < FileOrLongPackagePath.Len()
+		&& !FPathViews::IsSeparator(FileOrLongPackagePath[Index + GeneratedSubDir.Len()]))
+	{
+		// ".../_Generated_Suffix/...", not the /_Generated_/ subfolder we're looking for.
+		return false;
+	}
+	return true;
+}
+
+
 bool FPackageName::FindPackagesInDirectory( TArray<FString>& OutPackages, const FString& RootDir )
 {
 	// Keep track if any package has been found. Can't rely only on OutPackages.Num() > 0 as it may not be empty.
@@ -2610,6 +2834,21 @@ FString FPackageName::ExportTextPathToObjectPath(const FString& InExportTextPath
 FString FPackageName::ExportTextPathToObjectPath(const TCHAR* InExportTextPath)
 {
 	return ExportTextPathToObjectPath(FString(InExportTextPath));
+}
+
+FString FPackageName::SplitPackageNameRoot(FName InPackageName, FString* OutRelativePath)
+{
+	TStringBuilder<FName::StringBufferSize> PackageNameStr(InPlace, InPackageName);
+	FStringView PackageName(PackageNameStr);
+
+	FStringView RelativePath;
+	FStringView Root = SplitPackageNameRoot(PackageName, &RelativePath);
+
+	if (OutRelativePath)
+	{
+		*OutRelativePath = FString(RelativePath);
+	}
+	return FString(Root);
 }
 
 FStringView FPackageName::SplitPackageNameRoot(FStringView InPackageName, FStringView* OutRelativePath)
@@ -3040,7 +3279,7 @@ static FAutoConsoleCommand ConsoleCommandConvertLongPackageNameToFilename(
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPackageNameTests, "System.Core.Misc.PackageNames", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPackageNameTests, "System.Core.Misc.PackageNames", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 
 bool FPackageNameTests::RunTest(const FString& Parameters)
 {
@@ -3406,7 +3645,7 @@ bool FPackageNameTests::RunTest(const FString& Parameters)
 }
 
 // Tests that are too expensive to run as a SmokeFilter
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPackageNameTestsExtended, "System.Core.Misc.PackageNamesExtended", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPackageNameTestsExtended, "System.Core.Misc.PackageNamesExtended", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 bool FPackageNameTestsExtended::RunTest(const FString& Parameters)
 {

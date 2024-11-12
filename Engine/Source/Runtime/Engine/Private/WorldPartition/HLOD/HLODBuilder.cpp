@@ -14,6 +14,9 @@
 #include "UObject/Package.h"
 #include "WorldPartition/HLOD/HLODInstancedStaticMeshComponent.h"
 
+#include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(HLODBuilder)
 
 
@@ -71,8 +74,9 @@ uint32 UHLODBuilder::ComputeHLODHash(const UActorComponent* InSourceComponent) c
 		// CRC static mesh
 		if (UStaticMesh* StaticMesh = StaticMeshComponent->GetStaticMesh())
 		{
-			ComponentCRC = UHLODProxy::GetCRC(StaticMesh, ComponentCRC);
-			UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Static Mesh (%s) = %x"), *StaticMesh->GetName(), ComponentCRC);
+			uint32 StaticMeshCRC = UHLODProxy::GetCRC(StaticMesh);
+			UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Static Mesh (%s) = %x"), *StaticMesh->GetName(), StaticMeshCRC);
+			ComponentCRC = HashCombineFast(ComponentCRC, StaticMeshCRC);
 		}
 
 		// CRC materials
@@ -82,29 +86,33 @@ uint32 UHLODBuilder::ComputeHLODHash(const UActorComponent* InSourceComponent) c
 			UMaterialInterface* MaterialInterface = StaticMeshComponent->GetMaterial(MaterialIndex);
 			if (MaterialInterface)
 			{
-				ComponentCRC = UHLODProxy::GetCRC(MaterialInterface, ComponentCRC);
-				UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Material (%s) = %x"), *MaterialInterface->GetName(), ComponentCRC);
+				uint32 MaterialInterfaceCRC = UHLODProxy::GetCRC(MaterialInterface);
+				UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Material (%s) = %x"), *MaterialInterface->GetName(), MaterialInterfaceCRC);
+				ComponentCRC = HashCombineFast(ComponentCRC, MaterialInterfaceCRC);
 
 				TArray<UTexture*> Textures;
 				MaterialInterface->GetUsedTextures(Textures, EMaterialQualityLevel::High, true, ERHIFeatureLevel::SM5, true);
 				for (UTexture* Texture : Textures)
 				{
-					ComponentCRC = UHLODProxy::GetCRC(Texture, ComponentCRC);
-					UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Texture (%s) = %x"), *Texture->GetName(), ComponentCRC);
+					uint32 TextureCRC = UHLODProxy::GetCRC(Texture);
+					UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Texture (%s) = %x"), *Texture->GetName(), TextureCRC);
+					ComponentCRC = HashCombineFast(ComponentCRC, TextureCRC);
 				}
 			}
 			UMaterialInterface* NaniteOverride = MaterialInterface ? MaterialInterface->GetNaniteOverride() : nullptr;
 			if (NaniteOverride)
 			{
-				ComponentCRC = UHLODProxy::GetCRC(NaniteOverride, ComponentCRC);
-				UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Material (%s) = %x"), *NaniteOverride->GetName(), ComponentCRC);
+				uint32 NaniteOverrideCRC = UHLODProxy::GetCRC(NaniteOverride);
+				UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Nanite Override Material (%s) = %x"), *NaniteOverride->GetName(), NaniteOverrideCRC);
+				ComponentCRC = HashCombineFast(ComponentCRC, NaniteOverrideCRC);
 
 				TArray<UTexture*> Textures;
 				NaniteOverride->GetUsedTextures(Textures, EMaterialQualityLevel::High, true, ERHIFeatureLevel::SM5, true);
 				for (UTexture* Texture : Textures)
 				{
-					ComponentCRC = UHLODProxy::GetCRC(Texture, ComponentCRC);
-					UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Texture (%s) = %x"), *Texture->GetName(), ComponentCRC);
+					uint32 TextureCRC = UHLODProxy::GetCRC(Texture);
+					UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - Nanite Override Texture (%s) = %x"), *Texture->GetName(), TextureCRC);
+					ComponentCRC = HashCombineFast(ComponentCRC, TextureCRC);
 				}
 			}
 		}
@@ -246,7 +254,7 @@ static bool ShouldBatchComponent(UActorComponent* ActorComponent)
 	return bShouldBatch;
 }
 
-TArray<UActorComponent*> UHLODBuilder::Build(const FHLODBuildContext& InHLODBuildContext) const
+FHLODBuildResult UHLODBuilder::Build(const FHLODBuildContext& InHLODBuildContext) const
 {
 	// Handle components using a batching policy separately
 	TArray<UActorComponent*> InputComponents;
@@ -279,7 +287,36 @@ TArray<UActorComponent*> UHLODBuilder::Build(const FHLODBuildContext& InHLODBuil
 		TSubclassOf<UHLODBuilder> HLODBuilderClass = SourceComponent->GetCustomHLODBuilderClass();
 		HLODBuildersForComponents.FindOrAdd(HLODBuilderClass).Add(SourceComponent);
 	}
+	
+	FHLODBuildResult BuildResult;
 
+	auto AddReferencedAssetsToStats = [&BuildResult](FName HLODBuilderClassName, TArray<UActorComponent*> InSourceComponents)
+	{
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::GetModuleChecked<FAssetRegistryModule>("AssetRegistry");
+		IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+		const FTopLevelAssetPath StaticMeshAssetClassPath(UStaticMesh::StaticClass());
+
+		FHLODBuildInputReferencedAssets& ReferencedAssetsStats = BuildResult.InputStats.BuildersReferencedAssets.FindOrAdd(HLODBuilderClassName);
+
+		for (UActorComponent* SourceComponent : InSourceComponents)
+		{
+			// At the moment we only care about static meshes for our stats
+			if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(SourceComponent))
+			{
+				FAssetData AssetData = AssetRegistry.GetAssetByObjectPath(FSoftObjectPath(StaticMeshComponent->GetStaticMesh()));
+				if (AssetData.IsUAsset())
+				{					
+					if (AssetData.AssetClassPath == StaticMeshAssetClassPath)
+					{
+						FTopLevelAssetPath StaticMeshAssetPath(AssetData.PackageName, AssetData.AssetName);
+						ReferencedAssetsStats.StaticMeshes.FindOrAdd(StaticMeshAssetPath)++;
+					}
+				}
+			}
+		}	
+	};
+	
 	// Build HLOD components by sending source components to the individual builders, in batch
 	TArray<UActorComponent*> HLODComponents;
 	for (const auto& HLODBuilderPair : HLODBuildersForComponents)
@@ -288,17 +325,24 @@ TArray<UActorComponent*> UHLODBuilder::Build(const FHLODBuildContext& InHLODBuil
 		const UHLODBuilder* HLODBuilder = HLODBuilderPair.Key ? HLODBuilderPair.Key->GetDefaultObject<UHLODBuilder>() : this;
 		const TArray<UActorComponent*>& SourceComponents = HLODBuilderPair.Value;
 
+		AddReferencedAssetsToStats(HLODBuilder->GetClass()->GetFName(), SourceComponents);
+
 		TArray<UActorComponent*> NewComponents = HLODBuilder->Build(InHLODBuildContext, SourceComponents);
-		HLODComponents.Append(NewComponents);
+		BuildResult.HLODComponents.Append(NewComponents);
 	}
 
 	// Append batched components
-	HLODComponents.Append(BatchInstances(ComponentsToBatch));
+	if (!ComponentsToBatch.IsEmpty())
+	{
+		FName HLODBuilderInstancingClassName("HLODBuilderInstancing");
+		AddReferencedAssetsToStats(HLODBuilderInstancingClassName, ComponentsToBatch);
+		BuildResult.HLODComponents.Append(BatchInstances(ComponentsToBatch));
+	}
 
 	// In case a builder returned null entries, clean the array.
-	HLODComponents.RemoveSwap(nullptr);
+	BuildResult.HLODComponents.RemoveSwap(nullptr);
 
-	return HLODComponents;
+	return BuildResult;
 }
 
 #endif // WITH_EDITOR

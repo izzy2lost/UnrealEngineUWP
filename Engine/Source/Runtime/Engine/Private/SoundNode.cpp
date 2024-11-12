@@ -108,11 +108,6 @@ UPTRINT USoundNode::GetNodeWaveInstanceHash(const UPTRINT ParentWaveInstanceHash
 
 void USoundNode::PrimeChildWavePlayers(bool bRecurse)
 {
-	if (!FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching())
-	{
-		return;
-	}
-
 	// Note: it is not safe to call IAudioStreamingManager::RequestChunk from the game thread
 	// if there is no async loading thread.  This can deadlock:
 
@@ -159,7 +154,7 @@ void USoundNode::RetainChildWavePlayers(bool bRecurse)
 
 void USoundNode::OverrideLoadingBehaviorOnChildWaves(const bool bRecurse, const ESoundWaveLoadingBehavior InLoadingBehavior)
 {
-	if (!BypassRetainInSoundNodesCVar && FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching())
+	if (!BypassRetainInSoundNodesCVar)
 	{
 		// Search child nodes for wave players, then override their waves' loading behavior.
 		for (USoundNode* ChildNode : ChildNodes)
@@ -192,7 +187,7 @@ void USoundNode::OverrideLoadingBehaviorOnChildWaves(const bool bRecurse, const 
 
 void USoundNode::ReleaseRetainerOnChildWavePlayers(bool bRecurse)
 {
-	if (bIsRetainingAudio && FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching())
+	if (bIsRetainingAudio)
 	{
 		// Search child nodes for wave players, then release their retainers.
 		for (USoundNode* ChildNode : ChildNodes)

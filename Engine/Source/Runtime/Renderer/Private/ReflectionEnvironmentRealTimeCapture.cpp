@@ -151,33 +151,38 @@ public:
 IMPLEMENT_GLOBAL_SHADER(FComputeSkyEnvMapDiffuseIrradianceCS, "/Engine/Private/ReflectionEnvironmentShaders.usf", "ComputeSkyEnvMapDiffuseIrradianceCS", SF_Compute);
 
 
-
-class FApplyLowerHemisphereColor : public FGlobalShader
+class FApplyLowerHemisphereColorPS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FApplyLowerHemisphereColor);
-	SHADER_USE_PARAMETER_STRUCT(FApplyLowerHemisphereColor, FGlobalShader);
-
-	static const uint32 ThreadGroupSize = 8;
+	DECLARE_GLOBAL_SHADER(FApplyLowerHemisphereColorPS);
+	SHADER_USE_PARAMETER_STRUCT(FApplyLowerHemisphereColorPS, FGlobalShader);
 
 	using FPermutationDomain = TShaderPermutationDomain<>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER(FLinearColor, LowerHemisphereSolidColor)
-		SHADER_PARAMETER(FIntPoint, ValidDispatchCoord)
-		SHADER_PARAMETER(int32, FaceThreadGroupSize)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTextureMipColor)
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
+		SHADER_PARAMETER(FVector4f, LowerHemisphereSolidColor)
+		SHADER_PARAMETER(FVector2f, SvPositionToUVScale)
+		SHADER_PARAMETER(int32, CubeFace)
+		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 
-public:
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return GetMaxSupportedFeatureLevel(Parameters.Platform) >= ERHIFeatureLevel::SM5; }
+	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
+	{
+		return PermutationVector;
+	}
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return true;
+	}
+
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), ThreadGroupSize);
-		OutEnvironment.SetDefine(TEXT("USE_COMPUTE"), 1);
+		OutEnvironment.SetDefine(TEXT("APPLY_LOWER_HEMISPHERE_COLOR_PIXELSHADER"), 1);
 	}
 };
-IMPLEMENT_GLOBAL_SHADER(FApplyLowerHemisphereColor, "/Engine/Private/ReflectionEnvironmentShaders.usf", "ApplyLowerHemisphereColorCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FApplyLowerHemisphereColorPS, "/Engine/Private/ReflectionEnvironmentShaders.usf", "ApplyLowerHemisphereColorPS", SF_Pixel);
 
 
 class FRenderRealTimeReflectionHeightFogVS : public FGlobalShader
@@ -328,7 +333,7 @@ void FScene::AllocateAndCaptureFrameSkyEnvMap(
 	Capture.GpusHandledThisFrame |= MainView.GPUMask.GetNative();
 
 	SCOPED_NAMED_EVENT(AllocateAndCaptureFrameSkyEnvMap, FColor::Emerald);
-	RDG_EVENT_SCOPE(GraphBuilder, "CaptureConvolveSkyEnvMap");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, CaptureConvolveSkyEnvMap, "CaptureConvolveSkyEnvMap");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, CaptureConvolveSkyEnvMap);
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, SkyAtmosphere);
 
@@ -386,7 +391,7 @@ void FScene::AllocateAndCaptureFrameSkyEnvMap(
 			RDG_EVENT_NAME("ClearSkyRenderTarget"),
 			Parameters,
 			ERDGPassFlags::Raster,
-			[Parameters, ClearColor](FRHICommandList& RHICmdList)
+			[Parameters, ClearColor](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				DrawClearQuad(RHICmdList, ClearColor);
 			});
@@ -570,6 +575,7 @@ void FScene::AllocateAndCaptureFrameSkyEnvMap(
 				SkyRC.SceneUniformBuffer = SceneRenderer.GetSceneUniforms().GetBuffer(GraphBuilder);
 
 				SkyRC.ViewMatrices = &CubeViewMatrices;
+				SkyRC.bSceneHasSkyMaterial = MainView.bSceneHasSkyMaterial;
 
 				SkyRC.SkyAtmosphereViewLutTexture = BlackDummy2dTex;
 				SkyRC.SkyAtmosphereCameraAerialPerspectiveVolume = BlackDummy3dTex;
@@ -577,7 +583,7 @@ void FScene::AllocateAndCaptureFrameSkyEnvMap(
 				SkyRC.SkyAtmosphereCameraAerialPerspectiveVolumeRayOnly = BlackDummy3dTex;
 
 				SkyRC.Viewport = FIntRect(FIntPoint(0, 0), FIntPoint(CubeWidth, CubeWidth));
-				SkyRC.bLightDiskEnabled = false;
+				SkyRC.bIsReflectionCapture = true;
 				SkyRC.bRenderSkyPixel = true;
 				SkyRC.AerialPerspectiveStartDepthInCm = 0.01f;
 				SkyRC.NearClippingDistance = 0.01f;
@@ -693,7 +699,7 @@ void FScene::AllocateAndCaptureFrameSkyEnvMap(
 								RDG_EVENT_NAME("DistantHeightFog"),
 								PsPassParameters,
 								ERDGPassFlags::Raster,
-								[PsPassParameters, VertexShader, PixelShader, CubeWidth](FRHICommandList& RHICmdListLambda)
+								[PsPassParameters, VertexShader, PixelShader, CubeWidth](FRDGAsyncTask, FRHICommandList& RHICmdListLambda)
 								{
 									RHICmdListLambda.SetViewport(0.0f, 0.0f, 0.0f, CubeWidth, CubeWidth, 1.0f);
 
@@ -745,33 +751,53 @@ void FScene::AllocateAndCaptureFrameSkyEnvMap(
 
 					SceneRenderer.RenderVolumetricCloudsInternal(GraphBuilder, CloudRC, InstanceCullingManager);
 				}
-			}
 
-			// Render lower hemisphere color
-			if (SkyLight->bLowerHemisphereIsSolidColor)
-			{
-				FApplyLowerHemisphereColor::FPermutationDomain PermutationVector;
-				TShaderMapRef<FApplyLowerHemisphereColor> ComputeShader(GetGlobalShaderMap(FeatureLevel), PermutationVector);
+				// Now blend over the lower hemisphere color, during the second pass for clouds
+				if (SkyLight->bLowerHemisphereIsSolidColor && bExecuteCloud)
+				{
+					FRenderRealTimeReflectionHeightFogVS::FPermutationDomain VsPermutationVector;
+					TShaderMapRef<FRenderRealTimeReflectionHeightFogVS> VertexShader(GetGlobalShaderMap(SkyRC.FeatureLevel), VsPermutationVector);
 
-				const uint32 MipIndex = 0;
-				const uint32 Mip0Resolution = SkyCubeTexture->Desc.GetSize().X;
-				FApplyLowerHemisphereColor::FParameters* PassParameters = GraphBuilder.AllocParameters<FApplyLowerHemisphereColor::FParameters>();
-				PassParameters->ValidDispatchCoord = FIntPoint(Mip0Resolution, Mip0Resolution);
-				PassParameters->LowerHemisphereSolidColor = SkyLight->LowerHemisphereColor;
+					FApplyLowerHemisphereColorPS::FPermutationDomain PsPermutationVector;
+					TShaderMapRef<FApplyLowerHemisphereColorPS> PixelShader(GetGlobalShaderMap(SkyRC.FeatureLevel), PsPermutationVector);
 
-				FRDGTextureUAVDesc OutTextureMipColorDesc(SkyCubeTexture, MipIndex);
-				OutTextureMipColorDesc.DimensionOverride = ETextureDimension::Texture2DArray;
-				PassParameters->OutTextureMipColor = GraphBuilder.CreateUAV(OutTextureMipColorDesc);
+					FApplyLowerHemisphereColorPS::FParameters* PsPassParameters = GraphBuilder.AllocParameters<FApplyLowerHemisphereColorPS::FParameters>();
+					PsPassParameters->RenderTargets = SkyRC.RenderTargets;
+					PsPassParameters->ViewUniformBuffer = CubeView.ViewUniformBuffer;
+					PsPassParameters->LowerHemisphereSolidColor = SkyLight->LowerHemisphereColor;
+					PsPassParameters->CubeFace = CubeFace;
+					PsPassParameters->SvPositionToUVScale = FVector2f(1.0f / float(CubeWidth), 1.0f / float(CubeWidth));
 
-				FIntVector NumGroups = FIntVector::DivideAndRoundUp(FIntVector(Mip0Resolution, Mip0Resolution, 1), FIntVector(FApplyLowerHemisphereColor::ThreadGroupSize, FApplyLowerHemisphereColor::ThreadGroupSize, 1));
+					// Render height fog at an infinite distance since real time reflections does not have a depth buffer for now.
+					// Volumetric fog is not supported in such reflections.
+					GraphBuilder.AddPass(
+						RDG_EVENT_NAME("ApplyLowerHemisphereColor"),
+						PsPassParameters,
+						ERDGPassFlags::Raster,
+						[PsPassParameters, VertexShader, PixelShader, CubeWidth](FRDGAsyncTask, FRHICommandList& RHICmdListLambda)
+						{
+							RHICmdListLambda.SetViewport(0.0f, 0.0f, 0.0f, CubeWidth, CubeWidth, 1.0f);
 
-				// The groupd size per face with padding
-				PassParameters->FaceThreadGroupSize = NumGroups.X * FConvolveSpecularFaceCS::ThreadGroupSize;
+							FGraphicsPipelineStateInitializer GraphicsPSOInit;
+							RHICmdListLambda.ApplyCachedRenderTargets(GraphicsPSOInit);
 
-				// We are going to dispatch once for all faces 
-				NumGroups.X *= 6;
+							GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_Zero>::GetRHI();
+							GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+							GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
+							GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GEmptyVertexDeclaration.VertexDeclarationRHI;
+							GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+							GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
+							GraphicsPSOInit.PrimitiveType = PT_TriangleList;
+							SetGraphicsPipelineState(RHICmdListLambda, GraphicsPSOInit, 0);
 
-				FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("ApplyLowerHemisphereColor"), ComputeShader, PassParameters, NumGroups);
+							FRenderRealTimeReflectionHeightFogVS::FParameters VsPassParameters;
+							VsPassParameters.ViewUniformBuffer = PsPassParameters->ViewUniformBuffer;
+							SetShaderParameters(RHICmdListLambda, VertexShader, VertexShader.GetVertexShader(), VsPassParameters);
+							SetShaderParameters(RHICmdListLambda, PixelShader, PixelShader.GetPixelShader(), *PsPassParameters);
+
+							RHICmdListLambda.DrawPrimitive(0, 1, 1);
+						});
+				}
 			}
 		}
 		else
@@ -823,7 +849,7 @@ void FScene::AllocateAndCaptureFrameSkyEnvMap(
 				Forward<FRDGEventName>(RDG_EVENT_NAME("MipGen")),
 				PassParameters,
 				ERDGPassFlags::Compute,
-			[PassParameters, ComputeShader, NumGroups](FRHICommandList& RHICmdList)
+			[PassParameters, ComputeShader, NumGroups](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *PassParameters, NumGroups);
 			});

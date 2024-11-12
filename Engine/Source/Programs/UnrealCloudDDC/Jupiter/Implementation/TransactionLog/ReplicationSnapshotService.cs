@@ -4,11 +4,11 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
-using Jupiter.Implementation.TransactionLog;
 using Jupiter.Common;
+using Jupiter.Implementation.TransactionLog;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Jupiter.Implementation
 {

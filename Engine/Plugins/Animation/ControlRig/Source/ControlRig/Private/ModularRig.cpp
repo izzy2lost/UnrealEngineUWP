@@ -11,20 +11,18 @@
 
 #define LOCTEXT_NAMESPACE "ModularRig"
 
-const FString UModularRig::NamespaceSeparator = TEXT(":");
-
 ////////////////////////////////////////////////////////////////////////////////
 // FModuleInstanceHandle
 ////////////////////////////////////////////////////////////////////////////////
 
 FModuleInstanceHandle::FModuleInstanceHandle(const UModularRig* InModularRig, const FString& InPath)
-: ModularRig(InModularRig)
+: ModularRig(const_cast<UModularRig*>(InModularRig))
 , Path(InPath)
 {
 }
 
 FModuleInstanceHandle::FModuleInstanceHandle(const UModularRig* InModularRig, const FRigModuleInstance* InModule)
-: ModularRig(InModularRig)
+: ModularRig(const_cast<UModularRig*>(InModularRig))
 , Path(InModule->GetPath())
 {
 }
@@ -189,7 +187,7 @@ const FRigConnectorElement* FRigModuleInstance::FindPrimaryConnector() const
 					const FString ModulePath = Hierarchy->GetModulePath(Connector->GetKey());
 					if(!ModulePath.IsEmpty())
 					{
-						if(ModulePath.Equals(MyModulePath, ESearchCase::CaseSensitive))
+						if(ModulePath.Equals(MyModulePath, ESearchCase::IgnoreCase))
 						{
 							PrimaryConnector = Connector;
 							return PrimaryConnector;
@@ -216,7 +214,7 @@ TArray<const FRigConnectorElement*> FRigModuleInstance::FindConnectors() const
 				const FString ModulePath = Hierarchy->GetModulePath(Connector->GetKey());
 				if(!ModulePath.IsEmpty())
 				{
-					if(ModulePath.Equals(MyModulePath, ESearchCase::CaseSensitive))
+					if(ModulePath.Equals(MyModulePath, ESearchCase::IgnoreCase))
 					{
 						Connectors.Add(Connector);
 					}
@@ -493,6 +491,9 @@ void UModularRig::ExecuteQueue()
 				RigPublicContext.SetLog(PublicContext.GetLog());
 #endif
 				RigPublicContext.SetFramesPerSecond(PublicContext.GetFramesPerSecond());
+#if WITH_EDITOR
+				RigPublicContext.SetHostBeingDebugged(bIsBeingDebugged);
+#endif
 				RigPublicContext.SetToWorldSpaceTransform(PublicContext.GetToWorldSpaceTransform());
 				RigPublicContext.OnAddShapeLibraryDelegate = PublicContext.OnAddShapeLibraryDelegate;
 				RigPublicContext.OnShapeExistsDelegate = PublicContext.OnShapeExistsDelegate;
@@ -801,6 +802,7 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 		NewModuleRig->bCopyHierarchyBeforeConstruction = false;
 		NewModuleRig->SetDynamicHierarchy(Hierarchy);
 		ModulePublicContext.Hierarchy = Hierarchy;
+		ModulePublicContext.ControlRig = this;
 		ModulePublicContext.RigModuleNameSpace = NewModuleRig->GetRigModuleNameSpace();
 		ModulePublicContext.RigModuleNameSpaceHash = GetTypeHash(ModulePublicContext.RigModuleNameSpace);
 		NewModuleRig->SetElementKeyRedirector(FRigElementKeyRedirector(InConnectionMap, Hierarchy));
@@ -858,7 +860,7 @@ void UModularRig::DiscardModuleRig(UControlRig* InControlRig)
 		// rename the previous rig.
 		// GC will pick it up eventually - since we won't have any
 		// owning pointers to it anymore.
-		InControlRig->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		InControlRig->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		InControlRig->MarkAsGarbage();
 	}
 }
@@ -875,7 +877,16 @@ void UModularRig::RecomputeShortestDisplayPathCache() const
 	const URigHierarchy* Hierarchy = GetHierarchy();
 	check(Hierarchy);
 
-	const TArray<FRigElementKey> AllKeys = Hierarchy->GetAllKeys();
+	TArray<FRigElementKey> AllKeys = Hierarchy->GetAllKeys();
+
+	// add all of the keys from the connections. we may be in a situation where
+	// the keys in the connections are actually referring to invalid / unloaded elements
+	// but we still want to show pretty short names.
+	for(const FModularRigSingleConnection& Connection : ModularRigModel.Connections)
+	{
+		AllKeys.AddUnique(Connection.Connector);
+		AllKeys.AddUnique(Connection.Target);
+	}
 
 	auto GetNameForElement = [Hierarchy](const FRigElementKey& InElementKey)
 	{
@@ -914,7 +925,13 @@ void UModularRig::RecomputeShortestDisplayPathCache() const
 		{
 			if(const FRigModuleReference* Module = Model.FindModule(ModulePath.ToString()))
 			{
-				const FString NameString = Name.ToString();
+				const FString ModulePathString = ModulePath.ToString();
+				const FString ModulePathPrefix = ModulePath.ToString() + NamespaceSeparator;
+				FString NameString = Name.ToString();
+				if(NameString.StartsWith(ModulePathPrefix))
+				{
+					NameString = NameString.Mid(ModulePathPrefix.Len());
+				}
 				const FString ModuleShortName = Module->GetShortName();
 				const FString NameSpacedName = URigHierarchy::JoinNameSpace(ModuleShortName, NameString);
 				ElementKeyToShortestDisplayPath.Add(Key, { NameSpacedName, IsNameUniqueInHierarchy.FindChecked(Name) ? NameString : NameSpacedName });

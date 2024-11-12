@@ -1233,13 +1233,7 @@ UControlRig* UControlRigComponent::SetupControlRigIfRequired()
 	{
 		if (ControlRig->GetClass() != ControlRigClass)
 		{
-			ControlRig->OnInitialized_AnyThread().RemoveAll(this);
-			ControlRig->OnPreConstruction_AnyThread().RemoveAll(this);
-			ControlRig->OnPostConstruction_AnyThread().RemoveAll(this);
-			ControlRig->OnPreForwardsSolve_AnyThread().RemoveAll(this);
-			ControlRig->OnPostForwardsSolve_AnyThread().RemoveAll(this);
-			ControlRig->OnExecuted_AnyThread().RemoveAll(this);
-			ControlRig = nullptr;
+			SetControlRig(nullptr);
 		}
 		else
 		{
@@ -1249,9 +1243,9 @@ UControlRig* UControlRigComponent::SetupControlRigIfRequired()
 
 	if(ControlRigClass)
 	{
-		ControlRig = NewObject<UControlRig>(this, ControlRigClass);
+		UControlRig* NewControlRig = NewObject<UControlRig>(this, ControlRigClass);
 
-		SetControlRig(ControlRig);
+		SetControlRig(NewControlRig);
 
 		if (ControlRigCreatedEvent.IsBound())
 		{
@@ -1265,37 +1259,53 @@ UControlRig* UControlRigComponent::SetupControlRigIfRequired()
 }
 void UControlRigComponent::SetControlRig(UControlRig* InControlRig)
 {
+	if (ControlRig != InControlRig)
+	{
+		if (ControlRig)
+		{
+			ControlRig->OnInitialized_AnyThread().RemoveAll(this);
+			ControlRig->OnPreConstruction_AnyThread().RemoveAll(this);
+			ControlRig->OnPostConstruction_AnyThread().RemoveAll(this);
+			ControlRig->OnPreForwardsSolve_AnyThread().RemoveAll(this);
+			ControlRig->OnPostForwardsSolve_AnyThread().RemoveAll(this);
+			ControlRig->OnExecuted_AnyThread().RemoveAll(this);
+
+			// rename the previous rig.
+			// GC will pick it up eventually - since we won't have any
+			// owning pointers to it anymore.
+			ControlRig->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			ControlRig->MarkAsGarbage();
+		}
+		ControlRig = InControlRig;
+	}
+
 	if (ControlRig)
 	{
-		ControlRig->OnInitialized_AnyThread().RemoveAll(this);
-		ControlRig->OnPreConstruction_AnyThread().RemoveAll(this);
-		ControlRig->OnPostConstruction_AnyThread().RemoveAll(this);
-		ControlRig->OnPreForwardsSolve_AnyThread().RemoveAll(this);
-		ControlRig->OnPostForwardsSolve_AnyThread().RemoveAll(this);
-		ControlRig->OnExecuted_AnyThread().RemoveAll(this);
-	}
-	ControlRig = InControlRig;
-	ControlRig->OnInitialized_AnyThread().AddUObject(this, &UControlRigComponent::HandleControlRigInitializedEvent);
-	ControlRig->OnPreConstruction_AnyThread().AddUObject(this, &UControlRigComponent::HandleControlRigPreConstructionEvent);
-	ControlRig->OnPostConstruction_AnyThread().AddUObject(this, &UControlRigComponent::HandleControlRigPostConstructionEvent);
-	ControlRig->OnPreForwardsSolve_AnyThread().AddUObject(this, &UControlRigComponent::HandleControlRigPreForwardsSolveEvent);
-	ControlRig->OnPostForwardsSolve_AnyThread().AddUObject(this, &UControlRigComponent::HandleControlRigPostForwardsSolveEvent);
-	ControlRig->OnExecuted_AnyThread().AddUObject(this, &UControlRigComponent::HandleControlRigExecutedEvent);
+		ControlRig->OnInitialized_AnyThread().AddUObject(this, &UControlRigComponent::HandleControlRigInitializedEvent);
+		ControlRig->OnPreConstruction_AnyThread().AddUObject(this, &UControlRigComponent::HandleControlRigPreConstructionEvent);
+		ControlRig->OnPostConstruction_AnyThread().AddUObject(this, &UControlRigComponent::HandleControlRigPostConstructionEvent);
+		ControlRig->OnPreForwardsSolve_AnyThread().AddUObject(this, &UControlRigComponent::HandleControlRigPreForwardsSolveEvent);
+		ControlRig->OnPostForwardsSolve_AnyThread().AddUObject(this, &UControlRigComponent::HandleControlRigPostForwardsSolveEvent);
+		ControlRig->OnExecuted_AnyThread().AddUObject(this, &UControlRigComponent::HandleControlRigExecutedEvent);
 
-	ControlRig->GetDataSourceRegistry()->RegisterDataSource(UControlRig::OwnerComponent, this);
-	if(ObjectBinding.IsValid())
-	{
-		ControlRig->SetObjectBinding(ObjectBinding);
-	}
+		ControlRig->GetDataSourceRegistry()->RegisterDataSource(UControlRig::OwnerComponent, this);
+		if(ObjectBinding.IsValid())
+		{
+			ControlRig->SetObjectBinding(ObjectBinding);
+		}
 
-	ControlRig->Initialize();
+		ControlRig->Initialize();
+	}
 }
 
 void UControlRigComponent::SetControlRigClass(TSubclassOf<UControlRig> InControlRigClass)
 {
-	ControlRig = nullptr;
-	ControlRigClass = InControlRigClass;
-	Initialize();
+	if (ControlRigClass != InControlRigClass)
+	{
+		SetControlRig(nullptr);
+		ControlRigClass = InControlRigClass;
+		Initialize();
+	}
 }
 
 void UControlRigComponent::SetObjectBinding(UObject* InObjectToBind)
@@ -1518,15 +1528,17 @@ void UControlRigComponent::TransferInputs()
 			}
 		}
 
-#if WITH_EDITOR
 		if(URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
 		{
+			Hierarchy->ResetChangedCurveIndices();
+			
+#if WITH_EDITOR
 			if(Hierarchy->IsTracingChanges())
 			{
 				Hierarchy->StorePoseForTrace(TEXT("UControlRigComponent::TransferInputs"));
 			}
-		}
 #endif
+		}
 	}
 }
 
@@ -1924,7 +1936,7 @@ bool UControlRigComponent::EnsureCalledOutsideOfBracket(const TCHAR* InCallingFu
 			}
 			else
 			{
-				ReportError(FString::Printf(TEXT("Cannot be called during the PreConstructionEvent - use ConstructionScript instead."), InCallingFunctionName));
+				ReportError(TEXT("Cannot be called during the PreConstructionEvent - use ConstructionScript instead."));
 				return false;
 			}
 		}
@@ -1938,7 +1950,7 @@ bool UControlRigComponent::EnsureCalledOutsideOfBracket(const TCHAR* InCallingFu
 			}
 			else
 			{
-				ReportError(FString::Printf(TEXT("Cannot be called during the PostConstructionEvent - use ConstructionScript instead."), InCallingFunctionName));
+				ReportError(TEXT("Cannot be called during the PostConstructionEvent - use ConstructionScript instead."));
 				return false;
 			}
 		}
@@ -1952,7 +1964,7 @@ bool UControlRigComponent::EnsureCalledOutsideOfBracket(const TCHAR* InCallingFu
 			}
 			else
 			{
-				ReportError(FString::Printf(TEXT("Cannot be called during the InitEvent - use ConstructionScript instead."), InCallingFunctionName));
+				ReportError(TEXT("Cannot be called during the InitEvent - use ConstructionScript instead."));
 				return false;
 			}
 		}
@@ -1966,7 +1978,7 @@ bool UControlRigComponent::EnsureCalledOutsideOfBracket(const TCHAR* InCallingFu
 			}
 			else
 			{
-				ReportError(FString::Printf(TEXT("Cannot be called during the ForwardsSolveEvent - use ConstructionScript instead."), InCallingFunctionName));
+				ReportError(TEXT("Cannot be called during the ForwardsSolveEvent - use ConstructionScript instead."));
 				return false;
 			}
 		}

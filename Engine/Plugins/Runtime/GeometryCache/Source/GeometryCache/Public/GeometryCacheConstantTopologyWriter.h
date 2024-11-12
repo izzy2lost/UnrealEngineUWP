@@ -30,10 +30,10 @@ namespace UE::GeometryCacheHelpers
 	 * 	FGeometryCacheConstantTopologyWriter::FTrackWriter& TrackWriter = Writer.AddGetTrackWriter(); // Second track
 	 * 	...
 	 */
-	class GEOMETRYCACHE_API FGeometryCacheConstantTopologyWriter
+	class FGeometryCacheConstantTopologyWriter
 	{
 	public:
-		struct GEOMETRYCACHE_API FConfig
+		struct FConfig
 		{
 			float FPS = 30.0f;
 			float PositionPrecision = 0.001f;
@@ -44,37 +44,34 @@ namespace UE::GeometryCacheHelpers
 		 * Construct a new FGeometryCacheConstantTopologyWriter object. This will remove all existing tracks from the cache.
 		 * @param OutCache 
 		 */
-		FGeometryCacheConstantTopologyWriter(UGeometryCache& OutCache);
-		FGeometryCacheConstantTopologyWriter(UGeometryCache& OutCache, const FConfig& Config);
-		~FGeometryCacheConstantTopologyWriter() = default;
+		GEOMETRYCACHE_API FGeometryCacheConstantTopologyWriter(UGeometryCache& OutCache);
+		GEOMETRYCACHE_API FGeometryCacheConstantTopologyWriter(UGeometryCache& OutCache, const FConfig& Config);
+		GEOMETRYCACHE_API ~FGeometryCacheConstantTopologyWriter();
 
 		FGeometryCacheConstantTopologyWriter(const FGeometryCacheConstantTopologyWriter&) = delete;
 		FGeometryCacheConstantTopologyWriter& operator=(const FGeometryCacheConstantTopologyWriter&) = delete;
-		FGeometryCacheConstantTopologyWriter(FGeometryCacheConstantTopologyWriter&&) = default;
-		FGeometryCacheConstantTopologyWriter& operator=(FGeometryCacheConstantTopologyWriter&&) = default;
 
-		struct GEOMETRYCACHE_API FFrameData
+		struct FFrameData
 		{
 			TArray<FVector3f> Positions;
 			TArray<FVector3f> Normals;
 			TArray<FVector3f> TangentsX;
 		};
 
-		struct GEOMETRYCACHE_API FTrackWriter
+		struct FTrackWriter
 		{
-			FTrackWriter(FGeometryCacheConstantTopologyWriter& InOwner, FName TrackName = FName());
-			~FTrackWriter() = default;
+			GEOMETRYCACHE_API FTrackWriter(FGeometryCacheConstantTopologyWriter& InOwner, FName TrackName = FName());
+			GEOMETRYCACHE_API ~FTrackWriter();
 
 			FTrackWriter(const FTrackWriter&) = delete;
 			FTrackWriter& operator=(const FTrackWriter&) = delete;
-			FTrackWriter(FTrackWriter&&) = default;
-			FTrackWriter& operator=(FTrackWriter&&) = default;
 
 			TArray<uint32> Indices;
 			TArray<FVector2f> UVs;
 			TArray<FColor> Colors;
 			TArray<uint32> ImportedVertexNumbers;
 			TArray<FGeometryCacheMeshBatchInfo> BatchesInfo;
+			TOptional<TArray<int32>> SourceVertexIndices;
 
 			/**
 			 * Move the position data to the cache track and close the TrackWriter. 
@@ -85,7 +82,7 @@ namespace UE::GeometryCacheHelpers
 			 * The number of vertices must be the same for all frames.
 			 * @return true if successfully write data and close the track writer.
 			 */
-			bool WriteAndClose(TArrayView<TArray<FVector3f>> PositionsToMoveFrom);
+			GEOMETRYCACHE_API bool WriteAndClose(TArrayView<TArray<FVector3f>> PositionsToMoveFrom);
 
 			/**
 			 * Move the frame data to the cache track and close the TrackWriter.
@@ -93,17 +90,17 @@ namespace UE::GeometryCacheHelpers
 			 * Normals and tangents are optional. If they are not provided, the track will compute them.
 			 * Normals and tangents must have the same size as positions.
 			 */
-			bool WriteAndClose(TArrayView<FFrameData> FramesToMoveFrom);
+			GEOMETRYCACHE_API bool WriteAndClose(TArrayView<FFrameData> FramesToMoveFrom);
 		private:
 			TStrongObjectPtr<UGeometryCacheTrack> Track;
 			FGeometryCacheConstantTopologyWriter* Owner = nullptr;
 		};
 
-		FTrackWriter& AddTrackWriter(FName TrackName = FName());
-		FTrackWriter& GetTrackWriter(int32 Index);
-		int32 GetNumTracks() const;
-		void AddMaterials(const TArray<TObjectPtr<UMaterialInterface>>& Materials);
-		int32 GetNumMaterials() const;
+		GEOMETRYCACHE_API FTrackWriter& AddTrackWriter(FName TrackName = FName());
+		GEOMETRYCACHE_API FTrackWriter& GetTrackWriter(int32 Index);
+		GEOMETRYCACHE_API int32 GetNumTracks() const;
+		GEOMETRYCACHE_API void AddMaterials(const TArray<TObjectPtr<UMaterialInterface>>& Materials);
+		GEOMETRYCACHE_API int32 GetNumMaterials() const;
 
 	private:
 		TStrongObjectPtr<UGeometryCache> Cache;
@@ -113,6 +110,7 @@ namespace UE::GeometryCacheHelpers
 
 	/**
 	 * @brief This will create a track writer and fill in the track writer's data (indices, UVs, materials .etc) from the skinned asset.
+	 * This only creates one track for the skinned asset. If you want to create multiple tracks based on imported mesh info, checkout AddTrackWriterFromSkinnedAsset() in ChaosClothGenerator.cpp. 
 	 * Usage:
 	 * 	FGeometryCacheConstantTopologyWriter Writer(MyCache);
 	 * 	int32 Index = AddTrackWriterFromSkinnedAsset(Writer, Asset);

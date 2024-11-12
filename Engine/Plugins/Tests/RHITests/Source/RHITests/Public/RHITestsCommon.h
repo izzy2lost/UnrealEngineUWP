@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "RenderUtils.h"
 #include "RenderingThread.h"
+#include "RHIResourceUtils.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogRHIUnitTestCommandlet, Log, All);
 

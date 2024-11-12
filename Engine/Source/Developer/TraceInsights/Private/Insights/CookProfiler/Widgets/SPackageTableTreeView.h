@@ -2,16 +2,18 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+
+// TraceServices
 #include "TraceServices/Model/CookProfilerProvider.h"
 
-// Insights
+// TraceInsights
 #include "Insights/CookProfiler/ViewModels/PackageTable.h"
 #include "Insights/Table/Widgets/SSessionTableTreeView.h"
 
 class FMenuBuilder;
 
-namespace Insights
+namespace UE::Insights::CookProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -86,4 +88,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::CookProfiler

@@ -5,7 +5,7 @@
 
 #include "PhysicsControlLimbData.h"
 #include "PhysicsControlData.h"
-#include "RigidBodyPoseData.h"
+#include "PhysicsControlPoseData.h"
 
 #include "Physics/ImmediatePhysics/ImmediatePhysicsDeclares.h"
 #include "Animation/AnimTypes.h"
@@ -120,10 +120,9 @@ struct FRigidBodyControlRecord
 
 	// The previous control target. This will have been set at the end of a previous update (but
 	// only if the control was enabled etc), so to check if it is valid, check the update counter.
-	RigidBodyWithControl::FPosQuat PrevTargetTM;
+	UE::PhysicsControl::FPosQuat PreviousTargetTM;
 
 	// Update counter set when the control was last updated.
-	// TODO just store the count we're interested in rather than the whole structure
 	FGraphTraversalCounter ExpectedUpdateCounter;
 
 	// This is the currently active control data. It will be updated just prior to applying

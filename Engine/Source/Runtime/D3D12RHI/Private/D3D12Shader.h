@@ -70,12 +70,10 @@ struct FD3D12ShaderData
 	/** The shader's bytecode, with custom data in the last byte. */
 	TArray<uint8> Code;
 
-	FShaderResourceTable ShaderResourceTable;
-
 	FShaderCodePackedResourceCounts ResourceCounts{};
-
-	/** The static slot associated with the resource table index in ShaderResourceTable. */
-	TArray<FUniformBufferStaticSlot> StaticSlots;
+		
+	// Hash of the static shader binding layout used during shader gen
+	uint32 ShaderBindingLayoutHash = 0;
 
 #if D3D12RHI_NEEDS_VENDOR_EXTENSIONS
 	TArray<FShaderCodeVendorExtension> VendorExtensions;
@@ -112,7 +110,7 @@ struct FD3D12ShaderData
 	FORCEINLINE EShaderCodeFeatures GetFeatures() const { return EShaderCodeFeatures::None; }
 #endif
 
-	FORCEINLINE bool UsesDiagnosticBuffer() const { return EnumHasAnyFlags(GetFeatures(), EShaderCodeFeatures::DiagnosticBuffer); }
+	FORCEINLINE bool UsesDiagnosticBuffer() const { return EnumHasAnyFlags(ResourceCounts.UsageFlags, EShaderResourceUsageFlags::DiagnosticBuffer); }
 	FORCEINLINE bool UsesGlobalUniformBuffer() const { return EnumHasAnyFlags(ResourceCounts.UsageFlags, EShaderResourceUsageFlags::GlobalUniformBuffer); }
 	FORCEINLINE bool UsesBindlessResources() const { return EnumHasAnyFlags(ResourceCounts.UsageFlags, EShaderResourceUsageFlags::BindlessResources); }
 	FORCEINLINE bool UsesBindlessSamplers() const { return EnumHasAnyFlags(ResourceCounts.UsageFlags, EShaderResourceUsageFlags::BindlessSamplers); }
@@ -160,6 +158,16 @@ public:
 	const FD3D12RootSignature* RootSignature = nullptr;
 };
 
+class FD3D12WorkGraphShader : public FRHIWorkGraphShader, public FD3D12ShaderData
+{
+public:
+	explicit FD3D12WorkGraphShader(EShaderFrequency InFrequency) : FRHIWorkGraphShader(InFrequency) {}
+
+	const FD3D12RootSignature* RootSignature = nullptr;
+
+	FString EntryPoint;
+};
+
 #if D3D12_RHI_RAYTRACING
 
 class FD3D12RayTracingShader : public FRHIRayTracingShader, public FD3D12ShaderData
@@ -167,7 +175,7 @@ class FD3D12RayTracingShader : public FRHIRayTracingShader, public FD3D12ShaderD
 public:
 	explicit FD3D12RayTracingShader(EShaderFrequency InFrequency) : FRHIRayTracingShader(InFrequency) {}
 
-	const FD3D12RootSignature* pRootSignature = nullptr;
+	const FD3D12RootSignature* LocalRootSignature = nullptr;
 
 	/** The shader's DXIL entrypoint & base export name for DXR (required for RTPSO creation) */
 	FString EntryPoint; // Primary entry point for all ray tracing shaders. Assumed to be closest hit shader for SF_RayHitGroup.
@@ -207,6 +215,11 @@ template<>
 struct TD3D12ResourceTraits<FRHIComputeShader>
 {
 	typedef FD3D12ComputeShader TConcreteType;
+};
+template<>
+struct TD3D12ResourceTraits<FRHIWorkGraphShader>
+{
+	typedef FD3D12WorkGraphShader TConcreteType;
 };
 template<>
 struct TD3D12ResourceTraits<FRHIVertexDeclaration>

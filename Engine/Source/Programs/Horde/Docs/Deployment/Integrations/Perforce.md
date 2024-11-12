@@ -31,6 +31,7 @@ There are several configurables for each cluster:
 
 * `Name`: Used to reference the cluster from a stream in the CI system.
 * `Servers`: Each server supports several settings of its own:
+  * `ServerAndPort`: The server part may be a DNS entry with multiple records, in which case it will be actively load balanced.
   * `ResolveDns`: If true, the given DNS name is resolved to find a concrete list of servers to be used. This allows
   IT/infrastructure teams to add and remove servers to a cluster without reconfiguring Horde.
   * `Properties`: Specifies properties that the agent must have to select this server.
@@ -42,6 +43,17 @@ There are several configurables for each cluster:
   commits from a stream, submitting on behalf of another user, and so on.
 * `CanImpersonate`: Indicates whether Horde should attempt to impersonate other users when submitting changes after a
   successful preflight-and-submit operation. Typically requires an administrator account.
+
+## Servers with SSL
+
+When the Perforce server uses SSL and the `ssl:` prefix is specified,
+it is essential to ensure that the server's fingerprint or certificate is trusted.
+For more information, refer to the [p4 trust](https://www.perforce.com/manuals/cmdref/Content/CmdRef/p4_trust.html) documentation.
+Depending on the configuration, it may be necessary to explicitly set the `P4TRUST` environment variable,
+which should point to a valid `p4trust.txt` file. Again, see the P4 documentation for further details.
+
+For example, on Windows, the Horde server runs as a service by default.
+In this scenario, the default location of the trust file resolves to `%SystemRoot%\System32\config\systemprofile\p4trust.txt`.
 
 ## Health Checks
 

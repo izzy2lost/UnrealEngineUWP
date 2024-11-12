@@ -16,7 +16,7 @@ void FChaosVDTraceModule::GetModuleInfo(TraceServices::FModuleInfo& OutModuleInf
 
 void FChaosVDTraceModule::OnAnalysisBegin(TraceServices::IAnalysisSession& InSession)
 {
-	const TSharedPtr<FChaosVDTraceProvider> Provider = MakeShared<FChaosVDTraceProvider>(InSession);
+	const TSharedRef<FChaosVDTraceProvider> Provider = MakeShared<FChaosVDTraceProvider>(InSession);
 
 	InSession.AddProvider(FChaosVDTraceProvider::ProviderName, Provider);
 	InSession.AddAnalyzer(new FChaosVDTraceAnalyzer(InSession, Provider));

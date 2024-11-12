@@ -106,13 +106,11 @@ static const unsigned short DT_EXT_LINK = 0x8000;
 inline const unsigned int DT_NULL_LINK = 0xffffffff;
 
 /// A flag that indicates that an off-mesh connection can be traversed in both directions. (Is bidirectional.)
-static const unsigned char DT_OFFMESH_CON_BIDIR = 0x01;
-
-//@UE BEGIN
-static const unsigned char DT_OFFMESH_CON_POINT = 0x02;
-static const unsigned char DT_OFFMESH_CON_SEGMENT = 0x04;
-static const unsigned char DT_OFFMESH_CON_CHEAPAREA = 0x08;
-//@UE END
+static const unsigned char DT_OFFMESH_CON_BIDIR		= 0x01;
+static const unsigned char DT_OFFMESH_CON_POINT		= 0x02;		//UE
+static const unsigned char DT_OFFMESH_CON_SEGMENT	= 0x04;		//UE
+static const unsigned char DT_OFFMESH_CON_CHEAPAREA = 0x08;		//UE
+static const unsigned char DT_OFFMESH_CON_GENERATED = 0x10;		//UE
 
 /// The maximum number of user defined area ids.
 /// @ingroup detour
@@ -223,10 +221,10 @@ struct dtPoly
 	unsigned char areaAndtype;
 
 	/// Sets the user defined area id. [Limit: < #DT_MAX_AREAS]
-	inline void setArea(unsigned char a) { areaAndtype = (areaAndtype & 0xc0) | (a & 0x3f); }
+	inline void setArea(unsigned char a) { areaAndtype = static_cast<unsigned char>((areaAndtype & 0xc0) | (a & 0x3f)); }
 
 	/// Sets the polygon type. (See: #dtPolyTypes.)
-	inline void setType(unsigned char t) { areaAndtype = (areaAndtype & 0x3f) | (t << 6); }
+	inline void setType(unsigned char t) { areaAndtype = static_cast<unsigned char>((areaAndtype & 0x3f) | (t << 6)); }
 
 	/// Gets the user defined area id.
 	inline unsigned char getArea() const { return areaAndtype & 0x3f; }
@@ -333,10 +331,11 @@ struct dtOffMeshConnection
 
 	//@UE BEGIN
 	/// Sets link flags
-	inline void setFlags(unsigned char conFlags)
+	inline void setFlags(unsigned char conTypeFlags)
 	{
-		flags = ((conFlags & DT_OFFMESH_CON_BIDIR) ? 0x80 : 0) |
-			((conFlags & DT_OFFMESH_CON_CHEAPAREA) ? 0x40 : 0);
+		flags = ((conTypeFlags & DT_OFFMESH_CON_BIDIR) ? 0x80 : 0) |
+				((conTypeFlags & DT_OFFMESH_CON_CHEAPAREA) ? 0x40 : 0) |
+				((conTypeFlags & DT_OFFMESH_CON_GENERATED) ? 0x20 : 0);
 	}
 
 	/// Gets the link direction
@@ -344,6 +343,9 @@ struct dtOffMeshConnection
 
 	/// Gets the link snap mode
 	inline bool getSnapToCheapestArea() const { return (flags & 0x40) != 0; }
+
+	/// Indicates if the link was automatically generated
+	inline bool getIsGenerated() const { return (flags & 0x20) != 0; }
 	//@UE END
 };
 
@@ -1002,7 +1004,7 @@ struct ReadTilesHelper
 		{
 			dtFree(AllocatedTiles, DT_ALLOC_TEMP);
 			AllocatedTiles = (dtMeshTile**)dtAlloc(RequestedSize * sizeof(dtMeshTile*), DT_ALLOC_TEMP);
-			NumAllocated = RequestedSize;
+			NumAllocated = AllocatedTiles != nullptr ? RequestedSize : 0;
 		}
 
 		return AllocatedTiles;

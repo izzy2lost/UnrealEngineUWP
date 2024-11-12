@@ -52,7 +52,7 @@ static bool GetIsPreset(const FSoftObjectPath& InSourcePath)
 		const FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(Object);
 		if (MetaSoundAsset)
 		{
-			bIsPreset = MetaSoundAsset->GetDocumentChecked().RootGraph.PresetOptions.bIsPreset;
+			bIsPreset = MetaSoundAsset->GetConstDocumentChecked().RootGraph.PresetOptions.bIsPreset;
 		}
 	}
 	// Otherwise, try to pull from asset registry, but avoid load as this call
@@ -115,10 +115,14 @@ TConstArrayView<FAssetCategoryPath> UAssetDefinition_MetaSoundPatch::GetAssetCat
 
 EAssetCommandResult UAssetDefinition_MetaSoundPatch::OpenAssets(const FAssetOpenArgs& OpenArgs) const
 {
-	for (UMetaSoundPatch* Metasound : OpenArgs.LoadObjects<UMetaSoundPatch>())
+	Metasound::Editor::IMetasoundEditorModule& MetaSoundEditorModule = FModuleManager::GetModuleChecked<Metasound::Editor::IMetasoundEditorModule>("MetaSoundEditor");
+	if (!MetaSoundEditorModule.IsRestrictedMode())
 	{
-		TSharedRef<Metasound::Editor::FEditor> NewEditor = MakeShared<Metasound::Editor::FEditor>();
-		NewEditor->InitMetasoundEditor(OpenArgs.GetToolkitMode(), OpenArgs.ToolkitHost, Metasound);
+		for (UMetaSoundPatch* Metasound : OpenArgs.LoadObjects<UMetaSoundPatch>())
+		{
+			TSharedRef<Metasound::Editor::FEditor> NewEditor = MakeShared<Metasound::Editor::FEditor>();
+			NewEditor->InitMetasoundEditor(OpenArgs.GetToolkitMode(), OpenArgs.ToolkitHost, Metasound);
+		}
 	}
 	return EAssetCommandResult::Handled;
 }
@@ -164,10 +168,15 @@ TConstArrayView<FAssetCategoryPath> UAssetDefinition_MetaSoundSource::GetAssetCa
 
 EAssetCommandResult UAssetDefinition_MetaSoundSource::OpenAssets(const FAssetOpenArgs& OpenArgs) const
 {
+	Metasound::Editor::IMetasoundEditorModule& MetaSoundEditorModule = FModuleManager::GetModuleChecked<Metasound::Editor::IMetasoundEditorModule>("MetaSoundEditor");
 	for (UMetaSoundSource* Metasound : OpenArgs.LoadObjects<UMetaSoundSource>())
 	{
-		TSharedRef<Metasound::Editor::FEditor> NewEditor = MakeShared<Metasound::Editor::FEditor>();
-		NewEditor->InitMetasoundEditor(OpenArgs.GetToolkitMode(), OpenArgs.ToolkitHost, Metasound);
+		// In restricted mode, we only want to open up the editor if we're preset otherwise, we don't want to open the editor
+		if (Metasound->bIsPreset || !MetaSoundEditorModule.IsRestrictedMode())
+		{
+			TSharedRef<Metasound::Editor::FEditor> NewEditor = MakeShared<Metasound::Editor::FEditor>();
+			NewEditor->InitMetasoundEditor(OpenArgs.GetToolkitMode(), OpenArgs.ToolkitHost, Metasound);
+		}
 	}
 
 	return EAssetCommandResult::Handled;
@@ -286,6 +295,72 @@ TSharedPtr<SWidget> UAssetDefinition_MetaSoundSource::GetThumbnailOverlay(const 
 	return UAssetDefinition_SoundBase::GetSoundBaseThumbnailOverlay(InAssetData, MoveTemp(OnClickedLambdaOverride));
 }
 
+bool UAssetDefinition_MetaSoundSource::GetThumbnailActionOverlay(const FAssetData& InAssetData, FAssetActionThumbnailOverlayInfo& OutActionOverlayInfo) const
+{
+	auto OnGetDisplayBrushLambda = [InAssetData]() -> const FSlateBrush*
+	{
+		if (UE::AudioEditor::IsSoundPlaying(InAssetData))
+		{
+			return FAppStyle::GetBrush("ContentBrowser.AssetAction.StopIcon");
+		}
+
+		return FAppStyle::GetBrush("ContentBrowser.AssetAction.PlayIcon");
+	};
+
+	OutActionOverlayInfo.ActionImageWidget = SNew(SImage).Image_Lambda(OnGetDisplayBrushLambda);
+
+	auto OnToolTipTextLambda = [InAssetData]() -> FText
+	{
+		if (UE::AudioEditor::IsSoundPlaying(InAssetData))
+		{
+			return LOCTEXT("Thumbnail_StopSoundToolTip", "Stop selected sound");
+		}
+
+		return LOCTEXT("Thumbnail_PlaySoundToolTip", "Play selected sound");
+	};
+
+	auto OnClickedLambda = [InAssetData]() -> FReply
+	{
+		TSharedPtr<Metasound::Editor::FEditor> Editor = Metasound::Editor::FGraphBuilder::GetEditorForMetasound(*InAssetData.GetAsset());
+		if (UE::AudioEditor::IsSoundPlaying(InAssetData))
+		{
+			if (Editor.IsValid())
+			{
+				Editor->Stop();
+			}
+			else
+			{
+				UE::AudioEditor::StopSound();
+			}
+		}
+		else
+		{
+			if (Editor.IsValid())
+			{
+				Editor->Play();
+			}
+			else
+			{
+				// Load and play sound
+				UE::AudioEditor::PlaySound(Cast<USoundBase>(InAssetData.GetAsset()));
+			}
+		}
+		return FReply::Handled();
+	};
+
+	OutActionOverlayInfo.ActionButtonWidget = SNew(SButton)
+		.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
+		.ContentPadding(0.0f)
+		.ToolTipText_Lambda(OnToolTipTextLambda)
+		.OnClicked_Lambda(OnClickedLambda)
+		[
+			SNew(SImage)
+			.Image_Lambda(OnGetDisplayBrushLambda)
+		];
+
+	return true;
+}
+
 EAssetCommandResult UAssetDefinition_MetaSoundSource::ActivateAssets(const FAssetActivateArgs& ActivateArgs) const
 {
 	if (ActivateArgs.ActivationMethod == EAssetActivationMethod::Previewed)
@@ -321,6 +396,11 @@ EAssetCommandResult UAssetDefinition_MetaSoundSource::ActivateAssets(const FAsse
 	return EAssetCommandResult::Unhandled;
 }
 
+void UAssetDefinition_MetaSoundSource::GetAssetActionButtonExtensions(const FAssetData& InAssetData, TArray<FAssetButtonActionExtension>& OutExtensions) const
+{
+	UAssetDefinition_SoundBase::GetSoundBaseAssetActionButtonExtensions(InAssetData, OutExtensions);
+}
+
 namespace MenuExtension_MetaSoundSourceTemplate
 {
 	template <typename TClass>
@@ -328,6 +408,8 @@ namespace MenuExtension_MetaSoundSourceTemplate
 	{
 		if (const UContentBrowserAssetContextMenuContext* Context = UContentBrowserAssetContextMenuContext::FindContextWithAssets(MenuContext))
 		{
+			using namespace Metasound::Editor;
+
 			for (TClass* ReferencedMetaSound : Context->LoadSelectedObjects<TClass>())
 			{
 				FString PackagePath;
@@ -345,8 +427,15 @@ namespace MenuExtension_MetaSoundSourceTemplate
 				}
 
 				UMetaSoundEditorSubsystem& MetaSoundEditorSubsystem = UMetaSoundEditorSubsystem::GetChecked();
-				MetaSoundEditorSubsystem.BuildToAsset(&Builder, MetaSoundEditorSubsystem.GetDefaultAuthor(), AssetName, FPackageName::GetLongPackagePath(PackagePath), BuilderResult);
-				if (BuilderResult != EMetaSoundBuilderResult::Succeeded)
+				TScriptInterface<IMetaSoundDocumentInterface> NewMetaSound = MetaSoundEditorSubsystem.BuildToAsset(&Builder, MetaSoundEditorSubsystem.GetDefaultAuthor(), AssetName, FPackageName::GetLongPackagePath(PackagePath), BuilderResult);
+				if (BuilderResult == EMetaSoundBuilderResult::Succeeded)
+				{
+					if (ensure(NewMetaSound))
+					{
+						FGraphBuilder::RegisterGraphWithFrontend(*NewMetaSound.GetObject());
+					}
+				}
+				else
 				{
 					UE_LOG(LogMetaSound, Error, TEXT("Error building to asset when creating preset '%s'"), *AssetName);
 				}
@@ -354,7 +443,8 @@ namespace MenuExtension_MetaSoundSourceTemplate
 		}
 	}
 
- 	static FDelayedAutoRegisterHelper DelayedAutoRegister(EDelayedRegisterRunPhase::EndOfEngineInit, [] {
+ 	static FDelayedAutoRegisterHelper DelayedAutoRegister(EDelayedRegisterRunPhase::EndOfEngineInit, []
+	{
  		UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateLambda([]()
  		{
  			FToolMenuOwnerScoped OwnerScoped(UE_MODULE_NAME);

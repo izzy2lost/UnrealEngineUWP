@@ -69,6 +69,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | SkeletalMeshLodData")
 	bool RemoveAllMeshes();
 
+	/** Return if the import of the class is allowed at runtime.*/
+	virtual bool IsRuntimeImportAllowed() const override
+	{
+		return false;
+	}
+
 private:
 
 	bool IsEditorOnlyDataDefined();

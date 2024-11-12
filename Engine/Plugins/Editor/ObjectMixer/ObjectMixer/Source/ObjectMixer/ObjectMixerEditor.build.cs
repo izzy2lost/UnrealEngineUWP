@@ -35,6 +35,7 @@ public class ObjectMixerEditor : ModuleRules
 				"AssetTools",
 				"CoreUObject",
 				"ContentBrowser",
+				"DeveloperSettings",
 				"Engine",
 				"EditorConfig",
 				"EditorStyle",
@@ -53,7 +54,8 @@ public class ObjectMixerEditor : ModuleRules
 				"TypedElementRuntime",
 				"UMG",
 				"UnrealEd",
-				"WorkspaceMenuStructure"
+				"WorkspaceMenuStructure",
+				"SourceControl"
 			}
 		);
 	}

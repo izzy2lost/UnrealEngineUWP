@@ -626,7 +626,6 @@ void CreateNonoverlappingConvexHulls(
 	{
 		OutCenter = (CloseA + CloseB) * .5;
 		OutNormal = Normal;
-		Chaos::FVec3 GJKCenter;
 		Chaos::FReal BestScore = ScoreCutPlane(A, B, FChaosPlane(OutCenter, OutNormal), bOneSidedCut, OutCenter, OutNormal);
 		Chaos::FVec3 MassSepNormal = (B.GetCenterOfMass() - A.GetCenterOfMass());
 		if (MassSepNormal.Normalize() && BestScore > 0)
@@ -1424,7 +1423,7 @@ void HullsFromGeometry(
 				return Chaos::FConvexPtr(new Chaos::FConvex(HullPts, UE_KINDA_SMALL_NUMBER));
 			};
 			Chaos::FConvexPtr Hull = nullptr;
-			FVector HullPivot;
+			FVector HullPivot = FVector::ZeroVector;
 
 			if (OptionalDecompositionSettings)
 			{
@@ -2028,6 +2027,11 @@ void FGeometryCollectionConvexUtility::GenerateClusterConvexHullsFromLeafOrChild
 
 	for (int32 TransformIndex : TransformsToProcess)
 	{
+		if (TransformIndex < 0 || TransformIndex >= SimulationTypeAttribute.Num())
+		{
+			UE_LOG(LogChaos, Warning, TEXT("Transform Index %d out of bounds [0,%d)"), TransformIndex, SimulationTypeAttribute.Num());
+			continue;
+		}
 		// only do this for clusters
 		const bool bIsCluster = (SimulationTypeAttribute.Get()[TransformIndex] == FGeometryCollection::ESimulationTypes::FST_Clustered);
 		if (bIsCluster)

@@ -12,7 +12,7 @@ class IDetailLayoutBuilder;
 class IPropertyHandle;
 class UObject;
 
-class FBodySetupDetails : public IDetailCustomization
+class DETAILCUSTOMIZATIONS_API FBodySetupDetails : public IDetailCustomization
 {
 public:
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */
@@ -20,6 +20,8 @@ public:
 
 	/** IDetailCustomization interface */
 	virtual void CustomizeDetails( IDetailLayoutBuilder& DetailBuilder ) override;
+
+	virtual void CustomizeCoMNudge(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> BodyInstanceHandler) {};
 
 private:
 	void AddPhysicalAnimation(IDetailLayoutBuilder& DetailBuilder);

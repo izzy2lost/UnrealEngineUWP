@@ -2,17 +2,12 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Xml;
-using System.Xml.Schema;
 using EpicGames.BuildGraph;
 using EpicGames.Core;
-using Microsoft.Extensions.Logging;
+
+#nullable enable
 
 namespace AutomationTool
 {
@@ -27,7 +22,7 @@ namespace AutomationTool
 		/// <param name="graph">Graph to output</param>
 		/// <param name="file">The file to load</param>
 		/// <param name="schemaFile">Schema file for validation</param>
-		public static void Write(this BgGraphDef graph, FileReference file, FileReference schemaFile)
+		public static void Write(this BgGraphDef graph, FileReference file, FileReference? schemaFile)
 		{
 			XmlWriterSettings settings = new XmlWriterSettings();
 			settings.Indent = true;
@@ -171,6 +166,11 @@ namespace AutomationTool
 			if (node.RunEarly)
 			{
 				writer.WriteAttributeString("RunEarly", node.RunEarly.ToString());
+			}
+
+			if (node.IgnoreModified.Count > 0)
+			{
+				writer.WriteAttributeString("IgnoreModified", String.Join(";", node.IgnoreModified));
 			}
 
 			BgScriptNode scriptNode = (BgScriptNode)node;

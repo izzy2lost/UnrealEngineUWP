@@ -2,6 +2,7 @@
 
 #include "AvaSceneSettingsTabSpawner.h"
 #include "AvaSceneSettings.h"
+#include "DetailView/Customizations/AvaSceneSettingsCustomization.h"
 #include "IAvaEditor.h"
 #include "IAvaSceneInterface.h"
 #include "IDetailsView.h"
@@ -49,6 +50,10 @@ TSharedRef<SWidget> FAvaSceneSettingsTabSpawner::CreateTabBody()
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 
 	TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+
+	DetailsView->RegisterInstancedCustomPropertyLayout(UAvaSceneSettings::StaticClass()
+		, FOnGetDetailCustomizationInstance::CreateStatic(&FAvaSceneSettingsCustomization::MakeInstance, EditorWeak));
+
 	DetailsView->SetObject(SceneSettings);
 	return DetailsView;
 }

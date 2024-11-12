@@ -30,6 +30,7 @@ protected:
 
 	//~ Begin SGraphPin Interface
 	virtual TSharedRef<SWidget>	GetDefaultValueWidget() override;
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 	//~ End SGraphPin Interface
 
 	FRuntimeFloatCurve& UpdateAndGetCurve();

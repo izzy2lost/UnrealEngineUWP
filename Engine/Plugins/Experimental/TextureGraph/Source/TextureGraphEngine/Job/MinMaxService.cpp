@@ -16,7 +16,7 @@ MinMaxService::~MinMaxService()
 
 AsyncJobResultPtr MinMaxService::Tick()
 {
-	UE_LOG(LogIdle_Svc, Verbose, TEXT("Svc_MinMax::Tick"));
+	UE_LOG(LogIdle_Svc, VeryVerbose, TEXT("Svc_MinMax::Tick"));
 
 	static constexpr size_t MaxBlobs = 8;
 	BlobPtr BlobObjs[MaxBlobs] = { 0 };

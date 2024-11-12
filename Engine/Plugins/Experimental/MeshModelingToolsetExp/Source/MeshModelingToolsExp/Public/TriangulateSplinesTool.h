@@ -5,20 +5,12 @@
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
 
-#include "InteractiveTool.h"
-#include "InteractiveToolBuilder.h"
-#include "InteractiveToolManager.h"
-#include "MeshOpPreviewHelpers.h"
-#include "InteractiveToolQueryInterfaces.h"
-#include "PropertySets/CreateMeshObjectTypeProperties.h"
-
 #include "CurveOps/TriangulateCurvesOp.h"
+
+#include "Spline/BaseMeshFromSplinesTool.h"
 
 
 #include "TriangulateSplinesTool.generated.h"
-
-class USplineComponent;
-class UWorld;
 
 
 /**
@@ -52,7 +44,7 @@ public:
 
 	// How to handle open curves: Either offset them, or treat them as closed curves
 	UPROPERTY(EditAnywhere, Category = Offset, meta = (EditCondition = "FlattenMethod != EFlattenCurveMethod::DoNotFlatten", EditConditionHides))
-	EOffsetOpenCurvesMethod OpenCurves = EOffsetOpenCurvesMethod::Offset;
+	EOffsetOpenCurvesMethod OpenCurves = EOffsetOpenCurvesMethod::TreatAsClosed;
 
 	// How much offset to apply to curves
 	UPROPERTY(EditAnywhere, Category = Offset, meta = (EditCondition = "FlattenMethod != EFlattenCurveMethod::DoNotFlatten", EditConditionHides))
@@ -77,99 +69,52 @@ public:
 };
 
 /**
- * Tool to create a mesh from a set of selected Spline Components
+ * Tool to create a mesh by triangulating the shapes outlined or traced by a set of selected Spline Components, with optional offset and extrusion
  */
 UCLASS()
-class MESHMODELINGTOOLSEXP_API UTriangulateSplinesTool : public UInteractiveTool, public IInteractiveToolEditorGizmoAPI, public UE::Geometry::IDynamicMeshOperatorFactory
+class MESHMODELINGTOOLSEXP_API UTriangulateSplinesTool : public UBaseMeshFromSplinesTool
 {
 	GENERATED_BODY()
 
 public:
-
-	UTriangulateSplinesTool() = default;
-
-	// IInteractiveToolEditorGizmoAPI -- allow editor gizmo so users can live-edit the splines
-
-	virtual bool GetAllowStandardEditorGizmos() override
-	{
-		return true;
-	}
-
-	//
-	// InteractiveTool API - generally does not need to be modified by subclasses
-	//
 
 	virtual void Setup() override;
 	virtual void Shutdown(EToolShutdownType ShutdownType) override;
 
-	virtual void OnTick(float DeltaTime) override;
-
-	virtual bool HasCancel() const override { return true; }
-	virtual bool HasAccept() const override { return true; }
-	virtual bool CanAccept() const override;
-
-	virtual void OnPropertyModified(UObject* PropertySet, FProperty* Property) override;
-
-	void SetSplineActors(TArray<TWeakObjectPtr<AActor>> InSplineActors)
-	{
-		ActorsWithSplines = MoveTemp(InSplineActors);
-	}
-
-	virtual void SetWorld(UWorld* World);
-	virtual UWorld* GetTargetWorld();
-
 	// IDynamicMeshOperatorFactory API
-	virtual TUniquePtr<UE::Geometry::FDynamicMeshOperator> MakeNewOperator();
+	virtual TUniquePtr<UE::Geometry::FDynamicMeshOperator> MakeNewOperator() override;
+
+	virtual FString GeneratedAssetBaseName() const override;
+	virtual FText TransactionName() const override;
+
+protected:
+	virtual void OnSplineUpdate() override;
 
 private:
-
-	virtual void GenerateAsset(const FDynamicMeshOpResult& OpResult);
 
 	UPROPERTY()
 	TObjectPtr<UTriangulateSplinesToolProperties> TriangulateProperties;
 
-	UPROPERTY()
-	TObjectPtr<UCreateMeshObjectTypeProperties> OutputTypeProperties;
+	// Sampled splines, computed in OnSplineUpdate
+	struct FPathCache
+	{
+		TArray<FVector3d> Vertices;
+		bool bClosed;
+		FTransform ComponentTransform;
+	};
+	TArray<FPathCache> SplinesCache;
 
-	UPROPERTY()
-	TObjectPtr<UMeshOpPreviewWithBackgroundCompute> Preview;
-
-	UPROPERTY()
-	TWeakObjectPtr<UWorld> TargetWorld = nullptr;
-
-	// Note: We track actors instead of the USplineComponents here because the USplineComponents objects are often deleted / swapped for identical but new objects
-	UPROPERTY()
-	TArray<TWeakObjectPtr<AActor>> ActorsWithSplines;
-
-private:
-
-	// Helper to track the splines we are triangulating, so we can re-triangulate when they are moved or changed
-	void PollSplineUpdates();
-	// Track the spline 'Version' integer, which is incremented when splines are changed
-	TArray<uint32> LastSplineVersions;
-	// Track the spline component's transform (to world space)
-	TArray<FTransform> LastSplineTransforms;
 };
 
 
-
-/**
- * Base Tool Builder for tools that operate on a selection of Spline Components
- */
 UCLASS(Transient)
-class MESHMODELINGTOOLSEXP_API UTriangulateSplinesToolBuilder : public UInteractiveToolBuilder
+class MESHMODELINGTOOLSEXP_API UTriangulateSplinesToolBuilder : public UBaseMeshFromSplinesToolBuilder
 {
 	GENERATED_BODY()
 
 public:
-	/** @return true if spline component sources can be found in the active selection */
-	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
-
 	/** @return new Tool instance initialized with selected spline source(s) */
 	virtual UInteractiveTool* BuildTool(const FToolBuilderState& SceneState) const override;
-
-	/** Called by BuildTool to configure the Tool with the input spline source(s) based on the SceneState */
-	virtual void InitializeNewTool(UTriangulateSplinesTool* Tool, const FToolBuilderState& SceneState) const;
 };
 
 

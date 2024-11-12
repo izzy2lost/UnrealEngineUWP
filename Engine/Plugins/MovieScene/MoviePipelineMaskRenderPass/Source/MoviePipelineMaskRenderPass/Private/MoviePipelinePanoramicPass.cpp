@@ -12,6 +12,7 @@
 #include "MovieRenderOverlappedImage.h"
 #include "MoviePipelineOutputBuilder.h"
 #include "MoviePipelinePanoramicBlender.h"
+#include "MoviePipelineTelemetry.h"
 #include "OpenColorIODisplayExtension.h"
 #include "TextureResource.h"
 #include "SceneUtils.h"
@@ -464,6 +465,13 @@ void UMoviePipelinePanoramicPass::RenderSample_GameThreadImpl(const FMoviePipeli
 
 				FCanvas Canvas = FCanvas(RenderTarget, nullptr, GetPipeline()->GetWorld(), ViewFamily->GetFeatureLevel(), FCanvas::CDM_DeferDrawing, 1.0f);
 				GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.Get());
+				
+				ENQUEUE_RENDER_COMMAND(TransitionTextureSRVState)(
+				[RenderTarget](FRHICommandListImmediate& RHICmdList) mutable
+				{
+					// Transition our render target from a render target view to a shader resource view to allow the UMG preview material to read from this Render Target.
+					RHICmdList.Transition(FRHITransitionInfo(RenderTarget->GetRenderTargetTexture(), ERHIAccess::RTV, ERHIAccess::SRVGraphicsPixel));
+				});
 
 				// Schedule a readback and then high-res accumulation.
 				ScheduleReadbackAndAccumulation(InOutSampleState, Pane, Canvas);
@@ -557,4 +565,9 @@ void UMoviePipelinePanoramicPass::ScheduleReadbackAndAccumulation(const FMoviePi
 			LocalSurfaceQueue->OnRenderTargetReady_RenderThread(RenderTarget->GetRenderTargetTexture(), FramePayload, MoveTemp(Callback));
 		});
 
+}
+
+void UMoviePipelinePanoramicPass::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesPanoramic = true;
 }

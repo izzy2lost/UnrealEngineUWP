@@ -7,14 +7,13 @@
 #include "Engine/EngineTypes.h"
 #include "EngineDefines.h"
 #include "VisualLogger/VisualLoggerTypes.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "EngineStats.h"
-#endif
 #include "Templates/IsValidVariadicFunctionArg.h"
 #include "Templates/IsArrayOrRefOfTypeByPredicate.h"
 #include "Traits/IsCharEncodingCompatibleWith.h"
 #include "UObject/ObjectKey.h"
 #include "Containers/Ticker.h"
+#include "Misc/TransactionallySafeRWLock.h"
+#include "Misc/TransactionallySafeRWScopeLock.h"
 
 #if ENABLE_VISUAL_LOG
 
@@ -94,10 +93,10 @@
 #define UE_CVLOG_ARROW(Condition, LogOwner, CategoryName, Verbosity, SegmentStart, SegmentEnd, Color, Format, ...) if(FVisualLogger::IsRecording() && Condition) {UE_VLOG_ARROW(LogOwner, CategoryName, Verbosity, SegmentStart, SegmentEnd, Color, Format, ##__VA_ARGS__);} 
 // Circle shape
 #define UE_VLOG_CIRCLE(LogOwner, CategoryName, Verbosity, Center, UpAxis, Radius, Color, Format, ...) if(FVisualLogger::IsRecording()) FVisualLogger::CircleLogf(LogOwner, CategoryName, ELogVerbosity::Verbosity, Center, UpAxis, Radius, Color, 0, Format, ##__VA_ARGS__)
-#define UE_CVLOG_CIRCLE(Condition, LogOwner, CategoryName, Verbosity, Center, UpAxis, Radius, Color, Format, ...) if(FVisualLogger::IsRecording() && Condition) {UE_VLOG_CIRCLE(LogOwner, CategoryName, Verbosity, Center, UpAxis, Radius, Color, 0, Format, ##__VA_ARGS__);} 
+#define UE_CVLOG_CIRCLE(Condition, LogOwner, CategoryName, Verbosity, Center, UpAxis, Radius, Color, Format, ...) if(FVisualLogger::IsRecording() && Condition) {UE_VLOG_CIRCLE(LogOwner, CategoryName, Verbosity, Center, UpAxis, Radius, Color, Format, ##__VA_ARGS__);} 
 // Circle shape
 #define UE_VLOG_CIRCLE_THICK(LogOwner, CategoryName, Verbosity, Center, UpAxis, Radius, Color, Thickness, Format, ...) if(FVisualLogger::IsRecording()) FVisualLogger::CircleLogf(LogOwner, CategoryName, ELogVerbosity::Verbosity, Center, UpAxis, Radius, Color, Thickness, Format, ##__VA_ARGS__)
-#define UE_CVLOG_CIRCLE_THICK(Condition, LogOwner, CategoryName, Verbosity, Center, UpAxis, Radius, Color, Thickness, Format, ...) if(FVisualLogger::IsRecording() && Condition) {UE_VLOG_CIRCLE(LogOwner, CategoryName, Verbosity, Center, UpAxis, Radius, Color, Thickness, Format, ##__VA_ARGS__);} 
+#define UE_CVLOG_CIRCLE_THICK(Condition, LogOwner, CategoryName, Verbosity, Center, UpAxis, Radius, Color, Thickness, Format, ...) if(FVisualLogger::IsRecording() && Condition) {UE_VLOG_CIRCLE_THICK(LogOwner, CategoryName, Verbosity, Center, UpAxis, Radius, Color, Thickness, Format, ##__VA_ARGS__);} 
 
 #define DECLARE_VLOG_EVENT(EventName) extern FVisualLogEventBase EventName;
 #define DEFINE_VLOG_EVENT(EventName, Verbosity, UserFriendlyDesc) FVisualLogEventBase EventName(TEXT(#EventName), TEXT(UserFriendlyDesc), ELogVerbosity::Verbosity); 
@@ -678,7 +677,7 @@ public:
 		FVisualLogger& Logger = FVisualLogger::Get();
 		UObject* NewRedirection = nullptr;
 		{
-			FWriteScopeLock Lock(Logger.RedirectRWLock);
+			FTransactionallySafeWriteScopeLock Lock(Logger.RedirectRWLock);
 			NewRedirection = Logger.RedirectInternal(FromObject, ToObject);
 		}
 		UE_CVLOG(FromObject != nullptr && NewRedirection != nullptr, FromObject, LogVisual, Log, TEXT("Redirected '%s' to '%s'"), *FromObject->GetName(), *NewRedirection->GetName());
@@ -688,7 +687,7 @@ public:
 	static UObject* FindRedirection(const UObject* Object)
 	{ 
 		FVisualLogger& Logger = FVisualLogger::Get();
-		FReadScopeLock Lock(Logger.RedirectRWLock);
+		FTransactionallySafeReadScopeLock Lock(Logger.RedirectRWLock);
 		return Logger.FindRedirectionInternal(Object);
 	}
 
@@ -876,7 +875,7 @@ protected:
 	// redirect the traffic to
 	FChildToOwnerRedirectionMap ChildToOwnerMap;
 	// Read Write lock protecting redirection maps (ChildToOwnerMap and ObjectToWorldMap)
-	mutable FRWLock RedirectRWLock;
+	mutable FTransactionallySafeRWLock RedirectRWLock;
 	// if set all categories are blocked from logging
 	bool bBlockedAllCategories : 1;
 	// if set we are recording to file

@@ -37,30 +37,6 @@ bool FVulkanWindowsPlatform::LoadVulkanLibrary()
 	}
 	bAttemptedLoad = true;
 
-#if NV_AFTERMATH
-	GVulkanNVAftermathModuleLoaded = false;
-	const bool bAllowVendorDevice = !FParse::Param(FCommandLine::Get(), TEXT("novendordevice"));
-	if (bAllowVendorDevice)
-	{
-		// Note - can't check device type here, we'll check for that before actually initializing Aftermath
-		const FString AftermathBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/NVIDIA/NVaftermath/Win64/");
-
-		FPlatformProcess::PushDllDirectory(*AftermathBinariesRoot);
-		void* Handle = FPlatformProcess::GetDllHandle(TEXT("GFSDK_Aftermath_Lib.x64.dll"));
-		FPlatformProcess::PopDllDirectory(*AftermathBinariesRoot);
-
-		if (Handle == nullptr)
-		{
-			UE_LOG(LogVulkanRHI, Warning, TEXT("Failed to load GFSDK_Aftermath_Lib.x64.dll"));
-		}
-		else
-		{
-			UE_LOG(LogVulkanRHI, Log, TEXT("Loaded GFSDK_Aftermath_Lib.x64.dll"));
-			GVulkanNVAftermathModuleLoaded = true;
-		}
-	}
-#endif
-
 #if VULKAN_HAS_DEBUGGING_ENABLED
 	const FString VulkanSDK = FPlatformMisc::GetEnvironmentVariable(TEXT("VULKAN_SDK"));
 	UE_LOG(LogVulkanRHI, Warning, TEXT("Found VULKAN_SDK=%s"), *VulkanSDK);
@@ -159,13 +135,11 @@ bool FVulkanWindowsPlatform::LoadVulkanInstanceFunctions(VkInstance inInstance)
 	ENUM_VK_ENTRYPOINTS_OPTIONAL_PLATFORM_INSTANCE(CHECK_VK_ENTRYPOINTS);
 #endif
 
-#if VULKAN_RHI_RAYTRACING
 	const bool bFoundRayTracingEntries = FVulkanRayTracingPlatform::CheckVulkanInstanceFunctions(inInstance);
 	if (!bFoundRayTracingEntries)
 	{
 		UE_LOG(LogVulkanRHI, Warning, TEXT("Vulkan RHI ray tracing is enabled, but failed to load instance functions."));
 	}
-#endif
 	
 	ENUM_VK_ENTRYPOINTS_PLATFORM_INSTANCE(GETINSTANCE_VK_ENTRYPOINTS);
 	ENUM_VK_ENTRYPOINTS_PLATFORM_INSTANCE(CHECK_VK_ENTRYPOINTS);
@@ -221,21 +195,24 @@ bool FVulkanWindowsPlatform::SupportsDeviceLocalHostVisibleWithNoPenalty(EGpuVen
 	return (VendorId == EGpuVendorId::Amd && bIsWin10);
 }
 
-
-void FVulkanWindowsPlatform::WriteCrashMarker(const FOptionalVulkanDeviceExtensions& OptionalExtensions, VkCommandBuffer CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding)
+void FVulkanWindowsPlatform::WriteCrashMarker(const FOptionalVulkanDeviceExtensions& OptionalExtensions, FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding)
 {
 	ensure(Entries.Num() <= GMaxCrashBufferEntries);
 
 	if (OptionalExtensions.HasAMDBufferMarker)
 	{
 		// AMD API only allows updating one entry at a time. Assume buffer has entry 0 as num entries
-		VulkanDynamicAPI::vkCmdWriteBufferMarkerAMD(CmdBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, DestBuffer, 0, Entries.Num());
+		VulkanDynamicAPI::vkCmdWriteBufferMarkerAMD(CmdBuffer->GetHandle(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, DestBuffer, 0, Entries.Num());
 		if (bAdding)
 		{
 			int32 LastIndex = Entries.Num() - 1;
 			// +1 size as entries start at index 1
-			VulkanDynamicAPI::vkCmdWriteBufferMarkerAMD(CmdBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, DestBuffer, (1 + LastIndex) * sizeof(uint32), Entries[LastIndex]);
+			VulkanDynamicAPI::vkCmdWriteBufferMarkerAMD(CmdBuffer->GetHandle(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, DestBuffer, (1 + LastIndex) * sizeof(uint32), Entries[LastIndex]);
 		}
+	}
+	else
+	{
+		WriteCrashMarkerWithoutExtensions(CmdBuffer, DestBuffer, Entries, bAdding);
 	}
 
 	if (OptionalExtensions.HasNVDiagnosticCheckpoints)
@@ -244,7 +221,7 @@ void FVulkanWindowsPlatform::WriteCrashMarker(const FOptionalVulkanDeviceExtensi
 		{
 			int32 LastIndex = Entries.Num() - 1;
 			uint32 Value = Entries[LastIndex];
-			VulkanDynamicAPI::vkCmdSetCheckpointNV(CmdBuffer, (void*)(size_t)Value);
+			VulkanDynamicAPI::vkCmdSetCheckpointNV(CmdBuffer->GetHandle(), (void*)(size_t)Value);
 		}
 	}
 }

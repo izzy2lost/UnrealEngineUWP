@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Collections.Generic;
-using EpicGames.Core;
 using System.Text.Json;
+using EpicGames.Core;
 
 namespace UnrealBuildTool
 {
@@ -112,6 +112,11 @@ namespace UnrealBuildTool
 		/// Sets the version of the engine that this plugin is compatible with.
 		/// </summary>
 		public string? EngineVersion;
+		
+		/// <summary>
+		/// Sets the version of the engine at which this plugin has been deprecated.
+		/// </summary>
+		public string? DeprecatedEngineVersion;
 
 		/// <summary>4
 		/// If true, this plugin from a platform extension extending another plugin */
@@ -227,7 +232,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Plugins that this plugin should never depend on
 		/// </summary>
-		public String[]? DisallowedPlugins;
+		public string[]? DisallowedPlugins;
 
 		/// <summary>
 		/// The JsonObject created from reading a .uplugin on disk or from parsing a json text 
@@ -284,6 +289,7 @@ namespace UnrealBuildTool
 			RawObject.TryGetStringField("MarketplaceURL", out MarketplaceURL);
 			RawObject.TryGetStringField("SupportURL", out SupportURL);
 			RawObject.TryGetStringField("EngineVersion", out EngineVersion);
+			RawObject.TryGetStringField("DeprecatedEngineVersion", out DeprecatedEngineVersion);
 			RawObject.TryGetStringArrayField("SupportedPrograms", out SupportedPrograms);
 			RawObject.TryGetBoolField("bIsPluginExtension", out bIsPluginExtension);
 
@@ -298,7 +304,7 @@ namespace UnrealBuildTool
 					{
 						SupportedTargetPlatforms.Add(Platform);
 					}
-					else
+					else if ( !IsAllowableMissingPlatform(TargetPlatformName, PluginPath.Directory) )
 					{
 						Log.TraceWarningTask(PluginPath, $"Unknown platform {TargetPlatformName} listed in plugin with FriendlyName \"{FriendlyName}\"");
 					}
@@ -347,7 +353,7 @@ namespace UnrealBuildTool
 			if (RawObject.TryGetBoolField("CanBeUsedWithUnrealHeaderTool", out bCanBeUsedWithUnrealHeaderTool) && bCanBeUsedWithUnrealHeaderTool)
 			{
 				Array.Resize(ref SupportedPrograms, (SupportedPrograms == null) ? 1 : SupportedPrograms.Length + 1);
-				SupportedPrograms[SupportedPrograms.Length - 1] = "UnrealHeaderTool";
+				SupportedPrograms[^1] = "UnrealHeaderTool";
 			}
 
 			RawObject.TryGetBoolField("RequiresBuildPlatform", out bRequiresBuildPlatform);
@@ -365,7 +371,16 @@ namespace UnrealBuildTool
 				Plugins = Array.ConvertAll(PluginsArray, x => PluginReferenceDescriptor.FromJsonObject(x)).ToList();
 			}
 
-			RawObject.TryGetStringArrayField("DisallowedPlugins", out DisallowedPlugins);
+			JsonObject[]? DisallowedPluginsArray;
+			if (RawObject.TryGetObjectArrayField("DisallowedPlugins", out DisallowedPluginsArray))
+			{
+				DisallowedPlugins = Array.ConvertAll(DisallowedPluginsArray, x => x.GetStringField("Name"));
+			}
+			else
+			{
+				// Backwards compatibility still check for a simple array.
+				RawObject.TryGetStringArrayField("DisallowedPlugins", out DisallowedPlugins);
+			}
 		}
 
 		/// <summary>
@@ -385,7 +400,7 @@ namespace UnrealBuildTool
 			}
 			catch (JsonException ex)
 			{
-				throw new JsonException($"{ex.Message} (in {FileName})", ex.Source ?? FileName.FullName, ex.LineNumber, ex.BytePositionInLine, ex);
+				throw new JsonException($"{ex.Message} (in {FileName})", FileName.FullName, ex.LineNumber, ex.BytePositionInLine, ex);
 			}
 		}
 
@@ -435,6 +450,10 @@ namespace UnrealBuildTool
 			if (!String.IsNullOrEmpty(EngineVersion))
 			{
 				Writer.WriteValue("EngineVersion", EngineVersion);
+			}
+			if (!String.IsNullOrEmpty(DeprecatedEngineVersion))
+			{
+				Writer.WriteValue("DeprecatedEngineVersion", DeprecatedEngineVersion);
 			}
 			if (!String.IsNullOrEmpty(VersePath))
 			{
@@ -516,15 +535,9 @@ namespace UnrealBuildTool
 
 			LocalizationTargetDescriptor.WriteArray(Writer, "LocalizationTargets", LocalizationTargets);
 
-			if (PreBuildSteps != null)
-			{
-				PreBuildSteps.Write(Writer, "PreBuildSteps");
-			}
+			PreBuildSteps?.Write(Writer, "PreBuildSteps");
 
-			if (PostBuildSteps != null)
-			{
-				PostBuildSteps.Write(Writer, "PostBuildSteps");
-			}
+			PostBuildSteps?.Write(Writer, "PostBuildSteps");
 
 			if (Plugins != null && Plugins.Count > 0)
 			{
@@ -553,6 +566,10 @@ namespace UnrealBuildTool
 			if (!String.IsNullOrEmpty(EngineVersion))
 			{
 				CachedJson.AddOrSetFieldValue("EngineVersion", EngineVersion);
+			}
+			if (!String.IsNullOrEmpty(DeprecatedEngineVersion))
+			{
+				CachedJson.AddOrSetFieldValue("DeprecatedEngineVersion", DeprecatedEngineVersion);
 			}
 			if (!String.IsNullOrEmpty(VersePath))
 			{
@@ -697,6 +714,34 @@ namespace UnrealBuildTool
 		public string[]? GetSupportedTargetPlatformNames()
 		{
 			return SupportedTargetPlatforms?.Select(P => P.ToString()).ToArray();
+		}
+
+
+		/// <summary>
+		/// Indicates whether it is acceptable for the given platform to be missing
+		/// Typically for platform extensions that are not covered by NDA in third party plugins
+		/// </summary>
+		/// <param name="Platform"></param>
+		/// <param name="PluginFolder"></param>
+		internal static bool IsAllowableMissingPlatform(string Platform, DirectoryReference PluginFolder)
+		{
+			// certain directories should always show "best practice" and enforce plugin extensions
+			DirectoryReference[] EnforcedDirectories = new DirectoryReference[]
+			{
+				DirectoryReference.Combine(UnrealBuildBase.Unreal.EngineDirectory, "Plugins"),
+				DirectoryReference.Combine(UnrealBuildBase.Unreal.RootDirectory, "Samples"),
+			};
+			if (EnforcedDirectories.Any( X => PluginFolder.IsUnderDirectory(X) ) )
+			{
+				return false;
+			}
+
+			// all other plugin locations allow some unknown platforms (internal code, game projects etc)
+			string[] AllowedMissingPlatforms = new string[] 
+			{ 
+				"WinGDK",
+			};
+			return AllowedMissingPlatforms.Contains(Platform);
 		}
 	}
 }

@@ -7,6 +7,13 @@
 #include "GameFramework/Actor.h"
 #include "MoverComponent.h"
 
+#if WITH_EDITOR
+#include "Misc/DataValidation.h"
+#endif
+
+
+#define LOCTEXT_NAMESPACE "Mover"
+
 // ----------------------------------------------------------------------------------------------------------
 //	FMoverActorModelDef: the piece that ties everything together that we use to register with the NP system.
 // ----------------------------------------------------------------------------------------------------------
@@ -54,7 +61,21 @@ void UMoverNetworkPredictionLiaisonComponent::RestoreFrame(const FMoverSyncState
 void UMoverNetworkPredictionLiaisonComponent::FinalizeFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState)
 {
 	check(MoverComp);
+
+	const FNetworkPredictionSettings NetworkPredictionSettings = UNetworkPredictionWorldManager::ActiveInstance->GetSettings();
+	if (MoverComp->GetOwnerRole() == ROLE_SimulatedProxy && NetworkPredictionSettings.SimulatedProxyNetworkLOD == ENetworkLOD::Interpolated)
+	{
+		FMoverInputCmdContext InputCmd;
+		MoverComp->TickInterpolatedSimProxy(MoverComp->GetLastTimeStep(), InputCmd, MoverComp, MoverComp->GetSyncState(), *SyncState, *AuxState);
+	}
+	
 	MoverComp->FinalizeFrame(SyncState, AuxState);
+}
+
+void UMoverNetworkPredictionLiaisonComponent::FinalizeSmoothingFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState)
+{
+	check(MoverComp);
+	MoverComp->FinalizeSmoothingFrame(SyncState, AuxState);
 }
 
 void UMoverNetworkPredictionLiaisonComponent::InitializeSimulationState(FMoverSyncState* OutSync, FMoverAuxStateContext* OutAux)
@@ -96,7 +117,7 @@ int32 UMoverNetworkPredictionLiaisonComponent::GetCurrentSimFrame()
 
 bool UMoverNetworkPredictionLiaisonComponent::ReadPendingSyncState(OUT FMoverSyncState& OutSyncState)
 {
-	if (const FMoverSyncState* PendingSyncState = NetworkPredictionProxy.ReadSyncState<FMoverSyncState>())
+	if (const FMoverSyncState* PendingSyncState = NetworkPredictionProxy.ReadSyncState<FMoverSyncState>(ENetworkPredictionStateRead::Simulation))
 	{
 		OutSyncState = *PendingSyncState;
 		return true;
@@ -107,24 +128,82 @@ bool UMoverNetworkPredictionLiaisonComponent::ReadPendingSyncState(OUT FMoverSyn
 
 bool UMoverNetworkPredictionLiaisonComponent::WritePendingSyncState(const FMoverSyncState& SyncStateToWrite)
 {
-	NetworkPredictionProxy.WriteSyncState<FMoverSyncState>([&SyncStateToWrite](FMoverSyncState& PendingSyncStateRef)
+	bool bDidWriteSucceed = NetworkPredictionProxy.WriteSyncState<FMoverSyncState>([&SyncStateToWrite](FMoverSyncState& PendingSyncStateRef)
 		{
 			PendingSyncStateRef = SyncStateToWrite;
-		});
+		}) != nullptr;
 
-	return true;
+	return bDidWriteSucceed;
 }
+
+
+bool UMoverNetworkPredictionLiaisonComponent::ReadPresentationSyncState(OUT FMoverSyncState& OutSyncState)
+{
+	if (const FMoverSyncState* PendingSyncState = NetworkPredictionProxy.ReadSyncState<FMoverSyncState>(ENetworkPredictionStateRead::Presentation))
+	{
+		OutSyncState = *PendingSyncState;
+		return true;
+	}
+
+	return false;
+}
+
+
+bool UMoverNetworkPredictionLiaisonComponent::WritePresentationSyncState(const FMoverSyncState& SyncStateToWrite)
+{
+	bool bDidWriteSucceed = NetworkPredictionProxy.WritePresentationSyncState<FMoverSyncState>([&SyncStateToWrite](FMoverSyncState& PresentationSyncStateRef)
+		{
+			PresentationSyncStateRef = SyncStateToWrite;
+		}) != nullptr;
+
+	return bDidWriteSucceed;
+}
+
+
+bool UMoverNetworkPredictionLiaisonComponent::ReadPrevPresentationSyncState(FMoverSyncState& OutSyncState)
+{
+	if (const FMoverSyncState* PrevPresentationSyncState = NetworkPredictionProxy.ReadPrevPresentationSyncState<FMoverSyncState>())
+	{
+		OutSyncState = *PrevPresentationSyncState;
+		return true;
+	}
+
+	return false;
+}
+
+
+bool UMoverNetworkPredictionLiaisonComponent::WritePrevPresentationSyncState(const FMoverSyncState& SyncStateToWrite)
+{
+	bool bDidWriteSucceed = NetworkPredictionProxy.WritePrevPresentationSyncState<FMoverSyncState>([&SyncStateToWrite](FMoverSyncState& PresentationSyncStateRef)
+		{
+			PresentationSyncStateRef = SyncStateToWrite;
+		}) != nullptr;
+
+	return bDidWriteSucceed;
+}
+
+
+#if WITH_EDITOR
+EDataValidationResult UMoverNetworkPredictionLiaisonComponent::ValidateData(FDataValidationContext& Context, const UMoverComponent& ValidationMoverComp) const
+{
+	if (const AActor* OwnerActor = ValidationMoverComp.GetOwner())
+	{
+		if (OwnerActor->IsReplicatingMovement())
+		{
+			Context.AddError(FText::Format(LOCTEXT("ConflictingReplicateMovementProperty", "The owning actor ({0}) has the ReplicateMovement property enabled. This will conflict with Network Prediction and cause poor quality movement. Please disable it."),
+				FText::FromString(GetNameSafe(OwnerActor))));
+
+			return EDataValidationResult::Invalid;
+		}
+	}
+
+	return EDataValidationResult::Valid;
+}
+#endif // WITH_EDITOR
 
 void UMoverNetworkPredictionLiaisonComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
-	if (const AActor* OwnerActor = GetOwner())
-	{
-		ensureMsgf(!OwnerActor->IsReplicatingMovement(),
-			TEXT("MoverComponent owning actor %s has the ReplicateMovement property enabled. This will conflict with Network Prediction and cause poor quality movement. Please disable it."),
-			*GetNameSafe(GetOwner()));
-	}
 
 	if (StartingOutSync && StartingOutAux)
 	{
@@ -171,3 +250,5 @@ void UMoverNetworkPredictionLiaisonComponent::InitializeNetworkPredictionProxy()
 		NetworkPredictionProxy.Init<FMoverActorModelDef>(GetWorld(), GetReplicationProxies(), this, this);
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

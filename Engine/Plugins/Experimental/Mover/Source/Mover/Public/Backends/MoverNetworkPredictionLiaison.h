@@ -37,6 +37,9 @@ public:
 	// Take output for simulation. Called by Network Prediction system.
 	void FinalizeFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState);
 
+	// Take output for smoothing. Called by Network Prediction system.
+	void FinalizeSmoothingFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState);
+
 	// Seed initial values based on component's state. Called by Network Prediction system.
 	void InitializeSimulationState(FMoverSyncState* OutSync, FMoverAuxStateContext* OutAux);
 
@@ -49,6 +52,13 @@ public:
 	virtual int32 GetCurrentSimFrame() override;
 	virtual bool ReadPendingSyncState(OUT FMoverSyncState& OutSyncState) override;
 	virtual bool WritePendingSyncState(const FMoverSyncState& SyncStateToWrite) override;
+	virtual bool ReadPresentationSyncState(OUT FMoverSyncState& OutSyncState) override;
+	virtual bool WritePresentationSyncState(const FMoverSyncState& SyncStateToWrite) override;
+	virtual bool ReadPrevPresentationSyncState(FMoverSyncState& OutSyncState) override;
+	virtual bool WritePrevPresentationSyncState(const FMoverSyncState& SyncStateToWrite) override;
+#if WITH_EDITOR
+	virtual EDataValidationResult ValidateData(FDataValidationContext& Context, const UMoverComponent& ValidationMoverComp) const override;
+#endif
 	// End IMoverBackendLiaisonInterface
 
 	virtual void BeginPlay() override;

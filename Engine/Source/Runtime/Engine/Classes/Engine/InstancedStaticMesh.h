@@ -473,9 +473,9 @@ public:
 
 	ENGINE_API virtual bool HasRayTracingRepresentation() const override;
 
-	ENGINE_API virtual void GetDynamicRayTracingInstances(struct FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) final override;
+	ENGINE_API virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) final override;
 
-	ENGINE_API void SetupRayTracingDynamicInstances(int32 NumDynamicInstances, int32 LOD);
+	ENGINE_API void SetupRayTracingDynamicInstances(int32 NumDynamicInstances, int32 LODIndex);
 
 #endif
 
@@ -551,7 +551,7 @@ protected:
 
 	TArray<FRayTracingDynamicData> RayTracingDynamicData;
 
-	int32 CachedRayTracingLOD;
+	int32 CachedRayTracingLODIndex;
 #endif
 
 	/** Common path for the Get*MeshElement functions */
@@ -566,7 +566,7 @@ private:
 	/** Stores a loose uniform buffer per LOD, used for static view relevance. */
 	TMap<uint32, FInstancedStaticMeshVFLooseUniformShaderParametersRef> LODLooseUniformBuffers;
 
-	TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> InstanceDataSceneProxy; 
+	TSharedPtr<FInstanceDataSceneProxy, ESPMode::ThreadSafe> InstanceDataSceneProxy; 
 };
 
 #if WITH_EDITOR
@@ -589,6 +589,10 @@ public:
 		// override the local to world to combine the per instance transform with the component's standard transform
 		SetLocalToWorld(InPrimitive->PerInstanceSMData[InstanceIndex].Transform * InPrimitive->GetComponentTransform().ToMatrixWithScale());
 	}
+
+	FStaticLightingMesh_InstancedStaticMesh() { }
+
+	virtual bool IsInstancedMesh() const override { return true; }
 };
 
 /*-----------------------------------------------------------------------------
@@ -610,8 +614,18 @@ public:
 	{
 	}
 
+	FStaticLightingTextureMapping_InstancedStaticMesh (const FArchive& Ar)	
+		: FStaticMeshStaticLightingTextureMapping(Ar)
+		, InstanceIndex(-1)
+		, QuantizedData(nullptr)
+		, ShadowMapData()
+		, bComplete(false)
+	{
+		
+	}
+
 	// FStaticLightingTextureMapping interface
-	virtual void Apply(FQuantizedLightmapData* InQuantizedData, const TMap<ULightComponent*, FShadowMapData2D*>& InShadowMapData, ULevel* LightingScenario) override
+	virtual void Apply(FQuantizedLightmapData* InQuantizedData, const TMap<ULightComponent*, FShadowMapData2D*>& InShadowMapData, const FStaticLightingBuildContext* LightingContext) override
 	{
 		check(bComplete == false);
 
@@ -627,7 +641,7 @@ public:
 				ShadowMapData.Add(ShadowDataPair.Key, TUniquePtr<FShadowMapData2D>(ShadowDataPair.Value));
 			}
 
-			InstancedComponent->ApplyLightMapping(this, LightingScenario);
+			InstancedComponent->ApplyLightMapping(this, LightingContext);
 		}
 
 		bComplete = true;
@@ -643,11 +657,13 @@ public:
 		return FString(TEXT("InstancedSMLightingMapping"));
 	}
 
+	ENGINE_API virtual void Serialize(FArchive& Ar) override;
+
 private:
 	friend class UInstancedStaticMeshComponent;
 
 	/** The instance of the primitive this mapping represents. */
-	const int32 InstanceIndex;
+	int32 InstanceIndex;
 
 	// Light/shadow map data stored until all instances for this component are processed
 	// so we can apply them all into one light/shadowmap

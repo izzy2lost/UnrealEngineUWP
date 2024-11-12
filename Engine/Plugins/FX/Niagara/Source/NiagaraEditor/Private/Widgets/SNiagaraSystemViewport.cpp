@@ -23,6 +23,8 @@
 #include "NiagaraSystemInstanceController.h"
 #include "NiagaraSystemGpuComputeProxy.h"
 #include "NiagaraSystemEditorData.h"
+#include "NiagaraSystemEditorViewportToolbarSections.h"
+#include "PreviewProfileController.h"
 #include "SNiagaraSystemViewportToolBar.h"
 #include "UnrealEdGlobals.h"
 #include "Editor/EditorEngine.h"
@@ -32,12 +34,40 @@
 #include "Engine/TextureCube.h"
 #include "Slate/SceneViewport.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
+#include "ToolMenus.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
+#include "ViewModels/NiagaraEmitterHandleViewModel.h"
+#include "ViewModels/NiagaraSystemViewModel.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Layout/SBox.h"
 
 #define LOCTEXT_NAMESPACE "SNiagaraSystemViewport"
 
 class UNiagaraSystemEditorData;
+
+namespace UE::NiagaraSystemEditor::Private
+{
+void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName)
+{
+	UToolMenu* const Submenu = UToolMenus::Get()->ExtendMenu(InCameraOptionsSubmenuName);
+
+	Submenu->AddDynamicSection(
+		"EditorCameraExtensionDynamicSection",
+		FNewToolMenuDelegate::CreateLambda(
+			[](UToolMenu* InDynamicMenu)
+			{
+				FToolMenuSection& PositioningSection = InDynamicMenu->FindOrAddSection(
+					"NavigationOptions", LOCTEXT("NavigationOptionsLabel", "Navigation Options")
+				);
+
+				PositioningSection.AddMenuEntry(FNiagaraEditorCommands::Get().ToggleOrbit);
+			}
+		)
+	);
+}
+
+}
+
 
 /** Viewport Client for the preview viewport */
 class FNiagaraSystemViewportClient : public FEditorViewportClient, public TSharedFromThis<FNiagaraSystemViewportClient>
@@ -382,7 +412,7 @@ void FNiagaraSystemViewportClient::DrawParticleCounts(UNiagaraComponent* Compone
 	}
 	else if ( UNiagaraSystem* NiagaraSystem = Component->GetAsset() )
 	{
-		const bool bSystemCompiling = NiagaraSystem->HasOutstandingCompilationRequests();
+		const bool bHasOutstandingCompilation = NiagaraSystem->HasOutstandingCompilationRequests();
 
 		for (const FNiagaraEmitterHandle& EmitterHandle : NiagaraSystem->GetEmitterHandles())
 		{
@@ -392,7 +422,8 @@ void FNiagaraSystemViewportClient::DrawParticleCounts(UNiagaraComponent* Compone
 				continue;
 			}
 
-			const bool bEmitterCompiling = bSystemCompiling || !EmitterData->IsReadyToRun();
+			// we assume that if the emitter isn't ready to run and we have compilations still oustanding that we're waiting on that
+			const bool bEmitterCompiling = bHasOutstandingCompilation && !EmitterData->IsReadyToRun();
 			if (!bEmitterCompiling)
 			{
 				continue;
@@ -423,6 +454,11 @@ void FNiagaraSystemViewportClient::DrawEmitterExecutionOrder(UNiagaraComponent* 
 			const FNiagaraEmitterHandle& EmitterHandle = NiagaraSystem->GetEmitterHandle(EmitterExecIndex.EmitterIndex);
 			if (FVersionedNiagaraEmitterData* NiagaraEmitter = EmitterHandle.GetEmitterData())
 			{
+				if (EmitterExecIndex.bStartNewOverlapGroup)
+				{
+					Canvas->DrawShadowedString(CurrentX, CurrentY, TEXT("<Overlap Barrier>"), Font, FLinearColor::White);
+					CurrentY += FontHeight;
+				}
 				Canvas->DrawShadowedString(CurrentX, CurrentY, *FString::Printf(TEXT("%d - %s"), ++DisplayIndex, NiagaraEmitter->GetDebugSimName()), Font, FLinearColor::White);
 				CurrentY += FontHeight;
 			}
@@ -485,6 +521,11 @@ void FNiagaraSystemViewportClient::DrawGpuTickInformation(UNiagaraComponent* Com
 		if (SystemInstance->RequiresRayTracingScene())
 		{
 			Canvas->DrawShadowedString(CurrentX + 5.0f, CurrentY, TEXT("RequiresRayTracingScene"), Font, FLinearColor::White);
+			CurrentY += FontHeight;
+		}
+		if (SystemInstance->RequiresCurrentFrameNDC())
+		{
+			Canvas->DrawShadowedString(CurrentX + 5.0f, CurrentY, TEXT("RequiresCurrentFrameNDC"), Font, FLinearColor::White);
 			CurrentY += FontHeight;
 		}
 	}
@@ -568,10 +609,11 @@ void FNiagaraSystemViewportClient::DrawStatelessInfo(UNiagaraComponent* Componen
 		const FVector2D ScaledViewportSize = FVector2D(InViewport->GetSizeXY()) / Canvas->GetDPIScale();
 		FCanvasTextItem TextItem(FVector2D::ZeroVector, FText::GetEmpty(), Font, FLinearColor::White);
 
-		FString StatelessInfo = FString::Printf(TEXT("Stateless: %d / %d Emitters"), NumStatelessEmitters, NumEmitters);
-		if (NiagaraSystem->SystemStateFastPathEnabled())
+		FString StatelessInfo = FString::Printf(TEXT("Stateless: %d / %d Emitters "), NumStatelessEmitters, NumEmitters);
+
+		if (const TCHAR* SystemStateModeString = NiagaraSystem->GetSystemStateModeString())
 		{
-			StatelessInfo.Append(TEXT(" [FastPath]"));
+			StatelessInfo.Append(SystemStateModeString);
 		}
 
 		int32 Width = 0;
@@ -1139,9 +1181,169 @@ TSharedRef<FEditorViewportClient> SNiagaraSystemViewport::MakeEditorViewportClie
 
 TSharedPtr<SWidget> SNiagaraSystemViewport::MakeViewportToolbar()
 {
-	//return SNew(SNiagaraSystemViewportToolBar)
+	// return SNew(SNiagaraSystemViewportToolBar)
 	//.Viewport(SharedThis(this));
 	return SNew(SBox);
+}
+TSharedPtr<SWidget> SNiagaraSystemViewport::BuildViewportToolbar()
+{
+	// Register the viewport toolbar if another viewport hasn't already (it's shared).
+	const FName ViewportToolbarName = "NiagaraSystemEditor.ViewportToolbar";
+
+	if (!UToolMenus::Get()->IsMenuRegistered(ViewportToolbarName))
+	{
+		UToolMenu* const ViewportToolbarMenu = UToolMenus::Get()->RegisterMenu(
+			ViewportToolbarName, NAME_None /* parent */, EMultiBoxType::SlimHorizontalToolBar
+		);
+
+		ViewportToolbarMenu->StyleName = "ViewportToolbar";
+
+		// Add the left-aligned part of the viewport toolbar.
+		{
+			FToolMenuSection& LeftSection = ViewportToolbarMenu->FindOrAddSection("Left");
+		}
+
+		// Add the right-aligned part of the viewport toolbar.
+		{
+			// Add the submenus of this section as EToolMenuInsertType::Last to sort them after any
+			// default-positioned submenus external code might add.
+			FToolMenuSection& RightSection = ViewportToolbarMenu->FindOrAddSection("Right");
+			RightSection.Alignment = EToolMenuSectionAlign::Last;
+
+			// Add the "Camera" submenu.
+			{
+				const FName GrandParentSubmenuName = "UnrealEd.ViewportToolbar.Camera";
+				const FName ParentSubmenuName = "NiagaraSystemEditor.ViewportToolbar.Camera";
+				const FName SubmenuName = "NiagaraSystemEditor.ViewportToolbar.CameraOptions";
+
+				// Create our grandparent menu.
+				if (!UToolMenus::Get()->IsMenuRegistered(GrandParentSubmenuName))
+				{
+					UToolMenus::Get()->RegisterMenu(GrandParentSubmenuName);
+				}
+
+				// Create our parent menu.
+				if (!UToolMenus::Get()->IsMenuRegistered(ParentSubmenuName))
+				{
+					UToolMenus::Get()->RegisterMenu(ParentSubmenuName, GrandParentSubmenuName);
+				}
+
+				// Create our menu.
+				UToolMenus::Get()->RegisterMenu(SubmenuName, ParentSubmenuName);
+
+				UE::UnrealEd::ExtendCameraSubmenu(SubmenuName);
+				UE::NiagaraSystemEditor::Private::ExtendCameraSubmenu(SubmenuName);
+
+				FToolMenuEntry CameraSubmenu = UE::UnrealEd::CreateViewportToolbarCameraSubmenu();
+				CameraSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				RightSection.AddEntry(CameraSubmenu);
+
+				// TODO: add navigation options --> Orbit Mode toggle
+			}
+
+			// Add the "View Modes" sub menu.
+			{
+				// Stay backward-compatible with the old viewport toolbar.
+				{
+					const FName ParentSubmenuName = "UnrealEd.ViewportToolbar.View";
+					// Create our parent menu.
+					if (!UToolMenus::Get()->IsMenuRegistered(ParentSubmenuName))
+					{
+						UToolMenus::Get()->RegisterMenu(ParentSubmenuName);
+					}
+
+					// Register our ToolMenu here first, before we create the submenu, so we can set our parent.
+					UToolMenus::Get()->RegisterMenu("NiagaraSystemEditor.ViewportToolbar.ViewModes", ParentSubmenuName);
+				}
+
+				FToolMenuEntry ViewModesSubmenu = UE::UnrealEd::CreateViewportToolbarViewModesSubmenu();
+				ViewModesSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				RightSection.AddEntry(ViewModesSubmenu);
+
+				FToolMenuEntry PerformanceAndScalabilitySubmenu = UE::UnrealEd::CreatePerformanceAndScalabilitySubmenu();
+				PerformanceAndScalabilitySubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				RightSection.AddEntry(PerformanceAndScalabilitySubmenu);
+			}
+
+			// Add the Show submenu.
+			{
+				FToolMenuEntry ShowSubmenu = UE::NiagaraSystemEditor::CreateShowSubmenu();
+				ShowSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				RightSection.AddEntry(ShowSubmenu);
+			}
+
+			// Add the Performance and Scalability submenu.
+			{
+				FToolMenuEntry PerformanceAndScalabilitySubmenu = UE::UnrealEd::CreatePerformanceAndScalabilitySubmenu();
+				PerformanceAndScalabilitySubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				RightSection.AddEntry(PerformanceAndScalabilitySubmenu);
+			}
+
+			// Add the "Preview Profile" sub menu.
+			{
+				PreviewProfileController = MakeShared<FPreviewProfileController>();
+				FToolMenuEntry PreviewProfileSubmenu =
+					UE::UnrealEd::CreateViewportToolbarAssetViewerProfileSubmenu(PreviewProfileController);
+				PreviewProfileSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+				RightSection.AddEntry(PreviewProfileSubmenu);
+			}
+
+			// Add the Settings submenu.
+			{
+				FToolMenuEntry SettingsSubmenu = UE::NiagaraSystemEditor::CreateSettingsSubmenu();
+				SettingsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				RightSection.AddEntry(SettingsSubmenu);
+			}
+		}
+	}
+
+	FToolMenuContext ViewportToolbarContext;
+	{
+		ViewportToolbarContext.AppendCommandList(GetCommandList());
+
+		// Add the UnrealEd viewport toolbar context.
+		{
+			UUnrealEdViewportToolbarContext* const ContextObject = NewObject<UUnrealEdViewportToolbarContext>();
+			ContextObject->Viewport = SharedThis(this);
+
+			// Hook up our toolbar's filter for supported view modes.
+			ContextObject->IsViewModeSupported = UE::UnrealEd::IsViewModeSupportedDelegate::CreateLambda(
+				[](EViewModeIndex ViewModeIndex) -> bool
+				{
+					// This code is taken from SViewportToolBar::IsViewModeSupported
+					// SSCSEditorViewportToolBar does not override it, so we just take it as-is
+					// TODO: maybe create a private function for it, or move IsViewModeSupported to SEditorViewport
+
+					switch (ViewModeIndex)
+					{
+					case VMI_PrimitiveDistanceAccuracy:
+					case VMI_MaterialTextureScaleAccuracy:
+					case VMI_RequiredTextureResolution:
+						return false;
+					default:
+						return true;
+					}
+				}
+			);
+
+			ViewportToolbarContext.AddObject(ContextObject);
+		}
+	}
+
+	// clang-format off
+	const TSharedRef<SWidget> NewViewportToolbar = SNew(SBox)
+	.Visibility_Lambda(
+		[this]() -> EVisibility
+		{
+			return  UE::UnrealEd::ShowNewViewportToolbars() ? EVisibility::Visible: EVisibility::Collapsed;
+		}
+	)
+	[
+		UToolMenus::Get()->GenerateWidget(ViewportToolbarName, ViewportToolbarContext)
+	];
+	// clang-format on
+
+	return NewViewportToolbar;
 }
 
 EVisibility SNiagaraSystemViewport::OnGetViewportContentVisibility() const
@@ -1180,11 +1382,23 @@ FText SNiagaraSystemViewport::GetViewportCompileStatusText() const
 
 void SNiagaraSystemViewport::PopulateViewportOverlays(TSharedRef<class SOverlay> Overlay)
 {
-	Overlay->AddSlot()
-	.VAlign(VAlign_Top)
-	[
-		SNew(SNiagaraSystemViewportToolBar, SharedThis(this)).Sequencer(Sequencer)
-	];
+	if (UE::UnrealEd::ShowOldViewportToolbars())
+	{
+		// clang-format off
+		Overlay->AddSlot()
+		.VAlign(VAlign_Top)
+		[
+			SNew(SNiagaraSystemViewportToolBar, SharedThis(this))
+			.Sequencer(Sequencer)
+			.Visibility_Lambda([]()
+				{
+					return UE::UnrealEd::ShowOldViewportToolbars() ? EVisibility::Visible : EVisibility::Collapsed;
+				}
+			)
+		];
+		// clang-format on
+	}
+
 	Overlay->AddSlot()
 	.VAlign(VAlign_Center)
 	.HAlign(HAlign_Center)

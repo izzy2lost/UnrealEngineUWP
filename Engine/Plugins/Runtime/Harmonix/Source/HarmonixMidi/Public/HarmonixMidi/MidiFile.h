@@ -10,7 +10,6 @@
 
 #include "MidiFile.generated.h"
 
-struct FSongMaps;
 class UAssetImportData;
 
 class FMidiFileProxy;
@@ -18,12 +17,17 @@ using FMidiFileProxyPtr = TSharedPtr<FMidiFileProxy, ESPMode::ThreadSafe>;
 
 USTRUCT(BlueprintType, Meta = (DisplayName = "MIDI File Data"))
 struct HARMONIXMIDI_API FMidiFileData
+#if CPP
+	: public ISongMapEvaluator
+#endif
 {
 	GENERATED_BODY()
 
 	FMidiFileData()
 		: TicksPerQuarterNote(Harmonix::Midi::Constants::GTicksPerQuarterNoteInt)
 	{}
+
+	virtual ~FMidiFileData() = default;
 
 	bool operator==(const FMidiFileData& Other) const;
 
@@ -82,6 +86,15 @@ struct HARMONIXMIDI_API FMidiFileData
 	void ScanTracksForSongLengthChange();
 
 	bool LengthIsAPerfectSubdivision() const;
+
+	//** BEGIN ISongMapEvaluator Overrides ***********
+	virtual const FSongLengthData& GetSongLengthData() const override { return SongMaps.GetSongLengthData(); }
+	virtual const FTempoMap& GetTempoMap() const override { return SongMaps.GetTempoMap(); }
+	virtual const FBeatMap& GetBeatMap() const override { return SongMaps.GetBeatMap(); }
+	virtual const FBarMap& GetBarMap() const override { return SongMaps.GetBarMap(); }
+	virtual const FSectionMap& GetSectionMap() const override { return SongMaps.GetSectionMap(); }
+	virtual const FChordProgressionMap& GetChordMap() const override { return SongMaps.GetChordMap(); }
+	//** END ISongMapEvaluator Overrides ***********
 };
 
 template<>
@@ -194,7 +207,7 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 
-	int32 GetStartBar() { return TheMidiData.SongMaps.GetBarMap().GetStartBar(); };
+	int32 GetStartBar() { return TheMidiData.SongMaps.GetStartBar(); };
 
 	// This does a quick and dirty to check to see if the length of the midi is 
 	// on a musical subdivision. It is used primarily during asset importing, and
@@ -215,6 +228,8 @@ public:
 
 	const FSongMaps* GetSongMaps() const { return &TheMidiData.SongMaps; }
 	FSongMaps* GetSongMaps() { return &TheMidiData.SongMaps; }
+
+	TSharedPtr<FMidiFileData> GetOrCreateRenderableCopy();
 
 	// IAudioProxyDataFactory
 	virtual TSharedPtr<Audio::IProxyData> CreateProxyData(const Audio::FProxyDataInitParams& InitParams) override;

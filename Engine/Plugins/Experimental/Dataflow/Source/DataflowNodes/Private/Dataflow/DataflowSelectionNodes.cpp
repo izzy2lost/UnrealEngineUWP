@@ -5,7 +5,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowSelectionNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterSelectionNodes()
 	{
@@ -13,7 +13,7 @@ namespace Dataflow
 	}
 };
 
-void FSelectionSetDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSelectionSetDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<DataType>(&IndicesOut))
 	{

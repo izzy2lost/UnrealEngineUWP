@@ -78,11 +78,6 @@ FString FIOSPlatformProcess::GetGameBundleId()
 	return FString([[NSBundle mainBundle] bundleIdentifier]);
 }
 
-void FIOSPlatformProcess::SetRealTimeMode()
-{
-	// removed some ios 6 code that used to do something here
-}
-
 // Set the game thread priority to very high, slightly above the render thread
 void FIOSPlatformProcess::SetupThread(const int Priority)
 {

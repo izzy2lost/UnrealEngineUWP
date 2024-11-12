@@ -39,6 +39,7 @@
 #include "ToolMenus.h"
 #include "ClassViewerFilter.h"
 #include "ClassViewerModule.h"
+#include "SequencerUtilities.h"
 
 // @todo sequencer: hack: setting defaults for transform tracks
 
@@ -174,6 +175,9 @@ void FLevelSequenceEditorToolkit::Initialize(const EToolkitMode::Type Mode, cons
 		SequencerInitParams.HostCapabilities.bSupportsSaveMovieSceneAsset = true;
 		SequencerInitParams.HostCapabilities.bSupportsRecording = true;
 		SequencerInitParams.HostCapabilities.bSupportsRenderMovie = true;
+		SequencerInitParams.HostCapabilities.bSupportsAddFromContentBrowser = true;
+		SequencerInitParams.HostCapabilities.bSupportsSidebar = true;
+		SequencerInitParams.HostCapabilities.bSupportsViewportSelectability = true;
 	}
 
 	ExtendSequencerToolbar("Sequencer.MainToolBar");
@@ -189,16 +193,6 @@ void FLevelSequenceEditorToolkit::Initialize(const EToolkitMode::Type Mode, cons
 	FLevelEditorSequencerIntegration::Get().AddSequencer(Sequencer.ToSharedRef(), Options);
 	ULevelSequenceEditorBlueprintLibrary::SetSequencer(Sequencer.ToSharedRef());
 
-	// Reopen the scene outliner so that is refreshed with the sequencer columns
-	{
-		TSharedPtr<FTabManager> LevelEditorTabManager = LevelEditorModule.GetLevelEditorTabManager();
-		if (LevelEditorTabManager->FindExistingLiveTab(FName("LevelEditorSceneOutliner")).IsValid())
-		{
-			LevelEditorTabManager->TryInvokeTab(FName("LevelEditorSceneOutliner"))->RequestCloseTab();
-			LevelEditorTabManager->TryInvokeTab(FName("LevelEditorSceneOutliner"));
-		}
-	}
-	
 	// Now Attach so this window will apear in the correct front first order
 	TSharedPtr<SDockTab> DockTab = LevelEditorModule.AttachSequencer(Sequencer->GetSequencerWidget(), SharedThis(this));
 	if (DockTab.IsValid())
@@ -587,9 +581,10 @@ void FLevelSequenceEditorToolkit::AddDefaultTracksForActor(AActor& Actor, const 
 				break;
 			}
 
+			FGuid ComponentBinding = Sequencer->GetHandleToObject(PropertyOwner);
+
 			if (bReplaceWithTransformTrack)
 			{
-				FGuid ComponentBinding = Sequencer->GetHandleToObject(PropertyOwner);
 				UClass* TrackClass = UMovieScene3DTransformTrack::StaticClass();
 				UMovieSceneTrack* NewTrack = MovieScene->FindTrack(TrackClass, ComponentBinding);
 				if (!NewTrack)
@@ -597,6 +592,29 @@ void FLevelSequenceEditorToolkit::AddDefaultTracksForActor(AActor& Actor, const 
 					NewTrack = MovieScene->AddTrack(TrackClass, ComponentBinding);
 					CreateDefaultTrackSection(NewTrack, PropertyOwner);
 				}
+				continue;
+			}
+
+			bool bFoundPropertyTrack = false;
+			if (ComponentBinding.IsValid())
+			{
+				TArray<UMovieSceneTrack*> Tracks = MovieScene->FindTracks(UMovieScenePropertyTrack::StaticClass(), ComponentBinding, NAME_None);
+				for (UMovieSceneTrack* Track : Tracks)
+				{
+					UMovieScenePropertyTrack* PropertyTrack = Cast<UMovieScenePropertyTrack>(Track);
+					if (PropertyTrack)
+					{
+						if (PropertyTrack->GetPropertyPath() == PropertyTrackSettings.PropertyPath)
+						{
+							bFoundPropertyTrack = true;
+							break;
+						}
+					}
+				}
+			}
+
+			if (bFoundPropertyTrack)
+			{
 				continue;
 			}
 
@@ -742,7 +760,12 @@ void FLevelSequenceEditorToolkit::AddShot(UMovieSceneCinematicShotTrack* ShotTra
 		FGuid CameraGuid;
 		if (bCreateSpawnableCamera)
 		{
-			CameraGuid = GetSequencer()->MakeNewSpawnable(*NewCamera);
+			FString NewName = MovieSceneHelpers::MakeUniqueBindingName(ShotSequence->GetMovieScene(), FName::NameToDisplayString(ACineCameraActor::StaticClass()->GetFName().ToString(), false));
+			UE::Sequencer::FCreateBindingParams CreateBindingParams;
+			CreateBindingParams.bSpawnable = true;
+			CreateBindingParams.BindingNameOverride = NewName;
+			CameraGuid = FSequencerUtilities::CreateBinding(GetSequencer().ToSharedRef(), *NewCamera, CreateBindingParams);
+
 			UObject* SpawnedCamera = GetSequencer()->FindSpawnedObjectOrTemplate(CameraGuid);
 			if (SpawnedCamera)
 			{

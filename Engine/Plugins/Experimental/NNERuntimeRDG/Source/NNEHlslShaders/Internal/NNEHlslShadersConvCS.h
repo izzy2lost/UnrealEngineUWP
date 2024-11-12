@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "NNEHlslShaderBase.h"
+#include "NNEHlslShadersBase.h"
 #include "RenderGraphUtils.h"
 #include "ShaderParameterUtils.h"
 
@@ -36,7 +36,7 @@ namespace UE::NNEHlslShaders::Internal
 	public:
 		static const int32 MAX_NUM_DIMENSIONS{4};
 		static const int32 MIN_NUM_READS_PER_THREAD_POW2{1};
-		static const int32 MAX_NUM_READS_PER_THREAD_POW2{3};
+		static const int32 MAX_NUM_READS_PER_THREAD_POW2{4};
 	};
 
 	class NNEHLSLSHADERS_API FConvCS : public FHlslShaderBase
@@ -78,6 +78,7 @@ namespace UE::NNEHlslShaders::Internal
 			SHADER_PARAMETER(float, GroupsDivM)
 		END_SHADER_PARAMETER_STRUCT()
 
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& InParameters);
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
 
 	public:
@@ -106,6 +107,7 @@ namespace UE::NNEHlslShaders::Internal
 		*/
 		static FIntVector GetGroupCount(TArrayView<const int32> YShape, TArrayView<const int32> GroupShape);
 
+		static EConvGroupSize GetBiggestCompatibleGroupSize(TArrayView<const uint32> WShape, TArrayView<const int32> Dilations, TArrayView<const int32> Strides);
 		static EConvGroupSize GetMinimalGroupSize(TArrayView<const int32> WShape);
 
 		static TArray<int32> GetPadding(TArrayView<const uint32> XShape, TArrayView<const uint32> WShape, EConvAutoPad AutoPad, TArrayView<const int32> Dilations, TArrayView<const int32> Strides, TArrayView<const int32> Pads);

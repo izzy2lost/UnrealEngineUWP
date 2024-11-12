@@ -19,20 +19,21 @@ int LogError(const wchar_t* format, ...)
 int wmain(int argc, wchar_t* argv[])
 {
 	HMODULE detoursHandle = GetModuleHandleW(L"UbaDetours.dll");
-	if (!detoursHandle)
-		return LogError(L"Did not find UbaDetours.dll in process!!!\n");
-
-	using UbaRunningRemoteFunc = bool();
-	UbaRunningRemoteFunc* runningRemoteFunc = (UbaRunningRemoteFunc*)GetProcAddress(detoursHandle, "UbaRunningRemote");
-	if (!runningRemoteFunc)
-		return LogError(L"Couldn't find UbaRunningRemote function in UbaDetours.dll");
-	bool runningRemote = (*runningRemoteFunc)();
 
 	using UbaRequestNextProcessFunc = bool(unsigned int prevExitCode, wchar_t* outArguments, unsigned int outArgumentsCapacity);
 	static UbaRequestNextProcessFunc* requestNextProcess = (UbaRequestNextProcessFunc*)(void*)GetProcAddress(detoursHandle, "UbaRequestNextProcess");
 
 	if (argc == 1)
 	{
+		if (!detoursHandle)
+			return LogError(L"Did not find UbaDetours.dll in process!!!\n");
+
+		using UbaRunningRemoteFunc = bool();
+		UbaRunningRemoteFunc* runningRemoteFunc = (UbaRunningRemoteFunc*)GetProcAddress(detoursHandle, "UbaRunningRemote");
+		if (!runningRemoteFunc)
+			return LogError(L"Couldn't find UbaRunningRemote function in UbaDetours.dll");
+		bool runningRemote = (*runningRemoteFunc)();
+
 		HMODULE modules[] = { 0, detoursHandle, GetModuleHandleW(L"UbaTestApp.exe") };
 		for (HMODULE module : modules)
 		{
@@ -130,10 +131,65 @@ int wmain(int argc, wchar_t* argv[])
 			if (fh == INVALID_HANDLE_VALUE)
 				return LogError(L"Failed to create file File");
 			CloseHandle(fh);
-			MoveFile(L"FileW", L"FileW2");
+			if (!MoveFile(L"FileW", L"FileW2"))
+				return LogError(L"Failed to move file from FileW to FileW2");
 
-			CopyFile(L"FileW2", L"FileWF", false);
+			if (!CopyFile(L"FileW2", L"FileWF", false))
+				return LogError(L"Failed to copy file from FileW2 to FileWF");
 		}
+
+		{
+			if (!CreateDirectoryW(L"DirA", NULL))
+				return LogError(L"Failed to create directory");
+
+			if (GetFileAttributesW(L"DirA") == 0)
+				return LogError(L"Failed to get attributes of directory");
+
+			if (!RemoveDirectoryW(L"DirA"))
+				return LogError(L"Failed to remove directory");
+
+			if (GetFileAttributesW(L"DirA") != INVALID_FILE_ATTRIBUTES)
+				return LogError(L"Found attributes of deleted directory");
+
+			if (CreateDirectoryW(L"Dir2\\Dir3", NULL))
+				return LogError(L"Should not succeed creation directory that exists");
+			if (GetLastError() != ERROR_ALREADY_EXISTS)
+				return LogError(L"Did not get correct error when failing to create existing directory");
+			if (GetFileAttributesW(L"Dir2\\Dir3\\Dir4\\Dir5") == INVALID_FILE_ATTRIBUTES)
+				return LogError(L"Failed to get attributes of directory");
+		}
+
+
+		{
+			STARTUPINFOW si;
+			memset(&si, 0, sizeof(si));
+			PROCESS_INFORMATION pi;
+			memset(&pi, 0, sizeof(pi));
+			wchar_t arg[1024];
+			wcscpy_s(arg, 1024, argv[0]);
+			wcscat_s(arg, 1024, L" -child");
+			if (!CreateProcessW(nullptr, arg, nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, &pi))
+				return LogError(L"Failed to create child process");
+			CloseHandle(pi.hThread);
+			
+			if (WaitForSingleObject(pi.hProcess, 10000) != WAIT_OBJECT_0)
+				return LogError(L"Failed waiting for child process");
+
+			DWORD exitCode;
+			if (!GetExitCodeProcess(pi.hProcess, &exitCode) || exitCode)
+				return LogError(L"Child process failed");
+			CloseHandle(pi.hProcess);
+		}
+
+	}
+	else if (wcscmp(argv[1], L"-child") == 0)
+	{
+		if (GetFileAttributes(L"FileW2") == INVALID_FILE_ATTRIBUTES)
+			return LogError(L"Child process could not get attributes of FileW2");
+		if (GetFileAttributes(L"FileWF") == INVALID_FILE_ATTRIBUTES)
+			return LogError(L"Child process could not get attributes of FileWF");
+		if (GetFileAttributes(L"FileW") != INVALID_FILE_ATTRIBUTES)
+			return LogError(L"Child process found FileW which should not exist anymore");
 	}
 	else if (wcscmp(argv[1], L"-reuse") == 0)
 	{
@@ -181,8 +237,65 @@ int wmain(int argc, wchar_t* argv[])
 
 		return 0;
 	}
+	else if (wcsncmp(argv[1], L"-stdout=", 8) == 0)
+	{
+		const wchar_t* str = argv[1] + 8;
+		if (wcscmp(str, L"rootprocess") == 0)
+		{
+			STARTUPINFOW si;
+			memset(&si, 0, sizeof(si));
+			PROCESS_INFORMATION pi;
+			memset(&pi, 0, sizeof(pi));
+			wchar_t arg[1024];
+			wcscpy_s(arg, 1024, argv[0]);
+			wcscat_s(arg, 1024, L" -stdout=childprocess");
+			//wcscpy_s(arg, 1024, L"\"c:\\sdk\\AutoSDK/HostWin64/Win64/MetalDeveloperTools/4.1/metal/macos/bin/metal.exe\" -v --target=air64-apple-darwin18.7.0 16384");
+
+			SECURITY_ATTRIBUTES saAttr;
+			saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+			saAttr.bInheritHandle = TRUE;
+			saAttr.lpSecurityDescriptor = NULL;
+			HANDLE readPipe;
+			HANDLE writePipe;
+			if (!CreatePipe(&readPipe, &writePipe, &saAttr, 0))
+				return 1;
+
+			if (!SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0))
+				return 2;
+
+			si.dwFlags = STARTF_USESTDHANDLES;
+			si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+			si.hStdOutput = writePipe;
+			si.hStdError = writePipe;
+
+			DWORD flags = 0;//CREATE_NO_WINDOW;
+			if (!CreateProcessW(nullptr, arg, nullptr, nullptr, TRUE, flags, nullptr, nullptr, &si, &pi))
+				return 3;
+			CloseHandle(pi.hThread);
+			CloseHandle(writePipe);
+
+			char buf[4096] = { 0 };
+			DWORD readCount = 0;
+			if (!::ReadFile(readPipe, buf, sizeof(buf) - 1, &readCount, NULL))
+			{
+				LogError(L"Failed to read pipe %u %u", GetLastError(), readCount);
+				return 4;
+			}
+			buf[readCount] = 0;
+			if (strncmp(buf, "childprocess", 12) != 0)
+				return 5;
+
+			if (WaitForSingleObject(pi.hProcess, INFINITE) != WAIT_OBJECT_0)
+				return 6;
+			CloseHandle(pi.hProcess);
+		}
+		wprintf(L"%s\n", str);
+	}
 	else
 	{
+		if (!detoursHandle)
+			return LogError(L"Did not find UbaDetours.dll in process!!!\n");
+
 		using u32 = unsigned int;
 		using UbaSendCustomMessageFunc = u32(const void* send, u32 sendSize, void* recv, u32 recvCapacity);
 

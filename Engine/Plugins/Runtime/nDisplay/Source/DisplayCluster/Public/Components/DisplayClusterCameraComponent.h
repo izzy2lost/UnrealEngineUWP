@@ -7,6 +7,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Components/IDisplayClusterComponent.h"
 #include "Render/DisplayDevice/Containers/DisplayClusterDisplayDevice_Enums.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_Enums.h"
 
 #include "DisplayClusterCameraComponent.generated.h"
 
@@ -19,6 +20,9 @@ class IDisplayClusterViewportManager;
 class IDisplayClusterWarpPolicy;
 class IDisplayClusterViewportConfiguration;
 class IDisplayClusterViewportPreview;
+class IDisplayClusterViewport;
+class UCameraComponent;
+class ACineCameraActor;
 struct FMinimalViewInfo;
 
 UENUM()
@@ -29,11 +33,28 @@ enum class EDisplayClusterEyeStereoOffset : uint8
 	Right UMETA(DisplayName = "Right Eye"),
 };
 
+/** The type of camera used. */
+UENUM()
+enum class EDisplayClusterTargetCameraType: int32
+{
+	// No camera used
+	None  UMETA(DisplayName = "Disabled"),
+
+	// Use active engine camera
+	ActiveEngineCamera UMETA(DisplayName = "Active Engine Camera"),
+
+	// Use camera component from the root actor
+	ICVFXCameraComponent UMETA(DisplayName = "ICVFX Camera"),
+
+	// Use the CineCamera actor reference.
+	ExternalCineCameraActor UMETA(DisplayName = "Camera Actor"),
+};
+
 
 /**
  * 3D point in space used to render nDisplay viewports from
  */
-UCLASS(ClassGroup = (DisplayCluster), HideCategories = (Navigation, AssetUserData, LOD, Physics, Cooking, Activation, Tags, Gizmo, Collision, ComponentReplication, Events, Sockets, ComponentTick), meta = (BlueprintSpawnableComponent, DisplayName = "NDisplay View Origin"))
+UCLASS(ClassGroup = (DisplayCluster), HideCategories = (Navigation, AssetUserData, LOD, Physics, Cooking, Activation, Tags, Gizmo, Collision, ComponentReplication, Events, Sockets, ComponentTick, Rendering), meta = (BlueprintSpawnableComponent, DisplayName = "NDisplay View Point"))
 class DISPLAYCLUSTER_API UDisplayClusterCameraComponent
 	: public USceneComponent
 	, public IDisplayClusterComponent
@@ -60,6 +81,9 @@ public:
 	 * @param OutCustomNearClippingPlane - Custom NCP, or a value less than zero if not defined.
 	 */
 	virtual void GetDesiredView(IDisplayClusterViewportConfiguration& InViewportConfiguration, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane = nullptr);
+
+	/** Returns the position of the observer's eyes in the Stage. */
+	virtual void GetEyePosition(const IDisplayClusterViewportConfiguration& InViewportConfiguration, FVector& OutViewLocation, FRotator& OutViewRotation);
 
 	/**
 	 * All cluster viewports that reference this component will be created in the background on the current cluster node if the function returns true.
@@ -102,6 +126,30 @@ public:
 	virtual void OnUpdateDisplayDeviceMeshAndMaterialInstance(IDisplayClusterViewportPreview& InViewportPreview, const EDisplayClusterDisplayDeviceMeshType InMeshType, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMeshComponent* InMeshComponent, UMaterialInstanceDynamic* InMeshMaterialInstance) const
 	{ }
 
+	/** Apply the ViewPoint component's post-processes to the viewport.
+	* (Outer viewport camera)
+	*
+	* @param InViewport - viewport to be configured.
+	*/
+	virtual void ApplyViewPointComponentPostProcessesToViewport(IDisplayClusterViewport* InViewport);
+
+	/** Return a reference to the Camera component, which is used for Outer viewports.
+	* 
+	* return nullptr if the camera is not in use.
+	*/
+	virtual UCameraComponent* GetTargetCameraComponent(const IDisplayClusterViewportConfiguration& InViewportConfiguration) const;
+
+	/** Returns true if the given viewpoint position should be used as a camera position. */
+	virtual bool IsViewPointOverrideCameraPosition() const;
+
+protected:
+	/** Get view from the referenced camera. */
+	virtual bool GetTargetCameraDesiredViewInternal(const IDisplayClusterViewportConfiguration& InViewportConfiguration, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane = nullptr) const;
+
+#if WITH_EDITOR
+	virtual bool GetEditorPreviewInfo(float DeltaTime, FMinimalViewInfo& ViewOut) override;
+	virtual TSharedPtr<SWidget> GetCustomEditorPreviewWidget() override;
+#endif
 
 public:
 	/**
@@ -182,6 +230,28 @@ public:
 	}
 
 public:
+	/** Decodes parameters into flags. */
+	EDisplayClusterViewportCameraPostProcessFlags GetCameraPostProcessFlags() const;
+
+	/** Returns the camera component from the 'ExternalCameraActor' parameter. */
+	virtual UCameraComponent* GetExternalCineCameraActorComponent() const;
+
+protected:
+	/** Returns true if active engine camera is used. */
+	virtual bool IsActiveEngineCameraBeingUsed() const;
+
+	/** Returns true if the `ICVFXCameraComponentName` parameter is used. */
+	virtual bool IsICVFXCameraBeingUsed() const;
+
+	/** Returns true if the `ExternalCineCameraActor` parameter is used. */
+	virtual bool IsExternalCameraBeingUsed() const;
+
+#if WITH_EDITOR
+	/** Return used camera component. */
+	virtual UCameraComponent* GetEditorPreviewCameraComponent();
+#endif
+
+public:
 #if WITH_EDITOR
 	// Begin IDisplayClusterComponent
 	virtual void SetVisualizationScale(float Scale) override;
@@ -195,6 +265,7 @@ public:
 
 	// Begin UObject
 #if WITH_EDITOR
+	virtual bool CanEditChange(const FProperty* InProperty) const override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 	// End UObject
@@ -225,6 +296,48 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UTexture2D> SpriteTexture;
 #endif
+
+public:
+	/** Type of source camera used. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Post Process", meta = (DisplayName = "Source Camera"))
+	EDisplayClusterTargetCameraType TargetCameraType = EDisplayClusterTargetCameraType::None;
+
+	/** The name of the camera component that is used as the PP source. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Post Process", meta = (DisplayName = "ICVFX Camera", EditCondition = "TargetCameraType==EDisplayClusterTargetCameraType::ICVFXCameraComponent", EditConditionHides))
+	FString ICVFXCameraComponentName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Post Process", meta = (DisplayName = "Follow ICVFX Camera", EditCondition = "TargetCameraType==EDisplayClusterTargetCameraType::ICVFXCameraComponent", EditConditionHides))
+	uint8 bUseICVFXCameraComponentTracking: 1 = 1;
+
+	/** Use a specific actor camera instead of a game camera. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Post Process", meta = (DisplayName = "Camera Actor", EditCondition = "TargetCameraType==EDisplayClusterTargetCameraType::ExternalCineCameraActor", EditConditionHides))
+	TSoftObjectPtr<ACineCameraActor> ExternalCineCameraActor;
+
+public:
+
+	/** Use the PP settings from the specified camera. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Post Process", meta = (DisplayName = "Include Post Process Settings", EditCondition = "TargetCameraType!=EDisplayClusterTargetCameraType::None", EditConditionHides))
+	uint8 bEnablePostProcess : 1 = 1;
+
+	/** Use the NearClippingPlane value from the specified cine camera. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Post Process", meta = (DisplayName = "Include Custom Near Clipping Plane", EditCondition = "TargetCameraType!=EDisplayClusterTargetCameraType::None && TargetCameraType!=EDisplayClusterTargetCameraType::ICVFXCameraComponent", EditConditionHides))
+	uint8 bEnableNearClippingPlane : 1 = 1;
+
+	/** Enable the DoF PP settings from the specified camera. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Post Process", meta = (DisplayName = "Include Depth Of Field", EditCondition = "TargetCameraType!=EDisplayClusterTargetCameraType::None && TargetCameraType!=EDisplayClusterTargetCameraType::ICVFXCameraComponent", EditConditionHides))
+	uint8 bEnableDepthOfField : 1 = 1;
+
+	/** Use the DC Depth-Of-Field settings from the specified ICVFX camera. */
+	UPROPERTY(BlueprintReadWrite, Category = "Camera Post Process", meta = (DisplayName = "Include Inner Frustum Depth Of Field Compensation", EditCondition = "TargetCameraType==EDisplayClusterTargetCameraType::ICVFXCameraComponent", EditConditionHides))
+	uint8 bEnableICVFXDepthOfFieldCompensation : 1 = 1;
+
+	/** Use the DC ColorGrading from the specified ICVFX camera. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Post Process", meta = (DisplayName = "Include Inner Frustum Color Grading", EditCondition = "TargetCameraType==EDisplayClusterTargetCameraType::ICVFXCameraComponent", EditConditionHides))
+	uint8 bEnableICVFXColorGrading : 1 = 1;
+
+	/** Use the DC Motion Blur settings from the specified ICVFX camera. */
+	UPROPERTY(BlueprintReadWrite, Category = "Camera Post Process", meta = (DisplayName = "Include Inner Frustum Motion Blur", EditCondition = "TargetCameraType==EDisplayClusterTargetCameraType::ICVFXCameraComponent", EditConditionHides))
+	uint8 bEnableICVFXMotionBlur : 1 = 1;
 
 private:
 	UPROPERTY(EditAnywhere, Category = "Stereo")

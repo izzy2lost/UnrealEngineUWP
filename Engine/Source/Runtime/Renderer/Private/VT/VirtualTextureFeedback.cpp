@@ -37,7 +37,7 @@ public:
 		}
 	}
 
-	void Allocate(FRHICommandListImmediate& RHICmdList, int32 Index)
+	void Allocate(FRHICommandList& RHICmdList, int32 Index)
 	{
 		if (!Fences[Index])
 		{
@@ -46,12 +46,12 @@ public:
 		Fences[Index]->Clear();
 	}
 
-	void Write(FRHICommandListImmediate& RHICmdList, int32 Index)
+	void Write(FRHICommandList& RHICmdList, int32 Index)
 	{
 		RHICmdList.WriteGPUFence(Fences[Index]);
 	}
 
-	bool Poll(FRHICommandListImmediate& RHICmdList, int32 Index)
+	bool Poll(FRHICommandList& RHICmdList, int32 Index)
 	{
 		return Fences[Index]->Poll(RHICmdList.GetGPUMask());
 	}
@@ -105,7 +105,7 @@ public:
 		bDummyFenceWritten = false;
 	}
 
-	void Allocate(FRHICommandListImmediate& RHICmdList, int32 Index)
+	void Allocate(FRHICommandList& RHICmdList, int32 Index)
 	{
 		if (Fences[Index].IsValid())
 		{
@@ -122,12 +122,12 @@ public:
 		}
 	}
 	
-	void Write(FRHICommandListImmediate& RHICmdList, int32 Index)
+	void Write(FRHICommandList& RHICmdList, int32 Index)
 	{
 		RHICmdList.EndRenderQuery(Fences[Index]);
 	}
 
-	bool Poll(FRHICommandListImmediate& RHICmdList, int32 Index)
+	bool Poll(FRHICommandList& RHICmdList, int32 Index)
 	{
 		uint64 Dummy;
 		return RHIGetRenderQueryResult(Fences[Index], Dummy, false, RHICmdList.GetGPUMask().ToIndex());
@@ -180,7 +180,7 @@ void FVirtualTextureFeedback::ReleaseRHI()
 	Fences->ReleaseRHI();
 }
 
-void FVirtualTextureFeedback::TransferGPUToCPU(FRHICommandListImmediate& RHICmdList, FBufferRHIRef const& Buffer, FVirtualTextureFeedbackBufferDesc const& Desc)
+void FVirtualTextureFeedback::TransferGPUToCPU(FRHICommandList& RHICmdList, FBufferRHIRef const& Buffer, FVirtualTextureFeedbackBufferDesc const& Desc)
 {
 	if (NumPending >= MaxTransfers)
 	{
@@ -221,7 +221,7 @@ void FVirtualTextureFeedback::TransferGPUToCPU(FRDGBuilder& GraphBuilder, FRDGBu
 		RDG_EVENT_NAME("VirtualTextureFeedbackCopy"),
 		Parameters,
 		ERDGPassFlags::Readback,
-		[this, Buffer, Desc](FRHICommandListImmediate& InRHICmdList)
+		[this, Buffer, Desc](FRDGAsyncTask, FRHICommandList& InRHICmdList)
 	{
 		TransferGPUToCPU(InRHICmdList, Buffer->GetRHI(), Desc);
 	});

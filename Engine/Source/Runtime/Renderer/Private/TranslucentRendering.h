@@ -68,6 +68,7 @@ struct FTranslucencyComposition
 		UpscaleOnly,
 		ComposeToExistingSceneColor,
 		ComposeToNewSceneColor,
+		ComposeToSceneColorAlpha
 	};
 
 	EOperation Operation = EOperation::UpscaleOnly;
@@ -78,6 +79,9 @@ struct FTranslucencyComposition
 
 	FScreenPassTextureViewport OutputViewport;
 	EPixelFormat OutputPixelFormat = PF_Unknown;
+
+	// [Optional] Lens distortion applied on the scene color.
+	FLensDistortionLUT LensDistortionLUT;
 
 	FScreenPassTexture AddPass(
 		FRDGBuilder& GraphBuilder,

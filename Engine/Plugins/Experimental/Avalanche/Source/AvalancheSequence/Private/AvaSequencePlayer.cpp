@@ -11,18 +11,24 @@
 #include "IAvaSequenceProvider.h"
 
 UAvaSequencePlayer::FOnSequenceEvent UAvaSequencePlayer::OnSequenceStartedDelegate;
+UAvaSequencePlayer::FOnSequenceEvent UAvaSequencePlayer::OnSequencePausedDelegate;
 UAvaSequencePlayer::FOnSequenceEvent UAvaSequencePlayer::OnSequenceFinishedDelegate;
 
 UAvaSequencePlayer::UAvaSequencePlayer(const FObjectInitializer& InObjectInitializer)
 	: ULevelSequencePlayer(InObjectInitializer)
 {
-	OnNativeFinished.BindUObject(this, &UAvaSequencePlayer::NotifySequenceFinished);
+	if (!IsTemplate())
+	{
+		OnNativeFinished.BindUObject(this, &UAvaSequencePlayer::NotifySequenceFinished);
+		// Remark: UMovieSceneSequencePlayer has a virtual OnPaused() function, but it is not called. Using event instead.
+		OnPause.AddDynamic(this, &UAvaSequencePlayer::NotifySequencePaused);
+	}
 }
 
-void UAvaSequencePlayer::InitSequence(UAvaSequence* InSequence, IAvaSequencePlaybackObject* InPlaybackObject, ULevel* InLevel)
+void UAvaSequencePlayer::InitSequence(UAvaSequence* InSequence, IAvaSequencePlaybackObject* InPlaybackObject, ULevel* InLevel, const FLevelSequenceCameraSettings& InCameraSettings)
 {
 	check(InSequence);
-	Super::Initialize(InSequence, InLevel, FLevelSequenceCameraSettings());
+	Super::Initialize(InSequence, InLevel, InCameraSettings);
 	SequenceController = UAvaSequenceSubsystem::CreateSequenceController(*InSequence, InPlaybackObject);
 	PlaybackObjectWeak = InPlaybackObject;
 	PlaybackLevelWeak  = InLevel;
@@ -176,6 +182,10 @@ void UAvaSequencePlayer::OnStopped()
 
 	// At the moment, Stop means to completely finish
 	NotifySequenceFinished();
+
+	// Defer cleanup as there is an action flush that assumes the Tick Manager is still alive after this Stop callback
+	// see UMovieSceneSequencePlayer::RunLatentActions
+	QueueLatentAction(FMovieSceneSequenceLatentActionDelegate::CreateUObject(this, &UAvaSequencePlayer::Cleanup));
 }
 
 void UAvaSequencePlayer::TickFromSequenceTickManager(float InDeltaSeconds, FMovieSceneEntitySystemRunner* InRunner)
@@ -210,6 +220,11 @@ FFrameTime UAvaSequencePlayer::CalculateDeltaFrameTime(float InDeltaSeconds) con
 void UAvaSequencePlayer::NotifySequenceStarted()
 {
 	OnSequenceStartedDelegate.Broadcast(this, GetAvaSequence());
+}
+
+void UAvaSequencePlayer::NotifySequencePaused()
+{
+	OnSequencePausedDelegate.Broadcast(this, GetAvaSequence());
 }
 
 void UAvaSequencePlayer::NotifySequenceFinished()

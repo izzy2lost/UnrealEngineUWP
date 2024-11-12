@@ -339,7 +339,7 @@ namespace UE::Interchange::GLTFMaterials
 			}
 		}
 
-		void SetMap(const FString& Name, const GLTF::FTextureMap& TextureMap)
+		bool SetMap(const FString& Name, const GLTF::FTextureMap& TextureMap)
 		{
 			if (Textures.IsValidIndex(TextureMap.TextureIndex))
 			{
@@ -368,33 +368,55 @@ namespace UE::Interchange::GLTFMaterials
 
 				//Set the TilingMethod:
 				SetVec4(Name + Inputs::PostFix::TilingMethod, GetTilingMethod(Textures[TextureMap.TextureIndex].Sampler), FVector4f(0, 0, 0, 0));
-			}
 
-			if (TextureMap.bHasTextureTransform)
-			{
-				{//Material specific settings:
-					SetScalar(Name + Inputs::PostFix::OffsetX, TextureMap.TextureTransform.Offset[0], 0.f, EProcessType::MATERIAL);
-					SetScalar(Name + Inputs::PostFix::OffsetY, TextureMap.TextureTransform.Offset[1], 0.f, EProcessType::MATERIAL);
-
-					SetScalar(Name + Inputs::PostFix::ScaleX, TextureMap.TextureTransform.Scale[0], 1.f, EProcessType::MATERIAL);
-					SetScalar(Name + Inputs::PostFix::ScaleY, TextureMap.TextureTransform.Scale[1], 1.f, EProcessType::MATERIAL);
-				}
-
-				{//MaterialInstance specific settings:
-					FVector4f OffsetScale(TextureMap.TextureTransform.Offset[0], TextureMap.TextureTransform.Offset[1], TextureMap.TextureTransform.Scale[0], TextureMap.TextureTransform.Scale[1]);
-					SetVec4(Name + Inputs::PostFix::OffsetScale, OffsetScale, FVector4f(0, 0, 1, 1), EProcessType::MATERIALINSTANCE);
-				}
-
-				if (!FMath::IsNearlyZero(TextureMap.TextureTransform.Rotation))
+				if (TextureMap.bHasTextureTransform)
 				{
-					float AngleRadians = TextureMap.TextureTransform.Rotation;
+					{//Material specific settings:
+						SetScalar(Name + Inputs::PostFix::OffsetX, TextureMap.TextureTransform.Offset[0], 0.f, EProcessType::MATERIAL);
+						SetScalar(Name + Inputs::PostFix::OffsetY, TextureMap.TextureTransform.Offset[1], 0.f, EProcessType::MATERIAL);
 
-					if (AngleRadians < 0.0f)
-					{
-						AngleRadians = TWO_PI - AngleRadians;
+						SetScalar(Name + Inputs::PostFix::ScaleX, TextureMap.TextureTransform.Scale[0], 1.f, EProcessType::MATERIAL);
+						SetScalar(Name + Inputs::PostFix::ScaleY, TextureMap.TextureTransform.Scale[1], 1.f, EProcessType::MATERIAL);
 					}
 
-					SetScalar(Name + Inputs::PostFix::Rotation, AngleRadians, 0.f);
+					{//MaterialInstance specific settings:
+						FVector4f OffsetScale(TextureMap.TextureTransform.Offset[0], TextureMap.TextureTransform.Offset[1], TextureMap.TextureTransform.Scale[0], TextureMap.TextureTransform.Scale[1]);
+						SetVec4(Name + Inputs::PostFix::OffsetScale, OffsetScale, FVector4f(0, 0, 1, 1), EProcessType::MATERIALINSTANCE);
+					}
+
+					if (!FMath::IsNearlyZero(TextureMap.TextureTransform.Rotation))
+					{
+						float AngleRadians = TextureMap.TextureTransform.Rotation;
+
+						if (AngleRadians < 0.0f)
+						{
+							AngleRadians = TWO_PI - AngleRadians;
+						}
+
+						SetScalar(Name + Inputs::PostFix::Rotation, AngleRadians, 0.f);
+					}
+				}
+
+				return true;
+			}
+
+			return false;
+		}
+
+		// Only setting it for MaterialInstances on default for now, the glTF pipeline is using MaterialInstances only.
+		//	However if someone disregards the usage of the glTF pipeline then the MF_XYZ_Body functions will be used which don't have configuration inputs.
+		void SetBool(const FString& Name, const bool& Value, const bool& DefaultValue = true, int ProcessType = (EProcessType::MATERIALINSTANCE))
+		{
+			if (Value != DefaultValue)
+			{
+				if (ProcessType & EProcessType::MATERIAL)
+				{
+					MaterialNode->AddBooleanAttribute(GetMaterialInputName(Name), Value);
+				}
+
+				if (ProcessType & EProcessType::MATERIALINSTANCE)
+				{
+					MaterialInstanceNode->AddBooleanAttribute(GetMaterialInstanceInputName(Name), Value);
 				}
 			}
 		}
@@ -415,10 +437,13 @@ namespace UE::Interchange::GLTFMaterials
 				//BaseColorTexture_Rotation
 				//BaseColorTexture_TexCoord
 				//BaseColorTexture_TilingMethod
-				SetMap(Inputs::BaseColorTexture, GltfMaterial.BaseColor);
+				bool bHasBaseColorTexture = SetMap(Inputs::BaseColorTexture, GltfMaterial.BaseColor);
 
 				//BaseColorFactor
 				SetColor(Inputs::BaseColorFactor, GltfMaterial.BaseColorFactor, FVector4f(1, 1, 1, 1));
+
+				//Configuration
+				SetBool(Inputs::Configuration::bHasBaseColorTexture, bHasBaseColorTexture);
 				return;
 			}
 
@@ -428,10 +453,13 @@ namespace UE::Interchange::GLTFMaterials
 				//NormalTexture_Rotation
 				//NormalTexture_TexCoord
 				//NormalTexture_TilingMethod
-				SetMap(Inputs::NormalTexture, GltfMaterial.Normal);
+				bool bHasNormalTexture = SetMap(Inputs::NormalTexture, GltfMaterial.Normal);
 
 				//NormalScale
 				SetScalar(Inputs::NormalScale, GltfMaterial.NormalScale, 1.f);
+
+				//Configuration
+				SetBool(Inputs::Configuration::bHasNormalTexture, bHasNormalTexture);
 			}
 
 			if (!GltfMaterial.bHasTransmission)
@@ -441,13 +469,21 @@ namespace UE::Interchange::GLTFMaterials
 				//EmissiveTexture_Rotation
 				//EmissiveTexture_TexCoord
 				//EmissiveTexture_TilingMethod
-				SetMap(Inputs::EmissiveTexture, GltfMaterial.Emissive);
+				bool bHasEmissiveTexture = SetMap(Inputs::EmissiveTexture, GltfMaterial.Emissive);
 
 				//EmissiveFactor
 				SetVec3(Inputs::EmissiveFactor, GltfMaterial.EmissiveFactor, FVector3f(0, 0, 0));
 
 				//EmissiveStrength
 				SetScalar(Inputs::EmissiveStrength, GltfMaterial.bHasEmissiveStrength ? GltfMaterial.EmissiveStrength : 1.f, 1.f);
+
+				//Configuration
+				SetBool(Inputs::Configuration::bHasEmissiveTexture, bHasEmissiveTexture);
+			}
+			else
+			{
+				//Configuration
+				SetBool(Inputs::Configuration::bHasEmissiveTexture, false);
 			}
 
 			{
@@ -456,10 +492,13 @@ namespace UE::Interchange::GLTFMaterials
 				//OcclusionTexture_Rotation
 				//OcclusionTexture_TexCoord
 				//OcclusionTexture_TilingMethod
-				SetMap(Inputs::OcclusionTexture, GltfMaterial.Occlusion);
+				bool bHasOcclusionTexture = SetMap(Inputs::OcclusionTexture, GltfMaterial.Occlusion);
 
 				//OcclusionStrength
 				SetScalar(Inputs::OcclusionStrength, GltfMaterial.OcclusionStrength, 1.f);
+
+				//Configuration
+				SetBool(Inputs::Configuration::bHasOcclusionTexture, bHasOcclusionTexture);
 			}
 
 			if (GltfMaterial.ShadingModel == GLTF::FMaterial::EShadingModel::SpecularGlossiness)
@@ -468,13 +507,14 @@ namespace UE::Interchange::GLTFMaterials
 				//specular glossiness:
 				//////////////////////
 
+				bool bHasDiffuseSpecGlossTexture = false;
 				{
 					//DiffuseTexture
 					//DiffuseTexture_OffsetScale
 					//DiffuseTexture_Rotation
 					//DiffuseTexture_TexCoord
 					//DiffuseTexture_TilingMethod
-					SetMap(Inputs::DiffuseTexture, GltfMaterial.BaseColor);
+					bHasDiffuseSpecGlossTexture = SetMap(Inputs::DiffuseTexture, GltfMaterial.BaseColor);
 
 					//DiffuseFactor
 					SetColor(Inputs::DiffuseFactor, GltfMaterial.BaseColorFactor, FVector4f(1, 1, 1, 1));
@@ -486,7 +526,7 @@ namespace UE::Interchange::GLTFMaterials
 					//SpecularGlossinessTexture_Rotation
 					//SpecularGlossinessTexture_TexCoord
 					//SpecularGlossinessTexture_TilingMethod
-					SetMap(Inputs::SpecularGlossinessTexture, GltfMaterial.SpecularGlossiness.Map);
+					bHasDiffuseSpecGlossTexture = SetMap(Inputs::SpecularGlossinessTexture, GltfMaterial.SpecularGlossiness.Map) || bHasDiffuseSpecGlossTexture;
 
 					//SpecFactor
 					FVector3f SpecularFactor(GltfMaterial.SpecularGlossiness.SpecularFactor[0], GltfMaterial.SpecularGlossiness.SpecularFactor[1], GltfMaterial.SpecularGlossiness.SpecularFactor[2]);
@@ -495,6 +535,9 @@ namespace UE::Interchange::GLTFMaterials
 					//GlossinessFactor
 					SetScalar(Inputs::GlossinessFactor, GltfMaterial.SpecularGlossiness.GlossinessFactor, 1.f);
 				}
+
+				//Configuration
+				SetBool(Inputs::Configuration::bHasDiffuseSpecGlossTexture, bHasDiffuseSpecGlossTexture);
 
 				return;
 			}
@@ -506,10 +549,13 @@ namespace UE::Interchange::GLTFMaterials
 					//BaseColorTexture_Rotation
 					//BaseColorTexture_TexCoord
 					//BaseColorTexture_TilingMethod
-					SetMap(Inputs::BaseColorTexture, GltfMaterial.BaseColor);
+					bool bHasBaseColorTexture = SetMap(Inputs::BaseColorTexture, GltfMaterial.BaseColor);
 
 					//BaseColorFactor
 					SetColor(Inputs::BaseColorFactor, GltfMaterial.BaseColorFactor, FVector4f(1, 1, 1, 1));
+
+					//Configuration
+					SetBool(Inputs::Configuration::bHasBaseColorTexture, bHasBaseColorTexture);
 				}
 
 				{
@@ -518,13 +564,16 @@ namespace UE::Interchange::GLTFMaterials
 					//MetallicRoughnessTexture_Rotation
 					//MetallicRoughnessTexture_TexCoord
 					//MetallicRoughnessTexture_TilingMethod
-					SetMap(Inputs::MetallicRoughnessTexture, GltfMaterial.MetallicRoughness.Map);
+					bool bHasMetallicRoughnessTexture = SetMap(Inputs::MetallicRoughnessTexture, GltfMaterial.MetallicRoughness.Map);
 
 					//MetallicFactor
 					SetScalar(Inputs::MetallicFactor, GltfMaterial.MetallicRoughness.MetallicFactor, 1.f);
 
 					//RoughnessFactor
 					SetScalar(Inputs::RoughnessFactor, GltfMaterial.MetallicRoughness.RoughnessFactor, 1.f);
+
+					//Configuration
+					SetBool(Inputs::Configuration::bHasMetallicRoughnessTexture, bHasMetallicRoughnessTexture);
 				}
 
 				if (GltfMaterial.bHasSpecular)
@@ -534,10 +583,18 @@ namespace UE::Interchange::GLTFMaterials
 					//SpecularTexture_Rotation
 					//SpecularTexture_TexCoord
 					//SpecularTexture_TilingMethod
-					SetMap(Inputs::SpecularTexture, GltfMaterial.Specular.SpecularMap);
+					bool bHasSpecularTexture = SetMap(Inputs::SpecularTexture, GltfMaterial.Specular.SpecularMap);
 
 					//SpecularFactor
 					SetScalar(Inputs::SpecularFactor, GltfMaterial.Specular.SpecularFactor, 0.5); //(UE Specular default is 0.5).
+
+					//Configuration
+					SetBool(Inputs::Configuration::bHasSpecularTexture, bHasSpecularTexture);
+				}
+				else
+				{
+					//Configuration
+					SetBool(Inputs::Configuration::bHasSpecularTexture, false);
 				}
 
 				if (GltfMaterial.Iridescence.bHasIridescence)
@@ -566,6 +623,39 @@ namespace UE::Interchange::GLTFMaterials
 					SetScalar(Inputs::IridescenceThicknessMinimum, GltfMaterial.Iridescence.Thickness.Minimum, 100.0f);
 					//IridescenceThicknessMaximum
 					SetScalar(Inputs::IridescenceThicknessMaximum, GltfMaterial.Iridescence.Thickness.Maximum, 400.0f);
+
+					//Configuration
+					SetBool(Inputs::Configuration::bHasIridescence, true);
+				}
+				else
+				{
+					//Configuration
+					SetBool(Inputs::Configuration::bHasIridescence, false);
+				}
+
+				if (GltfMaterial.Anisotropy.bHasAnisotropy)
+				{
+					//AnisotropyTexture
+					//AnisotropyTexture_OffsetScale
+					//AnisotropyTexture_Rotation
+					//AnisotropyTexture_TexCoord
+					//AnisotropyTexture_TilingMethod
+					bool bHasAnisotropyTextureAndOrRotation = SetMap(Inputs::AnisotropyTexture, GltfMaterial.Anisotropy.Texture);
+
+					//AnisotropyStrength
+					SetScalar(Inputs::AnisotropyStrength, GltfMaterial.Anisotropy.Strength, 0);
+
+					//AnisotropyRotation
+					SetScalar(Inputs::AnisotropyRotation, GltfMaterial.Anisotropy.Rotation, 0);
+					bHasAnisotropyTextureAndOrRotation |= GltfMaterial.Anisotropy.Rotation != 0;
+
+					//Configuration
+					SetBool(Inputs::Configuration::bHasAnisotropyTextureAndOrRotation, bHasAnisotropyTextureAndOrRotation);
+				}
+				else
+				{
+					//Configuration
+					SetBool(Inputs::Configuration::bHasAnisotropyTextureAndOrRotation, false);
 				}
 			}
 			else
@@ -579,6 +669,8 @@ namespace UE::Interchange::GLTFMaterials
 				SetScalar(Inputs::IOR, GltfMaterial.IOR, 1.5f);
 			}
 
+			//Transmission ClearCoat and Sheen are Model specific
+			// Meaning we don't have to do exclusion configs.
 			if (GltfMaterial.bHasTransmission)
 			{
 				{
@@ -587,24 +679,28 @@ namespace UE::Interchange::GLTFMaterials
 					//TransmissionTexture_Rotation
 					//TransmissionTexture_TexCoord
 					//TransmissionTexture_TilingMethod
-					SetMap(Inputs::TransmissionTexture, GltfMaterial.Transmission.TransmissionMap);
+					bool bHasTransmissionTexture = SetMap(Inputs::TransmissionTexture, GltfMaterial.Transmission.TransmissionMap);
 
 					//TransmissionFactor
 					SetScalar(Inputs::TransmissionFactor, GltfMaterial.Transmission.TransmissionFactor, 0.f);
 
 					//AlphaMode
 					SetScalar(Inputs::AlphaMode, AlphaMode, EAlphaMode::Blend);
+
+					//Configuration
+					SetBool(Inputs::Configuration::bHasTransmissionTexture, bHasTransmissionTexture);
 				}
 			}
 			else if (GltfMaterial.bHasClearCoat)
 			{
+				bool bHasClearCoatTexture = false;
 				{
 					//ClearCoatTexture
 					//ClearCoatTexture_OffsetScale
 					//ClearCoatTexture_Rotation
 					//ClearCoatTexture_TexCoord
 					//ClearCoatTexture_TilingMethod
-					SetMap(Inputs::ClearCoatTexture, GltfMaterial.ClearCoat.ClearCoatMap);
+					bHasClearCoatTexture = SetMap(Inputs::ClearCoatTexture, GltfMaterial.ClearCoat.ClearCoatMap);
 
 					//ClearCoatFactor
 					SetScalar(Inputs::ClearCoatFactor, GltfMaterial.ClearCoat.ClearCoatFactor, 0.f);
@@ -616,7 +712,7 @@ namespace UE::Interchange::GLTFMaterials
 					//ClearCoatRoughnessTexture_Rotation
 					//ClearCoatRoughnessTexture_TexCoord
 					//ClearCoatRoughnessTexture_TilingMethod
-					SetMap(Inputs::ClearCoatRoughnessTexture, GltfMaterial.ClearCoat.RoughnessMap);
+					bHasClearCoatTexture = SetMap(Inputs::ClearCoatRoughnessTexture, GltfMaterial.ClearCoat.RoughnessMap) || bHasClearCoatTexture;
 
 					//ClearCoatRoughnessFactor
 					SetScalar(Inputs::ClearCoatRoughnessFactor, GltfMaterial.ClearCoat.Roughness, 0.f);
@@ -628,11 +724,14 @@ namespace UE::Interchange::GLTFMaterials
 					//ClearCoatNormalTexture_Rotation
 					//ClearCoatNormalTexture_TexCoord
 					//ClearCoatNormalTexture_TilingMethod
-					SetMap(Inputs::ClearCoatNormalTexture, GltfMaterial.ClearCoat.NormalMap);
+					bHasClearCoatTexture = SetMap(Inputs::ClearCoatNormalTexture, GltfMaterial.ClearCoat.NormalMap) || bHasClearCoatTexture;
 
 					//ClearCoatNormalFactor
 					SetScalar(Inputs::ClearCoatNormalScale, GltfMaterial.ClearCoat.NormalMapUVScale, 1.f);
 				}
+
+				//Configuration
+				SetBool(Inputs::Configuration::bHasClearCoatTexture, bHasClearCoatTexture);
 			}
 			else if (GltfMaterial.bHasSheen)
 			{
@@ -642,7 +741,7 @@ namespace UE::Interchange::GLTFMaterials
 					//SheenColorTexture_Rotation
 					//SheenColorTexture_TexCoord
 					//SheenColorTexture_TilingMethod
-					SetMap(Inputs::SheenColorTexture, GltfMaterial.Sheen.SheenColorMap);
+					bool bHasSheenTexture = SetMap(Inputs::SheenColorTexture, GltfMaterial.Sheen.SheenColorMap);
 
 					//SheenColorFactor
 					FVector3f SheenColorFactor(GltfMaterial.Sheen.SheenColorFactor[0], GltfMaterial.Sheen.SheenColorFactor[1], GltfMaterial.Sheen.SheenColorFactor[2]);
@@ -653,10 +752,13 @@ namespace UE::Interchange::GLTFMaterials
 					//SheenRoughnessTexture_Rotation
 					//SheenRoughnessTexture_TexCoord
 					//SheenRoughnessTexture_TilingMethod
-					SetMap(Inputs::SheenRoughnessTexture, GltfMaterial.Sheen.SheenRoughnessMap);
+					bHasSheenTexture = SetMap(Inputs::SheenRoughnessTexture, GltfMaterial.Sheen.SheenRoughnessMap) || bHasSheenTexture;
 
 					//SheenRoughnessFactor
 					SetScalar(Inputs::SheenRoughnessFactor, GltfMaterial.Sheen.SheenRoughnessFactor, 0.f);
+
+					//Configuration
+					SetBool(Inputs::Configuration::bHasSheenTexture, bHasSheenTexture);
 				}
 			}
 		}

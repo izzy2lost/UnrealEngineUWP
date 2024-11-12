@@ -2,6 +2,7 @@
 
 #include "SplitMeshesTool.h"
 #include "ComponentSourceInterfaces.h"
+#include "Drawing/PreviewGeometryActor.h"
 #include "InteractiveToolManager.h"
 #include "ToolTargetManager.h"
 #include "ToolBuilderUtil.h"
@@ -9,11 +10,14 @@
 #include "ModelingToolTargetUtil.h"
 #include "ModelingObjectsCreationAPI.h"
 #include "Selection/ToolSelectionUtil.h"
-#include "Selections/MeshConnectedComponents.h"
+#include "VertexConnectedComponents.h"
+#include "DynamicMesh/DynamicMeshAttributeSet.h"
 #include "DynamicMesh/MeshTransforms.h"
 #include "DynamicSubmesh3.h"
+#include "Selections/GeometrySelectionUtil.h"
+#include "Util/ColorConstants.h"
 
-#include "TargetInterfaces/MeshDescriptionProvider.h"
+#include "TargetInterfaces/DynamicMeshProvider.h"
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SplitMeshesTool)
@@ -29,13 +33,13 @@ const FToolTargetTypeRequirements& USplitMeshesToolBuilder::GetTargetRequirement
 {
 	static FToolTargetTypeRequirements TypeRequirements({
 		UMaterialProvider::StaticClass(),
-		UMeshDescriptionProvider::StaticClass(),
+		UDynamicMeshProvider::StaticClass(),
 		UPrimitiveComponentBackedTarget::StaticClass()
 		});
 	return TypeRequirements;
 }
 
-UMultiSelectionMeshEditingTool* USplitMeshesToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
+UMultiTargetWithSelectionTool* USplitMeshesToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
 {
 	return NewObject<USplitMeshesTool>(SceneState.ToolManager);
 }
@@ -60,14 +64,31 @@ void USplitMeshesTool::Setup()
 
 	BasicProperties = NewObject<USplitMeshesToolProperties>(this);
 	BasicProperties->RestoreProperties(this);
+	BasicProperties->WatchProperty(BasicProperties->SplitMethod, [this](ESplitMeshesMethod) { UpdateSplitMeshes(); });
+	BasicProperties->WatchProperty(BasicProperties->ConnectVerticesThreshold, [this](double) { UpdateSplitMeshes(); });
+	BasicProperties->WatchProperty(BasicProperties->bShowPreview, [this](bool bShowPreview) { UpdatePreviewVisibility(bShowPreview); });
 	AddToolPropertySource(BasicProperties);
 
+	static FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = true;
+	
 	SourceMeshes.SetNum(Targets.Num());
+	bool bHasSelection = false;
 	for (int32 k = 0; k < Targets.Num(); ++k)
 	{
-		SourceMeshes[k].Mesh = UE::ToolTarget::GetDynamicMeshCopy(Targets[k], true);
+		SourceMeshes[k].Mesh = UE::ToolTarget::GetDynamicMeshCopy(Targets[k], GetMeshParams);
 		SourceMeshes[k].Materials = UE::ToolTarget::GetMaterialSet(Targets[k]).Materials;
+		bHasSelection = bHasSelection || HasGeometrySelection(k);
 	}
+	BasicProperties->bIsInSelectionMode = bHasSelection;
+
+	PerTargetPreviews.Reserve(Targets.Num());
+	for (int32 TargetIdx = 0; TargetIdx < Targets.Num(); ++TargetIdx)
+	{
+		UPreviewGeometry* PreviewGeom = PerTargetPreviews.Add_GetRef(NewObject<UPreviewGeometry>(this));
+		PreviewGeom->CreateInWorld(UE::ToolTarget::GetTargetActor(Targets[TargetIdx])->GetWorld(), UE::ToolTarget::GetLocalToWorldTransform(Targets[TargetIdx]));
+	}
+	PreviewMaterial = ToolSetupUtil::GetVertexColorMaterial(GetToolManager(), false);
 
 	UpdateSplitMeshes();
 
@@ -77,6 +98,16 @@ void USplitMeshesTool::Setup()
 		EToolMessageLevel::UserNotification);
 }
 
+void USplitMeshesTool::UpdatePreviewVisibility(bool bShowPreview)
+{
+	checkSlow(Targets.Num() == SplitMeshes.Num());
+	for (int32 PreviewIdx = 0; PreviewIdx < PerTargetPreviews.Num(); ++PreviewIdx)
+	{
+		PerTargetPreviews[PreviewIdx]->SetAllVisible(bShowPreview);
+		UE::ToolTarget::SetSourceObjectVisible(Targets[PreviewIdx], !bShowPreview || SplitMeshes[PreviewIdx].bNoComponents);
+	}
+}
+
 bool USplitMeshesTool::CanAccept() const
 {
 	return Super::CanAccept();
@@ -84,6 +115,17 @@ bool USplitMeshesTool::CanAccept() const
 
 void USplitMeshesTool::OnShutdown(EToolShutdownType ShutdownType)
 {
+	for (UPreviewGeometry* PreviewGeom : PerTargetPreviews)
+	{
+		PreviewGeom->Disconnect();
+	}
+
+	// make sure source objects are visible
+	for (int32 ComponentIdx = 0; ComponentIdx < Targets.Num(); ComponentIdx++)
+	{
+		UE::ToolTarget::ShowSourceObject(Targets[ComponentIdx]);
+	}
+
 	OutputTypeProperties->SaveProperties(this, TEXT("OutputTypeFromInputTool"));
 	BasicProperties->SaveProperties(this);
 
@@ -162,18 +204,74 @@ void USplitMeshesTool::UpdateSplitMeshes()
 	SplitMeshes.SetNum(SourceMeshes.Num());
 	NoSplitCount = 0;
 
+	int32 VisColorIdx = 0;
+
 	for (int32 si = 0; si < SourceMeshes.Num(); ++si)
 	{
 		FComponentsInfo& SplitInfo = SplitMeshes[si];
 		const FDynamicMesh3* SourceMesh = &SourceMeshes[si].Mesh;
 		const TArray<UMaterialInterface*> SourceMaterials = SourceMeshes[si].Materials;
 
-		FMeshConnectedComponents MeshComponents(SourceMesh);
-		MeshComponents.FindConnectedTriangles();
-		int32 NumComponents = MeshComponents.Num();
+		TArray<TArray<int32>> ComponentTriIndices;
+		int32 NumComponents = 0;
 
+		auto FillComponentTriIndicesFromTriIDs = [&ComponentTriIndices, &NumComponents, SourceMesh](TFunctionRef<int32(int32)> TIDtoID)
+			{
+				TMap<int32, int32> ComponentIDMap;
+				for (int32 TID : SourceMesh->TriangleIndicesItr())
+				{
+					int32 CompID = TIDtoID(TID);
+					int32* FoundIdx = ComponentIDMap.Find(CompID);
+					int32 UseIdx = -1;
+					if (FoundIdx)
+					{
+						UseIdx = *FoundIdx;
+					}
+					else
+					{
+						UseIdx = ComponentTriIndices.AddDefaulted();
+						ComponentIDMap.Add(CompID, UseIdx);
+					}
+					ComponentTriIndices[UseIdx].Add(TID);
+				}
+				NumComponents = ComponentTriIndices.Num();
+			};
+
+		const bool bMeshHasGeometrySelection = HasGeometrySelection(si);
+		if (bMeshHasGeometrySelection)
+		{
+			// when there is a geometry selection, ignore any computations the Split Tool would normally have done to
+			// decide where to split the mesh; instead split into 2 meshes regardless: the selected geometry, and everything else
+			NumComponents = 2;
+		}
+		else if (BasicProperties->SplitMethod == ESplitMeshesMethod::ByMeshTopology || BasicProperties->SplitMethod == ESplitMeshesMethod::ByVertexOverlap)
+		{
+			FVertexConnectedComponents Components(SourceMesh->MaxVertexID());
+			Components.ConnectTriangles(*SourceMesh);
+			if (BasicProperties->SplitMethod == ESplitMeshesMethod::ByVertexOverlap)
+			{
+				Components.ConnectCloseVertices(*SourceMesh, BasicProperties->ConnectVerticesThreshold, 2);
+			}
+			FillComponentTriIndicesFromTriIDs([&](int32 TID)->int32 { return Components.GetComponent(SourceMesh->GetTriangle(TID).A); });
+		}
+		else if (BasicProperties->SplitMethod == ESplitMeshesMethod::ByPolyGroup)
+		{
+			FillComponentTriIndicesFromTriIDs([&](int32 TID)->int32 { return SourceMesh->GetTriangleGroup(TID); });
+		}
+		else if (BasicProperties->SplitMethod == ESplitMeshesMethod::ByMaterialID)
+		{
+			if (SourceMesh->HasAttributes())
+			{
+				if (const FDynamicMeshMaterialAttribute* MaterialID = SourceMesh->Attributes()->GetMaterialID())
+				{
+					FillComponentTriIndicesFromTriIDs([&](int32 TID)->int32 { return MaterialID->GetValue(TID); });
+				}
+			}
+		}
+		
 		if (NumComponents < 2)
 		{
+			PerTargetPreviews[si]->RemoveAllTriangleSets();
 			SplitInfo.bNoComponents = true;
 			NoSplitCount++;
 			continue;
@@ -185,7 +283,45 @@ void USplitMeshesTool::UpdateSplitMeshes()
 		SplitInfo.Origins.SetNum(NumComponents);
 		for (int32 k = 0; k < NumComponents; ++k)
 		{
-			FDynamicSubmesh3 SubmeshCalc(SourceMesh, MeshComponents[k].Indices);
+			FDynamicSubmesh3 SubmeshCalc;
+			if (bMeshHasGeometrySelection)
+			{
+				// retrieve the triangles in the current selection
+				// when using Edge or Vertex selection mode, any triangle touching the selected edges/vertices will be included
+				TSet<int> SelectionTriangles;
+				const FGeometrySelection& InputSelection = GetGeometrySelection(si);
+				
+				UE::Geometry::EnumerateSelectionTriangles(InputSelection, *SourceMesh,
+			[&](int32 TriangleID) { SelectionTriangles.Add(TriangleID); });
+
+				TArray<int> SelectionTrianglesArray = SelectionTriangles.Array();
+				
+				if (k == 0) // component made of the selected triangles
+				{
+					SubmeshCalc = FDynamicSubmesh3(SourceMesh, SelectionTrianglesArray);
+				}
+				else if (k == 1) // component made of the rest of the mesh (unselected triangles)
+				{
+					TArray<int> NonSelectedTriangles;
+					for (int TID = 0; TID < SourceMesh->MaxTriangleID(); TID++)
+					{
+						if (SourceMesh->IsTriangle(TID) && !SelectionTriangles.Contains(TID))
+						{
+							NonSelectedTriangles.Add(TID);
+						}
+					}
+					SubmeshCalc = FDynamicSubmesh3(SourceMesh, NonSelectedTriangles);
+				}
+			}
+			else
+			{
+				// if statement should always be true- components should always have been calculated & populated when there's no geometry selection
+				if (ensure(!ComponentTriIndices.IsEmpty()))
+				{
+					SubmeshCalc = FDynamicSubmesh3(SourceMesh, ComponentTriIndices[k]);
+				}
+			}
+
 			FDynamicMesh3& Submesh = SubmeshCalc.GetSubmesh();
 			TArray<UMaterialInterface*> NewMaterials;
 
@@ -227,6 +363,25 @@ void USplitMeshesTool::UpdateSplitMeshes()
 			SplitInfo.Materials[k] = MoveTemp(NewMaterials);
 			SplitInfo.Origins[k] = Origin;
 		}
+
+		PerTargetPreviews[si]->CreateOrUpdateTriangleSet(TEXT("Components"), 1, [&](int32, TArray<FRenderableTriangle>& Triangles)
+			{	
+				for (const UE::Geometry::FDynamicMesh3& Mesh : SplitInfo.Meshes)
+				{
+					++VisColorIdx;
+					FColor MeshColor = LinearColors::SelectFColor(VisColorIdx);
+
+					for (int32 TID : Mesh.TriangleIndicesItr())
+					{
+						FVector3d Normal = Mesh.GetTriNormal(TID);
+						FIndex3i Tri = Mesh.GetTriangle(TID);
+						FRenderableTriangleVertex A(Mesh.GetVertex(Tri.A), FVector2D(0, 0), Normal, MeshColor);
+						FRenderableTriangleVertex B(Mesh.GetVertex(Tri.B), FVector2D(1, 0), Normal, MeshColor);
+						FRenderableTriangleVertex C(Mesh.GetVertex(Tri.C), FVector2D(1, 1), Normal, MeshColor);
+						Triangles.Add(FRenderableTriangle(PreviewMaterial, A, B, C));
+					}
+				}
+			}, SourceMeshes[si].Mesh.TriangleCount());
 	}
 
 	if (NoSplitCount > 0)
@@ -238,6 +393,8 @@ void USplitMeshesTool::UpdateSplitMeshes()
 	{
 		GetToolManager()->DisplayMessage(FText(), EToolMessageLevel::UserWarning);
 	}
+
+	UpdatePreviewVisibility(BasicProperties->bShowPreview);
 
 }
 

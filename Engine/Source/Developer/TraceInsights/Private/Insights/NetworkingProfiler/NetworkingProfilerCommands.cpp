@@ -6,80 +6,83 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/NetworkingProfiler/NetworkingProfilerManager.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define LOCTEXT_NAMESPACE "FNetworkingProfilerCommands"
+#define LOCTEXT_NAMESPACE "UE::Insights::NetworkingProfiler"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// FNetworkingProfilerMenuBuilder
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void FNetworkingProfilerMenuBuilder::AddMenuEntry(FMenuBuilder& MenuBuilder, const TSharedPtr< FUICommandInfo >& UICommandInfo, const FUIAction& UIAction)
+namespace UE::Insights::NetworkingProfiler
 {
-	MenuBuilder.AddMenuEntry
-	(
-		UICommandInfo->GetLabel(),
-		UICommandInfo->GetDescription(),
-		UICommandInfo->GetIcon(),
-		UIAction,
-		NAME_None,
-		UICommandInfo->GetUserInterfaceType()
-	);
-}
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// FNetworkingProfilerCommands
-////////////////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+	// FNetworkingProfilerMenuBuilder
+	////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FNetworkingProfilerCommands::FNetworkingProfilerCommands()
-: TCommands<FNetworkingProfilerCommands>(
-	TEXT("NetworkingProfilerCommands"),
-	NSLOCTEXT("Contexts", "NetworkingProfilerCommands", "Insights - Networking Insights"),
-	NAME_None,
-	FInsightsStyle::GetStyleSetName())
-{
-}
+	void FNetworkingProfilerMenuBuilder::AddMenuEntry(FMenuBuilder& MenuBuilder, const TSharedPtr< FUICommandInfo >& UICommandInfo, const FUIAction& UIAction)
+	{
+		MenuBuilder.AddMenuEntry
+		(
+			UICommandInfo->GetLabel(),
+			UICommandInfo->GetDescription(),
+			UICommandInfo->GetIcon(),
+			UIAction,
+			NAME_None,
+			UICommandInfo->GetUserInterfaceType()
+		);
+	}
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+	// FNetworkingProfilerCommands
+	////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// UI_COMMAND takes long for the compiler to optimize
-UE_DISABLE_OPTIMIZATION_SHIP
-void FNetworkingProfilerCommands::RegisterCommands()
-{
-	UI_COMMAND(TogglePacketViewVisibility,
-		"Packets",
-		"Toggles the visibility of the Packets view.",
-		EUserInterfaceActionType::ToggleButton,
-		FInputChord());
+	FNetworkingProfilerCommands::FNetworkingProfilerCommands()
+		: TCommands<FNetworkingProfilerCommands>(
+			TEXT("NetworkingProfilerCommands"),
+			NSLOCTEXT("Contexts", "NetworkingProfilerCommands", "Insights - Networking Insights"),
+			NAME_None,
+			FInsightsStyle::GetStyleSetName())
+	{
+	}
 
-	UI_COMMAND(TogglePacketContentViewVisibility,
-		"Packet Content",
-		"Toggles the visibility of the Packet Content view.",
-		EUserInterfaceActionType::ToggleButton,
-		FInputChord());
+	////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	UI_COMMAND(ToggleNetStatsViewVisibility,
-		"Net Stats",
-		"Toggles the visibility of the Net Stats view.",
-		EUserInterfaceActionType::ToggleButton,
-		FInputChord());
+	// UI_COMMAND takes long for the compiler to optimize
+	UE_DISABLE_OPTIMIZATION_SHIP
+		void FNetworkingProfilerCommands::RegisterCommands()
+	{
+		UI_COMMAND(TogglePacketViewVisibility,
+			"Packets",
+			"Toggles the visibility of the Packets view.",
+			EUserInterfaceActionType::ToggleButton,
+			FInputChord());
 
-	UI_COMMAND(ToggleNetStatsCountersViewVisibility,
-		"Net Stats Counters",
-		"Toggles the visibility of the Net Stats view.",
-		EUserInterfaceActionType::ToggleButton,
-		FInputChord());
-}
-UE_ENABLE_OPTIMIZATION_SHIP
+		UI_COMMAND(TogglePacketContentViewVisibility,
+			"Packet Content",
+			"Toggles the visibility of the Packet Content view.",
+			EUserInterfaceActionType::ToggleButton,
+			FInputChord());
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Toggle Commands
-////////////////////////////////////////////////////////////////////////////////////////////////////
+		UI_COMMAND(ToggleNetStatsViewVisibility,
+			"Net Stats",
+			"Toggles the visibility of the Net Stats view.",
+			EUserInterfaceActionType::ToggleButton,
+			FInputChord());
+
+		UI_COMMAND(ToggleNetStatsCountersViewVisibility,
+			"Net Stats Counters",
+			"Toggles the visibility of the Net Stats view.",
+			EUserInterfaceActionType::ToggleButton,
+			FInputChord());
+	}
+	UE_ENABLE_OPTIMIZATION_SHIP
+
+		////////////////////////////////////////////////////////////////////////////////////////////////////
+		// Toggle Commands
+		////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #define IMPLEMENT_TOGGLE_COMMAND(CmdName, IsEnabled, SetIsEnabled) \
 	\
@@ -119,5 +122,7 @@ UE_ENABLE_OPTIMIZATION_SHIP
 #undef IMPLEMENT_TOGGLE_COMMAND
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef LOCTEXT_NAMESPACE

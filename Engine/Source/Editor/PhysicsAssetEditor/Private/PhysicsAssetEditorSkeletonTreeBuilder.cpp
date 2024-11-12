@@ -5,6 +5,7 @@
 #include "SkeletonTreePhysicsShapeItem.h"
 #include "SkeletonTreePhysicsConstraintItem.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "IPersonaPreviewScene.h"
 #include "Animation/DebugSkelMeshComponent.h"
 #include "Misc/TextFilterExpressionEvaluator.h"

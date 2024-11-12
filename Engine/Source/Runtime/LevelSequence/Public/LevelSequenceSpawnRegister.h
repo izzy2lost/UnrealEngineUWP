@@ -14,17 +14,20 @@ class IMovieScenePlayer;
 class UClass;
 class UObject;
 struct FMovieSceneSpawnable;
+class UMovieSceneSpawnableBindingBase;
 
 /** Movie scene spawn register that knows how to handle spawning objects (actors) for a level sequence  */
 class FLevelSequenceSpawnRegister : public FMovieSceneSpawnRegister
 {
 public:
 	LEVELSEQUENCE_API FLevelSequenceSpawnRegister();
+	LEVELSEQUENCE_API FLevelSequenceSpawnRegister(const FLevelSequenceSpawnRegister&);
+	LEVELSEQUENCE_API ~FLevelSequenceSpawnRegister();
 
 protected:
 	/** ~ FMovieSceneSpawnRegister interface */
 	LEVELSEQUENCE_API virtual UObject* SpawnObject(FMovieSceneSpawnable& Spawnable, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState) override;
-	LEVELSEQUENCE_API virtual void DestroySpawnedObject(UObject& Object) override;
+	LEVELSEQUENCE_API virtual void DestroySpawnedObject(UObject& Object, UMovieSceneSpawnableBindingBase* CustomSpawnableBinding) override;
 
 #if WITH_EDITOR
 	LEVELSEQUENCE_API virtual bool CanSpawnObject(UClass* InClass) const override;

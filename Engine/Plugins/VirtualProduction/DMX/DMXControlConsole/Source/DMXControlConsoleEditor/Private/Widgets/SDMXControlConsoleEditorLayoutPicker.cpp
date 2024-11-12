@@ -4,6 +4,7 @@
 
 #include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleEditorSelection.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
@@ -205,6 +206,7 @@ namespace UE::DMX::Private
 					.AutoWidth()
 					[
 						SAssignNew(LayoutNameEditableBox, SEditableTextBox)
+						.SelectAllTextWhenFocused(true)
 						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 						.Text_Lambda([this]() { return LayoutNameText; })
 						.OverflowPolicy(ETextOverflowPolicy::Clip)
@@ -491,10 +493,9 @@ namespace UE::DMX::Private
 
 	FReply SDMXControlConsoleEditorLayoutPicker::OnRenameLayoutClicked()
 	{
-		if (!LayoutNameText.IsEmpty())
+		if (LayoutNameEditableBox.IsValid())
 		{
-			const FString& NewLayoutName = LayoutNameText.ToString();
-			OnRenameLayout(NewLayoutName);
+			FSlateApplication::Get().SetUserFocus(0, LayoutNameEditableBox);
 		}
 
 		return FReply::Handled();

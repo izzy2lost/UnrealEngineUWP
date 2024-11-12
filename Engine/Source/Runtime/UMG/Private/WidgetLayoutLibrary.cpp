@@ -64,7 +64,7 @@ bool UWidgetLayoutLibrary::ProjectWorldLocationToWidgetPositionWithDistance(APla
 			// I do this before I remove scaling, because scaling is going to be applied later
 			// in the opposite direction, so as long as we round, before inverse scale, scale should
 			// result in more or less the same value, especially after slate does layout rounding.
-			FVector2D ScreenPosition(FMath::RoundToInt(PixelLocation.X), FMath::RoundToInt(PixelLocation.Y));
+			FVector2D ScreenPosition(FMath::RoundToDouble(PixelLocation.X), FMath::RoundToDouble(PixelLocation.Y));
 
 			FVector2D ViewportPosition2D;
 			USlateBlueprintLibrary::ScreenToViewport(PlayerController, ScreenPosition, ViewportPosition2D);
@@ -96,7 +96,7 @@ float UWidgetLayoutLibrary::GetViewportScale(const UObject* WorldContextObject)
 			{
 				FVector2D ViewportSize;
 				ViewportClient->GetViewportSize(ViewportSize);
-				ViewportScale = GetDefault<UUserInterfaceSettings>()->GetDPIScaleBasedOnSize(FIntPoint(ViewportSize.X, ViewportSize.Y));
+				ViewportScale = GetDefault<UUserInterfaceSettings>()->GetDPIScaleBasedOnSize(FIntPoint(FMath::TruncToInt32(ViewportSize.X), FMath::TruncToInt32(ViewportSize.Y)));
 			}
 		}
 
@@ -111,7 +111,7 @@ float UWidgetLayoutLibrary::GetViewportScale(const UGameViewportClient* Viewport
 	FVector2D ViewportSize;
 	ViewportClient->GetViewportSize(ViewportSize);
 	
-	float UserResolutionScale = GetDefault<UUserInterfaceSettings>()->GetDPIScaleBasedOnSize(FIntPoint(ViewportSize.X, ViewportSize.Y));
+	float UserResolutionScale = GetDefault<UUserInterfaceSettings>()->GetDPIScaleBasedOnSize(FIntPoint(FMath::TruncToInt32(ViewportSize.X), FMath::TruncToInt32(ViewportSize.Y)));
 
 	// Normally we'd factor in native DPI Scale here too, but because the SGameLayerManager already
 	// accounts for the native DPI scale, and extracts it from the calculations, the UMG/Slate portion of the

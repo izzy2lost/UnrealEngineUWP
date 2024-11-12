@@ -766,8 +766,8 @@ protected:
 	TArray<Chaos::FBreakingDataExt> BreakingEvents;
 	TArray<Chaos::FTrailingDataExt> TrailingEvents;
 
-	// Saving GeometryCollectionComponents from breaking for trailing
-	TSet<UGeometryCollectionComponent*> GeometryCollectionComponentsFromBreaking;
+	// geometry collection to track for trailing 
+	TSet<TWeakObjectPtr<UGeometryCollectionComponent>> TrailingGeometryCollectionComponents;
 };
 
 struct FNiagaraDataInterfaceProxyChaosDestruction : public FNiagaraDataInterfaceProxy

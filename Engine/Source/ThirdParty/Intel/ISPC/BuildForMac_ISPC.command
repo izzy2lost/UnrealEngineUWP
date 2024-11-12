@@ -10,7 +10,7 @@
 
 set -e
 
-ISPC_VERSION=1.21.0
+ISPC_VERSION=1.24.0
 
 BUILD_UNIVERSAL=true
 
@@ -34,7 +34,7 @@ mkdir $ISPC_BUILD_LOCATION
 
 CMAKE_ARGS=(
     -DCMAKE_INSTALL_PREFIX="$ISPC_INSTALL_LOCATION"
-    -DCMAKE_OSX_DEPLOYMENT_TARGET="11.0"
+    -DCMAKE_OSX_DEPLOYMENT_TARGET="13.0"
     -DCMAKE_BUILD_TYPE=Release
     -DARM_ENABLED=ON
     -DWASM_ENABLED=OFF
@@ -83,6 +83,7 @@ echo Installing ISPC for Release...
 cmake --install . --config Release
 
 echo Copying ISPC into the bin directory...
+p4 edit "$UE_MODULE_LOCATION/bin/Mac/ispc"
 cp "$ISPC_INSTALL_LOCATION/bin/ispc" "$UE_MODULE_LOCATION/bin/Mac/ispc"
 
 popd

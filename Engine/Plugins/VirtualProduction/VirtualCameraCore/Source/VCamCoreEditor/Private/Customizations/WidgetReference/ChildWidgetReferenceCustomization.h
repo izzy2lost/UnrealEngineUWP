@@ -7,7 +7,7 @@
 class UUserWidget;
 class UWidget;
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	class FChildWidgetReferenceCustomization : public IPropertyTypeCustomization
 	{

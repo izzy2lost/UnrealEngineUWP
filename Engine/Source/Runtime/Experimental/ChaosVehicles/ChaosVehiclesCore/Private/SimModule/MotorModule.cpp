@@ -11,7 +11,6 @@ UE_DISABLE_OPTIMIZATION
 
 namespace Chaos
 {
-
 	FMotorSimModule::FMotorSimModule(const FMotorSettings& Settings)
 		: TSimModuleSettings<FMotorSettings>(Settings)
 	{
@@ -36,7 +35,7 @@ namespace Chaos
 				NormalizedTorque = -1.0f - FMath::Square(1.0f + 2.0f * NormalizedRPM);
 			}
 
-			DriveTorque = NormalizedTorque * Setup().MaxTorque * Inputs.ControlInputs.Throttle;
+			DriveTorque = NormalizedTorque * Setup().MaxTorque * Inputs.GetControls().GetMagnitude(ThrottleControlName);
 
 			float BrakeTorque = 0.f;
 			TransmitTorque(VehicleModuleSystem, DriveTorque, BrakeTorque);

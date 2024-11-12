@@ -16,6 +16,6 @@ namespace UE::Object
 		TStringBuilder<FName::StringBufferSize> NewNameString;
 		NewNameString << NewName;
 		UE_LOG(LogObj, Log, TEXT("Renaming leaked package %s to %s"), *Package->GetName(), *NewNameString);
-		Package->Rename(*NewNameString, nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_NonTransactional);
+		Package->Rename(*NewNameString, nullptr, REN_DontCreateRedirectors | REN_NonTransactional);
 	}
 }

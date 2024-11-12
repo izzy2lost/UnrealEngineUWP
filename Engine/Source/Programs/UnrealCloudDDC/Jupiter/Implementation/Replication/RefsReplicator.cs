@@ -15,12 +15,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
+using Jupiter.Common.Implementation;
 using Jupiter.Controllers;
 using Jupiter.Implementation.TransactionLog;
-using Jupiter.Common.Implementation;
 using Microsoft.AspNetCore.Mvc;
-using OpenTelemetry.Trace;
 using Microsoft.Extensions.Logging;
+using OpenTelemetry.Trace;
 
 namespace Jupiter.Implementation
 {
@@ -340,7 +340,7 @@ namespace Jupiter.Implementation
 						Info.CountOfRunningReplications = countOfObjectsCurrentlyReplicating;
 						Info.LastRun = DateTime.Now;
 
-						bool blobWasReplicated = await ReplicateOpAsync(ns, snapshotLiveObject.Blob, cancellationToken);
+						bool blobWasReplicated = await ReplicateOpAsync(ns, snapshotLiveObject.Bucket, snapshotLiveObject.Key, snapshotLiveObject.Blob, cancellationToken);
 						if (blobWasReplicated)
 						{
 							await AddToReplicationLogAsync(ns, snapshotLiveObject.Bucket, snapshotLiveObject.Key, snapshotLiveObject.Blob);
@@ -401,7 +401,7 @@ namespace Jupiter.Implementation
 						.SetAttribute("time-bucket", @event.Timestamp.ToString(CultureInfo.InvariantCulture));
 
 					_logger.LogDebug("{Name} New transaction to replicate found. Ref: {Namespace} {Bucket} {Key} in {TimeBucket} ({TimeDate}) with id {EventId}. Count of running replications: {CurrentReplications}", _name, @event.Namespace, @event.Bucket, @event.Key, @event.TimeBucket, @event.Timestamp, @event.EventId, replicationTasks.Count);
-				
+
 					Info.CountOfRunningReplications = replicationTasks.Count;
 					LogReplicationHeartbeat(replicationTasks.Count);
 					long currentOffset = Interlocked.Increment(ref countOfReplicationsDone);
@@ -425,7 +425,7 @@ namespace Jupiter.Implementation
 								throw new Exception($"Event: {@event.Bucket} {@event.Key} in namespace {@event.Namespace} was missing a blob, unable to replicate it");
 							}
 
-							blobWasReplicated = await ReplicateOpAsync(@event.Namespace, @event.Blob, replicationToken);
+							blobWasReplicated = await ReplicateOpAsync(@event.Namespace, @event.Bucket, @event.Key, @event.Blob, replicationToken);
 						}
 
 						if (blobWasReplicated)
@@ -473,13 +473,13 @@ namespace Jupiter.Implementation
 			return countOfReplicationsDone;
 		}
 
-		private async Task<bool> ReplicateOpAsync(NamespaceId ns, BlobId objectToReplicate, CancellationToken cancellationToken)
+		private async Task<bool> ReplicateOpAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId objectToReplicate, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan scope = _tracer.StartActiveSpan("replicator.replicate_op")
 				.SetAttribute("operation.name", "replicator.replicate_op")
 				.SetAttribute("resource.name", $"{ns}.{objectToReplicate}");
 
-			_logger.LogInformation("Attempting to replicate object {Blob} in {Namespace}.", objectToReplicate, ns);
+			_logger.LogInformation("Attempting to replicate ref {Key} in {Bucket} under {Namespace}.", key, bucket, ns);
 
 			// We could potentially do this, but that could be dangerous if missing child references
 			// check if this blob exists locally before replicating, if it does we assume we have all of its references already
@@ -491,7 +491,7 @@ namespace Jupiter.Implementation
 			const int RetryAttempts = 3;
 			for (int i = 0; i < RetryAttempts; i++)
 			{
-				using HttpRequestMessage referencesRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/objects/{ns}/{objectToReplicate}/references", UriKind.Relative));
+				using HttpRequestMessage referencesRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/refs/{ns}/{bucket}/{key}/references", UriKind.Relative));
 
 				try
 				{
@@ -537,11 +537,10 @@ namespace Jupiter.Implementation
 				throw new Exception($"Unable to resolve references for object {objectToReplicate} in namespace {ns}");
 			}
 
-			BlobId[] potentialBlobs = new BlobId[refs.References.Length + 1];
+			BlobId[] potentialBlobs = new BlobId[refs.References.Length];
 			Array.Copy(refs.References, potentialBlobs, refs.References.Length);
-			potentialBlobs[^1] = objectToReplicate;
 
-			BlobId[] missingBlobs = await _blobService.FilterOutKnownBlobsAsync(ns, potentialBlobs);
+			BlobId[] missingBlobs = await _blobService.FilterOutKnownBlobsAsync(ns, potentialBlobs, cancellationToken);
 			Task[] blobReplicationTasks = new Task[missingBlobs.Length];
 			for (int i = 0; i < missingBlobs.Length; i++)
 			{
@@ -571,8 +570,7 @@ namespace Jupiter.Implementation
 							lastException = e;
 						}
 					}
-					
-					
+
 					if (blobResponse == null)
 					{
 						throw new Exception("Blob response never set", lastException);
@@ -598,9 +596,9 @@ namespace Jupiter.Implementation
 						throw new Exception("Expected content-length on blob response");
 					}
 
-					using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromStreamAsync(s, contentLength.Value);
+					using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromStreamAsync(s, contentLength.Value, cancellationToken);
 
-					await _blobService.PutObjectAsync(ns, payload, blobToReplicate);
+					await _blobService.PutObjectAsync(ns, payload, blobToReplicate, bucketHint: bucket, cancellationToken);
 				}, cancellationToken);
 			}
 
@@ -624,7 +622,7 @@ namespace Jupiter.Implementation
 					throw new Exception($"Failed to find state to resume from after first page of ref events, lastBucket: {lastBucket} lastEvent: {lastEvent}");
 				}
 				StringBuilder url = new StringBuilder($"/api/v1/replication-log/incremental/{ns}");
-				
+
 				// number of records in a single page (response)
 				int pageSize = _replicatorSettings.PageSize;
 				url.Append($"?count={pageSize}");
@@ -694,7 +692,11 @@ namespace Jupiter.Implementation
 						NamespaceId? blobNamespace = problemDetailsWithSnapshots.BlobNamespace;
 						throw new UseSnapshotException(snapshotBlob, blobNamespace!.Value);
 					}
-				
+
+					if (problemDetails.Type == ProblemTypes.NoDataFound)
+					{
+						yield break;
+					}
 					throw new Exception($"Unknown bad request response. Body: {body}");
 				}
 

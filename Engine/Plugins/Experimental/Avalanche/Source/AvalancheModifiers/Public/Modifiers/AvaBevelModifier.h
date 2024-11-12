@@ -13,25 +13,42 @@ class UAvaBevelModifier : public UAvaGeometryBaseModifier
 public:
 	static inline const FName BevelPolygroupLayerName = TEXT("Bevel");
 	static constexpr float MinInset = 0;
-	static constexpr int32 MinIterations = 1;
-	static constexpr int32 MaxIterations = 3;
+	static constexpr int32 MinIterations = 0;
+	static constexpr int32 MaxIterations = 10;
+	static constexpr float MinRoundness = -2;
+	static constexpr float MaxRoundness = 2;
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Bevel")
 	AVALANCHEMODIFIERS_API void SetInset(float InBevel);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Bevel")
 	float GetInset() const
 	{
 		return Inset;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Bevel")
 	AVALANCHEMODIFIERS_API void SetIterations(int32 InIterations);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Bevel")
 	int32 GetIterations() const
 	{
 		return Iterations;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Bevel")
+	AVALANCHEMODIFIERS_API void SetRoundness(float InRoundness);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Bevel")
+	float GetRoundness() const
+	{
+		return Roundness;
+	}
+
 protected:
 	//~ Begin UObject
 #if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 #endif
 	//~ End UObject
 
@@ -42,12 +59,19 @@ protected:
 
 	void OnInsetChanged();
 	void OnIterationsChanged();
+	void OnRoundnessChanged();
 
-	float GetMaxBevel() const;
+	float GetMaxInsetDistance() const;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetInset", Getter="GetInset", Category="Bevel", meta=(ClampMin="0.0", AllowPrivateAccess="true"))
+	/** Distance used on vertices for beveling, clamped between 0 and (min bound size / 2) */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Bevel", meta=(ClampMin="0", AllowPrivateAccess="true"))
 	float Inset = 1.0f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetIterations", Getter="GetIterations", Category="Bevel", meta=(ClampMin="1", ClampMax="3", AllowPrivateAccess="true"))
-	int32 Iterations = 1;
+	/** Amount of subdivisions applied on the bevel, could affect performance the higher this value gets */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Bevel", meta=(ClampMin="0", ClampMax="10", AllowPrivateAccess="true"))
+	int32 Iterations = 0;
+
+	/** Roundness of the beveling when multiple iterations are applied : -2 = inner rounded, 0 = flat, 2 = outer rounded */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Bevel", meta=(ClampMin="-2", ClampMax="2", EditCondition="Iterations > 0", AllowPrivateAccess="true"))
+	float Roundness = 0;
 };

@@ -22,6 +22,11 @@ namespace UE::NeuralMorphModel
 		// Create all the detail categories and add the properties of the base class.
 		FMLDeformerMorphModelDetails::CustomizeDetails(DetailBuilder);
 
+		if (!EditorModel)
+		{
+			return;
+		}
+
 		UNeuralMorphModel* NeuralMorphModel = Cast<UNeuralMorphModel>(Model);
 		check(NeuralMorphModel);
 

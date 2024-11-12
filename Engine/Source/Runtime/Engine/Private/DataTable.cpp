@@ -12,7 +12,7 @@
 #include "DataTableCSV.h"
 #include "DataTableJSON.h"
 #include "EditorFramework/AssetImportData.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataTable)
 
@@ -73,6 +73,7 @@ UDataTable::UDataTable(const FObjectInitializer& ObjectInitializer)
 	bIgnoreExtraFields = false;
 	bIgnoreMissingFields = false;
 	bStripFromClientBuilds = false;
+	bPreserveExistingValues = false;
 
 #if WITH_EDITORONLY_DATA
 	{ static const FAutoRegisterLocalizationDataGatheringCallback AutomaticRegistrationOfLocalizationGatherer(UDataTable::StaticClass(), &GatherDataTableForLocalization); }
@@ -97,7 +98,7 @@ void UDataTable::LoadStructData(FStructuredArchiveSlot Slot)
 	{
 		if (!HasAnyFlags(RF_ClassDefaultObject) && GetOutermost() != GetTransientPackage())
 		{
-			UE_LOG(LogDataTable, Error, TEXT("Missing RowStruct while loading DataTable '%s', NeedLoad: '%s'!"), *GetPathName(), HasAnyFlags(RF_NeedLoad) ? TEXT("true") : TEXT("false"));
+			UE_LOG(LogDataTable, Warning, TEXT("Missing RowStruct while loading DataTable '%s', NeedLoad: '%s'!"), *GetPathName(), HasAnyFlags(RF_NeedLoad) ? TEXT("true") : TEXT("false"));
 		}
 		LoadUsingStruct = FTableRowBase::StaticStruct();
 	}
@@ -380,20 +381,36 @@ void UDataTable::PostLoad()
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
-void UDataTable::PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const
+void UDataTable::ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const
 {
-	Super::PostLoadAssetRegistryTags(InAssetData, OutTagsAndValuesToUpdate);
+	Super::ThreadedPostLoadAssetRegistryTagsOverride(Context);
 
 	static const FName RowStructureTag(TEXT("RowStructure"));
-	FString TagValue = InAssetData.GetTagValueRef<FString>(RowStructureTag);
+	FString TagValue = Context.GetAssetData().GetTagValueRef<FString>(RowStructureTag);
 	if (!TagValue.IsEmpty() && FPackageName::IsShortPackageName(TagValue))
 	{
-		FTopLevelAssetPath PathName = UClass::TryConvertShortTypeNameToPathName<UField>(TagValue, ELogVerbosity::Warning, TEXT("UDataTable::PostLoadAssetRegistryTags"));
+		FTopLevelAssetPath PathName = UClass::TryConvertShortTypeNameToPathName<UField>(TagValue, ELogVerbosity::Warning, TEXT("UDataTable::ThreadedPostLoadAssetRegistryTagsOverride"));
 		if (!PathName.IsNull())
 		{
-			OutTagsAndValuesToUpdate.Add(FAssetRegistryTag(RowStructureTag, PathName.ToString(), FAssetRegistryTag::TT_Alphabetical));
+			Context.AddTagToUpdate(FAssetRegistryTag(RowStructureTag, PathName.ToString(), FAssetRegistryTag::TT_Alphabetical));
 		}
 	}
+}
+
+EDataValidationResult UDataTable::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult Result = Super::IsDataValid(Context);
+
+	if (RowStruct && RowStruct->IsChildOf(FTableRowBase::StaticStruct()))
+	{
+		for (const TPair<FName, uint8*>& TableRowPair : RowMap)
+		{
+			const FTableRowBase* CurRow = reinterpret_cast<FTableRowBase*>(TableRowPair.Value);
+			Result = CombineDataValidationResults(Result, CurRow->IsDataValid(Context));
+		}
+	}
+	
+	return Result;
 }
 #endif // WITH_EDITOR
 
@@ -464,6 +481,26 @@ void UDataTable::AddRow(FName RowName, const FTableRowBase& RowData)
 	
 	EmptyUsingStruct.InitializeStruct(NewRawRowData);
 	EmptyUsingStruct.CopyScriptStruct(NewRawRowData, &RowData);
+
+	// Add to map
+	AddRowInternal(RowName, NewRawRowData);
+}
+
+void UDataTable::AddRow(FName RowName, const uint8* RowData, const UScriptStruct* RowType)
+{
+	DATATABLE_CHANGE_SCOPE();
+
+	UScriptStruct& EmptyUsingStruct = GetEmptyUsingStruct();
+
+	checkf(RowType == &EmptyUsingStruct, TEXT("AddRow called with an incompatible row type! Got '%s', but expected '%s'"), *RowType->GetPathName(), *EmptyUsingStruct.GetPathName());
+
+	// We want to delete the row memory even for child classes that override remove
+	RemoveRowInternal(RowName);
+
+	uint8* NewRawRowData = (uint8*)FMemory::Malloc(EmptyUsingStruct.GetStructureSize());
+
+	EmptyUsingStruct.InitializeStruct(NewRawRowData);
+	EmptyUsingStruct.CopyScriptStruct(NewRawRowData, RowData);
 
 	// Add to map
 	AddRowInternal(RowName, NewRawRowData);
@@ -656,6 +693,7 @@ bool UDataTable::CopyImportOptions(UDataTable* SourceTable)
 	bStripFromClientBuilds = SourceTable->bStripFromClientBuilds;
 	bIgnoreExtraFields = SourceTable->bIgnoreExtraFields;
 	bIgnoreMissingFields = SourceTable->bIgnoreMissingFields;
+	bPreserveExistingValues = SourceTable->bPreserveExistingValues;
 	ImportKeyField = SourceTable->ImportKeyField;
 	RowStruct = SourceTable->RowStruct;
 

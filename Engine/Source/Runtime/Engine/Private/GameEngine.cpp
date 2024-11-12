@@ -1254,11 +1254,8 @@ void UGameEngine::PreExit()
 
 			// Make sure there are no pending visibility requests.
 			World->FlushLevelStreaming(EFlushLevelStreamingType::Visibility);
-						
-			for (FActorIterator ActorIt(World); ActorIt; ++ActorIt)
-			{
-				ActorIt->RouteEndPlay(EEndPlayReason::Quit);
-			}
+			
+			World->EndPlay(EEndPlayReason::Quit);
 
 			if (World->GetGameInstance() != nullptr)
 			{
@@ -1741,6 +1738,8 @@ void UGameEngine::Tick( float DeltaSeconds, bool bIdleMode )
 		SCOPE_TIME_GUARD(TEXT("UGameEngine::Tick - Analytics"));
 		FEngineAnalytics::Tick(DeltaSeconds);
 	}
+
+	GConfig->Tick(DeltaSeconds);
 
 	// -----------------------------------------------------
 	// Begin ticking worlds

@@ -28,12 +28,11 @@ namespace Chaos
 	/// A vehicle component that transmits torque from one source to another, i.e. from an engine or differential to wheels
 	///
 	/// </summary>
-	class CHAOSVEHICLESCORE_API FAxleSimModule : public FTorqueSimModule, public TSimModuleSettings<FAxleSettings>
+	class CHAOSVEHICLESCORE_API FAxleSimModule : public FTorqueSimModule, public TSimModuleSettings<FAxleSettings>, public TSimulationModuleTypeable<FAxleSimModule>
 	{
 	public:
+		DEFINE_CHAOSSIMTYPENAME(FAxleSimModule);
 		FAxleSimModule(const FAxleSettings& Settings);
-
-		virtual eSimType GetSimType() const { return eSimType::Axle; }
 
 		virtual const FString GetDebugName() const { return TEXT("Axle"); }
 

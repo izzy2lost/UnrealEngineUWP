@@ -62,7 +62,18 @@ namespace UE::ConcertSharedSlate
 			return bContains ? EBreakBehavior::Break : EBreakBehavior::Continue;
 		});
 		return bContains;
-	}		
+	}
+
+	bool FConsolidatedMultiStreamModel::ContainsProperties(const FSoftObjectPath& Object, const TSet<FConcertPropertyChain>& Properties) const
+	{
+		bool bContainsProperty = false;
+		MultiStreamModel->ForEachStream([&Object, &Properties, &bContainsProperty](const TSharedRef<IReplicationStreamModel>& Model)
+		{
+			bContainsProperty = Model->ContainsProperties(Object, Properties);
+			return bContainsProperty ? EBreakBehavior::Break : EBreakBehavior::Continue;
+		});
+		return bContainsProperty;
+	}
 
 	bool FConsolidatedMultiStreamModel::ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const
 	{
@@ -93,6 +104,47 @@ namespace UE::ConcertSharedSlate
 		});
 		
 		return bAnyMappings;
+	}
+
+	bool FConsolidatedMultiStreamModel::ForEachProperty(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const
+	{
+		bool bCalledAtLeastOnce = false;
+		MultiStreamModel->ForEachStream([&Object, &Delegate, &bCalledAtLeastOnce](const TSharedRef<IReplicationStreamModel>& Model)
+		{
+			EBreakBehavior BreakBehavior = EBreakBehavior::Continue;
+			bCalledAtLeastOnce |= Model->ForEachProperty(Object, [&Delegate, &BreakBehavior](const FConcertPropertyChain& Property)
+			{
+				BreakBehavior = Delegate(Property);
+				return BreakBehavior;
+			});
+			return BreakBehavior;
+		});
+		return bCalledAtLeastOnce;
+	}
+
+	uint32 FConsolidatedMultiStreamModel::GetNumProperties(const FSoftObjectPath& Object) const
+	{
+		uint32 PropertyUpperLimit = 0;
+		MultiStreamModel->ForEachStream([&Object, &PropertyUpperLimit](const TSharedRef<IReplicationStreamModel>& Model)
+		{
+			PropertyUpperLimit += Model->GetNumProperties(Object);
+			return EBreakBehavior::Continue;
+		});
+
+		// This is needed, so we don't count properties double (two separate streams may contain the same property twice).
+		TSet<FConcertPropertyChain> Properties;
+		Properties.Reserve(PropertyUpperLimit);
+		MultiStreamModel->ForEachStream([&Object, &Properties](const TSharedRef<IReplicationStreamModel>& Model)
+		{
+			Model->ForEachProperty(Object, [&Properties](const FConcertPropertyChain& Property)
+			{
+				Properties.Add(Property);
+				return EBreakBehavior::Continue;
+			});
+			return EBreakBehavior::Continue;
+		});
+		
+		return Properties.Num();
 	}
 
 	void FConsolidatedMultiStreamModel::AddObjects(TConstArrayView<UObject*> Objects)

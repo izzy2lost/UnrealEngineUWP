@@ -128,7 +128,7 @@ private:
 
 		SrcPolyIndexGrid = openvdb::Int32Grid::create();
 
-		if (!ProxyLOD::MeshArrayToSDFVolume(InSrcGeometryAdapter, SDFVolume, SrcPolyIndexGrid.get()))
+		if (!ProxyLOD::MeshToSDFVolume(InSrcGeometryAdapter, InSrcGeometryAdapter.GetTransform(), SDFVolume, SrcPolyIndexGrid.get()))
 		{
 			SrcPolyIndexGrid.reset();
 			return false;

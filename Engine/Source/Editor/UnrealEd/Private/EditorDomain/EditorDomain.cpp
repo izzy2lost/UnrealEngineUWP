@@ -6,6 +6,7 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Async/AsyncFileHandle.h"
 #include "Containers/ContainersFwd.h"
+#include "Containers/SharedString.h"
 #include "Containers/StringView.h"
 #include "Containers/UnrealString.h"
 #include "CoreGlobals.h"
@@ -15,7 +16,6 @@
 #include "DerivedDataCacheRecord.h"
 #include "DerivedDataRequestOwner.h"
 #include "DerivedDataRequestTypes.h"
-#include "DerivedDataSharedString.h"
 #include "EditorDomain/EditorDomainArchive.h"
 #include "EditorDomain/EditorDomainSave.h"
 #include "EditorDomain/EditorDomainUtils.h"
@@ -215,10 +215,10 @@ bool FEditorDomain::SupportsPackageOnlyPaths()
 	return true;
 }
 
-bool FEditorDomain::DoesPackageExist(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-	FPackagePath* OutUpdatedPath)
+bool FEditorDomain::DoesPackageExist(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+	EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath)
 {
-	return Workspace->DoesPackageExist(PackagePath, PackageSegment, OutUpdatedPath);
+	return Workspace->DoesPackageExist(PackagePath, CookedIndex, PackageSegment, OutUpdatedPath);
 }
 
 FEditorDomain::FLocks::FLocks(FEditorDomain& InOwner)
@@ -384,15 +384,17 @@ void FEditorDomain::MarkLoadedFromEditorDomain(const FPackagePath& PackagePath, 
 	PackageSource->bHasRecordInEditorDomain = true;
 }
 
-int64 FEditorDomain::FileSize(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-	FPackagePath* OutUpdatedPath)
+int64 FEditorDomain::FileSize(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+	EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath)
 {
 	using namespace UE::EditorDomain;
 	using namespace UE::DerivedData;
 
+	checkf(CookedIndex.IsDefault(), TEXT("Editor Domain does not support bulkdata cooked indices"));
+
 	if (PackageSegment != EPackageSegment::Header)
 	{
-		return Workspace->FileSize(PackagePath, PackageSegment, OutUpdatedPath);
+		return Workspace->FileSize(PackagePath, FBulkDataCookedIndex::Default, PackageSegment, OutUpdatedPath);
 	}
 
 	TOptional<UE::DerivedData::FRequestOwner> Owner;
@@ -403,13 +405,13 @@ int64 FEditorDomain::FileSize(const FPackagePath& PackagePath, EPackageSegment P
 		FName PackageName = PackagePath.GetPackageFName();
 		if (PackageName.IsNone())
 		{
-			return Workspace->FileSize(PackagePath, PackageSegment, OutUpdatedPath);
+			return Workspace->FileSize(PackagePath, FBulkDataCookedIndex::Default, PackageSegment, OutUpdatedPath);
 		}
 
 		bool bReenteredLock;
 		if (!TryFindOrAddPackageSource(ScopeLock, bReenteredLock, PackageName, PackageSource) || PackageSource->Source == EPackageSource::Workspace)
 		{
-			return Workspace->FileSize(PackagePath, PackageSegment, OutUpdatedPath);
+			return Workspace->FileSize(PackagePath, FBulkDataCookedIndex::Default, PackageSegment, OutUpdatedPath);
 		}
 		PackageSource->SetHasLoaded();
 
@@ -454,7 +456,7 @@ int64 FEditorDomain::FileSize(const FPackagePath& PackagePath, EPackageSegment P
 			else if (PackageSource->Source == FEditorDomain::EPackageSource::Workspace || bLoadFromWorkspace)
 			{
 				EditorDomain->MarkLoadedFromWorkspaceDomain(PackagePath, PackageSource, bHasRecordInEditorDomain);
-				FileSize = EditorDomain->Workspace->FileSize(PackagePath, PackageSegment, OutUpdatedPath);
+				FileSize = EditorDomain->Workspace->FileSize(PackagePath, FBulkDataCookedIndex::Default, PackageSegment, OutUpdatedPath);
 			}
 			else
 			{
@@ -473,27 +475,29 @@ int64 FEditorDomain::FileSize(const FPackagePath& PackagePath, EPackageSegment P
 	return FileSize;
 }
 
-FOpenPackageResult FEditorDomain::OpenReadPackage(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-	FPackagePath* OutUpdatedPath)
+FOpenPackageResult FEditorDomain::OpenReadPackage(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+	EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath)
 {
 	using namespace UE::EditorDomain;
 	using namespace UE::DerivedData;
 
+	checkf(CookedIndex.IsDefault(), TEXT("Editor Domain does not support bulkdata cooked indices"));
+
 	FScopeLock ScopeLock(&Locks->Lock);
 	if (PackageSegment != EPackageSegment::Header)
 	{
-		return Workspace->OpenReadPackage(PackagePath, PackageSegment, OutUpdatedPath);
+		return Workspace->OpenReadPackage(PackagePath, CookedIndex, PackageSegment, OutUpdatedPath);
 	}
 	FName PackageName = PackagePath.GetPackageFName();
 	if (PackageName.IsNone())
 	{
-		return Workspace->OpenReadPackage(PackagePath, PackageSegment, OutUpdatedPath);
+		return Workspace->OpenReadPackage(PackagePath, CookedIndex, PackageSegment, OutUpdatedPath);
 	}
 	TRefCountPtr<FPackageSource> PackageSource;
 	bool bReenteredLock;
 	if (!TryFindOrAddPackageSource(ScopeLock, bReenteredLock, PackageName, PackageSource) || (PackageSource->Source == EPackageSource::Workspace))
 	{
-		return Workspace->OpenReadPackage(PackagePath, PackageSegment, OutUpdatedPath);
+		return Workspace->OpenReadPackage(PackagePath, CookedIndex, PackageSegment, OutUpdatedPath);
 	}
 	PackageSource->SetHasLoaded();
 
@@ -531,28 +535,30 @@ FOpenPackageResult FEditorDomain::OpenReadPackage(const FPackagePath& PackagePat
 	return FOpenPackageResult{ TUniquePtr<FArchive>(Result), Format, bNeedsEngineVersionChecks};
 }
 
-FOpenAsyncPackageResult FEditorDomain::OpenAsyncReadPackage(const FPackagePath& PackagePath, EPackageSegment PackageSegment)
+FOpenAsyncPackageResult FEditorDomain::OpenAsyncReadPackage(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex, EPackageSegment PackageSegment)
 {
 	using namespace UE::EditorDomain;
 	using namespace UE::DerivedData;
 
+	checkf(CookedIndex.IsDefault(), TEXT("Editor Domain does not support bulkdata cooked indices"));
+
 	FScopeLock ScopeLock(&Locks->Lock);
 	if (PackageSegment != EPackageSegment::Header)
 	{
-		return Workspace->OpenAsyncReadPackage(PackagePath, PackageSegment);
+		return Workspace->OpenAsyncReadPackage(PackagePath, CookedIndex, PackageSegment);
 	}
 
 	FName PackageName = PackagePath.GetPackageFName();
 	if (PackageName.IsNone())
 	{
-		return Workspace->OpenAsyncReadPackage(PackagePath, PackageSegment);
+		return Workspace->OpenAsyncReadPackage(PackagePath, CookedIndex, PackageSegment);
 	}
 	TRefCountPtr<FPackageSource> PackageSource;
 	bool bReenteredLock;
 	if (!TryFindOrAddPackageSource(ScopeLock, bReenteredLock, PackageName, PackageSource) ||
 		(PackageSource->Source == EPackageSource::Workspace))
 	{
-		return Workspace->OpenAsyncReadPackage(PackagePath, PackageSegment);
+		return Workspace->OpenAsyncReadPackage(PackagePath, CookedIndex, PackageSegment);
 	}
 	PackageSource->SetHasLoaded();
 

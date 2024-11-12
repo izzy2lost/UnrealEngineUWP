@@ -4,6 +4,7 @@
 
 #include "CommonButtonBase.h"
 #include "Components/DynamicEntryBoxBase.h"
+#include "CommonInputTypeEnum.h"
 #include "Tickable.h"
 #include "CommonBoundActionBar.generated.h"
 
@@ -35,6 +36,7 @@ public:
 	//~ FTickableGameObject End
 
 protected:
+	virtual void BeginDestroy() override;
 	virtual void OnWidgetRebuilt() override;
 	virtual void SynchronizeProperties() override;
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
@@ -53,6 +55,7 @@ protected:
 #endif
 
 private:
+	void HandledInputTypeUpdated(ECommonInputType InputType);
 	void HandleBoundActionsUpdated(bool bFromOwningPlayer);
 	void HandleDeferredDisplayUpdate();
 	void HandlePlayerAdded(int32 PlayerIdx);

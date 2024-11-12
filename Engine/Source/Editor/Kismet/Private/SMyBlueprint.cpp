@@ -73,6 +73,7 @@
 #include "Misc/CString.h"
 #include "Misc/Guid.h"
 #include "ObjectEditorUtils.h"
+#include "ObjectTools.h"
 #include "SBlueprintPalette.h"
 #include "SGraphActionMenu.h"
 #include "SKismetInspector.h"
@@ -880,7 +881,7 @@ TSharedRef<SWidget> SMyBlueprint::OnGetSectionWidget(TSharedRef<SWidget> RowWidg
 				[
 					SAssignNew(FunctionSectionButton, SComboButton)
 					.IsEnabled(this, &SMyBlueprint::IsEditingMode)
-					.Visibility(this, &SMyBlueprint::OnGetSectionTextVisibility, WeakRowWidget, InSectionID)
+					.Visibility(EVisibility::SelfHitTestInvisible)
 					.ForegroundColor(FAppStyle::GetSlateColor("DefaultForeground"))
 					.OnGetMenuContent(this, &SMyBlueprint::OnGetFunctionListMenu)
 					.ContentPadding(0.0f)
@@ -1021,25 +1022,6 @@ bool SMyBlueprint::HandleActionMatchesName(FEdGraphSchemaAction* InAction, const
 	return false;
 }
 
-EVisibility SMyBlueprint::OnGetSectionTextVisibility(TWeakPtr<SWidget> RowWidget, int32 InSectionID) const
-{
-	bool ShowText = RowWidget.Pin()->IsHovered();
-	if ( InSectionID == NodeSectionID::FUNCTION && FunctionSectionButton.IsValid() && FunctionSectionButton->IsOpen() )
-	{
-		ShowText = true;
-	}
-
-	// If the row is currently hovered, or a menu is being displayed for a button, keep the button expanded.
-	if ( ShowText )
-	{
-		return EVisibility::SelfHitTestInvisible;
-	}
-	else
-	{
-		return EVisibility::Hidden;
-	}
-}
-
 TSharedRef<SWidget> SMyBlueprint::OnGetFunctionListMenu()
 {
 	const bool bShouldCloseWindowAfterMenuSelection = true;
@@ -1143,11 +1125,10 @@ bool SMyBlueprint::CanRequestRenameOnActionNode(TWeakPtr<FGraphActionNode> InSel
 	}
 	else if (InSelectedNode.Pin()->IsActionNode())
 	{
-		check( InSelectedNode.Pin()->Actions.Num() > 0 && InSelectedNode.Pin()->Actions[0].IsValid() );
-		bIsReadOnly = FBlueprintEditorUtils::IsPaletteActionReadOnly(InSelectedNode.Pin()->Actions[0], BlueprintEditorPtr.Pin());
+		bIsReadOnly = FBlueprintEditorUtils::IsPaletteActionReadOnly(InSelectedNode.Pin()->Action, BlueprintEditorPtr.Pin());
 		if(!bIsReadOnly)
 		{
-			bIsReadOnly = !InSelectedNode.Pin()->Actions[0]->CanBeRenamed();
+			bIsReadOnly = !InSelectedNode.Pin()->Action->CanBeRenamed();
 		}
 	}
 
@@ -1411,7 +1392,7 @@ void SMyBlueprint::AddEventForFunctionGraph(UEdGraph* InEdGraph, int32 const Sec
 	//@TODO: Should be a bit more generic (or the AnimGraph shouldn't be stored as a FunctionGraph...)
 	const bool bIsConstructionScript = InEdGraph->GetFName() == UEdGraphSchema_K2::FN_UserConstructionScript;
 
-	TSharedPtr<FEdGraphSchemaAction_K2Graph> NewFuncAction = MakeShareable(new FEdGraphSchemaAction_K2Graph(EEdGraphSchemaAction_K2Graph::Function, ActionCategory, DisplayInfo.PlainName, DisplayInfo.Tooltip, bIsConstructionScript ? 2 : 1, SectionId));
+	TSharedPtr<FEdGraphSchemaAction_K2Graph> NewFuncAction = MakeShareable(new FEdGraphSchemaAction_K2Graph(EEdGraphSchemaAction_K2Graph::Function, ActionCategory, DisplayInfo.DisplayName, DisplayInfo.Tooltip, bIsConstructionScript ? 2 : 1, SectionId));
 	NewFuncAction->FuncName = InEdGraph->GetFName();
 	NewFuncAction->EdGraph = InEdGraph;
 
@@ -1618,7 +1599,7 @@ void SMyBlueprint::CollectAllActions(FGraphActionListBuilderBase& OutAllActions)
 			 && Blueprint->AllowFunctionOverride(Function)
 		   )
 		{
-			FText FunctionTooltip = FText::FromString(UK2Node_CallFunction::GetDefaultTooltipForFunction(Function));
+			FText FunctionTooltip = FText::FromString(ObjectTools::GetDefaultTooltipForFunction(Function));
 			FText FunctionDesc = K2Schema->GetFriendlySignatureName(Function);
 			if ( FunctionDesc.IsEmpty() )
 			{
@@ -2560,6 +2541,20 @@ TSharedPtr<SWidget> SMyBlueprint::OnContextMenuOpening()
 					})
 				);
 			}
+
+			if (const UEdGraphSchema* Schema = Graph->EdGraph->GetSchema())
+			{
+				if (Schema->AllowsFunctionVariants())
+				{
+					MenuBuilder.AddMenuEntry(
+						LOCTEXT("MyBlueprint_Add_Func_Variant", "Add Variant (Experimental)"), FText(), FSlateIcon(),
+						FExecuteAction::CreateLambda([BlueprintEditor, Graph]()
+						{
+							BlueprintEditor->AddNewFunctionVariant(Graph->EdGraph);
+						})
+					);
+				}
+			}
 		}
 		// If this is an event, allow us to convert it to a function graph if possible
 		else if( Event )
@@ -2997,6 +2992,7 @@ void SMyBlueprint::OnFindReference(bool bSearchAllBlueprints, const EGetFindRefe
 		if (!bSearchTermGenerated)
 		{
 			SearchTerm = EventAction->NodeTemplate->GetFindReferenceSearchString(EGetFindReferenceSearchStringFlags::None);
+			bUseQuotes = false;
 		}
 	}
 	else if (FEdGraphSchemaAction_K2InputAction* InputAction = SelectionAsInputAction())
@@ -3486,9 +3482,12 @@ void SMyBlueprint::OnDuplicateAction()
 		else
 		{
 			const FScopedTransaction Transaction(LOCTEXT("DuplicateGraph", "Duplicate Graph"));
-			GetBlueprintObj()->Modify();
+			UBlueprint* BlueprintObj = GetBlueprintObj();
+			UEdGraph* GraphToDuplicate = GraphAction->EdGraph;
 
-			UEdGraph* DuplicatedGraph = GraphAction->EdGraph->GetSchema()->DuplicateGraph(GraphAction->EdGraph);
+			BlueprintObj->Modify();
+
+			UEdGraph* DuplicatedGraph = GraphToDuplicate->GetSchema()->DuplicateGraph(GraphToDuplicate);
 			check(DuplicatedGraph);
 
 			DuplicatedGraph->Modify();
@@ -3510,13 +3509,20 @@ void SMyBlueprint::OnDuplicateAction()
 
 			if (GraphType == GT_Function || GraphType == GT_Animation)
 			{
-				GetBlueprintObj()->FunctionGraphs.Add(DuplicatedGraph);
+				BlueprintObj->FunctionGraphs.Add(DuplicatedGraph);
 			}
 			else if (GraphType == GT_Macro)
 			{
-				GetBlueprintObj()->MacroGraphs.Add(DuplicatedGraph);
+				BlueprintObj->MacroGraphs.Add(DuplicatedGraph);
 			}
-			FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(GetBlueprintObj());
+
+			// Now that we've taken ownership of the graph (assigned it into macrographs
+			// or functiongraphs, as appropriate) it will be properly categorized
+			// and we can run post rename logic reliably:
+			FName NewGraphName = FBlueprintEditorUtils::FindUniqueKismetName(BlueprintObj, GraphToDuplicate->GetFName().GetPlainNameString());
+			FBlueprintEditorUtils::RenameGraph(DuplicatedGraph, NewGraphName.ToString());
+
+			FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(BlueprintObj);
 
 			BlueprintEditorPtr.Pin()->OpenDocument(DuplicatedGraph, FDocumentTracker::ForceOpenNewDocument);
 			DuplicateActionName = DuplicatedGraph->GetFName();

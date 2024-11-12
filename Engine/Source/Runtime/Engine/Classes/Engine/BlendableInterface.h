@@ -169,7 +169,3 @@ private:
 	/** Flag for whether the material should be blendable */
 	bool bIsBlendable;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

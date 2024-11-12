@@ -32,7 +32,7 @@ void SWarningOrErrorBox::Construct(const FArguments& InArgs)
 				SNew(STextBlock)
 				.Text(InArgs._Message)
 				.ColorAndOpacity(FAppStyle::Get().GetSlateColor("Colors.White"))
-				.AutoWrapText(true)
+				.AutoWrapText(InArgs._AutoWrapText)
 			]
 
 			+SHorizontalBox::Slot()

@@ -19,11 +19,12 @@
 #define VULKAN_SUPPORTS_DEDICATED_ALLOCATION		0
 #define VULKAN_SUPPORTS_ASTC_DECODE_MODE			1
 #define VULKAN_SUPPORTS_NV_DIAGNOSTIC_CHECKPOINT	0
-#define VULKAN_RHI_RAYTRACING						(RHI_RAYTRACING)
-#define VULKAN_SUPPORTS_SCALAR_BLOCK_LAYOUT			(VULKAN_RHI_RAYTRACING)
+#define VULKAN_SUPPORTS_SCALAR_BLOCK_LAYOUT			1
 #define VULKAN_SUPPORTS_TRANSIENT_RESOURCE_ALLOCATOR 0
 #define VULKAN_SUPPORTS_DRIVER_PROPERTIES			0
-#define VULKAN_SUPPORTS_DESCRIPTOR_INDEXING			(VULKAN_RHI_RAYTRACING)
+#define VULKAN_SUPPORTS_DESCRIPTOR_INDEXING			1
+#define VULKAN_SUPPORTS_GPU_CRASH_DUMPS				1
+#define VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH	0
 
 #define UE_VK_API_VERSION							VK_API_VERSION_1_1
 
@@ -31,6 +32,7 @@
 
 #define ENUM_VK_ENTRYPOINTS_PLATFORM_INSTANCE(EnumMacro) \
 	EnumMacro(PFN_vkCreateAndroidSurfaceKHR, vkCreateAndroidSurfaceKHR) \
+	EnumMacro(PFN_vkGetAndroidHardwareBufferPropertiesANDROID, vkGetAndroidHardwareBufferPropertiesANDROID)
 
 #define ENUM_VK_ENTRYPOINTS_OPTIONAL_PLATFORM_INSTANCE(EnumMacro) \
 	EnumMacro(PFN_vkGetRefreshCycleDurationGOOGLE, vkGetRefreshCycleDurationGOOGLE) \
@@ -59,7 +61,7 @@ public:
 
 	static void* GetHardwareWindowHandle();
 
-	static bool SupportsBCTextureFormats() { return false; }
+	static bool SupportsBCTextureFormats();
 	static bool SupportsASTCTextureFormats() { return true; }
 	static bool SupportsETC2TextureFormats() { return true; }
 	// GLES does not support R16Unorm, so all Android has to fallback to R16F instead
@@ -89,7 +91,7 @@ public:
 
 	static bool SupportsTimestampRenderQueries();
 
-	static bool SupportsDynamicResolution() { return SupportsTimestampRenderQueries(); }
+	static bool SupportsDynamicResolution();
 
 	static bool RequiresMobileRenderer()
 	{
@@ -145,10 +147,10 @@ public:
 	static void DestroySwapchainKHR(VkDevice Device, VkSwapchainKHR Swapchain, const VkAllocationCallbacks* Allocator);
 
 	// handle precompile of PSOs, send to an android specific precompile external process.
-	static VkPipelineCache PrecompilePSO(FVulkanDevice* Device, const TArrayView<uint8> OptionalPSOCacheData, const VkGraphicsPipelineCreateInfo* PipelineInfo, FGfxPipelineDesc* GfxEntry, const FVulkanRenderTargetLayout* RTLayout, TArrayView<uint32_t> VS, TArrayView<uint32_t> PS, size_t& AfterSize);
+	static VkPipelineCache PrecompilePSO(FVulkanDevice* Device, const TArrayView<uint8> OptionalPSOCacheData, FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType, const VkGraphicsPipelineCreateInfo* PipelineInfo, const FGfxPipelineDesc* GfxEntry, const FVulkanRenderTargetLayout* RTLayout, TArrayView<uint32_t> VS, TArrayView<uint32_t> PS, size_t& AfterSize, FString* FailureMessageOUT = nullptr);
 
 	static bool AreRemoteCompileServicesActive();
-	static bool StartAndWaitForRemoteCompileServices(int NumServices);
+	static bool StartRemoteCompileServices(int NumServices);
 	static void StopRemoteCompileServices();
 
 	// Do not attempt to immediately recreate swapchain
@@ -173,6 +175,12 @@ public:
 		// Many Android Vulkan implementations do not support wave ops in vertex and geometry shaders and we don't need them there.
 		return VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
 	}
+
+	static void WriteCrashMarker(const FOptionalVulkanDeviceExtensions& OptionalExtensions, FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding);
+
+#if USE_ANDROID_VULKAN_SWAPPY
+	static bool bSwappyEnabledAtRHIInit;
+#endif
 
 protected:
 	static void* VulkanLib;
@@ -244,27 +252,3 @@ private:
 #endif //VULKAN_SUPPORTS_GOOGLE_DISPLAY_TIMING
 
 typedef FVulkanAndroidPlatform FVulkanPlatform;
-
-/* VK_QCOM_render_pass_transform */
-#ifndef VK_QCOM_render_pass_transform
-#define VK_QCOM_render_pass_transform 1
-#define VK_QCOM_RENDER_PASS_TRANSFORM_SPEC_VERSION 1
-#define VK_QCOM_RENDER_PASS_TRANSFORM_EXTENSION_NAME "VK_QCOM_render_pass_transform"
-#define VK_STRUCTURE_TYPE_RENDER_PASS_TRANSFORM_BEGIN_INFO_QCOM 1000282000
-#define VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_RENDER_PASS_TRANSFORM_INFO_QCOM 1000282001
-#define VK_RENDER_PASS_CREATE_TRANSFORM_BIT_QCOM 0x00000002
-typedef struct VkRenderPassTransformBeginInfoQCOM {
-	VkStructureType sType;
-	void* pNext;
-	VkSurfaceTransformFlagBitsKHR transform;
-} VkRenderPassTransformBeginInfoQCOM;
-
-typedef struct VkCommandBufferInheritanceRenderPassTransformInfoQCOM {
-	VkStructureType sType;
-	void* pNext;
-	VkSurfaceTransformFlagBitsKHR transform;
-	VkRect2D renderArea;
-} VkCommandBufferInheritanceRenderPassTransformInfoQCOM;
-
-#endif //VK_QCOM_render_pass_transform
-#define VULKAN_SUPPORTS_QCOM_RENDERPASS_TRANSFORM			1

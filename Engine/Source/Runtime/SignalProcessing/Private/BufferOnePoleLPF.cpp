@@ -60,10 +60,9 @@ namespace Audio
 		OutSampleData[0] = InSampleData[0] * A0 + B1 * Z1;
 		for(Index = 1, DelayIndex = 0; Index < InNum; Index++, DelayIndex++)
 		{
-			//OutSampleData[Index] = UnderflowClamp(InSampleData[Index] * A0 + B1 * OutSampleData[DelayIndex]);
 			OutSampleData[Index] = InSampleData[Index] * A0 + B1 * OutSampleData[DelayIndex];
 		}
-		ArrayUnderflowClamp(OutSamples);
+
 		// Store delay value
 		Z1 = OutSampleData[InNum - 1];
 	}

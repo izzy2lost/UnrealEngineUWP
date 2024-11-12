@@ -6,24 +6,43 @@ D3D12CommandContext.h: D3D12 Command Context Interfaces
 
 #pragma once
 
-#include "D3D12RHIPrivate.h"
-#include "D3D12Queue.h"
+#include "D3D12Allocation.h"
 #include "D3D12BindlessDescriptors.h"
-
-#include "Windows/AllowWindowsPlatformTypes.h"
-THIRD_PARTY_INCLUDES_START
-#if USE_PIX
-	#include "pix3.h"
-#endif
-#include "Windows/HideWindowsPlatformTypes.h"
-THIRD_PARTY_INCLUDES_END
+#include "D3D12CommandList.h"
+#include "D3D12Queue.h"
+#include "D3D12Query.h"
+#include "D3D12Resources.h"
+#include "D3D12StateCachePrivate.h"
+#include "D3D12Submission.h"
+#include "D3D12Texture.h"
+#include "Experimental/Containers/RobinHoodHashTable.h"
 
 #include "RHICoreShader.h"
 #include "RHICore.h"
+#include "RHIShaderBindingLayout.h"
+
+#include "GPUProfiler.h"
+
+#if USE_PIX
+	#include "Windows/AllowWindowsPlatformTypes.h"
+	THIRD_PARTY_INCLUDES_START
+		#include <pix3.h>
+	#include "Windows/HideWindowsPlatformTypes.h"
+	THIRD_PARTY_INCLUDES_END
+#endif
+
+enum class ED3D12PipelineType : uint8;
 
 struct FD3D12DescriptorHeap;
 struct FRayTracingShaderBindings;
+struct FD3D12ViewSubset;
 class FD3D12Device;
+class FD3D12Resource;
+class FD3D12Heap;
+struct FD3D12DescriptorHeap;
+class FD3D12ResourceLocation;
+class FD3D12RootSignature;
+class FD3D12ExplicitDescriptorCache;
 
 struct FD3D12DeferredDeleteObject
 {
@@ -35,10 +54,12 @@ struct FD3D12DeferredDeleteObject
 		DescriptorHeap,
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 		BindlessDescriptor,
+		BindlessDescriptorHeap,
 #endif
 		CPUAllocation,
 		DescriptorBlock,
-		VirtualAllocation
+		VirtualAllocation,
+		Func
 	} Type;
 
 	union
@@ -47,6 +68,8 @@ struct FD3D12DeferredDeleteObject
 		FD3D12Heap* Heap;
 		FD3D12DescriptorHeap* DescriptorHeap;
 		ID3D12Object* D3DObject;
+
+		TUniqueFunction<void()>* Func;
 
 		struct
 		{
@@ -81,10 +104,16 @@ struct FD3D12DeferredDeleteObject
 		, Heap(InHeap)
 	{}
 
-	explicit FD3D12DeferredDeleteObject(FD3D12DescriptorHeap* InDescriptorHeap)
-		: Type(EType::DescriptorHeap)
+	explicit FD3D12DeferredDeleteObject(FD3D12DescriptorHeap* InDescriptorHeap, EType Type)
+		: Type(Type)
 		, DescriptorHeap(InDescriptorHeap)
-	{}
+	{
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+		check(Type == EType::BindlessDescriptorHeap || Type == EType::DescriptorHeap);
+#else
+		check(Type == EType::DescriptorHeap);
+#endif
+	}
 
 	explicit FD3D12DeferredDeleteObject(ID3D12Object* D3DObject)
 		: Type(EType::D3DObject)
@@ -113,6 +142,11 @@ struct FD3D12DeferredDeleteObject
 	explicit FD3D12DeferredDeleteObject(FPlatformMemory::FPlatformVirtualMemoryBlock& VirtualBlock, ETextureCreateFlags Flags, uint64 CommittedTextureSize, void* RawMemory)
 		: Type(EType::VirtualAllocation)
 		, VirtualAllocDescriptor({ VirtualBlock, Flags, CommittedTextureSize, RawMemory })
+	{}
+
+	explicit FD3D12DeferredDeleteObject(TUniqueFunction<void()>&& Func)
+		: Type(EType::Func)
+		, Func(new TUniqueFunction<void()>(MoveTemp(Func)))
 	{}
 };
 
@@ -204,9 +238,6 @@ public:
 
 	bool IsOpen() const { return CommandList != nullptr; }
 
-	// Returns unique identity that can be used to distinguish between command lists even after they were recycled.
-	uint64 GetCommandListID() { return GetCommandList().State.CommandListID; }
-
 	FD3D12SyncPoint* GetContextSyncPoint()
 	{
 		if (!ContextSyncPoint)
@@ -226,9 +257,13 @@ public:
 		TArray<FD3D12SyncPointRef> ToSignal;
 	} BatchedSyncPoints;
 
+	void BindDiagnosticBuffer(FD3D12RootSignature const* RootSignature, ED3D12PipelineType PipelineType);
+
 private:
 	// Allocators to manage query heaps
-	FD3D12QueryAllocator TimestampQueries, OcclusionQueries, PipelineStatsQueries;
+	FD3D12QueryAllocator TimestampQueries;
+	FD3D12QueryAllocator OcclusionQueries;
+	FD3D12QueryAllocator PipelineStatsQueries;
 
 	// Batches resource barriers together until it's explicitly flushed
 	FD3D12ResourceBarrierBatcher ResourceBarrierBatcher;
@@ -248,9 +283,13 @@ private:
 	// A sync point signaled when all payloads in this context have completed.
 	FD3D12SyncPointRef ContextSyncPoint;
 
-	// Stack containing GPU breadcrumbs for crash debugging
-	TSharedPtr<FBreadcrumbStack> BreadcrumbStack;
+public:
+	void BeginRecursiveCommand()
+	{
+		// Nothing to do
+	}
 
+protected:
 	// Returns the current command list (or creates a new one if the command list was not open).
 	FD3D12CommandList& GetCommandList()
 	{
@@ -259,17 +298,8 @@ private:
 		return *CommandList;
 	}
 
-public:
-	void BeginRecursiveCommand()
-	{
-		// Nothing to do
-	}
-
-protected:
-	void WriteGPUEventStackToBreadCrumbData(const TCHAR* Name, int32 CRC);
-	void WriteGPUEventToBreadCrumbData(FBreadcrumbStack* Breadcrumbs, uint32 MarkerIndex, bool bBeginEvent);
-	[[nodiscard]] bool InitPayloadBreadcrumbs();
-	void PopGPUEventStackFromBreadCrumbData();
+	enum class EMarkerType { In, Out };
+	void WriteMarker(D3D12_GPU_VIRTUAL_ADDRESS Address, uint32 Value, EMarkerType Type);
 
 	enum class EPhase
 	{
@@ -282,11 +312,15 @@ protected:
 	FD3D12Payload* GetPayload(EPhase Phase)
 	{
 		if (Payloads.Num() == 0 || Phase < CurrentPhase)
-			Payloads.Add(new FD3D12Payload(Device, QueueType));
+		{
+			NewPayload();
+		}
 
 		CurrentPhase = Phase;
 		return Payloads.Last();
 	}
+
+	void NewPayload();
 
 	uint32 ActiveQueries = 0;
 
@@ -311,34 +345,38 @@ public:
 	auto CopyCommandList      () { return GetCommandList().CopyCommandList(); }
 	auto GraphicsCommandList  () { return GetCommandList().GraphicsCommandList(); }
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 1
-	auto GraphicsCommandList1() { return GetCommandList().GraphicsCommandList1(); }
+	auto GraphicsCommandList1 () { return GetCommandList().GraphicsCommandList1(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 2
-	auto GraphicsCommandList2() { return GetCommandList().GraphicsCommandList2(); }
+	auto GraphicsCommandList2 () { return GetCommandList().GraphicsCommandList2(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 3
-	auto GraphicsCommandList3() { return GetCommandList().GraphicsCommandList3(); }
+	auto GraphicsCommandList3 () { return GetCommandList().GraphicsCommandList3(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 4
-	auto GraphicsCommandList4() { return GetCommandList().GraphicsCommandList4(); }
+	auto GraphicsCommandList4 () { return GetCommandList().GraphicsCommandList4(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 5
-	auto GraphicsCommandList5() { return GetCommandList().GraphicsCommandList5(); }
+	auto GraphicsCommandList5 () { return GetCommandList().GraphicsCommandList5(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 6
-	auto GraphicsCommandList6() { return GetCommandList().GraphicsCommandList6(); }
+	auto GraphicsCommandList6 () { return GetCommandList().GraphicsCommandList6(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 7
-	auto GraphicsCommandList7() { return GetCommandList().GraphicsCommandList7(); }
+	auto GraphicsCommandList7 () { return GetCommandList().GraphicsCommandList7(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 8
-	auto GraphicsCommandList8() { return GetCommandList().GraphicsCommandList8(); }
+	auto GraphicsCommandList8 () { return GetCommandList().GraphicsCommandList8(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 9
-	auto GraphicsCommandList9() { return GetCommandList().GraphicsCommandList9(); }
+	auto GraphicsCommandList9 () { return GetCommandList().GraphicsCommandList9(); }
 #endif
-#if D3D12_PLATFORM_SUPPORTS_ASSERTRESOURCESTATES			    
-	auto DebugCommandList() { return GetCommandList().DebugCommandList(); }
+#if D3D12_MAX_COMMANDLIST_INTERFACE >= 10
+	auto GraphicsCommandList10() { return GetCommandList().GraphicsCommandList10(); }
+#endif
+
+#if D3D12_SUPPORTS_DEBUG_COMMAND_LIST			    
+	auto DebugCommandList     () { return GetCommandList().DebugCommandList(); }
 #endif
 #if D3D12_RHI_RAYTRACING
 	auto RayTracingCommandList() { return GetCommandList().RayTracingCommandList(); }
@@ -351,15 +389,9 @@ public:
 	void EndQuery  (FD3D12QueryLocation const& Location) { GetCommandList().EndQuery  (Location); }
 
 #if ENABLE_RESIDENCY_MANAGEMENT
-	void UpdateResidency(TConstArrayView<FD3D12ResidencyHandle*> Handles) { GetCommandList().UpdateResidency(Handles); }
-	void UpdateResidency(FD3D12ResidencyHandle& Handle                  ) { GetCommandList().UpdateResidency({ &Handle }); }
-	void UpdateResidency(FD3D12ResidencyHandle* Handle                  ) { check(Handle  ); GetCommandList().UpdateResidency({ Handle }); }
-	void UpdateResidency(FD3D12Resource* Resource                       ) { check(Resource); GetCommandList().UpdateResidency(Resource->GetResidencyHandles()); }
+	void UpdateResidency(const FD3D12Resource* Resource) { check(Resource); GetCommandList().UpdateResidency(Resource); }
 #else
-	void UpdateResidency(TConstArrayView<FD3D12ResidencyHandle*> Handles) { }
-	void UpdateResidency(FD3D12ResidencyHandle& Handle                  ) { }
-	void UpdateResidency(FD3D12ResidencyHandle* Handle                  ) { }
-	void UpdateResidency(FD3D12Resource* Resource                       ) { }
+	void UpdateResidency(const FD3D12Resource* Resource) { }
 #endif
 
 	// Pending resource barriers are resolved by a dedicated barrier command list, generated during command list submission.
@@ -436,10 +468,6 @@ public:
 	void RHIBeginDrawingViewport(FRHIViewport* Viewport, FRHITexture* RenderTargetRHI) final override;
 	void RHIEndDrawingViewport(FRHIViewport* Viewport, bool bPresent, bool bLockToVsync) final override;
 
-	void RHIEndFrame() final override;
-
-	virtual void UpdateMemoryStats();
-
 	FRHIGPUMask GetGPUMask() const { return GPUMask; }
 	FRHIGPUMask GetPhysicalGPUMask() const { return PhysicalGPUMask; }
 
@@ -452,11 +480,15 @@ public:
 		return static_cast<FD3D12CommandContextBase&>(RHICmdList.GetComputeContext().GetLowestLevelContext());
 	}
 
-	virtual void UpdateBuffer(FD3D12ResourceLocation* Dest, uint32 DestOffset, FD3D12ResourceLocation* Source, uint32 SourceOffset, uint32 NumBytes) = 0;
+	static FD3D12CommandContextBase* Get(IRHIComputeContext* RHIContext)
+	{
+		return RHIContext ? static_cast<FD3D12CommandContextBase*>(&RHIContext->GetLowestLevelContext()) : nullptr;
+	}
+
+	virtual FD3D12CommandContext* GetSingleDeviceContext(uint32 InGPUIndex) = 0;
 
 protected:
 	friend class FD3D12CommandContext;
-	virtual FD3D12CommandContext* GetContext(uint32 InGPUIndex) = 0;
 
 	FRHIGPUMask GPUMask;
 	FRHIGPUMask PhysicalGPUMask;
@@ -473,7 +505,7 @@ public:
 	{
 		FD3D12CommandContextBase& Base = FD3D12CommandContextBase::Get(RHICmdList);
 #if WITH_MGPU
-		return *Base.GetContext(GPUIndex);
+		return *Base.GetSingleDeviceContext(GPUIndex);
 #else
 		return static_cast<FD3D12CommandContext&>(Base);
 #endif
@@ -494,6 +526,18 @@ public:
 	void ClearShaderResources(FD3D12UnorderedAccessView* UAV, EShaderParameterTypeMask ShaderParameterTypeMask);
 	void ClearShaderResources(FD3D12BaseShaderResource* Resource, EShaderParameterTypeMask ShaderParameterTypeMask);
 	void ClearAllShaderResources();
+
+#if RHI_NEW_GPU_PROFILER
+	void FlushProfilerStats()
+	{
+		// Flush accumulated draw stats
+		if (StatEvent)
+		{
+			GetCommandList().EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FStats>() = StatEvent;
+			StatEvent = {};
+		}
+	}
+#endif
 
 	FD3D12FastConstantAllocator ConstantsAllocator;
 
@@ -517,8 +561,6 @@ public:
 
 	/** When a new compute PSO is set, we discard all old constants set for the previous shader. */
 	bool bDiscardSharedComputeConstants = false;
-
-	bool bTrackingEvents = false;
 
 	/** Used by variable rate shading to cache the current state of the combiners and the constant shading rate*/
 #if PLATFORM_SUPPORTS_VARIABLE_RATE_SHADING
@@ -546,6 +588,11 @@ public:
 		}
 	}
 	virtual void FlushTextureCache() {};
+#endif
+
+#if RHI_RAYTRACING
+	// Used to deduplicate work done by the shader table on this context.
+	Experimental::TRobinHoodHashSet<uint64> RayTracingShaderTables;
 #endif
 
 	/** needs to be called before each draw call */
@@ -576,8 +623,7 @@ public:
 		);
 
 	virtual void SetDepthBounds(float MinDepth, float MaxDepth);
-	virtual void SetShadingRate(EVRSShadingRate ShadingRate, const TStaticArray<EVRSRateCombiner, ED3D12VRSCombinerStages::Num>& Combiners);
-	virtual void SetShadingRateImage(FD3D12Resource* ShadingRateImage);
+	virtual void SetShadingRate(EVRSShadingRate ShadingRate, FD3D12Resource* ShadingRateImage, const TStaticArray<EVRSRateCombiner, ED3D12VRSCombinerStages::Num>& Combiners);
 
 	virtual void SetAsyncComputeBudgetInternal(EAsyncComputeBudget Budget) {}
 
@@ -592,9 +638,10 @@ public:
 	virtual void RHISetShaderParameters(FRHIComputeShader* Shader, TConstArrayView<uint8> InParametersData, TConstArrayView<FRHIShaderParameter> InParameters, TConstArrayView<FRHIShaderParameterResource> InResourceParameters, TConstArrayView<FRHIShaderParameterResource> InBindlessParameters) final override;
 	virtual void RHISetShaderUnbinds(FRHIComputeShader* Shader, TConstArrayView<FRHIShaderParameterUnbind> InUnbinds) final override;
 	virtual void RHISetShaderUnbinds(FRHIGraphicsShader* Shader, TConstArrayView<FRHIShaderParameterUnbind> InUnbinds) final override;
-	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) final override;
-	virtual void RHIPopEvent() final override;
-	virtual void RHISubmitCommandsHint() final override;
+#if WITH_RHI_BREADCRUMBS
+	virtual void RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) final override;
+	virtual void RHIEndBreadcrumbGPU  (FRHIBreadcrumbNode* Breadcrumb) final override;
+#endif
 
 	// IRHICommandContext interface
 	virtual void RHISetMultipleViewports(uint32 Count, const FViewportBounds* Data) final override;
@@ -605,9 +652,9 @@ public:
 	virtual void RHICopyToStagingBuffer(FRHIBuffer* SourceBuffer, FRHIStagingBuffer* DestinationStagingBuffer, uint32 Offset, uint32 NumBytes) final override;
 	virtual void RHIBeginRenderQuery(FRHIRenderQuery* RenderQuery) final override;
 	virtual void RHIEndRenderQuery(FRHIRenderQuery* RenderQuery) final override;
+#if (RHI_NEW_GPU_PROFILER == 0)
 	virtual void RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery) final override;
-	virtual void RHIBeginScene() final override;
-	virtual void RHIEndScene() final override;
+#endif
 	virtual void RHISetStreamSource(uint32 StreamIndex, FRHIBuffer* VertexBuffer, uint32 Offset) final override;
 	virtual void RHISetViewport(float MinX, float MinY, float MinZ, float MaxX, float MaxY, float MaxZ) final override;
 	virtual void RHISetStereoViewport(float LeftMinX, float RightMinX, float LeftMinY, float RightMinY, float MinZ, float LeftMaxX, float RightMaxX, float LeftMaxY, float RightMaxY, float MaxZ) override;
@@ -623,10 +670,19 @@ public:
 	virtual void RHISetShaderRootConstants(
 		const FUint32Vector4& Constants) override;
 
-	virtual void RHIDispatchShaderBundle(
+	virtual void RHIDispatchComputeShaderBundle(
 		FRHIShaderBundle* ShaderBundle,
-		FRHIShaderResourceView* RecordArgBufferSRV,
-		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
+		FRHIBuffer* RecordArgBuffer,
+		TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
+		TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches,
+		bool bEmulated) override;
+
+	virtual void RHIDispatchGraphicsShaderBundle(
+		FRHIShaderBundle* ShaderBundle,
+		FRHIBuffer* RecordArgBuffer,
+		const FRHIShaderBundleGraphicsState& BundleState,
+		TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
+		TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
 		bool bEmulated) override;
 
 	virtual void RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 NumPrimitives, uint32 NumInstances) final override;
@@ -643,8 +699,6 @@ public:
     virtual void RHISetShadingRate(EVRSShadingRate ShadingRate, EVRSRateCombiner Combiner) final override;
 
 	virtual void RHIClearMRTImpl(bool* bClearColorArray, int32 NumClearColors, const FLinearColor* ColorArray, bool bClearDepth, float Depth, bool bClearStencil, uint32 Stencil);
-
-	void RHIBeginFrame() final override;
 
 	virtual void RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, const TCHAR* InName)
 	{
@@ -675,33 +729,20 @@ public:
 	virtual void RHIBuildAccelerationStructures(TConstArrayView<FRayTracingGeometryBuildParams> Params, const FRHIBufferRange& ScratchBufferRange) final override;
 	virtual void RHIBuildAccelerationStructure(const FRayTracingSceneBuildParams& SceneBuildParams) final override;
 	virtual void RHIClearRayTracingBindings(FRHIRayTracingScene* Scene) final override;
+	virtual void RHICommitRayTracingBindings(FRHIRayTracingScene* Scene) final override;
+	virtual void RHIClearShaderBindingTable(FRHIShaderBindingTable* SBT) final override;
+	virtual void RHICommitShaderBindingTable(FRHIShaderBindingTable* SBT) final override;
+
 	virtual void RHIRayTraceDispatch(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
-		FRHIRayTracingScene* Scene,
-		const FRayTracingShaderBindings& GlobalResourceBindings,
+		FRHIShaderBindingTable* InSBT, const FRayTracingShaderBindings& GlobalResourceBindings,
 		uint32 Width, uint32 Height) final override;
 	virtual void RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
-		FRHIRayTracingScene* Scene,
-		const FRayTracingShaderBindings& GlobalResourceBindings,
+		FRHIShaderBindingTable* InSBT, const FRayTracingShaderBindings& GlobalResourceBindings,
 		FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) final override;
-	virtual void RHISetRayTracingBindings(
-		FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline,
+
+	virtual void RHISetBindingsOnShaderBindingTable(
+		FRHIShaderBindingTable* InSBT, FRHIRayTracingPipelineState* Pipeline,
 		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType) final override;
-	virtual void RHISetRayTracingHitGroup(
-		FRHIRayTracingScene* Scene, uint32 InstanceIndex, uint32 SegmentIndex, uint32 ShaderSlot,
-		FRHIRayTracingPipelineState* Pipeline, uint32 HitGroupIndex,
-		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-		uint32 LooseParameterDataSize, const void* LooseParameterData,
-		uint32 UserData) final override;
-	virtual void RHISetRayTracingCallableShader(
-		FRHIRayTracingScene* Scene, uint32 ShaderSlotInScene,
-		FRHIRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline,
-		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-		uint32 UserData) final override;
-	virtual void RHISetRayTracingMissShader(
-		FRHIRayTracingScene* Scene, uint32 ShaderSlotInScene,
-		FRHIRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline,
-		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-		uint32 UserData) final override;
 #endif // D3D12_RHI_RAYTRACING
 
 	template<typename TRHIType, typename TReturnType = typename TD3D12ResourceTraits<TRHIType>::TConcreteType>
@@ -749,14 +790,15 @@ public:
 		ensure(InGPUMask == GPUMask);
 	}
 
-	virtual void UpdateBuffer(FD3D12ResourceLocation* Dest, uint32 DestOffset, FD3D12ResourceLocation* Source, uint32 SourceOffset, uint32 NumBytes) final override;
-
 	inline const TArray<FRHIUniformBuffer*>& GetStaticUniformBuffers() const
 	{
 		return StaticUniformBuffers;
 	}
 
-	void FlushPendingDescriptorUpdates();
+	bool FlushPendingDescriptorUpdates();
+
+	void SetExplicitDescriptorCache(FD3D12ExplicitDescriptorCache& ExplicitDescriptorCache);
+	void UnsetExplicitDescriptorCache();
 
 	virtual void Finalize(TArray<FD3D12Payload*>& OutPayloads) override;
 
@@ -765,9 +807,15 @@ public:
 	FD3D12ContextBindlessState& GetBindlessState() { return BindlessState; }
 #endif
 
+	const FRHIShaderBindingLayout& GetShaderBindingLayout() const
+	{
+		static const FRHIShaderBindingLayout Default;
+		return ShaderBindinglayout ? *ShaderBindinglayout : Default;
+	}
+
 protected:
 
-	FD3D12CommandContext* GetContext(uint32 InGPUIndex) final override 
+	FD3D12CommandContext* GetSingleDeviceContext(uint32 InGPUIndex) final override
 	{  
 		return InGPUIndex == GetGPUIndex() ? this : nullptr; 
 	}
@@ -781,6 +829,8 @@ private:
 
 	static void ClearUAV(TRHICommandList_RecursiveHazardous<FD3D12CommandContext>& RHICmdList, FD3D12UnorderedAccessView_RHI* UAV, const void* ClearValues, bool bFloat);
 
+	void DispatchWorkGraphShaderBundle(FRHIShaderBundle* ShaderBundle, FRHIBuffer* RecordArgBuffer, TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters, TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches);
+
 	void HandleDiscardResources          (TArrayView<const FRHITransition*> Transitions, bool bIsBeginTransition);
 	void HandleResourceTransitions       (const struct FD3D12TransitionData* TransitionData, bool& bUAVBarrier);
 	void HandleTransientAliasing         (const struct FD3D12TransitionData* TransitionData);
@@ -788,6 +838,7 @@ private:
 	void HandleReservedResourceCommits   (const struct FD3D12TransitionData* TransitionData);
 
 	TArray<FRHIUniformBuffer*> StaticUniformBuffers;
+	const FRHIShaderBindingLayout* ShaderBindinglayout = nullptr;
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	FD3D12ContextBindlessState BindlessState;
@@ -855,18 +906,25 @@ public:
 	{
 		ContextRedirect(RHISetShaderUnbinds(Shader, InUnbinds));
 	}
-	FORCEINLINE virtual void RHIPushEvent(const TCHAR* Name, FColor Color) final override
+
+#if WITH_RHI_BREADCRUMBS
+	FORCEINLINE virtual void RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) final override
 	{
-		ContextRedirect(RHIPushEvent(Name, Color));
+		// Always forward to all sub-contexts, regardless of mask
+		for (uint32 GPUIndex : PhysicalGPUMask)
+		{
+			PhysicalContexts[GPUIndex]->RHIBeginBreadcrumbGPU(Breadcrumb);
+		}
 	}
-	FORCEINLINE virtual void RHIPopEvent() final override
+	FORCEINLINE virtual void RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) final override
 	{
-		ContextRedirect(RHIPopEvent());
+		// Always forward to all sub-contexts, regardless of mask
+		for (uint32 GPUIndex : PhysicalGPUMask)
+		{
+			PhysicalContexts[GPUIndex]->RHIEndBreadcrumbGPU(Breadcrumb);
+		}
 	}
-	FORCEINLINE virtual void RHISubmitCommandsHint() final override
-	{
-		ContextRedirect(RHISubmitCommandsHint());
-	}
+#endif // WITH_RHI_BREADCRUMBS
 
 	// IRHICommandContext interface
 	FORCEINLINE virtual void RHISetMultipleViewports(uint32 Count, const FViewportBounds* Data) final override
@@ -897,18 +955,12 @@ public:
 	{
 		ContextRedirect(RHIEndRenderQuery(RenderQuery));
 	}
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FORCEINLINE virtual void RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery) final override
 	{
 		ContextRedirect(RHICalibrateTimers(CalibrationQuery));
 	}
-	FORCEINLINE virtual void RHIBeginScene() final override
-	{
-		ContextRedirect(RHIBeginScene());
-	}
-	FORCEINLINE virtual void RHIEndScene() final override
-	{
-		ContextRedirect(RHIEndScene());
-	}
+#endif
 	FORCEINLINE virtual void RHISetStreamSource(uint32 StreamIndex, FRHIBuffer* VertexBuffer, uint32 Offset) final override
 	{
 		ContextRedirect(RHISetStreamSource(StreamIndex, VertexBuffer, Offset));
@@ -998,11 +1050,6 @@ public:
 		ContextRedirect(RHISetShadingRate(ShadingRate, Combiner));
 	}
 
-	FORCEINLINE virtual void RHIBeginFrame() final override
-	{
-		ContextRedirect(RHIBeginFrame());
-	}
-
 	virtual void RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, const TCHAR* InName) final override
 	{
 		ContextRedirect(RHIBeginRenderPass(InInfo, InName));
@@ -1011,11 +1058,6 @@ public:
 	virtual void RHIEndRenderPass() final override
 	{
 		ContextRedirect(RHIEndRenderPass());
-	}
-
-	virtual void UpdateBuffer(FD3D12ResourceLocation* Dest, uint32 DestOffset, FD3D12ResourceLocation* Source, uint32 SourceOffset, uint32 NumBytes) final override
-	{
-		ContextRedirect(UpdateBuffer(Dest, DestOffset, Source, SourceOffset, NumBytes));
 	}
 
 #if D3D12_RHI_RAYTRACING
@@ -1034,52 +1076,22 @@ public:
 	}
 
 	virtual void RHIRayTraceDispatch(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
-		FRHIRayTracingScene* Scene,
-		const FRayTracingShaderBindings& GlobalResourceBindings,
+		FRHIShaderBindingTable* SBT, const FRayTracingShaderBindings& GlobalResourceBindings,
 		uint32 Width, uint32 Height) final override
 	{
-		ContextRedirect(RHIRayTraceDispatch(RayTracingPipelineState, RayGenShader, Scene, GlobalResourceBindings, Width, Height));
+		ContextRedirect(RHIRayTraceDispatch(RayTracingPipelineState, RayGenShader, SBT, GlobalResourceBindings, Width, Height));
 	}
 
 	virtual void RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
-		FRHIRayTracingScene* Scene,
-		const FRayTracingShaderBindings& GlobalResourceBindings,
+		FRHIShaderBindingTable* SBT, const FRayTracingShaderBindings& GlobalResourceBindings,
 		FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) final override
 	{
-		ContextRedirect(RHIRayTraceDispatchIndirect(RayTracingPipelineState, RayGenShader, Scene, GlobalResourceBindings, ArgumentBuffer, ArgumentOffset));
+		ContextRedirect(RHIRayTraceDispatchIndirect(RayTracingPipelineState, RayGenShader, SBT, GlobalResourceBindings, ArgumentBuffer, ArgumentOffset));
 	}
 
-	virtual void RHISetRayTracingHitGroup(
-		FRHIRayTracingScene* Scene, uint32 InstanceIndex, uint32 SegmentIndex, uint32 ShaderSlot,
-		FRHIRayTracingPipelineState* Pipeline, uint32 HitGroupIndex,
-		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-		uint32 LooseParameterDataSize, const void* LooseParameterData,
-		uint32 UserData) final override
+	virtual void RHISetBindingsOnShaderBindingTable(FRHIShaderBindingTable* SBT, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType) final override
 	{
-		ContextRedirect(RHISetRayTracingHitGroup(Scene, InstanceIndex, SegmentIndex, ShaderSlot, Pipeline, HitGroupIndex, NumUniformBuffers, UniformBuffers, LooseParameterDataSize, LooseParameterData, UserData));
-	}
-
-	virtual void RHISetRayTracingBindings(FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType) final override
-	{
-		ContextRedirect(RHISetRayTracingBindings(Scene, Pipeline, NumBindings, Bindings, BindingType));
-	}
-
-	virtual void RHISetRayTracingCallableShader(
-		FRHIRayTracingScene* Scene, uint32 ShaderSlotInScene,
-		FRHIRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline,
-		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-		uint32 UserData) final override
-	{
-		ContextRedirect(RHISetRayTracingCallableShader(Scene, ShaderSlotInScene, Pipeline, ShaderIndexInPipeline, NumUniformBuffers, UniformBuffers, UserData));
-	}
-
-	virtual void RHISetRayTracingMissShader(
-		FRHIRayTracingScene* Scene, uint32 ShaderSlotInScene,
-		FRHIRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline,
-		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-		uint32 UserData) final override
-	{
-		ContextRedirect(RHISetRayTracingMissShader(Scene, ShaderSlotInScene, Pipeline, ShaderIndexInPipeline, NumUniformBuffers, UniformBuffers, UserData));
+		ContextRedirect(RHISetBindingsOnShaderBindingTable(SBT, Pipeline, NumBindings, Bindings, BindingType));
 	}
 
 	virtual void RHIClearRayTracingBindings(FRHIRayTracingScene* Scene) final override
@@ -1087,9 +1099,24 @@ public:
 		ContextRedirect(RHIClearRayTracingBindings(Scene));
 	}
 
+	virtual void RHIClearShaderBindingTable(FRHIShaderBindingTable* SBT) final override
+	{
+		ContextRedirect(RHIClearShaderBindingTable(SBT));
+	}
+
 	virtual void RHIBindAccelerationStructureMemory(FRHIRayTracingScene* Scene, FRHIBuffer* Buffer, uint32 BufferOffset) final override
 	{
 		ContextRedirect(RHIBindAccelerationStructureMemory(Scene, Buffer, BufferOffset));
+	}
+
+	virtual void RHICommitShaderBindingTable(FRHIShaderBindingTable* SBT) final override
+	{
+		ContextRedirect(RHICommitShaderBindingTable(SBT));
+	}
+
+	virtual void RHICommitRayTracingBindings(FRHIRayTracingScene* Scene) final override
+	{
+		ContextRedirect(RHICommitRayTracingBindings(Scene));
 	}
 
 #endif // D3D12_RHI_RAYTRACING
@@ -1120,20 +1147,19 @@ public:
 		PhysicalContexts[GPUIndex] = Context;
 	}
 
-	FORCEINLINE FD3D12CommandContext* GetContext(uint32 GPUIndex) final override
+	FORCEINLINE FD3D12CommandContext* GetSingleDeviceContext(uint32 GPUIndex) final override
 	{
 		return PhysicalContexts[GPUIndex];
 	}
 
-#if WITH_MGPU // @todo mgpu - remove the whole redirector when WITH_MGPU is false
-	virtual void StatsSetCategory(FRHIDrawStats* InStats, uint32 InCategoryID) final override
+	virtual void SetExecutingCommandList(FRHICommandListBase* InCmdList) final override
 	{
-		for (uint32 GPUIndex : PhysicalGPUMask)
+		FD3D12CommandContextBase::SetExecutingCommandList(InCmdList);
+		for (uint32 Index : PhysicalGPUMask)
 		{
-			PhysicalContexts[GPUIndex]->StatsSetCategory(InStats, InCategoryID, GPUIndex);
+			PhysicalContexts[Index]->SetExecutingCommandList(InCmdList);
 		}
 	}
-#endif
 
 private:
 	TStaticArray<FD3D12CommandContext*, MAX_NUM_GPUS> PhysicalContexts;
@@ -1151,4 +1177,27 @@ struct FD3D12TransitionData
 	TArray<TRHIPipelineArray<FD3D12SyncPointRef>, TInlineAllocator<MAX_NUM_GPUS>> SyncPoints;
 
 	bool bCrossPipeline = false;
+};
+
+class FD3D12ContextArray : public TRHIPipelineArray<FD3D12CommandContextBase*>
+{
+public:
+	FD3D12ContextArray(FRHIContextArray const& Contexts)
+	{
+		for (int32 Index = 0; Index < int32(ERHIPipeline::Num); ++Index)
+		{
+			(*this)[Index] = FD3D12CommandContextBase::Get(Contexts[Index]);
+		}
+	}
+
+	operator FRHIContextArray() const
+	{
+		FRHIContextArray Result;
+		for (int32 Index = 0; Index < int32(ERHIPipeline::Num); ++Index)
+		{
+			FD3D12CommandContextBase* Base = (*this)[Index];
+			Result[Index] = Base ? &Base->GetHighestLevelContext() : nullptr;
+		}
+		return Result;
+	}
 };

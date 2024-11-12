@@ -54,6 +54,26 @@ MS_ALIGN(16) struct FMatrix3x4
 		Dest[10] = (float)Src[10]; // [2][2]
 		Dest[11] = (float)Src[14]; // [3][2]
 	}
+
+	FORCEINLINE void SetIdentity()
+	{
+		float* RESTRICT Dest = &(M[0][0]);
+
+		Dest[ 0] = 1.0f;  // [0][0]
+		Dest[ 1] = 0.0f;  // [0][1]
+		Dest[ 2] = 0.0f;  // [0][2]
+		Dest[ 3] = 0.0f;  // [0][3]
+
+		Dest[ 4] = 0.0f;  // [1][0]
+		Dest[ 5] = 1.0f;  // [1][1]
+		Dest[ 6] = 0.0f;  // [1][2]
+		Dest[ 7] = 0.0f;  // [1][3]
+
+		Dest[ 8] = 0.0f;  // [2][0]
+		Dest[ 9] = 0.0f;  // [2][1]
+		Dest[10] = 1.0f;  // [2][2]
+		Dest[11] = 0.0f;  // [2][3]
+	}
 } GCC_ALIGN(16);
 
 template<>
@@ -70,3 +90,5 @@ struct TShaderParameterTypeInfo<FMatrix3x4>
 
 	static const FShaderParametersMetadata* GetStructMetadata() { return NULL; }
 };
+
+ENGINE_API void TransposeTransforms(FMatrix3x4* DstTransforms, const FMatrix44f* SrcTransforms, int64 Count);

@@ -23,7 +23,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-UE::Interchange::FTaskCreateSceneObjects::FTaskCreateSceneObjects(const FString& InPackageBasePath, const int32 InSourceIndex, TWeakPtr<FImportAsyncHelper> InAsyncHelper, TArrayView<UInterchangeFactoryBaseNode*> InFactoryNodes, const UClass* InFactoryClass)
+UE::Interchange::FTaskCreateSceneObjects_GameThread::FTaskCreateSceneObjects_GameThread(const FString& InPackageBasePath, const int32 InSourceIndex, TWeakPtr<FImportAsyncHelper> InAsyncHelper, TArrayView<UInterchangeFactoryBaseNode*> InFactoryNodes, const UClass* InFactoryClass)
 	: PackageBasePath(InPackageBasePath)
 	, SourceIndex(InSourceIndex)
 	, WeakAsyncHelper(InAsyncHelper)
@@ -33,20 +33,15 @@ UE::Interchange::FTaskCreateSceneObjects::FTaskCreateSceneObjects(const FString&
 	check(FactoryClass);
 }
 
-void UE::Interchange::FTaskCreateSceneObjects::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+void UE::Interchange::FTaskCreateSceneObjects_GameThread::Execute()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskCreateSceneObjects::DoTask)
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskCreateSceneObjects_GameThread::DoTask)
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(SpawnActor)
 #endif
 	using namespace UE::Interchange;
 
-	TOptional<FGCScopeGuard> GCScopeGuard;
-	if (!IsInGameThread())
-	{
-		GCScopeGuard.Emplace();
-	}
-
+	check(IsInGameThread());
 	TSharedPtr<FImportAsyncHelper> AsyncHelper = WeakAsyncHelper.Pin();
 	check(WeakAsyncHelper.IsValid());
 
@@ -56,16 +51,23 @@ void UE::Interchange::FTaskCreateSceneObjects::DoTask(ENamedThreads::Type Curren
 		return;
 	}
 
+	TArray<TObjectPtr<UObject>> ImportObjects;
+	AsyncHelper->IterateImportedAssets(SourceIndex, [&ImportObjects](const TArray<UE::Interchange::FImportAsyncHelper::FImportedObjectInfo>& ImportedObjectInfos)
+		{
+			for (const UE::Interchange::FImportAsyncHelper::FImportedObjectInfo& Info : ImportedObjectInfos)
+			{
+				ImportObjects.Add(Info.ImportedObject);
+			}
+		});
+
 	UObject* ReimportObject = AsyncHelper->TaskData.ReimportObject;
 	ULevel* ImportLevel = AsyncHelper->TaskData.ImportLevel ? AsyncHelper->TaskData.ImportLevel : GWorld->GetCurrentLevel();
 	UWorld* ImportWorld = ImportLevel->GetWorld();
-	const FString WorldPath = ImportWorld->GetOutermost()->GetPathName();
-	const FString WorldName = ImportWorld->GetName();
-	const FString NodePrefix = ImportLevel->GetName() + TEXT(".");
 
 	for (UInterchangeFactoryBaseNode* FactoryNode : FactoryNodes)
 	{
-		if (!FactoryNode)
+		// Don't create actors on a first import if they're disabled
+		if (!FactoryNode || !FactoryNode->IsEnabled())
 		{
 			continue;
 		}
@@ -75,14 +77,41 @@ void UE::Interchange::FTaskCreateSceneObjects::DoTask(ENamedThreads::Type Curren
 		AsyncHelper->AddCreatedFactory(FactoryNode->GetUniqueID(), Factory);
 
 		FString SceneNodeName = FactoryNode->GetAssetName();
-		SanitizeObjectName(SceneNodeName);
+		UInterchangeManager::GetInterchangeManager().SanitizeNameInline(SceneNodeName, ESanitizeNameTypeFlags::ObjectName | ESanitizeNameTypeFlags::ObjectPath | ESanitizeNameTypeFlags::LongPackage);
+
+		ULevel* FactoryImportLevel = ImportLevel;
+		UWorld* FactoryImportWorld = ImportWorld;
+
+		FString FactoryNodeLevelUid;
+		if (FactoryNode->GetCustomLevelUid(FactoryNodeLevelUid))
+		{
+			if (UInterchangeFactoryBaseNode* LevelFactoryNode = AsyncHelper->BaseNodeContainers[SourceIndex]->GetFactoryNode(FactoryNodeLevelUid))
+			{
+				FSoftObjectPath LevelAssetPath;
+				if (LevelFactoryNode->GetCustomReferenceObject(LevelAssetPath))
+				{
+					if (UWorld* FactoryNodeWorld = Cast<UWorld>(LevelAssetPath.TryLoad()))
+					{
+						if (FactoryNodeWorld->PersistentLevel)
+						{
+							FactoryImportWorld = FactoryNodeWorld;
+							FactoryImportLevel = FactoryNodeWorld->PersistentLevel;
+						}
+					}
+				}
+			}
+		}
+		const FString FactoryNodeWorldPath = FactoryImportWorld->GetOutermost()->GetPathName();
+		const FString FactoryNodeWorldName = FactoryImportWorld->GetName();
+		const FString FactoryNodeNodePrefix = FactoryImportLevel->GetName() + TEXT(".");
 
 		UInterchangeFactoryBase::FImportSceneObjectsParams CreateSceneObjectsParams;
 		CreateSceneObjectsParams.ObjectName = SceneNodeName;
 		CreateSceneObjectsParams.FactoryNode = FactoryNode;
-		CreateSceneObjectsParams.Level = ImportLevel;
-		CreateSceneObjectsParams.ReimportObject = FFactoryCommon::GetObjectToReimport(ReimportObject, *FactoryNode, WorldPath, WorldName, NodePrefix + SceneNodeName);
-		CreateSceneObjectsParams.ReimportFactoryNode = FFactoryCommon::GetFactoryNode(ReimportObject, WorldPath, WorldName, NodePrefix + SceneNodeName);
+		CreateSceneObjectsParams.Level = FactoryImportLevel;
+		CreateSceneObjectsParams.ImportAssets = ImportObjects;
+		CreateSceneObjectsParams.ReimportObject = FFactoryCommon::GetObjectToReimport(Factory, ReimportObject, *FactoryNode, FactoryNodeWorldPath, FactoryNodeWorldName, FactoryNodeNodePrefix + SceneNodeName);
+		CreateSceneObjectsParams.ReimportFactoryNode = FFactoryCommon::GetFactoryNode(ReimportObject, FactoryNodeWorldPath, FactoryNodeWorldName, FactoryNodeNodePrefix + SceneNodeName);
 
 		if (AsyncHelper->BaseNodeContainers.IsValidIndex(SourceIndex))
 		{

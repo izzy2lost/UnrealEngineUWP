@@ -157,7 +157,7 @@ public:
 } // namespace anonymous
 
 
-void FElectraMediaTexConvApple::ConvertTexture(FTexture2DRHIRef & InDstTexture, CVImageBufferRef InImageBufferRef, bool bFullRange, EMediaTextureSampleFormat Format, const FMatrix44f& YUVMtx, const FMatrix44d& GamutToXYZMtx, UE::Color::EEncoding EncodingType, float NormalizationFactor)
+void FElectraMediaTexConvApple::ConvertTexture(FTextureRHIRef & InDstTexture, CVImageBufferRef InImageBufferRef, bool bFullRange, EMediaTextureSampleFormat Format, const FMatrix44f& YUVMtx, const UE::Color::FColorSpace& SourceColorSpace, UE::Color::EEncoding EncodingType, float NormalizationFactor)
 {
 	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
@@ -238,9 +238,9 @@ void FElectraMediaTexConvApple::ConvertTexture(FTexture2DRHIRef & InDstTexture, 
 					GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GMediaVertexDeclaration.VertexDeclarationRHI;
 					GraphicsPSOInit.PrimitiveType = PT_TriangleStrip;
 
-					// Setup conversion from Rec2020 to current working color space
+					// Setup conversion from source color space (i.e. Rec2020) to current working color space
 					const UE::Color::FColorSpace& Working = UE::Color::FColorSpace::GetWorking();
-					FMatrix44f ColorSpaceMtx = FMatrix44f(Working.GetXYZToRgb().GetTransposed() * GamutToXYZMtx);
+					FMatrix44f ColorSpaceMtx = UE::Color::Transpose<float>(UE::Color::FColorSpaceTransform(SourceColorSpace, Working));
 					ColorSpaceMtx = ColorSpaceMtx.ApplyScale(NormalizationFactor);
 
 					if (Format == EMediaTextureSampleFormat::CharNV12)
@@ -445,7 +445,7 @@ uint32 FElectraTextureSample::GetConverterInfoFlags() const
 	return ConverterInfoFlags_Default;
 }
 
-bool FElectraTextureSample::Convert(FTexture2DRHIRef & InDstTexture, const FConversionHints & Hints)
+bool FElectraTextureSample::Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDstTexture, const FConversionHints& Hints)
 {
 	if (VideoDecoderOutput)
 	{
@@ -453,7 +453,7 @@ bool FElectraTextureSample::Convert(FTexture2DRHIRef & InDstTexture, const FConv
 		{
 			PinnedTexConv->ConvertTexture(InDstTexture, VideoDecoderOutputApple->GetImageBuffer(),
 				VideoDecoderOutput->GetColorimetry().IsValid() ? VideoDecoderOutput->GetColorimetry()->GetMPEGDefinition()->VideoFullRangeFlag != 0 : true,
-				GetFormat(), GetSampleToRGBMatrix(), GetGamutToXYZMatrix(), GetEncodingType(), GetHDRNitsNormalizationFactor());
+				GetFormat(), GetSampleToRGBMatrix(), GetSourceColorSpace(), GetEncodingType(), GetHDRNitsNormalizationFactor());
 			return true;
 		}
 	}

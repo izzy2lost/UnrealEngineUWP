@@ -668,7 +668,7 @@ class FLeaderboardMetadataSteam
 public:
 
 	/** Name of leaderboard, matches Steam backend */
-    FName LeaderboardName;
+	FString LeaderboardName;
 	/** Sort Method */
 	ELeaderboardSort::Type SortMethod;
 	/** Display Type */
@@ -680,7 +680,7 @@ public:
 	/** State of the leaderboard handle download */
 	EOnlineAsyncTaskState::Type AsyncState;
 
-	FLeaderboardMetadataSteam(const FName& InLeaderboardName, ELeaderboardSort::Type InSortMethod, ELeaderboardFormat::Type InDisplayFormat) :
+	FLeaderboardMetadataSteam(const FString& InLeaderboardName, ELeaderboardSort::Type InSortMethod, ELeaderboardFormat::Type InDisplayFormat) :
 		LeaderboardName(InLeaderboardName),
 		SortMethod(InSortMethod),
 		DisplayFormat(InDisplayFormat),
@@ -690,7 +690,7 @@ public:
 	{
 	}
 
-	FLeaderboardMetadataSteam(const FName& InLeaderboardName) :
+	FLeaderboardMetadataSteam(const FString& InLeaderboardName) :
 		LeaderboardName(InLeaderboardName),
 		SortMethod(ELeaderboardSort::None),
 		DisplayFormat(ELeaderboardFormat::Number),

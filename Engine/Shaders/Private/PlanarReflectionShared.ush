@@ -4,7 +4,7 @@
  PlanarReflectionShared.usf
 =============================================================================*/
 
-half4 ComputePlanarReflections(float3 TranslatedWorldPosition, half3 WorldNormal, half Roughness, SamplerState SharedClampSampler)
+half4 ComputePlanarReflections(float3 TranslatedWorldPosition, half3 WorldNormal, half Roughness)
 {
 	half4 OutPlanarReflection = 0;
 
@@ -26,7 +26,7 @@ half4 ComputePlanarReflections(float3 TranslatedWorldPosition, half3 WorldNormal
 	if (FinalFade > 0)
 	{
 		// CameraToPixel in the main view is what we used as ReflectionVector when rendering the reflection pass to PlanarReflectionTexture
-		float3 CameraToPixel = normalize(TranslatedWorldPosition - ResolvedView.TranslatedWorldCameraOrigin);
+		float3 CameraToPixel = GetCameraVectorFromTranslatedWorldPosition(ResolvedView, TranslatedWorldPosition);
 		// Reflect the effective ReflectionVector in mirrored space to get the original camera vector
 		float3 MirroredCameraVector = reflect(CameraToPixel, -PlanarReflectionStruct.ReflectionPlane.xyz);
 		// Transform the GBuffer normal into mirrored space
@@ -54,7 +54,7 @@ half4 ComputePlanarReflections(float3 TranslatedWorldPosition, half3 WorldNormal
 		half4 PlanarReflectionTextureValue = Texture2DSampleLevel(
 			PlanarReflectionStruct.PlanarReflectionTexture,
 #if SUPPORTS_INDEPENDENT_SAMPLERS
-			SharedClampSampler, 
+			View.SharedTrilinearClampedSampler, 
 #else
 			PlanarReflectionStruct.PlanarReflectionSampler,
 #endif
@@ -73,7 +73,7 @@ half4 ComputePlanarReflections(float3 TranslatedWorldPosition, half3 WorldNormal
 #if (FEATURE_LEVEL <= FEATURE_LEVEL_ES3_1)
 half4 GetPlanarReflection(float3 TranslatedWorldPosition, half3 WorldNormal, half Roughness)
 {
-	half4 PlanarReflection = ComputePlanarReflections(TranslatedWorldPosition, WorldNormal, Roughness, PlanarReflectionStruct.PlanarReflectionSampler);
+	half4 PlanarReflection = ComputePlanarReflections(TranslatedWorldPosition, WorldNormal, Roughness);
 #if OUTPUT_GAMMA_SPACE
 	// the capture will also be in gamma space, convert to linear:
 	PlanarReflection.rgb *= PlanarReflection.rgb;

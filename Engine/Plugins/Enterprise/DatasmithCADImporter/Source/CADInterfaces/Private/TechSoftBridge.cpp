@@ -10,25 +10,25 @@
 #include "TechSoftUtils.h"
 #include "TUniqueTechSoftObj.h"
 
-#include "CADKernel/Core/Session.h"
+#include "Core/Session.h"
 
-#include "CADKernel/Geo/Curves/Curve.h"
-#include "CADKernel/Geo/Curves/NURBSCurveData.h"
+#include "Geo/Curves/Curve.h"
+#include "Geo/Curves/NURBSCurveData.h"
 
-#include "CADKernel/Geo/Surfaces/NurbsSurfaceData.h"
-#include "CADKernel/Geo/Surfaces/Surface.h"
+#include "Geo/Surfaces/NurbsSurfaceData.h"
+#include "Geo/Surfaces/Surface.h"
 
-#include "CADKernel/Topo/Body.h"
-#include "CADKernel/Topo/Model.h"
-#include "CADKernel/Topo/Shell.h"
-#include "CADKernel/Topo/TopologicalEdge.h"
-#include "CADKernel/Topo/TopologicalFace.h"
-#include "CADKernel/Topo/TopologicalLink.h"
-#include "CADKernel/Topo/TopologicalVertex.h"
+#include "Topo/Body.h"
+#include "Topo/Model.h"
+#include "Topo/Shell.h"
+#include "Topo/TopologicalEdge.h"
+#include "Topo/TopologicalFace.h"
+#include "Topo/TopologicalLink.h"
+#include "Topo/TopologicalVertex.h"
 
-#include "CADKernel/Utils/StringUtil.h"
+#include "Utils/StringUtil.h"
 
-#include "CADKernel/UI/Display.h"
+#include "UI/Display.h"
 
 #ifdef CADKERNEL_DEV
 #include "CADFileReport.h"
@@ -161,10 +161,10 @@ UE::CADKernel::FSurfacicBoundary GetSurfacicBoundary(A3DDomainData& Domain, cons
 	UE::CADKernel::EIso VIndex = UVReparameterization.GetSwapUV() ? UE::CADKernel::EIso::IsoU : UE::CADKernel::EIso::IsoV;
 
 	UE::CADKernel::FSurfacicBoundary Boundary;
-	Boundary[UIndex].Min = Min.U;
-	Boundary[VIndex].Min = Min.V;
-	Boundary[UIndex].Max = Max.U;
-	Boundary[VIndex].Max = Max.V;
+	Boundary[UIndex].Min = FMath::Min(Min.U, Max.U);
+	Boundary[UIndex].Max = FMath::Max(Min.U, Max.U);
+	Boundary[VIndex].Min = FMath::Min(Min.V, Max.V);
+	Boundary[VIndex].Max = FMath::Max(Min.V, Max.V);
 
 	return Boundary;
 }

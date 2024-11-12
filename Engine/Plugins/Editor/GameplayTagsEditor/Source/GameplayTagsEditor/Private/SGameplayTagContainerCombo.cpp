@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SGameplayTagContainerCombo.h"
 #include "DetailLayoutBuilder.h"
@@ -65,7 +65,6 @@ void SGameplayTagContainerCombo::Construct(const FArguments& InArgs)
 	TagListView = SNew(SListView<TSharedPtr<FEditableItem>>)
 		.ListItemsSource(&TagsToEdit)
 		.SelectionMode(ESelectionMode::None)
-		.ItemHeight(23.0f)
 		.ListViewStyle(&FAppStyle::Get().GetWidgetStyle<FTableViewStyle>("SimpleListView"))
 		.OnGenerateRow(this, &SGameplayTagContainerCombo::MakeTagListViewRow)
 		.Visibility_Lambda([WeakSelf]()

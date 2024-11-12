@@ -610,7 +610,7 @@ void FTextLayout::FlowLineLayout(const int32 LineModelIndex, const float Wrappin
 
 				// This is a single word that's too long to fit onto a line, so we'll fallback to wrapping this word at grapheme cluster boundaries - this may require more than a single split
 				const int32 NonBreakingStringIndexOffset = PreviousBlockEnd;
-				const FString NonBreakingString = FString(Break.TrimmedRange.EndIndex - NonBreakingStringIndexOffset, **LineModel.Text + NonBreakingStringIndexOffset);
+				const FString NonBreakingString = FString::ConstructFromPtrSize(**LineModel.Text + NonBreakingStringIndexOffset, Break.TrimmedRange.EndIndex - NonBreakingStringIndexOffset);
 				GraphemeBreakIterator->SetStringRef(&NonBreakingString);
 
 				CurrentWidth = 0.0f;
@@ -1330,7 +1330,7 @@ void FTextLayout::RemoveRunRenderer( const FTextRunRenderer& Renderer )
 	{
 		if (LineModel.RunRenderers[Index] == Renderer)
 		{
-			LineModel.RunRenderers.RemoveAt(Index, 1, EAllowShrinking::No);
+			LineModel.RunRenderers.RemoveAt(Index, EAllowShrinking::No);
 			bWasRemoved = true;
 			break;
 		}
@@ -1402,7 +1402,7 @@ void FTextLayout::RemoveLineHighlight( const FTextLineHighlight& Highlight )
 	{
 		if (LineModel.LineHighlights[Index] == Highlight)
 		{
-			LineModel.LineHighlights.RemoveAt(Index, 1, EAllowShrinking::No);
+			LineModel.LineHighlights.RemoveAt(Index, EAllowShrinking::No);
 			bWasRemoved = true;
 			break;
 		}
@@ -1808,7 +1808,7 @@ bool FTextLayout::InsertAt(const FTextLocation& Location, TSharedRef<IRun> InRun
 			InRun->Move(LineModel.Text, FTextRange(InsertLocation, InsertLocationEnd));
 
 			// Remove the old run (it may get re-added again as the right hand run)
-			LineModel.Runs.RemoveAt(RunIndex--, 1, EAllowShrinking::No);
+			LineModel.Runs.RemoveAt(RunIndex--, EAllowShrinking::No);
 
 			// Insert the new runs at the correct place, and then skip over these new array entries
 			const bool LeftRunHasText = !LeftRun->GetTextRange().IsEmpty();
@@ -1876,7 +1876,7 @@ bool FTextLayout::JoinLineWithNextLine(int32 LineIndex)
 	}
 
 	//Remove the next line from the list of line models
-	LineModels.RemoveAt(LineIndex + 1, 1, EAllowShrinking::No);
+	LineModels.RemoveAt(LineIndex + 1, EAllowShrinking::No);
 
 	DirtyFlags |= ETextLayoutDirtyState::Layout;
 	return true;
@@ -1894,8 +1894,8 @@ bool FTextLayout::SplitLineAt(const FTextLocation& Location)
 
 	FLineModel& LineModel = LineModels[LineIndex];
 
-	FLineModel LeftLineModel(MakeShareable(new FString(BreakLocation, **LineModel.Text)));
-	FLineModel RightLineModel(MakeShareable(new FString(LineModel.Text->Len() - BreakLocation, **LineModel.Text + BreakLocation)));
+	FLineModel LeftLineModel(MakeShareable(new FString(FString::ConstructFromPtrSize(**LineModel.Text, BreakLocation))));
+	FLineModel RightLineModel(MakeShareable(new FString(FString::ConstructFromPtrSize(**LineModel.Text + BreakLocation, LineModel.Text->Len() - BreakLocation))));
 
 	checkf(LeftLineModel.Text->Len() == BreakLocation, TEXT("Debug Source: %s"), *DebugSourceInfo.Get(FString()));
 

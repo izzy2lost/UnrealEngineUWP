@@ -223,7 +223,7 @@ void PrefilterPlanarReflection(
 			RDG_EVENT_NAME("PrefilterPlanarReflections"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&View, VertexShader, PixelShader, PassParameters, SceneColorExtent](FRHICommandList& RHICmdList)
+			[&View, VertexShader, PixelShader, PassParameters, SceneColorExtent](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
@@ -351,7 +351,7 @@ static void UpdatePlanarReflectionContents_RenderThread(
 	FDeferredUpdateResource::UpdateResources(RHICmdList);
 
 	const ERHIFeatureLevel::Type FeatureLevel = SceneRenderer->FeatureLevel;
-	FRDGBuilder GraphBuilder(RHICmdList, RDG_EVENT_NAME("PlanarReflection"), ERDGBuilderFlags::AllowParallelExecute);
+	FRDGBuilder GraphBuilder(RHICmdList, RDG_EVENT_NAME("PlanarReflection"), ERDGBuilderFlags::Parallel);
 
 	// Make sure we render to the same set of GPUs as the main scene renderer.
 	if (MainSceneRenderer->ViewFamily.RenderTarget != nullptr)
@@ -371,22 +371,6 @@ static void UpdatePlanarReflectionContents_RenderThread(
 #else
 		RDG_EVENT_SCOPE(GraphBuilder, "UpdatePlanarReflectionContent_RenderThread");
 #endif
-		// Applies late update (if any) to view matrices and re-reflects
-		if (SceneRenderer->Views.Num() > 1)
-		{
-			const FMirrorMatrix MirrorMatrix(MirrorPlane);
-			for (int32 ViewIndex = 0; ViewIndex < SceneRenderer->Views.Num(); ++ViewIndex)
-			{
-				FViewInfo& ReflectionViewToUpdate = SceneRenderer->Views[ViewIndex];
-
-				// Updates view matrices to match new ViewLocation/ViewRotation, un-reflects
-				// Normally performed in late update itself, delayed to here to ensure we don't ever re-reflect without first un-reflecting
-				ReflectionViewToUpdate.UpdateViewMatrix(); 
-
-				// Re-reflects view matrices
-				ReflectionViewToUpdate.UpdatePlanarReflectionViewMatrix(ReflectionViewToUpdate, MirrorMatrix);
-			}
-		}
 
 		// Render the scene normally
 		{
@@ -462,13 +446,7 @@ static void UpdatePlanarReflectionContentsWithoutRendering_RenderThread(
 
 	if (bIsInAnyFrustum)
 	{
-#if WANTS_DRAW_MESH_EVENTS
-		FString EventName;
-		OwnerName.ToString(EventName);
-		SCOPED_DRAW_EVENTF(RHICmdList, SceneCapture, TEXT("PlanarReflection %s"), *EventName);
-#else
-		SCOPED_DRAW_EVENT(RHICmdList, UpdatePlanarReflectionContent_RenderThread);
-#endif
+		SCOPED_DRAW_EVENTF(RHICmdList, SceneCapture, TEXT("PlanarReflection %s"), OwnerName);
 
 		// Reflection view late update
 		if (SceneRenderer->Views.Num() > 1)
@@ -501,7 +479,7 @@ static void UpdatePlanarReflectionContentsWithoutRendering_RenderThread(
 
 extern void BuildProjectionMatrix(FIntPoint RenderTargetSize, float FOV, float InNearClippingPlane, FMatrix& ProjectionMatrix);
 
-extern void SetupViewFamilyForSceneCapture(
+extern TArray<FSceneView*> SetupViewFamilyForSceneCapture(
 	FSceneViewFamily& ViewFamily,
 	USceneCaptureComponent* SceneCaptureComponent,
 	const TArrayView<const FSceneCaptureViewInfo> Views,
@@ -512,6 +490,10 @@ extern void SetupViewFamilyForSceneCapture(
 	float PostProcessBlendWeight,
 	const AActor* ViewActor,
 	int32 CubemapFaceIndex);
+
+extern void SetupSceneViewExtensionsForSceneCapture(
+	FSceneViewFamily& ViewFamily,
+	TConstArrayView<FSceneView*> Views);
 
 void FScene::UpdatePlanarReflectionContents(UPlanarReflectionComponent* CaptureComponent, FSceneRenderer& MainSceneRenderer)
 {
@@ -606,16 +588,16 @@ void FScene::UpdatePlanarReflectionContents(UPlanarReflectionComponent* CaptureC
 			const FMatrix ViewMatrix(MirrorMatrix * View.ViewMatrices.GetViewMatrix());
 			const FVector ViewOrigin = ViewMatrix.InverseTransformPosition(FVector::ZeroVector);
 			const FMatrix ViewRotationMatrix = ViewMatrix.RemoveTranslation();
-			const float HalfFOV = FMath::Atan(1.0f / View.ViewMatrices.GetProjectionMatrix().M[0][0]);
 
 			FMatrix ProjectionMatrix;
-			if (CaptureComponent->ExtraFOV == 0.f && MainSceneRenderer.Views.Num() > 1)
+			if (!View.IsPerspectiveProjection() || (CaptureComponent->ExtraFOV == 0.f && MainSceneRenderer.Views.Num() > 1))
 			{
 				// Prefer exact (potentially uneven) stereo projection matrices when no extra FOV is requested
 				ProjectionMatrix = View.ViewMatrices.GetProjectionMatrix();
 			}
 			else
 			{
+				const float HalfFOV = FMath::Atan(1.0f / View.ViewMatrices.GetProjectionMatrix().M[0][0]);
 				BuildProjectionMatrix(View.UnscaledViewRect.Size(), HalfFOV + FMath::DegreesToRadians(CaptureComponent->ExtraFOV), GNearClippingPlane, ProjectionMatrix);
 			}
 
@@ -626,18 +608,26 @@ void FScene::UpdatePlanarReflectionContents(UPlanarReflectionComponent* CaptureC
 			NewView.ProjectionMatrix = ProjectionMatrix;
 			NewView.StereoPass = View.StereoPass;
 			NewView.StereoViewIndex = View.StereoViewIndex;
+			NewView.FOV = View.FOV;
 
 			SceneCaptureViewInfo.Add(NewView);
 		}
 		
 		FPostProcessSettings PostProcessSettings;
 
+		bool bIsMobileMultiViewEnabled = false;
+		if (MainSceneRenderer.ViewFamily.Views.Num() > 0)
+		{
+			bIsMobileMultiViewEnabled = MainSceneRenderer.ViewFamily.Views[0]->Aspects.IsMobileMultiViewEnabled();
+		}
+
 		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
 			CaptureComponent->RenderTarget,
 			this,
 			CaptureComponent->ShowFlags)
 			.SetResolveScene(false)
-			.SetRealtimeUpdate(true));
+			.SetRealtimeUpdate(true)
+			.SetRequireMobileMultiView(bIsMobileMultiViewEnabled));
 
 		// Uses the exact same secondary view fraction on the planar reflection as the main viewport.
 		ViewFamily.SecondaryViewFraction = MainSceneRenderer.ViewFamily.SecondaryViewFraction;
@@ -646,7 +636,7 @@ void FScene::UpdatePlanarReflectionContents(UPlanarReflectionComponent* CaptureC
 		ViewExtensionContext.bStereoEnabled = true;
 		ViewFamily.ViewExtensions = GEngine->ViewExtensions->GatherActiveExtensions(ViewExtensionContext);
 
-		SetupViewFamilyForSceneCapture(
+		TArray<FSceneView*> Views = SetupViewFamilyForSceneCapture(
 			ViewFamily,
 			CaptureComponent,
 			SceneCaptureViewInfo, CaptureComponent->MaxViewDistanceOverride,
@@ -661,30 +651,25 @@ void FScene::UpdatePlanarReflectionContents(UPlanarReflectionComponent* CaptureC
 		ViewFamily.SetScreenPercentageInterface(FSceneRenderer::ForkScreenPercentageInterface(
 			MainSceneRenderer.ViewFamily.GetScreenPercentageInterface(), ViewFamily));
 
+		for (FSceneView* View : Views)
+		{
+			View->GlobalClippingPlane = MirrorPlane;
+			// Jitter can't be removed completely due to the clipping plane
+			// Also, this prevents the prefilter pass, which reads from jittered depth, from having to do special handling of it's depth-dependent input
+			View->bAllowTemporalJitter = false;
+			View->bRenderSceneTwoSided = CaptureComponent->bRenderSceneTwoSided;
+		}
+
+		// Call SetupViewFamily & SetupView on scene view extensions before renderer creation
+		SetupSceneViewExtensionsForSceneCapture(ViewFamily, Views);
+
 		FSceneRenderer* SceneRenderer = FSceneRenderer::CreateSceneRenderer(&ViewFamily, nullptr);
 
 		// Disable screen percentage on planar reflection renderer if main one has screen percentage disabled.
 		SceneRenderer->ViewFamily.EngineShowFlags.ScreenPercentage = MainSceneRenderer.ViewFamily.EngineShowFlags.ScreenPercentage;
 
-		for (const FSceneViewExtensionRef& Extension : SceneRenderer->ViewFamily.ViewExtensions)
-		{
-			Extension->SetupViewFamily(SceneRenderer->ViewFamily);
-		}
-
 		for (int32 ViewIndex = 0; ViewIndex < SceneCaptureViewInfo.Num(); ++ViewIndex)
 		{
-			FViewInfo& ViewInfo = SceneRenderer->Views[ViewIndex];
-			ViewInfo.GlobalClippingPlane = MirrorPlane;
-			// Jitter can't be removed completely due to the clipping plane
-			// Also, this prevents the prefilter pass, which reads from jittered depth, from having to do special handling of it's depth-dependent input
-			ViewInfo.bAllowTemporalJitter = false;
-			ViewInfo.bRenderSceneTwoSided = CaptureComponent->bRenderSceneTwoSided;
-
-			for (const FSceneViewExtensionRef& Extension : SceneRenderer->ViewFamily.ViewExtensions)
-			{
-				Extension->SetupView(SceneRenderer->ViewFamily, ViewInfo);
-			}
-
 			CaptureComponent->ProjectionWithExtraFOV[ViewIndex] = SceneCaptureViewInfo[ViewIndex].ProjectionMatrix;
 
 			const bool bIsStereo = IStereoRendering::IsStereoEyeView(MainSceneRenderer.Views[0]);
@@ -892,7 +877,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredPlanarReflections(FRDGBuilder&
 				continue;
 			}
 
-			SCOPED_DRAW_EVENTF(RHICmdList, PlanarReflection, *ReflectionSceneProxy->OwnerName.ToString());
+			SCOPED_DRAW_EVENTF(RHICmdList, PlanarReflection, TEXT("PlanarReflection: %s"), ReflectionSceneProxy->OwnerName);
 
 			FDeferredLightVS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FDeferredLightVS::FRadialLight>(false);

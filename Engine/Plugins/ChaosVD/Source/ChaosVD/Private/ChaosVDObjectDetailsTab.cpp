@@ -22,7 +22,10 @@
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
-class SSubobjectEditor;
+void FChaosVDObjectDetailsTab::AddUnsupportedStruct(const UStruct* Struct)
+{
+	UnsupportedStructs.Add(Struct);
+}
 
 TSharedRef<SDockTab> FChaosVDObjectDetailsTab::HandleTabSpawnRequest(const FSpawnTabArgs& Args)
 {
@@ -33,29 +36,47 @@ TSharedRef<SDockTab> FChaosVDObjectDetailsTab::HandleTabSpawnRequest(const FSpaw
 	.Label(LOCTEXT("DetailsPanel", "Details"))
 	.ToolTipText(LOCTEXT("DetailsPanelToolTip", "See the details of the selected object"));
 
+	// The following types have their own data inspectors, we should not open them in the details pannel
+	AddUnsupportedStruct(FChaosVDConstraintDataWrapperBase::StaticStruct());
+	AddUnsupportedStruct(FChaosVDQueryDataWrapper::StaticStruct());
+	AddUnsupportedStruct(FChaosVDParticlePairMidPhase::StaticStruct());
+
 	if (const TSharedPtr<FChaosVDScene> ScenePtr = GetChaosVDScene().Pin())
 	{
 		RegisterSelectionSetObject(ScenePtr->GetElementSelectionSet());
 
-		DetailsPanelTab->SetContent
-		(
-			SNew(SVerticalBox)
-			+SVerticalBox::Slot()
-			[
-				SAssignNew(DetailsPanelView, SChaosVDDetailsView)
-			]
-			+SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				GenerateShowCollisionDataButton().ToSharedRef()
-			]
-		);
-
-		// If we closed the tab and opened it again with an object already selected, try to restore the selected object view
-		if (DetailsPanelView.IsValid() && CurrentSelectedObject.IsValid())
+		if (TSharedPtr<FChaosVDSolverDataSelection> SolverDataSelectionObject = ScenePtr->GetSolverDataSelectionObject().Pin())
 		{
-			DetailsPanelView->SetSelectedObject(CurrentSelectedObject.Get());
+			SolverDataSelectionObject->GetDataSelectionChangedDelegate().AddSP(this, &FChaosVDObjectDetailsTab::HandleSolverDataSelectionChange);
 		}
+
+		if (const TSharedPtr<SChaosVDMainTab> MainTabPtr = OwningTabWidget.Pin())
+		{
+			DetailsPanelTab->SetContent
+			(
+				SNew(SVerticalBox)
+				+SVerticalBox::Slot()
+				[
+					SAssignNew(DetailsPanelView, SChaosVDDetailsView, MainTabPtr.ToSharedRef())
+				]
+				+SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					GenerateShowCollisionDataButton().ToSharedRef()
+				]
+			);
+
+			// If we closed the tab and opened it again with an object already selected, try to restore the selected object view
+			if (DetailsPanelView.IsValid() && CurrentSelectedObject.IsValid())
+			{
+				DetailsPanelView->SetSelectedObject(CurrentSelectedObject.Get());
+			}
+		}
+		else
+		{
+			DetailsPanelTab->SetContent(GenerateErrorWidget());
+		}
+
 	}
 	else
 	{
@@ -72,14 +93,20 @@ TSharedRef<SDockTab> FChaosVDObjectDetailsTab::HandleTabSpawnRequest(const FSpaw
 void FChaosVDObjectDetailsTab::HandleTabClosed(TSharedRef<SDockTab> InTabClosed)
 {
 	FChaosVDTabSpawnerBase::HandleTabClosed(InTabClosed);
+
+	if (const TSharedPtr<FChaosVDScene> ScenePtr = GetChaosVDScene().Pin())
+	{
+		if (TSharedPtr<FChaosVDSolverDataSelection> SolverDataSelectionObject = ScenePtr->GetSolverDataSelectionObject().Pin())
+		{
+			SolverDataSelectionObject->GetDataSelectionChangedDelegate().RemoveAll(this);
+		}
+	}
 	
 	DetailsPanelView.Reset();
 }
 
-void FChaosVDObjectDetailsTab::HandlePostSelectionChange(const UTypedElementSelectionSet* ChangedSelectionSet)
+void FChaosVDObjectDetailsTab::HandleActorsSelection(TArrayView<AActor*> SelectedActors)
 {
-	TArray<AActor*> SelectedActors = ChangedSelectionSet->GetSelectedObjects<AActor>();
-
 	if (SelectedActors.Num() > 0)
 	{
 		// We don't support multi selection yet
@@ -96,6 +123,32 @@ void FChaosVDObjectDetailsTab::HandlePostSelectionChange(const UTypedElementSele
 	{
 		CurrentSelectedObject = nullptr;
 	}
+}
+
+void FChaosVDObjectDetailsTab::HandlePostSelectionChange(const UTypedElementSelectionSet* ChangedSelectionSet)
+{
+	TArray<AActor*> SelectedActors = ChangedSelectionSet->GetSelectedObjects<AActor>();
+
+	HandleActorsSelection(SelectedActors);
+}
+
+void FChaosVDObjectDetailsTab::HandleSolverDataSelectionChange(const TSharedPtr<FChaosVDSolverDataSelectionHandle>& SelectionHandle)
+{
+	TSharedPtr<FStructOnScope> StructOnScope = SelectionHandle ? SelectionHandle->GetDataAsStructScope() : nullptr;
+	if (!StructOnScope || !IsSupportedStruct(StructOnScope->GetStructPtr()))
+	{
+		DetailsPanelView->SetSelectedStruct(nullptr);
+		return;
+	}
+
+	HandleActorsSelection(TArrayView<AActor*>());
+
+	DetailsPanelView->SetSelectedStruct(SelectionHandle->GetCustomDataReadOnlyStructViewForDetails());
+}
+
+bool FChaosVDObjectDetailsTab::IsSupportedStruct(const TWeakObjectPtr<const UStruct>& InWeakStructPtr)
+{
+	return !UnsupportedStructs.Contains(InWeakStructPtr);
 }
 
 EVisibility FChaosVDObjectDetailsTab::GetCollisionDataButtonVisibility() const

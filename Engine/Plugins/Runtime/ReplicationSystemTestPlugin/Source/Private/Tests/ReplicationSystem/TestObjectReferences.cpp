@@ -83,7 +83,7 @@ public:
 
 		void Reset()
 		{
-			BitArray.Reset();
+			BitArray.ClearAllBits();
 			References.Reset();
 		}
 		const FNetBitArrayView* GetChangeMask() const { return &ChangeMask; }
@@ -719,7 +719,7 @@ UE_NET_TEST_FIXTURE(FTestObjectReferencesFixture, TestVisitAllDirty)
 	// Partial
 	{
 		FCollectValidReferenceCollector Collector(false, ChangeMask);
-		ChangeMask.Reset();
+		ChangeMask.ClearAllBits();
 
 		// Mark member 11 as dirty. This corresponds to TestStructWithNestedRefTArray_TArray.
 		SetMemberDirty(ChangeMask, 11);

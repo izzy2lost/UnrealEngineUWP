@@ -43,7 +43,7 @@ void FCurveEditorDragOperation_PanView::OnDrag(FVector2D InitialPosition, FVecto
 	double OutputMin = InitialOutputMin + PixelDelta.Y / ViewSpace.PixelsPerOutput();
 	double OutputMax = InitialOutputMax + PixelDelta.Y / ViewSpace.PixelsPerOutput();
 
-	CurveEditor->GetBounds().SetInputBounds(InputMin, InputMax);
+	View->SetInputBounds(InputMin, InputMax);
 	View->SetOutputBounds(OutputMin, OutputMax);
 }
 
@@ -94,7 +94,6 @@ void FCurveEditorDragOperation_PanInput::OnDrag(FVector2D InitialPosition, FVect
 
 	double InputMin = InitialInputMin - PixelDelta.X / InputSpace.PixelsPerInput();
 	double InputMax = InitialInputMax - PixelDelta.X / InputSpace.PixelsPerInput();
-
 	CurveEditor->GetBounds().SetInputBounds(InputMin, InputMax);
 
 	CurveEditor->GetPanel()->ScrollBy(-MouseEvent.GetCursorDelta().Y);

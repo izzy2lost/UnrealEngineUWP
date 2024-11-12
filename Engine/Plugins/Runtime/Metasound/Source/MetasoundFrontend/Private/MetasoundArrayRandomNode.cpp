@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetasoundArrayRandomNode.h"
-#include "CoreMinimal.h"
+#include "Containers/CircularQueue.h"
 #include "Internationalization/Text.h"
 #include "MetasoundBuilderInterface.h"
 #include "MetasoundDataFactory.h"
@@ -13,40 +13,63 @@
 #include "MetasoundOperatorInterface.h"
 #include "MetasoundPrimitives.h"
 #include "MetasoundTrigger.h"
-#include "Containers/CircularQueue.h"
 #include "MetasoundArrayNodes.h"
+#include "MetasoundEnumRegistrationMacro.h"
 
 #include <type_traits>
 
+#define LOCTEXT_NAMESPACE "MetasoundFrontend"
 
 namespace Metasound
 {
+	DEFINE_METASOUND_ENUM_BEGIN(ESharedStateBehaviorType, FEnumSharedStateBehaviorType, "SharedStateBehaviorType")
+		DEFINE_METASOUND_ENUM_ENTRY(ESharedStateBehaviorType::SameNode, \
+			"SameNodeDescription", "Same Node", "SameNodeTT", \
+			"State is shared with other instances of this individual node regardless of the MetaSound it is in."),
+		DEFINE_METASOUND_ENUM_ENTRY(ESharedStateBehaviorType::SameNodeInComposition, \
+			"SameNodeInCompositionDescription", "Same Node in Composition", "SSameNodeInCompositionTT", \
+			"State is shared with other instances of this node with the same parent MetaSound graph(s). Useful for differentiating shared state between nodes used in different presets or multiple composed graphs."),
+		DEFINE_METASOUND_ENUM_ENTRY(ESharedStateBehaviorType::SameData, \
+			"SameDataDescription", "Same Data", "SameDataTT", \
+			"State is shared with other nodes with the same input array data (by value) regardless of where the node is located. Useful for sharing state regardless of graph composition or between multiple nodes within a single MetaSound using the same input data. Input array type must implement a hash function.")
+	DEFINE_METASOUND_ENUM_END()
+
 	FArrayRandomGet::FArrayRandomGet(int32 InSeed, int32 InMaxIndex, const TArray<float>& InWeights, int32 InNoRepeatOrder)
 	{
-		Init(InSeed, InMaxIndex, InWeights, InNoRepeatOrder);
+		UpdateState(InSeed, InMaxIndex, InWeights, InNoRepeatOrder);
 	}
 
 	void FArrayRandomGet::Init(int32 InSeed, int32 InMaxIndex, const TArray<float>& InWeights, int32 InNoRepeatOrder)
+	{
+		UpdateState(InSeed, InMaxIndex, InWeights, InNoRepeatOrder);
+	}
+
+	void FArrayRandomGet::UpdateState(int32 InSeed, int32 InMaxIndex, const TArray<float>& InWeights, int32 InNoRepeatOrder)
 	{
 		SetSeed(InSeed);
 		MaxIndex = InMaxIndex;
 		SetNoRepeatOrder(InNoRepeatOrder);
 		check(!InNoRepeatOrder || !PreviousIndicesQueue->IsFull());
-		RandomWeights = InWeights;
+		SetRandomWeights(InWeights);
 	}
 
 	void FArrayRandomGet::SetSeed(int32 InSeed)
 	{
-		if (InSeed == INDEX_NONE)
+		if (!bRandomStreamInitialized || InSeed != Seed)
 		{
-			RandomStream.Initialize(FPlatformTime::Cycles());
-		}
-		else
-		{
-			RandomStream.Initialize(InSeed);
-		}
+			Seed = InSeed;
+			if (InSeed == INDEX_NONE)
+			{
+				RandomStream.Initialize(FPlatformTime::Cycles());
+			}
+			else
+			{
+				RandomStream.Initialize(InSeed);
+			}
 
-		ResetSeed();
+			ResetSeed();
+			bRandomStreamInitialized = true;
+		}
 	}
 
 	void FArrayRandomGet::SetNoRepeatOrder(int32 InNoRepeatOrder)
@@ -64,7 +87,10 @@ namespace Metasound
 
 	void FArrayRandomGet::SetRandomWeights(const TArray<float>& InRandomWeights)
 	{
-		RandomWeights = InRandomWeights;
+		if (InRandomWeights != RandomWeights)
+		{
+			RandomWeights = InRandomWeights;
+		}
 	}
 
 	void FArrayRandomGet::ResetSeed()
@@ -219,6 +245,14 @@ namespace Metasound
 		return (*RG)->NextValue();
 	}
 
+	int32 FSharedStateRandomGetManager::NextValue(const FGuid& InSharedStateId, InitSharedStateArgs& InStateArgs)
+	{
+		FScopeLock Lock(&CritSect);
+		InitOrUpdate(InStateArgs);
+		TUniquePtr<FArrayRandomGet>* RG = RandomGets.Find(InSharedStateId);
+		return (*RG)->NextValue();
+	}
+
 	void FSharedStateRandomGetManager::SetSeed(const FGuid& InSharedStateId, int32 InSeed)
 	{
 		FScopeLock Lock(&CritSect);
@@ -246,5 +280,26 @@ namespace Metasound
 		TUniquePtr<FArrayRandomGet>* RG = RandomGets.Find(InSharedStateId);
 		(*RG)->ResetSeed();
 	}
+	
+	void FSharedStateRandomGetManager::ResetSeed(const FGuid& InSharedStateId, InitSharedStateArgs& InStateArgs)
+	{
+		FScopeLock Lock(&CritSect);
+		InitOrUpdate(InStateArgs);
+		TUniquePtr<FArrayRandomGet>* RG = RandomGets.Find(InSharedStateId);
+		(*RG)->ResetSeed();
+	}
 
+	void FSharedStateRandomGetManager::InitOrUpdate(InitSharedStateArgs& InStateArgs)
+	{
+		if (TUniquePtr<FArrayRandomGet>* FoundExisting = RandomGets.Find(InStateArgs.SharedStateId))
+		{
+			(*FoundExisting)->UpdateState(InStateArgs.Seed, InStateArgs.NumElements, InStateArgs.Weights, InStateArgs.NoRepeatOrder);
+		}
+		else
+		{
+			RandomGets.Add(InStateArgs.SharedStateId, MakeUnique<FArrayRandomGet>(InStateArgs.Seed, InStateArgs.NumElements, InStateArgs.Weights, InStateArgs.NoRepeatOrder));
+		}
+	}
 }
+
+#undef LOCTEXT_NAMESPACE // MetasoundFrontend

@@ -124,33 +124,9 @@ int32 UCheckAndroidDeviceProfileCommandlet::Main(const FString& RawCommandLine)
 					DeviceName = DeviceSpecsFile.Left(ExtensionPos);
 					OutputFilename = DeviceName;
 				}
-				TSharedPtr<FJsonObject> JsonRootObject;
-				FString Json;
 
-				if (FFileHelper::LoadFileToString(Json, *(ParamDeviceSpecsFolder / DeviceSpecsFile)))
-				{
-					TSharedRef<TJsonReader<> > JsonReader = TJsonReaderFactory<>::Create(Json);
-					FJsonSerializer::Deserialize(JsonReader, JsonRootObject);
-				}
-				FPIEPreviewDeviceSpecifications DeviceSpecs;
-				if (JsonRootObject.IsValid() && FJsonObjectConverter::JsonAttributesToUStruct(JsonRootObject->Values, FPIEPreviewDeviceSpecifications::StaticStruct(), &DeviceSpecs, 0, 0))
-				{
-					FPIEAndroidDeviceProperties& AndroidProperties = DeviceSpecs.AndroidProperties;
-					DeviceParameters.Add(FName(TEXT("SRC_GPUFamily")), AndroidProperties.GPUFamily);
-					DeviceParameters.Add(FName(TEXT("SRC_GLVersion")), AndroidProperties.GLVersion);
-					DeviceParameters.Add(FName(TEXT("SRC_VulkanAvailable")), AndroidProperties.VulkanAvailable ? "true" : "false");
-					DeviceParameters.Add(FName(TEXT("SRC_VulkanVersion")), AndroidProperties.VulkanVersion);
-					DeviceParameters.Add(FName(TEXT("SRC_AndroidVersion")), AndroidProperties.AndroidVersion);
-					DeviceParameters.Add(FName(TEXT("SRC_DeviceMake")), AndroidProperties.DeviceMake);
-					DeviceParameters.Add(FName(TEXT("SRC_DeviceModel")), AndroidProperties.DeviceModel);
-					DeviceParameters.Add(FName(TEXT("SRC_DeviceBuildNumber")), AndroidProperties.DeviceBuildNumber);
-					DeviceParameters.Add(FName(TEXT("SRC_UsingHoudini")), AndroidProperties.UsingHoudini ? "true" : "false");
-					DeviceParameters.Add(FName(TEXT("SRC_Hardware")), AndroidProperties.Hardware);
-					DeviceParameters.Add(FName(TEXT("SRC_Chipset")), AndroidProperties.Chipset);
-					DeviceParameters.Add(FName(TEXT("SRC_TotalPhysicalGB")), AndroidProperties.TotalPhysicalGB);
-					DeviceParameters.Add(FName(TEXT("SRC_HMDSystemName")), TEXT(""));
-					DeviceParameters.Add(FName(TEXT("SRC_SM5Available")), AndroidProperties.SM5Available ? "true" : "false");
-				}
+				FString JsonLocation = ParamDeviceSpecsFolder / DeviceSpecsFile;
+				AndroidDeviceProfileSelector->GetDeviceParametersFromJson(JsonLocation, DeviceParameters);
 			}
 			else
 			{

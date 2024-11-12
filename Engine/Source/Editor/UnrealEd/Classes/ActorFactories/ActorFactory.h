@@ -39,6 +39,10 @@ class UActorFactory : public UObject, public IAssetFactoryInterface
 	UPROPERTY(config)
 	FString NewActorClassName;
 
+	/** should this actor factory auto register with the editor factory system. For factories within a GameFeaturePlugin this should be false. */
+	UPROPERTY(config)
+	bool bShouldAutoRegister = true;
+
 	/**  AActor  subclass this ActorFactory creates. */
 	UPROPERTY()
 	TSubclassOf<AActor>  NewActorClass;

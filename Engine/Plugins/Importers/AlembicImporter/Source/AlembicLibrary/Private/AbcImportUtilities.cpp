@@ -480,6 +480,20 @@ bool AbcImporterUtilities::GenerateAbcMeshSampleDataForFrame(const Alembic::AbcG
 	{
 		Alembic::Abc::Int32ArraySamplePtr IndicesSample = MeshSample.getFaceIndices();
 		bRetrievalResult &= RetrieveTypedAbcData<Alembic::Abc::Int32ArraySamplePtr, uint32>(IndicesSample, Sample->Indices);
+		if (bRetrievalResult)
+		{
+			// Validate that the indices coming from the Alembic are valid, in case it is corrupted
+			const uint32 MaxIndex = IntCastChecked<uint32>(Sample->Vertices.Num());
+			for (uint32& Index : Sample->Indices)
+			{
+				if (Index >= MaxIndex)
+				{
+					TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Error, LOCTEXT("FoundInvalidIndex", "Unable to import mesh due to index out of bound found."));
+					FAbcImportLogger::AddImportMessage(Message);
+					return false;
+				}
+			}
+		}
 		if (bNeedsTriangulation)
 		{
 			TriangulateIndexBuffer(FaceCounts, Sample->Indices);

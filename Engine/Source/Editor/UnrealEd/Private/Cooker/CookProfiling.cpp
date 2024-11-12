@@ -20,6 +20,7 @@
 #include "PackageBuildDependencyTracker.h"
 #include "Policies/CondensedJsonPrintPolicy.h"
 #include "Serialization/ArchiveUObject.h"
+#include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Templates/Casts.h"
 #include "UObject/GCObject.h"
@@ -234,6 +235,8 @@ namespace DetailedCookStats
 	double TickLoopProcessDeferredCommandsTimeSec = 0.0;
 	double TickLoopTickCommandletStatsTimeSec = 0.0;
 	double TickLoopFlushRenderingCommandsTimeSec = 0.0;
+	double ShaderFlushTimeSec = 0.0;
+	double ValidationTimeSec = 0.0;
 	bool IsCookAll = false;
 	bool IsCookOnTheFly = false;
 	bool IsIterativeCook = false;
@@ -886,6 +889,8 @@ FCookStatsManager::FAutoRegisterCallback RegisterCookStats([](FCookStatsManager:
 	ADD_COOK_STAT_FLT(" 0. 6", TickLoopProcessDeferredCommandsTimeSec);
 	ADD_COOK_STAT_FLT(" 0. 7", TickLoopTickCommandletStatsTimeSec);
 	ADD_COOK_STAT_FLT(" 0. 8", TickLoopFlushRenderingCommandsTimeSec);
+	ADD_COOK_STAT_FLT(" 0. 9", ShaderFlushTimeSec);
+	ADD_COOK_STAT_FLT(" 0. 10", ValidationTimeSec);
 	FString CookParameters; // Empty value to write a header with name "CookParameters"
 	ADD_COOK_STAT_FLT(" 1", CookParameters);
 	ADD_COOK_STAT_FLT(" 1. 0", TargetPlatforms);
@@ -972,6 +977,25 @@ void SendLogCookStats(ECookMode::Type CookMode)
 
 	FCookStatsManager::LogCookStats(LogStatsFunc);
 
+	FString CookStatsFileName;
+	FString CookStatsJsonString;
+	TSharedPtr<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> CookStatsWriter{};
+	FStringBuilderBase Builder;
+	if (FParse::Value(FCommandLine::Get(), TEXT("-CookStatsFile="), CookStatsFileName))
+	{
+		uint32 MultiprocessId = UE::GetMultiprocessId();
+		if (MultiprocessId == 0)
+		{
+			CookStatsWriter = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&CookStatsJsonString).ToSharedPtr();
+			CookStatsWriter->WriteObjectStart();
+		}
+		else
+		{
+			// Suppress the file creation on CookWorkers
+			// TODO: Replicate the information back to the CookDirector instead, UE-185774
+		}
+	}
+
 	UE_LOG(LogCookStats, Display, TEXT("Misc Cook Stats"));
 	UE_LOG(LogCookStats, Display, TEXT("==============="));
 	for (FString& StatCategory : StatCategories)
@@ -984,6 +1008,32 @@ void SendLogCookStats(ECookMode::Type CookMode)
 		{
 			UE_LOG(LogCookStats, Display, TEXT("    %s=%s"), *StatKeyValue.Key, *StatKeyValue.Value);
 		}
+
+		if (CookStatsWriter)
+		{
+			CookStatsWriter->WriteObjectStart(StatCategory);
+			for (const FCookStatsManager::StringKeyValue& StatKeyValue : StatsInCategory)
+			{
+				CookStatsWriter->WriteValue(*StatKeyValue.Key, *StatKeyValue.Value);
+			}
+			CookStatsWriter->WriteObjectEnd();
+		}
+	}
+
+	if (CookStatsWriter)
+	{
+		CookStatsWriter->WriteObjectStart(TEXT("MiscCookStats"));
+		for (FString& StatCategory : StatCategories)
+		{
+			CookStatsWriter->WriteObjectStart(*StatCategory);
+			TArray<FCookStatsManager::StringKeyValue>& StatsInCategory = StatsInCategories.FindOrAdd(StatCategory);
+			for (const FCookStatsManager::StringKeyValue& StatKeyValue : StatsInCategory)
+			{
+				CookStatsWriter->WriteValue(*StatKeyValue.Key, *StatKeyValue.Value);
+			}
+			CookStatsWriter->WriteObjectEnd();
+		}
+		CookStatsWriter->WriteObjectEnd();
 	}
 
 	// DDC Usage stats are custom formatted, and the above code just accumulated them into a TSet. Now log it with our special formatting for readability.
@@ -997,44 +1047,18 @@ void SendLogCookStats(ECookMode::Type CookMode)
 			UE_LOG(LogCookStats, Display, TEXT("%s.%s=%s"), *ProfileEntry.Path, *ProfileEntry.Key, *ProfileEntry.Value);
 		}
 
-		FString CookStatsFileName;
-		if (FParse::Value(FCommandLine::Get(), TEXT("-CookStatsFile="), CookStatsFileName))
+		if (CookStatsWriter)
 		{
-			uint32 MultiprocessId = UE::GetMultiprocessId();
-			if (MultiprocessId != 0)
-			{
-				// Suppress the file creation on CookWorkers
-				// TODO: Replicate the information back to the CookDirector instead, UE-185774
-				CookStatsFileName.Empty();
-			}
-		}
-
-		if (!CookStatsFileName.IsEmpty())
-		{
-			FString JsonString;
-			TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> JsonWriter = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR> >::Create(&JsonString);
-			JsonWriter->WriteObjectStart();
+			CookStatsWriter->WriteObjectStart("CookProfile");
 			for (const auto& ProfileEntry : CookProfileData)
 			{
-				JsonWriter->WriteObjectStart(ProfileEntry.Key);
-				JsonWriter->WriteValue(TEXT("Path"), ProfileEntry.Path);
-				JsonWriter->WriteValue(TEXT("Value"), ProfileEntry.Value);
-				JsonWriter->WriteObjectEnd();
+				CookStatsWriter->WriteObjectStart(ProfileEntry.Key);
+				CookStatsWriter->WriteValue(TEXT("Path"), ProfileEntry.Path);
+				CookStatsWriter->WriteValue(TEXT("Value"), ProfileEntry.Value);
+				CookStatsWriter->WriteObjectEnd();
 			}
-			JsonWriter->WriteObjectEnd();
-			JsonWriter->Close();
-			TUniquePtr<FArchive> JsonFile(IFileManager::Get().CreateFileWriter(*CookStatsFileName));
-			if (!JsonFile)
-			{
-				UE_LOG(LogCookStats, Warning, TEXT("Could not write to CookStatsFile %s."), *CookStatsFileName);
-			}
-			else
-			{
-				JsonFile->Serialize(TCHAR_TO_ANSI(*JsonString), JsonString.Len());
-				JsonFile->Close();
-			}
+			CookStatsWriter->WriteObjectEnd();
 		}
-
 	}
 	if (DDCSummaryStats.Num() > 0)
 	{
@@ -1044,6 +1068,16 @@ void SendLogCookStats(ECookMode::Type CookMode)
 		for (const auto& Attr : DDCSummaryStats)
 		{
 			UE_LOG(LogCookStats, Display, TEXT("%-16s=%10s"), *Attr.Key, *Attr.Value);
+		}
+
+		if (CookStatsWriter)
+		{
+			CookStatsWriter->WriteObjectStart("DDCSummaryStats");
+			for (const auto& Attr : DDCSummaryStats)
+			{
+				CookStatsWriter->WriteValue(*Attr.Key, *Attr.Value);
+			}
+			CookStatsWriter->WriteObjectEnd();
 		}
 	}
 
@@ -1064,6 +1098,21 @@ void SendLogCookStats(ECookMode::Type CookMode)
 				*Stat.AssetType, Stat.LoadTimeSec + Stat.BuildTimeSec, Stat.GameThreadTimeSec,
 				Stat.BuildCount, Stat.LoadSizeMB + Stat.BuildSizeMB);
 		}
+
+		if (CookStatsWriter)
+		{
+			CookStatsWriter->WriteObjectStart("DDCResourceStats");
+			for (const FDerivedDataCacheResourceStat& Stat : DDCResourceUsageStats)
+			{
+				CookStatsWriter->WriteObjectStart(*Stat.AssetType);
+				CookStatsWriter->WriteValue(TEXT("TotalTimeSec"), Stat.LoadTimeSec + Stat.BuildTimeSec);
+				CookStatsWriter->WriteValue(TEXT("GameThreadTimeSec"), Stat.GameThreadTimeSec);
+				CookStatsWriter->WriteValue(TEXT("AssetsBuilt"), Stat.BuildCount);
+				CookStatsWriter->WriteValue(TEXT("MBProcessed"), Stat.LoadSizeMB + Stat.BuildSizeMB);
+				CookStatsWriter->WriteObjectEnd();
+			}
+			CookStatsWriter->WriteObjectEnd();
+		}
 	}
 
 	DumpBuildDependencyTrackerStats();
@@ -1071,6 +1120,36 @@ void SendLogCookStats(ECookMode::Type CookMode)
 	if (UE::Virtualization::IVirtualizationSystem::IsInitialized())
 	{
 		UE::Virtualization::IVirtualizationSystem::Get().DumpStats();
+	}
+
+	if (CookStatsWriter)
+	{
+		FShaderCompilerStats ShaderCompilerStats;
+		GShaderCompilingManager->GetLocalStats(ShaderCompilerStats);
+
+		TSharedPtr<FJsonObject> JsonShaderCompilerStats = ShaderCompilerStats.ToJson();
+		FJsonSerializer::Serialize(
+			MakeShared<FJsonValueObject>(JsonShaderCompilerStats),
+			TEXT("ShaderCompilerStats"),
+			CookStatsWriter.ToSharedRef(),
+			false
+		);
+	}
+
+	if (!CookStatsFileName.IsEmpty())
+	{
+		CookStatsWriter->WriteObjectEnd();
+		CookStatsWriter->Close();
+		TUniquePtr<FArchive> CookStatsJsonFile(IFileManager::Get().CreateFileWriter(*CookStatsFileName));
+		if (!CookStatsJsonFile)
+		{
+			UE_LOG(LogCookStats, Warning, TEXT("Could not write to CookStatsFile %s."), *CookStatsFileName);
+		}
+		else
+		{
+			CookStatsJsonFile->Serialize(TCHAR_TO_ANSI(*CookStatsJsonString), CookStatsJsonString.Len());
+			CookStatsJsonFile->Close();
+		}
 	}
 }
 

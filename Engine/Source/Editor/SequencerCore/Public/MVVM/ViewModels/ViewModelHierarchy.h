@@ -290,8 +290,16 @@ private:
 class SEQUENCERCORE_API FViewModelHierarchyOperation
 {
 public:
-	explicit FViewModelHierarchyOperation(const TSharedPtr<FViewModel>& InAnyModel);
-	explicit FViewModelHierarchyOperation(const TSharedRef<FSharedViewModelData>& InSharedData);
+
+	template<typename ViewModelType>
+	UE_DEPRECATED(5.5, "Please use the FSharedViewModelData overload by passing ->GetSharedData()")
+	explicit FViewModelHierarchyOperation(const TSharedPtr<ViewModelType>& InAnyModel)
+		: SharedData(InAnyModel->SharedData)
+	{
+		Construct();
+	}
+
+	explicit FViewModelHierarchyOperation(const TSharedPtr<FSharedViewModelData>& InSharedData);
 	~FViewModelHierarchyOperation();
 
 	/**

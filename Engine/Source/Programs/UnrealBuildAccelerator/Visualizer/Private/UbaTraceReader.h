@@ -20,14 +20,16 @@ namespace uba
 			u64 start = 0;
 			u64 stop = 0;
 			TString description;
+			TString returnedReason;
+			TString breadcrumbs;
 			HBITMAP bitmap = 0;
 			u32 bitmapOffset = 0;
 			bool bitmapDirty = true;
-			bool returned = false;
-			ProcessStats processStats;
-			SessionStats sessionStats;
-			StorageStats storageStats;
-			SystemStats systemStats;
+			bool cacheFetch = false;
+			bool isRemote = false;
+			u64 createFilesTime = 0;
+			u64 writeFilesTime = 0;
+			Vector<u8> stats;
 			Vector<ProcessLogLine> logLines;
 		};
 
@@ -73,16 +75,15 @@ namespace uba
 
 		struct StatusUpdate
 		{
-			TString name;
 			TString text;
-			u32 nameIndent;
-			u32 textIndent;
 			LogEntryType type;
+			TString link;
 		};
 
 		struct Session
 		{
 			TString name;
+			TString fullName;
 			Guid clientUid;
 			Vector<Processor> processors;
 			Vector<SessionUpdate> updates;
@@ -118,19 +119,34 @@ namespace uba
 			bool operator==(const ProcessLocation& o) const { return sessionIndex == o.sessionIndex && processorIndex == o.processorIndex && processIndex == o.processIndex; }
 		};
 
-		Process* GetProcess(const ProcessLocation& loc) { return &(sessions[loc.sessionIndex].processors[loc.processorIndex].processes[loc.processIndex]); }
-		void Clear() { sessions.clear(); workTracks.clear(); strings.clear(); statusMap.clear(); startTime = 0; finished = true; totalProcessActiveCount = 0; totalProcessExitedCount = 0; activeSessionCount = 0; };
+		struct CacheWrite
+		{
+			u64 start = 0;
+			u64 end = 0;
+			u64 bytesSent = 0;
+			bool success = false;
+		};
+
+		const Process& GetProcess(const ProcessLocation& loc);
+		const Session& GetSession(const ProcessLocation& loc);
+		void Clear();
 
 		Vector<Session> sessions;
 		Vector<WorkTrack> workTracks;
 		Vector<TString> strings;
-		Map<u32, StatusUpdate> statusMap;
+		Map<u64, StatusUpdate> statusMap;
+		Map<u32, CacheWrite> cacheWrites;
+		u64 realStartTime = 0;
 		u64 startTime = 0;
 		u64 frequency = 0;
 		u32 totalProcessActiveCount = 0;
 		u32 totalProcessExitedCount = 0;
 		u32 activeSessionCount = 0;
 		u32 version = 0;
+		u32 progressProcessesTotal = 0;
+		u32 progressProcessesDone = 0;
+		u32 progressErrorCount = 0;
+		bool remoteExecutionDisabled = false;
 		bool finished = true;
 	};
 
@@ -152,19 +168,23 @@ namespace uba
 		bool UpdateReadClient(TraceView& out, NetworkClient& client, bool& outChanged);
 
 		// Use for local
-		bool StartReadNamed(TraceView& out, const tchar* namedTrace, bool silentFail = false);
-		bool UpdateReadNamed(TraceView& out, bool& outChanged);
+		bool StartReadNamed(TraceView& out, const tchar* namedTrace, bool silentFail = false, bool replay = false);
+		bool UpdateReadNamed(TraceView& out, u64 maxTime, bool& outChanged);
 
-		bool ReadMemory(TraceView& out, bool trackHost);
+		bool ReadMemory(TraceView& out, bool trackHost, u64 maxTime);
 		bool ReadTrace(TraceView& out, BinaryReader& reader, u64 maxTime);
 		void StopAllActive(TraceView& out, u64 stopTime);
-		void Reset();
+		void Reset(TraceView& out);
+		void Unmap();
 
 		bool SaveAs(const tchar* fileName);
 
 		Guid ReadClientId(TraceView& out, BinaryReader& reader);
 		TraceView::Session& GetSession(TraceView& out, u32 sessionIndex);
 		TraceView::Session* GetSession(TraceView& out, const Guid& clientUid);
+
+		TraceView::Process* ProcessBegin(TraceView& out, u32 sessionIndex, u32 id, u64 time, const tchar* description);
+		TraceView::Process* ProcessEnd(TraceView& out, u32& outSessionIndex, u32 id, u64 time);
 
 		UnorderedMap<u32, TraceView::ProcessLocation> m_activeProcesses;
 
@@ -179,10 +199,10 @@ namespace uba
 		TraceChannel m_channel;
 		ReaderWriterLock m_memoryLock;
 		FileMappingHandle m_memoryHandle;
+		TString m_namedTrace;
 		u8* m_memoryBegin = nullptr;
 		u8* m_memoryPos = nullptr;
 		u8* m_memoryEnd = nullptr;
-		u64 m_startTime = ~u64(0);
 		HANDLE m_hostProcess = NULL;
 	};
 }

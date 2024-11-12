@@ -27,6 +27,10 @@ class MESHMODELINGTOOLSEXP_API UEditPivotToolBuilder : public UMultiSelectionMes
 	GENERATED_BODY()
 public:
 	virtual UMultiSelectionMeshEditingTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
+	virtual void InitializeNewTool(UMultiSelectionMeshEditingTool* NewTool, const FToolBuilderState& SceneState) const override;
+
+protected:
+	virtual const FToolTargetTypeRequirements& GetTargetRequirements() const override;
 };
 
 
@@ -36,9 +40,6 @@ public:
 UENUM()
 enum class EEditPivotSnapDragRotationMode : uint8
 {
-	/** Snap-Drag only translates, ignoring Normals */
-	Ignore = 0 UMETA(DisplayName = "Ignore"),
-
 	/** Snap-Drag aligns the pivot Z Axis and Target Normals to point in the same direction */
 	Align = 1 UMETA(DisplayName = "Align"),
 
@@ -64,11 +65,15 @@ public:
 	bool bApplyToAllLODs = true;
 
 	/** When enabled, click-drag to reposition the Pivot */
-	UPROPERTY(EditAnywhere, Category = Options)
-	bool bEnableSnapDragging = false;
+	UPROPERTY(EditAnywhere, Category = SnapDragging)
+	bool bSnapDragPosition = false;
+	
+	/** When enabled, click-drag to reorient the Pivot */
+	UPROPERTY(EditAnywhere, Category = SnapDragging)
+	bool bSnapDragRotation = false;
 
-	/** When Snap-Dragging, align source and target normals */
-	UPROPERTY(EditAnywhere, Category = Options, meta = (EditCondition = "bEnableSnapDragging == true"))
+	/** When snap-dragging rotation, how to align source and target normals */
+	UPROPERTY(EditAnywhere, Category = SnapDragging, meta = (EditCondition = "bSnapDragRotation"))
 	EEditPivotSnapDragRotationMode RotationMode = EEditPivotSnapDragRotationMode::Align;
 };
 
@@ -194,8 +199,17 @@ public:
 
 	virtual void RequestAction(EEditPivotToolActions ActionType);
 
+	void SetInitialPivot(FTransform3d InInitialPivot) 
+	{
+		bHasCustomInitialPivot = true;
+		InitialPivot = InInitialPivot;
+	}
+
 protected:
 	TArray<int> MapToFirstOccurrences;
+
+	FTransform3d InitialPivot = FTransform3d::Identity;
+	bool bHasCustomInitialPivot = false;
 
 	FTransform3d Transform;
 	UE::Geometry::FAxisAlignedBox3d ObjectBounds;

@@ -148,14 +148,15 @@ void UMovieSceneActorReferenceSection::PostLoad()
 	}
 }
 
-void UMovieSceneActorReferenceSection::OnBindingIDsUpdated(const TMap<UE::MovieScene::FFixedObjectBindingID, UE::MovieScene::FFixedObjectBindingID>& OldFixedToNewFixedMap, FMovieSceneSequenceID LocalSequenceID, const FMovieSceneSequenceHierarchy* Hierarchy, IMovieScenePlayer& Player)
+void UMovieSceneActorReferenceSection::OnBindingIDsUpdated(const TMap<UE::MovieScene::FFixedObjectBindingID, UE::MovieScene::FFixedObjectBindingID>& OldFixedToNewFixedMap, FMovieSceneSequenceID LocalSequenceID, TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState)
 {
-	UE::MovieScene::FFixedObjectBindingID DefaultFixedBindingID = ActorReferenceData.GetDefault().Object.ResolveToFixed(LocalSequenceID, Player);
+	UE::MovieScene::FFixedObjectBindingID DefaultFixedBindingID = ActorReferenceData.GetDefault().Object.ResolveToFixed(LocalSequenceID, SharedPlaybackState);
 
 	if (OldFixedToNewFixedMap.Contains(DefaultFixedBindingID))
 	{
 		Modify();
 
+		const FMovieSceneSequenceHierarchy* Hierarchy = SharedPlaybackState->GetHierarchy();
 		FMovieSceneActorReferenceKey NewDefaultValue = ActorReferenceData.GetDefault();
 		NewDefaultValue.Object = OldFixedToNewFixedMap[DefaultFixedBindingID].ConvertToRelative(LocalSequenceID, Hierarchy);
 
@@ -164,12 +165,13 @@ void UMovieSceneActorReferenceSection::OnBindingIDsUpdated(const TMap<UE::MovieS
 
 	for (FMovieSceneActorReferenceKey& Key : ActorReferenceData.GetData().GetValues())
 	{
-		UE::MovieScene::FFixedObjectBindingID KeyFixedBindingID = Key.Object.ResolveToFixed(LocalSequenceID, Player);
+		UE::MovieScene::FFixedObjectBindingID KeyFixedBindingID = Key.Object.ResolveToFixed(LocalSequenceID, SharedPlaybackState);
 
 		if (OldFixedToNewFixedMap.Contains(KeyFixedBindingID))
 		{
 			Modify();
 
+			const FMovieSceneSequenceHierarchy* Hierarchy = SharedPlaybackState->GetHierarchy();
 			Key.Object = OldFixedToNewFixedMap[KeyFixedBindingID].ConvertToRelative(LocalSequenceID, Hierarchy);
 		}
 	}

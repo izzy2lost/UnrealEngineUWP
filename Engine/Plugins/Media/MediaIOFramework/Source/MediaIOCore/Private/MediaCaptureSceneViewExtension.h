@@ -73,7 +73,7 @@ public:
 	};
 	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override {}; 
 	
-	virtual void SubscribeToPostProcessingPass(EPostProcessingPass PassId, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled) override
+	virtual void SubscribeToPostProcessingPass(EPostProcessingPass PassId, const FSceneView& View, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled) override
 	{
 		if ((CapturePhase == EMediaCapturePhase::AfterMotionBlur && PassId == EPostProcessingPass::MotionBlur)
 			|| (CapturePhase == EMediaCapturePhase::AfterToneMap && PassId == EPostProcessingPass::Tonemap)
@@ -102,7 +102,12 @@ public:
 			RDG_EVENT_SCOPE(GraphBuilder, "MediaCaptureSceneExtension");
 			if (WeakCapture.IsValid())
 			{
-				WeakCapture->CaptureImmediate_RenderThread(GraphBuilder, TextureRef, SceneColor.ViewRect);
+				bool bCaptureSucceeded = WeakCapture->TryCaptureImmediate_RenderThread(GraphBuilder, TextureRef, SceneColor.ViewRect);
+				if(!bCaptureSucceeded)
+				{
+					LastErrorMessage = TEXT("Failed to capture resource.");
+					UE_LOG(LogMediaIOCore, VeryVerbose, TEXT("%s"), *LastErrorMessage);
+				}
 			}
 		}
 

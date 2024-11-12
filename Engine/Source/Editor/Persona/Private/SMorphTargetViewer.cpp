@@ -1,24 +1,30 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "SMorphTargetViewer.h"
-#include "Widgets/Input/SCheckBox.h"
-#include "Framework/Commands/UIAction.h"
-#include "Textures/SlateIcon.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "Widgets/Input/SSpinBox.h"
-#include "Animation/DebugSkelMeshComponent.h"
-#include "ScopedTransaction.h"
-#include "Widgets/Input/SSearchBox.h"
-#include "Animation/MorphTarget.h"
+
 #include "Animation/AnimInstance.h"
-#include "HAL/PlatformApplicationMisc.h"
-#include "GPUSkinCache.h"
+#include "Animation/DebugSkelMeshComponent.h"
+#include "Animation/MorphTarget.h"
 #include "Engine/RendererSettings.h"
+#include "Framework/Commands/UIAction.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "GPUSkinCache.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "IPersonaPreviewScene.h"
-#include "SkeletalMeshAttributes.h"
+#include "InterchangeMeshUtilities.h"
+#include "InterchangeManager.h"
+#include "Misc/App.h"
 #include "Rendering/SkeletalMeshLODImporterData.h"
+#include "ScopedTransaction.h"
+#include "SkeletalMeshAttributes.h"
 #include "SkeletalRenderPublic.h"
+#include "SkinnedAssetCompiler.h"
+#include "SRenameMorphTargetDialog.h"
+#include "Textures/SlateIcon.h"
+#include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Input/SSearchBox.h"
+#include "Widgets/Input/SSpinBox.h"
 
 #define LOCTEXT_NAMESPACE "SMorphTargetViewer"
 
@@ -125,6 +131,28 @@ TSharedRef< SWidget > SMorphTargetListRow::GenerateWidgetForColumn( const FName&
 {
 	if ( ColumnName == ColumnId_MorphTargetNameLabel )
 	{
+		FText SourceFilenamesTooltip;
+		FText MorphNameText = FText::FromName(Item->Name);
+
+		bool bFirst = true;
+		for (int32 LodIndex = 0; LodIndex < Item->SourceFilenames.Num(); ++LodIndex)
+		{
+			if (!Item->SourceFilenames[LodIndex].IsEmpty())
+			{
+				FText CarriageReturn;
+				if (bFirst)
+				{
+					MorphNameText = FText::Format(LOCTEXT("MorphRowName", "{0} (Imported)"), MorphNameText);
+					bFirst = false;
+				}
+				else
+				{
+					CarriageReturn = bFirst ? FText() : FText::FromString(TEXT("\n"));
+				}
+				SourceFilenamesTooltip = FText::Format(LOCTEXT("{0}{1}SourceFilenameTooltipEntry", "LOD {2} Source Filename: {3}"), CarriageReturn, SourceFilenamesTooltip, FText::AsNumber(LodIndex), FText::FromString(Item->SourceFilenames[LodIndex]));
+			}
+		}
+
 		return
 			SNew( SVerticalBox )
 
@@ -134,7 +162,8 @@ TSharedRef< SWidget > SMorphTargetListRow::GenerateWidgetForColumn( const FName&
 			.VAlign( VAlign_Center )
 			[
 				SNew( STextBlock )
-				.Text( FText::FromName(Item->Name) )
+				.Text( MorphNameText )
+				.ToolTipText(SourceFilenamesTooltip)
 				.HighlightText( MorphTargetViewer->GetFilterText() )
 			];
 	}
@@ -342,6 +371,8 @@ void SMorphTargetViewer::Construct(const FArguments& InArgs, const TSharedRef<IP
 
 	const FText SkeletalMeshName = SkeletalMesh ? FText::FromString( SkeletalMesh->GetName() ) : LOCTEXT( "MorphTargetMeshNameLabel", "No Skeletal Mesh Present" );
 
+	SkeletalMesh->GetOnMeshChanged().Add(FSimpleDelegate::CreateSP(this, &SMorphTargetViewer::OnMeshChanged));
+
 	ChildSlot
 	[
 		SNew( SVerticalBox )
@@ -352,7 +383,24 @@ void SMorphTargetViewer::Construct(const FArguments& InArgs, const TSharedRef<IP
 			SNew( STextBlock )
 			.Text( SkeletalMeshName )
 		]
-
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(0,2)
+		[
+			SNew(SHorizontalBox)
+			// Import morph target
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew( SButton )
+				.OnClicked(this, &SMorphTargetViewer::OnImportMorphTargetButton)
+				[
+					SNew(STextBlock)
+					.ToolTipText(LOCTEXT("ImportCustomMorphTargetButtonTooltip", "Import a new morph target from a file."))
+					.Text(LOCTEXT("ImportCustomMorphTargetButtonText", "Import Morph Target"))
+				]
+			]
+		]
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(0,2)
@@ -377,7 +425,6 @@ void SMorphTargetViewer::Construct(const FArguments& InArgs, const TSharedRef<IP
 			.OnGenerateRow( this, &SMorphTargetViewer::GenerateMorphTargetRow )
 			.OnContextMenuOpening( this, &SMorphTargetViewer::OnGetContextMenuContent )
 			.OnSelectionChanged( this, &SMorphTargetViewer::OnRowsSelectedChanged )
-			.ItemHeight( 22.0f )
 			.HeaderRow
 			(
 				SNew( SHeaderRow )
@@ -441,24 +488,146 @@ TSharedPtr<SWidget> SMorphTargetViewer::OnGetContextMenuContent() const
 
 	MenuBuilder.BeginSection("MorphTargetAction", LOCTEXT( "MorphsAction", "Selected Item Actions" ) );
 	{
-		FUIAction Action;
+		TArray< TSharedPtr< FDisplayedMorphTargetInfo > > SelectedRows = MorphTargetListView->GetSelectedItems();
+		const int32 SelectionCount = SelectedRows.Num();
 
+		if (SelectionCount > 0)
 		{
-			Action.ExecuteAction = FExecuteAction::CreateSP(const_cast<SMorphTargetViewer*>(this), &SMorphTargetViewer::OnDeleteMorphTargets);
-			Action.CanExecuteAction = FCanExecuteAction::CreateSP(this, &SMorphTargetViewer::CanPerformDelete);
-			const FText Label = LOCTEXT("DeleteMorphTargetButtonLabel", "Delete");
-			const FText ToolTipText = LOCTEXT("DeleteMorphTargetButtonTooltip", "Deletes the selected morph targets.");
-			MenuBuilder.AddMenuEntry(Label, ToolTipText, FSlateIcon(), Action);
-		}
+			const int32 LodCount = SkeletalMesh->GetLODNum();
+			bool bShowImportMenu = false;
+			struct FLodMorphTargetImportMenuInfo
+			{
+				bool bShowImportMenu = true;
+				bool bShowReimportMenu = true;
+				bool bShowReimportWithNewFileMenu = true;
+				bool IsMenuShow() const { return bShowImportMenu || bShowReimportMenu || bShowReimportWithNewFileMenu; }
+				void HideMenus()
+				{
+					bShowImportMenu = false;
+					bShowReimportMenu = false;
+					bShowReimportWithNewFileMenu = false;
+				}
+			};
+			TMap<int32, FLodMorphTargetImportMenuInfo> MenuInforPerLods;
+			for (int32 LodIndex = 0; LodIndex < LodCount; ++LodIndex)
+			{
+				FLodMorphTargetImportMenuInfo& MenuInfo = MenuInforPerLods.FindOrAdd(LodIndex);
+				if (!SkeletalMesh->HasMeshDescription(LodIndex))
+				{
+					MenuInfo.HideMenus();
+					continue;
+				}
 
-		{
-			Action.ExecuteAction = FExecuteAction::CreateSP(const_cast<SMorphTargetViewer*>(this), &SMorphTargetViewer::OnCopyMorphTargetNames);
-			Action.CanExecuteAction = nullptr;
-			const FText Label = LOCTEXT("CopyMorphTargetNamesButtonLabel", "Copy Names");
-			const FText ToolTipText = LOCTEXT("CopyMorphTargetNamesButtonTooltip", "Copy the names of selected morph targets to clipboard");
-			MenuBuilder.AddMenuEntry(Label, ToolTipText, FSlateIcon(), Action);
-		}
+				for (int32 RowIndex = 0; RowIndex < SelectionCount; ++RowIndex)
+				{
+					UMorphTarget* MorphTarget = SkeletalMesh->FindMorphTarget(SelectedRows[RowIndex]->Name);
+					if (MorphTarget)
+					{
+						//Look at the lod 0 to see if the morph target is an imported morph target
+						constexpr int32 LodIndex0 = 0;
+						if (!MorphTarget->IsCustomImported(LodIndex0))
+						{
+							MenuInfo.bShowImportMenu = false;
+							MenuInfo.bShowReimportMenu = false;
+							MenuInfo.bShowReimportWithNewFileMenu = false;
+						}
+						else
+						{
+							const bool bIsCustomImportedLod = MorphTarget->IsCustomImported(LodIndex);
+							MenuInfo.bShowImportMenu &= (SelectionCount == 1 && !bIsCustomImportedLod);
+							MenuInfo.bShowReimportMenu &= bIsCustomImportedLod;
+							MenuInfo.bShowReimportWithNewFileMenu &= (SelectionCount == 1 && bIsCustomImportedLod);
+						}
+					}
+				}
+				bShowImportMenu |= MenuInfo.IsMenuShow();
+			}
 
+			if (bShowImportMenu)
+			{
+				//Create the import menu for every lods
+				for (int32 LodIndex = 0; LodIndex < LodCount; ++LodIndex)
+				{
+					const FLodMorphTargetImportMenuInfo& MenuInfo = MenuInforPerLods.FindOrAdd(LodIndex);
+
+					//We can import a morph only if the lod is custom imported
+					if (MenuInfo.IsMenuShow())
+					{
+						FText SubMenuLabel = FText::Format(LOCTEXT("LodSubMenu", "LOD {0}"), FText::AsNumber(LodIndex));
+						MenuBuilder.AddSubMenu(SubMenuLabel,
+							FText(),
+							FNewMenuDelegate::CreateLambda([this, LodIndex, MenuInfo](FMenuBuilder& InSubMenuBuilder)
+								{
+									FUIAction Action;
+									
+									//Import Morph target
+									if (MenuInfo.bShowImportMenu)
+									{
+										Action.ExecuteAction = FExecuteAction::CreateSP(const_cast<SMorphTargetViewer*>(this), &SMorphTargetViewer::OnReimportMorphTargets, LodIndex);
+										Action.CanExecuteAction = nullptr;
+										const FText Label = LOCTEXT("ImportMorphTargetLabel", "Import");
+										const FText ToolTipText = LOCTEXT("ImportMorphTargetTooltip", "Import all selected custom imported morph target");
+										InSubMenuBuilder.AddMenuEntry(Label, ToolTipText, FSlateIcon(), Action);
+									}
+									//Reimport Morph target
+									if (MenuInfo.bShowReimportMenu)
+									{
+										Action.ExecuteAction = FExecuteAction::CreateSP(const_cast<SMorphTargetViewer*>(this), &SMorphTargetViewer::OnReimportMorphTargets, LodIndex);
+										Action.CanExecuteAction = nullptr;
+										const FText Label = LOCTEXT("ReimportMorphTargetLabel", "Reimport");
+										const FText ToolTipText = LOCTEXT("ReimportMorphTargetTooltip", "Reimport all selected custom imported morph target");
+										InSubMenuBuilder.AddMenuEntry(Label, ToolTipText, FSlateIcon(), Action);
+									}
+
+									//Reimport Morph target with new file
+									if (MenuInfo.bShowReimportWithNewFileMenu)
+									{
+										Action.ExecuteAction = FExecuteAction::CreateSP(const_cast<SMorphTargetViewer*>(this), &SMorphTargetViewer::OnReimportMorphTargetsWithNewFile, LodIndex);
+										Action.CanExecuteAction = nullptr;
+										const FText Label = LOCTEXT("ReimportWithNewFileMorphTargetLabel", "Reimport With New File");
+										const FText ToolTipText = LOCTEXT("ReimportWithNewFileMorphTargetTooltip", "Ask a file and re-import every selected morph target.");
+										InSubMenuBuilder.AddMenuEntry(Label, ToolTipText, FSlateIcon(), Action);
+									}
+								})
+						);
+					}
+				}
+
+				MenuBuilder.AddMenuSeparator();
+			}
+
+			//Basic morph target context menu
+			{
+				FUIAction Action;
+
+				//Rename morph target
+				{
+					Action.ExecuteAction = FExecuteAction::CreateSP(const_cast<SMorphTargetViewer*>(this), &SMorphTargetViewer::OnRenameMorphTargets);
+					Action.CanExecuteAction = nullptr;
+					const FText Label = LOCTEXT("RenameMorphTargetLabel", "Rename");
+					const FText ToolTipText = LOCTEXT("RenameMorphTargetTooltip", "Rename the selected morph targets");
+					MenuBuilder.AddMenuEntry(Label, ToolTipText, FSlateIcon(), Action);
+				}
+
+				//Delete morph target
+				{
+					Action.ExecuteAction = FExecuteAction::CreateSP(const_cast<SMorphTargetViewer*>(this), &SMorphTargetViewer::OnDeleteMorphTargets);
+					Action.CanExecuteAction = FCanExecuteAction::CreateSP(this, &SMorphTargetViewer::CanPerformDelete);
+					const FText Label = LOCTEXT("DeleteMorphTargetButtonLabel", "Delete");
+					const FText ToolTipText = LOCTEXT("DeleteMorphTargetButtonTooltip", "Deletes the selected morph targets.");
+					MenuBuilder.AddMenuEntry(Label, ToolTipText, FSlateIcon(), Action);
+				}
+
+				//Copy morph target name
+				{
+					Action.ExecuteAction = FExecuteAction::CreateSP(const_cast<SMorphTargetViewer*>(this), &SMorphTargetViewer::OnCopyMorphTargetNames);
+					Action.CanExecuteAction = nullptr;
+					const FText Label = LOCTEXT("CopyMorphTargetNamesButtonLabel", "Copy Names");
+					const FText ToolTipText = LOCTEXT("CopyMorphTargetNamesButtonTooltip", "Copy the names of selected morph targets to clipboard");
+					MenuBuilder.AddMenuEntry(Label, ToolTipText, FSlateIcon(), Action);
+				}
+			}
+		}
 	}
 	MenuBuilder.EndSection();
 
@@ -485,7 +654,13 @@ void SMorphTargetViewer::CreateMorphTargetList( const FString& SearchText )
 
 			int32 NumberOfVerts = (MorphTargets[I]->GetMorphLODModels().Num() > 0)? MorphTargets[I]->GetMorphLODModels()[0].Vertices.Num() : 0;
 
-			TSharedRef<FDisplayedMorphTargetInfo> Info = FDisplayedMorphTargetInfo::Make( MorphTargets[I]->GetFName(), NumberOfVerts);
+			TArray<FString> SourceFilenames;
+			SourceFilenames.AddDefaulted(SkeletalMesh->GetLODNum());
+			for (int32 LodIndex = 0; LodIndex < SkeletalMesh->GetLODNum(); ++LodIndex)
+			{
+				SourceFilenames[LodIndex] = MorphTargets[I]->GetCustomImportedSourceFilename(LodIndex);
+			}
+			TSharedRef<FDisplayedMorphTargetInfo> Info = FDisplayedMorphTargetInfo::Make( MorphTargets[I]->GetFName(), NumberOfVerts, SourceFilenames);
 			if(MeshComponent)
 			{
 				const float *CurveValPtr = MeshComponent->GetMorphTargetCurves().Find( MorphTargets[I]->GetFName() );
@@ -519,6 +694,50 @@ bool SMorphTargetViewer::CanPerformDelete() const
 	return SelectedRows.Num() > 0;
 }
 
+void SMorphTargetViewer::OnRenameMorphTargets()
+{
+	auto RenameMorphTarget = [this](UMorphTarget* SelectMorphTarget)
+		{
+			TSharedRef <SRenameMorphTargetDialog> RenameWidgetDialog = SNew(SRenameMorphTargetDialog)
+				.SkeletalMesh(SkeletalMesh)
+				.MorphTarget(SelectMorphTarget);
+
+			TSharedRef<SWindow> RenameWindowDialog =
+				SNew(SWindow)
+				.Title(LOCTEXT("RenameMorphTargetWindowTitle", "Rename Morph target"))
+				.SizingRule(ESizingRule::Autosized)
+				.SupportsMaximize(false)
+				.SupportsMinimize(false);
+
+			RenameWindowDialog->SetContent(SNew(SBox)
+				.MinDesiredWidth(320.0f)
+				[
+					RenameWidgetDialog
+				]);
+			TSharedPtr<SWindow> CurrentWindow = FSlateApplication::Get().FindWidgetWindow(AsShared());
+			FSlateApplication::Get().AddModalWindow(RenameWindowDialog, CurrentWindow);
+		};
+
+	{
+		FScopedSkeletalMeshPostEditChange PostEditChangeScope(SkeletalMesh);
+		TArray< TSharedPtr< FDisplayedMorphTargetInfo > > SelectedRows = MorphTargetListView->GetSelectedItems();
+
+		for (int32 RowIndex = 0; RowIndex < SelectedRows.Num(); ++RowIndex)
+		{
+			UMorphTarget* MorphTarget = SkeletalMesh->FindMorphTarget(SelectedRows[RowIndex]->Name);
+			if (MorphTarget)
+			{
+				RenameMorphTarget(MorphTarget);
+			}
+		}
+	}
+
+	//Wait until the skeletal mesh compilation is done
+	FSkinnedAssetCompilingManager::Get().FinishCompilation({ SkeletalMesh });
+
+	CreateMorphTargetList(NameFilterBox->GetText().ToString());
+}
+
 void SMorphTargetViewer::OnDeleteMorphTargets()
 {
 	TArray< TSharedPtr< FDisplayedMorphTargetInfo > > SelectedRows = MorphTargetListView->GetSelectedItems();
@@ -535,8 +754,14 @@ void SMorphTargetViewer::OnDeleteMorphTargets()
 		}
 	}
 
-	// Remove from mesh
-	SkeletalMesh->RemoveMorphTargets(MorphTargetNames);
+	//Scope a skeletal mesh build
+	{
+		FScopedSkeletalMeshPostEditChange ScopePostEditChange(SkeletalMesh);
+		// Remove from mesh
+		SkeletalMesh->RemoveMorphTargets(MorphTargetNames);
+	}
+	//Wait until the skeletal mesh compilation is done
+	FSkinnedAssetCompilingManager::Get().FinishCompilation({ SkeletalMesh });
 
 	CreateMorphTargetList( NameFilterBox->GetText().ToString() );
 }
@@ -561,6 +786,80 @@ void SMorphTargetViewer::OnCopyMorphTargetNames()
 	}
 }
 
+FReply SMorphTargetViewer::OnImportMorphTargetButton()
+{
+	constexpr int32 LodIndex0 = 0;
+	constexpr bool bWithNewFileTrue = true;
+	constexpr bool bRecreateMorphTargetListTrue = true;
+	InternalImportMorphTarget(LodIndex0, bWithNewFileTrue, nullptr, bRecreateMorphTargetListTrue);
+	
+	return FReply::Handled();
+}
+
+void SMorphTargetViewer::OnReimportMorphTargets(int32 LodIndex)
+{
+	constexpr bool bWithNewFileFalse = false;
+	TArray< TSharedPtr< FDisplayedMorphTargetInfo > > SelectedRows = MorphTargetListView->GetSelectedItems();
+	for (int RowIndex = 0; RowIndex < SelectedRows.Num(); ++RowIndex)
+	{
+		UMorphTarget* MorphTarget = SkeletalMesh->FindMorphTarget(SelectedRows[RowIndex]->Name);
+		if (MorphTarget)
+		{
+			constexpr bool bRecreateMorphTargetListFalse = false;
+			InternalImportMorphTarget(LodIndex, bWithNewFileFalse, MorphTarget, bRecreateMorphTargetListFalse);
+		}
+	}
+	CreateMorphTargetList();
+}
+
+void SMorphTargetViewer::OnReimportMorphTargetsWithNewFile(int32 LodIndex)
+{
+	constexpr bool bWithNewFileTrue = true;
+	TArray< TSharedPtr< FDisplayedMorphTargetInfo > > SelectedRows = MorphTargetListView->GetSelectedItems();
+	for (int RowIndex = 0; RowIndex < SelectedRows.Num(); ++RowIndex)
+	{
+		UMorphTarget* MorphTarget = SkeletalMesh->FindMorphTarget(SelectedRows[RowIndex]->Name);
+		if (MorphTarget)
+		{
+			constexpr bool bRecreateMorphTargetListFalse = false;
+			InternalImportMorphTarget(LodIndex, bWithNewFileTrue, MorphTarget, bRecreateMorphTargetListFalse);
+		}
+	}
+	CreateMorphTargetList();
+}
+
+void SMorphTargetViewer::InternalImportMorphTarget(int32 LodIndex, bool bWithNewFile, UMorphTarget* ReimportMorphTarget, bool bRecreateMorphTargetList)
+{
+	FString Filename;
+
+	bool bInternalWithNewFile = bWithNewFile || !ReimportMorphTarget || !ReimportMorphTarget->IsCustomImported(LodIndex);
+	if (bInternalWithNewFile)
+	{
+		FText PickerTitle = FText::Format(NSLOCTEXT("SMorphTargetViewer", "OnImportNewMorphTarget_PickerTitle", "Choose a file to import a morph target for LOD{0}"), FText::AsNumber(LodIndex));
+
+		if (!UInterchangeMeshUtilities::ShowMeshFilePicker(Filename, PickerTitle))
+		{
+			return;
+		}
+	}
+	else if(ensure(ReimportMorphTarget && ReimportMorphTarget->IsCustomImported(LodIndex)))
+	{
+		Filename = ReimportMorphTarget->GetCustomImportedSourceFilename(LodIndex);
+	}
+
+	constexpr bool bAsyncFalse = false;
+	UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
+	const UInterchangeSourceData* SourceData = InterchangeManager.CreateSourceData(Filename);
+	//Import a new morph target
+	TFuture<bool> FutureResult = UInterchangeMeshUtilities::ImportMorphTarget(SkeletalMesh, LodIndex, SourceData, bAsyncFalse, ReimportMorphTarget ? ReimportMorphTarget->GetName() : FString());
+	ensure(FutureResult.IsReady());
+
+	if (bRecreateMorphTargetList)
+	{
+		CreateMorphTargetList();
+	}
+}
+
 SMorphTargetViewer::~SMorphTargetViewer()
 {
 	if (PreviewScenePtr.IsValid())
@@ -575,6 +874,12 @@ SMorphTargetViewer::~SMorphTargetViewer()
 }
 
 void SMorphTargetViewer::OnPostUndo()
+{
+	CreateMorphTargetList();
+	NotifySelectionChange();
+}
+
+void SMorphTargetViewer::OnMeshChanged()
 {
 	CreateMorphTargetList();
 	NotifySelectionChange();

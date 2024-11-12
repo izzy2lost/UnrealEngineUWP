@@ -12,6 +12,12 @@ struct FDistributedBuildTaskResult
 	bool bCompleted;
 };
 
+struct FDistributedBuildStats
+{
+	uint32 MaxRemoteAgents = 0;
+	uint32 MaxActiveAgentCores = 0;
+};
+
 struct FTaskCommandData
 {	
 	FString Command;
@@ -19,6 +25,7 @@ struct FTaskCommandData
 	FString InputFileName;
 	FString OutputFileName;
 	FString ExtraCommandArgs;
+	FString Description; // Optional string describing the task. Shows up in UBA trace files for each job.
 	uint32 DispatcherPID = 0;
 	TArray<FString> Dependencies;
 };
@@ -63,6 +70,9 @@ public:
 
 	// Returns a new file path to be used for writing input data to.
 	virtual FString CreateUniqueFilePath() = 0;
+
+	// Returns the distributed build statistics since the last call and resets its internal values. Returns false if there are no statistics provided.
+	virtual bool PollStats(FDistributedBuildStats& OutStats) { return false; }
 
 	// Launches a task. Returns a future which can be waited on for the results.
 	virtual TFuture<FDistributedBuildTaskResult> EnqueueTask(const FTaskCommandData& CommandData) = 0;

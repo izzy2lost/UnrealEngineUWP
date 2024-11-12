@@ -26,7 +26,7 @@ extern void CompileOpenGLShader(
 	GLSLVersion Version);
 
 /** Version for shader format, this becomes part of the DDC key. */
-static const FGuid UE_SHADER_GLSL_VER = FGuid("33988E19-4962-4762-8219-F15483DA764A");
+static const FGuid UE_SHADER_GLSL_VER = FGuid("16563EF4-3474-4296-8DA3-AEFF2B0547F1");
 
 class FShaderFormatGLSL : public UE::ShaderCompilerCommon::FBaseShaderFormat 
 {
@@ -96,8 +96,8 @@ public:
 		}
 		Input.Environment.SetDefine(TEXT("OPENGL_PROFILE"), 1);
 
-		const bool bUseDXC = ShouldUseDXC(Input.Environment.CompilerFlags);
-		Input.Environment.SetDefine(TEXT("COMPILER_HLSLCC"), bUseDXC ? 2 : 1);
+		constexpr int32 HlslccSubstituteValueForDxc = 2;
+		Input.Environment.SetDefine(TEXT("COMPILER_HLSLCC"), HlslccSubstituteValueForDxc);
 		Input.Environment.SetDefine(TEXT("COMPILER_SUPPORTS_ATTRIBUTES"), (uint32)1);
 
 		if (Input.Environment.FullPrecisionInPS || (IsValidRef(Input.SharedEnvironment) && Input.SharedEnvironment->FullPrecisionInPS))

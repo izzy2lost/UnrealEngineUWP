@@ -20,6 +20,7 @@
 
 PREDECLARE_GEOMETRY(class FGroupTopology);
 PREDECLARE_GEOMETRY(struct FGroupTopologySelection);
+PREDECLARE_GEOMETRY(class FDynamicMeshChangeTracker);
 
 struct FSlateBrush;
 class UCombinedTransformGizmo;
@@ -81,7 +82,7 @@ public:
 	bool bShowSelectableCorners = true;
 
 	/** When true, allows the transform gizmo to be rendered */
-	UPROPERTY(EditAnywhere, Category = Options)
+	UPROPERTY(EditAnywhere, Category = Gizmo)
 	bool bGizmoVisible = true;
 
 	/** Determines whether, on selection changes, the gizmo's rotation is taken from the object transform, or from the geometry
@@ -129,6 +130,7 @@ enum class EEditMeshPolygonsToolActions
 
 	CollapseEdge,
 	WeldEdges,
+	WeldEdgesCentered,
 	StraightenEdge,
 	FillHole,
 	BridgeEdges,
@@ -402,8 +404,12 @@ class MESHMODELINGTOOLS_API UEditMeshPolygonsToolEdgeActions : public UEditMeshP
 {
 	GENERATED_BODY()
 public:
-	/** Merge selected edges, moving the first edge to the second */
-	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Weld", DisplayPriority = 1))
+	/** Merge selected boundary edges, centering the result */
+	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Weld", DisplayPriority = 0))
+	void WeldCentered() { PostAction(EEditMeshPolygonsToolActions::WeldEdgesCentered); }
+
+	/** Merge selected boundary edges, moving the first edge to the second */
+	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Weld To", DisplayPriority = 1))
 	void Weld() { PostAction(EEditMeshPolygonsToolActions::WeldEdges); }
 
 	/** Make each selected polygroup edge follow a straight path between its endpoints */
@@ -433,6 +439,10 @@ public:
 	/** Delete selected edge, implicitly merging any connected faces */
 	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Delete Edges", DisplayPriority = 8))
 	void DeleteEdge() { PostAction(EEditMeshPolygonsToolActions::Delete); }
+
+	/** Collapse the selected edges, deleting the attached triangles and merging their vertices into one */
+	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Collapse", DisplayPriority = 5))
+	void Collapse() { PostAction(EEditMeshPolygonsToolActions::CollapseEdge); }
 };
 
 
@@ -441,8 +451,12 @@ class MESHMODELINGTOOLS_API UEditMeshPolygonsToolEdgeActions_Triangles : public 
 {
 	GENERATED_BODY()
 public:
-	/** Merge selected edges, moving the first edge to the second */
-	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Weld", DisplayPriority = 1))
+	/** Merge selected boundary edges, centering the result */
+	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Weld", DisplayPriority = 0))
+	void WeldCentered() { PostAction(EEditMeshPolygonsToolActions::WeldEdgesCentered); }
+
+	/** Merge selected boundary edges, moving the first edge to the second */
+	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Weld To", DisplayPriority = 1))
 	void Weld() { PostAction(EEditMeshPolygonsToolActions::WeldEdges); }
 
 	/** Fill the adjacent hole for any selected boundary edges */
@@ -459,7 +473,7 @@ public:
 
 	/** Collapse the selected edges, deleting the attached triangles and merging its two vertices into one */
 	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Collapse", DisplayPriority = 5))
-	void Collapse() { PostAction(EEditMeshPolygonsToolActions::CollapseSingleEdge); }
+	void Collapse() { PostAction(EEditMeshPolygonsToolActions::CollapseEdge); }
 
 	/** Flip the selected (non-border, non-seam) edges, replacing them with new edges in the crossing direction */
 	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Flip", DisplayPriority = 6))
@@ -684,6 +698,7 @@ protected:
 	void ApplySimplifyAlongEdges();
 
 	void ApplyFlipSingleEdge();
+	UE_DEPRECATED(5.5, "Use ApplyCollapseEdge instead.")
 	void ApplyCollapseSingleEdge();
 	void ApplySplitSingleEdge();
 
@@ -741,6 +756,12 @@ protected:
 	friend class UEditMeshPolygonsActionModeToolBuilder;
 	TUniqueFunction<void(UEditMeshPolygonsTool*)> PostSetupFunction;
 	void SetToSelectionModeInterface();
+
+private:
+	void ApplyWeldEdges(double InterpolationT);
+	void ApplyWeldVertices(double InterpolationT);
+	void CollapseGroupEdges(TSet<int32>& GroupEdgesToCollapse, 
+		UE::Geometry::FDynamicMeshChangeTracker& ChangeTracker);
 };
 
 

@@ -2,6 +2,7 @@
 
 #include "PlayLevel.h"
 #include "CoreMinimal.h"
+#include "AssetCompilingManager.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Misc/MessageDialog.h"
@@ -171,24 +172,24 @@ public:
 		}
 	}
 
-	virtual bool CanBeUsedOnMultipleThreads() const final
+	virtual bool CanBeUsedOnMultipleThreads() const override
 	{
 		return true;
 	}
 
 	// FTickableEditorObject Interface
 
-	virtual void Tick(float DeltaTime) final
+	virtual void Tick(float DeltaTime) override
 	{
 		QueuedLines.ConsumeAllFifo(LogLine);
 	}
 
-	virtual ETickableTickType GetTickableTickType() const final
+	virtual ETickableTickType GetTickableTickType() const override
 	{
 		return ETickableTickType::Always;
 	}
 
-	virtual TStatId GetStatId() const final
+	virtual TStatId GetStatId() const override
 	{
 		RETURN_QUICK_DECLARE_CYCLE_STAT(FOutputLogErrorsToMessageLogProxy, STATGROUP_Tickables);
 	}
@@ -538,7 +539,7 @@ void UEditorEngine::EndPlayMap()
 			FName NewName = MakeUniqueObjectName(nullptr, UPackage::StaticClass());
 			UE_LOG(LogTemp, Log, TEXT("Renaming PIE package from '%s' to '%s' to prevent future name collisions."),
 				*ObjectPackage->GetName(), *NewName.ToString());
-			ObjectPackage->Rename(*NewName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional);
+			ObjectPackage->Rename(*NewName.ToString(), nullptr, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional);
 		}
 	}
 
@@ -705,7 +706,7 @@ void UEditorEngine::TeardownPlaySession(FWorldContext& PieWorldContext)
 			{
 				TSharedPtr<IAssetViewport> Viewport = SlatePlayInEditorSession->DestinationSlateViewport.Pin();
 
-				if(PlayInEditorSessionInfo.IsSet() && PlayInEditorSessionInfo->OriginalRequestParams.WorldType == EPlaySessionWorldType::PlayInEditor)
+				if(!bIsSimulatingInEditor)
 				{
 					// Set the editor viewport location to match that of Play in Viewport if we aren't simulating in the editor, we have a valid player to get the location from (unless we're going back to VR Editor, in which case we won't teleport the user.)
 					if (bLastViewAndLocationValid == true && !GEngine->IsStereoscopic3D( Viewport->GetActiveViewport() ) )
@@ -853,13 +854,10 @@ void UEditorEngine::TeardownPlaySession(FWorldContext& PieWorldContext)
 			}
 		}
 	}
-
-	// Go through and let all the PlayWorld Actor's know they are being destroyed
-	for (FActorIterator ActorIt(PlayWorld); ActorIt; ++ActorIt)
-	{
-		ActorIt->RouteEndPlay(EEndPlayReason::EndPlayInEditor);
-	}
-
+	
+	// End play for all actors in the world
+	PlayWorld->EndPlay(EEndPlayReason::EndPlayInEditor);
+	
 	PieWorldContext.OwningGameInstance->Shutdown();
 
 	// Move blueprint debugging pointers back to the objects in the editor world
@@ -988,17 +986,10 @@ void UEditorEngine::CancelRequestPlaySession()
 
 bool UEditorEngine::SaveMapsForPlaySession()
 {
-	// Prompt the user to save the level if it has not been saved before. 
-	// An unmodified but unsaved blank template level does not appear in the dirty packages check below.
-	if (FEditorFileUtils::GetFilename(GWorld).Len() == 0)
-	{
-		if (!FEditorFileUtils::SaveCurrentLevel())
-		{
-			return false;
-		}
-	}
+	// Detect if we're dealing with an unsaved newly created world
+	const bool bNewlyCreatedWorld = (FEditorFileUtils::GetFilename(GWorld).Len() == 0);
 
-	// Also save dirty packages, this is required because we're going to be launching a session outside of our normal process
+	// Save dirty packages, this is required because we're going to be launching a session outside of our normal process
 	const bool bPromptUserToSave      = true;
 	const bool bSaveMapPackages       = true;
 	const bool bSaveContentPackages   = true;
@@ -1008,6 +999,24 @@ bool UEditorEngine::SaveMapsForPlaySession()
 	if (!FEditorFileUtils::SaveDirtyPackages(bPromptUserToSave, bSaveMapPackages, bSaveContentPackages, bFastSave, bNotifyNoPackagesSaved, bCanBeDeclined))
 	{
 		return false;
+	}
+
+	// Prompt the user to save the level if it has not been saved before. 
+	// An unmodified but unsaved blank template level does not appear in the dirty packages check below.
+	if (FEditorFileUtils::GetFilename(GWorld).Len() == 0)
+	{		
+		bool bSaved = FEditorFileUtils::SaveCurrentLevel();
+		
+		if (!bSaved)
+		{
+			return false;
+		}
+	}
+
+	// In the case we're dealing with a newly created world it must be reloaded after being saved
+	if (bNewlyCreatedWorld)
+	{
+		FEditorFileUtils::LoadMap(FEditorFileUtils::GetFilename(GWorld));
 	}
 
 	return true;
@@ -2244,7 +2253,7 @@ void UEditorEngine::OnScriptExecutionStart(const FBlueprintContextTracker& Conte
 	if (IsInGameThread() && GWorld)
 	{
 		// See if we should create a world switcher, which is true if we don't have one and our PIE info is missing
-		if (!FunctionStackWorldSwitcher && (!GIsPlayInEditorWorld || GPlayInEditorID == -1))
+		if (!FunctionStackWorldSwitcher && (!GIsPlayInEditorWorld || UE::GetPlayInEditorID() == -1))
 		{
 			check(FunctionStackWorldSwitcherTag == -1);
 			UWorld* ContextWorld = GetWorldFromContextObject(ContextObject, EGetWorldErrorMode::ReturnNull);
@@ -2310,7 +2319,7 @@ UWorld* UEditorEngine::CreatePIEWorldByDuplication(FWorldContext &WorldContext, 
 	PlayWorldPackage->SetSavedHash( InPackage->GetSavedHash() );
 	PlayWorldPackage->MarkAsFullyLoaded();
 
-	// check(GPlayInEditorID == -1 || GPlayInEditorID == WorldContext.PIEInstance);
+	// check(UE::GetPlayInEditorID() == -1 || UE::GetPlayInEditorID() == WorldContext.PIEInstance);
 	// Currently GPlayInEditorID is not correctly reset after map loading, so it's not safe to assert here
 	FTemporaryPlayInEditorIDOverride IDHelper(WorldContext.PIEInstance);
 
@@ -2333,6 +2342,9 @@ UWorld* UEditorEngine::CreatePIEWorldByDuplication(FWorldContext &WorldContext, 
 
 		// NULL GWorld before various PostLoad functions are called, this makes it easier to debug invalid GWorld accesses
 		GWorld = NULL;
+		
+		// Gives a chance to any assets being used for PIE/game to complete
+		FAssetCompilingManager::Get().ProcessAsyncTasks();
 
 		// Duplicate the editor world to create the PIE world
 		NewPIEWorld = UWorld::GetDuplicatedWorldForPIE(InWorld, PlayWorldPackage, WorldContext.PIEInstance);
@@ -3330,9 +3342,8 @@ TSharedRef<SPIEViewport> UEditorEngine::GeneratePIEViewportWindow(const FRequest
 	bool bRenderDirectlyToWindow = bVRPreview;
 	bool bEnableStereoRendering = bVRPreview;
 
-	static const auto CVarPropagateAlpha = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PostProcessing.PropagateAlpha"));
-	const EAlphaChannelMode::Type PropagateAlpha = EAlphaChannelMode::FromInt(CVarPropagateAlpha->GetValueOnGameThread());
-	const bool bIgnoreTextureAlpha = (PropagateAlpha != EAlphaChannelMode::AllowThroughTonemapper);
+	static const auto CVarPropagateAlpha = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha"));
+	const bool bIgnoreTextureAlpha = (CVarPropagateAlpha->GetBool() != true);
 
 	TSharedRef<SPIEViewport> PieViewportWidget =
 		SNew(SPIEViewport)

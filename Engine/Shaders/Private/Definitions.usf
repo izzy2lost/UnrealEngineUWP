@@ -18,10 +18,6 @@
 #define	MATERIAL_TANGENTSPACENORMAL						0
 #endif
 
-#ifndef MATERIAL_TWOSIDED_SEPARATE_PASS
-#define	MATERIAL_TWOSIDED_SEPARATE_PASS					0
-#endif
-
 #ifndef MATERIALBLENDING_SOLID
 #define MATERIALBLENDING_SOLID							0
 #endif
@@ -147,8 +143,20 @@
 #define IS_NANITE_PASS (IS_NANITE_SHADING_PASS || IS_NANITE_RASTER_PASS)
 #endif
 
+// This is set by the material translator and signifies whether the material is using the DDX or DDY material graph nodes.
+// In that case the material shader might want to implement this functionality with analytic derivatives if hardware derivatives are not supported.
+#ifndef USES_EXPLICIT_DERIVATIVES
+#define USES_EXPLICIT_DERIVATIVES 0
+#endif
+
+// Whether USE_ANALYTIC_DERIVATIVES may be enabled when USES_EXPLICIT_DERIVATIVES is true
+#ifndef ALLOW_ANALYTIC_DERIVATIVES
+#define ALLOW_ANALYTIC_DERIVATIVES 0
+#endif
+
+// Whether to use analytic derivatives
 #ifndef USE_ANALYTIC_DERIVATIVES
-#define USE_ANALYTIC_DERIVATIVES 0
+#define USE_ANALYTIC_DERIVATIVES						(ALLOW_ANALYTIC_DERIVATIVES && USES_EXPLICIT_DERIVATIVES)
 #endif
 
 #ifndef GBUFFER_HAS_VELOCITY
@@ -236,6 +244,10 @@
 
 #ifndef FORCE_MATERIAL_FLOAT_FULL_PRECISION
 #define FORCE_MATERIAL_FLOAT_FULL_PRECISION             0
+#endif
+
+#ifndef SUPPORT_FIRST_PERSON_RENDERING
+#define SUPPORT_FIRST_PERSON_RENDERING					1
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////

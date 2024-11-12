@@ -15,14 +15,14 @@ namespace UE::Audio::Insights
 	FTraceModule::FTraceModule()
 		: ChannelManager(MakeShared<FTraceChannelManager>())
 	{
-		// Don't run providers in cook commandlet to avoid additional, unnecessary overhead as audio insights is dormant.
-		if (!IsRunningCookCommandlet())
+		// Don't run providers in any commandlet to avoid additional, unnecessary overhead as audio insights is dormant.
+		if (!IsRunningCommandlet())
 		{
 			TSharedPtr<FMixerSourceTraceProvider> SourceProvider = MakeShared<FMixerSourceTraceProvider>(ChannelManager);
 			TSharedPtr<FVirtualLoopTraceProvider> VirtualLoopProvider = MakeShared<FVirtualLoopTraceProvider>(ChannelManager);
 
-			TraceProviders.Add(SourceProvider->GetName(), StaticCastSharedPtr<FTraceProviderBase>(SourceProvider));
-			TraceProviders.Add(VirtualLoopProvider->GetName(), StaticCastSharedPtr<FTraceProviderBase>(VirtualLoopProvider));
+			TraceProviders.Add(SourceProvider->GetName(), SourceProvider);
+			TraceProviders.Add(VirtualLoopProvider->GetName(), VirtualLoopProvider);
 		}
 	}
 
@@ -30,6 +30,11 @@ namespace UE::Audio::Insights
 	{
 		OutModuleInfo.Name = GetName();
 		OutModuleInfo.DisplayName = TEXT("Audio");
+	}
+
+	void FTraceModule::AddTraceProvider(TSharedPtr<FTraceProviderBase> TraceProvider)
+	{
+		TraceProviders.Add(TraceProvider->GetName(), TraceProvider);
 	}
 
 	TSharedRef<FTraceChannelManager> FTraceModule::GetChannelManager()
@@ -64,11 +69,17 @@ namespace UE::Audio::Insights
 
 	void FTraceModule::OnAnalysisBegin(TraceServices::IAnalysisSession& InSession)
 	{
-		for (const TPair<FName, TSharedPtr<FTraceProviderBase>>& Pair : TraceProviders)
+		for (const auto& [ProviderName, Provider] : TraceProviders)
 		{
-			InSession.AddProvider(Pair.Key, nullptr, Pair.Value);
-			InSession.AddAnalyzer(Pair.Value->ConstructAnalyzer());
+#if !WITH_EDITOR
+			Provider->InitSessionCachedMessages(InSession);
+#endif // !WITH_EDITOR
+
+			InSession.AddProvider(ProviderName, Provider, Provider);
+			InSession.AddAnalyzer(Provider->ConstructAnalyzer(InSession));
 		}
+
+		FirstTimeStamp = -TNumericLimits<double>::Min();
 	}
 
 	void FTraceModule::StartTraceAnalysis() const

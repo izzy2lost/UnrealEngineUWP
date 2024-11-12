@@ -1,19 +1,29 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { Checkbox, ConstrainMode, DefaultButton, DetailsHeader, DetailsList, DetailsListLayoutMode, DetailsRow, Dialog, DialogFooter, DialogType, GroupedList, GroupHeader, ICheckbox, IColumn, IContextualMenuItem, IContextualMenuProps, IDetailsHeaderProps, IDetailsHeaderStyles, IDetailsListProps, IGroup, ITextField, ITooltipHostStyles, mergeStyleSets, Modal, Pivot, PivotItem, PrimaryButton, ScrollablePane, ScrollbarVisibility, Selection, SelectionMode, Spinner, SpinnerSize, Stack, Sticky, StickyPositionType, Text, TextField } from "@fluentui/react";
+import { Checkbox, ComboBox, ConstrainMode, DefaultButton, DetailsHeader, DetailsList, DetailsListLayoutMode, DetailsRow, Dialog, DialogFooter, DialogType, FontIcon, GroupedList, GroupHeader, ICheckbox, IColumn, IComboBoxOption, IContextualMenuItem, IContextualMenuProps, IDetailsHeaderProps, IDetailsHeaderStyles, IDetailsListProps, IGroup, ITextField, ITooltipHostStyles, Label, mergeStyleSets, Modal, Pivot, PivotItem, PrimaryButton, ScrollablePane, ScrollbarVisibility, Selection, SelectionMode, Spinner, SpinnerSize, Stack, Sticky, StickyPositionType, Text, TextField } from "@fluentui/react";
 import { action, makeObservable, observable } from "mobx";
 import { observer } from "mobx-react-lite";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { Sparklines, SparklinesLine, SparklinesReferenceLine } from "react-sparklines";
 import backend from "../backend";
 import { agentStore } from "../backend/AgentStore";
-import { AgentData, GetAgentLeaseResponse, GetAgentSessionResponse, JobStepBatchError, JobStepOutcome, LeaseData, SessionData, UpdateAgentRequest } from "../backend/Api";
+import { AgentData, GetAgentLeaseResponse, GetAgentSessionResponse, GetAgentTelemetrySampleResponse, GetJobResponse, JobStepBatchError, JobStepOutcome, LeaseData, SessionData, UpdateAgentRequest } from "../backend/Api";
 import dashboard from "../backend/Dashboard";
-import { getShortNiceTime } from "../base/utilities/timeUtils";
+import { getNiceTime, getShortNiceTime } from "../base/utilities/timeUtils";
 import { getHordeStyling } from "../styles/Styles";
 import { getHordeTheme } from "../styles/theme";
 import { BatchStatusIcon, LeaseStatusIcon, StepStatusIcon } from "./StatusIcon";
 
+
+type LeaseTooltip = {
+   lease?: GetAgentLeaseResponse;
+   time?: Date;
+   id?: string;
+   x?: number;
+   y?: number;
+   frozen?: boolean;
+}
 
 type InfoPanelItem = {
    key: string;
@@ -53,6 +63,9 @@ class HistoryModalState {
 
    @observable
    selectedAgentUpdated = 0;
+
+   @observable
+   currentLeaseTooltip?: LeaseTooltip;
 
    get selectedAgent(): AgentData | undefined {
       // subscribe in any observers
@@ -109,6 +122,11 @@ class HistoryModalState {
       }
    }
 
+   @action
+   setLeaseTooltip(tooltip?: LeaseTooltip) {
+      this.currentLeaseTooltip = tooltip;
+   }
+
    setInfoItemSelected(item: InfoPanelItem) {
       this.infoItems.forEach(infoItem => {
          if (infoItem.key === item.key) {
@@ -125,7 +143,7 @@ class HistoryModalState {
       this.agentItemCount = 0;
       this.devicesItemCount = 0;
       this.workspaceItemCount = 0;
-      const items:InfoPanelItem[] = [
+      const items: InfoPanelItem[] = [
          {
             key: "overview",
             name: "Overview",
@@ -162,7 +180,7 @@ class HistoryModalState {
                const name: string = count > 1 ? `${workspace.stream} (${count})` : workspace.stream;
 
                (workspace as any)._hackName = name;
-;
+               ;
                items.push({ key: `workspace${workspaceIdx}`, name: name, selected: false, data: name });
                this.workspaceItemCount++;
             }
@@ -268,8 +286,66 @@ class HistoryModalState {
       });
    }
 
+   jobData = new Map<string, GetJobResponse | boolean>();
+
+   UpdateTelemetry(minutes: number) {
+
+      const requests = [backend.getAgentTelemetry(this.selectedAgent!.id, new Date(Date.now() - 1000 * 60 * minutes), new Date()), backend.getAgentLeases(this.selectedAgent!.id, new Date(Date.now() - 1000 * 60 * minutes), new Date())]
+      Promise.all(requests).then((data) => {
+         this.setTelemetryData((data[0] as GetAgentTelemetrySampleResponse[]).reverse(), data[1] as GetAgentLeaseResponse[]);
+      })
+   }
+
+   @action
+   setTelemetryData(telemetryData: GetAgentTelemetrySampleResponse[], sessionData: GetAgentLeaseResponse[]) {
+
+      const linear: GetAgentTelemetrySampleResponse[] = [];
+
+      if (telemetryData.length) {
+
+         let ctime: number = 0;
+
+         telemetryData.forEach(t => {
+
+            if (!ctime) {
+               ctime = t.time.getTime();
+               linear.push(t);
+            } else {
+               const ntime = t.time.getTime();
+               // dependant on agent sample rate!               
+               while ((ntime - ctime) > 60000) {
+
+                  ctime += 30000;
+                  linear.push({
+                     time: new Date(ctime),
+                     userCpu: 0,
+                     idleCpu: 0,
+                     systemCpu: 0,
+                     freeRam: 0,
+                     usedRam: 0,
+                     totalRam: 1,
+                     freeDisk: 0,
+                     totalDisk: 0
+                  });
+               }
+
+               linear.push(t);
+               ctime = ntime;
+            }
+         });
+      }
+
+      this.currentData = [linear, sessionData];
+
+   }
+
    @action
    appendData(newData: any[]) {
+
+      if (this.mode === "telemetry") {
+         return;
+      }
+
       // if there's any data, there might be more data next time, so add another callback.
       if (newData.length > 0) {
          newData.push(null);
@@ -301,6 +377,371 @@ class HistoryModalState {
 }
 
 const state = new HistoryModalState();
+
+
+const TelemetryTooltip: React.FC<{ id: string }> = observer(({ id }) => {
+
+   const { modeColors } = getHordeStyling();
+
+   const tooltip = state.currentLeaseTooltip;
+
+   if (!tooltip?.lease || tooltip.id !== id) {
+      return null;
+   }
+
+   let tipX = tooltip.x;
+   let offsetX = 32;
+   let translateX = "0%";
+
+   if ((tipX ?? 0) > 600) {
+      offsetX = -32;
+      translateX = "-100%";
+   }
+
+   const translateY = "-50%";
+
+   const textSize = 11;
+   const titleWidth = 48;
+
+   const dataElement = (title: string, value: string, link?: string, agent?: string, linkTarget?: string) => {
+
+      let valueElement = <Stack>
+         <Stack style={{ fontSize: textSize }}>
+            {value}
+         </Stack>
+      </Stack>
+
+      if (link) {
+         valueElement = <Link className="horde-link" to={link} target={linkTarget}>
+            {valueElement}
+         </Link>
+      }
+
+      let component = <Stack style={{ cursor: (link || agent) ? "pointer" : undefined }} onClick={() => {
+      }}>
+         <Stack horizontal>
+            <Stack style={{ width: titleWidth }}>
+               {!!title && <Text style={{ fontFamily: "Horde Open Sans SemiBold", fontSize: textSize }} >{title}</Text>}
+            </Stack>
+            {valueElement}
+         </Stack>
+      </Stack>
+
+      return component;
+   }
+
+   const elements: JSX.Element[] = [];
+
+   const lease = tooltip.lease;
+
+   if (lease?.details?.type === "Job") {
+      elements.push(dataElement("Job:", tooltip.lease?.name ?? "Unknown Job Lease", `/job/${lease.details.jobId}`));
+      const job = state.jobData.get(lease.details.jobId);
+      if (job && job !== true && job.batches) {
+         const step = job.batches.map(b => b.agentId === state.selectedAgent?.id ? b.steps : []).flat().find(s => {
+            if (s.startTime && tooltip.time) {
+               if (tooltip.time >= new Date(s.startTime) && (!s.finishTime || tooltip.time <= new Date(s.finishTime))) {
+                  return true;
+               }
+            }
+            return false;
+         });
+         if (step) {
+            elements.push(dataElement("Step:", step.name ?? "Unknown Job Step", `/job/${lease.details.jobId}?step=${step.id}`));
+            if (step.logId)
+               elements.push(dataElement("Log:", `Step`, `/log/${step.logId}`));
+         }
+      }
+   } else {
+      elements.push(dataElement("Lease:", tooltip.lease?.name ?? "Unknown Lease"));
+   }
+
+   if (lease?.details?.logId) {
+      elements.push(dataElement("Log:", `Lease`, `/log/${lease.details.logId}`));
+   }
+
+
+
+   if (tooltip.time) {
+      elements.push(dataElement("Time:", getNiceTime(tooltip.time)));
+   }
+
+
+   return <div style={{
+      position: "absolute",
+      display: "block",
+      top: `${tooltip.y}px`,
+      left: `${(tooltip.x ?? 0) + offsetX}px`,
+      backgroundColor: modeColors.background,
+      zIndex: 1,
+      border: "solid",
+      borderWidth: "1px",
+      borderRadius: "3px",
+      width: "max-content",
+      borderColor: dashboard.darktheme ? "#413F3D" : "#2D3F5F",
+      pointerEvents: tooltip.frozen ? undefined : "none",
+      transform: `translate(${translateX}, ${translateY})`
+   }}>
+      <Stack horizontal>
+         <Stack tokens={{ childrenGap: 6, padding: 12 }}>
+            {elements}
+         </Stack>
+         {!!tooltip.frozen && <Stack style={{ paddingLeft: 32, paddingRight: 12, paddingTop: 12, cursor: "pointer" }} onClick={() => { state.setLeaseTooltip(undefined) }}>
+            <FontIcon iconName="Cancel" />
+         </Stack>}
+         {!tooltip.frozen && <Stack style={{ paddingLeft: 32, paddingRight: 12 + 16, paddingTop: 12 }} />}
+
+      </Stack>
+   </div>
+
+});
+
+type TimeSelection = {
+   text: string;
+   key: string;
+   minutes: number;
+}
+
+const timeSelections: TimeSelection[] = [
+   {
+      text: "Past 1 Hour", key: "time_1_hour", minutes: 60
+   },
+   {
+      text: "Past 2 Hours", key: "time_2_hours", minutes: 60 * 2
+   },
+   {
+      text: "Past 4 Hours", key: "time_4_hours", minutes: 60 * 4
+   },
+   {
+      text: "Past 1 Day", key: "time_1_day", minutes: 60 * 24
+   },
+   {
+      text: "Past 2 Days", key: "time_2_days", minutes: 60 * 24 * 2
+   },
+   {
+      text: "Past 1 Week", key: "time_1_week", minutes: 60 * 24 * 7
+   },
+   {
+      text: "Past 2 Weeks", key: "time_2_weeks", minutes: 60 * 24 * 7 * 2
+   },
+   {
+      text: "Past Month", key: "time_4_weeks", minutes: 60 * 24 * 7 * 4
+   }
+]
+
+const cpuSelections: IComboBoxOption[] = [
+   {
+      text: "Combined", key: "combined"
+   },
+   {
+      text: "User", key: "user"
+   },
+   {
+      text: "System", key: "system"
+   }
+]
+
+const TelemetryPanel: React.FC<{}> = observer(({ }) => {
+
+   const [timeKey, setTimeKey] = useState("time_2_weeks");
+   const [cpuKey, setCPUKey] = useState("combined");
+
+   useEffect(() => {
+
+      const time = timeSelections.find(t => t.key === timeKey);
+      if (time) {
+         state.UpdateTelemetry(time.minutes);
+      }
+
+      return () => {
+      };
+
+   }, []);
+
+
+   // subscribe
+   if (state.currentData) { }
+
+   const currentData = (state.currentData ?? []);
+
+   if (!currentData.length) {
+      return <Stack horizontalAlign="center">
+         <Spinner size={SpinnerSize.large} />
+      </Stack>;
+   }
+
+
+   const sparkWidth = 1100;
+   const data = (currentData[0] as GetAgentTelemetrySampleResponse[]);
+   const leases = ((currentData.length > 1) ? currentData[1] : []) as GetAgentLeaseResponse[];
+
+   if (!data.length) {
+      return null;
+   }
+
+   const cpuData = data.map(d => {
+      if (cpuKey == "user") return d.userCpu;
+      if (cpuKey == "system") return d.systemCpu;
+      if (cpuKey == "combined") return d.userCpu + d.systemCpu;
+      return 1;
+   })
+
+   const min = data[0].time;
+   const max = data[data.length - 1].time;
+
+   const minTime = getShortNiceTime(min, true);
+   const maxTime = getShortNiceTime(max, true);
+
+
+
+   const ramData = data.map(d => {
+      return d.usedRam / d.totalRam;
+   })
+
+   let cpuText = "";
+   let ramText = "";
+
+   let cpuLabel = "";
+   if (cpuKey == "user") cpuLabel = "CPU - User";
+   if (cpuKey == "system") cpuLabel = "CPU - System";
+   if (cpuKey == "combined") cpuLabel = "CPU - Combined";
+
+
+   const devices = state.selectedAgent?.capabilities?.devices;
+   if (devices?.length) {
+      const device = devices[0];
+      device.properties?.forEach(v => {
+         if (v.startsWith("CPU=")) {
+            cpuText = `${v.replace("CPU=", "")}`;
+         }
+   
+         if (v.startsWith("RAM=")) {
+            ramText = `${v.replace("RAM=", "")} GB`;
+         }
+      })   
+   }
+
+   function relativeCoords(event: any, id: string) {
+
+      if (state.currentLeaseTooltip?.frozen) {
+         return;
+      }
+
+      let bounds = event.target.getBoundingClientRect();
+      let x = event.clientX - bounds.left;
+      let y = event.clientY - bounds.top;
+
+      // interpolate time
+
+      const percent = ((x - 16) / sparkWidth);
+
+      const time = new Date(min.getTime() + ((max.getTime() - min.getTime()) * percent));
+
+      let lease: GetAgentLeaseResponse | undefined;
+      leases.forEach(s => {
+         if (time >= s.startTime && (!s.finishTime || time <= s.finishTime)) {
+            lease = s;
+         }
+      });
+
+      if (lease?.details?.type === "Job") {
+         const jobId = lease.details.jobId;
+         if (jobId) {
+            if (!state.jobData.has(jobId)) {
+               state.jobData.set(jobId, true);
+               backend.getJob(jobId, { filter: "id,batches" }).then(job => {
+                  state.jobData.set(jobId, job);
+                  state.setLeaseTooltip(state.currentLeaseTooltip ? { ...state.currentLeaseTooltip } : undefined);
+               })
+            }
+         }
+      }
+
+      state.setLeaseTooltip({ lease: lease, x: x, y: y, id: id, time: time });
+   };
+
+   return <Stack tokens={{ childrenGap: 24 }} style={{ paddingBottom: 32, paddingLeft: 8 }}>
+      <Stack horizontal verticalAlign="center" verticalFill>
+         <Text variant="mediumPlus">{minTime} - {maxTime}</Text>
+         <Stack grow />
+         <Stack horizontal tokens={{ childrenGap: 18 }}>
+
+            <ComboBox
+               label={"CPU"}
+               styles={{ root: { width: 128 } }}
+               options={cpuSelections}
+               selectedKey={cpuKey}
+               onChange={(ev, option, index, value) => {
+                  if (!option) {
+                     return;
+                  }
+                  setCPUKey(option.key as string);
+               }}
+            />
+
+            <ComboBox
+               label="Time"
+               styles={{ root: { width: 180 } }}
+               options={timeSelections}
+               selectedKey={timeKey}
+               onChange={(ev, option, index, value) => {
+                  const select = option as TimeSelection;
+                  setTimeKey(select.key);
+                  state.UpdateTelemetry(select.minutes);
+               }}
+            />
+         </Stack>
+      </Stack>
+      <Stack verticalAlign="center" verticalFill>
+         <Stack horizontal>
+            <Label>{cpuLabel}</Label>
+            <Stack grow></Stack>
+            {!!cpuText && <Label>{cpuText}</Label>}
+         </Stack>
+         <div onMouseLeave={() => state.setLeaseTooltip(undefined)} onMouseMove={(ev) => { relativeCoords(ev, "cpu") }} onClick={() => {
+
+            if (!state.currentLeaseTooltip?.frozen) {
+               if (state.currentLeaseTooltip) {
+                  state.setLeaseTooltip({ ...state.currentLeaseTooltip, frozen: true });
+               }
+            }
+         }}>
+            <div style={{ position: "relative" }}>
+               <TelemetryTooltip id={"cpu"} />
+            </div>
+
+            <Sparklines width={sparkWidth} height={128} data={cpuData} max={100} style={{ backgroundColor: dashboard.darktheme ? "#060709" : "#F3F2F1", padding: 8, border: "solid 1px #181A1B" }}>
+               <SparklinesLine color={dashboard.darktheme ? "lightblue" : "#1E90FF"} />
+               <SparklinesReferenceLine type="avg" />
+            </Sparklines>
+         </div>
+      </Stack>
+      <Stack verticalAlign="center" verticalFill>
+         <Stack horizontal>
+            <Label>RAM</Label>
+            <Stack grow></Stack>
+            {!!ramText && <Label>{ramText}</Label>}
+         </Stack>
+         <div onMouseLeave={() => state.setLeaseTooltip(undefined)} onMouseMove={(ev) => { relativeCoords(ev, "ram") }} onClick={() => {
+
+            if (!state.currentLeaseTooltip?.frozen) {
+               if (state.currentLeaseTooltip) {
+                  state.setLeaseTooltip({ ...state.currentLeaseTooltip, frozen: true });
+               }
+            }
+         }}>
+            <div style={{ position: "relative" }}>
+               <TelemetryTooltip id="ram" />
+            </div>
+            <Sparklines width={sparkWidth} height={128} data={ramData} max={1} style={{ backgroundColor: dashboard.darktheme ? "#060709" : "#F3F2F1", padding: 8, border: "solid 1px #181A1B" }}>
+               <SparklinesLine color={dashboard.darktheme ? "lightblue" : "#1E90FF"} />
+               <SparklinesReferenceLine type="avg" />
+            </Sparklines>
+         </div>
+      </Stack>
+
+   </Stack>
+})
 
 export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (...args: any[]) => any; }> = observer(({ agentId, onDismiss }) => {
 
@@ -550,26 +991,31 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
             }
          ];
       }
-      columns.push({
-         key: 'startTime',
-         name: 'Start Time',
-         minWidth: 200,
-         maxWidth: 200,
-         isResizable: false,
-         isSorted: false,
-         isSortedDescending: false,
-         onColumnClick: onColumnClick
-      });
-      columns.push({
-         key: 'endTime',
-         name: 'Finish Time',
-         minWidth: 200,
-         maxWidth: 200,
-         isResizable: false,
-         isSorted: false,
-         isSortedDescending: false,
-         onColumnClick: onColumnClick
-      });
+
+      if (state.mode === "leases" || state.mode === "sessions") {
+
+
+         columns.push({
+            key: 'startTime',
+            name: 'Start Time',
+            minWidth: 200,
+            maxWidth: 200,
+            isResizable: false,
+            isSorted: false,
+            isSortedDescending: false,
+            onColumnClick: onColumnClick
+         });
+         columns.push({
+            key: 'endTime',
+            name: 'Finish Time',
+            minWidth: 200,
+            maxWidth: 200,
+            isResizable: false,
+            isSorted: false,
+            isSortedDescending: false,
+            onColumnClick: onColumnClick
+         });
+      }
 
       if (state.mode === "leases") {
          columns.find(col => col.key === state.sortedLeaseColumn)!.isSorted = true;
@@ -852,12 +1298,10 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
                         linkFormat="links"
                         defaultSelectedKey={state.mode ?? "info"}
                      >
-                        <PivotItem headerText="Info" itemKey="info">
-                        </PivotItem>
-                        <PivotItem headerText="Sessions" itemKey="sessions">
-                        </PivotItem>
-                        <PivotItem headerText="Leases" itemKey="leases">
-                        </PivotItem>
+                        <PivotItem headerText="Info" itemKey="info" />
+                        <PivotItem headerText="Sessions" itemKey="sessions" />
+                        <PivotItem headerText="Leases" itemKey="leases" />
+                        <PivotItem headerText="Telemetry" itemKey="telemetry" />
                      </Pivot>
                   </Stack>
                </Stack>
@@ -886,85 +1330,84 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
                </Stack>}
             </Stack>
             <Stack styles={{ root: { paddingTop: 30 } }}>
-               {
-                  state.mode === "info" ?
-                     <Stack horizontal tokens={{ childrenGap: 20 }}>
-                        <Stack styles={{ root: { width: 300 } }}>
-                           <GroupedList
-                              items={state.infoItems}
-                              compact={true}
-                              onRenderCell={onRenderBuilderInfoCell}
-                              groups={groups}
-                              selection={new Selection()}
-                              selectionMode={SelectionMode.none}
-                              groupProps={{
-                                 showEmptyGroups: true,
-                                 onRenderHeader: (props) => {
-                                    return <Link to="" onClick={(ev) => { ev.preventDefault(); props!.onToggleCollapse!(props!.group!); }}> <GroupHeader {...props} /></Link>;
+               {state.mode === "info" && <Stack horizontal tokens={{ childrenGap: 20 }}>
+                  <Stack styles={{ root: { width: 300 } }}>
+                     <GroupedList
+                        items={state.infoItems}
+                        compact={true}
+                        onRenderCell={onRenderBuilderInfoCell}
+                        groups={groups}
+                        selection={new Selection()}
+                        selectionMode={SelectionMode.none}
+                        groupProps={{
+                           showEmptyGroups: true,
+                           onRenderHeader: (props) => {
+                              return <Link to="" onClick={(ev) => { ev.preventDefault(); props!.onToggleCollapse!(props!.group!); }}> <GroupHeader {...props} /></Link>;
+                           },
+                           headerProps: {
+                              styles: {
+                                 title: {
+                                    fontFamily: "Horde Open Sans Semibold",
+                                    color: modeColors.text,
+                                    paddingLeft: 0
+
                                  },
-                                 headerProps: {
-                                    styles: {
-                                       title: {
-                                          fontFamily: "Horde Open Sans Semibold",
-                                          color: modeColors.text,
-                                          paddingLeft: 0
-
-                                       },
-                                       headerCount: {
-                                          display: 'none'
-                                       }
-                                    }
+                                 headerCount: {
+                                    display: 'none'
                                  }
-                              }}
-                           />
-                        </Stack>
-                        <Stack styles={{ root: { width: '100%' } }}>
-                           <Stack.Item className={hordeClasses.relativeModalSmall}>
-                              <ScrollablePane scrollbarVisibility={ScrollbarVisibility.auto} styles={{ contentContainer: { overflowX: 'hidden' } }}>
-                                 <DetailsList
-                                    className={historyStyles.detailsList}
-                                    compact={true}
-                                    items={state.infoSubItems}
-                                    columns={[
-                                       { key: 'column1', name: 'Name', fieldName: 'name', minWidth: 200, maxWidth: 200, isResizable: false },
-                                       { key: 'column2', name: 'Value', fieldName: 'value', minWidth: 200, isResizable: false }
-                                    ]}
-                                    layoutMode={DetailsListLayoutMode.justified}
-                                    onRenderDetailsHeader={onRenderInfoDetailsHeader}
-                                    constrainMode={ConstrainMode.unconstrained}
-                                    selectionMode={SelectionMode.none}
-                                    onRenderRow={(props) => {
-
-                                       if (props) {
-                                          return <DetailsRow styles={{ cell: { whiteSpace: "pre-line", overflowWrap: "break-word" } }} {...props} />
-                                       }
-
-                                       return null;
-                                    }}
-                                 />
-                              </ScrollablePane>
-                           </Stack.Item>
-                        </Stack>
-                     </Stack>
-                     :
+                              }
+                           }
+                        }}
+                     />
+                  </Stack>
+                  <Stack styles={{ root: { width: '100%' } }}>
                      <Stack.Item className={hordeClasses.relativeModalSmall}>
                         <ScrollablePane scrollbarVisibility={ScrollbarVisibility.auto} styles={{ contentContainer: { overflowX: 'hidden' } }}>
                            <DetailsList
                               className={historyStyles.detailsList}
                               compact={true}
-                              items={state.currentData}
-                              columns={generateColumns()}
-                              onRenderDetailsHeader={onRenderDetailsHeader}
-                              onRenderItemColumn={onRenderHistoryItem}
+                              items={state.infoSubItems}
+                              columns={[
+                                 { key: 'column1', name: 'Name', fieldName: 'name', minWidth: 200, maxWidth: 200, isResizable: false },
+                                 { key: 'column2', name: 'Value', fieldName: 'value', minWidth: 200, isResizable: false }
+                              ]}
                               layoutMode={DetailsListLayoutMode.justified}
+                              onRenderDetailsHeader={onRenderInfoDetailsHeader}
                               constrainMode={ConstrainMode.unconstrained}
                               selectionMode={SelectionMode.none}
-                              listProps={{ renderedWindowsAhead: 1, renderedWindowsBehind: 1 }}
-                              onRenderMissingItem={() => { state.nullItemTrigger(); return <div></div> }}
+                              onRenderRow={(props) => {
+
+                                 if (props) {
+                                    return <DetailsRow styles={{ cell: { whiteSpace: "pre-line", overflowWrap: "break-word" } }} {...props} />
+                                 }
+
+                                 return null;
+                              }}
                            />
                         </ScrollablePane>
                      </Stack.Item>
+                  </Stack>
+               </Stack>
                }
+               {(state.mode === "leases" || state.mode === "sessions") &&
+                  <Stack.Item className={hordeClasses.relativeModalSmall}>
+                     <ScrollablePane scrollbarVisibility={ScrollbarVisibility.auto} styles={{ contentContainer: { overflowX: 'hidden' } }}>
+                        <DetailsList
+                           className={historyStyles.detailsList}
+                           compact={true}
+                           items={state.currentData}
+                           columns={generateColumns()}
+                           onRenderDetailsHeader={onRenderDetailsHeader}
+                           onRenderItemColumn={onRenderHistoryItem}
+                           layoutMode={DetailsListLayoutMode.justified}
+                           constrainMode={ConstrainMode.unconstrained}
+                           selectionMode={SelectionMode.none}
+                           listProps={{ renderedWindowsAhead: 1, renderedWindowsBehind: 1 }}
+                           onRenderMissingItem={() => { state.nullItemTrigger(); return <div></div> }}
+                        />
+                     </ScrollablePane>
+                  </Stack.Item>}
+               {state.mode === "telemetry" && <TelemetryPanel />}
             </Stack>
          </Stack>
          <DialogFooter>

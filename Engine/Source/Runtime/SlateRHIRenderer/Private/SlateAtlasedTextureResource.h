@@ -19,6 +19,10 @@ public:
 	
 	/** Destructor */
 	virtual ~FSlateAtlasedTextureResource();
+
+	// Begin FSlateShaderResource Interface
+	virtual bool IsResourceValid() const override;
+	// End FSlateShaderResource Interface
 	
 	/**
 	 * Finds or creates the rendering proxy for a given atlas'ed object.

@@ -444,6 +444,7 @@ namespace Chaos
 			else
 			{
 				static_assert(sizeof(ExpectedType) == 0, "Unsupported index buffer type");
+				return SmallIdxBuffer; // Appease the static analyzer by having a pointless return value
 			}
 		}
 

@@ -85,6 +85,15 @@ enum class ETextOverflowPolicy : uint8
 
 	/** Overflowing text will be replaced with an ellipsis. A partially clipped line on the vertical axis will be totally clipped, and ellipsis displayed on previous line */
 	MultilineEllipsis,
+
+	/** Overflowing text will be replaced with an ellipsis starting from the center\n
+	 * Current Limits:
+	 * - Multiline is not supported
+	 * - RichText is not fully supported
+	 * - Highlight text is not supported
+	 * - Arabic mix with western character is not supported
+	 */
+	MiddleEllipsis
 };
 
 
@@ -97,8 +106,8 @@ struct FCheckBoxStyle : public FSlateWidgetStyle
 	GENERATED_USTRUCT_BODY()
 
 	SLATECORE_API FCheckBoxStyle();
-
-	virtual ~FCheckBoxStyle() {}
+	SLATECORE_API FCheckBoxStyle(const FCheckBoxStyle&);
+	SLATECORE_API virtual ~FCheckBoxStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* > & OutBrushes ) const override;
 
@@ -318,8 +327,8 @@ struct FTextBlockStyle : public FSlateWidgetStyle
 	GENERATED_USTRUCT_BODY()
 
 	SLATECORE_API FTextBlockStyle();
-
-	virtual ~FTextBlockStyle() {}
+	SLATECORE_API FTextBlockStyle(const FTextBlockStyle&);
+	SLATECORE_API virtual ~FTextBlockStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -491,8 +500,9 @@ struct FButtonStyle : public FSlateWidgetStyle
 	GENERATED_USTRUCT_BODY()
 
 	SLATECORE_API FButtonStyle();
+	SLATECORE_API FButtonStyle(const FButtonStyle&);
 
-	virtual ~FButtonStyle() {}
+	SLATECORE_API virtual ~FButtonStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -619,8 +629,8 @@ struct FComboButtonStyle : public FSlateWidgetStyle
 	GENERATED_USTRUCT_BODY()
 
 	SLATECORE_API FComboButtonStyle();
-
-	virtual ~FComboButtonStyle() {}
+	SLATECORE_API FComboButtonStyle(const FComboButtonStyle&);
+	SLATECORE_API virtual ~FComboButtonStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -716,8 +726,8 @@ struct FComboBoxStyle : public FSlateWidgetStyle
 	GENERATED_USTRUCT_BODY()
 
 	SLATECORE_API FComboBoxStyle();
-
-	virtual ~FComboBoxStyle() {}
+	SLATECORE_API FComboBoxStyle(const FComboBoxStyle&);
+	SLATECORE_API virtual ~FComboBoxStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -806,8 +816,9 @@ struct FHyperlinkStyle : public FSlateWidgetStyle
 	GENERATED_USTRUCT_BODY()
 
 	SLATECORE_API FHyperlinkStyle();
+	SLATECORE_API FHyperlinkStyle(const FHyperlinkStyle&);
 
-	virtual ~FHyperlinkStyle() {}
+	SLATECORE_API virtual ~FHyperlinkStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -841,8 +852,8 @@ struct FEditableTextStyle : public FSlateWidgetStyle
 	GENERATED_USTRUCT_BODY()
 
 	SLATECORE_API FEditableTextStyle();
-
-	virtual ~FEditableTextStyle() {}
+	SLATECORE_API FEditableTextStyle(const FEditableTextStyle&);
+	SLATECORE_API virtual ~FEditableTextStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -902,8 +913,8 @@ struct FScrollBarStyle : public FSlateWidgetStyle
 	GENERATED_USTRUCT_BODY()
 
 	SLATECORE_API FScrollBarStyle();
-
-	virtual ~FScrollBarStyle() {}
+	SLATECORE_API FScrollBarStyle(const FScrollBarStyle&);
+	SLATECORE_API virtual ~FScrollBarStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -988,16 +999,12 @@ struct FEditableTextBoxStyle : public FSlateWidgetStyle
 {
 	GENERATED_USTRUCT_BODY()
 
-	SLATECORE_API PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FEditableTextBoxStyle();
-	FEditableTextBoxStyle(const FEditableTextBoxStyle&) = default;
+	SLATECORE_API FEditableTextBoxStyle();
+	SLATECORE_API FEditableTextBoxStyle(const FEditableTextBoxStyle&);
+	SLATECORE_API FEditableTextBoxStyle& operator=(const FEditableTextBoxStyle&);
+	SLATECORE_API virtual ~FEditableTextBoxStyle();
 
-	FEditableTextBoxStyle& operator=(const FEditableTextBoxStyle&) = default;
-
-	virtual ~FEditableTextBoxStyle() = default;
-	SLATECORE_API PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
+	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
 	static SLATECORE_API const FName TypeName;
 	virtual const FName GetTypeName() const override { return TypeName; };
@@ -1107,7 +1114,7 @@ struct FInlineEditableTextBlockStyle : public FSlateWidgetStyle
 
 	SLATECORE_API FInlineEditableTextBlockStyle();
 
-	virtual ~FInlineEditableTextBlockStyle() {}
+	SLATECORE_API virtual ~FInlineEditableTextBlockStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -1138,7 +1145,7 @@ struct FProgressBarStyle : public FSlateWidgetStyle
 
 	SLATECORE_API FProgressBarStyle();
 
-	virtual ~FProgressBarStyle() {}
+	SLATECORE_API virtual ~FProgressBarStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -1191,7 +1198,7 @@ struct FExpandableAreaStyle : public FSlateWidgetStyle
 
 	SLATECORE_API FExpandableAreaStyle();
 
-	virtual ~FExpandableAreaStyle() {}
+	SLATECORE_API virtual ~FExpandableAreaStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -1237,7 +1244,7 @@ struct FSearchBoxStyle : public FSlateWidgetStyle
 
 	SLATECORE_API FSearchBoxStyle();
 
-	virtual ~FSearchBoxStyle() {}
+	SLATECORE_API virtual ~FSearchBoxStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -1281,6 +1288,11 @@ struct FSearchBoxStyle : public FSlateWidgetStyle
 	FMargin ImagePadding;
 	FSearchBoxStyle& SetImagePadding(const FMargin& InImagePadding){ ImagePadding = InImagePadding; return *this; }
 
+	/** Size of the images (auto size if not set) */
+	UPROPERTY(EditAnywhere, Category = Appearance)
+	TOptional<FVector2D> ImageSizeOverride;
+	FSearchBoxStyle& SetImageSizeOverride(const TOptional<FVector2D>& InImageSizeOverride){ ImageSizeOverride = InImageSizeOverride; return *this; }
+
 	/** If true, buttons appear to the left of the search text */
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage="Use LeftAlignSearchResultButtons and LeftAlignGlassImageAndClearButton instead"))
 	bool bLeftAlignButtons_DEPRECATED;
@@ -1307,8 +1319,8 @@ struct FSliderStyle : public FSlateWidgetStyle
 	GENERATED_USTRUCT_BODY()
 
 	SLATECORE_API FSliderStyle();
-
-	virtual ~FSliderStyle() {}
+	SLATECORE_API FSliderStyle(const FSliderStyle&);
+	SLATECORE_API virtual ~FSliderStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -1377,7 +1389,7 @@ struct FVolumeControlStyle : public FSlateWidgetStyle
 
 	SLATECORE_API FVolumeControlStyle();
 
-	virtual ~FVolumeControlStyle() {}
+	SLATECORE_API virtual ~FVolumeControlStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -1426,8 +1438,8 @@ struct FInlineTextImageStyle : public FSlateWidgetStyle
 	GENERATED_USTRUCT_BODY()
 
 	SLATECORE_API FInlineTextImageStyle();
-
-	virtual ~FInlineTextImageStyle() {}
+	SLATECORE_API FInlineTextImageStyle(const FInlineTextImageStyle&);
+	SLATECORE_API virtual ~FInlineTextImageStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -1456,8 +1468,8 @@ struct FSpinBoxStyle : public FSlateWidgetStyle
 	GENERATED_USTRUCT_BODY()
 
 	SLATECORE_API FSpinBoxStyle();
-
-	virtual ~FSpinBoxStyle() {}
+	SLATECORE_API FSpinBoxStyle(const FSpinBoxStyle&);
+	SLATECORE_API virtual ~FSpinBoxStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -1543,7 +1555,7 @@ struct FSplitterStyle : public FSlateWidgetStyle
 
 	SLATECORE_API FSplitterStyle();
 
-	virtual ~FSplitterStyle() {}
+	SLATECORE_API virtual ~FSplitterStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -1574,7 +1586,7 @@ struct FTableViewStyle : public FSlateWidgetStyle
 
 	SLATECORE_API FTableViewStyle();
 
-	virtual ~FTableViewStyle() {}
+	SLATECORE_API virtual ~FTableViewStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -1609,7 +1621,7 @@ struct FTableRowStyle : public FSlateWidgetStyle
 
 	SLATECORE_API FTableRowStyle();
 
-	virtual ~FTableRowStyle() {}
+	SLATECORE_API virtual ~FTableRowStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -1751,7 +1763,7 @@ struct FTableColumnHeaderStyle : public FSlateWidgetStyle
 
 	SLATECORE_API FTableColumnHeaderStyle();
 
-	virtual ~FTableColumnHeaderStyle() {}
+	SLATECORE_API virtual ~FTableColumnHeaderStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -1817,7 +1829,7 @@ struct FHeaderRowStyle : public FSlateWidgetStyle
 
 	SLATECORE_API FHeaderRowStyle();
 
-	virtual ~FHeaderRowStyle() {}
+	SLATECORE_API virtual ~FHeaderRowStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -1879,7 +1891,7 @@ struct FDockTabStyle : public FSlateWidgetStyle
 
 	SLATECORE_API FDockTabStyle();
 
-	virtual ~FDockTabStyle() {}
+	SLATECORE_API virtual ~FDockTabStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -1991,7 +2003,7 @@ struct FScrollBoxStyle : public FSlateWidgetStyle
 
 	SLATECORE_API FScrollBoxStyle();
 
-	virtual ~FScrollBoxStyle() {}
+	SLATECORE_API virtual ~FScrollBoxStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -2074,7 +2086,7 @@ struct FScrollBorderStyle : public FSlateWidgetStyle
 
 	SLATECORE_API FScrollBorderStyle();
 
-	virtual ~FScrollBorderStyle() {}
+	SLATECORE_API virtual ~FScrollBorderStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
@@ -2104,8 +2116,8 @@ struct FWindowStyle : public FSlateWidgetStyle
 	GENERATED_USTRUCT_BODY()
 
 	SLATECORE_API FWindowStyle();
-
-	virtual ~FWindowStyle() {}
+	SLATECORE_API FWindowStyle(const FWindowStyle&);
+	SLATECORE_API virtual ~FWindowStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 

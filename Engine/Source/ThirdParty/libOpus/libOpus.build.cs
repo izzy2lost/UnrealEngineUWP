@@ -22,27 +22,40 @@ public class libOpus : ModuleRules
 
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
 		{
-			LibraryPath += "Windows/VS2012/x64/Release/";
-
- 			//PublicAdditionalLibraries.Add(LibraryPath + "silk_common.lib");
- 			//PublicAdditionalLibraries.Add(LibraryPath + "silk_float.lib");
- 			//PublicAdditionalLibraries.Add(LibraryPath + "celt.lib");
-			//PublicAdditionalLibraries.Add(LibraryPath + "opus.lib");
-			PublicAdditionalLibraries.Add(LibraryPath + "speex_resampler.lib");
-
-			string ConfigPath = "";
-			if (Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT)
+			if (Target.Architecture == UnrealArch.Arm64)
 			{
-				ConfigPath = "Debug";
+				LibraryPath += "Windows/VS2015/ARM64/Release/";
+				PublicAdditionalLibraries.Add(LibraryPath + "silk_common.lib");
+				PublicAdditionalLibraries.Add(LibraryPath + "silk_float.lib");
+				PublicAdditionalLibraries.Add(LibraryPath + "celt.lib");
+				PublicAdditionalLibraries.Add(LibraryPath + "opus.lib");
+				PublicAdditionalLibraries.Add(LibraryPath + "speex_resampler.lib");
+				PublicAdditionalLibraries.Add(LibraryPath + "opus.lib");
 			}
 			else
 			{
-				ConfigPath = "Release";
-			}
+				LibraryPath += "Windows/VS2012/x64/Release/";
 
-			string OpusBinaryPath = Path.Combine(OpusLibraryPath, "bin", "Win64", ConfigPath);
-			PublicAdditionalLibraries.Add(Path.Combine(OpusBinaryPath, "opus.lib"));
-			PublicAdditionalLibraries.Add(Path.Combine(OpusBinaryPath, "opus_sse41.lib"));
+				//PublicAdditionalLibraries.Add(LibraryPath + "silk_common.lib");
+				//PublicAdditionalLibraries.Add(LibraryPath + "silk_float.lib");
+				//PublicAdditionalLibraries.Add(LibraryPath + "celt.lib");
+				//PublicAdditionalLibraries.Add(LibraryPath + "opus.lib");
+				PublicAdditionalLibraries.Add(LibraryPath + "speex_resampler.lib");
+
+				string ConfigPath = "";
+				if (Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT)
+				{
+					ConfigPath = "Debug";
+				}
+				else
+				{
+					ConfigPath = "Release";
+				}
+
+				string OpusBinaryPath = Path.Combine(OpusLibraryPath, "bin", "Win64", ConfigPath);
+				PublicAdditionalLibraries.Add(Path.Combine(OpusBinaryPath, "opus.lib"));
+				PublicAdditionalLibraries.Add(Path.Combine(OpusBinaryPath, "opus_sse41.lib"));
+			}
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{

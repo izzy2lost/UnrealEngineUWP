@@ -23,6 +23,7 @@ public class RenderCore : ModuleRules
 			DynamicallyLoadedModuleNames.Add("TargetPlatform");
 			// UObjects are used to produce the full path of the asset by which the shaders are identified
 			PrivateDependencyModuleNames.Add("CoreUObject");
+			PrivateIncludePathModuleNames.Add("IoStoreUtilities");
 		}
 		// shader runtime usage visualization requires ability to create images - it is only used in non-editor desktop development targets
 		// UE_BUILD_DEVELOPMENT is also defined for DebugGame
@@ -37,13 +38,33 @@ public class RenderCore : ModuleRules
 			RuntimeDependencies.Add(Path.Combine(Unreal.EngineDirectory.ToString(), "Extras/GPUDumpViewer/..."), StagedFileType.DebugNonUFS);
 		}
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "Core", "Projects", "ApplicationCore", "TraceLog", "CookOnTheFly", "ColorManagement" });
-
-        PrivateIncludePathModuleNames.AddRange(new string[] { "DerivedDataCache" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Core", "Projects", "ApplicationCore", "TraceLog", "CookOnTheFly" });
 		
 		PublicIncludePathModuleNames.AddRange(new string[] { "RHI" });
 
+		if (Target.bBuildEditor == true)
+		{
+			PrivateDependencyModuleNames.Add("DerivedDataCache");
+		}
+		else
+		{
+			PrivateIncludePathModuleNames.Add("DerivedDataCache");
+		}
+
 		// Added in Dev-VT, still needed?
 		PrivateIncludePathModuleNames.AddRange(new string[] { "TargetPlatform" });
+
+		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows)
+			|| Target.IsInPlatformGroup(UnrealPlatformGroup.Android)
+			|| Target.IsInPlatformGroup(UnrealPlatformGroup.Linux))
+		{
+			// For IOpenGLDynamicRHI::RHIGenerateMips
+			PublicIncludePathModuleNames.Add("OpenGLDrv");
+		}
+
+		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+		{
+			PrivateDefinitions.Add("ALLOW_SHADERMAP_TRACKING=1");
+		}
     }
 }

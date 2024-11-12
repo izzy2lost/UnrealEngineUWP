@@ -19,17 +19,15 @@ public:
 	void ResetToDefault();
 
 public:
-    UPROPERTY(EditAnywhere, Category = "DMX")
-    bool bUseSubDirectory;
+    UPROPERTY(EditAnywhere, Config, Category = "DMX")
+    bool bUseSubDirectory = true;
 
-    UPROPERTY(EditAnywhere, Category = "DMX")
-    bool bImportXML;
+    UPROPERTY(EditAnywhere, Config, Category = "DMX")
+    bool bImportXML = true;
 
-    UPROPERTY(EditAnywhere, Category = "DMX")
-    bool bImportTextures;
+    UPROPERTY(EditAnywhere, Config, Category = "DMX")
+    bool bImportTextures = true;
 
-    UPROPERTY(EditAnywhere, Category = "DMX")
-    bool bImportModels;
+    UPROPERTY(EditAnywhere, Config, Category = "DMX")
+    bool bImportModels = true;
 };
-
-

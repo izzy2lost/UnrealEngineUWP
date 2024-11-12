@@ -96,7 +96,7 @@ FString UPCGDifferenceSettings::GetAdditionalTitleInformation() const
 	{
 		if (const UEnum* EnumPtr = StaticEnum<EPCGDifferenceDensityFunction>())
 		{
-			return EnumPtr->GetNameStringByValue(static_cast<int>(DensityFunction));
+			return EnumPtr->GetDisplayNameTextByValue(static_cast<int64>(DensityFunction)).ToString();
 		}
 		else
 		{
@@ -190,14 +190,14 @@ bool FPCGDifferenceElement::ExecuteInternal(FPCGContext* Context) const
 
 		bHasPointsInSource |= SourceSpatialData->IsA<UPCGPointData>();
 
-		UPCGDifferenceData* DifferenceData = NewObject<UPCGDifferenceData>();
+		UPCGDifferenceData* DifferenceData = FPCGContext::NewObject_AnyThread<UPCGDifferenceData>(Context);
 		DifferenceData->Initialize(SourceSpatialData);
 		
 		for (FPCGTaggedData& Difference : Differences)
 		{
 			if (const UPCGSpatialData* DifferenceSpatialData = Cast<const UPCGSpatialData>(Difference.Data))
 			{
-				DifferenceData->AddDifference(DifferenceSpatialData);
+				DifferenceData->AddDifference(Context, DifferenceSpatialData);
 			}
 		}
 

@@ -10,6 +10,10 @@
 
 struct FHorde
 {
+	// Gets the server URL. Equivalent to calling IDesktopPlatform::GetHordeUrl().
+	HORDE_API static bool GetServerUrl(FString& OutUrl, FString* OutUrlConfigSource = nullptr);
+
+	// Settings available from the environment when running under a job
 	HORDE_API static FString GetTemplateName();
 	HORDE_API static FString GetTemplateId();
 	HORDE_API static FString GetServerURL();

@@ -3,6 +3,7 @@
 #pragma once
 
 #include <CoreMinimal.h>
+#include "Misc/Variant.h"
 
 namespace Electra
 {
@@ -43,7 +44,8 @@ namespace Electra
 				H264 = 0x21,
 				H264_ParameterSets = 0x22,
 				H265 = 0x23,
-				MPEG4_Audio = 0x40
+				MPEG4_Audio = 0x40,
+				MPEG1_Audio = 0x6b
 			};
 			enum class FStreamType
 			{
@@ -77,6 +79,29 @@ namespace Electra
 			bool								bDependsOnStream;
 		};
 
+
+
+		class FID3V2Metadata
+		{
+		public:
+			struct FItem
+			{
+				FString Language;				// ISO 639-2; if not set (all zero) the default entry for all languages
+				FString MimeType;				// Mime type or Owner ID for private item.
+				FVariant Value;
+				int32 ItemType = -1;
+			};
+
+			bool Parse(const uint8* InData, int64 InDataSize);
+			bool HaveTag(uint32 InTag);
+			bool GetTag(FItem& OutValue, uint32 InTag);
+			const TMap<uint32, FItem>& GetTags() const;
+			TMap<uint32, FItem>& GetTags();
+			const TArray<FItem>& GetPrivateItems() const;
+		private:
+			TMap<uint32, FItem> Tags;
+			TArray<FItem> PrivateItems;
+		};
 
 	} // namespace MPEG
 } // namespace Electra

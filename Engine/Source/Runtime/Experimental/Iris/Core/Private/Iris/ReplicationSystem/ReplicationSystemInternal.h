@@ -20,8 +20,9 @@
 #include "Iris/ReplicationSystem/Prioritization/ReplicationPrioritization.h"
 #include "Iris/ReplicationSystem/ReplicationProtocolManager.h"
 #include "Iris/ReplicationSystem/NetBlob/NetBlobManager.h"
-#include "Iris/ReplicationSystem/NetTokenStore.h"
+#include "Net/Core/NetToken/NetToken.h"
 #include "Iris/ReplicationSystem/StringTokenStore.h"
+#include "Iris/ReplicationSystem/NameTokenStore.h"
 #include "Iris/ReplicationSystem/WorldLocations.h"
 #include "Iris/ReplicationState/ReplicationStateDescriptorRegistry.h"
 #include "Iris/Stats/NetStats.h"
@@ -35,20 +36,19 @@ struct FReplicationSystemInternalInitParams
 {
 	uint32 ReplicationSystemId;
 	uint32 MaxReplicatedObjectCount;
-	uint32 PreAllocatedReplicatedObjectCount;
-	uint32 MaxReplicatedWriterObjectCount;
+	uint32 NetChunkedArrayCount;
+	uint32 MaxReplicationWriterObjectCount;
 };
 
 class FReplicationSystemInternal
 {
 public:
 	explicit FReplicationSystemInternal(const FReplicationSystemInternalInitParams& Params)
-	: NetRefHandleManager(ReplicationProtocolManager, Params.ReplicationSystemId, Params.MaxReplicatedObjectCount, Params.PreAllocatedReplicatedObjectCount)
+	: NetRefHandleManager(ReplicationProtocolManager)
 	, InternalInitParams(Params)
 	, DirtyNetObjectTracker()
 	, ReplicationBridge(nullptr)
 	, IrisObjectReferencePackageMap(nullptr)
-	, StringTokenStore(NetTokenStore)
 	, Id(Params.ReplicationSystemId)
 	{}
 
@@ -58,6 +58,7 @@ public:
 	const FNetRefHandleManager& GetNetRefHandleManager() const { return NetRefHandleManager; }
 
 	void InitDirtyNetObjectTracker(const struct FDirtyNetObjectTrackerInitParams& Params) { DirtyNetObjectTracker.Init(Params); }
+	bool IsDirtyNetObjectTrackerInitialized() const { return DirtyNetObjectTracker.IsInit(); }
 	FDirtyNetObjectTracker& GetDirtyNetObjectTracker() { checkf(DirtyNetObjectTracker.IsInit(), TEXT("Not allowed to access the DirtyNetObjectTracker unless object replication is enabled.")); return DirtyNetObjectTracker; }
 
 	FReplicationStateDescriptorRegistry& GetReplicationStateDescriptorRegistry() { return ReplicationStateDescriptorRegistry; }
@@ -89,11 +90,6 @@ public:
 	FNetBlobManager& GetNetBlobManager() { return NetBlobManager; }
 	FNetBlobHandlerManager& GetNetBlobHandlerManager() { return NetBlobManager.GetNetBlobHandlerManager(); }
 	const FNetBlobHandlerManager& GetNetBlobHandlerManager() const { return NetBlobManager.GetNetBlobHandlerManager(); }
-
-	const FStringTokenStore& GetStringTokenStore() const { return StringTokenStore; }
-	FStringTokenStore& GetStringTokenStore() { return StringTokenStore; }
-
-	FNetTokenStore& GetNetTokenStore() { return NetTokenStore; }
 
 	FNetCullDistanceOverrides& GetNetCullDistanceOverrides() { return NetCullDistanceOverrides; }
 
@@ -137,8 +133,6 @@ private:
 	FReplicationPrioritization Prioritization;
 	FObjectReferenceCache ObjectReferenceCache;
 	FNetBlobManager NetBlobManager;
-	FNetTokenStore NetTokenStore;
-	FStringTokenStore StringTokenStore;
 	FNetCullDistanceOverrides NetCullDistanceOverrides;
 	FWorldLocations WorldLocations;
 	FDeltaCompressionBaselineManager DeltaCompressionBaselineManager;

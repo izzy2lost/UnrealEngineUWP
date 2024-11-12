@@ -59,4 +59,15 @@ class UObjectRedirector : public UObject
 	 * @return	return true if property values were added to the map.
 	 */
 	virtual bool GetNativePropertyValues( TMap<FString,FString>& out_PropertyValues, uint32 ExportFlags=0 ) const override;
+
+#if WITH_EDITOR
+	/** @return TRUE when serializing the reference to the destination object. */
+	bool IsSerializingDestinationObject() const
+	{
+		return bIsSerializingDestinationObject;
+	}
+
+private:
+	bool bIsSerializingDestinationObject = false;
+#endif
 };

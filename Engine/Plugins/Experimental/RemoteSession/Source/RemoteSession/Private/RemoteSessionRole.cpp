@@ -123,7 +123,7 @@ void FRemoteSessionRole::Tick(float DeltaTime)
 		}
 		else
 		{
-			CloseWithError(FString::Printf(TEXT("State change failed! Closing connection"), CurrentState, OldState));
+			CloseWithError(TEXT("State change failed! Closing connection"));
 		}
 	}
 

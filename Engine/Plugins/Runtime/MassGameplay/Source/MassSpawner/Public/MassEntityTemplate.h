@@ -208,11 +208,11 @@ struct MASSSPAWNER_API FMassEntityTemplateData
 	void AddConstSharedFragment(const FConstSharedStruct& SharedFragment)
 	{
 		const UScriptStruct* FragmentType = SharedFragment.GetScriptStruct();
-		if(ensureMsgf(FragmentType && FragmentType->IsChildOf(FMassSharedFragment::StaticStruct()), TEXT("Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.")))
+		if(ensureMsgf(FragmentType && FragmentType->IsChildOf(FMassConstSharedFragment::StaticStruct()), TEXT("Given struct doesn't represent a valid const shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.")))
 		{
-			if (!Composition.SharedFragments.Contains(*FragmentType))
+			if (!Composition.ConstSharedFragments.Contains(*FragmentType))
 			{
-				Composition.SharedFragments.Add(*FragmentType);
+				Composition.ConstSharedFragments.Add(*FragmentType);
 				SharedFragmentValues.AddConstSharedFragment(SharedFragment);
 			}
 #if DO_ENSURE
@@ -279,6 +279,17 @@ struct MASSSPAWNER_API FMassEntityTemplateData
 	bool HasSharedFragment(const UScriptStruct& ScriptStruct) const
 	{
 		return Composition.SharedFragments.Contains(ScriptStruct);
+	}
+
+	template<typename T>
+	bool HasConstSharedFragment() const
+	{
+		return Composition.ConstSharedFragments.Contains<T>();
+	}
+
+	bool HasConstSharedFragment(const UScriptStruct& ScriptStruct) const
+	{
+		return Composition.ConstSharedFragments.Contains(ScriptStruct);
 	}
 
 	void Sort()

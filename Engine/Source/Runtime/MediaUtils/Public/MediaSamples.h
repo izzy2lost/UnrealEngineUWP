@@ -36,6 +36,8 @@ public:
 				  uint32 InMaxNumberOfQueuedSubtitlesSamples = MaxNumberOfQueuedSubtitlesSamples,
 				  uint32 InMaxNumberOfQueuedMetaDataSamples = MaxNumberOfQueuedMetaDataSamples);
 
+	MEDIAUTILS_API ~FMediaSamples();
+
 	/**
 	 * Add the given audio sample to the cache.
 	 *
@@ -178,6 +180,17 @@ public:
 		}
 		TimeStamp = Sample->GetTime();
 		return true;
+	}
+
+	virtual bool PeekVideoSampleTimeRanges(TArray<TRange<FMediaTimeStamp>>& TimeRange) override
+	{
+		VideoSampleQueue.GetSampleTimes(TimeRange);
+		return TimeRange.Num() > 0;
+	}
+	virtual bool PeekAudioSampleTimeRanges(TArray<TRange<FMediaTimeStamp>>& TimeRange) override
+	{
+		AudioSampleQueue.GetSampleTimes(TimeRange);
+		return TimeRange.Num() > 0;
 	}
 
 	virtual bool DiscardVideoSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) override

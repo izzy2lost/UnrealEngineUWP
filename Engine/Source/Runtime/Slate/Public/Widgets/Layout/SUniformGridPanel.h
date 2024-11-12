@@ -19,7 +19,6 @@ class SUniformGridPanel : public SPanel
 {
 public:
 	/** Stores the per-child info for this panel type */
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	struct FSlot : public TSlotBase<FSlot>, public TAlignmentWidgetSlotMixin<FSlot>
 	{
 		SLATE_SLOT_BEGIN_ARGS_OneMixin(FSlot, TSlotBase<FSlot>, TAlignmentWidgetSlotMixin<FSlot>)
@@ -67,15 +66,13 @@ public:
 			}
 		}
 
-	public:
-		UE_DEPRECATED(5.0, "Direct access to Column is now deprecated. Use the getter or setter.")
+	private:
 		int32 Column;
-		UE_DEPRECATED(5.0, "Direct access to Row is now deprecated. Use the getter or setter.")
 		int32 Row;
 	};
-	SLATE_API PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	SUniformGridPanel();
+	SLATE_API SUniformGridPanel();
+	SLATE_API virtual ~SUniformGridPanel();
 
 	/**
 	 * Used by declarative syntax to create a Slot in the specified Column, Row.

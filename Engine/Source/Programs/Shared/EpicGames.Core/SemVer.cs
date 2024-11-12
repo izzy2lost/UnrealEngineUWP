@@ -8,9 +8,9 @@ namespace EpicGames.Core
 	/// <summary>
 	/// Wrapper for a semver version string (https://semver.org/)
 	/// </summary>
-	public struct SemVer : IEquatable<SemVer>, IComparable<SemVer>
+	public readonly struct SemVer : IEquatable<SemVer>, IComparable<SemVer>
 	{
-		ref struct Field
+		readonly ref struct Field
 		{
 			public readonly int Pos;
 			public readonly ReadOnlySpan<char> Text;

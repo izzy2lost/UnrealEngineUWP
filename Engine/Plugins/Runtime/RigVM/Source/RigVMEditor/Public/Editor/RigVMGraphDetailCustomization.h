@@ -17,17 +17,19 @@
 #include "EdGraph/RigVMEdGraphSchema.h"
 #include "SAdvancedTransformInputBox.h"
 #include "Widgets/SRigVMGraphPinNameListValueWidget.h"
+#include "Widgets/SRigVMLogWidget.h"
 #include "HAL/PlatformApplicationMisc.h"
 
 class IDetailLayoutBuilder;
+class FRigVMGraphDetailCustomizationImpl;
 
 class RIGVMEDITOR_API FRigVMFunctionArgumentGroupLayout : public IDetailCustomNodeBuilder, public TSharedFromThis<FRigVMFunctionArgumentGroupLayout>
 {
 public:
 	FRigVMFunctionArgumentGroupLayout(
-		URigVMGraph* InGraph, 
-		URigVMBlueprint* InBlueprint,
-		TWeakPtr<FRigVMEditor> InEditor,
+		const TWeakObjectPtr<URigVMGraph>& InGraph,
+		const TWeakInterfacePtr<IRigVMClientHost>& InRigVMClientHost,
+		const TWeakPtr<FRigVMEditor>& InEditor,
 		bool bInputs);
 	virtual ~FRigVMFunctionArgumentGroupLayout();
 
@@ -46,7 +48,7 @@ private:
 	void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
 
 	TWeakObjectPtr<URigVMGraph> GraphPtr;
-	TWeakObjectPtr<URigVMBlueprint> RigVMBlueprintPtr;
+	TWeakInterfacePtr<IRigVMClientHost> WeakRigVMClientHost;
 	TWeakPtr<FRigVMEditor> RigVMEditorPtr;
 	bool bIsInputGroup;
 	FSimpleDelegate OnRebuildChildren;
@@ -57,15 +59,15 @@ class RIGVMEDITOR_API FRigVMFunctionArgumentLayout : public IDetailCustomNodeBui
 public:
 
 	FRigVMFunctionArgumentLayout(
-		URigVMPin* InPin, 
-		URigVMGraph* InGraph, 
-		URigVMBlueprint* InBlueprint,
-		TWeakPtr<FRigVMEditor> InEditor)
+		const TWeakObjectPtr<URigVMPin>& InPin,
+		const TWeakObjectPtr<URigVMGraph>& InGraph, 
+		const TWeakInterfacePtr<IRigVMClientHost>& InRigVMClientHost,
+		const TWeakPtr<FRigVMEditor>& InEditor)
 		: PinPtr(InPin)
 		, GraphPtr(InGraph)
-		, RigVMBlueprintPtr(InBlueprint)
+		, WeakRigVMClientHost(InRigVMClientHost)
 		, RigVMEditorPtr(InEditor)
-		, NameValidator(InBlueprint, InGraph, InPin->GetFName())
+		, NameValidator(nullptr, InGraph.Get(), InPin->GetFName()) // TODO check if missing Blueprint affects name validation
 	{}
 
 private:
@@ -110,8 +112,8 @@ private:
 	/** The target graph that this argument is on */
 	TWeakObjectPtr<URigVMGraph> GraphPtr;
 
-	/** The blueprint we are editing */
-	TWeakObjectPtr<URigVMBlueprint> RigVMBlueprintPtr;
+	/** The asset host we are editing */
+	TWeakInterfacePtr<IRigVMClientHost> WeakRigVMClientHost;
 
 	/** The editor we are editing */
 	TWeakPtr<FRigVMEditor> RigVMEditorPtr;
@@ -127,8 +129,8 @@ class RIGVMEDITOR_API FRigVMFunctionArgumentDefaultNode : public IDetailCustomNo
 {
 public:
 	FRigVMFunctionArgumentDefaultNode(
-		URigVMGraph* InGraph,
-		URigVMBlueprint* InBlueprint
+		const TWeakObjectPtr<URigVMGraph>& InGraph,
+		const TWeakInterfacePtr<IRigVMClientHost>& InClientHost
 	);
 	virtual ~FRigVMFunctionArgumentDefaultNode();
 
@@ -149,29 +151,47 @@ private:
 
 	TWeakObjectPtr<URigVMGraph> GraphPtr;
 	TWeakObjectPtr<URigVMEdGraph> EdGraphOuterPtr;
-	TWeakObjectPtr<URigVMBlueprint> RigVMBlueprintPtr;
+	TWeakInterfacePtr<IRigVMClientHost> WeakRigVMClientHost;
 	FSimpleDelegate OnRebuildChildren;
 	TSharedPtr<SRigVMGraphNode> OwnedNodeWidget;
 	FDelegateHandle GraphChangedDelegateHandle;
 };
 
-
 /** Customization for editing rig vm graphs */
 class RIGVMEDITOR_API FRigVMGraphDetailCustomization : public IDetailCustomization
 {
 public:
-
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */
 	static TSharedPtr<IDetailCustomization> MakeInstance(TSharedPtr<IBlueprintEditor> InBlueprintEditor, const UClass* InExpectedBlueprintClass);
 
-	FRigVMGraphDetailCustomization(TSharedPtr<FRigVMEditor> RigVMigEditor, URigVMBlueprint* RigVMBlueprint)
-		: RigVMEditorPtr(RigVMigEditor)
-		, RigVMBlueprintPtr(RigVMBlueprint)
-		, bIsPickingColor(false)
-	{}
+	FRigVMGraphDetailCustomization(TSharedPtr<FRigVMEditor> RigVMigEditor, URigVMBlueprint* RigVMBlueprint);
 
 	// IDetailCustomization interface
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
+
+private:
+	/** The Blueprint editor we are embedded in */
+	TWeakPtr<FRigVMEditor> RigVMEditorPtr;
+
+	/** The graph we are editing */
+	TWeakObjectPtr<URigVMEdGraph> GraphPtr;
+
+	/** The blueprint we are editing */
+	TWeakObjectPtr<URigVMBlueprint> RigVMBlueprintPtr;
+
+	TSharedPtr<FRigVMGraphDetailCustomizationImpl> RigVMGraphDetailCustomizationImpl;
+};
+
+class RIGVMEDITOR_API FRigVMGraphDetailCustomizationImpl : public TSharedFromThis<FRigVMGraphDetailCustomizationImpl>
+{
+public:
+	void CustomizeDetails(IDetailLayoutBuilder& DetailLayout,
+		URigVMGraph* Model,
+		URigVMController* Controller,
+		IRigVMClientHost* InRigVMClientHost,
+		TWeakPtr<FRigVMEditor> InEditor);
+
+private:
 
 	bool IsAddNewInputOutputEnabled() const;
 	EVisibility GetAddNewInputOutputVisibility() const;
@@ -192,17 +212,51 @@ public:
 	FText GetCurrentAccessSpecifierName() const;
 	void OnAccessSpecifierSelected( TSharedPtr<FRigVMStringWithTag> SpecifierName, ESelectInfo::Type SelectInfo );
 	TSharedRef<ITableRow> HandleGenerateRowAccessSpecifier( TSharedPtr<FRigVMStringWithTag> SpecifierName, const TSharedRef<STableViewBase>& OwnerTable );
+	bool IsValidFunction() const;
+	FRigVMVariant GetVariant() const;
+	TArray<FRigVMVariantRef> GetVariantRefs() const;
 
 private:
 
-	/** The Blueprint editor we are embedded in */
-	TWeakPtr<FRigVMEditor> RigVMEditorPtr;
+	void OnVariantChanged(const FRigVMVariant& InVariant);
+	void OnBrowseVariantRef(const FRigVMVariantRef& InVariantRef);
+	TArray<FRigVMTag> OnGetAssignedTags() const;
+	void OnAddAssignedTag(const FName& InTagName);
+	void OnRemoveAssignedTag(const FName& InTagName);
+
+	URigVMLibraryNode* GetLibraryNode() const;
+	URigVMNode* GetNodeForLayout() const;
+	const FRigVMNodeLayout* GetNodeLayout() const;
+	TArray<FString> GetUncategorizedPins() const;
+	TArray<FRigVMPinCategory> GetPinCategories() const;
+	FString GetPinCategory(FString InPinPath) const;
+	int32 GetPinIndexInCategory(FString InPinPath) const;
+	FString GetPinLabel(FString InPinPath) const;
+	FLinearColor GetPinColor(FString InPinPath) const;
+	const FSlateBrush* GetPinIcon(FString InPinPath) const;
+	void HandleCategoryAdded(FString InCategory);
+	void HandleCategoryRemoved(FString InCategory);
+	void HandleCategoryRenamed(FString InOldCategory, FString InNewCategory);
+	void HandlePinCategoryChanged(FString InPinPath, FString InCategory);
+	void HandlePinLabelChanged(FString InPinPath, FString InNewLabel);
+	void HandlePinIndexInCategoryChanged(FString InPinPath, int32 InIndexInCategory);
+	static bool ValidateName(FString InNewName, FText& OutErrorMessage);
+	bool HandleValidateCategoryName(FString InCategoryPath, FString InNewName, FText& OutErrorMessage);
+	bool HandleValidatePinDisplayName(FString InPinPath, FString InNewName, FText& OutErrorMessage);
+
+	uint32 GetNodeLayoutHash() const;
 
 	/** The graph we are editing */
-	TWeakObjectPtr<URigVMEdGraph> GraphPtr;
+	TWeakObjectPtr<URigVMGraph> WeakModel;
 
-	/** The blueprint we are editing */
-	TWeakObjectPtr<URigVMBlueprint> RigVMBlueprintPtr;
+	/** The graph controller we are editing */
+	TWeakObjectPtr<URigVMController> WeakController;
+
+	/** The editor we are embedded in */
+	TWeakPtr<FRigVMEditor> RigVMEditorPtr;
+
+	/** The asset host we are editing */
+	TWeakInterfacePtr<IRigVMClientHost> RigVMClientHost;
 
 	/** The color block widget */
 	TSharedPtr<SColorBlock> ColorBlock;
@@ -211,6 +265,7 @@ private:
 	bool bIsPickingColor;
 
 	static TArray<TSharedPtr<FRigVMStringWithTag>> AccessSpecifierStrings;
+	mutable TOptional<FRigVMNodeLayout> CachedNodeLayout;
 };
 
 /** Customization for editing a rig vm node */
@@ -227,11 +282,11 @@ public:
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
 
 	TSharedRef<SWidget> MakeNameListItemWidget(TSharedPtr<FRigVMStringWithTag> InItem);
-	FText GetNameListText(FNameProperty* InProperty) const;
-	TSharedPtr<FRigVMStringWithTag> GetCurrentlySelectedItem(FNameProperty* InProperty, const TArray<TSharedPtr<FRigVMStringWithTag>>* InNameList) const;
-	void SetNameListText(const FText& NewTypeInValue, ETextCommit::Type, FNameProperty* InProperty, TSharedRef<IPropertyUtilities> PropertyUtilities);
-	void OnNameListChanged(TSharedPtr<FRigVMStringWithTag> NewSelection, ESelectInfo::Type SelectInfo, FNameProperty* InProperty, TSharedRef<IPropertyUtilities> PropertyUtilities);
-	void OnNameListComboBox(FNameProperty* InProperty, const TArray<TSharedPtr<FRigVMStringWithTag>>* InNameList);
+	FText GetNameListText(const FNameProperty* InProperty) const;
+	TSharedPtr<FRigVMStringWithTag> GetCurrentlySelectedItem(const FNameProperty* InProperty, const TArray<TSharedPtr<FRigVMStringWithTag>>* InNameList) const;
+	void SetNameListText(const FText& NewTypeInValue, ETextCommit::Type, const FNameProperty* InProperty, TSharedRef<IPropertyUtilities> PropertyUtilities);
+	void OnNameListChanged(TSharedPtr<FRigVMStringWithTag> NewSelection, ESelectInfo::Type SelectInfo, const FNameProperty* InProperty, TSharedRef<IPropertyUtilities> PropertyUtilities);
+	void OnNameListComboBox(const FNameProperty* InProperty, const TArray<TSharedPtr<FRigVMStringWithTag>>* InNameList);
 	void CustomizeLiveValues(IDetailLayoutBuilder& DetailLayout);
 
 	URigVMBlueprint* BlueprintBeingCustomized;
@@ -536,11 +591,11 @@ protected:
 	template<typename VectorType, typename NumericType>
 	void OnVectorComponentChanged(TSharedRef<class IPropertyHandle> InPropertyHandle, int32 InComponent, NumericType InValue, bool bIsCommit, ETextCommit::Type InCommitType = ETextCommit::Default)
 	{
-		if (ObjectsBeingCustomized.IsEmpty())
+		if (ObjectsBeingCustomized.IsEmpty() && StructsBeingCustomized.IsEmpty())
 		{
 			return;
 		}
-		
+
 		FEditPropertyChain PropertyChain;
 		TArray<int32> PropertyArrayIndices;
 		bool bEnabled;
@@ -548,48 +603,38 @@ protected:
 		{
 			return;
 		}
-	
-		TArray<UObject*> ObjectsView;
-		for(int32 Index = 0; Index < ObjectsBeingCustomized.Num(); Index++)
-		{
-			const TWeakObjectPtr<UObject>& Object = ObjectsBeingCustomized[Index];
-			if (Object.Get())
-			{
-				ObjectsView.Add(Object.Get());
-			}
-		}
-		FPropertyChangedEvent PropertyChangedEvent(InPropertyHandle->GetProperty(), bIsCommit ? EPropertyChangeType::ValueSet : EPropertyChangeType::Interactive, ObjectsView);
-		FPropertyChangedChainEvent PropertyChangedChainEvent(PropertyChain, PropertyChangedEvent);
 
 		URigVMController* Controller = nullptr;
-		if(BlueprintBeingCustomized && GraphBeingCustomized)
+		if (BlueprintBeingCustomized && GraphBeingCustomized)
 		{
 			Controller = BlueprintBeingCustomized->GetController(GraphBeingCustomized);
-			if(bIsCommit)
+			if (bIsCommit)
 			{
 				Controller->OpenUndoBracket(FString::Printf(TEXT("Set %s"), *InPropertyHandle->GetProperty()->GetName()));
 			}
 		}
 
-		for(int32 Index = 0; Index < ObjectsBeingCustomized.Num(); Index++)
+		const EPropertyChangeType::Type ChangeType = bIsCommit ? EPropertyChangeType::ValueSet : EPropertyChangeType::Interactive;
+
+		const TArray<uint8*> AllMemoryBeingCustomized = GetMemoryBeingCustomized();
+		for (int32 Index = 0; Index < AllMemoryBeingCustomized.Num(); Index++)
 		{
-			const TWeakObjectPtr<UObject>& Object = ObjectsBeingCustomized[Index];
-			if(Object.Get() && InPropertyHandle->IsValidHandle())
+			const uint8* Memory = AllMemoryBeingCustomized[Index];
+			if (Memory != nullptr && InPropertyHandle->IsValidHandle())
 			{
 				static VectorType ZeroVector = VectorType();
-				VectorType& Vector = ContainerMemoryBlockToValueRef<VectorType>((uint8*)Object.Get(), ZeroVector, PropertyChain, PropertyArrayIndices);
+				VectorType& Vector = ContainerMemoryBlockToValueRef<VectorType>((uint8*)Memory, ZeroVector, PropertyChain, PropertyArrayIndices);
 				VectorType PreviousVector = Vector;
 				Vector[InComponent] = InValue;
-					
-				if(!PreviousVector.Equals(Vector))
+
+				if (!PreviousVector.Equals(Vector))
 				{
-					Object->PostEditChangeChainProperty(PropertyChangedChainEvent);
-					InPropertyHandle->NotifyPostChange(PropertyChangedEvent.ChangeType);
+					InPropertyHandle->NotifyPostChange(ChangeType);
 				}
 			}
 		}
 
-		if(Controller && bIsCommit)
+		if (Controller && bIsCommit)
 		{
 			Controller->CloseUndoBracket();
 		}
@@ -654,7 +699,7 @@ protected:
 	template<typename RotationType>
 	void OnRotationChanged(TSharedRef<class IPropertyHandle> InPropertyHandle, RotationType InValue, bool bIsCommit, ETextCommit::Type InCommitType = ETextCommit::Default)
 	{
-		if (ObjectsBeingCustomized.IsEmpty())
+		if (ObjectsBeingCustomized.IsEmpty() && StructsBeingCustomized.IsEmpty())
 		{
 			return;
 		}
@@ -667,18 +712,6 @@ protected:
         	return;
         }
 	
-		TArray<UObject*> ObjectsView;
-		for(int32 Index = 0; Index < ObjectsBeingCustomized.Num(); Index++)
-		{
-			const TWeakObjectPtr<UObject>& Object = ObjectsBeingCustomized[Index];
-			if (Object.Get())
-			{
-				ObjectsView.Add(Object.Get());
-			}
-		}
-		FPropertyChangedEvent PropertyChangedEvent(InPropertyHandle->GetProperty(), bIsCommit ? EPropertyChangeType::ValueSet : EPropertyChangeType::Interactive, ObjectsView);
-		FPropertyChangedChainEvent PropertyChangedChainEvent(PropertyChain, PropertyChangedEvent);
-
 		URigVMController* Controller = nullptr;
 		if(BlueprintBeingCustomized && GraphBeingCustomized)
 		{
@@ -689,20 +722,22 @@ protected:
 			}
 		}
 
-		for(int32 Index = 0; Index < ObjectsBeingCustomized.Num(); Index++)
+		const EPropertyChangeType::Type ChangeType = bIsCommit ? EPropertyChangeType::ValueSet : EPropertyChangeType::Interactive;
+
+		const TArray<uint8*> AllMemoryBeingCustomized = GetMemoryBeingCustomized();
+		for (int32 Index = 0; Index < AllMemoryBeingCustomized.Num(); Index++)
 		{
-			const TWeakObjectPtr<UObject>& Object = ObjectsBeingCustomized[Index];
-			if(Object.Get() && InPropertyHandle->IsValidHandle())
+			const uint8* Memory = AllMemoryBeingCustomized[Index];
+			if (Memory != nullptr && InPropertyHandle->IsValidHandle())
 			{
 				static RotationType ZeroRotation = RotationType();
-				RotationType& Rotation = ContainerMemoryBlockToValueRef<RotationType>((uint8*)Object.Get(), ZeroRotation, PropertyChain, PropertyArrayIndices);
+				RotationType& Rotation = ContainerMemoryBlockToValueRef<RotationType>((uint8*)Memory, ZeroRotation, PropertyChain, PropertyArrayIndices);
 				RotationType PreviousRotation = Rotation;
 				Rotation = InValue;
-					
-				if(!PreviousRotation.Equals(Rotation))
+
+				if (!PreviousRotation.Equals(Rotation))
 				{
-					Object->PostEditChangeChainProperty(PropertyChangedChainEvent);
-					InPropertyHandle->NotifyPostChange(PropertyChangedEvent.ChangeType);
+					InPropertyHandle->NotifyPostChange(ChangeType);
 				}
 			}
 		}

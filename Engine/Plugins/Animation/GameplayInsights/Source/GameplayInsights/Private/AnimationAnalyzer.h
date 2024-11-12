@@ -24,6 +24,7 @@ private:
 		RouteId_TickRecord2,
 		RouteId_SkeletalMesh,
 		RouteId_SkeletalMesh2,
+		RouteId_SkeletalMesh3,
 		RouteId_SkeletalMeshComponent,
 		RouteId_SkeletalMeshComponent2,
 		RouteId_SkeletalMeshComponent3,

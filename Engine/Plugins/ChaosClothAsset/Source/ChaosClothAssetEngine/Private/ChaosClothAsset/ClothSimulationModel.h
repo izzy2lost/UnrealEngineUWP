@@ -77,6 +77,8 @@ struct FChaosClothSimulationLodModel
 
 	// Custom serialize for weight maps
 	bool Serialize(FArchive& Ar);
+
+	void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize);
 };
 
 template<>
@@ -131,6 +133,7 @@ struct FChaosClothSimulationModel
 	TConstArrayView<FClothVertBoneData> GetBoneData(int32 LodIndex) const { return IsValidLodIndex(LodIndex) ? ClothSimulationLodModels[LodIndex].BoneData : TConstArrayView<FClothVertBoneData>(); }
 	TArray<TConstArrayView<TTuple<int32, int32, float>>> GetTethers(int32 LodIndex) const;
 
-
 	void CalculateLODTransitionUpDownData(TArray<FChaosClothAssetLodTransitionDataCache>* InOutTransitionCache = nullptr);
+
+	void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize);
 };

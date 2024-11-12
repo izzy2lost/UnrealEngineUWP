@@ -44,6 +44,16 @@ FProperty* FWidgetBlueprintCompilerContext::FCreateVariableContext::CreateVariab
 	return Context.CreateVariable(Name, Type);
 }
 
+FMulticastDelegateProperty* FWidgetBlueprintCompilerContext::FCreateVariableContext::CreateMulticastDelegateVariable(const FName Name, const FEdGraphPinType& Type) const
+{
+	return Context.CreateMulticastDelegateVariable(Name, Type);
+}
+
+FMulticastDelegateProperty* FWidgetBlueprintCompilerContext::FCreateVariableContext::CreateMulticastDelegateVariable(const FName Name) const
+{
+	return Context.CreateMulticastDelegateVariable(Name);
+}
+
 void FWidgetBlueprintCompilerContext::FCreateVariableContext::AddGeneratedFunctionGraph(UEdGraph* Graph) const
 {
 	Context.GeneratedFunctionGraphs.Add(Graph);
@@ -80,6 +90,11 @@ FWidgetBlueprintCompilerContext::FCreateFunctionContext::FCreateFunctionContext(
 void FWidgetBlueprintCompilerContext::FCreateFunctionContext::AddGeneratedFunctionGraph(UEdGraph* Graph) const
 {
 	Context.GeneratedFunctionGraphs.Add(Graph);
+}
+
+void FWidgetBlueprintCompilerContext::FCreateFunctionContext::AddGeneratedUbergraphPage(UEdGraph* Graph) const
+{
+	Context.GeneratedUbergraphPages.Add(Graph);
 }
 
 UWidgetBlueprintGeneratedClass* FWidgetBlueprintCompilerContext::FCreateFunctionContext::GetGeneratedClass() const
@@ -291,7 +306,17 @@ void FWidgetBlueprintCompilerContext::CleanAndSanitizeClass(UBlueprintGeneratedC
 	const bool bRecompilingOnLoad = Blueprint->bIsRegeneratingOnLoad;
 	auto RenameObjectToTransientPackage = [bRecompilingOnLoad](UObject* ObjectToRename, const FName BaseName,  bool bClearFlags)
 	{
-		const ERenameFlags RenFlags = REN_DontCreateRedirectors | (bRecompilingOnLoad ? REN_ForceNoResetLoaders : 0) | REN_NonTransactional | REN_DoNotDirty;
+		ObjectToRename->SetFlags(RF_Transient);
+
+		if (bClearFlags)
+		{
+			ObjectToRename->ClearFlags(RF_Public | RF_Standalone | RF_ArchetypeObject);
+		}
+
+        // Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
+		FLinkerLoad::InvalidateExport(ObjectToRename);
+
+		const ERenameFlags RenFlags = REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty;
 
 		if (BaseName.IsNone())
 		{
@@ -302,14 +327,6 @@ void FWidgetBlueprintCompilerContext::CleanAndSanitizeClass(UBlueprintGeneratedC
 			FName TransientArchetypeName = MakeUniqueObjectName(GetTransientPackage(), ObjectToRename->GetClass(), BaseName);
 			ObjectToRename->Rename(*TransientArchetypeName.ToString(), GetTransientPackage(), RenFlags);
 		}
-
-		ObjectToRename->SetFlags(RF_Transient);
-
-		if (bClearFlags)
-		{
-			ObjectToRename->ClearFlags(RF_Public | RF_Standalone | RF_ArchetypeObject);
-		}
-		FLinkerLoad::InvalidateExport(ObjectToRename);
 	};
 
 	if ( !Blueprint->bIsRegeneratingOnLoad && bIsFullCompile )
@@ -616,35 +633,48 @@ void FWidgetBlueprintCompilerContext::CreateClassVariablesFromBlueprint()
 		}
 	}
 
-	// Add movie scenes variables here
-	for (UWidgetAnimation* Animation : WidgetBP->Animations)
+	WidgetBPToScan = WidgetBP;
+	while (WidgetBPToScan != nullptr)
 	{
-		FObjectPropertyBase* ExistingProperty = CastField<FObjectPropertyBase>(ParentClass->FindPropertyByName(Animation->GetFName()));
-		if (ExistingProperty &&
-			FWidgetBlueprintEditorUtils::IsBindWidgetAnimProperty(ExistingProperty) &&
-			ExistingProperty->PropertyClass->IsChildOf(UWidgetAnimation::StaticClass()))
+		// Look for BindWidgetAnim properties in parent widgetblueprints
+		for (UWidgetAnimation* Animation : WidgetBPToScan->Animations)
 		{
-			WidgetAnimToMemberVariableMap.Add(Animation, ExistingProperty);
-			continue;
+			FObjectPropertyBase* ExistingProperty = CastField<FObjectPropertyBase>(ParentClass->FindPropertyByName(Animation->GetFName()));
+			if (ExistingProperty &&
+				FWidgetBlueprintEditorUtils::IsBindWidgetAnimProperty(ExistingProperty) &&
+				ExistingProperty->PropertyClass->IsChildOf(UWidgetAnimation::StaticClass()))
+			{
+				WidgetAnimToMemberVariableMap.Add(Animation, ExistingProperty);
+				continue;
+			}
+
+			// Create variables for widget animation
+			if (WidgetBPToScan == WidgetBP)
+			{
+				FEdGraphPinType WidgetPinType(UEdGraphSchema_K2::PC_Object, NAME_None, Animation->GetClass(), EPinContainerType::None, true, FEdGraphTerminalType());
+				FProperty* AnimationProperty = CreateVariable(Animation->GetFName(), WidgetPinType);
+
+				if (AnimationProperty != nullptr)
+				{
+					const FString DisplayName = Animation->GetDisplayName().ToString();
+					AnimationProperty->SetMetaData(TEXT("DisplayName"), *DisplayName);
+
+					AnimationProperty->SetMetaData(TEXT("Category"), TEXT("Animations"));
+
+					AnimationProperty->SetPropertyFlags(CPF_Transient);
+					AnimationProperty->SetPropertyFlags(CPF_BlueprintVisible);
+					AnimationProperty->SetPropertyFlags(CPF_BlueprintReadOnly);
+					AnimationProperty->SetPropertyFlags(CPF_RepSkip);
+
+					WidgetAnimToMemberVariableMap.Add(Animation, AnimationProperty);
+				}
+			}
 		}
 
-		FEdGraphPinType WidgetPinType(UEdGraphSchema_K2::PC_Object, NAME_None, Animation->GetClass(), EPinContainerType::None, true, FEdGraphTerminalType());
-		FProperty* AnimationProperty = CreateVariable(Animation->GetFName(), WidgetPinType);
-
-		if ( AnimationProperty != nullptr )
-		{
-			const FString DisplayName = Animation->GetDisplayName().ToString();
-			AnimationProperty->SetMetaData(TEXT("DisplayName"), *DisplayName);
-
-			AnimationProperty->SetMetaData(TEXT("Category"), TEXT("Animations"));
-
-			AnimationProperty->SetPropertyFlags(CPF_Transient);
-			AnimationProperty->SetPropertyFlags(CPF_BlueprintVisible);
-			AnimationProperty->SetPropertyFlags(CPF_BlueprintReadOnly);
-			AnimationProperty->SetPropertyFlags(CPF_RepSkip);
-
-			WidgetAnimToMemberVariableMap.Add(Animation, AnimationProperty);
-		}
+		// Get the parent WidgetBlueprint
+		WidgetBPToScan = WidgetBPToScan->ParentClass && WidgetBPToScan->ParentClass->ClassGeneratedBy
+			? Cast<UWidgetBlueprint>(WidgetBPToScan->ParentClass->ClassGeneratedBy)
+			: nullptr;
 	}
 
 	FWidgetBlueprintCompilerContext* Self = this;
@@ -685,6 +715,10 @@ void FWidgetBlueprintCompilerContext::CopyTermDefaultsToDefaultObject(UObject* D
 		{
 			DefaultWidget->bHasScriptImplementedPaint = false;
 		}
+
+		// Reset the value of this flag, which is set on PostCDOCompiled if there are any input nodes
+		// in the widget graphs.
+		DefaultWidget->bAutomaticallyRegisterInputOnConstruction = false;
 	}
 
 
@@ -777,10 +811,10 @@ void FWidgetBlueprintCompilerContext::FixAbandonedWidgetTree(UWidgetBlueprint* W
 			{
 				AbandonedWidgetTree->ClearFlags(RF_DefaultSubObject);
 				AbandonedWidgetTree->SetFlags(RF_Transient);
-				AbandonedWidgetTree->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional | REN_DoNotDirty);
+				AbandonedWidgetTree->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
 			}
 
-			WidgetTree->Rename(TEXT("WidgetTree"), nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional | REN_DoNotDirty);
+			WidgetTree->Rename(TEXT("WidgetTree"), nullptr, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
 			WidgetTree->SetFlags(RF_DefaultSubObject);
 		}
 	}
@@ -836,7 +870,7 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 			if (WidgetBP->bIsRegeneratingOnLoad)
 			{
 				FLinkerLoad* Linker = WidgetBP->GetLinker();
-				LinkerLoadingContext = Linker ? Linker->GetSerializeContext() : nullptr;
+				LinkerLoadingContext = Linker ? FUObjectThreadContext::Get().GetSerializeContext() : nullptr;
 				DupParams.bSkipPostLoad = true;
 				DupParams.CreatedObjects = &DupObjectsMap;
 			}
@@ -877,6 +911,35 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 					).ToString());
 			}
 		}
+
+		{
+#if WITH_EDITOR
+			BPGClass->NameClashingInHierarchy.Reset();
+#endif
+			TValueOrError<void, TSet<UWidget*>> HasConflictingWidgetNames = WidgetBP->HasConflictingWidgetNamesFromInheritance();
+			if (HasConflictingWidgetNames.HasError())
+			{
+				TSet<UWidget*>& ConflictingNames = HasConflictingWidgetNames.GetError();
+				for (UWidget* ConflictingWidget : ConflictingNames)
+				{
+#if WITH_EDITOR
+					FName ConflictingWidgetName = ConflictingWidget->GetFName();
+					BPGClass->NameClashingInHierarchy.Add(ConflictingWidgetName);
+#endif
+					if (UWidget* FoundConflictingWidget = BPGClass->GetWidgetTreeArchetype()->FindWidget(ConflictingWidget->GetFName()))
+					{
+						BPGClass->GetWidgetTreeArchetype()->RemoveWidget(FoundConflictingWidget);
+					}
+
+					MessageLog.Error(*FText::Format(LOCTEXT("WidgetTreeDuplicateNames", "The WidgetTree '{0}' already contains a widget named '{1}'."),
+						FText::FromString(WidgetBP->WidgetTree->GetPathName()),
+						FText::FromString(ConflictingWidget->GetName())
+					).ToString());
+				}
+			}
+		}
+
+
 
 		int32 AnimIndex = 0;
 		for ( const UWidgetAnimation* Animation : WidgetBP->Animations )
@@ -970,40 +1033,51 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 
 		// Add all the names of the named slot widgets to the slot names structure.
 		{
-			TArray<FName> NamedSlotsWithContentInSameTree;
 		#if WITH_EDITOR
 			BPGClass->NamedSlotsWithID.Reset();
+			BPGClass->NamedSlotsWithContentInSameTree.Reset();
 		#endif
 			BPGClass->NamedSlots.Reset();
 			BPGClass->InstanceNamedSlots.Reset();
+
+			TArray<FName> NamedSlotsPerWidgetBlueprint;
+
 			UWidgetBlueprint* WidgetBPIt = WidgetBP;
 			while (WidgetBPIt)
 			{
+				NamedSlotsPerWidgetBlueprint.Reset();
 				WidgetBPIt->ForEachSourceWidget([&] (const UWidget* Widget) {
 					if (const UNamedSlot* NamedSlot = Cast<UNamedSlot>(Widget))
 					{
-						BPGClass->NamedSlots.Add(Widget->GetFName());
+						NamedSlotsPerWidgetBlueprint.Add(Widget->GetFName());
 
 					#if WITH_EDITOR
 						BPGClass->NamedSlotsWithID.Add(TPair<FName, FGuid>(Widget->GetFName(), NamedSlot->GetSlotGUID()));
+
+						// A namedslot whose content is in the same blueprint class is treated as a regular panel widget.
+						// We need to keep track of these to later remove them from the hierarchy.
+						if (NamedSlot->GetChildrenCount() > 0)
+						{
+							BPGClass->NamedSlotsWithContentInSameTree.Add(NamedSlot->GetFName());
+						}
 					#endif
 
 						if (NamedSlot->bExposeOnInstanceOnly)
 						{
 							BPGClass->InstanceNamedSlots.Add(Widget->GetFName());
 						}
-
-						// A namedslot whose content is in the same blueprint class is treated as a regular panel widget.
-						// We need to keep track of these to later remove them from the available namedslots list.
-						if (NamedSlot->GetChildrenCount() > 0)
-						{
-							NamedSlotsWithContentInSameTree.Add(NamedSlot->GetFName());
-						}
 					}
 				});
 				
+				// Here we reverse this array to maintain the order of sibling namedslots once the final array BPGClass->NamedSlots is reversed.
+				Algo::Reverse(NamedSlotsPerWidgetBlueprint);
+				BPGClass->NamedSlots.Append(NamedSlotsPerWidgetBlueprint);
+
 				WidgetBPIt = Cast<UWidgetBlueprint>(WidgetBPIt->ParentClass->ClassGeneratedBy);
 			}
+
+			// We iterate widget blueprints from child to parent, but we need the final namedslot array to be sorted from parent to child, so we reverse it.
+			Algo::Reverse(BPGClass->NamedSlots);
 
 			BPGClass->AvailableNamedSlots = BPGClass->NamedSlots;
 
@@ -1013,12 +1087,6 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 				// If we find content for this slot, remove it from the available set.
 				BPGClass->AvailableNamedSlots.Remove(SlotName);
 			});
-
-			// Remove any named slots with content in the same widget tree from the available slots.
-			for (const FName& NamedSlotWithContent : NamedSlotsWithContentInSameTree)
-			{
-				BPGClass->AvailableNamedSlots.Remove(NamedSlotWithContent);
-			}
 
 			// Remove any available subclass named slots that are marked as instance named slot.
 			for (const FName& InstanceNamedSlot : BPGClass->InstanceNamedSlots)
@@ -1071,6 +1139,16 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 				{
 					if (UWidget* ContentInSlot = Tree->GetContentForSlot(SlotName))
 					{
+						if (NamedSlotClass->NamedSlotsWithContentInSameTree.Contains(SlotName))
+						{
+							UClass* SubClassWithSlotFilled = ContentInSlot->GetTypedOuter<UClass>();
+							MessageLog.Error(
+								*FText::Format(
+									 LOCTEXT("NamedSlotAlreadyFilledInOriginalTree", "The Named Slot '{0}' already has content in the widget blueprint it was created in but the subclass @@ tried to slot @@ into it. Please remove at least one of the contents."),
+									FText::FromName(SlotName)
+								).ToString(),
+								SubClassWithSlotFilled, ContentInSlot);
+						}
 						if (!NamedSlotContentMap.Contains(SlotName))
 						{
 							NamedSlotContentMap.Add(SlotName, ContentInSlot);
@@ -1079,13 +1157,14 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 						{
 							UClass* SubClassWithSlotFilled = ContentInSlot->GetTypedOuter<UClass>();
 							UClass* ParentClassWithSlotFilled = NamedSlotClass;
-							MessageLog.Note(
+							MessageLog.Error(
 								*FText::Format(
-									LOCTEXT("NamedSlotAlreadyFilled", "The Named Slot '{0}' already contains @@ from the class @@ but the subclass @@ tried to slot @@ into it."),
+									LOCTEXT("NamedSlotAlreadyFilled", "The Named Slot '{0}' already contains @@ from the class @@ but the subclass @@ tried to slot @@ into it. Please remove the content @@ from the class @@ to fix this error."),
 									FText::FromName(SlotName)
 								).ToString(),
 								ContentInSlot, ParentClassWithSlotFilled,
-								SubClassWithSlotFilled, NamedSlotContentMap.FindRef(SlotName));
+								SubClassWithSlotFilled, NamedSlotContentMap.FindRef(SlotName),
+								ContentInSlot, ParentClassWithSlotFilled);
 						}
 					}
 				}
@@ -1192,7 +1271,10 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 		}
 	}
 
-	BPGClass->bCanCallInitializedWithoutPlayerContext = WidgetBP->bCanCallInitializedWithoutPlayerContext;
+	if (BPGClass)
+	{
+		BPGClass->bCanCallInitializedWithoutPlayerContext = WidgetBP->bCanCallInitializedWithoutPlayerContext;
+	}
 
 	Super::FinishCompilingClass(Class);
 
@@ -1202,7 +1284,6 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 			InExtension->FinishCompilingClass(BPGClass);
 		});
 }
-
 
 class FBlueprintCompilerLog : public IWidgetCompilerLog
 {
@@ -1243,12 +1324,12 @@ void FWidgetBlueprintCompilerContext::ValidateWidgetAnimations()
 		for (const FWidgetAnimationBinding& Binding : InAnimation->AnimationBindings)
 		{
 			// Look for the object bindings within the widget
-			UObject* FoundObject = Binding.FindRuntimeObject(*LatestWidgetTree, *UserWidget);
+			UObject* FoundObject = Binding.FindRuntimeObject(*LatestWidgetTree, *UserWidget, InAnimation, nullptr);
 
 			// If any of the FoundObjects is null, we do not play the animation.
 			if (FoundObject == nullptr)
 			{
-				FoundObject = Binding.FindRuntimeObject(*WidgetBP->WidgetTree, *UserWidget);
+				FoundObject = Binding.FindRuntimeObject(*WidgetBP->WidgetTree, *UserWidget, InAnimation, nullptr);
 				if (FoundObject == nullptr)
 				{
 					// Notify the user of the null track in the editor

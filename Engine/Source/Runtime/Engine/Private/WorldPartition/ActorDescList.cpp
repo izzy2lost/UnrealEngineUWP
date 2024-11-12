@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "WorldPartition/ActorDescList.h"
-#include "WorldPartition/WorldPartitionLog.h"
 
 #if WITH_EDITOR
 FWorldPartitionActorDesc* FActorDescList::AddActor(const AActor* InActor)

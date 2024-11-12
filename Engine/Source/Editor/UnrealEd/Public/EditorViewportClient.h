@@ -355,12 +355,6 @@ public:
 	 */
 	UNREALED_API void AddRealtimeOverride(bool bShouldBeRealtime, FText SystemDisplayName);
 
-	UE_DEPRECATED(4.26, "SetRealtimeOverride is replaced with AddRealtimeOverride, as multiple overrides can now be added.")
-	void SetRealtimeOverride(bool bShouldBeRealtime, FText SystemDisplayName)
-	{
-		AddRealtimeOverride(bShouldBeRealtime, SystemDisplayName);
-	}
-	
 	/**
 	 * Returns whether there's a realtime override registered with the given system name.
 	 */
@@ -373,12 +367,6 @@ public:
 	 * @return Whether any matching realtime override was found.
 	 */
 	UNREALED_API bool RemoveRealtimeOverride(FText SystemDisplayName, bool bCheckMissingOverride = true);
-
-	UE_DEPRECATED(4.26, "RemoveRealtimeOverride now takes a system display name to help remove the correct override.")
-	void RemoveRealtimeOverride()
-	{
-		PopRealtimeOverride();
-	}
 
 	/**
 	 * Removes the last added realtime override.
@@ -1443,6 +1431,26 @@ public:
 	UNREALED_API FText GetCurrentVirtualShadowMapVisualizationModeDisplayName() const;
 
 	/**
+	* Changes the actor coloration visualization mode for this viewport.
+	*
+	* @param InName	The ID of the required visualization mode
+	*/
+	UNREALED_API void ChangeActorColorationVisualizationMode(FName InName);
+
+	/**
+	* Checks if an actor coloration visualization mode is selected.
+	*
+	* @param InName	The ID of the required visualization mode
+	* @return	true if the supplied actor coloration visualization mode is checked
+	*/
+	UNREALED_API bool IsActorColorationVisualizationModeSelected(FName InName) const;
+
+	/**
+	* Returns the FText display name associated with current actor coloration visualization mode.
+	*/
+	UNREALED_API FText GetCurrentActorColorationVisualizationModeDisplayName() const;
+
+	/**
 	* Returns whether visualize debug material is enabled.
 	*/
 	UNREALED_API bool IsVisualizeCalibrationMaterialEnabled() const;
@@ -1793,6 +1801,9 @@ public:
 
 	/** Editor setting to allow designers to override the automatic expose */
 	FExposureSettings		ExposureSettings;
+
+	/** Editor setting to adjust wireframe opacity */
+	float WireframeOpacity = 0.2f;
 
 	FName CurrentBufferVisualizationMode;
 	FName CurrentNaniteVisualizationMode;

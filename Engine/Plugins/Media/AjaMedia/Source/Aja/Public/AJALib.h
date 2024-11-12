@@ -459,6 +459,7 @@ namespace AJA
 				uint32_t bOutput : 1; // port is output
 				uint32_t bUseKey : 1; // output will also sent the key on OutputKeyPortIndex
 				uint32_t bOutputInterlacedFieldsTimecodeNeedToMatch : 1; // when trying to find the odd field that correspond to the even field, the 2 timecode need to match
+				uint32_t bOutputInterlaceAsProgressive : 1; // whether to treat outgoing interlace frames as progressive.
 				uint32_t bUseAncillary : 1; // enable ANC system
 				uint32_t bUseAudio : 1; // enable audio input/output
 				uint32_t bUseVideo : 1; // enable video input/output

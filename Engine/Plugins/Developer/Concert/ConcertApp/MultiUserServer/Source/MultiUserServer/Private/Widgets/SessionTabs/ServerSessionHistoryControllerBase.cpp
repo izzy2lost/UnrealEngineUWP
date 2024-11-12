@@ -20,14 +20,14 @@ void FServerSessionHistoryControllerBase::GetActivities(int64 MaximumNumberOfAct
 		OutFetchedActivities.Reset();
 
 		int64 LastActivityId = INDEX_NONE;
-		Database->GetActivityMaxId(LastActivityId);
+		(*Database)->GetActivityMaxId(LastActivityId);
 		const int64 FirstActivityIdToFetch = FMath::Max<int64>(1, LastActivityId - MaximumNumberOfActivities);
-		Database->EnumerateActivitiesInRange(FirstActivityIdToFetch, MaximumNumberOfActivities, [this, &Database, &OutEndpointClientInfoMap, &OutFetchedActivities](FConcertSyncActivity&& InActivity)
+		(*Database)->EnumerateActivitiesInRange(FirstActivityIdToFetch, MaximumNumberOfActivities, [this, &Database, &OutEndpointClientInfoMap, &OutFetchedActivities](FConcertSyncActivity&& InActivity)
 		{
 			if (!OutEndpointClientInfoMap.Contains(InActivity.EndpointId))
 			{
 				FConcertSyncEndpointData EndpointData;
-				if (Database->GetEndpoint(InActivity.EndpointId, EndpointData))
+				if ((*Database)->GetEndpoint(InActivity.EndpointId, EndpointData))
 				{
 					OutEndpointClientInfoMap.Add(InActivity.EndpointId, EndpointData.ClientInfo);
 				}
@@ -48,7 +48,7 @@ bool FServerSessionHistoryControllerBase::GetPackageEvent(const FConcertSessionA
 {
 	if (const TOptional<FConcertSyncSessionDatabaseNonNullPtr> Database = GetSessionDatabase(SessionId))
 	{
-		return Database->GetPackageEventMetaData(Activity.Activity.EventId, OutPackageEvent.PackageRevision, OutPackageEvent.PackageInfo);
+		return (*Database)->GetPackageEventMetaData(Activity.Activity.EventId, OutPackageEvent.PackageRevision, OutPackageEvent.PackageInfo);
 	}
 	
 	return false;
@@ -58,7 +58,7 @@ TFuture<TOptional<FConcertSyncTransactionEvent>> FServerSessionHistoryController
 {
 	if (const TOptional<FConcertSyncSessionDatabaseNonNullPtr> Database = GetSessionDatabase(SessionId))
 	{
-		return FindOrRequestTransactionEvent(*Database, Activity.Activity.EventId);
+		return FindOrRequestTransactionEvent(**Database, Activity.Activity.EventId);
 	}
 	
 	return MakeFulfilledPromise<TOptional<FConcertSyncTransactionEvent>>().GetFuture(); // Not found.

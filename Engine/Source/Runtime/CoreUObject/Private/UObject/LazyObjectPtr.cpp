@@ -19,8 +19,15 @@ static TMap<FGuid, FGuid> PIEGuidMap[MAX_PIE_INSTANCES];
 
 static FGuid RemapGuid(const FUniqueObjectGuid& Guid, int32 PIEInstanceID)
 {
+	// An invalid Guid should remain an invalid Guid :
+	if (Guid.IsDefault())
+	{
+		return FGuid();
+	}
+
 	check(PIEInstanceID != INDEX_NONE);
 	check(PIEInstanceID < MAX_PIE_INSTANCES);
+
 	FGuid& FoundGuid = PIEGuidMap[PIEInstanceID].FindOrAdd(Guid.GetGuid());
 
 	if (!FoundGuid.IsValid())
@@ -109,7 +116,7 @@ void FLazyObjectPtr::PossiblySerializeObjectGuid(UObject *Object, FStructuredArc
 		{
 			if (UnderlyingArchive.GetPortFlags() & PPF_DuplicateForPIE)
 			{
-				Guid = RemapGuid(Guid, GPlayInEditorID);
+				Guid = RemapGuid(Guid, UE::GetPlayInEditorID());
 			}
 
 			GuidSlot.GetValue() << Guid;
@@ -186,7 +193,8 @@ void FLazyObjectPtr::PossiblySerializeObjectGuid(UObject *Object, FStructuredArc
 
 void FLazyObjectPtr::ResetPIEFixups()
 {
-	check(GPlayInEditorID != -1);
-	check(GPlayInEditorID < MAX_PIE_INSTANCES);
-	PIEGuidMap[GPlayInEditorID].Reset();
+	const int32 PlayInEditorID = UE::GetPlayInEditorID();
+	check(PlayInEditorID != -1);
+	check(PlayInEditorID < MAX_PIE_INSTANCES);
+	PIEGuidMap[PlayInEditorID].Reset();
 }

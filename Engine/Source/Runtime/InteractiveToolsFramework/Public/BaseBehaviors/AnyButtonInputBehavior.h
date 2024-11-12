@@ -47,6 +47,9 @@ public:
 
 	/** @return true if Target Button was released this frame */
 	INTERACTIVETOOLSFRAMEWORK_API virtual bool IsReleased(const FInputDeviceState& input);
+
+	/** @return true if Target Button was double clicked this frame */
+	INTERACTIVETOOLSFRAMEWORK_API virtual bool IsDoubleClicked(const FInputDeviceState& input);
 	
 	/** @return current 2D position of Target Device, or zero if device does not have 2D position */
 	INTERACTIVETOOLSFRAMEWORK_API virtual FVector2D GetClickPoint(const FInputDeviceState& input);

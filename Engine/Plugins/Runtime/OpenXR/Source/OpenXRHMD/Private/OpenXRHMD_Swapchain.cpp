@@ -3,6 +3,7 @@
 #include "OpenXRHMD_Swapchain.h"
 #include "OpenXRCore.h"
 #include "XRThreadUtils.h"
+#include "Epic_openxr.h"
 
 static TAutoConsoleVariable<int32> CVarOpenXRSwapchainRetryCount(
 	TEXT("vr.OpenXRSwapchainRetryCount"),
@@ -96,7 +97,7 @@ void FOpenXRSwapchain::WaitCurrentImage_RHIThread(int64 Timeout)
 	UE_LOG(LogHMD, VeryVerbose, TEXT("FOpenXRSwapchain::WaitCurrentImage_RHIThread() Waited on image swapchain %p"), reinterpret_cast<const void*>(Handle));
 }
 
-void FOpenXRSwapchain::ReleaseCurrentImage_RHIThread()
+void FOpenXRSwapchain::ReleaseCurrentImage_RHIThread(IRHICommandContext* RHICmdContext)
 {
 	check(IsInRenderingThread() || IsInRHIThread());
 
@@ -110,9 +111,18 @@ void FOpenXRSwapchain::ReleaseCurrentImage_RHIThread()
 
 	SCOPED_NAMED_EVENT(ReleaseImage, FColor::Red);
 
+	void* Next = nullptr;
+	XrRHIContextEPIC RHIContextEPIC = { (XrStructureType)XR_TYPE_RHI_CONTEXT_EPIC };
+	if (RHICmdContext != nullptr)
+	{
+		RHIContextEPIC.RHIContext = RHICmdContext;
+		RHIContextEPIC.next = Next;
+		Next = &RHIContextEPIC;
+	}
+
 	XrSwapchainImageReleaseInfo ReleaseInfo;
 	ReleaseInfo.type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO;
-	ReleaseInfo.next = nullptr;
+	ReleaseInfo.next = Next;
 	XR_ENSURE(xrReleaseSwapchainImage(Handle, &ReleaseInfo));
 
 	UE_LOG(LogHMD, VeryVerbose, TEXT("FOpenXRSwapchain::ReleaseCurrentImage_RHIThread() Released on image in swapchain %p"), reinterpret_cast<const void*>(Handle));
@@ -374,7 +384,7 @@ FXRSwapChainPtr CreateSwapchain_OpenGL(XrSession InSession, uint8 Format, uint8&
 	TArray<XrSwapchainImageOpenGLKHR> Images = EnumerateImages<XrSwapchainImageOpenGLKHR>(Swapchain, XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR);
 	for (const auto& Image : Images)
 	{
-		FTexture2DRHIRef NewTexture = (ArraySize > 1) ?
+		FTextureRHIRef NewTexture = (ArraySize > 1) ?
 			DynamicRHI->RHICreateTexture2DArrayFromResource(GPixelFormats[Format].UnrealFormat, SizeX, SizeY, ArraySize, NumMips, NumSamples, 1, ClearValueBinding, Image.image, CreateFlags) :
 			DynamicRHI->RHICreateTexture2DFromResource(GPixelFormats[Format].UnrealFormat, SizeX, SizeY, NumMips, NumSamples, 1, ClearValueBinding, Image.image, CreateFlags);
 		TextureChain.Add(NewTexture.GetReference());
@@ -414,7 +424,7 @@ FXRSwapChainPtr CreateSwapchain_OpenGLES(XrSession InSession, uint8 Format, uint
 	TArray<XrSwapchainImageOpenGLESKHR> Images = EnumerateImages<XrSwapchainImageOpenGLESKHR>(Swapchain, XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_ES_KHR);
 	for (const auto& Image : Images)
 	{
-		FTexture2DRHIRef NewTexture = (ArraySize > 1) ?
+		FTextureRHIRef NewTexture = (ArraySize > 1) ?
 			DynamicRHI->RHICreateTexture2DArrayFromResource(GPixelFormats[Format].UnrealFormat, SizeX, SizeY, ArraySize, NumMips, NumSamples, 1, ClearValueBinding, Image.image, CreateFlags) :
 			DynamicRHI->RHICreateTexture2DFromResource(GPixelFormats[Format].UnrealFormat, SizeX, SizeY, NumMips, NumSamples, 1, ClearValueBinding, Image.image, CreateFlags);
 		TextureChain.Add(NewTexture.GetReference());

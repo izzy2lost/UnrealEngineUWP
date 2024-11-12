@@ -215,7 +215,7 @@ void DeviceBuffer_FX::UpdateRenderTarget(TexPtr TextureObj)
 		FTextureRenderTarget2DResource* rtRes = (FTextureRenderTarget2DResource*)rt->GetRenderTargetResource();
 		check(rtRes);
 
-		FTexture2DRHIRef rhiTexture = rtRes->GetTextureRHI();
+		FTextureRHIRef rhiTexture = rtRes->GetTextureRHI();
 		check(rhiTexture);
 		rt->UpdateResourceImmediate();
 

@@ -7,6 +7,7 @@
 #include "MetasoundFrontendDocumentAccessPtr.h"
 #include "MetasoundFrontendGraphLinter.h"
 #include "MetasoundFrontendInvalidController.h"
+#include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "Misc/Guid.h"
 
 #define LOCTEXT_NAMESPACE "MetasoundFrontendInputController"
@@ -62,6 +63,7 @@ namespace Metasound
 			EMetasoundFrontendVertexAccessType AccessType = EMetasoundFrontendVertexAccessType::Unset;
 			bool bIsRerouted = false;
 
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			Frontend::IterateReroutedInputs(AsShared(), [this, &bIsRerouted, &AccessType](const FConstInputHandle& ReroutedInput)
 			{
 				bIsRerouted = true;
@@ -78,6 +80,10 @@ namespace Metasound
 								AccessType = ClassInput->AccessType;
 								return;
 							}
+
+							// Likely template node with no set class input interface, so valid to return unset
+							AccessType = EMetasoundFrontendVertexAccessType::Unset;
+							return;
 						}
 
 						const EMetasoundFrontendVertexAccessType RerouteAccessType = ReroutedInput->GetVertexAccessType();
@@ -88,6 +94,7 @@ namespace Metasound
 					}
 				}
 			});
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			return bIsRerouted ? AccessType : EMetasoundFrontendVertexAccessType::Reference;
 		}
@@ -136,7 +143,7 @@ namespace Metasound
 		{
 			if (const FMetasoundFrontendClassInput* ClassInput = ClassInputPtr.Get())
 			{
-				return &(ClassInput->DefaultLiteral);
+				return ClassInput->FindConstDefault(Frontend::DefaultPageID);
 			}
 			return nullptr;
 		}
@@ -211,6 +218,17 @@ namespace Metasound
 
 		bool FBaseInputController::IsConnectionUserModifiable() const
 		{
+			FConstNodeHandle Owner = GetOwningNode();
+			if (Owner->GetClassMetadata().GetType() == EMetasoundFrontendClassType::Template)
+			{
+				const FNodeRegistryKey Key(GetOwningNode()->GetClassMetadata());
+				const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(Key);
+				if (ensure(Template))
+				{
+					return Template->IsInputConnectionUserModifiable();
+				}
+			}
+
 			return true;
 		}
 
@@ -343,7 +361,7 @@ namespace Metasound
 			return false;
 		}
 
-		bool FBaseInputController::Disconnect(IOutputController& InController) 
+		bool FBaseInputController::Disconnect(IOutputController& InController)
 		{
 			if (FMetasoundFrontendGraph* Graph = GraphPtr.Get())
 			{
@@ -378,14 +396,22 @@ namespace Metasound
 			if (FMetasoundFrontendGraph* Graph = GraphPtr.Get())
 			{
 				const FGuid NodeID = GetOwningNodeID();
+
+#if WITH_EDITORONLY_DATA
+				{
+					const FName OutputName = GetConnectedOutput()->GetName();
+					auto IsStyleForThisNode = [&](const FMetasoundFrontendEdgeStyle& EdgeStyle) { return EdgeStyle.NodeID == NodeID && OutputName == EdgeStyle.OutputName; };
+					Graph->Style.EdgeStyles.RemoveAllSwap(IsStyleForThisNode);
+				}
+#endif // WITH_EDITORONLY_DATA
+
 				FGuid VertexID = GetID();
 
 				auto EdgeHasMatchingDestination = [&](const FMetasoundFrontendEdge& Edge)
 				{
 					return (Edge.ToNodeID == NodeID) && (Edge.ToVertexID == VertexID);
 				};
-
-				int32 NumRemoved = Graph->Edges.RemoveAllSwap(EdgeHasMatchingDestination);
+				const int32 NumRemoved = Graph->Edges.RemoveAllSwap(EdgeHasMatchingDestination);
 				return NumRemoved > 0;
 			}
 
@@ -465,7 +491,6 @@ namespace Metasound
 
 			return Access;
 		}
-
 
 		//
 		// FOutputNodeInputController

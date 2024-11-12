@@ -343,7 +343,7 @@ TArray<FSVGStyle> FSVGImporterUtils::StylesFromCSS(FString InData)
 					if (ClassNameLength >= 0)
 					{
 						// todo: expand on this kind of syntax?  something.class
-						CurrClassName = FString(ClassNameLength, Start + CurrClassNameBeginIndex);
+						CurrClassName = FString::ConstructFromPtrSize(Start + CurrClassNameBeginIndex, ClassNameLength);
 						if (CurrClassName.StartsWith("."))
 						{
 							CurrClassName.RemoveAt(0);
@@ -382,10 +382,10 @@ TArray<FSVGStyle> FSVGImporterUtils::StylesFromCSS(FString InData)
 					const int32 AttributeValueLength = CurrAttributeValueEndIndex - CurrAttributeValueBeginIndex;
 					if (AttributeNameLength >= 0 || AttributeValueLength >= 0)
 					{
-						FString AttributeName = FString(AttributeNameLength, Start + CurrAttributeNameBeginIndex);
+						FString AttributeName = FString::ConstructFromPtrSize(Start + CurrAttributeNameBeginIndex, AttributeNameLength);
 						AttributeName.RemoveSpacesInline();
 
-						FString AttributeValue = FString(CurrAttributeValueEndIndex - CurrAttributeValueBeginIndex, Start + CurrAttributeValueBeginIndex);
+						FString AttributeValue = FString::ConstructFromPtrSize(Start + CurrAttributeValueBeginIndex, CurrAttributeValueEndIndex - CurrAttributeValueBeginIndex);
 						AttributeValue.RemoveSpacesInline();
 
 						CurrStyleAttributes.Add(AttributeName, AttributeValue);
@@ -573,6 +573,9 @@ UTexture2D* FSVGImporterUtils::CreateSVGTexture(const FString& InSVGString, UObj
 	const float TextureDim = FMath::RoundUpToPowerOfTwo(MaxDim);
 
 	const float Scale = TextureDim/MaxDim;
+	const float XOffset = Scale * FMath::Max(0, (MaxDim - Image->width)/2.0f);
+	const float YOffset = Scale * FMath::Max(0, (MaxDim - Image->height)/2.0f);
+
 	TArray<uint8> PixelData;
 	PixelData.AddUninitialized(TextureDim * TextureDim * SVG_BPP);
 	const int32 Stride = TextureDim * SVG_BPP;
@@ -583,7 +586,7 @@ UTexture2D* FSVGImporterUtils::CreateSVGTexture(const FString& InSVGString, UObj
 		return nullptr;
 	}
 
-	nsvgRasterizeFull(Rasterizer, Image, 0, 0, Scale, Scale, PixelData.GetData(), TextureDim, TextureDim, Stride);
+	nsvgRasterizeFull(Rasterizer, Image, XOffset, YOffset, Scale, Scale, PixelData.GetData(), TextureDim, TextureDim, Stride);
 
 	nsvgDeleteRasterizer(Rasterizer);
 	nsvgDelete(Image);

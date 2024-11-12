@@ -128,6 +128,10 @@ TSharedRef<SWidget> SChaosClothAssetEditorRestSpaceViewportToolBar::GenerateClot
 				LOCTEXT("ToggleMeshStatsLabel", "Mesh Stats"),
 				LOCTEXT("ToggleMeshStatsTooltip", "Show mesh stats in the viewport"));
 
+			OptionsMenuBuilder.AddMenuEntry(FChaosClothAssetEditorCommands::Get().ToggleConstructionViewSurfaceNormals,
+				NAME_None,
+				LOCTEXT("ShowNormalsLabel", "Show Normals"),
+				LOCTEXT("ShowNormalsTooltip", "Display surface normals"));
 		}
 		OptionsMenuBuilder.EndSection();
 

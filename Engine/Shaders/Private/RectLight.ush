@@ -8,7 +8,15 @@
 #include "LightData.ush"
 
 #ifndef USE_SOURCE_TEXTURE
-#define USE_SOURCE_TEXTURE 1
+#define USE_SOURCE_TEXTURE (FEATURE_LEVEL > FEATURE_LEVEL_ES3_1)
+#endif
+
+#if SUPPORTS_INDEPENDENT_SAMPLERS
+#define GGXLTCMatSampler	View.SharedBilinearClampedSampler
+#define GGXLTCAmpSampler	View.SharedBilinearClampedSampler
+#else
+#define GGXLTCMatSampler	View.GGXLTCMatSampler
+#define GGXLTCAmpSampler	View.GGXLTCAmpSampler
 #endif
 
 struct FRect
@@ -100,10 +108,10 @@ float3 RectIrradianceLambert( float3 N, FRect Rect, out float BaseIrradiance, ou
 	// normalize( cross( L0, L1 ) ) = cross( L0, L1 ) * rsqrt( 1 - dot( L0, L1 )^2 )
 	// acos( x ) ~= sqrt(1 - x) * (1.5708 - 0.175 * x)
 
-	float w01 = ( 1.5708 - 0.175 * c01 ) * rsqrt( c01 + 1 );	// 1 mad, 1 add, 1 rsqrt
-	float w12 = ( 1.5708 - 0.175 * c12 ) * rsqrt( c12 + 1 );	// 1 mad, 1 add, 1 rsqrt
-	float w23 = ( 1.5708 - 0.175 * c23 ) * rsqrt( c23 + 1 );	// 1 mad, 1 add, 1 rsqrt
-	float w30 = ( 1.5708 - 0.175 * c30 ) * rsqrt( c30 + 1 );	// 1 mad, 1 add, 1 rsqrt
+	float w01 = ( 1.5708 - 0.175 * c01 ) * rsqrt( max(c01 + 1, 1.0e-4f) );	// 1 mad, 1 add, 1 rsqrt
+	float w12 = ( 1.5708 - 0.175 * c12 ) * rsqrt( max(c12 + 1, 1.0e-4f) );	// 1 mad, 1 add, 1 rsqrt
+	float w23 = ( 1.5708 - 0.175 * c23 ) * rsqrt( max(c23 + 1, 1.0e-4f) );	// 1 mad, 1 add, 1 rsqrt
+	float w30 = ( 1.5708 - 0.175 * c30 ) * rsqrt( max(c30 + 1, 1.0e-4f) );	// 1 mad, 1 add, 1 rsqrt
 	// 8 alu, 4 rsqrt
 #endif
 
@@ -318,7 +326,7 @@ float IntegrateEdge( float3 L0, float3 L1 )
 	float w01 = ( 0.8543985 + (0.4965155 + 0.0145206 * abs(c01)) * abs(c01) ) /
 				( 3.4175940 + (4.1616724 + abs(c01)) * abs(c01) );
 	
-	w01 = c01 > 0 ? w01 : 0.5 * rsqrt( 1 - c01 * c01 ) - w01;
+	w01 = c01 > 0 ? w01 : 0.5 * rsqrt( max(1 - c01 * c01, 1.0e-4f)  ) - w01;
 #endif
 
 	return w01;
@@ -370,17 +378,13 @@ struct FRectLTC
 };
 
 // Return LTC coefficients for GGX-based BSDF
-FRectLTC GetRectLTC_GGX( float Roughness, float3 SpecularColor, half NoV)
+FRectLTC GetRectLTC_GGX(float Roughness, float3 F0, float3 F90, half NoV)
 {
-	// F90 is derived as, anything less than 2% is physically impossible and is instead considered to be shadowing
-	const float3 F0  = SpecularColor;
-	const float3 F90 = saturate(50.0 * SpecularColor);
-
 	float2 UV = float2( Roughness, sqrt( 1 - NoV ) );
 	UV = UV * (63.0 / 64.0) + (0.5 / 64.0);
    
-	float4 LTCMat = View.GGXLTCMatTexture.SampleLevel( View.GGXLTCMatSampler, UV, 0 );
-	float4 LTCAmp = View.GGXLTCAmpTexture.SampleLevel( View.GGXLTCAmpSampler, UV, 0 );
+	float4 LTCMat = View.GGXLTCMatTexture.SampleLevel( GGXLTCMatSampler, UV, 0 );
+	float4 LTCAmp = View.GGXLTCAmpTexture.SampleLevel( GGXLTCAmpSampler, UV, 0 );
 
 	float3x3 LTC = {
 		float3( LTCMat.x, 0, LTCMat.z ),
@@ -404,6 +408,21 @@ FRectLTC GetRectLTC_GGX( float Roughness, float3 SpecularColor, half NoV)
 	return Out;
 }
 
+FRectLTC GetRectLTC_GGX( float Roughness, float3 SpecularColor, half NoV)
+{
+	// F90 is derived as, anything less than 2% is physically impossible and is instead considered to be shadowing
+	const float3 F0  = SpecularColor;
+	const float3 F90 = saturate(50.0 * SpecularColor);
+
+	return GetRectLTC_GGX(Roughness, F0, F90, NoV);
+}
+
+#if SUPPORTS_INDEPENDENT_SAMPLERS
+	#define SharedSheenLTCSampler	View.SharedBilinearClampedSampler
+#else
+	#define SharedSheenLTCSampler	View.SheenLTCSampler
+#endif
+
 // Return LTC coefficients for Sheen BSDF
 FRectLTC GetRectLTC_Sheen( float Roughness, half NoV)
 {	
@@ -411,21 +430,21 @@ FRectLTC GetRectLTC_Sheen( float Roughness, half NoV)
 	const float SatNoV = saturate(abs(NoV) + 1e-5);
 	float2 UV = float2(Alpha, SatNoV);
 	UV = UV * (31.0 / 32.0) + (0.5 / 32.0);
-	const float3 SheenLTC = View.SheenLTCTexture.SampleLevel(View.SheenLTCSampler, UV, 0).xyz;
+	const float3 SheenLTC = View.SheenLTCTexture.SampleLevel(SharedSheenLTCSampler, UV, 0).xyz;
 
 	const float aInv = SheenLTC.x;
 	const float bInv = SheenLTC.y;
 
 	float3x3 LTC = {
-		float3(1/aInv, 0,     -bInv/aInv),    
-		float3(0,      1/aInv, 0),
-		float3(0,      0,      1)
-	};
-
-	float3x3 InvLTC = {
 		float3(aInv, 0,    bInv),
 		float3(0,    aInv, 0),
 		float3(0,    0,    1)
+	};
+
+	float3x3 InvLTC = {
+		float3(1/aInv, 0,     -bInv/aInv),    
+		float3(0,      1/aInv, 0),
+		float3(0,      0,      1)
 	};
 
 	FRectLTC Out = (FRectLTC)0;
@@ -458,6 +477,15 @@ float3 RectApproxLTC(FRectLTC In, half3 N, float3 V, FRect Rect, FRectTexture Re
 
 	// Vector irradiance
 	float3 L = PolygonIrradiance( Poly );
+
+	#if 0
+	// Early out negative irradiance vector, causing 'ghost' rect light silhouette at low roughness
+	OutMeanLightWorldDirection = N;
+	if (L.z <= 0)
+	{
+		return 0;
+	}
+	#endif
 
 	float LengthSqr = dot( L, L );
 	float InvLength = rsqrt( LengthSqr );
@@ -513,6 +541,23 @@ float3 RectGGXApproxLTC(float Roughness, float3 SpecularColor, half3 N, float3 V
 	return RectGGXApproxLTC(Roughness, SpecularColor, N, V, Rect, RectTexture, MeanLightWorldDirection);
 }
 
+float3 RectGGXApproxLTC(float Roughness, float3 F0, float3 F90, half3 N, float3 V, FRect Rect, FRectTexture RectTexture, inout float3 OutMeanLightWorldDirection)
+{
+	// No visibile rect light due to barn door occlusion
+	if (Rect.Extent.x == 0 || Rect.Extent.y == 0) return 0;
+
+	const float NoV = saturate(abs(dot(N, V)) + 1e-5);
+
+	const FRectLTC LTC = GetRectLTC_GGX(Roughness, F0, F90, NoV);
+	return RectApproxLTC(LTC, N, V, Rect, RectTexture, OutMeanLightWorldDirection);
+}
+
+float3 RectGGXApproxLTC(float Roughness, float3 F0, float3 F90, half3 N, float3 V, FRect Rect, FRectTexture RectTexture)
+{
+	float3 MeanLightWorldDirection = 0.0f;
+	return RectGGXApproxLTC(Roughness, F0, F90, N, V, Rect, RectTexture, MeanLightWorldDirection);
+}
+
 // Integrated a Sheen-based BSDF with a rect light using LTC
 float3 RectSheenApproxLTC( float Roughness, half3 N, float3 V, FRect Rect, FRectTexture RectTexture, inout float DirectionalAlbedo)
 {
@@ -524,8 +569,9 @@ float3 RectSheenApproxLTC( float Roughness, half3 N, float3 V, FRect Rect, FRect
 	const FRectLTC LTC = GetRectLTC_Sheen(Roughness, NoV);
 	DirectionalAlbedo = LTC.IrradianceScale.x;
 
+	const float Scale = 2 * PI; // Factor to match the path-tracer
 	float3 MeanLightWorldDirection = 0.0f;
-	return RectApproxLTC(LTC, N, V, Rect, RectTexture, MeanLightWorldDirection);
+	return RectApproxLTC(LTC, N, V, Rect, RectTexture, MeanLightWorldDirection) * Scale;
 }
 
 // Rectangle projected to a sphere
@@ -546,6 +592,27 @@ struct FSphericalRect
 	float		SolidAngle;
 };
 
+// The routine below needs more accuracy near 1.0 to accurately capture distant rectlights
+// The typical approach (for example see: asinFast) looses too much accuracy to cancelation near the endpoints
+float SphericalRectAsin(float x)
+{
+	const float HalfPI = PI / 2;
+	// Argument reduction to [0,0.5]
+	// using: asin(x) == pi/2-2*asin(sqrt(0.5-0.5*x))
+	float a = saturate(abs(x));
+	bool inner = a < 0.5f;
+	float a2 = inner ? a * a : 0.5 - 0.5 * a;
+	a = inner ? a : sqrt(a2);
+
+	// Fit using Mathematica -- max error for asin is 10^-4.87
+	float r = 0.100323f;
+	r = mad(r, a2, 0.163288f);
+	r = mad(r, a2, 1.00011f) * a;
+	r = inner ? r : HalfPI - 2 * r;
+
+	return asfloat(asuint(r) ^ (asuint(x) & 0x80000000u)); // propagate sign bit
+}
+
 // RectZ must face origin
 FSphericalRect BuildSphericalRect( FRect Rect )
 {
@@ -553,10 +620,7 @@ FSphericalRect BuildSphericalRect( FRect Rect )
 
 	SphericalRect.Axis = Rect.Axis;
 
-	float3 LocalPosition;
-	LocalPosition.x = dot( Rect.Axis[0], Rect.Origin );
-	LocalPosition.y = dot( Rect.Axis[1], Rect.Origin );
-	LocalPosition.z = dot( Rect.Axis[2], Rect.Origin );
+	float3 LocalPosition = mul(Rect.Axis, Rect.Origin);
 
 	SphericalRect.x0 = LocalPosition.x - Rect.Extent.x;
 	SphericalRect.x1 = LocalPosition.x + Rect.Extent.x;
@@ -566,86 +630,92 @@ FSphericalRect BuildSphericalRect( FRect Rect )
 
 	SphericalRect.Axis[2] *= LocalPosition.z > 0 ? -1 : 1;
 
-	float3 v0 = float3( SphericalRect.x0, SphericalRect.y0, SphericalRect.z0 );
-	float3 v1 = float3( SphericalRect.x1, SphericalRect.y0, SphericalRect.z0 );
-	float3 v2 = float3( SphericalRect.x1, SphericalRect.y1, SphericalRect.z0 );
-	float3 v3 = float3( SphericalRect.x0, SphericalRect.y1, SphericalRect.z0 );
+	// Original paper creates all vertices, then all normals via cross products and finally computes angles via dot products.
+	// However since all the points lay on an axis-aligned plane, the math can be simplified by recognizing that most terms become
+	// zero, leaving only the product of the z components of the normals.
+	float z0sq = LocalPosition.z * LocalPosition.z;
+	float n0z = -SphericalRect.y0 * rsqrt(z0sq + SphericalRect.y0 * SphericalRect.y0);
+	float n1z =  SphericalRect.x1 * rsqrt(z0sq + SphericalRect.x1 * SphericalRect.x1);
+	float n2z =  SphericalRect.y1 * rsqrt(z0sq + SphericalRect.y1 * SphericalRect.y1);
+	float n3z = -SphericalRect.x0 * rsqrt(z0sq + SphericalRect.x0 * SphericalRect.x0);
 
-	float3 n0 = normalize( cross( v0, v1 ) );
-	float3 n1 = normalize( cross( v1, v2 ) );
-	float3 n2 = normalize( cross( v2, v3 ) );
-	float3 n3 = normalize( cross( v3, v0 ) );
+	// Original paper uses acos(-dot(...)). Here we use the identify acos(-x) == pi/2+asin(x) to simplify
+	// the math.
+	float G0G1 = SphericalRectAsin(n0z * n1z) + SphericalRectAsin(n1z * n2z);
+	float G2G3 = SphericalRectAsin(n2z * n3z) + SphericalRectAsin(n3z * n0z);
 
-	float g0 = acos( -dot( n0, n1 ) );
-	float g1 = acos( -dot( n1, n2 ) );
-	float g2 = acos( -dot( n2, n3 ) );
-	float g3 = acos( -dot( n3, n0 ) );
-
-	SphericalRect.b0 = n0.z;
-	SphericalRect.b1 = n2.z;
-
-	SphericalRect.k = 2*PI - g2 - g3;
-	SphericalRect.SolidAngle = g0 + g1 - SphericalRect.k;
+	SphericalRect.b0 = n0z;
+	SphericalRect.b1 = n2z;
+	SphericalRect.k = G2G3;
+	SphericalRect.SolidAngle = G0G1 + SphericalRect.k;
 
 	return SphericalRect;
 }
 
 struct FSphericalRectSample {
 	float3 Direction;
+	float  Distance;
 	float2 UV;
+	float  InvPdf;
 };
 
-FSphericalRectSample UniformSampleSphericalRectWithUV(float2 E, FSphericalRect Rect)
+#define SPHERICAL_RECT_MIN_SOLIDANGLE 1e-3
+
+float GetSphericalRectInversePdf(float3 Direction, float DistanceSquared, FSphericalRect Rect)
 {
-	float au = E.x * Rect.SolidAngle + Rect.k;
-	float fu = (cos(au) * Rect.b0 - Rect.b1) / sin(au);
-	float cu = rsqrt(fu * fu + Rect.b0 * Rect.b0) * (fu > 0 ? 1 : -1);
-	cu = clamp(cu, -1, 1);				// avoid NaNs
+	if (Rect.SolidAngle > SPHERICAL_RECT_MIN_SOLIDANGLE)
+	{
+		// Light is big enough to use solid angle sampling
+		return Rect.SolidAngle;
+	}
+	else
+	{
+		// Light is very small, area sampling is sufficient
+		float Area = (Rect.y1 - Rect.y0) * (Rect.x1 - Rect.x0);
+		float NoL = abs(dot(Direction, Rect.Axis[2]));
+		return Area * NoL / DistanceSquared;
+	}
+}
 
-	float xu = -(cu * Rect.z0) * rsqrt(1 - cu * cu);
-	xu = clamp(xu, Rect.x0, Rect.x1);	// avoid Infs
+FSphericalRectSample UniformSampleSphericalRect(float2 E, FSphericalRect Rect)
+{
+	float xu, yv;
+	if (Rect.SolidAngle > SPHERICAL_RECT_MIN_SOLIDANGLE)
+	{
+		// Some signs are flipped from the original paper on account of the different calculation of SolidAngle and k
+		float au = E.x * Rect.SolidAngle - Rect.k;
+		float fu = (cos(au) * Rect.b0 + Rect.b1) / sin(au);
+		float cu = rsqrt(fu * fu + Rect.b0 * Rect.b0) * (fu > 0 ? 1 : -1);
+		cu = clamp(cu, -1, 1);				// avoid NaNs
 
-	float d = sqrt(xu * xu + Rect.z0 * Rect.z0);
-	float h0 = Rect.y0 * rsqrt(d * d + Rect.y0 * Rect.y0);
-	float h1 = Rect.y1 * rsqrt(d * d + Rect.y1 * Rect.y1);
-	float hv = h0 + E.y * (h1 - h0);
-	float yv = (hv * hv < 1 - 1e-6) ? (hv * d) * rsqrt(1 - hv * hv) : Rect.y1;
+		xu = -(cu * Rect.z0) * rsqrt(1 - cu * cu);
+		xu = clamp(xu, Rect.x0, Rect.x1);	// avoid Infs
 
+		float d2 = xu * xu + Rect.z0 * Rect.z0;
+		float h0 = Rect.y0 * rsqrt(d2 + Rect.y0 * Rect.y0);
+		float h1 = Rect.y1 * rsqrt(d2 + Rect.y1 * Rect.y1);
+		float hv = h0 + E.y * (h1 - h0);
+		float rv = 1.0 - hv * hv;
+		yv = (rv > 0) ? (hv * d2 * rsqrt(rv * d2)) : Rect.y1;
+	}
+	else
+	{
+		// fallback to area sampling when solid angle is tiny to avoid numerical issues
+		xu = lerp(Rect.x0, Rect.x1, E.x);
+		yv = lerp(Rect.y0, Rect.y1, E.y);
+	}
 	FSphericalRectSample Result;
 	Result.Direction = mul(float3(xu, yv, Rect.z0), Rect.Axis);
 	Result.UV = float2(xu - Rect.x0, yv - Rect.y0) / float2(Rect.x1 - Rect.x0, Rect.y1 - Rect.y0);
 
+	float DistanceSquared = xu * xu + yv * yv + Rect.z0 * Rect.z0;
+	float InvDistance = rsqrt(DistanceSquared);
+
+	Result.Distance = DistanceSquared * InvDistance;
+	Result.Direction *= InvDistance;
+
+	Result.InvPdf = GetSphericalRectInversePdf(Result.Direction, DistanceSquared, Rect);
 	return Result;
-}
-
-float3 UniformSampleSphericalRect( float2 E, FSphericalRect Rect )
-{
-	return UniformSampleSphericalRectWithUV(E, Rect).Direction;
-}
-
-float3 RectIrradianceRef( float3 N, FRect Rect, out float BaseIrradiance, out float NoL )
-{
-	FSphericalRect SphericalRect = BuildSphericalRect( Rect );
-
-	const uint NumSamples = 32;
-
-	float3 L = 0;
-	NoL = 0;
-
-	LOOP
-	for( uint i = 0; i < NumSamples; i++ )
-	{
-		float2 E = Hammersley( i, NumSamples, 0 );
-		float3 Ls = normalize( UniformSampleSphericalRect( E, SphericalRect ) );
-
-		L   += Ls;
-		NoL += saturate( dot(N, Ls) );
-	}
-
-	BaseIrradiance = SphericalRect.SolidAngle;
-	NoL /= NumSamples;
-
-	return normalize(L);
 }
 
 FRect GetRect(

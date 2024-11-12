@@ -10,18 +10,22 @@
 	#error "Platform needs to define RHICORE_PLATFORM_DXGI_H"
 #endif
 
+#include "PixelFormat.h"
 #include "RHIDefinitions.h"
 #include "Misc/AssertionMacros.h"
 
 #include "Microsoft/AllowMicrosoftPlatformTypes.h"
 THIRD_PARTY_INCLUDES_START
-	#include RHICORE_PLATFORM_DXGI_H
+#include RHICORE_PLATFORM_DXGI_H
 THIRD_PARTY_INCLUDES_END
 #include "Microsoft/HideMicrosoftPlatformTypes.h"
+
+struct FD3DMemoryStats;
 
 namespace UE::DXGIUtilities
 {
 	RHICORE_API const TCHAR* GetFormatString(DXGI_FORMAT Format);
+	RHICORE_API HRESULT GetD3DMemoryStats(IDXGIAdapter* Adapter, FD3DMemoryStats& OutStats);
 
 	inline DXGI_FORMAT FindSharedResourceFormat(DXGI_FORMAT InFormat, bool bSRGB)
 	{
@@ -466,6 +470,21 @@ namespace UE::DXGIUtilities
 	inline uint32 GetFormatSizeInBytes(DXGI_FORMAT Format)
 	{
 		return GetFormatSizeInBits(Format) / 8;
+	}
+
+	inline DXGI_FORMAT GetSwapChainFormat(EPixelFormat PixelFormat)
+	{
+		DXGI_FORMAT	DXFormat = static_cast<DXGI_FORMAT>(GPixelFormats[PixelFormat].PlatformFormat);
+		switch (DXFormat)
+		{
+		case DXGI_FORMAT_B8G8R8A8_TYPELESS:		return DXGI_FORMAT_B8G8R8A8_UNORM;
+		case DXGI_FORMAT_BC1_TYPELESS:			return DXGI_FORMAT_BC1_UNORM;
+		case DXGI_FORMAT_BC2_TYPELESS:			return DXGI_FORMAT_BC2_UNORM;
+		case DXGI_FORMAT_BC3_TYPELESS:			return DXGI_FORMAT_BC3_UNORM;
+		case DXGI_FORMAT_R16_TYPELESS:			return DXGI_FORMAT_R16_UNORM;
+		case DXGI_FORMAT_R8G8B8A8_TYPELESS:		return DXGI_FORMAT_R8G8B8A8_UNORM;
+		default: 								return DXFormat;
+		}
 	}
 } // UE::DXGIUtilities
 

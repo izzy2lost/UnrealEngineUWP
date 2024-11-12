@@ -1,20 +1,27 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GameplayGraphTrack.h"
-#include "GameplayProvider.h"
+
 #include "AnimationProvider.h"
-#include "Insights/ViewModels/TimingTrackViewport.h"
-#include "Insights/ViewModels/TimingEvent.h"
-#include "GameplaySharedData.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "Insights/ViewModels/TimingEventSearch.h"
-#include "Insights/ViewModels/TooltipDrawState.h"
-#include "Modules/ModuleManager.h"
-#include "Insights/ViewModels/GraphTrackBuilder.h"
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/ViewModels/ITimingViewDrawHelper.h"
 #include "Fonts/FontMeasure.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "GameplayProvider.h"
+#include "GameplaySharedData.h"
+#include "Modules/ModuleManager.h"
+
+// TraceServices
 #include "TraceServices/Model/Frames.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+
+// TraceInsights
+#include "Insights/ViewModels/GraphTrackBuilder.h"
+#include "Insights/ViewModels/ITimingViewDrawHelper.h"
+#include "Insights/ViewModels/TimingEvent.h"
+#include "Insights/ViewModels/TimingEventSearch.h"
+#include "Insights/ViewModels/TimingTrackViewport.h"
+#include "Insights/ViewModels/TooltipDrawState.h"
 
 #define LOCTEXT_NAMESPACE "GameplayGraphTrack"
 

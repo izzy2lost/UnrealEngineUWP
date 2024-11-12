@@ -8,80 +8,7 @@
 #include "Misc/MessageDialog.h"
 #include "RHI.h"
 #include "ImageCoreUtils.h"
-
-bool UE::Interchange::FImportImageHelper::IsImportResolutionValid(int64 Width, int64 Height, bool bAllowNonPowerOfTwo, FText* OutErrorMessage)
-{
-	// code dupe from: UTextureFactory::IsImportResolutionValid
-
-	// limit on current rendering RHI : == GetMax2DTextureDimension()
-	const int64 CurrentRHIMaxResolution = int64(1) << (GMaxTextureMipCount - 1);
-
-	// MaximumSupportedResolutionNonVT is only a popup/warning , not a hard limit
-#if WITH_EDITOR
-	// Get the non-VT size limit :
-	int64 MaximumSupportedResolutionNonVT = (int64)UTexture::GetMaximumDimensionOfNonVT();
-	MaximumSupportedResolutionNonVT = FMath::Min(MaximumSupportedResolutionNonVT, CurrentRHIMaxResolution);
-#else
-	int64 MaximumSupportedResolutionNonVT = CurrentRHIMaxResolution;
-#endif
-
-	// No zero-size textures :
-	if (Width == 0 || Height == 0)
-	{
-		if (OutErrorMessage)
-		{
-			*OutErrorMessage = NSLOCTEXT("Interchange", "Warning_TextureSizeZero", "Texture has zero width or height");
-		}
-
-		return false;
-	}
-
-	// Dimensions must fit in signed int32
-	//  could be negative here if it was over 2G and int32 was used earlier
-	if ( ! FImageCoreUtils::IsImageImportPossible(Width,Height) )
-	{
-		if (OutErrorMessage)
-		{
-			*OutErrorMessage = NSLOCTEXT("Interchange", "Warning_TextureSizeTooLargeOrInvalid", "Texture is too large to import or it has an invalid resolution.");
-		}
-
-		return false;
-	}
-
-	if (Width > MaximumSupportedResolutionNonVT || Height > MaximumSupportedResolutionNonVT)
-	{
-		const TConsoleVariableData<int32>* CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures")); check(CVarVirtualTexturesEnabled);
-		check(CVarVirtualTexturesEnabled != nullptr);
-
-		if (!CVarVirtualTexturesEnabled->GetValueOnAnyThread())
-		{
-			const FText VTMessage = NSLOCTEXT("Interchange", "Warning_LargeTextureVTDisabled", "\nWarning: Virtual Textures are disabled in this project.");
-
-			if (EAppReturnType::Yes != FMessageDialog::Open(EAppMsgType::YesNo, EAppReturnType::Yes, FText::Format(
-				NSLOCTEXT("Interchange", "Warning_LargeTextureImport", "Attempting to import {0} x {1} texture, proceed?\nLargest supported non-VT texture size: {2} x {3}{4}"),
-				FText::AsNumber(Width), FText::AsNumber(Height), FText::AsNumber(MaximumSupportedResolutionNonVT), FText::AsNumber(MaximumSupportedResolutionNonVT), VTMessage)))
-			{
-				return false;
-			}
-		}
-	}
-
-	// Check if the texture dimensions are powers of two
-	if (!bAllowNonPowerOfTwo)
-	{
-		const bool bIsPowerOfTwo = FMath::IsPowerOfTwo(Width) && FMath::IsPowerOfTwo(Height);
-		if (!bIsPowerOfTwo)
-		{
-			if ( OutErrorMessage )
-			{
-				*OutErrorMessage = NSLOCTEXT("Interchange", "Warning_TextureNotAPowerOfTwo", "Cannot import texture with non-power of two dimensions");
-			}
-			return false;
-		}
-	}
-
-	return true;
-}
+#include "TextureImportUtils.h"
 
 void UE::Interchange::FImportImage::Init2DWithParams(int32 InSizeX, int32 InSizeY, ETextureSourceFormat InFormat, bool bInSRGB, bool bShouldAllocateRawData)
 {
@@ -98,26 +25,6 @@ void UE::Interchange::FImportImage::Init2DWithParams(int32 InSizeX, int32 InSize
 	if (bShouldAllocateRawData)
 	{
 		RawData = FUniqueBuffer::Alloc(ComputeBufferSize());
-	}
-}
-
-void UE::Interchange::FImportImage::Init2DWithOneMip(int32 InSizeX, int32 InSizeY, ETextureSourceFormat InFormat, const void* InData)
-{
-	Init2DWithParams(InSizeX, InSizeY, 1, InFormat, bSRGB);
-
-	if (InData)
-	{
-		FMemory::Memcpy(RawData.GetData(), InData, RawData.GetSize());
-	}
-}
-
-void UE::Interchange::FImportImage::Init2DWithMips(int32 InSizeX, int32 InSizeY, int32 InNumMips, ETextureSourceFormat InFormat, const void* InData)
-{
-	Init2DWithParams(InSizeX, InSizeY, 1, InFormat, bSRGB);
-
-	if (InData)
-	{
-		FMemory::Memcpy(RawData.GetData(), InData, RawData.GetSize());
 	}
 }
 

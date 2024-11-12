@@ -57,9 +57,8 @@ static void CopyValueType(FShaderValueTypeHandle InValueType,  FShaderParamTypeD
 FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel(
 	UObject *InKernelSourceOuter,
 	const FOptimusPinTraversalContext& InTraversalContext,
-	const FOptimus_KernelInputMap InKernelInputs,
-	const FOptimus_KernelOutputMap InKernelOutputs,
-	const TArray<const UOptimusNode *>& InValueNodes,
+	const FOptimus_KernelInputMap& InKernelInputs,
+	const FOptimus_KernelOutputMap& InKernelOutputs,
 	UComputeDataInterface* InOutKernelDataInterface,
 	FOptimus_InterfaceBindingMap& OutInputDataBindings,
 	FOptimus_InterfaceBindingMap& OutOutputDataBindings
@@ -161,8 +160,7 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 			{
 				TOptional<FText> Result = ProcessInputPinForComputeKernel(
 					InTraversalContext, SubPin, GroupIndex == 0 ? FString() : Pin->GetName(),
-					InKernelInputs, InValueNodes,
-					KernelSource, GeneratedFunctions, OutInputDataBindings
+					InKernelInputs, KernelSource, GeneratedFunctions, OutInputDataBindings
 					);
 				if (Result.IsSet())
 				{
@@ -197,7 +195,7 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 	CookedSource += GetKernelSourceText();
 	
 	KernelSource->SetSource(CookedSource);
-	KernelSource->EntryPoint = GetKernelName();
+	KernelSource->EntryPoint = GetKernelHlslName();
 	KernelSource->GroupSize = GetGroupSize();
 	KernelSource->AdditionalSources = GetAdditionalSources();
 
@@ -244,6 +242,11 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 
 TOptional<FText> UOptimusNode_ComputeKernelBase::ValidateForCompile(const FOptimusPinTraversalContext& InContext) const
 {
+	if (!GetExecutionDomain().IsDefined())
+	{
+		return LOCTEXT("NoExecutionDomain", "Kernel has undefined Execution Domain, please use the Details panel to select a valid domain");
+	}
+	
 	auto GetStructTypeDefFromPin = [](const UOptimusNodePin* InPin) -> TOptional<FText>
 	{
 		const FOptimusDataTypeHandle TypeHandle = InPin->GetDataType();
@@ -364,7 +367,6 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ProcessInputPinForComputeKernel
 	const UOptimusNodePin* InInputPin,
 	const FString& InGroupName,
 	const FOptimus_KernelInputMap& InKernelInputs,
-	const TArray<const UOptimusNode*>& InValueNodes,
 	UOptimusKernelSource* InKernelSource,
 	TArray<FString>& OutGeneratedFunctions,
 	FOptimus_InterfaceBindingMap& OutInputDataBindings
@@ -381,20 +383,19 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ProcessInputPinForComputeKernel
 		const UOptimusNodePin* OutputPin = InputConnection->ConnectedPin;
 		const UOptimusNode* OutputNode = OutputPin->GetOwningNode();
 		UComputeDataInterface* DataInterface = InputConnection->DataInterface;
+
+		if (!DataInterface->CanSupportUnifiedDispatch() && !InGroupName.IsEmpty())
+		{
+			return FText::Format(LOCTEXT("SecondaryGroupOnlySupportsDataInterfaceUnifiedDispatch", "Cannot connect Secondary group input binding pin '{0}' to a data interface that does not support unified dispatch, consider inserting a kernel inbetween"), FText::FromName(InInputPin->GetUniqueName()));
+		}
 		
-		const UOptimusComponentSourceBinding* ComponentBinding = nullptr;
 		int32 DataInterfaceFuncIndex = INDEX_NONE;
-		FString DataFunctionName;
 
 		if (Cast<const IOptimusComputeKernelProvider>(OutputNode))
 		{
 			if (ensure(Cast<UOptimusRawBufferDataInterface>(DataInterface)))
 			{
 				DataInterfaceFuncIndex = UOptimusRawBufferDataInterface::GetReadValueInputIndex(EOptimusBufferReadType::Default);
-				
-				TArray<FShaderFunctionDefinition> ReadFunctions;
-				DataInterface->GetSupportedInputs(ReadFunctions);
-				DataFunctionName = ReadFunctions[DataInterfaceFuncIndex].Name;	
 			}
 		}
 		else if (const IOptimusDataInterfaceProvider* InterfaceProvider = Cast<const IOptimusDataInterfaceProvider>(OutputNode)) 
@@ -402,20 +403,15 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ProcessInputPinForComputeKernel
 			if (ensure(Cast<UOptimusComputeDataInterface>(DataInterface)))
 			{
 				DataInterfaceFuncIndex = InterfaceProvider->GetDataFunctionIndexFromPin(OutputPin);
-				
-				TArray<FShaderFunctionDefinition> ReadFunctions;
-				DataInterface->GetSupportedInputs(ReadFunctions);
-				DataFunctionName = ReadFunctions[DataInterfaceFuncIndex].Name;
 			}
 		}
-		else if (const IOptimusValueProvider * ValueProvider = Cast<const IOptimusValueProvider>(OutputNode))
+		else if (const IOptimusValueProvider* ValueProvider = Cast<const IOptimusValueProvider>(OutputNode))
 		{
-			if (ensure(Cast<UOptimusGraphDataInterface>(DataInterface)))
+			UOptimusGraphDataInterface* GraphDataInterface = Cast<UOptimusGraphDataInterface>(DataInterface);
+			if (ensure(GraphDataInterface))
 			{
-				// Value nodes bind the single graph data interface.
-				DataInterfaceFuncIndex = InValueNodes.Find(OutputNode);
+				DataInterfaceFuncIndex = GraphDataInterface->FindFunctionIndex(ValueProvider->GetValueIdentifier());
 				check(DataInterfaceFuncIndex != INDEX_NONE);
-				DataFunctionName = Optimus::MakeUniqueValueName(ValueProvider->GetValueName(), DataInterfaceFuncIndex);
 			}
 		}
 		else if (Cast<const UOptimusNode_LoopTerminal>(OutputNode))
@@ -423,17 +419,13 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ProcessInputPinForComputeKernel
 			if (ensure(Cast<const UOptimusLoopTerminalDataInterface>(DataInterface)))
 			{
 				DataInterfaceFuncIndex = UOptimusNode_LoopTerminal::GetDataFunctionIndexFromPin(OutputPin);
-				TArray<FShaderFunctionDefinition> ReadFunctions;
-				DataInterface->GetSupportedInputs(ReadFunctions);
-				DataFunctionName = ReadFunctions[DataInterfaceFuncIndex].Name;
 			}
 		}
 
-		if (!DataInterface->CanSupportUnifiedDispatch() && !InGroupName.IsEmpty())
-		{
-			return FText::Format(LOCTEXT("SecondaryGroupOnlySupportsDataInterfaceUnifiedDispatch", "Cannot connect Secondary group input binding pin '{0}' to a data interface that does not support unified dispatch, consider inserting a kernel inbetween"), FText::FromName(InInputPin->GetUniqueName()));
-		}
-
+		TArray<FShaderFunctionDefinition> ReadFunctions;
+		DataInterface->GetSupportedInputs(ReadFunctions);
+		FString DataFunctionName = ReadFunctions[DataInterfaceFuncIndex].Name;
+		
 		// The shader function definition that exposes the function that we use to
 		// read values to input into the kernel.
 		FShaderFunctionDefinition FuncDef;

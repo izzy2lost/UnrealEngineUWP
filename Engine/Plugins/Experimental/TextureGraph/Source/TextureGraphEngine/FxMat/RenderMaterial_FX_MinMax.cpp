@@ -94,7 +94,7 @@ AsyncTransformResultPtr RenderMaterial_FX_MinMax::Exec(const TransformArgs& Args
 		
 		auto& RHI = Device_FX::Get()->RHI();
 		
-		FTexture2DRHIRef TextureRHI = RTRes->GetTextureRHI();
+		FTextureRHIRef TextureRHI = RTRes->GetTextureRHI();
 		check(TextureRHI);
 		TextureRHI->SetName(FName(Target->GetRenderTarget()->GetName()));
 

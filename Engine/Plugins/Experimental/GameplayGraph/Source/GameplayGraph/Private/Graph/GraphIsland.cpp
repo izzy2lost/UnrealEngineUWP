@@ -91,6 +91,14 @@ void UGraphIsland::RemoveVertex(const FGraphVertexHandle& Node)
 	}
 }
 
+void UGraphIsland::ChangeVertexHandle(const FGraphVertexHandle& OldVertexHandle, const FGraphVertexHandle& NewVertexHandle)
+{
+	if (ensure(Vertices.Remove(OldVertexHandle)))
+	{
+		Vertices.Add(NewVertexHandle);
+	}
+}
+
 void UGraphIsland::HandleOnVertexAdded(const FGraphVertexHandle& Handle)
 {
 	OnVertexAdded.Broadcast(this->Handle(), Handle);
@@ -106,9 +114,9 @@ void UGraphIsland::HandleOnDestroyed()
 	OnDestroyed.Broadcast(Handle());
 }
 
-void UGraphIsland::HandleOnConnectivityChanged()
+void UGraphIsland::HandleOnConnectivityChanged(EGraphIslandConnectivityChange Change)
 {
-	OnConnectivityChanged.Broadcast(Handle());
+	OnConnectivityChanged.Broadcast(Handle(), Change);
 }
 
 void UGraphIsland::SetOperationAllowed(EGraphIslandOperations Op, bool bAllowed)

@@ -11,22 +11,6 @@
 #include "Math/Matrix.h"
 #include "Math/Vector.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "Containers/LockFreeList.h"
-#include "ProfilingDebugging/ResourceSize.h"
-#include "Engine/EngineTypes.h"
-#include "UObject/GCObject.h"
-#include "AsyncCompilationHelpers.h"
-#include "AssetCompilingManager.h"
-#include "RenderResource.h"
-#include "RenderingThread.h"
-#include "RenderDeferredCleanup.h"
-#include "Templates/UniquePtr.h"
-#include "DerivedMeshDataTaskUtils.h"
-#include "Async/AsyncWork.h"
-#endif
-
 namespace MeshCardRepresentation
 {
 	// Generation config
@@ -49,7 +33,7 @@ public:
 	UE::Math::TVector<T> Extent;
 
 	/** Default constructor (no initialization). */
-	TLumenCardOBB() { }
+	TLumenCardOBB() = default;
 
 	/**
 	 * Creates and initializes a new OBB with zeros
@@ -62,7 +46,7 @@ public:
 	}
 
 	// Conversion from other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
 	explicit TLumenCardOBB(const TLumenCardOBB<FArg>& From)
 	{
 		Origin = UE::Math::TVector<T>(From.Origin);
@@ -152,6 +136,11 @@ public:
 		return UE::Math::TBox<T>(BoxMin, BoxMax);
 	}
 
+	bool ContainsNaN() const
+	{
+		return Origin.ContainsNaN() || AxisX.ContainsNaN() || AxisY.ContainsNaN() || AxisZ.ContainsNaN() || Extent.ContainsNaN();
+	}
+
 	friend FArchive& operator<<(FArchive& Ar, TLumenCardOBB<T>& Data)
 	{
 		Ar << Data.AxisX;
@@ -165,9 +154,3 @@ public:
 
 using FLumenCardOBBf = TLumenCardOBB<float>;
 using FLumenCardOBBd = TLumenCardOBB<double>;
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "MeshCardBuild.h"
-		static uint32 NextCardRepresentationId = 0;
-		CardRepresentationDataId.Value = NextCardRepresentationId;
-#endif

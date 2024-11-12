@@ -41,6 +41,7 @@ public:
 	//~ End USubsystem
 
 	//~ Begin UObject
+	WORLDMETRICSCORE_API static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 	WORLDMETRICSCORE_API virtual void BeginDestroy() override;
 	//~ End UObject
 
@@ -222,11 +223,16 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UWorldMetricInterface>> Metrics;
 
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UWorldMetricsExtension>> Extensions;
-
 	using FOwnerList = TSet<UObject*, DefaultKeyFuncs<UObject*>, TInlineSetAllocator<DefaultOwnerListCapacity>>;
-	TArray<FOwnerList, TInlineAllocator<DefaultExtensionCapacity>> IndexedOwners;
+
+	struct FExtension
+	{
+		TObjectPtr<UWorldMetricsExtension> Instance;
+		FOwnerList Owners;
+	};
+
+	// Exposed to GC via AddReferencedObjects.
+	TMap<TSubclassOf<UWorldMetricsExtension>, FExtension, TInlineSetAllocator<DefaultExtensionCapacity>> Extensions;
 
 public:
 	UPROPERTY(Config)
@@ -264,14 +270,6 @@ private:
 	 */
 	void Clear();
 
-	/**
-	 * Returns the live extension list index corresponding to the parameter extension class.
-	 *
-	 * @param InExtensionClass: the class type of the extension.
-	 * @return a valid index value or INDEX_NONE if not matching extension exists.
-	 */
-	int32 GetExtensionIndex(const TSubclassOf<UWorldMetricsExtension>& InExtensionClass) const;
-
 	UWorldMetricsExtension* AcquireExtensionInternal(
 		UObject* InOwner,
 		const TSubclassOf<UWorldMetricsExtension>& InExtensionClass);
@@ -284,7 +282,7 @@ private:
 
 	bool ReleaseExtensionInternal(UObject* InOwner, const TSubclassOf<UWorldMetricsExtension>& InExtensionClass);
 
-	bool TryRemoveExtensionAt(int32 ExtensionIndex);
+	bool TryRemoveExtension(const TSubclassOf<UWorldMetricsExtension>& InExtensionClass);
 
 	/**
 	 * Verifies the parameter metric has released any acquired extensions, releasing any pending ones. It's the metric's

@@ -13,14 +13,14 @@ UBTTask_SetTagCooldown::UBTTask_SetTagCooldown(const FObjectInitializer& ObjectI
 
 EBTNodeResult::Type UBTTask_SetTagCooldown::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
-	OwnerComp.AddCooldownTagDuration(CooldownTag, CooldownDuration, bAddToExistingDuration);
+	OwnerComp.AddCooldownTagDuration(CooldownTag, CooldownDuration.GetValue(OwnerComp), bAddToExistingDuration.GetValue(OwnerComp));
 	
 	return EBTNodeResult::Succeeded;
 }
 
 FString UBTTask_SetTagCooldown::GetStaticDescription() const
 {
-	return FString::Printf(TEXT("%s %s: %.1fs"), *Super::GetStaticDescription(), *CooldownTag.ToString(), CooldownDuration);
+	return FString::Printf(TEXT("%s %s: %s s"), *Super::GetStaticDescription(), *CooldownTag.ToString(), *CooldownDuration.ToString());
 }
 
 #if WITH_EDITOR

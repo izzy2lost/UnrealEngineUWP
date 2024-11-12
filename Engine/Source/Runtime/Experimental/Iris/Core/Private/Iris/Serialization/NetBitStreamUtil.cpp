@@ -286,7 +286,7 @@ void ReadString(FNetBitStreamReader* Reader, FString& OutString)
 		}
 
 		// There are two FString constructors with similar signature. The one with known length of the string passes the count first.
-		OutString = FString(static_cast<int32>(Length), CharBuffer.GetData());
+		OutString = FString::ConstructFromPtrSize(CharBuffer.GetData(), static_cast<int32>(Length));
 	}
 }
 

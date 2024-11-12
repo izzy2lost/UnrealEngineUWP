@@ -100,6 +100,50 @@ FName GetPackageNameFromDependencyPackageName(const FName RawPackageFName)
 	return PackageFName;
 }
 
+/**
+ * Checks if the provided file path is in the format supported by the BulkData CookedIndex system.
+ * We expect two extensions in the path, the first will be all numbers and the second will be one
+ * of the bulkdata types supported by the system, 'i.e <PackageName>.001.ubulk'.
+ * @see FBulkDataCookedIndex for more info.
+ */
+static bool HasBulkDataCookedIndexExtension(FStringView Path)
+{
+	// Check that the extension at the end of the file is one of the bulkdata types that supports this feature
+	if (!(Path.EndsWith(TEXT(".ubulk")) || Path.EndsWith(TEXT(".uptnl"))) || Path.Len() < 10)
+	{
+		return false;
+	}
+
+	// If the number of max digits changes then our assumptions about ExtensionSize should be reconsidered
+	static_assert(FBulkDataCookedIndex::MAX_DIGITS == 3);
+
+	// A valid extension of this type will always be 10 characters long
+	const int32 ExtensionSize = 10;
+
+	if (Path.Len() < ExtensionSize)
+	{
+		return false;
+	}
+
+	const int32 ExtensionStart = Path.Len() - ExtensionSize;
+
+	if (Path[ExtensionStart] != TEXT('.'))
+	{
+		return false;
+	}
+
+	// Make sure that the first extension only has numeric characters, 0-9
+	for (int32 Index = 1; Index < 4; Index++)
+	{
+		if (Path[ExtensionStart + Index] < TEXT('0') || Path[ExtensionStart + Index] > TEXT('9'))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 class FDefaultPakFileRules
 {
 public:
@@ -199,30 +243,6 @@ FAssetRegistryGenerator::FAssetRegistryGenerator(const ITargetPlatform* InPlatfo
 
 FAssetRegistryGenerator::~FAssetRegistryGenerator()
 {
-}
-
-bool FAssetRegistryGenerator::CleanTempPackagingDirectory(const FString& Platform) const
-{
-	FString TmpPackagingDir = GetTempPackagingDirectoryForPlatform(Platform);
-	if (IFileManager::Get().DirectoryExists(*TmpPackagingDir))
-	{
-		if (!IFileManager::Get().DeleteDirectory(*TmpPackagingDir, false, true))
-		{
-			UE_LOG(LogAssetRegistryGenerator, Error, TEXT("Failed to delete directory: %s"), *TmpPackagingDir);
-			return false;
-		}
-	}
-
-	FString ChunkListDir = FPaths::Combine(*FPaths::ProjectLogDir(), TEXT("ChunkLists"));
-	if (IFileManager::Get().DirectoryExists(*ChunkListDir))
-	{
-		if (!IFileManager::Get().DeleteDirectory(*ChunkListDir, false, true))
-		{
-			UE_LOG(LogAssetRegistryGenerator, Error, TEXT("Failed to delete directory: %s"), *ChunkListDir);
-			return false;
-		}
-	}
-	return true;
 }
 
 bool FAssetRegistryGenerator::ShouldPlatformGenerateStreamingInstallManifest(const ITargetPlatform* Platform) const
@@ -341,21 +361,21 @@ bool FAssetRegistryGenerator::GenerateStreamingInstallManifest(int64 InOverrideC
 	UE::Cook::FCookSandbox& InSandboxFile)
 {
 	const FString Platform = TargetPlatform->PlatformName();
-	FString TmpPackagingDir = GetTempPackagingDirectoryForPlatform(Platform);
+	FString ChunkManifestDir = GetChunkManifestDirectoryForPlatform(Platform, InSandboxFile);
 	if (InManifestSubDir)
 	{
-		TmpPackagingDir /= InManifestSubDir;
+		ChunkManifestDir /= InManifestSubDir;
 	}
 	int64 MaxChunkSize = InOverrideChunkSize > 0 ? InOverrideChunkSize : GetMaxChunkSizePerPlatform(TargetPlatform);
 
-	if (!IFileManager::Get().MakeDirectory(*TmpPackagingDir, true /* Tree */))
+	if (!IFileManager::Get().MakeDirectory(*ChunkManifestDir, true /* Tree */))
 	{
-		UE_LOG(LogAssetRegistryGenerator, Error, TEXT("Failed to create directory: %s"), *TmpPackagingDir);
+		UE_LOG(LogAssetRegistryGenerator, Error, TEXT("Failed to create directory: %s"), *ChunkManifestDir);
 		return false;
 	}
 	
-	FString PakChunkListFilename = TmpPackagingDir / TEXT("pakchunklist.txt");
-	FString PakChunkLayerInfoFilename = TmpPackagingDir / TEXT("pakchunklayers.txt");
+	FString PakChunkListFilename = ChunkManifestDir / TEXT("pakchunklist.txt");
+	FString PakChunkLayerInfoFilename = ChunkManifestDir / TEXT("pakchunklayers.txt");
 	// List of pak file lists
 	TUniquePtr<FArchive> PakChunkListFile(IFileManager::Get().CreateFileWriter(*PakChunkListFilename));
 	// List of disc layer for each chunk
@@ -614,7 +634,7 @@ bool FAssetRegistryGenerator::GenerateStreamingInstallManifest(int64 InOverrideC
 				? FString::Printf(TEXT("pakchunk%d_s%d.txt"), PakchunkIndex, SubChunkIndex)
 				: FString::Printf(TEXT("pakchunk%d.txt"), PakchunkIndex);
 
-			const FString PakListFilename = FString::Printf(TEXT("%s/%s"), *TmpPackagingDir, *PakChunkFilename);
+			const FString PakListFilename = FString::Printf(TEXT("%s/%s"), *ChunkManifestDir, *PakChunkFilename);
 			TUniquePtr<FArchive> PakListFile(IFileManager::Get().CreateFileWriter(*PakListFilename));
 
 			if (!PakListFile)
@@ -774,6 +794,7 @@ bool FAssetRegistryGenerator::GenerateStreamingInstallManifest(int64 InOverrideC
 					}
 				}
 				
+				FPaths::MakePathRelativeTo(PakListLine, *FPaths::RootDir());
 				PakListLine.ReplaceInline(TEXT("/"), TEXT("\\"));
 				PakListLine += TEXT("\r\n");
 				PakListFile->Serialize(TCHAR_TO_ANSI(*PakListLine), PakListLine.Len());
@@ -816,20 +837,6 @@ bool FAssetRegistryGenerator::GenerateStreamingInstallManifest(int64 InOverrideC
 
 	ChunkLayerFile->Close();
 	PakChunkListFile->Close();
-	
-	if (bSucceeded)
-	{
-		FString ChunkManifestDirectory = FPaths::ProjectDir() / TEXT("Metadata") / TEXT("ChunkManifest");
-		ChunkManifestDirectory =
-			InSandboxFile.ConvertToAbsolutePathForExternalAppForWrite(*ChunkManifestDirectory, Platform);
-
-		IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
-		if (!PlatformFile.CopyDirectoryTree(*ChunkManifestDirectory, *TmpPackagingDir, true))
-		{
-			UE_LOG(LogAssetRegistryGenerator, Error, TEXT("Failed to copy chunk manifest from '%s' to '%s'"), *TmpPackagingDir, *ChunkManifestDirectory)
-			return false;
-		}
-	}
 
 	return bSucceeded;
 }
@@ -849,17 +856,34 @@ void FAssetRegistryGenerator::CalculateChunkIdsAndAssignToManifest(const FName& 
 	{
 		FName PackageNameThatDefinesChunks = PackageFName;
 
-		// Generated packages use the chunks defined by their Generator
-		FName GeneratorName = GetGeneratorPackage(PackageFName, this->State);
-		if (!GeneratorName.IsNone())
+		UAssetManager& AssetManager = UAssetManager::Get();
+
+		TArray<int32> PackageChunkIDs;
+		
+		for (int32 ChunkID : AssetManager.GetEncryptedChunkIDsForPackage(PackageFName))
 		{
-			PackageNameThatDefinesChunks = GeneratorName;
+			PackageChunkIDs.Add(ChunkID);
 		}
 
-		TArray<int32> PackageChunkIDs = GetExplicitChunkIDs(PackageNameThatDefinesChunks);
-		ExistingChunkIDs = GetExistingPackageChunkAssignments(PackageNameThatDefinesChunks);
-		PackageChunkIDs.Append(ExistingChunkIDs);
-		UAssetManager::Get().GetPackageChunkIds(PackageNameThatDefinesChunks, TargetPlatform, PackageChunkIDs, TargetChunks);
+		// We only want to override the package name 
+		if (PackageChunkIDs.Num() == 0)
+		{
+			// Generated packages use the chunks defined by their Generator
+			FName GeneratorName = GetGeneratorPackage(PackageFName, this->State);
+			if (!GeneratorName.IsNone())
+			{
+				PackageNameThatDefinesChunks = GeneratorName;
+			}
+
+			PackageChunkIDs = GetExplicitChunkIDs(PackageNameThatDefinesChunks);
+			ExistingChunkIDs = GetExistingPackageChunkAssignments(PackageNameThatDefinesChunks);
+			PackageChunkIDs.Append(ExistingChunkIDs);
+			AssetManager.GetPackageChunkIds(PackageNameThatDefinesChunks, TargetPlatform, PackageChunkIDs, TargetChunks);
+		}
+		else
+		{
+			TargetChunks.Append(PackageChunkIDs);
+		}
 	}
 
 	// Add the package to the manifest for every chunk the AssetManager found it should belong to
@@ -877,10 +901,29 @@ void FAssetRegistryGenerator::CalculateChunkIdsAndAssignToManifest(const FName& 
 	}
 }
 
-void FAssetRegistryGenerator::CleanManifestDirectories()
+bool FAssetRegistryGenerator::CleanManifestDirectories(UE::Cook::FCookSandbox& InSandboxFile)
 {
 	LLM_SCOPE_BYTAG(Cooker_GeneratedAssetRegistry);
-	CleanTempPackagingDirectory(TargetPlatform->PlatformName());
+	FString ChunkManifestDir = GetChunkManifestDirectoryForPlatform(TargetPlatform->PlatformName(), InSandboxFile);
+	if (IFileManager::Get().DirectoryExists(*ChunkManifestDir))
+	{
+		if (!IFileManager::Get().DeleteDirectory(*ChunkManifestDir, false, true))
+		{
+			UE_LOG(LogAssetRegistryGenerator, Error, TEXT("Failed to delete directory: %s"), *ChunkManifestDir);
+			return false;
+		}
+	}
+
+	FString ChunkListDir = FPaths::Combine(*FPaths::ProjectLogDir(), TEXT("ChunkLists"));
+	if (IFileManager::Get().DirectoryExists(*ChunkListDir))
+	{
+		if (!IFileManager::Get().DeleteDirectory(*ChunkListDir, false, true))
+		{
+			UE_LOG(LogAssetRegistryGenerator, Error, TEXT("Failed to delete directory: %s"), *ChunkListDir);
+			return false;
+		}
+	}
+	return true;
 }
 
 void FAssetRegistryGenerator::SetPreviousAssetRegistry(TUniquePtr<FAssetRegistryState>&& InPreviousState)
@@ -901,16 +944,13 @@ void FAssetRegistryGenerator::SetPreviousAssetRegistry(TUniquePtr<FAssetRegistry
 			FIterativelySkippedPackageUpdateData& UpdateData = PreviousPackagesToUpdate.FindOrAdd(PackageName);
 			bool bGenerated = false;
 
-			TArrayView<FAssetData const * const> PreviousAssetDatas = InPreviousState->GetAssetsByPackageName(PackageName);
-			if (PreviousAssetDatas.Num() > 0)
-			{
-				UpdateData.AssetDatas.Reserve(PreviousAssetDatas.Num());
-				for (const FAssetData* AssetData : PreviousAssetDatas)
+			UpdateData.AssetDatas.Reserve(InPreviousState->NumAssetsByPackageName(PackageName));
+			InPreviousState->EnumerateAssetsByPackageName(PackageName, [&bGenerated, &UpdateData](const FAssetData* AssetData)
 				{
 					bGenerated |= (AssetData->PackageFlags & PKG_CookGenerated) != 0;
 					UpdateData.AssetDatas.Emplace(*AssetData);
-				}
-			}
+					return true; // Keep iterating
+				});
 			UpdateData.PackageData = *Pair.Value;
 
 			// Keep the dependencies and referencers of generated packages
@@ -939,11 +979,8 @@ void FAssetRegistryGenerator::InjectEncryptionData(FAssetRegistryState& TargetSt
 
 		for (FName EncryptedRootPackageName : EncryptedRootAssets)
 		{
-			for (const FAssetData* PackageAsset : TargetState.GetAssetsByPackageName(EncryptedRootPackageName))
-			{
-				FAssetData* AssetData = const_cast<FAssetData*>(PackageAsset);
-
-				if (AssetData)
+			TargetState.EnumerateMutableAssetsByPackageName(EncryptedRootPackageName,
+				[&GuidCache, &AssetManager, &TargetState](FAssetData* AssetData)
 				{
 					FString GuidString;
 					const FAssetData::FChunkArrayView ChunkIDs = AssetData->GetChunkIDs();
@@ -974,8 +1011,8 @@ void FAssetRegistryGenerator::InjectEncryptionData(FAssetRegistryState& TargetSt
 							TargetState.UpdateAssetData(AssetData, MoveTemp(NewAssetData));
 						}
 					}
-				}
-			}
+					return true; // Keep iterating assets in the package
+				});
 		}
 	}
 }
@@ -1122,7 +1159,7 @@ void FAssetRegistryGenerator::UpdateCollectionAssetData()
 		const FSoftObjectPath& AssetPath = AssetPathToCollectionTagsPair.Key;
 		const TArray<FName>& CollectionTagsForAsset = AssetPathToCollectionTagsPair.Value;
 
-		const FAssetData* AssetData = State.GetAssetByObjectPath(AssetPath);
+		FAssetData* AssetData = State.GetMutableAssetByObjectPath(AssetPath);
 		if (AssetData)
 		{
 			FAssetDataTagMap TagsAndValues = AssetData->TagsAndValues.CopyMap();
@@ -1132,7 +1169,7 @@ void FAssetRegistryGenerator::UpdateCollectionAssetData()
 			}
 			FAssetData NewAssetData(*AssetData);
 			NewAssetData.TagsAndValues = FAssetDataTagMapSharedView(MoveTemp(TagsAndValues));
-			State.UpdateAssetData(const_cast<FAssetData*>(AssetData), MoveTemp(NewAssetData));
+			State.UpdateAssetData(AssetData, MoveTemp(NewAssetData));
 		}
 	}
 }
@@ -1287,7 +1324,7 @@ void FAssetRegistryGenerator::ComputePackageDifferences(const FComputeDifference
 				else
 				{
 					FGeneratorPackageInfo& Info = OutDifference.GeneratorPackages.FindOrAdd(GeneratorName);
-					Info.Generated.Add(PackageName, PreviousPackageData->GetPackageSavedHash());
+					Info.Generated.Add(PackageName, CopyAssetPackageDataForIncrementalCook(*PreviousPackageData));
 				}
 			}
 			else
@@ -1323,7 +1360,7 @@ void FAssetRegistryGenerator::ComputePackageDifferences(const FComputeDifference
 		EDifference* GeneratorDifference = OutDifference.Packages.Find(GeneratorName);
 		if (GeneratorDifference && *GeneratorDifference == EDifference::RemovedCooked)
 		{
-			for (const TPair<FName, FIoHash>& Generated : Iter->Value.Generated)
+			for (const TPair<FName, FAssetPackageData>& Generated : Iter->Value.Generated)
 			{
 				OutDifference.Packages.Add(Generated.Key, EDifference::RemovedCooked);
 			}
@@ -1360,6 +1397,8 @@ void FAssetRegistryGenerator::ComputePackageDifferences(const FComputeDifference
 			// Read referencers from the current state. If there are referencers in the old state that are not in the
 			// current state, then they must have changed themselves and so are already in the modified set.
 			TArray<FAssetIdentifier> Referencers;
+			State.GetReferencers(ModifiedPackage, Referencers, UE::AssetRegistry::EDependencyCategory::Package,
+				UE::AssetRegistry::EDependencyQuery::Hard);
 			State.GetReferencers(ModifiedPackage, Referencers, UE::AssetRegistry::EDependencyCategory::Package,
 				UE::AssetRegistry::EDependencyQuery::Build);
 
@@ -1441,10 +1480,46 @@ bool FAssetRegistryGenerator::ComputePackageDifferences_IsPackageFileUnchanged(
 	return true;
 }
 
+FAssetPackageData FAssetRegistryGenerator::CopyAssetPackageDataForIncrementalCook(const FAssetPackageData& Source)
+{
+	FAssetPackageData Result;
+
+	// Copy small scalars since they don't cost memory or much network bandwidth
+	// Skip large scalars and containers that we don't need to save network bandwidth
+
+	// CookedHash is not read by the cook
+	// Result.CookedHash = Source.CookedHash;
+	
+	// PackageSavedHash is used during legacy iterative cooks to compare whether the package is modified
+	Result.SetPackageSavedHash(Source.GetPackageSavedHash());
+
+	// ChunkHashes is not read by the cook
+	// Result.ChunkHashes = Source.ChunkHashes;
+
+	// ImportedClasses is a large container, but incremental cook needs it to calculate the current packagedigest
+	Result.ImportedClasses = Source.ImportedClasses;
+	Result.DiskSize = Source.DiskSize;
+	Result.FileVersionUE = Source.FileVersionUE;
+	Result.FileVersionLicenseeUE = Source.FileVersionLicenseeUE;
+	Result.SetIsLicenseeVersion(Source.IsLicenseeVersion());
+	Result.SetHasVirtualizedPayloads(Source.HasVirtualizedPayloads());
+
+	// CustomVersions are not read by the cook
+	//Result.SetCustomVersions(Source.GetCustomVersions());
+
+	Result.Extension = Source.Extension;
+
+	return Result;
+}
+
 FName FAssetRegistryGenerator::GetGeneratorPackage(FName PackageName, const FAssetRegistryState& InState)
 {
-	TConstArrayView<const FAssetData*> Assets = InState.GetAssetsByPackageName(PackageName);
-	bool bGenerated = !Assets.IsEmpty() && (Assets[0]->PackageFlags & PKG_CookGenerated) != 0;
+	bool bGenerated = false;
+	InState.EnumerateAssetsByPackageName(PackageName, [&bGenerated](const FAssetData* Asset)
+		{
+			bGenerated = (Asset->PackageFlags & PKG_CookGenerated) != 0;
+			return false; // Stop iterating
+		});
 	if (!bGenerated)
 	{
 		return NAME_None;
@@ -1472,8 +1547,12 @@ void FAssetRegistryGenerator::ComputePackageRemovals(const FAssetRegistryState& 
 		{
 			// If it's a generated package, never mark it as removed (that can only be handled by the generator)
 			// Mark it as modified if its generator or any of its dependencies are modified.
-			TConstArrayView<const FAssetData*> PreviousAssets = PreviousState.GetAssetsByPackageName(PackageName);
-			bool bGenerated = !PreviousAssets.IsEmpty() && (PreviousAssets[0]->PackageFlags & PKG_CookGenerated);
+			bool bGenerated = false;
+			PreviousState.EnumerateAssetsByPackageName(PackageName, [&bGenerated](const FAssetData* AssetData)
+				{
+					bGenerated = (AssetData->PackageFlags & PKG_CookGenerated) != 0;
+					return false; // stop iterating
+				});
 			if (bGenerated)
 			{
 				TArray<FAssetIdentifier> Referencers;
@@ -1487,7 +1566,8 @@ void FAssetRegistryGenerator::ComputePackageRemovals(const FAssetRegistryState& 
 				}
 				else
 				{
-					OutGeneratorPackages.FindOrAdd(GeneratorName).Generated.Add(PackageName, PreviousPackageData->GetPackageSavedHash());
+					OutGeneratorPackages.FindOrAdd(GeneratorName).Generated.Add(PackageName,
+						CopyAssetPackageDataForIncrementalCook(*PreviousPackageData));
 				}
 			}
 			else
@@ -1511,7 +1591,7 @@ void FAssetRegistryGenerator::ComputePackageRemovals(const FAssetRegistryState& 
 		FName GeneratorName = Iter->Key;
 		if (RemovedPackageSet.Contains(GeneratorName))
 		{
-			for (const TPair<FName, FIoHash>& Generated : Iter->Value.Generated)
+			for (const TPair<FName, FAssetPackageData>& Generated : Iter->Value.Generated)
 			{
 				RemovedPackageSet.Add(Generated.Key);
 			}
@@ -1572,7 +1652,7 @@ void FAssetRegistryGenerator::FinalizeChunkIDs(const TSet<FName>& InCookedPackag
 	}
 
 	// Copy ExplicitChunkIDs and other data from the AssetRegistry into the maps we use during finalization
-	State.EnumerateAllAssets([&](const FAssetData& AssetData)
+	State.EnumerateAllMutableAssets([&](FAssetData& AssetData)
 	{
 		for (int32 ChunkID : AssetData.GetChunkIDs())
 		{
@@ -1587,7 +1667,7 @@ void FAssetRegistryGenerator::FinalizeChunkIDs(const TSet<FName>& InCookedPackag
 
 		// Clear the Asset's chunk id list. We will fill it with the final IDs to use later on.
 		// Chunk Ids are safe to modify in place so do a const cast
-		const_cast<FAssetData&>(AssetData).ClearChunkIDs();
+		AssetData.ClearChunkIDs();
 
 		// Update whether the owner package contains a map
 		if ((AssetData.PackageFlags & PKG_ContainsMap) != 0)
@@ -1678,6 +1758,7 @@ bool FAssetRegistryGenerator::SaveAssetRegistry(const FString& SandboxPath, bool
 	// Write runtime registry, this can be excluded per game/platform
 	FAssetRegistrySerializationOptions SaveOptions;
 	AssetRegistry.InitializeSerializationOptions(SaveOptions, TargetPlatform->IniPlatformName());
+	SaveOptions.bKeepDevelopmentAssetRegistryTags = FParse::Param(FCommandLine::Get(), TEXT("ARKeepDevTags"));
 
 	if (bForceNoFilter)
 	{
@@ -1844,6 +1925,12 @@ class FPackageCookerOpenOrderVisitor : public IPlatformFile::FDirectoryVisitor
 	const FString& PlatformSandboxPath;
 	const TSet<FStringView>& ValidExtensions;
 	TMultiMap<FString, FString>& PackageExtensions;
+
+	// Scratch variables
+	FString PackageName;
+	FString AssetSourcePath;
+	FString StandardAssetSourcePath;
+	FString BaseAssetSourcePathBuffer;
 public:
 	FPackageCookerOpenOrderVisitor(
 		const UE::Cook::FCookSandbox& InSandboxFile,
@@ -1872,22 +1959,27 @@ public:
 				return true;
 			}
 
-			FString PackageName;
-			FString AssetSourcePath = SandboxFile.ConvertFromSandboxPathInPlatformRoot(Filename, PlatformSandboxPath);
-			FString StandardAssetSourcePath = FPaths::CreateStandardFilename(AssetSourcePath);
+			AssetSourcePath = SandboxFile.ConvertFromSandboxPathInPlatformRoot(Filename, PlatformSandboxPath);
+			StandardAssetSourcePath = FPaths::CreateStandardFilename(AssetSourcePath);
+			FString* BaseAssetSourcePath = &StandardAssetSourcePath;
 			if (StandardAssetSourcePath.EndsWith(TEXT(".m.ubulk")))
 			{
 				// '.' is an 'invalid' character in a filename; FilenameToLongPackageName will fail.
-				FString BaseAssetSourcePath(StandardAssetSourcePath);
-				BaseAssetSourcePath.RemoveFromEnd(TEXT(".m.ubulk"));
-				PackageName = FPackageName::FilenameToLongPackageName(BaseAssetSourcePath);
+				BaseAssetSourcePathBuffer = StandardAssetSourcePath;
+				BaseAssetSourcePathBuffer.RemoveFromEnd(TEXT(".m.ubulk"));
+				BaseAssetSourcePath = &BaseAssetSourcePathBuffer;
 			}
-			else
+			else if (HasBulkDataCookedIndexExtension(StandardAssetSourcePath))
 			{
-				PackageName = FPackageName::FilenameToLongPackageName(StandardAssetSourcePath);
+				// 10 characters equals '.XXX.ubulk' or '.XXX.uptnl' extensions
+				BaseAssetSourcePathBuffer = StandardAssetSourcePath.LeftChop(10);
+				BaseAssetSourcePath = &BaseAssetSourcePathBuffer;
 			}
 
-			PackageExtensions.AddUnique(PackageName, StandardAssetSourcePath);
+			if (FPackageName::TryConvertFilenameToLongPackageName(*BaseAssetSourcePath, PackageName))
+			{
+				PackageExtensions.AddUnique(PackageName, StandardAssetSourcePath);
+			}
 		}
 
 		return true;
@@ -2336,9 +2428,9 @@ void FAssetRegistryGenerator::AddPackageToChunk(FChunkPackageSet& ThisPackageSet
 	ThisPackageSet.Add(InPkgName, InSandboxFile);
 }
 
-FString FAssetRegistryGenerator::GetTempPackagingDirectoryForPlatform(const FString& Platform) const
+FString FAssetRegistryGenerator::GetChunkManifestDirectoryForPlatform(const FString& Platform, UE::Cook::FCookSandbox& InSandboxFile) const
 {
-	return FPaths::ProjectSavedDir() / TEXT("TmpPackaging") / Platform;
+	return InSandboxFile.GetSandboxDirectory(Platform) / FApp::GetProjectName() / TEXT("Metadata") / TEXT("ChunkManifest");
 }
 
 void FAssetRegistryGenerator::FixupPackageDependenciesForChunks(UE::Cook::FCookSandbox& InSandboxFile)
@@ -2414,11 +2506,12 @@ void FAssetRegistryGenerator::FixupPackageDependenciesForChunks(UE::Cook::FCookS
 		check(FinalChunkManifests[PakchunkIndex]);
 		for (const TPair<FName, FString>& Asset : *FinalChunkManifests[PakchunkIndex])
 		{
-			for (const FAssetData* AssetData : State.GetAssetsByPackageName(Asset.Key))
-			{
-				// Chunk Ids are safe to modify in place
-				const_cast<FAssetData*>(AssetData)->AddChunkID(PakchunkIndex);
-			}
+			State.EnumerateMutableAssetsByPackageName(Asset.Key, [PakchunkIndex](FAssetData* AssetData)
+				{
+					// Chunk Ids are safe to modify in place
+					AssetData->AddChunkID(PakchunkIndex);
+					return true;
+				});
 		}
 	}
 }
@@ -2566,11 +2659,7 @@ void FAssetRegistryGenerator::GetChunkAssignments(TArray<TSet<FName>>& OutAssign
 	{
 		// chunk 0 is special as it also contains startup packages
 		TSet<FName> PackagesInChunk0;
-
-		for(const FName& Package : StartupPackages)
-		{
-			PackagesInChunk0.Add(Package);
-		}
+		PackagesInChunk0.Append(StartupPackages);
 
 		if (ChunkManifests[0])
 		{
@@ -2781,13 +2870,8 @@ void FAssetRegistryPackageMessage::Write(FCbWriter& Writer) const
 	Writer.EndArray();
 	if (OverrideAssetPackageData)
 	{
-		Writer.BeginObject("P");
-		{
-			// Currently we only replicate Guid and ImportedClasses, since these are the only fields set by generated pacakges
-			Writer << "H" << OverrideAssetPackageData->GetPackageSavedHash();
-			Writer << "C" << OverrideAssetPackageData->ImportedClasses;
-		}
-		Writer.EndObject();
+		Writer.SetName("P");
+		OverrideAssetPackageData->NetworkWrite(Writer);
 	}
 	if (OverridePackageDependencies)
 	{
@@ -2822,14 +2906,7 @@ bool FAssetRegistryPackageMessage::TryRead(FCbObjectView Object)
 	if (OverrideAssetPackageDataField.HasValue())
 	{
 		OverrideAssetPackageData.Emplace();
-		// Currently we only replicate Guid and ImportedClasses, since these are the only fields set by generated packages
-		FIoHash PackageSavedHash;
-		if (!LoadFromCompactBinary(OverrideAssetPackageDataField["H"], PackageSavedHash))
-		{
-			return false;
-		}
-		OverrideAssetPackageData->SetPackageSavedHash(PackageSavedHash);
-		if (!LoadFromCompactBinary(OverrideAssetPackageDataField["C"], OverrideAssetPackageData->ImportedClasses))
+		if (!OverrideAssetPackageData->TryNetworkRead(OverrideAssetPackageDataField))
 		{
 			return false;
 		}

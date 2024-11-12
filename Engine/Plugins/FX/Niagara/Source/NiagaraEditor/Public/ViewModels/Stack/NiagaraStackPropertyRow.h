@@ -43,6 +43,21 @@ public:
 	NIAGARAEDITOR_API virtual bool CanDrag() const override;
 
 	void SetOwnerGuid(TOptional<FGuid> InGuid) { OwnerGuid = InGuid; }
+
+	virtual bool SupportsCopy() const override;
+
+	virtual bool TestCanCopyWithMessage(FText& OutMessage) const override;
+
+	virtual void Copy(UNiagaraClipboardContent* ClipboardContent) const override;
+
+	virtual bool SupportsPaste() const override;
+
+	virtual bool TestCanPasteWithMessage(const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage) const override;
+
+	virtual FText GetPasteTransactionText(const UNiagaraClipboardContent* ClipboardContent) const override;
+
+	virtual void Paste(const UNiagaraClipboardContent* ClipboardContent, FText& OutPasteWarning) override;
+
 protected:
 	NIAGARAEDITOR_API virtual void FinalizeInternal() override;
 

@@ -13,6 +13,7 @@
 #include "Misc/MessageDialog.h"
 #include "DataValidationCommandlet.h"
 #include "EditorValidatorBase.h"
+#include "EditorValidator_Material.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Logging/MessageLog.h"
 #include "UObject/ICookInfo.h"
@@ -76,6 +77,8 @@ void FDataValidationModule::StartupModule()
 			LOCTEXT("DataValidationDescription", "Settings related to validating assets in the editor."),
 			GetMutableDefault<UDataValidationSettings>()
 		);
+
+		FMaterialEditorValidationShaderPlatform::RegisterCustomPropertyTypeLayout();
 	}
 }
 
@@ -89,6 +92,8 @@ void FDataValidationModule::ShutdownModule()
 		UToolMenus::UnregisterOwner(this);
 
 		UPackage::PackageSavedWithContextEvent.RemoveAll(this);
+
+		FMaterialEditorValidationShaderPlatform::UnregisterCustomPropertyTypeLayout();
 	}
 }
 
@@ -313,13 +318,12 @@ void FDataValidationModule::ValidateAssets(const TArray<FAssetData>& SelectedAss
 	if (EditorValidationSubsystem)
 	{
 		FValidateAssetsSettings Settings;
-		FValidateAssetsResults Results;
-
 		Settings.bSkipExcludedDirectories = false;
 		Settings.bShowIfNoFailures = true;
 		Settings.ValidationUsecase = InValidationUsecase;
-		Settings.MessageLogPageTitle = LOCTEXT("ValidateSelectedAssets", "Validate Selected Assets");
+		Settings.MessageLogPageTitle = FText::Format(LOCTEXT("MessageLogPageTitle.ValidateSelectedAssets", "Asset Validation: {0}"), SelectedAssets.Num() == 1 ? FText::FromName(SelectedAssets[0].AssetName) : LOCTEXT("MultipleAssets", "multiple assets"));
 
+		FValidateAssetsResults Results;
 		EditorValidationSubsystem->ValidateAssetsWithSettings(bValidateDependencies ? DependentAssets.Array() : SelectedAssets, Settings, Results);
 	}
 }
@@ -426,10 +430,9 @@ EDataValidationResult FDataValidationModule::OnValidateSourcePackageDuringCook(U
 					{
 						TStringBuilder<2048> Buffer;
 						Buffer.Join(LogWarnings, LINE_TERMINATOR);
-						ValidationContext.AddMessage(EMessageSeverity::Error)
+						ValidationContext.AddMessage(EMessageSeverity::Warning)
 							->AddToken(FAssetDataToken::Create(AssetData))
 							->AddText(LOCTEXT("DataValidation.DuringValidationWarnings", "Warnings logged while validating asset {0}"), FText::FromStringView(Buffer.ToView()));
-						ValidationResult = EDataValidationResult::Invalid;
 					}
 					if (LogErrors.Num() > 0)
 					{

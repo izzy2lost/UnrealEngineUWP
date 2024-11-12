@@ -11,6 +11,8 @@
 Texture2D< half >	HZBTexture;
 SamplerState		HZBSampler;
 
+Texture2DArray< half > HZBTextureArray;
+
 float2 HZBViewSize;
 float2 HZBSize;
 
@@ -69,14 +71,14 @@ int MipLevelForRect( int4 RectPixels, int DesiredFootprintPixels )
 	return MipLevel;
 }
 
-FScreenRect GetScreenRect( int4 ViewRect, FFrustumCullData Cull, int DesiredFootprintPixels )
+FScreenRect GetScreenRect( int4 ViewRect, float3 CullRectMin, float3 CullRectMax, int DesiredFootprintPixels )
 {
 	FScreenRect Rect;
-	Rect.Depth = Cull.RectMax.z;
+	Rect.Depth = CullRectMax.z;
 
 	// Map from NDC [-1,1] to target 'texture UV' [0,1] space, X[-1,1] -> [0,1], Y[-1,1] -> [1, 0]
 	// CF DX11.3 Functional Spec 3.3.1 Pixel Coordinate System
-	float4 RectUV = saturate( float4( Cull.RectMin.xy, Cull.RectMax.xy ) * float2(0.5, -0.5).xyxy + 0.5 ).xwzy;
+	float4 RectUV = saturate( float4( CullRectMin.xy, CullRectMax.xy ) * float2(0.5, -0.5).xyxy + 0.5 ).xwzy;
 
 	// Calculate pixel footprint of rectangle in full resolution.
 	// To make the bounds as tight as possible we only consider a pixel part of the footprint when its pixel center is covered by the rectangle.
@@ -107,6 +109,32 @@ FScreenRect GetScreenRect( int4 ViewRect, FFrustumCullData Cull, int DesiredFoot
 	return Rect;
 }
 
+FScreenRect GetScreenRect( int4 ViewRect, FFrustumCullData Cull, int DesiredFootprintPixels )
+{
+	return GetScreenRect(ViewRect, Cull.RectMin, Cull.RectMax, DesiredFootprintPixels);
+}
+
+#if !COMPILER_SUPPORTS_GATHER_LOD_RED
+
+float4 LoadHZBRow4(float4 XCoords, float YCoord, float MipLevel)
+{
+	return float4(
+		HZBTexture.SampleLevel(HZBSampler, float2(XCoords.x, YCoord), MipLevel).r,
+		HZBTexture.SampleLevel(HZBSampler, float2(XCoords.y, YCoord), MipLevel).r,
+		HZBTexture.SampleLevel(HZBSampler, float2(XCoords.z, YCoord), MipLevel).r,
+		HZBTexture.SampleLevel(HZBSampler, float2(XCoords.w, YCoord), MipLevel).r);
+}
+
+float4 LoadHZBRow4(float4 XCoords, float YCoord, float MipLevel, float ArrayIndex)
+{
+	return float4(
+		HZBTextureArray.SampleLevel(HZBSampler, float3(XCoords.x, YCoord, ArrayIndex), MipLevel).r,
+		HZBTextureArray.SampleLevel(HZBSampler, float3(XCoords.y, YCoord, ArrayIndex), MipLevel).r,
+		HZBTextureArray.SampleLevel(HZBSampler, float3(XCoords.z, YCoord, ArrayIndex), MipLevel).r,
+		HZBTextureArray.SampleLevel(HZBSampler, float3(XCoords.w, YCoord, ArrayIndex), MipLevel).r);
+}
+#endif
+
 float GetMinDepthFromHZB(FScreenRect Rect, bool bSample4x4)
 {
 	// Calculate HZB Texel size.
@@ -132,39 +160,18 @@ float GetMinDepthFromHZB(FScreenRect Rect, bool bSample4x4)
 
 		Depth.yz = (Rect.HZBTexels.x == Rect.HZBTexels.z) ? 1.0f : Depth.yz;	// Mask off right pixels, if footprint is only one pixel wide.
 		Depth.xy = (Rect.HZBTexels.y == Rect.HZBTexels.w) ? 1.0f : Depth.xy;	// Mask off bottom pixels, if footprint is only one pixel tall.
-
-		MinDepth = min(min3(Depth.x, Depth.y, Depth.z), Depth.w);
 #else
 		float4 XCoords = (min(Rect.HZBTexels.x + int4(0, 1, 2, 3), Rect.HZBTexels.z) + 0.5f) * TexelSize.x;
 		float4 YCoords = (min(Rect.HZBTexels.y + int4(0, 1, 2, 3), Rect.HZBTexels.w) + 0.5f) * TexelSize.y;
 
-		float Depth00 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.x, YCoords.x), MipLevel).r;
-		float Depth01 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.y, YCoords.x), MipLevel).r;
-		float Depth02 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.z, YCoords.x), MipLevel).r;
-		float Depth03 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.w, YCoords.x), MipLevel).r;
+		float4 Depth0 = LoadHZBRow4( XCoords, YCoords.x, MipLevel);
+		float4 Depth1 = LoadHZBRow4( XCoords, YCoords.y, MipLevel);
+		float4 Depth2 = LoadHZBRow4( XCoords, YCoords.z, MipLevel);
+		float4 Depth3 = LoadHZBRow4( XCoords, YCoords.w, MipLevel);
 
-		float Depth10 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.x, YCoords.y), MipLevel).r;
-		float Depth11 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.y, YCoords.y), MipLevel).r;
-		float Depth12 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.z, YCoords.y), MipLevel).r;
-		float Depth13 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.w, YCoords.y), MipLevel).r;
-
-		float Depth20 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.x, YCoords.z), MipLevel).r;
-		float Depth21 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.y, YCoords.z), MipLevel).r;
-		float Depth22 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.z, YCoords.z), MipLevel).r;
-		float Depth23 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.w, YCoords.z), MipLevel).r;
-
-		float Depth30 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.x, YCoords.w), MipLevel).r;
-		float Depth31 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.y, YCoords.w), MipLevel).r;
-		float Depth32 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.z, YCoords.w), MipLevel).r;
-		float Depth33 = HZBTexture.SampleLevel(HZBSampler, float2(XCoords.w, YCoords.w), MipLevel).r;
-
-		MinDepth = min(	min3(	min3(Depth00, Depth01, Depth02),
-								min3(Depth03, Depth10, Depth11),
-								min3(Depth12, Depth13, Depth20) ),
-						min3(	min3(Depth21, Depth22, Depth23),
-								min3(Depth30, Depth31, Depth32),
-								Depth33 ) );
+		float4 Depth = min(min3(Depth0, Depth1, Depth2), Depth3);
 #endif
+		MinDepth = min(min3(Depth.x, Depth.y, Depth.z), Depth.w);
 	}
 	else
 	{
@@ -191,6 +198,76 @@ float GetMinDepthFromHZB(FScreenRect Rect, bool bSample4x4)
 bool IsVisibleHZB( FScreenRect Rect, bool bSample4x4 )
 {
 	const float MinDepth = GetMinDepthFromHZB(Rect, bSample4x4);
+	
+	// Inverted Z buffer
+	return Rect.Depth >= MinDepth;
+}
+
+float GetMinDepthFromHZBArray(FScreenRect Rect, bool bSample4x4, float ArrayIndex)
+{
+	// Calculate HZB Texel size.
+	// TexelSize = (1 / HZBSize) * exp2(MipLevel);
+	float2 TexelSize = asfloat(0x7F000000 - asint(HZBSize) + (Rect.HZBLevel << 23));		// Assumes HZB is po2
+
+	float MipLevel = (float)Rect.HZBLevel;
+
+	float MinDepth;
+	if( bSample4x4 )
+	{
+#if COMPILER_SUPPORTS_GATHER_LOD_RED
+		float4 GatherCoords;
+		GatherCoords.xy = (float2)Rect.HZBTexels.xy * TexelSize.xy + TexelSize.xy;			// (RectPixels.xy + 1) * PixelSize.xy
+		GatherCoords.zw = max((float2)Rect.HZBTexels.zw * TexelSize.xy, GatherCoords.xy);
+
+		float4 Depth00 = HZBTextureArray.GatherLODRed(HZBSampler, float3(GatherCoords.xy, ArrayIndex), MipLevel);
+		float4 Depth01 = HZBTextureArray.GatherLODRed(HZBSampler, float3(GatherCoords.zy, ArrayIndex), MipLevel);
+		float4 Depth10 = HZBTextureArray.GatherLODRed(HZBSampler, float3(GatherCoords.xw, ArrayIndex), MipLevel);
+		float4 Depth11 = HZBTextureArray.GatherLODRed(HZBSampler, float3(GatherCoords.zw, ArrayIndex), MipLevel);
+
+		float4 Depth = min(min3(Depth00, Depth01, Depth10), Depth11);
+
+		Depth.yz = (Rect.HZBTexels.x == Rect.HZBTexels.z) ? 1.0f : Depth.yz;	// Mask off right pixels, if footprint is only one pixel wide.
+		Depth.xy = (Rect.HZBTexels.y == Rect.HZBTexels.w) ? 1.0f : Depth.xy;	// Mask off bottom pixels, if footprint is only one pixel tall.
+
+#else
+		float4 XCoords = (min(Rect.HZBTexels.x + int4(0, 1, 2, 3), Rect.HZBTexels.z) + 0.5f) * TexelSize.x;
+		float4 YCoords = (min(Rect.HZBTexels.y + int4(0, 1, 2, 3), Rect.HZBTexels.w) + 0.5f) * TexelSize.y;
+
+
+		float4 Depth0 = LoadHZBRow4( XCoords, YCoords.x, MipLevel, ArrayIndex);
+		float4 Depth1 = LoadHZBRow4( XCoords, YCoords.y, MipLevel, ArrayIndex);
+		float4 Depth2 = LoadHZBRow4( XCoords, YCoords.z, MipLevel, ArrayIndex);
+		float4 Depth3 = LoadHZBRow4( XCoords, YCoords.w, MipLevel, ArrayIndex);
+
+		float4 Depth = min(min3(Depth0, Depth1, Depth2), Depth3);
+#endif
+		MinDepth = min(min3(Depth.x, Depth.y, Depth.z), Depth.w);
+	}
+	else
+	{
+		float4 Depth;
+#if COMPILER_SUPPORTS_GATHER_LOD_RED
+		float2 Coords = Rect.HZBTexels.xy * TexelSize + TexelSize;	// (RectPixels + 1.0f) * TexelSize
+		Depth = HZBTextureArray.GatherLODRed(HZBSampler, float3(Coords.xy, ArrayIndex), MipLevel);
+#else
+		float4 Coords = (Rect.HZBTexels + 0.5f) * TexelSize.xyxy;
+		Depth.x = HZBTextureArray.SampleLevel(HZBSampler, float3(Coords.xw, ArrayIndex), MipLevel).r;	// (-,+)
+		Depth.y = HZBTextureArray.SampleLevel(HZBSampler, float3(Coords.zw, ArrayIndex), MipLevel).r;	// (+,+)
+		Depth.z = HZBTextureArray.SampleLevel(HZBSampler, float3(Coords.zy, ArrayIndex), MipLevel).r;	// (+,-)
+		Depth.w = HZBTextureArray.SampleLevel(HZBSampler, float3(Coords.xy, ArrayIndex), MipLevel).r;	// (-,-)
+#endif
+		Depth.yz = (Rect.HZBTexels.x == Rect.HZBTexels.z) ? 1.0f : Depth.yz;	// Mask off right pixels, if footprint is only one pixel wide.
+		Depth.xy = (Rect.HZBTexels.y == Rect.HZBTexels.w) ? 1.0f : Depth.xy;	// Mask off bottom pixels, if footprint is only one pixel tall.
+
+		MinDepth = min(min3(Depth.x, Depth.y, Depth.z), Depth.w);
+	}
+
+	return MinDepth;
+}
+
+bool IsVisibleHZBArray( FScreenRect Rect, bool bSample4x4, int ArrayIndex)
+{
+	const float MinDepth = GetMinDepthFromHZBArray(Rect, bSample4x4, float(ArrayIndex));
 	
 	// Inverted Z buffer
 	return Rect.Depth >= MinDepth;

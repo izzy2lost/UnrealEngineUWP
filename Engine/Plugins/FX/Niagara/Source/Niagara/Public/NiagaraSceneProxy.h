@@ -36,7 +36,7 @@ public:
 	FNiagaraGpuComputeDispatchInterface* GetComputeDispatchInterface() const { return ComputeDispatchInterface; }
 
 #if RHI_RAYTRACING
-	NIAGARA_API virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override;
+	NIAGARA_API virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override;
 	virtual bool IsRayTracingRelevant() const override { return true; }
 	virtual bool HasRayTracingRepresentation() const override { return true; }
 #endif
@@ -47,13 +47,7 @@ public:
 
 	NIAGARA_API TUniformBuffer<FPrimitiveUniformShaderParameters>* GetCustomUniformBufferResource(FRHICommandListBase& RHICmdList, bool bHasVelocity, const FBox& InstanceBounds = FBox(ForceInitToZero)) const;
 
-	UE_DEPRECATED(5.4, "GetCustomUniformBufferResource requires a command list.")
-	NIAGARA_API TUniformBuffer<FPrimitiveUniformShaderParameters>* GetCustomUniformBufferResource(bool bHasVelocity, const FBox& InstanceBounds = FBox(ForceInitToZero)) const;
-
 	NIAGARA_API FRHIUniformBuffer* GetCustomUniformBuffer(FRHICommandListBase& RHICmdList, bool bHasVelocity, const FBox& InstanceBounds = FBox(ForceInitToZero)) const;
-
-	UE_DEPRECATED(5.4, "GetCustomUniformBuffer requires a command list.")
-	NIAGARA_API FRHIUniformBuffer* GetCustomUniformBuffer(bool bHasVelocity, const FBox& InstanceBounds = FBox(ForceInitToZero)) const;
 
 	NIAGARA_API virtual FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override;
 
@@ -92,6 +86,7 @@ private:
 
 private:
 	/** Custom Uniform Buffers, allows us to have renderer specific data packed inside such as pre-skinned bounds. */
+	mutable UE::FMutex CustomUniformBuffersGuard;
 	mutable TMap<uint32, TUniformBuffer<FPrimitiveUniformShaderParameters>*> CustomUniformBuffers;
 
 	/** The data required to render a single instance of a NiagaraSystem */

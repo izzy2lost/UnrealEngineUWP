@@ -356,6 +356,38 @@ struct FNetworkPredictionDriverBase
 	}
 
 	// -----------------------------------------------------------------------------------------------------------------------------------
+	//	FinalizeSmoothingFrame
+	//
+	//	When a smoothing service is active, this is called every engine frame to push the final smoothed state to the driver. This is optional.
+	// -----------------------------------------------------------------------------------------------------------------------------------
+	static void FinalizeSmoothingFrame(DriverType* Driver, const SyncType* SyncState, const AuxType* AuxState)
+	{
+		CallFinalizeSmoothingFrameMemberFunc(Driver, SyncState, AuxState);
+	}
+	
+	struct CFinalizeSmoothingFrameMemberFuncable
+	{
+		template <typename InDriverType, typename...>
+		auto Requires(InDriverType* Driver, const SyncType* S, const AuxType* A) -> decltype(Driver->FinalizeSmoothingFrame(S, A));
+	};
+
+	static constexpr bool HasFinalizeSmoothingFrame = TModels_V<CFinalizeSmoothingFrameMemberFuncable, DriverType, SyncType, AuxType>;
+
+	template<bool HasFunc=HasFinalizeSmoothingFrame>
+	static typename TEnableIf<HasFunc>::Type CallFinalizeSmoothingFrameMemberFunc(DriverType* Driver, const SyncType* SyncState, const AuxType* AuxState)
+	{
+		npCheckSlow(Driver);
+		Driver->FinalizeSmoothingFrame(SyncState, AuxState);
+	}
+
+	template<bool HasFunc=HasFinalizeSmoothingFrame>
+	static typename TEnableIf<!HasFunc>::Type CallFinalizeSmoothingFrameMemberFunc(DriverType* Driver, const SyncType* SyncState, const AuxType* AuxState)
+	{
+		// FinalizeSmoothingFrame isn't required, but the driver/model won't get smoothed state
+	}
+	
+
+	// -----------------------------------------------------------------------------------------------------------------------------------
 	//	RestoreFrame
 	//
 	//	Called prior to beginning rollback frames. This instance should put itself in whatever state it needs to be in for resimulation to

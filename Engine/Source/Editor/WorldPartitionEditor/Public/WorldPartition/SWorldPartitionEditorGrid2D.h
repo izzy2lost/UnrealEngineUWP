@@ -46,6 +46,7 @@ protected:
 		TSharedPtr<FUICommandInfo> ShowGrid;
 		TSharedPtr<FUICommandInfo> ShowMiniMap;
 		TSharedPtr<FUICommandInfo> ShowCoords;
+		TSharedPtr<FUICommandInfo> ShowMouseCoords;
 
 		// Quick Actions
 		TSharedPtr<FUICommandInfo> FocusSelection;
@@ -123,7 +124,6 @@ protected:
 	virtual uint32 PaintTextInfo(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, uint32 LayerId) const;
 	virtual uint32 PaintViewer(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, uint32 LayerId) const;
 	virtual uint32 PaintSelection(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, uint32 LayerId) const;
-	virtual int32 PaintSoftwareCursor(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId) const;
 	virtual int32 PaintMinimap(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId) const;
 	virtual int32 PaintMeasureTool(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId) const;
 
@@ -170,6 +170,7 @@ protected:
 	bool bShowHLODActors;
 	bool bShowGrid;
 	bool bShowMiniMap;
+	bool bShowMouseCoords;
 	bool bFollowPlayerInPIE;
 	FVector2D MouseCursorPos;
 	FVector2D MouseCursorPosWorld;

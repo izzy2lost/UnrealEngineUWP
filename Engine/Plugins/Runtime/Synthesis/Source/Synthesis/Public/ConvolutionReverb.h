@@ -137,7 +137,7 @@ namespace Audio
 				  +------------+
 
 	*/
-	class SYNTHESIS_API FConvolutionReverb 
+	class FConvolutionReverb 
 	{
 		FConvolutionReverb() = delete;
 		FConvolutionReverb(const FConvolutionReverb&) = delete;
@@ -146,6 +146,7 @@ namespace Audio
 
 
 	public:
+		~FConvolutionReverb();
 
 		// Create a convolution reverb object. This performs creation of the convolution algorithm object,
 		// converting sample rates of impulse responses, sets the impulse response and initializes the
@@ -155,22 +156,22 @@ namespace Audio
 		// @params InSettings - The initial settings for the convolution reverb.
 		//
 		// @return TUniquePtr<Audio::IConvolutionAlgorithm>  Will be invalid if there was an error.
-		static TUniquePtr<FConvolutionReverb> CreateConvolutionReverb(const FConvolutionReverbInitData& InInitData, const FConvolutionReverbSettings& InSettings=FConvolutionReverbSettings::DefaultSettings);
+		SYNTHESIS_API static TUniquePtr<FConvolutionReverb> CreateConvolutionReverb(const FConvolutionReverbInitData& InInitData, const FConvolutionReverbSettings& InSettings=FConvolutionReverbSettings::DefaultSettings);
 		
-		void SetSettings(const FConvolutionReverbSettings& InSettings);
+		SYNTHESIS_API void SetSettings(const FConvolutionReverbSettings& InSettings);
 
-		const FConvolutionReverbSettings& GetSettings() const;
+		SYNTHESIS_API const FConvolutionReverbSettings& GetSettings() const;
 
 
 		// If the number of input frames changes between callbacks, the output may contain discontinuities.
-		void ProcessAudio(int32 InNumInputChannels, const FAlignedFloatBuffer& InputAudio, int32 InNumOutputChannels, FAlignedFloatBuffer& OutputAudio);
-		void ProcessAudio(int32 InNumInputChannels, const float* InputAudio, int32 InNumOutputChannels, float* OutputAudio, const int32 InNumFrames);
+		SYNTHESIS_API void ProcessAudio(int32 InNumInputChannels, const FAlignedFloatBuffer& InputAudio, int32 InNumOutputChannels, FAlignedFloatBuffer& OutputAudio);
+		SYNTHESIS_API void ProcessAudio(int32 InNumInputChannels, const float* InputAudio, int32 InNumOutputChannels, float* OutputAudio, const int32 InNumFrames);
 
-		int32 GetNumInputChannels() const;
-		int32 GetNumOutputChannels() const;
+		SYNTHESIS_API int32 GetNumInputChannels() const;
+		SYNTHESIS_API int32 GetNumOutputChannels() const;
 
-		static void InterleaveBuffer(FAlignedFloatBuffer& OutBuffer, const TArray<FAlignedFloatBuffer>& InputBuffers, const int32 NumChannels);
-		static void DeinterleaveBuffer(TArray<FAlignedFloatBuffer>& OutputBuffers, TArrayView<const float> InputBuffer, const int32 NumChannels);
+		SYNTHESIS_API static void InterleaveBuffer(FAlignedFloatBuffer& OutBuffer, const TArray<FAlignedFloatBuffer>& InputBuffers, const int32 NumChannels);
+		SYNTHESIS_API static void DeinterleaveBuffer(TArray<FAlignedFloatBuffer>& OutputBuffers, TArrayView<const float> InputBuffer, const int32 NumChannels);
 
 	private:
 

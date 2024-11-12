@@ -73,8 +73,6 @@ public:
 			{
 				EmptyFunction();
 			}
-
-			NumEmptyEvents.fetch_add(1, std::memory_order_relaxed);
 		}
 	}
 
@@ -136,7 +134,6 @@ private:
 	TArray<CommandType, SceneRenderingAllocator> Queue;
 	UE::Tasks::FPipe Pipe;
 	std::atomic_int32_t NumCommands{ 0 };
-	std::atomic_int32_t NumEmptyEvents{ 0 };
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -261,6 +258,12 @@ public:
 private:
 	void Finish();
 
+	struct FViewFamilyGroup
+	{
+		const FSceneViewFamily* Family;
+		uint8 ViewSubsetMask;				// Subset of views with the given view family
+	};
+
 	struct FViewMeshArrays
 	{
 		TArray<FMeshBatchAndRelevance, SceneRenderingAllocator> DynamicMeshElements;
@@ -276,9 +279,10 @@ private:
 #endif
 	};
 
-	const FSceneViewFamily& ViewFamily;
+	const FSceneViewFamily& FirstViewFamily;
 	TArrayView<FViewInfo*> Views;
 	TArrayView<FPrimitiveSceneInfo*> Primitives;
+	TArray<FViewFamilyGroup, TInlineAllocator<1>> ViewFamilyGroups;
 	TArray<FViewMeshArrays, TInlineAllocator<2>> ViewMeshArraysPerView;
 	TArray<FDynamicPrimitive, SceneRenderingAllocator> DynamicPrimitives;
 	FMeshElementCollector MeshCollector;
@@ -655,7 +659,6 @@ struct FFilterStaticMeshesForViewData
 	FVector ViewOrigin;
 	int32 ForcedLODLevel;
 	float LODScale;
-	float MinScreenRadiusForCSMDepthSquared;
 	float MinScreenRadiusForDepthPrepassSquared;
 	bool bFullEarlyZPass;
 
@@ -705,7 +708,8 @@ public:
 		const FViewInfo& InView,
 		int32 InViewIndex,
 		const FFilterStaticMeshesForViewData& InViewData,
-		uint8* InMarkMasks);
+		uint8* InMarkMasks,
+		const UE::Tasks::FTask& PrerequisitesTask);
 
 	void LaunchComputeRelevanceTask();
 
@@ -728,6 +732,7 @@ private:
 	const FFilterStaticMeshesForViewData& ViewData;
 	FDynamicPrimitiveViewMasks* DynamicPrimitiveViewMasks;
 	uint8* RESTRICT MarkMasks;
+	UE::Tasks::FTask PrerequisitesTask;
 
 	FRelevancePrimSet<int32> Input;
 	FRelevancePrimSet<int32> NotDrawRelevant;
@@ -741,10 +746,10 @@ private:
 #if WITH_EDITOR
 	TArray<Nanite::FInstanceDraw> EditorVisualizeLevelInstancesNanite;
 	TArray<Nanite::FInstanceDraw> EditorSelectedInstancesNanite;
+	TArray<Nanite::FInstanceDraw> EditorOverlaidInstancesNanite;
 	TArray<uint32> EditorSelectedNaniteHitProxyIds;
 #endif
 
-	TArray<FMeshDecalBatch, SceneRenderingAllocator> MeshDecalBatches;
 	TArray<FVolumetricMeshBatch, SceneRenderingAllocator> VolumetricMeshBatches;
 	TArray<FVolumetricMeshBatch, SceneRenderingAllocator> HeterogeneousVolumesMeshBatches;
 	TArray<FSkyMeshBatch, SceneRenderingAllocator> SkyMeshBatches;
@@ -792,7 +797,7 @@ private:
 class FComputeAndMarkRelevance
 {
 public:
-	FComputeAndMarkRelevance(FVisibilityTaskData& InTaskData, FScene& InScene, FViewInfo& InView, uint8 InViewIndex);
+	FComputeAndMarkRelevance(FVisibilityTaskData& InTaskData, FScene& InScene, FViewInfo& InView, uint8 InViewIndex, const UE::Tasks::FTask& PreprequisitesTask);
 
 	~FComputeAndMarkRelevance()
 	{
@@ -813,7 +818,7 @@ private:
 	FRelevancePacket* CreateRelevancePacket()
 	{
 		check(!bLaunchOnAddPrimitive || !bFinished);
-		return Packets.Emplace_GetRef(new FRelevancePacket(TaskData, View, ViewIndex, ViewData, MarkMasks));
+		return Packets.Emplace_GetRef(new FRelevancePacket(TaskData, View, ViewIndex, ViewData, MarkMasks, PrerequisitesTask));
 	}
 
 	FVisibilityTaskData& TaskData;
@@ -827,6 +832,7 @@ private:
 	const uint32 NumPrimitivesPerPacket;
 	uint8* MarkMasks;
 	TArray<FRelevancePacket*, SceneRenderingAllocator> Packets;
+	UE::Tasks::FTask PrerequisitesTask;
 	const bool bLaunchOnAddPrimitive;
 	bool bFinished = false;
 	bool bFinalized = false;

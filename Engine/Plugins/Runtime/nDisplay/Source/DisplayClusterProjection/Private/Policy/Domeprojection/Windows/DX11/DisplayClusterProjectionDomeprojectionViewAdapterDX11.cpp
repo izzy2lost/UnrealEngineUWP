@@ -122,7 +122,7 @@ bool FDisplayClusterProjectionDomeprojectionViewAdapterDX11::GetProjectionMatrix
 	return true;
 }
 
-bool FDisplayClusterProjectionDomeprojectionViewAdapterDX11::ImplApplyWarpBlend_RenderThread(FRHICommandListImmediate& RHICmdList, uint32 InContextNum, const uint32 Channel, FRHITexture2D* InputTextures, FRHITexture2D* OutputTextures)
+bool FDisplayClusterProjectionDomeprojectionViewAdapterDX11::ImplApplyWarpBlend_RenderThread(FRHICommandListImmediate& RHICmdList, uint32 InContextNum, const uint32 Channel, FRHITexture* InputTextures, FRHITexture* OutputTextures)
 {
 	if (!IsRHID3D11())
 	{
@@ -187,7 +187,7 @@ bool FDisplayClusterProjectionDomeprojectionViewAdapterDX11::ApplyWarpBlend_Rend
 	}
 
 	// Get in\out remp resources ref from viewport
-	TArray<FRHITexture2D*> InputTextures, OutputTextures;
+	TArray<FRHITexture*> InputTextures, OutputTextures;
 
 	if (!InViewportProxy->GetResources_RenderThread(EDisplayClusterViewportResourceType::InputShaderResource, InputTextures))
 	{

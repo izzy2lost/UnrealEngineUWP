@@ -4,6 +4,7 @@
 D3D12CommandContext.cpp: RHI  Command Context implementation.
 =============================================================================*/
 
+#include "D3D12CommandContext.h"
 #include "D3D12RHIPrivate.h"
 
 #include "D3D12AmdExtensions.h"
@@ -116,84 +117,161 @@ FD3D12CommandContext::~FD3D12CommandContext()
 	ClearState();
 }
 
-void FD3D12CommandContext::RHIPushEvent(const TCHAR* Name, FColor Color)
+void FD3D12ContextCommon::WriteMarker(D3D12_GPU_VIRTUAL_ADDRESS Address, uint32 Value, EMarkerType Type)
 {
-	D3D12RHI::FD3DGPUProfiler& GPUProfiler = GetParentDevice()->GetGPUProfiler();
+	if (!GraphicsCommandList2())
+		return;
 
-	// forward event to profiler if it's the default context
-	if (IsDefaultContext() && !IsAsyncComputeContext())
-	{
-		GPUProfiler.PushEvent(Name, Color);
-	}
+	D3D12_WRITEBUFFERIMMEDIATE_PARAMETER Parameter;
+	Parameter.Dest = Address;
+	Parameter.Value = Value;
 
-	// If we are tracking GPU crashes then retrieve the hash of the name and track in the command list somewhere
-	if (GPUProfiler.bTrackingGPUCrashData)
-	{
-		// Get the CRC of the event (handle case when depth is too big)
-		const TCHAR* EventName = (GPUProfiler.GPUCrashDataDepth < 0 || GPUEventStack.Num() < GPUProfiler.GPUCrashDataDepth) ? Name : *D3D12RHI::FD3DGPUProfiler::EventDeepString;
-		uint32 CRC = GPUProfiler.GetOrAddEventStringHash(Name);
+	D3D12_WRITEBUFFERIMMEDIATE_MODE Mode = Type == EMarkerType::In
+		? D3D12_WRITEBUFFERIMMEDIATE_MODE_MARKER_IN
+		: D3D12_WRITEBUFFERIMMEDIATE_MODE_MARKER_OUT;
 
-		GPUEventStack.Push(CRC);
-		WriteGPUEventStackToBreadCrumbData(Name, CRC);
-
-#if NV_AFTERMATH
-		// Only track aftermath for default context?
-		if (IsDefaultContext() && GDX12NVAfterMathEnabled && GDX12NVAfterMathMarkers)
-			GFSDK_Aftermath_SetEventMarker(AftermathHandle(), &GPUEventStack[0], GPUEventStack.Num() * sizeof(uint32));
-#endif // NV_AFTERMATH		
-	}
-
-#if WITH_AMD_AGS
-	AGSContext* const AmdAgsContext = FD3D12DynamicRHI::GetD3DRHI()->GetAmdAgsContext();
-	if (GEmitRgpFrameMarkers && AmdAgsContext)
-	{
-		agsDriverExtensionsDX12_PushMarker(AmdAgsContext, GraphicsCommandList().Get(), TCHAR_TO_ANSI(Name));
-	}
-#endif
-
-#if USE_PIX
-	if (FD3D12DynamicRHI::GetD3DRHI()->IsPixEventEnabled())
-	{
-		PIXBeginEvent(GraphicsCommandList().Get(), PIX_COLOR(Color.R, Color.G, Color.B), Name);
-	}
-#endif // USE_PIX
+	GraphicsCommandList2()->WriteBufferImmediate(1, &Parameter, &Mode);
 }
 
-void FD3D12CommandContext::RHIPopEvent()
+void FD3D12ContextCommon::BindDiagnosticBuffer(FD3D12RootSignature const* RootSignature, ED3D12PipelineType PipelineType)
 {
-	D3D12RHI::FD3DGPUProfiler& GPUProfiler = GetParentDevice()->GetGPUProfiler();
+	int8 const Slot = RootSignature->GetDiagnosticBufferSlot();
+	if (Slot < 0)
+		return;
 
-	if (IsDefaultContext() && !IsAsyncComputeContext())
+	if (FD3D12DiagnosticBuffer* DiagBuffer = Device->GetQueue(QueueType).DiagnosticBuffer.Get())
 	{
-		GPUProfiler.PopEvent();
-	}
+		D3D12_GPU_VIRTUAL_ADDRESS DataAddress = DiagBuffer->GetGPUQueueData();
 
-	if (GPUProfiler.bTrackingGPUCrashData)
-	{
-		PopGPUEventStackFromBreadCrumbData();
-
-		// need to look for unbalanced push/pop
-		if (GPUEventStack.Num() > 0)
+		switch (PipelineType)
 		{
-			GPUEventStack.Pop(EAllowShrinking::No);
+		default: checkNoEntry(); [[fallthrough]];
+		case ED3D12PipelineType::Graphics: GraphicsCommandList()->SetGraphicsRootUnorderedAccessView(Slot, DataAddress); break;
+		case ED3D12PipelineType::Compute : GraphicsCommandList()->SetComputeRootUnorderedAccessView (Slot, DataAddress); break;
 		}
 	}
-
-#if WITH_AMD_AGS
-	AGSContext* const AmdAgsContext = FD3D12DynamicRHI::GetD3DRHI()->GetAmdAgsContext();
-	if (GEmitRgpFrameMarkers && AmdAgsContext)
-	{
-		agsDriverExtensionsDX12_PopMarker(AmdAgsContext, GraphicsCommandList().Get());
-	}
-#endif
-
-#if USE_PIX
-	if (FD3D12DynamicRHI::GetD3DRHI()->IsPixEventEnabled())
-	{
-		PIXEndEvent(GraphicsCommandList().Get());
-	}
-#endif
 }
+
+#if WITH_RHI_BREADCRUMBS
+	void FD3D12CommandContext::RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
+	{
+		FD3D12DiagnosticBuffer* DiagBuffer = Device->GetQueue(QueueType).DiagnosticBuffer.Get();
+		if (DiagBuffer && UE::RHI::UseGPUCrashBreadcrumbs())
+		{
+			D3D12_GPU_VIRTUAL_ADDRESS Marker = DiagBuffer->GetGPUQueueMarkerIn();
+			WriteMarker(Marker, Breadcrumb->Name.ID, EMarkerType::In);
+		}
+
+	#if NV_AFTERMATH
+		UE::RHICore::Nvidia::Aftermath::D3D12::BeginBreadcrumb(AftermathHandle(), Breadcrumb);
+	#endif
+	
+		const TCHAR* NameStr = nullptr;
+		FRHIBreadcrumb::FBuffer Buffer;
+		auto GetNameStr = [&]()
+		{
+			if (!NameStr)
+			{
+				NameStr = Breadcrumb->Name.GetTCHAR(Buffer);
+			}
+			return NameStr;
+		};
+
+		// Only emit formatted strings to platform APIs when requested.
+		if (ShouldEmitBreadcrumbs())
+		{
+		#if WITH_AMD_AGS
+			if (AGSContext* const AmdAgsContext = FD3D12DynamicRHI::GetD3DRHI()->GetAmdAgsContext())
+			{
+				if (GEmitRgpFrameMarkers)
+				{
+					agsDriverExtensionsDX12_PushMarker(AmdAgsContext, GraphicsCommandList().Get(), TCHAR_TO_ANSI(GetNameStr()));
+				}
+			}
+		#endif
+
+		#if USE_PIX
+			if (FD3D12DynamicRHI::GetD3DRHI()->IsPixEventEnabled())
+			{
+				PIXBeginEvent(GraphicsCommandList().Get(), PIX_COLOR(0xff, 0xff, 0xff), TEXT("%s"), GetNameStr());
+			}
+		#endif
+		}
+
+	#if RHI_NEW_GPU_PROFILER
+		{
+			FlushProfilerStats();
+
+			auto& Event = GetCommandList().EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FBeginBreadcrumb>(Breadcrumb);
+			FD3D12QueryLocation TimestampQuery = AllocateQuery(ED3D12QueryType::ProfilerTimestampTOP, &Event.GPUTimestampTOP);
+			EndQuery(TimestampQuery);
+		}
+	#else
+		if (IsDefaultContext() && !IsAsyncComputeContext())
+		{
+			FD3D12GPUProfiler& GPUProfiler = GetParentDevice()->GetGPUProfiler();
+			if (GPUProfiler.IsProfilingGPU())
+			{
+				GPUProfiler.PushEvent(GetNameStr(), FColor::White);
+			}
+		}
+	#endif // (RHI_NEW_GPU_PROFILER == 0)
+	}
+
+	void FD3D12CommandContext::RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
+	{
+	#if RHI_NEW_GPU_PROFILER
+		{
+			FlushProfilerStats();
+
+			auto& Event = GetCommandList().EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FEndBreadcrumb>(Breadcrumb);
+			FD3D12QueryLocation TimestampQuery = AllocateQuery(ED3D12QueryType::ProfilerTimestampBOP, &Event.GPUTimestampBOP);
+			EndQuery(TimestampQuery);
+		}
+	#else
+		if (IsDefaultContext() && !IsAsyncComputeContext())
+		{
+			FD3D12GPUProfiler& GPUProfiler = GetParentDevice()->GetGPUProfiler();
+			if (GPUProfiler.IsProfilingGPU())
+			{
+				GPUProfiler.PopEvent();
+			}
+		}
+	#endif // (RHI_NEW_GPU_PROFILER == 0)
+
+		// Only emit formatted strings to platform APIs when requested.
+		if (ShouldEmitBreadcrumbs())
+		{
+		#if USE_PIX
+			if (FD3D12DynamicRHI::GetD3DRHI()->IsPixEventEnabled())
+			{
+				PIXEndEvent(GraphicsCommandList().Get());
+			}
+		#endif
+
+		#if WITH_AMD_AGS
+			if (AGSContext* const AmdAgsContext = FD3D12DynamicRHI::GetD3DRHI()->GetAmdAgsContext())
+			{
+				if (GEmitRgpFrameMarkers)
+				{
+					agsDriverExtensionsDX12_PopMarker(AmdAgsContext, GraphicsCommandList().Get());
+				}
+			}
+		#endif
+		}
+
+	#if NV_AFTERMATH
+		UE::RHICore::Nvidia::Aftermath::D3D12::EndBreadcrumb(AftermathHandle(), Breadcrumb);
+	#endif
+
+		FD3D12DiagnosticBuffer* DiagBuffer = Device->GetQueue(QueueType).DiagnosticBuffer.Get();
+		if (DiagBuffer && UE::RHI::UseGPUCrashBreadcrumbs())
+		{
+			D3D12_GPU_VIRTUAL_ADDRESS Marker = DiagBuffer->GetGPUQueueMarkerOut();
+			WriteMarker(Marker, Breadcrumb->Name.ID, EMarkerType::Out);
+		}
+	}
+#endif // WITH_RHI_BREADCRUMBS
 
 FD3D12ContextCommon::FD3D12ContextCommon(FD3D12Device* Device, ED3D12QueueType QueueType, bool bIsDefaultContext)
 	: Device(Device)
@@ -232,7 +310,7 @@ void FD3D12ContextCommon::SignalManualFence(ID3D12Fence* Fence, uint64 Value)
 		CloseCommandList();
 	}
 
-	GetPayload(EPhase::Signal)->FencesToSignal.Emplace(Fence, Value);
+	GetPayload(EPhase::Signal)->ManualFencesToSignal.Emplace(Fence, Value);
 }
 
 void FD3D12ContextCommon::WaitManualFence(ID3D12Fence* Fence, uint64 Value)
@@ -242,7 +320,7 @@ void FD3D12ContextCommon::WaitManualFence(ID3D12Fence* Fence, uint64 Value)
 		CloseCommandList();
 	}
 
-	GetPayload(EPhase::Wait)->FencesToWait.Emplace(Fence, Value);
+	GetPayload(EPhase::Wait)->ManualFencesToWait.Emplace(Fence, Value);
 }
 
 FD3D12QueryLocation FD3D12ContextCommon::AllocateQuery(ED3D12QueryType Type, void* Target)
@@ -253,8 +331,12 @@ FD3D12QueryLocation FD3D12ContextCommon::AllocateQuery(ED3D12QueryType Type, voi
 		checkNoEntry();
 		[[fallthrough]];
 
-	case ED3D12QueryType::AdjustedRaw:
-	case ED3D12QueryType::AdjustedMicroseconds:
+	case ED3D12QueryType::TimestampRaw:
+	case ED3D12QueryType::TimestampMicroseconds:
+#if RHI_NEW_GPU_PROFILER
+	case ED3D12QueryType::ProfilerTimestampTOP:
+	case ED3D12QueryType::ProfilerTimestampBOP:
+#endif
 		return TimestampQueries.Allocate(Type, Target);
 
 	case ED3D12QueryType::Occlusion:
@@ -274,8 +356,8 @@ FD3D12QueryLocation FD3D12ContextCommon::InsertTimestamp(ED3D12Units Units, uint
 		checkNoEntry();
 		[[fallthrough]];
 
-	case ED3D12Units::Microseconds: Type = ED3D12QueryType::AdjustedMicroseconds; break;
-	case ED3D12Units::Raw:          Type = ED3D12QueryType::AdjustedRaw;          break;
+	case ED3D12Units::Microseconds: Type = ED3D12QueryType::TimestampMicroseconds; break;
+	case ED3D12Units::Raw:          Type = ED3D12QueryType::TimestampRaw;          break;
 	}
 
 	FD3D12QueryLocation Location = AllocateQuery(Type, Target);
@@ -340,9 +422,9 @@ void FD3D12ContextCommon::CloseCommandList()
 	CommandList->Close();
 	CommandList = nullptr;
 
-	TimestampQueries.CloseAndReset(Payload->QueryRanges);
-	OcclusionQueries.CloseAndReset(Payload->QueryRanges);
-	PipelineStatsQueries.CloseAndReset(Payload->QueryRanges);
+	TimestampQueries    .CloseAndReset(Payload->BatchedObjects.QueryRanges);
+	OcclusionQueries    .CloseAndReset(Payload->BatchedObjects.QueryRanges);
+	PipelineStatsQueries.CloseAndReset(Payload->BatchedObjects.QueryRanges);
 }
 
 void FD3D12CommandContext::CloseCommandList()
@@ -352,6 +434,10 @@ void FD3D12CommandContext::CloseCommandList()
 	// Mark state as dirty now, because ApplyState may be called before OpenCommandList(), and it needs to know that the state has
 	// become invalid, so it can set it up again (which opens a new command list if necessary).
 	StateCache.DirtyStateForNewCommandList();
+
+#if RHI_RAYTRACING
+	RayTracingShaderTables.Empty();
+#endif
 }
 
 void FD3D12ContextCommon::Finalize(TArray<FD3D12Payload*>& OutPayloads)
@@ -402,6 +488,10 @@ void FD3D12CommandContext::Finalize(TArray<FD3D12Payload*>& OutPayloads)
 	GetParentDevice()->GetBindlessDescriptorManager().FinalizeContext(*this);
 #endif
 
+#if RHI_NEW_GPU_PROFILER
+	FlushProfilerStats();
+#endif
+
 	FD3D12ContextCommon::Finalize(OutPayloads);
 }
 
@@ -420,7 +510,7 @@ FD3D12QueryLocation FD3D12QueryAllocator::Allocate(ED3D12QueryType Type, void* T
 	check(Type != ED3D12QueryType::None);
 
 	// Allocate a new heap if needed
-	if (Ranges.Num() == 0 || Ranges.Last().IsFull())
+	if (!CurrentRange || CurrentRange->IsFull(CurrentHeap))
 	{
 		TRefCountPtr<FD3D12QueryHeap> Heap = Device->ObtainQueryHeap(QueueType, QueryType);
 		if (!Heap)
@@ -429,38 +519,44 @@ FD3D12QueryLocation FD3D12QueryAllocator::Allocate(ED3D12QueryType Type, void* T
 			return {};
 		}
 
-		FD3D12QueryRange& Range = Ranges.Emplace_GetRef();
-		Range.Heap = MoveTemp(Heap);
+		CurrentHeap = Heap;
+		CurrentRange = &Heaps.FindOrAdd(MoveTemp(Heap));
 	}
 
-	FD3D12QueryRange& Range = Ranges.Last();
 	return FD3D12QueryLocation(
-		Range.Heap,
-		Range.End++,
+		CurrentHeap,
+		CurrentRange->End++,
 		Type,
 		Target
 	);
 }
 
-void FD3D12QueryAllocator::CloseAndReset(TArray<FD3D12QueryRange>& OutRanges)
+void FD3D12QueryAllocator::CloseAndReset(TMap<TRefCountPtr<FD3D12QueryHeap>, TArray<FD3D12QueryRange>>& OutRanges)
 {
 	if (HasQueries())
 	{
-		OutRanges.Append(Ranges);
+		for (auto const& Pair : Heaps)
+		{
+			OutRanges.FindOrAdd(Pair.Key).Emplace(Pair.Value);
+		}
 
-		if (Ranges.Last().IsFull())
+		if (CurrentRange->IsFull(CurrentHeap))
 		{
 			// No space in any heap. Reset the whole array.
-			Ranges.Reset();
+			Heaps.Reset();
+
+			CurrentRange = nullptr;
+			CurrentHeap = nullptr;
 		}
 		else
 		{
 			// The last heap still has space. Reuse it for the next batch of command lists.
-			FD3D12QueryRange LastRange = MoveTemp(Ranges.Last());
+			FD3D12QueryRange LastRange = *CurrentRange;
 			LastRange.Start = LastRange.End;
 
-			Ranges.Reset();
-			Ranges.Emplace(MoveTemp(LastRange));
+			Heaps.Reset();
+			CurrentRange = &Heaps.FindOrAdd(CurrentHeap);
+			*CurrentRange = LastRange;
 		}
 	}
 }
@@ -488,7 +584,7 @@ FD3D12CopyScope::~FD3D12CopyScope()
 	Context.ClearState();
 	Device->ReleaseContext(&Context);
 
-	FD3D12DynamicRHI::GetD3DRHI()->SubmitPayloads(Payloads);
+	FD3D12DynamicRHI::GetD3DRHI()->SubmitPayloads(MoveTemp(Payloads));
 }
 
 FD3D12SyncPoint* FD3D12CopyScope::GetSyncPoint() const
@@ -500,136 +596,9 @@ FD3D12SyncPoint* FD3D12CopyScope::GetSyncPoint() const
 	return SyncPoint;
 }
 
-bool FD3D12ContextCommon::InitPayloadBreadcrumbs()
+void FD3D12ContextCommon::NewPayload()
 {
-	TUniquePtr<FD3D12DiagnosticBuffer>& DiagnosticBuffer = Device->GetQueue(QueueType).DiagnosticBuffer;
-
-	if (!DiagnosticBuffer)
-		return false;
-
-	FD3D12Payload* Payload = GetPayload(EPhase::Execute);
-	if (Payload->BreadcrumbStacks.IsEmpty() || !BreadcrumbStack.IsValid())
-	{
-		if (!BreadcrumbStack.IsValid())
-		{
-			BreadcrumbStack = MakeShared<FBreadcrumbStack>();
-			BreadcrumbStack->Queue = &Device->GetQueue(QueueType);
-			BreadcrumbStack->Initialize(DiagnosticBuffer);
-		}
-
-		Payload->BreadcrumbStacks.Add(BreadcrumbStack);
-	}
-
-	return true;
-}
-
-void FD3D12ContextCommon::WriteGPUEventStackToBreadCrumbData(const TCHAR* Name, int32 CRC)
-{
-	if (!InitPayloadBreadcrumbs())
-		return;
-
-	FBreadcrumbStack::FScope NewScope;
-	NewScope.NameCRC = CRC;
-	NewScope.MarkerIndex = (BreadcrumbStack->NextIdx++);
-	NewScope.Sibling = 0;
-	NewScope.Child = 0;
-
-	const uint32 ThisScopeIndex = BreadcrumbStack->Scopes.Num();
-
-	if (!BreadcrumbStack->ScopeStack.IsEmpty())
-	{
-		auto& TopScope = BreadcrumbStack->Scopes[BreadcrumbStack->ScopeStack.Last()];
-		if (BreadcrumbStack->bTopIsOpen)
-		{
-			TopScope.Child = ThisScopeIndex;
-		}
-		else
-		{
-			TopScope.Sibling = ThisScopeIndex;
-			BreadcrumbStack->ScopeStack.Pop();
-		}
-	}
-	BreadcrumbStack->Scopes.Add(NewScope);
-	BreadcrumbStack->ScopeStack.Add(ThisScopeIndex);
-
-	BreadcrumbStack->bTopIsOpen = true;
-
-	if (NewScope.MarkerIndex < BreadcrumbStack->MaxMarkers)
-	{
-		WriteGPUEventToBreadCrumbData(BreadcrumbStack.Get(), NewScope.MarkerIndex, true);
-	}
-}
-
-void FD3D12ContextCommon::PopGPUEventStackFromBreadCrumbData()
-{
-	if (!InitPayloadBreadcrumbs())
-		return;
-
-	if (BreadcrumbStack->ScopeStack.IsEmpty())
-	{
-		UE_LOG(LogD3D12RHI, Log, TEXT("Cannot end block when stack is empty"));
-	}
-	else
-	{
-		// If top of scope stack isn't open, then our last child is there, and we need to pop that off.
-		{
-			if (!BreadcrumbStack->bTopIsOpen)
-			{
-				if (BreadcrumbStack->ScopeStack.Num() <= 1)
-				{
-					UE_LOG(LogD3D12RHI, Log, TEXT("Cannot end block when stack is empty"));
-				}
-				else
-				{
-					BreadcrumbStack->ScopeStack.Pop();
-				}
-			}
-		}
-
-		{
-			const FBreadcrumbStack::FScope& ThisScope = BreadcrumbStack->Scopes[BreadcrumbStack->ScopeStack.Last()];
-			checkf(ThisScope.Sibling == 0, TEXT("Shouldn't have a sibling already"));
-
-			if (ThisScope.MarkerIndex < BreadcrumbStack->MaxMarkers)
-			{
-				WriteGPUEventToBreadCrumbData(BreadcrumbStack.Get(), ThisScope.MarkerIndex, false);
-			}
-		}
-
-		if (BreadcrumbStack->ScopeStack.Num() == 1 && BreadcrumbStack->Scopes.Num() > 100)
-		{
-			BreadcrumbStack->ScopeStack.Reset();
-			BreadcrumbStack.Reset();
-		}
-		else
-		{
-			// Don't remove ourselves from the stack, we stay there for any siblings.
-			BreadcrumbStack->bTopIsOpen = false;
-		}
-	}
-}
-
-void FD3D12ContextCommon::WriteGPUEventToBreadCrumbData(FBreadcrumbStack* Breadcrumbs, uint32 MarkerIndex, bool bBeginEvent)
-{
-	if (!GraphicsCommandList2())
-		return;
-
-	// Find the max parameter count from the resource
-	const int32 MaxParameterCount = Breadcrumbs->MaxMarkers;
-
-	if (static_cast<int32>(MarkerIndex) > MaxParameterCount)
-	{
-		UE_LOG(LogD3D12RHI, Log, TEXT("Breadcrumbs parameter overflow: %u"), MarkerIndex);
-		return;
-	}
-
-	D3D12_WRITEBUFFERIMMEDIATE_PARAMETER Parameter;
-	Parameter.Dest = Breadcrumbs->WriteAddress + MarkerIndex * sizeof(uint32);
-	Parameter.Value = bBeginEvent ? 1 : 2;
-	D3D12_WRITEBUFFERIMMEDIATE_MODE Mode;
-	Mode = bBeginEvent ? D3D12_WRITEBUFFERIMMEDIATE_MODE_MARKER_IN : D3D12_WRITEBUFFERIMMEDIATE_MODE_MARKER_OUT;
-
-	GraphicsCommandList2()->WriteBufferImmediate(1, &Parameter, &Mode);
+	Payloads.Add(new FD3D12Payload(Device->GetQueue(QueueType)));
 }
 
 void FD3D12ContextCommon::FlushCommands(ED3D12FlushFlags FlushFlags)
@@ -660,7 +629,7 @@ void FD3D12ContextCommon::FlushCommands(ED3D12FlushFlags FlushFlags)
 	{
 		TArray<FD3D12Payload*> LocalPayloads;
 		Finalize(LocalPayloads);
-		FD3D12DynamicRHI::GetD3DRHI()->SubmitPayloads(LocalPayloads);
+		FD3D12DynamicRHI::GetD3DRHI()->SubmitPayloads(MoveTemp(LocalPayloads));
 	}
 
 	if (SyncPoint)
@@ -683,29 +652,6 @@ void FD3D12ContextCommon::ConditionalSplitCommandList()
 		UE_LOG(LogD3D12RHI, Verbose, TEXT("Splitting command lists because too many commands have been enqueued already (%d commands)"), CommandList->State.NumCommands);
 		CloseCommandList();
 	}
-}
-
-void FD3D12DynamicRHI::RHIBeginFrame(FRHICommandListImmediate& RHICmdList)
-{
-	RHICmdList.EnqueueLambda([](FRHICommandListBase& ExecutingCmdList)
-	{
-		for (uint32 GPUIndex : FRHIGPUMask::All())
-		{
-			FD3D12CommandContext& Context = FD3D12CommandContext::Get(ExecutingCmdList, GPUIndex);
-			Context.Device->GetGPUProfiler().BeginFrame();
-			Context.Device->GetDefaultBufferAllocator().BeginFrame(ExecutingCmdList);
-			Context.Device->GetTextureAllocator().BeginFrame(ExecutingCmdList);
-		}
-	});
-}
-
-void FD3D12CommandContext::RHIBeginFrame()
-{
-	bTrackingEvents = IsDefaultContext() && Device->GetGPUProfiler().bTrackingEvents;
-
-#if D3D12_RHI_RAYTRACING
-	Device->GetRayTracingCompactionRequestHandler()->Update(*this);
-#endif // D3D12_RHI_RAYTRACING
 }
 
 void FD3D12CommandContext::ClearState(EClearStateMode Mode)
@@ -755,109 +701,36 @@ void FD3D12CommandContext::ClearAllShaderResources()
 	StateCache.ClearSRVs();
 }
 
-void FD3D12CommandContextBase::RHIEndFrame()
+void FD3D12DynamicRHI::UpdateMemoryStats()
 {
-	FD3D12Device* Device = ParentAdapter->GetDevice(0);
+#if PLATFORM_WINDOWS && (STATS || CSV_PROFILER_STATS)
+	SCOPE_CYCLE_COUNTER(STAT_D3DUpdateVideoMemoryStats);
 
-	ParentAdapter->EndFrame();
-
-	for (uint32 GPUIndex : GPUMask)
+	for (TSharedPtr<FD3D12Adapter> const& Adapter : ChosenAdapters)
 	{
-		Device = ParentAdapter->GetDevice(GPUIndex);
-
-		FD3D12CommandContext& DefaultContext = Device->GetDefaultCommandContext();
-		DefaultContext.FlushResourceBarriers();
-
-		DefaultContext.ClearState();
-		DefaultContext.FlushCommands();
-
-		Device->GetTextureAllocator().CleanUpAllocations();
-
-		// Only delete free blocks when not used in the last 2 frames, to make sure we are not allocating and releasing
-		// the same blocks every frame.
-		uint64 BufferPoolDeletionFrameLag = 20;
-		Device->GetDefaultBufferAllocator().CleanupFreeBlocks(BufferPoolDeletionFrameLag);
-
-		uint64 FastAllocatorDeletionFrameLag = 10;
-		Device->GetDefaultFastAllocator().CleanupPages(FastAllocatorDeletionFrameLag);
-	}
-
-	UpdateMemoryStats();
-
-	// Stop Timing at the very last moment
-	for (uint32 GPUIndex : GPUMask)
-	{
-		Device = ParentAdapter->GetDevice(GPUIndex);
-		Device->GetGPUProfiler().EndFrame();
-	}
-
-	// Close the previous frame's timing and start a new one
-	FD3D12DynamicRHI::GetD3DRHI()->FlushTiming(true);
-
-	// Pump the interrupt queue to gather completed events
-	// (required if we're not using an interrupt thread).
-	FD3D12DynamicRHI::GetD3DRHI()->ProcessInterruptQueueUntil(nullptr);
-}
-
-#if PLATFORM_WINDOWS && CSV_PROFILER && !UE_BUILD_SHIPPING
-	CSV_DEFINE_CATEGORY(GPUMem, true);
-#endif
-DEFINE_STAT(STAT_D3D12UpdateVideoMemoryStats);
-
-void FD3D12CommandContextBase::UpdateMemoryStats()
-{
-#if PLATFORM_WINDOWS && (STATS || CSV_PROFILER) && !UE_BUILD_SHIPPING
-	SCOPE_CYCLE_COUNTER(STAT_D3D12UpdateVideoMemoryStats);
-	// Refresh captured memory info.
-	ParentAdapter->UpdateMemoryInfo();
-
-	const FD3D12MemoryInfo& MemoryInfo = ParentAdapter->GetMemoryInfo();
-
-#if CSV_PROFILER
-	{
-		CSV_CUSTOM_STAT(GPUMem, TotalMB, float(MemoryInfo.LocalMemoryInfo.Budget / 1024.0 / 1024.0), ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT(GPUMem, UsedMB, float(MemoryInfo.LocalMemoryInfo.CurrentUsage / 1024.0 / 1024.0), ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT(GPUMem, AvailableMB, float(MemoryInfo.AvailableLocalMemory / 1024.0 / 1024.0), ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT(GPUMem, DemotedMB, float(MemoryInfo.DemotedLocalMemory / 1024.0 / 1024.0), ECsvCustomStatOp::Set);
-	}
-#endif // CSV_PROFILER
-
+		// Refresh captured memory stats.
+		const FD3DMemoryStats& MemoryStats = Adapter->CollectMemoryStats();
+		UpdateD3DMemoryStatsAndCSV(MemoryStats, true);
+	
 #if STATS
-	SET_MEMORY_STAT(STAT_D3D12UsedVideoMemory, MemoryInfo.LocalMemoryInfo.CurrentUsage);
-	SET_MEMORY_STAT(STAT_D3D12UsedSystemMemory, MemoryInfo.NonLocalMemoryInfo.CurrentUsage);
-	SET_MEMORY_STAT(STAT_D3D12AvailableVideoMemory, MemoryInfo.AvailableLocalMemory);
-	SET_MEMORY_STAT(STAT_D3D12DemotedVideoMemory, MemoryInfo.DemotedLocalMemory);
-	SET_MEMORY_STAT(STAT_D3D12TotalVideoMemory, MemoryInfo.LocalMemoryInfo.Budget);
-
-	uint64 MaxTexAllocWastage = 0;
-	for (uint32 GPUIndex : GPUMask)
-	{
-		FD3D12Device* Device = ParentAdapter->GetDevice(GPUIndex);
-
+		uint64 MaxTexAllocWastage = 0;
+		for (FD3D12Device* Device : Adapter->GetDevices())
+		{
 #if D3D12RHI_SEGREGATED_TEXTURE_ALLOC && D3D12RHI_SEGLIST_ALLOC_TRACK_WASTAGE
-		uint64 TotalAllocated;
-		uint64 TotalUnused;
-		Device->GetTextureAllocator().GetMemoryStats(TotalAllocated, TotalUnused);
-		MaxTexAllocWastage = FMath::Max(MaxTexAllocWastage, TotalUnused);
-		SET_MEMORY_STAT(STAT_D3D12TextureAllocatorAllocated, TotalAllocated);
-		SET_MEMORY_STAT(STAT_D3D12TextureAllocatorUnused, TotalUnused);
+			uint64 TotalAllocated;
+			uint64 TotalUnused;
+			Device->GetTextureAllocator().GetMemoryStats(TotalAllocated, TotalUnused);
+			MaxTexAllocWastage = FMath::Max(MaxTexAllocWastage, TotalUnused);
+			SET_MEMORY_STAT(STAT_D3D12TextureAllocatorAllocated, TotalAllocated);
+			SET_MEMORY_STAT(STAT_D3D12TextureAllocatorUnused, TotalUnused);
 #endif
 
-		Device->GetDefaultBufferAllocator().UpdateMemoryStats();
-		ParentAdapter->GetUploadHeapAllocator(GPUIndex).UpdateMemoryStats();
-	}
+			Device->GetDefaultBufferAllocator().UpdateMemoryStats();
+			Adapter->GetUploadHeapAllocator(Device->GetGPUIndex()).UpdateMemoryStats();
+		}
 #endif // STATS
-#endif // PLATFORM_WINDOWS && (STATS || CSV_PROFILER)
-}
-
-void FD3D12CommandContext::RHIBeginScene()
-{
-	// Nothing to do
-}
-
-void FD3D12CommandContext::RHIEndScene()
-{
-	// Nothing to do
+	}
+#endif // PLATFORM_WINDOWS && (STATS || CSV_PROFILER_STATS)
 }
 
 IRHIComputeContext* FD3D12DynamicRHI::RHIGetCommandContext(ERHIPipeline Pipeline, FRHIGPUMask GPUMask)
@@ -918,10 +791,10 @@ void FD3D12DynamicRHI::RHICreateTransition(FRHITransition* Transition, const FRH
 		for (uint32 Index : FRHIGPUMask::All())
 		{
 			TRHIPipelineArray<FD3D12SyncPointRef>& DeviceSyncPoints = Data->SyncPoints.Emplace_GetRef();
-			EnumerateRHIPipelines(CreateInfo.SrcPipelines, [&](ERHIPipeline Pipeline)
+			for (ERHIPipeline Pipeline : MakeFlagsRange(CreateInfo.SrcPipelines))
 			{
 				DeviceSyncPoints[Pipeline] = FD3D12SyncPoint::Create(ED3D12SyncPointType::GPUOnly);
-			});
+			}
 		}
 	}
 

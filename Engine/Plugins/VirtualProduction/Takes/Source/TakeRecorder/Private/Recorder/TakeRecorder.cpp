@@ -52,6 +52,7 @@
 // LevelEditor includes
 #include "IAssetViewport.h"
 #include "LevelEditor.h"
+#include "Misc/GuardCVar.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(TakeRecorder)
@@ -988,9 +989,7 @@ void UTakeRecorder::Start()
 
 	if (Sequencer.IsValid())
 	{
-		FRootInstanceHandle RootInstanceHandle = Sequencer->GetEvaluationTemplate().GetRootInstanceHandle();
-		FInstanceRegistry* InstanceRegistry = Sequencer->GetEvaluationTemplate().GetEntitySystemLinker()->GetInstanceRegistry();
-		CompileSuppression = MakeUnique<FScopedVolatilityManagerSuppression>(InstanceRegistry, RootInstanceHandle);
+		CompileSuppression = MakeUnique<FScopedVolatilityManagerSuppression>(Sequencer->GetSharedPlaybackState().ToSharedPtr());
 	}
 }
 
@@ -1148,7 +1147,20 @@ void UTakeRecorder::StopInternal(const bool bCancelled)
 
 			if (Parameters.User.bSaveRecordedAssets)
 			{
-				TakesUtils::SaveAsset(SequenceAsset);
+				if (Sequencer)
+				{
+					// Sequencer has a feature for scrubbing to a particular frame and capturing it as thumbnail.
+					// In 5.5, this was added but hidden behind a CVar for stability reason.
+					// In BaseTakes.ini, by default, we configure our Sequencer instance to capture the MiddleFrame.
+					UE::TakeRecorder::TGuardCVar Guard(TEXT("Sequencer.EnableRelevantThumbnails"), true);
+					// Save using the sequencer's save logic if possible - this will generate a relevant thumbnail.
+					Sequencer->Save();
+				}
+				else
+				{
+					// Fallback to "normal" saving if sequencer is not available (seems like it should be though?). Asset won't have any thumbnail.
+					TakesUtils::SaveAsset(SequenceAsset);
+				}
 			}
 
 			// Rebuild sequencer because subsequences could have been added or bindings removed

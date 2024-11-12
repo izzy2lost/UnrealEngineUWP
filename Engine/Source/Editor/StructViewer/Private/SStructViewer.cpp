@@ -37,7 +37,7 @@
 #include "ContentBrowserDataDragDropOp.h"
 
 #include "Editor/UnrealEdEngine.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "EditorDirectories.h"
 #include "Dialogs/Dialogs.h"
 
@@ -322,13 +322,15 @@ namespace StructViewer
 			bool bReturnPassesFilter = false;
 			if (OriginalRootNodeStruct)
 			{
-				bReturnPassesFilter = bPassesDeveloperFilter && bPassesInternalFilter && IsStructAllowed(InInitOptions, OriginalRootNodeStruct) && PassesFilter(InOriginalRootNode->GetStructName(), InTextFilter);
+				bReturnPassesFilter = bPassesDeveloperFilter && bPassesInternalFilter && IsStructAllowed(InInitOptions, OriginalRootNodeStruct) &&
+					(PassesFilter(InOriginalRootNode->GetStructName(), InTextFilter) || PassesFilter(InOriginalRootNode->GetStructDisplayName().ToString(), InTextFilter));
 			}
 			else
 			{
 				if (bInShowUnloadedStructs)
 				{
-					bReturnPassesFilter = bPassesDeveloperFilter && bPassesInternalFilter && IsStructAllowed_UnloadedStruct(InInitOptions, InOutRootNode->GetStructPath()) && PassesFilter(InOriginalRootNode->GetStructName(), InTextFilter);
+					bReturnPassesFilter = bPassesDeveloperFilter && bPassesInternalFilter && IsStructAllowed_UnloadedStruct(InInitOptions, InOutRootNode->GetStructPath()) &&
+						(PassesFilter(InOriginalRootNode->GetStructName(), InTextFilter) || PassesFilter(InOriginalRootNode->GetStructDisplayName().ToString(), InTextFilter));
 				}
 			}
 			InOutRootNode->PassedFilter(bReturnPassesFilter);
@@ -455,13 +457,15 @@ namespace StructViewer
 			bool bPassedFilter = false;
 			if (OriginalRootNodeStruct)
 			{
-				bPassedFilter = bPassesDeveloperFilter && bPassesInternalFilter && IsStructAllowed(InInitOptions, OriginalRootNodeStruct) && PassesFilter(InOriginalRootNode->GetStructName(), InTextFilter);
+				bPassedFilter = bPassesDeveloperFilter && bPassesInternalFilter && IsStructAllowed(InInitOptions, OriginalRootNodeStruct) &&
+					(PassesFilter(InOriginalRootNode->GetStructName(), InTextFilter) || PassesFilter(InOriginalRootNode->GetStructDisplayName().ToString(), InTextFilter));
 			}
 			else
 			{
 				if (bInShowUnloadedStructs)
 				{
-					bPassedFilter = bPassesDeveloperFilter && bPassesInternalFilter && IsStructAllowed_UnloadedStruct(InInitOptions, InOriginalRootNode->GetStructPath()) && PassesFilter(InOriginalRootNode->GetStructName(), InTextFilter);
+					bPassedFilter = bPassesDeveloperFilter && bPassesInternalFilter && IsStructAllowed_UnloadedStruct(InInitOptions, InOriginalRootNode->GetStructPath()) &&
+						(PassesFilter(InOriginalRootNode->GetStructName(), InTextFilter) || PassesFilter(InOriginalRootNode->GetStructDisplayName().ToString(), InTextFilter));
 				}
 			}
 
@@ -643,7 +647,7 @@ public:
 			else if (!AssociatedNode->GetStructPath().IsNull())
 			{
 				const UScriptStruct* Struct = AssociatedNode->GetStruct();
-				if (Struct != nullptr && Struct->GetBoolMetaData("ShowTooltip"))
+				if (Struct != nullptr && Struct->GetBoolMetaDataHierarchical("ShowTooltip"))
 				{
 					const FText ToolTipText = FText::Format(LOCTEXT("ToolTipFormat", "{0}\n\n{1}"), 
 						AssociatedNode->GetStruct()->GetToolTipText(), 
@@ -1099,8 +1103,6 @@ void SStructViewer::Construct(const FArguments& InArgs, const FStructViewerIniti
 		.OnContextMenuOpening(OnContextMenuOpening)
 		// Find out when the user selects something in the tree
 		.OnSelectionChanged(this, &SStructViewer::OnStructViewerSelectionChanged)
-		// Allow for some spacing between items with a larger item height.
-		.ItemHeight(20.0f)
 		.HeaderRow
 		(
 			SNew(SHeaderRow)
@@ -1124,8 +1126,6 @@ void SStructViewer::Construct(const FArguments& InArgs, const FStructViewerIniti
 		.OnSelectionChanged(this, &SStructViewer::OnStructViewerSelectionChanged)
 		// Called when the expansion state of an item changes
 		.OnExpansionChanged(this, &SStructViewer::OnStructViewerExpansionChanged)
-		// Allow for some spacing between items with a larger item height.
-		.ItemHeight(20.0f)
 		.HeaderRow
 		(
 			SNew(SHeaderRow)

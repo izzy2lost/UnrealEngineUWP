@@ -41,16 +41,16 @@
 	#define UseBasePassSkylight OpaqueBasePass.Shared.UseBasePassSkylight
 	#define SubstrateStruct OpaqueBasePass.Substrate
 	#define LightFunctionAtlasStruct OpaqueBasePass.Shared.LightFunctionAtlas
-#endif
 
-// Material setting to allow forward shading (including mobile) to use preintegrated GF lut for simple IBL.
-#if MATERIAL_SHADINGMODEL_SINGLELAYERWATER || (FORWARD_SHADING && MATERIAL_USE_PREINTEGRATED_GF)
-	#define PreIntegratedGF			OpaqueBasePass.PreIntegratedGFTexture
+	// Material setting to allow forward shading (including mobile) to use preintegrated GF lut for simple IBL.
+	#if MATERIAL_SHADINGMODEL_SINGLELAYERWATER || (FORWARD_SHADING && MATERIAL_USE_PREINTEGRATED_GF)
+		#define PreIntegratedGF			OpaqueBasePass.PreIntegratedGFTexture
 
-	#if SUPPORTS_INDEPENDENT_SAMPLERS
-		#define PreIntegratedGFSampler	View.SharedBilinearClampedSampler
-	#else
-		#define PreIntegratedGFSampler	OpaqueBasePass.PreIntegratedGFSampler
+		#if SUPPORTS_INDEPENDENT_SAMPLERS
+			#define PreIntegratedGFSampler	View.SharedBilinearClampedSampler
+		#else
+			#define PreIntegratedGFSampler	OpaqueBasePass.PreIntegratedGFSampler
+		#endif
 	#endif
 #endif
 
@@ -70,6 +70,8 @@
 #define USE_DBUFFER 0
 #endif
 
+#define SUPPORT_MATERIAL_PRIMITIVE_ALPHA_HOLDOUT (SUPPORT_PRIMITIVE_ALPHA_HOLDOUT && MATERIAL_DOMAIN_SURFACE)
+
 // Enable IES profile evaluation based on project settings
 #if SUPPORT_IESPROFILE_ON_FORWARD_LIT_TRANSLUCENT
 #define USE_IES_PROFILE 1
@@ -77,6 +79,10 @@
 
 #ifndef COMPUTE_SHADED
 #define COMPUTE_SHADED 0
+#endif
+
+#ifndef WORKGRAPH_NODE
+#define WORKGRAPH_NODE 0
 #endif
 
 // For the base pass SUBSTRATE_INLINE_SHADING is defined in BasePassRendering.h
@@ -126,6 +132,10 @@
 // Reroute for LumenRadianceCacheInterpolation.ush
 #define RadianceCacheInterpolation TranslucentBasePass
 #include "Lumen/LumenTranslucencyVolumeShared.ush"
+
+#define IsTranslucentHoldoutPass (TranslucentBasePass.TranslucencyPass == 1)
+#else
+#define IsTranslucentHoldoutPass false
 #endif
 
 #if TRANSLUCENT_SELF_SHADOWING
@@ -201,8 +211,9 @@
 #include "/Engine/Private/Substrate/SubstrateExport.ush"
 #endif
 
-#define ENABLE_LOCAL_FOG_VOLUMES_ON_OPAQUE_FORWARD (PROJECT_SUPPORTS_LOCALFOGVOLUME && NEEDS_BASEPASS_PIXEL_VOLUMETRIC_FOGGING && OPAQUE_NEEDS_BASEPASS_FOGGING)
-#if ENABLE_LOCAL_FOG_VOLUMES_ON_OPAQUE_FORWARD
+#define ENABLE_LOCAL_FOG_VOLUMES_ON_OPAQUE_FORWARD  (PROJECT_SUPPORTS_LOCALFOGVOLUME && NEEDS_BASEPASS_PIXEL_VOLUMETRIC_FOGGING && OPAQUE_NEEDS_BASEPASS_FOGGING)
+#define LOCAL_FOG_VOLUME_PER_PIXEL_ON_TRANSLUCENT (PROJECT_SUPPORTS_LOCALFOGVOLUME && NEEDS_BASEPASS_PIXEL_FOGGING)
+#if ENABLE_LOCAL_FOG_VOLUMES_ON_OPAQUE_FORWARD || LOCAL_FOG_VOLUME_PER_PIXEL_ON_TRANSLUCENT
 #include "LocalFogVolumes/LocalFogVolumeCommon.ush"
 #endif
 
@@ -442,11 +453,15 @@ void GetSkyLighting(FMaterialPixelParameters MaterialParameters, VTPageTableResu
 }
 
 #if SUPPORTS_INDEPENDENT_SAMPLERS
-	#define ILCSharedSampler1 View.SharedBilinearClampedSampler
-	#define ILCSharedSampler2 View.SharedBilinearClampedSampler
+	#define ILCSharedSampler1					View.SharedBilinearClampedSampler
+	#define ILCSharedSampler2					View.SharedBilinearClampedSampler
+	#define SkyAtmTransmittanceSharedSampler	View.SharedBilinearClampedSampler
+	#define SkyAtmAerialPerspecSharedSampler	View.SharedBilinearClampedSampler
 #else
-	#define ILCSharedSampler1 IndirectLightingCache.IndirectLightingCacheTextureSampler1
-	#define ILCSharedSampler2 IndirectLightingCache.IndirectLightingCacheTextureSampler2
+	#define ILCSharedSampler1					IndirectLightingCache.IndirectLightingCacheTextureSampler1
+	#define ILCSharedSampler2					IndirectLightingCache.IndirectLightingCacheTextureSampler2
+	#define SkyAtmTransmittanceSharedSampler	View.TransmittanceLutTextureSampler
+	#define SkyAtmAerialPerspecSharedSampler	View.CameraAerialPerspectiveVolumeSampler
 #endif
 
 /** Calculates indirect lighting contribution on this object from precomputed data. */
@@ -678,7 +693,14 @@ void ApplyPixelDepthOffsetForBasePass(inout FMaterialPixelParameters MaterialPar
 	float PixelDepthOffset = ApplyPixelDepthOffsetToMaterialParameters(MaterialParameters, PixelMaterialInputs, OutDepth);
 
 #if WRITES_VELOCITY_TO_GBUFFER && !IS_NANITE_PASS
-	BasePassInterpolants.VelocityPrevScreenPosition.w += PixelDepthOffset;
+	if(IsOrthoProjection(ResolvedView))
+	{
+		BasePassInterpolants.VelocityPrevScreenPosition.z += PixelDepthOffset;
+	}
+	else
+	{
+		BasePassInterpolants.VelocityPrevScreenPosition.w += PixelDepthOffset;
+	}
 #endif
 }
 
@@ -720,6 +742,16 @@ uint GetDiffuseIndirectSampleOcclusion(FSharedLocalBases SharedLocalBases, float
 #endif
 	return DiffuseIndirectSampleOcclusion;
 }
+
+#if SUPPORT_MATERIAL_PRIMITIVE_ALPHA_HOLDOUT
+void ApplyAlphaHoldOutToSubstrateOpaque(inout FSubstratePixelHeader SubstratePixelHeader, inout FSubstrateData SubstrateData)
+{
+	// Set a default null material to appear black. Alpha will remain correct.
+	SubstrateData = GetInitialisedSubstrateData();
+	SubstratePixelHeader = InitialiseSubstratePixelHeader();
+}
+#endif
+
 #else // SUBSTRATE_ENABLED
 uint GetDiffuseIndirectSampleOcclusion(FGBufferData GBuffer, float3 V, float3 WorldNormal, float3 WorldBentNormal, float2 SvPosition, float MaterialAO)
 {
@@ -783,7 +815,8 @@ void FPixelShaderInOut_MainPS(
 	FVertexFactoryInterpolantsVSToPS Interpolants,
 	FBasePassInterpolantsVSToPS BasePassInterpolants,
 	in FPixelShaderIn In,
-	inout FPixelShaderOut Out)
+	inout FPixelShaderOut Out,
+	bool bAllowWrite=true)
 {
 #if INSTANCED_STEREO
 	const uint EyeIndex = Interpolants.EyeIndex;
@@ -872,6 +905,14 @@ void FPixelShaderInOut_MainPS(
 #endif
 
 	const float Dither = InterleavedGradientNoise(MaterialParameters.SvPosition.xy, View.StateFrameIndexMod8);
+
+#if SUPPORT_MATERIAL_PRIMITIVE_ALPHA_HOLDOUT
+#if (MATERIALBLENDING_ALPHAHOLDOUT || SUBSTRATE_BLENDING_ALPHAHOLDOUT)
+	const bool bIsHoldout = true;
+#else
+	const bool bIsHoldout = (GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HOLDOUT);
+#endif
+#endif
 
 #if !SUBSTRATE_ENABLED
 	// Store the results in local variables and reuse instead of calling the functions multiple times.
@@ -1258,7 +1299,7 @@ void FPixelShaderInOut_MainPS(
 						const float3 PlanetCenterToTranslatedWorldPos = (GetTranslatedWorldPosition(MaterialParameters) - ResolvedView.SkyPlanetTranslatedWorldCenterAndViewHeight.xyz) * CM_TO_SKY_UNIT;
 						DirectionalLightAtmosphereTransmittance = GetAtmosphereTransmittance(
 							PlanetCenterToTranslatedWorldPos, ResolvedView.AtmosphereLightDirection[LightIndex].xyz, ResolvedView.SkyAtmosphereBottomRadiusKm, ResolvedView.SkyAtmosphereTopRadiusKm,
-							View.TransmittanceLutTexture, View.TransmittanceLutTextureSampler);
+							View.TransmittanceLutTexture, SkyAtmTransmittanceSharedSampler);
 					}
 					#endif // NEEDS_BASEPASS_PIXEL_FOGGING && PROJECT_SUPPORT_SKY_ATMOSPHERE
 
@@ -1317,7 +1358,7 @@ void FPixelShaderInOut_MainPS(
 	#if NEEDS_BASEPASS_VERTEX_FOGGING
 		float4 HeightFogging = BasePassInterpolants.VertexFog;
 	#elif NEEDS_BASEPASS_PIXEL_FOGGING
-		float4 HeightFogging = CalculateHeightFog(MaterialParameters.WorldPosition_CamRelative);
+		float4 HeightFogging = CalculateHeightFog(MaterialParameters.WorldPosition_CamRelative, EyeIndex, ResolvedView);
 		#if LOCAL_FOG_VOLUME_ON_TRANSLUCENT
 		const float4 LocalFogVolumeContrib = BasePassInterpolants.VertexFog;
 		HeightFogging = float4(LocalFogVolumeContrib.rgb + HeightFogging.rgb * LocalFogVolumeContrib.a, LocalFogVolumeContrib.a * HeightFogging.a);
@@ -1328,6 +1369,15 @@ void FPixelShaderInOut_MainPS(
 
 	float4 Fogging = HeightFogging;
 
+#if LOCAL_FOG_VOLUME_PER_PIXEL_ON_TRANSLUCENT
+	{
+		float3 TranslatedWorldPosition = SvPositionToResolvedTranslatedWorld(In.SvPosition);
+		uint2 TilePos = clamp(uint2(In.SvPosition.xy / float(LFVTilePixelSize)), uint2(0, 0), LFVTileDataResolution - 1);
+		float4 LocalFogVolumeContrib = GetLFVContribution(ResolvedView, TilePos, TranslatedWorldPosition);
+		Fogging = float4(LocalFogVolumeContrib.rgb + Fogging.rgb * LocalFogVolumeContrib.a, LocalFogVolumeContrib.a * Fogging.a);
+	}
+#endif
+
 #if NEEDS_BASEPASS_PIXEL_VOLUMETRIC_FOGGING
 	if (FogStruct.ApplyVolumetricFog > 0) 
 	{
@@ -1335,11 +1385,11 @@ void FPixelShaderInOut_MainPS(
 		float3 TranslatedWorldPosition = SvPositionToResolvedTranslatedWorld(In.SvPosition);
 		uint2 TilePos = clamp(uint2(In.SvPosition.xy / float(LFVTilePixelSize)), uint2(0, 0), LFVTileDataResolution - 1);
 		float4 LocalFogVolumeContrib = GetLFVContribution(ResolvedView, TilePos, TranslatedWorldPosition);
-		HeightFogging = float4(LocalFogVolumeContrib.rgb + HeightFogging.rgb * LocalFogVolumeContrib.a, LocalFogVolumeContrib.a * HeightFogging.a);
+		Fogging = float4(LocalFogVolumeContrib.rgb + Fogging.rgb * LocalFogVolumeContrib.a, LocalFogVolumeContrib.a * Fogging.a);
 	#endif 
 
-		float3 VolumeUV = ComputeVolumeUV(MaterialParameters.AbsoluteWorldPosition, ResolvedView.WorldToClip);
-		Fogging = CombineVolumetricFog(HeightFogging, VolumeUV, EyeIndex, GBuffer.Depth);
+		float3 VolumeUV = ComputeVolumeUV(MaterialParameters.AbsoluteWorldPosition, ResolvedView.WorldToClip, ResolvedView);
+		Fogging = CombineVolumetricFog(Fogging, VolumeUV, EyeIndex, GBuffer.Depth, ResolvedView);
 	}
 #endif
 
@@ -1362,7 +1412,7 @@ void FPixelShaderInOut_MainPS(
 		Fogging = GetAerialPerspectiveLuminanceTransmittanceWithFogOver(
 			ResolvedView.RealTimeReflectionCapture, ResolvedView.SkyAtmosphereCameraAerialPerspectiveVolumeSizeAndInvSize,
 			NDCPosition, MaterialParameters.WorldPosition_CamRelative * CM_TO_SKY_UNIT,
-			View.CameraAerialPerspectiveVolume, View.CameraAerialPerspectiveVolumeSampler,
+			View.CameraAerialPerspectiveVolume, SkyAtmAerialPerspecSharedSampler,
 			ResolvedView.SkyAtmosphereCameraAerialPerspectiveVolumeDepthResolutionInv,
 			ResolvedView.SkyAtmosphereCameraAerialPerspectiveVolumeDepthResolution,
 			ResolvedView.SkyAtmosphereAerialPerspectiveStartDepthKm,
@@ -1377,7 +1427,7 @@ void FPixelShaderInOut_MainPS(
 	if (TranslucentBasePass.ApplyVolumetricCloudOnTransparent > 0.0f)
 	{
 		Fogging = GetCloudLuminanceTransmittanceOverFog(
-			NDCPosition, WSHackToFloat(GetWorldPosition(MaterialParameters)), DFHackToFloat(ResolvedView.WorldCameraOrigin),
+			NDCPosition, GetTranslatedWorldPosition(MaterialParameters), ResolvedView.TranslatedWorldCameraOrigin,
 			TranslucentBasePass.VolumetricCloudColor, TranslucentBasePass.VolumetricCloudColorSampler,
 			TranslucentBasePass.VolumetricCloudDepth, TranslucentBasePass.VolumetricCloudDepthSampler,
 			OneOverPreExposure, Fogging, TranslucentBasePass.SoftBlendingDistanceKm);
@@ -1472,8 +1522,12 @@ void FPixelShaderInOut_MainPS(
 #if MATERIAL_SHADINGMODEL_SINGLELAYERWATER || SUBSTRATE_INLINE_SINGLELAYERWATER
 	{
 		const bool CameraIsUnderWater = false;	// Fade out the material contribution over to water contribution according to material opacity.
-		const float3 SunIlluminance = ResolvedView.DirectionalLightColor.rgb * PI;	// times PI because it is divided by PI on CPU (=luminance) and we want illuminance here. 
-		const float3 WaterDiffuseIndirectIlluminance = DiffuseIndirectLighting * PI;// DiffuseIndirectLighting is luminance. So we need to multiply by PI to get illuminance.
+		float3 SunIlluminance = ResolvedView.DirectionalLightColor.rgb * PI;	// times PI because it is divided by PI on CPU (=luminance) and we want illuminance here. 
+		float3 WaterDiffuseIndirectIlluminance = DiffuseIndirectLighting * PI;// DiffuseIndirectLighting is luminance. So we need to multiply by PI to get illuminance.
+#if USE_DEVELOPMENT_SHADERS
+		SunIlluminance = lerp(SunIlluminance, 0.0f, View.UnlitViewmodeMask);
+		WaterDiffuseIndirectIlluminance = lerp(WaterDiffuseIndirectIlluminance, PI, View.UnlitViewmodeMask);
+#endif
 		const bool bSeparateWaterMainDirLightLuminance = (SINGLE_LAYER_WATER_SEPARATED_MAIN_LIGHT > 0) && SingleLayerWater.bSeparateMainDirLightLuminance;
 
 		// Evaluate Fresnel effect
@@ -1667,6 +1721,7 @@ void FPixelShaderInOut_MainPS(
 #endif
 	{
 		float3 EmissiveLuminance = 0.0f;
+		float3 ScatteredPrecomputedLuminance = 0.0f;
 		uint2 PixelPos = uint2(In.SvPosition.xy);
 		const float3 WorldBentNormal0 = GetWorldBentNormalZero(MaterialParameters);
 
@@ -1679,9 +1734,16 @@ void FPixelShaderInOut_MainPS(
 		Settings.SliceStoringDebugSubstrateTreeData = all(uint2(float2(View.CursorPosition) * View.ViewResolutionFraction) == PixelPos) ? SubstrateStruct.SliceStoringDebugSubstrateTreeDataWithoutMRT : Settings.SliceStoringDebugSubstrateTreeData;
 	#endif
 
+	#if SUPPORT_MATERIAL_PRIMITIVE_ALPHA_HOLDOUT
+		if (bIsHoldout)
+		{
+			ApplyAlphaHoldOutToSubstrateOpaque(SubstratePixelHeader, SubstrateData);
+		}
+	#endif
+
 		// Generate the Substrate material data to write out
 		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(ResolvedView.BufferSizeAndInvSize.xy), SubstrateStruct.MaxBytesPerPixel);
-		FRWSubstrateMaterialContainer RWSubstrateMaterialContainer = InitialiseRWSubstrateMaterialContainer(SubstrateStruct.MaterialTextureArrayUAVWithoutRTs);
+		FRWSubstrateMaterialContainer RWSubstrateMaterialContainer = InitialiseRWSubstrateMaterialContainer(SubstrateStruct.MaterialTextureArrayUAVWithoutRTs, bAllowWrite);
 		PackSubstrateOut(
 			RWSubstrateMaterialContainer,
 			SubstrateStruct.MaterialTextureArrayUAVWithoutRTs,
@@ -1696,8 +1758,15 @@ void FPixelShaderInOut_MainPS(
 			,BasePassInterpolants
 			,LightmapVTPageTableResult
 			,VolumetricLightmapBrickTextureUVs
+			,ScatteredPrecomputedLuminance
 	#endif
 		);
+
+	#if MATERIAL_SUBSTRATE_OPAQUE_PRECOMPUTED_LIGHTING
+		// Add ScatteredPrecomputedLuminance to DiffuseColor in order to handle correctly SSS diffuse with precomputed lighting.
+		// Luminance added to Color and to DiffuseColor are disjoint (emissive luminance vs. scattered precomputed luminance)
+		DiffuseColor = ScatteredPrecomputedLuminance;
+	#endif
 
 		// Write out MRT data
 	#if SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT != 3
@@ -1709,12 +1778,15 @@ void FPixelShaderInOut_MainPS(
 		Out.SubstrateTopLayerData = SubstratePackTopLayerData(TopLayerData);
 	#if SUBSTRATE_OUTPUT_ROUGH_REFRACTION
 		OpaqueRoughRefractionData.OpaqueRoughRefractionEnabled = true; // As long as we output to rough refraction, we want it to be enabled for the tiling process.
-		SubstrateStruct.OpaqueRoughRefractionTextureUAV[PixelPos] = SubstratePackOpaqueRoughRefractionData(OpaqueRoughRefractionData);
+		if (bAllowWrite)
+		{
+			SubstrateStruct.OpaqueRoughRefractionTextureUAV[PixelPos] = SubstratePackOpaqueRoughRefractionData(OpaqueRoughRefractionData);
+		}
 	#endif
 
 		// Only write SSS data if needed
 		BRANCH
-		if(SubstrateSubSurfaceHeaderGetIsValid(SSSData.Header))
+		if(SubstrateSubSurfaceHeaderGetIsValid(SSSData.Header) && bAllowWrite)
 		{
 			SubstrateStoreSubsurfaceHeader(SubstrateStruct.MaterialTextureArrayUAVWithoutRTs, SubstrateStruct.FirstSliceStoringSubstrateSSSDataWithoutMRT, PixelPos, SSSData.Header.Bytes);
 			if (SubstrateSubSurfaceHeaderHasExtras(SSSData.Header))
@@ -1725,7 +1797,7 @@ void FPixelShaderInOut_MainPS(
 
 		// Unlit view mode
 	#if USE_DEVELOPMENT_SHADERS
-		Color  = lerp(Color, TopLayerData.BaseColor, View.UnlitViewmodeMask);
+		Color  = lerp(Color, TopLayerData.UnlitViewBaseColor, View.UnlitViewmodeMask);
 		EmissiveLuminance += OutOfBoundsMaskLuminance;
 	#endif
 
@@ -2131,10 +2203,7 @@ void FPixelShaderInOut_MainPS(
 	}
 #endif // OIT_ENABLED
 
-	// Sky dome, or any emissive, materials can result in high luminance values, e.g. the sun disk. 
-	// This Min here is to we make sure pre-exposed luminance remains within the boundaries of fp10 and not cause NaN on some platforms.
-	// We also half that range to also make sure we have room for other additive elements such as bloom, clouds or particle visual effects.
-	Out.MRT[0].xyz = min(Out.MRT[0].xyz, Max10BitsFloat.xxx * 0.5f);
+	Out.MRT[0].xyz = min(Out.MRT[0].xyz, View.MaterialMaxEmissiveValue.xxx);
 
 #if MATERIAL_VIRTUALTEXTURE_FEEDBACK || LIGHTMAP_VT_ENABLED
 #if OUTPUT_PIXEL_DEPTH_OFFSET
@@ -2156,9 +2225,31 @@ void FPixelShaderInOut_MainPS(
 	Out.MRT[0] = SubstrateMaterialExport;
 #endif
 
-#if POST_PROCESS_ALPHA != 0 && MATERIAL_DOMAIN_SURFACE
+#if SUPPORT_MATERIAL_PRIMITIVE_ALPHA_HOLDOUT
+		
+	//Calculate IoR for translucent material with ior and update holdout property
+	#if (MATERIALBLENDING_TRANSLUCENT || SUBSTRATE_TRANSLUCENT_MATERIAL) && REFRACTION_USE_INDEX_OF_REFRACTION
+		#if REFRACTION_ROOT_NODE_OVERRIDES_DEFAULT
+			FMaterialRefractionData RefractionData = GetMaterialRefraction(PixelMaterialInputs);
+			float MaterialIOR = GetMaterialRefractionIOR(RefractionData);
+		#else
+			float MaterialIOR = DielectricF0RGBToIor(ComputeF0(Specular, BaseColor, Metallic));
+		#endif
+		
+		// Match path tracing first intersection. Multiple intersections are biased.
+		#if SUBSTRATE_TRANSLUCENT_MATERIAL
+			#if !MATERIAL_SHADINGMODEL_THIN_TRANSLUCENT && !SUBSTRATE_BLENDING_ALPHAHOLDOUT
+				float DualBlendSurfaceCoverageMix = 1 - DualBlendSurfaceCoverage * (1 - DualBlendSurfaceCoverage);
+				DualBlendSurfaceCoverage = select(MaterialIOR != 0.0, DualBlendSurfaceCoverageMix, DualBlendSurfaceCoverage);
+			#endif
+		#elif MATERIALBLENDING_TRANSLUCENT
+			float OpacityMix =  1 - Opacity * (1 - Opacity);
+			Opacity = select(MaterialIOR != 0.0, OpacityMix, Opacity);
+		#endif
+	#endif 
+	
 	// Only include the holdout logic if the Renderer is forwarding its alpha channel to post-processing
-	if (GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HOLDOUT)
+	if (bIsHoldout)
 	{
 		// Ignore primitive holdout during reflection captures
 		if(ResolvedView.RenderingReflectionCaptureMask == 0)
@@ -2168,9 +2259,27 @@ void FPixelShaderInOut_MainPS(
 #if MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED
 			// This catches the common case as well as handles cases where Opacity has a different meaning, such as for Subsurface materials
 			Out.MRT[0] = half4(0.0, 0.0, 0.0, 1.0);
-#else
-			// TODO: The translucent case doesn't seem to get the right alpha (compared to the path traced reference)
+#elif MATERIALBLENDING_MODULATE
 			Out.MRT[0] = half4(0.0, 0.0, 0.0, Opacity);
+			// Alternative method. Keep MRT[0] as it is to get a closer look to path tracing:
+			//	Out.MRT[0] = half4(FoggedColor, Opacity);
+			// MATERIALBLENDING_MODULATE comments in the holdout pass.
+#elif SUBSTRATE_TRANSLUCENT_MATERIAL
+	#if SUBSTRATE_BLENDING_ALPHAHOLDOUT
+			//This is not the translucent holdout pass, do not reset Out.MRT[0] so holdout can accumulate color contribution.
+	#elif SUBSTRATE_BLENDING_TRANSLUCENT_COLOREDTRANSMITTANCE
+			Out.MRT[0] = half4(0.0, 0.0, 0.0, DualBlendSurfaceCoverage);
+	#elif SUBSTRATE_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE
+			Out.MRT[0] = half4(0.0, 0.0, 0.0, DualBlendSurfaceCoverage);
+	#endif
+			
+#else
+	#if MATERIAL_SHADINGMODEL_THIN_TRANSLUCENT
+		Out.MRT[0] = half4(0.0, 0.0, 0.0, DualBlendSurfaceCoverage);
+	#else
+		// TODO: Not all translucent cases get the right alpha (compared to the path traced reference)
+		Out.MRT[0] = half4(0.0, 0.0, 0.0, Opacity);
+	#endif
 #endif
 
 #if USES_GBUFFER
@@ -2180,19 +2289,86 @@ void FPixelShaderInOut_MainPS(
 #endif
 		}
 	}
+
+#if MATERIALBLENDING_ANY_TRANSLUCENT || MATERIALBLENDING_ALPHACOMPOSITE || MATERIALBLENDING_ALPHAHOLDOUT
+	// If this is translucency holdout pass, calculate the background visibility and path throughput.
+	if (IsTranslucentHoldoutPass &&
+        ResolvedView.RenderingReflectionCaptureMask == 0)
+	{
+		// Default behavior is to preserve the destination alpha.
+		half BackgroundVisibilityAdd = 0.0f;
+		half PathThroughputMul = 1.0f;		
+		half FogPathThroughput = Fogging.a;
+		half PrimitiveCoverageForFog = 0.0f;
+	
+#if SUBSTRATE_TRANSLUCENT_MATERIAL
+	#if SUBSTRATE_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE
+		BackgroundVisibilityAdd = bIsHoldout ? DualBlendSurfaceCoverage : 0;
+		PathThroughputMul = 1 - DualBlendSurfaceCoverage;
+		PrimitiveCoverageForFog = DualBlendSurfaceCoverage;
+	#elif SUBSTRATE_BLENDING_TRANSLUCENT_COLOREDTRANSMITTANCE
+		BackgroundVisibilityAdd = bIsHoldout ? DualBlendSurfaceCoverage : 0;
+		PathThroughputMul = 1 - DualBlendSurfaceCoverage;
+		PrimitiveCoverageForFog = DualBlendSurfaceCoverage;
+	#elif SUBSTRATE_BLENDING_COLOREDTRANSMITTANCEONLY
+		// TODO
+	#elif MATERIALBLENDING_ALPHAHOLDOUT
+		//alpha holdout should always contribute to the background visibility.
+		BackgroundVisibilityAdd = 1 - AdjustedAlpha;
+		PathThroughputMul = AdjustedAlpha;
+		PrimitiveCoverageForFog = 1 - AdjustedAlpha;
+	#endif 
+#else
+
+	#if MATERIAL_SHADINGMODEL_THIN_TRANSLUCENT
+		//thin translucent shading model uses surface coverage as opacity.
+		BackgroundVisibilityAdd = bIsHoldout ? DualBlendSurfaceCoverage : 0;
+		PathThroughputMul = 1 - DualBlendSurfaceCoverage;
+		PrimitiveCoverageForFog = DualBlendSurfaceCoverage;
+	#elif MATERIALBLENDING_ALPHAHOLDOUT
+		//alpha holdout should always contribute to the background visibility.
+		BackgroundVisibilityAdd = Opacity;
+		PathThroughputMul = (1 - Opacity);
+		PrimitiveCoverageForFog = Opacity;
+	#elif MATERIALBLENDING_TRANSLUCENT
+		// Use Opacity as it is.
+		BackgroundVisibilityAdd = bIsHoldout ? Opacity : 0;
+		PathThroughputMul = 1 - Opacity;
+		PrimitiveCoverageForFog = Opacity;
+	#endif
 #endif
 
-// Duplicate coverage bit values in case multiple pixels are written by one invocation (VRS)
-#if OUTPUTS_COVERAGE
-	// If centroids are integers, it means we're at a non-1x1 shading rate
-	if(View.NumSceneColorMSAASamples > 1 && (frac(In.SvPosition.x) == 0 || frac(In.SvPosition.y) == 0)) 
-	{
-		Out.Coverage &= 0xF;
-		Out.Coverage |= (Out.Coverage << 4);
-		Out.Coverage |= (Out.Coverage << 8);
-		Out.Coverage |= (Out.Coverage << 12);
+#if MATERIALBLENDING_ADDITIVE
+		// Not affecting alpha
+		BackgroundVisibilityAdd = 0.0f;
+		PathThroughputMul = 1.0f;
+		PrimitiveCoverageForFog = 0.0f;
+#elif MATERIALBLENDING_MODULATE
+		FogPathThroughput = Fogging.a * Fogging.a; // Match rendering pass
+		BackgroundVisibilityAdd = bIsHoldout ? Opacity : 0;
+		PathThroughputMul = (1 - Opacity);
+		PrimitiveCoverageForFog = Opacity;
+		//---------------------------------------------------------------------
+		// Another solution: use fogged color to calcualte throughput and background visibility
+		// C = C * L + C * (1-L).
+		// BackgroundVisibilityAdd = bIsHoldout ? (1-Luminance(FoggedColor)) : 0;
+		// PathThroughputMul = Luminance(FoggedColor);
+		// Issue: Need to fix modulate layer stacking does not match patch tracing.
+		// Otherwise, we can only have one modulate in a scene that can be holdout as well.
+#endif
+
+		// Fog holdout parameters
+		const bool bIsExponentialFogHoldout = IsExponentialFogHoldout(View.EnvironmentComponentsFlags); 
+		half FogBackgroundVisibilityAdd = bIsExponentialFogHoldout ? (PrimitiveCoverageForFog * (1 - FogPathThroughput)) : 0;
+	
+		// Render far to close logic
+		// Holdout = Holdout * PrimitivePathThroughput + (FogHoldout * PrimCoverage + HoldoutPrimCoverage * FogPathThroughput);
+		Out.MRT[0].xyz = FogBackgroundVisibilityAdd + BackgroundVisibilityAdd * FogPathThroughput;
+		Out.MRT[0].w = PathThroughputMul;
+		
 	}
 #endif
+#endif // SUPPORT_MATERIAL_PRIMITIVE_ALPHA_HOLDOUT
 
 }
 

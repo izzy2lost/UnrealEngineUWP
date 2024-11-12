@@ -160,7 +160,7 @@ class USkyAtmosphereComponent : public USceneComponent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Art Direction", meta = (UIMin = 0.001f, UIMax = 10.0f, ClampMin = 0.001f))
 	float AerialPerspectiveStartDepth;
 
-	/** If this is True, this primitive will render black with an alpha of 0, but all secondary effects (shadows, reflections, indirect lighting) remain. This feature required the project setting "Enable alpha channel support in post processing". */
+	/** If this is True, this primitive will render black with an alpha of 0, but all secondary effects (shadows, reflections, indirect lighting) remain. This feature requires activating the project setting(s) "Alpha Output", and "Support Primitive Alpha Holdout" if using the deferred renderer. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Rendering, Interp)
 	uint8 bHoldout : 1;
 
@@ -229,6 +229,11 @@ class USkyAtmosphereComponent : public USceneComponent
 	UFUNCTION(BlueprintCallable, Category = "Utilities", meta = (DisplayName = "Get Atmosphere Transmitance On Ground At Planet Top"))
 	ENGINE_API FLinearColor GetAtmosphereTransmitanceOnGroundAtPlanetTop(UDirectionalLightComponent* DirectionalLight);
 
+	// This function can be used for instance in order to evaluate a directional atmospheric light outer space illuminance for a desired illuminance on ground given a direction. 
+	// This is given for the position at the top of the virtual planet. Plus the output outer space illuminance into the light intensity.
+	UFUNCTION(BlueprintCallable, Category = "Utilities", meta = (DisplayName = "Get Atmospheric Light To Match Illuminance On Ground"))
+	ENGINE_API float GetAtmosphericLightToMatchIlluminanceOnGround(FVector LightDirection = FVector(0.0f, 0.0f, 1.0f), float IlluminanceOnGround = 1.0);
+
 	// This is used to position the SkyAtmosphere similarly to the deprecated AtmosphericFog component
 	void SetPositionToMatchDeprecatedAtmosphericFog();
 
@@ -286,6 +291,12 @@ protected:
 	// When true, this means that this SkyAtmosphere is use as replacement for the deprecated AtmosphericFogComponent as a parent class. 
 	// This is used to adapt the serialisation.
 	bool bIsAtmosphericFog = false;
+	
+	/**
+	 * Sets a dummy, known static lighting GUID to avoid cook non-determinism
+	 * when a map contains the deprecated AtmosphericFogComponent.
+	 */
+	void SetDummyStaticLightingGUIDs();
 };
 
 

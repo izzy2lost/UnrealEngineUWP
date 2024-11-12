@@ -39,6 +39,11 @@ class UK2Node_ExecutePythonScript : public UK2Node_CallFunction
 	virtual int32 GetNodeRefreshPriority() const override { return EBaseNodeRefreshPriority::Low_UsesDependentWildcard; }
 	//~ End UK2Node Interface.
 
+protected:
+	//~ UK2Node_CallFunction interface
+	virtual bool CanToggleNodePurity() const override { return false; }
+	//~ End UK2Node_CallFunction interface
+
 private:
 	/** Synchronize the type of the given argument pin with the type its connected to, or reset it to a wildcard pin if there's no connection */
 	void SynchronizeArgumentPinType(UEdGraphPin* Pin);
@@ -48,7 +53,6 @@ private:
 	UEdGraphPin* FindArgumentPin(const FName PinName, EEdGraphPinDirection PinDirection = EGPD_MAX);
 	UEdGraphPin* FindArgumentPinChecked(const FName PinName, EEdGraphPinDirection PinDirection = EGPD_MAX);
 
-private:
 	/** User-defined input pins */
 	UPROPERTY(EditAnywhere, Category="Arguments")
 	TArray<FName> Inputs;

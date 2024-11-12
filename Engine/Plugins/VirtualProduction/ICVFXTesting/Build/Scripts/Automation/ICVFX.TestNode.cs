@@ -143,6 +143,34 @@ namespace ICVFXTest
 		///
 		[AutoParamWithNames("ICVFXTest.PerfCacheFolder")]
 		public string PerfCacheFolder;
+
+		/// <summary>
+		///  Whether to generate the local test reports.
+		/// </summary>
+		///
+		[AutoParamWithNames(false, "ICVFXTest.NoLocalReports")]
+		public bool NoLocalReports;
+
+		/// <summary>
+		///  Whether to skip uploading gauntlet perf data to the PRS.
+		/// </summary>
+		///
+		[AutoParamWithNames(false, "ICVFXTest.SkipPerfReportServer")]
+		public bool SkipPerfReportServer;
+
+		/// <summary>
+		///  Override the server import directory for PRS.
+		/// </summary>
+		///
+		[AutoParamWithNames("", "ICVFXTest.PerfReportServerImportDir")]
+		public string PerfReportServerImportDir;
+
+		/// <summary>
+		/// Whether the server is running in development or not
+		/// </summary>
+		///
+		[AutoParamWithNames(false, "ICFVXTest.IsDevelopment")]
+		public bool IsDevelopment;
 	}
 
 	public abstract class ICVFXTestNode : UnrealTestNode<ICVFXTestConfig>

@@ -402,7 +402,7 @@ void UMLDeformerModelInstance::Tick(float DeltaTime, float ModelWeight)
 	}
 
 	bool bExecuteCalled = false;
-	if (ModelWeight > 0.0001f && HasValidTransforms() && SetupInputs())
+	if (ModelWeight > 0.0001f && IsCompatible() && HasValidTransforms() && SetupInputs())
 	{
 		// Execute the model instance.
 		// For models using neural networks this will perform the inference, 
@@ -443,5 +443,15 @@ void UMLDeformerModelInstance::Tick(float DeltaTime, float ModelWeight)
 			// Now copy the actual data.
 			CopyDataFromDebugActor(DebugActor, DebugMLDeformerComponent);
 		}
+	}
+
+	void UMLDeformerModelInstance::SetGroundTruthFrameIndex(int32 FrameIndex)
+	{ 
+		GroundTruthFrameIndex = FrameIndex;
+	}
+
+	int32 UMLDeformerModelInstance::GetGroundTruthFrameIndex() const
+	{ 
+		return GroundTruthFrameIndex;
 	}
 #endif

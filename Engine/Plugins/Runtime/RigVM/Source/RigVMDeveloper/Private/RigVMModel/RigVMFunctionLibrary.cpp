@@ -122,7 +122,7 @@ void URigVMFunctionLibrary::ForEachReferenceSoftPtr(const FName& InFunctionName,
 
 URigVMLibraryNode* URigVMFunctionLibrary::FindPreviouslyLocalizedFunction(FRigVMGraphFunctionIdentifier InFunctionToLocalize)
 {
-	const FString PathName = InFunctionToLocalize.LibraryNode.ToString();
+	const FString& PathName = InFunctionToLocalize.GetLibraryNodePath();
 	if(!LocalizedFunctions.Contains((PathName)))
 	{
 		return nullptr;
@@ -166,6 +166,16 @@ const FSoftObjectPath URigVMFunctionLibrary::GetFunctionHostObjectPath() const
 		return GetFunctionHostObjectPathDelegate.Execute();
 	}
 	return FSoftObjectPath();
+}
+
+const FRigVMVariant* URigVMFunctionLibrary::GetFunctionVariant(const FName& InFunctionName) const
+{
+	return const_cast<URigVMFunctionLibrary*>(this)->GetFunctionVariant(InFunctionName);
+}
+
+FRigVMVariant* URigVMFunctionLibrary::GetFunctionVariant(const FName& InFunctionName)
+{
+	return FunctionToVariant.Find(InFunctionName);
 }
 
 

@@ -30,7 +30,6 @@ void FReplicationConnections::InitDataStreams(uint32 ReplicationSystemId, uint32
 		UNetTokenDataStream::FInitParameters Params;
 		Params.ConnectionId = ConnectionId;
 		Params.ReplicationSystemId = ReplicationSystemId;
-		Params.RemoteTokenStoreState = &RemoteNetTokenStoreStates[ConnectionId];
 		Params.NetExports = &DataStreamManager->GetNetExports();
 
 		NetTokenDataStream->Init(Params);
@@ -38,7 +37,6 @@ void FReplicationConnections::InitDataStreams(uint32 ReplicationSystemId, uint32
 
 	// Init ReplicationDataStream
 	Connection->ReplicationWriter->SetNetExports(DataStreamManager->GetNetExports());
-	Connection->ReplicationReader->SetRemoteNetTokenStoreState(&RemoteNetTokenStoreStates[ConnectionId]);
 
 	UReplicationDataStream* ReplicationDataStream = StaticCast<UReplicationDataStream*>(DataStreamManager->GetStream(FName("Replication")));
 	if (ReplicationDataStream != nullptr) 
@@ -58,11 +56,25 @@ void FReplicationConnections::RemoveConnection(uint32 ConnectionId)
 {
 	check(ValidConnections.GetBit(ConnectionId));
 	SetReplicationView(ConnectionId, FReplicationView());
-	RemoteNetTokenStoreStates[ConnectionId] = FNetTokenStoreState();
 	DestroyReplicationReaderAndWriter(ConnectionId);
 
 	Connections[ConnectionId] = FReplicationConnection();
 	ValidConnections.ClearBit(ConnectionId);
+}
+
+FNetBitArray FReplicationConnections::GetOpenConnections() const
+{
+	FNetBitArray OpenConnections(ValidConnections.GetNumBits());
+
+	for (int32 ConnectionId = 0; ConnectionId < Connections.Num(); ++ConnectionId)
+	{
+		if (ValidConnections.IsBitSet(ConnectionId) && !Connections[ConnectionId].bIsClosing)
+		{
+			OpenConnections.SetBit(ConnectionId);
+		}
+	}
+
+	return OpenConnections;
 }
 
 void FReplicationConnections::DestroyReplicationReaderAndWriter(uint32 ConnectionId)
@@ -73,6 +85,9 @@ void FReplicationConnections::DestroyReplicationReaderAndWriter(uint32 Connectio
 	{
 		ReplicationDataStream->SetReaderAndWriter(nullptr, nullptr);
 	}
+
+	Connection->ReplicationReader->Deinit();
+	Connection->ReplicationWriter->Deinit();
 
 	delete Connection->ReplicationReader;
 	Connection->ReplicationReader = nullptr;

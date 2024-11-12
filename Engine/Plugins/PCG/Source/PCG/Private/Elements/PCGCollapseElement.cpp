@@ -72,7 +72,7 @@ bool FPCGCollapseElement::ExecuteInternal(FPCGContext* Context) const
 				continue;
 			}
 
-			UPCGPointData* PointData = NewObject<UPCGPointData>();
+			UPCGPointData* PointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 			check(PointData->Metadata);
 			PointData->Metadata->Initialize(ParamMetadata);
 

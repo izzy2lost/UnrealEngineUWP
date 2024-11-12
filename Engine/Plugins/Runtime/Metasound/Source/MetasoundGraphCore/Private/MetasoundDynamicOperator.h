@@ -13,19 +13,26 @@
 #include "MetasoundVertexData.h"
 #include "Templates/UniquePtr.h"
 
+#ifndef METASOUND_DEBUG_DYNAMIC_TRANSACTOR
+#define METASOUND_DEBUG_DYNAMIC_TRANSACTOR !UE_BUILD_SHIPPING
+#endif
+
 namespace Metasound
 {
 	namespace DynamicGraph
 	{
 		struct FDynamicGraphOperatorData;
-		using FLiteralAssignmentFunction = void(*)(const FOperatorSettings& InOperatorSettings, const FLiteral& InLiteral, const FAnyDataReference& OutDataRef);
-
-		/** Where to place a new operator in the execution order. */
-		enum class EExecutionOrderInsertLocation : uint8
+		class FDynamicOperator;
+		class FDynamicOperatorTransactor;
+		
+#if METASOUND_DEBUG_DYNAMIC_TRANSACTOR
+		namespace Debug
 		{
-			First, //< New operator executes before all existing operators.
-			Last   //< New operator executes after all existing operators.
-		};
+			class FDynamicOperatorDebugger;
+		}
+#endif // if METASOUND_DEBUG_DYNAMIC_TRANSACTOR
+
+		using FLiteralAssignmentFunction = void(*)(const FOperatorSettings& InOperatorSettings, const FLiteral& InLiteral, const FAnyDataReference& OutDataRef);
 
 		/** Action to perform after a single transformation. */
 		enum class EDynamicOperatorTransformQueueAction : uint8
@@ -46,12 +53,12 @@ namespace Metasound
 		 * change it's topology. Changes are communicated to the dynamic operator
 		 * through a TransformationQueue. 
 		 */
-		class FDynamicOperator : public IOperator
+		class FDynamicOperator : public IOperator, public IDynamicGraphInPlaceBuildable
 		{
 		public:
 
 			FDynamicOperator(const FOperatorSettings& InSettings);
-			FDynamicOperator(DirectedGraphAlgo::FGraphOperatorData&& InGraphOperatorData, TSharedPtr<TSpscQueue<TUniquePtr<IDynamicOperatorTransform>>> TransformQueue, const FDynamicOperatorUpdateCallbacks& InOperatorUpdateCallbacks);
+			FDynamicOperator(const FOperatorSettings& InSettings, TSharedPtr<TSpscQueue<TUniquePtr<IDynamicOperatorTransform>>> TransformQueue, const FDynamicOperatorUpdateCallbacks& InOperatorUpdateCallbacks);
 
 			virtual void BindInputs(FInputVertexInterfaceData& InOutVertexData) override;
 			virtual void BindOutputs(FOutputVertexInterfaceData& InOutVertexData) override;
@@ -66,6 +73,12 @@ namespace Metasound
 			void FlushEnqueuedTransforms();
 
 		private:
+#if METASOUND_DEBUG_DYNAMIC_TRANSACTOR
+			friend class Debug::FDynamicOperatorDebugger;
+#endif // if METASOUND_DEBUG_DYNAMIC_TRANSACTOR
+
+			virtual FDynamicGraphOperatorData& GetDynamicGraphOperatorData() override;
+
 			void ApplyTransformsUntilFence();
 			void ApplyTransformsUntilFenceOrTimeout(double InTimeoutInSeconds);
 			void Execute();
@@ -90,25 +103,33 @@ namespace Metasound
 		};
 
 		/** A transform which determines the order of execution for operators. */
-		class FSetOperatorOrder : public IDynamicOperatorTransform
+		class FSetOperatorOrdinalsAndSort : public IDynamicOperatorTransform
 		{
 		public:
-			FSetOperatorOrder(TArray<FOperatorID> InOrder);
+			FSetOperatorOrdinalsAndSort(TMap<FOperatorID, int32> InOrdinals);
 			virtual EDynamicOperatorTransformQueueAction Transform(FDynamicGraphOperatorData& InGraphOperatorData) override;
 		private:
-			TArray<FOperatorID> Order;
+			TMap<FOperatorID, int32> Ordinals;
+		};
+
+		/** A transform which applies operator ordinal swaps. */
+		class FSwapOperatorOrdinalsAndSort : public IDynamicOperatorTransform
+		{
+		public:
+			FSwapOperatorOrdinalsAndSort(TArray<FOrdinalSwap> InSwaps);
+			virtual EDynamicOperatorTransformQueueAction Transform(FDynamicGraphOperatorData& InGraphOperatorData) override;
+		private:
+			TArray<FOrdinalSwap> Swaps;
 		};
 
 		/** A transform which adds an operator. */
-		class FAddOperator : public IDynamicOperatorTransform
+		class FInsertOperator : public IDynamicOperatorTransform
 		{
 		public:
-
-			FAddOperator(FOperatorID InOperatorID, EExecutionOrderInsertLocation InLocation, FOperatorInfo&& InInfo);
+			FInsertOperator(FOperatorID InOperatorID, FOperatorInfo InInfo);
 			virtual EDynamicOperatorTransformQueueAction Transform(FDynamicGraphOperatorData& InGraphOperatorData) override;
 		private:
 			FOperatorID OperatorID;
-			EExecutionOrderInsertLocation Location;
 			FOperatorInfo OperatorInfo;
 		};
 
@@ -116,10 +137,11 @@ namespace Metasound
 		class FRemoveOperator : public IDynamicOperatorTransform
 		{
 		public:
-			FRemoveOperator(FOperatorID InOperatorID);
+			FRemoveOperator(FOperatorID InOperatorID, TArray<FOperatorID> InOperatorsConnectedToInput);
 			virtual EDynamicOperatorTransformQueueAction Transform(FDynamicGraphOperatorData& InGraphOperatorData) override;
 		private:
 			FOperatorID OperatorID;
+			TArray<FOperatorID> OperatorsConnectedToInput;
 		};
 
 		/** A transform which exposes an input to the graph. */

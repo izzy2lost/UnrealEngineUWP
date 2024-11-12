@@ -45,9 +45,11 @@ FGameplayDebuggerCategory_Navmesh::FGameplayDebuggerCategory_Navmesh()
 
 	const FGameplayDebuggerInputHandlerConfig CycleActorReference(TEXT("Cycle Actor Reference"), TEXT("Subtract"), FGameplayDebuggerInputModifier::Shift);
 	const FGameplayDebuggerInputHandlerConfig CycleNavigationData(TEXT("Cycle NavData"), TEXT("Add"), FGameplayDebuggerInputModifier::Shift);
-	
+	const FGameplayDebuggerInputHandlerConfig LockReferenceLocation(TEXT("Lock Reference Location"), TEXT("Multiply"), FGameplayDebuggerInputModifier::Shift);
+
 	BindKeyPress(CycleActorReference, this, &FGameplayDebuggerCategory_Navmesh::CycleActorReference, EGameplayDebuggerInputMode::Replicated);
 	BindKeyPress(CycleNavigationData, this, &FGameplayDebuggerCategory_Navmesh::CycleNavData, EGameplayDebuggerInputMode::Replicated);
+	BindKeyPress(LockReferenceLocation, this, &FGameplayDebuggerCategory_Navmesh::ToggleLockedReferenceLocation, EGameplayDebuggerInputMode::Replicated);
 }
 
 void FGameplayDebuggerCategory_Navmesh::CycleNavData()
@@ -76,6 +78,11 @@ void FGameplayDebuggerCategory_Navmesh::CycleActorReference()
 	}
 }
 
+void FGameplayDebuggerCategory_Navmesh::ToggleLockedReferenceLocation()
+{
+	bToggleLockedReferenceLocation = true;
+}
+
 TSharedRef<FGameplayDebuggerCategory> FGameplayDebuggerCategory_Navmesh::MakeInstance()
 {
 	return MakeShareable(new FGameplayDebuggerCategory_Navmesh());
@@ -87,6 +94,8 @@ void FGameplayDebuggerCategory_Navmesh::FRepData::Serialize(FArchive& Ar)
 	Ar << NumRunningTasks;
 	Ar << NumRemainingTasks;
 	Ar << NavDataName;
+
+	Ar << LockedReferenceLocation;
 
 	Ar << NavBuildLockStatusDesc;
 	Ar << SupportedAgents;
@@ -111,14 +120,14 @@ void FGameplayDebuggerCategory_Navmesh::FRepData::Serialize(FArchive& Ar)
 
 void FGameplayDebuggerCategory_Navmesh::CollectData(APlayerController* OwnerPC, AActor* DebugActor)
 {
-#if WITH_RECAST
+	UNavigationSystemV1* NavSys = nullptr;
 	ANavigationData* NavData = nullptr;
 	const APawn* RefPawn = nullptr;
 	int32 NumNavData = 0;
 
 	if (OwnerPC != nullptr)
 	{
-		UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(OwnerPC->GetWorld());
+		NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(OwnerPC->GetWorld());
 		if (NavSys) 
 		{
 			DataPack.NumDirtyAreas = NavSys->GetNumDirtyAreas();
@@ -201,6 +210,13 @@ void FGameplayDebuggerCategory_Navmesh::CollectData(APlayerController* OwnerPC, 
 		}
 	}
 
+	if (bToggleLockedReferenceLocation)
+	{
+		LockedReferenceLocation = (!LockedReferenceLocation.IsSet() && RefPawn) ? RefPawn->GetActorLocation() : TOptional<FVector>();
+		bToggleLockedReferenceLocation = false;
+	}
+	DataPack.LockedReferenceLocation = LockedReferenceLocation.Get(FNavigationSystem::InvalidLocation);
+
 	if (NavData)
 	{
 		DataPack.bIsUsingPlayerActor = (ActorReferenceMode != EActorReferenceMode::DebugActor);
@@ -217,39 +233,36 @@ void FGameplayDebuggerCategory_Navmesh::CollectData(APlayerController* OwnerPC, 
 		}
 	}
 
+	CollectNavigationData(NavSys, NavData, RefPawn);
+}
+
+void FGameplayDebuggerCategory_Navmesh::CollectNavigationData(const UNavigationSystemV1* NavSys, const ANavigationData* NavData, const APawn* RefPawn)
+{
+	const FVector RefLocation = LockedReferenceLocation.Get(RefPawn ? RefPawn->GetActorLocation() : FNavigationSystem::InvalidLocation);
+	CollectNavigationData(NavSys, NavData, RefLocation);
+}
+
+void FGameplayDebuggerCategory_Navmesh::CollectNavigationData(const UNavigationSystemV1* NavSys, const ANavigationData* NavData, const FVector& RefLocation)
+{
+#if WITH_RECAST
 	const ARecastNavMesh* RecastNavMesh = Cast<const ARecastNavMesh>(NavData);
-	if (RecastNavMesh && RefPawn)
+	if (RecastNavMesh && RefLocation != FNavigationSystem::InvalidLocation)
 	{
 		// add NxN neighborhood of target (where N is the number of tiles)
 		// Note that we round up to the next odd number to keep the reference position in the middle tile
-		const FVector TargetLocation = RefPawn->GetActorLocation();
 
-		int32 NumTilesPerSide = FMath::Max(FGameplayDebuggerCategoryNavmeshTweakables::DisplaySize, 1);
-		NumTilesPerSide += (NumTilesPerSide % 2 == 0) ? 1 : 0;
-
-		const int32 NumTilesToDisplay = NumTilesPerSide * NumTilesPerSide;
-
-		TArray<int32> DeltaX;
-		TArray<int32> DeltaY;
-		DeltaX.AddUninitialized(NumTilesToDisplay);
-		DeltaY.AddUninitialized(NumTilesToDisplay);
-
-		const int32 MinIdx = -(NumTilesPerSide >> 1);
-		for (int32 i=0; i < NumTilesToDisplay; ++i)
-		{
-			DeltaX[i] = MinIdx + (i % NumTilesPerSide);
-			DeltaY[i] = MinIdx + (i / NumTilesPerSide);
-		}
+		TArray<FIntPoint> TileDeltas;
+		RetrieveRelativeTilesToDisplay(TileDeltas);
 
 		int32 TargetTileX = 0;
 		int32 TargetTileY = 0;
-		RecastNavMesh->GetNavMeshTileXY(TargetLocation, TargetTileX, TargetTileY);
+		RecastNavMesh->GetNavMeshTileXY(RefLocation, TargetTileX, TargetTileY);
 
-		TArray<int32> TileSet;
-		for (int32 Idx = 0; Idx < NumTilesToDisplay; Idx++)
+		TArray<FNavTileRef> TileSet;
+		for (const FIntPoint& TileDelta : TileDeltas)
 		{
-			const int32 NeiX = TargetTileX + DeltaX[Idx];
-			const int32 NeiY = TargetTileY + DeltaY[Idx];
+			const int32 NeiX = TargetTileX + TileDelta.X;
+			const int32 NeiY = TargetTileY + TileDelta.Y;
 			RecastNavMesh->GetNavMeshTilesAt(NeiX, NeiY, TileSet);
 		}
 
@@ -271,6 +284,22 @@ void FGameplayDebuggerCategory_Navmesh::CollectData(APlayerController* OwnerPC, 
 		}
 	}
 #endif // WITH_RECAST
+}
+
+void FGameplayDebuggerCategory_Navmesh::RetrieveRelativeTilesToDisplay(TArray<FIntPoint>& OutTileDelta)
+{
+	int32 NumTilesPerSide = FMath::Max(FGameplayDebuggerCategoryNavmeshTweakables::DisplaySize, 1);
+	NumTilesPerSide += (NumTilesPerSide % 2 == 0) ? 1 : 0;
+
+	const int32 NumTilesToDisplay = NumTilesPerSide * NumTilesPerSide;
+
+	OutTileDelta.AddUninitialized(NumTilesToDisplay);
+
+	const int32 MinIdx = -(NumTilesPerSide >> 1);
+	for (int32 i=0; i < NumTilesToDisplay; ++i)
+	{
+		OutTileDelta[i] = FIntPoint(MinIdx + (i % NumTilesPerSide), MinIdx + (i / NumTilesPerSide));
+	}
 }
 
 void FGameplayDebuggerCategory_Navmesh::DrawData(APlayerController* OwnerPC, FGameplayDebuggerCanvasContext& CanvasContext)
@@ -312,6 +341,11 @@ void FGameplayDebuggerCategory_Navmesh::DrawData(APlayerController* OwnerPC, FGa
 	{
 		CanvasContext.Printf(TEXT("[{yellow}%s{white}]: Display around %s actor"), *GetInputHandlerDescription(0), DataPack.bIsUsingPlayerActor ? TEXT("Debug") : TEXT("Player"));
 	}
+
+	CanvasContext.Printf(TEXT("[{yellow}%s{white}]: %s"),
+		*GetInputHandlerDescription(2),
+		DataPack.LockedReferenceLocation != FNavigationSystem::InvalidLocation ? *FString::Printf(TEXT("Locked at %s"), *DataPack.LockedReferenceLocation.ToString()) : TEXT("Not Locked") );
+
 }
 
 void FGameplayDebuggerCategory_Navmesh::OnDataPackReplicated(int32 DataPackId)

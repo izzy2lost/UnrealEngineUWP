@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "Containers/Array.h"
+#include "Containers/UnrealString.h"
+#include "Delegates/IDelegateInstance.h"
 #include "Misc/Fork.h"
 #include "Modules/ModuleInterface.h"
 
@@ -16,6 +19,7 @@ public:
 	static FEOSSharedModule* Get();
 
 	const TArray<FString>& GetSuppressedLogStrings() const { return SuppressedLogStrings; }
+	const TArray<FString>& GetSuppressedLogCategories() const { return SuppressedLogCategories; }
 
 private:
 	// ~Begin IModuleInterface
@@ -31,5 +35,6 @@ private:
 	TUniquePtr<FEOSSDKManager> SDKManager;
 #endif
 	TArray<FString> SuppressedLogStrings;
+	TArray<FString> SuppressedLogCategories;
 	FDelegateHandle OnPostForkDelegateHandle;
 };

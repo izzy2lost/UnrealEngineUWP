@@ -101,7 +101,7 @@ public:
 
 	virtual FString GetPluginSpecificCacheKeySuffix() const override
 	{
-		const uint16 Version = 14;
+		const uint16 Version = 15;
 
 		return FString::Printf( TEXT("%s_%s_%s_%hu")
 			, *Format.ToString()
@@ -275,9 +275,9 @@ void UNavCollision::GatherCollision()
 	{
 		const FNavCollisionBox& BoxInfo = BoxCollision[Idx];
 
-		const float X = FloatCastChecked<float>(BoxInfo.Extent.X * 2.0f, UE::LWC::DefaultFloatPrecision);
-		const float Y = FloatCastChecked<float>(BoxInfo.Extent.Y * 2.0f, UE::LWC::DefaultFloatPrecision);
-		const float Z = FloatCastChecked<float>(BoxInfo.Extent.Z * 2.0f, UE::LWC::DefaultFloatPrecision);
+		const float X = FloatCastChecked<float>(BoxInfo.Extent.X * 2.0, UE::LWC::DefaultFloatPrecision);
+		const float Y = FloatCastChecked<float>(BoxInfo.Extent.Y * 2.0, UE::LWC::DefaultFloatPrecision);
+		const float Z = FloatCastChecked<float>(BoxInfo.Extent.Z * 2.0, UE::LWC::DefaultFloatPrecision);
 
 		FKBoxElem BoxElem(X, Y, Z);
 
@@ -292,7 +292,7 @@ void UNavCollision::GatherCollision()
 		const FNavCollisionCylinder& CylinderInfo = CylinderCollision[Idx];
 
 		FKSphylElem SphylElem(CylinderInfo.Radius, CylinderInfo.Height);
-		SphylElem.SetTransform(FTransform(CylinderInfo.Offset));
+		SphylElem.SetTransform(FTransform(CylinderInfo.Offset + FVector(0.f, 0.f, 0.5f*CylinderInfo.Height)));
 
 		SimpleGeom.SphylElems.Add(SphylElem);
 	}
@@ -312,7 +312,7 @@ void UNavCollision::ClearCollision()
 	ConvexCollision.VertexBuffer.Reset();
 	ConvexCollision.IndexBuffer.Reset();
 	ConvexShapeIndices.Reset();
-	Bounds = FBox();
+	Bounds = FBox(ForceInitToZero);
 
 	bHasConvexGeometry = false;
 }
@@ -383,9 +383,9 @@ bool UNavCollision::ExportGeometry(const FTransform& LocalToWorld, FNavigableGeo
 	return bHasConvexGeometry;
 }
 
-void DrawCylinderHelper(FPrimitiveDrawInterface* PDI, const FMatrix& ElemTM, const float Radius, const float Height, const FColor Color)
+void DrawCylinderHelper(FPrimitiveDrawInterface* PDI, const FMatrix& ElemTM, const FVector::FReal Radius, const FVector::FReal Height, const FColor Color)
 {
-	const float	AngleDelta = 2.0f * PI / 16;
+	constexpr FVector::FReal AngleDelta = 2.0 * UE_DOUBLE_PI / 16.0;
 	FVector X, Y, Z;
 
 	ElemTM.GetUnitAxes(X, Y, Z);
@@ -393,7 +393,8 @@ void DrawCylinderHelper(FPrimitiveDrawInterface* PDI, const FMatrix& ElemTM, con
 
 	for(int32 SideIndex = 0;SideIndex < 16;SideIndex++)
 	{
-		const FVector Vertex = ElemTM.GetOrigin() + (X * FMath::Cos(AngleDelta * (SideIndex + 1)) + Y * FMath::Sin(AngleDelta * (SideIndex + 1))) * Radius;
+		const FVector Vertex = ElemTM.GetOrigin() +
+			(X * FMath::Cos(AngleDelta * static_cast<FVector::FReal>(SideIndex + 1)) + Y * FMath::Sin(AngleDelta * static_cast<FVector::FReal>(SideIndex + 1))) * Radius;
 
 		PDI->DrawLine(LastVertex,Vertex,Color,SDPG_World);
 		PDI->DrawLine(LastVertex + Z * Height,Vertex + Z * Height,Color,SDPG_World);

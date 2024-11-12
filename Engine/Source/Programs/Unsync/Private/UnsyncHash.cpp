@@ -90,40 +90,6 @@ ComputeHash(const FBuffer& Buffer, EStrongHashAlgorithmID Algorithm)
 	return ComputeHash(Buffer.Data(), Buffer.Size(), Algorithm);
 }
 
-bool
-LooksLikeHash160(const std::string_view Str)
-{
-	if (Str.length() != 40)
-	{
-		return false;
-	}
-
-	const char* PossibleChars = "0123456789abcdefABCDEF";
-	if (Str.find_first_not_of(PossibleChars) != std::string::npos)
-	{
-		return false;
-	}
-
-	return true;
-}
-
-bool
-LooksLikeHash160(const std::wstring_view Str)
-{
-	if (Str.length() != 40)
-	{
-		return false;
-	}
-
-	const wchar_t* PossibleChars = L"0123456789abcdefABCDEF";
-	if (Str.find_first_not_of(PossibleChars) != std::wstring::npos)
-	{
-		return false;
-	}
-
-	return true;
-}
-
 FGenericHash
 ComputeHash(const FBufferView& Buffer, EStrongHashAlgorithmID Algorithm)
 {
@@ -175,5 +141,59 @@ const uint32 FBuzHash::TABLE[256] = {
 	0x2ecb0d93, 0xf4d82a3d, 0x35b5c03f, 0xe4e606f0, 0x05b21843, 0x37b45964, 0x5eff22f4, 0x6027f4cc, 0x77178b3c, 0xae507131, 0x7bf7cabc,
 	0xf9c18d66, 0x593ade65, 0xd95ddf11,
 };
+
+inline bool
+HexCharToUint8(char C, uint8& Output)
+{
+	if (C >= '0' && C <= '9')
+	{
+		Output = C - '0';
+	}
+	else if (C >= 'a' && C <= 'f')
+	{
+		Output = 10 + (C - 'a');
+	}
+	else if (C >= 'A' && C <= 'F')
+	{
+		Output = 10 + (C - 'A');
+	}
+	else
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool
+ParseHashFromHexString(EStrongHashAlgorithmID StrongHasher, std::string_view HexString, FGenericHash& Output)
+{
+	EHashType HashType = ToHashType(StrongHasher);
+
+	FGenericHash Result = {};
+	Result.Type			= HashType;
+
+	if (Result.Size() != HexString.length() / 2)
+	{
+		return false;
+	}
+
+	const uint64 NumOutputBytes = Result.Size();
+
+	for (uint64 Index = 0; Index < NumOutputBytes; ++Index)
+	{
+		uint8 L = 0, H = 0;
+		bool  bValid = HexCharToUint8(HexString[Index * 2 + 0], H) && HexCharToUint8(HexString[Index * 2 + 1], L);
+		if (!bValid)
+		{
+			return false;
+		}
+		Result.Data[Index] = (H << 4) | L;
+	}
+
+	Output = Result;
+
+	return true;
+}
 
 }  // namespace unsync

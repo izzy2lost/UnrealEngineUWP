@@ -75,7 +75,7 @@ struct CONTROLRIG_API FMovieSceneControlRigSpaceChannel : public FMovieSceneChan
 	*/
 	TMovieSceneChannelData<FMovieSceneControlRigSpaceBaseKey> GetData()
 	{
-		return TMovieSceneChannelData<FMovieSceneControlRigSpaceBaseKey>(&KeyTimes, &KeyValues, &KeyHandles, this);
+		return TMovieSceneChannelData<FMovieSceneControlRigSpaceBaseKey>(&KeyTimes, &KeyValues, this, &KeyHandles);
 	}
 
 	/**

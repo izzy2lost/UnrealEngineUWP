@@ -31,7 +31,7 @@ class FRCControllerModel : public FRCLogicModeBase, public FSelfRegisteringEdito
 {
 public:
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnValueTypeChanged, URCVirtualPropertyBase* /* InController */, EPropertyBagPropertyType /* InValueType */);
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnValueChanged, URCVirtualPropertyBase* /* InController */);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnValueChanged, TSharedPtr<FRCControllerModel> /* InControllerModel */);
 	
 	FRCControllerModel(URCVirtualPropertyBase* InVirtualProperty, const TSharedRef<IDetailTreeNode>& InTreeNode, const TSharedPtr<SRemoteControlPanel> InRemoteControlPanel);
 	
@@ -112,6 +112,9 @@ private:
 
 	/** Value change event */
 	void OnPropertyValueChanged(const FPropertyChangedEvent& InPropertyChangedEvent);
+
+	/** Get the current visibility of the placeholder TextBlock widget */
+	EVisibility GetPlaceholderVisibility() const;
 
 	/** Initializes the list of controlled types. Used by MultiControllers */
 	void InitControlledTypes();

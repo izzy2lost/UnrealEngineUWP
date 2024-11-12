@@ -7,6 +7,7 @@
 #include "QuadOverdraw.ush"
  
 SCREEN_PASS_TEXTURE_VIEWPORT(Input)
+SCREEN_PASS_TEXTURE_VIEWPORT(Output)
 
 Texture2D InputTexture;
 SamplerState InputSampler;
@@ -144,7 +145,8 @@ void Main(
 	int2 PixelPos = (int2)SvPosition.xy;
 	float2 ViewLocalUV = float2(UVAndScreenPos.z * 0.5f + 0.5f, 0.5f - 0.5f * UVAndScreenPos.w);
 
-	int2 ViewportCenter = (int2)(Input_ViewportMin + Input_ViewportSize / 2);
+	int2 InputViewportCenter = (int2)(Input_ViewportMin + Input_ViewportSize / 2);
+	int2 OutputViewportCenter = (int2)(Output_ViewportMin + Output_ViewportSize / 2);
 
 	// float3(PS/ShaderBudget, VS/ShaderBudget, overdraw)
 	float3 SceneColor = Texture2DSampleLevel(InputTexture, InputSampler, UV, 0).rgb;
@@ -153,7 +155,7 @@ void Main(
 	[branch]
 	if (DebugViewShaderMode == DVSM_QuadComplexity || DebugViewShaderMode == DVSM_ShaderComplexityContainedQuadOverhead || DebugViewShaderMode == DVSM_ShaderComplexityBleedingQuadOverhead)
 	{
-		float2 QuadID = UsedQuadTextureSize * Input_ViewportSizeInverse * SvPosition.xy;
+		float2 QuadID = UsedQuadTextureSize * Output_ViewportSizeInverse * SvPosition.xy;
 		SceneColor.r += ComplexityToFloat(QuadOverdrawTexture.Load(int3(QuadID.xy + QuadOverdrawOffset(), 0)));
 	}
 #endif // READ_QUAD_OVERDRAW
@@ -181,8 +183,8 @@ void Main(
 
 	// crosshair
 	{
-		float CrossHairMask = PixelPos.x == ViewportCenter.x || PixelPos.y == ViewportCenter.y;
-		float2 DistAbs = abs(PixelPos - ViewportCenter);
+		float CrossHairMask = PixelPos.x == OutputViewportCenter.x || PixelPos.y == OutputViewportCenter.y;
+		float2 DistAbs = abs(PixelPos - OutputViewportCenter);
 		float Dist = max(DistAbs.x, DistAbs.y);
 		float DistMask = Dist >= 2 && Dist < 17;
 
@@ -190,26 +192,30 @@ void Main(
 	}
 	
 	// value under crosshair
-	float3 CenterViewportHDRColor = InputTexture.Load(int3(ViewportCenter, 0)).rgb;
+	float3 CenterViewportHDRColor = InputTexture.Load(int3(InputViewportCenter, 0)).rgb;
 
 #if READ_QUAD_OVERDRAW
 	[branch]
 	if (DebugViewShaderMode == DVSM_QuadComplexity || DebugViewShaderMode == DVSM_ShaderComplexityContainedQuadOverhead || DebugViewShaderMode == DVSM_ShaderComplexityBleedingQuadOverhead)
 	{
-		float2 QuadID = UsedQuadTextureSize * Input_ViewportSizeInverse * ViewportCenter.xy;
+		float2 QuadID = UsedQuadTextureSize * Input_ViewportSizeInverse * InputViewportCenter.xy;
 		SceneColor.r += ComplexityToFloat(QuadOverdrawTexture.Load(int3(QuadID.xy + QuadOverdrawOffset(), 0)));
 	}
 #endif
 	CenterViewportHDRColor.r *= ComplexityScale;
 
-	const int BorderX = 64;
-
 	// Legend
 	{
-		// left top of the border
+		const int OffsetFromLeft = 64;
+		const int OffsetFromBottom = 52;
 		const int Height = 18;
-		const int2 LeftTop = int2(BorderX, Input_ViewportMax.y - Height - 52);
-		const int2 Size = int2(Input_ViewportMax.x - Input_ViewportMin.x - BorderX * 2, Height);
+
+		const int2 Size = int2(Output_ViewportMax.x - Output_ViewportMin.x - OffsetFromLeft * 2, Height);
+
+		const int2 LeftTop = int2(
+			Output_ViewportMin.x + OffsetFromLeft,
+			Output_ViewportMax.y - OffsetFromBottom - Size.y);
+
 		const int OuterBorder = 1;
 
 		// (0, 0) .. (1, 1)

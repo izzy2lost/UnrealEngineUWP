@@ -131,8 +131,6 @@ namespace UE
 			{
 				foreach (var Role in FailingRoles)
 				{
-					UnrealLogParser Parser = new UnrealLogParser(Role.LogSummary.FullLogContent);
-
 					var LogErrors = Role.LogSummary.Errors.Where(E => E.Level == UnrealLog.LogLevel.Error);
 
 					if (LogErrors.Any())

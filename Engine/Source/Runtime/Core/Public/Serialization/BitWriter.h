@@ -24,17 +24,18 @@ struct FBitWriter : public FBitArchive
 
 public:
 	/** Default constructor. Zeros everything. */
-	CORE_API FBitWriter(void);
+	CORE_API FBitWriter();
+	CORE_API virtual ~FBitWriter();
 
 	/**
 	 * Constructor using known size the buffer needs to be
 	 */
 	CORE_API FBitWriter( int64 InMaxBits, bool AllowResize = false );
 
-	FBitWriter(const FBitWriter&) = default;
-    FBitWriter& operator=(const FBitWriter&) = default;
-    FBitWriter(FBitWriter&&) = default;
-    FBitWriter& operator=(FBitWriter&&) = default;
+	CORE_API FBitWriter(const FBitWriter&);
+    CORE_API FBitWriter& operator=(const FBitWriter&);
+    CORE_API FBitWriter(FBitWriter&&);
+    CORE_API FBitWriter& operator=(FBitWriter&&);
 
 	CORE_API virtual void SerializeBits( void* Src, int64 LengthBits ) override;
 

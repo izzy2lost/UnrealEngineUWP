@@ -63,9 +63,12 @@ struct FAppleProResEncoderOptions
 		, FrameRate(30, 1)
 		, Codec(EAppleProResEncoderCodec::ProRes_422)
 		, ColorPrimaries(EAppleProResEncoderColorPrimaries::CD_HDREC709)
+		, bConvertToSrgb(true)
 		, ScanMode(EAppleProResEncoderScanMode::IM_PROGRESSIVE_SCAN)
+		, MaxNumberOfEncodingThreads(0)
 		, bWriteAlpha(false)
 		, bDropFrameTimecode(false)
+		, FrameNumberOffset(0)
 	{}
 
 	/** The absolute path on disk to try and save the video file to. */
@@ -85,6 +88,9 @@ struct FAppleProResEncoderOptions
 
 	/** Which color primaries do we use? Only Rec 709 is well tested right now. */
 	EAppleProResEncoderColorPrimaries ColorPrimaries;
+
+	/** Whether the data should be converted to sRGB before being sent to the encoder. Should not be used when OCIO is active. */
+	bool bConvertToSrgb;
 
 	/** Which scan mode do we use? Only Progressive is tested right now. */
 	EAppleProResEncoderScanMode ScanMode;
@@ -122,8 +128,12 @@ public:
 
 	/** Appends a new frame onto the output file. */
 	bool WriteFrame(const FImagePixelData* InPixelData);
+	
 	/** Appends a new audio sample onto the audio stream. */
 	bool WriteAudioSample(const TArrayView<int16>& InAudioSamples);
+
+	/** Gets the options that the encoder was initialized with. */
+	const FAppleProResEncoderOptions& GetOptions() const;
 
 private:
 	bool InitializeVideoTrack();

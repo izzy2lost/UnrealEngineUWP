@@ -312,7 +312,7 @@ public:
 	NIAGARA_API virtual int32 GetDynamicDataSize()const override;
 	NIAGARA_API virtual bool IsMaterialValid(const UMaterialInterface* Mat)const override;
 #if RHI_RAYTRACING
-	NIAGARA_API virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances, const FNiagaraSceneProxy* Proxy) final override;
+	NIAGARA_API virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector, const FNiagaraSceneProxy* Proxy) final override;
 #endif
 
 protected:
@@ -395,6 +395,7 @@ protected:
 	bool bGpuRibbonLinkIsFloat = false;
 	uint32 GpuRibbonLinkOrderOffset = INDEX_NONE;
 
+	mutable UE::FMutex VertexBuffersGuard;
 	mutable FNiagaraRibbonVertexBuffers VertexBuffers;
 	
 	mutable FNiagaraRibbonTessellationSmoothingData TessellationSmoothingData;

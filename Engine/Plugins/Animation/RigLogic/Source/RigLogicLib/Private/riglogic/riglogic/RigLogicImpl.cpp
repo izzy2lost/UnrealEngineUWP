@@ -8,6 +8,8 @@
 #include "riglogic/controls/ControlsFactory.h"
 #include "riglogic/joints/JointsFactory.h"
 #include "riglogic/ml/MachineLearnedBehaviorFactory.h"
+#include "riglogic/rbf/RBFBehaviorFactory.h"
+#include "riglogic/rbf/RBFBehaviorOutputInstance.h"
 #include "riglogic/riglogic/ConfigurationSerializer.h"
 #include "riglogic/riglogic/RigInstanceImpl.h"
 #include "riglogic/riglogic/RigMetrics.h"
@@ -32,29 +34,33 @@ static RigInstanceImpl* castInstance(RigInstance* instance) {
     return static_cast<RigInstanceImpl*>(instance);
 }
 
-static RigMetrics::Pointer computeRigMetrics(const dna::Reader* reader, MemoryResource* memRes) {
+static RigMetrics::Pointer computeRigMetrics(const dna::Reader* reader, const Configuration& config, MemoryResource* memRes) {
     RigMetrics::Pointer metrics = UniqueInstance<RigMetrics>::with(memRes).create(memRes);
     metrics->lodCount = reader->getLODCount();
     metrics->guiControlCount = reader->getGUIControlCount();
     metrics->rawControlCount = reader->getRawControlCount();
     metrics->psdControlCount = reader->getPSDCount();
-    metrics->jointAttributeCount = reader->getJointRowCount();
+    const auto numAttrsPerJoint = (static_cast<std::uint8_t>(config.translationType) +
+                                   static_cast<std::uint8_t>(config.rotationType) +
+                                   static_cast<std::uint8_t>(config.scaleType));
+    metrics->jointAttributeCount = static_cast<std::uint16_t>(reader->getJointCount() * numAttrsPerJoint);
     metrics->blendShapeCount = reader->getBlendShapeChannelCount();
     metrics->animatedMapCount = reader->getAnimatedMapCount();
-    #ifdef RL_BUILD_WITH_ML_EVALUATOR
-        metrics->mlControlCount = reader->getMLControlCount();
-        metrics->neuralNetworkCount = reader->getNeuralNetworkCount();
-    #endif  // RL_BUILD_WITH_ML_EVALUATOR
+    metrics->mlControlCount = reader->getMLControlCount();
+    metrics->neuralNetworkCount = reader->getNeuralNetworkCount();
+    metrics->rbfSolverCount = reader->getRBFSolverCount();
+    metrics->rbfControlCount = reader->getRBFPoseControlCount();
     return metrics;
 }
 
 RigLogic::~RigLogic() = default;
 
-RigLogic* RigLogic::create(const dna::Reader* reader, Configuration config, MemoryResource* memRes) {
-    auto metrics = computeRigMetrics(reader, memRes);
+RigLogic* RigLogic::create(const dna::Reader* reader, const Configuration& config, MemoryResource* memRes) {
+    auto metrics = computeRigMetrics(reader, config, memRes);
 
     auto controls = ControlsFactory::create(config, reader, memRes);
     auto machineLearnedBlendShapes = MachineLearnedBehaviorFactory::create(config, reader, memRes);
+    auto rbfBehavior = RBFBehaviorFactory::create(config, reader, memRes);
     auto joints = JointsFactory::create(config, reader, memRes);
     auto blendShapes = BlendShapesFactory::create(config, reader, memRes);
     auto animatedMaps = AnimatedMapsFactory::create(config, reader, memRes);
@@ -64,6 +70,7 @@ RigLogic* RigLogic::create(const dna::Reader* reader, Configuration config, Memo
                            std::move(metrics),
                            std::move(controls),
                            std::move(machineLearnedBlendShapes),
+                           std::move(rbfBehavior),
                            std::move(joints),
                            std::move(blendShapes),
                            std::move(animatedMaps),
@@ -89,7 +96,8 @@ RigLogic* RigLogic::restore(BoundedIOStream* source, MemoryResource* memRes) {
     archive >> *metrics;
 
     auto controls = ControlsFactory::create(config, *metrics, memRes);
-    auto machineLearnedBlendShapes = MachineLearnedBehaviorFactory::create(config, memRes);
+    auto machineLearnedBehavior = MachineLearnedBehaviorFactory::create(config, *metrics, memRes);
+    auto rbfBehavior = RBFBehaviorFactory::create(config, *metrics, memRes);
     auto joints = JointsFactory::create(config, *metrics, memRes);
     auto blendShapes = BlendShapesFactory::create(config, *metrics, memRes);
     auto animatedMaps = AnimatedMapsFactory::create(config, *metrics, memRes);
@@ -97,21 +105,23 @@ RigLogic* RigLogic::restore(BoundedIOStream* source, MemoryResource* memRes) {
     terse::VirtualSerializerProxy<AnimatedMaps> animatedMapsProxy{animatedMaps.get()};
     terse::VirtualSerializerProxy<BlendShapes> blendShapesProxy{blendShapes.get()};
 
-    archive >> *controls >> *machineLearnedBlendShapes >> *joints >> blendShapesProxy >> animatedMapsProxy;
+    archive >> *controls >> *machineLearnedBehavior >> *rbfBehavior >> *joints >> blendShapesProxy >> animatedMapsProxy;
     return alloc.newObject(config,
                            std::move(metrics),
                            std::move(controls),
-                           std::move(machineLearnedBlendShapes),
+                           std::move(machineLearnedBehavior),
+                           std::move(rbfBehavior),
                            std::move(joints),
                            std::move(blendShapes),
                            std::move(animatedMaps),
                            memRes);
 }
 
-RigLogicImpl::RigLogicImpl(Configuration config_,
+RigLogicImpl::RigLogicImpl(const Configuration& config_,
                            RigMetrics::Pointer metrics_,
                            Controls::Pointer controls_,
                            MachineLearnedBehavior::Pointer machineLearnedBehavior_,
+                           RBFBehavior::Pointer rbfBehavior_,
                            Joints::Pointer joints_,
                            BlendShapes::Pointer blendShapes_,
                            AnimatedMaps::Pointer animatedMaps_,
@@ -121,6 +131,7 @@ RigLogicImpl::RigLogicImpl(Configuration config_,
     metrics{std::move(metrics_)},
     controls{std::move(controls_)},
     machineLearnedBehavior{std::move(machineLearnedBehavior_)},
+    rbfBehavior{std::move(rbfBehavior_)},
     joints{std::move(joints_)},
     blendShapes{std::move(blendShapes_)},
     animatedMaps{std::move(animatedMaps_)} {
@@ -130,7 +141,16 @@ void RigLogicImpl::dump(BoundedIOStream* destination) const {
     terse::BinaryOutputArchive<BoundedIOStream> archive{destination};
     terse::VirtualSerializerProxy<AnimatedMaps> animatedMapsProxy{animatedMaps.get()};
     terse::VirtualSerializerProxy<BlendShapes> blendShapesProxy{blendShapes.get()};
-    archive << config << *metrics << *controls << *machineLearnedBehavior << *joints << blendShapesProxy << animatedMapsProxy;
+    // *INDENT-OFF*
+    archive << config
+            << *metrics
+            << *controls
+            << *machineLearnedBehavior
+            << *rbfBehavior
+            << *joints
+            << blendShapesProxy
+            << animatedMapsProxy;
+    // *INDENT-ON*
 }
 
 const Configuration& RigLogicImpl::getConfiguration() const {
@@ -145,11 +165,7 @@ std::uint16_t RigLogicImpl::getLODCount() const {
     return metrics->lodCount;
 }
 
-ConstArrayView<float> RigLogicImpl::getRawNeutralJointValues() const {
-    return joints->getRawNeutralValues();
-}
-
-TransformationArrayView RigLogicImpl::getNeutralJointValues() const {
+ConstArrayView<float> RigLogicImpl::getNeutralJointValues() const {
     return joints->getNeutralValues();
 }
 
@@ -163,6 +179,10 @@ std::uint16_t RigLogicImpl::getJointGroupCount() const {
 
 std::uint16_t RigLogicImpl::getNeuralNetworkCount() const {
     return metrics->neuralNetworkCount;
+}
+
+std::uint16_t RigLogicImpl::getRBFSolverCount() const {
+    return metrics->rbfSolverCount;
 }
 
 std::uint16_t RigLogicImpl::getMeshCount() const {
@@ -184,6 +204,11 @@ ControlsInputInstance::Pointer RigLogicImpl::createControlsInstance(MemoryResour
 MachineLearnedBehaviorOutputInstance::Pointer RigLogicImpl::createMachineLearnedBehaviorInstance(MemoryResource* instanceMemRes)
 const {
     return machineLearnedBehavior->createInstance(instanceMemRes);
+}
+
+RBFBehaviorOutputInstance::Pointer RigLogicImpl::createRBFBehaviorInstance(MemoryResource* instanceMemRes)
+const {
+    return rbfBehavior->createInstance(instanceMemRes);
 }
 
 JointsOutputInstance::Pointer RigLogicImpl::createJointsInstance(MemoryResource* instanceMemRes) const {
@@ -228,6 +253,21 @@ void RigLogicImpl::calculateMachineLearnedBehaviorControls(RigInstance* instance
                                       neuralNetIndex);
 }
 
+void RigLogicImpl::calculateRBFControls(RigInstance* instance) const {
+    auto pRigInstance = castInstance(instance);
+    rbfBehavior->calculate(pRigInstance->getControlsInputInstance(),
+                           pRigInstance->getRBFBehaviorOutputInstance(),
+                           pRigInstance->getLOD());
+}
+
+void RigLogicImpl::calculateRBFControls(RigInstance* instance, std::uint16_t solverIndex) const {
+    auto pRigInstance = castInstance(instance);
+    rbfBehavior->calculate(pRigInstance->getControlsInputInstance(),
+                           pRigInstance->getRBFBehaviorOutputInstance(),
+                           pRigInstance->getLOD(),
+                           solverIndex);
+}
+
 void RigLogicImpl::calculateJoints(RigInstance* instance) const {
     auto pRigInstance = castInstance(instance);
     joints->calculate(pRigInstance->getControlsInputInstance(), pRigInstance->getJointsOutputInstance(), pRigInstance->getLOD());
@@ -257,6 +297,7 @@ void RigLogicImpl::calculateAnimatedMaps(RigInstance* instance) const {
 
 void RigLogicImpl::calculate(RigInstance* instance) const {
     calculateMachineLearnedBehaviorControls(instance);
+    calculateRBFControls(instance);
     calculateControls(instance);
     calculateJoints(instance);
     calculateBlendShapes(instance);

@@ -27,7 +27,7 @@ TAutoConsoleVariable<int32> CVarLensFlareQuality(
 
 // The RDG inputs shared by all lens flare passes.
 BEGIN_SHADER_PARAMETER_STRUCT(FLensFlarePassParameters, )
-	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputTexture)
+	SHADER_PARAMETER_RDG_TEXTURE_NON_PIXEL_SRV(Texture2D, InputTexture)
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 
@@ -209,7 +209,7 @@ FScreenPassTexture AddLensFlaresPass(
 			RDG_EVENT_NAME("LensFlareBlur %dx%d", FlareViewSize.X, FlareViewSize.Y),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[VertexShader, PixelShader, VertexParameters, PixelParameters, AdditiveBlendState, FlareViewport, TileCount] (FRHICommandList& RHICmdList)
+			[VertexShader, PixelShader, VertexParameters, PixelParameters, AdditiveBlendState, FlareViewport, TileCount] (FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			// Viewport is the same as the input.
 			RHICmdList.SetViewport(
@@ -318,7 +318,7 @@ FScreenPassTexture AddLensFlaresPass(
 			RDG_EVENT_NAME("LensFlare%d", LensFlareIndex),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[PixelShader, PassParameters, OutputViewRect, FlareViewport, QuadSize, QuadOffset, PipelineState] (FRHICommandList& RHICmdList)
+			[PixelShader, PassParameters, OutputViewRect, FlareViewport, QuadSize, QuadOffset, PipelineState] (FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(OutputViewRect.Min.X, OutputViewRect.Min.Y, 0.0f, OutputViewRect.Max.X, OutputViewRect.Max.Y, 1.0f);
 
@@ -372,6 +372,7 @@ FScreenPassTexture AddLensFlaresPass(
 
 	const FPostProcessSettings& Settings = View.FinalPostProcessSettings;
 
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, LensFlare, "LensFlare");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, LensFlare);
 
 	FRHITexture* BokehTextureRHI = GWhiteTexture->TextureRHI;

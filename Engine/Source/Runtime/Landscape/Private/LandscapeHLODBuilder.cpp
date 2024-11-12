@@ -116,7 +116,7 @@ uint32 ULandscapeHLODBuilder::ComputeHLODHash(const UActorComponent* InSourceCom
 		}
 
 		// Nanite enabled?
-		bool bNaniteEnabled = LSProxy->IsNaniteEnabled();
+		bool bNaniteEnabled = LSProxy->IsNaniteEnabled() || GetDefault<UStaticMesh>()->IsNaniteForceEnabled();
 		Ar << bNaniteEnabled;
 		UE_LOG(LogHLODBuilder, VeryVerbose, TEXT("     - NaniteEnabled = %d"), bNaniteEnabled);
 		if (bNaniteEnabled)
@@ -367,6 +367,9 @@ TArray<UActorComponent*> ULandscapeHLODBuilder::Build(const FHLODBuildContext& I
 	for (ALandscapeProxy* LandscapeProxy : LandscapeProxies)
 	{
 		UStaticMesh* StaticMesh = NewObject<UStaticMesh>(InHLODBuildContext.AssetsOuter);
+
+		const bool bExportNaniteEnabled = LandscapeProxy->IsNaniteEnabled() || GetDefault<UStaticMesh>()->IsNaniteForceEnabled();
+
 		FMeshDescription* MeshDescription = nullptr;
 
 		// Compute source landscape LOD
@@ -388,7 +391,7 @@ TArray<UActorComponent*> ULandscapeHLODBuilder::Build(const FHLODBuildContext& I
 			ExportParams.ExportLOD = LandscapeLOD;
 
 			// Always add a skirt when dealing with a Nanite landscape, as we'll not be able to avoid a gap when dealing with a lower landscape LOD in HLOD
-			if (LandscapeProxy->IsNaniteEnabled())
+			if (bExportNaniteEnabled)
 			{
 				// Use a full tile size (at the ExportLOD LOD) as the skirt depth, this will cover all possible gap scenario
 				// and avoid the skirt clipping through neighborhood tiles/HLODs
@@ -397,13 +400,18 @@ TArray<UActorComponent*> ULandscapeHLODBuilder::Build(const FHLODBuildContext& I
 				ExportParams.SkirtDepth = ScaleFactor;
 			}
 
-			LandscapeProxy->ExportToRawMesh(ExportParams, *MeshDescription);
+			// It's possible for landscape proxies to have no mesh data, in this case the export will fail...
+			if (!LandscapeProxy->ExportToRawMesh(ExportParams, *MeshDescription))
+			{
+				UE_LOG(LogHLODBuilder, Display, TEXT("Skipping HLOD builder for landscape proxy '%s' as it failed to export a mesh!"), *LandscapeProxy->GetFullName());
+				continue;
+			}
 
 			StaticMesh->CommitMeshDescription(0);
 
 			// Nanite settings
 		    const FVector3d Scale = LandscapeProxy->GetTransform().GetScale3D();
-			StaticMesh->NaniteSettings.bEnabled = LandscapeProxy->IsNaniteEnabled();
+			StaticMesh->NaniteSettings.bEnabled = bExportNaniteEnabled;
 		    StaticMesh->NaniteSettings.PositionPrecision = FMath::Log2(Scale.GetAbsMax()) + LandscapeProxy->GetNanitePositionPrecision();
 		    StaticMesh->NaniteSettings.MaxEdgeLengthFactor = LandscapeProxy->GetNaniteMaxEdgeLengthFactor();
 
@@ -412,8 +420,16 @@ TArray<UActorComponent*> ULandscapeHLODBuilder::Build(const FHLODBuildContext& I
 
 		// Material
 		{
-			int32 TextureSize = ComputeRequiredTextureSize(LandscapeProxy, static_cast<float>(InHLODBuildContext.MinVisibleDistance), MeshDescription);
-			UMaterialInterface* LandscapeMaterial = BakeLandscapeMaterial(InHLODBuildContext, *MeshDescription, LandscapeProxy, TextureSize);
+			UMaterialInterface* LandscapeMaterial;
+			if (LandscapeProxy->HLODMaterialOverride)
+			{
+				LandscapeMaterial = LandscapeProxy->HLODMaterialOverride.Get();
+			}
+			else
+			{
+				int32 TextureSize = ComputeRequiredTextureSize(LandscapeProxy, static_cast<float>(InHLODBuildContext.MinVisibleDistance), MeshDescription);
+				LandscapeMaterial = BakeLandscapeMaterial(InHLODBuildContext, *MeshDescription, LandscapeProxy, TextureSize);
+			}
 
 			//Assign the proxy material to the static mesh
 			StaticMesh->GetStaticMaterials().Add(FStaticMaterial(LandscapeMaterial));
@@ -422,7 +438,7 @@ TArray<UActorComponent*> ULandscapeHLODBuilder::Build(const FHLODBuildContext& I
 		StaticMeshes.Add(StaticMesh);
 
 		// In case we are dealing with a Nanite LS, simply create a static mesh component
-		if (LandscapeProxy->IsNaniteEnabled())
+		if (bExportNaniteEnabled)
 		{
 			UStaticMeshComponent* StaticMeshComponent = NewObject<UStaticMeshComponent>();
 			StaticMeshComponent->SetStaticMesh(StaticMesh);

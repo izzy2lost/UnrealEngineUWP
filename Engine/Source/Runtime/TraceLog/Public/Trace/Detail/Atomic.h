@@ -38,7 +38,7 @@ inline void PlatformYield()
 #if TRACE_PRIVATE_THREAD_YIELD
 	extern void ThreadYield();
 	ThreadYield();
-#elif PLATFORM_CPU_X86_FAMILY
+#elif PLATFORM_USE_SSE2_FOR_THREAD_YIELD
 	_mm_pause();
 #elif PLATFORM_CPU_ARM_FAMILY
 #	if defined(_MSC_VER) && !defined(__clang__) // MSVC

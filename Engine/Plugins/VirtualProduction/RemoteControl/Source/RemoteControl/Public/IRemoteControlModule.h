@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
+#include "RCModifyOperationFlags.h"
 #include "RemoteControlField.h"
 #include "RemoteControlFieldPath.h"
 #include "UObject/StructOnScope.h"
@@ -314,19 +315,28 @@ public:
 
 	/**
 	 * Performs the given masking operation.
-	 * @param InMaskingOperation Masking operation to be performed.
+	 * @param InMaskingOperation	Masking operation to be performed.
+	 * @param ModifyOperationFlags	(optional) Flags that specify how the property is modified when the value is applied.
 	 */
+	UE_DEPRECATED(5.5, "PerformMasking is deprecated, masking is now applied where appropriate automatically.")
 	virtual void PerformMasking(const TSharedRef<FRCMaskingOperation>& InMaskingOperation) = 0;
 
 	/**
 	 * Register a masking factory to handle that masks the supported properties.
 	 */
+	UE_DEPRECATED(5.5, "RegisterMaskingFactoryForType is deprecated, masking is now applied where appropriate automatically.")
 	virtual void RegisterMaskingFactoryForType(UScriptStruct* RemoteControlPropertyType, const TSharedPtr<IRemoteControlMaskingFactory>& InMaskingFactory) = 0;
 
 	/**
 	 * Unregister a previously registered masking factory.
 	 */
+	UE_DEPRECATED(5.5, "UnregisterMaskingFactoryForType is deprecated, masking is now applied where appropriate automatically.")
 	virtual void UnregisterMaskingFactoryForType(UScriptStruct* RemoteControlPropertyType) = 0;
+
+	/**
+	 * Returns true if the given property can be masked, false otherwise.
+	 */
+	virtual bool SupportsMasking(const UScriptStruct* InStruct) const = 0;
 
 	/**
 	 * Returns true if the given property can be masked, false otherwise.
@@ -394,9 +404,10 @@ public:
 	 * @param InPayloadType the payload type archive.
 	 * @param InInterceptPayload the payload reference archive for the interception.
 	 * @param Operation the type of operation to perform when setting the value.
+	 * @param ModifyOperationFlags (optional) Flags that specify how the property is modified when the value is applied.
 	 * @return true if the deserialization succeeded
 	 */
-	virtual bool SetObjectProperties(const FRCObjectReference& ObjectAccess, IStructDeserializerBackend& Backend, ERCPayloadType InPayloadType = ERCPayloadType::Json, const TArray<uint8>& InInterceptPayload = TArray<uint8>(), ERCModifyOperation Operation = ERCModifyOperation::EQUAL) = 0;
+	virtual bool SetObjectProperties(const FRCObjectReference& ObjectAccess, IStructDeserializerBackend& Backend, ERCPayloadType InPayloadType = ERCPayloadType::Json, const TArray<uint8>& InInterceptPayload = TArray<uint8>(), ERCModifyOperation Operation = ERCModifyOperation::EQUAL, const ERCModifyOperationFlags ModifyOperationFlags = ERCModifyOperationFlags::None) = 0;
 
 	/**
 	 * Reset the property or the object the Object Reference is pointing to
@@ -614,7 +625,7 @@ public:
 	virtual bool CanBeAccessedRemotely(UObject* InObject) const = 0;
 
 	template<class InPropertyIdPropertyHandlerType, typename... InArgTypes
-		, TEMPLATE_REQUIRES(TIsDerivedFrom<InPropertyIdPropertyHandlerType, IPropertyIdHandler>::Value)>
+		UE_REQUIRES(std::is_base_of_v<IPropertyIdHandler, InPropertyIdPropertyHandlerType>)>
 	TSharedRef<InPropertyIdPropertyHandlerType> RegisterPropertyIdPropertyHandler(InArgTypes&&... InArgs)
 	{
 		TSharedRef<InPropertyIdPropertyHandlerType> KeyPropertyHandler = MakeShared<InPropertyIdPropertyHandlerType>(Forward<InArgTypes>(InArgs)...);

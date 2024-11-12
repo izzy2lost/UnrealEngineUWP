@@ -7,9 +7,6 @@
 #include "UObject/ObjectMacros.h"
 #include "Engine/TextureStreamingTypes.h"
 #include "Components/PrimitiveComponent.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Materials/MaterialInterface.h"
-#endif
 #include "Containers/SortedMap.h"
 #include "MeshComponent.generated.h"
 
@@ -147,6 +144,9 @@ public:
 	/** Generate streaming data for all materials. */
 	ENGINE_API void GetStreamingTextureInfoInner(FStreamingTextureLevelContext& LevelContext, const TArray<FStreamingTextureBuildInfo>* PreBuiltData, float ComponentScaling, TArray<FStreamingRenderAssetPrimitiveInfo>& OutStreamingTextures) const;
 
+	/** Returns the wireframe color to use for this component. */
+	ENGINE_API FColor GetWireframeColorForSceneProxy() const;
+
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	/**
 	 * Output to the log which materials and textures are used by this component.
@@ -154,6 +154,15 @@ public:
 	 */
 	ENGINE_API virtual void LogMaterialsAndTextures(FOutputDevice& Ar, int32 Indent) const;
 #endif
+
+	/** Get the mesh paint texture set on this component. This does not take into account any transient override. */
+	ENGINE_API virtual UTexture* GetMeshPaintTexture() const { return nullptr; }
+	/** Set the mesh paint texture on this component. */
+	ENGINE_API virtual void SetMeshPaintTexture(UTexture* Texture) {}
+	/** Set a transient override mesh paint texture on this component. */
+	ENGINE_API virtual void SetMeshPaintTextureOverride(UTexture* OverrideTexture) {}
+	/** Get the default coordinate index for painting to the mesh paint texture on this component. */
+	ENGINE_API virtual int32 GetMeshPaintTextureCoordinateIndex() const { return 0; }
 
 public:
 	/** Material parameter setting and caching */
@@ -165,6 +174,10 @@ public:
 	/** Set all occurrences of Vector Material Parameters with ParameterName in the set of materials of the SkeletalMesh to ParameterValue */
 	UFUNCTION(BlueprintCallable, Category = "Rendering|Material")
 	ENGINE_API void SetVectorParameterValueOnMaterials(const FName ParameterName, const FVector ParameterValue);
+
+	/** Set all occurrences of Vector Material Parameters with ParameterName in the set of materials of the SkeletalMesh to ParameterValue */
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Material")
+	ENGINE_API void SetColorParameterValueOnMaterials(const FName ParameterName, const FLinearColor ParameterValue);
 
 	/**  
 	 * Returns default value for the parameter input. 
@@ -208,11 +221,11 @@ protected:
 		float ScalarParameterDefaultValue = 0.f;
 	};
 
-	TSortedMap<FName, FMaterialParameterCache, FDefaultAllocator, FNameFastLess> MaterialParameterCache;
-
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = MaterialParameters)
 	uint8 bEnableMaterialParameterCaching : 1;
 
 	/** Flag whether or not the cached material parameter indices map is dirty (defaults to true, and is set from SetMaterial/Set(Skeletal)Mesh */
 	uint8 bCachedMaterialParameterIndicesAreDirty : 1;
+
+	TSortedMap<FName, FMaterialParameterCache, FDefaultAllocator, FNameFastLess> MaterialParameterCache;
 };

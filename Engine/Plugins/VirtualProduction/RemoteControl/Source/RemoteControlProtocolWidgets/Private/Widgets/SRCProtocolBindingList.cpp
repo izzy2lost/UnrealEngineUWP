@@ -17,6 +17,7 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Views/SListView.h"
+#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/STableViewBase.h"
 
@@ -59,14 +60,10 @@ void SRCProtocolBindingList::Construct(const FArguments& InArgs, TSharedRef<FPro
 		Refresh();
 	});
 
-	TSharedRef<SScrollBar> ExternalScrollBar = SNew(SScrollBar);
-	ExternalScrollBar->SetVisibility(TAttribute<EVisibility>(this, &SRCProtocolBindingList::GetScrollBarVisibility));
-
 	SAssignNew(BindingList, SListView<TSharedPtr<IRCTreeNodeViewModel>>)
 	.ListItemsSource(&FilteredBindings)
 	.OnGenerateRow(this, &SRCProtocolBindingList::ConstructBindingWidget)
-	.SelectionMode(ESelectionMode::None)
-	.ExternalScrollbar(ExternalScrollBar);
+	.SelectionMode(ESelectionMode::None);
 
 	ChildSlot
 	[
@@ -155,8 +152,9 @@ void SRCProtocolBindingList::Construct(const FArguments& InArgs, TSharedRef<FPro
 		.FillHeight(1.0f)
 		.Padding(0)
 		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
+			SNew(SScrollBox)
+
+			+ SScrollBox::Slot()
 			[
 				SNew(SBorder)
 				.BorderImage(FAppStyle::GetBrush("ToolPanel.DarkGroupBorder"))
@@ -164,15 +162,6 @@ void SRCProtocolBindingList::Construct(const FArguments& InArgs, TSharedRef<FPro
 				[
 					BindingList.ToSharedRef()				
 				]				
-			]
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				SNew(SBox)
-				.WidthOverride(16.0f)
-				[
-					ExternalScrollBar
-				]
 			]
 		]
 	];
@@ -192,6 +181,11 @@ SRCProtocolBindingList::~SRCProtocolBindingList()
 	}
 
 	AwaitingProtocolEntities.Empty();
+}
+
+URemoteControlPreset* SRCProtocolBindingList::GetPreset() const
+{
+	return ViewModel.IsValid() ? ViewModel->GetPreset() : nullptr;
 }
 
 void SRCProtocolBindingList::AddProtocolBinding(const FName InProtocolName)
@@ -255,12 +249,6 @@ FText SRCProtocolBindingList::HandleAddBindingToolTipText() const
 	}
 
 	return FText::GetEmpty();
-}
-
-EVisibility SRCProtocolBindingList::GetScrollBarVisibility() const
-{
-	const bool bHasAnythingToShow = FilteredBindings.Num() > 0;
-	return bHasAnythingToShow ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 void SRCProtocolBindingList::OnStartRecording(TSharedPtr<TStructOnScope<FRemoteControlProtocolEntity>> InEntity)

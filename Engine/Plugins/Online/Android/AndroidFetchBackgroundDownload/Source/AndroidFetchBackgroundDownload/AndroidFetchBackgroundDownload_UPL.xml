@@ -9,9 +9,15 @@
 	<buildGradleAdditions>
 		<insert>
 //AndroidFetchBackgroundDownload -- START
+	repositories {
+		mavenCentral()
+		maven { url 'https://jitpack.io' }
+	}
 	dependencies {
 		//Fetch2 library used to manage downloads at java level
-		implementation "androidx.tonyodev.fetch2:xfetch2:3.1.6"
+		implementation "com.github.tonyofrancis:fetch:3.3.0" 
+		api "com.squareup.okhttp3:okhttp:3.12.12"
+		api "com.squareup.okhttp3:okhttp-urlconnection:3.12.12"
 		
 		//Used for parsing from JSON files in DownloadDescription.java
 		//excluding hamcrest to avoid collision with junit that also includes hamcrest

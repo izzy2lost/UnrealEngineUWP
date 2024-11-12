@@ -5,8 +5,6 @@
 #include "ILiveLinkSource.h"
 #include "LiveLinkSourceSettings.h"
 
-#include "LiveLinkPlaybackSource.generated.h"
-
 class ILiveLinkClient;
 
 /**
@@ -16,6 +14,12 @@ class FLiveLinkPlaybackSource : public ILiveLinkSource
 {
 public:
 	FLiveLinkPlaybackSource() = default;
+
+	FLiveLinkPlaybackSource(const FString& OriginalSourceName)
+	{
+		SourceName = *FString::Printf(TEXT("Playback (%s)"), *OriginalSourceName);
+	}
+
 	virtual ~FLiveLinkPlaybackSource() = default;
 
 	//~ Begin ILiveLinkSource interface
@@ -30,7 +34,6 @@ public:
 	
 	virtual void InitializeSettings(ULiveLinkSourceSettings* Settings) override
 	{
-		SourceName = TEXT("Playback source.");
 	}
 	
 	virtual bool IsSourceStillValid() const override
@@ -61,18 +64,5 @@ public:
 
 protected:
 	/** Source name. */
-	FName SourceName;
-};
-
-/** PlaybackSourceSettings to be able to differentiate from live sources and keep a name associated to the source */
-UCLASS()
-class ULiveLinkPlaybackSourceSettings : public ULiveLinkSourceSettings
-{
-	GENERATED_BODY()
-
-public:
-
-	/** Source name. */
-	UPROPERTY()
 	FName SourceName;
 };

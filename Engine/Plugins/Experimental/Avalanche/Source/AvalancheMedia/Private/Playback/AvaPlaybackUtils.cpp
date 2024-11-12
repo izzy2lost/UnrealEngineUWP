@@ -4,7 +4,8 @@
 
 #include "AssetRegistry/AssetData.h"
 #include "AvaAssetTags.h"
-#include "AvaMediaModule.h"
+#include "Framework/AvaSoftAssetPtr.h"
+#include "IAvaMediaModule.h"
 #include "HAL/PlatformFileManager.h"
 #include "Misc/Paths.h"
 #include "RenderingThread.h"

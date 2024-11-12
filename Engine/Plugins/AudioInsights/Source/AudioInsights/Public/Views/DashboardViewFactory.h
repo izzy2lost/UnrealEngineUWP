@@ -12,7 +12,7 @@
 
 namespace UE::Audio::Insights
 {
-	enum class AUDIOINSIGHTS_API EDefaultDashboardTabStack : uint8
+	enum class EDefaultDashboardTabStack : uint8
 	{
 		Viewport,
 		Log,
@@ -22,7 +22,7 @@ namespace UE::Audio::Insights
 		Oscilloscope
 	};
 
-	class AUDIOINSIGHTS_API IDashboardViewFactory
+	class IDashboardViewFactory
 	{
 	public:
 		virtual ~IDashboardViewFactory() = default;
@@ -34,7 +34,7 @@ namespace UE::Audio::Insights
 		virtual TSharedRef<SWidget> MakeWidget() = 0;
 	};
 
-	class AUDIOINSIGHTS_API FTraceDashboardViewFactoryBase : public IDashboardViewFactory
+	class FTraceDashboardViewFactoryBase : public IDashboardViewFactory
 	{
 	public:
 		const TArray<TSharedPtr<FTraceProviderBase>>& GetProviders() const

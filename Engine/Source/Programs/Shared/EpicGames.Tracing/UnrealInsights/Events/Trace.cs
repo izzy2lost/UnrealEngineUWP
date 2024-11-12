@@ -23,30 +23,30 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 		public ushort Size => (ushort) (EventType.GetEventSize() + TraceImportantEventHeader.HeaderSize);
 		public EventType Type => EventType;
 		
-		public TraceNewTraceEvent(ulong StartCycle, ulong CycleFrequency, ushort Endian, byte PointerSize)
+		public TraceNewTraceEvent(ulong startCycle, ulong cycleFrequency, ushort endian, byte pointerSize)
 		{
-			this.StartCycle = StartCycle;
-			this.CycleFrequency = CycleFrequency;
-			this.Endian = Endian;
-			this.PointerSize = PointerSize;
+			StartCycle = startCycle;
+			CycleFrequency = cycleFrequency;
+			Endian = endian;
+			PointerSize = pointerSize;
 		}
 		
-		public void Serialize(ushort Uid, BinaryWriter Writer)
+		public void Serialize(ushort uid, BinaryWriter writer)
 		{
-			new TraceImportantEventHeader(Uid, EventType.GetEventSize()).Serialize(Writer);
-			Writer.Write(StartCycle);
-			Writer.Write(CycleFrequency);
-			Writer.Write(Endian);
-			Writer.Write(PointerSize);
+			new TraceImportantEventHeader(uid, EventType.GetEventSize()).Serialize(writer);
+			writer.Write(StartCycle);
+			writer.Write(CycleFrequency);
+			writer.Write(Endian);
+			writer.Write(PointerSize);
 		}
 		
-		public static TraceNewTraceEvent Deserialize(BinaryReader Reader)
+		public static TraceNewTraceEvent Deserialize(BinaryReader reader)
 		{
-			ulong StartCycle = Reader.ReadUInt64();
-			ulong CycleFrequency = Reader.ReadUInt64();
-			ushort Endian = Reader.ReadUInt16();
-			byte PointerSize = Reader.ReadByte();
-			return new TraceNewTraceEvent(StartCycle, CycleFrequency, Endian, PointerSize);
+			ulong startCycle = reader.ReadUInt64();
+			ulong cycleFrequency = reader.ReadUInt64();
+			ushort endian = reader.ReadUInt16();
+			byte pointerSize = reader.ReadByte();
+			return new TraceNewTraceEvent(startCycle, cycleFrequency, endian, pointerSize);
 		}
 	}
 
@@ -61,27 +61,27 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 			});
 			
 
-		public ushort Size => (ushort) (GenericEvent.Size + TraceImportantEventHeader.HeaderSize);
+		public ushort Size => (ushort) (_genericEvent.Size + TraceImportantEventHeader.HeaderSize);
 		public EventType Type => EventType;
-		private readonly GenericEvent GenericEvent;
+		private readonly GenericEvent _genericEvent;
 		
-		public TraceThreadInfoEvent(int ThreadId, int SystemId, int SortHint, string Name)
+		public TraceThreadInfoEvent(int threadId, int systemId, int sortHint, string name)
 		{
-			Field[] Fields =
+			Field[] fields =
 			{
-				Field.FromInt((int) ThreadId),
-				Field.FromInt((int) SystemId),
-				Field.FromInt((int) SortHint),
-				Field.FromString(Name),
+				Field.FromInt((int) threadId),
+				Field.FromInt((int) systemId),
+				Field.FromInt((int) sortHint),
+				Field.FromString(name),
 			};
 
-			GenericEvent = new GenericEvent(0, Fields, EventType);
+			_genericEvent = new GenericEvent(0, fields, EventType);
 		}
 
-		public void Serialize(ushort Uid, BinaryWriter Writer)
+		public void Serialize(ushort uid, BinaryWriter writer)
 		{
-			new TraceImportantEventHeader(Uid, GenericEvent.Size).Serialize(Writer);
-			GenericEvent.Serialize(Uid, Writer);
+			new TraceImportantEventHeader(uid, _genericEvent.Size).Serialize(writer);
+			_genericEvent.Serialize(uid, writer);
 		}
 	}
 }

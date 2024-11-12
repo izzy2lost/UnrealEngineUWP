@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 
@@ -9,7 +10,7 @@ namespace Jupiter.Implementation
 {
 	public interface IReferencesStore
 	{
-		Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, FieldFlags fieldFlags, OperationFlags opFlags );
+		Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, FieldFlags fieldFlags, OperationFlags opFlags, CancellationToken cancellationToken = default);
 
 		[Flags]
 		public enum FieldFlags
@@ -26,22 +27,22 @@ namespace Jupiter.Implementation
 			BypassCache = 1
 		}
 
-		Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized);
-		Task FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier);
+		Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized, CancellationToken cancellationToken = default);
+		Task FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier, CancellationToken cancellationToken = default);
 
-		Task<DateTime?> GetLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key);
-		Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime);
-		IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync();
+		Task<DateTime?> GetLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken = default);
+		Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime, CancellationToken cancellationToken = default);
+		IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync(CancellationToken cancellationToken = default);
 
-		IAsyncEnumerable<(NamespaceId, BucketId, RefId)> GetRecordsWithoutAccessTimeAsync();
+		IAsyncEnumerable<(NamespaceId, BucketId, RefId)> GetRecordsWithoutAccessTimeAsync(CancellationToken cancellationToken = default);
 
-		IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket);
+		IAsyncEnumerable<RefId> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken = default);
 
-		IAsyncEnumerable<NamespaceId> GetNamespacesAsync();
-		IAsyncEnumerable<BucketId> GetBuckets(NamespaceId ns);
-		Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key);
-		Task<long> DropNamespaceAsync(NamespaceId ns);
-		Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket);
+		IAsyncEnumerable<NamespaceId> GetNamespacesAsync(CancellationToken cancellationToken = default);
+		IAsyncEnumerable<BucketId> GetBucketsAsync(NamespaceId ns, CancellationToken cancellationToken = default);
+		Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken = default);
+		Task<long> DropNamespaceAsync(NamespaceId ns, CancellationToken cancellationToken = default);
+		Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken = default);
 	}
 
 	public class RefRecord
@@ -63,7 +64,7 @@ namespace Jupiter.Implementation
 		public DateTime LastAccess { get; }
 		public byte[]? InlinePayload { get; set; }
 		public BlobId BlobIdentifier { get; set; }
-		public bool IsFinalized {get;}
+		public bool IsFinalized { get; }
 	}
 
 	public class RefNotFoundException : Exception

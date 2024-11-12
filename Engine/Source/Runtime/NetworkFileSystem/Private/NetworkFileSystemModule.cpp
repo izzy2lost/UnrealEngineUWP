@@ -6,7 +6,6 @@
 #include "INetworkFileSystemModule.h"
 #include "NetworkFileSystemLog.h"
 #include "NetworkFileServer.h"
-#include "NetworkFileServerHttp.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "CookOnTheFlyNetServer.h"
 #include "IPAddress.h"
@@ -55,10 +54,6 @@ public:
 
 		switch (FileServerOptions.Protocol)
 		{
-#if ENABLE_HTTP_FOR_NFS
-		case NFSP_Http: 
-			return new FNetworkFileServerHttp(MoveTemp(FileServerOptions));
-#endif
 		case NFSP_Tcp:
 		case NFSP_Platform:
 			UE::Cook::FCookOnTheFlyNetworkServerOptions CookOnTheFlyServerOptions;

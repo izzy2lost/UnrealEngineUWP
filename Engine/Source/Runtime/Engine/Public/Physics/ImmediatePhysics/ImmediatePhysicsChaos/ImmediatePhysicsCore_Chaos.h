@@ -14,12 +14,12 @@ namespace Chaos
 	class FImplicitObject;
 	class FBasicBroadPhase;
 	class FBasicCollisionDetector;
+	class FKinematicTarget;
 	class FPBDJointConstraintHandle;
 	class FPBDJointConstraints;
 	class FPerShapeData;
 	template<class T> class TArrayCollectionArray;
 	struct FKinematicGeometryParticleParameters;
-	template<typename T, int D> class TKinematicTarget;
 	template<typename T> class TPBDConstraintIslandRule;
 	struct FPBDRigidParticleParameters;
 	class FPBDRigidsSOAs;
@@ -36,7 +36,7 @@ namespace ImmediatePhysics_Chaos
 	using EActorType = ImmediatePhysics_Shared::EActorType;
 	using EForceType = ImmediatePhysics_Shared::EForceType;
 
-	using FKinematicTarget = Chaos::TKinematicTarget<FReal, 3>;
+	using FKinematicTarget = Chaos::FKinematicTarget;
 }
 
 struct FBodyInstance;

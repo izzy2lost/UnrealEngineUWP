@@ -316,6 +316,12 @@ public:
 		return Request;
 	}
 
+	FZenHttpRequest& operator*()
+	{
+		check(IsValid());
+		return *Request;
+	}
+
 private:
 	FZenHttpRequest*		Request;
 	FZenHttpRequestPool*	Pool;

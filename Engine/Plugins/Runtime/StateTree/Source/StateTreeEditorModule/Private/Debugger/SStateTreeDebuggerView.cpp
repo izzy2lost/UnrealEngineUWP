@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "SStateTreeDebuggerView.h"
 #include "SStateTreeDebuggerViewRow.h"
@@ -12,7 +12,6 @@
 #include "Kismet2/DebuggerCommands.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
-#include "ScopedTransaction.h"
 #include "SStateTreeDebuggerInstanceTree.h"
 #include "SStateTreeDebuggerTimelines.h"
 #include "StateTree.h"
@@ -29,7 +28,6 @@
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SScrollBox.h"
-#include "Widgets/Layout/SSpacer.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
@@ -229,6 +227,10 @@ void SStateTreeDebuggerView::StartRecording()
 		check(Debugger);
 		Debugger->ClearSelection();
 
+		// Stop the current analysis so we have a chance to reconnect to an existing instance
+		// if there is existing data and it is still active.
+		Debugger->StopSessionAnalysis();
+
 		// We give priority to the Editor actions even if an analysis was active (remote process)
 		// This will stop current analysis and connect to the new live trace.
 		bRecording = Debugger->RequestAnalysisOfEditorSession();
@@ -346,9 +348,9 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 
 	IStateTreeModule& StateTreeModule = FModuleManager::GetModuleChecked<IStateTreeModule>("StateTreeModule");
 	bRecording = StateTreeModule.IsTracing();
-	UE::StateTree::Delegates::OnTracingStateChanged.AddSPLambda(this, [&bRecording=bRecording](const bool bTracesEnabled)
+	UE::StateTree::Delegates::OnTracingStateChanged.AddSPLambda(this, [&bRecording=bRecording](const EStateTreeTraceStatus TraceStatus)
 		{
-			bRecording = bTracesEnabled;
+			bRecording = TraceStatus == EStateTreeTraceStatus::TracesStarted;
 		});
 
 	// Bind callbacks to the debugger delegates
@@ -372,21 +374,6 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 
 	// Register the play world commands
 	InCommandList->Append(FPlayWorldCommands::GlobalPlayWorldActions.ToSharedRef());
-
-	// Debug commands
-	InCommandList->MapAction(
-		FStateTreeDebuggerCommands::Get().EnableOnEnterStateBreakpoint,
-		FExecuteAction::CreateLambda([this] { HandleEnableStateBreakpoint(EStateTreeBreakpointType::OnEnter); }),
-		FCanExecuteAction(),
-		FGetActionCheckState::CreateLambda([this]{ return GetStateBreakpointCheckState(EStateTreeBreakpointType::OnEnter); }),
-		FIsActionButtonVisible::CreateLambda([this] { return CanAddStateBreakpoint(EStateTreeBreakpointType::OnEnter) || CanRemoveStateBreakpoint(EStateTreeBreakpointType::OnEnter); }));
-
-	InCommandList->MapAction(
-		FStateTreeDebuggerCommands::Get().EnableOnExitStateBreakpoint,
-		FExecuteAction::CreateLambda([this] { HandleEnableStateBreakpoint(EStateTreeBreakpointType::OnExit); }),
-		FCanExecuteAction(),
-		FGetActionCheckState::CreateLambda([this] { return GetStateBreakpointCheckState(EStateTreeBreakpointType::OnExit); }),
-		FIsActionButtonVisible::CreateLambda([this] { return CanAddStateBreakpoint(EStateTreeBreakpointType::OnExit) || CanRemoveStateBreakpoint(EStateTreeBreakpointType::OnExit); }));
 
 	// Toolbars
 	FSlimHorizontalToolBarBuilder LeftToolbar(InCommandList, FMultiBoxCustomization::None, /*InExtender*/ nullptr, /*InForceSmallIcons*/ true);
@@ -502,6 +489,15 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 		.ScrubPosition(ScrubTimeAttribute)
 		.OnScrubPositionChanged_Lambda([this](double NewScrubTime, bool bIsScrubbing) { OnTimeLineScrubPositionChanged(NewScrubTime, bIsScrubbing); });
 
+	// EventsTreeView scrollbars
+	TSharedRef<SScrollBar> HorizontalScrollBar = SNew(SScrollBar)
+		.Orientation(Orient_Horizontal)
+		.Thickness(FVector2D(12.0f, 12.0f));
+
+	TSharedRef<SScrollBar> VerticalScrollBar = SNew(SScrollBar)
+		.Orientation(Orient_Vertical)
+		.Thickness(FVector2D(12.0f, 12.0f));
+
 	// EventsTreeView
 	EventsTreeView = SNew(STreeView<TSharedPtr<FStateTreeDebuggerEventTreeElement>>)
 			.OnGenerateRow_Lambda([this](const TSharedPtr<FStateTreeDebuggerEventTreeElement>& InElement, const TSharedRef<STableViewBase>& InOwnerTableView)
@@ -516,8 +512,8 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 				}
 			})
 		.TreeItemsSource(&EventsTreeElements)
-		.ItemHeight(32)
-		.AllowOverscroll(EAllowOverscroll::No);
+		.AllowOverscroll(EAllowOverscroll::No)
+		.ExternalScrollbar(VerticalScrollBar);
 
 	ChildSlot
 	[
@@ -531,7 +527,6 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 				SNew(SSplitter)
 				.Orientation(Orient_Horizontal)
 				+ SSplitter::Slot()
-				.MinSize(600)
 				[
 						SNew(SVerticalBox)
 						+ SVerticalBox::Slot()
@@ -541,13 +536,13 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 							SNew(SHorizontalBox)
 							+ SHorizontalBox::Slot()
 							.HAlign(HAlign_Left)
-							.FillWidth(1.0f)
+							.FillContentWidth(1.f)
 							[
 								LeftToolbar.MakeWidget()
 							]
 							+ SHorizontalBox::Slot()
 							.HAlign(HAlign_Right)
-							.AutoWidth()
+							.FillContentWidth(1.f)
 							[
 								RightToolbar.MakeWidget()
 							]
@@ -559,7 +554,6 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 							.Orientation(Orient_Horizontal)
 							+ SSplitter::Slot()
 							.Value(0.2f)
-							.MinSize(350)
 							.Resizable(false)
 							[
 								TraceSelectionBox
@@ -585,7 +579,6 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 							.Orientation(Orient_Horizontal)
 							+ SSplitter::Slot()
 							.Value(0.2f)
-							.MinSize(350)
 							.OnSlotResized_Lambda([this](float Size)
 								{
 									// Sync both header and content
@@ -621,7 +614,6 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 						]
 				]
 				+ SSplitter::Slot()
-				.MinSize(400)
 				[
 					SNew(SVerticalBox)
 					+ SVerticalBox::Slot()
@@ -633,13 +625,31 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 					+ SVerticalBox::Slot()
 					.FillHeight(1.0f)
 					[
-						SNew(SScrollBox)
-						.Orientation(Orient_Horizontal)
-						+ SScrollBox::Slot()
-						.FillSize(1.0f)
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.FillWidth(1.0f)
+						.Padding(0.0f)
 						[
-							EventsTreeView.ToSharedRef()
+							SNew(SScrollBox)
+							.Orientation(Orient_Horizontal)
+							.ExternalScrollbar(HorizontalScrollBar)
+							+ SScrollBox::Slot()
+							.FillSize(1.0f)
+							[
+								EventsTreeView.ToSharedRef()
+							]
 						]
+
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						[
+							VerticalScrollBar
+						]
+					]
+					+SVerticalBox::Slot()
+					.AutoHeight()
+					[
+						HorizontalScrollBar
 					]
 				]
 			]
@@ -833,201 +843,6 @@ void SStateTreeDebuggerView::StepForwardToNextStateChange()
 	bAutoScroll = false;
 }
 
-bool SStateTreeDebuggerView::CanAddStateBreakpoint(const EStateTreeBreakpointType Type) const
-{
-	check(StateTreeViewModel);
-
-	TArray<UStateTreeState*> SelectedStates;
-	StateTreeViewModel->GetSelectedStates(SelectedStates);
-	if (SelectedStates.IsEmpty())
-	{
-		return false;
-	}
-
-	const UStateTreeEditorData* EditorData = StateTreeEditorData.Get();
-	if (!ensure(EditorData != nullptr))
-	{
-		return false;
-	}
-
-	for (const UStateTreeState* SelectedState : SelectedStates)
-	{
-		if (SelectedState != nullptr)
-		{
-			if (EditorData->HasBreakpoint(SelectedState->ID, Type) == false)
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-bool SStateTreeDebuggerView::CanRemoveStateBreakpoint(const EStateTreeBreakpointType Type) const
-{
-	check(StateTreeViewModel);
-
-	TArray<UStateTreeState*> SelectedStates;
-	StateTreeViewModel->GetSelectedStates(SelectedStates);
-	if (SelectedStates.IsEmpty())
-	{
-		return false;
-	}
-
-	const UStateTreeEditorData* EditorData = StateTreeEditorData.Get();
-	if (!ensure(EditorData != nullptr))
-	{
-		return false;
-	}
-
-	for (const UStateTreeState* SelectedState : SelectedStates)
-	{
-		if (SelectedState != nullptr)
-		{
-			if (EditorData->HasBreakpoint(SelectedState->ID, Type))
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-
-ECheckBoxState SStateTreeDebuggerView::GetStateBreakpointCheckState(const EStateTreeBreakpointType Type) const
-{
-	const bool bCanAdd = CanAddStateBreakpoint(Type);
-	const bool bCanRemove = CanRemoveStateBreakpoint(Type);
-	if (bCanAdd && bCanRemove)
-	{
-		return ECheckBoxState::Undetermined;
-	}
-
-	if (bCanRemove)
-	{
-		return ECheckBoxState::Checked;
-	}
-
-	if (bCanAdd)
-	{
-		return ECheckBoxState::Unchecked;
-	}
-
-	// Should not happen since action is not visible in this case
-	return ECheckBoxState::Undetermined;
-}
-
-void SStateTreeDebuggerView::HandleEnableStateBreakpoint(EStateTreeBreakpointType Type)
-{
-	check(StateTreeViewModel);
-
-	TArray<UStateTreeState*> SelectedStates;
-	StateTreeViewModel->GetSelectedStates(SelectedStates);
-	if (SelectedStates.IsEmpty())
-	{
-		return;
-	}
-
-	UStateTreeEditorData* EditorData = StateTreeEditorData.Get();
-	if (!ensure(EditorData != nullptr))
-	{
-		return;
-	}
-
-	TBitArray<> HasBreakpoint;
-	HasBreakpoint.Reserve(SelectedStates.Num());
-	for (const UStateTreeState* SelectedState : SelectedStates)
-	{
-		HasBreakpoint.Add(SelectedState != nullptr && EditorData->HasBreakpoint(SelectedState->ID, Type));
-	}
-
-	check(HasBreakpoint.Num() == SelectedStates.Num());
-
-	// Process CanAdd first so in case of undetermined state (mixed selection) we add by default. 
-	if (CanAddStateBreakpoint(Type))
-	{
-		const FScopedTransaction Transaction(LOCTEXT("AddStateBreakpoint", "Add State Breakpoint(s)"));
-		EditorData->Modify();
-		for (int Index = 0; Index < SelectedStates.Num(); ++Index)
-		{
-			const UStateTreeState* SelectedState = SelectedStates[Index];
-			if (HasBreakpoint[Index] == false && SelectedState != nullptr)
-			{
-				EditorData->AddBreakpoint(SelectedState->ID, Type);	
-			}
-		}
-	}
-	else if (CanRemoveStateBreakpoint(Type))
-	{
-		const FScopedTransaction Transaction(LOCTEXT("RemoveStateBreakpoint", "Remove State Breakpoint(s)"));
-		EditorData->Modify();
-		for (int Index = 0; Index < SelectedStates.Num(); ++Index)
-		{
-			const UStateTreeState* SelectedState = SelectedStates[Index];
-			if (HasBreakpoint[Index] && SelectedState != nullptr)
-			{
-				EditorData->RemoveBreakpoint(SelectedState->ID, Type);	
-			}
-		}
-	}
-}
-
-UStateTreeState* SStateTreeDebuggerView::FindStateAssociatedToBreakpoint(FStateTreeDebuggerBreakpoint Breakpoint) const
-{
-	const UStateTree* Tree = StateTree.Get();
-	UStateTreeEditorData* TreeEditorData = StateTreeEditorData.Get();
-	if (Tree == nullptr || TreeEditorData == nullptr)
-	{
-		return nullptr;
-	}
-
-	UStateTreeState* StateTreeState = nullptr;
-
-	if (const FStateTreeStateHandle* StateHandle = Breakpoint.ElementIdentifier.TryGet<FStateTreeStateHandle>())
-	{
-		const FGuid StateId = StateTree->GetStateIdFromHandle(*StateHandle);
-		StateTreeState = TreeEditorData->GetMutableStateByID(StateId);
-	}
-	else if (const FStateTreeDebuggerBreakpoint::FStateTreeTaskIndex* TaskIndex = Breakpoint.ElementIdentifier.TryGet<FStateTreeDebuggerBreakpoint::FStateTreeTaskIndex>())
-	{
-		const FGuid TaskId = StateTree->GetNodeIdFromIndex(TaskIndex->Index);
-
-		TreeEditorData->VisitHierarchy([&TaskId, &StateTreeState](UStateTreeState& State, UStateTreeState* /*ParentState*/)
-			{
-				for (const FStateTreeEditorNode& EditorNode : State.Tasks)
-				{
-					if (EditorNode.ID == TaskId)
-					{
-						StateTreeState = &State;
-						return EStateTreeVisitor::Break;
-					}
-				}
-				return EStateTreeVisitor::Continue;
-			});
-	}
-	else if (const FStateTreeDebuggerBreakpoint::FStateTreeTransitionIndex* TransitionIndex = Breakpoint.ElementIdentifier.TryGet<FStateTreeDebuggerBreakpoint::FStateTreeTransitionIndex>())
-	{
-		const FGuid TransitionId = StateTree->GetTransitionIdFromIndex(TransitionIndex->Index);
-
-		TreeEditorData->VisitHierarchy([&TransitionId, &StateTreeState](UStateTreeState& State, UStateTreeState* /*ParentState*/)
-			{
-				for (const FStateTreeTransition& StateTransition : State.Transitions)
-				{
-					if (StateTransition.ID == TransitionId)
-					{
-						StateTreeState = &State;
-						return EStateTreeVisitor::Break;
-					}
-				}
-				return EStateTreeVisitor::Continue;
-			});
-	}
-
-	return StateTreeState;
-}
-
 void SStateTreeDebuggerView::OnTimeLineScrubPositionChanged(double Time, bool bIsScrubbing)
 {
 	check(Debugger);
@@ -1120,11 +935,14 @@ void SStateTreeDebuggerView::OnDebuggerScrubStateChanged(const UE::StateTreeDebu
 		if (bShouldPopScopeStack)
 		{
 			// Pop scope and remove associated element if empty
-			TSharedPtr<FStateTreeDebuggerEventTreeElement> Scope = ScopeStack.Pop();
-			if (Scope->Children.IsEmpty())
+			if (ensureMsgf(ScopeStack.Num() > 0, TEXT("Expected to pop an entry in the scope stack but it is already empty.")))
 			{
-				TArray<TSharedPtr<FStateTreeDebuggerEventTreeElement>>& TreeElements = ScopeStack.IsEmpty() ? EventsTreeElements : ScopeStack.Top()->Children;
-				TreeElements.Remove(Scope);
+				TSharedPtr<FStateTreeDebuggerEventTreeElement> Scope = ScopeStack.Pop();
+				if (Scope->Children.IsEmpty())
+				{
+					TArray<TSharedPtr<FStateTreeDebuggerEventTreeElement>>& TreeElements = ScopeStack.IsEmpty() ? EventsTreeElements : ScopeStack.Top()->Children;
+					TreeElements.Remove(Scope);
+				}
 			}
 			// We don't want to create a child when a scope is popped.
 			continue;
@@ -1268,9 +1086,9 @@ void SStateTreeDebuggerView::OnBreakpointHit(const FStateTreeInstanceDebugId Ins
 	}
 
 	// Extract associated UStateTreeState to focus on it.
-	if (UStateTreeState* AssociatedState = FindStateAssociatedToBreakpoint(Breakpoint))
+	check(StateTreeViewModel);
+	if (UStateTreeState* AssociatedState = StateTreeViewModel->FindStateAssociatedToBreakpoint(Breakpoint))
 	{
-		check(StateTreeViewModel);
 		StateTreeViewModel->SetSelection(AssociatedState);
 	}
 
@@ -1308,6 +1126,15 @@ void SStateTreeDebuggerView::OnNewSession()
 		|| !Debugger->WasAnalyzingEditorSession())
 	{
 		ResetTracks();
+	}
+	else if (Debugger->GetSelectedInstanceDescriptor() == nullptr)
+	{
+		// In PIE it is possible to stop/start the recording multiple times during the same game session,
+		// in this case we try to reselect the currently selected instance in case it can be reactivated.
+		if (FStateTreeDebuggerBaseTrack* DebuggerBaseTrack = static_cast<FStateTreeDebuggerBaseTrack*>(InstancesTreeView->GetSelection().Get()))
+		{
+			DebuggerBaseTrack->OnSelected();
+		}
 	}
 
 	// Restore automatic scroll to most recent data.
@@ -1384,7 +1211,11 @@ TSharedRef<SWidget> SStateTreeDebuggerView::OnGetDebuggerTracesMenu() const
 
 		FUIAction ItemAction(FExecuteAction::CreateSPLambda(Debugger.ToSharedRef(), [Debugger = Debugger, TraceDescriptor]()
 			{
-				Debugger->RequestSessionAnalysis(TraceDescriptor);
+				// Request new analysis only if user picked a different trace (we don't want to clear the tracks)
+				if (Debugger->GetSelectedTraceDescriptor() != TraceDescriptor)
+				{
+					Debugger->RequestSessionAnalysis(TraceDescriptor);
+				}
 			}));
 		MenuBuilder.AddMenuEntry(Desc, TAttribute<FText>(), FSlateIcon(), ItemAction);
 	}
@@ -1429,4 +1260,4 @@ void SStateTreeDebuggerView::TrackCursor()
 
 #undef LOCTEXT_NAMESPACE
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

@@ -4,6 +4,10 @@
 
 #include "CoreMinimal.h"
 
+#include "Algo/IndexOf.h"
+#include "Features/IModularFeatures.h"
+#include "Features/IModularFeature.h"
+
 /** 
  * A non-UObject based structure used to pass data about a sound
  * node wave around the engine and tools.
@@ -36,10 +40,21 @@ struct FSoundQualityInfo
 /**
  * Interface for audio formats.
  */
-class IAudioFormat
+class IAudioFormat : public IModularFeature
 {
 public:
 
+	/**
+	 * Returns the name of the modular feature.
+	 * @return FName of the feature. To be used to query IModularFeatures
+	 */
+	FORCEINLINE static FName GetModularFeatureName()
+	{
+		static const FName Name(TEXT("IAudioFormat"));
+		return Name;
+	}
+	
+	
 	/**
 	 * Checks whether parallel audio cooking is allowed.
 	 *
@@ -140,8 +155,76 @@ public:
 	*/
 	virtual bool ExtractSeekTableForStreaming(TArray<uint8>& InOutBuffer, FSeekTable& OutSeektable) const { return false; }
 
-public:
+	/**
+	 * Returns true if the target platform name is supported 	 
+	 */
+	virtual bool IsPlatformSupported(const FName InPlatformName) const { return true; };
+	
+	/**
+	 * Returns true if this format/codec requires hardware. 
+	 **/
+	virtual bool IsHardwareFormat() const { return false; }
 
-	/** Virtual destructor. */
-	virtual ~IAudioFormat() { }
+	/**
+	 * Returns true if the sample rate is supported by this codec.
+	 * @param InSampleRate The Rate to test
+	 * @return true or false if supported
+	 */
+	bool IsSampleRateSupported(const int32 InSampleRate) const
+	{
+		// Query the supported rates for this Format.
+		const TConstArrayView<int32> SupportedRates = GetSupportedSampleRates();
+		if (SupportedRates.Num() > 0)
+		{
+			return Algo::IndexOf(SupportedRates, InSampleRate) != INDEX_NONE;
+		}
+
+		// Assume success if no supported rates are defined. 
+		return true;
+	}
+
+	/**
+	 * Returns true if the sample rate is supported by this codec.
+	 * @param InChannelCount The channel count to test for
+	 * @return true or false if supported
+	 */
+	bool IsChannelCountSupported(const int32 InChannelCount) const
+	{
+		// Query the supported counts for this Format.
+		const TConstArrayView<int32> SupportedCounts = GetSupportedChannelCounts();
+		if (SupportedCounts.Num() > 0)
+		{
+			return Algo::IndexOf(SupportedCounts, InChannelCount) != INDEX_NONE;
+		}
+
+		// Assume success if no supported rates are defined. 
+		return true;
+	}
+
+	/**
+	 * Returns the list of supported sample rates
+	 * NOTE: An empty list implies all rates are supported.
+	 * @return List of supported sample rate for this format/codec
+	 */
+ 	virtual TConstArrayView<int32> GetSupportedSampleRates() const { return {}; }
+
+	/**
+	 * Returns the list of supported channel counts
+	 * NOTE: An empty list implies all counts are supported.
+	 * @return List of supported channel counts
+	 */
+	virtual TConstArrayView<int32> GetSupportedChannelCounts() const { return {}; }
+
+	/** Self Registering Constructor */
+	IAudioFormat()
+    {
+    	IModularFeatures::Get().RegisterModularFeature(GetModularFeatureName(), this);
+    }
+    
+	/** Self Registering Virtual destructor. */
+	virtual ~IAudioFormat()
+    {
+    	IModularFeatures::Get().UnregisterModularFeature(GetModularFeatureName(), this);
+    }
 };
+

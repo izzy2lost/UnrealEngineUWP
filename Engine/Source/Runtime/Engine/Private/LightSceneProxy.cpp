@@ -29,6 +29,7 @@ FLightSceneProxy::FLightSceneProxy(const ULightComponent* InLightComponent)
 	, ContactShadowCastingIntensity(InLightComponent->ContactShadowCastingIntensity)
 	, ContactShadowNonCastingIntensity(InLightComponent->ContactShadowNonCastingIntensity)
 	, SpecularScale(InLightComponent->SpecularScale)
+	, DiffuseScale(InLightComponent->DiffuseScale)
 	, LightGuid(InLightComponent->LightGuid)
 	, RayStartOffsetDepthScale(InLightComponent->RayStartOffsetDepthScale)
 	, IESTexture(0)
@@ -53,7 +54,10 @@ FLightSceneProxy::FLightSceneProxy(const ULightComponent* InLightComponent)
 	, bUseVirtualShadowMaps(false)	// See below
 	, bCastModulatedShadows(false)
 	, bUseWholeSceneCSMForMovableObjects(false)
-	, bSelected(InLightComponent->GetOwner() ? InLightComponent->GetOwner()->IsActorOrSelectionParentSelected() : false)
+	, bSelected(InLightComponent->IsSelected() || InLightComponent->IsOwnerSelected())
+	, bAllowMegaLights(InLightComponent->bAllowMegaLights)
+	, MegaLightsShadowMethod(InLightComponent->MegaLightsShadowMethod)
+	, LightFunctionAtlasLightIndex(0)
 	, AtmosphereSunLightIndex(InLightComponent->GetAtmosphereSunLightIndex())
 	, AtmosphereSunDiskColorScale(InLightComponent->GetAtmosphereSunDiskColorScale())
 	, LightType(InLightComponent->GetLightType())
@@ -67,7 +71,6 @@ FLightSceneProxy::FLightSceneProxy(const ULightComponent* InLightComponent)
 	, SamplesPerPixel(1)
 	, DeepShadowLayerDistribution(InLightComponent->DeepShadowLayerDistribution)
 	, IESAtlasId(~0u)
-	, LightFunctionAtlasLightIndex(0)
 #if ACTOR_HAS_LABELS
 	, OwnerNameOrLabel(InLightComponent->GetOwner() ? InLightComponent->GetOwner()->GetActorNameOrLabel() : InLightComponent->GetName())
 #endif
@@ -130,7 +133,7 @@ FLightSceneProxy::FLightSceneProxy(const ULightComponent* InLightComponent)
 
 	if (bCastDynamicShadow && IsMobilePlatform(SceneInterface->GetShaderPlatform()))
 	{
-		if (GetLightType() == LightType_Point
+		if ((GetLightType() == LightType_Point && !DoesRuntimeSupportOnePassPointLightShadows(SceneInterface->GetShaderPlatform()))
 			|| GetLightType() == LightType_Rect
 			|| (GetLightType() == LightType_Spot && !IsMobileMovableSpotlightShadowsEnabled(SceneInterface->GetShaderPlatform())))
 		{

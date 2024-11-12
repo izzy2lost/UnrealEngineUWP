@@ -6,12 +6,14 @@
 #include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
 #include "Trace/ChaosVDTraceProvider.h"
 
-FChaosVDMidPhaseDataProcessor::FChaosVDMidPhaseDataProcessor() : IChaosVDDataProcessor(FChaosVDParticlePairMidPhase::WrapperTypeName)
+FChaosVDMidPhaseDataProcessor::FChaosVDMidPhaseDataProcessor() : FChaosVDDataProcessorBase(FChaosVDParticlePairMidPhase::WrapperTypeName)
 {
 }
 
 bool FChaosVDMidPhaseDataProcessor::ProcessRawData(const TArray<uint8>& InData)
 {
+	FChaosVDDataProcessorBase::ProcessRawData(InData);
+
 	TSharedPtr<FChaosVDTraceProvider> ProviderSharedPtr = TraceProvider.Pin();
 	if (!ensure(ProviderSharedPtr.IsValid()))
 	{
@@ -24,30 +26,28 @@ bool FChaosVDMidPhaseDataProcessor::ProcessRawData(const TArray<uint8>& InData)
 
 	if (bSuccess)
 	{
-		// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
-		if (FChaosVDSolverFrameData* FrameData = ProviderSharedPtr->GetCurrentSolverFrame(MidPhase->SolverID))
-		{
-			if (ensureMsgf(FrameData->SolverSteps.Num() > 0, TEXT("A MidPhase was traced without a valid step scope")))
-			{
-				FrameData->SolverSteps.Last().RecordedMidPhases.Add(MidPhase);
+		FChaosVDStepData* CurrentSolverStage = ProviderSharedPtr->GetCurrentSolverStageDataForCurrentFrame(MidPhase->SolverID, EChaosVDSolverStageAccessorFlags::None);
 
-				AddMidPhaseToParticleIDMap(MidPhase, MidPhase->Particle0Idx, *FrameData);
-				AddMidPhaseToParticleIDMap(MidPhase, MidPhase->Particle1Idx, *FrameData);
-			}
+		if (ensureMsgf(CurrentSolverStage, TEXT("A MidPhase was traced without a valid step scope")))
+		{
+			CurrentSolverStage->RecordedMidPhases.Add(MidPhase);
+
+			AddMidPhaseToParticleIDMap(MidPhase, MidPhase->Particle0Idx, *CurrentSolverStage);
+			AddMidPhaseToParticleIDMap(MidPhase, MidPhase->Particle1Idx, *CurrentSolverStage);
 		}
 	}
 
 	return bSuccess;
 }
 
-void FChaosVDMidPhaseDataProcessor::AddMidPhaseToParticleIDMap(const TSharedPtr<FChaosVDParticlePairMidPhase>& MidPhaseData, int32 ParticleID, FChaosVDSolverFrameData& InFrameData)
+void FChaosVDMidPhaseDataProcessor::AddMidPhaseToParticleIDMap(const TSharedPtr<FChaosVDParticlePairMidPhase>& MidPhaseData, int32 ParticleID, FChaosVDStepData& InSolverStageData)
 {
-	if (TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* ParticleMidPhases = InFrameData.SolverSteps.Last().RecordedMidPhasesByParticleID.Find(ParticleID))
+	if (TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* ParticleMidPhases = InSolverStageData.RecordedMidPhasesByParticleID.Find(ParticleID))
 	{
 		ParticleMidPhases->Add(MidPhaseData);
 	}
 	else
 	{
-		InFrameData.SolverSteps.Last().RecordedMidPhasesByParticleID.Add(ParticleID, { MidPhaseData });
+		InSolverStageData.RecordedMidPhasesByParticleID.Add(ParticleID, { MidPhaseData });
 	}
 }

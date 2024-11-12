@@ -42,6 +42,11 @@ FString FAutomationReport::GetTestParameter() const
 	return TestInfo.GetTestParameter();
 }
 
+FString FAutomationReport::GetTags() const
+{
+	return TestInfo.GetTestTags();
+}
+
 FString FAutomationReport::GetAssetPath() const
 {
 	return TestInfo.GetAssetPath();
@@ -258,7 +263,7 @@ bool FAutomationReport::IsSupported(const int32 ClusterIndex) const
 }
 
 
-uint32 FAutomationReport::GetTestFlags( ) const
+EAutomationTestFlags FAutomationReport::GetTestFlags( ) const
 {
 	return TestInfo.GetTestFlags();
 }
@@ -273,7 +278,7 @@ int32 FAutomationReport::GetSourceFileLine() const
 	return TestInfo.GetSourceFileLine();
 }
 
-void FAutomationReport::SetTestFlags( const uint32 InTestFlags)
+void FAutomationReport::SetTestFlags( const EAutomationTestFlags InTestFlags)
 {
 	TestInfo.AddTestFlags( InTestFlags );
 
@@ -288,9 +293,9 @@ const bool FAutomationReport::IsParent()
 	return bIsParent;
 }
 
-const bool FAutomationReport::IsSmokeTest( )
+const bool FAutomationReport::IsSmokeTest()
 {
-	return GetTestFlags( ) & EAutomationTestFlags::SmokeFilter ? true : false;
+	return !!(GetTestFlags() & EAutomationTestFlags::SmokeFilter);
 }
 
 bool FAutomationReport::SetFilter( TSharedPtr< AutomationFilterCollection > InFilter, const bool ParentPassedFilter )

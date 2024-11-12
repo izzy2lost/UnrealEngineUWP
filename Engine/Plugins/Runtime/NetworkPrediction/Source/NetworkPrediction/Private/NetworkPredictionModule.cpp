@@ -4,6 +4,7 @@
 #include "NetworkPredictionTrace.h"
 #include "String/ParseTokens.h"
 #include "NetworkPredictionModelDefRegistry.h"
+#include "Misc/CoreDelegates.h"
 
 #if WITH_EDITOR
 #include "Editor.h"

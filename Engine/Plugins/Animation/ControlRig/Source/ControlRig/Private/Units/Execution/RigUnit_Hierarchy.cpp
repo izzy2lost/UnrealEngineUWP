@@ -11,29 +11,39 @@ FRigUnit_HierarchyGetParent_Execute()
 {
     DECLARE_SCOPE_HIERARCHICAL_COUNTER_RIGUNIT()
 
-	if(CachedChild.IsIdentical(Child, ExecuteContext.Hierarchy))
+	if (bDefaultParent)
 	{
-		Parent = CachedParent.GetKey();
+		if(CachedChild.IsIdentical(Child, ExecuteContext.Hierarchy))
+		{
+			Parent = CachedParent.GetKey();
+		}
+		else
+		{
+			Parent.Reset();
+			CachedParent.Reset();
+
+			if(CachedChild.UpdateCache(Child, ExecuteContext.Hierarchy))
+			{
+				Parent = ExecuteContext.Hierarchy->GetFirstParent(CachedChild.GetResolvedKey());
+				if(Parent.IsValid())
+				{
+					CachedParent.UpdateCache(Parent, ExecuteContext.Hierarchy);
+				}
+			}
+		}
 	}
 	else
 	{
-		Parent.Reset();
-		CachedParent.Reset();
+		CachedChild.UpdateCache(Child, ExecuteContext.Hierarchy);
+		const FRigElementKey& ChildKey = CachedChild.GetResolvedKey();
 
-		if(CachedChild.UpdateCache(Child, ExecuteContext.Hierarchy))
-		{
-			Parent = ExecuteContext.Hierarchy->GetFirstParent(CachedChild.GetResolvedKey());
-			if(Parent.IsValid())
-			{
-				CachedParent.UpdateCache(Parent, ExecuteContext.Hierarchy);
-			}
-		}
+		Parent = ExecuteContext.Hierarchy->GetActiveParent(ChildKey, false);
 	}
 }
 
 FRigUnit_HierarchyGetParents_Execute()
 {
-	FRigUnit_HierarchyGetParentsItemArray::StaticExecute(ExecuteContext, Child, bIncludeChild, bReverse, Parents.Keys, CachedChild, CachedParents);
+	FRigUnit_HierarchyGetParentsItemArray::StaticExecute(ExecuteContext, Child, bIncludeChild, bReverse, true, Parents.Keys, CachedChild, CachedParents);
 }
 
 FRigVMStructUpgradeInfo FRigUnit_HierarchyGetParents::GetUpgradeInfo() const
@@ -50,33 +60,61 @@ FRigUnit_HierarchyGetParentsItemArray_Execute()
 {
     DECLARE_SCOPE_HIERARCHICAL_COUNTER_RIGUNIT()
 
-	if(!CachedChild.IsIdentical(Child, ExecuteContext.Hierarchy))
+	if (bDefaultParent)
 	{
-		CachedParents.Reset();
-
-		if(CachedChild.UpdateCache(Child, ExecuteContext.Hierarchy))
+		if(!CachedChild.IsIdentical(Child, ExecuteContext.Hierarchy))
 		{
-			TArray<FRigElementKey> Keys;
-			FRigElementKey Parent = CachedChild.GetResolvedKey();
-			do
-			{
-				if(bIncludeChild || Parent != Child)
-				{
-					Keys.Add(Parent);
-				}
-				Parent = ExecuteContext.Hierarchy->GetFirstParent(Parent);
-			}
-			while(Parent.IsValid());
+			CachedParents.Reset();
 
-			CachedParents = FRigElementKeyCollection(Keys);
-			if(bReverse)
+			if(CachedChild.UpdateCache(Child, ExecuteContext.Hierarchy))
 			{
-				CachedParents = FRigElementKeyCollection::MakeReversed(CachedParents);
+				TArray<FRigElementKey> Keys;
+				FRigElementKey Parent = CachedChild.GetResolvedKey();
+				do
+				{
+					if(bIncludeChild || Parent != Child)
+					{
+						Keys.Add(Parent);
+					}
+					Parent = ExecuteContext.Hierarchy->GetFirstParent(Parent);
+				}
+				while(Parent.IsValid());
+
+				CachedParents = FRigElementKeyCollection(Keys);
+				if(bReverse)
+				{
+					CachedParents = FRigElementKeyCollection::MakeReversed(CachedParents);
+				}
 			}
 		}
-	}
 
-	Parents = CachedParents.Keys;
+		Parents = CachedParents.Keys;
+	}
+	else
+	{
+		CachedChild.UpdateCache(Child, ExecuteContext.Hierarchy);
+
+		TArray<FRigElementKey> Keys;
+		FRigElementKey Parent = CachedChild.GetResolvedKey();
+		do
+		{
+			if(bIncludeChild || Parent != Child)
+			{
+				Keys.Add(Parent);
+			}
+			const FRigElementKey PreviousParent = Parent;
+
+			Parent = ExecuteContext.Hierarchy->GetActiveParent(Parent, false);
+		}
+		while(Parent.IsValid());
+
+		if(bReverse)
+		{
+			Algo::Reverse(Keys);
+		}
+
+		Parents = Keys;
+	}
 }
 
 FRigUnit_HierarchyGetChildren_Execute()
@@ -119,7 +157,7 @@ FRigVMStructUpgradeInfo FRigUnit_HierarchyGetChildren::GetUpgradeInfo() const
 
 FRigUnit_HierarchyGetSiblings_Execute()
 {
-	FRigUnit_HierarchyGetSiblingsItemArray::StaticExecute(ExecuteContext, Item, bIncludeItem, Siblings.Keys, CachedItem, CachedSiblings);
+	FRigUnit_HierarchyGetSiblingsItemArray::StaticExecute(ExecuteContext, Item, bIncludeItem, true, Siblings.Keys, CachedItem, CachedSiblings);
 }
 
 FRigVMStructUpgradeInfo FRigUnit_HierarchyGetSiblings::GetUpgradeInfo() const
@@ -134,37 +172,60 @@ FRigUnit_HierarchyGetSiblingsItemArray_Execute()
 {
     DECLARE_SCOPE_HIERARCHICAL_COUNTER_RIGUNIT()
 
-	if(!CachedItem.IsIdentical(Item, ExecuteContext.Hierarchy))
+	if (bDefaultSiblings)
 	{
-		CachedSiblings.Reset();
-
-		if(CachedItem.UpdateCache(Item, ExecuteContext.Hierarchy))
+		if(!CachedItem.IsIdentical(Item, ExecuteContext.Hierarchy))
 		{
-			TArray<FRigElementKey> Keys;
+			CachedSiblings.Reset();
 
-			FRigElementKey Parent = ExecuteContext.Hierarchy->GetFirstParent(CachedItem.GetResolvedKey());
-			if(Parent.IsValid())
+			if(CachedItem.UpdateCache(Item, ExecuteContext.Hierarchy))
 			{
-				TArray<FRigElementKey> Children = ExecuteContext.Hierarchy->GetChildren(Parent, false);
-				for(FRigElementKey Child : Children)
+				TArray<FRigElementKey> Keys;
+
+				FRigElementKey Parent = ExecuteContext.Hierarchy->GetFirstParent(CachedItem.GetResolvedKey());
+				if(Parent.IsValid())
 				{
-					if(bIncludeItem || Child != Item)
+					TArray<FRigElementKey> Children = ExecuteContext.Hierarchy->GetChildren(Parent, false);
+					for(FRigElementKey Child : Children)
 					{
-						Keys.Add(Child);
+						if(bIncludeItem || Child != Item)
+						{
+							Keys.Add(Child);
+						}
 					}
 				}
-			}
 
-			if(Keys.Num() == 0 && bIncludeItem)
-			{
-				Keys.Add(Item);
-			}
+				if(Keys.Num() == 0 && bIncludeItem)
+				{
+					Keys.Add(Item);
+				}
 
-			CachedSiblings = FRigElementKeyCollection(Keys);
+				CachedSiblings = FRigElementKeyCollection(Keys);
+			}
+		}
+
+		Siblings = CachedSiblings.Keys;
+	}
+	else
+	{
+		Siblings.Reset();
+		
+		const URigHierarchy* Hierarchy = ExecuteContext.Hierarchy;
+		FRigElementKey ParentKey = Hierarchy->GetActiveParent(Item, false);
+
+		if (!ParentKey.IsValid())
+		{
+			ParentKey = URigHierarchy::GetWorldSpaceReferenceKey();
+		}
+
+		FRigBaseElementChildrenArray SiblingsPtrs = Hierarchy->GetActiveChildren(Hierarchy->Find(ParentKey), false);
+		Algo::Transform(SiblingsPtrs, Siblings, [](const FRigBaseElement* Element) { return Element->GetKey(); });
+
+		if (!bIncludeItem)
+		{
+			Siblings.Remove(Item);
 		}
 	}
-
-	Siblings = CachedSiblings.Keys;
 }
 
 FRigUnit_HierarchyGetChainItemArray_Execute()
@@ -649,3 +710,48 @@ FRigUnit_PoseLoop_Execute()
 	Ratio = GetRatioFromIndex(Index, Count);
 }
 
+FRigUnit_HierarchyCreatePoseItemArray_Execute()
+{
+	const URigHierarchy* Hierarchy = ExecuteContext.Hierarchy;
+	if(Hierarchy == nullptr)
+	{
+		Pose.Reset();
+		return;
+	}
+	
+	Pose.Elements.Reset(Entries.Num());
+	Pose.HierarchyTopologyVersion = Hierarchy->GetTopologyVersion();
+	Pose.PoseHash = Pose.HierarchyTopologyVersion;
+
+	for(const FRigUnit_HierarchyCreatePoseItemArray_Entry& Entry : Entries)
+	{
+		if(const FRigTransformElement* TransformElement = Hierarchy->Find<FRigTransformElement>(Entry.Item))
+		{
+			const FRigElementKey& Key = Entry.Item;
+			FRigPoseElement Element;
+			Element.Index = FCachedRigElement(Key, Hierarchy);
+			Element.ActiveParent = Hierarchy->GetActiveParent(Key);
+			Element.LocalTransform = Entry.LocalTransform;
+			Element.GlobalTransform = Entry.GlobalTransform;
+			Element.CurveValue = Entry.CurveValue;
+			Element.PreferredEulerAngle = FVector::ZeroVector;
+
+			if(const FRigControlElement* ControlElement = Cast<FRigControlElement>(TransformElement))
+			{
+				if(Entry.UseEulerAngles)
+				{
+					Element.PreferredEulerAngle = Entry.EulerAngles;
+				}
+				else
+				{
+					FRigPreferredEulerAngles EulerAngles = ControlElement->PreferredEulerAngles;
+					EulerAngles.SetRotator(Entry.LocalTransform.Rotator(), false, false);
+					Element.PreferredEulerAngle = EulerAngles.GetAngles(false, EulerAngles.RotationOrder); 
+				}
+			}
+
+			Pose.Elements.Add(Element);
+			Pose.PoseHash = HashCombine(Pose.PoseHash, GetTypeHash(Key));
+		}
+	}
+}

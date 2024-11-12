@@ -34,6 +34,13 @@ namespace BuildPatchServices
 		 * @return the set of chunks available.
 		 */
 		virtual const TSet<FGuid>& GetAvailableChunks() const = 0;
+
+		// Fill out how many bytes of chunkdbs are left if we delete all the ones that
+		// are no longer necessary at the given FileCompletionIndexes in to ChunkAccessOrderedList
+		static uint64 GetChunkDbSizesAtIndexes(const TArray<FString>& ChunkDbFiles, IFileSystem* FileSystem, const TArray<FGuid>& ChunkAccessOrderedList, const TArray<int32>& FileCompletionIndexes, TArray<uint64>& OutChunkDbSizesAtCompletion);
+
+		// As above, except use the remaining open chunkdbs for progressive disk space checking.		
+		virtual uint64 GetChunkDbSizesAtIndexes(const TArray<int32>& FileCompletionIndexes, TArray<uint64>& OutChunkDbSizesAtCompletion) const = 0;
 	};
 
 	/**
@@ -54,6 +61,9 @@ namespace BuildPatchServices
 		bool bBeginLoadsOnFirstGet = true;
 		// The context for allocating shared resources.
 		IBuildInstallerSharedContext* SharedContext = nullptr;
+
+		// If true, once we complete a file we delete all the chunkdbs used to create it.
+		bool bDeleteChunkDBAfterUse = false;
 
 		/**
 		 * Constructor which sets usual defaults, and takes params for values that cannot use a default.

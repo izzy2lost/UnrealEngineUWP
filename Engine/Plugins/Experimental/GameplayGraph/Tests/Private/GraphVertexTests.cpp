@@ -248,8 +248,9 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Vertex::Event::Remove", "[graph][ver
 		UGraphVertex* Vertex = VertexHandle.GetVertex();
 		REQUIRE(Vertex != nullptr);
 		Vertex->OnVertexRemoved.AddLambda(
-			[Index, &VertexRemoved]()
+			[Vertex, Index, &VertexRemoved](const FGraphVertexHandle& Handle)
 			{
+				CHECK(Vertex->Handle() == Handle);
 				VertexRemoved[Index] = true;
 			}
 		);
@@ -291,8 +292,9 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Vertex::Event::Parent Island Set", "
 		UGraphVertex* Vertex = VertexHandle.GetVertex();
 		REQUIRE(Vertex != nullptr);
 		Vertex->OnParentIslandSet.AddLambda(
-			[Index, &VertexIslandSet](const FGraphIslandHandle& IslandHandle)
+			[Vertex, Index, &VertexIslandSet](const FGraphVertexHandle& VertexHandle, const FGraphIslandHandle& IslandHandle)
 			{
+				CHECK(Vertex->Handle() == VertexHandle);
 				VertexIslandSet[Index] = IslandHandle;
 			}
 		);

@@ -8,6 +8,7 @@
 #include "EngineModule.h"
 #include "UObject/Linker.h"
 #include "HAL/PlatformFileManager.h"
+#include "Engine/CoreSettings.h"
 #include "Engine/World.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
@@ -137,8 +138,7 @@ bool UWorldPartitionBuilder::RunBuilder(UWorld* World)
 		}
 		else
 		{
-			UE_LOG(LogWorldPartitionBuilder, Error, TEXT("WorldPartition builders only works on partitioned maps."));
-			bResult = false;
+			UE_LOG(LogWorldPartitionBuilder, Warning, TEXT("WorldPartition builder '%s' only works on partitioned worlds - skipping processing of '%s'."), *GetClass()->GetName(), *World->GetPathName());
 		}
 	}
 
@@ -170,6 +170,11 @@ FWorldBuilderCellCoord FCellInfo::GetCellCount(const FBox& InBounds, const int32
 
 bool UWorldPartitionBuilder::Run(UWorld* World, FPackageSourceControlHelper& PackageHelper)
 {
+	// As we manage GC frequency ourselves during builds, make sure to turn off automated GC based on other settings
+	TGuardValue<int32> Guard_GLevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurge(GLevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurge, 0);
+	TGuardValue<int32> Guard_GLevelStreamingLowMemoryPendingPurgeCount(GLevelStreamingLowMemoryPendingPurgeCount, MAX_int32);
+	TGuardValue<int32> Guard_GLevelStreamingForceGCAfterLevelStreamedOut(GLevelStreamingForceGCAfterLevelStreamedOut, 0);
+
 	UWorldPartition* WorldPartition = World->GetWorldPartition();
 	check(WorldPartition || CanProcessNonPartitionedWorlds());
 
@@ -364,6 +369,12 @@ bool UWorldPartitionBuilder::SavePackages(const TArray<UPackage*>& Packages, FPa
 				return false;
 			}
 		}
+	}
+
+	// Load existing thumbnails to be able to resave them properly
+	for (UPackage* PackageToSave : Packages)
+	{
+		EnsureLoadingComplete(PackageToSave);
 	}
 
 	ResetLoaders(TArray<UObject*>(Packages));

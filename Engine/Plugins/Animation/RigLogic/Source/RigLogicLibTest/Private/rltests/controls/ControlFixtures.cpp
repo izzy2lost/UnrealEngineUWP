@@ -9,13 +9,15 @@
 rl4::ControlsInputInstance::Factory ControlsFactory::getInstanceFactory(std::uint16_t guiControlCount,
                                                                         std::uint16_t rawControlCount,
                                                                         std::uint16_t psdControlCount,
-                                                                        std::uint16_t mlControlCount) {
+                                                                        std::uint16_t mlControlCount,
+                                                                        std::uint16_t rbfControlCount) {
     return [ = ](rl4::MemoryResource* memRes) {
                return pma::UniqueInstance<rl4::StandardControlsInputInstance, rl4::ControlsInputInstance>::with(memRes).create(
                    guiControlCount,
                    rawControlCount,
                    psdControlCount,
                    mlControlCount,
+                   rbfControlCount,
                    memRes);
     };
 }

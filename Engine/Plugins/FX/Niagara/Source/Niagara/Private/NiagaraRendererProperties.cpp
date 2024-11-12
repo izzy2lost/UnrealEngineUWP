@@ -12,6 +12,7 @@
 #include "NiagaraSystemImpl.h"
 
 #include "Stateless/NiagaraStatelessEmitter.h"
+#include "Stateless/Modules/NiagaraStatelessModule_DynamicMaterialParameters.h"
 
 #include "Interfaces/ITargetPlatform.h"
 #include "Materials/MaterialInterface.h"
@@ -156,8 +157,8 @@ bool FNiagaraRendererLayout::SetVariable(const FNiagaraDataSetCompiledData* Comp
 		{
 			//For CPU Sims we pack just the required data tightly in a GPU buffer we upload. For GPU sims the data is there already so we just provide the real data location.
 			GPULocation = CompiledData->SimTarget == ENiagaraSimTarget::CPUSim ? TotalVFComponents : Offset;
-			check(int32(TotalVFComponents ) + NumComponents <= TNumericLimits<uint16>::Max());
-			TotalVFComponents += NumComponents;
+			check(static_cast<int32>(TotalVFComponents) + NumComponents <= TNumericLimits<uint16>::Max());
+			TotalVFComponents += static_cast<uint16>(NumComponents);
 		}
 	}
 
@@ -601,7 +602,7 @@ void UNiagaraRendererProperties::UpdateMaterialParametersMIC(const FNiagaraRende
 				if (ExistingIndex != INDEX_NONE)
 				{
 					MIC = MICPool[ExistingIndex];
-					MICPool.RemoveAtSwap(ExistingIndex, 1, EAllowShrinking::No);
+					MICPool.RemoveAtSwap(ExistingIndex, EAllowShrinking::No);
 				}
 				else
 				{
@@ -642,30 +643,75 @@ void UNiagaraRendererProperties::UpdateMaterialParametersMIC(const FNiagaraRende
 
 int32 UNiagaraRendererProperties::GetDynamicParameterChannelMask(const FVersionedNiagaraEmitterData* EmitterData, FName BindingName, int32 DefaultChannelMask) const
 {
-	if (EmitterData == nullptr)
+	if (EmitterData == nullptr || BindingName.IsNone())
 	{
-		return DefaultChannelMask;
+		return 0;
 	}
 
 	TOptional<int32> ChannelMask;
+
+	// We store the mask per script type to avoid static variable name collisions so we need to search by Particles.*.DynamicParameterChannelMask
+	FNameBuilder BindingNameSearch;
+	BindingName.ToString(BindingNameSearch);
+	int32 NamespaceLocation = INDEX_NONE;
+	if (!BindingNameSearch.ToView().FindChar('.', NamespaceLocation))
+	{
+		return DefaultChannelMask;
+	}
+	BindingNameSearch.Append(TEXT("ChannelMask"));
+
+	FStringView BindingNamePrefix = BindingNameSearch.ToView().Mid(0, NamespaceLocation + 1);
+	FStringView BindingNamePostfix = BindingNameSearch.ToView().Mid(NamespaceLocation, BindingNameSearch.ToView().Len() - NamespaceLocation);
+
 	EmitterData->ForEachScript(
-		[&ChannelMask, &BindingName](const UNiagaraScript* NiagaraScript)
+		[&ChannelMask, &BindingNamePrefix, &BindingNamePostfix](const UNiagaraScript* NiagaraScript)
 		{
+			const FNiagaraTypeDefinition VariableTypeDef = FNiagaraTypeDefinition::GetIntDef().ToStaticDef();
+
 			const FNiagaraVMExecutableData& VMExecData = NiagaraScript->GetVMExecutableData();
-
-			FNameBuilder NameBuilder;
-			BindingName.ToString(NameBuilder);
-			NameBuilder.Append(TEXT("ChannelMask"));
-
-			const FNiagaraVariableBase ChannelMaskVariable(FNiagaraTypeDefinition::GetIntDef().ToStaticDef(), FName(NameBuilder));
-			TOptional<int32> ChannelMaskValue = NiagaraScript->GetCompiledStaticVariableValue<int32>(ChannelMaskVariable);
-			if (ChannelMaskValue.IsSet())
+			for (const FNiagaraVariable& StaticVariable : VMExecData.StaticVariablesWritten)
 			{
-				ChannelMask = ChannelMask.Get(0) | ChannelMaskValue.GetValue();
+				if (StaticVariable.GetType() != VariableTypeDef || !StaticVariable.IsDataAllocated())
+				{
+					continue;
+				}
+
+				FNameBuilder VariableName;
+				StaticVariable.GetName().ToString(VariableName);
+				if (VariableName.ToView().StartsWith(BindingNamePrefix) && VariableName.ToView().EndsWith(BindingNamePostfix))
+				{
+					ChannelMask = ChannelMask.Get(0) | StaticVariable.GetValue<int32>();
+				}
 			}
 		}
 	);
 	return ChannelMask.Get(DefaultChannelMask);
+}
+
+int32 UNiagaraRendererProperties::GetDynamicParameterCombinedChannelMask(FName Parameter0Name, FName Parameter1Name, FName Parameter2Name, FName Parameter3Name) const
+{
+	const FVersionedNiagaraEmitterData* EmitterData = GetEmitterData();
+	int32 CombinedChannelMask = 0;
+	if (EmitterData == nullptr)
+	{
+		// This is a bit clunky but we no relationship to do this in a more agnostic way at the moment
+		// We could pass down the owner emitter handle to CacheFromCompiledData.
+		if (const UNiagaraStatelessEmitter* StatelessEmitter = GetTypedOuter<UNiagaraStatelessEmitter>())
+		{
+			if (const UNiagaraStatelessModule_DynamicMaterialParameters* DynamicParameterModule = StatelessEmitter->GetModule<UNiagaraStatelessModule_DynamicMaterialParameters>())
+			{
+				CombinedChannelMask = DynamicParameterModule->GetRendererChannelMask();
+			}
+		}
+	}
+	else
+	{
+		CombinedChannelMask |= GetDynamicParameterChannelMask(EmitterData, Parameter0Name, 0xf) << 0;
+		CombinedChannelMask |= GetDynamicParameterChannelMask(EmitterData, Parameter1Name, 0xf) << 4;
+		CombinedChannelMask |= GetDynamicParameterChannelMask(EmitterData, Parameter2Name, 0xf) << 8;
+		CombinedChannelMask |= GetDynamicParameterChannelMask(EmitterData, Parameter3Name, 0xf) << 12;
+	}
+	return CombinedChannelMask;
 }
 
 FNiagaraVariable UNiagaraRendererProperties::GetBoundAttribute(const FNiagaraVariableAttributeBinding* Binding) const

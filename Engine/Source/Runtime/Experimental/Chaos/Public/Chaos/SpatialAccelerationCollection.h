@@ -10,6 +10,8 @@
 
 #include <tuple>
 
+class FChaosVDDataWrapperUtils;
+
 namespace Chaos
 {
 
@@ -806,6 +808,8 @@ private:
 	BucketType Buckets[MaxBuckets];
 	TSpatialTypeTuple< TSpatialAccelerationTypes...> Types; // Have buckets of acceleration structure pointers
 	static constexpr uint32 NumTypes = sizeof...(TSpatialAccelerationTypes);
+
+	friend ::FChaosVDDataWrapperUtils;
 };
 
 

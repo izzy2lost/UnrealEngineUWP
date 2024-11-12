@@ -26,8 +26,8 @@
 #include "RHIStaticStates.h"
 #include "MediaShaders.h"
 #include "PipelineStateCache.h"
-#include "ColorManagementDefines.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorManagementDefines.h"
+#include "ColorManagement/ColorSpace.h"
 
 REGISTER_TYPEID(FVideoContextRHI);
 REGISTER_TYPEID(FVideoResourceRHI);
@@ -142,8 +142,13 @@ TSharedPtr<FVideoResourceRHI> FVideoResourceRHI::Create(TSharedPtr<FAVDevice> co
 		FRHITextureCreateDesc TextureDesc = FRHITextureCreateDesc::Create2D(TEXT("AVCodecs Resource"), Descriptor.Width, Descriptor.Height, static_cast<EPixelFormat>(Descriptor.Format));
 
 		TextureDesc.SetClearValue(FClearValueBinding::None);
+#if AVCODECS_USE_METAL
+		TextureDesc.SetFlags(ETextureCreateFlags::CPUReadback);
+		TextureDesc.SetInitialState(ERHIAccess::CPURead);
+#else
     	TextureDesc.SetFlags(ETextureCreateFlags::RenderTargetable);
 		TextureDesc.SetInitialState(ERHIAccess::Present);
+#endif
 
 		TextureDesc.SetNumMips(1);
 
@@ -154,11 +159,6 @@ TSharedPtr<FVideoResourceRHI> FVideoResourceRHI::Create(TSharedPtr<FAVDevice> co
 		else
 		{
 			TextureDesc.AddFlags(ETextureCreateFlags::Shared);
-		}
-
-		if(bIsSRGB)
-		{
-			TextureDesc.AddFlags(ETextureCreateFlags::SRGB);
 		}
 
 		TextureDesc.AddFlags(AdditionalFlags);
@@ -196,13 +196,37 @@ TSharedPtr<FVideoResourceRHI> FVideoResourceRHI::Create(TSharedPtr<FAVDevice> co
         case EVideoFormat::BGRA:
 			TextureDesc.Format = EPixelFormat::PF_B8G8R8A8;
 			Descriptor.RawDescriptor = new FVideoDescriptor(EVideoFormat::BGRA, TextureDesc.Extent.X, TextureDesc.Extent.Y);
+			// Only BGRA can be directly displayed and could need sRGB adjustment, setting this for all formats triggers a check		
+			// in VulkanRHI
+			if (bIsSRGB)
+			{
+				TextureDesc.AddFlags(ETextureCreateFlags::SRGB);
+			}
 			break;
 		default:
 			break;
 		}
 
-//TODO-TE THIS IS THE REAL DEAL?
-		return MakeShareable(new FVideoResourceRHI(Device.ToSharedRef(), { GDynamicRHI->RHICreateTexture(FRHICommandListExecutor::GetImmediateCommandList(), TextureDesc), nullptr, 0 }, Descriptor));
+		// We have to add a fence here as VulkanRHI adds a fill to the command buffer that might not be dispatched until
+		// after a external decoder API has already copied to the texture. If we had access to Signal Semaphores they could
+		// instead be shared to the other APIs instead.
+		FGPUFenceRHIRef Fence = GDynamicRHI->RHICreateGPUFence("CreateVideoResourceRHI");
+		
+		// There seems to be an intermitant bug with VulkanRHI that results in crahes if we dont enque the allocation 
+		// of this texture
+		FTextureRHIRef Texture;
+		ENQUEUE_RENDER_COMMAND(CreateTexture)
+			([&Texture, TextureDesc, Fence](FRHICommandListImmediate& RHICmdList) {
+				Texture = GDynamicRHI->RHICreateTexture(RHICmdList, TextureDesc);
+				RHICmdList.WriteGPUFence(Fence);
+				});
+
+		while (!Fence->Poll()) {
+			constexpr float SleepTimeSeconds = 50 * 1E-6;
+			FPlatformProcess::SleepNoStats(SleepTimeSeconds);
+		}
+
+		return MakeShareable(new FVideoResourceRHI(Device.ToSharedRef(), { Texture, nullptr, 0 }, Descriptor));
 	}
 
 	return nullptr;
@@ -320,7 +344,6 @@ TSharedPtr<FVideoResourceRHI> FVideoResourceRHI::TransformResource(FVideoDescrip
 				([Source = GetRaw().Texture, Dest = OutResource->GetRaw().Texture](FRHICommandListImmediate& RHICmdList) {
 
 					SCOPED_DRAW_EVENT(RHICmdList, FVideoResourceRHI_NV12toBGRA);
-					//SCOPED_GPU_STAT(RHICmdList, VideoResouceRHI);
 
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
 					RHICmdList.Transition(FRHITransitionInfo(Dest, ERHIAccess::Unknown, ERHIAccess::RTV));
@@ -390,7 +413,6 @@ void FVideoResourceRHI::TransformResourceTo(FRHICommandListImmediate& RHICmdList
 		if (GetFormat() == EVideoFormat::NV12 && Target->GetDesc().Format == EVideoFormat::BGRA)
 		{
 				SCOPED_DRAW_EVENT(RHICmdList, FVideoResourceRHI_NV12toBGRA);
-				//SCOPED_GPU_STAT(RHICmdList, VideoResouceRHI);
 
 				FGraphicsPipelineStateInitializer GraphicsPSOInit;
 				RHICmdList.Transition(FRHITransitionInfo(Target, ERHIAccess::Unknown, ERHIAccess::RTV));

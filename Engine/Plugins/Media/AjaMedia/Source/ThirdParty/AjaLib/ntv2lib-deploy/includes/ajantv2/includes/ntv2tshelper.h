@@ -2,7 +2,7 @@
 /**
 	@file		ntv2tshelper.h
 	@brief		Declares Transport Stream helper classes.
-	@copyright	(C) 2008-2021 AJA Video Systems, Inc.
+	@copyright	(C) 2008-2022 AJA Video Systems, Inc.
 **/
 
 #ifndef NTV2TSHELPER_H
@@ -40,6 +40,18 @@
 	#endif
 
 #elif defined(AJAMac)
+
+	#if (KIPDPRINT==0)
+		// no log
+		#define kipdprintf(_format_...)
+
+	#elif (KIPDPRINT==1)
+		// printf
+		#include <stdio.h>
+		#define kipdprintf(_format_...) printf(_format_)
+	#endif
+
+#elif defined(AJABareMetal)
 
 	#if (KIPDPRINT==0)
 		// no log

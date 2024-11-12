@@ -6,6 +6,9 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
+#include "Templates/TypeHash.h"
+
 struct FMetalCompiledShaderKey
 {
 	FMetalCompiledShaderKey(uint32 InCodeSize, uint32 InCodeCRC, uint32 InConstants)

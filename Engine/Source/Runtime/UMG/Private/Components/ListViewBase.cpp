@@ -73,6 +73,14 @@ void UListViewBase::SetScrollOffset(const float InScrollOffset)
 	}
 }
 
+void UListViewBase::EndInertialScrolling() 
+{
+	if (MyTableViewBase.IsValid())
+	{
+		MyTableViewBase->EndInertialScrolling();
+	}
+}
+
 void UListViewBase::SetWheelScrollMultiplier(float NewWheelScrollMultiplier)
 {
 	WheelScrollMultiplier = NewWheelScrollMultiplier;
@@ -96,6 +104,15 @@ UMG_API void UListViewBase::SetIsPointerScrollingEnabled(bool bInIsPointerScroll
 	if (MyTableViewBase)
 	{
 		MyTableViewBase->SetIsPointerScrollingEnabled(bInIsPointerScrollingEnabled);
+	}
+}
+
+UMG_API void UListViewBase::SetIsGamepadScrollingEnabled(bool bInIsGamepadScrollingEnabled)
+{
+	bIsGamepadScrollingEnabled = bInIsGamepadScrollingEnabled;
+	if (MyTableViewBase)
+	{
+		MyTableViewBase->SetIsGamepadScrollingEnabled(bInIsGamepadScrollingEnabled);
 	}
 }
 
@@ -145,6 +162,7 @@ TSharedRef<SWidget> UListViewBase::RebuildWidget()
 
 	MyTableViewBase = RebuildListWidget();
 	MyTableViewBase->SetIsScrollAnimationEnabled(bEnableScrollAnimation);
+	MyTableViewBase->SetScrollingAnimationInterpolationSpeed(ScrollingAnimationInterpolationSpeed);
 	MyTableViewBase->SetEnableTouchAnimatedScrolling(bInEnableTouchAnimatedScrolling);
 	MyTableViewBase->SetIsRightClickScrollingEnabled(bEnableRightClickScrolling);
 	MyTableViewBase->SetIsTouchScrollingEnabled(bEnableTouchScrolling);
@@ -171,6 +189,7 @@ void UListViewBase::SynchronizeProperties()
 	if (MyTableViewBase)
 	{
 		MyTableViewBase->SetIsScrollAnimationEnabled(bEnableScrollAnimation);
+		MyTableViewBase->SetScrollingAnimationInterpolationSpeed(ScrollingAnimationInterpolationSpeed);
 		MyTableViewBase->SetEnableTouchAnimatedScrolling(bInEnableTouchAnimatedScrolling);
 		MyTableViewBase->SetIsRightClickScrollingEnabled(bEnableRightClickScrolling);
 		MyTableViewBase->SetIsTouchScrollingEnabled(bEnableTouchScrolling);

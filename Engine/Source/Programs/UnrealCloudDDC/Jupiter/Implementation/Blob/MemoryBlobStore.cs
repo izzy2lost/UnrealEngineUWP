@@ -80,7 +80,7 @@ namespace Jupiter.Implementation
 		public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false)
 		{
 			BlobContents? contents = await GetBackend(ns).TryReadAsync(GetPath(blob), flags);
-			if(contents == null)
+			if (contents == null)
 			{
 				throw new BlobNotFoundException(ns, blob);
 			}
@@ -88,6 +88,16 @@ namespace Jupiter.Implementation
 		}
 
 		public Task DeleteObjectAsync(NamespaceId ns, BlobId blob) => GetBackend(ns).DeleteAsync(GetPath(blob));
+
+		public Task DeleteObjectAsync(IEnumerable<NamespaceId> namespaces, BlobId blob)
+		{
+			foreach (NamespaceId ns in namespaces)
+			{
+				DeleteObjectAsync(ns, blob);
+			}
+
+			return Task.CompletedTask;
+		}
 
 		public Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, bool forceCheck = false) => GetBackend(ns).ExistsAsync(GetPath(blob));
 
@@ -100,7 +110,7 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public async IAsyncEnumerable<(BlobId,DateTime)> ListObjectsAsync(NamespaceId ns)
+		public async IAsyncEnumerable<(BlobId, DateTime)> ListObjectsAsync(NamespaceId ns)
 		{
 			IStorageBackend backend = GetBackend(ns);
 			await foreach ((string path, DateTime time) in backend.ListAsync())
@@ -153,7 +163,7 @@ namespace Jupiter.Implementation
 
 		public async Task WriteAsync(string path, Stream stream, CancellationToken cancellationToken)
 		{
-			byte[] blob = await stream.ToByteArrayAsync();
+			byte[] blob = await stream.ToByteArrayAsync(cancellationToken);
 
 			// we do not split the blob into smaller parts when storing in memory, this is only for test purposes
 			// so there is no need to add that complexity

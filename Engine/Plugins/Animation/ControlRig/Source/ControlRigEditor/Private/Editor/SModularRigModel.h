@@ -50,9 +50,13 @@ private:
 
 	/** SWidget interface */
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent);
+	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 
 	/** Rebuild the tree view */
 	void RefreshTreeView(bool bRebuildContent = true);
+
+	/** Returns all selected items */
+	TArray<TSharedPtr<FModularRigTreeElement>> GetSelectedItems() const;
 
 	/** Return all selected keys */
 	TArray<FString> GetSelectedKeys() const;
@@ -82,6 +86,11 @@ private:
 	void HandleReresolveModules();
 	void HandleReresolveModules(const TArray<FString>& InPaths);
 
+	/** Swap module class for items */
+	bool CanSwapModules() const;
+	void HandleSwapClassForModules();
+	void HandleSwapClassForModules(const TArray<FString>& InPaths);
+
 	/** Resolve connector */
 	void HandleConnectorResolved(const FRigElementKey& InConnector, const FRigElementKey& InTarget);
 
@@ -89,7 +98,7 @@ private:
 	void HandleConnectorDisconnect(const FRigElementKey& InConnector);
 
 	/** Set Selection Changed */
-	void OnSelectionChanged(TSharedPtr<FModularRigTreeElement> Selection, ESelectInfo::Type SelectInfo);
+	void HandleSelectionChanged(TSharedPtr<FModularRigTreeElement> Selection, ESelectInfo::Type SelectInfo);
 
 	TSharedPtr< SWidget > CreateContextMenuWidget();
 	void OnItemClicked(TSharedPtr<FModularRigTreeElement> InItem);
@@ -135,10 +144,22 @@ private:
 	void OnRequestDetailsInspection(const FString& InKey);
 	void HandlePreCompileModularRigs(URigVMBlueprint* InBlueprint);
 	void HandlePostCompileModularRigs(URigVMBlueprint* InBlueprint);
+	void OnModularRigModified(EModularRigNotification InNotif, const FRigModuleReference* InModule);
 	void OnHierarchyModified(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 
 	void HandleRefreshEditorFromBlueprint(URigVMBlueprint* InBlueprint);
 	void HandleSetObjectBeingDebugged(UObject* InObject);
+
+	TSharedRef<SWidget> OnGetOptionsMenu();
+	void OnFilterTextChanged(const FText& SearchText);
+
+	bool bShowSecondaryConnectors;
+	bool bShowOptionalConnectors;
+	bool bShowUnresolvedConnectors;
+	FText FilterText;
+
+	TSharedPtr<SSearchBox> FilterBox;
+	bool bIsPerformingSelection;
 
 public:
 

@@ -4,6 +4,7 @@
 
 #include "Playable/AvaPlayable.h"
 #include "Playable/Playables/AvaPlayableRemoteProxy.h"
+#include "Playback/AvaPlaybackUtils.h"
 
 namespace UE::AvaPlayableTransition::Private
 {
@@ -74,7 +75,7 @@ namespace UE::AvaPlayableTransition::Private
 			return FString::Printf(TEXT("Id:%s, Asset:%s, Status:%s"),
 				*InPlayable->GetInstanceId().ToString(),
 				*InPlayable->GetSourceAssetPath().ToString(),
-				*StaticEnum<EAvaPlayableStatus>()->GetNameByValue(static_cast<int32>(InPlayable->GetPlayableStatus())).ToString());
+				*AvaPlayback::Utils::StaticEnumToString(InPlayable->GetPlayableStatus()));
 		}
 		return TEXT("(nullptr)");
 	}

@@ -6,8 +6,8 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
 using Jupiter.Controllers;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -17,7 +17,7 @@ using Serilog.Core;
 namespace Jupiter.FunctionalTests.Status
 {
 	[TestClass]
-	public class StatusTests: IDisposable
+	public class StatusTests : IDisposable
 	{
 		private HttpClient? _httpClient;
 		private TestServer? _server;
@@ -82,7 +82,6 @@ namespace Jupiter.FunctionalTests.Status
 			Assert.AreEqual(new Uri("http://use.jupiter.com"), peersResponse.Peers[0].Endpoints[0]);
 		}
 
-		
 		[TestMethod]
 		public async Task GetPeerConnectionInternalAsync()
 		{

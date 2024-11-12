@@ -48,8 +48,6 @@ class RTC_EXPORT RateStatistics {
 
   RateStatistics(RateStatistics&& other);
 
-//  RateStatistics& operator=(const RateStatistics& other);
-
   RateStatistics& operator=(RateStatistics&& other);
 
   ~RateStatistics();
@@ -96,12 +94,6 @@ class RTC_EXPORT RateStatistics {
 
   // The total number of samples in the buckets.
   int num_samples_;
-
-  // Oldest time recorded in buckets.
-  int64_t oldest_time_;
-
-  // Bucket index of oldest counter recorded in buckets.
-  int64_t oldest_index_;
 
   // To convert counts/ms to desired units
   float scale_;

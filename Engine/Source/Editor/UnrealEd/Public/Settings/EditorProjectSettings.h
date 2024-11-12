@@ -285,6 +285,12 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, config, Category = Redirectors)
 	bool bPromptToDeleteUnreferencedRedirectors = true;
+	
+	/**
+	 * Rename localized variants alongside their source asset
+	 */
+	UPROPERTY(EditAnywhere, config, Category = Internationalization)
+	bool bRenameLocalizedVariantsAlongsideSourceAsset = true;
 };
 
 UCLASS(config = Editor, meta = (DisplayName = "Derived Data"), defaultconfig, MinimalAPI)

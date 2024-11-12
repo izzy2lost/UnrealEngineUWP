@@ -3,25 +3,30 @@
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "CoreMinimal.h"
-#endif
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Stats/Stats.h"
-#include "AI/Navigation/NavigationTypes.h"
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "AI/NavDataGenerator.h"
+#include "AI/Navigation/NavigationDirtyArea.h"
 #include "AI/Navigation/NavigationInvokerPriority.h"
 #include "AI/Navigation/NavigationRelevantData.h"
-#include "EngineDefines.h"
+#include "AI/Navigation/NavigationTypes.h"
 #include "AI/NavigationModifier.h"
-#include "NavigationOctree.h"
-#include "NavMesh/RecastNavMesh.h"
+#include "AI/NavigationSystemBase.h"
 #include "Async/AsyncWork.h"
-#include "UObject/GCObject.h"
-#include "AI/NavDataGenerator.h"
-#include "NavMesh/RecastHelpers.h"
+#include "EngineDefines.h"
 #include "NavDebugTypes.h"
+#include "NavigationOctree.h"
+#include "NavMesh/RecastHelpers.h"
+#include "NavMesh/RecastNavMesh.h"
+#include "UObject/GCObject.h"
 
 #if WITH_RECAST
 
 #include "Recast/Recast.h"
 #include "Detour/DetourNavMesh.h"
+#include "Detour/DetourNavLinkBuilderConfig.h"
 
 #if RECAST_INTERNAL_DEBUG_DATA
 #include "NavMesh/RecastInternalDebugData.h"
@@ -39,6 +44,8 @@ struct FKAggregateGeom;
 struct FTileCacheCompressor;
 struct FTileCacheAllocator;
 struct FTileGenerationContext;
+struct dtLinkBuilderData;
+struct FNavigationElement;
 class dtNavMesh;
 class FNavRegenTimeSliceManager;
 class UNavigationSystemV1;
@@ -63,6 +70,8 @@ struct FRecastBuildConfig : public rcConfig
 	uint32 bFilterLowSpanSequences : 1;
 	/** if set, only low height spans with corresponding area modifier will be stored in tile cache (reduces memory, can't modify without full tile rebuild) */
 	uint32 bFilterLowSpanFromTileCache : 1;
+	/** if set, navigation links will be automatically generated */
+	uint32 bGenerateLinks : 1;
 
 	/** region partitioning method used by tile cache */
 	int32 TileCachePartitionType;
@@ -73,6 +82,10 @@ struct FRecastBuildConfig : public rcConfig
 	 *	factors - DO NOT SET IT TO ARBITRARY VALUE */
 	int32 MaxPolysPerTile;
 
+	/** NavLink building configuration */
+	dtNavLinkBuilderJumpDownConfig JumpDownConfig;
+	dtNavLinkBuilderJumpOverConfig JumpOverConfig;
+	
 	/** Actual agent height (in uu)*/
 	float AgentHeight;
 	/** Actual agent climb (in uu)*/
@@ -86,7 +99,9 @@ struct FRecastBuildConfig : public rcConfig
 	/** Ledge filtering mode */
 	ENavigationLedgeSlopeFilterMode LedgeSlopeFilterMode;
 	/** Is the config completely setup */
-	bool bIsTileSetupConfigCompleted = false;
+	bool bIsTileSetupConfigCompleted;
+	/** Used when generating links automatically. Distance representing how far generated links can go outside a tile (in uu). */ 
+	float LinkSpillDistance;
 	
 	FRecastBuildConfig()
 	{
@@ -103,12 +118,16 @@ struct FRecastBuildConfig : public rcConfig
 		bUseExtraTopCellWhenMarkingAreas = true;
 		bFilterLowSpanSequences = false;
 		bFilterLowSpanFromTileCache = false;
+		bGenerateLinks = false;
 		// Still initializing, even though the property is deprecated, to avoid static analysis warnings
 		MaxPolysPerTile = -1;
+		JumpDownConfig = dtNavLinkBuilderJumpDownConfig();
+		JumpOverConfig = dtNavLinkBuilderJumpOverConfig();
 		AgentIndex = 0;
 		TileResolution = ENavigationDataResolution::Default;
 		LedgeSlopeFilterMode = ENavigationLedgeSlopeFilterMode::Recast;
 		bIsTileSetupConfigCompleted = false;
+		LinkSpillDistance = 0.f;
 	}
 
 	rcReal GetTileSizeUU() const { return tileSize * cs; }
@@ -161,9 +180,7 @@ struct FRecastGeometryCache
 	int32* Indices;
 
 	FRecastGeometryCache() {}
-	FRecastGeometryCache(const uint8* Memory);
-
-	static bool IsValid(const uint8* Memory, int32 MemorySize);
+	NAVIGATIONSYSTEM_API FRecastGeometryCache(const uint8* Memory);
 };
 
 struct FRecastRawGeometryElement
@@ -222,16 +239,16 @@ struct FRcTileBox
 			if (FMath::Modf(MaxAsFloat, &UnusedIntPart) == 0)
 			{
 				// Return the lower tile
-				return FMath::Max(IntCastChecked<int32>(FMath::FloorToInt(MaxAsFloat) - 1), MinCoord);
+				return FMath::Max(ClampToInt32(FMath::FloorToInt(MaxAsFloat) - 1), MinCoord);
 			}
 			// Otherwise use default behaviour
-			return IntCastChecked<int32>(FMath::FloorToInt(MaxAsFloat));
+			return ClampToInt32(FMath::FloorToInt(MaxAsFloat));
 		};
 
 		const FBox RcAreaBounds = Unreal2RecastBox(UnrealBounds);
-		XMin = IntCastChecked<int32>(FMath::FloorToInt((RcAreaBounds.Min.X - RcNavMeshOrigin.X) / TileSizeInWorldUnits));
+		XMin = ClampToInt32(FMath::FloorToInt((RcAreaBounds.Min.X - RcNavMeshOrigin.X) / TileSizeInWorldUnits));
 		XMax = CalcMaxCoordExclusive((RcAreaBounds.Max.X - RcNavMeshOrigin.X) / TileSizeInWorldUnits, XMin);
-		YMin = IntCastChecked<int32>(FMath::FloorToInt((RcAreaBounds.Min.Z - RcNavMeshOrigin.Z) / TileSizeInWorldUnits));
+		YMin = ClampToInt32(FMath::FloorToInt((RcAreaBounds.Min.Z - RcNavMeshOrigin.Z) / TileSizeInWorldUnits));
 		YMax = CalcMaxCoordExclusive((RcAreaBounds.Max.Z - RcNavMeshOrigin.Z) / TileSizeInWorldUnits, YMin);
 	}
 
@@ -239,6 +256,16 @@ struct FRcTileBox
 	{
 		return Point.X >= XMin && Point.X <= XMax
 			&& Point.Y >= YMin && Point.Y <= YMax;
+	}
+
+	static FORCEINLINE int32 ClampToInt32(const int64 Value)
+	{
+#if !NO_LOGGING
+		UE_CLOG(!IntFitsIn<int32>(Value), LogNavigation, Warning,
+			TEXT("FRcTileBox clamped a NavMesh transform value to fit in int32. Old value: %" UINT64_FMT), Value);
+#endif // !NO_LOGGING
+
+		return static_cast<int32>(FMath::Clamp(Value, MIN_int32, MAX_int32));
 	}
 };
 
@@ -282,7 +309,8 @@ enum class ERasterizeGeomRecastTimeSlicedState : uint8
 
 enum class ERasterizeGeomTimeSlicedState : uint8
 {
-	RasterizeGeometryTransformCoords,
+	RasterizeGeometryTransformCoordsAndFlipIndices,
+	RasterizeGeometryTransformCoords UE_DEPRECATED(5.5, "The state doesn't handle indices flipping. Use RasterizeGeometryTransformCoordsAndIndices instead.") = RasterizeGeometryTransformCoordsAndFlipIndices,
 	RasterizeGeometryRecast,
 };
 
@@ -317,6 +345,15 @@ enum class EGenerateNavDataTimeSlicedState : uint8
 struct FRecastTileTimeSliceSettings
 {
 	int32 FilterLedgeSpansMaxYProcess = 13;
+};
+
+struct FGeneratedNavigationLink : public FNavigationLink
+{
+	/// User defined flags assigned to the polys of off-mesh connections
+	unsigned short generatedLinkPolyFlag = 0;
+
+	/// User defined area ids assigned to the off-mesh connections
+	unsigned char generatedLinkArea = 0;
 };
 
 /**
@@ -407,53 +444,79 @@ protected:
 	/** Gather geometry from a specified Navigation Data */
 	NAVIGATIONSYSTEM_API void GatherNavigationDataGeometry(const TSharedRef<FNavigationRelevantData, ESPMode::ThreadSafe>& ElementData, UNavigationSystemV1& NavSys, const FNavDataConfig& OwnerNavDataConfig, bool bGeometryChanged);
 
-	/** Start functions used by GenerateCompressedLayersTimeSliced / GenerateCompressedLayers */
+	UE_DEPRECATED(5.5, "Use the new version without RasterContext instead.")
 	NAVIGATIONSYSTEM_API bool CreateHeightField(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext);
+	UE_DEPRECATED(5.5, "Use the new version without RasterContext instead.")
+	NAVIGATIONSYSTEM_API void GenerateRecastFilter(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext);
+	UE_DEPRECATED(5.5, "Use the new version without RasterContext instead.")
+	NAVIGATIONSYSTEM_API ETimeSliceWorkResult GenerateRecastFilterTimeSliced(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext);
+	UE_DEPRECATED(5.5, "Use the new version without RasterContext instead.")
+	NAVIGATIONSYSTEM_API bool BuildCompactHeightField(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext);
+	UE_DEPRECATED(5.5, "Use the new version without RasterContext instead.")
+	NAVIGATIONSYSTEM_API bool RecastErodeWalkable(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext);
+	
+	/** Start functions used by GenerateCompressedLayersTimeSliced / GenerateCompressedLayers */
+	NAVIGATIONSYSTEM_API bool CreateHeightField(FNavMeshBuildContext& BuildContext);
 	NAVIGATIONSYSTEM_API ETimeSliceWorkResult RasterizeTrianglesTimeSliced(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext);
 	NAVIGATIONSYSTEM_API void RasterizeTriangles(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext);
 	NAVIGATIONSYSTEM_API ETimeSliceWorkResult RasterizeGeometryRecastTimeSliced(FNavMeshBuildContext& BuildContext, const TArray<FVector::FReal>& Coords, const TArray<int32>& Indices, const rcRasterizationFlags RasterizationFlags, FTileRasterizationContext& RasterContext);
-	UE_DEPRECATED(5.0, "Call the version of this function where Coords are now a TArray of FReals!")
-	NAVIGATIONSYSTEM_API ETimeSliceWorkResult RasterizeGeometryRecastTimeSliced(FNavMeshBuildContext& BuildContext, const TArray<float>& Coords, const TArray<int32>& Indices, const rcRasterizationFlags RasterizationFlags, FTileRasterizationContext& RasterContext);
 	NAVIGATIONSYSTEM_API void RasterizeGeometryRecast(FNavMeshBuildContext& BuildContext, const TArray<FVector::FReal>& Coords, const TArray<int32>& Indices, const rcRasterizationFlags RasterizationFlags, FTileRasterizationContext& RasterContext);
-	UE_DEPRECATED(5.0, "Call the version of this function where Coords are now a TArray of FReals!")
-	NAVIGATIONSYSTEM_API void RasterizeGeometryRecast(FNavMeshBuildContext& BuildContext, const TArray<float>& Coords, const TArray<int32>& Indices, const rcRasterizationFlags RasterizationFlags, FTileRasterizationContext& RasterContext);
+	NAVIGATIONSYSTEM_API void RasterizeGeometryTransformCoordsAndFlipIndices(const TArray<FVector::FReal>& Coords, const TArray<int32>& Indices, const FTransform& LocalToWorld);
+	UE_DEPRECATED(5.5, "This function was not handling the indices order correctly and is replaced by RasterizeGeometryTransformCoordsAndFlipIndices.")
 	NAVIGATIONSYSTEM_API void RasterizeGeometryTransformCoords(const TArray<FVector::FReal>& Coords, const FTransform& LocalToWorld);
-	UE_DEPRECATED(5.0, "Call the version of this function where Coords are now a TArray of FReals!")
-	NAVIGATIONSYSTEM_API void RasterizeGeometryTransformCoords(const TArray<float>& Coords, const FTransform& LocalToWorld);
 	NAVIGATIONSYSTEM_API ETimeSliceWorkResult RasterizeGeometryTimeSliced(FNavMeshBuildContext& BuildContext, const TArray<FVector::FReal>& Coords, const TArray<int32>& Indices, const FTransform& LocalToWorld, const rcRasterizationFlags RasterizationFlags, FTileRasterizationContext& RasterContext);
-	UE_DEPRECATED(5.0, "Call the version of this function where Coords are now a TArray of FReals!")
-	NAVIGATIONSYSTEM_API ETimeSliceWorkResult RasterizeGeometryTimeSliced(FNavMeshBuildContext& BuildContext, const TArray<float>& Coords, const TArray<int32>& Indices, const FTransform& LocalToWorld, const rcRasterizationFlags RasterizationFlags, FTileRasterizationContext& RasterContext);
 	NAVIGATIONSYSTEM_API void RasterizeGeometry(FNavMeshBuildContext& BuildContext, const TArray<FVector::FReal>& Coords, const TArray<int32>& Indices, const FTransform& LocalToWorld, const rcRasterizationFlags RasterizationFlags, FTileRasterizationContext& RasterContext);
-	UE_DEPRECATED(5.0, "Call the version of this function where Coords are now a TArray of FReals!")
-	NAVIGATIONSYSTEM_API void RasterizeGeometry(FNavMeshBuildContext& BuildContext, const TArray<float>& Coords, const TArray<int32>& Indices, const FTransform& LocalToWorld, const rcRasterizationFlags RasterizationFlags, FTileRasterizationContext& RasterContext);
-	NAVIGATIONSYSTEM_API void GenerateRecastFilter(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext);
-	NAVIGATIONSYSTEM_API ETimeSliceWorkResult GenerateRecastFilterTimeSliced(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext);
-	NAVIGATIONSYSTEM_API bool BuildCompactHeightField(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext);
-	NAVIGATIONSYSTEM_API bool RecastErodeWalkable(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext);
+	NAVIGATIONSYSTEM_API void GenerateRecastFilter(FNavMeshBuildContext& BuildContext);
+	NAVIGATIONSYSTEM_API ETimeSliceWorkResult GenerateRecastFilterTimeSliced(FNavMeshBuildContext& BuildContext);
+	NAVIGATIONSYSTEM_API bool BuildCompactHeightField(FNavMeshBuildContext& BuildContext);
+	NAVIGATIONSYSTEM_API bool RecastErodeWalkable(FNavMeshBuildContext& BuildContext);
 	NAVIGATIONSYSTEM_API bool RecastBuildLayers(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext);
 	NAVIGATIONSYSTEM_API bool RecastBuildTileCache(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext);
 	/** End functions used by GenerateCompressedLayersTimeSliced / GenerateCompressedLayers */
 
-	/** builds CompressedLayers array (geometry + modifiers) time sliced*/
+	/** Builds CompressedLayers array (geometry + modifiers) time sliced*/
 	NAVIGATIONSYSTEM_API virtual ETimeSliceWorkResult GenerateCompressedLayersTimeSliced(FNavMeshBuildContext& BuildContext);
+
+	
 	/** builds CompressedLayers array (geometry + modifiers) */
+	UE_DEPRECATED(5.5, "Use the overload with dtLinkBuilderData instead.")
 	NAVIGATIONSYSTEM_API virtual bool GenerateCompressedLayers(FNavMeshBuildContext& BuildContext);
 
 	/** Builds a navigation data layer */
+	UE_DEPRECATED(5.5, "Use the overload with dtLinkBuilderData instead.")
 	NAVIGATIONSYSTEM_API bool GenerateNavigationDataLayer(FNavMeshBuildContext& BuildContext, FTileCacheCompressor& TileCompressor, FTileCacheAllocator& GenNavAllocator, FTileGenerationContext& GenerationContext, int32 LayerIdx);
 
 	/** builds NavigationData array (layers + obstacles) time sliced */
+	UE_DEPRECATED(5.5, "Use the overload with dtLinkBuilderData instead.")
 	NAVIGATIONSYSTEM_API ETimeSliceWorkResult GenerateNavigationDataTimeSliced(FNavMeshBuildContext& BuildContext);
 
 	/** builds NavigationData array (layers + obstacles) */
+	UE_DEPRECATED(5.5, "Use the overload with dtLinkBuilderData instead.")
 	NAVIGATIONSYSTEM_API bool GenerateNavigationData(FNavMeshBuildContext& BuildContext);
+	
+	
+	/** Builds CompressedLayers array (geometry + modifiers) */
+	NAVIGATIONSYSTEM_API virtual bool GenerateCompressedLayers(FNavMeshBuildContext& BuildContext, const dtLinkBuilderData& InLinkBuilderData);
 
+	/** Builds a navigation data layer */
+	NAVIGATIONSYSTEM_API bool GenerateNavigationDataLayer(FNavMeshBuildContext& BuildContext, FTileCacheCompressor& TileCompressor, FTileCacheAllocator& GenNavAllocator, FTileGenerationContext& GenerationContext, const dtLinkBuilderData& InLinkBuilderData, int32 LayerIdx);
+
+	/** Builds NavigationData array (layers + obstacles) time sliced */
+	NAVIGATIONSYSTEM_API ETimeSliceWorkResult GenerateNavigationDataTimeSliced(FNavMeshBuildContext& BuildContext, const dtLinkBuilderData& InLinkBuilderData);
+
+	/** Builds NavigationData array (layers + obstacles) */
+	NAVIGATIONSYSTEM_API bool GenerateNavigationData(FNavMeshBuildContext& BuildContext, const dtLinkBuilderData& InLinkBuilderData);
+
+	/** Builds navigation links */
+	dtStatus BuildTileCacheLinks(FNavMeshBuildContext& BuildContext, struct dtTileCacheAlloc* alloc, const dtTileCacheLayer& layer,
+		const struct dtTileCacheContourSet& lcset, TArray<FGeneratedNavigationLink>& OutGeneratedLinks) const;
+	
 	NAVIGATIONSYSTEM_API virtual void ApplyVoxelFilter(struct rcHeightfield* SolidHF, FVector::FReal WalkableRadius);
 
 	/** Compute rasterization mask */
-	NAVIGATIONSYSTEM_API void InitRasterizationMaskArray(const rcHeightfield* SolidHF, TInlineMaskArray& OutRasterizationMasks);
+	NAVIGATIONSYSTEM_API void InitRasterizationMaskArray(const rcHeightfield* InSolidHF, TInlineMaskArray& OutRasterizationMasks);
 	NAVIGATIONSYSTEM_API void ComputeRasterizationMasks(FNavMeshBuildContext& BuildContext, FTileRasterizationContext& RasterContext);
-	NAVIGATIONSYSTEM_API void MarkRasterizationMask(rcContext* /*BuildContext*/, rcHeightfield* SolidHF,
+	NAVIGATIONSYSTEM_API void MarkRasterizationMask(rcContext* /*BuildContext*/, rcHeightfield* InSolidHF,
 		const FAreaNavModifier& Modifier, const FTransform& LocalToWorld, const int32 Mask, TInlineMaskArray& OutMaskArray);
 
 	/** apply areas from DynamicAreas to layer */
@@ -463,9 +526,11 @@ protected:
 
 	NAVIGATIONSYSTEM_API void AppendModifier(const FCompositeNavModifier& Modifier, const FNavDataPerInstanceTransformDelegate& InTransformsDelegate);
 	/** Appends specified geometry to tile's geometry */
+	NAVIGATIONSYSTEM_API void ValidateAndAppendGeometry(const FNavigationRelevantData& ElementData, const FCompositeNavModifier& InModifier);
+	UE_DEPRECATED(5.5, "Use the version taking a const reference on FNavigationRelevantData.")
 	NAVIGATIONSYSTEM_API void ValidateAndAppendGeometry(const TSharedRef<FNavigationRelevantData, ESPMode::ThreadSafe>& ElementData, const FCompositeNavModifier& InModifier);
-	NAVIGATIONSYSTEM_API void AppendGeometry(const FNavigationRelevantData& DataRef, const FCompositeNavModifier& InModifier, const FNavDataPerInstanceTransformDelegate& InTransformsDelegate);
-	NAVIGATIONSYSTEM_API void AppendVoxels(rcSpanCache* SpanData, int32 NumSpans);
+
+	NAVIGATIONSYSTEM_API void AppendGeometry(const FNavigationRelevantData& ElementData, const FCompositeNavModifier& InModifier, const FNavDataPerInstanceTransformDelegate& InTransformsDelegate);
 	
 	/** prepare voxel cache from collision data */
 	NAVIGATIONSYSTEM_API void PrepareVoxelCache(const TNavStatArray<uint8>& RawCollisionCache, const FCompositeNavModifier& InModifier, TNavStatArray<rcSpanCache>& SpanData);
@@ -538,9 +603,11 @@ protected:
 	TArray<FNavMeshTileData> CompressedLayers;
 	TArray<FNavMeshTileData> NavigationData;
 
-	/** Result of calling RasterizeGeometryInitVars() */
+	/** Result of calling RasterizeGeometry() */
 	TArray<FVector::FReal> RasterizeGeometryWorldRecastCoords;
-	
+	TArray<int32> RasterizeGeometryFlippedIndices;
+	uint8 bRasterizeGeometryUseFlippedIndices : 1;
+
 	// tile's geometry: without voxel cache
 	TArray<FRecastRawGeometryElement> RawGeometry;
 	// areas used for creating navigation data: obstacles
@@ -553,6 +620,9 @@ protected:
 	TNavStatArray<TSharedRef<FNavigationRelevantData, ESPMode::ThreadSafe> > NavigationRelevantData;
 	TWeakObjectPtr<UNavigationSystemV1> NavSystem; 
 	FNavDataConfig NavDataConfig;
+
+	rcHeightfield* SolidHF;
+	rcCompactHeightfield* CompactHF;
 
 	FRecastNavMeshTileGenerationDebug TileDebugSettings;
 
@@ -645,23 +715,24 @@ struct FPendingTileElement
 	}
 };
 
-struct FRunningTileElement
+template<typename TTileGeneratorTask>
+struct TRunningTileElement
 {
-	FRunningTileElement()
+	TRunningTileElement()
 		: Coord(FIntPoint::NoneValue)
 		, bShouldDiscard(false)
 		, AsyncTask(nullptr)
 	{
 	}
 	
-	FRunningTileElement(FIntPoint InCoord)
+	TRunningTileElement(FIntPoint InCoord)
 		: Coord(InCoord)
 		, bShouldDiscard(false)
 		, AsyncTask(nullptr)
 	{
 	}
 
-	bool operator == (const FRunningTileElement& Other) const
+	bool operator == (const TRunningTileElement& Other) const
 	{
 		return Coord == Other.Coord;
 	}
@@ -670,8 +741,11 @@ struct FRunningTileElement
 	FIntPoint					Coord;
 	/** whether generated results should be discarded */
 	bool						bShouldDiscard; 
-	FRecastTileGeneratorTask*	AsyncTask;
+	FAsyncTask<TTileGeneratorTask>* AsyncTask;
 };
+
+UE_DEPRECATED(5.5, "FRunningTileElement is deprecated. Please use TRunningTileElement<FRecastTileGeneratorWrapper> instead.")
+typedef TRunningTileElement<FRecastTileGeneratorWrapper> FRunningTileElement;
 
 struct FTileTimestamp
 {
@@ -737,10 +811,6 @@ public:
 	NAVIGATIONSYSTEM_API virtual int32 GetNumRunningBuildTasks() const override;
 
 	/** Checks if a given tile is being build or has just finished building */
-	UE_DEPRECATED(5.1, "Use new version with FNavTileRef")
-	NAVIGATIONSYSTEM_API bool IsTileChanged(int32 TileIdx) const;
-
-	/** Checks if a given tile is being build or has just finished building */
 	NAVIGATIONSYSTEM_API bool IsTileChanged(const FNavTileRef InTileRef) const;
 		
 	FORCEINLINE uint32 GetVersion() const { return Version; }
@@ -788,17 +858,17 @@ public:
 	NAVIGATIONSYSTEM_API virtual void GrabDebugSnapshot(struct FVisualLogEntry* Snapshot, const FBox& BoundingBox, const FName& CategoryName, ELogVerbosity::Type Verbosity) const override;
 #endif
 
-	UE_DEPRECATED(5.4, "Use ExportNavRelevantObjectGeometry")
+	UE_DEPRECATED(5.4, "Use FRecastGeometryExport::ExportElementGeometry")
 	static NAVIGATIONSYSTEM_API void ExportComponentGeometry(UActorComponent* InOutComponent, FNavigationRelevantData& OutData);
 
-	UE_DEPRECATED(5.4, "Use ExportRigidBodyGeometry that takes bounds as parameter.")
+	UE_DEPRECATED(5.4, "Use FRecastGeometryExport::ExportRigidBodyGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportRigidBodyGeometry(
 		UBodySetup& InOutBodySetup,
 		TNavStatArray<FVector>& OutVertexBuffer,
 		TNavStatArray<int32>& OutIndexBuffer,
 		const FTransform& LocalToWorld = FTransform::Identity);
 
-	UE_DEPRECATED(5.4, "Use ExportRigidBodyGeometry that takes bounds as parameter.")
+	UE_DEPRECATED(5.4, "Use FRecastGeometryExport::ExportRigidBodyGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportRigidBodyGeometry(
 		UBodySetup& InOutBodySetup,
 		TNavStatArray<FVector>& OutTriMeshVertexBuffer,
@@ -808,7 +878,7 @@ public:
 		TNavStatArray<int32>& OutShapeBuffer,
 		const FTransform& LocalToWorld = FTransform::Identity);
 
-	UE_DEPRECATED(5.4, "Use ExportAggregatedGeometry that takes bounds as parameter.")
+	UE_DEPRECATED(5.4, "Use FRecastGeometryExport::ExportAggregatedGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportAggregatedGeometry(
 		const FKAggregateGeom& AggGeom,
 		TNavStatArray<FVector>& OutConvexVertexBuffer,
@@ -816,15 +886,19 @@ public:
 		TNavStatArray<int32>& OutShapeBuffer,
 		const FTransform& LocalToWorld = FTransform::Identity);
 
+	UE_DEPRECATED(5.5, "Use FRecastGeometryExport::ExportElementGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportNavRelevantObjectGeometry(INavRelevantInterface& InOutNavRelevantInterface, FNavigationRelevantData& OutData);
+	UE_DEPRECATED(5.5, "Use FRecastGeometryExport::ExportVertexSoupGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportVertexSoupGeometry(const TArray<FVector>& InVerts, FNavigationRelevantData& OutData);
 
+	UE_DEPRECATED(5.5, "Use FRecastGeometryExport::ExportRigidBodyGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportRigidBodyGeometry(UBodySetup& InOutBodySetup,
 		TNavStatArray<FVector>& OutVertexBuffer,
 		TNavStatArray<int32>& OutIndexBuffer,
 		FBox& OutBounds,
 		const FTransform& LocalToWorld = FTransform::Identity);
 
+	UE_DEPRECATED(5.5, "Use FRecastGeometryExport::ExportRigidBodyGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportRigidBodyGeometry(
 		UBodySetup& InOutBodySetup,
 		TNavStatArray<FVector>& OutTriMeshVertexBuffer,
@@ -835,6 +909,7 @@ public:
 		FBox& OutBounds,
 		const FTransform& LocalToWorld = FTransform::Identity);
 
+	UE_DEPRECATED(5.5, "Use FRecastGeometryExport::ExportAggregatedGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportAggregatedGeometry(
 		const FKAggregateGeom& AggGeom,
 		TNavStatArray<FVector>& OutConvexVertexBuffer,
@@ -881,14 +956,22 @@ protected:
 	/** Marks grid tiles affected by specified areas as dirty */
 	NAVIGATIONSYSTEM_API virtual void MarkDirtyTiles(const TArray<FNavigationDirtyArea>& DirtyAreas);
 
-	/** Returns if the provided UObject that requested a navmesh dirtying should dirty this Navmesh. Useful to avoid tiles regeneration from objects that are excluded from the provided NavDataConfig */
-	NAVIGATIONSYSTEM_API virtual bool ShouldDirtyTilesRequestedByObject(const UNavigationSystemV1& NavSys, const FNavigationOctree& NavOctreeInstance, const UObject& SourceObject, const FNavDataConfig& NavDataConfig) const;
+	UE_DEPRECATED(5.5, "Use ShouldDirtyTilesRequestedByElement with FNavigationElement instead.")
+	NAVIGATIONSYSTEM_API virtual bool ShouldDirtyTilesRequestedByObject(
+		const UNavigationSystemV1& NavSys,
+		const FNavigationOctree& NavOctreeInstance,
+		const UObject& SourceObject,
+		const FNavDataConfig& NavDataConfig) const final;
+
+	/** Returns if the provided FNavigationElement that requested a navmesh dirtying should dirty this Navmesh. Useful to avoid tiles regeneration from elements that are excluded from the provided NavDataConfig */
+	NAVIGATIONSYSTEM_API virtual bool ShouldDirtyTilesRequestedByElement(
+		const UNavigationSystemV1& NavSys,
+		const FNavigationOctree& NavOctreeInstance,
+		FNavigationElementHandle SourceElement,
+		const FNavDataConfig& NavDataConfig) const;
 
 	/** Marks all tiles overlapping with InclusionBounds dirty (via MarkDirtyTiles). */
 	NAVIGATIONSYSTEM_API bool MarkNavBoundsDirty();
-
-	UE_DEPRECATED(5.1, "Use new version with FNavTileRef")
-	NAVIGATIONSYSTEM_API void RemoveLayers(const FIntPoint& Tile, TArray<uint32>& UpdatedTiles);
 
 	NAVIGATIONSYSTEM_API void RemoveLayers(const FIntPoint& Tile, TArray<FNavTileRef>& UpdatedTiles);
 	
@@ -900,19 +983,9 @@ protected:
 
 #if RECAST_ASYNC_REBUILDING
 	/** Processes pending tile generation tasks Async*/
-	UE_DEPRECATED(5.1, "Use ProcessTileTasksAsyncAndGetUpdatedTiles instead")
-	NAVIGATIONSYSTEM_API TArray<uint32> ProcessTileTasksAsync(const int32 NumTasksToProcess);
-
-	/** Processes pending tile generation tasks Async*/
 	NAVIGATIONSYSTEM_API TArray<FNavTileRef> ProcessTileTasksAsyncAndGetUpdatedTiles(const int32 NumTasksToProcess);
 #else
 	NAVIGATIONSYSTEM_API TSharedRef<FRecastTileGenerator> CreateTileGeneratorFromPendingElement(FIntPoint &OutTileLocation, const int32 ForcedPendingTileIdx = INDEX_NONE);
-
-	/** Processes pending tile generation tasks Sync with option for time slicing currently an experimental feature. */
-	UE_DEPRECATED(5.1, "Use ProcessTileTasksSyncTimeSlicedAndGetUpdatedTiles instead")
-	NAVIGATIONSYSTEM_API virtual TArray<uint32> ProcessTileTasksSyncTimeSliced();
-	UE_DEPRECATED(5.1, "Use ProcessTileTasksSyncAndGetUpdatedTiles instead")
-	NAVIGATIONSYSTEM_API TArray<uint32> ProcessTileTasksSync(const int32 NumTasksToProcess);
 
 	/** Processes pending tile generation tasks Sync with option for time slicing currently an experimental feature. */
 	NAVIGATIONSYSTEM_API virtual TArray<FNavTileRef> ProcessTileTasksSyncTimeSlicedAndGetUpdatedTiles();
@@ -921,34 +994,18 @@ protected:
 	NAVIGATIONSYSTEM_API virtual int32 GetNextPendingDirtyTileToBuild() const;
 #endif
 	/** Processes pending tile generation tasks */
-	UE_DEPRECATED(5.1, "Use ProcessTileTasksAndGetUpdatedTiles instead")
-	NAVIGATIONSYSTEM_API TArray<uint32> ProcessTileTasks(const int32 NumTasksToProcess);
-
-	/** Processes pending tile generation tasks */
 	NAVIGATIONSYSTEM_API TArray<FNavTileRef> ProcessTileTasksAndGetUpdatedTiles(const int32 NumTasksToProcess);
 
 	NAVIGATIONSYSTEM_API void ResetTimeSlicedTileGeneratorSync();
 
 public:
 	/** Adds generated tiles to NavMesh, replacing old ones, uses time slicing returns Failed if any layer failed */
-	UE_DEPRECATED(5.1, "Use new version with FNavTileRef")
-	NAVIGATIONSYSTEM_API ETimeSliceWorkResult AddGeneratedTilesTimeSliced(FRecastTileGenerator& TileGenerator, TArray<uint32>& OutResultTileIndices);
-
-	/** Adds generated tiles to NavMesh, replacing old ones, uses time slicing returns Failed if any layer failed */
 	NAVIGATIONSYSTEM_API ETimeSliceWorkResult AddGeneratedTilesTimeSliced(FRecastTileGenerator& TileGenerator, TArray<FNavTileRef>& OutResultTileRefs);
-
-	/** Adds generated tiles to NavMesh, replacing old ones */
-	UE_DEPRECATED(5.1, "Use AddGeneratedTilesAndGetUpdatedTiles instead")
-	NAVIGATIONSYSTEM_API TArray<uint32> AddGeneratedTiles(FRecastTileGenerator& TileGenerator);
 
 	/** Adds generated tiles to NavMesh, replacing old ones */
 	NAVIGATIONSYSTEM_API TArray<FNavTileRef> AddGeneratedTilesAndGetUpdatedTiles(FRecastTileGenerator& TileGenerator);
 
 public:
-	/** Removes all tiles at specified grid location */
-	UE_DEPRECATED(5.1, "Use RemoveTileLayersAndGetUpdatedTiles instead")
-	NAVIGATIONSYSTEM_API TArray<uint32> RemoveTileLayers(const int32 TileX, const int32 TileY, TMap<int32, dtPolyRef>* OldLayerTileIdMap = nullptr);
-
 	/** Removes all tiles at specified grid location and returns the updated FNavTileRef */
 	NAVIGATIONSYSTEM_API TArray<FNavTileRef> RemoveTileLayersAndGetUpdatedTiles(const int32 TileX, const int32 TileY, TMap<int32, dtPolyRef>* OldLayerTileIdMap = nullptr);
 
@@ -956,9 +1013,6 @@ public:
 	NAVIGATIONSYSTEM_API void RemoveTileLayers(dtNavMesh* DetourMesh, const int32 TileX, const int32 TileY);
 
 	NAVIGATIONSYSTEM_API void RemoveTiles(const TArray<FIntPoint>& Tiles);
-
-	UE_DEPRECATED(5.3, "Use overload with FNavMeshDirtyTileElement instead.")
-	NAVIGATIONSYSTEM_API void ReAddTiles(const TArray<FIntPoint>& Tiles);
 
 	NAVIGATIONSYSTEM_API void ReAddTiles(const TArray<FNavMeshDirtyTileElement>& Tiles);
 
@@ -974,7 +1028,14 @@ public:
 
 	static NAVIGATIONSYSTEM_API void CalcPolyRefBits(ARecastNavMesh* NavMeshOwner, int32& MaxTileBits, int32& MaxPolyBits);
 
+	/** Returns true if bGenerateNavLinks is enabled and bAllowLinkGeneration is true. */ 
+	bool IsGeneratingLinks() const;
+
 protected:
+	/** Resolve area class from link generation config into recast areaIds and flags.
+	 * Must be called after AdditionalCachedData is constructed. */
+	void ResolveGeneratedLinkAreas(FRecastBuildConfig& OutConfig);
+	
 	NAVIGATIONSYSTEM_API virtual void RestrictBuildingToActiveTiles(bool InRestrictBuildingToActiveTiles);
 	
 	/** Blocks until build for specified list of tiles is complete and discard results */
@@ -983,13 +1044,6 @@ protected:
 	NAVIGATIONSYSTEM_API virtual TSharedRef<FRecastTileGenerator> CreateTileGenerator(const FIntPoint& Coord, const TArray<FBox>& DirtyAreas, const double PendingTileCreationTime = 0.);
 
 	template <typename T>
-	UE_DEPRECATED(5.3, "Use ConstructTileGeneratorImpl instead.")
-	TSharedRef<T> ConstuctTileGeneratorImpl(const FIntPoint& Coord, const TArray<FBox>& DirtyAreas, const double PendingTileCreationTime = 0.)
-	{
-		return ConstructTileGeneratorImpl<T>(Coord, DirtyAreas, PendingTileCreationTime);
-	}
-	
-	template <typename T>
 	TSharedRef<T> ConstructTileGeneratorImpl(const FIntPoint& Coord, const TArray<FBox>& DirtyAreas, const double PendingTileCreationTime)
 	{
 		TSharedRef<T> TileGenerator = MakeShareable(new T(*this, Coord, PendingTileCreationTime));
@@ -997,15 +1051,20 @@ protected:
 		return TileGenerator;
 	}
 
-	void SetBBoxGrowth(const FVector& InBBox) { BBoxGrowth = InBBox; }
+	UE_DEPRECATED(5.5, "Use BBoxGrowthLow and BBoxGrowthHigh properties instead.")
+	void SetBBoxGrowth(const FVector& InBBox)
+	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		BBoxGrowth = InBBox;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	FBox GrowDirtyBounds(const FBox& BBox, bool bIncludeAgentHeight) const;
 
 	//----------------------------------------------------------------------//
 	// debug
 	//----------------------------------------------------------------------//
 	NAVIGATIONSYSTEM_API virtual uint32 LogMemUsed() const override;
-
-	UE_DEPRECATED(5.1, "Use new version with FNavTileRef")
-	NAVIGATIONSYSTEM_API void AddGeneratedTileLayer(int32 LayerIndex, FRecastTileGenerator& TileGenerator, const TMap<int32, dtPolyRef>& OldLayerTileIdMap, TArray<uint32>& OutResultTileIndices);
 
 	NAVIGATIONSYSTEM_API bool IsAllowedToAddTileLayers(const FIntPoint Tile) const;
 	NAVIGATIONSYSTEM_API void AddGeneratedTileLayer(int32 LayerIndex, FRecastTileGenerator& TileGenerator, const TMap<int32, dtPolyRef>& OldLayerTileIdMap, TArray<FNavTileRef>& OutResultTileRefs);
@@ -1035,7 +1094,16 @@ protected:
 
 	/** Used to grow generic element bounds to match this generator's properties
 	 *	(most notably Config.borderSize) */
+	UE_DEPRECATED(5.5, "Use BBoxGrowthLow and BBoxGrowthHigh instead.")
 	FVector BBoxGrowth;
+	
+	/** Growth in the negative axis direction. 
+	 * Used to grow generic element bounds to match this generator's properties (most notably Config.borderSize) */
+	FVector BBoxGrowthLow;
+
+	/** Growth in the positive axis direction. 
+	 * Used to grow generic element bounds to match this generator's properties (most notably Config.borderSize) */
+	FVector BBoxGrowthHigh;
 	
 	int32 NumActiveTiles;
 	/** the limit to number of asynchronous tile generators running at one time,
@@ -1056,10 +1124,10 @@ protected:
 	ARecastNavMesh*	DestNavMesh;
 	
 	/** List of dirty tiles that needs to be regenerated */
-	TNavStatArray<FPendingTileElement> PendingDirtyTiles;			
+	TNavStatArray<FPendingTileElement> PendingDirtyTiles;
 	
 	/** List of dirty tiles currently being regenerated */
-	TNavStatArray<FRunningTileElement> RunningDirtyTiles;
+	TNavStatArray<TRunningTileElement<FRecastTileGeneratorWrapper>> RunningDirtyTiles;
 
 #if WITH_EDITOR
 	/** List of tiles that were recently regenerated */
@@ -1084,9 +1152,6 @@ protected:
 	uint32 bInitialized:1;
 
 	uint32 bRestrictBuildingToActiveTiles:1;
-
-	UE_DEPRECATED(5.3, "Use SortPendingTilesMethod instead.")
-	uint32 bSortTilesWithSeedLocations:1;
 
 	/** Runtime generator's version, increased every time all tile generators get invalidated
 	 *	like when navmesh size changes */

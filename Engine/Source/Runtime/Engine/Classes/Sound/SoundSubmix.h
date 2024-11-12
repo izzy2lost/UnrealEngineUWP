@@ -364,7 +364,7 @@ public:
 	FSoundModulationDestinationSettings WetLevelModulation;
 
 	/** The dry level of the submix in Decibels. Applied before submix effects and analysis are performed. */
-	UPROPERTY(EditAnywhere, BlueprintSetter=SetWetVolumeModulation, Category = SubmixLevel, meta = (DisplayName = "Dry Level (dB)", AudioParam = "Volume", AudioParamClass = "SoundModulationParameterVolume", ClampMin = "-96.0", ClampMax = "0.0", UIMin = "-96.0", UIMax = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintSetter=SetDryVolumeModulation, Category = SubmixLevel, meta = (DisplayName = "Dry Level (dB)", AudioParam = "Volume", AudioParamClass = "SoundModulationParameterVolume", ClampMin = "-96.0", ClampMax = "0.0", UIMin = "-96.0", UIMax = "0.0"))
 	FSoundModulationDestinationSettings DryLevelModulation;
 	
 	/** Whether to send this Submix to AudioLink (when AudioLink is Enabled)*/
@@ -409,6 +409,13 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Audio|EnvelopeFollowing", meta = (WorldContext = "WorldContextObject"))
 	ENGINE_API void AddEnvelopeFollowerDelegate(const UObject* WorldContextObject, const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP);
+
+	/**
+	 *	Remove an envelope follower delegate.
+	 *	@param	OnSubmixEnvelopeBP	The event delegate to remove.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Audio|EnvelopeFollowing", meta = (WorldContext = "WorldContextObject"))
+	ENGINE_API void RemoveEnvelopeFollowerDelegate(const UObject* WorldContextObject, const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP);
 
 	/**
 	 *	Adds a spectral analysis delegate to receive notifications when this submix has spectrum analysis enabled.
@@ -481,6 +488,9 @@ protected:
 
 	// Send submix modulation changes to audio devices
 	void PushModulationChanges();
+
+	/** Return the audio device that corresponds to the provided world context object. */
+	static FAudioDevice* GetAudioDeviceFrom(const UObject* WorldContextObject);
 
 	// State handling for bouncing output.
 	TUniquePtr<Audio::FAudioRecordingData> RecordingData;

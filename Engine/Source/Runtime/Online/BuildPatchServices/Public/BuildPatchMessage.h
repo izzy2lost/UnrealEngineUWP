@@ -18,6 +18,8 @@ namespace BuildPatchServices
 			AccessLost = 0,
 			// Access has been regained after being lost.
 			AccessRegained,
+			// The chunk source has been retired and is not expected to be accessed again (i.e. can be deleted).
+			Retired
 		};
 
 		// The type of event that occurred.

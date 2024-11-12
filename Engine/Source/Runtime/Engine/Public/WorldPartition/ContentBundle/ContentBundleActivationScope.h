@@ -7,41 +7,33 @@
 class FContentBundleEditor;
 
 #if WITH_EDITOR
-
 class FContentBundleActivationScope
 {
 public:
 	FContentBundleActivationScope(FGuid InContentBundleGuid)
 	{
-		if (InContentBundleGuid.IsValid())
+		ContentBundleGuid = InContentBundleGuid;
+
+		IContentBundleEditorSubsystemInterface* ContentBundleEditorSubsystem = IContentBundleEditorSubsystemInterface::Get();
+		ContentBundleEditorSubsystem->PushContentBundleEditing();
+
+		if (TSharedPtr<FContentBundleEditor> ContentBundleEditor = ContentBundleEditorSubsystem->GetEditorContentBundle(ContentBundleGuid))
 		{
-			ContentBundleGuid = InContentBundleGuid;
-
-			IContentBundleEditorSubsystemInterface* ContentBundleEditorSubsystem = IContentBundleEditorSubsystemInterface::Get();
-			ContentBundleEditorSubsystem->PushContentBundleEditing();
-
-			if (TSharedPtr<FContentBundleEditor> ContentBundleEditor = ContentBundleEditorSubsystem->GetEditorContentBundle(ContentBundleGuid))
-			{
-				ContentBundleEditorSubsystem->ActivateContentBundleEditing(ContentBundleEditor);
-			}
+			ContentBundleEditorSubsystem->ActivateContentBundleEditing(ContentBundleEditor);
 		}
 	}
 	~FContentBundleActivationScope()
 	{
-		if (ContentBundleGuid.IsValid())
+		IContentBundleEditorSubsystemInterface* ContentBundleEditorSubsystem = IContentBundleEditorSubsystemInterface::Get();
+		if (TSharedPtr<FContentBundleEditor> ContentBundleEditor = ContentBundleEditorSubsystem->GetEditorContentBundle(ContentBundleGuid))
 		{
-			IContentBundleEditorSubsystemInterface* ContentBundleEditorSubsystem = IContentBundleEditorSubsystemInterface::Get();
-			if (TSharedPtr<FContentBundleEditor> ContentBundleEditor = ContentBundleEditorSubsystem->GetEditorContentBundle(ContentBundleGuid))
-			{
-				ContentBundleEditorSubsystem->DeactivateContentBundleEditing(ContentBundleEditor);
-			}
-
-			ContentBundleEditorSubsystem->PopContentBundleEditing();
+			ContentBundleEditorSubsystem->DeactivateContentBundleEditing(ContentBundleEditor);
 		}
+
+		ContentBundleEditorSubsystem->PopContentBundleEditing();
 	}
 
 private:
 	FGuid ContentBundleGuid;
 };
-
 #endif

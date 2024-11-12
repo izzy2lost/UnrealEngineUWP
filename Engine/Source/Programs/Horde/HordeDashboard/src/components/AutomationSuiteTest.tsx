@@ -5,7 +5,7 @@ import { observer } from 'mobx-react-lite';
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import backend from "../backend";
-import { ArtifactData, GetSuiteTestDataResponse, GetTestDataDetailsResponse, GetTestDataRefResponse, GetTestMetaResponse, GetTestResponse, GetTestSuiteResponse, TestData, TestOutcome } from "../backend/Api";
+import { GetSuiteTestDataResponse, GetTestDataDetailsResponse, GetTestDataRefResponse, GetTestMetaResponse, GetTestResponse, GetTestSuiteResponse, TestData, TestOutcome } from "../backend/Api";
 import { TestDataHandler } from "../backend/AutomationTestData";
 import dashboard, { StatusColor } from "../backend/Dashboard";
 import { getShortNiceTime } from "../base/utilities/timeUtils";
@@ -59,29 +59,10 @@ class SuiteTestHandler {
       this.artifactV2Id = undefined;
    }
 
-   get jobArtifacts(): ArtifactData[] | undefined {
-      if (!this.jobId || !this.stepId) {
-         return undefined;
-      }
-
-      const key = this.jobId + this.stepId;
-      return this.artifacts.get(key);
-   }
-
    getArtifactImagePath(referencePath: string) {
-
-      const artifactName = referencePath.replace(/\\/g, '/');
-
-      if (this.artifactV2Id) {
-         return `${backend.serverUrl}/api/v2/artifacts/${this.artifactV2Id}/file?path=Engine/Programs/AutomationTool/Saved/Logs/RunUnreal/${encodeURIComponent(referencePath)}&inline=true`;
-      } 
-
-      const artifact = this.jobArtifacts!.find(a => a.name.indexOf(artifactName) > -1);
-      if (artifact) {
-         return `${backend.serverUrl}/api/v1/artifacts/${artifact.id}/download?Code=${artifact.code}`;         
-      } 
-      return undefined;
-  
+      
+      return `${backend.serverUrl}/api/v2/artifacts/${this.artifactV2Id}/file?path=Engine/Programs/AutomationTool/Saved/Logs/RunUnreal/${encodeURIComponent(referencePath)}&inline=true`;
+      
    }
 
    getSuiteTest(metaId: string) {
@@ -187,14 +168,6 @@ class SuiteTestHandler {
                   this.artifactV2Id = av2.id;
                }
             }
-
-            if (!this.artifactV2Id) {
-               const key = this.jobId + this.stepId;
-               if (!this.artifacts.get(key)) {                                    
-                  const artifacts = await backend.getJobArtifacts(this.jobId, this.stepId);                  
-                  this.artifacts.set(key, artifacts);                     
-               }   
-            }
          }
       }
 
@@ -271,7 +244,6 @@ class SuiteTestHandler {
 
    jobId?: string;
    stepId?: string;
-   artifacts: Map<string, ArtifactData[]> = new Map();
    artifactV2Id?: string;
    events: TestEvent[] = [];
 
@@ -309,7 +281,7 @@ const EventPanel: React.FC<{ handler: SuiteTestHandler }> = observer(({ handler 
          return oa - ob;
       });      
 
-      if (e.Tag === EventTag.ImageComparison && (handler.artifactV2Id || handler.jobArtifacts?.length) && imageArtifacts?.length) {         
+      if (e.Tag === EventTag.ImageComparison && (handler.artifactV2Id) && imageArtifacts?.length) {         
 
          imageArtifacts.forEach(ta => {
 

@@ -46,6 +46,16 @@ namespace UK2Node_ConvertAssetImpl
 	static const FName OutputPinName("Output");
 }
 
+UEdGraphPin* UK2Node_ConvertAsset::GetInputPin() const
+{
+	return FindPin(UK2Node_ConvertAssetImpl::InputPinName);
+}
+
+UEdGraphPin* UK2Node_ConvertAsset::GetOutputPin() const
+{
+	return FindPin(UK2Node_ConvertAssetImpl::OutputPinName);
+}
+
 UClass* UK2Node_ConvertAsset::GetTargetClass() const
 {
 	UEdGraphPin* InputPin = FindPin(UK2Node_ConvertAssetImpl::InputPinName);

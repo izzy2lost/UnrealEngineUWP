@@ -8,9 +8,7 @@
 #include "Utils/ClothingMeshUtils.h"
 #include "Features/IModularFeatures.h"
 
-#if WITH_EDITOR
 #include "Engine/SkeletalMesh.h"
-#endif
 
 #include "PhysicsEngine/PhysicsAsset.h"
 
@@ -41,135 +39,6 @@ DEFINE_LOG_CATEGORY(LogClothingAsset)
 //==============================================================================
 // ClothingAssetUtils
 //==============================================================================
-
-//Deprecated function
-void ClothingAssetUtils::GetMeshClothingAssetBindings(
-	USkeletalMesh* InSkelMesh, 
-	TArray<FClothingAssetMeshBinding>& OutBindings)
-{
-	OutBindings.Empty();
-
-	if(!InSkelMesh)
-	{
-		return;
-	}
-#if WITH_EDITORONLY_DATA
-	if (InSkelMesh->GetImportedModel())
-	{
-		int32 LODNum = InSkelMesh->GetImportedModel()->LODModels.Num();
-		for (int32 LODIndex = 0; LODIndex < LODNum; ++LODIndex)
-		{
-			if (InSkelMesh->GetImportedModel()->LODModels[LODIndex].HasClothData())
-			{
-				TArray<FClothingAssetMeshBinding> LodBindings;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				GetMeshClothingAssetBindings(InSkelMesh, LodBindings, LODIndex);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-				OutBindings.Append(LodBindings);
-			}
-		}
-		if (OutBindings.Num() > 0)
-		{
-			return;
-		}
-	}
-#endif
-
-	//Fallback on render data
-	if (FSkeletalMeshRenderData* Resource = InSkelMesh->GetResourceForRendering())
-	{
-		const int32 NumLods = Resource->LODRenderData.Num();
-
-		for (int32 LodIndex = 0; LodIndex < NumLods; ++LodIndex)
-		{
-			TArray<FClothingAssetMeshBinding> LodBindings;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			GetMeshClothingAssetBindings(InSkelMesh, LodBindings, LodIndex);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-			OutBindings.Append(LodBindings);
-		}
-	}
-}
-
-//Deprecated function
-void ClothingAssetUtils::GetMeshClothingAssetBindings(
-	USkeletalMesh* InSkelMesh, 
-	TArray<FClothingAssetMeshBinding>& OutBindings, 
-	int32 InLodIndex)
-{
-	OutBindings.Empty();
-
-	if(!InSkelMesh)
-	{
-		return;
-	}
-
-#if WITH_EDITORONLY_DATA
-	if (InSkelMesh->GetImportedModel())
-	{
-		int32 LODNum = InSkelMesh->GetImportedModel()->LODModels.Num();
-		if (InSkelMesh->GetImportedModel()->LODModels[InLodIndex].HasClothData())
-		{
-			TArray<FClothingAssetMeshBinding> LodBindings;
-			int32 SectionNum = InSkelMesh->GetImportedModel()->LODModels[InLodIndex].Sections.Num();
-			for (int32 SectionIndex = 0; SectionIndex < SectionNum; ++SectionIndex)
-			{
-				const FSkelMeshSection& Section = InSkelMesh->GetImportedModel()->LODModels[InLodIndex].Sections[SectionIndex];
-				if (Section.HasClothingData())
-				{
-					UClothingAssetBase* ClothingAsset = InSkelMesh->GetClothingAsset(Section.ClothingData.AssetGuid);
-					FClothingAssetMeshBinding ClothBinding;
-					ClothBinding.Asset = Cast<UClothingAssetCommon>(ClothingAsset);
-					ClothBinding.AssetInternalLodIndex = Section.ClothingData.AssetLodIndex;// InSkelMesh->GetClothingAssetIndex(Section.ClothingData.AssetGuid);
-					check(ClothBinding.AssetInternalLodIndex == Section.ClothingData.AssetLodIndex);
-					ClothBinding.LODIndex = InLodIndex;
-					ClothBinding.SectionIndex = SectionIndex;
-					OutBindings.Add(ClothBinding);
-				}
-			}
-		}
-
-		if (OutBindings.Num() > 0)
-		{
-			return;
-		}
-	}
-#endif
-
-	//Fallback on render data
-	if(FSkeletalMeshRenderData* Resource = InSkelMesh->GetResourceForRendering())
-	{
-		if(Resource->LODRenderData.IsValidIndex(InLodIndex))
-		{
-			FSkeletalMeshLODRenderData& LodData = Resource->LODRenderData[InLodIndex];
-
-			const int32 NumSections = LodData.RenderSections.Num();
-
-			for(int32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
-			{
-				FSkelMeshRenderSection& Section = LodData.RenderSections[SectionIndex];
-
-				if(Section.HasClothingData())
-				{
-					UClothingAssetCommon* SectionAsset = Cast<UClothingAssetCommon>(InSkelMesh->GetSectionClothingAsset(InLodIndex, SectionIndex));
-
-					if(SectionAsset)
-					{
-						// This is the original section of a clothing section pair
-						OutBindings.AddDefaulted();
-						FClothingAssetMeshBinding& Binding = OutBindings.Last();
-
-						Binding.Asset = SectionAsset;
-						Binding.LODIndex = InLodIndex;
-						Binding.SectionIndex = SectionIndex;
-						Binding.AssetInternalLodIndex = Section.ClothingData.AssetLodIndex;
-					}
-				}
-			}
-		}
-	}
-}
 
 #if WITH_EDITOR
 void ClothingAssetUtils::GetAllMeshClothingAssetBindings(const USkeletalMesh* SkeletalMesh, TArray<FClothingAssetMeshBinding>& OutBindings)
@@ -253,7 +122,6 @@ UClothingAssetCommon::UClothingAssetCommon(const FObjectInitializer& ObjectIniti
 	, ChaosClothSimConfig_DEPRECATED(nullptr)
 #endif
 	, ReferenceBoneIndex(0)
-	, CustomData(nullptr)  // Deprecated
 {
 }
 
@@ -468,13 +336,6 @@ bool UClothingAssetCommon::BindToSkeletalMesh(
 		SkelLod.RequiredBones.Sort();
 		InSkelMesh->GetRefSkeleton().EnsureParentsExistAndSort(SkelLod.ActiveBoneIndices);
 	}
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if(CustomData)  // Deprecated from 5.0 onward
-	{
-		CustomData->BindToSkeletalMesh(InSkelMesh, InMeshLodIndex, InSectionIndex, InAssetLodIndex);
-	}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Make sure the LOD map is always big enough for the asset to use.
 	// This shouldn't grow to an unwieldy size but maybe consider compacting later.
@@ -1234,17 +1095,17 @@ void UClothingAssetCommon::PostLoad()
 	if (ClothSimConfig_DEPRECATED)
 	{
 		ClothSimConfig_DEPRECATED->ConditionalPostLoad();  // PostLoad old configs before replacing them
-		ClothSimConfig_DEPRECATED->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);  // Rename the config so that the name doesn't collide with the new config map name
+		ClothSimConfig_DEPRECATED->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);  // Rename the config so that the name doesn't collide with the new config map name
 	}
 	if (ChaosClothSimConfig_DEPRECATED)
 	{
 		ChaosClothSimConfig_DEPRECATED->ConditionalPostLoad();  // PostLoad old configs before replacing them
-		ChaosClothSimConfig_DEPRECATED->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);  // Rename the config so that the name doesn't collide with the new config map name
+		ChaosClothSimConfig_DEPRECATED->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);  // Rename the config so that the name doesn't collide with the new config map name
 	}
 	if (ClothSharedSimConfig_DEPRECATED)
 	{
 		ClothSharedSimConfig_DEPRECATED->ConditionalPostLoad();  // PostLoad old configs before replacing them
-		ClothSharedSimConfig_DEPRECATED->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);  // Rename the config so that the name doesn't collide with the new config map name
+		ClothSharedSimConfig_DEPRECATED->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);  // Rename the config so that the name doesn't collide with the new config map name
 	}
 
 	if (AddClothConfigs())
@@ -1397,10 +1258,12 @@ bool UClothingAssetCommon::AddClothConfigs()
 			for (TSubclassOf<UClothConfigBase> ClothConfigClass : ClothingSimulationFactory->GetClothConfigClasses())
 			{
 				const FName ClothConfigName = ClothConfigClass->GetFName();
-				if (!ClothConfigs.Find(ClothConfigName))
+
+				TObjectPtr<UClothConfigBase>* const ClothConfigPtr = ClothConfigs.Find(ClothConfigName);
+				if (!ClothConfigPtr || !*ClothConfigPtr)
 				{
 					// Create new config object
-					check(!StaticFindObject(ClothConfigClass, this, *ClothConfigClass->GetName(), true));
+					checkf(!StaticFindObject(ClothConfigClass, this, *ClothConfigClass->GetName(), true), TEXT("Found an existing instance of ClothConfigClass in %s. Class:%s"), *GetPathNameSafe(this), *ClothConfigClass->GetName());
 					UClothConfigBase* const ClothConfig = NewObject<UClothConfigBase>(this, ClothConfigClass, ClothConfigClass->GetFName(), RF_Transactional);
 
 					// Use the legacy config struct to try find a common config as an acceptable migration source
@@ -1422,9 +1285,16 @@ bool UClothingAssetCommon::AddClothConfigs()
 						}
 					}
 
-					// Add the new config
+					// Set the new config
 					check(ClothConfig);
-					ClothConfigs.Add(ClothConfigName, ClothConfig);
+					if (ClothConfigPtr)
+					{
+						*ClothConfigPtr = ClothConfig;
+					}
+					else
+					{
+						ClothConfigs.Emplace(ClothConfigName, ClothConfig);
+					}
 					bNewConfigAdded = true;
 				}
 			}
@@ -1508,7 +1378,7 @@ void UClothingAssetCommon::PropagateSharedConfigs(bool bMigrateSharedConfigToCon
 				// Fix the shared config outer if it is still a UClothingAssetCommon (the config must belong to the skeletal mesh, as it is shared between assets)
 				if (Cast<UClothingAssetCommon>(ClothSharedConfig->GetOuter()))
 				{
-					ClothSharedConfig->Rename(nullptr, SkeletalMesh, REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+					ClothSharedConfig->Rename(nullptr, SkeletalMesh, REN_DontCreateRedirectors | REN_NonTransactional);
 				}
 
 				// Fix the shared config ownership, asset might have been copied and the shared config could still point to a different skeletal mesh

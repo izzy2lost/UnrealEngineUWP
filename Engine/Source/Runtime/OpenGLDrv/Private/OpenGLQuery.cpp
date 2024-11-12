@@ -10,667 +10,438 @@
 #include "OpenGLDrvPrivate.h"
 #include "RenderCore.h"
 
-static int32 GOpenGLPollRenderQueryResult = 1;
-static FAutoConsoleVariableRef CVarOpenGLPollRenderQueryResult(
-	TEXT("r.OpenGL.PollRenderQueryResult"),
-	GOpenGLPollRenderQueryResult,
-	TEXT("Whether to poll render query for result until it's ready, otherwise do a blocking call to get result.")
-	TEXT("0: Block, 1: Poll (default)"),
-	ECVF_Default
-	);
+FOpenGLRenderQuery::FActiveQueries FOpenGLRenderQuery::ActiveQueries;
+FOpenGLRenderQuery::FQueryPool FOpenGLRenderQuery::PooledQueries;
 
-struct FQueryItem
+FOpenGLRenderQuery::~FOpenGLRenderQuery()
 {
-	FRHIRenderQuery* Query;
-	int32 BeginSequence;
-
-	FQueryItem(FRHIRenderQuery* InQueryRHI)
-		: Query(InQueryRHI)
-	{
-		FOpenGLRenderQuery* InQuery = FOpenGLDynamicRHI::ResourceCast(InQueryRHI);
-		BeginSequence = InQuery->TotalBegins.GetValue();
-	}
-};
-
-struct FGLQueryBatch
-{
-	TArray<FQueryItem> BatchContents;
-	uint32 FrameNumberRenderThread;
-	bool bHasFlushedSinceLastWait;
-
-	FGLQueryBatch()
-		: FrameNumberRenderThread(0)
-		, bHasFlushedSinceLastWait(false)
-	{
-
-	}
-};
-
-struct FGLQueryBatcher
-{
-	FGLQueryBatch* NewBatch;
-	TArray<FGLQueryBatch*> Batches;
-	uint32 NextFrameNumberRenderThread;
-
-	FGLQueryBatcher()
-		: NewBatch(nullptr)
-		, NextFrameNumberRenderThread(1)
-	{
-	}
-
-	void Add(FRHIRenderQuery* Query)
-	{
-		if (NewBatch && NewBatch->FrameNumberRenderThread)
-		{
-			NewBatch->BatchContents.Add(FQueryItem(Query));
-		}
-	}
-
-	void AddSingle(FRHIRenderQuery* Query)
-	{
-		FGLQueryBatch* SingleBatch = new FGLQueryBatch();
-		SingleBatch->FrameNumberRenderThread = NextFrameNumberRenderThread;
-		SingleBatch->BatchContents.Add(FQueryItem(Query));
-		Batches.Add(SingleBatch);
-	}
-
-	void Waited()
-	{
-		for (int32 Index = 0; Index < Batches.Num(); Index++)
-		{
-			FGLQueryBatch* Batch = Batches[Index];
-			Batch->bHasFlushedSinceLastWait = false;
-		}
-	}
-	void Flush(FOpenGLDynamicRHI& RHI, FRHIRenderQuery* TargetQueryRHI)
-	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_FGLQueryBatcher_FlushScan);
-		bool bFoundQuery = false;
-		for (int32 Index = 0; Index < Batches.Num() && !bFoundQuery; Index++)
-		{
-			FGLQueryBatch* Batch = Batches[Index];
-			if (Batch->bHasFlushedSinceLastWait)
-			{
-				break;
-			}
-			bool bAnyUnfinished = false;
-
-			for (int32 IndexInner = 0; IndexInner < Batch->BatchContents.Num(); IndexInner++)
-			{
-				FQueryItem& Item = Batch->BatchContents[IndexInner];
-				FRHIRenderQuery* QueryRHI = Item.Query;
-				FOpenGLRenderQuery* Query = FOpenGLDynamicRHI::ResourceCast(QueryRHI);
-				if (TargetQueryRHI == QueryRHI)
-				{
-					bFoundQuery = true;
-				}
-
-				if (Item.BeginSequence < Query->TotalBegins.GetValue())
-				{
-					// stale entry, was never checked, but was reused
-					Batch->BatchContents.RemoveAtSwap(IndexInner--, 1, EAllowShrinking::No);
-					continue;
-				}
-			
-				RHI.GetRenderQueryResult_OnThisThread(Query, false);
-				if (Query->TotalResults.GetValue() == Query->TotalBegins.GetValue())
-				{
-					Batch->BatchContents.RemoveAtSwap(IndexInner--, 1, EAllowShrinking::No);
-				}
-				else
-				{
-					bAnyUnfinished = true;
-				}
-			}
-			if (!bAnyUnfinished || Batch->BatchContents.Num() == 0)
-			{
-				delete Batch;
-				Batches.RemoveAt(Index--);
-			}
-			else
-			{
-				Batch->bHasFlushedSinceLastWait = true;
-				break;
-			}
-		}
-	}
-
-	// this just tries to readback queries until it finds one that is not ready
-	void SoftFlush(FOpenGLDynamicRHI& RHI, bool bResetHasFlushedSinceLastWait = false)
-	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_FGLQueryBatcher_SoftFlushScan);
-		for (int32 Index = 0; Index < Batches.Num(); Index++)
-		{
-			FGLQueryBatch* Batch = Batches[Index];
-			if (bResetHasFlushedSinceLastWait)
-			{
-				Batch->bHasFlushedSinceLastWait = false; // we will try a full scan if we get around to initviews
-			}
-
-			if (Batch->FrameNumberRenderThread == NextFrameNumberRenderThread)
-			{
-				// do not scan queries issued this frame, 
-				// on some Android devices this causes stalls in the driver (eg. S7 Adreno with Android 7)
-				break;
-			}
-
-			for (int32 IndexInner = 0; IndexInner < Batch->BatchContents.Num(); IndexInner++)
-			{
-				FQueryItem& Item = Batch->BatchContents[IndexInner];
-				FRHIRenderQuery* QueryRHI = Item.Query;
-				FOpenGLRenderQuery* Query = FOpenGLDynamicRHI::ResourceCast(QueryRHI);
-
-				int32 Begins = Query->TotalBegins.GetValue();
-
-				if (Item.BeginSequence < Query->TotalBegins.GetValue())
-				{
-					// stale entry, was never checked, but was reused
-					Batch->BatchContents.RemoveAtSwap(IndexInner--, 1, EAllowShrinking::No);
-					continue;
-				}
-
-				RHI.GetRenderQueryResult_OnThisThread(Query, false);
-				if (Query->TotalResults.GetValue() == Query->TotalBegins.GetValue())
-				{
-					Batch->BatchContents.RemoveAtSwap(IndexInner--, 1, EAllowShrinking::No);
-				}
-			}
-			if (Batch->BatchContents.Num() == 0)
-			{
-				delete Batch;
-				Batches.RemoveAt(Index--);
-			}
-			else
-			{
-				break;
-			}
-		}
-	}
-
-	void PerFrameFlush()
-	{
-		NextFrameNumberRenderThread++;
-		for (int32 Index = 0; Index < Batches.Num(); Index++)
-		{
-			FGLQueryBatch* Batch = Batches[Index];
-			if (Batch->FrameNumberRenderThread <= NextFrameNumberRenderThread - 5)
-			{
-				delete Batch;
-				Batches.RemoveAt(Index--);
-			}
-		}
-	}
-
-	void StartNewBatch(FOpenGLDynamicRHI& RHI)
-	{
-		check(!NewBatch);
-		NewBatch = new FGLQueryBatch();
-		NewBatch->FrameNumberRenderThread = NextFrameNumberRenderThread;
-	}
-
-	void EndBatch(FOpenGLDynamicRHI& RHI)
-	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_FGLQueryBatcher_EndBatch);
-		SoftFlush(RHI, true);
-		if (NewBatch)
-		{
-			Batches.Add(NewBatch);
-			NewBatch = nullptr;
-		}
-	}
-
-} GBatcher;
-
-void BeginFrame_QueryBatchCleanup()
-{
-	GBatcher.PerFrameFlush();
+	VERIFY_GL_SCOPE();
+	ReleaseGlQuery();
 }
 
-void BeginOcclusionQueryBatch(uint32 NumOcclusionQueries)
+void FOpenGLRenderQuery::Link()
 {
-	if (IsRunningRHIInSeparateThread())
+	// The renderer might re-use a query without reading its results back first.
+	// Ensure this query is unlinked, so it can be re-linked at the end of the list.
+	Unlink();
+
+	if (!ActiveQueries.First)
 	{
-		GBatcher.StartNewBatch(*GetDynamicRHI<FOpenGLDynamicRHI>());
+		check(!ActiveQueries.Last);
+		check(Next == nullptr);
+
+		ActiveQueries.First = this;
+		Prev = &ActiveQueries.First;
+	}
+	else
+	{
+		check(ActiveQueries.Last);
+		check(ActiveQueries.Last->Next == nullptr);
+
+		ActiveQueries.Last->Next = this;
+		Prev = &ActiveQueries.Last->Next;
+	}
+
+	ActiveQueries.Last = this;
+}
+
+void FOpenGLRenderQuery::Unlink()
+{
+	if (!IsLinked())
+		return;
+
+	if (ActiveQueries.Last == this)
+	{
+		// This is the last node in the list, so the "ActiveQueries.Last" pointer needs fixing up.
+		if (Prev == &ActiveQueries.First)
+		{
+			// This is also the first node in the list, meaning there's only 1 node total.
+			// Just clear the "ActiveQueries.Last" pointer.
+			ActiveQueries.Last = nullptr;
+		}
+		else
+		{
+			//
+			// There's at least one real node before us.
+			// 
+			// "Prev" points to the "Next" member field of the previous node.
+			// Subtract the "Next" field offset to get the actual previous node address.
+			//
+			ActiveQueries.Last = reinterpret_cast<FOpenGLRenderQuery*>(reinterpret_cast<uintptr_t>(Prev) - offsetof(FOpenGLRenderQuery, Next));
+		}
+	}
+
+	if (Next) { Next->Prev = Prev; }
+	if (Prev) { *Prev = Next; }
+
+	Next = nullptr;
+	Prev = nullptr;
+}
+
+void FOpenGLRenderQuery::CheckContext()
+{
+	check(Resource);
+	if (bSharedContext)
+	{
+		check(FOpenGLDynamicRHI::GetCurrentContext() == CONTEXT_Shared);
+	}
+	else
+	{
+		check(FOpenGLDynamicRHI::GetCurrentContext() == CONTEXT_Rendering);
 	}
 }
 
-void EndOcclusionQueryBatch()
+void FOpenGLRenderQuery::AcquireGlQuery()
 {
-	if (IsRunningRHIInSeparateThread())
+	if (Resource != 0)
 	{
-		GBatcher.EndBatch(*GetDynamicRHI<FOpenGLDynamicRHI>());
+		// Already acquired
+		return;
 	}
+
+	EOpenGLCurrentContext Context = FOpenGLDynamicRHI::GetCurrentContext();
+	if (Context == CONTEXT_Shared)
+	{
+		// Don't do any pooling on the shared context.
+		bSharedContext = true;
+		FOpenGL::GenQueries(1, &Resource);
+	}
+	else
+	{
+		check(Context == CONTEXT_Rendering);
+
+		while (ActiveQueries.First && ActiveQueries.Count >= GRHIMaximumInFlightQueries)
+		{
+			// We can't start another query until more become available, due to the query count limit.
+			// Block for results on the oldest in-flight queries.
+			ActiveQueries.First->CacheResult(true);
+		}
+
+		ActiveQueries.Count++;
+
+		if (PooledQueries[Type].Num())
+		{
+			Resource = PooledQueries[Type].Pop();
+		}
+		else
+		{
+			FOpenGL::GenQueries(1, &Resource);
+		}
+	}
+}
+
+void FOpenGLRenderQuery::ReleaseGlQuery()
+{
+	if (Resource == 0)
+	{
+		// Already released
+		check(!IsLinked());
+		return;
+	}
+
+	CheckContext();
+
+	if (bSharedContext)
+	{
+		// Don't do any pooling on the shared context.
+		FOpenGL::DeleteQueries(1, &Resource);
+		bSharedContext = false;
+	}
+	else
+	{
+		check(ActiveQueries.Count > 0);
+		ActiveQueries.Count--;
+
+		PooledQueries[Type].Add(Resource);
+	}
+	
+	Resource = 0;
+
+	Unlink();
+}
+
+void FOpenGLRenderQuery::Begin()
+{
+	VERIFY_GL_SCOPE();
+
+	check(Resource == 0);
+	AcquireGlQuery();
+
+	CheckContext();
+
+	switch(Type)
+	{
+	default:
+	case EType::Timestamp:
+		checkNoEntry();
+		break;
+
+	case EType::Occlusion:
+		FOpenGL::BeginQuery(
+			FOpenGL::SupportsExactOcclusionQueries()
+				? UGL_SAMPLES_PASSED
+				: UGL_ANY_SAMPLES_PASSED
+			, Resource
+		);
+		break;
+
+	case EType::Disjoint:
+		FOpenGL::BeginQuery(UGL_TIME_ELAPSED, Resource);
+		break;
+	};
+}
+
+void FOpenGLRenderQuery::End()
+{
+	VERIFY_GL_SCOPE();
+	AcquireGlQuery();
+	
+	CheckContext();
+
+	switch (Type)
+	{
+	case EType::Occlusion:
+		check(Resource);
+		FOpenGL::EndQuery(FOpenGL::SupportsExactOcclusionQueries()
+			? UGL_SAMPLES_PASSED
+			: UGL_ANY_SAMPLES_PASSED
+		);
+		break;
+
+	case EType::Timestamp:
+		FOpenGL::QueryTimestampCounter(Resource);
+		break;
+
+	case EType::Disjoint:
+		FOpenGL::EndQuery(UGL_TIME_ELAPSED);
+		break;
+	}
+
+	BOPCounter++;
+
+	Link();
+}
+
+bool FOpenGLRenderQuery::CacheResult(bool bWait)
+{
+	if (BOPCounter == LastCachedBOPCounter.load(std::memory_order_relaxed))
+	{
+		// Value has been cached and no newer query operation has started.
+		check(!IsLinked());
+		return true;
+	}
+
+	CheckContext();
+
+	if (!bWait)
+	{
+		// If we don't want to wait, we need to check if the result is available first.
+		GLuint IsAvailable = GL_FALSE;
+		FOpenGL::GetQueryObject(Resource, FOpenGL::QM_ResultAvailable, &IsAvailable);
+
+		if (IsAvailable == GL_FALSE)
+		{
+			// Not ready yet.
+			return false;
+		}
+	}
+
+	// Read the result back (and block if its not ready)
+	switch (Type)
+	{
+	default:
+		checkNoEntry();
+		break;
+	
+	case EType::Occlusion:
+		{
+			GLuint Result32 = 0;
+			FOpenGL::GetQueryObject(Resource, FOpenGL::QM_Result, &Result32);
+			SetResult(Result32 * (FOpenGL::SupportsExactOcclusionQueries() ? 1 : 500000)); // half a mega pixel display
+		}
+		break;
+
+	case EType::Timestamp:
+		{
+			GLuint64 Value = 0;
+			FOpenGL::GetQueryObject(Resource, FOpenGL::QM_Result, &Value);
+
+			// Convert to microseconds (GL queries are in nanoseconds)
+			SetResult(Value / 1000);
+		}
+		break;
+
+	case EType::Disjoint:
+		{
+			// TimerQueryDisjoint is a one-shot state in the driver, it is not pipelined.
+			// If it returns true, all timers we've submitted after this timer but haven't
+			// yet resolved should be discarded for having invalid data.
+			if (FOpenGL::TimerQueryDisjoint())
+			{
+				for (FOpenGLRenderQuery* Other = this; Other; Other = Other->Next)
+				{
+					if (Other->Type == EType::Disjoint)
+					{
+						Other->SetResult(InvalidDisjointMask);
+					}
+				}
+			}
+			else
+			{
+				GLuint64 Value;
+				FOpenGL::GetQueryObject(Resource, FOpenGL::QM_Result, &Value);
+
+				// Convert to microseconds (GL queries are in nanoseconds)
+				SetResult(Value / 1000);
+			}
+		}
+		break;
+	}
+
+	return true;
+}
+
+void FOpenGLRenderQuery::SetResult(uint64 Value)
+{
+	Result = Value;
+	ReleaseGlQuery();
+
+	LastCachedBOPCounter.store(BOPCounter, std::memory_order_release);
+}
+
+bool FOpenGLRenderQuery_RHI::GetResult(bool bWait, uint64& OutResult)
+{
+	if (TOPCounter == LastCachedBOPCounter.load(std::memory_order_acquire))
+	{
+		// Early return for queries we already have the result for.
+		check(!IsLinked());
+		OutResult = FOpenGLRenderQuery::GetResult();
+		return true;
+	}
+
+	if (!bWait)
+	{
+		//
+		// The query has not yet completed, and we don't want to wait for the query result.
+		// Return. The RHI thread will poll for results later.
+		//
+		OutResult = 0;
+		return false;
+	}
+
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+
+	//
+	// The query has not yet completed, and we want to wait for results.
+	// Append an RHI thread command that will force a readback of the GL query, then flush the RHI thread.
+	//	
+	RHICmdList.EnqueueLambda([Counter = TOPCounter, this](FRHICommandListImmediate&)
+	{
+		if (BOPCounter != Counter)
+		{
+			// Query result is not ready yet. Fetch it...
+			CacheResult(true);
+		}
+	});
+
+	// Wait for the above lambda to execute
+	RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+
+	checkf(TOPCounter == BOPCounter, TEXT("Attempting to get data from an RHI render query which was never issued."));
+	check(!IsLinked());
+
+	OutResult = FOpenGLRenderQuery::GetResult();
+	return true;
 }
 
 void OpenGL_PollAllFences();
 
-void FOpenGLDynamicRHI::RHIPollOcclusionQueries()
+void FOpenGLRenderQuery::PollQueryResults()
 {
-	if (IsRunningRHIInSeparateThread())
+	if (ActiveQueries.First)
 	{
-		GBatcher.SoftFlush(*GetDynamicRHI<FOpenGLDynamicRHI>());
+		TRACE_CPUPROFILER_EVENT_SCOPE(PollQueryResults);
 
-		OpenGL_PollAllFences();
+		do
+		{
+			if (!ActiveQueries.First->CacheResult(/*bWait = */ false))
+				break;
+		}
+		while (ActiveQueries.First);
+	}
+	EOpenGLCurrentContext Context = FOpenGLDynamicRHI::GetCurrentContext();
+	if (Context == CONTEXT_Rendering)
+	{
+ 		OpenGL_PollAllFences();
+	}
+}
+
+void FOpenGLRenderQuery::Cleanup()
+{
+	VERIFY_GL_SCOPE();
+	check(ActiveQueries.Count == 0);
+
+	for (auto& Array : PooledQueries)
+	{
+		for (GLuint Resource : Array)
+		{
+			FOpenGL::DeleteQueries(1, &Resource);
+		}
+
+		Array.Reset();
 	}
 }
 
 FRenderQueryRHIRef FOpenGLDynamicRHI::RHICreateRenderQuery(ERenderQueryType QueryType)
 {
-
 	check(QueryType == RQT_Occlusion || QueryType == RQT_AbsoluteTime);
-
-	if(QueryType == RQT_AbsoluteTime && FOpenGL::SupportsTimestampQueries() == false)
+	if (QueryType == RQT_AbsoluteTime && FOpenGL::SupportsTimestampQueries() == false)
 	{
-		return NULL;
+		return nullptr;
 	}
 
-	return new FOpenGLRenderQuery(QueryType);
+	return new FOpenGLRenderQuery_RHI(QueryType);
 }
 
-void FOpenGLDynamicRHI::RHIBeginRenderQuery(FRHIRenderQuery* QueryRHI)
+void FOpenGLDynamicRHI::RHIBeginRenderQuery_TopOfPipe(FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery)
 {
-	VERIFY_GL_SCOPE();
-
-	FOpenGLRenderQuery* Query = ResourceCast(QueryRHI);
-
-	if (Query)
-	{
-		BeginRenderQuery_OnThisThread(Query);
-		GBatcher.Add(QueryRHI);
-	}
-}
-
-void FOpenGLDynamicRHI::RHIEndRenderQuery(FRHIRenderQuery* QueryRHI)
-{
-	VERIFY_GL_SCOPE();
-
-	FOpenGLRenderQuery* Query = ResourceCast(QueryRHI);
-
-	if (Query)
-	{
-		EndRenderQuery_OnThisThread(Query);
-		if (Query->QueryType == RQT_AbsoluteTime)
-		{
-			GBatcher.AddSingle(Query);
-		}
-	}
-}
-
-void FOpenGLDynamicRHI::BeginRenderQuery_OnThisThread(FOpenGLRenderQuery* Query)
-{
-	VERIFY_GL_SCOPE();
-
-	int32 NewVal = Query->TotalBegins.Increment();
-	Query->TotalResults.Set(NewVal - 1);
-	Query->Result = 0;
-	Query->bResultWasSuccess = false;
-
-	if (Query->QueryType == RQT_Occlusion)
-	{
-		check(PendingState.RunningOcclusionQuery == 0);
-
-		if (!Query->bInvalidResource && !PlatformContextIsCurrent(Query->ResourceContext))
-		{
-			PlatformReleaseRenderQuery(Query->Resource, Query->ResourceContext);
-			Query->bInvalidResource = true;
-		}
-
-		if (Query->bInvalidResource)
-		{
-			PlatformGetNewRenderQuery(&Query->Resource, &Query->ResourceContext);
-			Query->bInvalidResource = false;
-		}
-
-		GLenum QueryType = FOpenGL::SupportsExactOcclusionQueries() ? UGL_SAMPLES_PASSED : UGL_ANY_SAMPLES_PASSED;
-		FOpenGL::BeginQuery(QueryType, Query->Resource);
-		PendingState.RunningOcclusionQuery = Query->Resource;
-	}
-	else
-	{
-		// not supported/needed for RQT_AbsoluteTime
-		check(0);
-	}
-}
-
-void FOpenGLDynamicRHI::EndRenderQuery_OnThisThread(FOpenGLRenderQuery* Query)
-{
-	VERIFY_GL_SCOPE();
-
-	if (Query)
-	{
-		if (Query->QueryType == RQT_Occlusion)
-		{
-			if (!Query->bInvalidResource && !PlatformContextIsCurrent(Query->ResourceContext))
-			{
-				PlatformReleaseRenderQuery(Query->Resource, Query->ResourceContext);
-				Query->Resource = 0;
-				Query->bInvalidResource = true;
-			}
-
-			if (!Query->bInvalidResource)
-			{
-				check(PendingState.RunningOcclusionQuery == Query->Resource);
-				PendingState.RunningOcclusionQuery = 0;
-				GLenum QueryType = FOpenGL::SupportsExactOcclusionQueries() ? UGL_SAMPLES_PASSED : UGL_ANY_SAMPLES_PASSED;
-				FOpenGL::EndQuery(QueryType);
-			}
-		}
-		else if (Query->QueryType == RQT_AbsoluteTime)
-		{
-			int32 NewVal = Query->TotalBegins.Increment();
-			Query->TotalResults.Set(NewVal - 1);
-			Query->Result = 0;
-			Query->bResultWasSuccess = false;
-
-			if (!Query->bInvalidResource && !PlatformContextIsCurrent(Query->ResourceContext))
-			{
-				PlatformReleaseRenderQuery(Query->Resource, Query->ResourceContext);
-				Query->Resource = 0;
-				Query->bInvalidResource = true;
-			}
-
-			// query can be silently invalidated in GetRenderQueryResult
-			if (Query->bInvalidResource)
-			{
-				PlatformGetNewRenderQuery(&Query->Resource, &Query->ResourceContext);
-				Query->bInvalidResource = false;
-			}
-
-			FOpenGL::QueryTimestampCounter(Query->Resource);
-		}
-	}
-}
-
-static void GetRenderQueryResult(FOpenGLRenderQuery* Query)
-{
-	VERIFY_GL_SCOPE();
-	if (Query->QueryType == RQT_AbsoluteTime)
-	{
-		FOpenGL::GetQueryObject(Query->Resource, FOpenGL::QM_Result, &Query->Result);
-	}
-	else
-	{
-		GLuint Result32 = 0;
-		FOpenGL::GetQueryObject(Query->Resource, FOpenGL::QM_Result, &Result32);
-		Query->Result = Result32 * (FOpenGL::SupportsExactOcclusionQueries() ? 1 : 500000); // half a mega pixel display
-	}
-	Query->bResultWasSuccess = true;
-	Query->TotalResults.Increment();
-}
-
-void FOpenGLDynamicRHI::GetRenderQueryResult_OnThisThread(FOpenGLRenderQuery* Query, bool bWait)
-{
-	if (Query->TotalResults.GetValue() == Query->TotalBegins.GetValue())
-	{
+	if (!RenderQuery)
 		return;
-	}
-	check(Query->TotalResults.GetValue() + 1 == Query->TotalBegins.GetValue());
 
-	VERIFY_GL_SCOPE();
-
-	if (!Query->bInvalidResource && !PlatformContextIsCurrent(Query->ResourceContext))
-	{
-		PlatformReleaseRenderQuery(Query->Resource, Query->ResourceContext);
-		Query->Resource = 0;
-		Query->bInvalidResource = true;
-	}
-
-	// Check if the query is valid first
-	if (Query->bInvalidResource)
-	{
-		Query->Result = 0;
-		Query->TotalResults.Increment();
-	}
-	else
-	{
-		// Check if the query is finished
-		GLuint Result = 0;
-		FOpenGL::GetQueryObject(Query->Resource, FOpenGL::QM_ResultAvailable, &Result);
-		if (Result == GL_TRUE)
-		{
-			GetRenderQueryResult(Query);
-		}
-		else if (bWait) // Isn't the query finished yet, and can we wait for it?
-		{
-			SCOPE_CYCLE_COUNTER(STAT_RenderQueryResultTime);
-
-			FRenderThreadIdleScope IdleScope(ERenderThreadIdleTypes::WaitingForGPUQuery);
-			GBatcher.Waited();
-			
-			if (GOpenGLPollRenderQueryResult == 0)
-			{
-				// block in the driver waiting for result
-				GetRenderQueryResult(Query);
-			}
-			else
-			{
-				// poll result until it's ready
-				double StartTime = FPlatformTime::Seconds();
-				do
-				{
-					FPlatformProcess::Sleep(0);	// yield to other threads - some of them may be OpenGL driver's and we'd be starving them
-
-					if (Query->bInvalidResource)
-					{
-						// Query got invalidated while we were sleeping.
-						// Bail out, no sense to wait and generate OpenGL errors,
-						// we're in a new OpenGL context that knows nothing about us.
-						Query->Result = 1000;	// safe value
-						Result = GL_FALSE;
-						bWait = false;
-						Query->bResultWasSuccess = true;
-						break;
-					}
-
-					FOpenGL::GetQueryObject(Query->Resource, FOpenGL::QM_ResultAvailable, &Result);
-
-					// timer queries are used for Benchmarks which can stall a bit more
-					double TimeoutValue = (Query->QueryType == RQT_AbsoluteTime) ? 2.0 : 0.5;
-
-					if ((FPlatformTime::Seconds() - StartTime) > TimeoutValue)
-					{
-						UE_LOG(LogRHI, Log, TEXT("Timed out while waiting for GPU to catch up. (%.1f s)"), TimeoutValue);
-						break;
-					}
-				} while (Result == GL_FALSE);
-				
-				if (Result == GL_TRUE)
-				{
-					GetRenderQueryResult(Query);
-				}
-				else
-				{
-					Query->Result = 0;
-					Query->TotalResults.Increment();
-				}
-			}
-		}
-	}
+	FDynamicRHI::RHIBeginRenderQuery_TopOfPipe(RHICmdList, RenderQuery);
 }
 
-class FPollQueriesRHIThreadTask
+void FOpenGLDynamicRHI::RHIEndRenderQuery_TopOfPipe(FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery)
 {
-	FOpenGLRenderQuery* Query;
-	FOpenGLDynamicRHI* RHI;
-	bool bWait;
+	if (!RenderQuery)
+		return;
 
-public:
+	ResourceCast(RenderQuery)->End_TopOfPipe();
+	FDynamicRHI::RHIEndRenderQuery_TopOfPipe(RHICmdList, RenderQuery);
+}
 
-	FPollQueriesRHIThreadTask(FOpenGLRenderQuery* InQuery, FOpenGLDynamicRHI* InRHI, bool bInWait)
-		: Query(InQuery)
-		, RHI(InRHI)
-		, bWait(bInWait)
-	{
-	}
+void FOpenGLDynamicRHI::RHIBeginRenderQuery(FRHIRenderQuery* RenderQuery)
+{
+	ResourceCast(RenderQuery)->Begin();
+}
 
-	FORCEINLINE TStatId GetStatId() const
-	{
-		RETURN_QUICK_DECLARE_CYCLE_STAT(FPollQueriesRHIThreadTask, STATGROUP_TaskGraphTasks);
-	}
-
-	ENamedThreads::Type GetDesiredThread()
-	{
-		return ENamedThreads::SetTaskPriority(ENamedThreads::RHIThread, ENamedThreads::HighTaskPriority);
-	}
-
-	static ESubsequentsMode::Type GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
-
-	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
-	{
-		check(IsInRHIThread());
-		check(IsRunningRHIInDedicatedThread() && IsInRHIThread()); // this should never be used on a platform that doesn't support the RHI thread, and it can't quite work when running the RHI stuff on task threads
-		if (bWait)
-		{
-			RHI->GetRenderQueryResult_OnThisThread(Query, true); // we must get this one if bWait is true;
-			RHI->RHIPollOcclusionQueries(); // finish any other ones, but don't wait
-		}
-		else
-		{
-			RHI->GetRenderQueryResult_OnThisThread(Query, false);
-			if (Query->TotalResults.GetValue() == Query->TotalBegins.GetValue())
-			{
-				RHI->RHIPollOcclusionQueries(); // If the target query was ready, then go ahead and scan to see what else is ready.
-			}
-		}
-	}
-};
-
+void FOpenGLDynamicRHI::RHIEndRenderQuery(FRHIRenderQuery* RenderQuery)
+{
+	FOpenGLRenderQuery_RHI* Query = ResourceCast(RenderQuery);
+	Query->End();
+}
 
 bool FOpenGLDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint64& OutResult, bool bWait, uint32 GPUIndex)
 {
-	check(IsInRenderingThread() || IsInRHIThread());
-
-	FOpenGLRenderQuery* Query = ResourceCast(QueryRHI);
-
-	if (!Query)
+	if (!QueryRHI)
 	{
-		// If timer queries are unsupported, just make sure that OutResult does not contain any random values.
 		OutResult = 0;
-		return false;
-	}
-
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-
-	const bool bCanRunOnThisThread = RHICmdList.Bypass() || (!IsRunningRHIInSeparateThread() && IsInRenderingThread()) || IsInRHIThread();
-
-	if (Query->TotalResults.GetValue() != Query->TotalBegins.GetValue())
-	{
-		if (bCanRunOnThisThread)
-		{
-			GetRenderQueryResult_OnThisThread(Query, bWait);
-		}
-		else
-		{
-			if (bWait)
-			{
-				QUICK_SCOPE_CYCLE_COUNTER(STAT_WaitForRHIThreadOcclusionReadback);
-				if (IsRunningRHIInDedicatedThread())
-				{
-					// send a command that will wait, so if the RHIT runs out of work, it just blocks and waits for the GPU
-					ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)([this, QueryRHI]() {GetRenderQueryResult_OnThisThread(ResourceCast(QueryRHI), true); });
-					FGraphEventRef Done = RHICmdList.RHIThreadFence(false);
-					ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)([this, QueryRHI]() {GBatcher.Flush(*this, QueryRHI); });
-					RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
-					while (!Done->IsComplete())
-					{
-						FGraphEventRef RHITask = TGraphTask<FPollQueriesRHIThreadTask>::CreateTask().ConstructAndDispatchWhenReady(ResourceCast(QueryRHI), this, false);
-						FTaskGraphInterface::Get().WaitUntilTaskCompletes(RHITask);
-
-						if (Query->TotalResults.GetValue() == Query->TotalBegins.GetValue())
-						{
-							break;
-						}
-						// We want to keep the RHIT working, but we want keep checking between command lists so that we can get the results as soon as the GPU has them
-
-						// this isn't really a spin, the ping-pong between threads will not consume CPU (usually a bad thing, not here).
-					}
-				}
-				else
-				{
-					ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)([this, QueryRHI]() {GetRenderQueryResult_OnThisThread(ResourceCast(QueryRHI), true); });
-					FGraphEventRef Done = RHICmdList.RHIThreadFence(false);
-					ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)([this, QueryRHI]() {GBatcher.Flush(*this, QueryRHI); });
-					RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
-					FRHICommandListExecutor::WaitOnRHIThreadFence(Done);
-				}
-				check(Query->TotalResults.GetValue() == Query->TotalBegins.GetValue());
-			}
-			else
-			{
-				ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)([this, QueryRHI]() {GetRenderQueryResult_OnThisThread(ResourceCast(QueryRHI), false); GBatcher.Flush(*this, QueryRHI);  });
-			}
-		}	
-	}
-	if (Query->TotalResults.GetValue() == Query->TotalBegins.GetValue() && Query->bResultWasSuccess)
-	{
-		if (Query->QueryType == RQT_AbsoluteTime)
-		{
-			// GetTimingFrequency is the number of ticks per second
-			uint64 Div = FMath::Max(1llu, FOpenGLBufferedGPUTiming::GetTimingFrequency() / (1000 * 1000));
-
-			// convert from GPU specific timestamp to micro sec (1 / 1 000 000 s) which seems a reasonable resolution
-			OutResult = Query->Result / Div;
-		}
-		else
-		{
-			OutResult = Query->Result;
-		}
 		return true;
 	}
-	OutResult = 0;
-	return false;
+
+	FOpenGLRenderQuery_RHI* Query = ResourceCast(QueryRHI);
+	return Query->GetResult(bWait, OutResult);
 }
-
-
-
-FRenderQueryPoolRHIRef FOpenGLDynamicRHI::RHICreateRenderQueryPool(ERenderQueryType QueryType, uint32 /*NumQueries*/)
-{
-	// Workaround to fix UE-77873: pass <QueryType> to primary implementation and ignore <NumQueries> for pre-allocated queries
-	return FDynamicRHI::RHICreateRenderQueryPool(QueryType);
-}
-
-extern void OnQueryCreation( FOpenGLRenderQuery* Query );
-extern void OnQueryDeletion( FOpenGLRenderQuery* Query );
-
-FOpenGLRenderQuery::FOpenGLRenderQuery(ERenderQueryType InQueryType)
-	: Result(0)
-	, bInvalidResource(true)
-	, QueryType(InQueryType)
-{
-	check(IsInRenderingThread());
-	FRHICommandListExecutor::GetImmediateCommandList().EnqueueLambda(
-		[this](FRHICommandListImmediate&) { AcquireResource(); }
-	);
-}
-
-
-FOpenGLRenderQuery::~FOpenGLRenderQuery()
-{
-	VERIFY_GL_SCOPE();
-	OnQueryDeletion( this );
-
-	if (Resource && !bInvalidResource)
-	{
-		bInvalidResource = true;
-		ReleaseResource(Resource, ResourceContext);
-	}
-}
-
-void FOpenGLRenderQuery::AcquireResource()
-{
-	VERIFY_GL_SCOPE();
-	bInvalidResource = false;
-	PlatformGetNewRenderQuery(&Resource, &ResourceContext);
-	OnQueryCreation(this);
-}
-void FOpenGLRenderQuery::ReleaseResource(GLuint Resource, uint64 ResourceContext)
-{
-	VERIFY_GL_SCOPE();
-	check(Resource);
-	PlatformReleaseRenderQuery(Resource, ResourceContext);
-}
-
-
 
 void FOpenGLEventQuery::IssueEvent()
 {
@@ -738,18 +509,16 @@ FOpenGLEventQuery::~FOpenGLEventQuery()
  * class FOpenGLBufferedGPUTiming
  *=============================================================================*/
 
+#if (RHI_NEW_GPU_PROFILER == 0)
+
 /**
  * Constructor.
  *
  * @param InOpenGLRHI			RHI interface
  * @param InBufferSize		Number of buffered measurements
  */
-FOpenGLBufferedGPUTiming::FOpenGLBufferedGPUTiming( FOpenGLDynamicRHI* InOpenGLRHI, int32 InBufferSize )
-:	OpenGLRHI( InOpenGLRHI )
-,	BufferSize( InBufferSize )
-,	CurrentTimestamp( -1 )
-,	NumIssuedTimestamps( 0 )
-,	bIsTiming( false )
+FOpenGLBufferedGPUTiming::FOpenGLBufferedGPUTiming(int32 InBufferSize)
+	: BufferSize(InBufferSize)
 {
 }
 
@@ -779,12 +548,12 @@ static FOpenGLRenderQuery* GetTimeQuery()
 	{
 		return TimerQueryPool.Pop();
 	}
-	return new FOpenGLRenderQuery(RQT_AbsoluteTime);
+	return new FOpenGLRenderQuery(FOpenGLRenderQuery::EType::Timestamp);
 }
 
 void FOpenGLBufferedGPUTiming::InitResources()
 {
-	StaticInitialize(OpenGLRHI, PlatformStaticInitialize);
+	StaticInitialize(nullptr, PlatformStaticInitialize);
 
 	CurrentTimestamp = 0;
 	NumIssuedTimestamps = 0;
@@ -811,12 +580,12 @@ void FOpenGLBufferedGPUTiming::ReleaseResources()
 {
 	VERIFY_GL_SCOPE();
 
-	for(FOpenGLRenderQuery* Query : StartTimestamps)
+	for (FOpenGLRenderQuery* Query : StartTimestamps)
 	{
 		TimerQueryPool.Add(Query);
 	}
 
-	for(FOpenGLRenderQuery* Query : EndTimestamps)
+	for (FOpenGLRenderQuery* Query : EndTimestamps)
 	{
 		TimerQueryPool.Add(Query);
 	}
@@ -836,22 +605,8 @@ void FOpenGLBufferedGPUTiming::StartTiming()
 	if ( GIsSupported && !bIsTiming )
 	{
 		int32 NewTimestampIndex = (CurrentTimestamp + 1) % BufferSize;
-		FOpenGLRenderQuery* TimerQuery = StartTimestamps[NewTimestampIndex];
-		{
-			if (!TimerQuery->bInvalidResource && !PlatformContextIsCurrent(TimerQuery->ResourceContext))
-			{
-				PlatformReleaseRenderQuery(TimerQuery->Resource, TimerQuery->ResourceContext);
-				TimerQuery->bInvalidResource = true;
-			}
+		StartTimestamps[NewTimestampIndex]->End();
 
-			if (TimerQuery->bInvalidResource)
-			{
-				PlatformGetNewRenderQuery(&TimerQuery->Resource, &TimerQuery->ResourceContext);
-				TimerQuery->bInvalidResource = false;
-			}
-		}
-
-		FOpenGL::QueryTimestampCounter(StartTimestamps[NewTimestampIndex]->Resource);
 		CurrentTimestamp = NewTimestampIndex;
 		bIsTiming = true;
 	}
@@ -868,23 +623,8 @@ void FOpenGLBufferedGPUTiming::EndTiming()
 	if ( GIsSupported && bIsTiming )
 	{
 		checkSlow( CurrentTimestamp >= 0 && CurrentTimestamp < BufferSize );
+		EndTimestamps[CurrentTimestamp]->End();
 
-		FOpenGLRenderQuery* TimerQuery = EndTimestamps[CurrentTimestamp];
-		{
-			if (!TimerQuery->bInvalidResource && !PlatformContextIsCurrent(TimerQuery->ResourceContext))
-			{
-				PlatformReleaseRenderQuery(TimerQuery->Resource, TimerQuery->ResourceContext);
-				TimerQuery->bInvalidResource = true;
-			}
-
-			if (TimerQuery->bInvalidResource && PlatformOpenGLContextValid())
-			{
-				PlatformGetNewRenderQuery(&TimerQuery->Resource, &TimerQuery->ResourceContext);
-				TimerQuery->bInvalidResource = false;
-			}
-		}
-
-		FOpenGL::QueryTimestampCounter(EndTimestamps[CurrentTimestamp]->Resource);
 		NumIssuedTimestamps = FMath::Min<int32>(NumIssuedTimestamps + 1, BufferSize);
 		bIsTiming = false;
 	}
@@ -898,60 +638,29 @@ void FOpenGLBufferedGPUTiming::EndTiming()
  */
 uint64 FOpenGLBufferedGPUTiming::GetTiming(bool bGetCurrentResultsAndBlock)
 {
-
 	VERIFY_GL_SCOPE();
 
-	if ( GIsSupported )
+	if (GIsSupported)
 	{
-		checkSlow( CurrentTimestamp >= 0 && CurrentTimestamp < BufferSize );
-		GLuint64 StartTime, EndTime;
-
+		checkSlow(CurrentTimestamp >= 0 && CurrentTimestamp < BufferSize);
 		int32 TimestampIndex = CurrentTimestamp;
-
-		{
-			FOpenGLRenderQuery* EndStamp = EndTimestamps[TimestampIndex];
-			if (!EndStamp->bInvalidResource && !PlatformContextIsCurrent(EndStamp->ResourceContext))
-			{
-				PlatformReleaseRenderQuery(EndStamp->Resource, EndStamp->ResourceContext);
-				EndStamp->bInvalidResource = true;
-			}
-
-			FOpenGLRenderQuery* StartStamp = StartTimestamps[TimestampIndex];
-			if (!StartStamp->bInvalidResource && !PlatformContextIsCurrent(StartStamp->ResourceContext))
-			{
-				PlatformReleaseRenderQuery(StartStamp->Resource, StartStamp->ResourceContext);
-				StartStamp->bInvalidResource = true;
-
-			}
-
-			if(StartStamp->bInvalidResource || EndStamp->bInvalidResource)
-			{
-				UE_LOG(LogRHI, Log, TEXT("timing invalid, since the stamp queries have invalid resources"));
-				return 0.0f;
-			}
-		}
 
 		if (!bGetCurrentResultsAndBlock)
 		{
 			// Quickly check the most recent measurements to see if any of them has been resolved.  Do not flush these queries.
-			for ( int32 IssueIndex = 1; IssueIndex < NumIssuedTimestamps; ++IssueIndex )
+			for (int32 IssueIndex = 1; IssueIndex < NumIssuedTimestamps; ++IssueIndex)
 			{
-				GLuint EndAvailable = GL_FALSE;
-				FOpenGL::GetQueryObject(EndTimestamps[TimestampIndex]->Resource, FOpenGL::QM_ResultAvailable, &EndAvailable);
+				FOpenGLRenderQuery* StartQuery = StartTimestamps[TimestampIndex];
+				FOpenGLRenderQuery* EndQuery = EndTimestamps[TimestampIndex];
 
-				if ( EndAvailable == GL_TRUE )
+				if (StartQuery->CacheResult(false) && EndQuery->CacheResult(false))
 				{
-					GLuint StartAvailable = GL_FALSE;
-					FOpenGL::GetQueryObject(StartTimestamps[TimestampIndex]->Resource, FOpenGL::QM_ResultAvailable, &StartAvailable);
+					uint64 StartTime = StartQuery->GetResult();
+					uint64 EndTime = EndQuery->GetResult();
 
-					if(StartAvailable == GL_TRUE)
+					if (EndTime > StartTime)
 					{
-						FOpenGL::GetQueryObject(EndTimestamps[TimestampIndex]->Resource, FOpenGL::QM_Result, &EndTime);
-						FOpenGL::GetQueryObject(StartTimestamps[TimestampIndex]->Resource, FOpenGL::QM_Result, &StartTime);
-						if (EndTime > StartTime)
-						{
-							return EndTime - StartTime;
-						}
+						return EndTime - StartTime;
 					}
 				}
 
@@ -959,59 +668,53 @@ uint64 FOpenGLBufferedGPUTiming::GetTiming(bool bGetCurrentResultsAndBlock)
 			}
 		}
 
-		if ( NumIssuedTimestamps > 0 || bGetCurrentResultsAndBlock )
+		if (NumIssuedTimestamps > 0 || bGetCurrentResultsAndBlock)
 		{
 			// None of the (NumIssuedTimestamps - 1) measurements were ready yet,
 			// so check the oldest measurement more thoroughly.
 			// This really only happens if occlusion and frame sync event queries are disabled, otherwise those will block until the GPU catches up to 1 frame behind
 			const bool bBlocking = ( NumIssuedTimestamps == BufferSize ) || bGetCurrentResultsAndBlock;
 
-			GLuint EndAvailable = GL_FALSE;
+			FOpenGLRenderQuery* StartQuery = StartTimestamps[TimestampIndex];
+			FOpenGLRenderQuery* EndQuery = EndTimestamps[TimestampIndex];
+
+			bool bHasStart = false, bHasEnd = false;
+
 			{
 				FRenderThreadIdleScope IdleScope(ERenderThreadIdleTypes::WaitingForGPUQuery);
+				SCOPE_CYCLE_COUNTER(STAT_RenderQueryResultTime);
+
 				double StartTimeoutTime = FPlatformTime::Seconds();
 
-				SCOPE_CYCLE_COUNTER( STAT_RenderQueryResultTime );
 				// If we are blocking, retry until the GPU processes the time stamp command
-				do
+				while (true)
 				{
-					FOpenGL::GetQueryObject(EndTimestamps[TimestampIndex]->Resource, FOpenGL::QM_ResultAvailable, &EndAvailable);
-
-					if ((FPlatformTime::Seconds() - StartTimeoutTime) > 0.5)
+					bHasStart = StartQuery->CacheResult(false);
+					bHasEnd = EndQuery->CacheResult(false);
+					
+					if (bBlocking && !(bHasStart && bHasEnd))
 					{
-						UE_LOG(LogRHI, Log, TEXT("Timed out while waiting for GPU to catch up. (500 ms) EndTimeStamp"));
-						return 0;
-					}
-				} while ( EndAvailable == GL_FALSE && bBlocking );
-			}
-
-			if ( EndAvailable == GL_TRUE )
-			{
-				GLuint StartAvailable = GL_FALSE;
-				{
-					FRenderThreadIdleScope IdleScope(ERenderThreadIdleTypes::WaitingForGPUQuery);
-					double StartTimeoutTime = FPlatformTime::Seconds();
-
-					do
-					{
-						FOpenGL::GetQueryObject(StartTimestamps[TimestampIndex]->Resource, FOpenGL::QM_ResultAvailable, &StartAvailable);
-
 						if ((FPlatformTime::Seconds() - StartTimeoutTime) > 0.5)
 						{
-							UE_LOG(LogRHI, Log, TEXT("Timed out while waiting for GPU to catch up. (500 ms) StartTimeStamp"));
+							UE_LOG(LogRHI, Log, TEXT("Timed out while waiting for GPU to catch up. (500 ms)"));
 							return 0;
 						}
-					} while ( StartAvailable == GL_FALSE && bBlocking );
-				}
-
-				if(StartAvailable == GL_TRUE)
-				{
-					FOpenGL::GetQueryObject(EndTimestamps[TimestampIndex]->Resource, FOpenGL::QM_Result, &EndTime);
-					FOpenGL::GetQueryObject(StartTimestamps[TimestampIndex]->Resource, FOpenGL::QM_Result, &StartTime);
-					if (EndTime > StartTime)
-					{
-						return EndTime - StartTime;
 					}
+					else
+					{
+						break;
+					}
+				}
+			}
+
+			if (bHasStart && bHasEnd)
+			{
+				uint64 StartTime = StartQuery->GetResult();
+				uint64 EndTime = EndQuery->GetResult();
+
+				if (EndTime > StartTime)
+				{
+					return EndTime - StartTime;
 				}
 			}
 		}
@@ -1019,28 +722,12 @@ uint64 FOpenGLBufferedGPUTiming::GetTiming(bool bGetCurrentResultsAndBlock)
 	return 0;
 }
 
-FOpenGLDisjointTimeStampQuery::FOpenGLDisjointTimeStampQuery(class FOpenGLDynamicRHI* InOpenGLRHI)
-:	bIsResultValid(false)
-,	DisjointQuery(0)
-,	Context(0)
-,	OpenGLRHI(InOpenGLRHI)
-{
-}
-
 void FOpenGLDisjointTimeStampQuery::StartTracking()
 {
 	VERIFY_GL_SCOPE();
 	if (IsSupported())
 	{
-
-		if (!PlatformContextIsCurrent(Context))
-		{
-			PlatformReleaseRenderQuery(DisjointQuery, Context);
-			PlatformGetNewRenderQuery(&DisjointQuery, &Context);
-		}
-		// Dummy query to reset the driver's internal disjoint status
-		FOpenGL::TimerQueryDisjoint();
-		FOpenGL::BeginQuery(UGL_TIME_ELAPSED, DisjointQuery);
+		DisjointQuery->Begin();
 	}
 }
 
@@ -1048,15 +735,10 @@ void FOpenGLDisjointTimeStampQuery::EndTracking()
 {
 	VERIFY_GL_SCOPE();
 
-	if(IsSupported())
+	if (IsSupported())
 	{
-		FOpenGL::EndQuery( UGL_TIME_ELAPSED );
-
-		// Check if the GPU changed clock frequency since the last time GL_GPU_DISJOINT_EXT was checked.
-		// If so, any timer query will be undefined.
-		bIsResultValid = !FOpenGL::TimerQueryDisjoint();
+		DisjointQuery->End();
 	}
-
 }
 
 bool FOpenGLDisjointTimeStampQuery::IsResultValid()
@@ -1065,55 +747,24 @@ bool FOpenGLDisjointTimeStampQuery::IsResultValid()
 	return bIsResultValid;
 }
 
-bool FOpenGLDisjointTimeStampQuery::GetResult( uint64* OutResult/*=NULL*/ )
+bool FOpenGLDisjointTimeStampQuery::GetResult(uint64* OutResult)
 {
 	VERIFY_GL_SCOPE();
 
 	if (IsSupported())
 	{
-		GLuint Result = 0;
-		FOpenGL::GetQueryObject(DisjointQuery, FOpenGL::QM_ResultAvailable, &Result);
-		const double StartTime = FPlatformTime::Seconds();
+		DisjointQuery->CacheResult(true);
 
-		while (Result == GL_FALSE && (FPlatformTime::Seconds() - StartTime) < 0.5)
-		{
-			FPlatformProcess::Sleep(0.005f);
-			FOpenGL::GetQueryObject(DisjointQuery, FOpenGL::QM_ResultAvailable, &Result);
-		}
+		uint64 Result = DisjointQuery->GetResult();
+		bIsResultValid = (Result & FOpenGLRenderQuery::InvalidDisjointMask) == 0;
 
-		// Presently just discarding the result, because timing is handled by timestamps inside
-		if (Result != GL_FALSE)
-		{
-			GLuint64 ElapsedTime = 0;
-			FOpenGL::GetQueryObject(DisjointQuery, FOpenGL::QM_Result, &ElapsedTime);
-			if (OutResult)
-			{
-				*OutResult = ElapsedTime;
-			}
-		}
-		bIsResultValid = Result != GL_FALSE;
+		*OutResult = Result & (~FOpenGLRenderQuery::InvalidDisjointMask);
 	}
+
 	return bIsResultValid;
 }
 
-void FOpenGLDisjointTimeStampQuery::InitResources()
-{
-	if (IsSupported())
-	{
-		FRHICommandListExecutor::GetImmediateCommandList().EnqueueLambda([this](FRHICommandListImmediate&) { 
-				PlatformGetNewRenderQuery(&DisjointQuery, &Context); 
-		});
-	}
-}
-
-void FOpenGLDisjointTimeStampQuery::ReleaseResources()
-{
-	VERIFY_GL_SCOPE();
-	if ( IsSupported() )
-	{
-		PlatformReleaseRenderQuery(DisjointQuery, Context);
-	}
-}
+#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 // Fence implementation
 struct FOpenGLGPUFenceProxy
@@ -1136,8 +787,6 @@ struct FOpenGLGPUFenceProxy
 
 	void Write()
 	{
-		checkf(Fence == 0, TEXT("Fence must be cleared before re-using it."))
-		
 		if (Fence != 0)
 		{
 			FOpenGL::DeleteSync(Fence);
@@ -1181,14 +830,8 @@ TArray<FOpenGLGPUFenceProxy*> FOpenGLGPUFenceProxy::AllOpenGLGPUFences;
 
 void OpenGL_PollAllFences()
 {
-	if (IsRunningRHIInSeparateThread())
-	{
-		RunOnGLRenderContextThread([]()
-		{
-			VERIFY_GL_SCOPE();
-			FOpenGLGPUFenceProxy::PollAllFences();
-		});
-	}
+	VERIFY_GL_SCOPE();
+	FOpenGLGPUFenceProxy::PollAllFences();
 }
 
 FGPUFenceRHIRef FOpenGLDynamicRHI::RHICreateGPUFence(const FName &Name)
@@ -1204,16 +847,14 @@ FOpenGLGPUFence::FOpenGLGPUFence(FName InName)
 
 FOpenGLGPUFence::~FOpenGLGPUFence()
 {
-	RunOnGLRenderContextThread([Proxy = Proxy]()
-	{
-		VERIFY_GL_SCOPE();
-		delete Proxy;
-	});
+	VERIFY_GL_SCOPE();
+	delete Proxy;
 }
 
 void FOpenGLGPUFence::Clear()
 {
-	RunOnGLRenderContextThread([Proxy = Proxy]()
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+	RHICmdList.EnqueueLambda([Proxy = Proxy](FRHICommandListImmediate&)
 	{
 		VERIFY_GL_SCOPE();
 		delete Proxy;
@@ -1239,7 +880,8 @@ bool FOpenGLGPUFence::Poll() const
 	}
 	else
 	{
-		RunOnGLRenderContextThread([Proxy = Proxy]()
+		FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+		RHICmdList.EnqueueLambda([Proxy = Proxy](FRHICommandListImmediate&)
 		{
 			VERIFY_GL_SCOPE();
 			check(Proxy != nullptr);

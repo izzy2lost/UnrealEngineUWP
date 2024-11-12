@@ -149,8 +149,10 @@ namespace
 			TaskListModels.Add(Model);
 		}
 
-		TSharedPtr<SScrollBar> VerticalScrollBar;
-		TSharedPtr<SScrollBar> HorizontalScrollBar;
+		TSharedRef<SScrollBar> VerticalScrollBar = SNew(SScrollBar)
+			.Orientation(Orient_Vertical);
+		TSharedRef<SScrollBar> HorizontalScrollBar = SNew(SScrollBar)
+			.Orientation(Orient_Horizontal);
 
 		ChildSlot
 			[
@@ -196,7 +198,6 @@ namespace
 							)
 							.ListItemsSource(&TaskListModels)
 							.OnGenerateRow(this, &SLocalizationCommandletExecutor::OnGenerateTaskListRow)
-							.ItemHeight(24.0)
 							.SelectionMode(ESelectionMode::Single)
 						]
 					]
@@ -226,15 +227,13 @@ namespace
 								+SVerticalBox::Slot()
 									.AutoHeight()
 									[
-										SAssignNew(HorizontalScrollBar, SScrollBar)
-										.Orientation(EOrientation::Orient_Horizontal)
+										HorizontalScrollBar
 									]
 							]
 							+SHorizontalBox::Slot()
 								.AutoWidth()
 								[
-									SAssignNew(VerticalScrollBar, SScrollBar)
-									.Orientation(EOrientation::Orient_Vertical)
+									VerticalScrollBar
 								]
 						]
 					]

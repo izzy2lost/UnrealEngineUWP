@@ -6,6 +6,18 @@
 
 #include "ShaderParameterStruct.h"
 
+FRDGTextureAccess::FRDGTextureAccess(FRDGTexture* InTexture, ERHIAccess InAccess)
+	: FRDGTextureAccess(InTexture, InTexture ? InTexture->GetSubresourceRange() : FRDGTextureSubresourceRange(), InAccess)
+{}
+
+FRDGTextureAccess::FRDGTextureAccess(FRDGTextureSRV* InTextureSRV, ERHIAccess InAccess)
+	: FRDGTextureAccess(InTextureSRV ? InTextureSRV->GetParent() : nullptr, InTextureSRV ? InTextureSRV->GetSubresourceRange() : FRDGTextureSubresourceRange(), InAccess)
+{}
+
+FRDGTextureAccess::FRDGTextureAccess(FRDGTextureUAV* InTextureUAV, ERHIAccess InAccess)
+	: FRDGTextureAccess(InTextureUAV ? InTextureUAV->GetParent() : nullptr, InTextureUAV ? InTextureUAV->GetSubresourceRange() : FRDGTextureSubresourceRange(), InAccess)
+{}
+
 /** Context of binding a map. */
 struct FShaderParameterStructBindingContext
 {
@@ -251,6 +263,7 @@ void FShaderParameterBindings::BindForLegacyShaderParameters(const FShader* Shad
 	case SF_Pixel:
 	case SF_Geometry:
 	case SF_Compute:
+	case SF_WorkGraphComputeNode:
 		break;
 	default:
 		checkf(0, TEXT("Invalid shader frequency for this shader binding technique."));
@@ -353,11 +366,10 @@ void FShaderParameterBindings::BindForRootShaderParameters(const FShader* Shader
 	// Binds the uniform buffer that contains the root shader parameters.
 	{
 		const TCHAR* ShaderBindingName = FShaderParametersMetadata::kRootUniformBufferBindingName;
-		uint16 BufferIndex, BaseIndex, BoundSize;
-		if (ParametersMap.FindParameterAllocation(ShaderBindingName, BufferIndex, BaseIndex, BoundSize))
+		if (TOptional<FParameterAllocation> Parameter = ParametersMap.FindParameterAllocation(ShaderBindingName))
 		{
 			BindingContext.ShaderGlobalScopeBindings.Add(ShaderBindingName, ShaderBindingName);
-			RootParameterBufferIndex = BufferIndex;
+			RootParameterBufferIndex = Parameter->BufferIndex;
 		}
 		else
 		{
@@ -439,6 +451,8 @@ bool FDepthStencilBinding::Validate() const
 	}
 	else
 	{
+		checkf(!ResolveTexture,
+			TEXT("Can't have a depth stencil resolve texture when no depth stencil target texture is bound."));
 		checkf(DepthLoadAction == ERenderTargetLoadAction::ENoAction,
 			TEXT("Can't have a depth load action when no texture is bound."));
 		checkf(StencilLoadAction == ERenderTargetLoadAction::ENoAction,
@@ -533,6 +547,7 @@ void ValidateShaderParameters(const TShaderRef<FShader>& Shader, const FShaderPa
 				break;
 			}
 			case UBMT_RDG_TEXTURE_SRV:
+			case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 			case UBMT_RDG_BUFFER_SRV:
 			case UBMT_RDG_TEXTURE_UAV:
 			case UBMT_RDG_BUFFER_UAV:
@@ -582,6 +597,7 @@ void ValidateShaderParameterResourcesRHI(const void* Contents, const FRHIUniform
 		const bool bSRV =
 			Parameter.MemberType == UBMT_SRV ||
 			Parameter.MemberType == UBMT_RDG_TEXTURE_SRV ||
+			Parameter.MemberType == UBMT_RDG_TEXTURE_NON_PIXEL_SRV ||
 			Parameter.MemberType == UBMT_RDG_BUFFER_SRV;
 
 		// Allow null SRV's in uniform buffers for feature levels that don't support SRV's in shaders
@@ -595,32 +611,6 @@ void ValidateShaderParameterResourcesRHI(const void* Contents, const FRHIUniform
 }
 
 #endif // DO_CHECK
-
-static void ExtractShaderParameters(
-	TArray<FRHIShaderParameter>& OutParameters,
-	TConstArrayView<uint8>& OutMinimalParametersData,
-	const FShaderParameterBindings& Bindings,
-	const FShaderParametersMetadata* ParametersMetadata,
-	TConstArrayView<uint8> ParametersData)
-{
-	if (int32 NumParameters = Bindings.Parameters.Num())
-	{
-		OutParameters.Reserve(NumParameters);
-
-		// Keep track of the highest offset of data we need so we can avoid copying everything in the RHI command
-		uint32 MaxParametersSize = 0;
-
-		for (const FShaderParameterBindings::FParameter& Parameter : Bindings.Parameters)
-		{
-			OutParameters.Emplace(Parameter.BufferIndex, Parameter.BaseIndex, Parameter.ByteOffset, Parameter.ByteSize);
-
-			MaxParametersSize = FMath::Max<uint32>(MaxParametersSize, Parameter.ByteOffset + Parameter.ByteSize);
-		}
-		check(MaxParametersSize <= ParametersMetadata->GetSize());
-
-		OutMinimalParametersData = TConstArrayView<uint8>(ParametersData.GetData(), MaxParametersSize);
-	}
-}
 
 template<typename BindingParameterType>
 FRHIShaderParameterResource ExtractShaderParameterResource(FShaderParameterReader Reader, const BindingParameterType& Parameter)
@@ -661,6 +651,7 @@ FRHIShaderParameterResource ExtractShaderParameterResource(FShaderParameterReade
 		return FRHIShaderParameterResource(RDGTexture->GetRHI(), GetParameterIndex(Parameter));
 	}
 	case UBMT_RDG_TEXTURE_SRV:
+	case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 	case UBMT_RDG_BUFFER_SRV:
 	{
 		FRDGShaderResourceView* RDGShaderResourceView = Reader.Read<FRDGShaderResourceView*>(Parameter);
@@ -682,12 +673,111 @@ FRHIShaderParameterResource ExtractShaderParameterResource(FShaderParameterReade
 	}
 }
 
+template<typename TParameterFunction>
+static void IterateShaderParameterMembersInternal(
+	const FShaderParametersMetadata& ParametersMetadata,
+	uint16 ByteOffset,
+	TParameterFunction Lambda)
+{
+	for (const FShaderParametersMetadata::FMember& Member : ParametersMetadata.GetMembers())
+	{
+		EUniformBufferBaseType BaseType = Member.GetBaseType();
+		const uint16 MemberOffset = ByteOffset + uint16(Member.GetOffset());
+		const uint32 NumElements = Member.GetNumElements();
+
+		if (BaseType == UBMT_INCLUDED_STRUCT)
+		{
+			check(NumElements == 0);
+			IterateShaderParameterMembersInternal(*Member.GetStructMetadata(), MemberOffset, Lambda);
+		}
+		else if (BaseType == UBMT_NESTED_STRUCT && NumElements == 0)
+		{
+			IterateShaderParameterMembersInternal(*Member.GetStructMetadata(), MemberOffset, Lambda);
+		}
+		else if (BaseType == UBMT_NESTED_STRUCT && NumElements > 0)
+		{
+			const FShaderParametersMetadata& NewParametersMetadata = *Member.GetStructMetadata();
+			for (uint32 ArrayElementId = 0; ArrayElementId < NumElements; ArrayElementId++)
+			{
+				uint16 NewStructOffset = MemberOffset + ArrayElementId * NewParametersMetadata.GetSize();
+				IterateShaderParameterMembersInternal(NewParametersMetadata, NewStructOffset, Lambda);
+			}
+		}
+		else
+		{
+			const bool bParametersAreExpanded = NumElements > 0 && (IsShaderParameterTypeRHIResource(BaseType) || IsRDGResourceReferenceShaderParameterType(BaseType));
+			if (bParametersAreExpanded)
+			{
+				const uint16 ElementSize = SHADER_PARAMETER_POINTER_ALIGNMENT;
+
+				for (uint32 Index = 0; Index < NumElements; Index++)
+				{
+					Lambda(BaseType, MemberOffset + Index * ElementSize);
+				}
+			}
+			else
+			{
+				Lambda(BaseType, MemberOffset);
+			}
+		}
+	}
+}
+
+static bool DoesBaseTypeSupportBindless(EUniformBufferBaseType Type)
+{
+	switch (Type)
+	{
+	case UBMT_TEXTURE:
+	case UBMT_SRV:
+	case UBMT_UAV:
+	case UBMT_SAMPLER:
+	case UBMT_RDG_TEXTURE:
+	case UBMT_RDG_TEXTURE_SRV:
+	case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
+	case UBMT_RDG_TEXTURE_UAV:
+	case UBMT_RDG_BUFFER_SRV:
+	case UBMT_RDG_BUFFER_UAV:
+	case UBMT_RESOURCE_COLLECTION:
+		return true;
+	}
+	return false;
+}
+
+void SetAllShaderParametersAsBindless(
+	FRHIBatchedShaderParameters& BatchedParameters,
+	const FShaderParametersMetadata* ParametersMetadata,
+	const void* InParametersData)
+{
+	TConstArrayView<uint8> ParametersData((const uint8*)InParametersData, ParametersMetadata->GetSize());
+
+	const FShaderParameterReader Reader(ParametersData);
+
+	uint16 ByteOffset = 0;
+	IterateShaderParameterMembersInternal(*ParametersMetadata, ByteOffset, [&BatchedParameters, Reader](EUniformBufferBaseType BaseType, uint16 ByteOffset)
+		{
+			if (DoesBaseTypeSupportBindless(BaseType))
+			{
+				FShaderParameterBindings::FBindlessResourceParameter Parameter{};
+				Parameter.GlobalConstantOffset = ByteOffset;
+				Parameter.ByteOffset = ByteOffset;
+				Parameter.BaseType = BaseType;
+
+				// Make sure the resource wasn't set to null
+				if (Reader.Read<void*>(Parameter))
+				{
+					const FRHIShaderParameterResource ShaderParameterResource = ExtractShaderParameterResource(Reader, Parameter);
+					BatchedParameters.AddBindlessParameter(ShaderParameterResource);
+				}
+			}
+		});
+}
+
 static void ExtractShaderParameterResources(
 	TArray<FRHIShaderParameterResource>& OutResourceParameters,
 	TArray<FRHIShaderParameterResource>& OutBindlessParameters,
 	const FShaderParameterBindings& Bindings,
-	const FShaderParametersMetadata* ParametersMetadata,
-	TConstArrayView<uint8> ParametersData)
+	TConstArrayView<uint8> ParametersData,
+	EUniformBufferBindingFlags UniformBufferBindingFlags)
 {
 	const FShaderParameterReader Reader(ParametersData);
 
@@ -719,7 +809,7 @@ static void ExtractShaderParameterResources(
 		for (const FShaderParameterBindings::FParameterStructReference& Parameter : Bindings.GraphUniformBuffers)
 		{
 			const FRDGUniformBufferBinding& UniformBufferBinding = Reader.Read<FRDGUniformBufferBinding>(Parameter);
-			if (UniformBufferBinding.IsShader())
+			if (EnumHasAnyFlags(UniformBufferBinding.GetBindingFlags(), UniformBufferBindingFlags))
 			{
 				UniformBufferBinding->MarkResourceAsUsed();
 
@@ -730,9 +820,60 @@ static void ExtractShaderParameterResources(
 		for (const FShaderParameterBindings::FParameterStructReference& Parameter : Bindings.ParameterReferences)
 		{
 			const FUniformBufferBinding& UniformBufferBinding = Reader.Read<FUniformBufferBinding>(Parameter);
-			if (UniformBufferBinding.IsShader())
+			if (EnumHasAnyFlags(UniformBufferBinding.GetBindingFlags(), UniformBufferBindingFlags))
 			{
 				OutResourceParameters.Emplace(UniformBufferBinding.GetUniformBuffer(), GetParameterIndex(Parameter));
+			}
+		}
+	}
+}
+
+static void ExtractShaderParameterResources(
+	FRHIBatchedShaderParameters& BatchedParameters,
+	const FShaderParameterBindings& Bindings,
+	TConstArrayView<uint8> ParametersData,
+	EUniformBufferBindingFlags UniformBufferBindingFlags)
+{
+	const FShaderParameterReader Reader(ParametersData);
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	if (int32 NumBindings = Bindings.BindlessResourceParameters.Num())
+	{
+		for (const FShaderParameterBindings::FBindlessResourceParameter& Parameter : Bindings.BindlessResourceParameters)
+		{
+			const FRHIShaderParameterResource ShaderParameterResource = ExtractShaderParameterResource(Reader, Parameter);
+			BatchedParameters.AddBindlessParameter(ShaderParameterResource);
+		}
+	}
+#endif
+
+	const int32 NumBindings = Bindings.ResourceParameters.Num() + Bindings.GraphUniformBuffers.Num() + Bindings.ParameterReferences.Num();
+
+	if (NumBindings)
+	{
+		for (const FShaderParameterBindings::FResourceParameter& Parameter : Bindings.ResourceParameters)
+		{
+			const FRHIShaderParameterResource ShaderParameterResource = ExtractShaderParameterResource(Reader, Parameter);
+			BatchedParameters.AddResourceParameter(ShaderParameterResource);
+		}
+
+		for (const FShaderParameterBindings::FParameterStructReference& Parameter : Bindings.GraphUniformBuffers)
+		{
+			const FRDGUniformBufferBinding& UniformBufferBinding = Reader.Read<FRDGUniformBufferBinding>(Parameter);
+			if (EnumHasAnyFlags(UniformBufferBinding.GetBindingFlags(), UniformBufferBindingFlags))
+			{
+				UniformBufferBinding->MarkResourceAsUsed();
+
+				BatchedParameters.AddResourceParameter(UniformBufferBinding->GetRHI(), GetParameterIndex(Parameter));
+			}
+		}
+
+		for (const FShaderParameterBindings::FParameterStructReference& Parameter : Bindings.ParameterReferences)
+		{
+			const FUniformBufferBinding& UniformBufferBinding = Reader.Read<FUniformBufferBinding>(Parameter);
+			if (EnumHasAnyFlags(UniformBufferBinding.GetBindingFlags(), UniformBufferBindingFlags))
+			{
+				BatchedParameters.AddResourceParameter(UniformBufferBinding.GetUniformBuffer(), GetParameterIndex(Parameter));
 			}
 		}
 	}
@@ -752,7 +893,7 @@ void SetShaderParameters(
 		BatchedParameters.SetShaderParameter(Parameter.BufferIndex, Parameter.BaseIndex, Parameter.ByteSize, FullParametersData.GetData() + Parameter.ByteOffset);
 	}
 
-	ExtractShaderParameterResources(BatchedParameters.ResourceParameters, BatchedParameters.BindlessParameters, Bindings, ParametersMetadata, FullParametersData);
+	ExtractShaderParameterResources(BatchedParameters, Bindings, FullParametersData, EUniformBufferBindingFlags::Shader);
 }
 
 /** Set shader's parameters from its parameters struct. */
@@ -765,20 +906,11 @@ inline void SetShaderParametersInternal(
 	const void* InParametersData)
 {
 	checkf(Bindings.RootParameterBufferIndex == FShaderParameterBindings::kInvalidBufferIndex, TEXT("Can't use SetShaderParameters() for root parameter buffer index."));
+	checkf(!IsRayTracingShaderFrequency(ShaderRHI->GetFrequency()), TEXT("Can't use SetShaderParameters() with RHICmdList parameter for ray tracing shaders."));
 
-	// FYI: this code should not use FRHIBatchedShaderParameters so that the original parameter data can be used instead of copying it around a few more times
-
-	TConstArrayView<uint8> FullParametersData((const uint8*)InParametersData, ParametersMetadata->GetSize());
-
-	TArray<FRHIShaderParameter> Parameters;
-	TConstArrayView<uint8> MinimalParametersData;
-	ExtractShaderParameters(Parameters, MinimalParametersData, Bindings, ParametersMetadata, FullParametersData);
-
-	TArray<FRHIShaderParameterResource> ResourceParameters;
-	TArray<FRHIShaderParameterResource> BindlessParameters;
-	ExtractShaderParameterResources(ResourceParameters, BindlessParameters, Bindings, ParametersMetadata, FullParametersData);
-
-	RHICmdList.SetShaderParameters(ShaderRHI, MinimalParametersData, Parameters, ResourceParameters, BindlessParameters);
+	FRHIBatchedShaderParameters& ShaderParameters = RHICmdList.GetScratchShaderParameters();
+	SetShaderParameters(ShaderParameters, Bindings, ParametersMetadata, InParametersData);
+	RHICmdList.SetBatchedShaderParameters(ShaderRHI, ShaderParameters);
 }
 
 void SetShaderParameters(
@@ -812,6 +944,7 @@ void SetShaderParameters(
 }
 
 #if RHI_RAYTRACING
+PRAGMA_DISABLE_DEPRECATION_WARNINGS // Allow FRayTracingShaderBindingsWriter
 void SetShaderParameters(
 	FRayTracingShaderBindingsWriter& RTBindingsWriter,
 	const FShaderParameterBindings& Bindings,
@@ -819,6 +952,17 @@ void SetShaderParameters(
 	const void* ParametersData)
 {
 	const FShaderParameterReader Reader(ParametersData, ParametersMetadata->GetSize());
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	if (int32 NumBindings = Bindings.BindlessResourceParameters.Num())
+	{
+		for (const FShaderParameterBindings::FBindlessResourceParameter& Parameter : Bindings.BindlessResourceParameters)
+		{
+			const FRHIShaderParameterResource ShaderParameterResource = ExtractShaderParameterResource(Reader, Parameter);
+			RTBindingsWriter.AddBindlessParameter(ShaderParameterResource);
+		}
+	}
+#endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
 	for (const FShaderParameterBindings::FResourceParameter& Parameter : Bindings.ResourceParameters)
 	{
@@ -858,6 +1002,7 @@ void SetShaderParameters(
 		}
 		break;
 		case UBMT_RDG_TEXTURE_SRV:
+		case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 		case UBMT_RDG_BUFFER_SRV:
 		{
 			FRDGShaderResourceView* RDGShaderResourceView = Reader.Read<FRDGShaderResourceView*>(Parameter);
@@ -908,4 +1053,140 @@ void SetShaderParameters(
 		RTBindingsWriter.SetUniformBuffer(Bindings.RootParameterBufferIndex, RTBindingsWriter.RootUniformBuffer);
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+FRayTracingShaderBindings ConvertRayTracingShaderBindings(const FRHIBatchedShaderParameters& BatchedParameters)
+{
+	FRayTracingShaderBindings Result;
+
+	// Use array views for bounds checking
+	TArrayView<FRHITexture*> Textures = Result.Textures;
+	TArrayView<FRHIShaderResourceView*> SRVs = Result.SRVs;
+	TArrayView<FRHIUniformBuffer*> UniformBuffers = Result.UniformBuffers;
+	TArrayView<FRHISamplerState*> Samplers = Result.Samplers;
+	TArrayView<FRHIUnorderedAccessView*> UAVs = Result.UAVs;
+
+	checkf(BatchedParameters.Parameters.IsEmpty(), TEXT("FRHIShaderParameter is not supported by FRayTracingShaderBindings"));
+
+	for (const FRHIShaderParameterResource& It : BatchedParameters.ResourceParameters)
+	{
+		using EType = FRHIShaderParameterResource::EType;
+		switch (It.Type)
+		{
+			case EType::Texture:
+				Textures[It.Index] = static_cast<FRHITexture*>(It.Resource);
+				break;
+			case EType::ResourceView:
+				SRVs[It.Index] = static_cast<FRHIShaderResourceView*>(It.Resource);
+				break;
+			case EType::UnorderedAccessView:
+				UAVs[It.Index] = static_cast<FRHIUnorderedAccessView*>(It.Resource);
+				break;
+			case EType::Sampler:
+				Samplers[It.Index] = static_cast<FRHISamplerState*>(It.Resource);
+				break;
+			case EType::UniformBuffer:
+				UniformBuffers[It.Index] = static_cast<FRHIUniformBuffer*>(It.Resource);
+				break;
+			case EType::ResourceCollection:
+				checkNoEntry(); // not supported
+				break;
+			default:
+				checkNoEntry();
+		}
+	}
+
+	Result.BindlessParameters = BatchedParameters.BindlessParameters;
+
+	return Result;
+}
+
+void SetRayTracingShaderParameters(
+	FRHIBatchedShaderParameters& BatchedParameters,
+	const FShaderParameterBindings& Bindings,
+	const FShaderParametersMetadata* ParametersMetadata,
+	const void* InParametersData)
+{
+	TConstArrayView<uint8> FullParametersData((const uint8*)InParametersData, ParametersMetadata->GetSize());
+
+#if 0 // Loose parameter binding could be supported if the need arises, but we currently don't support it.
+
+	for (const FShaderParameterBindings::FParameter& Parameter : Bindings.Parameters)
+	{
+		BatchedParameters.SetShaderParameter(Parameter.BufferIndex, Parameter.BaseIndex, Parameter.ByteSize, FullParametersData.GetData() + Parameter.ByteOffset);
+	}
+
+#else
+
+	checkf(Bindings.Parameters.Num() == 0, TEXT("Ray tracing shader should use SHADER_USE_ROOT_PARAMETER_STRUCT() to passdown the cbuffer layout to the shader compiler."));
+
+#endif
+
+	ExtractShaderParameterResources(BatchedParameters, Bindings, FullParametersData, EUniformBufferBindingFlags::StaticAndShader);
+
+	// Root uniform buffer.
+	if (Bindings.RootParameterBufferIndex != FShaderParameterBindings::kInvalidBufferIndex)
+	{
+		// Do not do any validation at some resources may have been removed from the structure because known to not be used by the shader.
+		EUniformBufferValidation Validation = EUniformBufferValidation::None;
+
+		FUniformBufferRHIRef RootUniformBuffer = RHICreateUniformBuffer(InParametersData, ParametersMetadata->GetLayoutPtr(), UniformBuffer_SingleDraw, Validation);
+		BatchedParameters.AddResourceParameter(RootUniformBuffer, Bindings.RootParameterBufferIndex);
+	}
+
+#if DO_CHECK
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS // Allow FRayTracingShaderBindingsWriter
+		FRayTracingShaderBindingsWriter RTBindingsWriter;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		SetShaderParameters(RTBindingsWriter, Bindings, ParametersMetadata, InParametersData);
+
+		FRayTracingShaderBindings ConvertedBindings = ConvertRayTracingShaderBindings(BatchedParameters);
+
+		{
+			for (int32 i = 0; i < UE_ARRAY_COUNT(ConvertedBindings.Textures); ++i)
+			{
+				check(RTBindingsWriter.Textures[i] == ConvertedBindings.Textures[i]);
+			}
+
+			for (int32 i = 0; i < UE_ARRAY_COUNT(ConvertedBindings.SRVs); ++i)
+			{
+				check(RTBindingsWriter.SRVs[i] == ConvertedBindings.SRVs[i]);
+			}
+
+			for (int32 i = 0; i < UE_ARRAY_COUNT(ConvertedBindings.UniformBuffers); ++i)
+			{
+				if (RTBindingsWriter.UniformBuffers[i])
+				{
+					check(ConvertedBindings.UniformBuffers[i]);
+					check(RTBindingsWriter.UniformBuffers[i]->GetLayout() == ConvertedBindings.UniformBuffers[i]->GetLayout());
+				}
+				else
+				{
+					check(ConvertedBindings.UniformBuffers[i] == nullptr);
+				}
+			}
+
+			for (int32 i = 0; i < UE_ARRAY_COUNT(ConvertedBindings.Samplers); ++i)
+			{
+				check(RTBindingsWriter.Samplers[i] == ConvertedBindings.Samplers[i]);
+			}
+
+			for (int32 i = 0; i < UE_ARRAY_COUNT(ConvertedBindings.UAVs); ++i)
+			{
+				check(RTBindingsWriter.UAVs[i] == ConvertedBindings.UAVs[i]);
+			}
+
+			check(RTBindingsWriter.BindlessParameters.Num() == ConvertedBindings.BindlessParameters.Num());
+			for (int32 i = 0; i < ConvertedBindings.BindlessParameters.Num(); ++i)
+			{
+				check(RTBindingsWriter.BindlessParameters[i] == ConvertedBindings.BindlessParameters[i]);
+			}
+		}
+	}
+#endif // DO_CHECK
+}
+
+
 #endif // RHI_RAYTRACING

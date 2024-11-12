@@ -15,7 +15,7 @@ UE_NET_TEST_FIXTURE(FPartialNetBlobTestFixture, CanSplitNetBlobNotInNeedOfSplitt
 	const TRefCountPtr<FNetBlob>& Blob = CreateUnreliableMockNetBlob(PayloadBitCount);
 
 	TArray<TRefCountPtr<FNetBlob>> PartialNetBlobs;
-	MockSequentialPartialNetBlobHandler->SplitNetBlob(Blob, PartialNetBlobs);
+	MockSequentialPartialNetBlobHandler->SplitNetBlob(ServerContext.SerializationContext, Blob, PartialNetBlobs);
 	UE_NET_ASSERT_EQ(PartialNetBlobs.Num(), 1);
 
 	for (const TRefCountPtr<FNetBlob>& PartialNetBlob : PartialNetBlobs)
@@ -39,7 +39,7 @@ UE_NET_TEST_FIXTURE(FPartialNetBlobTestFixture, CanSplitNetBlobInNeedOfSplitting
 	const TRefCountPtr<FNetBlob>& Blob = CreateUnreliableMockNetBlob(PayloadBitCount);
 
 	TArray<TRefCountPtr<FNetBlob>> PartialNetBlobs;
-	MockSequentialPartialNetBlobHandler->SplitNetBlob(Blob, PartialNetBlobs);
+	MockSequentialPartialNetBlobHandler->SplitNetBlob(ServerContext.SerializationContext, Blob, PartialNetBlobs);
 	UE_NET_ASSERT_GE(PartialNetBlobs.Num(), 2);
 
 	for (const TRefCountPtr<FNetBlob>& PartialNetBlob : PartialNetBlobs)
@@ -62,7 +62,7 @@ UE_NET_TEST_FIXTURE(FPartialNetBlobTestFixture, CanSplitHugeNetBlob)
 	const TRefCountPtr<FNetBlob>& Blob = CreateUnreliableMockNetBlob(PayloadBitCount);
 
 	TArray<TRefCountPtr<FNetBlob>> PartialNetBlobs;
-	MockSequentialPartialNetBlobHandler->SplitNetBlob(Blob, PartialNetBlobs);
+	MockSequentialPartialNetBlobHandler->SplitNetBlob(ServerContext.SerializationContext, Blob, PartialNetBlobs);
 	UE_NET_ASSERT_GE(PartialNetBlobs.Num(), 2);
 
 	for (const TRefCountPtr<FNetBlob>& PartialNetBlob : PartialNetBlobs)
@@ -85,7 +85,7 @@ UE_NET_TEST_FIXTURE(FPartialNetBlobTestFixture, MissingFirstPartialNetBlobCauses
 	const TRefCountPtr<FNetBlob>& Blob = CreateReliableMockNetBlob(PayloadBitCount);
 
 	TArray<TRefCountPtr<FNetBlob>> PartialNetBlobs;
-	MockSequentialPartialNetBlobHandler->SplitNetBlob(Blob, PartialNetBlobs);
+	MockSequentialPartialNetBlobHandler->SplitNetBlob(ServerContext.SerializationContext, Blob, PartialNetBlobs);
 	UE_NET_ASSERT_GE(PartialNetBlobs.Num(), 2);
 
 	ServerContext.SerializationContext.GetNetBlobReceiver()->OnNetBlobReceived(ServerContext.SerializationContext, PartialNetBlobs[1]);
@@ -101,7 +101,7 @@ UE_NET_TEST_FIXTURE(FPartialNetBlobTestFixture, MissingArbitraryPartialNetBlobCa
 	const TRefCountPtr<FNetBlob>& Blob = CreateReliableMockNetBlob(PayloadBitCount);
 
 	TArray<TRefCountPtr<FNetBlob>> PartialNetBlobs;
-	MockSequentialPartialNetBlobHandler->SplitNetBlob(Blob, PartialNetBlobs);
+	MockSequentialPartialNetBlobHandler->SplitNetBlob(ServerContext.SerializationContext, Blob, PartialNetBlobs);
 	UE_NET_ASSERT_GE(PartialNetBlobs.Num(), 3);
 
 	ServerContext.SerializationContext.GetNetBlobReceiver()->OnNetBlobReceived(ServerContext.SerializationContext, PartialNetBlobs[0]);
@@ -215,12 +215,12 @@ UE_NET_TEST_FIXTURE(FPartialNetBlobTestFixture, UnexpectedPartSequenceCausesErro
 		constexpr int32 PartCount = 3U;
 		uint32 TotalPayloadBitCount = PartCount * Config->GetMaxPartBitCount() - BlobOverheadBitCount - 1U;
 		const TRefCountPtr<FNetBlob>& Blob = CreateReliableMockNetBlob(TotalPayloadBitCount);
-		MockSequentialPartialNetBlobHandler->SplitNetBlob(Blob, PartialNetBlobs);
+		MockSequentialPartialNetBlobHandler->SplitNetBlob(ServerContext.SerializationContext, Blob, PartialNetBlobs);
 		UE_NET_ASSERT_EQ(PartialNetBlobs.Num(), PartCount);
 
 		TArray<TRefCountPtr<FNetBlob>> OtherPartialNetBlobs;
 		const TRefCountPtr<FNetBlob>& OtherBlob = CreateReliableMockNetBlob(TotalPayloadBitCount);
-		MockSequentialPartialNetBlobHandler->SplitNetBlob(OtherBlob, OtherPartialNetBlobs);
+		MockSequentialPartialNetBlobHandler->SplitNetBlob(ServerContext.SerializationContext, OtherBlob, OtherPartialNetBlobs);
 	
 		WrongSecondBlob = MoveTemp(OtherPartialNetBlobs[1]);
 	}

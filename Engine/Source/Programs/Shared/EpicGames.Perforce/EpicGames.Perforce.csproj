@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <Configuration Condition=" '$(Configuration)' == '' ">Development</Configuration>
     <OutputType>Library</OutputType>
     <RootNamespace>EpicGames.Perforce</RootNamespace>
@@ -59,6 +59,15 @@
     <None Include="..\..\..\..\Binaries\DotNET\EpicGames.Perforce.Native\win-x64\$(WindowsNativeConfig)\EpicGames.Perforce.Native.pdb" Visible="false" Condition="Exists('..\..\..\..\Binaries\DotNET\EpicGames.Perforce.Native\win-x64\$(WindowsNativeConfig)\EpicGames.Perforce.Native.pdb')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="..\..\..\..\Binaries\ThirdParty\AppLocalDependencies\Win64\Microsoft.VC.CRT\MSVCP140.dll" Visible="false" Condition="Exists('..\..\..\..\Binaries\ThirdParty\AppLocalDependencies\Win64\Microsoft.VC.CRT\MSVCP140.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\..\..\Binaries\ThirdParty\AppLocalDependencies\Win64\Microsoft.VC.CRT\VCRUNTIME140.dll" Visible="false" Condition="Exists('..\..\..\..\Binaries\ThirdParty\AppLocalDependencies\Win64\Microsoft.VC.CRT\VCRUNTIME140.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\..\..\Binaries\ThirdParty\AppLocalDependencies\Win64\Microsoft.VC.CRT\VCRUNTIME140_1.dll" Visible="false" Condition="Exists('..\..\..\..\Binaries\ThirdParty\AppLocalDependencies\Win64\Microsoft.VC.CRT\VCRUNTIME140_1.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="..\..\..\..\Binaries\DotNET\EpicGames.Perforce.Native\linux-x64\Release\EpicGames.Perforce.Native.so" Visible="false">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -68,7 +77,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
     <PackageReference Include="System.Linq.Async" Version="6.0.1" />
   </ItemGroup>
 

@@ -15,7 +15,7 @@ public:
 	virtual UObject* GetMetasoundObject() const = 0;
 
 	// Sets the selected object(s).
-	virtual void SetSelection(const TArray<UObject*>& SelectedObjects) = 0;
+	virtual void SetSelection(const TArray<UObject*>& SelectedObjects, bool bInvokeTabOnSelectionSet = true) = 0;
 
 	// Returns the bounds for the selected node(s).
 	virtual bool GetBoundsForSelectedNodes(FSlateRect& OutRect, float Padding) = 0;

@@ -47,14 +47,18 @@ namespace UE::Chaos::ClothAsset
 		/** Return whether the facade is defined on the collection. */
 		bool IsValid(EClothCollectionOptionalSchemas OptionalSchemas = EClothCollectionOptionalSchemas::None) const;
 
-		/**
-		 * Return whether the facade has a non-empty sim and render mesh data.
-		 */
+		/** Return whether the facade has a non-empty simulation mesh data. */
+		bool HasValidSimulationData() const;
+
+		/** Return whether the facade has a non-empty sim mesh data. */
+		bool HasValidRenderData() const;
+
+		/** Return whether the facade has a non-empty sim and render mesh data. */
 		bool HasValidData() const;
 
 		uint32 CalculateTypeHash(bool bIncludeWeightMaps, uint32 PreviousHash = 0) const;
 		uint32 CalculateWeightMapTypeHash(uint32 PreviousHash = 0) const;
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		uint32 CalculateUserDefinedAttributesTypeHash(const FName& GroupName, uint32 PreviousHash = 0) const;
 
 		//~ LOD (single per collection) Group
@@ -166,13 +170,14 @@ namespace UE::Chaos::ClothAsset
 		TConstArrayView<float> GetWeightMap(const FName& Name) const;
 
 		//~ Other User-Defined Attributes (not instantiated for bools)
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		bool HasUserDefinedAttribute(const FName& Name, const FName& GroupName) const;
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		TArray<FName> GetUserDefinedAttributeNames(const FName& GroupName) const;
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		TConstArrayView<T> GetUserDefinedAttribute(const FName& Name, const FName& GroupName) const;
 		static bool IsValidClothCollectionGroupName(const FName& GroupName);
+		static TArray<FName> GetValidClothCollectionGroupName();
 
 		void BuildSimulationMesh(TArray<FVector3f>& Positions, TArray<FVector3f>& Normals, TArray<uint32>& Indices, TArray<FVector2f>& PatternsPositions, TArray<uint32>& PatternsIndices, 
 			TArray<uint32>& PatternToWeldedIndices, TArray<TArray<int32>>* OptionalWeldedToPatternIndices = nullptr) const;
@@ -347,10 +352,10 @@ namespace UE::Chaos::ClothAsset
 
 		//~ Other User-Defined Attributes (not instantiated for bools)
 		/** GroupName must be an existing group as defined in ClothCollectionGroup. Returns success */
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		bool AddUserDefinedAttribute(const FName& Name, const FName& GroupName);
 		void RemoveUserDefinedAttribute(const FName& Name, const FName& GroupName);
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		TArrayView<T> GetUserDefinedAttribute(const FName& Name, const FName& GroupName);
 
 	private:

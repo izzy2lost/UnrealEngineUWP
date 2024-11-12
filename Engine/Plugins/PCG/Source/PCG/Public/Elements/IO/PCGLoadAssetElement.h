@@ -5,7 +5,7 @@
 #include "PCGContext.h"
 #include "PCGDataAsset.h"
 #include "PCGSettings.h"
-#include "Async/PCGAsyncLoadingContext.h"
+#include "Elements/PCGLoadObjectsContext.h"
 
 struct FAssetData;
 
@@ -40,12 +40,16 @@ public:
 	virtual bool HasDynamicPins() const override { return true; }
 	virtual bool HasFlippedTitleLines() const override { return true; }
 	virtual FString GetAdditionalTitleInformation() const override;
+	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const;
 
 protected:
 	virtual FPCGElementPtr CreateElement() const override;
+#if WITH_EDITOR
+	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const override;
+#endif
 	// TODO tracking if data is stored in external asset
 
-	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return TArray<FPCGPinProperties>(); }
+	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override { return Pins; }
 	// ~End UPCGSettings interface
 
@@ -56,36 +60,48 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable))
 	TSoftObjectPtr<UPCGDataAsset> Asset;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Data, meta = (NoResetToDefault))
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Data|Asset Info", meta = (NoResetToDefault))
 	TArray<FPCGPinProperties> Pins;
 
 	// Cached from the data when loaded
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Data)
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Data|Asset Info")
 	FString AssetName;
 
 #if WITH_EDITORONLY_DATA
 	// Cached from the data when loaded
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Data)
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Data|Asset Info")
 	FText AssetDescription = FText::GetEmpty();
 
 	// Cached from the data when loaded
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Data)
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Data|Asset Info")
 	FLinearColor AssetColor = FLinearColor::White;
 #endif // WITH_EDITORONLY_DATA
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	bool bLoadFromInput = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bLoadFromInput", EditConditionHides, PCG_DiscardPropertySelection))
+	FPCGAttributePropertyInputSelector AssetReferenceSelector;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bLoadFromInput", EditConditionHides))
+	FName InputIndexTag = NAME_None;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bLoadFromInput", EditConditionHides))
+	FName DataIndexTag = NAME_None;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (Tooltip="Warns if asset is null or couldn't be loaded"))
 	bool bWarnIfNoAsset = true;
+
+	/** Controls whether the data output from the loaded asset will be passed to the default pin with tags or on the proper pins. */
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Settings", meta = (NoResetToDefault))
+	bool bTagOutputsBasedOnOutputPins = true;
 
 	/** By default, data table loading is asynchronous, can force it synchronous if needed. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")
 	bool bSynchronousLoad = false;
-
-	/** Controls whether the data output from the loaded asset will be passed to the default pin with tags or on the proper pins. */
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Settings", meta = (NoResetToDefaeult))
-	bool bTagOutputsBasedOnOutputPins = true;
 };
 
-struct FPCGLoadDataAssetContext : public FPCGContext, public IPCGAsyncLoadingContext {};
+struct FPCGLoadDataAssetContext : public FPCGLoadObjectsFromPathContext {};
 
 class PCG_API FPCGLoadDataAssetElement : public IPCGElementWithCustomContext<FPCGLoadDataAssetContext>
 {

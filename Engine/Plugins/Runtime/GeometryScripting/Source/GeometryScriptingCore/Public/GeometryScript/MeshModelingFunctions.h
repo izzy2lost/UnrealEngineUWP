@@ -217,26 +217,26 @@ public:
 	 * If true the set of beveled PolyGroup edges is limited to those that 
 	 * are fully or partially contained within the (transformed) FilterBox
 	 */
-	UPROPERTY(BlueprintReadWrite, Category = FilterShape, AdvancedDisplay)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = FilterShape, AdvancedDisplay)
 	bool bApplyFilterBox = false;
 
 	/**
 	 * Bounding Box used for edge filtering
 	 */
-	UPROPERTY(BlueprintReadWrite, Category = FilterShape, AdvancedDisplay)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = FilterShape, AdvancedDisplay)
 	FBox FilterBox = FBox(EForceInit::ForceInit);
 
 	/**
 	 * Transform applied to the FilterBox
 	 */
-	UPROPERTY(BlueprintReadWrite, Category = FilterShape, AdvancedDisplay)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = FilterShape, AdvancedDisplay)
 	FTransform FilterBoxTransform = FTransform::Identity;
 
 	/**
 	 * If true, then only PolyGroup edges that are fully contained within the filter box will be beveled,
 	 * otherwise the edge will be beveled if any vertex is within the filter box.
 	 */
-	UPROPERTY(BlueprintReadWrite, Category = FilterShape, AdvancedDisplay)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = FilterShape, AdvancedDisplay)
 	bool bFullyContained = true;
 };
 
@@ -253,7 +253,9 @@ enum class EGeometryScriptMeshBevelSelectionMode : uint8
 	/** Convert the selection to PolyGroups and bevel all the PolyGroup Edges of the selected PolyGroups */
 	AllPolygroupEdges = 1 UMETA(DisplayName = "All PolyGroup Edges"),
 	/** Convert the selection to PolyGroups and bevel all the PolyGroup Edges that are between selected PolyGroups */
-	SharedPolygroupEdges = 2 UMETA(DisplayName = "Shared PolyGroup Edges")
+	SharedPolygroupEdges = 2 UMETA(DisplayName = "Shared PolyGroup Edges"),
+	/** Convert the selection to Edges (if needed) and bevel them */
+	SelectedEdges = 3
 };
 
 
@@ -294,7 +296,7 @@ public:
 	/**
 	 * Disconnect the triangles of TargetMesh identified by the Selection.
 	 * The input Selection will still identify the same geometric elements after Disconnecting.
-	 * @param bAllowBowtiesInOutput if false, any bowtie vertices resulting created in the Duplicate area will be disconnected into unique vertices
+	 * @param bAllowBowtiesInOutput if false, any bowtie vertices created by the operation will be automatically split
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Modeling", meta=(ScriptMethod))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
@@ -303,6 +305,20 @@ public:
 		FGeometryScriptMeshSelection Selection,
 		bool bAllowBowtiesInOutput = true,
 		UGeometryScriptDebug* Debug = nullptr );
+
+	/**
+	 * Disconnect triangles of TargetMesh along the edges of the Selection.
+	 * The input Selection will still identify the same geometric elements after Disconnecting.
+	 * 
+	 * @param TargetMesh Mesh to operate on
+	 * @param Selection Which edges to operate on. Non-edge selections will be interpreted as edge selections -- i.e., all selected triangles' edges, or all selected vertices' one-ring edges.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Modeling", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	ApplyMeshDisconnectFacesAlongEdges(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptMeshSelection Selection,
+		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
 	 * Duplicate the triangles of TargetMesh identified by the Selection
@@ -380,10 +396,23 @@ public:
 	/**
 	 * Apply a Mesh Bevel operation to parts of TargetMesh using the BevelOptions settings.
 	 * @param Selection specifies which mesh edges to Bevel
-	 * @param BevelMode specifies how Selection should be converted to a Triangle Region or set of PolyGroup Edges
 	 * @param BevelOptions settings for the Bevel Operation
 	 */
-	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Modeling", meta=(ScriptMethod))
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Modeling", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	ApplyMeshBevelEdgeSelection(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptMeshSelection Selection,
+		FGeometryScriptMeshBevelSelectionOptions BevelOptions,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Apply a Mesh Bevel operation to parts of TargetMesh using the BevelOptions settings, with additional options to handle region selections
+	 * @param Selection specifies which mesh edges to Bevel
+	 * @param BevelMode specifies whether Selection should be optionally converted to a Triangle Region or set of PolyGroup Edges
+	 * @param BevelOptions settings for the Bevel Operation
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Modeling", meta=(ScriptMethod, DisplayName = "Apply Mesh Bevel Region Selection"))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	ApplyMeshBevelSelection(
 		UDynamicMesh* TargetMesh,

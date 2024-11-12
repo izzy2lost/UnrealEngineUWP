@@ -73,7 +73,7 @@ void FMediaFoundationMovieStreamer::ForceCompletion()
 	CloseMovie();
 }
 
-void FMediaFoundationMovieStreamer::ConvertSample()
+void FMediaFoundationMovieStreamer::ConvertSample(FRHICommandListImmediate& RHICmdList)
 {
 	const bool SrgbOutput = false;
 	const bool bSampleIsOutputSrgb = false;
@@ -95,12 +95,12 @@ void FMediaFoundationMovieStreamer::ConvertSample()
 				.SetFlags(InputCreateFlags | ETextureCreateFlags::RenderTargetable | ETextureCreateFlags::ShaderResource)
 				.SetInitialState(ERHIAccess::SRVMask);
 
-			InputTarget = RHICreateTexture(Desc);
+			InputTarget = RHICmdList.CreateTexture(Desc);
 		}
 
 		// copy sample data to input render target
 		FUpdateTextureRegion2D Region(0, 0, 0, 0, SourceFormat.BufferDim.X, SourceFormat.BufferDim.Y);
-		RHIUpdateTexture2D(InputTarget, 0, Region, SourceFormat.BufferStride, TextureData.GetData());
+		RHICmdList.UpdateTexture2D(InputTarget, 0, Region, SourceFormat.BufferStride, TextureData.GetData());
 	}
 
 	const FIntPoint OutputDim = SourceFormat.OutputDim;
@@ -109,17 +109,15 @@ void FMediaFoundationMovieStreamer::ConvertSample()
 	FRHITexture* RenderTarget = CurrentTexture->GetRHIRef();
 
 	// perform the conversion
-	FRHICommandListImmediate& CommandList = FRHICommandListExecutor::GetImmediateCommandList();
-
-	CommandList.Transition(FRHITransitionInfo(RenderTarget, ERHIAccess::Unknown, ERHIAccess::RTV));
+	RHICmdList.Transition(FRHITransitionInfo(RenderTarget, ERHIAccess::Unknown, ERHIAccess::RTV));
 
 	FRHIRenderPassInfo RPInfo(RenderTarget, ERenderTargetActions::Load_Store);
-	CommandList.BeginRenderPass(RPInfo, TEXT("WindowsMovieConvertSample"));
+	RHICmdList.BeginRenderPass(RPInfo, TEXT("WindowsMovieConvertSample"));
 	{
 		FGraphicsPipelineStateInitializer GraphicsPSOInit;
 
-		CommandList.ApplyCachedRenderTargets(GraphicsPSOInit);
-		CommandList.SetViewport(0, 0, 0.0f, OutputDim.X, OutputDim.Y, 1.0f);
+		RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+		RHICmdList.SetViewport(0, 0, 0.0f, OutputDim.X, OutputDim.Y, 1.0f);
 
 		GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
 		GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
@@ -139,8 +137,8 @@ void FMediaFoundationMovieStreamer::ConvertSample()
 		{
 			TShaderMapRef<FBMPConvertPS> ConvertShader(ShaderMap);
 			GraphicsPSOInit.BoundShaderState.PixelShaderRHI = ConvertShader.GetPixelShader();
-			SetGraphicsPipelineState(CommandList, GraphicsPSOInit, 0);
-			SetShaderParametersLegacyPS(CommandList, ConvertShader, InputTarget, OutputDim, bSampleIsOutputSrgb && !SrgbOutput);
+			SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+			SetShaderParametersLegacyPS(RHICmdList, ConvertShader, InputTarget, OutputDim, bSampleIsOutputSrgb && !SrgbOutput);
 		}
 		break;
 
@@ -148,8 +146,8 @@ void FMediaFoundationMovieStreamer::ConvertSample()
 		{
 			TShaderMapRef<FYUY2ConvertPS> ConvertShader(ShaderMap);
 			GraphicsPSOInit.BoundShaderState.PixelShaderRHI = ConvertShader.GetPixelShader();
-			SetGraphicsPipelineState(CommandList, GraphicsPSOInit, 0);
-			SetShaderParametersLegacyPS(CommandList, ConvertShader, InputTarget, OutputDim, MediaShaders::YuvToRgbRec709Scaled, MediaShaders::YUVOffset8bits, bSampleIsOutputSrgb);
+			SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+			SetShaderParametersLegacyPS(RHICmdList, ConvertShader, InputTarget, OutputDim, MediaShaders::YuvToRgbRec709Scaled, MediaShaders::YUVOffset8bits, bSampleIsOutputSrgb);
 		}
 		break;
 
@@ -159,23 +157,23 @@ void FMediaFoundationMovieStreamer::ConvertSample()
 
 		// draw full size quad into render target
 		FBufferRHIRef VertexBuffer = CreateTempMediaVertexBuffer();
-		CommandList.SetStreamSource(0, VertexBuffer, 0);
+		RHICmdList.SetStreamSource(0, VertexBuffer, 0);
 		// set viewport to RT size
-		CommandList.SetViewport(0, 0, 0.0f, OutputDim.X, OutputDim.Y, 1.0f);
-		CommandList.DrawPrimitive(0, 2, 1);
+		RHICmdList.SetViewport(0, 0, 0.0f, OutputDim.X, OutputDim.Y, 1.0f);
+		RHICmdList.DrawPrimitive(0, 2, 1);
 	}
-	CommandList.EndRenderPass();
-	CommandList.Transition(FRHITransitionInfo(RenderTarget, ERHIAccess::Unknown, ERHIAccess::SRVGraphics));
+	RHICmdList.EndRenderPass();
+	RHICmdList.Transition(FRHITransitionInfo(RenderTarget, ERHIAccess::Unknown, ERHIAccess::SRVGraphics));
 }
 
 bool FMediaFoundationMovieStreamer::Tick(float DeltaTime)
 {
 	FSlateTexture2DRHIRef* CurrentTexture = Texture.Get();
-	check(IsInRenderingThread());
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
 	if (CurrentTexture && !CurrentTexture->IsInitialized())
 	{
-		CurrentTexture->InitResource(FRHICommandListImmediate::Get());
+		CurrentTexture->InitResource(RHICmdList);
 	}
 
 	if (CurrentTexture && SampleGrabberCallback->GetIsSampleReadyToUpdate())
@@ -190,7 +188,7 @@ bool FMediaFoundationMovieStreamer::Tick(float DeltaTime)
 		}
 		else
 		{
-			ConvertSample();
+			ConvertSample(RHICmdList);
 		}
 
 		if (MovieViewport->GetViewportRenderTargetTexture() == nullptr)

@@ -162,7 +162,14 @@ public:
 	/**
 	 * Dispatch visible mesh draw command draw task.
 	 */
+	void Draw(FRHICommandList& RHICmdList, const FInstanceCullingDrawParams* InstanceCullingDrawParams = nullptr) const;
+	void Dispatch(FRDGDispatchPassBuilder& DispatchPassBuilder, const FInstanceCullingDrawParams* InstanceCullingDrawParams = nullptr, float ViewportScale = 1.0f) const;
+	void Dispatch(FRDGDispatchPassBuilder& DispatchPassBuilder, const FInstanceCullingDrawParams* InstanceCullingDrawParams, TFunctionRef<void(FRHICommandList&)> SetupCommandListFunction) const;
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "Use Draw / Dispatch instead.")
 	void DispatchDraw(FParallelCommandListSet* ParallelCommandListSet, FRHICommandList& RHICmdList, const FInstanceCullingDrawParams* InstanceCullingDrawParams = nullptr) const;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	void WaitForTasksAndEmpty();
 	void SetDumpInstancingStats(const FString& InPassName);

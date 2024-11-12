@@ -53,6 +53,10 @@ namespace UE::DecoupledOutputProvider
 		virtual void OnTick(IOutputProviderEvent& Args, const float DeltaTime) {}
 		virtual VCamCore::EViewportChangeReply PreReapplyViewport(IOutputProviderEvent& Args) { return VCamCore::EViewportChangeReply::Reinitialize; }
 		virtual void PostReapplyViewport(IOutputProviderEvent& Args) {}
+		virtual TFuture<FVCamStringPromptResponse> PromptClientForString(IOutputProviderEvent& Args, const FVCamStringPromptRequest& Request)
+		{
+			return MakeFulfilledPromise<FVCamStringPromptResponse>(EVCamStringPromptResult::Unavailable).GetFuture();
+		}
 
 		// UObject events
 		virtual void OnAddReferencedObjects(IOutputProviderEvent& Args, FReferenceCollector& Collector) {}
@@ -60,6 +64,10 @@ namespace UE::DecoupledOutputProvider
 		virtual void OnSerialize(IOutputProviderEvent& Args, FArchive& Ar) {}
 		virtual void OnPostLoad(IOutputProviderEvent& Args) {}
 #if WITH_EDITOR
+		/** Called when root property is changed. */
+		virtual void OnPreEditChange(IOutputProviderEvent& Args, FProperty* PropertyAboutToChange) {}
+		/** Called non-root property is changed. */
+		virtual void OnPreEditChange(IOutputProviderEvent& Args, FEditPropertyChain& PropertyAboutToChange) {}
 		virtual void OnPostEditChangeProperty(IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent) {}
 #endif
 		

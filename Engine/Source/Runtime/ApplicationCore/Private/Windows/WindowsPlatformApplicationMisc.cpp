@@ -282,7 +282,7 @@ bool FWindowsPlatformApplicationMisc::GetWindowTitleMatchingText(const TCHAR* Ti
 
 int32 FWindowsPlatformApplicationMisc::GetMonitorDPI(const FMonitorInfo& MonitorInfo)
 {
-	int32 DisplayDPI = 96;
+	int32 DisplayDPI = USER_DEFAULT_SCREEN_DPI;
 
 	if (IsHighDPIAwarenessEnabled())
 	{
@@ -360,7 +360,7 @@ float FWindowsPlatformApplicationMisc::GetDPIScaleFactorAtPoint(float X, float Y
 				uint32 DPIY = 0;
 				if (SUCCEEDED(GetDpiForMonitor(Monitor, 0 /*MDT_EFFECTIVE_DPI*/, &DPIX, &DPIY)))
 				{
-					Scale = (float)DPIX / 96.0f;
+					Scale = (float)DPIX / USER_DEFAULT_SCREEN_DPI;
 				}
 			}
 		}
@@ -368,7 +368,7 @@ float FWindowsPlatformApplicationMisc::GetDPIScaleFactorAtPoint(float X, float Y
 		{
 			HDC Context = GetDC(nullptr);
 			int32 DPI = GetDeviceCaps(Context, LOGPIXELSX);
-			Scale = (float)DPI / 96.0f;
+			Scale = (float)DPI / USER_DEFAULT_SCREEN_DPI;
 			ReleaseDC(nullptr, Context);
 		}
 	}
@@ -395,7 +395,10 @@ void FWindowsPlatformApplicationMisc::ClipboardCopy(const TCHAR* Str)
 		GlobalUnlock( GlobalMem );
 		if( SetClipboardData( CF_UNICODETEXT, GlobalMem ) == NULL )
 			UE_LOG(LogWindows, Fatal,TEXT("SetClipboardData failed with error code %i"), (uint32)GetLastError() );
-		verify(CloseClipboard());
+		if (!CloseClipboard())
+		{
+			UE_LOG(LogWindows, Warning, TEXT("CloseClipboard failed with error code %i"), (uint32)GetLastError());
+		}
 	}
 	else
 	{
@@ -439,7 +442,10 @@ void FWindowsPlatformApplicationMisc::ClipboardPaste(class FString& Result)
 			}
 			GlobalUnlock( GlobalMem );
 		}
-		verify(CloseClipboard());
+		if (!CloseClipboard())
+		{
+			UE_LOG(LogWindows, Warning, TEXT("CloseClipboard failed with error code %i"), (uint32)GetLastError());
+		}
 	}
 	else 
 	{

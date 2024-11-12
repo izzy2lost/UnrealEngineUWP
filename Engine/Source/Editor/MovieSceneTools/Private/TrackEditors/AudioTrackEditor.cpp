@@ -34,8 +34,10 @@
 #include "MVVM/Views/ViewUtilities.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "ISectionLayoutBuilder.h"
+#include "ISequencer.h"
 #include "MovieSceneToolHelpers.h"
 #include "Dialogs/Dialogs.h"
+#include "SequencerSettings.h"
 
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "Misc/QualifiedFrameTime.h"
@@ -925,6 +927,47 @@ void FAudioSection::SlipSection(FFrameNumber SlipTime)
 	ISequencerSection::SlipSection(SlipTime);
 }
 
+TOptional<FFrameTime> FAudioSection::GetSectionTime(FSequencerSectionPainter& InPainter) const
+{
+	if (!InPainter.bIsSelected || !Sequencer.Pin())
+	{
+		return TOptional<FFrameTime>();
+	}
+
+	const FQualifiedFrameTime CurrentTime = Sequencer.Pin()->GetLocalTime();
+	if (!Section.GetRange().Contains(CurrentTime.Time.FrameNumber))
+	{
+		return TOptional<FFrameTime>();
+	}
+
+	FQualifiedFrameTime HintFrameTime;
+
+	TOptional<FSoundWaveTimecodeInfo> TimecodeInfo;
+	if (UMovieSceneAudioSection* AudioSection = Cast<UMovieSceneAudioSection>(&Section))
+	{
+		if (const USoundWave* SoundWave = DeriveSoundWave(AudioSection))
+		{
+			TimecodeInfo = SoundWave->GetTimecodeInfo();
+		}
+
+		if (TimecodeInfo.IsSet())
+		{
+			const FFrameRate SectionFrameRate = AudioSection->GetTypedOuter<UMovieScene>()->GetTickResolution();
+			const double AudioStartOffset = SectionFrameRate.AsSeconds(AudioSection->GetStartOffset());
+
+			const FFrameRate TickResolution = CurrentTime.Rate;
+			const FFrameTime FramesSinceMidnight = TickResolution.AsFrameTime(TimecodeInfo->GetNumSecondsSinceMidnight() + AudioStartOffset);
+
+			const FFrameTime SectionOffset = CurrentTime.Time - AudioSection->GetInclusiveStartFrame();
+			const FFrameTime CursorFrameTime = FramesSinceMidnight + SectionOffset;
+
+			HintFrameTime = FQualifiedFrameTime(FFrameTime(CursorFrameTime.CeilToFrame()), TickResolution);
+		}
+	}
+
+	return HintFrameTime.Time;
+}
+
 void FAudioSection::RegenerateWaveforms(TRange<float> DrawRange, int32 XOffset, int32 XSize, const FColor& ColorTint, float DisplayScale)
 {
 	UMovieSceneAudioSection* AudioSection = Cast<UMovieSceneAudioSection>(&Section);
@@ -1329,7 +1372,8 @@ void FAudioTrackEditor::HandleAddAttachedAudioTrackMenuEntryExecute(FMenuBuilder
 
 TSharedRef<SWidget> FAudioTrackEditor::BuildAudioSubMenu(FOnAssetSelected OnAssetSelected, FOnAssetEnterPressed OnAssetEnterPressed)
 {
-	UMovieSceneSequence* Sequence = GetSequencer() ? GetSequencer()->GetFocusedMovieSceneSequence() : nullptr;
+	TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+	UMovieSceneSequence* Sequence = SequencerPtr.IsValid() ? SequencerPtr->GetFocusedMovieSceneSequence() : nullptr;
 
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 	TArray<FTopLevelAssetPath> ClassNames;
@@ -1356,9 +1400,12 @@ TSharedRef<SWidget> FAudioTrackEditor::BuildAudioSubMenu(FOnAssetSelected OnAsse
 
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 
+	const float WidthOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+	const float HeightOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
 	TSharedPtr<SBox> MenuEntry = SNew(SBox)
-		.WidthOverride(300.0f)
-		.HeightOverride(300.f)
+		.WidthOverride(WidthOverride)
+		.HeightOverride(HeightOverride)
 		[
 			ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig)
 		];

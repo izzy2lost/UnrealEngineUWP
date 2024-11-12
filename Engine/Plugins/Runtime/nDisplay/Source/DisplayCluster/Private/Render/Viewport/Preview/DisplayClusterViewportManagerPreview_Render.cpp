@@ -160,6 +160,7 @@ bool FDisplayClusterViewportManagerPreview::InitializeClusterNodePreview(const E
 							}
 						}
 
+						TArray<FSceneView*> Views;
 						for (const FDisplayClusterRenderFrameTargetView& ViewIt : ViewFamiliesIt.Views)
 						{
 							FDisplayClusterViewport* ViewportPtr = static_cast<FDisplayClusterViewport*>(ViewIt.Viewport.Get());
@@ -173,10 +174,10 @@ bool FDisplayClusterViewportManagerPreview::InitializeClusterNodePreview(const E
 							if (ViewIt.IsViewportContextCanBeRendered() && ViewFamily->RenderTarget)
 							{
 								// Calculate the player's view information.
-								FVector  ViewLocation;
-								FRotator ViewRotation;
 								if (FSceneView* View = ViewportPtr->ViewportPreview->CalcSceneView(*ViewFamily, ViewIt.ContextNum))
 								{
+									Views.Add(View);
+
 									// Apply viewport context settings to view (crossGPU, visibility, etc)
 									ViewportPtr->SetupSceneView(ViewIt.ContextNum, PreviewScene->GetWorld(), *ViewFamily, *View);
 								}
@@ -190,10 +191,7 @@ bool FDisplayClusterViewportManagerPreview::InitializeClusterNodePreview(const E
 
 						if (!ViewFamily->Views.IsEmpty())
 						{
-							// Screen percentage is still not supported in scene capture.
-							ViewFamily->EngineShowFlags.ScreenPercentage = false;
-							ViewFamily->SetScreenPercentageInterface(new FLegacyScreenPercentageDriver(*ViewFamily, 1.0f));
-
+							ViewportManager->PostConfigureViewFamily(RenderTargetIt, ViewFamiliesIt, *ViewFamily, Views);
 							ViewportsViewFamily.Add(ViewFamily);
 						}
 					}

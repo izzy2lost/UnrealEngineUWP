@@ -103,6 +103,7 @@ void SKeySelector::Construct(const FArguments& InArgs)
 
 	OnKeyChanged = InArgs._OnKeyChanged;
 	CurrentKey = InArgs._CurrentKey;
+	AllowChangeKey = InArgs._AllowKeyChange;
 
 	TMap<FName, FKeyTreeItem> TreeRootsForCatgories;
 
@@ -152,6 +153,7 @@ void SKeySelector::Construct(const FArguments& InArgs)
 			.PressMethod(EButtonPressMethod::DownAndUp)
 			.ToolTipText(this, &SKeySelector::GetKeyTooltip)
 			.OnClicked(this, &SKeySelector::ListenForInput)
+			.IsEnabled(this, &SKeySelector::CanChangeKey)
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
@@ -267,7 +269,7 @@ FSlateColor SKeySelector::GetKeyIconColor() const
 
 FReply SKeySelector::ListenForInput()
 {
-	if (!bListenForNextInput)
+	if (!bListenForNextInput && CanChangeKey())
 	{
 		bListenForNextInput = true;
 		return FReply::Handled().CaptureMouse(SharedThis(this)).SetUserFocus(SharedThis(this));
@@ -277,6 +279,8 @@ FReply SKeySelector::ListenForInput()
 
 FReply SKeySelector::ProcessHeardInput(FKey KeyHeard)
 {
+	ensure(CanChangeKey());
+	
 	if (bListenForNextInput)	// TODO: Unnecessary. Keep it for safety?
 	{
 		const FScopedTransaction Transaction(LOCTEXT("ChangeKey", "Change Key Value"));
@@ -391,7 +395,7 @@ void SKeySelector::OnKeySelectionChanged(FKeyTreeItem Selection, ESelectInfo::Ty
 	}
 
 	// Only handle selection for non-read only items, since STreeViewItem doesn't actually support read-only
-	if (Selection.IsValid())
+	if (Selection.IsValid() && CanChangeKey())
 	{
 		if (Selection->GetKey().IsValid())
 		{
@@ -423,6 +427,11 @@ void SKeySelector::GetKeyChildren(FKeyTreeItem InItem, TArray<FKeyTreeItem>& Out
 	OutChildren = InItem->Children;
 }
 
+bool SKeySelector::CanChangeKey() const
+{
+	return AllowChangeKey.Get();
+}
+
 TSharedRef<SWidget>	SKeySelector::GetMenuContent()
 {
 	if (!MenuContent.IsValid())
@@ -433,7 +442,8 @@ TSharedRef<SWidget>	SKeySelector::GetMenuContent()
 			.SelectionMode(ESelectionMode::Single)
 			.OnGenerateRow(this, &SKeySelector::GenerateKeyTreeRow)
 			.OnSelectionChanged(this, &SKeySelector::OnKeySelectionChanged)
-			.OnGetChildren(this, &SKeySelector::GetKeyChildren);
+			.OnGetChildren(this, &SKeySelector::GetKeyChildren)
+			.IsEnabled(this, &SKeySelector::CanChangeKey);
 
 		SAssignNew(FilterTextBox, SSearchBox)
 			.OnTextChanged(this, &SKeySelector::OnFilterTextChanged)

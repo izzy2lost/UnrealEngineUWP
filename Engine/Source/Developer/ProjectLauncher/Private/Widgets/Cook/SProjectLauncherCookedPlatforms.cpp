@@ -37,7 +37,6 @@ void SProjectLauncherCookedPlatforms::Construct(const FArguments& InArgs, const 
 								.DefaultLabel(LOCTEXT("PlatformListPlatformNameColumnHeader", "Platform"))
 								.FillWidth(1.0f)
 						)
-						.ItemHeight(16.0f)
 						.ListItemsSource(&PlatformList)
 						.OnGenerateRow(this, &SProjectLauncherCookedPlatforms::HandlePlatformListViewGenerateRow)
 						.SelectionMode(ESelectionMode::None)

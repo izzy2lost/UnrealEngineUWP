@@ -233,10 +233,6 @@ public:
 	void CopySelectedNodesToClipboard() const;
 	void OnPasteNodes(SAnimNotifyTrack* RequestTrack, float ClickTime, ENotifyPasteMode::Type PasteMode, ENotifyPasteMultipleMode::Type MultiplePasteType);
 
-	/** Handler for properties changing on objects */
-	FCoreUObjectDelegates::FOnObjectPropertyChanged::FDelegate OnPropertyChangedHandle;
-	void OnPropertyChanged(UObject* ChangedObject, FPropertyChangedEvent& PropertyEvent);
-
 	/** SWidget Interface */
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;

@@ -181,4 +181,7 @@ public:
 
 	/** Whether the item should be removed when the last child has been removed. */
 	virtual bool ShouldRemoveOnceLastChildRemoved() const { check(GetChildren().IsEmpty()); return Flags.bIsFilteredOut; }
+
+	/** Returns (optionally) the name of the UPackage this item represents/is-part-of */
+	virtual FString GetPackageName() const { return FString(); }
 };

@@ -3,6 +3,7 @@
 #ifndef PCH_H
 #define PCH_H
 
+#include <strsafe.h>
 
 // DatasmithSDK project can be built from the main solution, we check that datasmith headers are accessible
 #if !__has_include("DatasmithCore.h")

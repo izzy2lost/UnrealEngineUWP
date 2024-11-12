@@ -91,7 +91,7 @@ public:
 	virtual FString GetMovieName() override;
 	virtual bool IsLastMovieInPlaylist() override;
 	virtual void Cleanup() override;
-	virtual FTexture2DRHIRef GetTexture() override;
+	virtual FTextureRHIRef GetTexture() override;
 	virtual FOnCurrentMovieClipFinished& OnCurrentMovieClipFinished() override;
 
 	virtual void TickPreEngine() override;

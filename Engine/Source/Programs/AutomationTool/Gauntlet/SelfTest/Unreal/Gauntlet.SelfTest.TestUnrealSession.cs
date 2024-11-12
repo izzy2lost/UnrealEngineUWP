@@ -346,11 +346,11 @@ namespace Gauntlet.SelfTest
 				ArtifactPath = ArtifactPath
 			};
 
-			ProcessResult DummyProcess = new("Dummy", null, false);
+			LongProcessResult DummyProcess = new("Dummy", "", CommandUtils.ERunOptions.NoStdOutRedirect);
 			WindowsAppInstance AppInstance = new(Install, DummyProcess, Log.FullName);
 
 			// This is a pretty dumb workaround, but the log file reader runs on a separate thread.
-			// We need to wait a few seconds to avoid accidently moving the file in SaveRoleArtifacts
+			// We need to wait a few seconds to avoid accidentally moving the file in SaveRoleArtifacts
 			// before the thread has had time to map the contents to the stdout
 			Thread.Sleep(5000);
 			return AppInstance;

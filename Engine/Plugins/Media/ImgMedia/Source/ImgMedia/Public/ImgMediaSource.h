@@ -6,6 +6,7 @@
 #include "Engine/EngineTypes.h"
 #include "Containers/UnrealString.h"
 #include "Misc/FrameRate.h"
+#include "Misc/Timecode.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/ScriptMacros.h"
 #include "BaseMediaSource.h"
@@ -73,6 +74,10 @@ public:
 	FImgMediaSourceCustomizationSequenceProxy SequenceProxy;
 
 #endif // WITH_EDITORONLY_DATA
+
+	/** Specification of a timecode associated with the start of the sequence. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Timecode")
+	FTimecode StartTimecode;
 
 public:
 

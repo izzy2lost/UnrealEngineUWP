@@ -12,9 +12,7 @@
 #include "CoreTypes.h"
 #include "HAL/ThreadSafeCounter.h"
 #include "Misc/AssertionMacros.h"
-#include "Templates/EnableIf.h"
-#include "Templates/LosesQualifiersFromTo.h"
-#include "Templates/PointerIsConvertibleFromTo.h"
+#include "Templates/Requires.h"
 #include "Templates/TypeHash.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/Field.h"
@@ -22,6 +20,8 @@
 #include "UObject/UObjectArray.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
+
+#include <type_traits>
 
 class FArchive;
 class FLinkerLoad;
@@ -267,7 +267,7 @@ public:
 	COREUOBJECT_API friend FArchive& operator<<(FArchive& Ar, FFieldPath& InOutPropertyPath);
 
 	/** Hash function. */
-	FORCEINLINE friend uint32 GetTypeHash(const FFieldPath& InPropertyPath)
+	[[nodiscard]] FORCEINLINE friend uint32 GetTypeHash(const FFieldPath& InPropertyPath)
 	{
 		uint32 HashValue = 0;
 		for (const FName& PathSegment : InPropertyPath.Path)
@@ -326,6 +326,9 @@ public:
 	TFieldPath(UField* InField)
 		: FFieldPath(InField, PropertyType::StaticClass()->GetFName())
 	{
+		// This static assert is in here rather than in the body of the class because we want
+		// to be able to define TWeakFieldPtr<UUndefinedClass>.
+		static_assert(std::is_convertible_v<PropertyType*, const volatile FField*>, "TFieldPath can only be constructed with FField types");
 	}
 #endif
 
@@ -334,38 +337,46 @@ public:
 	* @param Object object to create a weak pointer to
 	**/
 	template <
-		typename OtherPropertyType,
-		typename = decltype(ImplicitConv<PropertyType*>((OtherPropertyType*)nullptr))
+		typename OtherPropertyType
+		UE_REQUIRES(std::is_convertible_v<OtherPropertyType*, PropertyType*>)
 	>
 	FORCEINLINE TFieldPath(OtherPropertyType* InProperty, EDummy1 = Dummy1)
 		: FFieldPath((FField*)CastField<PropertyType>(InProperty))
 	{
 		// This static assert is in here rather than in the body of the class because we want
 		// to be able to define TFieldPath<UUndefinedClass>.
-		static_assert(TPointerIsConvertibleFromTo<PropertyType, const volatile FField>::Value, "TFieldPath can only be constructed with FField types");
+		static_assert(std::is_convertible_v<PropertyType*, const volatile FField*>, "TFieldPath can only be constructed with FField types");
 	}
 
 	/**
 	* Construct from another weak pointer of another type, intended for derived-to-base conversions
 	* @param Other weak pointer to copy from
 	**/
-	template <typename OtherPropertyType>
+	template <
+		typename OtherPropertyType
+		UE_REQUIRES(std::is_convertible_v<OtherPropertyType*, PropertyType*>)
+	>
 	FORCEINLINE TFieldPath(const TFieldPath<OtherPropertyType>& Other)
 		: FFieldPath(Other)
 	{
-		// It's also possible that this static_assert may fail for valid conversions because
-		// one or both of the types have only been forward-declared.
-		static_assert(TPointerIsConvertibleFromTo<OtherPropertyType, PropertyType>::Value, "Unable to convert TFieldPath - types are incompatible");
+		// This static assert is in here rather than in the body of the class because we want
+		// to be able to define TFieldPath<UUndefinedClass>.
+		static_assert(std::is_convertible_v<PropertyType*, const volatile FField*>, "TFieldPath can only be constructed with FField types");
 	}
 
 	/**
 	* Copy from an object pointer
 	* @param Object object to create a weak pointer to
 	**/
-	template<class OtherPropertyType>
-	FORCEINLINE typename TEnableIf<!TLosesQualifiersFromTo<OtherPropertyType, PropertyType>::Value>::Type operator=(OtherPropertyType* InProperty)
+	template <
+		typename OtherPropertyType
+		UE_REQUIRES(std::is_convertible_v<OtherPropertyType*, PropertyType*>)
+	>
+	FORCEINLINE void operator=(OtherPropertyType* InProperty)
 	{
-		ResolvedField = InProperty; 
+		// This (FField*) cast is effectively a const_cast, as we've already validated the convertibility in the
+		// constraint, and that PropertyType is an FField type in the constructors.
+		ResolvedField = (FField*)InProperty; 
 		Generate(ResolvedField);
 	}
 
@@ -373,13 +384,12 @@ public:
 	* Assign from another weak pointer, intended for derived-to-base conversions
 	* @param Other weak pointer to copy from
 	**/
-	template <typename OtherPropertyType>
+	template <
+		typename OtherPropertyType
+		UE_REQUIRES(std::is_convertible_v<OtherPropertyType*, PropertyType*>)
+	>
 	FORCEINLINE void operator=(const TFieldPath<OtherPropertyType>& Other)
 	{
-		// It's also possible that this static_assert may fail for valid conversions because
-		// one or both of the types have only been forward-declared.
-		static_assert(TPointerIsConvertibleFromTo<OtherPropertyType, PropertyType>::Value, "Unable to convert TFieldPath - types are incompatible");
-
 		// First make sure the Other path has the serial number up to date, otherwise we'll keep having to
 		// reevealuate this path because it gets the serial number copied from the Other path
 		Other.Get();
@@ -419,104 +429,121 @@ public:
 	{
 		return Get();
 	}
+};
 
-	/**
-	* Compare weak pointers for equality
-	* @param Other weak pointer to compare to
-	**/
-	template <typename OtherPropertyType>
-	FORCEINLINE bool operator==(const TFieldPath<OtherPropertyType> &Other) const
-	{
-		static_assert(TPointerIsConvertibleFromTo<OtherPropertyType, const FField>::Value, "TFieldPath can only be compared with FField types");
-		static_assert(TPointerIsConvertibleFromTo<PropertyType, OtherPropertyType>::Value, "Unable to compare TFieldPath with raw pointer - types are incompatible");
+/**
+* Compare weak pointers for equality
+* @param Lhs weak pointer to compare
+* @param Rhs weak pointer to compare
+**/
+template <typename LhsType, typename RhsType>
+FORCEINLINE auto operator==(const TFieldPath<LhsType>& Lhs, const TFieldPath<LhsType>& Rhs)
+	-> decltype((LhsType*)nullptr == (RhsType*)nullptr)
+{
+	return *(const FFieldPath*)&Lhs == *(const FFieldPath*)&Rhs;
+}
 
-		return FFieldPath::operator==(Other);
-	}
+/**
+* Compare weak pointers for equality
+* @param Lhs weak pointer to compare
+* @param Rhs pointer to compare
+**/
+template <typename LhsType, typename RhsType>
+FORCEINLINE auto operator==(const TFieldPath<LhsType>& Lhs, const RhsType* Rhs)
+	-> decltype((LhsType*)nullptr == Rhs)
+{
+	return Lhs.Get() == Rhs;
+}
 
-	/**
-	* Compare weak pointers for equality
-	* @param Other pointer to compare to
-	**/
-	template <typename OtherPropertyType>
-	FORCEINLINE bool operator==(const OtherPropertyType* Other) const
-	{
-		static_assert(TPointerIsConvertibleFromTo<OtherPropertyType, const FField>::Value, "TFieldPath can only be compared with FField types");
-		static_assert(TPointerIsConvertibleFromTo<PropertyType, const OtherPropertyType>::Value, "Unable to compare TFieldPath with raw pointer - types are incompatible");
+/**
+* Compare weak pointers for equality
+* @param Lhs pointer to compare
+* @param Rhs weak pointer to compare
+**/
+template <typename LhsType, typename RhsType>
+FORCEINLINE auto operator==(const LhsType* Lhs, const TFieldPath<RhsType>& Rhs)
+	-> decltype(Lhs == (RhsType*)nullptr)
+{
+	return Lhs == Rhs.Get();
+}
 
-		return Get() == Other;
-	}
+/**
+* Test weak pointer for null
+* @param Lhs pointer to test
+**/
+template <typename LhsType>
+FORCEINLINE bool operator==(TFieldPath<LhsType>& Lhs, TYPE_OF_NULLPTR)
+{
+	return !Lhs.Get();
+}
 
-	FORCENOINLINE bool operator==(TYPE_OF_NULLPTR) const
-	{
-		return !Get();
-	}
+/**
+* Test weak pointer for null
+* @param Rhs pointer to test
+**/
+template <typename RhsType>
+FORCEINLINE bool operator==(TYPE_OF_NULLPTR, TFieldPath<RhsType>& Rhs)
+{
+	return !Rhs.Get();
+}
 
 #if !PLATFORM_COMPILER_HAS_GENERATED_COMPARISON_OPERATORS
+/**
+* Compare weak pointers for inequality
+* @param Lhs weak pointer to compare
+* @param Rhs weak pointer to compare
+**/
+template <typename LhsType, typename RhsType>
+FORCEINLINE auto operator!=(const TFieldPath<LhsType>& Lhs, const TFieldPath<LhsType>& Rhs)
+	-> decltype((LhsType*)nullptr != (RhsType*)nullptr)
+{
+	return !(Lhs == Rhs);
+}
 
-	/**
-	* Compare weak pointers for inequality
-	* @param Other weak pointer to compare to
-	**/
-	template <typename OtherPropertyType>
-	FORCEINLINE bool operator!=(const TFieldPath<OtherPropertyType> &Other) const
-	{
-		static_assert(TPointerIsConvertibleFromTo<OtherPropertyType, const FField>::Value, "TFieldPath can only be compared with FField types");
-		static_assert(TPointerIsConvertibleFromTo<PropertyType, const OtherPropertyType>::Value, "Unable to compare TFieldPath with raw pointer - types are incompatible");
+/**
+* Compare weak pointers for inequality
+* @param Lhs weak pointer to compare
+* @param Rhs pointer to compare
+**/
+template <typename LhsType, typename RhsType>
+FORCEINLINE auto operator!=(const TFieldPath<LhsType>& Lhs, const RhsType* Rhs)
+	-> decltype((LhsType*)nullptr != Rhs)
+{
+	return !(Lhs == Rhs);
+}
 
-		return FFieldPath::operator!=(Other);
-	}
+/**
+* Compare weak pointers for inequality
+* @param Lhs pointer to compare
+* @param Rhs weak pointer to compare
+**/
+template <typename LhsType, typename RhsType>
+FORCEINLINE auto operator!=(const LhsType* Lhs, const TFieldPath<RhsType>& Rhs)
+	-> decltype(Lhs != (RhsType*)nullptr)
+{
+	return !(Lhs == Rhs);
+}
 
-	/**
-	* Compare weak pointers for inequality
-	* @param Other pointer to compare to
-	**/
-	template <typename OtherPropertyType>
-	FORCEINLINE bool operator!=(const OtherPropertyType* Other) const
-	{
-		static_assert(TPointerIsConvertibleFromTo<OtherPropertyType, const FField>::Value, "TFieldPath can only be compared with FField types");
-		static_assert(TPointerIsConvertibleFromTo<PropertyType, const OtherPropertyType>::Value, "Unable to compare TFieldPath with raw pointer - types are incompatible");
+/**
+* Test weak pointer for non-null
+* @param Lhs pointer to test
+**/
+template <typename LhsType>
+FORCEINLINE bool operator!=(TFieldPath<LhsType>& Lhs, TYPE_OF_NULLPTR)
+{
+	return !(Lhs == nullptr);
+}
 
-		return Get() != Other;
-	}
-
-	template <typename LhsT>
-	friend FORCENOINLINE bool operator==(const LhsT* Lhs, const TFieldPath<PropertyType>& Rhs)
-	{
-		// It's also possible that these static_asserts may fail for valid conversions because
-		// one or both of the types have only been forward-declared.
-		static_assert(TPointerIsConvertibleFromTo<LhsT, const FField>::Value, "TFieldPath can only be compared with FField types");
-		static_assert(TPointerIsConvertibleFromTo<LhsT, const PropertyType>::Value || TPointerIsConvertibleFromTo<PropertyType, LhsT>::Value, "Unable to compare TFieldPath with raw pointer - types are incompatible");
-
-		return Rhs == Lhs;
-	}
-
-	friend FORCENOINLINE bool operator==(TYPE_OF_NULLPTR, const TFieldPath<PropertyType>& Rhs)
-	{
-		return !Rhs.Get();
-	}
-
-	template <typename LhsT>
-	friend FORCENOINLINE bool operator!=(const LhsT* Lhs, const TFieldPath<PropertyType>& Rhs)
-	{
-		// It's also possible that these static_asserts may fail for valid conversions because
-		// one or both of the types have only been forward-declared.
-		static_assert(TPointerIsConvertibleFromTo<LhsT, const FField>::Value, "TFieldPath can only be compared with FField types");
-		static_assert(TPointerIsConvertibleFromTo<LhsT, const PropertyType>::Value || TPointerIsConvertibleFromTo<PropertyType, LhsT>::Value, "Unable to compare TFieldPath with raw pointer - types are incompatible");
-
-		return Rhs != Lhs;
-	}
-
-	FORCENOINLINE bool operator!=(TYPE_OF_NULLPTR) const
-	{
-		return !!Get();
-	}
-
-	friend FORCENOINLINE bool operator!=(TYPE_OF_NULLPTR, const TFieldPath<PropertyType>& Rhs)
-	{
-		return !!Rhs.Get();
-	}
+/**
+* Test weak pointers for non-null
+* @param Rhs pointer to test
+**/
+template <typename RhsType>
+FORCEINLINE bool operator!=(TYPE_OF_NULLPTR, TFieldPath<RhsType>& Rhs)
+{
+	return !(nullptr == Rhs);
+}
 #endif
-};
 
 // Helper function which deduces the type of the initializer
 template <typename PropertyType>

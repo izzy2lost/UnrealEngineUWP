@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
@@ -14,10 +15,13 @@ namespace EpicGames.Horde.Compute.Clients
 	/// <summary>
 	/// Implementation of <see cref="IComputeClient"/> which marshals data over a loopback connection to a method running on a background task in the same process.
 	/// </summary>
-	public sealed class LocalComputeClient : IComputeClient
+	public sealed class LocalComputeClient : IComputeClient, IAsyncDisposable
 	{
+		private static readonly ClusterId s_cluster = new ("_local");
+		
 		class LeaseImpl : IComputeLease
 		{
+			public ClusterId Cluster { get; } = s_cluster;
 			public IReadOnlyList<string> Properties { get; } = new List<string>();
 			public IReadOnlyDictionary<string, int> AssignedResources => new Dictionary<string, int>();
 			public RemoteComputeSocket Socket => _socket;
@@ -82,9 +86,15 @@ namespace EpicGames.Horde.Compute.Clients
 			await worker.RunAsync(socket, cancellationToken);
 			await socket.CloseAsync(cancellationToken);
 		}
-
+		
 		/// <inheritdoc/>
-		public Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken)
+		public Task<ClusterId> GetClusterAsync(Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken = default)
+		{
+			return Task.FromResult(s_cluster);
+		}
+		
+		/// <inheritdoc/>
+		public Task<IComputeLease?> TryAssignWorkerAsync(ClusterId? clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken)
 		{
 #pragma warning disable CA2000 // Dispose objects before losing scope
 			RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(_socket), ComputeProtocol.Latest, logger);

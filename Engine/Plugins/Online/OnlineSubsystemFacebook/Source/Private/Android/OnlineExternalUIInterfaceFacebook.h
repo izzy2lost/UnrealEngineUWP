@@ -29,6 +29,9 @@ public:
 	 * Destructor.
 	 */
 	virtual ~FOnlineExternalUIFacebook();
+
+	// IOnlineExternalUI
+	virtual bool ShowLoginUI(const int ControllerIndex, bool bShowOnlineOnly, bool bShowSkipButton, const FOnLoginUIClosedDelegate& Delegate = FOnLoginUIClosedDelegate()) override;
 };
 
 typedef TSharedPtr<FOnlineExternalUIFacebook, ESPMode::ThreadSafe> FOnlineExternalUIFacebookPtr;

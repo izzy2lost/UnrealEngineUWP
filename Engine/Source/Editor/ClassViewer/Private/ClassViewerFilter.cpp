@@ -406,16 +406,8 @@ FClassViewerFilter::FClassViewerFilter(const FClassViewerInitializationOptions& 
 	if (GEditor)
 	{
 		FAssetReferenceFilterContext AssetReferenceFilterContext;
-		AssetReferenceFilterContext.ReferencingAssets = InInitOptions.AdditionalReferencingAssets;
-		if (InInitOptions.PropertyHandle.IsValid())
-		{
-			TArray<UObject*> ReferencingObjects;
-			InInitOptions.PropertyHandle->GetOuterObjects(ReferencingObjects);
-			for (UObject* ReferencingObject : ReferencingObjects)
-			{
-				AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(ReferencingObject));
-			}
-		}
+		AssetReferenceFilterContext.AddReferencingAssets(InInitOptions.AdditionalReferencingAssets);
+		AssetReferenceFilterContext.AddReferencingAssetsFromPropertyHandle(InInitOptions.PropertyHandle);
 		AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
 	}
 }

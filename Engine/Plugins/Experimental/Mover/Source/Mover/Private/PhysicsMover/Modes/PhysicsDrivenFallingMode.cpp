@@ -16,6 +16,8 @@
 #include "Misc/DataValidation.h"
 #endif // WITH_EDITOR
 
+#include "MoveLibrary/MovementUtils.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PhysicsDrivenFallingMode)
 
 #define LOCTEXT_NAMESPACE "PhysicsDrivenFallingMode"
@@ -51,9 +53,10 @@ EDataValidationResult UPhysicsDrivenFallingMode::IsDataValid(FDataValidationCont
 void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState)
 {
 	const FMoverTickStartData& StartState = Params.StartState;
-	USceneComponent* UpdatedComponent = Params.UpdatedComponent;
-	UPrimitiveComponent* UpdatedPrimitive = Params.UpdatedPrimitive;
+	USceneComponent* UpdatedComponent = Params.MovingComps.UpdatedComponent.Get();
+	UPrimitiveComponent* UpdatedPrimitive = Params.MovingComps.UpdatedPrimitive.Get();
 	FProposedMove ProposedMove = Params.ProposedMove;
+	const UMoverComponent* MoverComp = GetMoverComponent();
 
 	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
@@ -62,18 +65,11 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 	FMoverDefaultSyncState& OutputSyncState = OutputState.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
 
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
-	const FVector UpDir = GetMoverComponent()->GetUpDirection();
-
-	// Instantaneous movement changes that are executed and we exit before consuming any time
-	if (ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), StartingSyncState->GetVelocity_WorldSpace(), OutputSyncState))
-	{
-		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs; 	// Give back all the time
-		return;
-	}
+	const FVector UpDir = MoverComp->GetUpDirection();
 
 	// Floor query
 
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable();
 	if (!SimBlackboard)
 	{
 		OutputSyncState = *StartingSyncState;
@@ -92,11 +88,11 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 	float PawnRadius;
 	UpdatedPrimitive->CalcBoundingCylinder(PawnRadius, PawnHalfHeight);
 
-	const float QueryDistance = FMath::Max(1.1f * TargetHeight, TargetHeight - UpDir.Dot(ProposedMove.LinearVelocity) * DeltaSeconds);
-	const float ShrinkRadius = 5.0f; // TODO - Make this a user setting
+	const float QueryDistance = 1.1f * FMath::Max(TargetHeight, TargetHeight - UpDir.Dot(ProposedMove.LinearVelocity) * DeltaSeconds);
+	const float ShrinkRadius = 1.0f; // TODO - Make this a user setting
 	const float QueryRadius = FMath::Max(PawnRadius - ShrinkRadius, 0.0f);
 
-	UPhysicsMovementUtils::FloorSweep(StartingSyncState->GetLocation_WorldSpace(), StartingSyncState->GetVelocity_WorldSpace() * DeltaSeconds,
+	UPhysicsMovementUtils::FloorSweep_Internal(StartingSyncState->GetLocation_WorldSpace(), StartingSyncState->GetVelocity_WorldSpace() * DeltaSeconds,
 		UpdatedPrimitive, UpDir, QueryRadius, QueryDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, FloorResult, WaterResult);
 
 	SimBlackboard->Set(CommonBlackboard::LastFloorResult, FloorResult);
@@ -108,7 +104,7 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 
 	if (WaterResult.IsSwimmableVolume() && bStartSwimming && !bIsMovingUp)
 	{
-		OutputState.MovementEndState.NextModeName = DefaultModeNames::Swimming;
+		OutputState.MovementEndState.NextModeName = CommonLegacySettings->SwimmingMovementModeName;
 		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs;
 		return;
 	}
@@ -116,7 +112,7 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 	// In air steering
 
 	FRotator TargetOrient = StartingSyncState->GetOrientation_WorldSpace();
-	if (!ProposedMove.AngularVelocity.IsZero())
+	if (!UMovementUtils::IsAngularVelocityZero(ProposedMove.AngularVelocity)) 
 	{
 		TargetOrient += (ProposedMove.AngularVelocity * DeltaSeconds);
 	}
@@ -132,19 +128,18 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 
 	constexpr float FloorDistanceTolerance = 2.0f;
 	const FVector ProjectedGroundVelocity = UPhysicsMovementUtils::ComputeIntegratedGroundVelocityFromHitResult(StartingSyncState->GetLocation_WorldSpace(), FloorResult.HitResult, DeltaSeconds);
-	const float ProjectedRelativeVerticalVelocity = FloorResult.HitResult.ImpactNormal.Dot(ProposedMove.LinearVelocity - ProjectedGroundVelocity);
+	const float ProjectedRelativeVerticalVelocity = UpDir.Dot(ProposedMove.LinearVelocity - ProjectedGroundVelocity);
 	const float ProjectedFloorDistance = FloorResult.FloorDist + ProjectedRelativeVerticalVelocity * DeltaSeconds;
 	const bool bIsFloorWithinReach = ProjectedFloorDistance < TargetHeight + FloorDistanceTolerance;
 	const bool bIsMovingUpRelativeToFloor = ProjectedRelativeVerticalVelocity > UE_KINDA_SMALL_NUMBER;
 
 	if (FloorResult.IsWalkableFloor() && bIsFloorWithinReach && !bIsMovingUpRelativeToFloor)
 	{
-		OutputState.MovementEndState.NextModeName = DefaultModeNames::Walking;
-		TargetPos -= UpDir * (FloorResult.FloorDist - TargetHeight);
-	}
-	else
-	{
-		OutputState.MovementEndState.NextModeName = DefaultModeNames::Falling;
+		OutputState.MovementEndState.NextModeName = CommonLegacySettings->GroundMovementModeName;
+		//TargetVel = FVector::VectorPlaneProject(TargetVel, FloorResult.HitResult.Normal);
+		const FPlane MovementPlane(FVector::ZeroVector, UpDir);
+		TargetVel = UMovementUtils::ConstrainToPlane(TargetVel, MovementPlane, false);
+		TargetPos -= (UpDir.Dot(TargetVel * DeltaSeconds) + (FloorResult.FloorDist - TargetHeight)) * UpDir;
 	}
 
 	OutputState.MovementEndState.RemainingMs = 0.0f;

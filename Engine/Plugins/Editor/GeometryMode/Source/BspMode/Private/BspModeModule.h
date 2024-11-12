@@ -5,18 +5,18 @@
 #include "UObject/Class.h"
 #include "UObject/WeakObjectPtr.h"
 #include "IBspModeModule.h"
+#include "IPlacementModeModule.h"
+#include "Templates/SharedPointer.h"
+#include "Misc/Optional.h"
 
 struct FSlateBrush;
+struct FPlaceableItem;
+struct FDragHandler;
+class FBrushBuilderDragDropOp;
 
 struct FBspBuilderType
 {
-	FBspBuilderType(class UClass* InBuilderClass, const FText& InText, const FText& InToolTipText, const FSlateBrush* InIcon)
-		: BuilderClass(InBuilderClass)
-		, Text(InText)
-		, ToolTipText(InToolTipText)
-		, Icon(InIcon)
-	{
-	}
+	FBspBuilderType(class UClass* InBuilderClass, const FText& InText, const FText& InToolTipText, const FSlateBrush* InIcon);
 
 	/** The class of the builder brush */
 	TWeakObjectPtr<UClass> BuilderClass;
@@ -29,6 +29,12 @@ struct FBspBuilderType
 
 	/** The icon to be displayed for this builder */
 	const FSlateBrush* Icon;
+
+	/** the placeable item that will provide the information for the draggable  for this BSP builder */
+	TSharedPtr<FPlaceableItem> PlaceableItem;
+
+	/** TOptional<FPlacementModeID>for deletion */
+	TOptional<FPlacementModeID> PlacementModeID;
 };
 
 class FBspModeModule : public IBspModeModule
@@ -49,4 +55,5 @@ public:
 private:
 
 	TArray< TSharedPtr<FBspBuilderType> > BspBuilderTypes;
+	FName CategoryName;
 };

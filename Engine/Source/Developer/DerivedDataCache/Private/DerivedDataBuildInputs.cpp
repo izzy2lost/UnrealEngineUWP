@@ -4,9 +4,9 @@
 
 #include "Compression/CompressedBuffer.h"
 #include "Containers/Map.h"
+#include "Containers/SharedString.h"
 #include "Containers/StringView.h"
 #include "DerivedDataBuildPrivate.h"
-#include "DerivedDataSharedString.h"
 #include "Misc/StringBuilder.h"
 #include <atomic>
 

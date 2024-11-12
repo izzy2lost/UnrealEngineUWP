@@ -4,7 +4,9 @@
 
 #include "CoreTypes.h"
 #include "Containers/Array.h"
+#include "Containers/ArrayView.h"
 #include "Iris/ReplicationSystem/Prioritization/NetObjectPrioritizer.h"
+#include "Net/Core/NetBitArray.h"
 #include "UObject/StrongObjectPtr.h"
 
 class UNetObjectPrioritizerDefinitions;
@@ -16,7 +18,12 @@ namespace UE::Net
 	{
 		class FNetRefHandleManager;
 		class FReplicationConnections;
+
+		typedef uint32 FInternalNetRefIndex;
 	}
+
+	// For testing
+	class FTestNetObjectPrioritizerFixture;
 }
 
 namespace UE::Net::Private
@@ -27,7 +34,7 @@ struct FReplicationPrioritizationInitParams
 	TObjectPtr<const UReplicationSystem> ReplicationSystem;
 	const FNetRefHandleManager* NetRefHandleManager = nullptr;
 	FReplicationConnections* Connections = nullptr;
-	uint32 MaxObjectCount = 0;
+	FInternalNetRefIndex MaxInternalNetRefIndex = 0;
 };
 
 class FReplicationPrioritization
@@ -36,6 +43,10 @@ public:
 	FReplicationPrioritization();
 
 	void Init(FReplicationPrioritizationInitParams& Params);
+	void Deinit();
+
+	/** Called when the maximum InternalNetRefIndex increased and we need to realloc our lists */
+	void OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex);
 
 	void Prioritize(const FNetBitArrayView& ConnectionsToSend, const FNetBitArrayView& DirtyObjectsThisFrame);
 
@@ -51,6 +62,9 @@ private:
 	class FPrioritizerBatchHelper;
 	class FUpdateDirtyObjectsBatchHelper;
 
+	void SetNetObjectListsSize(FInternalNetRefIndex MaxInternalIndex);
+	void ResizePrioritiesList(TArray<float>& OutPriorities, FInternalNetRefIndex MaxInternalIndex);
+
 	void UpdatePrioritiesForNewAndDeletedObjects();
 	void PrioritizeForConnection(uint32 ConnId, FPrioritizerBatchHelper& BatchHelper, FNetBitArrayView Objects);
 	void SetHighPriorityOnViewTargets(const TArrayView<float>& Priorities, const FReplicationView& View);
@@ -59,6 +73,11 @@ private:
 	void InitPrioritizers();
 
 private:
+	friend UE::Net::FTestNetObjectPrioritizerFixture;
+
+	// For testing
+	TConstArrayView<float> GetPrioritiesForConnection(uint32 ConnectionId) const;
+
 	struct FPrioritizerInfo
 	{
 		TStrongObjectPtr<UNetObjectPrioritizer> Prioritizer;
@@ -78,21 +97,28 @@ private:
 	static constexpr float DefaultPriority = 1.0f;
 	static constexpr float ViewTargetHighPriority = 1.0E7f;
 
-	TObjectPtr<const UReplicationSystem> ReplicationSystem;
+	TObjectPtr<const UReplicationSystem> ReplicationSystem = nullptr;
 	FReplicationConnections* Connections = nullptr;
 	const FNetRefHandleManager* NetRefHandleManager = nullptr;
+
 	TStrongObjectPtr<UNetObjectPrioritizerDefinitions> PrioritizerDefinitions;
+
 	TArray<FNetObjectPrioritizationInfo> NetObjectPrioritizationInfos;
 	TArray<uint8> ObjectIndexToPrioritizer;
 	TArray<FPrioritizerInfo> PrioritizerInfos;
 	TArray<FPerConnectionInfo> ConnectionInfos;
 	TArray<float> DefaultPriorities;
-	TBitArray<> ObjectsWithNewStaticPriority;
-	uint32 ConnectionCount = 0;
+	FNetBitArray ObjectsWithNewStaticPriority;
 
-	//
-	uint32 MaxObjectCount = 0;
+	FInternalNetRefIndex MaxInternalNetRefIndex = 0;
+
+	uint32 ConnectionCount = 0;
 	uint32 HasNewObjectsWithStaticPriority : 1;
 };
+
+inline TConstArrayView<float> FReplicationPrioritization::GetPrioritiesForConnection(uint32 ConnectionId) const
+{
+	return MakeArrayView(ConnectionInfos[ConnectionId].Priorities);
+}
 
 }

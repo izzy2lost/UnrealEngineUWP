@@ -12,8 +12,6 @@
 
 #define LOCTEXT_NAMESPACE "StormSyncImportWizard"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SStormSyncImportWizard::Construct(const FArguments& InArgs, const TArray<FStormSyncImportFileInfo>& InFilesToImport, const TArray<FStormSyncImportFileInfo>& InBufferFiles)
 {
 	FilesToImport = InFilesToImport;
@@ -161,8 +159,6 @@ void SStormSyncImportWizard::Construct(const FArguments& InArgs, const TArray<FS
 		]
 	];
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 void SStormSyncImportWizard::InitListSources()
 {

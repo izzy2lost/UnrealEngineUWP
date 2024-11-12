@@ -6,12 +6,15 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "LandscapeLayerInfoObject.h"
 #include "LandscapeProxy.h"
+#include "LandscapeEditTypes.h"
+#include "Algo/Transform.h"
 
 #if WITH_EDITOR
 #include "EditorDirectories.h"
 #include "Engine/Texture2D.h"
 #include "LandscapeComponent.h"
 #include "ObjectTools.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #endif
 
 // Channel remapping
@@ -28,36 +31,27 @@ bool DoesPlatformSupportEditLayers(EShaderPlatform InShaderPlatform)
 		&& !IsMobilePlatform(InShaderPlatform);
 }
 
-int32 ComputeMaxDeltasOffsetForMip(int32 InMipIndex, int32 InNumRelevantMips)
+ELandscapeToolTargetTypeFlags GetLandscapeToolTargetTypeAsFlags(ELandscapeToolTargetType InTargetType)
 {
-	int32 Offset = 0;
-	for (int32 X = 0; X < InMipIndex; ++X)
-	{
-		Offset += InNumRelevantMips - 1 - X;
-	}
-	return Offset;
+	uint8 TargetTypeValue = static_cast<uint8>(InTargetType);
+	check(TargetTypeValue < static_cast<uint8>(ELandscapeToolTargetType::Count));
+	return static_cast<ELandscapeToolTargetTypeFlags>(1 << TargetTypeValue);
 }
 
-int32 ComputeMaxDeltasCountForMip(int32 InMipIndex, int32 InNumRelevantMips)
+ELandscapeToolTargetType GetLandscapeToolTargetTypeSingleFlagAsType(ELandscapeToolTargetTypeFlags InSingleFlag)
 {
-	return InNumRelevantMips - 1 - InMipIndex;
+	check(FMath::CountBits(static_cast<uint64>(InSingleFlag)) == 1);
+	uint32 Index = FMath::FloorLog2(static_cast<uint8>(InSingleFlag));
+	check(Index < static_cast<uint32>(ELandscapeToolTargetType::Count));
+	return static_cast<ELandscapeToolTargetType>(Index);
 }
 
-int32 ComputeMipToMipMaxDeltasIndex(int32 InSourceMipIndex, int32 InDestinationMipIndex, int32 InNumRelevantMips)
+FString GetLandscapeToolTargetTypeFlagsAsString(ELandscapeToolTargetTypeFlags InTargetTypeFlags)
 {
-	check((InSourceMipIndex >= 0) && (InSourceMipIndex < InNumRelevantMips));
-	check((InDestinationMipIndex > InSourceMipIndex) && (InDestinationMipIndex < InNumRelevantMips));
-	return ComputeMaxDeltasOffsetForMip(InSourceMipIndex, InNumRelevantMips) + InDestinationMipIndex - InSourceMipIndex - 1;
-}
-
-int32 ComputeMipToMipMaxDeltasCount(int32 InNumRelevantMips)
-{
-	int32 Count = 0;
-	for (int32 MipIndex = 0; MipIndex < InNumRelevantMips - 1; ++MipIndex)
-	{
-		Count += InNumRelevantMips - 1 - MipIndex;
-	}
-	return Count;
+	TArray<FString> TargetTypeStrings;
+	Algo::Transform(MakeFlagsRange(InTargetTypeFlags), TargetTypeStrings, [](ELandscapeToolTargetTypeFlags InTargetTypeFlag) 
+		{ return UEnum::GetValueAsString(GetLandscapeToolTargetTypeSingleFlagAsType(InTargetTypeFlag)); });
+	return *FString::Join(TargetTypeStrings, TEXT(","));
 }
 
 #if WITH_EDITOR
@@ -110,13 +104,14 @@ bool IsVisibilityLayer(const ULandscapeLayerInfoObject* InLayerInfoObject)
 
 uint32 GetTypeHash(const FTextureCopyRequest& InKey)
 {
-	uint32 Hash = GetTypeHash(InKey.Source);
-	return HashCombine(Hash, GetTypeHash(InKey.Destination));
+	uint32 Hash = ::GetTypeHash(InKey.Source);
+	uint32 HashSlice = ::GetTypeHash(InKey.DestinationSlice);
+	return HashCombine(Hash, ::GetTypeHash(InKey.Destination));
 }
 
 bool operator==(const FTextureCopyRequest& InEntryA, const FTextureCopyRequest& InEntryB)
 {
-	return (InEntryA.Source == InEntryB.Source) && (InEntryA.Destination == InEntryB.Destination);
+	return (InEntryA.Source == InEntryB.Source) && (InEntryA.Destination == InEntryB.Destination) && (InEntryA.DestinationSlice == InEntryB.DestinationSlice);
 }
 
 bool FBatchTextureCopy::AddWeightmapCopy(UTexture* InDestination, int8 InDestinationSlice, int8 InDestinationChannel, const ULandscapeComponent* InComponent, ULandscapeLayerInfoObject* InLayerInfo)
@@ -177,7 +172,7 @@ bool FBatchTextureCopy::ProcessTextureCopies()
 		return false;
 	}
 
-	// Populate source/destination maps to filter unique occurences
+	// Populate source/destination maps to filter unique occurrences
 	for (const TPair<FTextureCopyRequest, FTextureCopyChannelMapping>& CopyRequest : CopyRequests)
 	{
 		FSourceDataMipNumber& SourceData = Sources.Add(CopyRequest.Key.Source);
@@ -265,23 +260,30 @@ bool FBatchTextureCopy::ProcessTextureCopies()
 	return true;
 }
 
-int32 LandscapeMobileWeightTextureArray = 0;
-static FAutoConsoleVariableRef CVarLandscapeMobileWeightTextureArray(
-	TEXT("landscape.MobileWeightTextureArray"),
-	LandscapeMobileWeightTextureArray,
-	TEXT("Use Texture Arrays for weights on Mobile platforms"),
-	ECVF_ReadOnly);
-
-bool IsMobileWeightmapTextureArrayEnabled()
+FLayerInfoFinder::FLayerInfoFinder()
 {
-	return LandscapeMobileWeightTextureArray != 0;	
-}
-	
-bool UseWeightmapTextureArray(EShaderPlatform InPlatform)
-{
-	return IsMobilePlatform(InPlatform) && (LandscapeMobileWeightTextureArray != 0);	
+	const UClass* AssetClass = ULandscapeLayerInfoObject::StaticClass();
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	FARFilter Filter;
+	FName PackageName = *AssetClass->GetPackage()->GetName();
+	FName AssetName = AssetClass->GetFName();
+											
+	Filter.ClassPaths.Add(FTopLevelAssetPath(PackageName,AssetName));
+	AssetRegistryModule.Get().GetAssets(Filter, LayerInfoAssets);
 }
 
+ULandscapeLayerInfoObject* FLayerInfoFinder::Find(const FName& LayerName) const
+{
+	for (const FAssetData& LayerInfoAsset : LayerInfoAssets)
+	{
+		ULandscapeLayerInfoObject* LayerInfo = CastChecked<ULandscapeLayerInfoObject>(LayerInfoAsset.GetAsset());
+		if (LayerInfo && LayerInfo->LayerName == LayerName)
+		{
+			return LayerInfo;
+		}
+	}
+	return nullptr;
+}
 #endif //!WITH_EDITOR
 
 } // end namespace UE::Landscape

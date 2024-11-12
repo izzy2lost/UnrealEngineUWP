@@ -30,6 +30,7 @@ Buffer<uint> CulledCardGridHeader;
 #define THREADGROUP_SIZE 0
 #endif
 
+#ifdef VisualizeQuadsCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void VisualizeQuadsCS(
 	uint3 GroupId : SV_GroupID,
@@ -132,7 +133,7 @@ void VisualizeQuadsCS(
 	{
 		const float CoverageForFog = saturate(1.0 - TraceResult.Transparency);
 		float3 OriginToCollider = CameraVector * TraceResult.OpaqueHitDistance;
-		TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, OriginToCollider);
+		TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, TraceInput.ConeTranslatedOrigin, CameraVector, TraceResult.OpaqueHitDistance);
 	}
 
 	float4 FinalColor = 0.0f;
@@ -162,6 +163,92 @@ void VisualizeQuadsCS(
 
 	RWSceneColor[OutputScreenCoord] = FinalColor;
 }
+#endif
+
+#ifdef VisualizeCursorDataCS
+
+StructuredBuffer<uint> DebugData;
+
+[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
+void VisualizeCursorDataCS(
+	uint3 GroupId : SV_GroupID,
+	uint3 DispatchThreadId : SV_DispatchThreadID,
+	uint3 GroupThreadId : SV_GroupThreadID)
+{
+
+
+	const FLumenSceneDebugData Data = ReadDebugData(DebugData);
+	if (Data.bValid)
+	{
+
+		const FLumenCardData Card = GetLumenCardData(Data.CardIndex);
+		const FLumenCardPageData CardPage = GetLumenCardPageData(Data.CardPageIndex);
+
+		const uint TilePreviewSize = 256;
+		uint2 OutputViewSize2 = 0;
+		if (Card.LocalExtent.y < Card.LocalExtent.x)
+		{
+			const float Ratio = Card.LocalExtent.y / Card.LocalExtent.x;
+			OutputViewSize2 = uint2(TilePreviewSize, TilePreviewSize * Ratio);
+		}
+		else
+		{
+			const float Ratio = Card.LocalExtent.x / Card.LocalExtent.y;
+			OutputViewSize2 = uint2(TilePreviewSize * Ratio, TilePreviewSize);
+		}
+		uint2 OutputViewOffset2 = uint2(0, InputViewSize.y - OutputViewSize2.y);
+		uint2 TraceCoord = DispatchThreadId.xy;
+		uint2 OutputScreenCoord = TraceCoord + OutputViewOffset2;
+		float2 ViewportUV = (TraceCoord + 0.5f) / OutputViewSize2;
+		uint2 PixelPos = ViewportUV * InputViewSize + InputViewOffset;
+
+		// Clip rendering outside of bounds
+		if (any(TraceCoord >= OutputViewSize2))
+		{
+			return;
+		}
+
+		FShaderPrintContext Ctx = InitShaderPrintContext(all(DispatchThreadId == 0), uint2(50, 550));
+
+		const float2 LocalSamplePosition = (float2(ViewportUV.x, 1 - ViewportUV.y) * 2.f - 1.f)  * Card.LocalExtent.xy;
+		const FLumenCardSample Sample = ComputeSurfaceCacheSample(Card, Data.CardIndex, LocalSamplePosition, 1.f /*SampleRadius*/, true/*bHiResSurface*/);
+
+		const float2 CardUV = ViewportUV;
+		const float2 AtlasUV = Sample.PhysicalAtlasUV;
+
+		const bool bInPage = all(AtlasUV >= CardPage.PhysicalAtlasUVRect.xy) && all(AtlasUV <= CardPage.PhysicalAtlasUVRect.zw);
+		      
+		const FLumenSurfaceCacheData SurfaceCacheData = GetSurfaceCacheData(Card, CardUV, AtlasUV);
+		float3 OutColor = SurfaceCacheData.Albedo;
+
+		Print(Ctx, TEXT("Card visualization"), FontEmerald); Newline(Ctx);
+		const bool bAlbedo = AddCheckbox(Ctx, TEXT("Albedo"), false, FontWhite); Newline(Ctx);
+		if (bAlbedo) { OutColor = Texture2DSampleLevel(AlbedoAtlas, View.SharedBilinearClampedSampler, AtlasUV, 0).xyz; }
+
+		const bool bNormal = AddCheckbox(Ctx, TEXT("Normal"), false, FontWhite); Newline(Ctx);
+		if (bNormal) { OutColor = (Texture2DSampleLevel(NormalAtlas, View.SharedBilinearClampedSampler, AtlasUV, 0).xyz + 1.f) * 0.5f; }
+
+		const bool bEmissive = AddCheckbox(Ctx, TEXT("Emissive"), false, FontWhite); Newline(Ctx);
+		if (bEmissive) { OutColor = Texture2DSampleLevel(EmissiveAtlas, View.SharedBilinearClampedSampler, AtlasUV, 0).xyz; }
+
+		const bool bDirect = AddCheckbox(Ctx, TEXT("Direct lighting"), true, FontWhite); Newline(Ctx);
+		if (bDirect) { OutColor = Texture2DSampleLevel(DirectLightingAtlas, View.SharedBilinearClampedSampler, AtlasUV, 0).xyz; }
+
+		const bool bIndirect = AddCheckbox(Ctx, TEXT("Indirect lighting"), false, FontWhite); Newline(Ctx);
+		if (bIndirect) { OutColor = Texture2DSampleLevel(IndirectLightingAtlas, View.SharedBilinearClampedSampler, AtlasUV, 0).xyz; }
+
+		//const bool bFinal = AddCheckbox(Ctx, TEXT("Final lighting"), false, FontWhite); Newline(Ctx);
+		//if (bFinal) { OutColor = Texture2DSampleLevel(FinalLightingAtlas, View.SharedBilinearClampedSampler, AtlasUV, 0).xyz; }
+
+		const float Opacity = Texture2DSampleLevel(OpacityAtlas, View.SharedBilinearClampedSampler, AtlasUV, 0).x;
+		OutColor *= Opacity;
+
+		RWSceneColor[OutputScreenCoord] = float4(OutColor,1);
+
+		AddQuadSS(Ctx, OutputViewOffset2, OutputViewOffset2 + OutputViewSize2, ColorYellow);
+	}
+}
+#endif // VisualizeCursorDataCS
 
 Buffer<float4> VisualizeTracesData;
 
@@ -196,6 +283,7 @@ void VisualizeTracesPS(
 	OutColor = float4(Input.TraceLighting, 0);
 }
 
+#ifdef VisualizeTracesCS
 uint NumTracesToVisualize;
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
@@ -219,3 +307,4 @@ void VisualizeTracesCS(
 		AddLineWS(Context, WorldPosition0, WorldPosition1, float4(LineColor, 1.0f));
 	}
 }
+#endif

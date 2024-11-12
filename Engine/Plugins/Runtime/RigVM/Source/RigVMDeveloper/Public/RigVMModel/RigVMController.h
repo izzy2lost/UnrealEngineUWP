@@ -24,6 +24,7 @@
 #include "RigVMController.generated.h"
 
 class URigVMActionStack;
+class IRigVMClientHost;
 struct FRigVMGraphFunctionArgument;
 struct FRigVMGraphFunctionHeader;
 
@@ -169,8 +170,8 @@ private:
 struct RIGVMDEVELOPER_API FRigVMPinInfo
 {
 	FRigVMPinInfo();
-	FRigVMPinInfo(const URigVMPin* InPin, int32 InParentIndex, ERigVMPinDirection InDirection = ERigVMPinDirection::Invalid);
-	FRigVMPinInfo(FProperty* InProperty, ERigVMPinDirection InDirection, int32 InParentIndex, const uint8* InDefaultValueMemory);
+	FRigVMPinInfo(const URigVMPin* InPin, int32 InParentIndex, ERigVMPinDirection InDirection, ERigVMPinDefaultValueType InDefaultValueType);
+	FRigVMPinInfo(FProperty* InProperty, ERigVMPinDirection InDirection, int32 InParentIndex, ERigVMPinDefaultValueType InDefaultValueType, const uint8* InDefaultValueMemory);
 
 	void CorrectExecuteTypeIndex();
 
@@ -182,12 +183,13 @@ struct RIGVMDEVELOPER_API FRigVMPinInfo
 	FProperty* Property;
 	FString PinPath;
 	FString DefaultValue;
+	ERigVMPinDefaultValueType DefaultValueType;
 	FString DisplayName;
 	FString CustomWidgetName;
 	bool bIsExpanded;
 	bool bIsConstant;
 	bool bIsDynamicArray;
-	bool bIsDecorator;
+	bool bIsTrait;
 	bool bIsLazy;
 	TArray<int32> SubPins;
 
@@ -197,8 +199,8 @@ struct RIGVMDEVELOPER_API FRigVMPinInfo
 struct RIGVMDEVELOPER_API FRigVMPinInfoArray
 {
 	FRigVMPinInfoArray() {}
-	explicit FRigVMPinInfoArray(const URigVMNode* InNode);
-	FRigVMPinInfoArray(const URigVMNode* InNode, URigVMController* InController, const FRigVMPinInfoArray* InPreviousPinInfos = nullptr);
+	explicit FRigVMPinInfoArray(const URigVMNode* InNode, URigVMController* InController);
+	FRigVMPinInfoArray(const URigVMNode* InNode, URigVMController* InController, const FRigVMPinInfoArray* InPreviousPinInfos);
 	FRigVMPinInfoArray(const FRigVMGraphFunctionHeader& FunctionHeader, URigVMController* InController, const FRigVMPinInfoArray* InPreviousPinInfos = nullptr);
 
 	int32 Num() const { return Pins.Num(); }
@@ -207,10 +209,10 @@ struct RIGVMDEVELOPER_API FRigVMPinInfoArray
 	TArray<FRigVMPinInfo>::RangedForIteratorType begin() const { return Pins.begin(); }
 	TArray<FRigVMPinInfo>::RangedForIteratorType end() const { return Pins.end(); }
 
-	int32 AddPin(const URigVMPin* InPin, int32 InParentIndex, ERigVMPinDirection InDirection = ERigVMPinDirection::Invalid);
-	int32 AddPin(FProperty* InProperty, URigVMController* InController, ERigVMPinDirection InDirection, int32 InParentIndex, const uint8* InDefaultValueMemory, bool bAddSubPins);
-	int32 AddPin(URigVMController* InController, int32 InParentIndex, const FName& InName, ERigVMPinDirection InDirection, TRigVMTypeIndex InTypeIndex, const FString& InDefaultValue, const uint8* InDefaultValueMemory, const FRigVMPinInfoArray* InPreviousPinInfos, bool bAddSubPins);
-	void AddPins(UScriptStruct* InScriptStruct, URigVMController* InController, ERigVMPinDirection InDirection, int32 InParentIndex, const uint8* InDefaultValueMemory, bool bAddSubPins);
+	int32 AddPin(const URigVMPin* InPin, int32 InParentIndex, ERigVMPinDirection InDirection, ERigVMPinDefaultValueType InDefaultValueType);
+	int32 AddPin(FProperty* InProperty, URigVMController* InController, ERigVMPinDirection InDirection, int32 InParentIndex, ERigVMPinDefaultValueType InDefaultValueType, const uint8* InDefaultValueMemory, bool bAddSubPins);
+	int32 AddPin(URigVMController* InController, int32 InParentIndex, const FName& InName, ERigVMPinDirection InDirection, TRigVMTypeIndex InTypeIndex, const FString& InDefaultValue, ERigVMPinDefaultValueType InDefaultValueType, const uint8* InDefaultValueMemory, const FRigVMPinInfoArray* InPreviousPinInfos, bool bAddSubPins);
+	void AddPins(UScriptStruct* InScriptStruct, URigVMController* InController, ERigVMPinDirection InDirection, int32 InParentIndex, TFunction<ERigVMPinDefaultValueType(const FName&)> InDefaultValueTypeGetter, const uint8* InDefaultValueMemory, bool bAddSubPins);
 
 	const FString& GetPinPath(const int32 InIndex) const;
 	int32 GetIndexFromPinPath(const FString& InPinPath) const;
@@ -265,11 +267,15 @@ public:
 
 	// Returns the schema used by this controller
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
-	URigVMSchema* GetSchema() const { return SchemaPtr; }
+	URigVMSchema* GetSchema() const;
 
-	// Sets the schema on the controller
+	UE_DEPRECATED(5.5, "Please use SetSchemaClass instead.")
+	UFUNCTION(BlueprintCallable, Category = RigVMController, meta=(DeprecatedFunction, DeprecationMessage="Function has been deprecated, please use SetSchemaClass instead."))
+	void SetSchema(URigVMSchema* InSchema) { check(InSchema); SetSchemaClass(InSchema->GetClass()); }
+
+	// Sets the schema class on the controller
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
-	void SetSchema(URigVMSchema* InSchema);
+	void SetSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass) { SchemaClass = InSchemaClass; }
 
 	// Pushes a new graph to the stack
 	// This causes a GraphChanged modified event.
@@ -288,6 +294,12 @@ public:
 	// Returns another controller for a given graph
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	URigVMController* GetControllerForGraph(const URigVMGraph* InGraph) const;
+
+	// Returns the client host this controller belongs to
+	IRigVMClientHost* GetClientHost() const;
+
+	// Returns all events present on the client host
+	TArray<FName> GetAllEventNames() const; 
 
 	// The Modified event used to subscribe to changes
 	// happening within the Graph. This is broadcasted to 
@@ -318,7 +330,10 @@ public:
 	TArray<FString> GeneratePythonCommands();
 
 	TArray<FString> GetAddNodePythonCommands(URigVMNode* Node) const;
-	TArray<FString> GetAddDecoratorPythonCommands(URigVMNode* Node, const FName& DecoratorName) const;
+	TArray<FString> GetAddTraitPythonCommands(URigVMNode* Node, const FName& TraitName) const;
+
+	FRigVMGraphFunctionStore* GetGraphFunctionStore() const;
+	FRigVMGraphFunctionData* FindFunctionData(const FName& InFunctionName) const;
 
 #if WITH_EDITOR
 	// Note: The functions below are scoped with WITH_EDITOR since we are considering
@@ -557,13 +572,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	URigVMInvokeEntryNode* AddInvokeEntryNode(const FName& InEntryName, const FVector2D& InPosition = FVector2D::ZeroVector, const FString& InNodeName = TEXT(""), bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
 
-	// Adds a decorator to a node
+	// Adds a trait to a node
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
-	FName AddDecorator(const FName& InNodeName, const FName& InDecoratorTypeObjectPath, const FName& InDecoratorName = NAME_None, const FString& InDefaultValue = TEXT(""), int32 InPinIndex = -1, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+	FName AddTrait(const FName& InNodeName, const FName& InTraitTypeObjectPath, const FName& InTraitName = NAME_None, const FString& InDefaultValue = TEXT(""), int32 InPinIndex = -1, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+	FName AddTrait(URigVMNode* InNode, UScriptStruct* InTraitScriptStruct, const FName& InTraitName, const FString& InDefaultValue, int32 InPinIndex = -1, bool bSetupUndoRedo = true);
 
-	// Removes a decorator from a node
+	// Removes a trait from a node
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
-	bool RemoveDecorator(const FName& InNodeName, const FName& InDecoratorName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+	virtual bool RemoveTrait(const FName& InNodeName, const FName& InTraitName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+	bool RemoveTrait(URigVMNode* InNode, const FName& InTraitName, bool bSetupUndoRedo = true);
 
 	// Un-does the last action on the stack.
 	// Note: This should really only be used for unit tests,
@@ -791,6 +808,58 @@ public:
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	bool SetPinIsWatched(const FString& InPinPath, bool bIsWatched, bool bSetupUndoRedo = true);
 
+	// Sets the pin display name. The display name is UI relevant only.
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool SetPinDisplayName(const FString& InPinPath, const FString& InDisplayName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Adds a new pin category. The category is UI relevant only and used
+	// to order pins in the user interface of the node as well as on the details panel.
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool AddEmptyPinCategory(const FName& InNodeName, const FString& InCategory, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Sets the pin category. The category is UI relevant only and used
+	// to order pins in the user interface of the node as well as on the details panel.
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool SetPinCategory(const FString& InPinPath, const FString& InCategory, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Clears the pin category. The category is UI relevant only and used
+	// to order pins in the user interface of the node as well as on the details panel.
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool ClearPinCategory(const FString& InPinPath, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Removes a pin category. The category is UI relevant only and used
+	// to order pins in the user interface of the node as well as on the details panel.
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool RemovePinCategory(const FName& InNodeName, const FString& InPinCategory, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Renames a pin category. The category is UI relevant only and used
+	// to order pins in the user interface of the node as well as on the details panel.
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool RenamePinCategory(const FName& InNodeName, const FString& InOldPinCategory, const FString& InNewPinCategory, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Changes a pin category's index. The category is UI relevant only and used
+	// to order pins in the user interface of the node as well as on the details panel.
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool SetPinCategoryIndex(const FName& InNodeName, const FString& InPinCategory, int32 InNewIndex, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Changes a pin category's expansion state. The category is UI relevant only and used
+	// to order pins in the user interface of the node as well as on the details panel.
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool SetPinCategoryExpansion(const FName& InNodeName, const FString& InPinCategory, bool bIsExpanded, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Changes a pin category's expansion state. The category is UI relevant only and used
+	// to order pins in the user interface of the node as well as on the details panel.
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool SetPinIndexInCategory(const FString& InPinPath, int32 InIndexInCategory, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Applies a complete node layout to a node
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool SetNodeLayout(const FName& InNodeName, FRigVMNodeLayout InLayout, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Removes any layout information from a node
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool ClearNodeLayout(const FName& InNodeName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
 	// Returns the default value of a pin given its pinpath.
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	FString GetPinDefaultValue(const FString& InPinPath);
@@ -799,6 +868,7 @@ public:
 	// This causes a PinDefaultValueChanged modified event.
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	bool SetPinDefaultValue(const FString& InPinPath, const FString& InDefaultValue, bool bResizeArrays = true, bool bSetupUndoRedo = true, bool bMergeUndoAction = false, bool bPrintPythonCommand = false, bool bSetValueOnLinkedPins = true);
+	bool SetPinDefaultValue(URigVMPin* InPin, const FString& InDefaultValue, bool bResizeArrays, bool bSetupUndoRedo, bool bMergeUndoAction, bool bSetValueOnLinkedPins = true);
 
 	// Resets the default value of a pin given its pinpath.
 	// This causes a PinDefaultValueChanged modified event.
@@ -903,6 +973,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	bool SetExposedPinIndex(const FName& InPinName, int32 InNewIndex, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
 
+	UFUNCTION(BlueprintPure, Category = RigVMController)
+	FRigVMGraphFunctionHeader FindGraphFunctionHeaderByName(FString InHostPath, FName InFunctionName) const;
+
+	UFUNCTION(BlueprintPure, Category = RigVMController)
+	FRigVMGraphFunctionHeader FindGraphFunctionHeader(FRigVMGraphFunctionIdentifier InFunctionIdentifier) const;
+
+	UFUNCTION(BlueprintPure, Category = RigVMController)
+	FRigVMGraphFunctionIdentifier FindGraphFunctionIdentifier(FString InHostPath, FName InFunctionName) const;
+
 	// Adds a function reference / invocation to the graph
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	URigVMFunctionReferenceNode* AddFunctionReferenceNodeFromDescription(const FRigVMGraphFunctionHeader& InFunctionDefinition, const FVector2D& InNodePosition = FVector2D::ZeroVector, const
@@ -912,6 +991,15 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	URigVMFunctionReferenceNode* AddFunctionReferenceNode(URigVMLibraryNode* InFunctionDefinition, const FVector2D& InNodePosition = FVector2D::ZeroVector, const FString& InNodeName = TEXT(""), bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool SwapFunctionReferenceByName(const FName& InFunctionReferenceNodeName, const FRigVMGraphFunctionIdentifier& InNewFunctionIdentifier, bool bSetupOrphanPins, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool SwapFunctionReference(URigVMFunctionReferenceNode* InFunctionReferenceNode, const FRigVMGraphFunctionIdentifier& InNewFunctionIdentifier, bool bSetupOrphanPins, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool SwapAllFunctionReferences(const FRigVMGraphFunctionIdentifier& InOldFunctionIdentifier, const FRigVMGraphFunctionIdentifier& InNewFunctionIdentifier, bool bSetupOrphanPins, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
 
 	// Sets the remapped variable on a function reference node
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
@@ -936,6 +1024,34 @@ public:
 	// Returns true if a function is marked as public in the function library
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	bool IsFunctionPublic(const FName& InFunctionName);
+
+	// Creates a variant of a function given the name of an existing function variant
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	URigVMLibraryNode* CreateFunctionVariant(const FName& InFunctionName, const FName& InVariantName = NAME_None, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Adds a default tag to a function variant
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool AddDefaultTagToFunctionVariant(const FName& InFunctionName, const FName& InTagName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+	
+	// Adds a tag to a function variant
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool AddTagToFunctionVariant(const FName& InFunctionName, const FRigVMTag& InTag, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Adds a tag to a function variant
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool RemoveTagFromFunctionVariant(const FName& InFunctionName, const FName& InTagName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Returns all variant refs related to the given function
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	TArray<FRigVMVariantRef> FindVariantsOfFunction(const FName& InFunctionName);
+
+	/** Resets the function's guid to a new one and splits it from the former variant set */
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool SplitFunctionVariant(const FName& InFunctionName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	/** Merges the function's guid with a provided one to join the variant set */
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool JoinFunctionVariant(const FName& InFunctionName, const FGuid& InGuid, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
 
 	// Add a local variable to the graph
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
@@ -1127,9 +1243,6 @@ private:
 	FRigVMGraphModifiedEvent ModifiedEventStatic;
 	void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
 
-	bool IsValidGraph() const;
-	bool IsValidSchema() const;
-	bool IsGraphEditable() const;
 	bool IsValidNodeForGraph(const URigVMNode* InNode);
 	bool IsValidPinForGraph(const URigVMPin* InPin);
 	bool IsValidLinkForGraph(const URigVMLink* InLink);
@@ -1139,7 +1252,6 @@ private:
 	void ConfigurePinFromProperty(FProperty* InProperty, URigVMPin* InOutPin, ERigVMPinDirection InPinDirection = ERigVMPinDirection::Invalid) const;
 	void ConfigurePinFromPin(URigVMPin* InOutPin, URigVMPin* InPin, bool bCopyDisplayName = false);
 	void ConfigurePinFromArgument(URigVMPin* InOutPin, const FRigVMGraphFunctionArgument& InArgument, bool bCopyDisplayName = false);
-	bool SetPinDefaultValue(URigVMPin* InPin, const FString& InDefaultValue, bool bResizeArrays, bool bSetupUndoRedo, bool bMergeUndoAction, bool bSetValueOnLinkedPins = true);
 	bool ResetPinDefaultValue(URigVMPin* InPin, bool bSetupUndoRedo);
 	static FString GetPinInitialDefaultValue(const URigVMPin* InPin);
 	static FString GetPinInitialDefaultValueFromStruct(UScriptStruct* ScriptStruct, const URigVMPin* InPin, uint32 InOffset);
@@ -1154,10 +1266,12 @@ private:
 	URigVMInjectionInfo* InjectNodeIntoPin(URigVMPin* InPin, bool bAsInput, const FName& InInputPinName, const FName& InOutputPinName, bool bSetupUndoRedo = true);
 	URigVMNode* EjectNodeFromPin(URigVMPin* InPin, bool bSetupUndoRedo = true, bool bPrintPythonCommands = false);
 	bool EjectAllInjectedNodes(URigVMNode* InNode, bool bSetupUndoRedo = true, bool bPrintPythonCommands = false);
-	FName AddDecorator(URigVMNode* InNode, UScriptStruct* InDecoratorScriptStruct, const FName& InDecoratorName, const FString& InDefaultValue, int32 InPinIndex = -1, bool bSetupUndoRedo = true);
-	bool RemoveDecorator(URigVMNode* InNode, const FName& InDecoratorName, bool bSetupUndoRedo = true);
 
 protected:
+
+	bool IsValidGraph() const;
+	bool IsValidSchema() const;
+	bool IsGraphEditable() const;
 
 #if WITH_EDITOR
 	URigVMUnitNode* AddUnitNode(UScriptStruct* InScriptStruct, TSubclassOf<URigVMUnitNode> InUnitNodeClass, const FName& InMethodName, const FVector2D& InPosition, const FString& InNodeName, bool bSetupUndoRedo, bool bPrintPythonCommand);
@@ -1178,6 +1292,18 @@ private:
 	bool SetPinExpansion(URigVMPin* InPin, bool bIsExpanded, bool bSetupUndoRedo = true);
 	void ExpandPinRecursively(URigVMPin* InPin, bool bSetupUndoRedo);
 	bool SetPinIsWatched(URigVMPin* InPin, bool bIsWatched, bool bSetupUndoRedo);
+	bool SetPinDisplayName(URigVMPin* InPin, const FString& InDisplayName, bool bSetupUndoRedo);
+	bool AddEmptyPinCategory(const URigVMNode* InNode, const FString& InPinCategory, bool bSetupUndoRedo);
+	bool SetPinCategory(URigVMPin* InPin, const FString& InCategory, bool bSetupUndoRedo);
+	bool RemovePinCategory(const URigVMNode* InNode, const FString& InPinCategory, bool bSetupUndoRedo);
+	bool RenamePinCategory(const URigVMNode* InNode, const FString& InOldPinCategory, const FString& InNewPinCategory, bool bSetupUndoRedo);
+	bool SetPinCategoryIndex(const URigVMNode* InNode, const FString& InPinCategory, int32 InNewIndex, bool bSetupUndoRedo);
+	bool SetPinCategoryExpansion(const URigVMNode* InNode, const FString& InPinCategory, bool bIsExpanded, bool bSetupUndoRedo);
+	bool SetPinIndexInCategory(URigVMPin* InPin, int32 InIndexInCategory, bool bSetupUndoRedo);
+	bool SetNodeLayout(const URigVMNode* InNode, FRigVMNodeLayout InLayout, bool bSetupUndoRedo, bool bPrintPythonCommand);
+	bool ClearNodeLayout(const URigVMNode* InNode, bool bSetupUndoRedo, bool bPrintPythonCommand);
+	bool SetPinCategories(const FName& InNodeName, const TArray<FString>& InCategories, bool bSetupUndoRedo);
+	bool SetPinCategories(const URigVMNode* InNode, const TArray<FString>& InCategories, bool bSetupUndoRedo);
 	bool SetVariableName(URigVMVariableNode* InVariableNode, const FName& InVariableName, bool bSetupUndoRedo);
 	static void ForEveryPinRecursively(URigVMPin* InPin, TFunction<void(URigVMPin*)> OnEachPinFunction);
 	static void ForEveryPinRecursively(URigVMNode* InNode, TFunction<void(URigVMPin*)> OnEachPinFunction);
@@ -1190,13 +1316,14 @@ private:
 	void RefreshFunctionPins(URigVMNode* InNode, bool bSetupUndoRedo = false);
 
 	void ReportRemovedLink(const FString& InSourcePinPath, const FString& InTargetPinPath, const FString& Reason = FString());
-
+public:
 	struct FPinState
 	{
 		ERigVMPinDirection Direction;
 		FString CPPType;
 		UObject* CPPTypeObject;
 		FString DefaultValue;
+		ERigVMPinDefaultValueType DefaultValueType;
 		bool bIsExpanded;
 		TArray<URigVMInjectionInfo*> InjectionInfos;
 		TArray<URigVMInjectionInfo::FWeakInfo> WeakInjectionInfos;
@@ -1208,10 +1335,12 @@ private:
 	void ApplyPinState(URigVMPin* InPin, const FPinState& InPinState, bool bSetupUndoRedo = false);
 	void ApplyPinStates(URigVMNode* InNode, const TMap<FString, FPinState>& InPinStates, const TMap<FString, FString>& InRedirectedPinPaths = TMap<FString, FString>(), bool bSetupUndoRedo = false);
 
+private:
 
 	static FLinearColor GetColorFromMetadata(const FString& InMetadata);
 	static void CreateDefaultValueForStructIfRequired(UScriptStruct* InStruct, FString& InOutDefaultValue);
-	static void PostProcessDefaultValue(URigVMPin* Pin, FString& OutDefaultValue);
+	static void PostProcessDefaultValue(const URigVMPin* Pin, FString& OutDefaultValue);
+	static void OverrideDefaultValueMember(const FString& InMemberName, const FString& InMemberValue, FString& InOutDefaultValue);
 
 	void ResolveTemplateNodeMetaData(URigVMTemplateNode* InNode, bool bSetupUndoRedo);
 
@@ -1227,13 +1356,12 @@ private:
 	void RewireLinks(URigVMPin* OldPin, URigVMPin* NewPin, bool bAsInput, bool bSetupUndoRedo, TArray<URigVMLink*> InLinks = TArray<URigVMLink*>());
 #endif
 
-
-	bool RenameObject(UObject* InObjectToRename, const TCHAR* InNewName, UObject* InNewOuter = nullptr) const;
+	bool RenameObject(UObject* InObjectToRename, const TCHAR* InNewName, UObject* InNewOuter = nullptr, ERenameFlags InFlags = REN_None) const;
 	void DestroyObject(UObject* InObjectToDestroy) const ;
 	static URigVMPin* MakeExecutePin(URigVMNode* InNode, const FName& InName);
 	static bool MakeExecutePin(URigVMPin* InOutPin);
 	bool AddGraphNode(URigVMNode* InNode, bool bNotify);
-	static void AddNodePin(URigVMNode* InNode, URigVMPin* InPin);
+	void AddNodePin(URigVMNode* InNode, URigVMPin* InPin);
 	static void AddSubPin(URigVMPin* InParentPin, URigVMPin* InPin);
 	static bool EnsurePinValidity(URigVMPin* InPin, bool bRecursive);
 	static void ValidatePin(URigVMPin* InPin);
@@ -1245,7 +1373,8 @@ private:
 	FRigVMExternalVariable GetVariableByName(const FName& InExternalVariableName, const bool bIncludeInputArguments = false) const;
 	TArray<FRigVMExternalVariable> GetAllVariables(const bool bIncludeInputArguments = false) const;
 
-	void RefreshFunctionReferences(URigVMLibraryNode* InFunctionDefinition, bool bSetupUndoRedo, bool bLoadIfNecessary);
+	void RefreshFunctionReferences(const URigVMLibraryNode* InFunctionDefinition, bool bSetupUndoRedo, bool bLoadIfNecessary);
+	void PropagateNotificationToFunctionReferences(const URigVMLibraryNode* InFunctionDefinition, ERigVMGraphNotifType InNotifType, UObject* InSubject, bool bLoadIfNecessary);
 
 public:
 
@@ -1319,14 +1448,18 @@ public:
 	FRigVMTemplate::FTypeMap GetCommonlyUsedTypesForTemplate(const URigVMTemplateNode* InNode) const;
 #endif
 
+	UFUNCTION(BlueprintPure, Category = RigVMController)
 	URigVMActionStack* GetActionStack() const;
+
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	void SetActionStack(URigVMActionStack* InActionStack);
 
 	URigVMNode* ConvertRerouteNodeToDispatch(URigVMRerouteNode* InRerouteNode, const FName& InTemplateNotation, bool bSetupUndoRedo, bool bPrintPythonCommand);
 
 protected:
 
-	URigVMPin* CreatePinFromPinInfo(const FRigVMRegistry& InRegistry, const FRigVMPinInfoArray& InPreviousPinInfos, const FRigVMPinInfo& InPinInfo, const FString& InPinPath, UObject* InOuter) const;
+	IRigVMClientHost* GetClientHost_Internal(const URigVMGraph* InGraph) const;
+	URigVMPin* CreatePinFromPinInfo(const FRigVMRegistry& InRegistry, const FRigVMPinInfoArray& InPreviousPinInfos, const FRigVMPinInfo& InPinInfo, const FString& InPinPath, UObject* InOuter);
 
 	// backwards compatibility code
 	FRigVMClientPatchResult PatchRerouteNodesOnLoad();
@@ -1340,9 +1473,9 @@ protected:
 	FRigVMClientPatchResult PatchFunctionsWithInvalidReturnPaths();
 	FRigVMClientPatchResult PatchExecutePins();
 	FRigVMClientPatchResult PatchLazyPins();
+	FRigVMClientPatchResult PatchPinDefaultValues();
 
-	// work to do after a duplication of the host asset
-	void PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName);
+	ERigVMPinDefaultValueType GetDefaultValueType(const URigVMPin* InPin, const FString& InDefaultValue) const;
 
 	template<typename T>
 	static void SortGraphElementsByGraphDepth(TArray<T*>& InOutElements, bool bReverse = false)
@@ -1407,17 +1540,19 @@ private:
 	TArray<TObjectPtr<URigVMGraph>> Graphs;
 
 	UPROPERTY(transient, DuplicateTransient)
-	TObjectPtr<URigVMSchema> SchemaPtr;
+	TSubclassOf<URigVMSchema> SchemaClass;
 
 	mutable TWeakObjectPtr<URigVMActionStack> WeakActionStack;
 	mutable FDelegateHandle ActionStackHandle;
 
 	bool bSuspendNotifications;
+	bool bSuspendRefreshingFunctionReferences;
 	bool bReportWarningsAndErrors;
 	bool bIgnoreRerouteCompactnessChanges;
 	ERigVMPinDirection UserLinkDirection;
 	bool bEnableTypeCasting;
 	bool bAllowPrivateFunctions;
+	TOptional<ERigVMPinDefaultValueType> OptionalDefaultValueType;
 
 	// temporary maps used for pin redirection
 	// only valid between Detach & ReattachLinksToPinObjects
@@ -1482,14 +1617,17 @@ private:
 	friend struct FRigVMBaseAction;
 	friend class URigVMCompiler;
 	friend struct FRigVMControllerObjectFactory;
+	friend struct FRigVMSetPinDefaultValueAction;
 	friend struct FRigVMAddRerouteNodeAction;
 	friend struct FRigVMChangePinTypeAction;
 	friend struct FRigVMInjectNodeIntoPinAction;
 	friend struct FRigVMEjectNodeFromPinAction;
+	friend struct FRigVMChangeNodePinCategoriesAction;
 	friend class FRigVMParserAST;
 	friend class FRigVMControllerCompileBracketScope;
 	friend struct FRigVMPinInfoArray;
 	friend class FRigVMControllerNotifGuard;
+	friend class FRigVMDefaultValueTypeGuard;
 	friend struct FRigVMClient;
 	friend struct FRigVMActionWrapper;
 	friend class URigVMSchema;
@@ -1516,6 +1654,31 @@ private:
 
 	URigVMController* Controller;
 	bool bPreviousSuspendNotifications;
+};
+
+class FRigVMDefaultValueTypeGuard
+{
+public:
+
+	FRigVMDefaultValueTypeGuard(URigVMController* InController, ERigVMPinDefaultValueType InDefaultValueType = ERigVMPinDefaultValueType::Override, bool bForce = false)
+		: Controller(InController)
+	{
+		bPreviousDefaultValueType = Controller->OptionalDefaultValueType;
+		if(!bPreviousDefaultValueType.IsSet() || bForce)
+		{
+			Controller->OptionalDefaultValueType = InDefaultValueType;
+		}
+	}
+
+	~FRigVMDefaultValueTypeGuard()
+	{
+		Controller->OptionalDefaultValueType = bPreviousDefaultValueType;
+	}
+
+private:
+
+	URigVMController* Controller;
+	TOptional<ERigVMPinDefaultValueType> bPreviousDefaultValueType;
 };
 
 USTRUCT()

@@ -121,21 +121,6 @@ bool SLayeredImage::IsValidIndex(int32 Index) const
 	// Index 0 is our local SImage
 	return Index == 0 || Layers.IsValidIndex(Index - 1);
 }
-const FSlateBrush* SLayeredImage::GetLayerBrush(int32 Index) const
-{
-	if (Index == 0)
-	{
-		return GetImageAttribute().Get();
-	}
-	else if (Layers.IsValidIndex(Index - 1))
-	{
-		return Layers[Index - 1].Key.Get();
-	}
-	else
-	{
-		return nullptr;
-	}
-}
 
 void SLayeredImage::SetLayerBrush(int32 Index, TAttribute<const FSlateBrush*> Brush)
 {
@@ -150,22 +135,6 @@ void SLayeredImage::SetLayerBrush(int32 Index, TAttribute<const FSlateBrush*> Br
 	else
 	{
 		// That layer doesn't exist
-	}
-}
-
-FSlateColor SLayeredImage::GetLayerColor(int32 Index) const
-{
-	if (Index == 0)
-	{
-		return GetColorAndOpacityAttribute().Get();
-	}
-	else if (Layers.IsValidIndex(Index - 1))
-	{
-		return Layers[Index - 1].Value.Get();
-	}
-	else
-	{
-		return FSlateColor();
 	}
 }
 

@@ -158,8 +158,9 @@ FAnchorData UCanvasPanelSlot::GetLayout() const
 
 void UCanvasPanelSlot::SetPosition(FVector2D InPosition)
 {
-	LayoutData.Offsets.Left = InPosition.X;
-	LayoutData.Offsets.Top = InPosition.Y;
+	FVector2f Position = UE::Slate::CastToVector2f(InPosition);
+	LayoutData.Offsets.Left = Position.X;
+	LayoutData.Offsets.Top = Position.Y;
 
 	if ( Slot )
 	{
@@ -180,8 +181,9 @@ FVector2D UCanvasPanelSlot::GetPosition() const
 
 void UCanvasPanelSlot::SetSize(FVector2D InSize)
 {
-	LayoutData.Offsets.Right = InSize.X;
-	LayoutData.Offsets.Bottom = InSize.Y;
+	FVector2f Size = UE::Slate::CastToVector2f(InSize);
+	LayoutData.Offsets.Right = Size.X;
+	LayoutData.Offsets.Bottom = Size.Y;
 
 	if ( Slot )
 	{
@@ -281,7 +283,7 @@ void UCanvasPanelSlot::SetZOrder(int32 InZOrder)
 	ZOrder = InZOrder;
 	if ( Slot )
 	{
-		Slot->SetZOrder(InZOrder);
+		Slot->SetZOrder(static_cast<float>(InZOrder));
 	}
 }
 
@@ -289,7 +291,7 @@ int32 UCanvasPanelSlot::GetZOrder() const
 {
 	if ( Slot )
 	{
-		return Slot->GetZOrder();
+		return FMath::TruncToInt32(Slot->GetZOrder());
 	}
 
 	return ZOrder;
@@ -390,15 +392,15 @@ void UCanvasPanelSlot::RebaseLayout(bool PreserveSize)
 				LocalLayoutData.Anchors.Minimum.Y * CanvasSize.Y,
 				LocalLayoutData.Anchors.Maximum.X * CanvasSize.X,
 				LocalLayoutData.Anchors.Maximum.Y * CanvasSize.Y);
-			FVector2D DefaultAnchorPosition = FVector2D(AnchorPositions.Left, AnchorPositions.Top);
+			FVector2f DefaultAnchorPosition = FVector2f(AnchorPositions.Left, AnchorPositions.Top);
 
 			// Determine the amount that would be offset from the anchor position if alignment was applied.
-			FVector2D AlignmentOffset = LocalLayoutData.Alignment * PreEditGeometry.Size;
+			FVector2f AlignmentOffset = UE::Slate::CastToVector2f(LocalLayoutData.Alignment) * PreEditGeometry.Size;
 
-			FVector2D MoveDelta = FVector2D(Geometry.Position) - FVector2D(PreEditGeometry.Position);
+			FVector2f MoveDelta = Geometry.Position - PreEditGeometry.Position;
 
 			// Determine where the widget's new position needs to be to maintain a stable location when the anchors change.
-			FVector2D LeftTopDelta = FVector2D(PreEditGeometry.Position) - FVector2D(DefaultAnchorPosition);
+			FVector2f LeftTopDelta = PreEditGeometry.Position - DefaultAnchorPosition;
 
 			const bool bAnchorsMoved = PreEditLayoutData.Anchors.Minimum != LocalLayoutData.Anchors.Minimum || PreEditLayoutData.Anchors.Maximum != LocalLayoutData.Anchors.Maximum;
 			const bool bMoved = PreEditLayoutData.Offsets.Left != LocalLayoutData.Offsets.Left || PreEditLayoutData.Offsets.Top != LocalLayoutData.Offsets.Top;
@@ -456,7 +458,7 @@ void UCanvasPanelSlot::RebaseLayout(bool PreserveSize)
 			}
 			else if ( DesiredPosition.IsSet() )
 			{
-				FVector2D NewLocalPosition = DesiredPosition.GetValue();
+				FVector2f NewLocalPosition = UE::Slate::CastToVector2f(DesiredPosition.GetValue());
 
 				LocalLayoutData.Offsets.Left = NewLocalPosition.X - AnchorPositions.Left;
 				LocalLayoutData.Offsets.Top = NewLocalPosition.Y - AnchorPositions.Top;

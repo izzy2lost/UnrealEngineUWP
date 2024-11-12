@@ -41,7 +41,8 @@ class CheckCsprojDotNetVersion : BuildCommand
 				CsProj.ContainsName("UnrealVS", EngineDir) ||
 				CsProj.ContainsName("DatasmithRevitExporter", EngineDir) ||
 				CsProj.ContainsName("DatasmithNavisworksExporter", EngineDir) ||
-				CsProj.ContainsName("CSVTools", EngineDir))
+				CsProj.ContainsName("CSVTools", EngineDir) ||
+				(CsProj.ContainsName("CustomActions", EngineDir) && CsProj.GetFileName().Equals("InstallerCustomActions.csproj")))
 			{
 				continue;
 			}

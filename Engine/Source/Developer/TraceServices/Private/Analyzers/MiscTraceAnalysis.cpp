@@ -45,24 +45,34 @@ void FMiscTraceAnalyzer::OnAnalysisBegin(const FOnAnalysisContext& Context)
 {
 	auto& Builder = Context.InterfaceBuilder;
 
+	// Threads
 	Builder.RouteEvent(RouteId_RegisterGameThread, "Misc", "RegisterGameThread");
 	Builder.RouteEvent(RouteId_CreateThread, "Misc", "CreateThread");
 	Builder.RouteEvent(RouteId_SetThreadGroup, "Misc", "SetThreadGroup");
 	Builder.RouteEvent(RouteId_BeginThreadGroupScope, "Misc", "BeginThreadGroupScope");
 	Builder.RouteEvent(RouteId_EndThreadGroupScope, "Misc", "EndThreadGroupScope");
+
+	// Frames
 	Builder.RouteEvent(RouteId_BeginFrame, "Misc", "BeginFrame");
 	Builder.RouteEvent(RouteId_EndFrame, "Misc", "EndFrame");
 	Builder.RouteEvent(RouteId_BeginGameFrame, "Misc", "BeginGameFrame");
 	Builder.RouteEvent(RouteId_EndGameFrame, "Misc", "EndGameFrame");
 	Builder.RouteEvent(RouteId_BeginRenderFrame, "Misc", "BeginRenderFrame");
 	Builder.RouteEvent(RouteId_EndRenderFrame, "Misc", "EndRenderFrame");
+
+	// Channels
 	Builder.RouteEvent(RouteId_ChannelAnnounce, "Trace", "ChannelAnnounce");
 	Builder.RouteEvent(RouteId_ChannelToggle, "Trace", "ChannelToggle");
+
+	// Screenshots
 	Builder.RouteEvent(RouteId_ScreenshotHeader, "Misc", "ScreenshotHeader");
 	Builder.RouteEvent(RouteId_ScreenshotChunk, "Misc", "ScreenshotChunk");
 
+	// Timing Regions
 	Builder.RouteEvent(RouteId_RegionBegin, "Misc", "RegionBegin");
+	Builder.RouteEvent(RouteId_RegionBeginWithId, "Misc", "RegionBeginWithId");
 	Builder.RouteEvent(RouteId_RegionEnd, "Misc", "RegionEnd");
+	Builder.RouteEvent(RouteId_RegionEndWithId, "Misc", "RegionEndWithId");
 }
 
 void FMiscTraceAnalyzer::OnAnalysisEnd()
@@ -250,21 +260,38 @@ bool FMiscTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventCon
 	{
 		uint64 Cycle = EventData.GetValue<uint64>("Cycle");
 		FString Name;
-		EventData.GetString("RegionName", Name);
-
+		check(EventData.GetString("RegionName", Name));
 		FProviderEditScopeLock RegionProviderScopedLock(RegionProvider);
 		RegionProvider.AppendRegionBegin(*Name, Context.EventTime.AsSeconds(Cycle));
+		break;
+	}
+
+	case RouteId_RegionBeginWithId:
+	{
+		uint64 CycleAndId = EventData.GetValue<uint64>("CycleAndId");
+		FString Name;
+		check(EventData.GetString("RegionName", Name));
+		FProviderEditScopeLock RegionProviderScopedLock(RegionProvider);
+		RegionProvider.AppendRegionBeginWithId(*Name, CycleAndId, Context.EventTime.AsSeconds(CycleAndId));
 		break;
 	}
 
 	case RouteId_RegionEnd:
 	{
 		uint64 Cycle = EventData.GetValue<uint64>("Cycle");
-		FString Name = TEXT("Invalid");
+		FString Name;
 		EventData.GetString("RegionName", Name);
-
 		FProviderEditScopeLock RegionProviderScopedLock(RegionProvider);
 		RegionProvider.AppendRegionEnd(*Name, Context.EventTime.AsSeconds(Cycle));
+		break;
+	}
+
+	case RouteId_RegionEndWithId:
+	{
+		uint64 Cycle = EventData.GetValue<uint64>("Cycle");
+		uint64 RegionId = EventData.GetValue<uint64>("RegionId", 0);
+		FProviderEditScopeLock RegionProviderScopedLock(RegionProvider);
+		RegionProvider.AppendRegionEndWithId(RegionId, Context.EventTime.AsSeconds(Cycle));
 		break;
 	}
 	}

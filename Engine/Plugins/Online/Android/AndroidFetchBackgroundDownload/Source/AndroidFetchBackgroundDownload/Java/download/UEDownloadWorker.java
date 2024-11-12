@@ -182,11 +182,23 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 		boolean ShouldHandleCellular = false;
 		if (NotificationDescription != null)
 		{
-			ShouldHandleCellular = NotificationDescription.ShouldHandleCellular;
+			ShouldHandleCellular = true; //NotificationDescription.ShouldHandleCellular;
 		}
 		// This should be handled by the Game thread otherwise
 		if (!bGameThreadIsActive && ShouldHandleCellular)
 		{
+			// Pause all downloads if we lose all network connectivity
+			if (bLostNetwork)
+			{
+				if (!bWaitingForNetwork)
+				{
+					// wait for network to return and pause all downloads
+					bWaitingForNetwork = true;
+					mFetchManager.PauseAllDownloads();
+				}
+				return;
+			}
+
 			// Pause all downloads if the current cellular preference does not allow cellular downloading
 			NetworkConnectivityClient.NetworkTransportType networkType = NetworkChangedManager.getInstance().networkTransportTypeCheck();
 			if (!bWaitingForCellularApproval && networkType == NetworkConnectivityClient.NetworkTransportType.CELLULAR)
@@ -196,8 +208,17 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 				boolean allowCell = (preferences.getInt("AllowCellular", 0) > 0);
 				if (!allowCell)
 				{
-					mFetchManager.PauseAllDownloads();
+					if (!bWaitingForNetwork)
+					{
+						mFetchManager.PauseAllDownloads();
+					}
 					bWaitingForCellularApproval = true;
+				}
+				else if (bWaitingForNetwork)
+				{
+					// network reconnected so resume (cellular allowed)
+					mFetchManager.ResumeAllDownloads();
+					bWaitingForNetwork = false;
 				}
 			}
 			else if (bWaitingForCellularApproval)
@@ -209,7 +230,22 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 				{
 					mFetchManager.ResumeAllDownloads();
 					bWaitingForCellularApproval = false;
+					bWaitingForNetwork = false;
 				}
+				else if (networkType == NetworkConnectivityClient.NetworkTransportType.WIFI ||
+						networkType == NetworkConnectivityClient.NetworkTransportType.ETHERNET)
+				{
+					// WiFi or Ethernet connected while waiting for cellular approval
+					mFetchManager.ResumeAllDownloads();
+					bWaitingForCellularApproval = false;
+					bWaitingForNetwork = false;
+				}
+			}
+			else if (bWaitingForNetwork)
+			{
+				// network reconnected so resume (cellular checks done above)
+				mFetchManager.ResumeAllDownloads();
+				bWaitingForNetwork = false;
 			}
 		}
 	}
@@ -245,7 +281,10 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 	public void CleanUp(String WorkID)
 	{
 		//Call stop work to make sure Fetch stops doing work while 
-		mFetchManager.StopWork(WorkID);
+		if (mFetchManager != null)
+		{
+			mFetchManager.StopWork(WorkID);
+		}
 		
 		//Clean up our DownloadDescriptionList file if our work is not going to re-run ever
 		if (ShouldCleanupDownloadDescriptorJSONFile())
@@ -326,23 +365,37 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 		PendingIntent pendingNotificationIntent)
 	{
 		//Setup Notification Text Values (ContentText and ContentInfo)
+		boolean bShowPercentage = ShouldShowPercentage(context);
 		boolean bIsComplete = (Description.CurrentProgress >= Description.MAX_PROGRESS);
 		String NotificationTextToUse = null;
 		if (!bIsComplete)
 		{
-			NotificationTextToUse = String.format(Description.ContentText, Description.CurrentProgress);
+			if (bShowPercentage)
+			{
+				NotificationTextToUse = String.format(Description.ContentText, Description.CurrentProgress);
+			}
+			else
+			{
+				NotificationTextToUse = Description.ContentText.replace("%3d%%", "");
+			}
+
+			// for now don't show "Download in Progress"
+			NotificationTextToUse = "";
 		}
 		else
 		{
 			NotificationTextToUse = Description.ContentCompleteText;
 		}
 
+		int CurrentProgress = bShowPercentage ? Description.CurrentProgress : 0;
+		boolean Indeterminate = bShowPercentage ? Description.Indeterminate : true;
+
 		Notification notification = new NotificationCompat.Builder(context, Description.NotificationChannelID)
 			.setContentTitle(Description.NoInternetAvailable)
 			.setTicker(Description.TitleText)
 			.setContentText(NotificationTextToUse)
 			.setContentIntent(pendingNotificationIntent)
-			.setProgress(Description.MAX_PROGRESS, Description.CurrentProgress, Description.Indeterminate)
+			.setProgress(Description.MAX_PROGRESS, CurrentProgress, Indeterminate)
 			.setOngoing(true)
 			.setOnlyAlertOnce (true)
 			.setSmallIcon(Description.SmallIconResourceID)
@@ -358,11 +411,22 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 		PendingIntent pendingNotificationIntent)
 	{
 		//Setup Notification Text Values (ContentText and ContentInfo)
+		boolean bShowPercentage = ShouldShowPercentage(context);
 		boolean bIsComplete = (Description.CurrentProgress >= Description.MAX_PROGRESS);
 		String NotificationTextToUse = null;
 		if (!bIsComplete)
 		{
-			NotificationTextToUse = String.format(Description.ContentText, Description.CurrentProgress);
+			if (bShowPercentage)
+			{
+				NotificationTextToUse = String.format(Description.ContentText, Description.CurrentProgress);
+			}
+			else
+			{
+				NotificationTextToUse = Description.ContentText.replace("%3d%%", "");
+			}
+			
+			// for now don't show "Download in Progress"
+			NotificationTextToUse = "";
 		}
 		else
 		{
@@ -372,6 +436,10 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 		{
 			cellularNotificationIntent = PendingIntent.getBroadcast(context, Description.NotificationID, ApproveIntent, PendingIntent.FLAG_IMMUTABLE);
 		}
+
+		int CurrentProgress = bShowPercentage ? Description.CurrentProgress : 0;
+		boolean Indeterminate = bShowPercentage ? Description.Indeterminate : true;
+
 		Notification notification;
 		if (bGameThreadIsActive)
 		{
@@ -380,7 +448,7 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 				.setTicker(Description.WaitingForCellularText)
 				.setContentText(NotificationTextToUse)
 				.setContentIntent(pendingNotificationIntent)
-				.setProgress(Description.MAX_PROGRESS, Description.CurrentProgress, Description.Indeterminate)
+				.setProgress(Description.MAX_PROGRESS, CurrentProgress, Indeterminate)
 				.setOngoing(true)
 				.setOnlyAlertOnce (true)
 				.setSmallIcon(Description.SmallIconResourceID)
@@ -394,7 +462,7 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 				.setTicker(Description.WaitingForCellularText)
 				.setContentText(NotificationTextToUse)
 				.setContentIntent(pendingNotificationIntent)
-				.setProgress(Description.MAX_PROGRESS, Description.CurrentProgress, Description.Indeterminate)
+				.setProgress(Description.MAX_PROGRESS, CurrentProgress, Indeterminate)
 				.setOngoing(true)
 				.setOnlyAlertOnce (true)
 				.setSmallIcon(Description.SmallIconResourceID)
@@ -412,23 +480,34 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 		PendingIntent pendingNotificationIntent)
 	{
 		//Setup Notification Text Values (ContentText and ContentInfo)
+		boolean bShowPercentage = ShouldShowPercentage(context);
 		boolean bIsComplete = (Description.CurrentProgress >= Description.MAX_PROGRESS);
 		String NotificationTextToUse = null;
 		if (!bIsComplete)
 		{
-			NotificationTextToUse = String.format(Description.ContentText, Description.CurrentProgress);
+			if (bShowPercentage)
+			{
+				NotificationTextToUse = String.format(Description.ContentText, Description.CurrentProgress);
+			}
+			else
+			{
+				NotificationTextToUse = Description.ContentText.replace("%3d%%", "");
+			}
 		}
 		else
 		{
 			NotificationTextToUse = Description.ContentCompleteText;
 		}
 
+		int CurrentProgress = bShowPercentage ? Description.CurrentProgress : 0;
+		boolean Indeterminate = bShowPercentage ? Description.Indeterminate : true;
+
 		Notification notification = new NotificationCompat.Builder(context, Description.NotificationChannelID)
 			.setContentTitle(Description.TitleText)
 			.setTicker(Description.TitleText)
 			.setContentText(NotificationTextToUse)
 			.setContentIntent(pendingNotificationIntent)
-			.setProgress(Description.MAX_PROGRESS, Description.CurrentProgress, Description.Indeterminate)
+			.setProgress(Description.MAX_PROGRESS, CurrentProgress, Indeterminate)
 			.setOngoing(true)
 			.setOnlyAlertOnce (true)
 			.setSmallIcon(Description.SmallIconResourceID)
@@ -474,6 +553,17 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 		return (IsWorkEndTerminal());
 	}
 
+	private boolean ShouldShowPercentage(Context context)
+	{
+		if (ShowPercentage == ESelectState.Unset)
+		{
+			SharedPreferences preferences = context.getSharedPreferences("BackgroundPreferences", context.MODE_PRIVATE);
+			boolean bShow = preferences.getBoolean("bShowPercentage", true);
+			ShowPercentage = bShow ? ESelectState.Enable : ESelectState.Disable;
+		}
+		return ShowPercentage == ESelectState.Enable;
+	}
+
 	private void ResetCellularPreference()
 	{
 		// Edit this to include Allways allow and only allow this time
@@ -506,6 +596,12 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 	{
 		boolean bWasSuccess = (CompleteReason == EDownloadCompleteReason.Success);
 		nativeAndroidBackgroundDownloadOnComplete(RequestID, CompleteLocation, bWasSuccess);
+	}
+
+	@Override
+	public void OnDownloadMetrics(String RequestID, long TotalBytesDownloaded, long DownloadDuration)
+	{
+		nativeAndroidBackgroundDownloadOnMetrics(RequestID, TotalBytesDownloaded, DownloadDuration);
 	}
 	
 	@Override
@@ -613,12 +709,14 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 	public native void nativeAndroidBackgroundDownloadOnWorkerStop(String WorkID);
 	public native void nativeAndroidBackgroundDownloadOnProgress(String TaskID, long BytesWrittenSinceLastCall, long TotalBytesWritten);
 	public native void nativeAndroidBackgroundDownloadOnComplete(String TaskID, String CompleteLocation, boolean bWasSuccess);
+	public native void nativeAndroidBackgroundDownloadOnMetrics(String TaskID, long TotalBytesDownloaded, long DownloadDuration);
 	public native void nativeAndroidBackgroundDownloadOnAllComplete(boolean bDidAllRequestsSucceed);
 	public native void nativeAndroidBackgroundDownloadOnTick();
 	
 	private boolean bWaitingForCellularApproval = false;
 	private NetworkConnectivityClient.Listener NetworkListener = null;
 	private boolean bLostNetwork = false;
+	private boolean bWaitingForNetwork = false;
 	private boolean bForceStopped = false;
 	private DownloadQueueDescription QueueDescription = null;
 	private volatile boolean bHasEnqueueHappened = false;
@@ -627,4 +725,12 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 	private Intent ApproveIntent = null;
 	private DownloadNotificationDescription NotificationDescription = null;
 	private static boolean bGameThreadIsActive = false;
+
+	private enum ESelectState
+	{
+		Unset,
+		Disable,
+		Enable
+	};
+	private ESelectState ShowPercentage = ESelectState.Unset;
 }

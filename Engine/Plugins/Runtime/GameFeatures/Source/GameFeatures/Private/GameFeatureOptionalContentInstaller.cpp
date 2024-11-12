@@ -60,6 +60,15 @@ void UGameFeatureOptionalContentInstaller::Enable(bool bInEnable)
 	}
 }
 
+void UGameFeatureOptionalContentInstaller::UninstallContent()
+{
+	for (const FString& GFP : RelevantGFPs)
+	{
+		UE_LOG(LogGameFeatures, Log, TEXT("Uninstalling Optional bundles for %s"), *GFP);
+		ReleaseContent(GFP, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible);
+	}
+}
+
 void UGameFeatureOptionalContentInstaller::EnableCellularDownloading(bool bEnable)
 {
 	if (bAllowCellDownload == bEnable)
@@ -98,6 +107,10 @@ bool UGameFeatureOptionalContentInstaller::UpdateContent(const FString& PluginNa
 		return false;
 	}
 
+	for (const FName& Bundle : Bundles)
+	{
+		UE_LOG(LogGameFeatures, Log, TEXT("Requesting update for %s"), *Bundle.ToString());
+	}
 	EInstallBundleRequestFlags InstallFlags = EInstallBundleRequestFlags::AsyncMount;
 	if (bIsPredownload)
 	{
@@ -162,6 +175,7 @@ void UGameFeatureOptionalContentInstaller::OnContentInstalled(FInstallBundleRequ
 
 	GFPInstall.BundlesEnqueued.Remove(InResult.BundleName);
 
+	UE_LOG(LogGameFeatures, Log, TEXT("Finished install for %s"), *InResult.BundleName.ToString());
 	if (InResult.Result != EInstallBundleResult::OK)
 	{
 		if (InResult.OptionalErrorCode.IsEmpty())
@@ -227,7 +241,7 @@ void UGameFeatureOptionalContentInstaller::OnContentInstalled(FInstallBundleRequ
 	}
 }
 
-void UGameFeatureOptionalContentInstaller::ReleaseContent(const FString& PluginName)
+void UGameFeatureOptionalContentInstaller::ReleaseContent(const FString& PluginName, EInstallBundleReleaseRequestFlags Flags)
 {
 	TArray<FName> Bundles = GetOptionalBundlePredicate(PluginName);
 	if (Bundles.IsEmpty())
@@ -237,7 +251,7 @@ void UGameFeatureOptionalContentInstaller::ReleaseContent(const FString& PluginN
 
 	BundleManager->RequestReleaseContent(
 		Bundles, 
-		EInstallBundleReleaseRequestFlags::None, 
+		Flags,
 		{}, 
 		GameFeatureOptionalContentInstaller::InstallBundleManagerVerbosityOverride);
 }
@@ -249,8 +263,7 @@ void UGameFeatureOptionalContentInstaller::OnEnabled()
 
 	UGameFeaturesSubsystem::Get().ForEachGameFeature([this](FGameFeatureInfo&& Info) -> void
 	{
-		if (UGameFeaturesSubsystem::GetPluginURLProtocol(Info.URL) == EGameFeaturePluginProtocol::InstallBundle &&
-			Info.CurrentState >= EGameFeaturePluginState::Downloading)
+		if (Info.CurrentState >= EGameFeaturePluginState::Downloading)
 		{
 			if (UpdateContent(Info.Name, false))
 			{
@@ -302,6 +315,20 @@ void UGameFeatureOptionalContentInstaller::OnGameFeatureDownloading(const FStrin
 	{
 		RelevantGFPs.Add(PluginName);
 	}
+}
+
+void UGameFeatureOptionalContentInstaller::OnGameFeatureRegistering(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FString& PluginURL)
+{
+    // Used for already downloaded cached plugins that do not download at startup but register.
+    if (!IsEnabled() || RelevantGFPs.Contains(PluginName))
+    {
+        return;
+    }
+
+    if (UpdateContent(PluginName, false))
+    {
+        RelevantGFPs.Add(PluginName);
+    }
 }
 
 void UGameFeatureOptionalContentInstaller::OnGameFeatureReleasing(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier)

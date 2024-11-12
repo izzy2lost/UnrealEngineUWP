@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "MovieSceneMarkedFrame.h"
 #include "MovieSceneObjectBindingID.h" // for EMovieSceneObjectBindingSpace
 #include "MovieSceneTrack.h"
 #include "MovieSceneTimeUnit.h"
@@ -15,7 +16,6 @@ enum class EMovieSceneEvaluationType : uint8;
 enum class EUpdateClockSource : uint8;
 struct FFrameRate;
 struct FMovieSceneBindingProxy;
-struct FMovieSceneMarkedFrame;
 struct FSequencerScriptingRange;
 struct FTimecode;
 template <typename T> class TSubclassOf;
@@ -46,10 +46,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Sequencer|Sequence", meta=(ScriptMethod))
 	static TArray<UMovieSceneTrack*> GetTracks(UMovieSceneSequence* Sequence);
 
-	UE_DEPRECATED(5.2, "GetMasterTracks is deprecated. Please use GetTracks instead")
-	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence", meta = (ScriptMethod, DeprecatedFunction, DeprecationMessage = "GetMasterTracks is deprecated. Please use GetTracks instead"))
-	static TArray<UMovieSceneTrack*> GetMasterTracks(UMovieSceneSequence* Sequence) { return GetTracks(Sequence); }
-
 	/**
 	 * Find all tracks of the specified type
 	 *
@@ -59,10 +55,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence", meta = (ScriptMethod, DeterminesOutputType = "TrackType"))
 	static TArray<UMovieSceneTrack*> FindTracksByType(UMovieSceneSequence* Sequence, TSubclassOf<UMovieSceneTrack> TrackType);
-
-	UE_DEPRECATED(5.2, "FindMasterTracksByType is deprecated. Please use FindTracksByType instead")
-	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence", meta = (ScriptMethod, DeterminesOutputType = "TrackType", DeprecatedFunction, DeprecationMessage = "FindMasterTracksByType is deprecated. Please use FindTracksByType instead"))
-	static TArray<UMovieSceneTrack*> FindMasterTracksByType(UMovieSceneSequence* Sequence, TSubclassOf<UMovieSceneTrack> TrackType) { return FindTracksByType(Sequence, TrackType); }
 
 	/**
 	 * Find all tracks of the specified type, not allowing sub-classed types
@@ -74,10 +66,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Sequencer|Sequence", meta=(ScriptMethod, DeterminesOutputType="TrackType"))
 	static TArray<UMovieSceneTrack*> FindTracksByExactType(UMovieSceneSequence* Sequence, TSubclassOf<UMovieSceneTrack> TrackType);
 
-	UE_DEPRECATED(5.2, "FindMasterTracksByExactType is deprecated. Please use FindTracksByExactType instead")
-	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence", meta = (ScriptMethod, DeterminesOutputType = "TrackType", DeprecatedFunction, DeprecationMessage = "FindMasterTracksByExactType is deprecated. Please use FindTracksByExactType instead"))
-	static TArray<UMovieSceneTrack*> FindMasterTracksByExactType(UMovieSceneSequence* Sequence, TSubclassOf<UMovieSceneTrack> TrackType) { return FindTracksByExactType(Sequence, TrackType); }
-
 	/**
 	 * Add a new track of the specified type
 	 *
@@ -88,10 +76,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence", meta = (ScriptMethod, DeterminesOutputType = "TrackType"))
 	static UMovieSceneTrack* AddTrack(UMovieSceneSequence* Sequence, TSubclassOf<UMovieSceneTrack> TrackType);
 
-	UE_DEPRECATED(5.2, "AddMasterTrack is deprecated. Please use AddTrack instead")
-	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence", meta = (ScriptMethod, DeterminesOutputType = "TrackType", DeprecatedFunction, DeprecationMessage = "AddMasterTrack is deprecated. Please use AddTrack instead"))
-	static UMovieSceneTrack* AddMasterTrack(UMovieSceneSequence* Sequence, TSubclassOf<UMovieSceneTrack> TrackType) { return AddTrack(Sequence, TrackType); }
-
 	/**
 	 * Removes a track
 	 *
@@ -101,10 +85,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="Sequencer|Sequence", meta=(ScriptMethod))
 	static bool RemoveTrack(UMovieSceneSequence* Sequence, UMovieSceneTrack* Track);
-
-	UE_DEPRECATED(5.2, "RemoveMasterTrack is deprecated. Please use RemoveTrack instead")
-	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence", meta = (ScriptMethod, DeprecatedFunction, DeprecationMessage = "RemoveMasterTrack is deprecated. Please use RemoveTrack instead"))
-	static bool RemoveMasterTrack(UMovieSceneSequence* Sequence, UMovieSceneTrack* Track) { return RemoveTrack(Sequence, Track); }
 
 	/**
 	 * Gets this sequence's display rate
@@ -392,7 +372,7 @@ public:
 	static TArray<FMovieSceneBindingProxy> GetBindings(UMovieSceneSequence* Sequence);
 
 	/**
-	* Get all the spawnables in this sequence
+	* Get all the spawnables in this sequence. For Level Sequences, this includes bindings with binding type UMovieSceneSpawnableActorBinding.
 	*
 	* @param Sequence        The sequence to get spawnables for
 	* @return Spawnables in this sequence
@@ -401,7 +381,7 @@ public:
 	static TArray<FMovieSceneBindingProxy> GetSpawnables(UMovieSceneSequence* Sequence);
 
 	/**
-	* Get all the possessables in this sequence
+	* Get all the possessables in this sequence. It is understood for the purpose of this function that this means the bindings are not custom.
 	*
 	* @param Sequence        The sequence to get possessables for
 	* @return Possessables in this sequence
@@ -420,7 +400,8 @@ public:
 	static FMovieSceneBindingProxy AddPossessable(UMovieSceneSequence* Sequence, UObject* ObjectToPossess);
 
 	/**
-	 * Add a new binding to this sequence that will spawn the specified object
+	 * Add a new binding to this sequence that will spawn the specified object.
+	 * For level sequences this will make a custom binding of type UMovieSceneSpawnableActorBinding.
 	 *
 	 * @param Sequence        The sequence to add to
 	 * @param ObjectToSpawn   An object instance to use as a template for spawning
@@ -431,6 +412,7 @@ public:
 
 	/**
 	 * Add a new binding to this sequence that will spawn the specified object
+	 * For level sequences this will make a custom binding of type UMovieSceneSpawnableActorBinding.
 	 *
 	 * @param Sequence        The sequence to add to
 	 * @param ClassToSpawn    A class or blueprint type to spawn for this binding

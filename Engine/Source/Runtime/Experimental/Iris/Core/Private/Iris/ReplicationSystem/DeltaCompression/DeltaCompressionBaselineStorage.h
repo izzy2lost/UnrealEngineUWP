@@ -42,6 +42,7 @@ public:
 	~FDeltaCompressionBaselineStorage();
 
 	void Init(FDeltaCompressionBaselineStorageInitParams& InitParams);
+	void Deinit();
 
 	FDeltaCompressionBaselineStateInfo CreateBaselineFromCurrentState(uint32 ObjectIndex);
 	void AddRefBaseline(DeltaCompressionBaselineStateInfoIndexType StateInfoIndex);
@@ -75,7 +76,6 @@ private:
 		uint32 RefCount = 1;
 	};
 
-	void Deinit();
 	void ConstructBaselineStateInfo(FInternalBaselineStateInfo* BaselineStateInfo) const;
 	void DestructBaselineStateInfo(FInternalBaselineStateInfo* BaselineStateInfo);
 

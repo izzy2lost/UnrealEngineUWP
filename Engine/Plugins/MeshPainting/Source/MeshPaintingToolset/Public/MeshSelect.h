@@ -26,10 +26,10 @@ public:
 
 
 /**
- * Builder for UTextureAdapterClickTool
+ * Builder for UTextureColorAdapterClickTool
  */
 UCLASS()
-class MESHPAINTINGTOOLSET_API UTextureAdapterClickToolBuilder : public USingleClickToolBuilder
+class MESHPAINTINGTOOLSET_API UTextureColorAdapterClickToolBuilder : public USingleClickToolBuilder
 {
 	GENERATED_BODY()
 
@@ -38,6 +38,19 @@ public:
 	virtual UInteractiveTool* BuildTool(const FToolBuilderState& SceneState) const override;
 };
 
+
+/**
+ * Builder for UTextureAssetAdapterClickTool
+ */
+UCLASS()
+class MESHPAINTINGTOOLSET_API UTextureAssetAdapterClickToolBuilder : public USingleClickToolBuilder
+{
+	GENERATED_BODY()
+
+public:
+	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
+	virtual UInteractiveTool* BuildTool(const FToolBuilderState& SceneState) const override;
+};
 
 
 /**
@@ -52,7 +65,7 @@ public:
  * The function ::OnClicked() implements the action that will occur when a click happens.
  * You must override this to implement any kind of useful behavior.
  */
-UCLASS()
+UCLASS(Abstract)
 class MESHPAINTINGTOOLSET_API UMeshClickTool : public USingleClickTool, public IMeshPaintSelectionInterface
 {
 	GENERATED_BODY()
@@ -65,14 +78,8 @@ public:
 	virtual void OnUpdateModifierState(int ModifierID, bool bIsOn) override;
 	virtual FInputRayHit IsHitByClick(const FInputDeviceRay& ClickPos) override;
 	virtual void OnClicked(const FInputDeviceRay& ClickPos) override;
-	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override
-	{
-		return true;
-	}
-	virtual bool AllowsMultiselect() const override
-	{
-		return true;
-	}
+	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
+	virtual bool AllowsMultiselect() const override { return false; }
 
 protected:
 	// flags used to identify modifier keys/buttons
@@ -81,7 +88,6 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMeshPaintSelectionMechanic> SelectionMechanic;
-
 };
 
 UCLASS()
@@ -90,28 +96,22 @@ class MESHPAINTINGTOOLSET_API UVertexAdapterClickTool : public UMeshClickTool
 	GENERATED_BODY()
 
 public:
-	UVertexAdapterClickTool();
-
-	// USingleClickTool overrides
-	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
-
+	virtual bool AllowsMultiselect() const override { return true; }
 };
 
 UCLASS()
-class MESHPAINTINGTOOLSET_API UTextureAdapterClickTool : public UMeshClickTool
+class MESHPAINTINGTOOLSET_API UTextureColorAdapterClickTool : public UMeshClickTool
 {
 	GENERATED_BODY()
 
 public:
-	UTextureAdapterClickTool();
+	virtual bool AllowsMultiselect() const override { return true; }
+};
 
-	// USingleClickTool overrides
-	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
-	virtual bool AllowsMultiselect() const override
-	{
-		return true;
-	}
-
+UCLASS()
+class MESHPAINTINGTOOLSET_API UTextureAssetAdapterClickTool : public UMeshClickTool
+{
+	GENERATED_BODY()
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

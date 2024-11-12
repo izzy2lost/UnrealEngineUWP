@@ -54,26 +54,6 @@ public:
 	{
 	}
 
-	UE_DEPRECATED(5.3, "Use weight map constructor instead.")
-	FPBDSphericalConstraint(
-		const uint32 InParticleOffset,
-		const uint32 InParticleCount,
-		const TArray<FSolverVec3>& InAnimationPositions,  // Use global indexation (will need adding ParticleOffset)
-		const TConstArrayView<FRealSingle>& InSphereRadii,  // Use local indexation
-		const FCollectionPropertyConstFacade& PropertyCollection,
-		FSolverReal MeshScale
-	)
-		: AnimationPositions(InAnimationPositions)
-		, SphereRadii(InSphereRadii)
-		, ParticleOffset(InParticleOffset)
-		, ParticleCount(InParticleCount)
-		, Scale(MeshScale)
-		, MaxDistanceBase((FSolverReal)GetLowMaxDistance(PropertyCollection, 0.f))
-		, MaxDistanceRange((FSolverReal)GetHighMaxDistance(PropertyCollection, 1.f) - MaxDistanceBase)
-		, MaxDistanceIndex(PropertyCollection)
-	{
-	}
-
 	FPBDSphericalConstraint(
 		const uint32 InParticleOffset,
 		const uint32 InParticleCount,
@@ -95,13 +75,6 @@ public:
 		const FCollectionPropertyConstFacade& PropertyCollection,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 		FSolverReal MeshScale);
-
-	UE_DEPRECATED(5.3, "Use SetProperties(const FCollectionPropertyConstFacade&, const TMap<FString, TConstArrayView<FRealSingle>>&, FSolverReal) instead.")
-	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection, FSolverReal MeshScale)
-	{
-		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>(), MeshScale);
-	}
-
 
 	template<typename SolverParticlesOrRange>
 	void Apply(SolverParticlesOrRange& Particles, const FSolverReal Dt) const
@@ -129,20 +102,7 @@ public:
 
 	// Set a new mesh scale
 	void SetScale(FSolverReal InScale) { Scale = InScale; }
-
-	UE_DEPRECATED(5.3, "Use SetScale(FSolverReal) instead.")
-	void SetScale(FSolverReal MaxDistanceScale, FSolverReal MeshScale)
-	{
-		Scale = FMath::Max(MaxDistanceScale, (FSolverReal)0.) * MeshScale;
-	}
-
 	FSolverReal GetScale() const { return Scale; }
-
-	UE_DEPRECATED(5.2, "Use SetScale instead.")
-	void SetSphereRadiiMultiplier(FSolverReal InSphereRadiiMultiplier, FSolverReal MeshScale)
-	{
-		SetScale(InSphereRadiiMultiplier * MeshScale);
-	}
 
 private:
 
@@ -183,8 +143,6 @@ protected:
 	TConstArrayView<FRealSingle> SphereRadii;  // Use local indexation
 	const int32 ParticleOffset;
 	const int32 ParticleCount;
-	UE_DEPRECATED(5.2, "Use Scale instead.")
-	FSolverReal SphereRadiiMultiplier = 1.f;
 
 private:
 	FSolverReal Scale = (FSolverReal)1.;
@@ -230,35 +188,6 @@ public:
 	{
 	}
 
-	UE_DEPRECATED(5.3, "Use weight map constructor instead.")
-	FPBDSphericalBackstopConstraint(
-		const int32 InParticleOffset,
-		const int32 InParticleCount,
-		const TArray<FSolverVec3>& InAnimationPositions,  // Use global indexation (will need adding ParticleOffset)
-		const TArray<FSolverVec3>& InAnimationNormals,  // Use global indexation (will need adding ParticleOffset)
-		const TConstArrayView<FRealSingle>& InSphereRadii,  // Use local indexation
-		const TConstArrayView<FRealSingle>& InSphereOffsetDistances,  // Use local indexation
-		const FCollectionPropertyConstFacade& PropertyCollection,
-		FSolverReal MeshScale
-	)
-		: AnimationPositions(InAnimationPositions)
-		, AnimationNormals(InAnimationNormals)
-		, SphereRadii(InSphereRadii)
-		, SphereOffsetDistances(InSphereOffsetDistances)
-		, ParticleOffset(InParticleOffset)
-		, ParticleCount(InParticleCount)
-		, Scale(MeshScale)
-		, BackstopRadiusBase((FSolverReal)FMath::Max(GetLowBackstopRadius(PropertyCollection, 0.f), 0.f))
-		, BackstopRadiusRange((FSolverReal)FMath::Max(GetHighBackstopRadius(PropertyCollection, 1.f), 0.f) - BackstopRadiusBase)
-		, BackstopDistanceBase((FSolverReal)GetLowBackstopDistance(PropertyCollection, 0.f))
-		, BackstopDistanceRange((FSolverReal)GetHighBackstopDistance(PropertyCollection, 1.f) - BackstopDistanceBase)
-		, bUseLegacyBackstop(GetUseLegacyBackstop(PropertyCollection, false))  // Only set the legacy backstop in constructor
-		, BackstopDistanceIndex(PropertyCollection)
-		, BackstopRadiusIndex(PropertyCollection)
-		, UseLegacyBackstopIndex(PropertyCollection)
-	{
-	}
-
 	FPBDSphericalBackstopConstraint(
 		const int32 InParticleOffset,
 		const int32 InParticleCount,
@@ -288,12 +217,6 @@ public:
 		const FCollectionPropertyConstFacade& PropertyCollection,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 		FSolverReal MeshScale);
-
-	UE_DEPRECATED(5.3, "Use SetProperties(const FCollectionPropertyConstFacade&, const TMap<FString, TConstArrayView<FRealSingle>>&, FSolverReal) instead.")
-	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection, FSolverReal MeshScale)
-	{
-		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>(), MeshScale);
-	}
 
 	void SetEnabled(bool bInEnabled) { bEnabled = bInEnabled; }
 	bool IsEnabled() const { return bEnabled; }
@@ -382,25 +305,7 @@ public:
 
 	// Set a new mesh scale
 	void SetScale(FSolverReal InScale) { Scale = InScale; }
-
-	UE_DEPRECATED(5.3, "Use SetScale(FSolverReal) instead.")
-	void SetScale(FSolverReal BackstopScale, FSolverReal MeshScale)
-	{
-		Scale = FMath::Max(BackstopScale, (FSolverReal)0.) * MeshScale;
-	}
-
 	FSolverReal GetScale() const { return Scale; }
-
-	UE_DEPRECATED(5.2, "Use SetScale instead.")
-	void SetSphereRadiiMultiplier(FSolverReal InSphereRadiiMultiplier, FSolverReal MeshScale = (FSolverReal)1.)
-	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		SetScale(InSphereRadiiMultiplier, MeshScale);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
-	UE_DEPRECATED(5.2, "Use GetScale() instead.")
-	FSolverReal GetSphereRadiiMultiplier() const { return GetScale(); }
 
 	bool UseLegacyBackstop() const
 	{

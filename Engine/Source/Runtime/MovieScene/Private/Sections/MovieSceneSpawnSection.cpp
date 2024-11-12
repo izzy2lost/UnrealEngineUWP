@@ -4,6 +4,7 @@
 #include "UObject/SequencerObjectVersion.h"
 
 #include "MovieScene.h"
+#include "MovieSceneSequence.h"
 #include "MovieSceneTimeHelpers.h"
 #include "Evaluation/MovieSceneEvaluationField.h"
 #include "EntitySystem/MovieSceneEntityManager.h"
@@ -11,6 +12,8 @@
 #include "EntitySystem/MovieSceneEntityBuilder.h"
 #include "EntitySystem/BuiltInComponentTypes.h"
 #include "EntitySystem/MovieSceneSpawnablesSystem.h"
+#include "MovieSceneBindingReferences.h"
+#include "Bindings/MovieSceneSpawnableBinding.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneSpawnSection)
 
@@ -33,6 +36,7 @@ void UMovieSceneSpawnSection::ImportEntityImpl(UMovieSceneEntitySystemLinker* En
 	OutImportedEntity->AddBuilder(
 		FEntityBuilder()
 		.Add(FBuiltInComponentTypes::Get()->SpawnableBinding, Params.GetObjectBindingID())
+		.AddTagConditional(FBuiltInComponentTypes::Get()->Tags.OldStyleSpawnable, GetTypedOuter<UMovieScene>()->FindSpawnable(Params.GetObjectBindingID()) != nullptr)
 	);
 }
 
@@ -40,8 +44,31 @@ bool UMovieSceneSpawnSection::PopulateEvaluationFieldImpl(const TRange<FFrameNum
 {
 	FGuid ObjectBindingID = OutFieldBuilder->GetSharedMetaData().ObjectBindingID;
 
+	UMovieSceneSequence* ParentSequence = GetTypedOuter<UMovieSceneSequence>();
 	UMovieScene* ParentMovieScene = GetTypedOuter<UMovieScene>();
-	if (ParentMovieScene->FindPossessable(ObjectBindingID))
+	
+	bool bSpawnable = false;
+	
+	if (ParentMovieScene && ParentSequence)
+	{
+		if (ParentMovieScene->FindSpawnable(ObjectBindingID))
+		{
+			bSpawnable = true;
+		}
+		else if (const FMovieSceneBindingReferences* BindingReferences = ParentSequence->GetBindingReferences())
+		{
+			if (BindingReferences)
+			{
+				if (Algo::AnyOf(BindingReferences->GetReferences(ObjectBindingID), [](const FMovieSceneBindingReference& BindingReference) { return BindingReference.CustomBinding && BindingReference.CustomBinding->IsA<UMovieSceneSpawnableBindingBase>(); }))
+				{
+					bSpawnable = true;
+				}
+			}
+		}
+
+	}
+
+	if (!bSpawnable)
 	{
 		return true;
 	}

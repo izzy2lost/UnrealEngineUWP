@@ -41,13 +41,10 @@ const FMidiScale FMidiScale::MajorScale(TArray<int8>({0, 2, 4, 5, 7, 9, 11}));
 const UFusionPatchImportOptions* UFusionPatchImportOptions::GetWithDialog(FArgs&& Args, bool& OutWasOkayPressed)
 {
 	UFusionPatchImportOptions* Options = GetMutableDefault<UFusionPatchImportOptions>();
-	// prompt on the first asset and update user settings
-	if (Options->SamplesImportDir.Path.IsEmpty())
-	{
-		// otherwise, import audio samples into the destination path provided
-		Options->SamplesImportDir.Path = MoveTemp(Args.Directory);
-	}
-	const FText ImportDialogTitle = NSLOCTEXT("FusionPatchImportOptions", "FusionPatchImportOptionsTitle", "Fusion Patch Import Options");
+	Options->SamplesImportDir.Path = MoveTemp(Args.Directory);
+	FFormatNamedArguments FormatArgs;
+	FormatArgs.Add(TEXT("PatchName"), FText::FromName(Args.PatchName));
+	const FText ImportDialogTitle = FText::Format(NSLOCTEXT("FusionPatchImportOptions", "FusionPatchImportOptionsTitle", "Fusion Patch Import Options: {PatchName}"), FormatArgs);
 	OutWasOkayPressed = UEditorDialogLibrary::ShowObjectDetailsView(ImportDialogTitle, Options);
 	return Options;
 }
@@ -66,8 +63,11 @@ const UFusionPatchCreateOptions* UFusionPatchCreateOptions::GetWithDialog(FArgs&
 	Options->StagedSoundWaves.Empty();
 
 	// apply some default settings that will work out of the box
-	Options->FusionPatchSettings.Adsr[0].IsEnabled = true;
-	Options->FusionPatchSettings.Adsr[0].SustainLevel = 1.0f;
+	FAdsrSettings& VolumeAdsr = Options->FusionPatchSettings.Adsr[0];
+	VolumeAdsr.Target = EAdsrTarget::Volume;
+	VolumeAdsr.IsEnabled = true;
+	VolumeAdsr.SustainLevel = 1.0f;
+	VolumeAdsr.Depth = 1.0f;
 	
 	return Options;
 }
@@ -112,6 +112,14 @@ void UFusionPatchCreateOptions::UpdateKeyzonesWithSettings()
 			}
 			LockedNotesMask = ELockedNoteFlag::Root;
 		}
+	}
+
+	// apply the octave offset after applying the initial values
+	for (FKeyzoneSettings& Keyzone : Keyzones)
+	{
+		Keyzone.RootNote = FMath::Clamp(Keyzone.RootNote + OctaveAdjust * 12, 0, 127);
+		Keyzone.MinNote = FMath::Clamp(Keyzone.MinNote + OctaveAdjust * 12, 0, 127);
+		Keyzone.MaxNote = FMath::Clamp(Keyzone.MaxNote + OctaveAdjust * 12, 0, 127);
 	}
 
 	// if the min and max notes haven't already been determined from the file names, lay them out

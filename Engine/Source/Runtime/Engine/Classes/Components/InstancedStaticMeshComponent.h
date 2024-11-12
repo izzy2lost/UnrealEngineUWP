@@ -18,6 +18,7 @@
 
 class FLightingBuildOptions;
 class FPrimitiveSceneProxy;
+class FStaticLightingBuildContext;
 class FStaticLightingTextureMapping_InstancedStaticMesh;
 class ULightComponent;
 struct FNavigableGeometryExport;
@@ -124,18 +125,18 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	UPROPERTY(EditAnywhere, Category=Instances, AdvancedDisplay)
 	int32 NumCustomDataFloats;
 
+	/** Value used to seed the random number stream that generates random numbers for each of this mesh's instances.
+	The random number is stored in a buffer accessible to materials through the PerInstanceRandom expression. If
+	this is set to zero (default), it will be populated automatically by the editor. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=InstancedStaticMeshComponent)
+	int32 InstancingRandomSeed=0;
+
 	/** Array of custom data for instances. This will contains NumCustomDataFloats*InstanceCount entries. The entries are represented sequantially, in instance order. Can be read in a material and manipulated through Blueprints.
 	 *	Example: If NumCustomDataFloats is 1, then each entry will belong to an instance. Custom data 0 will belong to Instance 0. Custom data 1 will belong to Instance 1 etc.
 	 *	Example: If NumCustomDataFloats is 2, then each pair of sequential entries belong to an instance. Custom data 0 and 1 will belong to Instance 0. Custom data 2 and 3 will belong to Instance 2 etc.
 	 */
 	UPROPERTY(EditAnywhere, EditFixedSize, SkipSerialization, DisplayName="Custom data", Category=Instances, AdvancedDisplay, meta=(EditFixedOrder))
 	TArray<float> PerInstanceSMCustomData;
-
-	/** Value used to seed the random number stream that generates random numbers for each of this mesh's instances.
-	The random number is stored in a buffer accessible to materials through the PerInstanceRandom expression. If
-	this is set to zero (default), it will be populated automatically by the editor. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=InstancedStaticMeshComponent)
-	int32 InstancingRandomSeed=0;
 
 	/** Additional random seeds ranges. Each seed entry will be applied from AdditionalRandomSeeds[i].StartInstanceIndex to AdditionalRandomSeeds[i+1].StartInstanceIndex -1 */
 	UPROPERTY()
@@ -164,14 +165,30 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	UPROPERTY()
 	uint8 bInheritPerInstanceData : 1;
 
+	/** Don't create any collision when this bool is set */
+	UPROPERTY()
+	uint8 bDisableCollision : 1;
+
+	/** 
+	* Flag for using RemoveAtSwap on instance removal. 
+	* The implementation is free to ignore this flag, but should honor whatever behavior is being returned by SupportsRemoveSwap().
+	*/
+	uint8 bSupportRemoveAtSwap : 1;
+
+protected:
+	uint8 bIsInstanceDataApplyCompleted : 1;
+
+private:
+	uint8 bHasPreviousTransforms : 1;
+
+	/** Flag for whether we are using conservative bounds. */
+	uint8 bUseConservativeBounds : 1;
+
+public:
 	/** Mapping from PerInstanceSMData order to instance render buffer order. If empty, the PerInstanceSMData order is used. */
 	UPROPERTY()
 	TArray<int32> InstanceReorderTable;
 	
-	/** Don't create any collision when this bool is set */
-	UPROPERTY()
-	bool bDisableCollision;
-
 	/** Tracks outstanding proxysize, as this is a bit hard to do with the fire-and-forget grass. */
 	SIZE_T ProxySize;
 
@@ -415,10 +432,6 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	ENGINE_API FInstanceDataFlags MakeInstanceDataFlags(bool bAnyMaterialHasPerInstanceRandom, bool bAnyMaterialHasPerInstanceCustomData) const;
 
 private:
-	bool bHasPreviousTransforms = false;
-
-	/** Flag for whether we are using conservative bounds. */
-	bool bUseConservativeBounds = false;
 	/** Current cached conservativ bounds. */
 	FBox CachedConservativeInstanceBounds;
 public:
@@ -584,12 +597,6 @@ public:
 	/** Request to navigation system to update only part of navmesh occupied specified instances transforms. */
 	ENGINE_API virtual void PartialNavigationUpdates(TConstArrayView<FTransform> InstanceTransforms);
 
-	/** 
-	 * Flag for using RemoveAtSwap on instance removal. 
-	 * The implementation is free to ignore this flag, but should honor whatever behavior is being returned by SupportsRemoveSwap().
-	 */
-	bool bSupportRemoveAtSwap = false;
-
 	ENGINE_API TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> GetOrCreateInstanceDataSceneProxy();
 
 	/**
@@ -632,7 +639,10 @@ private:
 	ENGINE_API bool BatchUpdateInstancesTransformsInternal(int32 StartInstanceIndex, TArrayView<const FTransform> NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport);
 
 protected:
-	bool bIsInstanceDataApplyCompleted = true;
+
+	/** Number of pending lightmaps still to be calculated (Apply()'d). */
+	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
+	int32 NumPendingLightmaps;
 
 	FPrimitiveInstanceDataManager PrimitiveInstanceDataManager;
 
@@ -678,15 +688,11 @@ protected:
 	/** Initializes the body instance for the specified instance of the static mesh. */
 	ENGINE_API void InitInstanceBody(int32 InstanceIdx, FBodyInstance* InBodyInstance);
 
-	/** Number of pending lightmaps still to be calculated (Apply()'d). */
-	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
-	int32 NumPendingLightmaps;
-
 	/** The mappings for all the instances of this component. */
 	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
 	TArray<FInstancedStaticMeshMappingInfo> CachedMappings;
 
-	ENGINE_API void ApplyLightMapping(FStaticLightingTextureMapping_InstancedStaticMesh* InMapping, ULevel* LightingScenario);
+	ENGINE_API void ApplyLightMapping(FStaticLightingTextureMapping_InstancedStaticMesh* InMapping, const FStaticLightingBuildContext* LightingContext);
 	
 	ENGINE_API void CreateHitProxyData(TArray<TRefCountPtr<HHitProxy>>& HitProxies);
 

@@ -1,18 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
+#include "Library/RemoteControlDMXLibraryBuilder.h"
 #include "Modules/ModuleManager.h"
-
+#include "RemoteControlDMXAutoBindHandler.h"
+#include "RemoteControlDMXExposedEntitiesGroupPatchWidgetFactory.h"
+#include "RemoteControlDMXExposedEntitiesListSettings.h"
+#include "RemoteControlDMXExposedEntitiesPanelExtender.h"
+#include "RemoteControlDMXExposedEntityPatchWidgetFactory.h"
 #include "RemoteControlProtocolDMX.h"
 #include "RemoteControlProtocolDMXSettings.h"
-#include "RemoteControlProtocolDMXSettingsDetails.h"
-#include "RemoteControlDMXProtocolEntityExtraSettingCustomization.h"
 
 /**
  * Remote control protocol DMX editor that allows have editor functionality for the protocol
  */
 class FRemoteControlProtocolDMXEditorModule : public IModuleInterface
 {
+	using FRemoteControlDMXExposedEntitiesPanelExtender = UE::RemoteControl::DMX::FRemoteControlDMXExposedEntitiesPanelExtender;
+
 public:
 	//~ Begin IModuleInterface interface
 	virtual void StartupModule() override;
@@ -22,26 +26,19 @@ public:
 
 void FRemoteControlProtocolDMXEditorModule::StartupModule()
 {
-	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	using namespace UE::RemoteControl::DMX;
 
-	PropertyEditorModule.RegisterCustomPropertyTypeLayout(
-		FRemoteControlDMXProtocolEntityExtraSetting::StaticStruct()->GetFName(),
-		FOnGetPropertyTypeCustomizationInstance::CreateStatic(FRemoteControlDMXProtocolEntityExtraSettingCustomization::MakeInstance));
-
-	PropertyEditorModule.RegisterCustomClassLayout(
-		URemoteControlProtocolDMXSettings::StaticClass()->GetFName(),
-		FOnGetDetailCustomizationInstance::CreateStatic(FRemoteControlProtocolDMXSettingsDetails::MakeInstance));
+	FRemoteControlDMXLibraryBuilder::Register();
+	FRemoteControlDMXAutoBindHandler::Register();
+	FRemoteControlDMXExposedEntitiesListSettings::Register();
+	FRemoteControlDMXExposedEntitiesPanelExtender::Register();
+	FRemoteControlDMXExposedEntitiesGroupPatchWidgetFactory::Register();
+	FRemoteControlDMXExposedEntityPatchWidgetFactory::Register();
 }
 
 void FRemoteControlProtocolDMXEditorModule::ShutdownModule()
 {
-	if (UObjectInitialized() && FModuleManager::Get().IsModuleLoaded(TEXT("PropertyEditor")))
-	{
-		FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-		PropertyEditorModule.UnregisterCustomPropertyTypeLayout(FRemoteControlDMXProtocolEntityExtraSetting::StaticStruct()->GetFName());
-		PropertyEditorModule.UnregisterCustomClassLayout(URemoteControlProtocolDMXSettings::StaticClass()->GetFName());
-	}
 }
 
 
-IMPLEMENT_MODULE(FRemoteControlProtocolDMXEditorModule, RemoteControlProtocolDMXEditorModule);
+IMPLEMENT_MODULE(FRemoteControlProtocolDMXEditorModule, RemoteControlProtocolDMXEditor);

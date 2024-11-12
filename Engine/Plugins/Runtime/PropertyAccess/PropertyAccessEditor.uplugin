@@ -22,5 +22,6 @@
 			"Type": "UncookedOnly" ,
 			"LoadingPhase" : "PreDefault"
 		}		
-	]
+	],
+	"SupportedPrograms": ["ChaosVisualDebugger", "LiveLinkHub"]
 }

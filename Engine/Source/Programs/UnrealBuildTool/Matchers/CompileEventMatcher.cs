@@ -66,7 +66,7 @@ namespace UnrealBuildTool.Matchers
 		static readonly Regex s_scriptCompilePattern = new Regex(@"^\s*[A-Za-z0-9_\.]+ ERROR:.* [A-Za-z_]+ failed to compile\.");
 		static readonly Regex s_cscSummaryPattern = new Regex(@"^\s+\d+ (?:Warning|Error)\(s\)");
 		static readonly Regex s_cscOutputPattern = new Regex(@"^  [^ ]+ -> ");
-	
+
 		static readonly string[] s_invalidExtensions =
 		{
 			".obj",
@@ -203,6 +203,12 @@ namespace UnrealBuildTool.Matchers
 				return true;
 			}
 
+			if (builder.Current.Contains("was built for newer macOS version"))
+			{
+				outEvent = builder.ToMatch(LogEventPriority.Highest, LogLevel.Information, KnownLogEvents.Systemic_XCode);
+				return true;
+			}
+
 			outEvent = null;
 			return false;
 		}
@@ -252,6 +258,14 @@ namespace UnrealBuildTool.Matchers
 					{
 						builder.AnnotateSourceFile(projectMatch.Groups[1], "");
 						outEvent = builder.ToMatch(LogEventPriority.High, level, KnownLogEvents.MSBuild);
+						return true;
+					}
+				}
+				else if (codeGroup.Value.StartsWith("C", StringComparison.Ordinal))
+				{
+					if (codeGroup.Value.Equals("C1060", StringComparison.Ordinal))
+					{
+						outEvent = builder.ToMatch(LogEventPriority.High, LogLevel.Error, KnownLogEvents.Systemic_MSBuild);
 						return true;
 					}
 				}

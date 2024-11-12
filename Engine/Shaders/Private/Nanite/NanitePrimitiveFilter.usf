@@ -4,6 +4,7 @@
 #include "../SceneData.ush"
 #include "../WaveOpUtil.ush"
 #include "../ComputeShaderUtils.ush"
+#include "../BinarySearch.ush"
 
 #include "NaniteDataDecode.ush"
 
@@ -21,27 +22,6 @@ Buffer<uint> ShowOnlyPrimitivesList;
 #endif
 
 RWStructuredBuffer<uint> PrimitiveFilterBuffer;
-
-uint LowerBoundLoop(Buffer<uint> SearchBuffer, uint BufferCount, uint Key)
-{
-	uint Index = 0u;
-	uint Width = BufferCount >> 1u;
-	
-	LOOP
-	while (Width > 0u)
-	{
-		Index += (Key < SearchBuffer[Index + Width]) ? 0u : Width;
-		Width = Width >> 1u;
-	}
-	
-	return Index;
-}
-
-bool BinarySearchLoop(Buffer<uint> SearchBuffer, uint BufferCount, uint Key)
-{
-	uint Index = LowerBoundLoop(SearchBuffer, BufferCount, Key);
-	return SearchBuffer[Index] == Key;
-}
 
 uint GetNaniteFilterFlags(const FPrimitiveSceneData PrimitiveData)
 {
@@ -72,7 +52,7 @@ void PrimitiveFilter
 		BRANCH
 		if (!bHidden && NumHiddenPrimitives > 0)
 		{
-			bHidden = BinarySearchLoop(HiddenPrimitivesList, NumHiddenPrimitives, PrimitiveComponentId);
+			bHidden = BinarySearch(HiddenPrimitivesList, 0, NumHiddenPrimitives, PrimitiveComponentId);
 		}
 	#endif
 
@@ -81,7 +61,7 @@ void PrimitiveFilter
 		BRANCH
 		if (!bHidden && NumShowOnlyPrimitives > 0)
 		{
-			bHidden = !BinarySearchLoop(ShowOnlyPrimitivesList, NumShowOnlyPrimitives, PrimitiveComponentId);
+			bHidden = !BinarySearch(ShowOnlyPrimitivesList, 0, NumShowOnlyPrimitives, PrimitiveComponentId);
 		}
 	#endif
 

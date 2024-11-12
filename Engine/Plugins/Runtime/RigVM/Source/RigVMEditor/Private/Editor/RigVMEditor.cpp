@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Editor/RigVMEditor.h"
+#include "Editor/RigVMEditorTools.h"
 #include "Editor/RigVMEditorMenuContext.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "SMyBlueprint.h"
@@ -44,10 +45,13 @@
 #include "ScopedTransaction.h"
 #include "Editor/RigVMEditorMode.h"
 #include "InstancedPropertyBagStructureDataProvider.h"
+#include "Widgets/SRigVMSwapFunctionsWidget.h"
+#include "Widgets/SRigVMSwapAssetReferencesWidget.h"
+#include "Widgets/SRigVMBulkEditDialog.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "ToolMenuContext.h"
 
 #define LOCTEXT_NAMESPACE "RigVMEditor"
-
-const FName FRigVMEditorModes::RigVMEditorMode = TEXT("RigVM");
 
 FRigVMEditor::FRigVMEditor()
 	: bAnyErrorsLeft(false)
@@ -161,6 +165,18 @@ void FRigVMEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSharedP
 	InRigVMBlueprint->InitializeModelIfRequired();
 
 	CommonInitialization(Blueprints, false);
+
+	// If the class actions have not been populated, refresh them
+	{
+		UClass* ActionKey = InRigVMBlueprint->GetClass();
+		FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
+		FBlueprintActionDatabase::FActionRegistry const& ActionRegistry = ActionDatabase.GetAllActions();
+		if (!ActionRegistry.Contains(ActionKey) ||
+			ActionRegistry.FindChecked(ActionKey).IsEmpty())
+		{
+			ActionDatabase.RefreshClassActions(ActionKey);
+		}
+	}
 	
 	// user-defined-struct can change even after load
 	// refresh the models such that pins are updated to match
@@ -414,7 +430,7 @@ void FRigVMEditor::HandleAssetRequestClose(UObject* InObject, EAssetEditorCloseR
 
 const FName FRigVMEditor::GetEditorAppName() const
 {
-	static const FName AppName(TEXT("RigVMEditorApp"));
+	static const FLazyName AppName(TEXT("RigVMEditorApp"));
 	return AppName;
 }
 
@@ -729,6 +745,35 @@ void FRigVMEditor::JumpToHyperlink(const UObject* ObjectReference, bool bRequest
 	FBlueprintEditor::JumpToHyperlink(ObjectReference, bRequestRename);
 }
 
+void FRigVMEditor::AddNewFunctionVariant(const UEdGraph* InOriginalFunction)
+{
+#if WITH_EDITOR
+	if (GEditor)
+	{
+		GEditor->CancelTransaction(0);
+	}
+#endif
+	
+	if (const URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InOriginalFunction))
+	{
+		if (URigVMGraph* RigVMGraph = RigVMEdGraph->GetModel())
+		{
+			if (URigVMFunctionLibrary* FunctionLibrary = Cast<URigVMFunctionLibrary>(RigVMGraph->GetParentGraph()))
+			{
+				URigVMBlueprint* RigVMBlueprint = GetRigVMBlueprint();
+				URigVMController* Controller = RigVMBlueprint->GetController(FunctionLibrary);
+				if (const URigVMLibraryNode* VariantNode = Controller->CreateFunctionVariant(RigVMGraph->GetOuter()->GetFName(), NAME_None, true, true))
+				{
+					if (const UEdGraph* NewGraph = RigVMBlueprint->GetEdGraph(VariantNode->GetContainedGraph()))
+					{
+						OpenDocument(NewGraph, FDocumentTracker::OpenNewDocument);
+					}
+				}
+			}
+		}
+	}
+}
+
 void FRigVMEditor::PostUndo(bool bSuccess)
 {
 	const FTransaction* Transaction = GEditor->Trans->GetTransaction(GEditor->Trans->GetQueueLength() - GEditor->Trans->GetUndoCount());
@@ -825,65 +870,18 @@ void FRigVMEditor::PasteNodes()
 	FString TextToImport;
 	FPlatformApplicationMisc::ClipboardPaste(TextToImport);
 
-	TGuardValue<FRigVMController_RequestLocalizeFunctionDelegate> RequestLocalizeDelegateGuard(
-		GetFocusedController()->RequestLocalizeFunctionDelegate,
-		FRigVMController_RequestLocalizeFunctionDelegate::CreateLambda([this](FRigVMGraphFunctionIdentifier& InFunctionToLocalize)
-		{
-			OnRequestLocalizeFunctionDialog(InFunctionToLocalize, GetRigVMBlueprint(), true);
+	URigVMController* FocusedController = GetFocusedController();
 
-		   const URigVMLibraryNode* LocalizedFunctionNode = GetRigVMBlueprint()->GetLocalFunctionLibrary()->FindPreviouslyLocalizedFunction(InFunctionToLocalize);
-		   return LocalizedFunctionNode != nullptr;
-		
-		})
-	);
-	
-	TArray<FName> NodeNames = GetFocusedController()->ImportNodesFromText(TextToImport, true, true);
-
-	if (NodeNames.Num() > 0)
+	const bool bPastePerformed = UE::RigVM::Editor::Tools::PasteNodes(PasteLocation, TextToImport, FocusedController, GetFocusedModel(), GetRigVMBlueprint()->GetLocalFunctionLibrary(), GetRigVMBlueprint()->GetRigVMGraphFunctionHost());
+	if (bPastePerformed)
 	{
-		FBox2D Bounds;
-		Bounds.bIsValid = false;
-
-		TArray<FName> NodesToSelect;
-		for (const FName& NodeName : NodeNames)
-		{
-			const URigVMNode* Node = GetFocusedModel()->FindNodeByName(NodeName);
-			check(Node);
-
-			if (Node->IsInjected())
-			{
-				continue;
-			}
-			NodesToSelect.Add(NodeName);
-
-			FVector2D Position = Node->GetPosition();
-			FVector2D Size = Node->GetSize();
-
-			if (!Bounds.bIsValid)
-			{
-				Bounds.Min = Bounds.Max = Position;
-				Bounds.bIsValid = true;
-			}
-			Bounds += Position;
-			Bounds += Position + Size;
-		}
-
-		for (const FName& NodeName : NodesToSelect)
-		{
-			const URigVMNode* Node = GetFocusedModel()->FindNodeByName(NodeName);
-			check(Node);
-
-			FVector2D Position = Node->GetPosition();
-			GetFocusedController()->SetNodePositionByName(NodeName, PasteLocation + Position - Bounds.GetCenter(), true, false, true);
-		}
-
-		GetFocusedController()->SetNodeSelection(NodesToSelect);
-		GetFocusedController()->CloseUndoBracket();
+		FocusedController->CloseUndoBracket();
 	}
 	else
 	{
-		GetFocusedController()->CancelUndoBracket();
+		FocusedController->CancelUndoBracket();
 	}
+
 }
 
 URigVMBlueprint* FRigVMEditor::GetRigVMBlueprint() const
@@ -1065,7 +1063,7 @@ void FRigVMEditor::Compile()
 		}
 
 		// force to disable the supended notif brackets
-		RigVMBlueprint->bSuspendModelNotificationsForOthers = false;
+		RigVMBlueprint->GetRigVMClient()->bSuspendModelNotificationsForOthers = false;
 		RigVMBlueprint->bSuspendModelNotificationsForSelf = false;
 
 		RigVMBlueprint->GetCompileLog().Messages.Reset();
@@ -1073,7 +1071,7 @@ void FRigVMEditor::Compile()
 		FString LastDebuggedObjectName = GetCustomDebugObjectLabel(RigVMBlueprint->GetObjectBeingDebugged());
 		RigVMBlueprint->SetObjectBeingDebugged(nullptr);
 
-		TArray< TWeakObjectPtr<UObject> > SelectedObjects = Inspector->GetSelectedObjects();
+		TArray< TWeakObjectPtr<UObject> > SelectedObjects = GetSelectedObjects();
 
 		if (URigVMHost* RigVMHost = GetRigVMHost())
 		{
@@ -1410,6 +1408,21 @@ void FRigVMEditor::BindCommands()
 		FRigVMEditorCommands::Get().FrameSelection,
 		FExecuteAction::CreateSP(this, &FRigVMEditor::FrameSelection),
 		FCanExecuteAction());
+
+	GetToolkitCommands()->MapAction(
+		FRigVMEditorCommands::Get().SwapFunctionWithinAsset,
+		FExecuteAction::CreateSP(this, &FRigVMEditor::SwapFunctionWithinAsset),
+		FCanExecuteAction());
+
+	GetToolkitCommands()->MapAction(
+		FRigVMEditorCommands::Get().SwapFunctionAcrossProject,
+		FExecuteAction::CreateSP(this, &FRigVMEditor::SwapFunctionAcrossProject),
+		FCanExecuteAction());
+
+	GetToolkitCommands()->MapAction(
+		FRigVMEditorCommands::Get().SwapAssetReferences,
+		FExecuteAction::CreateSP(this, &FRigVMEditor::SwapAssetReferences),
+		FCanExecuteAction());
 }
 
 void FRigVMEditor::ToggleAutoCompileGraph()
@@ -1463,6 +1476,25 @@ TSharedRef<SWidget> FRigVMEditor::GenerateExecutionModeMenuContent()
 	MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().ReleaseMode, TEXT("Release"), TAttribute<FText>(), TAttribute<FText>(), GetExecutionModeIcon(ERigVMEditorExecutionModeType_Release));
 	MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().DebugMode, TEXT("Debug"), TAttribute<FText>(), TAttribute<FText>(), GetExecutionModeIcon(ERigVMEditorExecutionModeType_Debug));
 	MenuBuilder.EndSection();
+	return MenuBuilder.MakeWidget();
+}
+
+FMenuBuilder FRigVMEditor::GenerateBulkEditMenu()
+{
+	FMenuBuilder MenuBuilder(true, GetToolkitCommands());
+	MenuBuilder.BeginSection(TEXT("Functions"), LOCTEXT("Functions", "Functions"));
+	MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().SwapFunctionWithinAsset, TEXT("SwapFunctionWithinAsset"), TAttribute<FText>(), TAttribute<FText>(), FSlateIcon());
+	MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().SwapFunctionAcrossProject, TEXT("SwapFunctionAcrossProject"), TAttribute<FText>(), TAttribute<FText>(), FSlateIcon());
+	MenuBuilder.EndSection();
+	// MenuBuilder.BeginSection(TEXT("Asset"), LOCTEXT("Asset", "Asset"));
+	// MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().SwapAssetReferences, TEXT("SwapAssetReferences"), TAttribute<FText>(), TAttribute<FText>(), FSlateIcon());
+	// MenuBuilder.EndSection();
+	return MenuBuilder;
+}
+
+TSharedRef<SWidget> FRigVMEditor::GenerateBulkEditMenuContent()
+{
+	FMenuBuilder MenuBuilder = GenerateBulkEditMenu();
 	return MenuBuilder.MakeWidget();
 }
 
@@ -1692,7 +1724,7 @@ void FRigVMEditor::HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMG
 				if(!DefaultValue.IsEmpty())
 				{
 					// sync the value change with the unit(s) displayed 
-					TArray< TWeakObjectPtr<UObject> > SelectedObjects = Inspector->GetSelectedObjects();
+					TArray< TWeakObjectPtr<UObject> > SelectedObjects = GetSelectedObjects();
 					for (TWeakObjectPtr<UObject> SelectedObject : SelectedObjects)
 					{
 						if (SelectedObject.IsValid())
@@ -1715,8 +1747,11 @@ void FRigVMEditor::HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMG
 										}
 
 										// we are ok with not reacting to errors here
-										FRigVMPinDefaultValueImportErrorContext ErrorPipe;										
-										Property->ImportText_Direct(*DefaultValue, PropertyStorage, nullptr, PPF_None, &ErrorPipe);
+										if(Property && PropertyStorage)
+										{
+											FRigVMPinDefaultValueImportErrorContext ErrorPipe;										
+											Property->ImportText_Direct(*DefaultValue, PropertyStorage, nullptr, PPF_None, &ErrorPipe);
+										}
 									}
 								}
 							}
@@ -2154,7 +2189,9 @@ void FRigVMEditor::OnWrappedPropertyChangedChainEvent(URigVMDetailsViewWrapperOb
 		const FName RootPinName = InPropertyChangedChainEvent.PropertyChain.GetHead()->GetValue()->GetFName();
 		const FString RootPinNameString = RootPinName.ToString();
 		FString PinPath = URigVMPin::JoinPinPath(Node->GetName(), RootPinNameString);
-		
+		URigVMController* Controller = GetRigVMBlueprint()->GetController(Node->GetGraph());
+		check(Controller);
+
 		const FProperty* Property = WrapperObjects[0]->GetClass()->FindPropertyByName(RootPinName);
 		uint8* PropertyStorage = nullptr;
 		if (Property)
@@ -2164,62 +2201,112 @@ void FRigVMEditor::OnWrappedPropertyChangedChainEvent(URigVMDetailsViewWrapperOb
 			// traverse to get to the target pin
 			if(!InPropertyPath.Equals(RootPinNameString))
 			{
-				if (InPropertyChangedChainEvent.ChangeType != EPropertyChangeType::ArrayAdd &&
-					InPropertyChangedChainEvent.ChangeType != EPropertyChangeType::ArrayRemove &&
-					InPropertyChangedChainEvent.ChangeType != EPropertyChangeType::ArrayClear &&
-					InPropertyChangedChainEvent.ChangeType != EPropertyChangeType::ArrayMove &&
-					InPropertyChangedChainEvent.ChangeType != EPropertyChangeType::Duplicate)
+				check(InPropertyPath.StartsWith(RootPinNameString));
+				FString RemainingPropertyPath = InPropertyPath.Mid(RootPinNameString.Len());
+				RemainingPropertyPath.RemoveFromStart(TEXT("->"));
+                RemainingPropertyPath.ReplaceInline(TEXT("->"), TEXT("."));
+				RemainingPropertyPath.RemoveFromStart(TEXT("["));
+				RemainingPropertyPath.RemoveFromEnd(TEXT("]"));
+				RemainingPropertyPath.ReplaceInline(TEXT("["), TEXT("."));
+				RemainingPropertyPath.ReplaceInline(TEXT("]"), TEXT(""));
+				
+				if(InPropertyChangedChainEvent.ChangeType == EPropertyChangeType::ArrayAdd)
 				{
-					check(InPropertyPath.StartsWith(RootPinNameString));
-					FString RemainingPropertyPath = InPropertyPath.Mid(RootPinNameString.Len());
-					RemainingPropertyPath.RemoveFromStart(TEXT("->"));
-					const FString SegmentPath = RemainingPropertyPath.Replace(TEXT("->"), TEXT("."));
-			
-					const FRigVMPropertyPath PropertyTraverser(Property, SegmentPath);
+					PinPath = URigVMPin::JoinPinPath(PinPath, RemainingPropertyPath);
+					
+					const FRigVMPropertyPath PropertyTraverser(Property, RemainingPropertyPath);
 					PropertyStorage = PropertyTraverser.GetData<uint8>(PropertyStorage, Property);
-					if (PropertyStorage)
+					Property = PropertyTraverser.GetTailProperty();
+				}
+				else if((InPropertyChangedChainEvent.ChangeType == EPropertyChangeType::ArrayRemove) ||
+					(InPropertyChangedChainEvent.ChangeType == EPropertyChangeType::ArrayClear) ||
+					(InPropertyChangedChainEvent.ChangeType == EPropertyChangeType::Duplicate))
+				{
+					PinPath = URigVMPin::JoinPinPath(PinPath, RemainingPropertyPath);
+				}
+				else
+				{
+					// traverse each property one by one to make sure the expected pin exists.
+					// this may not be the case for an array element.
+					while(!RemainingPropertyPath.IsEmpty())
 					{
+						FString Left = RemainingPropertyPath, Right;
+						(void)URigVMPin::SplitPinPathAtStart(RemainingPropertyPath, Left, Right);
+
+						const FString NewPinPath = URigVMPin::JoinPinPath(PinPath, Left);
+
+						// this may be an array pin which doesn't exist yet
+						if(!Controller->GetGraph()->FindPin(NewPinPath))
+						{
+							break;
+						}
+
+						const FRigVMPropertyPath PropertyTraverser(Property, Left);
+						PropertyStorage = PropertyTraverser.GetData<uint8>(PropertyStorage, Property);
 						Property = PropertyTraverser.GetTailProperty();
-						PinPath = URigVMPin::JoinPinPath(PinPath, SegmentPath);
-						PinPath.ReplaceInline(TEXT("["), TEXT(""));
-						PinPath.ReplaceInline(TEXT("]"), TEXT(""));
-					}
-					else
-					{
-						PropertyStorage = Property->ContainerPtrToValuePtr<uint8>(WrapperObjects[0].Get());
+						PinPath = NewPinPath;
+
+						RemainingPropertyPath = Right;
 					}
 				}
 			}
 		}
 
-		if (Property && PropertyStorage)
+		if (Property)
 		{
-			FString DefaultValue = FRigVMStruct::ExportToFullyQualifiedText(Property, PropertyStorage);
+			FString DefaultValue;
+			
+			if((InPropertyChangedChainEvent.ChangeType != EPropertyChangeType::ArrayRemove) &&
+				(InPropertyChangedChainEvent.ChangeType != EPropertyChangeType::ArrayClear) &&
+				(InPropertyChangedChainEvent.ChangeType != EPropertyChangeType::Duplicate))
+			{
+				if(PropertyStorage == nullptr)
+				{
+					// this may happen when we remove the last element from an array.
+					// in that case just empty the array itself.
+					if(const FProperty* ParentProperty = Property->GetOwnerProperty())
+					{
+						if(ParentProperty->IsA<FArrayProperty>())
+						{
+							DefaultValue = TEXT("()");
+							FString Left, Right;
+							verify(URigVMPin::SplitPinPathAtEnd(PinPath, Left, Right));
+							PinPath = Left;
+						}
+					}
+				}
+				else
+				{
+					DefaultValue = FRigVMStruct::ExportToFullyQualifiedText(Property, PropertyStorage);
+				}
+			}
+			
 			if(Property->IsA<FStrProperty>() || Property->IsA<FNameProperty>())
 			{
 				DefaultValue.TrimCharInline(TEXT('\"'), nullptr);
 			}
-			if (!DefaultValue.IsEmpty())
+			
+			if(InPropertyChangedChainEvent.ChangeType == EPropertyChangeType::ArrayAdd)
+			{
+				FString ArrayPinPath, ArrayElementIndex;
+				verify(URigVMPin::SplitPinPathAtEnd(PinPath, ArrayPinPath, ArrayElementIndex));
+				Controller->AddArrayPin(ArrayPinPath, DefaultValue, true, true);
+			}
+			else if(InPropertyChangedChainEvent.ChangeType == EPropertyChangeType::ArrayRemove)
+			{
+				Controller->RemoveArrayPin(PinPath, true, true);
+			}
+			else if(InPropertyChangedChainEvent.ChangeType == EPropertyChangeType::ArrayClear)
+			{
+				Controller->ClearArrayPin(PinPath, true, true);
+			}
+			else if(InPropertyChangedChainEvent.ChangeType == EPropertyChangeType::Duplicate)
+			{
+				Controller->DuplicateArrayPin(PinPath, true, true);
+			}
+			else if (!DefaultValue.IsEmpty())
 			{
 				const bool bInteractive = InPropertyChangedChainEvent.ChangeType == EPropertyChangeType::Interactive;
-				URigVMController* Controller = GetRigVMBlueprint()->GetController(Node->GetGraph());
-				check(Controller);
-
-				// When clearing an array of a fixed size array, make sure to leave at least one element
-				if (InPropertyChangedChainEvent.ChangeType == EPropertyChangeType::ArrayClear)
-				{
-					URigVMPin* Pin = Node->GetGraph()->FindPin(PinPath);
-					if (Pin->IsFixedSizeArray())
-					{
-						FString CurrentDefault = Controller->GetPinDefaultValue(PinPath);
-						TArray<FString> Elements = URigVMPin::SplitDefaultValue(CurrentDefault);
-						if (!Elements.IsEmpty())
-						{
-							DefaultValue = FString::Printf(TEXT("(%s)"), *Elements[0]);
-						}
-					}
-				}
-				
 				Controller->SetPinDefaultValue(PinPath, DefaultValue, true, !bInteractive, true, !bInteractive);
 			}
 		}
@@ -2227,33 +2314,11 @@ void FRigVMEditor::OnWrappedPropertyChangedChainEvent(URigVMDetailsViewWrapperOb
 }
 
 void FRigVMEditor::OnRequestLocalizeFunctionDialog(FRigVMGraphFunctionIdentifier& InFunction,
-	URigVMBlueprint* InTargetBlueprint, bool bForce)
+	URigVMController* InTargetController,
+	IRigVMGraphFunctionHost* InTargetFunctionHost,
+	bool bForce)
 {
-	check(InTargetBlueprint);
-
-	if(InTargetBlueprint != GetRigVMBlueprint())
-	{
-		return;
-	}
-	
-	if(URigVMController* TargetController = InTargetBlueprint->GetController(InTargetBlueprint->GetDefaultModel()))
-	{
-		bool bIsPublic;
-		if (FRigVMGraphFunctionData::FindFunctionData(InFunction, &bIsPublic))
-		{
-			if (bForce || bIsPublic)
-			{
-				TSharedRef<SRigVMGraphFunctionLocalizationDialog> LocalizationDialog = SNew(SRigVMGraphFunctionLocalizationDialog)
-							.Function(InFunction)
-							.TargetBlueprint(InTargetBlueprint);
-
-				if (LocalizationDialog->ShowModal() != EAppReturnType::Cancel)
-				{
-					TargetController->LocalizeFunctions(LocalizationDialog->GetFunctionsToLocalize(), true, true, true);
-				}
-			}
-		}
-	}
+	UE::RigVM::Editor::Tools::OnRequestLocalizeFunctionDialog(InFunction, InTargetController, InTargetFunctionHost, bForce);
 }
 
 FRigVMController_BulkEditResult FRigVMEditor::OnRequestBulkEditDialog(URigVMBlueprint* InBlueprint,
@@ -2376,8 +2441,8 @@ TRigVMTypeIndex FRigVMEditor::OnRequestPinTypeSelectionDialog(const TArray<TRigV
 										TRigVMTypeIndex TypeIndex = InTypes[TypeNameToIndex.FindChecked(*InItem.Get())];
 										const FRigVMTemplateArgumentType Type = FRigVMRegistry::Get().GetType(TypeIndex);
 										const bool bIsArray = Type.IsArray();
-										static const FName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
-										static const FName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
+										static const FLazyName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
+										static const FLazyName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
 
 										const FEdGraphPinType PinType = RigVMTypeUtils::PinTypeFromTypeIndex(TypeIndex);
 										const URigVMEdGraphSchema* Schema = CastChecked<URigVMEdGraphSchema>(GetRigVMBlueprint()->GetRigVMEdGraphSchemaClass()->GetDefaultObject());
@@ -2438,6 +2503,15 @@ void FRigVMEditor::HandleJumpToHyperlink(const UObject* InSubject)
 	{
 		GraphToJumpTo = Node->GetGraph();
 		NodeToJumpTo = Node;
+
+		if(const URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Node))
+		{
+			if(CollapseNode->GetGraph()->IsA<URigVMFunctionLibrary>())
+			{
+				GraphToJumpTo = CollapseNode->GetContainedGraph();
+				NodeToJumpTo = CollapseNode->GetEntryNode();
+			}
+		}
 	}
 	else if(const URigVMPin* Pin = Cast<URigVMPin>(InSubject))
 	{
@@ -2457,24 +2531,41 @@ void FRigVMEditor::HandleJumpToHyperlink(const UObject* InSubject)
 
 	if (GraphToJumpTo && NodeToJumpTo)
 	{
-		if(URigVMEdGraph* EdGraph = Cast<URigVMEdGraph>(RigBlueprint->GetEdGraph(NodeToJumpTo->GetGraph())))
+		if(URigVMBlueprint* OtherBlueprint = NodeToJumpTo->GetTypedOuter<URigVMBlueprint>())
 		{
-			if(const URigVMEdGraphNode* EdGraphNode = Cast<URigVMEdGraphNode>(EdGraph->FindNodeForModelNodeName(NodeToJumpTo->GetFName())))
+			if(OtherBlueprint != RigBlueprint)
 			{
-				if(PinToJumpTo)
+				if (GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(OtherBlueprint))
 				{
-					if(const UEdGraphPin* EdGraphPin = EdGraphNode->FindPin(PinToJumpTo->GetSegmentPath(true)))
+					FRigVMEditor* OtherEditor = static_cast<FRigVMEditor*>(GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(OtherBlueprint, /*bFocusIfOpen =*/true));
+					if(OtherEditor)
 					{
-						JumpToPin(EdGraphPin);
+						OtherEditor->HandleJumpToHyperlink(NodeToJumpTo);
 						return;
 					}
 				}
-				
-				JumpToNode(EdGraphNode);
-				return;
 			}
-			
-			JumpToHyperlink(EdGraph);
+					
+			if(URigVMEdGraph* EdGraph = Cast<URigVMEdGraph>(OtherBlueprint->GetEdGraph(NodeToJumpTo->GetGraph())))
+			{
+				if(URigVMEdGraphNode* EdGraphNode = Cast<URigVMEdGraphNode>(EdGraph->FindNodeForModelNodeName(NodeToJumpTo->GetFName())))
+				{
+					if(PinToJumpTo)
+					{
+						if(const UEdGraphPin* EdGraphPin = EdGraphNode->FindPin(PinToJumpTo->GetSegmentPath(true)))
+						{
+							JumpToPin(EdGraphPin);
+							return;
+						}
+					}
+					
+					JumpToNode(EdGraphNode);
+					SetDetailObjects({EdGraphNode});
+					return;
+				}
+				
+				JumpToHyperlink(EdGraph);
+			}
 		}
 	}
 }
@@ -2612,6 +2703,27 @@ void FRigVMEditor::OnCreateComment()
 			}
 		}
 	}
+}
+
+TArray<TWeakObjectPtr<UObject>> FRigVMEditor::GetSelectedObjects() const
+{
+	// if the inspector shows wrapped objects - look in that array instead.
+	// with recent weak object pointer changes on the property detail view
+	// we cannot rely on the GetSelectedObjects being valid after blueprint compilation.
+	if(WrapperObjects.Num() == Inspector->GetSelectedObjects().Num())
+	{
+		TArray<TWeakObjectPtr<UObject>> WeakWrapperObjects;
+		for(const TStrongObjectPtr<URigVMDetailsViewWrapperObject>& WrapperObjectPtr : WrapperObjects)
+		{
+			URigVMDetailsViewWrapperObject* WrapperObject = WrapperObjectPtr.Get();
+			if(IsValid(WrapperObject->GetSubject()))
+			{
+				WeakWrapperObjects.Add(WrapperObject);
+			}
+		}
+		return WeakWrapperObjects;
+	}
+	return Inspector->GetSelectedObjects();
 }
 
 void FRigVMEditor::SetDetailObjects(const TArray<UObject*>& InObjects)
@@ -2856,7 +2968,7 @@ void FRigVMEditor::SetDetailViewForFocusedGraph()
 void FRigVMEditor::SetDetailViewForLocalVariable()
 {
 	FName VariableName;
-	TArray< TWeakObjectPtr<UObject> > SelectedObjects = Inspector->GetSelectedObjects();
+	TArray< TWeakObjectPtr<UObject> > SelectedObjects = GetSelectedObjects();
 	for (TWeakObjectPtr<UObject> SelectedObject : SelectedObjects)
 	{
 		if (SelectedObject.IsValid())
@@ -2903,7 +3015,7 @@ bool FRigVMEditor::DetailViewShowsAnyRigUnit() const
 		return true;
 	}
 
-	const TArray< TWeakObjectPtr<UObject> >& SelectedObjects = Inspector->GetSelectedObjects();
+	const TArray< TWeakObjectPtr<UObject> >& SelectedObjects = GetSelectedObjects();
 	for (TWeakObjectPtr<UObject> SelectedObject : SelectedObjects)
 	{
 		if (SelectedObject.IsValid())
@@ -2929,7 +3041,7 @@ bool FRigVMEditor::DetailViewShowsLocalVariable() const
 
 bool FRigVMEditor::DetailViewShowsStruct(UScriptStruct* InStruct) const
 {
-	TArray< TWeakObjectPtr<UObject> > SelectedObjects = Inspector->GetSelectedObjects();
+	TArray< TWeakObjectPtr<UObject> > SelectedObjects = GetSelectedObjects();
 	for (TWeakObjectPtr<UObject> SelectedObject : SelectedObjects)
 	{
 		if (SelectedObject.IsValid())
@@ -2976,7 +3088,7 @@ void FRigVMEditor::ClearDetailsViewWrapperObjects()
 		{
 			URigVMDetailsViewWrapperObject* WrapperObject = WrapperObjectPtr.Get();
 			WrapperObject->RemoveFromRoot();
-			WrapperObject->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			WrapperObject->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			WrapperObject->MarkAsGarbage();
 		}
 	}
@@ -2989,7 +3101,7 @@ void FRigVMEditor::SetHost(URigVMHost* InHost)
 	{
 		if (IsValid(RigVMBlueprint->EditorHost) && RigVMBlueprint->EditorHost->GetOuter() == GetOuterForHost())
 		{
-			RigVMBlueprint->EditorHost->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			RigVMBlueprint->EditorHost->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			RigVMBlueprint->EditorHost->MarkAsGarbage();
 		}
 		RigVMBlueprint->EditorHost = InHost;
@@ -3155,6 +3267,16 @@ void FRigVMEditor::FillToolbar(FToolBarBuilder& ToolbarBuilder, bool bEndSection
 			NAME_None, TAttribute<FText>(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlayWorld.StepOut"));
 
 		ToolbarBuilder.EndStyleOverride();
+
+
+		FUIAction DefaultBulkEditAction;
+		ToolbarBuilder.AddComboButton(
+			DefaultBulkEditAction,
+			FOnGetContent::CreateSP(this, &FRigVMEditor::GenerateBulkEditMenuContent),
+			LOCTEXT("BulkEdit_Label", "Bulk Edit"),
+			LOCTEXT("BulkEdit_ToolTip", "Perform changes across many nodes / assets"),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Recompile"),
+			false);
 	}
 
 	if(bEndSection)
@@ -3356,15 +3478,15 @@ void FRigVMEditor::OnNodeDoubleClicked(URigVMBlueprint* InBlueprint, URigVMNode*
 
 	if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(InNode))
 	{
-		URigVMGraph* ContainedGraph = LibraryNode->GetContainedGraph();
-		if (URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(LibraryNode))
+		if (const URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(LibraryNode))
 		{
-			if (URigVMLibraryNode* ReferencedNode = FunctionReferenceNode->LoadReferencedNode())
+			if (const URigVMLibraryNode* ReferencedNode = FunctionReferenceNode->LoadReferencedNode())
 			{
-				ContainedGraph = ReferencedNode->GetContainedGraph();
+				HandleJumpToHyperlink(ReferencedNode);
+				return;
 			}
 		}
-		if(ContainedGraph)
+		if(URigVMGraph* ContainedGraph = LibraryNode->GetContainedGraph())
 		{
 			if (UEdGraph* EdGraph = InBlueprint->GetEdGraph(ContainedGraph))
 			{
@@ -3372,13 +3494,13 @@ void FRigVMEditor::OnNodeDoubleClicked(URigVMBlueprint* InBlueprint, URigVMNode*
 			}
 			else
 			{
-				if(URigVMCollapseNode* FunctionLibraryNode = Cast<URigVMCollapseNode>(ContainedGraph->GetOuter()))
+				if(const URigVMCollapseNode* FunctionLibraryNode = Cast<URigVMCollapseNode>(ContainedGraph->GetOuter()))
 				{
-					if(URigVMFunctionLibrary* FunctionLibrary = FunctionLibraryNode->GetLibrary())
+					if(const URigVMFunctionLibrary* FunctionLibrary = FunctionLibraryNode->GetLibrary())
 					{
-						if(URigVMBlueprint* FunctionBlueprint = Cast<URigVMBlueprint>(FunctionLibrary->GetOuter()))
+						if(const URigVMBlueprint* FunctionBlueprint = Cast<URigVMBlueprint>(FunctionLibrary->GetOuter()))
 						{
-							if (UEdGraph* FunctionEdGraph = FunctionBlueprint->GetEdGraph(ContainedGraph))
+							if (const UEdGraph* FunctionEdGraph = FunctionBlueprint->GetEdGraph(ContainedGraph))
 							{
 								FKismetEditorUtilities::BringKismetToFocusAttentionOnObject(FunctionEdGraph);
 							}
@@ -3447,6 +3569,54 @@ void FRigVMEditor::FrameSelection()
 			GraphEd->ZoomToFit(!bFrameAll);
 		}
 	}
+}
+
+void FRigVMEditor::SwapFunctionWithinAsset()
+{
+	const FAssetData Asset = UE::RigVM::Editor::Tools::FindAssetFromAnyPath(GetRigVMBlueprint()->GetPathName(), true);
+	SwapFunctionForAssets({Asset}, true);
+}
+
+void FRigVMEditor::SwapFunctionAcrossProject()
+{
+	const IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	TArray<FAssetData> AllAssets;
+	AssetRegistry.GetAssetsByClass(GetRigVMBlueprint()->GetClass()->GetClassPathName(), AllAssets, true);
+	SwapFunctionForAssets(AllAssets, false);
+}
+
+void FRigVMEditor::SwapFunctionForAssets(const TArray<FAssetData>& InAssets, bool bSetupUndo)
+{
+	SRigVMSwapFunctionsWidget::FArguments WidgetArgs;
+	WidgetArgs
+		.Assets(InAssets)
+		.EnableUndo(bSetupUndo)
+		.CloseOnSuccess(true);
+
+	const TSharedRef<SRigVMBulkEditDialog<SRigVMSwapFunctionsWidget>> SwapFunctionsDialog =
+		SNew(SRigVMBulkEditDialog<SRigVMSwapFunctionsWidget>)
+		.WindowSize(FVector2D(800.0f, 640.0f))
+		.WidgetArgs(WidgetArgs);
+
+	SwapFunctionsDialog->ShowNormal();
+}
+
+void FRigVMEditor::SwapAssetReferences()
+{
+	const FAssetData Asset = UE::RigVM::Editor::Tools::FindAssetFromAnyPath(GetRigVMBlueprint()->GetPathName(), true);
+	
+	SRigVMSwapAssetReferencesWidget::FArguments WidgetArgs;
+	WidgetArgs
+		.Source(Asset)
+		.EnableUndo(false)
+		.CloseOnSuccess(true);
+
+	const TSharedRef<SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>> SwapFunctionsDialog =
+		SNew(SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>)
+		.WindowSize(FVector2D(800.0f, 640.0f))
+		.WidgetArgs(WidgetArgs);
+
+	SwapFunctionsDialog->ShowNormal();
 }
 
 void FRigVMEditor::UpdateGraphCompilerErrors()

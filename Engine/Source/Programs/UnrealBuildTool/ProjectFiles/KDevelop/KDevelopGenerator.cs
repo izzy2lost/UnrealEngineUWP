@@ -46,12 +46,12 @@ namespace UnrealBuildTool
 		/// <param name="Name">Name.</param>
 		private void WriteKDevPrimaryProjectSection(ref StringBuilder FileContent, string Name)
 		{
-			FileContent.Append("\n");
+			FileContent.Append('\n');
 			FileContent.Append("[Project] \n");
 			FileContent.Append("Manager=KDevCustomBuildSystem \n");
 			FileContent.Append("Name=");
 			FileContent.Append(Name);
-			FileContent.Append("\n");
+			FileContent.Append('\n');
 		}
 
 		/// <summary>
@@ -108,7 +108,7 @@ namespace UnrealBuildTool
 			else if (Type == 3)
 			{
 				ToolType = "Clean";
-				ConfName = ConfName + " -clean";
+				ConfName += " -clean";
 			}
 
 			FileContent.Append(String.Format("[CustomBuildSystem][BuildConfig{0}][Tool{1}]\n", BuildConfigIndex, ToolType));
@@ -331,7 +331,7 @@ namespace UnrealBuildTool
 				FileContent.Append(CurPath);
 				FileContent.Append(" \n");
 			}
-			FileContent.Append("\n");
+			FileContent.Append('\n');
 		}
 
 		/// <summary>
@@ -341,7 +341,7 @@ namespace UnrealBuildTool
 		/// <param name="Key">Out: The definition name</param>
 		/// <param name="Value">Out: The definition value or null if it has none</param>
 		/// <returns>Pair representing macro name and value.</returns>
-		private void SplitDefinitionAndValue(string Definition, out String Key, out String Value)
+		private void SplitDefinitionAndValue(string Definition, out string Key, out string Value)
 		{
 			int EqualsIndex = Definition.IndexOf('=');
 			if (EqualsIndex >= 0)
@@ -363,8 +363,8 @@ namespace UnrealBuildTool
 		/// <param name="Logger">Logger for output</param>
 		private void WriteDefineSection(ref StringBuilder FileContent, ILogger Logger)
 		{
-			String Key = "";
-			String Value = "";
+			string Key = "";
+			string Value = "";
 
 			List<string> DefineHolder = new List<string>();
 

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Delegates/DelegateCombinations.h"
+#include "Delegates/Delegate.h"
 
 class FDisplayClusterWatchdogTimer;
 
@@ -16,6 +16,22 @@ enum class EDisplayClusterBarrierWaitResult : uint8
 	NotActive,
 	TimeOut,
 	NotAllowed,
+};
+
+
+/**
+ * Barrier PreSyncEnd callback data
+ */
+struct FDisplayClusterBarrierPreSyncEndDelegateData
+{
+	/** Barrier ID */
+	const FString& BarrierId;
+
+	/** Binary data provided on sync request (thread marker - to - data mapping) */
+	const TMap<FString, TArray<uint8>>& RequestData;
+
+	/** Binary data to respond (thread marker - to - data mapping) */
+	TMap<FString, TArray<uint8>>& ResponseData;
 };
 
 
@@ -50,8 +66,7 @@ public:
 	virtual void UnregisterSyncCaller(const FString& CallerId) = 0;
 
 	/** Barrier PreSyncEnd delegate. Called when all calling threads arrived right before opening the gate. */
-	typedef TMap<FString, TArray<uint8>> FClientsCommData;
-	DECLARE_DELEGATE_ThreeParams(FDisplayClusterBarrierPreSyncEndDelegate, const FString&, const FClientsCommData&, FClientsCommData&);
+	DECLARE_DELEGATE_OneParam(FDisplayClusterBarrierPreSyncEndDelegate, FDisplayClusterBarrierPreSyncEndDelegateData&);
 	virtual FDisplayClusterBarrierPreSyncEndDelegate& GetPreSyncEndDelegate() = 0;
 
 	// Barrier timout notification (provides BarrierName and CallersTimedOut in parameters)

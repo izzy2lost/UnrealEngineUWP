@@ -78,12 +78,12 @@ void URigVMEdGraph::HandleRigVMGraphRenamed(const FString& InOldNodePath, const 
 		}
 		GraphName = FRigVMClient::GetUniqueName(GetOuter(), *GraphName).ToString();
 
-		Rename(*GraphName, nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		Rename(*GraphName, nullptr, REN_DontCreateRedirectors);
 	}
 	else if(ModelNodePath.StartsWith(OldPrefix))
 	{
 		Modify();
-		ModelNodePath = NewPrefix + ModelNodePath.RightChop(OldPrefix.Len() - 1);
+		ModelNodePath = NewPrefix + ModelNodePath.RightChop(OldPrefix.Len());
 	}
 	else
 	{
@@ -103,14 +103,39 @@ void URigVMEdGraph::HandleRigVMGraphRenamed(const FString& InOldNodePath, const 
 	}
 }
 
+const URigVMBlueprint* URigVMEdGraph::GetBlueprintDefaultObject() const
+{
+	if(RigVMBlueprintClass)
+	{
+		return RigVMBlueprintClass->GetDefaultObject<URigVMBlueprint>();
+	}
+	return nullptr;
+}
+
+void URigVMEdGraph::SetBlueprintClass(const UClass* InClass)
+{
+	RigVMBlueprintClass = InClass;
+	if(const URigVMBlueprint* Blueprint = GetBlueprintDefaultObject())
+	{
+		Schema = Blueprint->GetRigVMEdGraphSchemaClass();
+	}
+}
+
 void URigVMEdGraph::InitializeFromBlueprint(URigVMBlueprint* InBlueprint)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
+	SetBlueprintClass(InBlueprint->GetClass());
 	InBlueprint->OnModified().RemoveAll(this);
 	InBlueprint->OnModified().AddUObject(this, &URigVMEdGraph::HandleModifiedEvent);
 	InBlueprint->OnVMCompiled().RemoveAll(this);
 	InBlueprint->OnVMCompiled().AddUObject(this, &URigVMEdGraph::HandleVMCompiledEvent);
+}
+
+bool URigVMEdGraph::IsPreviewGraph() const
+{
+	// if we are not below a client host we are preview
+	return GetImplementingOuter<IRigVMClientHost>() == nullptr;
 }
 
 const URigVMEdGraphSchema* URigVMEdGraph::GetRigVMEdGraphSchema()
@@ -567,11 +592,32 @@ bool URigVMEdGraph::HandleModifiedEvent_Internal(ERigVMGraphNotifType InNotifTyp
 		case ERigVMGraphNotifType::PinIndexChanged:
 		case ERigVMGraphNotifType::PinBoundVariableChanged:
 		{
+        	if (URigVMPin* ModelPin = Cast<URigVMPin>(InSubject))
+        	{
+        		if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(FindNodeForModelNodeName(ModelPin->GetNode()->GetFName())))
+        		{
+        			RigNode->ModelPinsChanged();
+        		}
+        	}
+        	break;
+        }
+		case ERigVMGraphNotifType::PinCategoryChanged:
+		case ERigVMGraphNotifType::PinCategoriesChanged:
+		{
+			URigVMNode* ModelNode = nullptr;
 			if (URigVMPin* ModelPin = Cast<URigVMPin>(InSubject))
 			{
-				if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(FindNodeForModelNodeName(ModelPin->GetNode()->GetFName())))
+				ModelNode = ModelPin->GetNode();
+			}
+			else
+			{
+				ModelNode = Cast<URigVMNode>(InSubject);
+			}
+			if(ModelNode)
+			{
+				if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(FindNodeForModelNodeName(ModelNode->GetFName())))
 				{
-					RigNode->ModelPinsChanged();
+					RigNode->ModelPinsChanged(true);
 				}
 			}
 			break;
@@ -583,6 +629,17 @@ bool URigVMEdGraph::HandleModifiedEvent_Internal(ERigVMGraphNotifType InNotifTyp
 				if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(FindNodeForModelNodeName(LibraryNode->GetFName())))
 				{
 					RigNode->ModelPinsChanged(true);
+				}
+			}
+			break;
+		}
+		case ERigVMGraphNotifType::PinDisplayNameChanged:
+		{
+			if (URigVMPin* ModelPin = Cast<URigVMPin>(InSubject))
+			{
+				if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(FindNodeForModelNodeName(ModelPin->GetNode()->GetFName())))
+				{
+					RigNode->SynchronizeGraphPinNameWithModelPin(ModelPin);
 				}
 			}
 			break;
@@ -667,6 +724,17 @@ bool URigVMEdGraph::HandleModifiedEvent_Internal(ERigVMGraphNotifType InNotifTyp
 			if (URigVMPin* ModelPin = Cast<URigVMPin>(InSubject))
 			{
 				if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(FindNodeForModelNodeName(ModelPin->GetNode()->GetFName())))
+				{
+					RigNode->OnNodePinExpansionChanged().Broadcast();
+				}
+			}
+			break;
+		}
+		case ERigVMGraphNotifType::PinCategoryExpansionChanged:
+		{
+			if (URigVMNode* ModelNode = Cast<URigVMNode>(InSubject))
+			{
+				if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(FindNodeForModelNodeName(ModelNode->GetFName())))
 				{
 					RigNode->OnNodePinExpansionChanged().Broadcast();
 				}
@@ -917,6 +985,14 @@ URigVMGraph* URigVMEdGraph::GetModel() const
 		CachedModelGraph = Model;
 		return Model;
 	}
+
+	// for preview scenarios we'll nest the edgraph under the model graph
+	if(URigVMGraph* Model = GetTypedOuter<URigVMGraph>())
+	{
+		CachedModelGraph = Model;
+		return Model;
+	}
+	
 	return nullptr;
 }
 
@@ -926,6 +1002,14 @@ URigVMController* URigVMEdGraph::GetController() const
 	{
 		return Client->GetOrCreateController(GetModel());
 	}
+	
+	// for preview scenarios we'll nest the edgraph under the model graph
+	// and the model graph under the controller
+	if(URigVMController* Controller = GetTypedOuter<URigVMController>())
+	{
+		return Controller;
+	}
+	
 	return nullptr;
 }
 
@@ -943,7 +1027,7 @@ void URigVMEdGraph::AddNode(UEdGraphNode* NodeToAdd, bool bUserAction, bool bSel
 	// Comments are added outside of the ControlRigEditor, so we add here the node to the model
 	if (const UEdGraphNode_Comment* CommentNode = Cast<const UEdGraphNode_Comment>(NodeToAdd))
 	{
-		if (URigVMController* Controller = GetBlueprint()->GetOrCreateController(GetModel()))
+		if (URigVMController* Controller = GetController())
 		{
 			if (GetModel()->FindNodeByName(NodeToAdd->GetFName()) == nullptr) // When recreating nodes at RebuildGraphFromModel, the model node already exists
 			{
@@ -961,7 +1045,7 @@ void URigVMEdGraph::AddNode(UEdGraphNode* NodeToAdd, bool bUserAction, bool bSel
 					GEditor->CancelTransaction(0);
 				}
 #endif // WITH_EDITOR
-				TGuardValue<bool> BlueprintNotifGuard(GetBlueprint()->bSuspendModelNotificationsForOthers, true);
+				TGuardValue<bool> BlueprintNotifGuard(GetRigVMClient()->bSuspendModelNotificationsForOthers, true);
 				FVector2D NodePos(CommentNode->NodePosX, CommentNode->NodePosY);
 				FVector2D NodeSize(CommentNode->NodeWidth, CommentNode->NodeHeight);
 				FLinearColor NodeColor = CommentNode->CommentColor;
@@ -1004,7 +1088,7 @@ void URigVMEdGraph::RemoveNode(UEdGraphNode* InNode)
 		}
 		while (ExistingObject);
 	}
-	InNode->Rename(*DeletedName, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DontCreateRedirectors);	
+	InNode->Rename(*DeletedName, GetTransientPackage(), REN_DontCreateRedirectors);	
 
 	// this also subsequently calls NotifyGraphChanged
 	Super::RemoveNode(InNode);

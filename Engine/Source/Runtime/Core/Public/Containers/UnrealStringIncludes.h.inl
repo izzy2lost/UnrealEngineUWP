@@ -41,5 +41,6 @@
 #include "Traits/IsCharType.h"
 #include "Traits/IsCharEncodingCompatibleWith.h"
 #include "Traits/IsCharEncodingSimplyConvertibleTo.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #include <type_traits>

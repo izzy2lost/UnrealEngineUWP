@@ -39,7 +39,7 @@ namespace UE::NNE
 		 *
 		 * @return A const array view of the shared data.
 		 */
-		TConstArrayView<uint8> GetView() const;
+		TConstArrayView64<uint8> GetView() const;
 
 		/**
 		 * Get the memory alignment with which the data has been aligned.
@@ -90,7 +90,7 @@ public:
 	 * @param Buffer The raw binary file data of the imported model to be copied into this asset.
 	 * @param AdditionalBuffers Additional raw binary data of the model to be copied into this asset.
 	 */
-	void Init(const FString& Type, TConstArrayView<uint8> Buffer, const TMap<FString, TConstArrayView<uint8>>& AdditionalBuffers = TMap<FString, TConstArrayView<uint8>>());
+	void Init(const FString& Type, TConstArrayView64<uint8> Buffer, const TMap<FString, TConstArrayView64<uint8>>& AdditionalBuffers = TMap<FString, TConstArrayView64<uint8>>());
 
 	/**
 	 * In editor: Get the target runtimes this model data will be cooked for. An empty list means all runtimes.
@@ -125,7 +125,7 @@ public:
 	 *
 	 * @return The FileData.
 	 */
-	TConstArrayView<uint8> GetFileData() const;
+	TConstArrayView64<uint8> GetFileData() const;
 
 	/**
 	 * Get read only access to AdditionalFileData.
@@ -135,7 +135,7 @@ public:
 	 *
 	 * @return The AdditionalFileData with a given Key if it exists and an empty view in standalone or when the key does not exist.
 	 */
-	TConstArrayView<uint8> GetAdditionalFileData(const FString& Key) const;
+	TConstArrayView64<uint8> GetAdditionalFileData(const FString& Key) const;
 
 	/**
 	 * Clears the FileData and the FileType.
@@ -185,12 +185,12 @@ private:
 	/**
 	 * The raw binary file data of the imported model.
 	 */
-	TArray<uint8> FileData;
+	TArray64<uint8> FileData;
 
 	/**
 	 * Additional raw binary data of the imported model.
 	 */
-	TMap<FString, TArray<uint8>> AdditionalFileData;
+	TMap<FString, TArray64<uint8>> AdditionalFileData;
 
 	/**
 	 * A Guid that uniquely identifies this model. This is used to cache optimized models in the editor.

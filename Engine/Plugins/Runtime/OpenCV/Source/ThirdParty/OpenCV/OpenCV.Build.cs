@@ -15,6 +15,12 @@ public class OpenCV : ModuleRules
 		
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
+			if (Target.Architecture == UnrealArch.Arm64)
+			{
+				// NOTE: This has intrinsics disabled, NEON was too painful to get compiling without proper support in OpenCV
+				PlatformDir = "WinArm64";
+			}
+
 			PublicSystemIncludePaths.Add(IncPath);
 
 			string LibPath = Path.Combine(ModuleDirectory, "lib", PlatformDir);

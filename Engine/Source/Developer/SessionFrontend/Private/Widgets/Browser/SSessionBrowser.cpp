@@ -10,7 +10,6 @@
 #include "Widgets/Browser/SSessionBrowserTreeInstanceRow.h"
 #include "Widgets/Browser/SSessionBrowserTreeSessionRow.h"
 
-
 #define LOCTEXT_NAMESPACE "SSessionBrowser"
 
 
@@ -50,41 +49,57 @@ void SSessionBrowser::Construct( const FArguments& InArgs, TSharedRef<ISessionMa
 		+ SVerticalBox::Slot()
 		.FillHeight(1.0f)
 		[
-			// session tree
-			SNew(SBorder)
-			.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-			.Padding(0.0f)
+			SNew(SOverlay)
+
+			+ SOverlay::Slot()
 			[
-				SAssignNew(SessionTreeView, STreeView<TSharedPtr<FSessionBrowserTreeItem>>)
-				.ItemHeight(20.0f)
-				.OnExpansionChanged(this, &SSessionBrowser::HandleSessionTreeViewExpansionChanged)
-				.OnGenerateRow(this, &SSessionBrowser::HandleSessionTreeViewGenerateRow)
-				.OnGetChildren(this, &SSessionBrowser::HandleSessionTreeViewGetChildren)
-				.OnSelectionChanged(this, &SSessionBrowser::HandleSessionTreeViewSelectionChanged)
-				.SelectionMode(ESelectionMode::Multi)
-				.TreeItemsSource(&SessionTreeItems)
-				.HeaderRow
-				(
-					SNew(SHeaderRow)
+				// session tree
+				SNew(SBorder)
+				.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+				.Padding(0.0f)
+				[
+					SAssignNew(SessionTreeView, STreeView<TSharedPtr<FSessionBrowserTreeItem>>)
+					.OnExpansionChanged(this, &SSessionBrowser::HandleSessionTreeViewExpansionChanged)
+					.OnGenerateRow(this, &SSessionBrowser::HandleSessionTreeViewGenerateRow)
+					.OnGetChildren(this, &SSessionBrowser::HandleSessionTreeViewGetChildren)
+					.OnSelectionChanged(this, &SSessionBrowser::HandleSessionTreeViewSelectionChanged)
+					.SelectionMode(ESelectionMode::Single)
+					.TreeItemsSource(&SessionTreeItems)
+					.HeaderRow
+					(
+						SNew(SHeaderRow)
 
-					+ SHeaderRow::Column("Name")
-					.DefaultLabel(LOCTEXT("InstanceListNameColumnHeader", "Name"))
-					.FillWidth(0.3f)
+						+ SHeaderRow::Column("Name")
+						.DefaultLabel(LOCTEXT("InstanceListNameColumnHeader", "Name"))
+						.FillWidth(0.4f)
 
-					+ SHeaderRow::Column("Type")
-					.DefaultLabel(LOCTEXT("InstanceListTypeColumnHeader", "Type"))
-					.FillWidth(0.2f)
+						+ SHeaderRow::Column("Type")
+						.DefaultLabel(LOCTEXT("InstanceListTypeColumnHeader", "Type"))
+						.FillWidth(0.15f)
 
-					+ SHeaderRow::Column("Device")
-					.DefaultLabel(LOCTEXT("InstanceListDeviceColumnHeader", "Device"))
-					.FillWidth(0.3f)
+						+ SHeaderRow::Column("Device")
+						.DefaultLabel(LOCTEXT("InstanceListDeviceColumnHeader", "Device"))
+						.FillWidth(0.3f)
 
-					+ SHeaderRow::Column("Status")
-					.DefaultLabel(LOCTEXT("InstanceListStatusColumnHeader", "Status"))
-					.FillWidth(0.2f)
-					.HAlignCell(HAlign_Right)
-					.HAlignHeader(HAlign_Right)
-				)
+						+ SHeaderRow::Column("Status")
+						.DefaultLabel(LOCTEXT("InstanceListStatusColumnHeader", "Status"))
+						.FillWidth(0.15f)
+						.HAlignCell(HAlign_Right)
+						.HAlignHeader(HAlign_Right)
+					)
+				]
+			]
+
+			+ SOverlay::Slot()
+			.VAlign(EVerticalAlignment::VAlign_Bottom)
+			.HAlign(EHorizontalAlignment::HAlign_Left)
+			.Padding(FMargin(3.0f, 0.0f, 3.0f, 5.0f))
+			[
+				SNew(STextBlock)
+				.AutoWrapText(true)
+				.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
+				.Visibility_Lambda([this]() { return ItemMap.Num() < 10 ? EVisibility::Visible : EVisibility::Collapsed; })
+				.Text(LOCTEXT("MessagingInfo", "Sessions must be launched with the \"-messaging\" argument to be visible."))
 			]
 		]
 	];
@@ -117,7 +132,7 @@ END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 void SSessionBrowser::ExpandItem(const TSharedPtr<FSessionBrowserTreeItem>& Item)
 {
-	SessionTreeView->SetSingleExpandedItem(Item);
+	SessionTreeView->SetItemExpansion(Item, true);
 
 	if (Item.IsValid())
 	{
@@ -209,7 +224,7 @@ void SSessionBrowser::FilterSessions()
 	// refresh tree view
 	SessionTreeView->RequestTreeRefresh();
 
-	if ( bCanSetDefaultSelection && SessionTreeView->GetNumItemsSelected() == 0 && ThisAppInstance.IsValid() )
+	if ( bCanSetDefaultSelection && SessionTreeView->GetNumItemsSelected() == 0 && ThisAppInstance.IsValid() && !FApp::GetSessionName().Equals("UnrealInsights"))
 	{
 		bCanSetDefaultSelection = false;
 		SessionTreeView->SetItemSelection(ThisAppInstance.Pin(), true, ESelectInfo::Direct);
@@ -430,11 +445,7 @@ void SSessionBrowser::HandleSessionTreeViewSelectionChanged(const TSharedPtr<FSe
 
 				if (InstanceInfo.IsValid())
 				{
-					// special handling for local application
-					if (Item->GetParent() == AppGroupItem)
-					{
-						SessionManager->SelectSession(InstanceInfo->GetOwnerSession());
-					}
+					SessionManager->SelectSession(InstanceInfo->GetOwnerSession());
 
 					SessionManager->SetInstanceSelected(InstanceInfo.ToSharedRef(), true);
 				}

@@ -198,7 +198,11 @@ void UMoverDebugComponent::DrawTrajectory()
 
 	if (UMoverComponent* MoverComp = GetOwner()->FindComponentByClass<UMoverComponent>())
 	{
-		TArray<FTrajectorySampleInfo> TrajectorySamples = MoverComp->GetFutureTrajectory(LookaheadSeconds, LookaheadSamplesPerSecond);
+		FMoverPredictTrajectoryParams PredictionParams;
+		PredictionParams.NumPredictionSamples = FMath::Max(1, LookaheadSeconds * LookaheadSamplesPerSecond);
+		PredictionParams.SecondsPerSample = LookaheadSeconds / (float)PredictionParams.NumPredictionSamples;
+
+		TArray<FTrajectorySampleInfo> TrajectorySamples = MoverComp->GetPredictedTrajectory(PredictionParams);
 
 		for (int32 i = 0; i < TrajectorySamples.Num() - 1; ++i)
 		{

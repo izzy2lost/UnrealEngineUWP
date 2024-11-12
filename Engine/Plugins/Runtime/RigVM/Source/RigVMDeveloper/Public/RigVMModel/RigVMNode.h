@@ -3,11 +3,11 @@
 #pragma once
 
 #include "RigVMPin.h"
+#include "RigVMTraitDefaultValueStruct.h"
 #include "RigVMCore/RigVM.h"
 #include "RigVMCore/RigVMStruct.h"
-#include "RigVMCore/RigVMDecorator.h"
 #include "RigVMCore/RigVMUserWorkflow.h"
-#include "RigVMCore/RigVMExecuteContext.h"
+#include "RigVMCore/RigVMGraphFunctionDefinition.h"
 #include "UObject/StructOnScope.h"
 #include "RigVMNode.generated.h"
 
@@ -34,6 +34,8 @@ public:
 
 	// Default destructor
 	virtual ~URigVMNode();
+
+	void Serialize(FArchive& Ar) override;
 
 	// Returns the a . separated string containing all of the
 	// names used to reach this Node within the Graph.
@@ -68,10 +70,54 @@ public:
 	UFUNCTION(BlueprintCallable, Category = RigVMNode)
 	TArray<URigVMPin*> GetAllPinsRecursively() const;
 
+	// Returns all user defined categories on this node
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	virtual TArray<FString> GetPinCategories() const;
+
+	// Returns the name of pin category
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	FString GetPinCategoryName(const FString InCategory) const;
+
+	// Returns all sub user defined categories of a given parent category
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	TArray<FString> GetSubPinCategories(const FString InCategory, bool bOnlyExisting = false, bool bRecursive = false) const;
+
+	// Returns the parent pin category of the given category (or an empty string in case there's no parent)
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	FString GetParentPinCategory(const FString InCategory, bool bOnlyExisting = false) const;
+
+	// Returns all parent categories of a given 
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	TArray<FString> GetParentPinCategories(const FString InCategory, bool bOnlyExisting = false, bool bIncludeSelf = false) const;
+
+	// Returns the depth of the category (starting with 0 for "Foo" and 2 for "Foo|Bar|Waldo")
+	static int32 GetPinCategoryDepth(const FString& InCategory);
+
+	// Returns all pins for a given category
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	TArray<URigVMPin*> GetPinsForCategory(FString InCategory) const;
+
+	// Returns all pins for a given category
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	bool IsPinCategoryExpanded(FString InCategory) const;
+
+	const FString& GetLastAffectedPinCategory() const { return LastAffectedPinCategory; }
+
+	// Returns the pin UI layout for this node
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	virtual FRigVMNodeLayout GetNodeLayout(bool bIncludeEmptyCategories = false) const;
+
+	// Returns the default value for a given pin
+	FString GetOriginalPinDefaultValue(const URigVMPin* InPin) const;
+
 	// Returns a Pin given it's partial pin path below
 	// this node (for example: "Color.R")
 	UFUNCTION(BlueprintCallable, Category = RigVMNode)
 	URigVMPin* FindPin(const FString& InPinPath) const;
+
+	// Returns a root pin given its name
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	URigVMPin* FindRootPinByName(const FName& InPinName) const;
 
 	// Returns all of the top-level orphaned Pins of this Node.
 	UFUNCTION(BlueprintCallable, Category = RigVMNode)
@@ -294,27 +340,30 @@ public:
 
 	virtual uint32 GetStructureHash() const;
 
-	UFUNCTION(BlueprintPure, Category = RigVMNode)
-	TArray<URigVMPin*> GetDecoratorPins() const;
-
-	const TArray<FString>& GetDecoratorNames() const { return DecoratorRootPinNames; }
+	// allows the node to support non-native pins
+	virtual bool HasNonNativePins() const { return !TraitRootPinNames.IsEmpty(); }
 
 	UFUNCTION(BlueprintPure, Category = RigVMNode)
-	bool IsDecoratorPin(FName InName) const;
+	TArray<URigVMPin*> GetTraitPins() const;
 
-	bool IsDecoratorPin(const URigVMPin* InDecoratorPin) const;
+	const TArray<FString>& GetTraitNames() const { return TraitRootPinNames; }
 
-	URigVMPin* FindDecorator(const FName& InName) const;
+	UFUNCTION(BlueprintPure, Category = RigVMNode)
+	bool IsTraitPin(FName InName) const;
 
-	URigVMPin* FindDecorator(const URigVMPin* InDecoratorPin) const;
+	bool IsTraitPin(const URigVMPin* InTraitPin) const;
 
-	TSharedPtr<FStructOnScope> GetDecoratorInstance(const FName& InName, bool bUseDefaultValueFromPin = true) const;
+	URigVMPin* FindTrait(const FName& InName, const FString& InSubPinPath = FString()) const;
 
-	TSharedPtr<FStructOnScope> GetDecoratorInstance(const URigVMPin* InDecoratorPin, bool bUseDefaultValueFromPin = true) const;
+	URigVMPin* FindTrait(const URigVMPin* InTraitPin) const;
 
-	UScriptStruct* GetDecoratorScriptStruct(const FName& InName) const;
+	TSharedPtr<FStructOnScope> GetTraitInstance(const FName& InName, bool bUseDefaultValueFromPin = true) const;
 
-	UScriptStruct* GetDecoratorScriptStruct(const URigVMPin* InDecoratorPin) const;
+	TSharedPtr<FStructOnScope> GetTraitInstance(const URigVMPin* InTraitPin, bool bUseDefaultValueFromPin = true) const;
+
+	UScriptStruct* GetTraitScriptStruct(const FName& InName) const;
+
+	UScriptStruct* GetTraitScriptStruct(const URigVMPin* InTraitPin) const;
 	
 	virtual bool IsOutDated() const
 	{
@@ -326,21 +375,38 @@ public:
 		return FString();
 	}
 
+	// returns the display name for a pin
+	virtual FName GetDisplayNameForPin(const FString& InPinPath) const;
+
+	// returns the display name for a struct member
+	static FName GetDisplayNameForStructMember(const UStruct* InStruct, const FString& InPath);
+
+	// returns the display name within a property
+	static FName GetDisplayNameForProperty(const FProperty* InProperty, const FString& InRemainingPath);
+
+	// returns the category for a pin
+	virtual FString GetCategoryForPin(const FString& InPinPath) const;
+
+	// returns the index of a pin within a category
+	virtual int32 GetIndexInCategoryForPin(const FString& InPinPath) const;
+
 private:
 
-	static const FString NodeColorName;
+	static const inline TCHAR* NodeColorName = TEXT("NodeColor");
 
 	bool IsLinkedToRecursive(URigVMPin* InPin, URigVMNode* InNode) const;
 	void GetLinkedNodesRecursive(URigVMPin* InPin, bool bLookForSources, TArray<URigVMNode*>& OutNodes) const;
 
 protected:
 
-	virtual void InvalidateCache() {}
+	virtual void InvalidateCache();
 	virtual TArray<int32> GetInstructionsForVMImpl(const FRigVMExtendedExecuteContext& Context, URigVM* InVM, const FRigVMASTProxy& InProxy = FRigVMASTProxy()) const; 
 	virtual FText GetToolTipTextForPin(const URigVMPin* InPin) const;
 	virtual bool AllowsLinksOn(const URigVMPin* InPin) const { return true; }
 	virtual bool ShouldInputPinComputeLazily(const URigVMPin* InPin) const { return false; }
-	void UpdateDecoratorRootPinNames();
+	virtual FString GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const;
+
+	void UpdateTraitRootPinNames();
 
 	UPROPERTY()
 	FString NodeTitle;
@@ -364,8 +430,13 @@ protected:
 	bool bHaltedAtThisNode;
 
 	UPROPERTY()
-	TArray<FString> DecoratorRootPinNames;
+	TArray<FString> TraitRootPinNames;
 
+	// root trait pin store their default value in a separate property bag so that
+	// things like soft object ptr can be used and tracked in a uproperty 
+	UPROPERTY()
+	TMap<FString, FRigVMTraitDefaultValueStruct> TraitDefaultValues;
+	
 private:
 
 	UPROPERTY()
@@ -373,6 +444,18 @@ private:
 
 	UPROPERTY()
 	TArray<TObjectPtr<URigVMPin>> OrphanedPins;
+
+protected:
+	
+	UPROPERTY()
+	TArray<FString> PinCategories;
+
+	UPROPERTY()
+	TMap<FString, bool> PinCategoryExpansion;
+
+	FString LastAffectedPinCategory;
+	
+private:
 
 #if WITH_EDITOR
 	struct FProfilingCache
@@ -386,6 +469,8 @@ private:
 	mutable TMap<uint32, TSharedPtr<FProfilingCache>> ProfilingCache;
 	static TArray<int32> EmptyInstructionArray;
 #endif
+
+	mutable TMap<FString, FString> CachedOriginalPinDefaultValues;
 	
 	friend class URigVMController;
 	friend class URigVMGraph;
@@ -394,4 +479,3 @@ private:
 	friend class FRigVMLexer;
 	friend class URigVMSchema;
 };
-

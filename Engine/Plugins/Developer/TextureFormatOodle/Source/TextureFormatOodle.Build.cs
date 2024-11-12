@@ -73,7 +73,6 @@ public class TextureFormatOodle : ModuleRules
 		PrivateIncludePathModuleNames.AddRange(new string[]
 		{
 			"CoreUObject",
-			"DerivedDataCache",
 			"Engine",
 			"TargetPlatform",
 			"TextureCompressor",
@@ -82,6 +81,7 @@ public class TextureFormatOodle : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",
+			"DerivedDataCache", // for FCacheBucket
 			"ImageCore",
 			"ImageWrapper",
 			"TextureBuild",

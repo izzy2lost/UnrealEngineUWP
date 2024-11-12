@@ -144,7 +144,22 @@ void FRHIGPUTextureReadback::EnqueueCopy(FRHICommandList& RHICmdList, FRHITextur
 			SCOPED_GPU_MASK(RHICmdList, FRHIGPUMask::FromIndex(GPUIndex));
 
 			// Assume for now that every enqueue happens on a texture of the same format and size (when reused).
-			if (!DestinationStagingTextures[GPUIndex] || DestinationStagingTextures[GPUIndex]->GetDesc().Dimension != SourceTexture->GetDesc().Dimension)
+			bool bNeedTextureCreation = true;
+
+			if (DestinationStagingTextures[GPUIndex])
+			{
+				if (GRHIGlobals.SupportLinearTextureVolumeFormat)
+				{
+					bNeedTextureCreation = DestinationStagingTextures[GPUIndex]->GetDesc().Dimension != SourceTexture->GetDesc().Dimension;
+				}
+				else
+				{
+					// Some platform support only 2d texture for readback, so assuming that if we have a staging texture is always a 2d texture 
+					bNeedTextureCreation = false;
+				}
+			}
+
+			if (bNeedTextureCreation)
 			{
 				FIntVector StagingTextureSize;
 
@@ -164,8 +179,10 @@ void FRHIGPUTextureReadback::EnqueueCopy(FRHICommandList& RHICmdList, FRHITextur
 					.SetExtent(StagingTextureSize.X, StagingTextureSize.Y)
 					.SetFlags(ETextureCreateFlags::CPUReadback | ETextureCreateFlags::HideInVisualizeTexture);
 
-				switch (Desc.Dimension)
+				if (GRHIGlobals.SupportLinearTextureVolumeFormat)
 				{
+					switch (Desc.Dimension)
+					{
 					case ETextureDimension::Texture2DArray:
 					case ETextureDimension::TextureCubeArray:
 						ensureMsgf(Size.Z <= 1, TEXT("Readback for texture arrays supports only one slice at a time. Texture Name: %s, SourcePosition: (%d, %d, %d), SourceSlice: %u, Size: (%d, %d, %d)."),
@@ -175,6 +192,17 @@ void FRHIGPUTextureReadback::EnqueueCopy(FRHICommandList& RHICmdList, FRHITextur
 					case ETextureDimension::Texture3D:
 						Desc.SetDepth(StagingTextureSize.Z);
 						break;
+					}
+				}
+				else
+				{
+					ensureMsgf(Size.Z <= 1, TEXT("Readback for texture arrays/volume texture supports only one slice at a time. Texture Name: %s, SourcePosition: (%d, %d, %d), SourceSlice: %u, Size: (%d, %d, %d)."),
+						*SourceTexture->GetName().ToString(), SourcePosition.X, SourcePosition.Y, SourcePosition.Z, SourceSlice, Size.X, Size.Y, Size.Z);
+
+					// Some platforms only support 2d texture for readback, create a 2d texture staging texture and force the slice size to 1
+					Desc.SetArraySize(1);
+					Desc.SetDepth(1);
+					Desc.SetDimension(ETextureDimension::Texture2D);
 				}
 
 				DestinationStagingTextures[GPUIndex] = RHICmdList.CreateTexture(Desc);

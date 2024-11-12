@@ -47,6 +47,10 @@ class UTextureRenderTarget2DArray : public UTextureRenderTarget
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=TextureRenderTarget2DArray, AssetRegistrySearchable)
 	uint8 bHDR:1;
 
+	/** Whether this render target can be used as an unordered access view */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=TextureRenderTarget2DArray, AssetRegistrySearchable)
+	uint8 bSupportsUAV : 1;
+
 	/** True to force linear gamma space for this render target */
 	UPROPERTY()
 	uint8 bForceLinearGamma:1;
@@ -78,9 +82,7 @@ class UTextureRenderTarget2DArray : public UTextureRenderTarget
 
 	//~ Begin UTexture Interface.
 	virtual float GetSurfaceWidth() const  override { return static_cast<float>(SizeX); }
-	// PVS-Studio notices that the implementation of GetSurfaceWidth is identical to this one
-	// and warns us. In this case, it is intentional, so we disable the warning:
-	virtual float GetSurfaceHeight()const  override { return static_cast<float>(SizeX); }	 //-V524
+	virtual float GetSurfaceHeight()const  override { return static_cast<float>(SizeY); }
 	virtual float GetSurfaceDepth() const override { return 0.0f; }
 	virtual uint32 GetSurfaceArraySize() const override { return Slices; }
 	virtual FTextureResource* CreateResource() override;

@@ -6,9 +6,6 @@
 
 #define LOCTEXT_NAMESPACE "RigVMDispatch_CastEnum"
 
-const FName FRigVMDispatch_CastEnumBase::ValueName = TEXT("Value");
-const FName FRigVMDispatch_CastEnumBase::ResultName = TEXT("Result");
-
 const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_CastEnumToInt::GetArgumentInfos() const
 {
 	static TArray<FRigVMTemplateArgumentInfo> OutInfos;
@@ -19,11 +16,8 @@ const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_CastEnumToInt::GetArgum
 			FRigVMTemplateArgument::ETypeCategory_SingleEnumValue
 		};
 		
-		static TArray<FRigVMTemplateArgumentInfo> Infos;
-		Infos.Emplace(ValueName, ERigVMPinDirection::Input, ElementCategories);
-		Infos.Emplace(ResultName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Int32);
-		
-		OutInfos = BuildArgumentListFromPrimaryArgument(Infos, ValueName);
+		OutInfos.Emplace(ValueName, ERigVMPinDirection::Input, ElementCategories);
+		OutInfos.Emplace(ResultName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Int32);
 	}
 
 	return OutInfos;
@@ -38,18 +32,6 @@ bool FRigVMDispatch_CastEnumToInt::GetPermutationsFromArgumentType(const FName& 
 			{ ValueName, InTypeIndex },
 			{ ResultName, RigVMTypeUtils::TypeIndex::Int32 }
 		});
-	}
-	else if (InArgumentName == ResultName && InTypeIndex == RigVMTypeUtils::TypeIndex::Int32)
-	{
-		const TArray<TRigVMTypeIndex>& EnumTypes = FRigVMRegistry::Get().GetTypesForCategory(FRigVMTemplateArgument::ETypeCategory_SingleEnumValue);
-		for (const TRigVMTypeIndex& Type : EnumTypes)
-		{
-			OutPermutations.Add(
-	{
-				{ ValueName, Type },
-				{ ResultName, InTypeIndex }
-			});
-		}
 	}
 	return !OutPermutations.IsEmpty();
 }
@@ -70,24 +52,40 @@ FText FRigVMDispatch_CastEnumToInt::GetNodeTooltip(const FRigVMTemplateTypeMap& 
 
 void FRigVMDispatch_CastEnumToInt::Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray RigVMBranches)
 {
-	const FEnumProperty* ValueProperty = CastFieldChecked<FEnumProperty>(Handles[0].GetProperty());
+	const FProperty* ValueProperty = CastFieldChecked<FProperty>(Handles[0].GetProperty());
 	const FProperty* ResultProperty = CastFieldChecked<FProperty>(Handles[1].GetProperty());
-
 	if (!ResultProperty || !ValueProperty)
 	{
 		return;
 	}
 
-	uint8* ValuePtr = Handles[0].GetData();
+	const uint8* ValuePtr = Handles[0].GetData();
 	int32* ResultPtr = (int32*)Handles[1].GetData();
-
 	if (ValuePtr == nullptr || ResultPtr == nullptr)
 	{
 		return;
 	}
 	
-	*ResultPtr = 0;
-	ValueProperty->CopyCompleteValue(ResultPtr, ValuePtr);
+	const FNumericProperty* NumericProperty = nullptr;
+	if(const FEnumProperty* EnumProperty = CastField<FEnumProperty>(ValueProperty))
+	{
+		NumericProperty = EnumProperty->GetUnderlyingProperty();
+	}
+	else if(const FByteProperty* ByteProperty = CastField<FByteProperty>(ValueProperty))
+	{
+		NumericProperty = ByteProperty;
+	}
+
+	if(NumericProperty == nullptr)
+	{
+		*ResultPtr = 0;
+		checkNoEntry();
+		return;
+	}
+	check(NumericProperty->IsInteger())
+
+	const int64 Value = NumericProperty->GetSignedIntPropertyValue(ValuePtr);
+	*ResultPtr = (int32)Value;
 
 #if WITH_EDITOR
 	if (*ResultPtr == INDEX_NONE)
@@ -113,11 +111,8 @@ const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_CastIntToEnum::GetArgum
 			FRigVMTemplateArgument::ETypeCategory_SingleEnumValue
 		};
 		
-		static TArray<FRigVMTemplateArgumentInfo> Infos;
-		Infos.Emplace(ValueName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::Int32);
-		Infos.Emplace(ResultName, ERigVMPinDirection::Output, ElementCategories);
-		
-		OutInfos = BuildArgumentListFromPrimaryArgument(Infos, ResultName);
+		OutInfos.Emplace(ValueName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::Int32);
+		OutInfos.Emplace(ResultName, ERigVMPinDirection::Output, ElementCategories);
 	}
 
 	return OutInfos;
@@ -132,18 +127,6 @@ bool FRigVMDispatch_CastIntToEnum::GetPermutationsFromArgumentType(const FName& 
 			{ ValueName, RigVMTypeUtils::TypeIndex::Int32 },
 			{ ResultName, InTypeIndex }
 		});
-	}
-	else if (InArgumentName == ValueName && InTypeIndex == RigVMTypeUtils::TypeIndex::Int32)
-	{
-		const TArray<TRigVMTypeIndex>& EnumTypes = FRigVMRegistry::Get().GetTypesForCategory(FRigVMTemplateArgument::ETypeCategory_SingleEnumValue);
-		for (const TRigVMTypeIndex& Type : EnumTypes)
-		{
-			OutPermutations.Add(
-	{
-				{ ValueName, InTypeIndex },
-				{ ResultName, Type }
-			});
-		}
 	}
 	return !OutPermutations.IsEmpty();
 }
@@ -165,23 +148,39 @@ FText FRigVMDispatch_CastIntToEnum::GetNodeTooltip(const FRigVMTemplateTypeMap& 
 void FRigVMDispatch_CastIntToEnum::Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray RigVMBranches)
 {
 	const FProperty* ValueProperty = CastFieldChecked<FProperty>(Handles[0].GetProperty());
-	const FEnumProperty* ResultProperty = CastFieldChecked<FEnumProperty>(Handles[1].GetProperty());
-
+	const FProperty* ResultProperty = CastFieldChecked<FProperty>(Handles[1].GetProperty());
 	if (!ResultProperty || !ValueProperty)
 	{
 		return;
 	}
 
-	int32* ValuePtr = (int32*)Handles[0].GetData();
+	const int32* ValuePtr = (int32*)Handles[0].GetData();
 	uint8* ResultPtr = Handles[1].GetData();
-
 	if (ValuePtr == nullptr || ResultPtr == nullptr)
 	{
 		return;
 	}
-	
-	*ResultPtr = 0;
-	ResultProperty->CopyCompleteValue(ResultPtr, ValuePtr);
+
+	const FNumericProperty* NumericProperty = nullptr;
+	if(const FEnumProperty* EnumProperty = CastField<FEnumProperty>(ResultProperty))
+	{
+		NumericProperty = EnumProperty->GetUnderlyingProperty();
+	}
+	else if(const FByteProperty* ByteProperty = CastField<FByteProperty>(ResultProperty))
+	{
+		NumericProperty = ByteProperty;
+	}
+
+	if(NumericProperty == nullptr)
+	{
+		*ResultPtr = 0;
+		checkNoEntry();
+		return;
+	}
+	check(NumericProperty->IsInteger());
+
+	const int64 Value = (int32)*ValuePtr;
+	NumericProperty->SetIntPropertyValue(ResultPtr, Value);
 	
 #if WITH_EDITOR
 	if (*ResultPtr == INDEX_NONE)

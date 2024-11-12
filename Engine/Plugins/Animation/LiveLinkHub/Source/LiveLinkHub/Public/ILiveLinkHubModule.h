@@ -7,7 +7,11 @@
 class LIVELINKHUB_API ILiveLinkHubModule : public IModuleInterface
 {
 public:
+	virtual void PreinitializeLiveLinkHub() = 0;
+
 	/** Launch the slate application hosting the live link hub. */
-	virtual void StartLiveLinkHub() = 0;
+	virtual void StartLiveLinkHub(bool bLauncherDistribution = false) = 0;
+
+	virtual void ShutdownLiveLinkHub() = 0;
 };
 

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -109,10 +109,6 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Type")
 	FString DefaultValue;
 
-	/** Associated model, if any. */
-	UPROPERTY(VisibleAnywhere, Category = "Type")
-	TSoftObjectPtr<UWebAPIModelBase> Model;
-
 	/** Module dependencies for this type. */
 	UPROPERTY(VisibleAnywhere, Category = "Type")
 	TSet<FString> Modules = { TEXT("Core") };
@@ -157,13 +153,27 @@ public:
 	/** Set's this type as nested, using the provided Type as ContainingType. */
 	void SetNested(const FWebAPITypeNameVariant& InNester);
 
+	/** Get the (mutable) Model. Will return nullptr if not set. */
+	UObject* GetModel() const;
+
+	/** Set's the Model. */
+	template <
+		typename ModelType
+		UE_REQUIRES(
+			std::is_base_of_v<UObject, std::decay_t<ModelType>>
+			&& std::is_base_of_v<IWebAPISchemaObjectInterface, std::decay_t<ModelType>>)>
+	void SetModel(const ModelType* InModel)
+	{
+		Model = const_cast<UObject*>(static_cast<const UObject*>(InModel));
+	}
+
 #if WITH_EDITOR
 	/** 
 	 * @return		Returns Valid if this object has data validation rules set up for it and the data for this object is valid. Returns Invalid if it does not pass the rules. Returns NotValidated if no rules are set for this object.
 	 */
 	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
 #endif // WITH_EDITOR
-	
+
 	/** Comparisons. */
 	friend bool operator==(const UWebAPITypeInfo& A, const UWebAPITypeInfo& B);
 
@@ -171,4 +181,9 @@ public:
 	{
 		return !(A == B);
 	}
+
+private:
+	/** Associated model, if any. */
+	UPROPERTY(VisibleAnywhere, Category = "Type", meta = (MustImplement = "/Script/WebAPIEditor.WebAPISchemaObjectInterface"))
+	TSoftObjectPtr<UObject> Model;
 };

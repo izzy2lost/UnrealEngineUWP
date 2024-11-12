@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
-using UnrealBuildBase;
 
 namespace UnrealBuildTool
 {
@@ -114,6 +114,11 @@ namespace UnrealBuildTool
 					{
 						logger.LogError("Plugin '{PluginName}' cannot depend on plugin '{DependencyPluginName}' because it is disallowed.", Name, dependencyPlugin.Name);
 						anyErrors = true;
+					}
+					else if (!String.IsNullOrEmpty(dependencyPlugin.Descriptor.DeprecatedEngineVersion))
+					{
+						logger.LogWarning("Plugin '{PluginName}' depends on plugin '{DependencyPluginName}' which was deprecated in {EngineVersion} and will soon be removed. Please update your dependencies.",
+							Name, dependencyPlugin.Name, dependencyPlugin.Descriptor.DeprecatedEngineVersion);
 					}
 				}
 			}

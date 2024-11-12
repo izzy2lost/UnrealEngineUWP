@@ -259,7 +259,7 @@ class ISpatialAcceleration;
 template<ESpatialAcceleration SpatialType, typename TPayloadType, typename T, int d>
 struct TSpatialAccelerationSerializationFactory
 {
-	static ISpatialAcceleration<TPayloadType, T, d>* Create();
+	static CHAOS_API ISpatialAcceleration<TPayloadType, T, d>* Create();
 };
 
 template <typename TPayloadType, typename T, int d>
@@ -271,7 +271,7 @@ public:
 	using TPayload = TPayloadType;
 
 	ISpatialAcceleration(SpatialAccelerationType InType = static_cast<SpatialAccelerationType>(ESpatialAcceleration::Unknown))
-		: Type(InType), SyncTimestamp(0), AsyncTimeSlicingComplete(true)
+		: SyncTimestamp(0), AsyncTimeSlicingComplete(true), Type(InType)
 	{}
 
 	ISpatialAcceleration(ESpatialAcceleration InType)
@@ -413,9 +413,9 @@ protected:
 	virtual void SetAsyncTimeSlicingComplete(bool InState) { AsyncTimeSlicingComplete = InState; }
 
 private:
-	SpatialAccelerationType Type;
 	int32 SyncTimestamp;	//The set of inputs the acceleration structure is in sync with. GT moves forward in time and enqueues inputs
 	bool AsyncTimeSlicingComplete;
+	SpatialAccelerationType Type;
 };
 
 template <typename TBase, typename TDerived>
@@ -908,14 +908,14 @@ public:
 				if(Index == BackIndex)
 				{
 					// If we're already the back element, there's nothing to re-add
-					Elements.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					Elements.RemoveAtSwap(Index, EAllowShrinking::No);
 				}
 				else
 				{
 					PairType& BackPair = Elements[NumElems - 1];
 					const uint32 BackHash = MurmurFinalize32(GetUniqueIdx(BackPair.Key).Idx);
 					HashTable.Remove(BackHash, NumElems - 1);
-					Elements.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					Elements.RemoveAtSwap(Index, EAllowShrinking::No);
 					HashTable.Add(BackHash, Index);
 				}
 			}
@@ -1020,12 +1020,14 @@ FORCEINLINE bool PrePreFilterHelper(const int32 Payload, const TVisitor& Visitor
 	return false;
 }
 
-#if PLATFORM_MAC || PLATFORM_LINUX
+#if !IS_MERGEDMODULES
+#if PLATFORM_COMPILER_CLANG
 extern template class CHAOS_API ISpatialAcceleration<int32, FReal, 3>;
 extern template class CHAOS_API ISpatialVisitor<int32, FReal>;
 #else
 extern template class ISpatialAcceleration<int32, FReal, 3>;
 extern template class ISpatialVisitor<int32, FReal>;
+#endif
 #endif
 
 }

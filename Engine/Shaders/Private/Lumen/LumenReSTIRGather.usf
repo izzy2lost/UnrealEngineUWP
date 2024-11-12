@@ -266,6 +266,9 @@ Texture2D<UNORM float3> DownsampledNormalHistory;
 #include "LumenHardwareRayTracingCommon.ush"
 
 RaytracingAccelerationStructure TLAS;
+float MaxRayIntensity;
+float MaxTraceDistance;
+int ApplySkyLight;
 
 RAY_TRACING_ENTRY_RAYGEN(LumenValidateReservoirsRGS)
 {
@@ -311,16 +314,21 @@ RAY_TRACING_ENTRY_RAYGEN(LumenValidateReservoirsRGS)
 		const uint CullingMode = 0;
 		//@todo - use ReservoirCoord?
 		uint LinearCoord = ScreenCoord.y * View.BufferSizeAndInvSize.x + ScreenCoord.x;
-		const bool bHiResSurface = false;
-		FRayTracedLightingContext Context = CreateRayTracedLightingContext(RayCone, ScreenCoord, LinearCoord, CullingMode, /* MaxTraversalIterations */8192, bHiResSurface);
+
+		FRayTracedLightingContext Context = CreateRayTracedLightingContext(
+			RayCone,
+			ScreenCoord,
+			LinearCoord,
+			CullingMode,
+			/* MaxTraversalIterations */8192,
+			/*MeshSectionVisibilityTest*/ true);
 
 		FRayTracedLightingResult Result = CreateRayTracedLightingResult();
 
 #if HIT_LIGHTING
-		int LightingMode = EVALUATE_MATERIAL_AND_DIRECT_LIGHTING;
-		Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context, LightingMode, false);
+		Context.HitLightingShadowMaxTraceDistance = MaxTraceDistance;
+		Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context);
 #else
-		int LightingMode = LIGHTING_FROM_SURFACE_CACHE;
 		Result = TraceAndCalculateRayTracedLightingFromSurfaceCache(TLAS, Ray, Context);
 #endif
 		
@@ -373,10 +381,7 @@ RAY_TRACING_ENTRY_RAYGEN(LumenValidateReservoirsRGS)
 RWTexture2D<float> RWDownsampledSceneDepth;
 RWTexture2D<UNORM float3> RWDownsampledWorldNormal;
 
-float MaxTraceDistance;
 float PullbackBias;
-int ApplySkyLight;
-float MaxRayIntensity;
 
 RAY_TRACING_ENTRY_RAYGEN(LumenInitialSamplingRGS)
 {
@@ -416,16 +421,21 @@ RAY_TRACING_ENTRY_RAYGEN(LumenInitialSamplingRGS)
 		const uint CullingMode = 0;
 		//@todo - use ReservoirCoord?
 		uint LinearCoord = ScreenCoord.y * View.BufferSizeAndInvSize.x + ScreenCoord.x;
-		const bool bHiResSurface = false;
-		FRayTracedLightingContext Context = CreateRayTracedLightingContext(RayCone, ScreenCoord, LinearCoord, CullingMode, /* MaxTraversalIterations */8192, bHiResSurface);
+
+		FRayTracedLightingContext Context = CreateRayTracedLightingContext(
+			RayCone,
+			ScreenCoord,
+			LinearCoord,
+			CullingMode,
+			/* MaxTraversalIterations */8192,
+			/*MeshSectionVisibilityTest*/ true);
 
 		FRayTracedLightingResult Result = CreateRayTracedLightingResult();
 
 		#if HIT_LIGHTING
-			int LightingMode = EVALUATE_MATERIAL_AND_DIRECT_LIGHTING;
-			Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context, LightingMode, false);
+			Context.HitLightingShadowMaxTraceDistance = MaxTraceDistance;
+			Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context);
 		#else
-			int LightingMode = LIGHTING_FROM_SURFACE_CACHE;
 			Result = TraceAndCalculateRayTracedLightingFromSurfaceCache(TLAS, Ray, Context);
 		#endif
 		
@@ -494,6 +504,7 @@ RWTexture2D<float4> RWTemporalReservoirRayDirection;
 RWTexture2D<float> RWTemporalReservoirTraceHitDistance;
 RWTexture2D<UNORM float3> RWTemporalReservoirTraceHitNormal;
 
+#ifdef ClearTemporalHistoryCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void ClearTemporalHistoryCS(
 	uint2 DispatchThreadId : SV_DispatchThreadID)
@@ -523,6 +534,7 @@ void ClearTemporalHistoryCS(
 			RWTemporalReservoirWeights);
 	}
 }
+#endif
 
 // The Jacobian determinant of the transform from the neighbor sample to ourself transforms the neighbor's PDF to our own solid angle space
 // Equation 11 in ReSTIR GI paper
@@ -581,6 +593,7 @@ Texture2D<UNORM float3> DownsampledWorldNormal;
 float4 HistoryUVMinMax;
 float HistoryDistanceThreshold;
 
+#ifdef TemporalResamplingCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void TemporalResamplingCS(
 	uint2 DispatchThreadId : SV_DispatchThreadID)
@@ -714,6 +727,7 @@ void TemporalResamplingCS(
 		RWReservoirRayDirection[ReservoirCoord] = 0;
 	}
 }
+#endif
 
 // Returns distance along ray that the first hit occurred, or negative on miss
 float ScreenShadowRayCast(
@@ -780,6 +794,7 @@ uint NumSpatialSamples;
 uint SpatialResamplingPassIndex;
 float SpatialResamplingOcclusionScreenTraceDistance;
 
+#ifdef SpatialResamplingCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void SpatialResamplingCS(
 	uint2 DispatchThreadId : SV_DispatchThreadID)
@@ -899,6 +914,7 @@ void SpatialResamplingCS(
 		RWReservoirRayDirection[ReservoirCoord] = 0;
 	}
 }
+#endif
 
 struct FScreenProbeSample
 {
@@ -969,18 +985,12 @@ void CalculateUniformUpsampleInterpolationWeights(
 	ScreenProbeSample.AtlasCoord[3] = ScreenTileCoord00 + uint2(1, 1);
 }
 
-float Luma(float3 Color) 
-{
-	// Rec 709 function for luma.
-	return dot(Color, float3(0.2126f, 0.7152f, 0.0722f));
-}
-
 #define TONEMAP_WEIGHTING_ROUGH_SPECULAR 1
 
 float3 TonemapLightingForRoughSpecular(float3 Lighting)
 {
 #if TONEMAP_WEIGHTING_ROUGH_SPECULAR
-	return Lighting / (1.0f + Luma(Lighting));
+	return Lighting / (1.0f + Luminance(Lighting));
 #else
 	return Lighting;
 #endif
@@ -989,7 +999,7 @@ float3 TonemapLightingForRoughSpecular(float3 Lighting)
 float3 InverseTonemapLightingForRoughSpecular(float3 TonemappedLighting)
 {
 #if TONEMAP_WEIGHTING_ROUGH_SPECULAR
-	return TonemappedLighting / (1.0f - Luma(TonemappedLighting));
+	return TonemappedLighting / (1.0f - Luminance(TonemappedLighting));
 #else
 	return TonemappedLighting;
 #endif
@@ -1008,6 +1018,7 @@ uint UpsampleNumSamples;
 
 const static float DisocclusionVariance = 1.0f;
 
+#ifdef UpsampleAndIntegrateCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void UpsampleAndIntegrateCS(
 	uint2 DispatchThreadId : SV_DispatchThreadID)
@@ -1104,7 +1115,7 @@ void UpsampleAndIntegrateCS(
 						//https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Weighted_incremental_algorithm
 						float Weight = ScreenProbeSample.Weights[SampleIndex];
 						TotalWeight += Weight;
-						float LumaSampleRadiance = Luma(SampleLighting);
+						float LumaSampleRadiance = Luminance(SampleLighting);
 						float OldMean = Mean;
 						Mean += Weight / TotalWeight * (LumaSampleRadiance - OldMean);
 						S += Weight * (LumaSampleRadiance - OldMean) * (LumaSampleRadiance - Mean);
@@ -1169,7 +1180,7 @@ void UpsampleAndIntegrateCS(
 
 					#if USE_BILATERAL_FILTER
 						//https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Weighted_incremental_algorithm
-						float LumaSampleRadiance = Luma(SampleLighting);
+						float LumaSampleRadiance = Luminance(SampleLighting);
 						float OldMean = Mean;
 						Mean += Weight / TotalWeight * (LumaSampleRadiance - OldMean);
 						S += Weight * (LumaSampleRadiance - OldMean) * (LumaSampleRadiance - Mean);
@@ -1230,8 +1241,9 @@ void UpsampleAndIntegrateCS(
 		}
 	}
 }
+#endif
 
-RWTexture2DArray<float3> RWNewHistoryDiffuseIndirect;
+RWTexture2DArray<float4> RWNewHistoryDiffuseIndirect;
 RWTexture2DArray<float3> RWNewHistoryRoughSpecularIndirect;
 RWTexture2DArray<UNORM float> RWNumHistoryFramesAccumulated;
 
@@ -1367,6 +1379,7 @@ FLumenMaterialCoord GetLumenMaterialCoordForReSTIRGather(uint2 DispatchThreadId,
 	return GetLumenMaterialCoord(DispatchThreadId + View.ViewRectMinAndSize.xy, false);
 }
 
+#ifdef TemporalAccumulationCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void TemporalAccumulationCS( 
 	uint2 DispatchThreadId : SV_DispatchThreadID)
@@ -1494,7 +1507,7 @@ void TemporalAccumulationCS(
 	OutDiffuseIndirect.rgb = -min(-OutDiffuseIndirect.rgb, 0.0f);
 	OutRoughSpecularIndirect.rgb = -min(-OutRoughSpecularIndirect.rgb, 0.0f);
 
-	RWNewHistoryDiffuseIndirect[Coord.SvPositionFlatten] = OutDiffuseIndirect;
+	RWNewHistoryDiffuseIndirect[Coord.SvPositionFlatten] = float4(OutDiffuseIndirect, 0.0f);
 	RWNewHistoryRoughSpecularIndirect[Coord.SvPositionFlatten] = OutRoughSpecularIndirect;
 	RWNumHistoryFramesAccumulated[Coord.SvPositionFlatten] = NewNumFramesAccumulated / MaxFramesAccumulated;
 
@@ -1513,13 +1526,14 @@ void TemporalAccumulationCS(
 	RWResolveVariance[Coord.SvPositionFlatten] = AccumulatedResolveVariance;
 #endif
 }
+#endif
 
 #define TONEMAP_WEIGHTING_BILATERAL 1
 
 float3 TonemapLightingForBilateral(float3 Lighting)
 {
 #if TONEMAP_WEIGHTING_BILATERAL
-	return Lighting / (1.0f + Luma(Lighting));
+	return Lighting / (1.0f + Luminance(Lighting));
 #else
 	return Lighting;
 #endif
@@ -1528,7 +1542,7 @@ float3 TonemapLightingForBilateral(float3 Lighting)
 float3 InverseTonemapLightingForBilateral(float3 TonemappedLighting)
 {
 #if TONEMAP_WEIGHTING_BILATERAL
-	return TonemappedLighting / (1.0f - Luma(TonemappedLighting));
+	return TonemappedLighting / (1.0f - Luminance(TonemappedLighting));
 #else
 	return TonemappedLighting;
 #endif
@@ -1540,6 +1554,7 @@ float BilateralFilterDepthWeightScale;
 float BilateralFilterNormalAngleThresholdScale;
 float BilateralFilterStrongBlurVarianceThreshold;
 
+#ifdef BilateralFilterCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void BilateralFilterCS(
 	uint2 DispatchThreadId : SV_DispatchThreadID)
@@ -1632,3 +1647,4 @@ void BilateralFilterCS(
 	RWDiffuseIndirect[Coord.SvPositionFlatten] = OutDiffuseIndirect;
 	RWRoughSpecularIndirect[Coord.SvPositionFlatten] = OutRoughSpecularIndirect;
 }
+#endif

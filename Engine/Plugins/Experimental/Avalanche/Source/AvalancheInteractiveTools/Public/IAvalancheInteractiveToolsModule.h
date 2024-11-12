@@ -27,7 +27,7 @@ struct FAvaInteractiveToolsToolParameters
 	int32 Priority = 0;
 	FAvalancheInteractiveToolsCreateBuilder CreateBuilder;
 	TSubclassOf<AActor> FactoryClass = nullptr;
-	UActorFactory* Factory = nullptr;
+	TObjectPtr<UActorFactory> Factory = nullptr;
 	TMap<FName, TSharedRef<FAvaInteractiveToolsToolPresetBase>> Presets;
 };
 

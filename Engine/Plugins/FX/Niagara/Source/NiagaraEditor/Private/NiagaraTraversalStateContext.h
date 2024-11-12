@@ -10,15 +10,21 @@ class FNiagaraCompilationNodeEmitter;
 class FNiagaraCompilationNodeFunctionCall;
 class FNiagaraFixedConstantResolver;
 
+#define WITH_NIAGARA_TRAVERSAL_FRIENDLY_NAME (UE_BUILD_DEBUG)
+
 struct FNiagaraTraversalStackEntry
 {
 	FGuid NodeGuid;
-	uint32 FullStackHash;
+	FGuid FullStackHash;
+#if WITH_NIAGARA_TRAVERSAL_FRIENDLY_NAME
 	FString FriendlyName;
+#endif
 };
 
 struct FNiagaraTraversalStateContext
 {
+	void BeginContext(const FNiagaraCompilationGraph* ParentGraph, const FNiagaraFixedConstantResolver& ConstantResolver);
+
 	void PushFunction(const FNiagaraCompilationNodeFunctionCall* FunctionCall, const FNiagaraFixedConstantResolver& ConstantResolver);
 	void PopFunction(const FNiagaraCompilationNodeFunctionCall* FunctionCall);
 
@@ -29,11 +35,15 @@ struct FNiagaraTraversalStateContext
 	bool GetFunctionDefaultValue(const FGuid& NodeGuid, FName PinName, FString& FunctionDefaultValue) const;
 	bool GetFunctionDebugState(const FGuid& NodeGuid, ENiagaraFunctionDebugState& DebugState) const;
 
+	bool GetCurrentDebugState(ENiagaraFunctionDebugState& DebugState) const;
+
 	TArray<FNiagaraTraversalStackEntry> TraversalStack;
 
-	TMap<uint32, int32> StaticSwitchValueMap;
-	TMap<uint32, FString> FunctionDefaultValueMap;
-	TMap<uint32, ENiagaraFunctionDebugState> FunctionDebugStateMap;
+	using FFunctionDefaultValueMapKey = TTuple<FGuid /*Traversal stack guid*/, FName /*PinName*/>;
+
+	TMap<FGuid, int32> StaticSwitchValueMap;
+	TMap<FFunctionDefaultValueMapKey, FString> FunctionDefaultValueMap;
+	TMap<FGuid, ENiagaraFunctionDebugState> FunctionDebugStateMap;
 
 protected:
 	void PushGraphInternal(const FNiagaraCompilationNode* CallingNode, const FNiagaraCompilationGraph* Graph, const FNiagaraFixedConstantResolver& ConstantResolver);

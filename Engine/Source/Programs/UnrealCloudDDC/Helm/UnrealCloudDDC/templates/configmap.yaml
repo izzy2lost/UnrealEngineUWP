@@ -41,8 +41,12 @@ UnrealCloudDDC:
   EnableBucketStatsTracking: {{ $config.EnableBucketStatsTracking }}
 {{- end }}
 
-{{- if hasKey $config "EnablePutRefBodyIntoBlobStore" }}
-  EnablePutRefBodyIntoBlobStore: {{ $config.EnablePutRefBodyIntoBlobStore }}
+{{- if hasKey $config "EnableForceSubmitRefBlobToBlobStore" }}
+  EnableForceSubmitRefBlobToBlobStore: {{ $config.EnableForceSubmitRefBlobToBlobStore }}
+{{- end }}
+
+{{- if hasKey $config "EnableInlineSmallBlobs" }}
+  EnableInlineSmallBlobs: {{ $config.EnableInlineSmallBlobs }}
 {{- end }}
 
 {{ if $config.StorageImplementations }}
@@ -70,6 +74,11 @@ UnrealCloudDDC:
 {{- if $config.Jupiter }}
 Jupiter: 
 {{ $config.Jupiter | toYaml | nindent 2 }}
+{{- end }}
+
+{{- if $config.Debug }}
+Debug: 
+{{ $config.Debug | toYaml | nindent 2 }}
 {{- end }}
 
 {{ if .Values.nginx.useDomainSockets }}
@@ -152,6 +161,11 @@ Serilog:
 {{- if $config.CacheRef }}
 CacheRef:
 {{ $config.CacheRef | toYaml | nindent 2 }}
+{{- end }}
+
+{{- if $config.Symbols }}
+Symbols:
+{{ $config.Symbols | toYaml | nindent 2 }}
 {{- end }}
 
 {{- if and (.Values.global.cloudProvider) (eq .Values.global.cloudProvider "Azure") }}

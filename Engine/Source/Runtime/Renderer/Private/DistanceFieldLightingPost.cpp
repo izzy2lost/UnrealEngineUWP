@@ -241,7 +241,7 @@ void GeometryAwareUpsample(FRDGBuilder& GraphBuilder, const FViewInfo& View, FRD
 		RDG_EVENT_NAME("GeometryAwareUpsample"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[PassParameters, VertexShader, PixelShader, &View](FRHICommandList& RHICmdList)
+		[PassParameters, VertexShader, PixelShader, &View](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		const FIntPoint AOBufferSize = GetBufferSizeForAO(View);
 		const FIntPoint AOViewSize = View.ViewRect.Size() / GAODownsampleFactor;
@@ -390,7 +390,7 @@ void UpdateHistory(
 					PassParameters,
 					ERDGPassFlags::Raster,
 					[PassParameters, VertexShader, PixelShader, &View, AOBufferSize, AOViewSize]
-					(FRHICommandList& RHICmdList)
+					(FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					RHICmdList.SetViewport(0, 0, 0.0f, AOViewSize.X, AOViewSize.Y, 1.0f);
 
@@ -461,7 +461,7 @@ void UpdateHistory(
 					PassParameters,
 					ERDGPassFlags::Raster,
 					[PassParameters, VertexShader, PixelShader, &View, AOBufferSize, AOViewSize]
-					(FRHICommandList& RHICmdList)
+					(FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					RHICmdList.SetViewport(0, 0, 0.0f, AOViewSize.X, AOViewSize.Y, 1.0f);
 
@@ -583,7 +583,7 @@ void UpsampleBentNormalAO(
 		RDG_EVENT_NAME("UpsampleAO"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[VertexShader, PixelShader, PassParameters, &View, DistanceFieldAOBentNormal, bModulateSceneColor](FRHICommandList& RHICmdList)
+		[VertexShader, PixelShader, PassParameters, &View, DistanceFieldAOBentNormal, bModulateSceneColor](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 

@@ -28,6 +28,7 @@ namespace PCGPointDataConstants
 struct PCG_API FPCGPointRef
 {
 	FPCGPointRef(const FPCGPoint& InPoint);
+	FPCGPointRef(const FPCGPoint& InPoint, const FBox& InBoundsOverride);
 
 	const FPCGPoint* Point;
 	FBoxSphereBounds Bounds;
@@ -88,7 +89,7 @@ public:
 	virtual bool ProjectPoint(const FTransform& InTransform, const FBox& InBounds, const FPCGProjectionParams& InParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const override;
 
 protected:
-	virtual UPCGSpatialData* CopyInternal() const override;
+	virtual UPCGSpatialData* CopyInternal(FPCGContext* Context) const override;
 	// ~End UPCGSpatialData interface
 
 public:
@@ -105,11 +106,17 @@ public:
 	TArray<FPCGPoint> GetPointsCopy() const { return Points; }
 
 	UFUNCTION(BlueprintCallable, Category = SpatialData)
+	int32 GetNumPoints() const { return Points.Num(); }
+
+	UFUNCTION(BlueprintCallable, Category = SpatialData)
+	bool IsEmpty() const { return Points.IsEmpty(); }
+
+	UFUNCTION(BlueprintCallable, Category = SpatialData)
 	FPCGPoint GetPoint(int32 Index) const;
 
 	UFUNCTION(BlueprintCallable, Category = SpatialData)
 	void SetPoints(const TArray<FPCGPoint>& InPoints);
-	
+
 	UFUNCTION(BlueprintCallable, Category = SpatialData)
 	void CopyPointsFrom(const UPCGPointData* InData, const TArray<int>& InDataIndices);
 
@@ -138,7 +145,3 @@ protected:
 	mutable bool bBoundsAreDirty = true;
 	mutable bool bOctreeIsDirty = true;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

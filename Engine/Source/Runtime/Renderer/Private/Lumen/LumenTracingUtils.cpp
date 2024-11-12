@@ -82,6 +82,16 @@ void GetLumenCardTracingParameters(
 	TracingParameters.DirectLightingAtlas = FrameTemporaries.DirectLightingAtlas ? FrameTemporaries.DirectLightingAtlas : GSystemTextures.GetBlackDummy(GraphBuilder);
 	TracingParameters.IndirectLightingAtlas = FrameTemporaries.IndirectLightingAtlas ? FrameTemporaries.IndirectLightingAtlas : GSystemTextures.GetBlackDummy(GraphBuilder);
 	TracingParameters.FinalLightingAtlas = FrameTemporaries.FinalLightingAtlas ? FrameTemporaries.FinalLightingAtlas : GSystemTextures.GetBlackDummy(GraphBuilder);
+	if (FrameTemporaries.TileShadowDownsampleFactorAtlas)
+	{
+		TracingParameters.TileShadowDownsampleFactorAtlasForResampling = GraphBuilder.CreateSRV(FrameTemporaries.TileShadowDownsampleFactorAtlas, PF_R32G32B32A32_UINT);
+	}
+	else
+	{
+		FRDGBufferRef DummyBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 4), TEXT("Lumen.DummyTileShadowDownsampleFactorAtlas"));
+		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(DummyBuffer, PF_R32G32B32A32_UINT), 0);
+		TracingParameters.TileShadowDownsampleFactorAtlasForResampling = GraphBuilder.CreateSRV(DummyBuffer, PF_R32G32B32A32_UINT);
+	}
 	TracingParameters.AlbedoAtlas = FrameTemporaries.AlbedoAtlas ? FrameTemporaries.AlbedoAtlas : GSystemTextures.GetBlackDummy(GraphBuilder);
 	TracingParameters.OpacityAtlas = FrameTemporaries.OpacityAtlas ? FrameTemporaries.OpacityAtlas : GSystemTextures.GetBlackDummy(GraphBuilder);
 	TracingParameters.NormalAtlas = FrameTemporaries.NormalAtlas ? FrameTemporaries.NormalAtlas : GSystemTextures.GetBlackDummy(GraphBuilder);

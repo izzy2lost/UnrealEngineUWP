@@ -5,7 +5,10 @@
 #include "ConsoleVariablesEditorModule.h"
 #include "MultiUser/ConsoleVariableSync.h"
 #include "Views/List/ConsoleVariablesEditorList.h"
+#include "ConsoleVariablesEditorProjectSettings.h"
+
 #include "Widgets/SWidget.h"
+
 
 class FConsoleVariablesEditorList;
 class SConsoleVariablesEditorMainPanel;
@@ -55,7 +58,7 @@ public:
 	void SaveSpecificPreset(const TObjectPtr<UConsoleVariablesAsset> InPreset) const;
 	void SaveCurrentPresetAs();
 	void SaveSpecificPresetAs(const TObjectPtr<UConsoleVariablesAsset> InPreset) const;
-	void ImportPreset(const FAssetData& InPresetAsset);
+	void ImportPreset(const FAssetData& InPresetAsset, const EConsoleVariablesEditorPresetImportMode InImportMode = EConsoleVariablesEditorPresetImportMode::UseDefault);
 	void ImportPreset(const TObjectPtr<UConsoleVariablesAsset> InPreset);
 
 	TWeakObjectPtr<UConsoleVariablesAsset> GetReferenceAssetOnDisk() const
@@ -80,7 +83,7 @@ public:
 
 private:
 
-	bool ImportPreset_Impl(const TObjectPtr<UConsoleVariablesAsset> Preset, const TObjectPtr<UConsoleVariablesAsset> EditingAsset);
+	bool ImportPreset_Impl(const TObjectPtr<UConsoleVariablesAsset> Preset, const TObjectPtr<UConsoleVariablesAsset> EditingAsset, const EConsoleVariablesEditorPresetImportMode InImportMode);
 
 	TSharedPtr<SConsoleVariablesEditorMainPanel> MainPanelWidget;
 

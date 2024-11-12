@@ -2,6 +2,7 @@
 
 #include "UnsyncSerialization.h"
 #include "UnsyncFile.h"
+#include "UnsyncVersion.h"
 
 namespace unsync {
 
@@ -376,7 +377,6 @@ SaveFileRevisionControl(const FDirectoryManifest& Manifest)
 	return Result;
 }
 
-
 std::vector<std::string>
 LoadFileRevisionControl(FIOReaderStream& Reader, FSerializedSectionHeader Header)
 {
@@ -395,6 +395,39 @@ LoadFileRevisionControl(FIOReaderStream& Reader, FSerializedSectionHeader Header
 	return Result;
 }
 
+static FBuffer
+SavePackReferences(const FDirectoryManifest& Manifest)
+{
+	FBuffer			 Result;
+	FVectorStreamOut Writer(Result);
+
+	const uint64 NumEntries = Manifest.PackReferences.size();
+	Writer.WriteT(NumEntries);
+	for (const FPackReference& Hash : Manifest.PackReferences)
+	{
+		Writer.WriteT(Hash);
+	}
+
+	return Result;
+}
+
+static std::vector<FPackReference>
+LoadPackReferences(FIOReaderStream& Reader, FSerializedSectionHeader Header)
+{
+	std::vector<FPackReference> Result;
+
+	uint64 NumEntries = 0;
+	Serialize(Reader, NumEntries);
+
+	Result.resize(NumEntries);
+
+	for (uint64 i = 0; i < NumEntries; ++i)
+	{
+		Serialize(Reader, Result[i]);
+	}
+
+	return Result;
+}
 
 bool  // TODO: return a TResult
 LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIOReaderStream& Stream)
@@ -493,6 +526,11 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIORea
 							OutManifest.bHasFileRevisionControl = true;
 							break;
 						}
+					case SERIALIZED_SECTION_ID_PACK_REFERENCE:
+						{
+							OutManifest.PackReferences = LoadPackReferences(Stream, SectionHeader);
+							break;
+						}
 					case SERIALIZED_SECTION_ID_TERMINATOR:
 						bDoneLoadingOptionalSections = true;
 						break;
@@ -528,7 +566,8 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIORea
 		for (uint64 FileIndex = 0; FileIndex < NumFiles; ++FileIndex)
 		{
 			Serialize(Stream, FilenameUtf8);
-
+			ConvertDirectorySeparatorsToNative(FilenameUtf8);
+			
 			FFileManifest FileManifest;
 			Serialize(Stream, FileManifest.Mtime);
 			Serialize(Stream, FileManifest.Size);
@@ -575,7 +614,7 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIORea
 				return false;
 			}
 
-			FileManifest.CurrentPath	= Root / Filename;
+			FileManifest.CurrentPath = Root / Filename;
 
 			if (bReadOnlyMaskValid)
 			{
@@ -737,6 +776,12 @@ SaveDirectoryManifest(const FDirectoryManifest& Manifest, FVectorStreamOut& Stre
 		WriteSection<FFileRevisionControlSection>(Stream, SectionBuffer.View());
 	}
 
+	if (!Manifest.PackReferences.empty())
+	{
+		FBuffer SectionBuffer = SavePackReferences(Manifest);
+		WriteSection<FPackReferenceSection>(Stream, SectionBuffer.View());
+	}
+
 	// End with the terminator section (default-constructed);
 	FSerializedSectionHeader TerminatorSection;
 	Serialize(Stream, TerminatorSection);
@@ -748,6 +793,8 @@ SaveDirectoryManifest(const FDirectoryManifest& Manifest, FVectorStreamOut& Stre
 	for (const auto& It : Manifest.Files)
 	{
 		std::string FilenameUtf8 = ConvertWideToUtf8(It.first);
+		ConvertDirectorySeparatorsToUnix(FilenameUtf8);
+
 		Serialize(Stream, FilenameUtf8);  // name as utf8
 
 		const FFileManifest& FileManifest = It.second;
@@ -777,7 +824,7 @@ SaveDirectoryManifest(const FDirectoryManifest& Manifest, FVectorStreamOut& Stre
 }
 
 bool
-SaveDirectoryManifest(const FDirectoryManifest& Manifest, const FPath& Filename)
+SaveDirectoryManifest(const FDirectoryManifest& Manifest, const FPath& Filename, bool bAllowInDryRun)
 {
 	FBuffer			 OutputBuffer;
 	FVectorStreamOut OutputStream(OutputBuffer);
@@ -787,7 +834,13 @@ SaveDirectoryManifest(const FDirectoryManifest& Manifest, const FPath& Filename)
 	bool bSerialized = SaveDirectoryManifest(Manifest, OutputStream);
 	UNSYNC_ASSERT(bSerialized);
 
-	FNativeFile OutputFile(Filename, EFileMode::CreateWriteOnly, OutputBuffer.Size());
+	EFileMode FileMode = EFileMode ::CreateWriteOnly;
+	if (bAllowInDryRun)
+	{
+		FileMode = FileMode | EFileMode::IgnoreDryRun;
+	}
+
+	FNativeFile OutputFile(Filename, FileMode, OutputBuffer.Size());
 	if (OutputFile.IsValid())
 	{
 		uint64 WroteBytes = OutputFile.Write(OutputBuffer.Data(), 0, OutputBuffer.Size());

@@ -7,7 +7,9 @@
 #include "Camera/CameraComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "EngineUtils.h"
+#include "Engine/RendererSettings.h"
 #include "Framework/AvaGameInstance.h"
+#include "GameFramework/Actor.h"
 #include "Modifiers/ActorModifierCoreBase.h"
 #include "Shared/AvaTranslucentPriorityModifierShared.h"
 
@@ -142,6 +144,14 @@ void UAvaTranslucentPriorityModifier::RestorePreState()
 
 void UAvaTranslucentPriorityModifier::Apply()
 {
+	const URendererSettings* RendererSettings = GetDefault<URendererSettings>();
+
+	if (RendererSettings && RendererSettings->bOrderedIndependentTransparencyEnable)
+	{
+		Fail(LOCTEXT("InvalidRendererSettingsOIT", "Incompatible with ordered independent transparency project setting"));
+		return;
+	}
+
 	const UAvaTranslucentPriorityModifierShared* SharedObject = GetShared<UAvaTranslucentPriorityModifierShared>(false);
 
 	if (!SharedObject)
@@ -167,11 +177,11 @@ void UAvaTranslucentPriorityModifier::Apply()
 		int32 TranslucentSortPriority = GlobalOffset + SortPriority;
 
 		// Sets all components with the same priority
-		for (const FAvaTranslucentPriorityModifierComponentState* SortedComponentState : CachedSortedComponentStates)
+		for (const FAvaTranslucentPriorityModifierComponentState& SortedComponentState : CachedSortedComponentStates)
 		{
-			if (SortedComponentState && SortedComponentState->ModifierWeak == this)
+			if (SortedComponentState.ModifierWeak == this)
 			{
-				if (UPrimitiveComponent* Component = SortedComponentState->PrimitiveComponentWeak.Get())
+				if (UPrimitiveComponent* Component = SortedComponentState.PrimitiveComponentWeak.Get())
 				{
 					LastSortPriorities.Add(Component, TranslucentSortPriority);
 					Component->SetTranslucentSortPriority(TranslucentSortPriority);
@@ -186,39 +196,50 @@ void UAvaTranslucentPriorityModifier::Apply()
 		int32 TranslucentSortPriority = GlobalOffset;
 
 		// Increment sort priority for each component that this modifier handles
-		for (const FAvaTranslucentPriorityModifierComponentState* SortedComponentState : CachedSortedComponentStates)
+		AActor* PreviousComponentOwner = nullptr;
+		for (const FAvaTranslucentPriorityModifierComponentState& SortedComponentState : CachedSortedComponentStates)
 		{
-			if (!SortedComponentState)
+			UPrimitiveComponent* Component = SortedComponentState.PrimitiveComponentWeak.Get();
+			UAvaTranslucentPriorityModifier* ComponentModifier = SortedComponentState.ModifierWeak.Get();
+
+			if (!Component
+				|| !Component->GetOwner()
+				|| !ComponentModifier)
 			{
 				continue;
 			}
 
-			UPrimitiveComponent* Component = SortedComponentState->PrimitiveComponentWeak.Get();
-			UAvaTranslucentPriorityModifier* ComponentModifier = SortedComponentState->ModifierWeak.Get();
-
-			if (!Component || !ComponentModifier)
+			// This modifier handles this component
+			if (ComponentModifier == this)
 			{
-				continue;
+				LastSortPriorities.Add(Component, TranslucentSortPriority);
+				Component->SetTranslucentSortPriority(TranslucentSortPriority);
 			}
-
-			if (Component->TranslucencySortPriority != TranslucentSortPriority)
+			// Another modifier handles this component
+			else if (Component->TranslucencySortPriority != TranslucentSortPriority)
 			{
-				// This modifier handles this component
-				if (ComponentModifier == this)
+				// Cache to avoid doing the same query for the same result
+				if (ComponentModifier->CachedSortedComponentStates.IsEmpty())
 				{
-					LastSortPriorities.Add(Component, TranslucentSortPriority);
-					Component->SetTranslucentSortPriority(TranslucentSortPriority);
-				}
-				// Another modifier handles this component
-				else
-				{
-					// Cache to avoid doing the same query for the same result
 					ComponentModifier->CachedSortedComponentStates = CachedSortedComponentStates;
-					ComponentModifier->MarkModifierDirty();
 				}
+
+				ComponentModifier->MarkModifierDirty();
 			}
 
-			TranslucentSortPriority += GlobalStep;
+			if (!PreviousComponentOwner)
+			{
+				PreviousComponentOwner = Component->GetOwner();
+			}
+
+			// Only increase when new actor detected or mode is camera
+			if (Mode == EAvaTranslucentPriorityModifierMode::AutoCameraDistance
+				|| PreviousComponentOwner != Component->GetOwner())
+			{
+				TranslucentSortPriority += GlobalStep;
+			}
+
+			PreviousComponentOwner = Component->GetOwner();
 		}
 	}
 
@@ -313,6 +334,11 @@ void UAvaTranslucentPriorityModifier::SetMode(EAvaTranslucentPriorityModifierMod
 
 	Mode = InMode;
 	OnModeChanged();
+}
+
+void UAvaTranslucentPriorityModifier::SetCameraActor(ACameraActor* InCameraActor)
+{
+	SetCameraActorWeak(InCameraActor);
 }
 
 void UAvaTranslucentPriorityModifier::SetCameraActorWeak(const TWeakObjectPtr<ACameraActor>& InCameraActor)

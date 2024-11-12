@@ -63,6 +63,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | SceneVariantSetFactory")
 	bool RemoveCustomVariantSetUid(const FString& VariantUid);
 
+	/** Return if the import of the class is allowed at runtime.*/
+	virtual bool IsRuntimeImportAllowed() const override
+	{
+		return false;
+	}
+
 private:
 	UE::Interchange::TArrayAttributeHelper<FString> CustomVariantSetUids;
 };

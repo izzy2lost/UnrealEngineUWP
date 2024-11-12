@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "../RandomInterleavedGradientNoise.ush"
+
 // SVT_TODO: Unify with macros in SparseVolumeTexture.h
 #define SPARSE_VOLUME_TILE_RES 16
 #define SPARSE_VOLUME_TILE_BORDER 1
@@ -10,6 +12,10 @@
 #define SVTADDRESSMODE_CLAMP 0u
 #define SVTADDRESSMODE_WRAP 1u
 #define SVTADDRESSMODE_MIRROR 2u
+
+#ifndef SPARSE_VOLUME_TEXTURE_SOFTWARE_LINEAR_MIP_FILTERING
+#define SPARSE_VOLUME_TEXTURE_SOFTWARE_LINEAR_MIP_FILTERING 1 // SVT_TODO: Default to stochastic mip sampling once Heterogeneous Volumes properly initializes FMaterialPixelParameters.
+#endif
 
 float SparseVolumeTextureApplyAddressModeMirror(float v)
 {
@@ -62,6 +68,26 @@ FSparseVolumeTextureUniforms SparseVolumeTextureUnpackUniforms(const uint4 Packe
 	Result.HighestMipLevel = int((Packed1.w >> 16u) & 0xFFFFu);
 
 	return Result;
+}
+
+float SparseVolumeTextureCalculateMipLevel(FSparseVolumeTextureUniforms Uniforms, float3 UVWDDX, float3 UVWDDY, float MipBias, float2 SvPositionXY)
+{
+	const float3 Resolution = Uniforms.VolumePageResolution * float(SPARSE_VOLUME_TILE_RES);
+	const float3 TexCoordDDX = UVWDDX * Resolution;
+	const float3 TexCoordDDY = UVWDDY * Resolution;
+	const float DDXLengthSquared = dot(TexCoordDDX, TexCoordDDX);
+	const float DDYLengthSquared = dot(TexCoordDDY, TexCoordDDY);
+	const float MaxLengthSquared = max(DDXLengthSquared, DDYLengthSquared);
+	const float ComputedMipLevel = 0.5f * log2(max(MaxLengthSquared, 1e-8f));
+
+#if SPARSE_VOLUME_TEXTURE_SOFTWARE_LINEAR_MIP_FILTERING
+	const float Noise = 0.0f;
+#else
+	const float Noise = InterleavedGradientNoise(SvPositionXY, View.StateFrameIndexMod8);
+#endif
+
+	const float FinalMipLevelClamped = max(0.0f, ComputedMipLevel + MipBias + Noise);
+	return FinalMipLevelClamped;
 }
 
 float3 SparseVolumeTextureGetVoxelCoord(Texture3D<uint> PageTable, FSparseVolumeTextureUniforms Uniforms, float3 PageTableCoord, int MipLevel)
@@ -118,4 +144,31 @@ float4 SparseVolumeTextureSamplePhysicalTileData(Texture3D PhysicalTileDataA, Te
 	case 1: return PhysicalTileDataB.SampleLevel(TileDataSampler, VoxelUVW, 0.0f);
 	default: return 0.0f;
 	}
+}
+
+float3 SparseVolumeTextureSamplePageTableSecondMipWrapper(Texture3D<uint> PageTable, FSparseVolumeTextureUniforms Uniforms, float3 UVW, uint AddressU, uint AddressV, uint AddressW, int MipLevel = 0)
+{
+#if SPARSE_VOLUME_TEXTURE_SOFTWARE_LINEAR_MIP_FILTERING
+	return SparseVolumeTextureSamplePageTable(PageTable, Uniforms, UVW, AddressU, AddressV, AddressW, MipLevel);
+#else
+	return 0.0f;
+#endif
+}
+
+float4 SparseVolumeTextureSamplePhysicalTileDataSecondMipWrapper(Texture3D PhysicalTileDataA, Texture3D PhysicalTileDataB, SamplerState TileDataSampler, float3 VoxelUVW, int PhysicalTileDataIndex)
+{
+#if SPARSE_VOLUME_TEXTURE_SOFTWARE_LINEAR_MIP_FILTERING
+	return SparseVolumeTextureSamplePhysicalTileData(PhysicalTileDataA, PhysicalTileDataB, TileDataSampler, VoxelUVW, PhysicalTileDataIndex);
+#else
+	return 0.0f;
+#endif
+}
+
+float4 SparseVolumeTextureCombineMipSamples(float4 LowerMipSample, float4 UpperMipSample, float MipLevelFractionalPart)
+{
+#if SPARSE_VOLUME_TEXTURE_SOFTWARE_LINEAR_MIP_FILTERING
+	return lerp(LowerMipSample, UpperMipSample, MipLevelFractionalPart);
+#else
+	return LowerMipSample;
+#endif
 }

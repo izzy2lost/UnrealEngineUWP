@@ -37,9 +37,15 @@ namespace Gauntlet
 
 		public string StdOut { get { return ""; } }
 
+		public ILogStreamReader GetLogReader() { return new DynamicStringReader(() => ""); }
+
+		public ILogStreamReader GetLogBufferReader() { return new DynamicStringReader(() => ""); }
+
+		public bool WriteOutputToFile(string FilePath) { return false; }
+
 		public int ExitCode { get { return 0; }}
 
-		public void Kill()
+		public void Kill(bool GenerateDump)
 		{
 			if (!HasExited)
 			{
@@ -165,6 +171,8 @@ namespace Gauntlet
 		{
 
 		}
+
+		public string LocalCachePath => null;
 
 		public void InstallBuild(UnrealAppConfig AppConfiguration)
 		{

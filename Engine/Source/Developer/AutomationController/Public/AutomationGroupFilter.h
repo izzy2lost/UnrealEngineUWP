@@ -17,12 +17,12 @@ public:
 	{ }
 
 	/** Default constructor with array param. */
-	FAutomationGroupFilter(const TArray<FAutomatedTestFilter> InFilters)
+	FAutomationGroupFilter(const TArray<FAutomatedTestFilter>& InFilters)
 		: Filters(InFilters)
 	{ }
 
 	/** Default constructor, group with single elements. */
-	FAutomationGroupFilter(const FAutomatedTestFilter InFilter)
+	FAutomationGroupFilter(const FAutomatedTestFilter& InFilter)
 	{
 		Filters.Add(InFilter);
 	}
@@ -31,12 +31,24 @@ public:
 	/**
 	 * Set the list of strings the group filter checks for substrings in test display name.
 	 *
-	 * @param InContainsArray An array of strings to filter against test display names.
-	 * @see SetMatchFromStartArray, SetMatchFromEndArray
+	 * @param InFilters An array of strings to filter against test display names.
+	 * @see FAutomatedTestFilterBase::MatchFromStart, FAutomatedTestFilterBase::MatchFromEnd
 	 */
-	void SetFilters(const TArray<FAutomatedTestFilter> InFilters)
+	void SetFilters(const TArray<FAutomatedTestFilter>& InFilters)
 	{
 		Filters = InFilters;
+		ChangedEvent.Broadcast();
+	}
+
+	/**
+	 * Set the list of search syntax strings evaluated against test tags.
+	 *
+	 * @param InFilters An array of strings to filter against test tags.
+	 * @see FTextFilterExpressionEvaluator
+	 */
+	void SetTagFilter(const TArray < FAutomatedTestTagFilter>& InFilters)
+	{
+		TagFilters = InFilters;
 		ChangedEvent.Broadcast();
 	}
 public:
@@ -46,17 +58,31 @@ public:
 	DECLARE_DERIVED_EVENT(FAutomationGroupFilter, IFilter< const TSharedPtr< class IAutomationReport >& >::FChangedEvent, FChangedEvent);
 	virtual FChangedEvent& OnChanged() override { return ChangedEvent; }
 
-	virtual bool PassesFilter( const TSharedPtr< IAutomationReport >& InReport ) const override
+	virtual bool PassesFilter(const TSharedPtr< IAutomationReport >& InReport) const override
 	{
-		for (const FAutomatedTestFilter& Filter: Filters)
+		// empty filters pass against all values
+		bool NameFilterPassing = Filters.IsEmpty();
+		bool TagFilterPassing = TagFilters.IsEmpty();
+
+		for (const FAutomatedTestFilter& NameFilter: Filters)
 		{
-			if (Filter.PassesFilter(InReport))
+			if (NameFilter.PassesFilter(InReport))
 			{
-				return true;
+				NameFilterPassing = true;
+				break;
 			}
 		}
 
-		return Filters.Num() == 0;
+		for (const FAutomatedTestTagFilter& TagFilter : TagFilters)
+		{
+			if (TagFilter.PassesFilter(InReport))
+			{
+				TagFilterPassing = true;
+				break;
+			}
+		}
+
+		return NameFilterPassing && TagFilterPassing;
 	}
 
 private:
@@ -64,7 +90,10 @@ private:
 	/**	The event that broadcasts whenever a change occurs to the filter. */
 	FChangedEvent ChangedEvent;
 
-	/** The array of FAutomatedTestFilter to filter against. At least one from the list must be matched. */
+	/** The array of FAutomatedTestFilter to filter against test names. At least one from the list must be matched. */
 	TArray<FAutomatedTestFilter> Filters;
+
+	/** The array of FAutomatedTestTagFilter to filter against test tags. At least one from the list must be matched. */
+	TArray<FAutomatedTestTagFilter> TagFilters;
 
 };

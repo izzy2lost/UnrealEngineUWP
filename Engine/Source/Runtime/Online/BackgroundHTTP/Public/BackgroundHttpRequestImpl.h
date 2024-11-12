@@ -35,6 +35,7 @@ public:
 	BACKGROUNDHTTP_API virtual void CompleteWithExistingResponseData(FBackgroundHttpResponsePtr BackgroundResponse) override;
 	BACKGROUNDHTTP_API virtual FBackgroundHttpRequestCompleteDelegate& OnProcessRequestComplete() override;
 	BACKGROUNDHTTP_API virtual FBackgroundHttpProgressUpdateDelegate& OnProgressUpdated() override;
+	BACKGROUNDHTTP_API virtual FBackgroundHttpRequestMetricsDelegate& OnRequestMetrics() override;
 	BACKGROUNDHTTP_API virtual const FBackgroundHttpResponsePtr GetResponse() const override;
 	BACKGROUNDHTTP_API virtual const FString& GetRequestID() const override;
 	BACKGROUNDHTTP_API virtual void SetRequestID(const FString& NewRequestID) override;
@@ -42,7 +43,9 @@ public:
 	BACKGROUNDHTTP_API virtual EBackgroundHTTPPriority GetRequestPriority() const override;
 	BACKGROUNDHTTP_API virtual void SetRequestPriority(EBackgroundHTTPPriority NewPriority) override;
 	
-	BACKGROUNDHTTP_API virtual void NotifyNotificationObjectOfComplete(bool bWasSuccess);
+	BACKGROUNDHTTP_API virtual void NotifyNotificationObjectOfComplete(const bool bWasSuccess);
+	BACKGROUNDHTTP_API virtual void NotifyRequestMetricsAvailable(const int32 TotalBytesDownloaded, const float DownloadDuration);
+	
 protected:
 	TSharedPtr<FBackgroundHttpNotificationObject, ESPMode::ThreadSafe> DownloadCompleteNotificationObject;
 	FBackgroundHttpResponsePtr Response;
@@ -51,6 +54,15 @@ protected:
 	int NumberOfTotalRetries;
 	EBackgroundHTTPPriority RequestPriority;
 	
+	struct FDownloadMetricsInfo
+	{
+		int32 TotalBytesDownloaded;
+		float DownloadDuration;
+	};
+	
+	TOptional<FDownloadMetricsInfo> OptionalMetricsInfo;
+	
 	FBackgroundHttpRequestCompleteDelegate HttpRequestCompleteDelegate;
 	FBackgroundHttpProgressUpdateDelegate HttpProgressUpdateDelegate;
+	FBackgroundHttpRequestMetricsDelegate HttpRequestMetricsDelegate;
 };

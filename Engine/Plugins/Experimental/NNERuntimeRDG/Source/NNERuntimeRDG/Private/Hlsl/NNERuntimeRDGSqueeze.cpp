@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGSqueeze.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
 #include "RenderGraphUtils.h"
@@ -37,7 +39,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 				if (OutputShapeData[Axe] != 1)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Squeeze at axe %d for 'Data' (name: %s) should be targeting a dimension of size 1 but it is %d."), Axe, *X.GetName(), OutputShapeData[Axe]);
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Squeeze: Axe %d for 'Data' (name: %s) should be targeting a dimension of size 1 but it is %d."), Axe, *X.GetName(), OutputShapeData[Axe]);
 					return -1;
 				}
 
@@ -65,12 +67,12 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			{
 				if (Axe < 0)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Squeeze operator does not support negative axes"));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Squeeze: Does not support negative axes"));
 					return false;
 				}
 				if (Axe >= InputTensorDescs[0].GetShape().Rank())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Squeeze operator does not support axes greater than the number of dimensions of the input tensor shape"));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Squeeze: Does not support axes greater than the number of dimensions of the input tensor shape"));
 					return false;
 				}
 			}
@@ -90,7 +92,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			const FTensorRDG& Data = *InputTensors[0];
 			const FTensorRDG& Output = *OutputTensors[0];
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Squeeze");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorSqueeze, "NNE.Operator.Hlsl.Squeeze");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorSqueeze);
 
 			AddCopyBufferPass(GraphBuilder, Output.GetBuffer(), Data.GetBuffer());

@@ -9,6 +9,8 @@
 #include "LevelInstance/LevelInstanceInterface.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
 #include "LevelInstance/LevelInstanceComponent.h"
+#include "LevelInstance/LevelInstancePropertyOverrideAsset.h"
+#include "LevelInstance/LevelInstanceSettings.h"
 #include "Misc/PackageName.h"
 #include "WorldPartition/ActorDescContainerInstance.h"
 #include "WorldPartition/WorldPartitionActorDescInstance.h"
@@ -18,10 +20,13 @@
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/ActorDescContainerSubsystem.h"
+#include "WorldPartition/LevelInstance/LevelInstanceContainerInstance.h"
+#include "WorldPartition/LevelInstance/LevelInstancePropertyOverrideContainer.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/FortniteSeasonBranchObjectVersion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
+#include "AssetRegistry/AssetRegistryHelpers.h"
 
 static int32 GLevelInstanceDebugForceLevelStreaming = 0;
 static FAutoConsoleVariableRef CVarForceLevelStreaming(
@@ -54,6 +59,40 @@ void FLevelInstanceActorDesc::Init(const AActor* InActor)
 	Filter = LevelInstance->GetFilter();
 	
 	bIsChildContainerInstance = IsChildContainerInstanceInternal();
+
+	if (LevelInstance->SupportsPropertyOverrides())
+	{
+		if (ULevelInstancePropertyOverrideAsset* Asset = LevelInstance->GetPropertyOverrideAsset())
+		{
+			FLevelInstancePropertyOverrideDesc* ExistingOverrideDesc = nullptr;
+			
+			// PropertyOverrides can be nested and we can only override properties one level instance at a time.
+			// So when we do save an override, we need to keep the previous actors descs that weren't part of the current property override edit
+			// So we find the existing ActorDesc and then check if it has an existing LevelInstanceOverrideActorDesc and transfer from it
+			if (UWorldPartition* WorldPartition = FWorldPartitionHelpers::GetWorldPartition(InActor))
+			{
+				if (FWorldPartitionActorDescInstance* ActorDescInstance = WorldPartition->GetActorDescInstance(InActor->GetActorGuid()))
+				{
+					if (FLevelInstanceActorDesc* ExistingActorDesc = (FLevelInstanceActorDesc*)ActorDescInstance->GetActorDesc())
+					{
+						ExistingOverrideDesc = ExistingActorDesc->GetOverrideDesc();
+					}
+				}
+			}
+
+			PropertyOverrideAsset = FSoftObjectPath(Asset);
+			PropertyOverrideDesc = MakeShared<FLevelInstancePropertyOverrideDesc>();
+			PropertyOverrideDesc->Init(Asset);
+
+			// Transfer from previous override if we are sharing the same world package
+			if (ExistingOverrideDesc && ExistingOverrideDesc->GetWorldPackage() == PropertyOverrideDesc->GetWorldPackage())
+			{
+				// We always need to transfer from here, the reason is that the PropertyOverride data is incomplete for unloaded Actors.
+				// So we take the loaded data from the last Desc and transfer it to the latest data
+				PropertyOverrideDesc->TransferNonEditedContainers(ExistingOverrideDesc);
+			}
+		}
+	}
 }
 
 void FLevelInstanceActorDesc::Init(const FWorldPartitionActorDescInitData& DescData)
@@ -69,7 +108,7 @@ void FLevelInstanceActorDesc::Init(const FWorldPartitionActorDescInitData& DescD
 
 FString FLevelInstanceActorDesc::GetChildContainerName() const
 {
-	return GetChildContainerPackage().ToString();
+	return (ULevelInstanceSettings::Get()->IsPropertyOverrideEnabled() && PropertyOverrideAsset.IsValid()) ? PropertyOverrideAsset.ToString() : GetChildContainerPackage().ToString();
 }
 
 bool FLevelInstanceActorDesc::Equals(const FWorldPartitionActorDesc* Other) const
@@ -80,6 +119,7 @@ bool FLevelInstanceActorDesc::Equals(const FWorldPartitionActorDesc* Other) cons
 
 		return
 			WorldAsset == LevelInstanceActorDesc->WorldAsset &&
+			PropertyOverrideAsset == LevelInstanceActorDesc->PropertyOverrideAsset &&
 			DesiredRuntimeBehavior == LevelInstanceActorDesc->DesiredRuntimeBehavior;
 	}
 
@@ -90,9 +130,8 @@ void FLevelInstanceActorDesc::UpdateBounds()
 {
 	if (UActorDescContainer* ChildContainerPtr = ChildContainer.Get())
 	{
-		FBox ContainerBounds = UActorDescContainerSubsystem::GetChecked().GetContainerBounds(GetChildContainerName()).TransformBy(GetChildContainerTransform());
-
-		ContainerBounds.GetCenterAndExtents(BoundsLocation, BoundsExtent);
+		RuntimeBounds = UActorDescContainerSubsystem::GetChecked().GetContainerBounds(GetChildContainerName(), false).TransformBy(GetChildContainerTransform());
+		EditorBounds = UActorDescContainerSubsystem::GetChecked().GetContainerBounds(GetChildContainerName(), true).TransformBy(GetChildContainerTransform());
 	}
 }
 
@@ -101,7 +140,22 @@ void FLevelInstanceActorDesc::RegisterChildContainer()
 	check(!ChildContainer.IsValid());
 	if (IsChildContainerInstance())
 	{
-		ChildContainer = UActorDescContainerSubsystem::GetChecked().RegisterContainer({ GetChildContainerName(), GetChildContainerPackage() });
+		if (!PropertyOverrideAsset.IsValid() || !ULevelInstanceSettings::Get()->IsPropertyOverrideEnabled())
+		{
+			ChildContainer = UActorDescContainerSubsystem::GetChecked().RegisterContainer({ GetChildContainerName(), GetChildContainerPackage() });
+		}
+		else
+		{
+			UActorDescContainer::FInitializeParams InitParams(PropertyOverrideAsset.ToString(), PropertyOverrideDesc->GetWorldPackage());
+			InitParams.PreInitialize = [this](UActorDescContainer* InNewContainer)
+			{
+				ULevelInstancePropertyOverrideContainer* OverrideContainer = CastChecked<ULevelInstancePropertyOverrideContainer>(InNewContainer);
+				OverrideContainer->SetPropertyOverrideDesc(PropertyOverrideDesc);
+			};
+
+			ChildContainer = UActorDescContainerSubsystem::GetChecked().RegisterContainer<ULevelInstancePropertyOverrideContainer>(InitParams);
+		}
+
 		UpdateBounds();
 	}
 }
@@ -150,8 +204,9 @@ bool FLevelInstanceActorDesc::IsChildContainerInstanceInternal() const
 	{
 		return false;
 	}
-	
-	if (!ULevel::GetIsLevelUsingExternalActorsFromPackage(GetChildContainerPackage()))
+
+	if (!ULevel::GetIsLevelUsingExternalActorsFromPackage(GetChildContainerPackage()) && 
+		!ULevel::GetIsLevelUsingActorsDescsFromPackage(GetChildContainerPackage()))
 	{
 		return false;
 	}
@@ -192,16 +247,23 @@ void FLevelInstanceActorDesc::CheckForErrors(const IWorldPartitionActorDescInsta
 	{
 		ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::WorldAssetNotFound);
 	}
-	else if (!ULevel::GetIsLevelUsingExternalActorsFromPackage(ChildContainerPackage))
+	else
 	{
-		if (DesiredRuntimeBehavior != ELevelInstanceRuntimeBehavior::LevelStreaming)
+		if (!ULevel::GetIsLevelUsingExternalActorsFromPackage(ChildContainerPackage))
 		{
-			ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::WorldAssetNotUsingExternalActors);
+			if (DesiredRuntimeBehavior != ELevelInstanceRuntimeBehavior::LevelStreaming)
+			{
+				if (!ULevel::GetIsLevelUsingActorsDescsFromPackage(ChildContainerPackage))
+				{
+					ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::WorldAssetDontContainActorsMetadata);
+				}
+			}
 		}
-	}
-	else if (!ValidateCircularReference(InActorDescView->GetContainerInstance(), ChildContainerPackage))
-	{
-		ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::CirculalReference);
+	
+		if (!ValidateCircularReference(InActorDescView->GetContainerInstance(), ChildContainerPackage))
+		{
+			ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::CirculalReference);
+		}
 	}
 }
 
@@ -213,6 +275,11 @@ void FLevelInstanceActorDesc::TransferFrom(const FWorldPartitionActorDesc* From)
 
 	RegisterChildContainer();
 	FromLevelInstanceActorDesc->UnregisterChildContainer();
+
+	if (ULevelInstancePropertyOverrideContainer* OverrideContainer = Cast<ULevelInstancePropertyOverrideContainer>(ChildContainer.Get()))
+	{
+		OverrideContainer->SetPropertyOverrideDesc(PropertyOverrideDesc);
+	}
 }
 
 UWorldPartition* FLevelInstanceActorDesc::GetLoadedChildWorldPartition(const FWorldPartitionActorDescInstance* InActorDescInstance) const
@@ -246,14 +313,26 @@ bool FLevelInstanceActorDesc::ValidateCircularReference(const UActorDescContaine
 
 UActorDescContainerInstance* FLevelInstanceActorDesc::CreateChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const
 {
+	// Update Actor Desc Container in case of rename
+	if (UActorDescContainer* PreviousChildContainer = ChildContainer.Get(); PreviousChildContainer->GetContainerName() != GetChildContainerName())
+	{
+		FLevelInstanceActorDesc* NonConstThis = const_cast<FLevelInstanceActorDesc*>(this);
+		NonConstThis->UnregisterChildContainer();
+		NonConstThis->RegisterChildContainer();
+	}
+
 	UActorDescContainerInstance* ContainerInstance = InActorDescInstance->GetContainerInstance();
 	if (!ValidateCircularReference(ContainerInstance, InActorDescInstance->GetChildContainerPackage()))
 	{
 		return nullptr;
 	}
-
-	UActorDescContainerInstance* ChildContainerInstance = NewObject<UActorDescContainerInstance>(ContainerInstance, NAME_None, RF_Transient);
 	
+	// Create ChildContainerInstance
+	ULevelInstanceContainerInstance* ChildContainerInstance = NewObject<ULevelInstanceContainerInstance>(ContainerInstance, NAME_None, RF_Transient);
+
+	// Set Override Container which might be a regular UActorDescContainer if no overrides exist on this Container Instance
+	ChildContainerInstance->SetOverrideContainerAndAsset(GetChildContainer(), nullptr);
+		
 	// When a child container instance is created we create the whole hierarchy (for generate streaming)
 	const bool bInCreateContainerInstanceHierarchy = true;
 	UActorDescContainerInstance::FInitializeParams InitParams(InActorDescInstance->GetChildContainerPackage(), bInCreateContainerInstanceHierarchy);
@@ -323,11 +402,7 @@ void FLevelInstanceActorDesc::Serialize(FArchive& Ar)
 			{
 				if (!IsChildContainerInstance())
 				{
-					FBox OutBounds;
-					if (ULevelInstanceSubsystem::GetLevelInstanceBoundsFromPackage(ActorTransform, GetChildContainerPackage(), OutBounds))
-					{
-						OutBounds.GetCenterAndExtents(BoundsLocation, BoundsExtent);
-					}
+					ULevelInstanceSubsystem::GetLevelInstanceBoundsFromPackage(ActorTransform, GetChildContainerPackage(), RuntimeBounds);
 				}
 			}
 		}
@@ -342,6 +417,32 @@ void FLevelInstanceActorDesc::Serialize(FArchive& Ar)
 		else
 		{
 			Ar << Filter;
+		}
+	}
+
+	if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::LevelInstancePropertyOverrides)
+	{
+		FString PropertyOverrideAssetString = PropertyOverrideAsset.ToString();
+		Ar << PropertyOverrideAssetString;
+
+		if (Ar.IsLoading())
+		{
+			PropertyOverrideAsset = FSoftObjectPath(PropertyOverrideAssetString);
+			UAssetRegistryHelpers::FixupRedirectedAssetPath(PropertyOverrideAsset);
+		}
+
+		if (PropertyOverrideAsset.IsValid())
+		{
+			if (Ar.IsLoading())
+			{
+				PropertyOverrideDesc = MakeShared<FLevelInstancePropertyOverrideDesc>();
+			}
+		
+			FLevelInstancePropertyOverrideDesc* PropertyOverrideDescPtr = PropertyOverrideDesc.Get();
+			Ar << *PropertyOverrideDescPtr;
+
+			PropertyOverrideDescPtr->AssetPath = PropertyOverrideAsset;
+			PropertyOverrideDescPtr->PackageName = ActorPackage;
 		}
 	}
 }

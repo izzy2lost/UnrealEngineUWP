@@ -162,7 +162,7 @@ void UEnumProperty::AddReferencedObjects(UObject* InThis, FReferenceCollector& C
 	Super::AddReferencedObjects(InThis, Collector);
 }
 
-namespace UEEnumProperty_Private
+namespace UE::CoreUObject::Private
 {
 	struct FEnumPropertyFriend
 	{

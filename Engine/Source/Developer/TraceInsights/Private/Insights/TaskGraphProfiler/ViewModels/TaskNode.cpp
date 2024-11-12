@@ -2,13 +2,9 @@
 
 #include "TaskNode.h"
 
-#define LOCTEXT_NAMESPACE "Insights::FTaskNode"
-
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
 
 INSIGHTS_IMPLEMENT_RTTI(FTaskNode)
 
-} // namespace Insights
-
-#undef LOCTEXT_NAMESPACE
+} // namespace UE::Insights::TaskGraphProfiler

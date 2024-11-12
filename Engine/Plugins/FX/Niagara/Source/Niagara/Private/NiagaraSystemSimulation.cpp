@@ -275,6 +275,7 @@ struct FNiagaraSystemSimulationAllWorkCompleteTask
 	static ESubsequentsMode::Type GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
+		CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);
 		for (FGraphEventRef& Event : EventsToWaitFor)
 		{
 			MyCompletionGraphEvent->DontCompleteUntil(Event);
@@ -433,6 +434,9 @@ struct FNiagaraSystemInstanceFinalizeTask
 #if DO_CHECK
 		DebugCounter = 0;
 #endif
+#if WITH_PARTICLE_PERF_STATS
+		SystemPerfStatsContext = FParticlePerfStatsContext(InSystemSimulation->GetWorld(), InSystemSimulation->GetSystem());
+#endif
 		for ( int32 i=0; i < Batch.Num(); ++i )
 		{
 			FNiagaraSystemInstanceFinalizeRef FinalizeRef(&Batch[i]);
@@ -449,6 +453,9 @@ struct FNiagaraSystemInstanceFinalizeTask
 
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
+#if WITH_PARTICLE_PERF_STATS
+		PARTICLE_PERF_STAT_CYCLES_GT(SystemPerfStatsContext, Finalize);
+#endif
 		CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);
 		check(CurrentThread == ENamedThreads::GameThread);
 
@@ -509,6 +516,9 @@ struct FNiagaraSystemInstanceFinalizeTask
 	ENiagaraGPUTickHandlingMode TickHandlingMode = ENiagaraGPUTickHandlingMode::None;
 #if DO_CHECK
 	std::atomic<int> DebugCounter;
+#endif
+#if WITH_PARTICLE_PERF_STATS
+	FParticlePerfStatsContext SystemPerfStatsContext;
 #endif
 };
 
@@ -578,7 +588,11 @@ bool FNiagaraSystemSimulation::Init(UNiagaraSystem* InSystem, UWorld* InWorld, b
 
 	bCanExecute = System->GetSystemSpawnScript()->GetVMExecutableData().IsValid() && System->GetSystemUpdateScript()->GetVMExecutableData().IsValid();
 
-	bSystemStateFastPathEnabled = System->SystemStateFastPathEnabled();
+	{
+		const FNiagaraSystemStateData& SystemState = System->GetSystemStateData();
+		bRunSpawnScript		= SystemState.bRunSpawnScript;
+		bRunUpdateScript	= SystemState.bRunUpdateScript;
+	}
 
 	MaxDeltaTime = System->GetMaxDeltaTime();
 
@@ -1000,7 +1014,7 @@ void FNiagaraSystemSimulation::FlushTickBatch(FNiagaraSystemSimulationTickContex
 	if ( Context.IsRunningAsync() )
 	{
 		FGraphEventArray FinalizePrereqArray;
-		if (bSystemStateFastPathEnabled)
+		if (bRunUpdateScript == false)
 		{
 			for (FNiagaraSystemInstance* Inst : Context.TickBatch)
 			{
@@ -1114,7 +1128,6 @@ void FNiagaraSystemSimulation::Tick_GameThread_Internal(float DeltaSeconds, cons
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);
 	LLM_SCOPE(ELLMTag::Niagara);
 	FScopeCycleCounterUObject AdditionalScope(GetSystem(), GET_STATID(STAT_NiagaraOverview_GT_CNC));
-
 
 #if STATS
 	FScopeCycleCounter SystemStatCounter(System->GetStatID(true, false));
@@ -1324,7 +1337,6 @@ void FNiagaraSystemSimulation::UpdateTickGroups_GameThread()
 	check(IsInGameThread());
 	check(!bIsSolo);
 
-	SCOPE_CYCLE_COUNTER(STAT_NiagaraSystemSim_SpawnNewGT);
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraOverview_GT);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);
 	LLM_SCOPE(ELLMTag::Niagara);
@@ -1391,6 +1403,7 @@ void FNiagaraSystemSimulation::Spawn_GameThread(float DeltaSeconds, bool bPostAc
 	ConcurrentTickGraphEvent = nullptr;
 	AllWorkCompleteGraphEvent = nullptr;
 
+	PARTICLE_PERF_STAT_CYCLES_GT(FParticlePerfStatsContext(World, System), TickGameThread);
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraSystemSim_SpawnNewGT);
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraOverview_GT);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);
@@ -1613,18 +1626,10 @@ void FNiagaraSystemSimulation::WaitForConcurrentTickComplete(bool bEnsureComplet
 
 		if (GNiagaraSystemSimulationTaskStallTimeout > 0)
 		{
-			const double EndTimeoutSeconds = FPlatformTime::Seconds() + (double(GNiagaraSystemSimulationTaskStallTimeout) / 1000.0);
-			LowLevelTasks::BusyWaitUntil(
-				[this, EndTimeoutSeconds]()
-				{
-					if (FPlatformTime::Seconds() > EndTimeoutSeconds)
-					{
-						DumpStalledInfo();
-						return true;
-					}
-					return ConcurrentTickGraphEvent->IsComplete();
-				}
-			);
+			if (WaitForAnyTaskCompleted({ ConcurrentTickGraphEvent }, FTimespan::FromMicroseconds(GNiagaraSystemSimulationTaskStallTimeout)) == INDEX_NONE)
+			{
+				DumpStalledInfo();
+			}
 		}
 		else
 		{
@@ -1692,21 +1697,61 @@ void FNiagaraSystemSimulation::Tick_Concurrent(FNiagaraSystemSimulationTickConte
 	FScopeCycleCounter SystemStatCounter(Context.System->GetStatID(true, true));
 #endif
 
-	if (bSystemStateFastPathEnabled)
+	if (bRunUpdateScript == false)
 	{
-		//-OPT: We should be able to avoid this but will require a lot of changes to the system simulation
-		//      We might want to consider having different system simulation types
+		const int32 NumInstances = Context.Instances.Num();
+		const int32 FirstSpawnedInstance = NumInstances - Context.SpawnNum;
+		if (bRunSpawnScript)// && Context.SpawnNum > 0)
 		{
-			Context.DataSet.BeginSimulate();
-			Context.DataSet.Allocate(Context.Instances.Num());
-			Context.DataSet.GetDestinationDataChecked().SetNumInstances(Context.Instances.Num());
-			Context.DataSet.EndSimulate();
+			for (int32 iSystemInstance = FirstSpawnedInstance; iSystemInstance < NumInstances; ++iSystemInstance)
+			{
+				FNiagaraSystemInstance* SystemInstance = Context.Instances[iSystemInstance];
+				SystemInstance->TickInstanceParameters_Concurrent();
+			}
+			if (Context.SpawnNum > 0)
+			{
+				PrepareForSystemSimulate(Context);
+				SpawnSystemInstances(Context);
+
+				// Transfer results to parameter stores
+				for (int32 iSystemInstance = FirstSpawnedInstance; iSystemInstance < NumInstances; ++iSystemInstance)
+				{
+					FNiagaraSystemInstance* SystemInstance = Context.Instances[iSystemInstance];
+
+					TArrayView<FNiagaraEmitterInstanceRef> Emitters = SystemInstance->GetEmitters();
+					for (int32 iEmitter = 0; iEmitter < Emitters.Num(); ++iEmitter)
+					{
+						FNiagaraEmitterInstance& EmitterInstance = Emitters[iEmitter].Get();
+						if ( EmitterInstance.IsComplete() )
+						{
+							continue;
+						}
+						DataSetToEmitterRendererParameters[iEmitter].DataSetToParameterStore(EmitterInstance.GetRendererBoundVariables(), Context.DataSet, iSystemInstance);
+					}
+				}
+			}
+		}
+		else
+		{
+			//-OPT: We should be able to avoid this but will require a lot of changes to the system simulation
+			//      We might want to consider having different system simulation types
+			{
+				Context.DataSet.BeginSimulate();
+				Context.DataSet.Allocate(Context.Instances.Num());
+				Context.DataSet.GetDestinationDataChecked().SetNumInstances(Context.Instances.Num());
+				Context.DataSet.EndSimulate();
+			}
 		}
 
-		for (FNiagaraSystemInstance* SystemInstance : Context.Instances)
+		for ( int32 i=0; i < Context.Instances.Num(); ++i )
 		{
+			FNiagaraSystemInstance* SystemInstance = Context.Instances[i];
+
 			//-TODO: Stateless doesn't require a lot of this data
-			SystemInstance->TickInstanceParameters_Concurrent();
+			if (i < FirstSpawnedInstance)
+			{
+				SystemInstance->TickInstanceParameters_Concurrent();
+			}
 
 			SystemInstance->TickSystemState();
 

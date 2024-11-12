@@ -38,8 +38,6 @@ class UK2Node_IfThenElse : public UK2Node
 	virtual FText GetMenuCategory() const override;
 	//~ End K2Node Interface.
 
-	/** Get the then output pin */
-	BLUEPRINTGRAPH_API UEdGraphPin* GetThenPin() const;
 	/** Get the return value pin */
 	BLUEPRINTGRAPH_API UEdGraphPin* GetElsePin() const;
 	/** Get the condition pin */

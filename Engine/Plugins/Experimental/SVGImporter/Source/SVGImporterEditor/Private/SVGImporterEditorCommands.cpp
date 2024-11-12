@@ -5,6 +5,21 @@
 
 #define LOCTEXT_NAMESPACE "AvaSVGEditorCommands"
 
+const FSVGImporterEditorCommands& FSVGImporterEditorCommands::GetExternal()
+{
+	if (!IsRegistered())
+	{
+		Register();
+	}
+
+	return Get();
+}
+
+const FSVGImporterEditorCommands& FSVGImporterEditorCommands::GetInternal()
+{
+	return Get();
+}
+
 FSVGImporterEditorCommands::FSVGImporterEditorCommands()
 	: TCommands<FSVGImporterEditorCommands>(
 		TEXT("SVGImporterEditor")

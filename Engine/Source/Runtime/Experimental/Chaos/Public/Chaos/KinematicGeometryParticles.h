@@ -49,8 +49,8 @@ class TKinematicGeometryParticlesImp : public TGeometryParticlesImp<T, d, SimTyp
 	const TVector<FRealSingle, d> GetWf(const int32 Index) const { return MW[Index]; }
 	void SetWf(const int32 Index, const TVector<FRealSingle, d>& InW) { MW[Index] = InW; }
 
-	const TKinematicTarget<T, d>& KinematicTarget(const int32 Index) const { return KinematicTargets[Index]; }
-	TKinematicTarget<T, d>& KinematicTarget(const int32 Index) { return KinematicTargets[Index]; }
+	const FKinematicTarget& KinematicTarget(const int32 Index) const { return KinematicTargets[Index]; }
+	FKinematicTarget& KinematicTarget(const int32 Index) { return KinematicTargets[Index]; }
 
 	FString ToString(int32 index) const
 	{
@@ -111,12 +111,12 @@ class TKinematicGeometryParticlesImp : public TGeometryParticlesImp<T, d, SimTyp
 
 	FORCEINLINE TArray<TVector<FRealSingle, d>>& AllV() { return MV; }
 	FORCEINLINE TArray<TVector<FRealSingle, d>>& AllW() { return MW; }
-	FORCEINLINE TArray<TKinematicTarget<T, d>>& AllKinematicTargets() { return KinematicTargets; }
+	FORCEINLINE TArray<FKinematicTarget>& AllKinematicTargets() { return KinematicTargets; }
 
   private:
 	TArrayCollectionArray<TVector<FRealSingle, d>> MV;
 	TArrayCollectionArray<TVector<FRealSingle, d>> MW;
-	TArrayCollectionArray<TKinematicTarget<T, d>> KinematicTargets;
+	TArrayCollectionArray<FKinematicTarget> KinematicTargets;
 };
 
 template <typename T, int d, EGeometryParticlesSimType SimType>

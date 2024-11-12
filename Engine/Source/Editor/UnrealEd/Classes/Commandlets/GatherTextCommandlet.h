@@ -26,9 +26,6 @@ public:
 
 	int32 ProcessGatherConfig(const FString& GatherTextConfigPath, const TSharedPtr<FLocalizationSCC>& CommandletSourceControlInfo, const TArray<FString>& Tokens, const TArray<FString>& Switches, const TMap<FString, FString>& ParamVals);
 
-	// Helpler function to generate a changelist description
-	FText GetChangelistDescription(const TArray<FString>& GatherTextConfigPaths);
-
 	static const FString UsageText;
 //~ Begin UGatherTextCommandletBase  Interface
 	virtual bool ShouldRunInPreview(const TArray<FString>& Switches, const TMap<FString, FString>& ParamVals) const override
@@ -37,6 +34,8 @@ public:
 		return true;
 	}
 	//~ End UGatherTextCommandletBase  Interface
+
 private:
-	 
+	// Helper function to generate a changelist description
+	FText GetChangelistDescription(const TArray<FString>& GatherTextConfigPaths) const;
 };

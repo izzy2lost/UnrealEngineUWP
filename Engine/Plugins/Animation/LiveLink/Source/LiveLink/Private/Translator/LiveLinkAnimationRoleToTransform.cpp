@@ -52,6 +52,8 @@ bool ULiveLinkAnimationRoleToTransform::FLiveLinkAnimationRoleToTransformWorker:
 	}
 
 	//Time to translate
+	TransformStaticData->PropertyNames.Append(SkeletonData->PropertyNames);
+
 	TransformFrameData->MetaData = FrameData->MetaData;
 	TransformFrameData->PropertyValues = FrameData->PropertyValues;
 	TransformFrameData->WorldTime = FrameData->WorldTime;

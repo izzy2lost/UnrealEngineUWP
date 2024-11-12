@@ -11,6 +11,7 @@
 #include "InterchangeSourceData.h"
 #include "InterchangeTranslatorBase.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
+#include "InterchangeFactoryBase.h"
 #include "Nodes/InterchangeFactoryBaseNode.h"
 #include "Types/AttributeStorage.h"
 
@@ -247,6 +248,33 @@ namespace UE::Interchange
 		return AssetImportData;
 	}
 
+	void FFactoryCommon::BackupSourceData(const UAssetImportData* AssetImportData)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FFactoryCommon::BackupSourceFilenames)
+		if (const UInterchangeAssetImportData* InterchangeAssetImportData = Cast<UInterchangeAssetImportData>(AssetImportData))
+		{
+			InterchangeAssetImportData->BackupSourceData();
+		}
+	}
+
+	void FFactoryCommon::ReinstateSourceData(UAssetImportData* AssetImportData)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FFactoryCommon::ReinstateSourceData)
+		if (UInterchangeAssetImportData* InterchangeAssetImportData = Cast<UInterchangeAssetImportData>(AssetImportData))
+		{
+			InterchangeAssetImportData->ReinstateBackupSourceData();
+		}
+	}
+
+	void FFactoryCommon::ClearBackupSourceData(const UAssetImportData* AssetImportData)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FFactoryCommon::ClearBackupSourceData)
+		if (const UInterchangeAssetImportData* InterchangeAssetImportData = Cast<UInterchangeAssetImportData>(AssetImportData))
+		{
+			InterchangeAssetImportData->ClearBackupSourceData();
+		}
+	}
+
 	bool FFactoryCommon::GetSourceFilenames(const UAssetImportData* AssetImportData, TArray<FString>& OutSourceFilenames)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FFactoryCommon::GetSourceFilenames)
@@ -366,8 +394,13 @@ namespace UE::Interchange
 		}
 	}
 
-	UObject* FFactoryCommon::GetObjectToReimport(UObject* ReimportObject, const UInterchangeFactoryBaseNode& FactoryNode, const FString& PackageName, const FString& AssetName, const FString& SubPathString)
+	UObject* FFactoryCommon::GetObjectToReimport(UInterchangeFactoryBase* Factory, UObject* ReimportObject, const UInterchangeFactoryBaseNode& FactoryNode, const FString& PackageName, const FString& AssetName, const FString& SubPathString)
 	{
+		UObject* ReimportObjectCandidate = Factory->GetObjectToReimport(ReimportObject, FactoryNode, PackageName, AssetName, SubPathString);
+		if (ReimportObjectCandidate != ReimportObject)
+		{
+			return ReimportObjectCandidate;
+		}
 #if WITH_EDITORONLY_DATA
 		if (ReimportObject && !ReimportObject->GetClass()->IsChildOf(FactoryNode.GetObjectClass()))
 		{

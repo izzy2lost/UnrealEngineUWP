@@ -29,8 +29,5 @@ public class PhysicsControl : ModuleRules
 				"PhysicsCore"
 			}
 		);
-
-		SetupModulePhysicsSupport(Target);
-		PrivateDefinitions.Add("CHAOS_INCLUDE_LEVEL_1=1");
 	}
 }

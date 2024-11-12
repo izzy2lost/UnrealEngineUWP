@@ -280,7 +280,10 @@ void FUIActionBinding::CleanRegistrations()
 		}
 	}
 
-	UE_LOG(LogUIActionRouter, Log, TEXT("Cleaned out [%d] inactive UI action bindings"), NumRemoved);
+	if (NumRemoved > 0)
+	{
+		UE_LOG(LogUIActionRouter, Log, TEXT("Cleaned out [%d] inactive UI action bindings"), NumRemoved);
+	}
 }
 
 FCommonInputActionDataBase* FUIActionBinding::GetLegacyInputActionData() const
@@ -1067,12 +1070,12 @@ void FActivatableTreeNode::RemoveScrollRecipient(const UWidget& ScrollRecipient)
 	ScrollRecipients.Remove(&ScrollRecipient);
 }
 
-void FActivatableTreeNode::AddInputPreprocessor(const TSharedRef<IInputProcessor>& InputPreprocessor, int32 DesiredIndex)
+void FActivatableTreeNode::AddInputPreprocessor(const TSharedRef<IInputProcessor>& InputPreprocessor, const FInputPreprocessorRegistrationKey& RegistrationInfo)
 {
-	RegisteredPreprocessors.Emplace(DesiredIndex, InputPreprocessor);
+	RegisteredPreprocessors.Emplace(FInputPreprocessorRegistration{ RegistrationInfo, InputPreprocessor });
 	if (IsReceivingInput())
 	{
-		FSlateApplication::Get().RegisterInputPreProcessor(InputPreprocessor, DesiredIndex);
+		FSlateApplication::Get().RegisterInputPreProcessor(InputPreprocessor, RegistrationInfo);
 	}
 }
 
@@ -1289,18 +1292,18 @@ void FActivatableTreeNode::HandleChildSlateReleased(UCommonActivatableWidget* Ch
 void FActivatableTreeNode::RegisterPreprocessors()
 {
 	check(IsReceivingInput());
-	for (const FPreprocessorRegistration& PreprocessorInfo : RegisteredPreprocessors)
+	for (const FInputPreprocessorRegistration& Registration : RegisteredPreprocessors)
 	{
-		FSlateApplication::Get().RegisterInputPreProcessor(PreprocessorInfo.Preprocessor, PreprocessorInfo.DesiredIndex);
+		FSlateApplication::Get().RegisterInputPreProcessor(Registration.InputProcessor, Registration.Info);
 	}
 }
 
 void FActivatableTreeNode::UnregisterPreprocessors()
 {
 	check(!IsReceivingInput());
-	for (const FPreprocessorRegistration& PreprocessorInfo : RegisteredPreprocessors)
+	for (const FInputPreprocessorRegistration& Registration : RegisteredPreprocessors)
 	{
-		FSlateApplication::Get().UnregisterInputPreProcessor(PreprocessorInfo.Preprocessor);
+		FSlateApplication::Get().UnregisterInputPreProcessor(Registration.InputProcessor);
 	}
 }
 

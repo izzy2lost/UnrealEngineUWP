@@ -9,8 +9,13 @@
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
+#include "MetalCommandQueue.h"
+#include "MetalDevice.h"
+#include "MetalProfiler.h"
+#include "MetalShaderResources.h"
 #include "Misc/FileHelper.h"
 #include "Misc/ScopeExit.h"
+#include "Serialization/MemoryReader.h"
 #include "Shaders/Debugging/MetalShaderDebugCache.h"
 #include "Shaders/MetalCompiledShaderKey.h"
 #include "Shaders/MetalCompiledShaderCache.h"
@@ -37,8 +42,54 @@ extern MTL::LanguageVersion ValidateVersion(uint32 Version);
 
 #pragma mark - Metal RHI Base Shader Class Template
 
+struct FMetalShaderData
+{
+    /** External bindings for this shader. */
+    FMetalShaderBindings Bindings;
+    
+    /* Argument encoders for shader IABs */
+    TMap<uint32, MTL::ArgumentEncoder*> ArgumentEncoders;
+
+    /* Tier1 Argument buffer bitmasks */
+    TMap<uint32, TBitArray<>> ArgumentBitmasks;
+
+    /* Uniform buffer static slots */
+    TArray<FUniformBufferStaticSlot> StaticSlots;
+
+    /** The binding for the buffer side-table if present */
+    int32 SideTableBinding = -1;
+
+    /** CRC & Len for name disambiguation */
+    uint32 SourceLen = 0;
+    uint32 SourceCRC = 0;
+
+    /** Hash for the shader/material permutation constants */
+    uint32 ConstantValueHash = 0;
+    
+    // this is the compiler shader
+    MTLFunctionPtr Function;
+    // This is the MTLLibrary for the shader so we can dynamically refine the MTLFunction
+    MTLLibraryPtr Library;
+
+    /** The debuggable text source */
+    NS::String* GlslCodeNSString = nullptr;
+
+    /** The compressed text source */
+    TArray<uint8> CompressedSource;
+
+    /** The uncompressed text source size */
+    uint32 CodeSize = 0;
+
+    // Function constant states
+    bool bHasFunctionConstants = false;
+    bool bDeviceFunctionConstants = false;
+
+    /** Index of the function (in the library) pointing to the function requested by the user (when GetCompiledFunction() is called with an explicit index). */
+    uint32 LibraryFunctionIndex = -1;
+};
+
 template<typename BaseResourceType, int32 ShaderType>
-class TMetalBaseShader : public BaseResourceType, public IRefCountedObject
+class TMetalBaseShader : public BaseResourceType, public FMetalShaderData
 {
 public:
 	enum
@@ -46,7 +97,7 @@ public:
 		StaticFrequency = ShaderType
 	};
 
-	TMetalBaseShader()
+	TMetalBaseShader(FMetalDevice& MetalDevice) : Device(MetalDevice)
 	{
 		// void
 	}
@@ -66,61 +117,9 @@ public:
 	 */
 	NS::String* GetSourceCode();
 
-	// IRefCountedObject interface:
-	virtual uint32 AddRef() const override final;
-	virtual uint32 Release() const override final;
-	virtual uint32 GetRefCount() const override final;
-
-	/** External bindings for this shader. */
-	FMetalShaderBindings Bindings;
-
-	// List of memory copies from RHIUniformBuffer to packed uniforms
-	TArray<CrossCompiler::FUniformBufferCopyInfo> UniformBuffersCopyInfo;
-
-	/* Argument encoders for shader IABs */
-	TMap<uint32, MTL::ArgumentEncoder*> ArgumentEncoders;
-
-	/* Tier1 Argument buffer bitmasks */
-	TMap<uint32, TBitArray<>> ArgumentBitmasks;
-
-	/* Uniform buffer static slots */
-	TArray<FUniformBufferStaticSlot> StaticSlots;
-
-	/** The binding for the buffer side-table if present */
-	int32 SideTableBinding = -1;
-
-	/** CRC & Len for name disambiguation */
-	uint32 SourceLen = 0;
-	uint32 SourceCRC = 0;
-
-	/** Hash for the shader/material permutation constants */
-	uint32 ConstantValueHash = 0;
-
 protected:
+	FMetalDevice& Device;
 	MTLFunctionPtr GetCompiledFunction(bool const bAsync = false, const int32 FunctionIndex = -1);
-
-	// this is the compiler shader
-	MTLFunctionPtr Function;
-
-private:
-	// This is the MTLLibrary for the shader so we can dynamically refine the MTLFunction
-	MTLLibraryPtr Library;
-
-	/** The debuggable text source */
-	NS::String* GlslCodeNSString = nullptr;
-
-	/** The compressed text source */
-	TArray<uint8> CompressedSource;
-
-	/** The uncompressed text source size */
-	uint32 CodeSize = 0;
-
-	// Function constant states
-	bool bHasFunctionConstants = false;
-	bool bDeviceFunctionConstants = false;
-
-    /** Index of the function (in the library) pointing to the function requested by the user (when GetCompiledFunction() is called with an explicit index). */
-    uint32 LibraryFunctionIndex = -1;
 };
 
 
@@ -144,7 +143,7 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 	check(OfflineCompiledFlag == 0 || OfflineCompiledFlag == 1);
 
 	// get the header
-	Ar << Header;
+	Header.Serialize(Ar, BaseResourceType::ShaderResourceTable);
 
 	ValidateVersion(Header.Version);
 
@@ -154,7 +153,7 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 	// If this triggers than a level above us has failed to provide valid shader data and the cook is probably bogus
 	UE_CLOG(Header.SourceLen == 0 || Header.SourceCRC == 0, LogMetal, Fatal, TEXT("Invalid Shader Bytecode provided."));
 
-	bDeviceFunctionConstants = Header.bDeviceFunctionConstants;
+	bDeviceFunctionConstants = (Header.bDeviceFunctionConstants == 0 ? false : true);
 
 	// remember where the header ended and code (precompiled or source) begins
 	int32 CodeOffset = Ar.Tell();
@@ -174,7 +173,7 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 	const ANSICHAR* ShaderSource = ShaderCode.FindOptionalData(EShaderOptionalDataKey::SourceCode);
 	bool bHasShaderSource = (ShaderSource && FCStringAnsi::Strlen(ShaderSource) > 0);
 
-	static bool bForceTextShaders = FMetalCommandQueue::SupportsFeature(EMetalFeaturesGPUTrace);
+	static bool bForceTextShaders = Device.SupportsFeature(EMetalFeaturesGPUTrace);
 	if (!bHasShaderSource)
 	{
 		int32 LZMASourceSize = 0;
@@ -191,8 +190,10 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 		else if(bForceTextShaders)
 		{
             GlslCodeNSString = FMetalShaderDebugCache::Get().GetShaderCode(SourceLen, SourceCRC);
-            check(GlslCodeNSString);
-            GlslCodeNSString->retain();
+			if(GlslCodeNSString)
+			{
+				GlslCodeNSString->retain();
+			}
 		}
 #endif
 		if (bForceTextShaders && CodeSize && CompressedSource.Num())
@@ -208,7 +209,7 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 		GlslCodeNSString->retain();
 	}
 
-	bHasFunctionConstants = (Header.bDeviceFunctionConstants);
+	bHasFunctionConstants = (Header.bDeviceFunctionConstants == 0 ? false : true);
 
 	ConstantValueHash = 0;
 
@@ -254,7 +255,7 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 				dispatch_data_t GCDBuffer = dispatch_data_create(Buffer, BufferSize, dispatch_get_main_queue(), ^(void) { FMemory::Free(Buffer); } );
 
 				// load up the already compiled shader
-				Library = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newLibrary(GCDBuffer, &AError));
+				Library = NS::TransferPtr(Device.GetDevice()->newLibrary(GCDBuffer, &AError));
 				dispatch_release(GCDBuffer);
 
 				if (!Library)
@@ -354,7 +355,7 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 			}
 
 			NS::Error* Error = nullptr;
-			Library = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newLibrary(NewShaderString, CompileOptions, &Error));
+			Library = NS::TransferPtr(Device.GetDevice()->newLibrary(NewShaderString, CompileOptions, &Error));
 			if (Library.get() == nullptr)
 			{
 				UE_LOG(LogRHI, Error, TEXT("*********** Error\n%s"), *NSStringToFString(NewShaderString));
@@ -373,10 +374,9 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 
 		GetCompiledFunction(true);
 	}
-	UniformBuffersCopyInfo = Header.UniformBuffersCopyInfo;
 	SideTableBinding = Header.SideTable;
 
-	UE::RHICore::InitStaticUniformBufferSlots(StaticSlots, Bindings.ShaderResourceTable);
+	UE::RHICore::InitStaticUniformBufferSlots(this);
 
 #if RHI_INCLUDE_SHADER_DEBUG_DATA
     this->Debug.ShaderName = FString::Printf(TEXT("Main_%0.8x_%0.8x"), Header.SourceLen, Header.SourceCRC);
@@ -407,24 +407,6 @@ inline NS::String* TMetalBaseShader<BaseResourceType, ShaderType>::GetSourceCode
         GlslCodeNSString->retain();
 	}
 	return GlslCodeNSString;
-}
-
-template<typename BaseResourceType, int32 ShaderType>
-uint32 TMetalBaseShader<BaseResourceType, ShaderType>::AddRef() const
-{
-	return FRHIResource::AddRef();
-}
-
-template<typename BaseResourceType, int32 ShaderType>
-uint32 TMetalBaseShader<BaseResourceType, ShaderType>::Release() const
-{
-	return FRHIResource::Release();
-}
-
-template<typename BaseResourceType, int32 ShaderType>
-uint32 TMetalBaseShader<BaseResourceType, ShaderType>::GetRefCount() const
-{
-	return FRHIResource::GetRefCount();
 }
 
 template<typename BaseResourceType, int32 ShaderType>
@@ -530,7 +512,7 @@ MTLFunctionPtr TMetalBaseShader<BaseResourceType, ShaderType>::GetCompiledFuncti
 		}
 	}
 
-	if (FMetalCommandQueue::SupportsFeature(EMetalFeaturesIABs) && Bindings.ArgumentBuffers && ArgumentEncoders.Num() == 0)
+	if (Device.SupportsFeature(EMetalFeaturesIABs) && Bindings.ArgumentBuffers && ArgumentEncoders.Num() == 0)
 	{
 		uint32 ArgumentBuffers = Bindings.ArgumentBuffers;
 		while(ArgumentBuffers)

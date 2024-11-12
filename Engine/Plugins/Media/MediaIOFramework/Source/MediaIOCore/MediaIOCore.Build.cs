@@ -13,7 +13,6 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"AudioExtensions",
-					"ColorManagement",
 					"Core",
 					"CoreUObject",
 					"Engine",

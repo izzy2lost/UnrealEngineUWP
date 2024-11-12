@@ -7,9 +7,12 @@
 #include "Render/Viewport/Containers/DisplayClusterViewport_Enums.h"
 
 class FRDGBuilder;
+class FSceneView;
 class FSceneViewFamily;
 class IDisplayClusterViewport;
 class IDisplayClusterViewportProxy;
+struct FPostProcessMaterialInputs;
+struct FScreenPassTexture;
 
 
 /**
@@ -19,7 +22,14 @@ class FDisplayClusterMediaCaptureViewport
 	: public FDisplayClusterMediaCaptureBase
 {
 public:
-	FDisplayClusterMediaCaptureViewport(const FString& MediaId, const FString& ClusterNodeId, const FString& ViewportId, UMediaOutput* MediaOutput, UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy = nullptr);
+	FDisplayClusterMediaCaptureViewport(
+		const FString& MediaId,
+		const FString& ClusterNodeId,
+		const FString& ViewportId,
+		UMediaOutput* MediaOutput,
+		UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy = nullptr,
+		bool bInLateOCIO = false
+	);
 
 public:
 	/** Start capturing */
@@ -34,8 +44,7 @@ public:
 		return ViewportId;
 	}
 
-protected:
-	/** Returns texture size of a viewport assigned to capture */
+	/** Returns texture size of a viewport assigned to capture (main thread) */
 	virtual FIntPoint GetCaptureSize() const override;
 
 	/** Provides default texture size from config */
@@ -45,15 +54,20 @@ protected:
 	bool GetCaptureSizeFromGameProxy(FIntPoint& OutSize) const;
 
 private:
-	/** PostRenderViewFamily callback handler where data is captured */
-	void OnPostRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const IDisplayClusterViewportProxy* ViewportProxy);
 
 	/** UpdateViewportMediaState callback to configure media state for a viewoprt */
 	void OnUpdateViewportMediaState(IDisplayClusterViewport* InViewport, EDisplayClusterViewportMediaState& InOutMediaState);
 
-public:
-	/** Force late OCIO pass */
-	bool bForceLateOCIOPass = false;
+	/** PostRenderViewFamily callback handler where data is captured (no late OCIO) */
+	void OnPostRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const IDisplayClusterViewportProxy* ViewportProxy);
+
+	/** PostTonemapPass callback handler (late OCIO) */
+	void OnPostTonemapPass_RenderThread(FRDGBuilder& GraphBuilder, const IDisplayClusterViewportProxy* ViewportProxy, const FSceneView& View, const FPostProcessMaterialInputs& Inputs, const uint32 ContextNum);
+
+private:
+
+	/** Returns size of the viewport bound to this media */
+	virtual FIntPoint GetViewportSize() const;
 
 private:
 	/** Viewport ID assigned to capture */

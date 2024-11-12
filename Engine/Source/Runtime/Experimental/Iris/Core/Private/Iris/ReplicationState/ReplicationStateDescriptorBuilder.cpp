@@ -208,6 +208,8 @@ public:
 		const FStringBuilderBase* PathName = nullptr;
 		// Optionally pass in pointer to source data buffer from which we should create the default state
 		const uint8* DefaultStateSourceData = nullptr;
+		// When building default state we need the ReplicationSystem in order to capture exports.
+		UReplicationSystem* ReplicationSystem = nullptr;
 		EDescriptorType DescriptorType;
 		uint32 bIsInitState : 1;
 		uint32 bAllMembersAreReplicated : 1;
@@ -347,8 +349,8 @@ private:
 	void BuildMemberSerializerConfigs(uint8* SerializerConfigBuffer, FReplicationStateDescriptor* Descriptor, const FMemberCache& MemberCache) const;
 	void FixupNetRoleNetSerializerConfigs(FReplicationStateDescriptor* Descriptor);
 	void FixupDescriptorForNativeFastArray(FReplicationStateDescriptor* Descriptor) const;
-	void AllocateAndInitializeDefaultInternalStateBuffer(const uint8* RESTRICT SrcBuffer, const FReplicationStateDescriptor* Descriptor, const uint8*& OutDefaultStateBuffer) const;
-	bool CalculateDefaultStateChecksum(const FReplicationStateDescriptor* Descriptor, const uint8* OutDefaultStateBuffer, uint64& OutHashValue) const;
+	void AllocateAndInitializeDefaultInternalStateBuffer(const uint8* RESTRICT SrcBuffer, const FReplicationStateDescriptor* Descriptor, UReplicationSystem* ReplicationSystem, const uint8*& OutDefaultStateBuffer) const;
+	bool CalculateDefaultStateChecksum(const FReplicationStateDescriptor* Descriptor, UReplicationSystem* ReplicationSystem, const uint8* OutDefaultStateBuffer, uint64& OutHashValue) const;
 
 	EReplicationStateTraits BuildReplicationStateTraits(const FBuilderContext& Context) const;
 
@@ -554,16 +556,6 @@ void FPropertyReplicationStateDescriptorBuilder::BuildMemberCache(FBuilderContex
 				Member.Traits |= EMemberPropertyTraits::HasDynamicState;
 			}
 
-			if (EnumHasAnyFlags(Descriptor->Traits, EReplicationStateTraits::IsSourceTriviallyConstructible))
-			{
-				Member.Traits |= EMemberPropertyTraits::IsSourceTriviallyConstructible;
-			}
-
-			if (EnumHasAnyFlags(Descriptor->Traits, EReplicationStateTraits::IsSourceTriviallyDestructible))
-			{
-				Member.Traits |= EMemberPropertyTraits::IsSourceTriviallyDestructible;
-			}
-
 			if (EnumHasAnyFlags(Descriptor->Traits, EReplicationStateTraits::HasConnectionSpecificSerialization))
 			{
 				Member.Traits |= EMemberPropertyTraits::HasConnectionSpecificSerialization;
@@ -584,7 +576,7 @@ void FPropertyReplicationStateDescriptorBuilder::BuildMemberCache(FBuilderContex
 			  * Use ElementSize instead of GetSize() since GetSize() will multiply by array size and currently we treat
 			  * each element individually. 
 			  */
-			CurrentCacheEntry->ExternalSizeAndAlignment = { (SIZE_T)Member.Property->ElementSize, (SIZE_T)Member.Property->GetMinAlignment() };
+			CurrentCacheEntry->ExternalSizeAndAlignment = { (SIZE_T)Member.Property->GetElementSize(), (SIZE_T)Member.Property->GetMinAlignment() };
 			CurrentCacheEntry->InternalSizeAndAlignment = { Descriptor->InternalSize, Descriptor->InternalAlignment };
 
 			CurrentCacheEntry->bIsStruct = 1;
@@ -617,7 +609,7 @@ void FPropertyReplicationStateDescriptorBuilder::BuildMemberCache(FBuilderContex
 				Context.BuildParams.bAllMembersAreReplicated = false;
 			}
 
-			CurrentCacheEntry->ExternalSizeAndAlignment = { (SIZE_T)Member.Property->ElementSize, (SIZE_T)Member.Property->GetMinAlignment() };
+			CurrentCacheEntry->ExternalSizeAndAlignment = { (SIZE_T)Member.Property->GetElementSize(), (SIZE_T)Member.Property->GetMinAlignment() };
 			CurrentCacheEntry->InternalSizeAndAlignment = { Serializer->QuantizedTypeSize, Serializer->QuantizedTypeAlignment };
 
 			CurrentCacheEntry->bIsDynamicArray = 1;
@@ -626,7 +618,7 @@ void FPropertyReplicationStateDescriptorBuilder::BuildMemberCache(FBuilderContex
 		{
 			bSomeMembersAreProperties = true;
 
-			CurrentCacheEntry->ExternalSizeAndAlignment = { (SIZE_T)Member.Property->ElementSize, (SIZE_T)Member.Property->GetMinAlignment() };
+			CurrentCacheEntry->ExternalSizeAndAlignment = { (SIZE_T)Member.Property->GetElementSize(), (SIZE_T)Member.Property->GetMinAlignment() };
 			CurrentCacheEntry->InternalSizeAndAlignment = { Serializer->QuantizedTypeSize, Serializer->QuantizedTypeAlignment };
 		}
 		else
@@ -766,7 +758,7 @@ void FPropertyReplicationStateDescriptorBuilder::BuildMemberFunctionCache(FBuild
 	}
 }
 
-void FPropertyReplicationStateDescriptorBuilder::AllocateAndInitializeDefaultInternalStateBuffer(const uint8* RESTRICT SrcBuffer, const FReplicationStateDescriptor* Descriptor, const uint8*& OutDefaultStateBuffer) const
+void FPropertyReplicationStateDescriptorBuilder::AllocateAndInitializeDefaultInternalStateBuffer(const uint8* RESTRICT SrcBuffer, const FReplicationStateDescriptor* Descriptor, UReplicationSystem* ReplicationSystem, const uint8*& OutDefaultStateBuffer) const
 {
 	// Allocate storage for incoming data, it will be freed when we destroy the descriptor
 	uint8* DstStateBuffer = static_cast<uint8*>(FMemory::MallocZeroed(Descriptor->InternalSize, Descriptor->InternalAlignment));
@@ -775,7 +767,14 @@ void FPropertyReplicationStateDescriptorBuilder::AllocateAndInitializeDefaultInt
 	// on both server and client
 	FNetSerializationContext Context;
 	FInternalNetSerializationContext InternalContext;
-	InternalContext.PackageMap = GetOrCreateIrisObjectReferencePackageMap();
+	if (ReplicationSystem)
+	{
+		InternalContext = FInternalNetSerializationContext(ReplicationSystem);
+	}
+	else
+	{
+		InternalContext.PackageMap = GetOrCreateIrisObjectReferencePackageMap();
+	}
 	Context.SetInternalContext(&InternalContext);
 	Context.SetIsInitializingDefaultState(true);
 
@@ -795,7 +794,7 @@ void FPropertyReplicationStateDescriptorBuilder::AllocateAndInitializeDefaultInt
 		FNetQuantizeArgs Args;
 		Args.Version = 0;
 		Args.NetSerializerConfig = MemberSerializerDescriptor.SerializerConfig;
-		Args.Source = reinterpret_cast<NetSerializerValuePointer>(SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize * MemberPropertyDescriptor.ArrayIndex);
+		Args.Source = reinterpret_cast<NetSerializerValuePointer>(SrcBuffer + Property->GetOffset_ForGC() + Property->GetElementSize() * MemberPropertyDescriptor.ArrayIndex);
 		Args.Target = reinterpret_cast<NetSerializerValuePointer>(DstStateBuffer + MemberDescriptor.InternalMemberOffset);
 
 		MemberSerializerDescriptor.Serializer->Quantize(Context, Args);
@@ -804,7 +803,7 @@ void FPropertyReplicationStateDescriptorBuilder::AllocateAndInitializeDefaultInt
 	OutDefaultStateBuffer = DstStateBuffer;
 }
 
-bool FPropertyReplicationStateDescriptorBuilder::CalculateDefaultStateChecksum(const FReplicationStateDescriptor* Descriptor, const uint8* OutDefaultStateBuffer, uint64& OutHashValue) const
+bool FPropertyReplicationStateDescriptorBuilder::CalculateDefaultStateChecksum(const FReplicationStateDescriptor* Descriptor, UReplicationSystem* ReplicationSystem, const uint8* OutDefaultStateBuffer, uint64& OutHashValue) const
 {
 	const UPartialNetObjectAttachmentHandlerConfig* PartialNetObjectAttachmentHandlerConfig = GetDefault<UPartialNetObjectAttachmentHandlerConfig>();
 
@@ -820,7 +819,14 @@ bool FPropertyReplicationStateDescriptorBuilder::CalculateDefaultStateChecksum(c
 	FNetBitStreamWriter Writer;
 	FNetSerializationContext Context(&Writer);
 	FInternalNetSerializationContext InternalContext;
-	InternalContext.PackageMap = GetOrCreateIrisObjectReferencePackageMap();
+	if (ReplicationSystem)
+	{
+		InternalContext = FInternalNetSerializationContext(ReplicationSystem);
+	}
+	else
+	{
+		InternalContext.PackageMap = GetOrCreateIrisObjectReferencePackageMap();
+	}
 	Context.SetInternalContext(&InternalContext);
 
 	// Tell serializers we are serializing default state. It allows serializers to opt out of being part of the checksum by simply not serializing any data.
@@ -938,7 +944,7 @@ void FPropertyReplicationStateDescriptorBuilder::BuildMemberDescriptorsForStruct
 		LastProperty = Property;
 
 		ExternalBufferAlignment = FMath::Max(ExternalBufferAlignment, MemberCacheEntry->ExternalSizeAndAlignment.Alignment);
-		CurrentMemberDescriptor->ExternalMemberOffset = Property ? (Property->GetOffset_ForGC() + (ArrayIndex * (uint32)Property->ElementSize)) : 0U;
+		CurrentMemberDescriptor->ExternalMemberOffset = Property ? (Property->GetOffset_ForGC() + (ArrayIndex * (uint32)Property->GetElementSize())) : 0U;
 
 		// Internal
 		const FNetSerializer* MemberSerializer = MemberCacheEntry->Serializer;
@@ -1490,15 +1496,25 @@ EReplicationStateTraits FPropertyReplicationStateDescriptorBuilder::BuildReplica
 	// Special traits when all members are replicated
 	if (Context.BuildParams.bAllMembersAreReplicated)
 	{
+		const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(StructInfo.Struct);
+		
 		// We cannot determine whether all properties are trivially constructible or destructible unless they're all replicated.
 		if (EnumHasAnyFlags(SharedPropertyTraits, EMemberPropertyTraits::IsSourceTriviallyConstructible))
 		{
-			Traits |= EReplicationStateTraits::IsSourceTriviallyConstructible;
+			const bool bPropagateSourceIsTrivallyConstructible = !ScriptStruct || ((ScriptStruct->StructFlags & (STRUCT_IsPlainOldData | STRUCT_ZeroConstructor)) != STRUCT_NoFlags);
+			if (bPropagateSourceIsTrivallyConstructible)
+			{
+				Traits |= EReplicationStateTraits::IsSourceTriviallyConstructible;
+			}
 		}
 
 		if (EnumHasAnyFlags(SharedPropertyTraits, EMemberPropertyTraits::IsSourceTriviallyDestructible))
 		{
-			Traits |= EReplicationStateTraits::IsSourceTriviallyDestructible;
+			const bool bPropagateSourceIsSourceTriviallyDestructible = !ScriptStruct || ((ScriptStruct->StructFlags & (STRUCT_IsPlainOldData | STRUCT_NoDestructor)) != STRUCT_NoFlags);
+			if (bPropagateSourceIsSourceTriviallyDestructible)
+			{
+				Traits |= EReplicationStateTraits::IsSourceTriviallyDestructible;
+			}
 		}
 
 		Traits |= EReplicationStateTraits::AllMembersAreReplicated;
@@ -1804,10 +1820,10 @@ FPropertyReplicationStateDescriptorBuilder::Build(const FString& StateName, FRep
 		if (Descriptor->InternalSize && BuildParams.DefaultStateSourceData)
 		{
 			// Initialize default state, we need to do this after finalizing the descriptor as we use the descriptor to iterate over the members
-			AllocateAndInitializeDefaultInternalStateBuffer(BuildParams.DefaultStateSourceData, Descriptor, Descriptor->DefaultStateBuffer);
+			AllocateAndInitializeDefaultInternalStateBuffer(BuildParams.DefaultStateSourceData, Descriptor, BuildParams.ReplicationSystem, Descriptor->DefaultStateBuffer);
 
 			uint64 DefaultStateHash = uint64(0);
-			if (CalculateDefaultStateChecksum(Descriptor, Descriptor->DefaultStateBuffer, DefaultStateHash))
+			if (CalculateDefaultStateChecksum(Descriptor, BuildParams.ReplicationSystem, Descriptor->DefaultStateBuffer, DefaultStateHash))
 			{
 				// Store the default state checksum for later use when verifying protocol
 				Descriptor->DescriptorIdentifier.DefaultStateHash = DefaultStateHash;
@@ -2309,6 +2325,7 @@ const IConsoleVariable* FReplicationStateDescriptorBuilder::CVarReplicateCustomD
 
 FReplicationStateDescriptorBuilder::FParameters::FParameters()
 : DescriptorRegistry(nullptr),
+  ReplicationSystem(nullptr),
   DefaultStateSource(nullptr),
   IncludeSuper(1U),
   GetLifeTimeProperties(1U),
@@ -2781,6 +2798,7 @@ SIZE_T FReplicationStateDescriptorBuilder::CreateDescriptorsForClass(FResult& Cr
 			FPropertyReplicationStateDescriptorBuilder::FBuildParameters BuildParameters = {};
 			BuildParameters.PathName = LazyPathName.GetPathName(InObjectClass);
 			BuildParameters.DefaultStateSourceData = DefaultStateSourceData;
+			BuildParameters.ReplicationSystem = Parameters.ReplicationSystem;
 			BuildParameters.DescriptorType = FPropertyReplicationStateDescriptorBuilder::EDescriptorType::Class;
 			BuildParameters.bIsInitState = (BuilderTypeIndex == InitPropertyReplicationStateBuilderIndex);
 			// We set this to false for the time being for all replication states
@@ -2824,6 +2842,7 @@ SIZE_T FReplicationStateDescriptorBuilder::CreateDescriptorsForClass(FResult& Cr
 		FPropertyReplicationStateDescriptorBuilder::FBuildParameters BuildParameters = {};
 		BuildParameters.PathName = LazyPathName.GetPathName(InObjectClass);
 		BuildParameters.DefaultStateSourceData = DefaultStateSourceData;
+		BuildParameters.ReplicationSystem = Parameters.ReplicationSystem;
 		BuildParameters.DescriptorType = FPropertyReplicationStateDescriptorBuilder::EDescriptorType::Class;
 		BuildParameters.bIsInitState = EnumHasAnyFlags(MemberProperty.Traits, EMemberPropertyTraits::InitOnly);
 		

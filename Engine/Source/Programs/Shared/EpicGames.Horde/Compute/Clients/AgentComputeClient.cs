@@ -19,10 +19,15 @@ namespace EpicGames.Horde.Compute.Clients
 	/// </summary>
 	public sealed class AgentComputeClient : IComputeClient
 	{
+		private static readonly ClusterId s_cluster = new ("_agent");
+		
 		class LeaseImpl : IComputeLease
 		{
 			readonly IAsyncEnumerator<RemoteComputeSocket> _source;
-
+			
+			/// <inheritdoc/>
+			public ClusterId Cluster { get; } = s_cluster;
+			
 			/// <inheritdoc/>
 			public IReadOnlyList<string> Properties { get; } = new List<string>();
 
@@ -70,12 +75,15 @@ namespace EpicGames.Horde.Compute.Clients
 			_port = port;
 			_logger = logger;
 		}
-
+	
 		/// <inheritdoc/>
-		public ValueTask DisposeAsync() => new ValueTask();
-
+		public Task<ClusterId> GetClusterAsync(Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken = default)
+		{
+			return Task.FromResult(s_cluster);
+		}
+		
 		/// <inheritdoc/>
-		public async Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken)
+		public async Task<IComputeLease?> TryAssignWorkerAsync(ClusterId? clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken)
 		{
 			logger.LogInformation("** CLIENT **");
 			logger.LogInformation("Launching {Path} to handle remote", _hordeAgentAssembly);

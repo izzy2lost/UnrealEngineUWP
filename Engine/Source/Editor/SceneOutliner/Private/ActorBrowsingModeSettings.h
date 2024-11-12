@@ -72,6 +72,10 @@ public:
 	/** Specifies the behavior of double click on a folder */
 	UPROPERTY()
 	EActorBrowsingFolderDoubleClickMethod FolderDoubleClickMethod = EActorBrowsingFolderDoubleClickMethod::ToggleExpansion;
+
+	/** True if we want to allow updating content when in PIE with the PIE viewport focused */
+	UPROPERTY()
+	bool bShouldUpdateContentWhileInPIEFocused = false;
 };
 
 UCLASS(EditorConfig="ActorBrowsingMode")

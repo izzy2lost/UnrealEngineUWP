@@ -13,7 +13,16 @@
 #include "Engine/Engine.h"
 #include "Generators/MinimalBoxMeshGenerator.h"
 
+
+#if WITH_EDITOR
+#include "Widgets/Notifications/SNotificationList.h"
+#include "Framework/Notifications/NotificationManager.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(UDynamicMesh)
+
+
+#define LOCTEXT_NAMESPACE "UDynamicMesh"
 
 using namespace UE::Geometry;
 
@@ -21,13 +30,28 @@ using namespace UE::Geometry;
 // these cvars are used to support T3D encoding of the internal FDynamicMesh3, see ::ExportCustomProperties() and ::ImportCustomProperties()
 static TAutoConsoleVariable<int32> CVarDynamicMeshTextBasedDupeTriangleCountThreshold(
 	TEXT("geometry.DynamicMesh.TextBasedDupeTriThreshold"),
-	1000,
+	200000,
 	TEXT("Triangle count threshold for text-based UDynamicMesh duplication using Base64. Large values are quite slow."));
 static TAutoConsoleVariable<int32> CVarDynamicMeshDupeHelperTimeout(
 	TEXT("geometry.DynamicMesh.DupeStashTimeout"),
 	5*60,
 	TEXT("Timeout in seconds for references held by internal UDynamicMesh duplication helper system. See FDynamicMeshCopyHelper."));
 
+
+
+namespace UE::Private::UDynamicMeshLocal
+{
+	static void DisplayCriticalWarningMessage(const FText& InMessage, float ExpireDuration = 5.0f)
+	{
+#if WITH_EDITOR
+		FNotificationInfo Info(InMessage);
+		Info.ExpireDuration = ExpireDuration;
+		FSlateNotificationManager::Get().AddNotification(Info);
+#endif
+
+		UE_LOG(LogGeometry, Warning, TEXT("%s"), *InMessage.ToString());
+	}
+}
 
 
 UDynamicMesh::UDynamicMesh(const FObjectInitializer& ObjectInitializer)
@@ -514,7 +538,7 @@ void UDynamicMesh::ImportCustomProperties(const TCHAR* SourceText, FFeedbackCont
 			if (FoundMeshDataStart)
 			{
 				SourceText = FoundMeshDataStart + FCString::Strlen(MeshDataToken);
-				FString MeshData(MeshDataLen, SourceText);
+				FString MeshData = FString::ConstructFromPtrSize(SourceText, MeshDataLen);
 
 				// fix-up the hack applied to the Base64-encoded string in ExportCustomProperties()
 				for (int32 k = 0; k < MeshData.Len(); ++k)
@@ -541,6 +565,7 @@ void UDynamicMesh::ImportCustomProperties(const TCHAR* SourceText, FFeedbackCont
 		}
 
 		// if we got here we failed. Rather than produce an empty mesh, we generate a small cube
+		UE::Private::UDynamicMeshLocal::DisplayCriticalWarningMessage(LOCTEXT("DynamicMeshPasteFailed", "Dynamic Mesh paste failed! See log for details."));
 		UE_LOG(LogGeometry, Warning, TEXT("UDynamicMesh text-based property serialization incomplete, generating box as placeholder. Try increasing geometry.DynamicMesh.TextBasedDupeTriThreshold, or geometry.DynamicMesh.DupeStashTimeout."))
 		FMinimalBoxMeshGenerator BoxGen;
 		BoxGen.Box = UE::Geometry::FOrientedBox3d(FVector3d::Zero(), 50.0 * FVector3d::One());
@@ -622,3 +647,5 @@ void UDynamicMeshPool::FreeAllMeshes()
 	CachedMeshes.Reset();
 	AllCreatedMeshes.Reset();
 }
+
+#undef LOCTEXT_NAMESPACE

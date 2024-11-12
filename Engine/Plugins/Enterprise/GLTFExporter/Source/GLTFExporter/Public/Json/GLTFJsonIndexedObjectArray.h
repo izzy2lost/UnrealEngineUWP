@@ -64,6 +64,20 @@ struct TGLTFJsonIndexedObjectArray : IGLTFJsonArray
 		return Element;
 	}
 
+	//Do not forget to call FixElementIndices after.
+	void Remove(int32 Index)
+	{
+		Array.RemoveAt(Index);
+	}
+
+	void FixElementIndices()
+	{
+		for (size_t ElementIndex = 0; ElementIndex < Array.Num(); ElementIndex++)
+		{
+			Array[ElementIndex]->Index = ElementIndex;
+		}
+	}
+
 	bool IsValidIndex(SizeType Index) const
 	{
 		return Array.IsValidIndex(Index);

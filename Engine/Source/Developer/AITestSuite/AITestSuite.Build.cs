@@ -12,12 +12,14 @@ namespace UnrealBuildTool.Rules
 					"Core",
 					"CoreUObject",
 					"Engine",
-                    "GameplayTasks",
-                    "AIModule",
-                }
-                );
+					"GameplayTasks",
+					"AIModule",
+				}
+				);
 
 			PrecompileForTargets = PrecompileTargetsType.Any;
+
+			PublicDefinitions.Add("WITH_AITESTSUITE 1");
 		}
 	}
 }

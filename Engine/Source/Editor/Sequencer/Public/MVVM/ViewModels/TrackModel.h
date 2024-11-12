@@ -15,6 +15,7 @@
 #include "MVVM/Extensions/IDeletableExtension.h"
 #include "MVVM/Extensions/IDraggableOutlinerExtension.h"
 #include "MVVM/Extensions/IDeletableExtension.h"
+#include "MVVM/Extensions/IConditionableExtension.h"
 #include "MVVM/ViewModels/ViewModelHierarchy.h"
 #include "EventHandlers/ISignedObjectEventHandler.h"
 
@@ -46,6 +47,7 @@ class SEQUENCER_API FTrackModel
 	, public ISortableExtension
 	, public IDraggableOutlinerExtension
 	, public IDeletableExtension
+	, public IConditionableExtension
 	, public UE::MovieScene::TIntrusiveEventHandler<UE::MovieScene::ISignedObjectEventHandler>
 	, public UE::MovieScene::IDeferredSignedObjectFlushSignal
 {
@@ -61,7 +63,8 @@ public:
 		, IGroupableExtension
 		, ISortableExtension
 		, IDraggableOutlinerExtension
-		, IDeletableExtension);
+		, IDeletableExtension
+		, IConditionableExtension);
 
 	explicit FTrackModel(UMovieSceneTrack* Track);
 	~FTrackModel();
@@ -107,6 +110,11 @@ public:
 	ELockableLockState GetLockState() const override;
 	void SetIsLocked(bool bIsLocked) override;
 
+	/*~ IConditionableExtension Interface */
+	const UMovieSceneCondition* GetCondition() const override;
+	EConditionableConditionState GetConditionState() const override;
+	void SetConditionEditorForceTrue(bool bEditorForceTrue) override;
+
 	/*~ ITrackAreaExtension */
 	FTrackAreaParameters GetTrackAreaParameters() const override;
 	FViewModelVariantIterator GetTrackAreaModelList() const override;
@@ -135,6 +143,7 @@ public:
 	bool HasCurves() const override;
 	void BuildContextMenu(FMenuBuilder& MenuBuilder) override;
 	bool GetDefaultExpansionState() const override;
+	void BuildSidebarMenu(FMenuBuilder& MenuBuilder) override;
 
 	/*~ IDeletableExtension */
 	bool CanDelete(FText* OutErrorMessage) const override;

@@ -92,7 +92,7 @@ bool UPrimitiveComponent::GetRigidBodyState(FRigidBodyState& OutState, FName Bon
 			OutState.Position = Transform.GetLocation();
 			OutState.Quaternion = Transform.GetRotation();
 			OutState.LinVel = Interface->GetV(PhysicsObject);
-			OutState.AngVel = Interface->GetW(PhysicsObject);
+			OutState.AngVel = FMath::RadiansToDegrees(Interface->GetW(PhysicsObject));
 			OutState.Flags = (Interface->AreAllSleeping({ PhysicsObject }) ? ERigidBodyFlags::Sleeping : ERigidBodyFlags::None);
 			return true;
 		}
@@ -233,6 +233,19 @@ void UPrimitiveComponent::AddRadialImpulse(FVector Origin, float Radius, float S
 	{
 		BI->AddRadialImpulseToBody(Origin, Radius, Strength, Falloff, bVelChange);
 	}
+	else
+	{
+		TArray<Chaos::FPhysicsObjectHandle> PhysicsObjects = GetAllPhysicsObjects();
+		FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite(PhysicsObjects);
+
+		PhysicsObjects = PhysicsObjects.FilterByPredicate(
+			[&Interface](Chaos::FPhysicsObject* Object) {
+				return !Interface->AreAllDisabled({ &Object, 1 });
+			}
+		);
+
+		Interface->AddRadialImpulse(PhysicsObjects, Origin, Radius, Strength, Falloff, /*bApplyStrain*/true, /*bInvalidate*/true, bVelChange, /*MinValue*/0.f, /*MaxValue*/1.f);
+	}
 }
 
 
@@ -242,6 +255,40 @@ void UPrimitiveComponent::AddForce(FVector Force, FName BoneName, bool bAccelCha
 	{
 		WarnInvalidPhysicsOperations(LOCTEXT("AddForce", "AddForce"), BI, BoneName);
 		BI->AddForce(Force, true, bAccelChange);
+	}
+	else if (BoneName == NAME_None)
+	{
+		TArray<Chaos::FPhysicsObjectHandle> PhysicsObjects = GetAllPhysicsObjects();
+		FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite(PhysicsObjects);
+
+		PhysicsObjects = PhysicsObjects.FilterByPredicate(
+			[&Interface](Chaos::FPhysicsObject* Object) {
+				return !Interface->AreAllDisabled({ &Object, 1 });
+			}
+		);
+
+		if (bAccelChange)
+		{
+			const float Mass = Interface->GetMass(PhysicsObjects);
+			Interface->AddForce(PhysicsObjects, Force * Mass, /*bInvalidate*/true);
+		}
+		else
+		{
+			Interface->AddForce(PhysicsObjects, Force, /*bInvalidate*/true);
+		}
+	}
+	else if (Chaos::FPhysicsObject* Object = GetPhysicsObjectByName(BoneName))
+	{
+		FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite({ &Object, 1 });
+		if (bAccelChange)
+		{
+			const float Mass = Interface->GetMass({ &Object, 1 });
+			Interface->AddForce({ &Object, 1 }, Force * Mass, /*bInvalidate*/true);
+		}
+		else
+		{
+			Interface->AddForce({ &Object, 1 }, Force, /*bInvalidate*/true);
+		}
 	}
 }
 
@@ -283,6 +330,23 @@ void UPrimitiveComponent::AddTorqueInRadians(FVector Torque, FName BoneName, boo
 	{
 		WarnInvalidPhysicsOperations(LOCTEXT("AddTorque", "AddTorque"), BI, BoneName);
 		BI->AddTorqueInRadians(Torque, true, bAccelChange);
+	}
+	else if (BoneName == NAME_None)
+	{
+		TArray<Chaos::FPhysicsObjectHandle> PhysicsObjects = GetAllPhysicsObjects();
+		FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite(PhysicsObjects);
+
+		PhysicsObjects = PhysicsObjects.FilterByPredicate(
+			[&Interface](Chaos::FPhysicsObject* Object) {
+				return !Interface->AreAllDisabled({ &Object, 1 });
+			}
+		);
+		Interface->AddTorque(PhysicsObjects, Torque, /*bInvalidate*/true, bAccelChange);
+	}
+	else if (Chaos::FPhysicsObject* Object = GetPhysicsObjectByName(BoneName))
+	{
+		FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite({ &Object, 1 });
+		Interface->AddTorque({ &Object, 1 }, Torque, /*bInvalidate*/true, bAccelChange);
 	}
 }
 
@@ -669,6 +733,21 @@ void UPrimitiveComponent::SetAllUseCCD(bool bInUseCCD)
 	SetUseCCD(bInUseCCD, NAME_None);
 }
 
+
+void UPrimitiveComponent::SetUseMACD(bool bInUseMACD, FName BoneName)
+{
+	FBodyInstance* BI = GetBodyInstance(BoneName);
+	if (BI)
+	{
+		BI->SetUseMACD(bInUseMACD);
+	}
+}
+
+void UPrimitiveComponent::SetAllUseMACD(bool bInUseMACD)
+{
+	SetUseMACD(bInUseMACD, NAME_None);
+}
+
 void UPrimitiveComponent::PutRigidBodyToSleep(FName BoneName)
 {
 	FBodyInstance* BI = GetBodyInstance(BoneName);
@@ -890,7 +969,18 @@ bool UPrimitiveComponent::WeldToImplementation(USceneComponent * InParent, FName
 			//if root is kinematic simply set child to be kinematic and we're done
 			if ((RootComponent->IsSimulatingPhysics(SocketName) == false) && (bWeldToKinematicParent == false))
 			{
-				FPlatformAtomics::InterlockedExchangePtr((void**)&BI->WeldParent, nullptr);
+				void* OriginalWeldParent = nullptr;
+
+				// Because this uses atomics we need to run it non-transactionally.
+				UE_AUTORTFM_OPEN { OriginalWeldParent = FPlatformAtomics::InterlockedExchangePtr((void**)&BI->WeldParent, nullptr); };
+
+				// But remember that on abort we need to fudge the pointer back into the place we took it from.
+				AutoRTFM::OnAbort([BI, OriginalWeldParent]
+					{
+						void* Old = FPlatformAtomics::InterlockedExchangePtr((void**)&BI->WeldParent, OriginalWeldParent);
+						ensure(nullptr == Old);
+					});
+				
 				SetSimulatePhysics(false);
 				return false;	//return false because we need to continue with regular body initialization
 			}
@@ -946,8 +1036,20 @@ void UPrimitiveComponent::UnWeldFromParent()
 			bool bRootIsBeingDeleted = !IsValidChecked(RootComponent) || RootComponent->IsUnreachable();
 			const FBodyInstance* PrevWeldParent = NewRootBI->WeldParent;
 			RootBI->UnWeld(NewRootBI);
-			
-			FPlatformAtomics::InterlockedExchangePtr((void**)&NewRootBI->WeldParent, nullptr);
+
+			{
+				void* OriginalWeldParent = nullptr;
+
+				// Because this uses atomics we need to run it non-transactionally.
+				UE_AUTORTFM_OPEN { OriginalWeldParent = FPlatformAtomics::InterlockedExchangePtr((void**)&NewRootBI->WeldParent, nullptr); };
+
+				// But remember that on abort we need to fudge the pointer back into the place we took it from.
+				AutoRTFM::OnAbort([NewRootBI, OriginalWeldParent]
+					{
+						void* Old = FPlatformAtomics::InterlockedExchangePtr((void**)&NewRootBI->WeldParent, OriginalWeldParent);
+						ensure(nullptr == Old);
+					});
+			}
 
 			bool bHasBodySetup = GetBodySetup() != nullptr;
 
@@ -982,7 +1084,19 @@ void UPrimitiveComponent::UnWeldFromParent()
 					}
 
 					//At this point, NewRootBI must be kinematic because it's being unwelded.
-					FPlatformAtomics::InterlockedExchangePtr((void**)&ChildBI->WeldParent, nullptr); //null because we are currently kinematic
+
+					void* OriginalWeldParent = nullptr;
+
+					// Because this uses atomics we need to run it non-transactionally.
+					//null because we are currently kinematic
+					UE_AUTORTFM_OPEN { OriginalWeldParent = FPlatformAtomics::InterlockedExchangePtr((void**)&ChildBI->WeldParent, nullptr); };
+
+					// But remember that on abort we need to fudge the pointer back into the place we took it from.
+					AutoRTFM::OnAbort([ChildBI, OriginalWeldParent]
+						{
+							void* Old = FPlatformAtomics::InterlockedExchangePtr((void**)&ChildBI->WeldParent, OriginalWeldParent);
+							ensure(nullptr == Old);
+						});
 				}
 			}
 
@@ -1135,15 +1249,7 @@ void UPrimitiveComponent::SetCollisionEnabled(ECollisionEnabled::Type NewType)
 
 	if (CurrentType != NewType)
 	{
-		UE_AUTORTFM_OPEN({
-			BodyInstance.SetCollisionEnabled(NewType);
-		});
-
-		// If we fail set the CollisionEnabled back to the CurrentType
-		UE_AUTORTFM_ONABORT(
-		{
-			BodyInstance.SetCollisionEnabled(CurrentType);
-		});
+		BodyInstance.SetCollisionEnabled(NewType);
 
 		EnsurePhysicsStateCreated();
 		OnComponentCollisionSettingsChanged();

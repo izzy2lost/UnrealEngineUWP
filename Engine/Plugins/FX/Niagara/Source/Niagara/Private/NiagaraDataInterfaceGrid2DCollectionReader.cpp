@@ -135,6 +135,21 @@ bool UNiagaraDataInterfaceGrid2DCollectionReader::InitPerInstanceData(void* PerI
 	return false;
 }
 
+void UNiagaraDataInterfaceGrid2DCollectionReader::DestroyPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance)
+{
+	FGrid2DCollectionRWInstanceData_GameThread* InstanceData = static_cast<FGrid2DCollectionRWInstanceData_GameThread*>(PerInstanceData);
+	InstanceData->~FGrid2DCollectionRWInstanceData_GameThread();
+
+	SystemInstancesToProxyData_GT.Remove(SystemInstance->GetId());
+
+	FNiagaraDataInterfaceProxyGrid2DCollectionProxy* RT_Proxy = GetProxyAs<FNiagaraDataInterfaceProxyGrid2DCollectionProxy>();
+	ENQUEUE_RENDER_COMMAND(FUpdateData)(
+		[RT_Proxy, InstanceID=SystemInstance->GetId()](FRHICommandListImmediate& RHICmdList)
+		{
+			RT_Proxy->SystemInstancesToProxyData_RT.Remove(InstanceID);
+		});
+}
+
 void UNiagaraDataInterfaceGrid2DCollectionReader::GetEmitterDependencies(UNiagaraSystem* Asset, TArray<FVersionedNiagaraEmitter>& Dependencies) const
 {
 	if (!Asset)

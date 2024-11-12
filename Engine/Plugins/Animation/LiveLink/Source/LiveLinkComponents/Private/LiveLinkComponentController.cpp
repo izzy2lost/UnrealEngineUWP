@@ -171,9 +171,11 @@ void ULiveLinkComponentController::DestroyComponent(bool bPromoteChildren /*= fa
 
 void ULiveLinkComponentController::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
+	UWorld* OwningWorld = GetWorld();
+
 	// Verify if we are in an editor preview world (blueprint editor). Without being able to select the desired component
 	// When you spawn a LL component, it defaults to the root component on which we can't reset the transform in case it's manipulated by LL automatically
-	if (GetWorld() && GetWorld()->WorldType == EWorldType::EditorPreview && bUpdateInPreviewEditor == false)
+	if (OwningWorld && OwningWorld->WorldType == EWorldType::EditorPreview && bUpdateInPreviewEditor == false)
 	{
 		return;
 	}
@@ -193,6 +195,15 @@ void ULiveLinkComponentController::TickComponent(float DeltaTime, ELevelTick Tic
 	}
 
 	ILiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
+
+	if (OwningWorld && OwningWorld->WorldType == EWorldType::PIE)
+	{
+		const bool bUpdateImmediatelyInPIE = GetDefault<ULiveLinkComponentSettings>()->bUpdateSubjectsImmediatelyInPIE;
+		if (bUpdateImmediatelyInPIE && LiveLinkClient.HasPendingSubjectFrames())
+		{
+			LiveLinkClient.ForceTick();
+		}
+	}
 
 	// Evaluate subject frame once and pass the data to our controllers
 	FLiveLinkSubjectFrameData SubjectData;

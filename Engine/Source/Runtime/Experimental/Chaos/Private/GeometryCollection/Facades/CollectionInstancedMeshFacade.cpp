@@ -32,7 +32,7 @@ namespace GeometryCollection::Facades
 
 	int32 FCollectionInstancedMeshFacade::GetNumIndices() const
 	{
-		return InstancedMeshIndexAttribute.Get().Num();
+		return IsValid() ? InstancedMeshIndexAttribute.Get().Num(): 0;
 	}
 
 	int32 FCollectionInstancedMeshFacade::GetIndex(int32 TransformIndex) const

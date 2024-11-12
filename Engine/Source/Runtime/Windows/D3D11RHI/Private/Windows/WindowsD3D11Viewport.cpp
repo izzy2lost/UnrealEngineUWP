@@ -44,7 +44,6 @@ FD3D11Viewport::FD3D11Viewport(FD3D11DynamicRHI* InD3DRHI,HWND InWindowHandle,ui
 	PresentFailCount(0),
 	ValidState(0),
 	PixelFormat(InPreferredPixelFormat),
-	PixelColorSpace(EColorSpaceAndEOTF::ERec709_sRGB),
 	DisplayColorGamut(EDisplayColorGamut::sRGB_D65),
 	DisplayOutputFormat(EDisplayOutputFormat::SDR_sRGB),
 	bIsFullscreen(bInIsFullscreen),
@@ -109,10 +108,10 @@ FD3D11Viewport::FD3D11Viewport(FD3D11DynamicRHI* InD3DRHI,HWND InWindowHandle,ui
 	}
 
 	// If requested, keep a handle to a DXGIOutput so we can force that display on fullscreen swap
-	uint32 DisplayIndex = D3DRHI->GetHDRDetectedDisplayIndex();
+	uint32 DisplayIndex = 0;
 	bForcedFullscreenDisplay = FParse::Value(FCommandLine::Get(), TEXT("FullscreenDisplay="), DisplayIndex);
 
-	if (bForcedFullscreenDisplay || GRHISupportsHDROutput)
+	if (bForcedFullscreenDisplay)
 	{
 		TRefCountPtr<IDXGIAdapter> DXGIAdapter;
 		DXGIDevice->GetAdapter(DXGIAdapter.GetInitReference());
@@ -129,12 +128,6 @@ FD3D11Viewport::FD3D11Viewport(FD3D11DynamicRHI* InD3DRHI,HWND InWindowHandle,ui
 		ForcedFullscreenOutput = nullptr;
 	}
 
-	if (PixelFormat == PF_FloatRGBA && bIsFullscreen)
-	{
-		// Send HDR meta data to enable
-		D3DRHI->EnableHDR();
-	}
-	
 	DXGI_FORMAT SwapChainFormat = GetRenderTargetFormat(PixelFormat);
 
 	// Skip swap chain creation in off-screen rendering mode
@@ -227,10 +220,8 @@ FD3D11Viewport::FD3D11Viewport(FD3D11DynamicRHI* InD3DRHI,HWND InWindowHandle,ui
 				{
 					DisplayOutputFormat = LocalDisplayOutputFormat;
 					DisplayColorGamut = LocalDisplayColorGamut;
+					EnableHDR();
 				}
-
-				// See if we are running on a HDR monitor 
-				CheckHDRMonitorStatus();
 			}
 			else
 			{
@@ -384,22 +375,25 @@ inline void EnsureColorSpace(IDXGISwapChain* SwapChain, EDisplayColorGamut Displ
 // When a window has moved or resized we need to check whether it is on a HDR monitor or not. Set the correct color space of the monitor
 void FD3D11Viewport::CheckHDRMonitorStatus()
 {
-#if WITH_EDITOR
+}
 
-	static auto CVarHDREnable = IConsoleManager::Get().FindConsoleVariable(TEXT("Editor.HDRSupport"));
-	if (CVarHDREnable->GetInt() != 0)
+void FD3D11Viewport::EnableHDR()
+{
+	if ( GRHISupportsHDROutput && IsHDREnabled() )
 	{
-		FlushRenderingCommands();
-
+		// Ensure we have the correct color space set.
 		EnsureColorSpace(SwapChain, DisplayColorGamut, DisplayOutputFormat, PixelFormat);
 	}
-	
+}
+
+void FD3D11Viewport::ShutdownHDR()
+{
+	// Make sure to set the appropriate color space even if GRHISupportsHDROutput is false because we 
+	// might have toggled HDR on and off in the windows settings
 	{
-		PixelColorSpace =  EColorSpaceAndEOTF::ERec709_sRGB;
+		// Ensure we have the correct color space set.
+		EnsureColorSpace(SwapChain, EDisplayColorGamut::sRGB_D65, EDisplayOutputFormat::SDR_sRGB, PixelFormat);
 	}
-#else
-	PixelColorSpace =  EColorSpaceAndEOTF::ERec709_sRGB;
-#endif
 }
 
 void FD3D11Viewport::ConditionalResetSwapChain(bool bIgnoreFocus)

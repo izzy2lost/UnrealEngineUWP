@@ -46,12 +46,14 @@ FAnalysisCache::FFileContents::FFileContents(const TCHAR* FilePath)
 			if (const bool Result = Load(); !Result)
 			{
 				UE_LOG(LogAnalysisCache, Error, TEXT("Failed to open cache file table of contents."));
+				bTransientMode = true;
 				//todo: Recover by deleting file?
 			}
 
 			// Additional sanity check. A common error scenario is that Insights crashed after writing block but before
 			// committing them to the table of contents. Detect that scenario here.
-			if (FileSize > ReservedSize && Blocks.IsEmpty())
+			uint32 MinimalExpectedSizePerVersion[] = {0, ReservedSizeV1, ReservedSizeV2};
+			if (Version < UE_ARRAY_COUNT(MinimalExpectedSizePerVersion) && FileSize > MinimalExpectedSizePerVersion[Version] && Blocks.IsEmpty())
 			{
 				UE_LOG(LogAnalysisCache, Error, TEXT("Cache file has written several blocks but table of contents contains no blocks. This is likely caused by abnormal program termination. Please delete \"%s\". Putting cache in transient mode."), *CacheFilePath);
 				IndexEntries.Empty();
@@ -77,6 +79,12 @@ FAnalysisCache::FFileContents::FFileContents(const TCHAR* FilePath)
 			       *CacheFilePath);
 			bTransientMode = true;
 		}
+	}
+
+	// If we haven't established a version use current
+	if (!Version)
+	{
+		Version = CurrentVersion;
 	}
 }
 
@@ -144,9 +152,21 @@ bool FAnalysisCache::FFileContents::Save()
 
 	File->Seek(0);
 
-	FCbWriter Writer;
-	Writer.BeginObject();
-	Writer << "Version" << CurrentVersion;
+	check(Version > 0); // Version should always be set here
+	switch(Version)
+	{
+	case 1:
+		return SaveVersion1(File);
+	case 2:
+		return SaveVersion2(File);
+	}
+
+	return false;
+}
+
+//////////////////////////////////////////////////////////////////////
+void FAnalysisCache::FFileContents::SaveVersion1Index(FCbWriter& Writer)
+{
 	Writer.BeginArray(ANSITEXTVIEW("Index"));
 	for (auto Entry : IndexEntries)
 	{
@@ -164,11 +184,47 @@ bool FAnalysisCache::FFileContents::Save()
 		Writer.AddBinary(&Entry, sizeof(FBlockEntry));
 	}
 	Writer.EndArray();
+	
+}
+
+//////////////////////////////////////////////////////////////////////
+bool FAnalysisCache::FFileContents::SaveVersion1(IFileHandle* File)
+{
+	FCbWriter Writer;
+	Writer.BeginObject();
+	Writer << "Version" << 1;
+	SaveVersion1Index(Writer);
 	Writer.EndObject();
 	
 	FCbPackage Package(Writer.Save().AsObject());
 
-	FUniqueBuffer Buffer = FUniqueBuffer::Alloc(ReservedSize);
+	FUniqueBuffer Buffer = FUniqueBuffer::Alloc(ReservedSizeV1);
+	FBufferWriter BufferWriter(Buffer.GetData(), Buffer.GetSize());
+	Package.Save(BufferWriter);
+	
+	return File->Write((uint8*)Buffer.GetData(), Buffer.GetSize());
+}
+
+//////////////////////////////////////////////////////////////////////
+bool FAnalysisCache::FFileContents::SaveVersion2(IFileHandle* File)
+{
+	check (Version != 0);
+	
+	// Header
+	ANSICHAR Magic[] = "UC";
+	File->Write((uint8*)Magic,2);
+	File->Write((uint8*)&Version, 4);
+	checkSlow(File->Tell() == IndexOffset);
+
+	// Write the index
+	FCbWriter Writer;
+	Writer.BeginObject();
+	SaveVersion1Index(Writer);
+	Writer.EndObject();
+	
+	FCbPackage Package(Writer.Save().AsObject());
+	
+	FUniqueBuffer Buffer = FUniqueBuffer::Alloc(ReservedSizeV2);
 	FBufferWriter BufferWriter(Buffer.GetData(), Buffer.GetSize());
 	Package.Save(BufferWriter);
 	
@@ -183,28 +239,65 @@ bool FAnalysisCache::FFileContents::Load()
 	{
 		return true;
 	}
-	
+
+	// Read header
+	Version = ReadHeader(File);
+	if (Version > CurrentVersion)
+	{
+		UE_LOG(LogAnalysisCache, Warning, TEXT("Cache file of unknown version (%u), cannot load."), Version);
+		return false;
+	}
+
+	UE_LOG(LogAnalysisCache, Display, TEXT("Loading cache file (version %u)."), Version);
+
+	switch(Version)
+	{
+	case 1:
+		return LoadVersion1(File);
+	case 2:
+		return LoadVersion2(File);
+	}
+
+	return false;
+}
+
+//////////////////////////////////////////////////////////////////////
+uint32 FAnalysisCache::FFileContents::ReadHeader(IFileHandle* File)
+{
+	uint32 Version = 0;
+	uint8 Header[IndexOffset];
 	File->Seek(0);
-	
-	FUniqueBuffer Buffer = FUniqueBuffer::Alloc(ReservedSize);
-	File->Read((uint8*)Buffer.GetData(), Buffer.GetSize());
-	
-	FMemoryReaderView Ar(MakeArrayView<uint8>((uint8*)Buffer.GetData(), IntCastChecked<int32>(Buffer.GetSize())));
-	
-	FCbPackage Package;
-	if (!Package.TryLoad(Ar))
+	File->Read((uint8*)&Header, IndexOffset);
+	if (Header[0] != 'U' || Header[1] != 'C')
 	{
-		return false;
+		// Version 1 lacked a magic header
+		Version = 1;
+		File->Seek(0);
+	}
+	else
+	{
+		// Expect version number after magic
+		Version = *(uint32*)&Header[2];
 	}
 
-	uint32 PackageVersion = Package.GetObject().Find("Version").AsUInt32();
-	UE_LOG(LogAnalysisCache, Display, TEXT("Cache file (version %u) loaded."), PackageVersion);
-	if (PackageVersion != CurrentVersion)
-	{
-		// todo: Handle this better
-		return false;
-	}
+	return Version;
+}
 
+//////////////////////////////////////////////////////////////////////
+bool FAnalysisCache::FFileContents::WriteHeader(IFileHandle* File, uint32 Version)
+{
+	bool bSuccess = true;
+	File->Seek(0);
+	ANSICHAR Magic[] = "UC";
+	bSuccess &= File->Write((uint8*)Magic,2);
+	bSuccess &= File->Write((uint8*)&Version, 4);
+	checkSlow(File->Tell() == IndexOffset);
+	return bSuccess;
+}
+
+//////////////////////////////////////////////////////////////////////
+void FAnalysisCache::FFileContents::LoadVersion1Index(const FCbPackage& Package)
+{
 	FCbArrayView IndexArray = Package.GetObject().Find(ANSITEXTVIEW("Index")).AsArrayView();
 	IndexEntries.Reserve(static_cast<int32>(IndexArray.Num()));
 	for (FCbFieldView IndexEntry : IndexArray)
@@ -232,10 +325,49 @@ bool FAnalysisCache::FFileContents::Load()
 		FMutableMemoryView BlockView = FMutableMemoryView(&Block, sizeof(FBlockEntry));
 		BlockView.CopyFrom(BlockEntryView.AsBinaryView());
 	}
+}
+
+//////////////////////////////////////////////////////////////////////
+bool FAnalysisCache::FFileContents::LoadVersion1(IFileHandle* File)
+{
+	FUniqueBuffer Buffer = FUniqueBuffer::Alloc(ReservedSizeV1);
+	File->Read((uint8*)Buffer.GetData(), Buffer.GetSize());
+	
+	FMemoryReaderView Ar(MakeArrayView<uint8>((uint8*)Buffer.GetData(), IntCastChecked<int32>(Buffer.GetSize())));
+	
+	FCbPackage Package;
+	if (!Package.TryLoad(Ar))
+	{
+		return false;
+	}
+	
+	Version = Package.GetObject().Find("Version").AsUInt32();
+	
+	LoadVersion1Index(Package);
 
 	return true;
 }
 
+	
+//////////////////////////////////////////////////////////////////////
+bool FAnalysisCache::FFileContents::LoadVersion2(IFileHandle* File)
+{
+	FUniqueBuffer Buffer = FUniqueBuffer::Alloc(ReservedSizeV2);
+	File->Read((uint8*)Buffer.GetData(), Buffer.GetSize());
+
+	FMemoryReaderView Ar(MakeArrayView<uint8>((uint8*)Buffer.GetData(), IntCastChecked<int32>(Buffer.GetSize())));
+
+	FCbPackage Package;
+	if (!Package.TryLoad(Ar))
+	{
+		return false;
+	}
+
+	LoadVersion1Index(Package);
+
+	return true;
+}
+	
 //////////////////////////////////////////////////////////////////////
 uint64 FAnalysisCache::FFileContents::UpdateBlock(FMemoryView Block, BlockKeyType BlockKey)
 {
@@ -272,7 +404,7 @@ uint64 FAnalysisCache::FFileContents::UpdateBlock(FMemoryView Block, BlockKeyTyp
 		const bool bSeekResult = File->SeekFromEnd(0);
 		check(bSeekResult);
 		const uint64 Offset = File->Tell();
-		check(Offset >= ReservedSize);
+		checkf(Offset >= ReservedSizeV2, TEXT("Offset (%ull) is larger than reserved size (%u)"), Offset, ReservedSizeV2);
 		if(!File->Write((const uint8*) Block.GetData(), Block.GetSize()))
 		{
 			UE_LOG(LogAnalysisCache, Error, TEXT("Failed to update block 0x%x at offset %u kb"), BlockKey, Offset / 1024);

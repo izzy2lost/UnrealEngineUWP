@@ -70,6 +70,9 @@ public:
 	// Invoked prior to activating a game feature plugin
 	virtual void OnGameFeatureActivating(const UGameFeatureData* GameFeatureData, const FString& PluginURL) {}
 
+	// Invoked after a game feature plugin is activated
+	virtual void OnGameFeatureActivated(const UGameFeatureData* GameFeatureData, const FString& PluginURL) {}
+
 	// Invoked prior to deactivating a game feature plugin
 	virtual void OnGameFeatureDeactivating(const UGameFeatureData* GameFeatureData, FGameFeatureDeactivatingContext& Context, const FString& PluginURL) {}
 

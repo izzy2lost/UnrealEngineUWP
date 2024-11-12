@@ -230,6 +230,7 @@ public:
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_Velocity() { return Particles_Velocity; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_Color() { return Particles_Color; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_SpriteRotation() { return Particles_SpriteRotation; }
+	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_Age() { return Particles_Age; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_NormalizedAge() { return Particles_NormalizedAge; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_SpriteSize() { return Particles_SpriteSize; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_SpriteFacing() { return Particles_SpriteFacing; }
@@ -251,6 +252,7 @@ public:
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_LightEnabled() { return Particles_LightEnabled; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_LightVolumetricScattering() { return Particles_LightVolumetricScattering; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_LightSpecularScale() { return Particles_LightSpecularScale; }
+	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_LightDiffuseScale() { return Particles_LightDiffuseScale; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_RibbonID() { return Particles_RibbonID; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_RibbonWidth() { return Particles_RibbonWidth; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_RibbonTwist() { return Particles_RibbonTwist; }
@@ -290,8 +292,13 @@ public:
 	static NIAGARA_API bool bUseGlobalFXBudget;
 	static NIAGARA_API bool bDataChannelsEnabled;
 
+	static const FNiagaraAssetTagDefinition LightweightTagDefinition;
+
 	static const FNiagaraAssetTagDefinition TemplateTagDefinition;
 	static const FNiagaraAssetTagDefinition LearningContentTagDefinition;
+	static NIAGARA_API const FNiagaraAssetTagDefinition HiddenAssetTagDefinition;
+	static NIAGARA_API const FNiagaraAssetTagDefinition DeprecatedTagDefinition;
+
 	TArray<const FNiagaraAssetTagDefinition*> InternalAssetTagDefinitions;
 private:
 	static NIAGARA_API FNiagaraVariable Engine_WorldDeltaTime;
@@ -366,6 +373,7 @@ private:
 	static NIAGARA_API FNiagaraVariable Particles_Velocity;
 	static NIAGARA_API FNiagaraVariable Particles_Color;
 	static NIAGARA_API FNiagaraVariable Particles_SpriteRotation;
+	static NIAGARA_API FNiagaraVariable Particles_Age;
 	static NIAGARA_API FNiagaraVariable Particles_NormalizedAge;
 	static NIAGARA_API FNiagaraVariable Particles_SpriteSize;
 	static NIAGARA_API FNiagaraVariable Particles_SpriteFacing;
@@ -389,6 +397,7 @@ private:
 	static NIAGARA_API FNiagaraVariable Particles_LightEnabled;
 	static NIAGARA_API FNiagaraVariable Particles_LightVolumetricScattering;
 	static NIAGARA_API FNiagaraVariable Particles_LightSpecularScale;
+	static NIAGARA_API FNiagaraVariable Particles_LightDiffuseScale;
 	static NIAGARA_API FNiagaraVariable Particles_RibbonID;
 	static NIAGARA_API FNiagaraVariable Particles_RibbonWidth;
 	static NIAGARA_API FNiagaraVariable Particles_RibbonTwist;

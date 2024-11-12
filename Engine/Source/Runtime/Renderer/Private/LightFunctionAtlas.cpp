@@ -13,13 +13,14 @@
 #include "SystemTextures.h"
 #include "PostProcess/PostProcessing.h"
 #include "PostProcess/SceneFilterRendering.h"
-#include "ManyLights/ManyLights.h"
+#include "MegaLights/MegaLights.h"
 #include "ShadowRendering.h"
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
 #include "Containers/HashTable.h"
 #include "RenderUtils.h"
 #include "VolumetricFog.h"
+#include "RectLightSceneProxy.h"
 
 DECLARE_GPU_STAT(LightFunctionAtlasGeneration);
 
@@ -52,21 +53,21 @@ How to use the Atlas:
 static TAutoConsoleVariable<int32> CVarLightFunctionAtlas(
 	TEXT("r.LightFunctionAtlas"),
 	1,
-	TEXT("Experimental: enable the light function atlas generation at runtime. The atlas will only be generated if other systems are using it at runtime."),
+	TEXT("Enable the light function atlas generation at runtime. The atlas will only be generated if other systems are using it at runtime."),
 	ECVF_RenderThreadSafe);
 
 // We do not dynamically scale allocated slot resolution for now.
 static TAutoConsoleVariable<int32> CVarLightFunctionAtlasSlotResolution(
 	TEXT("r.LightFunctionAtlas.SlotResolution"),
 	128,
-	TEXT("Experimental: The resolution of each atlas slot."),
+	TEXT("Experimental: The resolution of each atlas slot. If the resolution is too large for the target platforms, it will be reduced to fit."),
 	ECVF_RenderThreadSafe);
 
 // We do not dynamically scale allocated slot resolution for now.
 static TAutoConsoleVariable<int32> CVarLightFunctionAtlasSize(
 	TEXT("r.LightFunctionAtlas.Size"),
 	4,
-	TEXT("Experimental: The default size in atlas slot count of the edge of the 2D texture atlas."),
+	TEXT("Experimental: The default size (atlas slot count) for each dimension of the the 2D texture atlas. Maximum value is 16 since we only allow up to 16x16=256 light functions."),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarLightFunctionAtlasMaxLightCount(
@@ -99,7 +100,7 @@ FAutoConsoleVariableRef CVarVolumetricFogUsesLightFunctionAtlas(
 );
 
 // This deferred CVar includes deferred lights splatting (batched or not) as well as clustered lighting.
-int GDeferredUsesLightFunctionAtlas = 0;
+int GDeferredUsesLightFunctionAtlas = 1;
 FAutoConsoleVariableRef CVarDeferredLightsUsesLightFunctionAtlas(
 	TEXT("r.Deferred.UsesLightFunctionAtlas"),
 	GDeferredUsesLightFunctionAtlas,
@@ -117,25 +118,35 @@ FAutoConsoleVariableRef CVarLumenUsesLightFunctionAtlas(
 
 //////////////////////////////////////////////////////////////////////////
 
-static const uint32 MAX_LIGHT_FUNCTION_ATLAS_SLOT_RESOLUTION = 256;
-static const uint32 MAX_LIGHT_FUNCTION_ATLAS_EDGE_SIZE = 16;
-
-static uint32 GetAtlasSlotResolution()
-{
-	const uint32 AtlasSlotResolution = FMath::Clamp(CVarLightFunctionAtlasSlotResolution.GetValueOnRenderThread(), 32, MAX_LIGHT_FUNCTION_ATLAS_SLOT_RESOLUTION);
-	return AtlasSlotResolution;
-}
-
-static uint32 GetAtlasEdgeSize()
-{
-	const uint32 AtlasEdgeSize = FMath::Clamp(CVarLightFunctionAtlasSize.GetValueOnRenderThread(), 4, MAX_LIGHT_FUNCTION_ATLAS_EDGE_SIZE);// 16x16 is the maximum slot count of LIGHT_FUNCTION_ATLAS_MAX_LIGHT_FUNCTION_COUNT=256 we currently allow
-	return AtlasEdgeSize;
-}
-
-
-
 namespace LightFunctionAtlas
 {
+
+static FLightFunctionAtlasSetup GetLightFunctionAtlasSetup()
+{
+
+	// 16x16 is the maximum slot count of LIGHT_FUNCTION_ATLAS_MAX_LIGHT_FUNCTION_COUNT=256 we currently allow
+	const uint32 MaxEdgeSize = 16;
+	check((MaxEdgeSize * MaxEdgeSize) <= LIGHT_FUNCTION_ATLAS_MAX_LIGHT_FUNCTION_COUNT);
+
+	uint32 RequestedEdgeSize = FMath::Clamp(CVarLightFunctionAtlasSize.GetValueOnRenderThread(), 2, MaxEdgeSize);
+	uint32 RequestedSlotResolution = FMath::Max(CVarLightFunctionAtlasSlotResolution.GetValueOnRenderThread(), 32);
+
+	// The atlas texture resolution should not be larger than the maximum resolution supported by the current platforms.
+	const uint32 MaxAtlasResolution = 32 * 1024;
+	const uint32 Max2DTextureDimension = GetMax2DTextureDimension();
+	if ((RequestedEdgeSize * RequestedSlotResolution) > Max2DTextureDimension)
+	{
+		RequestedSlotResolution = Max2DTextureDimension / RequestedEdgeSize;
+	}
+
+	// Due to the way we pack AtlasSlot.MinU and MinV, we should allow resolution up to 32K only. (UVs are stored as uint16 so 64K but we need half texel precision).
+	check((RequestedSlotResolution * RequestedEdgeSize) <= MaxAtlasResolution);
+
+	FLightFunctionAtlasSetup AtlasSetup;
+	AtlasSetup.EdgeSize = RequestedEdgeSize;
+	AtlasSetup.SlotResolution = RequestedSlotResolution;
+	return AtlasSetup;
+}
 
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FLightFunctionAtlasGlobalParameters, "LightFunctionAtlas");
 
@@ -170,6 +181,13 @@ class FLightFunctionAtlasSlotPS : public FMaterialShader
 	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
 	{
 		return Parameters.MaterialParameters.MaterialDomain == MD_LightFunction;
+	}
+
+	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		OutEnvironment.SetDefine(TEXT("LIGHT_ATLAS"), 1);
 	}
 
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FSceneView& View, const FMaterialRenderProxy* MaterialProxy)
@@ -257,27 +275,40 @@ void FLightFunctionAtlas::ClearEmptySceneFrame(FViewInfo* View, uint32 ViewIndex
 
 void FLightFunctionAtlas::BeginSceneFrame(const FViewFamilyInfo& ViewFamily, TArray<FViewInfo>& Views, FLightFunctionAtlasSceneData& LightFunctionAtlasSceneData, bool bShouldRenderVolumetricFog)
 {
+	// Sync any pending RDG async tasks prior to modifying the atlas, since we issue async RDG tasks.
+	FRDGBuilder::WaitForAsyncExecuteTask();
+
 	ClearEmptySceneFrame(nullptr, 0, &LightFunctionAtlasSceneData);
+
+	AtlasSetup = GetLightFunctionAtlasSetup();
 
 	// Now lets check if we need to generate the atlas for this frame
 	bLightFunctionAtlasEnabled = CVarLightFunctionAtlas.GetValueOnRenderThread() > 0 && ViewFamily.EngineShowFlags.LightFunctions > 0;
+#if !UE_BUILD_SHIPPING
+	LightCountSkippedDueToMissingAtlasSlot = 0;
+	SkippedLightFunctionsSet.Empty();
+#endif
+#if WITH_EDITOR
+	LightCountWithLFMaterialsNotSamplingAtlas = 0;
+	NonCompatibleLightFunctionMaterials.Reset();
+#endif
 
 	// But only really enable the atlas generation if a system asks for it
 	bool bVolumetricFogRequestsLF = false;
 	bool bDeferredlightingRequestsLF = false;
-	bool bManyLightsRequestsLF = false;
+	bool bMegaLightsRequestsLF = false;
 	bool bLumenRequestsLF = false;
 	if (bLightFunctionAtlasEnabled)
 	{
 		bVolumetricFogRequestsLF 	= bShouldRenderVolumetricFog && GVolumetricFogUsesLightFunctionAtlas > 0;
 		bDeferredlightingRequestsLF	= GDeferredUsesLightFunctionAtlas > 0;
-		bManyLightsRequestsLF		= ManyLights::IsUsingLightFunctions();
+		bMegaLightsRequestsLF		= MegaLights::IsUsingLightFunctions(ViewFamily);
 		bLumenRequestsLF 			= GLumenUsesLightFunctionAtlas > 0;// && IsLumenTranslucencyGIEnabled();// GLumenScene enabled ...;
 
 		bLightFunctionAtlasEnabled = bLightFunctionAtlasEnabled && 
 			(bVolumetricFogRequestsLF || 
 			bDeferredlightingRequestsLF || 
-			bManyLightsRequestsLF ||
+			bMegaLightsRequestsLF ||
 			bLumenRequestsLF ||
 			GetSingleLayerWaterUsesLightFunctionAtlas() || 
 			GetTranslucentUsesLightFunctionAtlas()); 
@@ -289,7 +320,7 @@ void FLightFunctionAtlas::BeginSceneFrame(const FViewFamilyInfo& ViewFamily, TAr
 	{
 		if (bVolumetricFogRequestsLF) 		{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::VolumetricFog); }
 		if (bDeferredlightingRequestsLF)	{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::DeferredLighting); }
-		if (bManyLightsRequestsLF)			{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::ManyLights); }
+		if (bMegaLightsRequestsLF)			{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::MegaLights); }
 		if (bLumenRequestsLF) 				{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::Lumen); }
 	}
 
@@ -315,6 +346,8 @@ void FLightFunctionAtlas::AllocateAtlasSlots(const TArray<FViewInfo>& Views)
 	{
 		return;
 	}
+	const FViewInfo& View = Views[0];
+	ERHIFeatureLevel::Type FeatureLevel = View.GetFeatureLevel();
 
 	//
 	// Sort the list of lights registered as having light function in order to keep directional lights first, then each lights closer to each views
@@ -370,13 +403,13 @@ void FLightFunctionAtlas::AllocateAtlasSlots(const TArray<FViewInfo>& Views)
 	//
 	// Allocate slots until we cannot anymore and set light function slot index on FLightSceneInfo to be send to the GPU later
 	//
-	const uint32 AtlasSlotResolution = GetAtlasSlotResolution();
-	const float AtlasEdgeSize = GetAtlasEdgeSize();
+	const uint32 AtlasSlotResolution = AtlasSetup.SlotResolution;
+	const float AtlasEdgeSize = AtlasSetup.EdgeSize;
 	const float AtlasResolution = AtlasSlotResolution * AtlasEdgeSize;
 	check(AtlasEdgeSize * AtlasEdgeSize <= LIGHT_FUNCTION_ATLAS_MAX_LIGHT_FUNCTION_COUNT);
 	const uint32 AtlasMaxLightFunctionCount = AtlasEdgeSize * AtlasEdgeSize;
 
-	LightFunctionsSet.Reset();
+	EffectiveLightFunctionSlotArray.Reset();
 	EffectiveLightFunctionSlotArray.Reserve(AtlasMaxLightFunctionCount);
 
 	EffectiveLocalLightSlotArray.Reset();
@@ -384,9 +417,6 @@ void FLightFunctionAtlas::AllocateAtlasSlots(const TArray<FViewInfo>& Views)
 
 	LightFunctionsSet.Reset();
 	LightFunctionsSet.Reserve(AtlasMaxLightFunctionCount);
-
-	// Reserve the default slot at index 0 as the default identity slot
-	LightFunctionsSet.Add(FLightFunctionSlotKey());
 
 	uint32 NextAtlasSlotX = 0;
 	uint32 NextAtlasSlotY = 0;
@@ -428,7 +458,7 @@ void FLightFunctionAtlas::AllocateAtlasSlots(const TArray<FViewInfo>& Views)
 		return LightSlotIndex;
 	};
 
-	// Add the default invalid light slot at the beginning
+	// Add the default invalid light slot at the beginning. This is done so that we always allocate buffer with at least one element.
 	AddLightSlot(nullptr, 0);
 
 	int32 MaxLightCount = CVarLightFunctionAtlasMaxLightCount.GetValueOnRenderThread();
@@ -436,22 +466,48 @@ void FLightFunctionAtlas::AllocateAtlasSlots(const TArray<FViewInfo>& Views)
 	{
 		FLightSceneInfo* LightSceneInfo = RegisteredLights[SortedRegisteredLight.RegisteredLightIndex];
 		FLightSceneProxy* Proxy = LightSceneInfo->Proxy;
+		const FMaterialRenderProxy* LightFunctionMaterial = LightSceneInfo->Proxy->GetLightFunctionMaterial();
 
-		if (MaxLightCount >= 0 && int32(LocalLightWithLightFunctionCount) >= MaxLightCount)
+		if ((MaxLightCount >= 0 && int32(LocalLightWithLightFunctionCount) >= MaxLightCount) || LightFunctionMaterial == nullptr)
 		{
 			// We cannot register anymore light, so set them to no light function
 			Proxy->SetLightFunctionAtlasIndices(0);
 			continue;
 		}
 
+		if (LightFunctionMaterial != nullptr)
+		{
+			const FMaterial& Material = LightFunctionMaterial->GetIncompleteMaterialWithFallback(FeatureLevel);
+			if (!Material.MaterialIsLightFunctionAtlasCompatible_RenderThread())
+			{
+			#if WITH_EDITOR
+				const UMaterialInterface* LightFunctionMaterialInterface = LightFunctionMaterial->GetMaterialInterface();
+				if (LightFunctionMaterialInterface)
+				{
+					NonCompatibleLightFunctionMaterials.Add(LightFunctionMaterialInterface->GetUniqueID(), LightFunctionMaterialInterface);
+				}
+				LightCountWithLFMaterialsNotSamplingAtlas++;
+			#endif
+				Proxy->SetLightFunctionAtlasIndices(0);
+				continue;
+			}
+		}
+
 		FLightFunctionSlotKey NewKey = FLightFunctionSlotKey(LightSceneInfo);
 
 		FLightFunctionSlotKey* ExistingKey = LightFunctionsSet.Find(NewKey);
 
+	#if !UE_BUILD_SHIPPING
+		if (ExistingKey == nullptr && (uint32(LightFunctionsSet.Num()) >= AtlasMaxLightFunctionCount))
+		{
+			// We cannot account for this light's required light function
+			LightCountSkippedDueToMissingAtlasSlot++;
+			SkippedLightFunctionsSet.Add(NewKey);
+		}
+	#endif
+
 		if (ExistingKey == nullptr && (uint32(LightFunctionsSet.Num()) < AtlasMaxLightFunctionCount))
 		{
-			const FMaterialRenderProxy* LightFunctionMaterial = Proxy->GetLightFunctionMaterial();
-
 			// Allocate slots for the light and views
 			Proxy->SetLightFunctionAtlasIndices(AddLightSlot(LightSceneInfo, AddAtlasSlot(NewKey, LightFunctionMaterial)));
 
@@ -548,30 +604,32 @@ void FLightFunctionAtlas::RenderLightFunctionAtlas(FRDGBuilder& GraphBuilder, TA
 		LightFunctionAtlasGlobalParameters->LightFunctionAtlasTexture = RDGAtlasTexture2D;
 		LightFunctionAtlasGlobalParameters->LightFunctionAtlasSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 
-		const uint32 AtlasSlotResolution = GetAtlasSlotResolution();
-		float AtlasEdgeSize = GetAtlasEdgeSize();
+		const uint32 AtlasSlotResolution = AtlasSetup.SlotResolution;
+		const float AtlasEdgeSize = AtlasSetup.EdgeSize;
 		float AtlasResolution = AtlasSlotResolution * AtlasEdgeSize;
 		LightFunctionAtlasGlobalParameters->Slot_UVSize = (AtlasSlotResolution - 1.0f) / AtlasResolution; // -1.0 because we remove a bit more than half a texel at the border.
 
 		const FIntPoint LightFunctionResolution = FIntPoint(AtlasSlotResolution, AtlasSlotResolution);
 
 		// Write the light data needed to rotate and fade the light function in the world.
-		const uint32 InitialLightInfoDataLightCount = FMath::DivideAndRoundUp(uint32(EffectiveLocalLightSlotArray.Num()), 32u) * 32u;// Alloted with 32 lights step to better reuse shared buffers pool.
+		// UVMinMax for pointed to atlas slot is also packed into the light structure.
+		const uint32 InitialLightInfoDataLightCount = FMath::DivideAndRoundUp(uint32(EffectiveLocalLightSlotArray.Num()), 32u) * 32u;	// Allocated with 32 lights step to better reuse shared buffers pool
 		const uint32 InitialLightInfoDataSize = InitialLightInfoDataLightCount * sizeof(FAtlasLightInfoData);
 		FAtlasLightInfoData* LightInfoDataBufferPtr = (FAtlasLightInfoData*)GraphBuilder.Alloc(InitialLightInfoDataSize, 16);
-		uint32 LightIndex = 0;
+		uint32 OutputBufferLightIndex = 0;
 		for (EffectiveLocalLightSlot& LightSlot : EffectiveLocalLightSlotArray)
 		{
 			FLightSceneInfo* LightSceneInfo = LightSlot.LightSceneInfo;
 			const bool bIsDefaultSlot = LightSceneInfo == nullptr;
-
 			if (bIsDefaultSlot)
 			{
-				LightInfoDataBufferPtr[LightIndex].Parameters = FVector4f(1.0f, 1.0f, 1.0f, 0.0f);
-				LightIndex++;
+				LightInfoDataBufferPtr[OutputBufferLightIndex].Parameters = FVector4f(1.0f, 1.0f, 1.0f, 0.0f);
+				OutputBufferLightIndex++;
 				continue;
 			}
 
+			const uint8 LightFunctionAtlasSlotIndex = LightSlot.LightFunctionAtlasSlotIndex;
+			check(LightSceneInfo);
 			const FLightSceneProxy* Proxy = LightSceneInfo->Proxy;
 
 			float ShadowFadeFraction = 1.0f;
@@ -586,32 +644,37 @@ void FLightFunctionAtlas::RenderLightFunctionAtlas(FRDGBuilder& GraphBuilder, TA
 				TranslatedWorldToLight = FMatrix44f(FTranslationMatrix(-View.ViewMatrices.GetPreViewTranslation()) * WorldToLight);
 			}
 
-			LightInfoDataBufferPtr[LightIndex].Transform = TranslatedWorldToLight;
+			LightInfoDataBufferPtr[OutputBufferLightIndex].Transform = TranslatedWorldToLight;
 
 			uint8 LightType = Proxy->GetLightType();
 			
-			const uint8 LightFunctionAtlasSlotIndex = LightSlot.LightFunctionAtlasSlotIndex;
 			FFloat16 PackedDisabledBrightness(Proxy->GetLightFunctionDisabledBrightness());
 			uint32 PackedLightInfoDataParams = uint32(LightType) | (uint32(PackedDisabledBrightness.Encoded) << 8);
 
 			const EffectiveLightFunctionSlot& AtlasSlot = EffectiveLightFunctionSlotArray[LightFunctionAtlasSlotIndex];
 
-			static_assert(MAX_LIGHT_FUNCTION_ATLAS_SLOT_RESOLUTION * MAX_LIGHT_FUNCTION_ATLAS_EDGE_SIZE <= 32 * 1024, 
-				"Unable to pack slot UVs into uint16 when atlas resolution is larger than 32K");
-
 			const uint32 PackedAtlasSlotMinU = uint32(round(AtlasSlot.MinU * 65536.0f));
 			const uint32 PackedAtlasSlotMinV = uint32(round(AtlasSlot.MinV * 65536.0f));
 			const uint32 PackedAtlasSlotMinUV = (PackedAtlasSlotMinU | (PackedAtlasSlotMinV << 16));
 
-			ensure(FMath::IsNearlyEqual((PackedAtlasSlotMinUV & 0xFFFF) / 65536.0f, AtlasSlot.MinU));
-			ensure(FMath::IsNearlyEqual(((PackedAtlasSlotMinUV >> 16) & 0xFFFF) / 65536.0f, AtlasSlot.MinV));
+			const float IntegerUVTolerance = 0.5f / 65536.0f;
+			ensure(FMath::IsNearlyEqual((PackedAtlasSlotMinUV & 0xFFFF) / 65536.0f, AtlasSlot.MinU, IntegerUVTolerance));
+			ensure(FMath::IsNearlyEqual(((PackedAtlasSlotMinUV >> 16) & 0xFFFF) / 65536.0f, AtlasSlot.MinV, IntegerUVTolerance));
 
-			const float TanOuterAngle = LightType == LightType_Spot ? FMath::Tan(LightSceneInfo->Proxy->GetOuterConeAngle()) : 1.0f;
+			float TanOuterAngle = LightType == LightType_Spot ? FMath::Tan(LightSceneInfo->Proxy->GetOuterConeAngle()) : -1.0f;
+			if (LightType == LightType_Rect)
+			{
+				FRectLightSceneProxy* RectLightProxy = (FRectLightSceneProxy*)LightSceneInfo->Proxy;
+				if (RectLightProxy->LightFunctionConeAngleTangent > 0.0f)
+				{
+					TanOuterAngle = RectLightProxy->LightFunctionConeAngleTangent;
+				}
+			}
 
 			// ShadowFadeFraction is unused.
-			LightInfoDataBufferPtr[LightIndex].Parameters = FVector4f(Proxy->GetLightFunctionFadeDistance(), FMath::AsFloat(PackedLightInfoDataParams), FMath::AsFloat(PackedAtlasSlotMinUV), TanOuterAngle);
+			LightInfoDataBufferPtr[OutputBufferLightIndex].Parameters = FVector4f(Proxy->GetLightFunctionFadeDistance(), FMath::AsFloat(PackedLightInfoDataParams), FMath::AsFloat(PackedAtlasSlotMinUV), TanOuterAngle);
 
-			LightIndex++;
+			OutputBufferLightIndex++;
 		}
 
 		// Create the light instance data buffer SRV
@@ -629,8 +692,8 @@ void FLightFunctionAtlas::RenderLightFunctionAtlas(FRDGBuilder& GraphBuilder, TA
 
 void FLightFunctionAtlas::AllocateTexture2DAtlas(FRDGBuilder& GraphBuilder)
 {
-	uint32 AtlasSlotResolution = GetAtlasSlotResolution();
-	uint32 AtlasEdgeSize = GetAtlasEdgeSize();
+	const uint32 AtlasSlotResolution = AtlasSetup.SlotResolution;
+	const float AtlasEdgeSize = AtlasSetup.EdgeSize;
 	uint32 AtlasResolution = AtlasSlotResolution * AtlasEdgeSize;
 	const uint32 MipCount = 1;
 
@@ -655,6 +718,7 @@ void FLightFunctionAtlas::RenderAtlasSlots(FRDGBuilder& GraphBuilder, const TArr
 	AllocateTexture2DAtlas(GraphBuilder);
 
 	SCOPED_NAMED_EVENT(LightFunctionAtlasGeneration, FColor::Emerald);
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, LightFunctionAtlasGeneration, "LightFunctionAtlasGeneration");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, LightFunctionAtlasGeneration);
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, LightFunctionAtlasGeneration);
 	
@@ -664,22 +728,22 @@ void FLightFunctionAtlas::RenderAtlasSlots(FRDGBuilder& GraphBuilder, const TArr
 		RDG_EVENT_NAME("LightFunctionAtlas Generation"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[PassParameters, &Views, this](FRHICommandList& RHICmdList)
+		[PassParameters, &Views, this](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
-			uint32 AtlasSlotResolution = GetAtlasSlotResolution();
-			uint32 AtlasEdgeSize = GetAtlasEdgeSize();
+			const uint32 AtlasSlotResolution = AtlasSetup.SlotResolution;
+			const float AtlasEdgeSize = AtlasSetup.EdgeSize;
 			uint32 AtlasResolution = AtlasSlotResolution * AtlasEdgeSize;
+
+			// This always work because in this case we do not need anything from any view.
+			const FViewInfo& View = Views[0];
 
 			// Render all light functions and update light info
 			for (EffectiveLightFunctionSlot& Slot : EffectiveLightFunctionSlotArray)
 			{
-				// This always work because in this case we do not need anything from any view.
-				const FViewInfo& View = Views[0];
-
 				const FMaterialRenderProxy* MaterialProxyForRendering = Slot.LightFunctionMaterial;
 				if (MaterialProxyForRendering == nullptr)
 				{
-					continue;	// This is the default invalid slot at index 0 to notify disabled light function on local light data.
+					continue;	// This is to skip the unused slot at index 0 because index 0 disable the sampling from the light function atlas.
 				}
 				const FMaterial& Material = MaterialProxyForRendering->GetMaterialWithFallback(View.GetFeatureLevel(), MaterialProxyForRendering);
 
@@ -729,6 +793,36 @@ void FLightFunctionAtlas::RenderAtlasSlots(FRDGBuilder& GraphBuilder, const TArr
 	);
 }
 
+bool FLightFunctionAtlas::IsOutOfSlots() 
+{
+#if !UE_BUILD_SHIPPING
+	return LightCountSkippedDueToMissingAtlasSlot > 0;
+#else
+	return false;
+#endif
+}
+
+FString FLightFunctionAtlas::GetOutOfSlotWarningMessage()
+{
+#if !UE_BUILD_SHIPPING
+	if (!IsLightFunctionAtlasEnabled() || !GAreScreenMessagesEnabled)
+	{
+		return FString();
+	}
+
+	// In case we became out of budget, let's notify the game developers.
+	if (LightCountSkippedDueToMissingAtlasSlot > 0)
+	{
+		FString Text = FString::Printf(TEXT("Light Functions Atlas:\n"));
+		Text += FString::Printf(TEXT("  - %d light(s) will skip light functions due to out of atlas slot (see r.LightFunctionAtlas.Size).\n"), LightCountSkippedDueToMissingAtlasSlot);
+		Text += FString::Printf(TEXT("  - %d light function material(s) have been skipped.\n"), SkippedLightFunctionsSet.Num());
+
+		return Text;
+	}
+#endif // !UE_BUILD_SHIPPING
+	return FString();
+}
+
 FScreenPassTexture FLightFunctionAtlas::AddDebugVisualizationPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& ScreenPassSceneColor) const
 {
 #if WITH_EDITOR
@@ -738,28 +832,47 @@ FScreenPassTexture FLightFunctionAtlas::AddDebugVisualizationPasses(FRDGBuilder&
 		return ScreenPassSceneColor;
 	}
 
-	uint32 AtlasSlotResolution = GetAtlasSlotResolution();
-	uint32 AtlasEdgeSize = GetAtlasEdgeSize();
-	uint32 AtlasResolution = AtlasSlotResolution * AtlasEdgeSize;
+	const uint32 AtlasSlotResolution	= AtlasSetup.SlotResolution;
+	const float AtlasEdgeSize			= AtlasSetup.EdgeSize;
+	const uint32 AtlasResolution		= AtlasSlotResolution * AtlasEdgeSize;
 
-	const FIntPoint SrcPoint = FIntPoint::ZeroValue;
-	const FIntPoint SrcSize  = RDGAtlasTexture2D->Desc.Extent;
-	const FIntPoint DstPoint = FIntPoint(100, 100);
-	const FIntPoint DstSize  = FIntPoint(512, 512);
+	const FIntPoint SrcPoint			= FIntPoint::ZeroValue;
+	const FIntPoint SrcSize				= RDGAtlasTexture2D->Desc.Extent;
+	const FIntPoint DstPoint			= FIntPoint(100, 100);
+	const FIntPoint DstSize				= FIntPoint(512, 512);
 
+	const float DisplayResolutionRatio	= float(DstSize.X) / float(AtlasResolution);
+
+	// Draw the atlas, first make it all grey,
 	AddDrawTexturePass(
 		GraphBuilder,
 		View,
-		RDGAtlasTexture2D,
+		GSystemTextures.GetMidGreyDummy(GraphBuilder),
 		ScreenPassSceneColor.Texture,
 		SrcPoint,
 		SrcSize,
 		DstPoint,
 		DstSize);
+	// then compose all tiles independentely.  (to not show flickering/uninitialised memory on unused tiles)
+	for (auto& AtlasSlot : EffectiveLightFunctionSlotArray)
+	{
+		const FIntPoint SlotDstPoint	= FIntPoint(DstPoint.X + float(AtlasSlot.Min.X) * DisplayResolutionRatio, DstPoint.Y + float(AtlasSlot.Min.Y) * DisplayResolutionRatio);
+		const FIntPoint SlotDstSize		= AtlasSlotResolution * DisplayResolutionRatio;
+		AddDrawTexturePass(
+			GraphBuilder,
+			View,
+			RDGAtlasTexture2D,
+			ScreenPassSceneColor.Texture,
+			AtlasSlot.Min,
+			AtlasSlot.Max-AtlasSlot.Min,
+			SlotDstPoint,
+			SlotDstSize);
+	}
+
 
 	// Now debug print
 	AddDrawCanvasPass(GraphBuilder, {}, View, FScreenPassRenderTarget(ScreenPassSceneColor, ERenderTargetLoadAction::ELoad),
-		[&View, this, DstPoint, DstSize, AtlasResolution](FCanvas& Canvas)
+		[&View, this, DstPoint, DstSize, AtlasResolution, DisplayResolutionRatio](FCanvas& Canvas)
 	{
 		FString Text;
 
@@ -768,15 +881,19 @@ FScreenPassTexture FLightFunctionAtlas::AddDebugVisualizationPasses(FRDGBuilder&
 		float DrawPosX = float(DstPoint.X + DstSize.X) + 30.0f;
 		float DrawPosY = float(DstPoint.Y) + 10.0f;
 
-		float DisplayResolutionRatio = float(DstSize.X) / float(AtlasResolution);
+		const float DPIScale = Canvas.GetDPIScale();
+		Canvas.SetBaseTransform(FMatrix(FScaleMatrix(DPIScale) * Canvas.CalcBaseTransform2D(Canvas.GetViewRect().Width(), Canvas.GetViewRect().Height())));
 
-		Canvas.DrawShadowedString(DstPoint.X + 180.0f, DstPoint.Y - 20.0f, TEXT("LIGHT FUNCTION ATLAS"), GEngine->GetLargeFont(), FLinearColor::White);
+		Canvas.DrawShadowedString(DstPoint.X + 180.0f, DstPoint.Y - 40.0f, TEXT("LIGHT FUNCTION ATLAS"), GEngine->GetLargeFont(), FLinearColor::White);
+
+		Text = FString::Printf(TEXT("Slot Resolution = %dx%d  -  Size = %dx%d"), AtlasSetup.SlotResolution, AtlasSetup.SlotResolution, AtlasSetup.EdgeSize, AtlasSetup.EdgeSize);
+		Canvas.DrawShadowedString(DstPoint.X + 130.0f, DstPoint.Y - 20.0f, *Text, GEngine->GetLargeFont(), FLinearColor::White);
 
 		Text = FString::Printf(TEXT("Light Functions in atlas:         %d"), EffectiveLightFunctionSlotArray.Num());
 		Canvas.DrawShadowedString(DrawPosX, DrawPosY, *Text, GEngine->GetLargeFont(), FLinearColor::White);
 		DrawPosY += 20.0f;
 
-		Text = FString::Printf(TEXT("Local Lights sampling atlas: %d"), EffectiveLocalLightSlotArray.Num());
+		Text = FString::Printf(TEXT("Local Lights sampling atlas: %d"), EffectiveLocalLightSlotArray.Num() - 1);	// minus one because we add a dummy light at slot 0 using AddLightSlot(nullptr, 0);
 		Canvas.DrawShadowedString(DrawPosX, DrawPosY, *Text, GEngine->GetLargeFont(), FLinearColor::White);
 		DrawPosY += 40.0f;
 
@@ -784,23 +901,26 @@ FScreenPassTexture FLightFunctionAtlas::AddDebugVisualizationPasses(FRDGBuilder&
 		for (auto& AtlasSlot : EffectiveLightFunctionSlotArray)
 		{
 			const FMaterialRenderProxy* LightFunctionMaterial = AtlasSlot.LightFunctionMaterial;
+			check(LightFunctionMaterial);
 
 			const FString& MaterialName = LightFunctionMaterial->GetMaterialName();
-			uint32 LFMaterialUniqueID = LightFunctionMaterial->GetMaterialInterface() ? MurmurFinalize32(MurmurFinalize32(LightFunctionMaterial->GetMaterialInterface()->GetUniqueID())) : 0xFFFFFFFF;
+			const uint32 LFMaterialUniqueID = LightFunctionMaterial->GetMaterialInterface() ? MurmurFinalize32(MurmurFinalize32(LightFunctionMaterial->GetMaterialInterface()->GetUniqueID())) : 0xFFFFFFFF;
 
-			FLinearColor MaterialColor(FColor(LFMaterialUniqueID & 0xFF, (LFMaterialUniqueID >> 8) & 0xFF, (LFMaterialUniqueID >> 16) & 0xFF));
+			const FLinearColor MaterialColor(FColor(LFMaterialUniqueID & 0xFF, (LFMaterialUniqueID >> 8) & 0xFF, (LFMaterialUniqueID >> 16) & 0xFF));
 
 			uint32 LightCountUsingThisMaterial = 0;
 			for (auto& LocalLight : EffectiveLocalLightSlotArray)
 			{
-				LightCountUsingThisMaterial += LocalLight.LightFunctionAtlasSlotIndex == LightFunctionAtlasSlotIndex ? 1 : 0;
+				LightCountUsingThisMaterial += ((LocalLight.LightSceneInfo != nullptr) && (LocalLight.LightFunctionAtlasSlotIndex == LightFunctionAtlasSlotIndex)) ? 1 : 0;
 			}
 
 			// Draw the light function material
-			Canvas.DrawTile(DrawPosX - 10.0f, DrawPosY, 15.0f, 15.0f, 0.0f, 0.0f, 1.0f, 1.0f, MaterialColor, nullptr, false);
+			Canvas.DrawTile(DrawPosX - 20.0f, DrawPosY, 15.0f, 15.0f, 0.0f, 0.0f, 1.0f, 1.0f, MaterialColor, nullptr, false);
 
-			Text = FString::Printf(TEXT("%3d lights - %s"), LightCountUsingThisMaterial , *MaterialName);
+			Text = FString::Printf(TEXT("%2d"), LightCountUsingThisMaterial);
 			Canvas.DrawShadowedString(DrawPosX, DrawPosY, *Text, GEngine->GetLargeFont(), MaterialColor);
+			Text = FString::Printf(TEXT("lights - %s"), *MaterialName);
+			Canvas.DrawShadowedString(DrawPosX + 20, DrawPosY, *Text, GEngine->GetLargeFont(), MaterialColor);
 
 			// Draw a line around the corresponding atlas tile
 			auto OutLineAtlasSlot = [&](float X0, float Y0, float X1, float Y1)
@@ -819,6 +939,29 @@ FScreenPassTexture FLightFunctionAtlas::AddDebugVisualizationPasses(FRDGBuilder&
 
 			DrawPosY += 20.0f;
 			LightFunctionAtlasSlotIndex++;
+		}
+
+		DrawPosY += 50.0f;
+
+		// Now display incompatible materials
+		Text = FString::Printf(TEXT("Light functions not compatible with the atlas:   %d"), NonCompatibleLightFunctionMaterials.Num());
+		Canvas.DrawShadowedString(DrawPosX, DrawPosY, *Text, GEngine->GetLargeFont(), FLinearColor::White);
+		DrawPosY += 20.0f;
+
+		Text = FString::Printf(TEXT("Local Lights with light function not in the atlas: %d"), LightCountWithLFMaterialsNotSamplingAtlas);
+		Canvas.DrawShadowedString(DrawPosX, DrawPosY, *Text, GEngine->GetLargeFont(), FLinearColor::White);
+		DrawPosY += 40.0f;
+
+		for (auto& NotCompatibleMaterial : NonCompatibleLightFunctionMaterials)
+		{
+			const uint32 LFMaterialUniqueID = MurmurFinalize32(MurmurFinalize32(NotCompatibleMaterial.Value->GetUniqueID()));
+			const FLinearColor MaterialColor(FColor(LFMaterialUniqueID & 0xFF, (LFMaterialUniqueID >> 8) & 0xFF, (LFMaterialUniqueID >> 16) & 0xFF));
+
+			Canvas.DrawTile(DrawPosX - 20.0f, DrawPosY, 15.0f, 15.0f, 0.0f, 0.0f, 1.0f, 1.0f, MaterialColor, nullptr, false);
+
+			Text = FString::Printf(TEXT("lights - %s"), *NotCompatibleMaterial.Value->GetRenderProxy()->GetMaterialName());
+			Canvas.DrawShadowedString(DrawPosX + 20, DrawPosY, *Text, GEngine->GetLargeFont(), MaterialColor);
+			DrawPosY += 20.0f;
 		}
 	});
 

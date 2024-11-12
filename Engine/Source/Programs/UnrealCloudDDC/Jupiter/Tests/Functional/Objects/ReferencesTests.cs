@@ -13,23 +13,25 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using EpicGames.AspNet;
 using EpicGames.Core;
+using EpicGames.Horde.Storage;
+using EpicGames.Serialization;
 using Jupiter.Controllers;
+using Jupiter.FunctionalTests.Storage;
 using Jupiter.Implementation;
-using Microsoft.AspNetCore.TestHost;
+using Jupiter.Implementation.Objects;
+using Jupiter.Implementation.Replication;
+using Jupiter.Tests.Functional;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Serilog;
-using Logger = Serilog.Core.Logger;
-using EpicGames.Horde.Storage;
-using EpicGames.Serialization;
 using ContentId = Jupiter.Implementation.ContentId;
-using EpicGames.AspNet;
-using Jupiter.Implementation.Objects;
-using Jupiter.Tests.Functional;
+using Logger = Serilog.Core.Logger;
 
 namespace Jupiter.FunctionalTests.References
 {
@@ -49,6 +51,7 @@ namespace Jupiter.FunctionalTests.References
 			{
 				new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Scylla.ToString()),
 				new KeyValuePair<string, string?>("UnrealCloudDDC:ContentIdStoreImplementation", UnrealCloudDDCSettings.ContentIdStoreImplementations.Scylla.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Scylla.ToString()),
 				new KeyValuePair<string, string?>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla.ToString()),
 			};
 		}
@@ -75,13 +78,17 @@ namespace Jupiter.FunctionalTests.References
 			Assert.IsTrue(contentIdStore.GetType() == typeof(ScyllaContentIdStore));
 
 			IReplicationLog replicationLog = provider.GetService<IReplicationLog>()!;
+			if (replicationLog is MemoryCachedReplicationLog log)
+			{
+				replicationLog = log.GetUnderlyingContentIdStore();
+			}
 			//verify we are using the replication log writer
 			Assert.IsTrue(replicationLog.GetType() == typeof(ScyllaReplicationLog));
 
 			await Task.CompletedTask;
 		}
 	}
-	
+
 	[TestClass]
 	// due to timing issues creating the UDTs this test can not be run with other tests, once we have deleted usage of the UDTs we can remove this
 	[DoNotParallelize]
@@ -97,6 +104,7 @@ namespace Jupiter.FunctionalTests.References
 			{
 				new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Scylla.ToString()),
 				new KeyValuePair<string, string?>("UnrealCloudDDC:ContentIdStoreImplementation", UnrealCloudDDCSettings.ContentIdStoreImplementations.Scylla.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Scylla.ToString()),
 				new KeyValuePair<string, string?>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla.ToString()),
 				new KeyValuePair<string, string?>("Scylla:ConnectionString", "Contact Points=localhost,scylla;Default Keyspace=jupiter_cassandra"),
 				new KeyValuePair<string, string?>("Scylla:UseAzureCosmosDB", "true"),
@@ -125,6 +133,10 @@ namespace Jupiter.FunctionalTests.References
 			Assert.IsTrue(contentIdStore.GetType() == typeof(ScyllaContentIdStore));
 
 			IReplicationLog replicationLog = provider.GetService<IReplicationLog>()!;
+			if (replicationLog is MemoryCachedReplicationLog log)
+			{
+				replicationLog = log.GetUnderlyingContentIdStore();
+			}
 			//verify we are using the replication log writer
 			Assert.IsTrue(replicationLog.GetType() == typeof(ScyllaReplicationLog));
 
@@ -171,6 +183,10 @@ namespace Jupiter.FunctionalTests.References
 			Assert.IsTrue(contentIdStore.GetType() == typeof(MongoContentIdStore));
 
 			IReplicationLog replicationLog = provider.GetService<IReplicationLog>()!;
+			if (replicationLog is MemoryCachedReplicationLog log)
+			{
+				replicationLog = log.GetUnderlyingContentIdStore();
+			}
 			//verify we are using the replication log writer
 			Assert.IsTrue(replicationLog.GetType() == typeof(MemoryReplicationLog));
 
@@ -216,13 +232,17 @@ namespace Jupiter.FunctionalTests.References
 			Assert.IsTrue(contentIdStore.GetType() == typeof(MemoryContentIdStore));
 
 			IReplicationLog replicationLog = provider.GetService<IReplicationLog>()!;
+			if (replicationLog is MemoryCachedReplicationLog log)
+			{
+				replicationLog = log.GetUnderlyingContentIdStore();
+			}
 			//verify we are using the replication log writer
 			Assert.IsTrue(replicationLog.GetType() == typeof(MemoryReplicationLog));
 
 			await Task.CompletedTask;
 		}
 	}
-	
+
 	public abstract class ReferencesTests
 	{
 		protected ReferencesTests(string namespaceSuffix)
@@ -367,7 +387,7 @@ namespace Jupiter.FunctionalTests.References
 
 			{
 				// request the object as a jupiter inlined payload
-				using HttpRequestMessage request = new (HttpMethod.Get, new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}", UriKind.Relative));
+				using HttpRequestMessage request = new(HttpMethod.Get, new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}", UriKind.Relative));
 				request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(CustomMediaTypeNames.JupiterInlinedPayload));
 				HttpResponseMessage getResponse = await _httpClient.SendAsync(request);
 				getResponse.EnsureSuccessStatusCode();
@@ -381,6 +401,176 @@ namespace Jupiter.FunctionalTests.References
 
 				Assert.AreEqual(objectContents, roundTrippedString);
 				Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
+			}
+		}
+
+		[TestMethod]
+		public async Task PutGetBlobNewAsync()
+		{
+			const string objectContents = $"This is treated as a opaque blob in {nameof(PutGetBlobAsync)}";
+			byte[] data = Encoding.ASCII.GetBytes(objectContents);
+			BlobId objectHash = BlobId.FromBlob(data);
+			RefId key = RefId.FromName("newBlobObject");
+			using HttpContent requestContent = new ByteArrayContent(data);
+			requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
+			requestContent.Headers.Add(CommonHeaders.HashHeaderName, objectHash.ToString());
+
+			HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}", UriKind.Relative), requestContent);
+			result.EnsureSuccessStatusCode();
+
+			{
+				HttpResponseMessage getResponse = await _httpClient.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}.raw", UriKind.Relative));
+				getResponse.EnsureSuccessStatusCode();
+				await using MemoryStream ms = new MemoryStream();
+				await getResponse.Content.CopyToAsync(ms);
+
+				byte[] roundTrippedBuffer = ms.ToArray();
+				string roundTrippedPayload = Encoding.ASCII.GetString(roundTrippedBuffer);
+
+				Assert.AreEqual(objectContents, roundTrippedPayload);
+				CollectionAssert.AreEqual(data, roundTrippedBuffer);
+				Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
+			}
+
+			{
+				BlobId attachment;
+				{
+					HttpResponseMessage getResponse = await _httpClient.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}.uecb", UriKind.Relative));
+					getResponse.EnsureSuccessStatusCode();
+					await using MemoryStream ms = new MemoryStream();
+					await getResponse.Content.CopyToAsync(ms);
+
+					byte[] roundTrippedBuffer = ms.ToArray();
+					CbObject cb = new CbObject(roundTrippedBuffer);
+					List<CbField> fields = cb.ToList();
+
+					Assert.AreEqual(2, fields.Count);
+					CbField payloadField = fields[0];
+					Assert.IsNotNull(payloadField);
+					Assert.IsTrue(payloadField.IsBinaryAttachment());
+					attachment = BlobId.FromIoHash(payloadField.AsBinaryAttachment());
+				}
+
+				{
+					HttpResponseMessage getAttachment = await _httpClient.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}/blobs/{attachment}", UriKind.Relative));
+					getAttachment.EnsureSuccessStatusCode();
+					await using MemoryStream ms = new MemoryStream();
+					await getAttachment.Content.CopyToAsync(ms);
+					byte[] roundTrippedBuffer = ms.ToArray();
+					string roundTrippedString = Encoding.ASCII.GetString(roundTrippedBuffer);
+
+					Assert.AreEqual(objectContents, roundTrippedString);
+					Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
+				}
+			}
+
+			{
+				HttpResponseMessage getResponse = await _httpClient.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}.json", UriKind.Relative));
+				getResponse.EnsureSuccessStatusCode();
+				await using MemoryStream ms = new MemoryStream();
+				await getResponse.Content.CopyToAsync(ms);
+
+				byte[] roundTrippedBuffer = ms.ToArray();
+				string s = Encoding.ASCII.GetString(roundTrippedBuffer);
+				JsonNode? jsonNode = JsonNode.Parse(s);
+				Assert.IsNotNull(jsonNode);
+				Assert.AreEqual(objectHash, new BlobId(jsonNode["RawHash"]!.GetValue<string>()));
+			}
+
+			{
+				// request the object as a json response using accept instead of the format filter
+				using HttpRequestMessage request = new(HttpMethod.Get, new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}", UriKind.Relative));
+				request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(MediaTypeNames.Application.Json));
+				HttpResponseMessage getResponse = await _httpClient.SendAsync(request);
+				getResponse.EnsureSuccessStatusCode();
+				Assert.AreEqual(MediaTypeNames.Application.Json, getResponse.Content.Headers.ContentType?.MediaType);
+
+				await using MemoryStream ms = new MemoryStream();
+				await getResponse.Content.CopyToAsync(ms);
+
+				byte[] roundTrippedBuffer = ms.ToArray();
+				string s = Encoding.ASCII.GetString(roundTrippedBuffer);
+				JsonNode? node = JsonNode.Parse(s);
+				Assert.IsNotNull(node);
+				Assert.AreEqual(objectHash, new BlobId(node["RawHash"]!.ToString()));
+			}
+
+			{
+				// request the object as a jupiter inlined payload
+				using HttpRequestMessage request = new(HttpMethod.Get, new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}", UriKind.Relative));
+				request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(CustomMediaTypeNames.JupiterInlinedPayload));
+				HttpResponseMessage getResponse = await _httpClient.SendAsync(request);
+				getResponse.EnsureSuccessStatusCode();
+				Assert.AreEqual(CustomMediaTypeNames.JupiterInlinedPayload, getResponse.Content.Headers.ContentType?.MediaType);
+
+				await using MemoryStream ms = new MemoryStream();
+				await getResponse.Content.CopyToAsync(ms);
+				byte[] roundTrippedBuffer = ms.ToArray();
+
+				string roundTrippedString = Encoding.ASCII.GetString(roundTrippedBuffer);
+
+				Assert.AreEqual(objectContents, roundTrippedString);
+				Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
+			}
+		}
+
+		[TestMethod]
+		public async Task PutGetComplexTextureAsync()
+		{
+			byte[] texturePayload = await File.ReadAllBytesAsync("ContentId/Payloads/UncompressedTexture_CAS_dea81b6c3b565bb5089695377c98ce0f1c13b0c3.udd");
+			BlobId compressedPayloadIdentifier = BlobId.FromBlob(texturePayload);
+			ContentId uncompressedPayloadIdentifier = new ContentId("DEA81B6C3B565BB5089695377C98CE0F1C13B0C3");
+
+			CbWriter writer = new CbWriter();
+			writer.BeginObject();
+			writer.WriteBinaryAttachment("payload", uncompressedPayloadIdentifier.AsIoHash());
+			writer.EndObject();
+
+			byte[] data = writer.ToByteArray();
+			BlobId objectHash = BlobId.FromBlob(data);
+
+			BucketId testBucket = new BucketId("test-bucket");
+			RefId refName = RefId.FromName(nameof(PutGetComplexTextureAsync));
+
+			{
+				using ByteArrayContent content = new(texturePayload);
+				content.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompressedBuffer);
+				HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/{testBucket}/{refName}/blobs/{uncompressedPayloadIdentifier}", UriKind.Relative), content);
+				result.EnsureSuccessStatusCode();
+
+				InsertResponse? response = await result.Content.ReadFromJsonAsync<InsertResponse>();
+				Assert.IsNotNull(response);
+				Assert.IsNotNull(response.Identifier);
+				Assert.AreNotEqual(compressedPayloadIdentifier, response.Identifier);
+				Assert.AreEqual(uncompressedPayloadIdentifier, ContentId.FromBlobIdentifier(response.Identifier));
+			}
+
+			{
+				using HttpContent requestContent = new ByteArrayContent(data);
+				requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
+				requestContent.Headers.Add(CommonHeaders.HashHeaderName, objectHash.ToString());
+
+				HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/{testBucket}/{refName}", UriKind.Relative), requestContent);
+				result.EnsureSuccessStatusCode();
+			}
+
+			{
+				HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/{testBucket}/{refName}/blobs/{uncompressedPayloadIdentifier}", UriKind.Relative));
+				result.EnsureSuccessStatusCode();
+				Assert.AreEqual(CustomMediaTypeNames.UnrealCompressedBuffer, result.Content.Headers.ContentType!.MediaType);
+
+				byte[] blobContent = await result.Content.ReadAsByteArrayAsync();
+				CollectionAssert.AreEqual(texturePayload, blobContent);
+			}
+
+			{
+				// verify the compressed blob can be retrieved in the blob store
+				HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/{testBucket}/{refName}/blobs/{compressedPayloadIdentifier}", UriKind.Relative));
+				result.EnsureSuccessStatusCode();
+				Assert.AreEqual(MediaTypeNames.Application.Octet, result.Content.Headers.ContentType!.MediaType);
+
+				byte[] blobContent = await result.Content.ReadAsByteArrayAsync();
+				CollectionAssert.AreEqual(texturePayload, blobContent);
 			}
 		}
 
@@ -470,7 +660,6 @@ namespace Jupiter.FunctionalTests.References
 			}
 		}
 
-		
 		[TestMethod]
 		public async Task PutGetCompactBinaryFilteringAsync()
 		{
@@ -513,7 +702,7 @@ namespace Jupiter.FunctionalTests.References
 				Assert.AreEqual(objectHash, objectRecord.BlobIdentifier);
 				Assert.IsNull(objectRecord.InlinePayload);
 			}
-			
+
 			{
 				HttpResponseMessage getResponse = await _httpClient.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}.json?fields=name", UriKind.Relative));
 				getResponse.EnsureSuccessStatusCode();
@@ -790,7 +979,7 @@ namespace Jupiter.FunctionalTests.References
 
 			CbWriter writerParent = new CbWriter();
 			writerParent.BeginObject();
-			
+
 			writerParent.WriteBinaryAttachment("blobAttachment", blobHash.AsIoHash());
 			writerParent.WriteObjectAttachment("objectAttachment", childDataObjectHash.AsIoHash());
 			writerParent.EndObject();
@@ -924,7 +1113,7 @@ namespace Jupiter.FunctionalTests.References
 				Assert.AreEqual(childDataObjectHash, new BlobId(node["objectAttachment"]!.GetValue<string>()));
 			}
 		}
-		
+
 		[TestMethod]
 		public async Task PutPartialHierarchyAsync()
 		{
@@ -948,14 +1137,14 @@ namespace Jupiter.FunctionalTests.References
 
 			CbWriter writerParent = new CbWriter();
 			writerParent.BeginObject();
-			
+
 			writerParent.WriteBinaryAttachment("blobAttachment", blobHash.AsIoHash());
 			writerParent.WriteObjectAttachment("objectAttachment", childDataObjectHash.AsIoHash());
 			writerParent.EndObject();
 
 			byte[] objectData = writerParent.ToByteArray();
 			BlobId objectHash = BlobId.FromBlob(objectData);
-			
+
 			RefId key = RefId.FromName("newPartialHierarchyObject");
 
 			{
@@ -985,7 +1174,7 @@ namespace Jupiter.FunctionalTests.References
 				requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
 				requestContent.Headers.Add(CommonHeaders.HashHeaderName, objectHash.ToString());
 
-				HttpResponseMessage result = await _httpClient!.PutAsync( new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}.json", UriKind.Relative), requestContent);
+				HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}.json", UriKind.Relative), requestContent);
 				result.EnsureSuccessStatusCode();
 
 				{
@@ -1007,7 +1196,6 @@ namespace Jupiter.FunctionalTests.References
 			}
 		}
 
-		
 		[TestMethod]
 		public async Task PutContentIdMissingBlobAsync()
 		{
@@ -1029,7 +1217,7 @@ namespace Jupiter.FunctionalTests.References
 
 			byte[] objectData = writer.ToByteArray();
 			BlobId objectHash = BlobId.FromBlob(objectData);
-			
+
 			RefId key = RefId.FromName("putContentIdMissingBlob");
 
 			{
@@ -1081,7 +1269,6 @@ namespace Jupiter.FunctionalTests.References
 			}
 		}
 
-		
 		[TestMethod]
 		public async Task PutMissingAttachmentComplexAsync()
 		{
@@ -1550,6 +1737,62 @@ namespace Jupiter.FunctionalTests.References
 		}
 
 		[TestMethod]
+		public async Task EnumerateBucketAsync()
+		{
+			NamespaceId ns = new NamespaceId("test-namespace-enumeration");
+
+			{
+				const string contents = $"EnumerateBlobContents0";
+				byte[] data = Encoding.ASCII.GetBytes(contents);
+				BlobId hash = BlobId.FromBlob(data);
+
+				using HttpContent requestContent = new ByteArrayContent(data);
+				requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
+				requestContent.Headers.Add(CommonHeaders.HashHeaderName, hash.ToString());
+
+				RefId key = RefId.FromName("object0");
+
+				HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{ns}/enumerationBucket/{key}", UriKind.Relative), requestContent);
+				result.EnsureSuccessStatusCode();
+			}
+
+			{
+				const string contents = $"EnumerateBlobContents1";
+				byte[] data = Encoding.ASCII.GetBytes(contents);
+				BlobId hash = BlobId.FromBlob(data);
+
+				using HttpContent requestContent = new ByteArrayContent(data);
+				requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
+				requestContent.Headers.Add(CommonHeaders.HashHeaderName, hash.ToString());
+
+				RefId key = RefId.FromName("object1");
+
+				HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{ns}/enumerationBucket/{key}", UriKind.Relative), requestContent);
+				result.EnsureSuccessStatusCode();
+			}
+
+			{
+				// verify we can fetch the enumeration properly
+				HttpResponseMessage response = await _httpClient!.GetAsync(new Uri($"api/v1/refs/{ns}/enumerationBucket", UriKind.Relative));
+				response.EnsureSuccessStatusCode();
+				EnumerateBucketResponse? enumerateResponse = await response.Content.ReadFromJsonAsync<EnumerateBucketResponse>();
+
+				Assert.IsNotNull(enumerateResponse);
+				Assert.AreEqual(2, enumerateResponse.RefIds.Length);
+			}
+
+			{
+				// verify we can fetch the enumeration properly a second time (were it should be cached)
+				HttpResponseMessage response = await _httpClient!.GetAsync(new Uri($"api/v1/refs/{ns}/enumerationBucket", UriKind.Relative));
+				response.EnsureSuccessStatusCode();
+				EnumerateBucketResponse? enumerateResponse = await response.Content.ReadFromJsonAsync<EnumerateBucketResponse>();
+
+				Assert.IsNotNull(enumerateResponse);
+				Assert.AreEqual(2, enumerateResponse.RefIds.Length);
+			}
+		}
+
+		[TestMethod]
 		public async Task DeleteObjectAsync()
 		{
 			const string objectContents = $"This is treated as a opaque blob in {nameof(DeleteObjectAsync)}";
@@ -1592,7 +1835,6 @@ namespace Jupiter.FunctionalTests.References
 			}
 		}
 
-		
 		[TestMethod]
 		public async Task DropBucketAsync()
 		{
@@ -1650,7 +1892,6 @@ namespace Jupiter.FunctionalTests.References
 			}
 		}
 
-		
 		[TestMethod]
 		public async Task DeleteNamespaceAsync()
 		{
@@ -1715,7 +1956,6 @@ namespace Jupiter.FunctionalTests.References
 			}
 		}
 
-		
 		[TestMethod]
 		public async Task ListNamespacesAsync()
 		{
@@ -1743,7 +1983,7 @@ namespace Jupiter.FunctionalTests.References
 				Assert.IsTrue(response.Namespaces.Contains(TestNamespace));
 			}
 		}
-		
+
 		[TestMethod]
 		public async Task BatchJsonRequestAsync()
 		{
@@ -1770,7 +2010,7 @@ namespace Jupiter.FunctionalTests.References
 
 			CbWriter getObjectOp = new CbWriter();
 			getObjectOp.BeginObject();
-			getObjectOp.WriteInteger( "opId",0);
+			getObjectOp.WriteInteger("opId", 0);
 			getObjectOp.WriteString("op", BatchOps.BatchOp.Operation.GET.ToString());
 			getObjectOp.WriteString("bucket", bucket.ToString());
 			getObjectOp.WriteString("key", newBlobObjectKey.ToString());
@@ -1816,7 +2056,7 @@ namespace Jupiter.FunctionalTests.References
 
 				BatchOpsResponse response = CbSerializer.Deserialize<BatchOpsResponse>(roundTrippedBuffer);
 				Assert.AreEqual(2, response.Results.Count);
-				
+
 				BatchOpsResponse.OpResponses op0 = response.Results.First(r => r.OpId == 0);
 				Assert.IsNotNull(op0.Response);
 				Assert.AreEqual(404, op0.StatusCode);
@@ -1837,7 +2077,7 @@ namespace Jupiter.FunctionalTests.References
 			// seed some data
 			BucketId bucket = new BucketId("bucket");
 			RefId newBlobObjectKey = RefId.FromName("newBlobObjectBatch");
-			CbObject newBlobObject = CbObject.Build(writer => writer.WriteString("String",  $"this-has-contents-in-{nameof(BatchGetOperationsAsync)}"));
+			CbObject newBlobObject = CbObject.Build(writer => writer.WriteString("String", $"this-has-contents-in-{nameof(BatchGetOperationsAsync)}"));
 
 			{
 				byte[] cbObjectBytes = newBlobObject.GetView().ToArray();
@@ -1903,7 +2143,7 @@ namespace Jupiter.FunctionalTests.References
 			}
 			CbWriter getObjectOp = new CbWriter();
 			getObjectOp.BeginObject();
-			getObjectOp.WriteInteger( "opId",0);
+			getObjectOp.WriteInteger("opId", 0);
 			getObjectOp.WriteString("op", BatchOps.BatchOp.Operation.GET.ToString());
 			getObjectOp.WriteString("bucket", bucket.ToString());
 			getObjectOp.WriteString("key", newBlobObjectKey.ToString());
@@ -1917,7 +2157,6 @@ namespace Jupiter.FunctionalTests.References
 			getObjectOp2.WriteString("key", newReferenceObjectKey.ToString());
 			getObjectOp2.EndObject();
 
-			
 			CbWriter getObjectOp3 = new CbWriter();
 			getObjectOp3.BeginObject();
 			getObjectOp3.WriteInteger("opId", 2);
@@ -1958,7 +2197,7 @@ namespace Jupiter.FunctionalTests.References
 
 				BatchOpsResponse response = CbSerializer.Deserialize<BatchOpsResponse>(roundTrippedBuffer);
 				Assert.AreEqual(3, response.Results.Count);
-				
+
 				BatchOpsResponse.OpResponses op0 = response.Results.First(r => r.OpId == 0);
 				Assert.IsNotNull(op0.Response);
 				Assert.AreEqual(200, op0.StatusCode);
@@ -2031,7 +2270,7 @@ namespace Jupiter.FunctionalTests.References
 			}
 			CbWriter getObjectOp = new CbWriter();
 			getObjectOp.BeginObject();
-			getObjectOp.WriteInteger( "opId",0);
+			getObjectOp.WriteInteger("opId", 0);
 			getObjectOp.WriteString("op", BatchOps.BatchOp.Operation.HEAD.ToString());
 			getObjectOp.WriteString("bucket", bucket.ToString());
 			getObjectOp.WriteString("key", newBlobObjectKey.ToString());
@@ -2061,7 +2300,7 @@ namespace Jupiter.FunctionalTests.References
 			batchRequestWriter.EndUniformArray();
 			batchRequestWriter.EndObject();
 			byte[] batchRequestData = batchRequestWriter.ToByteArray();
-			
+
 			{
 				using HttpContent requestContent = new ByteArrayContent(batchRequestData);
 				requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
@@ -2075,7 +2314,7 @@ namespace Jupiter.FunctionalTests.References
 
 				BatchOpsResponse response = CbSerializer.Deserialize<BatchOpsResponse>(roundTrippedBuffer);
 				Assert.AreEqual(2, response.Results.Count);
-				
+
 				BatchOpsResponse.OpResponses op0 = response.Results.First(r => r.OpId == 0);
 				Assert.IsNotNull(op0.Response);
 				Assert.AreEqual(200, op0.StatusCode);
@@ -2102,7 +2341,7 @@ namespace Jupiter.FunctionalTests.References
 
 			CbWriter object0 = new CbWriter();
 			object0.BeginObject();
-			object0.WriteInteger( "opId",0);
+			object0.WriteInteger("opId", 0);
 			object0.WriteString("op", BatchOps.BatchOp.Operation.PUT.ToString());
 			object0.WriteString("bucket", bucket.ToString());
 			object0.WriteString("key", ref0name.ToString());
@@ -2150,7 +2389,7 @@ namespace Jupiter.FunctionalTests.References
 
 				BatchOpsResponse response = CbSerializer.Deserialize<BatchOpsResponse>(roundTrippedBuffer);
 				Assert.AreEqual(2, response.Results.Count);
-				
+
 				BatchOpsResponse.OpResponses op0 = response.Results.First(r => r.OpId == 0);
 				Assert.IsNotNull(op0.Response);
 				Assert.AreEqual(200, op0.StatusCode, $"Expected 200 response, got {op0.StatusCode} . Response: {op0.Response.ToJson()}");
@@ -2196,7 +2435,7 @@ namespace Jupiter.FunctionalTests.References
 
 			CbWriter getObjectOp = new CbWriter();
 			getObjectOp.BeginObject();
-			getObjectOp.WriteInteger( "opId",0);
+			getObjectOp.WriteInteger("opId", 0);
 			getObjectOp.WriteString("op", BatchOps.BatchOp.Operation.GET.ToString());
 			getObjectOp.WriteString("bucket", bucket.ToString());
 			getObjectOp.WriteString("key", getObjectKey.ToString());
@@ -2214,7 +2453,7 @@ namespace Jupiter.FunctionalTests.References
 
 			CbWriter errorObjectOp = new CbWriter();
 			errorObjectOp.BeginObject();
-			errorObjectOp.WriteInteger( "opId",2);
+			errorObjectOp.WriteInteger("opId", 2);
 			errorObjectOp.WriteString("op", BatchOps.BatchOp.Operation.GET.ToString());
 			errorObjectOp.WriteString("bucket", bucket.ToString());
 			errorObjectOp.WriteString("key", missingObjectKey.ToString());
@@ -2246,7 +2485,7 @@ namespace Jupiter.FunctionalTests.References
 			batchRequestWriter.EndUniformArray();
 			batchRequestWriter.EndObject();
 			byte[] batchRequestData = batchRequestWriter.ToByteArray();
-			
+
 			{
 				using HttpContent requestContent = new ByteArrayContent(batchRequestData);
 				requestContent.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
@@ -2260,7 +2499,7 @@ namespace Jupiter.FunctionalTests.References
 
 				BatchOpsResponse response = CbSerializer.Deserialize<BatchOpsResponse>(roundTrippedBuffer);
 				Assert.AreEqual(4, response.Results.Count);
-				
+
 				BatchOpsResponse.OpResponses getOp = response.Results.First(r => r.OpId == 0);
 				Assert.IsNotNull(getOp.Response);
 				Assert.AreEqual(200, getOp.StatusCode);

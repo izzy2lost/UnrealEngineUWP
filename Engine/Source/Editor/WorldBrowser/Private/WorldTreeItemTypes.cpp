@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "WorldTreeItemTypes.h"
+
+#include "Editor.h"
 #include "Templates/Casts.h"
 #include "LevelModel.h"
 #include "LevelCollectionModel.h"
@@ -47,11 +49,17 @@ namespace WorldHierarchy
 
 		return OutWorlds.Num() > 0;
 	}
+	
+	bool IsInPie()
+	{
+		return GEditor && GEditor->GetPlayInEditorSessionInfo().IsSet();
+	}
 
 	//------------------------
 	// FLevelModelTreeItem
 	//------------------------
-	
+
+
 	FLevelModelTreeItem::FLevelModelTreeItem(TSharedRef<FLevelModel> InLevelModel)
 		: LevelModel(InLevelModel)
 		, bPersistentLevel(InLevelModel->IsPersistent())
@@ -130,9 +138,24 @@ namespace WorldHierarchy
 		return LockToolTip;
 	}
 
-	FText FLevelModelTreeItem::GetVisibilityToolTipText() const
+	FText FLevelModelTreeItem::GetEditorVisibilityToolTipText() const
 	{
-		return LOCTEXT("VisibilityButtonToolTip", "Toggle Level Visibility");
+		return LOCTEXT("EditorVisibilityButtonToolTip", "Toggle whether Level is visible in the editor");
+	}
+
+	FText FLevelModelTreeItem::GetGameVisibilityToolTipText() const
+	{
+		if (IsPersistentLevel())
+		{
+			return LOCTEXT("LevelModel.LevelGameVisibilityButtonToolTip.PersistentLevel", "Game visibility cannot be toggled for persistent level.");
+		}
+
+		if (IsInPie())
+		{
+			return LOCTEXT("LevelModel.LevelGameVisibilityButtonToolTip.Pie", "Game visibility cannot be toggled during PIE.");
+		}
+		
+		return LOCTEXT("LevelModel.GameVisibilityButtonToolTip.Normal", "Toggle whether Level is visible in-game");
 	}
 
 	FText FLevelModelTreeItem::GetSaveToolTipText() const
@@ -228,9 +251,17 @@ namespace WorldHierarchy
 		return IsLoaded() ;
 	}
 
-	bool FLevelModelTreeItem::HasVisibilityControls() const
+	bool FLevelModelTreeItem::HasEditorVisibilityControls() const
 	{
 		return IsLoaded();
+	}
+
+	bool FLevelModelTreeItem::HasGameVisibilityControls() const
+	{
+		return HasEditorVisibilityControls() 
+			// Unreal generally does not allow hiding the persistent level (root level) - so no controls if this item is the persistent level. 
+			&& !IsPersistentLevel()
+			&& !IsInPie();
 	}
 
 	bool FLevelModelTreeItem::HasColorButtonControls() const
@@ -285,43 +316,54 @@ namespace WorldHierarchy
 		}
 	}
 
-	bool FLevelModelTreeItem::IsVisible() const
+	bool FLevelModelTreeItem::IsVisibleInEditor() const
 	{
-		return LevelModel.IsValid() ? LevelModel.Pin()->IsVisible() : false;
+		return LevelModel.IsValid() ? LevelModel.Pin()->IsVisibleInEditor() : false;
 	}
 
-	void FLevelModelTreeItem::OnToggleVisibility()
+	bool FLevelModelTreeItem::IsVisibleInGame() const
+	{
+		return LevelModel.IsValid() ? LevelModel.Pin()->IsVisibleInGame() : false;
+	}
+
+	void FLevelModelTreeItem::OnToggleEditorVisibility()
 	{
 		if (LevelModel.IsValid())
 		{
-			SetVisible(!LevelModel.Pin()->IsVisible());
+			SetVisibleInEditor(!LevelModel.Pin()->IsVisibleInEditor());
 		}
 	}
 
-	void FLevelModelTreeItem::OnShowOnlySelected()
+	void FLevelModelTreeItem::OnShowInEditorOnlySelected()
 	{
-		FLevelModelList LevelsToChange;
-		PopulateLevelModelList(LevelsToChange);
-		if (GetLevelSelectionFlag())
-		{
-			FLevelModelList CurrentLevels = WorldModel.Pin()->GetSelectedLevels();
-			LevelsToChange.Append(CurrentLevels);
-		}
-		WorldModel.Pin()->SetSelectedLevels(LevelsToChange);
-		WorldModel.Pin()->ShowOnlySelectedLevels();
+		SetSelectedLevelsToPopulatedList();
+		WorldModel.Pin()->ShowInEditorOnlySelectedLevels();
 	}
 
-	void FLevelModelTreeItem::OnShowAllButSelected()
+	void FLevelModelTreeItem::OnShowInEditorAllButSelected()
 	{
-		FLevelModelList LevelsToChange;
-		PopulateLevelModelList(LevelsToChange);
-		if (GetLevelSelectionFlag())
+		SetSelectedLevelsToPopulatedList();
+		WorldModel.Pin()->ShowInEditorAllButSelectedLevels();
+	}
+
+	void FLevelModelTreeItem::OnToggleGameVisibility()
+	{
+		if (LevelModel.IsValid())
 		{
-			FLevelModelList CurrentLevels = WorldModel.Pin()->GetSelectedLevels();
-			LevelsToChange.Append(CurrentLevels);
+			SetVisibleInGame(!LevelModel.Pin()->IsVisibleInGame());
 		}
-		WorldModel.Pin()->SetSelectedLevels(LevelsToChange);
-		WorldModel.Pin()->ShowAllButSelectedLevels();
+	}
+
+	void FLevelModelTreeItem::OnShowInGameOnlySelected()
+	{
+		SetSelectedLevelsToPopulatedList();
+		WorldModel.Pin()->ShowInGameOnlySelectedLevels();
+	}
+
+	void FLevelModelTreeItem::OnShowInGameAllButSelected()
+	{
+		SetSelectedLevelsToPopulatedList();
+		WorldModel.Pin()->ShowInGameAllButSelectedLevels();
 	}
 
 	void FLevelModelTreeItem::PopulateLevelModelList(FLevelModelList& InModelList)
@@ -332,7 +374,7 @@ namespace WorldHierarchy
 		}
 	}
 
-	void FLevelModelTreeItem::SetVisible(bool bVisible)
+	void FLevelModelTreeItem::SetVisibleInEditor(bool bVisible)
 	{
 		FLevelModelList LevelModels;
 
@@ -343,11 +385,30 @@ namespace WorldHierarchy
 
 		if (bVisible)
 		{
-			WorldModel.Pin()->ShowLevels(LevelModels);
+			WorldModel.Pin()->ShowLevelsInEditor(LevelModels);
 		}
 		else
 		{
-			WorldModel.Pin()->HideLevels(LevelModels);
+			WorldModel.Pin()->HideLevelsInEditor(LevelModels);
+		}
+	}
+
+	void FLevelModelTreeItem::SetVisibleInGame(bool bVisible)
+	{
+		FLevelModelList LevelModels;
+
+		if (LevelModel.IsValid())
+		{
+			LevelModels.Add(LevelModel.Pin());
+		}
+
+		if (bVisible)
+		{
+			WorldModel.Pin()->ShowLevelsInGame(LevelModels);
+		}
+		else
+		{
+			WorldModel.Pin()->HideLevelsInGame(LevelModels);
 		}
 	}
 
@@ -370,27 +431,13 @@ namespace WorldHierarchy
 
 	void FLevelModelTreeItem::OnLockOnlySelected()
 	{
-		FLevelModelList LevelsToChange;
-		PopulateLevelModelList(LevelsToChange);
-		if (GetLevelSelectionFlag())
-		{
-			FLevelModelList CurrentLevels = WorldModel.Pin()->GetSelectedLevels();
-			LevelsToChange.Append(CurrentLevels);
-		}
-		WorldModel.Pin()->SetSelectedLevels(LevelsToChange);
+		SetSelectedLevelsToPopulatedList();
 		WorldModel.Pin()->LockOnlySelectedLevels();
 	}
 
 	void FLevelModelTreeItem::OnLockAllButSelected()
 	{
-		FLevelModelList LevelsToChange;
-		PopulateLevelModelList(LevelsToChange);
-		if (GetLevelSelectionFlag())
-		{
-			FLevelModelList CurrentLevels = WorldModel.Pin()->GetSelectedLevels();
-			LevelsToChange.Append(CurrentLevels);
-		}
-		WorldModel.Pin()->SetSelectedLevels(LevelsToChange);
+		SetSelectedLevelsToPopulatedList();
 		WorldModel.Pin()->LockAllButSelectedLevels();
 	}
 
@@ -577,6 +624,24 @@ namespace WorldHierarchy
 			}
 		}
 	}
+	
+	void FLevelModelTreeItem::SetSelectedLevelsToPopulatedList()
+	{
+		FLevelModelList LevelsToChange;
+		PopulateLevelModelList(LevelsToChange);
+		if (GetLevelSelectionFlag())
+		{
+			FLevelModelList CurrentLevels = WorldModel.Pin()->GetSelectedLevels();
+			LevelsToChange.Append(CurrentLevels);
+		}
+		WorldModel.Pin()->SetSelectedLevels(LevelsToChange);
+	}
+
+	bool FLevelModelTreeItem::IsPersistentLevel() const
+	{
+		const TSharedPtr<FLevelModel> LevelModelPin = LevelModel.Pin();
+		return LevelModelPin && LevelModelPin->IsPersistent();
+	}
 
 
 	//------------------------
@@ -690,9 +755,19 @@ namespace WorldHierarchy
 		return LockToolTip;
 	}
 
-	FText FFolderTreeItem::GetVisibilityToolTipText() const
+	FText FFolderTreeItem::GetEditorVisibilityToolTipText() const
 	{
-		return LOCTEXT("FolderVisibilityButtonToolTip", "Toggle Visibility for All Levels");
+		return LOCTEXT("FolderEditorVisibilityButtonToolTip", "Toggle Editor Visibility for All Levels");
+	}
+
+	FText FFolderTreeItem::GetGameVisibilityToolTipText() const
+	{
+		if (IsInPie())
+		{
+			return LOCTEXT("FolderModel.GameVisibilityButtonToolTip.Pie", "Game visibility cannot be toggled during PIE.");
+		}
+		
+		return LOCTEXT("FolderModel.FolderGameVisibilityButtonToolTip", "Toggle Game Visibility for All Levels");
 	}
 
 	FText FFolderTreeItem::GetSaveToolTipText() const
@@ -722,10 +797,16 @@ namespace WorldHierarchy
 		return GetLevelModels().Num() == 0 || IsAnyChildLoaded();
 	}
 
-	bool FFolderTreeItem::HasVisibilityControls() const
+	bool FFolderTreeItem::HasEditorVisibilityControls() const
 	{
 		// If the folder has no level models associated with it, always show the visibility icon
 		return GetLevelModels().Num() == 0 || IsAnyChildLoaded();
+	}
+
+	bool FFolderTreeItem::HasGameVisibilityControls() const
+	{
+		return HasEditorVisibilityControls()
+			&& !IsInPie();
 	}
 
 	bool FFolderTreeItem::HasValidPackage() const
@@ -765,11 +846,28 @@ namespace WorldHierarchy
 		});
 	}
 
-	bool FFolderTreeItem::IsVisible() const
+	FLevelModelList FFolderTreeItem::SetSelectionToFolderChildren()
+	{
+		// This can be triggered on the non selected folder, so get its children instead
+		FLevelModelList LevelsToChange;
+		for (auto& Child : Children)
+		{
+			Child->PopulateLevelModelList(LevelsToChange);
+		}
+		if (GetLevelSelectionFlag())
+		{
+			FLevelModelList CurrentLevels = WorldModel.Pin()->GetSelectedLevels();
+			LevelsToChange.Append(CurrentLevels);
+		}
+		WorldModel.Pin()->SetSelectedLevels(LevelsToChange);
+		return LevelsToChange;
+	}
+
+	bool FFolderTreeItem::IsVisibleInEditor() const
 	{
 		for (FWorldTreeItemPtr Child : Children)
 		{
-			if (Child->IsVisible())
+			if (Child->IsVisibleInEditor())
 			{
 				return true;
 			}
@@ -778,43 +876,50 @@ namespace WorldHierarchy
 		return false;
 	}
 
-	void FFolderTreeItem::OnToggleVisibility()
+	bool FFolderTreeItem::IsVisibleInGame() const
 	{
-		SetVisible(!IsVisible());
+		for (FWorldTreeItemPtr Child : Children)
+		{
+			if (Child->IsVisibleInGame())
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
-	void FFolderTreeItem::OnShowOnlySelected()
+	void FFolderTreeItem::OnToggleEditorVisibility()
 	{
-		// This can be triggered on the non selected folder, so get its children instead
-		FLevelModelList LevelsToChange;
-		for (auto& Child : Children)
-		{
-			Child->PopulateLevelModelList(LevelsToChange);
-		}
-		if (GetLevelSelectionFlag())
-		{
-			FLevelModelList CurrentLevels = WorldModel.Pin()->GetSelectedLevels();
-			LevelsToChange.Append(CurrentLevels);
-		}
-		WorldModel.Pin()->SetSelectedLevels(LevelsToChange);
-		WorldModel.Pin()->ShowOnlySelectedLevels();
+		SetVisibleInEditor(!IsVisibleInEditor());
 	}
 
-	void FFolderTreeItem::OnShowAllButSelected()
+	void FFolderTreeItem::OnShowInEditorOnlySelected()
 	{
-		// This can be triggered on the non selected folder, so get its children instead
-		FLevelModelList LevelsToChange;
-		for (auto& Child : Children)
-		{
-			Child->PopulateLevelModelList(LevelsToChange);
-		}
-		if (GetLevelSelectionFlag())
-		{
-			FLevelModelList CurrentLevels = WorldModel.Pin()->GetSelectedLevels();
-			LevelsToChange.Append(CurrentLevels);
-		}
-		WorldModel.Pin()->SetSelectedLevels(LevelsToChange);
-		WorldModel.Pin()->ShowAllButSelectedLevels();
+		SetSelectionToFolderChildren();
+		WorldModel.Pin()->ShowInEditorOnlySelectedLevels();
+	}
+
+	void FFolderTreeItem::OnShowInEditorAllButSelected()
+	{
+		SetSelectionToFolderChildren();
+		WorldModel.Pin()->ShowInEditorAllButSelectedLevels();
+	}
+
+	void FFolderTreeItem::OnToggleGameVisibility()
+	{
+		SetVisibleInGame(!IsVisibleInGame());
+	}
+
+	void FFolderTreeItem::OnShowInGameOnlySelected()
+	{
+		SetSelectionToFolderChildren();
+		WorldModel.Pin()->ShowInGameOnlySelectedLevels();
+	}
+
+	void FFolderTreeItem::OnShowInGameAllButSelected()
+	{
+		SetSelectionToFolderChildren();
+		WorldModel.Pin()->ShowInGameAllButSelectedLevels();
 	}
 
 	void FFolderTreeItem::PopulateLevelModelList(FLevelModelList& InModelList)
@@ -825,11 +930,19 @@ namespace WorldHierarchy
 		}
 	}
 
-	void FFolderTreeItem::SetVisible(bool bVisible)
+	void FFolderTreeItem::SetVisibleInEditor(bool bVisible)
 	{
 		for (auto& Child : Children)
 		{
-			Child->SetVisible(bVisible);
+			Child->SetVisibleInEditor(bVisible);
+		}
+	}
+
+	void FFolderTreeItem::SetVisibleInGame(bool bVisible)
+	{
+		for (auto& Child : Children)
+		{
+			Child->SetVisibleInGame(bVisible);
 		}
 	}
 
@@ -853,35 +966,13 @@ namespace WorldHierarchy
 
 	void FFolderTreeItem::OnLockOnlySelected()
 	{
-		// This can be triggered on the non selected folder, so get its children instead
-		FLevelModelList LevelsToChange;
-		for (auto& Child : Children)
-		{
-			Child->PopulateLevelModelList(LevelsToChange);
-		}
-		if (GetLevelSelectionFlag())
-		{
-			FLevelModelList CurrentLevels = WorldModel.Pin()->GetSelectedLevels();
-			LevelsToChange.Append(CurrentLevels);
-		}
-		WorldModel.Pin()->SetSelectedLevels(LevelsToChange);
+		SetSelectionToFolderChildren();
 		WorldModel.Pin()->LockOnlySelectedLevels();
 	}
 
 	void FFolderTreeItem::OnLockAllButSelected()
 	{
-		// This can be triggered on the non selected folder, so get its children instead
-		FLevelModelList LevelsToChange;
-		for (auto& Child : Children)
-		{
-			Child->PopulateLevelModelList(LevelsToChange);
-		}
-		if (GetLevelSelectionFlag())
-		{
-			FLevelModelList CurrentLevels = WorldModel.Pin()->GetSelectedLevels();
-			LevelsToChange.Append(CurrentLevels);
-		}
-		WorldModel.Pin()->SetSelectedLevels(LevelsToChange);
+		SetSelectionToFolderChildren();
 		WorldModel.Pin()->LockAllButSelectedLevels();
 	}
 

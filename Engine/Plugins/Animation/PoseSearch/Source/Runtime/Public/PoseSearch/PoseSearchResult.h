@@ -22,23 +22,34 @@ struct FSearchResult
 	float AssetTime = 0.f;
 	bool bIsContinuingPoseSearch = false;
 
-#if UE_POSE_SEARCH_TRACE_ENABLED
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
 	FPoseSearchCost BruteForcePoseCost;
 	int32 BestPosePos = 0;
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
 
 	// Attempts to set the internal state to match the provided asset time including updating the internal DbPoseIdx. 
 	// If the provided asset time is out of bounds for the currently playing asset then this function will reset the 
 	// state back to the default state.
 	void Update(float NewAssetTime);
 
-	bool IsValid() const;
+	bool IsValid() const { return PoseIdx != INDEX_NONE && Database != nullptr; }
 
-	void Reset();
+	void Reset() { PoseIdx = INDEX_NONE; Database = nullptr; AssetTime = 0.0f; bIsContinuingPoseSearch = false; }
 
-	const FSearchIndexAsset* GetSearchIndexAsset(bool bMandatory = false) const;
+	POSESEARCH_API const FSearchIndexAsset* GetSearchIndexAsset(bool bMandatory = false) const;
 	
 	bool CanAdvance(float DeltaTime) const;
+
+	bool operator==(const FSearchResult& Other) const
+	{
+		// best cost of the currently selected PoseIdx (it could be equal to ContinuingPoseCost)
+		return	PoseCost == Other.PoseCost &&
+			PoseIdx == Other.PoseIdx &&
+			Database == Other.Database &&
+			AssetTime == Other.AssetTime &&
+			bIsContinuingPoseSearch == Other.bIsContinuingPoseSearch;
+	}
+
 };
 
 } // namespace UE::PoseSearch
@@ -54,6 +65,9 @@ public:
 	
 	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
 	float SelectedTime = 0.f;
+	
+	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
+	bool bIsContinuingPoseSearch = false;
 	
 	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
 	float WantedPlayRate = 0.f;

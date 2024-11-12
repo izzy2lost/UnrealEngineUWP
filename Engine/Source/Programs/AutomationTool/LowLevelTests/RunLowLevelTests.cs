@@ -167,6 +167,9 @@ namespace LowLevelTests
 
 		public bool VerifyLogin;
 
+		// Android specific
+		public bool NoPlayProtect;
+
 		[AutoParam(false)]
 		public bool SkipStage;
 
@@ -231,12 +234,23 @@ namespace LowLevelTests
 
 			CaptureOutput = Params.ParseParam("captureoutput");
 
-			Build = Params.ParseValue("build=", null).Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+			var buildValue = Params.ParseValue("build=", null);
+
+			if (buildValue != null)
+			{
+				Build = buildValue.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+			}
+			else
+			{
+				Build = null;
+			}
+
 			TestApp = Globals.Params.ParseValue("testapp=", "");
 
 			Tags = Params.ParseValue("tags=", null);
 			AttachToDebugger = Params.ParseParam("attachtodebugger");
 			VerifyLogin = Params.ParseParam("verifylogin");
+			NoPlayProtect = Params.ParseParam("no-play-protect");
 
 			TestExtraArgs = Params.ParseValue("extra-args=", null);
 
@@ -295,6 +309,24 @@ namespace LowLevelTests
 			Containerized = InOptions.Containerized;
 		}
 
+		#region IDisposable Support
+		public void Dispose()
+		{
+			if (Instance != null)
+			{
+				Instance.Kill();
+				IDeviceUsageReporter.RecordEnd(Instance.Device.Name, (UnrealTargetPlatform)Instance.Device.Platform, IDeviceUsageReporter.EventType.Test, IDeviceUsageReporter.EventState.Success);
+
+				if (Instance.HasExited)
+				{
+					IDeviceUsageReporter.RecordEnd(Instance.Device.Name, (UnrealTargetPlatform)Instance.Device.Platform, IDeviceUsageReporter.EventType.Test, IDeviceUsageReporter.EventState.Failure);
+				}
+
+				UnrealDeviceReservation?.ReleaseDevices();
+			}
+		}
+		#endregion
+
 		public bool TryReserveDevices()
 		{
 			// Low level tests require exactly one device of the build source's platform.
@@ -302,7 +334,6 @@ namespace LowLevelTests
 			{
 				{ new UnrealDeviceTargetConstraint(BuildSource.Platform), 1 }
 			};
-
 
 			if (Containerized)
 			{
@@ -327,6 +358,110 @@ namespace LowLevelTests
 		/// No packaging required.
 		/// </summary>
 		public IAppInstance InstallAndRunNativeTestApp()
+		{
+			if(!Globals.Params.ParseParam("ExperimentalLaunchFlow"))
+			{
+				return Legacy_InstallAndRunNativeTestApp();
+			}
+
+			// TargetDevice<Platform> classes have a hard dependency on UnrealAppConfig instead of IAppConfig.
+			// More refactoring needed to support non-packaged applications that can be run natively from a path on the device.
+			UnrealAppConfig AppConfig = BuildSource.GetUnrealAppConfig(Tags, Sleep, AttachToDebugger, ReportType, PerTestTimeout, TestExtraArgs, Containerized);
+
+			IEnumerable<ITargetDevice> DevicesToInstallOn = UnrealDeviceReservation.ReservedDevices.ToArray();
+			ITargetDevice Device = DevicesToInstallOn.Where(D => D.IsConnected && D.Platform == BuildSource.Platform).First();
+
+			if (AppConfig.FullClean)
+			{
+				Device.FullClean();
+			}
+
+			// Install the build onto the device
+			if (AppConfig.SkipInstall)
+			{
+				Log.Info("Skipping install due to SkipInstall");
+			}
+			else
+			{
+				// Telemetry
+				DateTimeStopwatch Stopwatch = DateTimeStopwatch.Start();
+				Log.Info("Installing {BuildName} of type {BuildType} to {Device}...", BuildSource.BuildName, AppConfig.Build.GetType().Name, Device);
+				IDeviceUsageReporter.RecordStart(Device.Name, Device.Platform, IDeviceUsageReporter.EventType.Install, IDeviceUsageReporter.EventState.Success, BuildSource.BuildName);
+
+				try
+				{
+					Device.InstallBuild(AppConfig);
+					IDeviceUsageReporter.RecordEnd(Device.Name, Device.Platform, IDeviceUsageReporter.EventType.Install, IDeviceUsageReporter.EventState.Success);
+					Log.Info("Installation completed in {InstallTime}", GetInstallTime(Stopwatch.ElapsedTime));
+				}
+				catch (Exception Ex)
+				{
+					Log.Info("Failed to install low level tests app onto device {Device}: {Exception}", Device, Ex.ToString());
+
+					IDeviceUsageReporter.RecordEnd(Device.Name, Device.Platform, IDeviceUsageReporter.EventType.Install, IDeviceUsageReporter.EventState.Failure);
+					UnrealDeviceReservation.MarkProblemDevice(Device);
+					UnrealDeviceReservation.ReleaseDevices();
+				}
+			}
+
+			// Create the IAppInstall instance
+			try
+			{
+				Install = Device.CreateAppInstall(AppConfig);
+			}
+			catch (Exception Ex)
+			{
+				Log.Info("Failed to create IAppInstall for low level tests on device {Device}: {Exception}", Device, Ex.ToString());
+				UnrealDeviceReservation.MarkProblemDevice(Device);
+				UnrealDeviceReservation.ReleaseDevices();
+			}
+
+			// Clean/Copy files to the device
+			try
+			{
+				Device.CleanArtifacts();
+				Device.CopyAdditionalFiles(AppConfig.FilesToCopy);
+			}
+			catch (Exception Ex)
+			{
+				Log.Info("Failed to CleanArtifacts or CopyAdditionalFiles for low level tests on device {Device}: {Exception}", Device, Ex.ToString());
+				UnrealDeviceReservation.MarkProblemDevice(Device);
+				UnrealDeviceReservation.ReleaseDevices();
+			}
+
+			// Run the application
+			try
+			{
+				if (Device is IRunningStateOptions DeviceWithStateOptions)
+				{
+					// Don't wait to detect running state and query for running state every second
+					DeviceWithStateOptions.WaitForRunningState = false;
+					DeviceWithStateOptions.CachedStateRefresh = QUERY_STATE_INTERVAL;
+				}
+
+				Instance = Device.Run(Install);
+				IDeviceUsageReporter.RecordStart(Instance.Device.Name, Instance.Device.Platform, IDeviceUsageReporter.EventType.Test);
+			}
+			catch (DeviceException DeviceEx)
+			{
+				Log.Warning("Device {0} threw an exception during launch. \nException={1}", Install.Device, DeviceEx.Message);
+				Log.Warning("Failed to start low level test on {0}. Marking as problem device. Will not retry.", Device);
+
+				if (Instance != null)
+				{
+					Instance.Kill();
+				}
+
+				UnrealDeviceReservation.MarkProblemDevice(Device);
+				UnrealDeviceReservation.ReleaseDevices();
+
+				throw new AutomationException("Unable to start low level tests app, see warnings for details.");
+			}
+
+			return Instance;
+		}
+
+		private IAppInstance Legacy_InstallAndRunNativeTestApp()
 		{
 			bool InstallSuccess = false;
 			bool RunSuccess = false;
@@ -413,20 +548,13 @@ namespace LowLevelTests
 			return Instance;
 		}
 
-		public void Dispose()
+		private string GetInstallTime(TimeSpan Time)
 		{
-			if (Instance != null)
-			{
-				Instance.Kill();
-				IDeviceUsageReporter.RecordEnd(Instance.Device.Name, (UnrealTargetPlatform)Instance.Device.Platform, IDeviceUsageReporter.EventType.Test, IDeviceUsageReporter.EventState.Success);
+			string Hours = Time.Hours > 0 ? string.Format("{0} hrs, ", Time.Hours) : string.Empty;
+			string Minutes = Time.Minutes > 0 ? string.Format("{0} mins, ", Time.Minutes) : string.Empty;
+			string Seconds = string.Format("{0} secs", Time.Seconds);
 
-				if (Instance.HasExited)
-				{
-					IDeviceUsageReporter.RecordEnd(Instance.Device.Name, (UnrealTargetPlatform)Instance.Device.Platform, IDeviceUsageReporter.EventType.Test, IDeviceUsageReporter.EventState.Failure);
-				}
-				
-				UnrealDeviceReservation?.ReleaseDevices();				
-			}
+			return Hours + Minutes + Seconds;
 		}
 	}
 
@@ -542,7 +670,7 @@ namespace LowLevelTests
 	{
 		bool CanSupportPlatform(UnrealTargetPlatform InPlatform);
 
-		StagedBuild CreateBuild(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InTestApp, string InBuildPath, bool bSkipStage);
+		IBuild CreateBuild(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InTestApp, string InBuildPath, bool bSkipStage);
 		protected static string GetExecutable(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InTestApp, string InBuildPath, string FileRegEx)
 		{
 			IEnumerable<string> Executables = DirectoryUtils.FindMatchingFiles(InBuildPath, FileRegEx, -1).Select(FileInfo => FileInfo.FullName);
@@ -575,6 +703,12 @@ namespace LowLevelTests
 				{
 					// Mac & Linux executable candidates should have no extension
 					continue;
+				}
+
+				if (InPlatform == UnrealTargetPlatform.Android && BuildExecutableName.StartsWith(InTestApp))
+				{
+					Log.VeryVerbose("Output Executable for Android: {0}", Path.GetRelativePath(InBuildPath, Executable));
+					return Path.GetRelativePath(InBuildPath, Executable);
 				}
 
 				// Development executable does not contain configuration or platform name
@@ -639,7 +773,7 @@ namespace LowLevelTests
 			return InPlatform.IsInGroup(UnrealPlatformGroup.Desktop);
 		}
 
-		public StagedBuild CreateBuild(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InTestApp, string InBuildPath, bool bSkipStage)
+		public IBuild CreateBuild(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InTestApp, string InBuildPath, bool bSkipStage)
 		{
 			string ExecutablePath = ILowLevelTestsBuildFactory.GetExecutable(InPlatform, InConfiguration, InTestApp, InBuildPath, GetExecutableRegex(InPlatform));
 			return new LowLevelTestsBuild(InPlatform, InConfiguration, InBuildPath, ExecutablePath);
@@ -661,6 +795,43 @@ namespace LowLevelTests
 			{
 				throw new AutomationException("Cannot create build for non-desktop platform " + InPlatform);
 			}
+		}
+	}
+
+	public class AndroidLowLevelTestsBuildFactory : ILowLevelTestsBuildFactory
+	{
+		public bool CanSupportPlatform(UnrealTargetPlatform InPlatform)
+		{
+			return InPlatform.IsInGroup(UnrealPlatformGroup.Android);
+		}
+
+		public IBuild CreateBuild(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InTestApp, string InBuildPath, bool bSkipStage)
+		{
+			string ExecutablePath = ILowLevelTestsBuildFactory.GetExecutable(InPlatform, InConfiguration, InTestApp, InBuildPath, GetExecutableRegex(InPlatform));
+			return new AndroidBuild(InConfiguration, $"com.epicgames.{InTestApp}", Path.Combine(InBuildPath, ExecutablePath), new Dictionary<string, string>(), BuildFlags.Packaged | BuildFlags.CanReplaceCommandLine, false, false, false);
+		}
+
+		public string GetExecutableRegex(UnrealTargetPlatform InPlatform)
+		{
+			return @"[A-Za-z0-9_]+(Tests)?(?:-[A-Za-z0-9_]+)?(?:-[A-Za-z0-9_]+)?.apk";
+		}
+	}
+
+	public class AndroidLowLevelTestsReporting : ILowLevelTestsReporting
+	{
+		public bool CanSupportPlatform(UnrealTargetPlatform InPlatform)
+		{
+			return InPlatform.IsInGroup(UnrealPlatformGroup.Android);
+		}
+
+		public string GetTargetReportPath(UnrealTargetPlatform InPlatform, string InTestApp, string InBuildPath)
+		{
+			return string.Format("{0}LLTResults.out", InPlatform.ToString());
+		}
+
+		public string CopyDeviceReportTo(IAppInstall InAppInstall, UnrealTargetPlatform InPlatform, string InTestApp, string InBuildPath, string InTargetDirectory)
+		{
+			throw new NotSupportedException("Reports currently not supported for Android."); 
 		}
 	}
 
@@ -710,7 +881,7 @@ namespace LowLevelTests
 
 		public UnrealTargetPlatform Platform { get; protected set; }
 		public UnrealTargetConfiguration Configuration { get; protected set; }
-		public StagedBuild DiscoveredBuild { get; protected set; }
+		public IBuild DiscoveredBuild { get; protected set; }
 
 		public LowLevelTestsBuildSource(string InTestApp, string InBuildPath, UnrealTargetPlatform InTargetPlatform, UnrealTargetConfiguration InConfiguration, bool InSkipStage)
 		{
@@ -777,7 +948,11 @@ namespace LowLevelTests
 
 				// Set reporting options, filters etc
 				CachedConfig.CommandLineParams.AddRawCommandline("--durations=no");
-				if (!string.IsNullOrEmpty(InReportType))
+				if (CachedConfig.Platform == UnrealTargetPlatform.Android)
+				{
+					CachedConfig.CommandLineParams.AddRawCommandline("--reporter=console");
+				}
+				else if (!string.IsNullOrEmpty(InReportType))
 				{
 					CachedConfig.CommandLineParams.AddRawCommandline(string.Format("--reporter={0}", InReportType));
 					string ReportPath = LowLevelTestsReporting.GetTargetReportPath(Platform, TestApp, BuildPath);

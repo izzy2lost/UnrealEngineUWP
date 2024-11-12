@@ -7,6 +7,7 @@
 #include "Fonts/ShapedTextFwd.h"
 #include "UObject/ObjectMacros.h"
 #include "Fonts/SlateFontInfo.h"
+#include "Fonts/FontRasterizationMode.h"
 #include "Fonts/FontSdfSettings.h"
 #include "Textures/TextureAtlas.h"
 #include "Fonts/FontTypes.h"
@@ -129,7 +130,7 @@ struct FSdfGlyphFontAtlasData
 	FMetrics Metrics;
 	/** Index to a specific texture in the font cache. */
 	uint8 TextureIndex = 0;
-	/** True if the glyph is available in the face but sdf generation was not possible/successfull */
+	/** True if the glyph is available in the face but sdf generation was not possible/successful */
 	bool bSupportsSdf = false;
 	/** True if the SDF is a placeholder and the task for its final version hasn't been spawned yet (due to too many running tasks) */
 	bool bPendingRespawn = false;
@@ -253,12 +254,13 @@ private:
 struct FSdfGlyphEntryKey
 {
 public:
-	FSdfGlyphEntryKey(const TWeakPtr<FFreeTypeFace> InFontFace, uint32 InGlyphIndex, int32 InPpem, float InEmOuterSpread, float InEmInnerSpread);
+	FSdfGlyphEntryKey(const TWeakPtr<FFreeTypeFace> InFontFace, uint32 InGlyphIndex, ESlateFontAtlasContentType InAtlasContentType, int32 InPpem, float InEmOuterSpread, float InEmInnerSpread);
 
 	FORCEINLINE bool operator==(const FSdfGlyphEntryKey& Other) const
 	{
 		return FontFace == Other.FontFace
 			&& GlyphIndex == Other.GlyphIndex
+			&& AtlasContentType == Other.AtlasContentType
 			&& Ppem == Other.Ppem
 			&& SpreadCategory == Other.SpreadCategory;
 	}
@@ -277,6 +279,8 @@ public:
 	const TWeakPtr<FFreeTypeFace> FontFace;
 	/** The index of this glyph in the FreeType face */
 	const uint32 GlyphIndex;
+	/** Type of glyph pixel content */
+	const ESlateFontAtlasContentType AtlasContentType;
 	/** The pixel size at which the sdf glyph is generated */
 	const int32 Ppem;
 	/** The spread category. The spreads of a glyph entry can be arbitrary but similar values will share the same category and therefore glyph entry */
@@ -345,12 +349,12 @@ public:
 		: GlyphsToRender()
 		, TextBaseline(0)
 		, MaxTextHeight(0)
+		, bMaterialIsStencil(false)
 		, FontMaterial(nullptr)
 		, OutlineSettings()
 		, SequenceWidth(0)
 		, GlyphFontFaces()
 		, SourceIndicesToGlyphData(FSourceTextRange(0, 0))
-		, SdfSettings()
 		, CachedFontSkew(0.f)
 	{ }
 
@@ -358,9 +362,8 @@ public:
 						 const int16 InTextBaseline,
 						 const uint16 InMaxTextHeight,
 						 const UObject* InFontMaterial,
+						 const bool InMaterialIsStencil,
 						 const FFontOutlineSettings& InOutlineSettings,
-						 const EFontRasterizationMode InRasterizationMode,
-						 const FFontSdfSettings& InSdfSettings,
 						 const FSourceTextRange& InSourceTextRange);
 	SLATECORE_API ~FShapedGlyphSequence();
 
@@ -391,22 +394,16 @@ public:
 		return FontMaterial;
 	}
 
+	/** Get "Material is stencil" flag */
+	bool IsMaterialStencil() const
+	{
+		return bMaterialIsStencil;
+	}
+
 	/** Get the font outline settings to use when rendering these glyphs */
 	const FFontOutlineSettings& GetFontOutlineSettings() const
 	{
 		return OutlineSettings;
-	}
-
-	/** Returns true if the rasterization mode is signed distance field-based (and the feature is enabled) */
-	bool IsSdfFont() const;
-
-	/** Get the font rasterization mode to be used when rendering these glyphs */
-	EFontRasterizationMode GetRasterizationMode() const;
-
-	/** Get the signed distance field settings to be used when rendering these glyphs in distance field mode */
-	const FFontSdfSettings& GetFontSdfSettings() const
-	{
-		return SdfSettings;
 	}
 
 	/** Check to see whether this glyph sequence is dirty (ie, contains glyphs with invalid font pointers) */
@@ -590,6 +587,8 @@ private:
 	int16 TextBaseline;
 	/** The maximum height of any glyph in the font we're using */
 	uint16 MaxTextHeight;
+	/** Toggles between stenciling text onto material output (false) or filling entire quads with material (true) */
+	bool bMaterialIsStencil;
 	/** The material to use when rendering these glyphs */
 	TObjectPtr<const UObject> FontMaterial;
 	/** Outline settings to use when rendering these glyphs */
@@ -600,10 +599,6 @@ private:
 	TArray<TWeakPtr<FFreeTypeFace>> GlyphFontFaces;
 	/** A map of source indices to their shaped glyph data indices - used to perform efficient reverse look-up */
 	FSourceIndicesToGlyphData SourceIndicesToGlyphData;
-	/** Rasterization mode to use when rendering these glyphs */
-	EFontRasterizationMode RasterizationMode;
-	/** Sdf settings to use when rendering these glyphs */
-	FFontSdfSettings SdfSettings;
 	/** The Font Skew parameter of the FontInfo applied to the this Shaped glype sequence */
 	float CachedFontSkew;
 
@@ -776,7 +771,7 @@ public:
 	SLATECORE_API virtual FSlateShaderResource* GetAtlasPageResource(const int32 InIndex) const override;
 	SLATECORE_API virtual bool IsAtlasPageResourceAlphaOnly(const int32 InIndex) const override;
 #if WITH_ATLAS_DEBUGGING
-	virtual FAtlasSlotInfo GetAtlasSlotInfoAtPosition(FIntPoint InPosition, int32 AtlasIndex) const override { return FAtlasSlotInfo(); }
+	virtual FAtlasSlotInfo GetAtlasSlotInfoAtPosition(FIntPoint InPosition, int32 AtlasIndex) const override;
 #endif
 	/** 
 	 * Performs text shaping on the given string using the given font info. Returns you the shaped text sequence to use for text rendering via FSlateDrawElement::MakeShapedText.
@@ -832,7 +827,7 @@ public:
 	/**
 	 * Get the atlas information and the scaled metrics of a given shaped sdf glyph. This information will be cached if required.
 	 */
-	SLATECORE_API FSdfGlyphFontAtlasData GetSdfGlyphFontAtlasData(const FShapedGlyphEntry& InShapedGlyph, const FFontOutlineSettings& InOutlineSettings, const FFontSdfSettings& InSdfSettings);
+	SLATECORE_API FSdfGlyphFontAtlasData GetSdfGlyphFontAtlasData(const FShapedGlyphEntry& InShapedGlyph, const FFontOutlineSettings& InOutlineSettings);
 
 	/**
 	 * Gets the overflow glyph sequence for a given font. The overflow sequence is used to replace characters that are clipped

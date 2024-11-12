@@ -22,15 +22,20 @@ FToolBarStyle::FToolBarStyle()
 	, NumColumns(0)
 	, IconPadding(0)
 	, SeparatorPadding(0)
+	, SeparatorThickness(2.0f)
 	, ComboButtonPadding(0)
 	, ButtonPadding(0)
 	, CheckBoxPadding(0)
 	, BlockPadding(0)
 	, IndentedBlockPadding(0)
 	, BackgroundPadding(0)
-	, IconSize(16,16)
+	, IconSize(16, 16)
 	, bShowLabels(true)
 {}
+
+FToolBarStyle::FToolBarStyle(const FToolBarStyle&) = default;
+
+FToolBarStyle::~FToolBarStyle() = default;
 
 const FToolBarStyle& FToolBarStyle::GetDefault()
 {

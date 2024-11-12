@@ -99,7 +99,7 @@ namespace UnrealBuildTool
 		/// <returns>True if the keys are equal, false otherwise</returns>
 		public bool Equals(ConfigDependencyKey? Other)
 		{
-			return !ReferenceEquals(Other, null) && Type == Other.Type && ProjectDir == Other.ProjectDir && Platform == Other.Platform && SectionName == Other.SectionName && KeyName == Other.KeyName;
+			return Other is not null && Type == Other.Type && ProjectDir == Other.ProjectDir && Platform == Other.Platform && SectionName == Other.SectionName && KeyName == Other.KeyName;
 		}
 
 		/// <summary>

@@ -46,7 +46,7 @@ class AGroupActor : public AActor
 	virtual void SetIsTemporarilyHiddenInEditor( bool bIsHidden ) override;
 	virtual void GetActorBounds(bool bOnlyCollidingComponents, FVector& Origin, FVector& BoxExtent, bool bIncludeFromChildActors) const override;
 #if WITH_EDITOR
-	virtual FBox GetStreamingBounds() const override;
+	virtual void GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const override;
 #endif
 	//~ End AActor Interface
 

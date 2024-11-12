@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "MetasoundPinAudioInspector.h"
 
-#include "Analysis/MetasoundFrontendVertexAnalyzerAudioBuffer.h"
 #include "AudioBusSubsystem.h"
 #include "AudioDefines.h"
 #include "AudioDeviceManager.h"
@@ -10,130 +9,115 @@
 #include "MetasoundEditor.h"
 #include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorGraphNode.h"
+#include "MetasoundEditorModule.h"
 
 #define LOCTEXT_NAMESPACE "MetasoundEditor"
 
-namespace Metasound
+namespace Metasound::Editor
 {
-	namespace Editor
+	namespace FMetasoundPinAudioInspectorPrivate
 	{
-		namespace FMetasoundPinAudioInspectorPrivate
+		UEdGraphPin* ResolvePinObjectAsOutput(UEdGraphPin* InPin)
 		{
-			UEdGraphPin* ResolvePinObjectAsOutput(UEdGraphPin* InPin)
+			if (InPin && !InPin->LinkedTo.IsEmpty())
 			{
-				if (InPin && !InPin->LinkedTo.IsEmpty())
+				// Swap to show connected output if input (Only ever one)
+				if (InPin->Direction == EGPD_Input)
 				{
-					// Swap to show connected output if input (Only ever one)
-					if (InPin->Direction == EGPD_Input)
-					{
-						InPin = InPin->LinkedTo.Last();
-						check(InPin->Direction == EGPD_Output);
-					}
-				}
-
-				return InPin;
-			}
-		}
-
-		FMetasoundPinAudioInspector::FMetasoundPinAudioInspector(FEdGraphPinReference InPinRef)
-			: GraphPinObj(FMetasoundPinAudioInspectorPrivate::ResolvePinObjectAsOutput(InPinRef.Get()))
-		{
-			using namespace Audio;
-
-			// Initialize Oscilloscope
-			const FDeviceId AudioDeviceId = GEditor->GetMainAudioDeviceID();
-
-			constexpr int32 NumChannels = 1; // Audio wires are currently mono signals
-
-			Oscilloscope = MakeShared<AudioWidgets::FAudioOscilloscope>(AudioDeviceId,
-				NumChannels,
-				/*InTimeWindowMs*/     10.0f,
-				/*InMaxTimeWindowMs*/  10.0f,
-				/*InAnalysisPeriodMs*/ 10.0f,
-				/*InPanelLayoutType*/  EAudioPanelLayoutType::Basic);
-
-			PinAudioInspectorWidget = SNew(SMetasoundPinAudioInspector)
-									  .VisualizationWidget(Oscilloscope->GetPanelWidget());
-
-			Oscilloscope->StartProcessing();
-
-			// Set PatchInput from Oscilloscope AudioBus
-			const FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get();
-			check(AudioDeviceManager);
-
-			const FMixerDevice* MixerDevice = static_cast<const FMixerDevice*>(AudioDeviceManager->GetAudioDeviceRaw(AudioDeviceId));
-			check(MixerDevice);
-
-			UAudioBusSubsystem* AudioBusSubsystem = MixerDevice->GetSubsystem<UAudioBusSubsystem>();
-			check(AudioBusSubsystem);
-
-			const uint32 AudioBusId = Oscilloscope->GetAudioBus()->GetUniqueID();
-			PatchInput = AudioBusSubsystem->AddPatchInputForAudioBus(FAudioBusKey(AudioBusId), MixerDevice->GetNumOutputFrames(), NumChannels);
-
-			// Track Audio Pin
-			if (GraphPinObj && !GraphPinObj->LinkedTo.IsEmpty() && GraphPinObj->PinType.PinCategory == FGraphBuilder::PinCategoryAudio)
-			{
-				if (FGraphConnectionManager* ConnectionManager = GetConnectionManager())
-				{
-					const Frontend::FConstOutputHandle OutputHandle = FGraphBuilder::FindReroutedOutputHandleFromPin(GraphPinObj);
-					const FGuid NodeID = OutputHandle->GetOwningNodeID();
-					const FName OutputName = OutputHandle->GetName();
-					const FName AnalyzerName = Frontend::FVertexAnalyzerAudioBuffer::GetAnalyzerName();
-
-					ConnectionManager->TrackAudioPin(NodeID, OutputName, AnalyzerName, PatchInput);
+					InPin = InPin->LinkedTo.Last();
+					check(InPin->Direction == EGPD_Output);
 				}
 			}
-		}
 
-		FMetasoundPinAudioInspector::~FMetasoundPinAudioInspector()
+			return InPin;
+		}
+	}
+
+	FMetasoundPinAudioInspector::FMetasoundPinAudioInspector(FEdGraphPinReference InPinRef)
+		: GraphPinObj(FMetasoundPinAudioInspectorPrivate::ResolvePinObjectAsOutput(InPinRef.Get()))
+	{
+		using namespace Audio;
+
+		// Initialize Oscilloscope
+		const FDeviceId AudioDeviceId = GEditor->GetMainAudioDeviceID();
+
+		constexpr int32 NumChannels = 1; // Audio wires are currently mono signals
+
+		Oscilloscope = MakeShared<AudioWidgets::FAudioOscilloscope>(AudioDeviceId,
+			NumChannels,
+			/*InTimeWindowMs*/     10.0f,
+			/*InMaxTimeWindowMs*/  10.0f,
+			/*InAnalysisPeriodMs*/ 10.0f,
+			/*InPanelLayoutType*/  EAudioPanelLayoutType::Basic,
+			/*InOscilloscopePanelStyle*/ &Style::GetOscilloscopeStyle()
+		);
+
+		PinAudioInspectorWidget = SNew(SMetasoundPinAudioInspector)
+			.VisualizationWidget(Oscilloscope->GetPanelWidget());
+
+		Oscilloscope->StartProcessing();
+
+		// Analyze Audio Pin
+		if (GraphPinObj && !GraphPinObj->LinkedTo.IsEmpty() && GraphPinObj->PinType.PinCategory == FGraphBuilder::PinCategoryAudio)
 		{
-			// Untrack audio pin
 			if (FGraphConnectionManager* ConnectionManager = GetConnectionManager())
 			{
 				const Frontend::FConstOutputHandle OutputHandle = FGraphBuilder::FindReroutedOutputHandleFromPin(GraphPinObj);
 				const FGuid NodeID = OutputHandle->GetOwningNodeID();
 				const FName OutputName = OutputHandle->GetName();
-				const FName AnalyzerName = Frontend::FVertexAnalyzerAudioBuffer::GetAnalyzerName();
-
-				ConnectionManager->UntrackAudioPin(NodeID, OutputName, AnalyzerName);
+				AnalyzerInstanceID = ConnectionManager->AddAudioBusWriter(NodeID, OutputName, AudioDeviceId, Oscilloscope->GetAudioBus());
 			}
+		}
+	}
 
-			// Stop AudioBus
-			if (UWorld* EditorWorld = GEditor->GetEditorWorldContext().World())
+	FMetasoundPinAudioInspector::~FMetasoundPinAudioInspector()
+	{
+		// Remove audio pin analyzer
+		if (AnalyzerInstanceID.IsValid())
+		{
+			if (FGraphConnectionManager* ConnectionManager = GetConnectionManager())
 			{
-				if (Audio::FMixerDevice* MixerDevice = static_cast<Audio::FMixerDevice*>(EditorWorld->GetAudioDeviceRaw()))
+				ConnectionManager->RemoveAudioBusWriter(AnalyzerInstanceID);
+				AnalyzerInstanceID.Invalidate();
+			}
+		}
+
+		// Stop AudioBus
+		if (UWorld* EditorWorld = GEditor->GetEditorWorldContext().World())
+		{
+			if (Audio::FMixerDevice* MixerDevice = static_cast<Audio::FMixerDevice*>(EditorWorld->GetAudioDeviceRaw()))
+			{
+				if (UAudioBusSubsystem* AudioBusSubsystem = MixerDevice->GetSubsystem<UAudioBusSubsystem>())
 				{
-					if (UAudioBusSubsystem* AudioBusSubsystem = MixerDevice->GetSubsystem<UAudioBusSubsystem>())
-					{
-						const uint32 AudioBusId = Oscilloscope->GetAudioBus()->GetUniqueID();
-						AudioBusSubsystem->StopAudioBus(Audio::FAudioBusKey(AudioBusId));
-					}
+					const uint32 AudioBusId = Oscilloscope->GetAudioBus()->GetUniqueID();
+					AudioBusSubsystem->StopAudioBus(Audio::FAudioBusKey(AudioBusId));
 				}
 			}
 		}
+	}
 
-		TSharedPtr<SMetasoundPinAudioInspector> FMetasoundPinAudioInspector::GetWidget()
-		{
-			return PinAudioInspectorWidget;
-		}
+	TSharedPtr<SMetasoundPinAudioInspector> FMetasoundPinAudioInspector::GetWidget()
+	{
+		return PinAudioInspectorWidget;
+	}
 
-		const UMetasoundEditorGraphNode& FMetasoundPinAudioInspector::GetReroutedNode() const
-		{
-			const UMetasoundEditorGraphNode* Node = FGraphBuilder::FindReroutedOutputPin(GraphPinObj) ? Cast<UMetasoundEditorGraphNode>(GraphPinObj->GetOwningNode()) 
-																									  : nullptr;
-			check(Node);
+	const UMetasoundEditorGraphNode& FMetasoundPinAudioInspector::GetReroutedNode() const
+	{
+		const UMetasoundEditorGraphNode* Node = FGraphBuilder::FindReroutedOutputPin(GraphPinObj)
+			? Cast<UMetasoundEditorGraphNode>(GraphPinObj->GetOwningNode())
+			: nullptr;
+		check(Node);
 
-			return *Node;
-		}
+		return *Node;
+	}
 
-		FGraphConnectionManager* FMetasoundPinAudioInspector::GetConnectionManager()
-		{
-			const UMetasoundEditorGraphNode& Node = GetReroutedNode();
-			TSharedPtr<FEditor> Editor = FGraphBuilder::GetEditorForNode(Node);
+	FGraphConnectionManager* FMetasoundPinAudioInspector::GetConnectionManager()
+	{
+		const UMetasoundEditorGraphNode& Node = GetReroutedNode();
+		TSharedPtr<FEditor> Editor = FGraphBuilder::GetEditorForNode(Node);
 
-			return Editor.IsValid() ? &Editor->GetConnectionManager() : nullptr;
-		}
-	} // namespace Editor
-} // namespace Metasound
+		return Editor.IsValid() ? &Editor->GetConnectionManager() : nullptr;
+	}
+} // namespace Metasound::Editor
 
 #undef LOCTEXT_NAMESPACE

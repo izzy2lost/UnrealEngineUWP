@@ -3,6 +3,7 @@
 #include "Iris/ReplicationSystem/ReplicationFragmentUtil.h"
 #include "Iris/ReplicationSystem/ReplicationFragment.h"
 #include "Iris/ReplicationSystem/PropertyReplicationFragment.h"
+#include "Iris/ReplicationSystem/ReplicationFragmentInternal.h"
 #include "Iris/ReplicationSystem/FastArrayReplicationFragment.h"
 #include "Iris/ReplicationState/ReplicationStateDescriptorBuilder.h"
 #include "Iris/Core/IrisProfiler.h"
@@ -16,7 +17,8 @@ uint32 FReplicationFragmentUtil::CreateAndRegisterFragmentsForObject(UObject* Ob
 	IRIS_PROFILER_SCOPE(FReplicationFragmentUtil_CreateAndRegisterFragmentsForObject);
 
 	FReplicationStateDescriptorBuilder::FParameters BuilderParameters;
-	BuilderParameters.DescriptorRegistry = Context.GetReplicationStateRegistry();
+	BuilderParameters.DescriptorRegistry = UE::Net::Private::FFragmentRegistrationContextPrivateAccessor::GetReplicationStateRegistry(Context);
+	BuilderParameters.ReplicationSystem = UE::Net::Private::FFragmentRegistrationContextPrivateAccessor::GetReplicationSystem(Context);
 
 	// By default we use the archetype for our default values, but if InitializeDefaultStateFromClassDefaults is set we 
 	// use the class default instead

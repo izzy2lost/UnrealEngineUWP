@@ -8,6 +8,7 @@
 #include "DNAReaderAdapter.h"
 #include "DNAIndexMapping.h"
 #include "FMemoryResource.h"
+#include "RigLogicDNAReader.h"
 #include "RigLogicMemoryStream.h"
 #include "SharedRigRuntimeContext.h"
 
@@ -38,7 +39,7 @@ static constexpr uint32 AVG_GEOMETRY_SIZE = 50 * 1024 * 1024;
 
 static TSharedPtr<IDNAReader> ReadDNAFromStream(rl4::BoundedIOStream* Stream, EDNADataLayer Layer, uint16 MaxLOD)
 {
-	auto DNAStreamReader = rl4::makeScoped<dna::BinaryStreamReader>(Stream, static_cast<dna::DataLayer>(Layer), dna::UnknownLayerPolicy::Preserve, MaxLOD, FMemoryResource::Instance());
+	auto DNAStreamReader = rl4::makeScoped<dna::BinaryStreamReader>(Stream, CalculateDNADataLayerBitmask(Layer), dna::UnknownLayerPolicy::Preserve, MaxLOD, FMemoryResource::Instance());
 	DNAStreamReader->read();
 	if (!rl4::Status::isOk())
 	{
@@ -53,7 +54,7 @@ static void WriteDNAToStream(const IDNAReader* Source, EDNADataLayer Layer, rl4:
 	auto DNAWriter = rl4::makeScoped<dna::BinaryStreamWriter>(Destination, FMemoryResource::Instance());
 	if (Source != nullptr)
 	{
-		DNAWriter->setFrom(Source->Unwrap(), static_cast<dna::DataLayer>(Layer), dna::UnknownLayerPolicy::Preserve, FMemoryResource::Instance());
+		DNAWriter->setFrom(Source->Unwrap(), CalculateDNADataLayerBitmask(Layer), dna::UnknownLayerPolicy::Preserve, FMemoryResource::Instance());
 	}
 	DNAWriter->write();
 }
@@ -112,7 +113,12 @@ void UDNAAsset::SetBehaviorReader(TSharedPtr<IDNAReader> SourceDNAReader)
 {
 	FWriteScopeLock DNAScopeLock{DNAUpdateLock};
 	const size_t PredictedSize = (SourceDNAReader->GetNeuralNetworkCount() != 0) ? AVG_BEHAVIOR_SIZE + AVG_MACHINE_LEARNED_BEHAVIOR_SIZE : AVG_BEHAVIOR_SIZE;
-	BehaviorReader = CopyDNALayer(SourceDNAReader.Get(), EDNADataLayer::Behavior | EDNADataLayer::MachineLearnedBehavior, PredictedSize);
+	const EDNADataLayer BehaviorLayers = (
+		EDNADataLayer::Behavior |
+		EDNADataLayer::MachineLearnedBehavior |
+		EDNADataLayer::RBFBehavior
+	);
+	BehaviorReader = CopyDNALayer(SourceDNAReader.Get(), BehaviorLayers, PredictedSize);
 	InvalidateRigRuntimeContext();
 	InitializeRigRuntimeContext();
 }
@@ -181,7 +187,10 @@ void UDNAAsset::InitializeRigRuntimeContext()
 	if (BehaviorReader.IsValid() && (BehaviorReader->GetJointCount() != 0))
 	{
 		NewContext->BehaviorReader = BehaviorReader;
-		NewContext->RigLogic = MakeShared<FRigLogic>(BehaviorReader.Get());
+		// Convert behavior data from DNA to UE space on the fly as RigLogic accesses it
+		RigLogicDNAReader BehaviorReaderInUESpace{BehaviorReader->Unwrap()};
+		FDNAReader<RigLogicDNAReader> BehaviorReaderInUESpaceWrapper{&BehaviorReaderInUESpace};
+		NewContext->RigLogic = MakeShared<FRigLogic>(&BehaviorReaderInUESpaceWrapper);
 		NewContext->CacheVariableJointIndices();
 		{
 			FWriteScopeLock ContextScopeLock{RigRuntimeContextUpdateLock};
@@ -193,6 +202,7 @@ void UDNAAsset::InitializeRigRuntimeContext()
 			BehaviorReader->Unload(EDNADataLayer::Behavior);
 			BehaviorReader->Unload(EDNADataLayer::Geometry);
 			BehaviorReader->Unload(EDNADataLayer::MachineLearnedBehavior);
+			BehaviorReader->Unload(EDNADataLayer::RBFBehavior);
 		}
 #endif  // !WITH_EDITOR
 	}
@@ -206,9 +216,7 @@ TSharedPtr<FSharedRigRuntimeContext> UDNAAsset::GetRigRuntimeContext()
 	return RigRuntimeContext;
 }
 
-TSharedPtr<FDNAIndexMapping> UDNAAsset::GetDNAIndexMapping(const USkeleton* Skeleton,
-														   const USkeletalMesh* SkeletalMesh,
-														   const USkeletalMeshComponent* SkeletalMeshComponent)
+TSharedPtr<FDNAIndexMapping> UDNAAsset::GetDNAIndexMapping(const USkeleton* Skeleton, const USkeletalMesh* SkeletalMesh)
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/RigLogic"));
 
@@ -240,7 +248,8 @@ TSharedPtr<FDNAIndexMapping> UDNAAsset::GetDNAIndexMapping(const USkeleton* Skel
 		DNAIndexMapping->SkeletonGuid = SkeletonGuid;
 		DNAIndexMapping->MapControlCurves(BehaviorReader.Get(), Skeleton);
 		DNAIndexMapping->MapNeuralNetworkMaskCurves(BehaviorReader.Get(), Skeleton);
-		DNAIndexMapping->MapJoints(BehaviorReader.Get(), SkeletalMeshComponent);
+		DNAIndexMapping->MapJoints(BehaviorReader.Get(), SkeletalMesh);
+		DNAIndexMapping->MapDriverJoints(BehaviorReader.Get(), SkeletalMesh);
 		DNAIndexMapping->MapMorphTargets(BehaviorReader.Get(), Skeleton, SkeletalMesh);
 		DNAIndexMapping->MapMaskMultipliers(BehaviorReader.Get(), Skeleton);
 		DNAIndexMappingContainer.Add(SkeletalMesh, DNAIndexMapping);
@@ -258,7 +267,13 @@ bool UDNAAsset::Init(const FString& DNAFilename)
 		UE_LOG(LogDNAAsset, Warning, TEXT("%s"), ANSI_TO_TCHAR(rl4::Status::get().message));
 	}
 
-	DnaFileName = DNAFilename; //memorize for re-import
+#if WITH_EDITORONLY_DATA
+	AssetImportData = NewObject<UAssetImportData>(this, TEXT("AssetImportData"));
+	TArray<FAssetImportInfo::FSourceFile> SourceFiles = { FAssetImportInfo::FSourceFile(DNAFilename) };
+	AssetImportData->SetSourceFiles(MoveTemp(SourceFiles));
+#endif
+	//This is done just for search through Asset Registry
+	DnaFileName = FPaths::GetCleanFilename(DNAFilename);
 	
 	if (!FPaths::FileExists(DNAFilename))
 	{
@@ -278,7 +293,12 @@ bool UDNAAsset::Init(const FString& DNAFilename)
 	FWriteScopeLock DNAScopeLock{DNAUpdateLock};
 
 	// Load run-time data (behavior) from whole-DNA buffer into BehaviorReader
-	BehaviorReader = ReadDNAFromBuffer(&TempFileBuffer, EDNADataLayer::Behavior | EDNADataLayer::MachineLearnedBehavior, 0u); //0u = MaxLOD
+	const EDNADataLayer BehaviorLayers = (
+		EDNADataLayer::Behavior |
+		EDNADataLayer::MachineLearnedBehavior |
+		EDNADataLayer::RBFBehavior
+	);
+	BehaviorReader = ReadDNAFromBuffer(&TempFileBuffer, BehaviorLayers, 0u); //0u = MaxLOD
 	if (!BehaviorReader.IsValid())
 	{
 		return false;
@@ -319,7 +339,12 @@ void UDNAAsset::Serialize(FArchive& Ar)
 		if (Ar.IsLoading())
 		{
 			FArchiveMemoryStream BehaviorStream{&Ar};
-			BehaviorReader = ReadDNAFromStream(&BehaviorStream, EDNADataLayer::Behavior | EDNADataLayer::MachineLearnedBehavior, 0u); //0u = max LOD
+			const EDNADataLayer BehaviorLayers = (
+				EDNADataLayer::Behavior |
+				EDNADataLayer::MachineLearnedBehavior |
+				EDNADataLayer::RBFBehavior
+			);
+			BehaviorReader = ReadDNAFromStream(&BehaviorStream, BehaviorLayers, 0u); //0u = max LOD
 			// Geometry data is always present (even if only as an empty placeholder), just so the uasset
 			// format remains consistent between editor and non-editor builds
 			FArchiveMemoryStream GeometryStream{&Ar};
@@ -338,7 +363,12 @@ void UDNAAsset::Serialize(FArchive& Ar)
 			TSharedPtr<IDNAReader> EmptyDNA = CreateEmptyDNA(AVG_EMPTY_SIZE);
 			IDNAReader* BehaviorReaderPtr = (BehaviorReader.IsValid() ? static_cast<IDNAReader*>(BehaviorReader.Get()) : EmptyDNA.Get());
 			FArchiveMemoryStream BehaviorStream{&Ar};
-			WriteDNAToStream(BehaviorReaderPtr, EDNADataLayer::Behavior | EDNADataLayer::MachineLearnedBehavior, &BehaviorStream);
+			const EDNADataLayer BehaviorLayers = (
+				EDNADataLayer::Behavior |
+				EDNADataLayer::MachineLearnedBehavior |
+				EDNADataLayer::RBFBehavior
+			);
+			WriteDNAToStream(BehaviorReaderPtr, BehaviorLayers, &BehaviorStream);
 
 			// When cooking (or when there was no Geometry data available), an empty DNA structure is written
 			// into the stream, serving as a placeholder just so uasset files can be conveniently loaded

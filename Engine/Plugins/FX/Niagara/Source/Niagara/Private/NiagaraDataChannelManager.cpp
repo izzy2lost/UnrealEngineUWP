@@ -6,6 +6,7 @@
 #include "NiagaraWorldManager.h"
 #include "NiagaraDataChannel.h"
 #include "NiagaraDataChannelHandler.h"
+#include "NiagaraGpuComputeDispatchInterface.h"
 
 DECLARE_CYCLE_STAT(TEXT("FNiagaraDataChannelManager::BeginFrame"), STAT_DataChannelManager_BeginFrame, STATGROUP_NiagaraDataChannels);
 DECLARE_CYCLE_STAT(TEXT("FNiagaraDataChannelManager::EndFrame"), STAT_DataChannelManager_EndFrame, STATGROUP_NiagaraDataChannels);
@@ -56,6 +57,10 @@ void FNiagaraDataChannelManager::Init()
 
 void FNiagaraDataChannelManager::Cleanup()
 {
+	for (auto& ChannelPair : Channels)
+	{
+		ChannelPair.Value->Cleanup();
+	}
 	Channels.Empty();
 	bIsCleanedUp = true;
 }
@@ -66,6 +71,8 @@ void FNiagaraDataChannelManager::BeginFrame(float DeltaSeconds)
 	{
 		check(IsInGameThread());
 		SCOPE_CYCLE_COUNTER(STAT_DataChannelManager_BeginFrame);
+		CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraDataChannelManager);
+
 		//Tick all DataChannel channel handlers.
 		for (auto It = Channels.CreateIterator(); It; ++It)
 		{
@@ -75,6 +82,7 @@ void FNiagaraDataChannelManager::BeginFrame(float DeltaSeconds)
 			}
 			else
 			{
+				It.Value()->Cleanup();
 				It.RemoveCurrent();
 			}
 		}
@@ -87,6 +95,8 @@ void FNiagaraDataChannelManager::EndFrame(float DeltaSeconds)
 	{
 		check(IsInGameThread());
 		SCOPE_CYCLE_COUNTER(STAT_DataChannelManager_EndFrame);
+		CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraDataChannelManager);
+
 		//Tick all DataChannel channel handlers.
 		for (auto& ChannelPair : Channels)
 		{
@@ -101,6 +111,8 @@ void FNiagaraDataChannelManager::Tick(float DeltaSeconds, ETickingGroup TickGrou
 	{
 		check(IsInGameThread());
 		SCOPE_CYCLE_COUNTER(STAT_DataChannelManager_Tick);
+		CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraDataChannelManager);
+
 		//Tick all DataChannel channel handlers.
 		for (auto& ChannelPair : Channels)
 		{
@@ -109,6 +121,10 @@ void FNiagaraDataChannelManager::Tick(float DeltaSeconds, ETickingGroup TickGrou
 	}
 	else
 	{
+		for (auto& ChannelPair : Channels)
+		{
+			ChannelPair.Value->Cleanup();
+		}
 		Channels.Empty();
 	}
 }
@@ -147,6 +163,10 @@ UNiagaraDataChannelHandler* FNiagaraDataChannelManager::InitDataChannel(const UN
 
 		if (bForce || Handler == nullptr)
 		{
+			if(Handler)
+			{
+				Handler->Cleanup();
+			}
 			Handler = InChannel->CreateHandler(WorldMan->GetWorld());
 		}
 		return Handler;
@@ -157,10 +177,27 @@ UNiagaraDataChannelHandler* FNiagaraDataChannelManager::InitDataChannel(const UN
 void FNiagaraDataChannelManager::RemoveDataChannel(const UNiagaraDataChannel* InChannel)
 {
 	check(IsInGameThread());
-	Channels.Remove(InChannel);
+
+	TObjectPtr<UNiagaraDataChannelHandler> RemovedHandler;
+	if(Channels.RemoveAndCopyValue(InChannel, RemovedHandler))
+	{
+		if(RemovedHandler)
+		{
+			RemovedHandler->Cleanup();
+		}
+	}
 }
 
 UWorld* FNiagaraDataChannelManager::GetWorld()const
 {
 	return WorldMan->GetWorld();
+}
+
+void FNiagaraDataChannelManager::OnComputeDispatchInterfaceDestroyed(FNiagaraGpuComputeDispatchInterface* InComputeDispatchInterface)
+{
+	check(IsInGameThread());
+	for (auto& ChannelPair : Channels)
+	{
+		ChannelPair.Value->OnComputeDispatchInterfaceDestroyed(InComputeDispatchInterface);
+	}
 }

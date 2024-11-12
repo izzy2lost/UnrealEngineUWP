@@ -237,6 +237,7 @@ void FCacheStoreStats::AddRequest(const FCacheStoreRequestStats& Stats)
 	using EStatType = FCallStats::EStatType;
 
 	const EHitOrMiss HitOrMiss = Stats.Status == EStatus::Ok ? EHitOrMiss::Hit : EHitOrMiss::Miss;
+	const bool bIsCanceled = Stats.Status == EStatus::Canceled;
 	const bool bIsGet = Stats.Op != ECacheStoreRequestOp::Put;
 	const bool bIsInGameThread = IsInGameThread();
 #endif
@@ -254,10 +255,15 @@ void FCacheStoreStats::AddRequest(const FCacheStoreRequestStats& Stats)
 		BucketStats.OtherThreadTime += Stats.OtherThreadTime;
 
 	#if ENABLE_COOK_STATS
-		FCallStats& CallStats = bIsGet ? BucketStats.GetStats : BucketStats.PutStats;
-		CallStats.Accumulate(HitOrMiss, EStatType::Cycles, int64(Stats.MainThreadTime.ToSeconds() / FPlatformTime::GetSecondsPerCycle64()), /*bIsInGameThread*/ true);
-		CallStats.Accumulate(HitOrMiss, EStatType::Cycles, int64(Stats.OtherThreadTime.ToSeconds() / FPlatformTime::GetSecondsPerCycle64()), /*bIsInGameThread*/ false);
-		CallStats.Accumulate(HitOrMiss, EStatType::Bytes, bIsGet ? Stats.PhysicalReadSize : Stats.PhysicalWriteSize, bIsInGameThread);
+		// FCallStats is a legacy stat codepath that isn't aware of cancellations. In order to avoid skewing miss% rates
+		// by accumulating cancellation requests as misses, we simply ignore cancellation requests for stat tracking
+		if (!bIsCanceled)
+		{
+			FCallStats& CallStats = bIsGet ? BucketStats.GetStats : BucketStats.PutStats;
+			CallStats.Accumulate(HitOrMiss, EStatType::Cycles, int64(Stats.MainThreadTime.ToSeconds() / FPlatformTime::GetSecondsPerCycle64()), /*bIsInGameThread*/ true);
+			CallStats.Accumulate(HitOrMiss, EStatType::Cycles, int64(Stats.OtherThreadTime.ToSeconds() / FPlatformTime::GetSecondsPerCycle64()), /*bIsInGameThread*/ false);
+			CallStats.Accumulate(HitOrMiss, EStatType::Bytes, bIsGet ? Stats.PhysicalReadSize : Stats.PhysicalWriteSize, bIsInGameThread);
+		}
 	#endif
 	}
 
@@ -293,11 +299,16 @@ void FCacheStoreStats::AddRequest(const FCacheStoreRequestStats& Stats)
 	}
 
 #if ENABLE_COOK_STATS
-	FCookStats::CallStats& CallStats = bIsGet ? GetStats : PutStats;
-	CallStats.Accumulate(HitOrMiss, EStatType::Counter, 1, bIsInGameThread);
-	CallStats.Accumulate(HitOrMiss, EStatType::Cycles, int64(Stats.MainThreadTime.ToSeconds() / FPlatformTime::GetSecondsPerCycle64()), /*bIsInGameThread*/ true);
-	CallStats.Accumulate(HitOrMiss, EStatType::Cycles, int64(Stats.OtherThreadTime.ToSeconds() / FPlatformTime::GetSecondsPerCycle64()), /*bIsInGameThread*/ false);
-	CallStats.Accumulate(HitOrMiss, EStatType::Bytes, bIsGet ? Stats.PhysicalReadSize : Stats.PhysicalWriteSize, bIsInGameThread);
+	// FCallStats is a legacy stat codepath that isn't aware of cancellations. In order to avoid skewing miss% rates
+	// by accumulating cancellation requests as misses, we simply ignore cancellation requests for stat tracking
+	if (!bIsCanceled)
+	{
+		FCookStats::CallStats& CallStats = bIsGet ? GetStats : PutStats;
+		CallStats.Accumulate(HitOrMiss, EStatType::Counter, 1, bIsInGameThread);
+		CallStats.Accumulate(HitOrMiss, EStatType::Cycles, int64(Stats.MainThreadTime.ToSeconds() / FPlatformTime::GetSecondsPerCycle64()), /*bIsInGameThread*/ true);
+		CallStats.Accumulate(HitOrMiss, EStatType::Cycles, int64(Stats.OtherThreadTime.ToSeconds() / FPlatformTime::GetSecondsPerCycle64()), /*bIsInGameThread*/ false);
+		CallStats.Accumulate(HitOrMiss, EStatType::Bytes, bIsGet ? Stats.PhysicalReadSize : Stats.PhysicalWriteSize, bIsInGameThread);
+	}
 #endif
 }
 

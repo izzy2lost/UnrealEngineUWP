@@ -7,6 +7,13 @@
 #include "Math/Transform.h"
 #include "Templates/UniquePtr.h"
 #include "ClothingSystemRuntimeTypes.h"
+#include "Dataflow/Interfaces/DataflowPhysicsSolver.h"
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dataflow instead.") Dataflow {}
+#endif
 
 namespace Chaos
 {
@@ -16,6 +23,7 @@ namespace Chaos
 	class FClothingSimulationConfig;
 	class FClothingSimulationCollider;
 	class FClothVisualization;
+	class FClothVisualizationNoGC;
 }
 
 class UChaosClothComponent;
@@ -26,13 +34,14 @@ struct FClothingSimulationCacheData;
 
 namespace UE::Chaos::ClothAsset
 {
+	class FCollisionSourcesProxy;
 	struct FClothSimulationContext;
 
 	/**
 	 * Cloth simulation proxy.
 	 * Class used to share data between the cloth simulation and the cloth component.
 	 */
-	class CHAOSCLOTHASSETENGINE_API FClothSimulationProxy
+	class CHAOSCLOTHASSETENGINE_API FClothSimulationProxy : public FDataflowPhysicsSolverProxy
 	{
 	public:
 		explicit FClothSimulationProxy(const UChaosClothComponent& InClothComponent);
@@ -50,6 +59,12 @@ namespace UE::Chaos::ClothAsset
 		/** Wait for the parallel task to complete if one was running, and update the simulation data. */
 		void CompleteParallelSimulation_GameThread();
 
+		/** write simulation data back onto GT after the simulation is done */
+		void PostSimulate_GameThread() {WriteSimulationData();}
+		
+		/** setup simulation data from GT before the simulation starts */
+        bool PreSimulate_GameThread(float DeltaTime);
+
 		/**
 		 * Return a map of all simulation data as used by the skeletal rendering code.
 		 * The map key is the rendering section's cloth index as set in FSkelMeshRenderSection::CorrespondClothAssetIndex,
@@ -59,7 +74,11 @@ namespace UE::Chaos::ClothAsset
 
 		FBoxSphereBounds CalculateBounds_AnyThread() const;
 
+		UE_DEPRECATED(5.5, "Use GetClothVisualization instead.")
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		const ::Chaos::FClothVisualization* GetVisualization() const { return Visualization.Get(); }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		const ::Chaos::FClothVisualizationNoGC* GetClothVisualization() const;
 
 		int32 GetNumCloths() const { return NumCloths; }
 		int32 GetNumKinematicParticles() const { return NumKinematicParticles; }
@@ -70,15 +89,23 @@ namespace UE::Chaos::ClothAsset
 		float GetLinearSolveError() const { return LastLinearSolveError; }
 		float GetSimulationTime() const { return SimulationTime; }
 		bool IsTeleported() const { return bIsTeleported; }
+		bool HasCacheData() const { return CacheData.IsValid(); }
 
 	protected:
 		void Tick();
 		void WriteSimulationData();
+		bool SetupSimulationData(float DeltaTime);
 		void InitializeConfigs();
 		void FillSimulationContext(float DeltaTime, bool bIsInitialization = false);
 
 	private:
 		bool ShouldEnableSolver(bool bSolverCurrentlyEnabled) const;
+		void UpdateClothLODs();
+
+		// Begin FDataflowPhysicsSolverProxy overrides
+		virtual void AdvanceSolverDatas(const float DeltaTime) override {Tick();}
+		virtual void PreSolveProxy(const float DeltaTime);
+		// End FDataflowPhysicsSolverProxy overrides
 
 		// Internal physics thread object
 		friend class FClothSimulationProxyParallelTask;
@@ -95,18 +122,21 @@ namespace UE::Chaos::ClothAsset
 		// Simulation context used to store the required component data for the duration of the simulation
 		TUniquePtr<FClothSimulationContext> ClothSimulationContext;
 
+		// The collision data for the external collision sources
+		TUniquePtr<FCollisionSourcesProxy> CollisionSourcesProxy;
+
 		// The cloth simulation model used to create this simulation, ownership might get transferred to this proxy if it changes during the simulation
 		TSharedPtr<const FChaosClothSimulationModel> ClothSimulationModel;
 
 		// Simulation objects
 		TUniquePtr<::Chaos::FClothingSimulationSolver> Solver;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		TArray<TUniquePtr<::Chaos::FClothingSimulationMesh>> Meshes;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TArray<TUniquePtr<::Chaos::FClothingSimulationCloth>> Cloths;
 		TArray<TUniquePtr<::Chaos::FClothingSimulationConfig>> Configs;
 		TArray<TUniquePtr<::Chaos::FClothingSimulationCollider>> Colliders;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		TUniquePtr<::Chaos::FClothVisualization> Visualization;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Chaos Cache needs to have access to the solver.
 		friend class FClothComponentCacheAdapter;

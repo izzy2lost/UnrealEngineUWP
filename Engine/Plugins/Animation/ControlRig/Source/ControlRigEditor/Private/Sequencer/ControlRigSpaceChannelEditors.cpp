@@ -171,7 +171,7 @@ bool CanCreateKeyEditor(const FMovieSceneControlRigSpaceChannel* Channel)
 {
 	return false; //mz todoo maybe change
 }
-TSharedRef<SWidget> CreateKeyEditor(const TMovieSceneChannelHandle<FMovieSceneControlRigSpaceChannel>& Channel, UMovieSceneSection* Section, const FGuid& InObjectBindingID, TWeakPtr<FTrackInstancePropertyBindings> PropertyBindings, TWeakPtr<ISequencer> InSequencer)
+TSharedRef<SWidget> CreateKeyEditor(const TMovieSceneChannelHandle<FMovieSceneControlRigSpaceChannel>& Channel, const UE::Sequencer::FCreateKeyEditorParams& Params)
 {
 	return SNullWidget::NullWidget;
 }
@@ -199,43 +199,57 @@ FSpaceChannelAndSection FControlRigSpaceChannelHelpers::FindSpaceChannelAndSecti
 	{
 		return SpaceChannelAndSection;
 	}
+
+	bool bFoundTrack = false;
+	
 	const TArray<FMovieSceneBinding>& Bindings = MovieScene->GetBindings();
 	bool bRecreateCurves = false;
 	TArray<TPair<UControlRig*, FName>> ControlRigPairsToReselect;
 	for (const FMovieSceneBinding& Binding : Bindings)
 	{
-		UMovieSceneControlRigParameterTrack* ControlRigParameterTrack = Cast<UMovieSceneControlRigParameterTrack>(MovieScene->FindTrack(UMovieSceneControlRigParameterTrack::StaticClass(), Binding.GetObjectGuid(), NAME_None));
-		if (ControlRigParameterTrack && ControlRigParameterTrack->GetControlRig() == ControlRig)
+		TArray<UMovieSceneTrack*> Tracks = MovieScene->FindTracks(UMovieSceneControlRigParameterTrack::StaticClass(), Binding.GetObjectGuid(), NAME_None);
+		for (UMovieSceneTrack* Track : Tracks)
 		{
-			UMovieSceneControlRigParameterSection* ActiveSection = Cast<UMovieSceneControlRigParameterSection>(ControlRigParameterTrack->GetSectionToKey());
-			if (ActiveSection)
+			UMovieSceneControlRigParameterTrack* ControlRigParameterTrack = Cast<UMovieSceneControlRigParameterTrack>(Track);
+			if (ControlRigParameterTrack && ControlRigParameterTrack->GetControlRig() == ControlRig)
 			{
-				ActiveSection->Modify();
-				ControlRig->Modify();
-				SpaceChannelAndSection.SectionToKey = ActiveSection;
-				FSpaceControlNameAndChannel* NameAndChannel = ActiveSection->GetSpaceChannel(ControlName);
-				if (NameAndChannel)
+				UMovieSceneControlRigParameterSection* ActiveSection = Cast<UMovieSceneControlRigParameterSection>(ControlRigParameterTrack->GetSectionToKey(ControlName));
+				if (ActiveSection)
 				{
-					SpaceChannelAndSection.SpaceChannel = &NameAndChannel->SpaceCurve;
-				}
-				else if (bCreateIfNeeded)
-				{
-					if (ControlRig->IsControlSelected(ControlName))
-					{
-						TPair<UControlRig*, FName> Pair;
-						Pair.Key = ControlRig;
-						Pair.Value = ControlName;
-						ControlRigPairsToReselect.Add(Pair);
-					}
-					ActiveSection->AddSpaceChannel(ControlName, true /*ReconstructChannelProxy*/);
-					NameAndChannel = ActiveSection->GetSpaceChannel(ControlName);
+					ActiveSection->Modify();
+					ControlRig->Modify();
+					SpaceChannelAndSection.SectionToKey = ActiveSection;
+					FSpaceControlNameAndChannel* NameAndChannel = ActiveSection->GetSpaceChannel(ControlName);
 					if (NameAndChannel)
 					{
 						SpaceChannelAndSection.SpaceChannel = &NameAndChannel->SpaceCurve;
-						bRecreateCurves = true;
+					}
+					else if (bCreateIfNeeded)
+					{
+						if (ControlRig->IsControlSelected(ControlName))
+						{
+							TPair<UControlRig*, FName> Pair;
+							Pair.Key = ControlRig;
+							Pair.Value = ControlName;
+							ControlRigPairsToReselect.Add(Pair);
+						}
+						ActiveSection->AddSpaceChannel(ControlName, true /*ReconstructChannelProxy*/);
+						NameAndChannel = ActiveSection->GetSpaceChannel(ControlName);
+						if (NameAndChannel)
+						{
+							SpaceChannelAndSection.SpaceChannel = &NameAndChannel->SpaceCurve;
+							bRecreateCurves = true;
+						}
 					}
 				}
+				
+				bFoundTrack = true;
+				break;
 			}
+		}
+
+		if (bFoundTrack)
+		{
 			break;
 		}
 	}
@@ -339,7 +353,7 @@ FKeyHandle FControlRigSpaceChannelHelpers::SequencerKeyControlRigSpaceChannel(UC
 
 		//make sure to evaluate first frame
 		FFrameTime CurrentTime(Time);
-		CurrentTime = CurrentTime * RootToLocalTransform.InverseNoLooping();
+		CurrentTime = RootToLocalTransform.Inverse().TryTransformTime(CurrentTime).Get(CurrentTime);
 
 		FMovieSceneContext SceneContext = FMovieSceneContext(FMovieSceneEvaluationRange(CurrentTime, TickResolution), Sequencer->GetPlaybackStatus()).SetHasJumped(true);
 		Sequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(SceneContext);
@@ -447,6 +461,8 @@ FKeyHandle FControlRigSpaceChannelHelpers::SequencerKeyControlRigSpaceChannel(UC
 			}
 		}
 
+		FMovieSceneInverseSequenceTransform LocalToRootTransform = RootToLocalTransform.Inverse();
+
 		//do any compensation or previous key adding
 		FRigControlModifiedContext Context;
 		Context.SetKey = EControlRigSetKey::Always;
@@ -455,7 +471,7 @@ FKeyHandle FControlRigSpaceChannelHelpers::SequencerKeyControlRigSpaceChannel(UC
 		if (bSetPreviousKey)
 		{
 			FFrameTime GlobalTime(Time - 1);
-			GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping();
+			GlobalTime = LocalToRootTransform.TryTransformTime(GlobalTime).Get(GlobalTime);
 
 			SceneContext = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Sequencer->GetPlaybackStatus()).SetHasJumped(true);
 			Sequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(SceneContext);
@@ -489,7 +505,7 @@ FKeyHandle FControlRigSpaceChannelHelpers::SequencerKeyControlRigSpaceChannel(UC
 		for (const FFrameNumber& Frame : Frames)
 		{
 			FFrameTime GlobalTime(Frame);
-			GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping();
+			GlobalTime = LocalToRootTransform.TryTransformTime(GlobalTime).Get(GlobalTime);
 
 			SceneContext = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Sequencer->GetPlaybackStatus()).SetHasJumped(true);
 			Sequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(SceneContext);
@@ -699,12 +715,13 @@ void  FControlRigSpaceChannelHelpers::SequencerSpaceChannelKeyDeleted(UControlRi
 		Context.SetKey = EControlRigSetKey::Always;
 		FFrameRate TickResolution = Sequencer->GetFocusedTickResolution();
 		FMovieSceneSequenceTransform RootToLocalTransform = Sequencer->GetFocusedMovieSceneSequenceTransform();
+		FMovieSceneInverseSequenceTransform LocalToRootTransform = RootToLocalTransform.Inverse();
 
 		for (const FFrameNumber& Frame : Frames)
 		{
 			//evaluate sequencer
 			FFrameTime GlobalTime(Frame);
-			GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping();
+			GlobalTime = LocalToRootTransform.TryTransformTime(GlobalTime).Get(GlobalTime);
 
 			FMovieSceneContext SceneContext = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Sequencer->GetPlaybackStatus()).SetHasJumped(true);
 			Sequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(SceneContext);
@@ -1094,6 +1111,7 @@ void FControlRigSpaceChannelHelpers::SequencerBakeControlInSpace(UControlRig* Co
 			ControlRig->Evaluate_AnyThread();
 
 			FMovieSceneSequenceTransform RootToLocalTransform = Sequencer->GetFocusedMovieSceneSequenceTransform();
+			FMovieSceneInverseSequenceTransform LocalToRootTransform = RootToLocalTransform.Inverse();
 
 			for (int32 Index = 0; Index < Frames.Num(); ++Index)
 			{
@@ -1102,7 +1120,7 @@ void FControlRigSpaceChannelHelpers::SequencerBakeControlInSpace(UControlRig* Co
 
 				//evaluate sequencer
 				FFrameTime GlobalTime(Frame);
-				GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping();
+				GlobalTime = LocalToRootTransform.TryTransformTime(GlobalTime).Get(GlobalTime);
 
 				FMovieSceneContext SceneContext = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Sequencer->GetPlaybackStatus()).SetHasJumped(true);
 				Sequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(SceneContext);
@@ -1142,7 +1160,7 @@ void FControlRigSpaceChannelHelpers::SequencerBakeControlInSpace(UControlRig* Co
 
 				//evaluate sequencer
 				FFrameTime GlobalTime(EndFrame);
-				GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping();
+				GlobalTime = LocalToRootTransform.TryTransformTime(GlobalTime).Get(GlobalTime);
 
 				FMovieSceneContext SceneContext = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Sequencer->GetPlaybackStatus()).SetHasJumped(true);
 				Sequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(SceneContext);
@@ -1273,13 +1291,40 @@ void FControlRigSpaceChannelHelpers::HandleSpaceKeyTimeChanged(UControlRig* Cont
 	}
 }
 
+UMovieSceneControlRigParameterSection* FControlRigSpaceChannelHelpers::GetControlRigSection(ISequencer* Sequencer, const UControlRig* ControlRig)
+{
+
+	if (ControlRig == nullptr || Sequencer == nullptr)
+	{
+		return nullptr;
+	}
+	UMovieScene* MovieScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
+	if (!MovieScene)
+	{
+		return nullptr;
+	}
+	const TArray<FMovieSceneBinding>& Bindings = MovieScene->GetBindings();
+	for (const FMovieSceneBinding& Binding : Bindings)
+	{
+		UMovieSceneControlRigParameterTrack* ControlRigParameterTrack = Cast<UMovieSceneControlRigParameterTrack>(MovieScene->FindTrack(UMovieSceneControlRigParameterTrack::StaticClass(), Binding.GetObjectGuid(), NAME_None));
+		if (ControlRigParameterTrack && ControlRigParameterTrack->GetControlRig() == ControlRig)
+		{
+			UMovieSceneControlRigParameterSection* ActiveSection = Cast<UMovieSceneControlRigParameterSection>(ControlRigParameterTrack->GetSectionToKey());
+			if (ActiveSection)
+			{
+				return ActiveSection;
+			}
+		}
+	}
+	return nullptr;
+}
 
 void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 	UControlRig* ControlRig,
 	ISequencer* Sequencer,
 	UMovieSceneControlRigParameterSection* Section,
-	FName ControlName,
-	TOptional<FFrameNumber>& OptionalTime)
+	TOptional<FFrameNumber>& OptionalTime, 
+	bool bCompPreviousTick)
 {
 	if (bDoNotCompensate == true)
 	{
@@ -1315,7 +1360,7 @@ void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 	const TArray<FRigControlElement*> Controls = RigHierarchy->GetControls();
 	for (const FRigControlElement* Control: Controls)
 	{ 
-		if(Control)// ac && Control->GetName() != ControlName)
+		if(Control)
 		{ 
 			//only if we have a channel
 			if (FSpaceControlNameAndChannel* Channel = Section->GetSpaceChannel(Control->GetFName()))
@@ -1325,10 +1370,12 @@ void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 				{
 					for (const FFrameNumber& Time : FramesToCompensate)
 					{
+						const FFrameNumber TimeToCompensate = bCompPreviousTick ? (Time - 1) : Time;
+						const FFrameNumber TimeToCompare = bCompPreviousTick ? Time : (Time - 1);
 						FMovieSceneControlRigSpaceBaseKey ExistingValue, PreviousValue;
 						using namespace UE::MovieScene;
-						EvaluateChannel(&(Channel->SpaceCurve), Time - 1, PreviousValue);
-						EvaluateChannel(&(Channel->SpaceCurve), Time, ExistingValue);
+						EvaluateChannel(&(Channel->SpaceCurve), TimeToCompensate, PreviousValue);
+						EvaluateChannel(&(Channel->SpaceCurve), TimeToCompare, ExistingValue);
 
 						if (ExistingValue != PreviousValue) //if they are the same no need to do anything
 						{
@@ -1340,7 +1387,7 @@ void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 							FControlRigSnapper Snapper;
 							Snapper.GetControlRigControlTransforms(
 								Sequencer, ControlRig, Control->GetFName(),
-								{Time},
+								{ TimeToCompare },
 								ControlRigParentWorldTransforms, ControlWorldTransforms);
 
 							//set space to previous space value that's different.
@@ -1360,7 +1407,7 @@ void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 							
 							//now set time -1 frame value
 							ControlRig->Evaluate_AnyThread();
-							KeyframeContext.LocalTime = TickResolution.AsSeconds(FFrameTime(Time - 1));
+							KeyframeContext.LocalTime = TickResolution.AsSeconds(FFrameTime(TimeToCompensate));
 							ControlRig->SetControlGlobalTransform(Control->GetFName(), ControlWorldTransforms[0], true, KeyframeContext, false /*undo*/, false /*bPrintPython*/, true/* bFixEulerFlips*/);
 							
 							bDidIt = true;
@@ -1503,7 +1550,7 @@ FReply FControlRigSpaceChannelHelpers::OpenBakeDialog(ISequencer* Sequencer, FMo
 	return FReply::Unhandled();
 }
 
-TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FMovieSceneControlRigSpaceChannel>& ChannelHandle, UMovieSceneSection* OwningSection, TSharedRef<ISequencer> InSequencer)
+TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FMovieSceneControlRigSpaceChannel>& ChannelHandle, const UE::Sequencer::FCreateCurveEditorModelParams& Params)
 {
 	if (FMovieSceneControlRigSpaceChannel* Channel = ChannelHandle.Get())
 	{
@@ -1512,7 +1559,7 @@ TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FM
 			const UCurveEditorSettings* Settings = GetDefault<UCurveEditorSettings>();
 			if (Settings == nullptr || Settings->GetShowBars())
 			{
-				return MakeUnique<FControlRigSpaceChannelCurveModel>(ChannelHandle, OwningSection, InSequencer);
+				return MakeUnique<FControlRigSpaceChannelCurveModel>(ChannelHandle, Params.OwningSection, Params.Sequencer);
 			}
 		}
 	}

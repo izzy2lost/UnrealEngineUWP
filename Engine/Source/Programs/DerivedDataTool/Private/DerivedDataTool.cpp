@@ -7,6 +7,7 @@
 #include "HAL/LowLevelMemTracker.h"
 #include "Misc/ScopeExit.h"
 #include "Modules/ModuleManager.h"
+#include "ProjectUtilities.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDerivedDataTool, Log, All);
 
@@ -17,6 +18,9 @@ INT32_MAIN_INT32_ARGC_TCHAR_ARGV()
 	using namespace UE::DerivedData;
 
 	const FTaskTagScope Scope(ETaskTag::EGameThread);
+
+	// Allows this program to accept a project argument on the commandline and use project-specific config
+	UE::ProjectUtilities::ParseProjectDirFromCommandline(ArgC, ArgV);
 
 	if (int32 Ret = GEngineLoop.PreInit(ArgC, ArgV))
 	{

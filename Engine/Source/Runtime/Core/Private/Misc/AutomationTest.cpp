@@ -21,7 +21,8 @@
 #include "Misc/ScopeRWLock.h"
 #include "Modules/ModuleManager.h"
 
-DEFINE_LOG_CATEGORY(LogLatentCommands)
+DEFINE_LOG_CATEGORY(LogLatentCommands);
+DEFINE_LOG_CATEGORY(LogAutomationTestFramework);
 DEFINE_LOG_CATEGORY_STATIC(LogAutomationTestStateTrace, Log, All);
 DEFINE_LOG_CATEGORY_STATIC(LogAutomationTest, Warning, All);
 
@@ -62,6 +63,12 @@ namespace AutomationTest
 		TEXT("Automation.LightweightStereoTestVariants"),
 		bLightweightStereoTestVariants,
 		TEXT("Whether to skip variants when the baseline test fails, and skip saving screenshots for successful variants"));
+
+	FString TestTagGlobalFilter = "";
+	static FAutoConsoleVariableRef CVarAutomationTestTagGlobalFilter(
+		TEXT("Automation.TestTagGlobalFilter"),
+		TestTagGlobalFilter,
+		TEXT("Only include tests marked with Tags matching this filter string, using the Advanced Search Syntax"));
 
 	// The method prepares the filename and LineNumber to be placed in the form that could be extracted by SAutomationWindow widget if it is additionally eclosed into []
 	// The result format is filename(line)
@@ -140,39 +147,60 @@ namespace AutomationTest
 	}
 };
 
+FAutomationTestBase::FAutomationTestBase( const FString& InName, const bool bInComplexTask )
+	: bComplexTask( bInComplexTask )
+{
+	LLM_SCOPE_BYNAME(TEXT("AutomationTest/Framework"));
+	TestName = InName;
+	// Register the newly created automation test into the automation testing framework
+	const bool bRegistered = FAutomationTestFramework::Get().RegisterAutomationTest( InName, this );
+	if (!bRegistered)
+	{
+		UE_LOG(LogAutomationTest, Warning, TEXT("Failed to register test with the name '%s'. Test with the same name is already registered and will not be overridden."), *InName);
+	}
+}
+
+/** Destructor */
+FAutomationTestBase::~FAutomationTestBase() 
+{ 
+	// Unregister the automation test from the automation testing framework
+	FAutomationTestFramework::Get().UnregisterAutomationTest( TestName );
+}
+
 bool FAutomationTestBase::bSuppressLogWarnings = false;
 bool FAutomationTestBase::bSuppressLogErrors = false;
 bool FAutomationTestBase::bElevateLogWarningsToErrors = false;
 TArray<FString> FAutomationTestBase::SuppressedLogCategories;
 
-CORE_API const TMap<FString, EAutomationTestFlags::Type>& EAutomationTestFlags::GetTestFlagsMap()
+CORE_API const TMap<FString, EAutomationTestFlags>& EAutomationTestFlags_GetTestFlagsMap()
 {
 	LLM_SCOPE_BYNAME(TEXT("AutomationTest/Framework"));
 	/** String to EAutomationTestFlags map */
-	static const TMap<FString, Type> FlagsMap = {
-		{ TEXT("EditorContext"), Type::EditorContext},
-		{ TEXT("ClientContext"), Type::ClientContext},
-		{ TEXT("ServerContext"), Type::ServerContext},
-		{ TEXT("CommandletContext"), Type::CommandletContext},
-		{ TEXT("ApplicationContextMask"), Type::ApplicationContextMask},
-		{ TEXT("NonNullRHI"), Type::NonNullRHI},
-		{ TEXT("RequiresUser"), Type::RequiresUser},
-		{ TEXT("FeatureMask"), Type::FeatureMask},
-		{ TEXT("Disabled"), Type::Disabled},
-		{ TEXT("CriticalPriority"), Type::CriticalPriority},
-		{ TEXT("HighPriority"), Type::HighPriority},
-		{ TEXT("HighPriorityAndAbove"), Type::HighPriorityAndAbove},
-		{ TEXT("MediumPriority"), Type::MediumPriority},
-		{ TEXT("MediumPriorityAndAbove"), Type::MediumPriorityAndAbove},
-		{ TEXT("LowPriority"), Type::LowPriority},
-		{ TEXT("PriorityMask"), Type::PriorityMask},
-		{ TEXT("SmokeFilter"), Type::SmokeFilter},
-		{ TEXT("EngineFilter"), Type::EngineFilter},
-		{ TEXT("ProductFilter"), Type::ProductFilter},
-		{ TEXT("PerfFilter"), Type::PerfFilter},
-		{ TEXT("StressFilter"), Type::StressFilter},
-		{ TEXT("NegativeFilter"), Type::NegativeFilter},
-		{ TEXT("FilterMask"), Type::FilterMask}
+	static const TMap<FString, EAutomationTestFlags> FlagsMap = {
+		{ TEXT("EditorContext"),          EAutomationTestFlags::EditorContext},
+		{ TEXT("ClientContext"),          EAutomationTestFlags::ClientContext},
+		{ TEXT("ServerContext"),          EAutomationTestFlags::ServerContext},
+		{ TEXT("CommandletContext"),      EAutomationTestFlags::CommandletContext},
+		{ TEXT("ProgramContext"),         EAutomationTestFlags::ProgramContext},
+		{ TEXT("ApplicationContextMask"), EAutomationTestFlags_ApplicationContextMask},
+		{ TEXT("NonNullRHI"),             EAutomationTestFlags::NonNullRHI},
+		{ TEXT("RequiresUser"),           EAutomationTestFlags::RequiresUser},
+		{ TEXT("FeatureMask"),            EAutomationTestFlags_FeatureMask},
+		{ TEXT("Disabled"),               EAutomationTestFlags::Disabled},
+		{ TEXT("CriticalPriority"),       EAutomationTestFlags::CriticalPriority},
+		{ TEXT("HighPriority"),           EAutomationTestFlags::HighPriority},
+		{ TEXT("HighPriorityAndAbove"),   EAutomationTestFlags_HighPriorityAndAbove},
+		{ TEXT("MediumPriority"),         EAutomationTestFlags::MediumPriority},
+		{ TEXT("MediumPriorityAndAbove"), EAutomationTestFlags_MediumPriorityAndAbove},
+		{ TEXT("LowPriority"),            EAutomationTestFlags::LowPriority},
+		{ TEXT("PriorityMask"),           EAutomationTestFlags_PriorityMask},
+		{ TEXT("SmokeFilter"),            EAutomationTestFlags::SmokeFilter},
+		{ TEXT("EngineFilter"),           EAutomationTestFlags::EngineFilter},
+		{ TEXT("ProductFilter"),          EAutomationTestFlags::ProductFilter},
+		{ TEXT("PerfFilter"),             EAutomationTestFlags::PerfFilter},
+		{ TEXT("StressFilter"),           EAutomationTestFlags::StressFilter},
+		{ TEXT("NegativeFilter"),         EAutomationTestFlags::NegativeFilter},
+		{ TEXT("FilterMask"),             EAutomationTestFlags_FilterMask}
 	};
 	return FlagsMap;
 };
@@ -198,23 +226,22 @@ void FAutomationTestFramework::FAutomationTestOutputDevice::Serialize( const TCH
 		if (CaptureLog)
 		{
 			ELogVerbosity::Type EffectiveVerbosity = AutomationTest::GetAutomationLogLevel(Verbosity, Category, LocalCurTest);
+			if (EffectiveVerbosity != ELogVerbosity::NoLogging)
+			{
+				FString FormattedMsg = FString::Printf(TEXT("%s: %s"), *Category.ToString(), V);
 
-			FString FormattedMsg = FString::Printf(TEXT("%s: %s [log]"), *Category.ToString(), V);
-			
-			// Errors
-			if (EffectiveVerbosity == ELogVerbosity::Error)
-			{
-				LocalCurTest->AddError(FormattedMsg, STACK_OFFSET);
-			}
-			// Warnings
-			else if (EffectiveVerbosity == ELogVerbosity::Warning)
-			{
-				LocalCurTest->AddWarning(FormattedMsg, STACK_OFFSET);
-			}
-			// Display
-			else if (EffectiveVerbosity != ELogVerbosity::NoLogging)
-			{
-				LocalCurTest->AddInfo(FormattedMsg, STACK_OFFSET);
+				FAutomationEvent Event(EAutomationEventType::Info, FormattedMsg, TEXT("log"));
+				// Errors
+				if (EffectiveVerbosity == ELogVerbosity::Error)
+				{
+					Event.Type = EAutomationEventType::Error;
+				}
+				// Warnings
+				else if (EffectiveVerbosity == ELogVerbosity::Warning)
+				{
+					Event.Type = EAutomationEventType::Warning;
+				}
+				LocalCurTest->AddEvent(Event, STACK_OFFSET);
 			}
 		}
 		// Log...etc
@@ -344,10 +371,47 @@ bool FAutomationTestFramework::UnregisterAutomationTest( const FString& InTestNa
 	return bRegistered;
 }
 
+bool FAutomationTestFramework::RegisterAutomationTestTags( const FString& InTestNameToRegister, const FString& InTestTagsToRegister )
+{
+	const bool bAlreadyRegistered = TestFullNameToTagDataMap.Contains( InTestNameToRegister );
+	if ( !bAlreadyRegistered )
+	{
+		LLM_SCOPE_BYNAME(TEXT("AutomationTest/Framework"));
+		TestFullNameToTagDataMap.Add(InTestNameToRegister, InTestTagsToRegister);
+	}
+	return !bAlreadyRegistered;
+}
+
+bool FAutomationTestFramework::UnregisterAutomationTestTags(const FString& InTestNameToUnregister)
+{
+	const bool bRegistered = TestFullNameToTagDataMap.Contains(InTestNameToUnregister);
+	if (bRegistered)
+	{
+		TestFullNameToTagDataMap.Remove(InTestNameToUnregister);
+	}
+	return bRegistered;
+}
+
+bool FAutomationTestFramework::RegisterComplexAutomationTestTags(const FAutomationTestBase* InTest, const FString& InBeautifiedTestName, const FString& InTestTagsToRegister)
+{
+	FString FullTestName = InTest->GetBeautifiedTestName().AppendChar('.').Append(InBeautifiedTestName);
+	return RegisterAutomationTestTags(FullTestName, InTestTagsToRegister);
+}
+
+FString FAutomationTestFramework::GetTagsForAutomationTest(const FString& InTestName)
+{
+	FString * FindResult = TestFullNameToTagDataMap.Find(InTestName);
+	if (FindResult)
+	{
+		return *FindResult;
+	}
+	return FString();
+}
+
 void FAutomationTestFramework::EnqueueLatentCommand(TSharedPtr<IAutomationLatentCommand> NewCommand)
 {
 	//ensure latent commands are never used within smoke tests - will only catch when smokes are exclusively requested
-	check((RequestedTestFilter & EAutomationTestFlags::FilterMask) != EAutomationTestFlags::SmokeFilter);
+	check((RequestedTestFilter & EAutomationTestFlags_FilterMask) != EAutomationTestFlags::SmokeFilter);
 
 	//ensure we are currently "running a test"
 	check(GIsAutomationTesting);
@@ -358,7 +422,7 @@ void FAutomationTestFramework::EnqueueLatentCommand(TSharedPtr<IAutomationLatent
 void FAutomationTestFramework::EnqueueNetworkCommand(TSharedPtr<IAutomationNetworkCommand> NewCommand)
 {
 	//ensure latent commands are never used within smoke tests
-	check((RequestedTestFilter & EAutomationTestFlags::FilterMask) != EAutomationTestFlags::SmokeFilter);
+	check((RequestedTestFilter & EAutomationTestFlags_FilterMask) != EAutomationTestFlags::SmokeFilter);
 
 	//ensure we are currently "running a test"
 	check(GIsAutomationTesting);
@@ -405,9 +469,8 @@ bool FAutomationTestFramework::RunSmokeTests()
 
 	bool bAllSuccessful = true;
 
-	uint32 PreviousRequestedTestFilter = RequestedTestFilter;
 	//so extra log spam isn't generated
-	RequestedTestFilter = EAutomationTestFlags::SmokeFilter;
+	TGuardValue<EAutomationTestFlags> GuardRequestedTestFilter(RequestedTestFilter, EAutomationTestFlags::SmokeFilter);
 	
 	// Skip running on cooked platforms like mobile
 	//@todo - better determination of whether to run than requires cooked data
@@ -433,7 +496,7 @@ bool FAutomationTestFramework::RunSmokeTests()
 			for ( int TestIndex = 0; TestIndex < TestInfo.Num(); ++TestIndex )
 			{
 				SlowTask.EnterProgressFrame(1);
-				if (TestInfo[TestIndex].GetTestFlags() & EAutomationTestFlags::SmokeFilter )
+				if (!!(TestInfo[TestIndex].GetTestFlags() & EAutomationTestFlags::SmokeFilter))
 				{
 					FString TestCommand = TestInfo[TestIndex].GetTestName();
 					FAutomationTestExecutionInfo& CurExecutionInfo = OutExecutionInfoMap.Add( TestCommand, FAutomationTestExecutionInfo() );
@@ -473,9 +536,6 @@ bool FAutomationTestFramework::RunSmokeTests()
 		UE_LOG(LogAutomationTest, Error, TEXT("Skipping unit tests.") );
 		bAllSuccessful = false;
 	}
-
-	//revert to allowing all logs
-	RequestedTestFilter = PreviousRequestedTestFilter;
 
 	return bAllSuccessful;
 }
@@ -627,7 +687,7 @@ void FAutomationTestFramework::LoadTestModules( )
 {
 	const bool bRunningEditor = GIsEditor && !IsRunningCommandlet();
 
-	bool bRunningSmokeTests = ((RequestedTestFilter & EAutomationTestFlags::FilterMask) == EAutomationTestFlags::SmokeFilter);
+	bool bRunningSmokeTests = ((RequestedTestFilter & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::SmokeFilter);
 	if( !bRunningSmokeTests )
 	{
 		TArray<FString> EngineTestModules;
@@ -680,11 +740,12 @@ void FAutomationTestFramework::GetValidTestNames( TArray<FAutomationTestInfo>& T
 	// Determine required application type (Editor, Game, or Commandlet)
 	const bool bRunningCommandlet = IsRunningCommandlet();
 	const bool bRunningEditor = GIsEditor && !bRunningCommandlet;
-	const bool bRunningClient = !GIsEditor && !IsRunningDedicatedServer();
-	const bool bRunningServer = !GIsEditor && !IsRunningClientOnly();
+	const bool bRunningClient = !GIsEditor && !IsRunningDedicatedServer() && !FPlatformProperties::IsProgram();
+	const bool bRunningServer = !GIsEditor && !IsRunningClientOnly() && !FPlatformProperties::IsProgram();
+	const bool bRunningProgram = !GIsEditor && FPlatformProperties::IsProgram();
 
 	//application flags
-	uint32 ApplicationSupportFlags = 0;
+	EAutomationTestFlags ApplicationSupportFlags = EAutomationTestFlags::None;
 	if ( bRunningEditor )
 	{
 		ApplicationSupportFlags |= EAutomationTestFlags::EditorContext;
@@ -701,9 +762,13 @@ void FAutomationTestFramework::GetValidTestNames( TArray<FAutomationTestInfo>& T
 	{
 		ApplicationSupportFlags |= EAutomationTestFlags::CommandletContext;
 	}
+	if ( bRunningProgram )
+	{
+		ApplicationSupportFlags |= EAutomationTestFlags::ProgramContext;
+	}
 
 	//Feature support - assume valid RHI until told otherwise
-	uint32 FeatureSupportFlags = EAutomationTestFlags::FeatureMask;
+	EAutomationTestFlags FeatureSupportFlags = EAutomationTestFlags_FeatureMask;
 	// @todo: Handle this correctly. GIsUsingNullRHI is defined at Engine-level, so it can't be used directly here in Core.
 	// For now, assume Null RHI is only used for commandlets, servers, and when the command line specifies to use it.
 	if (FPlatformProperties::SupportsWindowedMode())
@@ -724,20 +789,20 @@ void FAutomationTestFramework::GetValidTestNames( TArray<FAutomationTestInfo>& T
 		const FAutomationTestBase* CurTest = TestIter.Value();
 		check( CurTest );
 
-		uint32 CurTestFlags = CurTest->GetTestFlags();
+		EAutomationTestFlags CurTestFlags = CurTest->GetTestFlags();
 
 		//filter out full tests when running smoke tests
-		const bool bPassesFilterRequirement = ((CurTestFlags & RequestedTestFilter) != 0);
+		const bool bPassesFilterRequirement = !!(CurTestFlags & RequestedTestFilter);
 
 		//Application Tests
-		uint32 CurTestApplicationFlags = (CurTestFlags & EAutomationTestFlags::ApplicationContextMask);
-		const bool bPassesApplicationRequirements = (CurTestApplicationFlags == 0) || (CurTestApplicationFlags & ApplicationSupportFlags);
+		EAutomationTestFlags CurTestApplicationFlags = (CurTestFlags & EAutomationTestFlags_ApplicationContextMask);
+		const bool bPassesApplicationRequirements = !CurTestApplicationFlags || !!(CurTestApplicationFlags & ApplicationSupportFlags);
 		
 		//Feature Tests
-		uint32 CurTestFeatureFlags = (CurTestFlags & EAutomationTestFlags::FeatureMask);
-		const bool bPassesFeatureRequirements = (CurTestFeatureFlags == 0) || (CurTestFeatureFlags & FeatureSupportFlags);
+		EAutomationTestFlags CurTestFeatureFlags = (CurTestFlags & EAutomationTestFlags_FeatureMask);
+		const bool bPassesFeatureRequirements = !CurTestFeatureFlags || !!(CurTestFeatureFlags & FeatureSupportFlags);
 
-		const bool bEnabled = (CurTestFlags & EAutomationTestFlags::Disabled) == 0;
+		const bool bEnabled = !(CurTestFlags & EAutomationTestFlags::Disabled);
 
 		const double GenerateTestNamesStartTime = FPlatformTime::Seconds();
 		
@@ -745,7 +810,7 @@ void FAutomationTestFramework::GetValidTestNames( TArray<FAutomationTestInfo>& T
 		{
 			TArray<FAutomationTestInfo> TestsToAdd;
 			CurTest->GenerateTestNames(TestsToAdd);
-			TestInfo.Append(TestsToAdd);			
+			TestInfo.Append(TestsToAdd);
 		}
 
 		// Make sure people are not writing complex tests that take forever to return the names of the tests
@@ -756,6 +821,28 @@ void FAutomationTestFramework::GetValidTestNames( TArray<FAutomationTestInfo>& T
 		{
 			//force a failure if a smoke test takes too long
 			UE_LOG(LogAutomationTest, Warning, TEXT("Automation Test '%s' took > 10 seconds to return from GetTests(...): %.2fs"), *CurTest->GetTestName(), (float)TimeForGetTests);
+		}
+	}
+}
+
+bool FAutomationTestFramework::TagsMatchPattern(const FString& Tags, const FString& TagPattern) const
+{
+	check(TagFilter);
+	TagFilter->SetFilterText(FText::FromString(TagPattern));
+	return TagFilter->TestTextFilter(FBasicStringFilterExpressionContext(Tags));
+}
+
+void FAutomationTestFramework::GetTestFullNamesMatchingTagPattern(TArray<FString>& OutTestNames, const FString& TagPattern) const
+{
+	LLM_SCOPE_BYNAME(TEXT("AutomationTest/Framework"));
+	OutTestNames.Empty();
+
+	for (TMap<FString, FString>::TConstIterator TestIter(TestFullNameToTagDataMap); TestIter; ++TestIter)
+	{
+		const FString CurTags = TestIter.Value();
+		if (TagsMatchPattern(CurTags, TagPattern))
+		{
+			OutTestNames.Add(TestIter.Key());
 		}
 	}
 }
@@ -792,7 +879,7 @@ void FAutomationTestFramework::SetDeveloperDirectoryIncluded(const bool bInDevel
 	bDeveloperDirectoryIncluded = bInDeveloperDirectoryIncluded;
 }
 
-void FAutomationTestFramework::SetRequestedTestFilter(const uint32 InRequestedTestFlags)
+void FAutomationTestFramework::SetRequestedTestFilter(const EAutomationTestFlags InRequestedTestFlags)
 {
 	RequestedTestFilter = InRequestedTestFlags;
 }
@@ -973,8 +1060,8 @@ void FAutomationTestFramework::InternalStartTest( const FString& InTestToRun, co
 		CurrentTestFullPath = InFullTestPath;
 
 		// If not a smoke test, log the test has started.
-		uint32 NonSmokeTestFlags = (EAutomationTestFlags::FilterMask & (~EAutomationTestFlags::SmokeFilter));
-		if (RequestedTestFilter & NonSmokeTestFlags)
+		EAutomationTestFlags NonSmokeTestFlags = (EAutomationTestFlags_FilterMask & (~EAutomationTestFlags::SmokeFilter));
+		if (!!(RequestedTestFilter & NonSmokeTestFlags))
 		{
 			if (AutomationTest::bLogTestStateTrace)
 			{
@@ -1016,8 +1103,8 @@ bool FAutomationTestFramework::InternalStopTest(FAutomationTestExecutionInfo& Ou
 
 	double EndTime = FPlatformTime::Seconds();
 	double TimeForTest = static_cast<float>(EndTime - StartTime);
-	uint32 NonSmokeTestFlags = (EAutomationTestFlags::FilterMask & (~EAutomationTestFlags::SmokeFilter));
-	if (RequestedTestFilter & NonSmokeTestFlags)
+	EAutomationTestFlags NonSmokeTestFlags = (EAutomationTestFlags_FilterMask & (~EAutomationTestFlags::SmokeFilter));
+	if (!!(RequestedTestFilter & NonSmokeTestFlags))
 	{
 		UE_LOG(LogAutomationTest, Log, TEXT("%s %s ran in %f"), *CurrentTest->GetBeautifiedTestName(), *Parameters, TimeForTest);
 		if (AutomationTest::bLogTestStateTrace)
@@ -1137,6 +1224,7 @@ FAutomationTestFramework::FAutomationTestFramework()
 	, bForceSmokeTests(false)
 	, bCaptureStack(true)
 {
+	TagFilter = MakeShared<FTextFilterExpressionEvaluator>(ETextFilterExpressionEvaluatorMode::BasicString);
 }
 
 FAutomationTestFramework::~FAutomationTestFramework()
@@ -1288,14 +1376,11 @@ void FAutomationTestExecutionInfo::AddError(const FString& ErrorMessage)
 FAutomationEvent FAutomationScreenshotCompareResults::ToAutomationEvent() const
 {
 	FAutomationEvent Event(EAutomationEventType::Info, TEXT(""));
-	FString OutputScreenshotName = ScreenshotPath;
-	FPaths::NormalizeDirectoryName(OutputScreenshotName);
-	OutputScreenshotName.ReplaceInline(TEXT("/"), TEXT("."));
 
 	if (bWasNew)
 	{
 		Event.Type = EAutomationEventType::Warning;
-		Event.Message = FString::Printf(TEXT("New Screenshot '%s' was discovered!  Please add a ground truth version of it."), *OutputScreenshotName);
+		Event.Message = FString::Printf(TEXT("New Screenshot '%s' was discovered!  Please add a ground truth version of it."), *ScreenshotPath);
 	}
 	else
 	{
@@ -1303,7 +1388,7 @@ FAutomationEvent FAutomationScreenshotCompareResults::ToAutomationEvent() const
 		{
 			Event.Type = EAutomationEventType::Info;
 			Event.Message = FString::Printf(TEXT("Screenshot '%s' was similar!  Global Difference = %f, Max Local Difference = %f"),
-				*OutputScreenshotName, GlobalDifference, MaxLocalDifference);
+				*ScreenshotPath, GlobalDifference, MaxLocalDifference);
 		}
 		else
 		{
@@ -1312,11 +1397,11 @@ FAutomationEvent FAutomationScreenshotCompareResults::ToAutomationEvent() const
 			if (ErrorMessage.IsEmpty())
 			{
 				Event.Message = FString::Printf(TEXT("Screenshot '%s' test failed, Screenshots were different!  Global Difference = %f, Max Local Difference = %f"),
-					*OutputScreenshotName, GlobalDifference, MaxLocalDifference);
+					*ScreenshotPath, GlobalDifference, MaxLocalDifference);
 			}
 			else
 			{
-				Event.Message = FString::Printf(TEXT("Screenshot '%s' test failed; Error = %s"), *OutputScreenshotName, *ErrorMessage);
+				Event.Message = FString::Printf(TEXT("Screenshot '%s' test failed; Error = %s"), *ScreenshotPath, *ErrorMessage);
 			}
 		}
 	}
@@ -1414,8 +1499,21 @@ void FAutomationTestBase::SetTelemetryStorage(const FString& StorageName)
 
 void FAutomationTestBase::AddEvent(const FAutomationEvent& InEvent, int32 StackOffset, bool bCaptureStack)
 {
-	FWriteScopeLock Lock(ActionCS);
-	ExecutionInfo.AddEvent(InEvent, StackOffset + 1, bCaptureStack);
+	ELogVerbosity::Type LogType = ELogVerbosity::Display;
+	if (InEvent.Type == EAutomationEventType::Error)
+	{
+		LogType = ELogVerbosity::Error;
+	}
+	else if (InEvent.Type == EAutomationEventType::Warning)
+	{
+		LogType = ELogVerbosity::Warning;
+	}
+
+	if (!IsExpectedMessage(InEvent.Message, LogType))
+	{
+		FWriteScopeLock Lock(ActionCS);
+		ExecutionInfo.AddEvent(InEvent, StackOffset + 1, bCaptureStack);
+	}
 }
 
 bool FAutomationTestBase::HasAnyErrors() const
@@ -1492,6 +1590,30 @@ bool FAutomationTestBase::HasMetExpectedErrors()
 void FAutomationTestBase::InternalSetSuccessState( bool bSuccessful )
 {
 	ExecutionInfo.bSuccessful = bSuccessful;
+}
+
+FString FAutomationTestBase::GetStringValueToDisplay(FStringView Value) const
+{
+	if (Value.GetData())
+	{
+		return FString::Printf(TEXT("\"%.*s\""), Value.Len(), Value.GetData());
+	}
+	else
+	{
+		return TEXT("nullptr");
+	}
+}
+
+FString FAutomationTestBase::GetStringValueToDisplay(FUtf8StringView Value) const
+{
+	if (Value.GetData())
+	{
+		return FString::Printf(TEXT("\"%.*hs\""), Value.Len(), Value.GetData());
+	}
+	else
+	{
+		return TEXT("nullptr");
+	}
 }
 
 bool FAutomationTestBase::GetLastExecutionSuccessState()
@@ -1581,21 +1703,17 @@ void FAutomationTestBase::AddExpectedErrorPlain(
 	AddExpectedMessagePlain(MoveTemp(ExpectedString), ELogVerbosity::Warning, static_cast<EAutomationExpectedMessageFlags::MatchType>(CompareType), Occurrences);
 }
 
-uint32 FAutomationTestBase::ExtractAutomationTestFlags(FString InTagNotation)
+EAutomationTestFlags FAutomationTestBase::ExtractAutomationTestFlags(FString InTagNotation)
 {
-	uint32 Result = 0;
+	EAutomationTestFlags Result = EAutomationTestFlags::None;
 	TArray<FString> OutputParts;
 	InTagNotation
 		.Replace(TEXT("["), TEXT(""))
 		.Replace(TEXT("]"), TEXT(";"))
 		.ParseIntoArray(OutputParts, TEXT(";"), true);
-	for (auto it = OutputParts.begin(); it != OutputParts.end(); ++it)
+	for (const FString& Part : OutputParts)
 	{
-		auto Value = EAutomationTestFlags::FromString(*it);
-		if (Value != EAutomationTestFlags::None)
-		{
-			Result |= Value;
-		}
+		Result |= EAutomationTestFlags_GetTestFlagsMap().FindRef(Part, EAutomationTestFlags::None);
 	}
 	return Result;
 }
@@ -1609,6 +1727,7 @@ void FAutomationTestBase::GenerateTestNames(TArray<FAutomationTestInfo>& TestInf
 	TArray<FString> BeautifiedNames;
 	TArray<FString> ParameterNames;
 	GetTests(BeautifiedNames, ParameterNames);
+	FAutomationTestFramework& Framework = FAutomationTestFramework::Get();
 
 	FString BeautifiedTestName = GetBeautifiedTestName();
 
@@ -1634,7 +1753,8 @@ void FAutomationTestBase::GenerateTestNames(TArray<FAutomationTestInfo>& TestInf
 			GetTestSourceFileName(CompleteTestName),
 			GetTestSourceFileLine(CompleteTestName),
 			GetTestAssetPath(ParameterNames[ParameterIndex]),
-			GetTestOpenCommand(ParameterNames[ParameterIndex])
+			GetTestOpenCommand(ParameterNames[ParameterIndex]),
+			Framework.GetTagsForAutomationTest(CompleteBeautifiedNames)
 		);
 		
 		TestInfo.Add( NewTestInfo );
@@ -1695,7 +1815,7 @@ bool FAutomationTestBase::TestEqual(const TCHAR* What, const float Actual, const
 {
 	if (!FMath::IsNearlyEqual(Actual, Expected, Tolerance))
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be %f, but it was %f within tolerance %f."), What, Expected, Actual, Tolerance), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to be %f, but it was %f and outside tolerance %f."), What, Expected, Actual, Tolerance), 1);
 		return false;
 	}
 	return true;
@@ -1705,7 +1825,7 @@ bool FAutomationTestBase::TestEqual(const TCHAR* What, const double Actual, cons
 {
 	if (!FMath::IsNearlyEqual(Actual, Expected, Tolerance))
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be %f, but it was %f within tolerance %f."), What, Expected, Actual, Tolerance), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to be %f, but it was %f and outside tolerance %f."), What, Expected, Actual, Tolerance), 1);
 		return false;
 	}
 	return true;
@@ -1715,7 +1835,7 @@ bool FAutomationTestBase::TestEqual(const TCHAR* What, const FVector Actual, con
 {
 	if (!Expected.Equals(Actual, Tolerance))
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s within tolerance %f."), What, *Expected.ToString(), *Actual.ToString(), Tolerance), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s and outside tolerance %f."), What, *Expected.ToString(), *Actual.ToString(), Tolerance), 1);
 		return false;
 	}
 	return true;
@@ -1725,7 +1845,7 @@ bool FAutomationTestBase::TestEqual(const TCHAR* What, const FTransform Actual, 
 {
 	if (!Expected.Equals(Actual, Tolerance))
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s within tolerance %f."), What, *Expected.ToString(), *Actual.ToString(), Tolerance), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s and outside tolerance %f."), What, *Expected.ToString(), *Actual.ToString(), Tolerance), 1);
 		return false;
 	}
 	return true;
@@ -1735,7 +1855,7 @@ bool FAutomationTestBase::TestEqual(const TCHAR* What, const FRotator Actual, co
 {
 	if (!Expected.Equals(Actual, Tolerance))
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s within tolerance %f."), What, *Expected.ToString(), *Actual.ToString(), Tolerance), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s and outside tolerance %f."), What, *Expected.ToString(), *Actual.ToString(), Tolerance), 1);
 		return false;
 	}
 	return true;
@@ -1763,9 +1883,87 @@ bool FAutomationTestBase::TestEqual(const TCHAR* What, const FLinearColor Actual
 
 bool FAutomationTestBase::TestEqual(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
 {
-	if (FCString::Strcmp(Actual, Expected) != 0)
+ 	bool bAreEqual = (Actual && Expected) ? (FCString::Stricmp(Actual, Expected) == 0) : (Actual == Expected);
+ 
+ 	if (!bAreEqual)
+ 	{
+ 		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+ 	}
+ 
+ 	return bAreEqual;
+}
+
+bool FAutomationTestBase::TestEqual(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
+{
+	if (Actual.Compare(Expected, ESearchCase::IgnoreCase) != 0)
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be \"%s\", but it was \"%s\"."), What, Expected, Actual), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+		return false;
+	}
+
+	return true;
+}
+
+bool FAutomationTestBase::TestEqual(const TCHAR* What, FStringView Actual, FStringView Expected)
+{
+	if (Actual.Compare(Expected, ESearchCase::IgnoreCase) != 0)
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+		return false;
+	}
+
+	return true;
+}
+
+bool FAutomationTestBase::TestNotEqual(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
+{
+	bool bAreDifferent = (Actual && Expected) ? (FCString::Stricmp(Actual, Expected) != 0) : (Actual != Expected);
+
+	if (!bAreDifferent)
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+	}
+
+ 	return bAreDifferent;
+}
+
+bool FAutomationTestBase::TestNotEqual(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
+{
+	if (Actual.Compare(Expected, ESearchCase::IgnoreCase) == 0)
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+		return false;
+	}
+
+	return true;
+}
+
+bool FAutomationTestBase::TestNotEqual(const TCHAR* What, FStringView Actual, FStringView Expected)
+{
+	if (Actual.Compare(Expected, ESearchCase::IgnoreCase) == 0)
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+		return false;
+	}
+
+	return true;
+}
+
+bool FAutomationTestBase::TestNotEqual(const TCHAR* What, const float Actual, const float Expected, float Tolerance)
+{
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to be unequal to %f, but it was %f and within tolerance %f."), What, Expected, Actual, Tolerance), 1);
+		return false;
+	}
+	return true;
+}
+
+bool FAutomationTestBase::TestNotEqual(const TCHAR* What, const double Actual, const double Expected, double Tolerance)
+{
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to be unequal to %f, but it was %f and within tolerance %f."), What, Expected, Actual, Tolerance), 1);
 		return false;
 	}
 	return true;
@@ -1773,21 +1971,99 @@ bool FAutomationTestBase::TestEqual(const TCHAR* What, const TCHAR* Actual, cons
 
 bool FAutomationTestBase::TestEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
 {
-	if (FCString::Stricmp(Actual, Expected) != 0)
-	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be \"%s\", but it was \"%s\"."), What, Expected, Actual), 1);
-		return false;
-	}
-	return true;
+	return TestEqual(What, Actual, Expected);
+}
+
+bool FAutomationTestBase::TestEqualInsensitive(const TCHAR* What, FStringView Actual, FStringView Expected)
+{
+	return TestEqual(What, Actual, Expected);
+}
+
+bool FAutomationTestBase::TestEqualInsensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
+{
+	return TestEqual(What, Actual, Expected);
 }
 
 bool FAutomationTestBase::TestNotEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
 {
-	if (FCString::Stricmp(Actual, Expected) == 0)
+	return TestNotEqual(What, Actual, Expected);
+}
+
+bool FAutomationTestBase::TestNotEqualInsensitive(const TCHAR* What, FStringView Actual, FStringView Expected)
+{
+	return TestNotEqual(What, Actual, Expected);
+}
+
+bool FAutomationTestBase::TestNotEqualInsensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
+{
+	return TestNotEqual(What, Actual, Expected);
+}
+
+bool FAutomationTestBase::TestEqualSensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
+{
+ 	bool bAreEqual = (Actual && Expected) ? (FCString::Strcmp(Actual, Expected) == 0) : (Actual == Expected);
+ 
+ 	if (!bAreEqual)
+ 	{
+ 		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+ 	}
+ 
+ 	return bAreEqual;
+}
+
+bool FAutomationTestBase::TestEqualSensitive(const TCHAR* What, FStringView Actual, FStringView Expected)
+{
+	if (Actual.Compare(Expected, ESearchCase::CaseSensitive) != 0)
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' to differ from \"%s\", but it was \"%s\"."), What, Expected, Actual), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
 		return false;
 	}
+
+	return true;
+}
+
+bool FAutomationTestBase::TestEqualSensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
+{
+	if (Actual.Compare(Expected, ESearchCase::CaseSensitive) != 0)
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+		return false;
+	}
+
+	return true;
+}
+
+bool FAutomationTestBase::TestNotEqualSensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
+{
+ 	bool bAreDifferent = (Actual && Expected) ? (FCString::Strcmp(Actual, Expected) != 0) : (Actual != Expected);
+ 
+ 	if (!bAreDifferent)
+ 	{
+ 		AddError(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+ 	}
+ 
+ 	return bAreDifferent;
+}
+
+bool FAutomationTestBase::TestNotEqualSensitive(const TCHAR* What, FStringView Actual, FStringView Expected)
+{
+	if (Actual.Compare(Expected, ESearchCase::CaseSensitive) == 0)
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+		return false;
+	}
+
+	return true;
+}
+
+bool FAutomationTestBase::TestNotEqualSensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
+{
+	if (Actual.Compare(Expected, ESearchCase::CaseSensitive) == 0)
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)), 1);
+		return false;
+	}
+
 	return true;
 }
 
@@ -1814,6 +2090,244 @@ bool FAutomationTestBase::TestNearlyEqual(const TCHAR* What, const FTransform Ac
 bool FAutomationTestBase::TestNearlyEqual(const TCHAR* What, const FRotator Actual, const FRotator Expected, float Tolerance)
 {
 	return TestEqual(What, Actual, Expected, Tolerance);
+}
+
+bool FAutomationTestBase::TestLessThan(const TCHAR* What, const int32 Actual, const int32 Expected)
+{
+	if (Actual < Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than %d, but it was %d."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestLessThan(const TCHAR* What, const int64 Actual, const int64 Expected)
+{
+	if (Actual < Expected)
+	{
+		return true;
+	}	
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than %" PRId64 ", but it was %" PRId64 "."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterThan(const TCHAR* What, const int32 Actual, const int32 Expected)
+{
+	if (Actual > Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than %d, but it was %d."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterThan(const TCHAR* What, const int64 Actual, const int64 Expected)
+{
+	if (Actual > Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than %" PRId64 ", but it was %" PRId64 "."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestLessEqual(const TCHAR* What, const int32 Actual, const int32 Expected)
+{
+	if (Actual <= Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than or equal to %d, but it was %d."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestLessEqual(const TCHAR* What, const int64 Actual, const int64 Expected)
+{
+	if (Actual <= Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than or equal to %" PRId64 ", but it was %" PRId64 "."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterEqual(const TCHAR* What, const int32 Actual, const int32 Expected)
+{
+	if (Actual >= Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than or equal to %d, but it was %d."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterEqual(const TCHAR* What, const int64 Actual, const int64 Expected)
+{
+	if (Actual >= Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than or equal to %" PRId64 ", but it was %" PRId64 "."), What, Expected, Actual), 1);
+	return false;
+}
+
+#if PLATFORM_64BITS
+bool FAutomationTestBase::TestLessThan(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected)
+{
+	if (Actual < Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than %" PRIuPTR ", but it was %" PRIuPTR "."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterThan(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected)
+{
+	if (Actual > Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than %" PRIuPTR ", but it was %" PRIuPTR "."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestLessEqual(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected)
+{
+	if (Actual <= Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than or equal to %" PRIuPTR ", but it was %" PRIuPTR "."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterEqual(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected)
+{
+	if (Actual >= Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than or equal to %" PRIuPTR ", but it was %" PRIuPTR "."), What, Expected, Actual), 1);
+	return false;
+}
+#endif // PLATFORM_64BITS
+
+bool FAutomationTestBase::TestLessThan(const TCHAR* What, const float Actual, const float Expected, float Tolerance)
+{
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and within equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+		return false;
+	}
+	if (Actual < Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestLessThan(const TCHAR* What, const double Actual, const double Expected, double Tolerance)
+{
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and within equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+		return false;
+	}
+	if (Actual < Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterThan(const TCHAR* What, const float Actual, const float Expected, float Tolerance)
+{
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and within equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+		return false;
+	}
+	if (Actual > Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterThan(const TCHAR* What, const double Actual, const double Expected, double Tolerance)
+{
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and within equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+		return false;
+	}
+	if (Actual > Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestLessEqual(const TCHAR* What, const float Actual, const float Expected, float Tolerance)
+{
+	if (Actual < Expected)
+	{
+		return true;
+	}
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than or equal to %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestLessEqual(const TCHAR* What, const double Actual, const double Expected, double Tolerance)
+{
+	if (Actual < Expected)
+	{
+		return true;
+	}
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than or equal to %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterEqual(const TCHAR* What, const float Actual, const float Expected, float Tolerance)
+{
+	if (Actual > Expected)
+	{
+		return true;
+	}
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than or equal to %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterEqual(const TCHAR* What, const double Actual, const double Expected, double Tolerance)
+{
+	if (Actual > Expected)
+	{
+		return true;
+	}
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than or equal to %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
 }
 
 bool FAutomationTestBase::TestFalse(const TCHAR* What, bool Value)

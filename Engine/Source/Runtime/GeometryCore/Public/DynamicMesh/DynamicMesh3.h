@@ -116,6 +116,7 @@ public:
 	using FEdgeSplitInfo    = DynamicMeshInfo::FEdgeSplitInfo;
 	using FEdgeCollapseInfo = DynamicMeshInfo::FEdgeCollapseInfo;
 	using FMergeEdgesInfo   = DynamicMeshInfo::FMergeEdgesInfo;
+	using FMergeVerticesInfo = DynamicMeshInfo::FMergeVerticesInfo;
 	using FPokeTriangleInfo = DynamicMeshInfo::FPokeTriangleInfo;
 	using FVertexSplitInfo  = DynamicMeshInfo::FVertexSplitInfo;
 
@@ -704,6 +705,16 @@ public:
 		return TriangleEdges[TriangleID][j];
 	}
 
+	/**  Applies a given function to both TriEdgeIDs which each EdgeID in a given Triangle is associated with */
+	void EnumerateTriEdgeIDsFromTriID(const int TriID, const TFunctionRef<void(FMeshTriEdgeID TriEdgeID)>& TriEdgeFunc) const
+	{
+		FIndex3i TriEdges = GetTriEdges(TriID);
+		for (int TriEdgesIndex = 0 ; TriEdgesIndex <=2; TriEdgesIndex++)
+		{
+			EnumerateTriEdgeIDsFromEdgeID(TriEdges[TriEdgesIndex], TriEdgeFunc);
+		}
+	}
+
 	/** Find the neighbour triangles of a triangle (any of them might be InvalidID) */
 	GEOMETRYCORE_API FIndex3i GetTriNeighbourTris(int TriangleID) const;
 
@@ -779,6 +790,30 @@ public:
 		}
 		{ 
 			return FMeshTriEdgeID(TriIndex, ( TriEdges.B == EdgeID ) ? 1 : 2 );
+		}
+	}
+
+	/** Applies a given function to both TriEdgeIDs which a given EdgeID is associated with*/
+	void EnumerateTriEdgeIDsFromEdgeID(const int32 EdgeID, const TFunctionRef<void(FMeshTriEdgeID TriEdgeID)>& TriEdgeFunc) const
+	{
+		const FMeshTriEdgeID FirstTriEdgeID = GetTriEdgeIDFromEdgeID(EdgeID); // function gets MeshTriEdgeID for edge included in EdgeTri.A only
+		TriEdgeFunc(FirstTriEdgeID);
+
+		// have to get MeshTriEdgeID for edge included in EdgeTri.B
+		const int OtherTriID = GetEdgeT(EdgeID).B;
+		if (OtherTriID != IndexConstants::InvalidID)
+		{
+			FMeshTriEdgeID SecondTriEdgeID;
+			const FIndex3i SecondTriEdges = GetTriEdges(OtherTriID);
+			if (SecondTriEdges.A == EdgeID)
+			{
+				SecondTriEdgeID = FMeshTriEdgeID(OtherTriID, 0);
+			}
+			else
+			{
+				SecondTriEdgeID = FMeshTriEdgeID(OtherTriID, ( SecondTriEdges.B == EdgeID ) ? 1 : 2 );
+			}
+			TriEdgeFunc(SecondTriEdgeID);
 		}
 	}
 
@@ -1169,7 +1204,6 @@ public:
 	 * Should be faster if the amount of compacting is not too significant, and is useful in some places.
 	 *
 	 * @param CompactInfo if not nullptr, will be filled with mapping indicating how vertex and triangle IDs were changed during compaction
-	 * @todo VertexEdgeLists is not compacted. does not affect indices, but does keep memory.
 	 */
 	GEOMETRYCORE_API void CompactInPlace(FCompactMaps* CompactInfo = nullptr);
 
@@ -1177,6 +1211,11 @@ public:
 	 * Remove unused vertices. Note: Does not compact the remaining vertices.
 	 */
 	GEOMETRYCORE_API void RemoveUnusedVertices();
+
+	/**
+	 * @return true if any vertices are unused (not in any triangles)
+	 * */
+	GEOMETRYCORE_API bool HasUnusedVertices() const;
 
 	/**
 	 * Reverse the ccw/cw orientation of all triangles in the mesh, and
@@ -1270,17 +1309,65 @@ public:
 	 */
 	GEOMETRYCORE_API virtual bool SplitVertexWouldLeaveIsolated(int VertexID, const TArrayView<const int>& TrianglesToUpdate);
 
+	struct FCollapseEdgeOptions
+	{
+		/**
+		 * When false, collapse is disallowed if the edge is the boundary of a single triangle hole,
+		 *  such that collapsing it would clse the hole. I.e. collapse is dissallowed if there
+		 *  is some vertex that connects vKeep and vRemove that is not part of the triangle(s) being
+		 *  collapsed (note that if such a vertex is connected by a non-boundary edge, collapse will
+		 *  always be disallowed regardless of bAllowHoleCollapse, as it would create non-manifold geometry).
+		 */ 
+		bool bAllowHoleCollapse = false;
+		/**
+		 * When false, collapse is disallowed if the edge is an interior edge, yet both vertices are
+		 *  connected to boundary edges. In some circumstances this could create a bowtie. In other
+		 *  cases, it could disconnected parts of a mesh that were connected by a bowtie.
+		 */
+		bool bAllowCollapsingInternalEdgeWithBoundaryVertices = false;
+		/**
+		 * When false, collapse is disallowed if we are collapsing the side of a tetrahedron. Note
+		 *  that a base edge of an open-base tetrahedron could be collapsed even if bAllowTetrahedronCollapse
+		 *  is false if bAllowHoleCollapse is true.
+		 */
+		bool bAllowTetrahedronCollapse = false;
+	};
+	GEOMETRYCORE_API virtual EMeshResult CanCollapseEdge(int vKeep, int vRemove, const FCollapseEdgeOptions& Options) const;
+
 	/**
-	 * Tests whether collapsing the specified edge using the CollapseEdge function would succeed
+	 * Tests whether collapsing the specified edge using the CollapseEdge function would succeed.
+	 *  Equivalent to calling the options overload with default options.
 	 * @param KeepVertID index of the vertex that should be kept
 	 * @param RemoveVertID index of the vertex that should be removed
-	 * @param EdgeParameterT vKeep is moved to Lerp(KeepPos, RemovePos, EdgeParameterT)
+	 * @param EdgeParameterT vKeep is moved to Lerp(KeepPos, RemovePos, EdgeParameterT). Note: Does not currently affect whether the edge is collapsable.
 	 * @return Ok if the edge can be collapsed, or enum value indicating why the operation cannot be applied
 	 */
-	GEOMETRYCORE_API virtual EMeshResult CanCollapseEdge(int vKeep, int vRemove, double collapse_t) const;
+	GEOMETRYCORE_API virtual EMeshResult CanCollapseEdge(int vKeep, int vRemove, double EdgeParameterT = 0) const;
 
 	/**
 	 * Collapse the edge between the two vertices, if topologically possible.
+	 * @param KeepVertID index of the vertex that should be kept
+	 * @param RemoveVertID index of the vertex that should be removed
+	 * @param EdgeParameterT vKeep is moved to Lerp(KeepPos, RemovePos, EdgeParameterT)
+	 * @param Options Sets options for the collapse
+	 * @param CollapseInfo returned information about new and modified mesh elements
+	 * @return Ok on success, or enum value indicates why operation cannot be applied. Mesh remains unmodified on error.
+	 */
+	GEOMETRYCORE_API virtual EMeshResult CollapseEdge(int KeepVertID, int RemoveVertID, double EdgeParameterT, 
+		const FCollapseEdgeOptions& Options, FEdgeCollapseInfo& CollapseInfo);
+
+	/**
+	 * Collapse the edge between the two vertices, if topologically possible. Equivalent to
+	 *  using the other overload with 0 for EdgeParameterT.
+	 */
+	virtual EMeshResult CollapseEdge(int KeepVertID, int RemoveVertID, const FCollapseEdgeOptions& Options, FEdgeCollapseInfo& CollapseInfo)
+	{
+		return CollapseEdge(KeepVertID, RemoveVertID, 0, Options, CollapseInfo);
+	}
+
+	/**
+	 * Collapse the edge between the two vertices, if topologically possible. Equivalent to calling
+	 *  the options overload with default options.
 	 * @param KeepVertID index of the vertex that should be kept
 	 * @param RemoveVertID index of the vertex that should be removed
 	 * @param EdgeParameterT vKeep is moved to Lerp(KeepPos, RemovePos, EdgeParameterT)
@@ -1289,6 +1376,10 @@ public:
 	 */
 	GEOMETRYCORE_API virtual EMeshResult CollapseEdge(int KeepVertID, int RemoveVertID, double EdgeParameterT,
 	                                 FEdgeCollapseInfo& CollapseInfo);
+	/**
+	 * Collapse the edge between the two vertices, if topologically possible. Equivalent to calling
+	 *  the options overload with default options and using 0 for EdgeParameterT.
+	 */
 	virtual EMeshResult CollapseEdge(int KeepVertID, int RemoveVertID, FEdgeCollapseInfo& CollapseInfo)
 	{
 		return CollapseEdge(KeepVertID, RemoveVertID, 0, CollapseInfo);
@@ -1305,12 +1396,62 @@ public:
 	 *
 	 * @param KeepEdgeID index of the edge that should be kept
 	 * @param DiscardEdgeID index of the edge that should be removed
+	 * @param InterpolationT each kept vertex is moved to Lerp(KeptPos, RemovePos, InterpolationT)
 	 * @param MergeInfo returned information about new and modified mesh elements
-	 * @param CheckValidOrientation perform edge consistency orientation checks before merging.
+	 * @param CheckValidOrientation perform edge consistency orientation checks before merging. Specifically,
+	 *  check that each discarded vertex is closer to the vertex it is being collapsed to than the other
+	 *  kept vertex (where the pairing is determined by the adjoining triangle winding). 
 	 * @return Ok on success, or enum value indicates why operation cannot be applied. Mesh remains unmodified on error.
+	 */
+	GEOMETRYCORE_API virtual EMeshResult MergeEdges(int KeepEdgeID, int DiscardEdgeID, double InterpolationT, FMergeEdgesInfo& MergeInfo, bool bCheckValidOrientation = true);
+	
+	/**
+	 * Weld one edge to the other. Equivalent to calling the other overload with 0 for InterpolationT
+	 *  (i.e. the vertices stay at unmodified kept vertex positions).
 	 */
 	GEOMETRYCORE_API virtual EMeshResult MergeEdges(int KeepEdgeID, int DiscardEdgeID, FMergeEdgesInfo& MergeInfo, bool bCheckValidOrientation=true);
 
+	struct FMergeVerticesOptions
+	{
+		// If false, we disallow vertex merges that attempt to merge one non-boundary vert to a
+		//  a non-adjacent vert, even if this is possible through a bowtie. Note that merging
+		//  boundary verts to create a bowtie on the boundary is still allowed, as this is a 
+		//  common intermediate step when welding edges. 
+		bool bAllowNonBoundaryBowtieCreation = false;
+	};
+
+	/**
+	 * Weld DiscardVid to KeepVid, if topologically possible and options allow. If the vertices are connected 
+	 *  by an existing edge, this resolves as a collapse of that edge, and therefore calls OnCollapseEdge in
+	 *  overlays. If not, but the two vertices share a vertex neighbor, this resolves as a weld of the intervening 
+	 *  edges (failing if the edges are not boundary edges, since that would create non-manifold edge), and therefore
+	 *  calls OnMergeEdges in the overlays. Otherwise, the merge resolves as bowtie creation, and calls OnMergeVertices
+	 *  in the overlays.
+	 * @param KeepVid vertex ID of the kept vertex
+	 * @param DiscardVid vertex ID of the vertex whose triangles are reattached to the kept vertex
+	 * @param InterpolationT the kept vertex is moved to Lerp(KeptPos, RemovePos, InterpolationT)
+	 * @param Options set the options for the merge
+	 * @param MergeInfo returned information about new and modified mesh elements
+	 * @return Ok on success, or enum value indicates why operation cannot be applied. Mesh remains unmodified on error.
+	 */
+	GEOMETRYCORE_API virtual EMeshResult MergeVertices(int KeepVid, int DiscardVid, double InterpolationT, 
+		const FMergeVerticesOptions& Options, FMergeVerticesInfo& MergeInfo);
+
+	/**
+	 * Weld DiscardVid to KeepVid. Equivalent to calling the options overload with default options.
+	 */
+	GEOMETRYCORE_API virtual EMeshResult MergeVertices(int KeepVid, int DiscardVid, double InterpolationT, FMergeVerticesInfo& MergeInfo)
+	{
+		return MergeVertices(KeepVid, DiscardVid, InterpolationT, FMergeVerticesOptions(), MergeInfo);
+	}
+
+	/**
+	 * Weld DiscardVid to KeepVid. Equivalent to calling the options overload with default options and 0 for InterpolationT.
+	 */
+	GEOMETRYCORE_API virtual EMeshResult MergeVertices(int KeepVid, int DiscardVid, FMergeVerticesInfo& MergeInfo)
+	{
+		return MergeVertices(KeepVid, DiscardVid, 0, FMergeVerticesOptions(), MergeInfo);
+	}
 
 	/**
 	 * Insert a new vertex inside a triangle, ie do a 1 to 3 triangle split
@@ -1355,11 +1496,81 @@ public:
 		float Epsilon = TMathUtil<float>::Epsilon;
 	};
 
+	struct FMeshDifferenceInfo
+	{
+		// Reasons for difference between meshes
+		enum class EReason
+		{
+			Unknown,
+			VertexCount,
+			TriangleCount,
+			EdgeCount,
+			Vertex,
+			Triangle,
+			Edge,
+			Connectivity,
+			Normal,
+			Color,
+			UV,
+			Group,
+			Attribute
+		};
+		EReason Reason = EReason::Unknown;
+
+		// May contain further detail on the difference
+		FString Detail;
+
+		// Types of element ID that could be set below
+		enum class EIDType
+		{
+			None,
+			Vertex,
+			Triangle,
+			Edge
+		};
+
+		// ID in this mesh of element where the difference was found, or InvalidID if not applicable
+		int32 ID = InvalidID;
+		// ID in the compared-against mesh where the difference was found, or InvalidID if not applicable
+		int32 OtherID = InvalidID;
+		// Type of element that the ID references
+		EIDType IDType = EIDType::None;
+
+		// Helpers to set different ID types
+		void SetVID(int32 VID, int32 OtherVID = InvalidID)
+		{
+			ID = VID;
+			OtherID = OtherVID;
+			IDType = EIDType::Vertex;
+		}
+		void SetTID(int32 TID, int32 OtherTID = InvalidID)
+		{
+			ID = TID;
+			OtherID = OtherTID;
+			IDType = EIDType::Triangle;
+		}
+		void SetEID(int32 EID, int32 OtherEID = InvalidID)
+		{
+			ID = EID;
+			OtherID = OtherEID;
+			IDType = EIDType::Edge;
+		}
+	};
+
 	/**
 	 * Check if another mesh is the same as this mesh. By default only checks
 	 * vertices and triangles, turn on other parameters w/ flags
 	 */
 	GEOMETRYCORE_API virtual bool IsSameAs(const FDynamicMesh3& OtherMesh, const FSameAsOptions& Options) const;
+	/**
+	 * Check if another mesh is the same as this mesh. By default only checks
+	 * vertices and triangles, turn on other parameters w/ flags
+	 * @param OutMeshDifferenceInfo If the meshes are not the same, this struct may provide additional info as to the source of difference. Note it will only indicate the first difference found, not a complete report of differences.
+	 */
+	GEOMETRYCORE_API virtual bool IsSameAs(const FDynamicMesh3& OtherMesh, const FSameAsOptions& Options, FMeshDifferenceInfo& OutMeshDifferenceInfo) const;
+private:
+	GEOMETRYCORE_API bool IsSameAs_Helper(const FDynamicMesh3& OtherMesh, const FSameAsOptions& Options, FMeshDifferenceInfo* OutMeshDifferenceInfo = nullptr) const;
+public:
 
 	/**
 	 * Options for what the validity check will permit
@@ -1408,7 +1619,18 @@ protected:
 		TriangleEdges[TriangleID] = FIndex3i(e0, e1, e2);
 	}
 
-	GEOMETRYCORE_API int AddEdgeInternal(int vA, int vB, int tA, int tB = InvalidID);
+	inline int AddEdgeInternal(int vA, int vB, int tA, int tB = InvalidID)
+	{
+		if (vB < vA) {
+			int t = vB; vB = vA; vA = t;
+		}
+		int eid = EdgeRefCounts.Allocate();
+		Edges.InsertAt(FEdge{ {vA, vB},{tA, tB} }, eid);
+		VertexEdgeLists.Insert(vA, eid);
+		VertexEdgeLists.Insert(vB, eid);
+		return eid;
+
+	}
 	GEOMETRYCORE_API int AddTriangleInternal(int a, int b, int c, int e0, int e1, int e2);
 
 	inline int ReplaceTriangleVertex(int TriangleID, int vOld, int vNew)
@@ -1549,7 +1771,9 @@ protected:
 
 	/* We keep this version of CanCollapseEdge internal because the CollapseInfo struct may only be partially filled out by the function */
 	virtual EMeshResult CanCollapseEdgeInternal(int vKeep, int vRemove, double collapse_t, FEdgeCollapseInfo* OutCollapseInfo) const;
-
+private:
+	virtual EMeshResult CanCollapseEdgeInternal(int vKeep, int vRemove, double collapse_t,
+		const FCollapseEdgeOptions& Options, FEdgeCollapseInfo* OutCollapseInfo) const;
 };
 
 

@@ -4,7 +4,7 @@
 
 #include "SmartObjectTypes.h"
 
-#if WITH_GAMEPLAY_DEBUGGER && WITH_SMARTOBJECT_DEBUG
+#if WITH_GAMEPLAY_DEBUGGER_MENU && WITH_SMARTOBJECT_DEBUG
 
 #include "GameplayDebuggerCategory.h"
 
@@ -39,4 +39,4 @@ private:
 	FReplicationData DataPack;
 };
 
-#endif // WITH_GAMEPLAY_DEBUGGER && WITH_SMARTOBJECT_DEBUG
+#endif // WITH_GAMEPLAY_DEBUGGER_MENU && WITH_SMARTOBJECT_DEBUG

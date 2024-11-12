@@ -4,6 +4,17 @@
 
 #include "terse/types/Transparent.h"
 
+#ifdef _MSC_VER
+    #pragma warning(push)
+    #pragma warning(disable : 4365 4987)
+#endif
+#include <cstdint>
+#include <string>
+#include <vector>
+#ifdef _MSC_VER
+    #pragma warning(pop)
+#endif
+
 struct JSONStruct {
     std::int8_t a;
     std::uint8_t b;

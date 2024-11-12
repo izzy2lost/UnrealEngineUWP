@@ -13,6 +13,7 @@ namespace UnrealBuildTool.Rules
 					"RigVMDeveloper",
 					"ControlRig",
 					"ControlRigDeveloper",
+					"AnimNext",
 				}
 			);
 
@@ -22,16 +23,19 @@ namespace UnrealBuildTool.Rules
 					"Core",
 					"CoreUObject",
 					"Engine",
-					"AnimNext",
 					"BlueprintGraph",	// For K2 schema
 					"AnimationCore",
 					"AnimGraph",
 					"Kismet",
 					"Slate",
 					"SlateCore",
-					"StructUtils",
 					"StructUtilsEditor",
 					"ToolMenus",
+					"UniversalObjectLocator", 
+					"UniversalObjectLocatorEditor",
+					"WorkspaceEditor",
+					"MessageLog", 
+					"AdvancedWidgets",
 				}
 			);
 

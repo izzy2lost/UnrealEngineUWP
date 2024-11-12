@@ -7,6 +7,7 @@
 #include "MVVMBlueprintInstancedViewModel.h"
 #include "MVVMBlueprintViewConversionFunction.h"
 #include "MVVMBlueprintViewEvent.h"
+#include "MVVMBlueprintViewCondition.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
 #include "WidgetBlueprint.h"
 #include "UObject/AssetRegistryTagsContext.h"
@@ -268,6 +269,25 @@ void UMVVMBlueprintView::RemoveEvent(UMVVMBlueprintViewEvent* Event)
 	}
 }
 
+UMVVMBlueprintViewCondition* UMVVMBlueprintView::AddDefaultCondition()
+{
+	UMVVMBlueprintViewCondition* Condition = NewObject<UMVVMBlueprintViewCondition>(this);
+	Conditions.Add(Condition);
+
+	OnBindingsAdded.Broadcast();
+	OnBindingsUpdated.Broadcast();
+	return Condition;
+}
+
+void UMVVMBlueprintView::RemoveCondition(UMVVMBlueprintViewCondition* Condition)
+{
+	if (Conditions.RemoveAll([Condition](TObjectPtr<UMVVMBlueprintViewCondition>& Other) { return Other == Condition; }) > 0)
+	{
+		Condition->RemoveWrapperGraph();
+		OnBindingsUpdated.Broadcast();
+	}
+}
+
 TArray<FText> UMVVMBlueprintView::GetBindingMessages(FGuid Id, UE::MVVM::EBindingMessageType InMessageType) const
 {
 	TArray<FText> Results;
@@ -322,6 +342,12 @@ void UMVVMBlueprintView::Serialize(FArchive& Ar)
 #if WITH_EDITOR
 namespace UE::MVVM::Private
 {
+	enum EConditionPath
+	{
+		ConditionPath,
+		DestinationPath
+	};
+
 	template<typename Predicate>
 	void ForEachPropertyPath_Update(UMVVMBlueprintView* BlueprintView, Predicate Pred, bool bGenerateGraph)
 	{
@@ -430,6 +456,58 @@ namespace UE::MVVM::Private
 					else
 					{
 						Event->SetPinPathNoGraphGeneration(Pin.Get<0>(), Pin.Get<1>());
+					}
+				}
+			}
+		}
+
+		for (UMVVMBlueprintViewCondition* Condition : BlueprintView->GetConditions())
+		{
+			if (Condition)
+			{
+				auto PredConditionPath = [Condition, &Pred, bGenerateGraph](const FMVVMBlueprintPropertyPath& PropertyPath, EConditionPath TypePath)
+					{
+						FMVVMBlueprintPropertyPath NewPropertyPath = PropertyPath;
+						if (Pred(NewPropertyPath))
+						{
+							if (bGenerateGraph)
+							{
+								if (TypePath == EConditionPath::ConditionPath)
+								{
+									Condition->SetConditionPath(NewPropertyPath);
+								}
+								else if (TypePath == EConditionPath::DestinationPath)
+								{
+									Condition->SetDestinationPath(NewPropertyPath);
+								}
+							}
+							else
+							{
+								const_cast<FMVVMBlueprintPropertyPath&>(PropertyPath) = NewPropertyPath;
+							}
+						}
+					};
+
+				TArray<TTuple<FMVVMBlueprintPinId, FMVVMBlueprintPropertyPath>> NewPins;
+				for (const FMVVMBlueprintPin& Pin : Condition->GetPins())
+				{
+					TOptional<FMVVMBlueprintPropertyPath> NewPath = PredPin(Pin);
+					if (NewPath.IsSet())
+					{
+						NewPins.Emplace(Pin.GetId(), MoveTemp(NewPath.GetValue()));
+					}
+				}
+				PredConditionPath(Condition->GetConditionPath(), EConditionPath::ConditionPath);
+				PredConditionPath(Condition->GetDestinationPath(), EConditionPath::DestinationPath);
+				for (TTuple<FMVVMBlueprintPinId, FMVVMBlueprintPropertyPath>& Pin : NewPins)
+				{
+					if (bGenerateGraph)
+					{
+						Condition->SetPinPath(Pin.Get<0>(), Pin.Get<1>());
+					}
+					else
+					{
+						Condition->SetPinPathNoGraphGeneration(Pin.Get<0>(), Pin.Get<1>());
 					}
 				}
 			}

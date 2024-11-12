@@ -21,7 +21,7 @@ AsyncJobResultPtr ThumbnailsService::Tick()
  	if (!Batch)
  		return cti::make_ready_continuable<JobResultPtr>(std::make_shared<JobResult>());
  
- 	UE_LOG(LogIdle_Svc, Verbose, TEXT("Svc_BlobHasher::Tick"));
+ 	UE_LOG(LogIdle_Svc, VeryVerbose, TEXT("ThumbnailsService::Tick"));
  
  	/// Move over to the next cycle
  	JobBatchPtr CurrentBatch = GetNextUpdateCycle();
@@ -34,13 +34,21 @@ AsyncJobResultPtr ThumbnailsService::Tick()
 	return CurrentBatch->Exec([=, this](JobBatch*)	/// Instead of passing it as an argument, JobBatch should be a return type; this is to keep it from cyclic dependancy
 	{
 		OnUpdateThumbnailDelegate.Broadcast(CurrentBatch);
+		UE_LOG(LogIdle_Svc, Verbose, TEXT("ThumbnailsService, Batch fully queued: %llu. Triggering Observer::BatchJobsDone ..."), CurrentBatch ? CurrentBatch->GetBatchId() : -1);
+
 		TextureGraphEngine::GetInstance()->GetScheduler()->GetObserverSource()->BatchJobsDone(CurrentBatch);
+
+		UE_LOG(LogIdle_Svc, Verbose, TEXT("ThumbnailsService Observer::BatchJobsDone finished for Batch: %llu"), CurrentBatch ? CurrentBatch->GetBatchId() : -1);
 		
 	})
  	.then([this, CurrentBatch]()
  	{
+ 		UE_LOG(LogBatch, Verbose, TEXT("ThumbnailsService triggering Observer::BatchDone for Batch: %llu ..."), CurrentBatch ? CurrentBatch->GetBatchId() : -1);
+
  		TextureGraphEngine::GetInstance()->GetScheduler()->GetObserverSource()->BatchDone(CurrentBatch); // notify observer
- 		
+
+ 		UE_LOG(LogBatch, Verbose, TEXT("ThumbnailsService Observer::BatchDone finished for Batch: %llu"), CurrentBatch ? CurrentBatch->GetBatchId() : -1);
+			
  		return std::make_shared<JobResult>();
  	});
 }
@@ -82,7 +90,7 @@ JobBatchPtr ThumbnailsService::CreateNewUpdateCycle(UMixInterface* Mix)
 	SceneTargetUpdatePtr Target = std::make_shared<MixTargetUpdate>(Mix, 0);
 	Target->InvalidateAllTiles();
 	NewBatch->GetCycle()->AddTarget(Target);
-
+	// NewBatch->SetCaptureRenderDoc(true);
 	return NewBatch;
 }
 

@@ -310,7 +310,7 @@ void InstanceCull(
 		uint InstanceFlags;
 		LoadInstancePrimitiveIdAndFlags(InstanceId, Scene.GPUScene.InstanceDataSOAStride, PrimitiveId, InstanceFlags);
 
-		if (PrimitiveId == INVALID_PRIMITIVE_ID)
+		if (PrimitiveId == INVALID_PRIMITIVE_ID || (InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HIDDEN) != 0u)
 		{
 			return;
 		}
@@ -362,7 +362,7 @@ void InstanceCull(
 			FNaniteView NaniteView = GetNaniteView(ViewId);
 			FInstanceDynamicData DynamicData = CalculateInstanceDynamicData(NaniteView, InstanceData);
 
-			const bool bLightingChannelMismatch = ((NaniteView.LightingChannelMask & PrimLightingChannelMask) == 0u);
+			const bool bLightingChannelMismatch = NaniteView.bUseLightingChannelMask && ((NaniteView.LightingChannelMask & PrimLightingChannelMask) == 0u);
 
 			BRANCH
 			if (bLightingChannelMismatch)
@@ -371,14 +371,14 @@ void InstanceCull(
 			}
 
 			FBoxCull Cull;
-			Cull.Init( NaniteView, LocalBoundsCenter, LocalBoundsExtent, InstanceData.NonUniformScale.xyz, DynamicData.LocalToTranslatedWorld, DynamicData.PrevLocalToTranslatedWorld );
+			Cull.Init( NaniteView, LocalBoundsCenter, LocalBoundsExtent, InstanceData.NonUniformScale, DynamicData.LocalToTranslatedWorld, DynamicData.PrevLocalToTranslatedWorld );
 			if( CULLING_PASS == CULLING_PASS_OCCLUSION_POST )
 			{
 				Cull.bSkipCullFrustum = true;
 				Cull.bSkipCullGlobalClipPlane = true;
 			}
 
-			bool bEnableWPO = Cull.Distance( PrimitiveData );
+			Cull.Distance(PrimitiveData);
 			bool bCacheAsStatic = false;
 
 			Cull.GlobalClipPlane();
@@ -388,14 +388,14 @@ void InstanceCull(
 			{
 #if VIRTUAL_TEXTURE_TARGET
 				const bool bAllowWPO = VirtualShadowMapIsWPOAllowed(PrimitiveData, NaniteView.TargetLayerIndex);
-				bEnableWPO = bEnableWPO && bAllowWPO;
+				Cull.bEnableWPO = Cull.bEnableWPO && bAllowWPO;
+				
 				bCacheAsStatic = ShouldCacheInstanceAsStatic(InstanceId, (NaniteView.Flags & NANITE_VIEW_FLAG_UNCACHED), bAllowWPO);
+				Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic);
+				Cull.bUseStaticOcclusion = bCacheAsStatic;
 
-				bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, bEnableWPO);
-				bool bHasMoved = DynamicData.bHasMoved || bMaterialInvalidates;
 				float PixelEstRadius = CalcClipSpaceRadiusEstimate(Cull.bIsOrtho, InstanceData, DynamicData.LocalToTranslatedWorld, NaniteView.ViewToClip) * float(VSM_VIRTUAL_MAX_RESOLUTION_XY);
-				Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved)
-					| GetDetailGeometryFlagMaskForCulling(bCacheAsStatic, true, PixelEstRadius);
+				Cull.bDetailGeometry = IsDetailGeometry(bCacheAsStatic, true, PixelEstRadius);
 #endif
 				Cull.FrustumHZB( false );
 			}
@@ -447,7 +447,11 @@ void InstanceCull(
 				if(NodeOffset < MaxNodes)
 				{
 					uint Flags = NANITE_CULLING_FLAG_TEST_LOD;
-					if (bEnableWPO)
+					if (Cull.bFallbackRaster)
+					{
+						Flags |= NANITE_CULLING_FLAG_FALLBACK_RASTER;
+					}
+					if (Cull.bEnableWPO)
 					{
 						Flags |= NANITE_CULLING_FLAG_ENABLE_WPO;
 					}
@@ -479,26 +483,93 @@ RWStructuredBuffer< FPackedNaniteView > CompactedViewsOut;
 RWStructuredBuffer< uint > CompactedViewsAllocationOut;
 
 #if INPUT_VIEW_RANGES
+
 RWStructuredBuffer< FViewDrawGroup > InOutViewDrawRanges;
 uint NumViewRanges;
-#else
-RWStructuredBuffer< FCompactedViewInfo > CompactedViewInfoOut;
+
+// Cube map (6 faces) with max mips is the current limiter
+// In theory clipmaps could go to higher counts but they are practically limited to 32 currently
+// due to the coarse page bitmask and a few other things
+#define VSM_MAX_VIEWS_PER_GROUP (VSM_MAX_MIP_LEVELS*6)
+
+groupshared uint OutputViewId[VSM_MAX_VIEWS_PER_GROUP];
+groupshared uint OutputViewCount;
+groupshared uint OutputViewRangeOffset;
+
+[numthreads(VSM_MAX_VIEWS_PER_GROUP, 1, 1)]
+void CompactViewsVSM_CS(
+	uint GroupId : SV_GroupID,
+	uint ThreadId : SV_GroupIndex)
+{
+	// Order-preserving compaction
+	// Could be a wave ops, but portable wave size assumptions are inconvenient here
+	// Fast enough to just do this scalar as long a we vectorize the actual copy below
+	if (ThreadId == 0)
+	{
+		const uint ViewGroupIndex = GroupId.x;
+		uint OutputViewOffset = 0U;
+
+		FViewDrawGroup ViewDrawGroup = InOutViewDrawRanges[ViewGroupIndex];
+		for (uint PrimaryViewId = ViewDrawGroup.FirstView; PrimaryViewId < ViewDrawGroup.FirstView + ViewDrawGroup.NumViews; ++PrimaryViewId)
+		{
+			FNaniteView PrimaryNaniteView = GetNaniteView(PrimaryViewId);
+
+			for (uint TargetMipLevel = 0; TargetMipLevel < (uint)PrimaryNaniteView.TargetNumMipLevels; TargetMipLevel++)
+			{
+				uint MipViewId = TargetMipLevel * NumPrimaryViews + PrimaryViewId;
+				FNaniteView MipView = GetNaniteView(MipViewId);
+
+				// TODO: We shouldn't need to load the mip view for this data...
+				// TargetLayerIndex should be the same as the primary, and miplevel should just be the analytic one
+				uint4 RectPages = VirtualShadowMap.UncachedPageRectBounds[MipView.TargetLayerIndex * VSM_MAX_MIP_LEVELS + MipView.TargetMipLevel];
+
+				if (all(RectPages.zw >= RectPages.xy))
+				{
+					OutputViewId[OutputViewOffset] = MipViewId;
+					OutputViewOffset += 1U;
+				}
+			}
+		}
+
+#if DEBUG_FLAGS
+		if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u)
+		{
+			InterlockedAdd(OutStatsBuffer[0].NumPrimaryViews, ViewDrawGroup.NumViews);
+			InterlockedAdd(OutStatsBuffer[0].NumTotalViews, OutputViewOffset);
+		}
 #endif
+
+		OutputViewCount = OutputViewOffset;
+
+		InterlockedAdd(CompactedViewsAllocationOut[1], OutputViewCount, OutputViewRangeOffset);
+		{
+			FViewDrawGroup ViewDrawGroupResult;
+			ViewDrawGroupResult.FirstView = OutputViewRangeOffset;
+			ViewDrawGroupResult.NumViews = OutputViewCount;
+			InOutViewDrawRanges[ViewGroupIndex] = ViewDrawGroupResult;
+		}
+	}
+
+	GroupMemoryBarrierWithGroupSync();
+
+	// Copy any views that survived into their compacted locations
+	if (ThreadId < OutputViewCount)
+	{
+		uint ViewId = OutputViewId[ThreadId];
+		uint CompactedOutputOffset = OutputViewRangeOffset + ThreadId;
+		CompactedViewsOut[CompactedOutputOffset] = InViews[ViewId];
+	}
+}
+
+#else // INPUT_VIEW_RANGES
+
+RWStructuredBuffer< FCompactedViewInfo > CompactedViewInfoOut;
 
 // TODO: Make sure this always runs and prepend to the whole pipeline such that view groups are always a range
 //       TBD how to manage that...
 [numthreads(64, 1, 1)]
 void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 {
-#if INPUT_VIEW_RANGES
-	uint ViewGroupIndex = DispatchThreadId;
-
-	if (ViewGroupIndex >= NumViewRanges)
-	{
-		return;
-	}
-	FViewDrawGroup ViewDrawGroup = InOutViewDrawRanges[ViewGroupIndex];
-#else
 	if (DispatchThreadId >= NumPrimaryViews)
 	{
 		return;
@@ -506,7 +577,6 @@ void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 	FViewDrawGroup ViewDrawGroup;
 	ViewDrawGroup.FirstView = DispatchThreadId;
 	ViewDrawGroup.NumViews = 1U;
-#endif
 
 	uint NumValidViews = 0U;
 	for (uint PrimaryViewId = ViewDrawGroup.FirstView; PrimaryViewId < ViewDrawGroup.FirstView + ViewDrawGroup.NumViews; ++PrimaryViewId)
@@ -518,7 +588,7 @@ void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 			uint MipViewId = TargetMipLevel * NumPrimaryViews + PrimaryViewId;
 			FNaniteView MipView = GetNaniteView(MipViewId);
 
-			uint4 RectPages = VirtualShadowMap.PageRectBounds[MipView.TargetLayerIndex * VSM_MAX_MIP_LEVELS + MipView.TargetMipLevel];
+			uint4 RectPages = VirtualShadowMap.UncachedPageRectBounds[MipView.TargetLayerIndex * VSM_MAX_MIP_LEVELS + MipView.TargetMipLevel];
 
 			if (all(RectPages.zw >= RectPages.xy))
 			{
@@ -526,26 +596,6 @@ void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 			}
 		}
 	}
-
-#if INPUT_VIEW_RANGES
-	uint CompactedOutputOffset = 0;
-	InterlockedAdd(CompactedViewsAllocationOut[1], NumValidViews, CompactedOutputOffset);
-	{
-		FViewDrawGroup ViewDrawGroupResult;
-		ViewDrawGroupResult.FirstView = CompactedOutputOffset;
-		ViewDrawGroupResult.NumViews = NumValidViews;
-		InOutViewDrawRanges[ViewGroupIndex] = ViewDrawGroupResult;
-	}
-
-#if DEBUG_FLAGS
-	if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u)
-	{
-		InterlockedAdd(OutStatsBuffer[0].NumPrimaryViews, ViewDrawGroup.NumViews);
-		InterlockedAdd(OutStatsBuffer[0].NumTotalViews, NumValidViews);
-	}
-#endif
-#else
-
 	// Neither primary nor mip views have valid pages
 	if (NumValidViews == 0U)
 	{
@@ -564,7 +614,7 @@ void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 
 		CompactedViewInfoOut[InfoOutputOffset] = CompactedViewInfo;
 	}
-#endif
+
 	for (uint PrimaryViewId = ViewDrawGroup.FirstView; PrimaryViewId < ViewDrawGroup.FirstView + ViewDrawGroup.NumViews; ++PrimaryViewId)
 	{
 		FNaniteView PrimaryNaniteView = GetNaniteView(PrimaryViewId);
@@ -574,7 +624,7 @@ void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 			uint MipViewId = TargetMipLevel * NumPrimaryViews + PrimaryViewId;
 			FNaniteView MipView = GetNaniteView(MipViewId);
 
-			uint4 RectPages = VirtualShadowMap.PageRectBounds[MipView.TargetLayerIndex * VSM_MAX_MIP_LEVELS + MipView.TargetMipLevel];
+			uint4 RectPages = VirtualShadowMap.UncachedPageRectBounds[MipView.TargetLayerIndex * VSM_MAX_MIP_LEVELS + MipView.TargetMipLevel];
 
 			if (all(RectPages.zw >= RectPages.xy))
 			{
@@ -584,6 +634,8 @@ void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 		}
 	}
 }
+
+#endif // INPUT_VIEW_RANGES
 
 void ProcessPrimaryView(const bool bIsOrtho, FPrimitiveSceneData PrimitiveData, const uint InstanceId, FInstanceSceneData InstanceData, FCompactedViewInfo ViewInfo, FNaniteView NaniteView, bool bHasMoved)
 {
@@ -601,7 +653,7 @@ void ProcessPrimaryView(const bool bIsOrtho, FPrimitiveSceneData PrimitiveData, 
 	FInstanceDynamicData DynamicData = CalculateInstanceDynamicData(NaniteView, InstanceData);
 
 	FBoxCull Cull;
-	Cull.Init( NaniteView, LocalBoundsCenter, LocalBoundsExtent, InstanceData.NonUniformScale.xyz, DynamicData.LocalToTranslatedWorld, DynamicData.PrevLocalToTranslatedWorld );
+	Cull.Init( NaniteView, LocalBoundsCenter, LocalBoundsExtent, InstanceData.NonUniformScale, DynamicData.LocalToTranslatedWorld, DynamicData.PrevLocalToTranslatedWorld );
 	Cull.bIsOrtho = bIsOrtho;
 	if( CULLING_PASS == CULLING_PASS_OCCLUSION_POST )
 	{
@@ -609,7 +661,7 @@ void ProcessPrimaryView(const bool bIsOrtho, FPrimitiveSceneData PrimitiveData, 
 		Cull.bSkipCullGlobalClipPlane = true;
 	}
 	
-	bool bEnableWPO = Cull.Distance( PrimitiveData );
+	Cull.Distance( PrimitiveData );
 	bool bCacheAsStatic = false;
 
 	Cull.GlobalClipPlane();
@@ -626,14 +678,14 @@ void ProcessPrimaryView(const bool bIsOrtho, FPrimitiveSceneData PrimitiveData, 
 #if VIRTUAL_TEXTURE_TARGET
 	{
 		const bool bAllowWPO = VirtualShadowMapIsWPOAllowed(PrimitiveData, NaniteView.TargetLayerIndex);
-		bEnableWPO = bEnableWPO && bAllowWPO;
-		bCacheAsStatic = ShouldCacheInstanceAsStatic(InstanceId, (NaniteView.Flags & NANITE_VIEW_FLAG_UNCACHED), bAllowWPO);
+		Cull.bEnableWPO = Cull.bEnableWPO && bAllowWPO;
 
-		bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, bEnableWPO);
-		bool bHasMoved = DynamicData.bHasMoved || bMaterialInvalidates;
-		float PixelEstRadius = CalcClipSpaceRadiusEstimate(Cull.bIsOrtho, InstanceData, DynamicData.LocalToTranslatedWorld, NaniteView.ViewToClip) * float(VSM_VIRTUAL_MAX_RESOLUTION_XY);
-		Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved)
-			| GetDetailGeometryFlagMaskForCulling(bCacheAsStatic, true, PixelEstRadius);
+		bCacheAsStatic = ShouldCacheInstanceAsStatic(InstanceId, (NaniteView.Flags & NANITE_VIEW_FLAG_UNCACHED), bAllowWPO);
+		Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic);
+		Cull.bUseStaticOcclusion = bCacheAsStatic;
+		
+		float PixelEstRadius = CalcClipSpaceRadiusEstimate(Cull.bIsOrtho, InstanceData, DynamicData.LocalToTranslatedWorld, NaniteView.ViewToClip) * float(VSM_VIRTUAL_MAX_RESOLUTION_XY);		
+		Cull.bDetailGeometry = IsDetailGeometry(bCacheAsStatic, true, PixelEstRadius);
 	}
 #endif
 
@@ -683,7 +735,11 @@ void ProcessPrimaryView(const bool bIsOrtho, FPrimitiveSceneData PrimitiveData, 
 				Node.NodeIndex = 0;
 				Node.EnabledBitmask = NANITE_BVH_NODE_ENABLE_MASK;
 
-				if (bEnableWPO)
+				if (Cull.bFallbackRaster)
+				{
+					Node.Flags |= NANITE_CULLING_FLAG_FALLBACK_RASTER;
+				}
+				if (Cull.bEnableWPO)
 				{
 					Node.Flags |= NANITE_CULLING_FLAG_ENABLE_WPO;
 				}
@@ -729,7 +785,7 @@ void InstanceCullVSM(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex
 	uint InstanceFlags;
 	LoadInstancePrimitiveIdAndFlags(InstanceId, Scene.GPUScene.InstanceDataSOAStride, PrimitiveId, InstanceFlags);
 
-	if (PrimitiveId == INVALID_PRIMITIVE_ID)
+	if (PrimitiveId == INVALID_PRIMITIVE_ID || (InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HIDDEN) != 0u)
 	{
 		return;
 	}

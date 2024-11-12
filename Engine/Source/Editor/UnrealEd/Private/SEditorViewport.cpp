@@ -26,8 +26,10 @@
 #include "GPUSkinCacheVisualizationMenuCommands.h"
 #include "GPUSkinCache.h"
 #include "Widgets/Colors/SComplexGradient.h"
+#include "Widgets/SBoxPanel.h"
 #include "Modules/ModuleManager.h"
 #include "ISettingsModule.h"
+#include "ShowFlagMenuCommands.h"
 #if WITH_DUMPGPU
 	#include "RenderGraph.h"
 #endif
@@ -56,20 +58,18 @@ SEditorViewport::~SEditorViewport()
 
 void SEditorViewport::Construct( const FArguments& InArgs )
 {
-	ChildSlot
+	// Create Viewport Widget
+
+	// clang-format off
+	SAssignNew(ViewportWidget, SViewport)
+	.ShowEffectWhenDisabled(false)
+	.EnableGammaCorrection(false) // Scene rendering handles this
+	.AddMetaData(InArgs.MetaData.Num() > 0 ? InArgs.MetaData[0] : MakeShareable(new FTagMetaData(TEXT("LevelEditorViewport"))))
+	.ViewportSize(InArgs._ViewportSize)
 	[
-		SNew(SGlobalPlayWorldActions)
-		[
-			SAssignNew(ViewportWidget, SViewport)
-			.ShowEffectWhenDisabled(false)
-			.EnableGammaCorrection(false) // Scene rendering handles this
-			.AddMetaData(InArgs.MetaData.Num() > 0 ? InArgs.MetaData[0] : MakeShareable(new FTagMetaData(TEXT("LevelEditorViewport"))))
-			.ViewportSize(InArgs._ViewportSize)
-			[
-				SAssignNew(ViewportOverlay, SOverlay)
-			]
-		]
+		SAssignNew(ViewportOverlay, SOverlay)
 	];
+	// clang-format on
 
 	Client = MakeEditorViewportClient();
 
@@ -91,7 +91,8 @@ void SEditorViewport::Construct( const FArguments& InArgs )
 	// Ensure the commands are registered
 	FEditorViewportCommands::Register();
 	BindCommands();
-	
+
+	// clang-format off
 	ViewportOverlay->AddSlot()
 	[
 		SNew(SBorder)
@@ -101,16 +102,17 @@ void SEditorViewport::Construct( const FArguments& InArgs )
 		.Padding(0.0f)
 		.ShowEffectWhenDisabled(false)
 	];
+	// clang-format on
 
-	TSharedPtr<SWidget> ViewportToolbar = MakeViewportToolbar();
-
-	if (ViewportToolbar.IsValid())
+	if (TSharedPtr<SWidget> ViewportToolbar = MakeViewportToolbar())
 	{
 		ViewportOverlay->AddSlot()
+			// clang-format off
 			.VAlign(VAlign_Top)
 			[
 				ViewportToolbar.ToSharedRef()
 			];
+			// clang-format on
 	}
 
 	// This makes a gradient that displays whether or not a viewport is active
@@ -120,6 +122,7 @@ void SEditorViewport::Construct( const FArguments& InArgs )
 
 	static TArray<FLinearColor> GradientStops{ ActiveBorderColorTransparent, ActiveBorderColor, ActiveBorderColorTransparent };
 
+	// clang-format off
 	ViewportOverlay->AddSlot()
 	.VAlign(VAlign_Top)
 	[
@@ -133,7 +136,39 @@ void SEditorViewport::Construct( const FArguments& InArgs )
 			.Orientation(EOrientation::Orient_Vertical)
 		]
 	];
+	// clang-format on
 
+	TSharedPtr<SVerticalBox> VerticalBox;
+	// clang-format off
+	ChildSlot
+	[
+		SAssignNew(VerticalBox, SVerticalBox)
+	];
+	// clang-format on
+
+	// If new toolbar is available, let's add it on top of viewport
+	if (TSharedPtr<SWidget> NewViewportToolbar = BuildViewportToolbar())
+	{
+		// clang-format off
+		VerticalBox->AddSlot()
+		.AutoHeight()
+		[
+			NewViewportToolbar.ToSharedRef()
+		];
+		// clang-format on
+	}
+
+	// clang-format off
+	VerticalBox->AddSlot()
+	[
+		SNew(SGlobalPlayWorldActions)
+		[
+			ViewportWidget.ToSharedRef()
+		]
+	];
+	// clang-format on
+
+	
 	PopulateViewportOverlays(ViewportOverlay.ToSharedRef());
 }
 
@@ -370,6 +405,13 @@ void SEditorViewport::BindCommands()
 		);
 
 	CommandListRef.MapAction(
+		Commands.RotateToSurfaceNormal,
+		FExecuteAction::CreateStatic( &SEditorViewport::OnToggleRotateToSurfaceNormal ),
+		FCanExecuteAction::CreateStatic( &SEditorViewport::OnIsSurfaceSnapEnabled ),
+		FIsActionChecked::CreateStatic( &SEditorViewport::IsRotateToSurfaceNormalEnabled ) 
+		);
+
+	CommandListRef.MapAction(
 		(Client.IsValid() && Client->IsLevelEditorClient()) ? Commands.ToggleInGameExposure : Commands.ToggleAutoExposure,
 		FExecuteAction::CreateSP( this, &SEditorViewport::ChangeExposureSetting),
 		FCanExecuteAction(),
@@ -415,7 +457,8 @@ void SEditorViewport::BindCommands()
 	MAP_VIEWMODE_ACTION( Commands.WireframeMode, VMI_BrushWireframe );
 	MAP_VIEWMODE_ACTION( Commands.UnlitMode, VMI_Unlit );
 	MAP_VIEWMODE_ACTION( Commands.LitMode, VMI_Lit );
-#if RHI_RAYTRACING
+	MAP_VIEWMODE_ACTION( Commands.LitWireframeMode, VMI_Lit_Wireframe);
+
 	if (IsRayTracingAllowed())
 	{
 		MAP_VIEWMODE_ACTION(Commands.PathTracingMode, VMI_PathTracing);
@@ -424,7 +467,7 @@ void SEditorViewport::BindCommands()
 		const FRayTracingDebugVisualizationMenuCommands& RtDebugCommands = FRayTracingDebugVisualizationMenuCommands::Get();
 		RtDebugCommands.BindCommands(CommandListRef, Client);
 	}
-#endif
+
 	MAP_VIEWMODE_ACTION( Commands.DetailLightingMode, VMI_Lit_DetailLighting );
 	MAP_VIEWMODE_ACTION( Commands.LightingOnlyMode, VMI_LightingOnly );
 	MAP_VIEWMODE_ACTION( Commands.LightComplexityMode, VMI_LightComplexity );
@@ -456,6 +499,8 @@ void SEditorViewport::BindCommands()
 	MAP_VIEWMODE_ACTION( Commands.CollisionPawn, VMI_CollisionPawn);
 	MAP_VIEWMODE_ACTION( Commands.CollisionVisibility, VMI_CollisionVisibility);
 
+	MAP_VIEWMODE_ACTION( Commands.VisualizeLWCComplexity, VMI_LWCComplexity);
+
 	if (GEnableGPUSkinCache)
 	{
 		MAP_VIEWMODE_ACTION(Commands.VisualizeGPUSkinCacheMode, VMI_VisualizeGPUSkinCache);
@@ -474,6 +519,13 @@ void SEditorViewport::BindCommands()
 		MAP_VIEWMODEPARAM_ACTION( Commands.TexStreamAccMaterialTextureScaleSingle[TextureIndex], TextureIndex );
 		MAP_VIEWMODEPARAM_ACTION( Commands.RequiredTextureResolutionSingle[TextureIndex], TextureIndex );
 	}
+
+	BindShowCommands( CommandListRef );
+}
+
+void SEditorViewport::BindShowCommands( FUICommandList& OutCommandList )
+{
+	FShowFlagMenuCommands::Get().BindCommands(OutCommandList, Client);
 }
 
 EVisibility SEditorViewport::OnGetViewportContentVisibility() const
@@ -667,6 +719,33 @@ TSharedRef<SWidget> SEditorViewport::BuildFixedEV100Menu()  const
 		];
 };
 
+TSharedRef<SWidget> SEditorViewport::BuildWireframeMenu() const
+{
+	return 
+		SNew( SBox )
+		.HAlign( HAlign_Right )
+		[
+			SNew( SBox )
+			.Padding( FMargin(0.0f, 0.0f, 0.0f, 0.0f) )
+			.WidthOverride( 100.0f )
+			[
+				SNew ( SBorder )
+				.BorderImage(FAppStyle::Get().GetBrush("Menu.WidgetBorder"))
+				.Padding(FMargin(1.0f))
+				[
+					SNew(SSpinBox<float>)
+					.Style(&FAppStyle::Get(), "Menu.SpinBox")
+					.Font( FAppStyle::GetFontStyle( TEXT( "MenuItem.Font" ) ) )
+					.MinValue(0.f)
+					.MaxValue(1.f)
+					.SupportDynamicSliderMaxValue(false)
+					.Value( this, &SEditorViewport::OnGetWireframeOpacity )
+					.OnValueChanged( const_cast<SEditorViewport*>(this), &SEditorViewport::OnWireframeOpacityChanged )
+					.ToolTipText(LOCTEXT("WireframeOpacity_ToolTip", "Adjust opacity of wireframes in view."))
+				]
+			]
+		];
+};
 				
 void SEditorViewport::UpdateInViewportMenuLocation(const FVector2D InLocation)
 {
@@ -703,6 +782,24 @@ void SEditorViewport::OnFixedEV100ValueChanged(float NewValue)
 		Client->ExposureSettings.FixedEV100 = NewValue;
 		Client->Invalidate();
 	}
+}
+
+void SEditorViewport::OnWireframeOpacityChanged(float Opacity)
+{
+	if( Client.IsValid() )
+	{
+		Client->WireframeOpacity = Opacity;
+		Client->Invalidate();
+	}
+}
+float SEditorViewport::OnGetWireframeOpacity() const
+{
+	if(Client.IsValid())
+	{
+		return Client->WireframeOpacity;
+	}
+	
+	return 0.8f;
 }
 
 bool SEditorViewport::IsWidgetModeActive( UE::Widget::EWidgetMode Mode ) const
@@ -794,6 +891,18 @@ bool SEditorViewport::OnIsSurfaceSnapEnabled()
 	return GetDefault<ULevelEditorViewportSettings>()->SnapToSurface.bEnabled;
 }
 
+void SEditorViewport::OnToggleRotateToSurfaceNormal()
+{
+	auto& Settings = GetMutableDefault<ULevelEditorViewportSettings>()->SnapToSurface;
+	Settings.bSnapRotation = !Settings.bSnapRotation;
+}
+
+bool SEditorViewport::IsRotateToSurfaceNormalEnabled()
+{
+	const auto& Settings = GetDefault<ULevelEditorViewportSettings>()->SnapToSurface;
+	return Settings.bSnapRotation;
+}
+
 bool SEditorViewport::IsPreviewingScreenPercentage() const
 {
 	return Client->IsPreviewingScreenPercentage();
@@ -877,7 +986,7 @@ TSharedRef<SWidget> SEditorViewport::BuildFeatureLevelWidget() const
 
 EVisibility SEditorViewport::GetCurrentFeatureLevelPreviewTextVisibility() const
 {
-	if (Client->GetWorld())
+	if (Client->GetWorld() && !GLevelEditorModeTools().IsViewportUIHidden())
 	{
 		return (GEditor && GEditor->IsFeatureLevelPreviewActive()) ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed;
 	}
@@ -901,8 +1010,7 @@ FText SEditorViewport::GetCurrentFeatureLevelPreviewText(bool bDrawOnlyLabel) co
 		if (World != nullptr)
 		{
 			ERHIFeatureLevel::Type TargetFeatureLevel = World->GetFeatureLevel();
-			EShaderPlatform ShaderPlatform = GetShaderPlatformHelper(TargetFeatureLevel);
-			const FText& PlatformText = FDataDrivenShaderPlatformInfo::GetFriendlyName(ShaderPlatform);
+			const FText& PlatformText = GEditor->PreviewPlatform.GetFriendlyName();
 			LabelName = FText::Format(LOCTEXT("WorldFeatureLevel", "{0}"), PlatformText);
 		}
 	}

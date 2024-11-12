@@ -18,24 +18,34 @@ namespace UnrealBuildTool.Rules
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
-					"Core",
 					"CoreUObject",
-					"MeshDescription",
-					"DataprepCore",
+					"CADLibrary",
 					"DatasmithContent",
+					"Engine",
+					"MeshDescription",
 					"ParametricSurface",
 					"PhysicsCore",
-					"DatasmithImporter",
-					"Engine",
-					"StaticMeshEditor",
-					"Slate",
-					"SlateCore",
 					"StaticMeshDescription",
-					"EditorFramework",
-					"UnrealEd",
-					"CADLibrary",
 				}
 			);
+
+			if (Target.bBuildEditor)
+			{
+				PrivateDependencyModuleNames.AddRange(
+					new string[]
+					{
+						"ContentBrowser",
+						"DataprepCore",
+						"DatasmithImporter",
+						"EditorFramework",
+						"Slate",
+						"SlateCore",
+						"StaticMeshEditor",
+						"ToolMenus",
+						"UnrealEd",
+					}
+				);
+			}
 		}
 	}
 }

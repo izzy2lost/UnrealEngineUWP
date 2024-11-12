@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "MetalRHIPrivate.h"
 
 //------------------------------------------------------------------------------
 
@@ -21,8 +22,15 @@ struct FMetalHashedVertexDescriptor
 {
 	NS::UInteger VertexDescHash;
 	MTLVertexDescriptorPtr VertexDesc;
-
+	
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	FMetalHashedVertexDescriptor(IRVersionedInputLayoutDescriptor& Desc, uint32 Hash);
+	IRVersionedInputLayoutDescriptor IRVertexDesc;
+	bool bUsesIRVertexDesc = false;
+#endif
+	
 	FMetalHashedVertexDescriptor();
+	
 	FMetalHashedVertexDescriptor(MTLVertexDescriptorPtr Desc, uint32 Hash);
 	FMetalHashedVertexDescriptor(FMetalHashedVertexDescriptor const& Other);
 	~FMetalHashedVertexDescriptor();

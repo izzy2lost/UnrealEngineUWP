@@ -84,7 +84,7 @@ namespace EpicGames.Perforce.Managed
 	/// </summary>
 	/// <param name="NumParallelSyncThreads">Maximum number of threads to sync in parallel</param>
 	/// <param name="MaxFileConcurrency">Maximum number of concurrent file system operations (copying, moving, deleting etc)</param>
-	/// <param name="MinScratchSpace">Minimum amount of space that must be on a drive after a branch is synced</param>
+	/// <param name="MinScratchSpace">Minimum amount of disk space that must be available after a sync (in megabytes)</param>
 	/// <param name="UseHaveTable">
 	///		Use the client's have table when syncing.
 	///		
@@ -93,15 +93,30 @@ namespace EpicGames.Perforce.Managed
 	///	</param>
 	/// <param name="Partitioned">Whether to allow using partitioned workspaces</param>
 	/// <param name="PreferNativeClient">Whether to prefer the native p4 client</param>
-	public record class ManagedWorkspaceOptions
+	public record ManagedWorkspaceOptions
 	(
-		int NumParallelSyncThreads = 4,
-		int MaxFileConcurrency = 4,
-		long MinScratchSpace = 50L * 1024 * 1024 * 1024,
-		bool UseHaveTable = true,
-		bool Partitioned = false,
-		bool PreferNativeClient = false
-	);
+		int NumParallelSyncThreads,
+		int MaxFileConcurrency,
+		long MinScratchSpace,
+		bool UseHaveTable,
+		bool Partitioned,
+		bool PreferNativeClient
+	)
+	{
+		/// <inheritdoc cref="ManagedWorkspaceOptions(Int32, Int32, Int64, Boolean, Boolean, Boolean)"/>
+		public ManagedWorkspaceOptions(int? numParallelSyncThreads = null, int? maxFileConcurrency = null, long minScratchSpace = 50L * 1024, bool useHaveTable = true, bool partitioned = false, bool preferNativeClient = false)
+			: this(
+				  numParallelSyncThreads ?? GetDefaultThreadCount(4),
+				  maxFileConcurrency ?? GetDefaultThreadCount(4),
+				  minScratchSpace,
+				  useHaveTable,
+				  partitioned,
+				  preferNativeClient)
+		{ }
+
+		static int GetDefaultThreadCount(int defaultValue)
+			=> Math.Min(defaultValue, Math.Max(Environment.ProcessorCount - 1, 1));
+	}
 
 	/// <summary>
 	/// Version number for managed workspace cache files
@@ -147,6 +162,11 @@ namespace EpicGames.Perforce.Managed
 		/// The current revision number for cache archives.
 		/// </summary>
 		static int CurrentVersion { get; } = Enum.GetValues(typeof(ManagedWorkspaceVersion)).Cast<int>().Max();
+		
+		/// <summary>
+		/// File format version for untracked state file
+		/// </summary>
+		private const int UntrackedFileVersion = 1;
 
 		/// <summary>
 		/// Externally configurable options
@@ -167,6 +187,11 @@ namespace EpicGames.Perforce.Managed
 		/// Name of the main data file for a repository
 		/// </summary>
 		const string DataFileName = "Repository.dat";
+		
+		/// <summary>
+		/// Name of the untracked state file for a repository
+		/// </summary>
+		const string UntrackedStateFileName = "Untracked.dat";
 
 		/// <summary>
 		/// Name of the host
@@ -222,6 +247,16 @@ namespace EpicGames.Perforce.Managed
 		/// All the files which are currently being tracked
 		/// </summary>
 		Dictionary<FileContentId, CachedFileInfo> _contentIdToTrackedFile = new Dictionary<FileContentId, CachedFileInfo>();
+		
+		/// <summary>
+		/// Notification that a clean has been performed
+		/// </summary>
+		public delegate void OnCleanDelegate(int numFilesDeleted, int numDirsDeleted);
+		
+		/// <summary>
+		/// Occurs when a clean operation has been performed.
+		/// </summary>
+		public event OnCleanDelegate? OnClean;
 
 		/// <summary>
 		/// Constructor
@@ -407,7 +442,7 @@ namespace EpicGames.Perforce.Managed
 
 			reader.ReadWorkspaceDirectoryInfo(repo._workspace, (ManagedWorkspaceVersion)version);
 
-			await repo.RunOptionalRepairAsync(cancellationToken);
+			await repo.RunOptionalCacheRepairAsync(cancellationToken);
 			return repo;
 		}
 
@@ -439,15 +474,75 @@ namespace EpicGames.Perforce.Managed
 			await FileReference.WriteAllBytesAsync(dataFile, buffer, cancellationToken);
 			CompleteTransaction(dataFile);
 		}
-
+		
+		/// <summary>
+		/// Mark whether current repository in combination with P4 client contains untracked files
+		/// Stores data in a file separate to the repository metadata as that can grow large (hundreds of megabytes)
+		/// </summary>
+		private async Task SaveUntrackedStateAsync(IPerforceConnection connection, bool containsUntrackedFiles, CancellationToken cancellationToken)
+		{
+			if (connection.Settings.ClientName == null)
+			{
+				throw new ArgumentException("Unable to save untracked state as P4 client name is not set");
+			}
+			
+			using MemoryStream ms = new(300);
+			await using BinaryWriter bw = new(ms);
+			bw.Write(UntrackedFileVersion);
+			bw.Write(connection.Settings.ClientName);
+			bw.Write(containsUntrackedFiles);
+			
+			// Write it to disk
+			FileReference dataFile = FileReference.Combine(_baseDir, UntrackedStateFileName);
+			BeginTransaction(dataFile);
+			await FileReference.WriteAllBytesAsync(dataFile, ms.ToArray(), cancellationToken);
+			CompleteTransaction(dataFile);
+		}
+		
+		/// <summary>
+		/// Check if current repository in combination with P4 client contains untracked files
+		/// If deserialization is not possible, assume the repo contains untracked files 
+		/// </summary>
+		/// <returns>True if repository contains untracked files</returns>
+		private async Task<bool> LoadUntrackedStateAsync(IPerforceConnection connection, CancellationToken cancellationToken)
+		{
+			try
+			{
+				FileReference dataFile = FileReference.Combine(_baseDir, UntrackedStateFileName);
+				if (!File.Exists(dataFile.FullName))
+				{
+					return true;
+				}
+				
+				byte[] data = await File.ReadAllBytesAsync(dataFile.FullName, cancellationToken);
+				using MemoryStream ms = new (data);
+				using BinaryReader br = new (ms);
+				
+				int version = br.ReadInt32();
+				if (version != UntrackedFileVersion)
+				{
+					return true;
+				}
+				
+				string clientName = br.ReadString();
+				bool containsUntrackedFiles = br.ReadBoolean();
+				return clientName != connection.Settings.ClientName || containsUntrackedFiles;
+			}
+			catch (Exception)
+			{
+				return true;
+			}
+		}
+		
 		#region Commands
 
 		/// <summary>
 		/// Cleans the current workspace
 		/// </summary>
+		/// <param name="perforce">Optional Perforce client, if not set untracked state file cannot be updated</param>
 		/// <param name="removeUntracked">Whether to remove untracked files</param>
 		/// <param name="cancellationToken">Cancellation token</param>
-		public async Task CleanAsync(bool removeUntracked, CancellationToken cancellationToken)
+		public async Task CleanAsync(IPerforceConnection? perforce, bool removeUntracked, CancellationToken cancellationToken)
 		{
 			Stopwatch timer = Stopwatch.StartNew();
 
@@ -455,6 +550,11 @@ namespace EpicGames.Perforce.Managed
 			using (_logger.BeginIndentScope("  "))
 			{
 				await CleanInternalAsync(removeUntracked, cancellationToken);
+			}
+			
+			if (perforce != null && removeUntracked)
+			{
+				await SaveUntrackedStateAsync(perforce, false, cancellationToken);
 			}
 
 			_logger.LogInformation("Completed in {ElapsedTime}s", $"{timer.Elapsed.TotalSeconds:0.0}");
@@ -520,6 +620,8 @@ namespace EpicGames.Perforce.Managed
 
 				await SaveAsync(TransactionState.Clean, cancellationToken);
 			}
+			
+			OnClean?.Invoke(filesToDelete.Length, directoriesToDelete.Length);
 		}
 
 		/// <summary>
@@ -575,7 +677,7 @@ namespace EpicGames.Perforce.Managed
 		/// <summary>
 		/// Checks the integrity of the cache
 		/// </summary>
-		public async Task RepairAsync(CancellationToken cancellationToken)
+		public async Task RepairCacheAsync(CancellationToken cancellationToken)
 		{
 			using (Trace("Repair"))
 			using (ILoggerProgress status = _logger.BeginProgressScope("Checking cache..."))
@@ -625,11 +727,11 @@ namespace EpicGames.Perforce.Managed
 		/// <summary>
 		/// Checks the <see cref="_requiresRepair"/> flag, and repairs/resets it if set.
 		/// </summary>
-		private async Task RunOptionalRepairAsync(CancellationToken cancellationToken)
+		private async Task RunOptionalCacheRepairAsync(CancellationToken cancellationToken)
 		{
 			if (_requiresRepair)
 			{
-				await RepairAsync(cancellationToken);
+				await RepairCacheAsync(cancellationToken);
 			}
 		}
 
@@ -863,8 +965,16 @@ namespace EpicGames.Perforce.Managed
 					// Force the P4 metadata to match up
 					Task updateHaveTableTask = Task.Run(() => UpdateClientHaveTableAsync(perforce, changeNumber, view, cancellationToken), cancellationToken);
 
-					// Clean the current workspace
-					await CleanInternalAsync(removeUntracked, cancellationToken);
+					// Check if clean up can be skipped
+					bool containsUntrackedFiles = await LoadUntrackedStateAsync(perforce, cancellationToken);
+					if (containsUntrackedFiles)
+					{
+						await CleanInternalAsync(removeUntracked, cancellationToken);
+					}
+					
+					// Immediately after a potential clean, mark repository having untracked files.
+					// This ensure a clean is run next time even if the sync below is aborted or fails
+					await SaveUntrackedStateAsync(perforce, true, cancellationToken);
 
 					// Wait for the have table update to finish
 					await updateHaveTableTask;
@@ -886,17 +996,14 @@ namespace EpicGames.Perforce.Managed
 				else
 				{
 					contents = await TryLoadClientContentsAsync(cacheFile, new Utf8String(streamName), cancellationToken);
-					if (contents == null)
-					{
-						contents = await FindAndSaveClientContentsAsync(perforce, new Utf8String(streamName), view, changeNumber, cacheFile, cancellationToken);
-					}
+					contents ??= await FindAndSaveClientContentsAsync(perforce, new Utf8String(streamName), view, changeNumber, cacheFile, cancellationToken);
 				}
 
 				// Sync all the appropriate files
 				await RemoveFilesFromWorkspaceAsync(contents, cancellationToken);
 				await AddFilesToWorkspaceAsync(perforce, contents, fakeSync, cancellationToken);
 			}
-
+			
 			_logger.LogInformation("Completed in {ElapsedTime}s", $"{timer.Elapsed.TotalSeconds:0.0}");
 		}
 
@@ -1028,7 +1135,7 @@ namespace EpicGames.Perforce.Managed
 			}
 
 			// Clean the current workspace
-			await CleanAsync(true, cancellationToken);
+			await CleanAsync(null, true, cancellationToken);
 
 			// Update the list of files in each stream
 			Tuple<int, StreamSnapshot>[] streamState = new Tuple<int, StreamSnapshot>[requests.Count];
@@ -1751,7 +1858,7 @@ namespace EpicGames.Perforce.Managed
 		private async Task RemoveFilesFromWorkspaceAsync(StreamSnapshot contents, CancellationToken cancellationToken)
 		{
 			// Make sure the repair flag is clear before we start
-			await RunOptionalRepairAsync(cancellationToken);
+			await RunOptionalCacheRepairAsync(cancellationToken);
 
 			// Figure out what to remove
 			RemoveTransaction transaction;
@@ -1903,7 +2010,7 @@ namespace EpicGames.Perforce.Managed
 		private async Task AddFilesToWorkspaceAsync(IPerforceConnection client, StreamSnapshot stream, bool fakeSync, CancellationToken cancellationToken)
 		{
 			// Make sure the repair flag is reset
-			await RunOptionalRepairAsync(cancellationToken);
+			await RunOptionalCacheRepairAsync(cancellationToken);
 
 			// Figure out what we need to do
 			AddTransaction transaction;
@@ -1967,9 +2074,10 @@ namespace EpicGames.Perforce.Managed
 				if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 				{
 					long freeSpace = new DriveInfo(Path.GetPathRoot(_baseDir.FullName)!).AvailableFreeSpace;
-					if (freeSpace - syncSize < _options.MinScratchSpace)
+					long minScratchSpaceBytes = _options.MinScratchSpace * 1024 * 1024;
+					if (freeSpace - syncSize < minScratchSpaceBytes)
 					{
-						throw new InsufficientSpaceException($"Not enough space to sync new files (free space: {freeSpace / (1024.0 * 1024.0):n1}mb, sync size: {syncSize / (1024.0 * 1024.0):n1}mb, min scratch space: {_options.MinScratchSpace / (1024.0 * 1024.0):n1}mb)");
+						throw new InsufficientSpaceException($"Not enough space to sync new files (free space: {freeSpace / (1024.0 * 1024.0):n1}mb, sync size: {syncSize / (1024.0 * 1024.0):n1}mb, min scratch space: {minScratchSpaceBytes / (1024.0 * 1024.0):n1}mb)");
 					}
 				}
 
@@ -2125,10 +2233,7 @@ namespace EpicGames.Perforce.Managed
 					{
 						connectionPool.TryPop(out connection);
 					}
-					if (connection == null)
-					{
-						connection = await PerforceConnection.CreateAsync(client.Settings, client.Logger);
-					}
+					connection ??= await PerforceConnection.CreateAsync(client.Settings, client.Logger);
 
 					// Note: Explicitly disable parallel syncing here; the P4 API attempts to shell out to p4.exe, which may not be installed.
 					await connection.SyncAsync(options, -1, 0, -1, -1, -1, -1, files, cancellationToken).ToListAsync(cancellationToken);

@@ -154,19 +154,23 @@ namespace UE::ConcertSharedSlate
 	{
 		const FSourceDisplayInfo DisplayInfo = Source->GetDisplayInfo();
 		const FSlateBrush* IconBrush = DisplayInfo.Icon.IsSet() ? DisplayInfo.Icon.GetOptionalIcon() : FAppStyle::Get().GetBrush("Icons.Plus");
+
+		const auto GetToolTipText = [ToolTipText = DisplayInfo.ToolTip, DisabledToolTipAttribute = Args.DisabledToolTipAttribute, IsEnabled = Args.IsEnabledAttribute]()
+		{
+			const bool bIsEnabled = !(IsEnabled.IsBound() || IsEnabled.IsSet()) || IsEnabled.Get();
+			const bool bHasDisabledText = DisabledToolTipAttribute.IsBound() || DisabledToolTipAttribute.IsSet();
+			return bIsEnabled
+				? ToolTipText
+				: bHasDisabledText ? DisabledToolTipAttribute.Get() : FText::GetEmpty();
+		};
+		
 		switch (DisplayInfo.SourceType)
 		{
+		case ESourceType::ShowAsToggleButtonList: [[fallthrough]];
 		case ESourceType::ShowAsList:
 			return SNew(SPositiveActionButton)
 				.Text(DisplayInfo.Label)
-				.ToolTipText_Lambda([ToolTipText = DisplayInfo.ToolTip, DisabledToolTipAttribute = Args.DisabledToolTipAttribute, IsEnabled = Args.IsEnabledAttribute]()
-				{
-					const bool bIsEnabled = !(IsEnabled.IsBound() || IsEnabled.IsSet()) || IsEnabled.Get();
-					const bool bHasDisabledText = DisabledToolTipAttribute.IsBound() || DisabledToolTipAttribute.IsSet();
-					return bIsEnabled
-						? ToolTipText
-						: bHasDisabledText ? DisabledToolTipAttribute.Get() : FText::GetEmpty();
-				})
+				.ToolTipText_Lambda(GetToolTipText)
 				.Icon(IconBrush)
 				.IsEnabled_Lambda([IsEnabled = Args.IsEnabledAttribute](){ return !(IsEnabled.IsBound() || IsEnabled.IsSet()) || IsEnabled.Get(); })
 				.OnGetMenuContent_Lambda([Source = MoveTemp(Source), Args = MoveTemp(Args)]()
@@ -178,14 +182,7 @@ namespace UE::ConcertSharedSlate
 		case ESourceType::AddOnClick: 
 			return SNew(SPositiveActionButton)
 				.Text(DisplayInfo.Label)
-				.ToolTipText_Lambda([ToolTipText = DisplayInfo.ToolTip, DisabledToolTipAttribute = Args.DisabledToolTipAttribute, IsEnabled = Args.IsEnabledAttribute]()
-				{
-					const bool bIsEnabled = !(IsEnabled.IsBound() || IsEnabled.IsSet()) || IsEnabled.Get();
-					const bool bHasDisabledText = DisabledToolTipAttribute.IsBound() || DisabledToolTipAttribute.IsSet();
-					return bIsEnabled
-						? ToolTipText
-						: bHasDisabledText ? DisabledToolTipAttribute.Get() : FText::GetEmpty();
-				})
+				.ToolTipText_Lambda(GetToolTipText)
 				.Icon(IconBrush)
 				.IsEnabled_Lambda([IsEnabled = Args.IsEnabledAttribute](){ return !(IsEnabled.IsBound() || IsEnabled.IsSet()) || IsEnabled.Get(); })
 				.OnClicked_Lambda([Source = MoveTemp(Source), AddObjectsDelegate = Args.OnItemsSelected]()
@@ -206,7 +203,8 @@ namespace UE::ConcertSharedSlate
 		const FSourceDisplayInfo DisplayInfo = Option->GetDisplayInfo();
 		switch (DisplayInfo.SourceType)
 		{
-		case ESourceType::ShowAsList:
+		case ESourceType::ShowAsList: [[fallthrough]];
+		case ESourceType::ShowAsToggleButtonList:
 			{
 				if (EnumHasAnyFlags(Args.Flags, EItemPickerFlags::DisplayOptionListInline))
 				{
@@ -217,6 +215,7 @@ namespace UE::ConcertSharedSlate
 					FMenuEntryParams ShowAsListParams;
 					ShowAsListParams.LabelOverride = DisplayInfo.Label;
 					ShowAsListParams.ToolTipOverride = DisplayInfo.ToolTip;
+					ShowAsListParams.IconOverride = DisplayInfo.Icon;
 					ShowAsListParams.bIsSubMenu = true;
 					// Dummy is needed to avoid assert
 					ShowAsListParams.DirectActions = {
@@ -239,15 +238,17 @@ namespace UE::ConcertSharedSlate
 				FMenuEntryParams AddOnClickParams;
 				AddOnClickParams.LabelOverride = DisplayInfo.Label;
 				AddOnClickParams.ToolTipOverride = DisplayInfo.ToolTip;
+				AddOnClickParams.IconOverride = DisplayInfo.Icon;
 				AddOnClickParams.UserInterfaceActionType = EUserInterfaceActionType::Button; 
 				AddOnClickParams.DirectActions = {
 					FExecuteAction::CreateLambda([Option, Args = MoveTemp(Args)](){ Args.OnItemsSelected.Execute(Option->GetSelectableItems()); }),
-					FCanExecuteAction::CreateLambda([Option](){ return Option->GetNumSelectableItems() > 0; })
+					FCanExecuteAction::CreateLambda([Option](){ return Option->HasOptions(); })
 				};
 				
 				MenuBuilder.AddMenuEntry(AddOnClickParams);
 				break;
 			}
+			
 		default:
 			checkNoEntry();
 		}
@@ -261,17 +262,20 @@ namespace UE::ConcertSharedSlate
 		{
 			return Args.GetItemDisplayString.Execute(Left) < Args.GetItemDisplayString.Execute(Right); 
 		});
-
+		
 		// Add the objects to the MenuBuilder
+		const ESourceType SourceType = Source->GetDisplayInfo().SourceType;
+		const bool bUseButton = SourceType == ESourceType::ShowAsList;
+		
 		for (const TItemType& Item : SortedItems)
 		{
 			// Gray out entries that will not do anything.
-			// Remember: we're not creating a context menu but a combo button next to the search bar.
-			// If it was just gone, users might be confused why suddenly there is a missing entry!
-			const FCanExecuteAction CanExecuteAction = FCanExecuteAction::CreateLambda([Item, IsItemSelected = Args.IsItemSelected]()
-			{
-				return !IsItemSelected.IsBound() || !IsItemSelected.Execute(Item);
-			});
+			const FCanExecuteAction CanExecuteAction = bUseButton
+				? FCanExecuteAction::CreateLambda([Item, IsItemSelected = Args.IsItemSelected](){ return !IsItemSelected.IsBound() || !IsItemSelected.Execute(Item); })
+				: FCanExecuteAction::CreateLambda([](){ return true; });
+			const FIsActionChecked IsActionChecked = bUseButton
+				? FIsActionChecked()
+				: FIsActionChecked::CreateLambda([Item, IsItemSelected = Args.IsItemSelected](){ return IsItemSelected.IsBound() && IsItemSelected.Execute(Item); });
 			MenuBuilder.AddMenuEntry(
 				FText::FromString(Args.GetItemDisplayString.Execute(Item)),
 				TAttribute<FText>(TAttribute<FText>::CreateLambda([CanExecuteAction](){ return CanExecuteAction.Execute() ? LOCTEXT("ItemSelected", "Item is already selected") : FText::GetEmpty(); })),
@@ -281,9 +285,11 @@ namespace UE::ConcertSharedSlate
 					{
 						SelectItemDelegate.Execute({ Item });
 					}),
-					CanExecuteAction),
+					CanExecuteAction,
+					IsActionChecked
+					),
 				NAME_None,
-				EUserInterfaceActionType::Button
+				bUseButton ? EUserInterfaceActionType::Button : EUserInterfaceActionType::ToggleButton
 				);
 		}
 	}

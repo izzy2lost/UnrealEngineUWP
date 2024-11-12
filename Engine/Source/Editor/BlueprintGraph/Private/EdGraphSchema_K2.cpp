@@ -26,7 +26,7 @@
 #include "Components/ChildActorComponent.h"
 #include "Engine/Selection.h"
 #include "Engine/UserDefinedEnum.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Textures/SlateIcon.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/Commands/UICommandList.h"
@@ -101,6 +101,7 @@
 
 #include "Editor/EditorPerProjectUserSettings.h"
 #include "BlueprintPaletteFavorites.h"
+#include "ObjectTools.h"
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -114,22 +115,6 @@ enum class EBlueprintRealDisplayMode : uint8
 
 namespace UE::EdGraphSchemaK2::Private
 {
-	int32 LastRealNamingMode = -1;
-	int32 RealNamingMode = static_cast<int32>(EBlueprintRealDisplayMode::Float);
-	FAutoConsoleVariableRef CVarRealNamingMode(TEXT("Blueprint.PC_Real.DisplayMode"), RealNamingMode, TEXT("Real naming mode\n\t0: Real\n\t1: Float (default)\n\t2: Number\n\nNote the editor needs to be restarted for this to fully take effect"));
-
-	EBlueprintRealDisplayMode GetRealDisplayMode()
-	{
-		return static_cast<EBlueprintRealDisplayMode>(FMath::Clamp(RealNamingMode, 0, 2));
-	}
-
-	bool ShouldRefreshRealDisplay()
-	{
-		const bool bResult = LastRealNamingMode != RealNamingMode;
-		LastRealNamingMode = RealNamingMode;
-		return bResult;
-	}
-
 	template <class... T>
 	constexpr bool TAlwaysFalse = false;
 
@@ -198,6 +183,7 @@ const FName FBlueprintMetadata::MD_Variadic(TEXT("Variadic"));
 const FName FBlueprintMetadata::MD_UnsafeForConstructionScripts(TEXT("UnsafeDuringActorConstruction"));
 const FName FBlueprintMetadata::MD_FunctionCategory(TEXT("Category"));
 const FName FBlueprintMetadata::MD_DeprecatedFunction(TEXT("DeprecatedFunction"));
+const FName FBlueprintMetadata::MD_DeprecatedProperty(TEXT("DeprecatedProperty"));
 const FName FBlueprintMetadata::MD_DeprecationMessage(TEXT("DeprecationMessage"));
 const FName FBlueprintMetadata::MD_CompactNodeTitle(TEXT("CompactNodeTitle"));
 const FName FBlueprintMetadata::MD_DisplayName(TEXT("DisplayName"));
@@ -274,7 +260,10 @@ const FName FBlueprintMetadata::MD_UseEnumValuesAsMaskValuesInEditor(TEXT("UseEn
 
 const FName FBlueprintMetadata::MD_AnimBlueprintFunction(TEXT("AnimBlueprintFunction"));
 
+const FName FBlueprintMetadata::MD_ShowDisplayNames(TEXT("ShowDisplayNames"));
+
 const FName FBlueprintMetadata::MD_AllowAbstractClasses(TEXT("AllowAbstract"));
+const FName FBlueprintMetadata::MD_AllowedClasses(TEXT("AllowedClasses"));
 const FName FBlueprintMetadata::MD_GetOptions(TEXT("GetOptions"));
 
 const FName FBlueprintMetadata::MD_Namespace(TEXT("Namespace"));
@@ -980,7 +969,7 @@ bool UEdGraphSchema_K2::FunctionCanBeUsedInDelegate(const UFunction* InFunction)
 
 FText UEdGraphSchema_K2::GetFriendlySignatureName(const UFunction* Function)
 {
-	return UK2Node_CallFunction::GetUserFacingFunctionName( Function );
+	return ObjectTools::GetUserFacingFunctionName( Function );
 }
 
 void UEdGraphSchema_K2::GetAutoEmitTermParameters(const UFunction* Function, TArray<FString>& AutoEmitParameterNames)
@@ -2657,7 +2646,6 @@ TOptional<UEdGraphSchema_K2::FSearchForAutocastFunctionResults> UEdGraphSchema_K
 			return false;
 		};
 
-		const FAutocastFunctionMap& AutocastFunctionMap = FAutocastFunctionMap::Get();
 		if (!FindAndSetCastFunction(OutputPinType, InputPinType))
 		{
 			// Since single-precision float interfaces have been deprecated,
@@ -3195,7 +3183,7 @@ FText UEdGraphSchema_K2::GetPinDisplayName(const UEdGraphPin* Pin) const
 
 		if( GEditor && GetDefault<UEditorStyleSettings>()->bShowFriendlyNames && Pin->bAllowFriendlyName )
 		{
-			DisplayName = FText::FromString(FName::NameToDisplayString(DisplayName.ToString(), Pin->PinType.PinCategory == PC_Boolean));
+			DisplayName = FText::AsCultureInvariant(FName::NameToDisplayString(DisplayName.ToString(), Pin->PinType.PinCategory == PC_Boolean));
 		}
 	}
 	return DisplayName;
@@ -3824,9 +3812,9 @@ FText UEdGraphSchema_K2::GetCategoryText(FName Category, FName SubCategory, bool
 		CategoryDescriptions.Add(PC_Class, LOCTEXT("ClassCategory", "Class Reference"));
 		CategoryDescriptions.Add(PC_Int, LOCTEXT("IntCategory", "Integer"));
 		CategoryDescriptions.Add(PC_Int64, LOCTEXT("Int64Category", "Integer64"));
-		CategoryDescriptions.Add(PC_Real, LOCTEXT("RealCategory", "Real"));
-		CategoryDescriptions.Add(PC_Float, LOCTEXT("FloatCategory", "Real (single-precision)"));
-		CategoryDescriptions.Add(PC_Double, LOCTEXT("DoubleCategory", "Real (double-precision)"));
+		CategoryDescriptions.Add(PC_Real, LOCTEXT("RealCategory", "Float"));
+		CategoryDescriptions.Add(PC_Float, LOCTEXT("FloatCategory", "Float (single-precision)"));
+		CategoryDescriptions.Add(PC_Double, LOCTEXT("DoubleCategory", "Float (double-precision)"));
 		CategoryDescriptions.Add(PC_Name, LOCTEXT("NameCategory", "Name"));
 		CategoryDescriptions.Add(PC_Delegate, LOCTEXT("DelegateCategory", "Delegate"));
 		CategoryDescriptions.Add(PC_MCDelegate, LOCTEXT("MulticastDelegateCategory", "Multicast Delegate"));
@@ -3841,31 +3829,6 @@ FText UEdGraphSchema_K2::GetCategoryText(FName Category, FName SubCategory, bool
 		CategoryDescriptions.Add(PC_SoftClass, LOCTEXT("SoftClassReferenceCategory", "Soft Class Reference"));
 		CategoryDescriptions.Add(PC_FieldPath, LOCTEXT("FieldPathReferenceCategory", "Property Reference"));
 		CategoryDescriptions.Add(AllObjectTypes, LOCTEXT("AllObjectTypes", "Object Types"));
-	}
-
-	if (ShouldRefreshRealDisplay())
-	{
-		switch (GetRealDisplayMode())
-		{
-		case EBlueprintRealDisplayMode::Real:
-			CategoryDescriptions[PC_Real] = LOCTEXT("RealCategory_DisplayAsReal", "Real");
-			CategoryDescriptions[PC_Float] = LOCTEXT("RealCategory_DisplayAsReal_SinglePrecision", "Real (single-precision)");
-			CategoryDescriptions[PC_Double] = LOCTEXT("RealCategory_DisplayAsReal_DoublePrecision", "Real (double-precision)");
-			break;
-		case EBlueprintRealDisplayMode::Float:
-			CategoryDescriptions[PC_Real] = LOCTEXT("RealCategory_DisplayAsFloat", "Float");
-			CategoryDescriptions[PC_Float] = LOCTEXT("RealCategory_DisplayAsFloat_SinglePrecision", "Float (single-precision)");
-			CategoryDescriptions[PC_Double] = LOCTEXT("RealCategory_DisplayAsFloat_DoublePrecision", "Float (double-precision)");
-			break;
-		case EBlueprintRealDisplayMode::Number:
-			CategoryDescriptions[PC_Real] = LOCTEXT("RealCategory_DisplayAsNumber", "Number");
-			CategoryDescriptions[PC_Float] = LOCTEXT("RealCategory_DisplayAsNumber_SinglePrecision", "Number (single-precision)");
-			CategoryDescriptions[PC_Double] = LOCTEXT("RealCategory_DisplayAsNumber_DoublePrecision", "Number (double-precision)");
-			break;
-		default:
-			check(false);
-			break;
-		}
 	}
 
 	if (const FText* TypeDesc = CategoryDescriptions.Find(Category))
@@ -3951,20 +3914,7 @@ FText UEdGraphSchema_K2::TerminalTypeToText(const FName Category, const FName Su
 	{
 		if (Category == UEdGraphSchema_K2::PC_Real)
 		{
-			using namespace UE::EdGraphSchemaK2::Private;
-
-			switch (GetRealDisplayMode())
-			{
-			case EBlueprintRealDisplayMode::Real:
-				PropertyText = (SubCategory == UEdGraphSchema_K2::PC_Float) ? LOCTEXT("SinglePrecisionReal", "Real (single-precision)") : LOCTEXT("DoublePrecisionReal", "Real (double-precision)");
-				break;
-			case EBlueprintRealDisplayMode::Float:
-				PropertyText = (SubCategory == UEdGraphSchema_K2::PC_Float) ? LOCTEXT("SinglePrecisionFloat", "Float (single-precision)") : LOCTEXT("DoublePrecisionFloat", "Float (double-precision)");
-				break;
-			case EBlueprintRealDisplayMode::Number:
-				PropertyText = (SubCategory == UEdGraphSchema_K2::PC_Float) ? LOCTEXT("SinglePrecisionNumber", "Number (single-precision)") : LOCTEXT("DoublePrecisionNumber", "Number (double-precision)");
-				break;
-			}
+			PropertyText = UEdGraphSchema_K2::GetCategoryText(Category, SubCategory, true);
 		}
 		else
 		{
@@ -4028,13 +3978,13 @@ void UEdGraphSchema_K2::GetVariableTypeTree(TArray< TSharedPtr<FPinTypeTreeInfo>
 
 	if( bAllowExec )
 	{
-		TypeTree.Add( MakeShareable( new FPinTypeTreeInfo(GetCategoryText(PC_Exec, true), PC_Exec, this, LOCTEXT("ExecType", "Execution pin")) ) );
+		TypeTree.Add(MakeShareable(new FPinTypeTreeInfo(GetCategoryText(PC_Exec, true), PC_Exec, this, LOCTEXT("ExecType", "Execution pin"))));
 	}
 
-	TypeTree.Add( MakeShareable( new FPinTypeTreeInfo(GetCategoryText(PC_Boolean, true), PC_Boolean, this, LOCTEXT("BooleanType", "True or false value")) ) );
-	TypeTree.Add( MakeShareable( new FPinTypeTreeInfo(GetCategoryText(PC_Byte, true), PC_Byte, this, LOCTEXT("ByteType", "8 bit number")) ) );
-	TypeTree.Add( MakeShareable( new FPinTypeTreeInfo(GetCategoryText(PC_Int, true), PC_Int, this, LOCTEXT("IntegerType", "Integer number")) ) );
-	TypeTree.Add( MakeShareable( new FPinTypeTreeInfo(GetCategoryText(PC_Int64, true), PC_Int64, this, LOCTEXT("Integer64Type", "64 bit Integer number")) ) );
+	TypeTree.Add(MakeShareable(new FPinTypeTreeInfo(GetCategoryText(PC_Boolean, true), PC_Boolean, this, LOCTEXT("BooleanType", "True or false value"))));
+	TypeTree.Add(MakeShareable(new FPinTypeTreeInfo(GetCategoryText(PC_Byte, true), PC_Byte, this, LOCTEXT("ByteType", "8 bit number"))));
+	TypeTree.Add(MakeShareable(new FPinTypeTreeInfo(GetCategoryText(PC_Int, true), PC_Int, this, LOCTEXT("IntegerType", "Integer number"))));
+	TypeTree.Add(MakeShareable(new FPinTypeTreeInfo(GetCategoryText(PC_Int64, true), PC_Int64, this, LOCTEXT("Integer64Type", "64 bit Integer number"))));
 
 	if (!bIndexTypesOnly)
 	{
@@ -4054,7 +4004,7 @@ void UEdGraphSchema_K2::GetVariableTypeTree(TArray< TSharedPtr<FPinTypeTreeInfo>
 	// Add wildcard type
 	if (bAllowWildCard)
 	{
-		TypeTree.Add( MakeShareable( new FPinTypeTreeInfo(GetCategoryText(PC_Wildcard, true), PC_Wildcard, this, LOCTEXT("WildcardType", "Wildcard type (unspecified)")) ) );
+		TypeTree.Add(MakeShareable(new FPinTypeTreeInfo(GetCategoryText(PC_Wildcard, true), PC_Wildcard, this, LOCTEXT("WildcardType", "Wildcard type (unspecified)"))));
 	}
 
 	// Add the types that have subtrees
@@ -4405,7 +4355,7 @@ bool UEdGraphSchema_K2::DefaultValueSimpleValidation(const FEdGraphPinType& PinT
 
 			if (!FPackageName::IsValidObjectPath(NewDefaultValue, &PathReason))
 			{
-				DVSV_RETURN_MSG(FString::Printf(TEXT("Soft Reference '%s' is invalid format for object pin '%s':"), *NewDefaultValue, *PinName.ToString(), *PathReason.ToString()));
+				DVSV_RETURN_MSG(FString::Printf(TEXT("Soft Reference '%s' is invalid format for object pin '%s': %s"), *NewDefaultValue, *PinName.ToString(), *PathReason.ToString()));
 			}
 
 			// Class and IsAsset validation is not foolproof for soft references, skip
@@ -4448,7 +4398,6 @@ bool UEdGraphSchema_K2::DefaultValueSimpleValidation(const FEdGraphPinType& PinT
 			}
 			else if (StructType == RotatorStruct)
 			{
-				FRotator Rot;
 				if (!FDefaultValueHelper::IsStringValidRotator(NewDefaultValue))
 				{
 					DVSV_RETURN_MSG(TEXT("Invalid value for an FRotator"));
@@ -5675,7 +5624,7 @@ void UEdGraphSchema_K2::GetGraphDisplayInformation(const UEdGraph& Graph, /*out*
 			if (Function)
 			{
 				DisplayInfo.PlainName = FText::FromString(Function->GetName());
-				DisplayInfo.Tooltip = FText::FromString(UK2Node_CallFunction::GetDefaultTooltipForFunction(Function)); // grab its tooltip
+				DisplayInfo.Tooltip = FText::FromString(ObjectTools::GetDefaultTooltipForFunction(Function)); // grab its tooltip
 			}
 			else
 			{
@@ -6601,14 +6550,12 @@ UEdGraphNode* UEdGraphSchema_K2::CreateSubstituteNode(UEdGraphNode* Node, const 
 			FBlueprintEditorUtils::GetFunctionNameList(Blueprint, ExistingNamesInUse);
 			FBlueprintEditorUtils::GetClassVariableList(Blueprint, ExistingNamesInUse);
 
-			const ERenameFlags RenameFlags = (Blueprint->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : 0);
-
 			// Allow the old object name to be used in the graph
 			FName ObjName = EventNode->GetFName();
 			UObject* Found = FindObject<UObject>(EventNode->GetOuter(), *ObjName.ToString());
 			if(Found)
 			{
-				Found->Rename(NULL, NULL, REN_DontCreateRedirectors | RenameFlags | ((IsAsyncLoading() || Found->HasAnyFlags(RF_NeedLoad | RF_NeedPostLoad | RF_NeedPostLoadSubobjects)) ? REN_ForceNoResetLoaders : RF_NoFlags));
+				Found->Rename(NULL, NULL, REN_DontCreateRedirectors);
 			}
 
 			// Create a custom event node to replace the original event node imported from text
@@ -6859,8 +6806,6 @@ UEdGraph* UEdGraphSchema_K2::DuplicateGraph(UEdGraph* GraphToDuplicate) const
 				}
 			}
 
-			FName NewGraphName = FBlueprintEditorUtils::FindUniqueKismetName(Blueprint, GraphToDuplicate->GetFName().GetPlainNameString());
-			FEdGraphUtilities::RenameGraphCloseToName(NewGraph,NewGraphName.ToString());
 			// can't have two graphs with the same guid... that'd be silly!
 			NewGraph->GraphGuid = FGuid::NewGuid();
 
@@ -7318,6 +7263,13 @@ void UEdGraphSchema_K2::SplitPin(UEdGraphPin* Pin, const bool bNotify) const
 			PinParams.ContainerType = ProtoPinType.ContainerType;
 			PinParams.ValueTerminalType = ProtoPinType.PinValueType;
 			UEdGraphPin* SubPin = GraphNode->CreatePin(Pin->Direction, ProtoPinType.PinCategory, ProtoPinType.PinSubCategory, ProtoPinType.PinSubCategoryObject.Get(), PinName, PinParams);
+			check(SubPin);
+
+			// Delegate pins will also need a signature copied over. CreatePin doesn't handle this.
+			if (const UFunction* PinSignature = FMemberReference::ResolveSimpleMemberReference<UFunction>(ProtoPinType.PinSubCategoryMemberReference))
+			{
+				FMemberReference::FillSimpleMemberReference(PinSignature, SubPin->PinType.PinSubCategoryMemberReference);
+			}
 
 			if (K2Node != nullptr && K2Node->ShouldDrawCompact() && !Pin->ParentPin)
 			{
@@ -7872,12 +7824,12 @@ struct FBPContextMenuWeightDebugInfo : public FGraphSchemaSearchTextDebugInfo
 	/**
 	* Print out the debug info about this weight info to the console
 	*/
-	virtual void Print(const TArray<FString>& SearchForKeywords, const FGraphActionListBuilderBase::ActionGroup& Action) const override
+	virtual void Print(const TArray<FString>& SearchForKeywords, const FEdGraphSchemaAction& Action) const override
 	{
 		// Combine the actions string, separate with \n so terms don't run into each other, and remove the spaces (incase the user is searching for a variable)
 		// In the case of groups containing multiple actions, they will have been created and added at the same place in the code, using the same description
 		// and keywords, so we only need to use the first one for filtering.
-		const FString& SearchText = Action.GetSearchTextForFirstAction();
+		const FString& SearchText = Action.GetFullSearchText();
 
 		UE_LOG(LogTemp, Warning, TEXT("[Weight for %s] \
 TotalWeight: %-8.2f | PercentageMatchWeight: %-8.2f | PercMatch: %-8.2f | ShorterWeight: %-8.2f | CategoryBonusWeight: %-8.2f | KeywordArrayWeight: %-8.2f | DescriptionWeight: %-8.2f | NodeTitleWeight: %-8.2f | CategoryWeight: %-8.2f | Fav. Bonus:%-8.2f\n"),
@@ -7885,7 +7837,7 @@ TotalWeight: %-8.2f | PercentageMatchWeight: %-8.2f | PercMatch: %-8.2f | Shorte
 	}
 };
 
-float UEdGraphSchema_K2::GetActionFilteredWeight(const FGraphActionListBuilderBase::ActionGroup& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const
+float UEdGraphSchema_K2::GetActionFilteredWeight(const FEdGraphSchemaAction& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const
 {
 	// The overall 'weight' of this action 
 	float TotalWeight = 0.0f;
@@ -7896,192 +7848,199 @@ float UEdGraphSchema_K2::GetActionFilteredWeight(const FGraphActionListBuilderBa
 
 	const bool bIsFromDrag = (DraggedFromPins.Num() > 0);
 
-	int32 Action = 0;
-	if (InCurrentAction.Actions[Action].IsValid() == true)
+	FGraphSchemaSearchWeightModifiers WeightModifiers = GetSearchWeightModifiers();
+	// If there are no keywords, bump the weight on description to compensate
+	const TArray<FString>& LocKeywords = InCurrentAction.GetLocalizedSearchKeywordsArray();
+	WeightModifiers.DescriptionWeight = LocKeywords.Num() > 0 ? WeightModifiers.DescriptionWeight : WeightModifiers.DescriptionWeight * 2.0f;
+
+	CollectSearchTextWeightInfo(InCurrentAction, WeightModifiers, WeightedArrayList, &OutDebugInfo);
+
+	// Give a weight bonus to actions whose category matches what was dragged off of
+	if (bIsFromDrag)
 	{
-		TSharedPtr<FEdGraphSchemaAction> CurrentAction = InCurrentAction.Actions[Action];
+		const TArray<FString>& InActionCategories = InCurrentAction.GetCategoryChain();
+		bool bAddMatchBonus = false;
 
-		FGraphSchemaSearchWeightModifiers WeightModifiers = GetSearchWeightModifiers();
-		// If there are no keywords, bump the weight on description to compensate
-		const TArray<FString>& LocKeywords = InCurrentAction.GetLocalizedSearchKeywordsArrayForFirstAction();
-		WeightModifiers.DescriptionWeight = LocKeywords.Num() > 0 ? WeightModifiers.DescriptionWeight : WeightModifiers.DescriptionWeight * 2.0f;
-
-		CollectSearchTextWeightInfo(InCurrentAction, WeightModifiers, WeightedArrayList, &OutDebugInfo);
-
-		// Give a weight bonus to actions whose category matches what was dragged off of
-		if (bIsFromDrag)
+		/** Get a string reference for an EPinContainerType */
+		auto GetContainerTypeString = [](const EPinContainerType Type) -> const FString&
 		{
-			const TArray<FString>& InActionCategories = InCurrentAction.GetCategoryChain();
-			bool bAddMatchBonus = false;
+			static const FString ArrayName = TEXT("Array");
+			static const FString MapName = TEXT("Map");
+			static const FString SetName = TEXT("Set");
+			static const FString InvalidName = TEXT("INVALID");
 
-			/** Get a string reference for an EPinContainerType */
-			auto GetContainerTypeString = [](const EPinContainerType Type) -> const FString&
+			switch (Type)
 			{
-				static const FString ArrayName = TEXT("Array");
-				static const FString MapName = TEXT("Map");
-				static const FString SetName = TEXT("Set");
-				static const FString InvalidName = TEXT("INVALID");
-
-				switch (Type)
-				{
-					case EPinContainerType::Array:
-						return ArrayName;
-					case EPinContainerType::Map:
-						return MapName;
-					case EPinContainerType::Set:
-						return SetName;
-					default:
-						return InvalidName;
-				}
-			};
-
-			bool bAddedContainerPreferenceBonus = false;
-
-			for (const FString& InActionCategory : InActionCategories)
-			{
-				for (UEdGraphPin* const FromPin : DraggedFromPins)
-				{
-					check(FromPin != nullptr);
-
-					// For containers, add a preference for functions that are marked in their category
-					if (!bAddedContainerPreferenceBonus && FromPin->PinType.IsContainer() && InActionCategory == GetContainerTypeString(FromPin->PinType.ContainerType))
-					{
-						TotalWeight += BPContextMenuConsoleVariables::ContainerBonus;
-						bAddedContainerPreferenceBonus = true;
-					}
-
-					// Check the subcategory of the object to cover more more complex struct types (LinearColor, date time, etc)
-					if (UObject* const SubCatObj = FromPin->PinType.PinSubCategoryObject.Get())
-					{
-						const FString& SubCatObjName = SubCatObj->GetPathName();
-						// The pin SubObjectCategory names don't have any spaces, so split up the category
-						TArray<FString> DelimitedArray;
-						InActionCategory.ParseIntoArray(DelimitedArray, TEXT(" "), true);
-						for (const FString& DelimetedCat : DelimitedArray)
-						{
-							if (SubCatObjName.Contains(DelimetedCat))
-							{
-								bAddMatchBonus = true;
-								break;
-							}
-						}
-					}
-					// Check the category of the pin, this works for basic math types (int, float, byte, etc)
-					else if (InActionCategory.Contains(FromPin->PinType.PinCategory.ToString()))
-					{
-						bAddMatchBonus = true;
-					}
-
-					// If we found match in any cases above then add the weight bonus and stop looking
-					if (bAddMatchBonus)
-					{
-						TotalWeight += BPContextMenuConsoleVariables::MatchingFromPinCategory;
-						OutDebugInfo.CategoryBonusWeight += BPContextMenuConsoleVariables::MatchingFromPinCategory;
-
-						// Break out of the loop so that we don't give any extra bonuses
-						break;
-					}
-				}
+				case EPinContainerType::Array:
+					return ArrayName;
+				case EPinContainerType::Map:
+					return MapName;
+				case EPinContainerType::Set:
+					return SetName;
+				default:
+					return InvalidName;
 			}
-		}
+		};
 
-		// If the user has favorite this action, then give it a hefty bonus
-		const UEditorPerProjectUserSettings& EditorSettings = *GetDefault<UEditorPerProjectUserSettings>();
-		if (UBlueprintPaletteFavorites* BlueprintFavorites = EditorSettings.BlueprintFavorites)
+		bool bAddedContainerPreferenceBonus = false;
+
+		for (const FString& InActionCategory : InActionCategories)
 		{
-			if (BlueprintFavorites->IsFavorited(CurrentAction))
+			for (UEdGraphPin* const FromPin : DraggedFromPins)
 			{
-				TotalWeight += BPContextMenuConsoleVariables::FavoriteBonus;
-				OutDebugInfo.FavoriteBonusWeight += BPContextMenuConsoleVariables::FavoriteBonus;
-			}
-		}
+				check(FromPin != nullptr);
 
-		// Now iterate through all the filter terms and calculate a 'weight' using the values and multipliers
-		const FString* EachTerm = nullptr;
-		const FString* EachTermSanitized = nullptr;
-
-		// For every filter item the user has typed in (the text in the search bar, seperated by spaces)
-		for (int32 FilterIndex = 0; FilterIndex < InFilterTerms.Num(); ++FilterIndex)
-		{
-			EachTerm = &InFilterTerms[FilterIndex];
-			EachTermSanitized = &InSanitizedFilterTerms[FilterIndex];
-			int32 TermLen = EachTerm->Len();
-
-			// Now check the weighted lists	(We could further improve the hit weight by checking consecutive word matches)
-			for (int32 iFindCount = 0; iFindCount < WeightedArrayList.Num(); ++iFindCount)
-			{
-				const TArray<FString>& KeywordArray = *WeightedArrayList[iFindCount].Array;
-				float WeightPerList = 0.0f;
-				float KeywordArrayWeight = WeightedArrayList[iFindCount].WeightModifier;
-
-				// Count of how many words in this keyword array contain a filter(letter) that the user has typed in
-				int32 WordMatchCount = 0;
-
-				// The number of characters in the best matching word
-				int32 BestMatchCharLength = 0;
-
-				// Loop through every word that the user could be looking for
-				for (int32 iEachWord = 0; iEachWord < KeywordArray.Num(); ++iEachWord)
+				// For containers, add a preference for functions that are marked in their category
+				if (!bAddedContainerPreferenceBonus && FromPin->PinType.IsContainer() && InActionCategory == GetContainerTypeString(FromPin->PinType.ContainerType))
 				{
-					float WeightPerWord = 0.0f;
+					TotalWeight += BPContextMenuConsoleVariables::ContainerBonus;
+					bAddedContainerPreferenceBonus = true;
+				}
 
-					// If a word contains the letter that the user has typed in, than increment the whole match count					
-					if (KeywordArray[iEachWord].Contains(*EachTermSanitized, ESearchCase::CaseSensitive) || KeywordArray[iEachWord].Contains(*EachTerm, ESearchCase::CaseSensitive))
+				// Check the subcategory of the object to cover more more complex struct types (LinearColor, date time, etc)
+				if (UObject* const SubCatObj = FromPin->PinType.PinSubCategoryObject.Get())
+				{
+					const FString& SubCatObjName = SubCatObj->GetPathName();
+					// The pin SubObjectCategory names don't have any spaces, so split up the category
+					TArray<FString> DelimitedArray;
+					InActionCategory.ParseIntoArray(DelimitedArray, TEXT(" "), true);
+					for (const FString& DelimetedCat : DelimitedArray)
 					{
-						++WordMatchCount;
-						WeightPerWord += KeywordArrayWeight * BPContextMenuConsoleVariables::WordContainsLetterWeightMultiplier;
-
-						// If the word starts with the letter, give it a little extra boost of weight
-						if (KeywordArray[iEachWord].StartsWith(*EachTermSanitized, ESearchCase::CaseSensitive) || KeywordArray[iEachWord].StartsWith(*EachTerm, ESearchCase::CaseSensitive))
+						if (SubCatObjName.Contains(DelimetedCat))
 						{
-							WeightPerWord += KeywordArrayWeight * BPContextMenuConsoleVariables::StartsWithBonusWeightMultiplier;
-						}
-
-						if (WeightPerWord > WeightPerList)
-						{
-							// Use the best word match weight, we don't want to double-count redundant keywords like add and addmap here
-							WeightPerList = WeightPerWord;
-							BestMatchCharLength = KeywordArray[iEachWord].Len();
+							bAddMatchBonus = true;
+							break;
 						}
 					}
 				}
-
-				// If the user has dragged off of a pin then do not prefer shorter things, because that will result
-				// in the matching of "Add" for a container instead of "+" for numeric types
-				// We only care about length penalty if something actually matched
-				if (BestMatchCharLength > 0 && WeightPerList > 0)
+				// Check the category of the pin, this works for basic math types (int, float, byte, etc)
+				else if (InActionCategory.Contains(FromPin->PinType.PinCategory.ToString()))
 				{
-					// How many words that we are checking had partial matches compared to what the user typed in?
-					float PercMatch = static_cast<float>(WordMatchCount) / static_cast<float>(KeywordArray.Num());
-
-					float PercentageBonus = (WeightPerList * PercMatch * BPContextMenuConsoleVariables::PercentageMatchWeightMultiplier);
-					WeightPerList += PercentageBonus;
-
-					// The shorter the matching word, the larger bonus it gets
-					float ShortFactor = static_cast<float>(BPContextMenuConsoleVariables::MaxWordLength - FMath::Min(BestMatchCharLength, BPContextMenuConsoleVariables::MaxWordLength));
-					float ShortWeight = ShortFactor * BPContextMenuConsoleVariables::ShorterWeight * (bIsFromDrag ? 0.25f : 1.0f);
-					WeightPerList += ShortWeight;
-
-					OutDebugInfo.PercentMatch += PercMatch;
-					OutDebugInfo.ShorterMatchWeight += ShortWeight;
-					OutDebugInfo.PercentMatchWeight += PercentageBonus;
+					bAddMatchBonus = true;
 				}
 
-				TotalWeight += WeightPerList;
-				if (WeightedArrayList[iFindCount].DebugWeight)
+				// If we found match in any cases above then add the weight bonus and stop looking
+				if (bAddMatchBonus)
 				{
-					// Each weight is used twice so add them
-					*WeightedArrayList[iFindCount].DebugWeight += WeightPerList;
+					TotalWeight += BPContextMenuConsoleVariables::MatchingFromPinCategory;
+					OutDebugInfo.CategoryBonusWeight += BPContextMenuConsoleVariables::MatchingFromPinCategory;
+
+					// Break out of the loop so that we don't give any extra bonuses
+					break;
 				}
 			}
 		}
-		OutDebugInfo.TotalWeight = TotalWeight;
-
-		PrintSearchTextDebugInfo(InFilterTerms, CurrentAction, &OutDebugInfo);
 	}
+
+	// If the user has favorite this action, then give it a hefty bonus
+	const UEditorPerProjectUserSettings& EditorSettings = *GetDefault<UEditorPerProjectUserSettings>();
+	if (UBlueprintPaletteFavorites* BlueprintFavorites = EditorSettings.BlueprintFavorites)
+	{
+		if (BlueprintFavorites->IsFavorited(InCurrentAction))
+		{
+			TotalWeight += BPContextMenuConsoleVariables::FavoriteBonus;
+			OutDebugInfo.FavoriteBonusWeight += BPContextMenuConsoleVariables::FavoriteBonus;
+		}
+	}
+
+	// Now iterate through all the filter terms and calculate a 'weight' using the values and multipliers
+	const FString* EachTerm = nullptr;
+	const FString* EachTermSanitized = nullptr;
+
+	// For every filter item the user has typed in (the text in the search bar, seperated by spaces)
+	for (int32 FilterIndex = 0; FilterIndex < InFilterTerms.Num(); ++FilterIndex)
+	{
+		EachTerm = &InFilterTerms[FilterIndex];
+		EachTermSanitized = &InSanitizedFilterTerms[FilterIndex];
+		int32 TermLen = EachTerm->Len();
+
+		// Now check the weighted lists	(We could further improve the hit weight by checking consecutive word matches)
+		for (int32 iFindCount = 0; iFindCount < WeightedArrayList.Num(); ++iFindCount)
+		{
+			const TArray<FString>& KeywordArray = *WeightedArrayList[iFindCount].Array;
+			float WeightPerList = 0.0f;
+			float KeywordArrayWeight = WeightedArrayList[iFindCount].WeightModifier;
+
+			// Count of how many words in this keyword array contain a filter(letter) that the user has typed in
+			int32 WordMatchCount = 0;
+
+			// The number of characters in the best matching word
+			int32 BestMatchCharLength = 0;
+
+			// Loop through every word that the user could be looking for
+			for (int32 iEachWord = 0; iEachWord < KeywordArray.Num(); ++iEachWord)
+			{
+				float WeightPerWord = 0.0f;
+
+				// If a word contains the letter that the user has typed in, than increment the whole match count					
+				if (KeywordArray[iEachWord].Contains(*EachTermSanitized, ESearchCase::CaseSensitive) || KeywordArray[iEachWord].Contains(*EachTerm, ESearchCase::CaseSensitive))
+				{
+					++WordMatchCount;
+					WeightPerWord += KeywordArrayWeight * BPContextMenuConsoleVariables::WordContainsLetterWeightMultiplier;
+
+					// If the word starts with the letter, give it a little extra boost of weight
+					if (KeywordArray[iEachWord].StartsWith(*EachTermSanitized, ESearchCase::CaseSensitive) || KeywordArray[iEachWord].StartsWith(*EachTerm, ESearchCase::CaseSensitive))
+					{
+						WeightPerWord += KeywordArrayWeight * BPContextMenuConsoleVariables::StartsWithBonusWeightMultiplier;
+					}
+
+					if (WeightPerWord > WeightPerList)
+					{
+						// Use the best word match weight, we don't want to double-count redundant keywords like add and addmap here
+						WeightPerList = WeightPerWord;
+						BestMatchCharLength = KeywordArray[iEachWord].Len();
+					}
+				}
+			}
+
+			// If the user has dragged off of a pin then do not prefer shorter things, because that will result
+			// in the matching of "Add" for a container instead of "+" for numeric types
+			// We only care about length penalty if something actually matched
+			if (BestMatchCharLength > 0 && WeightPerList > 0)
+			{
+				// How many words that we are checking had partial matches compared to what the user typed in?
+				float PercMatch = static_cast<float>(WordMatchCount) / static_cast<float>(KeywordArray.Num());
+
+				float PercentageBonus = (WeightPerList * PercMatch * BPContextMenuConsoleVariables::PercentageMatchWeightMultiplier);
+				WeightPerList += PercentageBonus;
+
+				// The shorter the matching word, the larger bonus it gets
+				float ShortFactor = static_cast<float>(BPContextMenuConsoleVariables::MaxWordLength - FMath::Min(BestMatchCharLength, BPContextMenuConsoleVariables::MaxWordLength));
+				float ShortWeight = ShortFactor * BPContextMenuConsoleVariables::ShorterWeight * (bIsFromDrag ? 0.25f : 1.0f);
+				WeightPerList += ShortWeight;
+
+				OutDebugInfo.PercentMatch += PercMatch;
+				OutDebugInfo.ShorterMatchWeight += ShortWeight;
+				OutDebugInfo.PercentMatchWeight += PercentageBonus;
+			}
+
+			TotalWeight += WeightPerList;
+			if (WeightedArrayList[iFindCount].DebugWeight)
+			{
+				// Each weight is used twice so add them
+				*WeightedArrayList[iFindCount].DebugWeight += WeightPerList;
+			}
+		}
+	}
+	OutDebugInfo.TotalWeight = TotalWeight;
+
+	PrintSearchTextDebugInfo(InFilterTerms, InCurrentAction, &OutDebugInfo);
 
 	return TotalWeight;
 }
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+float UEdGraphSchema_K2::GetActionFilteredWeight(const FGraphActionListBuilderBase::ActionGroup& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const
+{
+	int32 Action = 0;
+	if (InCurrentAction.Actions[Action].IsValid() == true)
+	{
+		return GetActionFilteredWeight(*InCurrentAction.Actions[Action], InFilterTerms, InSanitizedFilterTerms, DraggedFromPins);
+	}
+
+	return 0.f;
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #endif // WITH_EDITORONLY_DATA
 

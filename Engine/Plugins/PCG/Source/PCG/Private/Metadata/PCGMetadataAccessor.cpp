@@ -4,9 +4,8 @@
 
 #include "PCGModule.h"
 #include "PCGPoint.h"
+#include "Helpers/PCGBlueprintHelpers.h"
 #include "Metadata/PCGMetadata.h"
-
-#include "Blueprint/BlueprintExceptionInfo.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGMetadataAccessor)
 
@@ -18,17 +17,9 @@ namespace PCGMetadataAccessorHelpers
 	static const FText InvalidTypeFormat = LOCTEXT("InvalidTypeFormat", "[PCG] Attribute {0} is of type {1} and it is not the requested type {2}");
 	static const FText NoMetadata = LOCTEXT("NoMetadata", "[PCG] No metadata provided");
 
-	void OnException(FText ErrorMessage)
+	void OnException(const FText& ErrorMessage)
 	{
-		if (FFrame::GetThreadLocalTopStackFrame() && FFrame::GetThreadLocalTopStackFrame()->Object)
-		{
-			const FBlueprintExceptionInfo ExceptionInfo(EBlueprintExceptionType::FatalError, ErrorMessage);
-			FBlueprintCoreDelegates::ThrowScriptException(FFrame::GetThreadLocalTopStackFrame()->Object, *FFrame::GetThreadLocalTopStackFrame(), ExceptionInfo);
-		}
-		else
-		{
-			UE_LOG(LogPCG, Error, TEXT("%s"), *ErrorMessage.ToString());
-		}
+		UPCGBlueprintHelpers::ThrowBlueprintException(ErrorMessage);
 	}
 }
 

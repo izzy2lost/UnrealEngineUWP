@@ -350,6 +350,8 @@ void SGraphNodeKnot::UpdateGraphNode()
 
 	this->ContentScale.Bind( this, &SGraphNode::GetContentScale );
 
+	SetupErrorReporting();
+
 	this->GetOrAddSlot( ENodeZone::Center )
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Center)
@@ -389,6 +391,13 @@ void SGraphNodeKnot::UpdateGraphNode()
 							SAssignNew(RightNodeBox, SVerticalBox)
 						]
 					]
+				]
+				+SVerticalBox::Slot()
+				.VAlign(VAlign_Bottom)
+				.HAlign(HAlign_Center)
+				.AutoHeight()
+				[
+					ErrorReporting->AsWidget()
 				]
 			]
 		];

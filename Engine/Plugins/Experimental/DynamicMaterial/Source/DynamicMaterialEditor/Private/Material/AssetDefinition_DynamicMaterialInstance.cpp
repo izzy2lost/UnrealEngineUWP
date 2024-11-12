@@ -2,20 +2,35 @@
 
 #include "AssetDefinition_DynamicMaterialInstance.h"
 #include "AssetToolsModule.h"
+#include "DynamicMaterialEditorSettings.h"
 #include "IAssetTools.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Model/DynamicMaterialModel.h"
+#include "Model/DynamicMaterialModelDynamic.h"
+#include "ThumbnailRendering/SceneThumbnailInfoWithPrimitive.h"
 
 #define LOCTEXT_NAMESPACE "AssetDefinition_DynamicMaterialInstance"
 
 FText UAssetDefinition_DynamicMaterialInstance::GetAssetDisplayName() const
 {
-	return LOCTEXT("DynamicMaterialInstance", "Dynamic Material Instance");
+	return LOCTEXT("MaterialDesigner", "Material Designer");
 }
 
 FText UAssetDefinition_DynamicMaterialInstance::GetAssetDisplayName(const FAssetData& InAssetData) const
 {
-	return FText::FromName(InAssetData.AssetName);
+	const FString ModelTypeTag = UDynamicMaterialInstance::GetMaterialTypeTag(InAssetData);
+
+	if (ModelTypeTag == UDynamicMaterialInstance::ModelTypeTag_Material)
+	{
+		return LOCTEXT("MaterialDesignerMaterial", "MD Material");
+	}
+
+	if (ModelTypeTag == UDynamicMaterialInstance::ModelTypeTag_Instance)
+	{
+		return LOCTEXT("MaterialDesignerInstance", "MD Instance");
+	}
+
+	return GetAssetDisplayName();
 }
 
 TSoftClassPtr<> UAssetDefinition_DynamicMaterialInstance::GetAssetClass() const
@@ -30,8 +45,27 @@ FLinearColor UAssetDefinition_DynamicMaterialInstance::GetAssetColor() const
 
 TConstArrayView<FAssetCategoryPath> UAssetDefinition_DynamicMaterialInstance::GetAssetCategories() const
 {
-	static const TArray<FAssetCategoryPath> Categories = {EAssetCategoryPaths::Material};
+	static TArray<FAssetCategoryPath> Categories = {EAssetCategoryPaths::Material};
 	return Categories;
+}
+
+UThumbnailInfo* UAssetDefinition_DynamicMaterialInstance::LoadThumbnailInfo(const FAssetData& InAsset) const
+{
+	const UDynamicMaterialEditorSettings* Settings = GetDefault<UDynamicMaterialEditorSettings>();
+
+	if (!Settings)
+	{
+		return nullptr;
+	}
+
+	UDynamicMaterialInstance* MaterialInstance = Cast<UDynamicMaterialInstance>(InAsset.GetAsset());
+
+	if (!MaterialInstance)
+	{
+		return nullptr;
+	}
+
+	return UE::Editor::FindOrCreateThumbnailInfo<USceneThumbnailInfoWithPrimitive>(MaterialInstance);
 }
 
 EAssetCommandResult UAssetDefinition_DynamicMaterialInstance::OpenAssets(const FAssetOpenArgs& InOpenArgs) const
@@ -47,14 +81,14 @@ EAssetCommandResult UAssetDefinition_DynamicMaterialInstance::OpenAssets(const F
 			continue;
 		}
 
-		UDynamicMaterialModel* MaterialModel = Instance->GetMaterialModel();
+		UDynamicMaterialModelBase* MaterialModelBase = Instance->GetMaterialModelBase();
 
-		if (!MaterialModel)
+		if (!MaterialModelBase)
 		{
 			continue;
 		}
 
-		MaterialModels.Add(MaterialModel);
+		MaterialModels.Add(MaterialModelBase);
 	}
 
 	if (MaterialModels.IsEmpty())

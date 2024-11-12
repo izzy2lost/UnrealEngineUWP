@@ -11,7 +11,7 @@ FFlatTriangulationMeshGenerator::FFlatTriangulationMeshGenerator()
 	IndicesMap = FIndex2i(0, 1);
 }
 
-
+FFlatTriangulationMeshGenerator::~FFlatTriangulationMeshGenerator() = default;
 
 FMeshShapeGenerator& FFlatTriangulationMeshGenerator::Generate()
 {

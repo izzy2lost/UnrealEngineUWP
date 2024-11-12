@@ -36,17 +36,17 @@ void FShaderFormatsPropertyDetails::SetOnUpdateShaderWarning(FSimpleDelegate con
 }
 
 void FShaderFormatsPropertyDetails::CreateTargetShaderFormatsPropertyView(
-	ITargetPlatform* TargetPlatform,
+	ITargetPlatformSettings* TargetPlatformSettings,
 	GetFriendlyNameFromRHINameFnc FriendlyNameFnc,
 	FilterShaderPlatformFnc* FilterShaderPlatformFunc,
 	ECategoryPriority::Type Priority)
 {
-	check(TargetPlatform);
+	check(TargetPlatformSettings);
 	DetailBuilder->HideProperty(ShaderFormatsPropertyHandle);
 	
 	// List of supported RHI's and selected targets
 	TArray<FName> ShaderFormats;
-	TargetPlatform->GetAllPossibleShaderFormats(ShaderFormats);
+	TargetPlatformSettings->GetAllPossibleShaderFormats(ShaderFormats);
 	
 	IDetailCategoryBuilder& TargetedRHICategoryBuilder = DetailBuilder->EditCategory(Title, FText::GetEmpty(), Priority);
 	

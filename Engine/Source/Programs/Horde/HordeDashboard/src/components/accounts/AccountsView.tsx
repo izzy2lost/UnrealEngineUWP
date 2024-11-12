@@ -231,11 +231,13 @@ const AccountEditor: React.FC<{ accountIn?: GetAccountResponse, onClose: () => v
       try {
 
          setSubmitting(true);
+
+         const password = secrets.password ? secrets.password : undefined;
          if (accountIn?.id) {
-            const uaccount: UpdateAccountRequest = { ...account, password: secrets.password };
+            const uaccount: UpdateAccountRequest = { ...account, password: password };
             await backend.updateAccount(accountIn.id, uaccount);
          } else {
-            const naccount: CreateAccountRequest = { ...account };
+            const naccount: CreateAccountRequest = { ...account, password: password };
             await backend.createAccount(naccount)
          }
          setSubmitting(false);

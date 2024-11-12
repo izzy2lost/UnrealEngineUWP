@@ -20,9 +20,7 @@ public:
 	SLATE_BEGIN_ARGS(SClippingHorizontalBox) 
 		: _StyleSet(&FCoreStyle::Get())
 		, _StyleName(NAME_None)
-		, _IsFocusable(true)
-		{ }
-
+		, _IsFocusable(true) { }
 		SLATE_ARGUMENT(FOnGetContent, OnWrapButtonClicked)
 		SLATE_ARGUMENT(const ISlateStyle*, StyleSet)
 		SLATE_ARGUMENT(FName, StyleName)
@@ -48,6 +46,7 @@ public:
 private:
 	void OnWrapButtonOpenChanged(bool bIsOpen);
 	EActiveTimerReturnType UpdateWrapButtonStatus(double CurrentTime, float DeltaTime);
+
 private:
 	/** The button that is displayed when a toolbar or menubar is clipped */
 	TSharedPtr<SComboButton> WrapButton;
@@ -67,6 +66,8 @@ private:
 
 	/** Can the wrap button be focused? */
 	bool bIsFocusable;
+
+	float WrapButtonWidth = 0.0f; // Fixed width, initialized after button creation
 
 	/** The style to use */
 	const ISlateStyle* StyleSet;

@@ -21,6 +21,8 @@ struct FGraphProperties
 {
 	GENERATED_BODY()
 
+	FGraphProperties() = default;
+ 
 	UPROPERTY(SaveGame)
 	bool bGenerateIslands = true;
 	
@@ -52,6 +54,9 @@ private:
 	FGraphVertexHandle VertexHandle1;
 	FGraphVertexHandle VertexHandle2;
 };
+
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnGraphEdgeCreated, const FEdgeSpecifier&);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnGraphEdgeRemoved, const FEdgeSpecifier&);
 
 /**
  * A UGraph is a collection of nodes and edges. This graph representation
@@ -91,6 +96,9 @@ public:
 	/** Create a node with the specified subclass, adds it to the graph, and returns a handle to it. */
 	FGraphVertexHandle CreateVertex(FGraphUniqueIndex InUniqueIndex = FGraphUniqueIndex::CreateUniqueIndex(false));
 
+	/** Changes a node handle, updating all the references. The vertex must exist. */
+	void ChangeVertexHandle(const FGraphVertexHandle& OldVertexHandle, const FGraphVertexHandle& NewVertexHandle);
+
 	/** Creates edges in bulk. This is more efficient than calling CreateEdge multiple times since we will only try to assign a node to an island once. */
 	void CreateBulkEdges(TArray<FEdgeSpecifier>&& NodesToConnect);
 
@@ -122,6 +130,8 @@ public:
 
 	FOnGraphVertexCreated OnVertexCreated;
 	FOnGraphIslandCreated OnIslandCreated;
+	FOnGraphEdgeCreated OnEdgeCreated;
+	FOnGraphEdgeRemoved OnEdgeRemoved;
 
 	const TMap<FGraphVertexHandle, TObjectPtr<UGraphVertex>>& GetVertices() const { return Vertices; }
 	const TMap<FGraphIslandHandle, TObjectPtr<UGraphIsland>>& GetIslands() const { return Islands; }

@@ -694,10 +694,10 @@ void USimpleConstructionScript::ExecuteScriptOnActor(AActor* Actor, const TInlin
 		USceneComponent* SceneComp = NewObject<USceneComponent>(Actor);
 
 		// The object is new, so its safe for us to atomically set the flag in the open.
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN
 			{
 				SceneComp->SetFlags(RF_Transactional);
-			});
+			};
 
 		SceneComp->CreationMethod = EComponentCreationMethod::SimpleConstructionScript;
 		if (RootRelativeRotationCache)
@@ -1413,12 +1413,12 @@ USCS_Node* USimpleConstructionScript::CreateNode(UClass* NewComponentClass, FNam
 	UObject* Collision = FindObject<UObject>(Blueprint->GeneratedClass, *Name);
 	while(Collision)
 	{
-		Collision->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty|REN_DontCreateRedirectors|REN_ForceNoResetLoaders);
+		Collision->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors);
 		Collision = FindObject<UObject>(Blueprint->GeneratedClass, *Name);
 	}
 
 	// Now set the actual name and outer to the BPGC.
-	NewComponentTemplate->Rename(*Name, Blueprint->GeneratedClass, REN_DoNotDirty|REN_DontCreateRedirectors|REN_ForceNoResetLoaders);
+	NewComponentTemplate->Rename(*Name, Blueprint->GeneratedClass, REN_DoNotDirty | REN_DontCreateRedirectors);
 
 	return CreateNodeImpl(NewComponentTemplate, NewComponentVariableName);
 }

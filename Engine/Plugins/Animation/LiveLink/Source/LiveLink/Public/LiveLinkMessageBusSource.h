@@ -100,6 +100,8 @@ protected:
 	// Current Validity of Source
 	FThreadSafeBool bIsValid;
 
+	ILiveLinkClient* Client;
+
 private:
 	TSharedPtr<FMessageEndpoint, ESPMode::ThreadSafe> CreateAndInitializeMessageEndpoint();
 
@@ -116,8 +118,6 @@ private:
 
 	// Threadsafe update of the last active time
 	FORCEINLINE void UpdateConnectionLastActive();
-
-	ILiveLinkClient* Client;
 
 	// Our identifier in LiveLink
 	FGuid SourceGuid;

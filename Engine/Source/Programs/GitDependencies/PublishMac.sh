@@ -1,5 +1,6 @@
 #!/bin/sh
 # Copyright Epic Games, Inc. All Rights Reserved.
+# Pass -Sign to sign the executables, disabled by default
 
 set -e
 
@@ -14,7 +15,7 @@ pushd "$(dirname "$SCRIPT_PATH")" > /dev/null
 sh ../../../Build/BatchFiles/Mac/SetupDotnet.sh
 rm -R -f "../../../Binaries/DotNET/GitDependencies/"
 
-echo.
+echo
 echo Building for osx-x64...
 rm -R -f bin
 rm -R -f obj
@@ -24,7 +25,7 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
-echo.
+echo
 echo Building for osx-arm64...
 rm -R -f bin
 rm -R -f obj
@@ -35,7 +36,9 @@ if [ $? -ne 0 ]; then
 fi
 
 # Sign the GitDependency binaries
-/usr/bin/codesign -f -s "Developer ID Application" -v "../../../Binaries/DotNET/GitDependencies/osx-x64/GitDependencies" --no-strict
-/usr/bin/codesign -f -s "Developer ID Application" -v "../../../Binaries/DotNET/GitDependencies/osx-arm64/GitDependencies" --no-strict
+if [[ "$*" == *"-Sign"* ]]; then
+	/usr/bin/codesign -f -s "Developer ID Application" -v "../../../Binaries/DotNET/GitDependencies/osx-x64/GitDependencies" --no-strict
+	/usr/bin/codesign -f -s "Developer ID Application" -v "../../../Binaries/DotNET/GitDependencies/osx-arm64/GitDependencies" --no-strict
+fi
 
 popd

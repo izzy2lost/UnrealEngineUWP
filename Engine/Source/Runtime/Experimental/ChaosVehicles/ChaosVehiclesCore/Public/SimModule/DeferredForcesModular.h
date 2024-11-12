@@ -144,6 +144,11 @@ public:
 		ApplyForceAtPositionDatas.Add(ApplyForceAtPositionDataIn);
 	}
 
+	void AddCOM(const FApplyForceAtPositionData& ApplyForceAtPositionDataIn)
+	{
+		ApplyForceAtCOMDatas.Add(ApplyForceAtPositionDataIn);
+	}
+
 	void Add(const FAddTorqueInRadiansData& ApplyTorqueDataIn)
 	{
 		ApplyTorqueDatas.Add(ApplyTorqueDataIn);
@@ -192,6 +197,8 @@ public:
 		, const FVector& PositionalOffset
 		, FTransform& TransformOut);
 
+	Chaos::FPBDRigidParticleHandle* GetClusterParticle(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles);
+
 	void Apply(FGeometryCollectionPhysicsProxy* Proxy
 		, const TManagedArray<FTransform>& Transforms
 		, const TManagedArray<FTransform>& CollectionMassToLocal
@@ -218,8 +225,10 @@ private:
 	void AddForceAtPosition(Chaos::FPBDRigidParticleHandle* RigidHandle, const FApplyForceAtPositionData& DataIn, const FTransform& OffsetTransform);
 	void AddTorque(Chaos::FPBDRigidParticleHandle* RigidHandle, const FAddTorqueInRadiansData& DataIn, const FTransform& OffsetTransform);
 	void AddForce(Chaos::FPBDRigidParticleHandle* RigidHandle, const FApplyForceData& DataIn, const FTransform& OffsetTransform);
+	void AddForceAtCOM(Chaos::FPBDRigidParticleHandle* RigidHandle, const FApplyForceAtPositionData& DataIn);
 
 	TArray<FApplyForceData> ApplyForceDatas;
+	TArray<FApplyForceAtPositionData> ApplyForceAtCOMDatas;
 	TArray<FApplyForceAtPositionData> ApplyForceAtPositionDatas;
 	TArray<FAddTorqueInRadiansData> ApplyTorqueDatas;
 	TArray<FAddImpulseData> ApplyImpulseDatas;

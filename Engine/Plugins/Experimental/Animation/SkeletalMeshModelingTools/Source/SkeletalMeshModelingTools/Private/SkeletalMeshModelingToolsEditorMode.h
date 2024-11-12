@@ -16,6 +16,7 @@ class ISkeletalMeshEditingInterface;
 class HHitProxy;
 class UDebugSkelMeshComponent;
 class ISkeletalMeshEditor;
+enum class EToolManagerToolSwitchMode;
 
 UCLASS()
 class USkeletalMeshModelingToolsEditorMode : 
@@ -41,6 +42,7 @@ public:
 	virtual bool HandleClick(FEditorViewportClient* InViewportClient, HHitProxy *HitProxy, const FViewportClick &Click) override;
 	virtual bool ComputeBoundingBoxForViewportFocus(AActor* Actor, UPrimitiveComponent* PrimitiveComponent, FBox& InOutBox) const override;
 	virtual bool UsesToolkits() const override { return true; }
+	virtual bool ShouldToolStartBeAllowed(const FString& ToolIdentifier) const override;
 
 	// binding
 	void SetEditorBinding(const TWeakPtr<ISkeletalMeshEditor>& InSkeletalMeshEditor);
@@ -53,11 +55,16 @@ private:
 	// Stylus support is currently disabled; this is left in for reference if/when it is brought back
 	//TUniquePtr<FStylusStateTracker> StylusStateTracker;
 
+	// we restore previous switch tool behavior when exiting this mode
+	EToolManagerToolSwitchMode ToolSwitchModeToRestoreOnExit;
+
 	static ISkeletalMeshEditingInterface* GetSkeletonInterface(UInteractiveTool* InTool);
 
 	UDebugSkelMeshComponent* GetSkelMeshComponent() const;
 
 	bool NeedsTransformGizmo() const;
+
+	bool bDeactivateOnPIEStartStateToRestore;
 
 	FDelegateHandle ToToolNotifierHandle;
 	FDelegateHandle FromToolNotifierHandle;

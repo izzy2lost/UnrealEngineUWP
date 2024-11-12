@@ -124,15 +124,13 @@ bool NormalizePackageNames( TArray<FString> PackageNames, TArray<FString>& Packa
 			TStringBuilder<256> UnusedRelPath;
 			for ( const FString& Path : Paths)
 			{
-				// Make sure paths are relative so SearchDirectoryRecursive will output relative paths
-				const FString RelativePath = FPaths::CreateStandardFilename(Path);
-				if (!FPackageName::TryGetMountPointForPath(RelativePath, UnusedPackagePath, UnusedFilePath, UnusedRelPath))
+				if (!FPackageName::TryGetMountPointForPath(Path, UnusedPackagePath, UnusedFilePath, UnusedRelPath))
 				{
 					UE_LOG(LogPackageUtilities, Warning,
-						TEXT("Engine.ini:[Core.System]:Paths entry '%s' is not mounted. Skipping it."), *RelativePath);
+						TEXT("Engine.ini:[Core.System]:Paths entry '%s' is not mounted. Skipping it."), *Path);
 					continue;
 				}
-				FString SearchWildcard = RelativePath / PackageWildcard;
+				FString SearchWildcard = Path / PackageWildcard;
 				UE_LOG(LogPackageUtilities, Log, TEXT("Searching using wildcard: '%s'"), *SearchWildcard);
 				SearchDirectoryRecursive(SearchWildcard, PackageNames, PackagePathNames);
 			}
@@ -222,7 +220,7 @@ bool NormalizePackageNames( TArray<FString> PackageNames, TArray<FString>& Packa
 
 			if ( (PackageFilter&NORMALIZE_ExcludeNoRedistPackages) != 0 )
 			{
-				if (Filename.Contains(TEXT("/NoRedist/")) || Filename.Contains(TEXT("/NotForLicensees/")) || Filename.Contains(TEXT("/EpicInternal/")))
+				if (Filename.Contains(TEXT("/NoRedist/")) || Filename.Contains(TEXT("/NotForLicensees/")) || Filename.Contains(TEXT("/LimitedAccess/")) || Filename.Contains(TEXT("/EpicInternal/")))
 				{
 					PackagePathNames.RemoveAt(PackageIndex);
 					continue;
@@ -1641,7 +1639,7 @@ int32 UPkgInfoCommandlet::Main( const FString& Params )
 			TRefCountPtr<FUObjectSerializeContext> LoadContext(FUObjectThreadContext::Get().GetSerializeContext());
 			BeginLoad(LoadContext);
 			Linker = CreateLinkerForFilename(LoadContext, Filename);
-			EndLoad(Linker ? Linker->GetSerializeContext() : LoadContext.GetReference());
+			EndLoad(LoadContext);
 		}
 		else
 		{

@@ -56,7 +56,7 @@ public class UEWorkManagerJavaInterface
 			// WARNING:
 			//These defaults are just in here for prosterity, but in reality the defaults in the C++ UEWorkManagerNativeWrapper class
 			//are what is actually used since it drives these underlying values (Although the 2 code paths SHOULD match)
-			bRequireBatteryNotLow			= true;
+			bRequireBatteryNotLow			= false;
 			bRequireCharging				= false;
 			bRequireDeviceIdle				= false;
 			bRequireWifi					= false;

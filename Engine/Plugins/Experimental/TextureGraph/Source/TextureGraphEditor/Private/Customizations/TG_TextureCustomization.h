@@ -7,6 +7,8 @@
 #include "DetailWidgetRow.h"
 #include "DetailLayoutBuilder.h"
 #include "IDetailChildrenBuilder.h"
+#include "TextureGraph.h"
+#include "TG_Graph.h"
 #include "TG_Texture.h"
 #include "Expressions/TG_Expression.h"
 #include "STG_TextureHistogram.h"

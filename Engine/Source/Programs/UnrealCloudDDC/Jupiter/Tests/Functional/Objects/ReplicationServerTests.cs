@@ -5,15 +5,15 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
+using EpicGames.AspNet;
+using EpicGames.Horde.Storage;
+using EpicGames.Serialization;
 using Jupiter.Implementation;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Serilog;
 using Logger = Serilog.Core.Logger;
-using EpicGames.Horde.Storage;
-using EpicGames.Serialization;
-using EpicGames.AspNet;
 
 namespace Jupiter.FunctionalTests.References
 {

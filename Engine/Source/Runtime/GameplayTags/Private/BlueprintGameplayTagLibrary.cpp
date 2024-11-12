@@ -298,6 +298,30 @@ bool UBlueprintGameplayTagLibrary::NotEqual_TagContainerTagContainer(FGameplayTa
 
 	return A != TagContainer;
 }
+
+FGameplayTagContainer UBlueprintGameplayTagLibrary::GetOwnedGameplayTags(TScriptInterface<IGameplayTagAssetInterface> TagContainerInterface)
+{
+	// Note:
+	// Why do this instead of just letting the BP Compiler use the InOut parameter of the original function?
+	//   Because the BP Compiler will store the out values in the event graph as a hidden property, which will
+	//   cause issues because the tags will never get reset, and will always be appended to, most all the implementations
+	//   of the GetOwnedGameplayTags allow you to continually Append tags to the container, but because the fact that the
+	//   inout is hidden in BP, you don't get the understand or option really to clear the tags, so this is a safer way.
+
+	FGameplayTagContainer OwnedTags;
+	if (TagContainerInterface)
+	{
+		TagContainerInterface->GetOwnedGameplayTags(OwnedTags);
+	}
+
+	return OwnedTags;
+}
+
+TScriptInterface<IGameplayTagAssetInterface> UBlueprintGameplayTagLibrary::Conv_ObjectToGameplayTagAssetInterface(UObject* InObject)
+{
+	return TScriptInterface<IGameplayTagAssetInterface>(InObject);
+}
+
 FString UBlueprintGameplayTagLibrary::GetDebugStringFromGameplayTagContainer(const FGameplayTagContainer& TagContainer)
 {
 	return TagContainer.ToStringSimple();

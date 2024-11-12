@@ -2,24 +2,91 @@
 
 #include "Library/DMXEntityFixtureType.h"
 
+#include "DMXAttributeToDefaultPhyiscalProperties.h"
 #include "DMXConversions.h"
 #include "DMXProtocolSettings.h"
-#include "DMXRuntimeLog.h"
 #include "DMXRuntimeMainStreamObjectVersion.h"
 #include "DMXRuntimeUtils.h"
 #include "Library/DMXEntityFixturePatch.h"
+#include "Library/DMXGDTFAssetImportData.h"
 #include "Library/DMXImport.h"
 #include "Library/DMXImportGDTF.h"
 #include "Library/DMXLibrary.h"
-
-#include "Algo/Find.h"
+#include "Misc/EngineVersion.h"
+#include "Misc/Paths.h"
 
 #define LOCTEXT_NAMESPACE "DMXEntityFixtureType"
+
+void FDMXFixtureFunction::PostSerialize(const FArchive& Ar)
+{
+#if WITH_EDITOR
+	if (Ar.IsLoading())
+	{
+		UpdatePhysicalDefaultValue();
+
+		// Upgrade Fixture Functions that were added before physical properties were added to use these properties
+		if (Ar.CustomVer(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::DMXUpgradeFixtureFunctionsToUsePhysicalProperties)
+		{
+			using namespace UE::DMX;
+			FDMXAttributeToDefaultPhyiscalProperties::ResetToDefaultPhysicalProperties(*this);
+		}
+	}
+#endif
+}
 
 int32 FDMXFixtureFunction::GetLastChannel() const
 {
 	return Channel + GetNumChannels() - 1;
 }
+
+#if WITH_EDITOR
+void FDMXFixtureFunction::SetPhysicalDefaultValue(double InPhysicalDefaultValue)
+{
+	const double PhysicalMin = FMath::Min(PhysicalFrom, PhysicalTo);
+	const double PhysicalMax = FMath::Max(PhysicalFrom, PhysicalTo);
+
+	PhysicalDefaultValue = FMath::Clamp(InPhysicalDefaultValue, PhysicalMin, PhysicalMax);
+
+	const double PhysicalValueRange = PhysicalTo > PhysicalFrom ? PhysicalTo - PhysicalFrom : PhysicalFrom - PhysicalTo;
+	const double RelativePhysicalDefaultValue = PhysicalDefaultValue > PhysicalFrom ? PhysicalDefaultValue - PhysicalFrom : PhysicalFrom - PhysicalDefaultValue;
+	const double NormalizedPhysicalDefaultValue = FMath::IsNearlyZero(PhysicalValueRange) ? 0.0 : RelativePhysicalDefaultValue / PhysicalValueRange;
+
+	const uint32 MaxValue = FDMXConversions::GetSignalFormatMaxValue(DataType);
+	DefaultValue = FMath::Lerp(0, MaxValue, NormalizedPhysicalDefaultValue);
+}
+#endif // WITH_EDITOR
+
+#if WITH_EDITOR
+void FDMXFixtureFunction::SetPhysicalValueRange(double InPhysicalFrom, double InPhysicalTo)
+{
+	const double PhysicalValueRange = PhysicalTo > PhysicalFrom ? PhysicalTo - PhysicalFrom : PhysicalFrom - PhysicalTo;
+	const double RelativePhysicalDefaultValue = PhysicalDefaultValue > PhysicalFrom ? PhysicalDefaultValue - PhysicalFrom : PhysicalFrom - PhysicalDefaultValue;
+	const double NormalizedPhysicalDefaultValue = FMath::IsNearlyZero(PhysicalValueRange) ? 0.0 : RelativePhysicalDefaultValue / PhysicalValueRange;
+
+	PhysicalFrom = InPhysicalFrom;
+	PhysicalTo = InPhysicalTo;
+
+	const double NewPhysicalDefaultValue = FMath::Lerp(PhysicalFrom, PhysicalTo, NormalizedPhysicalDefaultValue);
+	
+	// Set both the default and the physical default value
+	SetPhysicalDefaultValue(NewPhysicalDefaultValue);
+}
+#endif // WITH_EDITOR
+
+#if WITH_EDITOR
+void FDMXFixtureFunction::UpdatePhysicalDefaultValue()
+{
+	const uint32 MaxValue = FDMXConversions::GetSignalFormatMaxValue(DataType);
+	const double NormalizedDefaultValue = static_cast<double>(DefaultValue) / MaxValue;
+
+	const double NewPhysicalValue = FMath::Lerp(PhysicalFrom, PhysicalTo, NormalizedDefaultValue);
+
+	constexpr double Tolerance = 0.01;
+	const double RoundedPhysicalValue = FMath::RoundToDouble(NewPhysicalValue / Tolerance) * Tolerance;
+
+	PhysicalDefaultValue = RoundedPhysicalValue;
+}
+#endif // WITH_EDITOR
 
 FDMXFixtureMatrix::FDMXFixtureMatrix()
 {
@@ -57,72 +124,6 @@ int32 FDMXFixtureMatrix::GetLastChannel() const
 	return FirstCellChannel + NumCells * NumChannelsPerCell - 1;
 }
 
-int32 FDMXFixtureMatrix::GetFixtureMatrixLastChannel() const
-{
-	// DEPRECATED 5.0
-	return GetLastChannel();
-}
-
-bool FDMXFixtureMatrix::GetChannelsFromCell(FIntPoint CellCoordinate, FDMXAttributeName Attribute, TArray<int32>& Channels) const
-{
-	// DEPRECATED 5.0
-	Channels.Reset();
-
-	TArray<int32> AllChannels;
-
-	if (CellCoordinate.X < 0 || CellCoordinate.X >= XCells)
-	{
-		return false;
-	}
-
-	if (CellCoordinate.Y < 0 || CellCoordinate.Y >= YCells)
-	{
-		return false;
-	}
-
-	for (int32 YCell = 0; YCell < YCells; YCell++)
-	{
-		for (int32 XCell = 0; XCell < XCells; XCell++)
-		{
-			AllChannels.Add(XCell + YCell * XCells);
-		}
-	}
-
-	TArray<int32> OrderedChannels;
-	FDMXRuntimeUtils::PixelMappingDistributionSort(PixelMappingDistribution, XCells, YCells, AllChannels, OrderedChannels);
-
-	check(AllChannels.Num() == OrderedChannels.Num());
-
-	int32 CellSize = 0;
-	int32 CellAttributeIndex = -1;
-	int32 CellAttributeSize = 0;
-	for (const FDMXFixtureCellAttribute& CellAttribute : CellAttributes)
-	{
-		int32 CurrentFunctionSize = FDMXConversions::GetSizeOfSignalFormat(CellAttribute.DataType);
-		if (CellAttribute.Attribute == Attribute)
-		{
-			CellAttributeIndex = CellSize;
-			CellAttributeSize = CurrentFunctionSize;
-		}
-		CellSize += CurrentFunctionSize;
-	}
-
-	// no function found
-	if (CellAttributeIndex < 0 || CellAttributeSize == 0)
-	{
-		return false;
-	}
-
-	int32 ChannelBase = FirstCellChannel + (OrderedChannels[CellCoordinate.Y + CellCoordinate.X * YCells] * CellSize) + CellAttributeIndex;
-
-	for (int32 ChannelIndex = 0; ChannelIndex < CellAttributeSize; ChannelIndex++)
-	{
-		Channels.Add(ChannelBase + ChannelIndex);
-	}
-
-	return true;
-}
-
 #if WITH_EDITOR
 int32 FDMXFixtureMode::AddOrInsertFunction(int32 IndexOfFunction, FDMXFixtureFunction InFunction)
 {
@@ -158,6 +159,9 @@ int32 FDMXFixtureMode::AddOrInsertFunction(int32 IndexOfFunction, FDMXFixtureFun
 
 FDMXOnFixtureTypeChangedDelegate UDMXEntityFixtureType::OnFixtureTypeChangedDelegate;
 
+UDMXEntityFixtureType::UDMXEntityFixtureType()
+{}
+
 UDMXEntityFixtureType* UDMXEntityFixtureType::CreateFixtureTypeInLibrary(FDMXEntityFixtureTypeConstructionParams ConstructionParams, const FString& DesiredName, bool bMarkDMXLibraryDirty)
 {
 	UDMXLibrary* ParentDMXLibrary = ConstructionParams.ParentDMXLibrary;
@@ -178,13 +182,19 @@ UDMXEntityFixtureType* UDMXEntityFixtureType::CreateFixtureTypeInLibrary(FDMXEnt
 		NewFixtureType->DMXCategory = ConstructionParams.DMXCategory;
 		NewFixtureType->Modes = ConstructionParams.Modes;
 
+		// Update the channel span for each mode
+		for (int32 ModeIndex = 0; ModeIndex < NewFixtureType->Modes.Num(); ModeIndex++)
+		{
+			NewFixtureType->UpdateChannelSpan(ModeIndex);
+		}
+
+
 #if WITH_EDITOR
 		if (bMarkDMXLibraryDirty)
 		{
 			ParentDMXLibrary->PostEditChange();
 		}
 #endif
-
 		OnFixtureTypeChangedDelegate.Broadcast(NewFixtureType);
 
 		return NewFixtureType;
@@ -220,6 +230,8 @@ void UDMXEntityFixtureType::Serialize(FArchive& Ar)
 	Super::Serialize(Ar);
 
 	Ar.UsingCustomVersion(FDMXRuntimeMainStreamObjectVersion::GUID);
+	
+#if WITH_EDITOR
 	if (Ar.IsLoading())
 	{
 		if (Ar.CustomVer(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::DMXFixtureTypeAllowMatrixInEachFixtureMode)
@@ -228,11 +240,25 @@ void UDMXEntityFixtureType::Serialize(FArchive& Ar)
 			for (FDMXFixtureMode& Mode : Modes)
 			{
 				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				Mode.bFixtureMatrixEnabled = bFixtureMatrixEnabled;
+				Mode.bFixtureMatrixEnabled = bFixtureMatrixEnabled_DEPRECATED;
 				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 		}
+
+		// Updgrade to use a soft object ptr for GDTF
+		if (Ar.CustomVer(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::DMXImportGDTFIsASoftObjectPtr)
+		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			if (DMXImport && DMXImport->GetClass() == UDMXImportGDTF::StaticClass())
+			{
+				UDMXImportGDTF* DMXImportGDTF = CastChecked<UDMXImportGDTF>(DMXImport);
+				GDTFSource = DMXImportGDTF;
+				DMXImport = nullptr;
+			}
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
 	}
+#endif // WITH_EDITOR
 }
 
 #if WITH_EDITOR
@@ -272,17 +298,6 @@ void UDMXEntityFixtureType::PostEditChangeChainProperty(FPropertyChangedChainEve
 	Super::PostEditChangeChainProperty(PropertyChangedChainEvent);
 
 	const FName PropertyName = PropertyChangedChainEvent.GetPropertyName();
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDMXEntityFixtureType, Modes))
-	{
-		int32 ChangedModeIndex = PropertyChangedChainEvent.GetArrayIndex(PropertyName.ToString());
-		if (Modes.IsValidIndex(ChangedModeIndex))
-		{
-			// Notify DataType changes (Deprecated 5.0)
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			DataTypeChangeDelegate_DEPRECATED.Broadcast(this, Modes[ChangedModeIndex]);
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		}
-	}
 
 	if (PropertyChangedChainEvent.ChangeType != EPropertyChangeType::Interactive)
 	{
@@ -308,18 +323,47 @@ void UDMXEntityFixtureType::PostEditUndo()
 #endif // WITH_EDITOR
 
 #if WITH_EDITOR
+FString UDMXEntityFixtureType::GetCleanGDTFFileNameSynchronous(bool bWithExtension) const
+{
+	if (GDTFSource.IsValid())
+	{				
+		// Return the GDTF source filename if a GDTF is set
+		UDMXImportGDTF* GDTF = GDTFSource.LoadSynchronous();
+
+		const FString GDTFFilename = FPaths::GetBaseFilename(GDTF->GetGDTFAssetImportData()->GetFilePathAndName());
+		const FString Extension = bWithExtension ? TEXT(".gdtf") : TEXT("");
+
+		return GDTFFilename + Extension;
+	}
+	else
+	{		
+		// Generate a filename if no GDTF is set
+		const FString EngineVersion = FString::Printf(TEXT("%u_%u"), FEngineVersion::Current().GetMajor(), FEngineVersion::Current().GetMinor());
+		const FString DateTime = FDateTime::Now().ToString(TEXT("%d_%m_%y"));
+		const FString GeneratedGDTFFilename = FString::Printf(TEXT("EpicGames@UE%s_Generated_%s@%s"), *EngineVersion, *Name, *DateTime);
+		const FString Extension = bWithExtension ? TEXT(".gdtf") : TEXT("");
+
+		return GeneratedGDTFFilename + Extension;
+	}
+}
+#endif // WITH_EDITOR
+
+#if WITH_EDITOR
 void UDMXEntityFixtureType::SetModesFromDMXImport(UDMXImport* DMXImportAsset)
 {
+	// DEPRECATED 5.4
+
 	if (!IsValid(DMXImportAsset))
 	{
 		return;
 	}
 
-	DMXImport = DMXImportAsset;
-	if (UDMXImportGDTFDMXModes* GDTFDMXModes = Cast<UDMXImportGDTFDMXModes>(DMXImport->DMXModes))
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	GDTFSource = DMXImportAsset;
+	if (UDMXImportGDTFDMXModes* GDTFDMXModes = Cast<UDMXImportGDTFDMXModes>(GDTFSource->DMXModes_DEPRECATED))
 	{
 		// Clear existing modes
-		Modes.Empty(DMXImport->DMXModes != nullptr ? GDTFDMXModes->DMXModes.Num() : 0);
+		Modes.Empty(GDTFSource->DMXModes_DEPRECATED != nullptr ? GDTFDMXModes->DMXModes.Num() : 0);
 
 		// Used to map Functions to Attributes
 		const UDMXProtocolSettings* ProtocolSettings = GetDefault<UDMXProtocolSettings>();
@@ -435,6 +479,7 @@ void UDMXEntityFixtureType::SetModesFromDMXImport(UDMXImport* DMXImportAsset)
 			UpdateChannelSpan(ModeIndex);
 		}
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	OnFixtureTypeChangedDelegate.Broadcast(this);
 }
@@ -929,22 +974,24 @@ void UDMXEntityFixtureType::SetFunctionStartingChannel(int32 InModeIndex, int32 
 	}
 }
 
-void UDMXEntityFixtureType::ClampFunctionDefautValueByDataType(int32 ModeIndex, int32 FunctionToRemoveIndex)
+void UDMXEntityFixtureType::ClampFunctionDefautValueByDataType(int32 ModeIndex, int32 FunctionIndex)
 {
+	// DEPRECATED 5.5
 	if (ensureMsgf(Modes.IsValidIndex(ModeIndex), TEXT("Trying to clamp Function Default Value, but Mode Index is not valid.")))
 	{
 		FDMXFixtureMode& Mode = Modes[ModeIndex];
 
-		if (ensureMsgf(Mode.Functions.IsValidIndex(FunctionToRemoveIndex), TEXT("Trying to clamp Function Default Value, but Function Index is not valid.")))
+		if (ensureMsgf(Mode.Functions.IsValidIndex(FunctionIndex), TEXT("Trying to clamp Function Default Value, but Function Index is not valid.")))
 		{
-			FDMXFixtureFunction& Function = Mode.Functions[FunctionToRemoveIndex];
+			FDMXFixtureFunction& Function = Mode.Functions[FunctionIndex];
 			const uint32 SafeDefaultValue = FMath::Min(static_cast<int64>(TNumericLimits<uint32>::Max()), Function.DefaultValue);
 			const uint32 ClampedDefaultValue = FDMXConversions::ClampValueBySignalFormat(SafeDefaultValue, Function.DataType);
 
-			if (Function.DefaultValue != ClampedDefaultValue)
-			{
-				Function.DefaultValue = ClampedDefaultValue;
-			}
+			Function.DefaultValue = ClampedDefaultValue;
+
+#if WITH_EDITOR
+			Function.UpdatePhysicalDefaultValue();
+#endif
 		}
 	}
 }
@@ -1167,235 +1214,5 @@ float UDMXEntityFixtureType::BytesToNormalizedValue(EDMXFixtureSignalFormat InSi
 	// Normalize it
 	return Value / FDMXConversions::GetSignalFormatMaxValue(InSignalFormat);
 }
-
-
-#if WITH_EDITOR
-/** DEPRECATED 5.0 */
-FDataTypeChangeDelegate UDMXEntityFixtureType::DataTypeChangeDelegate_DEPRECATED;
-#endif
-
-uint32 UDMXEntityFixtureType::GetDataTypeMaxValue(EDMXFixtureSignalFormat DataType)
-{	
-	// DEPRECATED 5.0
-	switch (DataType)
-	{
-	case EDMXFixtureSignalFormat::E8Bit:
-		return MAX_uint8;
-	case EDMXFixtureSignalFormat::E16Bit:
-		return MAX_uint16;
-	case EDMXFixtureSignalFormat::E24Bit:
-		return 0xFFFFFF;
-	case EDMXFixtureSignalFormat::E32Bit:
-		return MAX_uint32;
-	default:
-		checkNoEntry();
-		return 1;
-	}
-}
-
-uint8 UDMXEntityFixtureType::NumChannelsToOccupy(EDMXFixtureSignalFormat DataType)
-{
-	// DEPRECATED 5.0
-	switch (DataType)
-	{
-	case EDMXFixtureSignalFormat::E8Bit:
-		return 1;
-
-	case EDMXFixtureSignalFormat::E16Bit:
-		return 2;
-
-	case EDMXFixtureSignalFormat::E24Bit:
-		return 3;
-
-	case EDMXFixtureSignalFormat::E32Bit:
-		return 4;
-
-	default:
-		// Unhandled type
-		checkNoEntry();
-		break;
-	}
-	return 1;
-}
-
-uint8 UDMXEntityFixtureType::GetFunctionLastChannel(const FDMXFixtureFunction& Function)
-{
-	// DEPRECATED 5.0
-	return Function.Channel + Function.GetNumChannels() - 1;
-}
-
-bool UDMXEntityFixtureType::IsFunctionInModeRange(const FDMXFixtureFunction& InFunction, const FDMXFixtureMode& InMode, int32 ChannelOffset /*= 0*/)
-{
-	// DEPRECATED 5.0
-	const int32 LastChannel = InFunction.GetLastChannel();
-	const bool bLastChannelExceedsChannelSpan = LastChannel > InMode.ChannelSpan;
-	const bool bLastChannelExceedsUniverseSize = LastChannel + ChannelOffset > DMX_MAX_ADDRESS;
-
-	return !bLastChannelExceedsChannelSpan && !bLastChannelExceedsUniverseSize;
-}
-
-bool UDMXEntityFixtureType::IsFixtureMatrixInModeRange(const FDMXFixtureMatrix& InFixtureMatrix, const FDMXFixtureMode& InMode, int32 ChannelOffset /*= 0*/)
-{
-	// DEPRECATED 5.0
-	const int32 LastChannel = InFixtureMatrix.GetLastChannel();
-	const bool bLastChannelExceedsChannelSpan = LastChannel > InMode.ChannelSpan;
-	const bool bLastChannelExceedsUniverseSize = LastChannel + ChannelOffset > DMX_MAX_ADDRESS;
-
-	return !bLastChannelExceedsChannelSpan && !bLastChannelExceedsUniverseSize;
-}
-
-void UDMXEntityFixtureType::ClampDefaultValue(FDMXFixtureFunction& InFunction)
-{
-	// DEPRECATED 5.0
-	const uint32 SafeDefaultValue = FMath::Min(InFunction.DefaultValue, static_cast<int64>(TNumericLimits<uint32>::Max()));
-	InFunction.DefaultValue = FDMXConversions::ClampValueBySignalFormat(SafeDefaultValue, InFunction.DataType);
-}
-
-uint32 UDMXEntityFixtureType::ClampValueToDataType(EDMXFixtureSignalFormat DataType, uint32 InValue)
-{
-	// DEPRECATED 5.0
-	switch (DataType)
-	{
-	case EDMXFixtureSignalFormat::E8Bit:
-		return FMath::Clamp(InValue, 0u, (uint32)MAX_uint8);
-
-	case EDMXFixtureSignalFormat::E16Bit:
-		return FMath::Clamp(InValue, 0u, (uint32)MAX_uint16);
-
-	case EDMXFixtureSignalFormat::E24Bit:
-		return FMath::Clamp(InValue, 0u, 0xFFFFFFu);
-
-	case EDMXFixtureSignalFormat::E32Bit:
-		return FMath::Clamp(InValue, 0u, MAX_uint32);
-
-	default:
-		break;
-	}
-	return InValue;
-}
-
-#if WITH_EDITOR
-void UDMXEntityFixtureType::SetFunctionSize(FDMXFixtureFunction& InFunction, uint8 Size)
-{
-	// DEPRECATED 5.0
-	EDMXFixtureSignalFormat NewDataType;
-	switch (Size)
-	{
-	case 0:
-	case 1:
-		NewDataType = EDMXFixtureSignalFormat::E8Bit;
-		break;
-	case 2:
-		NewDataType = EDMXFixtureSignalFormat::E16Bit;
-		break;
-	case 3:
-		NewDataType = EDMXFixtureSignalFormat::E24Bit;
-		break;
-	case 4:
-	default:
-		NewDataType = EDMXFixtureSignalFormat::E32Bit;
-		break;
-	}
-
-	InFunction.DataType = NewDataType;
-
-	const uint32 SafeDefaultValue = FMath::Min(InFunction.DefaultValue, static_cast<int64>(TNumericLimits<uint32>::Max()));
-	InFunction.DefaultValue = FDMXConversions::ClampValueBySignalFormat(SafeDefaultValue, InFunction.DataType);
-}
-#endif // WITH_EDITOR
-
-#if WITH_EDITOR
-void UDMXEntityFixtureType::UpdateModeChannelProperties(FDMXFixtureMode& Mode)
-{
-	// DEPRECATED 4.27
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UpdateChannelSpan(Mode);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-}
-#endif // WITH_EDITOR
-
-#if WITH_EDITOR
-void UDMXEntityFixtureType::UpdateChannelSpan(FDMXFixtureMode& Mode)
-{
-	// DEPRECATED 5.0
-	if (Mode.bAutoChannelSpan)
-	{
-		if (Mode.Functions.Num() == 0 &&
-			Mode.FixtureMatrixConfig.CellAttributes.Num() == 0)
-		{
-			Mode.ChannelSpan = 0;
-		}
-		else
-		{
-			int32 ChannelSpan = 0;
-
-			// Update span from common Functions
-			for (FDMXFixtureFunction& Function : Mode.Functions)
-			{
-				Function.Channel = ChannelSpan + 1;
-
-				switch (Function.DataType)
-				{
-				case EDMXFixtureSignalFormat::E8Bit:
-					ChannelSpan = Function.Channel;
-					break;
-				case EDMXFixtureSignalFormat::E16Bit:
-					ChannelSpan = Function.Channel + 1;
-					break;
-				case EDMXFixtureSignalFormat::E24Bit:
-					ChannelSpan = Function.Channel + 2;
-					break;
-				case EDMXFixtureSignalFormat::E32Bit:
-					ChannelSpan = Function.Channel + 3;
-					break;
-				default:
-					checkNoEntry();
-					break;
-				}
-			}
-
-			// If fixture matrix is enabled, add the channel span of the matrix
-			int32 NumCells = Mode.FixtureMatrixConfig.XCells * Mode.FixtureMatrixConfig.YCells;
-			if (Mode.bFixtureMatrixEnabled && NumCells > 0)
-			{
-				// Add 'empty' channels bewtween normal Functions and the Matrix to the channel span
-				ChannelSpan = FMath::Max(ChannelSpan, Mode.FixtureMatrixConfig.FirstCellChannel);
-
-				ChannelSpan += Mode.FixtureMatrixConfig.GetNumChannels();
-			}
-
-			ChannelSpan = FMath::Max(ChannelSpan, 1);
-			Mode.ChannelSpan = ChannelSpan;
-		}
-
-		// Notify DataType changes (Deprecated 5.0)
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		DataTypeChangeDelegate_DEPRECATED.Broadcast(this, Mode);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-}
-#endif // WITH_EDITOR
-
-#if WITH_EDITOR
-void UDMXEntityFixtureType::UpdateYCellsFromXCells(FDMXFixtureMode& Mode)
-{
-	// Deprecated 5.0
-	const int32 MaxNumCells = 512;
-
-	Mode.FixtureMatrixConfig.XCells = FMath::Clamp(Mode.FixtureMatrixConfig.XCells, 1, MaxNumCells);
-	Mode.FixtureMatrixConfig.YCells = FMath::Clamp(Mode.FixtureMatrixConfig.YCells, 1, MaxNumCells - Mode.FixtureMatrixConfig.XCells + 1);
-}
-#endif // WITH_EDITOR
-
-#if WITH_EDITOR
-void UDMXEntityFixtureType::UpdateXCellsFromYCells(FDMXFixtureMode& Mode)
-{
-	// Deprecated 5.0
-	const int32 MaxNumCells = 512;
-
-	Mode.FixtureMatrixConfig.YCells = FMath::Clamp(Mode.FixtureMatrixConfig.YCells, 1, MaxNumCells);
-	Mode.FixtureMatrixConfig.XCells = FMath::Clamp(Mode.FixtureMatrixConfig.XCells, 1, MaxNumCells - Mode.FixtureMatrixConfig.YCells + 1);
-}
-#endif // WITH_EDITOR
 
 #undef LOCTEXT_NAMESPACE

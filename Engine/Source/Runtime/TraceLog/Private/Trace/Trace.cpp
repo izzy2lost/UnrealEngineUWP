@@ -2,7 +2,7 @@
 
 #include "Trace/Trace.inl" // should be Config.h :(
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 #include "Misc/CString.h"
 #include "Trace/Detail/Channel.h"
@@ -194,25 +194,40 @@ void StartWorkerThread()
 {
 	Private::Writer_WorkerCreate();
 }
+	
+////////////////////////////////////////////////////////////////////////////////
+FChannel* FindChannel(const TCHAR* ChannelName)
+{
+	ANSICHAR ChannelNameA[64];
+	ToAnsiCheap(ChannelNameA, ChannelName);
+	return FChannel::FindChannel(ChannelNameA);
+}
+	
+////////////////////////////////////////////////////////////////////////////////
+FChannel* FindChannel(FChannelId ChannelId)
+{
+	return FChannel::FindChannel(ChannelId);
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
-UE_TRACE_CHANNEL_EXTERN(TraceLogChannel)
+UE_TRACE_MINIMAL_CHANNEL_EXTERN(TraceLogChannel)
 
-UE_TRACE_EVENT_BEGIN($Trace, ThreadInfo, NoSync|Important)
-	UE_TRACE_EVENT_FIELD(uint32, ThreadId)
-	UE_TRACE_EVENT_FIELD(uint32, SystemId)
-	UE_TRACE_EVENT_FIELD(int32, SortHint)
-	UE_TRACE_EVENT_FIELD(AnsiString, Name)
-UE_TRACE_EVENT_END()
+UE_TRACE_MINIMAL_EVENT_BEGIN($Trace, ThreadInfo, NoSync|Important)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint32, ThreadId)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint32, SystemId)
+	UE_TRACE_MINIMAL_EVENT_FIELD(int32, SortHint)
+	UE_TRACE_MINIMAL_EVENT_FIELD(AnsiString, Name)
+UE_TRACE_MINIMAL_EVENT_END()
 
-UE_TRACE_EVENT_BEGIN($Trace, ThreadGroupBegin, NoSync|Important)
-	UE_TRACE_EVENT_FIELD(AnsiString, Name)
-UE_TRACE_EVENT_END()
+UE_TRACE_MINIMAL_EVENT_BEGIN($Trace, ThreadGroupBegin, NoSync|Important)
+	UE_TRACE_MINIMAL_EVENT_FIELD(AnsiString, Name)
+UE_TRACE_MINIMAL_EVENT_END()
 
-UE_TRACE_EVENT_BEGIN($Trace, ThreadGroupEnd, NoSync|Important)
-UE_TRACE_EVENT_END()
+UE_TRACE_MINIMAL_EVENT_BEGIN($Trace, ThreadGroupEnd, NoSync|Important)
+UE_TRACE_MINIMAL_EVENT_END()
 
+	
 ////////////////////////////////////////////////////////////////////////////////
 void ThreadRegister(const TCHAR* Name, uint32 SystemId, int32 SortHint)
 {
@@ -220,7 +235,7 @@ void ThreadRegister(const TCHAR* Name, uint32 SystemId, int32 SortHint)
 
 	uint32 ThreadId = Private::Writer_GetThreadId();
 	uint32 NameLen = ToAnsiCheap(NameA, Name);
-	UE_TRACE_LOG($Trace, ThreadInfo, TraceLogChannel, NameLen * sizeof(ANSICHAR))
+	UE_TRACE_MINIMAL_LOG($Trace, ThreadInfo, TraceLogChannel, NameLen * sizeof(ANSICHAR))
 		<< ThreadInfo.ThreadId(ThreadId)
 		<< ThreadInfo.SystemId(SystemId)
 		<< ThreadInfo.SortHint(SortHint)
@@ -233,14 +248,14 @@ void ThreadGroupBegin(const TCHAR* Name)
 	ANSICHAR NameA[96];
 
 	uint32 NameLen = ToAnsiCheap(NameA, Name);
-	UE_TRACE_LOG($Trace, ThreadGroupBegin, TraceLogChannel, NameLen * sizeof(ANSICHAR))
+	UE_TRACE_MINIMAL_LOG($Trace, ThreadGroupBegin, TraceLogChannel, NameLen * sizeof(ANSICHAR))
 		<< ThreadGroupBegin.Name(Name, NameLen);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void ThreadGroupEnd()
 {
-	UE_TRACE_LOG($Trace, ThreadGroupEnd, TraceLogChannel);
+	UE_TRACE_MINIMAL_LOG($Trace, ThreadGroupEnd, TraceLogChannel);
 }
 
 } // namespace Trace
@@ -251,4 +266,4 @@ void ThreadGroupEnd()
 // Workaround for module not having any exported symbols
 TRACELOG_API int TraceLogExportedSymbol = 0;
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

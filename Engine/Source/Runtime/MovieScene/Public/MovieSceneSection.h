@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Conditions/MovieSceneCondition.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
 #include "Containers/ContainersFwd.h"
@@ -40,7 +41,7 @@ class IMovieSceneEasingFunction;
 class IMovieScenePlayer;
 class UMovieSceneEntitySystemLinker;
 class UObject;
-namespace UE { namespace MovieScene { class ISectionEventHandler; } }
+enum class ECookOptimizationFlags;
 struct FEasingComponentData;
 struct FFrame;
 struct FFrameRate;
@@ -53,19 +54,16 @@ struct FMovieSceneSequenceHierarchy;
 struct FMovieSceneSequenceID;
 struct FPropertyChangedEvent;
 struct FQualifiedFrameTime;
+struct FMovieSceneTimeWarpVariant;
 
-enum class ECookOptimizationFlags;
-
-namespace UE
+namespace UE::MovieScene
 {
-namespace MovieScene
-{
+	class ISectionEventHandler;
 	struct FEntityImportParams;
 	struct FFixedObjectBindingID;
 	struct FImportedEntity;
+	struct FSharedPlaybackState;
 }
-}
-
 
 /** Enumeration defining how a section's channel proxy behaves. */
 enum class EMovieSceneChannelProxyType : uint8
@@ -238,8 +236,6 @@ class UMovieSceneSection
 {
 	GENERATED_UCLASS_BODY()
 
-	~UMovieSceneSection() {};
-
 public:
 
 	UPROPERTY(EditAnywhere, Category="Section", meta=(ShowOnlyInnerProperties))
@@ -298,7 +294,13 @@ public:
 	 */
 	void ExpandToFrame(FFrameNumber InFrame)
 	{
+		FFrameNumber StartOffset = HasStartFrame() ? FMath::Min(GetInclusiveStartFrame(), InFrame) - GetInclusiveStartFrame() : 0;
+
 		SetRange(TRange<FFrameNumber>::Hull(GetRange(), TRange<FFrameNumber>::Inclusive(InFrame, InFrame)));
+		if (StartOffset != 0)
+		{
+			FixupRelativeKeyframes(StartOffset);
+		}
 	}
 
 	/**
@@ -441,6 +443,12 @@ public:
 	MOVIESCENE_API FMovieSceneBlendTypeField GetSupportedBlendTypes() const;
 
 	/**
+	 * Get the optional order for the blending of this section that may or may not be used by the blending system
+	 * Lower values blend first, value of INDEX_NONE means no order is set
+	 */
+	MOVIESCENE_API int32 GetBlendingOrder() const;
+
+	/**
 	 * Moves the section by a specific amount of time
 	 *
 	 * @param DeltaTime	The distance in time to move the curve
@@ -479,6 +487,14 @@ public:
 	 * @return The keys' data structure representation, or nullptr if key not found or no structure available.
 	 */
 	MOVIESCENE_API virtual TSharedPtr<FStructOnScope> GetKeyStruct(TArrayView<const FKeyHandle> KeyHandles);
+
+	/**
+	 * Retrieve the time warp variant for this section, if it has one
+	 */
+	virtual FMovieSceneTimeWarpVariant* GetTimeWarp()
+	{
+		return nullptr;
+	}
 
 	/**
 	 * Gets all snap times for this section
@@ -592,11 +608,8 @@ public:
 	/* Migrate the frame times of the movie scene section from the source frame rate to the destination frame rate */
 	virtual void MigrateFrameTimes(FFrameRate SourceRate, FFrameRate DestinationRate) {}
 
-	/**
-	 * When guid bindings are updated to allow this section to fix-up any internal bindings
-	 *
-	 */
-	virtual void OnBindingIDsUpdated(const TMap<UE::MovieScene::FFixedObjectBindingID, UE::MovieScene::FFixedObjectBindingID>& OldFixedToNewFixedMap, FMovieSceneSequenceID LocalSequenceID, const FMovieSceneSequenceHierarchy* Hierarchy, IMovieScenePlayer& Player) {}
+	/** When guid bindings are updated to allow this section to fix-up any internal bindings */
+	virtual void OnBindingIDsUpdated(const TMap<UE::MovieScene::FFixedObjectBindingID, UE::MovieScene::FFixedObjectBindingID>& OldFixedToNewFixedMap, FMovieSceneSequenceID LocalSequenceID, TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) {}
 
 	/** Get the referenced bindings for this section */
 	virtual void GetReferencedBindings(TArray<FGuid>& OutBindings) {}
@@ -633,6 +646,11 @@ public:
 	 * @return A reference to this section's channel proxy.
 	 */
 	MOVIESCENE_API FMovieSceneChannelProxy& GetChannelProxy() const;
+
+	/**
+	 * Invalidate this section's channel proxy, causing it to be re-constructed when it is next used
+	 */
+	MOVIESCENE_API void InvalidateChannelProxy();
 
 	/** Does this movie section support infinite ranges for evaluation */
 	bool GetSupportsInfiniteRange() const { return bSupportsInfiniteRange; }
@@ -700,6 +718,8 @@ protected:
 	virtual void OnMoved(int32 DeltaTime) {}
 	virtual void OnDilated(float DilationFactor, FFrameNumber Origin) {}
 
+	MOVIESCENE_API void FixupRelativeKeyframes(FFrameNumber Offset);
+
 	MOVIESCENE_API bool ShouldUpgradeEntityData(FArchive& Ar, FMovieSceneEvaluationCustomVersion::Type UpgradeVersion) const;
 
 private:
@@ -725,6 +745,10 @@ public:
 	UPROPERTY(EditAnywhere, Category="Section")
 	FMovieSceneTimecodeSource TimecodeSource;
 #endif
+
+	/** Optional dynamic condition for whether this section evaluates at runtime. */
+	UPROPERTY(EditAnywhere, Category="Section")
+	FMovieSceneConditionContainer ConditionContainer;
 
 private:
 

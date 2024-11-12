@@ -2,8 +2,10 @@
 
 #include "Subsystems/PropertyAnimatorCoreEditorSubsystem.h"
 
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Components/PropertyAnimatorCoreComponent.h"
 #include "DetailRowMenuContext.h"
+#include "Dialogs/DlgPickAssetPath.h"
 #include "Editor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IDetailTreeNode.h"
@@ -14,37 +16,8 @@
 #include "PropertyHandle.h"
 #include "Styles/PropertyAnimatorCoreEditorStyle.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
-#include "Widgets/SPropertyAnimatorCoreEditorEditPanel.h"
 
 #define LOCTEXT_NAMESPACE "PropertyAnimatorCoreEditorSubsystem"
-
-FPropertyAnimatorCoreEditorEditPanelOptions& UPropertyAnimatorCoreEditorSubsystem::OpenPropertyControlWindow()
-{
-	TSharedPtr<SPropertyAnimatorCoreEditorEditPanel> PropertyControlPanel = PropertyControllerPanelWeak.Pin();
-
-	if (!PropertyControllerPanelWeak.IsValid())
-	{
-		PropertyControlPanel = SPropertyAnimatorCoreEditorEditPanel::OpenWindow();
-		PropertyControllerPanelWeak = PropertyControlPanel;
-	}
-
-	PropertyControlPanel->FocusWindow();
-
-	return PropertyControlPanel->GetOptions();
-}
-
-void UPropertyAnimatorCoreEditorSubsystem::ClosePropertyControlWindow() const
-{
-	if (const TSharedPtr<SPropertyAnimatorCoreEditorEditPanel> PropertyControllerPanel = PropertyControllerPanelWeak.Pin())
-	{
-		PropertyControllerPanel->CloseWindow();
-	}
-}
-
-bool UPropertyAnimatorCoreEditorSubsystem::IsPropertyControlWindowOpened() const
-{
-	return PropertyControllerPanelWeak.IsValid();
-}
 
 bool UPropertyAnimatorCoreEditorSubsystem::FillAnimatorMenu(UToolMenu* InMenu, const FPropertyAnimatorCoreEditorMenuContext& InContext, const FPropertyAnimatorCoreEditorMenuOptions& InOptions)
 {
@@ -69,30 +42,30 @@ bool UPropertyAnimatorCoreEditorSubsystem::FillAnimatorMenu(UToolMenu* InMenu, c
 		}
 	}
 
-	if (InOptions.IsMenuType(EPropertyAnimatorCoreEditorMenuType::Edit))
+	if (InOptions.IsMenuType(EPropertyAnimatorCoreEditorMenuType::NewSimple) && InContext.ContainsAnyActor())
 	{
 		if (InOptions.ShouldCreateSubMenu())
 		{
 			AnimatorSection->AddSubMenu(
-				TEXT("EditAnimatorMenu"),
-				LOCTEXT("EditAnimatorMenu.Label", "Edit Animators"),
-				LOCTEXT("EditAnimatorMenu.Tooltip", "Edit Animators"),
-				FNewToolMenuDelegate::CreateLambda(&UE::PropertyAnimatorCoreEditor::Menu::FillEditAnimatorSection, LastMenuData.ToSharedRef()));
+				TEXT("NewSimpleAnimatorMenu"),
+				LOCTEXT("NewSimpleAnimatorMenu.Label", "Add Animators"),
+				LOCTEXT("NewSimpleAnimatorMenu.Tooltip", "Add animators to the selection"),
+				FNewToolMenuDelegate::CreateLambda(&UE::PropertyAnimatorCoreEditor::Menu::FillNewAnimatorSection, LastMenuData.ToSharedRef()));
 		}
 		else
 		{
-			UE::PropertyAnimatorCoreEditor::Menu::FillEditAnimatorSection(InMenu, LastMenuData.ToSharedRef());
+			UE::PropertyAnimatorCoreEditor::Menu::FillNewAnimatorSection(InMenu, LastMenuData.ToSharedRef());
 		}
 	}
 
-	if (InOptions.IsMenuType(EPropertyAnimatorCoreEditorMenuType::New) && InContext.ContainsAnyActor())
+	if (InOptions.IsMenuType(EPropertyAnimatorCoreEditorMenuType::NewAdvanced) && InContext.ContainsAnyActor())
 	{
 		if (InOptions.ShouldCreateSubMenu())
 		{
 			AnimatorSection->AddSubMenu(
-				TEXT("NewAnimatorMenu"),
-				LOCTEXT("NewAnimatorMenu.Label", "Add Animators"),
-				LOCTEXT("NewAnimatorMenu.Tooltip", "Add animators to the selection"),
+				TEXT("NewAdvancedAnimatorMenu"),
+				LOCTEXT("NewAdvancedAnimatorMenu.Label", "Add Animators"),
+				LOCTEXT("NewAdvancedAnimatorMenu.Tooltip", "Add animators to the selection"),
 				FNewToolMenuDelegate::CreateLambda(&UE::PropertyAnimatorCoreEditor::Menu::FillNewAnimatorSection, LastMenuData.ToSharedRef()));
 		}
 		else
@@ -182,6 +155,57 @@ bool UPropertyAnimatorCoreEditorSubsystem::FillAnimatorMenu(UToolMenu* InMenu, c
 	}
 
 	return false;
+}
+
+UPropertyAnimatorCorePresetBase* UPropertyAnimatorCoreEditorSubsystem::CreatePresetAsset(TSubclassOf<UPropertyAnimatorCorePresetBase> InPresetClass, const TArray<IPropertyAnimatorCorePresetable*>& InPresetables)
+{
+	UPropertyAnimatorCorePresetBase* NewPreset = nullptr;
+
+	if (!InPresetClass.Get() || InPresetables.IsEmpty())
+	{
+		return NewPreset;
+	}
+
+	// Pick asset path and name
+	FString PickedPath;
+	FString PickedName;
+	{
+		TSharedPtr<SDlgPickAssetPath> DialogWidget = SNew(SDlgPickAssetPath)
+		.Title(LOCTEXT("PickAssetsLocation", "Choose preset name and location"))
+		.DefaultAssetPath(FText::FromString(TEXT("/PropertyAnimatorCore/Presets/NewPreset")))
+		.AllowReadOnlyFolders(true);
+
+		if (DialogWidget->ShowModal() != EAppReturnType::Ok)
+		{
+			PickedPath = TEXT("");
+			return NewPreset;
+		}
+
+		PickedPath = DialogWidget->GetAssetPath().ToString();
+		PickedName = DialogWidget->GetAssetName().ToString();
+	}
+
+	if (PickedPath.IsEmpty() || PickedName.IsEmpty())
+	{
+		return NewPreset;
+	}
+
+	// Find/create package
+	UPackage* Package = CreatePackage(*(PickedPath + TEXT("/") + PickedName));
+
+	if (!Package)
+	{
+		return nullptr;
+	}
+
+	NewPreset = NewObject<UPropertyAnimatorCorePresetBase>(Package, InPresetClass.Get(), FName(PickedName), RF_Public | RF_Standalone);
+	NewPreset->CreatePreset(FName(PickedName), InPresetables);
+	NewPreset->MarkPackageDirty();
+
+	// Notify asset registry of new asset
+	FAssetRegistryModule::AssetCreated(NewPreset);
+
+	return NewPreset;
 }
 
 UPropertyAnimatorCoreEditorSubsystem* UPropertyAnimatorCoreEditorSubsystem::Get()
@@ -394,7 +418,12 @@ void UPropertyAnimatorCoreEditorSubsystem::FillAnimatorExtensionSection(UToolMen
 	}
 
 	const FPropertyAnimatorCoreEditorMenuContext MenuContext({}, {Context->GetPropertyData()});
-	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions({EPropertyAnimatorCoreEditorMenuType::Edit, EPropertyAnimatorCoreEditorMenuType::New, EPropertyAnimatorCoreEditorMenuType::Existing});
+	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions(
+		{
+			EPropertyAnimatorCoreEditorMenuType::NewAdvanced
+			, EPropertyAnimatorCoreEditorMenuType::Existing
+		}
+	);
 	FillAnimatorMenu(InToolMenu, MenuContext, MenuOptions);
 }
 
@@ -421,7 +450,12 @@ void UPropertyAnimatorCoreEditorSubsystem::FillAnimatorRowContextSection(UToolMe
 	}
 
 	const FPropertyAnimatorCoreEditorMenuContext MenuContext({}, {PropertyData.GetValue()});
-	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions({EPropertyAnimatorCoreEditorMenuType::Edit, EPropertyAnimatorCoreEditorMenuType::New, EPropertyAnimatorCoreEditorMenuType::Existing});
+	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions(
+		{
+			EPropertyAnimatorCoreEditorMenuType::NewAdvanced
+			, EPropertyAnimatorCoreEditorMenuType::Existing
+		}
+	);
 	FillAnimatorMenu(InToolMenu, MenuContext, MenuOptions);
 }
 

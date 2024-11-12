@@ -13,6 +13,7 @@
 #include "Editor.h"
 #include "LevelCollectionModel.h"
 #include "WorldBrowserDragDrop.h"
+#include "WorldHierarchyColumns.h"
 #include "SWorldHierarchyImpl.h"
 
 #include "Widgets/Views/SListView.h"
@@ -20,6 +21,7 @@
 
 #include "WorldTreeItemTypes.h"
 #include "LevelFolders.h"
+#include "WorldBrowserStyle.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Styling/StyleColors.h"
 
@@ -53,6 +55,7 @@ void SWorldHierarchyItem::Construct(const FArguments& InArgs, TSharedRef<STableV
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 TSharedRef< SWidget > SWorldHierarchyItem::GenerateWidgetForColumn( const FName& ColumnID )
 {
+	using namespace UE::WorldHierarchy;
 	TSharedPtr< SWidget > TableRowContent = SNullWidget::NullWidget;
 
 	if (ColumnID == HierarchyColumns::ColumnID_LevelLabel)
@@ -163,15 +166,15 @@ TSharedRef< SWidget > SWorldHierarchyItem::GenerateWidgetForColumn( const FName&
 				]
 			;
 		}
-		else if (ColumnID == HierarchyColumns::ColumnID_Visibility)
+		else if (ColumnID == HierarchyColumns::ColumnID_EditorVisibility)
 		{
 			TableRowContent =
-				SAssignNew(VisibilityButton, SButton)
+				SAssignNew(EditorVisibilityButton, SButton)
 				.ContentPadding(0)
 				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-				.IsEnabled(this, &SWorldHierarchyItem::IsVisibilityEnabled)
-				.OnClicked(this, &SWorldHierarchyItem::OnToggleVisibility)
-				.ToolTipText(this, &SWorldHierarchyItem::GetVisibilityToolTip)
+				.IsEnabled(this, &SWorldHierarchyItem::IsEditorVisibilityEnabled)
+				.OnClicked(this, &SWorldHierarchyItem::OnToggleEditorVisibility)
+				.ToolTipText(this, &SWorldHierarchyItem::GetEditorVisibilityToolTip)
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.ForegroundColor_Lambda([this]() { return IsSelected() ? FSlateColor::UseForeground() : FSlateColor::UseStyle(); })
@@ -181,6 +184,26 @@ TSharedRef< SWidget > SWorldHierarchyItem::GenerateWidgetForColumn( const FName&
 					.Image(this, &SWorldHierarchyItem::GetLevelVisibilityBrush)
 					.ColorAndOpacity(FSlateColor::UseForeground())
 				]
+			;
+		}
+		else if (ColumnID == HierarchyColumns::ColumnID_GameVisibility)
+		{
+			TableRowContent =
+			   SAssignNew(GameVisibilityButton, SButton)
+			   .ContentPadding(0)
+			   .ButtonStyle(FAppStyle::Get(), "SimpleButton")
+			   .IsEnabled(this, &SWorldHierarchyItem::IsGameVisibilityEnabled)
+			   .OnClicked(this, &SWorldHierarchyItem::OnToggleGameVisibility)
+			   .ToolTipText(this, &SWorldHierarchyItem::GetGameVisibilityToolTip)
+			   .HAlign(HAlign_Center)
+			   .VAlign(VAlign_Center)
+			   .ForegroundColor_Lambda([this]() { return IsSelected() ? FSlateColor::UseForeground() : FSlateColor::UseStyle(); })
+			   .Content()
+			   [
+				  SNew(SImage)
+				  .Image(this, &SWorldHierarchyItem::GetGameVisibilityBrush)
+				  .ColorAndOpacity(FSlateColor::UseForeground())
+			   ]
 			;
 		}
 		else if (ColumnID == HierarchyColumns::ColumnID_Color)
@@ -376,9 +399,14 @@ bool SWorldHierarchyItem::IsLockEnabled() const
 	return WorldTreeItem->HasLockControls();
 }
 
-bool SWorldHierarchyItem::IsVisibilityEnabled() const
+bool SWorldHierarchyItem::IsEditorVisibilityEnabled() const
 {
-	return WorldTreeItem->HasVisibilityControls();
+	return WorldTreeItem->HasEditorVisibilityControls();
+}
+
+bool SWorldHierarchyItem::IsGameVisibilityEnabled() const
+{
+	return WorldTreeItem->HasGameVisibilityControls();
 }
 
 bool SWorldHierarchyItem::IsKismetEnabled() const
@@ -391,22 +419,42 @@ FSlateColor SWorldHierarchyItem::GetDrawColor() const
 	return WorldTreeItem->GetDrawColor();
 }
 
-FReply SWorldHierarchyItem::OnToggleVisibility()
+FReply SWorldHierarchyItem::OnToggleEditorVisibility()
 {
 	if (FSlateApplication::Get().GetModifierKeys().AreModifersDown(EModifierKey::Alt))
 	{
-		if (WorldTreeItem->IsVisible()) 
+		if (WorldTreeItem->IsVisibleInEditor()) 
 		{
-			WorldTreeItem->OnShowAllButSelected();
+			WorldTreeItem->OnShowInEditorAllButSelected();
 		}
 		else
 		{
-			WorldTreeItem->OnShowOnlySelected();
+			WorldTreeItem->OnShowInEditorOnlySelected();
 		}
 	}
 	else
 	{
-		WorldTreeItem->OnToggleVisibility();
+		WorldTreeItem->OnToggleEditorVisibility();
+	}
+	return FReply::Handled();
+}
+
+FReply SWorldHierarchyItem::OnToggleGameVisibility()
+{
+	if (FSlateApplication::Get().GetModifierKeys().AreModifersDown(EModifierKey::Alt))
+	{
+		if (WorldTreeItem->IsVisibleInEditor()) 
+		{
+			WorldTreeItem->OnShowInGameAllButSelected();
+		}
+		else
+		{
+			WorldTreeItem->OnShowInGameOnlySelected();
+		}
+	}
+	else
+	{
+		WorldTreeItem->OnToggleGameVisibility();
 	}
 	return FReply::Handled();
 }
@@ -511,9 +559,14 @@ EVisibility SWorldHierarchyItem::GetColorButtonVisibility() const
 	return Result;
 }
 
-FText SWorldHierarchyItem::GetVisibilityToolTip() const
+FText SWorldHierarchyItem::GetEditorVisibilityToolTip() const
 {
-	return WorldTreeItem->GetVisibilityToolTipText();
+	return WorldTreeItem->GetEditorVisibilityToolTipText();
+}
+
+FText SWorldHierarchyItem::GetGameVisibilityToolTip() const
+{
+	return WorldTreeItem->GetGameVisibilityToolTipText();
 }
 
 FText SWorldHierarchyItem::GetSaveToolTip() const
@@ -673,23 +726,32 @@ const FSlateBrush* SWorldHierarchyItem::GetLevelIconBrush() const
 
 const FSlateBrush* SWorldHierarchyItem::GetLevelVisibilityBrush() const
 {
-	if (WorldTreeItem->HasVisibilityControls())
+	if (WorldTreeItem->HasEditorVisibilityControls())
 	{
-		if (WorldTreeItem->IsVisible())
+		if (WorldTreeItem->IsVisibleInEditor())
 		{
-			return VisibilityButton->IsHovered() ? FAppStyle::Get().GetBrush( "Level.VisibleHighlightIcon16x" ) :
-													FAppStyle::Get().GetBrush( "Level.VisibleIcon16x" );
+			return EditorVisibilityButton->IsHovered()
+				? FAppStyle::Get().GetBrush( "Level.VisibleHighlightIcon16x" )
+				: FAppStyle::Get().GetBrush( "Level.VisibleIcon16x" );
 		}
 		else
 		{
-			return VisibilityButton->IsHovered() ? FAppStyle::Get().GetBrush( "Level.NotVisibleHighlightIcon16x" ) :
-													FAppStyle::Get().GetBrush( "Level.NotVisibleIcon16x" );
+			return EditorVisibilityButton->IsHovered()
+				? FAppStyle::Get().GetBrush( "Level.NotVisibleHighlightIcon16x" )
+				: FAppStyle::Get().GetBrush( "Level.NotVisibleIcon16x" );
 		}
 	}
 	else
 	{
 		return FAppStyle::Get().GetBrush( "Level.EmptyIcon16x" );
 	}
+}
+
+const FSlateBrush* SWorldHierarchyItem::GetGameVisibilityBrush() const
+{
+	return WorldTreeItem->IsVisibleInGame()
+	   ? WorldBrowser::FWorldBrowserStyle::Get().GetBrush( "WorldBrowser.VisibleInGame" )
+	   : WorldBrowser::FWorldBrowserStyle::Get().GetBrush( "WorldBrowser.HiddenInGame" );
 }
 
 const FSlateBrush* SWorldHierarchyItem::GetLightingScenarioBrush() const

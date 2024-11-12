@@ -7,6 +7,7 @@
 #include "WorldPartition/Filter/WorldPartitionActorFilter.h"
 #include "WorldPartition/WorldPartitionActorContainerID.h"
 #include "WorldPartition/WorldPartitionHandle.h"
+#include "Streaming/StreamingWorldSubsystemInterface.h"
 #include "Containers/Map.h"
 #include "Containers/Set.h"
 #include "Misc/Guid.h"
@@ -47,7 +48,7 @@ private:
  */
 
 UCLASS(MinimalAPI)
-class UWorldPartitionSubsystem : public UTickableWorldSubsystem
+class UWorldPartitionSubsystem : public UTickableWorldSubsystem, public IStreamingWorldSubsystemInterface
 {
 	GENERATED_BODY()
 
@@ -60,8 +61,13 @@ public:
 	//~ End USubsystem Interface.
 
 	//~ Begin UWorldSubsystem Interface.
-	ENGINE_API virtual void UpdateStreamingState() override;
+	ENGINE_API virtual void OnWorldBeginPlay(UWorld& InWorld) override;
+	ENGINE_API virtual void OnWorldComponentsUpdated(UWorld& World) override;
 	//~ End UWorldSubsystem Interface.
+
+	//~Begin IStreamingWorldSubsystemInterface
+	ENGINE_API virtual void OnUpdateStreamingState() override;
+	//~End IStreamingWorldSubsystemInterface
 
 	//~ Begin FTickableGameObject
 	ENGINE_API virtual void Tick(float DeltaSeconds) override;
@@ -94,10 +100,19 @@ public:
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FWorldPartitionStreamingSourceProviderFilter, const IWorldPartitionStreamingSourceProvider*);
 	FWorldPartitionStreamingSourceProviderFilter& OnIsStreamingSourceProviderFiltered() { return IsStreamingSourceProviderFiltered; }
 
+	DECLARE_MULTICAST_DELEGATE(FWorldPartitionStreamingStateUpdated);
+	FWorldPartitionStreamingStateUpdated& OnStreamingStateUpdated() { return StreamingStateUpdated; }
+
 	static ENGINE_API TMulticastDelegate<void(UWorldPartitionSubsystem*, UWorld*)> OnWorldPartitionSubsystemInitialized;
 	static ENGINE_API TMulticastDelegate<void(UWorldPartitionSubsystem*, UWorld*)> OnWorldPartitionSubsystemDeinitialized;
 
 	ENGINE_API void ForEachWorldPartition(TFunctionRef<bool(UWorldPartition*)> Func);
+
+#if !UE_BUILD_SHIPPING
+	static ENGINE_API void SetOverrideLoadingRange(FName Name, int32 LoadingRange);
+	static ENGINE_API bool GetOverrideLoadingRange(FName Name, int32& LoadingRange);
+	static ENGINE_API uint32 GetOverriddenLoadingRangesEpoch();
+#endif
 
 #if WITH_EDITOR
 	ENGINE_API FWorldPartitionActorFilter GetWorldPartitionActorFilter(const FString& InWorldPackage, EWorldPartitionActorFilterType InFilterTypes = EWorldPartitionActorFilterType::Loading) const;
@@ -125,6 +140,11 @@ protected:
 	//~ End USubsystem Interface.
 
 private:
+#if !UE_BUILD_SHIPPING
+	static TMap<FName, int32> OverriddenLoadingRanges;
+	static uint32 OverriddenLoadingRangesEpoch;
+	static class FAutoConsoleCommand OverrideLoadingRangeCommand;
+#endif
 
 	// Streaming Sources
 	void UpdateStreamingSources();
@@ -145,7 +165,6 @@ private:
 	void UpdateServerClientsVisibleLevelNames();
 
 	static ENGINE_API void UpdateStreamingStateInternal(const UWorld* InWorld, UWorldPartition* InWorldPartition = nullptr);
-	static int32 GetMaxCellsToLoad(const UWorld* InWorld);
 	static bool IsServer(const UWorld* InWorld);
 
 	ENGINE_API bool HasAnyWorldPartitionServerStreamingEnabled() const;
@@ -167,6 +186,7 @@ private:
 	// Streaming Sources
 	TSet<IWorldPartitionStreamingSourceProvider*> StreamingSourceProviders;
 	FWorldPartitionStreamingSourceProviderFilter IsStreamingSourceProviderFiltered;
+	FWorldPartitionStreamingStateUpdated StreamingStateUpdated;
 	TArray<FWorldPartitionStreamingSource> StreamingSources;
 	TMap<FName, FStreamingSourceVelocity> StreamingSourcesVelocity;
 	uint32 StreamingSourcesHash;
@@ -189,6 +209,8 @@ private:
 
 	// Tracks world partition loading and pending loads
 	TSet<TWeakObjectPtr<const ULevelStreaming>> WorldPartitionLoadingAndPendingLoadStreamingLevels;
+
+	bool bHasBegunPlay = false;
 
 #if WITH_EDITOR
 	bool bIsRunningConvertWorldPartitionCommandlet;

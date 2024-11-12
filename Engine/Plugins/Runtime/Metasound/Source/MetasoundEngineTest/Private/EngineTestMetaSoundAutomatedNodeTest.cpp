@@ -16,6 +16,7 @@
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundLog.h"
+#include "MetasoundOperatorBuilder.h"
 #include "MetasoundPrimitives.h"
 #include "MetasoundVariableNodes.h"
 #include "MetasoundVertex.h"
@@ -49,6 +50,9 @@ namespace Metasound::EngineTest{
 
 		FMetasoundEnvironment Environment;
 
+		Environment.SetValue<uint64>(CoreInterface::Environment::InstanceID, 0);
+		Environment.SetValue<TArray<FGuid>>(CoreInterface::Environment::GraphHierarchy, TArray<FGuid>({ FGuid() }));
+
 		Environment.SetValue<uint32>(SourceInterface::Environment::SoundUniqueID, 0);
 		Environment.SetValue<bool>(SourceInterface::Environment::IsPreview, false);
 		Environment.SetValue<uint64>(SourceInterface::Environment::TransmitterID, 0);
@@ -65,13 +69,10 @@ namespace Metasound::EngineTest{
 
 	FString GetPrettyName(const Frontend::FNodeRegistryKey& InRegistryKey)
 	{
-		Frontend::IMetaSoundAssetManager* AssetManager = Frontend::IMetaSoundAssetManager::Get();
-		if (ensure(AssetManager))
+		const FTopLevelAssetPath ObjectPath = Frontend::IMetaSoundAssetManager::GetChecked().FindAssetPath(InRegistryKey);
+		if (ObjectPath.IsValid())
 		{
-			if (const FSoftObjectPath* ObjectPath = AssetManager->FindObjectPathFromKey(InRegistryKey))
-			{
-				return ObjectPath->ToString();
-			}
+			return ObjectPath.ToString();
 		}
 
 		FMetasoundFrontendRegistryContainer* NodeRegistry = FMetasoundFrontendRegistryContainer::Get();
@@ -694,7 +695,7 @@ namespace Metasound::EngineTest{
 					TestNodeName, 
 					TestNodeID, 
 					TestVertexName,
-					NodeClass.Interface.Inputs[0].DefaultLiteral.ToLiteral(DataTypeName)
+					NodeClass.Interface.Inputs[0].FindConstDefaultChecked(Frontend::DefaultPageID).ToLiteral(DataTypeName)
 				};
 
 				Node = DataTypeRegistry.CreateInputNode(DataTypeName, MoveTemp(NodeInitData));

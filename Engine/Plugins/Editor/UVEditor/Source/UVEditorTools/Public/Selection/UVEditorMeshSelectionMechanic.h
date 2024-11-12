@@ -54,6 +54,23 @@ public:
 	void SetIsEnabled(bool bIsEnabled);
 	bool IsEnabled() { return bIsEnabled; };
 
+	struct FRaycastResult
+	{
+		int32 AssetID = IndexConstants::InvalidID;
+		int32 Tid = IndexConstants::InvalidID;
+		FVector3d HitPosition;
+	};
+	/**
+	 * This is a helper method that doesn't get used in normal selection mechanic operation, but
+	 *  can be used by clients if they need to raycast canonical meshes, since the mechanic already
+	 *  keeps aabb trees for them. The mechanic does not need to be enabled to use this (and typically
+	 *  will not be, if a tool is doing its own raycasting).
+	 */
+	bool RaycastCanonicals(const FRay& WorldRay, bool bRaycastIsForUnwrap,
+		bool bPreferSelected, FRaycastResult& HitOut) const;
+
+	TArray<FUVToolSelection> GetAllCanonicalTrianglesInUnwrapRadius(const FVector2d& UnwrapWorldHitPoint, double Radius) const;
+
 	void SetShowHoveredElements(bool bShow);
 
 	using ESelectionMode = UUVToolSelectionAPI::EUVEditorSelectionMode;
@@ -145,7 +162,7 @@ protected:
 	TWeakObjectPtr<UPointSetComponent> LivePreviewHoverPointSet = nullptr;
 
 	// Should be the same as the mode-level targets array, indexed by AssetID
-	TSharedPtr<FDynamicMeshAABBTree3> GetMeshSpatial(int32 TargetId, bool bUseUnwrap);
+	TSharedPtr<FDynamicMeshAABBTree3> GetMeshSpatial(int32 TargetId, bool bUseUnwrap) const;
 	TArray<TObjectPtr<UUVEditorToolMeshInput>> Targets;
 	TArray<TSharedPtr<FDynamicMeshAABBTree3>> UnwrapMeshSpatials; // 1:1 with Targets
 	TArray<TSharedPtr<FDynamicMeshAABBTree3>> AppliedMeshSpatials; // 1:1 with Targets

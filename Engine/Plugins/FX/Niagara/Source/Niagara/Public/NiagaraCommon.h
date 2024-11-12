@@ -107,7 +107,7 @@ enum class ENiagaraGpuBufferFormat : uint8
 };
 
 UENUM()
-enum class ENiagaraGpuSyncMode
+enum class ENiagaraGpuSyncMode : uint8
 {
 	/** Data will not be automatically pushed and could diverge between Cpu & Gpu. */
 	None,
@@ -147,7 +147,7 @@ enum class ENiagaraDefaultMode : uint8
 
 /** How to handle how Niagara rendered effects should generate motion vectors by default (can still be overridden on a case-by-case basis) */
 UENUM()
-enum class ENiagaraDefaultRendererMotionVectorSetting
+enum class ENiagaraDefaultRendererMotionVectorSetting : uint8
 {
 	/**
 	 * Motion vectors generated are precise (ideal for motion blur and temporal anti-aliasing).
@@ -163,7 +163,7 @@ enum class ENiagaraDefaultRendererMotionVectorSetting
 
 /** How a given Niagara renderer should handle motion vector generation. */
 UENUM()
-enum class ENiagaraRendererMotionVectorSetting
+enum class ENiagaraRendererMotionVectorSetting : uint8
 {
 	/** Determines the best method to employ when generating motion vectors (accurate vs. approximate) based on project and renderer settings */
 	AutoDetect,
@@ -363,9 +363,9 @@ struct FNiagaraFunctionSignature
 	/** Input parameters to this function. The data stored in the variables is used for default values. */
 	UPROPERTY()
 	TArray<FNiagaraVariable> Inputs;
-	/** Output parameters of this function. The data stored in the variables is used for default values. */
+	/** Output parameters of this function. */
 	UPROPERTY()
-	TArray<FNiagaraVariable> Outputs;
+	TArray<FNiagaraVariableBase> Outputs;
 	/** Id of the owner is this is a member function. */
 	UPROPERTY()
 	FName OwnerName;
@@ -389,6 +389,13 @@ struct FNiagaraFunctionSignature
 	/** Per function version, it is up to the discretion of the function as to what the version means. */
 	UPROPERTY()
 	uint32 FunctionVersion = 0;
+
+	/**
+	* All the inputs here must be wired to something in the graph and will produce a compile error if that's not the case.
+	* This is useful if the default value for an input makes no sense and would lead to a failed function call at runtime.
+	 */
+	UPROPERTY()
+	TArray<FNiagaraVariableBase> NoDefaultValueInputs;
 #endif
 
 	/** Support running on the CPU. */
@@ -611,7 +618,7 @@ struct FNiagaraFunctionSignature
 
 	FString GetNameString() const { return Name.ToString(); }
 
-	void AddInput(FNiagaraVariable InputVar, FText Tooltip = FText())
+	void AddInput(const FNiagaraVariable& InputVar, const FText& Tooltip = FText())
 	{
 		Inputs.Add(InputVar);
 	#if WITH_EDITORONLY_DATA
@@ -621,8 +628,32 @@ struct FNiagaraFunctionSignature
 		}
 	#endif
 	}
+	
+	template<typename T>
+	void AddInputWithDefault(FNiagaraVariable InputVar, const T& Default, const FText& Tooltip = FText())
+	{
+		Inputs.Add_GetRef(InputVar).SetData((uint8*)&Default);
+#if WITH_EDITORONLY_DATA
+		if (!Tooltip.IsEmpty())
+		{
+			InputDescriptions.Add(InputVar, Tooltip);
+		}
+#endif
+	}
 
-	void AddOutput(FNiagaraVariable OutputVar, const FText& Tooltip = FText())
+	void AddInputWithoutDefault(const FNiagaraVariable& InputVar, const FText& Tooltip = FText())
+	{
+		Inputs.Add(InputVar);
+#if WITH_EDITORONLY_DATA
+		if (!Tooltip.IsEmpty())
+		{
+			InputDescriptions.Add(InputVar, Tooltip);
+		}
+		NoDefaultValueInputs.AddUnique(InputVar);
+#endif
+	}
+
+	void AddOutput(const FNiagaraVariable& OutputVar, const FText& Tooltip = FText())
 	{
 		Outputs.Add(OutputVar);
 	#if WITH_EDITORONLY_DATA
@@ -675,14 +706,27 @@ struct FNiagaraFunctionSignature
 	bool VariadicInput()const { return RequiredInputs != INDEX_NONE; }
 	bool VariadicOutput()const { return RequiredOutputs != INDEX_NONE; }
 
+	int32 VariadicInputStartIndex()const { return VariadicInput() ? NumRequiredInputs() + (bRequiresExecPin ? 1 : 0) : INDEX_NONE; }
+	int32 VariadicOutputStartIndex()const { return VariadicOutput() ? NumRequiredOutputs() + (bRequiresExecPin ? 1 : 0) : INDEX_NONE; }
+
 	int32 NumRequiredInputs()const { return RequiredInputs == INDEX_NONE ? Inputs.Num() : RequiredInputs; }
 	int32 NumOptionalInputs()const { return Inputs.Num() - NumRequiredInputs(); }
 
 	int32 NumRequiredOutputs()const { return RequiredOutputs == INDEX_NONE ? Outputs.Num() : RequiredOutputs; }
 	int32 NumOptionalOutputs()const { return Outputs.Num() - NumRequiredOutputs(); }
 
-	NIAGARA_API void GetVariadicInputs(TArray<FNiagaraVariableBase>& OutVariadicInputs, bool bStripNonExecution = true)const;
-	NIAGARA_API void GetVariadicOutputs(TArray<FNiagaraVariableBase>& OutVariadicOutputs, bool bStripNonExecution = true)const;
+#if WITH_EDITORONLY_DATA
+	TArray<FNiagaraVariableBase> GetInputs() const
+	{
+		TArray<FNiagaraVariableBase> AllInputs;
+		AllInputs.Append(Inputs);
+		return AllInputs;
+	}
+	TConstArrayView<FNiagaraVariableBase> GetOutputs() const { return Outputs; }
+#endif
+
+	NIAGARA_API void GetVariadicInputs(TArray<FNiagaraVariableBase>& OutVariadicInputs)const;
+	NIAGARA_API void GetVariadicOutputs(TArray<FNiagaraVariableBase>& OutVariadicOutputs)const;
 };
 
 USTRUCT()
@@ -784,7 +828,10 @@ struct FNiagaraResolvedUserDataInterfaceBinding
 {
 	GENERATED_BODY()
 
+	UPROPERTY()
 	int32 UserParameterStoreDataInterfaceIndex;
+
+	UPROPERTY()
 	int32 ScriptParameterStoreDataInterfaceIndex;
 
 	FNiagaraResolvedUserDataInterfaceBinding()
@@ -1488,16 +1535,22 @@ namespace FNiagaraUtilities
 #endif
 
 	// Whether GPU particles are currently allowed. Could change depending on config and runtime switches.
-	bool AllowGPUParticles(EShaderPlatform ShaderPlatform);
+	bool AllowGPUParticles();
 
 	// Whether compute shaders are allowed. Could change depending on config and runtime switches.
-	bool AllowComputeShaders(EShaderPlatform ShaderPlatform);
+	bool AllowComputeShaders();
 
 	// Are we able to use the GPU for culling?
-	bool AllowGPUCulling(EShaderPlatform ShaderPlatform);
+	bool AllowGPUCulling();
 
 	// Are we able to use the GPU for sorting?
-	bool AllowGPUSorting(EShaderPlatform ShaderPlatform);
+	bool AllowGPUSorting();
+
+	//-TODO: Consider deprecating these methods if we don't need the ShaderPlatform
+	inline bool AllowGPUParticles(EShaderPlatform ShaderPlatform) { return AllowGPUParticles(); }
+	inline bool AllowComputeShaders(EShaderPlatform ShaderPlatform) { return AllowComputeShaders(); }
+	inline bool AllowGPUCulling(EShaderPlatform ShaderPlatform) { return AllowGPUCulling(); }
+	inline bool AllowGPUSorting(EShaderPlatform ShaderPlatform) { return AllowGPUSorting();  }
 
 	// Helper function to detect if SRVs are always created for buffers or not
 	bool AreBufferSRVsAlwaysCreated(EShaderPlatform ShaderPlatform);

@@ -608,7 +608,7 @@ void UAnimCompress_RemoveLinearKeys::ProcessAnimationTracks(
 	const bool bHasScale =  (ScaleTracks.Num() > 0);
 
 	// make sure the parent key scale is properly bound to 1.0 or more
-	ParentKeyScale = FMath::Max(ParentKeyScale, 1.0f);
+	const float ClampedParentKeyScale = FMath::Max(ParentKeyScale, 1.0f);
 
 	// generate the raw and compressed skeleton in world-space
 	TArray<FTransform> RawWorldBones;
@@ -857,7 +857,7 @@ void UAnimCompress_RemoveLinearKeys::ProcessAnimationTracks(
 
 			// look for a parent track to reference as a guide
 			int32 GuideTrackIndex = INDEX_NONE;
-			if (ParentKeyScale > 1.0f)
+			if (ClampedParentKeyScale > 1.0f)
 			{
 				for (long FamilyIndex=0; (FamilyIndex < Bone.BonesToRoot.Num()) && (GuideTrackIndex == INDEX_NONE); ++FamilyIndex)
 				{
@@ -899,7 +899,7 @@ void UAnimCompress_RemoveLinearKeys::ProcessAnimationTracks(
 			{
 				FTranslationTrack& GuideTransTrack = PositionTracks[GuideTrackIndex];
 				GuidanceTrack = &GuideTransTrack.Times;
-				GuidanceScale = ParentKeyScale;
+				GuidanceScale = ClampedParentKeyScale;
 			}
 			
 			// if the TargetBoneIndices array is empty, then this bone is an end effector.

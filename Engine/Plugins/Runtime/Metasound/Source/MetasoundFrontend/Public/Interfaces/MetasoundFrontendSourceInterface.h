@@ -26,6 +26,18 @@ namespace Metasound
 			METASOUNDFRONTEND_API Audio::FParameterInterfacePtr CreateInterface(const UClass& InClass);
 		}
 
+		namespace SourceStartTimeInterface
+		{
+			namespace Inputs
+			{
+				METASOUNDFRONTEND_API const extern FName StartTime;
+			}
+
+			METASOUNDFRONTEND_API const FMetasoundFrontendVersion& GetVersion();
+
+			METASOUNDFRONTEND_API Audio::FParameterInterfacePtr CreateInterface(const UClass& InClass);
+		}
+
 		namespace SourceInterfaceV1_0
 		{
 			namespace Inputs

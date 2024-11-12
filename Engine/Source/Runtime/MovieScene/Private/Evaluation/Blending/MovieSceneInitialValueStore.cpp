@@ -48,6 +48,8 @@ FMovieSceneRemoveInitialValueTokenProducer::FMovieSceneRemoveInitialValueTokenPr
 {
 }
 
+FMovieSceneRemoveInitialValueTokenProducer::~FMovieSceneRemoveInitialValueTokenProducer() = default;
+
 IMovieScenePreAnimatedTokenPtr FMovieSceneRemoveInitialValueTokenProducer::CacheExistingState(UObject& Object) const
 {
 	return FMovieSceneRemoveInitialValueToken(WeakActuator);
@@ -57,6 +59,8 @@ FMovieSceneRemoveInitialGlobalValueTokenProducer::FMovieSceneRemoveInitialGlobal
 	: WeakActuator(InWeakActuator)
 {
 }
+
+FMovieSceneRemoveInitialGlobalValueTokenProducer::~FMovieSceneRemoveInitialGlobalValueTokenProducer() = default;
 
 IMovieScenePreAnimatedGlobalTokenPtr FMovieSceneRemoveInitialGlobalValueTokenProducer::CacheExistingState() const
 {

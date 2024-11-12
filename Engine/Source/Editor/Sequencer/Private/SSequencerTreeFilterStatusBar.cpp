@@ -57,8 +57,7 @@ void SSequencerTreeFilterStatusBar::Construct(const FArguments& InArgs, TSharedP
 
 void SSequencerTreeFilterStatusBar::ClearFilters()
 {
-	TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
-	if (Sequencer)
+	if (const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin())
 	{
 		Sequencer->ClearFilters();
 	}
@@ -66,16 +65,19 @@ void SSequencerTreeFilterStatusBar::ClearFilters()
 
 EVisibility SSequencerTreeFilterStatusBar::GetVisibilityFromFilter() const
 {
-	TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
-	return Sequencer && Sequencer->GetNodeTree()->HasActiveFilter() ? EVisibility::Visible : EVisibility::Collapsed;
+	if (const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin())
+	{
+		return Sequencer->GetFilterInterface()->HasAnyFilterActive() ? EVisibility::Visible : EVisibility::Collapsed;
+	}
+	return EVisibility::Collapsed;
 }
 
 void SSequencerTreeFilterStatusBar::UpdateText()
 {
 	using namespace UE::Sequencer;
 
-	TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
-	if (!ensureAlways(Sequencer))
+	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
+	if (!Sequencer.IsValid())
 	{
 		return;
 	}
@@ -90,7 +92,7 @@ void SSequencerTreeFilterStatusBar::UpdateText()
 	NamedArgs.Add("Total", NodeTree->GetTotalDisplayNodeCount());
 
 	const bool bHasSelection = SelectedOutlinerItems.Num() != 0;
-	const bool bHasFilter = NodeTree->HasActiveFilter();
+	const bool bHasFilter = Sequencer->GetFilterInterface()->HasAnyFilterActive();
 	const int32 NumFiltered = NodeTree->GetFilteredDisplayNodeCount();
 
 	if (bHasSelection)

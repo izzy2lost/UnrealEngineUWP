@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Handling/AvaMaskDesignedMaterialHandle.h"
 
@@ -104,6 +104,19 @@ const EBlendMode FAvaMaskDesignedMaterialHandle::GetBlendMode()
 {
 	if (const UMaterialInterface* MaterialInstance = GetMaterialInstance())
 	{
+#if WITH_EDITOR
+		if (const UDynamicMaterialInstance* DynamicMaterial = Cast<UDynamicMaterialInstance>(MaterialInstance))
+		{
+			if (UDynamicMaterialModel* MaterialModel = DynamicMaterial->GetMaterialModel())
+			{
+				if (UDynamicMaterialModelEditorOnlyData* ModelData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+				{
+					return ModelData->GetBlendMode();
+				}
+			}
+		}
+#endif
+
 		return MaterialInstance->GetBlendMode();
 	}
 	
@@ -117,9 +130,9 @@ void FAvaMaskDesignedMaterialHandle::SetBlendMode(const EBlendMode InBlendMode)
 #if WITH_EDITOR
 		if (UDynamicMaterialInstance* MaterialInstance = WeakDesignedMaterial.Get())
 		{
-			if (UDynamicMaterialModel* Model = MaterialInstance->GetMaterialModel())
+			if (UDynamicMaterialModel* MaterialModel = MaterialInstance->GetMaterialModel())
 			{
-				if (UDynamicMaterialModelEditorOnlyData* ModelData = UDynamicMaterialModelEditorOnlyData::Get(Model))
+				if (UDynamicMaterialModelEditorOnlyData* ModelData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 				{
 					ModelData->SetBlendMode(TargetBlendMode);
 				}
@@ -130,9 +143,6 @@ void FAvaMaskDesignedMaterialHandle::SetBlendMode(const EBlendMode InBlendMode)
 		{
 			MaterialInstance->BlendMode = TargetBlendMode;
 			MaterialInstance->BasePropertyOverrides.BlendMode = TargetBlendMode;
-#if WITH_EDITOR
-			MaterialInstance->UpdateCachedData();
-#endif
 		}
 #endif
 	}
@@ -154,8 +164,13 @@ bool FAvaMaskDesignedMaterialHandle::SaveOriginalState(const FStructView& InHand
 				, UE::AvaMask::Internal::PaddingParameterInfo
 				, UE::AvaMask::Internal::FeatherParameterInfo);
 
-			MaterialHandleData->OriginalOutputProcessor = GetOutputProcessor();
 			MaterialHandleData->OriginalBlendMode = GetBlendMode();
+
+			MaterialHandleData->OriginalOutputProcessor = GetOutputProcessor(
+				MaterialHandleData->OriginalBlendMode == BLEND_Translucent
+					? BLEND_Translucent
+					: BLEND_Masked
+			);
 
 			return true;
 		}
@@ -182,7 +197,7 @@ bool FAvaMaskDesignedMaterialHandle::ApplyOriginalState(const FStructView& InHan
 				, MaterialHandleData->OriginalMaskMaterialParameters.InnerFeatherRadius);
 
 #if WITH_EDITOR
-			SetOutputProcessor(MaterialHandleData->OriginalOutputProcessor.Get());
+			SetOutputProcessor(GetBlendMode(), MaterialHandleData->OriginalOutputProcessor.Get());
 #endif
 
 			SetBlendMode(MaterialHandleData->OriginalBlendMode);
@@ -213,12 +228,12 @@ bool FAvaMaskDesignedMaterialHandle::ApplyModifiedState(
 				, InModifiedParameters.MaterialParameters.OuterFeatherRadius
 				, InModifiedParameters.MaterialParameters.InnerFeatherRadius);
 
+			SetBlendMode(InModifiedParameters.MaterialParameters.BlendMode);
+
 #if WITH_EDITOR
 			UMaterialFunctionInterface* MaterialFunctionToUse = GetMutableDefault<UAvaMaskSettings>()->GetMaterialFunction();
-			SetOutputProcessor(MaterialFunctionToUse);
+			SetOutputProcessor(InModifiedParameters.MaterialParameters.BlendMode, MaterialFunctionToUse);
 #endif
-
-			SetBlendMode(InModifiedParameters.MaterialParameters.BlendMode);
 
 			LastAppliedParameters = InModifiedParameters;
 
@@ -265,7 +280,7 @@ UMaterialInstanceDynamic* FAvaMaskDesignedMaterialHandle::GetMaterialInstance()
 }
 
 #if WITH_EDITOR
-void FAvaMaskDesignedMaterialHandle::OnMaterialBuilt(UDynamicMaterialModel* InMaterialModel)
+void FAvaMaskDesignedMaterialHandle::OnMaterialBuilt(UDynamicMaterialModelBase* InMaterialModel)
 {
 	check(InMaterialModel);
 	
@@ -283,7 +298,7 @@ void FAvaMaskDesignedMaterialHandle::OnMaterialBuilt(UDynamicMaterialModel* InMa
 	SetBlendMode(LastAppliedParameters.MaterialParameters.BlendMode);
 }
 
-UMaterialFunctionInterface* FAvaMaskDesignedMaterialHandle::GetOutputProcessor()
+UMaterialFunctionInterface* FAvaMaskDesignedMaterialHandle::GetOutputProcessor(EBlendMode InBlendMode)
 {
 	if (UDynamicMaterialInstance* DesignedMaterial = WeakDesignedMaterial.Get())
 	{
@@ -302,8 +317,7 @@ UMaterialFunctionInterface* FAvaMaskDesignedMaterialHandle::GetOutputProcessor()
 				return nullptr;
 			};
 
-			const EBlendMode BlendMode = GetBlendMode();
-			switch (BlendMode)
+			switch (InBlendMode)
 			{
 			case EBlendMode::BLEND_Masked:
 				return GetOutputProcessorForPropertyType(Model, EDMMaterialPropertyType::OpacityMask);
@@ -312,7 +326,7 @@ UMaterialFunctionInterface* FAvaMaskDesignedMaterialHandle::GetOutputProcessor()
 				return GetOutputProcessorForPropertyType(Model, EDMMaterialPropertyType::Opacity);
 
 			default:
-				UE_LOG(LogAvaMask, Error, TEXT("BlendMode not supported: %s"), *UE::AvaMask::Internal::GetBlendModeString(BlendMode));
+				UE_LOG(LogAvaMask, Error, TEXT("BlendMode not supported: %s"), *UE::AvaMask::Internal::GetBlendModeString(InBlendMode));
 				return nullptr;
 			}
 		}
@@ -321,7 +335,7 @@ UMaterialFunctionInterface* FAvaMaskDesignedMaterialHandle::GetOutputProcessor()
 	return nullptr;
 }
 
-void FAvaMaskDesignedMaterialHandle::SetOutputProcessor(UMaterialFunctionInterface* InMaterialFunction)
+void FAvaMaskDesignedMaterialHandle::SetOutputProcessor(EBlendMode InBlendMode, UMaterialFunctionInterface* InMaterialFunction)
 {
 	if (UDynamicMaterialInstance* DesignedMaterial = WeakDesignedMaterial.Get())
 	{
@@ -350,8 +364,7 @@ void FAvaMaskDesignedMaterialHandle::SetOutputProcessor(UMaterialFunctionInterfa
 				}
 			};
 		
-			const EBlendMode BlendMode = UE::AvaMask::Internal::GetTargetBlendMode(DesignedMaterial->GetBlendMode(), GetBlendMode());
-			switch (BlendMode)
+			switch (InBlendMode)
 			{
 			case EBlendMode::BLEND_Masked:
 				SetOutputProcessorForPropertyType(Model, EDMMaterialPropertyType::OpacityMask);
@@ -362,13 +375,14 @@ void FAvaMaskDesignedMaterialHandle::SetOutputProcessor(UMaterialFunctionInterfa
 				break;
 
 			default:
-				UE_LOG(LogAvaMask, Error, TEXT("BlendMode not supported: %s"), *UE::AvaMask::Internal::GetBlendModeString(BlendMode));
+				UE_LOG(LogAvaMask, Error, TEXT("BlendMode not supported: %s"), *UE::AvaMask::Internal::GetBlendModeString(InBlendMode));
+				break;
 			}
 		}
 	}
 }
 #else
-UMaterialFunctionInterface* FAvaMaskDesignedMaterialHandle::GetOutputProcessor()
+UMaterialFunctionInterface* FAvaMaskDesignedMaterialHandle::GetOutputProcessor(EBlendMode InBlendMode)
 {
 	return nullptr;
 }

@@ -16,6 +16,7 @@
 #include "UObject/ScriptMacros.h"
 #include "Misc/Guid.h"
 #include "Misc/Variant.h"
+#include "Misc/Timecode.h"
 #include "Engine/LatentActionManager.h"
 #include "MediaPlayerOptions.h"
 #include "IMediaTimeSource.h"
@@ -144,7 +145,7 @@ public:
 
 	MEDIAASSETS_API explicit FMediaPlayerProxy(UMediaPlayer* Player);
 
-	FMediaPlayerProxy(const FMediaPlayerProxy& Other) = default;
+	MEDIAASSETS_API FMediaPlayerProxy(const FMediaPlayerProxy& Other);
 
 	MEDIAASSETS_API ~FMediaPlayerProxy();
 
@@ -153,8 +154,14 @@ public:
 		return(PlayerFacade.Pin());
 	}
 
+	friend FORCEINLINE uint32 GetTypeHash(const FMediaPlayerProxy& InProxy)
+	{
+		return InProxy.TypeHash;
+	}
+
 private:
 	TWeakPtr<FMediaPlayerFacade, ESPMode::ThreadSafe> PlayerFacade;
+	uint32 TypeHash = INDEX_NONE;
 };
 using FMediaPlayerProxyPtr = TSharedPtr<FMediaPlayerProxy, ESPMode::ThreadSafe>;
 
@@ -406,6 +413,19 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Media|MediaPlayer")
 	MEDIAASSETS_API UMediaTimeStampInfo* GetDisplayTimeStamp() const;
+
+	/**
+	 * Get the timecode from the video track, if one is available.
+	 * If available, the returned value will be the timecode of the sample most recently
+	 * sent into the video sink.
+	 *
+	 * @return Most recently delivered video timecode from the video track.
+	 *
+	 * @note Even if timecode is available, the value returned reflects the timecode
+	 *       that most recently delivered to the video sink. During a seek operation
+	 *       the timecode will be unset.
+	 */
+	MEDIAASSETS_API TOptional<FTimecode> GetVideoTimecode() const;
 
 	/**
 	 * Get the human readable name of the specified track.
@@ -1267,6 +1287,10 @@ public:
 	static MEDIAASSETS_API FLazyName MediaInfoNameSourceNumMips;
 	/** Number of tiles (X and Y) in the source. IntPoint.*/
 	static MEDIAASSETS_API FLazyName MediaInfoNameSourceNumTiles;
+	/** Start Timecode. SMPTE format (ex: HH:MM:SS:FF) string. */
+	static MEDIAASSETS_API FLazyName MediaInfoNameStartTimecodeValue;
+	/** Start Timecode frame rate. String. */
+	static MEDIAASSETS_API FLazyName MediaInfoNameStartTimecodeFrameRate;
 
 	/**
 	 * Duration of samples to cache ahead of the play head.

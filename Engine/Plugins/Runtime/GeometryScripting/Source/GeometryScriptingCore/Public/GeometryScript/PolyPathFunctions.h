@@ -35,10 +35,10 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptSplineSamplingOptions
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (EditCondition = "SampleSpacing != EGeometryScriptSampleSpacing::ErrorTolerance"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (EditCondition = "SampleSpacing != EGeometryScriptSampleSpacing::ErrorTolerance"))
 	int32 NumSamples = 10;
 
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (EditCondition = "SampleSpacing == EGeometryScriptSampleSpacing::ErrorTolerance"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (EditCondition = "SampleSpacing == EGeometryScriptSampleSpacing::ErrorTolerance"))
 	float ErrorTolerance = 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
@@ -52,11 +52,11 @@ public:
 	EGeometryScriptEvaluateSplineRange RangeMethod = EGeometryScriptEvaluateSplineRange::FullSpline;
 
 	// If not evaluating the full spline, where to start sampling. Expressed in units based on the EvaluateRange value.
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (EditCondition = "EvaluateRange != EGeometryScriptEvaluateSplineRange::FullSpline"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (EditCondition = "EvaluateRange != EGeometryScriptEvaluateSplineRange::FullSpline"))
 	float RangeStart = 0;
 
 	// If not evaluating the full spline, where to stop sampling. Expressed in units based on the EvaluateRange value.
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (EditCondition = "EvaluateRange != EGeometryScriptEvaluateSplineRange::FullSpline"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (EditCondition = "EvaluateRange != EGeometryScriptEvaluateSplineRange::FullSpline"))
 	float RangeEnd = 1;
 
 };

@@ -172,18 +172,6 @@ protected:
 	SLATE_API void DebugSafeAreaUpdated(const FMargin& NewSafeZone, bool bShouldRecacheMetrics);
 #endif
 
-protected:
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.0, "Direct access to StretchDirection is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<EStretchDirection::Type> StretchDirection;
-	UE_DEPRECATED(5.0, "Direct access to Stretch is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<EStretch::Type> Stretch;
-	UE_DEPRECATED(5.0, "Direct access to UserSpecifiedScale is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<float> UserSpecifiedScale;
-	UE_DEPRECATED(5.0, "Direct access to IgnoreInheritedScale is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<bool> IgnoreInheritedScale;
-#endif
-
 private:
 	/** The allowed direction of stretching of the content */
 	TSlateAttribute<EStretchDirection::Type> StretchDirectionAttribute;

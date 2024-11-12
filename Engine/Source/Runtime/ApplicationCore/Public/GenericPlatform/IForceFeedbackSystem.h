@@ -9,11 +9,7 @@
 
 // HEADER_UNIT_SKIP - Deprecated
 
-#ifdef _MSC_VER
-	#pragma message(__FILE__"(9): warning: use GenericPlatform/IInputInterface.h instead of GenericPlatform/IForceFeedbackSystem.h")
-#else
-	#pragma message("#include GenericPlatform/IInputInterface.h instead of GenericPlatform/IForceFeedbackSystem.h")
-#endif
+UE_DEPRECATED_HEADER(5.1, "Use GenericPlatform / IInputInterface.h instead of GenericPlatform / IForceFeedbackSystem.h.")
 
 #include "GenericPlatform/IInputInterface.h"
 

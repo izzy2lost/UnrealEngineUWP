@@ -21,16 +21,16 @@ namespace EpicGames.Horde.Storage
 		{
 			readonly int _maxKeys;
 			readonly Queue<BlobKey> _blobKeys = new Queue<BlobKey>();
-			readonly Dictionary<BlobKey, IBlobRef> _blobKeyToHandle = new Dictionary<BlobKey, IBlobRef>();
+			readonly Dictionary<BlobKey, IHashedBlobRef> _blobKeyToHandle = new Dictionary<BlobKey, IHashedBlobRef>();
 
 			public DedupeCache(int maxKeys)
 			{
 				_maxKeys = maxKeys;
 				_blobKeys = new Queue<BlobKey>(maxKeys);
-				_blobKeyToHandle = new Dictionary<BlobKey, IBlobRef>(maxKeys);
+				_blobKeyToHandle = new Dictionary<BlobKey, IHashedBlobRef>(maxKeys);
 			}
 
-			internal void Add(BlobKey key, IBlobRef handle)
+			internal void Add(BlobKey key, IHashedBlobRef handle)
 			{
 				BlobKey? prevKey;
 				if (_blobKeys.Count == _maxKeys && _blobKeys.TryDequeue(out prevKey))
@@ -40,16 +40,16 @@ namespace EpicGames.Horde.Storage
 				_blobKeyToHandle.TryAdd(key, handle);
 			}
 
-			internal bool TryGetValue(BlobKey key, [NotNullWhen(true)] out IBlobRef? handle) => _blobKeyToHandle.TryGetValue(key, out handle);
+			internal bool TryGetValue(BlobKey key, [NotNullWhen(true)] out IHashedBlobRef? handle) => _blobKeyToHandle.TryGetValue(key, out handle);
 		}
 
-		class WrappedHandle : IBlobRef
+		class WrappedHandle : IHashedBlobRef
 		{
 			public object _lockObject = new object();
-			public IBlobRef? _inner;
+			public IHashedBlobRef? _inner;
 
 			/// <inheritdoc/>
-			public IBlobHandle Innermost
+			public IBlobRef Innermost
 				=> _inner!.Innermost;
 
 			/// <inheritdoc/>
@@ -125,14 +125,14 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="type">Type of the blob</param>
 		/// <param name="blobRef">Reference to the blob data</param>
-		public void AddToCache(BlobType type, IBlobRef blobRef)
+		public void AddToCache(BlobType type, IHashedBlobRef blobRef)
 		{
 			_cache.Add(new BlobKey(blobRef.Hash, type), blobRef);
 			Interlocked.Increment(ref _numCacheAdds);
 		}
 
 		/// <inheritdoc/>
-		public override async ValueTask<IBlobRef> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> imports, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
+		public override async ValueTask<IHashedBlobRef> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobRef> imports, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
 		{
 			ReadOnlyMemory<byte> data = _inner.GetOutputBuffer(size, size).Slice(0, size);
 			IoHash hash = IoHash.Compute(data.Span);
@@ -141,7 +141,7 @@ namespace EpicGames.Horde.Storage
 			WrappedHandle? wrappedHandle;
 			lock (_cache)
 			{
-				IBlobRef? handle;
+				IHashedBlobRef? handle;
 				if (_cache.TryGetValue(key, out handle))
 				{
 					_numHits++;
@@ -192,7 +192,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="store">The store instance to read from</param>
 		/// <param name="maxKeys">Maximum number of keys to include in the cache</param>
-		public static DedupeBlobWriter CreateDedupeBlobWriter(this IStorageClient store, int maxKeys = DedupeBlobWriter.DefaultMaxKeys)
+		public static DedupeBlobWriter CreateDedupeBlobWriter(this IStorageNamespace store, int maxKeys = DedupeBlobWriter.DefaultMaxKeys)
 		{
 			IBlobWriter writer = store.CreateBlobWriter();
 			return new DedupeBlobWriter(writer, maxKeys);
@@ -204,7 +204,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="store">The store instance to read from</param>
 		/// <param name="refName">Ref name to use as a base path</param>
 		/// <param name="maxKeys">Maximum number of keys to include in the cache</param>
-		public static DedupeBlobWriter CreateDedupeBlobWriter(this IStorageClient store, RefName refName, int maxKeys = DedupeBlobWriter.DefaultMaxKeys)
+		public static DedupeBlobWriter CreateDedupeBlobWriter(this IStorageNamespace store, RefName refName, int maxKeys = DedupeBlobWriter.DefaultMaxKeys)
 		{
 			IBlobWriter writer = store.CreateBlobWriter(refName.ToString());
 			return new DedupeBlobWriter(writer, maxKeys);
@@ -218,10 +218,14 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public static async Task AddToCacheAsync(this DedupeBlobWriter dedupeWriter, IBlobRef<DirectoryNode> directoryNodeRef, CancellationToken cancellationToken = default)
 		{
-			using BlobData blobData = await directoryNodeRef.ReadBlobDataAsync(cancellationToken);
-			dedupeWriter.AddToCache(blobData.Type, directoryNodeRef);
+			DirectoryNode directoryNode;
+			using (BlobData blobData = await directoryNodeRef.ReadBlobDataAsync(cancellationToken))
+			{
+				IHashedBlobRef hashedBlobRef = HashedBlobRef.Create(IoHash.Compute(blobData.Data.Span), directoryNodeRef);
+				dedupeWriter.AddToCache(blobData.Type, hashedBlobRef);
+				directoryNode = BlobSerializer.Deserialize<DirectoryNode>(blobData);
+			}
 
-			DirectoryNode directoryNode = BlobSerializer.Deserialize<DirectoryNode>(blobData);
 			foreach (DirectoryEntry directoryEntry in directoryNode.Directories)
 			{
 				await AddToCacheAsync(dedupeWriter, directoryEntry.Handle, cancellationToken);

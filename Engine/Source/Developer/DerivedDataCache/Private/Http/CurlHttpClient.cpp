@@ -358,7 +358,7 @@ private:
 
 FCurlHttpManager::FCurlHttpManager()
 {
-	// User-Agent: UnrealEngine/X.Y.Z-<CL> (<Platform>; <Config> <TargetType>; <BranchName>) <AppName> (<ProjectName>)
+	// User-Agent: UnrealEngine/X.Y.Z-<CL> (<Platform>; <Config> <TargetType>; <BranchName>) <AppName>[CommandletName] (<ProjectName>)
 	const FEngineVersion& Version = FEngineVersion::Current();
 	UserAgent << ANSITEXTVIEW("User-Agent: UnrealEngine/")
 		<< Version.GetMajor() << '.' << Version.GetMinor() << '.' << Version.GetPatch() << '-' << Version.GetChangelist()
@@ -366,6 +366,15 @@ FCurlHttpManager::FCurlHttpManager()
 		<< ANSITEXTVIEW("; ") << LexToString(FApp::GetBuildConfiguration()) << ' ' << LexToString(FApp::GetBuildTargetType())
 		<< ANSITEXTVIEW("; ") << FApp::GetBranchName()
 		<< ANSITEXTVIEW(") ") << FApp::GetName();
+
+	if (IsRunningCommandlet())
+	{
+		FString CommandletName;
+		FParse::Value(FCommandLine::Get(), TEXT("Run="), CommandletName);
+		CommandletName.ToLowerInline();
+		UserAgent << '[' << CommandletName << ']';
+	}
+
 	if (FApp::HasProjectName() && FApp::GetName() != FApp::GetProjectName())
 	{
 		UserAgent << ANSITEXTVIEW(" (") << FApp::GetProjectName() << ')';
@@ -383,6 +392,7 @@ void FCurlHttpManager::SetDefaultOptions(CURL* Curl, FCurlHttpHeaders& Headers)
 	curl_easy_setopt(Curl, CURLOPT_NOSIGNAL, 1L);
 	curl_easy_setopt(Curl, CURLOPT_USERAGENT, UserAgent.GetData());
 
+	Headers.AddHeader(*WriteToAnsiString<64>(ANSITEXTVIEW("UE-IsBuildMachine: "), GIsBuildMachine));
 	Headers.AddHeader(*WriteToAnsiString<64>(ANSITEXTVIEW("UE-Session: "), SessionId));
 	Headers.AddHeader(*WriteToAnsiString<32>(ANSITEXTVIEW("UE-Request: "), RequestId.fetch_add(1, std::memory_order_relaxed)));
 
@@ -1139,6 +1149,7 @@ void FCurlHttpResponse::SetComplete(CURLcode Code)
 	Stats.NameResolveTime = GetDoubleInfo(CURLINFO_NAMELOOKUP_TIME);
 	Stats.ConnectTime = GetDoubleInfo(CURLINFO_CONNECT_TIME);
 	Stats.TlsConnectTime = GetDoubleInfo(CURLINFO_APPCONNECT_TIME);
+	Stats.PreTransferTime = GetDoubleInfo(CURLINFO_PRETRANSFER_TIME);
 	Stats.StartTransferTime = GetDoubleInfo(CURLINFO_STARTTRANSFER_TIME);
 	Stats.TotalTime = GetDoubleInfo(CURLINFO_TOTAL_TIME);
 

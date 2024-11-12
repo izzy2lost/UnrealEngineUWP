@@ -6,6 +6,7 @@
 #include "HAL/Event.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/RunnableThread.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/Fork.h"
 
 namespace BuildPatchServices
@@ -26,19 +27,11 @@ namespace BuildPatchServices
 
 	bool FBuildInstallerThread::StartThread(const TCHAR* DebugName)
 	{
-		// Ideally this would check if we were forkable or a forked child process but there is 
-		// currently no in-engine way to check that.  Since BPS does not currently support
-		// FRunnableThread::ThreadType::Fake or FRunnableThread::ThreadType::Forkable 
-		// this check ends up being equivalent for now.  We most likely *never* want support 
-		// forking while an installer is running.
-		if (FPlatformProcess::SupportsMultithreading() || FForkProcessHelper::IsForkedMultithreadInstance())
-		{
-			DoWorkEvent = FPlatformProcess::GetSynchEventFromPool();
+		// We most likely *never* want support forking while an installer is running.
+		DoWorkEvent = FPlatformProcess::GetSynchEventFromPool();
 
-			Thread = FForkProcessHelper::CreateForkableThread(this, DebugName);
-			check(Thread != nullptr);
-			check(Thread->GetThreadType() == FRunnableThread::ThreadType::Real);
-		}
+		Thread = FForkProcessHelper::CreateForkableThread(this, DebugName, 0, TPri_Normal, FGenericPlatformAffinity::GetNoAffinityMask(), EThreadCreateFlags::None, true);
+		check(Thread != nullptr);
 
 		return DoWorkEvent && Thread;
 	}
@@ -131,11 +124,10 @@ namespace BuildPatchServices
 	{
 		const uint32 NumInstallerMainThreads = 1;
 		const uint32 NumCloudChunkSourceThreads = 1;
-#if ENABLE_PATCH_DISK_OVERFLOW_STORE
-		const uint32 NumDiskChunkStoreThreads = 1;
-#else
-		const uint32 NumDiskChunkStoreThreads = 0;
-#endif
+
+		bool bUseDiskOverflowStore = true;
+		GConfig->GetBool(TEXT("BuildPatchServices"), TEXT("bEnableDiskOverflowStore"), bUseDiskOverflowStore, GEngineIni);
+		const uint32 NumDiskChunkStoreThreads = bUseDiskOverflowStore ? 1 : 0;
 		const uint32 NumChunkDBThreads = bUseChunkDBs ? 1 : 0;
 		const uint32 NumExpectedThreads =
 			NumInstallerMainThreads + 

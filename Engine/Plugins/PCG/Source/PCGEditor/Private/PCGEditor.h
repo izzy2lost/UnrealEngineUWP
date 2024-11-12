@@ -22,11 +22,13 @@ class SPCGEditorGraphFind;
 class SPCGEditorGraphLogView;
 class SPCGEditorGraphNodePalette;
 class SPCGEditorGraphProfilingView;
+class SPCGEditorNodeSource;
 class UEdGraphNode;
 class UPCGComponent;
 class UPCGEditorGraph;
 class UPCGEditorGraphNodeBase;
 class UPCGGraph;
+struct FPCGCompilerDiagnostics;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnInspectedStackChanged, const FPCGStack&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnInspectedNodeChanged, UPCGEditorGraphNodeBase*);
@@ -57,6 +59,8 @@ public:
 	
 	/** Gets the PCG stack we are inspecting */
 	const FPCGStack* GetStackBeingInspected() const;
+
+	void SetSourceEditorTargetObject(UObject* InObject);
 
 	/** Focus the graph view on a specific node */
 	void JumpToNode(const UEdGraphNode* InNode);
@@ -93,6 +97,12 @@ public:
 	virtual void InitToolMenuContext(FToolMenuContext& MenuContext) override;
 	// ~End FAssetEditorToolkit interface
 
+	/** Returns true if the Node Source Editor tab is not currently open. */
+	bool IsNodeSourceEditorTabClosed() const;
+
+	/** Opens the Node Source Editor tab if it is not already visible. */
+	void SpawnNodeSourceEditorTab();
+
 	FOnInspectedStackChanged OnInspectedStackChangedDelegate;
 
 protected:
@@ -107,6 +117,9 @@ private:
 
 	/** Bind commands to delegates */
 	void BindCommands();
+
+	/** Callback to process component changes */
+	void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap);
 
 	/** Bring up the find tab */
 	void OnFind();
@@ -134,6 +147,8 @@ private:
 	bool CanToggleInspected() const;
 	/** Whether selected nodes are inspected or not */
 	ECheckBoxState GetInspectedCheckState() const;
+
+	void UpdateAfterInspectedStackChanged();
 	
 	/** Toggle node enabled state for selected nodes */
 	void OnToggleEnabled();
@@ -299,11 +314,17 @@ private:
 	/** Create a new profiling tab widget */
 	TSharedRef<SPCGEditorGraphProfilingView> CreateProfilingWidget();
 
-	/** Create a new profiling tab widget */
+	/** Create a new log capture tab widget */
 	TSharedRef<SPCGEditorGraphLogView> CreateLogWidget();
+
+	/** Create a new node source editor tab widget */
+	TSharedRef<SPCGEditorNodeSource> CreateNodeSourceWidget();
 
 	/** Called when the selection changes in the GraphEditor */
 	void OnSelectedNodesChanged(const TSet<UObject*>& NewSelection);
+
+	/** Called when the component inspected is generated/cleaned */
+	void OnComponentGenerated(UPCGComponent* InComponent);
 
 	/** Called when the title of a node is changed */
 	void OnNodeTitleCommitted(const FText& NewText, ETextCommit::Type CommitInfo, UEdGraphNode* NodeBeingChanged);
@@ -325,14 +346,20 @@ private:
 	/** To be called everytime we need to replicate our extra nodes to the underlying PCGGraph */
 	void ReplicateExtraNodes() const;
 
+	/** Called when a PCG component unregisters. */
+	void OnComponentUnregistered(UPCGComponent* Component);
+
 	/** Called when a component finishes executing. Useful for updating debugging tools/UIs. */
-	void OnComponentGenerationCompleteOrCancelled(UPCGSubsystem* Subsystem);
+	void OnComponentGenerationDone(UPCGSubsystem* Subsystem, UPCGComponent* Component, EPCGGenerationStatus Status);
 
 	/** Trigger any generation required to ensure debug display is up to date. */
 	void UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponent, UPCGComponent* InNewComponent, bool bNewComponentStartedInspecting);
 
 	void RegisterDelegatesForWorld(UWorld* World);
 	void UnregisterDelegatesForWorld(UWorld* World);
+
+	void OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType);
+	void OnNodeSourceCompiled(const UPCGNode* InNode, const FPCGCompilerDiagnostics& InDiagnostics);
 
 	void OnMapChanged(UWorld* InWorld, EMapChangeType InMapChangedType);
 	void OnPostPIEStarted(bool bIsSimulating);
@@ -348,6 +375,7 @@ private:
 	TSharedRef<SDockTab> SpawnTab_Determinism(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Profiling(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Log(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_NodeSource(const FSpawnTabArgs& Args);
 
 	FText GetDetailsTabLabel(int DetailsIndex);
 	FText GetDetailsViewObjectName(int DetailsIndex);
@@ -362,6 +390,7 @@ private:
 	TSharedPtr<SPCGEditorGraphDeterminismListView> DeterminismWidget;
 	TSharedPtr<SPCGEditorGraphProfilingView> ProfilingWidget;
 	TSharedPtr<SPCGEditorGraphLogView> LogWidget;
+	TSharedPtr<SPCGEditorNodeSource> NodeSourceWidget;
 
 	TSharedPtr<FUICommandList> GraphEditorCommands;
 
@@ -369,5 +398,7 @@ private:
 	UPCGEditorGraph* PCGEditorGraph = nullptr;
 
 	TWeakObjectPtr<UPCGComponent> PCGComponentBeingInspected;
+	// Implementation note: we'll keep the last valid component inspected so we don't un-inspect on spurious selection changes
+	TWeakObjectPtr<UPCGComponent> LastValidPCGComponentBeingInspected;
 	FPCGStack StackBeingInspected;
 };

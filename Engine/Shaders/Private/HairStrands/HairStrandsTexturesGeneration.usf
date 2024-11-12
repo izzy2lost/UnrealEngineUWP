@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "../Common.ush"
+#include "../Common.ush" 
 #include "../MonteCarlo.ush"
 
 #include "HairStrandsVisibilityCommon.ush"
@@ -18,6 +18,28 @@
 #error Max cards texture count is != 6. This codes needs to be updated.
 #endif
 
+void AssignValue1(inout float4 OutTexture, uint ChannelIndex, float Value)
+{
+	switch (ChannelIndex)
+	{
+		case 0: OutTexture.x = Value; break;
+		case 1: OutTexture.y = Value; break;
+		case 2: OutTexture.z = Value; break;
+		case 3: OutTexture.w = Value; break;
+		default: break;
+	}
+}
+
+void AssignValue2(inout float4 OutTexture, uint ChannelIndex, float2 Value)
+{
+	switch (ChannelIndex)
+	{
+		case 0: OutTexture.xy = Value; break;
+		case 1: OutTexture.zw = Value; break;
+		default: break;
+	}
+}
+
 #define WriteValue1(InLayout, InAttribute, In)\
 { \
 	if (IsHairCardTextureIndexValid(InLayout, InAttribute))\
@@ -25,13 +47,13 @@
 		const uint TexIndex = GetHairCardTextureIndex(InLayout, InAttribute);\
 		const uint ChannelIndex = GetHairCardChannelIndex(InLayout, InAttribute);\
 		switch (TexIndex)\
-		{\
-			case 0: ChannelIndex == 0 ? OutTexture0.x = In : (ChannelIndex == 1 ? OutTexture0.y = In : (ChannelIndex == 2 ? OutTexture0.z = In : OutTexture0.w = In)); break;\
-			case 1: ChannelIndex == 0 ? OutTexture1.x = In : (ChannelIndex == 1 ? OutTexture1.y = In : (ChannelIndex == 2 ? OutTexture1.z = In : OutTexture1.w = In)); break;\
-			case 2: ChannelIndex == 0 ? OutTexture2.x = In : (ChannelIndex == 1 ? OutTexture2.y = In : (ChannelIndex == 2 ? OutTexture2.z = In : OutTexture2.w = In)); break;\
-			case 3: ChannelIndex == 0 ? OutTexture3.x = In : (ChannelIndex == 1 ? OutTexture3.y = In : (ChannelIndex == 2 ? OutTexture3.z = In : OutTexture3.w = In)); break;\
-			case 4: ChannelIndex == 0 ? OutTexture4.x = In : (ChannelIndex == 1 ? OutTexture4.y = In : (ChannelIndex == 2 ? OutTexture4.z = In : OutTexture4.w = In)); break;\
-			case 5: ChannelIndex == 0 ? OutTexture5.x = In : (ChannelIndex == 1 ? OutTexture5.y = In : (ChannelIndex == 2 ? OutTexture5.z = In : OutTexture5.w = In)); break;\
+		{ \
+			case 0: AssignValue1(OutTexture0, ChannelIndex, In); break;\
+			case 1: AssignValue1(OutTexture1, ChannelIndex, In); break;\
+			case 2: AssignValue1(OutTexture2, ChannelIndex, In); break;\
+			case 3: AssignValue1(OutTexture3, ChannelIndex, In); break;\
+			case 4: AssignValue1(OutTexture4, ChannelIndex, In); break;\
+			case 5: AssignValue1(OutTexture5, ChannelIndex, In); break;\
 		}\
 	}\
 }
@@ -43,12 +65,12 @@
 		const uint ChannelIndex = GetHairCardChannelIndex(InLayout, InAttribute);\
 		switch (TexIndex)\
 		{\
-			case 0: ChannelIndex < 2 ? OutTexture0.xy = In : OutTexture0.zw = In; break;\
-			case 1: ChannelIndex < 2 ? OutTexture1.xy = In : OutTexture1.zw = In; break;\
-			case 2: ChannelIndex < 2 ? OutTexture2.xy = In : OutTexture2.zw = In; break;\
-			case 3: ChannelIndex < 2 ? OutTexture3.xy = In : OutTexture3.zw = In; break;\
-			case 4: ChannelIndex < 2 ? OutTexture4.xy = In : OutTexture4.zw = In; break;\
-			case 5: ChannelIndex < 2 ? OutTexture5.xy = In : OutTexture5.zw = In; break;\
+			case 0: AssignValue2(OutTexture0, ChannelIndex, In); break;\
+			case 1: AssignValue2(OutTexture1, ChannelIndex, In); break;\
+			case 2: AssignValue2(OutTexture2, ChannelIndex, In); break;\
+			case 3: AssignValue2(OutTexture3, ChannelIndex, In); break;\
+			case 4: AssignValue2(OutTexture4, ChannelIndex, In); break;\
+			case 5: AssignValue2(OutTexture5, ChannelIndex, In); break;\
 		}\
 	}\
 }
@@ -116,6 +138,34 @@ void MainVS(
 #endif // VERTEXSHADER
 
 #if SHADER_PIXEL
+void MainPS(
+	in float4  SvPosition	: SV_Position,
+	in float2  InUV			: MESH_UV,
+	in float3  InPosition	: MESH_POSITION,
+	in float3  InTangent	: MESH_TANGENT,
+	in float3  InBitangent	: MESH_BITANGENT,
+	in float3  InNormal		: MESH_NORMAL,
+	out float4 OutPosition  : SV_Target0,
+	out float4 OutTangent   : SV_Target1,
+	out float4 OutBitangent : SV_Target2,
+	out float4 OutNormal    : SV_Target3,
+	out float2 OutUV        : SV_Target4,
+	out uint   OutTriangleMask : SV_Target5)
+{
+	const float3 T = normalize(InTangent);
+	const float3 B = normalize(InBitangent);
+	const float3 N = normalize(InNormal);
+
+	OutPosition     = float4(InPosition,1);
+	OutTangent      = float4(InTangent,1);
+	OutBitangent    = float4(InBitangent,1);
+	OutNormal       = float4(InNormal,1);
+	OutUV           = InUV;
+	OutTriangleMask = 1;
+}
+#endif //SHADER_PIXEL
+
+#if SHADER_COMPUTE 
 
 #include "HairStrandsVertexFactoryCommon.ush"
 #include "HairStrandsAttributeCommon.ush"
@@ -144,6 +194,8 @@ float3 ComputeTangent(
 	return normalize(CP1.Position - CP0.Position);
 }
 
+int2 TileSize;
+int2 TileOffsetInPixels;
 uint LayoutIndex;
 int2 OutputResolution;
 uint VertexCount;
@@ -162,13 +214,18 @@ float3 Voxel_MaxBound;
 int3 Voxel_Resolution;
 float Voxel_Size;
 uint Voxel_MaxSegmentPerVoxel;
-
 uint Voxel_OffsetAndCount_MaxCount;
 uint Voxel_Data_MaxCount;
 
 StructuredBuffer<uint2> Voxel_OffsetAndCount;
 StructuredBuffer<uint2> Voxel_Data;
 RWTexture2DArray<float4> OutTexture;
+
+Texture2D<float4> PositionTexture;
+Texture2D<float4> TangentTexture;
+Texture2D<float4> BitangentTexture;
+Texture2D<float4> NormalTexture;
+Texture2D<float2> UVTexture;
 
 uint3 PositionToCoord(float3 P, float3 InMinAABB, float3 InMaxAABB, uint3 InResolution)
 {
@@ -187,10 +244,88 @@ uint CoordToIndex(uint3 InCoord, uint3 InResolution, uint LinearOffset)
 		LinearOffset;
 }
 
+
+bool ClipRaySegment(float3 AABBMin, float3 AABBMax, float4 P0, float4 P1, out float2 T, out bool3 bClipped)
+{
+	bClipped = false;
+	T = float2(0.0f, 1.0f);
+	const bool bP0Outside = any(P0.xyz < AABBMin) || any(P0.xyz > AABBMax);
+	const bool bP1Outside = any(P1.xyz < AABBMin) || any(P1.xyz > AABBMax);
+	if (!bP0Outside && !bP1Outside)
+	{
+		return true;
+	}
+
+	const float3 Origin = P0.xyz;
+	const float3 Dir = P1.xyz - P0.xyz;
+	const float3 RcpDir = 1.0f / Dir;
+
+	const float3 T0 = (AABBMin - Origin) * RcpDir;
+	const float3 T1 = (AABBMax - Origin) * RcpDir;
+
+	T.x = max3(min(T0.x, T1.x), min(T0.y, T1.y), min(T0.z, T1.z));
+	T.y = min3(max(T0.x, T1.x), max(T0.y, T1.y), max(T0.z, T1.z));
+
+	// Ray intersects the AABB but the segment is completely outside or no intersection at all.
+	if (T.y < 0.0f || T.x > T.y)
+	{
+		bClipped = true;
+		return false;
+	}
+
+	if (bP0Outside && T.x > 0.0f && T.x < 1.0f)
+	{
+		bClipped.x = true;
+	}
+	if (bP1Outside && T.y > 0.0f && T.y < 1.0f)
+	{
+		bClipped.y = true;
+	}
+
+	return true;
+}
+
+bool ClipRaySegment(float3 AABBMin, float3 AABBMax, inout float4 P0, inout float4 P1, inout float Rad0, inout float Rad1, out bool3 bClipped)
+{
+	float2 T;
+	bool bIsValid = ClipRaySegment(AABBMin, AABBMax, P0, P1, T, bClipped);
+	
+	if (bIsValid)
+	{
+		const bool bP0Outside = any(P0.xyz < AABBMin) || any(P0.xyz > AABBMax);
+		const bool bP1Outside = any(P1.xyz < AABBMin) || any(P1.xyz > AABBMax);
+
+		float4 P0New = P0;
+		float4 P1New = P1;
+		float Rad0New = Rad0;
+		float Rad1New = Rad1;
+		if (bP0Outside && T.x > 0.0f && T.x < 1.0f)
+		{
+			P0New = lerp(P0, P1, T.x);
+			Rad0New = lerp(Rad0, Rad1, T.x);
+			bClipped.x = true;
+		}
+		if (bP1Outside && T.y > 0.0f && T.y < 1.0f)
+		{
+			P1New = lerp(P0, P1, T.y);
+			Rad1New = lerp(Rad0, Rad1, T.y);
+			bClipped.y = true;
+		}
+
+		P0 = P0New;
+		P1 = P1New;
+		Rad0 = Rad0New;
+		Rad1 = Rad1New;
+	}
+
+	return bIsValid;
+}
+
 bool Trace(
 	float3 InRayO,
 	float3 InRayD,
 	float InMaxDistance,
+	float InPixelRadius,
 	bool bDebugEnable,
 	inout float  OutDepth,
 	inout float  OutCoverage,
@@ -283,7 +418,7 @@ bool Trace(
 			}
 
 			const float3 WPCurr = (PageIndexCoord + 0.5f) * Voxel_Size  + Voxel_MinBound;
-			const bool bExit = dot((WPCurr - O), InRayD) > (MaxDistance + Voxel_Size);
+			const bool bExit = dot((WPCurr - O), InRayD) > (InMaxDistance + Voxel_Size);
 			if (bExit)
 			{
 				return bIsValid;
@@ -322,8 +457,31 @@ bool Trace(
 						const uint P0 = P0_P1.x;
 						const uint P1 = P0_P1.y;
 
-						const FHairControlPoint CP_Curr = ReadHairControlPoint(InVF_PositionBuffer, P0, InVF_PositionOffset, InVF_Radius, InVF_RootScale, InVF_TipScale);
-						const FHairControlPoint CP_Next = ReadHairControlPoint(InVF_PositionBuffer, P1, InVF_PositionOffset, InVF_Radius, InVF_RootScale, InVF_TipScale);
+						FHairControlPoint CP_Curr = ReadHairControlPoint(InVF_PositionBuffer, P0, InVF_PositionOffset, InVF_Radius, InVF_RootScale, InVF_TipScale);
+						FHairControlPoint CP_Next = ReadHairControlPoint(InVF_PositionBuffer, P1, InVF_PositionOffset, InVF_Radius, InVF_RootScale, InVF_TipScale);
+
+						// Clip segment to voxel boundary in order to avoid counting multiple time the same segment which would cause the coverage to be incorrect 
+						// as the ray trace several voxels
+						{
+							const float3 MinVoxelAABB = Voxel_MinBound + PageIndexCoord * Voxel_Size;
+							const float3 MaxVoxelAABB = Voxel_MinBound + (PageIndexCoord + 1) * Voxel_Size;
+						
+							float4 ClippedP0  = float4(CP_Curr.Position, 1);
+							float4 ClippedP1  = float4(CP_Next.Position, 1);
+							float ClippedRad0 = CP_Curr.WorldRadius;
+							float ClippedRad1 = CP_Next.WorldRadius;
+							bool3 bClipped    = false;
+
+							ClipRaySegment(MinVoxelAABB, MaxVoxelAABB, ClippedP0, ClippedP1, ClippedRad0, ClippedRad1, bClipped);
+
+							if (any(bClipped))
+							{
+								CP_Curr.Position    = ClippedP0.xyz;
+								CP_Next.Position    = ClippedP1.xyz;
+								CP_Curr.WorldRadius = ClippedRad0;
+								CP_Next.WorldRadius = ClippedRad1;
+							}
+						}
 
 						const float3 Tangent = ComputeTangent(CP_Curr, CP_Next);
 
@@ -341,7 +499,10 @@ bool Trace(
 
 						if (bIntersect)
 						{
-							OutCoverage = 1;
+							const float SegmentCoverage = saturate(WorldRadius / InPixelRadius);
+							//OutCoverage = saturate(OutCoverage + saturate(1.f-OutCoverage) * SegmentCoverage);
+							OutCoverage = saturate(OutCoverage + SegmentCoverage);
+							//OutCoverage = 1;
 						}
 
 						if (bIntersectAndClosest)
@@ -393,22 +554,39 @@ bool Trace(
 	return bIsValid;
 }
 
-void MainPS(
-	in float4  SvPosition	: SV_Position,
-	in float2  InUV			: MESH_UV,
-	in float3  InPosition	: MESH_POSITION,
-	in float3  InTangent	: MESH_TANGENT,
-	in float3  InBitangent	: MESH_BITANGENT,
-	in float3  InNormal		: MESH_NORMAL,
-	out uint   OutTriangleMask : SV_Target0,
-	out float  OutDepthTest	: SV_Depth)
+[numthreads(8, 8, 1)]
+void MainCS(
+	uint GroupIndex : SV_GroupIndex, 
+	uint3 DispatchThreadId : SV_DispatchThreadID)
 {
+	const int2 PixelCoord = DispatchThreadId.xy + TileOffsetInPixels;
+	if (any(PixelCoord > OutputResolution))
+	{
+		return;
+	}
+
+	const float2 InUV		= UVTexture[PixelCoord];
+	const float3 InPosition = PositionTexture[PixelCoord].xyz;
+	const float3 InTangent	= TangentTexture[PixelCoord].xyz;
+	const float3 InBitangent= BitangentTexture[PixelCoord].xyz;
+	const float3 InNormal	= NormalTexture[PixelCoord].xyz;
+
 	const float3 T = normalize(InTangent);
 	const float3 B = normalize(InBitangent);
 	const float3 N = normalize(InNormal);
 
-	const float3 PixelAxisX = ddx_fine(InPosition);
-	const float3 PixelAxisY = ddy_fine(InPosition);
+	// Manual ddx/ddy
+	float3 PixelAxisX = 0;
+	float3 PixelAxisY = 0; 
+	if (PixelCoord.x + 1 < OutputResolution.x)
+	{
+		PixelAxisX = PositionTexture[float2(PixelCoord.x+1, PixelCoord.y)].xyz - InPosition;
+	}
+	if (PixelCoord.y + 1 < OutputResolution.y)
+	{
+		PixelAxisY = PositionTexture[float2(PixelCoord.x, PixelCoord.y+1)].xyz - InPosition;
+	}
+	const float PixelWorldRadius = 0.25f * (length(PixelAxisY) + length(PixelAxisX)); // Average + pixel radius (vs. diameter)
 
 	float4 OutTexture0 = 0;
 	float4 OutTexture1	= 0;
@@ -428,8 +606,6 @@ void MainPS(
 	float  OutCoverage = 0;
 
 	float3 Tangent_ObjectSpace = 0;
-	const int2 PixelCoord = int2(SvPosition.xy);
-
 	const bool bDebugEnable =
 	#if DEBUG_ENABLE
 		all(PixelCoord == GetCursorPos());
@@ -442,7 +618,7 @@ void MainPS(
 	const uint SampleCount = 16;
 	for (uint SampleIt = 0; SampleIt < SampleCount; ++SampleIt)
 	{
-		const float2 Jitter = Hammersley(SampleIt, SampleCount, 0) * 2 - 1;
+		const float2 Jitter = 0.5f * (Hammersley(SampleIt, SampleCount, 0) * 2 - 1);
 
 		float3 RayO = InPosition + Jitter.x * PixelAxisX + Jitter.y * PixelAxisY;
 		float3 RayD = N;
@@ -473,7 +649,7 @@ void MainPS(
 		float  SampleU = 0;
 		float  SampleSeed = 0;
 		float4 SampleMaterial = 0;
-		if (Trace(RayO, RayD, MaxDistance, bDebugEnable, SampleDepth, SampleCoverage, SampleTangent, SampleRootUV, SampleU, SampleSeed, SampleMaterial))
+		if (Trace(RayO, RayD, MaxDistance, PixelWorldRadius, bDebugEnable, SampleDepth, SampleCoverage, SampleTangent, SampleRootUV, SampleU, SampleSeed, SampleMaterial))
 		{
 			if (SampleDepth < OutDepth)
 			{
@@ -517,8 +693,6 @@ void MainPS(
 	}
 
 	OutDepth = saturate(OutDepth / MaxDistance);
-	OutDepthTest = OutDepth;
-	OutTriangleMask = 1;
 
 	if (bValidCount > 0)
 	{
@@ -540,8 +714,7 @@ void MainPS(
 		OutTexture[uint3(PixelCoord, 5)] = OutTexture5;
 	}
 }
-
-#endif // SHADER_PIXEL
+#endif // SHADER_COMPUTE
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -569,12 +742,39 @@ RWTexture2DArray<float4> TargetTexture;
 void MainCS(int2 DispatchThreadId : SV_DispatchThreadID)
 {
 	const uint2 PixelCoord = DispatchThreadId.xy;
-	if (any(PixelCoord >= Resolution))
+	if (any(PixelCoord >= uint2(Resolution)))
 	{
 		return;
 	}
 
-	const bool bIsValid = SourceTriangleMaskTexture.Load(uint3(PixelCoord,0)) > 0;
+	bool bIsValid = false;
+
+	// Pixel within the source, which are not written due to lack of data, will be dialated as well
+	{
+		const uint CoverageTextureIndex = GetHairCardTextureIndex(LayoutIndex, EHairCardsVFAttribute_Coverage);
+		const uint CoverageChannelIndex = GetHairCardChannelIndex(LayoutIndex, EHairCardsVFAttribute_Coverage);
+		const float4 Value = SourceTexture[uint3(PixelCoord, CoverageTextureIndex)];
+		float CoverageValue = 1.f;
+		switch (CoverageChannelIndex)
+		{
+			case 0 : CoverageValue = Value.x; break;
+			case 1 : CoverageValue = Value.y; break;
+			case 2 : CoverageValue = Value.z; break;
+			case 3 : CoverageValue = Value.z; break;
+		}
+
+		// * When doing the clear pass, only mark as valid, pixels whose coverage is > 0
+		// * For other passes, use the source mask (i.e, the mask updated at every pass) for identifying valid/already processed pixels
+		if (bClearPass)
+		{
+			bIsValid = CoverageValue > 0.f;
+		}
+		else
+		{
+			bIsValid = SourceTriangleMaskTexture.Load(uint3(PixelCoord,0)) > 0;
+		}
+	}
+
 	if (bClearPass || bIsValid)
 	{
 		// Fast path: the pixel is valid, we copy value
@@ -585,7 +785,7 @@ void MainCS(int2 DispatchThreadId : SV_DispatchThreadID)
 
 		if (bClearPass)
 		{
-			TargetTriangleMaskTexture[PixelCoord] = DepthTestTexture.Load(uint3(PixelCoord,0)) < 1.f ? 1u : 0u;
+			TargetTriangleMaskTexture[PixelCoord] = (bIsValid && OriginalTriangleMaskTexture.Load(uint3(PixelCoord,0)) > 0.5f) ? 1u : 0u;
 		}
 		else
 		{

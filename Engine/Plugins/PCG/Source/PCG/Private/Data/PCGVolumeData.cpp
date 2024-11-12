@@ -12,6 +12,7 @@
 
 #include "Chaos/ChaosEngineInterface.h"
 #include "Physics/PhysicsInterfaceDeclares.h"
+#include "Serialization/ArchiveCrc32.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGVolumeData)
 
@@ -83,8 +84,40 @@ void UPCGVolumeData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 {
 	Super::AddToCrc(Ar, bFullDataCrc);
 
-	// This data does not have a bespoke CRC implementation so just use a global unique data CRC.
-	AddUIDToCrc(Ar);
+	if (VolumeBodyInstance)
+	{
+		// Implementation note: no metadata in this data at this point.
+
+		uint32 UniqueTypeID = StaticClass()->GetDefaultObject()->GetUniqueID();
+		Ar << UniqueTypeID;
+
+		// Weird implementation to fix ambiguous call between the FBodyInstance friend function (which isn't exposed) and the one in the FArchiveCrc32 code.
+		FBodyInstance::StaticStruct()->SerializeItem(Ar, const_cast<FBodyInstance*>(VolumeBodyInstance), nullptr);
+
+		// Implementation note: we will not consider the volume pointer in this instance
+		Ar.Serialize((void*)&VoxelSize, sizeof(FVector));
+
+		// TODO: move this to helper function
+		auto SerializeBounds = [&Ar](FBox* Box)
+		{
+			check(Box);
+			Ar << Box->IsValid;
+
+			if (Box->IsValid)
+			{
+				Ar << Box->Min;
+				Ar << Box->Max;
+			}
+		};
+
+		SerializeBounds(const_cast<FBox*>(&Bounds));
+		SerializeBounds(const_cast<FBox*>(&StrictBounds));
+	}
+	else
+	{
+		// This data does not have a bespoke CRC implementation so just use a global unique data CRC.
+		AddUIDToCrc(Ar);
+	}
 }
 
 FBox UPCGVolumeData::GetBounds() const
@@ -163,11 +196,18 @@ void UPCGVolumeData::CopyBaseVolumeData(UPCGVolumeData* NewVolumeData) const
 	NewVolumeData->Volume = Volume;
 	NewVolumeData->Bounds = Bounds;
 	NewVolumeData->StrictBounds = StrictBounds;
+
+	if (VolumeBodyInstance)
+	{
+		NewVolumeData->ReleaseInternalBodyInstance();
+		NewVolumeData->VolumeBodyInstance = new FBodyInstance();
+		NewVolumeData->VolumeBodyInstance->CopyBodyInstancePropertiesFrom(VolumeBodyInstance);
+	}
 }
 
-UPCGSpatialData* UPCGVolumeData::CopyInternal() const
+UPCGSpatialData* UPCGVolumeData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGVolumeData* NewVolumeData = NewObject<UPCGVolumeData>();
+	UPCGVolumeData* NewVolumeData = FPCGContext::NewObject_AnyThread<UPCGVolumeData>(Context);
 
 	CopyBaseVolumeData(NewVolumeData);
 

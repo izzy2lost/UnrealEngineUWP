@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#define EYE_ADAPTATION_LOOSE_PARAMETERS 1
+
 #include "Common.ush"
 #include "ScreenPass.ush"
 #include "PostProcessHistogramCommon.ush"
@@ -18,6 +20,7 @@ SamplerState TextureSampler;
 
 RWTexture2D<float> OutputFloat;
 RWTexture2D<float4> OutputFloat4;
+RWTexture2D<float4> OutputFloat4_1;
 
 [numthreads(THREADGROUP_SIZEX, THREADGROUP_SIZEY, 1)]
 void SetupLogLuminanceCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -52,4 +55,84 @@ void ApplyLocalExposureCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 
 		OutputFloat4[OutputPixelPos] = SceneColor;
 	}
+}
+
+float ExposureWeight(float V, float Target)
+{
+	float Sigma = 0.2f;
+
+	float A = (V - Target);
+	float B = 2 * Sigma * Sigma;
+
+	return exp2(-A * A / B);
+}
+
+float TargetLuminance;
+
+[numthreads(THREADGROUP_SIZEX, THREADGROUP_SIZEY, 1)]
+void FusionSetupCS(uint2 DispatchThreadId : SV_DispatchThreadID)
+{
+	const uint2 OutputPixelPos = DispatchThreadId + Output_ViewportMin;
+
+	BRANCH
+	if (any(OutputPixelPos >= (uint2)Output_ViewportMax))
+	{
+		return;
+	}
+
+	const float2 ExposureScaleMiddleGrey = EyeAdaptationBuffer[0].xw;
+	const float ExposureScale = ExposureScaleMiddleGrey.x;
+	float MiddleGreyLumValue = log2(0.18 * ExposureScaleMiddleGrey.y * LocalExposure_MiddleGreyExposureCompensation);
+
+	float3 SceneColor = InputTexture.Load(uint3(Input_ViewportMin + DispatchThreadId, 0)).rgb * View.OneOverPreExposure * ExposureScale;
+	float LuminanceVal = CalculateEyeAdaptationLuminance(SceneColor);
+
+	float HighlightLuminanceVal = LuminanceVal * LocalExposure_HighlightContrastScale;
+	float ShadowLuminanceVal = LuminanceVal * LocalExposure_ShadowContrastScale;
+
+	float LuminanceValTonemapped = ExposureFusionTonemap(LuminanceVal);
+	float HighlightLuminanceValTonemapped = ExposureFusionTonemap(HighlightLuminanceVal);
+	float ShadowLuminanceValTonemapped = ExposureFusionTonemap(ShadowLuminanceVal);
+
+	float3 Weights = float3(ExposureWeight(LuminanceValTonemapped, TargetLuminance), ExposureWeight(HighlightLuminanceValTonemapped, TargetLuminance), ExposureWeight(ShadowLuminanceValTonemapped, TargetLuminance));
+	Weights /= dot(Weights, 1.0f); // normalize weights
+
+	OutputFloat4[OutputPixelPos] = float4(LuminanceValTonemapped, HighlightLuminanceValTonemapped, ShadowLuminanceValTonemapped, 0.0f);
+	OutputFloat4_1[OutputPixelPos] = float4(Weights, 0.0f);
+}
+
+Texture2D WeightTexture;
+
+SCREEN_PASS_TEXTURE_VIEWPORT(CoarserMip)
+Texture2D CoarserMipTexture;
+Texture2D PrevResultTexture;
+
+FScreenTransform DispatchThreadToCoarseMipUV;
+
+[numthreads(THREADGROUP_SIZEX, THREADGROUP_SIZEY, 1)]
+void FusionBlendCS(uint2 DispatchThreadId : SV_DispatchThreadID)
+{
+	const uint2 OutputPixelPos = DispatchThreadId + Output_ViewportMin;
+
+	BRANCH
+	if (any(OutputPixelPos >= (uint2)Output_ViewportMax))
+	{
+		return;
+	}
+
+	float3 Weights = WeightTexture.Load(uint3(OutputPixelPos, 0)).rgb;
+	Weights /= dot(Weights, 1.0f); // normalize weights
+
+	float3 Lums = InputTexture.Load(uint3(OutputPixelPos, 0)).rgb;
+	float PrevResultVal = 0.0f;
+
+#if LAPLACIAN
+	float2 CoarserMipUV = ApplyScreenTransform(DispatchThreadId, DispatchThreadToCoarseMipUV);
+	CoarserMipUV = clamp(CoarserMipUV, CoarserMip_UVViewportBilinearMin, CoarserMip_UVViewportBilinearMax);
+
+	Lums -= Texture2DSample(CoarserMipTexture, TextureSampler, CoarserMipUV).rgb;
+	PrevResultVal = Texture2DSample(PrevResultTexture, TextureSampler, CoarserMipUV).r;
+#endif
+
+	OutputFloat[OutputPixelPos] = PrevResultVal + dot(Lums, Weights);
 }

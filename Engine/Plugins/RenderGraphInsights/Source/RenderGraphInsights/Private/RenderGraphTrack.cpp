@@ -2,19 +2,18 @@
 
 #include "RenderGraphTrack.h"
 
-#include "RenderGraphTimingViewSession.h"
-
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/ViewModels/TimingEvent.h"
-#include "Insights/ITimingViewSession.h"
-
+#include "RenderGraphTimingViewSession.h"
 #include "RenderGraphTrackDrawHelper.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Input/SSpinBox.h"
 
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
 
+// TraceInsights
+#include "Insights/ITimingViewSession.h"
+#include "Insights/ViewModels/TimingEvent.h"
 
 #define LOCTEXT_NAMESPACE "RenderGraphTrack"
 
@@ -76,6 +75,19 @@ inline uint32 GetResourceColorByTransientCache(bool bHit)
 	static const uint32 HitColor = FLinearColor(0.01, 0.01, 0.01, 0.25f).ToFColor(false).ToPackedARGB();
 	static const uint32 MissColor = FLinearColor(1.0, 0.1, 0.1, 1.0f).ToFColor(false).ToPackedARGB();
 	return bHit ? HitColor : MissColor;
+}
+
+inline uint32 GetResourceColorByName(const TCHAR* Str)
+{
+	uint32 Color = 0;
+	if (Str != nullptr)
+	{
+		for (const TCHAR* c = Str; *c; ++c)
+		{
+			Color = (Color + *c) * 0x2c2c57ed;
+		}
+	}
+	return Color | 0xFF000000;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -456,19 +468,19 @@ uint32 FRenderGraphTrack::GetTextureColor(const FTexturePacket& Texture, uint64 
 	{
 		return kUntrackedColor;
 	}
-
+	if (ResourceColor == EResourceColor::Name)
+	{
+		return GetResourceColorByName(*Texture.Name);
+	}
 	if (ResourceColor == EResourceColor::Type)
 	{
 		return kTextureColor;
 	}
-	else if (ResourceColor == EResourceColor::TransientCache)
+	if (ResourceColor == EResourceColor::TransientCache)
 	{
 		return GetResourceColorByTransientCache(!Texture.bTransient || Texture.bTransientCacheHit);
 	}
-	else
-	{
-		return GetResourceColorBySize(Texture.SizeInBytes, MaxSizeInBytes);
-	}
+	return GetResourceColorBySize(Texture.SizeInBytes, MaxSizeInBytes);
 }
 
 uint32 FRenderGraphTrack::GetBufferColor(const FBufferPacket& Buffer, uint64 MaxSizeInBytes) const
@@ -477,19 +489,19 @@ uint32 FRenderGraphTrack::GetBufferColor(const FBufferPacket& Buffer, uint64 Max
 	{
 		return kUntrackedColor;
 	}
-
+	if (ResourceColor == EResourceColor::Name)
+	{
+		return GetResourceColorByName(*Buffer.Name);
+	}
 	if (ResourceColor == EResourceColor::Type)
 	{
 		return kBufferColor;
 	}
-	else if (ResourceColor == EResourceColor::TransientCache)
+	if (ResourceColor == EResourceColor::TransientCache)
 	{
 		return GetResourceColorByTransientCache(!Buffer.bTransient || Buffer.bTransientCacheHit);
 	}
-	else
-	{
-		return GetResourceColorBySize(Buffer.SizeInBytes, MaxSizeInBytes);
-	}
+	return GetResourceColorBySize(Buffer.SizeInBytes, MaxSizeInBytes);
 }
 
 float FRenderGraphTrack::TransientByteOffsetToDepth(uint64 MemoryOffset) const
@@ -794,6 +806,16 @@ void FRenderGraphTrack::Draw(const ITimingTrackDrawContext& Context) const
 				DrawHelper.DrawBox(*this, X, Y, W, H, FLinearColor(0.8f, 0.2f, 0.2f, 0.75f), EDrawLayer::Background);
 			}
 
+			if (Pass.bParallelExecuteAsyncAllowed)
+			{
+				const float W = VisiblePassBox.Max.X - VisiblePassBox.Min.X;
+				const float H = BarDepth;
+				const float X = VisiblePassBox.Min.X;
+				const float Y = VisibleGraph.HeaderPassBarDepth + BarMargin * 3.0f + BarDepth;
+
+				DrawHelper.DrawBox(*this, X, Y, W, H, FLinearColor(0.2f, 0.2f, 0.8f, 0.75f), EDrawLayer::Background);
+			}
+
 			const float X = Viewport.TimeToSlateUnitsRounded(Pass.StartTime);
 			const float Y = VisiblePassBox.Max.Y;
 			const float H = VisibleGraph.DepthH - VisiblePassBox.Max.Y;
@@ -825,7 +847,6 @@ void FRenderGraphTrack::Draw(const ITimingTrackDrawContext& Context) const
 		{
 			const FVisiblePass& AsyncComputeVisiblePass = VisibleGraph.Passes[VisibleIndex];
 			const FPassPacket& AsyncComputePass = AsyncComputeVisiblePass.GetPacket();
-			const FBoundingBox AsyncComputeVisiblePassBox = AsyncComputeVisiblePass.GetBoundingBox(Layout);
 
 			float TintAlpha = 0.25f;
 
@@ -1508,12 +1529,12 @@ void FRenderGraphTrack::BuildFilteredDrawState(FRenderGraphTrackDrawStateBuilder
 			VisibleItems.Add(&GraphicsVisiblePass);
 		};
 
-		if (Pass.bAsyncComputeBegin)
+		if (Pass.GraphicsForkPass.IsValid())
 		{
 			AddFencePassEvent(Pass.GraphicsForkPass);
 		}
 
-		if (Pass.bAsyncComputeEnd)
+		if (Pass.GraphicsJoinPass.IsValid())
 		{
 			AddFencePassEvent(Pass.GraphicsJoinPass);
 		}
@@ -1656,7 +1677,7 @@ void FRenderGraphTrack::BuildContextMenu(FMenuBuilder& MenuBuilder)
 {
 	Super::BuildContextMenu(MenuBuilder);
 
-	Insights::ITimingViewSession* TimingViewSession = SharedData.GetTimingViewSession();
+	UE::Insights::Timing::ITimingViewSession* TimingViewSession = SharedData.GetTimingViewSession();
 
 	MenuBuilder.BeginSection("Visualizer", LOCTEXT("Visualizer", "Visualizer Mode"));
 	{
@@ -1707,6 +1728,24 @@ void FRenderGraphTrack::BuildContextMenu(FMenuBuilder& MenuBuilder)
 
 	MenuBuilder.AddMenuEntry
 	(
+		LOCTEXT("ColorName", "By Name"),
+		LOCTEXT("ColorName_Tooltip", "Each resource name has a unique color."),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda([this]()
+			{
+				ResourceColor = EResourceColor::Name;
+				SetDirtyFlag();
+			}),
+			FCanExecuteAction(),
+			FIsActionChecked::CreateLambda([this]() { return ResourceColor == EResourceColor::Name; })
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+
+	MenuBuilder.AddMenuEntry
+	(
 		LOCTEXT("ColorType", "By Type"),
 		LOCTEXT("ColorType_Tooltip", "Each type of resource has a unique color."),
 		FSlateIcon(),
@@ -1740,7 +1779,7 @@ void FRenderGraphTrack::BuildContextMenu(FMenuBuilder& MenuBuilder)
 		NAME_None,
 		EUserInterfaceActionType::RadioButton
 	);
-		
+
 	MenuBuilder.AddMenuEntry
 	(
 		LOCTEXT("ColorTransientCache", "By Transient Cache"),
@@ -2201,6 +2240,16 @@ void FRenderGraphTrack::InitTooltip(FTooltipDrawState& Tooltip, const ITimingEve
 			{
 				Tooltip.AddTextLine(TEXT("Transient"), FLinearColor::Red);
 				Tooltip.AddNameValueTextLine(TEXT("Transient Cache Hit:"), Resource.bTransientCacheHit ? TEXT("Yes") : TEXT("No"));
+
+				if (Resource.TransientAcquirePass.IsValid())
+				{
+					Tooltip.AddNameValueTextLine(TEXT("Transient Acquire Pass:"), FString::Printf(TEXT("%u"), Resource.TransientAcquirePass.GetIndex()));
+				}
+				
+				if (Resource.TransientDiscardPass.IsValid())
+				{
+					Tooltip.AddNameValueTextLine(TEXT("Transient Discard Pass:"), FString::Printf(TEXT("%u"), Resource.TransientDiscardPass.GetIndex()));
+				}
 			}
 
 			if (!Resource.TransientAllocations.IsEmpty())
@@ -2262,7 +2311,11 @@ void FRenderGraphTrack::InitTooltip(FTooltipDrawState& Tooltip, const ITimingEve
 
 			if (Pass.bParallelExecuteAllowed)
 			{
-				Tooltip.AddNameValueTextLine(TEXT("Parallel Execute:"), Pass.bParallelExecute ? TEXT("Yes") : TEXT("No"));
+				Tooltip.AddNameValueTextLine(TEXT("Parallel Execute:"), Pass.bParallelExecute
+					? Pass.bParallelExecuteAsyncAllowed
+						? TEXT("Yes (Async)")
+						: TEXT("Yes (Await)")
+					: TEXT("No"));
 			}
 			else
 			{
@@ -2272,6 +2325,16 @@ void FRenderGraphTrack::InitTooltip(FTooltipDrawState& Tooltip, const ITimingEve
 			if (Pass.bSkipRenderPassBegin || Pass.bSkipRenderPassEnd)
 			{
 				Tooltip.AddTextLine(TEXT("Merged RenderPass"), FLinearColor::Red);
+			}
+
+			if (Pass.GraphicsForkPass.IsValid())
+			{
+				Tooltip.AddNameValueTextLine(TEXT("GraphicsForkPass:"), FString::Printf(TEXT("%d"), Pass.GraphicsForkPass.GetIndex()));
+			}
+			
+			if (Pass.GraphicsJoinPass.IsValid())
+			{
+				Tooltip.AddNameValueTextLine(TEXT("GraphicsJoinPass:"), FString::Printf(TEXT("%d"), Pass.GraphicsJoinPass.GetIndex()));
 			}
 		}
 		else if (InTooltipEvent.Is<FVisibleTextureEvent>())

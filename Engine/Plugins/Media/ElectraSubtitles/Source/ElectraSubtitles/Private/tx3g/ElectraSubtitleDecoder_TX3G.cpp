@@ -93,7 +93,7 @@ namespace OptionKeys
 					return false;
 				}
 				FUTF8ToTCHAR cnv((const ANSICHAR*)Buf.GetData(), NumBytes);
-				OutString = FString(cnv.Length(), cnv.Get());
+				OutString = FString::ConstructFromPtrSize(cnv.Get(), cnv.Length());
 				return true;
 			}
 			return false;
@@ -180,45 +180,50 @@ public:
 		TextAsArray.Empty();
 		TextAsArray.Append(reinterpret_cast<const uint8*>(Converted.Get()), Converted.Length());
 	}
-	
+
 	void SetDuration(const Electra::FTimeValue& InDuration)
 	{
 		Duration = InDuration.GetAsTimespan();
 	}
-	
+
 	void SetTimestamp(const Electra::FTimeValue& InTimestamp)
 	{
 		Timestamp.Time = InTimestamp.GetAsTimespan();
 		Timestamp.SequenceIndex = 0;
 	}
-	
+
 	void SetID(const FString& InID)
 	{
 		ID = InID;
 	}
 
 
-	virtual const TArray<uint8>& GetData() override
+	const TArray<uint8>& GetData() override
 	{
 		return TextAsArray;
 	}
-	
-	virtual FDecoderTimeStamp GetTime() const override
+
+	FDecoderTimeStamp GetTime() const override
 	{
 		return Timestamp;
 	}
 
-	virtual FTimespan GetDuration() const override
+	void SetTime(FDecoderTimeStamp& InTime) override
+	{
+		Timestamp = InTime;
+	}
+
+	FTimespan GetDuration() const override
 	{
 		return Duration;
 	}
 
-	virtual const FString& GetFormat() const override
+	const FString& GetFormat() const override
 	{
 		static FString Format(TEXT("tx3g"));
 		return Format;
 	}
-	virtual const FString& GetID() const override
+	const FString& GetID() const override
 	{
 		return ID;
 	}
@@ -335,7 +340,7 @@ void FElectraSubtitleDecoderTX3G::AddStreamedSubtitleData(const TArray<uint8>& I
 			UE_LOG(LogElectraSubtitles, Error, TEXT("Bad TX3G text sample, ignoring."));	\
 			return;																			\
 		}																					\
-	
+
 	ElectraSubtitleDecoderTX3GUtils::FDataReaderMP4 r(InData);
 
 	// Start a subtitle entry.

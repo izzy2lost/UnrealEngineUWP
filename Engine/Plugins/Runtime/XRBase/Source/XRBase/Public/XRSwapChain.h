@@ -25,19 +25,20 @@ public:
 
 	const FTextureRHIRef& GetTextureRef() const { return RHITexture; }
 	FRHITexture* GetTexture() const { return RHITexture.GetReference(); }
-	FRHITexture2D* GetTexture2D() const { return RHITexture->GetTexture2D(); }
-	FRHITexture2DArray* GetTexture2DArray() const { return RHITexture->GetTexture2DArray(); }
-	FRHITextureCube* GetTextureCube() const { return RHITexture->GetTextureCube(); }
+	FRHITexture* GetTexture2D() const { return RHITexture->GetTexture2D(); }
+	FRHITexture* GetTexture2DArray() const { return RHITexture->GetTexture2DArray(); }
+	FRHITexture* GetTextureCube() const { return RHITexture->GetTextureCube(); }
 	uint32 GetSwapChainLength() const { return (uint32)RHITextureSwapChain.Num(); }
 	TArray<FTextureRHIRef> GetSwapChain() const { return RHITextureSwapChain; }
 
-	void GenerateMips_RenderThread(FRHICommandListImmediate& RHICmdList);
 	uint32 GetSwapChainIndex_RHIThread() { return SwapChainIndex_RHIThread; }
 
 	virtual void IncrementSwapChainIndex_RHIThread();
 
 	virtual void WaitCurrentImage_RHIThread(int64 TimeoutNanoseconds = 0) {} // Default to no timeout (immediate).
-	virtual void ReleaseCurrentImage_RHIThread() {}
+	virtual void ReleaseCurrentImage_RHIThread(IRHICommandContext* RHICmdContext) {}
+
+	void SetDebugLabel(FStringView NewLabel) { DebugLabel = NewLabel; }
 
 protected:
 	virtual void ReleaseResources_RHIThread();
@@ -45,6 +46,8 @@ protected:
 	FTextureRHIRef RHITexture;
 	TArray<FTextureRHIRef> RHITextureSwapChain;
 	std::atomic_uint32_t SwapChainIndex_RHIThread;
+
+	FString DebugLabel;
 };
 
 typedef TSharedPtr<FXRSwapChain, ESPMode::ThreadSafe> FXRSwapChainPtr;

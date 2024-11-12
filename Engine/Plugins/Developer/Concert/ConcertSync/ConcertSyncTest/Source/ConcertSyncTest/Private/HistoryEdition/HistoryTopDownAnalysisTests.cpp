@@ -8,9 +8,8 @@
 #include "HistoryEdition/DependencyGraphBuilder.h"
 #include "HistoryEdition/ActivityGraphIDs.h"
 #include "HistoryEdition/HistoryAnalysis.h"
-#include "HistoryEdition/ActivityNode.h"
 #include "RenameEditAndDeleteMapsFlow.h"
-#include "Util/ScopedSessionDatabase.h"
+#include "Util/ScopedSessionDatabaseWithEndpoint.h"
 
 #include "Algo/AllOf.h"
 
@@ -64,7 +63,7 @@ namespace UE::ConcertSyncTests::AnalysisTests
 		using namespace RenameEditAndDeleteMapsFlowTest;
 		using namespace ConcertSyncCore;
 		
-		FScopedSessionDatabase SessionDatabase(*this);
+		FScopedSessionDatabaseWithEndpoint SessionDatabase(*this);
 		const TTestActivityArray<FActivityID> Activities = CreateActivityHistory(SessionDatabase, SessionDatabase.GetEndpoint());
 		const FActivityDependencyGraph DependencyGraph = BuildDependencyGraphFrom(SessionDatabase);
 		UE_LOG(LogConcert, Log, TEXT("%s tested graph in Graphviz format:\n\n%s"), *GetTestFullName(), *ConcertSyncCore::Graphviz::ExportToGraphviz(DependencyGraph, SessionDatabase));

@@ -15,7 +15,7 @@ const char* jsonDNA =
     },\n\
     \"version\": {\n\
         \"generation\": 2,\n\
-        \"version\": 3\n\
+        \"version\": 5\n\
     },\n\
     \"index\": {\n\
         \"entries\": [{\n\
@@ -40,6 +40,26 @@ const char* jsonDNA =
             \"size\": 0\n\
         }, {\n\
             \"id\": 1835819624,\n\
+            \"version\": 65536,\n\
+            \"offset\": 0,\n\
+            \"size\": 0\n\
+        }, {\n\
+            \"id\": 1919051362,\n\
+            \"version\": 65536,\n\
+            \"offset\": 0,\n\
+            \"size\": 0\n\
+        }, {\n\
+            \"id\": 1919051365,\n\
+            \"version\": 65536,\n\
+            \"offset\": 0,\n\
+            \"size\": 0\n\
+        }, {\n\
+            \"id\": 1784835428,\n\
+            \"version\": 65536,\n\
+            \"offset\": 0,\n\
+            \"size\": 0\n\
+        }, {\n\
+            \"id\": 1953985399,\n\
             \"version\": 65536,\n\
             \"offset\": 0,\n\
             \"size\": 0\n\
@@ -180,6 +200,25 @@ const char* jsonDNA =
             \"indices\": []\n\
         },\n\
         \"neuralNetworks\": []\n\
+    },\n\
+    \"rbfb1.0\": {\n\
+        \"lodSolverMapping\": {\n\
+            \"lods\": [],\n\
+            \"indices\": []\n\
+        },\n\
+        \"solvers\": [],\n\
+        \"poses\": []\n\
+    },\n\
+    \"rbfe1.0\": {\n\
+        \"poseControlNames\": [],\n\
+        \"poses\": []\n\
+    },\n\
+    \"jbmd1.0\": {\n\
+        \"jointRepresentations\": []\n\
+    },\n\
+    \"twsw1.0\": {\n\
+        \"twists\": [],\n\
+        \"swings\": []\n\
     }\n\
 }";
 

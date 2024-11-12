@@ -66,17 +66,6 @@ void UNiagaraOverviewNode::Initialize(UNiagaraSystem* InOwningSystem, FGuid InEm
 
 void UNiagaraOverviewNode::UpdateStatus()
 {
-	if(FNiagaraEmitterHandle* EmitterHandle = FindEmitterHandleByID(OwningSystem, EmitterHandleGuid))
-	{
-		if(!GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled && EmitterHandle->GetEmitterMode() == ENiagaraEmitterMode::Stateless)
-		{
-			SetForceDisplayAsDisabled(true);
-		}
-		else
-		{
-			SetForceDisplayAsDisabled(false);
-		}
-	}
 }
 
 const FGuid UNiagaraOverviewNode::GetEmitterHandleGuid() const
@@ -310,47 +299,44 @@ void UNiagaraOverviewNode::GetNodeContextMenuActions(class UToolMenu* Menu, clas
 						)
 					)
 				);
-			#if 0
-				if (GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled)
-				{
-					Section.AddSubMenu(
-						"EmitterMode",
-						LOCTEXT("EmitterModeSubMenuLabel", "Emitter Mode..."),
-						FText(),
-						FNewToolMenuDelegate::CreateLambda([OwningSystemViewModel](UToolMenu* InMenu)
+
+				Section.AddSubMenu(
+					"EmitterMode",
+					LOCTEXT("EmitterModeSubMenuLabel", "Emitter Mode..."),
+					FText(),
+					FNewToolMenuDelegate::CreateLambda([OwningSystemViewModel](UToolMenu* InMenu)
+					{
+						if (OwningSystemViewModel.IsValid())
 						{
-							if (OwningSystemViewModel.IsValid())
-							{
-								bool bCanExecute = OwningSystemViewModel->GetSelectionViewModel()->GetSelectedEmitterHandleIds().Num() > 0;
-								FToolMenuSection& SubMenuSection = InMenu->AddSection("EmitterModeOptions", LOCTEXT("EmitterModeSubMenuHeader", "Emitter Mode"));
-								SubMenuSection.AddMenuEntry(
-									"SetEmitterModeStandard",
-									LOCTEXT("SetEmitterStandardModeMenuLabel", "Standard Mode"),
-									LOCTEXT("SetEmitterStandardModeMenuToolTip", "Set this emitter to use standard mode."),
-									FSlateIcon(),
-									FUIAction(
-										FExecuteAction::CreateStatic(&FNiagaraEditorUtilities::SetSelectedEmittersEmitterMode, OwningSystemViewModel.ToSharedRef(), ENiagaraEmitterMode::Standard),
-										FCanExecuteAction::CreateLambda([bCanExecute]() { return bCanExecute; }),
-										FGetActionCheckState::CreateStatic(&FNiagaraEditorUtilities::GetSelectedEmittersEmitterModeCheckState, OwningSystemViewModel.ToSharedRef(), ENiagaraEmitterMode::Standard)
-									),
-									EUserInterfaceActionType::RadioButton
-								);
-								SubMenuSection.AddMenuEntry(
-									"SetEmitterModeStateless",
-									LOCTEXT("SetEmitterStatelessModeMenuLabel", "Lightweight Mode"),
-									LOCTEXT("SetEmitterStatelessModeMenuToolTip", "Set this emitter to use lightweight mode."),
-									FSlateIcon(),
-									FUIAction(
-										FExecuteAction::CreateStatic(&FNiagaraEditorUtilities::SetSelectedEmittersEmitterMode, OwningSystemViewModel.ToSharedRef(), ENiagaraEmitterMode::Stateless),
-										FCanExecuteAction::CreateLambda([bCanExecute]() { return bCanExecute; }),
-										FGetActionCheckState::CreateStatic(&FNiagaraEditorUtilities::GetSelectedEmittersEmitterModeCheckState, OwningSystemViewModel.ToSharedRef(), ENiagaraEmitterMode::Stateless)
-									),
-									EUserInterfaceActionType::RadioButton
-								);
-							}
-						}));
-				}
-			#endif
+							bool bCanExecute = OwningSystemViewModel->GetSelectionViewModel()->GetSelectedEmitterHandleIds().Num() > 0;
+							FToolMenuSection& SubMenuSection = InMenu->AddSection("EmitterModeOptions", LOCTEXT("EmitterModeSubMenuHeader", "Emitter Mode"));
+							SubMenuSection.AddMenuEntry(
+								"SetEmitterModeStandard",
+								LOCTEXT("SetEmitterStandardModeMenuLabel", "Standard Mode"),
+								LOCTEXT("SetEmitterStandardModeMenuToolTip", "Set this emitter to use standard mode."),
+								FSlateIcon(),
+								FUIAction(
+									FExecuteAction::CreateStatic(&FNiagaraEditorUtilities::SetSelectedEmittersEmitterMode, OwningSystemViewModel.ToSharedRef(), ENiagaraEmitterMode::Standard),
+									FCanExecuteAction::CreateLambda([bCanExecute]() { return bCanExecute; }),
+									FGetActionCheckState::CreateStatic(&FNiagaraEditorUtilities::GetSelectedEmittersEmitterModeCheckState, OwningSystemViewModel.ToSharedRef(), ENiagaraEmitterMode::Standard)
+								),
+								EUserInterfaceActionType::RadioButton
+							);
+							SubMenuSection.AddMenuEntry(
+								"SetEmitterModeStateless",
+								LOCTEXT("SetEmitterStatelessModeMenuLabel", "Lightweight Mode"),
+								LOCTEXT("SetEmitterStatelessModeMenuToolTip", "Set this emitter to use lightweight mode."),
+								FSlateIcon(),
+								FUIAction(
+									FExecuteAction::CreateStatic(&FNiagaraEditorUtilities::SetSelectedEmittersEmitterMode, OwningSystemViewModel.ToSharedRef(), ENiagaraEmitterMode::Stateless),
+									FCanExecuteAction::CreateLambda([bCanExecute]() { return bCanExecute; }),
+									FGetActionCheckState::CreateStatic(&FNiagaraEditorUtilities::GetSelectedEmittersEmitterModeCheckState, OwningSystemViewModel.ToSharedRef(), ENiagaraEmitterMode::Stateless)
+								),
+								EUserInterfaceActionType::RadioButton
+							);
+						}
+					})
+				);
 			}
 		}
 	}

@@ -14,6 +14,7 @@
 #include "TrackEditorThumbnail/TrackEditorThumbnailPool.h"
 #include "TrackInstances/MovieSceneCameraCutTrackInstance.h"
 #include "Tracks/MovieSceneCameraCutTrack.h"
+#include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
 
 #include "ActorEditorUtils.h"
 #include "ActorTreeItem.h"
@@ -21,10 +22,12 @@
 #include "Editor.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "GameFramework/WorldSettings.h"
+#include "ISequencer.h"
 #include "LevelEditorViewport.h"
 #include "Modules/ModuleManager.h"
 #include "SceneOutlinerModule.h"
 #include "SceneOutlinerPublicTypes.h"
+#include "SequencerSettings.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SBox.h"
@@ -490,15 +493,19 @@ TSharedRef<SWidget> FCameraCutTrackEditor::HandleAddCameraCutComboButtonGetMenuC
 			// Actor selector to allow the user to choose a parent actor
 			FSceneOutlinerModule& SceneOutlinerModule = FModuleManager::LoadModuleChecked<FSceneOutlinerModule>( "SceneOutliner" );
 
-			TSharedRef< SWidget > MenuWidget = 
+			TSharedPtr<ISequencer> Sequencer = GetSequencer();
+			const float WidthOverride = Sequencer.IsValid() ? Sequencer->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+			const float HeightOverride = Sequencer.IsValid() ? Sequencer->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
+			TSharedRef< SWidget > MenuWidget =
 				SNew(SHorizontalBox)
 
 				+SHorizontalBox::Slot()
 				.AutoWidth()
 				[
 					SNew(SBox)
-					.MaxDesiredHeight(400.0f)
-					.WidthOverride(300.0f)
+					.WidthOverride(WidthOverride)
+					.HeightOverride(HeightOverride)
 					[
 						SceneOutlinerModule.CreateActorPicker(
 							InitOptions,

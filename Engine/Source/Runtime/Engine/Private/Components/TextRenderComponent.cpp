@@ -602,7 +602,7 @@ public:
 	virtual uint32 GetMemoryFootprint() const override;
 	uint32 GetAllocatedSize() const;
 #if RHI_RAYTRACING
-	virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override final;
+	virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override final;
 	virtual bool HasRayTracingRepresentation() const override { return true; }
 	virtual bool IsRayTracingRelevant() const override { return true; }
 	virtual bool IsRayTracingStaticRelevant() const override
@@ -618,7 +618,7 @@ private:
 	// End FPrimitiveSceneProxy interface
 
 	void ReleaseRenderThreadResources();
-	bool BuildStringMesh( TArray<FDynamicMeshVertex>& OutVertices, TArray<uint16>& OutIndices );
+	bool BuildStringMesh( TArray<FDynamicMeshVertex>& OutVertices, TArray<uint32>& OutIndices );
 
 private:
 	struct FTextBatch
@@ -633,7 +633,7 @@ private:
 	};
 
 	FStaticMeshVertexBuffers VertexBuffers;
-	FDynamicMeshIndexBuffer16 IndexBuffer;
+	FDynamicMeshIndexBuffer32 IndexBuffer;
 	FLocalVertexFactory VertexFactory;
 	TArray<FTextBatch> TextBatches;
 	const FColor TextRenderColor;
@@ -888,7 +888,7 @@ uint32 FTextRenderSceneProxy::GetAllocatedSize() const
 }
 
 #if RHI_RAYTRACING
-void FTextRenderSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
+void FTextRenderSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	if (CVarRayTracingTextMeshes.GetValueOnRenderThread() == 0 || !bSupportRayTracing)
 	{
@@ -899,7 +899,8 @@ void FTextRenderSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 	{
 		return;
 	}
-	FRayTracingInstance& RayTracingInstance = OutRayTracingInstances.AddDefaulted_GetRef();
+
+	FRayTracingInstance RayTracingInstance;
 
 	if (bNeedsToUpdateRayTracingCache)
 	{
@@ -916,7 +917,6 @@ void FTextRenderSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 			BatchElement.NumPrimitives = TextBatch.IndexBufferCount / 3;
 			BatchElement.MinVertexIndex = TextBatch.VertexBufferOffset;
 			BatchElement.MaxVertexIndex = TextBatch.VertexBufferOffset + TextBatch.VertexBufferCount - 1;
-			Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative();
 			Mesh.bDisableBackfaceCulling = false;
 			Mesh.Type = PT_TriangleList;
 			Mesh.DepthPriorityGroup = SDPG_World;
@@ -927,22 +927,21 @@ void FTextRenderSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 			Mesh.SegmentIndex = BatchIndex;
 			Mesh.MeshIdInPrimitive = 0;
 		}
-		RayTracingInstance.MaterialsView = MakeArrayView(CachedRayTracingMaterials);
 		bNeedsToUpdateRayTracingCache = false;
 	}
 	else
 	{
-		RayTracingInstance.MaterialsView = MakeArrayView(CachedRayTracingMaterials);
 		RayTracingInstance.bInstanceMaskAndFlagsDirty = false;
 	}
 
+	RayTracingInstance.MaterialsView = MakeArrayView(CachedRayTracingMaterials);
 	RayTracingInstance.Geometry = &RayTracingGeometry;
 	const FMatrix& ThisLocalToWorld = GetLocalToWorld();
 	RayTracingInstance.InstanceTransformsView = MakeArrayView(&ThisLocalToWorld, 1);
 
 	if (bRayTracingWithWPO && VertexFactory.GetType()->SupportsRayTracingDynamicGeometry())
 	{
-		Context.DynamicRayTracingGeometriesToUpdate.Add(
+		Collector.AddRayTracingGeometryUpdate(
 			FRayTracingDynamicGeometryUpdateParams
 			{
 				CachedRayTracingMaterials, // TODO: this copy can be avoided if FRayTracingDynamicGeometryUpdateParams supported array views
@@ -961,13 +960,15 @@ void FTextRenderSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 		RayTracingInstance.Geometry->Initializer.Segments.Num(),
 		CachedRayTracingMaterials.Num());
 
+	Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
+
 }
 #endif // RHI_RAYTRACING
 
 /**
 * For the given text, constructs a mesh to be used by the vertex factory for rendering.
 */
-bool FTextRenderSceneProxy::BuildStringMesh( TArray<FDynamicMeshVertex>& OutVertices, TArray<uint16>& OutIndices )
+bool FTextRenderSceneProxy::BuildStringMesh( TArray<FDynamicMeshVertex>& OutVertices, TArray<uint32>& OutIndices )
 {
 	TextBatches.Reset();
 
@@ -1014,8 +1015,20 @@ bool FTextRenderSceneProxy::BuildStringMesh( TArray<FDynamicMeshVertex>& OutVert
 		FirstIndiceIndexInTextBatch = OutIndices.Num();
 	};
 
-	FTextIterator It(*Text.ToString());
-	while (It.NextLine())
+	// TArray uses int32 for size so it cannot store more than MAX_int32 elements.
+	const uint64 MaxVerts = MAX_int32 - OutVertices.Num();
+	const uint64 MaxIndices = MAX_int32 - OutIndices.Num();
+	const uint64 MaxQuads = FMath::Min(MaxVerts / 4, MaxIndices / 6);
+
+	// We have one quad per glyph, so presize the index and vertex buffer.
+	const FString& Str = Text.ToString();
+	const uint64 NumQuads = FMath::Min((uint64)Str.Len(), MaxQuads);
+	OutVertices.Reserve(OutVertices.Num() + NumQuads * 4);
+	OutIndices.Reserve(OutIndices.Num() + NumQuads * 6);
+
+	uint64 QuadIdx = 0;
+	FTextIterator It(*Str);
+	while (It.NextLine() && QuadIdx < NumQuads)
 	{
 		FVector2D LineSize = ComputeTextSize(It, Font, XScale, YScale, HorizSpacingAdjust, VertSpacingAdjust);
 		float StartX = ComputeHorizontalAlignmentOffset(LineSize, HorizontalAlignment);
@@ -1028,7 +1041,7 @@ bool FTextRenderSceneProxy::BuildStringMesh( TArray<FDynamicMeshVertex>& OutVert
 		LineX = 0.f;
 
 		TCHAR Ch = 0;
-		while (It.NextCharacterInLine(Ch))
+		while (It.NextCharacterInLine(Ch) && QuadIdx < NumQuads)
 		{
 			Ch = Font->RemapChar(Ch);
 
@@ -1091,11 +1104,6 @@ bool FTextRenderSceneProxy::BuildStringMesh( TArray<FDynamicMeshVertex>& OutVert
 				const int32 V01 = OutVertices.Add(FDynamicMeshVertex(V2, TangentX, TangentZ, FVector2f(U, V + SizeV), TextRenderColor));
 				const int32 V11 = OutVertices.Add(FDynamicMeshVertex(V3, TangentX, TangentZ, FVector2f(U + SizeU, V + SizeV), TextRenderColor));
 
-				check(V00 < 65536);
-				check(V10 < 65536);
-				check(V01 < 65536);
-				check(V11 < 65536);
-
 				OutIndices.Add(V00);
 				OutIndices.Add(V11);
 				OutIndices.Add(V10);
@@ -1112,6 +1120,8 @@ bool FTextRenderSceneProxy::BuildStringMesh( TArray<FDynamicMeshVertex>& OutVert
 				{
 					LineX += CharIncrement;
 				}
+
+				++QuadIdx;
 			}
 		}
 
@@ -1526,12 +1536,35 @@ void UTextRenderComponent::PostLoad()
 	Super::PostLoad();
 }
 
+FVertexDeclarationElementList InitDummyVertexDeclarationElementsForText()
+{
+	FStaticMeshVertexBuffers VertexBuffers;
+	VertexBuffers.PositionVertexBuffer.Init(1);
+	VertexBuffers.StaticMeshVertexBuffer.Init(1, 1);
+	VertexBuffers.ColorVertexBuffer.Init(1);
+	
+	VertexBuffers.PositionVertexBuffer.VertexPosition(0) = FVector3f(0, 0, 0);
+	VertexBuffers.StaticMeshVertexBuffer.SetVertexTangents(0, FVector3f(1, 0, 0), FVector3f(0, 1, 0), FVector3f(0, 0, 1));
+	VertexBuffers.StaticMeshVertexBuffer.SetVertexUV(0, 0, FVector2f(0, 0));
+	VertexBuffers.ColorVertexBuffer.VertexColor(0) = FColor(1,1,1,1);
+
+	FLocalVertexFactory::FDataType Data;
+	VertexBuffers.PositionVertexBuffer.BindPositionVertexBuffer(nullptr, Data);
+	VertexBuffers.StaticMeshVertexBuffer.BindTangentVertexBuffer(nullptr, Data);
+	VertexBuffers.StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(nullptr, Data);
+	VertexBuffers.StaticMeshVertexBuffer.BindLightMapVertexBuffer(nullptr, Data, 0);
+	VertexBuffers.ColorVertexBuffer.BindColorVertexBuffer(nullptr, Data);
+	
+	FVertexDeclarationElementList Elements;
+	FLocalVertexFactory::GetVertexElements(GMaxRHIFeatureLevel, EVertexInputStreamType::Default, false, Data, Elements);
+	return Elements;
+}
+
 void UTextRenderComponent::PrecachePSOs()
 {
-	if (IsComponentPSOPrecachingEnabled() && TextMaterial
-		// FIXME: need to collect an actual vertex declaration for non-MVF path
-		&& RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
+	if (((IsComponentPSOPrecachingEnabled() && RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))) && TextMaterial)
 	{
+		// FIXME: need to collect an actual vertex declaration for non-MVF path
 		FPSOPrecacheParams PrecachePSOParams;
 		SetupPrecachePSOParams(PrecachePSOParams);
 
@@ -1539,7 +1572,10 @@ void UTextRenderComponent::PrecachePSOs()
 		// and leaves the default CastShadow value which is true
 		PrecachePSOParams.bCastShadow = true;
 
-		TextMaterial->PrecachePSOs(&FLocalVertexFactory::StaticType, PrecachePSOParams);
+		const FVertexFactoryType* VFType = &FLocalVertexFactory::StaticType;
+		FPSOPrecacheVertexFactoryDataList VFDataList;
+		VFDataList.Add(FPSOPrecacheVertexFactoryData(VFType));
+		TextMaterial->PrecachePSOs(VFType, PrecachePSOParams);
 	}
 }
 

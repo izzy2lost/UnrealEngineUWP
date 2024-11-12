@@ -2,32 +2,32 @@
 
 #pragma once
 
+#include "VulkanMemory.h"
 #include "VulkanResources.h"
 #include "RHICoreTransientResourceAllocator.h"
-
 
 class FVulkanTransientHeap final
 	: public FRHITransientHeap
 	, public FRefCountBase
-	, public FDeviceChild
+	, public VulkanRHI::FDeviceChild
 {
 public:
 	FVulkanTransientHeap(const FInitializer& Initializer, FVulkanDevice* InDevice);
 	~FVulkanTransientHeap();
 
 	VkDeviceMemory GetMemoryHandle();
-	static FVulkanAllocation GetVulkanAllocation(const FRHITransientHeapAllocation& TransientInitializer);
+	static VulkanRHI::FVulkanAllocation GetVulkanAllocation(const FRHITransientHeapAllocation& TransientInitializer);
 
 private:
 	VkBuffer VulkanBuffer;
 	VkMemoryRequirements MemoryRequirements;
-	FVulkanAllocation InternalAllocation;
+	VulkanRHI::FVulkanAllocation InternalAllocation;
 };
 
 
 class FVulkanTransientHeapCache final
 	: public FRHITransientHeapCache
-	, public FDeviceChild
+	, public VulkanRHI::FDeviceChild
 {
 public:
 	static FVulkanTransientHeapCache* Create(FVulkanDevice* InDevice);
@@ -41,7 +41,7 @@ private:
 
 class FVulkanTransientResourceAllocator final
 	: public FRHITransientResourceHeapAllocator
-	, public FDeviceChild
+	, public VulkanRHI::FDeviceChild
 {
 public:
 	FVulkanTransientResourceAllocator(FVulkanTransientHeapCache& InHeapCache);
@@ -56,6 +56,6 @@ public:
 		default: checkNoEntry(); return false;
 		}
 	}
-	FRHITransientTexture* CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex) override;
-	FRHITransientBuffer* CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex) override;
+	FRHITransientTexture* CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, const FRHITransientAllocationFences& Fences) override;
+	FRHITransientBuffer* CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, const FRHITransientAllocationFences& Fences) override;
 };

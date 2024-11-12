@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "Debugger/StateTreeTraceAnalyzer.h"
 #include "Debugger/StateTreeDebugger.h"
@@ -127,7 +127,7 @@ bool FStateTreeTraceAnalyzer::OnEvent(const uint16 RouteId, EStyle Style, const 
 		{
 			FString Message;
         	EventData.GetString("Message", Message);
-			const FStateTreeTraceLogEvent Event(WorldTime, Message);
+			const FStateTreeTraceLogEvent Event(WorldTime, EventData.GetValue<ELogVerbosity::Type>("Verbosity"), Message);
 
 			Provider.AppendEvent(FStateTreeInstanceDebugId(EventData.GetValue<uint32>("InstanceId"), EventData.GetValue<uint32>("InstanceSerial")),
 				Context.EventTime.AsSeconds(EventData.GetValue<uint64>("Cycle")),
@@ -222,34 +222,47 @@ bool FStateTreeTraceAnalyzer::OnEvent(const uint16 RouteId, EStyle Style, const 
 
 			if (ensureMsgf(ActiveStates.Num() == AssetDebugIds.Num(), TEXT("Each state is expected to have a matching asset id")))
 			{
-				FStateTreeIndex16 LastAssetDebugId;
+				FStateTreeInstanceDebugId InstanceDebugId(EventData.GetValue<uint32>("InstanceId"), EventData.GetValue<uint32>("InstanceSerial"));
+				TWeakObjectPtr<const UStateTree> WeakStateTree;
 
-				FStateTreeTraceActiveStates::FAssetActiveStates* AssetActiveStates = nullptr;
-				for (int Index = 0; Index < ActiveStates.Num(); ++Index)
+				// If empty, we create the event with an empty list of states for the main StateTree.
+				if (ActiveStates.IsEmpty())
 				{
-					FStateTreeIndex16 AssetDebugId(AssetDebugIds[Index]);
-					if (AssetDebugId != LastAssetDebugId)
+					if (Provider.GetAssetFromInstanceId(InstanceDebugId, WeakStateTree))
 					{
-						TWeakObjectPtr<const UStateTree> WeakStateTree;
-						if (Provider.GetAssetFromDebugId(AssetDebugId, WeakStateTree))
-						{
-							FStateTreeTraceActiveStates::FAssetActiveStates& NewPair = Event.ActiveStates.PerAssetStates.Emplace_GetRef();
-							NewPair.WeakStateTree = WeakStateTree;
-							AssetActiveStates = &NewPair;
-							LastAssetDebugId = AssetDebugId;	
-						}
-						else
-						{
-							UE_LOG(LogStateTree, Error, TEXT("Instance frame event refers to an asset Id that wasn't added previously."));
-							continue;
-						}
+						FStateTreeTraceActiveStates::FAssetActiveStates& NewPair = Event.ActiveStates.PerAssetStates.Emplace_GetRef();
+						NewPair.WeakStateTree = WeakStateTree;
 					}
+				}
+				else
+				{
+					FStateTreeIndex16 LastAssetDebugId;
+					FStateTreeTraceActiveStates::FAssetActiveStates* AssetActiveStates = nullptr;
+					for (int Index = 0; Index < ActiveStates.Num(); ++Index)
+					{
+						FStateTreeIndex16 AssetDebugId(AssetDebugIds[Index]);
+						if (AssetDebugId != LastAssetDebugId)
+						{
+							if (Provider.GetAssetFromDebugId(AssetDebugId, WeakStateTree))
+							{
+								FStateTreeTraceActiveStates::FAssetActiveStates& NewPair = Event.ActiveStates.PerAssetStates.Emplace_GetRef();
+								NewPair.WeakStateTree = WeakStateTree;
+								AssetActiveStates = &NewPair;
+								LastAssetDebugId = AssetDebugId;
+							}
+							else
+							{
+								UE_LOG(LogStateTree, Error, TEXT("Instance frame event refers to an asset Id that wasn't added previously."));
+								continue;
+							}
+						}
 
-					check(AssetActiveStates != nullptr);
-					AssetActiveStates->ActiveStates.Push(ActiveStates[Index]);
+						check(AssetActiveStates != nullptr);
+						AssetActiveStates->ActiveStates.Push(ActiveStates[Index]);
+					}
 				}
 
-				Provider.AppendEvent(FStateTreeInstanceDebugId(EventData.GetValue<uint32>("InstanceId"), EventData.GetValue<uint32>("InstanceSerial")),
+				Provider.AppendEvent(InstanceDebugId,
 					Context.EventTime.AsSeconds(EventData.GetValue<uint64>("Cycle")),
 					FStateTreeTraceEventVariantType(TInPlaceType<FStateTreeTraceActiveStatesEvent>(), Event));
 			}
@@ -262,4 +275,4 @@ bool FStateTreeTraceAnalyzer::OnEvent(const uint16 RouteId, EStyle Style, const 
 	return true;
 }
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

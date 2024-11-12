@@ -261,8 +261,24 @@ void FNiagaraSimCacheToolkit::ExtendToolbar()
 						FSlateIcon(FAppStyle::GetAppStyleSetName(), "SystemWideCommands.FindInContentBrowser.Small")
 					);
 				}
-				ToolbarBuilder.EndSection();
 			}
+			ToolbarBuilder.EndSection();
+			ToolbarBuilder.BeginSection("Export");
+			{
+				TSharedRef<FNiagaraSimCacheViewModel> SimCacheViewModelRef = Toolkit->SimCacheViewModel.ToSharedRef();
+
+				ToolbarBuilder.AddToolBarButton(
+					FUIAction(
+						FExecuteAction::CreateSP(SimCacheViewModelRef, &FNiagaraSimCacheViewModel::CopyActiveToClipboard),
+						FCanExecuteAction::CreateSP(SimCacheViewModelRef, &FNiagaraSimCacheViewModel::CanCopyActiveToClipboard)
+					),
+					NAME_None,
+					LOCTEXT("CopyToCSV", "Copy to CSV"),
+					LOCTEXT("CopyToCSVTooltip", "Copies the currently selected view to the clipboard in CSV format."),
+					FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Copy")
+				);
+			}
+			ToolbarBuilder.EndSection();
 		}
 	};
 	

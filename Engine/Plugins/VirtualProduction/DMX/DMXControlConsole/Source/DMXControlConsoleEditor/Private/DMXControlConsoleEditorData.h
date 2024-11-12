@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "DMXControlConsoleCueStack.h"
 #include "DMXControlConsoleEditorDataBase.h"
 #include "Widgets/SDMXReadOnlyFixturePatchList.h"
 
@@ -30,8 +31,9 @@ enum class EDMXControlConsoleEditorViewMode : uint8
 UENUM()
 enum class EDMXControlConsoleEditorValueType : uint8
 {
-	Byte,
-	Normalized
+	DMX,
+	Normalized,
+	Physical
 };
 
 /** Struct which describes a User Filter */
@@ -170,6 +172,10 @@ public:
 	UPROPERTY()
 	FDMXReadOnlyFixturePatchListDescriptor FixturePatchListDescriptor;
 
+	/** The current loaded control console cue */
+	UPROPERTY()
+	FDMXControlConsoleCue LoadedCue;
+
 private:
 	/** Called when the list of User Filters has changed */
 	FSimpleMulticastDelegate OnUserFiltersChanged;
@@ -201,7 +207,7 @@ private:
 	
 	/** Current value type for Faders widgets */
 	UPROPERTY()
-	EDMXControlConsoleEditorValueType ValueType = EDMXControlConsoleEditorValueType::Byte;
+	EDMXControlConsoleEditorValueType ValueType = EDMXControlConsoleEditorValueType::DMX;
 
 	UPROPERTY()
 	/** True if the Fader Groups from activated Fixture Patches must be grouped by default */

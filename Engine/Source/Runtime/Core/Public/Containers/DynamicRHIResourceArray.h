@@ -56,7 +56,7 @@ public:
 	/**
 	* @return A pointer to the resource data.
 	*/
-	virtual const void* GetResourceData() const 
+	virtual const void* GetResourceData() const override
 	{ 
 		return &(*this)[0]; 
 	}
@@ -64,7 +64,7 @@ public:
 	/**
 	* @return size of resource data allocation
 	*/
-	virtual uint32 GetResourceDataSize() const
+	virtual uint32 GetResourceDataSize() const override
 	{
 		if (this->Num() > UINT32_MAX / sizeof(ElementType))
 		{
@@ -79,7 +79,7 @@ public:
 	* Only discard the resource memory on clients, and if the CPU doesn't need access to it.
 	* Non-clients can't discard the data because they may need to serialize it.
 	*/
-	virtual void Discard()
+	virtual void Discard() override
 	{
 		if(!bNeedsCPUAccess && FPlatformProperties::RequiresCookedData() && !IsRunningCommandlet())
 		{
@@ -90,7 +90,7 @@ public:
 	/**
 	* @return true if the resource array is static and shouldn't be modified
 	*/
-	virtual bool IsStatic() const
+	virtual bool IsStatic() const override
 	{
 		return false;
 	}
@@ -98,7 +98,7 @@ public:
 	/**
 	* @return true if the resource keeps a copy of its resource data after the RHI resource has been created
 	*/
-	virtual bool GetAllowCPUAccess() const
+	virtual bool GetAllowCPUAccess() const override
 	{
 		return bNeedsCPUAccess;
 	}
@@ -106,7 +106,7 @@ public:
 	/** 
 	* Sets whether the resource array will be accessed by CPU. 
 	*/
-	virtual void SetAllowCPUAccess(bool bInNeedsCPUAccess)
+	virtual void SetAllowCPUAccess(bool bInNeedsCPUAccess) override
 	{
 		bNeedsCPUAccess = bInNeedsCPUAccess;
 	}

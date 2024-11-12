@@ -148,6 +148,20 @@ void FGLTFMaterialProxyFactory::SetProxyParameters(UMaterialInstanceConstant* Pr
 			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::TransmissionFactor, JsonMaterial.Transmission.Factor);
 			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::TransmissionTexture, JsonMaterial.Transmission.Texture);
 		}
+
+		if (JsonMaterial.ShadingModel != EGLTFJsonShadingModel::SpecularGlossiness)
+		{
+			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::IridescenceFactor, JsonMaterial.Iridescence.IridescenceFactor);
+			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::IridescenceTexture, JsonMaterial.Iridescence.IridescenceTexture);
+			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::IridescenceIOR, JsonMaterial.Iridescence.IridescenceIOR);
+			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::IridescenceThicknessMinimum, JsonMaterial.Iridescence.IridescenceThicknessMinimum);
+			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::IridescenceThicknessMaximum, JsonMaterial.Iridescence.IridescenceThicknessMaximum);
+			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::IridescenceThicknessTexture, JsonMaterial.Iridescence.IridescenceThicknessTexture);
+
+			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::AnisotropyStrength, JsonMaterial.Anisotropy.AnisotropyStrength);
+			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::AnisotropyRotation, JsonMaterial.Anisotropy.AnisotropyRotation);
+			SetProxyParameter(ProxyMaterial, FGLTFProxyMaterialInfo::AnisotropyTexture, JsonMaterial.Anisotropy.AnisotropyTexture);
+		}
 	}
 }
 
@@ -179,6 +193,7 @@ void FGLTFMaterialProxyFactory::SetProxyParameter(UMaterialInstanceConstant* Pro
 	ParameterInfo.UVOffset.Set(ProxyMaterial, FLinearColor(TextureInfo.Transform.Offset.X, TextureInfo.Transform.Offset.Y, 0, 0), true);
 	ParameterInfo.UVScale.Set(ProxyMaterial, FLinearColor(TextureInfo.Transform.Scale.X, TextureInfo.Transform.Scale.Y, 0, 0), true);
 	ParameterInfo.UVRotation.Set(ProxyMaterial, TextureInfo.Transform.Rotation, true);
+	ParameterInfo.TilingMethod.Set(ProxyMaterial, FLinearColor(FGLTFMaterialUtilities::FromTextureWrap(TextureInfo.Index->Sampler->WrapS), FGLTFMaterialUtilities::FromTextureWrap(TextureInfo.Index->Sampler->WrapT), 0, 0), true);
 }
 
 UTexture2D* FGLTFMaterialProxyFactory::FindOrCreateTexture(FGLTFJsonTexture* JsonTexture, const FGLTFProxyMaterialTextureParameterInfo& ParameterInfo)

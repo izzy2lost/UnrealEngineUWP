@@ -7,7 +7,7 @@
 
 #include "Templates/UnrealTemplate.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/** Keeps a promise for each relevant event. Handles cancelling them when destroyed. */
 	class FSingleClientSubmissionOperation

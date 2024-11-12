@@ -12,13 +12,14 @@ DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Total Instances"), STAT_InstanceDataInstanc
 DECLARE_MEMORY_STAT(TEXT("Nanite Proxy Instance Memory"), STAT_ProxyInstanceMemory, STATGROUP_InstanceData);
 
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Dynamic Data Instances"), STAT_InstanceHasDynamicCount, STATGROUP_InstanceData);
+DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Skinning Data Instances"), STAT_InstanceHasSkinningCount, STATGROUP_InstanceData);
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("LMSM Data Instances"), STAT_InstanceHasLMSMBiasCount, STATGROUP_InstanceData);
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Custom Data Instances"), STAT_InstanceHasCustomDataCount, STATGROUP_InstanceData);
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Random Data Instances"), STAT_InstanceHasRandomCount, STATGROUP_InstanceData);
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Local Bounds Instances"), STAT_InstanceHasLocalBounds, STATGROUP_InstanceData);
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Hierarchy Offset Instances"), STAT_InstanceHasHierarchyOffset, STATGROUP_InstanceData);
 
-const FInstanceDataBufferHeader FInstanceDataBufferHeader::SinglePrimitiveHeader = { 1, 0, FInstanceDataFlags() };
+const FInstanceDataBufferHeader FInstanceDataBufferHeader::SinglePrimitiveHeader = { 1, 0, FInstanceDataFlags(), false };
 
 void FInstanceIdIndexMap::Reset(int32 InNumInstances)
 {
@@ -59,6 +60,15 @@ void FInstanceIdIndexMap::CreateExplicitIdentityMapping()
 	}
 }
 
+FInstanceSceneDataBuffers::FInstanceSceneDataBuffers()
+{
+}
+
+FInstanceSceneDataBuffers::FInstanceSceneDataBuffers(bool InbInstanceDataIsGPUOnly)
+	: bInstanceDataIsGPUOnly(InbInstanceDataIsGPUOnly)
+{
+}
+
 uint32 FInstanceSceneDataBuffers::CalcPayloadDataStride(FInstanceDataFlags Flags, int32 InNumCustomDataFloats, int32 InNumPayloadExtensionFloat4s)
 {
 	static_assert(sizeof(FRenderTransform) == sizeof(float) * 3 * 4); // Sanity check
@@ -82,10 +92,12 @@ uint32 FInstanceSceneDataBuffers::CalcPayloadDataStride(FInstanceDataFlags Flags
 	{
 		PayloadDataCount += 2; // FRenderBounds and possibly uint32 for hierarchy offset & another uint32 for EditorData
 	}
-	else if (Flags.bHasPerInstanceHierarchyOffset || Flags.bHasPerInstanceEditorData)
+	else if (Flags.bHasPerInstanceHierarchyOffset || Flags.bHasPerInstanceSkinningData)
 	{
-		PayloadDataCount += 1; // uint32 for hierarchy offset (float4 packed) & instance editor data is packed in the same float4
+		PayloadDataCount += 1; // uint32 for hierarchy offset (float4 packed) & instance skinning data is packed in the same float4
 	}
+
+	PayloadDataCount += Flags.bHasPerInstanceEditorData ? 1 : 0; // FVector4
 
 	PayloadDataCount += Flags.bHasPerInstanceLMSMUVBias ? 1 : 0; // FVector4
 
@@ -175,30 +187,31 @@ FInstanceDataBufferHeader FInstanceSceneDataBuffers::GetHeader(FAccessTag Access
 {
 	ValidateAccess(AccessTag);
 	// Bit ugly, only this way to keep FInstanceDataBufferHeader fwd-declarable...
-	return FInstanceDataBufferHeader{ GetNumInstances(), GetPayloadDataStride(), Flags };
+	return FInstanceDataBufferHeader{ GetNumInstances(), GetPayloadDataStride(), Flags, bInstanceDataIsGPUOnly };
 }
 
 template <typename ArrayType>
-static void ValidateArray(bool bFlag, const ArrayType &Array, int32 NumInstances, int32 ElementStride = 1)
+static void ValidateArray(bool bFlag, const ArrayType &Array, int32 NumInstances, bool bInstanceDataIsGPUOnly, int32 ElementStride = 1)
 {
-	check(bFlag || Array.IsEmpty());
-	check(!bFlag || Array.Num() == NumInstances * ElementStride);
+	const bool bDataShouldBePresent = bFlag && !bInstanceDataIsGPUOnly;
+	check(bDataShouldBePresent || Array.IsEmpty());
+	check(!bDataShouldBePresent || Array.Num() == NumInstances * ElementStride);
 }
 
 void FInstanceSceneDataBuffers::ValidateData() const
 {
-	ValidateArray(Flags.bHasPerInstanceCustomData, InstanceCustomData, GetNumInstances(), NumCustomDataFloats);
-	ValidateArray(Flags.bHasPerInstanceRandom, InstanceRandomIDs, GetNumInstances());
-	ValidateArray(Flags.bHasPerInstanceLMSMUVBias, InstanceLightShadowUVBias, GetNumInstances());
-	ValidateArray(Flags.bHasPerInstanceHierarchyOffset, InstanceHierarchyOffset, GetNumInstances());
-	ValidateArray(Flags.bHasPerInstanceDynamicData, PrevInstanceToPrimitiveRelative, GetNumInstances());
-
+	ValidateArray(Flags.bHasPerInstanceCustomData, InstanceCustomData, GetNumInstances(), bInstanceDataIsGPUOnly, NumCustomDataFloats);
+	ValidateArray(Flags.bHasPerInstanceRandom, InstanceRandomIDs, GetNumInstances(), bInstanceDataIsGPUOnly);
+	ValidateArray(Flags.bHasPerInstanceLMSMUVBias, InstanceLightShadowUVBias, GetNumInstances(), bInstanceDataIsGPUOnly);
+	ValidateArray(Flags.bHasPerInstanceHierarchyOffset, InstanceHierarchyOffset, GetNumInstances(), bInstanceDataIsGPUOnly);
+	ValidateArray(Flags.bHasPerInstanceDynamicData, PrevInstanceToPrimitiveRelative, GetNumInstances(), bInstanceDataIsGPUOnly);
+	ValidateArray(Flags.bHasPerInstanceSkinningData, InstanceSkinningData, GetNumInstances(), bInstanceDataIsGPUOnly);
 #if WITH_EDITOR
-	ValidateArray(Flags.bHasPerInstanceEditorData, InstanceEditorData, GetNumInstances());
+	ValidateArray(Flags.bHasPerInstanceEditorData, InstanceEditorData, GetNumInstances(), bInstanceDataIsGPUOnly);
 #endif
 	// TODO: These don't follow the common pattern.
-	// ValidateArray(Flags.bHasPerInstanceLocalBounds, InstanceLocalBounds, GetNumInstances());
-	// ValidateArray(Flags.bHasPerInstancePayloadExtension, InstancePayloadExtension, GetNumInstances());
+	// ValidateArray(Flags.bHasPerInstanceLocalBounds, InstanceLocalBounds, GetNumInstances(), bInstanceDataIsGPUOnly);
+	// ValidateArray(Flags.bHasPerInstancePayloadExtension, InstancePayloadExtension, GetNumInstances(), bInstanceDataIsGPUOnly);
 }
 
 void FInstanceSceneDataBuffers::SetImmutable(FInstanceSceneDataImmutable &&ImmutableData, FAccessTag AccessTag)
@@ -233,6 +246,11 @@ FInstanceDataSceneProxy::FInstanceDataSceneProxy()
 {
 }
 
+FInstanceDataSceneProxy::FInstanceDataSceneProxy(FInstanceSceneDataBuffers&& InInstanceSceneDataBuffers)
+	: InstanceSceneDataBuffers(MoveTemp(InInstanceSceneDataBuffers))
+{
+}
+
 FInstanceDataSceneProxy::~FInstanceDataSceneProxy() 
 {
 	DecStatCounters();
@@ -258,6 +276,7 @@ void FInstanceDataSceneProxy::IncStatCounters()
 	INC_DWORD_STAT_BY(STAT_InstanceDataInstanceCount, NumIntances);
 
 	INC_DWORD_STAT_BY(STAT_InstanceHasDynamicCount, Buffer.Flags.bHasPerInstanceDynamicData ? NumIntances : 0);
+	INC_DWORD_STAT_BY(STAT_InstanceHasSkinningCount, Buffer.Flags.bHasPerInstanceSkinningData ? NumIntances : 0);
 	INC_DWORD_STAT_BY(STAT_InstanceHasLMSMBiasCount, Buffer.Flags.bHasPerInstanceLMSMUVBias ? NumIntances : 0);
 	INC_DWORD_STAT_BY(STAT_InstanceHasCustomDataCount, Buffer.Flags.bHasPerInstanceCustomData ? NumIntances : 0);
 	INC_DWORD_STAT_BY(STAT_InstanceHasRandomCount, Buffer.Flags.bHasPerInstanceRandom ? NumIntances : 0);
@@ -281,13 +300,14 @@ void FInstanceDataSceneProxy::DecStatCounters()
 	DEC_MEMORY_STAT_BY(STAT_ProxyInstanceMemory, Buffer.InstanceLocalBounds.GetAllocatedSize());
 	DEC_MEMORY_STAT_BY(STAT_ProxyInstanceMemory, Buffer.InstanceHierarchyOffset.GetAllocatedSize());
 
-	int32 NumIntances = InstanceSceneDataBuffers.GetNumInstances();
-	DEC_DWORD_STAT_BY(STAT_InstanceDataInstanceCount, NumIntances);
+	int32 NumInstances = InstanceSceneDataBuffers.GetNumInstances();
+	DEC_DWORD_STAT_BY(STAT_InstanceDataInstanceCount, NumInstances);
 
-	DEC_DWORD_STAT_BY(STAT_InstanceHasDynamicCount, Buffer.Flags.bHasPerInstanceDynamicData ? NumIntances : 0);
-	DEC_DWORD_STAT_BY(STAT_InstanceHasLMSMBiasCount, Buffer.Flags.bHasPerInstanceLMSMUVBias ? NumIntances : 0);
-	DEC_DWORD_STAT_BY(STAT_InstanceHasCustomDataCount, Buffer.Flags.bHasPerInstanceCustomData ? NumIntances : 0);
-	DEC_DWORD_STAT_BY(STAT_InstanceHasRandomCount, Buffer.Flags.bHasPerInstanceRandom ? NumIntances : 0);
-	DEC_DWORD_STAT_BY(STAT_InstanceHasLocalBounds, Buffer.Flags.bHasPerInstanceLocalBounds ? NumIntances : 0);
-	DEC_DWORD_STAT_BY(STAT_InstanceHasHierarchyOffset, Buffer.Flags.bHasPerInstanceHierarchyOffset ? NumIntances : 0);
+	DEC_DWORD_STAT_BY(STAT_InstanceHasDynamicCount, Buffer.Flags.bHasPerInstanceDynamicData ? NumInstances : 0);
+	DEC_DWORD_STAT_BY(STAT_InstanceHasSkinningCount, Buffer.Flags.bHasPerInstanceSkinningData ? NumInstances : 0);
+	DEC_DWORD_STAT_BY(STAT_InstanceHasLMSMBiasCount, Buffer.Flags.bHasPerInstanceLMSMUVBias ? NumInstances : 0);
+	DEC_DWORD_STAT_BY(STAT_InstanceHasCustomDataCount, Buffer.Flags.bHasPerInstanceCustomData ? NumInstances : 0);
+	DEC_DWORD_STAT_BY(STAT_InstanceHasRandomCount, Buffer.Flags.bHasPerInstanceRandom ? NumInstances : 0);
+	DEC_DWORD_STAT_BY(STAT_InstanceHasLocalBounds, Buffer.Flags.bHasPerInstanceLocalBounds ? NumInstances : 0);
+	DEC_DWORD_STAT_BY(STAT_InstanceHasHierarchyOffset, Buffer.Flags.bHasPerInstanceHierarchyOffset ? NumInstances : 0);
 }

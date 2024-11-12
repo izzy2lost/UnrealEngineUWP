@@ -33,14 +33,6 @@
 #include "Engine/StaticMeshActor.h"
 #include "Components/StaticMeshComponent.h"
 
-#if WITH_EDITOR
-#include "DatasmithImporter.h"
-#include "DatasmithImportContext.h"
-#include "DatasmithStaticMeshImporter.h"
-#include "Misc/ScopedSlowTask.h"
-#include "Utility/DatasmithImporterUtils.h"
-#endif //WITH_EDITOR
-
 #define LOCTEXT_NAMESPACE "InterchangeDatasmithPipeline"
 
 namespace UE::Interchange::StaticMeshUtils
@@ -120,38 +112,31 @@ UInterchangeDatasmithPipeline::UInterchangeDatasmithPipeline()
 	AnimationPipeline->CommonSkeletalMeshesAndAnimationsProperties = CommonSkeletalMeshesAndAnimationsProperties;
 }
 
-void UInterchangeDatasmithPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
+void UInterchangeDatasmithPipeline::AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
+	Super::AdjustSettingsForContext(ContextParams);
 
 	if (MaterialPipeline)
 	{
-		MaterialPipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
+		MaterialPipeline->AdjustSettingsForContext(ContextParams);
 	}
 
 	if (MeshPipeline)
 	{
-		MeshPipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
+		MeshPipeline->AdjustSettingsForContext(ContextParams);
 	}
 
 	if (LevelPipeline)
 	{
-		LevelPipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
+		LevelPipeline->AdjustSettingsForContext(ContextParams);
 	}
 
 	if (AnimationPipeline)
 	{
-		AnimationPipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
+		AnimationPipeline->AdjustSettingsForContext(ContextParams);
 	}
-}
 
-void UInterchangeDatasmithPipeline::PostDuplicate(bool bDuplicateForPIE)
-{
-	// Only adjust settings if there is anything cached.
-	if (CachePipelineContext != EInterchangePipelineContext::None)
-	{
-		AdjustSettingsForContext(CachePipelineContext, CacheReimportObject.Get());
-	}
+	CacheContextParam = ContextParams;
 }
 
 void UInterchangeDatasmithPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas, const FString& ContentBasePath)
@@ -167,6 +152,7 @@ void UInterchangeDatasmithPipeline::ExecutePipeline(UInterchangeBaseNodeContaine
 	{
 		if (Pipeline)
 		{
+			Pipeline->AdjustSettingsForContext(CacheContextParam);
 			Pipeline->SetResultsContainer(this->Results);
 			Pipeline->ScriptedExecutePipeline(this->BaseNodeContainer, SourceDatas, ContentBasePath);
 		}
@@ -180,7 +166,7 @@ void UInterchangeDatasmithPipeline::ExecutePipeline(UInterchangeBaseNodeContaine
 
 	ExecutePreImportPipelineFunc(MeshPipeline);
 
-	if (CachePipelineContext == EInterchangePipelineContext::SceneImport || CachePipelineContext == EInterchangePipelineContext::SceneReimport)
+	if (CacheContextParam.ContextType == EInterchangePipelineContext::SceneImport || CacheContextParam.ContextType == EInterchangePipelineContext::SceneReimport)
 	{
 		ExecutePreImportPipelineFunc(LevelPipeline);
 		ExecutePreImportPipelineFunc(AnimationPipeline);
@@ -260,7 +246,7 @@ void UInterchangeDatasmithPipeline::ExecutePostImportPipeline(const UInterchange
 		MeshPipeline->ScriptedExecutePostImportPipeline(InBaseNodeContainer, NodeKey, CreatedAsset, bIsAReimport);
 	}
 
-	const bool bSceneImport = CachePipelineContext == EInterchangePipelineContext::SceneImport || CachePipelineContext == EInterchangePipelineContext::SceneReimport;
+	const bool bSceneImport = CacheContextParam.ContextType == EInterchangePipelineContext::SceneImport || CacheContextParam.ContextType == EInterchangePipelineContext::SceneReimport;
 	if (bSceneImport)
 	{
 		if (LevelPipeline)

@@ -20,8 +20,10 @@
 #include "PluginStyle.h"
 #include "SNewPluginWizard.h"
 #include "SPluginBrowser.h"
+#include "SPluginPaths.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
+#include "UnrealEdMisc.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
@@ -29,10 +31,13 @@
 
 LLM_DEFINE_TAG(PluginBrowser);
 
+DEFINE_LOG_CATEGORY(LogPluginBrowser);
+
 IMPLEMENT_MODULE( FPluginBrowserModule, PluginBrowser )
 
 const FName FPluginBrowserModule::PluginsEditorTabName( TEXT( "PluginsEditor" ) );
 const FName FPluginBrowserModule::PluginCreatorTabName( TEXT( "PluginCreator" ) );
+const FName FPluginBrowserModule::ExternalDirectoriesTabName(TEXT("PluginDirectories"));
 
 void FPluginBrowserModule::StartupModule()
 {
@@ -60,8 +65,17 @@ void FPluginBrowserModule::StartupModule()
 		.SetMenuType(ETabSpawnerMenuType::Hidden);
 
 	// Register a default size for this tab
-	FVector2D DefaultSize(1000.0f, 750.0f);
-	FTabManager::RegisterDefaultTabWindowSize(PluginCreatorTabName, DefaultSize);
+	const FVector2D DefaultCreatorSize(1000.0f, 750.0f);
+	FTabManager::RegisterDefaultTabWindowSize(PluginCreatorTabName, DefaultCreatorSize);
+
+	// Additional Plugin Directories tab
+	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(ExternalDirectoriesTabName, FOnSpawnTab::CreateRaw(this, &FPluginBrowserModule::HandleSpawnExternalDirectoriesTab))
+		.SetDisplayName(LOCTEXT("ExternalPluginDirectoriesTabTitle", "Plugin Directories"))
+		.SetMenuType(ETabSpawnerMenuType::Hidden)
+		.SetIcon(FSlateIcon(FPluginStyle::Get()->GetStyleSetName(), "Plugins.TabIcon"));
+
+	const FVector2D DefaultDirectoriesSize(750.0f, 600.0f);
+	FTabManager::RegisterDefaultTabWindowSize(ExternalDirectoriesTabName, DefaultDirectoriesSize);
 
 	// Get a list of the installed plugins we've seen before
 	TArray<FString> PreviousInstalledPlugins;
@@ -91,6 +105,8 @@ void FPluginBrowserModule::StartupModule()
 	MainFrameModule.OnMainFrameCreationFinished().AddRaw(this, &FPluginBrowserModule::OnMainFrameLoaded);
 	
 	AddContentBrowserMenuExtensions();
+
+	IPluginManager::Get().GetExternalPluginSources(OriginalExternalSources);
 }
 
 void FPluginBrowserModule::ShutdownModule()
@@ -107,6 +123,7 @@ void FPluginBrowserModule::ShutdownModule()
 	// Unregister the tab spawner
 	FGlobalTabmanager::Get()->UnregisterTabSpawner( PluginsEditorTabName );
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner( PluginCreatorTabName );
+	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(ExternalDirectoriesTabName);
 
 	// Unregister our feature
 	IModularFeatures::Get().UnregisterModularFeature( EditorFeatures::PluginsEditor, this );
@@ -312,13 +329,41 @@ bool FPluginBrowserModule::IsNewlyInstalledPlugin(const FString& PluginName) con
 	return NewlyInstalledPlugins.Contains(PluginName);
 }
 
+bool FPluginBrowserModule::ShowPendingRestart() const
+{
+	LastQueriedExternalSources.Reset();
+	IPluginManager::Get().GetExternalPluginSources(LastQueriedExternalSources);
+
+	// For sets of equal size, inclusion denotes equality.
+	const bool bExternalSourcesChanged =
+		(LastQueriedExternalSources.Num() != OriginalExternalSources.Num())
+		|| !OriginalExternalSources.Includes(LastQueriedExternalSources);
+
+	return HasPluginsPendingEnable() || bExternalSourcesChanged;
+}
+
 TSharedRef<SDockTab> FPluginBrowserModule::HandleSpawnPluginBrowserTab(const FSpawnTabArgs& SpawnTabArgs)
 {
 	const TSharedRef<SDockTab> MajorTab = 
 		SNew( SDockTab )
 		.TabRole( ETabRole::MajorTab );
 
-	MajorTab->SetContent( SNew( SPluginBrowser ) );
+	MajorTab->SetContent(
+		SNew( SPluginBrowser )
+		.OnRestartClicked_Lambda([this]() -> FReply
+		{
+			if (OnRestartClickedDelegate.IsBound())
+			{
+				OnRestartClickedDelegate.Execute();
+			}
+			else
+			{
+				const bool bWarn_false = false;
+				FUnrealEdMisc::Get().RestartEditor(bWarn_false);
+			}
+			return FReply::Handled();
+		})
+	);
 
 	PluginBrowserTab = MajorTab;
 	UpdatePreviousInstalledPlugins();
@@ -341,6 +386,17 @@ TSharedRef<SDockTab> FPluginBrowserModule::SpawnPluginCreatorTab(const FSpawnTab
 	ResultTab->SetContent(TabContentWidget);
 
 	return ResultTab;
+}
+
+TSharedRef<SDockTab> FPluginBrowserModule::HandleSpawnExternalDirectoriesTab(const FSpawnTabArgs& SpawnTabArgs)
+{
+	const TSharedRef<SDockTab> MajorTab = SNew(SDockTab)
+		.TabRole(ETabRole::NomadTab);
+
+	TSharedRef<SWidget> TabContent = SNew(SPluginPaths);
+	MajorTab->SetContent(TabContent);
+
+	return MajorTab;
 }
 
 void FPluginBrowserModule::OnMainFrameLoaded(TSharedPtr<SWindow> InRootWindow, bool bIsRunningStartupDialog)

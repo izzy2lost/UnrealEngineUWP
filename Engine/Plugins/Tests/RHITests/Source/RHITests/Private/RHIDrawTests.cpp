@@ -34,31 +34,12 @@ class FTestDrawInstancedPS : public FGlobalShader
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 	}
-	LAYOUT_FIELD(FShaderParameter, OutDrawnInstances);
+	LAYOUT_FIELD(FShaderResourceParameter, OutDrawnInstances);
 };
 IMPLEMENT_GLOBAL_SHADER(FTestDrawInstancedPS, "/Plugin/RHITests/Private/TestDrawInstanced.usf", "TestDrawInstancedMainPS", SF_Pixel);
 
 namespace
 {
-
-template <typename T>
-static FBufferRHIRef CreateBufferWithData(EBufferUsageFlags UsageFlags, ERHIAccess ResourceState, const TCHAR* Name, TConstArrayView<T> Data)
-{
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
-	uint32 BufferSize = sizeof(T) * Data.Num();
-	FRHIResourceCreateInfo CreateInfo(Name);
-	FBufferRHIRef Buffer = RHICmdList.CreateBuffer(BufferSize, UsageFlags, sizeof(T), ResourceState, CreateInfo);
-	void* MappedData = RHICmdList.LockBuffer(Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly);
-	FMemory::Memcpy(MappedData, Data.GetData(), BufferSize);
-	RHICmdList.UnlockBuffer(Buffer);
-	return Buffer;
-}
-
-template<typename T>
-static FBufferRHIRef CreateBufferWithData(EBufferUsageFlags UsageFlags, ERHIAccess ResourceState, const TCHAR* Name, TArrayView<T> Data)
-{
-	return CreateBufferWithData(UsageFlags, ResourceState, Name, TConstArrayView<T>(Data.GetData(), Data.Num()));
-}
 
 // Structure to initialize common resources required for various draw tests
 struct FDrawTestResources
@@ -93,7 +74,7 @@ struct FDrawTestResources
 		{
 			InstanceIDs[i] = i;
 		}
-		InstanceIDBuffer = CreateBufferWithData(EBufferUsageFlags::VertexBuffer, ERHIAccess::VertexOrIndexBuffer, TEXT("DrawTest_InstanceID"), MakeArrayView(InstanceIDs));
+		InstanceIDBuffer = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("DrawTest_InstanceID"), MakeConstArrayView(InstanceIDs));
 
 		// Indices for 4 triangles
 		const uint16 Indices[NumTotalVertices] =
@@ -104,7 +85,7 @@ struct FDrawTestResources
 			9, 10, 11 // degenerate
 		};
 
-		IndexBuffer = CreateBufferWithData(EBufferUsageFlags::IndexBuffer, ERHIAccess::VertexOrIndexBuffer, TEXT("DrawTest_IndexBuffer"), MakeArrayView(Indices));
+		IndexBuffer = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("DrawTest_IndexBuffer"), MakeConstArrayView(Indices));
 
 		TArray<FVector4f> Vertices;
 		Vertices.Reserve(NumTotalVertices);
@@ -121,7 +102,7 @@ struct FDrawTestResources
 		{
 			Vertices.Add(FVector4f(0.0f, 0.0f, 0.0f, 1.0f));
 		}
-		VertexBuffer = CreateBufferWithData(EBufferUsageFlags::VertexBuffer, ERHIAccess::VertexOrIndexBuffer, TEXT("DrawTest_VertexBuffer"), MakeArrayView(Vertices));
+		VertexBuffer = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("DrawTest_VertexBuffer"), MakeConstArrayView(Vertices));
 
 		static constexpr uint32 OutputBufferStride = sizeof(uint32);
 		static constexpr uint32 OutputBufferSize = OutputBufferStride * MaxInstances;
@@ -186,8 +167,13 @@ bool FRHIDrawTests::InternalDrawBaseVertexAndInstance(FRHICommandListImmediate& 
 	FBufferRHIRef DrawArgBuffer;
 	if (DrawKind == EDrawKind::Indirect)
 	{
-		DrawArgBuffer = CreateBufferWithData(EBufferUsageFlags::DrawIndirect | EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::VertexBuffer, ERHIAccess::IndirectArgs,
-			TEXT("InternalDrawBaseVertexAndInstance_DrawArgs"), MakeArrayView(DrawArgs));
+		DrawArgBuffer = UE::RHIResourceUtils::CreateBufferFromArray(
+			RHICmdList,
+			TEXT("InternalDrawBaseVertexAndInstance_DrawArgs"), 
+			EBufferUsageFlags::DrawIndirect | EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::VertexBuffer,
+			ERHIAccess::IndirectArgs,
+			MakeConstArrayView(DrawArgs)
+		);
 	}
 
 	RHICmdList.Transition(FRHITransitionInfo(Resources.OutputBufferUAV, ERHIAccess::UAVCompute, ERHIAccess::UAVGraphics, EResourceTransitionFlags::None));
@@ -199,12 +185,11 @@ bool FRHIDrawTests::InternalDrawBaseVertexAndInstance(FRHICommandListImmediate& 
 	RHICmdList.ApplyCachedRenderTargets(Resources.GraphicsPSOInit);
 	SetGraphicsPipelineState(RHICmdList, Resources.GraphicsPSOInit, 0);
 
-	check(Resources.InstanceIDBuffer->GetStride() == 4);
 	RHICmdList.SetStreamSource(0, Resources.VertexBuffer, 0);
 	RHICmdList.SetStreamSource(1, Resources.InstanceIDBuffer, 0);
 
-	FRHIBatchedShaderParameters ShaderParameters;
-	ShaderParameters.SetUAVParameter(Resources.PixelShader->OutDrawnInstances.GetBaseIndex(), Resources.OutputBufferUAV);
+	FRHIBatchedShaderParameters& ShaderParameters = RHICmdList.GetScratchShaderParameters();
+	SetUAVParameter(ShaderParameters, Resources.PixelShader->OutDrawnInstances, Resources.OutputBufferUAV);
 	RHICmdList.SetBatchedShaderParameters(Resources.PixelShader.GetPixelShader(), ShaderParameters);
 
 	if (DrawKind == EDrawKind::Direct)
@@ -275,7 +260,13 @@ bool FRHIDrawTests::Test_MultiDrawIndirect(FRHICommandListImmediate& RHICmdList)
 	FDrawTestResources Resources(RHICmdList);
 
 	const uint32 CountValues[4] = { 1, 1, 16, 0 };
-	FBufferRHIRef CountBuffer = CreateBufferWithData(EBufferUsageFlags::DrawIndirect | EBufferUsageFlags::UnorderedAccess, ERHIAccess::IndirectArgs, TEXT("Test_MultiDrawIndirect_Count"), MakeArrayView(CountValues));
+	FBufferRHIRef CountBuffer = UE::RHIResourceUtils::CreateBufferFromArray(
+		RHICmdList,
+		TEXT("Test_MultiDrawIndirect_Count"),
+		EBufferUsageFlags::DrawIndirect | EBufferUsageFlags::UnorderedAccess,
+		ERHIAccess::IndirectArgs,
+		MakeConstArrayView(CountValues)
+	);
 
 	const FRHIDrawIndexedIndirectParameters DrawArgs[] =
 	{
@@ -291,8 +282,13 @@ bool FRHIDrawTests::Test_MultiDrawIndirect(FRHICommandListImmediate& RHICmdList)
 
 	const uint32 ExpectedDrawnInstances[Resources.MaxInstances] = { 1, 0, 1, 1, 0, 1, 1, 0 };
 
-	FBufferRHIRef DrawArgBuffer = CreateBufferWithData(EBufferUsageFlags::DrawIndirect | EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::VertexBuffer, ERHIAccess::IndirectArgs,
-		TEXT("Test_MultiDrawIndirect_DrawArgs"), MakeArrayView(DrawArgs));
+	FBufferRHIRef DrawArgBuffer = UE::RHIResourceUtils::CreateBufferFromArray(
+		RHICmdList,
+		TEXT("Test_MultiDrawIndirect_DrawArgs"),
+		EBufferUsageFlags::DrawIndirect | EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::VertexBuffer,
+		ERHIAccess::IndirectArgs,
+		MakeConstArrayView(DrawArgs)
+	);
 
 	RHICmdList.ClearUAVUint(Resources.OutputBufferUAV, FUintVector4(0));
 
@@ -308,12 +304,11 @@ bool FRHIDrawTests::Test_MultiDrawIndirect(FRHICommandListImmediate& RHICmdList)
 	RHICmdList.ApplyCachedRenderTargets(Resources.GraphicsPSOInit);
 	SetGraphicsPipelineState(RHICmdList, Resources.GraphicsPSOInit, 0);
 
-	check(Resources.InstanceIDBuffer->GetStride() == 4);
 	RHICmdList.SetStreamSource(0, Resources.VertexBuffer, 0);
 	RHICmdList.SetStreamSource(1, Resources.InstanceIDBuffer, 0);
 
-	FRHIBatchedShaderParameters ShaderParameters;
-	ShaderParameters.SetUAVParameter(Resources.PixelShader->OutDrawnInstances.GetBaseIndex(), Resources.OutputBufferUAV);
+	FRHIBatchedShaderParameters& ShaderParameters = RHICmdList.GetScratchShaderParameters();
+	SetUAVParameter(ShaderParameters, Resources.PixelShader->OutDrawnInstances, Resources.OutputBufferUAV);
 	RHICmdList.SetBatchedShaderParameters(Resources.PixelShader.GetPixelShader(), ShaderParameters);
 
 	const uint32 DrawArgsStride = sizeof(DrawArgs[0]);

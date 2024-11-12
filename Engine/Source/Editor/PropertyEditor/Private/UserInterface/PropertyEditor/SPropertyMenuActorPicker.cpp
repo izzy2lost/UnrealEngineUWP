@@ -31,16 +31,20 @@ void SPropertyMenuActorPicker::Construct( const FArguments& InArgs )
 	OnSet = InArgs._OnSet;
 	OnClose = InArgs._OnClose;
 	OnUseSelected = InArgs._OnUseSelected;
+	bDisplayUseSelected = InArgs._DisplayUseSelected;
 
 	FMenuBuilder MenuBuilder(true, NULL);
 
 	MenuBuilder.BeginSection(NAME_None, LOCTEXT("CurrentActorOperationsHeader", "Current Actor"));
 	{
-		MenuBuilder.AddMenuEntry(
-			LOCTEXT("UseSelected", "Use Selected"), 
-			LOCTEXT("UseSelected_Tooltip", "Use the currently selected Actor"),
-			FSlateIcon(),
-			FUIAction( FExecuteAction::CreateSP( this, &SPropertyMenuActorPicker::HandleUseSelected ) ) );
+		if (bDisplayUseSelected)
+		{
+			MenuBuilder.AddMenuEntry(
+				LOCTEXT("UseSelected", "Use Selected"),
+				LOCTEXT("UseSelected_Tooltip", "Use the currently selected Actor"),
+				FSlateIcon(),
+				FUIAction(FExecuteAction::CreateSP(this, &SPropertyMenuActorPicker::HandleUseSelected)));
+		}
 
 		if( CurrentActor )
 		{

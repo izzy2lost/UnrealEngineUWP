@@ -152,4 +152,4 @@ void FAvaTextEditorModule::RegisterDynamicMaterialPropertyGenerator()
 	);
 }
 
-IMPLEMENT_MODULE(FAvaTextEditorModule, AvalancheTextEditorModule)
+IMPLEMENT_MODULE(FAvaTextEditorModule, AvalancheTextEditor)

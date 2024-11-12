@@ -21,8 +21,12 @@
 #include "RenderUtils.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Engine/SubsurfaceProfile.h"
+#include "PostProcess/PostProcessMaterialInputs.h"
 
 static bool SharedPixelProperties[CompiledMP_MAX];
+
+/** HLSL generating utility function */
+extern FString GenerateUserSceneTextureRemapHLSLDefines(FMaterialCompilationOutput& CompilationOutput);
 
 static const TCHAR* HLSLTypeString(EMaterialValueType Type)
 {
@@ -50,6 +54,7 @@ static const TCHAR* HLSLTypeString(EMaterialValueType Type)
 	case MCT_UInt3:					return TEXT("uint3");
 	case MCT_UInt4:					return TEXT("uint4");
 	case MCT_Substrate:				return TEXT("FSubstrateData");
+	case MCT_TextureCollection:		return TEXT("FResourceCollection");
 	default:						return TEXT("unknown");
 	};
 }
@@ -218,7 +223,7 @@ static FString GenerateMaterialTemplateHLSL(EShaderPlatform ShaderPlatform,
 		{
 			const TCHAR* DerivativeName = (DerivativeIndex == 0) ? TEXT("HWDerivative") : TEXT("AnalyticDerivative");
 
-			EvaluateMaterialAttributesPhase0[DerivativeIndex] =  FString::Printf(TEXT("    FMaterialAttributes MaterialAttributesPhase0;" HLSL_LINE_TERMINATOR), DerivativeName);
+			EvaluateMaterialAttributesPhase0[DerivativeIndex] =  FString::Printf(TEXT("    FMaterialAttributes MaterialAttributesPhase0;" HLSL_LINE_TERMINATOR));
 			EvaluateMaterialAttributesPhase0[DerivativeIndex] += FString::Printf(TEXT("    EvaluatePixelMaterialAttributesPhase0_%s(Parameters, MaterialAttributesPhase0);" HLSL_LINE_TERMINATOR), DerivativeName);
 
 			EvaluateMaterialDeclaration += FString::Printf(TEXT("void EvaluatePixelMaterialAttributesPhase0_%s(in out FMaterialPixelParameters Parameters, out FMaterialAttributes OutResult)" HLSL_LINE_TERMINATOR), DerivativeName);
@@ -233,7 +238,7 @@ static FString GenerateMaterialTemplateHLSL(EShaderPlatform ShaderPlatform,
 				EvaluateMaterialDeclaration += PixelShaderCodePhase1[DerivativeIndex];
 				EvaluateMaterialDeclaration += TEXT("}" HLSL_LINE_TERMINATOR);
 
-				EvaluateMaterialAttributesPhase1[DerivativeIndex] =  FString::Printf(TEXT("    FMaterialAttributes MaterialAttributesPhase1;" HLSL_LINE_TERMINATOR), DerivativeName);
+				EvaluateMaterialAttributesPhase1[DerivativeIndex] =  FString::Printf(TEXT("    FMaterialAttributes MaterialAttributesPhase1;" HLSL_LINE_TERMINATOR));
 				EvaluateMaterialAttributesPhase1[DerivativeIndex] += FString::Printf(TEXT("    EvaluatePixelMaterialAttributesPhase1_%s(Parameters, MaterialAttributesPhase1);" HLSL_LINE_TERMINATOR), DerivativeName);
 				EvaluateMaterialAttributesPhase1[DerivativeIndex] += TEXT("    Parameters.MaterialAttributes = MaterialAttributesPhase1;" HLSL_LINE_TERMINATOR);
 			}
@@ -297,6 +302,8 @@ static FString GenerateMaterialTemplateHLSL(EShaderPlatform ShaderPlatform,
 			}
 		}
 	}
+
+	MaterialSourceTemplateParams.Add({ TEXT("user_scene_texture_remap"), GenerateUserSceneTextureRemapHLSLDefines(OutCompilationOutput) });
 
 	return Resolver.Finalize();
 }
@@ -403,6 +410,17 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 		OutEnvironment.SetDefine(TEXT("NEEDS_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS"), TEXT("1"));
 	}
 
+	const bool bNeedsInstanceWorldToLocalPS = 
+		EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::PositionInstanceSpace) ||
+		EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::PositionInstanceSpace_NoOffsets) ||
+		EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::PrevPositionInstanceSpace) ||
+		EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::PrevPositionInstanceSpace_NoOffsets);
+
+	if (bNeedsInstanceWorldToLocalPS)
+	{
+		OutEnvironment.SetDefine(TEXT("NEEDS_INSTANCE_WORLD_TO_LOCAL_PS"), TEXT("1"));
+	}
+
 	const bool bNeedsParticleSize = EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::ParticleSize);
 
 	if (bNeedsParticleSize)
@@ -414,6 +432,14 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 	{
 		OutEnvironment.SetDefine(TEXT("NEEDS_SCENE_TEXTURES"), TEXT("1"));
 	}
+
+	// If post process material doesn't already output alpha, and reads from PostProcessInput0 or a UserSceneTexture, enable automatic alpha propagation for SceneColor
+	if (InMaterial.GetMaterialDomain() == MD_PostProcess && InMaterial.GetBlendableOutputAlpha() == false && (MaterialCompilationOutput.IsSceneTextureUsed(PPI_PostProcessInput0) || !MaterialCompilationOutput.UserSceneTextureInputs.IsEmpty()))
+	{
+		OutEnvironment.SetDefine(TEXT("POST_PROCESS_PROPAGATE_ALPHA_INPUT"), MaterialCompilationOutput.IsSceneTextureUsed(PPI_PostProcessInput0) ? TEXT("PPI_PostProcessInput0") : TEXT("UserSceneTextureSceneColorInput"));
+		OutEnvironment.SetDefine(TEXT("POST_PROCESS_USED_SCENE_TEXTURES"), MaterialCompilationOutput.UsedSceneTextures);
+	}
+
 	if (MaterialCompilationOutput.bUsesEyeAdaptation)
 	{
 		OutEnvironment.SetDefine(TEXT("USES_EYE_ADAPTATION"), TEXT("1"));
@@ -461,6 +487,8 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 	OutEnvironment.SetDefine(TEXT("MATERIAL_USES_ANISOTROPY"), bUsesAnisotropy);
 
 	OutEnvironment.SetDefine(TEXT("MATERIAL_NEURAL_POST_PROCESS"), (MaterialCompilationOutput.bUsedWithNeuralNetworks || InMaterial.IsUsedWithNeuralNetworks()) && InMaterial.IsPostProcessMaterial());
+
+	OutEnvironment.SetDefine(TEXT("NUM_CUSTOMIZED_UVS"), InMaterial.GetNumCustomizedUVs());
 
 	// Count the number of VTStacks (each stack will allocate a feedback slot)
 	OutEnvironment.SetDefine(TEXT("NUM_VIRTUALTEXTURE_SAMPLES"), EmitMaterialData.VTStacks.Num());
@@ -857,7 +885,7 @@ bool MaterialEmitHLSL(const FMaterialCompileTargetParameters& InCompilerTarget,
 			const EMaterialDomain MaterialDomain = EmitContext.Material->GetMaterialDomain();
 			if (MaterialDomain == MD_Volume || (MaterialDomain == MD_Surface && IsSubsurfaceShadingModel(EmitMaterialData.ShadingModelsFromCompilation)))
 			{
-				const FMaterialParameterInfo SubsurfaceProfileParameterInfo(GetSubsurfaceProfileParameterName());
+				const FMaterialParameterInfo SubsurfaceProfileParameterInfo(SubsurfaceProfile::GetSubsurfaceProfileParameterName());
 				const FMaterialParameterMetadata SubsurfaceProfileParameterMetadata(1.f);
 				const Material::FExpressionParameter SubsurfaceProfileExpression(SubsurfaceProfileParameterInfo, SubsurfaceProfileParameterMetadata);
 
@@ -995,6 +1023,12 @@ bool MaterialEmitHLSL(const FMaterialCompileTargetParameters& InCompilerTarget,
 		&& !IsTranslucentBlendMode(EmitContext.Material->GetBlendMode()))
 	{
 		EmitContext.Error(TEXT("Only transparent or postprocess materials can read from scene depth."));
+	}
+
+	int32 NumPostProcessInputs = OutCompilationOutput.GetNumPostProcessInputsUsed();
+	if (NumPostProcessInputs > kPostProcessMaterialInputCountMax)
+	{
+		EmitContext.Errorf(TEXT("Maximum Scene Texture post process inputs exceeded (%d > %d), between SceneTexture nodes with PostProcessInputs or UserSceneTexture nodes."), NumPostProcessInputs, kPostProcessMaterialInputCountMax);
 	}
 
 	if (EmitContext.NumErrors > 0)

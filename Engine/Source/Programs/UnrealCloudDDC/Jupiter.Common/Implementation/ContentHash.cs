@@ -89,7 +89,7 @@ namespace Jupiter.Implementation
 				return false;
 			}
 
-			return Equals((ContentHash) obj);
+			return Equals((ContentHash)obj);
 		}
 
 		public override string ToString()
@@ -109,7 +109,7 @@ namespace Jupiter.Implementation
 			return new ContentHash(hash.ToArray());
 		}
 	}
-	
+
 	public class ContentHashCbConverter : CbConverter<ContentHash>
 	{
 		public override ContentHash Read(CbField field) => new ContentHash(field.AsHash().ToByteArray());
@@ -143,22 +143,22 @@ namespace Jupiter.Implementation
 	public class ContentHashTypeConverter : TypeConverter
 	{
 		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
-		{  
-			if (sourceType == typeof(string))  
-			{  
+		{
+			if (sourceType == typeof(string))
+			{
 				return true;
-			}  
+			}
 			return base.CanConvertFrom(context, sourceType);
-		}  
-  
-		public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)  
+		}
+
+		public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
 		{
 			if (value is string s)
 			{
 				return new ContentHash(s);
 			}
 
-			return base.ConvertFrom(context, culture, value);  
+			return base.ConvertFrom(context, culture, value);
 		}
 
 		public override bool CanConvertTo(ITypeDescriptorContext? context, Type? destinationType)

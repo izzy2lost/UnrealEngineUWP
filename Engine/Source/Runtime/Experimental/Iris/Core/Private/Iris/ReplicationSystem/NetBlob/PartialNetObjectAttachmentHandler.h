@@ -3,6 +3,7 @@
 #pragma once
 #include "Iris/ReplicationSystem/NetBlob/SequentialPartialNetBlobHandler.h"
 #include "Iris/ReplicationSystem/NetBlob/RawDataNetBlob.h"
+#include "Iris/ReplicationSystem/NetExports.h"
 #include "PartialNetObjectAttachmentHandler.generated.h"
 
 UCLASS()
@@ -50,12 +51,14 @@ public:
 	void Init(const FPartialNetObjectAttachmentHandlerInitParams& InitParams);
 
 	/** Serializes the NetBlob and either store the serialized version in a new NetBlob or splits into multiple partial NetBlobs. */
-	bool PreSerializeAndSplitNetBlob(uint32 ConnectionId, const TRefCountPtr<UE::Net::FNetObjectAttachment>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs, bool bSerializeWithObject) const;
+	bool PreSerializeAndSplitNetBlob(uint32 ConnectionId, const TRefCountPtr<UE::Net::FNetObjectAttachment>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs, bool bSerializeWithObject);
 
 	/** Splits a RawDataNetBlob. The blob must have been created by a registered NetBlobHandler in order to be reconstructed on the receiving side. */
 	bool SplitRawDataNetBlob(const TRefCountPtr<UE::Net::FRawDataNetBlob>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs, const UE::Net::FNetDebugName* InDebugName) const;
 
 	const UPartialNetObjectAttachmentHandlerConfig* GetConfig() const;
+private:
+	UE::Net::Private::FNetExports NetExports;
 };
 
 inline const UPartialNetObjectAttachmentHandlerConfig* UPartialNetObjectAttachmentHandler::GetConfig() const

@@ -416,6 +416,21 @@ namespace UE
 			FMemory::Memcpy((uint8*)(*OutValue), &StorageData[AttributeAllocationInfo->Offset], AttributeAllocationInfo->Size);
 		}
 
+		const FStringView FAttributeStorage::GetFStringViewAttributeFromStorage(const uint8* StorageData, const FAttributeAllocationInfo* AttributeAllocationInfo) const
+		{
+			const uint64 NumberOfChar = AttributeAllocationInfo->Size / sizeof(TCHAR);
+			check(NumberOfChar > 0);
+
+			// Null terminator is included in the size
+			if (NumberOfChar <= 1)
+			{
+				return FStringView();
+			}
+
+			const TCHAR* StringContents = reinterpret_cast<const TCHAR*>(&StorageData[AttributeAllocationInfo->Offset]);
+			return FStringView(StringContents, int32(NumberOfChar - 1));
+		}
+
 		EAttributeStorageResult FAttributeStorage::GetAttribute(const FAttributeKey& ElementAttributeKey, FString& OutValue, TSpecializeType<FString >) const
 		{
 			static_assert(TAttributeTypeTraits<FString>::GetType() != EAttributeTypes::None, "Not a supported type for the attributes. Check EAttributeTypes for the supported types.");
@@ -448,7 +463,8 @@ namespace UE
 				return EAttributeStorageResult::Operation_Success;
 			}
 
-			ExtractFStringAttributeFromStorage(AttributeStorage.GetData(), AttributeAllocationInfo, OutValue);
+			const FStringView ValueView = GetFStringViewAttributeFromStorage(AttributeStorage.GetData(), AttributeAllocationInfo);
+			OutValue = ValueView;
 
 			return EAttributeStorageResult::Operation_Success;
 		}
@@ -488,13 +504,8 @@ namespace UE
 				return EAttributeStorageResult::Operation_Success;
 			}
 
-			FString ValueStr;
-
-			//Share the code with FString from here
-			ExtractFStringAttributeFromStorage(AttributeStorage.GetData(), AttributeAllocationInfo, ValueStr);
-
-			//Create the FName and copy it to OutValue
-			OutValue = FName(*ValueStr);
+			const FStringView ValueStr = GetFStringViewAttributeFromStorage(AttributeStorage.GetData(), AttributeAllocationInfo);
+			OutValue = FName(ValueStr);
 
 			return EAttributeStorageResult::Operation_Success;
 		}
@@ -534,12 +545,7 @@ namespace UE
 				return EAttributeStorageResult::Operation_Success;
 			}
 
-			FString ValueStr;
-
-			//Share the code with FString from here
-			ExtractFStringAttributeFromStorage(AttributeStorage.GetData(), AttributeAllocationInfo, ValueStr);
-
-			//Create the FSoftObjectPath and copy it to OutValue
+			const FStringView ValueStr = GetFStringViewAttributeFromStorage(AttributeStorage.GetData(), AttributeAllocationInfo);
 			OutValue = FSoftObjectPath(ValueStr);
 
 			return EAttributeStorageResult::Operation_Success;

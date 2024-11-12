@@ -39,6 +39,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SWidgetSwitcher();
+	SLATE_API virtual ~SWidgetSwitcher();
 
 public:
 

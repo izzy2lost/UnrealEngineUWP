@@ -30,8 +30,13 @@ FUsdPrimViewModel::FUsdPrimViewModel(FUsdPrimViewModel* InParentItem, const UE::
 	, ParentItem(InParentItem)
 	, RowData(MakeShared<FUsdPrimModel>())
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FUsdPrimViewModel::FUsdPrimViewModel);
 	RefreshData(false);
-	FillChildren();
+
+	if (ShouldGenerateChildren())
+	{
+		FillChildren();
+	}
 }
 
 TArray<FUsdPrimViewModelRef>& FUsdPrimViewModel::UpdateChildren()
@@ -90,13 +95,46 @@ TArray<FUsdPrimViewModelRef>& FUsdPrimViewModel::UpdateChildren()
 		}
 	}
 
-	if (bNeedsRefresh)
+	if (bNeedsRefresh && ShouldGenerateChildren())
 	{
 		FillChildren();
 	}
 #endif	  // #if USE_USD_SDK
 
 	return Children;
+}
+
+void FUsdPrimViewModel::SetIsExpanded(bool bNewIsExpanded)
+{
+	if (bNewIsExpanded == bIsExpanded)
+	{
+		return;
+	}
+	bIsExpanded = bNewIsExpanded;
+
+	// We should always have our own immediate children up-to-date, as that is needed to get an expander arrow.
+	// If we're collapsed though, we don't have to have grandchildren
+	if (bIsExpanded)
+	{
+		for (FUsdPrimViewModelRef Child : Children)
+		{
+			Child->FillChildren();
+		}
+	}
+	else
+	{
+		for (FUsdPrimViewModelRef Child : Children)
+		{
+			Child->Children.Reset();
+		}
+	}
+}
+
+bool FUsdPrimViewModel::ShouldGenerateChildren() const
+{
+	// We need to generate children if our parent is expanded, because having child nodes is what makes
+	// the treeview give us an expander arrow in the first place
+	return (!ParentItem || ParentItem->bIsExpanded);
 }
 
 void FUsdPrimViewModel::FillChildren()

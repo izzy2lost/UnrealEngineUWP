@@ -47,8 +47,14 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Enables runtime ray tracing support.
 		/// </summary>
-		[ConfigFile(ConfigHierarchyType.Engine, "/Script/AndroidTargetPlatform.AndroidTargetSettings")]
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/AndroidRuntimeSettings.AndroidRuntimeSettings")]
 		public bool bEnableRayTracing = false;
+
+		/// <summary>
+		/// Enables the desktop renderer.
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/AndroidRuntimeSettings.AndroidRuntimeSettings")]
+		public bool bSupportsVulkanSM5 = false;
 
 		/// <summary>
 		/// Enables ASIS plugin and STANDALONE support.
@@ -94,6 +100,8 @@ namespace UnrealBuildTool
 		public bool bEnableMinimalUndefinedBehaviorSanitizer => Inner.bEnableMinimalUndefinedBehaviorSanitizer;
 
 		public bool bEnableRayTracing => Inner.bEnableRayTracing;
+
+		public bool bSupportsVulkanSM5 => Inner.bSupportsVulkanSM5;
 
 		public bool bEnableASISPlugin => Inner.bEnableASISPlugin;
 
@@ -205,15 +213,12 @@ namespace UnrealBuildTool
 			}
 
 			Target.bCompileRecast = true;
-			Target.bCompileISPC = false;
+			Target.bCompileISPC = true;
 
 			// disable plugins by architecture (if we are compiling for multiple architectures, we still need to disable the plugin for all architectures)
 			if (Target.Architectures.Contains(UnrealArch.Arm64) && Target.Name != "UnrealHeaderTool")
 			{
-				Target.DisablePlugins.AddRange(new string[]
-				{
-
-				});
+				Target.DisablePlugins.AddRange(Array.Empty<string>());
 			}
 		}
 
@@ -264,7 +269,7 @@ namespace UnrealBuildTool
 
 		public override string[] GetDebugInfoExtensions(ReadOnlyTargetRules InTarget, UEBuildBinaryType InBinaryType)
 		{
-			return new string[] { };
+			return Array.Empty<string>();
 		}
 
 		public override void FindAdditionalBuildProductsToClean(ReadOnlyTargetRules Target, List<FileReference> FilesToDelete, List<DirectoryReference> DirectoriesToDelete)
@@ -428,7 +433,6 @@ namespace UnrealBuildTool
 			return Target.AndroidPlatform.bEnableASISPlugin;
 		}
 
-
 		public virtual void SetUpSpecificEnvironment(ReadOnlyTargetRules Target, CppCompileEnvironment CompileEnvironment, LinkEnvironment LinkEnvironment, ILogger Logger)
 		{
 			string NDKPath = Environment.GetEnvironmentVariable("NDKROOT")!;
@@ -438,7 +442,7 @@ namespace UnrealBuildTool
 
 			// figure out the NDK version
 			string? NDKToolchainVersion = SDK.GetInstalledVersion();
-			UInt64 NDKVersionInt;
+			ulong NDKVersionInt;
 			SDK.TryConvertVersionToInt(NDKToolchainVersion, out NDKVersionInt);
 
 			// PLATFORM_ANDROID_NDK_VERSION is in the form 150100, where 15 is major version, 01 is the letter (1 is 'a'), 00 indicates beta revision if letter is 00
@@ -505,7 +509,7 @@ namespace UnrealBuildTool
 			CompileEnvironment.Definitions.Add("WITH_EDITOR=0");
 			CompileEnvironment.Definitions.Add("USE_NULL_RHI=0");
 
-			if (Target.AndroidPlatform.bEnableRayTracing)
+			if (Target.AndroidPlatform.bEnableRayTracing && Target.AndroidPlatform.bSupportsVulkanSM5)
 			{
 				Logger.LogInformation("Compiling with ray tracing enabled");
 				CompileEnvironment.Definitions.Add("RHI_RAYTRACING=1");
@@ -515,6 +519,9 @@ namespace UnrealBuildTool
 			{
 				Logger.LogInformation("Compiling with USE_ANDROID_STANDALONE");
 				CompileEnvironment.Definitions.Add("USE_ANDROID_STANDALONE=1");
+
+				Logger.LogInformation("Compiling with USE_ANDROID_ALTERNATIVE_SUSPEND");
+				CompileEnvironment.Definitions.Add("USE_ANDROID_ALTERNATIVE_SUSPEND=1");
 			}
 
 			if (Target.bPGOOptimize || Target.bPGOProfile)
@@ -562,7 +569,7 @@ namespace UnrealBuildTool
 				case UnrealTargetConfiguration.Debug:
 				default:
 					return true;
-			};
+			}
 		}
 
 		public static ClangToolChainOptions CreateToolChainOptions(AndroidTargetRules TargetRules)

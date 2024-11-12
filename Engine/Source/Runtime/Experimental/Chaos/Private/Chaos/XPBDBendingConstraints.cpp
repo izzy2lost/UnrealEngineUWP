@@ -10,7 +10,7 @@
 DECLARE_CYCLE_STAT(TEXT("Chaos XPBD Bending Constraint"), STAT_XPBD_Bending, STATGROUP_Chaos);
 
 #if INTEL_ISPC && !UE_BUILD_SHIPPING
-bool bChaos_XPBDBending_ISPC_Enabled = true;
+bool bChaos_XPBDBending_ISPC_Enabled = CHAOS_XPBD_BENDING_ISPC_ENABLED;
 FAutoConsoleVariableRef CVarChaosXPBDBendingISPCEnabled(TEXT("p.Chaos.XPBDBending.ISPC"), bChaos_XPBDBending_ISPC_Enabled, TEXT("Whether to use ISPC optimizations in XPBD Bending constraints"));
 
 static_assert(sizeof(ispc::FVector4f) == sizeof(Chaos::Softs::FPAndInvM), "sizeof(ispc::FVector4f) != sizeof(Chaos::Softs::FPAndInvM");
@@ -71,6 +71,7 @@ void FXPBDBendingConstraints::InitColor(const SolverParticlesOrRange& InParticle
 		ConstraintSharedEdges = MoveTemp(ReorderedConstraintSharedEdges);
 		RestAngles = MoveTemp(ReorderedRestAngles);
 		XPBDStiffness.ReorderIndices(OrigToReorderedIndices);
+		BucklingRatioWeighted.ReorderIndices(OrigToReorderedIndices);
 		XPBDBucklingStiffness.ReorderIndices(OrigToReorderedIndices);
 
 #if INTEL_ISPC
@@ -107,21 +108,43 @@ void FXPBDBendingConstraints::Init(const SolverParticlesOrRange& InParticles)
 	X4Array.SetNumUninitialized(Constraints.Num());
 	if (bRealTypeCompatibleWithISPC && bChaos_Bending_ISPC_Enabled && ConstraintsIndex1.Num() == Constraints.Num())
 	{
-		ispc::InitXPBDBendingConstraintsIsBuckled(
-			(const ispc::FVector3f*)InParticles.XArray().GetData(),
-			ConstraintsIndex1.GetData(),
-			ConstraintsIndex2.GetData(),
-			ConstraintsIndex3.GetData(),
-			ConstraintsIndex4.GetData(),
-			RestAngles.GetData(),
-			IsBuckled.GetData(),
-			(ispc::FVector3f*)X1Array.GetData(),
-			(ispc::FVector3f*)X2Array.GetData(),
-			(ispc::FVector3f*)X3Array.GetData(),
-			(ispc::FVector3f*)X4Array.GetData(),
-			BucklingRatio,
-			Constraints.Num()
-		);
+		if (BucklingRatioWeighted.HasWeightMap())
+		{
+			ispc::InitXPBDBendingConstraintsIsBuckledWithMaps(
+				(const ispc::FVector3f*)InParticles.XArray().GetData(),
+				ConstraintsIndex1.GetData(),
+				ConstraintsIndex2.GetData(),
+				ConstraintsIndex3.GetData(),
+				ConstraintsIndex4.GetData(),
+				RestAngles.GetData(),
+				IsBuckled.GetData(),
+				(ispc::FVector3f*)X1Array.GetData(),
+				(ispc::FVector3f*)X2Array.GetData(),
+				(ispc::FVector3f*)X3Array.GetData(),
+				(ispc::FVector3f*)X4Array.GetData(),
+				BucklingRatioWeighted.GetIndices().GetData(),
+				BucklingRatioWeighted.GetTable().GetData(),
+				Constraints.Num()
+			);
+		}
+		else
+		{
+			ispc::InitXPBDBendingConstraintsIsBuckled(
+				(const ispc::FVector3f*)InParticles.XArray().GetData(),
+				ConstraintsIndex1.GetData(),
+				ConstraintsIndex2.GetData(),
+				ConstraintsIndex3.GetData(),
+				ConstraintsIndex4.GetData(),
+				RestAngles.GetData(),
+				IsBuckled.GetData(),
+				(ispc::FVector3f*)X1Array.GetData(),
+				(ispc::FVector3f*)X2Array.GetData(),
+				(ispc::FVector3f*)X3Array.GetData(),
+				(ispc::FVector3f*)X4Array.GetData(),
+				(FSolverReal)BucklingRatioWeighted,
+				Constraints.Num()
+			);
+		}
 	}
 	else
 #endif
@@ -156,7 +179,21 @@ void FXPBDBendingConstraints::SetProperties(
 	}
 	if (IsXPBDBucklingRatioMutable(PropertyCollection))
 	{
-		BucklingRatio = FMath::Clamp(GetXPBDBucklingRatio(PropertyCollection), (FSolverReal)0., (FSolverReal)1.);
+		const FSolverVec2 WeightedValue = FSolverVec2(GetWeightedFloatXPBDBucklingRatio(PropertyCollection)).ClampAxes(0.f, 1.f);
+		if (IsXPBDBucklingRatioStringDirty(PropertyCollection))
+		{
+			const FString& WeightMapName = GetXPBDBucklingRatioString(PropertyCollection);
+			BucklingRatioWeighted = FPBDWeightMap(
+				WeightedValue,
+				WeightMaps.FindRef(WeightMapName),
+				TConstArrayView<TVec2<int32>>(ConstraintSharedEdges),
+				ParticleOffset,
+				ParticleCount);
+		}
+		else
+		{
+			BucklingRatioWeighted.SetWeightedValue(WeightedValue);
+		}
 	}
 	if (IsXPBDBucklingStiffnessMutable(PropertyCollection))
 	{

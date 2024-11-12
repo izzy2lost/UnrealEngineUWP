@@ -22,6 +22,7 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/World.h"
 
+#include "Selection/StoredMeshSelectionUtil.h"
 #include "TargetInterfaces/MeshDescriptionCommitter.h"
 #include "TargetInterfaces/MeshDescriptionProvider.h"
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
@@ -43,7 +44,43 @@ UMultiSelectionMeshEditingTool* UEditPivotToolBuilder::CreateNewTool(const FTool
 	return NewObject<UEditPivotTool>(SceneState.ToolManager);
 }
 
+void UEditPivotToolBuilder::InitializeNewTool(UMultiSelectionMeshEditingTool* NewTool, const FToolBuilderState& SceneState) const
+{
+	const TArray<TObjectPtr<UToolTarget>> Targets = SceneState.TargetManager->BuildAllSelectedTargetable(SceneState, GetTargetRequirements());
+	NewTool->SetTargets(Targets);
+	NewTool->SetWorld(SceneState.World);
 
+	if (Targets.Num() == 1)
+	{
+		if (UEditPivotTool* NewPivotTool = Cast<UEditPivotTool>(NewTool))
+		{
+			// if there is an element selection, use its frame origin as an initial pivot
+			FFrame3d Frame;
+			FAxisAlignedBox3d Bounds;
+			bool bIsElementSelection;
+			if (GetCurrentSelectionWorldFrameBounds(SceneState, Frame, Bounds, bIsElementSelection))
+			{
+				if (bIsElementSelection)
+				{
+					FTransform LocalToWorld = UE::ToolTarget::GetLocalToWorldTransform(Targets[0]);
+					LocalToWorld.SetTranslation(Frame.Origin);
+					NewPivotTool->SetInitialPivot(LocalToWorld);
+				}
+			}
+		}
+	}
+}
+
+const FToolTargetTypeRequirements& UEditPivotToolBuilder::GetTargetRequirements() const
+{
+	static FToolTargetTypeRequirements TypeRequirements({
+		UMaterialProvider::StaticClass(),
+		UMeshDescriptionProvider::StaticClass(),
+		UMeshDescriptionCommitter::StaticClass(),
+		UPrimitiveComponentBackedTarget::StaticClass()
+		});
+	return TypeRequirements;
+}
 
 
 void UEditPivotToolActionPropertySet::PostAction(EEditPivotToolActions Action)
@@ -90,6 +127,11 @@ void UEditPivotTool::Setup()
 	DragAlignmentMechanic->AddToGizmo(ActiveGizmos[0].TransformGizmo);
 
 	Precompute();
+
+	if (bHasCustomInitialPivot)
+	{
+		ActiveGizmos[0].TransformGizmo->SetNewGizmoTransform(InitialPivot);
+	}
 
 	FText AllTheWarnings = LOCTEXT("EditPivotWarning", "WARNING: This Tool will Modify the selected StaticMesh Assets! If you do not wish to modify the original Assets, please make copies in the Content Browser first!");
 
@@ -322,7 +364,7 @@ void UEditPivotTool::ResetActiveGizmos()
 // does not make sense that CanBeginClickDragSequence() returns a RayHit? Needs to be an out-argument...
 FInputRayHit UEditPivotTool::CanBeginClickDragSequence(const FInputDeviceRay& PressPos)
 {
-	if (TransformProps->bEnableSnapDragging == false || ActiveGizmos.Num() == 0)
+	if ((!TransformProps->bSnapDragPosition && !TransformProps->bSnapDragRotation) || ActiveGizmos.Num() == 0)
 	{
 		return FInputRayHit();
 	}
@@ -347,12 +389,15 @@ void UEditPivotTool::OnClickPress(const FInputDeviceRay& PressPos)
 	FEditPivotTarget& ActiveTarget = ActiveGizmos[0];
 	USceneComponent* GizmoComponent = ActiveTarget.TransformGizmo->GetGizmoActor()->GetRootComponent();
 	StartDragTransform = GizmoComponent->GetComponentToWorld();
+
+	// Apply the drag logic as well so that the snap-drag position/orientation update is applied on first click
+	OnClickDrag(PressPos);
 }
 
 
 void UEditPivotTool::OnClickDrag(const FInputDeviceRay& DragPos)
 {
-	bool bRotate = (TransformProps->RotationMode != EEditPivotSnapDragRotationMode::Ignore);
+	bool bRotate = TransformProps->bSnapDragRotation;
 	float NormalSign = (TransformProps->RotationMode == EEditPivotSnapDragRotationMode::AlignFlipped) ? -1.0f : 1.0f;
 
 	FHitResult Result;
@@ -371,7 +416,10 @@ void UEditPivotTool::OnClickDrag(const FInputDeviceRay& DragPos)
 
 	FTransform NewTransform = StartDragTransform;
 	NewTransform.SetRotation((FQuat)AlignRotation);
-	NewTransform.SetTranslation(HitPos);
+	if (TransformProps->bSnapDragPosition)
+	{
+		NewTransform.SetTranslation(HitPos);
+	}
 
 	FEditPivotTarget& ActiveTarget = ActiveGizmos[0];
 	ActiveTarget.TransformGizmo->SetNewGizmoTransform(NewTransform);

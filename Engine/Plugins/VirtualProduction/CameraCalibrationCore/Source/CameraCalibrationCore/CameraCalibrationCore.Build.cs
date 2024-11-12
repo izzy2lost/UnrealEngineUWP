@@ -27,6 +27,7 @@ namespace UnrealBuildTool.Rules
                 {
 					"LiveLinkInterface",
                     "Projects",
+					"Renderer",
 				}
 			);
 

@@ -41,7 +41,7 @@ FSelectedKeysByChannel::FSelectedKeysByChannel(const UE::Sequencer::FKeySelectio
 			const int32* ChannelArrayIndex = KeyAreaToChannelIndex.Find(Channel->GetKeyArea().Get());
 			if (!ChannelArrayIndex)
 			{
-				int32 NewIndex = SelectedChannels.Add(FSelectedChannelInfo(Channel->GetKeyArea()->GetChannel(), Channel->GetSection()));
+				int32 NewIndex = SelectedChannels.Add(FSelectedChannelInfo(Channel->GetKeyArea()->GetChannel(), Channel->GetSection(), Channel->GetOwningObject()));
 				ChannelArrayIndex = &KeyAreaToChannelIndex.Add(Channel->GetKeyArea().Get(), NewIndex);
 			}
 
@@ -70,7 +70,7 @@ FSelectedKeysByChannel::FSelectedKeysByChannel(TArrayView<const FSequencerSelect
 			const int32* ChannelArrayIndex = KeyAreaToChannelIndex.Find(Channel->GetKeyArea().Get());
 			if (!ChannelArrayIndex)
 			{
-				int32 NewIndex = SelectedChannels.Add(FSelectedChannelInfo(Channel->GetKeyArea()->GetChannel(), Channel->GetSection()));
+				int32 NewIndex = SelectedChannels.Add(FSelectedChannelInfo(Channel->GetKeyArea()->GetChannel(), Channel->GetSection(), Channel->GetOwningObject()));
 				ChannelArrayIndex = &KeyAreaToChannelIndex.Add(Channel->GetKeyArea().Get(), NewIndex);
 			}
 
@@ -91,8 +91,10 @@ void GetKeyTimes(TArrayView<const FSequencerSelectedKey> InSelectedKeys, TArrayV
 
 	for (const FSelectedChannelInfo& ChannelInfo : KeysByChannel.SelectedChannels)
 	{
+		const FMovieSceneChannelMetaData* MetaData = ChannelInfo.Channel.GetMetaData();
 		FMovieSceneChannel* Channel = ChannelInfo.Channel.Get();
-		if (Channel)
+		UMovieSceneSection* Section = ChannelInfo.OwningSection;
+		if (Channel && MetaData && Section)
 		{
 			// Resize the scratch buffer to the correct size
 			const int32 NumKeys = ChannelInfo.KeyHandles.Num();
@@ -102,10 +104,11 @@ void GetKeyTimes(TArrayView<const FSequencerSelectedKey> InSelectedKeys, TArrayV
 			// Populating the key times scratch buffer with the times for these handles
 			Channel->GetKeyTimes(ChannelInfo.KeyHandles, KeyTimesScratch);
 
+			FFrameNumber Offset = MetaData->GetOffsetTime(Section);
 			for(int32 Index = 0; Index < KeyTimesScratch.Num(); ++Index)
 			{
 				int32 OriginalIndex = ChannelInfo.OriginalIndices[Index];
-				OutTimes[OriginalIndex] = KeyTimesScratch[Index];
+				OutTimes[OriginalIndex] = KeyTimesScratch[Index] + Offset;
 			}
 		}
 	}
@@ -121,20 +124,30 @@ void SetKeyTimes(TArrayView<const FSequencerSelectedKey> InSelectedKeys, TArrayV
 
 	for (const FSelectedChannelInfo& ChannelInfo : KeysByChannel.SelectedChannels)
 	{
+		const FMovieSceneChannelMetaData* MetaData = ChannelInfo.Channel.GetMetaData();
 		FMovieSceneChannel* Channel = ChannelInfo.Channel.Get();
-		if (Channel)
+		UMovieSceneSection* Section = ChannelInfo.OwningSection;
+		if (Channel && MetaData && Section)
 		{
+			// Expand to frame first, then offset
 			KeyTimesScratch.Reset(ChannelInfo.OriginalIndices.Num());
 			for (int32 Index : ChannelInfo.OriginalIndices)
 			{
 				KeyTimesScratch.Add(InTimes[Index]);
 
-				if (UMovieSceneSection* Section = ChannelInfo.OwningSection)
+				if (!Section->GetRange().Contains(InTimes[Index]))
 				{
-					if (!Section->GetRange().Contains(InTimes[Index]))
-					{
-						Section->ExpandToFrame(InTimes[Index]);
-					}
+					Section->ExpandToFrame(InTimes[Index]);
+				}
+			}
+
+			FFrameNumber Offset = MetaData->GetOffsetTime(Section);
+
+			if (Offset != 0)
+			{
+				for (FFrameNumber& Frame : KeyTimesScratch)
+				{
+					Frame -= Offset;
 				}
 			}
 

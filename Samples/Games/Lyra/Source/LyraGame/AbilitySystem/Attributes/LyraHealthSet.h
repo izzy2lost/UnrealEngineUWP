@@ -11,11 +11,11 @@
 class UObject;
 struct FFrame;
 
-UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Gameplay_Damage);
-UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Gameplay_DamageImmunity);
-UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Gameplay_DamageSelfDestruct);
-UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Gameplay_FellOutOfWorld);
-UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Lyra_Damage_Message);
+LYRAGAME_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Gameplay_Damage);
+LYRAGAME_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Gameplay_DamageImmunity);
+LYRAGAME_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Gameplay_DamageSelfDestruct);
+LYRAGAME_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Gameplay_FellOutOfWorld);
+LYRAGAME_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Lyra_Damage_Message);
 
 struct FGameplayEffectModCallbackData;
 
@@ -27,7 +27,7 @@ struct FGameplayEffectModCallbackData;
  *	Attribute examples include: health, shields, and resistances.
  */
 UCLASS(BlueprintType)
-class ULyraHealthSet : public ULyraAttributeSet
+class LYRAGAME_API ULyraHealthSet : public ULyraAttributeSet
 {
 	GENERATED_BODY()
 

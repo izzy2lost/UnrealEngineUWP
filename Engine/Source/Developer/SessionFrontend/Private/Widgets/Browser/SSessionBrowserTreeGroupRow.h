@@ -55,7 +55,7 @@ public:
 				SNew(SBorder)
 					.BorderBackgroundColor(FLinearColor(0.6f, 0.6f, 0.6f, 1.0f))
 					.BorderImage(this, &SSessionBrowserTreeGroupRow::HandleBorderBackgroundImage)
-					.Padding(3.0f)
+					.Padding(1.5f,3.0f)
 					.ToolTipText(Item->GetToolTipText())
 					[
 						SNew(SHorizontalBox)

@@ -59,6 +59,24 @@ public:
 		}
 	}
 
+	///////////////////////////////////////////////////
+	// Start - intrusive TOptional<TSortedMap> state //
+	///////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TSortedMap;
+
+	explicit TSortedMap(FIntrusiveUnsetOptionalState Tag)
+		: Pairs(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Pairs == Tag;
+	}
+	/////////////////////////////////////////////////
+	// End - intrusive TOptional<TSortedMap> state //
+	/////////////////////////////////////////////////
+
 	/** Assignment operator for moving elements from a TSortedMap with a different ArrayAllocator. */
 	template<typename OtherArrayAllocator>
 	TSortedMap& operator=(TSortedMap<KeyType, ValueType, OtherArrayAllocator, SortPredicate>&& Other)
@@ -193,7 +211,7 @@ public:
 	{
 		ElementType* DataPtr = AllocateMemoryForEmplace(InKey);
 	
-		new(DataPtr) ElementType(TPairInitializer<InitKeyType&&, InitValueType&&>(Forward<InitKeyType>(InKey), Forward<InitValueType>(InValue)));
+		::new((void*)DataPtr) ElementType(TPairInitializer<InitKeyType&&, InitValueType&&>(Forward<InitKeyType>(InKey), Forward<InitValueType>(InValue)));
 
 		return DataPtr->Value;
 	}
@@ -209,7 +227,7 @@ public:
 	{
 		ElementType* DataPtr = AllocateMemoryForEmplace(InKey);
 
-		new(DataPtr) ElementType(TKeyInitializer<InitKeyType&&>(Forward<InitKeyType>(InKey)));
+		::new((void*)DataPtr) ElementType(TKeyInitializer<InitKeyType&&>(Forward<InitKeyType>(InKey)));
 
 		return DataPtr->Value;
 	}
@@ -336,6 +354,22 @@ public:
 		}
 
 		return DefaultValue;
+	}
+
+	/**
+	 * Finds any pair in the map and returns a pointer to it.
+	 * Callers should not depend on particular patterns in the behaviour of this function.
+	 * @return A pointer to an arbitrary pair, or nullptr if the container is empty.
+	 */
+	ElementType* FindArbitraryElement()
+	{
+		// The goal of this function is to be fast, and so the implementation may be improved at any time even if it gives different results.
+
+		return Pairs.IsEmpty() ? nullptr : &Pairs.Last();
+	}
+	const ElementType* FindArbitraryElement() const
+	{
+		return const_cast<TSortedMap*>(this)->FindArbitraryElement();
 	}
 
 	/**

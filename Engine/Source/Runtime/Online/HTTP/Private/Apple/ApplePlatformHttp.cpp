@@ -237,10 +237,6 @@ void FApplePlatformHttp::InitWithNSUrlSession()
 	// Disable cache to mimic WinInet behavior
 	Config.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
 
-	float HttpActivityTimeout = FHttpModule::Get().GetHttpActivityTimeout();
-	check(HttpActivityTimeout > 0);
-	Config.timeoutIntervalForRequest = HttpActivityTimeout;
-	
 #if WITH_SSL
 	// Load SSL module during HTTP module's StatupModule() to make sure module manager figures out the dependencies correctly
 	// and doesn't unload SSL before unloading HTTP module at exit

@@ -62,6 +62,8 @@ UMovieSceneSequenceTickManager::UMovieSceneSequenceTickManager(const FObjectInit
 
 void UMovieSceneSequenceTickManager::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	UMovieSceneSequenceTickManager* This = CastChecked<UMovieSceneSequenceTickManager>(InThis);
 	for (FLinkerGroup& Group : This->LinkerGroups)
 	{
@@ -172,8 +174,7 @@ void UMovieSceneSequenceTickManager::RegisterTickClient(const FMovieSceneSequenc
 
 		FLinkerGroup& NewGroup = LinkerGroups[LinkerIndex];
 		NewGroup.Linker = Linker;
-		NewGroup.Runner = MakeShared<FMovieSceneEntitySystemRunner>();
-		NewGroup.Runner->AttachToLinker(Linker);
+		NewGroup.Runner = Linker->GetRunner();
 		NewGroup.RoundedTickIntervalMs = DesiredTickIntervalMs;
 		NewGroup.FrameBudgetMs = DesiredBudgetMs;
 		NewGroup.NumClients = 1;
@@ -313,6 +314,11 @@ void UMovieSceneSequenceTickManager::TickSequenceActors(float DeltaSeconds)
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(MovieSceneEval);
 	SCOPE_CYCLE_COUNTER(MovieSceneEval_SequenceTickManager);
 
+	if (IsUnreachable() || HasAnyFlags(RF_BeginDestroyed))
+	{
+		return;
+	}
+
 	// Let all tickable clients update. Some of them won't do anything, others will do synchronous
 	// things (e.g. start/stop, loop, etc.), but in 95% of cases, they will just queue up a normal evaluation
 	// request...
@@ -420,6 +426,11 @@ void UMovieSceneSequenceTickManager::TickSequenceActors(float DeltaSeconds)
 		{
 			FLinkerGroup& Group = LinkerGroups[LinkerIndex.GetIndex()];
 
+			if (Group.Linker == nullptr || Group.Linker->IsUnreachable() || Group.Linker->HasAnyFlags(RF_BeginDestroyed))
+			{
+				continue;
+			}
+
 			check(!UpdatedDeltaTimes.IsValidIndex(LinkerIndex.GetIndex()));
 
 			Group.Runner->Flush(Group.FrameBudgetMs);
@@ -432,6 +443,12 @@ void UMovieSceneSequenceTickManager::TickSequenceActors(float DeltaSeconds)
 			if (UpdatedDeltaTimes.IsAllocated(Index))
 			{
 				FLinkerGroup& Group = LinkerGroups[Index];
+
+				if (Group.Linker == nullptr || Group.Linker->IsUnreachable() || Group.Linker->HasAnyFlags(RF_BeginDestroyed))
+				{
+					continue;
+				}
+
 				// Hitting this check would indicate that the loop above that processes OutstandingLinkers either failed, or some other partial flush happened between then and now.
 				ensureMsgf(!Group.Runner->IsCurrentlyEvaluating(), TEXT("Linker is part-way thorugh a flush when a new flush is being instigated. This is undefined behavior."));
 
@@ -495,6 +512,11 @@ void UMovieSceneSequenceTickManager::FlushRunners()
 		TGuardValue<TArray<FPendingOperation>*> Guard(PendingActorOperations, &CurrentPendingActorOperations);
 		for (FLinkerGroup& LinkerGroup : LinkerGroups)
 		{
+			if (LinkerGroup.Linker == nullptr || LinkerGroup.Linker->IsUnreachable() || LinkerGroup.Linker->HasAnyFlags(RF_BeginDestroyed))
+			{
+				continue;
+			}
+
 			LinkerGroup.Runner->Flush();
 		}
 	}

@@ -10,12 +10,6 @@
 #include "EngineDefines.h"
 #include "CollisionQueryParams.h"
 #include "Interfaces/Interface_CollisionDataProvider.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "SkeletalMeshTypes.h"
-#include "Engine/SkeletalMesh.h"
-#include "ClothCollisionPrim.h"
-#include "PhysicsEngine/PhysicsAsset.h"
-#endif
 #include "Animation/AnimationAsset.h"
 #include "Animation/AnimCurveTypes.h"
 #include "Components/SkinnedMeshComponent.h"
@@ -61,9 +55,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnAnimInitialized);
 DECLARE_MULTICAST_DELEGATE(FOnSkelMeshTeleportedMultiCast);
 typedef FOnSkelMeshTeleportedMultiCast::FDelegate FOnSkelMeshTeleported;
 
+class UE_DEPRECATED(5.5, "use FOnBoneTransformsFinalizedMultiCast instead (see SkinnedMeshComponent.h).") FOnBoneTransformsFinalized;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBoneTransformsFinalized);  // Deprecated, use FOnBoneTransformsFinalizedMultiCast instead
-
-DECLARE_MULTICAST_DELEGATE(FOnBoneTransformsFinalizedMultiCast);
 
 DECLARE_TS_MULTICAST_DELEGATE_ThreeParams(FOnLODRequiredBonesUpdateMulticast, USkeletalMeshComponent*, int32, const TArray<FBoneIndexType>&);
 typedef FOnLODRequiredBonesUpdateMulticast::FDelegate FOnLODRequiredBonesUpdate;
@@ -113,6 +106,9 @@ struct FAnimationEvaluationContext
 	// duplicate the cached attributes
 	bool bDuplicateToCachedAttributes;
 
+	// Force reference pose
+	bool bForceRefPose;
+
 	// Curve data, swapped in from the component when we are running parallel eval
 	FBlendedHeapCurve	Curve;
 	FBlendedHeapCurve	CachedCurve;
@@ -147,6 +143,7 @@ struct FAnimationEvaluationContext
 		bDuplicateToCacheBones = Other.bDuplicateToCacheBones;
 		bDuplicateToCacheCurve = Other.bDuplicateToCacheCurve;
 		bDuplicateToCachedAttributes = Other.bDuplicateToCachedAttributes;
+		bForceRefPose = Other.bForceRefPose;
 
 		CustomAttributes.CopyFrom(Other.CustomAttributes);
 		CachedCustomAttributes.CopyFrom(Other.CachedCustomAttributes);
@@ -315,6 +312,7 @@ class USkeletalMeshComponent : public USkinnedMeshComponent, public IInterface_C
 	friend struct FAnimNode_LinkedAnimLayer;
 	friend struct FLinkedInstancesAdapter;
 	friend struct FLinkedAnimLayerClassData;
+	friend struct FRigUnit_AnimNextWriteSkeletalMeshComponentPose;
 	
 #if WITH_EDITORONLY_DATA 
 private:
@@ -351,7 +349,7 @@ public:
 	TObjectPtr<class UAnimBlueprintGeneratedClass> AnimBlueprintGeneratedClass;
 
 	/* The AnimBlueprint class to use. Use 'SetAnimInstanceClass' to change at runtime. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Animation)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Setter = SetAnimInstanceClass_Internal, Category = Animation, meta=(EditCondition = bEnableAnimation))
 	class TSubclassOf<UAnimInstance> AnimClass;
 
 	/** The active animation graph program instance. */
@@ -365,6 +363,17 @@ public:
 	TArray<TObjectPtr<UAnimInstance>> SubInstances;
 #endif
 
+	/** Post-processing AnimBP to use for the given skeletal mesh component, overriding the one set in the skeletal mesh asset. */
+	UPROPERTY(transient)
+	TSubclassOf<UAnimInstance> OverridePostProcessAnimBP;
+
+	/**
+	 * Get the post-processing AnimBP to be used for this skeletal mesh component.
+	 * In case an override post-processing AnimBP is set, it will always return the AnimBP class of that.
+	 * Otherwise the one set in skeletal mesh asset will be returned.
+	 */
+	ENGINE_API TSubclassOf<UAnimInstance> GetPostProcessAnimBPClassToBeUsed() const;
+
 	/** An instance created from the PostPhysicsBlueprint property of the skeletal mesh we're using,
 	 *  Runs after (and receives pose from) the main anim instance.
 	 */
@@ -372,6 +381,14 @@ public:
 	TObjectPtr<UAnimInstance> PostProcessAnimInstance;
 
 public:
+	/**
+	 * Set the post-processing AnimBP to be used for this skeletal mesh component.
+	 * In case an override post-processing AnimBP is set, the one set in skeletal mesh asset will be ignored and not used.
+	 * @param ReinitAnimInstances Can be false when called e.g. from the construction script in a Blueprint. True when this is called while
+	 *							  the game is running and the anim instances need to be re-initialized.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Components|SkeletalMesh")
+	ENGINE_API void SetOverridePostProcessAnimBP(TSubclassOf<UAnimInstance> InPostProcessAnimBlueprint, bool ReinitAnimInstances = true);
 
 	/** Toggles whether the post process blueprint will run for this component */
 	UFUNCTION(BlueprintCallable, Category="Components|SkeletalMesh")
@@ -387,7 +404,7 @@ public:
 	UFUNCTION(BlueprintSetter)
 	ENGINE_API void SetDisablePostProcessBlueprint(bool bInDisablePostProcess);
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Animation, meta=(ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Animation, meta=(ShowOnlyInnerProperties, EditCondition = bEnableAnimation))
 	struct FSingleAnimationPlayData AnimationData;
 
 	// this is explicit copy because this buffer is reused during evaluation
@@ -550,7 +567,7 @@ protected:
 
 public:
 	/** Used to scale speed of all animations on this skeletal mesh. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=Animation)
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=Animation, meta=(EditCondition = bEnableAnimation, ClampMin = 0.f))
 	float GlobalAnimRateScale;
 	
 	/** If we are running physics, should we update non-simulated bones based on the animation bone positions. */
@@ -562,15 +579,21 @@ public:
 	TEnumAsByte<EPhysicsTransformUpdateMode::Type> PhysicsTransformUpdateMode;
 
 	/** whether we need to teleport cloth. */
+	UPROPERTY(Interp, Transient, BlueprintReadOnly, VisibleAnywhere,  Category=Clothing) // This property is explicitly hidden from the details panel inside FSkeletalMeshComponentDetails::UpdatePhysicsCategory
 	EClothingTeleportMode ClothTeleportMode;
 
 protected:
 	/** Whether to use Animation Blueprint or play Single Animation Asset. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Animation)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Animation, meta=(EditCondition = bEnableAnimation))
 	TEnumAsByte<EAnimationMode::Type>	AnimationMode;
 public:
 	// helper function to get the member name and verify it exists, without making it public
 	static ENGINE_API const FName& GetAnimationModePropertyNameChecked();
+
+	// helper function to get the member name and verify it exists, without making it public
+#if WITH_EDITORONLY_DATA
+	static ENGINE_API FName GetSkeletalMeshAssetPropertyNameChecked();
+#endif // WITH_EDITORONLY_DATA
 
 private:
 	/** Teleport type to use on the next update */
@@ -579,7 +602,7 @@ private:
 	/** Controls whether or not this component will evaluate its post process instance. The post-process
 	 *  Instance is dictated by the skeletal mesh so this is used for per-instance control.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintGetter=GetDisablePostProcessBlueprint, BlueprintSetter=SetDisablePostProcessBlueprint, Category = Animation)
+	UPROPERTY(EditAnywhere, BlueprintGetter=GetDisablePostProcessBlueprint, BlueprintSetter=SetDisablePostProcessBlueprint, Category = Animation, meta=(EditCondition = bEnableAnimation))
 	uint8 bDisablePostProcessBlueprint:1;
 
 public:
@@ -708,11 +731,19 @@ public:
 	uint8 bNoSkeletonUpdate:1;
 
 	/** pauses this component's animations (doesn't tick them, but still refreshes bones) */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=Animation)
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=Animation, meta=(EditCondition = bEnableAnimation))
 	uint8 bPauseAnims:1;
 
+	/**
+	 * Whether the built-in animation of this component should run when the component ticks.
+	 * It is assumed that if this is false then some external system will be animating this mesh.
+	 * Note that disabling animation will also cause cloth simulation not to run and the component's tick to run on any thread. 
+	 */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Animation)
+	uint8 bEnableAnimation : 1;
+
 	/** On InitAnim should we set to ref pose (if false use first tick of animation data). If enabled, takes precedence over UAnimationSettings::bTickAnimationOnSkeletalMeshInit*/
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Animation)
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Animation, meta=(EditCondition = bEnableAnimation))
 	uint8 bUseRefPoseOnInitAnim:1;
 
 	/**
@@ -753,11 +784,6 @@ public:
 	/** If true, AnimTree has been initialised. */
 	UPROPERTY(transient)
 	uint8 bAnimTreeInitialised:1;
-
-	/** If true, the Location of this Component will be included into its bounds calculation
-	* (this can be useful when using SMU_OnlyTickPoseWhenRendered on a character that moves away from the root and no bones are left near the origin of the component) */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = SkeletalMesh)
-	uint8 bIncludeComponentLocationIntoBounds : 1;
 
 	/** If true, line checks will test against the bounding box of this skeletal mesh component and return a hit if there is a collision. */
 	UPROPERTY()
@@ -868,7 +894,23 @@ public:
 
 	UPROPERTY(Interp, BlueprintReadWrite, Category=Clothing, meta=(UIMin = 0.0, UIMax = 10.0, ClampMin = 0.0, ClampMax = 10000.0))
 	float ClothMaxDistanceScale;
+	
+	/** This scale is applied to all cloth geometry (e.g., cloth meshes and collisions) in order to simulate in a different scale space than world.This scale is not applied to distance-based simulation parameters such as MaxDistance. 
+	* This property is currently only read by the cloth solver when creating cloth actors, but may become animatable in the future.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Interp, Category = Clothing, meta = (UIMin = 0.0, UIMax = 10.0, ClampMin = 0.0, ClampMax = 10000.0))
+	float ClothGeometryScale = 1.f;
 
+private:
+	/*
+	 * Max LOD level that post-process AnimBPs are evaluated. Overrides the setting of the same name on the skeletal mesh.
+	 * For example if you have the threshold set to 2, it will evaluate until including LOD 2 (based on 0 index). In case the LOD level gets set to 3, it will stop evaluating the post-process AnimBP.
+	 * Setting it to -1 will always evaluate it and disable LODing overrides for this component.
+	 */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=Animation, meta= (DisplayName = "Post-Process AnimBP LOD Threshold", AllowPrivateAccess = "true"))
+	int32 PostProcessAnimBPLODThreshold = INDEX_NONE;
+
+public:
 	/** Notification when constraint is broken. */
 	UPROPERTY(BlueprintAssignable)
 	FConstraintBrokenSignature OnConstraintBroken;
@@ -916,11 +958,11 @@ public:
 	/** Array of physical interactions for the frame. This is a temporary solution for a more permanent force system and should not be used directly*/
 	TArray<FPendingRadialForces> PendingRadialForces;
 
-	UE_DEPRECATED(4.23, "This function is deprecated. Please use SetAnimClass instead. ")
+	UE_DEPRECATED(4.23, "This function is deprecated. Please use SetAnimInstanceClass instead. ")
 	ENGINE_API virtual void K2_SetAnimInstanceClass(class UClass* NewClass);
 
 	/** Set the anim instance class. Clears and re-initializes the anim instance with the new class and sets animation mode to 'AnimationBlueprint' */
-	UFUNCTION(BlueprintCallable, Category = "Components|SkeletalMesh", meta = (Keywords = "AnimBlueprint", DisplayName = "Set Anim Instance Class"))
+	UE_DEPRECATED(5.5, "This function is deprecated. Please use 'SetAnimInstanceClass' instead. ")
 	ENGINE_API virtual void SetAnimClass(class UClass* NewClass);
 
 	/** Get the anim instance class via getter callable by sequencer.  */
@@ -928,9 +970,10 @@ public:
 	ENGINE_API class UClass*  GetAnimClass();
 
 	/** Set the anim instance class. Clears and re-initializes the anim instance with the new class and sets animation mode to 'AnimationBlueprint' */
-	ENGINE_API void SetAnimInstanceClass(class UClass* NewClass);
+	UFUNCTION(BlueprintCallable, Category = "Components|SkeletalMesh", meta = (Keywords = "AnimBlueprint", DisplayName = "Set Anim Instance Class"))
+	ENGINE_API virtual void SetAnimInstanceClass(class UClass* NewClass);
 
-	/** 
+	/**
 	 * Returns the animation instance that is driving the class (if available). This is typically an instance of
 	 * the class set as AnimBlueprintGeneratedClass (generated by an animation blueprint)
 	 * Since this instance is transient, it is not safe to be used during construction script
@@ -938,6 +981,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Components|SkeletalMesh", meta=(Keywords = "AnimBlueprint", UnsafeDuringActorConstruction = "true"))
 	ENGINE_API class UAnimInstance * GetAnimInstance() const;
 	
+private:
+	/* Setter function for anim instance class */
+	void SetAnimInstanceClass_Internal(const TSubclassOf<UAnimInstance>& InAnimClass);
+
+public:
+
 	/**
 	 * Returns the active post process instance is one is available. This is set on the mesh that this
 	 * component is using, and is evaluated immediately after the main instance.
@@ -960,6 +1009,9 @@ ENGINE_API PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Clear the linked anim instances and mark them pending kill */
 	void ResetLinkedAnimInstances();
+
+	/** Internal helper - copies the mesh's reference pose to the local space transforms and regenerates component space transforms accordingly */ 
+	void ResetToRefPose();
 
 public:
 	UE_DEPRECATED(4.23, "This function is deprecated. Please use GetLinkedAnimGraphInstanceByTag")
@@ -987,7 +1039,7 @@ public:
 	 * Returns all tagged linked instance nodes that match the tag.
 	 */
 	UE_DEPRECATED(5.0, "Tags are unique so this funciton is no longer supported. Please use GetLinkedAnimGraphInstanceByTag instead")
-	UFUNCTION(BlueprintPure, Category = "Components|SkeletalMesh|Animation Blueprint Linking", meta = (Keywords = "AnimBlueprint", DeprecatedFunction, DeprecationMessage="Tags are unique so this funciton is no longer supported. Please use GetLinkedAnimGraphInstanceByTag instead"))
+	UFUNCTION(BlueprintPure, Category = "Components|SkeletalMesh|Animation Blueprint Linking", meta = (Keywords = "AnimBlueprint", DeprecatedFunction, DeprecationMessage="Tags are unique so this function is no longer supported. Please use GetLinkedAnimGraphInstanceByTag instead"))
 	ENGINE_API void GetLinkedAnimGraphInstancesByTag(FName InTag, TArray<UAnimInstance*>& OutLinkedInstances) const;
 
 	UE_DEPRECATED(4.24, "Function renamed, please use LinkAnimGraphByTag")
@@ -1577,6 +1629,8 @@ public:
 	*/
 	ENGINE_API bool ShouldOnlyTickMontages(const float DeltaTime) const;
 
+	ENGINE_API bool ShouldOnlyTickMontagesAndRefreshBones(const float DeltaTime) const;
+
 	/** @return whether we should tick animation (we may want to skip it due to URO) */
 	ENGINE_API bool ShouldTickAnimation() const;
 
@@ -1712,6 +1766,10 @@ public:
 	ENGINE_API virtual void BeginPlay() override;
 	ENGINE_API virtual void SetComponentTickEnabled(bool bEnabled) override;
 	ENGINE_API virtual void OnComponentDestroyed(bool bDestroyingHierarchy) override;
+
+#if WITH_EDITOR
+	ENGINE_API virtual TStructOnScope<FActorComponentInstanceData> GetComponentInstanceData() const override;
+#endif // WITH_EDITOR
 
 	//Handle registering our end physics tick function
 	ENGINE_API virtual void RegisterEndPhysicsTick(bool bRegister);
@@ -1898,7 +1956,6 @@ protected:
 	 * TransformToRoot offset. Otherwise, it returns the component transform.
 	 */
 	ENGINE_API virtual FTransform GetComponentTransformFromBodyInstance(FBodyInstance* UseBI) override;
-	ENGINE_API virtual void GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const override;
 	//~ End UPrimitiveComponent Interface.
 
 public:
@@ -1950,10 +2007,8 @@ public:
 	ENGINE_API virtual void ClearRefPoseOverride() override;
 	//~ End USkinnedMeshComponent Interface
 
-	UE_DEPRECATED(4.27, "Use RegisterOnBoneTransformsFinalizedDelegate/UnregisterOnBoneTransformsFinalizedDelegate instead")
-	FOnBoneTransformsFinalized OnBoneTransformsFinalized;
-
 	// Conditions used to gate when post process events happen
+	ENGINE_API bool ShouldEvaluatePostProcessAnimBP() const;
 	ENGINE_API bool ShouldUpdatePostProcessInstance() const;
 	ENGINE_API bool ShouldPostUpdatePostProcessInstance() const;
 	ENGINE_API bool ShouldEvaluatePostProcessInstance() const;
@@ -1982,18 +2037,19 @@ public:
 	UE_DEPRECATED(4.26, "Please use PerformAnimationEvaluation with different signature")
 	ENGINE_API void PerformAnimationEvaluation(const USkeletalMesh* InSkeletalMesh, UAnimInstance* InAnimInstance, TArray<FTransform>& OutSpaceBases, TArray<FTransform>& OutBoneSpaceTransforms, FVector& OutRootBoneTranslation, FBlendedHeapCurve& OutCurve);
 #endif
-	ENGINE_API void PerformAnimationProcessing(const USkeletalMesh* InSkeletalMesh, UAnimInstance* InAnimInstance, bool bInDoEvaluation, TArray<FTransform>& OutSpaceBases, TArray<FTransform>& OutBoneSpaceTransforms, FVector& OutRootBoneTranslation, FBlendedHeapCurve& OutCurve, UE::Anim::FMeshAttributeContainer& OutAttributes);
 
-	UE_DEPRECATED(4.26, "Please use PerformAnimationEvaluation with different signature")
-	ENGINE_API void PerformAnimationProcessing(const USkeletalMesh* InSkeletalMesh, UAnimInstance* InAnimInstance, bool bInDoEvaluation, TArray<FTransform>& OutSpaceBases, TArray<FTransform>& OutBoneSpaceTransforms, FVector& OutRootBoneTranslation, FBlendedHeapCurve& OutCurve);
+	ENGINE_API void PerformAnimationProcessing(const USkeletalMesh* InSkeletalMesh, UAnimInstance* InAnimInstance, bool bInDoEvaluation, bool bInForceRefPose, TArray<FTransform>& OutSpaceBases, TArray<FTransform>& OutBoneSpaceTransforms, FVector& OutRootBoneTranslation, FBlendedHeapCurve& OutCurve, UE::Anim::FMeshAttributeContainer& OutAttributes);
+
+	UE_DEPRECATED(5.5, "Please use PerformAnimationEvaluation with different signature")
+	ENGINE_API void PerformAnimationProcessing(const USkeletalMesh* InSkeletalMesh, UAnimInstance* InAnimInstance, bool bInDoEvaluation, TArray<FTransform>& OutSpaceBases, TArray<FTransform>& OutBoneSpaceTransforms, FVector& OutRootBoneTranslation, FBlendedHeapCurve& OutCurve, UE::Anim::FMeshAttributeContainer& OutAttributes);
 
 	/**
 	 * Evaluates the post process instance from the skeletal mesh this component is using.
 	 */
-	ENGINE_API void EvaluatePostProcessMeshInstance(TArray<FTransform>& OutBoneSpaceTransforms, FCompactPose& InOutPose, FBlendedHeapCurve& OutCurve, const USkeletalMesh* InSkeletalMesh, FVector& OutRootBoneTranslation, UE::Anim::FHeapAttributeContainer& OutAttributes) const;
+	ENGINE_API void EvaluatePostProcessMeshInstance(TArray<FTransform>& OutBoneSpaceTransforms, FCompactPose& InOutPose, FBlendedHeapCurve& OutCurve, const USkeletalMesh* InSkeletalMesh, FVector& OutRootBoneTranslation, UE::Anim::FHeapAttributeContainer& OutAttributes, bool bInForceRefPose) const;
 
-	UE_DEPRECATED(4.26, "Please use EvaluatePostProcessMeshInstance with different signature")
-	ENGINE_API void EvaluatePostProcessMeshInstance(TArray<FTransform>& OutBoneSpaceTransforms, FCompactPose& InOutPose, FBlendedHeapCurve& OutCurve, const USkeletalMesh* InSkeletalMesh, FVector& OutRootBoneTranslation) const;
+	UE_DEPRECATED(5.5, "Please use EvaluatePostProcessMeshInstance with different signature")
+	ENGINE_API void EvaluatePostProcessMeshInstance(TArray<FTransform>& OutBoneSpaceTransforms, FCompactPose& InOutPose, FBlendedHeapCurve& OutCurve, const USkeletalMesh* InSkeletalMesh, FVector& OutRootBoneTranslation, UE::Anim::FHeapAttributeContainer& OutAttributes) const;
 
 	ENGINE_API void PostAnimEvaluation(FAnimationEvaluationContext& EvaluationContext);
 
@@ -2277,6 +2333,7 @@ public:
 	ENGINE_API void ApplyDeltaToAllPhysicsTransforms(const FVector& DeltaLocation, const FQuat& DeltaRotation);
 
 	/** Destroys and recreates the clothing actors in the current simulation */
+	UFUNCTION(BlueprintCallable, Category = "Clothing")
 	ENGINE_API void RecreateClothingActors();
 
 	/** Given bounds InOutBounds, expand them to also enclose the clothing simulation mesh */
@@ -2308,8 +2365,6 @@ public:
 
 	const TArray<FClothCollisionSource>& GetClothCollisionSources() const { return ClothCollisionSources; }
 
-#if WITH_CLOTH_COLLISION_DETECTION
-
 	/**
 	 * Add a collision source for the cloth on this component.
 	 * Each cloth tick, the collision defined by the physics asset, transformed by the bones in the source
@@ -2317,18 +2372,31 @@ public:
 	 * @param	InSourceComponent		The component to extract collision transforms from
 	 * @param	InSourcePhysicsAsset	The physics asset that defines the collision primitives (that will be transformed by InSourceComponent's bones)
 	 */
+	UFUNCTION(BlueprintCallable, Category = "Clothing")
 	ENGINE_API void AddClothCollisionSource(USkeletalMeshComponent* InSourceComponent, UPhysicsAsset* InSourcePhysicsAsset);
 
 	/** Remove a cloth collision source defined by a component */
-	ENGINE_API void RemoveClothCollisionSource(USkeletalMeshComponent* InSourceComponent);
+	UFUNCTION(BlueprintCallable, Category = "Clothing")
+	ENGINE_API void RemoveClothCollisionSources(USkeletalMeshComponent* InSourceComponent);
+
+	/** Remove a cloth collision source defined by a component */
+	UE_DEPRECATED(5.5, "This function has been renamed RemoveClothCollisionSources")
+	void RemoveClothCollisionSource(USkeletalMeshComponent* InSourceComponent)
+	{
+		RemoveClothCollisionSources(InSourceComponent);
+	}
 
 	/** Remove a cloth collision source defined by both a component and a physics asset */
+	UFUNCTION(BlueprintCallable, Category = "Clothing")
 	ENGINE_API void RemoveClothCollisionSource(USkeletalMeshComponent* InSourceComponent, UPhysicsAsset* InSourcePhysicsAsset);
 
 	/** Remove all cloth collision sources */
+	UFUNCTION(BlueprintCallable, Category = "Clothing")
 	ENGINE_API void ResetClothCollisionSources();
 
 protected:
+
+#if WITH_CLOTH_COLLISION_DETECTION
 	/** copy cloth collision sources to this, where parent means components above it in the hierarchy */
 	ENGINE_API void CopyClothCollisionSources();
 
@@ -2342,15 +2410,6 @@ protected:
 
 	/** find if this component has collisions for clothing and return the results calculated by bone transforms */
 	ENGINE_API void FindClothCollisions(FClothCollisionData& OutCollisions);
-
-#else
-
-public:
-	/** Stub out these public functions if cloth collision is disabled */
-	void AddClothCollisionSource(USkeletalMeshComponent* InSourceComponent, UPhysicsAsset* InSourcePhysicsAsset) {}
-	void RemoveClothCollisionSource(USkeletalMeshComponent* InSourceComponent) {}
-	void RemoveClothCollisionSource(USkeletalMeshComponent* InSourceComponent, UPhysicsAsset* InSourcePhysicsAsset) {}
-	void ResetClothCollisionSources() {}
 
 #endif
 
@@ -2385,7 +2444,7 @@ private:
 	ENGINE_API void EndPhysicsTickComponent(FSkeletalMeshComponentEndPhysicsTickFunction& ThisTickFunction);
 
 	/** Evaluate Anim System **/
-	ENGINE_API void EvaluateAnimation(const USkeletalMesh* InSkeletalMesh, UAnimInstance* InAnimInstance, FVector& OutRootBoneTranslation, FBlendedHeapCurve& OutCurve, FCompactPose& OutPose, UE::Anim::FHeapAttributeContainer& OutAttributes) const;
+	ENGINE_API void EvaluateAnimation(const USkeletalMesh* InSkeletalMesh, UAnimInstance* InAnimInstance, bool bInForceRefPose, FVector& OutRootBoneTranslation, FBlendedHeapCurve& OutCurve, FCompactPose& OutPose, UE::Anim::FHeapAttributeContainer& OutAttributes) const;
 
 	/** Queues up tasks for parallel update/evaluation, as well as the chained game thread completion task */
 	ENGINE_API void DispatchParallelEvaluationTasks(FActorComponentTickFunction* TickFunction);
@@ -2593,8 +2652,8 @@ public:
 	ENGINE_API void UnregisterOnTeleportDelegate(const FDelegateHandle& DelegateHandle);
 
 	/** Register/Unregister for OnBoneTransformsFinalized callback */
-	ENGINE_API FDelegateHandle RegisterOnBoneTransformsFinalizedDelegate(const FOnBoneTransformsFinalizedMultiCast::FDelegate& Delegate);
-	ENGINE_API void UnregisterOnBoneTransformsFinalizedDelegate(const FDelegateHandle& DelegateHandle);
+	ENGINE_API virtual FDelegateHandle RegisterOnBoneTransformsFinalizedDelegate(const FOnBoneTransformsFinalizedMultiCast::FDelegate& Delegate) override;
+	ENGINE_API virtual void UnregisterOnBoneTransformsFinalizedDelegate(const FDelegateHandle& DelegateHandle) override;
 
 	/** Register/Unregister for OnLODRequiredBonesUpdate callback */
 	ENGINE_API FDelegateHandle RegisterOnLODRequiredBonesUpdate(const FOnLODRequiredBonesUpdate& Delegate);

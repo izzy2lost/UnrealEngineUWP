@@ -16,6 +16,7 @@
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Models/DMXControlConsoleElementControllerModel.h"
 #include "Models/DMXControlConsoleFaderGroupControllerModel.h"
@@ -45,6 +46,7 @@ namespace UE::DMX::Private
 		{
 			constexpr float CollapsedViewModeHeight = 280.f;
 			constexpr float ExpandedViewModeHeight = 360.f;
+			constexpr float PhysicalValueTypeHeight = 380.f;
 		}
 	}
 
@@ -216,22 +218,6 @@ namespace UE::DMX::Private
 		return FReply::Handled();
 	}
 
-	FReply SDMXControlConsoleEditorFaderGroupControllerView::OnMouseButtonDoubleClick(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
-	{
-		if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
-		{
-			TSharedPtr<SDMXControlConsoleEditorExpandArrowButton> ExpandArrowButton = GetExpandArrowButton();
-			if (ExpandArrowButton.IsValid())
-			{
-				ExpandArrowButton->ToggleExpandArrow();
-
-				return FReply::Handled();
-			}
-		}
-
-		return FReply::Unhandled();
-	}
-
 	void SDMXControlConsoleEditorFaderGroupControllerView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 	{
 		UDMXControlConsoleFaderGroupController* FaderGroupController = GetFaderGroupController();
@@ -314,8 +300,15 @@ namespace UE::DMX::Private
 		}
 
 		const TArray<UDMXControlConsoleElementController*>& ElementControllers = FaderGroupController->GetElementControllers();
+		
+		const float NumSteps = ElementControllers.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("OnElementControllerAddedSlowTask", "Updating Control Console..."));
+		Task.MakeDialogDelayed(.5f);
+		
 		for (UDMXControlConsoleElementController* ElementController : ElementControllers)
 		{
+			Task.EnterProgressFrame();
+
 			if (!ElementController)
 			{
 				continue;
@@ -347,7 +340,7 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		const TSharedRef<FDMXControlConsoleElementControllerModel> ElementControllerModel = MakeShared<FDMXControlConsoleElementControllerModel>(ElementController);
+		const TSharedRef<FDMXControlConsoleElementControllerModel> ElementControllerModel = MakeShared<FDMXControlConsoleElementControllerModel>(ElementController, EditorModel);
 		TSharedPtr<SWidget> ElementControllerWidget = nullptr;
 
 		if (Cast<UDMXControlConsoleMatrixCellController>(ElementController))
@@ -472,7 +465,6 @@ namespace UE::DMX::Private
 			ViewMode = bExpand ? EDMXControlConsoleEditorViewMode::Expanded : EDMXControlConsoleEditorViewMode::Collapsed;
 
 			constexpr bool bNotifyExpansionStateChange = false;
-			FaderGroupController->Modify();
 			FaderGroupController->SetIsExpanded(bExpand, bNotifyExpansionStateChange);
 		}
 	}
@@ -551,14 +543,24 @@ namespace UE::DMX::Private
 	FOptionalSize SDMXControlConsoleEditorFaderGroupControllerView::GetFaderGroupControllerViewHeightByFadersViewMode() const
 	{
 		using namespace DMXControlConsoleEditorFaderGroupControllerView::Private;
-		const UDMXControlConsoleEditorData* EditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
-		if (EditorData)
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+		if (!ControlConsoleEditorData)
 		{
-			const EDMXControlConsoleEditorViewMode FadersViewMode = EditorData->GetFadersViewMode();
-			return FadersViewMode == EDMXControlConsoleEditorViewMode::Collapsed ? CollapsedViewModeHeight : ExpandedViewModeHeight;
+			return CollapsedViewModeHeight;
 		}
 
-		return CollapsedViewModeHeight;
+		if (ControlConsoleEditorData->GetFadersViewMode() == EDMXControlConsoleEditorViewMode::Collapsed)
+		{
+			return CollapsedViewModeHeight;
+		}
+		else if (ControlConsoleEditorData->GetValueType() == EDMXControlConsoleEditorValueType::Physical)
+		{
+			return PhysicalValueTypeHeight;
+		}
+		else
+		{
+			return ExpandedViewModeHeight;
+		}
 	}
 
 	FSlateColor SDMXControlConsoleEditorFaderGroupControllerView::GetFaderGroupControllerViewBorderColor() const

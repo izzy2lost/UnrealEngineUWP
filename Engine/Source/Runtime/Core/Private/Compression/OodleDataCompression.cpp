@@ -81,7 +81,8 @@ static struct { ECompressionLevel Level; const TCHAR* Name; } CompressionLevelNa
 	{ECompressionLevel::Optimal1, TEXT("Optimal1")},
 	{ECompressionLevel::Optimal2, TEXT("Optimal2")},
 	{ECompressionLevel::Optimal3, TEXT("Optimal3")},
-	{ECompressionLevel::Optimal4, TEXT("Optimal4")}
+	{ECompressionLevel::Optimal4, TEXT("Optimal4")},
+	{ECompressionLevel::Optimal5, TEXT("Optimal5")}
 };
 
 CORE_API bool ECompressionLevelFromString(const TCHAR* InName, ECompressionLevel& OutLevel)

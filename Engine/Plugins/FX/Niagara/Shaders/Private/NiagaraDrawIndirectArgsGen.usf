@@ -103,3 +103,17 @@ void ResetCountsCS(uint TaskIndex : SV_DispatchThreadID)
 		RWInstanceCounts[TaskInfos[InfoOffset]] = 0;
 	}
 }
+
+[numthreads(THREAD_COUNT,1,1)]
+void InitInstanceCountsCS(uint TaskIndex : SV_DispatchThreadID)
+{
+	const uint NumTasks = TaskCount.x;
+	if (TaskIndex < NumTasks)
+	{
+		const uint InfoOffset = TaskIndex * NIAGARA_INIT_INSTANCE_COUNT_TASK_INFO_SIZE;
+		
+		const uint CountOffset = TaskInfos[InfoOffset];
+		const uint CountValue = TaskInfos[InfoOffset + 1];
+		RWInstanceCounts[CountOffset] = CountValue;
+	}
+}

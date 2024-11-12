@@ -73,6 +73,7 @@ FAnimationBudgetAllocator::FAnimationBudgetAllocator(UWorld* InWorld)
 	SetParametersFromCVars();
 
 	OnWorldBeginPlayHandle = InWorld->OnWorldBeginPlay.AddRaw(this, &FAnimationBudgetAllocator::HandleWorldBeginPlay);
+	GarbageCollectStartedHandle = FCoreUObjectDelegates::GetGarbageCollectStartedDelegate().AddRaw(this, &FAnimationBudgetAllocator::HandleGarbageCollectStarted);
 	PostGarbageCollectHandle = FCoreUObjectDelegates::GetPostGarbageCollect().AddRaw(this, &FAnimationBudgetAllocator::HandlePostGarbageCollect);
 	OnWorldPreActorTickHandle = FWorldDelegates::OnWorldPreActorTick.AddRaw(this, &FAnimationBudgetAllocator::OnWorldPreActorTick);
 	OnCVarParametersChangedHandle = GOnCVarParametersChanged.AddRaw(this, &FAnimationBudgetAllocator::SetParametersFromCVars);
@@ -90,6 +91,8 @@ FAnimationBudgetAllocator::~FAnimationBudgetAllocator()
 	{
 		World->OnWorldBeginPlay.Remove(OnWorldBeginPlayHandle);
 	}
+
+	FCoreUObjectDelegates::GetGarbageCollectStartedDelegate().Remove(GarbageCollectStartedHandle);
 	FCoreUObjectDelegates::GetPostGarbageCollect().Remove(PostGarbageCollectHandle);
 	FWorldDelegates::OnWorldPreActorTick.Remove(OnWorldPreActorTickHandle);
 	GOnCVarParametersChanged.Remove(OnCVarParametersChangedHandle);
@@ -235,7 +238,7 @@ void FAnimationBudgetAllocator::QueueSortedComponentIndices(float InDeltaSeconds
 			{
 				auto ShouldComponentTick = [WorldTime](const USkeletalMeshComponentBudgeted* InComponent, const FAnimBudgetAllocatorComponentData& InComponentData)
 				{
-					return ((InComponent->GetLastRenderTime() > WorldTime) ||
+					return (((InComponent->bUseScreenRenderStateForUpdate ? InComponent->GetLastRenderTimeOnScreen() : InComponent->GetLastRenderTime()) > WorldTime) ||
 						(InComponent->GetShouldUseActorRenderedFlag() && InComponent->GetAttachmentRootActor() && InComponent->GetAttachmentRootActor()->WasRecentlyRendered())  ||
 							InComponentData.bTickEvenIfNotRendered ||
 							InComponent->ShouldTickPose() ||
@@ -261,7 +264,7 @@ void FAnimationBudgetAllocator::QueueSortedComponentIndices(float InDeltaSeconds
 				{
 					// Push into a separate limited list if we are 'tick even if not rendered'.
 					// Skip offscreen components with a significance of zero or less.
-					if(Component->GetLastRenderTime() <= WorldTime && ComponentData.bTickEvenIfNotRendered && ComponentData.Significance > 0.0f)
+					if((Component->bUseScreenRenderStateForUpdate ? Component->GetLastRenderTimeOnScreen() : Component->GetLastRenderTime()) <= WorldTime && ComponentData.bTickEvenIfNotRendered && ComponentData.Significance > 0.0f)
 					{
 						NonRenderedComponentData.Add(ComponentIndex);
 					}
@@ -660,7 +663,7 @@ int32 FAnimationBudgetAllocator::CalculateWorkDistributionAndQueue(float InDelta
 			}
 		}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		if(AllSortedComponentData.Num() > 0)
 		{
 			for (int32 ComponentDataIndex : AllSortedComponentData)
@@ -730,8 +733,6 @@ void FAnimationBudgetAllocator::Update(float DeltaSeconds)
 
 			for(const TPair<AActor*, TArray<int32>>& ActorIndicesPair : ActorMap)
 			{
-				FVector Location = ActorIndicesPair.Key->GetActorLocation();
-
 				FString DebugString;
 				
 				for(int32 ComponentDataIndex : ActorIndicesPair.Value)
@@ -741,7 +742,7 @@ void FAnimationBudgetAllocator::Update(float DeltaSeconds)
 					{
 						if(GAnimationBudgetDebugShowAddresses != 0)
 						{
-							DebugString += FString::Printf(TEXT("0x%llx %d %s %s\n"), &ComponentData, ComponentData.TickRate, ComponentData.bInterpolate ? TEXT("I") : TEXT(" "), ComponentData.bReducedWork ? TEXT("Lo") : TEXT("Hi"));
+							DebugString += FString::Printf(TEXT("0x%" UPTRINT_x_FMT " %d %s %s\n"), (UPTRINT)&ComponentData, ComponentData.TickRate, ComponentData.bInterpolate ? TEXT("I") : TEXT(" "), ComponentData.bReducedWork ? TEXT("Lo") : TEXT("Hi"));
 						}
 						else
 						{
@@ -750,7 +751,7 @@ void FAnimationBudgetAllocator::Update(float DeltaSeconds)
 					}
 				}
 
-				DrawDebugString(World, Location, DebugString, nullptr, FColor::White, 0.016f, false);
+				DrawDebugString(World, FVector::ZeroVector, DebugString, ActorIndicesPair.Key, FColor::White, 0.016f, false);
 			}
 
 			DebugTimes.Add(FVector2D(CurrentDebugTimeDisplay, DebugTotalTime));
@@ -850,7 +851,7 @@ void FAnimationBudgetAllocator::OnHUDPostRender(AHUD* HUD, UCanvas* Canvas)
 						{
 							if(GAnimationBudgetDebugShowAddresses != 0)
 							{
-								DebugString += FString::Printf(TEXT("0x%llx %d %s %s\n"), &ComponentData, ComponentData.TickRate, ComponentData.bInterpolate ? TEXT("I") : TEXT(" "), ComponentData.bReducedWork ? TEXT("Lo") : TEXT("Hi"));
+								DebugString += FString::Printf(TEXT("0x%" UPTRINT_x_FMT " %d %s %s\n"), (UPTRINT)&ComponentData, ComponentData.TickRate, ComponentData.bInterpolate ? TEXT("I") : TEXT(" "), ComponentData.bReducedWork ? TEXT("Lo") : TEXT("Hi"));
 							}
 							else
 							{
@@ -885,7 +886,7 @@ void FAnimationBudgetAllocator::RemoveHelper(int32 Index, USkeletalMeshComponent
 				CurrentComponent->SetAnimationBudgetHandle(INDEX_NONE);
 			}
 
-			AllComponentData.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			AllComponentData.RemoveAtSwap(Index, EAllowShrinking::No);
 
 			// Update handle of swapped component
 			if (AllComponentData.IsValidIndex(Index))
@@ -999,16 +1000,25 @@ void FAnimationBudgetAllocator::AddReferencedObjects(FReferenceCollector& Collec
 	}
 }
 
-void FAnimationBudgetAllocator::HandlePostGarbageCollect()
+void FAnimationBudgetAllocator::RemoveDeadComponents()
 {
-	// Remove dead components backwards, readjusting indices
 	for (int32 DataIndex = AllComponentData.Num() - 1; DataIndex >= 0; --DataIndex)
 	{
-		if (AllComponentData[DataIndex].Component == nullptr)
+		if (!IsValid(AllComponentData[DataIndex].Component))
 		{
 			RemoveHelper(DataIndex, nullptr);
 		}
 	}
+}
+
+void FAnimationBudgetAllocator::HandleGarbageCollectStarted()
+{
+	RemoveDeadComponents();
+}
+
+void FAnimationBudgetAllocator::HandlePostGarbageCollect()
+{
+	RemoveDeadComponents();
 }
 
 void FAnimationBudgetAllocator::SetGameThreadLastTickTimeMs(int32 InManagerHandle, float InGameThreadLastTickTimeMs)

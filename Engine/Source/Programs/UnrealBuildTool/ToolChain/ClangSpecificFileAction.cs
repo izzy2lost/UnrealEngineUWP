@@ -17,7 +17,8 @@ namespace UnrealBuildTool
 		DirectoryReference SourceDir;
 		DirectoryReference OutputDir;
 		IEnumerable<string> RspLines;
-		int SingleFileCounter;
+
+		Dictionary<string, List<FileItem>> SingleFiles = new();
 
 		internal ClangSpecificFileAction(DirectoryReference Source, DirectoryReference Output, Action Action, IEnumerable<string> ContentLines) : base(Action)
 		{
@@ -27,6 +28,7 @@ namespace UnrealBuildTool
 			SourceDir = Source;
 			OutputDir = Output;
 			RspLines = ContentLines;
+			ArtifactMode = ArtifactMode.None;
 		}
 
 		public ClangSpecificFileAction(BinaryArchiveReader Reader) : base(Reader)
@@ -48,28 +50,49 @@ namespace UnrealBuildTool
 
 		public IExternalAction? CreateAction(FileItem SourceFile, ILogger Logger)
 		{
+			DirectoryReference.CreateDirectory(DirectoryReference.Combine(OutputDir, "SingleFile"));
+
+			// Keep track of all specific files, so the output file can be renamed if there's a naming conflict
+			string Filename = $"SingleFile/{SourceFile.Name}";
+			if (!SingleFiles.ContainsKey(SourceFile.Name))
+			{
+				SingleFiles[SourceFile.Name] = new();
+			}
+			else
+			{
+				Filename = $"SingleFile/{Path.GetFileNameWithoutExtension(SourceFile.Name)}{SingleFiles[SourceFile.Name].Count}{Path.GetExtension(SourceFile.Name)}";
+			}
+			SingleFiles[SourceFile.Name].Add(SourceFile);
+
 			string DummyName = "SingleFile.cpp";
-			string UniqueDummyName = $"SingleFile{SingleFileCounter}.cpp";
-			++SingleFileCounter;
+			string UniqueDummyName = Filename;
 
 			int FileNameIndex = CommandArguments.IndexOf(DummyName);
 			string DummyPath = CommandArguments.Substring(2, FileNameIndex + DummyName.Length - 2);
 
+			List<string> NewRspLines = new();
+
 			if (SourceFile.HasExtension(".h"))
 			{
-				FileItem DummyFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, "SingleFile", SourceFile.Name));
-				Directory.CreateDirectory(DummyFile.Directory.FullName);
-				File.WriteAllText(DummyFile.FullName, $"#include \"{SourceFile.FullName.Replace('\\', '/')}\"");
-				SourceFile = DummyFile;
+				ClangWarnings.GetHeaderDisabledWarnings(NewRspLines);
+
+				string IncludeFileString = SourceFile.AbsolutePath;
+				if (SourceFile.Location.IsUnderDirectory(Unreal.RootDirectory))
+				{
+					IncludeFileString = SourceFile.Location.MakeRelativeTo(Unreal.EngineSourceDirectory);
+				}
+
+				List<string> GeneratedHeaderCppContents = UEBuildModuleCPP.GenerateHeaderCpp(SourceFile.Name, IncludeFileString);
+				SourceFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, $"{UniqueDummyName}.cpp"));
+				File.WriteAllLines(SourceFile.FullName, GeneratedHeaderCppContents);
 			}
 
-			List<string> NewRspLines = new();
 			foreach (string L in RspLines)
 			{
 				string Line = L;
 				if (Line.Contains(".cpp.bc", System.StringComparison.Ordinal) ||
 					Line.Contains(".cpp.d", System.StringComparison.Ordinal) ||
-					Line.Contains(".cpp.i", System.StringComparison.Ordinal) || 
+					Line.Contains(".cpp.i", System.StringComparison.Ordinal) ||
 					Line.Contains(".cpp.json", System.StringComparison.Ordinal) ||
 					Line.Contains(".cpp.o", System.StringComparison.Ordinal))
 				{
@@ -92,6 +115,12 @@ namespace UnrealBuildTool
 			// even though we want it to always be built
 			FileItem ProducedItem = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, UniqueDummyName + ".n"));
 			Action.ProducedItems.Add(ProducedItem);
+
+			if (RspLines.Any(x => x.Contains(".cpp.i")))
+			{
+				FileItem PreprocessedItem = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, UniqueDummyName + ".i"));
+				Action.ProducedItems.Add(PreprocessedItem);
+			}
 
 			FileItem ResponseFile = FileItem.GetItemByPath(Action.CommandArguments.Substring(1).Trim('"'));
 			File.WriteAllLines(ResponseFile.FullName, NewRspLines);

@@ -157,17 +157,18 @@ int32 UGenerateNaniteDisplacedMeshCommandlet::Main(const FString& CmdLineParams)
 
 	IAssetRegistry& AssetRegistry = FAssetRegistryModule::GetRegistry();
 
-	if (UE::AssetRegistry::ShouldSearchAllAssetsAtStart())
-	{
-		UE_LOG(LogNaniteDisplacedMesh, Display, TEXT("Searching the levels that need to be processed and their dependencies (this may take a while)..."));
-	}
-	else
-	{
-		UE_LOG(LogNaniteDisplacedMesh, Display, TEXT("Searching all assets (this may take a while)..."));
-		// This is automatically called in the regular editor but not always when running a commandlet
-		// Must also search synchronously because AssetRegistry.IsLoadingAssets() won't account for this search
-		AssetRegistry.SearchAllAssets(true);
-	}
+	// Force the full scan has some recent change have broken the dependency graph if the class of the asset being scanned isn't know yet know by the asset registry
+	//if (UE::AssetRegistry::ShouldSearchAllAssetsAtStart())
+	//{
+	//	UE_LOG(LogNaniteDisplacedMesh, Display, TEXT("Searching the levels that need to be processed and their dependencies (this may take a while)..."));
+	//}
+	//else
+	//{
+	UE_LOG(LogNaniteDisplacedMesh, Display, TEXT("Searching all assets (this may take a while)..."));
+	// This is automatically called in the regular editor but not always when running a commandlet
+	// Must also search synchronously because AssetRegistry.IsLoadingAssets() won't account for this search
+	AssetRegistry.SearchAllAssets(true);
+	//}
 
 	// Make sure the level are loaded in the asset registry
 	for (const FSoftObjectPath& SoftObjectPaths : Filter.SoftObjectPaths)
@@ -191,7 +192,7 @@ int32 UGenerateNaniteDisplacedMeshCommandlet::Main(const FString& CmdLineParams)
 		TSet<FName> DependenciesToProcess;
 		TArray<FName> CurrentDependencies;
 		UE::AssetRegistry::FDependencyQuery QueryFlags;
-		QueryFlags.Required = UE::AssetRegistry::EDependencyProperty::Game;
+		QueryFlags.Required = UE::AssetRegistry::EDependencyProperty::Game | UE::AssetRegistry::EDependencyProperty::Build;
 		for (const FAssetData& LevelAsset : LevelAssets)
 		{
 			// Get the dependencies of the level recursively
@@ -231,6 +232,8 @@ int32 UGenerateNaniteDisplacedMeshCommandlet::Main(const FString& CmdLineParams)
 			}
 
 			FString ExternalActorFolder(TEXT("/__ExternalActors__/"));
+			FString ExternalObjectFolder(TEXT("/__ExternalObjects__/"));
+			UE::AssetRegistry::FDependencyQuery WorkAroundQueryFlags;
 			/**
 			 * For all levels search their references for 1 level and then search their dependencies for 1 level.
 			 * Example: Level referenced by an possible the level instance actor that live in a content bundle.
@@ -243,7 +246,7 @@ int32 UGenerateNaniteDisplacedMeshCommandlet::Main(const FString& CmdLineParams)
 				}
 
 				TArray<FName> LevelReferencers;
-				AssetRegistry.GetReferencers(LevelAsset.PackageName, LevelReferencers, UE::AssetRegistry::EDependencyCategory::Package, QueryFlags);
+				AssetRegistry.GetReferencers(LevelAsset.PackageName, LevelReferencers, UE::AssetRegistry::EDependencyCategory::Package, WorkAroundQueryFlags);
 				for (const FName& LevelReference : LevelReferencers)
 				{
 					if (StopSearchAt.Contains(LevelReference))
@@ -259,13 +262,13 @@ int32 UGenerateNaniteDisplacedMeshCommandlet::Main(const FString& CmdLineParams)
 					}
 
 
-
 					bool bHasAddedLevelToDependenciesToProcess = false;
-					// Limit the references search to the external actor folders
-					if (LevelReference.ToString().Contains(ExternalActorFolder))
+					// Limit the references search to the external actors and objects
+					FString LevelReferenceAsString = LevelReference.ToString();
+					if (LevelReferenceAsString.Contains(ExternalActorFolder) || LevelReferenceAsString.Contains(ExternalObjectFolder))
 					{
 						TArray<FName> Dependencies;
-						AssetRegistry.GetDependencies(LevelReference, Dependencies, UE::AssetRegistry::EDependencyCategory::Package, QueryFlags);
+						AssetRegistry.GetDependencies(LevelReference, Dependencies, UE::AssetRegistry::EDependencyCategory::Package, WorkAroundQueryFlags);
 						for (const FName& Dependency : Dependencies)
 						{
 							// Check if the asset is refered in the original dependencies chain and that it is a level.

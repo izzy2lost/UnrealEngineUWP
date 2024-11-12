@@ -1,10 +1,32 @@
-/* Copyright Epic Games, Inc. All Rights Reserved. */
+/*
+ * Copyright (c) 2023-2024 Epic Games, Inc. All Rights Reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY EPIC GAMES, INC. ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL EPIC GAMES, INC. OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ */
 
 #ifndef VERSE_HEAP_CHUNK_MAP_H
 #define VERSE_HEAP_CHUNK_MAP_H
 
 #include "pas_utils.h"
-#include "ue_include/verse_heap_config_ue.h"
 #include "verse_heap_chunk_map_entry.h"
 
 #if PAS_ENABLE_VERSE
@@ -27,25 +49,23 @@ PAS_API extern verse_heap_chunk_map_entry* verse_heap_first_level_chunk_map[
 
 /* Check the chunk map entry for a chunk; if we know nothing about a chunk then we will return an empty
    chunk map entry. */
-static PAS_ALWAYS_INLINE verse_heap_chunk_map_entry verse_heap_get_chunk_map_entry(uintptr_t address)
+static PAS_ALWAYS_INLINE verse_heap_chunk_map_entry_header
+verse_heap_get_chunk_map_entry_header(uintptr_t address)
 {
     verse_heap_chunk_map_entry* second_level;
-    verse_heap_chunk_map_entry result;
 
     if (address > PAS_MAX_ADDRESS)
-        return verse_heap_chunk_map_entry_create_empty();
+        return verse_heap_chunk_map_entry_header_create_empty();
 
     /* FIXME: Do we need the mask here? */
     second_level = verse_heap_first_level_chunk_map[
         (address >> VERSE_HEAP_CHUNK_MAP_FIRST_LEVEL_SHIFT) & VERSE_HEAP_CHUNK_MAP_FIRST_LEVEL_MASK];
     if (!second_level)
-        return verse_heap_chunk_map_entry_create_empty();
+        return verse_heap_chunk_map_entry_header_create_empty();
 
-    verse_heap_chunk_map_entry_copy_atomically(
-        &result,
+    return verse_heap_chunk_map_entry_load_header(
         second_level + ((address >> VERSE_HEAP_CHUNK_MAP_SECOND_LEVEL_SHIFT)
                         & VERSE_HEAP_CHUNK_MAP_SECOND_LEVEL_MASK));
-    return result;
 }
 
 /* Get a pointer to a chunk map entry. This assumes that the chunk map entry must exist. It may crash or

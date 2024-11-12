@@ -41,6 +41,48 @@ bool FDisplayClusterConfigurationMediaViewport::IsMediaOutputAssigned() const
 ///////////////////////////////////////////////////
 // FDisplayClusterConfigurationMediaICVFX
 
+bool FDisplayClusterConfigurationMediaICVFX::ShouldMediaICVFXSplitIntoTiles() const
+{
+	// Nothing to do if media is not enabled
+	if (!bEnable)
+	{
+		return false;
+	}
+
+	// Nothing to do if media tiling is not used
+	if (SplitType != EDisplayClusterConfigurationMediaSplitType::UniformTiles)
+	{
+		return false;
+	}
+
+	// Validate the layout
+	if (!FDisplayClusterConfigurationTile_Settings::IsValid(TiledSplitLayout))
+	{
+		return false;
+	}
+
+	// Allow the use of tile splitting.
+	return true;
+}
+
+EDisplayClusterViewportTileFlags FDisplayClusterConfigurationMediaICVFX::GetMediaICVFXTileFlags(const FString& NodeId) const
+{
+	// Find if this cluster node is allowed to render unbound tiles
+	const bool bAllowRenderUnbound = ClusterNodesToRenderUnboundTiles.ItemNames.ContainsByPredicate([&NodeId](const FString& Item)
+		{
+			return NodeId.Equals(Item, ESearchCase::IgnoreCase);
+		});
+
+	// Generate flags
+	EDisplayClusterViewportTileFlags OutTileFlags = EDisplayClusterViewportTileFlags::None;
+	if (bAllowRenderUnbound)
+	{
+		OutTileFlags |= EDisplayClusterViewportTileFlags::AllowUnboundRender;
+	}
+
+	return OutTileFlags;
+}
+
 bool FDisplayClusterConfigurationMediaICVFX::HasAnyMediaInputAssigned(const FString& NodeId, EDisplayClusterConfigurationMediaSplitType InSplitType) const
 {
 	// Nothing to do if a different split type requested

@@ -2,37 +2,34 @@
 
 #pragma once
 
-#include "AllClientsSelectionModel.h"
+#include "Selection/AllOfflineClientsSelectionModel.h"
+#include "Selection/AllOnlineClientsSelectionModel.h"
+
+#include "HAL/Platform.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
 class IConcertClient;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
-	class FReplicationClient;
-	class FReplicationClientManager;
+	class FMultiUserReplicationManager;
+	class FOnlineClient;
+	class FOnlineClientManager;
 
-	/** Leverages SMultiClientView to display all replication clients. */
+	/** Leverages SMultiClientView to display all online and offline clients. */
 	class SAllClientsView : public SCompoundWidget
 	{
-		SLATE_BEGIN_ARGS(SAllClientsView)
-			{}
-			/** Dedicated space for a widget with which to change the view. */
-			SLATE_NAMED_SLOT(FArguments, ViewSelectionArea)
+		SLATE_BEGIN_ARGS(SAllClientsView){}
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InConcertClient, FReplicationClientManager& InClientManager);
+		void Construct(const FArguments&, TSharedRef<IConcertClient> InConcertClient, FMultiUserReplicationManager& InMultiUserReplicationManager UE_LIFETIMEBOUND);
 
 	private:
 
-		/** Used to get all the replication clients and listen for client changes. */
-		FReplicationClientManager* ClientManager = nullptr;
-
-		/** Keeps the SMultiClientView updated of any changes to clients (e.g. disconnects, etc.) */
-		TUniquePtr<FAllClientsSelectionModel> AllClientsModel;
-
-		/** Gets all the clients to display */
-		TSet<const FReplicationClient*> GetAllClients() const;
+		/** Keeps track of all online clients. */
+		TUniquePtr<FAllOnlineClientsSelectionModel> AllOnlineClientsModel;
+		/** Keeps track of all offline clients. */
+		TUniquePtr<FAllOfflineClientsSelectionModel> AllOfflineClientsModel;
 	};
 }

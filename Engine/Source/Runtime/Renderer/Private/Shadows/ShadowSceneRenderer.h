@@ -101,9 +101,25 @@ public:
 		return RendererSetupTask;
 	}
 
+	bool AreAnyLightsUsingMegaLightsVSM() const
+	{
+		return bNeedMegaLightsProjection;
+	}
+
+	bool AreAnyLocalLightsPreset() const
+	{
+		return LocalLights.Num() > 0;
+	}
+
 	UE::Renderer::Private::IShadowInvalidatingInstances *GetInvalidatingInstancesInterface(const FSceneView *SceneView);
 
 private:
+	struct FViewData
+	{
+		float ClipToViewSizeScale = 0.0f;
+		float ClipToViewSizeBias = 0.0f;
+	};
+
 	UE::Tasks::FTask RendererSetupTask;
 
 	FVirtualShadowMapProjectionShaderData GetLocalLightProjectionShaderData(float ResolutionLODBiasLocal, const FProjectedShadowInfo* ProjectedShadowInfo, int32 MapIndex) const;
@@ -126,9 +142,6 @@ private:
 	};
 	TArray<FDirectionalLightShadowFrameSetup, SceneRenderingAllocator> DirectionalLights;
 
-	// One pass projection stuff. Set up in RenderVitualShadowMapProjectionMaskBits
-	bool bShouldUseVirtualShadowMapOnePassProjection = false;
-
 	// Links to other systems etc.
 	FDeferredShadingSceneRenderer& SceneRenderer;
 	FScene& Scene;
@@ -138,4 +151,16 @@ private:
 	FNaniteVisibilityQuery* NaniteVisibilityQuery = nullptr;
 	Nanite::FPackedViewArray* VirtualShadowMapViews = nullptr;
 	FSceneInstanceCullingQuery *SceneInstanceCullingQuery = nullptr;
+	TArray<FViewData, SceneRenderingAllocator> ViewDatas;
+
+	// One pass projection stuff. Set up in RenderVitualShadowMapProjectionMaskBits
+	bool bShouldUseVirtualShadowMapOnePassProjection = false;
+
+	// Base the distant light cutoff on the minimum mip level instead of the shadow resolution calculated through the old path.
+	bool bUseConservativeDistantLightThreshold = false;
+	int32 DistantLightMode = 0;
+
+	// Tracking for a given frame/render of which passes we need - clear in BeginRender
+	bool bNeedVSMProjection = false;
+	bool bNeedMegaLightsProjection = false;
 };

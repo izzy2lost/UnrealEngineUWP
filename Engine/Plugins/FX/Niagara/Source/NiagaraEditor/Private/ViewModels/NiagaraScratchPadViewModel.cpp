@@ -602,7 +602,6 @@ void UNiagaraScratchPadViewModel::OpenEditorForActive()
 	}
 }
 
-
 bool UNiagaraScratchPadViewModel::CanSelectNextUsageForActiveScript()
 {
 	if (ActiveScriptViewModel.IsValid())
@@ -761,7 +760,7 @@ void UNiagaraScratchPadViewModel::ScriptGraphNodeSelectionChanged(TWeakPtr<FNiag
 	TSharedPtr<FNiagaraScratchPadScriptViewModel> InScriptViewModel = InScriptViewModelWeak.Pin();
 	if (InScriptViewModel.IsValid())
 	{
-		TArray<UObject*> SelectedNodes = InScriptViewModel->GetGraphViewModel()->GetNodeSelection()->GetSelectedObjects().Array();
+		TSet<UObject*> SelectedNodes = InScriptViewModel->GetGraphViewModel()->GetNodeSelection()->GetSelectedObjectsResolved();
 		if (SelectedNodes.Num() > 0)
 		{
 			ObjectSelection->SetSelectedObjects(SelectedNodes);
@@ -780,19 +779,8 @@ void UNiagaraScratchPadViewModel::ScriptGraphNodeSelectionChanged(TWeakPtr<FNiag
 
 void UNiagaraScratchPadViewModel::ScriptViewModelScriptRenamed(TWeakPtr<FNiagaraScratchPadScriptViewModel> ScriptViewModelWeak)
 {
-	TSharedPtr<FNiagaraScratchPadScriptViewModel> ScriptViewModel = ScriptViewModelWeak.Pin();
-	if (ScriptViewModel.IsValid())
-	{
-		GetSystemViewModel()->GetDocumentViewModel()->CloseChildScript(ScriptViewModel->GetGraphViewModel()->GetGraph());
-	}
-
 	UpdateChangeId(GetSystemViewModel());
 	OnScriptRenamed().Broadcast();
-
-	if (ScriptViewModel.IsValid())
-	{
-		GetSystemViewModel()->GetDocumentViewModel()->OpenChildScript(ScriptViewModel->GetGraphViewModel()->GetGraph());
-	}
 }
 
 void UNiagaraScratchPadViewModel::ScriptViewModelGraphSelectionChanged(const UObject* Obj, TWeakPtr<FNiagaraScratchPadScriptViewModel> ScriptViewModelWeak)
@@ -895,7 +883,7 @@ void UNiagaraScratchPadViewModel::ScriptViewModelVariableSelectionChanged(TWeakP
 	TSharedPtr<FNiagaraScratchPadScriptViewModel> ScriptViewModel = ScriptViewModelWeak.Pin();
 	if (ScriptViewModel.IsValid())
 	{
-		ObjectSelection->SetSelectedObjects(ScriptViewModel->GetVariableSelection()->GetSelectedObjects().Array());
+		ObjectSelection->SetSelectedObjects(ScriptViewModel->GetVariableSelection()->GetSelectedObjectsResolved());
 	}
 }
 

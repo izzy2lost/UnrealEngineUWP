@@ -8,7 +8,10 @@
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 
-#include "Insights/Common/PaintUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+
+// TraceInsights
 #include "Insights/ViewModels/GraphTrackBuilder.h"
 #include "Insights/ViewModels/ITimingViewDrawHelper.h"
 #include "Insights/ViewModels/TimingTrackViewport.h"

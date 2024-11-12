@@ -8,7 +8,7 @@
 #include "SimulationBendingOverrideConfigNode.generated.h"
 
 /** Bending constraint property override configuration node. */
-USTRUCT(Meta = (DataflowCloth))
+USTRUCT(Meta = (DataflowCloth, Experimental))
 struct FChaosClothAssetSimulationBendingOverrideConfigNode : public FChaosClothAssetSimulationBaseConfigNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -116,9 +116,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Bending Override", meta = (ClampMin = "0", EditCondition = "OverrideBendingDamping != EChaosClothAssetConstraintOverrideType::None", EditConditionHides))
 	FChaosClothAssetWeightedValueOverride BendingDamping;
 
-	FChaosClothAssetSimulationBendingOverrideConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSimulationBendingOverrideConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
-	virtual bool IsExperimental() override { return true; }
 };

@@ -4,7 +4,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { TopNav } from './TopNav';
 import { Breadcrumbs, BreadcrumbItem } from './Breadcrumbs';
 import { Stack, Spinner, SpinnerSize, Text } from '@fluentui/react';
-import hordePlugins, { PluginMount } from  '../Plugins';
+import { PluginMount } from  '../legacyPlugins/pluginTypes';
+import hordePlugins from  '../legacyPlugins';
 import { projectStore } from '../backend/ProjectStore';
 import { useParams } from 'react-router-dom';
 import { TestDataCollection, TestDataWrapper } from '../backend/TestDataHandler'
@@ -59,7 +60,7 @@ const getTestdataBreadcrumbProps = async (testdata: TestDataWrapper) => {
             link: testdata.getJobLink(),
         },
         {
-            text: stepName,
+            text: stepName ?? "",
             link: testdata.getJobStepLink(),
         },
         {

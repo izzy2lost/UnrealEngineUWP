@@ -7,12 +7,11 @@
 #include "D3D12RHI.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Fnv.h"
 #include "HAL/FileManager.h"
 #include "Serialization/MemoryWriter.h"
 #include "ShaderPreprocessTypes.h"
 #include "RayTracingDefinitions.h"
-
-DEFINE_LOG_CATEGORY_STATIC(LogD3D12ShaderCompiler, Log, All);
 
 // D3D doesn't define a mask for this, so we do so here
 #define SHADER_OPTIMIZATION_LEVEL_MASK (D3DCOMPILE_OPTIMIZATION_LEVEL0 | D3DCOMPILE_OPTIMIZATION_LEVEL1 | D3DCOMPILE_OPTIMIZATION_LEVEL2 | D3DCOMPILE_OPTIMIZATION_LEVEL3)
@@ -22,7 +21,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogD3D12ShaderCompiler, Log, All);
 #pragma warning(disable : 4005)	// macro redefinition
 
 #include "Windows/AllowWindowsPlatformTypes.h"
-	#include <D3D11.h>
+	#include <D3D12.h>
 	#include <D3Dcompiler.h>
 	#include <d3d11Shader.h>
 	#include "amd_ags.h"
@@ -77,6 +76,10 @@ static uint32 GetAutoBindingSpace(const FShaderTarget& Target)
 	case SF_RayHitGroup:
 	case SF_RayCallable:
 		return UE_HLSL_SPACE_RAY_TRACING_LOCAL;
+	case SF_WorkGraphRoot:
+		return UE_HLSL_SPACE_WORK_GRAPH_GLOBAL;
+	case SF_WorkGraphComputeNode:
+		return UE_HLSL_SPACE_WORK_GRAPH_LOCAL;
 	default:
 		return 0;
 	}
@@ -130,20 +133,20 @@ static void LogFailedHRESULT(const TCHAR* FailedExpressionStr, HRESULT Result)
 {
 	if (Result == E_OUTOFMEMORY)
 	{
-		const FString ErrorReport = FString::Printf(TEXT("%s failed: Result=0x%08x (E_OUTOFMEMORY)"), FailedExpressionStr, Result);
+		const FString ErrorReport = FString::Printf(TEXT("%s failed: Result=0x%08x (E_OUTOFMEMORY)"), FailedExpressionStr, (uint32)Result);
 		FSCWErrorCode::Report(FSCWErrorCode::OutOfMemory, ErrorReport);
-		UE_LOG(LogD3D12ShaderCompiler, Fatal, TEXT("%s"), *ErrorReport);
+		UE_LOG(LogD3DShaderCompiler, Fatal, TEXT("%s"), *ErrorReport);
 	}
 	else if (const TCHAR* ErrorCodeStr = DxcErrorCodeToString(Result))
 	{
-		UE_LOG(LogD3D12ShaderCompiler, Fatal, TEXT("%s failed: Result=0x%08x (%s)"), FailedExpressionStr, Result, ErrorCodeStr);
+		UE_LOG(LogD3DShaderCompiler, Fatal, TEXT("%s failed: Result=0x%08x (%s)"), FailedExpressionStr, Result, ErrorCodeStr);
 	}
 	else
 	{
 		// Turn HRESULT into human readable string for error report
 		TCHAR ResultStr[4096] = {};
 		FPlatformMisc::GetSystemErrorMessage(ResultStr, UE_ARRAY_COUNT(ResultStr), Result);
-		UE_LOG(LogD3D12ShaderCompiler, Fatal, TEXT("%s failed: Result=0x%08x (%s)"), FailedExpressionStr, Result, ResultStr);
+		UE_LOG(LogD3DShaderCompiler, Fatal, TEXT("%s failed: Result=0x%08x (%s)"), FailedExpressionStr, Result, ResultStr);
 	}
 }
 
@@ -212,6 +215,11 @@ public:
 
 		// Unpack uniform matrices as row-major to match the CPU layout.
 		ExtraArguments.Add(TEXT("-Zpr"));
+
+		if (Input.Environment.CompilerFlags.Contains(CFLAG_SkipValidation))
+		{
+			ExtraArguments.Add(TEXT("-Vd"));
+		}
 
 		if (Input.Environment.CompilerFlags.Contains(CFLAG_Debug) || Input.Environment.CompilerFlags.Contains(CFLAG_SkipOptimizationsDXC))
 		{
@@ -671,7 +679,7 @@ static bool RemoveContainerParts(const TConstArrayView<uint32> PartCodes, dxc::D
 }
 
 static HRESULT D3DCompileToDxil(const char* SourceText, const FDxcArguments& Arguments,
-	TRefCountPtr<IDxcBlob>& OutDxilBlob, TRefCountPtr<IDxcBlob>& OutReflectionBlob, TRefCountPtr<IDxcBlobEncoding>& OutErrorBlob, TRefCountPtr<IDxcBlob>& OutPdbBlob, FString& OutPdbName)
+	TRefCountPtr<IDxcBlob>& OutDxilBlob, TRefCountPtr<IDxcBlob>& OutReflectionBlob, TRefCountPtr<IDxcBlobEncoding>& OutErrorBlob, TRefCountPtr<IDxcBlob>& OutPdbBlob, FString& OutPdbName, DxcShaderHash& OutHash)
 {
 	dxc::DxcDllSupport& DxcDllHelper = GetDxcDllHelper();
 
@@ -730,17 +738,19 @@ static HRESULT D3DCompileToDxil(const char* SourceText, const FDxcArguments& Arg
 		TRefCountPtr<IDxcBlobUtf16> ReflectionNameBlob; // Dummy name blob to silence static analysis warning
 		checkf(CompileResult->HasOutput(DXC_OUT_REFLECTION), TEXT("No reflection found!"));
 		VERIFYHRESULT(CompileResult->GetOutput(DXC_OUT_REFLECTION, IID_PPV_ARGS(OutReflectionBlob.GetInitReference()), ReflectionNameBlob.GetInitReference()));
-
-		RetrieveDebugNameAndBlob(CompileResult, OutPdbName, OutPdbBlob.GetInitReference());
-		const bool bHasOutputPDB = OutPdbBlob.IsValid() && !OutPdbName.IsEmpty();
-		const bool bRemovePDB = bHasOutputPDB && !Arguments.ShouldKeepEmbeddedPDB();
-
-		TArray<uint32, TInlineAllocator<4>> PartsToRemove;
-		if (bRemovePDB)
+		RetrieveDebugNameAndBlob(CompileResult, OutPdbName, OutPdbBlob.GetInitReference(), OutHash);
+ 
+ 		TArray<uint32, TInlineAllocator<4>> PartsToRemove;
+		if (!Arguments.ShouldKeepEmbeddedPDB())
 		{
-			// Try and remove both the PDB & Reflection Data
-			PartsToRemove.Add(DXC_PART_PDB);
-			PartsToRemove.Add(DXC_PART_REFLECTION_DATA);
+			if (CompileResult->HasOutput(DXC_OUT_PDB))
+			{
+				PartsToRemove.Add(DXC_PART_PDB);
+			}
+			if (CompileResult->HasOutput(DXC_OUT_REFLECTION))
+			{
+				PartsToRemove.Add(DXC_PART_REFLECTION_DATA);
+			}
 		}
 
 		if (Arguments.ShouldDump())
@@ -755,7 +765,7 @@ static HRESULT D3DCompileToDxil(const char* SourceText, const FDxcArguments& Arg
 			SaveDxcBlobToFile(OutDxilBlob, DxilFile);
 
 			// Dump the PDB.
-			if (bHasOutputPDB)
+			if (OutPdbBlob.IsValid() && !OutPdbName.IsEmpty())
 			{
 				const FString PdbFile = Arguments.GetDumpDebugInfoPath() / OutPdbName;
 				SaveDxcBlobToFile(OutPdbBlob, PdbFile);
@@ -829,7 +839,6 @@ inline bool IsCompatibleBinding(const D3D12_SHADER_INPUT_BIND_DESC& BindDesc, ui
 	}
 	if (!bIsCompatibleBinding)
 	{
-		// #todo: there is currently no common header where a binding space number or buffer name could be defined. See D3DCommon.ush and D3D12RootSignature.cpp.
 		const bool bIsUEDebugBuffer = (FCStringAnsi::Strcmp(BindDesc.Name, "UEDiagnosticBuffer") == 0);
 		bIsCompatibleBinding = bIsUEDebugBuffer && (BindDesc.Space == UE_HLSL_SPACE_DIAGNOSTIC);
 	}
@@ -858,6 +867,7 @@ bool CompileAndProcessD3DShaderDXC(
 	auto AnsiSourceFile = StringCast<ANSICHAR>(*PreprocessedShaderSource);
 
 	const bool bIsRayTracingShader = Input.IsRayTracingShader();
+	const bool bIsWorkGraphShader = Input.IsWorkGraphShader();
 
 	const uint32 AutoBindingSpace = GetAutoBindingSpace(Input.Target);
 
@@ -905,16 +915,17 @@ bool CompileAndProcessD3DShaderDXC(
 	TRefCountPtr<IDxcBlobEncoding> DxcErrorBlob;
 	TRefCountPtr<IDxcBlob> PdbBlob;
 	FString PdbName;
+	DxcShaderHash ShaderHash;
+	const HRESULT D3DCompileToDxilResult = D3DCompileToDxil(AnsiSourceFile.Get(), Args, ShaderBlob, ReflectionBlob, DxcErrorBlob, PdbBlob, PdbName, ShaderHash);
 
-	const HRESULT D3DCompileToDxilResult = D3DCompileToDxil(AnsiSourceFile.Get(), Args, ShaderBlob, ReflectionBlob, DxcErrorBlob, PdbBlob, PdbName);
-
+	Output.AddStatistic(UE::ShaderCompilerCommon::kPlatformHashStatName, BytesToHex(ShaderHash.HashDigest, sizeof(ShaderHash.HashDigest)), FGenericShaderStat::EFlags::Hidden);
+	
 	// Populate the platform-specific debug data with the PDB name, if available.
 	bool bWriteDebugData = Input.Environment.CompilerFlags.Contains(CFLAG_GenerateSymbolsInfo);
 	if (bWriteDebugData && !PdbName.IsEmpty())
 	{
 		FD3DSM6ShaderDebugData DebugData;
 		DebugData.Name = PdbName;
-		DebugData.DebugInfo = Input.GenerateDebugInfo();
 
 		// We don't export the PDB contents here because it would result in duplicate data,
 		// as we use embedded PDBs. Once we are able to use external PDBs, the PDB contents
@@ -934,21 +945,34 @@ bool CompileAndProcessD3DShaderDXC(
 	if (SUCCEEDED(D3DCompileToDxilResult))
 	{
 		// Gather reflection information
-		TArray<FString> ShaderInputs;
-		TArray<FShaderCodeVendorExtension> VendorExtensions;
+		FD3DShaderCompileData CompileData;
+		CompileData.bBindlessResources = Input.Environment.CompilerFlags.Contains(CFLAG_BindlessResources);
+		CompileData.bBindlessSamplers = Input.Environment.CompilerFlags.Contains(CFLAG_BindlessSamplers);
 
-		bool bGlobalUniformBufferUsed = false;
-		bool bDiagnosticBufferUsed = false;
-		uint32 NumInstructions = 0;
-		uint32 NumSamplers = 0;
-		uint32 NumSRVs = 0;
-		uint32 NumCBs = 0;
-		uint32 NumUAVs = 0;
-		TArray<FString> UniformBufferNames;
-		TArray<FString> ShaderOutputs;
+		if (CompileData.bBindlessSamplers)
+		{
+			CompileData.MaxSamplers = D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
+		}
+		else if (ShaderModel == ED3DShaderModel::SM6_6)
+		{
+			CompileData.MaxSamplers = 32; // DDSPI: MaxSamplers=32
+		}
+		else
+		{
+			CompileData.MaxSamplers = D3D12_COMMONSHADER_SAMPLER_REGISTER_COUNT;
+		}
 
-		TBitArray<> UsedUniformBufferSlots;
-		UsedUniformBufferSlots.Init(false, 32);
+		if (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessResources))
+		{
+			CompileData.MaxSRVs = D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_2;
+		}
+		else
+		{
+			static_assert(MAX_SRVS <= D3D12_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT);
+			CompileData.MaxSRVs = MAX_SRVS; // Max for D3D12RHI bindful
+		}
+		CompileData.MaxCBs = MAX_CBS; // Max for D3D12RHI
+		CompileData.MaxUAVs = MAX_UAVS; // Max for D3D12RHI
 
 		uint64 ShaderRequiresFlags{};
 
@@ -975,22 +999,30 @@ bool CompileAndProcessD3DShaderDXC(
 				uint32 PartKind;
 				VERIFYHRESULT(ContainerRefl->GetPartKind(PartIndex, &PartKind));
 
-				//if (PartKind == DXC_PART_USER_INFO)
-				if (PartKind == DXC_PART_PRIVATE_DATA) // HACK TODO: Use PrivateData for now (pass validation)
+				if (PartKind == DXC_PART_PRIVATE_DATA)
 				{
+					struct UE5CustomData
+					{
+						uint32_t FourCC;
+						uint64_t Data;
+					};
+
 					TRefCountPtr<IDxcBlob> UserPartBlob;
 					ContainerRefl->GetPartContent(PartIndex, UserPartBlob.GetInitReference());
-					if (UserPartBlob->GetBufferSize() == sizeof(uint64))
+					if (UserPartBlob->GetBufferSize() == sizeof(UE5CustomData))
 					{
-						uint64 UserFlags = *(uint64*)UserPartBlob->GetBufferPointer();
-						bHasNoDerivativeOps = (UserFlags & hlsl::DXIL::kNoDerivativeOps) != 0;
+						const UE5CustomData& CustomData = *(UE5CustomData*)UserPartBlob->GetBufferPointer();
+						if (CustomData.FourCC == DXC_PART_FEATURE_INFO)
+						{
+							bHasNoDerivativeOps = (CustomData.Data & hlsl::DXIL::OptFeatureInfo_UsesDerivatives) == 0;
+						}
 					}
 					break;
 				}
 			}
 		}
 
-		if (bIsRayTracingShader)
+		if (bIsWorkGraphShader || bIsRayTracingShader)
 		{
 			TRefCountPtr<ID3D12LibraryReflection> LibraryReflection;
 			VERIFYHRESULT(Utils->CreateReflection(&ReflBuffer, IID_PPV_ARGS(LibraryReflection.GetInitReference())));
@@ -1001,22 +1033,31 @@ bool CompileAndProcessD3DShaderDXC(
 			ID3D12FunctionReflection* FunctionReflection = nullptr;
 			D3D12_FUNCTION_DESC FunctionDesc = {};
 
-			// MangledEntryPoints contains partial mangled entry point signatures in a the following form:
-			// ?QualifiedName@ (as described here: https://en.wikipedia.org/wiki/Name_mangling)
-			// Entry point parameters are currently not included in the partial mangling.
-			TArray<FString, TInlineAllocator<3>> MangledEntryPoints;
+			bool bEntryPointsAreMangled = false;
+			TArray<FString, TInlineAllocator<3>> EntryPoints;
+			if (bIsRayTracingShader)
+			{
+				// EntryPoints contains partial mangled entry point signatures in a the following form:
+				// ?QualifiedName@ (as described here: https://en.wikipedia.org/wiki/Name_mangling)
+				// Entry point parameters are currently not included in the partial mangling.
+				bEntryPointsAreMangled = true;
 
-			if (!RayEntryPoint.IsEmpty())
-			{
-				MangledEntryPoints.Add(FString::Printf(TEXT("?%s@"), *RayEntryPoint));
+				if (!RayEntryPoint.IsEmpty())
+				{
+					EntryPoints.Add(FString::Printf(TEXT("?%s@"), *RayEntryPoint));
+				}
+				if (!RayAnyHitEntryPoint.IsEmpty())
+				{
+					EntryPoints.Add(FString::Printf(TEXT("?%s@"), *RayAnyHitEntryPoint));
+				}
+				if (!RayIntersectionEntryPoint.IsEmpty())
+				{
+					EntryPoints.Add(FString::Printf(TEXT("?%s@"), *RayIntersectionEntryPoint));
+				}
 			}
-			if (!RayAnyHitEntryPoint.IsEmpty())
+			else
 			{
-				MangledEntryPoints.Add(FString::Printf(TEXT("?%s@"), *RayAnyHitEntryPoint));
-			}
-			if (!RayIntersectionEntryPoint.IsEmpty())
-			{
-				MangledEntryPoints.Add(FString::Printf(TEXT("?%s@"), *RayIntersectionEntryPoint));
+				EntryPoints.Add(Input.EntryPointName);
 			}
 
 			uint32 NumFoundEntryPoints = 0;
@@ -1028,46 +1069,60 @@ bool CompileAndProcessD3DShaderDXC(
 
 				ShaderRequiresFlags |= FunctionDesc.RequiredFeatureFlags;
 
-				for (const FString& MangledEntryPoint : MangledEntryPoints)
+				bool bAddFunctionEntryPoint = false;
+				for (const FString& EntryPoint : EntryPoints)
 				{
 					// Entry point parameters are currently not included in the partial mangling, therefore partial substring match is used here.
-					if (FCStringAnsi::Strstr(FunctionDesc.Name, TCHAR_TO_ANSI(*MangledEntryPoint)))
+					if (bEntryPointsAreMangled && FCStringAnsi::Strstr(FunctionDesc.Name, TCHAR_TO_ANSI(*EntryPoint)))
 					{
-						// Note: calling ExtractParameterMapFromD3DShader multiple times merges the reflection data for multiple functions
-						ExtractParameterMapFromD3DShader<ID3D12FunctionReflection, D3D12_FUNCTION_DESC, D3D12_SHADER_INPUT_BIND_DESC,
-							ID3D12ShaderReflectionConstantBuffer, D3D12_SHADER_BUFFER_DESC,
-							ID3D12ShaderReflectionVariable, D3D12_SHADER_VARIABLE_DESC>(
-								Input, ShaderParameterParser,
-								AutoBindingSpace, FunctionReflection, FunctionDesc, 
-								bGlobalUniformBufferUsed, bDiagnosticBufferUsed,
-								NumSamplers, NumSRVs, NumCBs, NumUAVs,
-								Output, UniformBufferNames, UsedUniformBufferSlots, VendorExtensions);
-
-						NumFoundEntryPoints++;
+						bAddFunctionEntryPoint = true;
+						break;
 					}
+					else if (!bEntryPointsAreMangled && FunctionDesc.Name == EntryPoint)
+					{
+						bAddFunctionEntryPoint = true;
+						break;
+					}
+				}
+
+				if (bAddFunctionEntryPoint)
+				{
+					// Note: calling ExtractParameterMapFromD3DShader multiple times merges the reflection data for multiple functions
+					ExtractParameterMapFromD3DShader<ID3D12FunctionReflection, D3D12_FUNCTION_DESC, D3D12_SHADER_INPUT_BIND_DESC,
+						ID3D12ShaderReflectionConstantBuffer, D3D12_SHADER_BUFFER_DESC,
+						ID3D12ShaderReflectionVariable, D3D12_SHADER_VARIABLE_DESC>(
+							Input,
+							ShaderParameterParser,
+							AutoBindingSpace,
+							FunctionReflection,
+							FunctionDesc, 
+							CompileData,
+							Output);
+
+					NumFoundEntryPoints++;
 				}
 			}
 
 			// @todo - working around DXC issue https://github.com/microsoft/DirectXShaderCompiler/issues/4715
 			if (LibraryDesc.FunctionCount > 0)
 			{
-				if (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessResources))
+				if (CompileData.bBindlessResources)
 				{
 					ShaderRequiresFlags |= D3D_SHADER_REQUIRES_RESOURCE_DESCRIPTOR_HEAP_INDEXING;
 				}
-				if (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessSamplers))
+				if (CompileData.bBindlessSamplers)
 				{
 					ShaderRequiresFlags |= D3D_SHADER_REQUIRES_SAMPLER_DESCRIPTOR_HEAP_INDEXING;
 				}
 			}
 
-			if (NumFoundEntryPoints == MangledEntryPoints.Num())
+			if (NumFoundEntryPoints == EntryPoints.Num())
 			{
 				Output.bSucceeded = true;
 
 				bool bGlobalUniformBufferAllowed = false;
 
-				if (bGlobalUniformBufferUsed && !IsGlobalConstantBufferSupported(Input.Target))
+				if (CompileData.bGlobalUniformBufferUsed && !IsGlobalConstantBufferSupported(Input.Target))
 				{
 					const TCHAR* ShaderFrequencyString = GetShaderFrequencyString(Input.Target.GetFrequency(), false);
 					FString ErrorString = FString::Printf(TEXT("Global uniform buffer cannot be used in a %s shader."), ShaderFrequencyString);
@@ -1101,7 +1156,7 @@ bool CompileAndProcessD3DShaderDXC(
 			}
 			else
 			{
-				UE_LOG(LogD3D12ShaderCompiler, Fatal, TEXT("Failed to find required points in the shader library."));
+				UE_LOG(LogD3DShaderCompiler, Fatal, TEXT("Failed to find required points in the shader library."));
 				Output.bSucceeded = false;
 			}
 		}
@@ -1120,16 +1175,17 @@ bool CompileAndProcessD3DShaderDXC(
 			ExtractParameterMapFromD3DShader<ID3D12ShaderReflection, D3D12_SHADER_DESC, D3D12_SHADER_INPUT_BIND_DESC,
 				ID3D12ShaderReflectionConstantBuffer, D3D12_SHADER_BUFFER_DESC,
 				ID3D12ShaderReflectionVariable, D3D12_SHADER_VARIABLE_DESC>(
-					Input, ShaderParameterParser,
-					AutoBindingSpace, ShaderReflection, ShaderDesc,
-					bGlobalUniformBufferUsed, bDiagnosticBufferUsed,
-					NumSamplers, NumSRVs, NumCBs, NumUAVs,
-					Output, UniformBufferNames, UsedUniformBufferSlots, VendorExtensions);
-
-			NumInstructions = ShaderDesc.InstructionCount;
+					Input,
+					ShaderParameterParser,
+					AutoBindingSpace,
+					ShaderReflection,
+					ShaderDesc,
+					CompileData,
+					Output
+				);
 		}
 
-		if (!ValidateResourceCounts(NumSRVs, NumSamplers, NumUAVs, NumCBs, FilteredErrors))
+		if (!ValidateResourceCounts(CompileData, FilteredErrors))
 		{
 			Output.bSucceeded = false;
 		}
@@ -1138,24 +1194,11 @@ bool CompileAndProcessD3DShaderDXC(
 
 		if (Output.bSucceeded)
 		{
-			if (bGlobalUniformBufferUsed)
-			{
-				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::GlobalUniformBuffer;
-			}
+			PackedResourceCounts = InitPackedResourceCounts(CompileData);
 
 			if (Input.Environment.CompilerFlags.Contains(CFLAG_RootConstants))
 			{
 				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::RootConstants;
-			}
-
-			if (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessResources))
-			{
-				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::BindlessResources;
-			}
-
-			if (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessSamplers))
-			{
-				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::BindlessSamplers;
 			}
 
 			if (bHasNoDerivativeOps)
@@ -1167,11 +1210,6 @@ bool CompileAndProcessD3DShaderDXC(
 			{
 				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::ShaderBundle;
 			}
-
-			PackedResourceCounts.NumSamplers = static_cast<uint8>(NumSamplers);
-			PackedResourceCounts.NumSRVs = static_cast<uint8>(NumSRVs);
-			PackedResourceCounts.NumCBs = static_cast<uint8>(NumCBs);
-			PackedResourceCounts.NumUAVs = static_cast<uint8>(NumUAVs);
 
 			Output.bSucceeded = UE::ShaderCompilerCommon::ValidatePackedResourceCounts(Output, PackedResourceCounts);
 		}
@@ -1190,7 +1228,12 @@ bool CompileAndProcessD3DShaderDXC(
 			}
 			auto PostSRTWriterCallback = [&](FMemoryWriter& Ar)
 			{
-				if (bIsRayTracingShader)
+				if (bIsWorkGraphShader)
+				{
+					FString EntryPoint = Input.EntryPointName;
+					Ar << EntryPoint;
+				}
+				else if (bIsRayTracingShader)
 				{
 					Ar << RayEntryPoint;
 					Ar << RayAnyHitEntryPoint;
@@ -1222,11 +1265,6 @@ bool CompileAndProcessD3DShaderDXC(
 				if ((ShaderRequiresFlags & (D3D_SHADER_REQUIRES_ATOMIC_INT64_ON_TYPED_RESOURCE| D3D_SHADER_REQUIRES_ATOMIC_INT64_ON_GROUP_SHARED)) != 0)
 				{
 					EnumAddFlags(CodeFeatures.CodeFeatures, EShaderCodeFeatures::Atomic64);
-				}
-
-				if (bDiagnosticBufferUsed)
-				{
-					EnumAddFlags(CodeFeatures.CodeFeatures, EShaderCodeFeatures::DiagnosticBuffer);
 				}
 
 				if ((ShaderRequiresFlags & D3D_SHADER_REQUIRES_RESOURCE_DESCRIPTOR_HEAP_INDEXING) != 0)
@@ -1262,18 +1300,21 @@ bool CompileAndProcessD3DShaderDXC(
 			// Return a fraction of the number of instructions as DXIL is more verbose than DXBC.
 			// Ratio 119:307 was estimated by gathering average instruction count for D3D11 and D3D12 shaders in ShooterGame with result being ~ 357:921.
 			constexpr uint32 DxbcToDxilInstructionRatio[2] = { 119, 307 };
-			NumInstructions = NumInstructions * DxbcToDxilInstructionRatio[0] / DxbcToDxilInstructionRatio[1];
+			CompileData.NumInstructions = CompileData.NumInstructions * DxbcToDxilInstructionRatio[0] / DxbcToDxilInstructionRatio[1];
 
 			//#todo-rco: Should compress ShaderCode?
 
-			GenerateFinalOutput(ShaderBlob,
-				Input, VendorExtensions,
-				UsedUniformBufferSlots, UniformBufferNames,
-				bProcessingSecondTime, ShaderInputs,
-				PackedResourceCounts, NumInstructions,
+			GenerateFinalOutput(
+				ShaderBlob,
+				Input,
+				ShaderModel,
+				bProcessingSecondTime,
+				CompileData,
+				PackedResourceCounts,
 				Output,
 				PostSRTWriterCallback,
-				AddOptionalDataCallback);
+				AddOptionalDataCallback
+			);
 		}
 	}
 	else

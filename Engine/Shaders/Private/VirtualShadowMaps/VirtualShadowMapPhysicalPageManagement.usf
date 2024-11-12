@@ -9,10 +9,12 @@
 #include "../ReductionCommon.ush"
 #include "../GPUMessaging.ush"
 #include "../ShaderPrint.ush"
+#include "/Engine/Shared/VirtualShadowMapDefinitions.h"
 #include "VirtualShadowMapProjectionStructs.ush"
 #include "VirtualShadowMapProjectionCommon.ush"
 #include "VirtualShadowMapPageAccessCommon.ush"
 #include "VirtualShadowMapStats.ush"
+#include "VirtualShadowMapPerPageDispatch.ush"
 
 #ifndef HAS_CACHE_DATA
 #define HAS_CACHE_DATA 1
@@ -104,7 +106,9 @@ int PopPhysicalPageList(uint PageList)
 
 StructuredBuffer<int> PrevPhysicalPageLists;
 
-RWStructuredBuffer<uint4> OutPageRectBounds;
+RWStructuredBuffer<uint4> OutUncachedPageRectBounds;
+RWStructuredBuffer<uint4> OutAllocatedPageRectBounds;
+uint NumPageRectsToClear;
 
 // This is admitadly a weird fusion of several initializations but it is the first thing
 // we run in a given analysis phase so it's more efficient to do it all here rather than
@@ -112,9 +116,19 @@ RWStructuredBuffer<uint4> OutPageRectBounds;
 [numthreads(VSM_DEFAULT_CS_GROUP_X, 1, 1)]
 void InitPageRectBounds(uint3 Index : SV_DispatchThreadID)
 {
-	if (Index.x < VSM_MAX_MIP_LEVELS * VirtualShadowMap.NumShadowMapSlots)
+	// The X thread id maps to the range NumPageRectsToClear which is (GetNumFullShadowMaps() + GetNumSinglePageShadowMaps()) * FVirtualShadowMap::MaxMipLevels
+	// this avoids clearing unused slots.
+	if (Index.x < NumPageRectsToClear)
 	{
-		OutPageRectBounds[Index.x] = uint4(VSM_LEVEL0_DIM_PAGES_XY, VSM_LEVEL0_DIM_PAGES_XY, 0, 0);
+		uint RectOffset = Index.x;
+		// The full shadow maps are offset to a distant part of the ID range
+		if (Index.x >= VirtualShadowMap.NumSinglePageShadowMaps * VSM_MAX_MIP_LEVELS )
+		{
+			RectOffset += VSM_MAX_SINGLE_PAGE_SHADOW_MAPS * VSM_MAX_MIP_LEVELS - VirtualShadowMap.NumSinglePageShadowMaps * VSM_MAX_MIP_LEVELS;
+		}
+		uint4 Empty = uint4(VSM_LEVEL0_DIM_PAGES_XY, VSM_LEVEL0_DIM_PAGES_XY, 0, 0);
+		OutUncachedPageRectBounds[RectOffset] = Empty;
+		OutAllocatedPageRectBounds[RectOffset] = Empty;
 	}
 
 	// Clear the various list counters
@@ -134,6 +148,9 @@ void InitPageRectBounds(uint3 Index : SV_DispatchThreadID)
 StructuredBuffer<FNextVirtualShadowMapData> NextVirtualShadowMapData;
 uint NextVirtualShadowMapDataCount;
 
+// To propogate any invalidation flags to the physical page flags
+StructuredBuffer<uint> PrevPageRequestFlags;
+
 [numthreads(VSM_DEFAULT_CS_GROUP_X, 1, 1)]
 void UpdatePhysicalPageAddresses(uint3 Index : SV_DispatchThreadID)
 {	
@@ -150,6 +167,7 @@ void UpdatePhysicalPageAddresses(uint3 Index : SV_DispatchThreadID)
 	
 	FPhysicalPageMetaData PrevMetaData = OutPhysicalPageMetaData[PhysicalPageIndex];
 
+	uint PrevGlobalPageOffset = 0;
 	bool bKeepPage = false;
 	if (PrevMetaData.Flags != 0)
 	{
@@ -158,6 +176,8 @@ void UpdatePhysicalPageAddresses(uint3 Index : SV_DispatchThreadID)
 		int PrevVirtualShadowMapId = PrevMetaData.VirtualShadowMapId;
 		if (PrevVirtualShadowMapId != INDEX_NONE && PrevVirtualShadowMapId < NextVirtualShadowMapDataCount)
 		{
+			PrevGlobalPageOffset = CalcPageOffset(PrevVirtualShadowMapId, PrevMetaData.MipLevel, PrevMetaData.PageAddress);
+
 			FNextVirtualShadowMapData NextData = NextVirtualShadowMapData[PrevVirtualShadowMapId];
 			int VirtualShadowMapId = NextData.NextVirtualShadowMapId;
 
@@ -179,13 +199,25 @@ void UpdatePhysicalPageAddresses(uint3 Index : SV_DispatchThreadID)
 		}
 	}
 
-	if (!bKeepPage)
+	if (bKeepPage)
+	{
+#if HAS_CACHE_DATA
+		// Propogate any invalidation flags from the previous page requests to the physical page
+		const uint PrevFlags = PrevPageRequestFlags[PrevGlobalPageOffset];
+		const uint InvalidationFlags = PrevFlags & VSM_EXTENDED_FLAG_ANY_INVALIDATED;
+		if (InvalidationFlags != 0)
+		{
+			// Add them to any previous flags
+			OutPhysicalPageMetaData[PhysicalPageIndex].Flags = PrevMetaData.Flags | InvalidationFlags;
+		}
+#endif
+	}
+	else
 	{
 		// Only need to zero out flags for it to be considered invalid
 		OutPhysicalPageMetaData[PhysicalPageIndex].Flags = 0;
 	}
 }
-
 
 int bDynamicPageInvalidation;
 int bAllocateViaLRU;
@@ -245,6 +277,7 @@ void UpdatePhysicalPages(uint3 Index : SV_DispatchThreadID)
 
 			// If the light is unreferenced we also allow its pages to live (unless reallocated) regardless of age for now
 			// since we won't be rendering into them so they don't do a lot of harm being present.
+			// TODO: Revisit this... probably make it just age-based now
 			const FVirtualShadowMapProjectionShaderData Projection = GetVirtualShadowMapProjectionData(VirtualShadowMapId);
 			if (bRequestedThisFrame || Projection.bUnreferenced || PhysicalPageRequestedAge <= MaxPageAgeSinceLastRequest)
 			{
@@ -254,52 +287,45 @@ void UpdatePhysicalPages(uint3 Index : SV_DispatchThreadID)
 				OutPhysicalPageMetaData[PhysicalPageIndex].VirtualShadowMapId = VirtualShadowMapId;
 				OutPhysicalPageMetaData[PhysicalPageIndex].PageAddress = PageAddress;
 
-				// Map the page to the physical page
-				// Note that we do this even if it was invalidated though as we might as well reuse the same slot and clear/overwrite it this frame.
-				// We also do this even if the page was not requested this frame because we still need the mapping for invalidations to be triggered, etc.
-				// If we later allocate over top of this page (for one requested this frame), we will zero this out again. See AllocateNewPageMappings
-				checkStructuredBufferAccessSlow(OutPageTable, GlobalPageOffset);
-				checkStructuredBufferAccessSlow(OutPageFlags, GlobalPageOffset);
-				OutPageTable[GlobalPageOffset] = ShadowEncodePageTable(VSMPhysicalIndexToPageAddress(PhysicalPageIndex));
-				// NOTE: PageFlags get written below
-
-				if (Projection.bUnreferenced)
+				if (!bRequestedThisFrame || Projection.bUnreferenced)
 				{
-					// If the light is unrefereced (i.e. we are not going to render to it this frame) we want to leave the physical
-					// metadata alone, *specifically* the invalidation flags. Since an unreferenced shadow map will not get
+					// If the page is unrefereced (i.e. we are not going to render to it this frame) we want to leave the physical
+					// metadata alone, *specifically* the invalidation flags. Since an unreferenced page will not get
 					// rendered to this frame, we can't clear these flags and instead want to maintain them until a potential
-					// future frame when this light might be referenced again.
+					// future frame when this page might be referenced again.
 					// Tag the page so we can skip it in rendering-related tasks like clearing and merging
-					NextPhysicalFlags = PrevPhysicalFlags | VSM_PHYSICAL_FLAG_UNREFERENCED;
+					NextPhysicalFlags = PrevPhysicalFlags | VSM_EXTENDED_FLAG_UNREFERENCED;
 
-					// NOTE: This is unused during this render, but may be used by invalidation between frames/renders
-					OutPageFlags[GlobalPageOffset] = PrevPhysicalFlags & VSM_PAGE_FLAGS_BITS_MASK;
+					// NOTE: This should be unused during this render, but may be used by invalidation between frames/renders
+					// We only want to set ALLOCATED so that it gets picked up by invalidation, but not by
+					// any rendering this frame. Any invalidation flags already on the physical page remain there,
+					// so this is just for new ones generated this frame to ensure we invalidate any cached-but-currently-unused
+					// pages still in the pool
+					OutPageFlags[GlobalPageOffset] = VSM_FLAG_ALLOCATED;
 				}
 				else
 				{
-					uint NextPageFlags = VSM_ALLOCATED_FLAG;
+					uint NextPageFlags = VSM_FLAG_ALLOCATED;
 
-					// Distant lights block GPU-GPU invalidations (and all others) as they are round-robin invalidated
+					// Distant lights ignore invalidations as they are round-robin invalidated
 					if (bDynamicPageInvalidation && !IsSinglePageVirtualShadowMap(VirtualShadowMapId))
 					{
-						uint InvalidationFlags = (PrevPhysicalFlags >> VSM_PHYSICAL_PAGE_INVALIDATION_FLAGS_SHIFT);
-						if (VirtualShadowMapShouldCacheStaticSeparately())
+						if ((PrevPhysicalFlags & VSM_EXTENDED_FLAG_ANY_INVALIDATED) != 0)
 						{
-							NextPageFlags |= InvalidationFlags;
-
-							// Since we merge the static into the dynamic page, if static is invalidated, force dynamic invalid too
-							if (InvalidationFlags & VSM_STATIC_UNCACHED_FLAG)
+							if (VirtualShadowMapShouldCacheStaticSeparately() && ((PrevPhysicalFlags & VSM_EXTENDED_FLAG_INVALIDATE_STATIC) == 0))
 							{
-								NextPageFlags |= VSM_DYNAMIC_UNCACHED_FLAG;
+								// ONLY dynamic is invalidated, static can remain cached
+								NextPageFlags |= VSM_FLAG_DYNAMIC_UNCACHED;
 							}
-						}
-						else if (InvalidationFlags != 0)
-						{
-							NextPageFlags |= (VSM_STATIC_UNCACHED_FLAG | VSM_DYNAMIC_UNCACHED_FLAG);
+							else
+							{
+								// Invalidate both
+								NextPageFlags |= VSM_FLAG_ANY_UNCACHED;
+							}
 						}
 					}
 
-					uint PhysicalPageDetailGeometryFlag = (PrevPhysicalFlags & VSM_DETAIL_GEOMETRY_FLAG);
+					uint PhysicalPageDetailGeometryFlag = (PrevPhysicalFlags & VSM_FLAG_DETAIL_GEOMETRY);
 					if (bRequestedThisFrame)
 					{
 						StatsBufferInterlockedInc(VSM_STAT_REQUESTED_THIS_FRAME_PAGES);
@@ -311,15 +337,15 @@ void UpdatePhysicalPages(uint3 Index : SV_DispatchThreadID)
 						// If the detail geometry flag doesn't match the cached page we treat it as a full invalidation.
 						// TODO: This could potentially be a problem for interleaved multiview rendering;
 						// If the flag differs in the two views it will cause cache thrashing.									
-						const uint RequestDetailGeometryFlag = (RequestFlags & VSM_DETAIL_GEOMETRY_FLAG);
+						const uint RequestDetailGeometryFlag = (RequestFlags & VSM_FLAG_DETAIL_GEOMETRY);
 						if (RequestDetailGeometryFlag != PhysicalPageDetailGeometryFlag)
 						{
-							NextPageFlags |= (VSM_STATIC_UNCACHED_FLAG | VSM_DYNAMIC_UNCACHED_FLAG);
+							NextPageFlags |= (VSM_FLAG_STATIC_UNCACHED | VSM_FLAG_DYNAMIC_UNCACHED);
 							PhysicalPageDetailGeometryFlag = RequestDetailGeometryFlag;
 						}
 
 						// Only increment the stats for pages requested this render, otherwise it gets confusing
-						if (NextPageFlags & VSM_STATIC_UNCACHED_FLAG)
+						if (NextPageFlags & VSM_FLAG_STATIC_UNCACHED)
 						{
 							StatsBufferInterlockedInc(VSM_STAT_STATIC_INVALIDATED_PAGES);
 						}
@@ -327,7 +353,7 @@ void UpdatePhysicalPages(uint3 Index : SV_DispatchThreadID)
 						{
 							StatsBufferInterlockedInc(VSM_STAT_STATIC_CACHED_PAGES);
 						}
-						if (NextPageFlags & VSM_DYNAMIC_UNCACHED_FLAG)
+						if (NextPageFlags & VSM_FLAG_DYNAMIC_UNCACHED)
 						{
 							StatsBufferInterlockedInc(VSM_STAT_DYNAMIC_INVALIDATED_PAGES);
 						}
@@ -337,17 +363,40 @@ void UpdatePhysicalPages(uint3 Index : SV_DispatchThreadID)
 						}
 					}
 					NextPageFlags |= PhysicalPageDetailGeometryFlag;
-								
-					const uint PhysicalFlags = (Projection.bUnCached ? VSM_PHYSICAL_FLAG_VIEW_UNCACHED : 0U);
-					OutPageFlags[GlobalPageOffset] = NextPageFlags;
+							
+					const uint PhysicalFlags = (Projection.bUnCached ? VSM_EXTENDED_FLAG_VIEW_UNCACHED : 0U);
 					NextPhysicalFlags = NextPageFlags | PhysicalFlags;
-				}
+
+					// If the page is going to be fully cached, but the VSM_EXTENDED_FLAG_FORCE_CACHED flag is on,
+					// we want to do something special here. We want to consider this page for any rendering in case
+					// WPO distance disable has changed (which we want to start causing invalidations), but not actually
+					// invalidate or render anything into it. Currently we accomplish this by setitng the DYNAMIC_UNCACHED
+					// flag in the hierarchical page flags (WPO only ever gets rendered into dynamic cache -
+					// see ShouldCacheInstanceAsStatic), but NOT on the physical page (which would indicate a real invalidation).
+					// This can get significantly cleaned up if/when we free up an additional hierarchical page flag bit.
+					// We do NOT want these details showing up in debug visualizations or cache stats though
+					bool bPageValidForRendering = (NextPageFlags & VSM_FLAG_ANY_UNCACHED) != 0;
+					if (PrevPhysicalFlags & VSM_EXTENDED_FLAG_FORCE_CACHED)
+					{
+						// NOTE: WPO can only ever be dynamic cached
+						NextPageFlags |= VSM_FLAG_DYNAMIC_UNCACHED;
+						StatsBufferInterlockedInc(VSM_STAT_WPO_CONSIDERED_PAGES);
+					}
+
+					// Map the page to the physical page
+					// If we later allocate over top of this page (for one requested this frame), we will zero this out again. See AllocateNewPageMappings
+					checkStructuredBufferAccessSlow(OutPageTable, GlobalPageOffset);
+					OutPageTable[GlobalPageOffset] = ShadowEncodePageTable(VSMPhysicalIndexToPageAddress(PhysicalPageIndex), bPageValidForRendering);
+
+					checkStructuredBufferAccessSlow(OutPageFlags, GlobalPageOffset);
+					OutPageFlags[GlobalPageOffset] = NextPageFlags;
+				} // Unreferenced
 			}
 		}
 	}
 #endif
 
-	// If pages is invalidated/empty, remove it from the LRU list and add it to the empty list
+	// If page is invalidated/empty, remove it from the LRU list and add it to the empty list
 	// It will be re-added after packing to the end of the AVAILABLE list
 	if (NextPhysicalFlags == 0)
 	{
@@ -382,8 +431,6 @@ void CalcPageAddressFromIndex(uint Index, inout uint MipLevel, inout uint2 PageA
 	PageAddress.x = OffsetInLevel & (Level0RowMask >> MipLevel);
 	PageAddress.y = OffsetInLevel >> (VSM_LOG2_LEVEL0_DIM_PAGES_XY - MipLevel);
 }
-
-#define EARLY_ALLOCATE 1
 
 void AllocateNewPageMappings(uint VirtualShadowMapId, uint GlobalPageOffset, uint PageOffsetInSM, const bool bSinglePageSM)
 {
@@ -420,15 +467,15 @@ void AllocateNewPageMappings(uint VirtualShadowMapId, uint GlobalPageOffset, uin
 					}
 				}
 
-				uint RequestDetailGeometryFlag = RequestFlags & VSM_DETAIL_GEOMETRY_FLAG;
-				uint Flags = VSM_ALLOCATED_FLAG | VSM_DYNAMIC_UNCACHED_FLAG | VSM_STATIC_UNCACHED_FLAG | RequestDetailGeometryFlag;
+				uint RequestDetailGeometryFlag = RequestFlags & VSM_FLAG_DETAIL_GEOMETRY;
+				uint Flags = VSM_FLAG_ALLOCATED | VSM_FLAG_DYNAMIC_UNCACHED | VSM_FLAG_STATIC_UNCACHED | RequestDetailGeometryFlag;
 
-				// Mark this page as allocated and not cached (needing rendering)
-				OutPageTable[GlobalPageOffset] = ShadowEncodePageTable(PhysicalPageAddress);
+				// Mark this page as allocated and not cached (always valid for rendering)
+				OutPageTable[GlobalPageOffset] = ShadowEncodePageTable(PhysicalPageAddress, true);
 				OutPageFlags[GlobalPageOffset] = Flags;
 
 				const FVirtualShadowMapProjectionShaderData Projection = GetVirtualShadowMapProjectionData(VirtualShadowMapId);
-				const uint PhysicalFlags = (Projection.bUnCached ? VSM_PHYSICAL_FLAG_VIEW_UNCACHED : 0U);
+				const uint PhysicalFlags = (Projection.bUnCached ? VSM_EXTENDED_FLAG_VIEW_UNCACHED : 0U);
 
 				OutPhysicalPageMetaData[PhysicalPageIndex].Flags = Flags | PhysicalFlags;
 				OutPhysicalPageMetaData[PhysicalPageIndex].LastRequestedSceneFrameNumber = VirtualShadowMap.SceneFrameNumber;
@@ -457,42 +504,60 @@ void AllocateNewPageMappings(uint VirtualShadowMapId, uint GlobalPageOffset, uin
 	}
 }
 
+#ifdef ClearPageTableCS
+
+RWStructuredBuffer< uint > OutDestBuffer;
+uint ClearValue;
+
 /**
- * X = One thread per virtual page, Y dim == GetNumShadowMaps() (single-page + full).
+ * X = One thread per virtual page = VSM_PAGE_TABLE_SIZE, Y dim == GetNumFullShadowMaps() + GetNumSinglePage() / VSM_PAGE_TABLE_SIZE.
  */
-[numthreads(VSM_DEFAULT_CS_GROUP_X, 1, 1)]
-void AllocateNewPageMappingsCS(uint2 ThreadId : SV_DispatchThreadID)
+[numthreads(PER_PAGE_THREAD_GROUP_SIZE_X, 1, 1)]
+void ClearPageTableCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 {
-	if (ThreadId.x >= VSM_PAGE_TABLE_SIZE)
+	FPerPageDispatchSetup Setup; 
+	Setup.Init(DispatchThreadId);
+
+	if (!Setup.bValid)
 	{
 		return;
 	}
 
-	// Note: driving with an if at the root to try to help compiler preserve scalarization for the non-single-page path.
-	// Single-page lights use the K remaining slices of the 2D dispatch
-	BRANCH
-	if (ThreadId.y >= VirtualShadowMap.NumFullShadowMaps)
+	// Run a loop to do the work
+	for (uint PageOffsetInSM = Setup.PageStartOffset + Setup.LoopStart; PageOffsetInSM < Setup.PageEndOffset; PageOffsetInSM += Setup.LoopStride)
 	{
-		// remap the threads ID to shadow map ID
-		uint VirtualShadowMapId = (ThreadId.y - VirtualShadowMap.NumFullShadowMaps) * VSM_PAGE_TABLE_SIZE + ThreadId.x;
-		uint GlobalPageOffset = VirtualShadowMapId;
-
-		// Avoid oob access
-		if (VirtualShadowMapId < VirtualShadowMap.NumSinglePageShadowMaps)
-		{
-			AllocateNewPageMappings(VirtualShadowMapId, GlobalPageOffset, 0U, true);
-		}
-	}
-	else
-	{
-		uint PageOffsetInSM = ThreadId.x;
-		// Full SMs are allocated after the single-page ones.
-		uint VirtualShadowMapId = VSM_MAX_SINGLE_PAGE_SHADOW_MAPS + ThreadId.y;
-		uint GlobalPageOffset = CalcFullPageTableLevelOffset(VirtualShadowMapId, 0U) + PageOffsetInSM;
-
-		AllocateNewPageMappings(VirtualShadowMapId, GlobalPageOffset, PageOffsetInSM, false);
+		uint PageTableEntryOffset = Setup.BaseLevelOffset.LevelOffset + PageOffsetInSM;
+		OutDestBuffer[PageTableEntryOffset] = ClearValue;
 	}
 }
+
+#endif // ClearPageTableCS
+
+#ifdef AllocateNewPageMappingsCS
+
+/**
+ * X = One thread per virtual page = VSM_PAGE_TABLE_SIZE, Y dim == GetNumFullShadowMaps() + GetNumSinglePage() / VSM_PAGE_TABLE_SIZE.
+ */
+[numthreads(PER_PAGE_THREAD_GROUP_SIZE_X, 1, 1)]
+void AllocateNewPageMappingsCS(uint2 DispatchThreadId : SV_DispatchThreadID)
+{
+	FPerPageDispatchSetup Setup; 
+	Setup.Init(DispatchThreadId);
+
+	if (!Setup.bValid)
+	{
+		return;
+	}
+
+	// Run a grid x-stride loop to do all the work
+	for (uint PageOffsetInSM = Setup.PageStartOffset + Setup.LoopStart; PageOffsetInSM < Setup.PageEndOffset; PageOffsetInSM += Setup.LoopStride)
+	{
+		uint GlobalPageOffset = Setup.BaseLevelOffset.LevelOffset + PageOffsetInSM;
+		AllocateNewPageMappings(Setup.VirtualShadowMapId, GlobalPageOffset, PageOffsetInSM, Setup.BaseLevelOffset.bIsSinglePageSM);
+	}
+}
+
+#endif // AllocateNewPageMappingsCS
 
 // NOTE: We only launch a single group here for now to avoid multi-pass so we really want it as large as possible
 // Can optimize this later if needed for larger physical page counts
@@ -627,30 +692,14 @@ void MergePhysicalPixel(uint2 PixelCoord)
 		OutPhysicalPagePool[uint3(PixelCoord, GetVirtualShadowMapStaticArrayIndex())]);
 }
 
-RWBuffer<uint> OutIndirectArgsBuffer;
-uint NumIndirectArgs;
-uint IndirectArgStride;
-
-// Set dispatch Args to 0,1,1 (3D grid dim) ready for atomic adding on GPU
-[numthreads(64, 1, 1)]
-void ClearIndirectDispatchArgs1DCS(uint IndirectArgIndex : SV_DispatchThreadID)
-{
-	if (IndirectArgIndex < NumIndirectArgs)
-	{
-		OutIndirectArgsBuffer[IndirectArgIndex * IndirectArgStride + 0] = 0;
-		OutIndirectArgsBuffer[IndirectArgIndex * IndirectArgStride + 1] = 1;
-		OutIndirectArgsBuffer[IndirectArgIndex * IndirectArgStride + 2] = 1;
-	}
-}
-
 // Log2 2D dimension of thread group size, 2^4 == 16, 
-#define LOG2_TILE_THREAD_GROUP_SIZE_XY 4U
-#define TILE_THREAD_GROUP_SIZE_XY (1U << LOG2_TILE_THREAD_GROUP_SIZE_XY)
+#define LOG2_TILE_THREAD_GROUP_SIZE_XY 4u
+#define TILE_THREAD_GROUP_SIZE_XY (1u << LOG2_TILE_THREAD_GROUP_SIZE_XY)
 
 // Each thread takes 2x2 samples to work with, so tile size is 2x thread group size
-#define LOG2_TILE_SIZE_XY (LOG2_TILE_THREAD_GROUP_SIZE_XY + 1U)	
+#define LOG2_TILE_SIZE_XY (LOG2_TILE_THREAD_GROUP_SIZE_XY + 1u)
 
-#if VSM_LOG2_PAGE_SIZE < LOG2_TILE_SIZE
+#if VSM_LOG2_PAGE_SIZE < LOG2_TILE_SIZE_XY
 #error "VSM_LOG2_PAGE_SIZE must be larger than LOG2_TILE_SIZE, either increase one or reduce the other"
 #endif 
 
@@ -685,25 +734,21 @@ void SelectPagesToInitializeCS(uint PhysicalPageIndex : SV_DispatchThreadID)
 
 	FPhysicalPageMetaData MetaData = PhysicalPageMetaData[PhysicalPageIndex];
 
-	bool bUnreferenced = (MetaData.Flags & VSM_PHYSICAL_FLAG_UNREFERENCED) != 0;
-	bool bFullyCached = (MetaData.Flags & (VSM_DYNAMIC_UNCACHED_FLAG | VSM_STATIC_UNCACHED_FLAG)) == 0;
-	bool bStaticUncached = (MetaData.Flags & VSM_STATIC_UNCACHED_FLAG) != 0;
+	bool bUnreferenced = (MetaData.Flags & VSM_EXTENDED_FLAG_UNREFERENCED) != 0;
+	bool bFullyCached = (MetaData.Flags & VSM_FLAG_ANY_UNCACHED) == 0;
+	bool bStaticUncached = (MetaData.Flags & VSM_FLAG_STATIC_UNCACHED) != 0;
+	bool bForceCached = (MetaData.Flags & VSM_EXTENDED_FLAG_FORCE_CACHED) != 0;
 
-	if ((MetaData.Flags & VSM_ALLOCATED_FLAG) == 0)
+	if ((MetaData.Flags & VSM_FLAG_ALLOCATED) == 0)
 	{
 		// Page not used, we're done
 	}
-	else if (bUnreferenced || bFullyCached)
+	else if (bUnreferenced || bFullyCached || bForceCached)
 	{
 		// Page fully cached or unreferenced. Leave the data alone.
 	}
 	else
 	{
-		// TODO: In the relatively common case of static cached/dynamic uncached we could
-		// copy the static data to initialize the dynamic data and avoid the merge later.
-		// Before doing this we need to verify it works properly with geometry getting
-		// "added on top" of cached pages though, which would break this optimization.
-
 		// At least one of the pages is uncached
 		// NOTE: Dynamic cached/static uncached is currently an invalid state
 		// Since we merge the static stuff over the dynamic stuff after rendering we can't
@@ -714,7 +759,7 @@ void SelectPagesToInitializeCS(uint PhysicalPageIndex : SV_DispatchThreadID)
 
 		if (VirtualShadowMapShouldCacheStaticSeparately() &&
 			bStaticUncached &&
-			(MetaData.Flags & VSM_PHYSICAL_FLAG_VIEW_UNCACHED) == 0U)
+			(MetaData.Flags & VSM_EXTENDED_FLAG_VIEW_UNCACHED) == 0U)
 		{
 			EmitPageToProcess(OutInitializePagesIndirectArgsBuffer, OutPhysicalPagesToInitialize, PhysicalPageIndex + VirtualShadowMap.MaxPhysicalPages);
 			StatsBufferInterlockedInc(VSM_STAT_NUM_PAGES_TO_CLEAR);
@@ -772,9 +817,9 @@ void InitializePhysicalPagesIndirectCS(uint2 TileThreadID : SV_GroupThreadID, ui
 {
 	FPhysicalPageMetaData MetaData;
 	uint3 BasePos = GetTileBasePos(TileThreadID, GroupIndex, PhysicalPagesToInitialize, MetaData);
-	bool bStaticCached = (MetaData.Flags & VSM_STATIC_UNCACHED_FLAG) == 0U;
+	bool bStaticCached = (MetaData.Flags & VSM_FLAG_STATIC_UNCACHED) == 0U;
 
-	if (bStaticCached && VirtualShadowMapShouldCacheStaticSeparately() && (MetaData.Flags & VSM_PHYSICAL_FLAG_VIEW_UNCACHED) == 0U)
+	if (bStaticCached && VirtualShadowMapShouldCacheStaticSeparately() && (MetaData.Flags & VSM_EXTENDED_FLAG_VIEW_UNCACHED) == 0U)
 	{
 		// Initialize from the static page data
 		checkSlow(BasePos.z == 0U);
@@ -807,9 +852,10 @@ void SelectPagesToMergeCS(uint PhysicalPageIndex : SV_DispatchThreadID)
 	FPhysicalPageMetaData MetaData = PhysicalPageMetaData[PhysicalPageIndex];
 
 	// An uncached view is always exclusively renders into the dynamic pages, and thus require no merging.
-	if ((MetaData.Flags & VSM_ALLOCATED_FLAG) != 0U &&
-		(MetaData.Flags & VSM_PHYSICAL_FLAG_VIEW_UNCACHED) == 0U &&
-		(MetaData.Flags & VSM_PHYSICAL_FLAG_DIRTY) != 0U)
+	if ((MetaData.Flags & VSM_FLAG_ALLOCATED) != 0U &&
+		(MetaData.Flags & VSM_EXTENDED_FLAG_VIEW_UNCACHED) == 0U &&
+		(MetaData.Flags & VSM_EXTENDED_FLAG_DIRTY) != 0U &&
+		(MetaData.Flags & VSM_EXTENDED_FLAG_UNREFERENCED) == 0U)
 	{
 		StatsBufferInterlockedInc(VSM_STAT_NUM_PAGES_TO_MERGE);
 		EmitPageToProcess(OutMergePagesIndirectArgsBuffer, OutPhysicalPagesToMerge, PhysicalPageIndex);
@@ -835,26 +881,34 @@ void MergeStaticPhysicalPagesIndirectCS(uint2 TileThreadID : SV_GroupThreadID, u
 // Indirect HZB building:
 RWStructuredBuffer<uint> DirtyPageFlagsInOut;
 
-bool UpdateAndClearDirtyFlags(uint PhysicalPageIndex, inout FPhysicalPageMetaData MetaData)
+// Returns updated physical page flags
+uint UpdateAndClearDirtyFlags(uint PhysicalPageIndex)
 {
 	bool bPageDirty = DirtyPageFlagsInOut[PhysicalPageIndex] != 0U;
 	bool bInvalidatesDynamic = DirtyPageFlagsInOut[PhysicalPageIndex + VirtualShadowMap.MaxPhysicalPages] != 0U;
 	bool bInvalidatesStatic = DirtyPageFlagsInOut[PhysicalPageIndex + 2U * VirtualShadowMap.MaxPhysicalPages] != 0U;
+	bool bWPOAllowed = DirtyPageFlagsInOut[PhysicalPageIndex + 3U * VirtualShadowMap.MaxPhysicalPages] != 0U;
 
 	// clear the dirty/invalidation flags
 	DirtyPageFlagsInOut[PhysicalPageIndex] = 0U;
 	DirtyPageFlagsInOut[PhysicalPageIndex + VirtualShadowMap.MaxPhysicalPages] = 0U;
 	DirtyPageFlagsInOut[PhysicalPageIndex + 2U * VirtualShadowMap.MaxPhysicalPages] = 0U;
+	DirtyPageFlagsInOut[PhysicalPageIndex + 3U * VirtualShadowMap.MaxPhysicalPages] = 0U;
 
-	uint CacheFlags = (bInvalidatesStatic ? VSM_STATIC_UNCACHED_FLAG : 0U) | (bInvalidatesDynamic ? VSM_DYNAMIC_UNCACHED_FLAG : 0U);
+	uint Flags = OutPhysicalPageMetaData[PhysicalPageIndex].Flags;
+	if (Flags != 0)
+	{
+		Flags |=
+			(bPageDirty ? VSM_EXTENDED_FLAG_DIRTY : 0U) |
+			(bInvalidatesStatic ? VSM_EXTENDED_FLAG_INVALIDATE_STATIC : 0U) |
+			(bInvalidatesDynamic ? VSM_EXTENDED_FLAG_INVALIDATE_DYNAMIC : 0U) |
+			(bWPOAllowed ? VSM_EXTENDED_FLAG_FORCE_CACHED : 0U);
 
-	// Update the page metadata to mark the pages as uncached, which allows the page merging to pick them up.
-	// Also mark bits for invalidation (need own set of bits to avoid being merged with the input state at the start of the frame - e.g., fresh pages are already uncached)
-	MetaData = OutPhysicalPageMetaData[PhysicalPageIndex];
-	MetaData.Flags |= (bPageDirty ? VSM_PHYSICAL_FLAG_DIRTY : 0U) | (CacheFlags << VSM_PHYSICAL_PAGE_INVALIDATION_FLAGS_SHIFT);
-	OutPhysicalPageMetaData[PhysicalPageIndex].Flags = MetaData.Flags;
+		// Update the metadata on the page
+		OutPhysicalPageMetaData[PhysicalPageIndex].Flags = Flags;
+	}
 
-	return bPageDirty;
+	return Flags;
 }
 
 [numthreads(VSM_DEFAULT_CS_GROUP_X, 1, 1)]
@@ -865,7 +919,7 @@ void UpdateAndClearDirtyFlagsCS(uint PhysicalPageIndex : SV_DispatchThreadID)
 		return;
 	}
 	FPhysicalPageMetaData MetaData;
-	UpdateAndClearDirtyFlags(PhysicalPageIndex, MetaData);
+	UpdateAndClearDirtyFlags(PhysicalPageIndex);
 }
 
 RWBuffer<uint> OutPagesForHZBIndirectArgsBuffer;
@@ -881,14 +935,27 @@ void SelectPagesForHZBAndUpdateDirtyFlagsCS(uint PhysicalPageIndex : SV_Dispatch
 		return;
 	}
 
-	FPhysicalPageMetaData MetaData;
-	bool bPageDirty = UpdateAndClearDirtyFlags(PhysicalPageIndex, MetaData);
+	uint PhysicalPageFlags = UpdateAndClearDirtyFlags(PhysicalPageIndex);
 
-	if ((MetaData.Flags & VSM_ALLOCATED_FLAG) != 0)
+	if ((PhysicalPageFlags & VSM_FLAG_ALLOCATED) != 0)
 	{
-		// rebuild the HZB if the page is rendered to or it is freshly allocated/cleared, but only the first time for a given frame.
-		bool bStaticUncached = (MetaData.Flags & VSM_STATIC_UNCACHED_FLAG) != 0;
-		if (bForceFullHZBUpdate || bPageDirty || (bFirstBuildThisFrame != 0 && bStaticUncached))
+		bool bRebuildHZB = false;
+
+		const bool bHasSeparateDynamicHZB = VirtualShadowMap.StaticHZBArrayIndex != 0;
+
+		const bool bPageDirty = (PhysicalPageFlags & VSM_EXTENDED_FLAG_DIRTY) != 0u;
+		const bool bStaticUncached = (PhysicalPageFlags & VSM_FLAG_STATIC_UNCACHED) != 0u;
+		const bool bUnreferenced = (PhysicalPageFlags & VSM_EXTENDED_FLAG_UNREFERENCED) != 0u;
+		const bool bNeedDynamicBuild = bHasSeparateDynamicHZB
+			&& (PhysicalPageFlags & VSM_FLAG_DYNAMIC_UNCACHED) != 0u;
+
+		// Skip it if it's not referenced; this is usually because we have already done
+		// the HZB rebuild but haven't yet cleared these flags, which happens the nexd time
+		// a page gets rendered.
+		// TODO: We should clear the relevant page flags immediately after doing HZB generation
+		bRebuildHZB = (bPageDirty || bStaticUncached || bNeedDynamicBuild) && !bUnreferenced;
+
+		if (bForceFullHZBUpdate || bRebuildHZB)
 		{
 			StatsBufferInterlockedInc(VSM_STAT_NUM_HZB_PAGES_BUILT);
 
@@ -927,12 +994,11 @@ float4 Gather4VisZ(uint2 PixelCoord, uint ArrayIndex)
 
 StructuredBuffer<uint> PhysicalPagesForHzb;
 //                                         out                input               output   
-RWTexture2D<float> FurthestHZBOutput_0; // 64 // 1     Group: 32 (16 threads x2)  16
-RWTexture2D<float> FurthestHZBOutput_1; // 32 // 1            16                  8
-RWTexture2D<float> FurthestHZBOutput_2; // 16                 8                   4
-RWTexture2D<float> FurthestHZBOutput_3; // 8                  4                   2
-RWTexture2D<float> FurthestHZBOutput_4; // 4                  2                   1
-
+RWTexture2DArray<float> FurthestHZBArrayOutput_0; // 64 // 1     Group: 32 (16 threads x2)  16
+RWTexture2DArray<float> FurthestHZBArrayOutput_1; // 32 // 1            16                  8
+RWTexture2DArray<float> FurthestHZBArrayOutput_2; // 16                 8                   4
+RWTexture2DArray<float> FurthestHZBArrayOutput_3; // 8                  4                   2
+RWTexture2DArray<float> FurthestHZBArrayOutput_4; // 4                  2                   1
 
 groupshared float SharedMinDeviceZ[TILE_THREAD_GROUP_SIZE_XY * TILE_THREAD_GROUP_SIZE_XY];
 groupshared float SharedMaxDeviceZ[TILE_THREAD_GROUP_SIZE_XY * TILE_THREAD_GROUP_SIZE_XY];
@@ -940,18 +1006,18 @@ groupshared float SharedMaxDeviceZ[TILE_THREAD_GROUP_SIZE_XY * TILE_THREAD_GROUP
 #define DIM_FURTHEST 1
 #define DIM_CLOSEST 0
 
-void OutputMipLevel(uint MipLevel, uint2 OutputPixelPos, float FurthestDeviceZ, float ClosestDeviceZ)
+void OutputMipLevel(uint MipLevel, uint2 OutputPixelPos, int ArrayIndex, float FurthestDeviceZ, float ClosestDeviceZ)
 {
 #if DIM_FURTHEST
 #define COND_OUTPUT_LEVEL(_level_) \
 	if (MipLevel == _level_) \
 	{ \
-		FurthestHZBOutput_##_level_[OutputPixelPos] = FurthestDeviceZ; \
+		FurthestHZBArrayOutput_##_level_[uint3(OutputPixelPos, ArrayIndex)] = FurthestDeviceZ; \
 		return; \
 	}
 #endif
 #if DIM_CLOSEST
-		ClosestHZBOutput_1[OutputPixelPos] = ClosestDeviceZ;
+		ClosestHZBOutput_1[uint3(OutputPixelPos, ArrayIndex)] = ClosestDeviceZ;
 #endif
 
 COND_OUTPUT_LEVEL(1)
@@ -962,20 +1028,13 @@ COND_OUTPUT_LEVEL(4)
 #undef COND_OUTPUT_LEVEL
 }
 
-[numthreads(TILE_THREAD_GROUP_SIZE_XY, TILE_THREAD_GROUP_SIZE_XY, 1)]
-void BuildHZBPerPageCS(uint GroupThreadIndex : SV_GroupIndex, uint GroupIndex : SV_GroupID)
+void BuildHZBPerPage(uint2 SrcPos, uint GroupThreadIndex, uint HZBArrayIndex, uint SrcArrayIndex, inout float4 InOutDeviceZ)
 {
-	FPhysicalPageMetaData MetaData;
-	uint2 SrcTileOffset = GetTileOffset(GroupIndex, PhysicalPagesForHzb, MetaData).xy;
-
-	// uncachable views always go to the dynamic slice (slice 0)
-	uint ArrayIndex = (MetaData.Flags & VSM_PHYSICAL_FLAG_VIEW_UNCACHED) != 0U ? 0U : GetVirtualShadowMapStaticArrayIndex();
-
-	uint2 RemappedGroupThreadIndex = InitialTilePixelPositionForReduction2x2(LOG2_TILE_SIZE_XY - 1U, GroupThreadIndex);
-
-	uint2 SrcPos = SrcTileOffset + (RemappedGroupThreadIndex << uint2(1U, 1U));
 	// Sample 2x2 footprint - thread group covers 32x32 area
-	float4 DeviceZ = Gather4VisZ(SrcPos, ArrayIndex);
+	// Merge with static (represented in the InOutDeviceZ)
+	float4 DeviceZ = max(InOutDeviceZ, Gather4VisZ(SrcPos, SrcArrayIndex));
+	// return the merged result
+	InOutDeviceZ = DeviceZ;
 	float MinDeviceZ = min(min3(DeviceZ.x, DeviceZ.y, DeviceZ.z), DeviceZ.w);
 
 	float MaxDeviceZ = 0.0f;//max(max3(DeviceZ.x, DeviceZ.y, DeviceZ.z), DeviceZ.w);
@@ -985,7 +1044,14 @@ void BuildHZBPerPageCS(uint GroupThreadIndex : SV_GroupIndex, uint GroupIndex : 
 	SharedMinDeviceZ[GroupThreadIndex] = MinDeviceZ;
 	// Write base HZB level (half physical page size, e.g., 64x64) 
 	uint2 OutPixelPos = SrcPos >> 1U;
-	FurthestHZBOutput_0[OutPixelPos] = MinDeviceZ;
+	FurthestHZBArrayOutput_0[uint3(OutPixelPos, HZBArrayIndex)] = MinDeviceZ;
+
+#if FEATURE_LEVEL >= FEATURE_LEVEL_SM6 || PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS
+		const uint LaneCount = WaveGetLaneCount();
+#else
+		// Actual wave size is unknown, assume the worst
+		const uint LaneCount = 0u;
+#endif
 
 	// Build next 4 levels: 32, 16, 8, 4
 	UNROLL
@@ -995,8 +1061,11 @@ void BuildHZBPerPageCS(uint GroupThreadIndex : SV_GroupIndex, uint GroupIndex : 
 		const uint OutTileDim = uint(TILE_THREAD_GROUP_SIZE_XY) >> MipLevel;
 		const uint ReduceBankSize = OutTileDim * OutTileDim;
 			
-		// LDS has been written before.
-		GroupMemoryBarrierWithGroupSync();
+		// More waves than one wrote to LDS, need to sync.
+		if ((ReduceBankSize << 2u) > LaneCount)
+		{
+			GroupMemoryBarrierWithGroupSync();
+		}
 
 		BRANCH
 		if (GroupThreadIndex < ReduceBankSize)
@@ -1018,7 +1087,7 @@ void BuildHZBPerPageCS(uint GroupThreadIndex : SV_GroupIndex, uint GroupIndex : 
 			//MaxDeviceZ = max(max3(ParentMaxDeviceZ.x, ParentMaxDeviceZ.y, ParentMaxDeviceZ.z), ParentMaxDeviceZ.w);
 	
 			OutPixelPos = OutPixelPos >> 1;
-			OutputMipLevel(MipLevel, OutPixelPos, MinDeviceZ, MaxDeviceZ);
+			OutputMipLevel(MipLevel, OutPixelPos, HZBArrayIndex, MinDeviceZ, MaxDeviceZ);
 				
 			SharedMinDeviceZ[GroupThreadIndex] = MinDeviceZ;
 			//SharedMaxDeviceZ[GroupThreadIndex] = MaxDeviceZ;
@@ -1026,26 +1095,44 @@ void BuildHZBPerPageCS(uint GroupThreadIndex : SV_GroupIndex, uint GroupIndex : 
 	}
 }
 
-float4 Gather4(Texture2D Texture, SamplerState TextureSampler, uint2 SrcPos, float2 InvSize)
+[numthreads(TILE_THREAD_GROUP_SIZE_XY, TILE_THREAD_GROUP_SIZE_XY, 1)]
+void BuildHZBPerPageCS(uint GroupThreadIndex : SV_GroupIndex, uint GroupIndex : SV_GroupID)
 {
-	float2 SrcUV = float2(SrcPos) * InvSize;
-#if COMPILER_GLSL || FEATURE_LEVEL < FEATURE_LEVEL_SM5
-	float2 HalfTexelOffset = float2(0.5f, 0.5f) * InvSize;
+	FPhysicalPageMetaData MetaData;
+	uint2 SrcTileOffset = GetTileOffset(GroupIndex, PhysicalPagesForHzb, MetaData).xy;
+	uint2 RemappedGroupThreadIndex = InitialTilePixelPositionForReduction2x2(LOG2_TILE_SIZE_XY - 1U, GroupThreadIndex);
+	uint2 SrcPos = SrcTileOffset + (RemappedGroupThreadIndex << uint2(1U, 1U));
 
-	float4 Out;
-	Out.x = Texture.SampleLevel(TextureSampler, SrcUV + float2(-HalfTexelOffset.x, -HalfTexelOffset.y), 0 ).r;
-	Out.y = Texture.SampleLevel(TextureSampler, SrcUV + float2( HalfTexelOffset.x, -HalfTexelOffset.y), 0 ).r;
-	Out.z = Texture.SampleLevel(TextureSampler, SrcUV + float2(-HalfTexelOffset.x,  HalfTexelOffset.y), 0 ).r;
-	Out.w = Texture.SampleLevel(TextureSampler, SrcUV + float2( HalfTexelOffset.x,  HalfTexelOffset.y), 0 ).r;
+	// 1. build the static HZB slice (src slice 1 if enabled)
+	uint FirstSrcArrayIndex = GetVirtualShadowMapStaticArrayIndex();
+	uint FirstHZBArrayIndex = VirtualShadowMap.StaticHZBArrayIndex;
 
-	return Out;
-#else
-	return Texture.GatherRed(TextureSampler, SrcUV, 0);
-#endif
+	bool bViewUncached = (MetaData.Flags & VSM_EXTENDED_FLAG_VIEW_UNCACHED) != 0U;
+	// uncachable views always draw to the dynamic slice (slice 0), and thus there is no reason to build for the static slices
+	if (bViewUncached)
+	{
+		FirstSrcArrayIndex = 0u;
+		FirstHZBArrayIndex = 0u;
+	}
+	// 1. build for the static pages (or only if there is only one) & keep the 2x2 device Z to pass to the dynamic build (merge depths in case of both being rebuilt)
+	float4 StaticDeviceZ = (float4)0.0f;
+	BuildHZBPerPage(SrcPos, GroupThreadIndex, FirstHZBArrayIndex, FirstSrcArrayIndex, StaticDeviceZ);
+
+	// If we have not built the 0th slice, we need to do that also (it must then be the dynamic things)
+	// This also covers the case where the HZB only has one slice (and we thus do not build a dynamic one at all).
+	if (FirstHZBArrayIndex > 0u)
+	{
+		BuildHZBPerPage(SrcPos, GroupThreadIndex, 0u, 0u, StaticDeviceZ);
+	}
 }
 
+float4 Gather4(Texture2DArray Texture, SamplerState TextureSampler, uint2 SrcPos, uint ArrayIndex, float2 InvSize)
+{
+	float2 SrcUV = float2(SrcPos) * InvSize;
+	return Texture.GatherRed(TextureSampler, float3(SrcUV, ArrayIndex), 0);
+}
 
-Texture2D ParentTextureMip;
+Texture2DArray ParentTextureArrayMip;
 SamplerState ParentTextureMipSampler;
 
 float2 InvHzbInputSize;
@@ -1054,19 +1141,10 @@ float2 InvHzbInputSize;
 // Each fetches 2x2 using gather
 #define TOP_MIP_TILE_THREAD_GROUP_SIZE_XY (TOP_MIP_TILE_SIZE_XY/2)
 
-[numthreads(TOP_MIP_TILE_THREAD_GROUP_SIZE_XY, TOP_MIP_TILE_THREAD_GROUP_SIZE_XY, 1)]
-void BuildHZBPerPageTopCS(uint2 GroupThreadId : SV_GroupThreadID, uint PageInputIndex : SV_GroupID)
+void BuildHZBPerPageTop(uint2 SrcPos, uint2 GroupThreadId, uint ArrayIndex)
 {
-	const uint PageIndex = PhysicalPagesForHzb[PageInputIndex];
-	uint2 PhysPageAddress = VSMPhysicalIndexToPageAddress(PageIndex);
-	
-	// Pixel address of tile region for this thread group.
-	const uint2 SrcTileOffset = PhysPageAddress * uint2(TOP_MIP_TILE_SIZE_XY, TOP_MIP_TILE_SIZE_XY);
-
-	uint2 SrcPos = SrcTileOffset +  (GroupThreadId << uint2(1U, 1U));
-
 	// Sample 2x2 footprint - thread group covers 32x32 area
-	float4 DeviceZ = Gather4(ParentTextureMip, ParentTextureMipSampler, SrcPos + uint2(1U, 1U), InvHzbInputSize);
+	float4 DeviceZ = Gather4(ParentTextureArrayMip, ParentTextureMipSampler, SrcPos + uint2(1U, 1U), ArrayIndex, InvHzbInputSize);
 	float MinDeviceZ = min(min3(DeviceZ.x, DeviceZ.y, DeviceZ.z), DeviceZ.w);
 
 	float MaxDeviceZ = 0.0f;//max(max3(DeviceZ.x, DeviceZ.y, DeviceZ.z), DeviceZ.w);
@@ -1076,7 +1154,7 @@ void BuildHZBPerPageTopCS(uint2 GroupThreadId : SV_GroupThreadID, uint PageInput
 	SharedMinDeviceZ[GroupThreadId.y * TOP_MIP_TILE_THREAD_GROUP_SIZE_XY + GroupThreadId.x] = MinDeviceZ;
 	// Write first HZB output level (half size) 
 	uint2 OutPixelPos = SrcPos >> 1U;
-	FurthestHZBOutput_0[OutPixelPos] = MinDeviceZ;
+	FurthestHZBArrayOutput_0[uint3(OutPixelPos, ArrayIndex)] = MinDeviceZ;
 
 	// Build last level
 	GroupMemoryBarrierWithGroupSync();
@@ -1100,7 +1178,27 @@ void BuildHZBPerPageTopCS(uint2 GroupThreadId : SV_GroupThreadID, uint PageInput
 		//MaxDeviceZ = max(max3(ParentMaxDeviceZ.x, ParentMaxDeviceZ.y, ParentMaxDeviceZ.z), ParentMaxDeviceZ.w);
 	
 		OutPixelPos = OutPixelPos >> 1;
-		FurthestHZBOutput_1[OutPixelPos] = MinDeviceZ;
+		FurthestHZBArrayOutput_1[uint3(OutPixelPos, ArrayIndex)] = MinDeviceZ;
+	}
+}
+
+[numthreads(TOP_MIP_TILE_THREAD_GROUP_SIZE_XY, TOP_MIP_TILE_THREAD_GROUP_SIZE_XY, 1)]
+void BuildHZBPerPageTopCS(uint2 GroupThreadId : SV_GroupThreadID, uint PageInputIndex : SV_GroupID)
+{
+	const uint PageIndex = PhysicalPagesForHzb[PageInputIndex];
+	uint2 PhysPageAddress = VSMPhysicalIndexToPageAddress(PageIndex);
+	
+	// Pixel address of tile region for this thread group.
+	const uint2 SrcTileOffset = PhysPageAddress * uint2(TOP_MIP_TILE_SIZE_XY, TOP_MIP_TILE_SIZE_XY);
+
+	uint2 SrcPos = SrcTileOffset +  (GroupThreadId << uint2(1U, 1U));
+	BuildHZBPerPageTop(SrcPos, GroupThreadId, 0u);
+
+	const bool bHasSeparateDynamicHZB = VirtualShadowMap.StaticHZBArrayIndex != 0;
+	if (bHasSeparateDynamicHZB)
+	{
+		GroupMemoryBarrierWithGroupSync();
+		BuildHZBPerPageTop(SrcPos, GroupThreadId, 1u);
 	}
 }
 
@@ -1110,21 +1208,21 @@ StructuredBuffer<int> PhysicalPageLists;
 [numthreads(1, 1, 1)]
 void FeedbackStatusCS()
 {
-	{
-		FGPUMessageWriter Mw = GPUMessageBegin(StatusMessageId, 2U);
+	FGPUMessageWriter Mw = GPUMessageBegin(StatusMessageId, 3U);
 
-		// Write out how many pages are still available
-		int CountIndex = GetPhysicalPageListStart(PHYSICAL_PAGE_LIST_AVAILABLE) + VirtualShadowMap.MaxPhysicalPages;
-		GPUMessageWriteItem(Mw, PhysicalPageLists[CountIndex]);
+	GPUMessageWriteItem(Mw, VSM_STATUS_MSG_PAGE_MANAGEMENT);
 
-		// Write out the resolution lod bias from this frame
-		GPUMessageWriteItem(Mw, VirtualShadowMap.GlobalResolutionLodBias);
-	}
+	// Write out how many pages are still available
+	int CountIndex = GetPhysicalPageListStart(PHYSICAL_PAGE_LIST_AVAILABLE) + VirtualShadowMap.MaxPhysicalPages;
+	GPUMessageWriteItem(Mw, PhysicalPageLists[CountIndex]);
+
+	// Write out the resolution lod bias from this frame
+	GPUMessageWriteItem(Mw, VirtualShadowMap.GlobalResolutionLodBias);
 }
 
 
 
-int PageListStatsRow = 0; 
+int PageListStatsRow; 
 
 [numthreads(1, 1, 1)]
 void LogPageListStatsCS()

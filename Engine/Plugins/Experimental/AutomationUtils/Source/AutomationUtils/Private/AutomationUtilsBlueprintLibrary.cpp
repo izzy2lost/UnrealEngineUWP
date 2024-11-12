@@ -257,7 +257,7 @@ void FAutomationUtilsGameplayAutomationScreenshotInstance::HandleScreenshotData(
 	TArray64<uint8> CompressedBitmap;
 	FImageUtils::PNGCompressImageArray(InSizeX, InSizeY, TArrayView64<const FColor>(InImageData.GetData(), InImageData.Num()), CompressedBitmap);
 	FFileHelper::SaveArrayToFile(CompressedBitmap, *DeterminedPath);
-	GLog->Log(FString::Printf(TEXT("Saved %d bytes of screenshot image to %s"), CompressedBitmap.Num(), *DeterminedPath));
+	GLog->Log(FString::Printf(TEXT("Saved %" INT64_FMT " bytes of screenshot image to %s"), CompressedBitmap.Num(), *DeterminedPath));
 
 	//Save Metadata Json
 	FString MetadataPath = FPaths::ChangeExtension(DeterminedPath, TEXT("json"));

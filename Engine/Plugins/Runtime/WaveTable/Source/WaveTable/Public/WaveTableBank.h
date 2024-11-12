@@ -127,6 +127,11 @@ public:
 		return ObjectId;
 	}
 
+	friend FORCEINLINE uint32 GetTypeHash(const FWaveTableBankAssetProxy& InProxy)
+	{
+		return InProxy.GetObjectId();
+	}
+
 protected:
 	bool bBipolar = false;
 	uint32 ObjectId = INDEX_NONE;

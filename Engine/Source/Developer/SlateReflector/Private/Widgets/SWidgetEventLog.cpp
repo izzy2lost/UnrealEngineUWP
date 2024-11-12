@@ -137,19 +137,19 @@ TSharedRef<SWidget> SWidgetEventLog::OnGenerateCategoriesMenu()
 
 	MenuBuilder.AddSubMenu(
 		LOCTEXT("FocusSubMenu", "Focus"),
-		LOCTEXT("FocusSubMenu_ToolTip", ""),
+		FText(),
 		FNewMenuDelegate::CreateSP(this, &SWidgetEventLog::OnGenerateCategoriesSubMenu, EWidgetEventType::Focus));
 	MenuBuilder.AddSubMenu(
 		LOCTEXT("InputSubMenu", "Input"),
-		LOCTEXT("InputSubMenu_ToolTip", ""),
+		FText(),
 		FNewMenuDelegate::CreateSP(this, &SWidgetEventLog::OnGenerateCategoriesSubMenu, EWidgetEventType::Input));
 	MenuBuilder.AddSubMenu(
 		LOCTEXT("NavigationSubMenu", "Navigation"),
-		LOCTEXT("NavigationSubMenu_ToolTip", ""),
+		FText(),
 		FNewMenuDelegate::CreateSP(this, &SWidgetEventLog::OnGenerateCategoriesSubMenu, EWidgetEventType::Navigation));
 	MenuBuilder.AddSubMenu(
 		LOCTEXT("CursorSubMenu", "Cursor"),
-		LOCTEXT("CursorSubMenu_ToolTip", ""),
+		FText(),
 		FNewMenuDelegate::CreateSP(this, &SWidgetEventLog::OnGenerateCategoriesSubMenu, EWidgetEventType::Cursor));
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("WarningMenu", "Warning"),

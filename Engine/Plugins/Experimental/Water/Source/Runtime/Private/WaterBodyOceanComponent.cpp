@@ -246,16 +246,16 @@ bool UWaterBodyOceanComponent::GenerateWaterBodyMesh(UE::Geometry::FDynamicMesh3
 	}
 	
 	int32 IslandBottomLeft = INDEX_NONE;
-	FVector3d IslandBottomLeftVertex;
+	FVector3d IslandBottomLeftVertex = FVector3d::ZeroVector;
 
 	int32 IslandBottomRight = INDEX_NONE;
-	FVector3d IslandBottomRightVertex;
+	FVector3d IslandBottomRightVertex = FVector3d::ZeroVector;
 	
 	int32 IslandTopRight = INDEX_NONE;
-	FVector3d IslandTopRightVertex;
+	FVector3d IslandTopRightVertex = FVector3d::ZeroVector;
 
 	int32 IslandTopLeft = INDEX_NONE;
-	FVector3d IslandTopLeftVertex;
+	FVector3d IslandTopLeftVertex = FVector3d::ZeroVector;
 
 	check(OutMesh.Attributes());
 	FDynamicMeshColorOverlay* ColorOverlay = OutMesh.Attributes()->PrimaryColors();
@@ -622,10 +622,6 @@ void UWaterBodyOceanComponent::OnUpdateBody(bool bWithExclusionVolumes)
 				CollisionBoxes.Add(BoxComponent);
 			}
 
-			if (!BoxComponent->IsRegistered())
-			{
-				BoxComponent->RegisterComponent();
-			}
 			BoxComponent->SetNetAddressable(); // it's deterministically named so it's addressable over network (needed for collision)
 			BoxComponent->bDrawOnlyIfSelected = true;
 			BoxComponent->SetRelativeLocation(FVector::ZeroVector);
@@ -637,6 +633,11 @@ void UWaterBodyOceanComponent::OnUpdateBody(bool bWithExclusionVolumes)
 			BoxComponent->SetRelativeLocation(RelativePosition);
 			BoxComponent->SetBoxExtent(Box.BoxExtent);
 
+			// Registers as the last step to reduce amount of updates required when modifying an already registered component
+			if (!BoxComponent->IsRegistered())
+			{
+				BoxComponent->RegisterComponent();
+			}
 		}
 
 		// create the convex-hull components
@@ -659,10 +660,6 @@ void UWaterBodyOceanComponent::OnUpdateBody(bool bWithExclusionVolumes)
 				CollisionHullSets.Add(CollisionComponent);
 			}
 
-			if (!CollisionComponent->IsRegistered())
-			{
-				CollisionComponent->RegisterComponent();
-			}
 			CollisionComponent->SetNetAddressable(); // it's deterministically named so it's addressable over network (needed for collision)
 			CollisionComponent->SetRelativeLocation(FVector::ZeroVector);
 
@@ -670,6 +667,12 @@ void UWaterBodyOceanComponent::OnUpdateBody(bool bWithExclusionVolumes)
 			CopySharedNavigationSettingsToComponent(CollisionComponent);
 
 			CollisionComponent->InitializeFromConvexElements(ConvexSet);
+
+			// Registers as the last step to reduce amount of updates required when modifying an already registered component
+			if (!CollisionComponent->IsRegistered())
+			{
+				CollisionComponent->RegisterComponent();
+			}
 		}
 	}
 	else

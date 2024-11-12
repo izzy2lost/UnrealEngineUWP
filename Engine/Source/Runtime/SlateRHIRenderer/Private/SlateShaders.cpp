@@ -17,15 +17,8 @@ IMPLEMENT_SHADER_TYPE(, FSlateElementVS, TEXT("/Engine/Private/SlateVertexShader
 
 IMPLEMENT_SHADER_TYPE(, FSlateDebugOverdrawPS, TEXT("/Engine/Private/SlateElementPixelShader.usf"), TEXT("DebugOverdrawMain"), SF_Pixel );
 
-IMPLEMENT_SHADER_TYPE(, FSlatePostProcessBlurPS, TEXT("/Engine/Private/SlatePostProcessPixelShader.usf"), TEXT("GaussianBlurMain"), SF_Pixel);
-IMPLEMENT_SHADER_TYPE(, FSlatePostProcessDownsamplePS, TEXT("/Engine/Private/SlatePostProcessPixelShader.usf"), TEXT("DownsampleMain"), SF_Pixel);
-IMPLEMENT_SHADER_TYPE(template<>, FSlatePostProcessUpsamplePS<ESlatePostProcessUpsamplePSPermutation::SDR>, TEXT("/Engine/Private/SlatePostProcessPixelShader.usf"), TEXT("UpsampleMain"), SF_Pixel);
-IMPLEMENT_SHADER_TYPE(template<>, FSlatePostProcessUpsamplePS<ESlatePostProcessUpsamplePSPermutation::HDR_SCRGB>, TEXT("/Engine/Private/SlatePostProcessPixelShader.usf"), TEXT("UpsampleMain"), SF_Pixel);
-IMPLEMENT_SHADER_TYPE(template<>, FSlatePostProcessUpsamplePS<ESlatePostProcessUpsamplePSPermutation::HDR_PQ10>, TEXT("/Engine/Private/SlatePostProcessPixelShader.usf"), TEXT("UpsampleMain"), SF_Pixel);
-IMPLEMENT_SHADER_TYPE(, FSlatePostProcessColorDeficiencyPS, TEXT("/Engine/Private/SlatePostProcessColorDeficiencyPixelShader.usf"), TEXT("ColorDeficiencyMain"), SF_Pixel);
-
-IMPLEMENT_SHADER_TYPE(, FSlateMaskingVS, TEXT("/Engine/Private/SlateMaskingShader.usf"), TEXT("MainVS"), SF_Vertex);
-IMPLEMENT_SHADER_TYPE(, FSlateMaskingPS, TEXT("/Engine/Private/SlateMaskingShader.usf"), TEXT("MainPS"), SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FSlateMaskingVS, "/Engine/Private/SlateMaskingShader.usf", "MainVS", SF_Vertex);
+IMPLEMENT_GLOBAL_SHADER(FSlateMaskingPS, "/Engine/Private/SlateMaskingShader.usf", "MainPS", SF_Pixel);
 
 IMPLEMENT_SHADER_TYPE(, FSlateDebugBatchingPS, TEXT("/Engine/Private/SlateElementPixelShader.usf"), TEXT("DebugBatchingMain"), SF_Pixel );
 
@@ -33,14 +26,6 @@ IMPLEMENT_SHADER_TYPE(, FSlateDebugBatchingPS, TEXT("/Engine/Private/SlateElemen
 	typedef TSlateElementPS<ESlateShader::ShaderType,bDrawDisabledEffect,bUseTextureAlpha, bUseTextureGrayscale, bIsVirtualTexture> TSlateElementPS##ShaderType##bDrawDisabledEffect##bUseTextureAlpha##bUseTextureGrayscale##bIsVirtualTexture##A; \
 	IMPLEMENT_SHADER_TYPE(template<>,TSlateElementPS##ShaderType##bDrawDisabledEffect##bUseTextureAlpha##bUseTextureGrayscale##bIsVirtualTexture##A,TEXT("/Engine/Private/SlateElementPixelShader.usf"),TEXT("Main"),SF_Pixel);
 
-#if WITH_EDITOR
-bool FHDREditorConvertPS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-{
-	return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
-}
-
-IMPLEMENT_SHADER_TYPE(, FHDREditorConvertPS, TEXT("/Engine/Private/CompositeUIPixelShader.usf"), TEXT("HDREditorConvert"), SF_Pixel);
-#endif
 /**
 * All the different permutations of shaders used by slate. Uses #defines to avoid dynamic branches
 */
@@ -154,71 +139,3 @@ void FSlateMaskingVertexDeclaration::ReleaseRHI()
 {
 	VertexDeclarationRHI.SafeRelease();
 }
-
-
-/************************************************************************/
-/* FSlateDefaultVertexShader                                            */
-/************************************************************************/
-
-FSlateElementVS::FSlateElementVS( const ShaderMetaType::CompiledShaderInitializerType& Initializer )
-	: FGlobalShader(Initializer)
-{
-	ViewProjection.Bind(Initializer.ParameterMap, TEXT("ViewProjection"));
-	VertexShaderParams.Bind( Initializer.ParameterMap, TEXT("VertexShaderParams"));
-}
-
-void FSlateElementVS::SetViewProjection(FRHIBatchedShaderParameters& BatchedParameters, const FMatrix44f& InViewProjection )
-{
-	SetShaderValue(BatchedParameters, ViewProjection, InViewProjection );
-}
-
-void FSlateElementVS::SetShaderParameters(FRHIBatchedShaderParameters& BatchedParameters, const FVector4f& ShaderParams )
-{
-	SetShaderValue(BatchedParameters, VertexShaderParams, ShaderParams );
-}
-
-/** Serializes the shader data */
-/*bool FSlateElementVS::Serialize( FArchive& Ar )
-{
-	bool bShaderHasOutdatedParameters = FGlobalShader::Serialize( Ar );
-
-	Ar << ViewProjection;
-	Ar << VertexShaderParams;
-
-	return bShaderHasOutdatedParameters;
-}*/
-
-
-/************************************************************************/
-/* FSlateMaskingVS                                            */
-/************************************************************************/
-
-FSlateMaskingVS::FSlateMaskingVS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
-	: FGlobalShader(Initializer)
-{
-	ViewProjection.Bind(Initializer.ParameterMap, TEXT("ViewProjection"));
-	MaskRect.Bind(Initializer.ParameterMap, TEXT("MaskRectPacked"));
-}
-
-void FSlateMaskingVS::SetViewProjection(FRHIBatchedShaderParameters& BatchedParameters, const FMatrix44f& InViewProjection)
-{
-	SetShaderValue(BatchedParameters, ViewProjection, InViewProjection);
-}
-
-void FSlateMaskingVS::SetMaskRect(FRHIBatchedShaderParameters& BatchedParameters, const FVector2f TopLeft, const FVector2f TopRight, const FVector2f BotLeft, const FVector2f BotRight)
-{
-	FVector4f MaskRectVal[2] = { FVector4f(TopLeft, TopRight), FVector4f(BotLeft, BotRight) };
-
-	SetShaderValue(BatchedParameters, MaskRect, MaskRectVal);
-}
-
-/** Serializes the shader data */
-/*bool FSlateMaskingVS::Serialize(FArchive& Ar)
-{
-	bool bShaderHasOutdatedParameters = FGlobalShader::Serialize(Ar);
-
-	Ar << ViewProjection;
-	Ar << MaskRect;
-
-	return bShaderHasOutdatedParameters;
-}*/

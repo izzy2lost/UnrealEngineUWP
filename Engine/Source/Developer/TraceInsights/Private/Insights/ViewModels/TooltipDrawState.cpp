@@ -6,8 +6,10 @@
 #include "Fonts/SlateFontInfo.h"
 #include "Styling/AppStyle.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -244,7 +246,7 @@ void FTooltipDrawState::SetPosition(const FVector2D& MousePosition, const float 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTooltipDrawState::Draw(const FDrawContext& DrawContext) const
+void FTooltipDrawState::Draw(const UE::Insights::FDrawContext& DrawContext) const
 {
 	if (Opacity > 0.0f && Size.X > 0.0 && Size.Y > 0.0)
 	{

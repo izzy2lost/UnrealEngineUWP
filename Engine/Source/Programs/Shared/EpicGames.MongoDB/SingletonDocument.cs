@@ -5,8 +5,6 @@ using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 
@@ -26,10 +24,10 @@ namespace EpicGames.MongoDB
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="Id">Unique id for the singleton document</param>
-		public SingletonDocumentAttribute(string Id)
+		/// <param name="id">Unique id for the singleton document</param>
+		public SingletonDocumentAttribute(string id)
 		{
-			this.Id = Id;
+			Id = id;
 		}
 	}
 
@@ -51,7 +49,6 @@ namespace EpicGames.MongoDB
 		/// <summary>
 		/// Private constructor for serialization
 		/// </summary>
-		/// <param name="Unused"></param>
 		[BsonConstructor]
 		protected SingletonBase()
 		{
@@ -60,10 +57,10 @@ namespace EpicGames.MongoDB
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="Id">Unique id for the singleton</param>
-		public SingletonBase(ObjectId Id)
+		/// <param name="id">Unique id for the singleton</param>
+		public SingletonBase(ObjectId id)
 		{
-			this.Id = Id;
+			Id = id;
 		}
 
 		/// <summary>
@@ -75,12 +72,8 @@ namespace EpicGames.MongoDB
 
 			static ObjectId GetSingletonId()
 			{
-				SingletonDocumentAttribute? Attribute = typeof(T).GetCustomAttribute<SingletonDocumentAttribute>();
-				if (Attribute == null)
-				{
-					throw new Exception($"Type {typeof(T).Name} is missing a {nameof(SingletonDocumentAttribute)} annotation");
-				}
-				return ObjectId.Parse(Attribute.Id);
+				SingletonDocumentAttribute? attribute = typeof(T).GetCustomAttribute<SingletonDocumentAttribute>() ?? throw new Exception($"Type {typeof(T).Name} is missing a {nameof(SingletonDocumentAttribute)} annotation");
+				return ObjectId.Parse(attribute.Id);
 			}
 		}
 
@@ -110,9 +103,9 @@ namespace EpicGames.MongoDB
 		/// <summary>
 		/// Attempts to update the document
 		/// </summary>
-		/// <param name="Value">New state of the document</param>
+		/// <param name="value">New state of the document</param>
 		/// <returns>True if the document was updated, false otherwise</returns>
-		Task<bool> TryUpdateAsync(T Value);
+		Task<bool> TryUpdateAsync(T value);
 	}
 
 	/// <summary>
@@ -124,12 +117,12 @@ namespace EpicGames.MongoDB
 		/// <summary>
 		/// The database service instance
 		/// </summary>
-		IMongoCollection<T> Collection;
+		readonly IMongoCollection<T> _collection;
 
 		/// <summary>
 		/// Unique id for the singleton document
 		/// </summary>
-		ObjectId ObjectId;
+		readonly ObjectId _objectId;
 
 		/// <summary>
 		/// Static constructor. Registers the document using the automapper.
@@ -142,18 +135,13 @@ namespace EpicGames.MongoDB
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="DatabaseService">The database service instance</param>
-		public SingletonDocument(IMongoCollection<SingletonBase> Collection)
+		/// <param name="collection">The database service instance</param>
+		public SingletonDocument(IMongoCollection<SingletonBase> collection)
 		{
-			this.Collection = Collection.OfType<T>();
+			_collection = collection.OfType<T>();
 
-			SingletonDocumentAttribute? Attribute = typeof(T).GetCustomAttribute<SingletonDocumentAttribute>();
-			if (Attribute == null)
-			{
-				throw new Exception($"Type {typeof(T).Name} is missing a {nameof(SingletonDocumentAttribute)} annotation");
-			}
-
-			ObjectId = new ObjectId(Attribute.Id);
+			SingletonDocumentAttribute? attribute = typeof(T).GetCustomAttribute<SingletonDocumentAttribute>() ?? throw new Exception($"Type {typeof(T).Name} is missing a {nameof(SingletonDocumentAttribute)} annotation");
+			_objectId = new ObjectId(attribute.Id);
 		}
 
 		/// <inheritdoc/>
@@ -161,31 +149,31 @@ namespace EpicGames.MongoDB
 		{
 			for (; ; )
 			{
-				T? Object = await Collection.Find<T>(x => x.Id == ObjectId).FirstOrDefaultAsync();
-				if (Object != null)
+				T? @object = await _collection.Find<T>(x => x.Id == _objectId).FirstOrDefaultAsync();
+				if (@object != null)
 				{
-					return Object;
+					return @object;
 				}
 
-				T NewItem = new T();
-				NewItem.Id = ObjectId;
-				await Collection.InsertOneAsync(NewItem);
+				T newItem = new T();
+				newItem.Id = _objectId;
+				await _collection.InsertOneAsync(newItem);
 			}
 		}
 
 		/// <inheritdoc/>
-		public async Task<bool> TryUpdateAsync(T Value)
+		public async Task<bool> TryUpdateAsync(T value)
 		{
-			int PrevRevision = Value.Revision++;
+			int prevRevision = value.Revision++;
 			try
 			{
-				ReplaceOneResult Result = await Collection.ReplaceOneAsync(x => x.Id == ObjectId && x.Revision == PrevRevision, Value, new ReplaceOptions { IsUpsert = true });
-				return Result.MatchedCount > 0;
+				ReplaceOneResult result = await _collection.ReplaceOneAsync(x => x.Id == _objectId && x.Revision == prevRevision, value, new ReplaceOptions { IsUpsert = true });
+				return result.MatchedCount > 0;
 			}
-			catch (MongoWriteException Ex)
+			catch (MongoWriteException ex)
 			{
 				// Duplicate key error occurs if filter fails to match because revision is not the same.
-				if (Ex.WriteError != null && Ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
+				if (ex.WriteError != null && ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
 				{
 					return false;
 				}

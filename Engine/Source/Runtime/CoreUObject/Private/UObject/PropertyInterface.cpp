@@ -18,8 +18,14 @@
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FInterfaceProperty)
 
+FInterfaceProperty::FInterfaceProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+	, InterfaceClass(nullptr)
+{
+}
+
 FInterfaceProperty::FInterfaceProperty(FFieldVariant InOwner, const UECodeGen_Private::FInterfacePropertyParams& Prop)
-	: FInterfaceProperty_Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
 {
 	this->PropertyFlags &= (~CPF_InterfaceClearMask);
 	this->InterfaceClass = Prop.InterfaceClassFunc ? Prop.InterfaceClassFunc() : nullptr;
@@ -27,7 +33,7 @@ FInterfaceProperty::FInterfaceProperty(FFieldVariant InOwner, const UECodeGen_Pr
 
 #if WITH_EDITORONLY_DATA
 FInterfaceProperty::FInterfaceProperty(UField* InField)
-	: FInterfaceProperty_Super(InField)
+	: Super(InField)
 {
 	UInterfaceProperty* SourceProperty = CastChecked<UInterfaceProperty>(InField);
 	InterfaceClass = SourceProperty->InterfaceClass;

@@ -21,6 +21,7 @@ namespace UnrealBuildTool.Rules
 					"ConcertTransport",
 					"Json",
 					"SQLiteCore",
+					"TraceLog"
 				}
 			);
 

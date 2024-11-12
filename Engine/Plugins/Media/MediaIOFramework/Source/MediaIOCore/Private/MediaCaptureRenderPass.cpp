@@ -71,12 +71,14 @@ namespace UE::MediaCapture::Resample
 		Input.Texture = InputTexture.Texture;
 		Input.ViewRect = FIntRect{ 0, 0, InputSize.X, InputSize.Y };
 		Input.LoadAction = ERenderTargetLoadAction::ENoAction;
+		Input.UpdateVisualizeTextureExtent();
 
 		FScreenPassRenderTarget Output;
 		const FIntVector OutputSize = OutputTexture->Desc.GetSize();
 		Output.Texture = OutputTexture;
 		Output.ViewRect = FIntRect{ 0, 0, OutputSize.X, OutputSize.Y };
 		Output.LoadAction = ERenderTargetLoadAction::ENoAction;
+		Output.UpdateVisualizeTextureExtent();
 
 		FMediaCaptureResamplePS::FParameters* PassParameters = FMediaCaptureResamplePS::AllocateAndSetParameters(GraphBuilder, InputTexture.Texture, OutputTexture);
 		
@@ -225,7 +227,9 @@ namespace UE::MediaCapture
 			break;
 		}
 
+		RDG_EVENT_SCOPE_STAT(Args.GraphBuilder, MediaCapture_ColorConversion, "MediaCapture_ColorConversion");
 		RDG_GPU_STAT_SCOPE(Args.GraphBuilder, MediaCapture_ColorConversion);
+
 		FOpenColorIORendering::AddPass_RenderThread(
 			Args.GraphBuilder,
 			FScreenPassViewInfo(),
@@ -348,8 +352,9 @@ namespace UE::MediaCapture
 
 				// If true, we will need to go through our different shader to convert from source format to out format (i.e RGB to YUV)
 				const bool bRequiresFormatConversion = Args.MediaCapture->DesiredPixelFormat != Args.GetFormat();
-                        
-				RDG_GPU_STAT_SCOPE(Args.GraphBuilder, MediaCapture_Conversion)
+
+				RDG_EVENT_SCOPE_STAT(Args.GraphBuilder, MediaCapture_Conversion, "MediaCapture_Conversion");
+				RDG_GPU_STAT_SCOPE(Args.GraphBuilder, MediaCapture_Conversion);
 				TRACE_CPUPROFILER_EVENT_SCOPE(UMediaCapture::FormatConversion);
 				
 				FConversionPassArgs ConversionPassArgs;
@@ -482,7 +487,9 @@ namespace UE::MediaCapture
 			
 		const FIntRect ViewRect(ConversionPassArgs.CopyInfo.GetSourceRect());
 
+		RDG_EVENT_SCOPE_STAT(Args.GraphBuilder, MediaCapture_Resample, "MediaCapture_Resample");
 		RDG_GPU_STAT_SCOPE(Args.GraphBuilder, MediaCapture_Resample);
+
 		MediaCapture::Resample::AddResamplePass(Args.GraphBuilder, FScreenPassTexture(ConversionPassArgs.SourceRGBTexture), (FRDGTextureRef)OutputTexture);
 	}
 

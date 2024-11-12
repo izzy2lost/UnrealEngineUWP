@@ -687,6 +687,13 @@ namespace ClothingMeshUtils
 	{
 		check(SourceMesh.HasAveragedNormals());
 
+		OutMeshToMeshVertData.Reset();
+
+		if (!SourceMesh.GetIndices().Num() || !TargetMesh.GetPositions().Num())
+		{
+			return; // Empty meshes must return an empty mapping and no warning
+		}
+
 		if (!TargetMesh.HasValidMesh())  // Check that the number of positions is equal to the number of normals and that the number of indices is divisible by 3
 		{
 			UE_LOG(LogClothingMeshUtils, Warning, TEXT("Failed to generate mesh to mesh skinning data. Invalid Target Mesh."));

@@ -20,6 +20,7 @@ void SAvaEaseCurvePreview::Construct(const FArguments& InArgs)
 	PreviewSize = InArgs._PreviewSize;
 	CanExpandPreview = InArgs._CanExpandPreview;
 	CurveThickness = InArgs._CurveThickness;
+	BackgroundColor = InArgs._BackgroundColor;
 	CurveColor = InArgs._CurveColor;
 	StraightColor = InArgs._StraightColor;
 	UnderCurveColor = InArgs._UnderCurveColor;
@@ -216,6 +217,13 @@ int32 SAvaEaseCurvePreview::OnPaint(const FPaintArgs& InArgs, const FGeometry& I
 	const FVector2D AdditionalAboveHeight(BelowZeroValue * PreviewSize, AboveOneValue * PreviewSize);
 	const FPaintGeometry AbovePaintGeometry = InAllottedGeometry.ToPaintGeometry(InAllottedGeometry.GetLocalSize(), FSlateLayoutTransform(AdditionalAboveHeight));
 
+	// Draw background color
+	if (BackgroundColor.IsSet())
+	{
+		FSlateDrawElement::MakeBox(OutDrawElements, LayerId++, InAllottedGeometry.ToPaintGeometry()
+			, FAppStyle::GetBrush(TEXT("WhiteTexture")), DrawEffects, BackgroundColor.GetValue());
+	}
+
 	// Draw 0 and 1 line
 	{
 		constexpr FLinearColor NormalLimitLineColor = FLinearColor(0.1f, 0.1f, 0.1f, 1.f);
@@ -232,7 +240,7 @@ int32 SAvaEaseCurvePreview::OnPaint(const FPaintArgs& InArgs, const FGeometry& I
 			ZeroValueLinePoints.Add(FVector2D(LocalWidth - OneFifthWidth, ZeroOutputY));
 			ZeroValueLinePoints.Add(FVector2D(LocalWidth, ZeroOutputY));
 			TArray<FLinearColor> ZeroValueLineColors;
-			FSlateDrawElement::MakeLines(OutDrawElements, InLayerId, AbovePaintGeometry
+			FSlateDrawElement::MakeLines(OutDrawElements, LayerId++, AbovePaintGeometry
 				, ZeroValueLinePoints, ValueLineColors, DrawEffects, FLinearColor::White, false, InAllottedGeometry.Scale);
 		}
 
@@ -244,7 +252,7 @@ int32 SAvaEaseCurvePreview::OnPaint(const FPaintArgs& InArgs, const FGeometry& I
 			OneValueLinePoints.Add(FVector2D(OneFifthWidth, OneOutputY));
 			OneValueLinePoints.Add(FVector2D(LocalWidth - OneFifthWidth, OneOutputY));
 			OneValueLinePoints.Add(FVector2D(LocalWidth, OneOutputY));
-			FSlateDrawElement::MakeLines(OutDrawElements, InLayerId, AbovePaintGeometry
+			FSlateDrawElement::MakeLines(OutDrawElements, LayerId++, AbovePaintGeometry
 				, OneValueLinePoints, ValueLineColors, DrawEffects, FLinearColor::White, false, InAllottedGeometry.Scale);
 		}
 	}

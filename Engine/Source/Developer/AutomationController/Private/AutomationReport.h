@@ -22,6 +22,7 @@ public:
 
 	virtual void Empty() override;
 	virtual FString GetTestParameter() const override;
+	virtual FString GetTags() const override;
 	virtual FString GetAssetPath() const override;
 	virtual FString GetOpenCommand() const override;
 	virtual FString GetCommand() const override;
@@ -38,8 +39,8 @@ public:
 	virtual void SetEnabled(bool bShouldBeEnabled) override;
 	virtual void SetSupport(const int32 ClusterIndex) override;
 	virtual bool IsSupported(const int32 ClusterIndex) const override;
-	virtual void SetTestFlags(const uint32 TestFlags) override;
-	virtual uint32 GetTestFlags( ) const override;
+	virtual void SetTestFlags(const EAutomationTestFlags TestFlags) override;
+	virtual EAutomationTestFlags GetTestFlags( ) const override;
 	virtual FString GetSourceFile() const override;
 	virtual int32 GetSourceFileLine() const override;
 	virtual const bool IsParent( ) override;

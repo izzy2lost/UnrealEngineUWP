@@ -17,11 +17,7 @@ struct FLumenCardInterpolantsVSToPS
 };
 
 void Main(
-#if IS_NANITE_PASS
-	FNaniteFullscreenVSToPS NaniteInterpolants,
-#else
 	FVertexFactoryInterpolantsVSToPS Interpolants,
-#endif
 	FLumenCardInterpolantsVSToPS PassInterpolants,
 	in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position		// after all interpolators
 	OPTIONAL_IsFrontFace,
@@ -31,30 +27,7 @@ void Main(
 {
 	ResolvedView = ResolveView();
 	FMaterialPixelParameters MaterialParameters;
-
-#if IS_NANITE_PASS
-	FVertexFactoryInterpolantsVSToPS Interpolants = (FVertexFactoryInterpolantsVSToPS)0;
-	Interpolants.ViewIndex = NaniteInterpolants.ViewIndex;
-#if INSTANCED_STEREO
-	// Nanite fullscreen VS is run for the whole side-by-side RT and the primary (left) view is View0 so figure out EyeIndex based on that - cannot do it in VS since quads can span views.
-	// Revisit if we need to support > 1 instanced view or non side-by-side views
-	Interpolants.EyeIndex = (SvPosition.x >= (View.ViewRectMin.x + View.ViewSizeAndInvSize.x)) ? 1 : 0;
-#endif
-#endif
-
-	#if LUMEN_MULTI_VIEW_CAPTURE
-	{
-		FPackedNaniteView PackedView = Nanite.InViews[Interpolants.ViewIndex];
-		FNaniteView NaniteView = UnpackNaniteView(PackedView);
-
-		PatchViewState(NaniteView, ResolvedView);
-		MaterialParameters = GetMaterialPixelParameters(NaniteView, Interpolants, SvPosition);
-	}
-	#else
-	{
-		MaterialParameters = GetMaterialPixelParameters(Interpolants, SvPosition);
-	}
-	#endif
+	MaterialParameters = GetMaterialPixelParameters(Interpolants, SvPosition);
 
 	FPixelMaterialInputs PixelMaterialInputs;
 	
@@ -129,6 +102,12 @@ void Main(
 				// Lumen card stores only diffuse albedo, so merge specular & diffuse color, 
 				// which are propertly weighted respectively to each other
 				DiffuseColor = SpecularColor + DiffuseColor;
+
+				// Note : The legacy path uses a different formulation for composition diffuse and specular color. This result in lighter albedo.
+				//        If the above formulation causes issues for legacy projects, one could re-enable the code below:
+				//  DiffuseColor  = Weight * SubstrateEnvLight.DiffuseColor;
+				//  SpecularColor = Weight * SubstrateEnvLight.SpecularColor;
+				//  EnvBRDFApproxFullyRough(DiffuseColor, SpecularColor);
 			}
 			#undef CurrentBSDF
 		}
@@ -166,20 +145,28 @@ void Main(
 	uint ShadingModel = GetMaterialShadingModel(PixelMaterialInputs);
 
 	float3 SubsurfaceColor = 0.0f;
-#if MATERIAL_SHADINGMODEL_SUBSURFACE || MATERIAL_SHADINGMODEL_PREINTEGRATED_SKIN || MATERIAL_SHADINGMODEL_SUBSURFACE_PROFILE || MATERIAL_SHADINGMODEL_TWOSIDED_FOLIAGE || MATERIAL_SHADINGMODEL_CLOTH || MATERIAL_SHADINGMODEL_EYE
-	if (ShadingModel == SHADINGMODELID_SUBSURFACE || ShadingModel == SHADINGMODELID_PREINTEGRATED_SKIN || ShadingModel == SHADINGMODELID_SUBSURFACE_PROFILE || ShadingModel == SHADINGMODELID_TWOSIDED_FOLIAGE || ShadingModel == SHADINGMODELID_CLOTH || ShadingModel == SHADINGMODELID_EYE)
+	// Match the logic in BasePassPixelShader.usf. MATERIAL_SHADINGMODEL_SUBSURFACE_PROFILE and MATERIAL_SHADINGMODEL_EYE 
+	// are ignored from the following logic as the subsurface color does not contribute to them.
+#if MATERIAL_SHADINGMODEL_SUBSURFACE || MATERIAL_SHADINGMODEL_PREINTEGRATED_SKIN || MATERIAL_SHADINGMODEL_TWOSIDED_FOLIAGE || MATERIAL_SHADINGMODEL_CLOTH
+	if (ShadingModel == SHADINGMODELID_SUBSURFACE || ShadingModel == SHADINGMODELID_PREINTEGRATED_SKIN || ShadingModel == SHADINGMODELID_TWOSIDED_FOLIAGE || ShadingModel == SHADINGMODELID_CLOTH)
 	{
 		float4 SubsurfaceData = GetMaterialSubsurfaceData(PixelMaterialInputs);
 		DiffuseColor += SubsurfaceData.rgb;
 	}
 #endif
 
+#if MATERIAL_SHADINGMODEL_UNLIT
+	if (ShadingModel == SHADINGMODELID_UNLIT)
+	{
+		DiffuseColor = float3(0, 0, 0);
+	}
+#endif
+
 #endif // TEMPLATE_USES_SUBSTRATE
 
 	// Normals are stored in local card space
-	float3 CardSpaceNormal = float3(0, 0, 1);
+	float3 CardSpaceNormal = float3(0.0f, 0.0f, 1.0f);
 
-	// As of 04/06/2022 sometimes we get NaN normals from Nanite meshes with WPO
 	if (all(IsFinite(WorldNormal)))
 	{
 		WorldNormal = normalize(WorldNormal);

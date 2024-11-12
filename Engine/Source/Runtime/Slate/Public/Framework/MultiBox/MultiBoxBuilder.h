@@ -45,7 +45,7 @@ public:
 	 */
 	SLATE_API FMultiBoxBuilder( const EMultiBoxType InType, FMultiBoxCustomization InCustomization, const bool bInShouldCloseWindowAfterMenuSelection, const TSharedPtr< const FUICommandList >& InCommandList, TSharedPtr<FExtender> InExtender = TSharedPtr<FExtender>(), FName InTutorialHighlightName = NAME_None, FName InMenuName = NAME_None );
 
-	virtual ~FMultiBoxBuilder() {}
+	SLATE_API virtual ~FMultiBoxBuilder() {}
 
 	/**
 	 * Adds an editable text entry
@@ -96,6 +96,8 @@ public:
 	 * @param	CommandList		The new command list to use
 	 */
 	SLATE_API void PushCommandList( const TSharedRef< const FUICommandList > CommandList );
+
+	SLATE_API void SetLastSelectedCommandIndex( int32 InLastSelectedCommandIndex );
 
 
 	/**
@@ -177,6 +179,11 @@ protected:
 /** Helper struct that holds FMenuEntry params for construction */
 struct FMenuEntryParams : public FMultiBlock::FMultiBlockParams
 {
+	FMenuEntryParams()
+	{
+		Type = EMultiBlockType::MenuEntry;
+	}
+
 	/** Optional overridden text label for this menu entry.  If not set, then the action's label will be used instead. */
 	TAttribute<FText> LabelOverride;
 
@@ -265,8 +272,9 @@ public:
 	 * @param	InExtensionHook			The section hook. Can be NAME_None
 	 * @param	UserInterfaceActionType	Type of interface action
 	 * @param	InTutorialHighlightName	Optional name to identify this widget and highlight during tutorials
+	 * @param	InInputBindingOverride  Optional overridden input binding text for this menu entry.  If not set, then the UI action's binding will be used if available.
 	 */
-	SLATE_API void AddMenuEntry( const TAttribute<FText>& InLabel, const TAttribute<FText>& InToolTip, const FSlateIcon& InIcon, const FUIAction& UIAction, FName InExtensionHook = NAME_None, const EUserInterfaceActionType UserInterfaceActionType = EUserInterfaceActionType::Button, FName InTutorialHighlightName = NAME_None );
+	SLATE_API void AddMenuEntry( const TAttribute<FText>& InLabel, const TAttribute<FText>& InToolTip, const FSlateIcon& InIcon, const FUIAction& UIAction, FName InExtensionHook = NAME_None, const EUserInterfaceActionType UserInterfaceActionType = EUserInterfaceActionType::Button, FName InTutorialHighlightName = NAME_None, const TAttribute<FText>& InInputBindingOverride = TAttribute<FText>());
 	
 	/**
 	 * Adds a menu entry with a custom widget
@@ -377,11 +385,21 @@ public:
 	 * @param	InWidget			The widget that should be shown in the menu
 	 * @param	InLabel				Optional label text to be added to the left of the content
 	 * @param	bInNoIndent			If true, removes the padding from the left of the widget that lines it up with other menu items (default == false)
-	 * @param	bInSearchable			If true, widget will be searchable (default == true)
-	 * @param	InToolTipText	Optional tooltip text to be added to the widget and label
+	 * @param	bInSearchable		If true, widget will be searchable (default == true)
+	 * @param	InToolTipText		Optional tooltip text to be added to the widget and label
 	 */
-	SLATE_API void AddWidget( TSharedRef<SWidget> InWidget, const FText& InLabel, bool bInNoIndent = false, bool bInSearchable = true, const 
-	TAttribute<FText>&  InToolTipText = FText());
+	SLATE_API void AddWidget( TSharedRef<SWidget> InWidget, const FText& InLabel, bool bInNoIndent = false, bool bInSearchable = true, const TAttribute<FText>&  InToolTipText = FText());
+
+	/**
+	 * Adds any widget to the menu
+	 *
+	 * @param	InWidget			The widget that should be shown in the menu
+	 * @param	InLabel				Optional label text to be added to the left of the content
+	 * @param	InStyleParams		Optional style parameters and overrides, @see FMenuEntryStyleParams
+	 * @param	bInSearchable		If true, widget will be searchable (default == true)
+	 * @param	InToolTipText		Optional tooltip text to be added to the widget and label
+	 */
+	SLATE_API void AddWidget(const TSharedRef<SWidget>& InWidget, const FText& InLabel, const FMenuEntryStyleParams& InStyleParams, bool bInSearchable = true, const TAttribute<FText>& InToolTipText = FText());
 
 	/**
 	* Adds the widget the multibox will use for searching
@@ -396,10 +414,6 @@ protected:
 	SLATE_API virtual void ApplySectionBeginning() override;
 
 public:
-	// These classes need access to the AddWrapperSubMenu() methods
-	//friend class FWidgetBlock;
-	//friend class FToolBarComboButtonBlock;
-
 	/**
 	 * Adds a sub-menu which is a menu within a menu
 	 * 
@@ -419,6 +433,8 @@ public:
 	 * @param	InSubMenu			Sub-Menu object
 	 */
 	SLATE_API void AddWrapperSubMenu( const FText& InMenuLabel, const FText& InToolTip, const TSharedPtr<SWidget>& InSubMenu, const FSlateIcon& InIcon );
+
+	SLATE_API void SetSearchable(bool bIsSearchable) { bSearchable = bIsSearchable; };
 
 private:
 	/** Current extension hook name for sections to determine where sections begin and end */
@@ -499,6 +515,7 @@ public:
 	FToolBarBuilder(TSharedPtr< const FUICommandList > InCommandList, FMultiBoxCustomization InCustomization, TSharedPtr<FExtender> InExtender, EOrientation Orientation, const bool InForceSmallIcons = false, const bool bUniform = false)
 		: FMultiBoxBuilder(bUniform ? EMultiBoxType::UniformToolBar : (Orientation == Orient_Horizontal) ? EMultiBoxType::ToolBar : EMultiBoxType::VerticalToolBar, InCustomization, false, InCommandList, InExtender)
 		, bSectionNeedsToBeApplied(false)
+		, bSectionShouldHaveSeparator(true)
 		, bIsFocusable(true)
 		, bForceSmallIcons(InForceSmallIcons)
 	{
@@ -512,6 +529,7 @@ public:
 	FToolBarBuilder(TSharedPtr<const FUICommandList> InCommandList, FMultiBoxCustomization InCustomization, TSharedPtr<FExtender> InExtender = nullptr, const bool InForceSmallIcons = false)
 		: FMultiBoxBuilder(EMultiBoxType::ToolBar, InCustomization, false, InCommandList, InExtender)
 		, bSectionNeedsToBeApplied(false)
+		, bSectionShouldHaveSeparator(true)
 		, bIsFocusable(true)
 		, bForceSmallIcons(InForceSmallIcons)
 	{
@@ -529,7 +547,6 @@ public:
 	 */
 	SLATE_API virtual void AddToolBarButton(const FButtonArgs& ButtonArgs);
 
-
 	/**
 	 * Adds a tool bar button
 	 *
@@ -539,10 +556,22 @@ public:
 	 * @param	InToolTipOverride		Optional tool tip override.	 If omitted, then the action's label will be used instead.
 	 * @param	InIconOverride			Optional name of the slate brush to use for the tool bar image.  If omitted, then the action's icon will be used instead.
 	 * @param	InTutorialHighlightName	Name to identify this widget and highlight during tutorials
-	 * @param	InCustomMenuDelegate  Optional custom menu delegate for cases where the toolbar is compressed into a menu
+	 * @param	InCustomMenuDelegate	Optional custom menu delegate for cases where the toolbar is compressed into a menu
+	 * @param	InVisibilityOverride	Optional visibility override which, if set and returning anything but Visible, overrides the visibility of the toolbar button.
+	 * @param	InToolbarLabelOverride	Optional label override for wh.  If omitted, then the action's label will be used instead.
 	 */
-	SLATE_API void AddToolBarButton(const TSharedPtr< const FUICommandInfo > InCommand, FName InExtensionHook = NAME_None, const TAttribute<FText>& InLabelOverride = TAttribute<FText>(), const TAttribute<FText>& InToolTipOverride = TAttribute<FText>(), const TAttribute<FSlateIcon>& InIconOverride = TAttribute<FSlateIcon>(), FName InTutorialHighlightName = NAME_None, FNewMenuDelegate InCustomMenuDelegate = FNewMenuDelegate());
-	
+	SLATE_API void AddToolBarButton(
+		const TSharedPtr<const FUICommandInfo> InCommand,
+		FName InExtensionHook = NAME_None,
+		const TAttribute<FText>& InLabelOverride = TAttribute<FText>(),
+		const TAttribute<FText>& InToolTipOverride = TAttribute<FText>(),
+		const TAttribute<FSlateIcon>& InIconOverride = TAttribute<FSlateIcon>(),
+		FName InTutorialHighlightName = NAME_None,
+		FNewMenuDelegate InCustomMenuDelegate = FNewMenuDelegate(),
+		TAttribute<EVisibility> InVisibilityOverride = TAttribute<EVisibility>(),
+		TAttribute<FText> InToolbarLabelOverride = TAttribute<FText>()
+	);
+
 	/**
 	 * Adds a tool bar button
 	 *
@@ -553,21 +582,43 @@ public:
 	 * @param	InIconOverride			Optional icon to use for the tool bar image.  If omitted, then the action's icon will be used instead.
 	 * @param	UserInterfaceActionType	Type of interface action
 	 * @param	InTutorialHighlightName	Name to identify this widget and highlight during tutorials
+	 * @param	InVisibilityOverride	Optional visibility override which, if set and returning anything but Visible, overrides the visibility of the toolbar button.
+	 * @param	InToolbarLabelOverride	Optional label override for wh.  If omitted, then the action's label will be used instead.
 	 */
-	SLATE_API void AddToolBarButton(const FUIAction& InAction, FName InExtensionHook = NAME_None, const TAttribute<FText>& InLabelOverride = TAttribute<FText>(), const TAttribute<FText>& InToolTipOverride = TAttribute<FText>(), const TAttribute<FSlateIcon>& InIconOverride = TAttribute<FSlateIcon>(), const EUserInterfaceActionType UserInterfaceActionType = EUserInterfaceActionType::Button, FName InTutorialHighlightName = NAME_None );
+	SLATE_API void AddToolBarButton(
+		const FUIAction& InAction,
+		FName InExtensionHook = NAME_None,
+		const TAttribute<FText>& InLabelOverride = TAttribute<FText>(),
+		const TAttribute<FText>& InToolTipOverride = TAttribute<FText>(),
+		const TAttribute<FSlateIcon>& InIconOverride = TAttribute<FSlateIcon>(),
+		const EUserInterfaceActionType UserInterfaceActionType = EUserInterfaceActionType::Button,
+		FName InTutorialHighlightName = NAME_None,
+		TAttribute<EVisibility> InVisibilityOverride = TAttribute<EVisibility>(),
+		TAttribute<FText> InToolbarLabelOverride = TAttribute<FText>() );
 
 	/**
 	 * Adds a combo button
 	 *
 	 * @param	InAction					UI action that sets the enabled state for this combo button
-	 * @param	InMenuContentGenerator		Delegate that generates a widget for this combo button's menu content.  Called when the menu is summoned.
+	 * @param	InMenuContentGenerator		Delegate that generates a widget for this combo button's menu content. Called when the menu is summoned.
 	 * @param	InLabelOverride				Optional label override.  If omitted, then the action's label will be used instead.
 	 * @param	InToolTipOverride			Optional tool tip override.	 If omitted, then the action's label will be used instead.
 	 * @param	InIconOverride				Optional icon to use for the tool bar image.  If omitted, then the action's icon will be used instead.
 	 * @param	bInSimpleComboBox			If true, the icon and label won't be displayed
 	 * @param	InTutorialHighlightName		Name to identify this widget and highlight during tutorials
+	 * @param	InVisibilityOverride		Optional visibility override which, if set and returning anything but Visible, overrides the visibility of the combo button.
+	 * @param	InToolbarLabelOverride		Optional label override for wh.  If omitted, then the action's label will be used instead.
 	 */
-	SLATE_API void AddComboButton( const FUIAction& InAction, const FOnGetContent& InMenuContentGenerator, const TAttribute<FText>& InLabelOverride = TAttribute<FText>(), const TAttribute<FText>& InToolTipOverride = TAttribute<FText>(), const TAttribute<FSlateIcon>& InIconOverride = TAttribute<FSlateIcon>(), bool bInSimpleComboBox = false, FName InTutorialHighlightName = NAME_None );
+	SLATE_API void AddComboButton(
+		const FUIAction& InAction,
+		const FOnGetContent& InMenuContentGenerator,
+		const TAttribute<FText>& InLabelOverride = TAttribute<FText>(),
+		const TAttribute<FText>& InToolTipOverride = TAttribute<FText>(),
+		const TAttribute<FSlateIcon>& InIconOverride = TAttribute<FSlateIcon>(),
+		bool bInSimpleComboBox = false,
+		FName InTutorialHighlightName = NAME_None,
+		TAttribute<EVisibility> InVisibilityOverride = TAttribute<EVisibility>(),
+		TAttribute<FText> InToolbarLabelOverride = TAttribute<FText>() );
 
 	/**
 	 * Adds a tool bar stack button
@@ -583,33 +634,68 @@ public:
 	 * @param	InWidget				The widget that should be shown in the toolbar
 	 * @param	InLabel                 Optional Label.  
 	 * @param	InTutorialHighlightName	Name to identify this widget and highlight during tutorials
-	 * @param	bInSearchable				If true, widget will be searchable (default == true)
+	 * @param	bInSearchable			If true, widget will be searchable (default == true)
+	 * @param	InToolTip				Optional tool tip 
 	 */
-	SLATE_API void AddToolBarWidget(TSharedRef<SWidget> InWidget, const TAttribute<FText>& InLabel = TAttribute<FText>(), FName InTutorialHighlightName = NAME_None, bool bInSearchable = true);
-
+	SLATE_API void AddToolBarWidget(TSharedRef<SWidget> InWidget, const TAttribute<FText>& InLabel = TAttribute<FText>(), FName InTutorialHighlightName = NAME_None, bool bInSearchable = true, const TAttribute<FText>& InToolTip = TAttribute<FText>());
 
 	/**
 	 * Adds any widget to the toolbar
-	 * 
+	 *
 	 * @param	InWidget				The widget that should be shown in the toolbar
 	 * @param	InTutorialHighlightName	Name to identify this widget and highlight during tutorials
 	 * @param	bInSearchable			If true, widget will be searchable (default == true)
 	 * @param	InAlignment				Horizontal alignment for the widget inside the toolbar
 	 * @param	InCustomMenuDelegate	Optional custom menu delegate for cases where the toolbar is compressed into a menu
+	 * @param	InVisibilityOverride	Optional visibility override which, if set and returning anything but Visible, overrides the visibility of the widget.
 	 */
-	SLATE_API void AddWidget(TSharedRef<SWidget> InWidget, FName InTutorialHighlightName = NAME_None, bool bInSearchable = true, EHorizontalAlignment InAlignment = HAlign_Fill, FNewMenuDelegate InCustomMenuDelegate = FNewMenuDelegate());
-	
+	SLATE_API void AddWidget(
+		TSharedRef<SWidget> InWidget,
+		FName InTutorialHighlightName = NAME_None,
+		bool bInSearchable = true,
+		EHorizontalAlignment InAlignment = HAlign_Fill,
+		FNewMenuDelegate InCustomMenuDelegate = FNewMenuDelegate(),
+		TAttribute<EVisibility> InVisibilityOverride = TAttribute<EVisibility>()
+	);
+
+	/**
+	 * Adds any widget to the toolbar
+	 *
+	 * @param	InWidget				The widget that should be shown in the toolbar
+	 * @param	InStyleParams			Style parameters for the widget inside the toolbar
+	 * @param	InTutorialHighlightName	Name to identify this widget and highlight during tutorials
+	 * @param	bInSearchable			If true, widget will be searchable (default == true)
+	 * @param	InCustomMenuDelegate	Optional custom menu delegate for cases where the toolbar is compressed into a menu
+	 * @param	InVisibilityOverride	Optional visibility override which, if set and returning anything but Visible, overrides the visibility of the widget.
+	 */
+	SLATE_API void AddWidget(
+		TSharedRef<SWidget> InWidget,
+		const FMenuEntryStyleParams& InStyleParams,
+		FName InTutorialHighlightName = NAME_None,
+		bool bInSearchable = true,
+		FNewMenuDelegate InCustomMenuDelegate = FNewMenuDelegate(),
+		TAttribute<EVisibility> InVisibilityOverride = TAttribute<EVisibility>()
+	);
+
 	/**
 	 * Adds a toolbar separator
+	 *
+	 * @param	InExtensionHook			Optional extensibility hook.
+	 * @param	InVisibilityOverride	Optional visibility override which, if set and returning anything but Visible,
+	 * overrides the visibility of the separator.
 	 */
-	SLATE_API void AddSeparator(FName InExtensionHook = NAME_None);
-	
+	SLATE_API void AddSeparator(
+		FName InExtensionHook = NAME_None, TAttribute<EVisibility> InVisibilityOverride = TAttribute<EVisibility>()
+	);
+
 	/**
 	 * Starts a section on to the extender section hook stack
-	 * 
+	 *
 	 * @param InExtensionHook	The section hook. Can be NAME_None
+	 * @param bInSectionShouldHaveSeparator	Whether this section should have a separator to its left (this doesn't apply
+	 * to the first section added, because that never gets a separator).
 	 */
-	SLATE_API void BeginSection( FName InExtensionHook );
+	SLATE_API void BeginSection(FName InExtensionHook, bool bInSectionShouldHaveSeparator = true);
 
 	/**
 	 * Ends the current section
@@ -637,6 +723,7 @@ protected:
 	FToolBarBuilder(EMultiBoxType InType, TSharedPtr<const FUICommandList> InCommandList, FMultiBoxCustomization InCustomization, TSharedPtr<FExtender> InExtender = TSharedPtr<FExtender>(), const bool InForceSmallIcons = false)
 		: FMultiBoxBuilder(InType, InCustomization, false, InCommandList, InExtender)
 		, bSectionNeedsToBeApplied(false)
+		, bSectionShouldHaveSeparator(true)
 		, bIsFocusable(false)
 		, bForceSmallIcons(InForceSmallIcons)
 	{
@@ -649,6 +736,16 @@ protected:
 
 	SLATE_API void InitializeToolBarButtonBlock(TSharedPtr<FToolBarButtonBlock> ButtonRowBlock, const FButtonArgs& ButtonArgs);
 
+	/** Handles AddWidget calls */
+	void AddWidgetInternal(
+		TSharedRef<SWidget> InWidget,
+		const FMenuEntryStyleParams& InStyleParams,
+		FName InTutorialHighlightName = NAME_None,
+		bool bInSearchable = true,
+		FNewMenuDelegate InCustomMenuDelegate = FNewMenuDelegate(),
+		TAttribute<EVisibility> InVisibilityOverride = TAttribute<EVisibility>()
+	);
+
 private:
 	/** Current extension hook name for sections to determine where sections begin and end */
 	FName CurrentSectionExtensionHook;
@@ -659,6 +756,9 @@ private:
 
 	/** True if there is a pending section that needs to be applied */
 	bool bSectionNeedsToBeApplied;
+
+	/** Whether the current section should be preceded by a separator */
+	bool bSectionShouldHaveSeparator;
 
 	/** Whether the buttons created can receive keyboard focus */
 	bool bIsFocusable;

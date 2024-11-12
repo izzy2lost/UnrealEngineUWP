@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DisplayClusterShadersPreprocess_UVLightCards.h"
+#include "Render/Viewport/IDisplayClusterViewportManager.h"
 
 #include "Components/PrimitiveComponent.h"
 #include "DataDrivenShaderPlatformInfo.h"
@@ -198,34 +199,13 @@ bool FDisplayClusterShadersPreprocess_UVLightCards::RenderPreprocess_UVLightCard
 		return false;
 	}
 
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_UVLightCards_Render, "nDisplay_UVLightCards_Render");
 	SCOPED_GPU_STAT(RHICmdList, nDisplay_UVLightCards_Render);
-	SCOPED_DRAW_EVENT(RHICmdList, nDisplay_UVLightCards_Render);
 
 	FRDGBuilder GraphBuilder(RHICmdList);
 
 	FEngineShowFlags EngineShowFlags(ESFIM_Game);
-
-	// LightCard settings from the FDisplayClusterViewportManager::ConfigureViewFamily
-	{
-		EngineShowFlags.PostProcessing = 0;
-		EngineShowFlags.SetAtmosphere(0);
-		EngineShowFlags.SetFog(0);
-		EngineShowFlags.SetVolumetricFog(0);
-		EngineShowFlags.SetMotionBlur(0); // motion blur doesn't work correctly with scene captures.
-		EngineShowFlags.SetSeparateTranslucency(0);
-		EngineShowFlags.SetHMDDistortion(0);
-		EngineShowFlags.SetOnScreenDebug(0);
-
-		EngineShowFlags.SetLumenReflections(0);
-		EngineShowFlags.SetLumenGlobalIllumination(0);
-		EngineShowFlags.SetGlobalIllumination(0);
-
-		EngineShowFlags.SetScreenSpaceAO(0);
-		EngineShowFlags.SetAmbientOcclusion(0);
-		EngineShowFlags.SetDeferredLighting(0);
-		EngineShowFlags.SetVirtualTexturePrimitives(0);
-		EngineShowFlags.SetRectLights(0);
-	}
+	IDisplayClusterViewportManager::SetupEngineShowFlags(EDisplayClusterViewportCaptureMode::Lightcard, EngineShowFlags);
 
 	FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
 		InRenderTarget,

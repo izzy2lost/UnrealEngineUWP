@@ -69,26 +69,28 @@ public class AudioFormatRad : ModuleRules
 
         bool bIsWindowsLib = false;
         string[] ArchitectureStrings = GetRadAudioPlatformString(Target, out bIsWindowsLib);
-
-        string BasePath = Path.Combine(ModuleDirectory, "..", "..", "Runtime", "RadAudioCodec", "SDK", "Lib");
-        foreach (string Architecture in ArchitectureStrings)
-        {
-            // radaudio_ is the codec.
-            // rada_ is the container.
-            if (bIsWindowsLib)
-            {
-                PublicAdditionalLibraries.Add(Path.Combine(BasePath, "radaudio_decoder_" + Architecture + ".lib"));
-                PublicAdditionalLibraries.Add(Path.Combine(BasePath, "rada_decode_" + Architecture + ".lib"));
-                PublicAdditionalLibraries.Add(Path.Combine(BasePath, "radaudio_encoder_" + Architecture + ".lib"));
-                PublicAdditionalLibraries.Add(Path.Combine(BasePath, "rada_encode_" + Architecture + ".lib"));
-            }
-            else
-            {
-                PublicAdditionalLibraries.Add(Path.Combine(BasePath, "libradaudio_decoder_" + Architecture + ".a"));
-                PublicAdditionalLibraries.Add(Path.Combine(BasePath, "librada_decode_" + Architecture + ".a"));
-                PublicAdditionalLibraries.Add(Path.Combine(BasePath, "libradaudio_encoder_" + Architecture + ".a"));
-                PublicAdditionalLibraries.Add(Path.Combine(BasePath, "librada_encode_" + Architecture + ".a"));
-            }
-        }
+		if (ArchitectureStrings is not null)
+		{
+			string BasePath = Path.Combine(ModuleDirectory, "..", "..", "Runtime", "RadAudioCodec", "SDK", "Lib");
+			foreach (string Architecture in ArchitectureStrings)
+			{
+				// radaudio_ is the codec.
+				// rada_ is the container.
+				if (bIsWindowsLib)
+				{
+					PublicAdditionalLibraries.Add(Path.Combine(BasePath, "radaudio_decoder_" + Architecture + ".lib"));
+					PublicAdditionalLibraries.Add(Path.Combine(BasePath, "rada_decode_" + Architecture + ".lib"));
+					PublicAdditionalLibraries.Add(Path.Combine(BasePath, "radaudio_encoder_" + Architecture + ".lib"));
+					PublicAdditionalLibraries.Add(Path.Combine(BasePath, "rada_encode_" + Architecture + ".lib"));
+				}
+				else
+				{
+					PublicAdditionalLibraries.Add(Path.Combine(BasePath, "libradaudio_decoder_" + Architecture + ".a"));
+					PublicAdditionalLibraries.Add(Path.Combine(BasePath, "librada_decode_" + Architecture + ".a"));
+					PublicAdditionalLibraries.Add(Path.Combine(BasePath, "libradaudio_encoder_" + Architecture + ".a"));
+					PublicAdditionalLibraries.Add(Path.Combine(BasePath, "librada_encode_" + Architecture + ".a"));
+				}
+			}
+		}
 	}
 }

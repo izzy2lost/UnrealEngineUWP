@@ -16,23 +16,35 @@ enum class ELinearGradientTileType : uint8
 	TileAndMirror
 };
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageGradientLinear : public UDMMaterialStageGradient
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialStageGradientLinear : public UDMMaterialStageGradient
 {
 	GENERATED_BODY()
 
 public:
 	UDMMaterialStageGradientLinear();
 
-	virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
-
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	virtual ELinearGradientTileType GetTilingType() const { return Tiling; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	virtual void SetTilingType(ELinearGradientTileType InType);
+	DYNAMICMATERIALEDITOR_API virtual void SetTilingType(ELinearGradientTileType InType);
+
+	//~ Begin UObject
+	DYNAMICMATERIALEDITOR_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostEditUndo() override;
+	//~ End UObject
 
 protected:
-	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Getter=GetTilingType, Setter=SetTilingType, Category = "Material Designer")
+	static TSoftObjectPtr<UMaterialFunctionInterface> LinearGradientNoTileFunction;
+	static TSoftObjectPtr<UMaterialFunctionInterface> LinearGradientTileFunction;
+	static TSoftObjectPtr<UMaterialFunctionInterface> LinearGradientTileAndMirrorFunction;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetTilingType, Setter=SetTilingType, BlueprintSetter = SetTilingType, 
+		Category = "Material Designer")
 	ELinearGradientTileType Tiling;
+
+	UMaterialFunctionInterface* GetMaterialFunctionForTilingType(ELinearGradientTileType) const;
+
+	void OnTilingChanged();
 };

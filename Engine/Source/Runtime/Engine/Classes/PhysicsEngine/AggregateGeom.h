@@ -22,25 +22,25 @@ struct FKAggregateGeom
 {
 	GENERATED_USTRUCT_BODY()
 
-	UPROPERTY(EditAnywhere, editfixedsize, Category = "Aggregate Geometry", meta = (DisplayName = "Spheres"))
+	UPROPERTY(EditAnywhere, editfixedsize, Category = "Aggregate Geometry", meta = (DisplayName = "Spheres", TitleProperty = "Name"))
 	TArray<FKSphereElem> SphereElems;
 
-	UPROPERTY(EditAnywhere, editfixedsize, Category = "Aggregate Geometry", meta = (DisplayName = "Boxes"))
+	UPROPERTY(EditAnywhere, editfixedsize, Category = "Aggregate Geometry", meta = (DisplayName = "Boxes", TitleProperty = "Name"))
 	TArray<FKBoxElem> BoxElems;
 
-	UPROPERTY(EditAnywhere, editfixedsize, Category = "Aggregate Geometry", meta = (DisplayName = "Capsules"))
+	UPROPERTY(EditAnywhere, editfixedsize, Category = "Aggregate Geometry", meta = (DisplayName = "Capsules", TitleProperty = "Name"))
 	TArray<FKSphylElem> SphylElems;
 
-	UPROPERTY(EditAnywhere, editfixedsize, Category = "Aggregate Geometry", meta = (DisplayName = "Convex Elements"))
+	UPROPERTY(EditAnywhere, editfixedsize, Category = "Aggregate Geometry", meta = (DisplayName = "Convex Elements", TitleProperty = "Name"))
 	TArray<FKConvexElem> ConvexElems;
 
-	UPROPERTY(EditAnywhere, editfixedsize, Category = "Aggregate Geometry", meta = (DisplayName = "Tapered Capsules"))
+	UPROPERTY(EditAnywhere, editfixedsize, Category = "Aggregate Geometry", meta = (DisplayName = "Tapered Capsules", TitleProperty = "Name"))
 	TArray<FKTaperedCapsuleElem> TaperedCapsuleElems;
 
-	UPROPERTY(EditAnywhere, editfixedsize, Category = "Aggregate Geometry", meta = (DisplayName = "Level Sets"))
+	UPROPERTY(EditAnywhere, editfixedsize, Category = "Aggregate Geometry", meta = (DisplayName = "Level Sets", TitleProperty = "Name"))
 	TArray<FKLevelSetElem> LevelSetElems;
 
-	UPROPERTY(EditAnywhere, editfixedsize, Category = "Aggregate Geometry", meta = (DisplayName = "(Experimental) Skinned Level Sets"), Experimental)
+	UPROPERTY(EditAnywhere, editfixedsize, Category = "Aggregate Geometry", meta = (DisplayName = "(Experimental) Skinned Level Sets", TitleProperty = "Name"), Experimental)
 	TArray<FKSkinnedLevelSetElem> SkinnedLevelSetElems;
 
 	FKAggregateGeom()
@@ -221,6 +221,28 @@ struct FKAggregateGeom
 
 		return INDEX_NONE;
 	}
+
+#if WITH_EDITORONLY_DATA
+	void EmptyImportedElements()
+	{
+		auto CleanUp = [](auto& Elems)
+		{
+			Elems.RemoveAllSwap([](const FKShapeElem& Elem)
+			{
+				return Elem.bIsGenerated == false;
+			});
+		};
+		CleanUp(BoxElems);
+		CleanUp(ConvexElems);
+		CleanUp(SphylElems);
+		CleanUp(SphereElems);
+		CleanUp(TaperedCapsuleElems);
+		CleanUp(LevelSetElems);
+		CleanUp(SkinnedLevelSetElems);
+
+		FreeRenderInfo();
+	}
+#endif
 
 	void EmptyElements()
 	{

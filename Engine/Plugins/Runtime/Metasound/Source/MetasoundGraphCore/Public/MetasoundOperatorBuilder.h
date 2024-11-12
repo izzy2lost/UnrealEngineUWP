@@ -31,6 +31,13 @@ namespace Metasound
 	{
 		class IDynamicOperatorTransform;
 		struct FDynamicOperatorUpdateCallbacks;
+		struct FDynamicGraphOperatorData;
+		class IDynamicGraphInPlaceBuildable;
+	}
+
+	namespace DirectedGraphAlgo
+	{
+		struct FGraphOperatorData;
 	}
 
 	// Parameters for building a dynamic graph operator consist of the parameters
@@ -76,8 +83,6 @@ namespace Metasound
 			TUniquePtr<IOperator> BuildDynamicGraphOperator(const FBuildDynamicGraphOperatorParams& InParams,  FBuildResults& OutResults);
 
 		private:
-
-			TUniquePtr<DirectedGraphAlgo::FGraphOperatorData> BuildGraphOperatorData(const FBuildGraphOperatorParams& InParams, FBuildResults& OutResults) const;
 
 			// Handles build status of current build operation.
 			struct FBuildStatus
@@ -135,6 +140,9 @@ namespace Metasound
 			// Prune unreachable nodes from InOutNodes
 			FBuildStatus PruneNodes(OperatorBuilder::FBuildContext& InOutContext, TArray<const INode*>& InOutNodes) const;
 
+			// Creates FVertexInterfaceData from the IGraph.
+			void InitializeVertexInterfaceData(const IGraph& InGraph, DirectedGraphAlgo::FGraphOperatorData& InOutGraphOperatorData) const;
+
 			// Initialize Operator Info
 			void InitializeOperatorInfo(const IGraph& InGraph ,TArray<const INode*>& InSortedNodes, DirectedGraphAlgo::FGraphOperatorData& InOutGraphOperatorData) const;
 
@@ -153,9 +161,18 @@ namespace Metasound
 			// Call the operator factories for the nodes
 			FBuildStatus CreateOperators(OperatorBuilder::FBuildContext& InOutContext, const TArray<const INode*>& InSortedNodes, const FInputVertexInterfaceData& InExternalInputData) const;
 
-			// Create the final graph operator from the provided build context.
-			TUniquePtr<IOperator> CreateGraphOperator(TUniquePtr<DirectedGraphAlgo::FGraphOperatorData>&& InGraphOperatorData) const;
+			// Creates a graph operator where the set of operators does not change, but the input data can be rebound.
+			TUniquePtr<IOperator> BuildRebindableGraphOperator(const FBuildGraphOperatorParams& InParams, FBuildResults& OutResults) const;
 
+			// Creates a graph operator where teh set of operators is constant and the input data cannot be rebound.
+			TUniquePtr<IOperator> BuildStaticGraphOperator(const FBuildGraphOperatorParams& InParams, FBuildResults& OutResults) const;
+
+			// Builds graph operator data structure. 
+			bool BuildGraphOperatorData(const FBuildGraphOperatorParams& InParams, DirectedGraphAlgo::FGraphOperatorData& OutGraphOperatorData, TArray<const INode*>& OutNodeOrder, FBuildResults& OutResults) const;
+
+			// Access function for retrieving FDynamicGraphOperatorData from an IDynamicGraphInPlaceBuildable.
+			DynamicGraph::FDynamicGraphOperatorData& GetDynamicGraphOperatorData(DynamicGraph::IDynamicGraphInPlaceBuildable& InBuildable) const;
+			
 			FBuildStatus::EStatus GetMaxErrorLevel() const;
 
 			FOperatorBuilderSettings BuilderSettings;

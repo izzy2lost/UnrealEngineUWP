@@ -2,7 +2,6 @@
 
 #include "Helpers/Sessions/CreateSessionHelper.h"
 #include "Helpers/Sessions/LeaveSessionHelper.h"
-#include "OnlineCatchHelper.h"
 
 #define SESSIONS_TAG "[suite_sessions]"
 #define SESSIONS_LEAVESESSION_TAG SESSIONS_TAG "[leavesesssion]"
@@ -16,8 +15,8 @@ SESSIONS_TEST_CASE("If I call LeaveSession with an invalid account id, I get an 
 	LeaveSessionHelperParams.OpParams->LocalAccountId = FAccountId();
 	LeaveSessionHelperParams.ExpectedError = TOnlineResult<FLeaveSession>(Errors::InvalidParams());
 
-	GetLoginPipeline()
-		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams	));
+	GetPipeline()
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
 
 	RunToCompletion();
 }
@@ -32,7 +31,7 @@ SESSIONS_TEST_CASE("If I call LeaveSession with an empty session name, I get an 
 	LeaveSessionHelperParams.OpParams->SessionName = TEXT("");
 	LeaveSessionHelperParams.ExpectedError = TOnlineResult<FLeaveSession>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -52,7 +51,7 @@ SESSIONS_TEST_CASE("If I call LeaveSession with an unregistered session name, I 
 	LeaveSessionHelperParams.OpParams->SessionName = TEXT("LeaveUnregisteredSessionName");
 	LeaveSessionHelperParams.ExpectedError = TOnlineResult<FLeaveSession>(Errors::InvalidState());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -65,8 +64,8 @@ SESSIONS_TEST_CASE("If I call LeaveSession with an unregistered session name, I 
 SESSIONS_TEST_CASE("If I call LeaveSession with valid data, the operation completes successfully", SESSIONS_LEAVESESSION_TAG)
 {
 	DestroyCurrentServiceModule();
-	ResetAccountStatus();
 
+	int32 UserNumToLogin = 7;
 	FAccountId AccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -83,7 +82,7 @@ SESSIONS_TEST_CASE("If I call LeaveSession with valid data, the operation comple
 	LeaveSessionHelperParams.OpParams->SessionName = TEXT("LeaveSessionNameValidLeave");
 	LeaveSessionHelperParams.OpParams->bDestroySession = true;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;

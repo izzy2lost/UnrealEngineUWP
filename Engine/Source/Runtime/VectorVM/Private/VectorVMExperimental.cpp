@@ -294,8 +294,7 @@ void VVMMemSet16(void *dst, uint16 val, size_t num_vals)
 	}
 }
 
-
-#if PLATFORM_CPU_X86_FAMILY
+#if PLATFORM_CPU_X86_FAMILY || defined(__SSE3__)
 #define VVM_pshufb(Src, Mask) _mm_shuffle_epi8(Src, Mask)
   // Fabian's round-to-nearest-even float to half
   static void VVM_floatToHalf(void *output, float const *input)
@@ -387,7 +386,7 @@ VM_FORCEINLINE VectorRegister4i VVMIntLShift(VectorRegister4i v0, VectorRegister
 static FORCEINLINE void VVM_floatToHalf(void *output, float const *input)
 {
 	float16x4_t out0 = vcvt_f16_f32(vld1q_f32(input + 0));
-	vst1_f16((__fp16 *)((char *)output + 0), out0);
+	vst1_s16((int16_t *)((char *)output + 0), out0);
 }
 
 
@@ -1259,17 +1258,33 @@ VM_FORCEINLINE bool VVM_serSyncRandom(const uint8 *InsPtr, FVectorVMBatchState *
 }
 #endif //VECTORVM_SUPPORTS_SERIALIZATION
 
+static VM_FORCEINLINE int32 VVM_SafeIntDivide(int32 Numerator, int32 Denominator)
+{
+	static constexpr int32 MinIntValue = std::numeric_limits<int32>::min();
+	static constexpr int32 MaxIntValue = std::numeric_limits<int32>::max();
+
+	if (Denominator == 0)
+	{
+		return 0;
+	}
+	else if ((Denominator == -1) && (Numerator == MinIntValue))
+	{
+		return MaxIntValue;
+	}
+
+	return Numerator / Denominator;
+}
+
 static VM_FORCEINLINE VectorRegister4i VVMIntDiv(VectorRegister4i v0, VectorRegister4i v1)
 {
 	const int32 *v0_4 = reinterpret_cast<const int32*>(&v0);
 	const int32 *v1_4 = reinterpret_cast<const int32*>(&v1);
 
 	FVVM_VUI4 res;
-
-	res.i4[0] = v1_4[0] == 0 ? 0 : (v0_4[0] / v1_4[0]);
-	res.i4[1] = v1_4[1] == 0 ? 0 : (v0_4[1] / v1_4[1]);
-	res.i4[2] = v1_4[2] == 0 ? 0 : (v0_4[2] / v1_4[2]);
-	res.i4[3] = v1_4[3] == 0 ? 0 : (v0_4[3] / v1_4[3]);
+	res.i4[0] = VVM_SafeIntDivide(v0_4[0], v1_4[0]);
+	res.i4[1] = VVM_SafeIntDivide(v0_4[1], v1_4[1]);
+	res.i4[2] = VVM_SafeIntDivide(v0_4[2], v1_4[2]);
+	res.i4[3] = VVM_SafeIntDivide(v0_4[3], v1_4[3]);
 	
 	return res.v;
 }
@@ -2374,7 +2389,7 @@ VM_FORCEINLINE VectorRegister4f VVM_Exec2f_max                             (FVec
 VM_FORCEINLINE VectorRegister4f VVM_Exec2f_pow                             (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorSelect(VectorCompareGT(a, VVM_m128Const(Epsilon)), VectorPow(a, b), VectorZeroFloat()); }
 VM_FORCEINLINE VectorRegister4f VVM_Exec1f_round                           (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorRound(a); }
 VM_FORCEINLINE VectorRegister4f VVM_Exec1f_sign                            (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSign(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_step                            (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorStep(VectorSubtract(a, b)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_step                            (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorStep(VectorSubtract(b, a)); }
 VM_FORCEINLINE const uint8 *    VVM_Exec1null_random                       (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_random(CT_MultipleLoops, InsPtr, BatchState, ExecCtx, SerializeState, CmpSerializeState, NumLoops); }
 VM_FORCEINLINE const uint8 *    VVM_Exec0null_noise                        (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
 VM_FORCEINLINE VectorRegister4f VVM_Exec2f_cmplt                           (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorCompareLT(a, b); }

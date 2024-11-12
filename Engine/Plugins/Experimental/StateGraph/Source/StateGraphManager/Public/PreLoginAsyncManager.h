@@ -20,8 +20,11 @@ class UPreLoginAsyncManager;
 namespace UE::PreLoginAsync
 {
 
-STATEGRAPHMANAGER_API extern const FName StateGraphName;
-STATEGRAPHMANAGER_API extern const FName OptionsName;
+namespace Name
+{
+STATEGRAPHMANAGER_API extern const FName StateGraph;
+STATEGRAPHMANAGER_API extern const FName Options;
+} // Name
 
 #if WITH_SERVER_CODE
 
@@ -34,11 +37,11 @@ class STATEGRAPHMANAGER_API FOptions : public UE::FStateGraphNode
 public:
 	static FOptionsPtr Get(UE::FStateGraph& StateGraph)
 	{
-		return StateGraph.GetNode<FOptions>(OptionsName);
+		return StateGraph.GetNode<FOptions>(Name::Options);
 	}
 
 	FOptions(TObjectPtr<UPreLoginAsyncManager> InManager, const FString& InOptions, const FString& InAddress, const FUniqueNetIdRepl& InUniqueId, const AGameModeBase::FOnPreLoginCompleteDelegate& InOnComplete) :
-		UE::FStateGraphNode(OptionsName),
+		UE::FStateGraphNode(Name::Options),
 		WeakManager(InManager),
 		Options(InOptions),
 		Address(InAddress),
@@ -73,7 +76,7 @@ class STATEGRAPHMANAGER_API UPreLoginAsyncManager : public UWorldSubsystem, publ
 public:
 	virtual FName GetStateGraphName() const override
 	{
-		return UE::PreLoginAsync::StateGraphName;
+		return UE::PreLoginAsync::Name::StateGraph;
 	}
 
 #if WITH_SERVER_CODE

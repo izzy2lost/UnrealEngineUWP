@@ -12,6 +12,7 @@
 #include "Misc/Guid.h"
 #include "StaticParameterSet.h"
 #include "Editor/UnrealEdTypes.h"
+#include "Engine/BlendableInterface.h"
 #include "Materials/MaterialInstanceBasePropertyOverrides.h"
 #include "Materials/MaterialExpression.h"
 #include "MaterialEditorInstanceConstant.generated.h"
@@ -217,11 +218,93 @@ struct FEditorStaticComponentMaskParameterValue : public FEditorParameterValue
 	}
 };
 
-UCLASS(hidecategories=Object, collapsecategories, MinimalAPI)
-class UMaterialEditorInstanceConstant : public UObject
+USTRUCT()
+struct FEditorUserSceneTextureOverride
 {
-	GENERATED_UCLASS_BODY()
+	GENERATED_USTRUCT_BODY()
 
+	UPROPERTY()
+	FName Key;
+
+	UPROPERTY(EditAnywhere, Category = EditorParameterValue)
+	FName Value;
+};
+
+USTRUCT()
+struct FMaterialEditorPostProcessOverrides
+{
+	GENERATED_USTRUCT_BODY()
+
+	// Tracks if this is a material where post process overrides can be applied (MaterialDomain == MD_PostProcess, BlendableLocation != BL_ReplacingTonemapper)
+	UPROPERTY()
+	bool bIsOverrideable = false;
+
+	UPROPERTY(EditAnywhere, Category = PostProcessOverrideValue)
+	bool bOverrideBlendableLocation = false;
+
+	UPROPERTY(EditAnywhere, Category = PostProcessOverrideValue)
+	bool bOverrideBlendablePriority = false;
+
+	UPROPERTY(EditAnywhere, Category = PostProcessOverrideValue, meta = (DisplayName = "Blendable Location"), meta = (InvalidEnumValues = "BL_ReplacingTonemapper"))
+	TEnumAsByte<EBlendableLocation> BlendableLocationOverride { BL_SceneColorAfterTonemapping };
+
+	UPROPERTY(EditAnywhere, Category = PostProcessOverrideValue, meta = (DisplayName = "Blendable Priority"))
+	int32 BlendablePriorityOverride = 0;
+
+	/** Overrides for user scene texture inputs */
+	UPROPERTY(EditAnywhere, editfixedsize, Category = PostProcessOverrideValue)
+	TArray<FEditorUserSceneTextureOverride> UserSceneTextureInputs;
+
+	/** Override for user scene texture output */
+	UPROPERTY(EditAnywhere, Category = PostProcessOverrideValue)
+	FName UserSceneTextureOutput;
+};
+
+/** Common Interface for material parameter containers */
+UCLASS( abstract )
+class UMaterialEditorParameters: public UObject
+{
+	GENERATED_BODY()
+public:
+	/** 
+	 * Get the source/preview material interface for the parameters
+	 * @return source/preview material interface
+	 */
+	virtual TObjectPtr<UMaterialInterface> GetMaterialInterface() { return nullptr;};
+	virtual TObjectPtr<UMaterialInterface> GetParentMaterialInterface() { return nullptr;};
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	TArray<TObjectPtr<class UMaterialInstanceConstant>> StoredLayerPreviews;
+
+	UPROPERTY()
+	TArray<TObjectPtr<class UMaterialInstanceConstant>> StoredBlendPreviews;
+
+#endif
+	
+	/** 
+	 * Regenerates the parameter arrays. 
+	 */
+	virtual	UNREALED_API void RegenerateArrays() {}
+
+#if WITH_EDITOR
+	/** Sets back to zero the overrides for any parameters copied out of the layer stack */
+	UNREALED_API virtual void CleanParameterStack(int32 Index, EMaterialParameterAssociation MaterialType) { }
+
+	/** Copies the overrides for any parameters copied out of the layer stack from the layer or blend */
+	UNREALED_API virtual void ResetOverrides(int32 Index, EMaterialParameterAssociation MaterialType) {}
+	
+	/** Copies the parameter array values back to the source instance. */
+	UNREALED_API virtual void CopyToSourceInstance(const bool bForceStaticPermutationUpdate = false) {}
+	
+#endif
+};
+
+UCLASS(hidecategories=Object, collapsecategories, MinimalAPI)
+class UMaterialEditorInstanceConstant : public UMaterialEditorParameters
+{
+private:
+	GENERATED_UCLASS_BODY()
 	/** Physical material to use for this graphics material. Used for sounds, effects etc.*/
 	UPROPERTY(EditAnywhere, Category=MaterialEditorInstanceConstant)
 	TObjectPtr<class UPhysicalMaterial> PhysMaterial;
@@ -282,6 +365,10 @@ class UMaterialEditorInstanceConstant : public UObject
 	UPROPERTY(EditAnywhere, Category = MaterialEditorInstanceConstant, meta = (editcondition = "bNaniteOverride"))
 	TObjectPtr<UMaterialInterface> NaniteOverrideMaterial;
 
+	/** Overrides specific to Post Process domain materials. */
+	UPROPERTY(EditAnywhere, Category = PostProcessOverrides)
+	FMaterialEditorPostProcessOverrides PostProcessOverrides;
+
 	//~ Begin UObject Interface.
 	UNREALED_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #if WITH_EDITOR
@@ -290,15 +377,21 @@ class UMaterialEditorInstanceConstant : public UObject
 	//~ End UObject Interface.
 
 	/** Regenerates the parameter arrays. */
-	UNREALED_API void RegenerateArrays();
+	UNREALED_API void RegenerateArrays() override;
+
 #if WITH_EDITOR
 	/** Sets back to zero the overrides for any parameters copied out of the layer stack */
-	UNREALED_API void CleanParameterStack(int32 Index, EMaterialParameterAssociation MaterialType);
+	UNREALED_API void CleanParameterStack(int32 Index, EMaterialParameterAssociation MaterialType) override;
+
 	/** Copies the overrides for any parameters copied out of the layer stack from the layer or blend */
-	UNREALED_API void ResetOverrides(int32 Index, EMaterialParameterAssociation MaterialType);
+	UNREALED_API void ResetOverrides(int32 Index, EMaterialParameterAssociation MaterialType) override;
+
+	/** Arrays and clears parameters no longer valid (e.g. curve atlases). It has the potential effect of regenerating parameter arrays. */
+	UNREALED_API void ClearInvalidParameterOverrides();
 #endif
+
 	/** Copies the parameter array values back to the source instance. */
-	UNREALED_API void CopyToSourceInstance(const bool bForceStaticPermutationUpdate = false);
+	UNREALED_API void CopyToSourceInstance(const bool bForceStaticPermutationUpdate = false) override;
 
 	UNREALED_API void ApplySourceFunctionChanges();
 
@@ -332,17 +425,13 @@ class UMaterialEditorInstanceConstant : public UObject
 	 */
 	UNREALED_API void AssignParameterToGroup(UDEditorParameterValue* ParameterValue, const FName& GroupName);
 
+	TObjectPtr<UMaterialInterface> GetMaterialInterface() override;
+	TObjectPtr<UMaterialInterface> GetParentMaterialInterface() override;
+
 	static UNREALED_API FName GlobalGroupPrefix;
 
 	TWeakPtr<class IDetailsView> DetailsView;
 
-#if WITH_EDITORONLY_DATA
-	UPROPERTY()
-	TArray<TObjectPtr<class UMaterialInstanceConstant>> StoredLayerPreviews;
-
-	UPROPERTY()
-	TArray<TObjectPtr<class UMaterialInstanceConstant>> StoredBlendPreviews;
-#endif
 
 	/** Whether or not we should show only overridden properties*/
 	bool bShowOnlyOverrides;

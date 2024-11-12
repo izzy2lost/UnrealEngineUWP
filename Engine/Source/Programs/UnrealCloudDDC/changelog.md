@@ -1,5 +1,26 @@
 # Unreleased
 
+# 1.2.0
+* `InlineMaxBlobSize` option has moved from `Scylla` to `UnrealCloudDDC` as this can now be used to generally control if blob are inlined into the ref store (minimal practical difference as only Scylla supports inlining blobs). Resolves issue with `EnablePutRefBodyIntoBlobStore` option which will prevent these inlined blobs from also being added to the blob store.
+* Added experimental option that is disabled by default to allow enumeration of buckets (enabled per namespace). Could potentially be used by oplogs.
+* Optimizations for deleting blobs from multiple namespaces at once.
+* Blob replication method added, can be enabled by setting the `Version` option under each replicator to `Blobs` - this will likely be made the default in future releases. The blob based replication is faster and more reliable then our old speculative replication as this has a more explicit list of which blobs to replicate rather then the previous method that was more indirect via the submitted ref (which can be mutated). This is also more useful for oplogs where a ref has a lot of references but few changed blobs each upload.
+* Added support for new blob endpoint under refs as used in UE 5.6
+* Added configuration for HPA (Horizontal pod autoscaler) in Helm chart. We use this to autoscale Cloud DDC instance a bit during bursty periods (in combination with a node autoscaler).
+* Added option `AllowedNamespaces` on a authentication scheme to limit which namespaces a scheme is allowed to grant access to. This can be useful if you have a 3rd party authentication server you want to use but do not control and only want to grant access to some data for that party. For most use cases claims should be sufficent to control the access you need to grant.
+
+# 1.1.1
+* Fixes to helm chart when using ServiceAccounts for authentication and configuring replication
+
+# 1.1.0
+* Added ability to specify a access token if using ServiceAccounts to the ServiceCredentials (allowing for replication to function when no OIDC configuration is present)
+* Fixed issue with blob stats using statements which did not work for CosmosDB by disabling them which means blob stats will not function for CosmosDB (this feature is not enabled by default anyway)
+* Added ability to define a pod annotation that contains a checksum of the configmap, causing pods to get restarted when the config changes.
+* Fixed issues with batch endpoints for compressed blob endpoints, not used by any production workloads yet.
+* Speed up S3 blob listing for GC by listing them per S3 prefix. Slower for very small datasets were speed doesn't matter. Can be disabled with `S3.PerPrefixListing`
+* Changed filesystem cleanup to just delete objects that are quite old rather then finding the oldest, makes it much more responsive and needs less state in memory at the cost of the cleanup being a bit more random but this is just the filecache anyway.
+* Fixes to ondemand replication to avoid infinite recursion.
+
 # 1.0.0
 * .NET 8 Upgrade.
 * Fixes for very large payloads (2GB+)

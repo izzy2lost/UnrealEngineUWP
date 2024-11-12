@@ -15,6 +15,7 @@
 #include "Containers/Set.h"
 #include "Containers/UnrealString.h"
 #include "Templates/SharedPointer.h"
+#include "Async/Future.h"
 
 
 namespace DatasmithSketchUp
@@ -26,6 +27,7 @@ namespace DatasmithSketchUp
 		TMap<FMaterialIDType, int32> SlotIdForMaterialId;
 		TMap<FLayerIDType, int32> SlotIdForLayerId;
 		bool bIsUsingInheritedMaterial; // Whether mesh has faces without material assigned(so override/inherited material will apply)
+		TSharedFuture<bool> ExportFuture;
 	};
 }
 

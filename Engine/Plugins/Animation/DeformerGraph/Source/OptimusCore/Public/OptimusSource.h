@@ -15,7 +15,10 @@ class OPTIMUSCORE_API UOptimusSource
 
 public:
 	void SetSource(const FString& InText);
-
+#if WITH_EDITOR
+	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+	
 	// Begin UComputeSource interface.
 	FString GetSource() const override { return SourceText; }
 	FString GetVirtualPath() const override;

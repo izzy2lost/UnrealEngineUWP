@@ -18,6 +18,7 @@
 
 #if !UE_BUILD_SHIPPING
 #include "Engine/Engine.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 #endif
 
 #include "Net/Core/Connection/NetCloseResult.h"
@@ -241,8 +242,8 @@ static FOodleNetStats GOodleNetStats;
 void FOodleNetStats::UpdateStats(float DeltaTime)
 {
 	// Input
-	const uint32 InRaw = FMath::TruncToInt(InDecompressedLength / DeltaTime);
-	const uint32 InCompressed = FMath::TruncToInt(InCompressedLength / DeltaTime);
+	const uint32 InRaw = FMath::TruncToInt((float)InDecompressedLength / DeltaTime);
+	const uint32 InCompressed = FMath::TruncToInt((float)InCompressedLength / DeltaTime);
 
 	SET_DWORD_STAT(STAT_Oodle_InRaw, InRaw);
 	SET_DWORD_STAT(STAT_Oodle_InCompressed, InCompressed);
@@ -253,8 +254,8 @@ void FOodleNetStats::UpdateStats(float DeltaTime)
 
 
 	// Output
-	uint32 OutRaw = FMath::TruncToInt(OutUncompressedLength / DeltaTime);
-	uint32 OutCompressed = FMath::TruncToInt(OutCompressedLength / DeltaTime);
+	uint32 OutRaw = FMath::TruncToInt((float)OutUncompressedLength / DeltaTime);
+	uint32 OutCompressed = FMath::TruncToInt((float)OutCompressedLength / DeltaTime);
 
 	SET_DWORD_STAT(STAT_Oodle_OutRaw, OutRaw);
 	SET_DWORD_STAT(STAT_Oodle_OutCompressed, OutCompressed);
@@ -525,8 +526,9 @@ void OodleNetworkHandlerComponent::Initialize()
 			FParse::Value(FCommandLine::Get(), TEXT("CapturePercentage="), CapturePercentage);
 
 			int32 RandNum = FMath::RandRange(0, 100);
-			UE_LOG(OodleNetworkHandlerComponentLog, Log, TEXT("Enabling Oodle capture mode. Random number is: %d, Capture Percentage is: %d, random number must be less than capture percentage to capture."), RandNum, CapturePercentage);
-			if (RandNum <= CapturePercentage)
+			const bool bShouldEnableCapture = (RandNum <= CapturePercentage);
+			UE_LOG(OodleNetworkHandlerComponentLog, Log, TEXT("Enabling Oodle capture mode: [%s]. Random number is: %d, Capture Percentage is: %d, random number must be less than capture percentage to capture."), bShouldEnableCapture ? TEXT("TRUE") : TEXT("FALSE"), RandNum, CapturePercentage);
+			if (bShouldEnableCapture)
 			{
 				InitializePacketLogs();
 			}
@@ -562,7 +564,7 @@ void OodleNetworkHandlerComponent::Initialize()
 
 		if (!MeasureAr.IsError())
 		{
-			OodleReservedPacketBits += MeasureAr.GetNumBits();
+			OodleReservedPacketBits += static_cast<uint32>(MeasureAr.GetNumBits());
 
 #if !UE_BUILD_SHIPPING
 			SET_DWORD_STAT(STAT_PacketReservedOodle, OodleReservedPacketBits);
@@ -665,7 +667,7 @@ void OodleNetworkHandlerComponent::InitializeDictionary(FString FilePath, TShare
 				UE_LOG(OodleNetworkHandlerComponentLog, Log, TEXT("Loading dictionary file: %s"), *FilePath);
 
 				// Uncompact the compressor state
-				uint32 CompressorStateSize = OodleNetwork1UDP_State_Size();
+				uint32 CompressorStateSize = static_cast<uint32>(OodleNetwork1UDP_State_Size());
 				OodleNetwork1UDP_State* CompressorState = (OodleNetwork1UDP_State*)FMemory::Malloc(CompressorStateSize);
 
 				OO_BOOL UncompactOk = OodleNetwork1UDP_State_Uncompact_ForVersion(CompressorState, (OodleNetwork1UDP_StateCompacted*)CompactCompressorState, BoundArc.Header.OodleMajorHeaderVersion);
@@ -680,7 +682,7 @@ void OodleNetworkHandlerComponent::InitializeDictionary(FString FilePath, TShare
 
 				// Create the shared dictionary state
 				int32 HashTableSize = BoundArc.Header.HashTableSize.Get();
-				uint32 SharedDictionarySize = OodleNetwork1_Shared_Size(HashTableSize);
+				uint32 SharedDictionarySize = static_cast<uint32>(OodleNetwork1_Shared_Size(HashTableSize));
 				OodleNetwork1_Shared* SharedDictionary = (OodleNetwork1_Shared*)FMemory::Malloc(SharedDictionarySize);
 
 				OodleNetwork1_Shared_SetWindow(SharedDictionary, HashTableSize, (void*)DictionaryData, DictionaryBytes);
@@ -1041,7 +1043,7 @@ void OodleNetworkHandlerComponent::Incoming(FIncomingPacketRef PacketRef)
 
 			if (CurDict != nullptr)
 			{
-				uint32 BeforeDecompressedLength = Packet.GetBytesLeft();
+				uint32 BeforeDecompressedLength = static_cast<uint32>(Packet.GetBytesLeft());
 				uint32 DecompressedLength;
 
 				SerializeOodlePacketSize(Packet, DecompressedLength);
@@ -1067,7 +1069,7 @@ void OodleNetworkHandlerComponent::Incoming(FIncomingPacketRef PacketRef)
 					static uint8 CompressedData[MAX_OODLE_BUFFER];
 					static uint8 DecompressedData[MAX_OODLE_BUFFER];
 
-					const int32 CompressedLength = Packet.GetBytesLeft();
+					const uint32 CompressedLength = static_cast<uint32>(Packet.GetBytesLeft());
 
 					// @todo Oodle FIX ME : byte buffer serialized out of bit buffer
 					Packet.Serialize(CompressedData, CompressedLength);
@@ -1081,6 +1083,7 @@ void OodleNetworkHandlerComponent::Incoming(FIncomingPacketRef PacketRef)
 						{
 #if !UE_BUILD_SHIPPING
 							SCOPE_CYCLE_COUNTER(STAT_Oodle_InDecompressTime);
+							CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Oodle_InDecompressTime);
 #endif
 
 							// The lightweight time guard will exclude STAT_Oodle_InDecompressTime processing time,
@@ -1129,7 +1132,7 @@ void OodleNetworkHandlerComponent::Incoming(FIncomingPacketRef PacketRef)
 						{
 #if !UE_BUILD_SHIPPING
 							QUICK_SCOPE_CYCLE_COUNTER(STAT_Oodle_InCaptureTime);
-
+							CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Oodle_InCaptureTime);
 							GPacketHandlerDiscardTimeguardMeasurement = true;
 #endif
 
@@ -1181,7 +1184,7 @@ void OodleNetworkHandlerComponent::Incoming(FIncomingPacketRef PacketRef)
 			if (bOodleNetworkAnalytics && NetAnalyticsData.IsValid())
 			{
 				FOodleNetworkAnalyticsVars* AnalyticsVars = NetAnalyticsData->GetLocalData();
-				uint32 PacketSize = Packet.GetBytesLeft();
+				uint32 PacketSize = static_cast<uint32>(Packet.GetBytesLeft());
 
 				AnalyticsVars->InNotCompressedNum++;
 				AnalyticsVars->InNotCompressedLengthTotal += PacketSize;
@@ -1190,13 +1193,13 @@ void OodleNetworkHandlerComponent::Incoming(FIncomingPacketRef PacketRef)
 #if !UE_BUILD_SHIPPING || OODLE_DEV_SHIPPING
 			if (bCaptureMode && Handler->Mode == UE::Handler::Mode::Server && InPacketLog != nullptr)
 			{
-				uint32 SizeOfPacket = Packet.GetBytesLeft();
+				uint32 SizeOfPacket = static_cast<uint32>(Packet.GetBytesLeft());
 
 				if (SizeOfPacket > 0)
 				{
 #if !UE_BUILD_SHIPPING
 					QUICK_SCOPE_CYCLE_COUNTER(STAT_Oodle_InCaptureTime);
-
+					CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Oodle_InCaptureTime);
 					GPacketHandlerDiscardTimeguardMeasurement = true;
 #endif
 
@@ -1217,13 +1220,13 @@ void OodleNetworkHandlerComponent::Outgoing(FBitWriter& Packet, FOutPacketTraits
 #if !UE_BUILD_SHIPPING || OODLE_DEV_SHIPPING
 		if (bCaptureMode && Handler->Mode == UE::Handler::Mode::Server && OutPacketLog != nullptr)
 		{
-			uint32 SizeOfPacket = Packet.GetNumBytes();
+			uint32 SizeOfPacket = static_cast<uint32>(Packet.GetNumBytes());
 
 			if (SizeOfPacket > 0)
 			{
 #if !UE_BUILD_SHIPPING
 				QUICK_SCOPE_CYCLE_COUNTER(STAT_Oodle_OutCaptureTime);
-
+				CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Oodle_OutCaptureTime);
 				GPacketHandlerDiscardTimeguardMeasurement = true;
 #endif
 
@@ -1243,7 +1246,7 @@ void OodleNetworkHandlerComponent::Outgoing(FBitWriter& Packet, FOutPacketTraits
 		FOodleNetworkAnalyticsVars* AnalyticsVars = (bOodleNetworkAnalytics && NetAnalyticsData.IsValid()) ? NetAnalyticsData->GetLocalData() : nullptr;
 		const bool bIsServer = (Handler->Mode == UE::Handler::Mode::Server);
 		FOodleNetworkDictionary* CurDict = (bIsServer ? ServerDictionary.Get() : ClientDictionary.Get());
-		uint32 UncompressedBytes = Packet.GetNumBytes();
+		uint32 UncompressedBytes = static_cast<uint32>(Packet.GetNumBytes());
 		bool bSkipCompressionClientDisabled = false;
 		bool bSkipCompressionTooSmall = false;
 		bool bSkipCompression = false;
@@ -1273,7 +1276,7 @@ void OodleNetworkHandlerComponent::Outgoing(FBitWriter& Packet, FOutPacketTraits
 			check(MaxOutgoingBits <= (MAX_OODLE_PACKET_BYTES * 8));
 #endif
 			uint32 MaxAdjustedLengthBits = MaxOutgoingBits - OodleReservedPacketBits;
-			uint32 UncompressedBits = Packet.GetNumBits();
+			uint32 UncompressedBits = static_cast<uint32>(Packet.GetNumBits());
 
 			bool bWithinBitBounds = UncompressedBits > 0 && ensure(UncompressedBits <= MaxAdjustedLengthBits) &&
 				ensure(OodleNetwork1_CompressedBufferSizeNeeded(UncompressedBytes) <= MAX_OODLE_BUFFER);
@@ -1288,6 +1291,7 @@ void OodleNetworkHandlerComponent::Outgoing(FBitWriter& Packet, FOutPacketTraits
 				{
 #if !UE_BUILD_SHIPPING
 					SCOPE_CYCLE_COUNTER(STAT_Oodle_OutCompressTime);
+					CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Oodle_OutCompressTime);
 #endif
 
 					CompressedLengthSINT = OodleNetwork1UDP_Encode(CurDict->CompressorState, CurDict->SharedDictionary,
@@ -1419,7 +1423,7 @@ void OodleNetworkHandlerComponent::Outgoing(FBitWriter& Packet, FOutPacketTraits
 			}
 
 			uint8 bCompresedPacket = false;
-			uint32 UncompressedBits = Packet.GetNumBits();
+			uint32 UncompressedBits = static_cast<uint32>(Packet.GetNumBits());
 
 			FMemory::Memcpy(UncompressedData, Packet.GetData(), Packet.GetNumBytes());
 

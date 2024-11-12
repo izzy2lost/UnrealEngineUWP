@@ -216,7 +216,8 @@ void FMeshConvexHull::GridSample(const FDynamicMesh3& Mesh,
 	FAxisAlignedBox3d Bounds = Mesh.GetBounds();
 	Bounds.Min = Bounds.Min - 1e-4;			// Pad to avoid problems with vertices lying exactly on bounding box
 	Bounds.Max = Bounds.Max + 1e-4;
-	const double GridCellSize = Bounds.MaxDim() / (double)GridResolutionMaxAxis;
+	// Clamp grid resolution to prevent overflowing int
+	const double GridCellSize = Bounds.MaxDim() / (double)FMath::Clamp(GridResolutionMaxAxis, 2, 1290);
 
 	FBoundsGridIndexer3d Indexer(Bounds, GridCellSize);
 	const FVector3i GridResolution = Indexer.GridResolution();

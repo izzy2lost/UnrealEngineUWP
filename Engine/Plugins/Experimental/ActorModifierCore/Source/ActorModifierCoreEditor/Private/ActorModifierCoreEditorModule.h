@@ -13,6 +13,8 @@ public:
 	//~ End IModuleInterface
 
 protected:
-	void RegisterCustomizations() const;
-	void UnregisterCustomizations() const;
+	void RegisterDetailCustomizations() const;
+	void UnregisterDetailCustomizations() const;
+
+	void RegisterBlueprintCustomizations();
 };

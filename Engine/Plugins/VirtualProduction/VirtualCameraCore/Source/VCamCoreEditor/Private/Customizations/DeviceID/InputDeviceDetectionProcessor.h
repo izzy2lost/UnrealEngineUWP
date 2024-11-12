@@ -6,7 +6,7 @@
 #include "Framework/Application/IInputProcessor.h"
 #include "Templates/SharedPointer.h"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	DECLARE_DELEGATE_OneParam(FOnInputDeviceDetected, int32)
 

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "NNEHlslShaderBase.h"
+#include "NNEHlslShadersBase.h"
 #include "DataDrivenShaderPlatformInfo.h"
 
 namespace UE::NNEHlslShaders::Internal

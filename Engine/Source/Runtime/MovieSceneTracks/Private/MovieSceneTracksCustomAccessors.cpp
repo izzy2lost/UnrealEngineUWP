@@ -425,6 +425,30 @@ void SetExponentialHeightFogComponentVolumetricFogExtinctionScale(UObject* Objec
 	UExponentialHeightFogComponent* ExponentialHeightFogComponent = CastChecked<UExponentialHeightFogComponent>(Object);
 	ExponentialHeightFogComponent->SetVolumetricFogExtinctionScale(InVolumetricFogExtinctionScale);
 }
+
+float GetExponentialHeightFogComponentVolumetricFogStartDistance(const UObject* Object)
+{
+	const UExponentialHeightFogComponent* ExponentialHeightFogComponent = CastChecked<const UExponentialHeightFogComponent>(Object);
+	return ExponentialHeightFogComponent->VolumetricFogStartDistance;
+}
+
+void SetExponentialHeightFogComponentVolumetricFogStartDistance(UObject* Object, float InVolumetricFogStartDistance)
+{
+	UExponentialHeightFogComponent* ExponentialHeightFogComponent = CastChecked<UExponentialHeightFogComponent>(Object);
+	ExponentialHeightFogComponent->SetVolumetricFogStartDistance(InVolumetricFogStartDistance);
+}
+
+float GetExponentialHeightFogComponentVolumetricFogNearFadeInDistance(const UObject* Object)
+{
+	const UExponentialHeightFogComponent* ExponentialHeightFogComponent = CastChecked<const UExponentialHeightFogComponent>(Object);
+	return ExponentialHeightFogComponent->VolumetricFogNearFadeInDistance;
+}
+
+void SetExponentialHeightFogComponentVolumetricFogNearFadeInDistance(UObject* Object, float InVolumetricFogNearFadeInDistance)
+{
+	UExponentialHeightFogComponent* ExponentialHeightFogComponent = CastChecked<UExponentialHeightFogComponent>(Object);
+	ExponentialHeightFogComponent->SetVolumetricFogNearFadeInDistance(InVolumetricFogNearFadeInDistance);
+}
 	
 FIntermediateColor GetExponentialHeightFogComponentDirectionalInscatteringColor(const UObject* Object, EColorPropertyType InColorType)
 {
@@ -659,6 +683,12 @@ void InitializeMovieSceneTracksAccessors(FMovieSceneTracksComponentTypes* Tracks
 			UExponentialHeightFogComponent::StaticClass(), GET_MEMBER_NAME_CHECKED(UExponentialHeightFogComponent, StartDistance),
 			GetExponentialHeightFogComponentStartDistance, SetExponentialHeightFogComponentStartDistance);
 	TracksComponents->Accessors.Float.Add(
+			UExponentialHeightFogComponent::StaticClass(), GET_MEMBER_NAME_CHECKED(UExponentialHeightFogComponent, VolumetricFogStartDistance),
+			GetExponentialHeightFogComponentVolumetricFogStartDistance, SetExponentialHeightFogComponentVolumetricFogStartDistance);
+	TracksComponents->Accessors.Float.Add(
+			UExponentialHeightFogComponent::StaticClass(), GET_MEMBER_NAME_CHECKED(UExponentialHeightFogComponent, VolumetricFogNearFadeInDistance),
+			GetExponentialHeightFogComponentVolumetricFogNearFadeInDistance, SetExponentialHeightFogComponentVolumetricFogNearFadeInDistance);
+	TracksComponents->Accessors.Float.Add(
 			UExponentialHeightFogComponent::StaticClass(), GET_MEMBER_NAME_CHECKED(UExponentialHeightFogComponent, VolumetricFogExtinctionScale),
 			GetExponentialHeightFogComponentVolumetricFogExtinctionScale, SetExponentialHeightFogComponentVolumetricFogExtinctionScale);
 	TracksComponents->Accessors.Color.Add(
@@ -698,10 +728,10 @@ void InitializeMovieSceneTracksAccessors(FMovieSceneTracksComponentTypes* Tracks
 	TracksComponents->Accessors.ComponentTransform.Add(USceneComponent::StaticClass(), "Transform", &GetComponentTransform, &SetComponentTransformAndVelocity);
 
 	// SkeletalMeshComponent
-	TracksComponents->Accessors.Object.Add(USkeletalMeshComponent::StaticClass(), "SkeletalMeshAsset", &GetSkeletalMeshAsset, &SetSkeletalMeshAsset);
+	TracksComponents->Accessors.Object.Add(USkeletalMeshComponent::StaticClass(), "SkeletalMeshAsset", &GetSkeletalMeshAsset, &SetSkeletalMeshAsset, { USkeletalMeshComponent::StaticClass(), true });
 
 	//SkinnedMeshComponent
-	TracksComponents->Accessors.Object.Add(USkinnedMeshComponent::StaticClass(), "SkeletalMesh", &GetSkeletalMesh_DEPRECATED, &SetSkeletalMesh_DEPRECATED);
+	TracksComponents->Accessors.Object.Add(USkinnedMeshComponent::StaticClass(), "SkeletalMesh", &GetSkeletalMesh_DEPRECATED, &SetSkeletalMesh_DEPRECATED, { USkinnedMeshComponent::StaticClass() , true});
 
 	
 }

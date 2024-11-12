@@ -7,12 +7,11 @@
 #include "D3D12RHIPrivate.h"
 #include "Features/IModularFeatures.h"
 #include "HDRHelper.h"
+#include "RHIUtilities.h"
 #include "HAL/ThreadHeartBeat.h"
 #include "Windows/IDXGISwapchainProvider.h"
 
 #include "Windows/AllowWindowsPlatformTypes.h"
-
-static const uint32 WindowsDefaultNumBackBuffers = 3;
 
 extern FD3D12Texture* GetSwapChainSurface(FD3D12Device* Parent, EPixelFormat PixelFormat, uint32 SizeX, uint32 SizeY, IDXGISwapChain* SwapChain, uint32 BackBufferIndex, TRefCountPtr<ID3D12Resource> BackBufferResourceOverride);
 
@@ -29,29 +28,9 @@ FD3D12Viewport::FD3D12Viewport(class FD3D12Adapter* InParent, HWND InWindowHandl
 	, WindowHandle(InWindowHandle)
 	, SizeX(InSizeX)
 	, SizeY(InSizeY)
-	, bIsFullscreen(bInIsFullscreen)
-	, bFullscreenLost(false)
 	, PixelFormat(InPreferredPixelFormat)
-	, bIsValid(true)
-	, ColorSpace(DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709)
-	, NumBackBuffers(WindowsDefaultNumBackBuffers)
-	, DummyBackBuffer_RenderThread(nullptr)
-	, CurrentBackBufferIndex_RHIThread(0)
-	, BackBuffer_RHIThread(nullptr)
-	, BackBuffer_RenderThread(nullptr)
-	, BackBufferUAV_RenderThread(nullptr)
-#if WITH_MGPU
-	, BackbufferMultiGPUBinding(0)
-#endif //WITH_MGPU
-	, ExpectedBackBufferIndex_RenderThread(0)
-	, SDRDummyBackBuffer_RenderThread(nullptr)
-	, SDRBackBuffer_RHIThread(nullptr)
-	, SDRPixelFormat(PF_B8G8R8A8)
-	, DisplayColorGamut(EDisplayColorGamut::sRGB_D65)
-	, DisplayOutputFormat(EDisplayOutputFormat::SDR_sRGB)
-#if WITH_MGPU
-	, FramePacerRunnable(nullptr)
-#endif //WITH_MGPU
+	, bIsFullscreen(bInIsFullscreen)
+	, bNeedSwapChain(!FParse::Param(FCommandLine::Get(), TEXT("RenderOffScreen")))
 {
 	check(IsInGameThread());
 	GetParentAdapter()->GetViewports().Add(this);
@@ -95,118 +74,83 @@ void FD3D12Viewport::Init()
 		}
 	}
 
-	CalculateSwapChainDepth(WindowsDefaultNumBackBuffers);
-
-	UINT SwapChainFlags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-
-	if (bAllowTearing)
+	bool bStereoMode = false;
+	if (FD3D12DynamicRHI::GetD3DRHI()->IsQuadBufferStereoEnabled())
 	{
-		SwapChainFlags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+		if (Factory2->IsWindowedStereoEnabled())
+		{
+			bStereoMode = true;
+		}
+		else
+		{
+			UE_LOG(LogD3D12RHI, Log, TEXT("FD3D12Viewport::FD3D12Viewport was not able to create stereo SwapChain; Please enable stereo in driver settings."));
+			FD3D12DynamicRHI::GetD3DRHI()->DisableQuadBufferStereo();
+		}
 	}
 
-	const DXGI_MODE_DESC BufferDesc = SetupDXGI_MODE_DESC();
-
-	// The command queue used here is irrelevant in regard to multi - GPU as it gets overriden in the Resize
-	ID3D12CommandQueue* CommandQueue = Adapter->GetDevice(0)->GetQueue(ED3D12QueueType::Direct).D3DCommandQueue;
+	InitializeBackBufferArrays();
 
 	// Create the swapchain.
-
-	extern bool bNeedSwapChain;
-
-	bNeedSwapChain = !FParse::Param(FCommandLine::Get(), TEXT("RenderOffScreen"));
 	if (bNeedSwapChain)
 	{
-		if (FD3D12DynamicRHI::GetD3DRHI()->IsQuadBufferStereoEnabled())
+		// The command queue used here is irrelevant in regard to multi - GPU as it gets overriden in the Resize
+		ID3D12CommandQueue* CommandQueue = Adapter->GetDevice(0)->GetQueue(ED3D12QueueType::Direct).D3DCommandQueue;
+
+		UINT SwapChainFlags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+		if (bAllowTearing)
 		{
-			if (Factory2->IsWindowedStereoEnabled())
-			{
-				DXGI_SWAP_CHAIN_DESC1 SwapChainDesc1{};
-
-				// Enable stereo 
-				SwapChainDesc1.Stereo = true;
-				// MSAA Sample count
-				SwapChainDesc1.SampleDesc.Count = 1;
-				SwapChainDesc1.SampleDesc.Quality = 0;
-
-				SwapChainDesc1.Format = GetRenderTargetFormat(PixelFormat);
-				SwapChainDesc1.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_SHADER_INPUT;
-				// Double buffering required to create stereo swap chain
-				SwapChainDesc1.BufferCount = NumBackBuffers;
-				SwapChainDesc1.Scaling = DXGI_SCALING_NONE;
-				SwapChainDesc1.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-				SwapChainDesc1.Flags = SwapChainFlags;
-				SwapChainDesc1.Width = SizeX;
-				SwapChainDesc1.Height = SizeY;
-
-				HRESULT hr = DXGISwapchainProvider ?
-					DXGISwapchainProvider->CreateSwapChainForHwnd(Factory2, CommandQueue, WindowHandle, &SwapChainDesc1, nullptr, nullptr, SwapChain1.GetInitReference()) :
-					Factory2->CreateSwapChainForHwnd(CommandQueue, WindowHandle, &SwapChainDesc1, nullptr, nullptr, SwapChain1.GetInitReference());
-
-				VERIFYD3D12RESULT(hr);
-			}
-			else
-			{
-				UE_LOG(LogD3D12RHI, Log, TEXT("FD3D12Viewport::FD3D12Viewport was not able to create stereo SwapChain; Please enable stereo in driver settings."));
-				FD3D12DynamicRHI::GetD3DRHI()->DisableQuadBufferStereo();
-			}
+			SwapChainFlags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
 		}
 
-		// if stereo was not activated or not enabled in settings
-		if (SwapChain1 == nullptr)
+		DXGI_SWAP_CHAIN_DESC1 SwapChainDesc1{};
+
+		SwapChainDesc1.Width       = SizeX;
+		SwapChainDesc1.Height      = SizeY;
+		SwapChainDesc1.Format      = UE::DXGIUtilities::GetSwapChainFormat(PixelFormat);
+		SwapChainDesc1.Stereo      = bStereoMode ? TRUE : FALSE;
+		SwapChainDesc1.SampleDesc.Count = 1;
+		SwapChainDesc1.SampleDesc.Quality = 0;
+		SwapChainDesc1.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_SHADER_INPUT;
+		SwapChainDesc1.BufferCount = NumBackBuffers;
+		SwapChainDesc1.Scaling     = DXGI_SCALING_NONE;
+		SwapChainDesc1.SwapEffect  = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+		SwapChainDesc1.AlphaMode   = DXGI_ALPHA_MODE_UNSPECIFIED;
+		SwapChainDesc1.Flags       = SwapChainFlags;
+
+		DXGI_SWAP_CHAIN_FULLSCREEN_DESC FullscreenDesc{};
+		FullscreenDesc.RefreshRate.Numerator   = 0;
+		FullscreenDesc.RefreshRate.Denominator = 0;
+		FullscreenDesc.ScanlineOrdering        = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+		FullscreenDesc.Scaling                 = DXGI_MODE_SCALING_UNSPECIFIED;
+		FullscreenDesc.Windowed                = !bIsFullscreen;
+
+		HRESULT hr = DXGISwapchainProvider ?
+			DXGISwapchainProvider->CreateSwapChainForHwnd(Factory2, CommandQueue, WindowHandle, &SwapChainDesc1, &FullscreenDesc, nullptr, SwapChain1.GetInitReference()) :
+			Factory2->CreateSwapChainForHwnd(CommandQueue, WindowHandle, &SwapChainDesc1, &FullscreenDesc, nullptr, SwapChain1.GetInitReference());
+
+		if (FAILED(hr))
 		{
-			// Create the swapchain.
-			DXGI_SWAP_CHAIN_DESC SwapChainDesc = {};
-			SwapChainDesc.BufferDesc = BufferDesc;
-			// MSAA Sample count
-			SwapChainDesc.SampleDesc.Count = 1;
-			SwapChainDesc.SampleDesc.Quality = 0;
-			SwapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_SHADER_INPUT;
-			// 1:single buffering, 2:double buffering, 3:triple buffering
-			SwapChainDesc.BufferCount = NumBackBuffers;
-			SwapChainDesc.OutputWindow = WindowHandle;
-			SwapChainDesc.Windowed = !bIsFullscreen;
-			// DXGI_SWAP_EFFECT_DISCARD / DXGI_SWAP_EFFECT_SEQUENTIAL
-			SwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-			SwapChainDesc.Flags = SwapChainFlags;
+			UE_LOG(LogD3D12RHI, Warning, TEXT("Failed to create swapchain with the following parameters:"));
+			UE_LOG(LogD3D12RHI, Warning, TEXT("\tWidth: %d Height: %d DXGI format: %d"), SwapChainDesc1.Width, SwapChainDesc1.Height, SwapChainDesc1.Format);
+			UE_LOG(LogD3D12RHI, Warning, TEXT("\tBack buffer count: %d"), SwapChainDesc1.BufferCount);
+			UE_LOG(LogD3D12RHI, Warning, TEXT("\tWindows handle: 0x%x (IsWindow: %s)"), WindowHandle, IsWindow(WindowHandle) ? TEXT("true") : TEXT("false"));
+			UE_LOG(LogD3D12RHI, Warning, TEXT("\tFullscreen: %s"), bIsFullscreen ? TEXT("true") : TEXT("false"));
+			UE_LOG(LogD3D12RHI, Warning, TEXT("\tSwapchain flags: 0x%08x"), SwapChainDesc1.Flags);
+			UE_LOG(LogD3D12RHI, Warning, TEXT("\tCustom swapchain provider: %s"), DXGISwapchainProvider ? DXGISwapchainProvider->GetProviderName() : TEXT("none"));
 
-			TRefCountPtr<IDXGISwapChain> SwapChain;
-			
-			HRESULT hr;
-						
-			{
-				// Don't create swap chain and release back buffer at the same time (see notes on critical section)
-				FScopeLock Lock(&DXGIBackBufferLock); 
-				hr = DXGISwapchainProvider ?
-					DXGISwapchainProvider->CreateSwapChain(Factory2, CommandQueue, &SwapChainDesc, SwapChain.GetInitReference()) :
-					Factory2->CreateSwapChain(CommandQueue, &SwapChainDesc, SwapChain.GetInitReference());
-			}
-			
-			if (FAILED(hr))
-			{
-				UE_LOG(LogD3D12RHI, Warning, TEXT("Failed to create swapchain with the following parameters:"));
-				UE_LOG(LogD3D12RHI, Warning, TEXT("\tDXGI_MODE_DESC: width: %d height: %d DXGI format: %d"), SwapChainDesc.BufferDesc.Width, SwapChainDesc.BufferDesc.Height, SwapChainDesc.BufferDesc.Format);
-				UE_LOG(LogD3D12RHI, Warning, TEXT("\tBack buffer count: %d"), NumBackBuffers);
-				UE_LOG(LogD3D12RHI, Warning, TEXT("\tWindows handle: 0x%x (IsWindow: %s)"), WindowHandle, IsWindow(WindowHandle) ? TEXT("true") : TEXT("false"));
-				UE_LOG(LogD3D12RHI, Warning, TEXT("\tFullscreen: %s"), bIsFullscreen ? TEXT("true") : TEXT("false"));
-				UE_LOG(LogD3D12RHI, Warning, TEXT("\tSwapchain flags: %d"), SwapChainFlags);
-				UE_LOG(LogD3D12RHI, Warning, TEXT("\tCustom swapchain provider: %s"), DXGISwapchainProvider ? DXGISwapchainProvider->GetProviderName() : TEXT("none"));
-
-				VERIFYD3D12RESULT(hr);
-			}
-
-			VERIFYD3D12RESULT(SwapChain->QueryInterface(IID_PPV_ARGS(SwapChain1.GetInitReference())));
+			VERIFYD3D12RESULT(hr);
 		}
-	}
 
-	if (SwapChain1)
-	{
-		SwapChain1->QueryInterface(IID_PPV_ARGS(SwapChain2.GetInitReference()));
+		if (SwapChain1)
+		{
+			SwapChain1->QueryInterface(IID_PPV_ARGS(SwapChain2.GetInitReference()));
 #if DXGI_MAX_SWAPCHAIN_INTERFACE >= 3
-		SwapChain1->QueryInterface(IID_PPV_ARGS(SwapChain3.GetInitReference()));
+			SwapChain1->QueryInterface(IID_PPV_ARGS(SwapChain3.GetInitReference()));
 #endif
 #if DXGI_MAX_SWAPCHAIN_INTERFACE >= 4
-		SwapChain1->QueryInterface(IID_PPV_ARGS(SwapChain4.GetInitReference()));
+			SwapChain1->QueryInterface(IID_PPV_ARGS(SwapChain4.GetInitReference()));
 #endif
+		}
 	}
 
 	{
@@ -218,7 +162,7 @@ void FD3D12Viewport::Init()
 	}
 
 	// Resize to setup mGPU correctly.
-	Resize(BufferDesc.Width, BufferDesc.Height, bIsFullscreen, PixelFormat);
+	Resize(SizeX, SizeY, bIsFullscreen, PixelFormat);
 
 	// Tell the window to redraw when they can.
 	// @todo: For Slate viewports, it doesn't make sense to post WM_PAINT messages (we swallow those.)
@@ -288,11 +232,30 @@ void FD3D12Viewport::ConditionalResetSwapChain(bool bIgnoreFocus)
 	}
 }
 
+/**
+* Create the dummy back buffer textures - They don't have actual D3D resource but are used to always reference the current back buffer index on the RHI thread
+*/
+FD3D12Texture* FD3D12Viewport::CreateDummyBackBufferTextures(FD3D12Adapter* InAdapter, EPixelFormat InPixelFormat, uint32 InSizeX, uint32 InSizeY)
+{
+	FRHITextureCreateDesc CreateDesc =
+		FRHITextureCreateDesc::Create2D(TEXT("BackBufferReference"))
+		.SetExtent(FIntPoint(InSizeX, InSizeY))
+		.SetFormat(InPixelFormat)
+		.SetFlags(ETextureCreateFlags::RenderTargetable | ETextureCreateFlags::Presentable | ETextureCreateFlags::ResolveTargetable)
+		.SetInitialState(ERHIAccess::Present);
+
+	FD3D12Texture* Result = InAdapter->CreateLinkedObject<FD3D12Texture>(FRHIGPUMask::All(), [this, &CreateDesc](FD3D12Device* Device, FD3D12Texture* FirstLinkedObject)
+		{
+			return new FD3D12BackBufferReferenceTexture2D(CreateDesc, this, Device);
+		});
+	return Result;
+}
+
 void FD3D12Viewport::ResizeInternal()
 {
 	FD3D12Adapter* Adapter = GetParentAdapter();
 
-	CalculateSwapChainDepth(WindowsDefaultNumBackBuffers);
+	InitializeBackBufferArrays();
 
 	UINT SwapChainFlags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 	if (bAllowTearing)
@@ -305,20 +268,17 @@ void FD3D12Viewport::ResizeInternal()
 	{
 		TArray<ID3D12CommandQueue*> CommandQueues;
 		TArray<uint32> NodeMasks;
-		BackBufferGPUIndices.Empty(NumBackBuffers);
 
-		for (uint32 i = 0; i < NumBackBuffers; ++i)
+		for (uint32 Index = 0; Index < NumBackBuffers; Index++)
 		{
 			// When BackbufferMultiGPUBinding == INDEX_NONE, cycle through each GPU.
-			const uint32 BackBufferGPUIndex = BackbufferMultiGPUBinding == INDEX_NONE ? i % GNumExplicitGPUsForRendering : BackbufferMultiGPUBinding;
-			BackBufferGPUIndices.Add(BackBufferGPUIndex);
+			BackBuffers[Index].GPUIndex = BackbufferMultiGPUBinding == INDEX_NONE ? (Index % GNumExplicitGPUsForRendering) : BackbufferMultiGPUBinding;
 		}
 
 		// Select the GPU for each element in the swapchain 
-		for (uint32 i = 0; i < NumBackBuffers; ++i)
+		for (uint32 Index = 0; Index < NumBackBuffers; Index++)
 		{
-			const uint32 GPUIndex = BackBufferGPUIndices[i];
-			FD3D12Device* Device = Adapter->GetDevice(GPUIndex);
+			FD3D12Device* Device = Adapter->GetDevice(BackBuffers[Index].GPUIndex);
 
 			CommandQueues.Add(Device->GetQueue(ED3D12QueueType::Direct).D3DCommandQueue);
 			NodeMasks.Add(Device->GetGPUMask().GetNative());
@@ -326,16 +286,15 @@ void FD3D12Viewport::ResizeInternal()
 
 		if (SwapChain3)
 		{
-			VERIFYD3D12RESULT_EX(SwapChain3->ResizeBuffers1(NumBackBuffers, SizeX, SizeY, GetRenderTargetFormat(PixelFormat), SwapChainFlags, NodeMasks.GetData(), (IUnknown**)CommandQueues.GetData()), Adapter->GetD3DDevice());
+			VERIFYD3D12RESULT_EX(SwapChain3->ResizeBuffers1(NumBackBuffers, SizeX, SizeY, UE::DXGIUtilities::GetSwapChainFormat(PixelFormat), SwapChainFlags, NodeMasks.GetData(), (IUnknown**)CommandQueues.GetData()), Adapter->GetD3DDevice());
 		}
 
-		for (uint32 i = 0; i < NumBackBuffers; ++i)
+		for (uint32 Index = 0; Index < NumBackBuffers; Index++)
 		{
-			const uint32 GPUIndex = BackBufferGPUIndices[i];
-			FD3D12Device* Device = Adapter->GetDevice(GPUIndex);
+			FD3D12Device* Device = Adapter->GetDevice(BackBuffers[Index].GPUIndex);
 
-			check(BackBuffers[i].GetReference() == nullptr);
-			BackBuffers[i] = GetSwapChainSurface(Device, PixelFormat, SizeX, SizeY, SwapChain1, i, nullptr);
+			check(BackBuffers[Index].Texture.GetReference() == nullptr);
+			BackBuffers[Index].Texture = GetSwapChainSurface(Device, PixelFormat, SizeX, SizeY, SwapChain1, Index, nullptr);
 		}
 	}
 	else
@@ -345,33 +304,29 @@ void FD3D12Viewport::ResizeInternal()
 		{
 			auto Lambda = [this, SwapChainFlags]() -> FString
 			{
-				return FString::Printf(TEXT("Num=%d, Size=(%d,%d), PF=%d, DXGIFormat=0x%x, Flags=0x%x"), NumBackBuffers, SizeX, SizeY, (int32)PixelFormat, (int32)GetRenderTargetFormat(PixelFormat), SwapChainFlags);
+				return FString::Printf(TEXT("Num=%d, Size=(%d,%d), PF=%d, DXGIFormat=0x%x, Flags=0x%x"), NumBackBuffers, SizeX, SizeY, (int32)PixelFormat, (int32)UE::DXGIUtilities::GetSwapChainFormat(PixelFormat), SwapChainFlags);
 			};
 
-			VERIFYD3D12RESULT_LAMBDA(SwapChain1->ResizeBuffers(NumBackBuffers, SizeX, SizeY, GetRenderTargetFormat(PixelFormat), SwapChainFlags), Adapter->GetD3DDevice(), Lambda);
+			VERIFYD3D12RESULT_LAMBDA(SwapChain1->ResizeBuffers(NumBackBuffers, SizeX, SizeY, UE::DXGIUtilities::GetSwapChainFormat(PixelFormat), SwapChainFlags), Adapter->GetD3DDevice(), Lambda);
 		}
 
 		FD3D12Device* Device = Adapter->GetDevice(0);
 		for (uint32 i = 0; i < NumBackBuffers; ++i)
 		{
-			check(BackBuffers[i].GetReference() == nullptr);
-			BackBuffers[i] = GetSwapChainSurface(Device, PixelFormat, SizeX, SizeY, SwapChain1, i, nullptr);
+			check(BackBuffers[i].Texture.GetReference() == nullptr);
+			BackBuffers[i].Texture = GetSwapChainSurface(Device, PixelFormat, SizeX, SizeY, SwapChain1, i, nullptr);
 		}
 	}
 
-	CurrentBackBufferIndex_RHIThread = 0;
-	BackBuffer_RHIThread = BackBuffers[CurrentBackBufferIndex_RHIThread].GetReference();
-	SDRBackBuffer_RHIThread = SDRBackBuffers[CurrentBackBufferIndex_RHIThread].GetReference();
+	SetBackBufferIndex_RHIThread(0);
 
-#if !D3D12_USE_DUMMY_BACKBUFFER
-    static_assert(false, "D3D12_USE_DUMMY_BACKBUFFER==0 has not been tested for viewports");
-	ExpectedBackBufferIndex_RenderThread = 0;
-	BackBuffer_RenderThread = BackBuffers[ExpectedBackBufferIndex_RenderThread].GetReference();
-#endif
-
+#if D3D12RHI_USE_DUMMY_BACKBUFFER
 	// Create dummy back buffer which always reference to the actual RHI thread back buffer - can't be bound directly to D3D12
-	DummyBackBuffer_RenderThread = CreateDummyBackBufferTextures(Adapter, PixelFormat, SizeX, SizeY, false);
-	SDRDummyBackBuffer_RenderThread = (SDRBackBuffer_RHIThread != nullptr) ? CreateDummyBackBufferTextures(Adapter, PixelFormat, SizeX, SizeY, true) : nullptr;
+	DummyBackBuffer_RenderThread = CreateDummyBackBufferTextures(Adapter, PixelFormat, SizeX, SizeY);
+#else
+	static_assert(false, "D3D12RHI_USE_DUMMY_BACKBUFFER==0 has not been tested for viewports");
+	SetBackBufferIndex_RenderThread(0);
+#endif
 }
 
 HRESULT FD3D12Viewport::PresentInternal(int32 SyncInterval)
@@ -387,7 +342,43 @@ HRESULT FD3D12Viewport::PresentInternal(int32 SyncInterval)
 
 	if (SwapChain1)
 	{
-		return SwapChain1->Present(SyncInterval, Flags);
+		// Ignore time spent waiting in Present. This function blocks based on GPU progress and space in the swap chain.
+		FRenderThreadIdleScope Scope(ERenderThreadIdleTypes::WaitingForGPUPresent);
+#if !UE_BUILD_SHIPPING && PLATFORM_SUPPORTS_FLIP_TRACKING
+		static FRHIFlipDetails LastFlipFrame;
+		static DXGI_FRAME_STATISTICS LastStats = { 0 };
+		HRESULT GetStatHR;
+		DXGI_FRAME_STATISTICS stats = { 0 };
+		while (SUCCEEDED(GetStatHR = SwapChain1->GetFrameStatistics(&stats)) && (stats.PresentCount > LastFlipFrame.PresentIndex))
+		{
+			FRHIFlipDetails NewFlipFrame;
+			NewFlipFrame.PresentIndex = stats.PresentCount;
+			NewFlipFrame.VBlankTimeInCycles = stats.SyncQPCTime.QuadPart;
+
+			RHISetVsyncDebugInfo(NewFlipFrame);
+
+			LastFlipFrame = NewFlipFrame;
+			LastStats = stats;
+		}
+#endif
+
+		HRESULT PresentHR;
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(D3D12_Present);
+			PresentHR = SwapChain1->Present(SyncInterval, Flags);
+		}
+
+		UINT PresentID;
+		if (SUCCEEDED(SwapChain1->GetLastPresentCount(&PresentID)))
+		{
+			GRHIPresentCounter = PresentID;
+		}
+		else
+		{
+			GRHIPresentCounter++;
+		}
+
+		return PresentHR;
 	}
 
 	return S_OK;
@@ -528,14 +519,6 @@ void FD3D12Viewport::OnResumeRendering()
 
 void FD3D12Viewport::OnSuspendRendering()
 {}
-
-FD3D12Texture* FD3D12Viewport::GetBackBuffer_RenderThread() const
-{
-	check(IsInRenderingThread());
-	const bool sIsSDR = false;
-	FD3D12Texture* const DummyBackBuffer = GetDummyBackBuffer_RenderThread(sIsSDR);
-	return DummyBackBuffer;
-}
 
 bool FD3D12Viewport::IsPresentAllowed()
 {

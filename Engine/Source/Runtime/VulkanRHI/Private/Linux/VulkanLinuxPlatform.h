@@ -11,15 +11,10 @@
 #define VULKAN_SHOULD_ENABLE_DRAW_MARKERS			(UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT)
 #define VULKAN_SIGNAL_UNIMPLEMENTED()				checkf(false, TEXT("Unimplemented vulkan functionality: %hs"), __PRETTY_FUNCTION__)
 #define VULKAN_SUPPORTS_AMD_BUFFER_MARKER			1
+#define VULKAN_SUPPORTS_SCALAR_BLOCK_LAYOUT			1
+#define VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH	1
 
-#define VULKAN_RHI_RAYTRACING 						(RHI_RAYTRACING)
-#define VULKAN_SUPPORTS_SCALAR_BLOCK_LAYOUT			(VULKAN_RHI_RAYTRACING)
-
-#if VULKAN_RHI_RAYTRACING
-#	define UE_VK_API_VERSION						VK_API_VERSION_1_2
-#else
-#	define UE_VK_API_VERSION						VK_API_VERSION_1_1
-#endif // VULKAN_RHI_RAYTRACING
+#define UE_VK_API_VERSION							VK_API_VERSION_1_1
 
 #if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
 #	include "vk_enum_string_helper.h"
@@ -52,7 +47,7 @@ public:
 
 	static void CreateSurface(void* WindowHandle, VkInstance Instance, VkSurfaceKHR* OutSurface);
 
-	static void WriteCrashMarker(const FOptionalVulkanDeviceExtensions& OptionalExtensions, VkCommandBuffer CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding);
+	static void WriteCrashMarker(const FOptionalVulkanDeviceExtensions& OptionalExtensions, FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding);
 
 protected:
 	static void* VulkanLib;

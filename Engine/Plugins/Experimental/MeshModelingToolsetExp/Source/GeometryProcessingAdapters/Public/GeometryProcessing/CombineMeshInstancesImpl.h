@@ -24,6 +24,36 @@ public:
 
 	virtual void CombineMeshInstances(const FSourceInstanceList& MeshInstances, const FOptions& Options, FResults& ResultsOut) override;
 
+	virtual void CombineMeshInstances(
+		const FSourceInstanceList& MeshInstances,
+		const FCombineMeshInstancesOptionsGeneral& AllLODOptions,
+		TConstArrayView<FCombineMeshInstancesOptionsPerLOD> PerLODOptions,
+		FResults& ResultsOut
+	) override;
+
+
+	virtual void ComputeSinglePartMeshSet(
+		TConstArrayView<const FMeshDescription*> SourceMeshLODs,
+		const FComputePartMeshesOptions& GeneralOptions,
+		const FComputePartMeshesSinglePartOptions& PartOptions,
+		FSinglePartMeshSet& ResultMeshes
+	) override;
+
+	virtual void ComputeSinglePartMeshSet(
+		UStaticMesh* SourceMesh,
+		const FComputePartMeshesOptions& GeneralOptions,
+		const FComputePartMeshesSinglePartOptions& PartOptions,
+		FSinglePartMeshSet& ResultPartMeshSet
+	) override;
+
+	virtual void ComputePartMeshSets(
+		FSourceInstanceList& MeshInstances,
+		const FComputePartMeshesOptions& GeneralOptions,
+		bool bKeepExistingPartMeshes,
+		TArray<TSharedPtr<FSinglePartMeshSet>>& ResultMeshSets
+	) override;
+
+
 protected:
 
 };

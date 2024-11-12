@@ -2,6 +2,8 @@
 
 #include "ChaosModularVehicle/ModularVehicleSimulationCU.h"
 #include "ChaosModularVehicle/ModularVehicleDefaultAsyncInput.h"
+#include "SimModule/SimModulesInclude.h"
+#include "SimModule/ModuleInput.h"
 #include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
 #include "PhysicsProxy/ClusterUnionPhysicsProxy.h"
 #include "GeometryCollection/GeometryCollectionObject.h"
@@ -28,7 +30,6 @@ FAutoConsoleVariableRef CVarChaosModularVehiclesDisableAnim(TEXT("p.ModularVehic
 void FModularVehicleSimulationCU::Initialize(TUniquePtr<Chaos::FSimModuleTree>& InSimModuleTree)
 {
 	SimModuleTree = MoveTemp(InSimModuleTree);
-	InputInterpolation.Init(FModularVehicleInputRate(), EModularVehicleInputType::Max);
 }
 
 void FModularVehicleSimulationCU::Terminate()
@@ -38,32 +39,6 @@ void FModularVehicleSimulationCU::Terminate()
 
 void FModularVehicleSimulationCU::Simulate(UWorld* InWorld, float DeltaSeconds, const FModularVehicleAsyncInput& InputData, FModularVehicleAsyncOutput& OutputData, IPhysicsProxyBase* Proxy)
 {
-#if DEBUG_NETWORK_PHYSICS
-
-	if (InWorld->IsNetMode(NM_ListenServer) || InWorld->IsNetMode(NM_DedicatedServer))
-	{
-		UE_LOG(LogTemp, Log, TEXT("SERVER | PT | TickVehicle | Async tick vehicle with inputs at frame %d : Throttle = %f Brake = %f Roll = %f Pitch = %f Yaw = %f Steering = %f Handbrake = %f"),
-			InputData.PhysicsInputs.NetworkInputs.LocalFrame, VehicleInputs.Throttle, VehicleInputs.Brake, VehicleInputs.Roll, VehicleInputs.Pitch,
-			VehicleInputs.Yaw, VehicleInputs.Steering, VehicleInputs.Handbrake);
-
-		UE_LOG(LogTemp, Log, TEXT("ALT-SERVER | PT | TickVehicle | Async tick vehicle with inputs at frame %d : Throttle = %f Brake = %f Roll = %f Pitch = %f Yaw = %f Steering = %f Handbrake = %f"),
-			InputData.PhysicsInputs.NetworkInputs.LocalFrame, InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Throttle, InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Brake, InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Roll, InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Pitch,
-			InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Yaw, InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Steering, InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Handbrake);
-	}
-	else if (InWorld->IsNetMode(NM_Client))
-	{
-		UE_LOG(LogTemp, Log, TEXT("CLIENT | PT | TickVehicle | Async tick vehicle with inputs at frame %d : Throttle = %f Brake = %f Roll = %f Pitch = %f Yaw = %f Steering = %f Handbrake = %f"),
-			InputData.PhysicsInputs.NetworkInputs.LocalFrame, VehicleInputs.Throttle, VehicleInputs.Brake, VehicleInputs.Roll, VehicleInputs.Pitch,
-			VehicleInputs.Yaw, VehicleInputs.Steering, VehicleInputs.Handbrake);
-
-		UE_LOG(LogTemp, Log, TEXT("ALT-CLIENT | PT | TickVehicle | Async tick vehicle with inputs at frame %d : Throttle = %f Brake = %f Roll = %f Pitch = %f Yaw = %f Steering = %f Handbrake = %f"),
-			InputData.PhysicsInputs.NetworkInputs.LocalFrame, InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Throttle, InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Brake, InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Roll, InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Pitch,
-			InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Yaw, InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Steering, InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Handbrake);
-	}
-
-#endif
-
-
 	Chaos::FPBDRigidsSolver* RigidsSolver = static_cast<Chaos::FPBDRigidsSolver*>(Proxy->GetSolver<Chaos::FPhysicsSolver>());
 	int CurrentFrame = -1;
 	if (RigidsSolver != nullptr)
@@ -88,6 +63,24 @@ void FModularVehicleSimulationCU::Simulate(UWorld* InWorld, float DeltaSeconds, 
 	Simulate_ClusterUnion(InWorld, DeltaSeconds, InputData, OutputData, static_cast<Chaos::FClusterUnionPhysicsProxy*>(Proxy));
 }
 
+void FModularVehicleSimulationCU::OnContactModification(Chaos::FCollisionContactModifier& Modifier, IPhysicsProxyBase* Proxy)
+{
+	using namespace Chaos;
+	Chaos::EnsureIsInPhysicsThreadContext();
+	check(Proxy->GetType() == EPhysicsProxyType::ClusterUnionProxy)
+	Chaos::FClusterUnionPhysicsProxy* ClusterProxy = static_cast<Chaos::FClusterUnionPhysicsProxy*>(Proxy);
+	check(ClusterProxy);
+
+	FPBDRigidsEvolutionGBF& Evolution = *static_cast<FPBDRigidsSolver*>(Proxy->GetSolver<FPBDRigidsSolver>())->GetEvolution();
+	FClusterUnionManager& ClusterUnionManager = Evolution.GetRigidClustering().GetClusterUnionManager();
+	const FClusterUnionIndex& CUI = ClusterProxy->GetClusterUnionIndex();
+
+	if (SimModuleTree.IsValid())
+	{
+		SimModuleTree->OnContactModification(Modifier, ClusterProxy);
+	}
+}
+
 void FModularVehicleSimulationCU::Simulate_ClusterUnion(UWorld* InWorld, float DeltaSeconds, const FModularVehicleAsyncInput& InputData, FModularVehicleAsyncOutput& OutputData, Chaos::FClusterUnionPhysicsProxy* Proxy)
 {
 	Chaos::EnsureIsInPhysicsThreadContext();
@@ -105,18 +98,12 @@ void FModularVehicleSimulationCU::Simulate_ClusterUnion(UWorld* InWorld, float D
 		//		, *Proxy->GetParticle_Internal()->W().ToString()));
 		//}
 
-		//InterpolateInputs(DeltaSeconds, ExternalInputs, InterpolatedInputs);
+		FReadScopeLock InputConfigLock(InputConfigurationLock);
 
-		SimInputData.ControlInputs.Throttle = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Throttle;
-		SimInputData.ControlInputs.Steering = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Steering;
-		SimInputData.ControlInputs.Brake = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Brake;
-		SimInputData.ControlInputs.Handbrake = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Handbrake;
-		SimInputData.ControlInputs.Roll = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Roll;
-		SimInputData.ControlInputs.Pitch = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Pitch;
-		SimInputData.ControlInputs.Yaw = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Yaw;
-		SimInputData.ControlInputs.Boost = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Boost;
-		SimInputData.ControlInputs.Drift = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Drift;
-		SimInputData.ControlInputs.IsReversing = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Reverse;
+		FModuleInputContainer Container = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Container;
+		FInputInterface InputInterface(InputNameMap, Container);
+
+		SimInputData.ControlInputs = &InputInterface;
 		SimInputData.bKeepVehicleAwake = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.KeepAwake;
 
 		PerformAdditionalSimWork(InWorld, InputData, Proxy, SimInputData);
@@ -126,19 +113,6 @@ void FModularVehicleSimulationCU::Simulate_ClusterUnion(UWorld* InWorld, float D
 	}
 
 }
-
-//void FModularVehicleSimulationCU::InterpolateInputs(float DeltaSeconds, const Chaos::FControlInputs& ExternalInputIn, Chaos::FControlInputs& InterpolatedInputsInOut)
-//{
-//	InterpolatedInputsInOut.Steering = InputInterpolation[EModularVehicleInputType::Steering].InterpInputValue(DeltaSeconds, InterpolatedInputsInOut.Steering, ExternalInputIn.Steering);
-//	InterpolatedInputsInOut.Throttle = InputInterpolation[EModularVehicleInputType::Throttle].InterpInputValue(DeltaSeconds, InterpolatedInputsInOut.Throttle, ExternalInputIn.Throttle);
-//	InterpolatedInputsInOut.Brake = InputInterpolation[EModularVehicleInputType::Brake].InterpInputValue(DeltaSeconds, InterpolatedInputsInOut.Brake, ExternalInputIn.Brake);
-//	InterpolatedInputsInOut.Handbrake = InputInterpolation[EModularVehicleInputType::Handbrake].InterpInputValue(DeltaSeconds, InterpolatedInputsInOut.Handbrake, ExternalInputIn.Handbrake);
-//	InterpolatedInputsInOut.Pitch = InputInterpolation[EModularVehicleInputType::Pitch].InterpInputValue(DeltaSeconds, InterpolatedInputsInOut.Pitch, ExternalInputIn.Pitch);
-//	InterpolatedInputsInOut.Roll = InputInterpolation[EModularVehicleInputType::Roll].InterpInputValue(DeltaSeconds, InterpolatedInputsInOut.Roll, ExternalInputIn.Roll);
-//	InterpolatedInputsInOut.Yaw = InputInterpolation[EModularVehicleInputType::Yaw].InterpInputValue(DeltaSeconds, InterpolatedInputsInOut.Yaw, ExternalInputIn.Yaw);
-//	InterpolatedInputsInOut.GearNumber = ExternalInputIn.GearNumber;
-//	InterpolatedInputsInOut.InputDebugIndex = ExternalInputIn.InputDebugIndex;
-//}
 
 
 void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, const FModularVehicleAsyncInput& InputData, Chaos::FClusterUnionPhysicsProxy* Proxy, Chaos::FAllInputs& AllInputs)
@@ -194,16 +168,16 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 							if (Node.SimModule->IsClustered() && Node.SimModule->IsBehaviourType(Chaos::eSimModuleTypeFlags::Raycast))
 							{
 								Chaos::FSpringTrace OutTrace;
-								Chaos::FSuspensionSimModule* Suspension = static_cast<Chaos::FSuspensionSimModule*>(Node.SimModule);
+								Chaos::FSuspensionBaseInterface* Suspension = static_cast<Chaos::FSuspensionBaseInterface*>(Node.SimModule);
 
 								// would be cleaner an faster to just store radius in suspension also
 								float WheelRadius = 0;
 								if (Suspension->GetWheelSimTreeIndex() != Chaos::ISimulationModuleBase::INVALID_IDX)
 								{
-									Chaos::FWheelSimModule* Wheel = static_cast<Chaos::FWheelSimModule*>(ModuleArray[Suspension->GetWheelSimTreeIndex()].SimModule);
+									Chaos::FWheelBaseInterface* Wheel = static_cast<Chaos::FWheelBaseInterface*>(ModuleArray[Suspension->GetWheelSimTreeIndex()].SimModule);
 									if (Wheel)
 									{
-										WheelRadius = Wheel->Setup().Radius;
+										WheelRadius = Wheel->GetWheelRadius();
 									}
 								}
 
@@ -221,10 +195,29 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 								const FCollisionResponseParams& ResponseParams = InputData.PhysicsInputs.TraceCollisionResponse;
 								if (InWorld)
 								{
-									InWorld->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, SpringCollisionChannel, TraceParams, ResponseParams);
+									switch (InputData.PhysicsInputs.TraceType)
+									{
+										case ETraceType::Spherecast:
+										{
+											InWorld->SweepSingleByChannel(HitResult
+												, TraceStart + TraceNormal * WheelRadius
+												, TraceEnd + TraceNormal * WheelRadius
+												, FQuat::Identity, SpringCollisionChannel
+												, FCollisionShape::MakeSphere(WheelRadius), TraceParams
+												, ResponseParams);
+										}
+										break;
+
+										case ETraceType::Raycast:
+										default:
+										{
+											InWorld->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, SpringCollisionChannel, TraceParams, ResponseParams);
+										}
+										break;
+									}
 								}
 
-								float Offset = Suspension->Setup().MaxLength;
+								float Offset = Suspension->GetMaxSpringLength();
 								if (HitResult.bBlockingHit && GModularVehicleDebugParams.SuspensionRaycastsEnabled)
 								{
 									Offset = HitResult.Distance - WheelRadius;
@@ -233,7 +226,7 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 									{
 										const Chaos::FSimModuleTree::FSimModuleNode& WheelNode = ModuleArray[Suspension->GetWheelSimTreeIndex()];
 
-										Chaos::FWheelSimModule* Wheel = static_cast<Chaos::FWheelSimModule*>(WheelNode.SimModule);
+										Chaos::FWheelBaseInterface* Wheel = static_cast<Chaos::FWheelBaseInterface*>(WheelNode.SimModule);
 										if (Wheel && HitResult.PhysMaterial.IsValid())
 										{
 											if (GModularVehicleDebugParams.FrictionOverride > 0)
@@ -255,7 +248,7 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 
 									if (Suspension->GetWheelSimTreeIndex() != Chaos::ISimulationModuleBase::INVALID_IDX)
 									{
-										Chaos::FWheelSimModule* Wheel = static_cast<Chaos::FWheelSimModule*>(ModuleArray[Suspension->GetWheelSimTreeIndex()].SimModule);
+										Chaos::FWheelBaseInterface* Wheel = static_cast<Chaos::FWheelBaseInterface*>(ModuleArray[Suspension->GetWheelSimTreeIndex()].SimModule);
 										if (Wheel)
 										{
 											if (GModularVehicleDebugParams.ShowWheelData)
@@ -324,7 +317,30 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 #endif
 								Suspension->SetSpringLength(Offset, WheelRadius);
 								FVector Up = ClusterWorldTM.GetUnitAxis(EAxis::Z);
-								Suspension->SetTargetPoint(HitResult.ImpactPoint + Up * WheelRadius, HitResult.ImpactNormal, HitResult.bBlockingHit);
+
+								FVector HitPoint;
+								float HitDistance = 0.f;
+								if (InputData.PhysicsInputs.TraceType == ETraceType::Spherecast)
+								{
+									HitPoint = HitResult.Location;
+									HitDistance = HitResult.Distance;
+								}
+								else
+								{
+									HitPoint = HitResult.ImpactPoint + Up * WheelRadius;
+									HitDistance = HitResult.Distance - WheelRadius;
+								}
+
+								const TEnumAsByte<EPhysicalSurface> DefaultSurfaceType = EPhysicalSurface::SurfaceType_Default;
+								FSuspensionTargetPoint TargetPoint(
+									HitPoint
+									, HitResult.ImpactNormal
+									, HitDistance
+									, HitResult.bBlockingHit
+									, HitResult.PhysMaterial.IsValid() ? HitResult.PhysMaterial->SurfaceType : DefaultSurfaceType
+								);
+
+								Suspension->SetTargetPoint(TargetPoint);
 							}
 
 						}
@@ -413,8 +429,3 @@ void FModularVehicleSimulationCU::FillOutputState(FModularVehicleAsyncOutput& Ou
 	}
 }
 
-Chaos::FControlInputs& FModularVehicleSimulationCU::AccessControlInputs()
-{
-	Chaos::EnsureIsInPhysicsThreadContext();
-	return SimModuleTree->GetControlInputs();
-}

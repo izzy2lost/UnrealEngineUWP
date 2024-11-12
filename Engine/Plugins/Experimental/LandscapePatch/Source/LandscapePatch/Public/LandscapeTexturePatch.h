@@ -142,11 +142,12 @@ public:
 	double WorldSpaceEncodingScale = 1;
 };
 
+//~ Ideally this would be a nested class, but it needs to be a UObject, which can't be nested.
 /**
  * Helper class for ULandscapeTexturePatch that stores information for a given weight layer.
- * Should not be used outside this class, but does need to be a UObject (so can't be nested).
+ * Should not be used outside this class.
  */
-UCLASS()
+UCLASS(EditInlineNew, CollapseCategories)
 class LANDSCAPEPATCH_API ULandscapeWeightPatchTextureInfo : public UObject
 {
 	GENERATED_BODY()
@@ -179,9 +180,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = WeightPatch, meta = (EditConditionHides, EditCondition = "false"))
 	ELandscapeTexturePatchSourceMode SourceMode = ELandscapeTexturePatchSourceMode::None;
 
-	 //~ This is EditInstanceOnly because we can't create textures in the blueprint editor due to the way
-	 //~ instanced properties are currently handled there.
-	UPROPERTY(EditInstanceOnly, Category = WeightPatch, meta = (DisplayName = "Source Mode"))
+	/**
+	 * How the heightmap of the patch is stored.
+	 */
+	UPROPERTY(EditAnywhere, Category = WeightPatch, meta = (DisplayName = "Source Mode"))
 	ELandscapeTexturePatchSourceMode DetailPanelSourceMode = ELandscapeTexturePatchSourceMode::None;
 
 	//~ We could refactor things such that we always have an InternalData pointer, even when we use
@@ -191,26 +193,24 @@ protected:
 	bool bUseAlphaChannel = false;
 
 	// Can't make TOptional a UPROPERTY, hence these two.
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category = WeightPatch)
 	bool bOverrideBlendMode = false;
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category = WeightPatch, meta = (EditConditionHides, EditCondition = "bOverrideBlendMode"))
 	ELandscapeTexturePatchBlendMode OverrideBlendMode = ELandscapeTexturePatchBlendMode::AlphaBlend;
 
 	// TODO: We could support having different per-layer falloff modes and falloff amounts as well, as
 	// additional override members. But probably better to wait to see if that is actually desired.
 
-	// Needed mainly so that we can get at the resolution...
-	UPROPERTY()
-	TWeakObjectPtr<ULandscapeTexturePatch> OwningPatch = nullptr;
-
-	// TODO: Like the similar flag for the height patch, this might not work once local merge works
-	// with landscape brushes...
 	bool bReinitializeOnNextRender = false;
 
 	void SetSourceMode(ELandscapeTexturePatchSourceMode NewMode);
+#if WITH_EDITOR
+	void TransitionSourceModeInternal(ELandscapeTexturePatchSourceMode OldMode, ELandscapeTexturePatchSourceMode NewMode);
+#endif
 
 	friend class ULandscapeTexturePatch;
 };
+
 
 UCLASS(Blueprintable, BlueprintType, ClassGroup = Landscape, meta = (BlueprintSpawnableComponent))
 class LANDSCAPEPATCH_API ULandscapeTexturePatch : public ULandscapePatchComponent
@@ -220,14 +220,28 @@ class LANDSCAPEPATCH_API ULandscapeTexturePatch : public ULandscapePatchComponen
 public:
 
 #if WITH_EDITOR
-	UTextureRenderTarget2D* RenderLayer_Native(const FLandscapeBrushParameters& InParameters);
+	using FEditLayerTargetTypeState = UE::Landscape::EditLayers::FEditLayerTargetTypeState;
+	using FEditLayerRenderItem = UE::Landscape::EditLayers::FEditLayerRenderItem;
+
+	// ILandscapeEditLayerRenderer, via ULandscapePatchComponent
+	virtual void GetRendererStateInfo(const ULandscapeInfo* InLandscapeInfo,
+		FEditLayerTargetTypeState& OutSupportedTargetTypeState,
+		FEditLayerTargetTypeState& OutEnabledTargetTypeState,
+		TArray<TSet<FName>>& OutRenderGroups) const override;
+	virtual FString GetEditLayerRendererDebugName() const override;
+	virtual TArray<FEditLayerRenderItem> GetRenderItems(const ULandscapeInfo* InLandscapeInfo) const override;
+	virtual void RenderLayer(FRenderParams& InRenderParams) override;
 
 	// ULandscapePatchComponent
-	UE_DEPRECATED(5.3, "Use AffectsWeightmapLayer")
-	virtual bool IsAffectingWeightmapLayer(const FName& InLayerName) const override;
-	virtual bool AffectsWeightmapLayer(const FName& InLayerName) const override;
-	virtual bool AffectsVisibilityLayer() const override;
-	virtual bool IsEnabled() const override;
+	UTextureRenderTarget2D* RenderLayer_Native(const FLandscapeBrushParameters& InParameters, const FTransform& HeightmapToWorld) override;
+	virtual bool CanAffectHeightmap() const override;
+	virtual bool CanAffectWeightmap() const override;
+	virtual bool CanAffectWeightmapLayer(const FName& InLayerName) const override;
+	virtual bool CanAffectVisibilityLayer() const override;
+	virtual void GetRenderDependencies(TSet<UObject*>& OutDependencies) const override;
+
+	// UActorComponent
+	virtual TStructOnScope<FActorComponentInstanceData> GetComponentInstanceData() const override;
 
 	// UObject
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -294,8 +308,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
 	void SetFalloff(float FalloffIn) 
 	{
-		Modify();
-		Falloff = FalloffIn; 
+		if (Falloff != FalloffIn)
+		{
+			Modify();
+			Falloff = FalloffIn;
+		}
+	}
+
+	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
+	void SetFalloffMode(ELandscapeTexturePatchFalloffMode FalloffModeIn) 
+	{
+		if (FalloffMode != FalloffModeIn)
+		{
+			Modify();
+			FalloffMode = FalloffModeIn;
+		}
 	}
 
 	/**
@@ -303,9 +330,12 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
 	void SetBlendMode(ELandscapeTexturePatchBlendMode BlendModeIn) 
-	{ 
-		Modify();
-		BlendMode = BlendModeIn; 
+	{
+		if (BlendMode != BlendModeIn)
+		{
+			Modify();
+			BlendMode = BlendModeIn;
+		}
 	}
 
 
@@ -315,8 +345,9 @@ public:
 	virtual ELandscapeTexturePatchSourceMode GetHeightSourceMode() const { return HeightSourceMode; }
 
 	/**
-	 * Changes source mode. When changing between sources, existing data is copied from one to the other
-	 * when possible.
+	 * Changes source mode. There are currently no API guarantees regarding the initialization of the
+	 * new source data. E.g. when first switching to use an internal render target, the data in that
+	 * render target may not be initialized.
 	 */
 	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
 	virtual void SetHeightSourceMode(ELandscapeTexturePatchSourceMode NewMode);
@@ -360,9 +391,12 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LandscapePatch")
 	void SetUseAlphaChannelForHeight(bool bUse)
-	{ 
-		Modify();
-		bUseTextureAlphaForHeight = bUse; 
+	{
+		if (bUseTextureAlphaForHeight != bUse)
+		{
+			Modify();
+			bUseTextureAlphaForHeight = bUse;
+		}
 	}
 
 	/**
@@ -372,8 +406,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
 	void SetHeightEncodingMode(ELandscapeTextureHeightPatchEncoding EncodingMode)
 	{
-		Modify();
-		HeightEncoding = EncodingMode;
+		if (HeightEncoding != EncodingMode)
+		{
+			Modify();
+			HeightEncoding = EncodingMode;
+		}
 	}
 
 	/**
@@ -397,8 +434,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LandscapePatch")
 	void SetZeroHeightMeaning(ELandscapeTextureHeightPatchZeroHeightMeaning ZeroHeightMeaningIn)
 	{ 
-		Modify();
-		ZeroHeightMeaning = ZeroHeightMeaningIn;
+		if (ZeroHeightMeaning != ZeroHeightMeaningIn)
+		{
+			Modify();
+			ZeroHeightMeaning = ZeroHeightMeaningIn;
+		}
 	}
 
 
@@ -432,8 +472,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
 	void SetWeightPatchTextureAsset(const FName& InWeightmapLayerName, UTexture* TextureIn);
 
+	/**
+	 * @param bMarkDirty If true, marks the containing package as dirty, since the render target is presumably
+	 *  being written to. Can be set to false if the render target is not being written to.
+	 */
 	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
-	virtual UTextureRenderTarget2D* GetWeightPatchRenderTarget(const FName& InWeightmapLayerName);
+	virtual UTextureRenderTarget2D* GetWeightPatchRenderTarget(const FName& InWeightmapLayerName, bool bMarkDirty = true);
 
 	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
 	virtual void SetUseAlphaChannelForWeightPatch(const FName& InWeightmapLayerName, bool bUseAlphaChannel);
@@ -447,16 +491,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
 	virtual void SetEditVisibilityLayer(const FName& InWeightmapLayerName, const bool bEditVisibilityLayer);
 
-	// These need to be public so that we can take the internal textures and write them to external ones,
-	// but unclear whether we want to expose them to blueprints, since this is a fairly internal thing.
-	UTexture2D* GetHeightInternalTexture() { return HeightInternalData ? HeightInternalData->GetInternalTexture() : nullptr; ; }
-	UTexture2D* GetWeightPatchInternalTexture(const FName& InWeightmapLayerName);
-
 protected:
-
-	UPROPERTY()
+	//~ Don't expose these on the instance because a user might not realize that they would lose their existing internal
+	//~ data by dragging them, and the only way they can reinitialize data in the viewport is through the methods that
+	//~ already use InitTextureSizeX/Y as inputs
+	UPROPERTY(EditDefaultsOnly, Category = Settings)
 	int32 ResolutionX = 32;
-	UPROPERTY()
+	UPROPERTY(EditDefaultsOnly, Category = Settings)
 	int32 ResolutionY = 32;
 
 	/** At scale 1.0, the X and Y of the region affected by the height patch. This corresponds to the distance from the center
@@ -488,13 +529,9 @@ protected:
 	ELandscapeTexturePatchSourceMode HeightSourceMode = ELandscapeTexturePatchSourceMode::None;
 
 	/**
-	 * How the heightmap of the patch is stored. Not settable in the detail panel of the blueprint editor- use SetHeightSourceMode
-	 * in blueprint actors instead.
+	 * How the heightmap of the patch is stored.
 	 */
-	//~ This is EditInstanceOnly because changing it creates/destroys the internal texture, and that cannot currently be
-	//~ dealt with properly in the blueprint editor due to the way instanced properties are handled there. Could revisit when
-	//~ UE-158706 is resolved.
-	UPROPERTY(EditInstanceOnly, Category = HeightPatch, meta = (DisplayName = "Source Mode"))
+	UPROPERTY(EditAnywhere, Category = HeightPatch, meta = (DisplayName = "Source Mode"))
 	ELandscapeTexturePatchSourceMode DetailPanelHeightSourceMode = ELandscapeTexturePatchSourceMode::None;
 
 	/** Not directly settable via detail panel- for display/debugging purposes only. */
@@ -543,30 +580,26 @@ protected:
 	// Weight properties:
 
 	/** 
-	 * Weight patches. These are not available to be manipulated through the detail panel in the blueprint editor, so blueprint actors
-	 * should set up the weight patches via AddWeightPatch instead.
+	 * Weight patches. 
+	 * Note that manipulating these in the blueprint editor will not reliably update instances that are already
+	 * placed into the world, due to current limitations in how change detection is done for such arrays. Specifically,
+	 * existing instances that are actually not customized are very likely to be erroneously be treated as having
+	 * customized their version of the array, causing the blueprint changes to not be pushed to those instances
+	 * when they otherwise would be for most other properties.
 	 */
-	//~ This is EditInstanceOnly because manipulating them in blueprint editor causes saving issues due to the way that
-	//~ instanced properties are currently handled there.
-	UPROPERTY(EditInstanceOnly, Category = WeightPatches, Instanced)
+	UPROPERTY(EditAnywhere, Category = WeightPatches, Instanced, NoClear, meta=(NoResetToDefault))
 	TArray<TObjectPtr<ULandscapeWeightPatchTextureInfo>> WeightPatches;
-
-	// Used to detect changes to the number of weight patches via the detail panel, so that we can
-	// initialize the "owner" pointer when patches are added or trigger update when patches are removed.
-	UPROPERTY()
-	int32 NumWeightPatches = 0;
-
 
 	// Reinitialization from detail panel:
 
 	/**
 	 * Given the current initialization settings, reinitialize the height patch.
 	 */
-	UFUNCTION(CallInEditor, Category = HeightPatch)
-	void ReinitializeHeight();
+	UFUNCTION(CallInEditor, Category = HeightPatch, meta = (DisplayName= "Reinitialize Height"))
+	void RequestReinitializeHeight();
 
-	UFUNCTION(CallInEditor, Category = WeightPatches)
-	void ReinitializeWeights();
+	UFUNCTION(CallInEditor, Category = WeightPatches, meta = (DisplayName = "Reinitialize Weights"))
+	void RequestReinitializeWeights();
 
 	bool bReinitializeHeightOnNextRender = false;
 
@@ -595,37 +628,55 @@ protected:
 		EditCondition = "bBaseResolutionOffLandscape"))
 	float ResolutionMultiplier = 1;
 
-	/** Texture width to use when reinitializing, if not basing resolution off landscape. */
+	/** Texture width to use when reinitializing using Reinitialize Weights or ReinitializeHeight, if not basing resolution off landscape. */
 	UPROPERTY(EditAnywhere, Category = Initialization, meta = (EditCondition = "!bBaseResolutionOffLandscape", 
 		ClampMin = "1"))
 	int32 InitTextureSizeX = 33;
 
-	/** Texture height to use when reinitializing */
+	/** Texture height to use when reinitializing using Reinitialize Weights or ReinitializeHeight, if not basing resolution off landscape. */
 	UPROPERTY(EditAnywhere, Category = Initialization, meta = (EditCondition = "!bBaseResolutionOffLandscape", 
 		ClampMin = "1"))
 	int32 InitTextureSizeY = 33;
 
 private:
+	UTexture2D* GetHeightInternalTexture();
+	UTextureRenderTarget2D* GetWeightPatchRenderTarget(ULandscapeWeightPatchTextureInfo* WeightPatch);
+	UTexture2D* GetWeightPatchInternalTexture(ULandscapeWeightPatchTextureInfo* WeightPatch);
+
 	void UpdateHeightConvertToNativeParamsIfNeeded();
 #if WITH_EDITOR
+	void TransitionHeightSourceModeInternal(ELandscapeTexturePatchSourceMode OldMode, ELandscapeTexturePatchSourceMode NewMode);
 	FLandscapeHeightPatchConvertToNativeParams GetHeightConvertToNativeParams() const;
-	UTextureRenderTarget2D* ApplyToHeightmap(UTextureRenderTarget2D* InCombinedResult);
-	UTextureRenderTarget2D* ApplyToWeightmap(ULandscapeWeightPatchTextureInfo* PatchInfo, UTextureRenderTarget2D* InCombinedResult);
+	UTextureRenderTarget2D* ApplyToHeightmap(UTextureRenderTarget2D* InCombinedResult, const FTransform& LandscapeHeightmapToWorld);
+	void ApplyToWeightmap(ULandscapeWeightPatchTextureInfo* PatchInfo,
+		TFunction<FRHITexture* ()> RenderThreadLandscapeTextureGetter, int32 LandscapeTextureSliceIndex,
+		const FIntPoint& LandscapeTextureResolution, const FTransform& LandscapeHeightmapToWorld);
 
-	void GetCommonShaderParams(const FIntPoint& SourceResolutionIn, const FIntPoint& DestinationResolutionIn, 
+	void GetCommonShaderParams(const FTransform& LandscapeHeightmapToWorldIn, 
+		const FIntPoint& SourceResolutionIn, const FIntPoint& DestinationResolutionIn,
 		FTransform& PatchToWorldOut, FVector2f& PatchWorldDimensionsOut, FMatrix44f& HeightmapToPatchOut, 
 		FIntRect& DestinationBoundsOut, FVector2f& EdgeUVDeadBorderOut, float& FalloffWorldMarginOut) const;
-	void GetHeightShaderParams(const FIntPoint& SourceResolutionIn, const FIntPoint& DestinationResolutionIn,
+	void GetHeightShaderParams(const FTransform& LandscapeHeightmapToWorldIn, 
+		const FIntPoint& SourceResolutionIn, const FIntPoint& DestinationResolutionIn,
 		UE::Landscape::FApplyLandscapeTextureHeightPatchPS::FParameters& ParamsOut, FIntRect& DestinationBoundsOut) const;
-	void GetWeightShaderParams(const FIntPoint& SourceResolutionIn, const FIntPoint& DestinationResolutionIn,
-		const ULandscapeWeightPatchTextureInfo* WeightPatchInfo, 
+	void GetWeightShaderParams(const FTransform& LandscapeHeightmapToWorldIn, const FIntPoint& SourceResolutionIn, 
+		const FIntPoint& DestinationResolutionIn, const ULandscapeWeightPatchTextureInfo* WeightPatchInfo, 
 		UE::Landscape::FApplyLandscapeTextureWeightPatchPS::FParameters& ParamsOut, FIntRect& DestinationBoundsOut) const;
-	FMatrix44f GetPatchToHeightmapUVs(int32 PatchSizeX, int32 PatchSizeY, int32 HeightmapSizeX, int32 HeightmapSizeY) const;
-	void ReinitializeHeight(UTextureRenderTarget2D* InCombinedResult);
-	void ReinitializeWeightPatch(ULandscapeWeightPatchTextureInfo* PatchInfo, UTextureRenderTarget2D* InCombinedResult);
+	FMatrix44f GetPatchToHeightmapUVs(const FTransform& LandscapeHeightmapToWorld, int32 PatchSizeX, int32 PatchSizeY, int32 HeightmapSizeX, int32 HeightmapSizeY) const;
+	void ReinitializeHeight(UTextureRenderTarget2D* InCombinedResult, const FTransform& LandscapeHeightmapToWorld);
+	/**
+	 * @param SliceIndex set to a negative value when not using a Texture2DArray
+	 */
+	void ReinitializeWeightPatch(ULandscapeWeightPatchTextureInfo* PatchInfo,
+		FTextureResource* InputResource, FIntPoint ResourceSize, int32 SliceIndex,
+		const FTransform& LandscapeHeightmapToWorld);
+
+	bool WeightPatchCanRender(const ULandscapeWeightPatchTextureInfo& InWeightPatch) const;
+
+	void ResetHeightRenderTargetFormat();
 #endif // WITH_EDITOR
 
-	UPROPERTY()
+	UPROPERTY(EditDefaultsOnly, Category = Settings)
 	TEnumAsByte<ETextureRenderTargetFormat> HeightRenderTargetFormat = ETextureRenderTargetFormat::RTF_R32f;
 };
 

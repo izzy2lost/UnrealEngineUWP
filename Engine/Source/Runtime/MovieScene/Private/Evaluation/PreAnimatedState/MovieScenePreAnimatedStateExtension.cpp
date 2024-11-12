@@ -198,7 +198,7 @@ void FPreAnimatedStateExtension::RemoveMetaData(const FPreAnimatedStateMetaData&
 					{
 						const int32 AggregateIndex = Aggregate - Group.AggregateMetaData.GetData();
 						// Otherwise remove just this aggregate
-						Group.AggregateMetaData.RemoveAt(AggregateIndex, 1, EAllowShrinking::No);
+						Group.AggregateMetaData.RemoveAt(AggregateIndex, EAllowShrinking::No);
 					}
 				}
 				else
@@ -377,6 +377,18 @@ void FPreAnimatedStateExtension::RestoreGlobalState(const FRestoreStateParams& P
 			{
 				Storage.RestorePreAnimatedStateStorage(StorageIndex, EPreAnimatedStorageRequirement::Persistent, EPreAnimatedStorageRequirement::None, Params);
 			});
+
+	// Invalidate cached data for any sequence instance that belongs to the terminal instance.
+	// This is because we have just restored pre-animated state, so trying to re-update the sequence will 
+	// need to re-setup everything. It wouldn't do it unless we've invalidated it.
+	if (Params.TerminalInstanceHandle.IsValid() && 
+			ensureMsgf(
+				Linker->GetInstanceRegistry()->IsHandleValid(Params.TerminalInstanceHandle),
+				TEXT("Terminal instance handle is not valid anymore, was the sequence destroyed?")))
+	{
+		FSequenceInstance& TerminalInstance = Linker->GetInstanceRegistry()->MutateInstance(Params.TerminalInstanceHandle);
+		TerminalInstance.InvalidateCachedData(ESequenceInstanceInvalidationType::All);
+	}
 }
 
 void FPreAnimatedStateExtension::DiscardStaleObjectState()
@@ -638,7 +650,7 @@ void FPreAnimatedStateExtension::DiscardStateForStorage(FPreAnimatedStorageID St
 			{
 				Storage->DiscardPreAnimatedStateStorage(Aggregate.ValueHandle.StorageIndex, EPreAnimatedStorageRequirement::Persistent);
 
-				Group.AggregateMetaData.RemoveAt(AggregateIndex, 1, EAllowShrinking::No);
+				Group.AggregateMetaData.RemoveAt(AggregateIndex, EAllowShrinking::No);
 			}
 
 			if (Group.AggregateMetaData.Num() == 0)
@@ -763,7 +775,7 @@ void FPreAnimatedStateExtension::HandleMetaDataToRemove(const FRestoreStateParam
 				TSharedPtr<IPreAnimatedStorage> Storage = GetStorageChecked(Aggregate.ValueHandle.TypeID);
 				RemoveFunc(*Storage.Get(), Aggregate.ValueHandle.StorageIndex);
 
-				Group.AggregateMetaData.RemoveAt(AggregateIndex, 1, EAllowShrinking::No);
+				Group.AggregateMetaData.RemoveAt(AggregateIndex, EAllowShrinking::No);
 			}
 
 			if (Group.AggregateMetaData.Num() == 0)
@@ -789,15 +801,6 @@ void FPreAnimatedStateExtension::HandleMetaDataToRemove(const FRestoreStateParam
 
 	GroupMetaData.Shrink();
 
-	// Invalidate cached data for any sequence instance that belongs to the terminal instance
-	if (Params.TerminalInstanceHandle.IsValid() && 
-			ensureMsgf(
-				Linker->GetInstanceRegistry()->IsHandleValid(Params.TerminalInstanceHandle),
-				TEXT("Terminal instance handle is not valid anymore, was the sequence destroyed?")))
-	{
-		Linker->GetInstanceRegistry()->MutateInstance(Params.TerminalInstanceHandle).InvalidateCachedData();
-	}
-
 	bEntriesInvalidated = true;
 }
 
@@ -807,14 +810,6 @@ bool FPreAnimatedStateExtension::HasActiveCaptureSource() const
 	ensureMsgf(!CaptureSource || CaptureSource->WeakLinker.Get() == Linker,
 			TEXT("The current capture source is related to a different linker. Are you missing setting a scope capture source?"));
 	return (CaptureSource && CaptureSource->bWantsRestoreState);
-}
-
-bool FPreAnimatedStateExtension::ShouldCaptureAnyState() const
-{
-	FScopedPreAnimatedCaptureSource* CaptureSource = FScopedPreAnimatedCaptureSource::GetCaptureSourcePtr();
-	ensureMsgf(!CaptureSource || CaptureSource->WeakLinker.Get() == Linker,
-			TEXT("The current capture source is related to a different linker. Are you missing setting a scope capture source?"));
-	return (CaptureSource && CaptureSource->bWantsRestoreState) || IsCapturingGlobalState();
 }
 
 void FPreAnimatedStateExtension::AddSourceMetaData(const UE::MovieScene::FPreAnimatedStateEntry& Entry)
@@ -933,6 +928,14 @@ void FPreAnimatedStateExtension::AddReferencedObjects(UMovieSceneEntitySystemLin
 	}
 }
 
+void FPreAnimatedStateExtension::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap)
+{
+	TSharedPtr<FPreAnimatedObjectGroupManager> ObjectGroupManager = FindGroupManager<FPreAnimatedObjectGroupManager>();
+	if (ObjectGroupManager)
+	{
+		ObjectGroupManager->OnObjectsReplaced(ReplacementMap);
+	}
+}
 
 } // namespace MovieScene
 } // namespace UE

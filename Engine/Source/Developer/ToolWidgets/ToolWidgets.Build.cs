@@ -17,7 +17,8 @@ public class ToolWidgets : ModuleRules
 				"SlateCore",
 				"InputCore",
 				"ToolMenus",
-				"CoreUObject"
+				"CoreUObject",
+				"TypedElementFramework"
 			}
 		);
 
@@ -27,5 +28,7 @@ public class ToolWidgets : ModuleRules
 				"ApplicationCore"
 			}
 		);
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

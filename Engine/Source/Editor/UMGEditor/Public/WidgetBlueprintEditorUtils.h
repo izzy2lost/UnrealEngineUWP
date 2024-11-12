@@ -16,6 +16,7 @@ class UWidgetTree;
 class SWindow;
 class UWidgetEditingProjectSettings;
 class FWidgetObjectTextFactory;
+class ULocalPlayer;
 
 //////////////////////////////////////////////////////////////////////////
 // FWidgetBlueprintEditorUtils
@@ -28,6 +29,12 @@ public:
 	{
 		FVector2D ScaledSize;
 		FVector2D Offset;
+	};
+
+	struct FCreateWidgetFromBlueprintParams
+	{
+		EWidgetDesignFlags FlagsToApply;
+		ULocalPlayer* LocalPlayer = nullptr; // Optionally specify if available
 	};
 
 	static bool VerifyWidgetRename(TSharedRef<class FWidgetBlueprintEditor> BlueprintEditor, FWidgetReference Widget, const FText& NewName, FText& OutErrorMessage);
@@ -50,9 +57,18 @@ public:
 
 	static TArray<UWidget*> DuplicateWidgets(TSharedRef<FWidgetBlueprintEditor> BlueprintEditor, UWidgetBlueprint* BP, TSet<FWidgetReference> Widgets);
 
+	static UUserWidget* CreateUserWidgetFromBlueprint(UObject* Outer, UWidgetBlueprint* BP, const FCreateWidgetFromBlueprintParams& Params);
+
+	/** Performs cleanup on the specified UserWidget. */
+	static void DestroyUserWidget(UUserWidget* UserWidget);
+
 	static bool IsAnySelectedWidgetLocked(TSet<FWidgetReference> SelectedWidgets);
 
+	static bool CanPasteWidgetsExtension(TSet<FWidgetReference> SelectedWidgets);
+
 	static UWidget* GetWidgetTemplateFromDragDrop(UWidgetBlueprint* Blueprint, UWidgetTree* RootWidgetTree, TSharedPtr<FDragDropOperation>& DragDropOp);
+
+	static bool ShouldPreventDropOnTargetExtensions(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp, FText& OutFailureText);
 
 	static bool IsBindWidgetProperty(const FProperty* InProperty);
 	static bool IsBindWidgetProperty(const FProperty* InProperty, bool& bIsOptional);
@@ -123,6 +139,8 @@ public:
 
 	static UWidgetEditingProjectSettings* GetRelevantMutableSettings(TWeakPtr<FWidgetBlueprintEditor> CurrentEditor);
 	static const UWidgetEditingProjectSettings* GetRelevantSettings(TWeakPtr<FWidgetBlueprintEditor> CurrentEditor);
+
+	static UWidgetBlueprint* GetWidgetBlueprintFromWidget(const UWidget* Widget);
 
 private:
 

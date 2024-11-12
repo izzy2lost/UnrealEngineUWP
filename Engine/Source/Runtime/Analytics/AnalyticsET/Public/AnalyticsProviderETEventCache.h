@@ -12,6 +12,7 @@
 #include "Misc/ScopeLock.h"
 #include "Templates/Function.h"
 #include "Templates/UnrealTemplate.h"
+#include "Misc/TransactionallySafeScopeLock.h"
 
 /**
  * Mixin class for Epic Telemetry implementors.
@@ -107,7 +108,7 @@ public:
 			:ScopedLock(&EventCache.CachedEventsCS)
 		{}
 	private:
-		FScopeLock ScopedLock;
+		FTransactionallySafeScopeLock ScopedLock;
 	};
 
 	static ANALYTICSET_API void OnStartupModule();
@@ -153,5 +154,5 @@ private:
 	TArray<TArray<uint8>> FlushQueue;
 
 	/** Critical section for updating the CachedEvents. Mutable to allow const methods to access the list. */
-	mutable FCriticalSection CachedEventsCS;
+	mutable FTransactionallySafeCriticalSection CachedEventsCS;
 };

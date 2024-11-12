@@ -8,6 +8,8 @@ namespace UnrealBuildTool.Rules
 		{
 			PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
+			UnsafeTypeCastWarningLevel = WarningLevel.Warning;
+
 			PublicIncludePaths.AddRange(
 			new string[] {
 			}
@@ -33,7 +35,6 @@ namespace UnrealBuildTool.Rules
 				"ComponentVisualizers",
 				"Projects",
 				"EditorSubsystem",
-				"StructUtils"
 			}
 			);
 
@@ -45,6 +46,7 @@ namespace UnrealBuildTool.Rules
 				"PropertyEditor",
 				"AIGraph",
 				"ToolMenus",
+				"DataValidation",
 			}
 			);
 		}

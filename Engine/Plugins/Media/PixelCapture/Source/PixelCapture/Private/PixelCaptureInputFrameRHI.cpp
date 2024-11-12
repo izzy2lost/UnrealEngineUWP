@@ -3,7 +3,7 @@
 #include "PixelCaptureInputFrameRHI.h"
 #include "PixelCaptureBufferFormat.h"
 
-FPixelCaptureInputFrameRHI::FPixelCaptureInputFrameRHI(FTexture2DRHIRef InFrameTexture)
+FPixelCaptureInputFrameRHI::FPixelCaptureInputFrameRHI(FTextureRHIRef InFrameTexture)
 	: FrameTexture(InFrameTexture)
 {
 	Metadata.SourceTime = rtc::TimeMillis();

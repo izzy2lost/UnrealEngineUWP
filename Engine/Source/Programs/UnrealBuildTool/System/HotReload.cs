@@ -1074,7 +1074,7 @@ namespace UnrealBuildTool
 					string NewResponseFilePath = ReplaceBaseFileName(OriginalResponseFilePath, OriginalFileNameWithoutExtension, NewFileNameWithoutExtension);
 
 					// Copy the old response file to the new path
-					if (String.Compare(OriginalResponseFilePath, NewResponseFilePath, StringComparison.OrdinalIgnoreCase) != 0)
+					if (!String.Equals(OriginalResponseFilePath, NewResponseFilePath, StringComparison.OrdinalIgnoreCase))
 					{
 						File.Copy(OriginalResponseFilePath, NewResponseFilePath, overwrite: true);
 					}

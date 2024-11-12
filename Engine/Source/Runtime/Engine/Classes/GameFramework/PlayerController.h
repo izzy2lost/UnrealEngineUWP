@@ -26,14 +26,6 @@
 #include "WorldPartition/WorldPartitionStreamingSource.h"
 #include "EngineDefines.h"		// For UE_ENABLE_DEBUG_DRAWING
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Widgets/SWidget.h"
-#include "Components/InputComponent.h"
-#include "GameFramework/ForceFeedbackParameters.h"
-#include "GameFramework/OnlineReplStructs.h"
-#include "GameFramework/PlayerInput.h"
-#endif
-
 #include "PlayerController.generated.h"
 
 class ACameraActor;
@@ -309,6 +301,9 @@ public:
 	UPROPERTY(replicated)
 	FRotator TargetViewRotation; 
 
+	/** Setter for TargetViewRotation. Marks it dirty if APlayerController is configured to use push-based dirtiness. */
+	ENGINE_API void SetTargetViewRotation(const FRotator& InRotation);
+
 	/** Smoothed version of TargetViewRotation to remove jerkiness from intermittent replication updates. */
 	FRotator BlendedTargetViewRotation;
 
@@ -385,28 +380,8 @@ protected:
 #if UE_WITH_IRIS
 	ENGINE_API virtual void BeginReplication() override;
 #endif // UE_WITH_IRIS
-	/** The type of async physics data object to use*/
-	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "AsyncPhysicsDataClass is deprecated. See UInputSettings::bEnableLegacyInputScales to enable legacy behavior"))
-	TSubclassOf<UAsyncPhysicsData> AsyncPhysicsDataClass_DEPRECATED;
-
-	/** Get the async physics data to write to. This data will make its way to the async physics tick on client and server. Should not be used during async tick */
-	UE_DEPRECATED(5.3, "GetAsyncPhysicsDataToConsume is deprecated, please see the new C++ NetworkPhysicsComponent")
-	UFUNCTION(BlueprintPure, Category = PlayerController)
-	ENGINE_API UAsyncPhysicsData* GetAsyncPhysicsDataToWrite() const;
-
-	/** Get the async physics data to execute logic off of. This data should not be modified and will NOT make its way back. Must be used during async tick */
-	UE_DEPRECATED(5.3, "GetAsyncPhysicsDataToConsume is deprecated, please see the new C++ NetworkPhysicsComponent")
-	UFUNCTION(BlueprintPure, Category = PlayerController)
-	ENGINE_API const UAsyncPhysicsData* GetAsyncPhysicsDataToConsume() const;
 
 private:
-
-	UPROPERTY(ReplicatedUsing=OnRep_AsyncPhysicsDataComponent, meta = (DeprecatedProperty, DeprecationMessage = "AsyncPhysicsDataComponent is deprecated. please see the new C++ NetworkPhysicsComponent"))
-	TObjectPtr<UAsyncPhysicsInputComponent> AsyncPhysicsDataComponent_DEPRECARED;
-
-	UE_DEPRECATED(5.3, "OnRep_AsyncPhysicsDataComponent is deprecated, please see the new C++ NetworkPhysicsComponent")
-	UFUNCTION()
-	ENGINE_API void OnRep_AsyncPhysicsDataComponent();
 
 	struct FDynamicForceFeedbackAction
 	{
@@ -1300,7 +1275,7 @@ public:
 	UFUNCTION(reliable, client, BlueprintCallable, Category="Game|Feedback")
 	ENGINE_API void ClientStopForceFeedback(class UForceFeedbackEffect* ForceFeedbackEffect, FName Tag);
 
-private:
+public:
 	/** 
 	 * Latent action that controls the playing of force feedback 
 	 * Begins playing when Start is called.  Calling Update or Stop if the feedback is not active will have no effect.
@@ -1316,6 +1291,7 @@ private:
 	UFUNCTION(BlueprintCallable, meta=(Latent, LatentInfo="LatentInfo", ExpandEnumAsExecs="Action", Duration="-1", bAffectsLeftLarge="true", bAffectsLeftSmall="true", bAffectsRightLarge="true", bAffectsRightSmall="true", AdvancedDisplay="bAffectsLeftLarge,bAffectsLeftSmall,bAffectsRightLarge,bAffectsRightSmall"), Category="Game|Feedback")
 	ENGINE_API void PlayDynamicForceFeedback(float Intensity, float Duration, bool bAffectsLeftLarge, bool bAffectsLeftSmall, bool bAffectsRightLarge, bool bAffectsRightSmall, TEnumAsByte<EDynamicForceFeedbackAction::Type> Action, FLatentActionInfo LatentInfo);
 
+private:
 	//~ This method is purely for debugging purposes.
 	//~ It will trigger a ServerUpdateLevelVisibilityCall with the provided package name.
 	UFUNCTION(Exec)
@@ -1387,6 +1363,20 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="Game|Feedback")
 	ENGINE_API void ResetControllerLightColor();
+
+	/**
+	 * Sets the deadzones of the player's controller
+	 * @param	LeftDeadZone 	Inner DeadZone for the left analog stick
+	 * @param	RightDeadZone	Inner DeadZone for the right analog stick
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	ENGINE_API void SetControllerDeadZones(const float LeftDeadZone, const float RightDeadZone);
+
+	/**
+	 * Resets the player's controller deadzones to default
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	ENGINE_API void ResetControllerDeadZones();
 
 	/**
 	 * Travel to a different map or IP address. Calls the PreClientTravel event before doing anything.
@@ -2414,9 +2404,6 @@ private:
 	UFUNCTION(Client, Unreliable)
 	ENGINE_API void ClientCorrectionAsyncPhysicsTimestamp(FAsyncPhysicsTimestamp Timestamp);
 
-	/** Update the tick offset in between the local client and the server */
-	ENGINE_API virtual void AsyncPhysicsTickActor(float DeltaTime, float SimTime) override;
-
 public:
 
 	/** Generates a timestamp for the upcoming physics step (plus any pending time). Useful for synchronizing client and server events on a specific physics step */
@@ -2442,18 +2429,16 @@ public:
 private:
 
 	/** The static offset between the local async physics tick frame number and the server's, kept in sync via time-dilation
-	*	This is used to synchronize events that happen in the async physics tick */
-	int32 NetworkPhysicsTickOffset = INDEX_NONE;
+	* This is used to synchronize events that happen in the async physics tick 
+	* This is 0 on the server */
+	int32 NetworkPhysicsTickOffset = 0;
 	bool bNetworkPhysicsTickOffsetAssigned = false;
 
-	/** The latest server step we've received a time dilation for. Needed for out of order updates */
-	int32 ClientLatestTimeDilationServerStep = INDEX_NONE;
+	/** Tick Offset sync interval timer */
+	float TickOffsetSyncCountdown = 0.f;
 
-	/** The latest physics step we've sent to the server. Due to async we need to avoid duplicate sends */
-	int32 ClientLatestAsyncPhysicsStepSent = INDEX_NONE;
-
-	/** The latest physics step we've received from the client. */
-	int32 ServerLatestAsyncPhysicsStepReceived = INDEX_NONE;
+	/** Time that tick offset has been desynced for since it was last in sync, used to trigger a correction */
+	float NetworkPhysicsTickOffsetDesyncAccumulatedTime = 0.0f;
 
 public:
 
@@ -2490,7 +2475,3 @@ public:
 	bool GetNetworkPhysicsTickOffsetAssigned() const { return bNetworkPhysicsTickOffsetAssigned; }
 
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

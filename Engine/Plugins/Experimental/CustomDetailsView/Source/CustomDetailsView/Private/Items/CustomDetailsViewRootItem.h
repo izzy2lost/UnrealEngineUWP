@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "CustomDetailsViewItem.h"
+#include "CustomDetailsViewDetailTreeNodeItem.h"
 #include "ICustomDetailsView.h"
 
 class IPropertyRowGenerator;
 
-class FCustomDetailsViewRootItem : public FCustomDetailsViewItem, public ICustomDetailsViewBase
+class FCustomDetailsViewRootItem : public FCustomDetailsViewDetailTreeNodeItem, public ICustomDetailsViewBase
 {
 public:
 	explicit FCustomDetailsViewRootItem(const TSharedRef<SCustomDetailsView>& InCustomDetailsView);
@@ -29,6 +29,10 @@ public:
 	//~ End ICustomDetailsViewBase
 
 private:
+	//~ Begin ICustomDetailsViewBase
+	virtual void GenerateCustomChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem, TArray<TSharedPtr<ICustomDetailsViewItem>>& OutChildren) override;
+	//~ End ICustomDetailsViewBase
+
 	TSharedPtr<IPropertyRowGenerator> PropertyRowGenerator;
 
 	FDelegateHandle OnRowsRefreshedHandle;

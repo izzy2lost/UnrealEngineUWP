@@ -57,6 +57,24 @@ FArchive& operator<<(FArchive& Ar, FMorphTargetLODModel& M)
 
 			Ar << M.NumBaseMeshVerts << M.SectionIndices << M.bGeneratedByEngine;
 		}
+
+		if (Ar.IsLoading() && Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::MorphTargetCustomImport)
+		{
+			M.SourceFilename.Empty();
+		}
+		else
+		{
+			//Do not cook the source filename, we don't need it at runtime
+			if (Ar.IsCooking() && Ar.IsSaving())
+			{
+				FString EmptySourceFilename;
+				Ar << EmptySourceFilename;
+			}
+			else
+			{
+				Ar << M.SourceFilename;
+			}
+		}
 	}
 
 	return Ar;
@@ -124,6 +142,38 @@ bool UMorphTarget::HasDataForSection(int32 LODIndex, int32 SectionIndex) const
 void UMorphTarget::EmptyMorphLODModels()
 {
 	MorphLODModels.Empty();
+}
+
+bool UMorphTarget::IsCustomImported(int32 LODIndex) const
+{
+	if (LODIndex < MorphLODModels.Num())
+	{
+		// Calling GetMorphLODModels to potentially get from subclasses
+		const FMorphTargetLODModel& MorphModel = GetMorphLODModels()[LODIndex];
+		return !MorphModel.SourceFilename.IsEmpty();
+	}
+	return false;
+}
+
+FString UMorphTarget::GetCustomImportedSourceFilename(int32 LODIndex) const
+{
+	if (LODIndex < MorphLODModels.Num())
+	{
+		// Calling GetMorphLODModels to potentially get from subclasses
+		const FMorphTargetLODModel& MorphModel = GetMorphLODModels()[LODIndex];
+		return MorphModel.SourceFilename;
+	}
+	return FString();
+}
+
+void UMorphTarget::SetCustomImportedSourceFilename(int32 LODIndex, const FString& InSourceFilename)
+{
+	if (LODIndex < MorphLODModels.Num())
+	{
+		// Calling GetMorphLODModels to potentially get from subclasses
+		FMorphTargetLODModel& MorphModel = GetMorphLODModels()[LODIndex];
+		MorphModel.SourceFilename = InSourceFilename;
+	}
 }
 
 void UMorphTarget::DiscardVertexData()
@@ -219,6 +269,18 @@ TUniquePtr<FFinishBuildMorphTargetData> UMorphTarget::CreateFinishBuildMorphTarg
 
 void FFinishBuildMorphTargetData::ApplyEditorData(USkeletalMesh * SkeletalMesh, bool bIsSerializeSaving) const
 {
+	//List of potential issue with this function
+	// -This function change the array USkeletalMesh::MorphTargets, if a find reference call happen in same time for this asset(on the game thread)
+	//  The find reference can crash because it is accessing this array to find UObject reference.
+	//
+	// -If this function is call in the pre garbage collector event (we do finish compilation in this event), the call to FindObjectSafe will acquire a GC lock
+	//  which will cause a dead lock since the garbage collector already have the gc lock.
+	//
+	// TODO: remove the UMorphTarget object and replace the data in the import data of the skeletal mesh.
+	if (!IsInGameThread())
+	{
+		UE_ASSET_LOG(LogSkeletalMesh, Display, SkeletalMesh, TEXT("Calling function FFinishBuildMorphTargetData::ApplyEditorData outside of the game thread is not safe and can deadlock or crash."));
+	}
 	//Return if we do not need to apply data
 	if (!bApplyMorphTargetsData)
 	{
@@ -278,28 +340,28 @@ void FFinishBuildMorphTargetData::ApplyEditorData(USkeletalMesh * SkeletalMesh, 
 				//which happen before the serialization of that cook skeletalmesh
 				if (!bIsSerializeSaving)
 				{
-				//Avoid recycling morphtarget with NewObject it cannot be done asynchronously
-				//Find the UMorphTarget and simply clear the data if it exist.
-				TArray<UObject*> SubObjects;
-				GetObjectsWithOuter(SkeletalMesh, SubObjects, true);
-				for (UObject* SubObject : SubObjects)
-				{
-					if (SubObject->GetFName() == MorphTargetName)
+					//Avoid recycling morphtarget with NewObject it cannot be done asynchronously
+					//Find the UMorphTarget and simply clear the data if it exist.
+					TArray<UObject*> SubObjects;
+					GetObjectsWithOuter(SkeletalMesh, SubObjects, true);
+					for (UObject* SubObject : SubObjects)
 					{
-						if (UMorphTarget* SubMorphTarget = Cast<UMorphTarget>(SubObject))
+						if (SubObject->GetFName() == MorphTargetName)
 						{
-							MorphTarget = SubMorphTarget;
-							MorphTarget->EmptyMorphLODModels();
-							MorphTarget->ClearGarbage();
-							break;
+							if (UMorphTarget* SubMorphTarget = Cast<UMorphTarget>(SubObject))
+							{
+								MorphTarget = SubMorphTarget;
+								MorphTarget->EmptyMorphLODModels();
+								MorphTarget->ClearGarbage();
+								break;
+							}
 						}
 					}
-				}
-				//Create a new morph target, if the object do not exist (creating a new uobject is ok to do asynchronously)
-				if (!MorphTarget)
-				{
-					MorphTarget = NewObject<UMorphTarget>(SkeletalMesh, MorphTargetName);
-				}
+					//Create a new morph target, if the object do not exist (creating a new uobject is ok to do asynchronously)
+					if (!MorphTarget)
+					{
+						MorphTarget = NewObject<UMorphTarget>(SkeletalMesh, MorphTargetName);
+					}
 					check(MorphTarget);
 				}
 				else
@@ -328,7 +390,7 @@ void FFinishBuildMorphTargetData::ApplyEditorData(USkeletalMesh * SkeletalMesh, 
 	//Clear any async flags after the morphtargets have been set to the skeletalmesh
 	for (UMorphTarget* MorphTarget : SkeletalMesh->GetMorphTargets())
 	{
-		const EInternalObjectFlags AsyncFlags = EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoading;
+		const EInternalObjectFlags AsyncFlags = EInternalObjectFlags::Async;
 		MorphTarget->ClearInternalFlags(AsyncFlags);
 	}
 

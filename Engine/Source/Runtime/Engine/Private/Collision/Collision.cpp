@@ -107,15 +107,12 @@ static FORCEINLINE_DEBUGGABLE bool CheckForCollision(const UPrimitiveComponent* 
 
 void FCollisionQueryParams::AddIgnoredActor(const AActor* InIgnoreActor)
 {
-	if (InIgnoreActor)
-	{	
-		IgnoreActors.Add(InIgnoreActor->GetUniqueID());
-	}
+	AddIgnoredSourceObject(InIgnoreActor);
 }
 
 void FCollisionQueryParams::AddIgnoredActor(const uint32 InIgnoreActorID)
 {
-	IgnoreActors.Add(InIgnoreActorID);
+	AddIgnoredSourceObject(InIgnoreActorID);
 }
 
 void FCollisionQueryParams::AddIgnoredActors(const TArray<AActor*>& InIgnoreActors)
@@ -139,6 +136,43 @@ void FCollisionQueryParams::AddIgnoredActors(const TArray<TWeakObjectPtr<const A
 	for (int32 Idx = 0; Idx < InIgnoreActors.Num(); ++Idx)
 	{
 		AddIgnoredActor(InIgnoreActors[Idx].Get());
+	}
+}
+
+void FCollisionQueryParams::AddIgnoredSourceObject(const UObject* InIgnoreObject)
+{
+	if (InIgnoreObject)
+	{
+		IgnoreSourceObjects.Add(InIgnoreObject->GetUniqueID());
+	}
+}
+
+void FCollisionQueryParams::AddIgnoredSourceObject(const uint32 InIgnoreActorID)
+{
+	IgnoreSourceObjects.Add(InIgnoreActorID);
+}
+
+void FCollisionQueryParams::AddIgnoredSourceObjects(const TArray<UObject*>& InIgnoreObjects)
+{
+	for (int32 Idx = 0; Idx < InIgnoreObjects.Num(); ++Idx)
+	{
+		AddIgnoredSourceObject(InIgnoreObjects[Idx]);
+	}
+}
+
+void FCollisionQueryParams::AddIgnoredSourceObjects(const TArray<const UObject*>& InIgnoreObjects)
+{
+	for (int32 Idx = 0; Idx < InIgnoreObjects.Num(); ++Idx)
+	{
+		AddIgnoredSourceObject(InIgnoreObjects[Idx]);
+	}
+}
+
+void FCollisionQueryParams::AddIgnoredSourceObjects(const TArray<TWeakObjectPtr<const UObject>>& InIgnoreObjects)
+{
+	for (int32 Idx = 0; Idx < InIgnoreObjects.Num(); ++Idx)
+	{
+		AddIgnoredSourceObject(InIgnoreObjects[Idx].Get());
 	}
 }
 

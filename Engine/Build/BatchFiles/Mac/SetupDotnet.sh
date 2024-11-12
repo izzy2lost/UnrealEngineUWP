@@ -39,13 +39,24 @@ if [ $IS_DOTNET_INSTALLED -eq 0 ]; then
 	ARCH=x64
 	[ $(uname -m) == "arm64" ] && ARCH=arm64 
 	
-	export UE_DOTNET_DIR=$CUR_DIR/../../../Binaries/ThirdParty/DotNet/6.0.302/mac-$ARCH
+	export UE_DOTNET_DIR=$CUR_DIR/../../../Binaries/ThirdParty/DotNet/8.0.300/mac-$ARCH
 	chmod u+x "$UE_DOTNET_DIR/dotnet"
 	echo $UE_DOTNET_DIR
 	export PATH=$UE_DOTNET_DIR:$PATH
 	export DOTNET_ROOT=$UE_DOTNET_DIR
 else
 	export IS_DOTNET_INSTALLED=$IS_DOTNET_INSTALLED
+fi
+
+# this is the current assumed location for now
+# We use FUnixPlatformProcess::ApplicationSettingsDir() from c++ and
+# and for C# it uses Environment.GetFolderPath(SpecialFolder.ApplicationData)
+# for this location, so lets share this as our "place to put an AutoSDK file"
+AUTO_SDK_PATH_FILE="$HOME/.config/.autosdk"
+
+# if the file exists and we dont currently have a $UE_SDKS_ROOT set, lets setup UE_SDKS_ROOT to our files location path
+if [ -f "$AUTO_SDK_PATH_FILE" ] && [ -z "$UE_SDKS_ROOT" ]; then
+	export UE_SDKS_ROOT="$(cat $AUTO_SDK_PATH_FILE)"
 fi
 
 cd "$START_DIR"

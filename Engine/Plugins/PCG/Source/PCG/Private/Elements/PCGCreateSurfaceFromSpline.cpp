@@ -22,6 +22,8 @@ TArray<FPCGPinProperties> UPCGCreateSurfaceFromSplineSettings::InputPinPropertie
 {
 	TArray<FPCGPinProperties> PinProperties;
 	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Spline, /*bAllowMultipleConnections=*/true, /*bAllowMultipleData=*/true);
+	PinProperties[0].SetRequiredPin();
+
 	return PinProperties;
 }
 
@@ -63,8 +65,8 @@ bool FPCGCreateSurfaceFromSplineElement::ExecuteInternal(FPCGContext* Context) c
 			continue;
 		}
 
-		UPCGSplineInteriorSurfaceData* SurfaceData = NewObject<UPCGSplineInteriorSurfaceData>();
-		SurfaceData->Initialize(SplineData);
+		UPCGSplineInteriorSurfaceData* SurfaceData = FPCGContext::NewObject_AnyThread<UPCGSplineInteriorSurfaceData>(Context);
+		SurfaceData->Initialize(Context, SplineData);
 
 		FPCGTaggedData& Output = Outputs.Add_GetRef(Input);
 		Output.Data = SurfaceData;

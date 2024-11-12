@@ -17,8 +17,6 @@ namespace uba
 	DWORD Local_GetLongPathNameW(LPCWSTR lpszShortPath, LPWSTR lpszLongPath, DWORD cchBuffer);
 	#endif
 
-	ANALYSIS_NORETURN void FatalError(u32 code, const tchar* format, ...);
-
 	void Rpc_WriteLog(const tchar* text, u64 textCharLength, bool printInSession, bool isError);
 	void Rpc_WriteLogf(const tchar* format, ...);
 
@@ -28,11 +26,7 @@ namespace uba
 	#if UBA_DEBUG_LOG_ENABLED
 		#define DEBUG_LOG_PREFIX(Prefix, Command, ...) \
 			LogScope STRING_JOIN(ls, __LINE__); \
-			if (isLogging()) \
-			{ \
-				GetLogTlsBuffer().Clear().Append(Command).Append(' ').Appendf(__VA_ARGS__).Append(TC("\n")); \
-				WriteDebugLogWithPrefix(#Prefix, STRING_JOIN(ls, __LINE__)); \
-			}
+			if (isLogging()) WriteDebugLogWithPrefix(#Prefix, STRING_JOIN(ls, __LINE__), Command, __VA_ARGS__); \
 
 		//#define DEBUG_LOG_DETOURED(Command, ...) 
 		#define DEBUG_LOG_DETOURED(Command, ...) DEBUG_LOG_PREFIX(D, Command, __VA_ARGS__)
@@ -41,11 +35,11 @@ namespace uba
 		//#define DEBUG_LOG_PIPE(Command, ...) ts.leave(); DEBUG_LOG_PREFIX(P, Command, __VA_ARGS__)
 		#define DEBUG_LOG_PIPE(Command, ...) ts.Leave();
 		//#define DEBUG_LOG(...)
-		#define DEBUG_LOG(...) { if (isLogging()) { GetLogTlsBuffer().Clear().Appendf(__VA_ARGS__).Append(TC("\n")); WriteDebugLog(); }}
+		#define DEBUG_LOG(...) { if (isLogging()) WriteDebugLog(__VA_ARGS__); }
 	#else
-		#define DEBUG_LOG(...)
-		#define DEBUG_LOG_DETOURED(Command, ...)
-		#define DEBUG_LOG_TRUE(Command, ...)
+		#define DEBUG_LOG(...) {}
+		#define DEBUG_LOG_DETOURED(Command, ...) {}
+		#define DEBUG_LOG_TRUE(Command, ...) {}
 		#define DEBUG_LOG_PIPE(...) ts.Leave();
 	#endif
 
@@ -58,6 +52,7 @@ namespace uba
 	extern StringBuffer<128>& g_systemRoot;
 
 	extern ProcessStats& g_stats;
+	extern KernelStats& g_kernelStats;
 	extern bool g_echoOn;
 	extern ReaderWriterLock& g_communicationLock;
 	extern MemoryBlock& g_memoryBlock;
@@ -76,9 +71,8 @@ namespace uba
 	extern FileHandle g_debugFile;
 	inline bool isLogging() { return g_debugFile != InvalidFileHandle; }
 	struct LogScope { LogScope(); ~LogScope(); void Flush(); };
-	StringBufferBase& GetLogTlsBuffer();
-	void WriteDebugLogWithPrefix(const char* prefix, LogScope& scope);
-	void WriteDebugLog();
+	void WriteDebugLogWithPrefix(const char* prefix, LogScope& scope, const tchar* command, const tchar* format, ...);
+	void WriteDebugLog(const tchar* format, ...);
 	void FlushDebugLog();
 	#endif
 	#if UBA_DEBUG_VALIDATE
@@ -89,12 +83,14 @@ namespace uba
 	inline constexpr bool g_allowFileMappingDetour = true;
 	inline constexpr bool g_allowFindFileDetour = true;
 	inline constexpr bool g_allowListDirectoryHandle = true;
-	inline constexpr bool g_allowKeepFilesInMemory = IsWindows;
 
 	extern u32 g_rulesIndex;
 	extern ApplicationRules* g_rules;
 	extern bool g_runningRemote;
 	extern bool g_isChild;
+	extern bool g_allowKeepFilesInMemory;
+	extern bool g_allowOutputFiles;
+	extern bool g_suppressLogging;
 
 	#if PLATFORM_WINDOWS
 	constexpr u32 ErrorSuccess = 0;
@@ -118,7 +114,7 @@ namespace uba
 	};
 
 	inline bool CanDetour(const tchar* file) { return !t_disallowDetour && g_rules->CanDetour(file); }
-	inline bool KeepInMemory(const tchar* fileName, u32 fileNameLen) { return g_allowKeepFilesInMemory && g_rules->KeepInMemory(fileName, fileNameLen, g_systemTemp.data); }
+	inline bool KeepInMemory(const StringView& fileName) { return g_allowKeepFilesInMemory && g_rules->KeepInMemory(fileName, g_systemTemp.data, g_runningRemote); }
 
 	void Shared_WriteConsole(const char* chars, u32 charCount, bool isError);
 	void Shared_WriteConsole(const wchar_t* chars, u32 charCount, bool isError);

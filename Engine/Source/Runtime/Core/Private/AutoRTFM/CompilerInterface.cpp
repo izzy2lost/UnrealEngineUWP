@@ -41,6 +41,45 @@ extern "C" UE_AUTORTFM_API AUTORTFM_NO_ASAN void autortfm_record_write(void* Ptr
 	Context->RecordWrite(Ptr, Size);
 }
 
+extern "C" UE_AUTORTFM_API AUTORTFM_NO_ASAN void autortfm_record_write_1(void* Ptr)
+{
+	// check for writes to null here so we end up crashing in the user
+	// code rather than in the autortfm runtime.
+	if (UNLIKELY(nullptr == Ptr))
+	{
+		return;
+	}
+
+	FContext* Context = FContext::Get();
+	Context->RecordWrite<1>(Ptr);
+}
+
+extern "C" UE_AUTORTFM_API AUTORTFM_NO_ASAN void autortfm_record_write_2(void* Ptr)
+{
+	// check for writes to null here so we end up crashing in the user
+	// code rather than in the autortfm runtime.
+	if (UNLIKELY(nullptr == Ptr))
+	{
+		return;
+	}
+
+	FContext* Context = FContext::Get();
+	Context->RecordWrite<2>(Ptr);
+}
+
+extern "C" UE_AUTORTFM_API AUTORTFM_NO_ASAN void autortfm_record_write_4(void* Ptr)
+{
+	// check for writes to null here so we end up crashing in the user
+	// code rather than in the autortfm runtime.
+	if (UNLIKELY(nullptr == Ptr))
+	{
+		return;
+	}
+
+	FContext* Context = FContext::Get();
+	Context->RecordWrite<4>(Ptr);
+}
+
 extern "C" UE_AUTORTFM_API AUTORTFM_NO_ASAN void autortfm_record_write_8(void* Ptr)
 {
 	// check for writes to null here so we end up crashing in the user
@@ -52,6 +91,29 @@ extern "C" UE_AUTORTFM_API AUTORTFM_NO_ASAN void autortfm_record_write_8(void* P
 
 	FContext* Context = FContext::Get();
 	Context->RecordWrite<8>(Ptr);
+}
+
+extern "C" UE_AUTORTFM_API AUTORTFM_NO_ASAN void autortfm_record_masked_write(void* Ptr, uintptr_t Mask, int MaskWidthBits, int ValueSizeBytes)
+{
+	// check for writes to null here so we end up crashing in the user
+	// code rather than in the autortfm runtime.
+	if (UNLIKELY(nullptr == Ptr))
+	{
+		return;
+	}
+
+	FContext* Context = FContext::Get();
+
+	char* IncrementablePtr = static_cast<char*>(Ptr);
+	for(int i = 0; i < MaskWidthBits; i++)
+	{
+		if (Mask & (1u << i))
+		{
+			autortfm_record_write(IncrementablePtr, ValueSizeBytes);
+		}
+
+		IncrementablePtr += ValueSizeBytes;
+	}
 }
 
 extern "C" UE_AUTORTFM_API void* autortfm_lookup_function(void* OriginalFunction, const char* Where)
@@ -82,12 +144,20 @@ extern "C" UE_AUTORTFM_API void autortfm_llvm_fail(const char* Message)
 {
     if (Message)
     {
-		UE_LOG(LogAutoRTFM, Fatal, TEXT("Transaction failing because of language issue '%s'."), ANSI_TO_TCHAR(Message));
+		ensureMsgf(!ForTheRuntime::IsEnsureOnAbortByLanguageEnabled(), TEXT("Transaction failing because of language issue '%s'."), ANSI_TO_TCHAR(Message));
     }
     else
     {
-		UE_LOG(LogAutoRTFM, Fatal, TEXT("Transaction failing because of language issue."));
+		ensureMsgf(!ForTheRuntime::IsEnsureOnAbortByLanguageEnabled(), TEXT("Transaction failing because of language issue."));
 	}
+
+	FContext* Context = FContext::Get();
+    Context->AbortByLanguageAndThrow();
+}
+
+extern "C" UE_AUTORTFM_API void autortfm_llvm_missing_function()
+{
+	ensureMsgf(!ForTheRuntime::IsEnsureOnAbortByLanguageEnabled(), TEXT("Transaction failing because of missing function."));
 
 	FContext* Context = FContext::Get();
     Context->AbortByLanguageAndThrow();

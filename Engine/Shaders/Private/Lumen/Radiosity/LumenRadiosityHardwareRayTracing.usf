@@ -27,13 +27,12 @@ RWTexture2D<float> RWTraceHitDistanceAtlas;
 RaytracingAccelerationStructure TLAS;
 
 #if LUMEN_HARDWARE_INLINE_RAYTRACING
-StructuredBuffer<FHitGroupRootConstants> HitGroupData;
-StructuredBuffer<FRayTracingSceneMetadataRecord> RayTracingSceneMetadata;
+	StructuredBuffer<FHitGroupRootConstants> HitGroupData;
+	StructuredBuffer<FRayTracingSceneMetadataRecord> RayTracingSceneMetadata;
 #endif // LUMEN_HARDWARE_INLINE_RAYTRACING
 
 float MinTraceDistance;
 float MaxTraceDistance;
-float MinTraceDistanceToSampleSurfaceCache;
 float SurfaceBias;
 float HeightfieldSurfaceBias;
 float AvoidSelfIntersectionTraceDistance;
@@ -41,6 +40,8 @@ float MaxRayIntensity;
 uint NumThreadsToDispatch;
 float TanRadiosityRayConeHalfAngle;
 uint MaxTraversalIterations;
+float MinTraceDistanceToSampleSurfaceCache;
+uint MeshSectionVisibilityTest;
 
 LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenRadiosityHardwareRayTracing)
 {	
@@ -91,8 +92,15 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenRadiosityHardwareRayTracing)
 				RayCone = PropagateRayCone(RayCone, ConeHalfAngle, 0.0);
 
 				const uint LinearCoord = CoordInCardTile.y * CARD_TILE_SIZE + CoordInCardTile.x;
-				const uint OriginalCullingMode = 0;
-				FRayTracedLightingContext Context = CreateRayTracedLightingContext(RayCone, CoordInCardTile, LinearCoord, OriginalCullingMode, MaxTraversalIterations);
+
+				FRayTracedLightingContext Context = CreateRayTracedLightingContext(
+					RayCone,
+					CoordInCardTile,
+					LinearCoord,
+					/*CullingMode*/ RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
+					MaxTraversalIterations,
+					MeshSectionVisibilityTest != 0);
+
 				Context.MinTraceDistanceToSampleSurfaceCache = MinTraceDistanceToSampleSurfaceCache;
 
 #if LUMEN_HARDWARE_INLINE_RAYTRACING

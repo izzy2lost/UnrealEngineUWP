@@ -152,6 +152,7 @@ void FCurveStructCustomization::CustomizeHeader( TSharedRef<IPropertyHandle> InS
 		else
 		{
 			CurveWidget->SetCurveOwner(this, InStructPropertyHandle->IsEditable());
+			CurveWidget->SetPropertyUtils(StructCustomizationUtils.GetPropertyUtilities());
 		}
 	}
 	else
@@ -175,6 +176,13 @@ void FCurveStructCustomization::CustomizeHeader( TSharedRef<IPropertyHandle> InS
 
 void FCurveStructCustomization::CustomizeChildren( TSharedRef<IPropertyHandle> InStructPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils )
 {
+	// this customization can be called without an instance now in the details
+	// panel, so we need to make sure to initialize members here as well.
+	if(!StructPropertyHandle.IsValid())
+	{
+		StructPropertyHandle = InStructPropertyHandle;
+	}
+	
 	uint32 NumChildren = 0;
 	StructPropertyHandle->GetNumChildren(NumChildren);
 
@@ -251,14 +259,26 @@ void FCurveStructCustomization::CustomizeChildren( TSharedRef<IPropertyHandle> I
 TArray<FRichCurveEditInfoConst> FCurveStructCustomization::GetCurves() const
 {
 	TArray<FRichCurveEditInfoConst> Curves;
-	Curves.Add(FRichCurveEditInfoConst(&RuntimeCurve->EditorCurveData));
+	FRichCurveEditInfoConst CurveEditInfo = FRichCurveEditInfoConst(&RuntimeCurve->EditorCurveData);
+	if (StructPropertyHandle.IsValid())
+	{
+		// Use the DisplayName of the property in place of the CurveName (which is None after creation above)
+		CurveEditInfo.CurveName = FName(StructPropertyHandle->GetPropertyDisplayName().ToString());
+	}
+	Curves.Add(CurveEditInfo);
 	return Curves;
 }
 
 TArray<FRichCurveEditInfo> FCurveStructCustomization::GetCurves()
 {
 	TArray<FRichCurveEditInfo> Curves;
-	Curves.Add(FRichCurveEditInfo(&RuntimeCurve->EditorCurveData));
+	FRichCurveEditInfo CurveEditInfo = FRichCurveEditInfo(&RuntimeCurve->EditorCurveData);
+	if (StructPropertyHandle.IsValid())
+	{
+		// Use the DisplayName of the property in place of the CurveName (which is None after creation above)
+		CurveEditInfo.CurveName = FName(StructPropertyHandle->GetPropertyDisplayName().ToString());
+	}
+	Curves.Add(CurveEditInfo);
 	return Curves;
 }
 

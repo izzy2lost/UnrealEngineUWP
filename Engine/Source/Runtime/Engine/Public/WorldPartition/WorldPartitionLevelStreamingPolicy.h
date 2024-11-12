@@ -64,4 +64,7 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TWeakObjectPtr<URuntimeHashExternalStreamingObjectBase>> ExternalStreamingObjects;
+
+	UPROPERTY(Transient)
+	TMap<FName, TWeakObjectPtr<URuntimeHashExternalStreamingObjectBase>> SubObjectsToExternalStreamingObjectsRemapping;
 };

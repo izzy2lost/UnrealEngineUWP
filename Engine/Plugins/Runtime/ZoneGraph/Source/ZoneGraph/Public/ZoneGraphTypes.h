@@ -998,5 +998,17 @@ struct ZONEGRAPH_API FZoneGraphBuildSettings
 
 	/** Max distance to auto connect a dragged end control point to the closest connector when released. */
 	UPROPERTY(Category = PointSnapping, EditAnywhere)
-	float DragEndpointAutoConnectRange = 250.0f;
+	double DragEndpointAutoConnectRange = 250.0;
+
+	/** Max distance to automatically create an intersection with a dragged end control point and the overlapping zone shape when released. */
+	UPROPERTY(Category = PointSnapping, EditAnywhere)
+	double DragEndpointAutoIntersectionRange = 250.0;
+
+	/** If the location to create auto intersection is closer than the tolerance to a spline point, use the spline point instead of nearest point on spline to create the intersection. */
+	UPROPERTY(Category = PointSnapping, EditAnywhere)
+	double SnapAutoIntersectionToClosestPointTolerance = 100.0;
+
+	/** If true, draws a sphere for the auto connection/interseciont area. Otherwise, draws a circle. */
+	UPROPERTY(Category = PointSnapping, EditAnywhere)
+	bool bShow3DRadiusForAutoConnectionAndIntersection = false;
 };

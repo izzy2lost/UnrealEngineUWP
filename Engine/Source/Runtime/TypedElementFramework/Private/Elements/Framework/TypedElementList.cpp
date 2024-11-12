@@ -340,7 +340,7 @@ bool TTypedElementList<HandleType>::RemoveElementImpl(const FTypedElementId& InE
 		checkSlow(ElementHandleIndexToRemove != INDEX_NONE);
 
 		HandleType RemovedElementHandle = MoveTemp(ElementHandles[ElementHandleIndexToRemove]);
-		ElementHandles.RemoveAt(ElementHandleIndexToRemove, 1, EAllowShrinking::No);
+		ElementHandles.RemoveAt(ElementHandleIndexToRemove, EAllowShrinking::No);
 
 		if constexpr (std::is_same<HandleType, FTypedElementHandle>::value)
 		{
@@ -513,8 +513,8 @@ void TTypedElementList<HandleType>::NoteListChanged(const EChangeType InChangeTy
 	}
 }
 
-template class TYPEDELEMENTFRAMEWORK_API TTypedElementList<FTypedElementHandle>;
-template class TYPEDELEMENTFRAMEWORK_API TTypedElementList<FScriptTypedElementHandle>;
+template class TTypedElementList<FTypedElementHandle>;
+template class TTypedElementList<FScriptTypedElementHandle>;
 
 
 namespace UE::TypedElementFramework

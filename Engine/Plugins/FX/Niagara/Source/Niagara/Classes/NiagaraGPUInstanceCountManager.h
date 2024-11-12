@@ -68,7 +68,7 @@ public:
 		check(UsedInstanceCounts <= AllocatedInstanceCounts); // Can't resize after after the buffer gets bound.
 		return CountBuffer;
 	}
-
+	
 	/** Acquire an entry from the free list, assumes this comes from being presized. */
 	uint32 AcquireEntry();
 	/** Acquire an entry, this will either come from the free list or reallocate the buffer. */
@@ -115,6 +115,9 @@ public:
 
 	void CopyToMultiViewCountBuffer(FRHICommandListImmediate& RHICmdList);
 
+	void ProcessInitInstanceCountTasks(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface, FRHICommandList& RHICmdList);
+	void AddInstanceCountInitTask(uint32 Offset, uint32 Value);
+
 protected:
 	struct FIndirectArgsPoolEntry
 	{
@@ -129,6 +132,8 @@ protected:
 
 	void ReleaseCounts();
 
+	UE::FMutex AddDrawIndirectGuard;
+
 	ERHIFeatureLevel::Type FeatureLevel;
 
 	/** The current used instance counts allocated from FNiagaraDataBuffer::AllocateGPU() */
@@ -137,7 +142,7 @@ protected:
 	int32 AllocatedInstanceCounts = 0;
 
 	/** The number of culled instance counts needed from view culling */
-	int32 RequiredCulledCounts = 0;
+	std::atomic<int32> RequiredCulledCounts = 0;
 	/** The allocated instance counts in the culled count buffer*/
 	int32 AllocatedCulledCounts = 0;
 	/** Whether or not the culled counts were acquired this frame */
@@ -170,7 +175,17 @@ protected:
 	/** The list of all instance count clear tasks that are to be run in UpdateDrawIndirectBuffers() */
 	TArray<uint32> InstanceCountClearTasks;
 
+	struct FInstanceCountInitTask
+	{
+		uint32 Offset = INDEX_NONE;
+		uint32 Value = INDEX_NONE;
+	};
+	/** The list of initialization tasks we process in ProcessInitializationTasks. These initialize instance counts with data from the CPU. */
+	TArray<uint32> InstanceCountInitTasks;
+
 	/** Buffers holding drawindirect data to render GPU emitter renderers. */
 	TArray<FIndirectArgsPoolEntryPtr> DrawIndirectPool;
 	uint32 DrawIndirectLowWaterFrames = 0;
+
+	UE::FMutex	AcquireEntryGuard;
 };

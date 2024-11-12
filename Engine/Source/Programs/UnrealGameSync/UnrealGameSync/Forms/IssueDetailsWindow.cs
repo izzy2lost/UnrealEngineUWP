@@ -540,11 +540,11 @@ namespace UnrealGameSync
 				{
 					if (_issue.ResolvedAt.HasValue)
 					{
-						status.AppendFormat("Closed as systemic issue.", _issue.FixChange);
+						status.AppendFormat("Closed as systemic issue.");
 					}
 					else
 					{
-						status.AppendFormat("Fixed as systemic issue (pending verification).", _issue.FixChange);
+						status.AppendFormat("Fixed as systemic issue (pending verification).");
 					}
 				}
 				else
@@ -1000,7 +1000,7 @@ namespace UnrealGameSync
 						PerforceChangeDetailsWithDescribeRecord? details;
 						_perforceWorker!.TryGetChangeDetails(change.Number, out details);
 
-						StatusLineListViewWidget typeWidget = (StatusLineListViewWidget)item.SubItems[TypeHeader.Index].Tag;
+						StatusLineListViewWidget typeWidget = (StatusLineListViewWidget)item.SubItems[TypeHeader.Index].Tag!;
 						UpdateChangeTypeWidget(typeWidget, details);
 
 						BuildListView.RedrawItems(item.Index, item.Index, true);

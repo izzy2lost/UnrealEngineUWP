@@ -603,6 +603,108 @@ public:
 		}
 	}
 
+protected:
+	void GetValues_Internal(const TArrayView<const PCGMetadataValueKey> ValueKeys, TArrayView<T> OutValues, TBitArray<>& UnretrievedValues) const
+	{
+		check(ValueKeys.Num() == OutValues.Num() && OutValues.Num() == UnretrievedValues.Num());
+
+		bool bFoundAllKeys = true;
+		TConstSetBitIterator<> It(UnretrievedValues);
+		if (!It)
+		{
+			return;
+		}
+
+		const FPCGMetadataAttribute* ThisParent = GetParent();
+
+		ValueLock.ReadLock();
+
+		for (; It; ++It)
+		{
+			const int32 Index = It.GetIndex();
+			const PCGMetadataValueKey ValueKey = ValueKeys[Index];
+
+			auto RetrieveValue = [Index, &OutValues, &UnretrievedValues](T Value)
+			{
+				OutValues[Index] = std::move(Value);
+				UnretrievedValues[Index] = false;
+			};
+
+			if (ValueKey == PCGDefaultValueKey)
+			{
+				RetrieveValue(DefaultValue);
+			}
+			else if (ValueKey >= ValueKeyOffset)
+			{
+				int32 ValueIndex = ValueKey - ValueKeyOffset;
+				RetrieveValue(ValueIndex < Values.Num() ? Values[ValueIndex] : DefaultValue);
+			}
+			else if (!ThisParent)
+			{
+				RetrieveValue(DefaultValue);
+			}
+			else
+			{
+				bFoundAllKeys = false;
+			}
+		}
+
+		ValueLock.ReadUnlock();
+
+		ensure(ThisParent || bFoundAllKeys);
+
+		if (ThisParent && !bFoundAllKeys)
+		{
+			ThisParent->GetValues_Internal(ValueKeys, OutValues, UnretrievedValues);
+		}
+	}
+
+public:
+	/**
+	* Write into pre-allocated OutValues the values associated with the given value keys.
+	*/
+	void GetValues(const TArrayView<const PCGMetadataValueKey> ValueKeys, TArrayView<T> OutValues) const
+	{
+		// Bitset with all unretrieved values. If we have any unretrieved value, we will ask the parent for those.
+		TBitArray<> UnretrievedValues(true, ValueKeys.Num());
+		GetValues_Internal(ValueKeys, OutValues, UnretrievedValues);
+	}
+
+	/** 
+	* Write into pre-allocated OutValues the values associated with the given entry keys. 
+	* Const version on the Entry Keys, where they won't be modified. It will induce a copy of the entry keys
+	* if we ever have to go check the parent attribute, as we need to modify the entry keys for that.
+	* If you don't care if the Entry Keys are modified, use the non-const version of the EntryKeys.
+	*/
+	void GetValuesFromItemKeys(const TArrayView<const PCGMetadataEntryKey> EntryKeys, TArrayView<T> OutValues) const
+	{
+		if (!ensure(EntryKeys.Num() == OutValues.Num()))
+		{
+			return;
+		}
+
+		TArray<PCGMetadataValueKey> ValueKeys;
+		GetValueKeys(EntryKeys, ValueKeys);
+		GetValues(ValueKeys, OutValues);
+	}
+
+	/** 
+	* Write into pre-allocated OutValues the values associated with the given entry keys.
+	* Non-Const version on the Entry Keys, where they can be modified. If you need the Entry Keys to not be modifed,
+	* use the const version of the EntryKeys.
+	*/
+	void GetValuesFromItemKeys(TArrayView<PCGMetadataEntryKey> EntryKeys, TArrayView<T> OutValues) const
+	{
+		if (!ensure(EntryKeys.Num() == OutValues.Num()))
+		{
+			return;
+		}
+
+		TArray<PCGMetadataValueKey> ValueKeys;
+		GetValueKeys(EntryKeys, ValueKeys);
+		GetValues(ValueKeys, OutValues);
+	}
+
 	/** Code related to finding values / compressing data */
 	virtual bool UsesValueKeys() const override
 	{
@@ -709,6 +811,91 @@ public:
 	void SetDefaultValue(const T& Value)
 	{
 		DefaultValue = Value;
+	}
+
+	void Prepare(int32 Count)
+	{
+		EntryToValueKeyMap.Reserve(EntryToValueKeyMap.Num() + Count);
+		if constexpr (!PCG::Private::MetadataTraits<T>::CompressData)
+		{
+			Values.Reserve(Values.Num() + Count);
+		}
+	}
+
+	int32 PreallocateValues(TArrayView<PCGMetadataEntryKey*> EntryKeys, bool bLockless)
+	{
+		int32 StartIndex = INDEX_NONE;
+
+		if constexpr (!PCG::Private::MetadataTraits<T>::CompressData)
+		{
+			if (!bLockless)
+			{
+				ValueLock.WriteLock();
+			}
+
+			StartIndex = Values.Num();
+
+			if constexpr (std::is_trivially_copyable_v<T>)
+			{
+				Values.SetNumUninitialized(Values.Num() + EntryKeys.Num(), /*AllowShrinking=*/EAllowShrinking::No);
+			}
+			else
+			{
+				Values.SetNum(Values.Num() + EntryKeys.Num(), /*AllowShrinking=*/EAllowShrinking::No);
+			}
+
+			if (!bLockless)
+			{
+				ValueLock.WriteUnlock();
+			}
+		}
+
+		if (!bLockless)
+		{
+			EntryMapLock.WriteLock();
+		}
+
+		EntryToValueKeyMap.Reserve(EntryToValueKeyMap.Num() + EntryKeys.Num());
+
+		if constexpr (!PCG::Private::MetadataTraits<T>::CompressData)
+		{
+			for (int32 i = 0; i < EntryKeys.Num(); ++i)
+			{
+				const PCGMetadataValueKey ValueKey = StartIndex + i + ValueKeyOffset;
+				EntryToValueKeyMap.Emplace(*EntryKeys[i], ValueKey);
+			}
+		}
+
+		if (!bLockless)
+		{
+			EntryMapLock.WriteUnlock();
+		}
+
+		return StartIndex;
+	}
+
+	void SetValues_TryLockless(TArrayView<PCGMetadataEntryKey*> EntryKeys, TArrayView<const T> InValues, int32 StartIndex)
+	{
+		if constexpr (PCG::Private::MetadataTraits<T>::CompressData)
+		{
+			SetValues(EntryKeys, InValues);
+		}
+		else
+		{
+			check(StartIndex != INDEX_NONE && Values.IsValidIndex(StartIndex + InValues.Num() - 1));
+
+			if constexpr (std::is_trivially_copyable_v<T>)
+			{
+				FMemory::Memcpy(Values.GetData() + StartIndex, InValues.GetData(), InValues.Num() * sizeof(T));
+			}
+			else
+			{
+				for (int32 i = 0; i < InValues.Num(); ++i)
+				{
+					Values[StartIndex + i] = InValues[i];
+				}
+			}
+		}
 	}
 
 protected:
@@ -887,8 +1074,6 @@ namespace PCGMetadataAttribute
 		default:
 			return nullptr;
 		}
-
-#undef AllocatePCGMetadataAttributeOnType
 	}
 
 	template <typename Func, typename... Args>
@@ -937,7 +1122,3 @@ FPCGMetadataAttributeBase* FPCGMetadataAttribute<T>::CopyToAnotherType(int16 Tar
 		}
 	});
 }
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

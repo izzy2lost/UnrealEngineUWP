@@ -154,7 +154,31 @@ TSharedRef<SDockTab> FRewindDebuggerModule::SpawnRewindDebuggerTab(const FSpawnT
 							 FCanExecuteAction(),
 							 FCanExecuteAction::CreateRaw(DebuggerInstance, &FRewindDebugger::ShouldAutoRecordOnPIE),
 							 FIsActionButtonVisible());
-		 
+	
+	CommandList->MapAction(Commands.OpenTrace,
+							 FExecuteAction::CreateRaw(DebuggerInstance, &FRewindDebugger::OpenTrace),
+							 FCanExecuteAction::CreateRaw(DebuggerInstance, &FRewindDebugger::CanOpenTrace),
+							 FIsActionChecked(),
+							 FIsActionButtonVisible());
+	
+	CommandList->MapAction(Commands.AttachToSession,
+    						 FExecuteAction::CreateRaw(DebuggerInstance, &FRewindDebugger::AttachToSession),
+    						 FCanExecuteAction::CreateRaw(DebuggerInstance, &FRewindDebugger::CanOpenTrace),
+    						 FIsActionChecked(),
+    						 FIsActionButtonVisible());
+		
+	CommandList->MapAction(Commands.SaveTrace,
+							 FExecuteAction::CreateRaw(DebuggerInstance, &FRewindDebugger::SaveTrace),
+							 FCanExecuteAction::CreateRaw(DebuggerInstance, &FRewindDebugger::CanSaveTrace),
+							 FIsActionChecked(),
+							 FIsActionButtonVisible());
+	
+	CommandList->MapAction(Commands.ClearTrace,
+							 FExecuteAction::CreateRaw(DebuggerInstance, &FRewindDebugger::ClearTrace),
+							 FCanExecuteAction::CreateRaw(DebuggerInstance, &FRewindDebugger::CanClearTrace),
+							 FIsActionChecked(),
+							 FIsActionButtonVisible());
+
 
 	// Register PIE Rewind Debugger Commands
 	if (GEditor != nullptr)
@@ -238,7 +262,9 @@ void FRewindDebuggerModule::StartupModule()
 	);
 	
 	RewindDebuggerCameraExtension.Initialize();
+	RewindDebuggerAnimationExtension.Initialize();
 	IModularFeatures::Get().RegisterModularFeature(IRewindDebuggerExtension::ModularFeatureName, &RewindDebuggerCameraExtension);
+	IModularFeatures::Get().RegisterModularFeature(IRewindDebuggerExtension::ModularFeatureName, &RewindDebuggerAnimationExtension);
 	IModularFeatures::Get().RegisterModularFeature(IRewindDebuggerDoubleClickHandler::ModularFeatureName, &AnimInstanceDoubleClickHandler);
 	IModularFeatures::Get().RegisterModularFeature(IRewindDebuggerDoubleClickHandler::ModularFeatureName, &BlueprintDoubleClickHandler);
 
@@ -250,13 +276,17 @@ void FRewindDebuggerModule::StartupModule()
 
 void FRewindDebuggerModule::ShutdownModule()
 {
+	RewindDebuggerAnimationExtension.Shutdown();
+	
 	IModularFeatures::Get().UnregisterModularFeature(IRewindDebuggerExtension::ModularFeatureName, &RewindDebuggerCameraExtension);
+	IModularFeatures::Get().UnregisterModularFeature(IRewindDebuggerExtension::ModularFeatureName, &RewindDebuggerAnimationExtension);
 	IModularFeatures::Get().UnregisterModularFeature(IRewindDebuggerDoubleClickHandler::ModularFeatureName, &AnimInstanceDoubleClickHandler);
 	IModularFeatures::Get().UnregisterModularFeature(IRewindDebuggerDoubleClickHandler::ModularFeatureName, &BlueprintDoubleClickHandler);
 
 	FRewindDebuggerCommands::Unregister();
 	FRewindDebuggerStyle::Shutdown();
 	FRewindDebugger::Shutdown();
+
 }
 
 IMPLEMENT_MODULE(FRewindDebuggerModule, RewindDebugger);

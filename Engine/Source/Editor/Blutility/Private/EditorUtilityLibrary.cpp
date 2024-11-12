@@ -371,7 +371,7 @@ void UEditorUtilityLibrary::ConvertToEditorUtilityWidget(UWidgetBlueprint* Widge
 	// generated calss does not require any updating.
 
 	TArray<struct FEditedDocumentInfo> OriginalEditedDocuments = WidgetBP->LastEditedDocuments;
-	WidgetBP->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors|REN_SkipGeneratedClasses|REN_ForceNoResetLoaders);
+	WidgetBP->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_SkipGeneratedClasses);
 	TArray<UObject*> Children;
 	GetObjectsWithOuter(WidgetBP, Children, false);
 
@@ -380,12 +380,12 @@ void UEditorUtilityLibrary::ConvertToEditorUtilityWidget(UWidgetBlueprint* Widge
 	{
 		// WidgetTree is a DSO created as a side effect of construction,
 		// we just want to use the existing one:
-		EWBP->WidgetTree->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		EWBP->WidgetTree->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 		EWBP->WidgetTree = WidgetBP->WidgetTree;
 	}
 	for (UObject* Child : Children)
 	{
-		Child->Rename(nullptr, EWBP, REN_DontCreateRedirectors | REN_SkipGeneratedClasses | REN_ForceNoResetLoaders);
+		Child->Rename(nullptr, EWBP, REN_DontCreateRedirectors | REN_SkipGeneratedClasses);
 	}
 
 	UEngine::FCopyPropertiesForUnrelatedObjectsParams Params;

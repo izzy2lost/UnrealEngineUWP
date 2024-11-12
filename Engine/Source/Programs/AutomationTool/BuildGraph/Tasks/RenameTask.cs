@@ -1,17 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.BuildGraph;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildTool;
 using UnrealBuildBase;
 
 namespace AutomationTool.Tasks
@@ -25,25 +21,25 @@ namespace AutomationTool.Tasks
 		/// The file or files to rename.
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// The current file name, or pattern to match (for example, *.txt). Should not include any path separators.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string From;
+		public string From { get; set; }
 
 		/// <summary>
 		/// The new name for the file(s). Should not include any path separators.
 		/// </summary>
 		[TaskParameter]
-		public string To;
+		public string To { get; set; }
 
 		/// <summary>
 		/// Tag to be applied to the renamed files.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>
@@ -52,98 +48,95 @@ namespace AutomationTool.Tasks
 	[TaskElement("Rename", typeof(RenameTaskParameters))]
 	public class RenameTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		RenameTaskParameters Parameters;
+		readonly RenameTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public RenameTask(RenameTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public RenameTask(RenameTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Get the pattern to match against. If it's a simple pattern (eg. *.cpp, Engine/Build/...), automatically infer the source wildcard
-			string FromPattern = Parameters.From;
-			if (FromPattern == null)
+			string fromPattern = _parameters.From;
+			if (fromPattern == null)
 			{
-				List<string> Patterns = SplitDelimitedList(Parameters.Files);
-				if (Patterns.Count != 1 || Patterns[0].StartsWith("#"))
+				List<string> patterns = SplitDelimitedList(_parameters.Files);
+				if (patterns.Count != 1 || patterns[0].StartsWith("#", StringComparison.Ordinal))
 				{
 					throw new AutomationException("Missing 'From' attribute specifying pattern to match source files against");
 				}
 
-				FromPattern = Patterns[0];
+				fromPattern = patterns[0];
 
-				int SlashIdx = FromPattern.LastIndexOfAny(new char[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar });
-				if (SlashIdx != -1)
+				int slashIdx = fromPattern.LastIndexOfAny(new char[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar });
+				if (slashIdx != -1)
 				{
-					FromPattern = FromPattern.Substring(SlashIdx + 1);
+					fromPattern = fromPattern.Substring(slashIdx + 1);
 				}
-				if (FromPattern.StartsWith("..."))
+				if (fromPattern.StartsWith("...", StringComparison.Ordinal))
 				{
-					FromPattern = "*" + FromPattern.Substring(3);
+					fromPattern = "*" + fromPattern.Substring(3);
 				}
 			}
 
 			// Convert the source pattern into a regex
-			string EscapedFromPattern = "^" + Regex.Escape(FromPattern) + "$";
-			EscapedFromPattern = EscapedFromPattern.Replace("\\*", "(.*)");
-			EscapedFromPattern = EscapedFromPattern.Replace("\\?", "(.)");
-			Regex FromRegex = new Regex(EscapedFromPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+			string escapedFromPattern = "^" + Regex.Escape(fromPattern) + "$";
+			escapedFromPattern = escapedFromPattern.Replace("\\*", "(.*)", StringComparison.Ordinal);
+			escapedFromPattern = escapedFromPattern.Replace("\\?", "(.)", StringComparison.Ordinal);
+			Regex fromRegex = new Regex(escapedFromPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
 			// Split the output pattern into fragments that we can insert captures between
-			string[] FromFragments = FromPattern.Split('*', '?');
-			string[] ToFragments = Parameters.To.Split('*', '?');
-			if(FromFragments.Length < ToFragments.Length)
+			string[] fromFragments = fromPattern.Split('*', '?');
+			string[] toFragments = _parameters.To.Split('*', '?');
+			if (fromFragments.Length < toFragments.Length)
 			{
-				throw new AutomationException("Too few capture groups in source pattern '{0}' to rename to '{1}'", FromPattern, Parameters.To);
+				throw new AutomationException("Too few capture groups in source pattern '{0}' to rename to '{1}'", fromPattern, _parameters.To);
 			}
 
 			// Find the input files
-			HashSet<FileReference> InputFiles = ResolveFilespec(Unreal.RootDirectory, Parameters.Files, TagNameToFileSet);
+			HashSet<FileReference> inputFiles = ResolveFilespec(Unreal.RootDirectory, _parameters.Files, tagNameToFileSet);
 
 			// Find all the corresponding output files
-			Dictionary<FileReference, FileReference> RenameFiles = new Dictionary<FileReference, FileReference>();
-			foreach (FileReference InputFile in InputFiles)
+			Dictionary<FileReference, FileReference> renameFiles = new Dictionary<FileReference, FileReference>();
+			foreach (FileReference inputFile in inputFiles)
 			{
-				Match Match = FromRegex.Match(InputFile.GetFileName());
-				if (Match.Success)
+				Match match = fromRegex.Match(inputFile.GetFileName());
+				if (match.Success)
 				{
-					StringBuilder OutputName = new StringBuilder(ToFragments[0]);
-					for (int Idx = 1; Idx < ToFragments.Length; Idx++)
+					StringBuilder outputName = new StringBuilder(toFragments[0]);
+					for (int idx = 1; idx < toFragments.Length; idx++)
 					{
-						OutputName.Append(Match.Groups[Idx].Value);
-						OutputName.Append(ToFragments[Idx]);
+						outputName.Append(match.Groups[idx].Value);
+						outputName.Append(toFragments[idx]);
 					}
-					RenameFiles[InputFile] = FileReference.Combine(InputFile.Directory, OutputName.ToString());
+					renameFiles[inputFile] = FileReference.Combine(inputFile.Directory, outputName.ToString());
 				}
 			}
 
 			// Print out everything we're going to do
-			foreach(KeyValuePair<FileReference, FileReference> Pair in RenameFiles)
+			foreach (KeyValuePair<FileReference, FileReference> pair in renameFiles)
 			{
-				CommandUtils.RenameFile(Pair.Key.FullName, Pair.Value.FullName, true);
+				CommandUtils.RenameFile(pair.Key.FullName, pair.Value.FullName, true);
 			}
 
 			// Add the build product
-			BuildProducts.UnionWith(RenameFiles.Values);
+			buildProducts.UnionWith(renameFiles.Values);
 
 			// Apply the optional output tag to them
-			foreach(string TagName in FindTagNamesFromList(Parameters.Tag))
+			foreach (string tagName in FindTagNamesFromList(_parameters.Tag))
 			{
-				FindOrAddTagSet(TagNameToFileSet, TagName).UnionWith(RenameFiles.Values);
+				FindOrAddTagSet(tagNameToFileSet, tagName).UnionWith(renameFiles.Values);
 			}
 
 			return Task.CompletedTask;
@@ -152,9 +145,9 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -163,7 +156,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are read by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			return FindTagNamesFromFilespec(Parameters.Files);
+			return FindTagNamesFromFilespec(_parameters.Files);
 		}
 
 		/// <summary>
@@ -172,7 +165,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are modified by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			return FindTagNamesFromList(Parameters.Tag);
+			return FindTagNamesFromList(_parameters.Tag);
 		}
 	}
 }

@@ -11,15 +11,10 @@
 #include "RHIResources.h"
 #include "Engine/EngineTypes.h"
 #include "PipelineStateCache.h"
+#include "PSOPrecacheFwd.h"
+#include "Shader.h"
 
 class FVertexFactoryType;
-
-// General switch that decides whether to compile out some PSO precaching code (most importantly, reduce sizeofs of common classes)
-#ifndef UE_WITH_PSO_PRECACHING
-	#define UE_WITH_PSO_PRECACHING		(PLATFORM_SUPPORTS_PSO_PRECACHING)
-#endif // UE_WITH_PSO_PRECACHING
-
-#define PSO_PRECACHING_VALIDATE !WITH_EDITOR && UE_WITH_PSO_PRECACHING
 
 /**
  * Parameters which are needed to collect all possible PSOs used by the PSO collectors
@@ -113,6 +108,7 @@ struct FPSOPrecacheParams
 			uint64 bCastShadow : 1;
 			uint64 bRenderCustomDepth : 1;
 			
+			uint64 bUsesIndirectLightingCache : 1;
 			uint64 bAffectDynamicIndirectLighting : 1;
 			uint64 bReverseCulling : 1;
 			uint64 bDisableBackFaceCulling : 1;
@@ -125,7 +121,7 @@ struct FPSOPrecacheParams
 
 			uint64 BasePassPixelFormat : 16;
 
-			uint64 Unused : 21;
+			uint64 Unused : 20;
 		};
 		uint64 Data;
 	};
@@ -134,15 +130,6 @@ struct FPSOPrecacheParams
 
 // Unique ID to find the FVertexDeclarationElementList - these can be shared
 using FVertexDeclarationElementListID = uint16;
-
-/**
- * PSO Precache request priority
- */
-enum class EPSOPrecachePriority : uint8
-{
-	Medium,
-	High
-};
 
 /**
  * Wraps vertex factory data used during PSO precaching - optional element list ID can be used if manual vertex fetch is not possible for the given vertex factory type
@@ -192,9 +179,33 @@ struct FMaterialInterfacePSOPrecacheParams
 	FPSOPrecacheVertexFactoryDataList VertexFactoryDataList;
 };
 
-typedef TArray<FMaterialInterfacePSOPrecacheParams, TInlineAllocator<4> > FMaterialInterfacePSOPrecacheParamsList;
-
 extern ENGINE_API void AddMaterialInterfacePSOPrecacheParamsToList(const FMaterialInterfacePSOPrecacheParams& EntryToAdd, FMaterialInterfacePSOPrecacheParamsList& List);
+
+struct FShaderPreloadData
+{
+	FShaderPreloadData() = default;
+
+	FShaderPreloadData(const TShaderRef<FShader>& InShader)
+	{
+		Shaders.Emplace(InShader);
+	}
+
+	FShaderPreloadData(TArray<TShaderRef<FShader>, TInlineAllocator<3>>&& InShaders)
+		: Shaders(MoveTemp(InShaders))
+	{
+	}
+
+	// Can have 3 shaders at most (vertex, geometry, pixel).
+	TArray<TShaderRef<FShader>, TInlineAllocator<3>> Shaders;
+};
+
+enum class EPSOPrecacheMode : uint8
+{
+	PSO = 0,
+	PreloadShader = 1,
+};
+
+extern ENGINE_API EPSOPrecacheMode GetPSOPrecacheMode();
 
 /**
  * Wrapper class around the initializer to collect some extra validation data during PSO collection on the different collectors
@@ -226,6 +237,20 @@ struct FPSOPrecacheData
 		FGraphicsPipelineStateInitializer GraphicsPSOInitializer;
 		FRHIComputeShader* ComputeShader;
 	};
+
+	FShaderPreloadData ShaderPreloadData;
+
+	void SetComputeShader(const TShaderRef<FShader>& InComputeShader)
+	{
+		if (GetPSOPrecacheMode() == EPSOPrecacheMode::PreloadShader)
+		{
+			ShaderPreloadData.Shaders.Emplace(InComputeShader);
+		}
+		else
+		{
+			ComputeShader = InComputeShader.GetComputeShader();
+		}
+	}
 
 #if PSO_PRECACHING_VALIDATE
 	int32 PSOCollectorIndex : 31;
@@ -264,6 +289,8 @@ struct FMaterialPSOPrecacheParams
 	}
 };
 
+
+
 /**
  * Precaching PSOs for components?
  */
@@ -273,6 +300,16 @@ extern ENGINE_API bool IsComponentPSOPrecachingEnabled();
  * Precaching PSOs for resources?
  */
 extern ENGINE_API bool IsResourcePSOPrecachingEnabled();
+
+/**
+ * Boost drawn PSO precache request priority
+ */
+extern ENGINE_API bool ShouldBoostPSOPrecachePriorityOnDraw();
+
+/**
+ * Dynamically preload shaders
+ */
+extern ENGINE_API bool IsPSOShaderPreloadingEnabled();
 
 enum class EPSOPrecacheProxyCreationStrategy : uint8
 {
@@ -297,5 +334,7 @@ extern ENGINE_API EPSOPrecacheProxyCreationStrategy GetPSOPrecacheProxyCreationS
  */
 extern ENGINE_API bool ProxyCreationWhenPSOReady();
 
-// Unique request ID of MaterialPSOPrecache which can be used to boost the priority of a PSO precache requests if it's needed for rendering
-using FMaterialPSOPrecacheRequestID = uint32;
+/**
+ * Boost the primitive's precache PSO jobs to highest priority.
+ */
+extern ENGINE_API void BoostPrecachedPSORequestsOnDraw(const class FPrimitiveSceneInfo* SceneInfo);

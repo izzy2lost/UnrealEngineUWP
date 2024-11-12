@@ -1,49 +1,69 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SSimpleComboButton.h"
-#include "Widgets/SBoxPanel.h"
-#include "Widgets/Images/SImage.h"
-#include "Widgets/Text/STextBlock.h"
+
 #include "Styling/SlateTypes.h"
+#include "ToolWidgetsStyle.h"
+#include "ToolWidgetsUtilitiesPrivate.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/STextBlock.h"
 
 void SSimpleComboButton::Construct(const FArguments& InArgs)
 {
+	const FActionButtonStyle* ActionButtonStyle = &UE::ToolWidgets::FToolWidgetsStyle::Get().GetWidgetStyle<FActionButtonStyle>("SimpleComboButton");
 
-	TAttribute<FText> Text = InArgs._Text;
-	FTextBlockStyle TextStyle = InArgs._UsesSmallText ? FAppStyle::GetWidgetStyle<FTextBlockStyle>("SmallText") : FAppStyle::GetWidgetStyle<FTextBlockStyle>("SmallButtonText");
+	// Check for widget level override, then style override, otherwise unset
+	const TAttribute<const FSlateBrush*> Icon = InArgs._Icon.IsSet()
+		? InArgs._Icon
+		: ActionButtonStyle->IconBrush.IsSet()
+		? &ActionButtonStyle->IconBrush.GetValue()
+		: nullptr;
 
-	TSharedRef<SHorizontalBox> ButtonContent = SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		.AutoWidth()
-		[
-			SNew(SImage)
-			.Image(InArgs._Icon)
-			.ColorAndOpacity(FSlateColor::UseForeground())
-		]
-		+ SHorizontalBox::Slot()
-		.Padding(FMargin(3, 0, 0, 0))
-		.VAlign(VAlign_Center)
-		.FillWidth(1.0f)
-		[
-			SNew(STextBlock)
-			.TextStyle(&TextStyle)
-			.Text(InArgs._Text)
-			.Visibility_Lambda([Text]() { return Text.Get(FText::GetEmpty()).IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible; })
-			.Clipping(EWidgetClipping::OnDemand)
-		];
+	const bool bHasIcon = Icon.Get() || Icon.IsBound();
+
+	// Empty/default args will resolve from the ActionButtonStyle
+	const TSharedRef<SWidget> ButtonContent =
+		UE::ToolWidgets::Private::ActionButton::MakeButtonContent(
+			ActionButtonStyle,
+			Icon,
+			{},
+			InArgs._Text,
+			InArgs._UsesSmallText
+				? &FAppStyle::GetWidgetStyle<FTextBlockStyle>("SmallText")
+				: &FAppStyle::GetWidgetStyle<FTextBlockStyle>("SmallButtonText"));
+
+	const TAttribute<FMargin> ComboButtonContentPadding = ActionButtonStyle->GetComboButtonContentPadding();
 
 	SComboButton::Construct(SComboButton::FArguments()
 		.HasDownArrow(InArgs._HasDownArrow)
-		.ContentPadding(FMargin(2.0f, 2.0f))
-		.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
-		.ForegroundColor(FSlateColor::UseStyle())
-		.ButtonContent() [ButtonContent]
-		.MenuContent()[InArgs._MenuContent.Widget]
+		.ContentPadding(ComboButtonContentPadding)
+		.ButtonStyle(bHasIcon ? &ActionButtonStyle->GetIconButtonStyle() : &ActionButtonStyle->ButtonStyle)
+		.ComboButtonStyle(&ActionButtonStyle->ComboButtonStyle)
+		.IsEnabled(InArgs._IsEnabled)
+		.ToolTipText(InArgs._ToolTipText)
+		.HAlign(static_cast<EHorizontalAlignment>(ActionButtonStyle->HorizontalContentAlignment))
+		.VAlign(VAlign_Center)
+		.ButtonContent()
+		[
+			ButtonContent
+		]
+		.MenuContent()
+		[
+			InArgs._MenuContent.Widget
+		]
 		.OnGetMenuContent(InArgs._OnGetMenuContent)
 		.OnMenuOpenChanged(InArgs._OnMenuOpenChanged)
 		.OnComboBoxOpened(InArgs._OnComboBoxOpened)
 	);
 }
 
+void SSimpleComboButton::SetMenuContentWidgetToFocus(TWeakPtr<SWidget> InWidget)
+{
+	SComboButton::SetMenuContentWidgetToFocus(InWidget);
+}
+
+void SSimpleComboButton::SetIsMenuOpen(bool bInIsOpen, bool bInIsFocused)
+{
+	SetIsOpen(bInIsOpen, bInIsFocused);
+}

@@ -8,6 +8,7 @@
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "Dataflow/DataflowEdNode.h"
 #include "Dataflow/DataflowObject.h"
+#include "Dataflow/DataflowRenderingFactory.h"
 #include "DynamicMesh/MeshNormals.h"
 #include "Engine/SkeletalMesh.h"
 #include "Animation/Skeleton.h"
@@ -16,7 +17,7 @@
 
 using namespace UE::Geometry;
 
-namespace Private
+namespace UE::Dataflow::Private
 {
 	bool HasSkeletalMesh(UObject* InObject)
 	{
@@ -114,7 +115,7 @@ namespace UE
 
 }
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	TSharedPtr<FEngineContext> GetContext(TObjectPtr<UDataflowBaseContent> Content)
 	{
@@ -122,12 +123,59 @@ namespace Dataflow
 		{
 			if (!Content->GetDataflowContext())
 			{
-				Content->SetDataflowContext(MakeShared<FEngineContext>(Content->GetDataflowOwner(), Content->GetDataflowAsset(), FTimestamp::Invalid));
+				Content->SetDataflowContext(MakeShared<FEngineContext>(Content->GetDataflowOwner()));
 			}
 			return Content->GetDataflowContext();
 		}
 
 		ensure(false);
-		return MakeShared<FEngineContext>(nullptr, nullptr, FTimestamp::Invalid);
+		return MakeShared<FEngineContext>(nullptr);
 	}
+
+	bool CanRenderNodeOutput(const UDataflowEdNode& EdNode, const UDataflowBaseContent& EditorContent, const IDataflowConstructionViewMode& ViewMode)
+	{
+		if (const TSharedPtr<FEngineContext> Context = EditorContent.GetDataflowContext())
+		{
+			if (TSharedPtr<const FDataflowNode> NodeTarget = EdNode.GetDataflowGraph()->FindBaseNode(FName(EdNode.GetName())))
+			{
+				if (const FRenderingFactory* const Factory = FRenderingFactory::GetInstance())
+				{
+					for (const FRenderingParameter& Parameter : EdNode.GetRenderParameters())
+					{
+						if (Factory->CanRenderNodeOutput(FGraphRenderingState{ EdNode.GetDataflowNodeGuid(), NodeTarget.Get(), Parameter, *Context.Get(), ViewMode }))
+						{
+							return true;
+						}
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
+	void RenderNodeOutput(GeometryCollection::Facades::FRenderingFacade& Facade, const UDataflowEdNode& Node, const UDataflowBaseContent& EditorContent)
+	{
+		const TObjectPtr<UDataflow>& DataflowAsset = EditorContent.GetDataflowAsset();
+		const IDataflowConstructionViewMode* ConstructionViewMode = EditorContent.GetConstructionViewMode();
+		const TSharedPtr<FEngineContext>& DataflowContext = EditorContent.GetDataflowContext();
+
+		if (DataflowAsset && DataflowContext && ConstructionViewMode)
+		{
+			if (FRenderingFactory* const Factory = FRenderingFactory::GetInstance())
+			{
+				for (const FRenderingParameter& Parameter : Node.GetRenderParameters())
+				{
+					if (const TSharedPtr<FGraph> Graph = DataflowAsset->GetDataflow())
+					{
+						if (TSharedPtr<const FDataflowNode> NodeTarget = Graph->FindBaseNode(FName(Node.GetName())))
+						{
+							Factory->RenderNodeOutput(Facade, FGraphRenderingState{ Node.GetDataflowNodeGuid(), NodeTarget.Get(), Parameter, *DataflowContext, *ConstructionViewMode });
+						}
+					}
+				}
+			}
+		}
+	}
+
 }

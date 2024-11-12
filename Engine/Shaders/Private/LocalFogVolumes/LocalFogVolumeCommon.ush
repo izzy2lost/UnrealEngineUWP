@@ -13,19 +13,19 @@
 
 struct FLocalFogVolumeGPUInstanceData
 {
-	float4x3 InvTransform;
+	float3x3	PreTranslatedInvTransform;
+	float3		TranslatedWorlPos;
+	float		UniformScale;
+	float		UniformScaleInv;		// Derived from UniformScale
 
-	float RadialFogExtinction;
-	float HeightFogExtinction;
-	float HeightFogFalloff;
-	float HeightFogOffset;
-	float3 Emissive;
+	float		RadialFogExtinction;
+	float		HeightFogExtinction;
+	float		HeightFogFalloff;
+	float		HeightFogOffset;
 
-	float  UniformScale;
-	float  UniformScaleInv;		// Derived from UniformScale
-
-	float3 Albedo;
-	float  PhaseG;
+	float3		Emissive;
+	float3		Albedo;
+	float		PhaseG;
 };
 
 
@@ -89,12 +89,12 @@ FLocalFogVolumeGPUInstanceData GetLocalFogVolumeGPUInstanceData(uint Index)
 	float4 Data0 = LFVInsts[Offset + 0];
 	float4 Data1 = LFVInsts[Offset + 1];
 	float4 Data2 = LFVInsts[Offset + 2];
-	// See GetLocalFogVolumeSortingData for the packing mathod.
+	// See GetLocalFogVolumeViewSortingData for the packing mathod.
 
 	// Data0
-	float3 Trans		= Data0.xyz;
-	Data.UniformScale	= Data0.w;
-	Data.UniformScaleInv= 1.0f / Data.UniformScale;
+	Data.TranslatedWorlPos	= Data0.xyz;
+	Data.UniformScale		= Data0.w;
+	Data.UniformScaleInv	= 1.0f / Data.UniformScale;
 
 	// Data1
 	float3 XVec;
@@ -107,7 +107,7 @@ FLocalFogVolumeGPUInstanceData GetLocalFogVolumeGPUInstanceData(uint Index)
 
 	float3 ZVec = cross(XVec, YVec);
 
-	Data.InvTransform = float4x3(float3(XVec * Data.UniformScaleInv), float3(YVec * Data.UniformScaleInv), float3(ZVec * Data.UniformScaleInv), Trans);
+	Data.PreTranslatedInvTransform = float3x3(float3(XVec * Data.UniformScaleInv), float3(YVec * Data.UniformScaleInv), float3(ZVec * Data.UniformScaleInv));
 
 	// Data2
 	float3 Data2X			= UnpackR11G11B10F(asuint(Data2.x));
@@ -210,19 +210,24 @@ FFogData LocalFogVolumeEvaluateAnalyticalIntegral(FLocalFogVolumeGPUInstanceData
 
 		float StartHeight = RayStartU.z - FogInstance.HeightFogOffset; // account for the fog offset.
 
+		// We are going to divide by RayDirU.z so we need it to be never be 0.
+		const float SafeDirThreshold = 0.0001;
+		const float SignRayDirUZ = RayDirU.z >= 0.0f ? 1.0f : -1.0f;
+		const float SafeRayDirUZ = (abs(RayDirU.z) < SafeDirThreshold) ? SafeDirThreshold * SignRayDirUZ : RayDirU.z;
+
 	#if 0
 		// Original integral, less artefact
-		HeightOpticalDepth = (FogInstance.HeightFogExtinction / FogInstance.HeightFogFalloff) * exp(-StartHeight * FogInstance.HeightFogFalloff) * (1.0 - exp(-RayDirU.z * RayLengthU * FogInstance.HeightFogFalloff)) / RayDirU.z;
+		HeightOpticalDepth = (FogInstance.HeightFogExtinction / FogInstance.HeightFogFalloff) * exp(-StartHeight * FogInstance.HeightFogFalloff) * (1.0 - exp(-SafeRayDirUZ * RayLengthU * FogInstance.HeightFogFalloff)) / SafeRayDirUZ;
 	#elif 1
 		// Reworked to avoid large value as input to exp
 		//OpticalDepth = (FogInstance.HeightFogExtinction / FogInstance.HeightFogFalloff) * (exp(-StartHeight * FogInstance.HeightFogFalloff) - exp(-StartHeight * FogInstance.HeightFogFalloff - RayDir.z * RayLength * FogInstance.HeightFogFalloff)) / RayDir.z;
 
 		// But we use an updated formulation to avoid large input to exp leading to inf and nan.
 		float Factor0 = StartHeight * FogInstance.HeightFogFalloff;
-		float Factor1 = RayDirU.z * RayLengthU * FogInstance.HeightFogFalloff;
+		float Factor1 = SafeRayDirUZ * RayLengthU * FogInstance.HeightFogFalloff;
 		Factor0 = max(-80.0f, Factor0); // Simply clamp Factor0 to a valid range in order to not have exp explode.
 
-		HeightOpticalDepth += (FogInstance.HeightFogExtinction / (FogInstance.HeightFogFalloff * RayDirU.z)) * (exp(-Factor0) - exp(-(Factor0 + Factor1)));
+		HeightOpticalDepth += (FogInstance.HeightFogExtinction / (FogInstance.HeightFogFalloff * SafeRayDirUZ)) * (exp(-Factor0) - exp(-(Factor0 + Factor1)));
 	#endif
 
 		/*
@@ -327,9 +332,9 @@ float3 LocalFogVolumeEvaluateInScattering(in FLocalFogVolumeGPUInstanceData FogI
 // Returns color transmittance
 float4 GetLFVInstanceContribution(
 	in uint InstanceIndex,
-	in float3 CamRayWorldOrigin,
-	in float3 CamRayWorldDir,
-	in float3 DepthBufferWorldPos,
+	in float3 CamRayTranslatedWorldOrigin,
+	in float3 CamRayTranslatedWorldDir,
+	in float3 DepthBufferTranslatedWorldPos,
 	in bool bPlatformSupportsVolumetricFogOntranslucent)
 {
 	FLocalFogVolumeGPUInstanceData FogInstance = GetLocalFogVolumeGPUInstanceData(InstanceIndex);
@@ -337,11 +342,11 @@ float4 GetLFVInstanceContribution(
 	float3 LuminanceColor = float3(0.0f, 0.0f, 0.0f);
 	float Transmittance = 1.0f;
 
-	// The "U" prefix is for all compuation done in the Unit Sphere space.
-	float3 DepthBufferPosU	= mul(float4(DepthBufferWorldPos, 1.0f),	FogInstance.InvTransform).xyz;
-	float3 RayPosU			= mul(float4(CamRayWorldOrigin,   1.0f),	FogInstance.InvTransform).xyz;
-	float3 RayDirU			= mul(float4(CamRayWorldDir,      0.0f),	FogInstance.InvTransform).xyz;
-	RayDirU.xyz = normalize(RayDirU);
+	// The "U" prefix is for all computation done in the Unit Sphere space.
+	float3 DepthBufferPosU	= mul(DepthBufferTranslatedWorldPos - FogInstance.TranslatedWorlPos,	FogInstance.PreTranslatedInvTransform);
+	float3 RayPosU			= mul(CamRayTranslatedWorldOrigin - FogInstance.TranslatedWorlPos,		FogInstance.PreTranslatedInvTransform);
+	float3 RayDirU			= mul(CamRayTranslatedWorldDir,											FogInstance.PreTranslatedInvTransform);
+	RayDirU.xyz				= normalize(RayDirU);
 
 	float2 TsU = RayIntersectSphere(RayPosU, RayDirU, float4(0.0, 0.0, 0.0, 1.0));
 
@@ -360,7 +365,7 @@ float4 GetLFVInstanceContribution(
 		if (LFVRenderInVolumetricFog && bPlatformSupportsVolumetricFogOntranslucent)
 		{
 			// Volumetric fog covers up to MaxDistance along ViewZ, exclude analytical fog from this range
-			float CosAngle = dot(CamRayWorldDir, View.ViewForward);
+			float CosAngle = dot(CamRayTranslatedWorldDir, View.ViewForward);
 			float InvCosAngle = (CosAngle > 0.0001) ? rcp(CosAngle) : 0;
 			float ExcludeDistance = View.VolumetricFogMaxDistance * InvCosAngle * FogInstance.UniformScaleInv;
 			TsU = max(TsU, ExcludeDistance);
@@ -372,7 +377,7 @@ float4 GetLFVInstanceContribution(
 		{
 			FFogData FogData = LocalFogVolumeEvaluateAnalyticalIntegral(FogInstance, RayPosU + RayDirU * TsU.x, RayDirU, RayTracedLengthU);
 
-			LuminanceColor = LocalFogVolumeEvaluateInScattering(FogInstance, FogData, CamRayWorldDir);
+			LuminanceColor = LocalFogVolumeEvaluateInScattering(FogInstance, FogData, CamRayTranslatedWorldDir);
 			Transmittance = 1.0 - FogData.Coverage;
 		}
 	}
@@ -391,11 +396,8 @@ float4 GetLFVContribution(
 	in bool bPlatformSupportsVolumetricFogOntranslucent,
 	inout uint OutLFVCount)
 {
-	const float3 PreViewTranslation			= DFHackToFloat(ResolvedView.PreViewTranslation);
 	const float3 CamRayTranslatedWorldOrigin= ResolvedView.TranslatedWorldCameraOrigin;
-	const float3 CamRayWorldOrigin			= CamRayTranslatedWorldOrigin - PreViewTranslation;
 	const float3 CamRayWorldDir				= normalize(DepthBufferTranslatedWorldPos - CamRayTranslatedWorldOrigin);
-	const float3 DepthBufferWorldPos		= DepthBufferTranslatedWorldPos - PreViewTranslation;
 
 	OutLFVCount = LFVTileDataTex[uint3(TilePos, 0)];
 	const float4 DefaultColorTransmittance = float4(0.0, 0.0, 0.0, 1.0);
@@ -406,9 +408,9 @@ float4 GetLFVContribution(
 
 		float4 LFVLuminanceColorTransmittance = GetLFVInstanceContribution(
 			InstanceIndex,
-			CamRayWorldOrigin,
+			CamRayTranslatedWorldOrigin,
 			CamRayWorldDir,
-			DepthBufferWorldPos,
+			DepthBufferTranslatedWorldPos,
 			bPlatformSupportsVolumetricFogOntranslucent);
 
 		LFVContribution = float4(LFVContribution.rgb * LFVLuminanceColorTransmittance.a + LFVLuminanceColorTransmittance.rgb, LFVContribution.a * LFVLuminanceColorTransmittance.a);

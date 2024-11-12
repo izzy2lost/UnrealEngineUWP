@@ -2,34 +2,32 @@
 
 #include "DMXEditorUtils.h"
 
+#include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Dialogs/Dialogs.h"
 #include "DMXEditorLog.h"
 #include "DMXRuntimeUtils.h"
 #include "DMXSubsystem.h"
+#include "Exporters/Exporter.h"
+#include "Factories.h"
+#include "HAL/PlatformApplicationMisc.h"
+#include "Internationalization/Regex.h"
 #include "IO/DMXInputPort.h"
 #include "IO/DMXOutputPort.h"
 #include "IO/DMXPortManager.h"
-#include "Library/DMXLibrary.h"
-#include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXEntityFixturePatch.h"
+#include "Library/DMXEntityFixtureType.h"
+#include "Library/DMXLibrary.h"
 #include "MVR/DMXMVRGeneralSceneDescription.h"
 #include "MVR/Types/DMXMVRFixtureNode.h"
-
-#include "AssetRegistry/AssetRegistryModule.h"
-#include "Factories.h"
 #include "PackageTools.h"
 #include "ScopedTransaction.h"
 #include "UnrealExporter.h"
-#include "Dialogs/Dialogs.h"
-#include "Exporters/Exporter.h"
-#include "HAL/PlatformApplicationMisc.h"
-#include "Internationalization/Regex.h"
 #include "UObject/Package.h"
-
 
 #define LOCTEXT_NAMESPACE "FDMXEditorUtils"
 
-
-// Text object factory for pasting DMX Entities
+/** Text object factory for pasting DMX Entities */
 struct FDMXEntityObjectTextFactory : public FCustomizableTextObjectFactory
 {
 	/** Entities instantiated */
@@ -85,156 +83,6 @@ protected:
 	}
 	//~ End FCustomizableTextObjectFactory implementation
 };
-
-
-FString FDMXEditorUtils::GenerateUniqueNameFromExisting(const TSet<FString>& InExistingNames, const FString& InBaseName)
-{
-	// DEPRECATED 5.0
-
-	if (!InBaseName.IsEmpty() && !InExistingNames.Contains(InBaseName))
-	{
-		return InBaseName;
-	}
-
-	FString FinalName;
-	FString BaseName;
-
-	int32 Index = 0;
-	if (InBaseName.IsEmpty())
-	{
-		BaseName = TEXT("Default name");
-	}
-	else
-	{
-		// If there's an index at the end of the name, start from there
-		FDMXRuntimeUtils::GetNameAndIndexFromString(InBaseName, BaseName, Index);
-	}
-
-	int32 Count = (Index == 0) ? 1 : Index;
-	FinalName = BaseName;
-	// Add Count to the BaseName, increasing Count, until it's a non-existent name
-	do
-	{
-		// Calculate the number of digits in the number, adding 2 (1 extra to correctly count digits, another to account for the '_' that will be added to the name
-		int32 CountLength = Count > 0 ? (int32)FGenericPlatformMath::LogX(10.0f, Count) + 2 : 2;
-
-		// If the length of the final string will be too long, cut off the end so we can fit the number
-		if (CountLength + BaseName.Len() >= NAME_SIZE)
-		{
-			BaseName = BaseName.Left(NAME_SIZE - CountLength - 1);
-		}
-
-		FinalName = FString::Printf(TEXT("%s_%d"), *BaseName, Count);
-		++Count;
-	} while (InExistingNames.Contains(FinalName));
-
-	return FinalName;
-}
-
-FString FDMXEditorUtils::FindUniqueEntityName(const UDMXLibrary* InLibrary, TSubclassOf<UDMXEntity> InEntityClass, const FString& InBaseName /*= TEXT("")*/)
-{
-	// DEPRECATED 5.0
-
-	check(InLibrary != nullptr);
-
-	// Get existing names for the current entity type
-	TSet<FString> EntityNames;
-	InLibrary->ForEachEntityOfType(InEntityClass, [&EntityNames](UDMXEntity* Entity)
-		{
-			EntityNames.Add(Entity->GetDisplayName());
-		});
-
-	FString BaseName = InBaseName;
-
-	// If no base name was set, use the entity class name as base
-	if (BaseName.IsEmpty() && InEntityClass.Get())
-	{
-		BaseName = InEntityClass.Get()->GetDisplayNameText().ToString();
-	}
-
-	return FDMXRuntimeUtils::GenerateUniqueNameFromExisting(EntityNames, BaseName);
-}
-
-void FDMXEditorUtils::SetNewFixtureFunctionsNames(UDMXEntityFixtureType* InFixtureType)
-{
-	// DEPRECATED 5.0
-
-	check(InFixtureType != nullptr);
-
-	// We'll only populate this Set if we find an item with no name.
-	// Otherwise we can save some for loops.
-	TSet<FString> ModesNames;
-
-	// Iterate over all of the Fixture's Modes and Functions creating names for the
-	// ones with a blank name.
-	for (FDMXFixtureMode& Mode : InFixtureType->Modes)
-	{
-		// Do we need to name this mode?
-		if (Mode.ModeName.IsEmpty())
-		{
-			// Cache existing names only once, when needed.
-			if (ModesNames.Num() == 0)
-			{
-				// Cache the existing modes' names
-				for (FDMXFixtureMode& NamedMode : InFixtureType->Modes)
-				{
-					if (!NamedMode.ModeName.IsEmpty())
-					{
-						ModesNames.Add(NamedMode.ModeName);
-					}
-				}
-			}
-
-			Mode.ModeName = FDMXRuntimeUtils::GenerateUniqueNameFromExisting(ModesNames, TEXT("Mode"));
-			ModesNames.Add(Mode.ModeName);
-		}
-
-		// Name this mode's functions
-		TSet<FString> FunctionsNames;
-		for (FDMXFixtureFunction& Function : Mode.Functions)
-		{
-			if (Function.FunctionName.IsEmpty())
-			{
-				// Cache existing names only once, when needed.
-				if (FunctionsNames.Num() == 0)
-				{
-					for (FDMXFixtureFunction& NamedFunction : Mode.Functions)
-					{
-						if (!NamedFunction.FunctionName.IsEmpty())
-						{
-							FunctionsNames.Add(NamedFunction.FunctionName);
-						}
-					}
-				}
-
-				Function.FunctionName = FDMXRuntimeUtils::GenerateUniqueNameFromExisting(FunctionsNames, TEXT("Function"));
-				FunctionsNames.Add(Function.FunctionName);
-			}
-		}
-	}
-}
-
-bool FDMXEditorUtils::AddEntity(UDMXLibrary* InLibrary, const FString& NewEntityName, TSubclassOf<UDMXEntity> NewEntityClass, UDMXEntity** OutNewEntity /*= nullptr*/)
-{
-	// DEPRECATED 5.0
-
-	// Don't allow entities with empty names
-	if (NewEntityName.IsEmpty())
-	{
-		return false;
-	}
-
-	// Mark library as pending save and store current state for undo
-	const FScopedTransaction NewEntityTransaction(LOCTEXT("NewEntityTransaction", "Add new Entity to DMX Library"));
-	InLibrary->Modify();
-
-	// Create new entity 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	*OutNewEntity = InLibrary->GetOrCreateEntityObject(NewEntityName, NewEntityClass);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	return true;
-}
 
 bool FDMXEditorUtils::ValidateEntityName(const FString& NewEntityName, const UDMXLibrary* InLibrary, UClass* InEntityClass, FText& OutReason)
 {
@@ -319,87 +167,6 @@ bool FDMXEditorUtils::IsEntityUsed(const UDMXLibrary* InLibrary, const UDMXEntit
 	return false;
 }
 
-void FDMXEditorUtils::RemoveEntities(UDMXLibrary* InLibrary, const TArray<UDMXEntity*>& InEntities)
-{
-	if (InLibrary)
-	{
-		TArray<UDMXEntity*> EntitiesInUse;
-		for (UDMXEntity* Entity : InEntities)
-		{
-			if (FDMXEditorUtils::IsEntityUsed(InLibrary, Entity))
-			{
-				EntitiesInUse.Add(Entity);
-			}
-		}
-
-		// Confirm deletion of Entities in use, if any
-		if (EntitiesInUse.Num() > 0)
-		{
-			FText ConfirmDelete;
-
-			// Confirmation text for a single entity in use
-			if (EntitiesInUse.Num() == 1)
-			{
-				ConfirmDelete = FText::Format(LOCTEXT("ConfirmDeleteEntityInUse", "Entity \"{0}\" is in use! Do you really want to delete it?"),
-					FText::FromString(EntitiesInUse[0]->Name));
-			}
-			// Confirmation text for when all of the selected entities are in use
-			else if (EntitiesInUse.Num() == InEntities.Num())
-			{
-				ConfirmDelete = LOCTEXT("ConfirmDeleteAllEntitiesInUse", "All selected entities are in use! Do you really want to delete them?");
-			}
-			// Confirmation text for multiple entities, but not so much that would make the dialog huge
-			else if (EntitiesInUse.Num() > 1 && EntitiesInUse.Num() <= 10)
-			{
-				FString EntitiesNames;
-				for (UDMXEntity* Entity : EntitiesInUse)
-				{
-					EntitiesNames += TEXT("\t") + Entity->GetDisplayName() + TEXT("\n");
-				}
-
-				ConfirmDelete = FText::Format(LOCTEXT("ConfirmDeleteSomeEntitiesInUse", "The Entities below are in use!\n{0}\nDo you really want to delete them?"),
-					FText::FromString(EntitiesNames));
-			}
-			// Confirmation text for several entities. Displaying each of their names would make a huge dialog
-			else
-			{
-				ConfirmDelete = FText::Format(LOCTEXT("ConfirmDeleteManyEntitiesInUse", "{0} of the selected entities are in use!\nDo you really want to delete them?"),
-					FText::AsNumber(EntitiesInUse.Num()));
-			}
-
-			// Warn the user that this may result in data loss
-			FSuppressableWarningDialog::FSetupInfo Info(ConfirmDelete, LOCTEXT("DeleteEntities", "Delete Entities"), "DeleteEntitiesInUse_Warning");
-			Info.ConfirmText = LOCTEXT("DeleteEntities_Yes", "Yes");
-			Info.CancelText = LOCTEXT("DeleteEntities_No", "No");
-
-			FSuppressableWarningDialog DeleteEntitiesInUse(Info);
-			if (DeleteEntitiesInUse.ShowModal() == FSuppressableWarningDialog::Cancel)
-			{
-				return;
-			}
-		}
-
-		const FScopedTransaction Transaction(InEntities.Num() > 1 ? LOCTEXT("RemoveEntities", "Remove Entities") : LOCTEXT("RemoveEntity", "Remove Entity"));
-
-		for (UDMXEntity* EntityToDelete : InEntities)
-		{
-			// Fix references to this Entity
-			if (UDMXEntityFixtureType* AsFixtureType = Cast<UDMXEntityFixtureType>(EntityToDelete))
-			{
-				// Find Fixture Patches using this Fixture Type and null their templates
-				InLibrary->ForEachEntityOfType<UDMXEntityFixturePatch>([&AsFixtureType](UDMXEntityFixturePatch* Patch)
-					{
-						Patch->SetFixtureType(nullptr);
-					});
-			}
-
-			InLibrary->Modify();
-			EntityToDelete->Modify(); // Take a snapshot of the entity before setting its ParentLibrary to null
-			EntityToDelete->Destroy();
-		}
-	}
-}
-
 void FDMXEditorUtils::CopyEntities(const TArray<UDMXEntity*>&& EntitiesToCopy)
 {
 	// Clear the mark state for saving.
@@ -431,12 +198,6 @@ bool FDMXEditorUtils::CanPasteEntities(UDMXLibrary* ParentLibrary)
 
 	// Obtain the entity object text factory for the clipboard content and return whether or not we can use it
 	return FDMXEntityObjectTextFactory::CanCreate(ClipboardContent);
-}
-
-void FDMXEditorUtils::GetEntitiesFromClipboard(TArray<UDMXEntity*>& OutNewObjects)
-{
-	// DEPRECATED 5.0, no longer creates a meaningful result
-	OutNewObjects = TArray<UDMXEntity*>();
 }
 
 TArray<UDMXEntity*> FDMXEditorUtils::CreateEntitiesFromClipboard(UDMXLibrary* ParentLibrary)
@@ -553,414 +314,6 @@ FText FDMXEditorUtils::GetEntityTypeNameText(TSubclassOf<UDMXEntity> EntityClass
 			LOCTEXT("EntityTypeName_NotImplemented", "{0}|plural(one=Entity, other=Entities)"),
 			bPlural ? 2 : 1
 		);
-	}
-}
-
-bool FDMXEditorUtils::TryAutoAssignToUniverses(UDMXEntityFixturePatch* Patch, const TSet<int32>& AllowedUniverses)
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	check(Patch->IsAutoAssignAddress());
-
-	Patch->Modify();
-	const int32 UniverseToRestore = Patch->GetUniverseID();
-	const int32 AutoAddressToRestore = Patch->GetAutoStartingAddress();
-
-	for (auto UniverseIt = AllowedUniverses.CreateConstIterator(); UniverseIt; ++UniverseIt)
-	{
-		// Don't auto assign to a universe smaller than the initial one
-		if (Patch->GetUniverseID() > *UniverseIt)
-		{
-			continue;
-		}
-
-		Patch->SetUniverseID(*UniverseIt);
-		const FUnassignedPatchesArray UnassignedPatches = AutoAssignedAddresses({ Patch }, 1, false);
-
-		const bool bWasPatchAssignedToUniverse = UnassignedPatches.Num() == 0;
-		if (bWasPatchAssignedToUniverse)
-		{
-			return true;
-		}
-	}
-
-	Patch->SetUniverseID(UniverseToRestore);
-	Patch->SetAutoStartingAddress(AutoAddressToRestore);
-
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	return false;
-}
-
-void FDMXEditorUtils::AutoAssignedAddresses(UDMXEntityFixtureType* ChangedParentFixtureType)
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (ChangedParentFixtureType)
-	{
-		UDMXLibrary* Library = ChangedParentFixtureType->GetParentLibrary();
-		check(Library);
-
-		TArray<UDMXEntityFixturePatch*> FixturePatches;
-		Library->ForEachEntityOfType<UDMXEntityFixturePatch>([&FixturePatches, ChangedParentFixtureType](UDMXEntityFixturePatch* Patch)
-			{
-				if (Patch->GetFixtureType() == ChangedParentFixtureType)
-				{
-					FixturePatches.Add(Patch);
-				}
-			});
-
-		AutoAssignedAddresses(FixturePatches);
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-}
-
-FDMXEditorUtils::FUnassignedPatchesArray FDMXEditorUtils::AutoAssignedAddresses(
-	const TArray<UDMXEntityFixturePatch*>& ChangedFixturePatches,
-	int32 MinimumAddress,
-	bool bCanChangePatchUniverses)
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	struct Local
-	{
-		static void AssignAddressesInUniverse(
-			TArray<UDMXEntityFixturePatch*>& SortedPatchesWithSetAddress,
-			TArray<UDMXEntityFixturePatch*>& PatchesToAssign,
-			int32 MinimumAddress,
-			const int32 UniverseToAssignTo,
-			TArray<UDMXEntityFixturePatch*>& UnassignedPatches)
-		{
-			if (PatchesToAssign.Num() == 0)
-			{
-				return;
-			}
-
-			int32 IndexOfFirstPatchWithMinAddress =
-				SortedPatchesWithSetAddress.IndexOfByPredicate([MinimumAddress](UDMXEntityFixturePatch* Other)
-					{
-						const int32 ChannelEnd = Other->GetStartingChannel() + Other->GetChannelSpan();
-						return ChannelEnd >= MinimumAddress;
-					});
-
-			for (UDMXEntityFixturePatch* ToAssign : PatchesToAssign)
-			{
-				const bool bIsUniverseEmpty = IndexOfFirstPatchWithMinAddress == INDEX_NONE;
-				if (bIsUniverseEmpty)
-				{
-					if (HasEnoughSpaceToUniverseEnd(ToAssign, MinimumAddress))
-					{
-						IndexOfFirstPatchWithMinAddress = 0;
-						AssignPatchTo(ToAssign, MinimumAddress, UniverseToAssignTo);
-						SortedPatchesWithSetAddress.Add(ToAssign);
-					}
-					else
-					{
-						UnassignedPatches.Add(ToAssign);
-					}
-					continue;
-				}
-
-				const bool bFoundGap = FillIntoFirstGap(ToAssign, UniverseToAssignTo, MinimumAddress, IndexOfFirstPatchWithMinAddress, SortedPatchesWithSetAddress);
-				if (!bFoundGap)
-				{
-					UDMXEntityFixturePatch* LastPatchInUniverse = SortedPatchesWithSetAddress[SortedPatchesWithSetAddress.Num() - 1];
-					if (HasEnoughSpaceToUniverseEnd(ToAssign, GetEndAddressOf(LastPatchInUniverse) + 1))
-					{
-						AssignPatchTo(ToAssign, GetEndAddressOf(LastPatchInUniverse) + 1, UniverseToAssignTo);
-						SortedPatchesWithSetAddress.Add(ToAssign);
-					}
-					else
-					{
-						UnassignedPatches.Add(ToAssign);
-					}
-				}
-			}
-		}
-
-		static bool HasEnoughSpaceToUniverseEnd(UDMXEntityFixturePatch* Patch, int32 AtAddress)
-		{
-			// + 1 is needed otherwise we're off by one, e.g. when AtAddress=DMX_UNIVERSE_SIZE and ChannelSpan=1
-			return (DMX_UNIVERSE_SIZE + 1) - AtAddress >= Patch->GetChannelSpan();
-		}
-
-		static void AssignPatchTo(UDMXEntityFixturePatch* Patch, int32 ToAddress, int32 UniverseToAssignTo)
-		{
-			Patch->Modify();
-			Patch->SetAutoStartingAddress(ToAddress);
-			Patch->SetUniverseID(UniverseToAssignTo);
-		}
-
-		static bool FillIntoFirstGap(
-			UDMXEntityFixturePatch* ToAssign,
-			int32 UniverseToAssignTo,
-			int32& MinimumAddress,
-			int32& IndexOfFirstPatchWithMinAddress,
-			TArray<UDMXEntityFixturePatch*>& SortedPatchesWithSetAddress)
-		{
-			const int32 NeededSpan = ToAssign->GetChannelSpan();
-			if (NeededSpan < 1)
-			{
-				return false;
-			}
-
-			UDMXEntityFixturePatch* FirstPatchWithMinAddress = SortedPatchesWithSetAddress[IndexOfFirstPatchWithMinAddress];
-			const bool bDoesPatchFitBeforeFirstPatchWithMinAddress = FirstPatchWithMinAddress->GetStartingChannel() >= MinimumAddress
-				&& FirstPatchWithMinAddress->GetStartingChannel() - MinimumAddress >= NeededSpan;
-			if (bDoesPatchFitBeforeFirstPatchWithMinAddress)
-			{
-				AssignPatchTo(ToAssign, MinimumAddress, UniverseToAssignTo);
-				SortedPatchesWithSetAddress.Insert(ToAssign, 0);
-
-				MinimumAddress = ToAssign->GetEndingChannel() + 1;
-				IndexOfFirstPatchWithMinAddress = 0;
-
-				return true;
-			}
-
-			const bool bNoGapsToLookAt = IndexOfFirstPatchWithMinAddress == SortedPatchesWithSetAddress.Num() - 1;
-			if (bNoGapsToLookAt)
-			{
-				return false;
-			}
-
-			int32 PrevAvailableAddress = GetEndAddressOf(SortedPatchesWithSetAddress[IndexOfFirstPatchWithMinAddress]) + 1;
-			for (int32 iPatchInUniverse = IndexOfFirstPatchWithMinAddress + 1; iPatchInUniverse < SortedPatchesWithSetAddress.Num(); ++iPatchInUniverse)
-			{
-				const int32 NextStart = SortedPatchesWithSetAddress[iPatchInUniverse]->GetStartingChannel();
-				const int32 UnoccupiedSpan = NextStart - PrevAvailableAddress;
-
-				if (UnoccupiedSpan >= NeededSpan)
-				{
-					AssignPatchTo(ToAssign, PrevAvailableAddress, UniverseToAssignTo);
-					SortedPatchesWithSetAddress.Insert(ToAssign, iPatchInUniverse);
-					return true;
-				}
-
-				PrevAvailableAddress = GetEndAddressOf(SortedPatchesWithSetAddress[iPatchInUniverse]) + 1;
-			}
-			return false;
-		}
-		static int32 GetEndAddressOf(UDMXEntityFixturePatch* Patch)
-		{
-			return Patch->GetEndingChannel();
-		}
-	};
-
-	if (ChangedFixturePatches.Num() == 0)
-	{
-		return {};
-	}
-
-	// Auto assign Patches from multiple Libraries is not supported
-	UDMXLibrary* Library = ChangedFixturePatches[0]->GetParentLibrary();
-	check(Library);
-	for (UDMXEntityFixturePatch* Patch : ChangedFixturePatches)
-	{
-		check(Patch->GetParentLibrary() == Library);
-	}
-
-	// Only care about those that have auto assign addresses set
-	TArray<UDMXEntityFixturePatch*> PatchesToAutoAssign = ChangedFixturePatches;
-	PatchesToAutoAssign.RemoveAll([](UDMXEntityFixturePatch* Patch) {
-		return !Patch->IsAutoAssignAddress();
-		});
-
-	TArray<UDMXEntityFixturePatch*> AllFixturePatches = Library->GetEntitiesTypeCast<UDMXEntityFixturePatch>();
-	TMap<int32, TArray<UDMXEntityFixturePatch*>> UniverseToAllPatches = FDMXRuntimeUtils::MapToUniverses(AllFixturePatches);
-	TArray<UDMXEntityFixturePatch*> PatchesToAssignInNextUniverse;
-	for (auto UniverseIterator = UniverseToAllPatches.CreateIterator(); UniverseIterator; ++UniverseIterator)
-	{
-		const int32 CurrentUniverse = UniverseIterator->Key;
-		TArray<UDMXEntityFixturePatch*>& SortedPatchesWithSetAddress = [&UniverseIterator, &PatchesToAutoAssign, CurrentUniverse]() -> TArray<UDMXEntityFixturePatch*>&
-		{
-			TArray<UDMXEntityFixturePatch*>& Result = UniverseIterator->Value;
-			Result.RemoveAll([&, PatchesToAutoAssign](UDMXEntityFixturePatch* Patch) {
-				return PatchesToAutoAssign.Contains(Patch);
-				});
-			Result.RemoveAll([&, PatchesToAutoAssign, CurrentUniverse](UDMXEntityFixturePatch* Patch) {
-				return Patch->GetUniverseID() != CurrentUniverse;
-				});
-			Result.Sort([](const UDMXEntityFixturePatch& Patch, const UDMXEntityFixturePatch& Other) {
-				return
-					Patch.GetUniverseID() < Other.GetUniverseID() ||
-					(Patch.GetUniverseID() == Other.GetUniverseID() && Patch.GetStartingChannel() <= Other.GetStartingChannel());
-				}
-			);
-			return Result;
-		}();
-		TArray<UDMXEntityFixturePatch*> PatchesToAssignInThisUniverse = [&UniverseIterator, &PatchesToAutoAssign, CurrentUniverse]()
-		{
-			TArray<UDMXEntityFixturePatch*> Result = PatchesToAutoAssign;
-			Result.RemoveAll([&, UniverseIterator](UDMXEntityFixturePatch* Patch)
-				{
-					return Patch->GetUniverseID() != CurrentUniverse;
-				});
-			return Result;
-		}();
-
-		if (bCanChangePatchUniverses)
-		{
-			// The patches in PatchesToAssignInNextUniverse are left over from last universe: hence they should ignore the MinimumAddress. 
-			TArray<UDMXEntityFixturePatch*> ToAssignNextUniverse;
-			Local::AssignAddressesInUniverse(SortedPatchesWithSetAddress, PatchesToAssignInNextUniverse, 1, CurrentUniverse, ToAssignNextUniverse);
-
-			PatchesToAssignInNextUniverse = ToAssignNextUniverse;
-		}
-		Local::AssignAddressesInUniverse(SortedPatchesWithSetAddress, PatchesToAssignInThisUniverse, MinimumAddress, CurrentUniverse, PatchesToAssignInNextUniverse);
-	}
-
-	const bool bNeedNewUniverse = PatchesToAssignInNextUniverse.Num() > 0;
-	if (bNeedNewUniverse)
-	{
-		if (bCanChangePatchUniverses)
-		{
-			const int32 HighestUniverse = [&UniverseToAllPatches]()
-			{
-				int32 HighestSoFar = -1;
-				for (auto UniverseIterator = UniverseToAllPatches.CreateIterator(); UniverseIterator; ++UniverseIterator)
-				{
-					HighestSoFar = FMath::Max(HighestSoFar, UniverseIterator->Key);
-				}
-				return HighestSoFar;
-			}();
-			for (UDMXEntityFixturePatch* UnassignedPatch : PatchesToAssignInNextUniverse)
-			{
-				UnassignedPatch->Modify();
-				UnassignedPatch->SetUniverseID(HighestUniverse + 1);
-			}
-			return AutoAssignedAddresses(PatchesToAssignInNextUniverse, 1, bCanChangePatchUniverses);
-		}
-
-		return PatchesToAssignInNextUniverse;
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	return {};
-}
-
-void FDMXEditorUtils::AutoAssignedChannels(bool bAllowDecrementUniverse, bool bAllowDecrementChannels, TArray<UDMXEntityFixturePatch*> FixturePatches)
-{
-	if (FixturePatches.IsEmpty())
-	{
-		return;
-	}
-
-	// Ensure patches are of a single DMX Library
-	const UDMXLibrary* DMXLibrary = FixturePatches[0]->GetParentLibrary();
-	for (UDMXEntityFixturePatch* FixturePatch : FixturePatches)
-	{
-		if (!ensureAlwaysMsgf(FixturePatch->GetParentLibrary() == DMXLibrary, TEXT("Trying to auto assign fixture patches from different DMX Libraries at once. This is not supported.")))
-		{
-			return;
-		}
-	}
-
-	TArray<UDMXEntityFixturePatch*> AllFixturePatchesInLibrary = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>();
-	
-	// Sort by Universe and channel
-	FixturePatches.Sort([](const UDMXEntityFixturePatch& FixturePatchA, const UDMXEntityFixturePatch& FixturePatchB)
-		{
-			const bool bUniverseIsSmaller = FixturePatchA.GetUniverseID() < FixturePatchB.GetUniverseID();
-			const bool bUniverseIsEqual = FixturePatchA.GetUniverseID() == FixturePatchB.GetUniverseID();
-			const bool bChannelIsSmallerOrEqual = FixturePatchA.GetStartingChannel() <= FixturePatchB.GetStartingChannel();
-			return bUniverseIsSmaller || (bUniverseIsEqual && bChannelIsSmallerOrEqual);
-		});
-	// Move all to the universe and address of the first patch
-	for (UDMXEntityFixturePatch* FixturePatch : FixturePatches)
-	{
-		FixturePatch->Modify();
-		FixturePatch->SetUniverseID(FixturePatches[0]->GetUniverseID());
-		FixturePatch->SetStartingChannel(FixturePatches[0]->GetStartingChannel());
-	}
-
-	// Using absolute channels (Universe * DMX_UIVERSE_SIZE + Channel)
-	auto FindAbsoluteChannelLambda([bAllowDecrementUniverse, bAllowDecrementChannels, &FixturePatches, &AllFixturePatchesInLibrary](UDMXEntityFixturePatch* FixturePatch, const TArray<UDMXEntityFixturePatch*>& OtherPendingAutoAssignFixturePatches) -> int32
-		{
-			AllFixturePatchesInLibrary.StableSort([](const UDMXEntityFixturePatch& FixturePatchA, const UDMXEntityFixturePatch& FixturePatchB)
-				{
-					const bool bUniverseIsSmaller = FixturePatchA.GetUniverseID() < FixturePatchB.GetUniverseID();
-					const bool bUniverseIsEqual = FixturePatchA.GetUniverseID() == FixturePatchB.GetUniverseID();
-					const bool bChannelIsSmallerOrEqual = FixturePatchA.GetStartingChannel() <= FixturePatchB.GetStartingChannel();
-					return bUniverseIsSmaller || (bUniverseIsEqual && bChannelIsSmallerOrEqual);
-				});
-
-			const int32 OldUniverse = FixturePatch->GetUniverseID();
-			const int32 OldAbsoluteStartingChannel = FixturePatch->GetUniverseID() * DMX_UNIVERSE_SIZE + FixturePatch->GetStartingChannel();
-			const int32 RequiredChannelSpan = FixturePatch->GetChannelSpan();
-			const int32 MinAbsoluteChannel = bAllowDecrementUniverse ? 1 : FixturePatch->GetUniverseID() * DMX_UNIVERSE_SIZE + 1;
-
-			int32 AbsoluteStartOfGap = MinAbsoluteChannel;
-			for (int32 IndexOfFixturePatch = 0; IndexOfFixturePatch < AllFixturePatchesInLibrary.Num(); IndexOfFixturePatch++)
-			{				
-				UDMXEntityFixturePatch* Other = AllFixturePatchesInLibrary[IndexOfFixturePatch];
-				const int32 OtherAbsoluteEndingChannel = Other->GetUniverseID() * DMX_UNIVERSE_SIZE + Other->GetEndingChannel();
-				const int32 GapChannelSpan = Other->GetUniverseID() * DMX_UNIVERSE_SIZE + Other->GetStartingChannel() - AbsoluteStartOfGap;
-
-				// Ignore others that are pending auto-assign
-				if (OtherPendingAutoAssignFixturePatches.Contains(Other))
-				{
-					continue;
-				}
-
-				// Peek ahead when looking at self
-				if (Other == FixturePatch)
-				{
-					UDMXEntityFixturePatch* Next = AllFixturePatchesInLibrary.IsValidIndex(IndexOfFixturePatch + 1) ? AllFixturePatchesInLibrary[IndexOfFixturePatch + 1] : nullptr;
-					if (!Next)
-					{
-						break;
-					}
-
-					const int32 NextAbsoluteStartingChannel = Next->GetUniverseID() * DMX_UNIVERSE_SIZE + Next->GetStartingChannel();
-					const int32 GapToNext = NextAbsoluteStartingChannel - AbsoluteStartOfGap;
-					if (GapToNext >= RequiredChannelSpan)
-					{
-						break;
-					}
-				}
-
-				if (!bAllowDecrementUniverse && OtherAbsoluteEndingChannel + 1 < MinAbsoluteChannel)
-				{
-					AbsoluteStartOfGap = MinAbsoluteChannel;
-					continue;
-				}
-
-				if (!bAllowDecrementChannels && AbsoluteStartOfGap < OldAbsoluteStartingChannel)
-				{
-					AbsoluteStartOfGap = OtherAbsoluteEndingChannel + 1;
-					continue;
-				}
-
-				if (GapChannelSpan >= RequiredChannelSpan)
-				{
-					break;
-				}
-
-				AbsoluteStartOfGap = OtherAbsoluteEndingChannel + 1;
-			}
-
-			int32 Universe = AbsoluteStartOfGap / DMX_UNIVERSE_SIZE;
-			int32 Channel = AbsoluteStartOfGap % DMX_UNIVERSE_SIZE;
-			if (Channel + FixturePatch->GetChannelSpan() - 1 > DMX_UNIVERSE_SIZE)
-			{
-				return (Universe + 1) * DMX_UNIVERSE_SIZE + 1;
-			}
-			else
-			{
-				return AbsoluteStartOfGap;
-			}
-		});
-
-	const FScopedTransaction AutoAssignTransaction(LOCTEXT("AutoAssignTransaction", "Auto Assign Fixture Patch"));
-	TArray<UDMXEntityFixturePatch*> OtherPendingAutoAssignFixturePatches(FixturePatches);
-	for (UDMXEntityFixturePatch* FixturePatch : FixturePatches)
-	{
-		OtherPendingAutoAssignFixturePatches.Remove(FixturePatch);
-		const int32 AutoAssignAbsoluteChannel = FindAbsoluteChannelLambda(FixturePatch, OtherPendingAutoAssignFixturePatches);
-		if (AutoAssignAbsoluteChannel > 0)
-		{
-			FixturePatch->PreEditChange(UDMXEntityFixturePatch::StaticClass()->FindPropertyByName(UDMXEntityFixturePatch::GetStartingChannelPropertyNameChecked()));
-			FixturePatch->SetUniverseID(AutoAssignAbsoluteChannel / DMX_UNIVERSE_SIZE);
-			FixturePatch->SetStartingChannel(AutoAssignAbsoluteChannel % DMX_UNIVERSE_SIZE);
-			FixturePatch->PostEditChange();
-		}
 	}
 }
 
@@ -1093,29 +446,22 @@ bool FDMXEditorUtils::DoesLibraryHaveUniverseConflicts(UDMXLibrary* Library, FTe
 
 void FDMXEditorUtils::ClearAllDMXPortBuffers()
 {
-	for (const FDMXInputPortSharedRef& InputPort : FDMXPortManager::Get().GetInputPorts())
-	{
-		InputPort->ClearBuffers();
-	}
-
-	for (const FDMXOutputPortSharedRef& OutputPort : FDMXPortManager::Get().GetOutputPorts())
-	{
-		OutputPort->ClearBuffers();
-	}
+	// DEPRECATED 5.5
+	FDMXPortManager::Get().ClearBuffers();
 }
 
 void FDMXEditorUtils::ClearFixturePatchCachedData()
-{
-	// Clear patch buffers
+{	
+	// DEPRECATED 5.5
 	UDMXSubsystem* Subsystem = UDMXSubsystem::GetDMXSubsystem_Callable();
 	if (Subsystem && Subsystem->IsValidLowLevel())
 	{
-		TArray<UDMXLibrary*> DMXLibraries = Subsystem->GetAllDMXLibraries();
-		for (UDMXLibrary* Library : DMXLibraries)
+		TArray<TSoftObjectPtr<UDMXLibrary>> DMXLibraries = Subsystem->GetDMXLibraries();
+		for (const TSoftObjectPtr<UDMXLibrary>& Library : DMXLibraries)
 		{
-			if (Library != nullptr && Library->IsValidLowLevel())
+			if (Library.IsValid())
 			{
-				Library->ForEachEntityOfType<UDMXEntityFixturePatch>([](UDMXEntityFixturePatch* Patch) {
+				Library.Get()->ForEachEntityOfType<UDMXEntityFixturePatch>([](UDMXEntityFixturePatch* Patch) {
 					Patch->RebuildCache();
 				});
 			}

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AJALib.h"
 #include "MediaIOCoreTextureSampleBase.h"
 #include "MediaShaders.h"
 

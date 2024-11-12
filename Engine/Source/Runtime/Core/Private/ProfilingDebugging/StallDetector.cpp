@@ -88,9 +88,9 @@ namespace UE
 			Stop();
 		}
 
-		bool GetStartedThread()
+		bool GetStartedThread() const
 		{
-			return StartedThread;
+			return StartedThread.load(std::memory_order_relaxed);
 		}
 		
 #if STALL_DETECTOR_HEART_BEAT_CLOCK
@@ -101,7 +101,7 @@ namespace UE
 #endif
 
 	private:
-		bool StartedThread;
+		std::atomic<bool> StartedThread;
 		bool StopThread;
 
 #if STALL_DETECTOR_HEART_BEAT_CLOCK
@@ -146,6 +146,13 @@ uint32 UE::FStallDetectorRunnable::Run()
 
 			TArray<FDetectedStall> DetectedStalls;
 			FScopeLock ScopeLock(&StallScopesSection);
+
+			// Stop if there has been a crash, do not report crash as stall, Detector->Stats may also be deleted memory
+			if (!GIsCriticalError)
+			{
+				break;
+			}
+
 			for (FStallDetector* Detector : StallScopes)
 			{
 				if (Detector->bTriggered)
@@ -746,7 +753,7 @@ namespace UE::StallDetector::Private
 	static void HandleSlowTaskFinalize(const FText& TaskName, double DurationInSeconds)
 	{
 		FSlowTaskStallDetectorPause* PauseState = static_cast<FSlowTaskStallDetectorPause*>(FPlatformTLS::GetTlsValue(SlowTaskPauseSlot.GetSlot()));
-		FSlowTaskStallDetectorPause* Parent = PauseState->GetParent();
+		FSlowTaskStallDetectorPause* Parent = ensure(PauseState) ? PauseState->GetParent() : nullptr;
 		FPlatformTLS::SetTlsValue(SlowTaskPauseSlot.GetSlot(), Parent);
 		delete PauseState;
 	}

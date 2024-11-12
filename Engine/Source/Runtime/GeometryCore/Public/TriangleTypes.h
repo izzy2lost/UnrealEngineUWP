@@ -6,6 +6,7 @@
 #include "VectorUtil.h"
 #include "IndexTypes.h"
 #include "BoxTypes.h"
+#include "SegmentTypes.h"
 
 namespace UE
 {
@@ -115,19 +116,60 @@ struct TTriangle2
 	}
 
 
-	/** @return true if QueryPoint is inside triangle or on edge */
-	static bool IsInsideOrOn(const TVector2<RealType>& A, const TVector2<RealType>& B, const TVector2<RealType>& C, const TVector2<RealType>& QueryPoint)
+	/** 
+	 * @return true if QueryPoint is inside triangle or on edge. Note that this is slower 
+	 *  than IsInside because of the need to handle degeneracy and tolerance. 
+	 */
+	static bool IsInsideOrOn(const TVector2<RealType>& A, const TVector2<RealType>& B, 
+		const TVector2<RealType>& C, const TVector2<RealType>& QueryPoint, RealType Tolerance = (RealType)0)
 	{
-		RealType Sign1 = Orient(A, B, QueryPoint);
-		RealType Sign2 = Orient(B, C, QueryPoint);
-		RealType Sign3 = Orient(C, A, QueryPoint);
-		return (Sign1*Sign2 >= 0) && (Sign2*Sign3 >= 0) && (Sign3*Sign1 >= 0);
+		RealType Sign1 = TSegment2<RealType>::GetSide(A, B, QueryPoint, Tolerance);
+		RealType Sign2 = TSegment2<RealType>::GetSide(B, C, QueryPoint, Tolerance);
+		RealType Sign3 = TSegment2<RealType>::GetSide(C, A, QueryPoint, Tolerance);
+
+		// If any of the signs are opposite, then definitely outside
+		if (Sign1 * Sign2 < 0 || Sign2 * Sign3 < 0 || Sign3 * Sign1 < 0)
+		{
+			return false;
+		}
+
+		// If some signs were zero, then things are more complicated because we are either colinear
+		//  with that edge, or the edge is degenerate enough to get a 0 value on the DotPerp.
+		int NumZero = static_cast<int>(Sign1 == 0) + static_cast<int>(Sign2 == 0) + static_cast<int>(Sign3 == 0);
+		switch (NumZero)
+		{
+		case 0:
+			// All were nonzero and none disagreed, so inside.
+			return true;
+		case 1:
+			// If only one sign was zero, seems more than likely that we're on that edge.
+			//  Hard to imagine some underflow case where that isn't actually the case, but we'll
+			//  do the segment check just in case.
+			return Sign1 == 0 ? TSegment2<RealType>::IsOnSegment(A, B, QueryPoint, Tolerance)
+				: Sign2 == 0 ? TSegment2<RealType>::IsOnSegment(B, C, QueryPoint, Tolerance)
+				: TSegment2<RealType>::IsOnSegment(C, A, QueryPoint, Tolerance);
+		case 2:
+			// Two signs were zero, so we expect to be on the vertex between those edges
+			return Sign1 != 0 ? TVector2<RealType>::DistSquared(QueryPoint, C) <= Tolerance * Tolerance
+				: Sign2 != 0 ? TVector2<RealType>::DistSquared(QueryPoint, A) <= Tolerance * Tolerance
+				: TVector2<RealType>::DistSquared(QueryPoint, B) <= Tolerance * Tolerance;
+		case 3:
+			// All three signs were zero. We're dealing with a denerate triangle of some
+			//  sort. It should be sufficient to check any two segments
+			return TSegment2<RealType>::IsOnSegment(A, B, QueryPoint, Tolerance)
+				|| TSegment2<RealType>::IsOnSegment(B, C, QueryPoint, Tolerance);
+		default:
+			return ensure(false);
+		}
 	}
 
-	/** @return true if QueryPoint is inside triangle or on edge */
-	bool IsInsideOrOn(const TVector2<RealType>& QueryPoint, RealType Epsilon = 0) const
+	/**
+	 * @return true if QueryPoint is inside triangle or on edge. Note that this is slower
+	 *  than IsInside because of the need to handle degeneracy and tolerance.
+	 */
+	bool IsInsideOrOn(const TVector2<RealType>& QueryPoint, RealType Tolerance = 0) const
 	{
-		return IsInsideOrOn(V[0], V[1], V[2], QueryPoint);
+		return IsInsideOrOn(V[0], V[1], V[2], QueryPoint, Tolerance);
 	}
 
 
@@ -136,9 +178,9 @@ struct TTriangle2
 	 *  (the code early-outs at the first 'outside' edge, which only works if the triangle is oriented as expected)
 	 * @return 1 if outside, -1 if inside, 0 if on boundary
 	 */
-	int IsInsideOrOn_Oriented(const TVector2<RealType>& QueryPoint) const
+	int IsInsideOrOn_Oriented(const TVector2<RealType>& QueryPoint, RealType Tolerance = (RealType)0) const
 	{
-		return IsInsideOrOn_Oriented(V[0], V[1], V[2], QueryPoint);
+		return IsInsideOrOn_Oriented(V[0], V[1], V[2], QueryPoint, Tolerance);
 	}
 
 	/**
@@ -146,29 +188,63 @@ struct TTriangle2
 	 *  (the code early-outs at the first 'outside' edge, which only works if the triangle is oriented as expected)
 	 * @return 1 if outside, -1 if inside, 0 if on boundary
 	 */
-	static int IsInsideOrOn_Oriented(const TVector2<RealType>& A, const TVector2<RealType>& B, const TVector2<RealType>& C, const TVector2<RealType>& QueryPoint)
+	static int IsInsideOrOn_Oriented(const TVector2<RealType>& A, const TVector2<RealType>& B, const TVector2<RealType>& C, 
+		const TVector2<RealType>& QueryPoint, RealType Tolerance = (RealType)0)
 	{
 		checkSlow(Orient(A, B, C) <= 0); // TODO: remove this checkSlow; it's just to make sure the orientation is as expected
 
-		RealType Sign1 = Orient(A, B, QueryPoint);
+		RealType Sign1 = TSegment2<RealType>::GetSide(A, B, QueryPoint, Tolerance);
 		if (Sign1 > 0)
 		{
 			return 1;
 		}
 		
-		RealType Sign2 = Orient(B, C, QueryPoint);
+		RealType Sign2 = TSegment2<RealType>::GetSide(B, C, QueryPoint, Tolerance);
 		if (Sign2 > 0)
 		{
 			return 1;
 		}
 		
-		RealType Sign3 = Orient(A, C, QueryPoint);
+		RealType Sign3 = TSegment2<RealType>::GetSide(A, C, QueryPoint, Tolerance);
 		if (Sign3 < 0) // note this edge is queried backwards so the sign test is also backwards
 		{
 			return 1;
 		}
 
-		return (Sign1 != 0 && Sign2 != 0 && Sign3 != 0) ? -1 : 0;
+		// If some signs were zero, then things are more complicated because we are either colinear
+		//  with that edge, or the edge is degenerate enough to get a 0 value on the DotPerp.
+		int NumZero = static_cast<int>(Sign1 == 0) + static_cast<int>(Sign2 == 0) + static_cast<int>(Sign3 == 0);
+		bool bIsOnEdge = false;
+		
+		switch (NumZero)
+		{
+		case 0:
+			// All signs were nonzero and in the correct direction, so must be inside triangle.
+			return -1;
+		case 1:
+			// If only one sign was zero, seems more than likely that we're on the opposite edge.
+			//  Hard to imagine some underflow case where that isn't actually the case, but we'll
+			//  do the segment check just in case.
+			bIsOnEdge = Sign1 == 0 ? TSegment2<RealType>::IsOnSegment(A, B, QueryPoint, Tolerance)
+				: Sign2 == 0 ? TSegment2<RealType>::IsOnSegment(B, C, QueryPoint, Tolerance)
+				: TSegment2<RealType>::IsOnSegment(C, A, QueryPoint, Tolerance);
+			break;
+		case 2:
+			// Two signs were zero, so it better be on the vertex between those edges
+			bIsOnEdge = Sign1 != 0 ? TVector2<RealType>::DistSquared(QueryPoint, C) <= Tolerance * Tolerance
+				: Sign2 != 0 ? TVector2<RealType>::DistSquared(QueryPoint, A) <= Tolerance * Tolerance
+				: TVector2<RealType>::DistSquared(QueryPoint, B) <= Tolerance * Tolerance;
+			break;
+		case 3:
+			// All three signs were zero. We're dealing with a degenerate triangle of some
+			//  sort. It should be sufficient to check any two segments.
+			bIsOnEdge = TSegment2<RealType>::IsOnSegment(A, B, QueryPoint, Tolerance)
+				|| TSegment2<RealType>::IsOnSegment(B, C, QueryPoint, Tolerance);
+			break;
+		default:
+			ensure(false);
+		}
+		return bIsOnEdge ? 0 : 1;
 	}
 
 

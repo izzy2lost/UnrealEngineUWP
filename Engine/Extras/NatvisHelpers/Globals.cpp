@@ -5,3 +5,6 @@ class FChunkedFixedUObjectArray;
 
 uint8** GNameBlocksDebug = nullptr;
 FChunkedFixedUObjectArray* GObjectArrayForDebugVisualizers = nullptr;
+
+namespace UE { namespace Core { struct FVisualizerDebuggingState; } }
+UE::Core::FVisualizerDebuggingState* GDebuggingState = nullptr;

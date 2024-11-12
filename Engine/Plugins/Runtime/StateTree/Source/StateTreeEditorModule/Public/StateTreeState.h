@@ -2,11 +2,65 @@
 
 #pragma once
 
+#include "IStateTreeSchemaProvider.h"
+#include "StateTreeNodeBase.h"
 #include "StateTreeEditorNode.h"
 #include "StateTreeEditorTypes.h"
+#include "StateTreeEvents.h"
 #include "StateTreeState.generated.h"
 
 class UStateTreeState;
+class UStateTree;
+
+/**
+ * Editor representation of an event description.
+ */
+USTRUCT()
+struct FStateTreeEventDesc
+{
+	GENERATED_BODY()
+
+	FStateTreeEventDesc() = default;
+
+	FStateTreeEventDesc(FGameplayTag InTag)
+		: Tag(InTag)
+	{}
+
+	/** Event Tag. */
+	UPROPERTY(EditDefaultsOnly, Category = "Event")
+	FGameplayTag Tag;
+
+	/** Event Payload Struct. */
+	UPROPERTY(EditDefaultsOnly, Category = "Event")
+	TObjectPtr<const UScriptStruct> PayloadStruct;
+
+	/** If set to true, the event is consumed (later state selection cannot react to it) if state selection can be made. */
+	UPROPERTY(EditDefaultsOnly, Category = "Event")
+	bool bConsumeEventOnSelect = true;
+	
+	bool IsValid() const
+	{
+		return Tag.IsValid() || PayloadStruct;
+	}
+
+	FStateTreeEvent& GetTemporaryEvent()
+	{
+		TemporaryEvent.Tag = Tag;
+		TemporaryEvent.Payload = FInstancedStruct(PayloadStruct);
+
+		return TemporaryEvent;
+	}
+
+	bool operator==(const FStateTreeEventDesc& Other) const
+	{
+		return Tag == Other.Tag && PayloadStruct == Other.PayloadStruct;
+	}
+
+private:
+	/** Temporary event used as a source value in bindings. */
+	UPROPERTY(Transient)
+	FStateTreeEvent TemporaryEvent;
+};
 
 /**
  * Editor representation of a transition in StateTree
@@ -16,9 +70,16 @@ struct STATETREEEDITORMODULE_API FStateTreeTransition
 {
 	GENERATED_BODY()
 
+	// Macro needed to avoid deprecation errors with members being copied or created.
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FStateTreeTransition() = default;
 	FStateTreeTransition(const EStateTreeTransitionTrigger InTrigger, const EStateTreeTransitionType InType, const UStateTreeState* InState = nullptr);
 	FStateTreeTransition(const EStateTreeTransitionTrigger InTrigger, const FGameplayTag InEventTag, const EStateTreeTransitionType InType, const UStateTreeState* InState = nullptr);
+	FStateTreeTransition(const FStateTreeTransition&) = default;
+	FStateTreeTransition(FStateTreeTransition&&) = default;
+	FStateTreeTransition& operator=(const FStateTreeTransition&) = default;
+	FStateTreeTransition& operator=(FStateTreeTransition&&) = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	template<typename T, typename... TArgs>
 	TStateTreeEditorNode<T>& AddCondition(TArgs&&... InArgs)
@@ -26,21 +87,28 @@ struct STATETREEEDITORMODULE_API FStateTreeTransition
 		FStateTreeEditorNode& CondNode = Conditions.AddDefaulted_GetRef();
 		CondNode.ID = FGuid::NewGuid();
 		CondNode.Node.InitializeAs<T>(Forward<TArgs>(InArgs)...);
-		T& Cond = CondNode.Node.GetMutable<T>();
-		if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Cond.GetInstanceDataType()))
+		const FStateTreeNodeBase& Node = CondNode.Node.GetMutable<FStateTreeNodeBase>();
+		if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Node.GetInstanceDataType()))
 		{
 			CondNode.Instance.InitializeAs(InstanceType);
 		}
 		return static_cast<TStateTreeEditorNode<T>&>(CondNode);
 	}
 
+	FGuid GetEventID() const
+	{
+		return FGuid::Combine(ID, FGuid::NewDeterministicGuid(TEXT("Event")));
+	}
+
+	void PostSerialize(const FArchive& Ar);
+
 	/** When to try trigger the transition. */
 	UPROPERTY(EditDefaultsOnly, Category = "Transition")
 	EStateTreeTransitionTrigger Trigger = EStateTreeTransitionTrigger::OnStateCompleted;
 
-	/** Tag of the State Tree event that triggers the transition. */
-	UPROPERTY(EditDefaultsOnly, Category = "Transition")
-	FGameplayTag EventTag;
+	/** Defines the event required to be present during state selection for the transition to trigger. */
+	UPROPERTY(EditDefaultsOnly, Category = "Transition", DisplayName = "Required Event")
+	FStateTreeEventDesc RequiredEvent; 
 
 	/** Transition target state. */
 	UPROPERTY(EditDefaultsOnly, Category = "Transition", meta=(DisplayName="Transition To"))
@@ -69,13 +137,28 @@ struct STATETREEEDITORMODULE_API FStateTreeTransition
 	UPROPERTY(EditDefaultsOnly, Category = "Transition", meta = (EditCondition = "bDelayTransition", UIMin = "0", ClampMin = "0", UIMax = "25", ClampMax = "25", ForceUnits="s"))
 	float DelayRandomVariance = 0.0f;
 
-	/** Conditions that must pass so that the transition can be triggered. */
+	/** Expression of conditions that need to evaluate to true to allow transition to be triggered. */
 	UPROPERTY(EditDefaultsOnly, Category = "Transition", meta = (BaseStruct = "/Script/StateTreeModule.StateTreeConditionBase", BaseClass = "/Script/StateTreeModule.StateTreeConditionBlueprintBase"))
 	TArray<FStateTreeEditorNode> Conditions;
 
 	/** True if the Transition is Enabled (i.e. not explicitly disabled in the asset). */
 	UPROPERTY(EditDefaultsOnly, Category = "Debug")
 	bool bTransitionEnabled = true;
+
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.5, "Use RequiredEvent.Tag instead.")
+	UPROPERTY()
+	FGameplayTag EventTag_DEPRECATED;
+#endif // WITH_EDITORONLY_DATA
+};
+
+template<>
+struct TStructOpsTypeTraits<FStateTreeTransition> : public TStructOpsTypeTraitsBase2<FStateTreeTransition>
+{
+	enum 
+	{
+		WithPostSerialize = true,
+	};
 };
 
 
@@ -84,11 +167,11 @@ struct STATETREEEDITORMODULE_API FStateTreeStateParameters
 {
 	GENERATED_BODY()
 
-	void Reset()
+	void ResetParametersAndOverrides()
 	{
+		// Reset just the parameters, keep the bFixedLayout intact.
 		Parameters.Reset();
 		PropertyOverrides.Reset();
-		bFixedLayout = false;
 	}
 
 	/** Removes overrides that do appear in Parameters. */
@@ -112,7 +195,7 @@ struct STATETREEEDITORMODULE_API FStateTreeStateParameters
  * Editor representation of a state in StateTree
  */
 UCLASS(BlueprintType, EditInlineNew, CollapseCategories)
-class STATETREEEDITORMODULE_API UStateTreeState : public UObject
+class STATETREEEDITORMODULE_API UStateTreeState : public UObject, public IStateTreeSchemaProvider
 {
 	GENERATED_BODY()
 
@@ -131,6 +214,9 @@ public:
 	const UStateTreeState* GetNextSiblingState() const;
 	const UStateTreeState* GetNextSelectableSiblingState() const;
 
+	/** @return the path of the state as string. */
+	FString GetPath() const;
+	
 	/** @return true if the property of specified ID is overridden. */
 	bool IsParametersPropertyOverridden(const FGuid PropertyID) const
 	{
@@ -169,8 +255,8 @@ public:
 		FStateTreeEditorNode& CondNode = EnterConditions.AddDefaulted_GetRef();
 		CondNode.ID = FGuid::NewGuid();
 		CondNode.Node.InitializeAs<T>(Forward<TArgs>(InArgs)...);
-		T& Cond = CondNode.Node.GetMutable<T>();
-		if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Cond.GetInstanceDataType()))
+		const FStateTreeNodeBase& Node = CondNode.Node.GetMutable<FStateTreeNodeBase>();
+		if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Node.GetInstanceDataType()))
 		{
 			CondNode.Instance.InitializeAs(InstanceType);
 		}
@@ -187,14 +273,22 @@ public:
 		FStateTreeEditorNode& TaskItem = Tasks.AddDefaulted_GetRef();
 		TaskItem.ID = FGuid::NewGuid();
 		TaskItem.Node.InitializeAs<T>(Forward<TArgs>(InArgs)...);
-		T& Task = TaskItem.Node.GetMutable<T>();
-		if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Task.GetInstanceDataType()))
+		const FStateTreeNodeBase& Node = TaskItem.Node.GetMutable<FStateTreeNodeBase>();
+		if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Node.GetInstanceDataType()))
 		{
 			TaskItem.Instance.InitializeAs(InstanceType);
 		}
 		return static_cast<TStateTreeEditorNode<T>&>(TaskItem);
 	}
 
+	/** Sets linked asset and updates parameters to match the linked asset. */
+	void SetLinkedStateAsset(UStateTree* InLinkedAsset)
+	{
+		check(Type == EStateTreeStateType::LinkedAsset);
+		LinkedAsset = InLinkedAsset;
+		UpdateParametersFromLinkedSubtree();
+	}
+	
 	/**
 	 * Adds Transition.
 	 * @return reference to the new Transition.
@@ -213,12 +307,30 @@ public:
 		return Transition;
 	}
 
+	FGuid GetEventID() const
+	{
+		return FGuid::Combine(ID, FGuid::NewDeterministicGuid(TEXT("Event")));
+	}
 
 	// ~StateTree Builder API
 
+	// IStateTreeSchemaProvider API
+	/**
+	* @return Class of schema used by the state tree containing this state.
+	*/
+	virtual TSubclassOf<UStateTreeSchema> GetSchema() const override;
+
+	// ~IStateTreeSchemaProvider API
+
+	// Note: these properties are customized out in FStateTreeStateDetails, adding a new property might require to adjust the customization.
+	
 	/** Display name of the State */
 	UPROPERTY(EditDefaultsOnly, Category = "State")
 	FName Name;
+
+	/** GameplayTag describing the State */
+	UPROPERTY(EditDefaultsOnly, Category = "State")
+	FGameplayTag Tag;
 
 	/** Display color of the State */
 	UPROPERTY(EditDefaultsOnly, Category = "State", DisplayName = "Color")
@@ -244,14 +356,31 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "State")
 	FStateTreeStateParameters Parameters;
 
-	UPROPERTY(EditDefaultsOnly, Category = "State", meta = (IgnoreForMemberInitializationTest))
-	FGuid ID;
+	/** Should state's required event and enter conditions be evaluated when transition leads directly to it's child. */
+	UPROPERTY(EditDefaultsOnly, Category = "Enter Conditions")
+	bool bCheckPrerequisitesWhenActivatingChildDirectly = true;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Enter Conditions", meta=(InlineEditConditionToggle))
+	bool bHasRequiredEventToEnter = false;
+
+	/** Defines the event required to be present during state selection for the state to be selected. */
+	UPROPERTY(EditDefaultsOnly, Category = "Enter Conditions", meta = (EditCondition = "bHasRequiredEventToEnter"))
+	FStateTreeEventDesc RequiredEventToEnter;
+	
+	/** Weight used to scale the normalized final utility score for this state */
+	UPROPERTY(EditDefaultsOnly, Category = "Utility", meta=(ClampMin=0))
+	float Weight = 1.f;
+
+	/** Expression of enter conditions that needs to evaluate true to allow the state to be selected. */
 	UPROPERTY(EditDefaultsOnly, Category = "Enter Conditions", meta = (BaseStruct = "/Script/StateTreeModule.StateTreeConditionBase", BaseClass = "/Script/StateTreeModule.StateTreeConditionBlueprintBase"))
 	TArray<FStateTreeEditorNode> EnterConditions;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Tasks", meta = (BaseStruct = "/Script/StateTreeModule.StateTreeTaskBase", BaseClass = "/Script/StateTreeModule.StateTreeTaskBlueprintBase"))
 	TArray<FStateTreeEditorNode> Tasks;
+
+	/** Expression of enter conditions that needs to evaluate true to allow the state to be selected. */
+	UPROPERTY(EditDefaultsOnly, Category = "Utility", meta = (BaseStruct = "/Script/StateTreeModule.StateTreeConsiderationBase", BaseClass = "/Script/StateTreeModule.StateTreeConsiderationBlueprintBase"))
+	TArray<FStateTreeEditorNode> Considerations;
 
 	// Single item used when schema calls for single task per state.
 	UPROPERTY(EditDefaultsOnly, Category = "Task", meta = (BaseStruct = "/Script/StateTreeModule.StateTreeTaskBase", BaseClass = "/Script/StateTreeModule.StateTreeTaskBlueprintBase"))
@@ -262,6 +391,9 @@ public:
 
 	UPROPERTY()
 	TArray<TObjectPtr<UStateTreeState>> Children;
+
+	UPROPERTY(EditDefaultsOnly, Category = "State", meta = (IgnoreForMemberInitializationTest))
+	FGuid ID;
 
 	UPROPERTY(meta = (ExcludeFromHash))
 	bool bExpanded = true;

@@ -11,10 +11,11 @@
 #include "SInsightsStatusBar.h"
 #include "UnrealInsightsLauncher.h"
 #include "Widgets/Input/SButton.h"
-#include "Widgets/Layout/SScrollBorder.h"
 
 #define LOCTEXT_NAMESPACE "RecentTracesList"
 
+namespace UE::EditorTraceUtilities
+{
 void SRecentTracesListEntry::Construct(const FArguments& InArgs, TSharedPtr<FTraceFileInfo> InTrace, const FString& InStorePath, TSharedPtr<FLiveSessionTracker> InLiveSessionTracker)
 {
 	TraceInfo = InTrace;
@@ -130,5 +131,6 @@ EVisibility SRecentTracesListEntry::GetLiveLabelVisibility() const
 
 	return EVisibility::Collapsed;
 }
+} // namespace UE::EditorTraceUtilities
 
 #undef LOCTEXT_NAMESPACE

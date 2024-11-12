@@ -17,16 +17,6 @@ bool GenerateCapsuleLightOcclusionRayWithSolidAngleSampling(
 	out float RayPdf
 )
 {
-// :todo-jn: Get around a driver crash until it is resolved
-#if VULKAN_PROFILE_SM6
-	const float3 LightDirection = LightParameters.TranslatedWorldPosition - TranslatedWorldPosition;
-	RayOrigin = TranslatedWorldPosition;
-	RayDirection = LightDirection;
-	RayTMin = 0;
-	RayTMax = 0;
-	RayPdf = 0;
-	return false;
-#else
 	float3 LightDirection = LightParameters.TranslatedWorldPosition - TranslatedWorldPosition;
 	float RayLength2 = dot(LightDirection, LightDirection);
 	float Radius = max(LightParameters.SourceRadius, 0.01); // clamp radius to a small value since the code below doesn't handle pure lines
@@ -40,11 +30,23 @@ bool GenerateCapsuleLightOcclusionRayWithSolidAngleSampling(
 	float4 Result = SampleCapsuleBounds(CapsuleBounds, RandSample);
 	// compute distance to capsule (and check that we hit it)
 	float Distance = CapsuleTest(Result.xyz, LightDirection, Axis, Radius2, SourceLength);
-	RayOrigin = TranslatedWorldPosition;
-	RayDirection = Result.xyz;
-	RayTMin = 0;
-	RayTMax = Distance;
-	RayPdf = Result.w;
-	return Distance > 0; // sample is only valid if we hit the light
-#endif
+	// sample is only valid if we hit the light
+	if (Distance > 0)
+	{
+		RayOrigin = TranslatedWorldPosition;
+		RayDirection = Result.xyz;
+		RayTMin = 0;
+		RayTMax = Distance;
+		RayPdf = Result.w;
+		return true;
+	}
+	else
+	{
+		RayOrigin = 0;
+		RayDirection = 0;
+		RayTMin = 0;
+		RayTMax = 0;
+		RayPdf = 0;
+		return false;
+	}
 }

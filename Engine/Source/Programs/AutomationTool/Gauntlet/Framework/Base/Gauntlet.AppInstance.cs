@@ -18,9 +18,28 @@ namespace Gauntlet
 		bool HasExited { get; }
 
 		/// <summary>
-		/// Current StdOut of the process
+		/// Current StdOut of the process. Not efficient when the process is running. Use GetLogBufferReader() instead.
 		/// </summary>
 		string StdOut { get; }
+
+		/// <summary>
+		/// Return a new log reader with an internal cursor
+		/// </summary>
+		ILogStreamReader GetLogReader();
+
+		/// <summary>
+		/// Return a new log buffer reader with an internal cursor. Might not give access to the full log content (usually the last 1024 lines).
+		/// Use GetLogReader() if you need the log from the beginning.
+		/// </summary>
+		/// <returns></returns>
+		ILogStreamReader GetLogBufferReader();
+
+		/// <summary>
+		/// Write output to file. Return true if there was output data to write.
+		/// </summary>
+		/// <param name="FilePath"></param>
+		/// <returns></returns>
+		bool WriteOutputToFile(string FilePath);
 
 		/// <summary>
 		/// Exit code of the process.
@@ -50,7 +69,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Kills the process if its running (no need to call WaitForExit)
 		/// </summary>
-		void Kill();
+		void Kill(bool GenerateDumpOnKill = false);
 
 		/// <summary>
 		/// Waits for the process to exit normally
@@ -59,13 +78,6 @@ namespace Gauntlet
 		int WaitForExit();
 
 	}
-
-	public interface IWithUnfilteredStdOut
-	{
-		string UnfilteredStdOut { get; }
-	}
-
-
 
 	/// <summary>
 	/// Interface used by IAppInstance if they support Suspend/Resume

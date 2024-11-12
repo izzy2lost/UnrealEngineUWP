@@ -2,9 +2,11 @@
 
 #pragma once
 
+#include "Styling/CoreStyle.h"
 #include "Styling/SlateStyle.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "Styling/SlateStyleMacros.h"
+#include "Styling/SlateTypes.h"
 #include "Styling/StyleColors.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 
@@ -87,6 +89,18 @@ class RIGVMEDITOR_API FRigVMEditorStyle final
 
 			Set("RigVM.Node.PinTree.Arrow_Expanded_Right", new IMAGE_BRUSH("Slate/RigVM_TreeArrow_Expanded_Right", Icon10x10, DefaultForeground));
 			Set("RigVM.Node.PinTree.Arrow_Expanded_Hovered_Right", new IMAGE_BRUSH("Slate/RigVM_TreeArrow_Expanded_Hovered_Right", Icon10x10, DefaultForeground));
+		}
+
+		// Button styles
+		{
+			FButtonStyle TagButton = FCoreStyle::Get().GetWidgetStyle<FButtonStyle>("Button");
+
+			// disable padding on the tag button
+			TagButton
+			.SetNormalPadding(0)
+			.SetPressedPadding(0);
+			
+			Set( "TagButton", TagButton );
 		}
 	}
 public:

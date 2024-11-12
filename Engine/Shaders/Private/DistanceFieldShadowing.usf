@@ -182,7 +182,7 @@ void ComputeCulledTilesStartOffsetCS(
 	uint2 TileCoordinate = DispatchThreadId.xy;
 	bool bValidTile = all(TileCoordinate < ShadowTileListGroupSize);
 	uint TileIndex = TileCoordinate.y * ShadowTileListGroupSize.x + TileCoordinate.x;
-	uint TileStartOffset;
+	uint TileStartOffset = 0;
 
 	if (bValidTile)
 	{
@@ -305,7 +305,7 @@ FObjectViewSpaceBox GetObjectViewSpaceBox(uint ObjectIndex)
 
 #if (DISTANCEFIELD_PRIMITIVE_TYPE == DFPT_SignedDistanceField)
 		FDFObjectData DFObjectData = LoadDFObjectData(ObjectIndex);
-		float3 TranslatedWorldBoundsPosition = DFTransformLocalToTranslatedWorld(UnitBoxVertex * DFObjectData.VolumePositionExtent, DFObjectData.VolumeToWorld, PrimaryView.PreViewTranslation);
+		float3 TranslatedWorldBoundsPosition = DFTransformLocalToTranslatedWorld(UnitBoxVertex * DFObjectData.VolumePositionExtent, DFObjectData.VolumeToWorld, PrimaryView.PreViewTranslation).xyz;
 #else
 		FHeightfieldObjectBounds HeightfieldObjectBounds = LoadHeightfieldObjectBounds(ObjectIndex);
 		float3 TranslatedWorldBoundsPosition = UnitBoxVertex * HeightfieldObjectBounds.BoxExtent + DFFastToTranslatedWorld(HeightfieldObjectBounds.BoxOrigin, PrimaryView.PreViewTranslation);
@@ -431,6 +431,8 @@ groupshared uint IntegerTileMaxZ2;
 groupshared uint TileNumObjects0;
 groupshared uint TileNumObjects1;
 
+float4x4 ScreenToView;
+
 void CullObjectsToTileWithGather(
 	float SceneDepth, 
 	uint ThreadIndex, 
@@ -495,6 +497,7 @@ void CullObjectsToTileWithGather(
 
 	float ExpandRadius = 0;
 
+#if !STEREO_RENDERING
 	// Note: this code is assuming a centered projection, aka no translation present in ViewToClip
 	// Stereo rendering uses an off center projection
 	float2 TanViewFOV = GetTanHalfFieldOfView();
@@ -513,7 +516,20 @@ void CullObjectsToTileWithGather(
 	ViewTileMax2.xy = max(MinTileZ2 * UnitPlaneTileMax, MaxTileZ * UnitPlaneTileMax) + ExpandRadius;
 	ViewTileMin2.z = MinTileZ2 - ExpandRadius;
 	ViewTileMax2.z = MaxTileZ + ExpandRadius;
+#else
+	// For stereo, we need to do a more expensive transform to account for non-centered projection
+	float2 ScreenTileMin = ((GroupId.xy / NumGroups) - 0.5) * float2(2, -2);
+	float2 ScreenTileMax = (((GroupId.xy + 1) / NumGroups) - 0.5) * float2(2, -2);
 
+	ViewTileMin.xy = min(mul(float4(ScreenTileMin * MinTileZ, MinTileZ, 1), ScreenToView).xy, mul(float4(ScreenTileMin * MaxTileZ2, MaxTileZ2, 1), ScreenToView).xy) - ExpandRadius;
+	ViewTileMax.xy = max(mul(float4(ScreenTileMax * MinTileZ, MinTileZ, 1), ScreenToView).xy, mul(float4(ScreenTileMax * MaxTileZ2, MaxTileZ2, 1), ScreenToView).xy) + ExpandRadius;
+	ViewTileMin.z = MinTileZ - ExpandRadius;
+	ViewTileMax.z = MaxTileZ2 + ExpandRadius;
+	ViewTileMin2.xy = min(mul(float4(ScreenTileMin * MinTileZ2, MinTileZ2, 1), ScreenToView).xy, mul(float4(ScreenTileMin * MaxTileZ, MaxTileZ, 1), ScreenToView).xy) - ExpandRadius;
+	ViewTileMax2.xy = max(mul(float4(ScreenTileMax * MinTileZ2, MinTileZ2, 1), ScreenToView).xy, mul(float4(ScreenTileMax * MaxTileZ, MaxTileZ, 1), ScreenToView).xy) + ExpandRadius;
+	ViewTileMin2.z = MinTileZ2 - ExpandRadius;
+	ViewTileMax2.z = MaxTileZ + ExpandRadius;
+#endif
 	float3 ViewGroup0Center = (ViewTileMax + ViewTileMin) / 2;
 	float3 TranslatedWorldGroup0Center = mul(float4(ViewGroup0Center, 1), View.ViewToTranslatedWorld).xyz;
 	float Group0BoundingRadius = length(ViewGroup0Center - ViewTileMax);
@@ -605,8 +621,31 @@ void DistanceFieldShadowingCS(
 
 	float2 ScreenUV = float2((DispatchThreadId.xy * DownsampleFactor + ScissorRectMinAndSize.xy + .5f) * View.BufferSizeAndInvSize.zw);
 	float2 ScreenPosition = (ScreenUV.xy - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
+	
+	float SceneDepth;
+	float FullResFurthestSceneDepth;
+	{
+		int2 TopLeftPixelPosition = DispatchThreadId.xy * DownsampleFactor + ScissorRectMinAndSize.xy;
 
-	float SceneDepth = CalcSceneDepth(ScreenUV);
+		if (DownsampleFactor == 2)
+		{
+#if CULLING_SUBSAMPLE_DEPTH
+			SceneDepth = FullResFurthestSceneDepth = CalcSceneDepth(ScreenUV);
+#else
+			// cull shadow only if no full-resolution pixel falls within range, preventing edge artifacts
+			float4 SceneDepths = GatherDeviceZ(float2(TopLeftPixelPosition + 1) * View.BufferSizeAndInvSize.zw);
+			SceneDepth = ConvertFromDeviceZ(SceneDepths.x);
+			FullResFurthestSceneDepth = ConvertFromDeviceZ(FarthestDeviceDepth(FarthestDeviceDepth(SceneDepths.x, SceneDepths.y, SceneDepths.z), SceneDepths.w));
+#endif
+		}
+		else
+		{
+			float SceneDepth00 = LookupDeviceZ(TopLeftPixelPosition);
+			SceneDepth = ConvertFromDeviceZ(SceneDepth00);
+			FullResFurthestSceneDepth = SceneDepth;
+		}
+	}
+
 	float3 OpaqueTranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;
 
 	// Distance for directional lights to trace
@@ -614,7 +653,7 @@ void DistanceFieldShadowingCS(
 
 	uint NumIntersectingObjects = GetCulledNumObjects();
 	uint CulledDataParameter = 0;
-	bool bShouldComputeShadowing = SceneDepth > MinDepth && SceneDepth < MaxDepth;
+	bool bShouldComputeShadowing = FullResFurthestSceneDepth > MinDepth && SceneDepth < MaxDepth;
 
 #define USE_CULLING 1
 #if USE_CULLING
@@ -781,6 +820,7 @@ float NearFadePlaneOffset;
 float InvNearFadePlaneLength;
 
 float OneOverDownsampleFactor;
+float2 ShadowFactorsUVBilinearMax;
 
 void DistanceFieldShadowingUpsamplePS(
 	in float4 SVPos : SV_POSITION,
@@ -788,7 +828,7 @@ void DistanceFieldShadowingUpsamplePS(
 {
 	float Output;
 	float SceneDepth;
-	UpsampleShadowFactors(SVPos, ScissorRectMinAndSize, OneOverDownsampleFactor, ShadowFactorsTexture, ShadowFactorsSampler, Output, SceneDepth);
+	UpsampleShadowFactors(SVPos, ScissorRectMinAndSize, OneOverDownsampleFactor, MinDepth, MaxDepth, ShadowFactorsTexture, ShadowFactorsSampler, ShadowFactorsUVBilinearMax, Output, SceneDepth);
 
 	float FarBlendFactor = 1.0f - saturate((SceneDepth - FadePlaneOffset) * InvFadePlaneLength);
 	Output = lerp(1, Output, FarBlendFactor);

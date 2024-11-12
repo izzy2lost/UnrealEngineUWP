@@ -54,10 +54,12 @@ public class ModelingToolsEditorMode : ModuleRules
 				"ToolPresetAsset",
 				"ToolPresetEditor",
 				"EditorConfig",
+				"StylusInput",
 				// ... add private dependencies that you statically link with here ...	
 			}
 		);
 
 		PublicDefinitions.Add("WITH_PROXYLOD=" + (Target.Platform == UnrealTargetPlatform.Win64 ? '1' : '0'));
+		PrivateDefinitions.Add("ENABLE_STYLUS_SUPPORT=" + (Target.Platform == UnrealTargetPlatform.Win64 ? '1' : '0'));
 	}
 }

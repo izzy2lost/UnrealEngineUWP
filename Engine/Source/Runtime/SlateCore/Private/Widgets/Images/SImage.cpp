@@ -25,6 +25,8 @@ SImage::SImage()
 	bCanSupportFocus = false;
 }
 
+SImage::~SImage() = default;
+
 void SImage::Construct( const FArguments& InArgs )
 {
 	ImageAttribute.Assign(*this, InArgs._Image);

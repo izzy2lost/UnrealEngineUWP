@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ActorBrowsingMode.h"
+
+#include "ActorBrowsingModeCommands.h"
 #include "Engine/Blueprint.h"
 #include "SceneOutlinerFilters.h"
 #include "SceneOutlinerModule.h"
@@ -49,10 +51,10 @@
 #include "SourceControlOperations.h"
 #include "EditorLevelUtils.h"
 #include "EditorViewportCommands.h"
-#include "SceneOutlinerActorSCCColumn.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Elements/Framework/TypedElementHandle.h"
+#include "Framework/Commands/GenericCommands.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogActorBrowser, Log, All);
 
@@ -105,6 +107,7 @@ FActorBrowsingMode::FActorBrowsingMode(SSceneOutliner* InSceneOutliner, TWeakObj
 
 	bHideLevelInstanceHierarchy = LocalSettings.bHideLevelInstanceHierarchy;
 	InSceneOutliner->SetShowTransient(!LocalSettings.bHideTemporaryActors);
+	bShouldUpdateContentWhileInPIEFocused = LocalSettings.bShouldUpdateContentWhileInPIEFocused;
 
 	// Get the OutlinerModule to register FilterInfos with the FilterInfoMap
 	FSceneOutlinerFilterInfo ShowOnlySelectedActorsInfo(LOCTEXT("ToggleShowOnlySelected", "Only Selected"), LOCTEXT("ToggleShowOnlySelectedToolTip", "When enabled, only displays actors that are currently selected."), LocalSettings.bShowOnlySelectedActors, FCreateSceneOutlinerFilter::CreateStatic(&FActorBrowsingMode::CreateShowOnlySelectedActorsFilter));
@@ -265,7 +268,7 @@ FActorBrowsingMode::FActorBrowsingMode(SSceneOutliner* InSceneOutliner, TWeakObj
 					// then the actor should not be selectable.
 					if (const ILevelInstanceInterface* ParentLevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(Actor))
 					{
-						if (!LevelInstanceSubsystem->IsEditingLevelInstance(ParentLevelInstance))
+						if (!LevelInstanceSubsystem->IsEditingLevelInstance(ParentLevelInstance) && !LevelInstanceSubsystem->IsEditingLevelInstancePropertyOverrides(ParentLevelInstance))
 						{
 							return false;
 						}
@@ -401,7 +404,11 @@ FSlateColor FActorBrowsingMode::GetStatusTextColor() const
 
 void FActorBrowsingMode::OnActorEditorContextSubsystemChanged()
 {
-	SceneOutliner->FullRefresh();
+	// For performance reasons avoid doing full refresh if we don't have an active filter relying on the current Actor Editor Context
+	if (const FActorBrowsingModeConfig* Settings = GetConstConfig(); Settings && (Settings->bShowOnlyActorsInCurrentDataLayers || Settings->bShowOnlyActorsInCurrentContentBundle))
+	{
+		SceneOutliner->FullRefresh();
+	}
 }
 
 void FActorBrowsingMode::OnToggleAlwaysFrameSelection()
@@ -543,6 +550,21 @@ void FActorBrowsingMode::InitializeViewMenuExtender(TSharedPtr<FExtender> Extend
 			NAME_None,
 			EUserInterfaceActionType::ToggleButton
 		);
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("ShouldUpdateContentWhileInPIEFocusedLabel", "Update In PIE"),
+			LOCTEXT("ShouldUpdateContentWhileInPIEFocusedLabelTooltip", "When enabled, the Outliner will update in PIE."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateRaw(this, &FActorBrowsingMode::OnToggleShouldUpdateContentWhileInPIEFocused),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateRaw(this, &FActorBrowsingMode::ShouldUpdateContentWhileInPIEFocused),
+				FIsActionButtonVisible::CreateLambda([this]() { return (WorldPartitionEditorModule ? !WorldPartitionEditorModule->GetDisablePIE() : true); })
+			),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton
+		);
+
 
 		MenuBuilder.EndSection();
 
@@ -747,9 +769,9 @@ void FActorBrowsingMode::FillDefaultContextBaseMenu(UToolMenu* InMenu)
 			if (!Context->bRepresentingGameWorld && Context->bRepresentingPartitionedWorld)
 			{
 				MainSection.AddMenuEntry(
-					"PinItems",
-					LOCTEXT("Pin", "Pin"),
-					LOCTEXT("PinTooltip", "Keep the selected items loaded in the editor even when they don't overlap a loaded World Partition region"),
+					"ForceLoadItems",
+					LOCTEXT("ForceLoad", "Force Load"),
+					LOCTEXT("ForceLoadTooltip", "Keep the selected items loaded in the editor even when they don't overlap a loaded World Partition region"),
 					FSlateIcon(),
 					FUIAction(
 						FExecuteAction::CreateSP(SceneOutliner, &SSceneOutliner::PinSelectedItems),
@@ -763,9 +785,9 @@ void FActorBrowsingMode::FillDefaultContextBaseMenu(UToolMenu* InMenu)
 				})));
 
 				MainSection.AddMenuEntry(
-					"UnpinItems",
-					LOCTEXT("Unpin", "Unpin"),
-					LOCTEXT("UnpinTooltip", "Allow the World Partition system to load and unload the selected items automatically"),
+					"ReleaseForceLoadItems",
+					LOCTEXT("ReleaseForceLoad", "Release Force Load"),
+					LOCTEXT("ReleaseForceLoadTooltip", "Allow the World Partition system to load and unload the selected items automatically"),
 					FSlateIcon(),
 					FUIAction(
 						FExecuteAction::CreateSP(SceneOutliner, &SSceneOutliner::UnpinSelectedItems),
@@ -876,16 +898,19 @@ TSharedPtr<SWidget> FActorBrowsingMode::BuildContextMenu()
 	ContextObject->bRepresentingPartitionedWorld = bRepresentingWorldPartitionedWorld;
 
 	int32 NumPinnedItems = 0;
-	if (const UWorldPartition* const WorldPartition = RepresentingWorld->GetWorldPartition())
+	if (RepresentingWorld.IsValid())
 	{
-		ItemSelection.ForEachItem<IActorBaseTreeItem>([WorldPartition, &NumPinnedItems](const IActorBaseTreeItem& ActorItem)
+		if (const UWorldPartition* const WorldPartition = RepresentingWorld->GetWorldPartition())
 		{
-			if (WorldPartition->IsActorPinned(ActorItem.GetGuid()))
-			{
-				++NumPinnedItems;
-			}
-			return true;
-		});
+			ItemSelection.ForEachItem<IActorBaseTreeItem>([WorldPartition, &NumPinnedItems](const IActorBaseTreeItem& ActorItem)
+				{
+					if (WorldPartition->IsActorPinned(ActorItem.GetGuid()))
+					{
+						++NumPinnedItems;
+					}
+					return true;
+				});
+		}
 	}
 	ContextObject->NumPinnedItems = NumPinnedItems;
 
@@ -934,10 +959,12 @@ void FActorBrowsingMode::OnItemAdded(FSceneOutlinerTreeItemPtr Item)
 {
 	if (const FActorTreeItem* ActorItem = Item->CastTo<FActorTreeItem>())
 	{
+		// We incremented the count regardless of Flags.bIsFilteredOut because the count should match what the user sees, which includes things like
+		// actors which don't pass the filter themselves but are force shown by children being visible.
+		++FilteredActorCount;
+		
 		if (!Item->Flags.bIsFilteredOut)
 		{
-			++FilteredActorCount;
-
 			// Synchronize selection
 			if (GEditor->GetSelectedActors()->IsSelected(ActorItem->Actor.Get()))
 			{
@@ -947,11 +974,8 @@ void FActorBrowsingMode::OnItemAdded(FSceneOutlinerTreeItemPtr Item)
 	}
 	else if (Item->IsA<FActorDescTreeItem>())
 	{
-		if (!Item->Flags.bIsFilteredOut)
-		{
-			++FilteredActorCount;
-			++FilteredUnloadedActorCount;
-		}
+		++FilteredActorCount;
+		++FilteredUnloadedActorCount;
 	}
 }
 
@@ -959,23 +983,19 @@ void FActorBrowsingMode::OnItemRemoved(FSceneOutlinerTreeItemPtr Item)
 {
 	if (Item->IsA<FActorTreeItem>())
 	{
-		if (!Item->Flags.bIsFilteredOut)
-		{
-			--FilteredActorCount;
-		}
+		--FilteredActorCount;
 	}
 	else if (Item->IsA<FActorDescTreeItem>())
 	{
-		if (!Item->Flags.bIsFilteredOut)
-		{
-			--FilteredActorCount;
-			--FilteredUnloadedActorCount;
-		}
+		--FilteredActorCount;
+		--FilteredUnloadedActorCount;
 	}
 }
 
 void FActorBrowsingMode::OnComponentsUpdated()
 {
+	UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("FullRefresh requested by FActorBrowsingMode::OnComponentsUpdated"));
+
 	SceneOutliner->FullRefresh();
 }
 
@@ -986,29 +1006,32 @@ void FActorBrowsingMode::OnLevelActorDeleted(AActor* Actor)
 
 void FActorBrowsingMode::OnSelectUnloadedActors(const TArray<FGuid>& ActorGuids)
 {
-	if (UWorldPartition* WorldPartition = RepresentingWorld->GetWorldPartition())
+	if (RepresentingWorld.IsValid())
 	{
-		TArray<FSceneOutlinerTreeItemPtr> ItemsToSelect;
-		ItemsToSelect.Reserve(ActorGuids.Num());
-		for (const FGuid& ActorGuid : ActorGuids)
+		if (UWorldPartition* WorldPartition = RepresentingWorld->GetWorldPartition())
 		{
-			if (FWorldPartitionActorDescInstance* ActorDescInstance = WorldPartition->GetActorDescInstance(ActorGuid))
+			TArray<FSceneOutlinerTreeItemPtr> ItemsToSelect;
+			ItemsToSelect.Reserve(ActorGuids.Num());
+			for (const FGuid& ActorGuid : ActorGuids)
 			{
-				if (FSceneOutlinerTreeItemPtr ItemPtr = SceneOutliner->GetTreeItem(FActorDescTreeItem::ComputeTreeItemID(ActorDescInstance->GetGuid(), ActorDescInstance->GetContainerInstance())))
+				if (FWorldPartitionActorDescInstance* ActorDescInstance = WorldPartition->GetActorDescInstance(ActorGuid))
 				{
-					ItemsToSelect.Add(ItemPtr);
+					if (FSceneOutlinerTreeItemPtr ItemPtr = SceneOutliner->GetTreeItem(FActorDescTreeItem::ComputeTreeItemID(ActorDescInstance->GetGuid(), ActorDescInstance->GetContainerInstance())))
+					{
+						ItemsToSelect.Add(ItemPtr);
+					}
 				}
 			}
-		}
 
-		if (ItemsToSelect.Num())
-		{
-			SceneOutliner->SetItemSelection(ItemsToSelect, true);
-			SceneOutliner->ScrollItemIntoView(ItemsToSelect.Last());
-
-			if (const FActorDescTreeItem* ActorDescItem = ItemsToSelect.Last()->CastTo<FActorDescTreeItem>())
+			if (ItemsToSelect.Num())
 			{
-				ActorDescItem->FocusActorBounds();
+				SceneOutliner->SetItemSelection(ItemsToSelect, true);
+				SceneOutliner->ScrollItemIntoView(ItemsToSelect.Last());
+
+				if (const FActorDescTreeItem* ActorDescItem = ItemsToSelect.Last()->CastTo<FActorDescTreeItem>())
+				{
+					ActorDescItem->FocusActorBounds();
+				}
 			}
 		}
 	}
@@ -1210,6 +1233,21 @@ bool FActorBrowsingMode::DoesFolderDoubleClickMarkCurrentFolder() const
 	return false;
 }
 
+void FActorBrowsingMode::OnToggleShouldUpdateContentWhileInPIEFocused()
+{
+	if (FActorBrowsingModeConfig* Settings = GetMutableConfig())
+	{
+		Settings->bShouldUpdateContentWhileInPIEFocused = !Settings->bShouldUpdateContentWhileInPIEFocused;
+		bShouldUpdateContentWhileInPIEFocused = Settings->bShouldUpdateContentWhileInPIEFocused;
+		SaveConfig();
+	}
+}
+
+bool FActorBrowsingMode::ShouldUpdateContentWhileInPIEFocused() const
+{
+	return bShouldUpdateContentWhileInPIEFocused;
+}
+
 void FActorBrowsingMode::OnFilterTextCommited(FSceneOutlinerItemSelection& Selection, ETextCommit::Type CommitType)
 {
 	// Start batching selection changes
@@ -1255,76 +1293,24 @@ void FActorBrowsingMode::OnItemPassesFilters(const ISceneOutlinerTreeItem& Item)
 FReply FActorBrowsingMode::OnKeyDown(const FKeyEvent& InKeyEvent)
 {
 	const FSceneOutlinerItemSelection& Selection = SceneOutliner->GetSelection();
+	const FModifierKeysState ModifierKeys = FSlateApplication::Get().GetModifierKeys();
+	const FInputChord CheckChord( InKeyEvent.GetKey(), EModifierKey::FromBools(ModifierKeys.IsControlDown(), ModifierKeys.IsAltDown(), ModifierKeys.IsShiftDown(), ModifierKeys.IsCommandDown()) );
 
-	// Rename key: Rename selected actors (not rebindable, because it doesn't make much sense to bind.)
-	if (InKeyEvent.GetKey() == EKeys::F2)
+	// Use the keyboard shortcut bound to 'Focus Viewport To Selection'
+	if (FEditorViewportCommands::Get().FocusViewportToSelection->HasActiveChord(CheckChord))
 	{
 		if (Selection.Num() == 1)
 		{
-			FSceneOutlinerTreeItemPtr ItemToRename = Selection.SelectedItems[0].Pin();
+			FSceneOutlinerTreeItemPtr ItemToFocus = Selection.SelectedItems[0].Pin();
 
-			if (ItemToRename.IsValid() && CanRenameItem(*ItemToRename) && ItemToRename->CanInteract())
+			if (ItemToFocus.IsValid())
 			{
-				SceneOutliner->SetPendingRenameItem(ItemToRename);
-				SceneOutliner->ScrollItemIntoView(ItemToRename);
-			}
-
-			return FReply::Handled();
-		}
-	}
-
-	// F5 forces a full refresh
-	else if (InKeyEvent.GetKey() == EKeys::F5)
-	{
-		SceneOutliner->FullRefresh();
-		return FReply::Handled();
-	}
-
-	// Delete key: Delete selected actors (not rebindable, because it doesn't make much sense to bind.)
-	// Use Delete and Backspace instead of Platform_Delete because the LevelEditor default Edit Delete is bound to both
-	else if (InKeyEvent.GetKey() == EKeys::Delete || InKeyEvent.GetKey() == EKeys::BackSpace)
-	{
-		if (SceneOutliner->GetSharedData().CustomDelete.IsBound())
-		{
-			SceneOutliner->GetSharedData().CustomDelete.Execute(Selection.SelectedItems);
-		}
-		else
-		{
-			if (RepresentingWorld.IsValid())
-			{
-				GUnrealEd->Exec(RepresentingWorld.Get(), TEXT("DELETE"));
-			}
-		}
-		return FReply::Handled();
-
-	}
-
-	/* Allow the user to scroll to the current selection (and expand if needed) by pressing the key bound to
-	 * FEditorViewportCommands::Get().FocusViewportToSelection (Default: 'F')
-	 */
-	else
-	{
-		const FModifierKeysState ModifierKeys = FSlateApplication::Get().GetModifierKeys();
-		const FInputChord CheckChord( InKeyEvent.GetKey(), EModifierKey::FromBools(ModifierKeys.IsControlDown(), ModifierKeys.IsAltDown(), ModifierKeys.IsShiftDown(), ModifierKeys.IsCommandDown()) );
-
-		// Use the keyboard shortcut bound to 'Focus Viewport To Selection'
-		if (FEditorViewportCommands::Get().FocusViewportToSelection->HasActiveChord(CheckChord))
-		{
-			if (Selection.Num() == 1)
-			{
-				FSceneOutlinerTreeItemPtr ItemToFocus = Selection.SelectedItems[0].Pin();
-
-				if (ItemToFocus.IsValid())
-				{
-					SceneOutliner->ScrollItemIntoView(ItemToFocus);
-				}
-
-				// Return Unhandled here so that the level editor viewport can handle this event and focus the selected item
-				return FReply::Unhandled();
+				SceneOutliner->ScrollItemIntoView(ItemToFocus);
 			}
 		}
 	}
 
+	// Always return Unhandled here even if it entered the previous if so that the level editor viewport can handle the FocusViewport command as well
 	return FReply::Unhandled();
 }
 
@@ -1397,7 +1383,7 @@ FText FActorBrowsingMode::GetErrorsText() const
 
 void FActorBrowsingMode::RepairErrors() const
 {
-	if (!bRepresentingWorldGameWorld && bRepresentingWorldPartitionedWorld)
+	if (RepresentingWorld.IsValid() && !bRepresentingWorldGameWorld && bRepresentingWorldPartitionedWorld)
 	{
 		if (UWorldPartition* const WorldPartition = RepresentingWorld->GetWorldPartition())
 		{
@@ -1475,6 +1461,25 @@ void FActorBrowsingMode::RepairErrors() const
 	}
 }
 
+void FActorBrowsingMode::BindCommands(const TSharedRef<FUICommandList>& OutCommandList)
+{
+	OutCommandList->MapAction(
+		FGenericCommands::Get().Rename,
+		FExecuteAction::CreateRaw(this, &FActorBrowsingMode::OnExecuteRename ),
+		FCanExecuteAction::CreateRaw(this, &FActorBrowsingMode::CanExecuteRename));
+
+	OutCommandList->MapAction(
+		FGenericCommands::Get().Delete,
+		FExecuteAction::CreateRaw(this, &FActorBrowsingMode::OnExecuteDelete),
+		FCanExecuteAction::CreateRaw(this, &FActorBrowsingMode::CanDelete));
+	
+	OutCommandList->MapAction(
+		FActorBrowsingModeCommands::Get().Refresh,
+		FExecuteAction::CreateRaw(this, &FActorBrowsingMode::OnExecuteRefresh));
+
+	FInputBindingManager::Get().RegisterCommandList(FActorBrowsingModeCommands::Get().GetContextName(), OutCommandList);
+}
+
 bool FActorBrowsingMode::CanPasteFoldersOnlyFromClipboard() const
 {
 	// Intentionally not checking if the level is locked/hidden here, as it's better feedback for the user if they attempt to paste
@@ -1482,6 +1487,53 @@ bool FActorBrowsingMode::CanPasteFoldersOnlyFromClipboard() const
 	FString PasteString;
 	FPlatformApplicationMisc::ClipboardPaste(PasteString);
 	return PasteString.StartsWith("BEGIN FOLDERLIST");
+}
+
+void FActorBrowsingMode::OnExecuteDelete()
+{
+	const FSceneOutlinerItemSelection& Selection = SceneOutliner->GetSelection();
+	if (SceneOutliner->GetSharedData().CustomDelete.IsBound())
+	{
+		SceneOutliner->GetSharedData().CustomDelete.Execute(Selection.SelectedItems);
+	}
+	else
+	{
+		if (RepresentingWorld.IsValid())
+		{
+			GUnrealEd->Exec(RepresentingWorld.Get(), TEXT("DELETE"));
+		}
+	}
+}
+
+void FActorBrowsingMode::OnExecuteRefresh()
+{
+	SceneOutliner->FullRefresh();
+}
+
+void FActorBrowsingMode::OnExecuteRename()
+{
+	const FSceneOutlinerItemSelection& Selection = SceneOutliner->GetSelection();
+	if (Selection.Num() == 1)
+	{
+		FSceneOutlinerTreeItemPtr ItemToRename = Selection.SelectedItems[0].Pin();
+
+		if (ItemToRename.IsValid() && CanRenameItem(*ItemToRename) && ItemToRename->CanInteract())
+		{
+			SceneOutliner->SetPendingRenameItem(ItemToRename);
+			SceneOutliner->ScrollItemIntoView(ItemToRename);
+		}
+	}
+}
+
+bool FActorBrowsingMode::CanExecuteRename()
+{
+	const FSceneOutlinerItemSelection& Selection = SceneOutliner->GetSelection();
+	if (Selection.Num() == 1)
+	{
+		FSceneOutlinerTreeItemPtr ItemToRename = Selection.SelectedItems[0].Pin();
+		return ItemToRename.IsValid() && CanRenameItem(*ItemToRename) && ItemToRename->CanInteract();
+	}
+	return false;
 }
 
 void FActorBrowsingMode::SynchronizeSelectedActorDescs()

@@ -241,8 +241,6 @@ FNetworkServerNode::FNetworkServerNode()
 	TSharedRef<FInternetAddr> InternetAddress = SocketSubsystem->CreateInternetAddr();
 	InternetAddress->SetLoopbackAddress();
 
-	FString a = InternetAddress->ToString(true);
-
 	int32 BoundPort = SocketSubsystem->BindNextPort(ListeningSocket, *InternetAddress, 1e3, 1);
 	if (BoundPort == 0)
 	{

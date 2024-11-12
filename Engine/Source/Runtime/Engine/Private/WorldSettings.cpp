@@ -22,7 +22,6 @@
 #include "PhysicsEngine/PhysicsSettings.h"
 #include "UObject/ReleaseObjectVersion.h"
 #include "UObject/EnterpriseObjectVersion.h"
-#include "UObject/FortniteMainBranchObjectVersion.h"
 #include "SceneManagement.h"
 #include "AI/AISystemBase.h"
 #include "AI/NavigationSystemConfig.h"
@@ -36,6 +35,7 @@
 #include "Editor.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "HierarchicalLOD.h"
+#include "HLOD/HLODSetup.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #endif 
 
@@ -50,6 +50,21 @@ ENGINE_API float GNewWorldToMetersScale = 0.0f;
 #if WITH_EDITOR
 AWorldSettings::FOnBookmarkClassChanged AWorldSettings::OnBookmarkClassChanged;
 AWorldSettings::FOnNumberOfBookmarksChanged AWorldSettings::OnNumberOfBoomarksChanged;
+
+namespace WorldSettingsUtils
+{
+	bool CanDeleteOrReplaceCommon(const AWorldSettings* InActor, FText& OutReason)
+	{
+		const ULevel* OwnerLevel = InActor->GetLevel();
+		if (OwnerLevel && OwnerLevel->GetWorldSettings() == InActor)
+		{
+			OutReason = NSLOCTEXT("WorldSettings", "CanDeleteOrReplace_Error_WorldSettings", "Can't delete or replace a level's world settings.");
+			return false;
+		}
+
+		return true;
+	}
+}
 #endif
 AWorldSettings::FOnNaniteSettingsChanged AWorldSettings::OnNaniteSettingsChanged;
 
@@ -115,6 +130,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	bPlaceCellsOnlyAlongCameraTracks = false;
 	VisibilityCellSize = 200;
 	VisibilityAggressiveness = VIS_LeastAggressive;
+	
+	VolumetricLightmapLoadingRange = 6400;
 
 #if WITH_EDITORONLY_DATA
 	bActorLabelEditable = false;
@@ -227,9 +244,22 @@ void AWorldSettings::SetWorldPartition(UWorldPartition* InWorldPartition)
 
 void AWorldSettings::ApplyWorldPartitionForcedSettings()
 {
+	static const auto CVarAllowStaticLightingOnWPMaps = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLightingInWorldPartitionMaps"));
+
 	bEnableWorldComposition = false;
-	bForceNoPrecomputedLighting = true;
 	bPrecomputeVisibility = false;
+	if (CVarAllowStaticLightingOnWPMaps->GetValueOnAnyThread() != 0)
+	{
+		// leave static lighting options alone
+	}
+	else
+	{
+		bForceNoPrecomputedLighting = true;	
+	}
+#if WITH_EDITOR
+
+	LightmassSettings.bWorldPartition = true;
+#endif
 }
 
 float AWorldSettings::GetGravityZ() const
@@ -298,6 +328,8 @@ void AWorldSettings::NotifyBeginPlay()
 	UWorld* World = GetWorld();
 	if (!World->GetBegunPlay())
 	{
+		World->OnWorldPreBeginPlay.Broadcast();
+
 		for (FActorIterator It(World); It; ++It)
 		{
 			SCOPE_CYCLE_COUNTER(STAT_ActorBeginPlay);
@@ -561,7 +593,7 @@ void AWorldSettings::PostLoad()
 #if WITH_EDITOR
 	if (WorldPartition)
 	{
-		// Force to re-apply WorldPartition restrictions on WorldSettings (in case they changed)
+		// Force to re-apply WorldPartition restrictions on WorldSettings (in case they changed)	
 		ApplyWorldPartitionForcedSettings();
 	}
 #endif// WITH_EDITOR
@@ -656,6 +688,27 @@ void AWorldSettings::CheckForErrors()
 	}
 }
 
+bool AWorldSettings::CanDeleteSelectedActor(FText& OutReason) const
+{
+	if (!Super::CanDeleteSelectedActor(OutReason))
+	{
+		return false;
+	}
+
+	return WorldSettingsUtils::CanDeleteOrReplaceCommon(this, OutReason);
+}
+
+bool AWorldSettings::CanReplaceSelectedActor(FText& OutReason) const
+{
+	if (!Super::CanReplaceSelectedActor(OutReason))
+	{
+		return false;
+	}
+
+	return WorldSettingsUtils::CanDeleteOrReplaceCommon(this, OutReason);
+}
+
+
 bool AWorldSettings::CanEditChange(const FProperty* InProperty) const
 {
 	if (InProperty)
@@ -678,7 +731,9 @@ bool AWorldSettings::CanEditChange(const FProperty* InProperty) const
 
 			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FLightmassWorldInfoSettings, VolumetricLightmapDetailCellSize)
 				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FLightmassWorldInfoSettings, VolumetricLightmapMaximumBrickMemoryMb)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FLightmassWorldInfoSettings, VolumetricLightmapSphericalHarmonicSmoothing))
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FLightmassWorldInfoSettings, VolumetricLightmapSphericalHarmonicSmoothing)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FLightmassWorldInfoSettings, VolumetricLightmapLoadingCellSize)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(AWorldSettings, VolumetricLightmapLoadingRange))
 			{
 				return LightmassSettings.VolumeLightingMethod == VLM_VolumetricLightmap;
 			}
@@ -694,7 +749,6 @@ bool AWorldSettings::CanEditChange(const FProperty* InProperty) const
 			}
 		}
 		else if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(AWorldSettings, bEnableWorldComposition ) ||
-				 PropertyName == GET_MEMBER_NAME_STRING_CHECKED(AWorldSettings, bForceNoPrecomputedLighting ) ||
 				 PropertyName == GET_MEMBER_NAME_STRING_CHECKED(AWorldSettings, bPrecomputeVisibility))
 		{
 			return !IsPartitionedWorld();
@@ -1073,46 +1127,6 @@ void AWorldSettings::RewindForReplay()
 	CinematicTimeDilation = 1.0;
 	bWorldGravitySet = false;
 	bHighPriorityLoading = false;
-}
-
-#if WITH_EDITORONLY_DATA
-
-bool FHierarchicalSimplification::Serialize(FArchive& Ar)
-{
-	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
-
-	// Don't actually serialize, just write the custom version for PostSerialize
-	return false;
-}
-
-void FHierarchicalSimplification::PostSerialize(const FArchive& Ar)
-{
-	if (Ar.IsLoading())
-	{
-		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::HierarchicalSimplificationMethodEnumAdded)
-		{
-			SimplificationMethod = bSimplifyMesh_DEPRECATED ? EHierarchicalSimplificationMethod::Simplify : EHierarchicalSimplificationMethod::Merge;
-		}
-	}
-}
-
-#endif
-
-FMaterialProxySettings* FHierarchicalSimplification::GetSimplificationMethodMaterialSettings()
-{
-	switch (SimplificationMethod)
-	{
-	case EHierarchicalSimplificationMethod::Merge:
-		return &MergeSetting.MaterialSettings;
-
-	case EHierarchicalSimplificationMethod::Simplify:
-		return &ProxySetting.MaterialSettings;
-
-	case EHierarchicalSimplificationMethod::Approximate:
-		return &ApproximateSettings.MaterialSettings;
-	}
-
-	return nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE

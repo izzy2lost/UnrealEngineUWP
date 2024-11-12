@@ -3,18 +3,25 @@
 #pragma once
 
 #include "Replication/Processing/ObjectReplicationReceiver.h"
-#include "Templates/SharedPointer.h"
+
+#include "HAL/Platform.h"
 
 namespace UE::ConcertSyncServer::Replication
 {
 	class FAuthorityManager;
+	class FSyncControlManager;
 	
 	/** Rejects changes to objects that the sending client does not have authority over. */
 	class FServerObjectReplicationReceiver : public ConcertSyncCore::FObjectReplicationReceiver
 	{
 	public:
 
-		FServerObjectReplicationReceiver(TSharedRef<FAuthorityManager> AuthorityManager, TSharedRef<IConcertSession> Session, TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReplicationCache);
+		FServerObjectReplicationReceiver(
+			const FAuthorityManager& AuthorityManager UE_LIFETIMEBOUND,
+			const FSyncControlManager& SyncControlManager UE_LIFETIMEBOUND,
+			IConcertSession& Session UE_LIFETIMEBOUND,
+			ConcertSyncCore::FObjectReplicationCache& ReplicationCache UE_LIFETIMEBOUND
+			);
 
 	protected:
 
@@ -25,7 +32,9 @@ namespace UE::ConcertSyncServer::Replication
 	private:
 
 		/** Used to determine whether a client has authority over objects. */
-		TSharedRef<FAuthorityManager> AuthorityManager;
+		const FAuthorityManager& AuthorityManager;
+		/** Used to determine whether any client is listening to an incoming object. */
+		const FSyncControlManager& SyncControlManager;
 	};
 }
 

@@ -16,6 +16,7 @@
 #include "IPropertyUtilities.h"
 #include "SSearchableComboBox.h"
 #include "Widgets/Input/SSegmentedControl.h"
+#include "Widgets/Input/SMenuAnchor.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
@@ -25,6 +26,7 @@
 #include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
 #include "Algo/Transform.h"
+#include "Editor/SRigHierarchyTreeView.h"
 
 #include "ControlRigElementDetails.generated.h"
 
@@ -409,6 +411,7 @@ public:
 	void CustomizeValue(IDetailLayoutBuilder& DetailBuilder);
 	void CustomizeControl(IDetailLayoutBuilder& DetailBuilder);
 	void CustomizeAnimationChannels(IDetailLayoutBuilder& DetailBuilder);
+	void CustomizeAvailableSpaces(IDetailLayoutBuilder& DetailBuilder);
 	void CustomizeShape(IDetailLayoutBuilder& DetailBuilder);
 	virtual void BeginDestroy() override;
 
@@ -741,6 +744,13 @@ private:
 	// animation channel related callbacks
 	FReply OnAddAnimationChannelClicked();
 	TSharedRef<ITableRow> HandleGenerateAnimationChannelTypeRow(TSharedPtr<ERigControlType> ControlType, const TSharedRef<STableViewBase>& OwnerTable, FRigElementKey ControlKey);
+
+	// multi parent related callbacks
+	const FRigTreeDisplaySettings& GetDisplaySettings() const { return DisplaySettings; }
+	TSharedRef<SWidget> GetAddSpaceContent(const TSharedRef<IPropertyUtilities> PropertyUtilities);
+	FReply OnAddSpaceMouseDown(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, const TSharedRef<IPropertyUtilities> PropertyUtilities);
+	void OnAddSpaceSelection(TSharedPtr<FRigTreeElement> Selection, ESelectInfo::Type SelectInfo, const TSharedRef<IPropertyUtilities> PropertyUtilities);
+
 	void HandleControlTypeChanged(TSharedPtr<ERigControlType> ControlType, ESelectInfo::Type SelectInfo, FRigElementKey ControlKey, const TSharedRef<IPropertyUtilities> PropertyUtilities);
 	void HandleControlTypeChanged(ERigControlType ControlType, TArray<FRigElementKey> ControlKeys, const TSharedRef<IPropertyUtilities> PropertyUtilities);
 	void HandleControlEnumChanged(TSharedPtr<FString> InItem, ESelectInfo::Type InSelectionInfo, const TSharedRef<IPropertyUtilities> PropertyUtilities);
@@ -751,10 +761,12 @@ private:
 
 	TSharedPtr<IPropertyHandle> ShapeNameHandle;
 	TSharedPtr<IPropertyHandle> ShapeColorHandle;
-	TSharedPtr<IPropertyHandle> ShapeTransformHandle;
 
 	TSharedPtr<SControlRigShapeNameList> ShapeNameListWidget; 
 	static TSharedPtr<TArray<ERigControlValueType>> PickedValueTypes;
+
+	FRigTreeDisplaySettings DisplaySettings;
+	TSharedPtr<SMenuAnchor> AddSpaceMenuAnchor;
 };
 
 template<>
@@ -867,4 +879,24 @@ protected:
 	TSharedPtr<IPropertyHandle> StructPropertyHandle;
 	TSharedPtr<IPropertyUtilities> PropertyUtilities;
 	TAttribute<bool> EnabledAttribute;
+};
+
+class FRigPhysicsElementDetails : public FRigTransformElementDetails
+{
+public:
+
+	// Makes a new instance of this detail layout class for a specific detail view requesting it
+	static TSharedRef<IDetailCustomization> MakeInstance()
+	{
+		return MakeShareable(new FRigPhysicsElementDetails);
+	}
+
+	/** IDetailCustomization interface */
+	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+
+	void CustomizeSettings(IDetailLayoutBuilder& DetailBuilder);
+
+private:
+
+	FText GetSolverNameText() const;
 };

@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/WeakObjectPtr.h"
-#include "Param/ParamTypeHandle.h"
+#include "Param/ParamType.h"
 #include "Animation/AnimTypes.h"
 #include "ReferenceSkeleton.h"
 #include "BoneIndices.h"
@@ -20,12 +20,12 @@ struct FAllocatedBlock
 	void* Memory = nullptr;
 	int32 NumElem = 0;
 	mutable int32 NumRefs = 0;
-	FParamTypeHandle TypeHandle;
+	FAnimNextParamType Type;
 
-	FAllocatedBlock(void* InMemory, int32 InNumElem, FParamTypeHandle InTypeHandle)
+	FAllocatedBlock(void* InMemory, int32 InNumElem, FAnimNextParamType InType)
 		: Memory(InMemory)
 		, NumElem(InNumElem)
-		, TypeHandle(InTypeHandle)
+		, Type(InType)
 	{
 	}
 
@@ -152,9 +152,9 @@ struct ANIMNEXT_API FDataHandle
 		return *Data;
 	}
 
-	inline FParamTypeHandle GetTypeHandle() const
+	inline FAnimNextParamType GetType() const
 	{
-		return AllocatedBlock != nullptr ? AllocatedBlock->TypeHandle : FParamTypeHandle();
+		return AllocatedBlock != nullptr ? AllocatedBlock->Type : FAnimNextParamType();
 	}
 
 private:

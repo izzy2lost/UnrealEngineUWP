@@ -1,21 +1,29 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTransitionExecutor.h"
+#include "AvaTag.h"
 #include "AvaTagHandleKeyFuncs.h"
+#include "AvaTagList.h"
 #include "AvaTransitionLayer.h"
 #include "AvaTransitionSubsystem.h"
+#include "AvaTransitionTree.h"
 #include "Behavior/IAvaTransitionBehavior.h"
 #include "Engine/World.h"
 #include "Execution/AvaTransitionExecutorBuilder.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogAvaTransitionExecutor, Log, All);
 
+TMulticastDelegate<void(const IAvaTransitionExecutor&)> IAvaTransitionExecutor::OnTransitionStart;
+
 FAvaTransitionExecutor::FAvaTransitionExecutor(FAvaTransitionExecutorBuilder& InBuilder)
-	: Instances(MoveTemp(InBuilder.Instances))
-	, NullInstance(MoveTemp(InBuilder.NullInstance))
+	: NullInstance(MoveTemp(InBuilder.NullInstance))
 	, ContextName(MoveTemp(InBuilder.ContextName))
 	, OnFinished(MoveTemp(InBuilder.OnFinished))
 {
+	// Add Exit then Enter instances to keep a consistent order of execution
+	Instances.Reserve(InBuilder.ExitInstances.Num() + InBuilder.EnterInstances.Num());
+	Instances.Append(MoveTemp(InBuilder.ExitInstances));
+	Instances.Append(MoveTemp(InBuilder.EnterInstances));
 }
 
 FAvaTransitionExecutor::~FAvaTransitionExecutor()
@@ -41,48 +49,96 @@ void FAvaTransitionExecutor::Setup()
 			InInstance.Setup();
 		});
 
-	using FAvaTagHandleMapType = TMap<FAvaTagHandle, EAvaTransitionType, FDefaultSetAllocator, TAvaTagHandleMapKeyFuncs<EAvaTransitionType, false>>;
-
-	FAvaTagHandleMapType LayerToTransitionTypeMap;
-	LayerToTransitionTypeMap.Reserve(Instances.Num());
-
-	// Gather Map of Layer to the Transition Types for that Layer
-	for (const FAvaTransitionBehaviorInstance& Instance : Instances)
+	struct FLayerInfo
 	{
-		EAvaTransitionType& LayerTransitionType = LayerToTransitionTypeMap.FindOrAdd(Instance.GetTransitionLayer());
-		LayerTransitionType |= Instance.GetTransitionType();
+		// Enter Instances found for a given Layer
+		TArray<FAvaTransitionBehaviorInstance*> EnterInstances;
+
+		// Exit Instances found for a given Layer
+		TArray<FAvaTransitionBehaviorInstance*> ExitInstances;
+
+		// The accumulated Transition Type for a given Layer (e.g. combinations could be In, Out or In | Out)
+		EAvaTransitionType TransitionType;
+
+		FAvaTagHandle TransitionLayer;
+	};
+
+	// Map of the Resolved Tag Layer to the Behavior Instances / Transition type of that Layer
+	TMap<FAvaTag, FLayerInfo> TagLayerInfo;
+	{
+		// Rough Estimate: assume each Instance is in its own single unique tag
+		TagLayerInfo.Reserve(Instances.Num());
+
+		// Gather the Layer info for each Instance
+		for (FAvaTransitionBehaviorInstance& Instance : Instances)
+		{
+			for (const FAvaTag* Tag : Instance.GetTransitionLayer().GetTags())
+			{
+				FLayerInfo& LayerInfo = TagLayerInfo.FindOrAdd(*Tag);
+				LayerInfo.TransitionType |= Instance.GetTransitionType();
+				LayerInfo.TransitionLayer = Instance.GetTransitionLayer();
+
+				switch (Instance.GetTransitionType())
+				{
+				case EAvaTransitionType::In:
+					LayerInfo.EnterInstances.AddUnique(&Instance);
+					break;
+
+				case EAvaTransitionType::Out:
+					LayerInfo.ExitInstances.AddUnique(&Instance);
+					break;
+				}
+			}
+		}
 	}
 
 	// Ensure there's an exiting null instance for every entering Transition Instance in a layer
-	for (const TPair<FAvaTagHandle, EAvaTransitionType>& Pair : LayerToTransitionTypeMap)
+	for (const TPair<FAvaTag, FLayerInfo>& Pair : TagLayerInfo)
 	{
-		if (Pair.Value == EAvaTransitionType::In && !EnumHasAnyFlags(Pair.Value, EAvaTransitionType::Out))
+		const FLayerInfo& LayerInfo = Pair.Value;
+		if (LayerInfo.TransitionType == EAvaTransitionType::In && !EnumHasAnyFlags(LayerInfo.TransitionType, EAvaTransitionType::Out))
 		{
 			FAvaTransitionBehaviorInstance& NullInstanceCopy = Instances.Add_GetRef(NullInstance);
 			NullInstanceCopy.SetTransitionType(EAvaTransitionType::Out);
-			NullInstanceCopy.SetOverrideLayer(Pair.Key);
+			NullInstanceCopy.SetOverrideLayer(LayerInfo.TransitionLayer);
 			NullInstanceCopy.Setup();
 		}
 	}
 
 	// For the Instances that are going out, if they belong in the same Transition Layer as an Instance going In
 	// mark them as Needs Discard (this does not mean the scene will be discarded as there could be logic that reverts this flag)
-	for (FAvaTransitionBehaviorInstance& Instance : Instances)
+	for (const TPair<FAvaTag, FLayerInfo>& Pair : TagLayerInfo)
 	{
-		if (Instance.GetTransitionType() == EAvaTransitionType::In)
+		// Skip Layers that have no Enter Transition Instance to replace the existing one 
+		if (!EnumHasAnyFlags(Pair.Value.TransitionType, EAvaTransitionType::In))
 		{
 			continue;
 		}
 
-		Instance.SetTransitionType(EAvaTransitionType::Out);
-
-		const EAvaTransitionType LayerTransitionType = LayerToTransitionTypeMap[Instance.GetTransitionLayer()];
-
-		if (EnumHasAnyFlags(LayerTransitionType, EAvaTransitionType::In))
+		for (FAvaTransitionBehaviorInstance* ExitInstance : Pair.Value.ExitInstances)
 		{
-			if (FAvaTransitionScene* TransitionScene = Instance.GetTransitionContext().GetTransitionScene())
+			check(ExitInstance->GetTransitionType() == EAvaTransitionType::Out);
+
+			if (FAvaTransitionScene* TransitionScene = ExitInstance->GetTransitionContext().GetTransitionScene())
 			{
-				TransitionScene->SetFlags(EAvaTransitionSceneFlags::NeedsDiscard);
+				bool bSceneReused = false;
+
+				const UAvaTransitionTree* TransitionTree = ExitInstance->GetTransitionTree();
+				if (TransitionTree && TransitionTree->GetInstancingMode() == EAvaTransitionInstancingMode::Reuse)
+				{
+					// Scene reused if the Tree Instancing Mode is set to reuse, and if there is an Enter Instance with matching Tree (i.e. Level)
+					bSceneReused |= Pair.Value.EnterInstances.ContainsByPredicate(
+						[TransitionTree](const FAvaTransitionBehaviorInstance* InEnterInstance)
+						{
+							return InEnterInstance && InEnterInstance->GetTransitionTree() == TransitionTree;
+						});
+				}
+
+				// Only mark for discard if scene not reused
+				if (!bSceneReused)
+				{
+					TransitionScene->SetFlags(EAvaTransitionSceneFlags::NeedsDiscard);
+				}
 			}
 		}
 	}
@@ -100,6 +156,8 @@ void FAvaTransitionExecutor::Start()
 	}
 
 	Setup();
+
+	GetOnTransitionStart().Broadcast(*this);
 
 	ForEachInstance(
 		[](FAvaTransitionBehaviorInstance& InInstance)
@@ -137,6 +195,11 @@ TArray<const FAvaTransitionBehaviorInstance*> FAvaTransitionExecutor::GetBehavio
 	return OutInstances;
 }
 
+void FAvaTransitionExecutor::ForEachBehaviorInstance(TFunctionRef<void(const FAvaTransitionBehaviorInstance&)> InCallable) const
+{
+	ForEachInstance(InCallable);
+}
+
 void FAvaTransitionExecutor::Stop()
 {
 	ForEachInstance(
@@ -168,6 +231,20 @@ void FAvaTransitionExecutor::Tick(float InDeltaSeconds)
 bool FAvaTransitionExecutor::IsTickable() const
 {
 	return IsRunning();
+}
+
+FString FAvaTransitionExecutor::GetReferencerName() const
+{
+	return TEXT("FAvaTransitionExecutor");
+}
+
+void FAvaTransitionExecutor::AddReferencedObjects(FReferenceCollector& InCollector)
+{
+	ForEachInstance(
+		[&InCollector](FAvaTransitionBehaviorInstance& InInstance)
+		{
+			InInstance.AddReferencedObjects(InCollector);
+		});
 }
 
 void FAvaTransitionExecutor::ForEachInstance(TFunctionRef<void(FAvaTransitionBehaviorInstance&)> InFunc)

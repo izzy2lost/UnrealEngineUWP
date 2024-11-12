@@ -12,6 +12,7 @@ class FArchive;
 class FCbFieldView;
 class FCbWriter;
 class FPackageId;
+class FIoContainerId;
 
 /**
  * Addressable chunk types.
@@ -43,6 +44,18 @@ enum class EIoChunkType : uint8
 };
 
 CORE_API FString LexToString(const EIoChunkType Type);
+
+inline bool IsBulkDataType(const EIoChunkType Type)
+{
+	if (Type == EIoChunkType::BulkData || Type == EIoChunkType::OptionalBulkData || Type == EIoChunkType::MemoryMappedBulkData)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
 
 /**
  * Identifier to a chunk of data.
@@ -84,6 +97,16 @@ public:
 	inline bool operator !=(const FIoChunkId& Rhs) const
 	{
 		return !(*this == Rhs);
+	}
+
+	inline bool operator <(const FIoChunkId& Rhs) const
+	{
+		return FMemory::Memcmp(Id, Rhs.Id, sizeof Id) < 0;
+	}
+
+	inline bool operator >(const FIoChunkId& Rhs) const
+	{
+		return FMemory::Memcmp(Id, Rhs.Id, sizeof Id) > 0;
 	}
 
 	void Set(const void* InIdPtr, SIZE_T InSize)
@@ -132,10 +155,12 @@ private:
 	uint8	Id[12];
 };
 
+
 /** Creates a chunk identifier (generic -- prefer specialized versions where possible). */
 inline FIoChunkId CreateIoChunkId(uint64 ChunkId, uint16 ChunkIndex, EIoChunkType IoChunkType)
 {
 	checkSlow(IoChunkType != EIoChunkType::ExternalFile);	// Use CreateExternalFileChunkId() instead
+	checkfSlow(IsBulkDataType(IoChunkType) == false, TEXT("Bulkdata types should call CreateBulkDataIoChunkId instead"));
 
 	uint8 Data[12] = {0};
 
@@ -149,8 +174,41 @@ inline FIoChunkId CreateIoChunkId(uint64 ChunkId, uint16 ChunkIndex, EIoChunkTyp
 	return IoChunkId;
 }
 
+
+
+/**
+ * Used to create a FIoChunkId that references a bulkdata chunk.
+ * 
+ * TODO Cannot use FBulkDataChunkGroup directly here as it is in CoreUObject
+ * 
+ * @param ChunkId		FPackageId
+ * @param ChunkIndex	MultiOutputIindex [0 = disabled, 1 enabled]
+ * @param ChunkGroup	FBulkDataCookedIndex
+ * @param IoChunkType	EIoChunkType
+ */
+inline FIoChunkId CreateBulkDataIoChunkId(uint64 ChunkId, uint16 ChunkIndex, uint8 ChunkGroup, EIoChunkType IoChunkType)
+{
+	checkSlow(IoChunkType != EIoChunkType::ExternalFile);	// Use CreateExternalFileChunkId() instead
+	checkfSlow(IsBulkDataType(IoChunkType), TEXT("CreateBulkDataIoChunkId is only intended for bulkdata types"));
+	
+	uint8 Data[12] = { 0 };
+
+	*reinterpret_cast<uint64*>(&Data[0]) = ChunkId;
+	*reinterpret_cast<uint16*>(&Data[8]) = NETWORK_ORDER16(ChunkIndex);
+	*reinterpret_cast<uint8*>(&Data[10]) = ChunkGroup;
+	*reinterpret_cast<uint8*>(&Data[11]) = static_cast<uint8>(IoChunkType);
+
+	FIoChunkId IoChunkId;
+	IoChunkId.Set(Data, 12);
+
+	return IoChunkId;
+}
+
 /** Returns a package data I/O chunk ID for the specified package ID. */
 CORE_API FIoChunkId CreatePackageDataChunkId(const FPackageId& PackageId);
 
 /** Returns a file data I/O chunk ID for the specified filename. */
 CORE_API FIoChunkId CreateExternalFileChunkId(const FStringView Filename);
+
+/** Returns a container header I/O chunk ID. */
+CORE_API FIoChunkId CreateContainerHeaderChunkId(const FIoContainerId& ContainerId);

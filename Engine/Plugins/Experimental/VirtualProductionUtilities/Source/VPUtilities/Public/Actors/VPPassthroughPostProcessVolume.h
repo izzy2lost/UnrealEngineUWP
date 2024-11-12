@@ -56,5 +56,17 @@ public:
 
 		Settings.bOverride_VignetteIntensity = 1;
 		Settings.VignetteIntensity = 0.f;
+
+		Settings.bOverride_FilmGrainIntensity = 1;
+		Settings.FilmGrainIntensity = 0.0f;
+
+		Settings.bOverride_SceneFringeIntensity = 1;
+		Settings.SceneFringeIntensity = 0.0f;
+
+		Settings.bOverride_LumenFinalGatherScreenTraces = 1;
+		Settings.LumenFinalGatherScreenTraces = 0;
+
+		Settings.bOverride_LumenReflectionsScreenTraces = 1;
+		Settings.LumenReflectionsScreenTraces = 0;
 	}
 };

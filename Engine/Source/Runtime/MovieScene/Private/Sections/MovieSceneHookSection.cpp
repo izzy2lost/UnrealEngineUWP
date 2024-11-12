@@ -41,14 +41,20 @@ void UMovieSceneHookSection::ImportTriggerEntity(UMovieSceneEntitySystemLinker* 
 		return;
 	}
 
-	const FSequenceInstance& ThisInstance   = EntityLinker->GetInstanceRegistry()->GetInstance(Params.Sequence.InstanceHandle);
-	FMovieSceneContext       Context        = ThisInstance.GetContext();
+	const FSequenceInstance&  ThisInstance   = EntityLinker->GetInstanceRegistry()->GetInstance(Params.Sequence.InstanceHandle);
+	const FMovieSceneContext& Context        = ThisInstance.GetContext();
+
+	TOptional<FFrameTime> RootTime = Context.GetSequenceToRootSequenceTransform().TryTransformTime(Times[EventIndex], Context.GetRootToSequenceWarpCounter());
+	if (!RootTime)
+	{
+		return;
+	}
 
 	FMovieSceneEvaluationHookEvent NewEvent;
 	NewEvent.Hook.Interface = this;
 	NewEvent.Hook.ObjectBindingID = Params.GetObjectBindingID();
 
-	NewEvent.RootTime = Times[EventIndex] * Context.GetSequenceToRootSequenceTransform();
+	NewEvent.RootTime = RootTime.GetValue();
 	NewEvent.Type = EEvaluationHookEvent::Trigger;
 	NewEvent.SequenceID = ThisInstance.GetSequenceID();
 	NewEvent.TriggerIndex = EventIndex;

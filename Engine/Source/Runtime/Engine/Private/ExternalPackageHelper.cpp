@@ -8,6 +8,8 @@
 #include "Misc/ArchiveMD5.h"
 #include "Misc/Paths.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "UObject/MetaData.h"
+#include "GameFramework/Actor.h"
 
 FExternalPackageHelper::FOnObjectPackagingModeChanged FExternalPackageHelper::OnObjectPackagingModeChanged;
 
@@ -16,7 +18,79 @@ EPackageFlags FExternalPackageHelper::GetDefaultExternalPackageFlags()
 	return (PKG_EditorOnly | PKG_ContainsMapData | PKG_NewlyCreated);
 }
 
-UPackage* FExternalPackageHelper::CreateExternalPackage(UObject* InObjectOuter, const FString& InObjectPath, EPackageFlags InFlags, const UExternalDataLayerAsset* InExternalDataLayerAsset)
+FExternalPackageHelper::FRenameExternalObjectsHelperContext::FRenameExternalObjectsHelperContext(const UObject* SourceObject, ERenameFlags Flags)
+{
+	if (GIsEditor && ((Flags & REN_Test) == 0))
+	{
+		check(SourceObject);
+		const UPackage* Package = SourceObject->GetPackage();
+		check(Package);
+		SourcePackage = Package;
+		OldObject = SourceObject;
+	}
+}
+
+FExternalPackageHelper::FRenameExternalObjectsHelperContext::~FRenameExternalObjectsHelperContext()
+{	
+	if (GIsEditor && OldObject && (OldObject->GetPackage() != SourcePackage))
+	{		
+		// Get external packages
+		const TArray<UPackage*>& ExternalObjectPackages = OldObject->GetPackage()->GetExternalPackages();
+		for (const UPackage* ExternalPackage : ExternalObjectPackages)
+		{
+			TArray<UObject*> DependantObjects;
+			ForEachObjectWithPackage(ExternalPackage, [&DependantObjects](UObject* Object)
+			{
+				check(Object)
+				if (!Cast<UMetaData>(Object))
+				{
+					DependantObjects.Add(Object);
+				}
+				return true;
+			}, false);
+
+			for (UObject* Object : DependantObjects)
+            {
+			    FExternalPackageHelper::SetPackagingMode(Object, nullptr, false);
+			    FExternalPackageHelper::SetPackagingMode(Object, OldObject, true);
+            }
+		}
+	}
+}
+
+void FExternalPackageHelper::DuplicateExternalPackages(const UObject* InObject, FObjectDuplicationParameters& InDuplicationParameters, EActorPackagingScheme ActorPackagingScheme /*= EActorPackagingScheme::Reduced*/)
+{
+	if (InDuplicationParameters.DuplicateMode != EDuplicateMode::PIE && InDuplicationParameters.bAssignExternalPackages)
+	{
+		const UPackage* SourcePackage = InObject->GetPackage();
+		UPackage* DestinationPackage = InDuplicationParameters.DestOuter->GetPackage();
+		
+		FString ReplaceFrom = FPaths::GetBaseFilename(*SourcePackage->GetName());
+		ReplaceFrom = FString::Printf(TEXT("%s.%s:"), *ReplaceFrom, *ReplaceFrom);
+
+		FString ReplaceTo = FPaths::GetBaseFilename(*DestinationPackage->GetName());
+		ReplaceTo = FString::Printf(TEXT("%s.%s:"), *ReplaceTo, *ReplaceTo);
+			
+		ForEachObjectWithOuter(InObject, [&ReplaceFrom, &ReplaceTo, &InDuplicationParameters, SourcePackage, DestinationPackage, ActorPackagingScheme](const UObject* Object)
+		{
+			if (UPackage* Package = Object ? Object->GetExternalPackage() : nullptr)
+			{
+				FString Path = Object->GetPathName();
+				if (DestinationPackage != SourcePackage)
+				{
+					Path = Path.Replace(*ReplaceFrom, *ReplaceTo);
+				}
+				UPackage* DupPackage = Object->IsA<AActor>() ? ULevel::CreateActorPackage(DestinationPackage, ActorPackagingScheme, Path, Object) : FExternalPackageHelper::CreateExternalPackage(DestinationPackage, Path);
+				DupPackage->MarkAsFullyLoaded();
+				DupPackage->MarkPackageDirty();
+				
+				InDuplicationParameters.DuplicationSeed.Add(Package, DupPackage);
+			}
+		}, /*bIncludeNestedObjects*/ true);
+	}
+}
+
+UPackage* FExternalPackageHelper::CreateExternalPackage(const UObject* InObjectOuter, const FString& InObjectPath, EPackageFlags InFlags, const UExternalDataLayerAsset* InExternalDataLayerAsset)
 {
 	const UPackage* OutermostPackage = InObjectOuter->IsA<UPackage>() ? CastChecked<UPackage>(InObjectOuter) : InObjectOuter->GetOutermostObject()->GetPackage();
 	const FString RootPath = InExternalDataLayerAsset ? FExternalDataLayerHelper::GetExternalDataLayerLevelRootPath(InExternalDataLayerAsset, OutermostPackage->GetName()) : OutermostPackage->GetName();
@@ -26,7 +100,7 @@ UPackage* FExternalPackageHelper::CreateExternalPackage(UObject* InObjectOuter, 
 	return Package;
 }
 
-void FExternalPackageHelper::SetPackagingMode(UObject* InObject, UObject* InObjectOuter, bool bInIsPackageExternal, bool bInShouldDirty, EPackageFlags InExternalPackageFlags)
+void FExternalPackageHelper::SetPackagingMode(UObject* InObject, const UObject* InObjectOuter, bool bInIsPackageExternal, bool bInShouldDirty, EPackageFlags InExternalPackageFlags)
 {
 	if (bInIsPackageExternal == InObject->IsPackageExternal())
 	{
@@ -136,7 +210,7 @@ FString FExternalPackageHelper::GetExternalObjectPackageInstanceName(const FStri
 	return FLinkerInstancingContext::GetInstancedPackageName(OuterPackageName, ObjectPackageName);
 }
 
-void FExternalPackageHelper::GetExternalSaveableObjects(UObject* InOuter, TArray<UObject*>& OutObjects)
+void FExternalPackageHelper::GetExternalSaveableObjects(UObject* InOuter, TArray<UObject*>& OutObjects, EGetExternalSaveableObjectsFlags InFlags)
 {
 	// Get external packages
 	TSet<UPackage*> ExternalObjectPackages;
@@ -145,7 +219,8 @@ void FExternalPackageHelper::GetExternalSaveableObjects(UObject* InOuter, TArray
 	// Find assets for external packages
 	for (UPackage* ExternalPackage : ExternalObjectPackages)
 	{
-		if(FPackageName::IsValidLongPackageName(ExternalPackage->GetName()) && ExternalPackage->IsDirty())
+		const bool bPassesDirtyCheck = !EnumHasAnyFlags(InFlags, EGetExternalSaveableObjectsFlags::CheckDirty) || ExternalPackage->IsDirty();
+		if(bPassesDirtyCheck && FPackageName::IsValidLongPackageName(ExternalPackage->GetName()))
 		{
 			if(UObject* Asset = ExternalPackage->FindAssetInPackage())
 			{

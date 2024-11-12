@@ -665,7 +665,7 @@ void FWaterQuadTree::AddLake(const TArray<FVector2D>& InPoly, const FBox& InLake
 	AddLakeRecursive(InPoly, LakeBounds, FVector2D(InLakeBounds.Min.Z, InLakeBounds.Max.Z), true, TreeDepth * 2, InWaterBodyIndex);
 }
 
-void FWaterQuadTree::AddFarMesh(const UMaterialInterface* InFarMeshMaterial, const FBox2D& InInnerRegion, double InFarDistanceMeshExtent, double InFarDistanceMeshHeight)
+void FWaterQuadTree::AddFarMesh(FMaterialRenderProxy* InFarMeshMaterial, const FBox2D& InInnerRegion, double InFarDistanceMeshExtent, double InFarDistanceMeshHeight)
 {
 	// Checking for not being read only here to keep things consistent with the other Add functions. In reality the FarMesh isn't added to the QuadTree itself, so it could technically be done whenever.
 	ensure(!bIsReadOnly);
@@ -715,14 +715,12 @@ void FWaterQuadTree::BuildMaterialIndices()
 	int32 NextIdx = 0;
 	TMap<FMaterialRenderProxy*, int32> MatToIdxMap;
 
-	auto GetMatIdx = [&NextIdx, &MatToIdxMap](const UMaterialInterface* Material)
+	auto GetMatIdx = [&NextIdx, &MatToIdxMap](FMaterialRenderProxy* MaterialRenderProxy)
 	{
-		if (!Material)
+		if (!MaterialRenderProxy)
 		{
 			return (int32)INDEX_NONE;
 		}
-		FMaterialRenderProxy* MaterialRenderProxy = Material->GetRenderProxy();
-		check(MaterialRenderProxy != nullptr);
 		const int32* Found = MatToIdxMap.Find(MaterialRenderProxy);
 		if (!Found)
 		{

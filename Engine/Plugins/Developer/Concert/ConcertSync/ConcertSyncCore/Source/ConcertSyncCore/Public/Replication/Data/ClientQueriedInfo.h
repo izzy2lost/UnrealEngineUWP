@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ObjectIds.h"
 #include "ReplicationStream.h"
 #include "ClientQueriedInfo.generated.h"
 
@@ -46,4 +47,13 @@ struct FConcertQueriedClientInfo
 	 */
 	UPROPERTY()
 	TArray<FConcertAuthorityClientInfo> Authority;
+
+	bool IsEmpty() const { return Streams.IsEmpty() && Authority.IsEmpty(); }
+	
+	/** @return Whether Object is owned */
+	bool HasAuthority(const FConcertObjectInStreamID& Object) const
+	{
+		const FConcertAuthorityClientInfo* Info = Authority.FindByPredicate([StreamId = Object.StreamId](const FConcertAuthorityClientInfo& Info){ return Info.StreamId == StreamId; });
+		return Info && Info->AuthoredObjects.Contains(Object.Object);
+	}
 };

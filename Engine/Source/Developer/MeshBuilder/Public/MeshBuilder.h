@@ -9,11 +9,9 @@
 class FStaticMeshLODGroup;
 class FStaticMeshRenderData;
 class FStaticMeshSectionArray;
-class USkeletalMesh;
 class UStaticMesh;
+struct FStaticMeshBuildParameters;
 struct FSkeletalMeshBuildParameters;
-struct FStaticMeshBuildVertex;
-struct FStaticMeshSection;
 struct FMeshBuildVertexData;
 
 /**
@@ -28,6 +26,9 @@ public:
 	/**
 	 * Build function should be override and is the starting point for static mesh builders
 	 */
+	virtual bool Build(FStaticMeshRenderData& OutRenderData, const FStaticMeshBuildParameters& BuildParameters) = 0;
+
+	UE_DEPRECATED(5.5, "Use FStaticMeshBuildParameters instead.")
 	virtual bool Build(
 		FStaticMeshRenderData& OutRenderData,
 		UStaticMesh* StaticMesh,

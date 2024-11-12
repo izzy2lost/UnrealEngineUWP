@@ -2,7 +2,7 @@
 /**
 	@file		ntv2windriverinterface.h
 	@brief		Declares the MSWindows-specific flavor of CNTV2DriverInterface.
-	@copyright	(C) 2003-2021 AJA Video Systems, Inc.
+	@copyright	(C) 2003-2022 AJA Video Systems, Inc.
 **/
 #ifndef NTV2WINDRIVERINTERFACE_H
 #define NTV2WINDRIVERINTERFACE_H
@@ -45,7 +45,7 @@ class AJAExport CNTV2WinDriverInterface : public CNTV2DriverInterface
 										const bool				inIsRead,
 										const ULWord			inFrameNumber,
 										ULWord *				pFrameBuffer,
-										const ULWord			inOffsetBytes,
+										const ULWord			inCardOffsetBytes,
 										const ULWord			inByteCount,
 										const bool				inSynchronous = true);
 
@@ -115,10 +115,12 @@ class AJAExport CNTV2WinDriverInterface : public CNTV2DriverInterface
 		AJA_VIRTUAL NTV2_SHOULD_BE_DEPRECATED(bool PrepareMemoryForDMA(ULWord * pFrameBuffer, const ULWord ulNumBytes));	///< @deprecated	Obsolete starting in SDK 16.0.
 #endif	//	!defined(NTV2_DEPRECATE_16_0)
 
+#if !defined(NTV2_NULL_DEVICE)
 	//	PRIVATE INSTANCE METHODS
 	protected:
 		AJA_VIRTUAL bool	OpenLocalPhysical (const UWord inDeviceIndex);
 		AJA_VIRTUAL bool	CloseLocalPhysical (void);
+#endif	//	!defined(NTV2_NULL_DEVICE)
 
 	//	MEMBER DATA
 	protected:

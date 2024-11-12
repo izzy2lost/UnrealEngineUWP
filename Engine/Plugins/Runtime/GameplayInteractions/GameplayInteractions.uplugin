@@ -1,20 +1,20 @@
 {
-	"FileVersion" : 3,
-	"Version" : 1,
-	"VersionName" : "1.0",
-	"FriendlyName" : "GameplayInteractions",
-	"Description" : "Player and NPC interactions",
-	"Category" : "Gameplay",
-	"CreatedBy" : "Epic Games, Inc.",
-	"CreatedByURL" : "https://epicgames.com",
-	"DocsURL" : "",
-	"MarketplaceURL" : "",
-	"SupportURL" : "",
-	"EnabledByDefault" : false,
-	"CanContainContent" : true,
-	"IsBetaVersion" : false,
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "GameplayInteractions",
+	"Description": "Player and NPC interactions",
+	"Category": "Gameplay",
+	"CreatedBy": "Epic Games, Inc.",
+	"CreatedByURL": "https://epicgames.com",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"EnabledByDefault": false,
+	"CanContainContent": true,
+	"IsBetaVersion": false,
 	"IsExperimentalVersion": true,
-	"Installed" : false,
+	"Installed": false,
 	"Modules": [
 		{
 			"Name": "GameplayInteractionsModule",
@@ -37,6 +37,10 @@
 		},
 		{
 			"Name": "NavCorridor",
+			"Enabled": true
+		},
+		{
+			"Name": "GameplayStateTree",
 			"Enabled": true
 		}
 	]

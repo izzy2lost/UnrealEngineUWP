@@ -35,4 +35,10 @@ private:
 
 	/** Show flag settings changed, so update the scene capture */
 	void OnShowFlagCheckStateChanged(ECheckBoxState InNewRadioState, FString FlagName);
+
+	/** Gets the visibility of the reset to default property detail. */
+	bool GetShowFlagResetVisibility(FString ShowFlagName) const;
+
+	/** Reset the specified show flag to its (archetype) default. */
+	void OnResetShowFlag(FString ShowFlagName);
 };

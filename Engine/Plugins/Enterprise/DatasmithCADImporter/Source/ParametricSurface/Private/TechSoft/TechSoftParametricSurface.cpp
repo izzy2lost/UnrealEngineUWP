@@ -3,6 +3,7 @@
 #include "TechSoftParametricSurface.h"
 
 #include "CADInterfacesModule.h"
+#include "CADOptions.h"
 #include "DatasmithAdditionalData.h"
 #include "DatasmithPayload.h"
 #include "TechSoftInterface.h"
@@ -11,7 +12,7 @@
 #include "Engine/StaticMesh.h"
 #include "HAL/PlatformFileManager.h"
 #include "IDatasmithSceneElements.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "StaticMeshAttributes.h"
@@ -38,7 +39,8 @@ bool UTechSoftParametricSurfaceData::Tessellate(UStaticMesh& StaticMesh, const F
 		CADLibrary::FImportParameters ImportParameters((FDatasmithUtils::EModelCoordSystem)SceneParameters.ModelCoordSys);
 		ImportParameters.SetTesselationParameters(RetessellateOptions.ChordTolerance, RetessellateOptions.MaxEdgeLength, RetessellateOptions.NormalTolerance, (CADLibrary::EStitchingTechnique)RetessellateOptions.StitchingTechnique);
 
-		FMeshConversionContext Context(ImportParameters, MeshParameters);
+		CADLibrary::FMeshParameters Parameters{ MeshParameters.bNeedSwapOrientation, MeshParameters.bIsSymmetric, (FVector3f)MeshParameters.SymmetricNormal, (FVector3f)MeshParameters.SymmetricOrigin };
+		FMeshConversionContext Context(ImportParameters, Parameters, RetessellateOptions.GetGeometricTolerance(true));
 
 		CADLibrary::FTechSoftInterface& TechSoftInterface = CADLibrary::FTechSoftInterface::Get();
 		bSuccessfulTessellation = TechSoftInterface.InitializeKernel(*FPaths::EnginePluginsDir());

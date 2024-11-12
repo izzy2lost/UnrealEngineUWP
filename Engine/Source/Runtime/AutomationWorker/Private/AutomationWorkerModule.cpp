@@ -208,7 +208,9 @@ void FAutomationWorkerModule::ReportTestComplete()
 			Message->ExecutionCount = ExecutionCount;
 			Message->State = bSuccess ? EAutomationState::Success : EAutomationState::Fail;
 			Message->Duration = ExecutionInfo.Duration;
-			Message->Entries = ExecutionInfo.GetEntries();
+			// Prune log entries if it is a success to reduce foot print.
+			Message->Entries = bPruneLogsOnSuccess && bSuccess ?
+				ExecutionInfo.GetEntries().FilterByPredicate([](const FAutomationExecutionEntry& Entry) { return Entry.Event.Context != TEXT("log"); }) : ExecutionInfo.GetEntries();
 			Message->WarningTotal = ExecutionInfo.GetWarningTotal();
 			Message->ErrorTotal = ExecutionInfo.GetErrorTotal();
 
@@ -382,7 +384,7 @@ void FAutomationWorkerModule::HandleRequestTestsMessage( const FAutomationWorker
 
 	FAutomationTestFramework::Get().LoadTestModules();
 	FAutomationTestFramework::Get().SetDeveloperDirectoryIncluded(Message.DeveloperDirectoryIncluded);
-	FAutomationTestFramework::Get().SetRequestedTestFilter(Message.RequestedTestFlags);
+	FAutomationTestFramework::Get().SetRequestedTestFilter((EAutomationTestFlags)Message.RequestedTestFlags);
 	FAutomationTestFramework::Get().GetValidTestNames( TestInfo );
 
 	SendTests(Context->GetSender());
@@ -412,6 +414,12 @@ void FAutomationWorkerModule::HandlePostTestingEvent()
 void FAutomationWorkerModule::HandleScreenShotCompared(const FAutomationWorkerImageComparisonResults& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context)
 {
 	UE_LOG(LogAutomationWorker, Log, TEXT("Received ScreenShotCompared from %s"), *Context->GetSender().ToString());
+
+	if (Message.UniqueId != ActiveScreenshotComparisonId)
+	{
+		UE_LOG(LogAutomationWorker, Log, TEXT("Ignoring unexpected screenshot comparison result for %s"), *Message.ScreenshotPath);
+		return;
+	}
 
 	// Image comparison finished.
 	FAutomationScreenshotCompareResults CompareResults;
@@ -488,6 +496,8 @@ void FAutomationWorkerModule::HandleScreenShotAndTraceCapturedWithName(const TAr
 		Message->Metadata = Metadata;
 
 		UE_LOG(LogAutomationWorker, Log, TEXT("Sending screenshot %s to %s"), *Message->ScreenShotName, *TestRequesterAddress.ToString());
+
+		ActiveScreenshotComparisonId = Metadata.Id;
 
 		SendMessage(Message, Message->StaticStruct(), TestRequesterAddress);
 	}
@@ -673,7 +683,9 @@ void FAutomationWorkerModule::HandleRunTestsMessage( const FAutomationWorkerRunT
 	BeautifiedTestName = Message.BeautifiedTestName;
 	FullTestPath = Message.FullTestPath;
 	bSendAnalytics = Message.bSendAnalytics;
+	bPruneLogsOnSuccess = Message.bPruneLogsOnSuccess;
 	TestRequesterAddress = Context->GetSender();
+	ActiveScreenshotComparisonId = FGuid();
 
 	// Always allow the first network command to execute
 	bExecuteNextNetworkCommand = true;

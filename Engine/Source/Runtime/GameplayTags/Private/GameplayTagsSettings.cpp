@@ -63,8 +63,8 @@ UGameplayTagsSettings::UGameplayTagsSettings(const FObjectInitializer& ObjectIni
 	ConfigFileName = GetDefaultConfigFilename();
 	ImportTagsFromConfig = true;
 	WarnOnInvalidTags = true;
-	ClearInvalidTags = false;
 	FastReplication = false;
+	bDynamicReplication = false; // This currently needs Iris enabled (so don't enable by default)
 	AllowEditorTagUnloading = true;
 	AllowGameTagUnloading = false;
 	InvalidTagCharacters = ("\"',");

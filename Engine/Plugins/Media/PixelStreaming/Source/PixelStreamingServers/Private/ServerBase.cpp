@@ -31,7 +31,7 @@ namespace UE::PixelStreamingServers
 		return true;
 	}
 
-	bool FServerBase::IsAllowedToTick() const
+	bool FServerBase::IsTickable() const
 	{
 		return bAllowedToTick;
 	}

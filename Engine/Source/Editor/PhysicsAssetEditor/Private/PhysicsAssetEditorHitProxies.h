@@ -36,6 +36,28 @@ struct HPhysicsAssetEditorEdBoneProxy : public HHitProxy
 	}
 };
 
+struct HPhysicsAssetEditorEdCoMProxy : public HHitProxy
+{
+	DECLARE_HIT_PROXY();
+
+	int32							BodyIndex;
+
+	HPhysicsAssetEditorEdCoMProxy(const int32 InBodyIndex)
+		: HHitProxy(HPP_World)
+		, BodyIndex(InBodyIndex)
+	{}
+
+	virtual EMouseCursor::Type GetMouseCursor()
+	{
+		return EMouseCursor::Crosshairs;
+	}
+
+	virtual bool AlwaysAllowsTranslucentPrimitives() const override
+	{
+		return true;
+	}
+};
+
 struct HPhysicsAssetEditorEdConstraintProxy : public HHitProxy
 {
 	DECLARE_HIT_PROXY();

@@ -22,7 +22,7 @@ public:
 	};
 
 	// Split a NetBlob into multiple PartialNetBlobs. The blob will be split even if the original one didn't need it.
-	IRISCORE_API static bool SplitNetBlob(const FNetSerializationContext& Context, const FNetBlobCreationInfo& CreationInfo, const FSplitParams& SplitParams, const TRefCountPtr<FNetBlob>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs);
+	IRISCORE_API static bool SplitNetBlob(FNetSerializationContext& Context, const FNetBlobCreationInfo& CreationInfo, const FSplitParams& SplitParams, const TRefCountPtr<FNetBlob>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs);
 
 	// Split a RawDataNetBlob into multiple PartialNetBlobs. The blob will be split even if the original one didn't need it.
 	IRISCORE_API static bool SplitNetBlob(const FNetBlobCreationInfo& CreationInfo, const FSplitParams& SplitParams, const TRefCountPtr<FRawDataNetBlob>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs);
@@ -53,7 +53,9 @@ public:
 
 private:
 
-	virtual TArrayView<const FNetObjectReference> GetExports() const override final;
+	virtual TArrayView<const FNetObjectReference> GetNetObjectReferenceExports() const override final;
+	virtual TArrayView<const FNetToken> GetNetTokenExports() const override final;
+
 	virtual void SerializeWithObject(FNetSerializationContext& Context, FNetRefHandle RefHandle) const override;
 	virtual void DeserializeWithObject(FNetSerializationContext& Context, FNetRefHandle RefHandle) override;
 
@@ -73,6 +75,7 @@ private:
 		FNetBlobCreationInfo CreationInfo;
 		FNetBlobCreationInfo OriginalCreationInfo;
 		FNetBlob* OriginalBlob;
+		TArrayView<const FNetToken> NetTokensPendingExport;
 		const uint32* Payload;
 		uint32 PayloadBitCount;
 		uint32 PartBitCount;
@@ -90,6 +93,7 @@ private:
 	uint16 PayloadBitCount = 0;
 	// Use uint32 for guaranteed FNetBitStreamReader/Writer compatibility
 	TArray<uint32> Payload;
+	TArray<FNetToken, TInlineAllocator<4>> NetTokenExportsArray;
 
 	FNetDebugName DebugName;
 };

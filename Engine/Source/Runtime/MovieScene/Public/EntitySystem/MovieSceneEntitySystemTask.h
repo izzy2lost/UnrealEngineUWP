@@ -263,12 +263,6 @@ struct TEntityTaskComponents : TEntityTaskComponentsImpl<TMakeIntegerSequence<in
 		return TFilteredEntityTask< T... >(*this, InFilter);
 	}
 
-	UE_DEPRECATED(5.2, "This function is not required.")
-	TEntityTaskComponents< T... >& SetCurrentThread(ENamedThreads::Type InCurrentThread)
-	{
-		return *this;
-	}
-
 	/**
 	 * Assign a desired thread for this task to run on
 	 */
@@ -1108,12 +1102,6 @@ struct TFilteredEntityTask
 	TFilteredEntityTask< T... >& CombineFilter(const FEntityComponentFilter& InFilter)
 	{
 		Filter.Combine(InFilter);
-		return *this;
-	}
-
-	UE_DEPRECATED(5.2, "This function is not required.")
-	TFilteredEntityTask< T... >& SetCurrentThread(ENamedThreads::Type InCurrentThread)
-	{
 		return *this;
 	}
 

@@ -4,6 +4,7 @@
 
 #include "Async/Async.h"
 #include "Async/TaskGraphInterfaces.h"
+#include "CoreGlobals.h"
 #include "ILiveLinkClient.h"
 #include "Implementations/LiveLinkUAssetRecordingPlayer.h"
 #include "LiveLinkHubLog.h"
@@ -14,6 +15,10 @@
 #include "HAL/RunnableThread.h"
 #include "HAL/Event.h"
 #include "LiveLinkClient.h"
+#include "LiveLinkHub.h"
+#include "LiveLinkHubModule.h"
+#include "Modules/ModuleManager.h"
+#include "PackageTools.h"
 #include "UI/Widgets/SLiveLinkHubPlaybackWidget.h"
 #include "UObject/Object.h"
 #include "UObject/Package.h"
@@ -62,8 +67,6 @@ private:
 FLiveLinkHubPlaybackController::FLiveLinkHubPlaybackController()
 {
 	Client = &IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
-
-	OnSourceRemovedHandle = Client->OnLiveLinkSourceRemoved().AddRaw(this, &FLiveLinkHubPlaybackController::OnSourceRemoved);
 	
 	RecordingPlayer = MakeUnique<FLiveLinkUAssetRecordingPlayer>();
 	Playhead = MakeShared<FLiveLinkHubAtomicQualifiedFrameTime, ESPMode::ThreadSafe>();
@@ -71,7 +74,8 @@ FLiveLinkHubPlaybackController::FLiveLinkHubPlaybackController()
 
 FLiveLinkHubPlaybackController::~FLiveLinkHubPlaybackController()
 {
-	StopPlayback();
+	bIsDestructing = true;
+	Eject();
 	Stopping = true;
 	PlaybackEvent->Trigger();
 
@@ -79,11 +83,6 @@ FLiveLinkHubPlaybackController::~FLiveLinkHubPlaybackController()
 	{
 		Thread->WaitForCompletion();
 		Thread.Reset();
-	}
-
-	if (OnSourceRemovedHandle.IsValid() && Client)
-	{
-		Client->OnLiveLinkSourceRemoved().Remove(OnSourceRemovedHandle);
 	}
 }
 
@@ -118,6 +117,7 @@ TSharedRef<SWidget> FLiveLinkHubPlaybackController::MakePlaybackWidget()
 		{
 			SliderViewRange = MoveTemp(NewRange);
 		})
+		.GetBufferRanges_Raw(this, &FLiveLinkHubPlaybackController::GetBufferedFrameRanges)
 		.GetTotalLength_Raw(this, &FLiveLinkHubPlaybackController::GetLength)
 		.GetCurrentTime_Raw(this, &FLiveLinkHubPlaybackController::GetCurrentTime)
 		.GetSelectionStartTime_Raw(this, &FLiveLinkHubPlaybackController::GetSelectionStartTime)
@@ -160,7 +160,7 @@ void FLiveLinkHubPlaybackController::ResumePlayback()
 	
 	StartTimestamp = CurrentTime.AsSeconds();
 	// Force sync so interpolation doesn't interfere if the first frame isn't the current frame
-	SyncToFrame(CurrentTime.Time.GetFrame());
+	SyncToFrame(CurrentTime);
 }
 
 void FLiveLinkHubPlaybackController::PreparePlayback(ULiveLinkRecording* InLiveLinkRecording)
@@ -182,8 +182,6 @@ void FLiveLinkHubPlaybackController::PreparePlayback(ULiveLinkRecording* InLiveL
 
 				RecordingToPlay.Reset(RecordingStrongPtr.Get());
 				RecordingPlayer->PreparePlayback(RecordingToPlay.Get());
-		
-				CurrentFrameRate = RecordingPlayer->GetInitialFramerate();
 
 				// The start and end of playback.
 				SetSelectionStartTime(FQualifiedFrameTime(FFrameTime::FromDecimal(0.f), GetFrameRate()));
@@ -208,14 +206,14 @@ void FLiveLinkHubPlaybackController::PreparePlayback(ULiveLinkRecording* InLiveL
 				RecordingToPlay->RecordingPreset->ApplyToClientLatent([this](bool)
 				{
 					bIsReady = true;
-					SyncToFrame(0); // Needed to establish connection with client
+					SyncToFrame(FQualifiedFrameTime()); // Needed to establish connection with client
 				});
 			}
 		};
 
 		if (RecordingToPlay.IsValid())
 		{
-			Eject(PreparePlaybackCallback);
+			EjectAndUnload(PreparePlaybackCallback);
 		}
 		else
 		{
@@ -304,6 +302,8 @@ void FLiveLinkHubPlaybackController::Eject(TFunction<void()> CompletionCallback)
 	bIsReady = false;
 	
 	StopPlayback();
+
+	LastStaticFrameIndex.Empty();
 	
 	bIsPaused = false;
 	RecordingPlayer->RestartPlayback(0);
@@ -314,6 +314,13 @@ void FLiveLinkHubPlaybackController::Eject(TFunction<void()> CompletionCallback)
 	StartTimestamp = 0.f;
 
 	// Recording is done, clear the pointer.
+	RecordingPlayer->ShutdownPlayback();
+
+	if (RecordingToPlay.IsValid())
+	{
+		// It's possible the initial latent action is still in progress if the user ejected this recording immediately after playing.
+		RecordingToPlay->RecordingPreset->CancelLatentAction();
+	}
 	RecordingToPlay.Reset();
 	
 	if (RollbackPreset.IsValid())
@@ -332,6 +339,63 @@ void FLiveLinkHubPlaybackController::Eject(TFunction<void()> CompletionCallback)
 	}
 }
 
+void FLiveLinkHubPlaybackController::EjectAndUnload(TFunction<void()> EjectCompletionCallback, const ULiveLinkRecording* InRecording)
+{
+	const ULiveLinkRecording* Recording = InRecording ? InRecording : RecordingToPlay.Get();
+	UPackage* Package = Recording ? Recording->GetPackage() : nullptr;
+	const bool bIsSavingRecordingData = Recording && Recording->IsSavingRecordingData();
+
+	// Only eject if this is in reference to the current recording playing.
+	if (InRecording == nullptr || InRecording == RecordingToPlay.Get())
+	{
+		Eject(EjectCompletionCallback);
+	}
+	
+	// Unload on the next tick since this could have been called from multistep operations, such as rename or delete. We need to completely
+	// unload so when loading in the future the bulk data archive will be attached correctly.
+	if (Package && !bIsSavingRecordingData)
+	{
+		constexpr bool bUnloadNextTick = true;
+		UnloadRecordingPackage(Package, bUnloadNextTick);
+	}
+}
+
+void FLiveLinkHubPlaybackController::UnloadRecordingPackage(const TWeakObjectPtr<UPackage>& InPackage, bool bUnloadNextTick)
+{
+	if (!InPackage.IsValid() || PackagesUnloading.Contains(InPackage))
+	{
+		return;
+	}
+	
+	auto UnloadPackage = [PackageToUnload = InPackage, this](double = 0.f, float = 0.f) -> EActiveTimerReturnType
+	{
+		ensure(PackagesUnloading.Remove(PackageToUnload) > 0);
+			
+		if (PackageToUnload.IsValid() && !PackageToUnload->IsDirty() && !PackageToUnload->HasAnyPackageFlags(PKG_IsSaving))
+		{
+			UPackageTools::FUnloadPackageParams UnloadParams({ PackageToUnload.Get() });
+			const bool bUnloaded = UPackageTools::UnloadPackages(UnloadParams);
+			ensure(bUnloaded);
+		}
+		
+		return EActiveTimerReturnType::Stop;
+	};
+
+	PackagesUnloading.Add(InPackage);
+
+	if (bUnloadNextTick)
+	{
+		const TSharedPtr<FLiveLinkHub> LiveLinkHub = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub").GetLiveLinkHub();
+		LiveLinkHub->GetRootWindow()->RegisterActiveTimer(
+			0.f,
+			FWidgetActiveTimerDelegate::CreateLambda(UnloadPackage));
+	}
+	else
+	{
+		UnloadPackage();
+	}
+}
+
 void FLiveLinkHubPlaybackController::GoToTime(FQualifiedFrameTime InTime)
 {
 	// Stop needs to occur to restart playback.
@@ -342,7 +406,7 @@ void FLiveLinkHubPlaybackController::GoToTime(FQualifiedFrameTime InTime)
 	PlaybackStartTime -= TimeDouble;
 	Playhead->SetValue(InTime);
 
-	SyncToFrame(InTime.Time.GetFrame());
+	SyncToFrame(InTime);
 }
 
 FQualifiedFrameTime FLiveLinkHubPlaybackController::GetSelectionStartTime() const
@@ -369,15 +433,11 @@ FQualifiedFrameTime FLiveLinkHubPlaybackController::GetLength() const
 {
 	const FFrameRate FrameRate = GetFrameRate();
 
-	const double Length = RecordingToPlay ? RecordingToPlay->LengthInSeconds : 0.f;
-	
-	const double TotalFramesDouble = Length * FrameRate.Numerator;
-	const int32 TotalFrames = FMath::FloorToInt(TotalFramesDouble);
-	
-	const FFrameNumber LastFrameNumber(TotalFrames - 1);
-	
-	const FQualifiedFrameTime FrameTime(LastFrameNumber, FrameRate);
+	const int32 ExactTotalFrames = RecordingToPlay ? RecordingToPlay->GetMaxFrames() : 1;
+	const int32 LastFrameIdx = ExactTotalFrames - 1;
+	const FFrameNumber LastFrameNumber(LastFrameIdx);
 
+	const FQualifiedFrameTime FrameTime(FFrameTime(LastFrameNumber), FrameRate);
 	return FrameTime;
 }
 
@@ -394,7 +454,16 @@ FFrameNumber FLiveLinkHubPlaybackController::GetCurrentFrame() const
 
 FFrameRate FLiveLinkHubPlaybackController::GetFrameRate() const
 {
-	return CurrentFrameRate;
+	if (RecordingToPlay.IsValid())
+	{
+		return RecordingToPlay->GetGlobalFrameRate();
+	}
+
+	return FFrameRate(60, 1);
+}
+UE::LiveLinkHub::RangeHelpers::Private::TRangeArray<int32> FLiveLinkHubPlaybackController::GetBufferedFrameRanges() const
+{
+	return RecordingPlayer->GetBufferedFrameRanges();
 }
 
 void FLiveLinkHubPlaybackController::Start()
@@ -472,23 +541,9 @@ uint32 FLiveLinkHubPlaybackController::Run()
 
 void FLiveLinkHubPlaybackController::OnPlaybackFinished_Internal()
 {
-	PlaybackFinishedDelegate.Broadcast();
-}
-
-void FLiveLinkHubPlaybackController::OnSourceRemoved(FGuid Guid)
-{
-	if (RecordingToPlay.IsValid() && !bIsPreparingPlayback)
+	if (!bIsDestructing && GIsRunning) // Can crash otherwise, such as if we are closing the app.
 	{
-		// Look for a source that is for this recording and eject. This can occur if the user presses the trash icon
-		// on the playback source while it is in playback.
-		for (const FLiveLinkSourcePreset& Presets : RecordingToPlay->RecordingPreset->GetSourcePresets())
-		{
-			if (Presets.Guid == Guid)
-			{
-				Eject();
-				break;
-			}
-		}
+		PlaybackFinishedDelegate.Broadcast();
 	}
 }
 
@@ -497,6 +552,17 @@ void FLiveLinkHubPlaybackController::PushSubjectData(const FLiveLinkRecordedFram
 	// If we're sending static data
 	if (NextFrame.LiveLinkRole)
 	{
+		// Make sure we only push static data if it has changed.
+    	if (const int32* Idx = LastStaticFrameIndex.Find(NextFrame.SubjectKey))
+    	{
+    		if (*Idx == NextFrame.FrameIndex)
+    		{
+    			return;
+    		}
+    	}
+
+    	LastStaticFrameIndex.Add(NextFrame.SubjectKey, NextFrame.FrameIndex);
+	
 		FLiveLinkStaticDataStruct StaticDataStruct;
 		StaticDataStruct.InitializeWith(NextFrame.Data.GetScriptStruct(), (FLiveLinkBaseStaticData*)NextFrame.Data.GetMemory());
 		Client->PushSubjectStaticData_AnyThread(NextFrame.SubjectKey, NextFrame.LiveLinkRole, MoveTemp(StaticDataStruct));
@@ -505,8 +571,6 @@ void FLiveLinkHubPlaybackController::PushSubjectData(const FLiveLinkRecordedFram
 	{
 		FLiveLinkFrameDataStruct FrameDataStruct;
 		FrameDataStruct.InitializeWith(NextFrame.Data.GetScriptStruct(), (FLiveLinkBaseFrameData*)NextFrame.Data.GetMemory());
-
-		CurrentFrameRate = FrameDataStruct.GetBaseData()->MetaData.SceneTime.Rate;
 		
 		if (bForceSync)
 		{
@@ -518,9 +582,9 @@ void FLiveLinkHubPlaybackController::PushSubjectData(const FLiveLinkRecordedFram
 
 bool FLiveLinkHubPlaybackController::SyncToPlayhead()
 {
-	const double Timestamp = Playhead->GetValue().AsSeconds();
-	TArray<FLiveLinkRecordedFrame> NextFrames = bIsReverse ? RecordingPlayer->FetchPreviousFramesAtTimestamp(Timestamp)
-		: RecordingPlayer->FetchNextFramesAtTimestamp(Timestamp);
+	const FQualifiedFrameTime FrameTime = Playhead->GetValue();
+	TArray<FLiveLinkRecordedFrame> NextFrames = bIsReverse ? RecordingPlayer->FetchPreviousFramesAtTimestamp(FrameTime)
+		: RecordingPlayer->FetchNextFramesAtTimestamp(FrameTime);
 	
 	for (const FLiveLinkRecordedFrame& NextFrame : NextFrames)
 	{
@@ -532,10 +596,13 @@ bool FLiveLinkHubPlaybackController::SyncToPlayhead()
 	return NextFrames.Num() > 0;
 }
 
-bool FLiveLinkHubPlaybackController::SyncToFrame(const FFrameNumber& InFrameNumber)
+bool FLiveLinkHubPlaybackController::SyncToFrame(const FQualifiedFrameTime& InFrameTime)
 {
-	TArray<FLiveLinkRecordedFrame> NextFrames = RecordingPlayer->FetchNextFramesAtIndex(InFrameNumber.Value);
-	
+	TArray<FLiveLinkRecordedFrame> NextFrames = RecordingPlayer->FetchNextFramesAtIndex(InFrameTime);
+	if (NextFrames.Num() == 0)
+	{
+		UE_LOG(LogLiveLinkHub, Warning, TEXT("No frame loaded for frame number %d"), InFrameTime.Time.GetFrame().Value);
+	}
 	for (const FLiveLinkRecordedFrame& NextFrame : NextFrames)
 	{
 		PushSubjectData(NextFrame, true);

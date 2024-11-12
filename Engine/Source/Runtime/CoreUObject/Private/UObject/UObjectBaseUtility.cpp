@@ -16,7 +16,11 @@
 #include "Modules/ModuleManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/ConfigUtilities.h"
 #include "Containers/VersePath.h"
+#include "Misc/CoreDelegates.h"
+#include "Misc/DelayedAutoRegister.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 /***********************/
 /******** Names ********/
@@ -236,7 +240,7 @@ bool UObjectBaseUtility::MarkPackageDirty() const
 			// we explicitly disable the ability to dirty a package or map during load/undo/redo.  Commandlets can still
 			// set the dirty state on load.
 			if( IsRunningCommandlet() || 
-				(!IsInAsyncLoadingThread() && GIsEditor && !GIsEditorLoadingPackage && !GIsCookerLoadingPackage && !GIsPlayInEditorWorld && !IsReloadActive()
+				(!IsInAsyncLoadingThread() && GIsEditor && !UE::GetIsEditorLoadingPackage() && !GIsCookerLoadingPackage && !GIsPlayInEditorWorld && !IsReloadActive()
 #if WITH_EDITORONLY_DATA
 				&& !GIsTransacting
 				&& !Package->bIsCookedForEditor // Cooked packages can't be modified nor marked as dirty
@@ -525,6 +529,122 @@ bool UObjectBaseUtility::IsDefaultSubobject() const
 		(GetOuter()->HasAnyFlags(RF_ClassDefaultObject) || ((UObject*)this)->GetArchetype() != GetClass()->GetDefaultObject(false));
 }
 
+void UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections(const FConfigModificationTracker* ChangeTracker)
+{	
+	TArray<const UClass*> ClassesToReload;
+	TArray<UObject*> ObjectsToReload;
+	
+	// Reload configs so objects get the changes
+	for (const TPair<FName, TSet<FString>>& Pair : ChangeTracker->ModifiedSectionsPerBranch)
+	{
+		for (const FString& SectionName : Pair.Value)
+		{
+			UE_LOG(LogConfig, Verbose, TEXT("Found modified section: %s"), *SectionName);
+			
+			// @todo: This entire overarching process is very similar in its goals as that of UOnlineHotfixManager::HotfixIniFile.
+			// Could consider a combined refactor of the hotfix manager, the base config cache system, etc. to expose an easier way to support this pattern
+			
+			// INI files might be handling per-object config items, so need to handle them specifically
+			const int32 PerObjConfigDelimIdx = SectionName.Find(" ");
+			if (PerObjConfigDelimIdx != INDEX_NONE)
+			{
+				const FString ObjectName = SectionName.Left(PerObjConfigDelimIdx);
+				const FString ClassName = SectionName.Mid(PerObjConfigDelimIdx + 1);
+				
+				// TryFindTypeSlow will throw a warning/callstack for short pathnames, so use the function it calls internally
+				UClass* ObjClass = (UClass*)StaticFindFirstObject(UClass::StaticClass(), *ClassName, EFindFirstObjectOptions::EnsureIfAmbiguous | EFindFirstObjectOptions::NativeFirst, ELogVerbosity::Error, TEXT("UGameFeatureData::ReloadConfigs"));
+				if (ObjClass && ObjClass->HasAnyClassFlags(CLASS_Config))
+				{
+					// Now try to actually find the object it's referencing specifically and update it
+					// @note: Choosing not to warn on not finding it for now, as Fortnite has transient uses instantiated at run-time (might not be constructed yet)
+					UObject* PerObjConfigObj = StaticFindFirstObject(ObjClass, *ObjectName, EFindFirstObjectOptions::ExactClass, ELogVerbosity::Warning, TEXT("UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections"));
+					if (IsValid(PerObjConfigObj))
+					{
+						ObjectsToReload.Add(PerObjConfigObj);
+					}
+				}
+				else
+				{
+					UE_LOG(LogCore, Warning, TEXT("[%s]: Couldn't find PerObjectConfig class %s for %s, config changes won't be reloaded."), *Pair.Key.ToString(), *ClassName, *ObjectName);
+				}
+			}
+			// Standard INI section case
+			else
+			{
+				const FString NativeClassPrefix(TEXT("/Script/"));
+				const FString BPClassPrefix(TEXT("/Game/"));
+				
+				UClass* ObjClass = nullptr;
+				// handle /Script and /Game (/Game is for BP classes)
+				if (SectionName.StartsWith(NativeClassPrefix))
+				{
+					ObjClass = FindFirstObject<UClass>(*SectionName, EFindFirstObjectOptions::ExactClass | EFindFirstObjectOptions::EnsureIfAmbiguous | EFindFirstObjectOptions::NativeFirst);
+				}
+				else if (SectionName.StartsWith(BPClassPrefix))
+				{
+					ObjClass = LoadObject<UClass>(nullptr, *SectionName);
+				}
+				
+				// Find the affected class and push updates to all instances of it, including children
+				// @note:	Intentionally not using the propagation flags inherent in ReloadConfig to handle this, as it utilizes a naive complete object iterator
+				//			and tanks performance pretty badly
+				if (ObjClass && ObjClass->HasAnyClassFlags(CLASS_Config))
+				{
+					ClassesToReload.Add(ObjClass);
+				}
+			}
+		}
+		
+		// @todo: this seems like a convenient place for this, but it's out of the scope of the function name
+		// for each modified branch, broadcast the changes
+		FCoreDelegates::TSOnConfigSectionsChanged().Broadcast(Pair.Key.ToString(), Pair.Value);
+	}
+	
+	
+	int32 NumObjectsReloaded = 0;
+	const double StartTime = FPlatformTime::Seconds();
+
+	auto ReloadObjectImpl = [&NumObjectsReloaded](UObject* ReloadObject)
+	{
+		UE_LOG(LogConfig, Verbose, TEXT("Reloading %s"), *ReloadObject->GetPathName());
+		// Intentionally using LoadConfig instead of ReloadConfig, since we do not want to call modify/preeditchange/posteditchange on the objects changed when GIsEditor
+		ReloadObject->LoadConfig(nullptr, nullptr, UE::LCPF_ReloadingConfigData | UE::LCPF_ReadParentSections, nullptr);
+//		ReloadObject->ReloadConfig();
+	   
+	   NumObjectsReloaded++;
+	};
+	
+	// Now that we have a list of classes to update, we can iterate objects and reload
+	for (const UClass* ClassToReload : ClassesToReload)
+	{
+		TArray<UObject*> ClassObjectsToReload;
+		GetObjectsOfClass(ClassToReload, ClassObjectsToReload, true, RF_NoFlags);
+		for (UObject* ReloadObject : ClassObjectsToReload)
+		{
+			if (IsValid(ReloadObject))
+			{
+				ReloadObjectImpl(ReloadObject);
+			}
+		}
+	}
+
+	// Reload any PerObjectConfig objects that were affected
+	for (auto ReloadObject : ObjectsToReload)
+	{
+		ReloadObjectImpl(ReloadObject);
+	}
+	
+	UE_LOG(LogCore, Log, TEXT("Updating config from took %f seconds and reloaded %d objects"),
+		FPlatformTime::Seconds() - StartTime, NumObjectsReloaded);
+}
+
+// register a callback so non-uobject-knowing config code can still trigger object reloads
+static FDelayedAutoRegisterHelper GSetupReload(EDelayedRegisterRunPhase::ObjectSystemReady, []
+	{
+		UE::DynamicConfig::ReloadObjects.AddStatic(&UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections);
+	});
+
+
 UClass* GetParentNativeClass(UClass* Class)
 {
 	while (Class && !Class->IsNative())
@@ -539,6 +659,7 @@ UClass* GetParentNativeClass(UClass* Class)
 #include "HAL/ThreadHeartBeat.h"
 #include "HAL/ThreadManager.h"
 
+UE_AUTORTFM_ALWAYS_OPEN
 void FScopeCycleCounterUObject::ReportHitch()
 {
 	float Delta = float(FGameThreadHitchHeartBeat::Get().GetCurrentTime() - FGameThreadHitchHeartBeat::Get().GetFrameStartTime()) * 1000.0f;

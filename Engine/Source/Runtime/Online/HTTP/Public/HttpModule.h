@@ -326,15 +326,6 @@ public:
 		return bSupportsDynamicProxy;
 	}
 
-	/**
-	 * @returns the list of domains allowed to be visited in a shipping build
-	 */
-	UE_DEPRECATED(5.3, "GetAllowedDomains has been deprecated. URLRequestFilter should be used instead.")
-	inline const TArray<FString>& GetAllowedDomains() const
-	{
-		return AllowedDomains;
-	}
-
 protected:
 	/** timeout in seconds to establish the connection */
 	float HttpConnectionTimeout;

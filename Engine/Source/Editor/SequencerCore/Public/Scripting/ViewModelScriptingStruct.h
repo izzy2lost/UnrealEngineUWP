@@ -22,7 +22,6 @@ struct FSequencerViewModelScriptingStruct
 	{
 		return A.WeakViewModel == B.WeakViewModel;
 	}
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Sequencer Editor")
 	FName Type;
 
@@ -52,4 +51,7 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Sequencer Editor", meta=(ScriptMethod))
 	static FString GetLabel(const FSequencerViewModelScriptingStruct& ViewModel);
+
+	UFUNCTION(BlueprintPure, Category = "Sequencer Editor", meta = (ScriptMethod))
+	static FString GetPath(const FSequencerViewModelScriptingStruct& ViewModel);
 };

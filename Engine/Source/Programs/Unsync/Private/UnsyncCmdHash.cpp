@@ -4,6 +4,10 @@
 #include "UnsyncCore.h"
 #include "UnsyncFile.h"
 #include "UnsyncSerialization.h"
+#include "UnsyncPack.h"
+#include "UnsyncChunking.h"
+
+#include <memory>
 
 namespace unsync {
 
@@ -42,6 +46,54 @@ CmdHash(const FCmdHashOptions& Options)
 		// TODO: macro block generation is only implemented for variable chunk mode
 		ComputeBlocksParams.bNeedMacroBlocks = ComputeBlocksParams.Algorithm.ChunkingAlgorithmId == EChunkingAlgorithmID::VariableBlocks;
 
+		FPath PackOutputRoot = ManifestRoot / "pack";
+
+		std::unique_ptr<FPackWriteContext> PackWriter;
+		THashSet<FGenericHash>			   PackedBlocks;
+		std::mutex						   PackedBlocksMutex;
+
+		if (!GDryRun && Options.bPackFiles)
+		{
+
+			if (!PathExists(PackOutputRoot))
+			{
+				bool bPackOutputExists = EnsureDirectoryExists(PackOutputRoot);
+				if (!bPackOutputExists)
+				{
+					UNSYNC_ERROR(L"Failed to create pack output directory '%ls'", PackOutputRoot.wstring().c_str());
+					return 1;
+				}
+			}
+
+			PackWriter = std::unique_ptr<FPackWriteContext>(new FPackWriteContext(PackOutputRoot));
+
+			UNSYNC_LOG(L"Pack output: '%ls'", PackOutputRoot.wstring().c_str());
+
+			auto OnBlockGenerated = [&PackWriter, &Options, &PackedBlocks, &PackedBlocksMutex](const FGenericBlock&	   Block,
+																							   const FBlockSourceInfo& Source,
+																							   FBufferView			   Data)
+			{
+				if (Source.TotalSize > Options.MaxFileSizeToPack)
+				{
+					return;
+				}
+
+				// Only store unique blocks in the pack
+				{
+					std::unique_lock<std::mutex> LockScope(PackedBlocksMutex);
+					if (!PackedBlocks.insert(Block.HashStrong).second)
+					{
+						return;
+					}
+				}
+
+				// TODO(pack): compressed packs will require special handling by the server
+				PackWriter->AddRawBlock(Block, Data);
+			};
+
+			ComputeBlocksParams.OnBlockGenerated = OnBlockGenerated;
+		}
+
 		FDirectoryManifest DirectoryManifest;
 		if (Options.bForce)
 		{
@@ -55,6 +107,12 @@ CmdHash(const FCmdHashOptions& Options)
 		else
 		{
 			LoadOrCreateDirectoryManifest(DirectoryManifest, Options.Input, ComputeBlocksParams);
+		}
+
+		if (PackWriter)
+		{
+			PackWriter->FinishPack();
+			PackWriter->GetUniqueGeneratedPackIds(DirectoryManifest.PackReferences);
 		}
 
 		if (!GDryRun)
@@ -114,3 +172,4 @@ CmdHash(const FCmdHashOptions& Options)
 }
 
 }  // namespace unsync
+

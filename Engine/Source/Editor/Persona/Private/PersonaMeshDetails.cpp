@@ -51,6 +51,7 @@
 #include "LODUtilities.h"
 #include "MeshUtilities.h"
 #include "FbxMeshUtils.h"
+#include "NaniteLayout.h"
 
 #include "MeshDescription.h"
 #include "MeshAttributes.h"
@@ -178,6 +179,75 @@ enum EButtonFlags
 	BF_Remove = 0x00000008
 };
 
+/**
+ * Window for Nanite settings.
+ */
+
+bool GIsNaniteSkeletalMeshSettingsInitiallyCollapsed = 1;
+static FAutoConsoleVariableRef CVarIsNaniteSkeletalMeshSettingsInitiallyCollapsed(
+	TEXT("r.Nanite.IsNaniteSkeletalMeshSettingsInitiallyCollapsed"),
+	GIsNaniteSkeletalMeshSettingsInitiallyCollapsed,
+	TEXT("If the Nanite Settings are initially collapsed in the details panel in the Skeletal Mesh Editor Tool."),
+	ECVF_ReadOnly
+);
+
+typedef Nanite::FSettingsLayout<USkeletalMesh, false /* ForceEnable */, false /* HighRes */> FNaniteSkeletalMeshLayoutImpl;
+
+class FNaniteSkeletalMeshLayout : public TSharedFromThis<FNaniteSkeletalMeshLayout>
+{
+public:
+	FNaniteSkeletalMeshLayout(FPersonaMeshDetails& InMeshDetails, TSharedRef<IPersonaToolkit> InPersonaToolkit)
+	: MeshDetails(InMeshDetails)
+	, PersonaToolkit(InPersonaToolkit)
+	{
+		LayoutImpl = MakeShareable(new FNaniteSkeletalMeshLayoutImpl());
+
+		LayoutImpl->OnGetMesh = TDelegate<USkeletalMesh*()>::CreateLambda([this]
+		{
+			return PersonaToolkit->GetMesh();
+		});
+
+		LayoutImpl->OnRefreshTool = TDelegate<void()>::CreateLambda([this]
+		{
+			MeshDetails.RequestLayoutUpdate();
+		});
+
+		const USkeletalMesh* SkeletalMesh = LayoutImpl->GetMesh();
+		check(SkeletalMesh);
+		LayoutImpl->UpdateSettings(SkeletalMesh->NaniteSettings);
+	}
+
+	~FNaniteSkeletalMeshLayout()
+	{
+	}
+
+	void AddToDetailsPanel(IDetailLayoutBuilder& DetailBuilder)
+	{
+		const bool bInitiallyCollapsed = GIsNaniteSkeletalMeshSettingsInitiallyCollapsed != 0;
+
+		USkeletalMesh* SkeletalMesh = LayoutImpl->GetMesh();
+		TWeakObjectPtr<USkeletalMesh> WeakSkeletalMesh = SkeletalMesh;
+		const int32 SortOrder = 0;
+		LayoutImpl->AddToDetailsPanel(WeakSkeletalMesh, DetailBuilder, SortOrder, bInitiallyCollapsed);
+	}
+
+	inline bool IsApplyNeeded() const
+	{
+		return LayoutImpl->IsApplyNeeded();
+	}
+
+	inline void ApplyChanges()
+	{
+		return LayoutImpl->ApplyChanges();
+	}
+
+private:
+	FPersonaMeshDetails& MeshDetails;
+	TSharedRef<IPersonaToolkit> PersonaToolkit;
+
+	TSharedPtr<FNaniteSkeletalMeshLayoutImpl> LayoutImpl;
+};
+
 // Container widget for LOD buttons
 class SSkeletalLODActions : public SCompoundWidget
 {
@@ -274,42 +344,49 @@ private:
 		{
 			USkeletalMesh* SkeletalMesh = SharedToolkit->GetMesh();
 
-			if (!SkeletalMesh || SkeletalMesh->IsCompiling())
-			{
-				return false;
-			}
-			FSkeletalMeshLODInfo* LODInfo = SkeletalMesh->GetLODInfo(LODIndex);
-			if (LODInfo == nullptr)
-			{
-				return false;
-			}
-			bool bValidLODSettings = false;
-			if (SkeletalMesh->GetLODSettings() != nullptr)
-			{
-				const int32 NumSettings = FMath::Min(SkeletalMesh->GetLODSettings()->GetNumberOfSettings(), SkeletalMesh->GetLODNum());
-				if (LODIndex < NumSettings)
-				{
-					bValidLODSettings = true;
-				}
-			}
-			
-			const FSkeletalMeshLODGroupSettings* SkeletalMeshLODGroupSettings = bValidLODSettings ? &SkeletalMesh->GetLODSettings()->GetSettingsForLODLevel(LODIndex) : nullptr;
-
-			FGuid BuildGUID = LODInfo->ComputeDeriveDataCacheKey(SkeletalMeshLODGroupSettings);
-			if (LODInfo->BuildGUID != BuildGUID)
-			{
-				return true;
-			}
-			else if(!SkeletalMesh->GetImportedModel() || !(SkeletalMesh->GetImportedModel()->LODModels.IsValidIndex(LODIndex)))
-			{
-				//If there is no valid LODIndex imported model we want to return false to force a build to happen
-				return false;
-			}
-			return SkeletalMesh->GetImportedModel()->LODModels[LODIndex].BuildStringID != SkeletalMesh->GetImportedModel()->LODModels[LODIndex].GetLODModelDeriveDataKey();
+			return LODSettingsChanged(SkeletalMesh, LODIndex);
 		}
 		return false;
 	}
 
+public:
+	static bool LODSettingsChanged(USkeletalMesh* SkeletalMesh, int32 LODIndex)
+	{
+		if (!SkeletalMesh || SkeletalMesh->IsCompiling())
+		{
+			return false;
+		}
+		FSkeletalMeshLODInfo* LODInfo = SkeletalMesh->GetLODInfo(LODIndex);
+		if (LODInfo == nullptr)
+		{
+			return false;
+		}
+		bool bValidLODSettings = false;
+		if (SkeletalMesh->GetLODSettings() != nullptr)
+		{
+			const int32 NumSettings = FMath::Min(SkeletalMesh->GetLODSettings()->GetNumberOfSettings(), SkeletalMesh->GetLODNum());
+			if (LODIndex < NumSettings)
+			{
+				bValidLODSettings = true;
+			}
+		}
+
+		const FSkeletalMeshLODGroupSettings* SkeletalMeshLODGroupSettings = bValidLODSettings ? &SkeletalMesh->GetLODSettings()->GetSettingsForLODLevel(LODIndex) : nullptr;
+
+		FGuid BuildGUID = LODInfo->ComputeDeriveDataCacheKey(SkeletalMeshLODGroupSettings);
+		if (LODInfo->BuildGUID != BuildGUID)
+		{
+			return true;
+		}
+		else if (!SkeletalMesh->GetImportedModel() || !(SkeletalMesh->GetImportedModel()->LODModels.IsValidIndex(LODIndex)))
+		{
+			//If there is no valid LODIndex imported model we want to return false to force a build to happen
+			return false;
+		}
+		return SkeletalMesh->GetImportedModel()->LODModels[LODIndex].BuildStringID != SkeletalMesh->GetImportedModel()->LODModels[LODIndex].GetLODModelDeriveDataKey();
+	}
+
+private:
 	// Incoming arg data
 	int32 LODIndex;
 	TWeakPtr<IPersonaToolkit> PersonaToolkit;
@@ -3273,8 +3350,17 @@ TSharedRef<SWidget> FPersonaMeshDetails::CreateSkinWeightProfileMenuContent()
 				if (ProfilesInfo[Index].PerLODSourceFiles.Num() < NumLODs)
 				{
 					// Only add menu if there is any imported LOD beside LOD0
-					const TArray<FSkeletalMeshLODInfo>& LODInfoArray = Mesh->GetLODInfoArray();
-					if (LODInfoArray.FindLastByPredicate([](FSkeletalMeshLODInfo Info) { return !Info.bHasBeenSimplified; }) > 0)
+					bool bHaveImportedNonBaseLODs = false;
+					for (int32 LODIndex = 1; LODIndex < NumLODs; ++LODIndex)
+					{
+						if (!Mesh->GetLODInfo(LODIndex)->bHasBeenSimplified)
+						{
+							bHaveImportedNonBaseLODs = true;
+							break;
+						}
+					}
+					
+					if (bHaveImportedNonBaseLODs)
 					{						
 						if (!bSeparatorAdded)
 						{
@@ -3645,7 +3731,7 @@ void FPersonaMeshDetails::OnAssetPostLODImported(UObject* InObject, int32 InLODI
 {
 	if (InObject == GetPersonaToolkit()->GetMesh())
 	{
-		RequestLayoutUpdate();
+		ForceLayoutRebuild();
 	}
 }
 
@@ -3653,7 +3739,7 @@ void FPersonaMeshDetails::OnAssetReimport(UObject* InObject)
 {
 	if (InObject == GetPersonaToolkit()->GetMesh())
 	{
-		RequestLayoutUpdate();
+		ForceLayoutRebuild();
 	}
 }
 
@@ -4072,6 +4158,11 @@ FReply FPersonaMeshDetails::ApplyLODChanges(int32 LODIndex)
 	{
 		GetPersonaToolkit()->GetPreviewScene()->BroadcastOnMorphTargetsChanged();
 	}
+
+	// Update mesh required bones to match the new LOD settings
+	GetPersonaToolkit()->GetPreviewScene()->GetPreviewMeshComponent()->RecalcRequiredBones(LODIndex);
+	// Force an update (this will update the Skeleton Tree to match the bones in the preview skeletal mesh required bones)
+	GetPersonaToolkit()->GetPreviewScene()->BroadcastOnLODChanged();
 	
 	return FReply::Handled();
 }
@@ -4282,6 +4373,15 @@ void FPersonaMeshDetails::ApplyChanges()
 	USkeletalMesh* SkelMesh = GetPersonaToolkit()->GetMesh();
 	check(SkelMesh);
 
+	const int32 CurrentDisplayLOD = GetCurrentDisplayLODIndex(GetPersonaToolkit()->GetPreviewMeshComponent());
+	// Check if there are any LOD changes before we regenerate, as we will have to send a LOD update event to fully refresh the bone tree state
+	const bool bRequiresLODChangeUpdate = SSkeletalLODActions::LODSettingsChanged(SkelMesh, CurrentDisplayLOD);
+
+	if (NaniteSettings.IsValid())
+	{
+		NaniteSettings->ApplyChanges();
+	}
+
 	FScopedSuspendAlternateSkinWeightPreview ScopedSuspendAlternateSkinnWeightPreview(SkelMesh);
 	//Control the scope of the PostEditChange
 	{
@@ -4336,6 +4436,14 @@ void FPersonaMeshDetails::ApplyChanges()
 		GetPersonaToolkit()->GetPreviewScene()->BroadcastOnMorphTargetsChanged();
 	}
 
+	// Update preview mesh required bones, in case LOD settings have changed
+	if (bRequiresLODChangeUpdate)
+	{
+		GetPersonaToolkit()->GetPreviewScene()->GetPreviewMeshComponent()->RecalcRequiredBones(CurrentDisplayLOD);
+		// Force an update (this will update the Skeleton Tree to match the bones in the preview skeletal mesh required bones)
+		GetPersonaToolkit()->GetPreviewScene()->BroadcastOnLODChanged();
+	}
+
 	// We need to rebuild the layout to ensure all the LOD details are up-to-date.
 	ForceLayoutRebuild();
 }
@@ -4355,12 +4463,18 @@ bool FPersonaMeshDetails::IsGenerateAvailable() const
 {
 	return IsAutoMeshReductionAvailable() && (IsApplyNeeded() || (LODCount > 1));
 }
+
 bool FPersonaMeshDetails::IsApplyNeeded() const
 {
 	USkeletalMesh* SkelMesh = GetPersonaToolkit()->GetMesh();
 	check(SkelMesh);
 
 	if (!SkelMesh->IsCompiling() && SkelMesh->GetLODNum() != LODCount)
+	{
+		return true;
+	}
+
+	if (NaniteSettings.IsValid() && NaniteSettings->IsApplyNeeded())
 	{
 		return true;
 	}
@@ -4437,6 +4551,14 @@ void FPersonaMeshDetails::CustomizeDetails( IDetailLayoutBuilder& DetailLayout )
 	PostProcessHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FPersonaMeshDetails::OnPostProcessBlueprintChanged, &DetailLayout));
 	PostProcessHandle->MarkHiddenByCustomization();
 
+	// Hide the existing NaniteSettings property so we can use the customization instead
+	IDetailCategoryBuilder& MeshCategory = DetailLayout.EditCategory("Mesh");
+	TSharedRef<IPropertyHandle> NaniteSettingsProperty = DetailLayout.GetProperty(GET_MEMBER_NAME_CHECKED(USkeletalMesh, NaniteSettings), USkeletalMesh::StaticClass());
+	NaniteSettingsProperty->MarkHiddenByCustomization();
+
+	NaniteSettings = MakeShareable(new FNaniteSkeletalMeshLayout(*this, GetPersonaToolkit()));
+	NaniteSettings->AddToDetailsPanel(DetailLayout);
+
 	FDetailWidgetRow& PostProcessRow = SkelMeshCategory.AddCustomRow(LOCTEXT("PostProcessFilterString", "Post Process Blueprint"));
 	PostProcessRow.RowTag(TEXT("PostProcessAnimBlueprint"));
 	PostProcessRow.NameContent()
@@ -4509,6 +4631,46 @@ void FPersonaMeshDetails::CustomizeDetails( IDetailLayoutBuilder& DetailLayout )
 	CustomizeSkinWeightProfiles(DetailLayout);
 
 	HideUnnecessaryProperties(DetailLayout);
+
+	USkeletalMesh* SkelMesh = GetPersonaToolkit()->GetMesh();
+	const int32 SkelMeshLODCount = SkelMesh ? SkelMesh->GetLODNum() : 0;
+
+	auto CategorySorter = [SkelMeshLODCount](const TMap<FName, IDetailCategoryBuilder*>& Categories)
+	{
+		int32 Order = 0;
+		auto SafeSetOrder = [&Categories, &Order](const FName& CategoryName)
+		{
+			if (IDetailCategoryBuilder* const* Builder = Categories.Find(CategoryName))
+			{
+				(*Builder)->SetSortOrder(Order++);
+			}
+		};
+		
+		SafeSetOrder(FName("Material Slots"));
+
+		SafeSetOrder(FName("LODCustomMode"));
+
+		for (int32 LODIndex = 0; LODIndex < SkelMeshLODCount; ++LODIndex)
+		{
+			FString LODCategoryName = FString(TEXT("LOD"));
+			LODCategoryName.AppendInt(LODIndex);
+			SafeSetOrder(*LODCategoryName);
+		}
+
+		SafeSetOrder(FName("LodSettings"));
+		
+		SafeSetOrder(FName("Clothing"));
+		
+		SafeSetOrder(FName("SkeletalMesh"));
+		SafeSetOrder(FName("Mirroring"));
+		SafeSetOrder(FName("Mesh"));
+		SafeSetOrder(FName("SkinWeights"));
+		SafeSetOrder(FName("NaniteSettings"));
+		SafeSetOrder(FName("ImportSettings"));
+		
+	};
+	
+	DetailLayout.SortCategories(CategorySorter);
 }
 
 void FPersonaMeshDetails::OnInstancedFbxSkeletalMeshImportDataPropertyIteration(IDetailCategoryBuilder& BaseCategory, IDetailGroup* PropertyGroup, TSharedRef<IPropertyHandle>& Property) const
@@ -5193,7 +5355,7 @@ TSharedRef<SWidget> FPersonaMeshDetails::OnGenerateCustomNameWidgetsForSection(i
 			.Padding(0, 2, 0, 0)
 			[
 				SNew(SBox)
-				.Visibility(LodIndex == 0 && !IsSectionChunked ? EVisibility::All : EVisibility::Collapsed)
+				.Visibility(LodIndex == 0 && !IsSectionChunked ? EVisibility::Visible : EVisibility::Collapsed)
 				[
 					SNew(SHorizontalBox)
 					+SHorizontalBox::Slot()
@@ -5396,12 +5558,12 @@ bool FPersonaMeshDetails::IsSectionEnabled(int32 LodIndex, int32 SectionIndex) c
 
 EVisibility FPersonaMeshDetails::ShowEnabledSectionDetail(int32 LodIndex, int32 SectionIndex) const
 {
-	return IsSectionEnabled(LodIndex, SectionIndex) ? EVisibility::All : EVisibility::Collapsed;
+	return IsSectionEnabled(LodIndex, SectionIndex) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 EVisibility FPersonaMeshDetails::ShowDisabledSectionDetail(int32 LodIndex, int32 SectionIndex) const
 {
-	return IsSectionEnabled(LodIndex, SectionIndex) ? EVisibility::Collapsed : EVisibility::All;
+	return IsSectionEnabled(LodIndex, SectionIndex) ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 void FPersonaMeshDetails::OnSectionEnabledChanged(int32 LodIndex, int32 SectionIndex, bool bEnable)
@@ -5548,7 +5710,7 @@ EVisibility FPersonaMeshDetails::ShowSectionGenerateUpToSlider(int32 LodIndex, i
 	{
 		return EVisibility::Collapsed;
 	}
-	return SkeletalMeshPtr->GetImportedModel()->LODModels[LodIndex].Sections[SectionIndex].GenerateUpToLodIndex == -1 ? EVisibility::Collapsed : EVisibility::All;
+	return SkeletalMeshPtr->GetImportedModel()->LODModels[LodIndex].Sections[SectionIndex].GenerateUpToLodIndex == -1 ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 ECheckBoxState FPersonaMeshDetails::IsGenerateUpToSectionEnabled(int32 LodIndex, int32 SectionIndex) const
@@ -5618,13 +5780,23 @@ void FPersonaMeshDetails::UpdateLODCategoryVisibility() const
 
 FText FPersonaMeshDetails::GetCurrentLodName() const
 {
-	bool bAutoLod = false;
-	if (GetPersonaToolkit()->GetPreviewMeshComponent() != nullptr)
+	const int32 CurrentDisplayLOD = GetCurrentDisplayLODIndex(GetPersonaToolkit()->GetPreviewMeshComponent());
+	return FText::FromString(GetAutoLod(GetPersonaToolkit()->GetPreviewMeshComponent()) ? FString(TEXT("Auto (LOD0)")) : (FString(TEXT("LOD")) + FString::FromInt(CurrentDisplayLOD)));
+}
+
+bool FPersonaMeshDetails::GetAutoLod(USkeletalMeshComponent* InMeshComponent)
+{
+	return (InMeshComponent != nullptr) ? InMeshComponent->GetForcedLOD() == 0 : false;
+}
+
+int32 FPersonaMeshDetails::GetCurrentDisplayLODIndex(USkeletalMeshComponent* InMeshComponent)
+{
+	int32 CurrentDisplayLOD = 0;
+	if (InMeshComponent != nullptr)
 	{
-		bAutoLod = GetPersonaToolkit()->GetPreviewMeshComponent()->GetForcedLOD() == 0;
+		CurrentDisplayLOD = GetAutoLod(InMeshComponent) ? 0 : InMeshComponent->GetForcedLOD() - 1;
 	}
-	int32 CurrentDisplayLOD = bAutoLod ? 0 : GetPersonaToolkit()->GetPreviewMeshComponent()->GetForcedLOD() - 1;
-	return FText::FromString(bAutoLod ? FString(TEXT("Auto (LOD0)")) : (FString(TEXT("LOD")) + FString::FromInt(CurrentDisplayLOD)));
+	return CurrentDisplayLOD;
 }
 
 FText FPersonaMeshDetails::GetCurrentLodTooltip() const
@@ -5659,7 +5831,7 @@ EVisibility FPersonaMeshDetails::LodComboBoxVisibilityForLodPicker() const
 	{
 		return EVisibility::Hidden;
 	}
-	return EVisibility::All;
+	return EVisibility::Visible;
 }
 
 bool FPersonaMeshDetails::IsLodComboBoxEnabledForLodPicker() const
@@ -6718,7 +6890,7 @@ void FPersonaMeshDetails::OnPreviewMeshChanged(USkeletalMesh* OldSkeletalMesh, U
 {
 	if (IsApplyNeeded())
 	{
-		RequestLayoutUpdate();
+		ForceLayoutRebuild();
 	}
 }
 

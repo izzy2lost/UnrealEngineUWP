@@ -2,16 +2,30 @@
 
 #pragma once
 
-#include "IAvaSequenceSectionDetails.h"
+#include "Sidebar/ISidebarDrawerContent.h"
+#include "Templates/SharedPointer.h"
 
-class FAvaSequencePlaybackDetails : public IAvaSequenceSectionDetails
+class FAvaSequencer;
+class FName;
+class FText;
+class SWidget;
+
+class FAvaSequencePlaybackDetails : public ISidebarDrawerContent
 {
-	//~ Begin IAvaSequenceSectionDetails
-	virtual FName GetSectionName() const override;
-	virtual FText GetSectionDisplayName() const override;
-	virtual TSharedRef<SWidget> CreateContentWidget(const TSharedRef<FAvaSequencer>& InAvaSequencer) override;
-	virtual bool ShouldShowSection() const;
-	//~ End IAvaSequenceSectionDetails
+public:
+	static const FName UniqueId;
 
+	FAvaSequencePlaybackDetails(const TSharedRef<FAvaSequencer>& InAvaSequencer);
+
+	//~ Begin ISidebarDrawerContent
+	virtual FName GetUniqueId() const override;
+	virtual FName GetSectionId() const override;
+	virtual FText GetSectionDisplayText() const override;
+	virtual bool ShouldShowSection() const override;
+	virtual int32 GetSortOrder() const override;
+	virtual TSharedRef<SWidget> CreateContentWidget() override;
+	//~ End ISidebarDrawerContent
+
+protected:
 	TWeakPtr<FAvaSequencer> AvaSequencerWeak;
 };

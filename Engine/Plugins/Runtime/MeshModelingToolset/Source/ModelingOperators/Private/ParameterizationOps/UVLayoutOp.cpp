@@ -164,6 +164,8 @@ void FUVLayoutOp::ExecutePacker(FDynamicMeshUVPacker& Packer)
 {	
 	Packer.GutterSize = this->GutterSize;
 	Packer.bAllowFlips = this->bAllowFlips;
+	Packer.bPreserveScale = this->bPreserveScale;
+	Packer.bPreserveRotation = this->bPreserveRotation;
 
 	if (UVLayoutMode == EUVLayoutOpLayoutModes::RepackToUnitRect)
 	{
@@ -216,6 +218,8 @@ TUniquePtr<FDynamicMeshOperator> UUVLayoutOperatorFactory::MakeNewOperator()
 
 	Op->UVLayerIndex = GetSelectedUVChannel();
 	Op->TextureResolution = Settings->TextureResolution;
+	Op->bPreserveScale = Settings->bPreserveScale;
+	Op->bPreserveRotation = Settings->bPreserveRotation;	
 	Op->bAllowFlips = Settings->bAllowFlips;
 	Op->UVScaleFactor = Settings->Scale;
 	Op->UVTranslation = FVector2f(Settings->Translation);

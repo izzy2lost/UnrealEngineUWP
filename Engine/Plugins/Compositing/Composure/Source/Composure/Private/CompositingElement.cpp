@@ -547,7 +547,7 @@ int32 ACompositingElement::RemovePassesOfType(TSubclassOf<UCompositingElementPas
 
 	if (PassType->IsChildOf<UCompositingElementInput>())
 	{
-		RemoveCount = CompositingElement_Impl::RemovePassesOfType(TransformPasses, UserConstructedTransforms, PassType);
+		RemoveCount = CompositingElement_Impl::RemovePassesOfType(Inputs, UserConstructedInputs, PassType);
 		if (RemoveCount > 0)
 		{
 			RefreshInternalInputsList();

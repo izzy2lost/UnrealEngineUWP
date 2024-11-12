@@ -20,8 +20,6 @@ template <typename FuncType> class TUniqueFunction;
 
 namespace UE::DerivedData { struct FCacheKey; }
 namespace UE::DerivedData { struct FValueId; }
-namespace UE::DerivedData { template <typename CharType> class TSharedString; }
-namespace UE::DerivedData { using FSharedString = TSharedString<TCHAR>; }
 namespace UE::DerivedData::Private { class FCookedData; }
 namespace UE::DerivedData::Private { class FEditorData; }
 namespace UE::DerivedData::Private { class FIoResponse; }
@@ -122,17 +120,17 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	/** References a value that is stored in a buffer. */
-	UE_API FDerivedData(const DerivedData::FSharedString& Name, const FSharedBuffer& Data);
-	UE_API FDerivedData(const DerivedData::FSharedString& Name, const FCompositeBuffer& Data);
-	UE_API FDerivedData(const DerivedData::FSharedString& Name, const FCompressedBuffer& Data);
+	UE_API FDerivedData(const FSharedString& Name, const FSharedBuffer& Data);
+	UE_API FDerivedData(const FSharedString& Name, const FCompositeBuffer& Data);
+	UE_API FDerivedData(const FSharedString& Name, const FCompressedBuffer& Data);
 
 	/** References a value that was saved using ICache::PutValue. */
-	UE_API FDerivedData(const DerivedData::FSharedString& Name, const DerivedData::FCacheKey& Key);
+	UE_API FDerivedData(const FSharedString& Name, const DerivedData::FCacheKey& Key);
 	/** References a value in a record that was saved using ICache::Put. */
-	UE_API FDerivedData(const DerivedData::FSharedString& Name, const DerivedData::FCacheKey& Key, const DerivedData::FValueId& ValueId);
+	UE_API FDerivedData(const FSharedString& Name, const DerivedData::FCacheKey& Key, const DerivedData::FValueId& ValueId);
 
 	/** Returns the name of the reference if available. */
-	UE_API const DerivedData::FSharedString& GetName() const;
+	UE_API const FSharedString& GetName() const;
 
 	/** Overwrites the existing flags. */
 	UE_API void SetFlags(EDerivedDataFlags Flags);

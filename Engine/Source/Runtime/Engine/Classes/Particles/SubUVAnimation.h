@@ -78,27 +78,7 @@ public:
 	virtual void ReleaseRHI() override;
 };
 
-/** Resource array to pass  */
-class FSubUVVertexResourceArray : public FResourceArrayInterface
-{
-public:
-	FSubUVVertexResourceArray(void* InData, uint32 InSize)
-		: Data(InData)
-		, Size(InSize)
-	{
-	}
-
-	virtual const void* GetResourceData() const override { return Data; }
-	virtual uint32 GetResourceDataSize() const override { return Size; }
-	virtual void Discard() override { }
-	virtual bool IsStatic() const override { return false; }
-	virtual bool GetAllowCPUAccess() const override { return false; }
-	virtual void SetAllowCPUAccess(bool bInNeedsCPUAccess) override { }
-
-private:
-	void* Data;
-	uint32 Size;
-};
+using FSubUVVertexResourceArray UE_DEPRECATED(5.5, "FResourceArrayUploadArrayView should be used directly.") = FResourceArrayUploadArrayView;
 
 /**
  * SubUV animation asset, which caches bounding geometry for regions in the SubUVTexture with non-zero opacity.

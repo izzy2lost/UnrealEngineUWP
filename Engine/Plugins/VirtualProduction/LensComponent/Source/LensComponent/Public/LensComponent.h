@@ -27,6 +27,8 @@ enum class EFIZEvaluationMode : uint8
 	UseCameraSettings,
 	/** Evaluate the Lens File using values recorded in a level sequence (set automatically when the sequence is opened) */
 	UseRecordedValues,
+	/** Evaluate the Lens File using values set directly in the details panel or via BP/scripting */
+	Manual,
 	/** Do not evaluate the Lens File */
 	DoNotEvaluate,
 };
@@ -53,6 +55,16 @@ enum class EDistortionSource : uint8
 	LiveLinkLensSubject,
 	/** Distortion state is set manually by the user using the Distortion State setting below */
 	Manual,
+};
+
+/** Specifies how the distortion should be rendered in the post-processing pipeline */
+UENUM(BlueprintType)
+enum class EDistortionRenderingMode : uint8
+{
+	/** Use the plugin post process material */
+	PostProcessMaterial,
+	/** Use the experimental lens distortion scene view extension. Further control of where distortion is rendered can be set via the console command r.TSR.LensDistortion */
+	SceneViewExtension UMETA(DisplayName = "Scene View Extension (Experimental)"),
 };
 
 /** Component for applying a post-process lens distortion effect to a CineCameraComponent on the same actor */
@@ -189,6 +201,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Lens Component")
 	const FLensFileEvaluationInputs& GetLensFileEvaluationInputs() const;
 
+	/** Set the data used by this component to evaluate the LensFile */
+	UFUNCTION(BlueprintCallable, Category = "Lens Component")
+	void SetLensFileEvaluationInputs(float InFocus, float InZoom);
+
 	/** Returns true if nodal offset was applied during the current tick, false otherwise */
 	UFUNCTION(BlueprintPure, Category = "Lens Component")
 	bool WasNodalOffsetAppliedThisTick() const;
@@ -258,6 +274,12 @@ private:
 	/** Returns the sensor width of the input CineCamera, factoring in its squeeze factor */
 	float GetDesqueezedSensorWidth(UCineCameraComponent* const CineCameraComponent) const;
 
+	/** Get the original transform of the tracked component (rebuilt from the location and rotation vectors) */
+	FTransform GetOriginalTrackedComponentTransform();
+
+	/** Set the original transform of the tracked component (and also the location and rotation vectors) */
+	void SetOriginalTrackedComponentTransform(const FTransform& NewTransform);
+
 protected:
 	/** Lens File used to drive distortion with current camera settings */
 	UPROPERTY(EditAnywhere, Category="Lens File", meta=(ShowOnlyInnerProperties))
@@ -272,7 +294,7 @@ protected:
 	FComponentReference TargetCameraComponent;
 
 	/** Inputs to LensFile evaluation */
-	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = "Lens File")
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Lens File")
 	FLensFileEvaluationInputs EvalInputs;
 
 	/** Specifies from where the distortion state information comes */
@@ -283,6 +305,20 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter = ShouldApplyDistortion, Setter = SetApplyDistortion, Category = "Distortion")
 	bool bApplyDistortion = false;
 
+	/** Specifies how the distortion should be rendered in the post-processing pipeline */
+	UPROPERTY(EditAnywhere, Category = "Distortion", meta = (EditCondition = "bApplyDistortion"))
+	EDistortionRenderingMode DistortionRenderingMode = EDistortionRenderingMode::PostProcessMaterial;
+
+	/**
+	 * If checked, the camera's overscan value will be driven by the lens component to automatically compensate for distortion. 
+	 * The camera's overscan crop property will also be driven based on the distortion rendering mode:
+	 *   Disabled for Post Process Material
+	 *   Enabled for Scene View Extension
+	 * Note: The camera's overscan properties will not be automatically reset when the "Apply Distortion" or "Override Camera Overscan" properties are disabled
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Distortion")
+	bool bOverrideCameraOverscan = true;
+
 	/** The current lens model used for distortion */
 	UPROPERTY(EditAnywhere, Category = "Distortion", meta = (EditCondition = "DistortionStateSource == EDistortionSource::Manual"))
 	TSubclassOf<ULensModel> LensModel;
@@ -292,7 +328,7 @@ protected:
 	FLensDistortionState DistortionState;
 
 	/** Whether to scale the computed overscan by the overscan percentage */
-	UPROPERTY(AdvancedDisplay, BlueprintReadWrite, Category = "Distortion")
+	UPROPERTY(AdvancedDisplay, BlueprintReadWrite, Category = "Distortion", meta = (InlineEditConditionToggle))
 	bool bScaleOverscan = false;
 
 	/** The percentage of the computed overscan that should be applied to the target camera */
@@ -313,6 +349,17 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, Category="Nodal Offset")
 	bool bApplyNodalOffsetOnTick = true;
+
+	/*
+	 * Location and Rotation of the TrackedComponent prior to nodal offset being applied 
+	 * Note: These are marked Interp so that they will be recorded in a level sequence to support re-applying nodal offset
+	 * However, recording of FTransform properties is not currently supported by the transform track recorder.
+	 * FRotator and FQuat are also not supported by the basic property track recorder, but FVector is, so we use that for both location and rotation.
+	 */
+	UPROPERTY(Interp, Category = "Nodal Offset", meta = (EditCondition=false, EditConditionHides))
+	FVector OriginalTrackedComponentLocation;
+	UPROPERTY(Interp, Category = "Nodal Offset", meta = (EditCondition=false, EditConditionHides))
+	FVector OriginalTrackedComponentRotation;
 
 	/** Serialized transform of the TrackedComponent prior to nodal offset being applied */
 	UPROPERTY(Interp, VisibleAnywhere, AdvancedDisplay, Category = "Nodal Offset")

@@ -8,6 +8,15 @@ using UnrealBuildBase;
 public class Catch2 : ModuleRules
 {
 	public static readonly string Version = "v3.4.0";
+
+	protected virtual bool IsDebugConfig
+	{
+		get
+		{
+			return Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT;
+		}
+	}
+
 	/// <summary>
 	/// Library name can vary with platform.
 	/// For NDA platforms inherit from this module and override this property to set a different library name.
@@ -16,7 +25,6 @@ public class Catch2 : ModuleRules
 	{
 		get
 		{
-			bool IsDebugConfig = Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT;
 			if (Target.Platform.IsInGroup(UnrealPlatformGroup.Microsoft))
 			{
 				return string.Format("Catch2{0}.lib", IsDebugConfig ? "d" : string.Empty);
@@ -91,9 +99,6 @@ public class Catch2 : ModuleRules
 	public Catch2(ReadOnlyTargetRules Target) : base(Target)
 	{
 		Type = ModuleType.External;
-
-		bool IsDebugConfig = Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT;
-
 
 		string RelativeLibPath = Path.Combine(RelativeBaseLibPath, IsDebugConfig ? "debug" : "release", LibName);
 

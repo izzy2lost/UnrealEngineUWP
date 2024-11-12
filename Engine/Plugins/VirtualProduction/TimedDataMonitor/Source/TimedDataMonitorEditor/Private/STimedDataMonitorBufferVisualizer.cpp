@@ -163,15 +163,14 @@ void STimedDataMonitorBufferVisualizer::Construct(const FArguments& InArgs)
 		.ListItemsSource(&ListItemsSource)
 		.OnGenerateRow(this, &STimedDataMonitorBufferVisualizer::MakeListViewWidget)
 		.OnRowReleased(this, &STimedDataMonitorBufferVisualizer::ReleaseListViewWidget)
-		.ItemHeight(60)
 		.HeaderRow(
 			SNew(SHeaderRow)
 			+ SHeaderRow::Column(TimedDataBufferVisualizer::HeaderIdName_DisplayName)
 			.FillWidth(0.2f)
-			.DefaultLabel(LOCTEXT("DisplayNameHeaderName", ""))
+			.DefaultLabel(FText())
 			+SHeaderRow::Column(TimedDataBufferVisualizer::HeaderIdName_Visual)
 			.FillWidth(0.8f)
-			.DefaultLabel(LOCTEXT("VisualHeaderName", ""))
+			.DefaultLabel(FText())
 		);
 
 	ChildSlot

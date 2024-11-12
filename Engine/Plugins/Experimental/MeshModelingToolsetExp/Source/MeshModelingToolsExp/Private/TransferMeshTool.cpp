@@ -9,6 +9,7 @@
 #include "TargetInterfaces/StaticMeshBackedTarget.h"
 #include "TargetInterfaces/MeshDescriptionProvider.h"
 #include "TargetInterfaces/MeshDescriptionCommitter.h"
+#include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 #include "ModelingToolTargetUtil.h"
 #include "Physics/ComponentCollisionUtil.h"
 #include "ShapeApproximation/SimpleShapeSet3.h"
@@ -32,6 +33,17 @@ bool UTransferMeshToolBuilder::CanBuildTool(const FToolBuilderState& SceneState)
 UMultiSelectionMeshEditingTool* UTransferMeshToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
 {
 	return NewObject<UTransferMeshTool>(SceneState.ToolManager);
+}
+
+const FToolTargetTypeRequirements& UTransferMeshToolBuilder::GetTargetRequirements() const
+{
+	static FToolTargetTypeRequirements TypeRequirements({
+		UMaterialProvider::StaticClass(),
+		UMeshDescriptionProvider::StaticClass(),
+		UMeshDescriptionCommitter::StaticClass(),
+		UPrimitiveComponentBackedTarget::StaticClass()
+		});
+	return TypeRequirements;
 }
 
 /*

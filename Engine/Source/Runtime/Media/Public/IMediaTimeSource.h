@@ -42,6 +42,41 @@ public:
 	bool operator > (const FMediaTimeStamp & Other) const { return (SequenceIndex > Other.SequenceIndex) || (SequenceIndex == Other.SequenceIndex && Time > Other.Time); }
 	bool operator >= (const FMediaTimeStamp & Other) const { return (SequenceIndex > Other.SequenceIndex) || (SequenceIndex == Other.SequenceIndex && Time >= Other.Time); }
 
+	FMediaTimeStamp& SetPrimaryIndex(int32 InSetTo)
+	{
+		SequenceIndex = MakeSequenceIndex(InSetTo, GetSecondaryIndex());
+		return *this;
+	}
+
+	FMediaTimeStamp& SetSecondaryIndex(int32 InSetTo)
+	{
+		SequenceIndex = MakeSequenceIndex(GetPrimaryIndex(), InSetTo);
+		return *this;
+	}
+
+	FMediaTimeStamp& AdjustPrimaryIndex(int32 Add)
+	{
+		SequenceIndex += (static_cast<int64>(Add) << 32);
+		return *this;
+	}
+
+	FMediaTimeStamp& AdjustSecondaryIndex(int32 Add)
+	{
+		SequenceIndex += Add;
+		return *this;
+	}
+
+	int32 GetPrimaryIndex() const
+	{
+		return static_cast<int32>(SequenceIndex >> 32);
+	}
+
+	int32 GetSecondaryIndex() const
+	{
+		return static_cast<int32>(((uint64)SequenceIndex) & 0xffffffff);
+	}
+
+
 	static int64 MakeSequenceIndex(int32 PrimaryIndex, int32 SecondaryIndex)
 	{
 		return (static_cast<int64>(PrimaryIndex) << 32) + int64(SecondaryIndex);
@@ -88,7 +123,7 @@ public:
 	FMediaTimeStampSample() : SampledAtTime(-1.0) {}
 	FMediaTimeStampSample(const FMediaTimeStamp & InTimeStamp, double InSampledAtTime) : TimeStamp(InTimeStamp), SampledAtTime(InSampledAtTime) {}
 
-	void Invalidate() { TimeStamp.Invalidate(); }
+	void Invalidate() { TimeStamp.Invalidate(); SampledAtTime = -1.0; }
 	bool IsValid() const { return TimeStamp.IsValid(); }
 
 	FMediaTimeStamp TimeStamp;

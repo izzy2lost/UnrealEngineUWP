@@ -128,30 +128,13 @@ FCustomVersionRegistration GRegisterParticleSystemCustomVersion(FParticleSystemC
 
 //////////////////////////////////////////////////////////////////////////
 
-void UFXSystemAsset::PostInitProperties()
-{
-	Super::PostInitProperties();
-
-#if WITH_PARTICLE_PERF_CSV_STATS
-	CSVStat_Total = *FString::Printf(TEXT("Total/%s"), *GetFName().ToString());
-	CSVStat_GTOnly = *FString::Printf(TEXT("GTOnly/%s"), *GetFName().ToString());
-	CSVStat_InstAvgGT = *FString::Printf(TEXT("InstAvgGT/%s"), *GetFName().ToString());
-	CSVStat_RT = *FString::Printf(TEXT("RT/%s"), *GetFName().ToString());
-	CSVStat_InstAvgRT = *FString::Printf(TEXT("InstAvgRT/%s"), *GetFName().ToString());
-	CSVStat_GPU = *FString::Printf(TEXT("GPU/%s"), *GetFName().ToString());
-	CSVStat_InstAvgGPU = *FString::Printf(TEXT("InstAvgGPU/%s"), *GetFName().ToString());
-	CSVStat_Count = *FString::Printf(TEXT("Count/%s"), *GetFName().ToString());
-	CSVStat_Activation = *FString::Printf(TEXT("Activation/%s"), *GetFName().ToString());
-	CSVStat_Waits = *FString::Printf(TEXT("Waits/%s"), *GetFName().ToString());
-	CSVStat_Culled = *FString::Printf(TEXT("Culled/%s"), *GetFName().ToString());
-	CSVStat_MemoryKB = *FString::Printf(TEXT("MemoryKB/%s"), *GetFName().ToString());
-#endif
-}
-
 void UFXSystemAsset::LaunchPSOPrecaching(const FMaterialInterfacePSOPrecacheParamsList& PSOPrecacheParamsList)
 {
 	FGraphEventArray PrecachePSOsEvents;
-	PrecacheMaterialPSOs(PSOPrecacheParamsList, MaterialPSOPrecacheRequestIDs, PrecachePSOsEvents);
+	if (IsComponentPSOPrecachingEnabled())
+	{
+		PrecacheMaterialPSOs(PSOPrecacheParamsList, MaterialPSOPrecacheRequestIDs, PrecachePSOsEvents);
+	} 
 
 	// Create task to signal that the PSO precache events are done by adding them as prerequisite to the task.
 	if (PrecachePSOsEvents.Num() > 0)
@@ -183,6 +166,8 @@ void UFXSystemAsset::LaunchPSOPrecaching(const FMaterialInterfacePSOPrecachePara
 		PrecachePSOsEvent = ReleasePrecachePSOsEventTask->GetCompletionEvent();
 		ReleasePrecachePSOsEventTask->Unlock();
 	}
+
+	PSOPrecachingLaunched = true;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -227,6 +212,17 @@ FAutoConsoleVariableRef CVarFXSkipZeroDeltaTime(
 	GFXSkipZeroDeltaTime,
 	TEXT("When enabled a delta tick time of nearly 0.0 will cause us to skip the component update.\n")
 	TEXT("This fixes issue like PSA_Velocity aligned sprites, but could cause issues with things that rely on accurate velocities (i.e. TSR)."),
+	ECVF_Default);
+
+int32 GCascadePSOPrecachingTime = 1;
+FAutoConsoleVariableRef CVarCascadePSOPrecachingTime(
+	TEXT("r.PSOPrecache.CascadePrecachingTime"),
+	GCascadePSOPrecachingTime,
+	TEXT("Controls when PSO precaching happens for Cascade systems:\n")
+	TEXT("	0: no precaching\n")
+	TEXT("	1: precaching at asset loading time (default)\n")
+	TEXT("	2: precaching at component loading time\n")
+	TEXT("	3: precaching at component proxy creation time"),
 	ECVF_Default);
 
 /** Whether to allow particle systems to perform work. */
@@ -967,7 +963,7 @@ int32 ParticleEmitterHelper_FixupModuleLODErrors( int32 LODIndex, int32 ModuleIn
 	if (ModuleOuter != EmitterOuter)
 	{
 		// Module has an incorrect outer
-		CurrModule->Rename(NULL, EmitterOuter, REN_ForceNoResetLoaders|REN_DoNotDirty);
+		CurrModule->Rename(NULL, EmitterOuter, REN_DoNotDirty);
 		bIsDirty = true;
 	}
 
@@ -2603,7 +2599,10 @@ void UParticleSystem::PostLoad()
 		}
 	}
 
-	PrecachePSOs();
+	if (GCascadePSOPrecachingTime == 1)
+	{
+		PrecachePSOs();
+	}
 
 #if WITH_EDITOR
 	// Due to there still being some ways that LODLevel counts get mismatched,
@@ -2707,7 +2706,7 @@ void UParticleSystem::PostLoad()
 
 void UParticleSystem::PrecachePSOs()
 {
-	if (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled())
+	if (HasLaunchedPSOPrecaching() || (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled()))
 	{
 		return;
 	}
@@ -3560,7 +3559,7 @@ bool UFXSystemComponent::RequiresLWCTileRecache(const FVector3f CurrentTile, con
 void UFXSystemComponent::PrecacheAssetPSOs(UFXSystemAsset* FXSystemAsset)
 {
 #if UE_WITH_PSO_PRECACHING
-	if (!FApp::CanEverRender() || !IsComponentPSOPrecachingEnabled() || FXSystemAsset == nullptr)
+	if (!FApp::CanEverRender() || (!IsComponentPSOPrecachingEnabled()) || FXSystemAsset == nullptr)
 	{
 		return;
 	}
@@ -3568,22 +3567,23 @@ void UFXSystemComponent::PrecacheAssetPSOs(UFXSystemAsset* FXSystemAsset)
 	FGraphEventRef GraphEvent = FXSystemAsset->GetPrecachePSOsEvent();
 
 	check(IsInGameThread() || IsInParallelGameThread());
-
+#if UE_WITH_PSO_PRECACHING
 	MaterialPSOPrecacheRequestIDs.Empty();
-	PSOPrecacheCompileEvent = nullptr;
-	bPSOPrecacheRequestBoosted = false;
-
+	PSOPrecacheRequestPriority = EPSOPrecachePriority::Medium;
+#endif
 	// The asset will keep the Precache events alive, but these might be over. Avoid delaying scene proxy creation if everything is finished
 	bool bAllEventsDone = GraphEvent == nullptr || GraphEvent->IsComplete();
+
+	FGraphEventArray Events;
 	if (!bAllEventsDone)
 	{
+#if UE_WITH_PSO_PRECACHING
 		MaterialPSOPrecacheRequestIDs.Append(FXSystemAsset->GetMaterialPSOPrecacheRequestIDs());
-
-		FGraphEventArray Events;
+#endif
 		Events.Add(GraphEvent);
-		RequestRecreateRenderStateWhenPSOPrecacheFinished(Events);
 	}
 
+	RequestRecreateRenderStateWhenPSOPrecacheFinished(Events);
 	bPSOPrecacheCalled = true;
 #endif // UE_WITH_PSO_PRECACHING
 }
@@ -3969,6 +3969,12 @@ void UParticleSystemComponent::PostLoad()
 	{
 		PrimaryComponentTick.bStartWithTickEnabled = false;
 	}
+
+	if (Template && GCascadePSOPrecachingTime == 2)
+	{
+		Template->ConditionalPostLoad();
+		Template->PrecachePSOs();
+	}
 }
 
 void UParticleSystemComponent::Serialize( FArchive& Ar )
@@ -4247,6 +4253,7 @@ void UParticleSystemComponent::SendRenderDynamicData_Concurrent()
 	SCOPE_CYCLE_COUNTER(STAT_ParticleSystemComponent_SendRenderDynamicData_Concurrent);
 	SCOPE_CYCLE_COUNTER(STAT_ParticlesOverview_GT_CNC);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);
+	CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_CascadeSendRenderDynamicData);
 	PARTICLE_PERF_STAT_CYCLES_GT(FParticlePerfStatsContext(GetWorld(), Template, this), EndOfFrame);
 
 	ForceAsyncWorkCompletion(ENSURE_AND_STALL, false, true);
@@ -8417,6 +8424,8 @@ uint32 UParticleSystemComponent::GetApproxMemoryUsage()const
 		}
 	}
 
+	// This is buggy we are peeking into the scene proxy data and a command might be in flight to update the dynamic data
+#if 0
 	FParticleSystemSceneProxy* PSysSceneProxy = (FParticleSystemSceneProxy*)SceneProxy;
 	if (PSysSceneProxy != NULL)
 	{
@@ -8441,6 +8450,7 @@ uint32 UParticleSystemComponent::GetApproxMemoryUsage()const
 		#endif
 		}
 	}
+#endif
 
 	return MemUsage;
 }

@@ -3,7 +3,11 @@
 #include "MovementMode.h"
 #include "MoverComponent.h"
 #include "Engine/BlueprintGeneratedClass.h"
+
+#if WITH_EDITOR
 #include "Misc/DataValidation.h"
+#endif
+
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovementMode)
 
@@ -65,29 +69,35 @@ void UBaseMovementMode::DoSimulationTick(const FSimulationTickParams& Params, FM
 	}
 }
 
+void UBaseMovementMode::DoActivate()
+{
+	if (bHasBlueprintOnActivate)
+	{
+		K2_OnActivate();
+	}
+	else
+	{
+		OnActivate();
+	}
+}
+
+void UBaseMovementMode::DoDeactivate()
+{
+	if (bHasBlueprintOnDeactivate)
+	{
+		K2_OnDeactivate();
+	}
+	else
+	{
+		OnDeactivate();
+	}
+}
+
 
 UMoverComponent* UBaseMovementMode::GetMoverComponent() const
 {
 	return CastChecked<UMoverComponent>(GetOuter());
 }
-
-
-const UMoverBlackboard* UBaseMovementMode::GetBlackboard() const
-{
-	return GetBlackboard_Mutable();
-}
-
-
-UMoverBlackboard* UBaseMovementMode::GetBlackboard_Mutable() const
-{
-	if (UMoverComponent* OwnerComponent = GetMoverComponent())
-	{
-		return OwnerComponent->SimBlackboard.Get();
-	}
-
-	return nullptr;
-}
-
 
 #if WITH_EDITOR
 EDataValidationResult UBaseMovementMode::IsDataValid(FDataValidationContext& Context) const
@@ -113,6 +123,16 @@ EDataValidationResult UBaseMovementMode::IsDataValid(FDataValidationContext& Con
 #endif // WITH_EDITOR
 
 
+bool UBaseMovementMode::HasGameplayTag(FGameplayTag TagToFind, bool bExactMatch) const
+{
+	if (bExactMatch)
+	{
+		return GameplayTags.HasTagExact(TagToFind);
+	}
+
+	return GameplayTags.HasTag(TagToFind);
+}
+
 void UBaseMovementMode::OnRegistered(const FName ModeName)
 {
 }
@@ -126,6 +146,14 @@ void UBaseMovementMode::OnGenerateMove(const FMoverTickStartData& StartState, co
 }
 
 void UBaseMovementMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState)
+{
+}
+
+void UBaseMovementMode::OnActivate()
+{
+}
+
+void UBaseMovementMode::OnDeactivate()
 {
 }
 

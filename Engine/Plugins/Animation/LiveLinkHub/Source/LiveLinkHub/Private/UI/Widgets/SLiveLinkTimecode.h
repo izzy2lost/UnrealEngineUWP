@@ -44,6 +44,9 @@ private:
 	/** Sends the current timecode settings to the connected editor(s). */
 	void SendUpdatedTimecodeToEditor();
 
+	/** Update the local timecode properties from the timecode settings. */
+	void UpdateTimecodeFromSettings();
+	
 	/** Do we have timecode source enabled */
 	bool bIsTimecodeSource = false;
 

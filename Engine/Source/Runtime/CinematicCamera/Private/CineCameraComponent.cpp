@@ -279,6 +279,11 @@ void UCineCameraComponent::SetCurrentFocalLength(float InFocalLength)
 
 float UCineCameraComponent::GetHorizontalFieldOfView() const
 {
+	return GetHorizontalFieldOfViewInternal(/* bIncludeOverscan =*/ true);
+}
+
+float UCineCameraComponent::GetHorizontalFieldOfViewInternal(bool bIncludeOverscan) const
+{
 	if (CurrentFocalLength > 0.f)
 	{
 		float CropedSensorWidth = Filmback.SensorWidth * LensSettings.SqueezeFactor;
@@ -291,13 +296,19 @@ float UCineCameraComponent::GetHorizontalFieldOfView() const
 			}
 		}
 
-		return FMath::RadiansToDegrees(2.f * FMath::Atan(CropedSensorWidth / (2.f * CurrentFocalLength)));
+		const float OverscanScalar = bIncludeOverscan ? (1.0f + Overscan) : 1.0f;
+		return FMath::RadiansToDegrees(2.f * FMath::Atan(CropedSensorWidth * OverscanScalar / (2.f * CurrentFocalLength)));
 	}
 
 	return 0.f;
 }
 
 float UCineCameraComponent::GetVerticalFieldOfView() const
+{
+	return GetVerticalFieldOfViewInternal(/* bIncludeOverscan =*/ true);
+}
+
+float UCineCameraComponent::GetVerticalFieldOfViewInternal(bool bIncludeOverscan) const
 {
 	if (CurrentFocalLength > 0.f)
 	{
@@ -311,10 +322,41 @@ float UCineCameraComponent::GetVerticalFieldOfView() const
 			}
 		}
 
-		return FMath::RadiansToDegrees(2.f * FMath::Atan(CropedSensorHeight / (2.f * CurrentFocalLength)));
+		const float OverscanScalar = bIncludeOverscan ? (1.0f + Overscan) : 1.0f;
+		return FMath::RadiansToDegrees(2.f * FMath::Atan(CropedSensorHeight * OverscanScalar / (2.f * CurrentFocalLength)));
 	}
 
 	return 0.f;
+}
+
+float UCineCameraComponent::GetHorizontalProjectionOffset() const
+{
+	float CroppedSensorWidth = Filmback.SensorWidth * LensSettings.SqueezeFactor;
+	if (CropSettings.AspectRatio > 0.0f)
+	{
+		float DesqueezeAspectRatio = Filmback.SensorWidth * LensSettings.SqueezeFactor / Filmback.SensorHeight;
+		if (CropSettings.AspectRatio < DesqueezeAspectRatio)
+		{
+			CroppedSensorWidth *= CropSettings.AspectRatio / DesqueezeAspectRatio;
+		}
+	}
+
+	return 2.0f * Filmback.SensorHorizontalOffset / (CroppedSensorWidth * (1.0f + Overscan));
+}
+
+float UCineCameraComponent::GetVerticalProjectionOffset() const
+{
+	float CroppedSensorHeight = Filmback.SensorHeight;
+	if (CropSettings.AspectRatio > 0.0f)
+	{
+		float DesqueezeAspectRatio = Filmback.SensorWidth * LensSettings.SqueezeFactor / Filmback.SensorHeight;
+		if (DesqueezeAspectRatio < CropSettings.AspectRatio)
+		{
+			CroppedSensorHeight *= DesqueezeAspectRatio / CropSettings.AspectRatio;
+		}
+	}
+
+	return 2.0f * Filmback.SensorVerticalOffset / (CroppedSensorHeight * (1.0f + Overscan));
 }
 
 FString UCineCameraComponent::GetFilmbackPresetName() const
@@ -484,7 +526,7 @@ void UCineCameraComponent::RecalcDerivedData()
 	float const MinFocusDistInWorldUnits = LensSettings.MinimumFocusDistance * (GetWorldToMetersScale() / 1000.f);	// convert mm to uu
 	FocusSettings.ManualFocusDistance = FMath::Max(FocusSettings.ManualFocusDistance, MinFocusDistInWorldUnits);
 
-	FieldOfView = GetHorizontalFieldOfView();
+	FieldOfView = GetHorizontalFieldOfViewInternal(/*bIncludeOverscan =*/ false);
 	Filmback.RecalcSensorAspectRatio();
 	AspectRatio = Filmback.SensorAspectRatio * LensSettings.SqueezeFactor;
 	if (CropSettings.AspectRatio > 0.0f)
@@ -557,6 +599,9 @@ void UCineCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& Desi
 
 	DesiredView.PerspectiveNearClipPlane = bOverride_CustomNearClippingPlane ? CustomNearClippingPlane : -1.0f;
 
+	DesiredView.OffCenterProjectionOffset.X = GetHorizontalProjectionOffset();
+	DesiredView.OffCenterProjectionOffset.Y = GetVerticalProjectionOffset();
+	
 	bResetInterpolation = false;
 }
 
@@ -699,7 +744,7 @@ void UCineCameraComponent::UpdateCameraLens(float DeltaTime, FMinimalViewInfo& D
 		DesiredView.PostProcessSettings.DepthOfFieldFocalDistance = CurrentFocusDistance;
 
 		DesiredView.PostProcessSettings.bOverride_DepthOfFieldSensorWidth = true;
-		DesiredView.PostProcessSettings.DepthOfFieldSensorWidth = Filmback.SensorWidth;
+		DesiredView.PostProcessSettings.DepthOfFieldSensorWidth = Filmback.SensorWidth * (1.0f + Overscan);
 
 		DesiredView.PostProcessSettings.bOverride_DepthOfFieldSqueezeFactor = true;
 		DesiredView.PostProcessSettings.DepthOfFieldSqueezeFactor = LensSettings.SqueezeFactor;

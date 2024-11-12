@@ -25,10 +25,16 @@ class UStateTreeState;
 class UToolMenu;
 
 /** View Model for the Tree Editor Data */
-class FAvaTransitionEditorViewModel : public FAvaTransitionViewModel, public FSelfRegisteringEditorUndoClient, public IAvaTransitionWidgetExtension, public IAvaTransitionObjectExtension
+class FAvaTransitionEditorViewModel : public FAvaTransitionViewModel, public FSelfRegisteringEditorUndoClient, public IAvaTransitionObjectExtension
 {
 public:
-	UE_AVA_INHERITS(FAvaTransitionEditorViewModel, FAvaTransitionViewModel, IAvaTransitionWidgetExtension, IAvaTransitionObjectExtension)
+	UE_AVA_INHERITS(FAvaTransitionEditorViewModel, FAvaTransitionViewModel, IAvaTransitionObjectExtension)
+
+	DECLARE_MULTICAST_DELEGATE(FOnPostRefresh);
+	FOnPostRefresh::RegistrationType& GetOnPostRefresh() const
+	{
+		return OnPostRefreshDelegate;
+	}
 
 	explicit FAvaTransitionEditorViewModel(UAvaTransitionTree* InTransitionTree, const TSharedPtr<FAvaTransitionEditor>& InEditor);
 
@@ -71,6 +77,8 @@ public:
 		return ContextMenu;
 	}
 
+	TSharedRef<SWidget> GetTreeWidget();
+
 	//~ Begin FAvaTransitionViewModel
 	virtual void OnInitialize() override;
 	virtual void PostRefresh() override;
@@ -82,10 +90,6 @@ public:
 	virtual void PostUndo(bool bInSuccess) override;
 	//~ End FEditorUndoClient
 
-	//~ Begin IAvaTransitionWidgetExtension
-	virtual TSharedRef<SWidget> CreateWidget() override;
-	//~ End IAvaTransitionWidgetExtension
-
 	//~ Begin IAvaTransitionObjectExtension
 	virtual UObject* GetObject() const override;
 	virtual void OnPropertiesChanged(const FPropertyChangedEvent& InPropertyChangedEvent) override {}
@@ -95,6 +99,8 @@ private:
 	void BindDelegates();
 
 	void UnbindDelegates();
+
+	void OnPostCompile(const UStateTree& InStateTree);
 
 	void OnIdentifierChanged(const UStateTree& InStateTree);
 
@@ -121,4 +127,6 @@ private:
 	TSharedPtr<SAvaTransitionTreeView> TreeView;
 
 	TArray<TSharedRef<FAvaTransitionActions>> Actions;
+
+	mutable FOnPostRefresh OnPostRefreshDelegate;
 };

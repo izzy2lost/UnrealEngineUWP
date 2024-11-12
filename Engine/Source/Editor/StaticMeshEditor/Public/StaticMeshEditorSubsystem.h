@@ -7,7 +7,7 @@
 #include "EditorSubsystem.h"
 
 #include "Engine/StaticMesh.h"
-#include "Engine/MeshMerging.h"
+#include "MeshReductionSettings.h"
 #include "GameFramework/Actor.h"
 #include "BodySetupEnums.h"
 #include "UVMapSettings.h"
@@ -531,6 +531,8 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Dataprep")
 	bool CreateProxyMeshActor(const TArray<class AStaticMeshActor*>& ActorsToMerge, const FCreateProxyMeshActorOptions& MergeOptions, class AStaticMeshActor*& OutMergedActor);
-
-	
 };
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Engine/MeshMerging.h"
+#endif

@@ -36,7 +36,8 @@ public:
 		Disc,
 		Torus,
 		Sphere,
-		Stairs
+		Stairs,
+		Capsule
 	};
 
 	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
@@ -94,8 +95,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = Positioning, meta = (ProceduralShapeSetting))
 	EMakeMeshPivotLocation PivotLocation = EMakeMeshPivotLocation::Base;
 
-	/** Rotation of the shape around its up axis */
-	UPROPERTY(EditAnywhere, Category = Positioning, meta = (UIMin = "0.0", UIMax = "360.0"))
+	/** Initial rotation of the shape around its up axis, before placement. After placement, use the gizmo to control rotation. */
+	UPROPERTY(EditAnywhere, Category = Positioning, DisplayName = "Initial Rotation", meta = (UIMin = "0.0", UIMax = "360.0", EditCondition = "!bShowGizmoOptions", HideEditConditionToggle))
 	float Rotation = 0.0;
 
 	/** If true, aligns the shape along the normal of the surface it is placed on. */
@@ -293,7 +294,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = Shape, meta = (UIMin = "1.0", UIMax = "1000.0", ClampMin = "0.0001", ClampMax = "1000000.0", ProceduralShapeSetting))
 	float Height = 200.f;
 
-	/** Number of radial slices for the cylinder */
+	/** Number of radial slices for the cone */
 	UPROPERTY(EditAnywhere, Category = Shape, meta = (UIMin = "3", UIMax = "128", ClampMin = "3", ClampMax = "500", ProceduralShapeSetting))
 	int RadialSlices = 16;
 
@@ -370,6 +371,33 @@ public:
 	UPROPERTY(EditAnywhere, Category = Shape, meta = (UIMin = "3", UIMax = "100", ClampMin = "4", ClampMax = "500", ProceduralShapeSetting,
 		EditCondition = "SubdivisionType == EProceduralSphereType::LatLong"))
 	int VerticalSlices = 16;
+};
+
+UCLASS()
+class MESHMODELINGTOOLS_API UProceduralCapsuleToolProperties : public UProceduralShapeToolProperties
+{
+	GENERATED_BODY()
+
+public:
+	/** Radius of the capsule */
+	UPROPERTY(EditAnywhere, Category = Shape, meta = (UIMin = "1.0", UIMax = "1000.0", ClampMin = "0.0001", ClampMax = "1000000.0", ProceduralShapeSetting))
+	float Radius = 25.f;
+
+	/** Length of cylindrical section of the capsule */
+	UPROPERTY(EditAnywhere, Category = Shape, meta = (UIMin = "1.0", UIMax = "1000.0", ClampMin = "0.0001", ClampMax = "1000000.0", ProceduralShapeSetting))
+	float CylinderLength = 50.f;
+
+	/** Number of slices of the hemispherical end caps. */
+	UPROPERTY(EditAnywhere, Category = Shape, meta = (UIMin = "2", UIMax = "100", ClampMin = "2", ClampMax = "500", ProceduralShapeSetting))
+	int HemisphereSlices = 8;
+
+	/** Number of radial slices of the cylindrical section. */
+	UPROPERTY(EditAnywhere, Category = Shape, meta = (UIMin = "3", UIMax = "100", ClampMin = "3", ClampMax = "500", ProceduralShapeSetting))
+	int CylinderSlices = 16;
+
+	/** Number of lengthwise subdivisions along cylindrical section */
+	UPROPERTY(EditAnywhere, Category = Shape, meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "500", ProceduralShapeSetting))
+	int CylinderSubdivisions = 1;
 };
 
 UENUM()
@@ -475,6 +503,8 @@ public:
 
 
 protected:
+	virtual EMakeMeshPolygroupMode GetDefaultPolygroupMode() const { return EMakeMeshPolygroupMode::PerQuad; }
+
 	enum class EState
 	{
 		PlacingPrimitive,
@@ -520,6 +550,13 @@ protected:
 
 	void UpdateTargetSurface();
 
+	// @return true if the primitive needs to be centered in the XY plane when placed.
+	virtual bool ShouldCenterXY() const
+	{
+		// Most primitives are already XY centered, and re-centering them only introduces issues at very low samplings where the bounds center is offset from the intended center.
+		return false;
+	}
+
 	// Used to make the initial placement of the mesh undoable
 	class FStateChange : public FToolCommandChange
 	{
@@ -558,6 +595,16 @@ class UAddCylinderPrimitiveTool : public UAddPrimitiveTool
 	GENERATED_BODY()
 public:
 	explicit UAddCylinderPrimitiveTool(const FObjectInitializer& ObjectInitializer);
+protected:
+	virtual void GenerateMesh(FDynamicMesh3* OutMesh) const override;
+};
+
+UCLASS()
+class UAddCapsulePrimitiveTool : public UAddPrimitiveTool
+{
+	GENERATED_BODY()
+public:
+	explicit UAddCapsulePrimitiveTool(const FObjectInitializer& ObjectInitializer);
 protected:
 	virtual void GenerateMesh(FDynamicMesh3* OutMesh) const override;
 };
@@ -620,6 +667,10 @@ class UAddSpherePrimitiveTool : public UAddPrimitiveTool
 public:
 	explicit UAddSpherePrimitiveTool(const FObjectInitializer& ObjectInitializer);
 protected:
+	virtual EMakeMeshPolygroupMode GetDefaultPolygroupMode() const override 
+	{ 
+		return EMakeMeshPolygroupMode::PerFace; 
+	}
 	virtual void GenerateMesh(FDynamicMesh3* OutMesh) const override;
 };
 
@@ -631,6 +682,10 @@ public:
 	explicit UAddStairsPrimitiveTool(const FObjectInitializer& ObjectInitializer);
 protected:
 	virtual void GenerateMesh(FDynamicMesh3* OutMesh) const override;
+	virtual bool ShouldCenterXY() const override
+	{
+		return true;
+	}
 };
 
 

@@ -390,7 +390,7 @@ void FPreLoadSettingsContainerBase::ParseLocalizedTextConfigString(const FString
 {
     TArray<FString> LocalizedTextComponents;
     ConfigEntry.ParseIntoArray(LocalizedTextComponents, TEXT(","), true);
-    if (ensureAlwaysMsgf(IsValidLocalizedTextConfigString(LocalizedTextComponents), TEXT("Invalid Localized Text Entry in config: Expected Format: +LocalizedText=(TextIdentifier, NS Localized Text) Config Entry: %s"), *ConfigEntry))
+    if (ensureAlwaysMsgf(IsValidLocalizedTextConfigString(LocalizedTextComponents), TEXT("Invalid Localized Text Entry in config: Expected Format: +LocalizedText=(TextIdentifier, NSLOCTEXT(Namespace, Key, Localized Text) or +LocalizedText=(TextIdentifier, Namespace, Key, Text) Config Entry: %s"), *ConfigEntry))
     {
         //Clean up the identifier to remove extra spaces and the first (
         FString Identifier = LocalizedTextComponents[0];
@@ -400,7 +400,8 @@ void FPreLoadSettingsContainerBase::ParseLocalizedTextConfigString(const FString
         //LocalizedTextComponents[1] is the NameSpace for the loctext
         FString LocNameSpace = LocalizedTextComponents[1];
         LocNameSpace.TrimStartAndEndInline();
-        LocNameSpace.RemoveFromStart("NSLOCTEXT(\"");
+        LocNameSpace.RemoveFromStart("NSLOCTEXT(");
+        LocNameSpace.RemoveFromStart("\"");
         LocNameSpace.RemoveFromEnd("\"");
 
         //LocalizedTextComponents[2] is the identifier for the FText
@@ -413,21 +414,12 @@ void FPreLoadSettingsContainerBase::ParseLocalizedTextConfigString(const FString
         FString LocInitialValue = LocalizedTextComponents[3];
         LocInitialValue.TrimStartAndEndInline();
         LocInitialValue.RemoveFromStart("\"");
-        LocInitialValue.RemoveFromEnd(")"); //remove these separately so that if the file is missing 1 ) or the " is out of order it still works
+        LocInitialValue.RemoveFromEnd(")"); //remove these separately so that if the file is missing one ) or the " is out of order it still works
         LocInitialValue.RemoveFromEnd(")");
         LocInitialValue.RemoveFromEnd("\"");
 
-        //Actually try to add the FText to our list by finding it in the FText collection (should already be in there due to Localization system)
-        FText FoundText = FText::GetEmpty();
-        if (FText::FindText(LocNameSpace, LocIdentifier, FoundText))
-        {
-            AddLocalizedText(Identifier, FoundText);
-        }
-        //We couldn't find it already, so go ahead and add a version to FText with an initial value. This one won't be localized, but that may be intended
-        else
-        {
-            AddLocalizedText(Identifier, FText::FromString(LocInitialValue));
-        }
+        //Add the FText to our list
+        AddLocalizedText(Identifier, FText::AsLocalizable_Advanced(MoveTemp(LocNameSpace), MoveTemp(LocIdentifier), MoveTemp(LocInitialValue)));
     }
 }
 

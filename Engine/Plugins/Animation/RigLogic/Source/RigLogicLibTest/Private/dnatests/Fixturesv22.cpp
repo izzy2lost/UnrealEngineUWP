@@ -1181,51 +1181,67 @@ const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::header[]
     0x00, 0x02,  // Generation
     0xff, 0xff,  // Version
     // Index Table
-    0x00, 0x00, 0x00, 0x0b,  // Index table entry count
+    0x00, 0x00, 0x00, 0x0f,  // Index table entry count
     0x64, 0x65, 0x73, 0x63,  // Descriptor id
     0x00, 0x01, 0x00, 0x02,  // Descriptor version
-    0x00, 0x00, 0x00, 0xbb,  // Descriptor offset
+    0x00, 0x00, 0x00, 0xfb,  // Descriptor offset
     0x00, 0x00, 0x00, 0x10,  // Descriptor size
     0x64, 0x65, 0x66, 0x6e,  // Definition id
     0x00, 0x01, 0x00, 0x02,  // Definition version
-    0x00, 0x00, 0x00, 0xcb,  // Definition offset
+    0x00, 0x00, 0x01, 0x0b,  // Definition offset
     0x00, 0x00, 0x00, 0x10,  // Definition size
     0x62, 0x68, 0x76, 0x72,  // Behavior id
     0x00, 0x01, 0x00, 0x02,  // Behavior version
-    0x00, 0x00, 0x00, 0xdb,  // Behavior offset
+    0x00, 0x00, 0x01, 0x1b,  // Behavior offset
     0x00, 0x00, 0x00, 0x20,  // Behavior size
     0x67, 0x65, 0x6f, 0x6d,  // Geometry id
     0x00, 0x01, 0x00, 0x02,  // Geometry version
-    0x00, 0x00, 0x00, 0xfb,  // Geometry offset
+    0x00, 0x00, 0x01, 0x3b,  // Geometry offset
     0x00, 0x00, 0x00, 0x20,  // Geometry size
     0x75, 0x6e, 0x6b, 0x31,  // Unknown 1 id
     0x00, 0x01, 0x00, 0x03,  // Unknown 1 version
-    0x00, 0x00, 0x01, 0x1b,  // Unknown 1 offset
+    0x00, 0x00, 0x01, 0x5b,  // Unknown 1 offset
     0x00, 0x00, 0x00, 0x10,  // Unknown 1 size
     0x75, 0x6e, 0x6b, 0x32,  // Unknown 2 id
     0x00, 0x01, 0x00, 0x02,  // Unknown 2 version
-    0x00, 0x00, 0x01, 0x2b,  // Unknown 2 offset
+    0x00, 0x00, 0x01, 0x6b,  // Unknown 2 offset
     0x00, 0x00, 0x00, 0x20,  // Unknown 2 size
     0x64, 0x65, 0x73, 0x63,  // Descriptor id
     0x00, 0x01, 0x00, 0x01,  // Descriptor version
-    0x00, 0x00, 0x01, 0x4b,  // Descriptor offset
+    0x00, 0x00, 0x01, 0x8b,  // Descriptor offset
     0x00, 0x00, 0x00, 0x24,  // Descriptor size
     0x64, 0x65, 0x66, 0x6e,  // Definition id
     0x00, 0x01, 0x00, 0x01,  // Definition version
-    0x00, 0x00, 0x01, 0x6f,  // Definition offset
+    0x00, 0x00, 0x01, 0xaf,  // Definition offset
     0x00, 0x00, 0x00, 0x5c,  // Definition size
     0x62, 0x68, 0x76, 0x72,  // Behavior id
     0x00, 0x01, 0x00, 0x01,  // Behavior version
-    0x00, 0x00, 0x01, 0xcb,  // Behavior offset
+    0x00, 0x00, 0x02, 0x0b,  // Behavior offset
     0x00, 0x00, 0x00, 0x56,  // Behavior size
     0x67, 0x65, 0x6f, 0x6d,  // Geometry id
     0x00, 0x01, 0x00, 0x01,  // Geometry version
-    0x00, 0x00, 0x02, 0x21,  // Geometry offset
+    0x00, 0x00, 0x02, 0x61,  // Geometry offset
     0x00, 0x00, 0x00, 0x04,  // Geometry size
     0x6d, 0x6c, 0x62, 0x68,  // Machine learned behavior id
     0x00, 0x01, 0x00, 0x00,  // Machine learned behavior version
-    0x00, 0x00, 0x02, 0x25,  // Machine learned behavior offset
-    0x00, 0x00, 0x00, 0x18  // Machine learned behavior size
+    0x00, 0x00, 0x02, 0x65,  // Machine learned behavior offset
+    0x00, 0x00, 0x00, 0x18,  // Machine learned behavior size
+    0x72, 0x62, 0x66, 0x62,  // RBF behavior id
+    0x00, 0x01, 0x00, 0x00,  // RBF behavior version
+    0x00, 0x00, 0x02, 0x7d,  // RBF behavior offset
+    0x00, 0x00, 0x00, 0x10,  // RBF behavior size
+    0x72, 0x62, 0x66, 0x65,  // RBF behavior ext id
+    0x00, 0x01, 0x00, 0x00,  // RBF behavior ext version
+    0x00, 0x00, 0x02, 0x8d,  // RBF behavior ext offset
+    0x00, 0x00, 0x00, 0x08,  // RBF behavior ext size
+    0x6a, 0x62, 0x6d, 0x64,  // Joint behavior metadata id
+    0x00, 0x01, 0x00, 0x00,  // Joint behavior metadata version
+    0x00, 0x00, 0x02, 0x95,  // Joint behavior metadata offset
+    0x00, 0x00, 0x00, 0x04,  // Joint behavior metadata size
+    0x74, 0x77, 0x73, 0x77,  // Twist swing setups id
+    0x00, 0x01, 0x00, 0x00,  // Twist swing setups version
+    0x00, 0x00, 0x02, 0x99,  // Twist swing setups offset
+    0x00, 0x00, 0x00, 0x08  // Twist swing setups size
 };
 
 const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::descriptor[] = {
@@ -1274,6 +1290,27 @@ const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::machineL
     0x00, 0x00, 0x00, 0x00
 };
 
+const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehavior[] = {
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00
+};
+
+const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehaviorExt[] = {
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00
+};
+
+const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::jointBehaviorMetaData[] = {
+    0x00, 0x00, 0x00, 0x00
+};
+
+const unsigned char RawV2xNewerWithUnknownDataPreservedAndDNARewritten::twistSwingBehavior[] {
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00
+};
+
 std::vector<char> RawV2xNewerWithUnknownDataPreservedAndDNARewritten::getBytes() {
     std::vector<char> bytes;
     // Header
@@ -1302,6 +1339,14 @@ std::vector<char> RawV2xNewerWithUnknownDataPreservedAndDNARewritten::getBytes()
     bytes.insert(bytes.end(), geometry, geometry + sizeof(geometry));
     // Machine learned behavior
     bytes.insert(bytes.end(), machineLearnedBehavior, machineLearnedBehavior + sizeof(machineLearnedBehavior));
+    // RBF behavior
+    bytes.insert(bytes.end(), rbfBehavior, rbfBehavior + sizeof(rbfBehavior));
+    // RBF behavior ext
+    bytes.insert(bytes.end(), rbfBehaviorExt, rbfBehaviorExt + sizeof(rbfBehaviorExt));
+    // Joint behavior metadata
+    bytes.insert(bytes.end(), jointBehaviorMetaData, jointBehaviorMetaData + sizeof(jointBehaviorMetaData));
+    // Twist swing behavior
+    bytes.insert(bytes.end(), twistSwingBehavior, twistSwingBehavior + sizeof(twistSwingBehavior));
 
     return bytes;
 }
@@ -1311,28 +1356,43 @@ const unsigned char RawV2xNewerWithUnknownDataIgnoredAndDNARewritten::header[] =
     0x00, 0x02,  // Generation
     0xff, 0xff,  // Version
     // Index Table
-    0x00, 0x00, 0x00, 0x05,  // Index table entry count
+    0x00, 0x00, 0x00, 0x09,  // Index table entry count
     0x64, 0x65, 0x73, 0x63,  // Descriptor id
     0x00, 0x01, 0x00, 0x01,  // Descriptor version
-    0x00, 0x00, 0x00, 0x5b,  // Descriptor offset
+    0x00, 0x00, 0x00, 0x9b,  // Descriptor offset
     0x00, 0x00, 0x00, 0x24,  // Descriptor size
     0x64, 0x65, 0x66, 0x6e,  // Definition id
     0x00, 0x01, 0x00, 0x01,  // Definition version
-    0x00, 0x00, 0x00, 0x7f,  // Definition offset
+    0x00, 0x00, 0x00, 0xbf,  // Definition offset
     0x00, 0x00, 0x00, 0x5c,  // Definition size
     0x62, 0x68, 0x76, 0x72,  // Behavior id
     0x00, 0x01, 0x00, 0x01,  // Behavior version
-    0x00, 0x00, 0x00, 0xdb,  // Behavior offset
+    0x00, 0x00, 0x01, 0x1b,  // Behavior offset
     0x00, 0x00, 0x00, 0x56,  // Behavior size
     0x67, 0x65, 0x6f, 0x6d,  // Geometry id
     0x00, 0x01, 0x00, 0x01,  // Geometry version
-    0x00, 0x00, 0x01, 0x31,  // Geometry offset
+    0x00, 0x00, 0x01, 0x71,  // Geometry offset
     0x00, 0x00, 0x00, 0x04,  // Geometry size
     0x6d, 0x6c, 0x62, 0x68,  // Machine learned behavior id
     0x00, 0x01, 0x00, 0x00,  // Machine learned behavior version
-    0x00, 0x00, 0x01, 0x35,  // Machine learned behavior offset
-    0x00, 0x00, 0x00, 0x18  // Machine learned behavior size
-
+    0x00, 0x00, 0x01, 0x75,  // Machine learned behavior offset
+    0x00, 0x00, 0x00, 0x18,  // Machine learned behavior size
+    0x72, 0x62, 0x66, 0x62,  // RBF behavior id
+    0x00, 0x01, 0x00, 0x00,  // RBF behavior version
+    0x00, 0x00, 0x01, 0x8d,  // RBF behavior offset
+    0x00, 0x00, 0x00, 0x10,  // RBF behavior size
+    0x72, 0x62, 0x66, 0x65,  // RBF behavior ext id
+    0x00, 0x01, 0x00, 0x00,  // RBF behavior ext version
+    0x00, 0x00, 0x01, 0x9d,  // RBF behavior ext offset
+    0x00, 0x00, 0x00, 0x08,  // RBF behavior ext size
+    0x6a, 0x62, 0x6d, 0x64,  // Joint behavior metadata id
+    0x00, 0x01, 0x00, 0x00,  // Joint behavior metadata version
+    0x00, 0x00, 0x01, 0xa5,  // Joint behavior metadata offset
+    0x00, 0x00, 0x00, 0x04,  // Joint behavior metadata size
+    0x74, 0x77, 0x73, 0x77,  // Twist swing setups id
+    0x00, 0x01, 0x00, 0x00,  // Twist swing setups version
+    0x00, 0x00, 0x01, 0xa9,  // Twist swing setups offset
+    0x00, 0x00, 0x00, 0x08  // Twist swing setups size
 };
 
 std::vector<char> RawV2xNewerWithUnknownDataIgnoredAndDNARewritten::getBytes() {
@@ -1363,7 +1423,26 @@ std::vector<char> RawV2xNewerWithUnknownDataIgnoredAndDNARewritten::getBytes() {
                  RawV2xNewerWithUnknownDataPreservedAndDNARewritten::machineLearnedBehavior,
                  RawV2xNewerWithUnknownDataPreservedAndDNARewritten::machineLearnedBehavior +
                  sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::machineLearnedBehavior));
-
+    // RBF behavior
+    bytes.insert(bytes.end(),
+                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehavior,
+                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehavior +
+                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehavior));
+    // RBF behavior ext
+    bytes.insert(bytes.end(),
+                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehaviorExt,
+                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehaviorExt +
+                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::rbfBehaviorExt));
+    // Joint behavior metadata
+    bytes.insert(bytes.end(),
+                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::jointBehaviorMetaData,
+                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::jointBehaviorMetaData +
+                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::jointBehaviorMetaData));
+    // Twist swing behavior
+    bytes.insert(bytes.end(),
+                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::twistSwingBehavior,
+                 RawV2xNewerWithUnknownDataPreservedAndDNARewritten::twistSwingBehavior +
+                 sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::twistSwingBehavior));
     return bytes;
 }
 
@@ -1393,6 +1472,10 @@ const unsigned char RawV22Empty::header[] = {
 
 std::vector<char> RawV22Empty::getBytes() {
     std::vector<char> bytes;
+    #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+        #pragma GCC diagnostic push
+        #pragma GCC diagnostic ignored "-Wstringop-overflow"
+    #endif
     // Header
     bytes.insert(bytes.end(), header, header + sizeof(header));
     // Descriptor
@@ -1416,6 +1499,9 @@ std::vector<char> RawV22Empty::getBytes() {
                  sizeof(RawV2xNewerWithUnknownDataPreservedAndDNARewritten::geometry));
 
     return bytes;
+    #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+        #pragma GCC diagnostic pop
+    #endif
 }
 
 const unsigned char RawV22WithUnknownDataFromNewer2x::header[] = {
@@ -1808,14 +1894,14 @@ const pma::Vector<std::uint16_t> DecodedV22::jointRowCount = {
 const std::uint16_t DecodedV22::jointColumnCount = 10u;
 const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::jointVariableIndices = {
     {  // MaxLOD-0 - MinLOD-1
-        {2, 3, 5, 18, 20, 36, 38, 55, 56, 63, 45, 46, 71},
+        {2, 3, 5, 18, 20, 36, 38, 45, 46, 55, 56, 63, 71},
         {2, 3, 5, 18, 20, 55, 56}
     },
     {  // MaxLOD-1 - MinLOD-1
         {2, 3, 5, 18, 20, 37, 38}
     },
     {  // MaxLOD-0 - MinLOD-0
-        {2, 3, 5, 18, 20, 36, 38, 55, 56, 63, 45, 46, 71}
+        {2, 3, 5, 18, 20, 36, 38, 45, 46, 55, 56, 63, 71}
     }
 };
 const pma::Vector<pma::Matrix<std::uint16_t> > DecodedV22::jointGroupLODs = {

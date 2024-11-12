@@ -57,7 +57,7 @@ void SHierarchyView::Construct(const FArguments& InArgs, TSharedPtr<FWidgetBluep
 			SNew(SVerticalBox)
 
 			+ SVerticalBox::Slot()
-			.Padding(4)
+			.Padding(4.0f)
 			.AutoHeight()
 			[
 				SAssignNew(SearchBoxPtr, SSearchBox)
@@ -325,7 +325,6 @@ void SHierarchyView::RebuildTreeView()
 	}
 
 	SAssignNew(WidgetTreeView, STreeView< TSharedPtr<FHierarchyModel> >)
-		.ItemHeight(20.0f)
 		.SelectionMode(ESelectionMode::Multi)
 		.OnGetChildren(FilterHandler.ToSharedRef(), &TreeFilterHandler< TSharedPtr<FHierarchyModel> >::OnGetFilteredChildren)
 		.OnGenerateRow(this, &SHierarchyView::WidgetHierarchy_OnGenerateRow)

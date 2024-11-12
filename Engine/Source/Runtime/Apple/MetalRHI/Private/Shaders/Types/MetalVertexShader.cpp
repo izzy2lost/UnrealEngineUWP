@@ -4,24 +4,22 @@
 	MetalVertexShader.cpp: Metal RHI Vertex Shader Class Implementation.
 =============================================================================*/
 
-
-#include "MetalRHIPrivate.h"
-#include "Templates/MetalBaseShader.h"
 #include "MetalVertexShader.h"
-
 
 //------------------------------------------------------------------------------
 
 #pragma mark - Metal RHI Vertex Shader Class
 
 
-FMetalVertexShader::FMetalVertexShader(TArrayView<const uint8> InCode)
+FMetalVertexShader::FMetalVertexShader(FMetalDevice& MetalDevice, TArrayView<const uint8> InCode)
+	: TMetalBaseShader<FRHIVertexShader, SF_Vertex>(MetalDevice)
 {
 	FMetalCodeHeader Header;
 	Init(InCode, Header, MTLLibraryPtr());
 }
 
-FMetalVertexShader::FMetalVertexShader(TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary)
+FMetalVertexShader::FMetalVertexShader(FMetalDevice& MetalDevice, TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary)
+	: TMetalBaseShader<FRHIVertexShader, SF_Vertex>(MetalDevice)
 {
 	FMetalCodeHeader Header;
 	Init(InCode, Header, InLibrary);

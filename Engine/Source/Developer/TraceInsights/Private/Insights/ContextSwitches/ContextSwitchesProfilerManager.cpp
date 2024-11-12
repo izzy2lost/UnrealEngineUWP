@@ -5,18 +5,20 @@
 #include "Features/IModularFeatures.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Modules/ModuleManager.h"
+
+// TraceServices
 #include "TraceServices/Model/ContextSwitches.h"
 
+// TraceInsights
 #include "Insights/ContextSwitches/ViewModels/ContextSwitchesSharedState.h"
-#include "Insights/TimingProfilerManager.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
+#include "Insights/ITimingViewExtender.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define LOCTEXT_NAMESPACE "ContextSwitchesProfilerManager"
-
-namespace Insights
+namespace UE::Insights::ContextSwitches
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -104,7 +106,7 @@ FContextSwitchesProfilerManager::~FContextSwitchesProfilerManager()
 
 	if (ContextSwitchesSharedState.IsValid())
 	{
-		IModularFeatures::Get().UnregisterModularFeature(Insights::TimingViewExtenderFeatureName, ContextSwitchesSharedState.Get());
+		IModularFeatures::Get().UnregisterModularFeature(Timing::TimingViewExtenderFeatureName, ContextSwitchesSharedState.Get());
 	}
 }
 
@@ -137,6 +139,8 @@ bool FContextSwitchesProfilerManager::Tick(float DeltaTime)
 			const TraceServices::IContextSwitchesProvider* ContextSwitchesProvider = TraceServices::ReadContextSwitchesProvider(*Session.Get());
 			if (ContextSwitchesProvider && ContextSwitchesProvider->HasData())
 			{
+				using namespace UE::Insights::TimingProfiler;
+
 				TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
 				if (!Window.IsValid())
 				{
@@ -155,7 +159,7 @@ bool FContextSwitchesProfilerManager::Tick(float DeltaTime)
 				{
 					ContextSwitchesSharedState = MakeShared<FContextSwitchesSharedState>(TimingView.Get());
 					ContextSwitchesSharedState->AddCommands();
-					IModularFeatures::Get().RegisterModularFeature(Insights::TimingViewExtenderFeatureName, ContextSwitchesSharedState.Get());
+					IModularFeatures::Get().RegisterModularFeature(Timing::TimingViewExtenderFeatureName, ContextSwitchesSharedState.Get());
 				}
 			}
 
@@ -198,6 +202,4 @@ void FContextSwitchesProfilerManager::RegisterTimingProfilerLayoutExtensions(FIn
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
-
-#undef LOCTEXT_NAMESPACE
+} // namespace UE::Insights::ContextSwitches

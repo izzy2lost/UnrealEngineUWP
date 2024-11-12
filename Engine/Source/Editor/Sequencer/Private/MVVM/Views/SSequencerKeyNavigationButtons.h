@@ -11,6 +11,7 @@
 #include "SequencerCommands.h"
 #include "SequencerCommonHelpers.h"
 #include "ScopedTransaction.h"
+#include "MVVM/Extensions/ITimeDomainExtension.h"
 
 #define LOCTEXT_NAMESPACE "SSequencerKeyNavigationButtons"
 
@@ -37,6 +38,9 @@ public:
 	{
 		WeakModel = InModel;
 		WeakSequencer = InSequencer;
+
+		ITimeDomainExtension* TimeDomain = InModel->CastThis<ITimeDomainExtension>();
+		Domain = TimeDomain ? TimeDomain->GetDomain() : ETimeDomain::Warped;
 
 		ChildSlot
 		[
@@ -82,11 +86,17 @@ public:
 
 	FFrameTime GetTime() const
 	{
-		return WeakSequencer.Pin()->GetLocalTime().Time;
+		return Domain == ETimeDomain::Warped
+			? WeakSequencer.Pin()->GetLocalTime().Time
+			: WeakSequencer.Pin()->GetUnwarpedLocalTime().Time;
 	}
 
 	void SetTime(FFrameTime InTime)
 	{
+		if (Domain == ETimeDomain::Unwarped)
+		{
+			InTime = WeakSequencer.Pin()->GetLocalTimeWarpTransform().TransformTime(InTime);
+		}
 		WeakSequencer.Pin()->SetLocalTime(InTime);
 	}
 
@@ -96,12 +106,13 @@ public:
 		if (InModel && Sequencer)
 		{
 			FScopedTransaction Transaction(LOCTEXT("AddKeys", "Add Keys at Current Time"));
-			FAddKeyOperation::FromNode(InModel).Commit(Time.FrameNumber, *Sequencer);
+			FAddKeyOperation::FromNode(InModel).Commit(Time.RoundToFrame(), *Sequencer);
 		}
 	}
 
 	TWeakPtr<FViewModel> WeakModel;
 	TWeakPtr<ISequencer> WeakSequencer;
+	UE::Sequencer::ETimeDomain Domain;
 };
 
 } // namespace Sequencer

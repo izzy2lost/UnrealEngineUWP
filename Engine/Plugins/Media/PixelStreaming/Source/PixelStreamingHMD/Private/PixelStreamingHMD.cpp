@@ -21,7 +21,7 @@ FPixelStreamingHMD::FPixelStreamingHMD(const FAutoRegister& AutoRegister)
 	, FHMDSceneViewExtension(AutoRegister)
 	, CurHmdTransform(FTransform::Identity)
 	, WorldToMeters(100.0f)
-	, InterpupillaryDistance(0.0315f)
+	, InterpupillaryDistance(0.0f)
 	, bStereoEnabled(true)
 {
 }
@@ -30,60 +30,60 @@ FPixelStreamingHMD::~FPixelStreamingHMD()
 {
 }
 
-void FPixelStreamingHMD::SetEyeViews(FTransform Left, FMatrix LeftProj, FTransform Right, FMatrix RightProj)
+void FPixelStreamingHMD::SetEyeViews(FTransform Left, FMatrix LeftProj, FTransform Right, FMatrix RightProj, FTransform HMD)
 {
-	CurLeftEyeTransform = Left;
-	CurRightEyeTransform = Right;
-	CurLeftEyeProjMatrix = LeftProj;
-	CurRightEyeProjMatrix = RightProj;
-
-	// Calculate HMD roation as the rotation quaternion in between both eyes
-	FQuat HMDRotation = FQuat::Slerp(Left.GetRotation(), Right.GetRotation(), 0.5);
-
-	// Calculate HMD position as the position between both eyes
-	FVector RightEyeLoc = Right.GetLocation();
-	FVector LeftEyeLoc = Left.GetLocation();
-	FVector Dir = RightEyeLoc - LeftEyeLoc;
-	float IPD = Dir.Size();
-	// Get the location half way between the two eye locations
-	FVector HMDLocation = LeftEyeLoc + (Dir * 0.5);
-	FTransform HMDTransform = FTransform(HMDRotation, HMDLocation, FVector::OneVector);
+	// This is our intialization message we can use this set the base position if it hasn't been set.
+	if (BasePosition == FVector::ZeroVector)
+	{
+		SetBasePosition(HMD.GetLocation());
+	}
 
 	// Set the HMD transform
-	SetTransform(HMDTransform);
+	SetTransform(HMD);
 
+	// Make left and right relative the HMD
+	FTransform HMDInv = HMD.Inverse();
+	FTransform LeftRelative = Left * HMDInv;
+	FTransform RightRelative = Right * HMDInv;
+
+	// Undo rotation of HMD, then find relative positional offset between eyes and HMD
+	LeftEyePosOffset = LeftRelative.GetLocation();
+	RightEyePosOffset = RightRelative.GetLocation();
+
+	float IPD = FVector::Dist(RightEyePosOffset, LeftEyePosOffset);
 	// Set the IPD (in meters)
 	SetInterpupillaryDistance(IPD / 100.0f);
 
+	// Calculate left/right view orientation relative to HMD
+	LeftEyeRotOffset = LeftRelative.GetRotation();
+	RightEyeRotOffset = RightRelative.GetRotation();
+
 	// Calculate the horizontal and vertical FoV from the projection matrix (left and right eye will have same FoVs)
-	HFoVRads = 2.0f * FMath::Atan(1.0f / CurLeftEyeProjMatrix.M[0][0]);
-	VFoVRads = 2.0f * FMath::Atan(1.0f / CurLeftEyeProjMatrix.M[1][1]);
+	HFoVRads = 2.0f * FMath::Atan(1.0f / LeftProj.M[0][0]);
+	VFoVRads = 2.0f * FMath::Atan(1.0f / LeftProj.M[1][1]);
 
 	// Extract the left/right eye projection offsets
-	CurLeftEyeProjOffsetX = -CurLeftEyeProjMatrix.M[0][2];
-	CurLeftEyeProjOffsetY = CurLeftEyeProjMatrix.M[1][2];
-	CurRightEyeProjOffsetX = -CurRightEyeProjMatrix.M[0][2];
-	CurRightEyeProjOffsetY = CurRightEyeProjMatrix.M[1][2];
+	CurLeftEyeProjOffsetX = -LeftProj.M[0][2];	 // 0.242512569
+	CurLeftEyeProjOffsetY = -LeftProj.M[1][2];	 // 0.193187475
+	CurRightEyeProjOffsetX = -RightProj.M[0][2]; // -0.242512569
+	CurRightEyeProjOffsetY = -RightProj.M[1][2]; // 0.193187475
 
 	// Extract near and farclip planes
-    NearClip = CurLeftEyeProjMatrix.M[3][2] / (CurLeftEyeProjMatrix.M[2][2] - 1);
-    FarClip = CurLeftEyeProjMatrix.M[3][2] / (CurLeftEyeProjMatrix.M[2][2] + 1);
+	NearClip = LeftProj.M[3][2] / (LeftProj.M[2][2] - 1);
+	FarClip = LeftProj.M[3][2] / (LeftProj.M[2][2] + 1);
 	SetClippingPlanes(NearClip, FarClip);
 
 	// Calculate target aspect ratio from the projection matrix (left and right eye will have same aspect ratio)
-	//TargetAspectRatio = CurLeftEyeProjMatrix.M[1][1] / CurLeftEyeProjMatrix.M[0][0];
 	TargetAspectRatio = tan(HFoVRads * 0.5f) / tan(VFoVRads * 0.5f);
 
 	TSharedPtr<SWindow> TargetWindow = GEngine->GameViewport->GetWindow();
-	FVector2f SizeInScreen = TargetWindow->GetSizeInScreen();
-	const float InWidth = SizeInScreen.X / 2.f;
-	const float InHeight = SizeInScreen.Y;
-	const float AspectRatio = InWidth / InHeight;
+	FVector2f			SizeInScreen = TargetWindow->GetSizeInScreen();
+	const float			InWidth = SizeInScreen.X / 2.f;
+	const float			InHeight = SizeInScreen.Y;
+	const float			AspectRatio = InWidth / InHeight;
 
 	// If current resolution does not match remote device aspect ratio, we will change resolution to match aspect ratio (though we rate limit res change to every 5s)
-	if(UE::PixelStreamingHMD::Settings::CVarPixelStreamingHMDMatchAspectRatio.GetValueOnAnyThread() &&
-		FMath::Abs(AspectRatio - TargetAspectRatio) > 0.01 &&
-		!bReceivedTransforms)
+	if (UE::PixelStreamingHMD::Settings::CVarPixelStreamingHMDMatchAspectRatio.GetValueOnAnyThread() && FMath::Abs(AspectRatio - TargetAspectRatio) > 0.01 && !bReceivedTransforms)
 	{
 		int TargetHeight = InHeight;
 		int TargetWidth = InHeight * TargetAspectRatio * 2.0f;
@@ -93,7 +93,7 @@ void FPixelStreamingHMD::SetEyeViews(FTransform Left, FMatrix LeftProj, FTransfo
 	}
 
 	// If we know we are doing XR update some CVars for Pixel Streaming to optimise for it.
-	if(!bReceivedTransforms)
+	if (!bReceivedTransforms)
 	{
 		// Couple engine's render rate and streaming rate
 		if (IConsoleVariable* DecoupleFramerateCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("PixelStreaming.DecoupleFramerate")))
@@ -156,6 +156,28 @@ void FPixelStreamingHMD::GetFieldOfView(float& OutHFOVInDegrees, float& OutVFOVI
 {
 	OutHFOVInDegrees = FMath::RadiansToDegrees(HFoVRads);
 	OutVFOVInDegrees = FMath::RadiansToDegrees(VFoVRads);
+}
+
+bool FPixelStreamingHMD::GetRelativeEyePose(int32 DeviceId, int32 ViewIndex, FQuat& OutOrientation, FVector& OutPosition)
+{
+	if (DeviceId != IXRTrackingSystem::HMDDeviceId)
+	{
+		return false;
+	}
+
+	if (UE::PixelStreamingHMD::Settings::CVarPixelStreamingHMDApplyEyePosition.GetValueOnAnyThread())
+	{
+		// If not using override IPD get the actual translation of each eye from the HMD transform and apply that.
+		OutPosition = (ViewIndex == EStereoscopicEye::eSSE_LEFT_EYE) ? LeftEyePosOffset : RightEyePosOffset;
+	}
+
+	// Apply eye rotation if this enabled (default: true)
+	if (UE::PixelStreamingHMD::Settings::CVarPixelStreamingHMDApplyEyeRotation.GetValueOnAnyThread())
+	{
+		OutOrientation = (ViewIndex == EStereoscopicEye::eSSE_LEFT_EYE) ? LeftEyeRotOffset : RightEyeRotOffset;
+	}
+
+	return false;
 }
 
 bool FPixelStreamingHMD::EnumerateTrackedDevices(TArray<int32>& OutDevices, EXRTrackedDeviceType Type)
@@ -224,33 +246,62 @@ void FPixelStreamingHMD::AdjustViewRect(int32 ViewIndex, int32& X, int32& Y, uin
 
 void FPixelStreamingHMD::CalculateStereoViewOffset(const int32 ViewIndex, FRotator& ViewRotation, const float InWorldToMeters, FVector& ViewLocation)
 {
-	if(ViewIndex == INDEX_NONE)
+	if (ViewIndex == INDEX_NONE)
 	{
 		return;
 	}
 
+	float OverrideIPD = UE::PixelStreamingHMD::Settings::CVarPixelStreamingHMDIPD.GetValueOnAnyThread();
+
 	// If not received any transforms yet, just do default offset of half IPD
 	if (!bReceivedTransforms)
 	{
-		float IPDCentimeters = InterpupillaryDistance * 100.0f;
+		float		IPDCentimeters = OverrideIPD > 0.0f ? OverrideIPD : InterpupillaryDistance * 100.0f;
 		const float PassOffset = (ViewIndex == EStereoscopicEye::eSSE_LEFT_EYE) ? -IPDCentimeters * 0.5f : IPDCentimeters * 0.5f;
 		ViewLocation += ViewRotation.Quaternion().RotateVector(FVector(0, PassOffset, 0));
 	}
 	else
 	{
-		FTransform& EyeTransform = (ViewIndex == EStereoscopicEye::eSSE_LEFT_EYE) ? CurLeftEyeTransform : CurRightEyeTransform;
-		FVector LocationOffset = EyeTransform.GetLocation() - CurHmdTransform.GetLocation();
-		ViewLocation += LocationOffset;
+		if (OverrideIPD > 0.0f)
+		{
+			// If using override IPD only translate along the horizontal plane.
+			const float EyeTranslationOffset = (ViewIndex == EStereoscopicEye::eSSE_LEFT_EYE) ? -OverrideIPD * 0.5f : OverrideIPD * 0.5f;
+			ViewLocation += ViewRotation.Quaternion().RotateVector(FVector(0, EyeTranslationOffset, 0));
+		}
+		else if (UE::PixelStreamingHMD::Settings::CVarPixelStreamingHMDApplyEyePosition.GetValueOnAnyThread())
+		{
+			// If not using override IPD get the actual translation of each eye from the HMD transform and apply that.
+			ViewLocation += (ViewIndex == EStereoscopicEye::eSSE_LEFT_EYE) ? ViewRotation.Quaternion().RotateVector(LeftEyePosOffset) : ViewRotation.Quaternion().RotateVector(RightEyePosOffset);
+		}
 
-		FQuat DeltaRot = EyeTransform.GetRotation() * CurHmdTransform.GetRotation().Inverse();
-		ViewRotation += DeltaRot.Rotator();
+		// Apply eye rotation if this enabled (default: true)
+		if (UE::PixelStreamingHMD::Settings::CVarPixelStreamingHMDApplyEyeRotation.GetValueOnAnyThread())
+		{
+			ViewRotation += (ViewIndex == EStereoscopicEye::eSSE_LEFT_EYE) ? LeftEyeRotOffset.Rotator() : RightEyeRotOffset.Rotator();
+		}
 	}
 }
 
 FMatrix FPixelStreamingHMD::GetStereoProjectionMatrix(const int32 ViewIndex) const
 {
-	const float PassProjectionOffsetX = (ViewIndex == EStereoscopicEye::eSSE_LEFT_EYE) ? CurLeftEyeProjOffsetX : CurRightEyeProjOffsetX;
-	const float PassProjectionOffsetY = (ViewIndex == EStereoscopicEye::eSSE_LEFT_EYE) ? CurLeftEyeProjOffsetY : CurRightEyeProjOffsetY;
+
+	float ProjOffsetX = (ViewIndex == EStereoscopicEye::eSSE_LEFT_EYE) ? CurLeftEyeProjOffsetX : CurRightEyeProjOffsetX;
+	float ProjOffsetY = (ViewIndex == EStereoscopicEye::eSSE_LEFT_EYE) ? CurLeftEyeProjOffsetY : CurRightEyeProjOffsetY;
+
+	// Check OverrideProjectOffset X & Y if they have been set by the user, use them instead of the values from WebXR
+	{
+		float OverrideProjectionOffsetX = UE::PixelStreamingHMD::Settings::CVarPixelStreamingHMDProjectionOffsetX.GetValueOnAnyThread();
+		float OverrideProjectionOffsetY = UE::PixelStreamingHMD::Settings::CVarPixelStreamingHMDProjectionOffsetY.GetValueOnAnyThread();
+
+		if (OverrideProjectionOffsetX >= 0.0f)
+		{
+			ProjOffsetX = (ViewIndex == EStereoscopicEye::eSSE_LEFT_EYE) ? OverrideProjectionOffsetX : -OverrideProjectionOffsetX;
+		}
+		if (OverrideProjectionOffsetY >= 0.0f)
+		{
+			ProjOffsetY = OverrideProjectionOffsetY;
+		}
+	}
 
 	const float HFoVOverride = UE::PixelStreamingHMD::Settings::CVarPixelStreamingHMDHFOV.GetValueOnAnyThread();
 	const float VFoVOverride = UE::PixelStreamingHMD::Settings::CVarPixelStreamingHMDVFOV.GetValueOnAnyThread();
@@ -265,17 +316,16 @@ FMatrix FPixelStreamingHMD::GetStereoProjectionMatrix(const int32 ViewIndex) con
 	const float YS = 1.0f / TanHalfVFov;
 
 	// Apply eye off-center translation
-	const FTranslationMatrix TranslationMatrix = FTranslationMatrix(FVector(PassProjectionOffsetX, PassProjectionOffsetY, 0));
-	const float ZNear = GNearClippingPlane_RenderThread;
+	const FTranslationMatrix OffCenterProjection = FTranslationMatrix(FVector(ProjOffsetX, ProjOffsetY, 0));
+	const float				 ZNear = GNearClippingPlane_RenderThread;
 
 	FMatrix ProjMatrix = FMatrix(
 		FPlane(XS, 0.0f, 0.0f, 0.0f),
 		FPlane(0.0f, YS, 0.0f, 0.0f),
 		FPlane(0.0f, 0.0f, 0.0f, 1.0f),
-		FPlane(0.0f, 0.0f, ZNear, 0.0f)
-	);
+		FPlane(0.0f, 0.0, ZNear, 0.0f));
 
-	const FMatrix OutMatrix = ProjMatrix * TranslationMatrix;
+	const FMatrix OutMatrix = ProjMatrix * OffCenterProjection;
 	return OutMatrix;
 }
 

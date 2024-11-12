@@ -48,6 +48,7 @@ class FSkinUpdateCS : public FGlobalShader
 	using FPermutationDomain = TShaderPermutationDomain<FUnlimitedBoneInfluence, FUseExtraInfluence, FBoneIndexUint16, FBoneWeightUint16, FPrevious>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, bWriteTangent)
 		SHADER_PARAMETER(uint32, NumVertexToProcess)
 		SHADER_PARAMETER(uint32, NumTotalVertices)
 		SHADER_PARAMETER(uint32, SectionVertexBaseIndex)
@@ -58,8 +59,10 @@ class FSkinUpdateCS : public FGlobalShader
 		SHADER_PARAMETER_SRV(Buffer<float4>, PrevBoneMatrices)
 		SHADER_PARAMETER_SRV(Buffer<uint>, VertexWeights)
 		SHADER_PARAMETER_SRV(Buffer<float>, RestPositions)
+		SHADER_PARAMETER_SRV(Buffer<float4>, RestTangents)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float>, DeformedPositions)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float>, PrevDeformedPositions)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float4>, DeformedTangents)
 	END_SHADER_PARAMETER_STRUCT()
 
 public:
@@ -81,13 +84,31 @@ void AddSkinUpdatePass(
 	FSkeletalMeshLODRenderData& RenderData,
 	const TArray<FSkinUpdateSection>& Sections,
 	FRDGBufferRef OutDeformedPositionBuffer,
-	FRDGBufferRef OutPrevDeformedPositionBuffer)
+	FRDGBufferRef OutPrevDeformedPositionBuffer,
+	FRDGBufferRef OutDeformedTangentBuffer)
 {
 	check(Sections.Num() > 0);
 	const FSkinWeightVertexBuffer* SkinWeight = &RenderData.SkinWeightVertexBuffer;
 	const bool bPrevPosition = OutPrevDeformedPositionBuffer != nullptr && Sections[0].BonePrevBuffer;
 	
+	bool bHasTangentSRV = false;
+	FRDGBufferUAVRef DeformedTangentsUAV = nullptr;
+	if (OutDeformedTangentBuffer)
+	{
+		const FRHIShaderResourceView* TangentSRV = RenderData.StaticVertexBuffers.StaticMeshVertexBuffer.GetTangentsSRV();
+		check(TangentSRV);
+		const EPixelFormat TangentFormat = TangentSRV->GetDesc().Buffer.SRV.Format;
+		DeformedTangentsUAV = GraphBuilder.CreateUAV(OutDeformedTangentBuffer, TangentFormat, ERDGUnorderedAccessViewFlags::SkipBarrier);
+		bHasTangentSRV = true;
+	}
+	else
+	{
+		// Dummy output
+		DeformedTangentsUAV = GraphBuilder.CreateUAV(GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4u, 1), TEXT("DummyUAV")), PF_R8G8B8A8_SNORM, ERDGUnorderedAccessViewFlags::SkipBarrier);
+	}
+
 	FSkinUpdateCS::FParameters* Parameters = GraphBuilder.AllocParameters<FSkinUpdateCS::FParameters>();
+	Parameters->bWriteTangent			= bHasTangentSRV ? 1 : 0;
 	Parameters->WeightIndexSize 		= SkinWeight->GetBoneIndexByteSize() | (SkinWeight->GetBoneWeightByteSize() << 8);
 	Parameters->NumVertexToProcess 		= 0;
 	Parameters->NumTotalVertices		= RenderData.StaticVertexBuffers.PositionVertexBuffer.GetNumVertices();
@@ -98,7 +119,9 @@ void AddSkinUpdatePass(
 	Parameters->PrevBoneMatrices 		= Sections[0].BonePrevBuffer;
 	Parameters->VertexWeights 			= SkinWeight->GetDataVertexBuffer()->GetSRV();
 	Parameters->RestPositions 			= RenderData.StaticVertexBuffers.PositionVertexBuffer.GetSRV();
+	Parameters->RestTangents 			= RenderData.StaticVertexBuffers.StaticMeshVertexBuffer.GetTangentsSRV();
 	Parameters->DeformedPositions 		= GraphBuilder.CreateUAV(OutDeformedPositionBuffer, PF_R32_FLOAT, ERDGUnorderedAccessViewFlags::SkipBarrier);
+	Parameters->DeformedTangents 		= DeformedTangentsUAV;
 	if (bPrevPosition)
 	{
 		Parameters->PrevDeformedPositions = GraphBuilder.CreateUAV(OutPrevDeformedPositionBuffer, PF_R32_FLOAT, ERDGUnorderedAccessViewFlags::SkipBarrier);
@@ -119,7 +142,7 @@ void AddSkinUpdatePass(
 		ParametersMetadata,
 		Parameters,
 		ERDGPassFlags::Compute,
-		[ParametersMetadata, Parameters, ComputeShader, Sections, bPrevPosition](FRHIComputeCommandList& RHICmdList)
+		[ParametersMetadata, Parameters, ComputeShader, Sections, bPrevPosition](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			for (const FSkinUpdateSection& Section : Sections)
 			{
@@ -153,15 +176,17 @@ private:
 	using FPermutationDomain = TShaderPermutationDomain<FPositionType, FPrevious>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, TangentFormat)
 		SHADER_PARAMETER(uint32, MaxSectionCount)
 		SHADER_PARAMETER(uint32, MaxUniqueTriangleCount)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer, MeshSectionBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RDGMeshPositionBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RDGMeshPreviousPositionBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RDGMeshTangentBuffer)
 		SHADER_PARAMETER_SRV(Buffer, MeshPositionBuffer)
 		SHADER_PARAMETER_SRV(Buffer, MeshPreviousPositionBuffer)
 		SHADER_PARAMETER_SRV(Buffer, MeshIndexBuffer)
-		SHADER_PARAMETER_SRV(Buffer, MeshUVsBuffer)
+		SHADER_PARAMETER_SRV(Buffer, MeshTangentBuffer)
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, UniqueTriangleIndices)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutUniqueTrianglePrevPosition)
@@ -204,12 +229,14 @@ static bool AddHairStrandUpdateMeshTrianglesPass(
 	FHairUpdateMeshTriangleCS::FParameters CommonParameters;
 	CommonParameters.MaxUniqueTriangleCount 		= UniqueTriangleCount;
 	CommonParameters.MaxSectionCount 				= TotalSectionCount;
+	CommonParameters.TangentFormat					= MeshLODData.Sections[0].TangentFormat;
 	CommonParameters.RDGMeshPositionBuffer			= MeshLODData.Sections[0].RDGPositionBuffer;
 	CommonParameters.RDGMeshPreviousPositionBuffer 	= MeshLODData.Sections[0].RDGPreviousPositionBuffer;
+	CommonParameters.RDGMeshTangentBuffer			= MeshLODData.Sections[0].RDGTangentBuffer;
 	CommonParameters.MeshPositionBuffer				= MeshLODData.Sections[0].PositionBuffer;
 	CommonParameters.MeshPreviousPositionBuffer		= MeshLODData.Sections[0].PreviousPositionBuffer;
 	CommonParameters.MeshIndexBuffer				= MeshLODData.Sections[0].IndexBuffer;
-	CommonParameters.MeshUVsBuffer					= MeshLODData.Sections[0].UVsBuffer;
+	CommonParameters.MeshTangentBuffer				= MeshLODData.Sections[0].TangentBuffer;
 	CommonParameters.UniqueTriangleIndices 			= UniqueTriangleIndexSRV;
 	CommonParameters.OutUniqueTriangleCurrPosition	= OutputCurrUAV;
 	CommonParameters.OutUniqueTrianglePrevPosition	= OutputPrevUAV;
@@ -223,8 +250,9 @@ static bool AddHairStrandUpdateMeshTrianglesPass(
 		uint32 IndexBaseIndex;
 		uint32 UVsChannelOffset : 8;
 		uint32 UVsChannelCount : 8;
-		uint32 bIsSwapped : 8;
-		uint32 Pad : 8;
+		uint32 bIsSwapped : 1;
+		uint32 bUseFaceNormal : 1;
+		uint32 Pad : 14;
 	};
 
 	FSectionData Default;
@@ -234,6 +262,7 @@ static bool AddHairStrandUpdateMeshTrianglesPass(
 	Default.UVsChannelOffset  = 0;
 	Default.UVsChannelCount  = 0;
 	Default.bIsSwapped = 0;
+	Default.bUseFaceNormal = 0;
 	Default.Pad = 0;
 
 	// Allocate data for *all* sections, but only fill in the used/valid sections
@@ -251,6 +280,7 @@ static bool AddHairStrandUpdateMeshTrianglesPass(
 		SectionDatas[SectionIndex].bIsSwapped		= bUseRDGPositionBuffer ? 
 			(MeshSectionData.RDGPositionBuffer != CommonParameters.RDGMeshPositionBuffer ? 1u : 0u) :
 			(MeshSectionData.PositionBuffer    != CommonParameters.MeshPositionBuffer    ? 1u : 0u);
+		SectionDatas[SectionIndex].bUseFaceNormal	= 0u;
 
 		// Sanity check
 		check(MeshSectionData.UVsChannelOffset < 255);
@@ -258,7 +288,7 @@ static bool AddHairStrandUpdateMeshTrianglesPass(
 		check(CommonParameters.RDGMeshPositionBuffer == MeshSectionData.RDGPositionBuffer || CommonParameters.RDGMeshPositionBuffer == MeshSectionData.RDGPreviousPositionBuffer);
 		check(CommonParameters.MeshPositionBuffer    == MeshSectionData.PositionBuffer    || CommonParameters.MeshPositionBuffer    == MeshSectionData.PreviousPositionBuffer);
 		check(CommonParameters.MeshIndexBuffer		 == MeshSectionData.IndexBuffer);
-		check(CommonParameters.MeshUVsBuffer		 == MeshSectionData.UVsBuffer);
+		check(CommonParameters.MeshTangentBuffer	 == MeshSectionData.TangentBuffer);
 	}
 
 	// If no previous position buffer available, reusing the current position buffers
@@ -271,18 +301,22 @@ static bool AddHairStrandUpdateMeshTrianglesPass(
 		CommonParameters.RDGMeshPreviousPositionBuffer = CommonParameters.RDGMeshPositionBuffer;
 	}
 
+	// On some platform the TangentSRV can be null as it is not create by default (requires CPU access flags).
+	// In such a case we bind the index buffer as a dummy data, and we use face normal.
+	if (CommonParameters.MeshTangentBuffer == nullptr)
+	{
+		CommonParameters.MeshTangentBuffer = CommonParameters.MeshIndexBuffer;
+		for (FSectionData& SectionData : SectionDatas)
+		{
+			SectionData.bUseFaceNormal = 1u;
+		}
+	}
+
 	FRDGBufferRef SectionBuffer = CreateStructuredBuffer(GraphBuilder, TEXT("Hair.SkelMeshSectionBuffer"), sizeof(FSectionData),  SectionDatas.Num(), SectionDatas.GetData(), sizeof(FSectionData) * SectionDatas.Num());
 	CommonParameters.MeshSectionBuffer = GraphBuilder.CreateSRV(SectionBuffer);
 
 	const bool bComputePreviousDeformedPosition = OutputPrevUAV != nullptr;
 	{
-		// UV stream is only used for debugging purpose. On some platform the TextureCoordinateSRV can be null as it is not create by default (requires CPU access flags).
-		// In such a case we bind the index buffer as a dummy data
-		if (CommonParameters.MeshUVsBuffer == nullptr)
-		{
-			CommonParameters.MeshUVsBuffer = CommonParameters.MeshIndexBuffer;
-		}
-
 		FHairUpdateMeshTriangleCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FHairUpdateMeshTriangleCS::FParameters>();
 		*PassParameters = CommonParameters;
 
@@ -782,7 +816,7 @@ static void AddFollicleMaskPass(
 		RDG_EVENT_NAME("HairStrands::FollicleMask"),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[Parameters, ParametersVS, ParametersPS, VertexShader, PixelShader, OutputResolution](FRHICommandList& RHICmdList)
+		[Parameters, ParametersVS, ParametersPS, VertexShader, PixelShader, OutputResolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 
 		RHICmdList.SetViewport(0, 0, 0.0f, OutputResolution.X, OutputResolution.Y, 1.0f);
@@ -843,7 +877,7 @@ static void AddFollicleMaskPass(
 		RDG_EVENT_NAME("HairStrands::FollicleMask"),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[Parameters, ParametersVS, ParametersPS, VertexShader, PixelShader, OutputResolution](FRHICommandList& RHICmdList)
+		[Parameters, ParametersVS, ParametersPS, VertexShader, PixelShader, OutputResolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 
 			RHICmdList.SetViewport(0, 0, 0.0f, OutputResolution.X, OutputResolution.Y, 1.0f);
@@ -974,7 +1008,7 @@ void AddComputeMipsPass(
 			RDG_EVENT_NAME("HairStrandsComputeVoxelMip"),
 			Parameters,
 			ERDGPassFlags::Compute,
-			[Parameters, ComputeShader, TargetResolution](FRHICommandList& RHICmdList)
+			[Parameters, ComputeShader, TargetResolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(FIntPoint(TargetResolution, TargetResolution), FIntPoint(8, 8));
 			FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *Parameters, GroupCount);

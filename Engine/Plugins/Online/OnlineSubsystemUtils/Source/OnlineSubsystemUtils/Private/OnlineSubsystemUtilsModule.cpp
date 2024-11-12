@@ -164,7 +164,7 @@ public:
 
 		int32 NumValidLogins = 0;
 		const UOnlinePIESettings* OnlinePIESettings = GetDefault<UOnlinePIESettings>();
-		for (const FPIELoginSettingsInternal& Login : OnlinePIESettings->Logins)
+		for (const FOnlineAccountStoredCredentials& Login : OnlinePIESettings->Logins)
 		{
 			if (Login.IsValid())
 			{
@@ -186,7 +186,7 @@ public:
 		if (OnlinePIESettings->Logins.Num() > 0)
 		{
 			Logins.Empty(OnlinePIESettings->Logins.Num());
-			for (const FPIELoginSettingsInternal& Login : OnlinePIESettings->Logins)
+			for (const FOnlineAccountStoredCredentials& Login : OnlinePIESettings->Logins)
 			{
 				if (Login.IsValid())
 				{
@@ -238,11 +238,6 @@ private:
 		CREATE_HASH(AMAZON_SUBSYSTEM);
 		CREATE_HASH(GAMECIRCLE_SUBSYSTEM);
 		CREATE_HASH(THUNDERHEAD_SUBSYSTEM); 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		CREATE_HASH(OCULUS_SUBSYSTEM); 
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-		CREATE_HASH(QUAIL_SUBSYSTEM);
 		// Shouldn't need these as they are mocking interfaces for existing platforms
 		CREATE_HASH(PS4SERVER_SUBSYSTEM);
 

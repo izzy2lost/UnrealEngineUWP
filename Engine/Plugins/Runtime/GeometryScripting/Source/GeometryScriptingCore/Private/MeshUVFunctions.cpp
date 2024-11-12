@@ -10,8 +10,10 @@
 #include "Parameterization/PatchBasedMeshUVGenerator.h"
 #include "DynamicMesh/MeshNormals.h"
 #include "Parameterization/MeshLocalParam.h"
+#include "ParameterizationOps/UVLayoutOp.h"
 #include "TriangleTypes.h"
 #include "XAtlasWrapper.h"
+#include "ParameterizationOps/TexelDensityOp.h"
 
 #include "Async/ParallelFor.h"
 #include "UDynamicMesh.h"
@@ -288,7 +290,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshUVFunctions::SetMeshUVElementPosition(
 
 
 void ApplyMeshUVEditorOperation(UDynamicMesh* TargetMesh, int32 UVSetIndex, bool& bHasUVSet, UGeometryScriptDebug* Debug,
-	TFunctionRef<void(FDynamicMesh3& Mesh, FDynamicMeshUVOverlay* UVOverlay, FDynamicMeshUVEditor& UVEditor)> EditFunc)
+	TFunctionRef<void(FDynamicMesh3& Mesh, FDynamicMeshUVOverlay* UVOverlay, FDynamicMeshUVEditor& UVEditor)> EditFunc, bool bDeferChangeNotifications = false)
 {
 	bHasUVSet = false;
 	TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh)
@@ -305,7 +307,7 @@ void ApplyMeshUVEditorOperation(UDynamicMesh* TargetMesh, int32 UVSetIndex, bool
 		FDynamicMeshUVEditor Editor(&EditMesh, UVOverlay);
 		EditFunc(EditMesh, UVOverlay, Editor);
 
-	}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, false);
+	}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, bDeferChangeNotifications);
 }
 
 
@@ -344,6 +346,45 @@ void ApplyUVTransform(
 		}
 	}
 }
+}
+
+
+UDynamicMesh* UGeometryScriptLibrary_MeshUVFunctions::SetUVSeamsAlongSelectedEdges(
+	UDynamicMesh* TargetMesh,
+	int UVSetIndex,
+	FGeometryScriptMeshSelection Selection,
+	bool bInsertSeams,
+	bool bDeferChangeNotifications,
+	UGeometryScriptDebug* Debug)
+{
+	if (TargetMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SetUVSeamsAlongSelectedEdges_InvalidInput", "SetUVSeamsAlongSelectedEdges: TargetMesh is Null"));
+		return TargetMesh;
+	}
+
+	bool bHasUVSet = false;
+	ApplyMeshUVEditorOperation(TargetMesh, UVSetIndex, bHasUVSet, Debug,
+		[&Selection, bInsertSeams](FDynamicMesh3& EditMesh, FDynamicMeshUVOverlay* UVOverlay, FDynamicMeshUVEditor& UVEditor)
+	{
+		TArray<int32> EdgeArr;
+		Selection.ConvertToMeshIndexArray(EditMesh, EdgeArr, EGeometryScriptIndexType::Edge);
+		TSet<int32> EdgeSet(EdgeArr);
+		if (bInsertSeams)
+		{
+			UVEditor.CreateSeamsAtEdges(EdgeSet);
+		}
+		else
+		{
+			UVEditor.RemoveSeamsAtEdges(EdgeSet);
+		}
+	}, bDeferChangeNotifications);
+	if (bHasUVSet == false)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SetUVSeamsAlongSelectedEdges_InvalidUVSet", "SetUVSeamsAlongSelectedEdges: UV Channel does not exist on TargetMesh"));
+	}
+
+	return TargetMesh;
 }
 
 
@@ -561,7 +602,83 @@ UDynamicMesh* UGeometryScriptLibrary_MeshUVFunctions::SetMeshUVsFromCylinderProj
 	return TargetMesh;
 }
 
+UDynamicMesh*
+UGeometryScriptLibrary_MeshUVFunctions::ApplyTexelDensityUVScaling(
+	UDynamicMesh* TargetMesh,
+	int UVSetIndex,
+	FGeometryScriptUVTexelDensityOptions Options,
+	FGeometryScriptMeshSelection Selection,
+	UGeometryScriptDebug* Debug)
+{
+	if (TargetMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("ApplyTexelDensityUVScaling_InvalidInput", "ApplyTexelDensityUVScaling: TargetMesh is Null"));
+		return TargetMesh;
+	}
 
+
+	TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh) 
+	{
+
+		TSharedPtr<FDynamicMesh3> SourceMesh = MakeShared<FDynamicMesh3>(MoveTemp(EditMesh));
+
+		FUVEditorTexelDensityOp Op;
+		
+		Op.OriginalMesh = SourceMesh;
+
+		switch (Options.TexelDensityMode)
+		{
+		case EGeometryScriptTexelDensityMode::ApplyToIslands:
+			Op.TexelDensityMode = EUVTexelDensityOpModes::ScaleIslands;
+			break;
+		case EGeometryScriptTexelDensityMode::ApplyToWhole:
+			Op.TexelDensityMode = EUVTexelDensityOpModes::ScaleGlobal;
+			break;
+		case EGeometryScriptTexelDensityMode::Normalize:
+			Op.TexelDensityMode = EUVTexelDensityOpModes::Normalize;
+			break;
+		default:
+			ensure(false);
+			break;
+		}
+
+
+		TArray<int32> TriangleSelection;
+		Selection.ConvertToMeshIndexArray(*SourceMesh, TriangleSelection, EGeometryScriptIndexType::Triangle);
+
+		Op.TextureResolution = Options.TextureResolution;
+		Op.TargetWorldSpaceMeasurement = Options.TargetWorldUnits;
+		Op.TargetPixelCountMeasurement = Options.TargetPixelCount;
+
+		Op.UVLayerIndex = UVSetIndex;
+		Op.TextureResolution = Options.TextureResolution;
+		Op.SetTransform(FTransformSRT3d::Identity());
+		Op.bMaintainOriginatingUDIM = Options.bEnableUDIMLayout;
+		if (TriangleSelection.Num() > 0)
+		{
+			Op.Selection = TSet<int32>(TriangleSelection);
+		}
+		if (Options.UDIMResolutions.Num() > 0)
+		{
+			Op.TextureResolutionPerUDIM = Options.UDIMResolutions;
+		}
+
+		Op.CalculateResult(nullptr);
+		if (Op.GetResultInfo().Result == EGeometryResultType::Success)
+		{
+			TUniquePtr<FDynamicMesh3> ResultMesh = Op.ExtractResult();
+			EditMesh = MoveTemp(*ResultMesh);
+		}
+		else
+		{
+			EditMesh = MoveTemp(*SourceMesh);
+			UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("ApplyTexelDensityUVScaling_ComputeError", "ApplyTexelDensityUVScaling: Error computing result, returning input mesh"));
+		}
+
+	}, EDynamicMeshChangeType::AttributeEdit, EDynamicMeshAttributeChangeFlags::UVs, false);
+
+	return TargetMesh;
+}
 
 UDynamicMesh* UGeometryScriptLibrary_MeshUVFunctions::RecomputeMeshUVs( 
 	UDynamicMesh* TargetMesh, 
@@ -724,7 +841,88 @@ UDynamicMesh* UGeometryScriptLibrary_MeshUVFunctions::RepackMeshUVs(
 	return TargetMesh;
 }
 
+UDynamicMesh* UGeometryScriptLibrary_MeshUVFunctions::LayoutMeshUVs(
+	UDynamicMesh* TargetMesh,
+	int UVSetIndex,
+	FGeometryScriptLayoutUVsOptions LayoutOptions,
+	FGeometryScriptMeshSelection Selection,
+	UGeometryScriptDebug* Debug)
+{
+	if (TargetMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("LayoutMeshUVs_InvalidInput", "LayoutMeshUVs: TargetMesh is Null"));
+		return TargetMesh;
+	}
 
+
+	TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh)
+		{
+
+			TSharedPtr<FDynamicMesh3> SourceMesh = MakeShared<FDynamicMesh3>(MoveTemp(EditMesh));
+
+			FUVLayoutOp Op;
+
+			Op.OriginalMesh = SourceMesh;
+
+			switch (LayoutOptions.LayoutType)
+			{
+			case EGeometryScriptUVLayoutType::Normalize:
+				Op.UVLayoutMode = EUVLayoutOpLayoutModes::Normalize;
+				break;
+			case EGeometryScriptUVLayoutType::Repack:
+				Op.UVLayoutMode = EUVLayoutOpLayoutModes::RepackToUnitRect;
+				break;
+			case EGeometryScriptUVLayoutType::Stack:
+				Op.UVLayoutMode = EUVLayoutOpLayoutModes::StackInUnitRect;
+				break;
+			case EGeometryScriptUVLayoutType::Transform:
+				Op.UVLayoutMode = EUVLayoutOpLayoutModes::TransformOnly;
+				break;
+			default:
+				ensure(false);
+				break;
+			}
+
+
+			TArray<int32> TriangleSelection;
+			Selection.ConvertToMeshIndexArray(*SourceMesh, TriangleSelection, EGeometryScriptIndexType::Triangle);
+
+			Op.TextureResolution = LayoutOptions.TextureResolution;
+			Op.bPreserveScale = LayoutOptions.bPreserveScale;
+			Op.bPreserveRotation = LayoutOptions.bPreserveRotation;
+			Op.bAllowFlips = LayoutOptions.bAllowFlips;
+			Op.UVScaleFactor = LayoutOptions.Scale;
+			Op.UVTranslation = FVector2f(LayoutOptions.Translation);
+			Op.bMaintainOriginatingUDIM = LayoutOptions.bEnableUDIMLayout;					
+			Op.UVLayerIndex = UVSetIndex;
+			Op.TextureResolution = LayoutOptions.TextureResolution;
+			Op.SetTransform(FTransformSRT3d::Identity());
+			Op.bMaintainOriginatingUDIM = LayoutOptions.bEnableUDIMLayout;
+			if (TriangleSelection.Num() > 0)
+			{
+				Op.Selection = TSet<int32>(TriangleSelection);
+			}
+			if (LayoutOptions.UDIMResolutions.Num() > 0)
+			{
+				Op.TextureResolutionPerUDIM = LayoutOptions.UDIMResolutions;
+			}
+
+			Op.CalculateResult(nullptr);
+			if (Op.GetResultInfo().Result == EGeometryResultType::Success)
+			{
+				TUniquePtr<FDynamicMesh3> ResultMesh = Op.ExtractResult();
+				EditMesh = MoveTemp(*ResultMesh);
+			}
+			else
+			{
+				EditMesh = MoveTemp(*SourceMesh);
+				UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("LayoutMeshUVs_ComputeError", "LayoutMeshUVs: Error computing result, returning input mesh"));
+			}
+
+		}, EDynamicMeshChangeType::AttributeEdit, EDynamicMeshAttributeChangeFlags::UVs, false);
+
+	return TargetMesh;
+}
 
 
 UDynamicMesh* UGeometryScriptLibrary_MeshUVFunctions::AutoGeneratePatchBuilderMeshUVs( 

@@ -2,18 +2,20 @@
 
 #pragma once
 
-#include "AvaTag.h"
+#include "AvaTagId.h"
 #include "Containers/ContainersFwd.h"
 #include "AvaTagHandle.generated.h"
 
 class UAvaTagCollection;
+struct FAvaTag;
+struct FAvaTagList;
 
 /**
- * Handle to a Tag in a particular Source.
- * This should be used by the UStructs/UObjects to properly reference a particular FAvaTag.
+ * Handle to a Tag or Alias (set of Tags) in a particular Source.
+ * This should be used by the UStructs/UObjects to properly reference a Tag or Alias (set of Tags).
  */
-USTRUCT()
-struct AVALANCHETAG_API FAvaTagHandle
+USTRUCT(BlueprintType)
+struct FAvaTagHandle
 {
 	GENERATED_BODY()
 
@@ -25,21 +27,26 @@ struct AVALANCHETAG_API FAvaTagHandle
 	{
 	}
 
-	const FAvaTag* GetTag() const;
+	/**
+	 * Returns the resolved tags from the Handle
+	 * If the Handle is to a particular Tag, it should return the array with a single element.
+	 * If the Handle is to an alias, it should return the array of tags the alias represents.
+	 */
+	AVALANCHETAG_API FAvaTagList GetTags() const;
 
-	FString ToString() const;
+	AVALANCHETAG_API FString ToString() const;
 
-	FString ToDebugString() const;
+	AVALANCHETAG_API FString ToDebugString() const;
 
-	FName ToName() const;
+	AVALANCHETAG_API FName ToName() const;
 
-	void PostSerialize(const FArchive& Ar);
+	AVALANCHETAG_API void PostSerialize(const FArchive& Ar);
 
-	/** Returns true if the Tag Handles resolve to same valued FAvaTags, even if the Source or Tag Id is different */
-	bool MatchesTag(const FAvaTagHandle& InOther) const;
+	/** Returns true if the Tag Handles have overlapping FAvaTags, even if the Source or Tag Id is different */
+	AVALANCHETAG_API bool Overlaps(const FAvaTagHandle& InOther) const;
 
 	/** Returns true if the Tag Handles is the exact same as the other (Same Source and Tag Id) */
-	bool MatchesExact(const FAvaTagHandle& InOther) const;
+	AVALANCHETAG_API bool MatchesExact(const FAvaTagHandle& InOther) const;
 
 	bool IsValid() const
 	{
@@ -51,7 +58,7 @@ struct AVALANCHETAG_API FAvaTagHandle
 		return HashCombineFast(GetTypeHash(InHandle.Source), GetTypeHash(InHandle.TagId));
 	}
 
-	UPROPERTY(EditAnywhere, Category="Tag")
+	UPROPERTY(EditAnywhere, Category = "Tag")
 	TObjectPtr<const UAvaTagCollection> Source;
 
 	UPROPERTY()

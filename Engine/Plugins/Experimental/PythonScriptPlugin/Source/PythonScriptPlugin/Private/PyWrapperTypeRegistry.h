@@ -10,6 +10,7 @@
 #include "PyConversionMethod.h"
 #include "PyOnlineDocsWriter.h"
 #include "Misc/EnumClassFlags.h"
+#include "UObject/GCObject.h"
 #include "UObject/WeakObjectPtr.h"
 #include "Templates/Function.h"
 
@@ -316,11 +317,15 @@ public:
 
 
 /** Singleton instance that handles re-instancing Python types */
-class FPyWrapperTypeReinstancer
+class FPyWrapperTypeReinstancer : public FGCObject
 {
 public:
 	/** Access the singleton instance */
 	static FPyWrapperTypeReinstancer& Get();
+
+	//~ FGCObject interface
+	virtual void AddReferencedObjects(FReferenceCollector& InCollector) override;
+	virtual FString GetReferencerName() const override;
 
 	/** Add a pending pair of classes to be re-instanced */
 	void AddPendingClass(UPythonGeneratedClass* OldClass, UPythonGeneratedClass* NewClass);
@@ -331,9 +336,6 @@ public:
 	/** Process any pending re-instance requests */
 	void ProcessPending();
 
-	/** Collect any referenced objects */
-	void AddReferencedObjects(FReferenceCollector& InCollector);
-
 private:
 	/** Pending pairs of classes that to be re-instanced */
 	TArray<TPair<TObjectPtr<UPythonGeneratedClass>, TObjectPtr<UPythonGeneratedClass>>> ClassesToReinstance;
@@ -343,7 +345,7 @@ private:
 };
 
 /** Singleton instance that maps Unreal types to Python types */
-class FPyWrapperTypeRegistry
+class FPyWrapperTypeRegistry : public FGCObject
 {
 public:
 	/** Struct used to build up a list of wrapped type references that still need to be generated */
@@ -365,6 +367,10 @@ public:
 	/** Access the singleton instance */
 	static FPyWrapperTypeRegistry& Get();
 
+	//~ FGCObject interface
+	virtual void AddReferencedObjects(FReferenceCollector& InCollector) override;
+	virtual FString GetReferencerName() const override;
+
 	/** Callback for when a Python module is dirtied */
 	FOnModuleDirtied& OnModuleDirtied()
 	{
@@ -381,7 +387,7 @@ public:
 	void RegisterInlineStructFactory(const TSharedRef<const IPyWrapperInlineStructFactory>& InFactory);
 
 	/** Get the factory for an inline struct (if known) from its Unreal struct name */
-	const IPyWrapperInlineStructFactory* GetInlineStructFactory(const FName StructName) const;
+	const IPyWrapperInlineStructFactory* GetInlineStructFactory(const FTopLevelAssetPath& StructName) const;
 
 	/** Generate a wrapped type for all currently available Unreal types */
 	void GenerateWrappedTypes();
@@ -399,10 +405,10 @@ public:
 	void NotifyModulesDirtied(const TSet<FName>& InDirtyModules) const;
 
 	/** Called when an asset that is registered with the type registry has been renamed */
-	void UpdateGenerateWrappedTypeForRename(const FName InOldTypeRegistryName, const UObject* InObj);
+	void UpdateGenerateWrappedTypeForRename(const FSoftObjectPath& InOldTypeRegistryName, const UObject* InObj);
 
 	/** Called when an asset that is registered with the type registry is deleted */
-	void RemoveGenerateWrappedTypeForDelete(const FName InTypeRegistryName);
+	void RemoveGenerateWrappedTypeForDelete(const FSoftObjectPath& InTypeRegistryName);
 
 	/** Generate a wrapped type for the given object (if it's a valid type to be wrapped) */
 	PyTypeObject* GenerateWrappedTypeForObject(const UObject* InObj, FGeneratedWrappedTypeReferences& OutGeneratedWrappedTypeReferences, TSet<FName>& OutDirtyModules, const EPyTypeGenerationFlags InGenerationFlags = EPyTypeGenerationFlags::None);
@@ -411,7 +417,7 @@ public:
 	bool HasWrappedTypeForObject(const UObject* InObj) const;
 
 	/** True if we have wrapped type for the given object name */
-	bool HasWrappedTypeForObjectName(const FName InName) const;
+	bool HasWrappedTypeForObjectName(const FSoftObjectPath& InName) const;
 
 	/** Get the best wrapped type for the given object */
 	PyTypeObject* GetWrappedTypeForObject(const UObject* InObj) const;
@@ -420,10 +426,10 @@ public:
 	PyTypeObject* GenerateWrappedClassType(const UClass* InClass, FGeneratedWrappedTypeReferences& OutGeneratedWrappedTypeReferences, TSet<FName>& OutDirtyModules, const EPyTypeGenerationFlags InGenerationFlags = EPyTypeGenerationFlags::None);
 
 	/** Register the wrapped type associated with the given class name */
-	void RegisterWrappedClassType(const FName ClassName, PyTypeObject* PyType, const bool InDetectNameConflicts = true);
+	void RegisterWrappedClassType(const FSoftObjectPath& ClassName, PyTypeObject* PyType, const bool InDetectNameConflicts = true);
 
 	/** Unregister the wrapped type associated with the given class name */
-	void UnregisterWrappedClassType(const FName ClassName, PyTypeObject* PyType, const bool InUnregisterName = true);
+	void UnregisterWrappedClassType(const FSoftObjectPath& ClassName, PyTypeObject* PyType, const bool InUnregisterName = true);
 
 	/** True if we have wrapped type for the exact given class */
 	bool HasWrappedClassType(const UClass* InClass) const;
@@ -435,10 +441,10 @@ public:
 	PyTypeObject* GenerateWrappedStructType(const UScriptStruct* InStruct, FGeneratedWrappedTypeReferences& OutGeneratedWrappedTypeReferences, TSet<FName>& OutDirtyModules, const EPyTypeGenerationFlags InGenerationFlags = EPyTypeGenerationFlags::None);
 
 	/** Register the wrapped type associated with the given struct name */
-	void RegisterWrappedStructType(const FName StructName, PyTypeObject* PyType, const bool InDetectNameConflicts = true);
+	void RegisterWrappedStructType(const FSoftObjectPath& StructName, PyTypeObject* PyType, const bool InDetectNameConflicts = true);
 
 	/** Unregister the wrapped type associated with the given struct name */
-	void UnregisterWrappedStructType(const FName StructName, PyTypeObject* PyType, const bool InUnregisterName = true);
+	void UnregisterWrappedStructType(const FSoftObjectPath& StructName, PyTypeObject* PyType, const bool InUnregisterName = true);
 
 	/** True if we have wrapped type for the exact given struct */
 	bool HasWrappedStructType(const UScriptStruct* InStruct) const;
@@ -450,10 +456,10 @@ public:
 	PyTypeObject* GenerateWrappedEnumType(const UEnum* InEnum, FGeneratedWrappedTypeReferences& OutGeneratedWrappedTypeReferences, TSet<FName>& OutDirtyModules, const EPyTypeGenerationFlags InGenerationFlags = EPyTypeGenerationFlags::None);
 
 	/** Register the wrapped type associated with the given enum name */
-	void RegisterWrappedEnumType(const FName EnumName, PyTypeObject* PyType, const bool InDetectNameConflicts = true);
+	void RegisterWrappedEnumType(const FSoftObjectPath& EnumName, PyTypeObject* PyType, const bool InDetectNameConflicts = true);
 
 	/** Unregister the wrapped type associated with the given enum name */
-	void UnregisterWrappedEnumType(const FName EnumName, PyTypeObject* PyType, const bool InUnregisterName = true);
+	void UnregisterWrappedEnumType(const FSoftObjectPath& EnumName, PyTypeObject* PyType, const bool InUnregisterName = true);
 
 	/** True if we have wrapped type for the exact given enum */
 	bool HasWrappedEnumType(const UEnum* InEnum) const;
@@ -465,10 +471,10 @@ public:
 	PyTypeObject* GenerateWrappedDelegateType(const UFunction* InDelegateSignature, FGeneratedWrappedTypeReferences& OutGeneratedWrappedTypeReferences, TSet<FName>& OutDirtyModules, const EPyTypeGenerationFlags InGenerationFlags = EPyTypeGenerationFlags::None);
 
 	/** Register the wrapped type associated with the given delegate name */
-	void RegisterWrappedDelegateType(const FName DelegateName, PyTypeObject* PyType, const bool InDetectNameConflicts = true);
+	void RegisterWrappedDelegateType(const FSoftObjectPath& DelegateName, PyTypeObject* PyType, const bool InDetectNameConflicts = true);
 
 	/** Unregister the wrapped type associated with the given delegate name */
-	void UnregisterWrappedDelegateType(const FName DelegateName, PyTypeObject* PyType, const bool InUnregisterName = true);
+	void UnregisterWrappedDelegateType(const FSoftObjectPath& DelegateName, PyTypeObject* PyType, const bool InUnregisterName = true);
 
 	/** True if we have wrapped type for the exact given delegate signature */
 	bool HasWrappedDelegateType(const UFunction* InDelegateSignature) const;
@@ -487,10 +493,10 @@ private:
 	static void GenerateStubCodeForWrappedType(PyTypeObject* PyType, const PyGenUtil::FGeneratedWrappedType* GeneratedTypeData, FPyFileWriter& OutPythonScript, FPyOnlineDocsSection* OutOnlineDocsSection = nullptr);
 
 	/** Register a Python type name, and detect if a name conflict has occurred */
-	void RegisterPythonTypeName(const FString& InPythonTypeName, const FName& InUnrealTypeName);
+	void RegisterPythonTypeName(const FString& InPythonTypeName, const FSoftObjectPath& InUnrealTypeName);
 
 	/** Unregister a Python type name if it corresponds to the given Unreal type name */
-	void UnregisterPythonTypeName(const FString& InPythonTypeName, const FName& InUnrealTypeName);
+	void UnregisterPythonTypeName(const FString& InPythonTypeName, const FSoftObjectPath& InUnrealTypeName);
 
 	FPyWrapperTypeRegistry();
 
@@ -498,29 +504,29 @@ private:
 	bool bCanRegisterInlineStructFactories;
 
 	/** Map from the Unreal struct name to the factory data for an inline struct (ie, a struct known at compile time that will allocate its instance data inlined within the Python object) */
-	TMap<FName, TSharedPtr<const IPyWrapperInlineStructFactory>> InlineStructFactories;
+	TMap<FTopLevelAssetPath, TSharedPtr<const IPyWrapperInlineStructFactory>> InlineStructFactories;
 
 	/** Map from the Python wrapped type name to the Unreal type name it was generated from (for conflict detection) */
-	typedef TMap<FString, FName, FDefaultSetAllocator, PyGenUtil::FCaseSensitiveStringMapFuncs<FName>> FCaseSensitiveStringToNameMap;
+	typedef TMap<FString, FSoftObjectPath, FDefaultSetAllocator, PyGenUtil::FCaseSensitiveStringMapFuncs<FSoftObjectPath>> FCaseSensitiveStringToNameMap;
 	FCaseSensitiveStringToNameMap PythonWrappedTypeNameToUnrealTypeName;
 
 	/** Map from the Unreal class name to the Python type */
-	TMap<FName, PyTypeObject*> PythonWrappedClasses;
+	TMap<FSoftObjectPath, PyTypeObject*> PythonWrappedClasses;
 
 	/** Map from the Unreal struct name to the Python type */
-	TMap<FName, PyTypeObject*> PythonWrappedStructs;
+	TMap<FSoftObjectPath, PyTypeObject*> PythonWrappedStructs;
 
 	/** Map from the Unreal enum name to the Python type */
-	TMap<FName, PyTypeObject*> PythonWrappedEnums;
+	TMap<FSoftObjectPath, PyTypeObject*> PythonWrappedEnums;
 
 	/** Map from the Unreal delegate signature name to the Python type */
-	TMap<FName, PyTypeObject*> PythonWrappedDelegates;
+	TMap<FSoftObjectPath, PyTypeObject*> PythonWrappedDelegates;
 
 	/** Map from the Unreal type name to the generated Python type data */
-	TMap<FName, TSharedPtr<PyGenUtil::FGeneratedWrappedType>> GeneratedWrappedTypes;
+	TMap<FSoftObjectPath, TSharedPtr<PyGenUtil::FGeneratedWrappedType>> GeneratedWrappedTypes;
 
 	/** Map from the Unreal module name to its generated type names (names are the Unreal names) */
-	TMultiMap<FName, FName> GeneratedWrappedTypesForModule;
+	TMultiMap<FName, FSoftObjectPath> GeneratedWrappedTypesForModule;
 
 	/** Map make func name to the meta data of the struct to make. Used when meta 'HasNativeMake' references a function not loaded yet. */
 	TMap<FString, TSharedPtr<FPyWrapperStructMetaData>> UnresolvedMakeFuncs;

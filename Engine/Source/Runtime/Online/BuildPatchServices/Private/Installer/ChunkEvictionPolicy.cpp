@@ -31,6 +31,7 @@ namespace BuildPatchServices
 
 	void FChunkEvictionPolicy::Query(const TMap<FGuid, TUniquePtr<IChunkDataAccess>>& CurrentMap, int32 DesiredMax, TSet<FGuid>& OutCleanable, TSet<FGuid>& OutBootable) const
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Eviction_Query);
 		for (const TPair<FGuid, TUniquePtr<IChunkDataAccess>>& Pair : CurrentMap)
 		{
 			if (ChunkReferenceTracker->GetReferenceCount(Pair.Key) == 0)
@@ -41,6 +42,8 @@ namespace BuildPatchServices
 		int32 BootsNeeded = (CurrentMap.Num() - OutCleanable.Num()) - DesiredMax;
 		if (BootsNeeded > 0)
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(Eviction_BootSort);
+
 			TArray<FGuid> ChunkUseOrder;
 			for (const TPair<FGuid, TUniquePtr<IChunkDataAccess>>& Pair : CurrentMap)
 			{
@@ -49,6 +52,9 @@ namespace BuildPatchServices
 					ChunkUseOrder.Add(Pair.Key);
 				}
 			}
+
+			// This sorts the entirety of the reference list even if we only need 1 boot :/ feels like there's a better way.
+			// this was taking like 40-50ms for each put that overflows.
 			ChunkReferenceTracker->SortByUseOrder(ChunkUseOrder, IChunkReferenceTracker::ESortDirection::Descending);
 			for (int32 ChunkUseOrderIdx = 0; ChunkUseOrderIdx < ChunkUseOrder.Num() && BootsNeeded > 0; ++ChunkUseOrderIdx)
 			{

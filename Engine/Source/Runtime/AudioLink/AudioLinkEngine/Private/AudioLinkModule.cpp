@@ -18,4 +18,4 @@ public:
 	}
 };
 
-IMPLEMENT_MODULE(FAudioLinkModule, AudioLink);
+IMPLEMENT_MODULE(FAudioLinkModule, AudioLinkEngine);

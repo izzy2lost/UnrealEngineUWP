@@ -5,6 +5,9 @@
 
 UActorModifierCoreComponent::UActorModifierCoreComponent()
 {
+	ModifierStack = CreateDefaultSubobject<UActorModifierCoreStack>(TEXT("ModifierStack"));
+	ModifierStack->PostModifierCreation(/** Parentstack */nullptr);
+
 	if (!IsTemplate())
 	{
 		PrimaryComponentTick.bCanEverTick = true;
@@ -52,7 +55,11 @@ UActorModifierCoreComponent* UActorModifierCoreComponent::CreateAndExposeCompone
 void UActorModifierCoreComponent::OnComponentCreated()
 {
 	Super::OnComponentCreated();
-	InitializeStack();
+
+	if (ModifierStack && !ModifierStack->IsModifierInitialized())
+	{
+		ModifierStack->InitializeModifier(EActorModifierCoreEnableReason::User);
+	}
 }
 
 void UActorModifierCoreComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
@@ -63,6 +70,17 @@ void UActorModifierCoreComponent::OnComponentDestroyed(bool bDestroyingHierarchy
 	if (ModifierStack)
 	{
 		ModifierStack->UninitializeModifier(EActorModifierCoreDisableReason::Destroyed);
+	}
+}
+
+void UActorModifierCoreComponent::PostLoad()
+{
+	Super::PostLoad();
+
+	// Due to the fact that we replaced stack by sub-object stack, init is needed here as old stack is deleted
+	if (ModifierStack && !ModifierStack->IsModifierInitialized())
+	{
+		ModifierStack->DeferInitializeModifier();
 	}
 }
 
@@ -81,22 +99,6 @@ void UActorModifierCoreComponent::PostEditUndo()
 	}
 }
 #endif
-
-void UActorModifierCoreComponent::InitializeStack()
-{
-	if (!ModifierStack)
-	{
-		if (AActor* OwningActor = Cast<AActor>(GetOuter()))
-		{
-			ModifierStack = UActorModifierCoreStack::Create(OwningActor, nullptr);
-
-			if (ModifierStack)
-			{
-				ModifierStack->SetModifierEnabled(true);
-			}
-		}
-	}
-}
 
 void UActorModifierCoreComponent::TickComponent(float InDeltaTime, ELevelTick InTickType, FActorComponentTickFunction* InThisTickFunction)
 {

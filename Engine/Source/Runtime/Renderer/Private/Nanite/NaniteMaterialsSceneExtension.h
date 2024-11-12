@@ -7,9 +7,9 @@
 #include "Containers/Map.h"
 #include "SceneExtensions.h"
 #include "NaniteDefinitions.h"
-#include "SpanAllocator.h"
 #include "NaniteMaterials.h"
 #include "RendererPrivateUtils.h"
+#include "PrimitiveSceneInfo.h"
 
 class FNaniteMaterialsParameters;
 
@@ -18,7 +18,7 @@ namespace Nanite
 
 class FMaterialsSceneExtension : public ISceneExtension
 {
-	DECLARE_SCENE_EXTENSION(FMaterialsSceneExtension);
+	DECLARE_SCENE_EXTENSION(RENDERER_API, FMaterialsSceneExtension);
 
 public:
 	class FUpdater : public ISceneExtensionUpdater
@@ -28,7 +28,7 @@ public:
 	public:
 		FUpdater(FMaterialsSceneExtension& InSceneData);
 		virtual void End();
-		virtual void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet) override;
+		virtual void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet, FSceneUniformBuffer& SceneUniforms) override;
 		virtual void PostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ChangeSet) override;
 		
 		void PostCacheNaniteMaterialBins(
@@ -69,6 +69,15 @@ public:
 #if WITH_EDITOR
 	FRDGBufferRef CreateHitProxyIDBuffer(FRDGBuilder& GraphBuilder) const;
 #endif
+#if WITH_DEBUG_VIEW_MODES
+	FRDGBufferRef CreateDebugViewModeBuffer(FRDGBuilder& GraphBuilder) const;
+#endif
+
+	void PostBuildNaniteShadingCommands(
+		FRDGBuilder& GraphBuilder,
+		const UE::Tasks::FTask& BuildDependency,
+		ENaniteMeshPass::Type MeshPass
+	);
 
 private:
 	enum ETask : uint32
@@ -80,6 +89,9 @@ private:
 		UploadMaterialDataTask,
 	#if WITH_EDITOR
 		UpdateHitProxyIDsTask,
+	#endif
+	#if WITH_DEBUG_VIEW_MODES
+		UpdateDebugViewModeTask,
 	#endif
 
 		NumTasks
@@ -93,6 +105,7 @@ private:
 		uint32 bHasUVDensities : 1;
 	#if WITH_EDITOR
 		uint32 HitProxyBufferOffset;
+		uint32 OverlayColor;
 	#endif
 	};
 
@@ -107,6 +120,7 @@ private:
 		bool bHasUVDensities = false;
 	#if WITH_EDITOR
 		uint32 HitProxyBufferOffset = INDEX_NONE;
+		uint32 OverlayColor = 0;
 	#endif
 
 		FPackedPrimitiveData Pack() const
@@ -118,6 +132,7 @@ private:
 			Output.bHasUVDensities = bHasUVDensities;
 		#if WITH_EDITOR
 			Output.HitProxyBufferOffset = HitProxyBufferOffset;
+			Output.OverlayColor = OverlayColor;
 		#endif
 			return Output;
 		}
@@ -157,6 +172,9 @@ private:
 #if WITH_EDITOR
 	FSpanAllocator HitProxyIDAllocator;
 	TArray<uint32> HitProxyIDs;
+#endif
+#if WITH_DEBUG_VIEW_MODES
+	TArray<FNaniteMaterialDebugViewInfo> DebugViewData;
 #endif
 	TStaticArray<UE::Tasks::FTask, NumTasks> TaskHandles;
 };

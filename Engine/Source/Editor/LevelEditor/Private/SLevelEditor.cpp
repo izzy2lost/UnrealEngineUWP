@@ -77,6 +77,7 @@
 #include "LevelViewportTabContent.h"
 #include "SLevelViewport.h"
 #include "LevelEditorOutlinerSettings.h"
+#include "IWorldHierarchy.h"
 
 #define LOCTEXT_NAMESPACE "SLevelEditor"
 
@@ -89,6 +90,8 @@ static const FName WorldBrowserCompositionTab("WorldBrowserComposition");
 SLevelEditor::SLevelEditor()
 	: World(nullptr)
 	, bNeedsRefresh(false)
+	// Ensure the Actor main menu has a default label before the first selection change.
+	, CachedViewportContextMenuTitle(FLevelEditorContextMenu::GetContextMenuTitle(ELevelEditorMenuContext::MainMenu, nullptr))
 {
 }
 
@@ -183,6 +186,11 @@ void SLevelEditor::BindCommands()
 		FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::OnFocusOutlinerToSelection, TWeakPtr< SLevelEditor >( SharedThis( this ) ) )
 		);
 
+	LevelEditorCommands->MapAction(
+		FEditorViewportCommands::Get().FocusOutlinerToContextFolder,
+		FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::OnFocusOutlinerToContextFolder, TWeakPtr< SLevelEditor >( SharedThis( this ) ) )
+		);
+
 	if (FPlayWorldCommands::GlobalPlayWorldActions.IsValid())
 	{
 		FUICommandList& PlayWorldActionList = *FPlayWorldCommands::GlobalPlayWorldActions;
@@ -199,6 +207,8 @@ void SLevelEditor::RegisterMenus()
 
 void SLevelEditor::Construct( const SLevelEditor::FArguments& InArgs)
 {
+	ActorDetailsSCSEditorUICustomization = FActorDetailsSCSEditorUICustomization::GetInstance();
+	
 	// Important: We use raw bindings here because we are releasing our binding in our destructor (where a weak pointer would be invalid)
 	// It's imperative that our delegate is removed in the destructor for the level editor module to play nicely with reloading.
 
@@ -393,6 +403,8 @@ void SLevelEditor::ConstructTitleBarMessages()
 
 SLevelEditor::~SLevelEditor()
 {
+	ActorDetailsSCSEditorUICustomization = nullptr;
+
 	// We're going away now, so make sure all toolkits that are hosted within this level editor are shut down
 	FToolkitManager::Get().OnToolkitHostDestroyed( this );
 	HostedToolkits.Reset();
@@ -815,9 +827,15 @@ TSharedRef<ISceneOutliner> SLevelEditor::CreateSceneOutliner(FName TabIdentifier
 		if (!ToolMenus->IsMenuRegistered(MenuName))
 		{
 			UToolMenu* Menu = ToolMenus->RegisterMenu(MenuName, "SceneOutliner.DefaultContextMenuBase");
-			FToolMenuSection& Section = Menu->AddDynamicSection("LevelEditorContextMenu", FNewToolMenuDelegate::CreateLambda([SelectionSet = TWeakObjectPtr<const UTypedElementSelectionSet>(GetElementSelectionSet())](UToolMenu* InMenu)
+			FToolMenuSection& Section = Menu->AddDynamicSection("LevelEditorContextMenu", FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu)
 			{
-				FName LevelContextMenuName = FLevelEditorContextMenu::GetContextMenuName(ELevelEditorMenuContext::SceneOutliner, SelectionSet.Get());
+				ULevelEditorContextMenuContext* LevelEditorContext = InMenu->FindContext<ULevelEditorContextMenuContext>();
+				if (!LevelEditorContext)
+				{
+					return;
+				}
+
+				FName LevelContextMenuName = FLevelEditorContextMenu::GetContextMenuName(ELevelEditorMenuContext::SceneOutliner, LevelEditorContext->CurrentSelection);
 				if (LevelContextMenuName != NAME_None)
 				{
 					// Extend the menu even if no actors selected, as Edit menu should always exist for scene outliner
@@ -1043,10 +1061,12 @@ TSharedRef<SDockTab> SLevelEditor::SpawnLevelEditorTab( const FSpawnTabArgs& Arg
 	else if( TabIdentifier == LevelEditorTabIds::WorldBrowserHierarchy)
 	{
 		FWorldBrowserModule& WorldBrowserModule = FModuleManager::LoadModuleChecked<FWorldBrowserModule>( "WorldBrowser" );
+		const TSharedRef<UE::WorldHierarchy::IWorldHierarchy> LevelHierarchyWidget = WorldBrowserModule.CreateWorldBrowserHierarchyWidget();
+		WorldHierarchy = LevelHierarchyWidget;
 		return SNew( SDockTab )
 			.Label( NSLOCTEXT("LevelEditor", "WorldBrowserHierarchyTabTitle", "Levels") )
 			[
-				WorldBrowserModule.CreateWorldBrowserHierarchy()
+				LevelHierarchyWidget->GetWidget()
 			];
 	}
 	else if( TabIdentifier == LevelEditorTabIds::WorldBrowserDetails)
@@ -1481,14 +1501,14 @@ TSharedRef<SWidget> SLevelEditor::RestoreContentArea( const TSharedRef<SDockTab>
 		}
 
 		{
-			const FSlateIcon LayersIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.HLOD");
+			const FSlateIcon HLODIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.HLOD");
 			LevelEditorTabManager->RegisterTabSpawner(LevelEditorTabIds::LevelEditorHierarchicalLODOutliner, 
 				FOnSpawnTab::CreateSP(this, &SLevelEditor::SpawnLevelEditorTab, LevelEditorTabIds::LevelEditorHierarchicalLODOutliner, FString()),
 				FCanSpawnTab::CreateSP(this, &SLevelEditor::CanSpawnLevelEditorTab, LevelEditorTabIds::LevelEditorHierarchicalLODOutliner))
 				.SetDisplayName(NSLOCTEXT("LevelEditorTabs", "LevelEditorHierarchicalLODOutliner", "Hierarchical LOD Outliner"))
 				.SetTooltipText(NSLOCTEXT("LevelEditorTabs", "LevelEditorHierarchicalLODOutlinerTooltipText", "Open the Hierarchical LOD Outliner."))
 				.SetGroup(MenuStructure.GetLevelEditorCategory())
-				.SetIcon(LayersIcon);
+				.SetIcon(HLODIcon);
 		}
 		
 		{
@@ -2188,13 +2208,17 @@ void SLevelEditor::SetActorDetailsRootCustomization(TSharedPtr<FDetailsViewObjec
 	}
 }
 
-void SLevelEditor::SetActorDetailsSCSEditorUICustomization(TSharedPtr<ISCSEditorUICustomization> InActorDetailsSCSEditorUICustomization)
+void SLevelEditor::AddActorDetailsSCSEditorUICustomization(TSharedPtr<ISCSEditorUICustomization> InActorDetailsSCSEditorUICustomization)
 {
-	ActorDetailsSCSEditorUICustomization = InActorDetailsSCSEditorUICustomization;
+	check(ActorDetailsSCSEditorUICustomization);
+	ActorDetailsSCSEditorUICustomization->AddCustomization(InActorDetailsSCSEditorUICustomization);
+}
 
-	for (TSharedRef<SActorDetails> ActorDetails : GetAllActorDetails())
+void SLevelEditor::RemoveActorDetailsSCSEditorUICustomization(TSharedPtr<ISCSEditorUICustomization> InActorDetailsSCSEditorUICustomization)
+{
+	if (ActorDetailsSCSEditorUICustomization)
 	{
-		ActorDetails->SetSubobjectEditorUICustomization(ActorDetailsSCSEditorUICustomization);
+		ActorDetailsSCSEditorUICustomization->RemoveCustomization(InActorDetailsSCSEditorUICustomization);
 	}
 }
 
@@ -2214,15 +2238,15 @@ FName SLevelEditor::GetStatusBarName() const
 	return LevelEditorStatusBarName;
 }
 
-void SLevelEditor::AddViewportOverlayWidget(TSharedRef<SWidget> InWidget, TSharedPtr<IAssetViewport> InViewport)
+void SLevelEditor::AddViewportOverlayWidget(TSharedRef<SWidget> InWidget, int32 ZOrder, TSharedPtr<IAssetViewport> InViewport)
 {
 	if (InViewport != nullptr)
 	{
-		InViewport->AddOverlayWidget(InWidget);
+		InViewport->AddOverlayWidget(InWidget, ZOrder);
 	}
 	else if (TSharedPtr<SLevelViewport> ActiveViewport = GetActiveViewport())
 	{
-		ActiveViewport->AddOverlayWidget(InWidget);
+		ActiveViewport->AddOverlayWidget(InWidget, ZOrder);
 	}
 }
 

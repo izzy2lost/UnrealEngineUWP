@@ -8,6 +8,7 @@
 #include "Templates/SharedPointer.h"
 
 
+struct FSlateBrush;
 class FText;
 class SWidget;
 template< typename ObjectType > class TAttribute;
@@ -15,7 +16,9 @@ template< typename ObjectType > class TAttribute;
 namespace UE::Sequencer
 {
 
-class IOutlinerExtension;
+SEQUENCERCORE_API TSharedRef<SWidget> MakeButton(FText HoverText, const FSlateBrush* Image, const FOnClicked& HandleClicked, const FViewModelPtr& ViewModel);
+
+SEQUENCERCORE_API TSharedRef<SWidget> MakeButton(FText HoverText, const FSlateBrush* Image, const FOnGetContent& HandleGetMenuContent, const FViewModelPtr& ViewModel);
 
 SEQUENCERCORE_API TSharedRef<SWidget> MakeAddButton(FText HoverText, const FOnClicked& HandleClicked, const FViewModelPtr& ViewModel);
 

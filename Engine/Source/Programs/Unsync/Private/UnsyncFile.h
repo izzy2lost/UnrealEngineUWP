@@ -143,10 +143,17 @@ struct FIOReader : virtual FIOBase
 	virtual uint64 Read(void* Dest, uint64 SourceOffset, uint64 Size) = 0;
 	virtual bool   ReadAsync(uint64 SourceOffset, uint64 Size, uint64 UserData, IOCallback Callback)
 	{
-		FIOBuffer Buffer   = FIOBuffer::Alloc(Size, L"FIOReader::ReadAsync");
-		uint64	  ReadSize = Read(Buffer.GetData(), SourceOffset, Size);
-		Callback(std::move(Buffer), SourceOffset, ReadSize, UserData);
-		return true;
+		if (Size != 0)
+		{
+			FIOBuffer Buffer   = FIOBuffer::Alloc(Size, L"FIOReader::ReadAsync");
+			uint64	  ReadSize = Read(Buffer.GetData(), SourceOffset, Size);
+			Callback(std::move(Buffer), SourceOffset, ReadSize, UserData);
+			return true;
+		}
+		else
+		{
+			return false;
+		}
 	}
 };
 
@@ -339,13 +346,18 @@ struct FMemReaderWriter : FMemReader, FIOReaderWriter
 
 struct FNullReaderWriter : FIOReaderWriter
 {
-	FNullReaderWriter(uint64 InDataSize) : DataSize(InDataSize) {}
+	struct FInvalid
+	{
+	};
+
+	explicit FNullReaderWriter(uint64 InDataSize) : DataSize(InDataSize) {}
+	explicit FNullReaderWriter(FInvalid) : DataSize(0), bValid(false) {}
 
 	// IOBase
 	virtual void   FlushAll() override{};
 	virtual void   FlushOne() override{};
 	virtual uint64 GetSize() override { return DataSize; }
-	virtual bool   IsValid() override { return true; }
+	virtual bool   IsValid() override { return bValid; }
 	virtual void   Close() override{};
 	virtual int32  GetError() override { return 0; }
 
@@ -367,6 +379,7 @@ struct FNullReaderWriter : FIOReaderWriter
 	virtual uint64 Write(const void* InData, uint64 DestOffset, uint64 WriteSize) override { return WriteSize; }
 
 	uint64 DataSize;
+	bool   bValid = true;
 };
 
 struct FDeferredOpenReader : FIOReader
@@ -380,7 +393,7 @@ struct FDeferredOpenReader : FIOReader
 	virtual void   FlushOne() override { GetOrOpenInner()->FlushOne(); }
 	virtual uint64 GetSize() override { return GetOrOpenInner()->GetSize(); }
 	virtual bool   IsValid() override { return GetOrOpenInner()->IsValid(); }
-	virtual void   Close() override { GetOrOpenInner()->Close(); }
+	virtual void   Close() override { if (Inner) { Inner->Close(); } }
 	virtual int32  GetError() override { return GetOrOpenInner()->GetError(); }
 
 	// IORead
@@ -419,13 +432,22 @@ struct FIOReaderStream
 
 	void Seek(uint64 InOffset)
 	{
-		UNSYNC_ASSERT(InOffset < Inner.GetSize());
+		UNSYNC_ASSERT(InOffset <= Inner.GetSize());
 		Offset = InOffset;
 	}
 
 	uint64 Tell() const { return Offset; }
+	void   Skip(uint64 NumBytes) { Seek(Tell() + NumBytes); }
 
 	bool IsValid() const { return Inner.IsValid(); }
+
+	template <typename T>
+	inline uint64 ReadInto(T& Output)
+	{
+		return Read(&Output, sizeof(T));
+	}
+
+	uint64 RemainingSize() const { return std::max(Offset, Inner.GetSize()) - Offset; }
 
 	FIOReader& Inner;
 	uint64	   Offset = 0;
@@ -458,6 +480,8 @@ IsReadOnly(std::filesystem::perms Perms)
 	return (Perms & std::filesystem::perms::owner_write) == std::filesystem::perms::none;
 }
 
+uint64 BlockingReadLarge(FIOReader& Reader, uint64 Offset, uint64 Size, uint8* OutputBuffer, uint64 OutputBufferSize);
+
 FFileAttributes GetFileAttrib(const FPath& Path, FFileAttributeCache* AttribCache = nullptr);
 FFileAttributes GetCachedFileAttrib(const FPath& Path, FFileAttributeCache& AttribCache);
 
@@ -467,17 +491,28 @@ bool			IsDirectory(const FPath& Path);
 bool			PathExists(const FPath& Path);
 bool			PathExists(const FPath& Path, std::error_code& OutErrorCode);
 bool			CreateDirectories(const FPath& Path);
+bool			EnsureDirectoryExists(const FPath& Path);
 bool			FileRename(const FPath& From, const FPath& To, std::error_code& OutErrorCode);
 bool			FileCopy(const FPath& From, const FPath& To, std::error_code& OutErrorCode);
 bool			FileCopyOverwrite(const FPath& From, const FPath& To, std::error_code& OutErrorCode);
 bool			FileRemove(const FPath& Path, std::error_code& OutErrorCode);
 FPath			GetRelativePath(const FPath& Path, const FPath& Base);
+FPathStringView GetRelativePathView(const FPath& Path, const FPath& Base);
+std::error_code CopyFileIfNewer(const FPath& Source, const FPath& Target);
+bool			IsNonCaseSensitiveFileSystem(const FPath& ExistingPath);
+bool			IsCaseSensitiveFileSystem(const FPath& ExistingPath);
+
+void ConvertDirectorySeparatorsToNative(std::string& Path);
+void ConvertDirectorySeparatorsToNative(std::wstring& Path);
+void ConvertDirectorySeparatorsToUnix(std::string& Path);
+void ConvertDirectorySeparatorsToUnix(std::wstring& Path);
 
 // Returns number of bytes that can be written to the given path.
 // Returns ~0ull if the available space could not be determined.
 uint64 GetAvailableDiskSpace(const FPath& Path);
 
 std::filesystem::recursive_directory_iterator RecursiveDirectoryScan(const FPath& Path);
+std::filesystem::directory_iterator DirectoryScan(const FPath& Path);
 
 uint64 ToWindowsFileTime(const std::filesystem::file_time_type& T);
 std::filesystem::file_time_type FromWindowsFileTime(uint64 Ticks);
@@ -492,6 +527,6 @@ FPath MakeExtendedAbsolutePath(const FPath& InAbsolutePath);
 
 // Removes `\\?\` or `\\?\UNC\` prefix from a given path.
 // Returns original path on non-Windows.
-FPathStringView RemoveExtendedPathPrefix(const FPath& InPath);
+FPath RemoveExtendedPathPrefix(const FPath& InPath);
 
 }  // namespace unsync

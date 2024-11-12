@@ -49,7 +49,8 @@ public class ModelingComponents : ModuleRules
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
-					"UnrealEd"
+					"UnrealEd",
+					"Slate"
 				});
 		}
 

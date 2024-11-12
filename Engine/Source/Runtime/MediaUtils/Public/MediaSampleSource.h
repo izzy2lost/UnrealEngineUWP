@@ -3,9 +3,10 @@
 #pragma once
 
 #include "CoreTypes.h"
-#include "Misc/Timespan.h"
+#include "IMediaTimeSource.h"
 #include "Templates/SharedPointer.h"
-
+#include "Containers/Array.h"
+#include "Math/Range.h"
 
 /**
  * Interface for media sample sources.
@@ -36,6 +37,23 @@ public:
 	 * @see Dequeue, Pop
 	 */
 	virtual bool Peek(TSharedPtr<SampleType, ESPMode::ThreadSafe>& OutSample) = 0;
+
+	/**
+	 * Simultaneously peeks at the next (the frontmost) and last samples in the queue without removing them.
+	 * The samples could be identical if there is only one element in the queue.
+	 *
+	 * @param OutFirstSample Will contain the frontmost sample.
+	 * @param OutLastSample Will contain the last sample, which could be identical to the frontmost one.
+	 * @return true if samples are returned, false otherwise.
+	 * @see Peek, Dequeue, Pop
+	 */
+	virtual bool PeekFrontAndBack(TSharedPtr<SampleType, ESPMode::ThreadSafe>& OutFirstSample, TSharedPtr<SampleType, ESPMode::ThreadSafe>& OutLastSample) = 0;
+
+	/**
+	 * Returns the sample start and end times of all samples currently in the queue.
+	 * @param OutSampleTimeRanges Will contain the sample time ranges.
+	 */
+	virtual void GetSampleTimes(TArray<TRange<FMediaTimeStamp>>& OutSampleTimeRanges) = 0;
 
 	/**
 	 * Remove the next sample from the queue.

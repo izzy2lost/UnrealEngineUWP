@@ -28,6 +28,7 @@ class IRHITransientResourceAllocator;
 struct FDepthStencilStateInitializerRHI;
 struct FDisplayInformation;
 struct FRasterizerStateInitializerRHI;
+struct FRHIResourceCollectionMember;
 struct FRHIResourceCreateInfo;
 struct FRHIResourceInfo;
 struct FRHIUniformBufferLayout;
@@ -45,17 +46,20 @@ struct FRHIFlipDetails
 	uint64 PresentIndex;
 	double FlipTimeInSeconds;
 	double VBlankTimeInSeconds;
+	uint64 VBlankTimeInCycles;
 
 	FRHIFlipDetails()
 		: PresentIndex(0)
 		, FlipTimeInSeconds(0)
 		, VBlankTimeInSeconds(0)
+		, VBlankTimeInCycles(0)
 	{}
 
-	FRHIFlipDetails(uint64 InPresentIndex, double InFlipTimeInSeconds, double InVBlankTimeInSeconds)
+	FRHIFlipDetails(uint64 InPresentIndex, double InFlipTimeInSeconds, double InVBlankTimeInSeconds, uint64 InVBlankTimeInCycles)
 		: PresentIndex(InPresentIndex)
 		, FlipTimeInSeconds(InFlipTimeInSeconds)
 		, VBlankTimeInSeconds(InVBlankTimeInSeconds)
+		, VBlankTimeInCycles(InVBlankTimeInCycles)
 	{}
 };
 
@@ -67,6 +71,7 @@ struct FShaderResourceViewInitializer : public FRHIViewDesc::FBufferSRV::FInitia
 	RHI_API FShaderResourceViewInitializer(FRHIBuffer* InBuffer, EPixelFormat InFormat, uint32 InStartOffsetBytes, uint32 InNumElements);
 	RHI_API FShaderResourceViewInitializer(FRHIBuffer* InBuffer, EPixelFormat InFormat);
 	RHI_API FShaderResourceViewInitializer(FRHIBuffer* InBuffer, uint32 InStartOffsetBytes, uint32 InNumElements);
+	RHI_API FShaderResourceViewInitializer(FRHIBuffer* InBuffer, FRHIRayTracingScene* InRayTracingScene, uint32 InStartOffsetBytes);
 	RHI_API FShaderResourceViewInitializer(FRHIBuffer* InBuffer);
 };
 
@@ -91,27 +96,38 @@ class FDynamicRHI;
 class FDefaultRHIRenderQueryPool final : public FRHIRenderQueryPool
 {
 public:
-	RHI_API FDefaultRHIRenderQueryPool(ERenderQueryType InQueryType, FDynamicRHI* InDynamicRHI, uint32 InNumQueries);
-	RHI_API ~FDefaultRHIRenderQueryPool() override;
+	FDefaultRHIRenderQueryPool(ERenderQueryType InQueryType)
+		: QueryType(InQueryType)
+	{}
+
+	RHI_API virtual ~FDefaultRHIRenderQueryPool();
 
 private:
 	RHI_API virtual FRHIPooledRenderQuery AllocateQuery() override;
 	RHI_API virtual void ReleaseQuery(TRefCountPtr<FRHIRenderQuery>&& Query) override;
 
-	FDynamicRHI* DynamicRHI = nullptr;
-	ERenderQueryType QueryType;
-	uint32 NumQueries = 0;
+	const ERenderQueryType QueryType;
 	uint32 AllocatedQueries = 0;
 	TArray<TRefCountPtr<FRHIRenderQuery>> Queries;
+};
+
+struct FRHICalcTextureSizeResult
+{
+	// The total size of the texture, in bytes.
+	uint64 Size;
+
+	// The required address alignment for the texture.
+	uint32 Align;
 };
 
 /** The interface which is implemented by the dynamically bound RHI. */
 class FDynamicRHI
 {
 public:
+	using FRHICalcTextureSizeResult = ::FRHICalcTextureSizeResult;
 
 	/** Declare a virtual destructor, so the dynamic RHI can be deleted without knowing its type. */
-	virtual ~FDynamicRHI() {}
+	RHI_API virtual ~FDynamicRHI();
 
 	/** Initializes the RHI; separate from IDynamicRHIModule::CreateRHI so that GDynamicRHI is set when it is called. */
 	virtual void Init() = 0;
@@ -135,7 +151,18 @@ public:
 
 	/////// RHI Methods
 
-	RHI_API virtual void RHIBeginFrame(FRHICommandListImmediate& RHICmdList);
+	RHI_API virtual void RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList);
+
+	struct FRHIEndFrameArgs
+	{
+		// Increments once per call to RHIEndFrame
+		uint32 FrameNumber;
+
+#if WITH_RHI_BREADCRUMBS
+		const TRHIPipelineArray<FRHIBreadcrumbNode*>& GPUBreadcrumbs;
+#endif
+	};
+	virtual void RHIEndFrame(const FRHIEndFrameArgs& Args) = 0;
 
 	// FlushType: Thread safe
 	virtual FSamplerStateRHIRef RHICreateSamplerState(const FSamplerStateInitializerRHI& Initializer) = 0;
@@ -179,6 +206,12 @@ public:
 	// FlushType: Wait RHI Thread
 	virtual FComputeShaderRHIRef RHICreateComputeShader(TArrayView<const uint8> Code, const FSHAHash& Hash) = 0;
 
+	// FlushType: Wait RHI Thread
+	virtual FWorkGraphShaderRHIRef RHICreateWorkGraphShader(TArrayView<const uint8> Code, const FSHAHash& Hash, EShaderFrequency ShaderFrequency)
+	{
+		return FWorkGraphShaderRHIRef();
+	}
+
 	/**
 	 * Attempts to open a shader library for the given shader platform & name within the provided directory.
 	 * @param Platform The shader platform for shaders withing the library.
@@ -190,16 +223,6 @@ public:
 	virtual FRHIShaderLibraryRef RHICreateShaderLibrary(EShaderPlatform Platform, FString const& FilePath, FString const& Name)
 	{
 		return nullptr;
-	}
-	/**
-	* Creates a pool for querys like timers or occlusion queries.
-	* @param QueryType The ype of the queries provided by this pool like RQT_Occlusion or RQT_AbsoluteTime.
-	* @return the Querypool.
-	*/
-	// FlushType: Must be Thread-Safe.
-	virtual FRenderQueryPoolRHIRef RHICreateRenderQueryPool(ERenderQueryType QueryType, uint32 NumQueries = UINT32_MAX)
-	{
-		return new FDefaultRHIRenderQueryPool(QueryType, this, NumQueries);
 	}
 
 	virtual FGPUFenceRHIRef RHICreateGPUFence(const FName &Name)
@@ -310,6 +333,12 @@ public:
 		return RHICreateComputePipelineState(ComputeShader);
 	}
 
+	virtual FWorkGraphPipelineStateRHIRef RHICreateWorkGraphPipelineState(const FWorkGraphPipelineStateInitializer& Initializer)
+	{
+		checkNoEntry();
+		return nullptr;
+	}
+
 	/**
 	* Creates a uniform buffer.  The contents of the uniform buffer are provided in a parameter, and are immutable.
 	* CAUTION: Even though this is marked as threadsafe, it is only valid to call from the render thread or the RHI thread. Thus is need not be threadsafe on platforms that do not support or aren't using an RHIThread
@@ -322,16 +351,12 @@ public:
 
 	virtual void RHIUpdateUniformBuffer(FRHICommandListBase& RHICmdList, FRHIUniformBuffer* UniformBufferRHI, const void* Contents) = 0;
 
-	/** Copies the contents of one buffer to another buffer. They must have identical sizes. */
-	// FlushType: Flush Immediate (seems dangerous)
-	virtual void RHICopyBuffer(FRHIBuffer* SourceBuffer, FRHIBuffer* DestBuffer) = 0;
-
 	/**
 	 * Transfer metadata and underlying resource from src to dest and release any resource owned by dest.
 	 * @param DestBuffer - the buffer to update
 	 * @param SrcBuffer - don't use after call. If null, will release any resource owned by DestBuffer
 	 */
-	virtual void RHITransferBufferUnderlyingResource(FRHICommandListBase& CmdList, FRHIBuffer* DestBuffer, FRHIBuffer* SrcBuffer) = 0;
+	virtual void RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos) = 0;
 
 	/**
 	* @param ResourceArray - An optional pointer to a resource array containing the resource's data.
@@ -347,14 +372,6 @@ public:
 
 	RHI_API virtual void RHIUpdateTextureReference(FRHICommandListBase& RHICmdList, FRHITextureReference* TextureRef, FRHITexture* NewTexture);
 
-	struct FRHICalcTextureSizeResult
-	{
-		// The total size of the texture, in bytes.
-		uint64 Size;
-
-		// The required address alignment for the texture.
-		uint32 Align;
-	};
 
 	/**
 	* Computes the total GPU memory a texture resource with the specified parameters will occupy on the current RHI platform.
@@ -431,11 +448,10 @@ public:
 	virtual FShaderResourceViewRHIRef  RHICreateShaderResourceView (class FRHICommandListBase& RHICmdList, FRHIViewableResource* Resource, FRHIViewDesc const& ViewDesc) = 0;
 	virtual FUnorderedAccessViewRHIRef RHICreateUnorderedAccessView(class FRHICommandListBase& RHICmdList, FRHIViewableResource* Resource, FRHIViewDesc const& ViewDesc) = 0;
 
-	/**
-	* Generates mip maps for a texture.
-	*/
-	// FlushType: Flush Immediate (NP: this should be queued on the command list for RHI thread execution, not flushed)
-	virtual void RHIGenerateMips(FRHITexture* Texture) {}
+	virtual FRHIResourceCollectionRef RHICreateResourceCollection(FRHICommandListBase& RHICmdList, TConstArrayView<FRHIResourceCollectionMember> InMembers)
+	{
+		return FRHIResourceCollectionRef{};
+	}
 
 	/**
 	* Computes the size in memory required by a given texture.
@@ -463,7 +479,7 @@ public:
 	*/
 	// FlushType: Flush RHI Thread
 	// NP: Note that no RHI currently implements this as an async call, we should simplify the API.
-	virtual FTexture2DRHIRef RHIAsyncReallocateTexture2D(FRHITexture2D* Texture2D, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus) = 0;
+	virtual FTextureRHIRef RHIAsyncReallocateTexture2D(FRHITexture* Texture2D, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus) = 0;
 
 	/**
 	* Finalizes an async reallocation request.
@@ -477,7 +493,7 @@ public:
 	*	TexRealloc_InProgress	Reallocation is still in progress, try again later
 	*/
 	// FlushType: Wait RHI Thread
-	virtual ETextureReallocationStatus RHIFinalizeAsyncReallocateTexture2D(FRHITexture2D* Texture2D, bool bBlockUntilCompleted) = 0;
+	virtual ETextureReallocationStatus RHIFinalizeAsyncReallocateTexture2D(FRHITexture* Texture2D, bool bBlockUntilCompleted) = 0;
 
 	/**
 	* Cancels an async reallocation for the specified texture.
@@ -488,7 +504,7 @@ public:
 	* @return						Reallocation status
 	*/
 	// FlushType: Wait RHI Thread
-	virtual ETextureReallocationStatus RHICancelAsyncReallocateTexture2D(FRHITexture2D* Texture2D, bool bBlockUntilCompleted) = 0;
+	virtual ETextureReallocationStatus RHICancelAsyncReallocateTexture2D(FRHITexture* Texture2D, bool bBlockUntilCompleted) = 0;
 
 	/**
 	* Locks an RHI texture's mip-map for read/write operations on the CPU
@@ -500,7 +516,7 @@ public:
 	* @return pointer to the CPU accessible resource data
 	*/
 	// FlushType: Flush RHI Thread
-	virtual void* RHILockTexture2D(FRHITexture2D* Texture, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail, uint64* OutLockedByteCount = nullptr) = 0;
+	virtual void* RHILockTexture2D(FRHITexture* Texture, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail, uint64* OutLockedByteCount = nullptr) = 0;
 
 	/**
 	* Unlocks a previously locked RHI texture resource
@@ -509,7 +525,7 @@ public:
 	* @param bLockWithinMiptail - for platforms that support packed miptails allow locking of individual mip levels within the miptail
 	*/
 	// FlushType: Flush RHI Thread
-	virtual void RHIUnlockTexture2D(FRHITexture2D* Texture, uint32 MipIndex, bool bLockWithinMiptail) = 0;
+	virtual void RHIUnlockTexture2D(FRHITexture* Texture, uint32 MipIndex, bool bLockWithinMiptail) = 0;
 
 	/**
 	* Locks an RHI texture's mip-map for read/write operations on the CPU
@@ -521,7 +537,7 @@ public:
 	* @return pointer to the CPU accessible resource data
 	*/
 	// FlushType: Flush RHI Thread
-	virtual void* RHILockTexture2DArray(FRHITexture2DArray* Texture, uint32 TextureIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) = 0;
+	virtual void* RHILockTexture2DArray(FRHITexture* Texture, uint32 TextureIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) = 0;
 
 	/**
 	* Unlocks a previously locked RHI texture resource
@@ -530,7 +546,7 @@ public:
 	* @param bLockWithinMiptail - for platforms that support packed miptails allow locking of individual mip levels within the miptail
 	*/
 	// FlushType: Flush RHI Thread
-	virtual void RHIUnlockTexture2DArray(FRHITexture2DArray* Texture, uint32 TextureIndex, uint32 MipIndex, bool bLockWithinMiptail) = 0;
+	virtual void RHIUnlockTexture2DArray(FRHITexture* Texture, uint32 TextureIndex, uint32 MipIndex, bool bLockWithinMiptail) = 0;
 
 	/**
 	* Updates a region of a 2D texture from system memory
@@ -540,7 +556,7 @@ public:
 	* @param SourcePitch - size in bytes of each row of the source image
 	* @param SourceData - source image data, starting at the upper left corner of the source rectangle (in same pixel format as texture)
 	*/
-	virtual void RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHITexture2D* Texture, uint32 MipIndex, const struct FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, const uint8* SourceData) = 0;
+	virtual void RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHITexture* Texture, uint32 MipIndex, const struct FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, const uint8* SourceData) = 0;
 
 	/**
 	* Updates a region of a 2D texture from GPU memory provided by the given buffer (may not be implemented on every platform)
@@ -550,7 +566,7 @@ public:
 	* @param SourcePitch - size in bytes of each row of the source image
 	* @param Buffer, BufferOffset - source image data, starting at the upper left corner of the source rectangle (in same pixel format as texture)
 	*/
-	virtual void RHIUpdateFromBufferTexture2D(FRHICommandListBase& RHICmdList, FRHITexture2D* Texture, uint32 MipIndex, const struct FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, FRHIBuffer* Buffer, uint32 BufferOffset)
+	virtual void RHIUpdateFromBufferTexture2D(FRHICommandListBase& RHICmdList, FRHITexture* Texture, uint32 MipIndex, const struct FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, FRHIBuffer* Buffer, uint32 BufferOffset)
 	{
 		checkNoEntry();
 	}
@@ -564,7 +580,7 @@ public:
 	* @param SourceDepthPitch - size in bytes of each depth slice of the source image, usually Bpp * SizeX * SizeY
 	* @param SourceData - source image data, starting at the upper left corner of the source rectangle (in same pixel format as texture)
 	*/
-	virtual void RHIUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHITexture3D* Texture, uint32 MipIndex, const struct FUpdateTextureRegion3D& UpdateRegion, uint32 SourceRowPitch, uint32 SourceDepthPitch, const uint8* SourceData) = 0;
+	virtual void RHIUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHITexture* Texture, uint32 MipIndex, const struct FUpdateTextureRegion3D& UpdateRegion, uint32 SourceRowPitch, uint32 SourceDepthPitch, const uint8* SourceData) = 0;
 
 	/**
 	* Locks an RHI texture's mip-map for read/write operations on the CPU
@@ -576,7 +592,7 @@ public:
 	* @return pointer to the CPU accessible resource data
 	*/
 	// FlushType: Flush RHI Thread
-	virtual void* RHILockTextureCubeFace(FRHITextureCube* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) = 0;
+	virtual void* RHILockTextureCubeFace(FRHITexture* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) = 0;
 
 	/**
 	* Unlocks a previously locked RHI texture resource
@@ -585,7 +601,7 @@ public:
 	* @param bLockWithinMiptail - for platforms that support packed miptails allow locking of individual mip levels within the miptail
 	*/
 	// FlushType: Flush RHI Thread
-	virtual void RHIUnlockTextureCubeFace(FRHITextureCube* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail) = 0;
+	virtual void RHIUnlockTextureCubeFace(FRHITexture* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail) = 0;
 
 	// FlushType: Thread safe
 	virtual void RHIBindDebugLabelName(FRHICommandListBase& RHICmdList,FRHITexture* Texture, const TCHAR* Name) = 0;
@@ -625,8 +641,8 @@ public:
 	// FlushType: Wait RHI Thread
 	virtual FRenderQueryRHIRef RHICreateRenderQuery(ERenderQueryType QueryType) = 0;
 
-	virtual void RHIBeginOcclusionQueryBatch_TopOfPipe(FRHICommandListBase& RHICmdList, uint32 NumQueriesInBatch) {}
-	virtual void RHIEndOcclusionQueryBatch_TopOfPipe  (FRHICommandListBase& RHICmdList) {}
+	virtual void RHIBeginRenderQueryBatch_TopOfPipe(FRHICommandListBase& RHICmdList, ERenderQueryType QueryType) {}
+	virtual void RHIEndRenderQueryBatch_TopOfPipe  (FRHICommandListBase& RHICmdList, ERenderQueryType QueryType) {}
 
 	RHI_API virtual void RHIBeginRenderQuery_TopOfPipe(FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery);
 	RHI_API virtual void RHIEndRenderQuery_TopOfPipe  (FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery);
@@ -643,7 +659,7 @@ public:
 
 	// With RHI thread, this is the current backbuffer from the perspective of the render thread.
 	// FlushType: Thread safe
-	virtual FTexture2DRHIRef RHIGetViewportBackBuffer(FRHIViewport* Viewport) = 0;
+	virtual FTextureRHIRef RHIGetViewportBackBuffer(FRHIViewport* Viewport) = 0;
 
 	virtual FUnorderedAccessViewRHIRef RHIGetViewportBackBufferUAV(FRHIViewport* ViewportRHI)
 	{
@@ -679,20 +695,16 @@ public:
 	// Check if PSO Initializers are the same used during PSO Precaching (only compare data relevant for the RHI specific PSO)
 	RHI_API virtual bool RHIMatchPrecachePSOInitializers(const FGraphicsPipelineStateInitializer& LHS, const FGraphicsPipelineStateInitializer& RHS);
 
-	virtual void RHIAdvanceFrameFence() {};
-
 	// Only relevant with an RHI thread, this advances the backbuffer for the purpose of GetViewportBackBuffer
 	// FlushType: Thread safe
 	virtual void RHIAdvanceFrameForGetViewportBackBuffer(FRHIViewport* Viewport) = 0;
 
-	/*
-	* Acquires or releases ownership of the platform-specific rendering context for the calling thread
-	*/
-	// FlushType: Flush RHI Thread
-	virtual void RHIAcquireThreadOwnership() = 0;
-
-	// FlushType: Flush RHI Thread
-	virtual void RHIReleaseThreadOwnership() = 0;
+	//
+	// Acquires or releases ownership of the platform-specific rendering context for the calling thread.
+	// Only required by OpenGL RHI.
+	//
+	virtual void RHIAcquireThreadOwnership() {}
+	virtual void RHIReleaseThreadOwnership() {}
 
 	// Flush driver resources. Typically called when switching contexts/threads
 	// FlushType: Flush RHI Thread
@@ -718,9 +730,6 @@ public:
 		RHIResizeViewport(Viewport, SizeX, SizeY, bIsFullscreen);
 	}
 
-	// Return what colour space the viewport is in. Used for HDR displays
-	RHI_API virtual EColorSpaceAndEOTF RHIGetColorSpace(FRHIViewport* Viewport);
-
 	// Return preferred pixel format if given format is unsupported.
 	virtual EPixelFormat RHIPreferredPixelFormatHint(EPixelFormat PreferredPixelFormat)
 	{
@@ -739,10 +748,6 @@ public:
 	// Blocks the CPU until the GPU catches up and goes idle.
 	// FlushType: Flush Immediate (seems wrong)
 	virtual void RHIBlockUntilGPUIdle() = 0;
-
-	// Kicks the current frame and makes sure GPU is actively working on them
-	// FlushType: Flush Immediate (copied from RHIBlockUntilGPUIdle)
-	virtual void RHISubmitCommandsAndFlushGPU() {};
 
 	// Tells the RHI we're about to suspend it
 	virtual void RHIBeginSuspendRendering() {};
@@ -783,7 +788,7 @@ public:
 	* @param FirstMip - the first mip that should be in memory
 	*/
 	// FlushType: Wait RHI Thread
-	RHI_API virtual void RHIVirtualTextureSetFirstMipInMemory(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture, uint32 FirstMip);
+	RHI_API virtual void RHIVirtualTextureSetFirstMipInMemory(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 FirstMip);
 
 	/**
 	* Function that can be used to update which is the first visible mip to the GPU.
@@ -791,16 +796,7 @@ public:
 	* @param FirstMip - the first mip that should be visible to the GPU
 	*/
 	// FlushType: Wait RHI Thread
-	RHI_API virtual void RHIVirtualTextureSetFirstMipVisible(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture, uint32 FirstMip);
-
-	/**
-	* Called once per frame just before deferred deletion in FRHIResource::FlushPendingDeletes
-	*/
-	// FlushType: called from render thread when RHI thread is flushed 
-	virtual void RHIPerFrameRHIFlushComplete()
-	{
-
-	}
+	RHI_API virtual void RHIVirtualTextureSetFirstMipVisible(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 FirstMip);
 
 	/**
 	* Provides access to the native device. Generally this should be avoided but is useful for third party plugins.
@@ -855,15 +851,6 @@ public:
 	// FlushType: Thread safe
 	virtual IRHICommandContext* RHIGetDefaultContext() = 0;
 
-	// FlushType: Thread safe
-	virtual IRHIComputeContext* RHIGetDefaultAsyncComputeContext()
-	{
-		IRHIComputeContext* ComputeContext = RHIGetDefaultContext();
-		// On platforms that support non-async compute we set this to the normal context.  It won't be async, but the high level
-		// code can be agnostic if it wants to be.
-		return ComputeContext;
-	}
-
 	//
 	// Retrieves a new command context to begin the recording of a new platform command list.
 	// The returned context is specific to the given pipeline. It can later be converted to an IRHIPlatformCommandList
@@ -873,6 +860,12 @@ public:
 	//
 	virtual IRHIComputeContext* RHIGetCommandContext(ERHIPipeline Pipeline, FRHIGPUMask GPUMask) = 0;
 
+	
+	virtual IRHIUploadContext* RHIGetUploadContext()
+	{
+		return nullptr;
+	};
+	
 	//
 	// Finalizes (i.e. closes) the specified command context, returning the completed platform command list object.
 	// The returned command list can later be submitted to the GPU by calling RHISubmitCommandLists().
@@ -881,7 +874,13 @@ public:
 	//
 	// Called by parallel worker threads, and the RHI thread. Platform implementations must be thread safe.
 	//
-	virtual IRHIPlatformCommandList* RHIFinalizeContext(IRHIComputeContext* Context) = 0;
+	struct FRHIFinalizeContextArgs
+	{
+		TArray<IRHIComputeContext*> Contexts;
+		IRHIUploadContext* UploadContext;
+	};
+	
+	virtual void RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output) = 0;
 
 	//
 	// Submits a batch of previously recorded/finalized command lists to the GPU. 
@@ -889,27 +888,38 @@ public:
 	//
 	// Called by the RHI thread. 
 	//
-	virtual void RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> CommandLists, bool bFlushResources) = 0;
+	struct FRHISubmitCommandListsArgs
+	{
+		TArray<IRHIPlatformCommandList*> CommandLists;
+		IRHIUploadContext* UploadContext;
+	};
+	virtual void RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args) = 0;
 
-	RHI_API virtual FTexture2DRHIRef AsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture2D, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus);
-	RHI_API virtual ETextureReallocationStatus FinalizeAsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture2D, bool bBlockUntilCompleted);
-	RHI_API virtual ETextureReallocationStatus CancelAsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture2D, bool bBlockUntilCompleted);
+	//
+	// Platform RHIs should implement this function to process their internal GPU resource/memory delete queues.
+	// Called only from RHI command list management code. Do not call directly.
+	//
+	virtual void RHIProcessDeleteQueue() {}
 
-	RHI_API virtual void* LockTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail, bool bNeedsDefaultRHIFlush = true, uint64* OutLockedByteCount = nullptr);
-	RHI_API virtual void UnlockTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture, uint32 MipIndex, bool bLockWithinMiptail, bool bNeedsDefaultRHIFlush = true);
+	RHI_API virtual FTextureRHIRef AsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture2D, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus);
+	RHI_API virtual ETextureReallocationStatus FinalizeAsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture2D, bool bBlockUntilCompleted);
+	RHI_API virtual ETextureReallocationStatus CancelAsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture2D, bool bBlockUntilCompleted);
 
-	RHI_API virtual void* LockTexture2DArray_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2DArray* Texture, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail);
-	RHI_API virtual void UnlockTexture2DArray_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2DArray* Texture, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail);
+	RHI_API virtual void* LockTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail, bool bNeedsDefaultRHIFlush = true, uint64* OutLockedByteCount = nullptr);
+	RHI_API virtual void UnlockTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 MipIndex, bool bLockWithinMiptail, bool bNeedsDefaultRHIFlush = true);
 
-	RHI_API virtual FUpdateTexture3DData RHIBeginUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHITexture3D* Texture, uint32 MipIndex, const struct FUpdateTextureRegion3D& UpdateRegion);
+	RHI_API virtual void* LockTexture2DArray_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail);
+	RHI_API virtual void UnlockTexture2DArray_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail);
+
+	RHI_API virtual FUpdateTexture3DData RHIBeginUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHITexture* Texture, uint32 MipIndex, const struct FUpdateTextureRegion3D& UpdateRegion);
 	RHI_API virtual void RHIEndUpdateTexture3D(FRHICommandListBase& RHICmdList, FUpdateTexture3DData& UpdateData);
 
 	RHI_API virtual void RHIEndMultiUpdateTexture3D(FRHICommandListBase& RHICmdList, TArray<FUpdateTexture3DData>& UpdateDataArray);
 
 	RHI_API virtual FRHIShaderLibraryRef RHICreateShaderLibrary_RenderThread(class FRHICommandListImmediate& RHICmdList, EShaderPlatform Platform, FString FilePath, FString Name);
 
-	RHI_API virtual void* RHILockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITextureCube* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail);
-	RHI_API virtual void RHIUnlockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITextureCube* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail);
+	RHI_API virtual void* RHILockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail);
+	RHI_API virtual void RHIUnlockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail);
 
 	RHI_API virtual void RHIMapStagingSurface_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 GPUIndex, FRHIGPUFence* Fence, void*& OutData, int32& OutWidth, int32& OutHeight);
 	RHI_API virtual void RHIUnmapStagingSurface_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 GPUIndex);
@@ -931,32 +941,21 @@ public:
 	}
 
 	//Utilities
-	RHI_API virtual void EnableIdealGPUCaptureOptions(bool bEnable);
-	
-	//checks if the GPU is still alive.
-	virtual bool CheckGpuHeartbeat() const { return true; }
+	static RHI_API void EnableIdealGPUCaptureOptions(bool bEnable);
 
 	virtual FRHIFlipDetails RHIWaitForFlip(double TimeoutInSeconds) { return FRHIFlipDetails(); }
 	virtual void RHISignalFlipEvent() { }
 
-	virtual void RHICalibrateTimers() {}
-	virtual void RHIPollRenderQueryResults() {}
 
 	virtual uint16 RHIGetPlatformTextureMaxSampleCount() { return 8; };
 
-	virtual bool RHIRequiresComputeGenerateMips() const { return false; };
-
-	virtual bool RHIIncludeOptionalFlushes() const { return true; }
-
-#if RHI_RAYTRACING
-
-	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(uint32 MaxInstances, ERayTracingAccelerationStructureFlags Flags)
+	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(const FRayTracingSceneInitializer& Initializer)
 	{
 		checkNoEntry();
 		return {};
 	}
 
-	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingGeometrySize(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& Initializer)
+	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingGeometrySize(const FRayTracingGeometryInitializer& Initializer)
 	{
 		checkNoEntry();
 		return {};
@@ -968,7 +967,7 @@ public:
 		return nullptr;
 	}
 	
-	virtual FRayTracingSceneRHIRef RHICreateRayTracingScene(FRayTracingSceneInitializer2 Initializer)
+	virtual FRayTracingSceneRHIRef RHICreateRayTracingScene(FRayTracingSceneInitializer Initializer)
 	{
 		checkNoEntry();
 		return nullptr;
@@ -986,13 +985,13 @@ public:
 		return nullptr;
 	}
 
-	virtual void RHITransferRayTracingGeometryUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIRayTracingGeometry* DestGeometry, FRHIRayTracingGeometry* SrcGeometry)
+	virtual FShaderBindingTableRHIRef RHICreateShaderBindingTable(FRHICommandListBase& RHICmdList, const FRayTracingShaderBindingTableInitializer& Initializer)
 	{
 		checkNoEntry();
+		return nullptr;
 	}
-#endif // RHI_RAYTRACING
 
-	virtual FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords)
+	virtual FShaderBundleRHIRef RHICreateShaderBundle(const FShaderBundleCreateInfo& CreateInfo)
 	{
 		checkNoEntry();
 		return nullptr;
@@ -1074,6 +1073,12 @@ FORCEINLINE FComputeShaderRHIRef RHICreateComputeShader(TArrayView<const uint8> 
 	return GDynamicRHI->RHICreateComputeShader(Code, Hash);
 }
 
+FORCEINLINE FWorkGraphShaderRHIRef RHICreateWorkGraphShader(TArrayView<const uint8> Code, const FSHAHash& Hash, EShaderFrequency ShaderFrequency)
+{
+	LLM_SCOPE(ELLMTag::Shaders);
+	return GDynamicRHI->RHICreateWorkGraphShader(Code, Hash, ShaderFrequency);
+}
+
 FORCEINLINE FGPUFenceRHIRef RHICreateGPUFence(const FName& Name)
 {
 	return GDynamicRHI->RHICreateGPUFence(Name);
@@ -1133,17 +1138,21 @@ FORCEINLINE FComputePipelineStateRHIRef RHICreateComputePipelineState(FRHIComput
 	return GDynamicRHI->RHICreateComputePipelineState(ComputeShader);
 }
 
+FORCEINLINE TRefCountPtr<FRHIWorkGraphPipelineState> RHICreateWorkGraphPipelineState(const FWorkGraphPipelineStateInitializer& Initializer)
+{
+	LLM_SCOPE(ELLMTag::Shaders);
+	return GDynamicRHI->RHICreateWorkGraphPipelineState(Initializer);
+}
+
 FORCEINLINE FRenderQueryRHIRef RHICreateRenderQuery(ERenderQueryType QueryType)
 {
 	return GDynamicRHI->RHICreateRenderQuery(QueryType);
 }
 
-#if RHI_RAYTRACING
 FORCEINLINE TRefCountPtr<FRHIRayTracingPipelineState> RHICreateRayTracingPipelineState(const FRayTracingPipelineStateInitializer& Initializer)
 {
 	return GDynamicRHI->RHICreateRayTracingPipelineState(Initializer);
 }
-#endif //RHI_RAYTRACING
 
 FORCEINLINE FUniformBufferLayoutRHIRef RHICreateUniformBufferLayout(const FRHIUniformBufferLayoutInitializer& Initializer)
 {
@@ -1157,24 +1166,25 @@ FORCEINLINE FUniformBufferRHIRef RHICreateUniformBuffer(const void* Contents, co
 	return GDynamicRHI->RHICreateUniformBuffer(Contents, Layout, Usage, Validation);
 }
 
-FORCEINLINE FDynamicRHI::FRHICalcTextureSizeResult RHICalcTexturePlatformSize(FRHITextureDesc const& Desc, uint32 FirstMipIndex = 0)
+FORCEINLINE FRHICalcTextureSizeResult RHICalcTexturePlatformSize(FRHITextureDesc const& Desc, uint32 FirstMipIndex = 0)
 {
 	if ( ! Desc.IsValid() )
 	{
 		// Invalid texture desc; return zero to indicate failure
-		FDynamicRHI::FRHICalcTextureSizeResult ZeroResult = { 0 };
+		FRHICalcTextureSizeResult ZeroResult{};
 		return ZeroResult;
 	}
 
 	return GDynamicRHI->RHICalcTexturePlatformSize(Desc, FirstMipIndex);
 }
 
-//UE_DEPRECATED(5.1, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
+UE_DEPRECATED(5.5, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
 FORCEINLINE uint64 RHICalcTexture2DPlatformSize(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, uint32 NumSamples, ETextureCreateFlags Flags, const FRHIResourceCreateInfo& CreateInfo, uint32& OutAlign)
 {
 	const uint16 Depth = 1;
 	const uint16 ArraySize = 1;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FRHITextureDesc Desc(
 		ETextureDimension::Texture2D,
 		Flags,
@@ -1187,17 +1197,19 @@ FORCEINLINE uint64 RHICalcTexture2DPlatformSize(uint32 SizeX, uint32 SizeY, uint
 		(uint8)NumSamples,
 		CreateInfo.ExtData
 	);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	auto Result = RHICalcTexturePlatformSize(Desc, 0);
+	FRHICalcTextureSizeResult Result = RHICalcTexturePlatformSize(Desc, 0);
 	OutAlign = Result.Align;
 	return Result.Size;
 }
 
-//UE_DEPRECATED(5.1, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
+UE_DEPRECATED(5.5, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
 FORCEINLINE uint64 RHICalcTexture2DArrayPlatformSize(uint32 SizeX, uint32 SizeY, uint32 ArraySize, uint8 Format, uint32 NumMips, uint32 NumSamples, ETextureCreateFlags Flags, const FRHIResourceCreateInfo& CreateInfo, uint32& OutAlign)
 {
 	const uint16 Depth = 1;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FRHITextureDesc Desc(
 		ETextureDimension::Texture2DArray,
 		Flags,
@@ -1210,13 +1222,14 @@ FORCEINLINE uint64 RHICalcTexture2DArrayPlatformSize(uint32 SizeX, uint32 SizeY,
 		(uint8)NumSamples,
 		CreateInfo.ExtData
 	);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	auto Result = RHICalcTexturePlatformSize(Desc, 0);
+	FRHICalcTextureSizeResult Result = RHICalcTexturePlatformSize(Desc, 0);
 	OutAlign = Result.Align;
 	return Result.Size;
 }
 
-//UE_DEPRECATED(5.1, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
+UE_DEPRECATED(5.5, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
 FORCEINLINE uint64 RHICalcVMTexture2DPlatformSize(uint32 Mip0Width, uint32 Mip0Height, uint8 Format, uint32 NumMips, uint32 FirstMipIdx, uint32 NumSamples, ETextureCreateFlags Flags, uint32& OutAlign)
 {
 	const uint16 Depth     = 1;
@@ -1236,17 +1249,18 @@ FORCEINLINE uint64 RHICalcVMTexture2DPlatformSize(uint32 Mip0Width, uint32 Mip0H
 		ExtData
 	);
 
-	auto Result = RHICalcTexturePlatformSize(Desc, FirstMipIdx);
+	FRHICalcTextureSizeResult Result = RHICalcTexturePlatformSize(Desc, FirstMipIdx);
 	OutAlign = Result.Align;
 	return Result.Size;
 }
 
-//UE_DEPRECATED(5.1, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
+UE_DEPRECATED(5.5, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
 FORCEINLINE uint64 RHICalcTexture3DPlatformSize(uint32 SizeX, uint32 SizeY, uint32 SizeZ, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, const FRHIResourceCreateInfo& CreateInfo, uint32& OutAlign)
 {
 	const uint16 ArraySize  = 1;
 	const uint8 NumSamples = 1;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FRHITextureDesc Desc(
 		ETextureDimension::Texture3D,
 		Flags,
@@ -1259,19 +1273,21 @@ FORCEINLINE uint64 RHICalcTexture3DPlatformSize(uint32 SizeX, uint32 SizeY, uint
 		NumSamples,
 		CreateInfo.ExtData
 	);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	auto Result = RHICalcTexturePlatformSize(Desc, 0);
+	FRHICalcTextureSizeResult Result = RHICalcTexturePlatformSize(Desc, 0);
 	OutAlign = Result.Align;
 	return Result.Size;
 }
 
-//UE_DEPRECATED(5.1, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
+UE_DEPRECATED(5.5, "The separate RHICalcTexture... functions for each texture type are deprecated. Use RHICalcTexturePlatformSize instead.")
 FORCEINLINE uint64 RHICalcTextureCubePlatformSize(uint32 Size, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, const FRHIResourceCreateInfo& CreateInfo, uint32& OutAlign)
 {
 	const uint16 Depth      = 1;
 	const uint16 ArraySize  = 1;
 	const uint8 NumSamples = 1;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FRHITextureDesc Desc(
 		ETextureDimension::TextureCube,
 		Flags,
@@ -1284,8 +1300,9 @@ FORCEINLINE uint64 RHICalcTextureCubePlatformSize(uint32 Size, uint8 Format, uin
 		NumSamples,
 		CreateInfo.ExtData
 	);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	auto Result = RHICalcTexturePlatformSize(Desc, 0);
+	FRHICalcTextureSizeResult Result = RHICalcTexturePlatformSize(Desc, 0);
 	OutAlign = Result.Align;
 	return Result.Size;
 }
@@ -1315,7 +1332,7 @@ FORCEINLINE uint32 RHIGetViewportNextPresentGPUIndex(FRHIViewport* Viewport)
 	return GDynamicRHI->RHIGetViewportNextPresentGPUIndex(Viewport);
 }
 
-FORCEINLINE FTexture2DRHIRef RHIGetViewportBackBuffer(FRHIViewport* Viewport)
+FORCEINLINE FTextureRHIRef RHIGetViewportBackBuffer(FRHIViewport* Viewport)
 {
 	return GDynamicRHI->RHIGetViewportBackBuffer(Viewport);
 }
@@ -1352,9 +1369,10 @@ FORCEINLINE void RHIResizeViewport(FRHIViewport* Viewport, uint32 SizeX, uint32 
 	GDynamicRHI->RHIResizeViewport(Viewport, SizeX, SizeY, bIsFullscreen, PreferredPixelFormat);
 }
 
+// UE_DEPRECATED(5.5, "This method is no longer used.")
 FORCEINLINE EColorSpaceAndEOTF RHIGetColorSpace(FRHIViewport* Viewport)
 {
-	return GDynamicRHI->RHIGetColorSpace(Viewport);
+	return EColorSpaceAndEOTF::ERec709_sRGB;
 }
 
 FORCEINLINE void RHICheckViewportHDRStatus(FRHIViewport* Viewport)
@@ -1398,19 +1416,15 @@ FORCEINLINE void RHIGetSupportedResolution(uint32& Width, uint32& Height)
 	GDynamicRHI->RHIGetSupportedResolution(Width, Height);
 }
 
+UE_DEPRECATED(5.5, "RHIRequiresComputeGenerateMips is deprecated and always returns true. Use FGenerateMips helper class from the RenderCore module to generate mips on textures.")
 FORCEINLINE bool RHIRequiresComputeGenerateMips()
 {
-	return GDynamicRHI->RHIRequiresComputeGenerateMips();
+	return true;
 }
 
 FORCEINLINE class IRHICommandContext* RHIGetDefaultContext()
 {
 	return GDynamicRHI->RHIGetDefaultContext();
-}
-
-FORCEINLINE class IRHIComputeContext* RHIGetDefaultAsyncComputeContext()
-{
-	return GDynamicRHI->RHIGetDefaultAsyncComputeContext();
 }
 
 RHI_API FRenderQueryPoolRHIRef RHICreateRenderQueryPool(ERenderQueryType QueryType, uint32 NumQueries = UINT32_MAX);
@@ -1453,20 +1467,27 @@ FORCEINLINE bool RHIMatchPrecachePSOInitializers(const FGraphicsPipelineStateIni
 	return GDynamicRHI->RHIMatchPrecachePSOInitializers(LHS, RHS);
 }
 
-#if RHI_RAYTRACING
-
-FORCEINLINE FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(uint32 MaxInstances, ERayTracingAccelerationStructureFlags Flags)
+FORCEINLINE FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(const FRayTracingSceneInitializer& Initializer)
 {
-	return GDynamicRHI->RHICalcRayTracingSceneSize(MaxInstances, Flags);
+	return GDynamicRHI->RHICalcRayTracingSceneSize(Initializer);
 }
 
-FORCEINLINE FRayTracingSceneRHIRef RHICreateRayTracingScene(FRayTracingSceneInitializer2 Initializer)
+UE_DEPRECATED(5.5, "Provide FRayTracingSceneInitializer instead.")
+FORCEINLINE FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(uint32 MaxInstances, ERayTracingAccelerationStructureFlags Flags)
+{
+	FRayTracingSceneInitializer Initializer;
+	Initializer.MaxNumInstances = MaxInstances;
+	Initializer.BuildFlags = Flags;
+
+	return GDynamicRHI->RHICalcRayTracingSceneSize(Initializer);
+}
+
+FORCEINLINE FRayTracingSceneRHIRef RHICreateRayTracingScene(FRayTracingSceneInitializer Initializer)
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if(Initializer.NumNativeInstances > 0 || Initializer.NumNativeInstancesPerLayer.IsEmpty())
+	if (Initializer.NumNativeInstancesPerLayer.Num() >= 1)
 	{
-		checkf(Initializer.NumNativeInstancesPerLayer.IsEmpty(), TEXT("Can't specify NumNativeInstances and NumNativeInstancesPerLayer simultaneously."));
-		Initializer.NumNativeInstancesPerLayer.Add(Initializer.NumNativeInstances);
+		Initializer.MaxNumInstances = Initializer.NumNativeInstancesPerLayer[0];
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return GDynamicRHI->RHICreateRayTracingScene(MoveTemp(Initializer));
@@ -1477,11 +1498,9 @@ FORCEINLINE FRayTracingShaderRHIRef RHICreateRayTracingShader(TArrayView<const u
 	return GDynamicRHI->RHICreateRayTracingShader(Code, Hash, ShaderFrequency);
 }
 
-#endif // RHI_RAYTRACING
-
-FORCEINLINE FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords)
+FORCEINLINE FShaderBundleRHIRef RHICreateShaderBundle(const FShaderBundleCreateInfo& CreateInfo)
 {
-	return GDynamicRHI->RHICreateShaderBundle(NumRecords);
+	return GDynamicRHI->RHICreateShaderBundle(CreateInfo);
 }
 
 /**
@@ -1552,3 +1571,31 @@ FDynamicRHI* PlatformCreateDynamicRHI();
 extern RHI_API const TCHAR* GetSelectedDynamicRHIModuleName(bool bCleanup = true);
 
 extern RHI_API bool GDynamicRHIFailedToInitializeAdvancedPlatform;
+
+//
+// Helper for acquiring and releasing thread ownership of the RHI within a scope.
+// For private use by the RHI and render thread management code only.
+//
+struct FScopedRHIThreadOwnership
+{
+	bool const bCondition;
+
+	FScopedRHIThreadOwnership(bool bCondition)
+		: bCondition(bCondition)
+	{
+		if (bCondition)
+		{
+			SCOPED_NAMED_EVENT(RHIAcquireThreadOwnership, FColor::Red);
+			GDynamicRHI->RHIAcquireThreadOwnership();
+		}
+	}
+
+	~FScopedRHIThreadOwnership()
+	{
+		if (bCondition)
+		{
+			SCOPED_NAMED_EVENT(RHIReleaseThreadOwnership, FColor::Red);
+			GDynamicRHI->RHIReleaseThreadOwnership();
+		}
+	}
+};

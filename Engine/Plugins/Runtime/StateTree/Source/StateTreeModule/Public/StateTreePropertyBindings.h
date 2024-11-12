@@ -2,8 +2,11 @@
 
 #pragma once
 
+#include "StateTreeNodeBase.h"
 #include "StateTreeTypes.h"
 #include "StateTreePropertyRefHelpers.h"
+#include "StructUtils/StructView.h"
+#include "StateTreeIndexTypes.h"
 #include "StateTreePropertyBindings.generated.h"
 
 class FProperty;
@@ -11,6 +14,7 @@ struct FStateTreePropertyPath;
 struct FStateTreePropertyBindingCompiler;
 struct FStateTreePropertyRef;
 class UStateTree;
+enum EStateTreeNodeFormatting : uint8;
 
 UENUM()
 enum class EStateTreeBindableStructSource : uint8
@@ -24,11 +28,19 @@ enum class EStateTreeBindableStructSource : uint8
 	/** Source is StateTree global task */
 	GlobalTask,
 	/** Source is State parameter */
-	State,
+	StateParameter,
 	/** Source is State task */
 	Task,
 	/** Source is State condition */
 	Condition,
+	/** Source is State utility consideration */
+	Consideration,
+	/** Source is StateTree event used by transition */
+	TransitionEvent,
+	/** Source is StateTree event used by state selection */
+	StateEvent,
+	/** Source is Property Function */
+	PropertyFunction,
 };
 
 
@@ -126,6 +138,17 @@ struct STATETREEMODULE_API FStateTreeBindableStructDesc
 	FStateTreeBindableStructDesc() = default;
 
 #if WITH_EDITORONLY_DATA
+	FStateTreeBindableStructDesc(const FString& InStatePath, const FName InName, const UStruct* InStruct, const FStateTreeDataHandle InDataHandle, const EStateTreeBindableStructSource InDataSource, const FGuid InGuid)
+		: Struct(InStruct)
+		, Name(InName)
+		, DataHandle(InDataHandle)
+		, DataSource(InDataSource)
+		, ID(InGuid)
+		, StatePath(InStatePath)
+	{
+	}
+
+	UE_DEPRECATED(5.5, "Use constructor with StatePath instead.")
 	FStateTreeBindableStructDesc(const FName InName, const UStruct* InStruct, const FStateTreeDataHandle InDataHandle, const EStateTreeBindableStructSource InDataSource, const FGuid InGuid)
 		: Struct(InStruct)
 		, Name(InName)
@@ -174,6 +197,14 @@ struct STATETREEMODULE_API FStateTreeBindableStructDesc
 	/** Unique identifier of the struct. */
 	UPROPERTY()
 	FGuid ID;
+
+	/** In Editor path to State containting the data. */
+	UPROPERTY(Transient)
+	FString StatePath;
+
+	/** Category of the bindable struct. Can be used to display the category in a menu. */
+	UPROPERTY()
+	FString Category;
 #endif
 };
 
@@ -370,8 +401,9 @@ struct STATETREEMODULE_API FStateTreePropertyPath
 	 * @param HighlightPrefix String to append before highlighted segment
 	 * @param HighlightPostfix String to append after highlighted segment
 	 * @param bOutputInstances if true, the instance struct types will be output. 
+	 * @param FirstSegment Index of the first path segment to be stringified.
 	 */
-	FString ToString(const int32 HighlightedSegment = INDEX_NONE, const TCHAR* HighlightPrefix = nullptr, const TCHAR* HighlightPostfix = nullptr, const bool bOutputInstances = false) const;
+	FString ToString(const int32 HighlightedSegment = INDEX_NONE, const TCHAR* HighlightPrefix = nullptr, const TCHAR* HighlightPostfix = nullptr, const bool bOutputInstances = false, const int32 FirstSegment = 0) const;
 
 	/**
 	 * Resolves the property path against base struct type. The path is assumed to be relative to the BaseStruct.
@@ -461,6 +493,12 @@ struct STATETREEMODULE_API FStateTreePropertyPath
 		Segments.Add(PathSegment);
 	}
 
+	/**
+	 * Test if this paths includes the provided path.
+	 * A path includes another one when they are == but this path can be longer.
+	 */
+	bool Includes(const FStateTreePropertyPath& Other) const;
+
 	/** Test if paths are equal. */
 	bool operator==(const FStateTreePropertyPath& RHS) const;
 
@@ -508,7 +546,6 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
-
 /**
  * Representation of a property binding in StateTree
  */
@@ -532,6 +569,15 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		, SourceDataHandle(InSourceDataHandle)
 	{
 	}
+
+#if WITH_EDITOR
+FStateTreePropertyPathBinding(FConstStructView InFunctionNodeStruct, const FStateTreePropertyPath& InSourcePath, const FStateTreePropertyPath& InTargetPath)
+		: SourcePropertyPath(InSourcePath)
+		, TargetPropertyPath(InTargetPath)
+		, PropertyFunctionNode(InFunctionNodeStruct)
+	{
+	}
+#endif
 
 	UE_DEPRECATED(5.4, "Use constructor with DataHandle instead.")
 	FStateTreePropertyPathBinding(const FStateTreeIndex16 InCompiledSourceStructIndex, const FStateTreePropertyPath& InSourcePath, const FStateTreePropertyPath& InTargetPath)
@@ -560,6 +606,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	void SetSourceDataHandle(const FStateTreeDataHandle NewSourceDataHandle) { SourceDataHandle = NewSourceDataHandle; }
 	FStateTreeDataHandle GetSourceDataHandle() const { return SourceDataHandle; }
 
+#if WITH_EDITOR
+	FConstStructView GetPropertyFunctionNode() const { return FConstStructView(PropertyFunctionNode); }
+	FStructView GetMutablePropertyFunctionNode() { return FStructView(PropertyFunctionNode); }
+#endif
+
 private:
 	/** Source property path of the binding */
 	UPROPERTY()
@@ -573,8 +624,11 @@ private:
 	UPROPERTY()
 	FStateTreeDataHandle SourceDataHandle = FStateTreeDataHandle::Invalid;
 
-public:
 #if WITH_EDITORONLY_DATA
+	/**	Instance of bound PropertyFunction. */
+	UPROPERTY()
+	FInstancedStruct PropertyFunctionNode;
+
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UPROPERTY()
 	FStateTreeEditorPropertyPath SourcePath_DEPRECATED;
@@ -793,11 +847,19 @@ struct STATETREEMODULE_API FStateTreePropertyCopyBatch
 
 	/** Index to first binding/copy. */
 	UPROPERTY()
-	uint16 BindingsBegin = 0;
+	FStateTreeIndex16 BindingsBegin;
 
 	/** Index to one past the last binding/copy. */
 	UPROPERTY()
-	uint16 BindingsEnd = 0;
+	FStateTreeIndex16 BindingsEnd;
+
+	/** Index to first property function. */
+	UPROPERTY()
+	FStateTreeIndex16 PropertyFunctionsBegin;
+
+	/** Index to one past the last property function. */
+	UPROPERTY()
+	FStateTreeIndex16 PropertyFunctionsEnd;
 };
 
 using FStateTreePropCopyBatch UE_DEPRECATED(5.3, "Deprecated struct. Please use FStateTreePropertyCopy instead.") = FStateTreePropertyCopyBatch;
@@ -880,12 +942,12 @@ struct STATETREEMODULE_API FStateTreePropertyBindings
 	/** @return All the property copies for a specific batch. */
 	TConstArrayView<FStateTreePropertyCopy> GetBatchCopies(const FStateTreePropertyCopyBatch& Batch) const
 	{
-		const int32 Count = (int32)Batch.BindingsEnd - (int32)Batch.BindingsBegin;
+		const int32 Count = Batch.BindingsEnd.Get() - Batch.BindingsBegin.Get();
 		if (Count == 0)
 		{
 			return {};
 		}
-		return MakeArrayView(&PropertyCopies[Batch.BindingsBegin], Count);
+		return MakeArrayView(&PropertyCopies[Batch.BindingsBegin.Get()], Count);
 	}
 
 	/**
@@ -899,7 +961,7 @@ struct STATETREEMODULE_API FStateTreePropertyBindings
 	 * @param PropertyAccess Access to the property for which we want to obtain a pointer.
 	 * @return Pointer to referenced property if it's type match, nullptr otherwise.
 	 */
-	template< class T >
+	template<class T>
 	T* GetMutablePropertyPtr(FStateTreeDataView SourceView, const FStateTreePropertyAccess& PropertyAccess) const
 	{
 		check(SourceView.GetStruct() == PropertyAccess.SourceStructType);
@@ -924,8 +986,6 @@ struct STATETREEMODULE_API FStateTreePropertyBindings
 	 * @return true if any of the elements in the property bindings contains any of the structs in the set.
 	 */
 	bool ContainsAnyStruct(const TSet<const UStruct*>& Structs);
-	
-	void DebugPrintInternalLayout(FString& OutString) const;
 
 	/** @return how properties are compatible for copying. */
 	static EStateTreePropertyAccessCompatibility GetPropertyCompatibility(const FProperty* FromProperty, const FProperty* ToProperty);
@@ -939,7 +999,6 @@ struct STATETREEMODULE_API FStateTreePropertyBindings
 	 */
 	[[nodiscard]] static bool ResolveCopyType(const FStateTreePropertyPathIndirection& SourceIndirection, const FStateTreePropertyPathIndirection& TargetIndirection, FStateTreePropertyCopy& OutCopy);
 
-	
 	UE_DEPRECATED(5.3, "Should not be used, will be removed in a future version.")
 	TArrayView<FStateTreeBindableStructDesc> GetSourceStructs() { return  SourceStructs; };
 
@@ -952,24 +1011,20 @@ struct STATETREEMODULE_API FStateTreePropertyBindings
 		return false;
 	}
 
+	UE_DEPRECATED(5.5, "DebugPrintInternalLayout is deprecated. Use GetDebugInfo instead.")
+	void DebugPrintInternalLayout(FString& OutString) const;
+
+#if WITH_EDITOR || WITH_STATETREE_DEBUG
+	[[nodiscard]] FString DebugInternalLayoutAsString() const;
+#endif
+
 private:
-	[[nodiscard]] static bool ResolvePath(const UStruct* Struct, const FStateTreePropertyPath& Path, TArray<FStateTreePropertyIndirection>& OutIndirections, FStateTreePropertyIndirection& OutFirstIndirection, FStateTreePropertyPathIndirection& OutLeafIndirection);
-	static uint8* GetAddress(FStateTreeDataView InStructView, TConstArrayView<FStateTreePropertyIndirection> Indirections, const FStateTreePropertyIndirection& FirstIndirection, const FProperty* LeafProperty);
-	
-	uint8* GetAddress(FStateTreeDataView InStructView, const FStateTreePropertyIndirection& FirstIndirection, const FProperty* LeafProperty) const
-	{
-		return GetAddress(InStructView, PropertyIndirections, FirstIndirection, LeafProperty);
-	}
-
-	[[nodiscard]] bool ResolvePath(const UStruct* Struct, const FStateTreePropertyPath& Path, FStateTreePropertyIndirection& OutFirstIndirection, FStateTreePropertyPathIndirection& OutLeafIndirection)
-	{
-		return ResolvePath(Struct, Path, PropertyIndirections, OutFirstIndirection, OutLeafIndirection);
-	}
-
+	[[nodiscard]] bool ResolvePath(const UStruct* Struct, const FStateTreePropertyPath& Path, FStateTreePropertyIndirection& OutFirstIndirection, FStateTreePropertyPathIndirection& OutLeafIndirection);
 	const FStateTreeBindableStructDesc* GetSourceDescByHandle(const FStateTreeDataHandle SourceDataHandle);
 
 	void PerformCopy(const FStateTreePropertyCopy& Copy, uint8* SourceAddress, uint8* TargetAddress) const;
 	void PerformResetObjects(const FStateTreePropertyCopy& Copy, uint8* TargetAddress) const;
+	uint8* GetAddress(FStateTreeDataView InStructView, const FStateTreePropertyIndirection& FirstIndirection, const FProperty* LeafProperty) const;
 
 	/** Array of expected source structs. */
 	UPROPERTY()
@@ -1025,11 +1080,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
  */
 struct STATETREEMODULE_API IStateTreeBindingLookup
 {
+	virtual ~IStateTreeBindingLookup() {} 
+	
 	/** @return Source path for given target path, or null if binding does not exists. */
 	virtual const FStateTreePropertyPath* GetPropertyBindingSource(const FStateTreePropertyPath& InTargetPath) const PURE_VIRTUAL(IStateTreeBindingLookup::GetPropertyBindingSource, return nullptr; );
 
 	/** @return Display name given property path. */
-	virtual FText GetPropertyPathDisplayName(const FStateTreePropertyPath& InPath) const PURE_VIRTUAL(IStateTreeBindingLookup::GetPropertyPathDisplayName, return FText::GetEmpty(); );
+	virtual FText GetPropertyPathDisplayName(const FStateTreePropertyPath& InPath, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const PURE_VIRTUAL(IStateTreeBindingLookup::GetPropertyPathDisplayName, return FText::GetEmpty(); );
+
+	/** @return Display name of binding source, or empty if binding does not exists. */
+	virtual FText GetBindingSourceDisplayName(const FStateTreePropertyPath& InTargetPath, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const PURE_VIRTUAL(IStateTreeBindingLookup::GetPropertyPathDisplayName, return FText::GetEmpty(); );
 
 	/** @return Leaf property based on property path. */
 	virtual const FProperty* GetPropertyPathLeafProperty(const FStateTreePropertyPath& InPath) const PURE_VIRTUAL(IStateTreeBindingLookup::GetPropertyPathLeafProperty, return nullptr; );
@@ -1059,6 +1119,9 @@ namespace UE::StateTree
 	 * @return found usage type, or EStateTreePropertyUsage::Invalid if not found.
 	 */
 	STATETREEMODULE_API EStateTreePropertyUsage GetUsageFromMetaData(const FProperty* Property);
+
+	/** @return struct's property which is the only one marked as Output. Returns null otherwise. */
+	STATETREEMODULE_API const FProperty* GetStructSingleOutputProperty(const UStruct& InStruct);
 #endif
 } // UE::StateTree
 

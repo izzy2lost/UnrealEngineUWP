@@ -53,7 +53,7 @@ int32 UCsvActorCountMetric::NumActors(const FName& NativeClassName) const
 
 void UCsvActorCountMetric::Update(float /*DeltaTimeInSeconds*/)
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	if (FCsvProfiler::Get()->IsCapturing())
 	{
 		const int32 Threshold = UE::WorldMetrics::Private::CVarCsvRecordActorCountThreshold.GetValueOnAnyThread();
@@ -67,7 +67,7 @@ void UCsvActorCountMetric::Update(float /*DeltaTimeInSeconds*/)
 			}
 		}
 	}
-#endif	// CSV_PROFILER
+#endif	// CSV_PROFILER_STATS
 }
 
 void UCsvActorCountMetric::OnActorAdded(const AActor* Actor)

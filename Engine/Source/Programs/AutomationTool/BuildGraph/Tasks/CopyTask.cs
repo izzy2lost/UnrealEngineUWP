@@ -1,20 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.BuildGraph;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildTool;
-using UnrealBuildBase;
 using Microsoft.Extensions.Logging;
-
-using static AutomationTool.CommandUtils;
+using UnrealBuildBase;
 
 namespace AutomationTool.Tasks
 {
@@ -27,37 +20,37 @@ namespace AutomationTool.Tasks
 		/// Optional filter to be applied to the list of input files.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// The pattern(s) to copy from (for example, Engine/*.txt).
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string From;
+		public string From { get; set; }
 
 		/// <summary>
 		/// The directory to copy to.
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string To;
+		public string To { get; set; }
 
 		/// <summary>
 		/// Whether or not to overwrite existing files.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Overwrite = true;
+		public bool Overwrite { get; set; } = true;
 
 		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 
 		/// <summary>
 		/// Whether or not to throw an error if no files were found to copy
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool ErrorIfNotFound = false;
+		public bool ErrorIfNotFound { get; set; } = false;
 	}
 
 	/// <summary>
@@ -66,157 +59,169 @@ namespace AutomationTool.Tasks
 	[TaskElement("Copy", typeof(CopyTaskParameters))]
 	public class CopyTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		CopyTaskParameters Parameters;
+		readonly CopyTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public CopyTask(CopyTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public CopyTask(CopyTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Parse all the source patterns
-			FilePattern SourcePattern = new FilePattern(Unreal.RootDirectory, Parameters.From);
+			FilePattern sourcePattern = new FilePattern(Unreal.RootDirectory, _parameters.From);
 
 			// Parse the target pattern
-			FilePattern TargetPattern = new FilePattern(Unreal.RootDirectory, Parameters.To);
+			FilePattern targetPattern = new FilePattern(Unreal.RootDirectory, _parameters.To);
 
 			// Apply the filter to the source files
-			HashSet<FileReference> Files = null;
-			if (!String.IsNullOrEmpty(Parameters.Files))
+			HashSet<FileReference> files = null;
+			if (!String.IsNullOrEmpty(_parameters.Files))
 			{
-				SourcePattern = SourcePattern.AsDirectoryPattern();
-				Files = ResolveFilespec(SourcePattern.BaseDirectory, Parameters.Files, TagNameToFileSet);
+				sourcePattern = sourcePattern.AsDirectoryPattern();
+				files = ResolveFilespec(sourcePattern.BaseDirectory, _parameters.Files, tagNameToFileSet);
 			}
 
-			// Build the file mapping
-			Dictionary<FileReference, FileReference> TargetFileToSourceFile = FilePattern.CreateMapping(Files, ref SourcePattern, ref TargetPattern);
-
-			// Check we got some files
-			if (TargetFileToSourceFile.Count == 0)
+			try
 			{
-				if (Parameters.ErrorIfNotFound)
+				// Build the file mapping
+				Dictionary<FileReference, FileReference> targetFileToSourceFile = FilePattern.CreateMapping(files, ref sourcePattern, ref targetPattern);
+
+				// Check we got some files
+				if (targetFileToSourceFile.Count == 0)
 				{
-					Logger.LogError("No files found matching '{SourcePattern}'", SourcePattern);
+					if (_parameters.ErrorIfNotFound)
+					{
+						Logger.LogError("No files found matching '{SourcePattern}'", sourcePattern);
+					}
+					else
+					{
+						Logger.LogInformation("No files found matching '{SourcePattern}'", sourcePattern);
+					}
+					return;
+				}
+
+				// Run the copy
+				Logger.LogInformation("Copying {Arg0} file{Arg1} from {Arg2} to {Arg3}...", targetFileToSourceFile.Count, (targetFileToSourceFile.Count == 1) ? "" : "s", sourcePattern.BaseDirectory, targetPattern.BaseDirectory);
+				await ExecuteAsync(targetFileToSourceFile, _parameters.Overwrite);
+
+				// Update the list of build products
+				buildProducts.UnionWith(targetFileToSourceFile.Keys);
+
+				// Apply the optional output tag to them
+				foreach (string tagName in FindTagNamesFromList(_parameters.Tag))
+				{
+					FindOrAddTagSet(tagNameToFileSet, tagName).UnionWith(targetFileToSourceFile.Keys);
+				}
+			}
+			catch (FilePatternSourceFileMissingException ex)
+			{
+				if (_parameters.ErrorIfNotFound)
+				{
+					Logger.LogError(ex, "Error while trying to create file pattern match for '{SourcePattern}', error {ExceptionString}", sourcePattern, ex.Message);
 				}
 				else
 				{
-					Logger.LogInformation("No files found matching '{SourcePattern}'", SourcePattern);
+					Logger.LogInformation(ex, "Error while trying to create file pattern match for '{SourcePattern}', error {ExceptionString}", sourcePattern, ex.Message);
 				}
-				return;
-			}
-
-			// Run the copy
-			Logger.LogInformation("Copying {Arg0} file{Arg1} from {Arg2} to {Arg3}...", TargetFileToSourceFile.Count, (TargetFileToSourceFile.Count == 1) ? "" : "s", SourcePattern.BaseDirectory, TargetPattern.BaseDirectory);
-			await ExecuteAsync(TargetFileToSourceFile, Parameters.Overwrite);
-
-			// Update the list of build products
-			BuildProducts.UnionWith(TargetFileToSourceFile.Keys);
-
-			// Apply the optional output tag to them
-			foreach (string TagName in FindTagNamesFromList(Parameters.Tag))
-			{
-				FindOrAddTagSet(TagNameToFileSet, TagName).UnionWith(TargetFileToSourceFile.Keys);
 			}
 		}
 
 		/// <summary>
 		/// 
 		/// </summary>
-		/// <param name="TargetFileToSourceFile"></param>
-		/// <param name="Overwrite"></param>
+		/// <param name="targetFileToSourceFile"></param>
+		/// <param name="overwrite"></param>
 		/// <returns></returns>
-		public static Task ExecuteAsync(Dictionary<FileReference, FileReference> TargetFileToSourceFile, bool Overwrite)
+		public static async Task ExecuteAsync(Dictionary<FileReference, FileReference> targetFileToSourceFile, bool overwrite)
 		{
 			//  If we're not overwriting, remove any files where the destination file already exists.
-			if (!Overwrite)
+			if (!overwrite)
 			{
-				Dictionary<FileReference, FileReference> FilteredTargetToSourceFile = new Dictionary<FileReference, FileReference>();
-				foreach (KeyValuePair<FileReference, FileReference> File in TargetFileToSourceFile)
+				Dictionary<FileReference, FileReference> filteredTargetToSourceFile = new Dictionary<FileReference, FileReference>();
+				foreach (KeyValuePair<FileReference, FileReference> file in targetFileToSourceFile)
 				{
-					if (FileReference.Exists(File.Key))
+					if (FileReference.Exists(file.Key))
 					{
-						Logger.LogInformation("Not copying existing file {Arg0}", File.Key);
+						Logger.LogInformation("Not copying existing file {Arg0}", file.Key);
 						continue;
 					}
-					FilteredTargetToSourceFile.Add(File.Key, File.Value);
+					filteredTargetToSourceFile.Add(file.Key, file.Value);
 				}
-				if(FilteredTargetToSourceFile.Count == 0)
+				if (filteredTargetToSourceFile.Count == 0)
 				{
 					Logger.LogWarning("All files already exist, exiting early.");
-					return Task.CompletedTask;
+					return;
 				}
-				TargetFileToSourceFile = FilteredTargetToSourceFile;
+				targetFileToSourceFile = filteredTargetToSourceFile;
 			}
 
 			// If the target is on a network share, retry creating the first directory until it succeeds
-			DirectoryReference FirstTargetDirectory = TargetFileToSourceFile.First().Key.Directory;
-			if(!DirectoryReference.Exists(FirstTargetDirectory))
+			DirectoryReference firstTargetDirectory = targetFileToSourceFile.First().Key.Directory;
+			if (!DirectoryReference.Exists(firstTargetDirectory))
 			{
 				const int MaxNumRetries = 15;
-				for(int NumRetries = 0;;NumRetries++)
+				for (int numRetries = 0; ; numRetries++)
 				{
 					try
 					{
-						DirectoryReference.CreateDirectory(FirstTargetDirectory);
-						if(NumRetries == 1)
+						DirectoryReference.CreateDirectory(firstTargetDirectory);
+						if (numRetries == 1)
 						{
-							Logger.LogInformation("Created target directory {FirstTargetDirectory} after 1 retry.", FirstTargetDirectory);
+							Logger.LogInformation("Created target directory {FirstTargetDirectory} after 1 retry.", firstTargetDirectory);
 						}
-						else if(NumRetries > 1)
+						else if (numRetries > 1)
 						{
-							Logger.LogInformation("Created target directory {FirstTargetDirectory} after {NumRetries} retries.", FirstTargetDirectory, NumRetries);
+							Logger.LogInformation("Created target directory {FirstTargetDirectory} after {NumRetries} retries.", firstTargetDirectory, numRetries);
 						}
 						break;
 					}
-					catch(Exception Ex)
+					catch (Exception ex)
 					{
-						if(NumRetries == 0)
+#pragma warning disable CA1508 // False positive about NumRetries alwayws being zero
+						if (numRetries == 0)
 						{
-							Logger.LogInformation("Unable to create directory '{FirstTargetDirectory}' on first attempt. Retrying {MaxNumRetries} times...", FirstTargetDirectory, MaxNumRetries);
+							Logger.LogInformation("Unable to create directory '{FirstTargetDirectory}' on first attempt. Retrying {MaxNumRetries} times...", firstTargetDirectory, MaxNumRetries);
+						}
+#pragma warning restore CA1508
+
+						Logger.LogDebug("  {Ex}", ex);
+
+						if (numRetries >= 15)
+						{
+							throw new AutomationException(ex, "Unable to create target directory '{0}' after {1} retries.", firstTargetDirectory, numRetries);
 						}
 
-						Logger.LogDebug("  {Ex}", Ex);
-
-						if(NumRetries >= 15)
-						{
-							throw new AutomationException(Ex, "Unable to create target directory '{0}' after {1} retries.", FirstTargetDirectory, NumRetries);
-						}
-
-						Thread.Sleep(2000);
+						await Task.Delay(2000);
 					}
 				}
 			}
 
 			// Copy them all
-			KeyValuePair<FileReference, FileReference>[] FilePairs = TargetFileToSourceFile.ToArray();
-			foreach(KeyValuePair<FileReference, FileReference> FilePair in FilePairs)
+			KeyValuePair<FileReference, FileReference>[] filePairs = targetFileToSourceFile.ToArray();
+			foreach (KeyValuePair<FileReference, FileReference> filePair in filePairs)
 			{
-				Logger.LogDebug("  {Arg0} -> {Arg1}", FilePair.Value, FilePair.Key);
+				Logger.LogDebug("  {Arg0} -> {Arg1}", filePair.Value, filePair.Key);
 			}
-			CommandUtils.ThreadedCopyFiles(FilePairs.Select(x => x.Value.FullName).ToList(), FilePairs.Select(x => x.Key.FullName).ToList(), bQuiet: true, bRetry: true);
-			return Task.CompletedTask;
+			CommandUtils.ThreadedCopyFiles(filePairs.Select(x => x.Value.FullName).ToList(), filePairs.Select(x => x.Key.FullName).ToList(), bQuiet: true, bRetry: true);
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -225,9 +230,9 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are read by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			foreach(string TagName in FindTagNamesFromFilespec(Parameters.Files))
+			foreach (string tagName in FindTagNamesFromFilespec(_parameters.Files))
 			{
-				yield return TagName;
+				yield return tagName;
 			}
 		}
 
@@ -237,7 +242,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are modified by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			return FindTagNamesFromList(Parameters.Tag);
+			return FindTagNamesFromList(_parameters.Tag);
 		}
 	}
 
@@ -249,21 +254,21 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Copy files from one location to another
 		/// </summary>
-		/// <param name="Files">The files to copy</param>
-		/// <param name="TargetDir"></param>
-		/// <param name="Overwrite">Whether or not to overwrite existing files.</param>
-		public static async Task<FileSet> CopyToAsync(this FileSet Files, DirectoryReference TargetDir, bool? Overwrite = null)
+		/// <param name="files">The files to copy</param>
+		/// <param name="targetDir"></param>
+		/// <param name="overwrite">Whether or not to overwrite existing files.</param>
+		public static async Task<FileSet> CopyToAsync(this FileSet files, DirectoryReference targetDir, bool? overwrite = null)
 		{
 			// Run the copy
-			Dictionary<FileReference, FileReference> TargetFileToSourceFile = Files.Flatten(TargetDir);
-			if (TargetFileToSourceFile.Count == 0)
+			Dictionary<FileReference, FileReference> targetFileToSourceFile = files.Flatten(targetDir);
+			if (targetFileToSourceFile.Count == 0)
 			{
 				return FileSet.Empty;
 			}
 
-			Log.Logger.LogInformation("Copying {NumFiles} file(s) to {TargetDir}...", TargetFileToSourceFile.Count, TargetDir);
-			await CopyTask.ExecuteAsync(TargetFileToSourceFile, Overwrite ?? true);
-			return FileSet.FromFiles(TargetFileToSourceFile.Keys.Select(x => (x.MakeRelativeTo(TargetDir), x)));
+			Log.Logger.LogInformation("Copying {NumFiles} file(s) to {TargetDir}...", targetFileToSourceFile.Count, targetDir);
+			await CopyTask.ExecuteAsync(targetFileToSourceFile, overwrite ?? true);
+			return FileSet.FromFiles(targetFileToSourceFile.Keys.Select(x => (x.MakeRelativeTo(targetDir), x)));
 		}
 	}
 }

@@ -64,6 +64,7 @@ public:
 	ENGINE_API virtual void OnLevelInstanceLoaded();
 
 #if WITH_EDITOR
+	ENGINE_API virtual bool SupportsPropertyOverrides() const;
 	ENGINE_API virtual bool SupportsPartialEditorLoading() const;
 	ENGINE_API virtual bool ResolveSubobject(const TCHAR* SubObjectPath, UObject*& OutObject, bool bLoadIfExists);
 #endif
@@ -93,6 +94,7 @@ public:
 	ENGINE_API virtual bool IsUserManaged() const;
 	ENGINE_API virtual bool ShouldExport() const;
 	ENGINE_API virtual bool GetBounds(FBox& OutBounds) const;
+	ENGINE_API virtual bool GetEditorBounds(FBox& OutBounds) const;
 	ENGINE_API virtual void PushSelectionToProxies();
 	ENGINE_API virtual void PushLevelInstanceEditingStateToProxies(bool bInEditingState);
 	ENGINE_API virtual void CheckForErrors();

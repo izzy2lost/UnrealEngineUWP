@@ -148,6 +148,15 @@ TSharedPtr<SRCLogicPanelListBase> FRCBehaviourModel::GetActionsListWidget(TShare
 	return SNew(SRCActionPanelList<FRCActionModel>, InActionPanel, SharedThis(this));
 }
 
+bool FRCBehaviourModel::SupportPropertyId() const
+{
+	if (const URCBehaviour* Behavior = BehaviourWeakPtr.Get())
+	{
+		return Behavior->SupportPropertyId();
+	}
+	return false;
+}
+
 URCBehaviour* FRCBehaviourModel::GetBehaviour() const
 {
 	return BehaviourWeakPtr.Get();

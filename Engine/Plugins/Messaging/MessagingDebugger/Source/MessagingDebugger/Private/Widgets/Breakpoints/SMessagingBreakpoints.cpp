@@ -37,7 +37,6 @@ void SMessagingBreakpoints::Construct(const FArguments& InArgs, const TSharedRef
 					[
 						// message list
 						SAssignNew(BreakpointListView, IMessageTracerBreakPointPtr)
-							.ItemHeight(24.0f)
 							.ListItemsSource(&BreakpointList)
 							.SelectionMode(ESelectionMode::Multi)
 							.OnGenerateRow(this, &SMessagingBreakpoints::HandleBreakpointListGenerateRow)

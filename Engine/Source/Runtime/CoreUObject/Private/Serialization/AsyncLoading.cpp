@@ -15,6 +15,7 @@
 #include "Stats/StatsMisc.h"
 #include "Misc/CoreStats.h"
 #include "HAL/IConsoleManager.h"
+#include "Logging/StructuredLog.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/CommandLine.h"
 #include "Misc/App.h"
@@ -42,6 +43,7 @@
 #include "ProfilingDebugging/LoadTimeTracker.h"
 #include "HAL/ThreadHeartBeat.h"
 #include "HAL/ExceptionHandling.h"
+#include "Templates/GuardValueAccessors.h"
 #include "Serialization/AsyncLoadingPrivate.h"
 #include "UObject/UObjectHash.h"
 #include "Templates/UniquePtr.h"
@@ -378,6 +380,7 @@ struct FEDLBootNotificationManager
 
 				if (!bAnyParentOnStack)
 				{
+					checkSlow(Class);
 					CDORecursiveStack.Push(Class);
 					//FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Create CDO %s\r\n"), *BootObject->GetName());
 					Class->GetDefaultObject();
@@ -1717,7 +1720,7 @@ void FImportOrImportIndexArray::HeapPop(int32& OutItem, EAllowShrinking AllowShr
 	{
 		int32 Index = FMath::Clamp<int32>(GetRandomSerialNumber(Num() - 1), 0, Num() - 1);
 		OutItem = (*this)[Index];
-		RemoveAt(Index, 1, EAllowShrinking::No);
+		RemoveAt(Index, EAllowShrinking::No);
 		return;
 	}
 	TArray<int32>::HeapPop(OutItem, AllowShrinking);
@@ -2068,7 +2071,7 @@ FObjectImport* FAsyncPackage::FindExistingImport(int32 LocalImportIndex)
 		if (Import->OuterIndex.IsNull())
 		{
 			Import->XObject = StaticFindObjectFast(UPackage::StaticClass(), nullptr, Linker->GetInstancingContext().RemapPackage(Import->ObjectName), true);
-			check(!Import->XObject || CastChecked<UPackage>(Import->XObject));
+			check(!Import->XObject || CastChecked<UPackage>(Import->XObject, ECastCheckedType::NullChecked));
 		}
 		else if (Import->OuterIndex.IsImport())
 		{
@@ -3551,11 +3554,11 @@ void FAsyncPackage::EventDrivenSerializeExport(int32 LocalExportIndex)
 		{
 			if (Object->GetClass()->HasAnyClassFlags(CLASS_Deprecated))
 			{
-				UE_LOG(LogStreaming, Warning, TEXT("%s"), *FString::Printf(TEXT("%s: Serial size mismatch: Got %d, Expected %d"), *Object->GetFullName(), (int32)(AsyncLoader->Tell() - Export.SerialOffset), Export.SerialSize));
+				UE_LOG(LogStreaming, Warning, TEXT("%s"), *FString::Printf(TEXT("%s: Serial size mismatch: Got %d, Expected %" INT64_FMT), *Object->GetFullName(), (int32)(AsyncLoader->Tell() - Export.SerialOffset), Export.SerialSize));
 			}
 			else
 			{
-				UE_LOG(LogStreaming, Fatal, TEXT("%s"), *FString::Printf(TEXT("%s: Serial size mismatch: Got %d, Expected %d"), *Object->GetFullName(), (int32)(AsyncLoader->Tell() - Export.SerialOffset), Export.SerialSize));
+				UE_LOG(LogStreaming, Fatal, TEXT("%s"), *FString::Printf(TEXT("%s: Serial size mismatch: Got %d, Expected %" INT64_FMT), *Object->GetFullName(), (int32)(AsyncLoader->Tell() - Export.SerialOffset), Export.SerialSize));
 			}
 		}
 
@@ -4052,7 +4055,7 @@ void FAsyncPackage::Event_StartPostload()
 			FObjectExport& Export = Linker->ExportMap[LocalExportIndex];
 			UObject* Object = Export.Object;
 			checkSlow(!(Object && !ReferencedObjects.Contains(Object)));
-			if (Object && (Object->HasAnyFlags(RF_NeedPostLoad) || Object->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading)))
+			if (Object && (Object->HasAnyFlags(RF_NeedPostLoad) || Object->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading)))
 			{
 				check(Object->IsValidLowLevelFast());
 				LoadContext->AddLoadedObject(Object);
@@ -4442,7 +4445,7 @@ EAsyncPackageState::Type FAsyncLoadingThread::ProcessAsyncLoading(int32& OutPack
 						AsyncPackageNameLookup.Remove(Package->GetPackageName());
 						int32 PackageIndex = AsyncPackages.Find(Package);
 						AsyncPackages.RemoveAt(PackageIndex);
-						AsyncPackagesReadyForTick.RemoveAt(0, 1, EAllowShrinking::No); //@todoio this should maybe be a heap or something to avoid the removal cost
+						AsyncPackagesReadyForTick.RemoveAt(0, EAllowShrinking::No); //@todoio this should maybe be a heap or something to avoid the removal cost
 					}
 
 					// We're done, at least on this thread, so we can remove the package now.
@@ -4788,8 +4791,9 @@ EAsyncPackageState::Type FAsyncLoadingThread::ProcessLoadedPackages(bool bUseTim
 			{
 				break;
 			}
-			// if we are done with post load and there isn't any package currently depending on this package we can start to clean it up
-			else if (Package->GetDependencyRefCount() == 0)
+			// if we are done with post load (including not recursively handling one currently) 
+			// and there isn't any package currently depending on this package we can start to clean it up
+			else if (Package->GetDependencyRefCount() == 0 && !Package->IsBeingProcessedRecursively())
 			{
 				check(Result == EAsyncPackageState::Complete);
 				// Remove the package from the list before we trigger the callbacks, 
@@ -4802,10 +4806,7 @@ EAsyncPackageState::Type FAsyncLoadingThread::ProcessLoadedPackages(bool bUseTim
 					if (FPlatformProperties::RequiresCookedData())
 					{
 						// Emulates ResetLoaders on the package linker's linkerroot.
-						if (!Package->IsBeingProcessedRecursively())
-						{
-							Package->ResetLoader();
-						}
+						Package->ResetLoader();
 					}
 					else
 					{
@@ -4977,7 +4978,7 @@ EAsyncPackageState::Type FAsyncLoadingThread::TickAsyncLoading(bool bUseTimeLimi
 #if WITH_EDITOR
 	// In the editor loading cannot be part of a transaction as it cannot be undone, and may result in recording half-loaded objects. So we suppress any active transaction while in this stack, and set the editor loading flag
 	TGuardValue<ITransaction*> SuppressTransaction(GUndo, nullptr);
-	TGuardValue<bool> IsEditorLoadingPackage(GIsEditorLoadingPackage, GIsEditor || GIsEditorLoadingPackage);
+	TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, GIsEditor || UE::GetIsEditorLoadingPackage());
 #endif
 
 	const bool bLoadingSuspended = IsAsyncLoadingSuspendedInternal();
@@ -5562,7 +5563,7 @@ void FAsyncLoadingThread::NotifyConstructedDuringAsyncLoading(UObject* Object, b
 	// finished routing PostLoad to all objects.
 	if (!bSubObject)
 	{
-		Object->SetInternalFlags(EInternalObjectFlags::AsyncLoading);
+		Object->SetInternalFlags(EInternalObjectFlags_AsyncLoading);
 	}
 
 	FAsyncPackage* AsyncPackage = static_cast<FAsyncPackage*>(ThreadContext.AsyncPackage);
@@ -5736,7 +5737,7 @@ void FAsyncPackage::AddObjectReference(UObject* InObject)
 
 void FAsyncPackage::EmptyReferencedObjects()
 {
-	const EInternalObjectFlags AsyncFlags = EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoading;
+	const EInternalObjectFlags AsyncFlags = EInternalObjectFlags::Async | EInternalObjectFlags_AsyncLoading;
 	FScopeLock ReferencedObjectsLock(&ReferencedObjectsCritical);
 	for (UObject* Obj : ReferencedObjects)
 	{
@@ -6015,14 +6016,14 @@ EAsyncPackageState::Type FAsyncPackage::TickAsyncPackage(bool InbUseTimeLimit, b
 					LoadingState = CreateImports();
 				}
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 				// Create and preload the package meta-data
 				if (LoadingState == EAsyncPackageState::Complete && !bLoadHasFinished)
 				{
 					SCOPED_LOADTIMER(Package_CreateMetaData);
 					LoadingState = CreateMetaData();
 				}
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 
 				// Create exports from linker export table and also preload them.
 				if (LoadingState == EAsyncPackageState::Complete && !bLoadHasFinished)
@@ -6179,10 +6180,6 @@ EAsyncPackageState::Type FAsyncPackage::CreateLinker()
 
 			// Always store package filename we loading from
 			Package->SetLoadedPath(Desc.PackagePath);
-#if WITH_EDITORONLY_DATA
-			// Assume all packages loaded through async loading are required by runtime
-			Package->SetLoadedByEditorPropertiesOnly(false);
-#endif
 		}
 
 		LastObjectWorkWasPerformedOn = Package;
@@ -6260,7 +6257,7 @@ EAsyncPackageState::Type FAsyncPackage::CreateLinker()
 
 					if (!FLinkerLoad::IsKnownMissingPackage(NameToLoadFName))
 					{
-						UE_LOG(LogStreaming, Error, TEXT("Couldn't find file for package %s requested by async loading code. NameToLoad: %s"), *Desc.Name.ToString(), *Desc.PackagePath.GetDebugName());
+						UE_LOGFMT(LogStreaming, Error, "Couldn't find file for package {Package} requested by async loading code. NameToLoad: {NameToLoad}", UE::FAssetLog(*Desc.Name.ToString()), UE::FAssetLog(Desc.PackagePath));
 
 #if !WITH_EDITORONLY_DATA
 						UE_CLOG(bUseTimeLimit, LogStreaming, Error, TEXT("This will hitch streaming because it ends up searching the disk instead of finding the file in the pak file."));
@@ -6598,7 +6595,7 @@ EAsyncPackageState::Type FAsyncPackage::LoadImports()
 					PackageLocation = FPackageName::DoesPackageExistEx(ImportedPackagePath, PackageLocation, false /* bMatchCaseOnDisk */, nullptr);
 					if (PackageLocation == FPackageName::EPackageLocationFilter::IoDispatcher)
 					{
-						UE_LOG(LogStreaming, Verbose, TEXT("FAsyncPackage::LoadImports for %s: Loading %s (0x%llX) using IoStore package loader"), *Desc.PackagePath.GetDebugName(), *ImportPackageName, FPackageId::FromName(ImportPackageFName).ValueForDebugging());
+						UE_LOG(LogStreaming, Verbose, TEXT("FAsyncPackage::LoadImports for %s: Loading %s (0x%s) using IoStore package loader"), *Desc.PackagePath.GetDebugName(), *ImportPackageName, *LexToString(FPackageId::FromName(ImportPackageFName)));
 						check(IsInGameThread());
 						FAsyncLoadingThread::LeaveAsyncLoadingTick(AsyncLoadingThread.GetThreadIndex()); // Fix thread check that triggers if we recurse back into the uncooked package loader from here
 						int32 ImportRequestId = IoStorePackageLoader->LoadPackage(ImportedPackagePath, NAME_None, FLoadPackageAsyncDelegate(), PKG_None, INDEX_NONE, 0, nullptr, LOAD_None);
@@ -6700,7 +6697,7 @@ EAsyncPackageState::Type FAsyncPackage::CreateImports()
 	return ImportIndex == Linker->ImportMap.Num() ? EAsyncPackageState::Complete : EAsyncPackageState::TimeOut;
 }
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 /**
 * Creates and loads meta-data for the package.
 *
@@ -6719,7 +6716,7 @@ EAsyncPackageState::Type FAsyncPackage::CreateMetaData()
 
 	return EAsyncPackageState::Complete;
 }
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 
 /**
  * Create exports till time limit is exceeded.
@@ -6737,14 +6734,14 @@ EAsyncPackageState::Type FAsyncPackage::CreateExports()
 	// Create exports.
 	while( ExportIndex < Linker->ExportMap.Num() && !IsTimeLimitExceeded() )
 	{
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 		checkf(MetaDataIndex.IsSet(), TEXT("FAsyncPackage::CreateExports called before FAsyncPackage::CreateMetaData!"));
 		if (ExportIndex == MetaDataIndex.GetValue())
 		{
 			++ExportIndex;
 			continue;
 		}
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 
 		const FObjectExport& Export = Linker->ExportMap[ExportIndex];
 		// Precache data and see whether it's already finished.
@@ -6769,6 +6766,7 @@ EAsyncPackageState::Type FAsyncPackage::CreateExports()
 				// This will cause the object to be serialized. We do this here for all objects and
 				// not just UClass and template objects, for which this is required in order to ensure
 				// seek free loading, to be able introduce async file I/O.
+				UE_TRACK_REFERENCING_PACKAGE_SCOPED(Object, PackageAccessTrackingOps::NAME_PreLoad);
 				Linker->Preload(Object);
 				PackageObjLoaded.Add(Object);
 			}
@@ -6834,6 +6832,7 @@ EAsyncPackageState::Type FAsyncPackage::PreLoadObjects()
 		UObject* Object = PackageObjLoaded[PreLoadIndex++];
 		if (Object && Object->GetLinker())
 		{
+			UE_TRACK_REFERENCING_PACKAGE_SCOPED(Object, PackageAccessTrackingOps::NAME_PreLoad);
 			Object->GetLinker()->Preload(Object);
 				LastObjectWorkWasPerformedOn = Object;
 				LastTypeOfWorkPerformed = TEXT("preloading");
@@ -7064,6 +7063,7 @@ EAsyncPackageState::Type FAsyncPackage::PostLoadDeferredObjects(double InTickSta
 					{
 						if (PreLoadObject && PreLoadObject->GetLinker())
 						{
+							UE_TRACK_REFERENCING_PACKAGE_SCOPED(PreLoadObject, PackageAccessTrackingOps::NAME_PreLoad);
 							PreLoadObject->GetLinker()->Preload(PreLoadObject);
 							PackageObjLoaded.Add(PreLoadObject);
 						}
@@ -7116,7 +7116,7 @@ EAsyncPackageState::Type FAsyncPackage::PostLoadDeferredObjects(double InTickSta
 			UObject* Object = DeferredFinalizeObjects[DeferredFinalizeIndex++];
 			if (Object)
 			{
-				Object->AtomicallyClearInternalFlags(EInternalObjectFlags::AsyncLoading);
+				Object->AtomicallyClearInternalFlags(EInternalObjectFlags_AsyncLoading);
 			}
 
 			// CDO need special handling, no matter if it's listed in DeferredFinalizeObjects
@@ -7128,9 +7128,9 @@ EAsyncPackageState::Type FAsyncPackage::PostLoadDeferredObjects(double InTickSta
 				CDOToHandle->GetDefaultSubobjects(CDODefaultSubobjects);
 				for (UObject* SubObject : CDODefaultSubobjects)
 				{
-					if (SubObject && SubObject->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+					if (SubObject && SubObject->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 					{
-						SubObject->AtomicallyClearInternalFlags(EInternalObjectFlags::AsyncLoading);
+						SubObject->AtomicallyClearInternalFlags(EInternalObjectFlags_AsyncLoading);
 					}
 				}
 				CDODefaultSubobjects.Reset();
@@ -7155,8 +7155,8 @@ EAsyncPackageState::Type FAsyncPackage::PostLoadDeferredObjects(double InTickSta
 		{
 			LastObjectWorkWasPerformedOn = LinkerRoot;
 			LastTypeOfWorkPerformed = TEXT("CreateClustersFromPackage");
-			LinkerRoot->AtomicallyClearInternalFlags(EInternalObjectFlags::AsyncLoading);
-			LinkerRoot->MarkAsFullyLoaded();			
+			LinkerRoot->AtomicallyClearInternalFlags(EInternalObjectFlags_AsyncLoading);
+			LinkerRoot->MarkAsFullyLoaded();
 			LinkerRoot->SetLoadTime((float)(FPlatformTime::Seconds() - LoadStartTime));
 
 			if (Linker)
@@ -7210,7 +7210,7 @@ EAsyncPackageState::Type FAsyncPackage::FinishObjects()
 	LastTypeOfWorkPerformed			= TEXT("finishing all objects");
 
 	FUObjectSerializeContext* LoadContext = GetSerializeContext();
-	check(!Linker || LoadContext == Linker->GetSerializeContext());		
+	check(!Linker || LoadContext == FUObjectThreadContext::Get().GetSerializeContext());
 	TArray<UObject*>& ThreadObjLoaded = LoadContext->PRIVATE_GetObjectsLoadedInternalUseOnly();
 
 	EAsyncLoadingResult::Type LoadingResult;
@@ -7242,7 +7242,7 @@ EAsyncPackageState::Type FAsyncPackage::FinishObjects()
 			{
 				LinkerRoot->ClearFlags(RF_NeedPostLoad | RF_NeedLoad | RF_NeedPostLoadSubobjects);
 				LinkerRoot->MarkAsGarbage();
-				LinkerRoot->Rename(*MakeUniqueObjectName(GetTransientPackage(), UPackage::StaticClass()).ToString(), nullptr, REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders | REN_NonTransactional);
+				LinkerRoot->Rename(*MakeUniqueObjectName(GetTransientPackage(), UPackage::StaticClass()).ToString(), nullptr, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional);
 			}
 			DetachLinker();
 		}
@@ -7268,10 +7268,6 @@ EAsyncPackageState::Type FAsyncPackage::FinishObjects()
 	{
 		const bool bInternalCallbacks = true;
 		CallCompletionCallbacks(bInternalCallbacks, LoadingResult);
-	}
-	else
-	{
-		LoadContext->DetachFromLinkers();
 	}
 
 	return EAsyncPackageState::Complete;
@@ -7398,7 +7394,7 @@ void FAsyncPackage::Cancel()
 		{
 			LinkerRoot->ClearFlags(RF_WasLoaded);
 			LinkerRoot->bHasBeenFullyLoaded = false;
-			LinkerRoot->Rename(*MakeUniqueObjectName(GetTransientPackage(), UPackage::StaticClass()).ToString(), nullptr, REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders | REN_NonTransactional);
+			LinkerRoot->Rename(*MakeUniqueObjectName(GetTransientPackage(), UPackage::StaticClass()).ToString(), nullptr, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional);
 		}
 		ResetLoader();
 	}
@@ -7630,7 +7626,7 @@ EAsyncPackageState::Type FAsyncLoadingThread::ProcessLoading(bool bUseTimeLimit,
 
 	CSV_CUSTOM_STAT(FileIO, EDLEventQueueDepth, EventQueue.EventQueue.Num(), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(FileIO, QueuedPackagesQueueDepth, GetQueuedPackagesCount(), ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT(FileIO, ExistingQueuedPackagesQueueDepth, GetExistingAsyncPackagesCount(), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT_MINIMAL(FileIO, ExistingQueuedPackagesQueueDepth, GetExistingAsyncPackagesCount(), ECsvCustomStatOp::Set);
 
 	{
 		SCOPE_CYCLE_COUNTER(STAT_FAsyncPackage_TickAsyncLoadingGameThread); 
@@ -7727,7 +7723,7 @@ FAsyncArchive::FAsyncArchive(const FPackagePath& InPackagePath, FLinkerLoad* InO
 	SetIsLoading(true);
 
 	LogItem(TEXT("Open"));
-	FOpenAsyncPackageResult OpenResult = IPackageResourceManager::Get().OpenAsyncReadPackage(PackagePath, EPackageSegment::Header);
+	FOpenAsyncPackageResult OpenResult = IPackageResourceManager::Get().OpenAsyncReadPackage(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header);
 	Handle = OpenResult.Handle.Release();
 	check(Handle); // OpenAsyncReadPackage guarantees a non-null return value; the handle will fail to read later if the path does not exist
 	if (OpenResult.Format != EPackageFormat::Binary)
@@ -7961,7 +7957,7 @@ int64 FAsyncArchive::TotalSize()
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_FArchiveAsync2_TotalSize);
 		SizeRequestPtr->WaitCompletion();
-		if ((GEventDrivenLoaderEnabled || bCookedForEDLInEditor) && HeaderSizeWhenReadingExportsFromSplitFile)
+		if ((GEventDrivenLoaderEnabled || bCookedForEDLInEditor || GetLoaderType() == ELoaderType::ZenLoader) && HeaderSizeWhenReadingExportsFromSplitFile)
 		{
 			FileSize = SizeRequestPtr->GetSizeResults();
 		}
@@ -7994,12 +7990,15 @@ FORCEINLINE void FAsyncArchive::SetPosAndUpdatePrecacheBuffer(int64 Pos)
 
 void FAsyncArchive::Seek(int64 InPos)
 {
-	if ((GEventDrivenLoaderEnabled || bCookedForEDLInEditor) && LoadPhase < ELoadPhase::ProcessingExports)
+	if ((GEventDrivenLoaderEnabled || bCookedForEDLInEditor || GetLoaderType() == ELoaderType::ZenLoader) && LoadPhase < ELoadPhase::ProcessingExports)
 	{
-		check(!HeaderSizeWhenReadingExportsFromSplitFile && HeaderSize && TotalSize() == HeaderSize);
-		if (InPos >= HeaderSize)
+		// Auto-detect when exports are in a separate file so we only activate that mode when needed.
+		if (!HeaderSizeWhenReadingExportsFromSplitFile && HeaderSize && TotalSize() == HeaderSize)
 		{
-			FirstExportStarting();
+			if (InPos >= HeaderSize)
+			{
+				FirstExportStarting();
+			}
 		}
 	}
 	checkf(InPos >= 0 && InPos <= TotalSizeOrMaxInt64IfNotReady(), TEXT("Bad position in FAsyncArchive::Seek. Filename:%s InPos:%lu, Size:%lu"),
@@ -8285,26 +8284,30 @@ void FAsyncArchive::FirstExportStarting()
 	LogItem(TEXT("Exports"));
 	LoadPhase = ELoadPhase::ProcessingExports;
 
-	if ((GEventDrivenLoaderEnabled && !EVENT_DRIVEN_ASYNC_LOAD_ACTIVE_AT_RUNTIME) || bCookedForEDLInEditor)
+	if ((GEventDrivenLoaderEnabled && !EVENT_DRIVEN_ASYNC_LOAD_ACTIVE_AT_RUNTIME) || bCookedForEDLInEditor || GetLoaderType() == ELoaderType::ZenLoader)
 	{
-		FlushCache();
-		if (Handle)
+		// Detect when exports are in a separate file before trying to activate that mode.
+		if (!HeaderSizeWhenReadingExportsFromSplitFile && HeaderSize && TotalSize() == HeaderSize)
 		{
-			delete Handle;
-			Handle = nullptr;
-		}
+			FlushCache();
+			if (Handle)
+			{
+				delete Handle;
+				Handle = nullptr;
+			}
 
-		HeaderSizeWhenReadingExportsFromSplitFile = HeaderSize;
+			HeaderSizeWhenReadingExportsFromSplitFile = HeaderSize;
 
-		FOpenAsyncPackageResult OpenResult = IPackageResourceManager::Get().OpenAsyncReadPackage(PackagePath, EPackageSegment::Exports);
-		Handle = OpenResult.Handle.Release();
-		check(Handle); // OpenAsyncReadPackage guarantees a non-null return value; the handle will fail to read later if the path does not exist
+			FOpenAsyncPackageResult OpenResult = IPackageResourceManager::Get().OpenAsyncReadPackage(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Exports);
+			Handle = OpenResult.Handle.Release();
+			check(Handle); // OpenAsyncReadPackage guarantees a non-null return value; the handle will fail to read later if the path does not exist
 
-		check(!SizeRequestPtr);
-		SizeRequestPtr = Handle->SizeRequest();
-		if (SizeRequestPtr->PollCompletion())
-		{
-			TotalSize(); // complete the request
+			check(!SizeRequestPtr);
+			SizeRequestPtr = Handle->SizeRequest();
+			if (SizeRequestPtr->PollCompletion())
+			{
+				TotalSize(); // complete the request
+			}
 		}
 	}
 }
@@ -8319,7 +8322,7 @@ IAsyncReadRequest* FAsyncArchive::MakeEventDrivenPrecacheRequest(int64 Offset, i
 		IAsyncReadFileHandle* NewHandle;
 		{
 			double StartTime = FPlatformTime::Seconds();
-			FOpenAsyncPackageResult OpenResult = IPackageResourceManager::Get().OpenAsyncReadPackage(PackagePath, EPackageSegment::Exports);
+			FOpenAsyncPackageResult OpenResult = IPackageResourceManager::Get().OpenAsyncReadPackage(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Exports);
 			NewHandle = OpenResult.Handle.Release();
 			check(NewHandle); // OpenAsyncReadPackage guarantees a non-null return value; the handle will fail to read later if the path does not exist
 			LogItem(TEXT("Open UExp"), Offset - HeaderSizeWhenReadingExportsFromSplitFile, BytesToRead, StartTime);

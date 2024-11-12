@@ -16,7 +16,7 @@ void AddUniqueNamesToSet(const TArray<FName>& Names, const FName SetName, TMap<F
 void FPhysicsControlNameRecords::AddControl(FName Name, FName SetName)
 {
 	ControlSets.FindOrAdd(SetName).AddUnique(Name);
-	ControlSets.FindOrAdd("All").AddUnique(Name);
+	ControlSets.FindOrAdd(TEXT("All")).AddUnique(Name);
 }
 
 //======================================================================================================================
@@ -26,7 +26,7 @@ void FPhysicsControlNameRecords::AddControl(FName Name, const TArray<FName>& Set
 	{
 		ControlSets.FindOrAdd(SetName).AddUnique(Name);
 	}
-	ControlSets.FindOrAdd("All").AddUnique(Name);
+	ControlSets.FindOrAdd(TEXT("All")).AddUnique(Name);
 }
 
 
@@ -62,7 +62,7 @@ const TArray<FName>& FPhysicsControlNameRecords::GetControlNamesInSet(FName SetN
 void FPhysicsControlNameRecords::AddBodyModifier(FName Name, FName SetName)
 {
 	BodyModifierSets.FindOrAdd(SetName).AddUnique(Name);
-	BodyModifierSets.FindOrAdd("All").AddUnique(Name);
+	BodyModifierSets.FindOrAdd(TEXT("All")).AddUnique(Name);
 }
 
 //======================================================================================================================
@@ -72,14 +72,14 @@ void FPhysicsControlNameRecords::AddBodyModifier(FName Name, const TArray<FName>
 	{
 		BodyModifierSets.FindOrAdd(SetName).AddUnique(Name);
 	}
-	BodyModifierSets.FindOrAdd("All").AddUnique(Name);
+	BodyModifierSets.FindOrAdd(TEXT("All")).AddUnique(Name);
 }
 
 //======================================================================================================================
 void FPhysicsControlNameRecords::AddBodyModifiers(const TArray<FName>& BodyModifierNames, const FName SetName)
 {
 	AddUniqueNamesToSet(BodyModifierNames, SetName, BodyModifierSets);
-	AddUniqueNamesToSet(BodyModifierNames, "All", BodyModifierSets);
+	AddUniqueNamesToSet(BodyModifierNames, TEXT("All"), BodyModifierSets);
 }
 
 //======================================================================================================================
@@ -126,7 +126,7 @@ TArray<FName> ExpandName(const FName InName, const TMap<FName, TArray<FName>>& S
 }
 
 //======================================================================================================================
-TArray<FName> ExpandName(const TArray<FName>& InNames, const TMap<FName, TArray<FName>>& SetNames)
+TArray<FName> ExpandNames(const TArray<FName>& InNames, const TMap<FName, TArray<FName>>& SetNames)
 {
 	TArray<FName> OutputNames;
 

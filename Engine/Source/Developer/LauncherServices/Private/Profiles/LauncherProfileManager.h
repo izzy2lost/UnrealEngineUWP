@@ -121,6 +121,8 @@ public:
 
 	virtual const TArray<FString>& GetAllExplicitBuildTargetNames() const override;
 
+	virtual FString MakeBuildCookRunParamsForProjectCustomBuild(const ILauncherProfileRef& InProfile, const TArray<FString>& InPlatforms) const override;
+
 	//~ End ILauncherProfileManager Interface
 
 protected:

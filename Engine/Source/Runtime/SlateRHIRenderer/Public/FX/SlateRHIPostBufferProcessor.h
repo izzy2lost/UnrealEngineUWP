@@ -2,16 +2,13 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Engine/TextureRenderTarget2D.h"
-#include "RenderResource.h"
-#include "RendererInterface.h"
 #include "Rendering/RenderingCommon.h"
 #include "Rendering/SlateRenderer.h"
-#include "RHIFwd.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
 #include "Interfaces/SlateRHIRenderingPolicyInterface.h"
+#include "ScreenPass.h"
 
 #include "SlateRHIPostBufferProcessor.generated.h"
 
@@ -26,23 +23,21 @@ class SLATERHIRENDERER_API FSlateRHIPostBufferProcessorProxy : public TSharedFro
 {
 
 public:
-
 	virtual ~FSlateRHIPostBufferProcessorProxy()
 	{
 	}
 
-	/**
-	 * Called directly inside renderthread to perform some processing, do not enque commands here as we are already in the renderthread
-	 *
-	 * @param Src					Source texture to process as Input
-	 * @param Dst					Destination texture to store process output
-	 * @param SrcRect				Rect within source texture to sample, in PIE this is a subsection, in standlone it should be the entire texture
-	 * @param DstRect				Rect within output to write out, since this is within the renderthread should almost always be Dst's Extent.
-	 * @param InRenderingPolicy		RenderingPolicy used to assist / perform processing
-	 */
+	/** Called on the render thread to run a post processing operation on the input texture and produce the output texture. */
+	virtual void PostProcess_Renderthread(FRDGBuilder& GraphBuilder, const FScreenPassTexture& InputTexture, const FScreenPassTexture& OutputTexture)
+	{
+	}
+
+	UE_DEPRECATED(5.5, "Use RDG version instead.")
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	virtual void PostProcess_Renderthread(FRHICommandListImmediate& RHICmdList, FRHITexture* Src, FRHITexture* Dst, FIntRect SrcRect, FIntRect DstRect, FSlateRHIRenderingPolicyInterface InRenderingPolicy)
 	{
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** 
 	 * Called when an post buffer update element is added to a renderbatch, 
@@ -96,9 +91,12 @@ public:
 	 * @param InRenderingPolicy		Slate RHI RenderingPolicy
 	 * @param InSlatePostBuffer		Texture render target used for final output
 	 */
+	UE_DEPRECATED(5.5, "This path is longer supported. Get the render proxy instead.")
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	virtual void PostProcess(FRenderResource* InViewInfo, FRenderResource* InViewportTexture, FVector2D InElementWindowSize, FSlateRHIRenderingPolicyInterface InRenderingPolicy, UTextureRenderTarget2D* InSlatePostBuffer)
 	{
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * Gets proxy for this post buffer processor, for execution on the renderthread
@@ -107,39 +105,4 @@ public:
 	{
 		return nullptr;
 	}
-
-protected:
-
-	/** 
-	 * Gets scene backbuffer, typically used as 'Src' texture for post process, but not always (Ex: PIE).
-	 * 
-	 * @param InViewInfo			'FViewportInfo' resource used to get backbuffer in standalone
-	 * @param InViewportTexture		'FSlateRenderTargetRHI' resource used to get the 'BufferedRT' viewport texture used in PIE
-	 * @param InElementWindowSize	Size of window being rendered, used to determine if using stereo rendering or not.
-	 * @param InRHICmdList			RHI command list to queue commands on
-	 */
-	static FTexture2DRHIRef GetBackbuffer_RenderThread(FRenderResource* InViewInfo, FRenderResource* InViewportTexture, FVector2D InElementWindowSize, FRHICommandListImmediate& InRHICmdList);
-
-	/**
-	 * Gets 'Src' texture for post process command. Typically the scenebuffer.
-	 *
-	 * @param InBackBuffer			Backbuffer used in standalone
-	 * @param InViewportTexture		'FSlateRenderTargetRHI' resource used for 'BufferedRT' viewport texture in PIE
-	 */
-	static FTexture2DRHIRef GetSrcTexture_RenderThread(FTexture2DRHIRef InBackBuffer, FRenderResource* InViewportTexture);
-
-	/**
-	 * Gets 'Dst' texture for post process command. Convience method, this should be possible through the direct resource.
-	 *
-	 * @param InSlatePostBuffer		Texture render target used for final output
-	 */
-	static FTextureReferenceRHIRef& GetDstTexture_RenderThread(UTextureRenderTarget2D* InSlatePostBuffer);
-
-	/**
-	 * Gets 'Dst' extent. Used for final size in post process command.
-	 *
-	 * @param InBackBuffer			Backbuffer used for size in standalone
-	 * @param InViewportTexture		'FSlateRenderTargetRHI' resource used for 'BufferedRT' viewport texture size in PIE
-	 */
-	static FIntPoint GetDstExtent_RenderThread(FTexture2DRHIRef InBackBuffer, FRenderResource* InViewportTexture);
 };

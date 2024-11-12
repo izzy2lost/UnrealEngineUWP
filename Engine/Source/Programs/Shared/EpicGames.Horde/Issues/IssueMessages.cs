@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Logs;
@@ -41,7 +42,23 @@ namespace EpicGames.Horde.Issues
 		/// <summary>
 		/// The changelist number
 		/// </summary>
-		public int Change { get; set; }
+		[Obsolete("Use Commit instead")]
+		public int Change
+		{
+			get => _change ?? _commitId?.TryGetPerforceChange() ?? -1;
+			set => _change = value;
+		}
+		int? _change;
+
+		/// <summary>
+		/// The commit for this step
+		/// </summary>
+		public CommitIdWithOrder CommitId
+		{
+			get => _commitId ?? CommitIdWithOrder.FromPerforceChange(_change) ?? CommitIdWithOrder.Empty;
+			set => _commitId = value;
+		}
+		CommitIdWithOrder? _commitId;
 
 		/// <summary>
 		/// Severity of the issue in this step
@@ -131,14 +148,46 @@ namespace EpicGames.Horde.Issues
 		public StreamId StreamId { get; set; }
 
 		/// <summary>
+		/// Minimum commit affected by this issue (ie. last successful build)
+		/// </summary>
+		[Obsolete("Use MinCommitId instead")]
+		public int? MinChange
+		{
+			get => _minChange ?? _minCommitId?.GetPerforceChangeOrMinusOne();
+			set => _minChange = value;
+		}
+		int? _minChange;
+
+		/// <summary>
+		/// Maximum commit affected by this issue (ie. next successful build)
+		/// </summary>
+		[Obsolete("Use MaxCommitId instead")]
+		public int? MaxChange
+		{
+			get => _maxChange ?? _maxCommitId?.GetPerforceChangeOrMinusOne();
+			set => _maxChange = value;
+		}
+		int? _maxChange;
+
+		/// <summary>
 		/// Minimum changelist affected by this issue (ie. last successful build)
 		/// </summary>
-		public int? MinChange { get; set; }
+		public CommitIdWithOrder? MinCommitId
+		{
+			get => _minCommitId ?? CommitIdWithOrder.FromPerforceChange(_minChange);
+			set => _minCommitId = value;
+		}
+		CommitIdWithOrder? _minCommitId;
 
 		/// <summary>
 		/// Maximum changelist affected by this issue (ie. next successful build)
 		/// </summary>
-		public int? MaxChange { get; set; }
+		public CommitIdWithOrder? MaxCommitId
+		{
+			get => _maxCommitId ?? CommitIdWithOrder.FromPerforceChange(_maxChange);
+			set => _maxCommitId = value;
+		}
+		CommitIdWithOrder? _maxCommitId;
 
 		/// <summary>
 		/// Map of steps to (event signature id -> trace id)
@@ -275,6 +324,11 @@ namespace EpicGames.Horde.Issues
 		public string? Description { get; set; }
 
 		/// <summary>
+		/// Description of the current fingerprint used for issue identification
+		/// </summary>
+		public string? FingerprintDescription { get; set; }
+
+		/// <summary>
 		/// Severity of this issue
 		/// </summary>
 		public IssueSeverity Severity { get; set; }
@@ -315,9 +369,34 @@ namespace EpicGames.Horde.Issues
 		public DateTime? AcknowledgedAt { get; set; }
 
 		/// <summary>
-		/// Changelist that fixed this issue
+		/// Perforce changelist that fixed this issue
 		/// </summary>
-		public int? FixChange { get; set; }
+		public int? FixChange
+		{
+			get => _fixChange ?? _fixCommitId?.GetPerforceChangeOrMinusOne();
+			set => _fixChange = value;
+		}
+		int? _fixChange;
+
+		/// <summary>
+		/// Commit that fixed this issue
+		/// </summary>
+		public CommitId? FixCommitId
+		{
+			get => _fixCommitId ?? CommitId.FromPerforceChange(_fixChange);
+			set => _fixCommitId = value;
+		}
+		CommitId? _fixCommitId;
+
+		/// <summary>
+		/// Whether the issue is marked fixed as a systemic issue
+		/// </summary>
+		public bool FixSystemic
+		{
+			get => _fixSystemic ?? (_fixChange < 0);
+			set => _fixSystemic = value;
+		}
+		bool? _fixSystemic;
 
 		/// <summary>
 		/// Time at which the issue was resolved
@@ -519,7 +598,32 @@ namespace EpicGames.Horde.Issues
 		/// <summary>
 		/// Changelist that fixed this issue
 		/// </summary>
-		public int? FixChange { get; set; }
+		public int? FixChange
+		{
+			get => _fixChange ?? ((_fixSystemic ?? false) ? -1 : _fixCommitId?.GetPerforceChangeOrMinusOne());
+			set => _fixChange = value;
+		}
+		int? _fixChange;
+
+		/// <summary>
+		/// Changelist that fixed this issue
+		/// </summary>
+		public CommitId? FixCommitId
+		{
+			get => _fixCommitId ?? CommitId.FromPerforceChange(_fixChange);
+			set => _fixCommitId = value;
+		}
+		CommitId? _fixCommitId;
+
+		/// <summary>
+		/// Whether the issue is marked fixed as a systemic issue
+		/// </summary>
+		public bool FixSystemic
+		{
+			get => _fixSystemic ?? (_fixChange < 0);
+			set => _fixSystemic = value;
+		}
+		bool? _fixSystemic;
 
 		/// <summary>
 		/// Time at which the issue was resolved
@@ -615,7 +719,33 @@ namespace EpicGames.Horde.Issues
 		/// <summary>
 		/// The change at which the issue is claimed fixed. 0 = not fixed, -1 = systemic issue.
 		/// </summary>
-		public int? FixChange { get; set; }
+		[Obsolete("Use FixCommitId and FixSystemic instead")]
+		public int? FixChange
+		{
+			get => _fixChange ?? ((_fixSystemic ?? false) ? -1 : _fixCommitId?.GetPerforceChangeOrMinusOne());
+			set => _fixChange = value;
+		}
+		int? _fixChange;
+
+		/// <summary>
+		/// The change at which the issue is claimed fixed. """" = not fixed.
+		/// </summary>
+		public CommitId? FixCommitId
+		{
+			get => _fixCommitId ?? ((_fixChange < 0)? null : (_fixChange == 0)? CommitId.Empty : CommitId.FromPerforceChange(_fixChange));
+			set => _fixCommitId = value;
+		}
+		CommitId? _fixCommitId;
+
+		/// <summary>
+		/// Set to mark the issue as fixed systemically
+		/// </summary>
+		public bool FixSystemic
+		{
+			get => _fixSystemic ?? (_fixChange < 0);
+			set => _fixSystemic = value;
+		}
+		bool? _fixSystemic;
 
 		/// <summary>
 		/// Whether the issue should be marked as resolved

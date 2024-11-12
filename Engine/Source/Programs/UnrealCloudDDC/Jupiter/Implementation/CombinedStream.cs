@@ -29,7 +29,7 @@ internal class CombinedStream : Stream
 			}
 
 			int bytesRead = stream.Read(buffer, offset, count);
-			while(bytesRead != 0)
+			while (bytesRead != 0)
 			{
 				totalBytesRead += bytesRead;
 				offset += bytesRead;

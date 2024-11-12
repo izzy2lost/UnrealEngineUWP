@@ -6,6 +6,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include <cmath>
 
 #define SINGULAR_QUADRIC_DET 1e-8
 

@@ -30,6 +30,7 @@
 #include "Engine/TextureRenderTarget2DArray.h"
 #include "Engine/TextureRenderTargetCube.h"
 #include "Engine/TextureRenderTargetVolume.h"
+#include "Interfaces/IProjectManager.h"
 #include "Interfaces/ITextureEditorModule.h"
 #include "TextureEditor.h"
 #include "Slate/SceneViewport.h"
@@ -44,6 +45,7 @@
 #include "Curves/CurveLinearColorAtlas.h"
 #include "TextureEditorSettings.h"
 #include "Widgets/Input/SSlider.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Input/STextComboBox.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "Menus/TextureEditorViewOptionsMenu.h"
@@ -73,7 +75,7 @@ const FName FTextureEditorToolkit::OodleTabId(TEXT("TextureEditor_Oodle"));
 
 UNREALED_API void GetBestFitForNumberOfTiles(int32 InSize, int32& OutRatioX, int32& OutRatioY);
 
-EPixelFormatChannelFlags GetPixelFormatChannelFlagForButton(ETextureChannelButton InButton)
+static EPixelFormatChannelFlags GetPixelFormatChannelFlagForButton(ETextureChannelButton InButton)
 {
 	switch (InButton)
 	{
@@ -102,12 +104,40 @@ EPixelFormatChannelFlags GetPixelFormatChannelFlagForButton(ETextureChannelButto
 	return EPixelFormatChannelFlags::None;
 }
 
+// returns true if you should call PostEditChange/UpdateResource/etc to re-compress the texture
+//	 after changing properties ; if false the PlatformData should be left as-is
+static bool CanRecompressTexture(UTexture * Texture)
+{
+	if ( ! Texture->Source.IsValid() )
+	{
+		return false;
+	}
+
+	// legacy code was doing this to identify rendertargets :
+	// not sure this is doing anything useful, the source.isvalid check above does all the work
+	ETextureClass TextureClass = Texture->GetTextureClass();
+	if (TextureClass == ETextureClass::RenderTarget ||
+		TextureClass == ETextureClass::Other2DNoSource ||
+		TextureClass == ETextureClass::TwoDDynamic)
+	{
+		return false;
+	}
+
+	return true;
+}
+
 void FTextureEditorToolkit::PostTextureRecode()
 {
+	if ( ! CanRecompressTexture(Texture) )
+	{
+		return;
+	}
+
 	// Each time we change a custom encode setting we want to re-encode the texture
 	// as though we changed a compression setting on the actual texture, so we just
 	// post a CompressionSettings property changed event to handle all of that for
 	// us.
+	// @@ this is a bit odd, why is it done this way rather than just calling PostEditChange() ?
 	FProperty* Property = FindFProperty<FProperty>(UTexture::StaticClass(), "CompressionSettings");
 	FPropertyChangedEvent PropertyChangedEvent(Property);
 	Texture->PostEditChangeProperty(PropertyChangedEvent);
@@ -144,12 +174,33 @@ FTextureEditorToolkit::~FTextureEditorToolkit( )
 	GEditor->GetEditorSubsystem<UImportSubsystem>()->OnAssetPostImport.RemoveAll(this);
 
 	GEditor->UnregisterForUndo(this);
+	
+	// we are leaving the texture editor
+	// restore any temporary encoding settings we may have changed
 
-	if (CustomEncoding->bUseCustomEncode)
+	if ( Texture->DeferCompression || 
+		Texture->OverrideRunningPlatformName != NAME_None ||
+		CustomEncoding->bUseCustomEncode )
 	{
-		// reencode the texture with normal settings.
+		Texture->BlockOnAnyAsyncBuild(); // PreEditChange , but don't mark as modified ; same as Modify(false)
+	
+		Texture->DeferCompression = false;
+
+		// we could leave OverrideRunningPlatformName set (like CompressFinal)
+		//	it will stay set for this Editor session, it is not serialized
+		// for now let's clear it for consistency's sake
+		Texture->OverrideRunningPlatformName = NAME_None;
+
 		CustomEncoding->bUseCustomEncode = false;
-		PostTextureRecode();
+		Texture->TextureEditorCustomEncoding = nullptr;
+	
+		// Texture->CompressFinal intentionally not changed
+		//	it will stay set for this Editor session, it is not serialized
+		
+		if ( CanRecompressTexture(Texture) )
+		{
+			Texture->PostEditChange();
+		}
 	}
 }
 
@@ -208,7 +259,7 @@ void FTextureEditorToolkit::InitTextureEditor( const EToolkitMode::Type Mode, co
 	Texture = CastChecked<UTexture>(ObjectToEdit);
 
 	// The texture being edited might still be compiling, wait till it finishes then.
-	// FinishCompilation is nice enough to provide a progress for us while we're waiting.
+	// @@ is this necessary? can we remove it?
 	Texture->BlockOnAnyAsyncBuild();
 
 	// Support undo/redo
@@ -216,6 +267,15 @@ void FTextureEditorToolkit::InitTextureEditor( const EToolkitMode::Type Mode, co
 	GEditor->RegisterForUndo(this);
 
 	CustomEncoding = MakeShared<FTextureEditorCustomEncode>(FTextureEditorCustomEncode());
+	
+	check( CustomEncoding->bUseCustomEncode == false );
+
+	// OpenAssetEditor should ensure that we never have two toolkits open for the same asset!
+	check(Texture->TextureEditorCustomEncoding == nullptr);
+
+	// We save this as a separate object so that the engine can reference the type
+	// without needing the texture editor module.
+	Texture->TextureEditorCustomEncoding = CustomEncoding;
 
 	// initialize view options
 	bIsRedChannel = true;
@@ -331,21 +391,9 @@ void FTextureEditorToolkit::InitTextureEditor( const EToolkitMode::Type Mode, co
 	// for the current editor session, but since it's already getting built this is
 	// fine. This doesn't need the normal Modify() / PreEditChange/PostEditChange incantations
 	// because it's transient, and any async build was completed above.
-	if ( Texture->Source.IsValid() && ( (int64)Texture->Source.GetSizeX() * Texture->Source.GetSizeY() <= 4096*4096  ) )
-	{
-		Texture->CompressFinal = true;
-	}
+	Texture->CompressFinal = ( Texture->Source.IsValid() && ( Texture->Source.GetTotalTopMipPixelCount() <= (int64)4096*4096  ) );
 
-	// We don't want to post recodes for render targets because that clears them to black and
-	// we don't care about CompressFinal for them anyway as they aren't encoded. While we are
-	// here, don't bother with other dynamic textures as well.
-	ETextureClass TextureClass = Texture->GetTextureClass();
-	if (TextureClass != ETextureClass::RenderTarget &&
-		TextureClass != ETextureClass::Other2DNoSource &&
-		TextureClass != ETextureClass::TwoDDynamic)
-	{
-		PostTextureRecode();
-	}
+	PostTextureRecode();
 
 	// @todo toolkit world centric editing
 	/*if(IsWorldCentricAssetEditor())
@@ -371,12 +419,17 @@ void FTextureEditorToolkit::CalculateTextureDimensions(int32& OutWidth, int32& O
 	
 	if (UTexture2D* Texture2D = Cast<UTexture2D>(Texture))
 	{
-		if (UTexture2D* CpuTexture = Texture2D->GetCPUCopyTexture())
+		// GetCPUCopyTexture waits on the build if there is one.
+		if (Texture2D->Availability == ETextureAvailability::CPU &&
+			Texture2D->IsAsyncCacheComplete())
 		{
-			OutWidth = CpuTexture->GetSurfaceWidth();
-			OutHeight = CpuTexture->GetSurfaceHeight();
-			OutDepth = 1;
-			OutArraySize = 0;
+			if (UTexture2D* CpuTexture = Texture2D->GetCPUCopyTexture())
+			{
+				OutWidth = CpuTexture->GetSurfaceWidth();
+				OutHeight = CpuTexture->GetSurfaceHeight();
+				OutDepth = 1;
+				OutArraySize = 0;
+			}
 		}
 	}
 
@@ -542,7 +595,7 @@ void FTextureEditorToolkit::PopulateQuickInfo( )
 		LODBiasText->SetText(NSLOCTEXT("TextureEditor", "QuickInfo_LODBias_NA", "Combined LOD Bias: Computing..."));
 		FormatText->SetText(NSLOCTEXT("TextureEditor", "QuickInfo_Format_NA", "Format: Computing..."));
 		NumMipsText->SetText(NSLOCTEXT("TextureEditor", "QuickInfo_NumMips_NA", "Number of Mips: Computing..."));
-		HasAlphaChannelText->SetText(NSLOCTEXT("TextureEditor", "QuickInfo_HasAlphaChannel_NA", "Has Alpha Channel: Computing..."));
+		HasAlphaChannelText->SetText(NSLOCTEXT("TextureEditor", "QuickInfo_HasAlphaChannel_NA", "Format Supports Alpha: Computing..."));
 		EncodeSpeedText->SetText(NSLOCTEXT("TextureEditor", "QuickInfo_EncodeSpeed_Computing", "Encode Speed: Computing..."));
 		SceneCaptureSizeText->SetText(FText());
 		SceneCaptureNameText->SetText(FText());
@@ -746,19 +799,25 @@ void FTextureEditorToolkit::PopulateQuickInfo( )
 		} // end if results metadata valid
 
 		if (Texture->Source.IsValid() &&
-			Texture->Source.GetLayerColorInfo().Num())
+			Texture->Source.HasLayerColorInfo())
 		{
-			// Make a 1x1 image with our max colors to use for alpha detection.
-			FImageView View(&Texture->Source.GetLayerColorInfo()[0].ColorMin, 1, 1);
+			// Make a 1x1 image with our min color to use for alpha detection.
+			
+			TArray<FTextureSourceLayerColorInfo> LayerColorInfo;
+			Texture->Source.GetLayerColorInfo(LayerColorInfo);
+
+			FImageView View(&LayerColorInfo[0].ColorMin, 1, 1);
 
 			bool bSourceAlphaDetected = FImageCore::DetectAlphaChannel(View);
 			SourceMipsAlphaDetectedText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_SourceAlphaDetected", "Source Alpha Detected: {0}"),
 				bSourceAlphaDetected ? NSLOCTEXT("TextureEditor", "True", "True") : NSLOCTEXT("TextureEditor", "False", "False")));
+			DetectSourceAlphaButton->SetVisibility(EVisibility::Hidden);
 		}
 		else
 		{
 			SourceMipsAlphaDetectedText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_SourceAlphaDetected", "Source Alpha Detected: {0}"),
 				NSLOCTEXT("TextureEditor", "Unknown", "Unknown")));
+			DetectSourceAlphaButton->SetVisibility(Texture->Source.IsValid() ? EVisibility::Visible : EVisibility::Hidden);
 		}
 	} // end if valid platform data
 
@@ -869,7 +928,10 @@ void FTextureEditorToolkit::PopulateQuickInfo( )
 		MaxInGameText->SetText(FText::Format( NSLOCTEXT("TextureEditor", "QuickInfo_MaxInGame_2x", "Max In-Game: {0}x{1}{2}"), FText::AsNumber(MaxInGameWidth, &FormatOptions), FText::AsNumber(MaxInGameHeight, &FormatOptions), InGameCubemapInfo));
 	}
 
-	if (Texture2D)
+	// GetCPUCopyTexture waits on the build if there is one.
+	if (Texture2D &&
+		Texture2D->Availability == ETextureAvailability::CPU &&
+		Texture2D->IsAsyncCacheComplete())
 	{
 		if (UTexture2D* CpuTexture = Texture2D->GetCPUCopyTexture(); CpuTexture)
 		{
@@ -878,7 +940,16 @@ void FTextureEditorToolkit::PopulateQuickInfo( )
 		}
 	}
 
-	SizeText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_ResourceSize", "Resource Size: {0} KB"), FText::AsNumber(FMath::DivideAndRoundNearest(ResourceSize, (int64)1024), &FormatOptions)));
+	if (ViewingPlatform != NAME_None)
+	{
+		// Right now the resource size is the size of the texture we are viewing which could be decoded BGRA8 and not
+		// what you expect. This has been causing confusion so until I do UE-212930 we just make it clear we don't know.
+		SizeText->SetText(NSLOCTEXT("TextureEditor", "QuickInfo_ResourceSizeUnknown", "Resource Size: <unknown due to platform preview>"));
+	}
+	else
+	{
+		SizeText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_ResourceSize", "Resource Size: {0} KB"), FText::AsNumber(FMath::DivideAndRoundNearest(ResourceSize, (int64)1024), &FormatOptions)));
+	}
 
 	FText Method = Texture->IsCurrentlyVirtualTextured() ? NSLOCTEXT("TextureEditor", "QuickInfo_MethodVirtualStreamed", "Virtual Streamed")
 													: (!Texture->IsStreamable() ? NSLOCTEXT("TextureEditor", "QuickInfo_MethodNotStreamed", "Not Streamed") 
@@ -890,13 +961,31 @@ void FTextureEditorToolkit::PopulateQuickInfo( )
 	EPixelFormat TextureFormat = GetPixelFormat();
 	if (TextureFormat != PF_MAX)
 	{
-		FormatText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_Format", "Format: {0}"), FText::FromString(GPixelFormats[(uint8)TextureFormat].Name)));
+		if (ViewingPlatform != NAME_None)
+		{
+			// This can end up unknown for several reasons (can't determine alpha primarily) but should usually have it.
+			EPixelFormat EncodedPixelFormat = PF_Unknown;
+			if (PlatformDataPtr && 
+				PlatformDataPtr[0] && // Can be null if we haven't had a chance to call CachePlatformData on the texture (brand new)
+				PlatformDataPtr[0]->ResultMetadata.bIsValid)
+			{
+				EncodedPixelFormat = PlatformDataPtr[0]->ResultMetadata.EncodedFormat;
+			}
+
+			FormatText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_PlatformFormat", "Format: Viewing {0} Actual {1}"), 
+				FText::FromString(GPixelFormats[(uint8)TextureFormat].Name),
+				FText::FromString(GPixelFormats[(uint8)EncodedPixelFormat].Name)));
+		}
+		else
+		{
+			FormatText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_Format", "Format: {0}"), FText::FromString(GPixelFormats[(uint8)TextureFormat].Name)));
+		}
 	}
 
 	// This "Has Alpha Channel" is whether the GPU format can represent alpha in the format (eg. is it DXT1 vs DXT5)
 	//	it does not tell you if the texture actually has non-opaque alpha
 	EPixelFormatChannelFlags ValidTextureChannels = GetPixelFormatValidChannels(TextureFormat);
-	HasAlphaChannelText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_HasAlphaChannel", "Has Alpha Channel: {0}"),
+	HasAlphaChannelText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_HasAlphaChannel", "Format Supports Alpha: {0}"),
 		EnumHasAnyFlags(ValidTextureChannels, EPixelFormatChannelFlags::A) ? NSLOCTEXT("TextureEditor", "True", "True") : NSLOCTEXT("TextureEditor", "False", "False")));
 	HasAlphaChannelText->SetVisibility((ValidTextureChannels != EPixelFormatChannelFlags::None) ? EVisibility::Visible : EVisibility::Collapsed);
 
@@ -1779,15 +1868,24 @@ void FTextureEditorToolkit::CreateInternalWidgets()
 			.VAlign(VAlign_Center)
 			.Padding(4.0f)
 			[
-				SAssignNew(HasAlphaChannelText, STextBlock)
-			]
+				SNew(SHorizontalBox)
 
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.VAlign(VAlign_Center)
-			.Padding(4.0f)
-			[
-				SAssignNew(SourceMipsAlphaDetectedText, STextBlock)
+				+ SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SAssignNew(SourceMipsAlphaDetectedText, STextBlock)
+				]
+
+				+ SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.Padding(4.0f, 0.0f, 0.0f, 0.0f)
+				.AutoWidth()
+				[
+					SAssignNew(DetectSourceAlphaButton, SButton)
+					.Text(LOCTEXT("DetectSourceAlpha_Button", "Detect"))
+					.OnClicked(this, &FTextureEditorToolkit::DetectSourceAlphaButton_Clicked)
+				]
 			]
 
 			+ SVerticalBox::Slot()
@@ -1819,6 +1917,16 @@ void FTextureEditorToolkit::CreateInternalWidgets()
 			[
 				SAssignNew(FormatText, STextBlock)
 			]
+
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.VAlign(VAlign_Center)
+			.Padding(4.0f)
+			[
+				SAssignNew(HasAlphaChannelText, STextBlock)
+			]
+
 
 			+ SVerticalBox::Slot()
 			.AutoHeight()
@@ -1973,6 +2081,15 @@ void FTextureEditorToolkit::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 			ToolbarBuilder.AddWidget(ZoomControl);
 		}
 		ToolbarBuilder.EndSection();
+
+		{
+			ToolbarBuilder.BeginSection("PlatformPreview");
+			{
+				ToolbarBuilder.AddWidget(MakePlatformSelectorWidget());
+			}
+			ToolbarBuilder.EndSection();
+		}
+
 
 		ToolbarBuilder.BeginSection("Settings");
 		ToolbarBuilder.BeginStyleOverride("CalloutToolbar");
@@ -2321,13 +2438,20 @@ bool FTextureEditorToolkit::HandleCubemapViewModeActionIsChecked(ETextureEditorC
 
 void FTextureEditorToolkit::HandleCompressNowActionExecute( )
 {
+	if ( ! CanRecompressTexture(Texture) )
+	{
+		return;
+	}
+
 	GWarn->BeginSlowTask(NSLOCTEXT("TextureEditor", "CompressNow", "Compressing 1 Textures that have Defer Compression set"), true);
+
+	// turn off deferred compression and compress the texture
 
 	if (Texture->DeferCompression)
 	{
-		// turn off deferred compression and compress the texture
+		Texture->BlockOnAnyAsyncBuild(); // PreEditChange , but don't mark as modified ; same as Modify(false)
 		Texture->DeferCompression = false;
-		Texture->Source.Compress();
+		//Texture->Source.Compress(); // <- done in UTexture::PreSave
 		Texture->PostEditChange();
 
 		PopulateQuickInfo();
@@ -2379,6 +2503,7 @@ bool FTextureEditorToolkit::HandleMipLevelCheckBoxIsEnabled( ) const
 void FTextureEditorToolkit::HandleMipLevelChanged(int32 NewMipLevel)
 {
 	SpecifiedMipLevel = FMath::Clamp<int32>(NewMipLevel, MIPLEVEL_MIN, GetMaxMipLevel().Get(MIPLEVEL_MAX));
+	PopulateQuickInfo(); // so PreviewEffectiveTexture{Width,Height} get updated immediately
 
 	MipLevelTextBlock->SetText(FText::Format(LOCTEXT("MipLevel", "Mip Level {0}"), SpecifiedMipLevel));
 }
@@ -2766,7 +2891,7 @@ void FTextureEditorToolkit::EditorOodleSettingsEffortChanged(int32 NewValue, ESe
 
 	CustomEncoding->OodleEncodeEffort = IntCastChecked<uint8>(NewValue);
 
-	if (CustomEncoding->bUseCustomEncode || bChanged)
+	if (CustomEncoding->bUseCustomEncode && bChanged)
 	{
 		PostTextureRecode();
 	}
@@ -3159,6 +3284,130 @@ TSharedRef<SWidget> FTextureEditorToolkit::MakeOpacityControlWidget()
 	return OpacityControl;
 }
 
+
+TSharedRef<SWidget> FTextureEditorToolkit::MakePlatformSelectorWidget()
+{
+	
+	if (AvailablePlatforms.Num() == 0) // we can get called multiple times by slate for some reason.
+	{
+		FProjectStatus ProjectStatus;
+		bool bProjectStatusIsValid = IProjectManager::Get().QueryStatusForCurrentProject(ProjectStatus);
+
+		AvailablePlatforms.Add(MakeShared<FString>(LOCTEXT("TextureViewEditorPlatform", "Editor Platform").ToString()));
+		AvailablePlatformNames.Add(NAME_None);
+		
+		for (const auto& Pair : FDataDrivenPlatformInfoRegistry::GetAllPlatformInfos())
+		{
+			if (Pair.Value.bIsFakePlatform || Pair.Value.bEnabledForUse == false)
+			{
+				continue;
+			}
+
+			FName PlatformName = Pair.Key;
+			const FDataDrivenPlatformInfo& Info = Pair.Value;
+			if (FDataDrivenPlatformInfoRegistry::IsPlatformHiddenFromUI(PlatformName))
+			{
+				continue;
+			}
+
+			if (!FDataDrivenPlatformInfoRegistry::HasCompiledSupportForPlatform(PlatformName, FDataDrivenPlatformInfoRegistry::EPlatformNameType::Ini))
+			{
+				continue;
+			}
+
+			if (bProjectStatusIsValid && !ProjectStatus.IsTargetPlatformSupported(PlatformName))
+			{
+				continue;
+			}
+
+			const PlatformInfo::FTargetPlatformInfo* VanillaInfo = PlatformInfo::FindVanillaPlatformInfo(Pair.Key);
+			// VanillaInfo can come back null for platforms that are partially valid
+			if ( VanillaInfo == nullptr )
+			{
+				continue;
+			}
+
+			const TArray<const PlatformInfo::FTargetPlatformInfo*> ValidFlavors = VanillaInfo->Flavors.FilterByPredicate([](const PlatformInfo::FTargetPlatformInfo* Target)
+				{
+					// Editor isn't a valid platform type that users can target
+					// The Build Target will choose client or server, so no need to show them as well
+					return Target->PlatformType != EBuildTargetType::Editor && Target->PlatformType != EBuildTargetType::Client && Target->PlatformType != EBuildTargetType::Server;
+				});
+
+			if (ValidFlavors.Num())
+			{
+				for (const PlatformInfo::FTargetPlatformInfo* TPI : ValidFlavors)
+				{
+					AvailablePlatforms.Add(MakeShared<FString>(TPI->DisplayName.ToString()));
+					AvailablePlatformNames.Add(TPI->Name);
+				}
+			}
+			else
+			{
+				AvailablePlatforms.Add(MakeShared<FString>(PlatformName.ToString()));
+				AvailablePlatformNames.Add(PlatformName);
+			}
+		}
+	}
+
+	TSharedPtr InitialSelection = AvailablePlatforms[0];
+	if (Texture->OverrideRunningPlatformName != NAME_None)
+	{
+		for (int32 PlatIndex = 1; PlatIndex < AvailablePlatforms.Num(); PlatIndex++)
+		{
+			if (AvailablePlatformNames[PlatIndex] == Texture->OverrideRunningPlatformName)
+			{
+				InitialSelection = AvailablePlatforms[PlatIndex];
+				ViewingPlatform = AvailablePlatformNames[PlatIndex];
+				break;
+			}
+		}
+	}
+
+	TSharedRef<SWidget> PreviewPlatformControl =
+		SNew(SBox)
+		.WidthOverride(250.f)
+		[
+			SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+						.Text(LOCTEXT("PlatformPreviewLabel", "Preview Platform:"))
+						.ToolTipText(LOCTEXT("PlatformPreviewTT", "If a platform is chosen, the texture will be encoded as though cooked for that platform, then if necessary decoded so that it can be viewed on this platform. Requires: Texture source, non-virtual texture, and GPU availability."))
+				]
+				+ SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				.Padding(4.0f, 0.0f, 0.0f, 0.0f)
+				[
+					SNew(STextComboBox)
+						.OptionsSource(&AvailablePlatforms)
+						.InitiallySelectedItem(InitialSelection)
+						.IsEnabled(this, &FTextureEditorToolkit::CanPlatformPreview)
+						.OnSelectionChanged_Lambda(
+							[this]
+							(TSharedPtr<FString> NewPlatformName, ESelectInfo::Type SelectInfo)
+						{
+							int32 Index = AvailablePlatforms.Find(NewPlatformName);
+							if (Index != INDEX_NONE)
+							{
+								ViewingPlatform = AvailablePlatformNames[Index];
+								if( ViewingPlatform != Texture->OverrideRunningPlatformName )
+								{
+									Texture->BlockOnAnyAsyncBuild(); // PreEditChange , but don't mark as modified ; same as Modify(false)
+									Texture->OverrideRunningPlatformName = ViewingPlatform;
+									Texture->PostEditChange();
+								}
+							}
+						})
+				]
+		];
+
+	return PreviewPlatformControl;
+}
+
 TSharedRef<SWidget> FTextureEditorToolkit::MakeZoomControlWidget()
 {
 	const FMargin ToolbarSlotPadding(4.0f, 1.0f);
@@ -3324,6 +3573,29 @@ void FTextureEditorToolkit::PackagingSettingsChanged(TSharedPtr<FString> Selecti
 			OodleCompressedPreviewDDCKey.Set<FString>(FString());
 		}
 	}
+}
+
+FReply FTextureEditorToolkit::DetectSourceAlphaButton_Clicked()
+{
+	if (!Texture ||
+		!Texture->Source.IsValid() ||
+		!Texture->IsAsyncCacheComplete())
+	{
+		return FReply::Handled();
+	}
+
+	Texture->PreEditChange(nullptr);
+	Texture->Source.UpdateChannelLinearMinMax();
+	Texture->PostEditChange();
+	return FReply::Handled();
+}
+
+bool FTextureEditorToolkit::CanPlatformPreview() const
+{
+	return Texture && 
+		!Texture->VirtualTextureStreaming &&
+		Texture->Availability == ETextureAvailability::GPU &&
+		CanRecompressTexture(Texture);
 }
 
 #undef LOCTEXT_NAMESPACE

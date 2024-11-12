@@ -13,6 +13,7 @@
 
 #if WITH_EDITOR
 #include "Editor.h"
+#include "ScopedTransaction.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "CCR"
@@ -36,11 +37,11 @@ namespace
 #endif
 	}
 
-	void AssignNewPriorityIfNeeded(AColorCorrectRegion* InRegion, const TArray<AColorCorrectRegion*>& RegionsPriorityBased)
+	void AssignNewPriorityIfNeeded(AColorCorrectRegion* InRegion, const TArray<TWeakObjectPtr<AColorCorrectRegion>>& RegionsPriorityBased)
 	{
 		int32 HighestPriority = 0;
 		bool bAssignNewPriority = InRegion->Priority == 0;
-		for (const AColorCorrectRegion* Region : RegionsPriorityBased)
+		for (const TWeakObjectPtr<AColorCorrectRegion> Region : RegionsPriorityBased)
 		{
 			if (InRegion->Priority == Region->Priority)
 			{
@@ -51,7 +52,100 @@ namespace
 		if (bAssignNewPriority)
 		{
 			InRegion->Priority = HighestPriority + (HighestPriority == 0 ? 1 : FMath::Max(CVarCCRPriorityIncrement.GetValueOnAnyThread(), 1));
+#if WITH_EDITOR
+			const FScopedTransaction Transaction(LOCTEXT("NewPriorityAssigned", "New Priority Assigned to CC Actor."));
+			InRegion->Modify();
+#endif
 		}
+	}
+
+	FColorCorrectRenderProxyPtr CreateRenderStateForCCActor(TWeakObjectPtr<AColorCorrectRegion> InActorWeakPtr)
+	{
+		TStrongObjectPtr<AColorCorrectRegion> InActor = InActorWeakPtr.Pin();
+		if (!InActor.IsValid())
+		{
+			return nullptr;
+		}
+
+		FColorCorrectRenderProxyPtr TempCCRStateRenderThread = MakeShared<FColorCorrectRenderProxy>();
+
+		TempCCRStateRenderThread->bIsActiveThisFrame = InActor->Enabled
+#if WITH_EDITOR
+			&& !InActor->IsHiddenEd()
+#endif 
+			&& !(InActor->GetWorld()->HasBegunPlay() && InActor->IsHidden());
+
+		if (!TempCCRStateRenderThread->bIsActiveThisFrame)
+		{
+			return nullptr;
+		}
+
+		if (AColorCorrectionWindow* CCWindow = Cast<AColorCorrectionWindow>(InActor.Get()))
+		{
+			TempCCRStateRenderThread->WindowType = CCWindow->WindowType;
+			TempCCRStateRenderThread->ProxyType = FColorCorrectRenderProxy::DistanceBased;
+		}
+		else
+		{
+			TempCCRStateRenderThread->Type = InActor->Type;
+			TempCCRStateRenderThread->ProxyType = FColorCorrectRenderProxy::PriorityBased;
+		}
+
+		TempCCRStateRenderThread->World = InActor->GetWorld();
+		TempCCRStateRenderThread->Priority = InActor->Priority;
+		TempCCRStateRenderThread->Intensity = InActor->Intensity;
+
+		// Inner could be larger than outer, in which case we need to make sure these are swapped.
+		TempCCRStateRenderThread->Inner = FMath::Min<float>(InActor->Outer, InActor->Inner);
+		TempCCRStateRenderThread->Outer = FMath::Max<float>(InActor->Outer, InActor->Inner);
+
+		if (TempCCRStateRenderThread->Inner == TempCCRStateRenderThread->Outer)
+		{
+			TempCCRStateRenderThread->Inner -= 0.0001;
+		}
+
+		TempCCRStateRenderThread->Falloff = InActor->Falloff;
+		TempCCRStateRenderThread->Invert = InActor->Invert;
+		TempCCRStateRenderThread->TemperatureType = InActor->TemperatureType;
+		TempCCRStateRenderThread->Temperature = InActor->Temperature;
+		TempCCRStateRenderThread->Tint = InActor->Tint;
+		TempCCRStateRenderThread->ColorGradingSettings = InActor->ColorGradingSettings;
+		TempCCRStateRenderThread->bEnablePerActorCC = InActor->bEnablePerActorCC;
+		TempCCRStateRenderThread->PerActorColorCorrection = InActor->PerActorColorCorrection;
+
+		InActor->GetActorBounds(false, TempCCRStateRenderThread->BoxOrigin, TempCCRStateRenderThread->BoxExtent);
+
+		TempCCRStateRenderThread->ActorLocation = (FVector3f)InActor->GetActorLocation();
+		TempCCRStateRenderThread->ActorRotation = (FVector3f)InActor->GetActorRotation().Euler();
+		TempCCRStateRenderThread->ActorScale = (FVector3f)InActor->GetActorScale();
+
+		// Transfer Stencil Ids.
+		{
+
+			for (const TSoftObjectPtr<AActor>& StencilActor : InActor->AffectedActors)
+			{
+				if (!StencilActor.IsValid())
+				{
+					continue;
+				}
+				TArray<UPrimitiveComponent*> PrimitiveComponents;
+				StencilActor->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
+				for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
+				{
+					if (PrimitiveComponent->bRenderCustomDepth)
+					{
+						TempCCRStateRenderThread->StencilIds.Add(static_cast<uint32>(PrimitiveComponent->CustomDepthStencilValue));
+					}
+				}
+			}
+		}
+
+		// Store component id to be used on render thread.
+		if (!(TempCCRStateRenderThread->FirstPrimitiveId == InActor->IdentityComponent->GetPrimitiveSceneId()))
+		{
+			TempCCRStateRenderThread->FirstPrimitiveId = InActor->IdentityComponent->GetPrimitiveSceneId();
+		}
+		return TempCCRStateRenderThread;
 	}
 }
 
@@ -62,8 +156,6 @@ void UColorCorrectRegionsSubsystem::Initialize(FSubsystemCollectionBase& Collect
 	{
 		GEngine->OnLevelActorAdded().AddUObject(this, &UColorCorrectRegionsSubsystem::OnActorSpawned);
 		GEngine->OnLevelActorDeleted().AddUObject(this, &UColorCorrectRegionsSubsystem::OnActorDeleted, true);
-		GEngine->OnLevelActorListChanged().AddUObject(this, &UColorCorrectRegionsSubsystem::OnLevelActorListChanged);
-		GEditor->RegisterForUndo(this);
 
 		FEditorDelegates::OnDuplicateActorsBegin.AddUObject(this, &UColorCorrectRegionsSubsystem::OnDuplicateActorsBegin);
 		FEditorDelegates::OnDuplicateActorsEnd.AddUObject(this, &UColorCorrectRegionsSubsystem::OnDuplicateActorsEnd);
@@ -72,10 +164,10 @@ void UColorCorrectRegionsSubsystem::Initialize(FSubsystemCollectionBase& Collect
 		FEditorDelegates::OnEditPasteActorsEnd.AddUObject(this, &UColorCorrectRegionsSubsystem::OnDuplicateActorsEnd);
 	}
 #endif
-	// In some cases (like nDisplay nodes) EndPlay is not guaranteed to be called when level is removed.
-	GetWorld()->OnLevelsChanged().AddUObject(this, &UColorCorrectRegionsSubsystem::OnLevelsChanged);
+
 	// Initializing Scene view extension responsible for rendering regions.
-	PostProcessSceneViewExtension = FSceneViewExtensions::NewExtension<FColorCorrectRegionsSceneViewExtension>(this);
+	PostProcessSceneViewExtension = FSceneViewExtensions::NewExtension<FColorCorrectRegionsSceneViewExtension>(GetWorld(), this);
+	Super::Initialize(Collection);
 }
 
 void UColorCorrectRegionsSubsystem::Deinitialize()
@@ -85,8 +177,6 @@ void UColorCorrectRegionsSubsystem::Deinitialize()
 	{
 		GEngine->OnLevelActorAdded().RemoveAll(this);
 		GEngine->OnLevelActorDeleted().RemoveAll(this);
-		GEngine->OnLevelActorListChanged().RemoveAll(this);
-		GEditor->UnregisterForUndo(this);
 
 		FEditorDelegates::OnDuplicateActorsBegin.RemoveAll(this);
 		FEditorDelegates::OnDuplicateActorsEnd.RemoveAll(this);
@@ -95,7 +185,6 @@ void UColorCorrectRegionsSubsystem::Deinitialize()
 		FEditorDelegates::OnEditPasteActorsEnd.RemoveAll(this);
 	}
 #endif
-	GetWorld()->OnLevelsChanged().RemoveAll(this);
 
 	// Prevent this SVE from being gathered, in case it is kept alive by a strong reference somewhere else.
 	{
@@ -137,35 +226,80 @@ void UColorCorrectRegionsSubsystem::Deinitialize()
 
 	RegionsPriorityBased.Reset();
 	RegionsDistanceBased.Reset();
+	Super::Deinitialize();
 }
 
-void UColorCorrectRegionsSubsystem::OnActorSpawned(AActor* InActor)
+void UColorCorrectRegionsSubsystem::Tick(float DeltaTime)
 {
-	AColorCorrectRegion* AsRegion = Cast<AColorCorrectRegion>(InActor);
-	if (IsRegionValid(AsRegion, GetWorld()))
+	Super::Tick(DeltaTime);
+	RefreshRegions();
+
+	// Check to make sure that no ids have been changed externally.
 	{
-		FScopeLock RegionScopeLock(&RegionAccessCriticalSection);
-		// We wouldn't have to do a check here except in case of nDisplay we need to populate this list during OnLevelsChanged 
-		// because nDisplay can release Actors while those are marked as BeginningPlay. Therefore we want to avoid 
-		// adding regions twice.
-		bool bIsDistanceBased = Cast<AColorCorrectionWindow>(InActor) != nullptr;
-		TArray<AColorCorrectRegion*>* RegionsToAddTo = bIsDistanceBased ? &RegionsDistanceBased : &RegionsPriorityBased;
-		if (!bIsDistanceBased && AsRegion->Priority == 0)
+		TimeSinceLastValidityCheck += DeltaTime;
+		const float WaitTimeInSecs = 1.0;
+		if (TimeSinceLastValidityCheck >= WaitTimeInSecs)
 		{
-			AssignNewPriorityIfNeeded(AsRegion, RegionsPriorityBased);
-		}
-		
-		if (!RegionsToAddTo->Contains(AsRegion))
-		{
-			RegionsToAddTo->Add(AsRegion);
-			// Distance based CCR can only be sorted on render, when View info is available.
-			if (!bIsDistanceBased)
+			for (TWeakObjectPtr<AColorCorrectRegion> Region : RegionsPriorityBased)
 			{
-				SortRegionsByPriority();
+				if (Region.IsValid())
+				{
+					CheckAssignedActorsValidity(Region.Get());
+				}
 			}
+			for (TWeakObjectPtr<AColorCorrectRegion> Region : RegionsDistanceBased)
+			{
+				if (Region.IsValid())
+				{
+					CheckAssignedActorsValidity(Region.Get());
+				}
+			}
+
+			TimeSinceLastValidityCheck = 0;
+		}
+	}
+	
+}
+
+void UColorCorrectRegionsSubsystem::TransferStates()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("CCR.TransferStates"));
+
+	TArray<FColorCorrectRenderProxyPtr> TempProxiesPriority;
+	TArray<FColorCorrectRenderProxyPtr> TempProxiesDistance;
+	for (TWeakObjectPtr<AColorCorrectRegion> Region : RegionsPriorityBased)
+	{
+		if (FColorCorrectRenderProxyPtr ProxyPtr = CreateRenderStateForCCActor(Region))
+		{
+			TempProxiesPriority.Add(ProxyPtr);
 		}
 	}
 
+	for (TWeakObjectPtr<AColorCorrectRegion> Region : RegionsDistanceBased)
+	{
+		if (FColorCorrectRenderProxyPtr ProxyPtr = CreateRenderStateForCCActor(Region))
+		{
+			TempProxiesDistance.Add(ProxyPtr);
+		}
+	}
+
+	// Sort priority based proxies on game thread.
+	TempProxiesPriority.Sort([](const FColorCorrectRenderProxyPtr& A, const FColorCorrectRenderProxyPtr& B) {
+		// Regions with the same priority could potentially cause flickering on overlap
+		return A->Priority < B->Priority;
+	});
+
+	ENQUEUE_RENDER_COMMAND(CopyCCProxies)([this, TempProxiesPriority = MoveTemp(TempProxiesPriority), TempProxiesDistance = MoveTemp(TempProxiesDistance)](FRHICommandListImmediate& RHICmdList)
+	{
+		ProxiesPriorityBased = TempProxiesPriority;
+		ProxiesDistanceBased = TempProxiesDistance;
+	}
+	);
+}
+
+
+void UColorCorrectRegionsSubsystem::OnActorSpawned(AActor* InActor)
+{
 	if (bDuplicationStarted)
 	{
 		DuplicatedActors.Add(InActor);
@@ -190,23 +324,12 @@ void UColorCorrectRegionsSubsystem::OnActorDeleted(AActor* InActor, bool bClearS
 			FColorCorrectRegionsStencilManager::OnCCRRemoved(GetWorld(), AsRegion);
 		}
 #endif
-
-		FScopeLock RegionScopeLock(&RegionAccessCriticalSection);
-		RegionsPriorityBased.Remove(AsRegion);
-		RegionsDistanceBased.Remove(AsRegion);
 	}
 }
 
 void UColorCorrectRegionsSubsystem::OnDuplicateActorsEnd()
 {
 	bDuplicationStarted = false; 
-
-#if WITH_EDITOR
-	if (GEditor)
-	{
-		GEditor->BeginTransaction(LOCTEXT("PerActorCCActorAssigned", "Per actor CC Actor Assigned"));
-	}
-#endif
 
 	for (AActor* DuplicatedActor : DuplicatedActors)
 	{
@@ -221,42 +344,6 @@ void UColorCorrectRegionsSubsystem::OnDuplicateActorsEnd()
 	}
 
 	DuplicatedActors.Empty();
-
-#if WITH_EDITOR
-	if (GEditor)
-	{
-		this->Modify();
-		GEditor->EndTransaction();
-	}
-#endif
-}
-
-void UColorCorrectRegionsSubsystem::SortRegionsByPriority()
-{
-	FScopeLock RegionScopeLock(&RegionAccessCriticalSection);
-
-	RegionsPriorityBased.Sort([](const AColorCorrectRegion& A, const AColorCorrectRegion& B) {
-		// Regions with the same priority could potentially cause flickering on overlap
-		return A.Priority < B.Priority;
-	});
-}
-
-void UColorCorrectRegionsSubsystem::SortRegionsByDistance(const FVector& ViewLocation)
-{
-	FScopeLock RegionScopeLock(&RegionAccessCriticalSection);
-	TMap<AColorCorrectRegion*, double> DistanceMap;
-	for (AColorCorrectRegion* Region : RegionsDistanceBased)
-	{
-		FColorCorrectRenderProxyPtr State = Region->GetCCProxy_RenderThread();
-		FVector CameraToRegionVec = (State->BoxOrigin - ViewLocation);
-		DistanceMap.Add(Region, CameraToRegionVec.Dot(CameraToRegionVec));
-	}
-
-	RegionsDistanceBased.Sort([&DistanceMap](const AColorCorrectRegion& A, const AColorCorrectRegion& B) {
-		// Regions with the same distance could potentially cause flickering on overlap
-		return DistanceMap[&A] > DistanceMap[&B];
-	});
-
 }
 
 void UColorCorrectRegionsSubsystem::AssignStencilIdsToPerActorCC(AColorCorrectRegion* Region, bool bIgnoreUserNotificaion, bool bSoftAssign)
@@ -303,26 +390,8 @@ void UColorCorrectRegionsSubsystem::CheckAssignedActorsValidity(AColorCorrectReg
 	FColorCorrectRegionsStencilManager::CheckAssignedActorsValidity(Region);
 }
 
-void UColorCorrectRegionsSubsystem::RefreshStenciIdAssignmentForAllCCR()
-{
-	for (TActorIterator<AColorCorrectRegion> It(GetWorld()); It; ++It)
-	{
-		AColorCorrectRegion* AsRegion = *It;
-		if (IsRegionValid(AsRegion, GetWorld()))
-		{
-			// Uncoment this if you want the invalid actors to be removed automatically.
-			// However after removal, undo/redo will not re-assign this actor back to CCR.
-			//FColorCorrectRegionsStencilManager::ClearInvalidActorsForSelectedRegion(AsRegion);
-			AsRegion->PerAffectedActorStencilData.Empty();
-			FColorCorrectRegionsStencilManager::AssignStencilIdsToAllActorsForCCR(GetWorld(), AsRegion, true, true);
-			FColorCorrectRegionsStencilManager::RemoveStencilNumberForSelectedRegion(GetWorld(), AsRegion);
-		}
-	}
-}
-
 void UColorCorrectRegionsSubsystem::RefreshRegions()
 {
-	FScopeLock RegionScopeLock(&RegionAccessCriticalSection);
 	RegionsPriorityBased.Reset();
 	RegionsDistanceBased.Reset();
 	for (TActorIterator<AColorCorrectRegion> It(GetWorld()); It; ++It)
@@ -330,10 +399,6 @@ void UColorCorrectRegionsSubsystem::RefreshRegions()
 		AColorCorrectRegion* AsRegion = *It;
 		if (IsRegionValid(AsRegion, GetWorld()))
 		{
-			// OnLevelChanged is called when Sublevel is hidden. State needs to be transferred
-			// once per actor on refresh since actors don't tick if sublevel is hidden.
-			AsRegion->TransferState();
-
 			if (!Cast<AColorCorrectionWindow>(AsRegion))
 			{
 				RegionsPriorityBased.Add(AsRegion);
@@ -344,10 +409,6 @@ void UColorCorrectRegionsSubsystem::RefreshRegions()
 			}
 		}
 	}
-
-	SortRegionsByPriority();
-
-	RefreshStenciIdAssignmentForAllCCR();
 }
 
 #undef LOCTEXT_NAMESPACE

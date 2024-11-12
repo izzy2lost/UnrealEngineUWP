@@ -59,7 +59,7 @@ UEdGraphNode* URigVMEdGraphEnumNodeSpawner::Invoke(UEdGraph* ParentGraph, FBindi
 	if (bIsTemplateNode)
 	{
 		TArray<FPinInfo> Pins;
-		Pins.Emplace(*URigVMEnumNode::EnumValueName, ERigVMPinDirection::Output, RigVMTypeUtils::Int32TypeName, nullptr);
+		Pins.Emplace(URigVMEnumNode::EnumValueName, ERigVMPinDirection::Output, RigVMTypeUtils::Int32TypeName, nullptr);
 		return SpawnTemplateNode(ParentGraph, Pins);
 	}
 
@@ -78,11 +78,9 @@ UEdGraphNode* URigVMEdGraphEnumNodeSpawner::Invoke(UEdGraph* ParentGraph, FBindi
 
 	URigVMController* Controller = RigBlueprint->GetController(ParentGraph);
 
-	FName Name = *URigVMEnumNode::EnumName;
+	Controller->OpenUndoBracket(FString::Printf(TEXT("Add '%s' Node"), URigVMEnumNode::EnumName));
 
-	Controller->OpenUndoBracket(FString::Printf(TEXT("Add '%s' Node"), *Name.ToString()));
-
-	if (URigVMEnumNode* ModelNode = Controller->AddEnumNode(*Enum->GetPathName(), Location, Name.ToString(), true, true))
+	if (URigVMEnumNode* ModelNode = Controller->AddEnumNode(*Enum->GetPathName(), Location, URigVMEnumNode::EnumName, true, true))
 	{
 		NewNode = Cast<URigVMEdGraphNode>(RigGraph->FindNodeForModelNodeName(ModelNode->GetFName()));
 

@@ -27,6 +27,9 @@ class UNiagaraSystemFactoryNew : public UFactory
 
 public:
 	NIAGARAEDITOR_API static void InitializeSystem(UNiagaraSystem* System, bool bCreateDefaultNodes);
+
+private:
+	void TryAssignDefaultEffectType(UNiagaraSystem* System);
 };
 
 

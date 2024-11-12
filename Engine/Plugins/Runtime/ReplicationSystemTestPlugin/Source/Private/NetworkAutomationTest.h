@@ -73,7 +73,7 @@ public:
 	FNetworkAutomationTestWrapper(FNetworkAutomationTestSuiteFixture& TestSuite, const TCHAR* Name);
 
 private:
-	virtual uint32 GetTestFlags() const override;
+	virtual EAutomationTestFlags GetTestFlags() const override;
 	virtual uint32 GetRequiredDeviceNum() const override;
 
 	virtual FString GetBeautifiedTestName() const override;

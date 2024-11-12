@@ -55,6 +55,7 @@ void SBindingContextSelector::Construct(const FArguments& Args, const UWidgetBlu
 					SAssignNew(SelectedSourceWidget, SBindingContextEntry)
 					.BindingContext(SelectedSource)
 					.TextStyle(TextStyle)
+					.ToolTipDescription(LOCTEXT("BindingOwner", "Binding Group Owner"))
 				]
 				+ SHorizontalBox::Slot()
 				.Padding(2, 0)

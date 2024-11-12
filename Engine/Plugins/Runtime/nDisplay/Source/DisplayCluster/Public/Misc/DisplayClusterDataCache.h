@@ -111,9 +111,6 @@ protected:
 				// Remove after timout
 				if (CachedObjects[Index].FramesInCachedState > TimeOutInFrames)
 				{
-					// Deleting an unused item after time has elapsed
-					CachedObjects[Index].DataRef.Reset();
-
 					// Delete the current element, and reuse the current array index,
 					// because the next element will move to the index of the current
 					CachedObjects.RemoveAt(Index--);
@@ -156,12 +153,20 @@ private:
 
 		~FCachedObject()
 		{
-			// Calling the release function for referenced data before the destructor
+			Release();
+		}
+
+		/** Release referenced data. */
+		void Release()
+		{
 			if (DataRef.IsValid())
 			{
+				// Calls the special release function before the destructor
 				DataRef->ReleaseDataCacheItem();
 				DataRef.Reset();
 			}
+
+			FramesInCachedState = 0;
 		}
 
 		inline bool IsNameEqual(const FString& InName) const

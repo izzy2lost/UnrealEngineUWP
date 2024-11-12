@@ -2,6 +2,7 @@
 
 #include "SNiagaraSimCacheView.h"
 #include "ViewModels/NiagaraSimCacheViewModel.h"
+#include "SNiagaraSimCacheDebugDataView.h"
 
 #include "CoreMinimal.h"
 #include "NiagaraEditorModule.h"
@@ -87,7 +88,7 @@ void SNiagaraSimCacheView::Construct(const FArguments& InArgs)
 		.AlwaysShowScrollbar(true)
 		.Thickness(12.0f)
 		.Orientation(Orient_Vertical);
-	DataInterfaceScrollBar =
+	CustomDisplayScrollBar =
 		SNew(SScrollBar)
 		.AlwaysShowScrollbar(false)
 		.Thickness(12.0f)
@@ -122,7 +123,17 @@ void SNiagaraSimCacheView::Construct(const FArguments& InArgs)
 				[
 					// switcher for spreadsheet / data interfaces
 					SAssignNew(SwitchWidget, SWidgetSwitcher)
-					.WidgetIndex_Lambda([this] { return SimCacheViewModel->GetActiveDataInterface().IsValid() ? 1 : 0; })
+					.WidgetIndex_Lambda(
+						[this]
+						{
+							switch (SimCacheViewModel->GetSelectionMode())
+							{
+								case FNiagaraSimCacheViewModel::ESelectionMode::SystemInstance:
+								case FNiagaraSimCacheViewModel::ESelectionMode::Emitter:			return 0;
+								default:															return 1;
+							}
+						}
+					)
 					+SWidgetSwitcher::Slot()
 					[
 						ListViewWidget.ToSharedRef()
@@ -137,14 +148,32 @@ void SNiagaraSimCacheView::Construct(const FArguments& InArgs)
 			.AutoWidth()
 			[
 				SNew(SWidgetSwitcher)
-				.WidgetIndex_Lambda([this] { return SimCacheViewModel->GetActiveDataInterface().IsValid() ? 1 : 0; })
+					.WidgetIndex_Lambda(
+						[this]
+						{
+							switch (SimCacheViewModel->GetSelectionMode())
+							{
+								case FNiagaraSimCacheViewModel::ESelectionMode::SystemInstance:
+								case FNiagaraSimCacheViewModel::ESelectionMode::Emitter:			return 0;
+								case FNiagaraSimCacheViewModel::ESelectionMode::DataInterface:		return 1;
+								case FNiagaraSimCacheViewModel::ESelectionMode::DebugData:			return 2;
+								default:
+									checkNoEntry();
+									return 0;
+							}
+						}
+					)
 				+SWidgetSwitcher::Slot()
 				[
 					VerticalScrollBar
 				]
 				+SWidgetSwitcher::Slot()
 				[
-					DataInterfaceScrollBar.ToSharedRef()
+					CustomDisplayScrollBar.ToSharedRef()
+				]
+				+SWidgetSwitcher::Slot()
+				[
+					SNullWidget::NullWidget
 				]
 			]
 		]
@@ -188,7 +217,7 @@ void SNiagaraSimCacheView::GenerateColumns()
 	);
 	
 	// Generate a column for each component
-	for (const FNiagaraSimCacheViewModel::FComponentInfo& ComponentInfo : SimCacheViewModel->GetCurrentComponentInfos())
+	for (const FNiagaraSimCacheViewModel::FComponentInfo& ComponentInfo : SimCacheViewModel->GetSelectedComponentInfos())
 	{
 		HeaderRowWidget->AddColumn(
 			SHeaderRow::Column(ComponentInfo.Name)
@@ -206,50 +235,88 @@ void SNiagaraSimCacheView::GenerateColumns()
 
 }
 
-void SNiagaraSimCacheView::UpdateDIWidget()
+void SNiagaraSimCacheView::UpdateCustomDisplayWidget()
 {
-	for (TSharedPtr<SWidget> Widget : DIVisualizerWidgets)
+	for (TSharedPtr<SWidget> Widget : CustomDisplayWidgets)
 	{
 		SwitchWidget->RemoveSlot(Widget.ToSharedRef());
 	}
-	DIVisualizerWidgets.Empty();
+	CustomDisplayWidgets.Empty();
+
 	TSharedRef<SVerticalBox> WidgetBox = SNew(SVerticalBox);
-	if (SimCacheViewModel->GetActiveDataInterface().IsValid())
+
+	TOptional<FText> MissingCustomDisplayText;
+	switch (SimCacheViewModel->GetSelectionMode())
 	{
-		FNiagaraEditorModule& NiagaraEditorModule = FModuleManager::GetModuleChecked<FNiagaraEditorModule>("NiagaraEditor");
-		for (TSharedRef<INiagaraDataInterfaceSimCacheVisualizer> Visualizer : NiagaraEditorModule.FindDataInterfaceCacheVisualizer(SimCacheViewModel->GetActiveDataInterface().GetType().GetClass()))
+		case FNiagaraSimCacheViewModel::ESelectionMode::DataInterface:
 		{
-			if (UObject* DataObject = SimCacheViewModel->GetActiveDataInterfaceStorage())
+			const FNiagaraVariableBase DIVariable = SimCacheViewModel->GetSelectedDataInterface();
+
+			FNiagaraEditorModule& NiagaraEditorModule = FModuleManager::GetModuleChecked<FNiagaraEditorModule>("NiagaraEditor");
+			for (TSharedRef<INiagaraDataInterfaceSimCacheVisualizer> Visualizer : NiagaraEditorModule.FindDataInterfaceCacheVisualizer(DIVariable.GetType().GetClass()))
 			{
-				TSharedPtr<SWidget> DIVisualizerWidget = Visualizer->CreateWidgetFor(DataObject, SimCacheViewModel);
-				DIVisualizerWidgets.Add(DIVisualizerWidget);
+				if (const UObject* DataObject = SimCacheViewModel->GetSelectedDataInterfaceStorage())
+				{
+					TSharedPtr<SWidget> VisualizerWidget = Visualizer->CreateWidgetFor(DataObject, SimCacheViewModel);
+					CustomDisplayWidgets.Add(VisualizerWidget);
+					WidgetBox->AddSlot()
+						.AutoHeight()
+						.AttachWidget(VisualizerWidget.ToSharedRef());
+				}
+			}
+
+			if (CustomDisplayWidgets.Num() == 0)
+			{
+				MissingCustomDisplayText = FText::Format(LOCTEXT("NoDataInterfaceVisualizer", "No valid visualizer found for data interface '{0}'"), DIVariable.GetType().GetNameText());
+			}
+			break;
+		}
+
+		case FNiagaraSimCacheViewModel::ESelectionMode::DebugData:
+		{
+			if (SimCacheViewModel->GetCacheDebugData())
+			{
+				TSharedPtr<SWidget> DebugDataWidget =
+					SNew(SNiagaraSimCacheDebugDataView)
+					.SimCacheViewModel(SimCacheViewModel);
+
+				CustomDisplayWidgets.Add(DebugDataWidget);
+
 				WidgetBox->AddSlot()
 					.AutoHeight()
-					.AttachWidget(DIVisualizerWidget.ToSharedRef());
+					.AttachWidget(DebugDataWidget.ToSharedRef());
 			}
+			else
+			{
+				MissingCustomDisplayText = LOCTEXT("NoDebugData", "Data Data not found inside cache");
+			}
+			break;
 		}
 	}
-	if (DIVisualizerWidgets.Num() == 0)
+
+	if (MissingCustomDisplayText.IsSet())
 	{
-		TSharedPtr<SWidget> DIVisualizerWidget = SNew(SBox)
+		TSharedPtr<SWidget> VisualizerWidget = SNew(SBox)
 		   .Padding(10)
 		   [
 			   SNew(STextBlock)
-			   .Text(LOCTEXT("NoDataInterface", "No valid visualizer found for data interface"))
+			   .Text(MissingCustomDisplayText.GetValue())
 		   ];
-		DIVisualizerWidgets.Add(DIVisualizerWidget);
+		CustomDisplayWidgets.Add(VisualizerWidget);
 		WidgetBox->AddSlot()
 			.AutoHeight()
-			.AttachWidget(DIVisualizerWidget.ToSharedRef());
+			.AttachWidget(VisualizerWidget.ToSharedRef());
 	}
+
 	SwitchWidget->AddSlot(1).AttachWidget(
 		SNew(SScrollBox)
 		.Orientation(Orient_Vertical)
-		.ExternalScrollbar(DataInterfaceScrollBar)
+		.ExternalScrollbar(CustomDisplayScrollBar)
 		 + SScrollBox::Slot()
 		[
 			WidgetBox
-		]);
+		]
+	);
 }
 
 void SNiagaraSimCacheView::UpdateColumns(const bool bReset)
@@ -281,7 +348,7 @@ void SNiagaraSimCacheView::OnSimCacheChanged()
 {
 	UpdateRows(true);
 	UpdateColumns(true);
-	UpdateDIWidget();
+	UpdateCustomDisplayWidget();
 }
 
 void SNiagaraSimCacheView::OnViewDataChanged(const bool bFullRefresh)
@@ -297,7 +364,7 @@ void SNiagaraSimCacheView::OnBufferChanged()
 {
 	UpdateRows(true);
 	UpdateColumns(true);
-	UpdateDIWidget();
+	UpdateCustomDisplayWidget();
 }
 
 bool SNiagaraSimCacheView::GetShouldGenerateWidget(FName Name)

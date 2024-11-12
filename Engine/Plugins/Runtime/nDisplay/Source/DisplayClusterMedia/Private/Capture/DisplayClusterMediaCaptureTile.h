@@ -12,7 +12,14 @@ class FDisplayClusterMediaCaptureTile
 	: public FDisplayClusterMediaCaptureViewport
 {
 public:
-	FDisplayClusterMediaCaptureTile(const FString& MediaId, const FString& ClusterNodeId, const FString& ViewportId, UMediaOutput* MediaOutput, UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy = nullptr);
+	FDisplayClusterMediaCaptureTile(
+		const FString& MediaId,
+		const FString& ClusterNodeId,
+		const FString& ViewportId,
+		UMediaOutput* MediaOutput,
+		UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy = nullptr,
+		bool bInLateOCIO = false
+	);
 
 protected:
 

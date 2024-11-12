@@ -6,12 +6,14 @@
 #include "NiagaraCommon.h"
 #include "EdGraph/EdGraph.h"
 #include "NiagaraScript.h"
+#include "NiagaraScriptVariable.h"
 #include "NiagaraVariableMetaData.h"
 #include "NiagaraGraph.generated.h"
 
 class UNiagaraNodeStaticSwitch;
 class UNiagaraParameterDefinitions;
 class UNiagaraScriptVariable;
+class UNiagaraHierarchyRoot;
 struct FSynchronizeWithParameterDefinitionsArgs;
 struct FNiagaraScriptVariableData;
 struct FNiagaraStaticVariableSearchContext;
@@ -179,12 +181,21 @@ struct FNiagaraFindInputNodeOptions
 UCLASS(MinimalAPI)
 class UNiagaraGraph : public UEdGraph
 {
-	GENERATED_UCLASS_BODY()
+	GENERATED_BODY()
 
+public:
+	struct FParametersChangedData
+	{
+		const UNiagaraScriptVariable* ChangedParameter;
+	};
+	
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnParametersChanged, TOptional<FParametersChangedData>)
 	DECLARE_MULTICAST_DELEGATE(FOnDataInterfaceChanged);
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSubObjectSelectionChanged, const UObject*);
 	DECLARE_DELEGATE_RetVal_OneParam(TArray<UNiagaraParameterDefinitions*> /*AvailableParameterDefinitions*/, FOnGetParameterDefinitionsForDetailsCustomization, bool /*bSkipSubscribedParameterDefinitions*/)
 
+	UNiagaraGraph();
+	
 	//~ Begin UObject Interface
 	virtual void PostLoad() override;
 #if WITH_EDITORONLY_DATA
@@ -231,6 +242,9 @@ class UNiagaraGraph : public UEdGraph
 	/** Generates a list of unique input and output parameters for when this script is used as a function. */
 	void GetParameters(TArray<FNiagaraVariable>& Inputs, TArray<FNiagaraVariable>& Outputs) const;
 
+	/** Generates a list of all input parameters - including parameters in the Input namespace & Static Switch inputs. */
+	void GetAllInputScriptVariables(TArray<UNiagaraScriptVariable*>& OutScriptVariables) const;
+	
 	/** Returns the index of this variable in the output node of the graph. INDEX_NONE if this is not a valid attribute. */
 	int32 GetOutputNodeVariableIndex(const FNiagaraVariable& Attr)const;
 	void GetOutputNodeVariables(TArray< FNiagaraVariable >& OutAttributes)const;
@@ -305,11 +319,13 @@ class UNiagaraGraph : public UEdGraph
 	NIAGARAEDITOR_API const FScriptVariableMap& GetAllMetaData() const;
 	NIAGARAEDITOR_API FScriptVariableMap& GetAllMetaData();
 
+	NIAGARAEDITOR_API UNiagaraHierarchyRoot* GetScriptParameterHierarchyRoot() const { return ParameterHierarchyRoot; }
+
 	UNiagaraScriptVariable* GetScriptVariable(FNiagaraVariable Parameter) const;
 	NIAGARAEDITOR_API UNiagaraScriptVariable* GetScriptVariable(FName ParameterName) const;
 	NIAGARAEDITOR_API UNiagaraScriptVariable* GetScriptVariable(FGuid VariableGuid) const;
-	NIAGARAEDITOR_API TArray<UNiagaraScriptVariable*> GetChildScriptVariablesForInput(FGuid VariableGuid) const;
 	NIAGARAEDITOR_API TArray<FGuid> GetChildScriptVariableGuidsForInput(FGuid VariableGuid) const;
+	TArray<UNiagaraScriptVariable*> GetChildScriptVariablesForInput_Deprecated(FGuid VariableGuid) const;
 
 	/** Adds parameter to the VariableToScriptVariable map.*/
 	UNiagaraScriptVariable* AddParameter(const FNiagaraVariable& Parameter, bool bIsStaticSwitch = false);
@@ -348,6 +364,9 @@ class UNiagaraGraph : public UEdGraph
 
 	void ReplaceScriptReferences(UNiagaraScript* OldScript, UNiagaraScript* NewScript);
 
+	/** Gets a delegate which is called whenever a parameter is added or removed */
+	FOnParametersChanged& OnParametersChanged();
+	
 	/** Gets a delegate which is called whenever a contained data interfaces changes. */
 	FOnDataInterfaceChanged& OnDataInterfaceChanged();
 
@@ -442,6 +461,9 @@ class UNiagaraGraph : public UEdGraph
 
 	bool ReferencesStaticVariable(FNiagaraStaticVariableSearchContext& SearchContext) const;
 
+	/** Migrates the deprecated data from the provided OwnerData and populates the ParameterHierarchyRoot */
+	void MigrateParameterScriptDataToHierarchyRoot(FVersionedNiagaraScriptData& OwnerData);
+
 protected:
 	void RebuildNumericCache();
 	bool bNeedNumericCacheRebuilt;
@@ -508,6 +530,9 @@ private:
 	UPROPERTY()
 	TMap<FNiagaraVariable, TObjectPtr<UNiagaraScriptVariable>> VariableToScriptVariable;
 
+	UPROPERTY()
+	TObjectPtr<UNiagaraHierarchyRoot> ParameterHierarchyRoot;
+	
 	/** A map of parameters in the graph to their referencers. */
 	UPROPERTY(Transient)
 	mutable TMap<FNiagaraVariable, FNiagaraGraphParameterReferenceCollection> ParameterToReferencesMap;
@@ -520,6 +545,7 @@ private:
 	UPROPERTY()
 	bool bHasValidLastBuiltScriptVersionId = false;
 
+	FOnParametersChanged OnParametersChangedDelegate;
 	FOnDataInterfaceChanged OnDataInterfaceChangedDelegate;
 	FOnSubObjectSelectionChanged OnSelectedSubObjectChanged;
 	FOnGetParameterDefinitionsForDetailsCustomization OnGetParameterDefinitionsForDetailsCustomizationDelegate;

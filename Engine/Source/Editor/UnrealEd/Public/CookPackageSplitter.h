@@ -7,6 +7,7 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Containers/Array.h"
 #include "Containers/List.h"
+#include "Containers/StringView.h"
 #include "Containers/UnrealString.h"
 #include "CoreMinimal.h"
 #include "Hash/Blake3.h"
@@ -32,6 +33,12 @@ class ICookPackageSplitter
 public:
 	// Static API functions - these static functions are referenced by REGISTER_COOKPACKAGE_SPLITTER
 	// before creating an instance of the class.
+	/**
+	 * Return whether IsCachedCookedPlatformDataLoaded needs to return true for all UObjects in the
+	 * generator package before ShouldSplit or GetGenerateList can be called. If true this slows down
+	 * our ability to parallelize the cook of the generated packages.
+	 */
+	static bool RequiresCachedCookedPlatformDataBeforeSplit() { return false; }
 	/** Return whether the CookPackageSplitter subclass should handle the given SplitDataClass instance. */
 	static bool ShouldSplit(UObject* SplitData) { return false; }
 	/** Return DebugName for this SplitterClass in cook log messages. */
@@ -39,7 +46,9 @@ public:
 
 
 	// Virtual API functions - functions called from the cooker after creating the splitter.
-	virtual ~ICookPackageSplitter() {}
+	virtual ~ICookPackageSplitter()
+	{
+	}
 
 	enum class ETeardown
 	{
@@ -47,13 +56,79 @@ public:
 		Canceled,
 	};
 	/** Do teardown actions after all packages have saved, or when the cook is cancelled. Always called before destruction. */
-	virtual void Teardown(ETeardown Status) {}
+	virtual void Teardown(ETeardown Status)
+	{
+	}
 
 	/**
 	 * If true, this splitter forces the Generator package objects it needs to remain referenced, and the cooker
 	 * should expect them to still be in memory after a garbage collect so long as the splitter is alive.
 	 */
-	virtual bool UseInternalReferenceToAvoidGarbageCollect() { return false; }
+	virtual bool UseInternalReferenceToAvoidGarbageCollect()
+	{
+		return false;
+	}
+
+	/**
+	 * An ICookPackageSplitter for a single generator package normally is constructed only once and handles
+	 * all generated packages for that generator, but during MPCook in cases of load balancing between CookWorkers,
+	 * it is possible that the original splitter is destructed but then recreated later. This is guaranteed not
+	 * to happen without a GarbageCollection pass in between, but that GarbageCollection may fail to destruct the
+	 * generator package if it is still referenced from other packages or systems. Depending on the ICookPackageSplitter's
+	 * implemenation, this failure to GC might cause an error, because changes made from the previous splitter are not 
+	 * handled in the next splitter. If RequiresGeneratorPackageDestructBeforeResplit is true, the cooker will log this failure
+	 * to GC the generator package as an error.
+	 */
+	virtual bool RequiresGeneratorPackageDestructBeforeResplit()
+	{
+		return false;
+	}
+
+	/**
+	 * Return value for the DoesGeneratedRequireGenerator function. All levels behave correctly, but provide
+	 * different tradeoffs of guarantees to the splitter versus performance.
+	 */
+	enum class EGeneratedRequiresGenerator : uint8
+	{
+		/**
+		 * GetGenerateList will be called before PopulateGeneratedPackage. PopulateGenerator and PreSaveGenerator 
+		 * might or might not be called before. OutKeepReferencedPackages from PopulateGenerator will not be kept
+		 * referenced after PostSaveGenerator. Best for performance.
+		 */
+		None,
+		/**
+		 * GetGenerateList and PopulateGenerator will be called before PopulateGeneratedPackage.
+		 * OutKeepReferencedPackages from PopulateGenerator will be kept referenced until all generated and generator
+		 * packages call PostSave or until the splitter is destroyed. Performance cost: Possible extra calls to
+		 * PopulateGeneratedPackage, possible unnecessary memory increase due to OutKeepReferencedPackages.
+		 */
+		Populate,
+		/**
+		 * GetGenerateList PopulateGenerator, PreSaveGenerator, and PostSaveGenerator will be called before
+		 * PopulateGeneratedPackage. Performance cost: Progress on generated packages will be delayed until generator
+		 * finishes saving. Possible unnecessary memory increase due to OutKeepReferencedPackages. Retraction is not
+		 * possible in MPCook for the generated packages; they must all be saved on the same CookWorker that saves the
+		 * generator.
+		 */
+		Save,
+		Count,
+	};
+	/**
+	 * Return capability setting which indicates which splitter functions acting on the parent generator package must
+	 * be called on the splitter before splitter functions acting on the generated packages can be called. Also impacts
+	 * the lifetime of memory guarantees for the generator functions. @see EGeneratedRequiresGenerator. Default is
+	 * EGeneratedRequiresGenerator::None, which provides the best performance but the fewest guarantees.
+	 * 
+	 * Examples of dependencies and what capability level should be used:
+	 *		ShouldSplit call reads data that is written by BeginCacheForCookedPlatformData:
+	 *			EGeneratedRequiresGenerator::Save
+	 *     PopulateGeneratedPackage or PreSaveGeneratedPackage read data that is written by PopulateGeneratorPackage:
+	 *			EGeneratedRequiresGenerator::Populate
+	 */
+	virtual EGeneratedRequiresGenerator DoesGeneratedRequireGenerator()
+	{
+		 return EGeneratedRequiresGenerator::None;
+	}
 
 	/** Data sent to the cooker to describe each desired generated package */
 	struct FGeneratedPackage
@@ -100,16 +175,20 @@ public:
 		bool bCreatedAsMap = false;
 	};
 	/**
-	 * Called before presaving the parent generator package, to give the generator a chance to inform the cooker which objects will
-	 * be moved into the generator package that are not already present in it.
+	 * Called before presaving the parent generator package, to give the generator a chance to inform the cooker which
+	 * objects will be moved into the generator package that are not already present in it.
 	 * 
+	 * PopulateGeneratorPackage is guaranteed to not be called again until the splitter has been destroyed and the
+	 * generator package has been garbage collected.
+	 *
 	 * @param OwnerPackage				The generator package being split
 	 * @param OwnerObject				The SplitDataClass instance that this CookPackageSplitter instance was created for
 	 * @param GeneratedPackages			Placeholder UPackage and relative path information for all packages that will be generated
 	 * @param OutObjectsToMove			List of all the objects that will be moved into the Generator package during its save
-	 * @param OutKeepReferencedPackages A list of packages which should be kept referenced until all generated packages for
-	 *                                  the generator have finished saving.
-	 * 
+	 * @param OutKeepReferencedPackages Packages to keep referenced until the generator package finishes save.
+	 *                                  If DoesGeneratedRequireGenerator() >= Populate, these will also be kept referenced until
+	 *                                  all generated packages finish saving or the splitter is destroyed.
+	 *
 	 * @return							True if successfully populated, false on error (this will cause a cook error).
 	 */
 	virtual bool PopulateGeneratorPackage(UPackage* OwnerPackage, UObject* OwnerObject,
@@ -126,8 +205,9 @@ public:
 	 * @param OwnerPackage				The generator package being split
 	 * @param OwnerObject				The SplitDataClass instance that this CookPackageSplitter instance was created for
 	 * @param GeneratedPackages			Placeholder UPackage and relative path information for all packages that will be generated
-	 * @param OutKeepReferencedPackages A list of packages which should be kept referenced until all generated packages for
-	 *                                  the generator have finished saving.
+	 * @param OutKeepReferencedPackages Packages to keep referenced until the generator package finishes save.
+	 *                                  If DoesGeneratedRequireGenerator() >= Populate, these will also be kept referenced until
+	 *                                  all generated packages finish saving or the splitter is destroyed.
 	 *
 	 * @return							True if successfully presaved, false on error (this will cause a cook error).
 	 */
@@ -169,13 +249,15 @@ public:
 	 * Return a list of all the objects that will be moved into the Generated package during its save, so the cooker
 	 * can call BeginCacheForCookedPlatformData on them before the move
 	 * After returning, the given package will be queued for saving into the TargetDomain
+	 * 
+	 * PopulateGeneratedPackage is guaranteed to not be called again on the same generated package until the splitter
+	 * has been destroyed and the generator package has been garbage collected.
 	 *
 	 * @param OwnerPackage				The parent package being split
 	 * @param OwnerObject				The SplitDataClass instance that this CookPackageSplitter instance was created for
 	 * @param GeneratedPackage			Pointer and information about the package to populate
 	 * @param OutObjectsToMove			List of all the objects that will be moved into the generated package during its save
-	 * @param OutKeepReferencedPackages A list of packages which should be kept referenced until all generated packages for
-	 *                                  for the generator have finished saving.
+	 * @param OutKeepReferencedPackages Packages to keep referenced until the generated package finishes save.
 	 * 
 	 * @return							True if successfully populated, false on error (this will cause a cook error).
 	 */
@@ -193,8 +275,7 @@ public:
 	 * @param OwnerPackage				The parent package being split
 	 * @param OwnerObject				The SplitDataClass instance that this CookPackageSplitter instance was created for
 	 * @param GeneratedPackage			Pointer and information about the package to populate
-	 * @param OutKeepReferencedPackages A list of packages which should be kept referenced until all generated packages for
-	 *                                  for the generator have finished saving.
+	 * @param OutKeepReferencedPackages Packages to keep referenced until the generated package finishes save.
 	 * 
 	 * @return							True if successfully presaved, false on error (this will cause a cook error).
 	 */
@@ -216,13 +297,24 @@ public:
 
 	/** Called when the Owner package needs to be reloaded after a garbage collect in order to populate a generated package. */
 	virtual void OnOwnerReloaded(UPackage* OwnerPackage, UObject* OwnerObject) {}
+
+	// Utility functions for Splitters
+
+	/** The name of the _Generated_ subdirectory that is the parent directory of a splitter's generated packages. */
+	UNREALED_API static const TCHAR* GetGeneratedPackageSubPath();
+	/** Return true if the given path is a _Generated_ directory, or a subpath under it. */
+	UNREALED_API static bool IsUnderGeneratedPackageSubPath(FStringView FileOrLongPackagePath);
+
+	/**
+	 * Return the full packagename that will be used for a GeneratedPackage, based on the GeneratorPackage's name and
+	 * on the RelPath and optional GeneratedRootPath that the splitter provides in the FGeneratedPackage it returns from
+	 * GetGenerateList.
+	 */
+	UNREALED_API static FString ConstructGeneratedPackageName(FName OwnerPackageName, FStringView RelPath,
+		FStringView GeneratedRootOverride = FStringView());
 };
 
-namespace UE
-{
-namespace Cook
-{
-namespace Private
+namespace UE::Cook::Private
 {
 
 /** Interface for internal use only (used by REGISTER_COOKPACKAGE_SPLITTER to register an ICookPackageSplitter for a class) */
@@ -233,6 +325,7 @@ public:
 	UNREALED_API virtual ~FRegisteredCookPackageSplitter();
 
 	virtual UClass* GetSplitDataClass() const = 0;
+	virtual bool RequiresCachedCookedPlatformDataBeforeSplit() const = 0;
 	virtual bool ShouldSplitPackage(UObject* Object) const = 0;
 	virtual ICookPackageSplitter* CreateInstance(UObject* Object) const = 0;
 	virtual FString GetSplitterDebugName() const = 0;
@@ -246,24 +339,42 @@ private:
 };
 
 }
-}
-}
 
 /**
  * Used to Register an ICookPackageSplitter for a class
  *
  * Example usage:
  *
+ * // In header or cpp
  * class FMyCookPackageSplitter : public ICookPackageSplitter { ... }
+ * 
+ * // In cpp
  * REGISTER_COOKPACKAGE_SPLITTER(FMyCookPackageSplitter, UMySplitDataClass);
  */
 #define REGISTER_COOKPACKAGE_SPLITTER(SplitterClass, SplitDataClass) \
-class PREPROCESSOR_JOIN(PREPROCESSOR_JOIN(SplitterClass, SplitDataClass), _Register) : public UE::Cook::Private::FRegisteredCookPackageSplitter \
+class PREPROCESSOR_JOIN(PREPROCESSOR_JOIN(SplitterClass, SplitDataClass), _Register) \
+	: public UE::Cook::Private::FRegisteredCookPackageSplitter \
 { \
-	virtual UClass* GetSplitDataClass() const override { return SplitDataClass::StaticClass(); } \
-	virtual bool ShouldSplitPackage(UObject* Object) const override { return SplitterClass::ShouldSplit(Object); } \
-	virtual ICookPackageSplitter* CreateInstance(UObject* SplitData) const override { return new SplitterClass(); } \
-	virtual FString GetSplitterDebugName() const override { return SplitterClass::GetSplitterDebugName(); } \
+	virtual UClass* GetSplitDataClass() const override \
+	{ \
+		return SplitDataClass::StaticClass(); \
+	} \
+	virtual bool RequiresCachedCookedPlatformDataBeforeSplit() const override \
+	{ \
+		return SplitterClass::RequiresCachedCookedPlatformDataBeforeSplit(); \
+	} \
+	virtual bool ShouldSplitPackage(UObject* Object) const override \
+	{ \
+		return SplitterClass::ShouldSplit(Object); \
+	} \
+	virtual ICookPackageSplitter* CreateInstance(UObject* SplitData) const override \
+	{ \
+		return new SplitterClass(); \
+	} \
+	virtual FString GetSplitterDebugName() const override \
+	{ \
+		return SplitterClass::GetSplitterDebugName(); \
+	} \
 }; \
 namespace PREPROCESSOR_JOIN(SplitterClass, SplitDataClass) \
 { \

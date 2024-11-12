@@ -3,6 +3,7 @@
 #include "VREditorModeBase.h"
 #include "CameraController.h"
 #include "Engine/Engine.h"
+#include "Framework/Application/SlateApplication.h"
 #include "GameFramework/WorldSettings.h"
 #include "IHeadMountedDisplay.h"
 #include "ILevelEditor.h"
@@ -245,12 +246,53 @@ void UVREditorModeBase::CloseViewport( const bool bShouldDisableStereo )
 }
 
 
+void UVREditorModeBase::StereoViewportSetup(TSharedRef<SLevelViewport> Viewport)
+{
+	Viewport->EnableStereoRendering(true);
+	Viewport->SetRenderDirectlyToWindow(true);
+
+	if (TSharedPtr<SViewport> ViewportWidget = Viewport->GetViewportWidget().Pin(); ensure(ViewportWidget))
+	{
+		TSharedRef<SViewport> ViewportWidgetRef = ViewportWidget.ToSharedRef();
+		TSharedPtr<SWindow> ParentWindow = FSlateApplication::Get().FindWidgetWindow(ViewportWidgetRef);
+		TSharedPtr<ISlateViewport> SlateViewport = ViewportWidgetRef->GetViewportInterface().Pin();
+		if (ensure(ParentWindow) && ensure(SlateViewport))
+		{
+			// It is important to ensure that our containing SWindow is associated with our
+			// ISlateViewport, so FSlateRHIRenderer will invoke the UseSeparateRenderTarget path
+			// to correctly interoperate with the XR swapchain.
+			ParentWindow->SetViewport(SlateViewport.ToSharedRef());
+		}
+	}
+}
+
+
+void UVREditorModeBase::StereoViewportShutdown(TSharedRef<SLevelViewport> Viewport)
+{
+	Viewport->EnableStereoRendering(false);
+	Viewport->SetRenderDirectlyToWindow(false);
+
+	if (TSharedPtr<SViewport> ViewportWidget = Viewport->GetViewportWidget().Pin(); ensure(ViewportWidget))
+	{
+		TSharedRef<SViewport> ViewportWidgetRef = ViewportWidget.ToSharedRef();
+		TSharedPtr<SWindow> ParentWindow = FSlateApplication::Get().FindWidgetWindow(ViewportWidgetRef);
+		TSharedPtr<ISlateViewport> SlateViewport = ViewportWidgetRef->GetViewportInterface().Pin();
+		if (ensure(ParentWindow) && ensure(SlateViewport))
+		{
+			// It's also important to ensure that we remove the ISlateViewport association when
+			// we're done with stereo rendering, or else multiple SWindows might end up associated
+			// with the same viewport (e.g. undocked/floating/orphan viewport), causing artifacts.
+			ParentWindow->UnsetViewport(SlateViewport.ToSharedRef());
+		}
+	}
+}
+
+
 void UVREditorModeBase::EnableStereo()
 {
-	if (TSharedPtr<SLevelViewport> Viewport = GetVrLevelViewport())
+	if (TSharedPtr<SLevelViewport> Viewport = GetVrLevelViewport(); ensure(Viewport))
 	{
-		Viewport->EnableStereoRendering(true);
-		Viewport->SetRenderDirectlyToWindow(true);
+		StereoViewportSetup(Viewport.ToSharedRef());
 	}
 
 	if (GEngine->XRSystem)
@@ -267,9 +309,8 @@ void UVREditorModeBase::DisableStereo()
 		GEngine->StereoRenderingDevice->EnableStereo(false);
 	}
 
-	if (TSharedPtr<SLevelViewport> Viewport = GetVrLevelViewport())
+	if (TSharedPtr<SLevelViewport> Viewport = GetVrLevelViewport(); ensure(Viewport))
 	{
-		Viewport->EnableStereoRendering(false);
-		Viewport->SetRenderDirectlyToWindow(false);
+		StereoViewportShutdown(Viewport.ToSharedRef());
 	}
 }

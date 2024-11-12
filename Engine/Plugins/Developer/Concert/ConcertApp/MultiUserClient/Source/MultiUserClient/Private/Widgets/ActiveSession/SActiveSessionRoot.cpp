@@ -5,50 +5,28 @@
 #include "Overview/SActiveSessionOverviewTab.h"
 #include "Replication/SReplicationRootWidget.h"
 #include "SActiveSessionToolbar.h"
+#include "STabArea.h"
 
-#include "Framework/Docking/TabManager.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateTypes.h"
-#include "Widgets/Docking/SDockTab.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SActiveSessionRoot"
 
 namespace UE::MultiUserClient
 {
-	const FName SActiveSessionRoot::OverviewTabId(TEXT("OverviewTabId"));
+	const FName SActiveSessionRoot::SessionOverviewTabId(TEXT("OverviewTabId"));
 	const FName SActiveSessionRoot::ReplicationTabId(TEXT("ReplicationTabId"));
 	
 	void SActiveSessionRoot::Construct(
 		const FArguments& InArgs,
-		const TSharedRef<SDockTab>& ConstructUnderMajorTab,
 		TSharedPtr<IConcertSyncClient> InConcertSyncClient,
-		TSharedRef<FMultiUserReplicationManager> InReplicationManager
+		TSharedRef<Replication::FMultiUserReplicationManager> InReplicationManager
 		)
 	{
-		ConcertSyncClient = InConcertSyncClient;
-		
-		TabManager = FGlobalTabmanager::Get()->NewTabManager(ConstructUnderMajorTab);
-		TSharedRef<FWorkspaceItem> AppMenuGroup = TabManager->AddLocalWorkspaceMenuCategory(LOCTEXT("ConcertActiveSession", "Active Session"));
-		TabManager->SetAllowWindowMenuBar(true);
-		RegisterTabSpawners(TabManager.ToSharedRef(), AppMenuGroup, InReplicationManager);
-
-		// Create our content
-		const TSharedRef<FTabManager::FLayout> Layout =
-			FTabManager::NewLayout("ConcertActiveSession_Layout_v3")
-			->AddArea
-			(
-				FTabManager::NewPrimaryArea()
-				->Split
-				(
-					FTabManager::NewStack()
-					->AddTab(OverviewTabId, ETabState::OpenedTab)
-					->AddTab(ReplicationTabId, ETabState::OpenedTab)
-					->SetForegroundTab(OverviewTabId)
-					->SetHideTabWell(false)
-					)
-			);
-		
 		ChildSlot
 		[
 			SNew(SVerticalBox)
@@ -62,6 +40,10 @@ namespace UE::MultiUserClient
 				.Padding(0.0f)
 				[
 					SNew(SActiveSessionToolbar, InConcertSyncClient)
+					.TabArea()
+					[
+						CreateTabArea()
+					]
 				]
 			]
 
@@ -71,44 +53,59 @@ namespace UE::MultiUserClient
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Fill)
 			[
-				TabManager->RestoreFrom(Layout, nullptr).ToSharedRef()
+				SAssignNew(TabSwitcher, SWidgetSwitcher)
+
+				+SWidgetSwitcher::Slot()
+				[
+					SNew(SActiveSessionOverviewTab, InConcertSyncClient)
+				]
+				+SWidgetSwitcher::Slot()
+				[
+					SNew(Replication::SReplicationRootWidget, InReplicationManager, InConcertSyncClient.ToSharedRef())
+				]
 			]
 		];
 	}
 
-	void SActiveSessionRoot::RegisterTabSpawners(
-		const TSharedRef<FTabManager>& InTabManager,
-		const TSharedRef<FWorkspaceItem>& AppMenuGroup,
-		TSharedRef<FMultiUserReplicationManager> InReplicationManager
-		)
+	TSharedRef<SWidget> SActiveSessionRoot::CreateTabArea()
 	{
-		InTabManager->RegisterTabSpawner(OverviewTabId, FOnSpawnTab::CreateSP(this, &SActiveSessionRoot::SpawnTab_Overview))
-			.SetDisplayName(LOCTEXT("OverviewTab.DisplayName", "Overview"))
-			.SetGroup(AppMenuGroup);
-	
-		InTabManager->RegisterTabSpawner(ReplicationTabId, FOnSpawnTab::CreateSP(this, &SActiveSessionRoot::SpawnTab_ReplicationControls, InReplicationManager))
-			.SetDisplayName(LOCTEXT("ReplicationTab.DisplayName", "Replication"))
-			.SetGroup(AppMenuGroup);
-	}
+		const auto CreateTabEntry = [this](int32 Index, const ANSICHAR* ImageBrush, FText Label, FText ToolTipText)
+		{
+			FTabEntry Entry;
 
-	TSharedRef<SDockTab> SActiveSessionRoot::SpawnTab_Overview(const FSpawnTabArgs& Args)
-	{
-		return SNew(SDockTab)
-			.Label(LOCTEXT("OverviewTab.Label", "Overview"))
-			.ToolTipText(LOCTEXT("OverviewTab.Tooltip", "Displays active session clients and activity."))
-			[
-				SNew(SActiveSessionOverviewTab, ConcertSyncClient)
-			];
-	}
+			Entry.ButtonContent.Widget = SNew(SHorizontalBox)
+				.ToolTipText(ToolTipText)
+				
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					SNew(SImage)
+					.Image(FConcertFrontendStyle::Get()->GetBrush(ImageBrush))
+				]
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(2., 0.f, 0.f, 0.f)
+				[
+					SNew(STextBlock)
+					.Text(Label)
+				];
+			Entry.OnTabSelected.BindLambda([this, Index]()
+			{
+				TabSwitcher->SetActiveWidgetIndex(Index);
+			});
 
-	TSharedRef<SDockTab> SActiveSessionRoot::SpawnTab_ReplicationControls(const FSpawnTabArgs& Args, TSharedRef<FMultiUserReplicationManager> InReplicationManager)
-	{
-		return SNew(SDockTab)
-			.Label(LOCTEXT("ReplicationTab.Label", "Replication"))
-			.ToolTipText(LOCTEXT("ReplicationTab.Tooltip", "Manage real-time object replication"))
-			[
-				SNew(SReplicationRootWidget, InReplicationManager, ConcertSyncClient.ToSharedRef())
-			];
+			return Entry;
+		};
+
+		TArray<FTabEntry> Tabs
+		{
+			CreateTabEntry(0, "Concert.ActiveSession.Icon", LOCTEXT("OverviewTab.DisplayName", "Overview"), LOCTEXT("SessionOverviewTab.Tooltip", "Displays active session clients and activity.")),
+			CreateTabEntry(1, "Concert.MultiUser", LOCTEXT("ReplicationTab.Label", "Replication"), LOCTEXT("ReplicationTab.Tooltip", "Manage real-time object replication"))
+		};
+		
+		return SNew(STabArea)
+			.Tabs(Tabs)
+			.ActiveTabIndex(0);
 	}
 }
 

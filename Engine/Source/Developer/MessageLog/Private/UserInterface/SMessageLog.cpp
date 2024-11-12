@@ -47,7 +47,6 @@ void SMessageLog::Construct( const FArguments& InArgs, const TSharedRef<FMessage
 						[
 							// log categories list
 							SAssignNew(CategoriesListView, SListView<IMessageLogListingPtr>)
-								.ItemHeight(24.0f)
 								.ListItemsSource(&ViewModel->GetLogListingViewModels())
 								.OnGenerateRow(this, &SMessageLog::HandleCategoriesListGenerateRow)
 								.OnSelectionChanged(this, &SMessageLog::HandleCategoriesListSelectionChanged)

@@ -214,12 +214,7 @@ struct FMemory
 	static CORE_API void Free(void* Original);
 	static CORE_API SIZE_T GetAllocSize(void* Original);
 
-	UE_ALLOCATION_FUNCTION(1, 2) static FORCEINLINE_DEBUGGABLE void* MallocZeroed(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT)
-	{
-		void* Memory = Malloc(Count, Alignment);
-		Memzero(Memory, Count);
-		return Memory;
-	}
+	UE_ALLOCATION_FUNCTION(1, 2) static CORE_API void* MallocZeroed(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
 
 	/**
 	* For some allocators this will return the actual size that should be requested to eliminate
@@ -243,6 +238,16 @@ struct FMemory
 	* Clears the TLS caches on the current thread and disables any future caching.
 	*/
 	static CORE_API void ClearAndDisableTLSCachesOnCurrentThread();
+
+	/**
+	* Mark TLS caches for the current thread as used. Thread has woken up to do some processing and needs its TLS caches back.
+	*/
+	static CORE_API void MarkTLSCachesAsUsedOnCurrentThread();
+
+	/**
+	* Mark TLS caches for current thread as unused. Typically before going to sleep. These are the threads that we can trim without waking them up.
+	*/
+	static CORE_API void MarkTLSCachesAsUnusedOnCurrentThread();
 
 	/**
 	 * A helper function that will perform a series of random heap allocations to test
@@ -272,12 +277,25 @@ struct FMemory
 	* Functions to handle special memory given to the title from the platform
 	* This memory is allocated like a stack, it's never really freed
 	*/
-	static CORE_API void RegisterPersistentAuxiliary(void* InMemory, SIZE_T InSize);
+	UE_DEPRECATED(5.5, "Persistent Auxiliary allocator is obsolete and is replaced by a GetPersistentLinearAllocator()")
+	static inline void RegisterPersistentAuxiliary(void* /*InMemory*/, SIZE_T /*InSize*/) {}
+
+	UE_DEPRECATED(5.5, "Persistent Auxiliary allocator is obsolete and is replaced by a GetPersistentLinearAllocator()")
 	static CORE_API void* MallocPersistentAuxiliary(SIZE_T InSize, uint32 InAlignment = 0);
+
+	UE_DEPRECATED(5.5, "Persistent Auxiliary allocator is obsolete and is replaced by a GetPersistentLinearAllocator()")
 	static CORE_API void FreePersistentAuxiliary(void* InPtr);
+
+	UE_DEPRECATED(5.5, "Persistent Auxiliary allocator is obsolete and is replaced by a GetPersistentLinearAllocator()")
 	static CORE_API bool IsPersistentAuxiliaryActive();
-	static CORE_API void DisablePersistentAuxiliary();
-	static CORE_API void EnablePersistentAuxiliary();
+
+	UE_DEPRECATED(5.5, "Persistent Auxiliary allocator is obsolete and is replaced by a GetPersistentLinearAllocator()")
+	static inline void DisablePersistentAuxiliary() {}
+
+	UE_DEPRECATED(5.5, "Persistent Auxiliary allocator is obsolete and is replaced by a GetPersistentLinearAllocator()")
+	static inline void EnablePersistentAuxiliary() {}
+
+	UE_DEPRECATED(5.5, "Persistent Auxiliary allocator is obsolete and is replaced by a GetPersistentLinearAllocator()")
 	static CORE_API SIZE_T GetUsedPersistentAuxiliary();
 private:
 	static CORE_API void GCreateMalloc();
@@ -286,6 +304,7 @@ private:
 	static CORE_API void* ReallocExternal(void* Original, SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
 	static CORE_API void FreeExternal(void* Original);
 	static CORE_API SIZE_T GetAllocSizeExternal(void* Original);
+	static CORE_API void* MallocZeroedExternal(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
 	static CORE_API SIZE_T QuantizeSizeExternal(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
 };
 

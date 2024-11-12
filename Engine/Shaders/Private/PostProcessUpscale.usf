@@ -5,6 +5,7 @@
 #include "PostProcessCommon.ush"
 #include "PaniniProjection.ush"
 #include "TextureSampling.ush"
+#include "LensDistortion.ush"
 
 #define UPSCALE_METHOD_NEAREST 0
 #define UPSCALE_METHOD_BILINEAR 1
@@ -17,14 +18,11 @@
 // only for MainPS
 float UpscaleSoftness;
 
-// only for MainVS()
-// .x:HalfFOV .y:tan(HalfFov) .z:CylinderDistortion(0=none, 1:full) .w:Correction to scale Y the same as X is scaled in the center
-float Panini_D;
-float Panini_S;
-float Panini_ScreenPosScale;
-
 SCREEN_PASS_TEXTURE_VIEWPORT(Input)
 SCREEN_PASS_TEXTURE_VIEWPORT(Output)
+
+Texture2D<float2> DistortingDisplacementTexture;
+SamplerState DistortingDisplacementSampler;
 
 Texture2D SceneColorTexture;
 SamplerState SceneColorSampler;
@@ -65,27 +63,19 @@ float2 GetSmoothstepUV(float2 LinearUV, float2 TextureSize, float2 TextureInvSiz
 
 float Luma(float3 Color) 
 {
-	// Rec 709 function for luma.
-	return dot(Color, float3(0.2126, 0.7152, 0.0722));
+#if UE_LEGACY_LUMINANCE_FACTORS || WORKING_COLOR_SPACE_IS_SRGB
+	// Note: In this case, the previous (legacy) luminance factors correctly used the sRGB definition.
+	float3 LuminanceFactors = float3(0.2126390059, 0.7151686788, 0.0721923154);
+#else
+	float3 LuminanceFactors = float3(WORKING_COLOR_SPACE_RGB_TO_XYZ_MAT._m10_m11_m12);
+#endif
+
+	return dot(Color, LuminanceFactors);
 }
 
 float Gaussian(float Scale, float2 Offset) 
 {
 	return exp2(Scale * dot(Offset, Offset));
-}
-
-// Panini projection in the screen pos
-// @param InScreenPos: the position to project in the screen space
-// @return the panini projected postion in screen space
-float2 PaniniProjectionScreenPos(float2 InScreenPos)
-{
-	const float2 ScreenSpaceToPaniniFactor = GetTanHalfFieldOfView();
-	const float2 PaniniToScreenSpaceFactor = GetCotanHalfFieldOfView();
-	const float2 PaniniDirection = InScreenPos * ScreenSpaceToPaniniFactor;
-	const float2 PaniniPosition = PaniniProjection(PaniniDirection, Panini_D, Panini_S);
-
-	// Return the new position back in the screen space frame
-	return PaniniPosition * PaniniToScreenSpaceFactor * Panini_ScreenPosScale;
 }
 
 // vertex shader entry point
@@ -102,10 +92,8 @@ void MainVS(
 	// still in 0..1 range
 	float4 Position = float4(TexCoord.x, TexCoord.y, 0, 1);
 
-	float2 PlanarScreenPos = TexCoord * 2 - 1;
-
 	// distort pos
-	Position.xy = PaniniProjectionScreenPos(PlanarScreenPos) * 0.5f + 0.5f;
+	Position.xy = ApplyLensDistortionOnViewportUV(DistortingDisplacementTexture, DistortingDisplacementSampler, TexCoord);
 
 	DrawRectangle(Position, TexCoord, OutPosition, OutTexCoord.xy);
 	OutTexCoord.zw =  OutPosition.xy;
@@ -124,8 +112,16 @@ float4 AccumulateAndApplyWeight(in float4 DataRGBA, in float Weight, inout float
 	return DataRGBA * Weight;
 }
 
-void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0)
+void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, 
+#if MOBILE_MULTI_VIEW && INSTANCED_STEREO
+	in nointerpolation uint EyeIndex : VIEW_ID,
+#endif
+float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0)
 {
+#if MOBILE_MULTI_VIEW && INSTANCED_STEREO
+	ResolvedView = ResolveView(EyeIndex);
+#endif
+
 	OutColor = 0;
 
 #if METHOD == UPSCALE_METHOD_NEAREST
@@ -290,7 +286,7 @@ void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition :
 	}
 #endif
 
-#if POST_PROCESS_ALPHA
+#if defined(DIM_ALPHA_CHANNEL) && DIM_ALPHA_CHANNEL == 1
 	FLATTEN
 	if (OutColor.a > 0.999)
 	{
@@ -300,6 +296,12 @@ void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition :
 	{
 		OutColor.a = 0.0;
 	}
+
+#if SHADING_PATH_MOBILE
+	// TODO: Remove inversion & replace with more robust solution for HMI: pass dependent & can potentially conflict with OpenXR backbuffer alpha inversion.
+	OutColor.a = 1.0f - OutColor.a;
+#endif
+	
 #else
 	OutColor.a = 0; // Skip all computations related to alpha
 #endif

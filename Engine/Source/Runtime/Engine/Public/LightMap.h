@@ -10,9 +10,6 @@
 #include "Containers/ChunkedArray.h"
 #include "Misc/Guid.h"
 #include "Engine/EngineTypes.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RenderingThread.h"
-#endif
 #include "RenderDeferredCleanup.h"
 #include "Serialization/BulkData.h"
 #include "SceneManagement.h"
@@ -95,7 +92,7 @@ public:
 	}
 	void Release()
 	{
-		check(IsInGameThread() || IsInAsyncLoadingThread() || IsInGarbageCollectorThread());
+		check(IsInGameThread() || IsInAsyncLoadingThread());
 		checkSlow(NumRefs > 0);
 		if(--NumRefs == 0)
 		{
@@ -304,13 +301,13 @@ public:
 	 * @param	bLightingSuccessful	Whether the lighting build was successful or not.
 	 * @param	bForceCompletion	Force all encoding to be fully completed (they may be asynchronous).
 	 */
-	static ENGINE_API void EncodeTextures( UWorld* InWorld, ULevel* LightingScenario, bool bLightingSuccessful, bool bMultithreadedEncode = false );
+	static ENGINE_API void EncodeTextures(const FStaticLightingBuildContext* LightingContext, bool bLightingSuccessful, bool bMultithreadedEncode = false );
 
 #if WITH_EDITOR
 	/**
 	 * Constructs mip maps for a single shadowmap texture.
 	 */
-	static ENGINE_API int32 EncodeShadowTexture(ULevel* LightingScenario, struct FLightMapPendingTexture& PendingTexture, TArray<TArray<FFourDistanceFieldSamples>>& MipData);
+	static ENGINE_API int32 EncodeShadowTexture(const FStaticLightingBuildContext* LightingContext, struct FLightMapPendingTexture& PendingTexture, TArray<TArray<FFourDistanceFieldSamples>>& MipData);
 #endif // WITH_EDITOR
 
 	/** Call to enable/disable status update of LightMap encoding */
@@ -525,6 +522,8 @@ struct FQuantizedLightmapData
 	{}
 
 	ENGINE_API bool HasNonZeroData() const;
+
+	ENGINE_API void Serialize(FArchive& Ar);
 };
 
 /**

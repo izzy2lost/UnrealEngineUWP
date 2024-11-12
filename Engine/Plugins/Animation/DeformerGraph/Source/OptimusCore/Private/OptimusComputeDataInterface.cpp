@@ -3,6 +3,7 @@
 #include "OptimusComputeDataInterface.h"
 
 #include "DataInterfaces/OptimusDataInterfaceRawBuffer.h"
+#include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 
 #include "Templates/SubclassOf.h"
 #include "UObject/UObjectIterator.h"
@@ -15,6 +16,24 @@ const FName UOptimusComputeDataInterface::CategoryName::DataInterfaces("Data Int
 const FName UOptimusComputeDataInterface::CategoryName::ExecutionDataInterfaces("Execution Data Interfaces");
 const FName UOptimusComputeDataInterface::CategoryName::OutputDataInterfaces("Output Data Interfaces");
 
+
+void UOptimusComputeDataInterface::ExportState(FArchive& Ar)
+{
+	// We have to use the proxy archive because FMemoryWriter simply asserts when the object has object references.
+	// However if the data interface spawns more objects, it needs to override this function with custom logic for undo/redo to work properly
+	FObjectAndNameAsStringProxyArchive NodeProxyArchive(
+			Ar, /* bInLoadIfFindFails=*/ false);
+
+	SerializeScriptProperties(NodeProxyArchive);	
+}
+
+void UOptimusComputeDataInterface::ImportState(FArchive& Ar)
+{
+	FObjectAndNameAsStringProxyArchive NodeProxyArchive(
+			Ar, /* bInLoadIfFindFails=*/false);
+	
+	SerializeScriptProperties(NodeProxyArchive);
+}
 
 TSet<TArray<FName>> UOptimusComputeDataInterface::GetUniqueNestedContexts() const
 {

@@ -12,6 +12,7 @@
 #include "UObject/NameTypes.h"
 #include "UObject/UnrealNames.h"
 
+class FCbWriter;
 class FOutputDevice;
 class UObject;
 
@@ -200,6 +201,9 @@ struct FPrimaryAssetId
 	}
 
 	friend struct Z_Construct_UScriptStruct_FPrimaryAssetId_Statics;
+
+private:
+	 COREUOBJECT_API void SerializeForLog(FCbWriter& Writer, const FPrimaryAssetId& Value);
 };
 
 COREUOBJECT_API FStringBuilderBase& operator<<(FStringBuilderBase& Builder, const FPrimaryAssetId& Id);

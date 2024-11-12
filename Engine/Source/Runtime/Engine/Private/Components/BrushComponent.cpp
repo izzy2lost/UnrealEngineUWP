@@ -25,6 +25,10 @@
 #include "PhysicsEngine/BodySetup.h"
 #include "DynamicMeshBuilder.h"
 
+#if WITH_EDITOR
+#include "Editor.h"
+#endif //WITH_EDITOR
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(BrushComponent)
 
 DEFINE_LOG_CATEGORY_STATIC(LogBrushComponent, Log, All);
@@ -513,6 +517,56 @@ void UBrushComponent::PostLoad()
 	}
 #endif
 }
+
+#if WITH_EDITOR
+void UBrushComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (const ABrush* BrushOwner = Cast<ABrush>(GetOwner()))
+	{
+		if (!BrushOwner->IsVolumeBrush())
+		{
+			if (!BrushOwner->IsStaticBrush())
+			{
+				if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UBrushComponent, Mobility))
+				{
+					// This is to cover a case when the user changes the non-volume brush from static type to non-static type(i.e. changes its mobility)
+					// The previously registered static navigation data for BSP didn't get updated and this component's part was staying there
+					ConditionalRebuildAlteredBSP();
+				}
+			}
+		}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+void UBrushComponent::OnRegister()
+{
+	Super::OnRegister();
+
+	if (const ABrush* BrushOwner = Cast<ABrush>(GetOwner()))
+	{
+		// Volume Brush and Non-Static Brush's Geometric Data will be exported via registering the component
+		// which is handled in UPrimitiveComponent::OnRegister
+		if (!BrushOwner->IsVolumeBrush() && BrushOwner->IsStaticBrush())
+		{
+			// Not checking NavRelavency is intentional to cover cases when it changes from being Nav Relevant to Nav Irrelevant,
+			// we need to update the registered static Navigation Data for BSP and remove this component's part.
+			ConditionalRebuildAlteredBSP();
+		}
+	}
+}
+
+void UBrushComponent::ConditionalRebuildAlteredBSP() const
+{
+	// Not entirely clear why we should limit the rebuilding to within a transaction,
+	// but this is done in ABrush::PostEditChangeProperty, so we are following the same pattern
+	if (!ABrush::GetSuppressBSPRegeneration() && GEditor && GUndo)
+	{
+		GEditor->RebuildAlteredBSP();
+	}
+}
+#endif //WITH_EDITOR
 
 ESceneDepthPriorityGroup UBrushComponent::GetStaticDepthPriorityGroup() const
 {

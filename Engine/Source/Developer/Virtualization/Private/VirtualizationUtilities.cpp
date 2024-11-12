@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "VirtualizationUtilities.h"
+#include "VirtualizationExperimentalUtilities.h"
 
 #include "HAL/PlatformProcess.h"
 #include "IO/IoHash.h"
@@ -9,6 +10,10 @@
 #include "Misc/StringBuilder.h"
 #include "UObject/PackageFileSummary.h"
 #include "UObject/PackageResourceManager.h"
+#include "Virtualization/VirtualizationSystem.h"
+#include "Virtualization/VirtualizationTypes.h"
+
+#include "VirtualizationManager.h"
 
 namespace UE::Virtualization::Utils
 {
@@ -167,4 +172,18 @@ bool IsProcessInteractive()
 	return true;
 }
 
+EPayloadFilterReason FixFilterFlags(FStringView PackagePath, uint64 SizeOnDisk, EPayloadFilterReason CurrentFilterFlags)
+{
+	if (IVirtualizationSystem::IsInitialized() && IVirtualizationSystem::GetSystemName() == FName("Default") && IVirtualizationSystem::Get().IsEnabled())
+	{
+		// Very hacky but should be safe if the system name is "Default". Allows us to do this without actually modifying the public API.
+		FVirtualizationManager& Manager = static_cast<FVirtualizationManager&>(IVirtualizationSystem::Get());
+
+		return Manager.FixFilterFlags(PackagePath, SizeOnDisk, CurrentFilterFlags);
+	}
+
+	return CurrentFilterFlags;
+}
+
 } // namespace UE::Virtualization::Utils
+

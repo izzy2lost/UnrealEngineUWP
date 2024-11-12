@@ -23,11 +23,11 @@ namespace Jupiter.Implementation
 	public class MetricsServiceSettings
 	{
 		/// <summary>
-		/// Set to enable calulcation of metrics in the background. Adds load to database so only enable these if you intend to use it.
+		/// Set to enable calculation of metrics in the background. Adds load to database so only enable these if you intend to use it.
 		/// </summary>
 		public bool Enabled { get; set; } = false;
 
-		public TimeSpan PollFrequency { get; set; } = TimeSpan.FromHours(24);
+		public TimeSpan PollFrequency { get; set; } = TimeSpan.FromHours(6);
 	}
 
 	public class MetricsService : PollingService<MetricsState>
@@ -88,14 +88,14 @@ namespace Jupiter.Implementation
 			_logger.LogInformation("Attempting to calculate metrics. ");
 			try
 			{
-				await foreach (NamespaceId ns in _referencesStore.GetNamespacesAsync().WithCancellation(cancellationToken))
+				await foreach (NamespaceId ns in _referencesStore.GetNamespacesAsync(cancellationToken).WithCancellation(cancellationToken))
 				{
-					await foreach (BucketId bucket in _referencesStore.GetBuckets(ns).WithCancellation(cancellationToken))
+					await foreach (BucketId bucket in _referencesStore.GetBucketsAsync(ns, cancellationToken).WithCancellation(cancellationToken))
 					{
 						DateTime start = DateTime.UtcNow;
 						_logger.LogInformation("Calculating stats for {Namespace} {Bucket}", ns, bucket);
 
-						await calculator.CalculateStatsForBucketAsync(ns, bucket);
+						await calculator.CalculateStatsForBucketAsync(ns, bucket, cancellationToken);
 
 						TimeSpan duration = DateTime.UtcNow - start;
 						_logger.LogInformation("Stats calculated for {Namespace} {Bucket} took {Duration}", ns, bucket, duration);
@@ -104,7 +104,7 @@ namespace Jupiter.Implementation
 			}
 			catch (Exception e)
 			{
-				_logger.LogError("Error calculating metrics. {Exception}",  e);
+				_logger.LogError("Error calculating metrics. {Exception}", e);
 			}
 		}
 	}
@@ -136,7 +136,7 @@ namespace Jupiter.Implementation
 			_refsInBucketGauge = meter.CreateGauge<long>("blobstats.refs_in_bucket");
 		}
 
-		public async Task<BucketStats?> CalculateStatsForBucketAsync(NamespaceId ns, BucketId bucket)
+		public async Task<BucketStats?> CalculateStatsForBucketAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken = default)
 		{
 			using TelemetrySpan removeBlobScope = _tracer.StartActiveSpan("metrics.calculate")
 				.SetAttribute("operation.name", "metrics.calculate")
@@ -144,7 +144,7 @@ namespace Jupiter.Implementation
 
 			KeyValuePair<string, object?>[] tags = new[] { new KeyValuePair<string, object?>("Bucket", bucket.ToString()), new KeyValuePair<string, object?>("Namespace", ns.ToString()) };
 
-			BucketStats stats = await _blobIndex.CalculateBucketStatisticsAsync(ns, bucket);
+			BucketStats stats = await _blobIndex.CalculateBucketStatisticsAsync(ns, bucket, cancellationToken);
 
 			_blobSizeAvgGauge.Record(stats.AvgSize, tags);
 			_blobSizeMinGauge.Record(stats.SmallestBlobFound, tags);
@@ -152,8 +152,8 @@ namespace Jupiter.Implementation
 			_blobSizeCountGauge.Record(stats.CountOfBlobs, tags);
 			_refsInBucketGauge.Record(stats.CountOfRefs, tags);
 			_blobSizeTotalGauge.Record(stats.TotalSize, tags);
-				_logger.LogInformation("Stats calculated for {Namespace} {Bucket}. {CountOfRefs} {CountOfBlobs} {TotalSize} {AvgSize} {MaxSize} {MinSize}",
-				ns, bucket, stats.CountOfRefs, stats.CountOfBlobs, stats.TotalSize, stats.AvgSize, stats.LargestBlob, stats.SmallestBlobFound);
+			_logger.LogInformation("Stats calculated for {Namespace} {Bucket}. {CountOfRefs} {CountOfBlobs} {TotalSize} {AvgSize} {MaxSize} {MinSize}",
+			ns, bucket, stats.CountOfRefs, stats.CountOfBlobs, stats.TotalSize, stats.AvgSize, stats.LargestBlob, stats.SmallestBlobFound);
 
 			return stats;
 		}

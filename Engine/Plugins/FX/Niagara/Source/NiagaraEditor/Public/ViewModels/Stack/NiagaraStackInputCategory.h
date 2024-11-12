@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "NiagaraClipboard.h"
+#include "NiagaraStackScriptHierarchyRoot.h"
 #include "ViewModels/Stack/NiagaraStackItem.h"
 #include "NiagaraTypes.h"
 #include "ViewModels/HierarchyEditor/NiagaraHierarchyViewModelBase.h"
@@ -49,61 +51,45 @@ protected:
 };
 
 UCLASS(MinimalAPI)
-class UNiagaraStackInputCategory : public UNiagaraStackCategory
+class UNiagaraStackScriptHierarchyCategory : public UNiagaraStackCategory
 {
-	GENERATED_BODY() 
+	GENERATED_BODY()
 
 public:
-	NIAGARAEDITOR_API void Initialize(
-		FRequiredEntryData InRequiredEntryData,
-		FString InputCategoryStackEditorDataKey,
-		FText InCategoryName,
-		bool bInIsTopLevelCategory,
-		FString InOwnerStackItemEditorDataKey);
+	NIAGARAEDITOR_API void Initialize(FRequiredEntryData InRequiredEntryData, const UNiagaraHierarchyCategory& InHierarchyCategory, FString InOwningStackItemEditorDataKey, FString InStackEditorDataKey);
+
+	/** UNiagaraStackEntry */
+	virtual bool SupportsCopy() const override { return true; }
+	virtual bool SupportsPaste() const override { return true; }
+	virtual void Copy(UNiagaraClipboardContent* ClipboardContent) const override;
+	virtual void Paste(const UNiagaraClipboardContent* ClipboardContent, FText& OutPasteWarning) override;
+	virtual bool TestCanCopyWithMessage(FText& OutMessage) const override;
+	virtual bool TestCanPasteWithMessage(const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage) const override;
+
+	void PasteFromClipboard(const UNiagaraClipboardContent* ClipboardContent);
+	TArray<const UNiagaraClipboardFunctionInput*> ToClipboardFunctionInputs(UObject* InOuter) const;
 	
-	NIAGARAEDITOR_API bool GetIsEnabled() const;
-
-	NIAGARAEDITOR_API virtual FText GetDisplayName() const override;
-
-	NIAGARAEDITOR_API void ResetInputs();
-
-	NIAGARAEDITOR_API void AddInput(UNiagaraNodeFunctionCall* InModuleNode, UNiagaraNodeFunctionCall* InInputFunctionCallNode, FName InInputParameterHandle, FNiagaraTypeDefinition InInputType, EStackParameterBehavior InParameterBehavior, TOptional<FText> InOptionalDisplayName, bool bIsHidden, bool bIsChildInput);
-
-	NIAGARAEDITOR_API void SetShouldShowInStack(bool bInShouldShowInStack);
-
-	NIAGARAEDITOR_API void ToClipboardFunctionInputs(UObject* InOuter, TArray<const UNiagaraClipboardFunctionInput*>& OutClipboardFunctionInputs) const;
-
-	NIAGARAEDITOR_API bool TrySetStaticSwitchValuesFromClipboardFunctionInput(const UNiagaraClipboardFunctionInput& ClipboardFunctionInput);
-
-	NIAGARAEDITOR_API void SetStandardValuesFromClipboardFunctionInputs(const TArray<const UNiagaraClipboardFunctionInput*>& ClipboardFunctionInputs);
-
-	NIAGARAEDITOR_API void GetFilteredChildInputs(TArray<UNiagaraStackFunctionInput*>& OutFilteredChildInputs) const;
-
+	virtual FText GetDisplayName() const override;
+	virtual FText GetTooltipText() const override;
+	
+	void SetOwningFunctionCallNode(UNiagaraNodeFunctionCall& InOnGetOwningFunctionCallNode) { OwningFunctionCallNode = &InOnGetOwningFunctionCallNode;}
+	void SetOwningModuleNode(UNiagaraNodeFunctionCall& InOnGetOwningModuleNode) { OwningModuleNode = &InOnGetOwningModuleNode;}
+	
+	void SetScriptInstanceData(const FNiagaraScriptInstanceData& InScriptInstanceData) { ScriptInstanceData = InScriptInstanceData; }
+	
+	const UNiagaraHierarchyCategory* GetHierarchyCategory() const { return HierarchyCategory.Get(); }
 protected:
-	//~ UNiagaraStackEntry interface
-	NIAGARAEDITOR_API virtual void RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues) override;
-	virtual bool IsTopLevelCategory() const override { return bIsTopLevelCategory; }
-private:
-	struct FInputParameterHandleAndType
-	{
-		UNiagaraNodeFunctionCall* ModuleNode;
-		UNiagaraNodeFunctionCall* InputFunctionCallNode;
-		FName ParameterHandle;
-		FNiagaraTypeDefinition Type;
-		EStackParameterBehavior ParameterBehavior;
-		TOptional<FText> DisplayName;
-		bool bIsHidden;
-		bool bIsChildInput;
-	};
+	virtual void RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues) override;
 
-	FText CategoryName;
-	TOptional<FText> DisplayName;
-	bool bIsTopLevelCategory;
+	virtual bool IsTopLevelCategory() const override { return HierarchyCategory->GetOuter()->IsA<UNiagaraHierarchyRoot>(); }
+protected:
+	TWeakObjectPtr<const UNiagaraHierarchyCategory> HierarchyCategory;
 
-	TArray<FInputParameterHandleAndType> Inputs;
+	TWeakObjectPtr<UNiagaraNodeFunctionCall> OwningModuleNode;
+	TWeakObjectPtr<UNiagaraNodeFunctionCall> OwningFunctionCallNode;
+	
+	FNiagaraScriptInstanceData ScriptInstanceData;
 };
-
-void AddSummaryItem(UNiagaraHierarchyItemBase* HierarchyItem, UNiagaraStackEntry* Parent);
 
 UCLASS(MinimalAPI)
 class UNiagaraStackSummaryCategory : public UNiagaraStackCategory

@@ -2,18 +2,41 @@
 
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 
+#include "UObject/FortniteMainBranchObjectVersion.h"
+#include "UObject/FortniteSeasonBranchObjectVersion.h"
+
 // @note: Tracing an scene with 1000 particles moving, Manually serializing the structs is ~20% faster
 // than normal UStruct serialization in unversioned mode. As we do this at runtime when tracing in development builds, this is important.
 // One of the downside is that this will be more involved to maintain as any versioning needs to be done by hand.
 
 bool FChaosVDFRigidParticleControlFlags::Serialize(FArchive& Ar)
 {
+	Ar.UsingCustomVersion(FFortniteSeasonBranchObjectVersion::GUID);
+	if (Ar.CustomVer(FFortniteSeasonBranchObjectVersion::GUID) >= FFortniteSeasonBranchObjectVersion::CVDSerializationFixMissingSerializationProperties)
+	{
+		Ar << bHasValidData;
+
+		if (!bHasValidData)
+		{
+			return !Ar.IsError();
+		}
+	}
+	
 	Ar << bGravityEnabled;
 	Ar << bCCDEnabled;
 	Ar << bOneWayInteractionEnabled;
 	Ar << bInertiaConditioningEnabled;
 	Ar << GravityGroupIndex;
 	Ar << bMACDEnabled;
+
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+
+	if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::SolverIterationsDataSupportInChaosVisualDebugger)
+	{
+		Ar << PositionSolverIterationCount;
+		Ar << VelocitySolverIterationCount;
+		Ar << ProjectionSolverIterationCount;
+	}
 
 	return !Ar.IsError();
 }

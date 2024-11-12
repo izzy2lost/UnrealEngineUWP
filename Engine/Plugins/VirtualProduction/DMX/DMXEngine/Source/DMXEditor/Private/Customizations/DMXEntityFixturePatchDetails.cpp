@@ -2,16 +2,15 @@
 
 #include "Customizations/DMXEntityFixturePatchDetails.h"
 
-#include "DMXEditorUtils.h"
-#include "DMXFixturePatchSharedData.h"
-#include "Library/DMXEntityFixturePatch.h"
-#include "Widgets/SDMXEntityDropdownMenu.h"
-
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
+#include "DMXEditorUtils.h"
+#include "DMXFixturePatchSharedData.h"
 #include "IPropertyUtilities.h"
+#include "Library/DMXEntityFixturePatch.h"
 #include "ScopedTransaction.h"
-
+#include "Widgets/Layout/SWidgetSwitcher.h"
+#include "Widgets/SDMXEntityDropdownMenu.h"
 
 #define LOCTEXT_NAMESPACE "DMXEntityFixturePatchFixtureSettingsDetails"
 
@@ -59,27 +58,12 @@ void FDMXEntityFixturePatchDetails::CustomizeDetails(IDetailLayoutBuilder& Detai
 	TSharedPtr<uint32> DefaultSelectedActiveMode = nullptr;
 	GenerateActiveModesSource();
 
-	int32 ActiveMode;
-	if (ActiveModeHandle->GetValue(ActiveMode) == FPropertyAccess::Success)
-	{
-		const bool bActiveModeExists = ActiveModesSource.ContainsByPredicate([ActiveMode](TSharedPtr<uint32> Option) 
-			{
-				return Option.IsValid() && *Option == ActiveMode;
-			});
-
-		if (!bActiveModeExists)
-		{
-			SetActiveMode(0);
-		}
-	}
-
 	DetailBuilder.EditDefaultProperty(ActiveModeHandle)->CustomWidget(false)
 		.NameContent()
 		[
 			ActiveModeHandle->CreatePropertyNameWidget()
 		]
 		.ValueContent()
-		.MaxDesiredWidth(160.0f)
 		[
 			SAssignNew(ActiveModeComboBox, SComboBox<TSharedPtr<uint32>>)
 			.IsEnabled(this, &FDMXEntityFixturePatchDetails::IsActiveModeEditable)
@@ -125,21 +109,10 @@ void FDMXEntityFixturePatchDetails::OnParentFixtureTypeChanged(UDMXEntity* NewTe
 
 void FDMXEntityFixturePatchDetails::OnFixtureTypeChanged(const UDMXEntityFixtureType* FixtureType)
 {
-	if (IsValid(FixtureType))
-	{
-		// Keep the active mode valid
-		int32 ActiveMode;
-		if (ActiveModeHandle->GetValue(ActiveMode) == FPropertyAccess::Success)
-		{
-			if (!FixtureType->Modes.IsValidIndex(ActiveMode))
-			{
-				const int32 NewActiveMode = FixtureType->Modes.Num() > 0 ? 0 : INDEX_NONE;
-				ActiveModeHandle->SetValue(NewActiveMode);
-			}
-		}
-	
-		PropertyUtilities->RequestRefresh();
-	}
+	GenerateActiveModesSource();
+	ActiveModeComboBox->RefreshOptions();
+
+	PropertyUtilities->RequestRefresh();
 }
 
 void FDMXEntityFixturePatchDetails::OnUniverseIDChanged()
@@ -219,8 +192,8 @@ FText FDMXEntityFixturePatchDetails::GetCurrentActiveModeLabel() const
 {
 	static const FText MultipleValuesLabel = LOCTEXT("MultipleValuesLabel", "Multiple Values");
 	static const FText NullTypeLabel = LOCTEXT("NullFixtureTypeLabel", "No Fixture Type selected");
-	static const FText MultipleTypesLabel = LOCTEXT("MultipleFixtureTypesLabel", "Multiple Types Selected");
-	static const FText NoModesLabel = LOCTEXT("NoModesLabel", "No modes in Fixture Type");
+	static const FText MultipleTypesLabel = LOCTEXT("MultipleFixtureTypesLabel", "Multiple Fixture Types Selected");
+	static const FText NoModesLabel = LOCTEXT("NoModesLabel", "No Modes in Fixture Type");
 
 	UObject* Object = nullptr;
 	const FPropertyAccess::Result FixtureTemplateAccessResult = ParentFixtureTypeHandle->GetValue(Object);

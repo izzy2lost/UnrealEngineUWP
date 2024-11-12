@@ -38,8 +38,9 @@ bool FClothLODDataCommon::Serialize(FArchive& Ar)
 
 #if WITH_EDITORONLY_DATA
 	const int32 ClothingCustomVersion = Ar.CustomVer(FClothingAssetCustomVersion::GUID);
-	if (ClothingCustomVersion < FClothingAssetCustomVersion::MovePropertiesToCommonBaseClasses)
+	if (Ar.IsLoading() && ClothingCustomVersion < FClothingAssetCustomVersion::MovePropertiesToCommonBaseClasses)
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		// Migrate maps
 		PhysicalMeshData.GetWeightMap(EWeightMapTargetCommon::MaxDistance).Values = MoveTemp(PhysicalMeshData.MaxDistances_DEPRECATED);
 		PhysicalMeshData.GetWeightMap(EWeightMapTargetCommon::BackstopDistance).Values = MoveTemp(PhysicalMeshData.BackstopDistances_DEPRECATED);
@@ -55,11 +56,10 @@ bool FClothLODDataCommon::Serialize(FArchive& Ar)
 		ParameterMasks_DEPRECATED.Empty();
 
 		// Remove deprecated Apex collisions from the LOD data
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		CollisionData.Spheres.Empty();
-		CollisionData.SphereConnections.Empty();
-		CollisionData.Convexes.Empty();
-		CollisionData.Boxes.Empty();
+		CollisionData_DEPRECATED.Spheres.Empty();
+		CollisionData_DEPRECATED.SphereConnections.Empty();
+		CollisionData_DEPRECATED.Convexes.Empty();
+		CollisionData_DEPRECATED.Boxes.Empty();
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 #endif // WITH_EDITORONLY_DATA

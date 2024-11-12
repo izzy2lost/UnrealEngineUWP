@@ -201,6 +201,15 @@ void UEdGraphSchema_BehaviorTree::GetGraphContextActions(FGraphContextMenuBuilde
 
 		ContextMenuBuilder.AddAction(Action);
 	}
+
+	// Add the ability to create a comment to the context menu too for discoverability
+	{
+		TSharedPtr<FAISchemaAction_AddComment> Action = TSharedPtr<FAISchemaAction_AddComment>(
+			new FAISchemaAction_AddComment(LOCTEXT("AddComment", "Add Comment"), LOCTEXT("AddComment_Tooltip", "Adds a comment node to the graph."))
+		);
+
+		ContextMenuBuilder.AddAction(Action);
+	}
 }
 
 void UEdGraphSchema_BehaviorTree::GetContextMenuActions(UToolMenu* Menu, UGraphNodeContextMenuContext* Context) const

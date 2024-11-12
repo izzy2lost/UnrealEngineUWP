@@ -32,13 +32,13 @@
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "DetailLayoutBuilder.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogSceneOutliner, Log, All);
+DEFINE_LOG_CATEGORY(LogSceneOutliner);
 
 static float GSceneOutlinerProcessingBudgetPerFrame = 5.0f;
 static FAutoConsoleVariableRef CVarGuardBandMultiplier(
 	TEXT("SceneOutliner.ProcessingBudgetPerFrame"),
 	GSceneOutlinerProcessingBudgetPerFrame,
-	TEXT("Maximum time in milliseconds to spend processing operations per frame"));
+	TEXT("Maximum time in mZilliseconds to spend processing operations per frame"));
 
 
 #define LOCTEXT_NAMESPACE "SSceneOutliner"
@@ -53,9 +53,6 @@ void SSceneOutliner::Construct(const FArguments& InArgs, const FSceneOutlinerIni
 
 	// We use the filter collection provided, otherwise we create our own
 	Filters = InInitOptions.Filters.IsValid() ? InInitOptions.Filters : MakeShareable(new FSceneOutlinerFilters);
-
-	// The interactive filter collection
-	InteractiveFilters = MakeShareable(new FSceneOutlinerFilters);
 
 	OutlinerIdentifier = InInitOptions.OutlinerIdentifier;
 	
@@ -106,7 +103,10 @@ void SSceneOutliner::Construct(const FArguments& InArgs, const FSceneOutlinerIni
 
 	// @todo outliner: Should probably save this in layout!
 	// @todo outliner: Should save spacing for list view in layout
-	
+
+	// Setup Commands
+	BindCommands();
+
 	FSceneOutlinerModule& SceneOutlinerModule = FModuleManager::LoadModuleChecked<FSceneOutlinerModule>("SceneOutliner");
 	SceneOutlinerModule.OnColumnPermissionListChanged().AddSP(this, &SSceneOutliner::OnColumnPermissionListChanged);
 
@@ -275,6 +275,9 @@ void SSceneOutliner::Construct(const FArguments& InArgs, const FSceneOutlinerIni
 
 			// Called when the user double-clicks with LMB on an item in the list
 			.OnMouseButtonDoubleClick( this, &SSceneOutliner::OnOutlinerTreeDoubleClick )
+
+			// Called when the user single-clicks with LMB on an item in the list
+			.OnMouseButtonClick( this, &SSceneOutliner::OnOutlinerTreeSingleClick )
 
 			// Called when an item is scrolled into view
 			.OnItemScrolledIntoView( this, &SSceneOutliner::OnOutlinerTreeItemScrolledIntoView )
@@ -668,6 +671,7 @@ ESelectionMode::Type SSceneOutliner::GetSelectionMode() const
 
 void SSceneOutliner::Refresh()
 {
+	UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("Refresh requested, current refresh delay: %f SceneOutliner = %p"), UIRefreshDelay, this);
 	bNeedsRefresh = true;
 }
 
@@ -771,8 +775,6 @@ void SSceneOutliner::Populate()
 	bool bFinalSort = false;
 	if (PendingOperations.Num() == 0)
 	{
-		// Update expansion state based on item states
-		SetParentsExpansionState();
 		// When done processing a FullRefresh Scroll to First item in selection as it may have been
 		// scrolled out of view by the Refresh
 		if (bProcessingFullRefresh)
@@ -934,6 +936,12 @@ FSceneOutlinerTreeItemPtr SSceneOutliner::GetTreeItem(FSceneOutlinerTreeItemID I
 	return Result;
 }
 
+void SSceneOutliner::SetNextUIRefreshDelay(float InDelay)
+{
+	UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("UI refresh delay set to %f, previously %f Scene Outliner = %p"), InDelay, UIRefreshDelay, this);
+	UIRefreshDelay = InDelay;
+}
+
 void SSceneOutliner::RemoveItemFromTree(FSceneOutlinerTreeItemRef ReferenceItem)
 {
 	if (const FSceneOutlinerTreeItemPtr* ItemInTree = TreeItemMap.Find(ReferenceItem->GetID()))
@@ -1067,21 +1075,6 @@ void SSceneOutliner::AddUnfilteredItemToTree(FSceneOutlinerTreeItemRef Item)
 	Mode->OnItemAdded(Item);
 }
 
-void SSceneOutliner::SetParentsExpansionState() const
-{
-	// If we have an active search filter, auto expand parents of items that passes the filter so they appear automatically in the outliner
-	bForceParentItemsExpanded = !SearchBoxFilter->GetRawFilterText().IsEmpty();
-
-	for (const auto& Pair : TreeItemMap)
-	{
-		auto& Item = Pair.Value;
-		if (Item->GetChildren().Num())
-		{
-			OutlinerTreeView->SetItemExpansion(Item, bForceParentItemsExpanded || Item->Flags.bIsExpanded);
-		}
-	}
-}
-
 void SSceneOutliner::PopulateSearchStrings(const ISceneOutlinerTreeItem& Item, TArray< FString >& OutSearchStrings) const
 {
 	for (const auto& Pair : Columns)
@@ -1171,6 +1164,14 @@ void SSceneOutliner::AddFilterToFilterBar(const TSharedRef<FFilterBase<SceneOutl
 		FilterBar->AddFilter(InFilter);
 	}
 	
+}
+
+void SSceneOutliner::DisableAllFilterBarFilters(bool bRemove)
+{
+	if(FilterBar)
+	{
+		bRemove ? FilterBar->RemoveAllFilters() : FilterBar->DisableAllFilters();
+	}
 }
 
 bool SSceneOutliner::RemoveFilter(const TSharedRef<FSceneOutlinerFilter>& Filter)
@@ -1689,6 +1690,19 @@ void SSceneOutliner::PasteFoldersBegin(TArray<FName> InFolders)
 
 void SSceneOutliner::PasteFoldersEnd()
 {
+	ON_SCOPE_EXIT
+	{
+		CacheFoldersEdit.Reset();
+		CacheFoldersEditRootObject = FFolder::GetInvalidRootObject();
+		CacheFolderMap.Reset();
+		CachePasteFolderExistingChildrenMap.Reset();
+	};
+
+	if (CacheFoldersEdit.IsEmpty())
+	{
+		return;
+	}
+
 	const FScopedTransaction Transaction(NSLOCTEXT("UnrealEd", "PasteItems", "Paste Items"));
 
 	// Create new folder
@@ -1734,10 +1748,6 @@ void SSceneOutliner::PasteFoldersEnd()
 		}
 	}
 
-	CacheFoldersEdit.Reset();
-	CacheFoldersEditRootObject = FFolder::GetInvalidRootObject();
-	CacheFolderMap.Reset();
-	CachePasteFolderExistingChildrenMap.Reset();
 	FullRefresh();
 }
 
@@ -1972,6 +1982,11 @@ void SSceneOutliner::OnOutlinerTreeDoubleClick( FSceneOutlinerTreeItemPtr TreeIt
 	OnDoubleClickOnTreeEvent.Broadcast(TreeItem);
 }
 
+void SSceneOutliner::OnOutlinerTreeSingleClick(FSceneOutlinerTreeItemPtr TreeItem) const
+{
+	Mode->OnItemClicked(TreeItem);
+}
+
 void SSceneOutliner::OnOutlinerTreeItemScrolledIntoView( FSceneOutlinerTreeItemPtr TreeItem, const TSharedPtr<ITableRow>& Widget )
 {
 	if (TreeItem == PendingRenameItem.Pin())
@@ -2043,6 +2058,9 @@ void SSceneOutliner::OnHierarchyChangedEvent(FSceneOutlinerHierarchyChangedData 
 				PendingTreeItemMap_Removal.Add(TreeItemID, Item->ToSharedRef());
 			}
 		}
+		
+		UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("Refresh requested by FSceneOutlinerHierarchyChangedData::Removed"));
+
 		Refresh();
 	}
 	else if (Event.Type == FSceneOutlinerHierarchyChangedData::Moved)
@@ -2068,6 +2086,8 @@ void SSceneOutliner::OnHierarchyChangedEvent(FSceneOutlinerHierarchyChangedData 
 				PendingOperations.Emplace(SceneOutliner::FPendingTreeOperation::Moved, TreeItemPtr.ToSharedRef());
 			}
 		}
+		UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("Refresh requested by FSceneOutlinerHierarchyChangedData::Moved"));
+
 		Refresh();
 	}
 	else if (Event.Type == FSceneOutlinerHierarchyChangedData::FolderMoved)
@@ -2092,10 +2112,13 @@ void SSceneOutliner::OnHierarchyChangedEvent(FSceneOutlinerHierarchyChangedData 
 				PendingOperations.Emplace(SceneOutliner::FPendingTreeOperation::Moved, Item.ToSharedRef());
 			}
 		}
+		
+		UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("Refresh requested by FSceneOutlinerHierarchyChangedData::FolderMoved"));
 		Refresh();
 	}
 	else if (Event.Type == FSceneOutlinerHierarchyChangedData::FullRefresh)
 	{
+		UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("Full Refresh requested by FSceneOutlinerHierarchyChangedData::FullRefresh"));
 		FullRefresh();
 	}
 }
@@ -2105,6 +2128,7 @@ void SSceneOutliner::PostUndo(bool bSuccess)
 	// Refresh our tree in case any changes have been made to the scene that might effect our list
 	if( !bIsReentrant )
 	{
+		UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("FullRefresh requested by SSceneOutliner::PostUndo"));
 		FullRefresh();
 	}
 }
@@ -2144,11 +2168,20 @@ void SSceneOutliner::OnItemLabelChanged(FSceneOutlinerTreeItemPtr ChangedItem)
 	}
 }
 
+void SSceneOutliner::BindCommands()
+{
+	CommandList = MakeShared<FUICommandList>();
+
+	// Bind Mode Commands
+	Mode->BindCommands(CommandList.ToSharedRef());
+}
+
 void SSceneOutliner::OnAssetReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent)
 {
 	if (InPackageReloadPhase == EPackageReloadPhase::PostBatchPostGC)
 	{
 		// perhaps overkill but a simple Refresh() doesn't appear to work.
+		UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("FullRefresh requested by SSceneOutliner::OnAssetReloaded"));
 		FullRefresh();
 	}
 }
@@ -2278,7 +2311,15 @@ bool SSceneOutliner::SupportsKeyboardFocus() const
 
 FReply SSceneOutliner::OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent )
 {
-	// @todo outliner: Use command system for these for discoverability? (allow bindings?)
+	if (CommandList.IsValid())
+	{
+		if (CommandList->ProcessCommandBindings(InKeyEvent))
+		{
+			return FReply::Handled();
+		}
+	}
+
+	// Fallback to the Mode OnKeyDown to check if it's handled there
 	return Mode->OnKeyDown(InKeyEvent);
 }
 
@@ -2308,29 +2349,66 @@ void SSceneOutliner::Tick(const FGeometry& AllottedGeometry, const double InCurr
 	{
 		if( !bIsReentrant )
 		{
-			Populate();
+			if (Mode->CanPopulate())
+			{
+				Populate();
+			}
 		}
 	}
-	SortOutlinerTimer -= InDeltaTime;
 
-	// Delay sorting when in PIE
-	if (bSortDirty && (GEditor->PlayWorld == nullptr || SortOutlinerTimer <= 0))
+	// If we are pending a sort
+	if (bSortDirty)
 	{
-		SortItems(RootTreeItems);
-		for (const auto& Pair : TreeItemMap)
+		bool bExecuteSort = false;
+		
+		SortOutlinerTimer -= InDeltaTime;
+		UIRefreshDelay -= InDeltaTime;
+
+		// If we are in PIE, we will use SortOutlinerTimer as the min delay between sorts
+		if (GEditor->PlayWorld)
 		{
-			Pair.Value->Flags.bChildrenRequireSort = true;
+			if (SortOutlinerTimer <= 0)
+			{
+				bExecuteSort = true;
+			}
+		}
+		// In editor worlds, we will check if there is any user specific UIRefreshDelay
+		else
+		{
+			if (UIRefreshDelay <= 0)
+			{
+				bExecuteSort = true;
+			}
 		}
 
-		OutlinerTreeView->RequestTreeRefresh();
-		bSortDirty = false;
-	}
+		if (bExecuteSort)
+		{
+			UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("Sort Executed"));
 
-	if (SortOutlinerTimer <= 0)
-	{
-		SortOutlinerTimer = SCENE_OUTLINER_RESORT_TIMER;
-	}
+			SortItems(RootTreeItems);
 
+			// Also update expansion state based on item states
+			// This is done here because updating expansion state causes a refresh, so we want to make sure that does not ignore any UIRefreshDelay
+			bForceParentItemsExpanded = !SearchBoxFilter->GetRawFilterText().IsEmpty();
+			
+			for (const auto& Pair : TreeItemMap)
+			{
+				Pair.Value->Flags.bChildrenRequireSort = true;
+				if (Pair.Value->GetChildren().Num())
+				{
+					OutlinerTreeView->SetItemExpansion(Pair.Value, bForceParentItemsExpanded || Pair.Value->Flags.bIsExpanded);
+				}
+			}
+			
+			OutlinerTreeView->RequestTreeRefresh();
+			bSortDirty = false;
+
+			// Reset both timers
+			SortOutlinerTimer = SCENE_OUTLINER_RESORT_TIMER;
+			UIRefreshDelay = 0.0f;
+		}
+	}
+	
 	if (bSelectionDirty)
 	{
 		Mode->SynchronizeSelection();
@@ -2499,6 +2577,14 @@ void SSceneOutliner::FrameSelectedItems()
 	if (!SelectedItems.IsEmpty())
 	{
 		ScrollItemIntoView(SelectedItems.Last());
+	}
+}
+
+void SSceneOutliner::FrameItem(const FSceneOutlinerTreeItemID& Item)
+{
+	if (const TSharedPtr<ISceneOutlinerTreeItem>* TreeItem = TreeItemMap.Find(Item))
+	{
+		ScrollItemIntoView(*TreeItem);
 	}
 }
 

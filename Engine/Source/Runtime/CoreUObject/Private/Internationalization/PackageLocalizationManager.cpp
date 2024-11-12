@@ -84,10 +84,6 @@ void FPackageLocalizationManager::InitializeFromCache(const TSharedRef<IPackageL
 	if (!GIsEditor)
 	{
 		ActiveCache->ConditionalUpdateCache();
-
-		// Allow the plugin manager to update the package localization cache by exposing access through a delegate.
-		// PluginManager is a Core class, but package localization functionality is added at the CoreUObject level.
-		IPluginManager::Get().SetUpdatePackageLocalizationCacheDelegate(IPluginManager::FUpdatePackageLocalizationCacheDelegate::CreateRaw(this, &FPackageLocalizationManager::ConditionalUpdateCache));
 	}
 }
 
@@ -153,14 +149,33 @@ FName FPackageLocalizationManager::FindLocalizedPackageNameNoCache(const FName I
 	const TArray<FString> PrioritizedCultureNames = FInternationalization::Get().GetPrioritizedCultureNames(InCultureName);
 	for (const FString& PrioritizedCultureName : PrioritizedCultureNames)
 	{
-		const FString LocalizedPackageName = PackageNameRoot / TEXT("L10N") / PrioritizedCultureName / PackageNameSubPath;
-		if (FPackageName::DoesPackageExist(LocalizedPackageName))
+		// Query both UE style (eg, "en-US") and Verse style (eg, "en_US") localized assets
+		const FString VerseIdentifier = FCulture::CultureNameToVerseIdentifier(PrioritizedCultureName);
+		if (PrioritizedCultureName != VerseIdentifier)
 		{
-			return *LocalizedPackageName;
+			const FString LocalizedPackageNameForVerseIdentifier = PackageNameRoot / TEXT("L10N") / VerseIdentifier / PackageNameSubPath;
+			if (FPackageName::DoesPackageExist(LocalizedPackageNameForVerseIdentifier))
+			{
+				return *LocalizedPackageNameForVerseIdentifier;
+			}
+		}
+
+		const FString LocalizedPackageNameForPrioritizedCulture = PackageNameRoot / TEXT("L10N") / PrioritizedCultureName / PackageNameSubPath;
+		if (FPackageName::DoesPackageExist(LocalizedPackageNameForPrioritizedCulture))
+		{
+			return *LocalizedPackageNameForPrioritizedCulture;
 		}
 	}
 
 	return NAME_None;
+}
+
+void FPackageLocalizationManager::InvalidateRootSourcePath(const FString& InRootPath)
+{
+	if (ActiveCache.IsValid())
+	{
+		ActiveCache->InvalidateRootSourcePath(InRootPath);
+	}
 }
 
 void FPackageLocalizationManager::ConditionalUpdateCache()

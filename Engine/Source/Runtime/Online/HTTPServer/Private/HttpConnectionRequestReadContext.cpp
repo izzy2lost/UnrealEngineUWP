@@ -105,7 +105,7 @@ bool FHttpConnectionRequestReadContext::ParseHeader(uint8* ByteBuffer, int32 Buf
 
 			// Build header string
 			FUTF8ToTCHAR WByteBuffer(reinterpret_cast<const ANSICHAR*>(HeaderBytes.GetData()), HeaderBytes.Num());
-			const FString IncomingRequestHeaderStr(WByteBuffer.Length(), WByteBuffer.Get());
+			const FString IncomingRequestHeaderStr = FString::ConstructFromPtrSize(WByteBuffer.Get(), WByteBuffer.Length());
 			Request = BuildRequest(IncomingRequestHeaderStr);
 			if (!Request)
 			{

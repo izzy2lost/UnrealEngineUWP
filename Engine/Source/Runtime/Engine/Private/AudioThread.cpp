@@ -7,6 +7,10 @@
 #include "AudioThread.h"
 #include "Audio.h"
 #include "Async/Async.h"
+#include "Containers/SpscQueue.h"
+#include "Containers/Ticker.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "Tasks/Pipe.h"
 
@@ -47,6 +51,207 @@ FAutoConsoleVariableRef  CVarAudioCommandFenceWaitTimeMs(
 	TEXT("AudioCommand.FenceWaitTimeMs"),
 	GAudioCommandFenceWaitTimeMs, 
 	TEXT("Sets number of ms for fence wait"), 
+	ECVF_Default);
+
+namespace AudioCommandPrivate
+{
+	bool bBatchGameThreadAudioCommands = true;
+	
+	/*
+	 * An audio command to be executed on the game thread.
+	 */
+	struct FAudioCommand
+	{
+		FAudioCommand() = default;
+
+		FAudioCommand(TUniqueFunction<void()> InFunction, const TStatId InStatId)
+			: Function(MoveTemp(InFunction))
+			, StatId(InStatId)
+		{
+		}
+
+		FAudioCommand(FAudioCommand&& Other) = default;
+		FAudioCommand& operator=(FAudioCommand&& Other) = default;
+
+		static void Execute(const TUniqueFunction<void()>& InFunction, TStatId InStatId)
+		{
+			check(IsInGameThread());
+
+			CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Audio);
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_AudioCommandQueue_RunCommandOnGameThread);
+			FScopeCycleCounter ScopeCycleCounter(InStatId);
+
+			InFunction();
+		}
+
+		TUniqueFunction<void()> Function;
+		TStatId StatId;
+	};
+
+	const FLazyName DiagnosticName("FGameThreadAudioCommandQueue");
+
+	/*
+	 * Used to run commands from the audio thread, on the game thread.
+	 */
+	class FGameThreadAudioCommandQueue : public FTickFunction
+	{
+	public:
+		FGameThreadAudioCommandQueue()
+			: FTickFunction()
+		{
+			// Setup tick properties 
+			bCanEverTick = true;
+			bTickEvenWhenPaused = false;
+			bStartWithTickEnabled = true;
+			TickGroup = TG_PrePhysics;
+			bAllowTickOnDedicatedServer = false;
+			bRunOnAnyThread = false;
+			bIsTicking = false;
+		}
+
+		virtual ~FGameThreadAudioCommandQueue() override = default;
+
+		void StartTick()
+		{
+			if (!bIsTicking && bBatchGameThreadAudioCommands)
+			{
+				if (GEngine)
+				{
+					RegisterTickFunctionToWorld(GEngine->GetCurrentPlayWorld());
+				}
+			
+				FWorldDelegates::OnWorldInitializedActors.AddRaw(this, &FGameThreadAudioCommandQueue::OnWorldActorsInitialized);
+				bIsTicking = true;
+			}
+		}
+
+		void EndTick()
+		{
+			if (bIsTicking)
+			{
+				FWorldDelegates::OnWorldInitializedActors.RemoveAll(this);
+				UnRegisterTickFunction();
+				bIsTicking = false;
+			}
+		}
+
+		bool CanTick() const
+		{
+			return bBatchGameThreadAudioCommands && bIsTicking;
+		}
+
+		void RunCommandOnGameThread(TUniqueFunction<void()> InFunction, const TStatId InStatId)
+		{
+			if (IsAudioThreadRunning())
+			{
+				check(IsInAudioThread());
+				Commands.Enqueue(FAudioCommand(MoveTemp(InFunction), InStatId));
+			}
+			else
+			{
+				FAudioCommand::Execute(InFunction, InStatId);
+			}
+		}
+
+		void FlushCommands()
+		{
+			TOptional<FAudioCommand> AudioCommand = Commands.Dequeue();
+			while (AudioCommand.IsSet())
+			{
+				if (IsInAudioThread())
+				{
+					ExecuteOnGameThread(
+						TEXT("FAudioThread::RunCommandOnGameThread"),
+						[Function = MoveTemp(AudioCommand.GetValue().Function), StatId = AudioCommand.GetValue().StatId]()
+						{
+							FAudioCommand::Execute(Function, StatId);
+						});
+				}
+				else
+				{
+					FAudioCommand::Execute(AudioCommand.GetValue().Function, AudioCommand.GetValue().StatId);
+				}
+				
+				AudioCommand = Commands.Dequeue();
+			}
+		}
+
+	private:
+		// Begin FTickFunction overrides
+		virtual void ExecuteTick(float InDeltaTime, ELevelTick InTickType, ENamedThreads::Type InCurrentThread, const FGraphEventRef& InMyCompletionGraphEvent) override
+		{
+			TOptional<FAudioCommand> AudioCommand = Commands.Dequeue();
+			while (AudioCommand.IsSet())
+			{
+				FAudioCommand::Execute(AudioCommand.GetValue().Function, AudioCommand.GetValue().StatId);
+				AudioCommand = Commands.Dequeue();
+			}
+		}
+
+		virtual FString DiagnosticMessage() override
+		{
+			return DiagnosticName.ToString();
+		}
+
+		virtual FName DiagnosticContext(bool bDetailed) override
+		{
+			return DiagnosticName;
+		}
+		// End FTickFunction overrides
+		
+		void OnWorldActorsInitialized(const UWorld::FActorsInitializedParams& InParams)
+		{
+			// When a new world is up and running unregister the tick function with the old world
+			// and register it with the new world
+			UnRegisterTickFunction();
+			RegisterTickFunctionToWorld(InParams.World);
+		}
+		
+		void RegisterTickFunctionToWorld(const UWorld* const InWorld)
+		{
+			if (InWorld)
+			{
+				RegisterTickFunction(InWorld->PersistentLevel);
+			}
+		}
+		
+		TSpscQueue<FAudioCommand> Commands;
+		bool bIsTicking;
+	};
+	
+	FGameThreadAudioCommandQueue CommandQueue;
+
+	void BatchGameThreadAudioCommandsChangedCallback(IConsoleVariable* ConsoleVariable)
+	{
+		if (GIsAudioThreadRunning)
+		{
+			const bool bBatchCommands = ConsoleVariable->GetBool();
+			if (bBatchCommands)
+			{
+				CommandQueue.StartTick();
+			}
+			else
+			{
+				CommandQueue.EndTick();
+				CommandQueue.FlushCommands();
+			}
+		}
+	}
+
+	FAutoConsoleVariableRef CVarBatchGameThreadAudioCommands(
+		TEXT("AudioThread.BatchCommands"),
+		bBatchGameThreadAudioCommands,
+		TEXT("Batch audio commands that are created from the audio thread and executed on the game thread so that they are executed in a single task."),
+		FConsoleVariableDelegate::CreateStatic(&BatchGameThreadAudioCommandsChangedCallback),
+		ECVF_Default
+		);
+}
+
+static bool GAudioThreadUseSafeRunCommandOnGameThread = true;
+FAutoConsoleVariableRef CVarAudioThreadUseSafeRunCommandOnGameThread(
+	TEXT("AudioThread.UseSafeRunCommandOnGameThread"),
+	GAudioThreadUseSafeRunCommandOnGameThread,
+	TEXT("When active, limit commands sent to the game thread to run at a safe place inside a tick"),
 	ECVF_Default);
 
 struct FAudioThreadInteractor
@@ -255,6 +460,8 @@ TUniqueFunction<void()> FAudioThread::GetCommandWrapper(TUniqueFunction<void()> 
 	{
 		return [Function = MoveTemp(InFunction), InStatId]()
 		{
+			CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Audio);
+
 			FScopeCycleCounter ScopeCycleCounter(InStatId);
 			FAudioThread::SetCurrentAudioThreadStatId(InStatId);
 
@@ -276,6 +483,8 @@ TUniqueFunction<void()> FAudioThread::GetCommandWrapper(TUniqueFunction<void()> 
 	{
 		return [Function = MoveTemp(InFunction), InStatId]()
 		{
+			CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Audio);
+
 			FScopeCycleCounter ScopeCycleCounter(InStatId);
 			Function();
 		};
@@ -362,20 +571,44 @@ void FAudioThread::ProcessAllCommands()
 
 void FAudioThread::RunCommandOnGameThread(TUniqueFunction<void()> InFunction, const TStatId InStatId)
 {
+	if (AudioCommandPrivate::CommandQueue.CanTick())
+	{
+		AudioCommandPrivate::CommandQueue.RunCommandOnGameThread(MoveTemp(InFunction), InStatId);
+	}
+	else
+	{
 	if (IsAudioThreadRunning())
 	{
 		check(IsInAudioThread());
-		FFunctionGraphTask::CreateAndDispatchWhenReady(
-			[Function = MoveTemp(InFunction), InStatId]()
-			{
-				CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Audio);
-				QUICK_SCOPE_CYCLE_COUNTER(STAT_AudioThread_RunCommandOnGameThread);
-				FScopeCycleCounter ScopeCycleCounter(InStatId);
-				Function();
-			},
-			TStatId(),
-			nullptr,
-			ENamedThreads::GameThread);
+		if (GAudioThreadUseSafeRunCommandOnGameThread)
+		{
+			ExecuteOnGameThread(
+				TEXT("FAudioThread::RunCommandOnGameThread"),
+				[Function = MoveTemp(InFunction), InStatId]()
+				{
+					CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Audio);
+					QUICK_SCOPE_CYCLE_COUNTER(STAT_AudioThread_RunCommandOnGameThread);
+					FScopeCycleCounter ScopeCycleCounter(InStatId);
+					Function();
+				}
+			);
+		}
+		else
+		{
+			// This is the legacy behavior that will run game thread tasks anywhere on the game thread.
+			// This could be inside the GC, postload, etc... which might lead to problematic behavior.
+			FFunctionGraphTask::CreateAndDispatchWhenReady(
+				[Function = MoveTemp(InFunction), InStatId]()
+				{
+					CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Audio);
+					QUICK_SCOPE_CYCLE_COUNTER(STAT_AudioThread_RunCommandOnGameThread);
+					FScopeCycleCounter ScopeCycleCounter(InStatId);
+					Function();
+				},
+				TStatId(),
+				nullptr,
+				ENamedThreads::GameThread);
+		}
 	}
 	else
 	{
@@ -385,6 +618,7 @@ void FAudioThread::RunCommandOnGameThread(TUniqueFunction<void()> InFunction, co
 		FScopeCycleCounter ScopeCycleCounter(InStatId);
 		InFunction();
 	}
+}
 }
 
 FDelegateHandle FAudioThread::PreGC;
@@ -412,6 +646,8 @@ void FAudioThread::StartAudioThread()
 	check(!ResumeEvent.IsValid());
 	ResumeEvent = MakeUnique<UE::Tasks::FTaskEvent>(UE_SOURCE_LOCATION);
 
+	AudioCommandPrivate::CommandQueue.StartTick();
+
 	GIsAudioThreadRunning.store(true, std::memory_order_release);
 }
 
@@ -436,11 +672,15 @@ void FAudioThread::StopAudioThread()
 	check(ResumeEvent.IsValid());
 	ResumeEvent->Trigger(); // every FTaskEvent must be triggered before destruction to pass the check for completion
 	ResumeEvent.Reset();
+	
+	AudioCommandPrivate::CommandQueue.EndTick();
+	AudioCommandPrivate::CommandQueue.FlushCommands();
 }
 
 FAudioCommandFence::~FAudioCommandFence()
 {
 	check(IsInGameThread());
+	CSV_SCOPED_SET_WAIT_STAT(Audio);
 	Fence.Wait();
 }
 
@@ -453,7 +693,11 @@ void FAudioCommandFence::BeginFence()
 		return;
 	}
 
-	Fence.Wait();
+	{
+		CSV_SCOPED_SET_WAIT_STAT(Audio);
+		Fence.Wait();
+	}
+	
 	FAudioThread::ProcessAllCommands();
 	Fence = GAudioAsyncBatcher.LastBatch;
 }
@@ -470,6 +714,11 @@ bool FAudioCommandFence::IsFenceComplete() const
 void FAudioCommandFence::Wait(bool bProcessGameThreadTasks) const
 {
 	check(IsInGameThread());
-	Fence.Wait();
+
+	{
+		CSV_SCOPED_SET_WAIT_STAT(Audio);
+		Fence.Wait();
+	}
+
 	Fence = UE::Tasks::FTask{}; // release the task as it can hold some references
 }

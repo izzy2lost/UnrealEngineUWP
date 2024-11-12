@@ -27,6 +27,7 @@
 
 #include "Windows/AllowWindowsPlatformTypes.h" // Required immediately before MicrosoftAsyncIO.h and the block below it
 #include "Microsoft/MicrosoftAsyncIO.h"
+
 namespace FileConstants
 {
 uint32 WIN_INVALID_SET_FILE_POINTER = INVALID_SET_FILE_POINTER;
@@ -119,7 +120,18 @@ FILETIME UEDateTimeToWindowsFileTime(const FDateTime& InDateTime)
 	return FileTime;
 }
 
+void UpdateOverlappedPos(OVERLAPPED& Overlapped, int64 UpdatedPos)
+{
+	ULARGE_INTEGER LI;
+	LI.QuadPart = UpdatedPos;
+
+	Overlapped.Offset = LI.LowPart;
+	Overlapped.OffsetHigh = LI.HighPart;
+}
+
 } // namespace UE::WindowsPlatformFile::Private
+
+#if USE_OVERLAPPED_IO
 
 /**
  * This file reader uses overlapped i/o and double buffering to asynchronously read from files
@@ -483,6 +495,69 @@ public:
 		return true;
 	}
 
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+	{
+		if (BytesToRead < 0 || Offset < 0 || (BytesToRead + Offset) > FileSize)
+		{
+			return false;
+		}
+
+		if (BytesToRead == 0)
+		{
+			return true;
+		}
+
+		OVERLAPPED LocalOverlappedIO;
+		FMemory::Memzero(&LocalOverlappedIO, sizeof(OVERLAPPED));
+
+		// Calls to ::ReadAt should be rare enough that we can create/destroy events for each read as needed
+		LocalOverlappedIO.hEvent = CreateEvent(NULL, 0, 0, NULL);
+
+		if (LocalOverlappedIO.hEvent == NULL)
+		{
+			// TODO Error
+			return false;
+		}
+
+		ON_SCOPE_EXIT
+		{
+			CloseHandle(LocalOverlappedIO.hEvent);
+		};
+
+		TRACE_PLATFORMFILE_BEGIN_READ(&LocalOverlappedIO, Handle, Offset, BytesToRead);
+		int64 TotalNumRead = 0;
+		do
+		{
+			uint32 BytesToRead32 = (uint32)FMath::Min<int64>(BytesToRead, int64(UINT32_MAX));
+			uint32 NumRead = 0;
+
+			UE::WindowsPlatformFile::Private::UpdateOverlappedPos(LocalOverlappedIO, Offset);
+
+			if (!ReadFile(Handle, Destination, BytesToRead32, (::DWORD*)&NumRead, &LocalOverlappedIO))
+			{
+				if (GetLastError() != ERROR_IO_PENDING)
+				{
+					// TODO Error
+					TRACE_PLATFORMFILE_END_READ(&LocalOverlappedIO, TotalNumRead);
+					return false;
+				}
+
+				if (!GetOverlappedResult(Handle, &LocalOverlappedIO, (::DWORD*)&NumRead, true))
+				{
+					// TODO Error
+					TRACE_PLATFORMFILE_END_READ(&LocalOverlappedIO, TotalNumRead);
+					return false;
+				}
+			}
+
+			BytesToRead -= BytesToRead32;
+			TotalNumRead += NumRead;
+		} while (BytesToRead > 0);
+
+		TRACE_PLATFORMFILE_END_READ(&LocalOverlappedIO, TotalNumRead);
+		return true;
+	}
+
 	virtual bool Write(const uint8* Source, int64 BytesToWrite) override
 	{
 		check(0 && "This is an async reader only and doesn't support writing");
@@ -537,6 +612,8 @@ public:
 	}
 };
 
+#endif // USE_OVERLAPPED_IO
+
 /** 
  * Windows file handle implementation
 **/
@@ -560,14 +637,6 @@ class FFileHandleWindows : public IFileHandle
 	 * NOTE: This is constrained to a subset of flags/attributes as noted on the ReOpenFile Windows API documentation.
 	 */
 	uint32 Flags;
-
-	FORCEINLINE void UpdateOverlappedPos()
-	{
-		ULARGE_INTEGER LI;
-		LI.QuadPart = FilePos;
-		OverlappedIO.Offset = LI.LowPart;
-		OverlappedIO.OffsetHigh = LI.HighPart;
-	}
 
 	FORCEINLINE bool UpdatedNonOverlappedPos()
 	{
@@ -628,7 +697,7 @@ public:
 #endif
 		FileHandle = NULL;
 	}
-	bool IsValid()
+	bool IsValid() const
 	{
 		return FileHandle != NULL && FileHandle != INVALID_HANDLE_VALUE && FileSize != -1;
 	}
@@ -648,7 +717,7 @@ public:
 		check(NewPosition >= 0);
 
 		FilePos = NewPosition;
-		UpdateOverlappedPos();
+		UE::WindowsPlatformFile::Private::UpdateOverlappedPos(OverlappedIO, FilePos);
 		return true;
 	}
 	virtual bool SeekFromEnd(int64 NewPositionRelativeToEnd = 0) override
@@ -695,7 +764,7 @@ public:
 			TotalNumRead += NumRead;
 			// Update where we are in the file
 			FilePos += NumRead;
-			UpdateOverlappedPos();
+			UE::WindowsPlatformFile::Private::UpdateOverlappedPos(OverlappedIO, FilePos);
 			
 			// Early out as a failure case if we did not read all of the bytes that we expected to read
 			if (BytesToRead32 != NumRead)
@@ -706,6 +775,53 @@ public:
 					
 		} while (BytesToRead > 0);
 		TRACE_PLATFORMFILE_END_READ(&OverlappedIO, TotalNumRead);
+		return true;
+	}
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+	{
+		check(IsValid());
+
+		if (BytesToRead < 0 || Offset < 0 || (BytesToRead + Offset) > FileSize)
+		{
+			return false;
+		}
+
+		if (BytesToRead == 0)
+		{
+			return true;
+		}
+
+		OVERLAPPED LocalOverlappedIO;
+		FMemory::Memzero(&LocalOverlappedIO, sizeof(OVERLAPPED));
+
+		TRACE_PLATFORMFILE_BEGIN_READ(&LocalOverlappedIO, FileHandle, Offset, BytesToRead);
+		int64 TotalNumRead = 0;
+		do
+		{
+			uint32 BytesToRead32 = (uint32)FMath::Min<int64>(BytesToRead, int64(UINT32_MAX));
+			uint32 NumRead = 0;
+
+			UE::WindowsPlatformFile::Private::UpdateOverlappedPos(LocalOverlappedIO, Offset);
+
+			if (!ReadFile(FileHandle, Destination, BytesToRead32, (::DWORD*)&NumRead, &LocalOverlappedIO))
+			{
+				TRACE_PLATFORMFILE_END_READ(&LocalOverlappedIO, TotalNumRead);
+				return false;
+			}
+
+			BytesToRead -= BytesToRead32;
+			TotalNumRead += NumRead;
+
+			// Early out as a failure case if we did not read all of the bytes that we expected to read
+			if (BytesToRead32 != NumRead)
+			{
+				TRACE_PLATFORMFILE_END_READ(&OverlappedIO, TotalNumRead);
+				return false;
+			}
+
+		} while (BytesToRead > 0);
+
+		TRACE_PLATFORMFILE_END_READ(&LocalOverlappedIO, TotalNumRead);
 		return true;
 	}
 	virtual bool Write(const uint8* Source, int64 BytesToWrite) override
@@ -744,7 +860,7 @@ public:
 			TotalNumWritten += NumWritten;
 			// Update where we are in the file
 			FilePos += NumWritten;
-			UpdateOverlappedPos();
+			UE::WindowsPlatformFile::Private::UpdateOverlappedPos(OverlappedIO, FilePos);
 			FileSize = FMath::Max(FilePos, FileSize);
 			
 			// Early out as a failure case if we didn't write all of the data we expected
@@ -1257,11 +1373,14 @@ IAsyncReadFileHandle* FWindowsPlatformFile::OpenAsyncRead(const TCHAR* Filename)
 }
 #endif
 
-IFileHandle* FWindowsPlatformFile::OpenRead(const TCHAR* Filename, bool bAllowWrite)
+FFileOpenResult FWindowsPlatformFile::OpenRead(const TCHAR* Filename, EOpenReadFlags Flags)
 {
-	uint32  Access    = GENERIC_READ;
-	uint32  WinFlags  = FILE_SHARE_READ | (bAllowWrite ? FILE_SHARE_WRITE : 0);
-	uint32  Create    = OPEN_EXISTING;
+	const uint32  Access	= GENERIC_READ;
+	const uint32  WinFlags  =	FILE_SHARE_READ |
+								(EnumHasAnyFlags(Flags, EOpenReadFlags::AllowWrite) ? FILE_SHARE_WRITE : 0) |
+								(EnumHasAnyFlags(Flags, EOpenReadFlags::AllowDelete) ? FILE_SHARE_DELETE : 0);
+	const uint32  Create	= OPEN_EXISTING;
+
 #define USE_OVERLAPPED_IO (!IS_PROGRAM && !WITH_EDITOR)		// Use straightforward synchronous I/O in cooker/editor
 
 	TRACE_PLATFORMFILE_BEGIN_OPEN(Filename);
@@ -1270,7 +1389,8 @@ IFileHandle* FWindowsPlatformFile::OpenRead(const TCHAR* Filename, bool bAllowWr
 	if (Handle != INVALID_HANDLE_VALUE)
 	{
 		TRACE_PLATFORMFILE_END_OPEN(Handle);
-		return new FAsyncBufferedFileReaderWindows(Handle, Access, WinFlags, FILE_FLAG_OVERLAPPED);
+		FAsyncBufferedFileReaderWindows* FileHandle = new FAsyncBufferedFileReaderWindows(Handle, Access, WinFlags, FILE_FLAG_OVERLAPPED);
+		return MakeValue(FileHandle);
 	}
 #else
 	HANDLE Handle = CreateFileW(*FNormalizedFilename(Filename), Access, WinFlags, NULL, Create, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -1284,19 +1404,33 @@ IFileHandle* FWindowsPlatformFile::OpenRead(const TCHAR* Filename, bool bAllowWr
 		// double check that the handle is valid before returning it
 		if (FileHandle->IsValid())
 		{
-			return FileHandle;
+			return MakeValue(FileHandle);
 		}
 		else
 		{
 			delete FileHandle;
-
-			return nullptr;
+			return MakeError(TEXTVIEW("Failed to create FFileHandleWindows"));
 		}
 	}
-#endif
+#endif //USE_OVERLAPPED_IO
 	else
 	{
 		TRACE_PLATFORMFILE_FAIL_OPEN(Filename);
+		return MakeError(TEXTVIEW("Failed to open file for reading"), FPlatformMisc::GetLastError());
+	}
+}
+
+IFileHandle* FWindowsPlatformFile::OpenRead(const TCHAR* Filename, bool bAllowWrite)
+{
+	const EOpenReadFlags Flags = bAllowWrite ? EOpenReadFlags::AllowWrite : EOpenReadFlags::None;
+
+	FFileOpenResult Result = OpenRead(Filename, Flags);
+	if (Result.IsValid())
+	{
+		return Result.StealValue().Release();
+	}
+	else
+	{
 		return nullptr;
 	}
 }

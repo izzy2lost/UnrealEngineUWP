@@ -23,6 +23,7 @@
 #include "UObject/UObjectHash.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/UnrealType.h"
+#include "ProfilingDebugging/ScopedTimers.h"
 
 class UObject;
 
@@ -45,6 +46,7 @@ bool UGatherTextFromMetaDataCommandlet::ShouldRunInPreview(const TArray<FString>
 
 int32 UGatherTextFromMetaDataCommandlet::Main( const FString& Params )
 {
+	UE_SCOPED_TIMER(TEXT("UGatherTextFromMetaDataCommandlet::Main"), LogGatherTextFromMetaDataCommandlet, Display);
 	// Parse command line - we're interested in the param vals
 	TArray<FString> Tokens;
 	TArray<FString> Switches;

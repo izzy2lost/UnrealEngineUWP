@@ -13,7 +13,7 @@ class FDisplayClusterViewportConfiguration;
 class FDisplayClusterViewportConfiguration_Tile
 {
 public:
-	FDisplayClusterViewportConfiguration_Tile(FDisplayClusterViewportConfiguration& InConfiguration)
+	FDisplayClusterViewportConfiguration_Tile(const FDisplayClusterViewportConfiguration& InConfiguration)
 		: Configuration(InConfiguration)
 	{ }
 
@@ -23,9 +23,6 @@ public:
 	/** Update Tile viewports for a new frame. */
 	void Update();
 
-	/** Post-Update Tile viewports for a new frame. */
-	void PostUpdate();
-
 private:
 	/** Mark all Tile viewports as unused before updating. */
 	void ImplBeginReallocateViewports() const;
@@ -33,7 +30,15 @@ private:
 	/** Delete unused Tile viewports. */
 	void ImplFinishReallocateViewports() const;
 
+	/**
+	 * Iterate over all tile viewports
+	 *
+	 * @param Pred The predicate to match.
+	 */
+	template <typename Predicate>
+	void ForEachTileViewport(Predicate Pred) const;
+
 private:
 	// Viewport configuration API
-	FDisplayClusterViewportConfiguration& Configuration;
+	const FDisplayClusterViewportConfiguration& Configuration;
 };

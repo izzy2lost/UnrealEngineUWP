@@ -6,6 +6,7 @@
 #include "RigVMSchema.h"
 #include "RigVMFunctionLibrary.h"
 #include "RigVMController.h"
+#include "UObject/WeakInterfacePtr.h"
 #include "RigVMClient.generated.h"
 
 struct FRigVMClient;
@@ -30,7 +31,28 @@ class RIGVMDEVELOPER_API IRigVMClientHost
 	GENERATED_BODY()
 
 public:
-	
+
+	/** Returns the expected schema class to use for this blueprint */
+	virtual FString GetAssetName() const = 0;
+
+	/** Returns the expected schema class to use for this blueprint */
+	virtual UClass* GetRigVMSchemaClass() const = 0;
+
+	/** Returns the expected execute context struct to use for this blueprint */
+	virtual UScriptStruct* GetRigVMExecuteContextStruct() const = 0;
+
+	/** Returns the expected ed graph class to use for this blueprint */
+	virtual UClass* GetRigVMEdGraphClass() const = 0;
+
+	/** Returns the expected ed graph node class to use for this blueprint */
+	virtual UClass* GetRigVMEdGraphNodeClass() const = 0;
+
+	/** Returns the expected ed graph schema class to use for this blueprint */
+	virtual UClass* GetRigVMEdGraphSchemaClass() const = 0;
+
+	/** Returns the class of the settings to use */
+	virtual UClass* GetRigVMEditorSettingsClass() const = 0;
+
 	// Returns the rigvm client for this host
 	virtual FRigVMClient* GetRigVMClient() = 0;
 
@@ -102,10 +124,11 @@ public:
 
 	virtual URigVMFunctionLibrary* GetLocalFunctionLibrary() const = 0;
 
+	virtual URigVMFunctionLibrary* GetOrCreateLocalFunctionLibrary(bool bSetupUndoRedo = true) = 0;
+
 	virtual URigVMGraph* AddModel(FString InName = TEXT("Rig Graph"), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true) = 0;
 
 	virtual bool RemoveModel(FString InName = TEXT("Rig Graph"), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true) = 0;
-
 
 	virtual FRigVMGetFocusedGraph& OnGetFocusedGraph() = 0;
 	virtual const FRigVMGetFocusedGraph& OnGetFocusedGraph() const = 0;
@@ -122,6 +145,15 @@ public:
 	virtual URigVMController* GetOrCreateController(const UEdGraph* InGraph) = 0;
 
 	virtual TArray<FString> GeneratePythonCommands(const FString InNewBlueprintName)  = 0;
+
+	virtual void SetupPinRedirectorsForBackwardsCompatibility() = 0;
+
+	virtual FRigVMGraphModifiedEvent& OnModified() = 0;
+
+	virtual bool IsFunctionPublic(const FName& InFunctionName) const = 0;
+	virtual void MarkFunctionPublic(const FName& InFunctionName, bool bIsPublic = true) = 0;
+
+	virtual void RenameGraph(const FString& InNodePath, const FName& InNewName) = 0;
 };
 
 UINTERFACE()
@@ -147,6 +179,27 @@ public:
 	virtual void HandleRigVMGraphRenamed(const FString& InOldNodePath, const FString& InNewNodePath) = 0;
 };
 
+UINTERFACE()
+class RIGVMDEVELOPER_API URigVMClientExternalModelHost : public UInterface
+{
+	GENERATED_BODY()
+};
+
+// Interface that allows access to externally-hosted models
+class RIGVMDEVELOPER_API IRigVMClientExternalModelHost
+{
+	GENERATED_BODY()
+
+public:
+
+	// Returns the externally-held models for a client
+	virtual const TArray<TObjectPtr<URigVMGraph>>& GetExternalModels() const = 0;
+
+	// Sets a new created model as 
+	virtual TObjectPtr<URigVMGraph> CreateContainedGraphModel(URigVMCollapseNode* CollapseNode, const FName& Name) = 0;
+};
+
+
 // A management struct containing graphs and controllers.
 USTRUCT()
 struct RIGVMDEVELOPER_API FRigVMClient
@@ -156,33 +209,43 @@ public:
 	GENERATED_BODY()
 
 	FRigVMClient()
-		: SchemaPtr(nullptr)
-		, SchemaClass(URigVMSchema::StaticClass())
+		: DefaultSchemaClass(nullptr)
 		, ControllerClass(URigVMController::StaticClass())
 		, FunctionLibrary(nullptr)
 		, ActionStack(nullptr)
 		, bSuspendNotifications(false)
 		, bIgnoreModelNotifications(false)
 		, bDefaultModelCanBeRemoved(false)
+		, bSuspendModelNotificationsForOthers(false)
 		, OuterClientHost(nullptr)
-		, OuterClientPropertyName(NAME_None)
+		, OuterClientPropertyName(NAME_None)	
+		, ExternalModelHost(nullptr)
 	{
 	}
 
-	void SetSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass);
+	UE_DEPRECATED(5.5, "Please use SetDefaultSchemaClass or set a schema per controller/graph.")
+	void SetSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass) { SetDefaultSchemaClass(InSchemaClass); }
+	void SetDefaultSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass);
 	void SetControllerClass(TSubclassOf<URigVMController> InControllerClass);
 	void SetOuterClientHost(UObject* InOuterClientHost, const FName& InOuterClientHostPropertyName);
 	void SetFromDeprecatedData(URigVMGraph* InDefaultGraph, URigVMFunctionLibrary* InFunctionLibrary);
+	void SetExternalModelHost(IRigVMClientExternalModelHost* InExternalModelHost);
 
 	void Reset();
-	int32 Num() const { return Models.Num(); }
-	const URigVMSchema* GetSchema() const { return SchemaPtr; }
-	URigVMSchema* GetOrCreateSchema();
+	int32 Num() const { return GetModels().Num(); }
+	UE_DEPRECATED(5.5, "Please use GetDefaultSchema or get a schema per controller/graph.")
+	URigVMSchema* GetSchema() { return GetDefaultSchema(); }
+	URigVMSchema* GetDefaultSchema() const;
+	TSubclassOf<URigVMSchema> GetDefaultSchemaClass() const { return DefaultSchemaClass; }
+	UE_DEPRECATED(5.5, "Please use GetSchema or get a schema per controller/graph.")
+	URigVMSchema* GetOrCreateSchema() { return GetDefaultSchema(); }
 	URigVMGraph* GetDefaultModel() const;
-	URigVMGraph* GetModel(int32 InIndex) const { return Models.IsValidIndex(InIndex) ? Models[InIndex] : nullptr; }
+	URigVMGraph* GetModel(int32 InIndex) const;
 	URigVMGraph* GetModel(const UEdGraph* InEdGraph = nullptr) const;
 	URigVMGraph* GetModel(const FString& InNodePathOrName) const;
 	URigVMGraph* GetModel(const UObject* InEditorSideObject) const;
+	void RefreshAllModels(ERigVMLoadType InLoadType, bool bEnablePostLoadHashing, bool& bIsCompiling);
+	const TArray<TObjectPtr<URigVMGraph>>& GetModels() const;
 	TArray<URigVMGraph*> GetAllModels(bool bIncludeFunctionLibrary, bool bRecursive) const;
 	TArray<URigVMGraph*> GetAllModelsLeavesFirst(bool bIncludeFunctionLibrary) const;
 	URigVMController* GetController(int32 InIndex) const;
@@ -197,16 +260,25 @@ public:
 	bool RemoveController(const URigVMGraph* InModel);
 	URigVMFunctionLibrary* GetFunctionLibrary() const { return FunctionLibrary; }
 	URigVMFunctionLibrary* GetOrCreateFunctionLibrary(bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer = nullptr, bool bCreateController = true);
+	URigVMFunctionLibrary* GetOrCreateFunctionLibrary(TSubclassOf<URigVMSchema> InSchemaClass, bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer = nullptr, bool bCreateController = true);
 	TArray<FName> GetEntryNames() const;
-	UScriptStruct* GetExecuteContextStruct() const;
-	void SetExecuteContextStruct(UScriptStruct* InExecuteContextStruct);
+	UE_DEPRECATED(5.5, "Please use GetDefaultExecuteContextStruct or get an execute context from a graph/controller schema.")
+	UScriptStruct* GetExecuteContextStruct() const { return GetDefaultExecuteContextStruct(); }
+	UScriptStruct* GetDefaultExecuteContextStruct() const;
+	UE_DEPRECATED(5.5, "Please use SetDefaultExecuteContextStruct or set an execute context on a graph/controller schema.")
+	void SetExecuteContextStruct(UScriptStruct* InExecuteContextStruct) { SetDefaultExecuteContextStruct(InExecuteContextStruct); }
+	void SetDefaultExecuteContextStruct(UScriptStruct* InExecuteContextStruct);
 
 	FRigVMGetFocusedGraph& OnGetFocusedGraph() { return OnGetFocusedGraphDelegate;}
 	const FRigVMGetFocusedGraph& OnGetFocusedGraph() const { return OnGetFocusedGraphDelegate; }
 	URigVMGraph* GetFocusedModel() const;
-
 	URigVMGraph* AddModel(const FString InName, bool bSetupUndoRedo, bool bPrintPythonCommand);
 	URigVMGraph* AddModel(const FName& InName, bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer = nullptr, bool bCreateController = true);
+	URigVMGraph* AddModel(const FName& InName, TSubclassOf<URigVMSchema> InSchemaClass, bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer = nullptr, bool bCreateController = true);
+
+	URigVMGraph* CreateModel(const FName& InName, TSubclassOf<URigVMSchema> InSchemaClass, bool bSetupUndoRedo, UObject* InOuter, const FObjectInitializer* ObjectInitializer = nullptr, bool bCreateController = true);
+	TObjectPtr<URigVMGraph> CreateContainedGraphModel(URigVMCollapseNode* CollapseNode, const FName& Name);
+	
 	void AddModel(URigVMGraph* InModel, bool bCreateController);
 	bool RemoveModel(FString InName, bool bSetupUndoRedo, bool bPrintPythonCommand);
 	bool RemoveModel(const FString& InNodePathOrName, bool bSetupUndoRedo);
@@ -218,10 +290,10 @@ public:
 	URigVMNode* FindNode(const FString& InNodePathOrName) const;
 	URigVMPin* FindPin(const FString& InPinPath) const;
 	
-	TArray<TObjectPtr<URigVMGraph>>::RangedForIteratorType      begin() { return Models.begin(); }
-	TArray<TObjectPtr<URigVMGraph>>::RangedForConstIteratorType begin() const { return Models.begin(); }
-	TArray<TObjectPtr<URigVMGraph>>::RangedForIteratorType      end() { return Models.end(); }
-	TArray<TObjectPtr<URigVMGraph>>::RangedForConstIteratorType end() const { return Models.end(); }
+	TArray<TObjectPtr<URigVMGraph>>::RangedForIteratorType      begin() { return const_cast<TArray<TObjectPtr<URigVMGraph>>&>(GetModels()).begin(); }
+	TArray<TObjectPtr<URigVMGraph>>::RangedForConstIteratorType begin() const { return GetModels().begin(); }
+	TArray<TObjectPtr<URigVMGraph>>::RangedForIteratorType      end() { return const_cast<TArray<TObjectPtr<URigVMGraph>>&>(GetModels()).end(); }
+	TArray<TObjectPtr<URigVMGraph>>::RangedForConstIteratorType end() const { return GetModels().end(); }
 
 	UObject* GetOuter() const;
 	FProperty* GetOuterClientProperty() const;
@@ -235,12 +307,12 @@ public:
 
 	// backwards compatibility
 	FRigVMClientPatchResult PatchModelsOnLoad();
+	void PatchFunctionReferencesOnLoad();
+	void PatchFunctionsOnLoad(IRigVMGraphFunctionHost* FunctionHost, TArray<FName>& BackwardsCompatiblePublicFunctions, TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader>& OldHeaders);
+	FRigVMClientPatchResult PatchPinDefaultValues();
 
 	// try to reattach detached links and delete remaining ones
 	void ProcessDetachedLinks();
-
-	// work to be done after a duplication of the source asset
-	void PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName);
 
 	// work to be done before saving
 	void PreSave(FObjectPreSaveContext ObjectSaveContext);
@@ -278,15 +350,10 @@ private:
 	URigVMActionStack* GetOrCreateActionStack();
 	void ResetActionStack();
 
-	void SetSchema(URigVMSchema* InSchema);
-
 	FRigVMGetFocusedGraph OnGetFocusedGraphDelegate;
 
 	UPROPERTY(transient)
-	TObjectPtr<URigVMSchema> SchemaPtr;
-
-	UPROPERTY(transient)
-	TSubclassOf<URigVMSchema> SchemaClass;
+	TSubclassOf<URigVMSchema> DefaultSchemaClass;
 
 	UPROPERTY(transient)
 	TSubclassOf<URigVMController> ControllerClass;
@@ -313,9 +380,13 @@ public:
 	bool bSuspendNotifications;
 	bool bIgnoreModelNotifications;
 	bool bDefaultModelCanBeRemoved;
+	bool bSuspendModelNotificationsForOthers;
 private:
 	TWeakObjectPtr<UObject> OuterClientHost;
 	FName OuterClientPropertyName;
 
+	TWeakInterfacePtr<IRigVMClientExternalModelHost> ExternalModelHost;
+
 	friend class UEngineTestClientHost;
+	friend class URigVMBlueprint;
 };

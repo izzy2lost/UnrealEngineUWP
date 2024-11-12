@@ -9,6 +9,7 @@
 #endif
 
 class FEngineService;
+class FTraceService;
 class FPendingCleanupObjects;
 class ISessionService;
 class FSlateRenderer;
@@ -21,6 +22,7 @@ struct FPreInitContext
 	bool bDumpEarlyPakFileReads = false;
 	bool bForceQuitAfterEarlyReads = false;
 	bool bWithConfigPatching = false;
+	UE_DEPRECATED(5.5, "Use gc.MaxObjectsNotConsideredByGC=0 ini setting instead")
 	bool bDisableDisregardForGC = false;
 	bool bHasEditorToken = false;
 	bool bIsRegularClient = false;
@@ -186,6 +188,9 @@ private:
 
 	/** Holds the engine service. */
 	FEngineService* EngineService;
+
+	/** Trace control service */
+	FTraceService* TraceService;
 
 	/** Holds the application session service. */
 	TSharedPtr<ISessionService> SessionService;

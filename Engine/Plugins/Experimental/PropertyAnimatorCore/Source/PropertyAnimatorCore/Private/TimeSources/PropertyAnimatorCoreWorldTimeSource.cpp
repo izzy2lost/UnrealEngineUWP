@@ -2,34 +2,18 @@
 
 #include "TimeSources/PropertyAnimatorCoreWorldTimeSource.h"
 
-#include "Animators/PropertyAnimatorCoreBase.h"
 #include "Engine/World.h"
 
-double UPropertyAnimatorCoreWorldTimeSource::GetTimeElapsed()
+bool UPropertyAnimatorCoreWorldTimeSource::UpdateEvaluationData(FPropertyAnimatorCoreTimeSourceEvaluationData& OutData)
 {
-	if (const UWorld* World = GetWorld())
-	{
-		return World->GetTimeSeconds();
-	}
-
-	return 0.f;
-}
-
-bool UPropertyAnimatorCoreWorldTimeSource::IsTimeSourceReady() const
-{
-	const UPropertyAnimatorCoreBase* Animator = GetAnimator();
-
-	if (!Animator)
-	{
-		return false;
-	}
-
-	const UWorld* World = Animator->GetWorld();
+	const UWorld* World = GetWorld();
 
 	if (!World)
 	{
 		return false;
 	}
+
+	OutData.TimeElapsed = World->GetTimeSeconds();
 
 	return World->IsEditorWorld()
 		|| World->IsPreviewWorld()

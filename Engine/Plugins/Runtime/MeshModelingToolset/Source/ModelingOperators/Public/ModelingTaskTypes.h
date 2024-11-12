@@ -6,6 +6,8 @@
 #include "Async/AsyncWork.h"
 #include "Util/ProgressCancel.h"
 
+#include <atomic>
+
 
 namespace UE
 {
@@ -74,6 +76,9 @@ public:
 	/** Set to true to abort the child task. CancelAndDelete() should be used in most cases, instead of changing bAbort directly. */
 	bool bAbort = false;
 
+	// Optional counter, if set will be decremented on task destruction
+	TSharedPtr<std::atomic<int>> TaskCounter;
+
 	template <typename Arg0Type, typename... ArgTypes>
 	FAsyncTaskExecuterWithAbort(Arg0Type&& Arg0, ArgTypes&&... Args)
 		: FAsyncTask<TTask>(Forward<Arg0Type>(Arg0), Forward<ArgTypes>(Args)...)
@@ -82,6 +87,13 @@ public:
 		FAsyncTask<TTask>::GetTask().SetAbortSource(&bAbort);
 	}
 
+	virtual ~FAsyncTaskExecuterWithAbort()
+	{
+		if (TaskCounter.Get())
+		{
+			--(*TaskCounter);
+		}
+	}
 
 	/**
 	 * Tells the child FAbandonableTask to terminate itself, via the bAbort flag

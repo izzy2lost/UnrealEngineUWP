@@ -55,8 +55,7 @@ void SProjectLauncherProfileListView::Construct(const FArguments& InArgs, const 
 		.SelectionMode(ESelectionMode::Single)
 		.ListItemsSource(&(ProfileManager->GetAllProfiles()))
 		.OnGenerateRow(this, &SProjectLauncherProfileListView::HandleProfileListViewGenerateRow)
-		.OnContextMenuOpening(FOnContextMenuOpening::CreateSP(this, &SProjectLauncherProfileListView::MakeProfileContextMenu))
-		.ItemHeight(16.0f);
+		.OnContextMenuOpening(FOnContextMenuOpening::CreateSP(this, &SProjectLauncherProfileListView::MakeProfileContextMenu));
 
 	ChildSlot
 	[

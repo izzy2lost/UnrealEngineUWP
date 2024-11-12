@@ -22,7 +22,7 @@ namespace UnrealBuildTool.Rules
 				PrivateDependencyModuleNames.Add("Engine");
 			}
 
-			bAllowAutoRTFMInstrumentation = true;
+			SetupIrisSupport(Target);
 		}
 	}
 }

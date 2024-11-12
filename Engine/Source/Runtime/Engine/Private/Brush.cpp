@@ -34,6 +34,30 @@ bool ABrush::bSuppressBSPRegeneration = false;
 
 // Debug purposes only; an attempt to catch the cause of UE-36265
 const TCHAR* ABrush::GGeometryRebuildCause = nullptr;
+
+namespace BrushUtils
+{
+	bool CanDeleteOrReplaceCommon(const ABrush* InActor, FText& OutReason)
+	{
+		if (FActorEditorUtils::IsABuilderBrush(InActor))
+		{
+			OutReason = NSLOCTEXT("Brush", "CanDeleteOrReplace_Error_BuilderBrush", "Can't delete or replace a builder brush.");
+			return false;
+		}
+
+		return true;
+	}
+}
+
+namespace BrushNavmeshGenerationCVars
+{
+	static bool bForceNavmeshGenerationOnStaticBrush = true;
+	static FAutoConsoleVariableRef CVarForceNavmeshGenerationOnStaticBrush(
+		TEXT("brush.ForceNavmeshGenerationOnStaticBrush"), 
+		bForceNavmeshGenerationOnStaticBrush, 
+		TEXT("Force exporting static brush's geometry data to Navigation System regardless of CanEverAffectNavigation and CollisionPreset values. Enabled by default to be backward compatible with brushes on legacy maps."), 
+		ECVF_Default);
+}
 #endif
 
 DEFINE_LOG_CATEGORY_STATIC(LogBrush, Log, All);
@@ -169,6 +193,18 @@ void ABrush::SetNeedRebuild(ULevel* InLevel)
 	}
 }
 
+bool ABrush::ShouldExportStaticNavigableGeometry() const
+{
+	if (BrushComponent)
+	{
+		const bool bNavRelevant = BrushComponent->IsNavigationRelevant();
+
+		return IsStaticBrush() && (BrushNavmeshGenerationCVars::bForceNavmeshGenerationOnStaticBrush || bNavRelevant);
+	}
+
+	return false;
+}
+
 void ABrush::InitPosRotScale()
 {
 	check(BrushComponent);
@@ -250,6 +286,36 @@ bool ABrush::SupportsExternalPackaging() const
 	return GetClass() != ABrush::StaticClass() && Super::SupportsExternalPackaging();
 }
 
+bool ABrush::CanDeleteSelectedActor(FText& OutReason) const
+{
+	if (!Super::CanDeleteSelectedActor(OutReason))
+	{
+		return false;
+	}
+
+	return BrushUtils::CanDeleteOrReplaceCommon(this, OutReason);
+}
+
+bool ABrush::CanReplaceSelectedActor(FText& OutReason) const
+{
+	if (!Super::CanReplaceSelectedActor(OutReason))
+	{
+		return false;
+	}
+
+	return BrushUtils::CanDeleteOrReplaceCommon(this, OutReason);
+}
+
+bool ABrush::IsActorLabelEditable() const
+{
+	if (!Super::IsActorLabelEditable())
+	{
+		return false;
+	}
+
+	return !FActorEditorUtils::IsABuilderBrush(this);
+}
+
 void ABrush::PostLoad()
 {
 	Super::PostLoad();
@@ -301,7 +367,7 @@ void ABrush::PostLoad()
 		// UModelFactory::FactoryCreateText was passing in the ABrush as the Outer instead of the UModel
 		if (Brush->Polys->GetOuter() == this)
 		{
-			Brush->Polys->Rename(*Brush->Polys->GetName(), Brush, REN_ForceNoResetLoaders);
+			Brush->Polys->Rename(*Brush->Polys->GetName(), Brush);
 		}
 	}
 

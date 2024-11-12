@@ -13,6 +13,7 @@
 #include "Tracks/MovieSceneEventTrack.h"
 #include "Tracks/MovieSceneMaterialParameterCollectionTrack.h"
 #include "Tracks/MovieSceneSkeletalAnimationTrack.h"
+#include "Tracks/MovieSceneTimeWarpTrack.h"
 
 IMPLEMENT_MODULE(FDefaultModuleImpl, ActorSequence);
 
@@ -216,17 +217,18 @@ FText UActorSequence::GetDisplayName() const
 }
 
 
-ETrackSupport UActorSequence::IsTrackSupported(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
+ETrackSupport UActorSequence::IsTrackSupportedImpl(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
 {
 	if (InTrackClass == UMovieSceneAudioTrack::StaticClass() ||
 		InTrackClass == UMovieSceneEventTrack::StaticClass() ||
 		InTrackClass == UMovieSceneMaterialParameterCollectionTrack::StaticClass() ||
-		InTrackClass == UMovieSceneSkeletalAnimationTrack::StaticClass())
+		InTrackClass == UMovieSceneSkeletalAnimationTrack::StaticClass() ||
+		InTrackClass == UMovieSceneTimeWarpTrack::StaticClass())
 	{
 		return ETrackSupport::Supported;
 	}
 
-	return Super::IsTrackSupported(InTrackClass);
+	return Super::IsTrackSupportedImpl(InTrackClass);
 }
 
 #endif

@@ -384,6 +384,17 @@ public:
 			});
 	}
 
+	void UpdateAtmosphereSunDiskColorScale_GameThread(const UDirectionalLightComponent* Component)
+	{
+		FLinearColor NewAtmosphereSunDiskColorScale = Component->AtmosphereSunDiskColorScale;
+		FDirectionalLightSceneProxy* Proxy = this;
+		ENQUEUE_RENDER_COMMAND(FUpdateLightShaftOverrideDirectionCommand)(
+			[Proxy, NewAtmosphereSunDiskColorScale](FRHICommandList& RHICmdList)
+			{
+				Proxy->AtmosphereSunDiskColorScale = NewAtmosphereSunDiskColorScale;
+			});
+	}
+
 	/** Accesses parameters needed for rendering the light. */
 	virtual void GetLightShaderParameters(FLightRenderParameters& LightParameters, uint32 Flags=0) const override
 	{
@@ -397,7 +408,8 @@ public:
 		LightParameters.Tangent = (FVector3f)-GetDirection();
 
 		LightParameters.SpotAngles = FVector2f::ZeroVector;
-		LightParameters.SpecularScale = SpecularScale;
+		LightParameters.SpecularScale = FMath::Clamp(SpecularScale, 0.f, 1.f);
+		LightParameters.DiffuseScale = FMath::Clamp(DiffuseScale, 0.f, 1.f);
 		LightParameters.SourceRadius = FMath::Sin( 0.5f * FMath::DegreesToRadians( LightSourceAngle ) );
 		LightParameters.SoftSourceRadius = FMath::Sin( 0.5f * FMath::DegreesToRadians( LightSourceSoftAngle ) );
 		LightParameters.SourceLength = 0.0f;
@@ -406,6 +418,7 @@ public:
 		LightParameters.RectLightAtlasMaxLevel = FLightRenderParameters::GetRectLightAtlasInvalidMIPLevel();
 		LightParameters.IESAtlasIndex = INDEX_NONE;
 		LightParameters.LightFunctionAtlasLightIndex = GetLightFunctionAtlasLightIndex();
+		LightParameters.bAffectsTranslucentLighting = AffectsTranslucentLighting() ? 1 : 0;
 		LightParameters.InverseExposureBlend = 0.0f;
 	}
 
@@ -1365,6 +1378,20 @@ void UDirectionalLightComponent::SetAtmosphereSunLightIndex(int32 NewValue)
 	{
 		AtmosphereSunLightIndex = FMath::Max(0, NewValue);
 		MarkRenderStateDirty();
+	}
+}
+
+void UDirectionalLightComponent::SetAtmosphereSunDiskColorScale(FLinearColor NewValue)
+{
+	if (AreDynamicDataChangesAllowed()
+		&& AtmosphereSunDiskColorScale != NewValue)
+	{
+		AtmosphereSunDiskColorScale = NewValue;
+		if (SceneProxy)
+		{
+			FDirectionalLightSceneProxy* DirectionalLightSceneProxy = (FDirectionalLightSceneProxy*)SceneProxy;
+			DirectionalLightSceneProxy->UpdateAtmosphereSunDiskColorScale_GameThread(this);
+		}
 	}
 }
 

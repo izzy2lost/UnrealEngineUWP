@@ -190,6 +190,11 @@ namespace UnrealBuildTool
 		public static RestrictedFolder CarefullyRedist = FindOrAddByName("CarefullyRedist");
 
 		/// <summary>
+		/// Epic Employees and Contractors as well as some explicitly permitted external groups
+		/// </summary>
+		public static RestrictedFolder LimitedAccess = FindOrAddByName("LimitedAccess");
+
+		/// <summary>
 		/// Epic Employees and Contractors
 		/// </summary>
 		public static RestrictedFolder NotForLicensees = FindOrAddByName("NotForLicensees");

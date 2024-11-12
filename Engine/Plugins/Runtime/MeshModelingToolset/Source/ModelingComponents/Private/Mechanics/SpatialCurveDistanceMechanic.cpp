@@ -36,8 +36,8 @@ void USpatialCurveDistanceMechanic::InitializePolyLoop(const TArray<FVector3d>& 
 
 void USpatialCurveDistanceMechanic::UpdateCurrentDistance(const FRay& WorldRay)
 {
-	FVector3d RayNearest;
-	FVector3d CurveNearest;
+	FVector3d RayNearest = FVector3d::ZeroVector;
+	FVector3d CurveNearest = FVector3d::ZeroVector;
 
 	FRay3d Ray(WorldRay);
 	int NumV = Curve.Num() - 1;

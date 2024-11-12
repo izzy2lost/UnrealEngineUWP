@@ -74,7 +74,6 @@ FNiagaraSystemToolkitMode_Default::FNiagaraSystemToolkitMode_Default(TWeakPtr<FN
 					->AddTab(DetailsTabID, ETabState::OpenedTab)
 					->AddTab(SelectedEmitterGraphTabID, ETabState::ClosedTab)
 					->AddTab(SystemScriptTabID, ETabState::ClosedTab)
-					->AddTab(DebugSpreadsheetTabID, ETabState::ClosedTab)
 					->AddTab(PreviewSettingsTabId, ETabState::ClosedTab)
 					->AddTab(GeneratedCodeTabID, ETabState::ClosedTab)
 				)
@@ -176,7 +175,7 @@ void FNiagaraSystemToolkitMode_Default::ExtendToolbar()
 			{
 				ToolbarBuilder.AddToolBarButton(FNiagaraEditorCommands::Get().ToggleStatPerformance, NAME_None,
                     LOCTEXT("NiagaraShowPerformance", "Performance"),
-                    LOCTEXT("NiagaraShowPerformanceTooltip", "Show runtime performance for particle scripts."),
+                    LOCTEXT("NiagaraShowPerformanceTooltip", "Show runtime performance for particle scripts. Not supported when optimized VM byte code setting is enabled."),
                     FSlateIcon(FAppStyle::Get().GetStyleSetName(), "AssetEditor.ToggleStats"));
 				ToolbarBuilder.AddComboButton(
                     FUIAction(),

@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+
+#include "Containers/TextureShareCoreContainers_FrameMarker.h"
 #include "Containers/TextureShareCoreContainers_ViewDesc.h"
 
 /**

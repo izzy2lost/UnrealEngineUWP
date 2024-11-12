@@ -46,10 +46,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/** Clear out any default weight maps and delete any other ones. */
 	CLOTHINGSYSTEMRUNTIMECOMMON_API void ClearWeightMaps();
 
-	/** Build the self collision indices for the relevant config. */
-	UE_DEPRECATED(5.0, "Use BuildSelfCollisionData(float SelfCollisionRadius) instead.")
-	CLOTHINGSYSTEMRUNTIMECOMMON_API void BuildSelfCollisionData(const TMap<FName, TObjectPtr<UClothConfigBase>>& ClothConfigs);
-
 	/** Build the self collision indices with the specified radius. */
 	CLOTHINGSYSTEMRUNTIMECOMMON_API void BuildSelfCollisionData(float SelfCollisionRadius);
 
@@ -61,11 +57,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Recalculate the long range attachment tethers. */
 	CLOTHINGSYSTEMRUNTIMECOMMON_API void CalculateTethers(bool bUseEuclideanDistance, bool bUseGeodesicDistance);
-
-	/** Compute vertex normals as unweighted average of incident face normals. If all incident triangles are degenerate,
-	    the vertex normal is assigned a value of FVector3f::XAxisVector. */
-	UE_DEPRECATED(5.0, "This function is no longer part of this API and will soon be removed.")
-	CLOTHINGSYSTEMRUNTIMECOMMON_API void ComputeFaceAveragedVertexNormals(TArray<FVector3f>& OutNormals) const;
 
 	/** Retrieve whether a vertex weight array has already been registered. */
 	template<typename T>

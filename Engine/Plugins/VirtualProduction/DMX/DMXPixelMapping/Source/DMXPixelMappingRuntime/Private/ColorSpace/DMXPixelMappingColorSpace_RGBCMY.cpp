@@ -2,6 +2,8 @@
 
 #include "ColorSpace/DMXPixelMappingColorSpace_RGBCMY.h"
 
+#include "ColorManagement/TransferFunctions.h"
+#include "DMXPixelMappingMainStreamObjectVersion.h"
 
 UDMXPixelMappingColorSpace_RGBCMY::UDMXPixelMappingColorSpace_RGBCMY()
 	: RedAttribute("Red")
@@ -12,14 +14,28 @@ UDMXPixelMappingColorSpace_RGBCMY::UDMXPixelMappingColorSpace_RGBCMY()
 
 void UDMXPixelMappingColorSpace_RGBCMY::SetRGBA(const FLinearColor& InColor)
 {
+	using namespace UE::Color;
+
 	if (bUseWorkingColorSpaceForInput && !InputColorSpace.Equals(UE::Color::FColorSpace::GetWorking()))
 	{
 		// Update in case the working color space changed
 		UpdateColorSpaceAndTransform();
 	}
 
-	const FLinearColor CalibratedColor = ColorSpaceTransform->Apply(InColor);
+	FLinearColor CalibratedColor = ColorSpaceTransform->Apply(InColor);
 
+	// Apply gamma
+	if (OutputGamma == EDMXPixelMappingGamma_RGBCMY::AsOutputColorSpace)
+	{
+		const EColorSpace SelectedOutputColorSpace = ConvertToOutputColorSpaceEnum(PixelMappingOutputColorSpace);
+		EncodeGammaCorrection(PixelMappingOutputColorSpace, CalibratedColor);
+	}
+	else if (OutputGamma == EDMXPixelMappingGamma_RGBCMY::Custom)
+	{
+		EncodeGammaCorrection(CustomGamma, CalibratedColor);
+	}
+
+	// Buffer DMX values
 	if (RedAttribute.IsValid())
 	{
 		const float Value = bSendCyan ? FMath::Abs(CalibratedColor.R - 1.f) : CalibratedColor.R;
@@ -54,6 +70,24 @@ void UDMXPixelMappingColorSpace_RGBCMY::SetRGBA(const FLinearColor& InColor)
 			SetAttributeValue(LuminanceAttribute, FMath::Clamp(InColor.A, MinLuminance, MaxLuminance));
 		}
 	}
+}
+
+void UDMXPixelMappingColorSpace_RGBCMY::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+	Ar.UsingCustomVersion(FDMXPixelMappingMainStreamObjectVersion::GUID);
+
+#if WITH_EDITOR
+	if (Ar.IsLoading())
+	{
+		// Assets created before 5.5 used linear gamma
+		if (Ar.CustomVer(FDMXPixelMappingMainStreamObjectVersion::GUID) < FDMXPixelMappingMainStreamObjectVersion::DMXOutputAppliesGammaCorrection)
+		{
+			OutputGamma = EDMXPixelMappingGamma_RGBCMY::Linear;
+		}
+	}
+#endif
 }
 
 void UDMXPixelMappingColorSpace_RGBCMY::PostLoad()
@@ -138,3 +172,65 @@ UE::Color::EColorSpace UDMXPixelMappingColorSpace_RGBCMY::ConvertToOutputColorSp
 
 	return EColorSpace::None;
 }
+
+void UDMXPixelMappingColorSpace_RGBCMY::EncodeGammaCorrection(EDMXPixelMappingOutputColorSpace_RGBCMY InPixelMappingOutputColorSpaceEnum, FLinearColor& InOutColor)
+{
+	using namespace UE::Color;
+
+	switch (InPixelMappingOutputColorSpaceEnum)
+	{
+	case EDMXPixelMappingOutputColorSpace_RGBCMY::P3D65:
+		// Same as sRGB, fall through
+
+	case EDMXPixelMappingOutputColorSpace_RGBCMY::sRGB:
+		InOutColor.R = EncodeSRGB(InOutColor.R);
+		InOutColor.G = EncodeSRGB(InOutColor.G);
+		InOutColor.B = EncodeSRGB(InOutColor.B);
+		break;
+
+	case EDMXPixelMappingOutputColorSpace_RGBCMY::Rec2020:
+		InOutColor.R = EncodeRec2020(InOutColor.R);
+		InOutColor.G = EncodeRec2020(InOutColor.G);
+		InOutColor.B = EncodeRec2020(InOutColor.B);
+		break;
+
+	case EDMXPixelMappingOutputColorSpace_RGBCMY::P3DCI:
+		InOutColor.R = EncodeGamma26(InOutColor.R);
+		InOutColor.G = EncodeGamma26(InOutColor.G);
+		InOutColor.B = EncodeGamma26(InOutColor.B);
+		break;
+
+	case EDMXPixelMappingOutputColorSpace_RGBCMY::Plasa:
+		// PLASA ANSI E1.54 is linear
+		break;
+
+	default:
+		ensureMsgf(0, TEXT("Missing transfer function for color space. Cannot apply gamma correction."));
+	}
+}
+
+void UDMXPixelMappingColorSpace_RGBCMY::EncodeGammaCorrection(float InCustomGamma, FLinearColor& InOutColor)
+{
+	InOutColor.R = FMath::Pow(InOutColor.R, 1.f / InCustomGamma);
+	InOutColor.G = FMath::Pow(InOutColor.G, 1.f / InCustomGamma);
+	InOutColor.B = FMath::Pow(InOutColor.B, 1.f / InCustomGamma);
+}
+
+float UDMXPixelMappingColorSpace_RGBCMY::EncodeRec2020(float InValue) const
+{
+	// Values are expected to be in the 0-1 range
+	const float ClampedValue = FMath::Clamp(InValue, 0.f, 1.f);
+
+	constexpr float Beta = 0.018053968510807;
+	constexpr float Alpha = 1 + 5.5 * Beta;
+
+	if (ClampedValue < Beta)
+	{
+		return 4.5f * ClampedValue;
+	}
+	else
+	{
+		return Alpha * FMath::Pow(ClampedValue, 0.45f) - (Alpha - 1.f);
+	}
+}
+

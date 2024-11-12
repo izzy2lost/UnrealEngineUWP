@@ -297,6 +297,8 @@ CORE_API FGraph ConstructTransposeGraph(
  * Return a new graph where cycles in the input graph have been replaced by a single vertex. The new graph is 
  * topologically sorted from root to leaf. If the input graph has no cycles, the function returns false and the 
  * OutGraph is reset to empty.
+ * 
+ * After conversion you can iterate over the OutCondensationVertexToInputVertex mapping to go through the map topologically.
  *
  * @param Graph The input graph, may contain cycles. @see ConvertToGraph for a description of the format.
  * @param OutGraph Output value that holds the graph. 

@@ -6,6 +6,7 @@
 #include "Styling/AppStyle.h"
 #include "UObject/Package.h"
 #include "Tracks/MovieSceneEventTrack.h"
+#include "ISequencer.h"
 #include "ISequencerSection.h"
 #include "MovieSceneObjectBindingIDPicker.h"
 #include "IDetailCustomization.h"
@@ -20,6 +21,7 @@
 #include "Sections/MovieSceneEventSection.h"
 #include "Sections/MovieSceneEventTriggerSection.h"
 #include "Sections/MovieSceneEventRepeaterSection.h"
+#include "SequencerSettings.h"
 #include "MVVM/Views/ViewUtilities.h"
 #include "MovieSceneSequenceEditor.h"
 
@@ -189,6 +191,8 @@ void FEventTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBuilder, UMovieS
 
 	auto PopulateSubMenu = [this, EventTrack, ObjectBinding](FMenuBuilder& SubMenuBuilder)
 	{
+		TSharedPtr<ISequencer> Sequencer = GetSequencer();
+			
 		FPropertyEditorModule& PropertyEditor = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
 		// Create a details view for the track
@@ -206,16 +210,22 @@ void FEventTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBuilder, UMovieS
 		FOnGetDetailCustomizationInstance CreateInstance = FOnGetDetailCustomizationInstance::CreateLambda([ObjectBinding]{ return MakeShared<FEventTrackCustomization>(ObjectBinding); });
 		DetailsView->RegisterInstancedCustomPropertyLayout(UMovieSceneEventTrack::StaticClass(), CreateInstance);
 
-		GetSequencer()->OnInitializeDetailsPanel().Broadcast(DetailsView, GetSequencer().ToSharedRef());
+		if (Sequencer.IsValid())
+		{
+			Sequencer->OnInitializeDetailsPanel().Broadcast(DetailsView, Sequencer.ToSharedRef());
+		}
 
 		// Assign the object
 		DetailsView->SetObject(EventTrack, true);
 
+		const float WidthOverride = Sequencer.IsValid() ? Sequencer->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+		const float HeightOverride = Sequencer.IsValid() ? Sequencer->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
 		// Add it to the menu
 		TSharedRef< SWidget > DetailsViewWidget =
 			SNew(SBox)
-			.MaxDesiredHeight(400.0f)
-			.WidthOverride(450.0f)
+			.WidthOverride(WidthOverride)
+			.HeightOverride(HeightOverride)
 		[
 			DetailsView
 		];

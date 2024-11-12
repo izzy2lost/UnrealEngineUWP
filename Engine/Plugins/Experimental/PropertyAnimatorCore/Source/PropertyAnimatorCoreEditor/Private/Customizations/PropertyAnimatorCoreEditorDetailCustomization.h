@@ -26,14 +26,17 @@ public:
 	//~ End IDetailCustomization
 
 protected:
-	TSharedRef<SWidget> GenerateLinkMenu();
 	static void FillLinkMenu(UToolMenu* InToolMenu);
+
+	TSharedRef<SWidget> GenerateLinkMenu();
 
 	bool IsAnyPropertyLinked() const;
 	ECheckBoxState IsPropertiesEnabled() const;
 	void OnPropertiesEnabled(ECheckBoxState InNewState) const;
 
 	FReply UnlinkProperties() const;
+
+	FReply OnCreatePropertyPresetClicked() const;
 
 	TWeakObjectPtr<UPropertyAnimatorCoreBase> AnimatorWeak;
 };

@@ -35,6 +35,17 @@ namespace EpicGames.Core
 	}
 
 	/// <summary>
+	/// Represents any type in a Json schema
+	/// </summary>
+	public class JsonSchemaAny : JsonSchemaPrimitiveType
+	{
+		/// <inheritdoc/>
+		public override void Write(IJsonSchemaWriter writer)
+		{
+		}
+	}
+
+	/// <summary>
 	/// Represents a boolean in a Json schema
 	/// </summary>
 	public class JsonSchemaBoolean : JsonSchemaPrimitiveType

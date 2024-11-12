@@ -129,7 +129,6 @@ void SCollisionAnalyzer::Construct(const FArguments& InArgs, FCollisionAnalyzer*
 				.Padding(1.0)
 				[
 					SAssignNew(QueryTreeWidget, STreeView< TSharedPtr<FQueryTreeItem> >)
-					.ItemHeight(20)
 					.TreeItemsSource(&GroupedQueries)
 					.SelectionMode(ESelectionMode::Multi)
 					.OnGenerateRow(this, &SCollisionAnalyzer::QueryTreeGenerateRow)

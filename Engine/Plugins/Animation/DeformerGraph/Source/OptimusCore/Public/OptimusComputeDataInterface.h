@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "OptimusDataType.h"
 #include "ComputeFramework/ComputeDataInterface.h"
 
 #include "Templates/SubclassOf.h"
@@ -10,6 +11,7 @@
 
 
 class UActorComponent;
+class UOptimusNode_DataInterface;
 
 
 struct FOptimusCDIPinDefinition
@@ -122,6 +124,12 @@ struct FOptimusCDIPinDefinition
 	bool bMutable = true;
 };
 
+struct FOptimusCDIPropertyPinDefinition
+{
+	FName PinName = NAME_None;
+
+	FOptimusDataTypeRef DataType; 
+};
 
 UCLASS(Abstract, Const)
 class OPTIMUSCORE_API UOptimusComputeDataInterface : public UComputeDataInterface
@@ -129,6 +137,9 @@ class OPTIMUSCORE_API UOptimusComputeDataInterface : public UComputeDataInterfac
 	GENERATED_BODY()
 	
 public:
+	DECLARE_DELEGATE_TwoParams(FOnPinDefinitionRenamed, FName /* Old */ , FName /* New */);
+	DECLARE_DELEGATE(FOnPinDefinitionChanged);
+	
 	struct OPTIMUSCORE_API CategoryName
 	{
 		static const FName DataInterfaces;
@@ -143,13 +154,30 @@ public:
 	virtual FName GetCategory() const { return CategoryName::DataInterfaces; }
 
 	/// Returns the list of pins that will map to the shader functions provided by this data interface.
-	virtual TArray<FOptimusCDIPinDefinition> GetPinDefinitions() const PURE_VIRTUAL(UOptimusComputeDataInterface::GetDisplayName, return {};)
+	virtual TArray<FOptimusCDIPinDefinition> GetPinDefinitions() const PURE_VIRTUAL(UOptimusComputeDataInterface::GetPinDefinitions, return {};)
 
+	/// Returns the list of pins that are related to the properties of the data interface.
+	virtual TArray<FOptimusCDIPropertyPinDefinition> GetPropertyPinDefinitions() const { return {}; }
+	
+	/// Data interface can use this to set default values/pins
+	virtual void Initialize() {};
+
+	virtual void ExportState(FArchive& Ar);
+	virtual void ImportState(FArchive& Ar);
+	
+	/// Whether the data interface allow users to add / remove pins
+	virtual bool CanPinDefinitionChange() { return false; };
+
+	/// Register delegates for data interface node to update when the data interface changes
+	virtual void RegisterPropertyChangeDelegatesForOwningNode(UOptimusNode_DataInterface* InNode) {};
+	
 	/**
 	 * @return Returns the component type that this data interface operates on.
 	 */
 	virtual TSubclassOf<UActorComponent> GetRequiredComponentClass() const PURE_VIRTUAL(UOptimusComputeDataInterface::GetRequiredComponent, return nullptr;)
 
+	virtual void OnDataTypeChanged(FName InTypeName) {};
+	
 	/**
 	 * Register any additional data types provided by this data interface. 
 	 */
@@ -164,6 +192,8 @@ public:
 	{
 		return true;
 	}
+
+	virtual TOptional<FText> ValidateForCompile() const { return{}; };
 
 	/// Returns all known UOptimusComputeDataInterface-derived classes.
 	static TArray<TSubclassOf<UOptimusComputeDataInterface>> GetAllComputeDataInterfaceClasses();

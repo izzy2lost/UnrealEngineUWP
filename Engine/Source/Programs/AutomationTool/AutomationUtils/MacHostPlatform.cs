@@ -127,7 +127,7 @@ namespace AutomationTool
 						AppName = AppName + ".app/Contents/MacOS/" + AppFilename;
 					}
 				}
-				// some of our C# applications are converted to dotnet core, do not run those via mono
+				// some of our C# applications are converted to dotnet core
 				else if (AppName.Contains("UnrealBuildTool") || AppName.Contains("AutomationTool"))
 				{
 					Options &= ~CommandUtils.ERunOptions.AppMustExist;

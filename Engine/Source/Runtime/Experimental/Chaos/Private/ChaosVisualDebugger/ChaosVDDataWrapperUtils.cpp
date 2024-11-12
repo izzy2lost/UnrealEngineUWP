@@ -2,32 +2,48 @@
 
 #include "ChaosVisualDebugger/ChaosVDDataWrapperUtils.h"
 
+#include "Chaos/SpatialAccelerationCollection.h"
+
 #if WITH_CHAOS_VISUAL_DEBUGGER
 
 #include "Chaos/PBDJointConstraints.h"
+#include "DataWrappers/ChaosVDCharacterGroundConstraintDataWrappers.h"
 #include "DataWrappers/ChaosVDJointDataWrappers.h"
 
+#include "Chaos/Character/CharacterGroundConstraintContainer.h"
 #include "Chaos/Collision/ParticlePairMidPhase.h"
-#include "Chaos/Collision/CollisionConstraintAllocator.h"
 #include "Chaos/ParticleHandle.h"
 #include "ChaosVisualDebugger/ChaosVDSerializedNameTable.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
+#include "Math/UnitConversion.h"
 
 namespace Chaos::VisualDebugger::Utils
 {
-	template<typename InType,typename OutType, int32 Size, typename TransformT>
-	void TransformStaticArray(const InType (&In)[Size], OutType (&Out)[Size], TransformT Trans)
+	FGeometryParticle* GetPayloadForExternalThread(const Chaos::FAccelerationStructureHandle& Payload)
 	{
-		for (int32 Index = 0; Index < Size; Index++)
-		{
-			Out[Index] = Invoke(Trans, In[Index]);
-		}
+		return Payload.GetExternalGeometryParticle_ExternalThread();	
 	}
 
-	inline FTransform ConvertToFTransform(const FRigidTransform3& InChaosTransform)
+	/** Calculates and returns the current Game Thread bounds for the provided particle */
+	FBox GetGeometricGTParticleBounds(const FGeometryParticle* GeometryParticle)
 	{
-		return InChaosTransform;
+		using namespace Chaos;
+		const FShapesArray& Shapes = GeometryParticle->ShapesArray();
+
+		FBox Bounds(ForceInitToZero);
+
+		for (const TUniquePtr<FPerShapeData>& Shape : Shapes)
+		{
+			Bounds += FBox(Shape->GetWorldSpaceShapeBounds().Min(), Shape->GetWorldSpaceShapeBounds().Max());
+		}
+
+		return Bounds;
+	}
+
+	FBox GetPayloadBounds(const FAccelerationStructureHandle& Payload)
+	{
+		return GetGeometricGTParticleBounds(GetPayloadForExternalThread(Payload));
 	}
 }
 
@@ -363,6 +379,77 @@ FChaosVDJointConstraint FChaosVDDataWrapperUtils::BuildJointDataWrapper(const Ch
 	return MoveTemp(WrappedJointData);
 }
 
+FChaosVDCharacterGroundConstraint FChaosVDDataWrapperUtils::BuildCharacterGroundConstraintDataWrapper(const Chaos::FCharacterGroundConstraintHandle* ConstraintHandle)
+{
+	FChaosVDCharacterGroundConstraint WrappedConstraintData;
+
+	if (ConstraintHandle)
+	{
+		if (ConstraintHandle->GetCharacterParticle())
+		{
+			WrappedConstraintData.CharacterParticleIndex = ConstraintHandle->GetCharacterParticle()->UniqueIdx().Idx;
+		}
+		else
+		{
+			WrappedConstraintData.CharacterParticleIndex = INDEX_NONE;
+		}
+		
+		WrappedConstraintData.ConstraintIndex = WrappedConstraintData.CharacterParticleIndex; // TODO - add unique index to constraint handle
+
+		if (ConstraintHandle->GetGroundParticle())
+		{
+			WrappedConstraintData.GroundParticleIndex = ConstraintHandle->GetGroundParticle()->UniqueIdx().Idx;
+		}
+		else
+		{
+			WrappedConstraintData.GroundParticleIndex = INDEX_NONE;
+		}
+		WrappedConstraintData.State.bDisabled = !ConstraintHandle->IsEnabled();
+
+		//TODO: Island related data getters are deprecated. We need to see where is best to get that data now and if this should be recorded as part of the CVD Constraint wrapper
+		//WrappedConstraintData.State.Color = ConstraintHandle->GetConstraintColor();
+		//WrappedConstraintData.State.Island = ConstraintHandle->GetConstraintIsland();
+		//WrappedConstraintData.State.IslandSize = ConstraintHandle->GetConstraintIsland();
+
+		WrappedConstraintData.State.SolverAppliedForce = ConstraintHandle->GetSolverAppliedForce();
+		WrappedConstraintData.State.SolverAppliedTorque = ConstraintHandle->GetSolverAppliedTorque();
+
+		WrappedConstraintData.State.SolverAppliedForce.X = FUnitConversion::Convert(ConstraintHandle->GetSolverAppliedForce().X, EUnit::KilogramCentimetersPerSecondSquared, EUnit::Newtons);
+		WrappedConstraintData.State.SolverAppliedForce.Y = FUnitConversion::Convert(ConstraintHandle->GetSolverAppliedForce().Y, EUnit::KilogramCentimetersPerSecondSquared, EUnit::Newtons);
+		WrappedConstraintData.State.SolverAppliedForce.Z = FUnitConversion::Convert(ConstraintHandle->GetSolverAppliedForce().Z, EUnit::KilogramCentimetersPerSecondSquared, EUnit::Newtons);
+		WrappedConstraintData.State.SolverAppliedTorque.X = FUnitConversion::Convert(ConstraintHandle->GetSolverAppliedTorque().X, EUnit::KilogramCentimetersSquaredPerSecondSquared, EUnit::NewtonMeters);
+		WrappedConstraintData.State.SolverAppliedTorque.Y = FUnitConversion::Convert(ConstraintHandle->GetSolverAppliedTorque().Y, EUnit::KilogramCentimetersSquaredPerSecondSquared, EUnit::NewtonMeters);
+		WrappedConstraintData.State.SolverAppliedTorque.Z = FUnitConversion::Convert(ConstraintHandle->GetSolverAppliedTorque().Z, EUnit::KilogramCentimetersSquaredPerSecondSquared, EUnit::NewtonMeters);
+
+		WrappedConstraintData.State.MarkAsValid();
+
+		CVD_COPY_FIELD_TO_WRAPPER(ConstraintHandle->GetSettings(), WrappedConstraintData.Settings, VerticalAxis);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstraintHandle->GetSettings(), WrappedConstraintData.Settings, TargetHeight);
+		WrappedConstraintData.Settings.RadialForceLimit = FUnitConversion::Convert(ConstraintHandle->GetSettings().RadialForceLimit, EUnit::KilogramCentimetersPerSecondSquared, EUnit::Newtons);
+		WrappedConstraintData.Settings.FrictionForceLimit = FUnitConversion::Convert(ConstraintHandle->GetSettings().FrictionForceLimit, EUnit::KilogramCentimetersPerSecondSquared, EUnit::Newtons);
+		WrappedConstraintData.Settings.SwingTorqueLimit = FUnitConversion::Convert(ConstraintHandle->GetSettings().SwingTorqueLimit, EUnit::KilogramCentimetersSquaredPerSecondSquared, EUnit::NewtonMeters);
+		WrappedConstraintData.Settings.TwistTorqueLimit = FUnitConversion::Convert(ConstraintHandle->GetSettings().TwistTorqueLimit, EUnit::KilogramCentimetersSquaredPerSecondSquared, EUnit::NewtonMeters);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstraintHandle->GetSettings(), WrappedConstraintData.Settings, CosMaxWalkableSlopeAngle);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstraintHandle->GetSettings(), WrappedConstraintData.Settings, DampingFactor);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstraintHandle->GetSettings(), WrappedConstraintData.Settings, AssumedOnGroundHeight);
+
+		WrappedConstraintData.Settings.MarkAsValid();
+
+		CVD_COPY_FIELD_TO_WRAPPER(ConstraintHandle->GetData(), WrappedConstraintData.Data, GroundNormal);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstraintHandle->GetData(), WrappedConstraintData.Data, TargetDeltaPosition);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstraintHandle->GetData(), WrappedConstraintData.Data, TargetDeltaFacing);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstraintHandle->GetData(), WrappedConstraintData.Data, GroundDistance);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstraintHandle->GetData(), WrappedConstraintData.Data, CosMaxWalkableSlopeAngle);
+
+		WrappedConstraintData.Data.MarkAsValid();
+
+	}
+
+	WrappedConstraintData.MarkAsValid();
+
+	return MoveTemp(WrappedConstraintData);
+}
+
 void FChaosVDDataWrapperUtils::CopyShapeDataToWrapper(const Chaos::FShapeInstancePtr& ShapeDataPtr, FChaosVDShapeCollisionData& OutCopyTo)
 {
 	const Chaos::FCollisionData& CollisionData = ShapeDataPtr->GetCollisionData();
@@ -382,4 +469,111 @@ void FChaosVDDataWrapperUtils::CopyShapeDataToWrapper(const Chaos::FShapeInstanc
 	OutCopyTo.QueryData.Word2 = CollisionData.QueryData.Word2;
 	OutCopyTo.QueryData.Word3 = CollisionData.QueryData.Word3;
 }
+
+void FChaosVDDataWrapperUtils::BuildDataWrapperFromAABBStructure(const Chaos::ISpatialAccelerationCollection<Chaos::FAccelerationStructureHandle, Chaos::FReal, 3>* SceneAccelerationStructures, int32 OwnerSolverID, TArray<FChaosVDAABBTreeDataWrapper>& OutAABBTrees)
+{
+	using namespace Chaos;
+
+	if (!SceneAccelerationStructures)
+	{
+		return;
+	}
+
+	ISpatialAccelerationCollection<FAccelerationStructureHandle, FReal, 3>* MutableSceneAccelerationStructures = const_cast<ISpatialAccelerationCollection<Chaos::FAccelerationStructureHandle, Chaos::FReal, 3>*>(SceneAccelerationStructures);
+
+	TArray<FSpatialAccelerationIdx> SpatialIndices = MutableSceneAccelerationStructures->GetAllSpatialIndices();
+	OutAABBTrees.Reserve(SpatialIndices.Num());
+	for (const FSpatialAccelerationIdx SpatialIndex : SpatialIndices)
+	{
+		const ISpatialAcceleration<FAccelerationStructureHandle, FReal, 3>* AccelerationStructure = MutableSceneAccelerationStructures->GetSubstructure(SpatialIndex);
+
+		FChaosVDAABBTreeDataWrapper AABBTreDataWrapper;
+		AABBTreDataWrapper.SolverId = OwnerSolverID;
+		
+		if (const TAABBTree<FAccelerationStructureHandle, TAABBTreeLeafArray<FAccelerationStructureHandle>>* AABBTree = AccelerationStructure->template As<TAABBTree<FAccelerationStructureHandle, TAABBTreeLeafArray<FAccelerationStructureHandle>>>())
+		{
+			BuildDataWrapperFromAABBStructure(*AABBTree, AABBTreDataWrapper);
+			OutAABBTrees.Emplace(AABBTreDataWrapper);
+		}
+		else if (const TAABBTree<FAccelerationStructureHandle, TBoundingVolume<FAccelerationStructureHandle>>* AABBTreeBV = AccelerationStructure->template As<TAABBTree<FAccelerationStructureHandle, TBoundingVolume<FAccelerationStructureHandle>>>())
+		{
+			BuildDataWrapperFromAABBStructure(*AABBTreeBV, AABBTreDataWrapper);
+			OutAABBTrees.Emplace(AABBTreDataWrapper);
+		}
+	}
+}
+
+void FChaosVDDataWrapperUtils::AddTreeLeaves(const TConstArrayView<Chaos::TAABBTreeLeafArray<Chaos::FAccelerationStructureHandle>>& LeavesContainer, FChaosVDAABBTreeDataWrapper& InOutAABBTreeWrapper)
+{
+	using namespace Chaos;
+
+	InOutAABBTreeWrapper.LeavesNum = LeavesContainer.Num();
+	InOutAABBTreeWrapper.TreeArrayLeafs.Reserve(InOutAABBTreeWrapper.LeavesNum);
+	for (const TAABBTreeLeafArray<FAccelerationStructureHandle>& TreeArrayLeaf : LeavesContainer)
+	{
+		FChaosVDAABBTreeLeafDataWrapper CVDLeaf;
+		CVDLeaf.Elements.Reserve(TreeArrayLeaf.Elems.Num());
+			
+		CVDLeaf.Bounds = ConvertToFBox(TreeArrayLeaf.GetBounds());
+
+		for (const TPayloadBoundsElement<FAccelerationStructureHandle, FReal>& Elem : TreeArrayLeaf.Elems)
+		{
+			FChaosVDAABBTreePayloadBoundsElement CVELeafElement;
+			CVELeafElement.ParticleIndex = GetUniqueIdx(Elem).Idx;
+			CVELeafElement.Bounds = ConvertToFBox(Elem.Bounds);
+			CVELeafElement.ActualBounds = VisualDebugger::Utils::GetPayloadBounds(Elem.Payload);
+
+			CVELeafElement.MarkAsValid();
+	
+			CVDLeaf.Elements.Emplace(CVELeafElement);
+		}
+			
+		CVDLeaf.MarkAsValid();
+
+		InOutAABBTreeWrapper.TreeArrayLeafs.Emplace(MoveTemp(CVDLeaf));
+	}
+}
+
+void FChaosVDDataWrapperUtils::AddTreeLeaves(const TConstArrayView<Chaos::TBoundingVolume<Chaos::FAccelerationStructureHandle>>& LeavesContainer, FChaosVDAABBTreeDataWrapper& InOutAABBTreeWrapper)
+{
+	using namespace Chaos;
+
+	InOutAABBTreeWrapper.LeavesNum = LeavesContainer.Num();
+	InOutAABBTreeWrapper.BoundingVolumeLeafs.Reserve(InOutAABBTreeWrapper.LeavesNum);
+
+	for (const TBoundingVolume<FAccelerationStructureHandle>& BoundingVolumeLeaf : LeavesContainer)
+	{
+		TVector<int32, 3> ElementCounts = BoundingVolumeLeaf.MElements.Counts();
+
+		FChaosVDBoundingVolumeDataWrapper CVDBoundingVolume;
+		CVDBoundingVolume.MElementsCounts = FIntVector3(ElementCounts.X, ElementCounts.Y, ElementCounts.Z);
+
+		CVDBoundingVolume.MaxPayloadBounds = BoundingVolumeLeaf.MaxPayloadBounds;
+
+		typedef TBoundingVolume<FAccelerationStructureHandle>::FCellElement FCellElement;
+
+		TConstArrayView<TArray<FCellElement>> ElementsFlatArray = MakeArrayView(BoundingVolumeLeaf.MElements.GetData(), ElementCounts.X * ElementCounts.Y * ElementCounts.Z);
+			
+		for (const TArray<FCellElement>& InCellElements : ElementsFlatArray)
+		{
+			TArray<FChaosVDBVCellElementDataWrapper> CellDataWrapper;
+			Algo::Transform(InCellElements, CellDataWrapper, [](const FCellElement& InElement)
+			{
+				FChaosVDBVCellElementDataWrapper CVDCellElement;
+				CVDCellElement.Bounds = ConvertToFBox(InElement.Bounds);
+				CVDCellElement.ParticleIndex = GetUniqueIdx(InElement.Payload).Idx;
+				CVDCellElement.StartIdx = FIntVector3(InElement.StartIdx.X, InElement.StartIdx.Y, InElement.StartIdx.Z);
+				CVDCellElement.EndIdx = FIntVector3(InElement.EndIdx.X, InElement.EndIdx.Y, InElement.EndIdx.Z);
+				CVDCellElement.MarkAsValid();
+	
+				return CVDCellElement;
+			});
+		}
+
+		CVDBoundingVolume.MarkAsValid();
+		
+		InOutAABBTreeWrapper.BoundingVolumeLeafs.Emplace(MoveTemp(CVDBoundingVolume));
+	}
+}
+
 #endif //WITH_CHAOS_VISUAL_DEBUGGER

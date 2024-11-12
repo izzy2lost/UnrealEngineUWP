@@ -173,32 +173,6 @@ struct UMGEDITOR_API FDelegateEditorBinding
 	FDelegateRuntimeBinding ToRuntimeBinding(class UWidgetBlueprint* Blueprint) const;
 };
 
-
-/** Struct used only for loading old animations */
-USTRUCT()
-struct FWidgetAnimation_DEPRECATED
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY()
-	TObjectPtr<UMovieScene> MovieScene = nullptr;
-
-	UPROPERTY()
-	TArray<FWidgetAnimationBinding> AnimationBindings;
-
-	bool SerializeFromMismatchedTag(struct FPropertyTag const& Tag, FStructuredArchive::FSlot Slot);
-
-};
-
-template<>
-struct TStructOpsTypeTraits<FWidgetAnimation_DEPRECATED> : public TStructOpsTypeTraitsBase2<FWidgetAnimation_DEPRECATED>
-{
-	enum
-	{
-		WithStructuredSerializeFromMismatchedTag = true,
-	};
-};
-
 UENUM()
 enum class EWidgetSupportsDynamicCreation : uint8
 {
@@ -253,9 +227,6 @@ public:
 	TArray< FDelegateEditorBinding > Bindings;
 
 	UPROPERTY()
-	TArray<FWidgetAnimation_DEPRECATED> AnimationData_DEPRECATED;
-
-	UPROPERTY()
 	TArray<TObjectPtr<UWidgetAnimation>> Animations;
 
 	/**
@@ -266,7 +237,11 @@ public:
 	UPROPERTY(AssetRegistrySearchable)
 	FString PaletteCategory;
 
-	/** Run the initialize event on widget that doesn't have a player context. */
+	/**
+	 * Determines whether this widget blueprint can be initialized without
+	 * a valid player context (PlayerController, etc.).
+	 * Required to be true for use with UMG Widget Preview.
+	 */
 	UPROPERTY(EditAnywhere, Category="Widget")
 	bool bCanCallInitializedWithoutPlayerContext;
 #endif
@@ -327,6 +302,9 @@ public:
 	/**  */
 	TValueOrError<void, UWidget*> HasCircularReferences() const;
 
+	TValueOrError<void, TSet<UWidget*>> HasConflictingWidgetNamesFromInheritance() const;
+
+
 	static bool ValidateGeneratedClass(const UClass* InClass);
 	
 	static TSharedPtr<FKismetCompilerContext> GetCompilerForWidgetBP(UBlueprint* BP, FCompilerResultsLog& InMessageLog, const FKismetCompilerOptions& InCompileOptions);
@@ -337,6 +315,9 @@ public:
 
 	/** Gets any named slots exposed by the parent generated class that can be slotted into by the subclass. */
 	TArray<FName> GetInheritedAvailableNamedSlots() const;
+
+	/** Gets named slots exposed by the parent generated class that already have content in the parent widget tree. */
+	TSet<FName> GetInheritedNamedSlotsWithContentInSameTree() const;
 
 	virtual UWidgetEditingProjectSettings* GetRelevantSettings();
 	virtual const UWidgetEditingProjectSettings* GetRelevantSettings() const;

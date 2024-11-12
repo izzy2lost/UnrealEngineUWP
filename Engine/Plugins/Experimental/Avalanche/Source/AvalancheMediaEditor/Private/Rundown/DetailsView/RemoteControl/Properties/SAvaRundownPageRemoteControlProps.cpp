@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaRundownPageRemoteControlProps.h"
-
 #include "AvaRundownRCPropertyItem.h"
 #include "Playable/AvaPlayableRemoteControl.h"
 #include "Playable/AvaPlayableRemoteControlValues.h"
@@ -11,6 +10,7 @@
 #include "Rundown/AvaRundownEditorUtils.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPage.h"
+#include "Rundown/DetailsView/RemoteControl/Properties/AvaRundownPagePropertyContextMenu.h"
 #include "SAvaRundownRCPropertyItemRow.h"
 #include "SlateOptMacros.h"
 #include "UObject/NameTypes.h"
@@ -20,23 +20,65 @@
 
 #define LOCTEXT_NAMESPACE "SAvaRundownPageRemoteControlProps"
 
-const FName SAvaRundownPageRemoteControlProps::PropertyColumnName = "PropertyColumn";
-const FName SAvaRundownPageRemoteControlProps::ValueColumnName = "ValueColumn";
+const FName SAvaRundownPageRemoteControlProps::PropertyColumnName = TEXT("PropertyColumn");
+const FName SAvaRundownPageRemoteControlProps::ValueColumnName = TEXT("ValueColumn");
 
 FAvaRundownRCPropertyHeaderRowExtensionDelegate SAvaRundownPageRemoteControlProps::HeaderRowExtensionDelegate;
 TMap<FName, TArray<FAvaRundownRCPropertyTableRowExtensionDelegate>> SAvaRundownPageRemoteControlProps::TableRowExtensionDelegates;
-
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 TArray<FAvaRundownRCPropertyTableRowExtensionDelegate>& SAvaRundownPageRemoteControlProps::GetTableRowExtensionDelegates(FName InExtensionName)
 {
 	return TableRowExtensionDelegates.FindOrAdd(InExtensionName);
 }
 
+class FAvaRundownPageRCPropsNotifyHookImpl : public FAvaRundownPageRCPropsNotifyHook
+{
+public:
+	FAvaRundownPageRCPropsNotifyHookImpl(const TWeakPtr<SAvaRundownPageRemoteControlProps>& InPanelWeak)
+		: PanelWeak(InPanelWeak)
+	{
+	}
+
+	virtual ~FAvaRundownPageRCPropsNotifyHookImpl() override = default;
+	
+	//~ Begin FNotifyHook
+	virtual void NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, FProperty* InPropertyThatChanged) override
+	{
+		if (const TSharedPtr<SAvaRundownPageRemoteControlProps> Panel = PanelWeak.Pin())
+		{
+			const TSharedPtr<FAvaRundownEditor> RundownEditor = Panel->RundownEditorWeak.Pin();
+			
+			// Only capture a modification when scrubbing starts.
+			if (!OngoingPropertyChanges.Contains(InPropertyThatChanged) && RundownEditor)
+			{
+				OngoingPropertyChanges.Add(InPropertyThatChanged);
+				RundownEditor->BeginModify();
+			}
+		
+			// Apply change to page immediately to capture it in the transaction.
+			Panel->OnPostPropertyChanged(InPropertyThatChanged);
+
+			if (InPropertyChangedEvent.ChangeType & EPropertyChangeType::ValueSet)
+			{
+				OngoingPropertyChanges.Remove(InPropertyThatChanged);
+			}
+		}
+	}
+	//~ End FNotifyHook
+
+	TWeakPtr<SAvaRundownPageRemoteControlProps> PanelWeak;
+	TSet<FProperty*> OngoingPropertyChanges;
+};
+
 void SAvaRundownPageRemoteControlProps::Construct(const FArguments& InArgs, TSharedPtr<FAvaRundownEditor> InRundownEditor)
 {
 	RundownEditorWeak = InRundownEditor;
 	ActivePageId = FAvaRundownPage::InvalidPageId;
+
+	CommandList = MakeShared<FUICommandList>();
+	NotifyHook = MakeShared<FAvaRundownPageRCPropsNotifyHookImpl>(SharedThis<SAvaRundownPageRemoteControlProps>(this).ToWeakPtr());
+
+	ContextMenu = MakeShared<FAvaRundownPagePropertyContextMenu>(CommandList);
 
 	TSharedRef<SHeaderRow> HeaderRow =
 		SNew(SHeaderRow)
@@ -57,7 +99,8 @@ void SAvaRundownPageRemoteControlProps::Construct(const FArguments& InArgs, TSha
 		[
 			SAssignNew(PropertyContainer, SListView<FAvaRundownRCPropertyItemPtr>)
 			.ListItemsSource(&PropertyItems)
-			.SelectionMode(ESelectionMode::None)
+			.SelectionMode(ESelectionMode::Multi)
+			.OnContextMenuOpening(this, &SAvaRundownPageRemoteControlProps::GetContextMenuContent)
 			.OnGenerateRow(this, &SAvaRundownPageRemoteControlProps::OnGenerateControllerRow)
 			.HeaderRow(HeaderRow)
 		]
@@ -65,8 +108,6 @@ void SAvaRundownPageRemoteControlProps::Construct(const FArguments& InArgs, TSha
 
 	Refresh({});
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 SAvaRundownPageRemoteControlProps::~SAvaRundownPageRemoteControlProps()
 {
@@ -278,7 +319,8 @@ void SAvaRundownPageRemoteControlProps::Refresh(const TArray<int32>& InSelectedP
 // However, it doesn't seem to be called (or not always) if the entity is modified by a controller action. 
 void SAvaRundownPageRemoteControlProps::OnRemoteControlExposedPropertiesModified(URemoteControlPreset* InPreset, const TSet<FGuid>& InModifiedProperties)
 {
-	if (!IsValid(InPreset) ||!HasRemoteControlPreset(InPreset))
+	// Note: Ignore changes from the RCP Transaction listener.
+	if (!IsValid(InPreset) || !HasRemoteControlPreset(InPreset) || GIsTransacting)
 	{
 		return;
 	}
@@ -329,7 +371,8 @@ void SAvaRundownPageRemoteControlProps::OnRemoteControlExposedPropertiesModified
 
 void SAvaRundownPageRemoteControlProps::OnRemoteControlControllerModified(URemoteControlPreset* InPreset, const TSet<FGuid>& InModifiedControllerIds)
 {
-	if (!IsValid(InPreset) || !HasRemoteControlPreset(InPreset))
+	// Note: Ignore changes from the RCP Transaction listener.
+	if (!IsValid(InPreset) || !HasRemoteControlPreset(InPreset) || GIsTransacting)
 	{
 		return;
 	}
@@ -347,6 +390,27 @@ void SAvaRundownPageRemoteControlProps::OnRemoteControlControllerModified(URemot
 	// It seems OnPropertyChangedDelegate (OnExposedPropertiesModified()) is not called when properties are
 	// changed by controllers. Ensure the values are saved by calling our handler directly.
 	OnRemoteControlExposedPropertiesModified(InPreset, EntityIds);
+}
+
+void SAvaRundownPageRemoteControlProps::OnPostPropertyChanged(FProperty* InPropertyThatChanged)
+{
+	// Find which property of which preset this is.
+	for (const TSharedPtr<FAvaRundownManagedInstance>& ManagedInstance : ManagedInstances)
+	{
+		if (URemoteControlPreset* Preset = ManagedInstance ? ManagedInstance->GetRemoteControlPreset() : nullptr)
+		{
+			for (const TWeakPtr<FRemoteControlProperty>& ExposedPropertyWeak : Preset->GetExposedEntities<FRemoteControlProperty>())
+			{
+				if (const TSharedPtr<FRemoteControlProperty> ExposedProperty = ExposedPropertyWeak.Pin())
+				{
+					if (ExposedProperty->GetProperty() == InPropertyThatChanged)
+					{
+						OnRemoteControlExposedPropertiesModified(Preset, {ExposedProperty->GetId()});
+					}
+				}
+			}
+		}
+	}
 }
 
 void SAvaRundownPageRemoteControlProps::BindRemoteControlDelegates(URemoteControlPreset* InPreset)
@@ -440,6 +504,26 @@ bool SAvaRundownPageRemoteControlProps::SetSelectedPageEntityValue(const TShared
 	}
 
 	return false;
+}
+
+const TArray<FAvaRundownRCPropertyItemPtr> SAvaRundownPageRemoteControlProps::GetSelectedPropertyItems() const
+{
+	return PropertyContainer->GetSelectedItems();
+}
+
+TSharedPtr<FAvaRundownPageRCPropsNotifyHook> SAvaRundownPageRemoteControlProps::GetNotifyHook() const
+{
+	return NotifyHook;
+}
+
+TSharedPtr<SWidget> SAvaRundownPageRemoteControlProps::GetContextMenuContent()
+{
+	TArray<FAvaRundownRCPropertyItemPtr> SelectedItems = GetSelectedPropertyItems();
+	if (SelectedItems.Num() > 0)
+	{
+		return ContextMenu->GeneratePageContextMenuWidget(RundownEditorWeak, *GetActivePage(), SharedThis(this));
+	}
+	return SNullWidget::NullWidget;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -382,6 +382,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Player")
 	MOVIESCENE_API void SetPlayRate(float PlayRate);
 
+	/** Get if the hud is hidden during play. */
+	UFUNCTION(BlueprintCallable, Category = "Sequencer|Player")
+	MOVIESCENE_API bool GetHideHud() const;
+
+	/**
+	 * Set if hiding the hud during play.
+	 * @param HideHud - The new value of Hide Hud during play.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Sequencer|Player")
+	MOVIESCENE_API void SetHideHud(bool HideHud);
+
 	/** Set whether to disable camera cuts */
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Player")
 	void SetDisableCameraCuts(bool bInDisableCameraCuts) { PlaybackSettings.bDisableCameraCuts = bInDisableCameraCuts; }
@@ -427,6 +438,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Player")
 	MOVIESCENE_API TArray<FMovieSceneObjectBindingID> GetObjectBindings(UObject* InObject);
 
+	/* Invalidates the given binding, forcing it to be refetched. This may be useful for some custom bindings that wish their resolution code to be called again.*/
+	UFUNCTION(BlueprintCallable, Category = "Sequencer|Player")
+	MOVIESCENE_API void RequestInvalidateBinding(FMovieSceneObjectBindingID ObjectBinding);
+
 public:
 
 	/** Ensure that this player's tick manager is set up correctly for the specified context */
@@ -452,6 +467,7 @@ public:
 
 	/** Returns whether this player is valid, i.e. it has been initialized and not torn down yet */
 	MOVIESCENE_API bool IsValid() const;
+
 
 public:
 
@@ -764,6 +780,9 @@ private:
 
 	/** The maximum tick rate prior to playing (used for overriding delta time during playback). */
 	TOptional<double> OldMaxTickRate;
+
+	/** Whether dynamic resolution frame time budget is being overridden. */
+	bool bOverridingDynResFrameTimeBudget = false;
 
 	/**
 	* The last world game time at which we were ticked. Game time used is dependent on bTickEvenWhenPaused

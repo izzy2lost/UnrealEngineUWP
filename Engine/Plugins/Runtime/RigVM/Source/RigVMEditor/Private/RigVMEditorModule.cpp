@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "RigVMEditorModule.h"
+#include "AssetToolsModule.h"
 #include "Modules/ModuleManager.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Editor/RigVMEditorCommands.h"
@@ -20,6 +21,7 @@
 #include "UserDefinedStructureCompilerUtils.h"
 #include "EdGraph/RigVMEdGraphConnectionDrawingPolicy.h"
 #include "BlueprintActionDatabaseRegistrar.h"
+#include "ContentBrowserMenuContexts.h"
 #include "EdGraph/NodeSpawners/RigVMEdGraphUnitNodeSpawner.h"
 #include "EdGraph/NodeSpawners/RigVMEdGraphVariableNodeSpawner.h"
 #include "EdGraph/NodeSpawners/RigVMEdGraphTemplateNodeSpawner.h"
@@ -37,7 +39,12 @@
 #include "RigVMFunctions/Simulation/RigVMFunction_AlphaInterp.h"
 #include "RigVMFunctions/Debug/RigVMFunction_VisualDebug.h"
 #include "ScopedTransaction.h"
+#include "Editor/RigVMEditorTools.h"
+#include "Editor/RigVMVariantDetailCustomization.h"
 #include "UObject/UObjectIterator.h"
+#include "ToolMenus.h"
+#include "Widgets/SRigVMSwapFunctionsWidget.h"
+#include "Widgets/SRigVMBulkEditDialog.h"
 
 DEFINE_LOG_CATEGORY(LogRigVMEditor);
 
@@ -75,6 +82,62 @@ void FRigVMEditorModule::StartupModule()
 		{
 			AssetRegistry->OnAssetRemoved().AddStatic(&FRigVMBlueprintUtils::HandleAssetDeleted);
 		}
+
+		if (UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("ContentBrowser.AssetContextMenu"))
+		{
+			if (FToolMenuSection* Section = Menu->FindSection("CommonAssetActions"))
+			{
+				Section->AddDynamicEntry("CreateVariant", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+				{
+					UContentBrowserAssetContextMenuContext* Context = InSection.FindContext<UContentBrowserAssetContextMenuContext>();
+					if (Context)
+					{
+						TArray<FAssetData> SelectedAssets = Context->SelectedAssets;
+						if (SelectedAssets.Num() != 1)
+						{
+							// We only expect a single asset
+							return;
+						}
+
+						const FAssetData& SelectedAssetData = SelectedAssets[0];
+						if (!SelectedAssetData.IsInstanceOf<URigVMBlueprint>())
+						{
+							// We aren't dealing with a RigVMBlueprint derived type
+							return;
+						}
+
+						if(CVarRigVMEnableVariants.GetValueOnAnyThread())
+						{
+							FSoftObjectPath SoftObjectPath = SelectedAssetData.GetSoftObjectPath();
+							InSection.AddMenuEntry("CreateVariant", LOCTEXT("CreateVariant", "Create variant (Experimental)"), LOCTEXT("CreateVariant_ToolTip", "Create a variant for this asset"), FSlateIcon(FRigVMEditorStyle::Get().GetStyleSetName(), "RigVM", "RigVM.Unit"), FExecuteAction::CreateLambda([SoftObjectPath]()
+								{
+									// Perform the load from within our lambda since this can be expensive, and should not be done speculatively
+									UObject* SelectedObject = SoftObjectPath.TryLoad();
+									if (!SelectedObject)
+									{
+										return;
+									}
+
+									const FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+									FString PathName = SoftObjectPath.GetLongPackageName();
+									FString ObjectName = SelectedObject->GetName();
+									FString PackageName;
+									AssetToolsModule.Get().CreateUniqueAssetName(PathName, TEXT(""), PackageName, ObjectName);
+
+									FString Extension;
+									FPaths::Split(PackageName, PathName, ObjectName, Extension);
+
+									UObject* DuplicateAsset = AssetToolsModule.Get().DuplicateAsset(ObjectName, PathName, SelectedObject);
+									if (URigVMBlueprint* DuplicateBlueprint = Cast<URigVMBlueprint>(DuplicateAsset))
+									{
+										DuplicateBlueprint->AssetVariant = Cast<URigVMBlueprint>(SelectedObject)->AssetVariant;
+									}
+								}));
+						}
+					}
+				}));
+			}
+		}
 	}
 
 	StartupModuleCommon();
@@ -94,6 +157,12 @@ void FRigVMEditorModule::StartupModuleCommon()
 
 	// Register to fixup newly created BPs
 	FKismetEditorUtilities::RegisterOnBlueprintCreatedCallback(this, URigVMHost::StaticClass(), FKismetEditorUtilities::FOnBlueprintCreated::CreateRaw(this, &FRigVMEditorModule::HandleNewBlueprintCreated));
+	
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+    PropertiesToUnregisterOnShutdown.Reset();
+
+	PropertiesToUnregisterOnShutdown.Add(FRigVMVariant::StaticStruct()->GetFName());
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout(PropertiesToUnregisterOnShutdown.Last(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FRigVMVariantDetailCustomization::MakeInstance));
 }
 
 void FRigVMEditorModule::ShutdownModule()
@@ -354,72 +423,91 @@ void FRigVMEditorModule::GetTypeActions(URigVMBlueprint* RigVMBlueprint, FBluepr
 			}
 			PackagesProcessed.Add(ControlRigAssetData.PackageName);
 
-			FString PublicGraphFunctionsString;
-			FString PublicFunctionsString;
-			if (PublicGraphFunctionsProperty)
-			{
-				PublicGraphFunctionsString = ControlRigAssetData.GetTagValueRef<FString>(PublicGraphFunctionsProperty->GetFName());
-			}
-			// Only look at the deprecated public functions if the PublicGraphFunctionsString is empty
-			if (PublicGraphFunctionsString.IsEmpty() && PublicFunctionsProperty)
-			{
-				PublicFunctionsString = ControlRigAssetData.GetTagValueRef<FString>(PublicFunctionsProperty->GetFName());
-			}
-
-			// For RigVMBlueprintGeneratedClass, the property doesn't exist
-			if (PublicGraphFunctionsString.IsEmpty())
-			{
-				PublicGraphFunctionsString = ControlRigAssetData.GetTagValueRef<FString>(TEXT("PublicGraphFunctions"));
-			}
-			
-			if(PublicFunctionsString.IsEmpty() && PublicGraphFunctionsString.IsEmpty())
+			if (!AssetsPublicFunctionsAllowed(ControlRigAssetData))
 			{
 				continue;
 			}
 
-			if (PublicFunctionsProperty && !PublicFunctionsString.IsEmpty())
+			TArray<FRigVMGraphFunctionHeader> PublicFunctions;
+			if (ControlRigAssetData.IsAssetLoaded())
 			{
-				TArray<FRigVMOldPublicFunctionData> PublicFunctions;
-				PublicFunctionsProperty->ImportText_Direct(*PublicFunctionsString, &PublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
-				for(const FRigVMOldPublicFunctionData& PublicFunction : PublicFunctions)
+				UObject* AssetObject = ControlRigAssetData.GetAsset();
+				if (URigVMBlueprint* Blueprint = Cast<URigVMBlueprint>(AssetObject))
+				{
+					PublicFunctions = Blueprint->PublicGraphFunctions;
+				}
+				else if(URigVMBlueprintGeneratedClass* GeneratedClass = Cast<URigVMBlueprintGeneratedClass>(AssetObject))
+				{
+					PublicFunctions.Reserve(GeneratedClass->GraphFunctionStore.PublicFunctions.Num());
+					for (const FRigVMGraphFunctionData& PublicFunction : GeneratedClass->GraphFunctionStore.PublicFunctions)
+					{
+						PublicFunctions.Add(PublicFunction.Header);
+					}
+				}
+			}
+			else
+			{
+				FString PublicGraphFunctionsString;
+				FString PublicFunctionsString;
+				if (PublicGraphFunctionsProperty)
+				{
+					PublicGraphFunctionsString = ControlRigAssetData.GetTagValueRef<FString>(PublicGraphFunctionsProperty->GetFName());
+				}
+				// Only look at the deprecated public functions if the PublicGraphFunctionsString is empty
+				if (PublicGraphFunctionsString.IsEmpty() && PublicFunctionsProperty)
+				{
+					PublicFunctionsString = ControlRigAssetData.GetTagValueRef<FString>(PublicFunctionsProperty->GetFName());
+				}
+
+				// For RigVMBlueprintGeneratedClass, the property doesn't exist
+				if (PublicGraphFunctionsString.IsEmpty())
+				{
+					PublicGraphFunctionsString = ControlRigAssetData.GetTagValueRef<FString>(TEXT("PublicGraphFunctions"));
+				}
+				
+				if(PublicFunctionsString.IsEmpty() && PublicGraphFunctionsString.IsEmpty())
+				{
+					continue;
+				}
+
+				if (PublicFunctionsProperty && !PublicFunctionsString.IsEmpty())
+				{
+					TArray<FRigVMOldPublicFunctionData> OldPublicFunctions;
+					PublicFunctionsProperty->ImportText_Direct(*PublicFunctionsString, &OldPublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
+					for(const FRigVMOldPublicFunctionData& PublicFunction : OldPublicFunctions)
+					{
+						URigVMEdGraphNodeSpawner* NodeSpawner = URigVMEdGraphFunctionRefNodeSpawner::CreateFromAssetData(ControlRigAssetData, PublicFunction);
+						check(NodeSpawner != nullptr);
+						NodeSpawner->SetRelatedBlueprintClass(BlueprintClass);
+						ActionRegistrar.AddBlueprintAction(ActionKey, NodeSpawner);
+					}
+				}
+
+				if (!PublicGraphFunctionsString.IsEmpty())
+				{
+					if (PublicGraphFunctionsProperty)
+					{
+						PublicGraphFunctionsProperty->ImportText_Direct(*PublicGraphFunctionsString, &PublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
+					}
+					else
+					{
+						// extract public function headers from generated class
+						const FString& HeadersString = PublicGraphFunctionsString;
+				
+						FArrayProperty* HeadersArrayProperty = CastField<FArrayProperty>(FRigVMGraphFunctionHeaderArray::StaticStruct()->FindPropertyByName(TEXT("Headers")));
+						HeadersArrayProperty->ImportText_Direct(*HeadersString, &PublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
+					}
+				}
+			}
+
+			for(FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
+			{
+				if (PublicFunction.LibraryPointer.IsValid())
 				{
 					URigVMEdGraphNodeSpawner* NodeSpawner = URigVMEdGraphFunctionRefNodeSpawner::CreateFromAssetData(ControlRigAssetData, PublicFunction);
 					check(NodeSpawner != nullptr);
 					NodeSpawner->SetRelatedBlueprintClass(BlueprintClass);
 					ActionRegistrar.AddBlueprintAction(ActionKey, NodeSpawner);
-				}
-			}
-
-			if (!PublicGraphFunctionsString.IsEmpty())
-			{
-				if (PublicGraphFunctionsProperty)
-				{
-					TArray<FRigVMGraphFunctionHeader> PublicFunctions;
-					PublicGraphFunctionsProperty->ImportText_Direct(*PublicGraphFunctionsString, &PublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
-					for(const FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
-					{
-						URigVMEdGraphNodeSpawner* NodeSpawner = URigVMEdGraphFunctionRefNodeSpawner::CreateFromAssetData(ControlRigAssetData, PublicFunction);
-						check(NodeSpawner != nullptr);
-						NodeSpawner->SetRelatedBlueprintClass(BlueprintClass);
-						ActionRegistrar.AddBlueprintAction(ActionKey, NodeSpawner);
-					}
-				}
-				else
-				{
-					// extract public function headers from generated class
-					const FString& HeadersString = PublicGraphFunctionsString;
-			
-					FArrayProperty* HeadersArrayProperty = CastField<FArrayProperty>(FRigVMGraphFunctionHeaderArray::StaticStruct()->FindPropertyByName(TEXT("Headers")));
-					TArray<FRigVMGraphFunctionHeader> PublicFunctions;
-					HeadersArrayProperty->ImportText_Direct(*HeadersString, &PublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
-			
-					for(const FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
-					{
-						URigVMEdGraphNodeSpawner* NodeSpawner = URigVMEdGraphFunctionRefNodeSpawner::CreateFromAssetData(ControlRigAssetData, PublicFunction);
-						check(NodeSpawner != nullptr);
-						NodeSpawner->SetRelatedBlueprintClass(BlueprintClass);
-						ActionRegistrar.AddBlueprintAction(ActionKey, NodeSpawner);
-					}
 				}
 			}
 		}
@@ -466,7 +554,7 @@ void FRigVMEditorModule::GetInstanceActions(URigVMBlueprint* RigVMBlueprint, FBl
 				// Avoid adding functions that are already added by the GetTypeActions functions (public functions that are already saved into the blueprint tag)
 				if (RigVMBlueprint->PublicGraphFunctions.ContainsByPredicate([LocalLibrarySoftPath, Function](const FRigVMGraphFunctionHeader& Header) -> bool
 				{
-					return FRigVMGraphFunctionIdentifier(LocalLibrarySoftPath, Function) == Header.LibraryPointer;
+					return FRigVMGraphFunctionIdentifier(LocalLibrarySoftPath, Function->GetPathName()) == Header.LibraryPointer;
 				}))
 				{
 					continue;
@@ -547,13 +635,15 @@ void FRigVMEditorModule::GetNodeContextMenuActions(IRigVMClientHost* RigVMClient
 
 	GetNodeWorkflowContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeEventsContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
+	GetNodeDefaultValueContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeConversionContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeDebugContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeVariablesContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeTemplatesContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeOrganizationContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
-	GetNodeVersioningContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
+	GetNodeVariantContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeTestContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
+	GetNodeDisplayContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 }
 
 void FRigVMEditorModule::GetNodeWorkflowContextMenuActions(IRigVMClientHost* RigVMClientHost, const URigVMEdGraphNode* EdGraphNode, URigVMNode* ModelNode, UToolMenu* Menu) const
@@ -644,6 +734,97 @@ void FRigVMEditorModule::GetNodeEventsContextMenuActions(IRigVMClientHost* RigVM
 			FCanExecuteAction::CreateLambda([bCanRunOnce](){ return bCanRunOnce; }))
 		);
 	}
+}
+
+void FRigVMEditorModule::GetNodeDefaultValueContextMenuActions(IRigVMClientHost* RigVMClientHost, const URigVMEdGraphNode* EdGraphNode, URigVMNode* ModelNode, UToolMenu* Menu) const
+{
+	if(!CVarRigVMEnablePinDefaultTypes.GetValueOnAnyThread())
+	{
+		return;
+	}
+	
+	URigVMController* Controller = RigVMClientHost->GetRigVMClient()->GetController(ModelNode->GetGraph());
+	FToolMenuSection& DefaultValuesSection = Menu->AddSection("RigVMEditorContextMenuDefaultValues", LOCTEXT("DefaultValuesHeader", "Pin Values"));
+
+	DefaultValuesSection.AddMenuEntry(
+		"Override All",
+		LOCTEXT("OverrideAll", "Override All"),
+		LOCTEXT("OverrideAll_Tooltip", "Overrides all values"),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateLambda([Controller]()
+		{
+			const TArray<FName> SelectedNodeNames = Controller->GetGraph()->GetSelectNodes();
+			if(!SelectedNodeNames.IsEmpty())
+			{
+				FRigVMDefaultValueTypeGuard _(Controller, ERigVMPinDefaultValueType::Override);
+				Controller->OpenUndoBracket(TEXT("Override all pin values"));
+				for(const FName& SelectedNodeName : SelectedNodeNames)
+				{
+					if(const URigVMNode* Node = Controller->GetGraph()->FindNodeByName(SelectedNodeName))
+					{
+						for(const URigVMPin* Pin : Node->GetPins())
+						{
+							if(Pin->CanProvideDefaultValue())
+							{
+								FString DefaultValue = Pin->GetDefaultValue();
+								if(DefaultValue.IsEmpty())
+								{
+									DefaultValue = Pin->GetOriginalDefaultValue();
+								}
+								if(!DefaultValue.IsEmpty())
+								{
+									Controller->SetPinDefaultValue(Pin->GetPinPath(), DefaultValue);
+								}
+							}
+						}
+					}
+				}
+				Controller->CloseUndoBracket();
+			}
+		}))
+	);
+
+	DefaultValuesSection.AddMenuEntry(
+		"Reset Unchanged",
+		LOCTEXT("ResetUnchanged", "Reset Unchanged"),
+		LOCTEXT("ResetUnchanged_Tooltip", "Resets pin values that match the default"),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateLambda([Controller]()
+		{
+			const TArray<FName> SelectedNodeNames = Controller->GetGraph()->GetSelectNodes();
+			if(!SelectedNodeNames.IsEmpty())
+			{
+				FRigVMDefaultValueTypeGuard _(Controller, ERigVMPinDefaultValueType::Unset);
+				Controller->OpenUndoBracket(TEXT("Reset unchanged pin values"));
+				for(const FName& SelectedNodeName : SelectedNodeNames)
+				{
+					if(const URigVMNode* Node = Controller->GetGraph()->FindNodeByName(SelectedNodeName))
+					{
+						for(const URigVMPin* Pin : Node->GetPins())
+						{
+							if(Pin->CanProvideDefaultValue())
+							{
+								FString DefaultValue = Pin->GetDefaultValue();
+								const FString OriginalDefaultValue = Pin->GetOriginalDefaultValue();
+								if(!OriginalDefaultValue.IsEmpty())
+								{
+									if(DefaultValue.IsEmpty())
+									{
+										DefaultValue = OriginalDefaultValue;
+									}
+									if(DefaultValue.Equals(OriginalDefaultValue, ESearchCase::CaseSensitive))
+									{
+										Controller->SetPinDefaultValue(Pin->GetPinPath(), OriginalDefaultValue);
+									}
+								}
+							}
+						}
+					}
+				}
+				Controller->CloseUndoBracket();
+			}
+		}))
+	);
 }
 
 void FRigVMEditorModule::GetNodeConversionContextMenuActions(IRigVMClientHost* RigVMClientHost, const URigVMEdGraphNode* EdGraphNode, URigVMNode* ModelNode, UToolMenu* Menu) const
@@ -785,9 +966,9 @@ void FRigVMEditorModule::GetNodeVariablesContextMenuActions(IRigVMClientHost* Ri
 		if (URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(EdGraphNode->GetModelNode()))
 		{
 			TSoftObjectPtr<URigVMFunctionReferenceNode> RefPtr(FunctionReferenceNode);
-			if(RefPtr.GetLongPackageName() != FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer.LibraryNode.GetLongPackageName())
+			if(RefPtr.GetLongPackageName() != FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer.GetNodeSoftPath().GetLongPackageName())
 			{
-				if(!FunctionReferenceNode->IsFullyRemapped() && FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer.LibraryNode.ResolveObject())
+				if(!FunctionReferenceNode->IsFullyRemapped() && FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer.GetNodeSoftPath().ResolveObject())
 				{
 					FToolMenuSection& VariablesSection = Menu->AddSection("RigVMEditorContextMenuVariables", LOCTEXT("Variables", "Variables"));
 					VariablesSection.AddMenuEntry(
@@ -928,7 +1109,7 @@ void FRigVMEditorModule::GetNodeOrganizationContextMenuActions(IRigVMClientHost*
 		if (URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(EdGraphNode->GetModelNode()))
 		{
 			TSoftObjectPtr<URigVMFunctionReferenceNode> RefPtr(FunctionReferenceNode);
-			if(RefPtr.GetLongPackageName() != FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer.LibraryNode.GetLongPackageName())
+			if(RefPtr.GetLongPackageName() != FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer.GetNodeSoftPath().GetLongPackageName())
 			{
 				OrganizationSection.AddMenuEntry(
 				   "Localize Function",
@@ -1001,12 +1182,13 @@ void FRigVMEditorModule::GetNodeOrganizationContextMenuActions(IRigVMClientHost*
 	}));
 }
 
-void FRigVMEditorModule::GetNodeVersioningContextMenuActions(IRigVMClientHost* RigVMClientHost, const URigVMEdGraphNode* EdGraphNode, URigVMNode* ModelNode, UToolMenu* Menu) const
+void FRigVMEditorModule::GetNodeVariantContextMenuActions(IRigVMClientHost* RigVMClientHost, const URigVMEdGraphNode* EdGraphNode, URigVMNode* ModelNode, UToolMenu* Menu) const
 {
 	const URigVMGraph* Model = ModelNode->GetGraph();
 	URigVMController* Controller = RigVMClientHost->GetRigVMClient()->GetController(Model);
 
 	bool bCanNodeBeUpgraded = false;
+	const bool bIsFunctionReference = ModelNode->IsA<URigVMFunctionReferenceNode>();
 	TArray<FName> SelectedNodeNames = Model->GetSelectNodes();
 	SelectedNodeNames.AddUnique(ModelNode->GetFName());
 
@@ -1018,28 +1200,82 @@ void FRigVMEditorModule::GetNodeVersioningContextMenuActions(IRigVMClientHost* R
 		}
 	}
 	
-	if(bCanNodeBeUpgraded)
+	if(bCanNodeBeUpgraded || bIsFunctionReference)
 	{
-		FToolMenuSection& VersioningSection = Menu->AddSection("RigVMEditorContextMenuVersioning", LOCTEXT("VersioningHeader", "Versioning"));
-		VersioningSection.AddMenuEntry(
-			"Upgrade Nodes",
-			LOCTEXT("UpgradeNodes", "Upgrade Nodes"),
-			LOCTEXT("UpgradeNodes_Tooltip", "Upgrades deprecated nodes to their current implementation"),
-			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateLambda([Model, Controller]() {
-				TArray<FName> Nodes = Model->GetSelectNodes();
-				Controller->UpgradeNodes(Nodes, true, true);
-			})
-		));
+		FToolMenuSection& VariantSection = Menu->AddSection("RigVMEditorContextMenuVariant", LOCTEXT("VariantHeader", "Variants"));
+
+		if(bCanNodeBeUpgraded)
+		{
+			VariantSection.AddMenuEntry(
+				"Upgrade Nodes",
+				LOCTEXT("UpgradeNodes", "Upgrade Nodes"),
+				LOCTEXT("UpgradeNodes_Tooltip", "Upgrades deprecated nodes to their current implementation"),
+				FSlateIcon(),
+				FUIAction(FExecuteAction::CreateLambda([Model, Controller]() {
+					TArray<FName> Nodes = Model->GetSelectNodes();
+					Controller->UpgradeNodes(Nodes, true, true);
+				})
+			));
+		}
+
+		if(bIsFunctionReference)
+		{
+			VariantSection.AddMenuEntry(
+				"Swap function for selected nodes",
+				LOCTEXT("SwapSelectedFunction", "Swap function for selected nodes"),
+				LOCTEXT("SwapSelectedFunction_Tooltip", "Swaps this function for another one for all nodes matching within the selection"),
+				FSlateIcon(),
+				FUIAction(FExecuteAction::CreateLambda([Model]() {
+					TArray<FName> NodeNames = Model->GetSelectNodes();
+					TArray<URigVMFunctionReferenceNode*> FunctionReferenceNodes;
+					FRigVMGraphFunctionIdentifier Identifier;
+					for(const FName& NodeName : NodeNames)
+					{
+						if(URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(Model->FindNodeByName(NodeName)))
+						{
+							if(Identifier.IsValid())
+							{
+								if(FunctionReferenceNode->GetFunctionIdentifier() != Identifier)
+								{
+									continue;
+								}
+							}
+							else
+							{
+								Identifier = FunctionReferenceNode->GetFunctionIdentifier();
+							}
+							FunctionReferenceNodes.Add(FunctionReferenceNode);
+						}
+					}
+					if(!FunctionReferenceNodes.IsEmpty())
+					{
+						SRigVMSwapFunctionsWidget::FArguments WidgetArgs;
+						WidgetArgs
+							.Source(Identifier)
+							.FunctionReferenceNodes(FunctionReferenceNodes)
+							.SkipPickingFunctionRefs(true)
+							.EnableUndo(true)
+							.CloseOnSuccess(true);
+
+						const TSharedRef<SRigVMBulkEditDialog<SRigVMSwapFunctionsWidget>> SwapFunctionsDialog =
+							SNew(SRigVMBulkEditDialog<SRigVMSwapFunctionsWidget>)
+							.WindowSize(FVector2D(800.0f, 640.0f))
+							.WidgetArgs(WidgetArgs);
+
+						SwapFunctionsDialog->ShowNormal();
+					}
+				})
+			));
+		}
 	}
 }
 
 void FRigVMEditorModule::GetNodeTestContextMenuActions(IRigVMClientHost* RigVMClientHost, const URigVMEdGraphNode* EdGraphNode, URigVMNode* ModelNode, UToolMenu* Menu) const
 {
 	// this struct is only available in EngineTest for now
-	static const FString DecoratorObjectPath = TEXT("/Script/EngineTestEditor.EngineTestRigVM_SimpleDecorator");
-	const UScriptStruct* SimpleDecoratorStruct = Cast<UScriptStruct>(RigVMTypeUtils::FindObjectFromCPPTypeObjectPath(DecoratorObjectPath));
-	if(SimpleDecoratorStruct == nullptr)
+	static const FString TraitObjectPath = TEXT("/Script/EngineTestEditor.EngineTestRigVM_SimpleTrait");
+	const UScriptStruct* SimpleTraitStruct = Cast<UScriptStruct>(RigVMTypeUtils::FindObjectFromCPPTypeObjectPath(TraitObjectPath));
+	if(SimpleTraitStruct == nullptr)
 	{
 		return;
 	}
@@ -1049,18 +1285,80 @@ void FRigVMEditorModule::GetNodeTestContextMenuActions(IRigVMClientHost* RigVMCl
 
 	FToolMenuSection& EngineTestSection = Menu->AddSection("RigVMEditorContextMenuEngineTest", LOCTEXT("EngineTestHeader", "EngineTest"));
 	EngineTestSection.AddMenuEntry(
-		"Add simple decorator",
-		LOCTEXT("AddSimpleDecorator", "Add simple decorator"),
-		LOCTEXT("AddSimpleDecorator_Tooltip", "Adds a simple test decorator to the node"),
+		"Add simple trait",
+		LOCTEXT("AddSimpleTrait", "Add simple trait"),
+		LOCTEXT("AddSimpleTrait_Tooltip", "Adds a simple test trait to the node"),
 		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateLambda([Controller, ModelNode, SimpleDecoratorStruct]()
+		FUIAction(FExecuteAction::CreateLambda([Controller, ModelNode, SimpleTraitStruct]()
 		{
-			(void)Controller->AddDecorator(
+			(void)Controller->AddTrait(
 				ModelNode->GetFName(),
-				*SimpleDecoratorStruct->GetPathName(),
-				TEXT("Decorator"),
+				*SimpleTraitStruct->GetPathName(),
+				TEXT("Trait"),
 				FString(), INDEX_NONE, true, true);
 		}))
+	);
+}
+
+void FRigVMEditorModule::GetNodeDisplayContextMenuActions(IRigVMClientHost* RigVMClientHost, const URigVMEdGraphNode* EdGraphNode, URigVMNode* ModelNode, UToolMenu* Menu) const
+{
+	URigVMBlueprint* Blueprint = Cast<URigVMBlueprint>(RigVMClientHost);
+	if(Blueprint == nullptr)
+	{
+		return;
+	}
+	
+	FToolMenuSection& DisplaySection = Menu->AddSection("RigVMEditorContextMenuDisplay", LOCTEXT("DisplayHeader", "Display"));
+
+	DisplaySection.AddMenuEntry(
+		TEXT("EnableProfiler"),
+		LOCTEXT("EnableProfiler", "Enable Profiler"),
+		LOCTEXT("EnableProfiler_Tooltip", "Enables the heat map profiler"),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateLambda([Blueprint]()
+		{
+			FScopedTransaction Transaction(LOCTEXT("ToggleProfiler", "Toggle Profiler"));
+			Blueprint->Modify();
+			Blueprint->VMRuntimeSettings.bEnableProfiling = !Blueprint->VMRuntimeSettings.bEnableProfiling;
+			Blueprint->PropagateRuntimeSettingsFromBPToInstances();
+			Blueprint->RequestAutoVMRecompilation();
+		}),
+		FCanExecuteAction(),
+		FGetActionCheckState::CreateLambda([Blueprint]() -> ECheckBoxState
+		{
+			return Blueprint->VMRuntimeSettings.bEnableProfiling ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		})),
+		EUserInterfaceActionType::ToggleButton
+	);
+
+	DisplaySection.AddMenuEntry(
+		TEXT("ShowAllTags"),
+		LOCTEXT("ShowAllTags", "Show all tags"),
+		LOCTEXT("ShowAllTags_Tooltip", "Shows all of the tags on nodes. If turned off this will show the deprecation tags only."),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateLambda([Blueprint]()
+		{
+			FScopedTransaction Transaction(LOCTEXT("ToggleTagDisplayMode", "Toggle Tag Display Mode"));
+			Blueprint->Modify();
+
+			if(Blueprint->RigGraphDisplaySettings.TagDisplayMode == ERigVMTagDisplayMode::All)
+			{
+				Blueprint->RigGraphDisplaySettings.TagDisplayMode = ERigVMTagDisplayMode::DeprecationOnly;
+			}
+			else
+			{
+				Blueprint->RigGraphDisplaySettings.TagDisplayMode = ERigVMTagDisplayMode::All;
+			}
+
+			// this causes all nodes to refresh
+			Blueprint->PropagateRuntimeSettingsFromBPToInstances();
+		}),
+		FCanExecuteAction(),
+		FGetActionCheckState::CreateLambda([Blueprint]() -> ECheckBoxState
+		{
+			return Blueprint->RigGraphDisplaySettings.TagDisplayMode == ERigVMTagDisplayMode::All ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		})),
+		EUserInterfaceActionType::ToggleButton
 	);
 }
 
@@ -1401,6 +1699,17 @@ void FRigVMEditorModule::GetPinResetDefaultContextMenuActions(IRigVMClientHost* 
 					Controller->ResetPinDefaultValue(ModelPin->GetPinPath());
 				})
 			));
+
+			Section.AddMenuEntry(
+				"OverridePinDefaultValue",
+				LOCTEXT("OverridePinDefaultValue", "Override Value"),
+				LOCTEXT("OverridePinDefaultValue_Tooltip", "Marks the pin value as an override."),
+				FSlateIcon(),
+				FUIAction(FExecuteAction::CreateLambda([Controller, ModelPin]() {
+					FRigVMDefaultValueTypeGuard _(Controller, ERigVMPinDefaultValueType::Override);
+					Controller->SetPinDefaultValue(ModelPin->GetPinPath(), ModelPin->GetDefaultValue());
+				})
+			));
 		}
 	}
 }
@@ -1443,7 +1752,7 @@ void FRigVMEditorModule::GetPinInjectedNodesContextMenuActions(IRigVMClientHost*
 				FString TemplateName;
 				if (URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(Injection->Node))
 				{
-					if (UnitNode->GetScriptStruct()->GetStringMetaDataHierarchical(FRigVMStruct::TemplateNameMetaName, &TemplateName))
+					if (UnitNode->GetScriptStruct()->GetStringMetaDataHierarchical(FRigVMRegistry::TemplateNameMetaName, &TemplateName))
 					{
 						if (TemplateName == TEXT("AlphaInterp"))
 						{
@@ -1535,7 +1844,7 @@ void FRigVMEditorModule::GetPinInjectedNodesContextMenuActions(IRigVMClientHost*
 				FString TemplateName;
 				if (URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(Injection->Node))
 				{
-					if (UnitNode->GetScriptStruct()->GetStringMetaDataHierarchical(FRigVMStruct::TemplateNameMetaName, &TemplateName))
+					if (UnitNode->GetScriptStruct()->GetStringMetaDataHierarchical(FRigVMRegistry::TemplateNameMetaName, &TemplateName))
 					{
 						if (TemplateName == TEXT("VisualDebug"))
 						{

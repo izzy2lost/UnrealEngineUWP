@@ -14,6 +14,7 @@ namespace Electra
 
 	namespace StringHelpers
 	{
+		FString ELECTRABASE_API ISO_8859_1_ToFString(const uint8* InStringToConvert, int32 InNumCharsToConvert=-1);
 
 		int32 ELECTRABASE_API FindFirstOf(const FString& InString, const FString& SplitAt, int32 FirstPos = 0);
 
@@ -30,6 +31,10 @@ namespace Electra
 		void ELECTRABASE_API StringToArray(TArray<uint8>& OutArray, const FString& InString);
 
 		FString ELECTRABASE_API ArrayToString(const TArray<uint8>& InArray);
+
+		bool ELECTRABASE_API ArrayToString(FString& OutString, const TConstArrayView<const uint8>& InArray);
+
+		FString ELECTRABASE_API GetLongestCommonPrefix(TArray<FString>& InOutTempArrayOfInputs);
 
 		/**
 		 * There is a known anomaly in the FString::TConstIterator. It iterates all TCHARs in the string *including* the terminating zero character.

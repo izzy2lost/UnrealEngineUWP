@@ -11,6 +11,7 @@
 class FDisplayClusterShaderParameters_ICVFX;
 class FRDGBuilder;
 class FRHICommandListImmediate;
+class FSceneView;
 class FSceneViewFamily;
 class FSceneViewFamilyContext;
 class FViewport;
@@ -18,6 +19,7 @@ class IDisplayClusterViewport;
 class IDisplayClusterViewportProxy;
 class IDisplayClusterViewportManagerProxy;
 struct FDisplayClusterShaderParameters_WarpBlend;
+struct FPostProcessMaterialInputs;
 
 
 /**
@@ -88,6 +90,10 @@ public:
 	/** Failover notification **/
 	DECLARE_EVENT_OneParam(IDisplayClusterCallbacks, FDisplayClusterFailoverNodeDown, const FString&);
 	virtual FDisplayClusterFailoverNodeDown& OnDisplayClusterFailoverNodeDown() = 0;
+
+	/** Called after tonemap pass (before applying OCIO transformation) **/
+	DECLARE_EVENT_FiveParams(IDisplayClusterCallbacks, FDisplayClusterPostTonemapPass_RenderThread, FRDGBuilder&, const IDisplayClusterViewportProxy*, const FSceneView&, const FPostProcessMaterialInputs&, const uint32);
+	virtual FDisplayClusterPostTonemapPass_RenderThread& OnDisplayClusterPostTonemapPass_RenderThread() = 0;
 
 	/** Called once the ViewFamily of this viewport is rendered **/
 	DECLARE_EVENT_ThreeParams(IDisplayClusterCallbacks, FDisplayClusterPostRenderViewFamily_RenderThread, FRDGBuilder&, const FSceneViewFamily&, const IDisplayClusterViewportProxy*);

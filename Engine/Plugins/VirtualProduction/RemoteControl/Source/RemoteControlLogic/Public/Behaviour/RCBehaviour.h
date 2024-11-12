@@ -60,6 +60,9 @@ public:
 	/** Whether we can create an action pertaining to a given remote control field for the current behaviour */
 	virtual bool CanHaveActionForField(const TSharedPtr<FRemoteControlField> InRemoteControlField) const;
 
+	/** Whether the behaviour support property id, by default true because of the OnModify Behaviour */
+	virtual bool SupportPropertyId() const { return true; }
+
 	/**
 	 * Return blueprint class associated with behaviour if exists
 	 */

@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
@@ -20,7 +19,7 @@ namespace UnrealBuildTool
 		{
 		}
 
-		public override bool TryConvertVersionToInt(string? StringValue, out UInt64 OutValue, string? Hint)
+		public override bool TryConvertVersionToInt(string? StringValue, out ulong OutValue, string? Hint)
 		{
 			return UnrealBuildBase.ApplePlatformSDK.TryConvertVersionToInt(StringValue, out OutValue);
 		}

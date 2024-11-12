@@ -10,6 +10,7 @@
 #include "TransmissionSystem.h"
 #include "Physics/NetworkPhysicsComponent.h"
 #include "SimModule/SimulationModuleBase.h"
+#include "SimModule/ModuleInput.h"
 
 #include "ChaosSimModuleManagerAsyncCallback.generated.h"
 
@@ -46,54 +47,10 @@ struct CHAOSMODULARVEHICLEENGINE_API FModularVehicleInputs
 	GENERATED_USTRUCT_BODY()
 
 		FModularVehicleInputs()
-		: Steering(0.f)
-		, Throttle(0.f)
-		, Brake(0.f)
-		, Handbrake(0.f)
-		, Pitch(0.f)
-		, Roll(0.f)
-		, Yaw(0.f)
-		, Boost(0.f)
-		, Drift(0.f)
-		, Reverse(false)
-		, KeepAwake(false)
-		{}
-
-	// Steering output to physics system. Range -1...1
-	UPROPERTY()
-	float Steering;
-
-	// Accelerator output to physics system. Range 0...1
-	UPROPERTY()
-	float Throttle;
-
-	// Brake output to physics system. Range 0...1
-	UPROPERTY()
-	float Brake;
-
-	// Handbrake output to physics system. Range 0...1
-	UPROPERTY()
-	float Handbrake;
-
-	// Body Pitch output to physics system. Range -1...1
-	UPROPERTY()
-	float Pitch;
-
-	// Body Roll output to physics system. Range -1...1
-	UPROPERTY()
-	float Roll;
-
-	// Body Yaw output to physics system. Range -1...1
-	UPROPERTY()
-	float Yaw;
-
-	// Boost output to physics system. Range -1...1
-	UPROPERTY()
-	float Boost;
-
-	// Boost output to physics system. Range 0...1
-	UPROPERTY()
-	float Drift;
+		: Reverse(false)
+		, KeepAwake(false) 
+		{
+		}
 
 	// Reversing state
 	UPROPERTY()
@@ -102,6 +59,9 @@ struct CHAOSMODULARVEHICLEENGINE_API FModularVehicleInputs
 	// Keep vehicle awake
 	UPROPERTY()
 	bool KeepAwake;
+
+	UPROPERTY()
+	FModuleInputContainer Container;
 
 };
 
@@ -125,8 +85,12 @@ struct CHAOSMODULARVEHICLEENGINE_API FNetworkModularVehicleInputs : public FNetw
 	/**  Serialize data function that will be used to transfer the struct across the network */
 	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
 
-	/** Interpolate the data in between two input */
+	/** Interpolate the data in between two inputs */
 	virtual void InterpolateData(const FNetworkPhysicsData& MinData, const FNetworkPhysicsData& MaxData) override;
+
+	/** Merge data when multiple inputs happen an same simulation tick*/
+	virtual void MergeData(const FNetworkPhysicsData& FromData) override;
+
 };
 
 template<>
@@ -186,7 +150,10 @@ struct CHAOSMODULARVEHICLEENGINE_API FPhysicsVehicleOutput
 	{
 		for (Chaos::FSimOutputData* Data : SimTreeOutputData)
 		{
-			delete Data;
+			if(Data)
+			{
+				delete Data;
+			}
 		}
 		SimTreeOutputData.Empty();
 	}
@@ -207,6 +174,15 @@ struct FGameStateInputs
 	//bool IsInAir
 };
 
+UENUM()
+enum class ETraceType : uint8
+{
+	/** Use ray to determine suspension length to ground */
+	Raycast		UMETA(DisplayName = "Raycast"),
+
+	/** Use sphere to determine suspension length to ground */
+	Spherecast	UMETA(DisplayName = "Spherecast"),
+};
 
 /**
  * Per Vehicle input State from Game Thread to Physics Thread
@@ -216,11 +192,13 @@ struct CHAOSMODULARVEHICLEENGINE_API FPhysicsModularVehicleInputs
 	FPhysicsModularVehicleInputs()
 		: TraceParams()
 		, TraceCollisionResponse()
+		, TraceType(ETraceType::Raycast)
 	{
 	}
 	mutable FNetworkModularVehicleInputs NetworkInputs;
 	mutable FCollisionQueryParams TraceParams;
 	mutable FCollisionResponseContainer TraceCollisionResponse;
+	mutable ETraceType TraceType;
 	mutable FGameStateInputs StateInputs;
 };
 
@@ -242,6 +220,8 @@ struct CHAOSMODULARVEHICLEENGINE_API FModularVehicleAsyncInput
 	* Vehicle simulation running on the Physics Thread
 	*/
 	virtual TUniquePtr<struct FModularVehicleAsyncOutput> Simulate(UWorld* World, const float DeltaSeconds, const float TotalSeconds, bool& bWakeOut) const;
+
+	virtual void OnContactModification(Chaos::FCollisionContactModifier& Modifier) const;
 	virtual void ApplyDeferredForces() const;
 	virtual void ProcessInputs();
 

@@ -5,26 +5,23 @@
 #include "Helpers/LambdaStep.h"
 #include "OnlineCatchHelper.h"
 
-
 #define ACHIEVEMENTS_TAG "[suite_achievements]"
 #define EG_ACHIEVEMENTS_GETACHIEVEMENTDEFINITION_TAG ACHIEVEMENTS_TAG "[getachievementdefinition]"
 
 #define ACHIEVEMENTS_TEST_CASE(x, ...) ONLINE_TEST_CASE(x, ACHIEVEMENTS_TAG __VA_ARGS__)
 
-
 ACHIEVEMENTS_TEST_CASE("Get Achievement Definition (Invalid User)", EG_ACHIEVEMENTS_GETACHIEVEMENTDEFINITION_TAG)
 {
-	int32 NumUsersToImplicitLogin = 0;
+	GetPipeline()
+		.EmplaceLambda([](SubsystemType OnlineSubsystem)
+			{
+				UE::Online::FGetAchievementDefinition::Params OpParams;
 
-	GetLoginPipeline(NumUsersToImplicitLogin).EmplaceLambda([](SubsystemType OnlineSubsystem)
-		{
-			UE::Online::FGetAchievementDefinition::Params OpParams;
-
-			UE::Online::IAchievementsPtr AchievementsInterface = OnlineSubsystem->GetAchievementsInterface();
-			UE::Online::TOnlineResult<UE::Online::FGetAchievementDefinition> Result = AchievementsInterface->GetAchievementDefinition(MoveTemp(OpParams));
-			REQUIRE(Result.IsError());
-			CHECK(Result.GetErrorValue() == UE::Online::Errors::InvalidUser());
-		});
+				UE::Online::IAchievementsPtr AchievementsInterface = OnlineSubsystem->GetAchievementsInterface();
+				UE::Online::TOnlineResult<UE::Online::FGetAchievementDefinition> Result = AchievementsInterface->GetAchievementDefinition(MoveTemp(OpParams));
+				REQUIRE(Result.IsError());
+				CHECK(Result.GetErrorValue() == UE::Online::Errors::InvalidUser());
+			});
 
 	RunToCompletion();
 }
@@ -35,7 +32,7 @@ ACHIEVEMENTS_TEST_CASE("Get Achievement Definition (Invalid State)", EG_ACHIEVEM
 
 	FAccountId AccountId;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	UE::Online::FGetAchievementDefinition::Params GetAchievementDefinitionParams;
 	GetAchievementDefinitionParams.LocalAccountId = AccountId;
@@ -55,7 +52,7 @@ ACHIEVEMENTS_TEST_CASE("Get Achievement Definition (Not Found)", EG_ACHIEVEMENTS
 {
 	FAccountId AccountId;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FQueryAchievementDefinitionsHelper::FHelperParams QueryDefinitionsHelperParams;
 	QueryDefinitionsHelperParams.OpParams.LocalAccountId = AccountId;
@@ -83,7 +80,7 @@ ACHIEVEMENTS_TEST_CASE("Get Achievement Definitions (Success)", EG_ACHIEVEMENTS_
 	FAccountId AccountId;
 	TArray<FString> AchievementIds;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FQueryAchievementDefinitionsHelper::FHelperParams QueryDefinitionsHelperParams;
 	QueryDefinitionsHelperParams.OpParams.LocalAccountId = AccountId;

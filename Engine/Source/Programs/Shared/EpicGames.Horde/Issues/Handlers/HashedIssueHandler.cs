@@ -12,7 +12,7 @@ namespace EpicGames.Horde.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
-	[IssueHandler(Priority = 1)]
+	[IssueHandler]
 	public class HashedIssueHandler : IssueHandler
 	{
 		readonly IssueHandlerContext _context;
@@ -39,6 +39,9 @@ namespace EpicGames.Horde.Issues.Handlers
 		}
 
 		/// <inheritdoc/>
+		public override int Priority => 1;
+
+		/// <inheritdoc/>
 		public override bool HandleEvent(IssueEvent logEvent)
 		{
 			_issueEvents.Add(logEvent);
@@ -51,6 +54,7 @@ namespace EpicGames.Horde.Issues.Handlers
 			List<IssueEventGroup> issues = new List<IssueEventGroup>();
 
 			IssueEventGroup? genericFingerprint = null;
+			IssueEventGroup? genericErrorsFingerprint = null;
 			HashSet<Md5Hash> hashes = new HashSet<Md5Hash>();
 
 			// keep hash consistent when only have general, non-unique events
@@ -58,7 +62,7 @@ namespace EpicGames.Horde.Issues.Handlers
 
 			foreach (IssueEvent stepEvent in _issueEvents)
 			{
-				string hashSource = stepEvent.Message;
+				string hashSource = stepEvent.Render();
 
 				if (!allGeneral && stepEvent.EventId != null)
 				{
@@ -82,14 +86,28 @@ namespace EpicGames.Horde.Issues.Handlers
 				}
 				else
 				{
-					if (genericFingerprint == null)
+					if (stepEvent.Severity == LogLevel.Error || stepEvent.Severity == LogLevel.Critical)
 					{
-						genericFingerprint = new IssueEventGroup("Hashed", "{Severity} in {Meta:Node}", IssueChangeFilter.All);
-						genericFingerprint.Keys.Add(IssueKey.FromStep(_context.StreamId, _context.TemplateId, _context.NodeName));
-						genericFingerprint.Metadata.Add("Node", _context.NodeName);
-						issues.Add(genericFingerprint);
+						if (genericErrorsFingerprint == null)
+						{
+							genericErrorsFingerprint = new IssueEventGroup("Hashed", "{Severity} in {Meta:Node}", IssueChangeFilter.All);
+							genericErrorsFingerprint.Keys.Add(IssueKey.FromStepAndSeverity(_context.StreamId, _context.TemplateId, _context.NodeName, LogLevel.Error));
+							genericErrorsFingerprint.Metadata.Add("Node", _context.NodeName);
+							issues.Add(genericErrorsFingerprint);
+						}
+						genericErrorsFingerprint.Events.Add(stepEvent);
 					}
-					genericFingerprint.Events.Add(stepEvent);
+					else
+					{
+						if (genericFingerprint == null)
+						{
+							genericFingerprint = new IssueEventGroup("Hashed", "{Severity} in {Meta:Node}", IssueChangeFilter.All);
+							genericFingerprint.Keys.Add(IssueKey.FromStep(_context.StreamId, _context.TemplateId, _context.NodeName));
+							genericFingerprint.Metadata.Add("Node", _context.NodeName);
+							issues.Add(genericFingerprint);
+						}
+						genericFingerprint.Events.Add(stepEvent);
+					}
 				}
 			}
 
@@ -102,6 +120,7 @@ namespace EpicGames.Horde.Issues.Handlers
 			sanitized = Regex.Replace(sanitized, @"(?<![a-zA-Z])(?:[A-Z]:|/)[^ :]+[/\\]SYNC[/\\]", "{root}/"); // Redact things that look like workspace roots; may be different between agents
 			sanitized = Regex.Replace(sanitized, @"0[xX][0-9a-fA-F]+", "H"); // Redact hex strings
 			sanitized = Regex.Replace(sanitized, @"\d[\d.,:]*", "n"); // Redact numbers and timestamp like things
+			sanitized = Regex.Replace(sanitized, @"\\", "/");
 
 			if (sanitized.Length > 30)
 			{

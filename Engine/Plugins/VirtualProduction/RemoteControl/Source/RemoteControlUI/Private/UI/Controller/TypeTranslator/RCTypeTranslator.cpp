@@ -2,7 +2,7 @@
 
 #include "RCTypeTranslator.h"
 #include "Misc/EnumRange.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "RCBoolHandler.h"
 #include "RCFloatHandler.h"
 #include "RCStringHandler.h"

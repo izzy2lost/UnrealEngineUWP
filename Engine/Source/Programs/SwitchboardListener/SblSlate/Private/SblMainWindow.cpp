@@ -549,7 +549,12 @@ TSharedRef<SWidget> FSwitchboardListenerMainWindow::CreateOutputLog()
 		return LogCategory == LogSwitchboard.GetCategoryName();
 	});
 
-	return OutputLogModule.MakeOutputLogWidget(OutputLogCreationParams);
+	// Limit logging output to 10,000 so that we don't over consume on memory.
+	OutputLogCreationParams.LoggingLimit = 10000;
+	TSharedRef<SWidget> OutputLog = OutputLogModule.MakeOutputLogWidget(OutputLogCreationParams);
+	OutputLogModule.SuspendGlobalLog();
+	return OutputLog;
+
 }
 
 

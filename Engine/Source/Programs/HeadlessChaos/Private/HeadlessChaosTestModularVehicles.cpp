@@ -10,8 +10,8 @@
 #include "SimModule/ClutchModule.h"
 #include "SimModule/TransmissionModule.h"
 #include "SimModule/WheelModule.h"
-#include "SimModule/SuspensionModule.h"
 #include "SimModule/SimModuleTree.h"
+#include "SimModule/ModuleInput.h"
 
 // for Simulation Tests
 #include "Chaos/PBDRigidsEvolutionGBF.h"
@@ -28,6 +28,57 @@
 namespace ChaosTest
 {
 	using namespace Chaos;
+
+	struct FInputsContainer
+	{
+		FInputsContainer(Chaos::FAllInputs& InInputs)
+		{
+			ConfigureControlInputs(InInputs);
+		}
+		
+		void ConfigureControlInputs(Chaos::FAllInputs& Inputs)
+		{
+			FModuleInputSetup InputData1(TEXT("Throttle"), EModuleInputValueType::MAxis1D);
+			InputSetupData.Add(InputData1);
+
+			FModuleInputSetup InputData2(TEXT("Brake"), EModuleInputValueType::MAxis1D);
+			InputSetupData.Add(InputData2);
+
+			FModuleInputSetup InputData3(TEXT("Steering"), EModuleInputValueType::MAxis1D);
+			InputSetupData.Add(InputData3);
+
+			FModuleInputSetup InputData4(TEXT("Clutch"), EModuleInputValueType::MAxis1D);
+			InputSetupData.Add(InputData4);
+
+			FModuleInputSetup InputData5(TEXT("Handbrake"), EModuleInputValueType::MAxis1D);
+			InputSetupData.Add(InputData5);
+
+			FModuleInputSetup InputData6(TEXT("Pitch"), EModuleInputValueType::MAxis1D);
+			InputSetupData.Add(InputData6);
+
+			FModuleInputSetup InputData7(TEXT("Yaw"), EModuleInputValueType::MAxis1D);
+			InputSetupData.Add(InputData7);
+
+			FModuleInputSetup InputData8(TEXT("Roll"), EModuleInputValueType::MAxis1D);
+			InputSetupData.Add(InputData8);
+
+			FModuleInputSetup InputData9(TEXT("ChangeUp"), EModuleInputValueType::MBoolean);
+			InputSetupData.Add(InputData9);
+
+			FModuleInputSetup InputData10(TEXT("ChangeDown"), EModuleInputValueType::MBoolean);
+			InputSetupData.Add(InputData10);
+
+			ValueContainer.Initialize(InputSetupData, NameMap);
+
+			ControlInputs = MakeUnique<FInputInterface>(NameMap, ValueContainer);
+			Inputs.ControlInputs = ControlInputs.Get();
+		}
+
+		FInputInterface::FInputNameMap NameMap;
+		FModuleInputContainer ValueContainer;
+		TArray<FModuleInputSetup> InputSetupData;
+		TUniquePtr<FInputInterface> ControlInputs;
+	};
 
 	GTEST_TEST(AllTraits, ModularVehicleTest_Aerofoil)
 	{
@@ -153,6 +204,7 @@ namespace ChaosTest
 		void Test_TransmissionManualGearSelection()
 		{
 			FAllInputs Inputs;
+			FInputsContainer IC(Inputs);
 			FSimModuleTree Tree;
 
 			EXPECT_EQ(GetCurrentGear(), 1);
@@ -215,6 +267,7 @@ namespace ChaosTest
 		void Test_TransmissionAutoGearSelection()
 		{
 			FAllInputs Inputs;
+			FInputsContainer IC(Inputs);
 			FSimModuleTree Tree;
 
 			SetGear(1, true);
@@ -332,6 +385,7 @@ namespace ChaosTest
 			Setup.ChangeUpRPM = 3000;
 			Setup.ChangeDownRPM = 1200;
 			Setup.GearChangeTime = 0.0f;
+			Setup.GearHysteresisTime = 0.0f;
 			Setup.TransmissionType = FTransmissionSettings::ETransType::AutomaticType;
 			Setup.AutoReverse = false;
 			Setup.TransmissionEfficiency = 1.0f;
@@ -376,8 +430,9 @@ namespace ChaosTest
 		)
 	{
 		FAllInputs Inputs;
-		Inputs.ControlInputs.Brake = 1.0f; // apply full braking force
-		Inputs.ControlInputs.Throttle = 0.0f;
+		FInputsContainer IC(Inputs);
+		Inputs.GetControls().SetValue(TEXT("Throttle"), 0.0f);
+		Inputs.GetControls().SetValue(TEXT("Brake"), 1.0f); // Apply full brake
 		FSimModuleTree Tree;
 
 		StoppingDistanceOut = 0.f;
@@ -442,8 +497,9 @@ namespace ChaosTest
 		)
 	{
 		FAllInputs Inputs;
-		Inputs.ControlInputs.Throttle = 1.0f; // apply full throttle
-		Inputs.ControlInputs.Brake = 0.0f;
+		FInputsContainer IC(Inputs);
+		Inputs.GetControls().SetValue(TEXT("Throttle"), 1.0f); // Apply full throttle
+		Inputs.GetControls().SetValue(TEXT("Brake"), 0.0f);
 		FSimModuleTree Tree;
 
 		DistanceTravelledOut = 0.f;
@@ -666,8 +722,9 @@ namespace ChaosTest
 		FWheelSimModule Wheel(Setup);
 
 		FAllInputs Inputs;
-		Inputs.ControlInputs.Throttle = 0.0f;
-		Inputs.ControlInputs.Brake = 0.0f;
+		FInputsContainer IC(Inputs);
+		Inputs.GetControls().SetValue(TEXT("Throttle"), 0.0f);
+		Inputs.GetControls().SetValue(TEXT("Brake"), 0.0f);
 		FSimModuleTree Tree;
 
 		float DeltaTime = 1.f / 30.f;
@@ -756,6 +813,7 @@ namespace ChaosTest
 	GTEST_TEST(AllTraits, ModularVehicleTest_EngineRPM)
 	{
 		FAllInputs Inputs;
+		FInputsContainer IC(Inputs);
 		FSimModuleTree Tree;
 
 		FEngineSettings Setup;
@@ -784,7 +842,7 @@ namespace ChaosTest
 
 		FEngineSimModule Engine(Setup);
 
-		Inputs.ControlInputs.Throttle = 0.f;
+		Inputs.GetControls().SetValue(TEXT("Throttle"), 0.0f);
 
 		float DeltaTime = 1.0f / 30.0f;
 		float TOLERANCE = 0.1f;
@@ -798,7 +856,7 @@ namespace ChaosTest
 		EXPECT_LT(Engine.GetRPM() - Engine.Setup().IdleRPM, TOLERANCE);
 
 		// apply half throttle
-		Inputs.ControlInputs.Throttle = 0.5f;
+		Inputs.GetControls().SetValue(TEXT("Throttle"), 0.5f);
 
 		for (int i = 0; i < 100; i++)
 		{
@@ -808,7 +866,7 @@ namespace ChaosTest
 
 		EXPECT_GT(Engine.GetRPM(), Engine.Setup().IdleRPM);
 
-		Inputs.ControlInputs.Throttle = 0.0f;
+		Inputs.GetControls().SetValue(TEXT("Throttle"), 0.0f);
 
 		// engine idle - no throttle
 		for (int i = 0; i < 200; i++)
@@ -825,6 +883,7 @@ namespace ChaosTest
 	GTEST_TEST(AllTraits, ModularVehicleTest_SimModuleTree_EngineDrivingWheelsThroughClutch)
 	{
 		FAllInputs Inputs;
+		FInputsContainer IC(Inputs);
 		FSimModuleTree Tree;
 		float TOLERANCE = 0.1f;
 
@@ -887,9 +946,9 @@ namespace ChaosTest
 		}
 
 		// Throttle ON
-		Inputs.ControlInputs.Throttle = 1.0f;
-		Inputs.ControlInputs.Brake = 0.0f;
-		Inputs.ControlInputs.Clutch = 0.0f;
+		Inputs.GetControls().SetValue(TEXT("Throttle"), 1.0f);
+		Inputs.GetControls().SetValue(TEXT("Brake"), 0.0f);
+		Inputs.GetControls().SetValue(TEXT("Clutch"), 0.0f);
 
 		// wheels not moving initially
 		EXPECT_NEAR(Wheel0.GetRPM(), 0, TOLERANCE);
@@ -912,9 +971,9 @@ namespace ChaosTest
 		EXPECT_NEAR(Wheel3.GetRPM(), 0, TOLERANCE);
 
 		// Brake ON 
-		Inputs.ControlInputs.Throttle = 0.0f;
-		Inputs.ControlInputs.Brake = 1.0f;
-		Inputs.ControlInputs.Clutch = 0.0f;
+		Inputs.GetControls().SetValue(TEXT("Throttle"), 0.0f);
+		Inputs.GetControls().SetValue(TEXT("Brake"), 1.0f);
+		Inputs.GetControls().SetValue(TEXT("Clutch"), 0.0f);
 
 		// Simulate
 		for (int I = 0; I < 50; I++)
@@ -930,9 +989,9 @@ namespace ChaosTest
 
 
 		// Throttle ON, Clutch depressed
-		Inputs.ControlInputs.Throttle = 1.0f;
-		Inputs.ControlInputs.Brake = 0.0f;
-		Inputs.ControlInputs.Clutch = 1.0f;
+		Inputs.GetControls().SetValue(TEXT("Throttle"), 1.0f);
+		Inputs.GetControls().SetValue(TEXT("Brake"), 0.0f);
+		Inputs.GetControls().SetValue(TEXT("Clutch"), 1.0f);
 
 		// Simulate
 		for (int I = 0; I < 50; I++)
@@ -949,14 +1008,15 @@ namespace ChaosTest
 	GTEST_TEST(AllTraits, ModularVehicleTest_SimModuleTree_WheelsSpinEngineShouldSpin)
 	{
 		FAllInputs Inputs;
+		FInputsContainer IC(Inputs);
 		FSimModuleTree Tree;
 		float TOLERANCE = 0.1f;
 
 		FChassisSettings ChassisSettings;
 		int RootNodeIndex = Tree.AddRoot(new FChassisSimModule(ChassisSettings));
 
-		Inputs.ControlInputs.Brake = 0;
-		Inputs.ControlInputs.Throttle = 0;
+		Inputs.GetControls().SetValue(TEXT("Throttle"), 0.0f);
+		Inputs.GetControls().SetValue(TEXT("Brake"), 0.0f);
 
 		FEngineSettings EngineSettings;
 		{

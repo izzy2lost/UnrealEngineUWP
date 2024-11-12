@@ -7,9 +7,10 @@
 #include "Algo/TopologicalSort.h"
 #include "Algo/Transform.h"
 #include "CoreMinimal.h"
+#include "CoreGlobals.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundFrontend.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
-#include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendProxyDataCache.h"
 #include "MetasoundFrontendRegistries.h"
@@ -18,20 +19,38 @@
 #include "MetasoundLog.h"
 #include "MetasoundNodeInterface.h"
 
+
 namespace Metasound
 {
-	namespace FrontendGraphPrivate
+	namespace Frontend
 	{
-		FNodeInitData CreateNodeInitData(const FMetasoundFrontendNode& InNode)
+		namespace GraphPrivate
 		{
-			FNodeInitData InitData;
+			FNodeInitData CreateNodeInitData(const FMetasoundFrontendNode& InNode)
+			{
+				FNodeInitData InitData;
 
-			InitData.InstanceName = InNode.Name;
-			InitData.InstanceID = InNode.GetID();
+				InitData.InstanceName = InNode.Name;
+				InitData.InstanceID = InNode.GetID();
 
-			return InitData;
-		}
-	}
+				return InitData;
+			}
+
+			template <typename ResolveType>
+			FGuid ResolveTargetPageID(const ResolveType& InToResolve)
+			{
+				// Registry is not available in tests, so for now resolution is considered successful at this level
+				// if registry is not initialized and providing a resolved page ID. TODO: Add a test implementation
+				// that returns the default page (or whatever page behavior is desired for testing).
+				if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
+				{
+					return IDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(InToResolve);
+				}
+
+				return Frontend::DefaultPageID;
+			}
+		} // namespace GraphPrivate
+	} // namespace Frontend
 
 	FFrontendGraph::FFrontendGraph(const FString& InInstanceName, const FGuid& InInstanceID)
 	:	FGraph(InInstanceName, InInstanceID)
@@ -203,7 +222,7 @@ namespace Metasound
 			};
 
 			{
-				const FNodeInitData InitData = FrontendGraphPrivate::CreateNodeInitData(InNode);
+				const FNodeInitData InitData = GraphPrivate::CreateNodeInitData(InNode);
 				TArray<FDefaultLiteralData> DefaultLiteralData = GetInputDefaultLiteralData(InContext, InNode, InitData, InEdgeDestinations);
 				for (FDefaultLiteralData& Data : DefaultLiteralData)
 				{
@@ -230,7 +249,7 @@ namespace Metasound
 
 		check(InNode.ClassID == InClass.ID);
 
-		const FNodeInitData InitData = FrontendGraphPrivate::CreateNodeInitData(InNode);
+		const FNodeInitData InitData = GraphPrivate::CreateNodeInitData(InNode);
 		{
 			TArray<FDefaultLiteralData> DefaultLiteralData = GetInputDefaultLiteralData(InContext, InNode, InitData, InEdgeDestinations);
 			for (FDefaultLiteralData& Data : DefaultLiteralData)
@@ -300,6 +319,8 @@ namespace Metasound
 
 	const FMetasoundFrontendLiteral* FFrontendGraphBuilder::FindInputLiteralForInputNode(const FMetasoundFrontendNode& InInputNode, const FMetasoundFrontendClass& InInputNodeClass, const FMetasoundFrontendClassInput& InOwningGraphClassInput)
 	{
+		using namespace Frontend;
+
 		// Default value priority is:
 		// 1. A value set directly on the node
 		// 2. A default value of the owning graph
@@ -312,7 +333,7 @@ namespace Metasound
 		{
 			const FMetasoundFrontendVertex& InputVertex = InInputNode.Interface.Inputs[0];
 
-			// Find input literal matching VerteXID
+			// Find input literal matching VertexID
 			const FMetasoundFrontendVertexLiteral* VertexLiteral = InInputNode.InputLiterals.FindByPredicate(
 				[&](const FMetasoundFrontendVertexLiteral& InVertexLiteral)
 				{
@@ -330,20 +351,23 @@ namespace Metasound
 		if (nullptr == Literal)
 		{
 			// Find Class Default that is not invalid
-			if (InOwningGraphClassInput.DefaultLiteral.IsValid())
+			const FGuid PageID = GraphPrivate::ResolveTargetPageID(InOwningGraphClassInput);
+			const FMetasoundFrontendLiteral& DefaultLiteral = InOwningGraphClassInput.FindConstDefaultChecked(PageID);
+			if (DefaultLiteral.IsValid())
 			{
-				Literal = &InOwningGraphClassInput.DefaultLiteral;
+				Literal = &DefaultLiteral;
 			}
 		}
 
 		// Check for default value on input node class
 		if (nullptr == Literal && ensure(InInputNodeClass.Interface.Inputs.Num() == 1))
 		{
-			const FMetasoundFrontendClassInput& InputNodeClassInput = InInputNodeClass.Interface.Inputs[0];
-
-			if (InputNodeClassInput.DefaultLiteral.IsValid())
+			const FMetasoundFrontendClassInput& InputNodeClassInput = InInputNodeClass.Interface.Inputs.Last();
+			const FGuid PageID = GraphPrivate::ResolveTargetPageID(InputNodeClassInput);
+			const FMetasoundFrontendLiteral& DefaultLiteral = InputNodeClassInput.FindConstDefaultChecked(PageID);
+			if (DefaultLiteral.IsValid())
 			{
-				Literal = &InputNodeClassInput.DefaultLiteral;
+				Literal = &DefaultLiteral;
 			}
 		}
 
@@ -353,13 +377,13 @@ namespace Metasound
 	bool FFrontendGraphBuilder::AddNodesToGraph(FBuildGraphContext& InGraphContext)
 	{
 		TSet<FNodeIDVertexID> GraphEdgeDestinations;
-		const TArray<FMetasoundFrontendEdge>& GraphEdges = InGraphContext.GraphClass.Graph.Edges;
+		const TArray<FMetasoundFrontendEdge>& GraphEdges = InGraphContext.PagedGraph.Edges;
 		Algo::Transform(GraphEdges, GraphEdgeDestinations, [](const FMetasoundFrontendEdge& Edge) 
 		{
 			return FNodeIDVertexID{Edge.ToNodeID, Edge.ToVertexID};
 		});
 
-		for (const FMetasoundFrontendNode& Node : InGraphContext.GraphClass.Graph.Nodes)
+		for (const FMetasoundFrontendNode& Node : InGraphContext.PagedGraph.Nodes)
 		{
 			const FMetasoundFrontendClass* NodeClass = InGraphContext.BuildContext.FrontendClasses.FindRef(Node.ClassID);
 
@@ -428,7 +452,7 @@ namespace Metasound
 
 					case EMetasoundFrontendClassType::Variable:
 					{
-						TSharedPtr<const INode> VariableNode(CreateVariableNode(InGraphContext.BuildContext, Node, InGraphContext.GraphClass.Graph).Release());
+						TSharedPtr<const INode> VariableNode(CreateVariableNode(InGraphContext.BuildContext, Node, InGraphContext.PagedGraph).Release());
 						InGraphContext.Graph->AddNode(Node.GetID(), VariableNode);
 					}
 					break;
@@ -467,7 +491,7 @@ namespace Metasound
 		TMap<FNodeIDVertexID, FCoreNodeAndFrontendVertex> NodeDestinationsByID;
 
 		// Add nodes to NodeID/VertexID map
-		for (const FMetasoundFrontendNode& Node : InGraphContext.GraphClass.Graph.Nodes)
+		for (const FMetasoundFrontendNode& Node : InGraphContext.PagedGraph.Nodes)
 		{
 			const INode* CoreNode = InGraphContext.Graph->FindNode(Node.GetID());
 			if (nullptr == CoreNode)
@@ -487,7 +511,7 @@ namespace Metasound
 			}
 		};
 
-		for (const FMetasoundFrontendEdge& Edge : InGraphContext.GraphClass.Graph.Edges)
+		for (const FMetasoundFrontendEdge& Edge : InGraphContext.PagedGraph.Edges)
 		{
 			const FNodeIDVertexID DestinationKey(Edge.ToNodeID, Edge.ToVertexID);
 			const FCoreNodeAndFrontendVertex* DestinationNodeAndVertex = NodeDestinationsByID.Find(DestinationKey);
@@ -655,7 +679,9 @@ namespace Metasound
 			return false;
 		}
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		return IsFlat(InDocument.RootGraph, InDocument.Dependencies);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	bool FFrontendGraphBuilder::IsFlat(const FMetasoundFrontendGraphClass& InRoot, const TArray<FMetasoundFrontendClass>& InDependencies)
@@ -685,7 +711,7 @@ namespace Metasound
 			return AvailableDependencies.Contains(InNode.ClassID);
 		};
 
-		const bool bIsEveryDependencyMet = Algo::AllOf(InRoot.Graph.Nodes, IsDependencyMet);
+		const bool bIsEveryDependencyMet = Algo::AllOf(InRoot.GetConstDefaultGraph().Nodes, IsDependencyMet);
 
 		return bIsEveryDependencyMet;
 	}
@@ -707,7 +733,7 @@ namespace Metasound
 				// Cache subgraph dependencies.
 				for (const FMetasoundFrontendGraphClass* GraphClass : InGraphs)
 				{
-					for (const FMetasoundFrontendNode& Node : GraphClass->Graph.Nodes)
+					for (const FMetasoundFrontendNode& Node : GraphClass->GetConstDefaultGraph().Nodes)
 					{
 						if (ClassIDAndGraph.Contains(Node.ClassID))
 						{
@@ -740,12 +766,17 @@ namespace Metasound
 
 	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(FBuildContext& InContext, const FMetasoundFrontendGraphClass& InGraphClass)
 	{
+		using namespace Frontend;
+
 		const FString GraphName = InContext.DebugAssetName;
 
+		const FGuid PageID = GraphPrivate::ResolveTargetPageID(InGraphClass);
+		const FMetasoundFrontendGraph& PageGraph = InGraphClass.FindConstGraphChecked(PageID);
 		FBuildGraphContext BuildGraphContext
 		{
-			MakeUnique<FFrontendGraph>(GraphName, Frontend::CreateLocallyUniqueId()),
+			MakeUnique<FFrontendGraph>(GraphName, InContext.GraphId),
 			InGraphClass,
+			PageGraph,
 			InContext
 		};
 
@@ -776,7 +807,7 @@ namespace Metasound
 		return CreateGraph(InGraph, InSubgraphs, InDependencies, InDebugAssetName);
 	}
 
-	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(const FMetasoundFrontendGraphClass& InGraph, const TArray<FMetasoundFrontendGraphClass>& InSubgraphs, const TArray<FMetasoundFrontendClass>& InDependencies, const Frontend::FProxyDataCache& InProxyDataCache, const FString& InDebugAssetName)
+	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(const FMetasoundFrontendGraphClass& InGraph, const TArray<FMetasoundFrontendGraphClass>& InSubgraphs, const TArray<FMetasoundFrontendClass>& InDependencies, const Frontend::FProxyDataCache& InProxyDataCache, const FString& InDebugAssetName, const FGuid InGraphId)
 	{
 		FBuildContext Context
 		{
@@ -784,7 +815,8 @@ namespace Metasound
 			{}, 								// FrontendClasses
 			{}, 								// Graphs
 			Frontend::IDataTypeRegistry::Get(), // DataTypeRegistry
-			InProxyDataCache 					// ProxyDataCache
+			InProxyDataCache, 					// ProxyDataCache
+			InGraphId							// GraphId
 		};
 
 		// Gather all references to node classes from external dependencies and subgraphs.
@@ -833,7 +865,7 @@ namespace Metasound
 		Frontend::FProxyDataCache ProxyDataCache;
 		ProxyDataCache.CreateAndCacheProxies(InDocument);
 		
-		return CreateGraph(InDocument, ProxyDataCache, InDebugAssetName);
+		return CreateGraph(InDocument, ProxyDataCache, InDebugAssetName, Frontend::CreateLocallyUniqueId());
 	}
 
 	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(const FMetasoundFrontendGraphClass& InGraph, const TArray<FMetasoundFrontendGraphClass>& InSubgraphs, const TArray<FMetasoundFrontendClass>& InDependencies, const FString& InDebugAssetName)
@@ -841,17 +873,18 @@ namespace Metasound
 		// Create proxies before building graph
 		Frontend::FProxyDataCache ProxyDataCache;
 		ProxyDataCache.CreateAndCacheProxies(InGraph);
+
 		for (const FMetasoundFrontendGraphClass& SubgraphClass : InSubgraphs)
 		{
 			ProxyDataCache.CreateAndCacheProxies(SubgraphClass);
 		}
+
 		for (const FMetasoundFrontendClass& DependencyClass : InDependencies)
 		{
 			ProxyDataCache.CreateAndCacheProxies(DependencyClass);
 		}
 
-
-		return CreateGraph(InGraph, InSubgraphs, InDependencies, ProxyDataCache, InDebugAssetName);
+		return CreateGraph(InGraph, InSubgraphs, InDependencies, ProxyDataCache, InDebugAssetName, Frontend::CreateLocallyUniqueId());
 	}
 	
 	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(const FMetasoundFrontendDocument& InDocument, const TSet<FName>& InTransmittableInputNames, const FString& InDebugAssetName)
@@ -859,8 +892,8 @@ namespace Metasound
 		return CreateGraph(InDocument, InDebugAssetName);
 	}
 
-	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(const FMetasoundFrontendDocument& InDocument, const Frontend::FProxyDataCache& InProxyDataCache, const FString& InDebugAssetName)
+	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(const FMetasoundFrontendDocument& InDocument, const Frontend::FProxyDataCache& InProxyDataCache, const FString& InDebugAssetName, const FGuid InGraphId)
 	{
-		return CreateGraph(InDocument.RootGraph, InDocument.Subgraphs, InDocument.Dependencies, InProxyDataCache, InDebugAssetName);
+		return CreateGraph(InDocument.RootGraph, InDocument.Subgraphs, InDocument.Dependencies, InProxyDataCache, InDebugAssetName, InGraphId);
 	}
 }

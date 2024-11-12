@@ -78,6 +78,7 @@ namespace Audio
 		, BufferType(InArgs.Buffer->GetType())
 		, NumPrecacheFrames(InArgs.SoundWave->NumPrecacheFrames)
 		, AuioDeviceID(InArgs.AudioDeviceID)
+		, InstanceID(InArgs.InstanceID)
 		, WaveName(InArgs.SoundWave->GetFName())
 #if ENABLE_AUDIO_DEBUG
 		, SampleRate(InArgs.SampleRate)
@@ -107,6 +108,7 @@ namespace Audio
 			InitParams.NumFramesPerCallback = MONO_PCM_BUFFER_SAMPLES;
 			InitParams.InstanceID = InArgs.InstanceID;
 			InitParams.bIsPreviewSound = InArgs.bIsPreviewSound;
+			InitParams.StartTime = InArgs.StartTime;
 
 			SoundGenerator = InArgs.SoundWave->CreateSoundGenerator(InitParams, MoveTemp(InDefaultParams));
 
@@ -150,10 +152,6 @@ namespace Audio
 		if (DecompressionState == nullptr)
 		{
 			DecompressionState = InCompressedAudioInfo;
-			if (BufferType == EBufferType::Streaming)
-			{
-				IStreamingManager::Get().GetAudioStreamingManager().AddDecoder(DecompressionState);
-			}
 		}
 	}
 
@@ -478,6 +476,9 @@ namespace Audio
 					double AudioDuration = static_cast<double>(TaskResult.NumSamplesWritten) / static_cast<double>(FMath::Max(1, NumChannels * SampleRate));
 					UpdateCPUCoreUtilization(TaskResult.CPUDuration, AudioDuration);
 #endif // ENABLE_AUDIO_DEBUG
+
+					// Set the render cost encountered during the last render
+					SetRelativeRenderCost(TaskResult.RelativeRenderCost);
 				}
 				break;
 			}
@@ -487,6 +488,16 @@ namespace Audio
 			AsyncTaskStartTimeInCycles = 0;
 
 			SubmitRealTimeSourceData(bIsFinishedOrLooped);
+		}
+
+		if (FAudioDeviceManager* ADM = FAudioDeviceManager::Get())
+		{
+			if (FAudioDevice* AudioDevice = ADM->GetAudioDeviceRaw(AuioDeviceID))
+			{
+				UAudioBusSubsystem* AudioBusSubsystem = AudioDevice->GetSubsystem<UAudioBusSubsystem>();
+				check(AudioBusSubsystem);
+				AudioBusSubsystem->ConnectPatches(InstanceID);
+			}
 		}
 
 		if (!AsyncRealtimeAudioTask)
@@ -529,11 +540,6 @@ namespace Audio
 		// Clean up decompression state after things have been finished using it
 		if (DecompressionState)
 		{
-			if (BufferType == EBufferType::Streaming)
-			{
-				IStreamingManager::Get().GetAudioStreamingManager().RemoveDecoder(DecompressionState);
-			}
-
 			delete DecompressionState;
 			DecompressionState = nullptr;
 		}
@@ -592,6 +598,16 @@ namespace Audio
 	bool FMixerSourceBuffer::IsGeneratorFinished() const
 	{
 		return bProcedural && SoundGenerator.IsValid() && SoundGenerator->IsFinished();
+	}
+
+	float FMixerSourceBuffer::GetRelativeRenderCost() const
+	{
+		return RelativeRenderCost.load(std::memory_order_relaxed);
+	}
+
+	void FMixerSourceBuffer::SetRelativeRenderCost(float InRelativeRenderCost)
+	{
+		RelativeRenderCost.store(InRelativeRenderCost, std::memory_order_relaxed);
 	}
 
 #if ENABLE_AUDIO_DEBUG
@@ -686,6 +702,16 @@ namespace Audio
 			if (SoundWave)
 			{
 				SoundWave->OnEndGenerate(SoundGenerator);
+			}
+
+			if (FAudioDeviceManager* ADM = FAudioDeviceManager::Get())
+			{
+				if (FAudioDevice* AudioDevice = ADM->GetAudioDeviceRaw(AuioDeviceID))
+				{
+					UAudioBusSubsystem* AudioBusSubsystem = AudioDevice->GetSubsystem<UAudioBusSubsystem>();
+					check(AudioBusSubsystem);
+					AudioBusSubsystem->RemoveSound(InstanceID);
+				}
 			}
 		}
 		else

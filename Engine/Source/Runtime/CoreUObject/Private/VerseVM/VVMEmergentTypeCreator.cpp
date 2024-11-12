@@ -26,7 +26,7 @@ VEmergentType* VEmergentTypeCreator::GetOrCreate(FAllocationContext Context, VSh
 	return UniqueCreator->GetOrCreate<VEmergentType, VShape*, VType*>(Context, InShape, Type, CppClassInfo);
 };
 
-void VEmergentTypeCreator::Initialize()
+void VEmergentTypeCreator::Initialize(FAllocationContext Context)
 {
 	/*
 	   Need to setup
@@ -38,23 +38,21 @@ void VEmergentTypeCreator::Initialize()
 	*/
 	if (!bIsInitialized)
 	{
-		FRunningContext::Create([](FRunningContext Context) {
-			EmergentTypeForEmergentType.Set(Context, VEmergentType::NewIncomplete(Context, &VEmergentType::StaticCppClassInfo));
-			EmergentTypeForEmergentType->SetEmergentType(Context, EmergentTypeForEmergentType.Get());
+		EmergentTypeForEmergentType.Set(Context, VEmergentType::NewIncomplete(Context, &VEmergentType::StaticCppClassInfo));
+		EmergentTypeForEmergentType->SetEmergentType(Context, EmergentTypeForEmergentType.Get());
 
-			EmergentTypeForType.Set(Context, VEmergentType::NewIncomplete(Context, &VType::StaticCppClassInfo));
-			EmergentTypeForType->SetEmergentType(Context, EmergentTypeForEmergentType.Get());
+		EmergentTypeForType.Set(Context, VEmergentType::NewIncomplete(Context, &VType::StaticCppClassInfo));
+		EmergentTypeForType->SetEmergentType(Context, EmergentTypeForEmergentType.Get());
 
-			VTrivialType::Initialize(Context);
+		VTrivialType::Initialize(Context);
 
-			EmergentTypeForEmergentType->Type.Set(Context, VTrivialType::Singleton.Get());
-			EmergentTypeForType->Type.Set(Context, VTrivialType::Singleton.Get());
+		EmergentTypeForEmergentType->Type.Set(Context, VTrivialType::Singleton.Get());
+		EmergentTypeForType->Type.Set(Context, VTrivialType::Singleton.Get());
 
-			UniqueCreator->Add(Context, EmergentTypeForEmergentType.Get());
-			UniqueCreator->Add(Context, EmergentTypeForType.Get());
+		UniqueCreator->Add(Context, EmergentTypeForEmergentType.Get());
+		UniqueCreator->Add(Context, EmergentTypeForType.Get());
 
-			bIsInitialized = true;
-		});
+		bIsInitialized = true;
 	}
 }
 

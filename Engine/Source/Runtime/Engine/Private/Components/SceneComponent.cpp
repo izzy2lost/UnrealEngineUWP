@@ -1207,7 +1207,7 @@ void USceneComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 		AActor* MyOwner = GetOwner();
 
 		// Do not involve objects which will be destroyed in hierarchy fixups
-		const EInternalObjectFlags SkipFlags = EInternalObjectFlags::Garbage | UE::GC::GUnreachableObjectFlag;
+		const EInternalObjectFlags SkipFlags = EInternalObjectFlags::Garbage | EInternalObjectFlags::Unreachable;
 
 		if (bDestroyingHierarchy)
 		{
@@ -1219,7 +1219,7 @@ void USceneComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 			int32 ChildCount = AttachChildren.Num();
 
 			// We cache the actual children to put back after the detach process
-			TArray<USceneComponent*> CachedChildren;
+			TArray<TObjectPtr<USceneComponent>> CachedChildren;
 			CachedChildren.Reserve(ChildCount);
 
 			while (ChildCount > 0)
@@ -1421,7 +1421,6 @@ void USceneComponent::UpdateBounds()
 			bComputedBoundsOnceForGame = (bIsGameWorld || IsRunningCookCommandlet()) && bComputeBoundsOnceForGame;
 		}
 	}
-
 
 #if ENABLE_NAN_DIAGNOSTIC
 	if (Bounds.ContainsNaN())
@@ -2326,10 +2325,16 @@ bool USceneComponent::AttachToComponent(USceneComponent* Parent, const FAttachme
 			}
 		}
 
-		// Update overlaps, in case location changed or overlap state depends on attachment.
 		if (IsRegistered())
 		{
+			// Update overlaps, in case location changed or overlap state depends on attachment.
 			UpdateOverlaps();
+
+			// Update our owner actor in the navigation system since its associated bounds have changed
+			if (AActor* Owner = GetOwner())
+			{
+				FNavigationSystem::UpdateActorAndComponentData(*Owner);
+			}
 		}
 
 		return true;
@@ -3430,7 +3435,7 @@ void USceneComponent::OnRep_AttachChildren()
 			{
 				if (PossibleDuplicate == AttachChildren[DuplicateCheckIndex])
 				{
-					AttachChildren.RemoveAt(SearchIndex, 1, EAllowShrinking::No);
+					AttachChildren.RemoveAt(SearchIndex, EAllowShrinking::No);
 					break;
 				}
 			}
@@ -3753,12 +3758,26 @@ FScopedPreventAttachedComponentMove::~FScopedPreventAttachedComponentMove()
 	}
 }
 
+bool GLocalBoundsUseAttachParentBound = false;
+static FAutoConsoleVariableRef CVarLocalBoundsUseAttachParentBound (
+	TEXT("p.LocalBoundsUseAttachParentBound"),
+	GLocalBoundsUseAttachParentBound,
+	TEXT("If enabled, Components with 'Use Attach Parent Bound' will compute their local bounds based their parent's bounds"),
+	ECVF_Default
+);
+
 FBoxSphereBounds USceneComponent::GetLocalBounds() const
 {
 	if (bComputeFastLocalBounds)
 	{
 		return Bounds.TransformBy(ComponentToWorld.Inverse());
 	}
+
+	if (GLocalBoundsUseAttachParentBound && bUseAttachParentBound && GetAttachParent() != nullptr)
+	{
+		return GetAttachParent()->Bounds.TransformBy(ComponentToWorld.Inverse());
+	}
+
 	return CalcBounds(FTransform::Identity);
 }
 

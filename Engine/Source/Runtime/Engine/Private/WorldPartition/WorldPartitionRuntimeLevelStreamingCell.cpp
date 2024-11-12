@@ -15,6 +15,10 @@
 #include "UObject/Package.h"
 #include "UObject/AssetRegistryTagsContext.h"
 
+#if WITH_EDITOR
+#include "WorldPartition/Cook/WorldPartitionCookPackageContextInterface.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartitionRuntimeLevelStreamingCell)
 
 UWorldPartitionRuntimeLevelStreamingCell::UWorldPartitionRuntimeLevelStreamingCell(const FObjectInitializer& ObjectInitializer)
@@ -333,7 +337,7 @@ void UWorldPartitionRuntimeLevelStreamingCell::AddActorToCell(const FStreamingGe
 		);
 	}
 
-	Packages.Emplace(
+	FWorldPartitionRuntimeCellObjectMapping ActorMapping(
 		ActorDescView.GetActorPackage(), 
 		*ActorDescView.GetActorSoftPath().ToString(), 
 		ActorDescView.GetBaseClass(),
@@ -346,6 +350,15 @@ void UWorldPartitionRuntimeLevelStreamingCell::AddActorToCell(const FStreamingGe
 		ContainerID.GetActorGuid(ActorDescView.GetGuid()),
 		false
 	);
+
+	TArray<FWorldPartitionRuntimeCellPropertyOverride> PropertyOverrides;
+	ContainerInstance->GetPropertyOverridesForActor(ContainerID, ActorDescView.GetGuid(), PropertyOverrides);
+	if (PropertyOverrides.Num())
+	{
+		ActorMapping.PropertyOverrides = MoveTemp(PropertyOverrides);
+	}
+
+	Packages.Add(MoveTemp(ActorMapping));
 }
 
 void UWorldPartitionRuntimeLevelStreamingCell::Fixup()
@@ -389,7 +402,7 @@ bool UWorldPartitionRuntimeLevelStreamingCell::OnPrepareGeneratorPackageForCook(
 			.SetLoadAsync(false)
 			.SetInstancingContext(FLinkerInstancingContext(false)); // Don't do SoftObjectPath remapping for PersistentLevel actors because references can end up in different cells
 
-		verify(FWorldPartitionLevelHelper::LoadActors(Params));
+		verify(FWorldPartitionLevelHelper::LoadActors(MoveTemp(Params)));
 
 		FWorldPartitionLevelHelper::MoveExternalActorsToLevel(Packages, OuterWorld->PersistentLevel, OutModifiedPackages);
 
@@ -408,24 +421,27 @@ bool UWorldPartitionRuntimeLevelStreamingCell::OnPrepareGeneratorPackageForCook(
 }
 
 // Do all necessary work to prepare cell object for cook.
-bool UWorldPartitionRuntimeLevelStreamingCell::PrepareCellForCook(UPackage* InPackage)
+bool UWorldPartitionRuntimeLevelStreamingCell::PrepareCellForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InGeneratedPackage)
 {
 	// LevelStreaming could already be created
 	if (!LevelStreaming && GetActorCount() > 0)
 	{
-		if (!InPackage)
+		FString PackageName = InCookContext.GetGeneratedPackagePath(this);
+		check(!InGeneratedPackage || (PackageName == InGeneratedPackage->GetName()));
+		if (PackageName.IsEmpty())
 		{
 			return false;
 		}
-
-		LevelStreaming = CreateLevelStreaming(InPackage->GetName());
+		// Validation
+		check(PackageName.Contains(GetPackageNameToCreate()));
+		LevelStreaming = CreateLevelStreaming(PackageName);
 	}
 	return true;
 }
 
-bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratorPackageForCook(UPackage* InPackage)
+bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratorPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InGeneratedPackage)
 {
-	return PrepareCellForCook(InPackage);
+	return PrepareCellForCook(InCookContext, InGeneratedPackage);
 }
 
 // Helper used by UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratedPackageForCook
@@ -464,7 +480,7 @@ private:
 	friend class UWorldPartitionRuntimeLevelStreamingCell;
 };
 
-bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages)
+bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratedPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages)
 {
 	check(!IsAlwaysLoaded());
 	if (!InPackage)
@@ -475,7 +491,7 @@ bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratedPackageForCook
 	if (GetActorCount() > 0)
 	{
 		// When cook splitter doesn't use deferred populate, cell needs to be prepared here.
-		if (!PrepareCellForCook(InPackage))
+		if (!PrepareCellForCook(InCookContext, InPackage))
 		{
 			return false;
 		}
@@ -494,12 +510,14 @@ bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratedPackageForCook
 			.SetLoadAsync(false)
 			.SetInstancingContext(FLinkerInstancingContext(false)); // Don't do SoftObjectPath remapping for PersistentLevel actors because references can end up in different cells
 
-		verify(FWorldPartitionLevelHelper::LoadActors(Params));
+		verify(FWorldPartitionLevelHelper::LoadActors(MoveTemp(Params)));
 
 		// Create a level and move these actors in it
 		ULevel* NewLevel = FWorldPartitionLevelHelper::CreateEmptyLevelForRuntimeCell(this, OuterWorld, LevelStreaming->GetWorldAsset().ToString(), InPackage);
 		check(NewLevel->GetPackage() == InPackage);
 		FWorldPartitionLevelHelper::MoveExternalActorsToLevel(Packages, NewLevel, OutModifiedPackages);
+
+		WorldPartition->ApplyRuntimeCellsTransformerStack(NewLevel);
 
 		// Push temporarily the cooking ExternalStreamingObject in the policy for RemapLevelSoftObjectPaths to use it to resolve softobjectpaths
 		// Do this only if the ExternalStreamingObject has a valid root external data layer asset, as Content Bundle soft object remapping is not supported at cook time (there is no world package remapping)
@@ -564,7 +582,7 @@ UWorldPartitionLevelStreamingDynamic* UWorldPartitionRuntimeLevelStreamingCell::
 		UWorld* OwningWorld = GetOwningWorld();
 		if (LevelStreaming->GetWorld() != OwningWorld)
 		{
-			LevelStreaming->Rename(nullptr, OwningWorld, REN_ForceNoResetLoaders);
+			LevelStreaming->Rename(nullptr, OwningWorld);
 		}
 		
 		// Transfer WorldPartition's transform to LevelStreaming
@@ -661,10 +679,17 @@ void UWorldPartitionRuntimeLevelStreamingCell::OnLevelShown()
 
 void UWorldPartitionRuntimeLevelStreamingCell::OnCellShown() const
 {
-	UWorldPartition* OuterWorldPartition = GetOuterWorld()->GetWorldPartition();
-	if (OuterWorldPartition && OuterWorldPartition->IsInitialized())
+	// Test if the outer world is valid to handle the rare case where a streaming level outlives its world
+	// * Since those three objects are independant, they can possibly have different lifetime.
+	// * The OnCellShown() call will be skipped if the level streaming is alive but its cell is not, as the delegate IsBound() test will reject it
+	// * A crash would occurs if both the level streaming object and the runtime cell are alive, but the world is not
+	if (UWorld* OuterWorld = GetOuterWorld())
 	{
-		OuterWorldPartition->OnCellShown(this);
+		UWorldPartition* OuterWorldPartition = OuterWorld->GetWorldPartition();
+		if (OuterWorldPartition && OuterWorldPartition->IsInitialized())
+		{
+			OuterWorldPartition->OnCellShown(this);
+		}
 	}
 }
 
@@ -675,9 +700,16 @@ void UWorldPartitionRuntimeLevelStreamingCell::OnLevelHidden()
 
 void UWorldPartitionRuntimeLevelStreamingCell::OnCellHidden() const
 {
-	UWorldPartition* OuterWorldPartition = GetOuterWorld()->GetWorldPartition();
-	if (OuterWorldPartition && OuterWorldPartition->IsInitialized())
+	// Test if the outer world is valid to handle the rare case where a streaming level outlives its world
+	// * Since those three objects are independant, they can possibly have different lifetime.
+	// * The OnCellShown() call will be skipped if the level streaming is alive but its cell is not, as the delegate IsBound() test will reject it
+	// * A crash would occurs if both the level streaming object and the runtime cell are alive, but the world is not
+	if (UWorld* OuterWorld = GetOuterWorld())
 	{
-		OuterWorldPartition->OnCellHidden(this);
+		UWorldPartition* OuterWorldPartition = OuterWorld->GetWorldPartition();
+		if (OuterWorldPartition && OuterWorldPartition->IsInitialized())
+		{
+			OuterWorldPartition->OnCellHidden(this);
+		}
 	}
 }

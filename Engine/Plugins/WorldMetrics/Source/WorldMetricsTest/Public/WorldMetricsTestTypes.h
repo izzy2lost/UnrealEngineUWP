@@ -44,6 +44,10 @@ public:
 	int32 OnAcquireCount = 0;
 	int32 OnReleaseCount = 0;
 
+	// Static delegate to allow injecting logic into Initialize/Deinitialize without needing to create new classes.
+	using FInitializeDeinitializeDelegate = TDelegate<void(UWorldMetricsExtension* Extension, bool bInitialize)>;
+	static FInitializeDeinitializeDelegate OnInitializeDeinitialize;
+
 	virtual SIZE_T GetAllocatedSize() const override
 	{
 		return 0;

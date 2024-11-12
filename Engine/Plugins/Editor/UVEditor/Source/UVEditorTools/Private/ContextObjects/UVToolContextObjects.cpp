@@ -5,6 +5,7 @@
 #include "DynamicMesh/MeshIndexUtil.h"
 #include "Engine/World.h"
 #include "InputRouter.h" // Need to define this and UWorld so weak pointers know they are UThings
+#include "InteractiveGizmoManager.h"
 #include "InteractiveToolManager.h"
 #include "ToolTargets/UVEditorToolMeshInput.h"
 #include "UDIMUtilities.h"
@@ -15,7 +16,6 @@ using namespace UE::Geometry;
 
 namespace UVToolContextObjectLocals
 {
-
 	/**
 	 * A wrapper change that applies a given change to the unwrap canonical mesh of an input, and uses that
 	 * to update the other views. Causes a broadcast of OnCanonicalModified.
@@ -80,18 +80,23 @@ void UUVToolEmitChangeAPI::EmitToolDependentChange(UObject* TargetObject, TUniqu
 
 void UUVToolLivePreviewAPI::Initialize(UWorld* WorldIn, UInputRouter* RouterIn,
 	TUniqueFunction<void(FViewCameraState& CameraStateOut)> GetLivePreviewCameraStateFuncIn,
-	TUniqueFunction<void(const FAxisAlignedBox3d& BoundingBox)> SetLivePreviewCameraToLookAtVolumeFuncIn)
+	TUniqueFunction<void(const FAxisAlignedBox3d& BoundingBox)> SetLivePreviewCameraToLookAtVolumeFuncIn,
+	TUniqueFunction<void(const EMouseCursor::Type Cursor, bool bEnableOverride)> SetCursorOverrideFuncIn, 
+	UInteractiveGizmoManager* GizmoManagerIn)
 {
 	World = WorldIn;
 	InputRouter = RouterIn;
 	GetLivePreviewCameraStateFunc = MoveTemp(GetLivePreviewCameraStateFuncIn);
 	SetLivePreviewCameraToLookAtVolumeFunc = MoveTemp(SetLivePreviewCameraToLookAtVolumeFuncIn);
+	SetCursorOverrideFunc = MoveTemp(SetCursorOverrideFuncIn);
+	GizmoManager = GizmoManagerIn;
 }
 
 void UUVToolLivePreviewAPI::OnToolEnded(UInteractiveTool* DeadTool)
 {
 	OnDrawHUD.RemoveAll(DeadTool);
 	OnRender.RemoveAll(DeadTool);
+	ClearCursorOverride();
 }
 
 int32 FUDIMBlock::BlockU() const

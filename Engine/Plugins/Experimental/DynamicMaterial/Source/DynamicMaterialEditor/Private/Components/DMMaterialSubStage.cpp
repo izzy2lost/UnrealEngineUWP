@@ -4,7 +4,7 @@
 
 #include "Components/DMMaterialLayer.h"
 #include "Components/MaterialStageInputs/DMMSIThroughput.h"
-#include "DMPrivate.h"
+#include "Utils/DMPrivate.h"
 
 UDMMaterialSubStage* UDMMaterialSubStage::CreateMaterialSubStage(UDMMaterialStage* InParentStage)
 {
@@ -55,7 +55,7 @@ void UDMMaterialSubStage::PostEditorDuplicate(UDynamicMaterialModel* InMaterialM
 	}
 	else
 	{
-		UE::DynamicMaterialEditor::Private::LogError(TEXT("Wrong parent component passed to substage."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Wrong parent component passed to substage."), true, this);
 		ParentStage = nullptr;
 		ParentComponent = nullptr;
 		Super::PostEditorDuplicate(InMaterialModel, InParent);
@@ -78,9 +78,40 @@ bool UDMMaterialSubStage::IsCompatibleWithNextStage(const UDMMaterialStage* Next
 	return false;
 }
 
-bool UDMMaterialSubStage::IsRootStage() const
+void UDMMaterialSubStage::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
-	return false;
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
+	if (!IsComponentValid())
+	{
+		return;
+	}
+
+	if (HasComponentBeenRemoved())
+	{
+		return;
+	}
+
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
+	{
+		MarkComponentDirty();
+		VerifyAllInputMaps();
+	}
+
+	// Skip UDMMaterialStage* update because we don't want to update other stages or layers.
+	Super::Super::Update(InSource, InUpdateType);
+
+	if (IsValid(ParentComponent))
+	{
+		ParentComponent->Update(InSource, InUpdateType);
+	}
+	else if (IsValid(ParentStage))
+	{
+		ParentStage->Update(InSource, InUpdateType);
+	}
 }
 
 FString UDMMaterialSubStage::GetComponentPathComponent() const

@@ -18,8 +18,8 @@ namespace UE::ConcertClientSharedSlate
 			{
 				ConcertSharedSlate::FBaseDisplayInfo
 				{
-					LOCTEXT("ObjectsCategory.Label", "Add Objects"),
-					LOCTEXT("ObjectsCategory.Tooltip", "Options for adding objects from the open editor world")
+					LOCTEXT("ObjectsCategory.Label", "Add"),
+					LOCTEXT("ObjectsCategory.Tooltip", "Add objects from the open editor world")
 				},
 				{
 					MakeShared<FSelectedActorsSource>(),

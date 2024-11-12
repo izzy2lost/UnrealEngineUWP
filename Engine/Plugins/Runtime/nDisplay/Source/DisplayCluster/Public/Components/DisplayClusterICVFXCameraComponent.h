@@ -9,14 +9,16 @@
 
 #include "DisplayClusterConfigurationTypes_ICVFX.h"
 #include "DisplayClusterEditorPropertyReference.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_Enums.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_CameraMotionBlur.h"
-#include "Render/Viewport/Containers/DisplayClusterViewport_CameraDepthOfField.h"
+#include "ShaderParameters/DisplayClusterShaderParameters_ICVFX.h"
 
 #include "DisplayClusterICVFXCameraComponent.generated.h"
 
 struct FMinimalViewInfo;
 class SWidget;
 class UCameraComponent;
+class IDisplayClusterViewport;
 
 
 /**
@@ -46,11 +48,19 @@ public:
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-public:
-	FDisplayClusterViewport_CameraMotionBlur GetMotionBlurParameters();
+	/** The ICVFXCamera component uses its own PostProcess and applies it to the viewport.
+	*
+	* @param InViewport - a viewport that need to be configured with a PP settings.
+	* @param InPostProcessFlags - Define the PostProcess set that will be used
+	*/
+	virtual void ApplyICVFXCameraPostProcessesToViewport(IDisplayClusterViewport* InDestViewport, const EDisplayClusterViewportCameraPostProcessFlags InPostProcessingFlags);
 
-	/** Gets the depth of field parameters to store on the display cluster viewport */
-	FDisplayClusterViewport_CameraDepthOfField GetDepthOfFieldParameters();
+public:
+	UE_DEPRECATED(5.5, "This function has been deprecated. Please use 'FDisplayClusterViewportConfigurationHelpers_Postprocess::GetICVFXCameraMotionBlurParameters()'.")
+	FDisplayClusterViewport_CameraMotionBlur GetMotionBlurParameters()
+	{
+		return FDisplayClusterViewport_CameraMotionBlur();
+	}
 
 	/**
 	 * Return the actual source camera, e.g. the camera component of the referenced cine camera.
@@ -68,10 +78,7 @@ public:
 	// Return unique camera name
 	FString GetCameraUniqueId() const;
 
-	const FDisplayClusterConfigurationICVFX_CameraSettings& GetCameraSettingsICVFX() const
-	{
-		return CameraSettings;
-	}
+	const FDisplayClusterConfigurationICVFX_CameraSettings& GetCameraSettingsICVFX() const;
 
 	/** Obtaining view information for the actual camera, such as the camera component to which the cine-camera is referencing.
 	 * The data from the CameraSettings variable is used in postprocess settings (EnableCameraPP, OverrideMotionBlur, etc.).
@@ -82,8 +89,14 @@ public:
 	virtual void OnRegister() override;
 
 	/** Sets new depth of field parameters and updates the dynamically generated compensation LUT if needed */
-	UFUNCTION(BlueprintCallable, Category = "In Camera VFX")
+	UFUNCTION(BlueprintCallable, Category = "ICVFX Camera")
 	void SetDepthOfFieldParameters(const FDisplayClusterConfigurationICVFX_CameraDepthOfField& NewDepthOfFieldParams);
+
+	/** Get ICVFX camera frame resolution. */
+	FIntPoint GetICVFXCameraFrameSize(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const FDisplayClusterConfigurationICVFX_CameraSettings& InCameraSettings);
+
+	/** Get ICVFX camera shader parameters. */
+	FDisplayClusterShaderParameters_ICVFX::FCameraSettings GetICVFXCameraShaderParameters(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const FDisplayClusterConfigurationICVFX_CameraSettings& InCameraSettings);
 
 private:
 	void UpdateOverscanEstimatedFrameSize();
@@ -196,7 +209,7 @@ private:
 	UPROPERTY(EditAnywhere, Transient, Category = "Texture Replacement", meta = (PropertyPath = "CameraSettings.RenderSettings.Replace.TextureRegion"))
 	FDisplayClusterEditorPropertyReference TextureRegionRef;
 
-	UPROPERTY(EditAnywhere, Transient, Category = "Media", meta = (PropertyPath = "CameraSettings.RenderSettings.Media"))
+	UPROPERTY(EditDefaultsOnly, Transient, Category = "Media", meta = (PropertyPath = "CameraSettings.RenderSettings.Media"))
 	FDisplayClusterEditorPropertyReference MediaRef;
 
 	UPROPERTY(EditAnywhere, Transient, Category = Configuration, meta = (PropertyPath = "CameraSettings.RenderSettings.RenderOrder"))

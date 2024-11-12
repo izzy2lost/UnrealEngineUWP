@@ -59,6 +59,11 @@ static TAutoConsoleVariable<int32> CVarLumenSceneLightingAsyncCompute(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+uint32 GetLumenLightingStatMode()
+{
+	return FMath::Clamp(GLumenLightingStats, 0, 3);
+}
+
 namespace LumenSceneLighting
 {
 	bool UseFeedback(const FSceneViewFamily& ViewFamily)
@@ -140,6 +145,7 @@ class FLumenCardCombineLightingCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CardTiles)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWFinalLightingAtlas)
 		SHADER_PARAMETER(FVector2f, IndirectLightingAtlasHalfTexelSize)
+		SHADER_PARAMETER(FVector3f, TargetFormatQuantizationError)
 	END_SHADER_PARAMETER_STRUCT()
 
 	using FPermutationDomain = TShaderPermutationDomain<>;
@@ -179,6 +185,7 @@ void Lumen::CombineLumenSceneLighting(
 	PassParameters->RWFinalLightingAtlas = GraphBuilder.CreateUAV(FrameTemporaries.FinalLightingAtlas);
 	const FIntPoint IndirectLightingAtlasSize = LumenSceneData.GetRadiosityAtlasSize();
 	PassParameters->IndirectLightingAtlasHalfTexelSize = FVector2f(0.5f / IndirectLightingAtlasSize.X, 0.5f / IndirectLightingAtlasSize.Y);
+	PassParameters->TargetFormatQuantizationError = Lumen::GetLightingQuantizationError();
 
 	auto ComputeShader = View.ShaderMap->GetShader<FLumenCardCombineLightingCS>();
 
@@ -221,54 +228,66 @@ void FDeferredShadingSceneRenderer::RenderLumenSceneLighting(
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(RenderLumenSceneLighting);
 		QUICK_SCOPE_CYCLE_COUNTER(RenderLumenSceneLighting);
-		RDG_EVENT_SCOPE(GraphBuilder, "LumenSceneLighting%s", LumenCardRenderer.bPropagateGlobalLightingChange ? TEXT(" PROPAGATE GLOBAL CHANGE!") : TEXT(""));
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, LumenSceneLighting, "LumenSceneLighting%s", LumenCardRenderer.bPropagateGlobalLightingChange ? TEXT(" PROPAGATE GLOBAL CHANGE!") : TEXT(""));
 		RDG_GPU_STAT_SCOPE(GraphBuilder, LumenSceneLighting);
 
 		const ERDGPassFlags ComputePassFlags = LumenSceneLighting::UseAsyncCompute(ViewFamily) ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute;
 
 		LumenSceneData.IncrementSurfaceCacheUpdateFrameIndex();
 
-		if (LumenSceneData.GetNumCardPages() > 0)
+		if (LumenSceneData.bDebugClearAllCachedState)
 		{
-			if (LumenSceneData.bDebugClearAllCachedState)
+			AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.DirectLightingAtlas);
+			AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.IndirectLightingAtlas);
+			AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.RadiosityNumFramesAccumulatedAtlas);
+			AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.FinalLightingAtlas);
+			if (FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas)
 			{
-				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.DirectLightingAtlas);
-				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.IndirectLightingAtlas);
-				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.RadiosityNumFramesAccumulatedAtlas);
-				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.FinalLightingAtlas);
+				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas);
 			}
-
-			LumenRadiosity::FFrameTemporaries RadiosityFrameTemporaries;
-			LumenRadiosity::InitFrameTemporaries(GraphBuilder, LumenSceneData, ViewFamily, Views, RadiosityFrameTemporaries);
-
-			FLumenCardUpdateContext DirectLightingCardUpdateContext;
-			FLumenCardUpdateContext IndirectLightingCardUpdateContext;
-			Lumen::BuildCardUpdateContext(
-				GraphBuilder,
-				LumenSceneData,
-				Views,
-				FrameTemporaries,
-				RadiosityFrameTemporaries.bIndirectLightingHistoryValid,
-				DirectLightingCardUpdateContext,
-				IndirectLightingCardUpdateContext,
-				ComputePassFlags);
-
-			RenderDirectLightingForLumenScene(
-				GraphBuilder,
-				FrameTemporaries,
-				DirectLightingTaskData,
-				DirectLightingCardUpdateContext,
-				ComputePassFlags);
-
-			RenderRadiosityForLumenScene(
-				GraphBuilder,
-				FrameTemporaries,
-				RadiosityFrameTemporaries,
-				IndirectLightingCardUpdateContext,
-				ComputePassFlags);
-
-			LumenSceneData.bFinalLightingAtlasContentsValid = true;
+			if (FrameTemporaries.NumFramesAccumulatedHistoryAtlas)
+			{
+				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.NumFramesAccumulatedHistoryAtlas);
+			}
 		}
+
+		LumenRadiosity::FFrameTemporaries RadiosityFrameTemporaries;
+		LumenRadiosity::InitFrameTemporaries(GraphBuilder, LumenSceneData, ViewFamily, Views, RadiosityFrameTemporaries);
+
+		FLumenCardUpdateContext DirectLightingCardUpdateContext;
+		FLumenCardUpdateContext IndirectLightingCardUpdateContext;
+		Lumen::BuildCardUpdateContext(
+			GraphBuilder,
+			LumenSceneData,
+			Views,
+			FrameTemporaries,
+			RadiosityFrameTemporaries.bIndirectLightingHistoryValid,
+			DirectLightingCardUpdateContext,
+			IndirectLightingCardUpdateContext,
+			ComputePassFlags);
+
+		// Pointing cards debug data
+		if (GetLumenLightingStatMode() > 2)
+		{
+			FLumenSceneFrameTemporaries* NonCstFrameTemporaries = const_cast<FLumenSceneFrameTemporaries*>(&FrameTemporaries);
+			NonCstFrameTemporaries->DebugData = TraceLumenHardwareRayTracedDebug(GraphBuilder, Scene, Views[0], 0 /*ViewIndex*/, FrameTemporaries, ComputePassFlags);
+		}
+
+		RenderDirectLightingForLumenScene(
+			GraphBuilder,
+			FrameTemporaries,
+			DirectLightingTaskData,
+			DirectLightingCardUpdateContext,
+			ComputePassFlags);
+
+		RenderRadiosityForLumenScene(
+			GraphBuilder,
+			FrameTemporaries,
+			RadiosityFrameTemporaries,
+			IndirectLightingCardUpdateContext,
+			ComputePassFlags);
+
+		LumenSceneData.bFinalLightingAtlasContentsValid = true;
 	}
 }
 
@@ -493,6 +512,7 @@ public:
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), 1);
+		OutEnvironment.SetDefine(TEXT("SHADER_STATS"), 1);
 	}
 };
 
@@ -586,6 +606,8 @@ void Lumen::BuildCardUpdateContext(
 			GroupSize);
 	}
 
+	int32 NumViewOrigins = FrameTemporaries.ViewOrigins.Num();
+
 	// Prepare update priority histogram
 	{
 		FBuildPageUpdatePriorityHistogramCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FBuildPageUpdatePriorityHistogramCS::FParameters>();
@@ -597,12 +619,12 @@ void Lumen::BuildCardUpdateContext(
 		PassParameters->SurfaceCacheUpdateFrameIndex = UpdateFrameIndex;
 		PassParameters->FreezeUpdateFrame = FreezeUpdateFrame;
 		PassParameters->FirstClipmapWorldExtentRcp = FirstClipmapWorldExtentRcp;
-		PassParameters->NumCameraOrigins = Views.Num();
-		check(Views.Num() <= PassParameters->WorldCameraOrigins.Num());
+		PassParameters->NumCameraOrigins = NumViewOrigins;
+		check(NumViewOrigins <= PassParameters->WorldCameraOrigins.Num());
 
-		for (int32 i = 0; i < Views.Num(); i++)
+		for (int32 OriginIndex = 0; OriginIndex < NumViewOrigins; ++OriginIndex)
 		{
-			PassParameters->WorldCameraOrigins[i] = FVector4f((FVector3f)Views[i].ViewMatrices.GetViewOrigin(), 0.0f);
+			PassParameters->WorldCameraOrigins[OriginIndex] = FrameTemporaries.ViewOrigins[OriginIndex].WorldCameraOrigin;
 		}
 
 		PassParameters->DirectLightingUpdateFactor = DirectLightingCardUpdateContext.UpdateFactor;
@@ -661,13 +683,13 @@ void Lumen::BuildCardUpdateContext(
 		PassParameters->SurfaceCacheUpdateFrameIndex = UpdateFrameIndex;
 		PassParameters->FreezeUpdateFrame = FreezeUpdateFrame;
 		PassParameters->FirstClipmapWorldExtentRcp = FirstClipmapWorldExtentRcp;
-		PassParameters->NumCameraOrigins = Views.Num();
+		PassParameters->NumCameraOrigins = NumViewOrigins;
 		PassParameters->IndirectLightingHistoryValid = bIndirectLightingHistoryValid ? 1 : 0;
-		check(Views.Num() <= PassParameters->WorldCameraOrigins.Num());
+		check(NumViewOrigins <= PassParameters->WorldCameraOrigins.Num());
 
-		for (int32 i = 0; i < Views.Num(); i++)
+		for (int32 OriginIndex = 0; OriginIndex < NumViewOrigins; ++OriginIndex)
 		{
-			PassParameters->WorldCameraOrigins[i] = FVector4f((FVector3f)Views[i].ViewMatrices.GetViewOrigin(), 0.0f);
+			PassParameters->WorldCameraOrigins[OriginIndex] = FrameTemporaries.ViewOrigins[OriginIndex].WorldCameraOrigin;
 		}
 
 		PassParameters->MaxDirectLightingTilesToUpdate = DirectLightingCardUpdateContext.MaxUpdateTiles;
@@ -712,7 +734,8 @@ void Lumen::BuildCardUpdateContext(
 			FIntVector(1, 1, 1));
 	}
 
-	if (GLumenLightingStats != 0)
+	const uint32 StatMode = GetLumenLightingStatMode();
+	if (StatMode == 1 || StatMode == 2)
 	{
 		ShaderPrint::SetEnabled(true);
 
@@ -725,7 +748,7 @@ void Lumen::BuildCardUpdateContext(
 		PassParameters->MaxUpdateBucket = MaxUpdateBucketSRV;
 		PassParameters->CardPageTileAllocator = GraphBuilder.CreateSRV(CardPageTileAllocator);
 		PassParameters->CardPageNum = LumenSceneData.GetNumCardPages();
-		PassParameters->LightingStatMode = GLumenLightingStats;
+		PassParameters->LightingStatMode = StatMode;
 
 		auto ComputeShader = Views[0].ShaderMap->GetShader<FLumenSceneLightingStatsCS>();
 

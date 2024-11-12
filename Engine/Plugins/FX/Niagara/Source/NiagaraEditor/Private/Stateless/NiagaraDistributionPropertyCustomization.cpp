@@ -15,6 +15,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SNiagaraDistributionEditor.h"
 
+#include "NiagaraEditorUtilities.h"
 #include "NiagaraNodeParameterMapBase.h"
 #include "NiagaraParameterMapHistory.h"
 #include "NiagaraScriptSource.h"
@@ -22,15 +23,22 @@
 
 #define LOCTEXT_NAMESPACE "NiagaraDistributionPropertyCustomization"
 
-class FNiagaraDistributionAdapter : public INiagaraDistributionAdapter
+class FNiagaraDistributionAdapter : public INiagaraDistributionAdapter, public TSharedFromThis<FNiagaraDistributionAdapter>
 {
 public:
-	FNiagaraDistributionAdapter(TSharedPtr<IPropertyHandle> InPropertyHandle, UObject* InOwningObject, FNiagaraDistributionBase* InDistribution, int32 InNumChannels)
-		: PropertyHandle(InPropertyHandle)
-		, OwnerObjectWeak(TWeakObjectPtr<UObject>(InOwningObject))
-		, SourceDistribution(InDistribution)
-		, SourceNumChannels(InNumChannels)
+	FNiagaraDistributionAdapter()
+		: PropertyHandle(nullptr)
+		, OwnerObjectWeak(nullptr)
+		, SourceNumChannels(INDEX_NONE)
 	{
+	}
+
+	void Initialize(TSharedPtr<IPropertyHandle> InPropertyHandle, UObject* InOwningObject, FNiagaraDistributionBase* InDistribution, int32 InNumChannels)
+	{
+		PropertyHandle = InPropertyHandle;
+		OwnerObjectWeak = TWeakObjectPtr<>(InOwningObject);
+		SourceDistribution = InDistribution;
+		SourceNumChannels = InNumChannels;
 		if (IsValid())
 		{
 			const FName DisableBindingDistributionName("DisableBindingDistribution");
@@ -40,18 +48,27 @@ public:
 			const FName DisableRangeDistributionName("DisableRangeDistribution");
 			const FName DisplayAsColorDistributionName("DisplayAsColorDistribution");
 			bAllowBinding = InDistribution->AllowBinding() && InDistribution->GetBindingTypeDef().IsValid() && (PropertyHandle ? PropertyHandle->HasMetaData(DisableBindingDistributionName) == false : false);
-			bAllowUniform = PropertyHandle ? PropertyHandle->HasMetaData(DisableUniformDistributionName) == false : false;
-			bAllowNonUniform = PropertyHandle ? PropertyHandle->HasMetaData(DisableNonUniformDistributionName) == false : false;
-			bAllowRange = PropertyHandle ? PropertyHandle->HasMetaData(DisableRangeDistributionName) == false : false;
-			bAllowCurves = InDistribution->AllowCurves() && (PropertyHandle ? PropertyHandle->HasMetaData(DisableCurveDistributionName) == false : false);
-			bDisplayAsColor = InDistribution->DisplayAsColor() || (InNumChannels >= 3 && (PropertyHandle ? PropertyHandle->HasMetaData(DisplayAsColorDistributionName) : false));
-
+			bAllowUniform = PropertyHandle->HasMetaData(DisableUniformDistributionName) == false;
+			bAllowNonUniform = PropertyHandle->HasMetaData(DisableNonUniformDistributionName) == false;
+			bAllowRange = PropertyHandle->HasMetaData(DisableRangeDistributionName) == false;
+			bAllowCurves = InDistribution->AllowCurves() && PropertyHandle->HasMetaData(DisableCurveDistributionName) == false;
+			bDisplayAsColor = InDistribution->DisplayAsColor() || (InNumChannels >= 3 && PropertyHandle->HasMetaData(DisplayAsColorDistributionName));
+			PropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this->AsShared(), &FNiagaraDistributionAdapter::DistributionPropertyChanged));
 			EditorMode = GetDistributionEditorModeFromSourceMode(SourceNumChannels, bDisplayAsColor, SourceDistribution->Mode);
 			EditorNumChannels = FNiagaraDistributionEditorUtilities::IsUniform(EditorMode) ? 1 : SourceNumChannels;
+			WidgetCustomizationOptions = FNiagaraInputParameterCustomization::MakeFromProperty(InPropertyHandle);
+
+			static const FName UnitsName("Units");
+			if (PropertyHandle->HasMetaData(UnitsName))
+			{
+				FString UnitString = PropertyHandle->GetMetaData(UnitsName);
+				TOptional<EUnit> PropertyUnit = FUnitConversion::UnitFromString(*UnitString);
+				DisplayUnit = PropertyUnit.Get(EUnit::Unspecified);
+			}
 		}
 	}
 
-	virtual bool IsValid() const override { return SourceDistribution != nullptr; }
+	virtual bool IsValid() const override { return PropertyHandle.IsValid() && SourceDistribution != nullptr; }
 
 	virtual int32 GetNumChannels() const override { return EditorNumChannels; }
 
@@ -105,6 +122,16 @@ public:
 			}
 		}
 		return FSlateColor(EStyleColor::AccentWhite);
+	}
+
+	virtual FNiagaraInputParameterCustomization GetWidgetCustomization() override
+	{
+		return WidgetCustomizationOptions;
+	}
+
+	virtual EUnit GetDisplayUnit() override
+	{
+		return DisplayUnit;	
 	}
 
 	virtual void GetSupportedDistributionModes(TArray<ENiagaraDistributionEditorMode>& OutSupportedModes) const override
@@ -173,6 +200,8 @@ public:
 		{
 			switch (InSourceMode)
 			{
+			case ENiagaraDistributionMode::Binding:
+				return ENiagaraDistributionEditorMode::Binding;
 			case ENiagaraDistributionMode::NonUniformConstant:
 				return ENiagaraDistributionEditorMode::ColorConstant;
 			case ENiagaraDistributionMode::NonUniformRange:
@@ -267,6 +296,7 @@ public:
 			return;
 		}
 
+		TGuardValue<bool> UpdateGuard(bUpdatingDistributionModeInternally, true);
 		int32 NewEditorNumChannels = FNiagaraDistributionEditorUtilities::IsUniform(InEditorMode) ? 1 : SourceNumChannels;
 
 		ENiagaraDistributionMode NewSourceMode = GetDistributionSourceModeFromEditorMode(InEditorMode);
@@ -284,6 +314,12 @@ public:
 
 		EditorNumChannels = NewEditorNumChannels;
 		EditorMode = InEditorMode;
+		OnDistributionEditorModeChangedDelegate.Broadcast();
+	}
+
+	virtual FSimpleMulticastDelegate& OnDistributionEditorModeChanged() override
+	{
+		return OnDistributionEditorModeChangedDelegate;
 	}
 
 	float GetConstantOrRangeValue(int32 ChannelIndex, int32 ValueIndex) const override
@@ -477,6 +513,19 @@ public:
 					AvailableBindings.Add(Variable);
 				}
 			}
+
+			TArray<UNiagaraParameterCollection*> AvailableParameterCollections;
+			FNiagaraEditorUtilities::GetAvailableParameterCollections(AvailableParameterCollections);
+			for (UNiagaraParameterCollection* NPCollection : AvailableParameterCollections)
+			{
+				for (const FNiagaraVariable& NPCVariable : NPCollection->GetParameters())
+				{
+					if (NPCVariable.GetType() == AllowedTypeDef)
+					{
+						AvailableBindings.Add(NPCVariable);
+					}
+				}
+			}
 		}
 		return AvailableBindings;
 	}
@@ -566,6 +615,17 @@ public:
 	}
 
 private:
+	void DistributionPropertyChanged()
+	{
+		// Watch for editor mode changes from external sources like copy/paste.
+		ENiagaraDistributionEditorMode NewEditorMode = GetDistributionEditorModeFromSourceMode(SourceNumChannels, bDisplayAsColor, SourceDistribution->Mode);
+		if (NewEditorMode != EditorMode && bUpdatingDistributionModeInternally == false)
+		{
+			EditorMode = NewEditorMode;
+			OnDistributionEditorModeChangedDelegate.Broadcast();
+		}
+	}
+
 	void MigrateDataFromModeChange(ENiagaraDistributionMode NewMode, int32 NewEditorNumChannels)
 	{
 		if (NewMode == ENiagaraDistributionMode::UniformConstant || NewMode == ENiagaraDistributionMode::NonUniformConstant)
@@ -737,6 +797,8 @@ private:
 
 	ENiagaraDistributionEditorMode EditorMode = ENiagaraDistributionEditorMode::Constant;
 	int32 EditorNumChannels = 0;
+	FNiagaraInputParameterCustomization WidgetCustomizationOptions;
+	EUnit DisplayUnit = EUnit::Unspecified;
 
 	bool bContinuousTransactionPending = false;
 	TOptional<int32> ContinuousTransactionIndex;
@@ -748,6 +810,9 @@ private:
 	bool bAllowRange = true;
 	bool bAllowCurves = true;
 	bool bDisplayAsColor = false;
+
+	FSimpleMulticastDelegate OnDistributionEditorModeChangedDelegate;
+	bool bUpdatingDistributionModeInternally = false;
 };
 
 class SNiagaraDistributionPropertyWidget : public SCompoundWidget, public FEditorUndoClient
@@ -820,9 +885,11 @@ TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization
 		if (OuterObjects.Num() == 1 && FloatDistributionPropertyHandle->GetValueData(ValueData) == FPropertyAccess::Success)
 		{
 			FNiagaraDistributionBase* FloatDistribution = static_cast<FNiagaraDistributionBase*>(ValueData);
-			return MakeShared<FNiagaraDistributionAdapter>(FloatDistributionPropertyHandle, OuterObjects[0], FloatDistribution, 1);
+			TSharedRef<FNiagaraDistributionAdapter> DistributionAdapter = MakeShared<FNiagaraDistributionAdapter>();
+			DistributionAdapter->Initialize(FloatDistributionPropertyHandle, OuterObjects[0], FloatDistribution, 1);
+			return DistributionAdapter;
 		}
-		return MakeShared<FNiagaraDistributionAdapter>(nullptr, nullptr, nullptr, INDEX_NONE);
+		return MakeShared<FNiagaraDistributionAdapter>();
 	});
 
 	return MakeShareable<FNiagaraDistributionPropertyCustomization>(new FNiagaraDistributionPropertyCustomization(FloatDistributionPropertyHandleToDistributionAdapter));
@@ -843,9 +910,11 @@ TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization
 		if (OuterObjects.Num() == 1 && Vector2DistributionPropertyHandle->GetValueData(ValueData) == FPropertyAccess::Success)
 		{
 			FNiagaraDistributionBase* Vector2Distribution = static_cast<FNiagaraDistributionBase*>(ValueData);
-			return MakeShared<FNiagaraDistributionAdapter>(Vector2DistributionPropertyHandle, OuterObjects[0], Vector2Distribution, 2);
+			TSharedRef<FNiagaraDistributionAdapter> DistributionAdapter = MakeShared<FNiagaraDistributionAdapter>();
+			DistributionAdapter->Initialize(Vector2DistributionPropertyHandle, OuterObjects[0], Vector2Distribution, 2);
+			return DistributionAdapter;
 		}
-		return MakeShared<FNiagaraDistributionAdapter>(nullptr, nullptr, nullptr, INDEX_NONE);
+		return MakeShared<FNiagaraDistributionAdapter>();
 	});
 
 	return MakeShareable<FNiagaraDistributionPropertyCustomization>(new FNiagaraDistributionPropertyCustomization(Vector2DistributionPropertyHandleToDistributionAdapter));
@@ -861,12 +930,19 @@ TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization
 		if (OuterObjects.Num() == 1 && Vector3DistributionPropertyHandle->GetValueData(ValueData) == FPropertyAccess::Success)
 		{
 			FNiagaraDistributionBase* Vector3Distribution = static_cast<FNiagaraDistributionBase*>(ValueData);
-			return MakeShared<FNiagaraDistributionAdapter>(Vector3DistributionPropertyHandle, OuterObjects[0], Vector3Distribution, 3);
+			TSharedRef<FNiagaraDistributionAdapter> DistributionAdapter = MakeShared<FNiagaraDistributionAdapter>();
+			DistributionAdapter->Initialize(Vector3DistributionPropertyHandle, OuterObjects[0], Vector3Distribution, 3);
+			return DistributionAdapter;
 		}
-		return MakeShared<FNiagaraDistributionAdapter>(nullptr, nullptr, nullptr, INDEX_NONE);
+		return MakeShared<FNiagaraDistributionAdapter>();
 	});
 
 	return MakeShareable<FNiagaraDistributionPropertyCustomization>(new FNiagaraDistributionPropertyCustomization(Vector3DistributionPropertyHandleToDistributionAdapter));
+}
+
+TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization::MakePositionInstance()
+{
+	return MakeVector3Instance();
 }
 
 TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization::MakeColorInstance()
@@ -879,9 +955,11 @@ TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization
 		if (OuterObjects.Num() == 1 && ColorDistributionPropertyHandle->GetValueData(ValueData) == FPropertyAccess::Success)
 		{
 			FNiagaraDistributionBase* ColorDistribution = static_cast<FNiagaraDistributionBase*>(ValueData);
-			return MakeShared<FNiagaraDistributionAdapter>(ColorDistributionPropertyHandle, OuterObjects[0], ColorDistribution, 4);
+			TSharedRef<FNiagaraDistributionAdapter> DistributionAdapter = MakeShared<FNiagaraDistributionAdapter>();
+			DistributionAdapter->Initialize(ColorDistributionPropertyHandle, OuterObjects[0], ColorDistribution, 4);
+			return DistributionAdapter;
 		}
-		return MakeShared<FNiagaraDistributionAdapter>(nullptr, nullptr, nullptr, INDEX_NONE);
+		return MakeShared<FNiagaraDistributionAdapter>();
 	});
 
 	return MakeShareable<FNiagaraDistributionPropertyCustomization>(new FNiagaraDistributionPropertyCustomization(ColorDistributionPropertyHandleToDistributionAdapter));

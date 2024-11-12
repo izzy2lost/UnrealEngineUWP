@@ -60,14 +60,6 @@ public:
 		}
 	}
 
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	void SetParameters(FRHICommandList& RHICmdList, FVector2D QuadSize, FBox2D UVRect, const FMatrix& ViewProjection, const FMatrix& World)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-		SetParameters(BatchedParameters, QuadSize, UVRect, ViewProjection, World);
-		RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundVertexShader(), BatchedParameters);
-	}
-
 private:
 	LAYOUT_FIELD(FShaderParameter, InQuadAdjust);
 	LAYOUT_FIELD(FShaderParameter, InUVAdjust);
@@ -91,14 +83,6 @@ public:
 			const float OpaqueVal = bIsOpaque ? 1.0 : 0.0;
 			SetShaderValue(BatchedParameters, InIsOpaque, OpaqueVal);
 		}
-	}
-
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	void SetParameters(FRHICommandList& RHICmdList, FRHISamplerState* SamplerStateRHI, FRHITexture* TextureRHI, bool bIsOpaque)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-		SetParameters(BatchedParameters, SamplerStateRHI, TextureRHI, bIsOpaque);
-		RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundPixelShader(), BatchedParameters);
 	}
 
 protected:

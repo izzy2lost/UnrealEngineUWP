@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "NNEHlslShaderBase.h"
+#include "NNEHlslShadersBase.h"
 #include "RenderGraphUtils.h"
 #include "ShaderParameterUtils.h"
 
@@ -29,7 +29,8 @@ namespace UE::NNEHlslShaders::Internal
 		SHADER_USE_PARAMETER_STRUCT(TSoftmaxCS, FHlslShaderBase)
 
 		class FSoftmaxType : SHADER_PERMUTATION_ENUM_CLASS("SOFTMAX_OPERATOR_TYPE", ESoftmaxOperatorType);
-		using FPermutationDomain = TShaderPermutationDomain<FSoftmaxType>;
+		class FSingleDimension : SHADER_PERMUTATION_BOOL("SINGLE_DIMENSION");
+		using FPermutationDomain = TShaderPermutationDomain<FSoftmaxType,FSingleDimension>;
 
 	public:
 
@@ -37,6 +38,7 @@ namespace UE::NNEHlslShaders::Internal
 			SHADER_PARAMETER(uint32, Num)
 			SHADER_PARAMETER(uint32, ThreadCountX)
 			SHADER_PARAMETER(uint32, AxisSize)
+			SHADER_PARAMETER(uint32, AfterAxisSize)
 			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, Input)
 			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, InputSumExp)
 			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float>, Output)

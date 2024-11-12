@@ -196,7 +196,7 @@ void TestMeshSelectorByAttribute(
 		const int InstanceCount = ISMC->GetInstanceCount();
 		TotalInstanceCount += InstanceCount;
 
-		TObjectPtr<UStaticMesh> StaticMesh = ISMC->GetStaticMesh();
+		TSoftObjectPtr<UStaticMesh> StaticMesh = ISMC->GetStaticMesh();
 
 		const FPCGByAttributeValidationData* Entry = ValidationDataEntries.FindByPredicate([StaticMesh](const FPCGByAttributeValidationData& Entry) {
 			return Entry.Mesh == StaticMesh;
@@ -304,7 +304,7 @@ void TestMeshSelectorWeighted(
 		TObjectPtr<UStaticMesh> StaticMesh = ISMC->GetStaticMesh();
 
 		FPCGMeshSelectorWeightedEntry* Entry = MeshSelector->MeshEntries.FindByPredicate([StaticMesh](const FPCGMeshSelectorWeightedEntry& Entry) {
-			return Entry.Descriptor.StaticMesh == StaticMesh;
+			return Entry.Descriptor.StaticMesh == StaticMesh.Get();
 			});
 
 		if (Test->TestNotNull("Validate instanced mesh exists in MeshEntries", Entry))

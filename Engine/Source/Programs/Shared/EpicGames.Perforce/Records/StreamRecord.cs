@@ -67,7 +67,7 @@ namespace EpicGames.Perforce
 		/// <summary>
 		/// Parent view
 		/// </summary>
-		[PerforceTag("ParentView")]
+		[PerforceTag("ParentView", Optional = true)]
 		public string? ParentView { get; set; }
 
 		/// <summary>

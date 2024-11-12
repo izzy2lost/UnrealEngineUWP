@@ -21,6 +21,14 @@ class UGeometrySelectionManager;
 class UInteractiveToolsPresetCollectionAsset;
 class FRecentPresetCollectionProvider;
 struct FAssetData;
+class IToolStylusStateProviderAPI;
+
+#if ENABLE_STYLUS_SUPPORT
+namespace UE::Modeling
+{
+	class FStylusInputHandler;
+}
+#endif
 
 struct FToolPresetOption
 {
@@ -105,6 +113,11 @@ public:
 	TSharedPtr<STransformGizmoNumericalUIOverlay> GetGizmoNumericalUIOverlayWidget() { return GizmoNumericalUIOverlayWidget; }
 
 	void NotifySelectionSystemEnabledStateModified();
+
+	// Tells the stylus API to clean up any active tracked windows / contexts
+	void DisconnectStylusStateProviderAPI();
+	
+	IToolStylusStateProviderAPI* GetStylusStateProviderAPI() const;
 
 private:
 	const static TArray<FName> PaletteNames_Standard;
@@ -203,6 +216,11 @@ private:
 	 */
 	void UpdateCategoryButtonLabelVisibility(UObject* Obj, FPropertyChangedEvent& ChangeEvent);
 
+	/**
+	 *  Updates the mesh element selection colors based off of the current editor preference for it
+	 */
+	void UpdateSelectionColors(UObject* Obj, FPropertyChangedEvent& ChangeEvent) const;
+
 	TArray<TSharedPtr<FString>> AssetLODModes;
 	TSharedPtr<STextBlock> AssetLODModeLabel;
 	TSharedPtr<STextComboBox> AssetLODMode;
@@ -210,6 +228,13 @@ private:
 
 	bool bFirstInitializeAfterModeSetup = true;
 	bool bShowActiveSelectionActions = true;
+
+#if ENABLE_STYLUS_SUPPORT
+	TUniquePtr<UE::Modeling::FStylusInputHandler> StylusInputHandler;
+#endif
+
+	// tests if selection includes components backed by assets from the /Engine folder, of types the tools might otherwise modify (currently, static meshes)
+	bool EngineAssetsSelected() const;
 
 };
 

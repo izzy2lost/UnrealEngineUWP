@@ -2,15 +2,21 @@
 
 #include "ShaderComparisonTests.h"
 
+#if WITH_AUTOMATION_TESTS
+
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/PlayerController.h"
-#include "ImageComparer.h"
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Tests/AutomationCommon.h"
 #include "UnrealClient.h"
+
+#if WITH_EDITOR
+#include "ImageComparer.h"
+#endif
 
 #include <cfloat>
 #include <memory>
@@ -228,7 +234,7 @@ bool FCompareBasepassShaders::RunTest(const FString& Parameters)
 
     // TODO(mlentine): Find appropriate normalized scores
     AddCommand(new FDelayedFunctionLatentCommand([=] {
-        FImageTolerance tolerance;
+
         float similarity = FLT_MAX;
         for (int i = 0; i < NUM_CAMERAS; ++i)
         {
@@ -238,9 +244,11 @@ bool FCompareBasepassShaders::RunTest(const FString& Parameters)
             PathName = "../../../" + PathName;
             UE_LOG(ShaderComparisonTests, Log, TEXT("Screenshots are at %s and %s."), *RealScreenshotFileName[i], *RealFP16ScreenshotFileName[i]);
             UE_LOG(ShaderComparisonTests, Log, TEXT("Difference is stored in %s"), *PathName);
+#if WITH_EDITOR
             auto single_similarity = FImageComparer().CompareStructuralSimilarity(RealScreenshotFileName[i], RealFP16ScreenshotFileName[i], FImageComparer::EStructuralSimilarityComponent::Luminance, "");
             similarity = single_similarity < similarity ? single_similarity : similarity;
             UE_LOG(ShaderComparisonTests, Log, TEXT("Similarity is %f after %d."), similarity, i);
+#endif 
         }
     
         UE_LOG(ShaderComparisonTests, Log, TEXT("FP16 ran in %f, with FP32 in %f."), (*FP16AverageTimes)[2], (*AverageTimes)[2]);
@@ -260,3 +268,5 @@ bool FCompareBasepassShaders::RunTest(const FString& Parameters)
     // This is a bit pointless right now
     return true;
 }
+
+#endif // WITH_AUTOMATION_TESTS

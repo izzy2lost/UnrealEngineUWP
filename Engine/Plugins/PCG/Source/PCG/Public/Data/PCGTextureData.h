@@ -20,7 +20,7 @@ enum class EPCGTextureColorChannel : uint8
 };
 
 UENUM(BlueprintType)
-enum class EPCGTextureDensityFunction : uint8
+enum class UE_DEPRECATED(5.5, "EPCGTextureDensityFunction has been deprecated.") EPCGTextureDensityFunction : uint8
 {
 	Ignore,
 	Multiply
@@ -44,10 +44,10 @@ enum class EPCGTextureAddressMode : uint8
 namespace PCGTextureSamplingHelpers
 {
 	/** Returns true if a texture is CPU-accessible. */
-	bool IsTextureCPUAccessible(UTexture2D* Texture);
+	TOptional<bool> IsTextureCPUAccessible(UTexture2D* Texture);
 
 	/** Returns true if a texture is both GPU-accessible and reachable from CPU memory. */
-	bool CanGPUTextureBeCPUAccessed(UTexture2D* Texture);
+	TOptional<bool> CanGPUTextureBeCPUAccessed(UTexture2D* Texture);
 }
 
 UCLASS(Abstract)
@@ -56,6 +56,10 @@ class PCG_API UPCGBaseTextureData : public UPCGSurfaceData
 	GENERATED_BODY()
 
 public:
+	// ~Being UObject interface
+	virtual void PostLoad() override;
+	// ~End UObject interface
+
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::BaseTexture; }
 	// ~End UPCGData interface
@@ -75,11 +79,28 @@ public:
 
 	virtual bool IsValid() const;
 
-public:
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = SpatialData)
-	EPCGTextureDensityFunction DensityFunction = EPCGTextureDensityFunction::Multiply; 
+protected:
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UFUNCTION(BlueprintGetter, meta = (BlueprintInternalUseOnly = "true"))
+	EPCGTextureDensityFunction GetDensityFunctionEquivalent() const;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UFUNCTION(BlueprintSetter, meta = (BlueprintInternalUseOnly = "true"))
+	void SetDensityFunctionEquivalent(EPCGTextureDensityFunction DensityFunction);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+public:
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.5, "DensityFunction has been deprecated in favor of bUseDensitySourceChannel.")
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UPROPERTY(BlueprintGetter = GetDensityFunctionEquivalent, BlueprintSetter = SetDensityFunctionEquivalent, Category = SpatialData, meta = (DeprecatedProperty, DeprecatedMessage = "Density function on GetTextureData is deprecated in favor of bUseDensitySourceChannel."))
+	EPCGTextureDensityFunction DensityFunction = EPCGTextureDensityFunction::Multiply; 
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (InlineEditConditionToggle))
+	bool bUseDensitySourceChannel = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayName = "Density Source Channel", EditCondition = "bUseDensitySourceChannel"))
 	EPCGTextureColorChannel ColorChannel = EPCGTextureColorChannel::Alpha;
 
 	/** Method used to determine the value for a sample based on the value of nearby texels. */
@@ -132,7 +153,17 @@ class UPCGTextureData : public UPCGBaseTextureData
 	GENERATED_BODY()
 
 public:
-	PCG_API void Initialize(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback, bool bCreateCPUDuplicateEditorOnly = false);
+	/**
+	 * Initialize this data. Can depend on async texture operations / async GPU readbacks. Should be polled until it returns true signaling completion,
+	 * and then IsInitialized() is used to verify the initialization was successful and data is ready to use.
+	 */
+	PCG_API bool Initialize(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, bool bCreateCPUDuplicateEditorOnly = false);
+
+	UE_DEPRECATED(5.5, "Will be removed. Poll the alternate Initialize API until it returns true instead of passing in a callback.")
+	PCG_API void Initialize(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, const TFunction<void()>& InPostInitializeCallback, bool bCreateCPUDuplicateEditorOnly = false);
+
+	/** Data is successfully initialized and is ready to use. */
+	PCG_API bool IsSuccessfullyInitialized() const { return bSuccessfullyInitialized; }
 
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Texture; }
@@ -141,22 +172,24 @@ public:
 
 	//~Begin UPCGSpatialData interface
 protected:
-	virtual UPCGSpatialData* CopyInternal() const override;
+	virtual UPCGSpatialData* CopyInternal(FPCGContext* Context) const override;
 	//~End UPCGSpatialData interface
+
+	void InitializeInternal(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, bool* bOutInitializeDone, bool bCreateCPUDuplicateEditorOnly = false);
 
 private:
 	/** Attempts to initialize the UPCGTextureData from a CPU-accessible texture. Returns true if CPU initialization succeeds. */
-	bool InitializeFromCPUTexture();
+	TOptional<bool> InitializeFromCPUTexture();
 
 	/** 
 	* Attempts to initialize the UPCGTextureData from a GPU-accessible texture. Returns true if GPU texture readback can be dispatched. 
 	* The PostInitializeCallback is only executed if this function succeeds.
 	*/
-	bool InitializeFromGPUTexture(const TFunction<void()>& PostInitializeCallback);
+	bool InitializeFromGPUTexture();
 
 #if WITH_EDITOR
 	/** Attempts to initialize the UPCGTextureData from a GPU-accessible texture, but with CPU-accessible memory. Returns true if initialization succeeds. */
-	bool InitializeGPUTextureFromCPU();
+	TOptional<bool> InitializeGPUTextureFromCPU();
 #endif
 
 public:
@@ -171,8 +204,13 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Properties)
 	int TextureIndex = 0;
-};
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/Texture2D.h"
-#endif
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Properties)
+	bool bSuccessfullyInitialized = false;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Properties)
+	bool bReadbackFromGPUInitiated = false;
+
+	// Added to help deprecation in 5.5. To be removed when the deprecated Initialized function is removed.
+	TFunction<void()> PostInitializeCallback;
+};

@@ -44,6 +44,14 @@ protected:
 	void UpdateDisplayTextureArrayIndex();
 #endif
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UFUNCTION(BlueprintGetter, meta = (BlueprintInternalUseOnly = "true"))
+	EPCGTextureDensityFunction GetDensityFunctionEquivalent() const;
+
+	UFUNCTION(BlueprintSetter, meta = (BlueprintInternalUseOnly = "true"))
+	void SetDensityFunctionEquivalent(EPCGTextureDensityFunction DensityFunction);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 public:
 	PCG_API void SetTexture(TSoftObjectPtr<UTexture> InTexture);
 	TSoftObjectPtr<UTexture> GetTexture() const { return Texture; }
@@ -59,10 +67,18 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = bDisplayTextureArrayIndex, EditConditionHides, HideEditConditionToggle, ClampMin = '0', PCG_Overridable))
 	int TextureArrayIndex = 0;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = SpatialData, meta = (PCG_Overridable))
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.5, "DensityFunction has been deprecated in favor of bUseDensitySourceChannel.")
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UPROPERTY(BlueprintGetter=GetDensityFunctionEquivalent, BlueprintSetter=SetDensityFunctionEquivalent, Category = SpatialData, meta = (DeprecatedProperty, DeprecatedMessage = "Density function on GetTextureData is deprecated in favor of bUseDensitySourceChannel."))
 	EPCGTextureDensityFunction DensityFunction = EPCGTextureDensityFunction::Multiply;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = SpatialData, meta = (InlineEditConditionToggle, PCG_Overridable, PCG_OverrideAliases="DensityFunction"))
+	bool bUseDensitySourceChannel = true;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition="bUseDensitySourceChannel", DisplayName = "Density Source Channel", PCG_Overridable))
 	EPCGTextureColorChannel ColorChannel = EPCGTextureColorChannel::Alpha;
 
 	/** Method used to determine the value for a sample based on the value of nearby texels. */
@@ -125,7 +141,15 @@ protected:
 
 struct FPCGTextureSamplerContext : public FPCGContext, public IPCGAsyncLoadingContext
 {
+public:
 	bool bTextureReadbackDone = false;
+
+	TObjectPtr<UPCGTextureData> TextureData;
+
+	FTransform Transform;
+
+protected:
+	virtual void AddExtraStructReferencedObjects(FReferenceCollector& Collector) override;
 };
 
 class FPCGTextureSamplerElement : public IPCGElement

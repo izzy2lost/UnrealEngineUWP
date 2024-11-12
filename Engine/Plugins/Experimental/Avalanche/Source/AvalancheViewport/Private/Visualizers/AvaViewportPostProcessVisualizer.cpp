@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Visualizers/AvaViewportPostProcessVisualizer.h"
+#include "AvalancheViewportModule.h"
 #include "AvaViewportDataSubsystem.h"
 #include "AvaViewportPostProcessManager.h"
 #include "Editor.h"
-#include "Editor/UnrealEdEngine.h"
 #include "Engine/RendererSettings.h"
 #include "FinalPostProcessSettings.h"
 #include "ISettingsEditorModule.h"
@@ -12,9 +12,6 @@
 #include "Misc/MessageDialog.h"
 #include "Modules/ModuleManager.h"
 #include "SceneView.h"
-#include "Viewport/Interaction/AvaViewportPostProcessInfo.h"
-#include "Viewport/Interaction/IAvaViewportDataProvider.h"
-#include "Viewport/Interaction/IAvaViewportDataProxy.h"
 #include "ViewportClient/IAvaViewportClient.h"
 
 #define LOCTEXT_NAMESPACE "AvaViewportPostProcessVisualizer"
@@ -69,10 +66,10 @@ bool FAvaViewportPostProcessVisualizer::CanActivate(bool bInSilent) const
 		return true;
 	}
 
-	URendererSettings* RenderSettings = GetMutableDefault<URendererSettings>();
-	check(RenderSettings);
+	URendererSettings* RendererSettings = GetMutableDefault<URendererSettings>();
+	check(RendererSettings);
 
-	if (RenderSettings->bEnableAlphaChannelInPostProcessing == EAlphaChannelMode::AllowThroughTonemapper)
+	if (RendererSettings->bEnableAlphaChannelInPostProcessing)
 	{
 		return true;
 	}
@@ -86,10 +83,24 @@ bool FAvaViewportPostProcessVisualizer::CanActivate(bool bInSilent) const
 	switch (Response)
 	{
 		case EAppReturnType::Yes:
-			RenderSettings->bEnableAlphaChannelInPostProcessing = EAlphaChannelMode::AllowThroughTonemapper;
-			RenderSettings->SaveConfig();
+		{
+			RendererSettings->bEnableAlphaChannelInPostProcessing = true;
+
+			if (IConsoleVariable* PropagateAlphaCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha")))
+			{
+				PropagateAlphaCVar->Set(true);
+			}
+
+			FProperty* Property = RendererSettings->GetClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(URendererSettings, bEnableAlphaChannelInPostProcessing));
+
+			FPropertyChangedEvent PropertyChangedEvent(Property, EPropertyChangeType::ValueSet, {RendererSettings});
+			RendererSettings->PostEditChangeProperty(PropertyChangedEvent);
+
+			RendererSettings->UpdateSinglePropertyInConfigFile(Property, RendererSettings->GetDefaultConfigFilename());
+
 			FModuleManager::GetModuleChecked<ISettingsEditorModule>("SettingsEditor").OnApplicationRestartRequired();
 			break;
+		}
 
 		case EAppReturnType::No:
 			// Continue to enable the option, but not the render setting.
@@ -112,7 +123,8 @@ void FAvaViewportPostProcessVisualizer::OnDeactivate()
 {
 }
 
-void FAvaViewportPostProcessVisualizer::UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InWidgetSize, const FVector2f& InCameraOffset)
+void FAvaViewportPostProcessVisualizer::UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InVisibleAreaOffset, 
+	const FVector2f& InWidgetSize, const FVector2f& InCameraOffset)
 {
 }
 
@@ -166,6 +178,7 @@ FAvaViewportPostProcessInfo* FAvaViewportPostProcessVisualizer::GetPostProcessIn
 
 	if (!AvaViewportClient.IsValid())
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportPostProcessVisualizer::GetPostProcessInfo: Invalid viewport."));
 		return nullptr;
 	}
 
@@ -173,6 +186,7 @@ FAvaViewportPostProcessInfo* FAvaViewportPostProcessVisualizer::GetPostProcessIn
 
 	if (!DataSubsystem)
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportPostProcessVisualizer::GetPostProcessInfo: Missing data subsystem."));
 		return nullptr;
 	}
 
@@ -181,6 +195,7 @@ FAvaViewportPostProcessInfo* FAvaViewportPostProcessVisualizer::GetPostProcessIn
 		return &Data->PostProcessInfo;
 	}
 
+	UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportPostProcessVisualizer::GetPostProcessInfo: Missing viewport data."));
 	return nullptr;
 }
 
@@ -199,6 +214,7 @@ void FAvaViewportPostProcessVisualizer::UpdatePostProcessInfo()
 
 	if (!AvaViewportClient.IsValid())
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportPostProcessVisualizer::UpdatePostProcessInfoL Invalid viewport."));
 		return;
 	}
 
@@ -206,6 +222,7 @@ void FAvaViewportPostProcessVisualizer::UpdatePostProcessInfo()
 
 	if (!DataSubsystem)
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportPostProcessVisualizer::UpdatePostProcessInfo: Missing data subsystem."));
 		return;
 	}
 
@@ -214,12 +231,15 @@ void FAvaViewportPostProcessVisualizer::UpdatePostProcessInfo()
 		DataSubsystem->ModifyDataSource();
 		return UpdatePostProcessInfo(Data->PostProcessInfo);
 	}
+
+	UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportPostProcessVisualizer::UpdatePostProcessInfo: Missing viewport data."));
 }
 
 void FAvaViewportPostProcessVisualizer::UpdatePostProcessMaterial()
 {
 	if (!PostProcessMaterial)
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportPostProcessVisualizer::UpdatePostProcessMaterial: Missing post process material."));
 		return;
 	}
 

@@ -8,9 +8,11 @@
 #include "Commands/DMXConflictMonitorCommands.h"
 #include "Commands/DMXEditorCommands.h"
 #include "Customizations/DMXAttributeNameCustomization.h"
+#include "Customizations/DMXAutoExpandedStructCustomization.h"
 #include "Customizations/DMXEntityFixtureTypeDetails.h"
 #include "Customizations/DMXEntityReferenceCustomization.h"
 #include "Customizations/DMXFixtureCategoryCustomization.h"
+#include "Customizations/DMXFixtureFunctionCustomization.h"
 #include "Customizations/DMXFixtureSignalFormatCustomization.h"
 #include "Customizations/DMXLibraryPortReferencesCustomization.h"
 #include "Customizations/DMXMVRSceneActorDetails.h"
@@ -22,27 +24,30 @@
 #include "DMXEditorTabNames.h"
 #include "DMXProtocolBlueprintLibrary.h"
 #include "DMXProtocolTypes.h"
+#include "Exporters/DMXMVRExporter.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/Docking/TabManager.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "IAssetTools.h"
 #include "ISequencerModule.h"
 #include "LevelEditor.h"
 #include "Library/DMXEntity.h"
 #include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXEntityReference.h"
+#include "Library/DMXImportGDTF.h"
 #include "Library/DMXLibrary.h"
+#include "Misc/MessageDialog.h"
 #include "MVR/DMXMVRSceneActor.h"
+#include "ObjectTools.h"
 #include "PropertyEditorModule.h"
 #include "Sequencer/DMXLibraryTrackEditor.h"
 #include "Sequencer/TakeRecorderDMXLibrarySource.h"
 #include "ToolMenus.h"
 #include "Widgets/Docking/SDockTab.h"
-#include "Widgets/Images/SImage.h"
 #include "Widgets/Monitors/SDMXActivityMonitor.h"
 #include "Widgets/Monitors/SDMXChannelsMonitor.h"
 #include "Widgets/Monitors/SDMXConflictMonitor.h"
 #include "Widgets/PatchTool/SDMXPatchTool.h"
-
 
 #define LOCTEXT_NAMESPACE "DMXEditorModule"
 
@@ -73,6 +78,9 @@ void FDMXEditorModule::StartupModule()
 	CreateLevelEditorToolbarDMXMenuExtender();
 	
 	StartupPIEManager();
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	AssetRegistry.OnFilesLoaded().AddStatic(&FDMXEditorModule::FixGDTFAssetNames);
 }
 
 void FDMXEditorModule::ShutdownModule()
@@ -106,6 +114,80 @@ TSharedRef<FDMXEditor> FDMXEditorModule::CreateEditor(const EToolkitMode::Type M
 	NewDMXEditor->InitEditor(Mode, InitToolkitHost, DMXLibrary);
 
 	return NewDMXEditor;
+}
+
+void FDMXEditorModule::ExportDMXLibraryAsMVRFile(UDMXLibrary* DMXLibrary, const FString& DesiredName) const
+{
+	if (DMXLibrary)
+	{
+		UE::DMX::FDMXMVRExporter::Export(DMXLibrary, DesiredName);
+	}
+}
+
+void FDMXEditorModule::FixGDTFAssetNames()
+{
+	if (!UObjectInitialized())
+	{
+		return;
+	}
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(FName("AssetRegistry")).Get();
+
+	constexpr bool bSearchSubclasses = true;
+	TArray<FAssetData> GDTFAssets;
+	AssetRegistry.GetAssetsByClass(UDMXImportGDTF::StaticClass()->GetClassPathName(), GDTFAssets, bSearchSubclasses);
+
+	TArray<UDMXImportGDTF*> InvalidGDTFAssets;
+	Algo::TransformIf(GDTFAssets, InvalidGDTFAssets,
+		[](const FAssetData& Asset)
+		{
+			return 
+				Asset.IsValid() &&
+				ObjectTools::SanitizeObjectName(Asset.AssetName.ToString()) != Asset.AssetName;
+		},
+		[](const FAssetData& Asset)
+		{
+			return Cast<UDMXImportGDTF>(Asset.GetAsset());
+		});
+
+	if (InvalidGDTFAssets.IsEmpty())
+	{
+		return;
+	}
+
+	FText MessageText = LOCTEXT("FixGDTFAssetNames", "Detected GDTF assets with invalid asset names.\nWould you like to rename them now?\n\n");
+	for (UDMXImportGDTF* GDTF : InvalidGDTFAssets)
+	{
+		MessageText = FText::Format(FText::FromString("{0}\n{1} -> {2}"), MessageText, FText::FromString(GDTF->GetName()), FText::FromString(ObjectTools::SanitizeObjectName(GDTF->GetName())));
+	}
+	
+	if (FMessageDialog::Open(EAppMsgType::YesNo, MessageText) == EAppReturnType::No)
+	{
+		return;
+	}
+
+	for (UDMXImportGDTF* GDTF : InvalidGDTFAssets)
+	{
+		if (GDTF->GetOutermostObject() == GDTF->GetPackage() && GDTF->HasAnyFlags(RF_ClassDefaultObject | RF_Standalone | RF_Public))
+		{
+			FString SaneName = ObjectTools::SanitizeObjectName(GDTF->GetName());
+			if (!IsUniqueObjectName(*SaneName, GDTF))
+			{
+				SaneName = MakeUniqueObjectName(GDTF->GetOutermost(), GDTF->GetClass(), *SaneName).ToString();
+			}
+
+			const FSoftObjectPath OldObjectPath = FSoftObjectPath(GDTF);
+
+			const FTopLevelAssetPath NewAssetPath(*GDTF->GetPathName(), *SaneName);
+			const FSoftObjectPath NewObjectPath(NewAssetPath);
+
+			TArray<FAssetRenameData> AssetToRename;
+			AssetToRename.Add(FAssetRenameData(OldObjectPath, NewObjectPath));
+
+			FAssetToolsModule& Module = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools");
+			Module.Get().RenameAssets(AssetToRename);
+		}
+	}
 }
 
 void FDMXEditorModule::BindDMXEditorCommands()
@@ -264,6 +346,8 @@ void FDMXEditorModule::RegisterAssetTypeActions()
 
 void FDMXEditorModule::RegisterClassCustomizations()
 {
+	using namespace UE::DMX;
+
 	// Details customization for the UDMXEntityFixtureType class
 	RegisterCustomClassLayout(UDMXEntityFixtureType::StaticClass()->GetFName(),
 		FOnGetDetailCustomizationInstance::CreateStatic(&FDMXEntityFixtureTypeDetails::MakeInstance)
@@ -276,7 +360,9 @@ void FDMXEditorModule::RegisterClassCustomizations()
 }
 
 void FDMXEditorModule::RegisterPropertyTypeCustomizations()
-{
+{	
+	using namespace UE::DMX;
+
 	// Property type customization for the EDMXPixelMappingDistribution enum
 	RegisterCustomPropertyTypeLayout("EDMXPixelMappingDistribution", 
 		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDMXPixelMappingDistributionCustomization::MakeInstance)
@@ -285,6 +371,11 @@ void FDMXEditorModule::RegisterPropertyTypeCustomizations()
 	// Property type customization for the EDMXFixtureSignalFormat enum
 	RegisterCustomPropertyTypeLayout("EDMXFixtureSignalFormat", 
 		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDMXFixtureSignalFormatCustomization::MakeInstance)
+	);
+
+	// Property type customization for the FDMXFixtureFunction struct
+	RegisterCustomPropertyTypeLayout(FDMXFixtureFunction::StaticStruct()->GetFName(),
+		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDMXFixtureFunctionCustomization::MakeInstance)
 	);
 
 	// Property type customization for the FDMXAttributeName struct
@@ -301,7 +392,9 @@ void FDMXEditorModule::RegisterPropertyTypeCustomizations()
 	RegisterCustomPropertyTypeLayout(FDMXEntityFixtureTypeRef::StaticStruct()->GetFName(), 
 		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDMXEntityReferenceCustomization::MakeInstance)
 	);
-	RegisterCustomPropertyTypeLayout(FDMXEntityFixturePatchRef::StaticStruct()->GetFName(), 
+
+	// Customization for the FDMXEntityFixturePatchRef struct
+	RegisterCustomPropertyTypeLayout(FDMXEntityFixturePatchRef::StaticStruct()->GetFName(),
 		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDMXEntityReferenceCustomization::MakeInstance)
 	);
 
@@ -314,6 +407,23 @@ void FDMXEditorModule::RegisterPropertyTypeCustomizations()
 	RegisterCustomPropertyTypeLayout(FAddAllPatchesButton::StaticStruct()->GetFName(), 
 		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTakeRecorderDMXLibrarySourceEditorCustomization::MakeInstance)
 	);
+
+	// Customizations for auto expanded structs. The listed structs need to be auto expanded by default in most use cases.
+	const TArray<FName> StructNames
+	{
+		FDMXFixtureMode::StaticStruct()->GetFName(),
+		FDMXInputPortReference::StaticStruct()->GetFName(),
+		FDMXOutputPortReference::StaticStruct()->GetFName()
+	};
+
+	for (const FName& StructName : StructNames)
+	{
+		RegisterCustomPropertyTypeLayout
+		(
+			StructName,
+			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDMXAutoExpandedStructCustomization::MakeInstance)
+		);
+	}
 }
 
 void FDMXEditorModule::RegisterSequencerTypes()
@@ -393,7 +503,7 @@ TSharedRef<SDockTab> FDMXEditorModule::OnSpawnPatchToolTab(const FSpawnTabArgs& 
 		.Label(LOCTEXT("PatchToolTitle", "DMX Patch Tool"))
 		.TabRole(ETabRole::NomadTab)
 		[
-			SNew(SDMXPatchTool)
+			SNew(UE::DMX::SDMXPatchTool)
 		];
 }
 

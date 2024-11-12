@@ -12,8 +12,6 @@ class GAMEPLAYABILITIES_API UAbilitySystemTestAttributeSet : public UAttributeSe
 {
 	GENERATED_UCLASS_BODY()
 
-
-
 	/**
 	 *	NOTE ON MUTABLE:
 	 *	This is only done so that UAbilitySystemTestAttributeSet can be initialized directly in GameplayEffectsTest.cpp without doing a const_cast in 100+ places.
@@ -28,7 +26,7 @@ class GAMEPLAYABILITIES_API UAbilitySystemTestAttributeSet : public UAttributeSe
 	mutable float	Health;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "AttributeTest")
-	mutable float	Mana;
+	mutable FGameplayAttributeData	Mana;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "AttributeTest")
 	mutable float	MaxMana;

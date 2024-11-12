@@ -35,6 +35,7 @@
 #include <cassert>
 #include <fstream>
 #include <memory>
+#include <cwchar>
 // UE Change Begin: Allow remapping of variables in glsl
 #include <sstream>
 // UE Change End: Allow remapping of variables in glsl
@@ -969,6 +970,9 @@ namespace
 
     std::wstring ShaderProfileName(ShaderStage stage, Compiler::ShaderModel shaderModel)
     {
+		uint8_t major_ver = shaderModel.major_ver;
+		uint8_t minor_ver = shaderModel.minor_ver;
+
         std::wstring shaderProfile;
         switch (stage)
         {
@@ -996,12 +1000,24 @@ namespace
             shaderProfile = L"cs";
             break;
 
+		// UE Change Begin: Add mesh shading stages,
+		case ShaderStage::MeshShader:
+			shaderProfile = L"ms";
+			break;
+		case ShaderStage::AmplificationShader:
+			shaderProfile = L"as";
+			break;
+		// UE Change Begin: Add mesh shading stages,
+
         // UE Change Begin: Ray tracing shaders use a library profile.
         case ShaderStage::RayGen:
         case ShaderStage::RayMiss:
         case ShaderStage::RayHitGroup:
         case ShaderStage::RayCallable:
-            return L"lib_6_3";
+			major_ver = std::max<uint8_t>(major_ver, 6);
+			minor_ver = std::max<uint8_t>(minor_ver, 3);
+			shaderProfile = L"lib";
+			break;
         // UE Change End: Ray tracing shaders use a library profile.
 
         default:
@@ -1009,14 +1025,14 @@ namespace
         }
 
         shaderProfile.push_back(L'_');
-        shaderProfile.push_back(L'0' + shaderModel.major_ver);
+        shaderProfile.push_back(L'0' + major_ver);
         shaderProfile.push_back(L'_');
-        shaderProfile.push_back(L'0' + shaderModel.minor_ver);
+        shaderProfile.push_back(L'0' + minor_ver);
 
         return shaderProfile;
     }
 
-    void ConvertDxcResult(Compiler::ResultDesc& result, IDxcOperationResult* dxcResult, ShadingLanguage targetLanguage, bool asModule)
+    static void ConvertDxcResult(Compiler::ResultDesc& result, IDxcOperationResult* dxcResult, ShadingLanguage targetLanguage, bool asModule, bool isLibrary)
     {
         HRESULT status;
         IFT(dxcResult->GetStatus(&status));
@@ -1045,12 +1061,13 @@ namespace
             }
 
 #ifdef LLVM_ON_WIN32
-            if ((targetLanguage == ShadingLanguage::Dxil) && !asModule)
+            if ((targetLanguage == ShadingLanguage::Dxil) && !asModule && !isLibrary)
             {
                 // Gather reflection information only for ShadingLanguage::Dxil
                 ShaderReflection(result.reflection, program);
             }
 #else
+			(void)isLibrary; // avoids warning-as-error
             SC_UNUSED(targetLanguage);
             SC_UNUSED(asModule);
 #endif
@@ -1078,6 +1095,7 @@ namespace
         {
             shaderProfile = ShaderProfileName(source.stage, options.shaderModel);
         }
+		const bool isLibrary = (shaderProfile.size() > 3 && std::wcsncmp(shaderProfile.c_str(), L"lib", 3) == 0);
 
         std::vector<DxcDefine> dxcDefines;
         std::vector<std::wstring> dxcDefineStrings;
@@ -1194,14 +1212,6 @@ namespace
             dxcArgStrings.push_back(L"all");
         }
 
-        // UE Change Begin: Ensure 1.2 for ray tracing shaders
-        const bool bIsRayTracingShader = (source.stage >= ShaderStage::RayGen) && (source.stage <= ShaderStage::RayCallable);
-        if (bIsRayTracingShader)
-        {
-            dxcArgStrings.push_back(L"-fspv-target-env=vulkan1.2");
-        }
-        // UE Change End: Ensure 1.2 for ray tracing shaders
-
         switch (targetLanguage)
         {
         case ShadingLanguage::Dxil:
@@ -1292,7 +1302,7 @@ namespace
                                                        static_cast<UINT32>(dxcDefines.size()), includeHandler, &compileResult));
 
         Compiler::ResultDesc ret{};
-        ConvertDxcResult(ret, compileResult, targetLanguage, asModule);
+        ConvertDxcResult(ret, compileResult, targetLanguage, asModule, isLibrary);
 
         return ret;
     }
@@ -1448,9 +1458,6 @@ namespace
         opts.flatten_multidimensional_arrays = false;
         opts.enable_420pack_extension =
             (target.language == ShadingLanguage::Glsl) && ((target.version == nullptr) || (opts.version >= 420));
-        // UE Change Begin: Fixup layout locations to include padding for arrays.
-        opts.fixup_layout_locations = options.remapAttributeLocations;
-        // UE Change End: Fixup layout locations to include padding for arrays.
         // UE Change Begin: Always enable Vulkan semantics if we don't target GLSL or ESSL
         opts.vulkan_semantics = !(target.language == ShadingLanguage::Glsl || target.language == ShadingLanguage::Essl);
         // UE Change End: Always enable Vulkan semantics if we don't target GLSL or ESSL
@@ -1502,6 +1509,11 @@ namespace
 					// UE Change End: Improved support for PLS and FBF
 				}
             }
+
+			// UE Change Begin: Default precision is Highp
+			glslOpts.fragment.default_float_precision = spirv_cross::CompilerGLSL::Options::Precision::Highp;
+			glslOpts.fragment.default_int_precision = spirv_cross::CompilerGLSL::Options::Precision::Highp;
+			// UE Change End: Default precision is Highp
 
             // UE Change Begin: Allow remapping of variables in glsl
             remap(*glslCompiler, glslCompiler->get_shader_resources(), remaps);
@@ -2063,7 +2075,7 @@ namespace ShaderConductor
                          static_cast<UINT32>(moduleNamesUtf16.size()), nullptr, 0, &linkResult));
 
         Compiler::ResultDesc binaryResult{};
-        ConvertDxcResult(binaryResult, linkResult, ShadingLanguage::Dxil, false);
+        ConvertDxcResult(binaryResult, linkResult, ShadingLanguage::Dxil, false, true);
 
         Compiler::SourceDesc source{};
         source.entryPoint = modules.entryPoint;

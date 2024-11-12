@@ -12,6 +12,27 @@ bool FEncoderNVENC::IsOpen() const
 	return Encoder != nullptr;
 }
 
+FAVResult FEncoderNVENC::ReOpen()
+{
+	Close();
+
+	NV_ENC_STRUCT(NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS, SessionParams);
+	SessionParams.apiVersion = NVENCAPI_VERSION;
+
+	SessionParams.deviceType = SessionDeviceType;
+	SessionParams.device = SessionDevice;
+
+	NVENCSTATUS const Result = FAPI::Get<FNVENC>().nvEncOpenEncodeSessionEx(&const_cast<NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS&>(SessionParams), &Encoder);
+	if (Result != NV_ENC_SUCCESS)
+	{
+		Close();
+
+		return FAVResult(EAVResult::ErrorCreating, TEXT("Failed to re-create encoder"), TEXT("NVENC"), Result);
+	}
+
+	return EAVResult::Success;
+}
+
 FAVResult FEncoderNVENC::Open(TSharedRef<FAVDevice> const& NewDevice, TSharedRef<FAVInstance> const& NewInstance, TFunction<void(NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS&)> SetupEncoderSessionFunc)
 {
 	Close();
@@ -20,6 +41,9 @@ FAVResult FEncoderNVENC::Open(TSharedRef<FAVDevice> const& NewDevice, TSharedRef
 	SessionParams.apiVersion = NVENCAPI_VERSION;
 
 	SetupEncoderSessionFunc(SessionParams);
+
+	SessionDeviceType = SessionParams.deviceType;
+	SessionDevice = SessionParams.device;
 
 	NVENCSTATUS const Result = FAPI::Get<FNVENC>().nvEncOpenEncodeSessionEx(&const_cast<NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS&>(SessionParams), &Encoder);
 	if (Result != NV_ENC_SUCCESS)
@@ -65,23 +89,39 @@ bool FEncoderNVENC::IsInitialized() const
 	return IsOpen() && Buffer != nullptr;
 }
 
-FAVResult FEncoderNVENC::ApplyConfig(FVideoEncoderConfigNVENC const& AppliedConfig, FVideoEncoderConfigNVENC const& PendingConfig, TFunction<FAVResult()> ApplyConfigFunc)
+FAVResult FEncoderNVENC::ApplyConfig(FVideoEncoderConfigNVENC const& AppliedConfig, FVideoEncoderConfigNVENC& PendingConfig, TFunction<FAVResult()> ApplyConfigFunc)
 {
 	if (IsOpen())
 	{
 		// FVideoEncoderConfigNVENC const& PendingConfig = GetPendingConfig();
 		if (AppliedConfig != PendingConfig)
 		{
+			// Because TransformConfig does not have access to MaxDeviceEncodeWidth/Height, we check this here and re-adjust the PendingConfig maxEncodeWidth/Height if it goes over.
+			SetMaxResolution(PendingConfig);
+
+			if (PendingConfig.encodeWidth > MaxDeviceEncodeWidth
+				|| PendingConfig.encodeHeight > MaxDeviceEncodeHeight)
+			{
+				return FAVResult(EAVResult::Error, TEXT("Encoder pending resolution exceeds device max capabilities"));
+			}
+			if (PendingConfig.encodeWidth > PendingConfig.maxEncodeWidth
+				|| PendingConfig.encodeHeight > PendingConfig.maxEncodeHeight)
+			{
+				return FAVResult(EAVResult::Error, TEXT("Encoder pending resolution exceeds configuration max resolution"));
+			}
+
 			if (IsInitialized())
 			{
 				// Can be reconfigured? See https://docs.nvidia.com/video-technologies/video-codec-sdk/nvenc-video-encoder-api-prog-guide/#reconfigure-api
-				if (AppliedConfig.maxEncodeWidth == PendingConfig.maxEncodeWidth
-					&& AppliedConfig.maxEncodeHeight == PendingConfig.maxEncodeHeight
-					&& AppliedConfig.enablePTD == PendingConfig.enablePTD
+				if (AppliedConfig.enablePTD == PendingConfig.enablePTD
 					&& AppliedConfig.enableEncodeAsync == PendingConfig.enableEncodeAsync
 					&& AppliedConfig.encodeConfig->gopLength == PendingConfig.encodeConfig->gopLength
 					&& AppliedConfig.encodeConfig->frameIntervalP == PendingConfig.encodeConfig->frameIntervalP
-					&& AppliedConfig.encodeConfig->encodeCodecConfig.h264Config.idrPeriod == PendingConfig.encodeConfig->encodeCodecConfig.h264Config.idrPeriod)
+					&& AppliedConfig.encodeConfig->encodeCodecConfig.h264Config.idrPeriod == PendingConfig.encodeConfig->encodeCodecConfig.h264Config.idrPeriod
+					&& AppliedConfig.maxEncodeWidth == PendingConfig.maxEncodeWidth
+					&& AppliedConfig.maxEncodeHeight == PendingConfig.maxEncodeHeight
+					&& PendingConfig.encodeWidth <= PendingConfig.maxEncodeWidth
+					&& PendingConfig.encodeHeight <= PendingConfig.maxEncodeHeight)
 				{
 					NV_ENC_STRUCT(NV_ENC_RECONFIGURE_PARAMS, ReconfigureParams);
 					FMemory::Memcpy(&ReconfigureParams.reInitEncodeParams, &static_cast<NV_ENC_INITIALIZE_PARAMS const&>(PendingConfig), sizeof(NV_ENC_INITIALIZE_PARAMS));
@@ -95,8 +135,11 @@ FAVResult FEncoderNVENC::ApplyConfig(FVideoEncoderConfigNVENC const& AppliedConf
 				}
 				else
 				{
-					// TODO: Destroy and recreate with original session
-					unimplemented();
+					FAVResult const Result = ReOpen();
+					if (Result.IsNotSuccess())
+					{
+						return Result;
+					}
 				}
 			}
 
@@ -147,6 +190,30 @@ int FEncoderNVENC::GetCapability(GUID EncodeGUID, NV_ENC_CAPS CapsToQuery) const
 	}
 
 	return FAVResult(EAVResult::ErrorInvalidState, TEXT("Encoder not open"), TEXT("NVENC"));
+}
+
+void FEncoderNVENC::GetMaxDeviceEncodeResolution(const FVideoEncoderConfigNVENC& PendingConfig)
+{
+	if (IsOpen())
+	{
+		if (!bHasMaxDeviceResolution)
+		{
+			MaxDeviceEncodeWidth = static_cast<uint32>(GetCapability(PendingConfig.encodeGUID, NV_ENC_CAPS_WIDTH_MAX));
+			MaxDeviceEncodeHeight = static_cast<uint32>(GetCapability(PendingConfig.encodeGUID, NV_ENC_CAPS_HEIGHT_MAX));
+			bHasMaxDeviceResolution = true;
+		}
+	}
+}
+
+void FEncoderNVENC::SetMaxResolution(FVideoEncoderConfigNVENC& PendingConfig)
+{
+	if (IsOpen())
+	{
+		GetMaxDeviceEncodeResolution(PendingConfig);
+
+		PendingConfig.maxEncodeWidth = FMath::Min(PendingConfig.maxEncodeWidth, MaxDeviceEncodeWidth);
+		PendingConfig.maxEncodeHeight = FMath::Min(PendingConfig.maxEncodeHeight, MaxDeviceEncodeHeight);
+	}
 }
 
 FAVResult FEncoderNVENC::SendFrame(TSharedPtr<FVideoResource> const& Resource, uint32 Timestamp, bool bForceKeyframe, TFunction<FAVResult()> ApplyConfigFunc, TFunction<void(NV_ENC_REGISTER_RESOURCE&)> SetResourceToRegisterFunc)
@@ -354,7 +421,7 @@ FAVResult FEncoderNVENC::SendFrameD3D11(TRefCountPtr<ID3D11Device> Device, TShar
 const FString AVGetComErrorDescription(HRESULT Res)
 {
 	const uint32 BufSize = 4096;
-	WIDECHAR Buffer[4096];
+	WIDECHAR	 Buffer[4096];
 	if (::FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM,
 			nullptr,
 			Res,
@@ -380,20 +447,20 @@ const FString AVGetComErrorDescription(HRESULT Res)
  */
 FAVResult FEncoderNVENC::CreateD3D11Device(TSharedRef<FAVDevice> const& InDevice, TRefCountPtr<ID3D11Device>& OutEncoderDevice, TRefCountPtr<ID3D11DeviceContext>& OutEncoderDeviceContext)
 {
-	TRefCountPtr<IDXGIDevice> DXGIDevice;
+	TRefCountPtr<IDXGIDevice>  DXGIDevice;
 	TRefCountPtr<IDXGIAdapter> Adapter;
 
 	HRESULT Result = InDevice->GetContext<FVideoContextD3D11>()->Device->QueryInterface(__uuidof(IDXGIDevice), (void**)DXGIDevice.GetInitReference());
 	if (Result != S_OK)
 	{
-		return FAVResult(EAVResult::Fatal, FString::Printf(TEXT("ID3D11Device::QueryInterface() failed 0x%X - %s."), Result, *AVGetComErrorDescription(Result)), TEXT("D3D11"));
+		return FAVResult(EAVResult::Fatal, FString::Printf(TEXT("ID3D11Device::QueryInterface() failed 0x%X - %s."), (uint32)Result, *AVGetComErrorDescription(Result)), TEXT("D3D11"));
 	}
 	else if ((Result = DXGIDevice->GetAdapter(Adapter.GetInitReference())) != S_OK)
 	{
-		return FAVResult(EAVResult::Fatal, FString::Printf(TEXT("DXGIDevice::GetAdapter() failed 0x%X - %s."), Result, *AVGetComErrorDescription(Result)), TEXT("D3D11"));
+		return FAVResult(EAVResult::Fatal, FString::Printf(TEXT("DXGIDevice::GetAdapter() failed 0x%X - %s."), (uint32)Result, *AVGetComErrorDescription(Result)), TEXT("D3D11"));
 	}
 
-	uint32 DeviceFlags = 0;
+	uint32			  DeviceFlags = 0;
 	D3D_FEATURE_LEVEL FeatureLevel = D3D_FEATURE_LEVEL_11_0;
 	D3D_FEATURE_LEVEL ActualFeatureLevel;
 
@@ -410,7 +477,7 @@ FAVResult FEncoderNVENC::CreateD3D11Device(TSharedRef<FAVDevice> const& InDevice
 			 OutEncoderDeviceContext.GetInitReference()))
 		!= S_OK)
 	{
-		return FAVResult(EAVResult::Fatal, FString::Printf(TEXT("D3D11CreateDevice() failed 0x%X - %s."), Result, *AVGetComErrorDescription(Result)), TEXT("D3D11"));
+		return FAVResult(EAVResult::Fatal, FString::Printf(TEXT("D3D11CreateDevice() failed 0x%X - %s."), (uint32)Result, *AVGetComErrorDescription(Result)), TEXT("D3D11"));
 	}
 
 	return FAVResult(EAVResult::Success, TEXT("Created D3D11 device for NVENC."), TEXT("D3D11"));

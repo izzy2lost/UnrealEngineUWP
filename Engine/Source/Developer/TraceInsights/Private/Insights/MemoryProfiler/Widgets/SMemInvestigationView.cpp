@@ -4,30 +4,36 @@
 
 #include "DesktopPlatformModule.h"
 #include "SlateOptMacros.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
-#include "Widgets/Images/SImage.h"
 
-// Insights
-#include "Insights/Common/Stopwatch.h"
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
-#include "Insights/MemoryProfiler/MemoryProfilerManager.h"
 #include "Insights/MemoryProfiler/Common/SymbolSearchPathsHelper.h"
+#include "Insights/MemoryProfiler/MemoryProfilerManager.h"
 #include "Insights/MemoryProfiler/ViewModels/MemorySharedState.h"
 #include "Insights/MemoryProfiler/Widgets/SMemAllocTableTreeView.h"
 #include "Insights/MemoryProfiler/Widgets/SMemoryProfilerWindow.h"
-#include "Insights/ViewModels/TimeRulerTrack.h"
+#include "Insights/TimingProfiler/ViewModels/TimeMarker.h"
 #include "Insights/Widgets/STimingView.h"
 
-#define LOCTEXT_NAMESPACE "SMemInvestigationView"
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::SMemInvestigationView"
+
+namespace UE::Insights::MemoryProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 SMemInvestigationView::SMemInvestigationView()
 	: ProfilerWindowWeakPtr()
 	, bIncludeHeapAllocs(false)
+	, bIncludeSwapAllocs(false)
 {
 }
 
@@ -96,7 +102,7 @@ TSharedRef<SWidget> SMemInvestigationView::ConstructInvestigationWidgetArea()
 			.FillWidth(1.0f)
 			.VAlign(VAlign_Center)
 			[
-				SAssignNew(QueryRuleComboBox, SComboBox<TSharedPtr<Insights::FMemoryRuleSpec>>)
+				SAssignNew(QueryRuleComboBox, SComboBox<TSharedPtr<FMemoryRuleSpec>>)
 				.ToolTipText(this, &SMemInvestigationView::QueryRule_GetTooltipText)
 				.OptionsSource(GetAvailableQueryRules())
 				.OnSelectionChanged(this, &SMemInvestigationView::QueryRule_OnSelectionChanged)
@@ -167,6 +173,27 @@ TSharedRef<SWidget> SMemInvestigationView::ConstructInvestigationWidgetArea()
 		.AutoHeight()
 		.Padding(0.0f, 4.0f, 0.0f, 0.0f)
 		[
+			SNew(SCheckBox)
+			.IsChecked_Lambda([this]()
+			{
+				return bIncludeSwapAllocs ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+			})
+			.OnCheckStateChanged_Lambda([this](ECheckBoxState InCheckBoxState)
+			{
+				bIncludeSwapAllocs = (InCheckBoxState == ECheckBoxState::Checked);
+			})
+			.Content()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("IncludeSwapAllocsText", "Include Swap Entries"))
+			]
+			.ToolTipText(LOCTEXT("IncludeSwapAllocsToolTipText", "Include swap entries."))
+		]
+
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(0.0f, 4.0f, 0.0f, 0.0f)
+		[
 			SNew(SHorizontalBox)
 
 			+ SHorizontalBox::Slot()
@@ -182,7 +209,7 @@ TSharedRef<SWidget> SMemInvestigationView::ConstructInvestigationWidgetArea()
 			.FillWidth(1.0f)
 			.VAlign(VAlign_Center)
 			[
-				SAssignNew(QueryTargetComboBox, SComboBox<TSharedPtr<Insights::FQueryTargetWindowSpec>>)
+				SAssignNew(QueryTargetComboBox, SComboBox<TSharedPtr<FQueryTargetWindowSpec>>)
 				.ToolTipText(LOCTEXT("QueryTargetWindowTooltip", "Select an existing or new window where the query results will be displayed"))
 				.OptionsSource(GetAvailableQueryTargets())
 				.OnSelectionChanged(this, &SMemInvestigationView::QueryTarget_OnSelectionChanged)
@@ -230,7 +257,7 @@ END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-TSharedRef<SWidget> SMemInvestigationView::QueryRule_OnGenerateWidget(TSharedPtr<Insights::FMemoryRuleSpec> InRule)
+TSharedRef<SWidget> SMemInvestigationView::QueryRule_OnGenerateWidget(TSharedPtr<FMemoryRuleSpec> InRule)
 {
 	const FText QueryRuleText = FText::Format(LOCTEXT("QueryRuleComboBox_TextFmt", "{0} ({1})"), InRule->GetVerboseName(), InRule->GetShortName());
 
@@ -278,8 +305,9 @@ TSharedRef<SWidget> SMemInvestigationView::ConstructTimeMarkerWidget(uint32 Time
 		return SNew(SBox);
 	}
 
-	const TSharedRef<Insights::FTimeMarker>& TimeMarker = ProfilerWindow->GetCustomTimeMarker(TimeMarkerIndex);
-	TSharedPtr<Insights::FTimeMarker> PreviousTimeMarker;
+	using FTimeMarker = TimingProfiler::FTimeMarker;
+	const TSharedRef<FTimeMarker>& TimeMarker = ProfilerWindow->GetCustomTimeMarker(TimeMarkerIndex);
+	TSharedPtr<FTimeMarker> PreviousTimeMarker;
 	if (TimeMarkerIndex > 0)
 	{
 		PreviousTimeMarker = ProfilerWindow->GetCustomTimeMarker(TimeMarkerIndex - 1);
@@ -320,7 +348,7 @@ TSharedRef<SWidget> SMemInvestigationView::ConstructTimeMarkerWidget(uint32 Time
 					TSharedPtr<SMemoryProfilerWindow> ProfilerWindow = GetProfilerWindow();
 					if (ProfilerWindow.IsValid())
 					{
-						ProfilerWindow->OnTimeMarkerChanged(Insights::ETimeChangedFlags::None, TimeMarker);
+						ProfilerWindow->OnTimeMarkerChanged(Timing::ETimeChangedFlags::None, TimeMarker);
 					}
 				})
 		]
@@ -336,12 +364,12 @@ TSharedRef<SWidget> SMemInvestigationView::ConstructTimeMarkerWidget(uint32 Time
 					if (PreviousTimeMarker.IsValid())
 					{
 						return FText::FromString(FString::Printf(TEXT("%s (+%s)"),
-							*TimeUtils::FormatTime(TimeMarker->GetTime(), 0.1),
-							*TimeUtils::FormatTime(TimeMarker->GetTime() - PreviousTimeMarker->GetTime(), 0.1)));
+							*FormatTime(TimeMarker->GetTime(), 0.1),
+							*FormatTime(TimeMarker->GetTime() - PreviousTimeMarker->GetTime(), 0.1)));
 					}
 					else
 					{
-						return FText::FromString(TimeUtils::FormatTime(TimeMarker->GetTime(), 0.1));
+						return FText::FromString(FormatTime(TimeMarker->GetTime(), 0.1));
 					}
 				})
 		];
@@ -380,7 +408,7 @@ void SMemInvestigationView::Tick(const FGeometry& AllottedGeometry, const double
 // Query Rules
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const TArray<TSharedPtr<Insights::FMemoryRuleSpec>>* SMemInvestigationView::GetAvailableQueryRules()
+const TArray<TSharedPtr<FMemoryRuleSpec>>* SMemInvestigationView::GetAvailableQueryRules()
 {
 	TSharedPtr<SMemoryProfilerWindow> ProfilerWindow = GetProfilerWindow();
 	if (ProfilerWindow.IsValid())
@@ -393,7 +421,7 @@ const TArray<TSharedPtr<Insights::FMemoryRuleSpec>>* SMemInvestigationView::GetA
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SMemInvestigationView::QueryRule_OnSelectionChanged(TSharedPtr<Insights::FMemoryRuleSpec> InRule, ESelectInfo::Type SelectInfo)
+void SMemInvestigationView::QueryRule_OnSelectionChanged(TSharedPtr<FMemoryRuleSpec> InRule, ESelectInfo::Type SelectInfo)
 {
 	if (SelectInfo != ESelectInfo::Direct)
 	{
@@ -415,7 +443,7 @@ FText SMemInvestigationView::QueryRule_GetSelectedText() const
 	if (ProfilerWindow.IsValid())
 	{
 		FMemorySharedState& SharedState = ProfilerWindow->GetSharedState();
-		TSharedPtr<Insights::FMemoryRuleSpec> Rule = SharedState.GetCurrentMemoryRule();
+		TSharedPtr<FMemoryRuleSpec> Rule = SharedState.GetCurrentMemoryRule();
 		if (Rule)
 		{
 			return FText::Format(LOCTEXT("QueryRuleComboBox_TextFmt", "{0} ({1})"), Rule->GetVerboseName(), Rule->GetShortName());
@@ -432,7 +460,7 @@ FText SMemInvestigationView::QueryRule_GetTooltipText() const
 	if (ProfilerWindow.IsValid())
 	{
 		FMemorySharedState& SharedState = ProfilerWindow->GetSharedState();
-		TSharedPtr<Insights::FMemoryRuleSpec> Rule = SharedState.GetCurrentMemoryRule();
+		TSharedPtr<FMemoryRuleSpec> Rule = SharedState.GetCurrentMemoryRule();
 		if (Rule.IsValid())
 		{
 			return Rule->GetDescription();
@@ -443,7 +471,7 @@ FText SMemInvestigationView::QueryRule_GetTooltipText() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const TArray<TSharedPtr<Insights::FQueryTargetWindowSpec>>* SMemInvestigationView::GetAvailableQueryTargets()
+const TArray<TSharedPtr<FQueryTargetWindowSpec>>* SMemInvestigationView::GetAvailableQueryTargets()
 {
 	TSharedPtr<SMemoryProfilerWindow> ProfilerWindow = GetProfilerWindow();
 	if (ProfilerWindow.IsValid())
@@ -456,7 +484,7 @@ const TArray<TSharedPtr<Insights::FQueryTargetWindowSpec>>* SMemInvestigationVie
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SMemInvestigationView::QueryTarget_OnSelectionChanged(TSharedPtr<Insights::FQueryTargetWindowSpec> InTarget, ESelectInfo::Type SelectInfo)
+void SMemInvestigationView::QueryTarget_OnSelectionChanged(TSharedPtr<FQueryTargetWindowSpec> InTarget, ESelectInfo::Type SelectInfo)
 {
 	if (SelectInfo != ESelectInfo::Type::Direct)
 	{
@@ -488,7 +516,7 @@ void SMemInvestigationView::UpdateSymbolPathsText() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<SWidget> SMemInvestigationView::QueryTarget_OnGenerateWidget(TSharedPtr<Insights::FQueryTargetWindowSpec> InTarget)
+TSharedRef<SWidget> SMemInvestigationView::QueryTarget_OnGenerateWidget(TSharedPtr<FQueryTargetWindowSpec> InTarget)
 {
 	return SNew(STextBlock)
 		.Text(InTarget->GetText())
@@ -503,7 +531,7 @@ FText SMemInvestigationView::QueryTarget_GetSelectedText() const
 	if (ProfilerWindow.IsValid())
 	{
 		FMemorySharedState& SharedState = ProfilerWindow->GetSharedState();
-		TSharedPtr<Insights::FQueryTargetWindowSpec> Target = SharedState.GetCurrentQueryTarget();
+		TSharedPtr<FQueryTargetWindowSpec> Target = SharedState.GetCurrentQueryTarget();
 		if (Target)
 		{
 			return Target->GetText();
@@ -519,15 +547,15 @@ FReply SMemInvestigationView::RunQuery()
 	TSharedPtr<SMemoryProfilerWindow> ProfilerWindow = GetProfilerWindow();
 	if (!ProfilerWindow.IsValid())
 	{
-		UE_LOG(MemoryProfiler, Error, TEXT("[MemQuery] Invalid Profiler Window!"));
+		UE_LOG(LogMemoryProfiler, Error, TEXT("[MemQuery] Invalid Profiler Window!"));
 		return FReply::Handled();
 	}
 
 	FMemorySharedState& SharedState = ProfilerWindow->GetSharedState();
-	TSharedPtr<Insights::FMemoryRuleSpec> Rule = SharedState.GetCurrentMemoryRule();
+	TSharedPtr<FMemoryRuleSpec> Rule = SharedState.GetCurrentMemoryRule();
 	if (!Rule)
 	{
-		UE_LOG(MemoryProfiler, Error, TEXT("[MemQuery] Invalid Rule!"));
+		UE_LOG(LogMemoryProfiler, Error, TEXT("[MemQuery] Invalid Rule!"));
 		return FReply::Handled();
 	}
 
@@ -535,7 +563,7 @@ FReply SMemInvestigationView::RunQuery()
 	const uint32 RuleNumTimeMarkers = Rule->GetNumTimeMarkers();
 	if (RuleNumTimeMarkers > NumTimeMarkers)
 	{
-		UE_LOG(MemoryProfiler, Error, TEXT("[MemQuery] Only %d time markers available. Current rule (%s) requires %u time markers!"),
+		UE_LOG(LogMemoryProfiler, Error, TEXT("[MemQuery] Only %d time markers available. Current rule (%s) requires %u time markers!"),
 			NumTimeMarkers, *Rule->GetShortName().ToString(), RuleNumTimeMarkers);
 		return FReply::Handled();
 	}
@@ -552,24 +580,26 @@ FReply SMemInvestigationView::RunQuery()
 				Builder.Append(TEXT(", "));
 			}
 			Builder.AppendChar((TCHAR)(TEXT('A') + TimeMarkerIndex));
-			const TSharedRef<Insights::FTimeMarker>& TimeMarker = ProfilerWindow->GetCustomTimeMarker(TimeMarkerIndex);
+			using FTimeMarker = TimingProfiler::FTimeMarker;
+			const TSharedRef<FTimeMarker>& TimeMarker = ProfilerWindow->GetCustomTimeMarker(TimeMarkerIndex);
 			Builder.Appendf(TEXT("=%.9f"), TimeMarker->GetTime());
 		}
 		Builder.Append(TEXT(")"));
 	}
-	UE_LOG(MemoryProfiler, Log, TEXT("[MemQuery] Run Query %s%s..."), *Rule->GetShortName().ToString(), Builder.ToString());
+	UE_LOG(LogMemoryProfiler, Log, TEXT("[MemQuery] Run Query %s%s..."), *Rule->GetShortName().ToString(), Builder.ToString());
 #endif
 
-	TSharedPtr<Insights::SMemAllocTableTreeView> MemAllocTableTreeView = ProfilerWindow->ShowMemAllocTableTreeViewTab();
+	TSharedPtr<SMemAllocTableTreeView> MemAllocTableTreeView = ProfilerWindow->ShowMemAllocTableTreeViewTab();
 	if (MemAllocTableTreeView)
 	{
-		Insights::SMemAllocTableTreeView::FQueryParams QueryParams;
+		SMemAllocTableTreeView::FQueryParams QueryParams;
 		QueryParams.Rule = Rule;
 		QueryParams.TimeMarkers[0] = (RuleNumTimeMarkers > 0) ? ProfilerWindow->GetCustomTimeMarker(0)->GetTime() : 0.0;
 		QueryParams.TimeMarkers[1] = (RuleNumTimeMarkers > 1) ? ProfilerWindow->GetCustomTimeMarker(1)->GetTime() : 0.0;
 		QueryParams.TimeMarkers[2] = (RuleNumTimeMarkers > 2) ? ProfilerWindow->GetCustomTimeMarker(2)->GetTime() : 0.0;
 		QueryParams.TimeMarkers[3] = (RuleNumTimeMarkers > 3) ? ProfilerWindow->GetCustomTimeMarker(3)->GetTime() : 0.0;
 		QueryParams.bIncludeHeapAllocs = bIncludeHeapAllocs;
+		QueryParams.bIncludeSwapAllocs = bIncludeSwapAllocs;
 		MemAllocTableTreeView->SetQueryParams(QueryParams);
 	}
 
@@ -586,8 +616,8 @@ FReply SMemInvestigationView::OnTimeMarkerLabelDoubleClicked(const FGeometry& My
 		const uint32 NumTimeMarkers = ProfilerWindow->GetNumCustomTimeMarkers();
 		if (TimeMarkerIndex < NumTimeMarkers)
 		{
-			const TSharedRef<Insights::FTimeMarker>& TimeMarker = ProfilerWindow->GetCustomTimeMarker(TimeMarkerIndex);
-			TSharedPtr<STimingView> TimingView = ProfilerWindow->GetTimingView();
+			const TSharedRef<TimingProfiler::FTimeMarker>& TimeMarker = ProfilerWindow->GetCustomTimeMarker(TimeMarkerIndex);
+			TSharedPtr<TimingProfiler::STimingView> TimingView = ProfilerWindow->GetTimingView();
 			if (TimingView.IsValid())
 			{
 				// Move timer to the center of the timing view.
@@ -600,5 +630,7 @@ FReply SMemInvestigationView::OnTimeMarkerLabelDoubleClicked(const FGeometry& My
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

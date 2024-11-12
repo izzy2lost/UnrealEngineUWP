@@ -36,7 +36,7 @@ namespace Jupiter.Common.Implementation
 			TimeSpan duration = DateTime.Now - _consumeStartedAt;
 			double rate = _totalBytesWritten / duration.TotalSeconds;
 
-			StatsdClient.DogStatsd.Histogram("jupiter.stream_throughput", rate, tags: new string[] {"sourceIdentifier:" + _sourceIdentifier});
+			StatsdClient.DogStatsd.Histogram("jupiter.stream_throughput", rate, tags: new string[] { "sourceIdentifier:" + _sourceIdentifier });
 			base.Close();
 		}
 

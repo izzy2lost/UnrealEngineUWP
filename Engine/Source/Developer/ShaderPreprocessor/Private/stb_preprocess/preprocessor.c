@@ -4,6 +4,7 @@
 #include "preprocessor.h"
 #include <assert.h>
 #include <ctype.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -484,6 +485,7 @@ static void output_line_directive(parse_state* cs)
 static uint8 pp_result_mode[PP_RESULT_count] = {
 	PP_RESULT_MODE_no_warning, PP_RESULT_MODE_supplementary,
 	PP_RESULT_MODE_no_warning,	// #undef of undefined symbol is silently ignored per spec
+	PP_RESULT_MODE_warning,
 								// initialize all others to PP_RESULT_MODE_stop
 };
 
@@ -2197,6 +2199,7 @@ enum
 	HASH_undef = 18,
 	HASH_pragma = 24,
 	HASH_ifdef = 30,
+	HASH_warning = 22,
 
 	HASH_none = 31,
 };
@@ -2907,7 +2910,7 @@ static const char* copy_argument(const char* text, int* line_number, char** p_ou
 				if (p[-1] == '\\')
 					arrsetlen(out, arrlen(out) - 1);  // undo output of '\'
 				else
-					arrput(out, ' ');
+					arrput(out, '\n');
 				p += newline_char_count(p[0], p[1]);
 				++*line_number;
 				break;
@@ -2974,7 +2977,7 @@ static const char* copy_argument(const char* text, int* line_number, char** p_ou
 					if (*p == 0)
 						return p;
 					p += newline_char_count(p[0], p[1]);
-					arrput(out, ' ');
+					arrput(out, '\n');
 					++*line_number;
 				}
 				else if (p[1] == '*')
@@ -2986,6 +2989,7 @@ static const char* copy_argument(const char* text, int* line_number, char** p_ou
 						{
 							++*line_number;
 							p += newline_char_count(p[0], p[1]);
+							arrput(out, '\n');
 						}
 						else
 						{
@@ -3090,9 +3094,6 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 			{
 				int parenthesized = 0;
 				size_t len;
-
-				if (in_macro_expansion != IN_MACRO_if_condition)
-					goto not_macro;
 
 				// copy through the following token as well
 				while (char_is_whitespace(*p))
@@ -3273,6 +3274,7 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 				// Set source offset to the end of the macro
 				cs->src_offset = p - cs->src;
 				cs->src_line_number += arg_newlines;
+				cs->dest_line_number += arg_newlines;
 				break;
 			}
 		}
@@ -3342,8 +3344,9 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 		{
 			char* copy = argument_buffer;
 			int arg_newlines = 0;
-
-			p = preprocessor_skip_whitespace(p, &cs->src_line_number);
+			const char* leading_ws = p;
+			p = preprocessor_skip_whitespace(p, &arg_newlines);
+			int leading_ws_size = p - leading_ws;
 
 			s = copy_argument(p, &arg_newlines, &copy);
 
@@ -3386,18 +3389,26 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 
 			{
 				char* e;
-				// need to strip leading and trailing whitespace so token-pasting works
-
+				// if this is a single line argument, need to strip trailing whitespace so token-pasting works
+				// otherwise we keep the whitespace as-is by re-inserting the leading ws, and so assume multiline macro arguments are not token pasted
 				arrput(copy, 0);
 				p = copy;
 				e = copy + arrlen(copy) - 1;  // get address of NUL
-
-				if (e - 1 > p)
+				
+				if (arg_newlines == 0)
 				{
-					e = (char*)preprocessor_skip_whitespace_reverse(e);
-					assert(e > p);
+					if (e - 1 > p)
+					{
+						e = (char*)preprocessor_skip_whitespace_reverse(e);
+						assert(e > p);
+					}
+					*e = 0;
 				}
-				*e = 0;
+				else
+				{
+					arrinsn(copy, 0, leading_ws_size); //-V568
+					memcpy(copy, leading_ws, leading_ws_size);
+				}
 
 #if SSE_READ_PADDING
 				// Need to ensure padding for safe SSE reads without special cases -- normally this comes from a stack allocated buffer with plenty
@@ -3423,7 +3434,7 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 				arrsetlen(copy, e - p);
 				arrput(arguments, copy);
 				cs->src_line_number += arg_newlines;
-
+				cs->dest_line_number += arg_newlines;
 				p = s + 1;	// advance to after terminating character
 			}
 		}
@@ -3507,6 +3518,7 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 
 				arrput(arguments, copy);
 				cs->src_line_number += arg_newlines;
+				cs->dest_line_number += arg_newlines;
 			}
 		}
 
@@ -3893,7 +3905,6 @@ static void process_directive(parse_state* cs, conditional_state* cons)
 		case 19:
 		case 20:
 		case 21:
-		case 22:
 		case 23:
 		case 25:
 		case 26:
@@ -3922,7 +3933,7 @@ static void process_directive(parse_state* cs, conditional_state* cons)
 						if (pp_result_mode[PP_RESULT_unrecognized_directive] != PP_RESULT_MODE_no_warning)
 						{
 							static char* directives[] = {
-								"define", "else", "elif", "endif", "error", "if", "ifdef", "ifndef", "include", "line", "pragma", "undef",
+								"define", "else", "elif", "endif", "error", "if", "ifdef", "ifndef", "include", "line", "pragma", "undef", "warning",
 							};
 							char identifier[64] = { 0 }, *match = 0;
 							int i;
@@ -3953,15 +3964,59 @@ static void process_directive(parse_state* cs, conditional_state* cons)
 		}
 
 		case HASH_line:
-			// copy line directive through to output... existing code will output the newline, so don't do it here
+		{
+			// parse line number and file name and apply these to the parser state. this will trigger a line directive to be emitted with the correct format.
+
+			p = preprocessor_skip_whitespace_simple(p);
+			if (strlen(p) == 0)
+				return;
+
+			char* number_end = NULL;
+			long long int line_number = strtoll(p, &number_end, 10);
+			if (!number_end || number_end == p || llabs(line_number) >= INT_MAX)
 			{
-				size_t out_length = strlen(p);
-				size_t s = arraddnindex(cs->dest, 6);
-				memcpy(cs->dest + s, "#line ", 6);
-				s = arraddnindex(cs->dest, out_length);
-				memcpy(cs->dest + s, p, out_length);
+				do_error_code(cs, PP_RESULT_invalid_line_linenumber, "Invalid #line line number");
+				return;
 			}
+
+			cs->src_line_number = (int)line_number;
+
+			p = preprocessor_skip_whitespace_simple(number_end);
+
+			// file path next. optional - we're done if nothing provided.
+			if (char_is_end_of_line(*p))
+				return;
+
+			// file path should be surrounded by quotes.
+			if (!char_is_quote(*p++))
+			{
+				do_error_code(cs, PP_RESULT_malformed_line_filename, "Malformed #line file name");
+				return;
+			}
+
+			// find end of file path
+			const char* path_end = p;
+			while (*path_end != '"' && !char_is_end_of_line(*path_end))
+				path_end++;
+
+			if (*path_end != '"')
+			{
+				do_error_code(cs, PP_RESULT_malformed_line_filename, "Malformed #line file name");
+				return;
+			}
+
+			ptrdiff_t len = path_end - p;
+			if (len <= 0)
+			{
+				do_error_code(cs, PP_RESULT_malformed_line_filename, "Malformed #line file name");
+				return;
+			}
+
+			// apply new file path
+			cs->filename = stb_arena_alloc_string_length(&c->macro_arena, p, len);
+
 			return;
+		}
 
 		case HASH_pragma:
 		{
@@ -4439,18 +4494,18 @@ static void process_directive(parse_state* cs, conditional_state* cons)
 		}
 
 		case HASH_error:
+		case HASH_warning:
 			p = preprocessor_skip_whitespace_simple(p);
-			const char* err_end = p;
-			while (*err_end != 0 && !(char_is_end_of_line(*err_end)))
-				err_end++;
+			const char* str_end = p;
+			while (*str_end != 0 && !(char_is_end_of_line(*str_end)))
+				str_end++;
 		
-			ptrdiff_t len = (err_end - p) + 1;
-			char* err = (char*)STB_COMMON_MALLOC(len);
-			memcpy(err, p, len - 1);
-			err[len - 1] = 0;
+			ptrdiff_t len = (str_end - p) + 1;
+			char* str = (char*)STB_COMMON_MALLOC(len);
+			memcpy(str, p, len - 1);
+			str[len - 1] = 0;
 
-			error_explicit(cs, PP_RESULT_ERROR, 0, err);
-			break;
+			error_explicit(cs, ((n & 31) == HASH_error) ? PP_RESULT_ERROR : PP_RESULT_explicit_warning, 0, str);
 	}
 
 	// each case above individually scans to end of line so they can
@@ -4737,7 +4792,6 @@ void init_preprocessor_scanner(void)
 	pp_char_class['\''] = PP_CHAR_CLASS_apostrophe;
 	pp_char_class['\\'] = PP_CHAR_CLASS_backslash;
 
-	pp_char_class['@'] = PP_CHAR_CLASS_idtype;	// RADC extension
 	pp_char_class['#'] = PP_CHAR_CLASS_hash;
 
 	// the scanner does the same as above, but doesn't stop on identifiers
@@ -5046,7 +5100,7 @@ int preprocessor_file_capacity(char* text)
 	return text ? arrcap(text) : 0;
 }
 
-void preprocessor_file_append(char* text, const char* appended_text, int appended_text_len)
+char* preprocessor_file_append(char* text, const char* appended_text, int appended_text_len)
 {
 	if (text)
 	{
@@ -5061,6 +5115,8 @@ void preprocessor_file_append(char* text, const char* appended_text, int appende
 		// And add a new null terminator
 		text[text_len + appended_text_len - 1] = 0;
 	}
+
+	return text;
 }
 
 void preprocessor_file_free(char* text, pp_diagnostic* pd)
@@ -5170,6 +5226,7 @@ void init_preprocessor(
 	init_directive("line", HASH_line);
 	init_directive("pragma", HASH_pragma);
 	init_directive("undef", HASH_undef);
+	init_directive("warning", HASH_warning);
 
 	loadfile_callback = load_callback;
 	freefile_callback = free_callback;

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "MassEntityManager.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "MassSubsystemBase.h"
 #include "MassEntityTemplateRegistry.h"
 #include "MassSpawnerSubsystem.generated.h"
@@ -45,6 +45,12 @@ public:
 	FMassEntityTemplateRegistry& GetMutableTemplateRegistryInstance() { return TemplateRegistryInstance; }
 
 	const FMassEntityTemplate* GetMassEntityTemplate(FMassEntityTemplateID TemplateID) const;
+
+	FMassEntityManager& GetEntityManagerChecked()
+	{
+		check(EntityManager.IsValid());
+		return *EntityManager.Get();
+	}
 
 protected:
 	// UWorldSubsystem BEGIN

@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "MetalRHIPrivate.h"
+#include "Shaders/Types/Templates/MetalBaseShader.h"
 
 //------------------------------------------------------------------------------
 
@@ -16,8 +18,8 @@
 class FMetalAmplificationShader : public TMetalBaseShader<FRHIAmplificationShader, SF_Amplification>
 {
 public:
-    FMetalAmplificationShader(TArrayView<const uint8> InCode);
-    FMetalAmplificationShader(TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary);
+    FMetalAmplificationShader(FMetalDevice& Device, TArrayView<const uint8> InCode);
+    FMetalAmplificationShader(FMetalDevice& Device, TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary);
 
     MTLFunctionPtr GetFunction();
 };

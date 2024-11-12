@@ -51,7 +51,7 @@ public:
 #endif
 	virtual void ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfiguredInfo) override;
 	virtual bool DoesInputSupportDefaultValue(uint32 Index) const override;
-	virtual UPCGParamData* CreateDefaultValueParam(uint32 Index) const override;
+	virtual UPCGParamData* CreateDefaultValueParam(FPCGContext* Context, uint32 Index) const override;
 #if WITH_EDITOR
 	virtual FString GetDefaultValueString(uint32 Index) const override;
 #endif // WITH_EDITOR

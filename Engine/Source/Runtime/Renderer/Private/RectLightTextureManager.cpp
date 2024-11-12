@@ -64,6 +64,12 @@ static TAutoConsoleVariable<int32> CVarRectLighMaxTextureRatio(
 	TEXT("Define the max Width/Height or Height/Width ratio that a texture can have."),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarRectLighAtlasFormat(
+	TEXT("r.RectLightAtlas.Format"),
+	0,
+	TEXT("Define the atlas format used.\n - 0: R11G11B10 (faster but can caused hue shift). \n - 1: RGA16F (more accurate but slower)"),
+	ECVF_RenderThreadSafe);
+
 namespace RectLightAtlas
 {
 
@@ -226,6 +232,11 @@ static int32 GetSlotMaxMIPLevel(const FAtlasSlot& In)
 	return MaxMIP > 0u ? MaxMIP-1u : 0u;
 }
 
+static EPixelFormat GetRectLightAtlasFormat()
+{
+	return CVarRectLighAtlasFormat.GetValueOnRenderThread() > 0 ? PF_FloatRGBA : PF_FloatR11G11B10;
+}
+
 static bool Traits_IsValid(const FAtlasRect& In)					{ return true; }
 static bool Traits_IsValid(const FAtlasHorizon& In)					{ return true; }
 static bool Traits_IsValid(const FAtlasSlot& In)					{ return In.IsValid(); }
@@ -285,6 +296,7 @@ class FRectLightAtlasDebugInfoCS : public FGlobalShader
 		SHADER_PARAMETER(FIntPoint, OutputResolution)
 		SHADER_PARAMETER(uint32, AtlasMIPIndex)
 		SHADER_PARAMETER(uint32, AtlasSourceTextureMIPBias)
+		SHADER_PARAMETER(uint32, AtlasFormat)
 		SHADER_PARAMETER_SAMPLER(SamplerState, AtlasSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, AtlasTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutputTexture)
@@ -303,6 +315,10 @@ public:
 		ShaderPrint::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 
 		OutEnvironment.SetDefine(TEXT("SHADER_DEBUG"), 1);
+	}
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return EShaderPermutationPrecacheRequest::NotPrecached;
 	}
 };
 
@@ -348,11 +364,20 @@ static FRDGTextureRef AddRectLightDebugInfoPass(
 	FRDGBufferRef HorizonBuffer = CreateSlotBuffer(GraphBuilder, Horizons, TEXT("RectLight.HorizonBuffer"));
 	FRDGBufferRef FreeBuffer = CreateSlotBuffer(GraphBuilder, FreeRects, TEXT("RectLight.FreeBuffer"));
 
+	uint32 AtlasFormat = 2;
+	switch (AtlasTexture->Desc.Format)
+	{
+		case PF_FloatR11G11B10 : AtlasFormat = 0; break;
+		case PF_FloatRGBA : AtlasFormat = 1; break;
+		default: AtlasFormat = 2; break;
+	}	
+
 	const FIntPoint OutputResolution(OutputTexture->Desc.Extent);
 	FRectLightAtlasDebugInfoCS::FParameters* Parameters = GraphBuilder.AllocParameters<FRectLightAtlasDebugInfoCS::FParameters>();
 	Parameters->AtlasResolution = AtlasTexture->Desc.Extent;
 	Parameters->AtlasMaxMipLevel = AtlasTexture->Desc.NumMips;
 	Parameters->AtlasSourceTextureMIPBias = GRectLightTextureManager.AtlasLayout.SourceTextureMIPBias;
+	Parameters->AtlasFormat = AtlasFormat;
 	Parameters->Occupancy = OccupiedPixels / float(AtlasTexture->Desc.Extent.X * AtlasTexture->Desc.Extent.Y);
 	Parameters->SlotCount = ValidSlots.Num();
 	Parameters->HorizonCount = Horizons.Num();
@@ -515,7 +540,7 @@ static void AddSlotsPass(
 			RDG_EVENT_NAME("RectLightAtlas::AddTexturePass(Slot:%d)", SlotCount),
 			Parameters,
 			ERDGPassFlags::Raster,
-			[Parameters, VertexShader, PixelShader, Viewport, Resolution, SlotCount](FRHICommandList& RHICmdList)
+			[Parameters, VertexShader, PixelShader, Viewport, Resolution, SlotCount](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FGraphicsPipelineStateInitializer GraphicsPSOInit;
 				RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -628,7 +653,7 @@ static void CopySlotsPass(
 				RDG_EVENT_NAME("RectLightAtlas::CopyTexturePass(MIP:%d,Slots:%d)", MipIt, SlotCount),
 				Parameters,
 				ERDGPassFlags::Raster,
-				[Parameters, VertexShader, PixelShader, Viewport, Resolution, SlotCount](FRHICommandList& RHICmdList)
+				[Parameters, VertexShader, PixelShader, Viewport, Resolution, SlotCount](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
 					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -744,7 +769,7 @@ static void FilterSlotsPass(
 				RDG_EVENT_NAME("RectLightAtlas::FilterTexturePass(Mip:%d,Slots:%d)", DstMip, SlotCount),
 				Parameters,
 				ERDGPassFlags::Raster,
-				[Parameters, VertexShader, PixelShader, SlotCount](FRHICommandList& RHICmdList)
+				[Parameters, VertexShader, PixelShader, SlotCount](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					const FIntPoint Resolution = Parameters->VS.AtlasResolution;
 					const FIntRect Viewport(FIntPoint::ZeroValue, Resolution);
@@ -1516,12 +1541,12 @@ FAtlasSlotDesc GetAtlasSlot(uint32 InSlotIndex)
 	return Out;
 }
 
-static FRDGTextureRef CreateRectLightAtlasTexture(FRDGBuilder& GraphBuilder, const FIntPoint& Resolution)
+static FRDGTextureRef CreateRectLightAtlasTexture(FRDGBuilder& GraphBuilder, const FIntPoint& Resolution, EPixelFormat AtlasFormat)
 {
 	const uint32 MipCount = FMath::Log2(float(FMath::Min(Resolution.X, Resolution.Y)));
 	return GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(
 		Resolution,
-		PF_FloatR11G11B10,
+		AtlasFormat,
 		FClearValueBinding::Transparent,
 		ETextureCreateFlags::UAV | ETextureCreateFlags::ShaderResource | ETextureCreateFlags::RenderTargetable,
 		MipCount),
@@ -1538,10 +1563,13 @@ void UpdateAtlasTexture(FRDGBuilder& GraphBuilder, const ERHIFeatureLevel::Type 
 
 	// Force update by resetting the atlas layout
 	static int32 CachedMaxAtlasResolution = CVarRectLightTextureResolution.GetValueOnRenderThread();
-	const bool bForceUpdate = CVarRectLighForceUpdate.GetValueOnRenderThread() > 0 || CachedMaxAtlasResolution != CVarRectLightTextureResolution.GetValueOnRenderThread();
+	static EPixelFormat CachedAtlasFormat = GetRectLightAtlasFormat();
+	const EPixelFormat AtlasFormat = GetRectLightAtlasFormat();
+	const bool bForceUpdate = CVarRectLighForceUpdate.GetValueOnRenderThread() > 0 || CachedMaxAtlasResolution != CVarRectLightTextureResolution.GetValueOnRenderThread() || CachedAtlasFormat != AtlasFormat;
 	if (bForceUpdate)
 	{
 		CachedMaxAtlasResolution = CVarRectLightTextureResolution.GetValueOnRenderThread();
+		CachedAtlasFormat = AtlasFormat;
 		GRectLightTextureManager.bHasPendingAdds = true;
 		GRectLightTextureManager.AtlasLayout = FAtlasLayout(FIntPoint(CachedMaxAtlasResolution, CachedMaxAtlasResolution));
 		for (FAtlasSlot& Slot : GRectLightTextureManager.AtlasSlots)
@@ -1604,7 +1632,7 @@ void UpdateAtlasTexture(FRDGBuilder& GraphBuilder, const ERHIFeatureLevel::Type 
 			const bool bRecreateAtlasTexture = GRectLightTextureManager.AtlasTexture == nullptr || (CopySlots.Num() == 0 && GRectLightTextureManager.AtlasTexture->GetDesc().Extent != GRectLightTextureManager.AtlasLayout.AtlasResolution);
 			if (bRecreateAtlasTexture)
 			{
-				AtlasTexture = CreateRectLightAtlasTexture(GraphBuilder, GRectLightTextureManager.AtlasLayout.AtlasResolution);
+				AtlasTexture = CreateRectLightAtlasTexture(GraphBuilder, GRectLightTextureManager.AtlasLayout.AtlasResolution, AtlasFormat);
 				bNeedExtraction = true;
 				// Sanity check
 				check(CopySlots.Num() == 0);
@@ -1617,7 +1645,7 @@ void UpdateAtlasTexture(FRDGBuilder& GraphBuilder, const ERHIFeatureLevel::Type 
 			// 2.1 Copy slots from previous to new atlas texture
 			if (CopySlots.Num() > 0)
 			{
-				FRDGTextureRef NewAtlasTexture = CreateRectLightAtlasTexture(GraphBuilder, GRectLightTextureManager.AtlasLayout.AtlasResolution);
+				FRDGTextureRef NewAtlasTexture = CreateRectLightAtlasTexture(GraphBuilder, GRectLightTextureManager.AtlasLayout.AtlasResolution, AtlasFormat);
 				bNeedExtraction = true;
 
 				CopySlotsPass(GraphBuilder, ShaderMap, CopySlots, AtlasTexture, NewAtlasTexture);

@@ -24,6 +24,7 @@ class UNiagaraDataInterfaceSparseVolumeTexture : public UNiagaraDataInterface
 		SHADER_PARAMETER(FUintVector4, PackedUniforms1)
 		SHADER_PARAMETER(FIntVector3, TextureSize)
 		SHADER_PARAMETER(int32, MipLevels)
+		SHADER_PARAMETER(int32, NumFrames)
 	END_SHADER_PARAMETER_STRUCT()
 
 public:
@@ -32,6 +33,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "SparseVolumeTexture", meta = (ToolTip = "When valid the user parameter is used as the texture rather than the one on the data interface"))
 	FNiagaraUserParameterBinding SparseVolumeTextureUserParameter;
+	
+	UPROPERTY(EditAnywhere, Category = "SparseVolumeTexture")
+	bool BlockingStreamingRequests;
 
 	//UObject Interface
 	NIAGARA_API virtual void PostInitProperties() override;
@@ -65,6 +69,8 @@ public:
 
 	NIAGARA_API void VMGetTextureDimensions(FVectorVMExternalFunctionContext& Context);
 	NIAGARA_API void VMGetNumMipLevels(FVectorVMExternalFunctionContext& Context);
+	NIAGARA_API void VMRequestSparseVolumeTextureFrame(FVectorVMExternalFunctionContext& Context);	
+	NIAGARA_API void VMGetNumFrames(FVectorVMExternalFunctionContext& Context);
 
 	NIAGARA_API void SetTexture(USparseVolumeTexture* InSparseVolumeTexture);
 
@@ -80,4 +86,6 @@ protected:
 	static NIAGARA_API const FName SampleSparseVolumeTextureName;
 	static NIAGARA_API const FName GetTextureDimensionsName;
 	static NIAGARA_API const FName GetNumMipLevelsName;
+	static NIAGARA_API const FName RequestSparseVolumeTextureFrameName;
+	static NIAGARA_API const FName GetNumFramesName;
 };

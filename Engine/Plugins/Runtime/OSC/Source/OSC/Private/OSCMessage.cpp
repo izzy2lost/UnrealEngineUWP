@@ -6,34 +6,61 @@
 
 
 FOSCMessage::FOSCMessage()
-	: Packet(MakeShared<FOSCMessagePacket>())
+	: Packet(MakeShared<UE::OSC::FMessagePacket>())
 {
 }
 
-FOSCMessage::FOSCMessage(const TSharedPtr<IOSCPacket>& InPacket)
+FOSCMessage::FOSCMessage(FOSCAddress Address, TArray<UE::OSC::FOSCData> Args)
+	: Packet(MakeShared<UE::OSC::FMessagePacket>())
+{
+	using namespace UE::OSC;
+	TSharedRef<FMessagePacket> MsgPacket = StaticCastSharedRef<FMessagePacket>(Packet);
+	MsgPacket->SetAddress(MoveTemp(Address));
+	MsgPacket->SetArguments(MoveTemp(Args));
+}
+
+FOSCMessage::FOSCMessage(const TSharedRef<UE::OSC::IPacket>& InPacket)
 	: Packet(InPacket)
 {
 }
 
-FOSCMessage::~FOSCMessage()
+FOSCMessage::FOSCMessage(const TSharedPtr<UE::OSC::IPacket>& InPacket)
+	: FOSCMessage::FOSCMessage()
 {
-	Packet.Reset();
+	Packet = InPacket.ToSharedRef();
 }
 
-void FOSCMessage::SetPacket(TSharedPtr<IOSCPacket>& InPacket)
+void FOSCMessage::SetPacket(TSharedPtr<UE::OSC::IPacket>& InPacket)
+{
+	Packet = InPacket.ToSharedRef();
+}
+
+void FOSCMessage::SetPacket(TSharedRef<UE::OSC::IPacket>& InPacket)
 {
 	Packet = InPacket;
 }
 
-const TSharedPtr<IOSCPacket>& FOSCMessage::GetPacket() const
+const TSharedPtr<UE::OSC::IPacket>& FOSCMessage::GetPacket() const
+{
+	static TSharedPtr<UE::OSC::IPacket> RetPacketPtr;
+	RetPacketPtr = TSharedPtr<UE::OSC::IPacket>(&Packet.Get());
+	return RetPacketPtr;
+}
+
+const TSharedRef<UE::OSC::IPacket>& FOSCMessage::GetPacketRef() const
 {
 	return Packet;
 }
 
+const TArray<UE::OSC::FOSCData>& FOSCMessage::GetArgumentsChecked() const
+{
+	using namespace UE::OSC;
+	return StaticCastSharedRef<FMessagePacket>(Packet)->GetArguments();
+}
 
 bool FOSCMessage::SetAddress(const FOSCAddress& InAddress)
 {
-	check(Packet.IsValid());
+	using namespace UE::OSC;
 
 	if (!InAddress.IsValidPath())
 	{
@@ -41,12 +68,13 @@ bool FOSCMessage::SetAddress(const FOSCAddress& InAddress)
 		return false;
 	}
 
-	StaticCastSharedPtr<FOSCMessagePacket>(Packet)->SetAddress(InAddress);
+	StaticCastSharedRef<FMessagePacket>(Packet)->SetAddress(InAddress);
 	return true;
 }
 
 const FOSCAddress& FOSCMessage::GetAddress() const
 {
-	check(Packet.IsValid());
-	return StaticCastSharedPtr<FOSCMessagePacket>(Packet)->GetAddress();
+	using namespace UE::OSC;
+
+	return StaticCastSharedRef<FMessagePacket>(Packet)->GetAddress();
 }

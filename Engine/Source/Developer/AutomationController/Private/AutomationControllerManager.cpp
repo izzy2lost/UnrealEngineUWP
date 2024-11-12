@@ -137,7 +137,7 @@ void FAutomatedTestPassResults::UpdateTestResultStatus(const IAutomationReportPt
 		Failed++;
 		break;
 	case EAutomationState::InProcess:
-		TestResult.DateTime = FDateTime::Now();
+		TestResult.DateTime = FDateTime::UtcNow();
 		InProcess++;
 		break;
 	case EAutomationState::NotRun:
@@ -167,6 +167,8 @@ FAutomationControllerManager::FAutomationControllerManager()
 	}
 
 	bKeepPIEOpen = Settings->bKeepPIEOpen;
+	bSortTestsByFailure = Settings->bSortTestsByFailure;
+	bPruneLogsOnSuccess = Settings->bPruneLogsOnSuccess;
 	
 	FString DeveloperPath;
 	FParse::Value(FCommandLine::Get(), TEXT("ReportOutputPath="), ReportExportPath, false);
@@ -245,7 +247,7 @@ void FAutomationControllerManager::RequestAvailableWorkers(const FGuid& SessionI
 	//store off active session ID to reject messages that come in from different sessions
 	ActiveSessionId = SessionId;
 
-	//EAutomationTestFlags::FilterMask
+	//EAutomationTestFlags_FilterMask
 
 	//TODO AUTOMATION - include change list, game, etc, or remove when launcher is integrated
 	int32 ChangelistNumber = 10000;
@@ -464,25 +466,25 @@ void FAutomationControllerManager::ReportImageComparisonResult(const FAutomation
 	if (Report.IsValid())
 	{
 		// Record the artifacts for the test.
-		TMap<EComparisonFileTypes, FString> LocalFiles;
+		TMap<FString, FString> LocalFiles;
 
 		FString ScreenshotResultsFolder = FPaths::AutomationReportsDir();
 
 		// Paths in the result are relative to the automation report directory.	
-		LocalFiles.Add(EComparisonFileTypes::Unapproved, FPaths::Combine(ScreenshotResultsFolder, Result.ReportIncomingFilePath));
+		LocalFiles.Add(ComparisonFileTypes::Unapproved, FPaths::Combine(ScreenshotResultsFolder, Result.ReportIncomingFilePath));
 
-		// Don't copy reference and delta if the images are similar.
+		// unapproved should always be valid; but approved/difference may be empty if this is a new screenshot
+		if (Result.ReportComparisonFilePath.Len())
+		{
+			LocalFiles.Add(ComparisonFileTypes::Difference, FPaths::Combine(ScreenshotResultsFolder, Result.ReportComparisonFilePath));
+		}
+
+		// Don't copy reference if the images are similar.
 		if (!Result.bSimilar)
 		{
-			// unapproved should always be valid. but approved/difference may be empty if this is a new screenshot
 			if (Result.ReportIncomingFilePath.Len())
 			{
-				LocalFiles.Add(EComparisonFileTypes::Approved, FPaths::Combine(ScreenshotResultsFolder, Result.ReportApprovedFilePath));
-			}
-
-			if (Result.ReportComparisonFilePath.Len())
-			{
-				LocalFiles.Add(EComparisonFileTypes::Difference, FPaths::Combine(ScreenshotResultsFolder, Result.ReportComparisonFilePath));
+				LocalFiles.Add(ComparisonFileTypes::Approved, FPaths::Combine(ScreenshotResultsFolder, Result.ReportApprovedFilePath));
 			}
 		}
 
@@ -507,7 +509,7 @@ void FAutomationControllerManager::ProcessComparisonQueue()
 			FImageComparisonResult Result = Entry->PendingComparison.Get();
 			FAutomationWorkerImageComparisonResults ResultMessage(
 				Entry->InstanceId,
-				Result.bSkipAttachingImages ? FGuid() : FGuid::NewGuid(),
+				Result.ComparisonId,
 				Result.ScreenshotPath,
 				Result.IsNew(),
 				Result.AreSimilar(),
@@ -628,14 +630,12 @@ void FAutomationControllerManager::CollectTestResults(TSharedPtr<IAutomationRepo
 		FCriticalSection CS;
 		for (FAutomationArtifact& Artifact : TestResult.GetArtifacts())
 		{
-			TArray<EComparisonFileTypes> Keys;
+			TArray<FString> Keys;
 			Artifact.LocalFiles.GetKeys(Keys);
-
-			bool bOnlyUnapproved = Keys.Num() == 1 && Keys[0] == EComparisonFileTypes::Unapproved;
 
 			ParallelFor(Keys.Num(), [&](int32 Index)
 				{
-					const EComparisonFileTypes& Key = Keys[Index];
+					const FString& Key = Keys[Index];
 					FString Path = Artifact.LocalFiles[Key];
 					FPaths::MakePathRelativeTo(Path, *FPaths::AutomationReportsDir());
 					Path = ArtifactDirName / Path;
@@ -643,10 +643,11 @@ void FAutomationControllerManager::CollectTestResults(TSharedPtr<IAutomationRepo
 						FScopeLock Lock(&CS);
 						Artifact.Files.Add(Key, MoveTemp(Path));
 					}
-					if (Key == EComparisonFileTypes::Unapproved)
+					if (Artifact.Type == EAutomationArtifactType::Comparison && Key == ComparisonFileTypes::Unapproved)
 					{
-						// Copy screenshot report
-						FScreenshotExportResult ExportResult = ScreenshotManager->ExportScreenshotComparisonResult(Artifact.Name, ArtifactExportPath, bOnlyUnapproved);
+						// Trigger the copy of screenshot comparison artifacts only once, using 'Unapproved' key file as cue (since it is always generated)
+						bool bOnlyGeneratedFiles = Keys.Num() < 3;
+						FScreenshotExportResult ExportResult = ScreenshotManager->ExportScreenshotComparisonResult(Artifact.Name, ArtifactExportPath, bOnlyGeneratedFiles);
 
 						FScopeLock Lock(&CS);
 						if (!JsonTestPassResults.ComparisonExported && ExportResult.Success)
@@ -663,7 +664,7 @@ void FAutomationControllerManager::CollectTestResults(TSharedPtr<IAutomationRepo
 bool FAutomationControllerManager::GenerateJsonTestPassSummary(FAutomatedTestPassResults& SerializedPassResults)
 {
 	UE_LOG(LogAutomationController, Display, TEXT("Converting results to json object..."));
-	SerializedPassResults.ReportCreatedOn = FDateTime::Now();
+	SerializedPassResults.ReportCreatedOn = FDateTime::UtcNow();
 
 	FString Json;
 	if (FJsonObjectConverter::UStructToJsonObjectString(SerializedPassResults, Json))
@@ -824,7 +825,7 @@ void FAutomationControllerManager::ExecuteNextTask( int32 ClusterIndex, OUT bool
 							UE_LOG(LogAutomationController, Log, TEXT("Sending RunTest %s to %s"), *NextTest->GetDisplayName(), *DeviceAddress.ToString());
 
 							SendMessage(
-								FMessageEndpoint::MakeMessage<FAutomationWorkerRunTests>(ExecutionCount, AddressIndex, NextTest->GetCommand(), NextTest->GetDisplayName(), NextTest->GetFullTestPath(), bSendAnalytics),
+								FMessageEndpoint::MakeMessage<FAutomationWorkerRunTests>(ExecutionCount, AddressIndex, NextTest->GetCommand(), NextTest->GetDisplayName(), NextTest->GetFullTestPath(), bSendAnalytics, bPruneLogsOnSuccess),
 								FAutomationWorkerRunTests::StaticStruct(),
 								DeviceAddress);
 
@@ -834,13 +835,16 @@ void FAutomationControllerManager::ExecuteNextTask( int32 ClusterIndex, OUT bool
 
 						UE_LOG(LogAutomationController, Display, AutomationTestStarting, *NextTest->GetDisplayName(), *NextTest->GetFullTestPath());
 
-						if (JsonTestPassResults.IsRequired && bResumeRunTest)
+						if (JsonTestPassResults.IsRequired)
 						{
 							JsonTestPassResults.UpdateTestResultStatus(NextTest, EAutomationState::InProcess);
 							FAutomatedTestResult& TestResult = JsonTestPassResults.GetTestResult(NextTest);
 							TestResult.DeviceInstance = GameInstances;
-							// Save the whole pass report so that if the next test triggers a critical failure we are not left with no pass report and we can resume.
-							GenerateJsonTestPassSummary(JsonTestPassResults);
+							if (bResumeRunTest)
+							{
+								// Save the whole pass report so that if the next test triggers a critical failure we are not left with no pass report and we can resume.
+								GenerateJsonTestPassSummary(JsonTestPassResults);
+							}
 						}
 
 						NextTest->ResetNetworkCommandResponses();
@@ -996,8 +1000,9 @@ void FAutomationControllerManager::ProcessResults()
 
 		FAutomatedTestPassResults SerializedPassResults = JsonTestPassResults;
 
-		{ 
-			// Sort result by failure to improve readability
+		if (bSortTestsByFailure)
+		{
+			// Sort result by failure to improve readability (disabled by default)
 			SerializedPassResults.Tests.StableSort([](const FAutomatedTestResult& A, const FAutomatedTestResult& B) {
 				if (A.GetErrorTotal() > 0)
 				{

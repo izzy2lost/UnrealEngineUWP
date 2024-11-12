@@ -62,7 +62,7 @@ TSet<UClass*> UE::DisplayClusterLightCardEditorUtils::GetAllStageActorClasses()
 			const FTopLevelAssetPath ClassObjectPath(FPackageName::ExportTextPathToObjectPath(*GeneratedClassPathPtr));
 			if (InheritedInterfacePaths.Contains(ClassObjectPath))
 			{
-				TSoftObjectPtr<UClass> SoftObjectPtr(ClassObjectPath.ToString());
+				TSoftObjectPtr<UClass> SoftObjectPtr = TSoftObjectPtr<UClass>(FSoftObjectPath(ClassObjectPath.ToString()));
 				if (UClass* Class = SoftObjectPtr.LoadSynchronous())
 				{
 					OutClasses.Add(Class);

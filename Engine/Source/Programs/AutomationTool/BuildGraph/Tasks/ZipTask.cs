@@ -1,18 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.BuildGraph;
-using System;
 using System.Collections.Generic;
-using System.IO.Compression;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildTool;
 using Microsoft.Extensions.Logging;
-using System.IO;
 
 namespace AutomationTool.Tasks
 {
@@ -25,31 +18,31 @@ namespace AutomationTool.Tasks
 		/// The directory to read compressed files from.
 		/// </summary>
 		[TaskParameter]
-		public DirectoryReference FromDir;
+		public DirectoryReference FromDir { get; set; }
 
 		/// <summary>
 		/// List of file specifications separated by semicolons (for example, *.cpp;Engine/.../*.bat), or the name of a tag set. Relative paths are taken from FromDir.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// List of files that should have an executable bit set.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string ExecutableFiles;
+		public string ExecutableFiles { get; set; }
 
 		/// <summary>
 		/// The zip file to create.
 		/// </summary>
 		[TaskParameter]
-		public FileReference ZipFile;
+		public FileReference ZipFile { get; set; }
 
 		/// <summary>
 		/// Tag to be applied to the created zip file.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>
@@ -61,68 +54,68 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Parameters for this task
 		/// </summary>
-		ZipTaskParameters Parameters;
+		readonly ZipTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public ZipTask(ZipTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public ZipTask(ZipTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Find all the input files
-			List<FileReference> Files;
-			if(Parameters.Files == null)
+			List<FileReference> files;
+			if (_parameters.Files == null)
 			{
-				Files = DirectoryReference.EnumerateFiles(Parameters.FromDir, "*", System.IO.SearchOption.AllDirectories).ToList();
+				files = DirectoryReference.EnumerateFiles(_parameters.FromDir, "*", System.IO.SearchOption.AllDirectories).ToList();
 			}
 			else
 			{
-				Files = ResolveFilespec(Parameters.FromDir, Parameters.Files, TagNameToFileSet).ToList();
+				files = ResolveFilespec(_parameters.FromDir, _parameters.Files, tagNameToFileSet).ToList();
 			}
 
 			// Create the zip file
-			Logger.LogInformation("Adding {NumFiles} files to {ZipFile}...", Files.Count, Parameters.ZipFile);
+			Logger.LogInformation("Adding {NumFiles} files to {ZipFile}...", files.Count, _parameters.ZipFile);
 
-			HashSet<FileReference> ExecutableFiles = null;
-			if (Parameters.ExecutableFiles != null)
+			HashSet<FileReference> executableFiles = null;
+			if (_parameters.ExecutableFiles != null)
 			{
-				ExecutableFiles = ResolveFilespec(Parameters.FromDir, Parameters.ExecutableFiles, TagNameToFileSet);
-				foreach (FileReference ExecutableFile in Files.Intersect(ExecutableFiles))
+				executableFiles = ResolveFilespec(_parameters.FromDir, _parameters.ExecutableFiles, tagNameToFileSet);
+				foreach (FileReference executableFile in files.Intersect(executableFiles))
 				{
-					Logger.LogInformation("  Executable file: {File}", ExecutableFile);
+					Logger.LogInformation("  Executable file: {File}", executableFile);
 				}
 			}
 
-			CommandUtils.ZipFiles(Parameters.ZipFile, Parameters.FromDir, Files, ExecutableFiles);
+			CommandUtils.ZipFiles(_parameters.ZipFile, _parameters.FromDir, files, executableFiles);
 
 			// Apply the optional tag to the produced archive
-			foreach (string TagName in FindTagNamesFromList(Parameters.Tag))
+			foreach (string tagName in FindTagNamesFromList(_parameters.Tag))
 			{
-				FindOrAddTagSet(TagNameToFileSet, TagName).Add(Parameters.ZipFile);
+				FindOrAddTagSet(tagNameToFileSet, tagName).Add(_parameters.ZipFile);
 			}
 
 			// Add the archive to the set of build products
-			BuildProducts.Add(Parameters.ZipFile);
+			buildProducts.Add(_parameters.ZipFile);
 			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -131,7 +124,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are read by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			return FindTagNamesFromFilespec(Parameters.Files);
+			return FindTagNamesFromFilespec(_parameters.Files);
 		}
 
 		/// <summary>
@@ -140,7 +133,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are modified by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			return FindTagNamesFromList(Parameters.Tag);
+			return FindTagNamesFromList(_parameters.Tag);
 		}
 	}
 }

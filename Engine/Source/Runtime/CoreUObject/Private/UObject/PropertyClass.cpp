@@ -15,8 +15,14 @@
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FClassProperty)
 
+FClassProperty::FClassProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+	, MetaClass(nullptr)
+{
+}
+
 FClassProperty::FClassProperty(FFieldVariant InOwner, const UECodeGen_Private::FClassPropertyParams& Prop)
-	: FObjectProperty(InOwner, (const UECodeGen_Private::FObjectPropertyParams&)Prop)
+	: Super(InOwner, (const UECodeGen_Private::FObjectPropertyParams&)Prop)
 {
 	if (!PropertyClass)
 	{
@@ -27,7 +33,7 @@ FClassProperty::FClassProperty(FFieldVariant InOwner, const UECodeGen_Private::F
 
 #if WITH_EDITORONLY_DATA
 FClassProperty::FClassProperty(UField* InField)
-	: FObjectProperty(InField)
+	: Super(InField)
 {
 	UClassProperty* SourceProperty = CastChecked<UClassProperty>(InField);
 	MetaClass = SourceProperty->MetaClass;

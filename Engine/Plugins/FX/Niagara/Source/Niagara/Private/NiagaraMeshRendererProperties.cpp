@@ -12,6 +12,7 @@
 #include "NiagaraSystemImpl.h"
 
 #include "Engine/StaticMesh.h"
+#include "Engine/World.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "Materials/MaterialInstanceConstant.h"
 #include "Modules/ModuleManager.h"
@@ -62,7 +63,7 @@ public:
 		return LocalBounds;
 	}
 
-	void GetLODModelData(FLODModelData& OutLODModelData, int32 LODLevel) const override
+	virtual void GetLODModelData(FLODModelData& OutLODModelData, int32 LODLevel) const override
 	{
 		LODLevel = FMath::Max(MinLOD, LODLevel);
 		OutLODModelData.LODIndex = RenderData->GetCurrentFirstLODIdx(LODLevel);
@@ -79,12 +80,34 @@ public:
 		OutLODModelData.Sections = MakeArrayView(LODResources.Sections);
 		OutLODModelData.IndexBuffer = &LODResources.IndexBuffer;
 		OutLODModelData.VertexFactoryUserData = RenderData->LODVertexFactories.IsValidIndex(OutLODModelData.LODIndex) ? RenderData->LODVertexFactories[OutLODModelData.LODIndex].VertexFactory.GetUniformBuffer() : nullptr;
-		OutLODModelData.RayTracingGeometry = &LODResources.RayTracingGeometry;
+		OutLODModelData.RayTracingGeometry = nullptr;
 
 		if (LODResources.AdditionalIndexBuffers != nullptr && LODResources.AdditionalIndexBuffers->WireframeIndexBuffer.IsInitialized())
 		{
 			OutLODModelData.WireframeNumIndices = LODResources.AdditionalIndexBuffers->WireframeIndexBuffer.GetNumIndices();
 			OutLODModelData.WireframeIndexBuffer = &LODResources.AdditionalIndexBuffers->WireframeIndexBuffer;
+		}
+	}
+
+	virtual void GetRayTraceLODModelData(FLODModelData& OutLODModelData, int32 LODLevel) const override
+	{
+		GetLODModelData(OutLODModelData, LODLevel);
+		if (OutLODModelData.LODIndex == INDEX_NONE)
+		{
+			return;
+		}
+
+		const FStaticMeshLODResources& LODResources = RenderData->LODResources[OutLODModelData.LODIndex];
+		OutLODModelData.RayTracingGeometry = LODResources.RayTracingGeometry;
+
+		if (FStaticMeshRayTracingProxy* RayTracingProxy = RenderData->RayTracingProxy)
+		{
+			const int32 RayTracingLOD = RayTracingProxy->bUsingRenderingLODs ? OutLODModelData.LODIndex : 0;
+
+			if (RayTracingProxy->LODs.IsValidIndex(RayTracingLOD))
+			{
+				OutLODModelData.RayTracingGeometry = RayTracingProxy->LODs[RayTracingLOD].RayTracingGeometry;
+			}
 		}
 	}
 
@@ -100,7 +123,7 @@ public:
 		return FVector3f(
 			LODLevel < MaxLODLevel ? RenderData->ScreenSize[LODLevel + 1].GetValue() : 0.0f,
 			RenderData->ScreenSize[LODLevel].GetValue(),
-			RenderData->Bounds.SphereRadius
+			static_cast<float>(RenderData->Bounds.SphereRadius)
 		);
 	}
 
@@ -131,8 +154,9 @@ public:
 	void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials) const override
 	{
 		const UStaticMesh* StaticMesh = WeakStaticMesh.Get();
-		if (!ensure(StaticMesh))
+		if (StaticMesh == nullptr)
 		{
+			UE_LOG(LogNiagara, Log, TEXT("FNiagaraRenderableStaticMesh - StaticMesh is no longer valid"));
 			return;
 		}
 
@@ -200,9 +224,25 @@ namespace NiagaraMeshRendererPropertiesInternal
 				}
 			}
 		}
-		if (MeshProperties.Mesh && MeshProperties.Mesh->GetRenderData())
+		if (MeshProperties.Mesh)
 		{
-			OutStaticMesh = MeshProperties.Mesh;
+			bool bInvalidForAsynCompiling = false;
+			#if WITH_EDITOR
+				// During EOF updates we can not test GetRenderData as we will cause a wait / reregister to occur which is invalid while in EOF updates
+				// The assumption is that when we do hit this situation we are waiting on a static mesh build from reimport, etc, so we can just skip until
+				// we get the post build callback, ideally we would have a better way to handle this by not rendering while the build is in progress but
+				// that requires quite a large rework of how we handle reading from the static mesh data, especially around updating MICs in PostLoad.
+				if (MeshProperties.Mesh->IsCompiling())
+				{
+					FNiagaraSystemInstance* SystemInstance = EmitterInstance ? EmitterInstance->GetParentSystemInstance() : nullptr;
+					UWorld* World = SystemInstance ? SystemInstance->GetWorld() : nullptr;
+					bInvalidForAsynCompiling = World && World->bPostTickComponentUpdate;
+				}
+			#endif
+			if (!bInvalidForAsynCompiling && MeshProperties.Mesh->GetRenderData())
+			{
+				OutStaticMesh = MeshProperties.Mesh;
+			}
 		}
 	}
 }
@@ -445,6 +485,10 @@ void UNiagaraMeshRendererProperties::Serialize(FArchive& Ar)
 		{
 			bSubImageBlend = false;
 		}
+		if (NiagaraVersion < FNiagaraCustomVersion::CustomSortingBindingToAge)
+		{
+			CustomSortingBinding = FNiagaraConstants::GetAttributeDefaultBinding(SYS_PARAM_PARTICLES_NORMALIZED_AGE);
+		}
 	}
 
 	Super::Serialize(Ar);
@@ -494,7 +538,7 @@ void UNiagaraMeshRendererProperties::InitBindings()
 		MeshIndexBinding = FNiagaraConstants::GetAttributeDefaultBinding(SYS_PARAM_PARTICLES_MESH_INDEX);
 
 		//Default custom sorting to age
-		CustomSortingBinding = FNiagaraConstants::GetAttributeDefaultBinding(SYS_PARAM_PARTICLES_NORMALIZED_AGE);
+		CustomSortingBinding = FNiagaraConstants::GetAttributeDefaultBinding(SYS_PARAM_PARTICLES_AGE);
 
 		// Initialize the array with a single, defaulted entry
 		Meshes.AddDefaulted();
@@ -596,11 +640,12 @@ void UNiagaraMeshRendererProperties::CacheFromCompiledData(const FNiagaraDataSet
 #if WITH_EDITORONLY_DATA
 	// Build dynamic parameter mask
 	// Serialize in cooked builds
-	const FVersionedNiagaraEmitterData* EmitterData = GetEmitterData();
-	MaterialParamValidMask  = bDynamicParam0Valid ? GetDynamicParameterChannelMask(EmitterData, DynamicMaterialBinding.GetName(), 0xf) << 0 : 0;
-	MaterialParamValidMask |= bDynamicParam1Valid ? GetDynamicParameterChannelMask(EmitterData, DynamicMaterial1Binding.GetName(), 0xf) << 4 : 0;
-	MaterialParamValidMask |= bDynamicParam2Valid ? GetDynamicParameterChannelMask(EmitterData, DynamicMaterial2Binding.GetName(), 0xf) << 8 : 0;
-	MaterialParamValidMask |= bDynamicParam3Valid ? GetDynamicParameterChannelMask(EmitterData, DynamicMaterial3Binding.GetName(), 0xf) << 12 : 0;
+	MaterialParamValidMask = GetDynamicParameterCombinedChannelMask(
+		bDynamicParam0Valid ? DynamicMaterialBinding.GetName() : NAME_None,
+		bDynamicParam1Valid ? DynamicMaterial1Binding.GetName() : NAME_None,
+		bDynamicParam2Valid ? DynamicMaterial2Binding.GetName() : NAME_None,
+		bDynamicParam3Valid ? DynamicMaterial3Binding.GetName() : NAME_None
+	);
 
 	// Gather LOD information per mesh
 	UNiagaraSystem* OwnerSystem = GetTypedOuter<UNiagaraSystem>();
@@ -915,6 +960,7 @@ void UNiagaraMeshRendererProperties::PostLoad()
 			if (GIsEditor)
 			{
 				MeshProperties.Mesh->GetOnMeshChanged().AddUObject(this, &UNiagaraMeshRendererProperties::OnMeshChanged);
+				MeshProperties.Mesh->OnPreMeshBuild().AddUObject(this, &UNiagaraMeshRendererProperties::OnMeshPostBuild);
 				MeshProperties.Mesh->OnPostMeshBuild().AddUObject(this, &UNiagaraMeshRendererProperties::OnMeshPostBuild);
 			}
 #endif
@@ -1005,15 +1051,15 @@ void UNiagaraMeshRendererProperties::GetAdditionalVariables(TArray<FNiagaraVaria
 }
 
 void UNiagaraMeshRendererProperties::GetRendererWidgets(const FNiagaraEmitterInstance* InEmitter, TArray<TSharedPtr<SWidget>>& OutWidgets, TSharedPtr<FAssetThumbnailPool> InThumbnailPool) const
-{
-	TSharedRef<SWidget> DefaultThumbnailWidget = SNew(SImage)
-		.Image(FSlateIconFinder::FindIconBrushForClass(StaticClass()));
-
+{	
 	int32 ThumbnailSize = 32;
 	for(const FNiagaraMeshRendererMeshProperties& MeshProperties : Meshes)
 	{
+		TSharedRef<SWidget> DefaultThumbnailWidget = SNew(SImage)
+		.Image(FSlateIconFinder::FindIconBrushForClass(StaticClass()));
+		
 		TSharedPtr<SWidget> ThumbnailWidget = DefaultThumbnailWidget;
-
+	
 		UStaticMesh* Mesh = MeshProperties.Mesh;
 		if (Mesh && Mesh->HasValidRenderData())
 		{
@@ -1021,11 +1067,14 @@ void UNiagaraMeshRendererProperties::GetRendererWidgets(const FNiagaraEmitterIns
 			ThumbnailWidget = AssetThumbnail->MakeThumbnailWidget();
 		}
 		
-		OutWidgets.Add(ThumbnailWidget);		
+		OutWidgets.Add(ThumbnailWidget);
 	}
-
+	
 	if (Meshes.Num() == 0)
 	{
+		TSharedRef<SWidget> DefaultThumbnailWidget = SNew(SImage)
+		.Image(FSlateIconFinder::FindIconBrushForClass(StaticClass()));
+		
 		OutWidgets.Add(DefaultThumbnailWidget);
 	}
 }
@@ -1097,6 +1146,7 @@ void UNiagaraMeshRendererProperties::BeginDestroy()
 			if (MeshProperties.Mesh)
 			{
 				MeshProperties.Mesh->GetOnMeshChanged().RemoveAll(this);
+				MeshProperties.Mesh->OnPreMeshBuild().RemoveAll(this);
 				MeshProperties.Mesh->OnPostMeshBuild().RemoveAll(this);
 			}
 		}
@@ -1115,6 +1165,7 @@ void UNiagaraMeshRendererProperties::PreEditChange(class FProperty* PropertyThat
 			if (MeshProperties.Mesh)
 			{
 				MeshProperties.Mesh->GetOnMeshChanged().RemoveAll(this);
+				MeshProperties.Mesh->OnPreMeshBuild().RemoveAll(this);
 				MeshProperties.Mesh->OnPostMeshBuild().RemoveAll(this);
 			}
 		}
@@ -1139,6 +1190,7 @@ void UNiagaraMeshRendererProperties::PostEditChangeProperty(FPropertyChangedEven
 			if (MeshProperties.Mesh)
 			{
 				MeshProperties.Mesh->GetOnMeshChanged().RemoveAll(this);
+				MeshProperties.Mesh->OnPreMeshBuild().RemoveAll(this);
 				MeshProperties.Mesh->OnPostMeshBuild().RemoveAll(this);
 			}
 		}
@@ -1185,6 +1237,7 @@ void UNiagaraMeshRendererProperties::PostEditChangeProperty(FPropertyChangedEven
 			if (MeshProperties.Mesh)
 			{
 				MeshProperties.Mesh->GetOnMeshChanged().AddUObject(this, &UNiagaraMeshRendererProperties::OnMeshChanged);
+				MeshProperties.Mesh->OnPreMeshBuild().AddUObject(this, &UNiagaraMeshRendererProperties::OnMeshPostBuild);
 				MeshProperties.Mesh->OnPostMeshBuild().AddUObject(this, &UNiagaraMeshRendererProperties::OnMeshPostBuild);
 			}
 		}
@@ -1273,10 +1326,9 @@ void UNiagaraMeshRendererProperties::OnMeshChanged()
 {
 	FNiagaraSystemUpdateContext ReregisterContext;
 
-	FVersionedNiagaraEmitter Outer = GetOuterEmitter();
-	if (Outer.Emitter)
+	if (UNiagaraSystem* NiagaraSystem = GetTypedOuter<UNiagaraSystem>())
 	{
-		ReregisterContext.Add(Outer, true);
+		ReregisterContext.Add(NiagaraSystem, true);
 	}
 
 	CheckMaterialUsage();

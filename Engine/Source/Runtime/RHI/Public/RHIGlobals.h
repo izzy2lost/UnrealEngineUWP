@@ -140,6 +140,9 @@ struct FRHIGlobals
 	// true if the RHI supports Pixel Shader UAV
 	bool SupportsPixelShaderUAVs = true;
 
+	// true if the RHI supports Vertex Shader UAV
+	bool SupportsVertexShaderUAVs = false;
+
 	/** true if PF_G8 render targets are supported */
 	TRHIGlobal<bool> SupportsRenderTargetFormat_PF_G8 = true;
 
@@ -203,8 +206,8 @@ struct FRHIGlobals
 	/** If an RHI is so slow, that it is the limiting factor for the entire frame, we can kick early to try to give it as much as possible. */
 	bool RHIThreadNeedsKicking = false;
 
-	/** If an RHI cannot do an unlimited number of occlusion queries without stalling and waiting for the GPU, this can be used to tune hte occlusion culler to try not to do that. */
-	int32 MaximumReccommendedOustandingOcclusionQueries = MAX_int32;
+	/** The maximum number of in-flight GPU queries the current RHI can handle without stalling and waiting for the GPU. Used to tune the occlusion culler to avoid stalls. */
+	int32 MaximumInFlightQueries = MAX_int32;
 
 	/** Some RHIs can only do visible or not occlusion queries. */
 	bool SupportsExactOcclusionQueries = true;
@@ -253,6 +256,9 @@ struct FRHIGlobals
 
 	/** True if the RHI and current hardware supports efficient AsyncCompute (by default we assume false and later we can enable this for more hardware) */
 	bool SupportsEfficientAsyncCompute = false;
+
+	/** True if the RHI supports aliasing transient resources on the async compute pipe. */
+	bool SupportsAsyncComputeTransientAliasing = false;
 
 	/** True if the RHI supports getting the result of occlusion queries when on a thread other than the render thread */
 	bool SupportsParallelOcclusionQueries = false;
@@ -369,14 +375,6 @@ struct FRHIGlobals
 	/** True if the RHI supports texture streaming */
 	bool SupportsTextureStreaming = false;
 
-	/** Amount of memory allocated by textures. In kilobytes. */
-	UE_DEPRECATED(5.3, "CurrentTextureMemorySize was too vague, use StreamingTextureMemorySizeInKB in its place")
-	volatile int32 CurrentTextureMemorySize = 0;
-
-	/** Amount of memory allocated by rendertargets. In kilobytes. */
-	UE_DEPRECATED(5.3, "CurrentRendertargetMemorySize was too vague, use NonStreamingTextureMemorySizeInKB in its place")
-	volatile int32 CurrentRendertargetMemorySize = 0;
-
 	/** Amount of memory allocated by streaming textures. In kilobytes. */
 	volatile uint64 StreamingTextureMemorySizeInKB = 0;
 
@@ -435,6 +433,15 @@ struct FRHIGlobals
 
 		/** Whether or not the RHI supports inline ray tracing in compute shaders, without a full ray tracing pipeline. */
 		bool SupportsInlineRayTracing = false;
+		
+		/** Whether or not the RHI requires a SBT for inline ray tracing in compute shaders to fetch geometry information */
+		bool RequiresInlineRayTracingSBT = false;
+		
+		/** Whether or not the RHI supports inlined callbacks */
+		bool SupportsInlinedCallbacks = false;
+
+		/** Wether an extra uniform buffer parameter is required when loose parameters are present, or if they are stored directly in the shader record. */
+		bool SupportsLooseParamsInShaderRecord = false;
 
 		/** Required alignment for ray tracing acceleration structures. */
 		uint32 AccelerationStructureAlignment = 0;
@@ -505,9 +512,11 @@ struct FRHIGlobals
 	struct FVariableRateShading
 	{
 		/** Whether VRS (in all flavors) is currently enabled (separate from whether it's supported/available). */
+		UE_DEPRECATED(5.5, "GRHIGlobals.VariableRateShading.Enabled has been deprecated - please use GRHIGlobals.VariableRateShading.SupportsPipeline or GVRSImageManager.IsPipelineVRSEnabled() instead.")
 		bool Enabled = true;
 
 		/** Whether attachment (image-based) VRS is currently enabled (separate from whether it's supported/available). */
+		UE_DEPRECATED(5.5, "GRHIGlobals.VariableRateShading.AttachmentEnabled has been deprecated - please use GRHIGlobals.VariableRateShading.SupportsAttachment or GVRSImageManager.IsAttachmentVRSEnabled() instead.")
 		bool AttachmentEnabled = true;
 
 		/** Whether or not the RHI can support per-draw Variable Rate Shading. */
@@ -575,14 +584,30 @@ struct FRHIGlobals
 	/** Whether current RHI supports shader root constants. */
 	bool SupportsShaderRootConstants = false;
 
-	/** Whether current RHI supports shader bundle dispatch. */
-	bool SupportsShaderBundleDispatch = false;
+	struct FShaderBundles
+	{
+		/** Whether current RHI supports native shader bundle dispatch. */
+		bool SupportsDispatch = false;
+
+		/** Whether current RHI supports shader bundle dispatch using work graphs. */
+		bool SupportsWorkGraphDispatch = false;
+
+		/** Whether current RHI supports shader bundle dispatch and RHI parallel translate. */
+		bool SupportsParallel = false;
+
+		/** Whether the current RHI requires shared bindless parameters. */
+		bool RequiresSharedBindlessParameters = false;
+
+	} ShaderBundles;
 
 	/** true if the RHI supports Mesh and Amplification shaders with tier0 capability */
 	bool SupportsMeshShadersTier0 = false;
 
 	/** true if the RHI supports Mesh and Amplification shaders with tier1 capability */
 	bool SupportsMeshShadersTier1 = false;
+
+	/** Whether current RHI supports work graphs with tier1 capability. */
+	bool SupportsShaderWorkGraphsTier1 = false;
 
 	/**
 	* True if the RHI supports reading system timer in shaders via GetShaderTimestamp().
@@ -647,13 +672,23 @@ struct FRHIGlobals
 	bool SupportsBarycentricsSemantic = false;
 
 	/** True if HDR requires vendor specific extensions */
+	UE_DEPRECATED(5.5, "GRHIGlobals.HDRNeedsVendorExtensions has been deprecated - Vendor extensions are not used anymore")
 	bool HDRNeedsVendorExtensions = false;
 
 	/** True if RHI supports MSAA resolve with a custom shader */
 	bool SupportsMSAAShaderResolve = false;
+
+	/** Whether Depth Stencil MSAA Resolve Targets are supported. */
+	bool SupportsDepthStencilResolve = false;
+
+	/** True if RHI supports Linear texture format in 3D/Cube/Array texture */
+	bool SupportLinearTextureVolumeFormat = true;
 };
 
 extern RHI_API FRHIGlobals GRHIGlobals;
+
+/** The GPU time taken to render the last frame. Same metric as FPlatformTime::Cycles(). */
+extern RHI_API uint32 GGPUFrameTime;
 
 //
 // Deprecated old-style names
@@ -698,7 +733,7 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GRHISupportsPipelineStateSortKey                       GRHIGlobals.SupportsPipelineStateSortKey
 #define GSupportsParallelRenderingTasksWithSeparateRHIThread   GRHIGlobals.SupportsParallelRenderingTasksWithSeparateRHIThread
 #define GRHIThreadNeedsKicking                                 GRHIGlobals.RHIThreadNeedsKicking
-#define GRHIMaximumReccommendedOustandingOcclusionQueries      GRHIGlobals.MaximumReccommendedOustandingOcclusionQueries
+#define GRHIMaximumInFlightQueries                             GRHIGlobals.MaximumInFlightQueries
 #define GRHISupportsExactOcclusionQueries                      GRHIGlobals.SupportsExactOcclusionQueries
 #define GSupportsVolumeTextureRendering                        GRHIGlobals.SupportsVolumeTextureRendering
 #define GSupportsSeparateRenderTargetBlendState                GRHIGlobals.SupportsSeparateRenderTargetBlendState
@@ -752,8 +787,6 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GTriggerGPUCrash                                       GRHIGlobals.TriggerGPUCrash
 #define GGPUTraceFileName                                      GRHIGlobals.GPUTraceFileName
 #define GRHISupportsTextureStreaming                           GRHIGlobals.SupportsTextureStreaming
-#define GCurrentTextureMemorySize                              GRHIGlobals.CurrentTextureMemorySize
-#define GCurrentRendertargetMemorySize                         GRHIGlobals.CurrentRendertargetMemorySize
 #define GTexturePoolSize                                       GRHIGlobals.TexturePoolSize
 #define GPoolSizeVRAMPercentage                                GRHIGlobals.PoolSizeVRAMPercentage
 #define GDemotedLocalMemorySize                                GRHIGlobals.DemotedLocalMemorySize
@@ -783,8 +816,8 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GRHIIsHDREnabled                                       GRHIGlobals.IsHDREnabled
 #define GRHISupportsHDROutput                                  GRHIGlobals.SupportsHDROutput
 #define GRHIMaxDispatchThreadGroupsPerDimension                GRHIGlobals.MaxDispatchThreadGroupsPerDimension
-#define GRHIVariableRateShadingEnabled                         GRHIGlobals.VariableRateShading.Enabled
-#define GRHIAttachmentVariableRateShadingEnabled               GRHIGlobals.VariableRateShading.AttachmentEnabled
+#define GRHIVariableRateShadingEnabled                         GRHIGlobals.VariableRateShading.Enabled UE_DEPRECATED_MACRO(5.5, "GRHIVariableRateShadingEnabled has been deprecated - please use GRHISupportsPipelineVariableRateShading or GVRSImageManager.IsPipelineVRSEnabled() instead.")
+#define GRHIAttachmentVariableRateShadingEnabled               GRHIGlobals.VariableRateShading.AttachmentEnabled UE_DEPRECATED_MACRO(5.5, "GRHIAttachmentVariableRateShadingEnabled has been deprecated - please use GRHISupportsAttachmentVariableRateShading or GVRSImageManager.IsAttachmentVRSEnabled() instead.")
 #define GRHISupportsPipelineVariableRateShading                GRHIGlobals.VariableRateShading.SupportsPipeline
 #define GRHISupportsLargerVariableRateShadingSizes             GRHIGlobals.VariableRateShading.SupportsLargerSizes
 #define GRHISupportsAttachmentVariableRateShading              GRHIGlobals.VariableRateShading.SupportsAttachment
@@ -806,9 +839,12 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GRHISupportsRasterOrderViews                           GRHIGlobals.SupportsRasterOrderViews
 #define GRHISupportsConservativeRasterization                  GRHIGlobals.SupportsConservativeRasterization
 #define GRHISupportsShaderRootConstants                        GRHIGlobals.SupportsShaderRootConstants
-#define GRHISupportsShaderBundleDispatch                       GRHIGlobals.SupportsShaderBundleDispatch
+#define GRHISupportsShaderBundleDispatch                       GRHIGlobals.ShaderBundles.SupportsDispatch
+#define GRHISupportsShaderBundleWorkGraphDispatch              GRHIGlobals.ShaderBundles.SupportsWorkGraphDispatch
+#define GRHISupportsShaderBundleParallel                       GRHIGlobals.ShaderBundles.SupportsParallel
 #define GRHISupportsMeshShadersTier0                           GRHIGlobals.SupportsMeshShadersTier0
 #define GRHISupportsMeshShadersTier1                           GRHIGlobals.SupportsMeshShadersTier1
+#define GRHISupportsShaderWorkGraphsTier1                      GRHIGlobals.SupportsShaderWorkGraphsTier1
 #define GRHISupportsShaderTimestamp                            GRHIGlobals.SupportsShaderTimestamp
 #define GRHISupportsEfficientUploadOnResourceCreation          GRHIGlobals.SupportsEfficientUploadOnResourceCreation
 #define GRHISupportsMapWriteNoOverwrite                        GRHIGlobals.SupportsMapWriteNoOverwrite
@@ -820,6 +856,7 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GRHIIsDebugLayerEnabled                                GRHIGlobals.IsDebugLayerEnabled
 #define GRHIHDRNeedsVendorExtensions						   GRHIGlobals.HDRNeedsVendorExtensions
 #define GRHISupportsMSAAShaderResolve						   GRHIGlobals.SupportsMSAAShaderResolve
+#define GRHISupportsDepthStencilResolve                        GRHIGlobals.SupportsDepthStencilResolve
 
 // Utility Getters
 

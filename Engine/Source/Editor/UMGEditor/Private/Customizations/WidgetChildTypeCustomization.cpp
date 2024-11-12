@@ -129,7 +129,7 @@ TSharedRef<SWidget> FWidgetChildTypeCustomization::GetPopupContent()
 
 	return SNew(SBorder)
 		.BorderImage(FAppStyle::Get().GetBrush("Brushes.Recessed"))
-		.Padding(4)
+		.Padding(4.0f)
 		[
 			SNew(SBox)
 			.MinDesiredWidth(MinPopupWidth)

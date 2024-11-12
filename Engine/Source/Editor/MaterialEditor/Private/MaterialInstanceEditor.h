@@ -122,6 +122,10 @@ public:
 	// IMaterial Editor Interface
 	virtual void GenerateInheritanceMenu(class UToolMenu* Menu) override;
 
+	void RefreshPreviewViewport();
+
+	bool IsDestructing() const { return bDestructing; }
+
 protected:
 	//~ FAssetEditorToolkit interface
 	virtual void SaveAsset_Execute() override;
@@ -190,7 +194,12 @@ private:
 
 	/** Spawns the advanced preview settings tab */
 	TSharedRef<SDockTab> SpawnTab_PreviewSettings(const FSpawnTabArgs& Args);
-
+	
+	/** Spawns the asset browser tab */
+	TSharedRef<SDockTab> SpawnTab_AssetBrowser(const FSpawnTabArgs& Args);
+	void OnAssetDoubleClicked(const FAssetData& AssetData);
+	TSharedPtr<SWidget> OnGetAssetContextMenu(const TArray<FAssetData>& SelectedAssets) const;
+	
 	/**	Caches the specified tab for later retrieval */
 	void AddToSpawnedToolPanels( const FName& TabIdentifier, const TSharedRef<SDockTab>& SpawnedTab );
 
@@ -206,6 +215,9 @@ private:
 	virtual void PostUndo( bool bSuccess ) override;
 	virtual void PostRedo( bool bSuccess ) override;
 	// End of FEditorUndoClient
+
+	/** Called to notify other material editors when a post process material with a UserSceneTexture output is loaded or unloaded, as the material may be used in their preview */
+	void NotifyUserSceneTextureLoadOrUnload();
 
 private:
 	struct FOnScreenMessage
@@ -256,6 +268,9 @@ private:
 	/** If editing instance of a function instead of a material. */
 	bool bIsFunctionPreviewMaterial;
 
+	/** Set to true when editor is being destructed */
+	bool bDestructing = false;
+
 	TSharedPtr<FExtensibilityManager> MenuExtensibilityManager;
 	TSharedPtr<FExtensibilityManager> ToolBarExtensibilityManager;
 
@@ -270,6 +285,7 @@ private:
 	static const FName PropertiesTabId;	
 	static const FName LayerPropertiesTabId;
 	static const FName PreviewSettingsTabId;
+	static const FName AssetBrowserTabId;
 
 	/** Object used as material statistics manager */
 	TSharedPtr<class FMaterialStats> MaterialStatsManager;

@@ -290,7 +290,7 @@ void UK2Node_CustomEvent::RenameCustomEventCloseToName(int32 StartIndex)
 		{
 			UBlueprint* Blueprint = GetBlueprint();
 			CustomFunctionName = FName(NewName.GetCharArray().GetData());
-			Rename(*NewName, GetOuter(), (Blueprint->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : 0) | REN_DontCreateRedirectors);
+			Rename(*NewName, GetOuter(), REN_DontCreateRedirectors);
 			bFoundName = true;
 		}
 	}

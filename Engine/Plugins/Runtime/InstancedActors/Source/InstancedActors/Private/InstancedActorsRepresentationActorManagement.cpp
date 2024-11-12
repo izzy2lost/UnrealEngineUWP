@@ -4,6 +4,7 @@
 #include "InstancedActorsData.h"
 #include "InstancedActorsSubsystem.h"
 #include "InstancedActorsSettingsTypes.h"
+#include "InstancedActorsVisualizationProcessor.h"
 #include "Delegates/Delegate.h"
 #include "MassEntitySubsystem.h"
 #include "MassActorSpawnerSubsystem.h"
@@ -31,7 +32,7 @@ EMassActorSpawnRequestAction UInstancedActorsRepresentationActorManagement::OnPo
 		{
 			if (USceneComponent* RootComponent = Actor->GetRootComponent())
 			{
-				RootComponent->TransformUpdated.AddUObject(this, &UInstancedActorsRepresentationActorManagement::OnSpawnedBuildingActorMoved, MassActorSpawnRequest.MassAgent);
+				RootComponent->TransformUpdated.AddUObject(this, &UInstancedActorsRepresentationActorManagement::OnSpawnedActorMoved, MassActorSpawnRequest.MassAgent);
 			}
 		}
 
@@ -69,9 +70,8 @@ void UInstancedActorsRepresentationActorManagement::SetActorEnabled(const EMassA
 				});
 		}
 
-		// mz@todo IA: reconsider
+		// mz@todo IA: reconsider for generic use, should probably be configurable.
 		// Don't call Super::SetActorEnabled when enabling, to skip default implementation of enabling tick which we don't want to do
-		// for BuildingActor's etc
 	}
 	else
 	{
@@ -125,7 +125,7 @@ void UInstancedActorsRepresentationActorManagement::OnSpawnedActorDestroyed(AAct
 	}
 }
 
-void UInstancedActorsRepresentationActorManagement::OnSpawnedBuildingActorMoved(USceneComponent* MovedActorRootComponent, EUpdateTransformFlags TransformUpdateFlags, ETeleportType TeleportType, FMassEntityHandle EntityHandle) const
+void UInstancedActorsRepresentationActorManagement::OnSpawnedActorMoved(USceneComponent* MovedActorRootComponent, EUpdateTransformFlags TransformUpdateFlags, ETeleportType TeleportType, FMassEntityHandle EntityHandle) const
 {
 	check(IsValid(MovedActorRootComponent));
 
@@ -163,10 +163,18 @@ AActor* UInstancedActorsRepresentationActorManagement::FindOrInstantlySpawnActor
 		// force spawn
 		UMassActorSpawnerSubsystem* ActorSpawnerSubsystem = RepresentationSubsystem.GetActorSpawnerSubsystem();
 		check(ActorSpawnerSubsystem);
-		if (ActorSpawnerSubsystem->ProcessSpawnRequest(Representation.ActorSpawnRequestHandle) != ESpawnRequestStatus::None)
+		const ESpawnRequestStatus RequestResult = ActorSpawnerSubsystem->ProcessSpawnRequest(Representation.ActorSpawnRequestHandle);
+		
+		if (RequestResult == ESpawnRequestStatus::Failed || RequestResult == ESpawnRequestStatus::Succeeded)
 		{
-			FMassActorSpawnRequest& SpawnRequest = ActorSpawnerSubsystem->GetMutableSpawnRequest<FMassActorSpawnRequest>(Representation.ActorSpawnRequestHandle);
-			SpawnedActor = SpawnRequest.SpawnedActor;
+			if (RequestResult == ESpawnRequestStatus::Succeeded)
+			{
+				FMassActorSpawnRequest& SpawnRequest = ActorSpawnerSubsystem->GetMutableSpawnRequest<FMassActorSpawnRequest>(Representation.ActorSpawnRequestHandle);
+				SpawnedActor = SpawnRequest.SpawnedActor;
+				ensureMsgf(ActorSpawnerSubsystem->RemoveActorSpawnRequest(Representation.ActorSpawnRequestHandle), TEXT("Unable to remove a valid spawn request"));
+			}
+			
+			Representation.ActorSpawnRequestHandle.Invalidate();
 		}
 	}
 
@@ -193,7 +201,7 @@ AActor* UInstancedActorsRepresentationActorManagement::FindOrInstantlySpawnActor
 		// note that we do need to make the change synchronously since due to EntityManager.IsProcessing() == false
 		// any command we issue here might get called after LOD and Visualization processing, that could override the
 		// values we've just set
-		FMassTagBitSet TagsToRemove = UE::Mass::Utils::ConstructTagBitSet<EMassCommandCheckTime::CompileTimeCheck, FMassStationaryISMSwitcherProcessorTag, FMassVisualizationProcessorTag>();
+		FMassTagBitSet TagsToRemove = UE::Mass::Utils::ConstructTagBitSet<EMassCommandCheckTime::CompileTimeCheck, FMassStationaryISMSwitcherProcessorTag, FInstancedActorsVisualizationProcessorTag>();
 		EntityManager.RemoveCompositionFromEntity(EntityView.GetEntity(), FMassArchetypeCompositionDescriptor(MoveTemp(TagsToRemove)));
 	}
 

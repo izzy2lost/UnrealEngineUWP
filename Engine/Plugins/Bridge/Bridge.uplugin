@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 40,
-	"VersionName": "2024.0.1",
+	"Version": 50,
+	"VersionName": "2025.0.1",
 	"FriendlyName": "Bridge",
 	"Description": "Megascans Link for Quixel Bridge.",
 	"Category": "Editor",
@@ -12,11 +12,6 @@
 	"SupportURL": "support@quixel.com",
 	"CanContainContent": true,
 	"EnabledByDefault": true,
-	"SupportedTargetPlatforms": [
-		"Win64",
-		"Mac",
-		"Linux"
-	],
 	"Modules": [
 		{
 			"Name": "Bridge",
@@ -45,7 +40,7 @@
 			"Enabled": true
 		},
 		{
-			"Name": "MetaHumanProjectUtilities",
+			"Name": "MetaHumanSDK",
 			"Enabled": true
 		}
 	]

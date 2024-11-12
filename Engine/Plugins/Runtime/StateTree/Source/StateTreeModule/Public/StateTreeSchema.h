@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "HAL/IConsoleManager.h"
 #include "StateTreeSchema.generated.h"
 
 struct FStateTreeExternalDataDesc;
@@ -45,6 +46,9 @@ public:
 	
 	/** @return True if enter conditions are allowed. */
 	virtual bool AllowEnterConditions() const { return true; }
+
+	/** @return True if utility considerations are allowed. */
+	virtual bool AllowUtilityConsiderations() const { return true; }
 
 	/** @return True if evaluators are allowed. */
 	virtual bool AllowEvaluators() const { return true; }

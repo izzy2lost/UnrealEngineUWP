@@ -73,7 +73,6 @@ void SMessagingHistory::Construct(const FArguments& InArgs, const TSharedRef<FMe
 					[
 						// message list
 						SAssignNew(MessageListView, SListView<TSharedPtr<FMessageTracerMessageInfo>>)
-							.ItemHeight(24.0f)
 							.ListItemsSource(&MessageList)
 							.SelectionMode(ESelectionMode::Single)
 							.OnGenerateRow(this, &SMessagingHistory::HandleMessageListGenerateRow)

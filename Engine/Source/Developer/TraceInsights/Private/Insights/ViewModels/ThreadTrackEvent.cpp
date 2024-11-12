@@ -2,8 +2,6 @@
 
 #include "Insights/ViewModels/ThreadTrackEvent.h"
 
-#include "Insights/ViewModels/GraphTrack.h"
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 INSIGHTS_IMPLEMENT_RTTI(FThreadTrackEvent)

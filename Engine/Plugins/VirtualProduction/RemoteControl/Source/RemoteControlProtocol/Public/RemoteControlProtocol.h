@@ -23,7 +23,7 @@ public:
 	virtual void Init() override;
 	virtual FRemoteControlProtocolEntityPtr CreateNewProtocolEntity(FProperty* InProperty, URemoteControlPreset* InOwner, FGuid InPropertyId) const override;
 	virtual void QueueValue(const FRemoteControlProtocolEntityPtr InProtocolEntity, const double InProtocolValue) override;
-	virtual void OnEndFrame() override;
+	virtual void OnBeginFrame() override;
 
 #if WITH_EDITOR
 
@@ -64,11 +64,5 @@ protected:
 
 private:
 	/** Map of the entities and protocol values about to apply */
-	TMap<const FRemoteControlProtocolEntityPtr, double> EntityValuesToApply;
-
-	/**
-	 * Map of the entities and protocol values from previous tick.
-	 * It allows skipping values that are very close to those of the previous frame
-	 */
-	TMap<const FRemoteControlProtocolEntityPtr, double> PreviousTickValuesToApply;
+	TMap<FRemoteControlProtocolEntityPtr, double> EntityValuesToApply;
 };

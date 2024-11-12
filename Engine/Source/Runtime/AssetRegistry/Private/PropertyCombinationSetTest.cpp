@@ -432,7 +432,7 @@ protected:
 	}
 };
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPropertyCombinationSetTestSubClass, FPropertyCombinationSetTest, "System.AssetRegistry.PropertyCombinationSet", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPropertyCombinationSetTestSubClass, FPropertyCombinationSetTest, "System.AssetRegistry.PropertyCombinationSet", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 
 bool FPropertyCombinationSetTestSubClass::RunTest(const FString& Parameters)
 {

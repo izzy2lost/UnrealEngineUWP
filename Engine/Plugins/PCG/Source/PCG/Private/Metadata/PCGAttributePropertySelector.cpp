@@ -16,6 +16,48 @@ namespace PCGAttributePropertySelectorConstants
 	static const TCHAR* ExtraSeparator = TEXT(".");
 	static const TCHAR PropertyPrefixChar = PropertyPrefix[0];
 	static const TCHAR ExtraSeparatorChar = ExtraSeparator[0];
+
+	static const FString ExportTextLeftSentinel = TEXT("PCGBegin(");
+	static const FString ExportTextRightSentinel = TEXT(")PCGEnd");
+}
+
+bool FPCGAttributePropertySelector::ExportTextItem(FString& ValueStr, FPCGAttributePropertySelector const& DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const
+{
+	// String guarded by sentinels, don't use `"` because it can be used in the selector.
+	TStringBuilder<256> StringBuilder;
+	StringBuilder.Append(PCGAttributePropertySelectorConstants::ExportTextLeftSentinel);
+	StringBuilder.Append(ToString());
+	StringBuilder.Append(PCGAttributePropertySelectorConstants::ExportTextRightSentinel);
+
+	ValueStr += StringBuilder.ToString();
+	return true;
+}
+
+bool FPCGAttributePropertySelector::ImportTextItem(const TCHAR*& Buffer, int32 PortFlags, UObject* Parent, FOutputDevice* ErrorText)
+{
+	const FStringView BufferView(Buffer);
+
+	using PCGAttributePropertySelectorConstants::ExportTextLeftSentinel;
+	using PCGAttributePropertySelectorConstants::ExportTextRightSentinel;
+
+	// Look for the first occurence of the left and right sentinel
+	int32 Start = BufferView.Find(ExportTextLeftSentinel);
+	const int32 End = BufferView.Find(ExportTextRightSentinel);
+
+	if (Start == INDEX_NONE || End == INDEX_NONE)
+	{
+		// Didn't find our sentinels, abort
+		return false;
+	}
+
+	// Offset our start accounting the size of the left sentinel
+	Start += ExportTextLeftSentinel.Len();
+
+	Update(FString(BufferView.SubStr(Start, End - Start)));
+
+	// Offset buffer to the end of the right sentinel.
+	Buffer += (End + ExportTextRightSentinel.Len());
+	return true;
 }
 
 FName FPCGAttributePropertySelector::GetName() const
@@ -117,32 +159,45 @@ bool FPCGAttributePropertySelector::SetExtraProperty(EPCGExtraProperties InExtra
 	}
 }
 
-FText FPCGAttributePropertySelector::GetDisplayText() const
+FString FPCGAttributePropertySelector::GetAttributePropertyString(bool bAddPropertyQualifier) const
 {
-	FString Res;
 	const FName Name = GetName();
-
 	// Add a '$' if it is a property
-	if (Selection != EPCGAttributePropertySelection::Attribute && (Name != NAME_None))
+	if (bAddPropertyQualifier && Selection != EPCGAttributePropertySelection::Attribute && Name != NAME_None)
 	{
-		Res = FString(PCGAttributePropertySelectorConstants::PropertyPrefix) + Name.ToString();
+		return FString(PCGAttributePropertySelectorConstants::PropertyPrefix) + Name.ToString();
 	}
 	else
 	{
-		Res = Name.ToString();
+		return Name.ToString();
 	}
-
-	if (!ExtraNames.IsEmpty())
-	{
-		TArray<FString> AllNames;
-		AllNames.Add(Res);
-		AllNames.Append(ExtraNames);
-		Res = FString::Join(AllNames, PCGAttributePropertySelectorConstants::ExtraSeparator);
-	}
-
-	return FText::FromString(Res);
 }
 
+FString FPCGAttributePropertySelector::GetAttributePropertyAccessorsString(bool bAddLeadingSeparator) const
+{
+	if (!ExtraNames.IsEmpty())
+	{
+		FString LeadingSeparatorString;
+		if (bAddLeadingSeparator)
+		{
+			LeadingSeparatorString = FString(PCGAttributePropertySelectorConstants::ExtraSeparator);
+		}
+
+		return LeadingSeparatorString + FString::Join(ExtraNames, PCGAttributePropertySelectorConstants::ExtraSeparator);
+	}
+	else
+	{
+		return FString();
+	}
+}
+
+FString FPCGAttributePropertySelector::ToString() const
+{
+	const FString Attribute = GetAttributePropertyString(/*bAddPropertyQualifier=*/true);
+	const FString Accessors = GetAttributePropertyAccessorsString(/*bAddLeadingSeparator*/true);
+
+	return Attribute + Accessors;
+}
 
 bool FPCGAttributePropertySelector::operator==(const FPCGAttributePropertySelector& Other) const
 {
@@ -192,6 +247,13 @@ void FPCGAttributePropertySelector::ImportFromOtherSelector(const FPCGAttributeP
 bool FPCGAttributePropertySelector::IsValid() const
 {
 	const FName ThisAttributeName = GetAttributeName();
+	static const FName EmptyName = TEXT("");
+
+	if (!ExtraNames.IsEmpty() && ThisAttributeName == EmptyName)
+	{
+		return false;
+	}
+
 	return (Selection != EPCGAttributePropertySelection::Attribute) || 
 		ThisAttributeName == PCGMetadataAttributeConstants::LastAttributeName ||
 		ThisAttributeName == PCGMetadataAttributeConstants::LastCreatedAttributeName ||

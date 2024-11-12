@@ -6,6 +6,7 @@
 #include "FontEditorModule.h"
 #include "ToolMenus.h"
 #include "EditorReimportHandler.h"
+#include "FontEditorModule.h"
 #include "ToolMenu.h"
 #include "Toolkits/SimpleAssetEditor.h"
 #include "ToolMenuSection.h"
@@ -21,7 +22,7 @@ EAssetCommandResult UAssetDefinition_FontFace::OpenAssets(const FAssetOpenArgs& 
 	// into a single editor instance which doesn't really work for font face assets
 	for (UFontFace* FontFace : OpenArgs.LoadObjects<UFontFace>())
 	{
-		FSimpleAssetEditor::CreateEditor(OpenArgs.GetToolkitMode(), OpenArgs.ToolkitHost, FontFace);
+		FontEditorModule->CreateFontFaceEditor(OpenArgs.GetToolkitMode(), OpenArgs.ToolkitHost, FontFace);
 	}
 
 	return EAssetCommandResult::Handled;

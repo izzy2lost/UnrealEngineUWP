@@ -54,7 +54,7 @@ void FDatasmithCADTranslator::Initialize(FDatasmithTranslatorCapabilities& OutCa
 	}
 	OutCapabilities.bIsEnabled = true;
 
-#ifndef CAD_TRANSLATOR_DEBUG
+#ifdef CAD_TRANSLATOR_DEBUG
 	OutCapabilities.bParallelLoadStaticMeshSupported = true;
 #endif
 	OutCapabilities.SupportedFileFormats.Add(FFileFormatInfo{ TEXT("CATPart"), TEXT("CATIA Part files") });
@@ -124,6 +124,7 @@ void FDatasmithCADTranslator::Initialize(FDatasmithTranslatorCapabilities& OutCa
 	{
 		OutCapabilities.SupportedFileFormats.Add(FFileFormatInfo{ TEXT("3mf"), TEXT("3D Manufacturing Format") });
 		OutCapabilities.SupportedFileFormats.Add(FFileFormatInfo{ TEXT("3ds"), TEXT("Autodesk 3DS") });
+		OutCapabilities.SupportedFileFormats.Add(FFileFormatInfo{ TEXT("dae"), TEXT("Collada") });
 		OutCapabilities.SupportedFileFormats.Add(FFileFormatInfo{ TEXT("dwf"), TEXT("Autodesk DWF") });
 		OutCapabilities.SupportedFileFormats.Add(FFileFormatInfo{ TEXT("dwfx"), TEXT("Autodesk DWF") });
 		OutCapabilities.SupportedFileFormats.Add(FFileFormatInfo{ TEXT("nwd"), TEXT("Autodesk Navisworks") });
@@ -131,7 +132,7 @@ void FDatasmithCADTranslator::Initialize(FDatasmithTranslatorCapabilities& OutCa
 		OutCapabilities.SupportedFileFormats.Add(FFileFormatInfo{ TEXT("arc"), TEXT("I-Deas") });
 		OutCapabilities.SupportedFileFormats.Add(FFileFormatInfo{ TEXT("unv"), TEXT("I-Deas") });
 		OutCapabilities.SupportedFileFormats.Add(FFileFormatInfo{ TEXT("pkg"), TEXT("I-Deas") });
-		//OutCapabilities.SupportedFileFormats.Add(FFileFormatInfo{ TEXT("dgn"), TEXT("Microstation") });  // available with Hoops Exchange 2023
+		OutCapabilities.SupportedFileFormats.Add(FFileFormatInfo{ TEXT("dgn"), TEXT("Microstation") });  // available with Hoops Exchange 2023
 		OutCapabilities.SupportedFileFormats.Add(FFileFormatInfo{ TEXT("stl"), TEXT("Stereo Lithography (STL)") });
 		OutCapabilities.SupportedFileFormats.Add(FFileFormatInfo{ TEXT("u3d"), TEXT("U3D (ECMA-363)") });
 		OutCapabilities.SupportedFileFormats.Add(FFileFormatInfo{ TEXT("vda"), TEXT("VDA-FS") });
@@ -157,7 +158,7 @@ bool FDatasmithCADTranslator::LoadScene(TSharedRef<IDatasmithScene> DatasmithSce
 	CADLibrary::FFileDescriptor FileDescriptor(*FPaths::ConvertRelativePathToFull(GetSource().GetSourceFile()));
 
 	UE_LOG(LogCADTranslator, Display, TEXT("CAD translation [%s]."), *FileDescriptor.GetSourcePath());
-	UE_LOG(LogCADTranslator, Display, TEXT(" - Parsing Library:      %s"), TEXT("TechSoft"));
+	UE_LOG(LogCADTranslator, Display, TEXT(" - Parsing Library:      %s"), ICADInterfacesModule::GetLibraryVersion());
 	UE_LOG(LogCADTranslator, Display, TEXT(" - Tessellation Library: %s")
 		, FImportParameters::bGDisableCADKernelTessellation ? TEXT("TechSoft") : TEXT("CADKernel"));
 	UE_LOG(LogCADTranslator, Display, TEXT(" - Cache mode:           %s")

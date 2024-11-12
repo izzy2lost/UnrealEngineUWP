@@ -19,6 +19,7 @@
 
 #include "Designer/DesignerCommands.h"
 #include "SViewportToolBarComboMenu.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 
 #define LOCTEXT_NAMESPACE "UMG"
 
@@ -124,9 +125,7 @@ FText SDesignerToolBar::GetLocationGridLabel() const
 
 TSharedRef<SWidget> SDesignerToolBar::FillLocationGridSnapMenu()
 {
-	const UWidgetDesignerSettings* ViewportSettings = GetDefault<UWidgetDesignerSettings>();
-
-	TArray<int32> GridSizes;
+	TArray<float> GridSizes;
 	GridSizes.Add(1);
 	GridSizes.Add(2);
 	GridSizes.Add(3);
@@ -136,34 +135,27 @@ TSharedRef<SWidget> SDesignerToolBar::FillLocationGridSnapMenu()
 	GridSizes.Add(15);
 	GridSizes.Add(25);
 
-	return BuildLocationGridCheckBoxList("Snap", LOCTEXT("LocationSnapText", "Snap Sizes"), GridSizes);
-}
+	UE::UnrealEd::FLocationGridCheckboxListExecuteActionDelegate ExecuteDelegate =
+		UE::UnrealEd::FLocationGridCheckboxListExecuteActionDelegate::CreateLambda(
+			[GridSizes](int CurrGridSizeIndex)
+			{
+				UWidgetDesignerSettings* ViewportSettings = GetMutableDefault<UWidgetDesignerSettings>();
+				const int32 CurrGridSize = GridSizes[CurrGridSizeIndex];
+				ViewportSettings->GridSnapSize = CurrGridSize;
+			}
+		);
 
-TSharedRef<SWidget> SDesignerToolBar::BuildLocationGridCheckBoxList(FName InExtentionHook, const FText& InHeading, const TArray<int32>& InGridSizes) const
-{
-	const UWidgetDesignerSettings* ViewportSettings = GetDefault<UWidgetDesignerSettings>();
+	UE::UnrealEd::FLocationGridCheckboxListIsCheckedDelegate IsCheckedDelegate =
+		UE::UnrealEd::FLocationGridCheckboxListIsCheckedDelegate::CreateLambda(
+			[GridSizes](int CurrGridSizeIndex)
+			{
+				const UWidgetDesignerSettings* ViewportSettings = GetDefault<UWidgetDesignerSettings>();
+				const int32 CurrGridSize = GridSizes[CurrGridSizeIndex];
+				return (ViewportSettings->GridSnapSize == CurrGridSize);
+			}
+		);
 
-	const bool bShouldCloseWindowAfterMenuSelection = true;
-	FMenuBuilder LocationGridMenuBuilder(bShouldCloseWindowAfterMenuSelection, CommandList);
-
-	LocationGridMenuBuilder.BeginSection(InExtentionHook, InHeading);
-	for ( int32 CurGridSizeIndex = 0; CurGridSizeIndex < InGridSizes.Num(); ++CurGridSizeIndex )
-	{
-		const int32 CurGridSize = InGridSizes[CurGridSizeIndex];
-
-		LocationGridMenuBuilder.AddMenuEntry(
-			FText::AsNumber(CurGridSize),
-			FText::Format(LOCTEXT("LocationGridSize_ToolTip", "Sets grid size to {0}"), FText::AsNumber(CurGridSize)),
-			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateStatic(&SDesignerToolBar::SetGridSize, CurGridSize),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateStatic(&SDesignerToolBar::IsGridSizeChecked, CurGridSize)),
-			NAME_None,
-			EUserInterfaceActionType::RadioButton);
-	}
-	LocationGridMenuBuilder.EndSection();
-
-	return LocationGridMenuBuilder.MakeWidget();
+	return UE::UnrealEd::CreateLocationGridSnapMenu(ExecuteDelegate, IsCheckedDelegate, GridSizes, CommandList);
 }
 
 void SDesignerToolBar::SetGridSize(int32 InGridSize)

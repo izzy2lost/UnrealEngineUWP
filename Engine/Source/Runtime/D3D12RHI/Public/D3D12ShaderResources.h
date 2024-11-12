@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
+
 // Key used for determining whether shader code is packed or not.
 const int32 PackedShaderKey = 'XSHA';
 

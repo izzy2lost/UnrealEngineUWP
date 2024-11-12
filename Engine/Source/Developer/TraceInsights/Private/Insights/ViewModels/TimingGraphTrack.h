@@ -2,18 +2,17 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/GraphSeries.h"
 #include "Insights/ViewModels/GraphTrack.h"
 
-namespace Insights
+namespace UE::Insights::TimingProfiler
 {
 	struct FFrameStatsCachedEvent;
+	class STimingView;
 }
-
-class STimingView;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +60,7 @@ public:
 	ETraceFrameType FrameType;
 	double CachedSessionDuration;
 	TArray<FSimpleTimingEvent> CachedEvents; // used by Timer series
-	TArray<Insights::FFrameStatsCachedEvent> FrameStatsCachedEvents; // used by Frame Stats Timer series
+	TArray<UE::Insights::TimingProfiler::FFrameStatsCachedEvent> FrameStatsCachedEvents; // used by Frame Stats Timer series
 	uint32 CachedTimelinesNum = 0; // the number of timelines used to gather the data
 
 	bool bIsTime; // the unit for values is [second]
@@ -78,7 +77,7 @@ class FTimingGraphTrack : public FGraphTrack
 	INSIGHTS_DECLARE_RTTI(FTimingGraphTrack, FGraphTrack)
 
 public:
-	FTimingGraphTrack(TSharedPtr<STimingView> InTimingView);
+	FTimingGraphTrack(TSharedPtr<UE::Insights::TimingProfiler::STimingView> InTimingView);
 	virtual ~FTimingGraphTrack();
 
 	virtual void Update(const ITimingTrackUpdateContext& Context) override;
@@ -124,7 +123,7 @@ private:
 	FDelegateHandle GameFrameSeriesVisibilityHandle;
 	FDelegateHandle RenderingFrameSeriesVisibilityHandle;
 
-	TWeakPtr<STimingView> TimingView;
+	TWeakPtr<UE::Insights::TimingProfiler::STimingView> TimingView;
 	bool bNotifyTimersOnDestruction;
 };
 

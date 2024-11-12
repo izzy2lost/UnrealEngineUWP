@@ -11,6 +11,7 @@
 #include "AbilitySystemStats.h"
 #include "AbilitySystemGlobals.h"
 #include "GameplayCueManager.h"
+#include "AbilitySystemPrivate.h"
 
 #include "Net/UnrealNetwork.h"
 #include "Engine/ActorChannel.h"
@@ -1039,7 +1040,29 @@ const UGameplayEffect* UAbilitySystemComponent::GetGameplayEffectDefForHandle(FA
 
 bool UAbilitySystemComponent::RemoveActiveGameplayEffect(FActiveGameplayEffectHandle Handle, int32 StacksToRemove)
 {
+	using namespace UE::AbilitySystem::Private;
+	if (!EnumHasAnyFlags(static_cast<EAllowPredictiveGEFlags>(CVarAllowPredictiveGEFlagsValue), EAllowPredictiveGEFlags::AllowNativeRemoveByHandle))
+	{
+		if (!IsOwnerActorAuthoritative())
+		{
+			const UGameplayEffect* GEDef = GetGameplayEffectDefForHandle(Handle);
+			UE_LOG(LogAbilitySystem, Warning, TEXT("%hs called without Authority when attempting to remove %s. Fix-up code, or temporarily patch using AbilitySystem.Fix.AllowPredictiveGEFlags"), __func__, *GetNameSafe(GEDef));
+			return false;
+		}
+	}
+
 	return ActiveGameplayEffects.RemoveActiveGameplayEffect(Handle, StacksToRemove);
+}
+
+void UAbilitySystemComponent::RemoveActiveGameplayEffect_NoReturn(FActiveGameplayEffectHandle Handle, int32 StacksToRemove)
+{
+	// Legacy version allowed client removal, so let's keep that for now.
+	RemoveActiveGameplayEffect_AllowClientRemoval(Handle, StacksToRemove);
+}
+
+void UAbilitySystemComponent::RemoveActiveGameplayEffect_AllowClientRemoval(FActiveGameplayEffectHandle Handle, int32 StacksToRemove)
+{
+	ActiveGameplayEffects.RemoveActiveGameplayEffect(Handle, StacksToRemove);
 }
 
 void UAbilitySystemComponent::RemoveActiveGameplayEffectBySourceEffect(TSubclassOf<UGameplayEffect> GameplayEffect, UAbilitySystemComponent* InstigatorAbilitySystemComponent, int32 StacksToRemove /*= -1*/)
@@ -1394,9 +1417,14 @@ void UAbilitySystemComponent::RemoveGameplayCue_Internal(const FGameplayTag Game
 
 void UAbilitySystemComponent::RemoveAllGameplayCues()
 {
-	for (int32 i = (ActiveGameplayCues.GameplayCues.Num() - 1); i >= 0; --i)
+	TArray<FGameplayTag, TInlineAllocator<16>> GameplayCueTagsToRemove;
+	for (const FActiveGameplayCue& Cue : ActiveGameplayCues.GameplayCues)
 	{
-		RemoveGameplayCue(ActiveGameplayCues.GameplayCues[i].GameplayCueTag);
+		GameplayCueTagsToRemove.Emplace(Cue.GameplayCueTag);
+	}
+	for (const FGameplayTag& CueTagToRemove : GameplayCueTagsToRemove)
+	{
+		RemoveGameplayCue(CueTagToRemove);
 	}
 }
 
@@ -2302,7 +2330,7 @@ void UAbilitySystemComponent::OnShowDebugInfo(AHUD* HUD, UCanvas* Canvas, const 
 	
 		UAbilitySystemComponent* ASC = nullptr;
 
-		if (UAbilitySystemGlobals::Get().bUseDebugTargetFromHud)
+		if (UAbilitySystemGlobals::Get().ShouldUseDebugTargetFromHud())
 		{
 			ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(HUD->GetCurrentDebugTargetActor());
 		}
@@ -2783,7 +2811,7 @@ void UAbilitySystemComponent::Debug_Internal(FAbilitySystemComponentDebugInfo& I
 				StatusText = TEXT(" (InputBlocked)");
 				AbilityTextColor = FColor::Red;
 			}
-			else if (AbilitySource->AbilityTags.HasAny(BlockedAbilityTags.GetExplicitGameplayTags()))
+			else if (AbilitySource->GetAssetTags().HasAny(BlockedAbilityTags.GetExplicitGameplayTags()))
 			{
 				StatusText = TEXT(" (TagBlocked)");
 				AbilityTextColor = FColor::Red;
@@ -2800,8 +2828,10 @@ void UAbilitySystemComponent::Debug_Internal(FAbilitySystemComponentDebugInfo& I
 				}
 			}
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			FString InputPressedStr = AbilitySpec.InputPressed ? TEXT("(InputPressed)") : TEXT("");
 			FString ActivationModeStr = AbilitySpec.IsActive() ? UEnum::GetValueAsString(TEXT("GameplayAbilities.EGameplayAbilityActivationMode"), AbilitySpec.ActivationInfo.ActivationMode) : TEXT("");
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			if (Info.Canvas)
 			{

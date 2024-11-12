@@ -488,7 +488,7 @@ namespace Profiling
 	{
 		UE_LOG(LogVirtualization, Display, TEXT(""));
 		UE_LOG(LogVirtualization, Display, TEXT("Virtualization ProfileData"));
-		UE_LOG(LogVirtualization, Display, TEXT("=================================================================================================="));
+		UE_LOG(LogVirtualization, Display, TEXT("============================================================================================="));
 
 		if (!HasProfilingData())
 		{
@@ -500,25 +500,25 @@ namespace Profiling
 			{
 				if (HasProfilingData(Stats))
 				{
-					UE_LOG(LogVirtualization, Display, TEXT("%-40s|%10s|%17s|%12s|%14s|"), Name, TEXT("TotalCount"), TEXT("TotalSize (MB)"), TEXT("TotalTime(s)"), TEXT("DataRate(MB/S)"));
-					UE_LOG(LogVirtualization, Display, TEXT("----------------------------------------|----------|-----------------|------------|--------------|"));
+					UE_LOG(LogVirtualization, Display, TEXT("%-40s|%10s|%15s|%12s|%11s|"), Name, TEXT("TotalCount"), TEXT("TotalSize (MiB)"), TEXT("TotalTime(s)"), TEXT("AvgTime(ms)"));
+					UE_LOG(LogVirtualization, Display, TEXT("----------------------------------------|----------|---------------|------------|-----------|"));
 
 					for (const auto& Iterator : Stats)
 					{
 						const int64 Count = Iterator.Value.GetAccumulatedValueAnyThread(FCookStats::CallStats::EHitOrMiss::Hit, FCookStats::CallStats::EStatType::Counter);
-						const double Time = (double)Iterator.Value.GetAccumulatedValueAnyThread(FCookStats::CallStats::EHitOrMiss::Hit, FCookStats::CallStats::EStatType::Cycles) * FPlatformTime::GetSecondsPerCycle();
+						const double TotalTime = (double)Iterator.Value.GetAccumulatedValueAnyThread(FCookStats::CallStats::EHitOrMiss::Hit, FCookStats::CallStats::EStatType::Cycles) * FPlatformTime::GetSecondsPerCycle();
 						const double DataSizeMB = (double)Iterator.Value.GetAccumulatedValueAnyThread(FCookStats::CallStats::EHitOrMiss::Hit, FCookStats::CallStats::EStatType::Bytes) / (1024.0f * 1024.0f);
-						const double MBps = Time != 0.0 ? (DataSizeMB / Time) : 0.0;
+						const double AvgTime = Count > 0 ? (TotalTime * 1000.0) / static_cast<double>(Count) : 0.0;
 
-						UE_LOG(LogVirtualization, Display, TEXT("%-40.40s|%10lld|%17.1f|%12.3f|%14.3f|"),
+						UE_LOG(LogVirtualization, Display, TEXT("%-40.40s|%10lld|%15.1lf|%12.1lf|%11.0lf|"),
 							*Iterator.Key,
 							Count,
 							DataSizeMB,
-							Time,
-							MBps);
+							TotalTime,
+							AvgTime);
 					}
 
-					UE_LOG(LogVirtualization, Display, TEXT("=================================================================================================="));
+					UE_LOG(LogVirtualization, Display, TEXT("============================================================================================="));
 				}
 			};
 
@@ -984,7 +984,7 @@ void FVirtualizationManager::DumpStats() const
 #endif // ENABLE_COOK_STATS
 }
 
-FPayloadActivityInfo FVirtualizationManager::GetAccumualtedPayloadActivityInfo() const
+FPayloadActivityInfo FVirtualizationManager::GetSystemStatistics() const
 {
 	FPayloadActivityInfo Info;
 
@@ -1014,14 +1014,24 @@ FPayloadActivityInfo FVirtualizationManager::GetAccumualtedPayloadActivityInfo()
 	return Info;
 }
 
-void FVirtualizationManager::GetPayloadActivityInfo( GetPayloadActivityInfoFuncRef GetPayloadFunc ) const
+TArray<FBackendStats> FVirtualizationManager::GetBackendStatistics() const
 {
-	FPayloadActivityInfo Info;
-
+	TArray<FBackendStats> Stats;
+	
 #if ENABLE_COOK_STATS
 
-	for (const auto& Backend : AllBackends)
+	Stats.Reserve(AllBackends.Num());
+
+	for (const TUniquePtr<IVirtualizationBackend>& Backend : AllBackends)
 	{
+		FBackendStats& BackendStats = Stats.AddDefaulted_GetRef();
+
+		BackendStats.DebugName = Backend->GetDebugName();
+		BackendStats.ConfigName = Backend->GetConfigName();
+		BackendStats.Type = PersistentStorageBackends.Contains(Backend.Get()) ? EStorageType::Persistent : EStorageType::Cache;
+
+		FPayloadActivityInfo& Info = BackendStats.PayloadActivity;
+
 		const FCookStats::CallStats& CacheStats = Profiling::GetCacheStats(*Backend);
 
 		Info.Cache.PayloadCount = CacheStats.GetAccumulatedValueAnyThread(FCookStats::CallStats::EHitOrMiss::Hit, FCookStats::CallStats::EStatType::Counter);
@@ -1039,13 +1049,10 @@ void FVirtualizationManager::GetPayloadActivityInfo( GetPayloadActivityInfoFuncR
 		Info.Pull.PayloadCount = PullStats.GetAccumulatedValueAnyThread(FCookStats::CallStats::EHitOrMiss::Hit, FCookStats::CallStats::EStatType::Counter);
 		Info.Pull.TotalBytes = PullStats.GetAccumulatedValueAnyThread(FCookStats::CallStats::EHitOrMiss::Hit, FCookStats::CallStats::EStatType::Bytes);
 		Info.Pull.CyclesSpent = PullStats.GetAccumulatedValueAnyThread(FCookStats::CallStats::EHitOrMiss::Hit, FCookStats::CallStats::EStatType::Cycles);
-
-		GetPayloadFunc(Backend->GetDebugName(), Backend->GetConfigName(), Info);
-
 	}
 #endif // ENABLE_COOK_STATS
 
-	
+	return Stats;
 }
 
 void FVirtualizationManager::ApplySettingsFromConfigFiles(const FConfigFile& ConfigFile)
@@ -1817,9 +1824,9 @@ void FVirtualizationManager::EnsureBackendConnections()
 	if (bPendingBackendConnections)
 	{
 		// Only allow one thread to initialize the system at a time
-		static FCriticalSection InitCS;
+		static FMutex Mutex;
 
-		FScopeLock _(&InitCS);
+		UE::TUniqueLock _(Mutex);
 		if (bPendingBackendConnections)
 		{
 			for (const TUniquePtr<IVirtualizationBackend>& Backend : AllBackends)
@@ -1847,13 +1854,21 @@ void FVirtualizationManager::CachePayloads(TArrayView<FPushRequest> Requests, co
 			return;
 		}
 
+		// Reset any previous caching results
+		for (FPushRequest& Request : Requests)
+		{
+			Request.ResetResult();
+		}	
+
 		const bool bResult = TryCacheDataToBackend(*BackendToCache, Requests, Flags);
 
 		if (!bResult)
 		{
 			for (const FPushRequest& Request : Requests)
 			{
-				UE_LOG(LogVirtualization, Warning, TEXT("Failed to cache payload '%s' to backend '%s'"), *LexToString(Request.GetIdentifier()), *BackendToCache->GetDebugName());
+				UE_CLOG(Request.GetResult().WasError(), LogVirtualization, Warning, TEXT("Failed to cache payload '%s' to backend '%s'"),
+					*LexToString(Request.GetIdentifier()),
+					*BackendToCache->GetDebugName());
 			}
 		}
 
@@ -1895,6 +1910,8 @@ bool FVirtualizationManager::TryCacheDataToBackend(IVirtualizationBackend& Backe
 				Stats.Accumulate(FCookStats::CallStats::EHitOrMiss::Hit, FCookStats::CallStats::EStatType::Bytes, Request.GetPayload().GetCompressedSize(), bIsInGameThread);
 
 				bWasDataPushed = true;
+
+				UE_LOG(LogVirtualization, Verbose, TEXT("[%s] Cached payload '%s'"), *Backend.GetDebugName(), *LexToString(Request.GetIdentifier()));
 			}
 		}
 
@@ -2007,10 +2024,13 @@ void FVirtualizationManager::PullDataFromAllBackends(TArrayView<FPullRequest> Re
 		{
 			return; // All payloads pulled
 		}
-		else if (OnPayloadPullError(RequestsCollection, BackendErrors) != ErrorHandlingResult::Retry)
+		else if (OnPayloadPullError(RequestsCollection, BackendErrors) == ErrorHandlingResult::AcceptFailedPayloads)
 		{
-			return; // Some payloads failed to pull
+			return; // Some payloads failed to pull but we will let the calling code deal with that.
+					// This path should only be taken if legacy error handling is enabled.
 		}
+
+		// The user opted to retry pulling the payloads that failed.
 	}
 }
 
@@ -2109,6 +2129,16 @@ FVirtualizationManager::ErrorHandlingResult FVirtualizationManager::OnPayloadPul
 
 				UnattendedFailureMsgCount++;
 			}
+		}
+
+		{
+			TArray<FAnalyticsEventAttribute> Attributes;
+			Attributes.Add({ TEXT("UserSelection"), Result == EAppReturnType::No ? TEXT("Quit") : TEXT("Retry")});
+
+			// Need to flush if we are going to quit to make sure that the analytics payloads are sent properly.
+			const EAnalyticsFlags Flags = Result == EAppReturnType::No ? EAnalyticsFlags::Flush : EAnalyticsFlags::None;
+
+			GetAnalyticsRecordEvent().Broadcast(TEXT("Editor.VA.PayloadPullError"), Attributes, Flags);
 		}
 
 		if (Result == EAppReturnType::No)
@@ -2224,7 +2254,7 @@ bool FVirtualizationManager::ShouldVirtualizePackage(const FPackagePath& Package
 	return ShouldVirtualizeAsDefault();
 }
 
-bool FVirtualizationManager::ShouldVirtualize(const FString& Context) const
+bool FVirtualizationManager::ShouldVirtualize(FStringView Context) const
 {
 	// First see if we can convert the context from a raw string to a valid package path.
 	// If we can extract a package path then we should use the package filtering code
@@ -2273,67 +2303,81 @@ void FVirtualizationManager::BroadcastEvent(TConstArrayView<FPullRequest> Reques
 
 void FVirtualizationManager::GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes) const
 {
-	using namespace UE::Virtualization;
+	Attributes.Reserve(Attributes.Num() + 10);
 
-	// Grab the Virtualization stats
-	if (IVirtualizationSystem::IsInitialized())
+	FPayloadActivityInfo PayloadActivityInfo = GetSystemStatistics();
+
+	const FString BaseName = TEXT("Virtualization");
+
 	{
-		IVirtualizationSystem& System = IVirtualizationSystem::Get();
+		FString AttrName = BaseName + TEXT("_Enabled");
+		Attributes.Emplace(MoveTemp(AttrName), IsEnabled());
+	}
 
-		FPayloadActivityInfo PayloadActivityInfo = System.GetAccumualtedPayloadActivityInfo();
+	{
+		FString AttrName = BaseName + TEXT("_Cache_TimeSpent");
+		Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Cache.CyclesSpent * FPlatformTime::GetSecondsPerCycle());
+	}
 
-		const FString BaseName = TEXT("Virtualization");
+	{
+		FString AttrName = BaseName + TEXT("_Cache_PayloadCount");
+		Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Cache.PayloadCount);
+	}
 
+	{
+		FString AttrName = BaseName + TEXT("_Cache_TotalBytes");
+		Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Cache.TotalBytes);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("_Push_TimeSpent");
+		Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Push.CyclesSpent * FPlatformTime::GetSecondsPerCycle());
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("_Push_PayloadCount");
+		Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Push.PayloadCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("_Push_TotalBytes");
+		Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Push.TotalBytes);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("_Pull_TimeSpent");
+		Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Pull.CyclesSpent * FPlatformTime::GetSecondsPerCycle());
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("_Pull_PayloadCount");
+		Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Pull.PayloadCount);
+	}
+
+	{
+		FString AttrName = BaseName + TEXT("_Pull_TotalBytes");
+		Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Pull.TotalBytes);
+	}
+}
+
+EPayloadFilterReason FVirtualizationManager::FixFilterFlags(FStringView PackagePath, uint64 SizeOnDisk, EPayloadFilterReason CurrentFilterFlags)
+{
+	// We only apply new filters if the payload does not curently have any as stored filtered reasons would be checked first before
+	// we ever got to this part of the virtualization process.
+	if (CurrentFilterFlags == EPayloadFilterReason::None)
+	{
+		if (static_cast<int64>(SizeOnDisk) < MinPayloadLength)
 		{
-			FString AttrName = BaseName + TEXT("_Enabled");
-			Attributes.Emplace(MoveTemp(AttrName), System.IsEnabled());
+			return EPayloadFilterReason::MinSize;
 		}
 
+		if (!ShouldVirtualize(PackagePath))
 		{
-			FString AttrName = BaseName + TEXT("_Cache_TimeSpent");
-			Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Cache.CyclesSpent * FPlatformTime::GetSecondsPerCycle());
-		}
-
-		{
-			FString AttrName = BaseName + TEXT("_Cache_PayloadCount");
-			Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Cache.PayloadCount);
-		}
-
-		{
-			FString AttrName = BaseName + TEXT("_Cache_TotalBytes");
-			Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Cache.TotalBytes);
-		}
-
-		{
-			FString AttrName = BaseName + TEXT("_Push_TimeSpent");
-			Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Push.CyclesSpent * FPlatformTime::GetSecondsPerCycle());
-		}
-
-		{
-			FString AttrName = BaseName + TEXT("_Push_PayloadCount");
-			Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Push.PayloadCount);
-		}
-
-		{
-			FString AttrName = BaseName + TEXT("_Push_TotalBytes");
-			Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Push.TotalBytes);
-		}
-
-		{
-			FString AttrName = BaseName + TEXT("_Pull_TimeSpent");
-			Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Pull.CyclesSpent * FPlatformTime::GetSecondsPerCycle());
-		}
-
-		{
-			FString AttrName = BaseName + TEXT("_Pull_PayloadCount");
-			Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Pull.PayloadCount);
-		}
-
-		{
-			FString AttrName = BaseName + TEXT("_Pull_TotalBytes");
-			Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Pull.TotalBytes);
+			return EPayloadFilterReason::Path;
 		}
 	}
+
+	return CurrentFilterFlags;
 }
 
 FString FVirtualizationManager::GetConnectionHelpUrl()

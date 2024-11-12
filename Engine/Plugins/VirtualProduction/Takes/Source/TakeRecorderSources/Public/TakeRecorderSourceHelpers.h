@@ -8,6 +8,8 @@
 #include "GameFramework/Actor.h"
 
 class AActor;
+class UMovieSceneTakeTrack;
+
 
 namespace TakeRecorderSourceHelpers
 {
@@ -29,4 +31,11 @@ namespace TakeRecorderSourceHelpers
 	 * Removes all sources from a list of sources to record from.
 	 */
 	TAKERECORDERSOURCES_API void RemoveAllActorSources(UTakeRecorderSources* Sources);
+
+	using FArrayOfRecordedTimePairs = const TArray<TPair<FQualifiedFrameTime, FQualifiedFrameTime>>;
+
+	/**
+	 * Creates a takes track to store timecode data on a take recorder source.
+	 */
+	TAKERECORDERSOURCES_API void ProcessRecordedTimes(ULevelSequence* InSequence, UMovieSceneTakeTrack* TakeTrack, const TOptional<TRange<FFrameNumber>>& FrameRange, const FArrayOfRecordedTimePairs& RecordedTimes);
 };

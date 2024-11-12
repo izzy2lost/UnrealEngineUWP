@@ -55,12 +55,12 @@ public:
 /* ---- All properties must be EditDefaultsOnly, BlueprintReadOnly !!! -----
  *       we return the CDO to blueprints, so we cannot allow any changes (blueprint doesn't support const variables)
  */
-UCLASS(Abstract, Blueprintable, ClassGroup = UI, meta = (Category = "Common UI"))
-class COMMONUI_API UCommonButtonStyle : public UObject
+UCLASS(Abstract, Blueprintable, MinimalAPI, ClassGroup = UI, meta = (Category = "Common UI"))
+class UCommonButtonStyle : public UObject
 {
 	GENERATED_BODY()
 
-	virtual bool NeedsLoadForServer() const override;
+	COMMONUI_API virtual bool NeedsLoadForServer() const override;
 
 public:
 	
@@ -161,71 +161,70 @@ public:
 	FCommonButtonStyleOptionalSlateSound LockedHoveredSlateSound;
 
 	UFUNCTION(BlueprintCallable, Category = "Common ButtonStyle|Getters")
-	void GetMaterialBrush(FSlateBrush& Brush) const;
+	COMMONUI_API void GetMaterialBrush(FSlateBrush& Brush) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common ButtonStyle|Getters")
-	void GetNormalBaseBrush(FSlateBrush& Brush) const;
+	COMMONUI_API void GetNormalBaseBrush(FSlateBrush& Brush) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common ButtonStyle|Getters")
-	void GetNormalHoveredBrush(FSlateBrush& Brush) const;
+	COMMONUI_API void GetNormalHoveredBrush(FSlateBrush& Brush) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common ButtonStyle|Getters")
-	void GetNormalPressedBrush(FSlateBrush& Brush) const;
+	COMMONUI_API void GetNormalPressedBrush(FSlateBrush& Brush) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common ButtonStyle|Getters")
-	void GetSelectedBaseBrush(FSlateBrush& Brush) const;
+	COMMONUI_API void GetSelectedBaseBrush(FSlateBrush& Brush) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common ButtonStyle|Getters")
-	void GetSelectedHoveredBrush(FSlateBrush& Brush) const;
+	COMMONUI_API void GetSelectedHoveredBrush(FSlateBrush& Brush) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common ButtonStyle|Getters")
-	void GetSelectedPressedBrush(FSlateBrush& Brush) const;
+	COMMONUI_API void GetSelectedPressedBrush(FSlateBrush& Brush) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common ButtonStyle|Getters")
-	void GetDisabledBrush(FSlateBrush& Brush) const;
+	COMMONUI_API void GetDisabledBrush(FSlateBrush& Brush) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common ButtonStyle|Getters")
-	void GetButtonPadding(FMargin& OutButtonPadding) const;
+	COMMONUI_API void GetButtonPadding(FMargin& OutButtonPadding) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common ButtonStyle|Getters")
-	void GetCustomPadding(FMargin& OutCustomPadding) const;
+	COMMONUI_API void GetCustomPadding(FMargin& OutCustomPadding) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common ButtonStyle|Getters")
-	UCommonTextStyle* GetNormalTextStyle() const;
+	COMMONUI_API UCommonTextStyle* GetNormalTextStyle() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common ButtonStyle|Getters")
-	UCommonTextStyle* GetNormalHoveredTextStyle() const;
+	COMMONUI_API UCommonTextStyle* GetNormalHoveredTextStyle() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common ButtonStyle|Getters")
-	UCommonTextStyle* GetSelectedTextStyle() const;
+	COMMONUI_API UCommonTextStyle* GetSelectedTextStyle() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common ButtonStyle|Getters")
-	UCommonTextStyle* GetSelectedHoveredTextStyle() const;
+	COMMONUI_API UCommonTextStyle* GetSelectedHoveredTextStyle() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common ButtonStyle|Getters")
-	UCommonTextStyle* GetDisabledTextStyle() const;
-
+	COMMONUI_API UCommonTextStyle* GetDisabledTextStyle() const;
 };
 
 DECLARE_DELEGATE_RetVal(FReply, FOnButtonDoubleClickedEvent);
 
 /** Custom UButton override that allows us to disable clicking without disabling the widget entirely */
-UCLASS(Experimental)	// "Experimental" to hide it in the designer
-class COMMONUI_API UCommonButtonInternalBase : public UButton
+UCLASS(Experimental, MinimalAPI)	// "Experimental" to hide it in the designer
+class UCommonButtonInternalBase : public UButton
 {
 	GENERATED_UCLASS_BODY()
 
 public:
-	void SetButtonEnabled(bool bInIsButtonEnabled);
-	void SetInteractionEnabled(bool bInIsInteractionEnabled);
+	COMMONUI_API void SetButtonEnabled(bool bInIsButtonEnabled);
+	COMMONUI_API void SetInteractionEnabled(bool bInIsInteractionEnabled);
 
 	/** Updates the IsFocusable flag and updates the bIsFocusable flag of the underlying slate button widget */
-	void SetButtonFocusable(bool bInIsButtonFocusable);
-	bool IsHovered() const;
-	bool IsPressed() const;
+	COMMONUI_API void SetButtonFocusable(bool bInIsButtonFocusable);
+	COMMONUI_API bool IsHovered() const;
+	COMMONUI_API bool IsPressed() const;
 
-	void SetMinDesiredHeight(int32 InMinHeight);
-	void SetMinDesiredWidth(int32 InMinWidth);
+	COMMONUI_API void SetMinDesiredHeight(int32 InMinHeight);
+	COMMONUI_API void SetMinDesiredWidth(int32 InMinWidth);
 
 	/** Called when the button is clicked */
 	FOnButtonDoubleClickedEvent HandleDoubleClicked;
@@ -242,20 +241,20 @@ public:
 
 protected:
 	// UWidget interface
-	virtual TSharedRef<SWidget> RebuildWidget() override;
-	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
+	COMMONUI_API virtual TSharedRef<SWidget> RebuildWidget() override;
+	COMMONUI_API virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 	// End of UWidget interface
 
-	virtual FReply SlateHandleClickedOverride();
-	virtual void SlateHandlePressedOverride();
-	virtual void SlateHandleReleasedOverride();
-	virtual FReply SlateHandleDoubleClicked();
+	COMMONUI_API virtual FReply SlateHandleClickedOverride();
+	COMMONUI_API virtual void SlateHandlePressedOverride();
+	COMMONUI_API virtual void SlateHandleReleasedOverride();
+	COMMONUI_API virtual FReply SlateHandleDoubleClicked();
 
 	/** Called when internal slate button receives focus; Fires OnReceivedFocus */
-	void SlateHandleOnReceivedFocus();
+	COMMONUI_API void SlateHandleOnReceivedFocus();
 
 	/** Called when internal slate button loses focus; Fires OnLostFocus */
-	void SlateHandleOnLostFocus();
+	COMMONUI_API void SlateHandleOnLostFocus();
 
 	/** The minimum width of the button */
 	UPROPERTY()
@@ -287,183 +286,195 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCommonButtonBaseClicked, class UCom
 /**
  * Button that disables itself when not active. Also updates actions for CommonActionWidget if bound to display platform-specific icons.
  */
-UCLASS(Abstract, Blueprintable, ClassGroup = UI, meta = (Category = "Common UI", DisableNativeTick))
-class COMMONUI_API UCommonButtonBase : public UCommonUserWidget
+UCLASS(Abstract, Blueprintable, MinimalAPI, ClassGroup = UI, meta = (Category = "Common UI", DisableNativeTick))
+class UCommonButtonBase : public UCommonUserWidget
 {
 	GENERATED_UCLASS_BODY()
 
 public:
 	// UWidget interface
-	virtual bool IsHovered() const override;
+	COMMONUI_API virtual bool IsHovered() const override;
 	// End of UWidget interface
 
 	// UUserWidget interface
-	virtual void NativeConstruct() override;
-	virtual void NativeDestruct() override;
-	virtual bool Initialize() override;
-	virtual void SetIsEnabled(bool bInIsEnabled) override;
-	virtual bool NativeIsInteractable() const override;
+	COMMONUI_API virtual void NativeConstruct() override;
+	COMMONUI_API virtual void NativeDestruct() override;
+	COMMONUI_API virtual bool Initialize() override;
+	COMMONUI_API virtual void SetIsEnabled(bool bInIsEnabled) override;
+	COMMONUI_API virtual bool NativeIsInteractable() const override;
 	// End of UUserWidget interface
 	
 	/** Disables this button with a reason (use instead of SetIsEnabled) */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void DisableButtonWithReason(const FText& DisabledReason);
+	COMMONUI_API void DisableButtonWithReason(const FText& DisabledReason);
 
 	/** Change whether this widget is selectable at all. If false and currently selected, will deselect. */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetIsInteractionEnabled(bool bInIsInteractionEnabled);
+	COMMONUI_API void SetIsInteractionEnabled(bool bInIsInteractionEnabled);
 
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetHideInputAction(bool bInHideInputAction);
+	COMMONUI_API void SetHideInputAction(bool bInHideInputAction);
 
 	/** Is this button currently interactable? (use instead of GetIsEnabled) */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Getters")
-	bool IsInteractionEnabled() const;
+	COMMONUI_API bool IsInteractionEnabled() const;
 
 	/** Is this button currently pressed? */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Getters")
-	bool IsPressed() const;
+	COMMONUI_API bool IsPressed() const;
 
 	/** Set the click method for mouse interaction */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetClickMethod(EButtonClickMethod::Type InClickMethod);
+	COMMONUI_API void SetClickMethod(EButtonClickMethod::Type InClickMethod);
 
 	/** Set the click method for touch interaction */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetTouchMethod(EButtonTouchMethod::Type InTouchMethod);
+	COMMONUI_API void SetTouchMethod(EButtonTouchMethod::Type InTouchMethod);
 
 	/** Set the click method for keyboard/gamepad button press interaction */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetPressMethod(EButtonPressMethod::Type InPressMethod);
+	COMMONUI_API void SetPressMethod(EButtonPressMethod::Type InPressMethod);
 
 	/** Change whether this widget is selectable at all. If false and currently selected, will deselect. */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetIsSelectable(bool bInIsSelectable);
+	COMMONUI_API void SetIsSelectable(bool bInIsSelectable);
 
 	/** Change whether this widget is selectable at all. If false and currently selected, will deselect. */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetIsInteractableWhenSelected(bool bInInteractableWhenSelected);
+	COMMONUI_API void SetIsInteractableWhenSelected(bool bInInteractableWhenSelected);
 
 	/** Change whether this widget is toggleable. If toggleable, clicking when selected will deselect. */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetIsToggleable(bool bInIsToggleable);
+	COMMONUI_API void SetIsToggleable(bool bInIsToggleable);
 
 	/** Change whether this widget should use the fallback default input action. */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetShouldUseFallbackDefaultInputAction(bool bInShouldUseFallbackDefaultInputAction);
+	COMMONUI_API void SetShouldUseFallbackDefaultInputAction(bool bInShouldUseFallbackDefaultInputAction);
 
 	/** 
 	 * Change the selected state manually.
 	 * @param bGiveClickFeedback	If true, the button may give user feedback as if it were clicked. IE: Play a click sound, trigger animations as if it were clicked.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetIsSelected(bool InSelected, bool bGiveClickFeedback = true);
+	COMMONUI_API void SetIsSelected(bool InSelected, bool bGiveClickFeedback = true);
 
 	/** Change whether this widget is locked. If locked, the button can be focusable and responsive to mouse input but will not broadcast OnClicked events. */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetIsLocked(bool bInIsLocked);
+	COMMONUI_API void SetIsLocked(bool bInIsLocked);
 
 	/** @returns True if the button is currently in a selected state, False otherwise */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Getters")
-	bool GetSelected() const;
+	COMMONUI_API bool GetSelected() const;
 
 	/** @returns True if the button is currently locked, False otherwise */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Getters")
-	bool GetLocked() const;
+	COMMONUI_API bool GetLocked() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common Button" )
-	void ClearSelection();
+	COMMONUI_API void ClearSelection();
 
 	/** Set whether the button should become selected upon receiving focus or not; Only settable for buttons that are selectable */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetShouldSelectUponReceivingFocus(bool bInShouldSelectUponReceivingFocus);
+	COMMONUI_API void SetShouldSelectUponReceivingFocus(bool bInShouldSelectUponReceivingFocus);
 
 	/** Get whether the button should become selected upon receiving focus or not */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Getters")
-	bool GetShouldSelectUponReceivingFocus() const;
+	COMMONUI_API bool GetShouldSelectUponReceivingFocus() const;
 
 	/** Sets the style of this button, rebuilds the internal styling */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetStyle(TSubclassOf<UCommonButtonStyle> InStyle = nullptr);
+	COMMONUI_API void SetStyle(TSubclassOf<UCommonButtonStyle> InStyle = nullptr);
 
 	/** @Returns Current button style*/
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Getters")
-	UCommonButtonStyle* GetStyle() const;
+	COMMONUI_API UCommonButtonStyle* GetStyle() const;
 
-	const UCommonButtonStyle* GetStyleCDO() const;
+	COMMONUI_API const UCommonButtonStyle* GetStyleCDO() const;
 
 	/** @return The current button padding that corresponds to the current size and selection state */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Getters")
-	void GetCurrentButtonPadding(FMargin& OutButtonPadding) const;
+	COMMONUI_API void GetCurrentButtonPadding(FMargin& OutButtonPadding) const;
 
 	/** @return The custom padding that corresponds to the current size and selection state */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Getters")
-	void GetCurrentCustomPadding(FMargin& OutCustomPadding) const;
+	COMMONUI_API void GetCurrentCustomPadding(FMargin& OutCustomPadding) const;
 	
 	/** @return The text style that corresponds to the current size and selection state */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Getters")
-	UCommonTextStyle* GetCurrentTextStyle() const;
+	COMMONUI_API UCommonTextStyle* GetCurrentTextStyle() const;
 
 	/** @return The class of the text style that corresponds to the current size and selection state */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Getters")
-	TSubclassOf<UCommonTextStyle> GetCurrentTextStyleClass() const;
+	COMMONUI_API TSubclassOf<UCommonTextStyle> GetCurrentTextStyleClass() const;
 
 	/** Sets the minimum dimensions of this button */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetMinDimensions(int32 InMinWidth, int32 InMinHeight);
+	COMMONUI_API void SetMinDimensions(int32 InMinWidth, int32 InMinHeight);
 
 	/** Updates the current triggered action */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetTriggeredInputAction(const FDataTableRowHandle &InputActionRow);
+	COMMONUI_API void SetTriggeredInputAction(const FDataTableRowHandle &InputActionRow);
 
 	/** Updates the current triggering action */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetTriggeringInputAction(const FDataTableRowHandle & InputActionRow);
+	COMMONUI_API void SetTriggeringInputAction(const FDataTableRowHandle & InputActionRow);
 
 	/** Updates the current triggering enhanced input action, requires enhanced input enabled in CommonUI settings */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
-	void SetTriggeringEnhancedInputAction(UInputAction* InInputAction);
+	COMMONUI_API void SetTriggeringEnhancedInputAction(UInputAction* InInputAction);
 
 	/** Gets the appropriate input action that is set */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Getters")
-	bool GetInputAction(FDataTableRowHandle &InputActionRow) const;
+	COMMONUI_API bool GetInputAction(FDataTableRowHandle &InputActionRow) const;
 
 	/** Gets the appropriate enhanced input action that is set */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Getters")
-	UInputAction* GetEnhancedInputAction() const;
+	COMMONUI_API UInputAction* GetEnhancedInputAction() const;
+
+	/** Returns true if this button has a hold behavior, even if the triggering action is not holdable. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Common Button|Getters")
+	bool GetRequiresHold() const { return bRequiresHold; }
+
+	/** Change whether this button should have a hold behavior even if the triggering action is not holdable. */
+	UFUNCTION(BlueprintCallable, Category = "Common Button|Setters")
+	COMMONUI_API void SetRequiresHold(bool bInRequiresHold);
+
+	/** Returns required hold time for performing a triggering action. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Common Button|Getters")
+	float GetRequiredHoldTime() const { return HoldTime; };
 
 	/** Updates the bIsFocusable flag */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Getters")
-	void SetIsFocusable(bool bInIsFocusable);
+	COMMONUI_API void SetIsFocusable(bool bInIsFocusable);
 
 	/** Gets the bIsFocusable flag */
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Getters")
-	bool GetIsFocusable() const;
+	COMMONUI_API bool GetIsFocusable() const;
 
 	/** Returns the dynamic instance of the material being used for this button, if it is using a single material style. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Common Button|Getters")
-	UMaterialInstanceDynamic* GetSingleMaterialStyleMID() const;
+	COMMONUI_API UMaterialInstanceDynamic* GetSingleMaterialStyleMID() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Input")
-	void SetInputActionProgressMaterial(const FSlateBrush& InProgressMaterialBrush, const FName& InProgressMaterialParam);
+	COMMONUI_API void SetInputActionProgressMaterial(const FSlateBrush& InProgressMaterialBrush, const FName& InProgressMaterialParam);
 
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Sound")
-	void SetPressedSoundOverride(USoundBase* Sound);
+	COMMONUI_API void SetPressedSoundOverride(USoundBase* Sound);
 
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Sound")
-	void SetHoveredSoundOverride(USoundBase* Sound);
+	COMMONUI_API void SetHoveredSoundOverride(USoundBase* Sound);
 
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Sound")
-	void SetSelectedPressedSoundOverride(USoundBase* Sound);
+	COMMONUI_API void SetSelectedPressedSoundOverride(USoundBase* Sound);
 
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Sound")
-	void SetSelectedHoveredSoundOverride(USoundBase* Sound);
+	COMMONUI_API void SetSelectedHoveredSoundOverride(USoundBase* Sound);
 	
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Sound")
-	void SetLockedPressedSoundOverride(USoundBase* Sound);
+	COMMONUI_API void SetLockedPressedSoundOverride(USoundBase* Sound);
 
 	UFUNCTION(BlueprintCallable, Category = "Common Button|Sound")
-	void SetLockedHoveredSoundOverride(USoundBase* Sound);
+	COMMONUI_API void SetLockedHoveredSoundOverride(USoundBase* Sound);
 
 	DECLARE_EVENT(UCommonButtonBase, FCommonButtonEvent);
 	FCommonButtonEvent& OnClicked() const { return OnClickedEvent; }
@@ -487,206 +498,206 @@ protected:
 	bool IsPersistentBinding() const { return bIsPersistentBinding; }
 	ECommonInputMode GetInputModeOverride() const { return InputModeOverride; }
 	
-	virtual UCommonButtonInternalBase* ConstructInternalButton();
+	COMMONUI_API virtual UCommonButtonInternalBase* ConstructInternalButton();
 
-	virtual void OnWidgetRebuilt();
-	virtual void PostLoad() override;
-	virtual void SynchronizeProperties() override;
-	virtual FReply NativeOnFocusReceived(const FGeometry& InGeometry, const FFocusEvent& InFocusEvent) override;
-	virtual void NativeOnFocusLost(const FFocusEvent& InFocusEvent) override;
+	COMMONUI_API virtual void OnWidgetRebuilt();
+	COMMONUI_API virtual void PostLoad() override;
+	COMMONUI_API virtual void SynchronizeProperties() override;
+	COMMONUI_API virtual FReply NativeOnFocusReceived(const FGeometry& InGeometry, const FFocusEvent& InFocusEvent) override;
+	COMMONUI_API virtual void NativeOnFocusLost(const FFocusEvent& InFocusEvent) override;
 
 #if WITH_EDITOR
-	virtual void OnCreationFromPalette() override;
-	const FText GetPaletteCategory() override;
+	COMMONUI_API virtual void OnCreationFromPalette() override;
+	COMMONUI_API const FText GetPaletteCategory() override;
 #endif // WITH_EDITOR
 
 	// In some scenarios, USoundBase* setters are bypassed, so standard setters must also be provided for sound override properties
-	void SetPressedSlateSoundOverride(const FSlateSound& InPressedSlateSoundOverride);
-	void SetHoveredSlateSoundOverride(const FSlateSound& InHoveredSlateSoundOverride);
-	void SetSelectedPressedSlateSoundOverride(const FSlateSound& InSelectedPressedSlateSoundOverride);
-	void SetSelectedHoveredSlateSoundOverride(const FSlateSound& InSelectedHoveredSlateSoundOverride);
-	void SetLockedPressedSlateSoundOverride(const FSlateSound& InLockedPressedSlateSoundOverride);
-	void SetLockedHoveredSlateSoundOverride(const FSlateSound& InLockedHoveredSlateSoundOverride);
+	COMMONUI_API void SetPressedSlateSoundOverride(const FSlateSound& InPressedSlateSoundOverride);
+	COMMONUI_API void SetHoveredSlateSoundOverride(const FSlateSound& InHoveredSlateSoundOverride);
+	COMMONUI_API void SetSelectedPressedSlateSoundOverride(const FSlateSound& InSelectedPressedSlateSoundOverride);
+	COMMONUI_API void SetSelectedHoveredSlateSoundOverride(const FSlateSound& InSelectedHoveredSlateSoundOverride);
+	COMMONUI_API void SetLockedPressedSlateSoundOverride(const FSlateSound& InLockedPressedSlateSoundOverride);
+	COMMONUI_API void SetLockedHoveredSlateSoundOverride(const FSlateSound& InLockedHoveredSlateSoundOverride);
 
 	/** Helper function to bind to input method change events */
-	virtual void BindInputMethodChangedDelegate();
+	COMMONUI_API virtual void BindInputMethodChangedDelegate();
 
 	/** Helper function to unbind from input method change events */
-	virtual void UnbindInputMethodChangedDelegate();
+	COMMONUI_API virtual void UnbindInputMethodChangedDelegate();
 
 	/** Called via delegate when the input method changes */
 	UFUNCTION()
-	virtual void OnInputMethodChanged(ECommonInputType CurrentInputType);
-	
+	COMMONUI_API virtual void OnInputMethodChanged(ECommonInputType CurrentInputType);
+
 	/** If HoldData is valid, assigns its values to Keyboard and Mouse, Gamepad and Touch, based off the Current Input Type. */
     UFUNCTION()
-	virtual void UpdateHoldData(ECommonInputType CurrentInputType);
+	COMMONUI_API virtual void UpdateHoldData(ECommonInputType CurrentInputType);
 
 	/** Associates this button at its priority with the given key */
-	virtual void BindTriggeringInputActionToClick();
+	COMMONUI_API virtual void BindTriggeringInputActionToClick();
 
 	/** Associates this button at its priority with the given key */
-	virtual void UnbindTriggeringInputActionToClick();
+	COMMONUI_API virtual void UnbindTriggeringInputActionToClick();
 
 	UFUNCTION()
-	virtual void HandleTriggeringActionCommited(bool& bPassthrough);
-	virtual void HandleTriggeringActionCommited();
+	COMMONUI_API virtual void HandleTriggeringActionCommited(bool& bPassthrough);
+	COMMONUI_API virtual void HandleTriggeringActionCommited();
 
 	// @TODO: DarenC - API decision, consider removing
-	virtual void ExecuteTriggeredInput();
+	COMMONUI_API virtual void ExecuteTriggeredInput();
 
 	/** Helper function to update the associated input action widget, if any, based upon the state of the button */
-	virtual void UpdateInputActionWidget();
+	COMMONUI_API virtual void UpdateInputActionWidget();
 
 	/** Handler function registered to the underlying button's click. */
 	UFUNCTION()
-	void HandleButtonClicked();
+	COMMONUI_API void HandleButtonClicked();
 
 	/** Handler function registered to the underlying button's double click. */
-	FReply HandleButtonDoubleClicked();
+	COMMONUI_API FReply HandleButtonDoubleClicked();
 
 	/** Helper function registered to the underlying button receiving focus */
 	UFUNCTION()
-	virtual void HandleFocusReceived();
+	COMMONUI_API virtual void HandleFocusReceived();
 	
 	/** Helper function registered to the underlying button losing focus */
 	UFUNCTION()
-	virtual void HandleFocusLost();
+	COMMONUI_API virtual void HandleFocusLost();
 
 	/** Helper function registered to the underlying button when pressed */
 	UFUNCTION()
-	void HandleButtonPressed();
+	COMMONUI_API void HandleButtonPressed();
 
 	/** Helper function registered to the underlying button when released */
 	UFUNCTION()
-	void HandleButtonReleased();
+	COMMONUI_API void HandleButtonReleased();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Selected"))
-	void BP_OnSelected();
-	virtual void NativeOnSelected(bool bBroadcast);
+	COMMONUI_API void BP_OnSelected();
+	COMMONUI_API virtual void NativeOnSelected(bool bBroadcast);
 
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Deselected"))
-	void BP_OnDeselected();
-	virtual void NativeOnDeselected(bool bBroadcast);
+	COMMONUI_API void BP_OnDeselected();
+	COMMONUI_API virtual void NativeOnDeselected(bool bBroadcast);
 
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Hovered"))
-	void BP_OnHovered();
-	virtual void NativeOnHovered();
+	COMMONUI_API void BP_OnHovered();
+	COMMONUI_API virtual void NativeOnHovered();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Unhovered"))
-	void BP_OnUnhovered();
-	virtual void NativeOnUnhovered();
+	COMMONUI_API void BP_OnUnhovered();
+	COMMONUI_API virtual void NativeOnUnhovered();
 	
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Focused"))
-	void BP_OnFocusReceived();
+	COMMONUI_API void BP_OnFocusReceived();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Unfocused"))
-	void BP_OnFocusLost();
+	COMMONUI_API void BP_OnFocusLost();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Locked Changed"))
-	void BP_OnLockedChanged(bool bIsLocked);
+	COMMONUI_API void BP_OnLockedChanged(bool bIsLocked);
 	
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Lock Clicked"))
-	void BP_OnLockClicked();
+	COMMONUI_API void BP_OnLockClicked();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Lock Double Clicked"))
-	void BP_OnLockDoubleClicked();
+	COMMONUI_API void BP_OnLockDoubleClicked();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Clicked"))
-	void BP_OnClicked();
-	virtual void NativeOnClicked();
+	COMMONUI_API void BP_OnClicked();
+	COMMONUI_API virtual void NativeOnClicked();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Double Clicked"))
-	void BP_OnDoubleClicked();
-	virtual void NativeOnDoubleClicked();
+	COMMONUI_API void BP_OnDoubleClicked();
+	COMMONUI_API virtual void NativeOnDoubleClicked();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Input Action Triggered"))
-	void BP_OnInputActionTriggered();
+	COMMONUI_API void BP_OnInputActionTriggered();
 
 	/** Unless this is called, we will assume the double click should be converted into a normal click. */
 	UFUNCTION(BlueprintCallable, Category = CommonButton)
-	void StopDoubleClickPropagation();
+	COMMONUI_API void StopDoubleClickPropagation();
 	
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Pressed"))
-	void BP_OnPressed();
-	virtual void NativeOnPressed();
+	COMMONUI_API void BP_OnPressed();
+	COMMONUI_API virtual void NativeOnPressed();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Released"))
-	void BP_OnReleased();
-	virtual void NativeOnReleased();
+	COMMONUI_API void BP_OnReleased();
+	COMMONUI_API virtual void NativeOnReleased();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Enabled"))
-	void BP_OnEnabled();
-	virtual void NativeOnEnabled();
+	COMMONUI_API void BP_OnEnabled();
+	COMMONUI_API virtual void NativeOnEnabled();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Disabled"))
-	void BP_OnDisabled();
-	virtual void NativeOnDisabled();
+	COMMONUI_API void BP_OnDisabled();
+	COMMONUI_API virtual void NativeOnDisabled();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = CommonButton, meta = (DisplayName = "On Input Method Changed"))
-	void BP_OnInputMethodChanged(ECommonInputType CurrentInputType);
+	COMMONUI_API void BP_OnInputMethodChanged(ECommonInputType CurrentInputType);
 
 	/** Allows derived classes to take action when the current text style has changed */
 	UFUNCTION(BlueprintImplementableEvent, meta=(BlueprintProtected="true"), Category = "Common Button")
-	void OnCurrentTextStyleChanged();
-	virtual void NativeOnCurrentTextStyleChanged();
+	COMMONUI_API void OnCurrentTextStyleChanged();
+	COMMONUI_API virtual void NativeOnCurrentTextStyleChanged();
 
 	/** Internal method to allow the selected state to be set regardless of selectability or toggleability */
 	UFUNCTION(BlueprintCallable, meta=(BlueprintProtected="true"), Category = "Common Button")
-	void SetSelectedInternal(bool bInSelected, bool bAllowSound = true, bool bBroadcast = true);
+	COMMONUI_API void SetSelectedInternal(bool bInSelected, bool bAllowSound = true, bool bBroadcast = true);
 
 	/** Callback fired when input action datatable row changes */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Common Button")
-	void OnTriggeredInputActionChanged(const FDataTableRowHandle& NewTriggeredAction);
+	COMMONUI_API void OnTriggeredInputActionChanged(const FDataTableRowHandle& NewTriggeredAction);
 
 	/** Callback fired when triggered input action datatable row changes */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Common Button")
-	void OnTriggeringInputActionChanged(const FDataTableRowHandle& NewTriggeredAction);
+	COMMONUI_API void OnTriggeringInputActionChanged(const FDataTableRowHandle& NewTriggeredAction);
 
 	/** Callback fired when enhanced input action changes */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Common Button")
-	void OnTriggeringEnhancedInputActionChanged(const UInputAction* InInputAction);
+	COMMONUI_API void OnTriggeringEnhancedInputActionChanged(const UInputAction* InInputAction);
 
 	/** Callback fired continously during hold interactions */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Common Button")
-	void OnActionProgress(float HeldPercent);
+	COMMONUI_API void OnActionProgress(float HeldPercent);
 	
 	/**
     * By default, if bRequiresHold is true, the bound Input Action will be forced to require hold as well.
     * The Bound Input action will use the row's hold values regardless of the row's bRequiresHold state.
     */
 	UFUNCTION()
-	virtual bool GetConvertInputActionToHold();
+	COMMONUI_API virtual bool GetConvertInputActionToHold();
     
     /** Bound to the hold progress of the bound key from the input action */
 	UFUNCTION()
-	virtual void NativeOnActionProgress(float HeldPercent);
+	COMMONUI_API virtual void NativeOnActionProgress(float HeldPercent);
 
 	/** Bound to the hold progress not related to the bound key */
 	UFUNCTION()
-	virtual bool NativeOnHoldProgress(float DeltaTime);
+	COMMONUI_API virtual bool NativeOnHoldProgress(float DeltaTime);
 	
 	/** Bound to the hold progress rollback not related to the bound key */
 	UFUNCTION()
-	virtual bool NativeOnHoldProgressRollback(float DeltaTime);
+	COMMONUI_API virtual bool NativeOnHoldProgressRollback(float DeltaTime);
 	
 	/** Callback fired when hold events complete */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Common Button")
-	void OnActionComplete();
+	COMMONUI_API void OnActionComplete();
 
 	UFUNCTION()
-	virtual void NativeOnActionComplete();
+	COMMONUI_API virtual void NativeOnActionComplete();
 	
 	UFUNCTION()
-    virtual void HoldReset();
+    COMMONUI_API virtual void HoldReset();
 
-	virtual bool GetButtonAnalyticInfo(FString& ButtonName, FString& ABTestName, FString& ExtraData) const;
+	COMMONUI_API virtual bool GetButtonAnalyticInfo(FString& ButtonName, FString& ABTestName, FString& ExtraData) const;
 
-	void RefreshDimensions();
-	virtual void NativeOnMouseEnter( const FGeometry& InGeometry, const FPointerEvent& InMouseEvent ) override;
-	virtual void NativeOnMouseLeave( const FPointerEvent& InMouseEvent ) override;
+	COMMONUI_API void RefreshDimensions();
+	COMMONUI_API virtual void NativeOnMouseEnter( const FGeometry& InGeometry, const FPointerEvent& InMouseEvent ) override;
+	COMMONUI_API virtual void NativeOnMouseLeave( const FPointerEvent& InMouseEvent ) override;
 
-	void UpdateInputActionWidgetVisibility();
+	COMMONUI_API void UpdateInputActionWidgetVisibility();
 
 	/** The minimum width of the button (only used if greater than the style's minimum) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Layout, meta = (ClampMin = "0"))
@@ -802,7 +813,7 @@ private:
 
 public:
 	/** The type of mouse action required by the user to trigger the button's 'Click' */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (ExposeOnSFpawn = true))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (ExposeOnSpawn = true))
 	TEnumAsByte<EButtonClickMethod::Type> ClickMethod;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
@@ -863,6 +874,12 @@ protected:
 
 	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (AllowPrivateAccess = true, DisplayName = "On Unhovered"))
 	FCommonButtonBaseClicked OnButtonBaseUnhovered;
+	
+	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (AllowPrivateAccess = true, DisplayName = "On Lock Clicked"))
+	FCommonButtonBaseClicked OnButtonBaseLockClicked;
+
+	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (AllowPrivateAccess = true, DisplayName = "On Lock Double Clicked"))
+	FCommonButtonBaseClicked OnButtonBaseLockDoubleClicked;
 
 	FUIActionBindingHandle TriggeringBindingHandle;
 	
@@ -973,27 +990,27 @@ protected:
 };
 
 UCLASS(Transient)
-class COMMONUI_API UWidgetLockedStateRegistration : public UWidgetBinaryStateRegistration
+class UWidgetLockedStateRegistration : public UWidgetBinaryStateRegistration
 {
 	GENERATED_BODY()
 
 public:
 
 	/** Post-load initialized bit corresponding to this binary state */
-	static inline FWidgetStateBitfield Bit;
+	COMMONUI_API static inline FWidgetStateBitfield Bit;
 
-	static const inline FName StateName = FName("Locked");
+	COMMONUI_API static const inline FName StateName = FName("Locked");
 
 	//~ Begin UWidgetBinaryStateRegistration Interface.
-	virtual FName GetStateName() const override;
-	virtual bool GetRegisteredWidgetState(const UWidget* InWidget) const override;
+	COMMONUI_API virtual FName GetStateName() const override;
+	COMMONUI_API virtual bool GetRegisteredWidgetState(const UWidget* InWidget) const override;
 	//~ End UWidgetBinaryStateRegistration Interface
 
 protected:
 	friend UWidgetStateSettings;
 
 	//~ Begin UWidgetBinaryStateRegistration Interface.
-	virtual void InitializeStaticBitfields() const override;
+	COMMONUI_API virtual void InitializeStaticBitfields() const override;
 	//~ End UWidgetBinaryStateRegistration Interface
 };
 

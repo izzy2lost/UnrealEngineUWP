@@ -810,10 +810,30 @@ FSubobjectDataHandle USubobjectDataSubsystem::GetActorRootHandle(const FSubobjec
 	FSubobjectDataHandle CurrentHandle = StartingHandle;
 	FSubobjectData* CurrentData = CurrentHandle.GetData();
 
+	TSet<FSubobjectDataHandle> VisitedHandles;
+	VisitedHandles.Add(StartingHandle);
+	
 	while (CurrentData && !CurrentData->IsActor())
 	{
 		CurrentHandle = CurrentData->GetParentHandle();
 		CurrentData = CurrentHandle.GetData();
+
+		// If we have already visited this node, then exit out of this loop
+		if (VisitedHandles.Contains(CurrentHandle))
+		{
+			const UObject* CurrentObj = CurrentData ? CurrentData->GetObject() : nullptr;						
+
+			ensureMsgf(
+				false, 
+				TEXT("[%hs] Duplicate visits when getting that actor's root handle! Exiting to prevent an infinite loop. Duplicate object: '%s' Flags: %s"), 
+				__func__,
+				*GetNameSafe(CurrentObj),
+				*LexToString(CurrentObj ? CurrentObj->GetFlags() : RF_NoFlags));
+
+			break;
+		}
+
+		VisitedHandles.Add(CurrentHandle);
 	}
 
 	return CurrentHandle;
@@ -861,11 +881,24 @@ FSubobjectDataHandle USubobjectDataSubsystem::AddNewSubobject(const FAddNewSubob
 	{
 		Asset = nullptr;
 	}
-	
-	if(Params.BlueprintContext)
+
+	// We check for an invalid parent handle above, so we assume it is valid here.
+	check(Params.ParentHandle.IsValid());
+
+	// Editor utility scripts may set the parent handle but not a Blueprint context. It is arguable whether this constitutes a valid use case; although
+	// for backwards compatibility we'll continue to support it. However, in both the BP and instance in-editor use cases, data nodes that correlate to
+	// an SCS node will use the SCS template data, which means that we'll find a valid Blueprint context in that case. For editor scripting, we want it
+	// to always modify the Blueprint, but for "normal" editor operations (e.g. drag-and-drop), we need to bypass this if the root is an Actor instance.
+	UBlueprint* Blueprint = Params.BlueprintContext;
+	if (!Blueprint && !GetActorRootHandle(ParentObjHandle).IsValid())
 	{
-		UBlueprint* Blueprint = Params.BlueprintContext;
-		check(Blueprint != nullptr && Blueprint->SimpleConstructionScript != nullptr);
+		// maybe the parent handle has a bp for context:
+		Blueprint = ParentObjHandle.GetData()->GetBlueprintBeingEdited();
+	}
+	
+	if(Blueprint)
+	{
+		check(Blueprint->SimpleConstructionScript != nullptr);
 		Blueprint->Modify();
 		SaveSCSCurrentState(Blueprint->SimpleConstructionScript);
 		UActorComponent* NewComponent = nullptr;
@@ -1413,6 +1446,11 @@ bool USubobjectDataSubsystem::ChangeSubobjectClass(const FSubobjectDataHandle& H
 					if (bRemoveEntry)
 					{
 						BlueprintObj->ComponentClassOverrides.RemoveAllSwap([ComponentTemplateName](const FBPComponentClassOverride& CCOverride) { return (CCOverride.ComponentName == ComponentTemplateName); });
+						if (UBlueprintGeneratedClass* Class = Cast<UBlueprintGeneratedClass>(BlueprintObj->GeneratedClass))
+						{
+							Class->Modify();
+							Class->ComponentClassOverrides.RemoveAllSwap([ComponentTemplateName](const FBPComponentClassOverride& CCOverride) { return (CCOverride.ComponentName == ComponentTemplateName); });
+						}
 					}
 					else
 					{
@@ -1422,6 +1460,11 @@ bool USubobjectDataSubsystem::ChangeSubobjectClass(const FSubobjectDataHandle& H
 				else
 				{
 					BlueprintObj->ComponentClassOverrides.Emplace(FBPComponentClassOverride(ComponentTemplateName, NewClass));
+					if (UBlueprintGeneratedClass* Class = Cast<UBlueprintGeneratedClass>(BlueprintObj->GeneratedClass))
+					{
+						Class->Modify();
+						Class->ComponentClassOverrides.Emplace(FBPComponentClassOverride(ComponentTemplateName, NewClass));
+					}
 				}
 
 				// Custom transaction change that operates on the UBlueprint and replaces all instances of the subobject with one of the new class
@@ -1463,7 +1506,7 @@ bool USubobjectDataSubsystem::ChangeSubobjectClass(const FSubobjectDataHandle& H
 								}
 							}
 
-							Subobject->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+							Subobject->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional);
 							Subobject->MarkAsGarbage();
 
 							UObject* NewInstance = nullptr;
@@ -2675,6 +2718,12 @@ FSubobjectDataHandle USubobjectDataSubsystem::FactoryCreateInheritedBpSubobject(
 			FSubobjectDataHandle NewChildHandle = FactoryCreateInheritedBpSubobject(ChildNode, OutHandle, bIsInherited, OutArray);
 			ensure(NewChildHandle.IsValid());
 			OutArray.Add(NewChildHandle);
+
+			// Since the child array can be modified, we need to ensure that our index remains in bounds
+			if (i >= ChildNodes.Num())
+			{
+				i = ChildNodes.Num();
+			}
 		}	
 	}
 	

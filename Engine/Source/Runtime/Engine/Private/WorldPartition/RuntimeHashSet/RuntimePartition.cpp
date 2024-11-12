@@ -2,6 +2,8 @@
 
 #include "WorldPartition/RuntimeHashSet/RuntimePartition.h"
 #include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeHashSet.h"
+#include "WorldPartition/DataLayer/DataLayerInstance.h"
+#include "Algo/AllOf.h"
 
 URuntimePartition::URuntimePartition(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -17,6 +19,7 @@ void URuntimePartition::SetDefaultValues()
 	bBlockOnSlowStreaming = false;
 	bClientOnlyVisible = false;
 	Priority = 0;
+	BoundsMethod = ERuntimePartitionCellBoundsMethod::UseMinContentCellBounds;
 	LoadingRange = 25600;
 	DebugColor = FLinearColor::MakeRandomSeededColor(GetTypeHash(GetName()));
 	HLODIndex = INDEX_NONE;
@@ -70,12 +73,17 @@ URuntimePartition::FCellDesc URuntimePartition::CreateCellDesc(const FString& In
 	// Add actor set instances
 	CellDesc.ActorSetInstances = InActorSetInstances;
 
-	// Update cell bounds
-	for (const IStreamingGenerationContext::FActorSetInstance* ActorSetInstance : InActorSetInstances)
-	{
-		CellDesc.Bounds += ActorSetInstance->Bounds;
-	}
-
 	return CellDesc;
 }
+
+URuntimePartition::FCellDescInstance::FCellDescInstance(const FCellDesc& InCellDesc, URuntimePartition* InSourcePartition, const TArray<const UDataLayerInstance*>& InDataLayerInstances, const FGuid& InContentBundleID)
+	: FCellDesc(InCellDesc)
+	, SourcePartition(InSourcePartition)
+	, DataLayerInstances(InDataLayerInstances)
+	, ContentBundleID(InContentBundleID)
+{
+	const bool bAreClientOnlyDataLayers = DataLayerInstances.Num() && Algo::AllOf(DataLayerInstances, [](const UDataLayerInstance* DataLayerInstance) { return DataLayerInstance->IsClientOnly(); });
+	bClientOnlyVisible = InCellDesc.bClientOnlyVisible || bAreClientOnlyDataLayers;
+}
+
 #endif

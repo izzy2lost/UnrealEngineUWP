@@ -2,166 +2,24 @@
 
 #include "RemoteControlProtocolBinding.h"
 
+#include "Algo/MinElement.h"
+#include "Algo/Sort.h"
+#include "Backends/CborStructDeserializerBackend.h"
 #include "CborWriter.h"
 #include "Factories/IRemoteControlMaskingFactory.h"
 #include "IRemoteControlModule.h"
 #include "RemoteControlPreset.h"
-#include "RemoteControlSettings.h"
-#include "Algo/MinElement.h"
-#include "Algo/Sort.h"
-#include "Backends/CborStructDeserializerBackend.h"
+#include "RemoteControlProtocolEntityInterpolator.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
 #include "UObject/StructOnScope.h"
 #include "UObject/TextProperty.h"
 
-#define LOCTEXT_NAMESPACE "RemoteControl"
-
-namespace EntityInterpolation
-{
-	/** 
-	 * The function is taking the map with the range buffer pointer and convert it to the map with value pointers instead. 
-	 * Range keys stay the same.
-	 * For example, we have an input map TArray<TPair<int32, uint8*>> where uint8* points to the float buffer (4 bytes)
-	 * Then we need to convert it to value buffer where we convert uint8* to value pointer. In this case, is float*
-	 * 
-	 * But in cases when we are dealing with Struct or any containers (Array, Map, Structs) inner elements we need to convert the container pointer to value pointer
-	 * And that means if there no FProperty Outer wh should convert uint8* to ValueType* directly, 
-	 * but in case with Outer != nullptr we need to convert with InProperty->ContainerPtrToValuePtr<ValueType>
-	 */
-	template <typename ValueType, typename PropertyType, typename ProtocolValueType>
-	TArray<FRemoteControlProtocolEntity::TRangeMappingData<ProtocolValueType, ValueType>> ContainerPtrMapToValuePtrMap(PropertyType* InProperty, FProperty* Outer, TArray<FRemoteControlProtocolEntity::FRangeMappingData>& InRangeMappingBuffers, int32 InArrayIndex)
-	{
-		TArray<FRemoteControlProtocolEntity::TRangeMappingData<ProtocolValueType, ValueType>> ValueMap;
-		ValueMap.Reserve(InRangeMappingBuffers.Num());
-
-		int32 MappingIndex = 0;
-		for (FRemoteControlProtocolEntity::FRangeMappingData& RangePair : InRangeMappingBuffers)
-		{
-			FRemoteControlProtocolEntity::TRangeMappingData<ProtocolValueType, ValueType> TypedPair;
-			TypedPair.Range = *reinterpret_cast<ProtocolValueType*>(RangePair.Range.GetData());
-
-			if(Outer)
-			{
-				if(Outer->GetClass() == FArrayProperty::StaticClass())
-				{
-					FScriptArrayHelper Helper(CastField<FArrayProperty>(Outer), RangePair.Mapping.GetData());
-					TypedPair.Mapping = *reinterpret_cast<ValueType*>(Helper.GetRawPtr(InArrayIndex));
-				}
-				else
-				{
-					TypedPair.Mapping = *InProperty->template ContainerPtrToValuePtr<ValueType>(RangePair.Mapping.GetData(), InArrayIndex);	
-				}
-			}
-			else
-			{
-				TArray<uint8> Buffer;
-				RemoteControlPropertyUtilities::FRCPropertyVariant Src{InProperty, RangePair.Mapping};
-				RemoteControlPropertyUtilities::FRCPropertyVariant Dst{InProperty, Buffer};
-				RemoteControlPropertyUtilities::Deserialize<PropertyType>(Src, Dst);
-				TypedPair.Mapping = *Dst.GetPropertyValue<ValueType>();
-			}
-
-			ValueMap.Add(TypedPair);
-			MappingIndex++;
-		}
-
-		return ValueMap;
-	}
-
-	/** Wraps FMath::Lerp, allowing Protocol Binding specific specialization */
-	template <class T, class U>
-	static T Lerp(const T& A, const T& B, const U& Alpha)
-	{
-		return FMath::Lerp(A, B, Alpha);
-	}
-
-	/** Specialization for bool, toggles at 0.5 Alpha instead of 1.0 */
-	template <>
-	bool Lerp(const bool& A, const bool& B, const float& Alpha)
-	{
-		return Alpha > 0.5f ? B : A;
-	}
-
-	/** Specialization for FString, toggles at 0.5 Alpha instead of 1.0 */
-	template <>
-	FString Lerp(const FString& A, const FString& B, const float& Alpha)
-	{
-		return Alpha > 0.5f ? B : A;
-	}
-
-	/** Specialization for FName, toggles at 0.5 Alpha instead of 1.0 */
-	template <>
-	FName Lerp(const FName& A, const FName& B, const float& Alpha)
-	{
-		return Alpha > 0.5f ? B : A;
-	}
-
-	/** Specialization for FText, toggles at 0.5 Alpha instead of 1.0 */
-	template <>
-	FText Lerp(const FText& A, const FText& B, const float& Alpha)
-	{
-		return Alpha > 0.5f ? B : A;
-	}
-
-	template <typename ValueType, typename PropertyType, typename ProtocolValueType>
-	bool InterpolateValue(PropertyType* InProperty, FProperty* Outer, TArray<FRemoteControlProtocolEntity::FRangeMappingData>& InRangeMappingBuffers, ProtocolValueType InProtocolValue, ValueType& OutResultValue, int32 ArrayIndex)
-	{
-		TArray<FRemoteControlProtocolEntity::TRangeMappingData<ProtocolValueType, ValueType>> ValueMap = ContainerPtrMapToValuePtrMap<ValueType, PropertyType, ProtocolValueType>(InProperty, Outer, InRangeMappingBuffers, ArrayIndex);
-
-		// sort by input protocol value
-		Algo::SortBy(ValueMap, [](const FRemoteControlProtocolEntity::TRangeMappingData<ProtocolValueType, ValueType>& Item) -> ProtocolValueType
-		{
-			return Item.Range;
-		});
-
-		// clamp to min and max mapped values
-		ProtocolValueType ClampProtocolValue = FMath::Clamp(InProtocolValue, ValueMap[0].Range, ValueMap.Last().Range);
-
-		FRemoteControlProtocolEntity::TRangeMappingData<ProtocolValueType*, ValueType*> RangeMin{nullptr, nullptr};
-		FRemoteControlProtocolEntity::TRangeMappingData<ProtocolValueType*, ValueType*> RangeMax{nullptr, nullptr};
-
-		for (int32 RangeIdx = 0; RangeIdx < ValueMap.Num(); ++RangeIdx)
-		{
-			FRemoteControlProtocolEntity::TRangeMappingData<ProtocolValueType, ValueType>& Range = ValueMap[RangeIdx];
-			if (ClampProtocolValue > Range.Range || RangeMin.Mapping == nullptr)
-			{
-				RangeMin.Range = &Range.Range;
-				RangeMin.Mapping = &Range.Mapping;
-			}
-			else if (ClampProtocolValue <= Range.Range)
-			{
-				RangeMax.Range = &Range.Range;
-				RangeMax.Mapping = &Range.Mapping;
-				// Max found, no need to continue
-				break;
-			}
-		}
-
-		if (RangeMax.Mapping == nullptr || RangeMin.Mapping == nullptr)
-		{
-			return ensure(false);
-		}
-		if (RangeMax.Range == nullptr || RangeMin.Range == nullptr)
-		{
-			return ensure(false);
-		}
-		else if (*RangeMax.Range == *RangeMin.Range)
-		{
-			UE_LOG(LogRemoteControl, Warning, TEXT("Range input values are the same."));
-			return true;
-		}
-
-		// Normalize value to range for interpolation
-		const float Percentage = static_cast<float>(ClampProtocolValue - *RangeMin.Range) / static_cast<float>(*RangeMax.Range - *RangeMin.Range);
-
-		OutResultValue = Lerp(*RangeMin.Mapping, *RangeMax.Mapping, Percentage);
-
-		return true;
-	}
-
+namespace UE::RemoteControl::Private
+{	
 	// Writes a property value to the serialization output.
 	template <typename ValueType>
+	UE_DEPRECATED(5.5, "Instead refer to RemoteControlProtocolEntityProcessor")
 	void WritePropertyValue(FCborWriter& InCborWriter, FProperty* InProperty, const ValueType& Value, bool bWriteName = true)
 	{
 		if (bWriteName)
@@ -173,6 +31,7 @@ namespace EntityInterpolation
 
 	// Specialization for FName that converts to FString
 	template <>
+	UE_DEPRECATED(5.5, "Instead refer to RemoteControlProtocolEntityProcessor")
 	void WritePropertyValue<FName>(FCborWriter& InCborWriter, FProperty* InProperty, const FName& Value, bool bWriteName)
 	{
 		if (bWriteName)
@@ -184,6 +43,7 @@ namespace EntityInterpolation
 
 	// Specialization for FText that converts to FString
 	template <>
+	UE_DEPRECATED(5.5, "Instead refer to RemoteControlProtocolEntityProcessor")
 	void WritePropertyValue<FText>(FCborWriter& InCborWriter, FProperty* InProperty, const FText& Value, bool bWriteName)
 	{
 		if (bWriteName)
@@ -194,8 +54,12 @@ namespace EntityInterpolation
 	}
 
 	template <typename ProtocolValueType>
-	bool WriteProperty(FProperty* InProperty, FProperty* OuterProperty, TArray<FRemoteControlProtocolEntity::FRangeMappingData>& InRangeMappingBuffers, ProtocolValueType InProtocolValue, FCborWriter& InCborWriter, int32 InArrayIndex = 0)
+	UE_DEPRECATED(5.5, "Instead refer to RemoteControlProtocolEntityProcessor")
+	bool WriteProperty(FRemoteControlProtocolEntity* Entity, FProperty* InProperty, FProperty* OuterProperty, TArray<FRemoteControlProtocolEntity::FRangeMappingData>& InRangeMappingBuffers, ProtocolValueType InProtocolValue, FCborWriter& InCborWriter, int32 InArrayIndex = 0)
 	{
+		using namespace UE::RemoteControl;
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		// Value nested in Array/Set (except single element) or map as array or as root
 		const bool bIsInArray = OuterProperty != nullptr
 								&& (InProperty->ArrayDim > 1
@@ -208,7 +72,7 @@ namespace EntityInterpolation
 		if (FBoolProperty* BoolProperty = CastField<FBoolProperty>(InProperty))
 		{
 			bool bBoolValue = false;
-			bSuccess = InterpolateValue(BoolProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, bBoolValue, InArrayIndex);			
+			bSuccess = ProtocolEntityInterpolator::InterpolateValue(Entity, BoolProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, bBoolValue, InArrayIndex);			
 			bBoolValue = StaticCast<uint8>(bBoolValue) > 0; // Ensure 0 or 1, can be different if property was packed.
 			WritePropertyValue(InCborWriter, InProperty, bBoolValue, !bIsInArray);
 		}
@@ -217,13 +81,13 @@ namespace EntityInterpolation
 			if (CastField<FFloatProperty>(InProperty))
 			{
 				float FloatValue = 0.f;
-				bSuccess = InterpolateValue(NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, FloatValue, InArrayIndex);
+				bSuccess = ProtocolEntityInterpolator::InterpolateValue(Entity, NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, FloatValue, InArrayIndex);
 				WritePropertyValue(InCborWriter, InProperty, FloatValue, !bIsInArray);
 			}
 			else if (CastField<FDoubleProperty>(InProperty))
 			{
 				double DoubleValue = 0.0;
-				bSuccess = InterpolateValue(NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, DoubleValue, InArrayIndex);
+				bSuccess = ProtocolEntityInterpolator::InterpolateValue(Entity, NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, DoubleValue, InArrayIndex);
 				WritePropertyValue(InCborWriter, InProperty, DoubleValue, !bIsInArray);
 			}
 			else if (NumericProperty->IsInteger() && !NumericProperty->IsEnum())
@@ -231,49 +95,49 @@ namespace EntityInterpolation
 				if (FByteProperty* ByteProperty = CastField<FByteProperty>(InProperty))
 				{
 					uint8 IntValue = 0;
-					bSuccess = InterpolateValue(NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
+					bSuccess = ProtocolEntityInterpolator::InterpolateValue(Entity, NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
 					WritePropertyValue(InCborWriter, InProperty, static_cast<int64>(IntValue), !bIsInArray);
 				}
 				else if (FIntProperty* IntProperty = CastField<FIntProperty>(InProperty))
 				{
 					int IntValue = 0;
-					bSuccess = InterpolateValue(NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
+					bSuccess = ProtocolEntityInterpolator::InterpolateValue(Entity, NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
 					WritePropertyValue(InCborWriter, InProperty, static_cast<int64>(IntValue), !bIsInArray);
 				}
 				else if (FUInt32Property* UInt32Property = CastField<FUInt32Property>(InProperty))
 				{
 					uint32 IntValue = 0;
-					bSuccess = InterpolateValue(NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
+					bSuccess = ProtocolEntityInterpolator::InterpolateValue(Entity, NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
 					WritePropertyValue(InCborWriter, InProperty, static_cast<int64>(IntValue), !bIsInArray);
 				}
 				else if (FInt16Property* Int16Property = CastField<FInt16Property>(InProperty))
 				{
 					int16 IntValue = 0;
-					bSuccess = InterpolateValue(NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
+					bSuccess = ProtocolEntityInterpolator::InterpolateValue(Entity, NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
 					WritePropertyValue(InCborWriter, InProperty, static_cast<int64>(IntValue), !bIsInArray);
 				}
 				else if (FUInt16Property* FInt16Property = CastField<FUInt16Property>(InProperty))
 				{
 					uint16 IntValue = 0;
-					bSuccess = InterpolateValue(NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
+					bSuccess = ProtocolEntityInterpolator::InterpolateValue(Entity, NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
 					WritePropertyValue(InCborWriter, InProperty, static_cast<int64>(IntValue), !bIsInArray);
 				}
 				else if (FInt64Property* Int64Property = CastField<FInt64Property>(InProperty))
 				{
 					int64 IntValue = 0;
-					bSuccess = InterpolateValue(NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
+					bSuccess = ProtocolEntityInterpolator::InterpolateValue(Entity, NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
 					WritePropertyValue(InCborWriter, InProperty, static_cast<int64>(IntValue), !bIsInArray);
 				}
 				else if (FUInt64Property* FInt64Property = CastField<FUInt64Property>(InProperty))
 				{
 					uint64 IntValue = 0;
-					bSuccess = InterpolateValue(NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
+					bSuccess = ProtocolEntityInterpolator::InterpolateValue(Entity, NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
 					WritePropertyValue(InCborWriter, InProperty, static_cast<int64>(IntValue), !bIsInArray);
 				}
 				else if (FInt8Property* Int8Property = CastField<FInt8Property>(InProperty))
 				{
 					int8 IntValue = 0;
-					bSuccess = InterpolateValue(NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
+					bSuccess = ProtocolEntityInterpolator::InterpolateValue(Entity, NumericProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, IntValue, InArrayIndex);
 					WritePropertyValue(InCborWriter, InProperty, static_cast<int64>(IntValue), !bIsInArray);
 				}
 			}
@@ -301,7 +165,7 @@ namespace EntityInterpolation
 					RangeMappingBuffers.Emplace(RangePair.Range, DataInStruct, InnerProperty->GetSize(), 1);
 				}
 
-				bStructSuccess &= WriteProperty(InnerProperty, StructProperty, RangeMappingBuffers, InProtocolValue, InCborWriter, InArrayIndex);
+				bStructSuccess &= WriteProperty(Entity, InnerProperty, StructProperty, RangeMappingBuffers, InProtocolValue, InCborWriter, InArrayIndex);
 			}
 
 			bSuccess = bStructSuccess;
@@ -311,19 +175,19 @@ namespace EntityInterpolation
 		else if (FStrProperty* StrProperty = CastField<FStrProperty>(InProperty))
 		{
 			FString StringValue;
-			bSuccess = InterpolateValue(StrProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, StringValue, InArrayIndex);
+			bSuccess = ProtocolEntityInterpolator::InterpolateValue(Entity, StrProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, StringValue, InArrayIndex);
 			WritePropertyValue(InCborWriter, InProperty, StringValue, !bIsInArray);
 		}
 		else if (FNameProperty* NameProperty = CastField<FNameProperty>(InProperty))
 		{
 			FName NameValue;
-			bSuccess = InterpolateValue(NameProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, NameValue, InArrayIndex);
+			bSuccess = ProtocolEntityInterpolator::InterpolateValue(Entity, NameProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, NameValue, InArrayIndex);
 			WritePropertyValue(InCborWriter, InProperty, NameValue, !bIsInArray);
 		}
 		else if (FTextProperty* TextProperty = CastField<FTextProperty>(InProperty))
 		{
 			FText TextValue;
-			bSuccess = InterpolateValue(TextProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, TextValue, InArrayIndex);
+			bSuccess = ProtocolEntityInterpolator::InterpolateValue(Entity, TextProperty, OuterProperty, InRangeMappingBuffers, InProtocolValue, TextValue, InArrayIndex);
 			WritePropertyValue(InCborWriter, InProperty, TextValue, !bIsInArray);
 		}
 
@@ -337,12 +201,18 @@ namespace EntityInterpolation
 		}
 #endif
 
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 		return bSuccess;
 	}
 
 	template <typename ProtocolValueType>
-	bool ApplyProtocolValueToProperty(FProperty* InProperty, ProtocolValueType InProtocolValue, TArray<FRemoteControlProtocolEntity::FRangeMappingData>& InRangeMappingBuffers, FCborWriter& InCborWriter)
+	UE_DEPRECATED(5.5, "Instead refer to RemoteControlProtocolEntityProcessor")
+	bool ApplyProtocolValueToProperty(FRemoteControlProtocolEntity* Entity, FProperty* InProperty, ProtocolValueType InProtocolValue, TArray<FRemoteControlProtocolEntity::FRangeMappingData>& InRangeMappingBuffers, FCborWriter& InCborWriter)
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		using namespace UE::RemoteControl;
+
 		// Structures
 		if (FStructProperty* StructProperty = CastField<FStructProperty>(InProperty))
 		{
@@ -354,9 +224,9 @@ namespace EntityInterpolation
 			bool bStructSuccess = true;
 			for (TFieldIterator<FProperty> It(ScriptStruct); It; ++It)
 			{
-				bStructSuccess &= WriteProperty(*It, StructProperty, InRangeMappingBuffers, InProtocolValue, InCborWriter);
+				bStructSuccess &= WriteProperty(Entity, *It, StructProperty, InRangeMappingBuffers, InProtocolValue, InCborWriter);
 			}
-
+			
 			InCborWriter.WriteContainerEnd();
 
 			return bStructSuccess;
@@ -387,7 +257,7 @@ namespace EntityInterpolation
 
 			for (auto ArrayIndex = 0; ArrayIndex < ElementWithSmallestNum->NumElements; ++ArrayIndex)
 			{
-				bArraySuccess &= WriteProperty(InnerProperty, ArrayProperty, InRangeMappingBuffers, InProtocolValue, InCborWriter, ArrayIndex);
+				bArraySuccess &= WriteProperty(Entity, InnerProperty, ArrayProperty, InRangeMappingBuffers, InProtocolValue, InCborWriter, ArrayIndex);
 			}
 
 			InCborWriter.WriteContainerEnd();
@@ -419,8 +289,9 @@ namespace EntityInterpolation
 			// All other properties
 		else
 		{
-			return WriteProperty(InProperty, nullptr, InRangeMappingBuffers, InProtocolValue, InCborWriter);
+			return WriteProperty(Entity, InProperty, nullptr, InRangeMappingBuffers, InProtocolValue, InCborWriter);
 		}
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
@@ -434,7 +305,7 @@ FRemoteControlProtocolMapping::FRemoteControlProtocolMapping(FProperty* InProper
 	}
 	else if (FNumericProperty* NumericProperty = CastField<FNumericProperty>(InProperty))
 	{
-		InterpolationMappingPropertyData.AddZeroed(NumericProperty->ElementSize);
+		InterpolationMappingPropertyData.AddZeroed(NumericProperty->GetElementSize());
 	}
 	else if (FStructProperty* StructProperty = CastField<FStructProperty>(InProperty))
 	{
@@ -637,8 +508,11 @@ const FString& FRemoteControlProtocolEntity::GetRangePropertyMaxValue() const
 	return Empty;
 }
 
-bool FRemoteControlProtocolEntity::ApplyProtocolValueToProperty(double InProtocolValue)
+bool FRemoteControlProtocolEntity::ApplyProtocolValueToProperty(const double InProtocolValue)
 {
+	// DEPRECATED 5.5
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (Mappings.Num() <= 1)
 	{
 		UE_LOG(LogRemoteControl, Warning, TEXT("Binding doesn't container any range mappings."));
@@ -683,9 +557,9 @@ bool FRemoteControlProtocolEntity::ApplyProtocolValueToProperty(double InProtoco
 	FRCObjectReference ObjectRef;
 	ObjectRef.Property = Property;
 	ObjectRef.Access = ERCAccess::WRITE_ACCESS;
-
-	const URemoteControlSettings* RemoteControlSettings = GetDefault<URemoteControlSettings>();
-	if (RemoteControlSettings->bProtocolsGenerateTransactions)
+	
+	const ERCModifyOperationFlags ModifyOperationFlags = Preset->GetModifyOperationFlagsForProtocols();
+	if (EnumHasAnyFlags(ModifyOperationFlags, ERCModifyOperationFlags::None))
 	{
 		ObjectRef.Access = ERCAccess::WRITE_TRANSACTION_ACCESS;
 	}
@@ -698,7 +572,6 @@ bool FRemoteControlProtocolEntity::ApplyProtocolValueToProperty(double InProtoco
 		IRemoteControlModule::Get().ResolveObjectProperty(ObjectRef.Access, Object, ObjectRef.PropertyPathInfo, ObjectRef);
 
 		TSharedPtr<FRCMaskingOperation> MaskingOperation = MakeShared<FRCMaskingOperation>(ObjectRef.PropertyPathInfo, Object);
-
 		if (OverridenMasks == ERCMask::NoMask)
 		{
 			MaskingOperation->Masks = RemoteControlProperty->GetActiveMasks();
@@ -715,14 +588,17 @@ bool FRemoteControlProtocolEntity::ApplyProtocolValueToProperty(double InProtoco
 		TArray<uint8> InterpolatedBuffer;
 		if (GetInterpolatedPropertyBuffer(Property, InProtocolValue, InterpolatedBuffer))
 		{
+			constexpr ERCModifyOperation ModifyOperation = ERCModifyOperation::EQUAL;
+
 			FMemoryReader MemoryReader(InterpolatedBuffer);
 			FCborStructDeserializerBackend CborStructDeserializerBackend(MemoryReader);
-			bSuccess &= IRemoteControlModule::Get().SetObjectProperties(ObjectRef, CborStructDeserializerBackend, ERCPayloadType::Cbor, InterpolatedBuffer);
-
+			bSuccess &= IRemoteControlModule::Get().SetObjectProperties(ObjectRef, CborStructDeserializerBackend, ERCPayloadType::Cbor, InterpolatedBuffer, ModifyOperation, ModifyOperationFlags);
+		
 			// Apply the masked the values.
 			IRemoteControlModule::Get().PerformMasking(MaskingOperation.ToSharedRef());
 		}
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	return bSuccess;
 }
@@ -779,6 +655,12 @@ const FName FRemoteControlProtocolEntity::GetPropertyName(const FName& ForColumn
 
 bool FRemoteControlProtocolEntity::GetInterpolatedPropertyBuffer(FProperty* InProperty, double InProtocolValue, TArray<uint8>& OutBuffer)
 {
+	// DEPRECATED 5.5
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+	using namespace UE::RemoteControl;
+
 	OutBuffer.Empty();
 
 	TArray<FRemoteControlProtocolEntity::FRangeMappingData> RangeMappingBuffers = GetRangeMappingBuffers();
@@ -793,40 +675,42 @@ bool FRemoteControlProtocolEntity::GetInterpolatedPropertyBuffer(FProperty* InPr
 	switch (*GetRangePropertyName().ToEName())
 	{
 	case NAME_Int8Property:
-		bSuccess = EntityInterpolation::ApplyProtocolValueToProperty(InProperty, static_cast<int8>(InProtocolValue), RangeMappingBuffers, CborWriter);
+		bSuccess = Private::ApplyProtocolValueToProperty(this, InProperty, static_cast<int8>(InProtocolValue), RangeMappingBuffers, CborWriter);
 		break;
 	case NAME_Int16Property:
-		bSuccess = EntityInterpolation::ApplyProtocolValueToProperty(InProperty, static_cast<int16>(InProtocolValue), RangeMappingBuffers, CborWriter);
+		bSuccess = Private::ApplyProtocolValueToProperty(this, InProperty, static_cast<int16>(InProtocolValue), RangeMappingBuffers, CborWriter);
 		break;
 	case NAME_IntProperty:
-		bSuccess = EntityInterpolation::ApplyProtocolValueToProperty(InProperty, static_cast<int32>(InProtocolValue), RangeMappingBuffers, CborWriter);
+		bSuccess = Private::ApplyProtocolValueToProperty(this, InProperty, static_cast<int32>(InProtocolValue), RangeMappingBuffers, CborWriter);
 		break;
 	case NAME_Int64Property:
-		bSuccess = EntityInterpolation::ApplyProtocolValueToProperty(InProperty, static_cast<int64>(InProtocolValue), RangeMappingBuffers, CborWriter);
+		bSuccess = Private::ApplyProtocolValueToProperty(this, InProperty, static_cast<int64>(InProtocolValue), RangeMappingBuffers, CborWriter);
 		break;
 	case NAME_ByteProperty:
-		bSuccess = EntityInterpolation::ApplyProtocolValueToProperty(InProperty, static_cast<uint8>(InProtocolValue), RangeMappingBuffers, CborWriter);
+		bSuccess = Private::ApplyProtocolValueToProperty(this, InProperty, static_cast<uint8>(InProtocolValue), RangeMappingBuffers, CborWriter);
 		break;
 	case NAME_UInt16Property:
-		bSuccess = EntityInterpolation::ApplyProtocolValueToProperty(InProperty, static_cast<uint16>(InProtocolValue), RangeMappingBuffers, CborWriter);
+		bSuccess = Private::ApplyProtocolValueToProperty(this, InProperty, static_cast<uint16>(InProtocolValue), RangeMappingBuffers, CborWriter);
 		break;
 	case NAME_UInt32Property:
-		bSuccess = EntityInterpolation::ApplyProtocolValueToProperty(InProperty, static_cast<uint32>(InProtocolValue), RangeMappingBuffers, CborWriter);
+		bSuccess = Private::ApplyProtocolValueToProperty(this, InProperty, static_cast<uint32>(InProtocolValue), RangeMappingBuffers, CborWriter);
 		break;
 	case NAME_UInt64Property:
-		bSuccess = EntityInterpolation::ApplyProtocolValueToProperty(InProperty, static_cast<uint64>(InProtocolValue), RangeMappingBuffers, CborWriter);
+		bSuccess = Private::ApplyProtocolValueToProperty(this, InProperty, static_cast<uint64>(InProtocolValue), RangeMappingBuffers, CborWriter);
 		break;
 	case NAME_FloatProperty:
-		bSuccess = EntityInterpolation::ApplyProtocolValueToProperty(InProperty, static_cast<float>(InProtocolValue), RangeMappingBuffers, CborWriter);
+		bSuccess = Private::ApplyProtocolValueToProperty(this, InProperty, static_cast<float>(InProtocolValue), RangeMappingBuffers, CborWriter);
 		break;
 	case NAME_DoubleProperty:
-		bSuccess = EntityInterpolation::ApplyProtocolValueToProperty(InProperty, static_cast<double>(InProtocolValue), RangeMappingBuffers, CborWriter);
+		bSuccess = Private::ApplyProtocolValueToProperty(this, InProperty, static_cast<double>(InProtocolValue), RangeMappingBuffers, CborWriter);
 		break;
 	default:
 		checkNoEntry();
 	}
 
 	CborWriter.WriteContainerEnd();
+
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	return bSuccess;
 }
@@ -994,5 +878,3 @@ uint32 GetTypeHash(const FRemoteControlProtocolBinding& InProtocolBinding)
 {
 	return GetTypeHash(InProtocolBinding.Id);
 }
-
-#undef LOCTEXT_NAMESPACE

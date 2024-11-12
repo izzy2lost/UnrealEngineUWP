@@ -65,6 +65,11 @@ public:
 	FString BuildVersion;
 
 	/**
+	 * [Optional] A url to the web page for the build (if it was created by an automated build systme for example)
+	 */
+	FString BuildUrl;
+
+	/**
 	 * Default constructor. Initializes the structure to empty.
 	 */
 	CORE_API FBuildVersion();
@@ -102,9 +107,18 @@ public:
 	/**
 	 * Try to read a version file from disk
 	 *
-	 * @param FileName Path to the version file
-	 * @param OutVersion The version information
-	 * @return True if the version was read successfully, false otherwise
+	 * @param FileName		Path to the version file
+	 * @param OutVersion	The version information
+	 * @return				True if the version was read successfully, false otherwise
 	 */
 	static CORE_API bool TryRead(const FString& FileName, FBuildVersion& OutVersion);
+
+	/**
+	 * Try to read version info from data stored in a string.
+	 * 
+	 * @param Text			The version info stored in string form
+	 * @param OutVersion	The version information
+	 * @return				True if the version was read successfully, false otherwise
+	 */
+	static CORE_API bool TryReadFromString(const FString& Text, FBuildVersion& OutVersion);
 };

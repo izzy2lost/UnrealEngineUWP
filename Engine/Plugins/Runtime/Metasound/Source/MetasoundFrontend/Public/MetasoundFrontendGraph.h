@@ -7,6 +7,7 @@
 #include "Containers/Set.h"
 #include "Containers/UnrealString.h"
 #include "MetasoundFrontendDocument.h"
+#include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundGraph.h"
 #include "MetasoundNodeConstructorParams.h"
 #include "MetasoundNodeInterface.h"
@@ -82,15 +83,16 @@ namespace Metasound
 	class METASOUNDFRONTEND_API FFrontendGraphBuilder
 	{
 	public:
-
 		/** Check that all dependencies are C++ class dependencies. 
 		 * 
 		 * @param InDocument - Document containing dependencies.
 		 *
 		 * @return True if all dependencies are C++ classes. False otherwise.
 		 */
+		UE_DEPRECATED(5.5, "No longer supported (not useful nor maintainable with paged graph support")
 		static bool IsFlat(const FMetasoundFrontendDocument& InDocument);
 
+		UE_DEPRECATED(5.5, "No longer supported (not useful nor maintainable with paged graph support")
 		static bool IsFlat(const FMetasoundFrontendGraphClass& InRoot, const TArray<FMetasoundFrontendClass>& InDependencies);
 
 		/* Create a FFrontendGraph from a FMetasoundFrontendDocument.*/
@@ -105,13 +107,19 @@ namespace Metasound
 		static TUniquePtr<FFrontendGraph> CreateGraph(const FMetasoundFrontendDocument& InDocument, const FString& InDebugAssetName);
 
 		/* Create a FFrontendGraph from a FMetasoundFrontendDocument retrieving proxies from a FProxyDataCache.*/
-		static TUniquePtr<FFrontendGraph> CreateGraph(const FMetasoundFrontendDocument& InDocument, const Frontend::FProxyDataCache& InProxies, const FString& InDebugAssetName);
+		static TUniquePtr<FFrontendGraph> CreateGraph(const FMetasoundFrontendDocument& InDocument, const Frontend::FProxyDataCache& InProxies, const FString& InDebugAssetName, const FGuid InGraphId = Frontend::CreateLocallyUniqueId());
 
-		/* Create a FFrontendGraph from a FMetasoundFrontendDocument subobjects retrieving proxies from a FProxyDataCache.*/
+		/* Create a FFrontendGraph from a FMetasoundFrontendDocument and subobjects.*/
 		static TUniquePtr<FFrontendGraph> CreateGraph(const FMetasoundFrontendGraphClass& InGraph, const TArray<FMetasoundFrontendGraphClass>& InSubgraphs, const TArray<FMetasoundFrontendClass>& InDependencies, const FString& InDebugAssetName);
 
-		/* Create a FFrontendGraph from a FMetasoundFrontendDocument subobjects retrieving proxies from a FProxyDataCache.*/
-		static TUniquePtr<FFrontendGraph> CreateGraph(const FMetasoundFrontendGraphClass& InGraph, const TArray<FMetasoundFrontendGraphClass>& InSubgraphs, const TArray<FMetasoundFrontendClass>& InDependencies, const Frontend::FProxyDataCache& InProxyDataCache, const FString& InDebugAssetName);
+		/* Create a FFrontendGraph from a FMetasoundFrontendDocument and subobjects, retrieving proxies from a FProxyDataCache.*/
+		static TUniquePtr<FFrontendGraph> CreateGraph(
+			const FMetasoundFrontendGraphClass& InGraph,
+			const TArray<FMetasoundFrontendGraphClass>& InSubgraphs,
+			const TArray<FMetasoundFrontendClass>& InDependencies,
+			const Frontend::FProxyDataCache& InProxyDataCache,
+			const FString& InDebugAssetName,
+			const FGuid InGraphId = Frontend::CreateLocallyUniqueId());
 
 	private:
 		struct FDefaultLiteralData
@@ -138,6 +146,7 @@ namespace Metasound
 			FSharedNodeByIDMap Graphs;
 			const Frontend::IDataTypeRegistry& DataTypeRegistry;
 			const Frontend::FProxyDataCache& ProxyDataCache;
+			FGuid GraphId;
 		};
 
 		// Transient context used for building a specific graph
@@ -145,6 +154,7 @@ namespace Metasound
 		{
 			TUniquePtr<FFrontendGraph> Graph;
 			const FMetasoundFrontendGraphClass& GraphClass;
+			const FMetasoundFrontendGraph& PagedGraph;
 			FBuildContext& BuildContext;
 			FDefaultInputByIDMap DefaultInputs;
 		};

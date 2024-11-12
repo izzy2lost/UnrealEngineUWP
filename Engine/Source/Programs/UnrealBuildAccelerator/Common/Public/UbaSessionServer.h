@@ -14,8 +14,8 @@ namespace uba
 	class SessionServer final : public Session
 	{
 	public:
-		// Ctor/dtor
-		SessionServer(const SessionServerCreateInfo& info);
+		// Ctor/dtor. "environmnent" should be an array of utf8-written strings. This is really only needed for posix platforms where process is a c# process
+		SessionServer(const SessionServerCreateInfo& info, const u8* environment = nullptr, u32 environmentSize = 0);
 		~SessionServer();
 
 		// Run process remotely.
@@ -56,8 +56,11 @@ namespace uba
 		// End external process.
 		void EndExternalProcess(u32 id, u32 exitCode);
 
+		// Update progress. Will show in visualizer
+		void UpdateProgress(u32 processesTotal, u32 processesDone, u32 errorCount);
+
 		// Add external status information to trace stream. Will show in visualizer
-		void UpdateStatus(u32 statusIndex, u32 statusNameIndent, const tchar* statusName, u32 statusTextIndent, const tchar* statusText, LogEntryType statusType);
+		void UpdateStatus(u32 statusRow, u32 statusColumn, const tchar* statusText, LogEntryType statusType, const tchar* statusLink);
 
 		// Get the network server used by this session
 		NetworkServer& GetServer();
@@ -67,6 +70,9 @@ namespace uba
 
 		void OnDisconnected(const Guid& clientUid, u32 clientId);
 		bool HandleMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer);
+		#define UBA_SESSION_MESSAGE(x) bool Handle##x(const ConnectionInfo& connectionInfo, BinaryReader& reader, BinaryWriter& writer);
+		UBA_SESSION_MESSAGES
+		#undef UBA_SESSION_MESSAGE
 
 		bool StoreCasFile(CasKey& out, const StringKey& fileNameKey, const tchar* fileName);
 		bool WriteDirectoryTable(ClientSession& session, BinaryReader& reader, BinaryWriter& writer);
@@ -80,7 +86,9 @@ namespace uba
 		void OnCancelled(RemoteProcess* process);
 		ProcessHandle ProcessRemoved(u32 processId);
 
-		virtual bool PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir) override final;
+		TString GetProcessDescription(u32 processId);
+
+		virtual bool PrepareProcess(ProcessStartInfoHolder& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir) override final;
 		virtual bool CreateFile(CreateFileResponse& out, const CreateFileMessage& msg) override final;
 		virtual void FileEntryAdded(StringKey fileNameKey, u64 lastWritten, u64 size) override final;
 		virtual void PrintSessionStats(Logger& logger) override final;
@@ -88,6 +96,7 @@ namespace uba
 
 		void WriteRemoteEnvironmentVariables(BinaryWriter& writer);
 		bool InitializeNameToHashTable();
+
 
 		NetworkServer& m_server;
 		u32 m_uiLanguage;

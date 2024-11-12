@@ -171,6 +171,8 @@ public:
 	/** Sets whether this outliner item is being filtered out */
 	virtual void SetFilteredOut(bool bIsFilteredOut) = 0;
 
+	virtual bool ShouldAnchorToTop() const = 0;
+
 	/** Gets the outliner item's selection state */
 	virtual EOutlinerSelectionState GetSelectionState() const = 0;
 
@@ -241,6 +243,7 @@ public:
 	virtual void SetFilteredOut(bool bInIsFilteredOut) override { bIsFilteredOut = bInIsFilteredOut; }
 	virtual EOutlinerSelectionState GetSelectionState() const override { return SelectionState; }
 	virtual void SetSelectionState(EOutlinerSelectionState InState) override { SelectionState = InState; }
+	virtual bool ShouldAnchorToTop() const override { return false; }
 
 protected:
 

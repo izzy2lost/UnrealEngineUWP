@@ -14,6 +14,9 @@
 static FName NAME_NiagaraDouble(TEXT("NiagaraDouble"));
 static FName NAME_NiagaraPosition(TEXT("NiagaraPosition"));
 
+// Emitter stats makes some assumptions about how you can cast from a ENiagaraExecutionStateManagement to ENiagaraExecutionState and the enum values will match
+static_assert(int(ENiagaraExecutionState::Num) == int(ENiagaraExecutionStateManagement::Num), "ENiagaraExecutionState & ENiagaraExecutionStateManagement must match 1:1 as scripts assume they can cast between");
+
 void FNiagaraVariableBase::SetNamespacedName(const FString& InNamespace, FName InVariableName)
 {
 	TStringBuilder<128> NameBuilder;
@@ -159,6 +162,24 @@ FMatrix FNiagaraLWCConverter::ConvertWorldToSimulationMatrix(const FMatrix& Matr
 FMatrix FNiagaraLWCConverter::ConvertSimulationToWorldMatrix(const FMatrix& Matrix) const
 {
 	return Matrix.ConcatTranslation(SystemWorldPos);
+}
+
+FTransform3f FNiagaraLWCConverter::ConvertWorldToSimulationTransform(const FTransform& Transform) const
+{
+	FTransform3f NewTransform;
+	NewTransform.SetTranslation(FVector3f(Transform.GetTranslation() - SystemWorldPos));
+	NewTransform.SetRotation(FQuat4f(Transform.GetRotation()));
+	NewTransform.SetScale3D(FVector3f(Transform.GetScale3D()));
+	return NewTransform;
+}
+
+FTransform FNiagaraLWCConverter::ConvertSimulationToWorldTransform(const FTransform3f& Transform) const
+{
+	FTransform NewTransform;
+	NewTransform.SetTranslation(FVector(Transform.GetTranslation()) + SystemWorldPos);
+	NewTransform.SetRotation(FQuat(Transform.GetRotation()));
+	NewTransform.SetScale3D(FVector(Transform.GetScale3D()));
+	return NewTransform;
 }
 
 FNiagaraStructConversionStep::FNiagaraStructConversionStep()
@@ -398,35 +419,35 @@ FNiagaraLwcStructConverter BuildSWCStructure(UScriptStruct* NewStruct, UScriptSt
 			if ((StructName == NAME_Vector2d) || (StructName == NAME_Vector2D))
 			{
 				NewStructProperty->Struct = Vector2fStruct;
-				NewStructProperty->ElementSize = Vector2fStruct->GetStructureSize();
+				NewStructProperty->SetElementSize(Vector2fStruct->GetStructureSize());
 				AlignedOffset = Align(AlignedOffset, Vector2fStruct->GetMinAlignment());
 				StructConverter.AddConversionStep(OldPropertySize, OldPropertyOffset, NewStructProperty->GetSize(), AlignedOffset, ENiagaraStructConversionType::Vector2);
 			}
 			else if ((StructName == NAME_Vector3d) || (StructName == NAME_Vector))
 			{
 				NewStructProperty->Struct = Vector3fStruct;
-				NewStructProperty->ElementSize = Vector3fStruct->GetStructureSize();
+				NewStructProperty->SetElementSize(Vector3fStruct->GetStructureSize());
 				AlignedOffset = Align(AlignedOffset, Vector3fStruct->GetMinAlignment());
 				StructConverter.AddConversionStep(OldPropertySize, OldPropertyOffset, NewStructProperty->GetSize(), AlignedOffset, ENiagaraStructConversionType::Vector3);
 			}
 			else if ((StructName == NAME_Vector4d) || (StructName == NAME_Vector4))
 			{
 				NewStructProperty->Struct = Vector4fStruct;
-				NewStructProperty->ElementSize = Vector4fStruct->GetStructureSize();
+				NewStructProperty->SetElementSize(Vector4fStruct->GetStructureSize());
 				AlignedOffset = Align(AlignedOffset, Vector4fStruct->GetMinAlignment());
 				StructConverter.AddConversionStep(OldPropertySize, OldPropertyOffset, NewStructProperty->GetSize(), AlignedOffset, ENiagaraStructConversionType::Vector4);
 			}
 			else if ((StructName == NAME_Quat4d) || (StructName == NAME_Quat))
 			{
 				NewStructProperty->Struct = Quat4fStruct;
-				NewStructProperty->ElementSize = Quat4fStruct->GetStructureSize();
+				NewStructProperty->SetElementSize(Quat4fStruct->GetStructureSize());
 				AlignedOffset = Align(AlignedOffset, Quat4fStruct->GetMinAlignment());
 				StructConverter.AddConversionStep(OldPropertySize, OldPropertyOffset, NewStructProperty->GetSize(), AlignedOffset, ENiagaraStructConversionType::Quat);
 			}
 			else
 			{
 				NewStructProperty->Struct = ChildAsStruct->Struct;
-				NewStructProperty->ElementSize = ChildAsStruct->Struct->GetStructureSize();
+				NewStructProperty->SetElementSize(ChildAsStruct->Struct->GetStructureSize());
 				AlignedOffset = Align(AlignedOffset, ChildAsStruct->Struct->GetMinAlignment());
 				StructConverter.AddConversionStep(OldPropertySize, OldPropertyOffset, NewStructProperty->GetSize(), AlignedOffset, ENiagaraStructConversionType::CopyOnly);
 			}
@@ -839,9 +860,9 @@ void FNiagaraTypeLayoutInfo::GenerateLayoutInfo(const UScriptStruct* Struct)
 	int32 Int32Count = 0;
 	int32 HalfCount = 0;
 	GenerateLayoutInfoInternal(Struct, FloatCount, Int32Count, HalfCount, true);
-	NumFloatComponents = FloatCount;
-	NumInt32Components = Int32Count;
-	NumHalfComponents = HalfCount;
+	NumFloatComponents = IntCastChecked<uint16>(FloatCount);
+	NumInt32Components = IntCastChecked<uint16>(Int32Count);
+	NumHalfComponents = IntCastChecked<uint16>(HalfCount);
 
 	FloatCount = 0;
 	Int32Count = 0;

@@ -2,6 +2,7 @@
 
 #include "SequencerHotspots.h"
 #include "MVVM/Extensions/IObjectBindingExtension.h"
+#include "MVVM/Extensions/ITimeDomainExtension.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "MVVM/Selection/Selection.h"
 #include "SequencerCommonHelpers.h"
@@ -141,6 +142,21 @@ void FHotspotSelectionManager::SelectKeysExclusive(TArrayView<const FSequencerSe
 		}
 	}
 }
+void FHotspotSelectionManager::DefaultModelSelection(TSharedPtr<FViewModel> InModel)
+{
+	if (bForceSelect)
+	{
+		SelectModelExclusive(InModel);
+	}
+	else if (MouseEvent->IsControlDown())
+	{
+		ToggleModel(InModel);
+	}
+	else if (MouseEvent->IsShiftDown())
+	{
+		Selection->TrackArea.Select(InModel);
+	}
+}
 
 void FHotspotSelectionManager::SelectModelExclusive(TSharedPtr<FViewModel> InModel)
 {
@@ -202,6 +218,40 @@ void FKeyHotspot::UpdateOnHover(FTrackAreaViewModel& InTrackArea) const
 	InTrackArea.AttemptToActivateTool(FSequencerEditTool_Movement::Identifier);
 }
 
+TOptional<ETimeDomain> FKeyHotspot::GetDomain() const
+{
+	TOptional<ETimeDomain> Domain;
+
+	TSet<const FChannelModel*> VisitedChannels;
+	for (const FSequencerSelectedKey& Key : Keys)
+	{
+		TSharedPtr<FChannelModel> Channel = Key.WeakChannel.Pin();
+		if (!Channel || VisitedChannels.Contains(Channel.Get()))
+		{
+			continue;
+		}
+
+		VisitedChannels.Add(Channel.Get());
+
+		TViewModelPtr<ITimeDomainExtension> TimeDomain = Channel->FindAncestorOfType<ITimeDomainExtension>(true);
+		if (TimeDomain)
+		{
+			if (Domain && Domain != TimeDomain->GetDomain())
+			{
+				return TOptional<ETimeDomain>();
+			}
+
+			Domain = TimeDomain->GetDomain();
+		}
+	}
+
+	if (!Domain)
+	{
+		Domain = ETimeDomain::Warped;
+	}
+	return Domain;
+}
+
 TOptional<FFrameNumber> FKeyHotspot::GetTime() const
 {
 	FFrameNumber Time = 0;
@@ -219,10 +269,7 @@ TOptional<FFrameNumber> FKeyHotspot::GetTime() const
 
 bool FKeyHotspot::PopulateContextMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, FFrameTime MouseDownTime)
 {
-	if (TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin())
-	{
-		FKeyContextMenu::BuildMenu(MenuBuilder, MenuExtender, *Sequencer);
-	}
+	FKeyContextMenu::BuildMenu(MenuBuilder, MenuExtender, WeakSequencer);
 	return true;
 }
 
@@ -260,7 +307,7 @@ bool FKeyBarHotspot::PopulateContextMenu(FMenuBuilder& MenuBuilder, TSharedPtr<F
 		return false;
 	}
 	
-	FSectionContextMenu::BuildMenu(MenuBuilder, MenuExtender, *Sequencer, MouseDownTime);
+	FSectionContextMenu::BuildMenu(MenuBuilder, MenuExtender, WeakSequencer, MouseDownTime);
 
 	TSharedPtr<IObjectBindingExtension> ObjectBinding = SectionModel->FindAncestorOfType<IObjectBindingExtension>();
 	SectionModel->GetSectionInterface()->BuildSectionContextMenu(MenuBuilder, ObjectBinding ? ObjectBinding->GetObjectGuid() : FGuid());
@@ -311,7 +358,7 @@ TSharedPtr<ISequencerEditToolDragOperation> FKeyBarHotspot::InitiateDrag(const F
 
 		TSharedPtr<FKeyBarHotspot> Hotspot;
 		TUniquePtr<FScopedTransaction> Transaction;
-		TSet<UMovieSceneSection*> ModifiedSections;
+		TSet<UObject*> ModifiedObjects;
 		FSequencerSnapField SnapField;
 
 		FKeyBarDrag(TSharedPtr<FKeyBarHotspot> InHotspot, TSharedPtr<FSequencer> InSequencer)
@@ -347,9 +394,12 @@ TSharedPtr<ISequencerEditToolDragOperation> FKeyBarHotspot::InitiateDrag(const F
 
 			for (const FSequencerSelectedKey& Key : AllLinearKeys)
 			{
-				if (!ModifiedSections.Contains(Key.Section))
+				TSharedPtr<FChannelModel> Channel = Key.WeakChannel.Pin();
+				UObject* OwningObject = Channel ? Channel->GetOwningObject() : nullptr;
+
+				if (OwningObject && !ModifiedObjects.Contains(OwningObject))
 				{
-					ModifiedSections.Add(Key.Section);
+					ModifiedObjects.Add(OwningObject);
 				}
 			}
 		}
@@ -359,9 +409,9 @@ TSharedPtr<ISequencerEditToolDragOperation> FKeyBarHotspot::InitiateDrag(const F
 
 			const FFrameTime NewTime = VirtualTrackArea.PixelToFrame(LocalMousePos.X);
 
-			for (UMovieSceneSection* Section : ModifiedSections)
+			for (UObject* Object : ModifiedObjects)
 			{
-				Section->Modify();
+				Object->Modify();
 			}
 
 			// Set the position of leading and trailing keys
@@ -496,8 +546,7 @@ bool FSectionHotspotBase::PopulateContextMenu(FMenuBuilder& MenuBuilder, TShared
 	UMovieSceneSection*       ThisSection  = SectionModel ? SectionModel->GetSection() : nullptr;
 	if (ThisSection)
 	{
-		TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
-		FSectionContextMenu::BuildMenu(MenuBuilder, MenuExtender, *Sequencer, MouseDownTime);
+		FSectionContextMenu::BuildMenu(MenuBuilder, MenuExtender, WeakSequencer, MouseDownTime);
 
 		TSharedPtr<IObjectBindingExtension> ObjectBinding = SectionModel->FindAncestorOfType<IObjectBindingExtension>();
 		SectionModel->GetSectionInterface()->BuildSectionContextMenu(MenuBuilder, ObjectBinding ? ObjectBinding->GetObjectGuid() : FGuid());
@@ -587,9 +636,7 @@ void FSectionEasingHandleHotspot::UpdateOnHover(FTrackAreaViewModel& InTrackArea
 
 bool FSectionEasingHandleHotspot::PopulateContextMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, FFrameTime MouseDownTime)
 {
-	TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
-
-	FEasingContextMenu::BuildMenu(MenuBuilder, MenuExtender, { FEasingAreaHandle{WeakSectionModel, HandleType} }, *Sequencer, MouseDownTime);
+	FEasingContextMenu::BuildMenu(MenuBuilder, MenuExtender, { FEasingAreaHandle{WeakSectionModel, HandleType} }, WeakSequencer, MouseDownTime);
 	return true;
 }
 
@@ -610,7 +657,7 @@ bool FSectionEasingAreaHotspot::PopulateContextMenu(FMenuBuilder& MenuBuilder, T
 	using namespace UE::Sequencer;
 
 	TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
-	FEasingContextMenu::BuildMenu(MenuBuilder, MenuExtender, Easings, *Sequencer, MouseDownTime);
+	FEasingContextMenu::BuildMenu(MenuBuilder, MenuExtender, Easings, WeakSequencer, MouseDownTime);
 
 	TSharedPtr<FSectionModel> SectionModel = WeakSectionModel.Pin();
 	UMovieSceneSection*       ThisSection  = SectionModel ? SectionModel->GetSection() : nullptr;

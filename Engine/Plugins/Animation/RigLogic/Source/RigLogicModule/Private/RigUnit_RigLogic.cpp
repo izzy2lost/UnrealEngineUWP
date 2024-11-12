@@ -12,11 +12,13 @@
 #include "Math/TransformNonVectorized.h"
 #include "Units/RigUnitContext.h"
 
+#include <tdm/TDM.h>
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnit_RigLogic)
 
 DEFINE_LOG_CATEGORY(LogRigLogicUnit);
 
-const uint8 FRigUnit_RigLogic_Data::MAX_ATTRS_PER_JOINT = 9;
+const uint8 FRigUnit_RigLogic_Data::MAX_ATTRS_PER_JOINT = 10;
 
 /** Constructs curve name from nameToSplit using formatString of form x<obj>y<attr>z **/
 static FString ConstructCurveName(const FString& NameToSplit, const FString& FormatString)
@@ -179,6 +181,74 @@ void FRigUnit_RigLogic_Data::MapJoints(const URigHierarchy* Hierarchy)
 		const int32 BoneIndex = Hierarchy->GetIndex(FRigElementKey(JointFName, ERigElementType::Bone));
 		HierarchyBoneIndices.Add(BoneIndex);
 	}
+
+	auto FindJointIndex = [DNABehavior](const FString& JointName)
+		{
+			for (uint16 JointIndex = 0; JointIndex < DNABehavior->GetJointCount(); ++JointIndex)
+			{
+				const FString& RLJointName = DNABehavior->GetJointName(JointIndex);
+				if (RLJointName == JointName)
+				{
+					return JointIndex;
+				}
+			}
+			return static_cast<uint16>(-1);
+		};
+
+	const uint32 ControlCount = DNABehavior->GetRawControlCount();
+	DriverJointsToControlAttributesMap.Empty();
+	// This is a correct approximation as long as only 4 (rotation) attributes are used as driver joint attributes
+	// and no regular raw controls are present in the DNA
+	DriverJointsToControlAttributesMap.Reserve(ControlCount / 4);
+	for (uint32_t ControlIndex = 0; ControlIndex < ControlCount; ++ControlIndex)
+	{
+		const FString DriverJointAttrName = DNABehavior->GetRawControlName(ControlIndex);
+		if (DriverJointAttrName.Len() < 2)
+		{
+			continue;
+		}
+
+		const FString DriverJointName = DriverJointAttrName.Mid(0, DriverJointAttrName.Len() - 2);
+		const FName BoneName = FName(*DriverJointName);
+		const int32 BoneIndex = Hierarchy->GetIndex(FRigElementKey(BoneName, ERigElementType::Bone));
+		if (BoneIndex == INDEX_NONE)
+		{
+			// Mixed DNAs will contain both driver joints and normal raw controls in this list, and those will
+			// not be found in the joint hierarchy
+			continue;
+		}
+
+		int32 MappingIndex = DriverJointsToControlAttributesMap.FindLastByPredicate([BoneIndex](const FBoneIndexControlAttributeMapping& Element)
+			{
+				return Element.BoneIndex == BoneIndex;
+			});
+		if (MappingIndex == INDEX_NONE)
+		{
+			FBoneIndexControlAttributeMapping NewMapping{BoneIndex, INDEX_NONE, INDEX_NONE , INDEX_NONE , INDEX_NONE, INDEX_NONE};
+			// BoneIndex may be INDEX_NONE, but it's handled properly by the Evaluate method
+			MappingIndex = DriverJointsToControlAttributesMap.Add(NewMapping);
+		}
+
+		FBoneIndexControlAttributeMapping& Mapping = DriverJointsToControlAttributesMap[MappingIndex];
+		Mapping.DNAJointIndex = FindJointIndex(DriverJointName);
+
+		if (DriverJointAttrName.EndsWith(TEXT(".x")))
+		{
+			Mapping.RotationX = ControlIndex;
+		}
+		else if (DriverJointAttrName.EndsWith(TEXT(".y")))
+		{
+			Mapping.RotationY = ControlIndex;
+		}
+		else if (DriverJointAttrName.EndsWith(TEXT(".z")))
+		{
+			Mapping.RotationZ = ControlIndex;
+		}
+		else if (DriverJointAttrName.EndsWith(TEXT(".w")))
+		{
+			Mapping.RotationW = ControlIndex;
+		}
+	}
 }
 
 void FRigUnit_RigLogic_Data::MapMorphTargets(const URigHierarchy* InHierarchy)
@@ -249,7 +319,7 @@ void FRigUnit_RigLogic_Data::MapMaskMultipliers(const URigHierarchy* InHierarchy
 	}
 }
 
-void FRigUnit_RigLogic_Data::CalculateRigLogic(const URigHierarchy* InHierarchy)
+void FRigUnit_RigLogic_Data::CalculateRigLogic(const URigHierarchy* InHierarchy, TArrayView<const float> NeutralJointValues)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_RigUnit_RigLogic_Calculate);
@@ -263,7 +333,37 @@ void FRigUnit_RigLogic_Data::CalculateRigLogic(const URigHierarchy* InHierarchy)
 	{
 		const uint32 CurveIndex = InputCurveIndices[ControlIndex];
 		const float Value = InHierarchy->GetCurveValue(CurveIndex);
-		RigInstance->SetRawControl(ControlIndex, Value);
+		RigInstance->SetRawControl(ControlIndex, FMath::Clamp(Value, 0.0, 1.0));
+	}
+
+	for (int32 MappingIndex = 0; MappingIndex < DriverJointsToControlAttributesMap.Num(); ++MappingIndex)
+	{
+		const FBoneIndexControlAttributeMapping& Mapping = DriverJointsToControlAttributesMap[MappingIndex];
+		const FTransform& PoseTransform = InHierarchy->GetLocalTransform(Mapping.BoneIndex);
+		// Translation and Scale is currently not used here, so to avoid the overhead of checking them, they are simply ignored.
+		// Should the need arise to use them as well, this code will need adjustment.
+		const FQuat Rotation = PoseTransform.GetRotation();
+		const int32 AttrIndex = Mapping.DNAJointIndex * MAX_ATTRS_PER_JOINT;
+		const tdm::fquat NeutralRotation{NeutralJointValues[AttrIndex + 3], NeutralJointValues[AttrIndex + 4], NeutralJointValues[AttrIndex + 5], NeutralJointValues[AttrIndex + 6]};
+		const tdm::fquat AbsPoseRotation{static_cast<float>(Rotation.X), static_cast<float>(Rotation.Y), static_cast<float>(Rotation.Z), static_cast<float>(Rotation.W)};
+		const tdm::fquat DeltaPoseRotation = tdm::inverse(NeutralRotation) * AbsPoseRotation;
+
+		if (Mapping.RotationX != INDEX_NONE)
+		{
+			RigInstance->SetRawControl(Mapping.RotationX, DeltaPoseRotation.x);
+		}
+		if (Mapping.RotationY != INDEX_NONE)
+		{
+			RigInstance->SetRawControl(Mapping.RotationY, DeltaPoseRotation.y);
+		}
+		if (Mapping.RotationZ != INDEX_NONE)
+		{
+			RigInstance->SetRawControl(Mapping.RotationZ, DeltaPoseRotation.z);
+		}
+		if (Mapping.RotationW != INDEX_NONE)
+		{
+			RigInstance->SetRawControl(Mapping.RotationW, DeltaPoseRotation.w);
+		}
 	}
 
 	const int32 NeuralNetworkCount = RigInstance->GetNeuralNetworkCount();
@@ -296,12 +396,9 @@ void FRigUnit_RigLogic_Data::UpdateJoints(URigHierarchy* Hierarchy, TArrayView<c
 			const uint16 AttrIndex = JointIndex * MAX_ATTRS_PER_JOINT;
 			const FTransform Transform
 			{
-				// Rotation: X = -Y, Y = -Z, Z = X
-				FQuat(FRotator(-N[AttrIndex + 4], -N[AttrIndex + 5], N[AttrIndex + 3])) * FQuat(FRotator(-D[AttrIndex + 4], -D[AttrIndex + 5], D[AttrIndex + 3])),
-				// Translation: X = X, Y = -Y, Z = Z
-				FVector((N[AttrIndex + 0] + D[AttrIndex + 0]), -(N[AttrIndex + 1] + D[AttrIndex + 1]), (N[AttrIndex + 2] + D[AttrIndex + 2])),
-				// Scale: X = X, Y = Y, Z = Z
-				FVector((N[AttrIndex + 6] + D[AttrIndex + 6]), (N[AttrIndex + 7] + D[AttrIndex + 7]), (N[AttrIndex + 8] + D[AttrIndex + 8]))
+				FQuat(N[AttrIndex + 3], N[AttrIndex + 4], N[AttrIndex + 5], N[AttrIndex + 6]) * FQuat(D[AttrIndex + 3], D[AttrIndex + 4], D[AttrIndex + 5], D[AttrIndex + 6]),
+				FVector((N[AttrIndex + 0] + D[AttrIndex + 0]), (N[AttrIndex + 1] + D[AttrIndex + 1]), (N[AttrIndex + 2] + D[AttrIndex + 2])),
+				FVector((N[AttrIndex + 7] + D[AttrIndex + 7]), (N[AttrIndex + 8] + D[AttrIndex + 8]), (N[AttrIndex + 9] + D[AttrIndex + 9]))
 			};
 			Hierarchy->SetLocalTransform(BoneIndex, Transform);
 		}
@@ -419,11 +516,12 @@ FRigUnit_RigLogic_Execute()
 			return;
 		}
 		Data.CurrentLOD = Data.SkelMeshComponent->GetPredictedLODLevel();
-		Data.CalculateRigLogic(Hierarchy);
 
-		//Filing a struct so we can call the same method for updating joints from tests
-		TArrayView<const float> NeutralJointValues = Data.LocalRigRuntimeContext->RigLogic->GetRawNeutralJointValues();
-		TArrayView<const float> DeltaJointValues = Data.RigInstance->GetRawJointOutputs();
+		TArrayView<const float> NeutralJointValues = Data.LocalRigRuntimeContext->RigLogic->GetNeutralJointValues();
+		TArrayView<const float> DeltaJointValues = Data.RigInstance->GetJointOutputs();
+
+		Data.CalculateRigLogic(Hierarchy, NeutralJointValues);
+
 		Data.UpdateJoints(Hierarchy, NeutralJointValues, DeltaJointValues);
 
 		TArrayView<const float> BlendShapeValues = Data.RigInstance->GetBlendShapeOutputs();

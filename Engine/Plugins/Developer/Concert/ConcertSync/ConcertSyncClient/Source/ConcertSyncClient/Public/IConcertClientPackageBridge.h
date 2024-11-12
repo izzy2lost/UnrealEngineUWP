@@ -19,6 +19,7 @@ enum class EPackageFilterResult : uint8
 };
 
 DECLARE_DELEGATE_RetVal_OneParam(EPackageFilterResult, FPackageFilterDelegate, const FConcertPackageInfo&);
+DECLARE_DELEGATE_RetVal_OneParam(bool, FPackageHotReloadHintDelegate, const FConcertPackageInfo&);
 
 /**
  * Bridge between the editor package events and Concert.
@@ -56,6 +57,15 @@ public:
 	 * Called when a local package is discarded.
 	 */
 	virtual FOnConcertClientLocalPackageDiscarded& OnLocalPackageDiscarded() = 0;
+
+	/** Register a pending package hot reload hint package payloads. */
+	virtual void RegisterPackageHotReloadHint(FName PackageReloadHintName, FPackageHotReloadHintDelegate FilterHandle) = 0;
+
+	/** Returns true if the package can be skipped for hot reload on client nodes.  */
+	virtual bool CanSkipHotReload(const FConcertPackageInfo& PackageInfo) const = 0;
+
+	/** Unregister package hot reload hint handler. */
+	virtual void UnregisterPackageHotReloadHint(FName PackageReloadHintName) = 0;
 
 	/** Register a package filter to exclude/include certain packagins from the session. */
 	virtual void RegisterPackageFilter(FName FilterName, FPackageFilterDelegate FilterHandle) = 0;

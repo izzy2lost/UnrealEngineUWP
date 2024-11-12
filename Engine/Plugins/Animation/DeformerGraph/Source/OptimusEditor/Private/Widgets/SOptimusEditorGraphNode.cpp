@@ -577,7 +577,6 @@ void SOptimusEditorGraphNode::Construct(const FArguments& InArgs)
 	        .OnGetChildren(this, &SOptimusEditorGraphNode::HandleGetChildrenForTree)
 	        .OnExpansionChanged(this, &SOptimusEditorGraphNode::HandleExpansionChanged)
 	        .ExternalScrollbar(TreeScrollBar)
-	        .ItemHeight(20.0f)
 		];
 
 	// Padding for group pin
@@ -604,7 +603,6 @@ void SOptimusEditorGraphNode::Construct(const FArguments& InArgs)
 			.OnGetChildren(this, &SOptimusEditorGraphNode::HandleGetChildrenForTree)
 			.OnExpansionChanged(this, &SOptimusEditorGraphNode::HandleExpansionChanged)
 			.ExternalScrollbar(TreeScrollBar)
-			.ItemHeight(20.0f)
 		];
 
 	// Add an extra pin for AdderPinProviders to show an adder pin on both input and output sides

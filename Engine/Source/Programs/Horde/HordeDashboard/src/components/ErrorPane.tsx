@@ -5,7 +5,7 @@ import { IColumn, List, Stack, Text } from '@fluentui/react';
 import { getFocusStyle, mergeStyleSets } from '@fluentui/react/lib/Styling';
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { EventData, EventSeverity, GetLabelResponse } from '../backend/Api';
+import { EventData, EventSeverity, GetLabelStateResponse, JobStepState } from '../backend/Api';
 import { JobDetails } from '../backend/JobDetails';
 import { JobEventHandler } from '../backend/JobEventHandler';
 import { renderLine } from './LogRender';
@@ -112,13 +112,14 @@ export const ErrorPane: React.FC<{ jobDetails: JobDetails; stepId: string; showE
          return <div>???</div>;
       }
 
-      const url = `/log/${item.logId}?lineindex=${item.lineIndex}`;
+      const url = `/log/${item.logId}?lineIndex=${item.lineIndex + 1}`;
 
       const lines = item.lines.filter(line => line.message?.trim().length).map(line => <Stack styles={{ root: { paddingLeft: 8, paddingRight: 8, lineBreak: "anywhere", whiteSpace: "pre-wrap", lineHeight: 18, fontSize: 10, fontFamily: "Horde Cousine Regular, monospace, monospace" } }}> <Link className="log-link" to={url}>{renderLine(navigate, line, undefined, {})}</Link></Stack>);
 
       return (<Stack className={styles.itemCell} styles={{ root: { padding: 8, marginRight: 8 } }}><Stack className={item.severity === EventSeverity.Warning ? styles.gutterWarning : styles.gutter} styles={{ root: { padding: 0, margin: 0 } }}>
          <Stack styles={{ root: { paddingLeft: 14 } }}>
-            {lines}
+            {!!lines.length && lines}
+            {!lines.length && <Text>{step.state === JobStepState.Running ? "Generating Log Data" : "Missing Log Data"}</Text>}
          </Stack>
       </Stack>
       </Stack>
@@ -206,14 +207,15 @@ export const JobEventListPanel: React.FC<{ jobDetails: JobDetails, stepIds: stri
       const logId = step.logId!;
       const event = item.event!;
 
-      const url = `/log/${logId}?lineindex=${event.lineIndex}`;
+      const url = `/log/${logId}?lineIndex=${event.lineIndex + 1}`;
 
       const lines = event.lines.map(line => <Stack styles={{ root: { paddingLeft: 8, paddingRight: 8, lineBreak: "anywhere", whiteSpace: "pre-wrap", lineHeight: 18, fontSize: 10, fontFamily: "Horde Cousine Regular, monospace, monospace" } }}> {renderLine(navigate, line, undefined, {})}</Stack>);
       return (
          <Link className="log-link" to={url}>
             <Stack className={styles.itemCell} styles={{ root: { padding: 8, paddingLeft: 24, marginRight: 8 } }}><Stack className={event.severity === EventSeverity.Warning ? styles.gutterWarning : styles.gutter} styles={{ root: { padding: 0, margin: 0 } }}>
                <Stack styles={{ root: { paddingLeft: 8 } }}>
-                  {lines}
+                  {!!lines.length && lines}
+                  {!lines.length && <Text>{step.state === JobStepState.Running ? "Generating Log Data" : "Missing Log Data"}</Text>}
                </Stack>
             </Stack>
             </Stack>
@@ -237,7 +239,7 @@ export const JobEventListPanel: React.FC<{ jobDetails: JobDetails, stepIds: stri
       const step = jobDetails.stepById(stepId)!;
 
       return <Stack styles={{ root: { background: 'rgb(233, 232, 231)', marginRight: 8, height: 42, fontSize: 12, selectors: { "a, a:hover, a:visited": { color: "#FFFFFF" }, ":hover": { background: 'rgb(223, 222, 221)' } } } }} verticalFill={true} verticalAlign="center" >
-         <Link to={url}><Stack style={{ paddingLeft: 12 }} horizontal><StepStatusIcon step={step} /><Text>{jobDetails.nodeByStepId(stepId)?.name}</Text>
+         <Link to={url}><Stack style={{ paddingLeft: 12 }} horizontal><StepStatusIcon step={step} /><Text>{step?.name}</Text>
          </Stack>
          </Link>
       </Stack>
@@ -254,7 +256,7 @@ export const JobEventListPanel: React.FC<{ jobDetails: JobDetails, stepIds: stri
 };
 
 
-export const JobEventPanel: React.FC<{ jobDetails: JobDetails, label?: GetLabelResponse, eventHandler: JobEventHandler }> = observer(({ jobDetails, label, eventHandler }) => {
+export const JobEventPanel: React.FC<{ jobDetails: JobDetails, label?: GetLabelStateResponse, eventHandler: JobEventHandler }> = observer(({ jobDetails, label, eventHandler }) => {
 
    const { hordeClasses } = getHordeStyling();
 
@@ -269,8 +271,7 @@ export const JobEventPanel: React.FC<{ jobDetails: JobDetails, label?: GetLabelR
    let stepIds = jobDetails.getSteps().map(s => s.id);
 
    if (label) {
-      const nodes = jobDetails.nodes?.filter(n => label.includedNodes?.find(on => on === n.name));
-      stepIds = stepIds.filter(stepId => nodes.indexOf(jobDetails.nodeByStepId(stepId)!) !== -1);
+      stepIds = stepIds.filter(stepId => label.steps.indexOf(stepId) !== -1);
    }
 
    stepIds = stepIds.filter(s => {

@@ -9,7 +9,6 @@
 #include "UObject/ObjectMacros.h"
 
 #include "FMemoryResource.h"
-#include "TransformArrayView.h"
 
 class FRigLogic;
 
@@ -23,7 +22,7 @@ class RigInstance;
 class RIGLOGICMODULE_API FRigInstance
 {
 public:
-	FRigInstance(FRigLogic* RigLogic);
+	explicit FRigInstance(FRigLogic* RigLogic);
 	~FRigInstance();
 
 	FRigInstance(const FRigInstance&) = delete;
@@ -56,8 +55,11 @@ public:
 	float GetNeuralNetworkMask(uint16 NeuralNetIndex) const;
 	void SetNeuralNetworkMask(uint16 NeuralNetIndex, float Value);
 
-	TArrayView<const float> GetRawJointOutputs() const;
-	FTransformArrayView GetJointOutputs() const;
+	uint16 GetRBFControlCount() const;
+	float GetRBFControl(uint16 Index) const;
+	TArrayView<const float> GetRBFControlValues() const;
+
+	TArrayView<const float> GetJointOutputs() const;
 	TArrayView<const float> GetBlendShapeOutputs() const;
 	TArrayView<const float> GetAnimatedMapOutputs() const;
 	uint16 GetLOD() const;

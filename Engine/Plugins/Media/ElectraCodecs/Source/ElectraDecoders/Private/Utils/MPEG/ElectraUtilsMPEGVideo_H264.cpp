@@ -286,11 +286,15 @@ namespace ElectraDecodersUtil
 				}
 				if (vui_parameters_present_flag != 0 && bitstream_restriction_flag != 0)
 				{
+				/*
+					Removed for now as this can happen despite it being invalid.
+
 					if ((int32)max_dec_frame_buffering > MaxSize)
 					{
 						UE_LOG(LogElectraDecoders, Error, TEXT("max_dec_frame_buffering in vui is larger than max dpb size for this level"));
 						return -1;
 					}
+				*/
 					uint32 SizeFromVUI = Max(1U, max_dec_frame_buffering);
 					MaxSize = (int32)SizeFromVUI;
 				}
@@ -303,6 +307,13 @@ namespace ElectraDecodersUtil
 			int32 FSequenceParameterSet::GetHeight() const
 			{
 				return (pic_height_in_map_units_minus1 + 1) * 16;
+			}
+			void FSequenceParameterSet::GetDisplaySize(int32& OutWidth, int32& OutHeight) const
+			{
+				int32 cl,cr,ct,cb;
+				GetCrop(cl,cr,ct,cb);
+				OutWidth = GetWidth() - cl - cr;
+				OutHeight = GetHeight() - ct - cb;
 			}
 			void FSequenceParameterSet::GetCrop(int32& OutLeft, int32& OutRight, int32& OutTop, int32& OutBottom) const
 			{
@@ -364,6 +375,16 @@ namespace ElectraDecodersUtil
 			}
 
 
+			bool ParseSequenceParameterSet(FSequenceParameterSet& OutSequenceParameterSet, const uint8* InBitstream, uint64 InBitstreamLenInBytes)
+			{
+				TMap<uint32, FSequenceParameterSet> spss;
+				if (!ParseSequenceParameterSet(spss, InBitstream, InBitstreamLenInBytes))
+				{
+					return false;
+				}
+				OutSequenceParameterSet = spss.CreateConstIterator().Value();
+				return true;
+			}
 
 			bool ParseSequenceParameterSet(TMap<uint32, FSequenceParameterSet>& InOutSequenceParameterSets, const uint8* InBitstream, uint64 InBitstreamLenInBytes)
 			{
@@ -490,8 +511,8 @@ namespace ElectraDecodersUtil
 					sps.frame_crop_bottom_offset = br.ue_v();
 				}
 				uint32 MaxDpbFrames = sps.GetMaxDPBSize();
-				RANGE_CHECK_FAILURE(sps.max_num_ref_frames <= MaxDpbFrames, TEXT("max_num_ref_frames"));
-
+				// Removed for now as this can happen despite it being invalid.
+					// RANGE_CHECK_FAILURE(sps.max_num_ref_frames <= MaxDpbFrames, TEXT("max_num_ref_frames"));
 				bool bIsExt = (sps.profile_idc == 44 || sps.profile_idc == 86 || sps.profile_idc == 100 || sps.profile_idc == 110 || sps.profile_idc == 122 || sps.profile_idc == 244) && sps.constraint_set3_flag!=0;
 				sps.max_num_reorder_frames = sps.max_dec_frame_buffering = bIsExt ? 0 : MaxDpbFrames;
 				sps.vui_parameters_present_flag = br.GetBits(1);
@@ -606,9 +627,11 @@ namespace ElectraDecodersUtil
 						sps.max_bits_per_mb_denom = br.ue_v();
 						RANGE_CHECK_FAILURE(sps.max_bits_per_mb_denom <= 16, TEXT("max_bits_per_mb_denom"));
 						sps.log2_max_mv_length_horizontal = br.ue_v();
-						RANGE_CHECK_FAILURE(sps.log2_max_mv_length_horizontal <= 15, TEXT("log2_max_mv_length_horizontal"));
+						// The mv lengths should not be larger than 15 according to the standard, but we have
+						// encountered streams where this is not the case, so we remove the checks for better compatibility.
+						//RANGE_CHECK_FAILURE(sps.log2_max_mv_length_horizontal <= 15, TEXT("log2_max_mv_length_horizontal"));
 						sps.log2_max_mv_length_vertical = br.ue_v();
-						RANGE_CHECK_FAILURE(sps.log2_max_mv_length_vertical <= 15, TEXT("log2_max_mv_length_vertical"));
+						//RANGE_CHECK_FAILURE(sps.log2_max_mv_length_vertical <= 15, TEXT("log2_max_mv_length_vertical"));
 						sps.max_num_reorder_frames = br.ue_v();
 						sps.max_dec_frame_buffering = br.ue_v();
 						RANGE_CHECK_FAILURE(sps.max_dec_frame_buffering <= sps.max_num_ref_frames, TEXT("max_dec_frame_buffering"));
@@ -1181,6 +1204,59 @@ namespace ElectraDecodersUtil
 				CurrentPOC = PreviousPOC;
 			}
 
+			bool FSlicePOCVars::HandleMissingFrames(TArray<FOutputFrameInfo>& OutOutputFrameInfos, TArray<FOutputFrameInfo>& OutUnrefFrameInfos, uint8 InNalUnitType, uint8 /*InNalRefIdc*/, const FSliceHeader& InSliceHeader, const FSequenceParameterSet& InSequenceParameterSet)
+			{
+				bool bIsIDR = InNalUnitType == 5;
+				// Do we need to check?
+				if (bLastHadMMCO5 || bIsIDR)
+				{
+					// No need. Just continue.
+					return true;
+				}
+				// Is there a frame missing?
+				if (!(InSliceHeader.frame_num != CurrentPOC.prev_frame_num && InSliceHeader.frame_num != (CurrentPOC.prev_frame_num + 1) % max_frame_num))
+				{
+					// No. Continue.
+					return true;
+				}
+				/*
+					Decoding process for gaps in frame_num, Section 8.2.5.2
+						the current picture is considered to be a picture considered having frame_num inferred to be equal to UnusedShortTermFrameNum,
+						nal_ref_idc inferred to be not equal to 0,
+						nal_unit_type inferred to be not equal to 5,
+						IdrPicFlag inferred to be equal to 0,
+						field_pic_flag inferred to be equal to 0,
+						adaptive_ref_pic_marking_mode_flag inferred to be equal to 0,
+						delta_pic_order_cnt[ 0 ] (if needed) inferred to be equal to 0, and delta_pic_order_cnt[ 1 ] (if needed) inferred to be equal to 0.
+				*/
+				InNalUnitType = 1;
+				uint8 InNalRefIdc = 1;
+				FSliceHeader TempSliceHeader(InSliceHeader);
+				TempSliceHeader.delta_pic_order_cnt[0] = TempSliceHeader.delta_pic_order_cnt[1] = 0;
+				TempSliceHeader.adaptive_ref_pic_marking_mode_flag = 0;
+				TempSliceHeader.MemoryManagementControl.Empty();
+				TempSliceHeader.field_pic_flag = 0;
+				TempSliceHeader.long_term_reference_flag = 0;
+				uint32 UnusedShortTermFrameNum = (CurrentPOC.prev_frame_num + 1) % max_frame_num;
+				FOutputFrameInfo NoInfo;
+				NoInfo.bDoNotOutput = true;
+				for(int32 nm=0; nm<max_frame_num && InSliceHeader.frame_num != UnusedShortTermFrameNum; ++nm)
+				{
+					TempSliceHeader.frame_num = UnusedShortTermFrameNum;
+					if (InSequenceParameterSet.pic_order_cnt_type != 0)
+					{
+						UpdatePOCInternal(InNalUnitType, InNalRefIdc, TempSliceHeader, InSequenceParameterSet);
+					}
+					CurrentPOC.prev_frame_num = UnusedShortTermFrameNum;
+					UnusedShortTermFrameNum = (UnusedShortTermFrameNum + 1) % max_frame_num;
+					if (!EndFrame(OutOutputFrameInfos, OutUnrefFrameInfos, NoInfo, InNalUnitType, InNalRefIdc, TempSliceHeader, true))
+					{
+						return false;
+					}
+				}
+				return true;
+			}
+
 			bool FSlicePOCVars::UpdatePOC(uint8 InNalUnitType, uint8 InNalRefIdc, const FSliceHeader& InSliceHeader, const FSequenceParameterSet& InSequenceParameterSet)
 			{
 				PreviousPOC = CurrentPOC;
@@ -1196,11 +1272,18 @@ namespace ElectraDecodersUtil
 				{
 					CurrentPOC.prev_frame_num = InSliceHeader.frame_num;
 				}
+				// Missing frames should have been covered in HandleMissingFrames() already!
 				if (InSliceHeader.frame_num != CurrentPOC.prev_frame_num && InSliceHeader.frame_num != (CurrentPOC.prev_frame_num + 1) % max_frame_num)
 				{
 					return SetLastError(FString::Printf(TEXT("Gap in frame_num detected. Cannot conceal error.")));
 				}
+				UpdatePOCInternal(InNalUnitType, InNalRefIdc, InSliceHeader, InSequenceParameterSet);
+				return true;
+			}
 
+			void FSlicePOCVars::UpdatePOCInternal(uint8 InNalUnitType, uint8 InNalRefIdc, const FSliceHeader& InSliceHeader, const FSequenceParameterSet& InSequenceParameterSet)
+			{
+				bool bIsIDR = InNalUnitType == 5;
 				// Decoding process for picture order count, Section 8.2.1
 				if (InSequenceParameterSet.pic_order_cnt_type == 0)
 				{
@@ -1361,7 +1444,6 @@ namespace ElectraDecodersUtil
 						it->LongTermPicNum = it->LongTermFrameIndex;
 					}
 				}
-				return true;
 			}
 
 			void FSlicePOCVars::GetCurrentReferenceFrames(TArray<FReferenceFrameListEntry>& OutCurrentReferenceFrames)
@@ -1683,7 +1765,7 @@ namespace ElectraDecodersUtil
 			}
 
 
-			bool FSlicePOCVars::EndFrame(TArray<FOutputFrameInfo>& OutOutputFrameInfos, TArray<FOutputFrameInfo>& OutUnrefFrameInfos, const FOutputFrameInfo& InOutputFrameInfo, uint8 InNalUnitType, uint8 InNalRefIdc, const FSliceHeader& InSliceHeader)
+			bool FSlicePOCVars::EndFrame(TArray<FOutputFrameInfo>& OutOutputFrameInfos, TArray<FOutputFrameInfo>& OutUnrefFrameInfos, const FOutputFrameInfo& InOutputFrameInfo, uint8 InNalUnitType, uint8 InNalRefIdc, const FSliceHeader& InSliceHeader, bool bIsNonExisting)
 			{
 				bool bIsIDR = InNalUnitType == 5;
 				bLastHadMMCO5 = false;
@@ -1696,6 +1778,11 @@ namespace ElectraDecodersUtil
 				dinf->FramePOC = CurrentPOC.FramePOC;
 				dinf->TopPOC = CurrentPOC.TopPOC;
 				dinf->BottomPOC = CurrentPOC.BottomPOC;
+				if ((dinf->bIsNonExisting = bIsNonExisting) == true)
+				{
+					dinf->bHasBeenOutput = true;
+				}
+
 
 				// Decoded reference picture marking process
 				// Section 8.2.5
@@ -1942,7 +2029,7 @@ namespace ElectraDecodersUtil
 				UE_LOG(LogElectraDecoders, Log, TEXT("Current DPB POC"));
 				for(auto& it : FrameDPBInfos)
 				{
-					UE_LOG(LogElectraDecoders, Log, TEXT("fn=%u  poc=%d  ref=%d  ltref=%d  out=%d"), it->FrameNum, it->POC, it->bIsUsedForReference, it->bIsLongTermReference, it->bHasBeenOutput);
+					UE_LOG(LogElectraDecoders, Log, TEXT("fn=%u  poc=%d  ref=%d  ltref=%d  out=%d"), it->FrameNum, it->FramePOC, it->bIsUsedForReference, it->bIsLongTermReference, it->bHasBeenOutput);
 				}
 #endif
 				return true;

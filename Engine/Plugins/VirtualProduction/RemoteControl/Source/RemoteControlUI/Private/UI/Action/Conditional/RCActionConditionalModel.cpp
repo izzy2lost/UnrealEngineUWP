@@ -87,12 +87,12 @@ TSharedPtr<SHeaderRow> FRCActionConditionalModel::GetHeaderRow()
 		.Style(&RCPanelStyle->HeaderRowStyle)
 
 		+ SHeaderRow::Column(UE::RCActionPanelConditionalList::Columns::TypeColorTag)
-		.DefaultLabel(LOCTEXT("RCActionTypeColorColumnHeader", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(5.f)
 		.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 		+ SHeaderRow::Column(UE::RCActionPanelConditionalList::Columns::DragDropHandle)
-		.DefaultLabel(LOCTEXT("RCActionDragDropHandleColumnHeader", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(25.f)
 		.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 

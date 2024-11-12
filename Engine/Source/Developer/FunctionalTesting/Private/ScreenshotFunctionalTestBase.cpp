@@ -166,6 +166,12 @@ void AScreenshotFunctionalTestBase::OnScreenShotCaptured(int32 InSizeX, int32 In
 	GameViewportClient->OnScreenshotCaptured().RemoveAll(this);
 
 #if WITH_AUTOMATION_TESTS
+	if (!IsRunning())
+	{
+		// Don't send the data if the test is no longer running.
+		return;
+	}
+
 	const FString Context = AutomationCommon::GetWorldContext(GetWorld());
 
 	TArray<uint8> CapturedFrameTrace = AutomationCommon::CaptureFrameTrace(Context, TestLabel);

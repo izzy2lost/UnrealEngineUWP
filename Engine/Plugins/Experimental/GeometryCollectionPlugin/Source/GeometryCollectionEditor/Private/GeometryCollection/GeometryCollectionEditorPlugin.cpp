@@ -319,6 +319,27 @@ const ISlateStyle* IGeometryCollectionEditorPlugin::GetEditorStyle()
 	return FSlateStyleRegistry::FindSlateStyle(GetEditorStyleName());
 }
 
+void IGeometryCollectionEditorPlugin::CreateGeometrySelectionMenu(FMenuBuilder& InMenuBuilder)
+{
+	InMenuBuilder.AddMenuEntry(FGeometryCollectionSelectionCommands::Get().SelectAllGeometry);
+	InMenuBuilder.AddMenuEntry(FGeometryCollectionSelectionCommands::Get().SelectNone);
+	InMenuBuilder.AddMenuEntry(FGeometryCollectionSelectionCommands::Get().SelectInverseGeometry);
+}
+
+TSharedRef<FExtender> IGeometryCollectionEditorPlugin::OnExtendLevelEditorViewMenu(const TSharedRef<FUICommandList> InCommandList)
+{
+	TSharedRef<FExtender> Extender(new FExtender());
+
+	Extender->AddMenuExtension(
+		"SelectGeometryCollections",
+		EExtensionHook::After,
+		nullptr,
+		FMenuExtensionDelegate::CreateRaw(this, &IGeometryCollectionEditorPlugin::CreateGeometrySelectionMenu)
+	);
+
+	return Extender;
+}
+
 void IGeometryCollectionEditorPlugin::RegisterMenus()
 {
 	FToolMenuOwnerScoped OwnerScoped(this);
@@ -330,4 +351,14 @@ void IGeometryCollectionEditorPlugin::RegisterMenus()
 		Section.AddMenuEntry(FGeometryCollectionSelectionCommands::Get().SelectNone);
 		Section.AddMenuEntry(FGeometryCollectionSelectionCommands::Get().SelectInverseGeometry);
 	}
+
+	ViewMenuExtender = FLevelEditorModule::FLevelEditorMenuExtender::CreateRaw(
+		this, &IGeometryCollectionEditorPlugin::OnExtendLevelEditorViewMenu
+	);
+
+	FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
+	TArray<FLevelEditorModule::FLevelEditorMenuExtender>& MenuExtenders =
+		LevelEditor.GetAllLevelEditorToolbarViewMenuExtenders();
+	MenuExtenders.Add(ViewMenuExtender);
+	ViewMenuExtenderHandle = MenuExtenders.Last().GetHandle();
 }

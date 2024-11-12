@@ -4,24 +4,24 @@
 
 #include "DragAndDrop/DecoratedDragDropOp.h"
 
-class FAvaBroadcastOutputTreeItem;
+class IAvaBroadcastOutputTreeItem;
 
 class FAvaBroadcastOutputTreeItemDragDropOp : public FDecoratedDragDropOp
 {
 public:
-	DRAG_DROP_OPERATOR_TYPE(FAvaOutputClassDragDropOp, FDecoratedDragDropOp)
+	DRAG_DROP_OPERATOR_TYPE(FAvaBroadcastOutputTreeItemDragDropOp, FDecoratedDragDropOp)
 
-	static TSharedRef<FAvaBroadcastOutputTreeItemDragDropOp> New(const TSharedPtr<FAvaBroadcastOutputTreeItem>& InOutputClassItem);
+	static TSharedRef<FAvaBroadcastOutputTreeItemDragDropOp> New(const TSharedPtr<IAvaBroadcastOutputTreeItem>& InOutputClassItem);
 
 	bool IsValidToDropInChannel(FName InTargetChannelName) const;
 
-	TSharedPtr<FAvaBroadcastOutputTreeItem> GetOutputTreeItem() const { return OutputTreeItem; }
+	TSharedPtr<IAvaBroadcastOutputTreeItem> GetOutputTreeItem() const { return OutputTreeItem; }
 
 	FReply OnChannelDrop(FName InTargetChannelName);
 
 protected:
-	void Init(const TSharedPtr<FAvaBroadcastOutputTreeItem>& InOutputClassItem);
+	void Init(const TSharedPtr<IAvaBroadcastOutputTreeItem>& InOutputClassItem);
 
 	/** Keep Reference Count while Drag Dropping */
-	TSharedPtr<FAvaBroadcastOutputTreeItem> OutputTreeItem;
+	TSharedPtr<IAvaBroadcastOutputTreeItem> OutputTreeItem;
 };

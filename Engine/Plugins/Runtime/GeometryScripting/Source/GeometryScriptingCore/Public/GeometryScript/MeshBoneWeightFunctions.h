@@ -3,12 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GeometryScriptSelectionTypes.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "GeometryScript/GeometryScriptTypes.h"
 #include "SkeletalMeshAttributes.h"
 #include "MeshBoneWeightFunctions.generated.h"
 
 class UDynamicMesh;
+class USkeleton;
 
 
 USTRUCT(BlueprintType, meta = (DisplayName = "Bone Weights"))
@@ -16,10 +18,16 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBoneWeight
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadWrite, Category = BoneWeights)
+	FGeometryScriptBoneWeight() = default;
+	FGeometryScriptBoneWeight(int32 InBoneIndex, float InWeight) :
+		BoneIndex(InBoneIndex), Weight(InWeight)
+	{
+	}
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = BoneWeights)
 	int32 BoneIndex = 0;
 
-	UPROPERTY(BlueprintReadWrite, Category = BoneWeights)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = BoneWeights)
 	float Weight = 0;
 };
 
@@ -29,12 +37,32 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBoneWeightProfile
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadWrite, Category = BoneWeights)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = BoneWeights)
 	FName ProfileName = FSkeletalMeshAttributes::DefaultSkinWeightProfileName;
 
 	FName GetProfileName() const { return ProfileName; }
 };
 
+UENUM(BlueprintType)
+enum class EGeometryScriptPruneBoneWeightsAssignmentType : uint8
+{
+	RenormalizeRemaining = 0,	/** Remove the bone from the bone weights and renormalize the remaining weights. */
+	ReassignToParent = 1,		/** Re-assign the removed bone's weight to the parent bone. */
+};
+
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptPruneBoneWeightsOptions
+{
+	GENERATED_BODY()
+
+	/** Specifies how the weight of the removed bone from a vertex's bone weights list gets reassigned. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	EGeometryScriptPruneBoneWeightsAssignmentType ReassignmentType = EGeometryScriptPruneBoneWeightsAssignmentType::RenormalizeRemaining;
+
+	/** Ignore invalid bones. Otherwise, if invalid bones are given, the operation terminates with an error */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bIgnoredInvalidBones = true;
+};
 
 UENUM(BlueprintType)
 enum class EGeometryScriptSmoothBoneWeightsType : uint8
@@ -164,28 +192,60 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBoneInfo
 	GENERATED_BODY()
 
 	/** Index of the bone in the skeletal hierarchy. */
-	UPROPERTY(BlueprintReadWrite, Category = Bone)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Bone)
 	int Index = INDEX_NONE;
 
 	/** Bone name. */
-	UPROPERTY(BlueprintReadWrite, Category = Bone)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Bone)
 	FName Name = NAME_None;
 	
 	/** Parent bone index. */
-	UPROPERTY(BlueprintReadWrite, Category = Bone)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Bone)
 	int ParentIndex = INDEX_NONE;
 
 	/** Local/bone space reference transform. */
-	UPROPERTY(BlueprintReadWrite, Category = Bone)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Bone)
 	FTransform LocalTransform = FTransform::Identity;
 
 	/** Global/world space reference transform. */
-	UPROPERTY(BlueprintReadWrite, Category = Bone)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Bone)
 	FTransform WorldTransform = FTransform::Identity;
 
 	/** Bone color. */
-	UPROPERTY(BlueprintReadWrite, Category = Bone)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Bone)
 	FLinearColor Color = FLinearColor::White;
+};
+
+
+UENUM(BlueprintType)
+enum class EBonesToCopyFromSource : uint8
+{
+	/** Copy all bones from the source mesh to the target, regardless of whether they're bound or not. 
+	 */
+	AllBones = 0,
+
+	/** Keep only bones that are actually bound to the target mesh, including all parent bones up to the root. */
+	OnlyBoundAndParents = 1,
+	
+	/** Keep only bones that are actually bound to the target mesh and the root bone. Any existing bones between
+	 *  the two will not be copied. Bound bones will have their parent as either the root bone or another bound bone. */
+	OnlyBoundAndRoot = 2
+};
+
+
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptCopyBonesFromMeshOptions
+{
+	GENERATED_BODY()
+	
+	/** If the target Dynamic mesh has bone weights and a skeleton, re-index (re-bind) target weight indices from the  
+	 * target skeleton to the source skeleton.*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool ReindexWeights = false;
+
+	/** Specify which bones are copied from the source mesh to the target. */
+	UPROPERTY(EditAnyWhere, BlueprintReadWrite, Category = Options)
+	EBonesToCopyFromSource BonesToCopyFromSource = EBonesToCopyFromSource::AllBones;
 };
 
 UCLASS(meta = (ScriptName = "GeometryScript_BoneWeights"))
@@ -220,6 +280,23 @@ public:
 		bool& bProfileExisted,
 		bool bReplaceExistingProfile = false,
 		FGeometryScriptBoneWeightProfile Profile = FGeometryScriptBoneWeightProfile() );
+
+	/**
+	 * Copies all bone weights from a source profile onto a target profile, on the same mesh, replacing all 
+	 * weights that existed on the target profile. If either the source or the target profile didn't exist,
+	 * then bProfileExisted will be set to false and no weights are copied.
+	 * @param bProfileExisted will be returned true if both of the requested bone weight profiles exist
+	 * @param TargetProfile The skin weight profile to copy to.
+	 * @param SourceProfile The skin weight profile to copy from.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries|BoneWeights", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	MeshCopyBoneWeights( 
+		UDynamicMesh* TargetMesh,
+		bool& bProfileExisted,
+		FGeometryScriptBoneWeightProfile TargetProfile,
+		FGeometryScriptBoneWeightProfile SourceProfile = FGeometryScriptBoneWeightProfile()
+		);
 	
 	/**
 	 * Determine the largest bone weight index that exists on the Mesh
@@ -281,8 +358,30 @@ public:
 		int VertexID,
 		const TArray<FGeometryScriptBoneWeight>& BoneWeights,
 		bool& bIsValidVertexID,
-		FGeometryScriptBoneWeightProfile Profile = FGeometryScriptBoneWeightProfile() );
+		FGeometryScriptBoneWeightProfile Profile = FGeometryScriptBoneWeightProfile(),
+		UGeometryScriptDebug* Debug = nullptr);
 
+	/**
+	 * Blends two bone weights using an Alpha value that ranges from 0 to 1, inclusive. If Alpha is 0, then only weights from BoneWeightsA are used,
+	 * and if Alpha is 1, then only weights from BoneWeightsB are used. For any value in between the weights are linearly interpolated.
+	 * Each bone weight from either array, that has the same bone index, are linearly interpolated. Any bone weights that are missing from either
+	 * BoneWeightsA or BoneWeightsB, are assumed to exist and have a weight of 0. After blending, the result is renormalized and sorted.
+	 * Values that are below the influence threshold, or exceeding the default bone weight limit (currently set to 12) will be thrown away.
+	 * @param BoneWeightsA List of bone weights to blend, such that its influence is greatest when Alpha is 0 and smallest when Alpha is 1.
+	 * @param BoneWeightsB List of bone weights to blend, such that its influence is greatest when Alpha is 1 and smallest when Alpha is 0.
+	 * @param Alpha The blending factor, ranging from 0 to 1, inclusive. Values outside of this range are clamped.
+	 * @param Result The resulting blend of the two bone weight arrays. 
+	 */
+	UFUNCTION(BlueprintPure, Category = "GeometryScript|MeshQueries|BoneWeights")
+	static void
+	BlendBoneWeights(
+		const TArray<FGeometryScriptBoneWeight>& BoneWeightsA,
+		const TArray<FGeometryScriptBoneWeight>& BoneWeightsB,
+		float Alpha,
+		TArray<FGeometryScriptBoneWeight>& Result,
+		UGeometryScriptDebug* Debug = nullptr
+	);
+	
 	/**
 	 * Set all vertices of the TargetMesh to the given Bone/Skin Weights
 	 * @param BoneWeights input array of bone index/weight pairs for the Vertex
@@ -293,8 +392,31 @@ public:
 	SetAllVertexBoneWeights( 
 		UDynamicMesh* TargetMesh,
 		const TArray<FGeometryScriptBoneWeight>& BoneWeights,
-		FGeometryScriptBoneWeightProfile Profile = FGeometryScriptBoneWeightProfile() );
+		FGeometryScriptBoneWeightProfile Profile = FGeometryScriptBoneWeightProfile(),
+		UGeometryScriptDebug* Debug = nullptr);
 
+
+	/**
+	 *  Prunes the given bones from any bone weight assignment on the given profile. 
+	 *  The bone weights are re-assigned based on the type of re-assignment specified in the options,
+	 *  although in the case where the bone(s) being pruned are the sole bone weight on a vertex, then
+	 *  the parent bone will be assigned as the sole bone weight for that vertex.
+	 *  Bones are pruned iteratively from leaf to root, to ensure that weighs are progressively re-assigned
+	 *  in case multiple bones along the same branch are being pruned.
+	 *  @param BonesToPrune The list of bones to remove.
+	 *  @param Options The options to set for the pruning algorithm.
+	 *  @param Profile The skin weight profile to prune the bones from.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries|BoneWeights", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	PruneBoneWeights( 
+		UDynamicMesh* TargetMesh,
+		const TArray<FName>& BonesToPrune,
+		FGeometryScriptPruneBoneWeightsOptions Options,
+		FGeometryScriptBoneWeightProfile Profile = FGeometryScriptBoneWeightProfile(),
+		UGeometryScriptDebug* Debug = nullptr);
+	
+	
 	/** 
 	 *  Computes a smooth skin binding for the given mesh to the skeleton provided.
 	 *  @param Skeleton The skeleton to compute binding for the skin weights.
@@ -317,6 +439,8 @@ public:
 	 * @param SourceMesh The mesh we are transferring the weights from.
 	 * @param TargetMesh The mesh we are transferring the weights to.
 	 * @param Options The options to set for the transfer weight algorithm.
+	 * @param Selection Optional subset of target mesh vertices to transfer weights to.
+	 * If left empty, skin weights will be transferred to all target mesh vertices.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries|BoneWeights", meta = (ScriptMethod))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
@@ -324,18 +448,35 @@ public:
 		UDynamicMesh* SourceMesh,
 		UDynamicMesh* TargetMesh,
 		FGeometryScriptTransferBoneWeightsOptions Options = FGeometryScriptTransferBoneWeightsOptions(),
+		FGeometryScriptMeshSelection Selection = FGeometryScriptMeshSelection(),
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
 	 * Copy the bone attributes (skeleton) from the SourceMesh to the TargetMesh.
 	 * @param SourceMesh Mesh we are copying the bone attributes from.
 	 * @param TargetMesh Mesh we are copying the bone attributes to.
+	 * @param Options An option object to control how the copying is performed.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries|BoneWeights", meta=(ScriptMethod))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	CopyBonesFromMesh(
 		UDynamicMesh* SourceMesh,
 		UDynamicMesh* TargetMesh,
+		FGeometryScriptCopyBonesFromMeshOptions Options = FGeometryScriptCopyBonesFromMeshOptions(),
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Copy the bone attributes (skeleton) from the SourceSkeleton to the TargetMesh.
+	 * @param SourceSkeleton The skeleton asset we are copying the bone attributes from.
+	 * @param TargetMesh Mesh we are copying the bone attributes to.
+	 * @param Options An option object to control how the copying is performed.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries|BoneWeights", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	CopyBonesFromSkeleton(
+		USkeleton* SourceSkeleton,
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptCopyBonesFromMeshOptions Options = FGeometryScriptCopyBonesFromMeshOptions(),
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**

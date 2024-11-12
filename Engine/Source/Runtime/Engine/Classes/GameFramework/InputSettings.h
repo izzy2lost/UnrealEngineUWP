@@ -84,7 +84,8 @@ class UInputSettings
 	 * 
 	 * @see UInputDeviceSubsystem
 	 */
-	UPROPERTY(config, EditAnywhere, Category = "Input")
+	UE_DEPRECATED(5.5, "bEnableInputDeviceSubsystem is deprecated, ths input device subsystem will now always be created.")
+	UPROPERTY(config, meta = (DeprecatedProperty, DeprecationMessage = "bEnableInputDeviceSubsystem is deprecated, ths input device subsystem will now always be created."))
 	uint8 bEnableInputDeviceSubsystem:1;
 
 	/**
@@ -514,6 +515,17 @@ public:
 	/** Returns an array of all Hardware Device Identifiers known to this platform */
 	ENGINE_API const TArray<FHardwareDeviceIdentifier>& GetHardwareDevices() const;
 
+	////////////////////////////////////////////////////
+	// Input Device Mapping
+
+	/**
+	* The max number of FPlatformUserId's which can be allocated on this platform.
+	* 
+	* This is checked in FGenericPlatformInputDeviceMapper::AllocateNewUserId
+	*/
+	UPROPERTY(config, EditAnywhere, Category = "Device Mapping")
+	int32 MaxPlatformUserCount;
+	
 	////////////////////////////////////////////////////
 	// Trigger Feedback
 	

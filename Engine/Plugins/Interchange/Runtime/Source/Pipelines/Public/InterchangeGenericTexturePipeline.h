@@ -19,6 +19,8 @@ class INTERCHANGEPIPELINES_API UInterchangeGenericTexturePipeline : public UInte
 	GENERATED_BODY()
 
 public:
+	static FString GetPipelineCategory(UClass* AssetClass);
+
 	/** The name of the pipeline that will be display in the import dialog. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Textures", meta = (StandAlonePipelineProperty = "True", PipelineInternalEditionData = "True"))
 	FString PipelineDisplayName;
@@ -28,7 +30,7 @@ public:
 	bool bImportTextures = true;
 
 	/** If set, and there is only one asset and one source, the imported asset will be given this name. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Textures", meta=(StandAlonePipelineProperty = "True", AlwaysResetToDefault = "True"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Textures", meta=(StandAlonePipelineProperty = "True"))
 	FString AssetName;
 
 #if WITH_EDITORONLY_DATA
@@ -39,7 +41,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Textures", Meta=(EditCondition="bImportTextures"))
 	bool bDetectNormalMapTexture = true;
 
-	/** If enabled, the texture's green channel will be inverted for normal maps. This setting is only used if the Detect Normal Map Texture setting is also enabled. */
+	/** If enabled, the texture's green channel will be inverted for normal maps. This setting is only used if the Detect Normal Map Texture setting is also enabled or if the texture has been imported as a Normal map. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Textures", Meta=(EditCondition="bImportTextures"))
 	bool bFlipNormalMapGreenChannel = false;
 
@@ -66,13 +68,17 @@ public:
 	bool bAllowNonPowerOfTwo = false;
 
 public:
-	virtual void AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset) override;
+	virtual void AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams) override;
 	virtual void ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas, const FString& ContentBasePath) override;
 	virtual void ExecutePostFactoryPipeline(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& NodeKey, UObject* CreatedAsset, bool bIsAReimport) override;
 
 #if WITH_EDITOR
 
+	virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const override;
+
 	virtual void FilterPropertiesFromTranslatedData(UInterchangeBaseNodeContainer* InBaseNodeContainer) override;
+
+	virtual void GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const override;
 
 #endif //WITH_EDITOR
 

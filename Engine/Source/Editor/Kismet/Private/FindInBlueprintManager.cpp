@@ -77,6 +77,7 @@ const FText FFindInBlueprintSearchTags::FiB_UberGraphs = LOCTEXT("Uber", "Uber")
 const FText FFindInBlueprintSearchTags::FiB_Functions = LOCTEXT("Functions", "Functions");
 const FText FFindInBlueprintSearchTags::FiB_Macros = LOCTEXT("Macros", "Macros");
 const FText FFindInBlueprintSearchTags::FiB_SubGraphs = LOCTEXT("Sub", "Sub");
+const FText FFindInBlueprintSearchTags::FiB_ExtensionGraphs = LOCTEXT("ExtGraphs", "ExtGraphs");
 const FText FFindInBlueprintSearchTags::FiB_Extensions = LOCTEXT("Extensions", "Extensions");
 
 const FText FFindInBlueprintSearchTags::FiB_Name = LOCTEXT("Name", "Name");
@@ -227,7 +228,21 @@ void FStreamSearch::EnsureCompletion()
 		ItemsFound.Empty();
 	}
 
+	// Signal to the search thread to stop its operation.
 	Stop();
+
+	// Wait until the search thread has signaled its completion.
+	while (!IsComplete())
+	{
+		// Async tasks may have been registered to this thread (e.g. FSearchableValueInfo::GetDisplayText),
+		// so make sure we process those to unblock the stream search thread. Otherwise we can deadlock below.
+		FTaskGraphInterface::Get().ProcessThreadUntilIdle(FTaskGraphInterface::Get().GetCurrentThreadIfKnown());
+
+		// Yield time to other threads, including the search thread.
+		FPlatformProcess::Sleep(0.1f);
+	}
+
+	// Wait for the search thread to terminate.
 	Thread->WaitForCompletion();
 }
 
@@ -916,7 +931,7 @@ namespace BlueprintSearchMetaDataHelpers
 							TArray< TSharedPtr<FJsonValue> > Array;
 							for (int Index = 0; Index != Property->ArrayDim; ++Index)
 							{
-								GatherSearchablesFromProperty(InWriter, Property, (char*)Value + Index * Property->ElementSize, InStruct);
+								GatherSearchablesFromProperty(InWriter, Property, (char*)Value + Index * Property->GetElementSize(), InStruct);
 							}
 						}
 					}
@@ -1040,7 +1055,7 @@ namespace BlueprintSearchMetaDataHelpers
 						TArray< TSharedPtr<FJsonValue> > Array;
 						for (int Index = 0; Index != Property->ArrayDim; ++Index)
 						{
-							CacheSubPropertySearchables(InOutCachePropertyMapping, Property, (char*)Value + Index * Property->ElementSize, InStruct);
+							CacheSubPropertySearchables(InOutCachePropertyMapping, Property, (char*)Value + Index * Property->GetElementSize(), InStruct);
 						}
 					}
 					SearchableProperties.Add(MoveTemp(SearchableProperty));
@@ -1283,6 +1298,17 @@ namespace BlueprintSearchMetaDataHelpers
 		// Gather normal event graphs
 		GatherGraphSearchData(InWriter, Blueprint, Blueprint->UbergraphPages, FFindInBlueprintSearchTags::FiB_UberGraphs, &SubGraphs);
 
+		// Gather extension graphs
+		for (UBlueprintExtension* Extension : Blueprint->GetExtensions())
+		{
+			if (Extension)
+			{
+				TArray<UEdGraph*> ExtensionGraphs;
+				Extension->GetAllGraphs(ExtensionGraphs);
+				GatherGraphSearchData(InWriter, Blueprint, ExtensionGraphs, FFindInBlueprintSearchTags::FiB_ExtensionGraphs, &SubGraphs);
+			}
+		}
+
 		// We have interface graphs and function graphs to put into the Functions category. We cannot do them separately, so we must compile the full list
 		{
 			TArray<UEdGraph*> CompleteGraphList;
@@ -1523,6 +1549,8 @@ public:
 		, TickCacheIndex(0)
 		, AsyncTaskBatchIndex(0)
 		, bIsGatheringSearchMetadata(false)
+		, bHasAssetsPendingGatherWork(false)
+		, bHasAssetsPendingAsyncIndexing(false)
 		, bIsStarted(false)
 		, bIsCancelled(false)
 	{
@@ -1644,7 +1672,7 @@ public:
 
 		const int32 AsyncTaskBatchSize = CacheParams.AsyncTaskBatchSize;
 		const int32 StartIndex = AsyncTaskBatchIndex * AsyncTaskBatchSize;
-		return StartIndex < UncachedAssets.Num() || !AssetsPendingGatherQueue.IsEmpty() || !AssetsPendingAsyncIndexing.IsEmpty() || bIsGatheringSearchMetadata;
+		return StartIndex < UncachedAssets.Num() || bHasAssetsPendingGatherWork || bHasAssetsPendingAsyncIndexing || bIsGatheringSearchMetadata;
 	}
 
 	virtual bool ShouldFullyIndexAssets() const override
@@ -1694,11 +1722,14 @@ public:
 				OutAssetPaths.Add(AssetPath);
 				++Count;
 			}
+
+			bHasAssetsPendingAsyncIndexing = !AssetsPendingAsyncIndexing.IsEmpty();
 		}
 	}
 
 	virtual void AddAssetPathToGatherQueue(const FSoftObjectPath& InAssetPath) override
 	{
+		bHasAssetsPendingGatherWork = true;
 		AssetsPendingGatherQueue.Enqueue(InAssetPath);
 	}
 
@@ -1785,6 +1816,9 @@ public:
 
 							if (bEnqueueForAsyncIndexing)
 							{
+								// Signal that we have a new pending asset in the async indexing queue.
+								bHasAssetsPendingAsyncIndexing = true;
+
 								// Enqueue this asset path to restart async indexing with the updated search metadata.
 								AssetsPendingAsyncIndexing.Enqueue(AssetPath);
 							}
@@ -1794,6 +1828,9 @@ public:
 								IndexCompletedForAssetPath(AssetPath);
 							}
 						}
+
+						// Signal whether or not the queue has been emptied.
+						bHasAssetsPendingGatherWork = !AssetsPendingGatherQueue.IsEmpty();
 
 						// Indicate that gather work is no longer in progress.
 						bIsGatheringSearchMetadata = false;
@@ -2014,6 +2051,12 @@ private:
 
 	/** TRUE if we're busy gathering search metadata from a loaded object on the main thread */
 	TAtomic<bool> bIsGatheringSearchMetadata;
+
+	/** TRUE if we have assets pending in the gather queue. It is not thread safe to check the queue state directly from a producer thread. */
+	TAtomic<bool> bHasAssetsPendingGatherWork;
+
+	/** TRUE if we have assets pending in the indexing queue. Adds consistency with the gather queue, but not strictly needed for thread safety. */
+	TAtomic<bool> bHasAssetsPendingAsyncIndexing;
 
 	/** TRUE if the caching process is started */
 	bool bIsStarted;

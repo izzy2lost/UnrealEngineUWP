@@ -15,7 +15,7 @@ void FSkeletonEditorCommands::RegisterCommands()
 	UI_COMMAND(RemoveUnusedBones, "Remove Unused Bones from Skeleton", "Removes any bones from the skeleton that are not used by any of its meshes. The skeleton and associated animations will require saving after this action.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(TestSkeletonCurveMetaDataForUse, "Test Skeleton Curve Metadata for Use", "Iterates over all Animations and Meshes for this skeleton to look for unused morph/material curves", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(AnimNotifyWindow, "Anim Notifies", "You can manage animation notifies that belong to the skeleton.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(RetargetManager, "Retarget Manager", "Manager retarget setups. ", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(Retargeting, "Retargeting", "Edit Compatible Skeletons and Retarget Sources for skeletal meshes using this skeleton. ", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ImportMesh, "Import Mesh", "Import new mesh for this skeleton. ", EUserInterfaceActionType::Button, FInputChord());
 
 	UI_COMMAND(UpdateSkeletonRefPose, "Update Skeleton RefPose", "Update Skeleton ref pose based on current preview mesh", EUserInterfaceActionType::Button, FInputChord());

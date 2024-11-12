@@ -120,29 +120,29 @@ namespace UnrealBuildToolTests
 		/// <summary>
 		/// Tokenize the given expression and evaluate it, and check it matches the expected result
 		/// </summary>
-		/// <param name="Expression">The expression to evaluate, as a string</param>
-		/// <param name="ExpectedResult">The expected value of the expression</param>
-		static void RunTest(string Expression, long? ExpectedResult)
+		/// <param name="expression">The expression to evaluate, as a string</param>
+		/// <param name="expectedResult">The expected value of the expression</param>
+		static void RunTest(string expression, long? expectedResult)
 		{
-			using TokenReader Reader = new TokenReader(Expression);
+			using TokenReader reader = new TokenReader(expression);
 
-			List<Token> Tokens = new List<Token>();
-			while (Reader.MoveNext())
+			List<Token> tokens = new List<Token>();
+			while (reader.MoveNext())
 			{
-				Tokens.Add(Reader.Current);
+				tokens.Add(reader.Current);
 			}
 
-			long? Result;
+			long? result;
 			try
 			{
-				Result = PreprocessorExpression.Evaluate(new PreprocessorTestContext(), Tokens);
+				result = PreprocessorExpression.Evaluate(new PreprocessorTestContext(), tokens);
 			}
 			catch (PreprocessorException)
 			{
-				Result = null;
+				result = null;
 			}
 
-			Assert.AreEqual(ExpectedResult, Result);
+			Assert.AreEqual(expectedResult, result);
 		}
 	}
 }

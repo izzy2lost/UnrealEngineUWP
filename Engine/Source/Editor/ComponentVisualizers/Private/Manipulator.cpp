@@ -32,6 +32,7 @@ AManipulator::AManipulator()
 	this->RootComponent = SceneComponent;
 
 	StaticMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("KeyMesh"));
+	StaticMeshComponent->SetCanEverAffectNavigation(false);
 	StaticMeshComponent->SetMobility(EComponentMobility::Movable);
 	StaticMeshComponent->SetupAttachment(RootComponent);
 	StaticMeshComponent->SetStaticMesh(StaticMesh);
@@ -42,7 +43,6 @@ AManipulator::AManipulator()
 	StaticMeshComponent->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
 	StaticMeshComponent->SetGenerateOverlapEvents(false);
-	StaticMeshComponent->SetCanEverAffectNavigation(false);
 	StaticMeshComponent->bCastDynamicShadow = false;
 	StaticMeshComponent->bCastStaticShadow = false;
 	StaticMeshComponent->bAffectDistanceFieldLighting = false;

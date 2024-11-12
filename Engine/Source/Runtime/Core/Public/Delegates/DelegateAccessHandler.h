@@ -3,9 +3,11 @@
 #pragma once
 
 #include "CoreTypes.h"
-#include "HAL/CriticalSection.h"
+#include "HAL/CriticalSection.h"  // jira SOL-6812: Remove this.
 #include "Misc/MTAccessDetector.h"
-#include "Misc/ScopeLock.h"
+#include "Misc/TransactionallySafeCriticalSection.h"
+#include "Misc/TransactionallySafeScopeLock.h"
+#include "Misc/ScopeLock.h"  // jira SOL-6812: Remove this.
 #include "AutoRTFM/AutoRTFM.h"
 
 //#define UE_DETECT_DELEGATES_RACE_CONDITIONS 0
@@ -28,6 +30,9 @@ struct FNotThreadSafeDelegateMode;
 template<typename ThreadSafetyMode>
 class TDelegateAccessHandlerBase;
 
+template <typename ThreadSafetyMode>
+struct TWriteLockedDelegateAllocation;
+
 /**
  * non thread-safe version that does not do any race detection. supposed to be used in a controlled environment that provides own
  * detection or synchronisation.
@@ -35,6 +40,8 @@ class TDelegateAccessHandlerBase;
 template<>
 class TDelegateAccessHandlerBase<FNotThreadSafeNotCheckedDelegateMode>
 {
+	friend struct TWriteLockedDelegateAllocation<FNotThreadSafeNotCheckedDelegateMode>;
+
 protected:
 	struct FReadAccessScope {};
 	struct FWriteAccessScope {};
@@ -64,9 +71,11 @@ struct TIsZeroConstructType<TDelegateAccessHandlerBase<FNotThreadSafeNotCheckedD
 template<>
 class TDelegateAccessHandlerBase<FThreadSafeDelegateMode>
 {
+	friend struct TWriteLockedDelegateAllocation<FThreadSafeDelegateMode>;
+
 protected:
-	struct FReadAccessScope { FScopeLock Lock; };
-	struct FWriteAccessScope { FScopeLock Lock; };
+	struct FReadAccessScope { FTransactionallySafeScopeLock Lock; };
+	struct FWriteAccessScope { FTransactionallySafeScopeLock Lock; };
 
 	[[nodiscard]] FReadAccessScope GetReadAccessScope() const
 	{
@@ -79,7 +88,7 @@ protected:
 	}
 
 private:
-	mutable FCriticalSection Mutex;
+	mutable FTransactionallySafeCriticalSection Mutex;
 };
 
 template<>
@@ -96,6 +105,8 @@ struct TIsZeroConstructType<TDelegateAccessHandlerBase<FThreadSafeDelegateMode>>
 template<>
 class TDelegateAccessHandlerBase<FNotThreadSafeDelegateMode>
 {
+	friend struct TWriteLockedDelegateAllocation<FNotThreadSafeDelegateMode>;
+
 protected:
 #if !UE_AUTORTFM
 	class FReadAccessScope
@@ -181,6 +192,7 @@ private:
 template<>
 class TDelegateAccessHandlerBase<FNotThreadSafeDelegateMode> : public TDelegateAccessHandlerBase<FNotThreadSafeNotCheckedDelegateMode>
 {
+	friend struct TWriteLockedDelegateAllocation<FNotThreadSafeDelegateMode>;
 };
 
 #endif // UE_DETECT_DELEGATES_RACE_CONDITIONS

@@ -123,14 +123,11 @@ bool FCommand::TryConnectToSourceControl(FStringView ClientSpecName)
 		// If the project has been set then we can use the default source control provider
 		if (!ISourceControlModule::Get().GetProvider().IsEnabled())
 		{
-			// TODO - Warning
 			ISourceControlModule::Get().SetProvider(FName("Perforce"));
 		}
 
 		SCCProvider = &ISourceControlModule::Get().GetProvider();
 		SCCProvider->Init(true);
-
-		return SCCProvider->IsAvailable();
 	}
 	else
 	{
@@ -139,6 +136,7 @@ bool FCommand::TryConnectToSourceControl(FStringView ClientSpecName)
 		// we are parsing a perforce changelist for files to operate on.
 		FSourceControlInitSettings SCCSettings(FSourceControlInitSettings::EBehavior::OverrideAll);
 		SCCSettings.SetConfigBehavior(FSourceControlInitSettings::EConfigBehavior::ReadOnly);
+		SCCSettings.SetCmdLineFlags(FSourceControlInitSettings::ECmdLineFlags::ReadAll);
 		SCCSettings.AddSetting(TEXT("P4Client"), ClientSpecName);
 
 		OwnedSCCProvider = ISourceControlModule::Get().CreateProvider(FName("Perforce"), TEXT("UnrealVirtualizationTool"), SCCSettings);
@@ -146,23 +144,29 @@ bool FCommand::TryConnectToSourceControl(FStringView ClientSpecName)
 		{
 			SCCProvider = OwnedSCCProvider.Get();
 			SCCProvider->Init(true);
-
-			if (SCCProvider->IsAvailable())
-			{
-				return true;
-			}
-			else
-			{
-				UE_LOG(LogVirtualizationTool, Error, TEXT("Failed to establish a perforce connection"));
-				return false;
-			}
-
 		}
 		else
 		{
-			UE_LOG(LogVirtualizationTool, Error, TEXT("Failed to instantiate a perforce revision control connection"));
+			UE_LOG(LogVirtualizationTool, Error, TEXT("\tFailed to instantiate a perforce revision control connection"));
 			return false;
 		}
+	}
+
+	if (SCCProvider->IsAvailable())
+	{
+		TMap<ISourceControlProvider::EStatus, FString> StatusMap = SCCProvider->GetStatus();
+
+		if (FString* Server = StatusMap.Find(ISourceControlProvider::EStatus::Port))
+		{
+			UE_LOG(LogVirtualizationTool, Display, TEXT("\tSuccessfully connected to server '%s'"), **Server);
+		}
+		
+		return true;
+	}
+	else
+	{
+		UE_LOG(LogVirtualizationTool, Error, TEXT("\tFailed to establish a perforce connection"));
+		return false;
 	}
 }
 
@@ -228,16 +232,30 @@ bool FCommand::TryParseChangelist(FStringView ClientSpecName, FStringView Change
 			}
 
 			const TArray<FSourceControlStateRef>& FilesinChangelist = ChangelistState->GetFilesStates();
+
+			UE_LOG(LogVirtualizationTool, Log, TEXT("\tFound %d files in the changelist"), FilesinChangelist.Num());
+
 			for (const FSourceControlStateRef& FileState : FilesinChangelist)
 			{
-				if (IsPackageFile(FileState->GetFilename()))
+				if (!IsPackageFile(FileState->GetFilename()))
 				{
-					OutPackages.Add(FileState->GetFilename());
+					UE_LOG(LogVirtualizationTool, Log, TEXT("\tIgnoring non-package file '%s'"), *FileState->GetFilename());
+					continue;
 				}
-				else
+
+				if (FileState->IsDeleted())
 				{
-					UE_LOG(LogVirtualizationTool, Log, TEXT("Ignoring non-package file '%s'"), *FileState->GetFilename());
+					UE_LOG(LogVirtualizationTool, Verbose, TEXT("\tIgnoring package marked for delete '%s'"), *FileState->GetFilename());
+					continue;
 				}
+
+				if (FileState->IsIgnored())
+				{
+					UE_LOG(LogVirtualizationTool, Verbose, TEXT("\tIgnoring package marked for ignore '%s'"), *FileState->GetFilename());
+					continue;
+				}
+
+				OutPackages.Add(FileState->GetFilename());
 			}
 
 			if (OutChangelist != nullptr)

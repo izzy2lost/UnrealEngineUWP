@@ -15,7 +15,7 @@ namespace EpicGames.Horde.Secrets
 	[TypeConverter(typeof(StringIdTypeConverter<SecretId, SecretIdConverter>))]
 	[StringIdConverter(typeof(SecretIdConverter))]
 	[CbConverter(typeof(StringIdCbConverter<SecretId, SecretIdConverter>))]
-	public record struct SecretId(StringId Id)
+	public readonly record struct SecretId(StringId Id)
 	{
 		/// <summary>
 		/// Constructor

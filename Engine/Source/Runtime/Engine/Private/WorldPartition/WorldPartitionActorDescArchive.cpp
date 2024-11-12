@@ -14,10 +14,11 @@
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryHelpers.h"
 
-FActorDescArchive::FActorDescArchive(FArchive& InArchive, FWorldPartitionActorDesc* InActorDesc)
+FActorDescArchive::FActorDescArchive(FArchive& InArchive, FWorldPartitionActorDesc* InActorDesc, const FWorldPartitionActorDesc* InBaseActorDesc)
 	: FArchiveProxy(InArchive)
 	, ActorDesc(InActorDesc)
-	, bIsMissingClassDesc(false)
+	, BaseDesc(InBaseActorDesc)
+	, bIsMissingBaseDesc(false)
 {
 	check(InArchive.IsPersistent());
 
@@ -67,7 +68,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	if (IsLoading())
 	{
-		auto TryRedirectClass = [](FTopLevelAssetPath& InOutClassPath)
+		auto TryRedirectClass = [](FTopLevelAssetPath& InOutClassPath, bool bNativeClass)
 		{
 			if (InOutClassPath.IsValid())
 			{
@@ -79,40 +80,53 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					InOutClassPath = FTopLevelAssetPath(RedirectedClassRedirect.ToString());
 				}
 
-				FSoftObjectPath RedirectedClassPath(InOutClassPath.ToString());
-				UAssetRegistryHelpers::FixupRedirectedAssetPath(RedirectedClassPath);
-				InOutClassPath = RedirectedClassPath.GetAssetPath();
+				if (!bNativeClass)
+				{
+					FSoftObjectPath RedirectedClassPath(InOutClassPath.ToString());
+					UAssetRegistryHelpers::FixupRedirectedAssetPath(RedirectedClassPath);
+					InOutClassPath = RedirectedClassPath.GetAssetPath();
+				}
 			}
 		};
 
-		TryRedirectClass(ActorDesc->NativeClass);
-		TryRedirectClass(ActorDesc->BaseClass);
+		TryRedirectClass(ActorDesc->NativeClass, true);
+		TryRedirectClass(ActorDesc->BaseClass, false);
 	}
 
-	// Get the class descriptor to do delta serialization
-	FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
-	const FTopLevelAssetPath ClassPath = InClassPath.IsValid() ? InClassPath : (ActorDesc->BaseClass.IsValid() ? ActorDesc->BaseClass : ActorDesc->NativeClass);
-	ClassDesc = (ActorDesc->bIsDefaultActorDesc && !InClassPath.IsValid()) ? ClassDescRegistry.GetClassDescDefaultForClass(ClassPath) : ClassDescRegistry.GetClassDescDefaultForActor(ClassPath);
-
-	if (!ClassDesc)
+	// Get the class descriptor to do delta serialization if no base desc was provided
+	if (!BaseDesc)
 	{
-		if (IsLoading())
-		{
-			bIsMissingClassDesc = true;
+		FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
+		const FTopLevelAssetPath ClassPath = InClassPath.IsValid() ? InClassPath : (ActorDesc->BaseClass.IsValid() ? ActorDesc->BaseClass : ActorDesc->NativeClass);
+		BaseDesc = (ActorDesc->bIsDefaultActorDesc && !InClassPath.IsValid()) ? ClassDescRegistry.GetClassDescDefaultForClass(ClassPath) : ClassDescRegistry.GetClassDescDefaultForActor(ClassPath);
 
-			ClassDesc = ClassDescRegistry.GetClassDescDefault(FTopLevelAssetPath(TEXT("/Script/Engine.Actor")));
-			check(ClassDesc);			
-
-			UE_LOG(LogWorldPartition, Log, TEXT("Can't find class descriptor '%s' for loading '%s', using '%s'"), *ClassPath.ToString(), *ActorDesc->GetActorSoftPath().ToString(), *ClassDesc->GetActorSoftPath().ToString());
-		}
-		else
+		if (!BaseDesc)
 		{
-			UE_LOG(LogWorldPartition, Log, TEXT("Can't find class descriptor '%s' for saving '%s'"), *ClassPath.ToString(), *ActorDesc->GetActorSoftPath().ToString());
+			if (IsLoading())
+			{
+				bIsMissingBaseDesc = true;
+
+				BaseDesc = ClassDescRegistry.GetClassDescDefault(FTopLevelAssetPath(TEXT("/Script/Engine.Actor")));
+				check(BaseDesc);
+
+				UE_LOG(LogWorldPartition, Log, TEXT("Can't find class descriptor '%s' for loading '%s', using '%s'"), *ClassPath.ToString(), *ActorDesc->GetActorSoftPath().ToString(), *BaseDesc->GetActorSoftPath().ToString());
+			}
+			else
+			{
+				UE_LOG(LogWorldPartition, Log, TEXT("Can't find class descriptor '%s' for saving '%s'"), *ClassPath.ToString(), *ActorDesc->GetActorSoftPath().ToString());
+			}
 		}
 	}
 
-	ClassDescSizeof = ClassDesc ? ClassDesc->GetSizeOf() : 0;
+	BaseDescSizeof = BaseDesc ? BaseDesc->GetSizeOf() : 0;
 }
+
+FArchive& FActorDescArchive::operator<<(FTopLevelAssetPath& Value)
+{
+	((FArchive&)*this) << Value;
+
+	return *this;
+};
 
 FArchive& FActorDescArchive::operator<<(FSoftObjectPath& Value)
 {
@@ -128,19 +142,52 @@ FArchive& FActorDescArchive::operator<<(FSoftObjectPath& Value)
 
 FArchive& FActorDescArchivePatcher::operator<<(FName& Value)
 {
-	TGuardValue<bool> GuardIsPatching(bIsPatching, true);
-	FActorDescArchive::operator<<(Value);
-	AssetDataPatcher->DoPatch(Value);
-	OutAr << Value;
+	{
+		TGuardValue<bool> GuardIsPatching(bIsPatching, true);
+		FActorDescArchive::operator<<(Value);
+		AssetDataPatcher->DoPatch(Value);
+	}
+
+    // Only write out values if we aren't already patching since this function can be called
+	// from other patching functions which will perform the final write of the patched values
+	if (!bIsPatching)
+	{
+		OutAr << Value;
+	}
 	return *this;
 }
 
 FArchive& FActorDescArchivePatcher::operator<<(FSoftObjectPath& Value)
 {
-	TGuardValue<bool> GuardIsPatching(bIsPatching, true);
-	FActorDescArchive::operator<<(Value);
-	AssetDataPatcher->DoPatch(Value);
-	Value.SerializePathWithoutFixup(OutAr);
+	{
+		TGuardValue<bool> GuardIsPatching(bIsPatching, true);
+		FActorDescArchive::operator<<(Value);
+		AssetDataPatcher->DoPatch(Value);
+	}
+
+    // Only write out values if we aren't already patching since this function can be called
+	// from other patching functions which will perform the final write of the patched values
+	if (!bIsPatching)
+	{
+		Value.SerializePathWithoutFixup(OutAr);
+	}
+	return *this;
+}
+
+FArchive& FActorDescArchivePatcher::operator<<(FTopLevelAssetPath& Value)
+{
+	{
+		TGuardValue<bool> GuardIsPatching(bIsPatching, true);
+		FActorDescArchive::operator<<(Value);
+		AssetDataPatcher->DoPatch(Value);
+	}
+
+	// Only write out values if we aren't already patching since this function can be called
+	// from other patching functions which will perform the final write of the patched values
+	if (!bIsPatching)
+	{
+		OutAr << Value;
+	}
 	return *this;
 }
 

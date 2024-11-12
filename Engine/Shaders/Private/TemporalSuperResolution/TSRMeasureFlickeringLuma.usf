@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TSRCommon.ush"
+#include "TSRColorSpace.ush"
 
 
 //------------------------------------------------------- CONFIG
@@ -11,8 +11,6 @@
 
 
 //------------------------------------------------------- PARAMETERS
-
-float PerceptionAdd;
 
 Texture2D<tsr_half3> SceneColorTexture;
 RWTexture2D<tsr_half> FlickeringLumaOutput;
@@ -57,12 +55,14 @@ void MainCS(
 				const uint2 PixelOffset = uint2(x, y) * TILE_SIZE;
 				uint2 InputPixelPos = OutputPixelOrigin + PixelOffset;
 			
-				tsr_half3 Color = ColorArray[x + y * TILE_ROWS];
-				Color *= rcp(tsr_half(PerceptionAdd) + Color);
+				tsr_half3 LinearColor = ColorArray[x + y * TILE_ROWS];
+				tsr_half3 SMColor = LinearToSMCS(LinearColor);
+				tsr_half SMLuma = dot(SMColor, kMoireSMCSWeights);
+				tsr_half GLuma = SMCSToGCS(SMLuma.rrr).r;
 
 				InputPixelPos.x = select(all(InputPixelPos < InputInfo_ViewportMax), InputPixelPos.x, uint(~0));
-				
-				FlickeringLumaOutput[InputPixelPos] = dot(Color, kMoireLumaWeights);
+
+				FlickeringLumaOutput[InputPixelPos] = GLuma;
 			}
 		}
 	}

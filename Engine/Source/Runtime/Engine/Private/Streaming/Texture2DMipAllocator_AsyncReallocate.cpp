@@ -32,7 +32,7 @@ bool FTexture2DMipAllocator_AsyncReallocate::AllocateMips(
 {
 	check(PendingFirstLODIdx < CurrentFirstLODIdx);
 
-	FRHITexture2D* Texture2DRHI = Context.Resource ? Context.Resource->GetTexture2DRHI() : nullptr;
+	FRHITexture* Texture2DRHI = Context.Resource ? Context.Resource->GetTexture2DRHI() : nullptr;
 	if (!Texture2DRHI)
 	{
 		return false;

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AvaMediaDefines.h"
 #include "Containers/Array.h"
 #include "Containers/EnumAsByte.h"
 #include "Containers/StringFwd.h"
@@ -10,7 +11,9 @@
 #include "Logging/LogVerbosity.h"
 #include "Math/MathFwd.h"
 #include "PixelFormat.h"
+#include "Playable/AvaPlayableSettings.h"
 #include "UObject/SoftObjectPtr.h"
+
 #include "AvaMediaSettings.generated.h"
 
 class UUserWidget;
@@ -85,6 +88,12 @@ public:
 
 	static ELogVerbosity::Type ToLogVerbosity(EAvaMediaLogVerbosity InAvaMediaLogVerbosity);
 
+	//~ Begin UObject
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& InPropertyChangedEvent) override;
+#endif
+	//~ End UObject
+	
 	/** Specifies the background clear color for the channel. */
 	UPROPERTY(config, EditAnywhere, Category = "Broadcast")
 	FLinearColor ChannelClearColor = FLinearColor::Black;
@@ -97,6 +106,12 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "Broadcast")
 	FIntPoint ChannelDefaultResolution = FIntPoint(1920, 1080);
 
+	/**
+	 * Action to perform when game thread overruns render thread and all frames are in flights being captured / readback. 
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "Broadcast")
+	EAvaBroadcastOutputOverrunAction ChannelOutputOverrunAction = EAvaBroadcastOutputOverrunAction::Skip;
+	
 	/**
 	 * Enables drawing the placeholder widget when there is no Motion Design asset playing.
 	 * If false, the channel is cleared to the background color.
@@ -160,10 +175,6 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "Playback Server")
 	FString PlaybackServerName;
 
-	/** Enable verbose logging for playback server. */
-	UPROPERTY(config, EditAnywhere, Category = "Playback Server")
-	bool bVerbosePlaybackServerLogging = false;
-
 	/**
 	 * Determines the verbosity level of the playback server's log replication.
 	 * The server is not going to replicate any log event that is below this log level.
@@ -175,6 +186,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "Playback Server")
 	float ServerPendingStatusRequestTimeout = 5.0f;
 
+	/** Defines the timeout, in seconds, after which pending playback commands are discarded. */
+	UPROPERTY(config, EditAnywhere, Category = "Playback Server")
+	float ServerPendingPlaybackCommandTimeout = 5.0f;
+
 	/** Settings for the local playback server process. See "Launch Local Server" in the broadcast editor toolbar. */
 	UPROPERTY(config, EditAnywhere, Category = "Playback Server")
 	FAvaMediaLocalPlaybackServerSettings LocalPlaybackServerSettings;
@@ -185,6 +200,9 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, Category = "Playback Manager")
 	FAvaInstanceSettings AvaInstanceSettings;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Playback Manager")
+	FAvaPlayableSettings PlayableSettings;
 
 	/**
 	 * Maximum cached Managed Motion Design assets used for rundown editor's page details.
@@ -200,6 +218,9 @@ public:
 	/** The web remote control HTTP server's port. */
 	UPROPERTY(config, EditAnywhere, Category = "Web Server")
 	uint32 HttpServerPort = 10123;
+
+	/** Default value of the synchronized events feature selection. */
+	static const FName SynchronizedEventsFeatureSelection_Default;
 
 private:
 	static UAvaMediaSettings* GetSingletonInstance();

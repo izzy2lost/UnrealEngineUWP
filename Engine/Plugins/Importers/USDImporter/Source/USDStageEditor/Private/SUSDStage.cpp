@@ -9,10 +9,11 @@
 #include "UnrealUSDWrapper.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
+#include "USDErrorUtils.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
+#include "USDMaterialUtils.h"
 #include "USDProjectSettings.h"
-#include "USDSchemasModule.h"
 #include "USDSchemaTranslator.h"
 #include "USDStageActor.h"
 #include "USDStageEditorSettings.h"
@@ -46,14 +47,6 @@
 #include "Widgets/Layout/SSplitter.h"
 
 #define LOCTEXT_NAMESPACE "SUsdStage"
-
-static bool GDiscardUndoBufferOnStageOpenClose = false;
-static FAutoConsoleVariableRef CVarDiscardUndoBufferOnStageOpenClose(
-	TEXT("USD.DiscardUndoBufferOnStageOpenClose"),
-	GDiscardUndoBufferOnStageOpenClose,
-	TEXT("Enabling this will prevent the recording of open/close stage transactions, but also discard the undo buffer after they happen. Use this "
-		 "when memory-constrained, as sometimes recording all created assets and actors in the undo buffer can be expensive.")
-);
 
 #if USE_USD_SDK
 
@@ -899,8 +892,8 @@ void SUsdStage::FillFileMenu(FMenuBuilder& MenuBuilder)
 	MenuBuilder.BeginSection("Reload", LOCTEXT("Reload", "Reload"));
 	{
 		MenuBuilder.AddMenuEntry(
-			LOCTEXT("Reload", "Reload"),
-			LOCTEXT("Reload_ToolTip", "Reloads the stage from disk, keeping aspects of the session intact"),
+			LOCTEXT("ReloadEntry", "Reload stage"),
+			LOCTEXT("ReloadEntry_ToolTip", "Reloads the stage and animations from disk, keeping aspects of the session intact"),
 			FSlateIcon(),
 			FUIAction(
 				FExecuteAction::CreateSP(this, &SUsdStage::FileReload),
@@ -1011,6 +1004,31 @@ void SUsdStage::FillActionsMenu(FMenuBuilder& MenuBuilder)
 			NAME_None,
 			EUserInterfaceActionType::Button
 		);
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("Regenerate", "Regenerate USD level sequence"),
+			LOCTEXT("Regenerate_ToolTip", "Regenerates the transient LevelSequences based on the opened stage"),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SUsdStage::ActionsRegenerate),
+				FCanExecuteAction::CreateLambda(
+					[this]()
+					{
+						if (const AUsdStageActor* StageActor = ViewModel.UsdStageActor.Get())
+						{
+							if (UE::FUsdStage Stage = StageActor->GetUsdStage())
+							{
+								return true;
+							}
+						}
+
+						return false;
+					}
+				)
+			),
+			NAME_None,
+			EUserInterfaceActionType::Button
+		);
 	}
 	MenuBuilder.EndSection();
 }
@@ -1078,15 +1096,21 @@ void SUsdStage::FillOptionsMenu(FMenuBuilder& MenuBuilder)
 		);
 
 		MenuBuilder.AddSubMenu(
-			LOCTEXT("AssetReuse", "Asset reuse"),
-			LOCTEXT("AssetReuse_ToolTip", "How to behave when generating identical assets from different prims"),
-			FNewMenuDelegate::CreateSP(this, &SUsdStage::FillAssetReuseSubMenu)
+			LOCTEXT("AssetReuse", "Asset sharing"),
+			LOCTEXT("AssetReuse_ToolTip", "How to behave when generating assets from identical prims"),
+			FNewMenuDelegate::CreateSP(this, &SUsdStage::FillShareAssetsSubMenu)
 		);
 
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("InterpolationType", "Interpolation type"),
 			LOCTEXT("InterpolationType_ToolTip", "Whether to interpolate between time samples linearly or with 'held' (i.e. constant) interpolation"),
 			FNewMenuDelegate::CreateSP(this, &SUsdStage::FillInterpolationTypeSubMenu)
+		);
+
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("GeometryCacheImport", "Geometry Cache Import"),
+			LOCTEXT("GeometryCacheImport_ToolTip", "When to convert geometry caches to persistent assets (in stage workflow)"),
+			FNewMenuDelegate::CreateSP(this, &SUsdStage::FillGeometryCacheImportSubMenu)
 		);
 	}
 	MenuBuilder.EndSection();
@@ -1116,7 +1140,7 @@ void SUsdStage::FillExportSubMenu(FMenuBuilder& MenuBuilder)
 	const FString FilePath;
 
 	MenuBuilder.AddMenuEntry(
-		LOCTEXT("ExportAll", "Export all layers..."),
+		LOCTEXT("ExportAll", "All layers..."),
 		LOCTEXT("ExportAll_ToolTip", "Exports copies of all file-based layers in the stage's layer stack to a new folder"),
 		FSlateIcon(),
 		FUIAction(
@@ -1146,7 +1170,7 @@ void SUsdStage::FillExportSubMenu(FMenuBuilder& MenuBuilder)
 	);
 
 	MenuBuilder.AddMenuEntry(
-		LOCTEXT("ExportFlattened", "Export flattened stage..."),
+		LOCTEXT("ExportFlattened", "Flattened stage..."),
 		LOCTEXT("ExportFlattened_ToolTip", "Flattens the current stage to a single USD layer and exports it as a new USD file"),
 		FSlateIcon(),
 		FUIAction(
@@ -1154,6 +1178,36 @@ void SUsdStage::FillExportSubMenu(FMenuBuilder& MenuBuilder)
 				[this]()
 				{
 					FileExportFlattenedStage();
+				}
+			),
+			FCanExecuteAction::CreateLambda(
+				[this]()
+				{
+					if (const AUsdStageActor* StageActor = ViewModel.UsdStageActor.Get())
+					{
+						if (UE::FUsdStage Stage = StageActor->GetUsdStage())
+						{
+							return true;
+						}
+					}
+
+					return false;
+				}
+			)
+		),
+		NAME_None,
+		EUserInterfaceActionType::Button
+	);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("ExportStack", "Flattened layer stack..."),
+		LOCTEXT("ExportStack_ToolTip", "Flattens the current stage's local layer stack to a single layer, preserving most composition arcs"),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(
+				[this]()
+				{
+					FileExportFlattenedLayerStack();
 				}
 			),
 			FCanExecuteAction::CreateLambda(
@@ -1383,21 +1437,21 @@ void SUsdStage::FillPurposesToLoadSubMenu(FMenuBuilder& MenuBuilder)
 
 void SUsdStage::FillRenderContextSubMenu(FMenuBuilder& MenuBuilder)
 {
-	auto AddRenderContextEntry = [&](const FName& RenderContext)
+	auto AddRenderContextEntry = [&](const FName& RenderContextName)
 	{
-		FText RenderContextName = FText::FromName(RenderContext);
-		if (RenderContext.IsNone())
+		FText RenderContextText = FText::FromName(RenderContextName);
+		if (RenderContextName == UnrealIdentifiers::UniversalRenderContext)
 		{
-			RenderContextName = LOCTEXT("UniversalRenderContext", "universal");
+			RenderContextText = FText::FromString(UnrealIdentifiers::UniversalRenderContextDisplayString);
 		}
 
 		MenuBuilder.AddMenuEntry(
-			RenderContextName,
+			RenderContextText,
 			FText::GetEmpty(),
 			FSlateIcon(),
 			FUIAction(
 				FExecuteAction::CreateLambda(
-					[this, RenderContext]()
+					[this, RenderContextName]()
 					{
 						if (AUsdStageActor* StageActor = GetStageActorOrCDO())
 						{
@@ -1409,7 +1463,7 @@ void SUsdStage::FillRenderContextSubMenu(FMenuBuilder& MenuBuilder)
 							// c.f. comment in SUsdStage::FillCollapsingSubMenu
 							TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
 
-							StageActor->SetRenderContext(RenderContext);
+							StageActor->SetRenderContext(RenderContextName);
 							if (StageActor->IsTemplate())
 							{
 								StageActor->SaveConfig();
@@ -1419,11 +1473,11 @@ void SUsdStage::FillRenderContextSubMenu(FMenuBuilder& MenuBuilder)
 				),
 				FCanExecuteAction{},
 				FIsActionChecked::CreateLambda(
-					[this, RenderContext]()
+					[this, RenderContextName]()
 					{
 						if (AUsdStageActor* StageActor = GetStageActorOrCDO())
 						{
-							return StageActor->RenderContext == RenderContext;
+							return StageActor->RenderContext == RenderContextName;
 						}
 						return false;
 					}
@@ -1434,9 +1488,7 @@ void SUsdStage::FillRenderContextSubMenu(FMenuBuilder& MenuBuilder)
 		);
 	};
 
-	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
-
-	for (const FName& RenderContext : UsdSchemasModule.GetRenderContextRegistry().GetRenderContexts())
+	for (const FName& RenderContext : UsdUnreal::MaterialUtils::GetRegisteredRenderContexts())
 	{
 		AddRenderContextEntry(RenderContext);
 	}
@@ -1795,6 +1847,51 @@ void SUsdStage::FillCollapsingSubMenu(FMenuBuilder& MenuBuilder)
 		EUserInterfaceActionType::ToggleButton
 	);
 
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("UsePrimKindsForCollapsing", "Use prim kinds for collapsing"),
+		LOCTEXT(
+			"UsePrimKindsForCollapsing_ToolTip",
+			"Use KindsToCollapse to determine when to collapse prim subtrees or not (defaults to enabled).\nDisable this if you want to prevent collapsing, or to control it manually by right-clicking on individual prims."
+		),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						FScopedTransaction Transaction(FText::Format(
+							LOCTEXT("UsePrimKindsForCollapsingTransaction", "Toggle bUsePrimKindsForCollapsing on USD stage actor '{0}'"),
+							FText::FromString(StageActor->GetActorLabel())
+						));
+
+						// c.f. comment within AddKindToCollapseEntry just below
+						TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
+
+						StageActor->SetUsePrimKindsForCollapsing(!StageActor->bUsePrimKindsForCollapsing);
+						if (StageActor->IsTemplate())
+						{
+							StageActor->SaveConfig();
+						}
+					}
+				}
+			),
+			FCanExecuteAction{},
+			FIsActionChecked::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						return StageActor->bUsePrimKindsForCollapsing;
+					}
+					return false;
+				}
+			)
+		),
+		NAME_None,
+		EUserInterfaceActionType::ToggleButton
+	);
+
 	auto AddKindToCollapseEntry = [&](const EUsdDefaultKind Kind, const FText& Text, FCanExecuteAction CanExecuteAction)
 	{
 		MenuBuilder.AddMenuEntry(
@@ -1917,12 +2014,12 @@ void SUsdStage::FillCollapsingSubMenu(FMenuBuilder& MenuBuilder)
 	MenuBuilder.EndSection();
 }
 
-void SUsdStage::FillAssetReuseSubMenu(FMenuBuilder& MenuBuilder)
+void SUsdStage::FillShareAssetsSubMenu(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.AddMenuEntry(
-		LOCTEXT("ReuseIdenticalAssets", "Reuse identical assets"),
+		LOCTEXT("ShareAssetsForIdenticalPrims_Text", "Share Assets for Identical Prims"),
 		LOCTEXT(
-			"ReuseIdenticalAssets_ToolTip",
+			"bShareAssetsForIdenticalPrims_ToolTip",
 			"If true, whenever two prims would have generated identical UAssets (like identical StaticMeshes or materials) then only one instance of "
 			"that asset is generated, and the asset is shared by the components generated for both prims. If false, we will generate a dedicated "
 			"asset for each prim."
@@ -1935,14 +2032,14 @@ void SUsdStage::FillAssetReuseSubMenu(FMenuBuilder& MenuBuilder)
 					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
 					{
 						FScopedTransaction Transaction(FText::Format(
-							LOCTEXT("ReuseIdenticalAssetsTransaction", "Toggle bReuseIdenticalAssets on USD stage actor '{0}'"),
+							LOCTEXT("ShareAssetsForIdenticalPrims_Transaction", "Toggle bShareAssetsForIdenticalPrims on USD stage actor '{0}'"),
 							FText::FromString(StageActor->GetActorLabel())
 						));
 
 						// c.f. comment within AddKindToCollapseEntry just below
 						TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
 
-						StageActor->SetReuseIdenticalAssets(!StageActor->bReuseIdenticalAssets);
+						StageActor->SetShareAssetsForIdenticalPrims(!StageActor->bShareAssetsForIdenticalPrims);
 						if (StageActor->IsTemplate())
 						{
 							StageActor->SaveConfig();
@@ -1956,7 +2053,7 @@ void SUsdStage::FillAssetReuseSubMenu(FMenuBuilder& MenuBuilder)
 				{
 					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
 					{
-						return StageActor->bReuseIdenticalAssets;
+						return StageActor->bShareAssetsForIdenticalPrims;
 					}
 					return false;
 				}
@@ -2048,6 +2145,139 @@ void SUsdStage::FillInterpolationTypeSubMenu(FMenuBuilder& MenuBuilder)
 					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
 					{
 						return StageActor->InterpolationType == EUsdInterpolationType::Held;
+					}
+					return false;
+				}
+			)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+}
+
+void SUsdStage::FillGeometryCacheImportSubMenu(FMenuBuilder& MenuBuilder)
+{
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("ImportNever", "Never"),
+		LOCTEXT("ImportNever_ToolTip", "Geometry Caches are not imported as persistent assets and are always streamed from the stage instead."),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						FScopedTransaction Transaction(FText::Format(
+							LOCTEXT("SetGeometryCacheImportNever", "Set USD stage actor '{0}' to not import geometry caches"),
+							FText::FromString(StageActor->GetActorLabel())
+						));
+
+						// c.f. comment in SUsdStage::FillCollapsingSubMenu
+						TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
+
+						StageActor->SetGeometryCacheImport(EGeometryCacheImport::Never);
+						if (StageActor->IsTemplate())
+						{
+							StageActor->SaveConfig();
+						}
+					}
+				}
+			),
+			FCanExecuteAction{},
+			FIsActionChecked::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						return StageActor->GeometryCacheImport == EGeometryCacheImport::Never;
+					}
+					return false;
+				}
+			)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("ImportOnLoad", "On Load"),
+		LOCTEXT("ImportOnLoad_ToolTip", "Geometry Caches are imported as persistents assets on stage load and played back from them."),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						FScopedTransaction Transaction(FText::Format(
+							LOCTEXT("SetGeometryCacheImportOnLoad", "Set USD stage actor '{0}' to import geometry caches on stage load"),
+							FText::FromString(StageActor->GetActorLabel())
+						));
+
+						// c.f. comment in SUsdStage::FillCollapsingSubMenu
+						TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
+
+						StageActor->SetGeometryCacheImport(EGeometryCacheImport::OnLoad);
+						if (StageActor->IsTemplate())
+						{
+							StageActor->SaveConfig();
+						}
+					}
+				}
+			),
+			FCanExecuteAction{},
+			FIsActionChecked::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						return StageActor->GeometryCacheImport == EGeometryCacheImport::OnLoad;
+					}
+					return false;
+				}
+			)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("ImportOnSave", "On Save"),
+		LOCTEXT(
+			"ImportOnSave_ToolTip",
+			"Geometry Caches are streamed from the stage until they are saved at which time they will be imported as persistent assets "
+			"and played back from them instead."
+		),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						FScopedTransaction Transaction(FText::Format(
+							LOCTEXT("SetGeometryCacheImportOnSave", "Set USD stage actor '{0}' to import geometry caches on save"),
+							FText::FromString(StageActor->GetActorLabel())
+						));
+
+						// c.f. comment in SUsdStage::FillCollapsingSubMenu
+						TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
+
+						StageActor->SetGeometryCacheImport(EGeometryCacheImport::OnSave);
+						if (StageActor->IsTemplate())
+						{
+							StageActor->SaveConfig();
+						}
+					}
+				}
+			),
+			FCanExecuteAction{},
+			FIsActionChecked::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						return StageActor->GeometryCacheImport == EGeometryCacheImport::OnSave;
 					}
 					return false;
 				}
@@ -2402,15 +2632,87 @@ void SUsdStage::FileExportFlattenedStage(const FString& OutputLayer)
 	}
 }
 
+void SUsdStage::FileExportFlattenedLayerStack(const FString& OutputLayer)
+{
+	const AUsdStageActor* StageActor = ViewModel.UsdStageActor.Get();
+	if (!StageActor)
+	{
+		return;
+	}
+
+	UE::FUsdStage UsdStage = StageActor->GetUsdStage();
+	if (!UsdStage)
+	{
+		return;
+	}
+
+	FString OutputLayerCopy = OutputLayer;
+	if (OutputLayerCopy.IsEmpty())
+	{
+		TOptional<FString> UsdFilePath = UsdUtils::BrowseUsdFile(UsdUtils::EBrowseFileMode::Save);
+		if (!UsdFilePath.IsSet())
+		{
+			return;
+		}
+
+		OutputLayerCopy = UsdFilePath.GetValue();
+	}
+
+	double StartTime = FPlatformTime::Cycles64();
+
+	UsdUtils::StartMonitoringErrors();
+	UE::FSdfLayer FlattenedLayer = UsdUtils::FlattenLayerStack(UsdStage);
+	if (UsdUtils::ShowErrorsAndStopMonitoring())
+	{
+		return;
+	}
+
+	const bool bResult = FlattenedLayer.Export(*OutputLayerCopy);
+	if (!bResult)
+	{
+		UE_LOG(LogUsd, Warning, TEXT("Failed to export flattened USD Stage to path '%s'!"), *OutputLayerCopy);
+	}
+
+	// Send analytics
+	if (FEngineAnalytics::IsAvailable())
+	{
+		bool bAutomated = false;
+		double ElapsedSeconds = FPlatformTime::ToSeconds64(FPlatformTime::Cycles64() - StartTime);
+		FString Extension = FPaths::GetExtension(OutputLayerCopy);
+		IUsdClassesModule::SendAnalytics(
+			{},
+			TEXT("ExportStageFlattenedLayerStack"),
+			bAutomated,
+			ElapsedSeconds,
+			UsdUtils::GetUsdStageNumFrames(UsdStage),
+			Extension
+		);
+	}
+}
+
 void SUsdStage::FileReload()
 {
+	AUsdStageActor* StageActor = ViewModel.UsdStageActor.Get();
+	if (!StageActor)
+	{
+		return;
+	}
+
+	static IConsoleVariable* Cvar = IConsoleManager::Get().FindConsoleVariable(TEXT("USD.DiscardUndoBufferOnStageOpenClose"));
+	const bool bDiscardUndoBufferOnStageOpenClose = Cvar && Cvar->GetBool();
+
 	FScopedTransaction Transaction(LOCTEXT("ReloadTransaction", "Reload USD stage"));
+
+	TOptional<TGuardValue<ITransaction*>> SuppressTransaction;
+	if (bDiscardUndoBufferOnStageOpenClose)
+	{
+		SuppressTransaction.Emplace(GUndo, nullptr);
+		StageActor->RequestDelayedTransactorReset();
+	}
 
 	ViewModel.ReloadStage();
 
-	const AUsdStageActor* StageActor = ViewModel.UsdStageActor.Get();
-
-	if (UsdLayersTreeView && StageActor)
+	if (UsdLayersTreeView)
 	{
 		const bool bResync = true;
 		UsdLayersTreeView->Refresh(StageActor->GetBaseUsdStage(), StageActor->GetIsolatedUsdStage(), bResync);
@@ -2432,23 +2734,12 @@ void SUsdStage::FileReset()
 
 void SUsdStage::FileClose()
 {
-	TOptional<FScopedTransaction> Transaction;
-	if (!GDiscardUndoBufferOnStageOpenClose)
-	{
-		Transaction.Emplace(LOCTEXT("CloseTransaction", "Close USD stage"));
-	}
+	TRACE_CPUPROFILER_EVENT_SCOPE(SUsdStage::FileClose);
+
+	FScopedTransaction Transaction{LOCTEXT("CloseTransaction", "Close USD stage")};
 
 	ViewModel.CloseStage();
 	RequestFullRefresh();
-
-	if (GDiscardUndoBufferOnStageOpenClose && GEditor)
-	{
-		if (UTransactor* Transactor = GEditor->Trans)
-		{
-			const FText Reason = LOCTEXT("DiscardCloseTransactionReason", "Resetting because the cvar USD.DiscardUndoBufferOnStageOpenClose is true");
-			Transactor->Reset(Reason);
-		}
-	}
 }
 
 void SUsdStage::OnLayerIsolated(const UE::FSdfLayer& IsolatedLayer)
@@ -2469,6 +2760,16 @@ void SUsdStage::ActionsImportWithDialog()
 void SUsdStage::ActionsImport(const FString& OutputContentFolder, UUsdStageImportOptions* Options)
 {
 	ViewModel.ImportStage(*OutputContentFolder, Options);
+}
+
+void SUsdStage::ActionsRegenerate()
+{
+	FScopedTransaction Transaction(LOCTEXT("RegenerateTransaction", "Regenerate USD level sequence"));
+
+	if (AUsdStageActor* StageActor = ViewModel.UsdStageActor.Get())
+	{
+		StageActor->RepopulateLevelSequence();
+	}
 }
 
 void SUsdStage::ExportSelectedLayers(const FString& OutputLayerOrDirectory)
@@ -2522,13 +2823,9 @@ void SUsdStage::OnPrimSelectionChanged(const TArray<FString>& PrimPaths)
 
 void SUsdStage::OpenStage(const TCHAR* FilePath)
 {
-	TOptional<FScopedTransaction> Transaction;
-	if (!GDiscardUndoBufferOnStageOpenClose)
-	{
-		// Create the transaction before calling UsdStageModule.GetUsdStageActor as that may create the actor, and we want
-		// the actor spawning to be part of the transaction
-		Transaction.Emplace(FText::Format(LOCTEXT("OpenStageTransaction", "Open USD stage '{0}'"), FText::FromString(FilePath)));
-	}
+	// Create the transaction before calling UsdStageModule.GetUsdStageActor as that may create the actor, and we want
+	// the actor spawning to be part of the transaction
+	FScopedTransaction Transaction{FText::Format(LOCTEXT("OpenStageTransaction", "Open USD stage '{0}'"), FText::FromString(FilePath))};
 
 	if (!ViewModel.UsdStageActor.IsValid())
 	{
@@ -2537,15 +2834,6 @@ void SUsdStage::OpenStage(const TCHAR* FilePath)
 	}
 
 	ViewModel.OpenStage(FilePath);
-
-	if (GDiscardUndoBufferOnStageOpenClose && GEditor)
-	{
-		if (UTransactor* Transactor = GEditor->Trans)
-		{
-			const FText Reason = LOCTEXT("DiscardOpenTransactionReason", "Resetting because the cvar USD.DiscardUndoBufferOnStageOpenClose is true");
-			Transactor->Reset(Reason);
-		}
-	}
 }
 
 void SUsdStage::RequestLayersTreeViewRefresh()
@@ -2583,6 +2871,8 @@ void SUsdStage::RequestFullRefresh()
 
 void SUsdStage::OnSlateTick(float Time)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SUsdStage::OnSlateTick);
+
 	if (bEditorIsShuttingDown)
 	{
 		return;

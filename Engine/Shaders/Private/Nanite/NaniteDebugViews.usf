@@ -7,31 +7,27 @@
 
 #include "NaniteDataDecode.ush"
 #include "NaniteAttributeDecode.ush"
+#include "NaniteSceneCommon.ush"
+#include "NaniteEditorCommon.ush"
 
 Texture2D<UlongType> VisBuffer64;
+#if MSAA_SAMPLE_COUNT > 1
+Texture2DMS<float, MSAA_SAMPLE_COUNT> SceneDepth;
+#else
 Texture2D<float> SceneDepth;
+#endif
 Texture2D<uint> ShadingMask;
-ByteAddressBuffer MaterialEditorTable;
-ByteAddressBuffer MaterialHitProxyTable;
+ByteAddressBuffer DebugViewData;
 
 ByteAddressBuffer ShadingBinData;
-
-#if USE_EDITOR_SHADERS
-Buffer<uint> EditorSelectedHitProxyIds;
-#endif
 
 // .xy = min, .zw = max
 uint4 ViewRect;
 
 float InvShaderBudget;
 float3 SelectionColor;
+float3 OverlayIntensityColor;
 
-// Note: Must match EDebugViewMode in NaniteVisualize.h
-#define DEBUG_VIEW_NONE 0
-#define DEBUG_VIEW_WIREFRAME 1
-#define DEBUG_VIEW_SHADER_COMPLEXITY 2
-#define DEBUG_VIEW_LIGHTMAP_DENSITY 3
-#define DEBUG_VIEW_PRIMITIVE_COLOR 4
 uint DebugViewMode;
 
 #define SOBEL_WIREFRAME_FILTER_ONLY 0
@@ -103,58 +99,45 @@ float3 ApplyWireframeFilter(uint2 PixelPosXY, uint DepthInt, float3 WireColor)
 	return saturate(WireColor * Wireframe);
 }
 
-
-uint GetHitProxySearchId(FInstanceSceneData InstanceData, FVisibleCluster VisibleCluster, uint TriIndex)
+struct FNaniteMaterialDebugViewInfo
 {
-	uint SearchId = 0xFFFFFFFFu;
+	uint InstructionCountVS;
+	uint InstructionCountPS;
+	uint InstructionCountCS;
+	uint LWCComplexityVS;
+	uint LWCComplexityPS;
+	uint LWCComplexityCS;
+};
 
-#if USE_EDITOR_SHADERS
-	BRANCH
-	if ((InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA) != 0u)
-	{
-		SearchId = InstanceData.EditorData.HitProxyPacked;
-	}
-	else
-	{
-		FCluster ClusterData = GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
-		SearchId = GetMaterialHitProxyId(ClusterData, InstanceData.PrimitiveId, TriIndex, MaterialHitProxyTable);
-	}
-#endif
-
-	return SearchId;
-}
-
-bool IsInstanceSelected(FInstanceSceneData InstanceData, FVisibleCluster VisibleCluster, uint TriIndex)
+FNaniteMaterialDebugViewInfo ReadMaterialDebugViewInfo(uint ShadingBin)
 {
-	bool bIsSelected = false;
+	FNaniteMaterialDebugViewInfo Result;
 
-#if USE_EDITOR_SHADERS
-	BRANCH
-	if ((InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA) != 0u)
-	{
-		// We do not want to search for InstanceData.EditorData.HitProxyPacked in the selected hit proxy buffer, because
-		// this buffer will contain all instance IDs regardless of bIsSelected. Additional filtering would be needed in 
-		// AddRelevantHitProxiesToArray() in order to reduce this set to only contain selected entries, and performing a 
-		// search would be entirely unnecessary and much slower.
-		bIsSelected = InstanceData.EditorData.bIsSelected;
-	}
-	else
-	{
-		const uint SearchId = GetHitProxySearchId(InstanceData, VisibleCluster, TriIndex);
-		bIsSelected = BinarySearch(EditorSelectedHitProxyIds, EDITOR_SELECTED_BUFFER_COUNT, SearchId);
-	}
-#endif
+	const uint Stride = MATERIAL_DEBUG_VIEW_INFO_STRIDE;
+	uint3 Data = DebugViewData.Load3(ShadingBin * Stride);
 
-	return bIsSelected;
+	Result.InstructionCountVS	= BitFieldExtractU32(Data.x, 16, 0);
+	Result.InstructionCountPS	= BitFieldExtractU32(Data.x, 16, 16);
+
+	Result.InstructionCountCS	= BitFieldExtractU32(Data.y, 16, 0);
+	Result.LWCComplexityVS		= BitFieldExtractU32(Data.y, 16, 16);
+
+	Result.LWCComplexityPS		= BitFieldExtractU32(Data.z, 16, 0);
+	Result.LWCComplexityCS		= BitFieldExtractU32(Data.z, 16, 16);
+
+	return Result;
 }
 
 void ExportDebugViewPS(
 	in float4 SvPosition : SV_Position,
-	out float4 OutColor  : SV_Target0
+	out float4 OutColor  : SV_Target0,
+	out float OutDepth   : SV_Depth
 )
 {
 	const uint2 PixelPos = (uint2)SvPosition.xy;
 	const UlongType VisPixel = VisBuffer64[PixelPos];
+
+	OutDepth = 0;
 
 	uint DepthInt = 0;
 	uint VisibleClusterIndex = 0;
@@ -164,7 +147,15 @@ void ExportDebugViewPS(
 	if (VisibleClusterIndex != 0xFFFFFFFFu)
 	{
 		const float NaniteDepth = asfloat(DepthInt);
+		OutDepth = NaniteDepth;
+
+#if MSAA_SAMPLE_COUNT > 1
+		// only the first MSAA depth sample is tested, as this shader runs per-pixel rather than per-sample
+		float SceneDepthValue = SceneDepth.Load(PixelPos.xy, 0);
+#else
 		float SceneDepthValue = SceneDepth[PixelPos.xy];
+#endif
+
 		if (NaniteDepth >= SceneDepthValue)
 		{
 			FNaniteView NaniteView = GetNaniteView(0);
@@ -176,7 +167,7 @@ void ExportDebugViewPS(
 			FCluster Cluster							= GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 
 			FShadingMask UnpackedMask = UnpackShadingMask(ShadingMask[PixelPos]);
-			const uint MaterialEditorData = GetMaterialDepthId(UnpackedMask.ShadingBin, MaterialEditorTable);
+			FNaniteMaterialDebugViewInfo MaterialDebugViewInfo = ReadMaterialDebugViewInfo(UnpackedMask.ShadingBin);
 
 			BRANCH
 			if (DebugViewMode == DEBUG_VIEW_WIREFRAME)
@@ -254,18 +245,27 @@ void ExportDebugViewPS(
 		#if USE_EDITOR_SHADERS
 			else if (DebugViewMode == DEBUG_VIEW_SHADER_COMPLEXITY)
 			{
-				const uint NumPSInstructions = (MaterialEditorData & 0xFFFF0000u) >> 16u;
-				const uint NumVSInstructions = (MaterialEditorData & 0x0000FFFFu);
-
 				// If mode is DVSM_QuadComplexity, different calculations used
 				// See: FComplexityAccumulateInterface::GetDebugViewModeShaderBindings()
 
 				// float3(PS/ShaderBudget, VS/ShaderBudget, overdraw)
-				float3 NormalizedComplexity = float3(
-					NumPSInstructions * InvShaderBudget,
-					NumVSInstructions * InvShaderBudget,
-					1.0 / 32.0f
-				);
+				float3 NormalizedComplexity;
+				if (MaterialDebugViewInfo.InstructionCountCS != 0u)
+				{
+					NormalizedComplexity = float3(
+						MaterialDebugViewInfo.InstructionCountCS * InvShaderBudget,
+						MaterialDebugViewInfo.InstructionCountCS * InvShaderBudget,
+						1.0 / 32.0f
+					);
+				}
+				else
+				{
+					NormalizedComplexity = float3(
+						MaterialDebugViewInfo.InstructionCountPS * InvShaderBudget,
+						MaterialDebugViewInfo.InstructionCountVS * InvShaderBudget,
+						1.0 / 32.0f
+					);
+				}
 
 				float3 FinalComplexity = NormalizedComplexity.xyz;
 
@@ -281,10 +281,26 @@ void ExportDebugViewPS(
 				// Alpha channel needs to be 1 to have decals working where the framebuffer blend is setup to multiply with alpha
 				OutColor = float4(FinalComplexity.xyz, 1.0f);
 			}
+			else if (DebugViewMode == DEBUG_VIEW_LWC_COMPLEXITY)
+			{
+				float3 NormalizedComplexity;
+				if (MaterialDebugViewInfo.InstructionCountCS != 0u)
+				{
+					NormalizedComplexity = float3(MaterialDebugViewInfo.InstructionCountCS, MaterialDebugViewInfo.InstructionCountCS, 0) * InvShaderBudget;
+				}
+				else
+				{
+					NormalizedComplexity = float3(MaterialDebugViewInfo.LWCComplexityPS, MaterialDebugViewInfo.LWCComplexityVS, 0) * InvShaderBudget;
+				}
+
+				// Use the maximum range allowed for scene color
+				// Alpha channel needs to be 1 to have decals working where the framebuffer blend is setup to multiply with alpha
+				OutColor = float4(NormalizedComplexity.xyz, 1.0f);
+			}
 			else if (DebugViewMode == DEBUG_VIEW_PRIMITIVE_COLOR)
 			{
 				const bool bIsSelected = IsInstanceSelected(InstanceData, VisibleCluster, TriIndex);
-				const float3 SolidColor = CondMask(bIsSelected, SelectionColor, PrimitiveData.PrimitiveColor);
+				const float3 SolidColor = CondMask(bIsSelected, SelectionColor, OverlayIntensityColor * PrimitiveData.PrimitiveColor);
 				OutColor = float4(SolidColor, 1.0f);
 			}
 		#endif

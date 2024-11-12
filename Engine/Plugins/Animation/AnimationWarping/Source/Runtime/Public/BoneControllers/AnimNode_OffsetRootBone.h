@@ -42,9 +42,14 @@ enum class EOffsetRootBoneMode : uint8
 	// The root will stay behind, but will attempt to catch up
 	Interpolate,
 	// Stops accumulating the mesh component's movement delta into the root offset
-	// In this mode, whatever offset we have will be conserved, 
-	// but we won't accumulate any more
-	Hold,
+	// In this mode, whatever offset we have will be locked but we will still consume animated root motion 
+	LockOffsetAndConsumeAnimation,
+	// Stops accumulating the mesh component's movement delta into the root offset
+	// In this mode, whatever offset we have will be locked but we will still consume animated root motion, as long as it's decreasing the offset.
+	LockOffsetIncreaseAndConsumeAnimation,
+	// Stops accumulating the mesh component's movement delta into the root offset
+	// In this mode, whatever offset we have will be locked and we will ignore animated root motion
+	LockOffsetAndIgnoreAnimation,
 	// Release the offset and stop accumulating the mesh component's movement delta.
 	// In this mode we will "blend out" the offset
 	Release,
@@ -72,6 +77,9 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OffsetRootBone : public FAnimNode_B
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = Evaluation, meta=(FoldProperty))
 	EWarpingEvaluationMode EvaluationMode = EWarpingEvaluationMode::Graph;
+	
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (FoldProperty, PinHiddenByDefault))
+	bool bResetEveryFrame = false;
 
 	// The translation offset behavior mode
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (FoldProperty, PinHiddenByDefault))
@@ -152,6 +160,7 @@ public:
 
 	// Folded property accesors
 	EWarpingEvaluationMode GetEvaluationMode() const;
+	bool GetResetEveryFrame() const;
 	const FVector& GetTranslationDelta() const;
 	const FRotator& GetRotationDelta() const;
 	EOffsetRootBoneMode GetTranslationMode() const;

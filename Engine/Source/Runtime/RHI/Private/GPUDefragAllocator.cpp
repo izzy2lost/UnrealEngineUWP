@@ -1198,7 +1198,7 @@ void FGPUDefragAllocator::SetStaticMemoryPrivileges()
 		if (Block.SyncIndex >= CompletedSyncIndex)
 		{
 			PlatformSetStaticMemoryPrivileges(Block);
-			BlocksToUnProtect.RemoveAtSwap(i, 1, EAllowShrinking::No);
+			BlocksToUnProtect.RemoveAtSwap(i, EAllowShrinking::No);
 		}
 	}	
 }

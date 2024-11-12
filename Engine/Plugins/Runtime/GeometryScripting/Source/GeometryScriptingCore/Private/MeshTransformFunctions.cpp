@@ -75,15 +75,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshTransformFunctions::RotateMesh(
 	// todo: publish correct change types
 	TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh) 
 	{
-		int NumVertices = EditMesh.MaxVertexID();
-		ParallelFor(NumVertices, [&](int32 vid)
-		{
-			if (EditMesh.IsVertex(vid))
-			{
-				EditMesh.SetVertex(vid, Rotation.RotateVector( (EditMesh.GetVertex(vid) - RotationOrigin) ) + RotationOrigin);
-			}
-		});
-
+		MeshTransforms::Rotate(EditMesh, Rotation, RotationOrigin);
 	}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, false);
 
 	return TargetMesh;

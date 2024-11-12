@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Async/Future.h"
+#include "Delegates/Delegate.h"
 #include "Modules/ModuleInterface.h"
 
 struct FFoundMIDIDevice;

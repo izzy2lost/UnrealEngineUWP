@@ -1,10 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+#nullable enable
 
 namespace AutomationTool
 {
@@ -26,20 +22,20 @@ namespace AutomationTool
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="InOwnerCommand">The command running the current job</param>
-		public JobContext(BuildCommand InOwnerCommand) : this("Unknown", InOwnerCommand)
+		/// <param name="inOwnerCommand">The command running the current job</param>
+		public JobContext(BuildCommand inOwnerCommand) : this("Unknown", inOwnerCommand)
 		{
 		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="InCurrentNode">The current node being executed</param>
-		/// <param name="InOwnerCommand">The command running the current job</param>
-		public JobContext(string InCurrentNode, BuildCommand InOwnerCommand)
+		/// <param name="inCurrentNode">The current node being executed</param>
+		/// <param name="inOwnerCommand">The command running the current job</param>
+		public JobContext(string inCurrentNode, BuildCommand inOwnerCommand)
 		{
-			CurrentNode = InCurrentNode;
-			OwnerCommand = InOwnerCommand;
+			CurrentNode = inCurrentNode;
+			OwnerCommand = inOwnerCommand;
 		}
 	}
 }

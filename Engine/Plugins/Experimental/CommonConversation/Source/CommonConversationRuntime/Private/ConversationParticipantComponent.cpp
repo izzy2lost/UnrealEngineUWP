@@ -198,11 +198,11 @@ void UConversationParticipantComponent::ClientUpdateConversations_Implementation
 	OnRep_ConversationsActive(OldConversationsActive);
 }
 
-void UConversationParticipantComponent::SendClientUpdatedChoices(const FConversationContext& Context)
+void UConversationParticipantComponent::SendClientUpdatedChoices(const FConversationContext& Context, bool bForcedRefresh)
 {
 #if WITH_SERVER_CODE
 	const TArray<FClientConversationOptionEntry> NewOptions = Context.GetActiveConversation()->GetCurrentUserConversationChoices();
-	if (NewOptions != LastMessage.Options)
+	if (NewOptions != LastMessage.Options || bForcedRefresh)
 	{
 		LastMessage.Options = NewOptions;
 		ClientUpdateConversation(LastMessage);

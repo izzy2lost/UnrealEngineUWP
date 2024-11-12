@@ -267,6 +267,8 @@ public:
 				.ToolTipText(LOCTEXT("AddFilterToolTip", "Open the Add Filter Menu to add or manage filters."))
 				.OnGetMenuContent(InFilterBar, &SBasicFilterBar<FilterType>::MakeAddFilterMenu)
 				.ContentPadding(FMargin(1, 0))
+ 				// If the filter bar is embedded in a parent menu, this allows the Add Filter Menu to close when clicking on an empty area in the parent menu
+ 				.CollapseMenuOnParentFocus(true)
 				.ButtonContent()
 				[
 					FilterImage.ToSharedRef()
@@ -501,37 +503,37 @@ protected:
 				break;
 			case EFilterPillStyle::Default:
 			default:
-				ContentWidget = SNew(SBorder)
-				 .Padding(1.0f)
-				 .BorderImage(FAppStyle::Get().GetBrush("FilterBar.FilterBackground"))
-				 [
-					 SNew(SHorizontalBox)
-					 +SHorizontalBox::Slot()
-					 .VAlign(VAlign_Center)
-					 .AutoWidth()
-					 [
-						 SNew(SImage)
-						 .Image(FAppStyle::Get().GetBrush("FilterBar.FilterImage"))
-						 .ColorAndOpacity(this, &SFilter::GetFilterImageColorAndOpacity)
-					 ]
-					 +SHorizontalBox::Slot()
-					 .Padding(TAttribute<FMargin>(this, &SFilter::GetFilterNamePadding))
-					 .VAlign(VAlign_Center)
-					 [
-						 SAssignNew( ToggleButtonPtr, SFilterCheckBox )
-						.Style(FAppStyle::Get(), "FilterBar.FilterButton")
-						.ToolTipText(FilterToolTip)
-						.IsChecked(this, &SFilter::IsChecked)
-						.OnCheckStateChanged(this, &SFilter::FilterToggled)
-						.CheckBoxContentUsesAutoWidth(false)
-						.OnGetMenuContent(this, &SFilter::GetRightClickMenuContent)
+				ContentWidget = SAssignNew( ToggleButtonPtr, SFilterCheckBox )
+					.Style(FAppStyle::Get(), "FilterBar.FilterButton")
+					.ToolTipText(FilterToolTip)
+					.IsChecked(this, &SFilter::IsChecked)
+					.OnCheckStateChanged(this, &SFilter::FilterToggled)
+					.CheckBoxContentUsesAutoWidth(false)
+					.OnGetMenuContent(this, &SFilter::GetRightClickMenuContent)
+					[
+						SNew(SBorder)
+						.Padding(1.0f)
+						.BorderImage(FAppStyle::Get().GetBrush("FilterBar.FilterBackground"))
 						[
-							SNew(STextBlock)
-							.Text(this, &SFilter::GetFilterDisplayName)
-							.IsEnabled_Lambda([this] {return bEnabled;})
+							SNew(SHorizontalBox)
+							+SHorizontalBox::Slot()
+							.VAlign(VAlign_Center)
+							.AutoWidth()
+							[
+								SNew(SImage)
+								.Image(FAppStyle::Get().GetBrush("FilterBar.FilterImage"))
+								.ColorAndOpacity(this, &SFilter::GetFilterImageColorAndOpacity)
+							]
+							+SHorizontalBox::Slot()
+							.Padding(TAttribute<FMargin>(this, &SFilter::GetFilterNamePadding))
+							.VAlign(VAlign_Center)
+							[
+								SNew(STextBlock)
+								.Text(this, &SFilter::GetFilterDisplayName)
+								.IsEnabled_Lambda([this] {return bEnabled;})
+							]
 						]
-					 ]
-				 ];
+					];
 					
 			}
 			
@@ -588,7 +590,10 @@ protected:
 		/** Handler to create a right click menu */
 		TSharedRef<SWidget> GetRightClickMenuContent()
 		{
-			FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, NULL);
+			constexpr bool bShouldCloseWindowAfterMenuSelection = true;
+			// CloseSelfOnly in case the FilterBar is part of another menu
+			constexpr bool bCloseSelfOnly = true;
+			FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, nullptr, {}, bCloseSelfOnly);
 
 			MenuBuilder.BeginSection("FilterOptions", LOCTEXT("FilterContextHeading", "Filter Options"));
 			{
@@ -967,21 +972,7 @@ protected:
  	/** Sets the active state of a frontend filter. */
  	void SetFrontendFilterActive(const TSharedRef<FFilterBase<FilterType>>& Filter, bool bActive)
 	{
-		if(Filter->IsInverseFilter())
-		{
-			//Inverse filters are active when they are "disabled"
-			bActive = !bActive;
-		}
-		Filter->ActiveStateChanged(bActive);
-
-		if ( bActive )
-		{
-			ActiveFilters->Add(Filter);
-		}
-		else
-		{
-			ActiveFilters->Remove(Filter);
-		}
+		Filter->SetActiveInCollection(Filter, bActive, *ActiveFilters);
 	}
 
 	/* 'Activate' A filter by adding it to the filter bar, does not turn it on */

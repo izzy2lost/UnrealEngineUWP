@@ -295,6 +295,10 @@ bool UMovieSceneCustomPrimitiveDataTrack::PopulateEvaluationFieldImpl(const TRan
 			{
 				FMovieSceneEvaluationFieldEntityMetaData SectionMetaData = InMetaData;
 				SectionMetaData.Flags = Entry.Flags;
+				if (Entry.Section)
+				{
+					SectionMetaData.Condition = MovieSceneHelpers::GetSequenceCondition(this, Entry.Section, true);
+				}
 				CPDSection->ExternalPopulateEvaluationField(SectionEffectiveRange, SectionMetaData, OutFieldBuilder);
 			}
 		}

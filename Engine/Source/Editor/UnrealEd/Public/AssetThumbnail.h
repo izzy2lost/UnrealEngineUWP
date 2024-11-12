@@ -15,6 +15,8 @@ class FAssetThumbnailPool;
 class FSlateShaderResource;
 class FSlateTexture2DRHIRef;
 class FSlateTextureRenderTarget2DResource;
+class IAssetSystemInfoProvider;
+class IToolTip;
 struct FPropertyChangedEvent;
 
 namespace EThumbnailLabel
@@ -33,6 +35,7 @@ enum class EThumbnailSize : uint8
 	Small,
 	Medium,
 	Large,
+	XLarge,
 	Huge,
 
 	// Not a size
@@ -63,6 +66,12 @@ struct FAssetThumbnailConfig
 		, HintColorAndOpacity( FLinearColor( 0.0f, 0.0f, 0.0f, 0.0f ) )
 		, AssetTypeColorOverride()
 		, Padding(0)
+#if UE_CONTENTBROWSER_NEW_STYLE
+		, AssetSystemInfoProvider(nullptr)
+		, bAllowAssetStatusThumbnailOverlay( false )
+		, bShowAssetChip(false)
+		, AssetChipBorderImageOverride()
+#endif
 	{
 	}
 
@@ -79,6 +88,13 @@ struct FAssetThumbnailConfig
 	FMargin Padding;
 	TAttribute<int32> GenericThumbnailSize = 64;
 	EThumbnailColorStripOrientation ColorStripOrientation = EThumbnailColorStripOrientation::HorizontalBottomEdge;
+#if UE_CONTENTBROWSER_NEW_STYLE
+	TSharedPtr<IAssetSystemInfoProvider> AssetSystemInfoProvider;
+	TAttribute<TSharedPtr<IToolTip>> TooltipOverride;
+	bool bAllowAssetStatusThumbnailOverlay;
+	bool bShowAssetChip;
+	TAttribute<const FSlateBrush*> AssetChipBorderImageOverride;
+#endif
 };
 
 

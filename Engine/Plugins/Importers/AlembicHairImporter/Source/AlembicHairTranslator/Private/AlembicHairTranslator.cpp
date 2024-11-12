@@ -103,7 +103,7 @@ namespace AlembicHairTranslatorUtils
 		AbcArraySampleType ParamValues = Param.getExpandedValue().getVals();
 		if (ParamValues->size() == 1)
 		{
-			AttributeType ParamValue;
+			AttributeType ParamValue = {};
 			for (int32 Index = 0; Index < Extent; ++Index)
 			{
 				ParamValue[Index] = (*ParamValues)[0][Index];
@@ -378,7 +378,7 @@ namespace AlembicHairTranslatorUtils
 			bool bIsConstantValue = Scope == Alembic::AbcGeom::kConstantScope && NumValues != NumStrands;
 			for (int32 StrandIndex = 0; StrandIndex < NumStrands; ++StrandIndex)
 			{
-				AttributeType ParamValue;
+				AttributeType ParamValue = {};
 				for (int32 Index = 0; Index < Extent; ++Index)
 				{
 					ParamValue[Index] = (*ParamValues)[bIsConstantValue ? 0 : StrandIndex][Index];
@@ -398,7 +398,7 @@ namespace AlembicHairTranslatorUtils
 
 			for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
 			{
-				AttributeType ParamValue;
+				AttributeType ParamValue = {};
 				for (int32 Index = 0; Index < Extent; ++Index)
 				{
 					ParamValue[Index] = (*ParamValues)[VertexIndex][Index];
@@ -758,17 +758,23 @@ static void ParseObject(const Alembic::Abc::IObject& InObject, float FrameTime, 
 				return ParamValue;
 			};
 
-			// Add the RootUV attribute to the HairDescription if needed
-			TStrandAttributesRef<FVector2f> RootUVStrandAttributeRef = HairDescription.StrandAttributes().GetAttributesRef<FVector2f>(HairAttribute::Strand::RootUV);
-			if (!RootUVStrandAttributeRef.IsValid())
+			auto GetOrCreateRootUVStrandAttributeRef = [&]() 
 			{
-				HairDescription.StrandAttributes().RegisterAttribute<FVector2f>(HairAttribute::Strand::RootUV);
-				RootUVStrandAttributeRef = HairDescription.StrandAttributes().GetAttributesRef<FVector2f>(HairAttribute::Strand::RootUV);
-			}
+				TStrandAttributesRef<FVector2f> AttributeRootUV = HairDescription.StrandAttributes().GetAttributesRef<FVector2f>(HairAttribute::Strand::RootUV);
+			
+				// Add the RootUV attribute to the HairDescription if needed            
+				if (!AttributeRootUV.IsValid())
+				{
+					HairDescription.StrandAttributes().RegisterAttribute<FVector2f>(HairAttribute::Strand::RootUV);
+					AttributeRootUV = HairDescription.StrandAttributes().GetAttributesRef<FVector2f>(HairAttribute::Strand::RootUV);
+				}
+				return AttributeRootUV;                
+			};
 
 			Alembic::AbcGeom::GeometryScope UVScope = UVsParam.getScope();
-			if (UVScope == Alembic::AbcGeom::kUniformScope)
+			if (UVScope == Alembic::AbcGeom::kConstantScope || UVScope == Alembic::AbcGeom::kUniformScope)
 			{
+				TStrandAttributesRef<FVector2f> RootUVStrandAttributeRef = GetOrCreateRootUVStrandAttributeRef();
 				for (uint32 CurveIndex = 0; CurveIndex < NumCurves; ++CurveIndex)
 				{
 					RootUVStrandAttributeRef[FStrandID(StartStrandID + CurveIndex)] = ConvertUVParam(CurveIndex);
@@ -776,6 +782,7 @@ static void ParseObject(const Alembic::Abc::IObject& InObject, float FrameTime, 
 			}
 			else if (UVScope == Alembic::AbcGeom::kVertexScope)
 			{
+				TStrandAttributesRef<FVector2f> RootUVStrandAttributeRef = GetOrCreateRootUVStrandAttributeRef();
 				// RootUV is a strand attribute but UVsParam is vertex-scope so there's a NumVertices to NumCurves conversion needed
 				int32 VertexIndex = 0;
 				for (uint32 CurveIndex = 0; CurveIndex < NumCurves; ++CurveIndex)

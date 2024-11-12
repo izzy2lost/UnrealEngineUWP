@@ -2,6 +2,7 @@
 
 #include "PCGData.h"
 
+#include "PCGContext.h"
 #include "PCGNode.h"
 #include "PCGParamData.h"
 #include "PCGPin.h"
@@ -19,7 +20,7 @@
 static TAutoConsoleVariable<bool> CVarCachePropagateCrcThroughBooleanData(
 	TEXT("pcg.Cache.PropagateCrcThroughBooleanData"),
 	false,
-	TEXT("Whether intersection, union, difference combine Crc values from operands. If false they fall back to using data UID."));
+	TEXT("Whether intersection, union, difference, projection combine Crc values from operands. If false they fall back to using data UID."));
 
 UPCGData::UPCGData(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -79,6 +80,12 @@ void UPCGData::InitUID()
 	UID = ++UIDCounter;
 }
 
+void UPCGData::PostEditImport()
+{
+	Super::PostEditImport();
+	InitUID();
+}
+
 void UPCGData::Flatten()
 {
 	if (UPCGMetadata* Metadata = MutableMetadata())
@@ -89,7 +96,16 @@ void UPCGData::Flatten()
 
 UPCGData* UPCGData::DuplicateData(bool bInitializeMetadata) const
 {
+	//@todo_pcg: Not sure StaticDuplicateObject is thread safe, most UPCGDAta subclasses override DuplicateData
+	ensure(IsInGameThread());
 	return Cast<UPCGData>(StaticDuplicateObject(this, GetTransientPackage()));
+}
+
+UPCGData* UPCGData::DuplicateData(FPCGContext* Context, bool bInitializeMetadata) const
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return DuplicateData(bInitializeMetadata);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 bool FPCGTaggedData::operator==(const FPCGTaggedData& Other) const
@@ -183,6 +199,12 @@ int32 FPCGDataCollection::GetSpatialInputCountByPin(const FName& InPinLabel) con
 
 const UPCGSpatialData* FPCGDataCollection::GetSpatialUnionOfInputsByPin(const FName& InPinLabel, bool& bOutUnionDataCreated) const
 {
+	check(IsInGameThread());
+	return GetSpatialUnionOfInputsByPin(nullptr, InPinLabel, bOutUnionDataCreated);
+}
+
+const UPCGSpatialData* FPCGDataCollection::GetSpatialUnionOfInputsByPin(FPCGContext* InContext, const FName& InPinLabel, bool& bOutUnionDataCreated) const
+{
 	TArray<FPCGTaggedData> SpatialDataOnPin = TaggedData.FilterByPredicate([&InPinLabel](const FPCGTaggedData& Data) {
 		return Data.Pin == InPinLabel && Data.Data && Data.Data->IsA<UPCGSpatialData>();
 	});
@@ -207,7 +229,7 @@ const UPCGSpatialData* FPCGDataCollection::GetSpatialUnionOfInputsByPin(const FN
 			if (!Union)
 			{
 				// Second valid data - set up union
-				Union = NewObject<UPCGUnionData>();
+				Union = FPCGContext::NewObject_AnyThread<UPCGUnionData>(InContext);
 				Union->Initialize(Result, SpatialInput);
 
 				// Make result union
@@ -289,19 +311,6 @@ UPCGParamData* FPCGDataCollection::GetParamsWithDeprecation(const UPCGNode* Node
 					return const_cast<UPCGParamData*>(Params);
 				}
 			}
-		}
-	}
-
-	return nullptr;
-}
-
-UPCGParamData* FPCGDataCollection::GetParams() const
-{
-	for (const FPCGTaggedData& TaggedDatum : TaggedData)
-	{
-		if (const UPCGParamData* Params = Cast<UPCGParamData>(TaggedDatum.Data))
-		{
-			return const_cast<UPCGParamData*>(Params); 
 		}
 	}
 
@@ -413,12 +422,18 @@ void FPCGDataCollection::AddReferences(FReferenceCollector& Collector)
 
 void FPCGDataCollection::ComputeCrcs(bool bFullDataCrc)
 {
-	DataCrcs.SetNumUninitialized(TaggedData.Num(), /*bAllowShrinking=*/false);
+	DataCrcs.SetNumUninitialized(TaggedData.Num(), EAllowShrinking::No);
 
 	for (int I = 0; I < TaggedData.Num(); ++I)
 	{
 		DataCrcs[I] = TaggedData[I].ComputeCrc(bFullDataCrc);
 	}
+}
+
+void FPCGDataCollection::AddData(const FPCGTaggedData& InData, const FPCGCrc& InDataCrc)
+{
+	TaggedData.Add(InData);
+	DataCrcs.Add(InDataCrc);
 }
 
 void FPCGDataCollection::AddData(const TConstArrayView<FPCGTaggedData>& InData, const TConstArrayView<FPCGCrc>& InDataCrcs)

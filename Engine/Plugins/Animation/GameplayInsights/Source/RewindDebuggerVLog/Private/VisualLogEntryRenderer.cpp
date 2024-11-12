@@ -7,22 +7,40 @@
 #include "DrawDebugHelpers.h"
 #include "GeomTools.h"
 #include "IndexTypes.h"
+#include "Engine/Canvas.h"
 #include "Engine/World.h"
 #include "VisualLogger/VisualLogger.h"
+#include "UObject/Package.h"
 
 namespace
 {
 	static const int CircleSegments = 24;
-
 	
 	// utility wrapper for drawing shape descriptions
-	inline void RenderDescription(UWorld* World, const FVisualLogShapeElement* ElementToDraw, const FVector& Position, const FColor& Color, int Index, int Count)
+	inline void RenderDescription(UWorld* World, UCanvas* Canvas, UFont* Font, const FVisualLogShapeElement* ElementToDraw, const FVector& Position, const FColor& Color, int Index, int Count)
 	{
-		if (ElementToDraw->Description.IsEmpty())
+		if (Canvas)
 		{
-			const FString PrintString = Count == 1 ? ElementToDraw->Description : FString::Printf(TEXT("%s_%d"), *ElementToDraw->Description, Index);
-			// todo: we should swap this out with something that displays when paused
-			DrawDebugString(World, Position, PrintString, nullptr, Color);
+			if (!ElementToDraw->Description.IsEmpty())
+			{
+				const FSceneView* View = Canvas->SceneView;
+				if (View->CullingFrustum.IntersectPoint(Position))
+				{
+					const FPlane Proj = View->Project(Position);
+					if (Proj.W > 0.f)
+					{
+						const int32 HalfX = Canvas->SizeX / 2;
+						const int32 HalfY = Canvas->SizeY / 2;
+
+						const int32 XPos = HalfX + static_cast<int32>(HalfX * Proj.X);
+						const int32 YPos = HalfY + static_cast<int32>(HalfY * (Proj.Y * -1));
+					
+						const FString PrintString = Count == 1 ? ElementToDraw->Description : FString::Printf(TEXT("%s_%d"), *ElementToDraw->Description, Index);
+
+						Canvas->Canvas->DrawShadowedString(XPos, YPos, PrintString, Font, Color);
+					}
+				}
+			}
 		}
 	}
 
@@ -96,8 +114,17 @@ namespace
 }
 
 
-void FVisualLogEntryRenderer::RenderLogEntry(class UWorld* World, const FVisualLogEntry& Entry, TFunctionRef<bool (const FName&, ELogVerbosity::Type)> MatchCategoryFilters)
+void FVisualLogEntryRenderer::RenderLogEntry(class UWorld* World, const FVisualLogEntry& Entry, TFunctionRef<bool (const FName&, ELogVerbosity::Type)> MatchCategoryFilters,
+	UCanvas* Canvas, UFont* Font, UFont* MonospaceFont, int32& ScreenTextY)
 {
+	for(const FVisualLogLine& LogLine : Entry.LogLines)
+	{
+		if (MatchCategoryFilters(LogLine.Category, LogLine.Verbosity))
+		{
+			Canvas->Canvas->DrawShadowedString(20, ScreenTextY+=16, LogLine.Line, (LogLine.bMonospace && MonospaceFont) ? MonospaceFont : Font, LogLine.Color);
+		}
+	}
+	
 	const FVisualLogShapeElement* ElementToDraw = Entry.ElementsToDraw.GetData();
 	const int32 ElementsCount = Entry.ElementsToDraw.Num();
 
@@ -155,7 +182,7 @@ void FVisualLogEntryRenderer::RenderLogEntry(class UWorld* World, const FVisualL
 					}
 				}
 
-				RenderDescription(World, ElementToDraw, Point, Color, Index, NumPoints);
+				RenderDescription(World, Canvas, Font, ElementToDraw, Point, Color, Index, NumPoints);
 			}
 		}
 		break;
@@ -208,7 +235,7 @@ void FVisualLogEntryRenderer::RenderLogEntry(class UWorld* World, const FVisualL
 			for (int32 Index = 0; Index + 1 < NumPoints; Index += 2, Location += 2)
 			{
 				DrawDebugLine(World, Location[0], Location[1], Color, false, -1, DepthPriority, Thickness);
-				RenderDescription(World, ElementToDraw, (Location[0] + Location[1]), Color, Index/2, NumPoints/2);
+				RenderDescription(World, Canvas, Font, ElementToDraw, (Location[0] + Location[1])/2, Color, Index/2, NumPoints/2);
 			}
 		}
 			break;
@@ -238,7 +265,7 @@ void FVisualLogEntryRenderer::RenderLogEntry(class UWorld* World, const FVisualL
 				const FBox Box = FBox(*BoxExtent, *(BoxExtent + 1));
 				// todo: wireframe, 
 				DrawDebugSolidBox(World, Box, Color, Transform, false, -1.f, DepthPriority);
-				RenderDescription(World, ElementToDraw, Transform.TransformPosition(Box.GetCenter()), Color, Index/2, NumPoints/2);
+				RenderDescription(World, Canvas, Font, ElementToDraw, Transform.TransformPosition(Box.GetCenter()), Color, Index/2, NumPoints/2);
 			}
 		}
 			break;
@@ -258,7 +285,7 @@ void FVisualLogEntryRenderer::RenderLogEntry(class UWorld* World, const FVisualL
 				Direction.FindBestAxisVectors(YAxis, ZAxis);
 
 				DrawDebugCone(World, Origin, Direction, Length, Angles.Y, Angles.Z, CircleSegments, Color, false, -1.f, DepthPriority, Thickness);
-				RenderDescription(World, ElementToDraw, Origin, Color, Index/3, ElementToDraw->Points.Num()/3);
+				RenderDescription(World, Canvas, Font, ElementToDraw, Origin, Color, Index/3, ElementToDraw->Points.Num()/3);
 			}
 		}
 			break;
@@ -275,7 +302,7 @@ void FVisualLogEntryRenderer::RenderLogEntry(class UWorld* World, const FVisualL
 				const FVector Center = 0.5 * (Start + End);
 
 				DrawDebugCylinder(World, Start, End, static_cast<float>(OtherData.X), CircleSegments, Color, false, -1.f, DepthPriority, Thickness);
-				RenderDescription(World, ElementToDraw, Center, Color, Index/3, ElementToDraw->Points.Num()/3);
+				RenderDescription(World, Canvas, Font, ElementToDraw, Center, Color, Index/3, ElementToDraw->Points.Num()/3);
 			}
 		}
 			break;
@@ -294,7 +321,7 @@ void FVisualLogEntryRenderer::RenderLogEntry(class UWorld* World, const FVisualL
 				const FQuat Rotation = FQuat(FirstData.Z, SecondData.X, SecondData.Y, SecondData.Z);
 		
 				DrawDebugCapsule(World, Base, HalfHeight, Radius, Rotation, Color, false, -1.f, DepthPriority, Thickness);
-				RenderDescription(World, ElementToDraw, Base, Color, Index/3, ElementToDraw->Points.Num()/3);
+				RenderDescription(World, Canvas, Font, ElementToDraw, Base, Color, Index/3, ElementToDraw->Points.Num()/3);
 			}
 		}
 			break;
@@ -313,7 +340,7 @@ void FVisualLogEntryRenderer::RenderLogEntry(class UWorld* World, const FVisualL
 			const FHeaderData HeaderData(ElementToDraw->Points[0]);
 		
 			TArray<FVector> AreaMeshPoints = ElementToDraw->Points;
-			AreaMeshPoints.RemoveAt(0, 1, EAllowShrinking::No);
+			AreaMeshPoints.RemoveAt(0, EAllowShrinking::No);
 			AreaMeshPoints.Add(ElementToDraw->Points[1]);
 			TNavStatArray<FVector> Faces;
 			int32 CurrentIndex = 0;
@@ -372,7 +399,7 @@ void FVisualLogEntryRenderer::RenderLogEntry(class UWorld* World, const FVisualL
 			for (int32 Index = 0; Index + 1 < NumPoints; Index += 2, Location += 2)
 			{
 				DrawDebugDirectionalArrow(World, Location[0], Location[1], 40, Color, false, -1, DepthPriority, 1.5);
-				RenderDescription(World, ElementToDraw, (Location[0] + Location[1]) / 2, Color, Index/2, ElementToDraw->Points.Num()/2);
+				RenderDescription(World, Canvas, Font, ElementToDraw, (Location[0] + Location[1]) / 2, Color, Index/2, ElementToDraw->Points.Num()/2);
 			}
 		}
 		break;
@@ -391,7 +418,7 @@ void FVisualLogEntryRenderer::RenderLogEntry(class UWorld* World, const FVisualL
 				const float Thickness = float(ElementToDraw->Thicknes);
 
 				RenderCircle(World, Center, UpAxis, Radius, Thickness, Color, DepthPriority);
-				RenderDescription(World, ElementToDraw, Center, Color, Index/3, ElementToDraw->Points.Num()/3);
+				RenderDescription(World, Canvas, Font, ElementToDraw, Center, Color, Index/3, ElementToDraw->Points.Num()/3);
 			}
 		}
 			break;

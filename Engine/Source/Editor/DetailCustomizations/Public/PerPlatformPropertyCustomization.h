@@ -9,7 +9,7 @@
 #include "IPropertyTypeCustomization.h"
 #include "Internationalization/Text.h"
 #include "Misc/Attribute.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/NameTypes.h"
 #include "UnrealClient.h"

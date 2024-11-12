@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NiagaraStatelessCommon.ush"
+#include "/Engine/Private/ComputeShaderUtils.ush"
 //#include "WaveOpUtil.ush"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -30,13 +31,6 @@
 #include "Modules/NiagaraStatelessModule_SpriteRotationRate.ush"
 #include "Modules/NiagaraStatelessModule_SubUVAnimation.ush"
 
-struct FStatelessParticleSimuation
-{
-	#define PARTICLE_MODULE(NAME) FStatelessModule_##NAME	NAME##Module;
-		PARTICLE_MODULES
-	#undef PARTICLE_MODULE
-};
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #define NIAGARA_MAX_GPU_SPAWN_INFOS 4
@@ -60,16 +54,25 @@ DECLARE_SCALAR_ARRAY(float,	SpawnInfo_Rate, NIAGARA_MAX_GPU_SPAWN_INFOS);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-[numthreads(THREADGROUP_SIZE, 1, 1)]
-void StatelessMain(uint DispatchThreadId : SV_DispatchThreadID)
+void Null_Simulate(inout FStatelessParticle Particle)
 {
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+[numthreads(THREADGROUP_SIZE, 1, 1)]
+void StatelessMain(uint3 GroupId : SV_GroupID, int GroupThreadIndex : SV_GroupIndex)
+{
+	// Convert thread ID into linear thread
+	uint LinearThreadId = GetUnWrappedDispatchThreadId(GroupId, GroupThreadIndex, THREADGROUP_SIZE);
+
 	// Initialize our particle data
 	FStatelessParticle Particle;
 	Particle.Age = -1.0f;
 
 	// Find which spawn info we belong to and fill out details
 	{
-		uint SpawnInfoIndex = DispatchThreadId.x;
+		uint SpawnInfoIndex = LinearThreadId;
 		for ( int i=0; i < NIAGARA_MAX_GPU_SPAWN_INFOS; ++i )
 		{
 			const uint SpawnInfoNumActive		= GET_SCALAR_ARRAY_ELEMENT(SpawnInfo_NumActive, i);
@@ -94,12 +97,10 @@ void StatelessMain(uint DispatchThreadId : SV_DispatchThreadID)
 	}
 	
 	// Initialize variables / determine lifetime / etc
-	Particle.RandomSeed.x = 7123u;
-	Particle.RandomSeed.y = Common_RandomSeed;
-	Particle.RandomSeed.z = Particle.UniqueIndex * 3581u;
-	Particle.RandomSeed.w = 0;
+	uint ModuleSeedOffset = 0;
+	GRandomSeedInternal = FNiagaraStatelessDefinitions::MakeRandomSeed(Common_RandomSeed, Particle.UniqueIndex, ModuleSeedOffset++, 0);
 
-	Particle.Lifetime = RandomScaleBiasFloat(Particle, Common_LifetimeScaleBias.x, Common_LifetimeScaleBias.y);
+	Particle.Lifetime = RandomScaleBiasFloat(0, Common_LifetimeScaleBias.x, Common_LifetimeScaleBias.y);
 	if ( Particle.Lifetime <= 0.0f || Particle.Age >= Particle.Lifetime )
 	{
 		return;
@@ -114,21 +115,13 @@ void StatelessMain(uint DispatchThreadId : SV_DispatchThreadID)
 	
 	Particle.bAlive = true;
 	
-	// Run Particle Initialization
-	FStatelessParticleSimuation ParticleSimulation;
-
-	#define PARTICLE_MODULE(NAME) ##NAME##_Initialize(ParticleSimulation.##NAME##Module, Particle);
-		PARTICLE_MODULES
-	#undef PARTICLE_MODULE
-
-	if ( !Particle.bAlive )
-	{
-		return;
-	}
-
 	// Run Particle Simulate
-	#define PARTICLE_MODULE(NAME) ##NAME##_Simulate(ParticleSimulation.##NAME##Module, Particle);
+	#define PARTICLE_MODULE(NAME) \
+		GRandomSeedInternal = FNiagaraStatelessDefinitions::MakeRandomSeed(Common_RandomSeed, Particle.UniqueIndex, ModuleSeedOffset++, 0); \
+		##NAME##_Simulate(Particle);
+
 		PARTICLE_MODULES
+
 	#undef PARTICLE_MODULE
 
 	if ( !Particle.bAlive )

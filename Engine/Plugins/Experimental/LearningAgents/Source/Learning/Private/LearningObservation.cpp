@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LearningObservation.h"
+#include "LearningRandom.h"
 
 #include "NNERuntimeBasicCpuBuilder.h"
 
@@ -78,9 +79,11 @@ namespace UE::Learning::Observation
 	FSchemaElement FSchema::CreateContinuous(const FSchemaContinuousParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.Num >= 0);
+		UE_LEARNING_CHECK(Parameters.Scale >= 0.0f);
 
 		FContinuousData ElementData;
 		ElementData.Num = Parameters.Num;
+		ElementData.Scale = Parameters.Scale;
 
 		const int32 Index = Types.Add(EType::Continuous);
 		Tags.Add(Tag);
@@ -259,9 +262,11 @@ namespace UE::Learning::Observation
 	FSchemaContinuousParameters FSchema::GetContinuous(const FSchemaElement Element) const
 	{
 		UE_LEARNING_CHECK(IsValid(Element) && GetType(Element) == EType::Continuous);
+		const FContinuousData& ElementData = ContinuousData[TypeDataIndices[Element.Index]];
 
 		FSchemaContinuousParameters Parameters;
-		Parameters.Num = ContinuousData[TypeDataIndices[Element.Index]].Num;
+		Parameters.Num = ElementData.Num;
+		Parameters.Scale = ElementData.Scale;
 		return Parameters;
 	}
 
@@ -365,6 +370,11 @@ namespace UE::Learning::Observation
 		SubElementObjects.Empty();
 
 		Generation++;
+	}
+
+	bool FSchema::IsEmpty() const
+	{
+		return Types.IsEmpty();
 	}
 
 	void FSchema::Reset()
@@ -649,6 +659,11 @@ namespace UE::Learning::Observation
 		Generation++;
 	}
 
+	bool FObject::IsEmpty() const
+	{
+		return Types.IsEmpty();
+	}
+
 	void FObject::Reset()
 	{
 		Types.Reset();
@@ -678,162 +693,6 @@ namespace UE::Learning::Observation
 			case EEncodingActivationFunction::TanH: return NNE::RuntimeBasic::FModelBuilder::EActivationFunction::TanH;
 			default: UE_LEARNING_NOT_IMPLEMENTED(); return NNE::RuntimeBasic::FModelBuilder::EActivationFunction::ReLU;
 			}
-		}
-
-		NNE::RuntimeBasic::FModelBuilderElement MakeEncoderNetworkFromSchema(
-			NNE::RuntimeBasic::FModelBuilder& Builder,
-			const FSchema& Schema,
-			const FSchemaElement SchemaElement)
-		{
-			const EType SchemaElementType = Schema.GetType(SchemaElement);
-
-			NNE::RuntimeBasic::FModelBuilderElement ReturnElement;
-
-			switch (SchemaElementType)
-			{
-			case EType::Null:
-			{
-				ReturnElement = Builder.MakeCopy(0);
-				break;
-			}
-
-			case EType::Continuous:
-			{
-				const int32 ValueNum = Schema.GetContinuous(SchemaElement).Num;
-
-				ReturnElement = Builder.MakeDenormalize(
-					ValueNum,
-					Builder.MakeWeightsZero(ValueNum),
-					Builder.MakeWeightsConstant(ValueNum, 1.0f));
-				break;
-			}
-
-			case EType::And:
-			{
-				const FSchemaAndParameters Parameters = Schema.GetAnd(SchemaElement);
-
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderLayers;
-				BuilderLayers.Reserve(Parameters.Elements.Num());
-				for (const FSchemaElement SubElement : Parameters.Elements)
-				{
-					BuilderLayers.Emplace(MakeEncoderNetworkFromSchema(Builder, Schema, SubElement));
-				}
-
-				ReturnElement = Builder.MakeConcat(BuilderLayers);
-				break;
-			}
-
-			case EType::OrExclusive:
-			{
-				const FSchemaOrExclusiveParameters Parameters = Schema.GetOrExclusive(SchemaElement);
-
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderSubLayers;
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderEncoders;
-				BuilderSubLayers.Reserve(Parameters.Elements.Num());
-				BuilderEncoders.Reserve(Parameters.Elements.Num());
-				for (const FSchemaElement SubElement : Parameters.Elements)
-				{
-					const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(SubElement);
-					BuilderSubLayers.Emplace(MakeEncoderNetworkFromSchema(Builder, Schema, SubElement));
-					BuilderEncoders.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.EncodingSize));
-				}
-
-				ReturnElement = Builder.MakeAggregateOrExclusive(Parameters.EncodingSize, BuilderSubLayers, BuilderEncoders);
-				break;
-			}
-
-			case EType::OrInclusive:
-			{
-				const FSchemaOrInclusiveParameters Parameters = Schema.GetOrInclusive(SchemaElement);
-
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderSubLayers;
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderQueryLayers;
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderKeyLayers;
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderValueLayers;
-				BuilderSubLayers.Reserve(Parameters.Elements.Num());
-				BuilderQueryLayers.Reserve(Parameters.Elements.Num());
-				BuilderValueLayers.Reserve(Parameters.Elements.Num());
-				for (const FSchemaElement SubElement : Parameters.Elements)
-				{
-					const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(SubElement);
-					BuilderSubLayers.Emplace(MakeEncoderNetworkFromSchema(Builder, Schema, SubElement));
-					BuilderQueryLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
-					BuilderKeyLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
-					BuilderValueLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
-				}
-
-				ReturnElement = Builder.MakeAggregateOrInclusive(
-					Parameters.ValueEncodingSize,
-					Parameters.AttentionEncodingSize,
-					Parameters.AttentionHeadNum,
-					BuilderSubLayers,
-					BuilderQueryLayers,
-					BuilderKeyLayers,
-					BuilderValueLayers);
-
-				break;
-			}
-
-			case EType::Array:
-			{
-				const FSchemaArrayParameters Parameters = Schema.GetArray(SchemaElement);
-
-				ReturnElement = Builder.MakeArray(Parameters.Num, MakeEncoderNetworkFromSchema(Builder, Schema, Parameters.Element));
-				break;
-			}
-
-			case EType::Set:
-			{
-				const FSchemaSetParameters Parameters = Schema.GetSet(SchemaElement);
-
-				const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(Parameters.Element);
-
-				ReturnElement = Builder.MakeAggregateSet(
-					Parameters.MaxNum,
-					Parameters.ValueEncodingSize,
-					Parameters.AttentionEncodingSize,
-					Parameters.AttentionHeadNum,
-					MakeEncoderNetworkFromSchema(Builder, Schema, Parameters.Element),
-					Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
-					Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
-					Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
-				break;
-			}
-
-			case EType::Encoding:
-			{
-				const FSchemaEncodingParameters Parameters = Schema.GetEncoding(SchemaElement);
-
-				const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(Parameters.Element);
-
-				ReturnElement = Builder.MakeSequence({
-					MakeEncoderNetworkFromSchema(Builder, Schema, Parameters.Element),
-					Builder.MakeMLPWithRandomKaimingWeights(
-						SubElementEncodedSize,
-						Parameters.EncodingSize,
-						Parameters.EncodingSize,
-						Parameters.LayerNum + 1, // Add 1 to account for input layer
-						GetNNEActivationFunction(Parameters.ActivationFunction),
-						true)
-					});
-				break;
-			}
-
-			default:
-			{
-				UE_LEARNING_NOT_IMPLEMENTED();
-			}
-			}
-
-			UE_LEARNING_CHECKF(ReturnElement.GetInputSize() == Schema.GetObservationVectorSize(SchemaElement),
-				TEXT("Encoder Network Input unexpected size for %s. Got %i, expected %i according to Schema."),
-				*Schema.GetTag(SchemaElement).ToString(), ReturnElement.GetInputSize(), Schema.GetObservationVectorSize(SchemaElement));
-
-			UE_LEARNING_CHECKF(ReturnElement.GetOutputSize() == Schema.GetEncodedVectorSize(SchemaElement),
-				TEXT("Encoder Network Output unexpected size for %s. Got %i, expected %i according to Schema."),
-				*Schema.GetTag(SchemaElement).ToString(), ReturnElement.GetOutputSize(), Schema.GetEncodedVectorSize(SchemaElement));
-
-			return ReturnElement;
 		}
 
 		static inline int32 HashFNameStable(const FName Name)
@@ -1047,18 +906,238 @@ namespace UE::Learning::Observation
 		}
 	}
 
+	void MakeEncoderNetworkModelBuilderElementFromSchema(
+		NNE::RuntimeBasic::FModelBuilderElement& OutElement,
+		NNE::RuntimeBasic::FModelBuilder& Builder,
+		const FSchema& Schema,
+		const FSchemaElement SchemaElement,
+		const FNetworkSettings& NetworkSettings)
+	{
+		const EType SchemaElementType = Schema.GetType(SchemaElement);
+
+		switch (SchemaElementType)
+		{
+		case EType::Null:
+		{
+			OutElement = Builder.MakeCopy(0);
+			break;
+		}
+
+		case EType::Continuous:
+		{
+			const int32 ValueNum = Schema.GetContinuous(SchemaElement).Num;
+
+			OutElement = Builder.MakeDenormalize(
+				ValueNum,
+				Builder.MakeWeightsZero(ValueNum),
+				Builder.MakeWeightsConstant(ValueNum, 1.0f));
+			break;
+		}
+
+		case EType::And:
+		{
+			const FSchemaAndParameters Parameters = Schema.GetAnd(SchemaElement);
+
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderLayers;
+			BuilderLayers.Reserve(Parameters.Elements.Num());
+			for (const FSchemaElement SubElement : Parameters.Elements)
+			{
+				NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+				MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement, NetworkSettings);
+				BuilderLayers.Emplace(BuilderSubElement);
+			}
+
+			OutElement = Builder.MakeConcat(BuilderLayers);
+			break;
+		}
+
+		case EType::OrExclusive:
+		{
+			const FSchemaOrExclusiveParameters Parameters = Schema.GetOrExclusive(SchemaElement);
+
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderSubLayers;
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderEncoders;
+			BuilderSubLayers.Reserve(Parameters.Elements.Num());
+			BuilderEncoders.Reserve(Parameters.Elements.Num());
+			for (const FSchemaElement SubElement : Parameters.Elements)
+			{
+				const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(SubElement);
+				NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+				MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement, NetworkSettings);
+				BuilderSubLayers.Emplace(BuilderSubElement);
+				if (NetworkSettings.bUseCompressedLinearLayers)
+				{
+					BuilderEncoders.Emplace(Builder.MakeCompressedLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.EncodingSize));
+				}
+				else
+				{
+					BuilderEncoders.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.EncodingSize));
+				}
+			}
+
+			OutElement = Builder.MakeAggregateOrExclusive(Parameters.EncodingSize, BuilderSubLayers, BuilderEncoders);
+			break;
+		}
+
+		case EType::OrInclusive:
+		{
+			const FSchemaOrInclusiveParameters Parameters = Schema.GetOrInclusive(SchemaElement);
+
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderSubLayers;
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderQueryLayers;
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderKeyLayers;
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderValueLayers;
+			BuilderSubLayers.Reserve(Parameters.Elements.Num());
+			BuilderQueryLayers.Reserve(Parameters.Elements.Num());
+			BuilderValueLayers.Reserve(Parameters.Elements.Num());
+			for (const FSchemaElement SubElement : Parameters.Elements)
+			{
+				const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(SubElement);
+				NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+				MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement, NetworkSettings);
+				BuilderSubLayers.Emplace(BuilderSubElement);
+				if (NetworkSettings.bUseCompressedLinearLayers)
+				{
+					BuilderQueryLayers.Emplace(Builder.MakeCompressedLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
+					BuilderKeyLayers.Emplace(Builder.MakeCompressedLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
+					BuilderValueLayers.Emplace(Builder.MakeCompressedLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
+				}
+				else
+				{
+					BuilderQueryLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
+					BuilderKeyLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
+					BuilderValueLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
+				}
+			}
+
+			OutElement = Builder.MakeAggregateOrInclusive(
+				Parameters.ValueEncodingSize,
+				Parameters.AttentionEncodingSize,
+				Parameters.AttentionHeadNum,
+				BuilderSubLayers,
+				BuilderQueryLayers,
+				BuilderKeyLayers,
+				BuilderValueLayers);
+
+			break;
+		}
+
+		case EType::Array:
+		{
+			const FSchemaArrayParameters Parameters = Schema.GetArray(SchemaElement);
+
+			NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+			MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element, NetworkSettings);
+			OutElement = Builder.MakeArray(Parameters.Num, BuilderSubElement);
+			break;
+		}
+
+		case EType::Set:
+		{
+			const FSchemaSetParameters Parameters = Schema.GetSet(SchemaElement);
+
+			const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(Parameters.Element);
+
+			NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+			MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element, NetworkSettings);
+
+			if (NetworkSettings.bUseCompressedLinearLayers)
+			{
+				OutElement = Builder.MakeAggregateSet(
+					Parameters.MaxNum,
+					Parameters.ValueEncodingSize,
+					Parameters.AttentionEncodingSize,
+					Parameters.AttentionHeadNum,
+					BuilderSubElement,
+					Builder.MakeCompressedLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
+					Builder.MakeCompressedLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
+					Builder.MakeCompressedLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
+			}
+			else
+			{
+				OutElement = Builder.MakeAggregateSet(
+					Parameters.MaxNum,
+					Parameters.ValueEncodingSize,
+					Parameters.AttentionEncodingSize,
+					Parameters.AttentionHeadNum,
+					BuilderSubElement,
+					Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
+					Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
+					Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
+			}
+
+			break;
+		}
+
+		case EType::Encoding:
+		{
+			const FSchemaEncodingParameters Parameters = Schema.GetEncoding(SchemaElement);
+
+			const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(Parameters.Element);
+
+			NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+			MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element, NetworkSettings);
+
+			if (NetworkSettings.bUseCompressedLinearLayers)
+			{
+				OutElement = Builder.MakeSequence({
+					BuilderSubElement,
+					Builder.MakeCompressedMLPWithRandomKaimingWeights(
+						SubElementEncodedSize,
+						Parameters.EncodingSize,
+						Parameters.EncodingSize,
+						Parameters.LayerNum + 1, // Add 1 to account for input layer
+						Private::GetNNEActivationFunction(Parameters.ActivationFunction),
+						true)
+					});
+			}
+			else
+			{
+				OutElement = Builder.MakeSequence({
+					BuilderSubElement,
+					Builder.MakeMLPWithRandomKaimingWeights(
+						SubElementEncodedSize,
+						Parameters.EncodingSize,
+						Parameters.EncodingSize,
+						Parameters.LayerNum + 1, // Add 1 to account for input layer
+						Private::GetNNEActivationFunction(Parameters.ActivationFunction),
+						true)
+					});
+			}
+
+			break;
+		}
+
+		default:
+		{
+			UE_LEARNING_NOT_IMPLEMENTED();
+		}
+		}
+
+		UE_LEARNING_CHECKF(OutElement.GetInputSize() == Schema.GetObservationVectorSize(SchemaElement),
+			TEXT("Encoder Network Input unexpected size for %s. Got %i, expected %i according to Schema."),
+			*Schema.GetTag(SchemaElement).ToString(), OutElement.GetInputSize(), Schema.GetObservationVectorSize(SchemaElement));
+
+		UE_LEARNING_CHECKF(OutElement.GetOutputSize() == Schema.GetEncodedVectorSize(SchemaElement),
+			TEXT("Encoder Network Output unexpected size for %s. Got %i, expected %i according to Schema."),
+			*Schema.GetTag(SchemaElement).ToString(), OutElement.GetOutputSize(), Schema.GetEncodedVectorSize(SchemaElement));
+	}
+
 	void GenerateEncoderNetworkFileDataFromSchema(
 		TArray<uint8>& OutFileData,
 		uint32& OutInputSize,
 		uint32& OutOutputSize,
 		const FSchema& Schema,
 		const FSchemaElement SchemaElement,
+		const FNetworkSettings& NetworkSettings,
 		const uint32 Seed)
 	{
 		UE_LEARNING_CHECK(Schema.IsValid(SchemaElement));
 
 		NNE::RuntimeBasic::FModelBuilder Builder(Seed);
-		Builder.WriteFileDataAndReset(OutFileData, OutInputSize, OutOutputSize, Private::MakeEncoderNetworkFromSchema(Builder, Schema, SchemaElement));
+		NNE::RuntimeBasic::FModelBuilderElement Element;
+		MakeEncoderNetworkModelBuilderElementFromSchema(Element, Builder, Schema, SchemaElement, NetworkSettings);
+		Builder.WriteFileDataAndReset(OutFileData, OutInputSize, OutOutputSize, Element);
 	}
 
 	void SetVectorFromObject(
@@ -1093,13 +1172,23 @@ namespace UE::Learning::Observation
 		{
 			// Check the input sizes match
 
+			const FSchemaContinuousParameters SchemaParameters = Schema.GetContinuous(SchemaElement);
+
 			const TArrayView<const float> ObservationValues = Object.GetContinuous(ObjectElement).Values;
 			UE_LEARNING_CHECK(Schema.GetObservationVectorSize(SchemaElement) == ObservationValues.Num());
 			UE_LEARNING_CHECK(Schema.GetObservationVectorSize(SchemaElement) == OutObservationVector.Num());
+			UE_LEARNING_CHECK(Schema.GetObservationVectorSize(SchemaElement) == SchemaParameters.Num);
 
-			// Copy in the values from the observation object
+			// Copy in and scale the values from the observation object
 
-			Array::Copy<1, float>(OutObservationVector, ObservationValues);
+			const int32 ValueNum = SchemaParameters.Num;
+			const float ValueScale = FMath::Max(SchemaParameters.Scale, UE_SMALL_NUMBER);
+
+			for (int32 ValueIdx = 0; ValueIdx < ValueNum; ValueIdx++)
+			{
+				OutObservationVector[ValueIdx] = ObservationValues[ValueIdx] / ValueScale;
+			}
+
 			return;
 		}
 
@@ -1329,9 +1418,20 @@ namespace UE::Learning::Observation
 
 		case EType::Continuous:
 		{
-			UE_LEARNING_CHECK(ObservationVectorSize == Schema.GetContinuous(SchemaElement).Num);
+			const FSchemaContinuousParameters SchemaParameters = Schema.GetContinuous(SchemaElement);
+			UE_LEARNING_CHECK(ObservationVectorSize == SchemaParameters.Num);
 
-			OutObjectElement = OutObject.CreateContinuous({ MakeArrayView(ObservationVector.GetData(), ObservationVector.Num()) }, SchemaElementTag);
+			const int32 ValueNum = SchemaParameters.Num;
+			const float ValueScale = FMath::Max(SchemaParameters.Scale, UE_SMALL_NUMBER);
+
+			TLearningArray<1, float, TInlineAllocator<32>> ObservationValues;
+			ObservationValues.SetNumUninitialized({ ValueNum });
+			for (int32 ValueIdx = 0; ValueIdx < ValueNum; ValueIdx++)
+			{
+				ObservationValues[ValueIdx] = ValueScale * ObservationVector[ValueIdx];
+			}
+
+			OutObjectElement = OutObject.CreateContinuous({ MakeArrayView(ObservationValues.GetData(), ObservationValues.Num()) }, SchemaElementTag);
 			return;
 		}
 
@@ -1529,6 +1629,192 @@ namespace UE::Learning::Observation
 		{
 			UE_LEARNING_NOT_IMPLEMENTED();
 			OutObjectElement = FObjectElement();
+			return;
+		}
+		}
+	}
+
+	void AddGaussianNoiseToVector(
+		uint32& InOutRandomState,
+		TLearningArrayView<1, float> InOutObservationVector,
+		const FSchema& Schema,
+		const FSchemaElement SchemaElement,
+		const float NoiseScale)
+	{
+		UE_LEARNING_CHECK(Schema.IsValid(SchemaElement));
+
+		const EType SchemaElementType = Schema.GetType(SchemaElement);
+
+		const int32 ObservationVectorSize = InOutObservationVector.Num();
+		UE_LEARNING_CHECK(ObservationVectorSize == Schema.GetObservationVectorSize(SchemaElement));
+
+		switch (SchemaElementType)
+		{
+
+		case EType::Null:
+		{
+			return;
+		}
+
+		case EType::Continuous:
+		{
+			const FSchemaContinuousParameters SchemaParameters = Schema.GetContinuous(SchemaElement);
+			UE_LEARNING_CHECK(ObservationVectorSize == SchemaParameters.Num);
+
+			TLearningArray<1, float, TInlineAllocator<32>> NoiseValues;
+			NoiseValues.SetNumUninitialized({ SchemaParameters.Num });
+			Random::SampleGaussianArray(NoiseValues, InOutRandomState, 0.0f, NoiseScale);
+			for (int32 ValueIdx = 0; ValueIdx < SchemaParameters.Num; ValueIdx++)
+			{
+				InOutObservationVector[ValueIdx] += NoiseValues[ValueIdx];
+			}
+
+			return;
+		}
+
+		case EType::And:
+		{
+			const FSchemaAndParameters Parameters = Schema.GetAnd(SchemaElement);
+
+			int32 SubElementOffset = 0;
+			for (int32 SchemaElementIdx = 0; SchemaElementIdx < Parameters.Elements.Num(); SchemaElementIdx++)
+			{
+				const int32 SubElementSize = Schema.GetObservationVectorSize(Parameters.Elements[SchemaElementIdx]);
+
+				AddGaussianNoiseToVector(
+					InOutRandomState,
+					InOutObservationVector.Slice(SubElementOffset, SubElementSize),
+					Schema,
+					Parameters.Elements[SchemaElementIdx],
+					NoiseScale);
+
+				SubElementOffset += SubElementSize;
+			}
+			UE_LEARNING_CHECK(SubElementOffset == ObservationVectorSize);
+
+			return;
+		}
+
+		case EType::OrExclusive:
+		{
+			const FSchemaOrExclusiveParameters Parameters = Schema.GetOrExclusive(SchemaElement);
+			const int32 MaxSubElementSize = Private::GetMaxObservationVectorSize(Schema, Parameters.Elements);
+
+			int32 SchemaElementIndex = INDEX_NONE;
+			for (int32 SubElementIdx = 0; SubElementIdx < Parameters.Elements.Num(); SubElementIdx++)
+			{
+				UE_LEARNING_CHECK(InOutObservationVector[MaxSubElementSize + SubElementIdx] == 0.0f || InOutObservationVector[MaxSubElementSize + SubElementIdx] == 1.0f);
+				if (InOutObservationVector[MaxSubElementSize + SubElementIdx])
+				{
+					SchemaElementIndex = SubElementIdx;
+					break;
+				}
+			}
+			UE_LEARNING_CHECK(SchemaElementIndex != INDEX_NONE);
+
+			const int32 SubElementSize = Schema.GetObservationVectorSize(Parameters.Elements[SchemaElementIndex]);
+
+			AddGaussianNoiseToVector(
+				InOutRandomState,
+				InOutObservationVector.Slice(0, SubElementSize),
+				Schema,
+				Parameters.Elements[SchemaElementIndex],
+				NoiseScale);
+
+			return;
+		}
+
+		case EType::OrInclusive:
+		{
+			const FSchemaOrInclusiveParameters Parameters = Schema.GetOrInclusive(SchemaElement);
+			const int32 TotalSubElementSize = Private::GetTotalObservationVectorSize(Schema, Parameters.Elements);
+
+			int32 SubElementOffset = 0;
+			for (int32 SubElementIdx = 0; SubElementIdx < Parameters.Elements.Num(); SubElementIdx++)
+			{
+				const int32 SubElementSize = Schema.GetObservationVectorSize(Parameters.Elements[SubElementIdx]);
+
+				UE_LEARNING_CHECK(
+					InOutObservationVector[TotalSubElementSize + SubElementIdx] == 0.0f ||
+					InOutObservationVector[TotalSubElementSize + SubElementIdx] == 1.0f);
+
+				if (InOutObservationVector[TotalSubElementSize + SubElementIdx] == 1.0f)
+				{
+					AddGaussianNoiseToVector(
+						InOutRandomState,
+						InOutObservationVector.Slice(SubElementOffset, SubElementSize),
+						Schema,
+						Parameters.Elements[SubElementIdx],
+						NoiseScale);
+				}
+
+				SubElementOffset += SubElementSize;
+			}
+			UE_LEARNING_CHECK(SubElementOffset + Parameters.Elements.Num() == ObservationVectorSize);
+
+			return;
+		}
+
+		case EType::Array:
+		{
+			const FSchemaArrayParameters Parameters = Schema.GetArray(SchemaElement);
+			const int32 SubElementSize = Schema.GetObservationVectorSize(Parameters.Element);
+
+			for (int32 ElementIdx = 0; ElementIdx < Parameters.Num; ElementIdx++)
+			{
+				AddGaussianNoiseToVector(
+					InOutRandomState,
+					InOutObservationVector.Slice(ElementIdx* SubElementSize, SubElementSize),
+					Schema,
+					Parameters.Element,
+					NoiseScale);
+			}
+
+			return;
+		}
+
+		case EType::Set:
+		{
+			const FSchemaSetParameters Parameters = Schema.GetSet(SchemaElement);
+			const int32 SubElementSize = Schema.GetObservationVectorSize(Parameters.Element);
+
+			for (int32 SubElementIdx = 0; SubElementIdx < Parameters.MaxNum; SubElementIdx++)
+			{
+				UE_LEARNING_CHECK(
+					InOutObservationVector[SubElementSize * Parameters.MaxNum + SubElementIdx] == 0.0f ||
+					InOutObservationVector[SubElementSize * Parameters.MaxNum + SubElementIdx] == 1.0f);
+
+				if (InOutObservationVector[SubElementSize * Parameters.MaxNum + SubElementIdx] == 0.0f)
+				{
+					break;
+				}
+
+				AddGaussianNoiseToVector(
+					InOutRandomState,
+					InOutObservationVector.Slice(SubElementIdx * SubElementSize, SubElementSize),
+					Schema,
+					Parameters.Element,
+					NoiseScale);
+			}
+
+			return;
+		}
+
+		case EType::Encoding:
+		{
+			AddGaussianNoiseToVector(
+				InOutRandomState,
+				InOutObservationVector,
+				Schema,
+				Schema.GetEncoding(SchemaElement).Element,
+				NoiseScale);
+
+			return;
+		}
+
+		default:
+		{
+			UE_LEARNING_NOT_IMPLEMENTED();
 			return;
 		}
 		}

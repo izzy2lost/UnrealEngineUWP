@@ -36,10 +36,10 @@ class FAnalogCursor : public IInputProcessor, public TSharedFromThis<FAnalogCurs
 {
 public:
 	SLATE_API FAnalogCursor();
+	SLATE_API FAnalogCursor(const FAnalogCursor&);
 
 	/** Dtor */
-	virtual ~FAnalogCursor()
-	{}
+	SLATE_API virtual ~FAnalogCursor();
 
 	SLATE_API virtual void Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor> Cursor) override;
 

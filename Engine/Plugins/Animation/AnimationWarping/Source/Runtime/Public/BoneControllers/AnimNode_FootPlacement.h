@@ -44,12 +44,6 @@ namespace UE::Anim::FootPlacement
 			float FootLength = 0.0f;
 		} Bones;
 
-		// Curves
-		UE_DEPRECATED(5.3, "SpeedCurveUID is no longer used, use SpeedCurveName instead.")
-		SmartName::UID_Type SpeedCurveUID = SmartName::MaxUID;
-		UE_DEPRECATED(5.3, "DisableLockCurveUID is no longer used, use DisableLockCurveName instead.")
-		SmartName::UID_Type DisableLockCurveUID = SmartName::MaxUID;
-
 		FName SpeedCurveName = NAME_None;
 		FName DisableLockCurveName = NAME_None;
 		FName DisableLegCurveName = NAME_None;
@@ -84,8 +78,7 @@ namespace UE::Anim::FootPlacement
 		{
 			UE::Anim::FootPlacement::EPlantType PlantType = UE::Anim::FootPlacement::EPlantType::Unplanted;
 			UE::Anim::FootPlacement::EPlantType LastPlantType = UE::Anim::FootPlacement::EPlantType::Unplanted;
-			FPlane PlantPlaneWS = FPlane(FVector::UpVector, 0.0f);
-			FPlane PlantPlaneCS = FPlane(FVector::UpVector, 0.0f);
+			FPlane PlantPlaneRS = FPlane(FVector::UpVector, 0.0f);
 			FQuat TwistCorrection = FQuat::Identity;
 			// @TODO: When we have prediction/phase info, replace use-cases with post-plant roll-phase
 			float TimeSinceFullyUnaligned = 0.0f;
@@ -93,19 +86,27 @@ namespace UE::Anim::FootPlacement
 			bool bCanReachTarget = false;
 			// Whether we want to plant, independently from any dynamic pose adjustments we may do
 			bool bWantsToPlant = false;
+
+			FPlane GetPlantPlaneCS(const FTransform& RootToComponent) const { return PlantPlaneRS.TransformBy(RootToComponent.ToMatrixWithScale());}
+			FPlane GetPlantPlaneWS(const FTransform& RootToComponent, const FTransform& ComponentToWorld) const 
+			{ 
+				return GetPlantPlaneCS(RootToComponent).TransformBy(ComponentToWorld.ToMatrixWithScale());
+			}
+
 		} Plant;
 		
 		// Ground-aligned, locked/unlocked bone transform pre-extension adjustments
 		FTransform AlignedFootTransformWS = FTransform::Identity;
-		FTransform AlignedFootTransformCS = FTransform::Identity;
+		FTransform AlignedFootTransformRS = FTransform::Identity;
 		// Foot locked/unlocked bone transform, before ground alignment
 		FTransform UnalignedFootTransformWS = FTransform::Identity;
+		FTransform UnalignedFootTransformRS = FTransform::Identity;
 		
 		/* Interpolation */
 		struct FInterpolationData
 		{
 			// Interpolated foot lock offset
-			FTransform UnalignedFootOffsetCS = FTransform::Identity;
+			FTransform UnalignedFootOffset = FTransform::Identity;
 			// Separating plane spring states
 			FVectorSpringState SeparatingPlaneOffsetSpringState;
 			FVector SeparatingPlaneOffset = FVector::ZeroVector;
@@ -162,7 +163,10 @@ namespace UE::Anim::FootPlacement
 	struct FCharacterData
 	{
 		FTransform ComponentTransformWS = FTransform::Identity;
-		FVector ComponentVelocityCS = FVector::ZeroVector;
+		FVector ComponentMoveDeltaWS = FVector::ZeroVector;
+		FVector CharacterVelocityWS = FVector::ZeroVector;
+		FVector SmoothCapsuleGroundNormalWS = FVector::ZeroVector;
+		FQuaternionSpringState SmoothCapsuleGroundNormalSpringState;
 		bool bIsOnGround = false;
 	};
 
@@ -261,6 +265,9 @@ public:
 	bool bEnableFloorInterpolation = true;
 	
 	UPROPERTY(EditAnywhere, Category = "Plant Settings")
+	bool bSmoothRootBone = false;
+
+	UPROPERTY(EditAnywhere, Category = "Plant Settings")
 	bool bEnableSeparationInterpolation = true;
 };
 
@@ -284,20 +291,17 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Trace Settings", meta=(EditCondition="bEnabled", DisplayAfter="bEnabled"))
 	float SweepRadius = 5.0f;
 
-	// The channel to use for our complex trace
 	UPROPERTY(EditAnywhere, Category = "Trace Settings", meta=(EditCondition="bEnabled", DisplayAfter="bEnabled"))
+	bool bDisableComplexTrace = false;
+
+	// The channel to use for our complex trace
+	UPROPERTY(EditAnywhere, Category = "Trace Settings", meta=(EditCondition="!bDisableComplexTrace", DisplayAfter="bDisableComplexTrace"))
 	TEnumAsByte<ETraceTypeQuery> ComplexTraceChannel = TraceTypeQuery1;
 
 	// How much the feet can penetrate the ground geometry. It's recommended to allow some to account for interpolation
 	// Negative values disable this effect
 	UPROPERTY(EditAnywhere, Category = "Trace Settings")
 	float MaxGroundPenetration = 10.0f;
-
-	// How much we align to simple vs complex collision when the foot is in flight
-	// Tracing against simple geometry (i.e. it's common for stairs to have simplified ramp collisions) can provide a 
-	// smoother trajectory when the foot is in flight
-	UPROPERTY(EditAnywhere, Category = "Trace Settings", meta = (EditCondition = "bEnabled", DisplayAfter = "bEnabled"))
-	float SimpleCollisionInfluence = 0.0f;
 
 	// The channel to use for our simple trace
 	UPROPERTY(EditAnywhere, Category = "Trace Settings", meta = (EditCondition = "bEnabled", DisplayAfter = "bEnabled"))
@@ -344,11 +348,11 @@ enum class EPelvisHeightMode : uint8
 UENUM(BlueprintType)
 enum class EActorMovementCompensationMode : uint8
 {
-	// Keep pelvis component-space and follow along all of the actor's vertical ground movement
+	// Keep pelvis component-space and follow along all of the actor's vertical ground movement. Use when you have really smooth ground geometry, or if you have moving platforms.
 	ComponentSpace,
 	// Hold pelvis world-space and ignore the actor's vertical ground movement. Let springs interpolate the difference
 	WorldSpace,
-	// Keep pelvis component-space, but hold world-space transform when the actor does sudden changes (i.e. a big step), and let springs interpolate the difference.
+	// Keep pelvis component-space, but hold world-space transform when the actor does sudden changes (i.e. a big step), and let springs interpolate the difference. Does not work on moving platforms.
 	SuddenMotionOnly
 };
 
@@ -501,6 +505,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Plant Settings", meta = (ClampMin = "0.0", UIMin = "0.0", ClampMax = "1.0", UIMax = "1.0"))
 	float AnkleTwistReduction = 0.75f;
 
+	// Only consider world deltas caused by played velocity. This is useful when on a moving platform i.e. but won't consider slopes.
+	UPROPERTY(EditAnywhere, Category = "Plant Settings")
+	bool bReconstructWorldPlantFromVelocity = false;
+
 	// Whether to allow adjusting the heel lift before we plant
 	UPROPERTY(EditAnywhere, Category = "Plant Settings")
 	bool bAdjustHeelBeforePlanting = false;
@@ -543,6 +551,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (PinHiddenByDefault))
 	FFootPlacementTraceSettings TraceSettings;
 
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
+	FVector BaseTranslationDelta = FVector::ZeroVector;
+
 public:
 	FAnimNode_FootPlacement();
 
@@ -584,9 +595,8 @@ private:
 
 	// Calculate the desired pelvis offset, based on procedural character/foot adjustments
 	FTransform SolvePelvis(const UE::Anim::FootPlacement::FEvaluationContext& Context);
-	TBitArray<> FindRelevantFeet(const UE::Anim::FootPlacement::FEvaluationContext& Context);
-	TBitArray<> FindPlantedFeet(const UE::Anim::FootPlacement::FEvaluationContext& Context);
-	FTransform UpdatePelvisInterpolation(
+
+	FTransform UpdatePelvisInterpolationRootSpace(
 		const UE::Anim::FootPlacement::FEvaluationContext& Context,
 		const FTransform& TargetPelvisTransform);
 
@@ -598,6 +608,8 @@ private:
 		const FTransform& PelvisTransformCS);
 
 	FVector GetApproachDirWS(const FAnimationBaseContext& Context) const;
+
+	const FTransform& GetRootToComponent() const;
 
 private:
 	float CachedDeltaTime = 0.0f;
@@ -659,8 +671,7 @@ private:
 	// Handles horizontal interpolation when unlocking the plant
 	FTransform UpdatePlantOffsetInterpolation(
 		const UE::Anim::FootPlacement::FEvaluationContext& Context,
-		UE::Anim::FootPlacement::FLegRuntimeData::FInterpolationData& InOutInterpData,
-		const FTransform& DesiredTransformCS) const;
+		UE::Anim::FootPlacement::FLegRuntimeData::FInterpolationData& InOutInterpData) const;
 
 	// Handles the interpolation of the planting plane. Because the plant transform is specified with respect to the 
 	// planting plane, it cannot change abruptly without causing an animation pop. It must be interpolated instead.
@@ -670,6 +681,7 @@ private:
 		const FTransform& LastAlignedFootTransform,
 		const float AlignmentAlpha,
 		FPlane& InOutPlantPlane,
+		const UE::Anim::FootPlacement::FLegRuntimeData::FInputPoseData& LegInputPose,
 		UE::Anim::FootPlacement::FLegRuntimeData::FInterpolationData& InOutInterpData) const;
 
 	// Checks unplanting and replanting conditions to determine if the foot is planted

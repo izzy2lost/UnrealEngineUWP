@@ -26,6 +26,8 @@ namespace UE::ConcertSyncCore
 
 namespace UE::ConcertSyncClient::Replication
 {
+	class FLocalSyncControl;
+	
 	/**
 	 * Exposes UObject instances to an FObjectReplicationProcessor.
 	 * IConcertClientReplicationBridge tracks UObject lifetime, this class exposes them.
@@ -36,15 +38,10 @@ namespace UE::ConcertSyncClient::Replication
 
 		DECLARE_DELEGATE_RetVal(const TArray<FConcertReplicationStream>*, FGetClientStreams);
 
-		/**
-		 * @param InReplicationBridge 
-		 * @param InReplicationFormat 
-		 * @param InGetStreamsDelegate 
-		 * @param ClientId 
-		 */
 		FClientReplicationDataCollector(
-			IConcertClientReplicationBridge* InReplicationBridge,
-			TSharedRef<ConcertSyncCore::IObjectReplicationFormat> InReplicationFormat,
+			IConcertClientReplicationBridge& InReplicationBridge UE_LIFETIMEBOUND,
+			ConcertSyncCore::IObjectReplicationFormat& InReplicationFormat UE_LIFETIMEBOUND,
+			const FLocalSyncControl& SyncControl UE_LIFETIMEBOUND,
 			FGetClientStreams InGetStreamsDelegate,
 			const FGuid& InClientId
 			);
@@ -58,8 +55,8 @@ namespace UE::ConcertSyncClient::Replication
 		void AddReplicatedObjectStreams(const FSoftObjectPath& Object, TArrayView<const FGuid> AddedStreams);
 		/**
 		 * Indicates that certain properties of an object should no longer be replicated.
-		 * @param Object The object that should start replicating
-		 * @param RemovedStreams The streams determine which properties are to be replicated
+		 * @param Object The object that should is affected by the stream change
+		 * @param RemovedStreams The properties in these streams will no longer be replicated
 		 */
 		void RemoveReplicatedObjectStreams(const FSoftObjectPath& Object, TArrayView<const FGuid> RemovedStreams);
 		/**
@@ -69,13 +66,16 @@ namespace UE::ConcertSyncClient::Replication
 		 */
 		void OnObjectStreamModified(const FSoftObjectPath& Object, TArrayView<const FGuid> PutStreams);
 
+		/** Clears all currently replicated objects. */
+		void ClearReplicatedObjects();
+
 		/** Iterates every object for which there is at least one owning stream. */
 		void ForEachOwnedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath&)> Callback) const;
 		/** Writes all owning streams for ObjectPath into Paths. */
 		void AppendOwningStreamsForObject(const FSoftObjectPath& ObjectPath, TSet<FGuid>& Paths) const;
 
 		//~ Begin IReplicationDataSource Interface
-		virtual void ForEachPendingObject(TFunctionRef<void(const FConcertReplicatedObjectId&)> ProcessItemFunc) const override;
+		virtual void ForEachPendingObject(TFunctionRef<void(const ConcertSyncCore::FPendingObjectReplicationInfo&)> ProcessItemFunc) const override;
 		virtual int32 NumObjects() const override { return NumTrackedObjects; }
 		virtual bool ExtractReplicationDataForObject(const FConcertReplicatedObjectId& Object, TFunctionRef<void(const FConcertSessionSerializedPayload& Payload)> ProcessCopyable, TFunctionRef<void(FConcertSessionSerializedPayload&& Payload)> ProcessMoveable) override;
 		//~ End IReplicationDataSource Interface
@@ -83,9 +83,12 @@ namespace UE::ConcertSyncClient::Replication
 	private:
 
 		/** Gets and tracks replicated objects */
-		IConcertClientReplicationBridge* Bridge;
+		IConcertClientReplicationBridge& Bridge;
 		/** Used to create the replication data sent to the server. */
-		const TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;
+		ConcertSyncCore::IObjectReplicationFormat& ReplicationFormat;
+
+		/** Tells us whether we're allowed to replicate an object in a stream. */
+		const FLocalSyncControl& SyncControl;
 
 		/** Gets the stream of the managed client. */
 		const FGetClientStreams GetStreamsDelegate;
@@ -99,6 +102,9 @@ namespace UE::ConcertSyncClient::Replication
 			FGuid StreamId;
 			/** The properties to replicate */
 			FConcertPropertySelection SelectedProperties;
+			
+			/** Incremented every time replication data is sent out. Used for performance tracing. */
+			ConcertSyncCore::FSequenceId ReplicationSequenceId = 0;
 		};
 		
 		/** The objects and their properties to replicate */

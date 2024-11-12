@@ -7,6 +7,7 @@
 #include "Tasks/Pipe.h"
 #include "Tasks/TaskConcurrencyLimiter.h"
 #include "HAL/Thread.h"
+#include "Experimental/Misc/ExecutionResource.h"
 #include "Async/ParallelFor.h"
 #include "Async/ManualResetEvent.h"
 #include "Tests/TestHarnessAdapter.h"
@@ -42,7 +43,6 @@ namespace UE { namespace TasksTests
 
 		{	// launch a task and wait till it's executed
 			Launch(UE_SOURCE_LOCATION, [] {}).Wait();
-			Launch(UE_SOURCE_LOCATION, [] {}).BusyWait();
 		}
 
 		{	// FTaskEvent asserts on destruction if it wasn't triggered. uncomment the code to verify
@@ -61,7 +61,6 @@ namespace UE { namespace TasksTests
 			Event.Trigger();
 			check(Event.IsCompleted());
 			verify(Event.Wait(FTimespan::Zero()));
-			verify(Event.BusyWait(FTimespan::Zero()));
 		}
 
 		{	// FTaskEvent can be triggered multiple times
@@ -78,32 +77,22 @@ namespace UE { namespace TasksTests
 			check(!Event.IsCompleted());
 
 			// check that waiting blocks
-			FTask Task = Launch(UE_SOURCE_LOCATION, [Event]() mutable { Event.BusyWait(); });
+			FTask Task = Launch(UE_SOURCE_LOCATION, [Event]() mutable { Event.Wait(); });
 			FPlatformProcess::Sleep(0.1f);
 			check(!Task.IsCompleted());
 
 			Event.Trigger();
 			check(Event.IsCompleted());
 			verify(Event.Wait(FTimespan::Zero()));
-			verify(Event.BusyWait(FTimespan::Zero()));
 		}
 
-		{	// busy-waiting for multiple tasks
+		{	// waiting for multiple tasks
 			TArray<FTask> Tasks
 			{
 				Launch(UE_SOURCE_LOCATION,[] {}),
 				Launch(UE_SOURCE_LOCATION,[] {})
 			};
-			BusyWait(Tasks);
-		}
-
-		{	// busy-waiting for multiple tasks
-			TArray<FTask> Tasks
-			{
-				Launch(UE_SOURCE_LOCATION,[] {}),
-				Launch(UE_SOURCE_LOCATION,[] {})
-			};
-			BusyWait(Tasks, FTimespan::FromMilliseconds(10));
+			Wait(Tasks);
 		}
 
 		{	// basic use-case, postpone waiting so the task is executed first
@@ -114,17 +103,6 @@ namespace UE { namespace TasksTests
 				FPlatformProcess::Yield();
 			}
 			Task.Wait();
-			check(Done);
-		}
-
-		{	// basic use-case, postpone busy-waiting so the task is executed first
-			std::atomic<bool> Done{ false };
-			FTask Task = Launch(UE_SOURCE_LOCATION, [&Done] { Done = true; });
-			while (!Task.IsCompleted())
-			{
-				FPlatformProcess::Yield();
-			}
-			Task.BusyWait();
 			check(Done);
 		}
 
@@ -322,8 +300,8 @@ namespace UE { namespace TasksTests
 					Pipe.Launch(UE_SOURCE_LOCATION,
 						[this]
 						{
-							SuspendSignal.Trigger();
 							AddNested(ResumeSignal);
+							SuspendSignal.Trigger();
 						}
 					);
 
@@ -343,7 +321,6 @@ namespace UE { namespace TasksTests
 			FTask Task;
 			{
 				FPipeSuspensionScope Suspension(Pipe);
-				FPlatformProcess::Sleep(0.1f); // let pipe suspension finish its business, which was a bug as pipe was cleared (and unblocked) before AddNested kicked in
 				Task = Pipe.Launch(UE_SOURCE_LOCATION, [] {});
 				verify(!Task.Wait(FTimespan::FromMilliseconds(100)));
 			}
@@ -682,7 +659,37 @@ namespace UE { namespace TasksTests
 			Pipe.WaitUntilEmpty();
 		}
 
-		//for (int i = 0; i != 100000; ++i)
+		{	// waiting until a not empty pipe is empty with prereq
+			FPipe Pipe{ UE_SOURCE_LOCATION };
+			
+			FTaskEvent Prereq{ UE_SOURCE_LOCATION };
+
+			check(!Pipe.HasWork());
+
+			FTask Task1{ Pipe.Launch(UE_SOURCE_LOCATION, [] {}, Prereq) };
+
+			//Make sure the pipe knows about the task even if it has prereq
+			check(Pipe.HasWork());
+
+			check(!Task1.IsCompleted());
+
+			check(!Pipe.WaitUntilEmpty(FTimespan::FromMilliseconds(100)));
+
+			FTask Task2{ Pipe.Launch(UE_SOURCE_LOCATION, [] {}) };
+			check(Task2.Wait(FTimespan::FromMilliseconds(100)));
+
+			check(!Pipe.WaitUntilEmpty(FTimespan::FromMilliseconds(100)));
+
+			check(!Task1.IsCompleted());
+			check(Task2.IsCompleted());
+
+			Prereq.Trigger();
+
+			check(Pipe.WaitUntilEmpty(FTimespan::FromMilliseconds(100)));
+			check(Task1.IsCompleted());
+			check(Task2.IsCompleted());
+		}
+
 		{	// waiting until a not empty pipe is empty
 			FPipe Pipe{ UE_SOURCE_LOCATION };
 			Pipe.Launch(UE_SOURCE_LOCATION, [] {});
@@ -939,35 +946,32 @@ namespace UE { namespace TasksTests
 		UE_BENCHMARK(5, DependenciesPerfTest<150, 150>);
 	}
 
-	// blocks all workers (except reserve workers) until given event is triggered. Returns blocking tasks.
-	TArray<LowLevelTasks::FTask> BlockWorkers(FTaskEvent& ResumeEvent, uint32 NumWorkers = LowLevelTasks::FScheduler::Get().GetNumWorkers())
+	// blocks all workers until given event is triggered. Returns blocking tasks.
+	TArray<FTask> BlockWorkers(FTaskEvent& ResumeEvent, uint32 NumWorkers = LowLevelTasks::FScheduler::Get().GetNumWorkers())
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(BlockWorkers);
 
-		TArray<LowLevelTasks::FTask> WorkerBlockers; // tasks that block worker threads
+		TArray<FTask> WorkerBlockers; // tasks that block worker threads
 		WorkerBlockers.Reserve(NumWorkers);
 
 		std::atomic<uint32>   NumWorkersBlocked{ 0 };
 		UE::FManualResetEvent AllWorkersBlocked;
 
-		for (int i = 0; i != NumWorkers; ++i)
+		for (int32 Index = 0; Index != NumWorkers; ++Index)
 		{
-			WorkerBlockers.Emplace();
-			LowLevelTasks::FTask& Task = WorkerBlockers.Last();
-			Task.Init(TEXT("WorkerBlocker"),
-				[&NumWorkersBlocked, &NumWorkers, &ResumeEvent, &AllWorkersBlocked]
-				{
-					checkf(LowLevelTasks::FScheduler::Get().IsWorkerThread(), TEXT("No reserve workers are expected to get blocked"));
-					if (++NumWorkersBlocked == NumWorkers)
+			WorkerBlockers.Emplace(
+				UE::Tasks::Launch(
+					TEXT("WorkerBlocker"),
+					[&NumWorkersBlocked, &NumWorkers, &ResumeEvent, &AllWorkersBlocked]
 					{
-						AllWorkersBlocked.Notify();
+						if (++NumWorkersBlocked == NumWorkers)
+						{
+							AllWorkersBlocked.Notify();
+						}
+						TRACE_CPUPROFILER_EVENT_SCOPE(BlockWorkers_Blocked);
+						ResumeEvent.Wait();
 					}
-					TRACE_CPUPROFILER_EVENT_SCOPE(BlockWorkers_Blocked);
-					ResumeEvent.Wait();
-				},
-				LowLevelTasks::ETaskFlags::AllowNothing
-			);
-			LowLevelTasks::FScheduler::Get().TryLaunch(Task);
+			));
 		}
 
 		TRACE_CPUPROFILER_EVENT_SCOPE(WaitingUntilAllWorkersBlocked);
@@ -1005,10 +1009,10 @@ namespace UE { namespace TasksTests
 
 	TEST_CASE_NAMED(FTasksDeepRetractionTest, "System::Core::Tasks::DeepRetraction", "[.][ApplicationContextMask][EngineFilter]")
 	{
-		FPlatformProcess::Sleep(0.1f); // give workers time to fall asleep, to avoid any reserve worker messing around
+		FPlatformProcess::Sleep(0.1f); // give workers time to fall asleep
 
 		FTaskEvent ResumeEvent{ UE_SOURCE_LOCATION };
-		TArray<LowLevelTasks::FTask> WorkerBlockers = BlockWorkers(ResumeEvent);
+		TArray<FTask> WorkerBlockers = BlockWorkers(ResumeEvent);
 
 		{	// basic retraction, no dependencies
 			bool bDone = false;
@@ -1097,7 +1101,7 @@ namespace UE { namespace TasksTests
 		//}
 
 		ResumeEvent.Trigger();
-		LowLevelTasks::BusyWaitForTasks<LowLevelTasks::FTask>(WorkerBlockers);
+		Wait(WorkerBlockers);
 	}
 
 	template<uint32 Num>
@@ -1643,10 +1647,10 @@ namespace UE { namespace TasksTests
 		for (int Index = 0; Index < 1000; ++Index)
 		{
 			FTaskEvent ResumeEvent{ UE_SOURCE_LOCATION };
-			TArray<LowLevelTasks::FTask> WorkerBlockers = BlockWorkers(ResumeEvent, NumWorkers);
+			TArray<FTask> WorkerBlockers = BlockWorkers(ResumeEvent, NumWorkers);
 
 			ResumeEvent.Trigger();
-			LowLevelTasks::BusyWaitForTasks<LowLevelTasks::FTask>(WorkerBlockers);
+			Wait(WorkerBlockers);
 		}
 	}
 
@@ -1665,56 +1669,74 @@ namespace UE { namespace TasksTests
 		}
 	}
 
-	TEST_CASE_NAMED(FTasksDoNotRunInsideBusyWait, "System::Core::Async::Tasks::DoNotRunInsideBusyWait", "[.][ApplicationContextMask][EngineFilter]")
+	TEST_CASE_NAMED(FTasksLoneStandbyWorker, "System::Core::Async::Tasks::LoneStandbyWorker", "[.][ApplicationContextMask][EngineFilter]")
 	{
-		using namespace LowLevelTasks;
+		// We absolutely need oversubscription to kick in to test this.
+		// So only use a single worker to make sure that happens.
+		LowLevelTasks::FScheduler::Get().RestartWorkers(1, 0);
 
-		FPlatformProcess::Sleep(0.1f); // give workers time to fall asleep, to avoid any reserve worker messing around
+		UE::FManualResetEvent OversubscribeeReadyEvent;
+		UE::FManualResetEvent OversubscriberReadyEvent;
+		UE::FManualResetEvent OversubscribeeDoneEvent;
+		UE::FManualResetEvent OversubscriberDoneEvent;
+		UE::FManualResetEvent LocalQueueEvent;
 
-		uint32 NumWorkers = LowLevelTasks::FScheduler::Get().GetNumWorkers();
-
-		// Block all workers to make sure the tasks we're going to queue are not executed before we enter our busy wait loop.
-		FTaskEvent ResumeEvent{ UE_SOURCE_LOCATION };
-		TArray<LowLevelTasks::FTask> WorkerBlockers = BlockWorkers(ResumeEvent, NumWorkers);
-
-		std::atomic<bool>     CanExecute { false };
-		std::atomic<int32>    NumExecuted { 0 };
-		UE::FManualResetEvent Done;
-
-		// Queue enough busy wait excluded tasks to verify that the scheduler
-		// will do the right thing and not end up actually executing one of them
-		// from inside busy wait.
-		for (int32 Index = 0; Index < 100; ++Index)
-		{
-			Launch(UE_SOURCE_LOCATION,
-				[&CanExecute, &NumExecuted, &Done]()
+		UE::Tasks::FTask Oversubscriber =
+			UE::Tasks::Launch(
+				TEXT("Oversubscriber"),
+				[&]()
 				{
-					verify(CanExecute.load());
-					if (++NumExecuted == 100)
-					{
-						Done.Notify();
-					}
-				},
-				UE::Tasks::ETaskPriority::Default,
-				UE::Tasks::EExtendedTaskPriority::None,
-				UE::Tasks::ETaskFlags::DoNotRunInsideBusyWait // this should not be picked up by busy waiting
-			);
-		}
+					LowLevelTasks::FOversubscriptionScope _;
+					OversubscriberReadyEvent.Notify();
+					OversubscriberDoneEvent.Wait();
+				}
+		);
 
-		// Busy wait for a second, making sure no excluded tasks are executed.
-		double StartTime = FPlatformTime::Seconds() + 1;
-		BusyWaitUntil([&StartTime]() { return FPlatformTime::Seconds() > StartTime; });
+		// Wait until the oversubscription scope is active
+		OversubscriberReadyEvent.Wait();
 
-		// Allow execution now.
-		CanExecute = true;
+		UE::Tasks::FTask Oversubscribee = UE::Tasks::Launch(
+			TEXT("Oversubscribee"),
+			[&]()
+			{
+				OversubscribeeReadyEvent.Notify();
+				OversubscribeeDoneEvent.Wait();
+			});
 
-		ResumeEvent.Trigger();
+		// The first subsequent of a task is sent to the local queue
+		// so setup ourself to be the subsequent of the oversubscribee.
+		UE::Tasks::Launch(
+			TEXT("LocalQueueTask"),
+			[&]()
+			{
+				LocalQueueEvent.Notify();
+			},
+			UE::Tasks::Prerequisites(Oversubscribee)
+		);
 
-		// Now busy waiting will run since we just unblocked all workers.
-		verify(Done.WaitFor(UE::FMonotonicTimeSpan::FromSeconds(1)));
+		// Wait until the oversubscribee task is launched.
+		OversubscribeeReadyEvent.Wait();
+		// Now close the oversubscription scope while the oversubcribee is still executing.
+		OversubscriberDoneEvent.Notify();
+		// Wait until the oversubscriber has closed it's oversubscription scope.
+		Oversubscriber.Wait();
+		// Now release the oversubscribee so it finishes executing and release its subsequent.
+		// The first subsequent will be sent to the local queue of the standby thread.
+		OversubscribeeDoneEvent.Notify();
+		// Now we're left with only a standby thread executing. If that standby thread
+		// enqueues the first subsequent to its local queue without waking up another worker
+		// and goes immediately to sleep after its execution because the oversubscription
+		// period is over, we could deadlock. The fix for this was to always enqueue
+		// to the global queue for standby workers and to always perform a wakeup
+		// so that normal workers can pick up the work if the standby worker can't.
+		// Enqueuing to the global queue is not stricly required as just performing
+		// a wake up would be sufficient, but the other thread would have to perform
+		// stealing on all threads to find our task, which is less efficient.
 
-		// Do not exit the test before all blocked workers' tasks are done.
-		LowLevelTasks::BusyWaitForTasks<LowLevelTasks::FTask>(WorkerBlockers);
+		// Verify that we did not timeout (i.e. deadlock).
+		verify(LocalQueueEvent.WaitFor(UE::FMonotonicTimeSpan::FromSeconds(5)));
+
+		LowLevelTasks::FScheduler::Get().RestartWorkers();
 	}
 }}
 

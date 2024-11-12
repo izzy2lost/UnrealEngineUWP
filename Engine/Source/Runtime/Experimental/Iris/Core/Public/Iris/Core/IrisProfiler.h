@@ -3,6 +3,7 @@
 #pragma once
 
 #include "HAL/Platform.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
 #ifndef IRIS_PROFILER_ENABLE
 #	if (UE_BUILD_SHIPPING)
@@ -58,3 +59,29 @@
 #else
 #	define IRIS_PROFILER_SCOPE_VERBOSE(x)
 #endif
+
+#ifndef IRIS_CLIENT_PROFILER_ENABLE
+#	define IRIS_CLIENT_PROFILER_ENABLE (!WITH_SERVER_CODE && CSV_PROFILER_STATS)
+#endif
+
+namespace UE::Net
+{
+
+#if IRIS_CLIENT_PROFILER_ENABLE
+
+class FClientProfiler
+{
+public:
+
+	/** Record profiler events. */
+	static void RecordObjectCreate(FName ObjectName, bool bIsSubObject);
+	static void RecordRepNotify(FName RepNotifyName);
+	static void RecordRPC(FName RPCName);
+
+	/** Return true if capturing events. */
+	static bool IsCapturing();
+};
+
+#endif
+
+}

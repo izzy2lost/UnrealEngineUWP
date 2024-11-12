@@ -81,7 +81,7 @@ bool FPCGAttributeGetFromIndexElement::ExecuteInternal(FPCGContext* Context) con
 			continue;
 		}
 
-		UPCGParamData* SubParam = NewObject<UPCGParamData>();
+		UPCGParamData* SubParam = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 		check(SubParam->Metadata);
 		SubParam->Metadata->AddAttributes(ParamMetadata);
 

@@ -23,6 +23,9 @@ private:
 	/** Callback used to register the livelink hub status bar. */
 	void OnPostEngineInit();
 
+	/** Launch the livelinkhub executable. */
+	void OpenLiveLinkHub();
+
 	/** Extend the editor's bottom status bar to add the livelink hub widget. */
 	void RegisterLiveLinkHubStatusBar();
 
@@ -31,4 +34,7 @@ private:
 
 	/** Instantiate the livelink hub status bar widget. */
     TSharedRef<class SWidget> CreateLiveLinkHubWidget();
+
+	/** Path to livelink hub. */
+	FString LiveLinkHubExecutablePath;
 };

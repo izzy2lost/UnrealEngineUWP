@@ -22,6 +22,8 @@ void FModularVehicleBuilder::GenerateSimTree(UModularVehicleBaseComponent* Modul
 		{
 			SimModuleTree->SetAnimationEnabled(RequiresAnimation);
 
+			SimModuleTree->SetSimTreeProcessingOrder(ModularVehicle->GetTreeProcessingOrder());
+
 			// Physics thread takes ownership of the tree from here
 			ModularVehicle->VehicleSimulationPT->Initialize(SimModuleTree);
 		}
@@ -33,13 +35,13 @@ void FModularVehicleBuilder::FixupTreeLinks(TUniquePtr<Chaos::FSimModuleTree>& S
 {
 	using namespace Chaos;
 
-	const FSimModuleTree::FSimModuleNode* TransmissionNode = SimModuleTree->LocateNodeByType(eSimType::Transmission);
+	const FSimModuleTree::FSimModuleNode* TransmissionNode = SimModuleTree->LocateNodeByType<Chaos::FTransmissionSimModule>();
 
 	for (int I = 0; I < SimModuleTree->NumActiveNodes(); I++)
 	{
 		// link suspension and wheel references to one another
 		ISimulationModuleBase* Module = SimModuleTree->AccessSimModule(I);
-		if (Module && Module->GetSimType() == eSimType::Suspension)
+		if (Module && Module->IsSimType<FSuspensionBaseInterface>())
 		{
 			FSimModuleTree::FSimModuleNode& SuspensionNode = SimModuleTree->GetNode(I);
 
@@ -49,12 +51,32 @@ void FModularVehicleBuilder::FixupTreeLinks(TUniquePtr<Chaos::FSimModuleTree>& S
 
 				ISimulationModuleBase* ParentModule = SimModuleTree->AccessSimModule(SuspensionParentNode.SimModule->GetTreeIndex());
 
-				if (ParentModule && ParentModule->GetSimType() == eSimType::Wheel)
+				if(FWheelBaseInterface* Wheel = ParentModule->Cast<FWheelBaseInterface>())
 				{
-					FSuspensionSimModule* Suspension = static_cast<FSuspensionSimModule*>(Module);
-					FWheelSimModule* Wheel = static_cast<FWheelSimModule*>(ParentModule);
-					Wheel->SetSuspensionSimTreeIndex(Suspension->GetTreeIndex());
-					Suspension->SetWheelSimTreeIndex(Wheel->GetTreeIndex());
+					if (FSuspensionBaseInterface* Suspension = Module->Cast<FSuspensionBaseInterface>())
+					{
+						Wheel->SetSuspensionSimTreeIndex(Suspension->GetTreeIndex());
+						Suspension->SetWheelSimTreeIndex(Wheel->GetTreeIndex());
+					}
+				}
+			}
+
+			for (int Child : SuspensionNode.Children)
+			{
+				if (Child != FSimModuleTree::FSimModuleNode::INVALID_IDX)
+				{
+					FSimModuleTree::FSimModuleNode& SuspensionChildNode = SimModuleTree->GetNode(Child);
+
+					ISimulationModuleBase* ChildModule = SimModuleTree->AccessSimModule(SuspensionChildNode.SimModule->GetTreeIndex());
+
+					if(FWheelBaseInterface* Wheel = ChildModule->Cast<FWheelBaseInterface>())
+					{
+						if (FSuspensionBaseInterface* Suspension = Module->Cast<FSuspensionBaseInterface>())
+						{
+							Wheel->SetSuspensionSimTreeIndex(Suspension->GetTreeIndex());
+							Suspension->SetWheelSimTreeIndex(Wheel->GetTreeIndex());
+						}
+					}
 				}
 			}
 		}
@@ -62,7 +84,7 @@ void FModularVehicleBuilder::FixupTreeLinks(TUniquePtr<Chaos::FSimModuleTree>& S
 		// temporarily - link suspension/wheels to engine/clutch/transmission, assuming only 1 transmission & all wheels are powered
 		if (TransmissionNode)
 		{
-			if (Module && Module->GetSimType() == eSimType::Wheel)
+			if (Module && Module->IsSimType<class FWheelSimModule>())
 			{
 				SimModuleTree->Reparent(Module->GetTreeIndex(), TransmissionNode->SimModule->GetTreeIndex());
 			}

@@ -2,19 +2,12 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+// TraceInsightsCore
+#include "InsightsCore/Filter/ViewModels/IFilterExecutor.h"
 
-namespace Insights
-{
- 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+// TraceInsights
+#include "Insights/Config.h"
 
-class IFilterExecutor
-{
-public:
-	virtual bool ApplyFilters(const class FFilterContext& Context) const = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-} // namespace Insights
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+namespace Insights { using IFilterExecutor = UE::Insights::IFilterExecutor; }
+#endif

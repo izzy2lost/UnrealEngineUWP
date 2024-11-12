@@ -7,6 +7,7 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Launcher/LauncherProjectPath.h"
+#include "Launcher/LauncherWorker.h" // just for MakeBuildCookRunParamsForProjectCustomBuild
 #include "Profiles/LauncherDeviceGroup.h"
 #include "Profiles/LauncherProfile.h"
 #include "GameProjectHelper.h"
@@ -722,4 +723,10 @@ void FLauncherProfileManager::SaveProfiles( )
 	{
 		SaveJSONProfile((*It).ToSharedRef());
 	}
+}
+
+FString FLauncherProfileManager::MakeBuildCookRunParamsForProjectCustomBuild( const ILauncherProfileRef& InProfile, const TArray<FString>& InPlatforms ) const
+{
+	FString Result = FLauncherWorker::MakeBuildCookRunParamsForProjectCustomBuild(InProfile, InPlatforms);
+	return Result;
 }

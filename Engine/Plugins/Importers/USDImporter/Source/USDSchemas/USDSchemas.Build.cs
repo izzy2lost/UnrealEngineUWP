@@ -9,14 +9,6 @@ namespace UnrealBuildTool.Rules
 	{
 		public USDSchemas(ReadOnlyTargetRules Target) : base(Target)
 		{
-			// Does not compile with C++20:
-			// error C4002: too many arguments for function-like macro invocation 'TF_PP_CAT_IMPL'
-			// warning C5103: pasting '"TF_LOG_STACK_TRACE_ON_ERROR"' and '"TF_LOG_STACK_TRACE_ON_WARNING"' does not result in a valid preprocessing token
-			CppStandard = CppStandardVersion.Cpp17;
-
-			// Replace with PCHUsageMode.UseExplicitOrSharedPCHs when this plugin can compile with cpp20
-			PCHUsage = PCHUsageMode.NoPCHs;
-
 			bUseRTTI = true;
 
 			PrivateDependencyModuleNames.AddRange(
@@ -61,6 +53,7 @@ namespace UnrealBuildTool.Rules
 				PrivateDependencyModuleNames.AddRange(
 					new string[]
 					{
+						"AudioEditor", // For USoundFactory, which we use for parsing UsdMediaSpatialAudio
 						"BlueprintGraph",
 						"GeometryCacheUSD",
 						"HairStrandsEditor",
@@ -86,6 +79,8 @@ namespace UnrealBuildTool.Rules
 					);
 				}
 			}
+
+			PrivateDefinitions.Add("SUPPRESS_PER_MODULE_INLINE_FILE"); // This module does not use core's standard operator new/delete overloads
 		}
 	}
 }

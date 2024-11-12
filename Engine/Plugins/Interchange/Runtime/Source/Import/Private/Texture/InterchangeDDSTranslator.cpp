@@ -218,6 +218,8 @@ bool UInterchangeDDSTranslator::CanImportSourceData(const UInterchangeSourceData
 		return false;
 	}
 
+	// @@ check IsImageImportPossible here?
+
 	return DDS->IsValidTexture2D() || DDS->IsValidTextureCube() || DDS->IsValidTextureArray() || DDS->IsValidTextureVolume();
 }
 

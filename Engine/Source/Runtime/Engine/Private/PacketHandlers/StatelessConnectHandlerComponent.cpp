@@ -1304,147 +1304,157 @@ void StatelessConnectHandlerComponent::IncomingConnectionless(FIncomingPacketRef
 		// No ClientID validation until connected
 	}
 
-	bool bHandshakePacket = !!Packet.ReadBit() && !Packet.IsError();
+	const bool bHandshakePacket = !!Packet.ReadBit() && !Packet.IsError();
 
 	LastChallengeSuccessAddress = nullptr;
 
-	if (bHandshakePacket)
+	if (!bHandshakePacket)
 	{
-		FParsedHandshakeData HandshakeData;
-
-		bHandshakePacket = ParseHandshakePacket(Packet, HandshakeData);
-
-		if (bHandshakePacket)
+		if (Packet.IsError())
 		{
-			EHandshakeVersion TargetVersion = EHandshakeVersion::Latest;
-			const bool bValidVersion = CheckVersion(HandshakeData, TargetVersion);
-			const bool bInitialConnect = HandshakeData.HandshakePacketType == EHandshakePacketType::InitialPacket &&
-												HandshakeData.Timestamp == 0.0;
-
-			if (Handler->Mode == UE::Handler::Mode::Server && bValidVersion && (bHasValidSessionID || bInitialConnect))
-			{
-				if (bInitialConnect)
-				{
-					SendConnectChallenge(FCommonSendToClientParams(Address, TargetVersion, ClientID), HandshakeData.RemoteSentHandshakePacketCount);
-				}
-				// Challenge response
-				else if (Driver != nullptr)
-				{
-					// NOTE: Allow CookieDelta to be 0.0, as it is possible for a server to send a challenge and receive a response,
-					//			during the same tick
-					bool bChallengeSuccess = false;
-					const double CookieDelta = Driver->GetElapsedTime() - HandshakeData.Timestamp;
-					const double SecretDelta = HandshakeData.Timestamp - LastSecretUpdateTimestamp;
-					const bool bValidCookieLifetime = CookieDelta >= 0.0 && (MAX_COOKIE_LIFETIME - CookieDelta) > 0.0;
-					const bool bValidSecretIdTimestamp = (HandshakeData.SecretId == ActiveSecret) ? (SecretDelta >= 0.0) : (SecretDelta <= 0.0);
-
-					if (bValidCookieLifetime && bValidSecretIdTimestamp)
-					{
-						// Regenerate the cookie from the packet info, and see if the received cookie matches the regenerated one
-						uint8 RegenCookie[COOKIE_BYTE_SIZE];
-
-						GenerateCookie(Address, HandshakeData.SecretId, HandshakeData.Timestamp, RegenCookie);
-
-						bChallengeSuccess = FMemory::Memcmp(HandshakeData.Cookie, RegenCookie, COOKIE_BYTE_SIZE) == 0;
-
-						if (bChallengeSuccess)
-						{
-							if (HandshakeData.bRestartHandshake)
-							{
-								FMemory::Memcpy(AuthorisedCookie, HandshakeData.OrigCookie, UE_ARRAY_COUNT(AuthorisedCookie));
-							}
-							else
-							{
-								int16* CurSequence = (int16*)HandshakeData.Cookie;
-
-								LastServerSequence = *CurSequence & (MAX_PACKETID - 1);
-								LastClientSequence = *(CurSequence + 1) & (MAX_PACKETID - 1);
-
-								FMemory::Memcpy(AuthorisedCookie, HandshakeData.Cookie, UE_ARRAY_COUNT(AuthorisedCookie));
-							}
-
-							bRestartedHandshake = HandshakeData.bRestartHandshake;
-							LastChallengeSuccessAddress = Address->Clone();
-							LastRemoteHandshakeVersion = TargetVersion;
-							CachedClientID = ClientID;
-
-							if (TargetVersion < MinClientHandshakeVersion && static_cast<uint8>(TargetVersion) >= MinSupportedHandshakeVersion)
-							{
-								MinClientHandshakeVersion = TargetVersion;
-							}
-
-
-							// Now ack the challenge response - the cookie is stored in AuthorisedCookie, to enable retries
-							SendChallengeAck(FCommonSendToClientParams(Address, TargetVersion, ClientID),
-												HandshakeData.RemoteSentHandshakePacketCount, AuthorisedCookie);
-						}
-					}
-				}
-			}
-			else if (Handler->Mode == UE::Handler::Mode::Server && bValidVersion && !bHasValidSessionID)
-			{
 #if !UE_BUILD_SHIPPING
-				UE_LOG(LogHandshake, Log, TEXT("IncomingConnectionless: Rejecting packet with invalid session id: %u vs %u."),
-						SessionID, CachedGlobalNetTravelCount);
+			UE_LOG(LogHandshake, Log, TEXT("IncomingConnectionless: Error reading session id, connection id and handshake bit from packet."));
 #endif
-
-				Packet.SetError();
-			}
-			else if (Handler->Mode == UE::Handler::Mode::Server && !bValidVersion && bInitialConnect &&
-						HandshakeData.RemoteCurVersion >= EHandshakeVersion::NetCLUpgradeMessage)
+		}
+		else if (bHasValidSessionID)
+		{
+			// Late packets from recently disconnected clients may incorrectly trigger this code path, so detect and exclude those packets
+			if (!Packet.IsError() && !PacketRef.Traits.bFromRecentlyDisconnected)
 			{
-				// Limit of 512 upgrade message packets, over 5 minutes
-				const uint32 NumUpgradeMessagesPerPeriod = 512;
-				const double UpgradeMessagePeriod = 300;
-				const double ElapsedTime = Driver->GetElapsedTime();
+				// The packet was fine but not a handshake packet - an existing client might suddenly be communicating on a different address.
+				// If we get them to resend their cookie, we can update the connection's info with their new address.
+				SendRestartHandshakeRequest(FCommonSendToClientParams(Address, static_cast<EHandshakeVersion>(MinSupportedHandshakeVersion), ClientID));
+			}
+		}
 
-				if (ElapsedTime - LastUpgradeMessagePeriodStart >= UpgradeMessagePeriod)
+		return;
+	}
+
+	FParsedHandshakeData HandshakeData;
+	const bool bValidHandshakePacket = ParseHandshakePacket(Packet, HandshakeData);
+
+	if (UNLIKELY(!bValidHandshakePacket))
+	{
+		Packet.SetError();
+
+		FDDoSDetection* DDoS = Handler->GetDDoS();
+
+		if (DDoS != nullptr)
+		{
+			DDoS->IncBadPacketCounter();
+		}
+
+#if !UE_BUILD_SHIPPING
+		UE_CLOG(DDoS == nullptr || !DDoS->CheckLogRestrictions(), LogHandshake, Log,
+			TEXT("IncomingConnectionless: Error reading handshake packet."));
+#endif
+		return;
+	}
+	
+	const bool bIsServer = Handler->Mode == UE::Handler::Mode::Server;
+	if (UNLIKELY(!bIsServer))
+	{
+		// Only server can negotiate handshake requests here
+		return;
+	}
+
+	EHandshakeVersion TargetVersion = EHandshakeVersion::Latest;
+	const bool bValidVersion = CheckVersion(HandshakeData, TargetVersion);
+	const bool bInitialConnect = HandshakeData.HandshakePacketType == EHandshakePacketType::InitialPacket && HandshakeData.Timestamp == 0.0;
+	const double ElapsedTime = Driver ? Driver->GetElapsedTime() : 0.0;
+
+	const bool bIsValidRequest = bValidVersion && (bHasValidSessionID || bInitialConnect);
+
+	// Handle invalid requests
+	if (!bIsValidRequest)
+	{
+		// Connection has an invalid Session ID
+		if (bValidVersion && !bHasValidSessionID)
+		{
+#if !UE_BUILD_SHIPPING
+			UE_LOG(LogHandshake, Log, TEXT("IncomingConnectionless: Rejecting packet with invalid session id: %u vs %u."), SessionID, CachedGlobalNetTravelCount);
+#endif
+			Packet.SetError();
+		}
+		// Connection is using an incompatible version, tell it to upgrade
+		else if (!bValidVersion && bInitialConnect && HandshakeData.RemoteCurVersion >= EHandshakeVersion::NetCLUpgradeMessage)
+		{
+			// Limit of 512 upgrade message packets, over 5 minutes
+			const uint32 NumUpgradeMessagesPerPeriod = 512;
+			const double UpgradeMessagePeriod = 300;
+
+			if (ElapsedTime - LastUpgradeMessagePeriodStart >= UpgradeMessagePeriod)
+			{
+				LastUpgradeMessagePeriodStart = ElapsedTime;
+				UpgradeMessageCounter = 0;
+			}
+			else
+			{
+				UpgradeMessageCounter++;
+			}
+
+			if (UpgradeMessageCounter < NumUpgradeMessagesPerPeriod)
+			{
+				SendVersionUpgradeMessage(FCommonSendToClientParams(Address, TargetVersion, ClientID));
+			}
+		}
+
+		return;
+	}
+
+	if (bInitialConnect)
+	{
+		SendConnectChallenge(FCommonSendToClientParams(Address, TargetVersion, ClientID), HandshakeData.RemoteSentHandshakePacketCount);
+	}
+	else
+	{
+		// Challenge response
+		// NOTE: Allow CookieDelta to be 0.0, as it is possible for a server to send a challenge and receive a response,
+		//			during the same tick
+		bool bChallengeSuccess = false;
+		const double CookieDelta = ElapsedTime - HandshakeData.Timestamp;
+		const double SecretDelta = HandshakeData.Timestamp - LastSecretUpdateTimestamp;
+		const bool bValidCookieLifetime = CookieDelta >= 0.0 && (MAX_COOKIE_LIFETIME - CookieDelta) > 0.0;
+		const bool bValidSecretIdTimestamp = (HandshakeData.SecretId == ActiveSecret) ? (SecretDelta >= 0.0) : (SecretDelta <= 0.0);
+
+		if (bValidCookieLifetime && bValidSecretIdTimestamp)
+		{
+			// Regenerate the cookie from the packet info, and see if the received cookie matches the regenerated one
+			uint8 RegenCookie[COOKIE_BYTE_SIZE];
+
+			GenerateCookie(Address, HandshakeData.SecretId, HandshakeData.Timestamp, RegenCookie);
+
+			bChallengeSuccess = FMemory::Memcmp(HandshakeData.Cookie, RegenCookie, COOKIE_BYTE_SIZE) == 0;
+
+			if (bChallengeSuccess)
+			{
+				if (HandshakeData.bRestartHandshake)
 				{
-					LastUpgradeMessagePeriodStart = ElapsedTime;
-					UpgradeMessageCounter = 0;
+					FMemory::Memcpy(AuthorisedCookie, HandshakeData.OrigCookie, UE_ARRAY_COUNT(AuthorisedCookie));
 				}
 				else
 				{
-					UpgradeMessageCounter++;
+					int16* CurSequence = (int16*)HandshakeData.Cookie;
+
+					LastServerSequence = *CurSequence & (MAX_PACKETID - 1);
+					LastClientSequence = *(CurSequence + 1) & (MAX_PACKETID - 1);
+
+					FMemory::Memcpy(AuthorisedCookie, HandshakeData.Cookie, UE_ARRAY_COUNT(AuthorisedCookie));
 				}
 
-				if (UpgradeMessageCounter < NumUpgradeMessagesPerPeriod)
+				bRestartedHandshake = HandshakeData.bRestartHandshake;
+				LastChallengeSuccessAddress = Address->Clone();
+				LastRemoteHandshakeVersion = TargetVersion;
+				CachedClientID = ClientID;
+
+				if (TargetVersion < MinClientHandshakeVersion && static_cast<uint8>(TargetVersion) >= MinSupportedHandshakeVersion)
 				{
-					SendVersionUpgradeMessage(FCommonSendToClientParams(Address, TargetVersion, ClientID));
+					MinClientHandshakeVersion = TargetVersion;
 				}
+
+				// Now ack the challenge response - the cookie is stored in AuthorisedCookie, to enable retries
+				SendChallengeAck(FCommonSendToClientParams(Address, TargetVersion, ClientID), HandshakeData.RemoteSentHandshakePacketCount, AuthorisedCookie);
 			}
-		}
-		else
-		{
-			Packet.SetError();
-
-			FDDoSDetection* DDoS = Handler->GetDDoS();
-
-			if (DDoS != nullptr)
-			{
-				DDoS->IncBadPacketCounter();
-			}
-
-#if !UE_BUILD_SHIPPING
-			UE_CLOG(DDoS == nullptr || !DDoS->CheckLogRestrictions(), LogHandshake, Log,
-					TEXT("IncomingConnectionless: Error reading handshake packet."));
-#endif
-		}
-	}
-#if !UE_BUILD_SHIPPING
-	else if (Packet.IsError())
-	{
-		UE_LOG(LogHandshake, Log, TEXT("IncomingConnectionless: Error reading session id, connection id and handshake bit from packet."));
-	}
-#endif
-	else if (bHasValidSessionID)
-	{
-		// Late packets from recently disconnected clients may incorrectly trigger this code path, so detect and exclude those packets
-		if (!Packet.IsError() && !PacketRef.Traits.bFromRecentlyDisconnected)
-		{
-			// The packet was fine but not a handshake packet - an existing client might suddenly be communicating on a different address.
-			// If we get them to resend their cookie, we can update the connection's info with their new address.
-			SendRestartHandshakeRequest(FCommonSendToClientParams(Address, static_cast<EHandshakeVersion>(MinSupportedHandshakeVersion), ClientID));
 		}
 	}
 }
@@ -1674,29 +1684,26 @@ bool StatelessConnectHandlerComponent::CheckVersion(const FParsedHandshakeData& 
 		bValidHandshakeVersion = true;
 	}
 
-	const bool bCheckNetVersion = !UE_BUILD_SHIPPING || GHandshakeEnforceNetworkCLVersion;
-	bool bValidNetVersion = true;
-	EEngineNetworkRuntimeFeatures LocalNetworkFeatures = EEngineNetworkRuntimeFeatures::None;
+	const EEngineNetworkRuntimeFeatures LocalNetworkFeatures = Driver ? Driver->GetNetworkRuntimeFeatures() : EEngineNetworkRuntimeFeatures::None;
+	bool bUEBuildShipping = UE_BUILD_SHIPPING;
+	const bool bCheckNetVersion = !bUEBuildShipping || GHandshakeEnforceNetworkCLVersion;
+	bool bValidNetCLVersion = true;
+	bool bIsNetFeatureCompatible = true;
 
-	if (bCheckNetVersion && HandshakeData.RemoteCurVersion >= EHandshakeVersion::NetCLVersion)
+	if (HandshakeData.RemoteCurVersion >= EHandshakeVersion::NetCLVersion)
 	{
-		if (Driver != nullptr)
+		if (bCheckNetVersion)
 		{
-			LocalNetworkFeatures = Driver->GetNetworkRuntimeFeatures();
+			const uint32 LocalNetworkVersion = FNetworkVersion::GetLocalNetworkVersion();
+			bValidNetCLVersion = FNetworkVersion::IsNetworkCompatible(LocalNetworkVersion, HandshakeData.RemoteNetworkVersion);
 		}
 
-		const uint32 LocalNetworkVersion = FNetworkVersion::GetLocalNetworkVersion();
-		const bool bIsCompatible = FNetworkVersion::IsNetworkCompatible(LocalNetworkVersion, HandshakeData.RemoteNetworkVersion) &&
-									FNetworkVersion::AreNetworkRuntimeFeaturesCompatible(LocalNetworkFeatures, HandshakeData.RemoteNetworkFeatures);
-
-		if (!bIsCompatible)
-		{
-			bValidNetVersion = false;
-		}
+		// Network Runtime Features are always validated since the client can try to upgrade his NetDriver and become compatible
+		bIsNetFeatureCompatible = FNetworkVersion::AreNetworkRuntimeFeaturesCompatible(LocalNetworkFeatures, HandshakeData.RemoteNetworkFeatures);
 	}
 
 #if !UE_BUILD_SHIPPING
-	if (!bValidHandshakeVersion || !bValidNetVersion)
+	if (!bValidHandshakeVersion || !bValidNetCLVersion || !bIsNetFeatureCompatible)
 	{
 		FDDoSDetection* DDoS = Handler->GetDDoS();
 		const uint32 LocalNetworkVersion = FNetworkVersion::GetLocalNetworkVersion();
@@ -1711,16 +1718,16 @@ bool StatelessConnectHandlerComponent::CheckVersion(const FParsedHandshakeData& 
 				TEXT("GHandshakeEnforceNetworkCLVersion: %i, RemoteMinVersion: %u, RemoteCurVersion: %u, MinSupportedHandshakeVersion: %i, ")
 				TEXT("CurrentHandshakeVersion: %i, RemoteNetworkVersion: %u, LocalNetworkVersion: %u, RemoteNetworkFeatures: %s, ")
 				TEXT("LocalNetworkFeatures: %s"),
-				(int32)bValidHandshakeVersion, (int32)bValidNetVersion, GHandshakeEnforceNetworkCLVersion, RemoteMinVersionUint8,
+				(int32)bValidHandshakeVersion, (int32)bValidNetCLVersion, GHandshakeEnforceNetworkCLVersion, RemoteMinVersionUint8,
 				static_cast<uint8>(HandshakeData.RemoteCurVersion), MinSupportedHandshakeVersion, CurrentHandshakeVersion,
-				HandshakeData.RemoteNetworkVersion, LocalNetworkVersion, ToCStr(RemoteNetFeaturesDescription.ToString()),
-				ToCStr(LocalNetFeaturesDescription.ToString()));
+				HandshakeData.RemoteNetworkVersion, LocalNetworkVersion, RemoteNetFeaturesDescription.ToString(), 
+				LocalNetFeaturesDescription.ToString());
 	}
 #endif
 
-	const bool bPassedNetVersionConditions = bValidNetVersion || !GHandshakeEnforceNetworkCLVersion;
+	const bool bPassedNetVersionConditions = bValidNetCLVersion || !GHandshakeEnforceNetworkCLVersion;
 
-	return bValidHandshakeVersion && bPassedNetVersionConditions;
+	return bValidHandshakeVersion && bPassedNetVersionConditions && bIsNetFeatureCompatible;
 }
 
 void StatelessConnectHandlerComponent::GenerateCookie(const TSharedPtr<const FInternetAddr>& ClientAddress, uint8 SecretId, double Timestamp,

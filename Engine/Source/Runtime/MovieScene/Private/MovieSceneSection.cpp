@@ -57,7 +57,6 @@ UMovieSceneSection::UMovieSceneSection(const FObjectInitializer& ObjectInitializ
 #endif
 }
 
-
 void UMovieSceneSection::PostInitProperties()
 {
 	SetFlags(RF_Transactional);
@@ -192,6 +191,12 @@ void UMovieSceneSection::SetEndFrame(TRangeBound<FFrameNumber> NewEndFrame)
 	}
 }
 
+void UMovieSceneSection::InvalidateChannelProxy()
+{
+	ChannelProxyType = EMovieSceneChannelProxyType::Dynamic;
+	ChannelProxy = nullptr;
+}
+
 FMovieSceneChannelProxy& UMovieSceneSection::GetChannelProxy() const
 {
 	if (!ChannelProxy.IsValid())
@@ -228,7 +233,22 @@ void UMovieSceneSection::MoveSectionImpl(FFrameNumber DeltaFrame)
 		{
 			SectionRange.Value.SetUpperBoundValue(SectionRange.Value.GetUpperBoundValue() + DeltaFrame);
 		}
+#if WITH_EDITOR
+		const bool bHasStartFrame = HasStartFrame();
 
+		for (const FMovieSceneChannelEntry& Entry : GetChannelProxy().GetAllEntries())
+		{
+			TArrayView<FMovieSceneChannel* const>        Channels = Entry.GetChannels();
+			TArrayView<const FMovieSceneChannelMetaData> MetaData = Entry.GetMetaData();
+			for (int32 Index = 0; Index < Channels.Num(); ++Index)
+			{
+				if (!MetaData[Index].bRelativeToSection || !bHasStartFrame)
+				{
+					Channels[Index]->Offset(DeltaFrame);
+				}
+			}
+		}
+#else
 		for (const FMovieSceneChannelEntry& Entry : GetChannelProxy().GetAllEntries())
 		{
 			for (FMovieSceneChannel* Channel : Entry.GetChannels())
@@ -236,7 +256,37 @@ void UMovieSceneSection::MoveSectionImpl(FFrameNumber DeltaFrame)
 				Channel->Offset(DeltaFrame);
 			}
 		}
+#endif
 	}
+}
+
+void UMovieSceneSection::FixupRelativeKeyframes(FFrameNumber Offset)
+{
+#if WITH_EDITOR
+	if (!TryModify() || !HasStartFrame())
+	{
+		return;
+	}
+
+	for (const FMovieSceneChannelEntry& Entry : GetChannelProxy().GetAllEntries())
+	{
+		TArrayView<FMovieSceneChannel* const>        Channels = Entry.GetChannels();
+		TArrayView<const FMovieSceneChannelMetaData> MetaData = Entry.GetMetaData();
+		for (int32 Index = 0; Index < Channels.Num(); ++Index)
+		{
+			if (MetaData[Index].bRelativeToSection)
+			{
+				UObject* OwningObject = MetaData[Index].WeakOwningObject.Get();
+				if (OwningObject && OwningObject != this)
+				{
+					OwningObject->Modify();
+				}
+
+				Channels[Index]->Offset(-Offset);
+			}
+		}
+	}
+#endif
 }
 
 void UMovieSceneSection::MoveSection(FFrameNumber DeltaFrame)
@@ -291,6 +341,41 @@ FMovieSceneBlendTypeField UMovieSceneSection::GetSupportedBlendTypes() const
 	return Track ? Track->GetSupportedBlendTypes() : FMovieSceneBlendTypeField::None();
 }
 
+int32 UMovieSceneSection::GetBlendingOrder() const
+{
+	//currently needs to support overrides and have one present
+	int32 BlendingOrder = INDEX_NONE;
+	bool bHasOverride = false;
+	if (GetBlendType().IsValid() && GetBlendType().BlendType == EMovieSceneBlendType::Absolute)
+	{
+		return BlendingOrder;
+	}
+
+	if (UMovieSceneTrack* Track = GetTypedOuter<UMovieSceneTrack>())
+	{
+		if (Track->GetSupportedBlendTypes().Contains(EMovieSceneBlendType::Override))
+		{
+			const TArray<UMovieSceneSection*>& Sections = Track->GetAllSections();
+			for (int32 Index = 0; Index < Sections.Num(); ++Index)
+			{
+				if (bHasOverride == false && Sections[Index]->GetBlendType().IsValid() && Sections[Index]->GetBlendType() == EMovieSceneBlendType::Override)
+				{
+					bHasOverride = true;
+				}
+				if (Sections[Index] == this)
+				{
+					BlendingOrder = Index;
+				}
+				if (bHasOverride && BlendingOrder != INDEX_NONE)
+				{
+					break;
+				}
+			}
+		}
+	}
+	return bHasOverride ? BlendingOrder : INDEX_NONE;
+}
+
 void UMovieSceneSection::BuildDefaultComponents(UMovieSceneEntitySystemLinker* EntityLinker, const UE::MovieScene::FEntityImportParams& Params, UE::MovieScene::FImportedEntity* OutImportedEntity)
 {
 	using namespace UE::MovieScene;
@@ -316,7 +401,13 @@ void UMovieSceneSection::BuildDefaultComponents(UMovieSceneEntitySystemLinker* E
 		{
 			BlendTag = Components->Tags.AdditiveFromBaseBlend;
 		}
+		else if (BlendType.Get() == EMovieSceneBlendType::Override)
+		{
+			BlendTag = Components->Tags.OverrideBlend;
+		}
 	}
+
+	int32 BlendingOrder = GetBlendingOrder();
 
 	const bool bHasEasing = (Easing.GetEaseInDuration() > 0 || Easing.GetEaseOutDuration() > 0);
 
@@ -357,6 +448,7 @@ void UMovieSceneSection::BuildDefaultComponents(UMovieSceneEntitySystemLinker* E
 	OutImportedEntity->AddBuilder(
 		FEntityBuilder()
 		.AddConditional(Components->BlenderType,                    BlenderSystemClass, BlenderSystemClass.Get() != nullptr)
+		.AddConditional(Components->BlendingOrder,					BlendingOrder, BlendingOrder != INDEX_NONE)
 		.AddConditional(Components->Easing,                         FEasingComponentData{ decltype(FEasingComponentData::Section)(this) }, bHasEasing)
 		.AddConditional(Components->HierarchicalBias,               Params.Sequence.HierarchicalBias, Params.Sequence.HierarchicalBias != 0)
 		.AddConditional(Components->Interrogation.InputKey,         Params.InterrogationKey, Params.InterrogationKey.IsValid())

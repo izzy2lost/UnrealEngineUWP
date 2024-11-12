@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AvaTag.h"
+#include "AvaTagId.h"
 #include "UObject/SoftObjectPtr.h"
 #include "AvaTagSoftHandle.generated.h"
 
@@ -13,7 +13,7 @@ struct FAvaTagHandle;
  * Soft reference handle to a Tag in a particular Source Tag Collection
  * This should be used when needing to soft reference a particular FAvaTag.
  */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct AVALANCHETAG_API FAvaTagSoftHandle
 {
 	GENERATED_BODY()
@@ -44,7 +44,7 @@ struct AVALANCHETAG_API FAvaTagSoftHandle
 		return !Source.IsNull() && TagId.IsValid();
 	}
 
-	UPROPERTY(EditAnywhere, Category="Tag")
+	UPROPERTY(EditAnywhere, Category = "Tag")
 	TSoftObjectPtr<const UAvaTagCollection> Source;
 
 	UPROPERTY()

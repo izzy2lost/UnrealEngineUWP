@@ -4,19 +4,24 @@
 
 #include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Misc/StringBuilder.h"
 #include "Rendering/DrawElements.h"
 #include "Styling/AppStyle.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/NetworkingProfiler/ViewModels/PacketContentViewport.h"
 #include "Insights/ViewModels/DrawHelpers.h"
 
 #include <limits>
-#include "Misc/StringBuilder.h"
 
 #define INSIGHTS_USE_LEGACY_BORDER 0
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FPacketContentViewDrawStateBuilder
@@ -228,6 +233,10 @@ void FPacketContentViewDrawStateBuilder::AddEvent(const TraceServices::FNetProfi
 				{
 					Builder.Append(TEXT(" | HasPackageMapExports"));
 				}
+				if (Event.BunchInfo.bPartialCustomExportsFinal)
+				{
+					Builder.Append(TEXT(" | HasCustomExports"));
+				}
 
 				Builder.Append(TEXT(", "));
 			}
@@ -308,7 +317,7 @@ void FPacketContentViewDrawStateBuilder::Flush()
 FPacketContentViewDrawHelper::FPacketContentViewDrawHelper(const FDrawContext& InDrawContext, const FPacketContentViewport& InViewport)
 	: DrawContext(InDrawContext)
 	, Viewport(InViewport)
-	, WhiteBrush(FInsightsStyle::Get().GetBrush("WhiteBrush"))
+	, WhiteBrush(FAppStyle::Get().GetBrush("WhiteBrush"))
 	, EventBorderBrush(FInsightsStyle::Get().GetBrush("EventBorder"))
 	, HoveredEventBorderBrush(FInsightsStyle::Get().GetBrush("HoveredEventBorder"))
 	, SelectedEventBorderBrush(FInsightsStyle::Get().GetBrush("SelectedEventBorder"))
@@ -533,5 +542,7 @@ void FPacketContentViewDrawHelper::DrawEventHighlight(const FNetworkPacketEvent&
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef INSIGHTS_USE_LEGACY_BORDER

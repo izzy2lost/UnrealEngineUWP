@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Async/Async.h"
 #include "Clients/LiveLinkHubProvider.h"
 #include "Clients/LiveLinkHubUEClientInfo.h"
 #include "Features/IModularFeatures.h"
@@ -10,10 +11,13 @@
 #include "LiveLinkHubModule.h"
 #include "LiveLinkHubSessionData.h"
 #include "LiveLinkTypes.h"
+#include "LiveLinkVirtualSubject.h"
 #include "Misc/ScopeLock.h"
 #include "Modules/ModuleManager.h"
-#include "Subjects/LiveLinkHubSubjectSessionConfig.h"
+#include "UObject/Package.h"
 #include "UObject/StrongObjectPtr.h"
+#include "UObject/UObjectGlobals.h"
+
 
 #define LOCTEXT_NAMESPACE "LiveLinkHubSession"
 
@@ -27,12 +31,6 @@ class ILiveLinkHubSession
 {
 public:
 	virtual ~ILiveLinkHubSession() = default;
-
-	/** Get the configuration for a given subject. */
-	virtual TOptional<FLiveLinkHubSubjectProxy> GetSubjectConfig(const FLiveLinkSubjectKey& SubjectKey) const = 0;
-
-	/** Change the outbound name of a subject for this session. */
-	virtual void RenameSubject(const FLiveLinkSubjectKey& SubjectKey, FName NewName) = 0;
 
 	/** Add a client to this session. Note: Must be called from game thread. */
 	virtual void AddClient(const FLiveLinkHubClientId& Client) = 0;
@@ -54,46 +52,14 @@ public:
 		: OnClientAddedToSessionDelegate(OnClientAddedToSession)
 		, OnClientRemovedFromSessionDelegate(OnClientRemovedFromSession)
 	{
-		RegisterDelegates();
-
-		SessionData.SubjectsConfig.Initialize();
+		SessionData = TStrongObjectPtr<ULiveLinkHubSessionData>(NewObject<ULiveLinkHubSessionData>(GetTransientPackage()));
 	}
 
-	FLiveLinkHubSession(FLiveLinkHubSessionData InSessionData, FOnClientAddedToSession& OnClientAddedToSession, FOnClientRemovedFromSession& OnClientRemovedFromSession)
-		: SessionData(MoveTemp(InSessionData))
-		, OnClientAddedToSessionDelegate(OnClientAddedToSession)
+	FLiveLinkHubSession(ULiveLinkHubSessionData* InSessionData, FOnClientAddedToSession& OnClientAddedToSession, FOnClientRemovedFromSession& OnClientRemovedFromSession)
+		: OnClientAddedToSessionDelegate(OnClientAddedToSession)
 		, OnClientRemovedFromSessionDelegate(OnClientRemovedFromSession)
 	{
-		RegisterDelegates();
-		SessionData.SubjectsConfig.Initialize();
-	}
-
-	virtual ~FLiveLinkHubSession() override
-	{
-		UnregisterDelegates();
-	}
-
-	virtual void RenameSubject(const FLiveLinkSubjectKey& SubjectKey, FName NewName) override
-	{
-		FLiveLinkHubSubjectSessionConfig ConfigCopy;
-		{
-			FReadScopeLock Locker(SessionDataLock);
-			ConfigCopy = SessionData.SubjectsConfig;
-		}
-
-		ConfigCopy.RenameSubject(SubjectKey, NewName);
-
-		{
-			// Copied over in a different step to avoid acquiring the rw lock in a method called by RenameSubject
-			FWriteScopeLock Locker(SessionDataLock);
-			SessionData.SubjectsConfig = MoveTemp(ConfigCopy);
-		}
-	}
-
-	virtual TOptional<FLiveLinkHubSubjectProxy> GetSubjectConfig(const FLiveLinkSubjectKey& SubjectKey) const override
-	{
-		FReadScopeLock Locker(SessionDataLock);
-		return SessionData.SubjectsConfig.GetSubjectConfig(SubjectKey);
+		SessionData = TStrongObjectPtr<ULiveLinkHubSessionData>(InSessionData);
 	}
 
 	virtual TArray<FLiveLinkHubClientId> GetSessionClients() const override
@@ -154,81 +120,11 @@ public:
 	}
 
 private:
-	/** Register livelink client delegates used to update the config's subject data. */
-	void RegisterDelegates()
-	{
-		FLiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<FLiveLinkClient>(ILiveLinkClient::ModularFeatureName);
-		LiveLinkClient.OnLiveLinkSubjectAdded().AddRaw(this, &FLiveLinkHubSession::OnSubjectAdded_AnyThread);
-		LiveLinkClient.OnLiveLinkSubjectRemoved().AddRaw(this, &FLiveLinkHubSession::OnSubjectRemoved_AnyThread);
-	}
-
-	/** Unregister livelink client delegates. */
-	void UnregisterDelegates()
-	{
-		if (IModularFeatures::Get().IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
-		{
-			FLiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<FLiveLinkClient>(ILiveLinkClient::ModularFeatureName);
-			LiveLinkClient.OnLiveLinkSubjectRemoved().RemoveAll(this);
-			LiveLinkClient.OnLiveLinkSubjectAdded().RemoveAll(this);
-		}
-	}
-
-	/** AnyThread handler for the SubjectAdded delegate, dispatches handling on the game thread to avoid asserts in Slate. */
-	void OnSubjectAdded_AnyThread(FLiveLinkSubjectKey SubjectKey)
-	{
-		TWeakPtr<FLiveLinkHubSession> WeakSession = AsShared();
-		AsyncTask(ENamedThreads::GameThread, [WeakSession, Key = MoveTemp(SubjectKey)]
-			{
-				if (TSharedPtr<FLiveLinkHubSession> Session = WeakSession.Pin())
-				{
-					Session->OnSubjectAdded(Key);
-				}
-			});
-	}
-
-	/** Handles updating the tree view when a subject is added. */
-	void OnSubjectAdded(const FLiveLinkSubjectKey& SubjectKey)
-	{
-		if (!SessionData.SubjectsConfig.SubjectProxies.Contains(SubjectKey))
-		{
-			ILiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
-
-			FLiveLinkHubSubjectProxy SubjectSettings;
-			SubjectSettings.Initialize(SubjectKey, LiveLinkClient.GetSourceType(SubjectKey.Source).ToString());
-
-			{
-				FWriteScopeLock Locker(SessionDataLock);
-				SessionData.SubjectsConfig.SubjectProxies.FindOrAdd(SubjectKey) = MoveTemp(SubjectSettings);
-			}
-		}
-	}
-
-	/** AnyThread handler for the SubjectRemoved delegate, dispatches handling on the game thread to avoid asserts in Slate. */
-	void OnSubjectRemoved_AnyThread(FLiveLinkSubjectKey SubjectKey)
-	{
-		TWeakPtr<FLiveLinkHubSession> WeakSession = AsShared();
-		AsyncTask(ENamedThreads::GameThread, [WeakSession, Key = MoveTemp(SubjectKey)]
-			{
-				if (TSharedPtr<FLiveLinkHubSession> Session = WeakSession.Pin())
-				{
-					Session->OnSubjectRemoved(Key);
-				}
-			});
-	}
-
-	/** Handles updating the tree view when a subject is removed. */
-	void OnSubjectRemoved(const FLiveLinkSubjectKey& SubjectKey)
-	{
-		FWriteScopeLock Locker(SessionDataLock);
-		SessionData.SubjectsConfig.SubjectProxies.Remove(SubjectKey);
-	}
-
-private:
 	/** List of clients in the current session. These represent the unreal instances than can receive data from the hub. */
 	TSet<FLiveLinkHubClientId> CachedSessionClients;
 
 	/** Holds data for this session. */
-	FLiveLinkHubSessionData SessionData;
+	TStrongObjectPtr<ULiveLinkHubSessionData> SessionData;
 
 	/** Delegate used to notice the hub about clients being added to this session. */
 	FOnClientAddedToSession& OnClientAddedToSessionDelegate;

@@ -60,6 +60,15 @@ void UChaosClothingInteractor::SetMaterial(FVector2D EdgeStiffness, FVector2D Be
 	}));
 }
 
+void UChaosClothingInteractor::SetMaterialBuckling(FVector2D BucklingRatio, FVector2D BucklingStiffness)
+{
+	ConfigCommands.Add(FChaosClothingInteractorConfigCommand::CreateLambda([BucklingRatio, BucklingStiffness](Chaos::FClothingSimulationConfig* Config, int32 LODIndex)
+	{
+		Config->GetProperties(LODIndex).SetValue(TEXT("BucklingRatio"), (float)BucklingRatio[0]);  // TODO: Make BuckingRatio weighted
+		Config->GetProperties(LODIndex).SetWeightedFloatValue(TEXT("BucklingStiffness"), FVector2f(BucklingStiffness));
+	}));
+}
+
 void UChaosClothingInteractor::SetLongRangeAttachmentLinear(float TetherStiffnessLinear, float TetherScale)
 {
 	// Deprecated
@@ -120,13 +129,15 @@ void UChaosClothingInteractor::SetAerodynamics(float DragCoefficient, float Lift
 	}));
 }
 
-void UChaosClothingInteractor::SetWind(FVector2D Drag, FVector2D Lift, float AirDensity, FVector WindVelocity)
+void UChaosClothingInteractor::SetWind(FVector2D Drag, FVector2D Lift, float AirDensity, FVector WindVelocity, FVector2D OuterDrag, FVector2D OuterLift)
 {
-	ConfigCommands.Add(FChaosClothingInteractorConfigCommand::CreateLambda([Drag, Lift, AirDensity, WindVelocity](Chaos::FClothingSimulationConfig* Config, int32 LODIndex)
+	ConfigCommands.Add(FChaosClothingInteractorConfigCommand::CreateLambda([Drag, Lift, AirDensity, WindVelocity, OuterDrag, OuterLift](Chaos::FClothingSimulationConfig* Config, int32 LODIndex)
 	{
 		constexpr float WorldScale = 100.f;  // Unreal's world unit is the cm
 		Config->GetProperties(LODIndex).SetWeightedFloatValue(TEXT("Drag"), FVector2f(Drag));
+		Config->GetProperties(LODIndex).SetWeightedFloatValue(TEXT("OuterDrag"), FVector2f(OuterDrag));
 		Config->GetProperties(LODIndex).SetWeightedFloatValue(TEXT("Lift"), FVector2f(Lift));
+		Config->GetProperties(LODIndex).SetWeightedFloatValue(TEXT("OuterLift"), FVector2f(OuterLift));
 		Config->GetProperties(LODIndex).SetValue(TEXT("FluidDensity"), (float)AirDensity * FMath::Cube(WorldScale));  // AirDensity is here in kg/cm^3 for legacy reason but must be in kg/m^3 in the config UI
 		Config->GetProperties(LODIndex).SetValue(TEXT("WindVelocity"), FVector3f(WindVelocity) / WorldScale);
 	}));

@@ -6,11 +6,13 @@
 #include "../VariableRateShading/VRSShadingRateCommon.ush"
 #include "../HTileEncoding.ush"
 #include "../VelocityCommon.ush"
+#include "NaniteVertexDeformation.ush"
 
 #if PLATFORM_SUPPORTS_HTILE_LOOKUP
 
 #include "NaniteDataDecode.ush"
 #include "NaniteAttributeDecode.ush"
+#include "NaniteSceneCommon.ush"
 
 // .x = platform config
 // .y = tiles wide
@@ -40,15 +42,6 @@ RWTexture2D<float4>						Velocity;
 RWTexture2D<uint>						ShadingMask;
 #endif
 StructuredBuffer<FNaniteRasterBinMeta>	RasterBinMeta;
-
-#if MATERIAL_DEPTH_EXPORT
-RWStructuredBuffer<uint>				MaterialHTile;
-RWTexture2D<float>						MaterialDepth;
-#endif
-
-#if MATERIAL_DEPTH_EXPORT
-ByteAddressBuffer						MaterialDepthTable;
-#endif
 
 uint EncodeTileMinMaxDepth(float MinDepth, float MaxDepth, uint PlatformConfig)
 {
@@ -87,8 +80,6 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 	const UlongType VisPixel	= VisBuffer64[PixelPos.xy];
 
 	// Calculate the HTile tile index and scalarize.
-	// With the same resolution between scene and material HTile, we can use the same tile index
-	// for both depth exports as an optimization.
 	const uint TileIndex = ToScalarMemory(ComputeTileOffset(PixelPos.xy, PixelsWide, PlatformConfig));
 
 	uint DepthInt = 0;
@@ -116,10 +107,6 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 	// outside of Nanite.
 	if (WaveActiveAnyTrue(VisibleClusterIndex != 0xFFFFFFFF)) // Tile has Nanite coverage
 	{
-	#if MATERIAL_DEPTH_EXPORT
-		float MaterialDepthValue = 0.0f;
-	#endif
-
 		bool NanitePixelVisible = false;
 
 		if (VisibleClusterIndex != 0xFFFFFFFF)
@@ -148,16 +135,9 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 
 				const FInstanceSceneData InstanceData = GetInstanceSceneData(VisibleCluster, false);
 				const FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
-				const FCluster ClusterData = GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
+				const FCluster Cluster = GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 
-			#if LEGACY_CULLING
-				const uint ShadingBin = GetMaterialLegacyShadingId(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
-			#else
-				const uint ShadingBin = GetMaterialShadingBin(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
-			#endif
-			#if MATERIAL_DEPTH_EXPORT
-				MaterialDepthValue = asfloat(GetMaterialDepthId(ShadingBin, MaterialDepthTable));
-			#endif
+				const uint ShadingBin = GetMaterialShadingBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
 
 				const bool bIsDecalReceiver = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_DECAL_RECEIVER) != 0 && View.ShowDecalsMask > 0;
 				const bool bHasDistanceField = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_DISTANCE_FIELD_REPRESENTATION) != 0;
@@ -184,35 +164,17 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 			#if VELOCITY_EXPORT
 				// Don't output velocity here for WPO clusters, as their velocity must be calculated in the base pass
 				bool bWPOEnabled = (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
-				const bool bSecondaryRasterBin = !bWPOEnabled;
+				const bool bFallbackRasterBin = (VisibleCluster.Flags & NANITE_CULLING_FLAG_FALLBACK_RASTER) != 0;
 		
 				if (bWPOEnabled)
 				{
 					// The cluster may have WPO enabled, but we want to know if WPO is enabled by the material to decide to output velocity
-					const uint RasterBinIndex = GetMaterialRasterBin(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bSecondaryRasterBin);
+					const uint RasterBinIndex = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bFallbackRasterBin);
 					const FNaniteMaterialFlags MaterialFlags = UnpackNaniteMaterialFlags(RasterBinMeta[RasterBinIndex].MaterialFlags);
 					bWPOEnabled &= MaterialFlags.bWorldPositionOffset;
 				}
 
-				const bool bOutputVelocity = !bWPOEnabled && (GetPrimitiveData(InstanceData.PrimitiveId).Flags & PRIMITIVE_SCENE_DATA_FLAG_OUTPUT_VELOCITY) != 0;
-				if (bOutputVelocity)
-				{
-					FInstanceDynamicData InstanceDynamicData = CalculateInstanceDynamicData(NaniteView, InstanceData);
-
-					const float4 ScreenPos = SvPositionToScreenPosition(float4(PixelPos.xy, asfloat(DepthInt), 1.0f));
-					const FDFVector3 WorldPos  = SvPositionToWorld(float4(PixelPos.xy, asfloat(DepthInt), 1.0f));
-					const float3 LocalPos = DFMultiplyDemote(WorldPos, InstanceData.WorldToLocal);
-
-					const float3 WorldPosPrev = mul(float4(LocalPos, 1), InstanceDynamicData.PrevLocalToTranslatedWorld).xyz;
-					const float4 ScreenPosPrev = mul(float4(WorldPosPrev.xyz, 1), NaniteView.PrevTranslatedWorldToClip);
-
-					Velocity[PixelPos.xy] = EncodeVelocityToTexture(Calculate3DVelocity(ScreenPos, ScreenPosPrev), (GetPrimitiveData(InstanceData.PrimitiveId).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_PIXEL_ANIMATION) != 0);
-				}
-				else
-				{
-					// Write out zero (clear color) in case there is moving non-nanite scene data behind it
-					Velocity[PixelPos.xy] = (float4)0;
-				}
+				Velocity[PixelPos.xy] = CalculateNaniteVelocity(NaniteView, InstanceData, Cluster, float4(PixelPos, asfloat(DepthInt), 1.0f), TriIndex, PrimitiveData.Flags, bWPOEnabled);
 			#endif
 
 			#if SHADING_MASK_EXPORT
@@ -226,18 +188,6 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 			#endif
 			}
 		}
-
-	#if MATERIAL_DEPTH_EXPORT
-		MaterialDepth[PixelPos.xy] = MaterialDepthValue;
-
-		const float TileMinMaterialDepth = WaveActiveMin(MaterialDepthValue);
-		const float TileMaxMaterialDepth = WaveActiveMax(MaterialDepthValue);
-
-		if (WaveIsFirstLane())
-		{
-			MaterialHTile[TileIndex] = EncodeTileMinMaxDepth(TileMinMaterialDepth, TileMaxMaterialDepth, PlatformConfig);
-		}
-	#endif
 
 		// Only write out SceneDepth and expand SceneHTile if there are Nanite fragments that survive depth testing against the scene
 		bWriteDepthStencil = WaveActiveAnyTrue(NanitePixelVisible);

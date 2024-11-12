@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Online/OnlineError.h"
 #include "Online/OnlineErrorCode.h"
+#include "Online/OnlineErrorDefinitions.h"
 #include "Serialization/CompactBinaryWriter.h"
 
 namespace UE::Online{
@@ -13,17 +14,10 @@ namespace UE::Online{
 		{
 			FString ToString(ErrorCodeType ErrorCode)
 			{
-				const uint64 Source = ErrorCodeSystem(ErrorCode);
+				const uint64 System = ErrorCodeSystem(ErrorCode);
 				const uint64 Category = ErrorCodeCategory(ErrorCode); 
 				const uint64 Code = ErrorCodeValue(ErrorCode); 
-				if (Source == 0)
-				{
-					return FString::Printf(TEXT("%llx.%llx"), Category, Code);
-				}
-				else
-				{
-					return FString::Printf(TEXT("%llx.%llx.%llx"), Source, Category, Code);
-				}
+				return FString::Printf(TEXT("%llx.%llx.%llx"), System, Category, Code);
 			}
 		} /*namespace ErrorCode */
 	} /* namespace Errors */
@@ -77,19 +71,9 @@ namespace UE::Online{
 		bool bHasDetails = false;
 		bool bHasInner = false;
 
-		if (OnlineError == UE::Online::Errors::ErrorCode::Success)
-		{
-			FText SuccessText = NSLOCTEXT("OnlineError", "Success", "Success");
-			ErrorMessageArgs.Add(TEXT("ErrorCode"), SuccessText);
-			Writer.AddString(ANSITEXTVIEW("ErrorCode"), SuccessText.ToString());
-		}
-		else
-		{
-			FString ErrorCodeString = OnlineError.GetErrorId();
-			ErrorMessageArgs.Add(TEXT("ErrorCode"), FText::FromString(ErrorCodeString));
-			Writer.AddString(ANSITEXTVIEW("ErrorCode"), ErrorCodeString);
-			
-		}
+		FString ErrorCodeString = OnlineError.GetErrorId();
+		ErrorMessageArgs.Add(TEXT("ErrorCode"), FText::FromString(ErrorCodeString));
+		Writer.AddString(ANSITEXTVIEW("ErrorCode"), ErrorCodeString);
 
 		if (OnlineError.Details)
 		{
@@ -129,6 +113,11 @@ namespace UE::Online{
 
 		// Writer.AddString(ANSITEXTVIEW("errorNamespace"), OnlineError.ErrorNamespace);
 		Writer.EndObject();
+	}
+
+	bool FOnlineError::IsSuccess() const
+	{
+		return ErrorCode == Errors::ErrorCode::Common::Success;
 	}
 
 } /* namespace UE::Online */

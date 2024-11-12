@@ -31,13 +31,14 @@ enum class EAutomationArtifactType : uint8
 	Comparison
 };
 
-UENUM()
-enum class EComparisonFileTypes : uint8
+namespace ComparisonFileTypes
 {
-	Unapproved,
-	Approved,
-	Difference
-};
+	// Use const string here instead of an enum, because FAutomationArtifact.Files property is a dictionary string/string
+	// FAutomationArtifact should be able to be used as an adhoc key/file association.
+	const FString Unapproved = TEXT("unapproved");
+	const FString Approved = TEXT("approved");
+	const FString Difference = TEXT("difference");
+}
 
 USTRUCT()
 struct FAutomationArtifact
@@ -51,7 +52,7 @@ public:
 	{
 	}
 
-	FAutomationArtifact(FGuid InUniqueId, const FString& InName, EAutomationArtifactType InType, const TMap<EComparisonFileTypes, FString>& InLocalFiles)
+	FAutomationArtifact(FGuid InUniqueId, const FString& InName, EAutomationArtifactType InType, const TMap<FString, FString>& InLocalFiles)
 		: Id(InUniqueId)
 		, Name(InName)
 		, Type(InType)
@@ -71,12 +72,12 @@ public:
 	EAutomationArtifactType Type;
 
 	UPROPERTY()
-	TMap<EComparisonFileTypes, FString> Files;
+	TMap<FString, FString> Files;
 
 	// Local Files are the files generated during a testing run, once exported, the individual file paths
 	// should be stored in the Files map.
 
-	TMap<EComparisonFileTypes, FString> LocalFiles;
+	TMap<FString, FString> LocalFiles;
 };
 
 /**
@@ -234,6 +235,13 @@ public:
 	virtual FString GetTestParameter() const = 0;
 
 	/**
+	 * Get the tags associated with this test.
+	 *
+	 * @return the tags concatenated into a single string.
+	 */
+	virtual FString GetTags() const = 0;
+
+	/**
 	 * Gets the asset path associated with a test, it may not have one.
 	 * 
 	 * @return the asset name.
@@ -247,7 +255,7 @@ public:
 	 * 
 	 * @return the test type.
 	 */
-	virtual uint32 GetTestFlags() const = 0;
+	virtual EAutomationTestFlags GetTestFlags() const = 0;
 
 	/** Gets the source file the test was defined on. */
 	virtual FString GetSourceFile() const = 0;
@@ -301,7 +309,7 @@ public:
 	 * 
 	 * @param InTestFlags The EAutomationTestFlags of the test.
 	 */
-	virtual void SetTestFlags(const uint32 InTestFlags) = 0;
+	virtual void SetTestFlags(const EAutomationTestFlags InTestFlags) = 0;
 
 	/** Returns if a particular platform is supported */
 	virtual bool IsSupported(const int32 ClusterIndex) const = 0;

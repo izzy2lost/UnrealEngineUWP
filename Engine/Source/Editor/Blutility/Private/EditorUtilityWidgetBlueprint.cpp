@@ -66,6 +66,24 @@ void UEditorUtilityWidgetBlueprint::BeginDestroy()
 
 TSharedRef<SDockTab> UEditorUtilityWidgetBlueprint::SpawnEditorUITab(const FSpawnTabArgs& SpawnTabArgs)
 {
+	if(bSpawnAsNomadTab)
+	{
+		TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab).TabRole(NomadTab);
+
+		TSharedRef<SWidget> TabWidget = CreateUtilityWidget();
+		SpawnedTab->SetContent(TabWidget);
+	
+		SpawnedTab->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateUObject(this, &UEditorUtilityWidgetBlueprint::UpdateRespawnListIfNeeded));
+		CreatedTab = SpawnedTab;
+	
+		OnCompiled().AddUObject(this, &UEditorUtilityWidgetBlueprint::RegenerateCreatedTab);
+	
+		FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+		LevelEditor.OnMapChanged().AddUObject(this, &UEditorUtilityWidgetBlueprint::ChangeTabWorld);
+
+		return SpawnedTab;
+	}
+		
 	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab);
 
 	TSharedRef<SWidget> TabWidget = CreateUtilityWidget();

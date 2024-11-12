@@ -7,6 +7,9 @@
 #include "Misc/ScopeRWLock.h"
 #include "UserManagerEOS.h"
 
+#define EOS_DedicatedServer_ID 0xD5D5D5D5D5D5D5D5
+const uint8 EOS_DedicatedServer_ID_RawBytes[EOS_ID_BYTE_SIZE] = "D5D5D5D5D5D5D5D5D5D5D5D5D5D5D5D";
+
 const FUniqueNetIdEOS& FUniqueNetIdEOS::Cast(const FUniqueNetId& NetId)
 {
 	check(GetTypeStatic() == NetId.GetType());
@@ -17,6 +20,12 @@ const FUniqueNetIdEOSRef& FUniqueNetIdEOS::EmptyId()
 {
 	static const FUniqueNetIdEOSRef EmptyId(Create());
 	return EmptyId;
+}
+
+const FUniqueNetIdEOSRef& FUniqueNetIdEOS::DedicatedServerId()
+{
+	static const FUniqueNetIdEOSRef DedicatedServerId(Create(EOS_DedicatedServer_ID_RawBytes, EOS_ID_BYTE_SIZE));
+	return DedicatedServerId;
 }
 
 FName FUniqueNetIdEOS::GetTypeStatic()
@@ -40,9 +49,24 @@ int32 FUniqueNetIdEOS::GetSize() const
 	return EOS_ID_BYTE_SIZE;
 }
 
+bool FUniqueNetIdEOS::IsDSValue() const 
+{
+	return ProductUserId == EOS_ProductUserId(EOS_DedicatedServer_ID); 
+}
+
 bool FUniqueNetIdEOS::IsValid() const
 {
-	return EOS_EpicAccountId_IsValid(EpicAccountId) || EOS_ProductUserId_IsValid(ProductUserId);
+	return IsDSValue() || EOS_EpicAccountId_IsValid(EpicAccountId) || EOS_ProductUserId_IsValid(ProductUserId);
+}
+
+const EOS_EpicAccountId FUniqueNetIdEOS::GetEpicAccountId() const
+{
+	return EpicAccountId;
+}
+
+const  EOS_ProductUserId FUniqueNetIdEOS::GetProductUserId() const
+{
+	return IsDSValue() ? nullptr: ProductUserId;
 }
 
 uint32 FUniqueNetIdEOS::GetTypeHash() const
@@ -74,18 +98,26 @@ FUniqueNetIdEOS::FUniqueNetIdEOS(const uint8* Bytes, int32 Size)
 	check(Size == EOS_ID_BYTE_SIZE);
 	FMemory::Memcpy(RawBytes, Bytes, EOS_ID_BYTE_SIZE);
 
-	const bool bIsEasNonZero = Algo::AnyOf(TArrayView<const uint8>(Bytes, ID_HALF_BYTE_SIZE));
-	if (bIsEasNonZero)
+	if (FMemory::Memcmp(RawBytes, EOS_DedicatedServer_ID_RawBytes, EOS_ID_BYTE_SIZE) == 0)
 	{
-		const FString EpicAccountIdStr = BytesToHexLower(Bytes, ID_HALF_BYTE_SIZE);
-		EpicAccountId = EOS_EpicAccountId_FromString(TCHAR_TO_UTF8(*EpicAccountIdStr));
+		EpicAccountId = nullptr;
+		ProductUserId = EOS_ProductUserId(EOS_DedicatedServer_ID);
 	}
-
-	const bool bIsPuidNonZero = Algo::AnyOf(TArrayView<const uint8>(Bytes + ID_HALF_BYTE_SIZE, ID_HALF_BYTE_SIZE));
-	if (bIsPuidNonZero)
+	else
 	{
-		const FString ProductUserIdStr = BytesToHexLower(Bytes + ID_HALF_BYTE_SIZE, ID_HALF_BYTE_SIZE);
-		ProductUserId = EOS_ProductUserId_FromString(TCHAR_TO_UTF8(*ProductUserIdStr));
+		const bool bIsEasNonZero = Algo::AnyOf(TArrayView<const uint8>(Bytes, ID_HALF_BYTE_SIZE));
+		if (bIsEasNonZero)
+		{
+			const FString EpicAccountIdStr = BytesToHexLower(Bytes, ID_HALF_BYTE_SIZE);
+			EpicAccountId = EOS_EpicAccountId_FromString(TCHAR_TO_UTF8(*EpicAccountIdStr));
+		}
+
+		const bool bIsPuidNonZero = Algo::AnyOf(TArrayView<const uint8>(Bytes + ID_HALF_BYTE_SIZE, ID_HALF_BYTE_SIZE));
+		if (bIsPuidNonZero)
+		{
+			const FString ProductUserIdStr = BytesToHexLower(Bytes + ID_HALF_BYTE_SIZE, ID_HALF_BYTE_SIZE);
+			ProductUserId = EOS_ProductUserId_FromString(TCHAR_TO_UTF8(*ProductUserIdStr));
+		}
 	}
 }
 
@@ -133,6 +165,10 @@ FUniqueNetIdEOSRef FUniqueNetIdEOSRegistry::FindOrAddImpl(const uint8* Bytes, in
 	{
 		// The net id type already knows how to deserialize, so create a temp one to get the EAS/PUID
 		FUniqueNetIdEOS Temp(Bytes, Size);
+		if (Temp.IsDSValue())
+		{
+			return FUniqueNetIdEOS::DedicatedServerId(); 
+		}
 		return FindOrAddImpl(Temp.GetEpicAccountId(), Temp.GetProductUserId());
 	}
 	return FUniqueNetIdEOS::EmptyId();

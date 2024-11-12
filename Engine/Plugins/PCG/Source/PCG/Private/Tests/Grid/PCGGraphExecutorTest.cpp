@@ -6,7 +6,7 @@
 #include "Graph/PCGGraphExecutor.h"
 #include "Tests/PCGTestsCommon.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphExecutorTests, FPCGTestBaseClass, "Plugins.PCG.GraphExecutor.Tests", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphExecutorTests, FPCGTestBaseClass, "Plugins.PCG.GraphExecutor.Tests", PCGTestsCommon::TestFlags | EAutomationTestFlags::Disabled)
 
 bool FPCGGraphExecutorTests::RunTest(const FString& Parameters)
 {

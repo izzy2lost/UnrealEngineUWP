@@ -14,6 +14,7 @@
 #include "Misc/Paths.h"
 #include "Templates/SharedPointer.h"
 #include "Trace/Detail/Channel.h"
+#include "ProfilingDebugging/ScopedTimers.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogGenerateManifestCommandlet, Log, All);
 
@@ -68,6 +69,7 @@ UGenerateGatherManifestCommandlet::UGenerateGatherManifestCommandlet(const FObje
 
 int32 UGenerateGatherManifestCommandlet::Main( const FString& Params )
 {
+	UE_SCOPED_TIMER(TEXT("UGenerateGatherManifestCommandlet::Main"), LogGenerateManifestCommandlet, Display);
 	// Parse command line - we're interested in the param vals
 	TArray<FString> Tokens;
 	TArray<FString> Switches;

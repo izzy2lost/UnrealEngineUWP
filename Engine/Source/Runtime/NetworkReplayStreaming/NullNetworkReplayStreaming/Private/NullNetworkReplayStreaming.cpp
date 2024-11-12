@@ -547,7 +547,7 @@ void FNullNetworkReplayStreamer::FlushCheckpoint(const uint32 TimeInMS)
 	{
 		FNullCheckpointListItem CheckpointEvent;
 		CheckpointEvent.Group = TEXT("checkpoint");
-		CheckpointEvent.Metadata = FString::Printf( TEXT("%ld"), FileAr->Tell() );
+		CheckpointEvent.Metadata = FString::Printf( TEXT("%" INT64_FMT), FileAr->Tell() );
 		CheckpointEvent.Time1 = TimeInMS;
 		CheckpointEvent.Time2 = TimeInMS;
 

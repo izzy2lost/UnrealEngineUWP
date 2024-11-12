@@ -27,6 +27,7 @@ void UGLTFExportOptions::ResetToDefault()
 	DefaultMaterialBakeFilter = TF_Trilinear;
 	DefaultMaterialBakeTiling = TA_Wrap;
 	DefaultLevelOfDetail = 0;
+	bExportSourceModel = false;
 	bExportVertexColors = false;
 	bExportVertexSkinWeights = true;
 	bMakeSkinnedMeshesRoot = true;

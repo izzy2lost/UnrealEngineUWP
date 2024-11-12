@@ -4,10 +4,11 @@
 #include "Misc/Paths.h"
 #include "Player/AdaptiveStreamingPlayerInternal.h"
 #include "Player/AdaptivePlayerOptionKeynames.h"
-#include "Player/HLS/PlaylistReaderHLS.h"
+#include "Player/HLS/PlaylistHandlerHLS.h"
 #include "Player/mp4/PlaylistReaderMP4.h"
 #include "Player/DASH/PlaylistReaderDASH.h"
 #include "Player/mkv/PlaylistReaderMKV.h"
+#include "Player/mpegaudio/PlaylistReaderMPEGAudio.h"
 #include "Utilities/Utilities.h"
 #include "Utilities/StringHelpers.h"
 #include "Utilities/URLParser.h"
@@ -26,6 +27,7 @@ static const FString MIMETypeHLS(TEXT("application/vnd.apple.mpegURL"));
 static const FString MIMETypeDASH(TEXT("application/dash+xml"));
 static const FString MIMETypeMKV(TEXT("video/x-matroska"));
 static const FString MIMETypeMKA(TEXT("audio/x-matroska"));
+static const FString MIMETypeMPEGAudio(TEXT("audio/mpeg"));
 
 
 
@@ -39,6 +41,7 @@ FString FixLocalFileSchemeURL(const FString& InURL)
 	if (URL.StartsWith("file:", ESearchCase::IgnoreCase))
 	{
 		URL.ReplaceCharInline(TCHAR('\\'), TCHAR('/'));
+		URL.ReplaceInline(TEXT(":///"), TEXT("://"));
 		URL.ReplaceInline(TEXT(" "), TEXT("%20"));
 	}
 	return URL;
@@ -79,6 +82,8 @@ FString GetMIMETypeForURL(const FString& URL)
 		static const FString kTextMKV(TEXT("mkv"));
 		static const FString kTextMKA(TEXT("mka"));
 		static const FString kTextWEBM(TEXT("webm"));
+		static const FString kTextMPA(TEXT("mpa"));
+		static const FString kTextMP3(TEXT("mp3"));
 		if (LowerCaseExtension == kTextMP4 || LowerCaseExtension == kTextMP4V)
 		{
 			MimeType = MIMETypeMP4;
@@ -106,6 +111,10 @@ FString GetMIMETypeForURL(const FString& URL)
 		else if (LowerCaseExtension == kTextMKA)
 		{
 			MimeType = MIMETypeMKA;
+		}
+		else if (LowerCaseExtension == kTextMPA || LowerCaseExtension == kTextMP3)
+		{
+			MimeType = MIMETypeMPEGAudio;
 		}
 	}
 
@@ -212,7 +221,7 @@ void FAdaptiveStreamingPlayer::InternalLoadManifest(const FString& InURL, const 
 			CurrentState = EPlayerState::eState_ParsingManifest;
 			if (mimeType == Playlist::MIMETypeHLS)
 			{
-				ManifestReader = IPlaylistReaderHLS::Create(this);
+				ManifestReader = IPlaylistHandlerHLS::Create(this);
 				ManifestType = EMediaFormatType::HLS;
 			}
 			else if (mimeType == Playlist::MIMETypeMP4 || mimeType == Playlist::MIMETypeMP4A || mimeType == Playlist::MIMETypeQuickTime)
@@ -229,6 +238,11 @@ void FAdaptiveStreamingPlayer::InternalLoadManifest(const FString& InURL, const 
 			{
 				ManifestReader = IPlaylistReaderMKV::Create(this);
 				ManifestType = EMediaFormatType::MKV;
+			}
+			else if (mimeType == Playlist::MIMETypeMPEGAudio)
+			{
+				ManifestReader = IPlaylistReaderMPEGAudio::Create(this);
+				ManifestType = EMediaFormatType::MPEGAudio;
 			}
 			else
 			{
@@ -331,8 +345,8 @@ bool FAdaptiveStreamingPlayer::SelectManifest()
 
 			double minBufTimeMPD = Manifest->GetMinBufferTime().GetAsSeconds();
 			PlayerConfig.InitialBufferMinTimeAvailBeforePlayback = Utils::Min(minBufTimeMPD, PlayerConfig.InitialBufferMinTimeAvailBeforePlayback);
-			PlayerConfig.SeekBufferMinTimeAvailBeforePlayback    = Utils::Min(minBufTimeMPD, PlayerConfig.SeekBufferMinTimeAvailBeforePlayback);
-			PlayerConfig.RebufferMinTimeAvailBeforePlayback 	 = Utils::Min(minBufTimeMPD, PlayerConfig.RebufferMinTimeAvailBeforePlayback);
+			PlayerConfig.SeekBufferMinTimeAvailBeforePlayback = Utils::Min(minBufTimeMPD, PlayerConfig.SeekBufferMinTimeAvailBeforePlayback);
+			PlayerConfig.RebufferMinTimeAvailBeforePlayback = Utils::Min(minBufTimeMPD, PlayerConfig.RebufferMinTimeAvailBeforePlayback);
 
 			// For an mp4 or mkv stream we can now get rid of the manifest reader. It is no longer needed and we don't need to have it linger.
 			if (ManifestType == EMediaFormatType::ISOBMFF || ManifestType == EMediaFormatType::MKV)
@@ -378,11 +392,11 @@ void FAdaptiveStreamingPlayer::UpdateManifest()
 	}
 }
 
-
-bool FAdaptiveStreamingPlayer::FMediaMetadataUpdate::Handle(const FTimeValue& InAtTime)
+FAdaptiveStreamingPlayer::FMediaMetadataUpdate::EResult FAdaptiveStreamingPlayer::FMediaMetadataUpdate::Handle(const FTimeValue& InAtTime)
 {
 	TSharedPtrTS<UtilsMP4::FMetadataParser> NextMetadata;
 	FTimeValue NextActiveTime;
+	bool bTriggerInternalRefresh = false;
 	while(NextEntries.Num())
 	{
 		// Make the first metadata available right away if there is none yet and the time is not valid either.
@@ -390,6 +404,7 @@ bool FAdaptiveStreamingPlayer::FMediaMetadataUpdate::Handle(const FTimeValue& In
 		{
 			NextMetadata = NextEntries[0].Metadata;
 			NextActiveTime = NextEntries[0].ValidFrom;
+			bTriggerInternalRefresh = NextEntries[0].bTriggerInternalRefresh;
 			break;
 		}
 		else
@@ -409,6 +424,7 @@ bool FAdaptiveStreamingPlayer::FMediaMetadataUpdate::Handle(const FTimeValue& In
 					{
 						NextMetadata = NextEntries[0].Metadata;
 						NextActiveTime = NextEntries[0].ValidFrom;
+						bTriggerInternalRefresh = NextEntries[0].bTriggerInternalRefresh;
 					}
 					NextEntries.RemoveAt(0);
 				}
@@ -428,12 +444,11 @@ bool FAdaptiveStreamingPlayer::FMediaMetadataUpdate::Handle(const FTimeValue& In
 		bool bChanged = !ActiveMetadata.IsValid() || ActiveMetadata->IsDifferentFrom(*NextMetadata);
 		ActiveMetadata = MoveTemp(NextMetadata);
 		ActiveSince = NextActiveTime;
-		return bChanged;
+		return bChanged ? bTriggerInternalRefresh ? EResult::ChangedAndUpdate : EResult::Changed : EResult::NoChange;
 	}
-	return false;
+
+	return EResult::NoChange;
 }
 
 
 } // namespace Electra
-
-

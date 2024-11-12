@@ -9,8 +9,8 @@
 //
 // -----------------------------------------------------------------------------------------------------
 
-FD3D12UnorderedAccessView::FD3D12UnorderedAccessView(FD3D12Device* InDevice)
-	: TD3D12View(InDevice, ERHIDescriptorHeapType::Standard)
+FD3D12UnorderedAccessView::FD3D12UnorderedAccessView(FD3D12Device* InDevice, FD3D12UnorderedAccessView* FirstLinkedObject)
+	: TD3D12View(InDevice, ERHIDescriptorHeapType::Standard, FirstLinkedObject)
 {}
 
 void FD3D12UnorderedAccessView::UpdateResourceInfo(const FResourceInfo& InResource, const D3D12_UNORDERED_ACCESS_VIEW_DESC& InD3DViewDesc, EFlags InFlags)
@@ -64,13 +64,13 @@ void FD3D12UnorderedAccessView::CreateView(FResourceInfo const& InResource, D3D1
 	TD3D12View::CreateView(InResource, InD3DViewDesc);
 }
 
-void FD3D12UnorderedAccessView::UpdateView(FRHICommandListBase& RHICmdList, const FResourceInfo& InResource, const D3D12_UNORDERED_ACCESS_VIEW_DESC& InD3DViewDesc, EFlags InFlags)
+void FD3D12UnorderedAccessView::UpdateView(FD3D12ContextArray const& Contexts, const FResourceInfo& InResource, const D3D12_UNORDERED_ACCESS_VIEW_DESC& InD3DViewDesc, EFlags InFlags)
 {
 	UpdateResourceInfo(InResource, InD3DViewDesc, InFlags);
-	TD3D12View::UpdateView(RHICmdList, InResource, InD3DViewDesc);
+	TD3D12View::UpdateView(Contexts, InResource, InD3DViewDesc);
 }
 
-void FD3D12UnorderedAccessView::ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
+void FD3D12UnorderedAccessView::ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
 {
 	// Buffer SRV descriptors contain offsets / GPU virtual addresses which need to be updated to match the new resource location.
 	if (D3DViewDesc.ViewDimension == D3D12_UAV_DIMENSION_BUFFER)
@@ -78,7 +78,7 @@ void FD3D12UnorderedAccessView::ResourceRenamed(FRHICommandListBase& RHICmdList,
 		D3DViewDesc.Buffer.FirstElement = (OffsetInBytes + InNewResourceLocation->GetOffsetFromBaseOfResource()) / StrideInBytes;
 	}
 
-	TD3D12View::ResourceRenamed(RHICmdList, InRenamedResource, InNewResourceLocation);
+	TD3D12View::ResourceRenamed(Contexts, InRenamedResource, InNewResourceLocation);
 }
 
 void FD3D12UnorderedAccessView::UpdateDescriptor()
@@ -216,7 +216,7 @@ void FD3D12UnorderedAccessView_RHI::CreateView()
 	}
 }
 
-void FD3D12UnorderedAccessView_RHI::UpdateView(FRHICommandListBase& RHICmdList)
+void FD3D12UnorderedAccessView_RHI::UpdateView(FD3D12ContextArray const& Contexts)
 {
 	if (IsBuffer())
 	{
@@ -225,7 +225,7 @@ void FD3D12UnorderedAccessView_RHI::UpdateView(FRHICommandListBase& RHICmdList)
 		D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc{};
 		const EFlags CreateFlags = TranslateDesc(UAVDesc, Buffer, ViewDesc.Buffer.UAV.GetViewInfo(Buffer));
 
-		FD3D12UnorderedAccessView::UpdateView(RHICmdList, Buffer, UAVDesc, CreateFlags);
+		FD3D12UnorderedAccessView::UpdateView(Contexts, Buffer, UAVDesc, CreateFlags);
 	}
 	else
 	{
@@ -234,13 +234,13 @@ void FD3D12UnorderedAccessView_RHI::UpdateView(FRHICommandListBase& RHICmdList)
 		D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc{};
 		const EFlags CreateFlags = TranslateDesc(UAVDesc, Texture, ViewDesc.Texture.UAV.GetViewInfo(Texture));
 
-		FD3D12UnorderedAccessView::UpdateView(RHICmdList, Texture, UAVDesc, CreateFlags);
+		FD3D12UnorderedAccessView::UpdateView(Contexts, Texture, UAVDesc, CreateFlags);
 	}
 }
 
-FD3D12UnorderedAccessView_RHI::FD3D12UnorderedAccessView_RHI(FD3D12Device* InDevice, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc)
+FD3D12UnorderedAccessView_RHI::FD3D12UnorderedAccessView_RHI(FD3D12Device* InDevice, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc, FD3D12UnorderedAccessView_RHI* FirstLinkedObject)
 	: FRHIUnorderedAccessView(InResource, InViewDesc)
-	, FD3D12UnorderedAccessView(InDevice)
+	, FD3D12UnorderedAccessView(InDevice, FirstLinkedObject)
 {}
 
 
@@ -257,18 +257,16 @@ FUnorderedAccessViewRHIRef FD3D12DynamicRHI::RHICreateUnorderedAccessView(FRHICo
 		? FD3D12DynamicRHI::ResourceCast(static_cast<FRHIBuffer* >(Resource))->GetLinkedObjectsGPUMask()
 		: FD3D12DynamicRHI::ResourceCast(static_cast<FRHITexture*>(Resource))->GetLinkedObjectsGPUMask();
 
-	FD3D12UnorderedAccessView_RHI* View = GetAdapter().CreateLinkedObject<FD3D12UnorderedAccessView_RHI>(RelevantGPUs, [&](FD3D12Device* Device)
+	FD3D12UnorderedAccessView_RHI* View = GetAdapter().CreateLinkedObject<FD3D12UnorderedAccessView_RHI>(RelevantGPUs, [&](FD3D12Device* Device, FD3D12UnorderedAccessView_RHI* FirstLinkedObject)
 	{
 		FRHIViewableResource* TargetResource = ViewDesc.IsBuffer()
 			? static_cast<FRHIViewableResource*>(FD3D12DynamicRHI::ResourceCast(static_cast<FRHIBuffer* >(Resource), Device->GetGPUIndex()))
 			: static_cast<FRHIViewableResource*>(FD3D12DynamicRHI::ResourceCast(static_cast<FRHITexture*>(Resource), Device->GetGPUIndex()));
 
-		return new FD3D12UnorderedAccessView_RHI(Device, TargetResource, ViewDesc);
+		return new FD3D12UnorderedAccessView_RHI(Device, TargetResource, ViewDesc, FirstLinkedObject);
 	});
 
-	bool bDynamic = View->IsBuffer() && EnumHasAnyFlags(View->GetBuffer()->GetUsage(), EBufferUsageFlags::AnyDynamic);
-	View->CreateViews(RHICmdList, bDynamic);
-
+	View->CreateViews(RHICmdList);
 	return View;
 }
 
@@ -330,7 +328,7 @@ void FD3D12CommandContext::ClearUAV(TRHICommandList_RecursiveHazardous<FD3D12Com
 		if (UAVDesc.Format == DXGI_FORMAT_UNKNOWN || (UAVDesc.Buffer.Flags & D3D12_BUFFER_UAV_FLAG_RAW) != 0)
 		{
 			// Structured buffer.
-			RHICmdList.RunOnContext([UnorderedAccessView, ClearValues, UAVDesc](auto& Context)
+			RHICmdList.RunOnContext([UnorderedAccessView, ClearValues, UAVDesc](FD3D12CommandContext& Context)
 			{
 				// Alias the structured buffer with an R32_UINT UAV to perform the clear.
 				// We construct a temporary UAV on the offline heap, copy it to the online heap, and then call ClearUnorderedAccessViewUint.
@@ -358,15 +356,16 @@ void FD3D12CommandContext::ClearUAV(TRHICommandList_RecursiveHazardous<FD3D12Com
 				}
 
 				// Scoped view will free the offline CPU handle once we return
-				FD3D12UnorderedAccessView UAV(ParentDevice);
+				FD3D12UnorderedAccessView UAV(ParentDevice, nullptr);			// Always single GPU object, so FirstLinkedObject is nullptr
 				UAV.CreateView(UnorderedAccessView->GetResourceLocation(), R32UAVDesc, FD3D12UnorderedAccessView::EFlags::None);
 
 				FD3D12OfflineDescriptor OfflineHandle = UAV.GetOfflineCpuHandle();
 				D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle{};
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-				if (UAV.GetBindlessHandle().IsValid())
+				if (Context.StateCache.GetDescriptorCache()->IsActiveViewHeapBindless())
 				{
+					check(UAV.GetBindlessHandle().IsValid());
 					Context.FlushPendingDescriptorUpdates();
 
 					FD3D12DescriptorHeap* BindlessHeap = Context.GetBindlessResourcesHeap();
@@ -393,7 +392,7 @@ void FD3D12CommandContext::ClearUAV(TRHICommandList_RecursiveHazardous<FD3D12Com
 
 				Context.FlushResourceBarriers();
 				Context.GraphicsCommandList()->ClearUnorderedAccessViewUint(GPUHandle, OfflineHandle, UAV.GetResource()->GetResource(), *reinterpret_cast<const UINT(*)[4]>(ClearValues), 0, nullptr);
-				Context.UpdateResidency(UnorderedAccessView->GetResidencyHandles());
+				Context.UpdateResidency(UAV.GetResource());
 				Context.ConditionalSplitCommandList();
 
 				if (Context.IsDefaultContext())

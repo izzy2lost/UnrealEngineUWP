@@ -32,6 +32,8 @@ public:
 	SLATE_END_ARGS();
 
 	void Construct(const FArguments& InArgs, TSharedPtr<FControlRigEditModeToolkit> InOwningToolkit, FControlRigEditMode& InEditMode);
+	void Cleanup();
+
 	/** Set the objects to be displayed in the details panel */
 	void SetSettingsDetailsObject(const TWeakObjectPtr<>& InObject);
 #if USE_LOCAL_DETAILS
@@ -119,7 +121,10 @@ private:
 	EVisibility GetAddSpaceButtonVisibility() const;
 	bool IsSpaceSwitchingRestricted() const;
 	FReply OnBakeControlsToNewSpaceButtonClicked();
-
+	FReply OnCompensateKeyClicked();
+	FReply OnCompensateAllClicked();
+	void Compensate(TOptional<FFrameNumber> OptionalKeyTime, bool bSetPreviousTick);
+	bool ReadyForBakeOrCompensation() const;
 	FReply HandleAddConstraintClicked();
 
 	EVisibility GetRigOptionExpanderVisibility() const;
@@ -145,6 +150,9 @@ private:
 
 	// The toolkit that created this UI
 	TWeakPtr<FControlRigEditModeToolkit> OwningToolkit;
+
+	//array of handles to clear when getting new control rigs
+	TArray<TPair<FDelegateHandle, TWeakObjectPtr<UControlRig>>> HandlesToClear;
 
 public:
 	/** Modes Panel Header Information **/

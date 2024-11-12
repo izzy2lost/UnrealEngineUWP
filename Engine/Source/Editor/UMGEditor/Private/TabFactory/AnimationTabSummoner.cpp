@@ -382,7 +382,6 @@ public:
 		InBlueprintEditor->OnSelectedAnimationChanged.AddSP(this, &SUMGAnimationList::AnimationListSelelctionSync);
 
 		SAssignNew(AnimationListView, SWidgetAnimationListView)
-			.ItemHeight(20.0f)
 			.SelectionMode(ESelectionMode::Single)
 			.OnGenerateRow(this, &SUMGAnimationList::OnGenerateWidgetForMovieScene)
 			.OnItemScrolledIntoView(this, &SUMGAnimationList::OnItemScrolledIntoView)
@@ -826,7 +825,7 @@ private:
 				MakeUniqueObjectName( WidgetBlueprint, UWidgetAnimation::StaticClass(), SelectedAnimation->Animation->GetFName() )
 			);
 	
-		NewAnimation->MovieScene->Rename(*NewAnimation->GetName(), nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+		NewAnimation->MovieScene->Rename(*NewAnimation->GetName(), nullptr, REN_DontCreateRedirectors);
 		NewAnimation->SetDisplayLabel(NewAnimation->GetName());
 
 		bool bRenameRequestPending = true;

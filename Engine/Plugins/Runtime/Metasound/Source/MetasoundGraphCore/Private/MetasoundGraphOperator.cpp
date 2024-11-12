@@ -9,6 +9,7 @@
 #include "MetasoundExecutableOperator.h"
 #include "MetasoundGraphAlgoPrivate.h"
 #include "MetasoundOperatorInterface.h"
+#include "Misc/ReverseIterate.h"
 
 namespace Metasound
 {
@@ -78,13 +79,18 @@ namespace Metasound
 		}
 	}
 
-	FGraphOperator::FGraphOperator(TUniquePtr<DirectedGraphAlgo::FGraphOperatorData>&& InOperatorState)
+	FGraphOperator::FGraphOperator(TUniquePtr<DirectedGraphAlgo::FStaticGraphOperatorData> InOperatorState)
 	{
 		using namespace DirectedGraphAlgo;
 
 		// Append operators in order.
-		for (const FOperatorID OperatorID : InOperatorState->OperatorOrder)
+		for (const INode* Node: InOperatorState->NodeOrder)
 		{
+			// The Node pointer may not point to a valid memory because there is
+			// nothing ensuring that the node is still alive. GetOperatorID(...)
+			// simply uses the pointer address as the ID and does not access the 
+			// actual underlying INode. 
+			const FOperatorID OperatorID = GetOperatorID(Node);
 			AppendOperator(MoveTemp(InOperatorState->OperatorMap[OperatorID].Operator));
 		}
 
@@ -128,16 +134,6 @@ namespace Metasound
 		VertexData = InVertexData;
 	}
 
-	FDataReferenceCollection FGraphOperator::GetInputs() const
-	{
-		return VertexData.GetInputs().ToDataReferenceCollection();
-	}
-
-	FDataReferenceCollection FGraphOperator::GetOutputs() const
-	{
-		return VertexData.GetOutputs().ToDataReferenceCollection();
-	}
-
 	void FGraphOperator::BindInputs(FInputVertexInterfaceData& InInputVertexData)
 	{
 		if (!MetasoundGraphPrivate::IsSupportedVertexData(VertexData.GetInputs(), InInputVertexData))
@@ -168,31 +164,27 @@ namespace Metasound
 
 	void FGraphOperator::Execute()
 	{
-		FExecuteEntry* StackPtr = ExecuteStack.GetData();
-		const int32 Num = ExecuteStack.Num();
-		for (int32 i = 0; i < Num; i++)
+		for (FExecuteEntry& Entry : ExecuteStack)
 		{
-			StackPtr[i].Execute();
+			Entry.Execute();
 		}
 	}
 
 	void FGraphOperator::PostExecute()
 	{
-		FPostExecuteEntry* StackPtr = PostExecuteStack.GetData();
-		const int32 Num = PostExecuteStack.Num();
-		for (int32 i = 0; i < Num; i++)
+		// Reverse iterate over post execute so that inputs to operators do
+		// not change from last execute
+		for (FPostExecuteEntry& Entry : ReverseIterate(PostExecuteStack))
 		{
-			StackPtr[i].PostExecute();
+			Entry.PostExecute();
 		}
 	}
 
 	void FGraphOperator::Reset(const FGraphOperator::FResetParams& InParams)
 	{
-		FResetEntry* StackPtr = ResetStack.GetData();
-		const int32 Num = ResetStack.Num();
-		for (int32 i = 0; i < Num; i++)
+		for (FResetEntry& Entry : ResetStack)
 		{
-			StackPtr[i].Reset(InParams);
+			Entry.Reset(InParams);
 		}
 	}
 

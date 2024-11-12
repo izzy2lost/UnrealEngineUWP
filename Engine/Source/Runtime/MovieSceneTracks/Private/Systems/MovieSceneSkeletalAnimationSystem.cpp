@@ -35,6 +35,7 @@
 #include "Systems/MovieSceneQuaternionInterpolationRotationSystem.h"
 #include "Systems/WeightAndEasingEvaluatorSystem.h"
 #include "Systems/MovieSceneObjectPropertySystem.h"
+#include "EntitySystem/MovieScenePreAnimatedStateSystem.h"
 
 #include "Components/SkeletalMeshComponent.h"
 #include "Animation/AnimationPoseData.h"
@@ -50,6 +51,13 @@ DECLARE_CYCLE_STAT(TEXT("Evaluate skeletal animations"), MovieSceneEval_Evaluate
 
 namespace UE::MovieScene
 {
+
+bool GAnimationUIFlickerFix = false;
+FAutoConsoleVariableRef CVarAnimationUIFlickerFix(
+	TEXT("Sequencer.Animation.UIFlickerFix"),
+	GAnimationUIFlickerFix,
+	TEXT("(Default: true. Fixes pre-animated state ordering that was causing excessive UI flicker. Known to cause issues when animating Anim Class so should be disabled if a crash is encountered.")
+	);
 
 /** Helper function to get our sequencer animation node from a skeletal mesh component */
 UAnimSequencerInstance* GetAnimSequencerInstance(USkeletalMeshComponent* SkeletalMeshComponent)
@@ -95,7 +103,7 @@ struct FPreAnimatedSkeletalAnimationTraits : FBoundObjectPreAnimatedStateTraits
 	void RestorePreAnimatedValue(const KeyType& Object, StorageType& InOutCachedValue, const FRestoreStateParams& Params)
 	{
 		USkeletalMeshComponent* Component = Cast<USkeletalMeshComponent>(Object.ResolveObjectPtr());
-		if (!Component)
+		if (!Component || !Component->IsRegistered())
 		{
 			return;
 		}
@@ -134,14 +142,16 @@ struct FPreAnimatedSkeletalAnimationTraits : FBoundObjectPreAnimatedStateTraits
 		// Restore pose after unbinding to force the restored pose
 		Component->SetUpdateAnimationInEditor(true);
 		Component->SetUpdateClothInEditor(true);
-		Component->TickAnimation(0.f, false);
-
-		Component->RefreshBoneTransforms();
-		Component->RefreshFollowerComponents();
-		Component->UpdateComponentToWorld();
-		Component->FinalizeBoneTransform();
-		Component->MarkRenderTransformDirty();
-		Component->MarkRenderDynamicDataDirty();
+		if (!Component->IsPostEvaluatingAnimation())
+		{
+			Component->TickAnimation(0.f, false);
+			Component->RefreshBoneTransforms();
+			Component->RefreshFollowerComponents();
+			Component->UpdateComponentToWorld();
+			Component->FinalizeBoneTransform();
+			Component->MarkRenderTransformDirty();
+			Component->MarkRenderDynamicDataDirty();
+		}
 
 		// Reset the mesh component update flag and animation mode to what they were before we animated the object
 		InOutCachedValue.SkeletalMeshRestoreState.RestoreState(Component);
@@ -283,7 +293,6 @@ void FBoneTransformFinalizeData::BoneTransformFinalized()
 		{
 			RelativeTransform = RelativeTransform * InitialTransform.GetValue();
 		}
-		const bool bIsGameWorld = (SkeletalMeshComponent->GetWorld()->IsGameWorld());
 
 		if (SwapRootBone == ESwapRootBone::SwapRootBone_Component)
 		{
@@ -336,6 +345,7 @@ struct FGatherSkeletalAnimations
 			TRead<FInstanceHandle> InstanceHandles,
 			TRead<UObject*> BoundObjects,
 			TRead<FMovieSceneSkeletalAnimationComponentData> SkeletalAnimations,
+			TReadOptional<FFrameTime> OptionalEvalTimes,
 			TReadOptional<double> WeightAndEasings) const
 	{
 		// Gather all the skeletal animations currently active in all sequences.
@@ -359,17 +369,19 @@ struct FGatherSkeletalAnimations
 			const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InstanceHandle);
 			const FMovieSceneContext& Context = SequenceInstance.GetContext();
 
+			const FFrameTime EvalFrameTime = OptionalEvalTimes ? OptionalEvalTimes[Index] : Context.GetTime();
+
 			// Calculate the time at which to evaluate the animation
 			const UMovieSceneSkeletalAnimationSection* AnimSection = SkeletalAnimation.Section;
 			const FMovieSceneSkeletalAnimationParams& AnimParams = AnimSection->Params;
 
 			// Get the bound skeletal mesh component.
-			USkeletalMeshComponent* SkeletalMeshComponent = SkeletalMeshComponentFromObject(BoundObject);
+			USkeletalMeshComponent* SkeletalMeshComponent = CastChecked<USkeletalMeshComponent>(BoundObject);
 			if (!SkeletalMeshComponent || AnimParams.Animation == nullptr)
 			{
 				continue;
 			}
-			const float EvalTime = AnimParams.MapTimeToAnimation(AnimSection, Context.GetTime(), Context.GetFrameRate());
+			const float EvalTime = AnimParams.MapTimeToAnimation(AnimSection, EvalFrameTime, Context.GetFrameRate());
 			const float PreviousEvalTime = AnimParams.MapTimeToAnimation(AnimSection, Context.GetPreviousTime(), Context.GetFrameRate());
 
 			const FSequenceInstance& RootInstance = InstanceRegistry->GetInstance(RootInstanceHandle);
@@ -396,6 +408,7 @@ struct FGatherSkeletalAnimations
 			FActiveSkeletalAnimation Animation;
 			Animation.AnimSection        = AnimSection;
 			Animation.Context            = Context;
+			Animation.EvalFrameTime      = EvalFrameTime;
 			Animation.EntityID           = EntityID;
 			Animation.RootInstanceHandle = RootInstanceHandle;
 			Animation.FromEvalTime       = PreviousEvalTime;
@@ -439,31 +452,6 @@ private:
 		// We also use PreviewSetAnimPosition in PIE when not playing, as we can preview in PIE.
 		bool bIsNotInPIEOrNotPlaying = (RuntimeObject.GetWorld() && !RuntimeObject.GetWorld()->HasBegunPlay()) || PlayerStatus != EMovieScenePlayerStatus::Playing;
 		return GIsEditor && bIsNotInPIEOrNotPlaying;
-	}
-
-	static USkeletalMeshComponent* SkeletalMeshComponentFromObject(UObject* InObject)
-	{
-		// Check if we are bound directly to a skeletal mesh component.
-		USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(InObject);
-		if (SkeletalMeshComponent)
-		{
-			return SkeletalMeshComponent;
-		}
-
-		// Then check to see if we are controlling an actor. If so use its first skeletal mesh component.
-		AActor* Actor = Cast<AActor>(InObject);
-		if (!Actor)
-		{
-			if (UChildActorComponent* ChildActorComponent = Cast<UChildActorComponent>(InObject))
-			{
-				Actor = ChildActorComponent->GetChildActor();
-			}
-		}
-		if (Actor)
-		{
-			return Actor->FindComponentByClass<USkeletalMeshComponent>();
-		}
-		return nullptr;
 	}
 };
 
@@ -513,16 +501,19 @@ private:
 			return;
 		}
 
-		// Cache pre-animated state for this bound object before doing anything.
-		// We don't yet track what entities have already started animated vs. entities that just started this frame,
-		// so we just process all the currently active ones. If they are already tracked and have already had their
-		// pre-animated state saved, it these calls will just early return.
-		for (const FActiveSkeletalAnimation& SkeletalAnimation : InSkeletalAnimations.Animations)
+		if (GAnimationUIFlickerFix == false)
 		{
-			PreAnimatedStorage->BeginTrackingEntity(SkeletalAnimation.EntityID, SkeletalAnimation.bWantsRestoreState, SkeletalAnimation.RootInstanceHandle, SkeletalMeshComponent);
+			// Cache pre-animated state for this bound object before doing anything.
+			// We don't yet track what entities have already started animated vs. entities that just started this frame,
+			// so we just process all the currently active ones. If they are already tracked and have already had their
+			// pre-animated state saved, it these calls will just early return.
+			for (const FActiveSkeletalAnimation& SkeletalAnimation : InSkeletalAnimations.Animations)
+			{
+				PreAnimatedStorage->BeginTrackingEntity(SkeletalAnimation.EntityID, SkeletalAnimation.bWantsRestoreState, SkeletalAnimation.RootInstanceHandle, SkeletalMeshComponent);
+			}
+			FCachePreAnimatedValueParams CacheParams;
+			PreAnimatedStorage->CachePreAnimatedValue(CacheParams, SkeletalMeshComponent);
 		}
-		FCachePreAnimatedValueParams CacheParams;
-		PreAnimatedStorage->CachePreAnimatedValue(CacheParams, SkeletalMeshComponent);
 
 		// Setup any needed animation nodes for sequencer playback.
 		UAnimInstance* ExistingAnimInstance = GetSourceAnimInstance(SkeletalMeshComponent);
@@ -663,7 +654,7 @@ private:
 			const UMovieSceneSkeletalAnimationSection* AnimSection = SkeletalAnimation.AnimSection;
 			const FMovieSceneSkeletalAnimationParams& AnimParams = AnimSection->Params;
 			UMovieSceneSkeletalAnimationSection::FRootMotionParams RootMotionParams;
-			AnimSection->GetRootMotion(SkeletalAnimation.Context.GetTime().RoundToFrame(), RootMotionParams);
+			AnimSection->GetRootMotion(SkeletalAnimation.EvalFrameTime.RoundToFrame(), RootMotionParams);
 			//set up root motion/bone transform delegates
 			if (AnimSection->Params.SwapRootBone != ESwapRootBone::SwapRootBone_None)
 			{
@@ -694,7 +685,7 @@ private:
 			SetAnimPositionParams.RootInstanceHandle = SkeletalAnimation.RootInstanceHandle;
 			SetAnimPositionParams.Section = AnimSection;
 			SetAnimPositionParams.SkeletalMeshComponent = SkeletalMeshComponent;
-			SetAnimPositionParams.CurrentTime = SkeletalAnimation.Context.GetTime();
+			SetAnimPositionParams.CurrentTime = SkeletalAnimation.EvalFrameTime;
 			SetAnimPositionParams.FromPosition = SkeletalAnimation.FromEvalTime;
 			SetAnimPositionParams.ToPosition = SkeletalAnimation.ToEvalTime;
 			SetAnimPositionParams.Weight = SkeletalAnimation.BlendWeight;
@@ -985,7 +976,34 @@ UMovieSceneSkeletalAnimationSystem::UMovieSceneSkeletalAnimationSystem(const FOb
 		DefineImplicitPrerequisite(UMovieSceneComponentTransformSystem::StaticClass(), GetClass());
 		DefineImplicitPrerequisite(UMovieSceneQuaternionInterpolationRotationSystem::StaticClass(), GetClass());
 		DefineImplicitPrerequisite(UMovieSceneObjectPropertySystem::StaticClass(), GetClass());
+
+		DefineImplicitPrerequisite(GetClass(), UMovieSceneRestorePreAnimatedStateSystem::StaticClass());
 	}
+}
+
+UObject* UMovieSceneSkeletalAnimationSystem::ResolveSkeletalMeshComponentBinding(UObject* InObject)
+{
+	// Check if we are bound directly to a skeletal mesh component.
+	USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(InObject);
+	if (SkeletalMeshComponent)
+	{
+		return SkeletalMeshComponent;
+	}
+
+	// Then check to see if we are controlling an actor. If so use its first skeletal mesh component.
+	AActor* Actor = Cast<AActor>(InObject);
+	if (!Actor)
+	{
+		if (UChildActorComponent* ChildActorComponent = Cast<UChildActorComponent>(InObject))
+		{
+			Actor = ChildActorComponent->GetChildActor();
+		}
+	}
+	if (Actor)
+	{
+		return Actor->FindComponentByClass<USkeletalMeshComponent>();
+	}
+	return nullptr;
 }
 
 void UMovieSceneSkeletalAnimationSystem::OnSchedulePersistentTasks(UE::MovieScene::IEntitySystemScheduler* TaskScheduler)
@@ -1050,6 +1068,7 @@ void UMovieSceneSkeletalAnimationSystem::OnSchedulePersistentTasks(UE::MovieScen
 	.Read(BuiltInComponents->InstanceHandle)
 	.Read(BuiltInComponents->BoundObject)
 	.Read(TrackComponents->SkeletalAnimation)
+	.ReadOptional(BuiltInComponents->EvalTime)
 	.ReadOptional(BuiltInComponents->WeightAndEasingResult)
 	.FilterNone({ BuiltInComponents->Tags.Ignored })
 	.SetStat(GET_STATID(MovieSceneEval_GatherSkeletalAnimations))
@@ -1073,15 +1092,28 @@ void UMovieSceneSkeletalAnimationSystem::OnRun(FSystemTaskPrerequisites& InPrere
 
 	const TStatId GatherStatId = GET_STATID(MovieSceneEval_GatherSkeletalAnimations);
 
-	const FMovieSceneEntitySystemRunner* Runner = Linker->GetActiveRunner();
+	FBuiltInComponentTypes*          BuiltInComponents = FBuiltInComponentTypes::Get();
+	FMovieSceneTracksComponentTypes* TrackComponents   = FMovieSceneTracksComponentTypes::Get();
+
+	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
 	if (Runner->GetCurrentPhase() == ESystemPhase::Instantiation)
 	{
+		if (GAnimationUIFlickerFix == true)
+		{
+			// Begin tracking pre-animated state for all bound skel animation components
+			TSharedPtr<FPreAnimatedSkeletalAnimationStorage> PreAnimatedStorage = Linker->PreAnimatedState.GetOrCreateStorage<FPreAnimatedSkeletalAnimationStorage>();
+
+			struct FTask
+			{
+				FEntityComponentFilter AdditionalFilter;
+			} Task;
+			Task.AdditionalFilter.All({ TrackComponents->SkeletalAnimation, BuiltInComponents->Tags.NeedsLink });
+			PreAnimatedStorage->BeginTrackingAndCachePreAnimatedValuesTask(Linker, Task, BuiltInComponents->BoundObject);
+		}
+
 		CleanSystemData();
 		return;
 	}
-
-	FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
-	FMovieSceneTracksComponentTypes* TrackComponents = FMovieSceneTracksComponentTypes::Get();
 
 	FGraphEventRef GatherTask = FEntityTaskBuilder()
 	.ReadEntityIDs()
@@ -1089,6 +1121,7 @@ void UMovieSceneSkeletalAnimationSystem::OnRun(FSystemTaskPrerequisites& InPrere
 	.Read(BuiltInComponents->InstanceHandle)
 	.Read(BuiltInComponents->BoundObject)
 	.Read(TrackComponents->SkeletalAnimation)
+	.ReadOptional(BuiltInComponents->EvalTime)
 	.ReadOptional(BuiltInComponents->WeightAndEasingResult)
 	.FilterNone({ BuiltInComponents->Tags.Ignored })
 	.SetStat(GatherStatId)

@@ -29,8 +29,7 @@ public class WebBrowser : ModuleRules
         );
 
         if (Target.Platform == UnrealTargetPlatform.Android ||
-		    Target.Platform == UnrealTargetPlatform.IOS ||
-		    Target.Platform == UnrealTargetPlatform.TVOS)
+		    Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
 		{
 			// We need these on mobile for external texture support
 			PrivateDependencyModuleNames.AddRange(
@@ -38,6 +37,7 @@ public class WebBrowser : ModuleRules
 				{
 					"Engine",
 					"Launch",
+					"JsonUtilities",
 					"WebBrowserTexture"
 				}
 			);

@@ -47,6 +47,7 @@ public:
 
 public:
 	SLATE_API SBackgroundBlur();
+	SLATE_API virtual ~SBackgroundBlur();
 	SLATE_API void Construct(const FArguments& InArgs);
 	SLATE_API virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 

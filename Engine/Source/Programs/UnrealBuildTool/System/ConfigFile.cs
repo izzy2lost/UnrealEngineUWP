@@ -57,6 +57,11 @@ namespace UnrealBuildTool
 		public string Value;
 
 		/// <summary>
+		/// Whether to preserve enclosing quotations around <see cref="Value"/>
+		/// </summary>
+		internal bool ShouldPreserveValueQuotations = false;
+
+		/// <summary>
 		/// Constructor.
 		/// </summary>
 		/// <param name="Action">Action to take when merging this key/value pair with an existing value</param>
@@ -67,6 +72,18 @@ namespace UnrealBuildTool
 			this.Action = Action;
 			this.Key = Key;
 			this.Value = Value;
+		}
+
+		/// <summary>
+		/// Constructor.
+		/// </summary>
+		/// <param name="Action">Action to take when merging this key/value pair with an existing value</param>
+		/// <param name="Key">Name of the key to modify</param>
+		/// <param name="Value">Value to assign</param>
+		/// <param name="ShouldPreserveValueQuotations">Whether to preserve enclosing quotations around <see cref="Value"/></param>
+		public ConfigLine(ConfigLineAction Action, string Key, string Value, bool ShouldPreserveValueQuotations) : this(Action, Key, Value)
+		{
+			this.ShouldPreserveValueQuotations = ShouldPreserveValueQuotations;
 		}
 
 		/// <summary>
@@ -416,10 +433,13 @@ namespace UnrealBuildTool
 				}
 			}
 
+			bool HasStrippedValueQuotes = false;
+
 			// Strip quotes around the value if present
 			int ValueEndIdx = EndIdx;
 			if (ValueEndIdx >= ValueStartIdx + 2 && Line[ValueStartIdx] == '"' && Line[ValueEndIdx - 1] == '"')
 			{
+				HasStrippedValueQuotes = true;
 				ValueStartIdx++;
 				ValueEndIdx--;
 			}
@@ -432,7 +452,7 @@ namespace UnrealBuildTool
 			string NewKey = RemapSectionOrKey(KeyRemap, Key, $"which is a config key in section [{Section.Name}], in '{Filename}'");
 
 			// look for a section:name remap
-			if (!NewKey.Equals(Key) && NewKey.IndexOf(":") != -1)
+			if (!NewKey.Equals(Key) && NewKey.Contains(":", StringComparison.CurrentCulture))
 			{
 				string SectionName = NewKey.Substring(0, NewKey.IndexOf(':'));
 				ConfigFileSection? CurrentSection;
@@ -443,12 +463,13 @@ namespace UnrealBuildTool
 				}
 
 				string KeyName = NewKey.Substring(NewKey.IndexOf(':') + 1);
-				CurrentSection.Lines.Add(new ConfigLine(Action, KeyName, Value));
+
+				CurrentSection.Lines.Add(new ConfigLine(Action, KeyName, Value, HasStrippedValueQuotes));
 
 				return true;
 			}
 
-			Section.Lines.Add(new ConfigLine(Action, NewKey, Value));
+			Section.Lines.Add(new ConfigLine(Action, NewKey, Value, HasStrippedValueQuotes));
 			return true;
 		}
 
@@ -497,6 +518,10 @@ namespace UnrealBuildTool
 					Writer.WriteLine("[{0}]", Section.Name);
 					foreach (ConfigLine Line in Section.Lines)
 					{
+						if (Line.ShouldPreserveValueQuotations)
+						{
+							Line.Value = $"\"{Line.Value}\"";
+						}
 						Writer.WriteLine("{0}", Line.ToString());
 					}
 					Writer.WriteLine();

@@ -267,6 +267,7 @@ public:
 			Usage = InUsage;
 
 			ReferencedTextures = MaterialInterface->GetReferencedTextures();
+			ReferencedTextureCollections = MaterialInterface->GetReferencedTextureCollections();
 
 			FMaterialResource* Resource = InMaterialInterface->GetMaterialResource(GMaxRHIFeatureLevel);
 			if (Resource)
@@ -295,6 +296,11 @@ public:
 	virtual TArrayView<const TObjectPtr<UObject>> GetReferencedTextures() const override
 	{
 		return ReferencedTextures;
+	}
+
+	virtual TConstArrayView<TObjectPtr<UTextureCollection>> GetReferencedTextureCollections() const override
+	{
+		return ReferencedTextureCollections;
 	}
 
 	/**
@@ -595,6 +601,10 @@ public:
 	{
 		return Material && Material->MaterialDomain == MD_DeferredDecal;
 	}
+	virtual bool IsUIMaterial() const override
+	{
+		return Material && Material->MaterialDomain == MD_UI;
+	}
 	virtual bool IsVolumetricPrimitive() const override
 	{
 		return Material && Material->MaterialDomain == MD_Volume;
@@ -619,12 +629,17 @@ public:
 	virtual enum EBlendMode GetBlendMode() const override					{ return BLEND_Opaque; }
 	virtual enum ERefractionMode GetRefractionMode() const override			{ return Material ? (ERefractionMode)Material->RefractionMethod : RM_None; }
 	virtual bool GetRootNodeOverridesDefaultRefraction()const override		{ return Material ? Material->bRootNodeOverridesDefaultDistortion : false; }
-	virtual FMaterialShadingModelField GetShadingModels() const override	{ return MSM_Unlit; }
-	virtual bool IsShadingModelFromMaterialExpression() const override		{ return false; }
 	virtual float GetOpacityMaskClipValue() const override					{ return 0.5f; }
 	virtual bool GetCastDynamicShadowAsMasked() const override				{ return false; }
 	virtual FString GetFriendlyName() const override { return FString::Printf(TEXT("FLightmassMaterialRenderer %s"), MaterialInterface ? *MaterialInterface->GetName() : TEXT("NULL")); }
 
+	virtual bool IsShadingModelFromMaterialExpression() const override		{ return false; }
+	virtual FMaterialShadingModelField GetShadingModels() const override	
+	{ 
+		// Substrate needs the real material shading model since the expressions access GetMaterialShadingModels() through the compiler to generate the substrate operators, 
+		// and we do not want unlit materials when it is a Slab or a ShadingModel node.
+		return Lightmass_IsSubstrateEnabled() ? Material->GetShadingModels() : MSM_Unlit; 
+	} 
 	/**
 	 * Should shaders compiled for this material be saved to disk?
 	 */
@@ -999,6 +1014,7 @@ private:
 	UMaterialInterface* MaterialInterface;
 	UMaterial* Material;
 	TArray<TObjectPtr<UObject>> ReferencedTextures;
+	TArray<TObjectPtr<UTextureCollection>> ReferencedTextureCollections;
 	/** The property to compile for rendering the sample */
 	EMaterialProperty PropertyToCompile;
 	/** Stores which exported attribute this proxy is compiling for. */
@@ -1013,15 +1029,26 @@ FMaterialExportDataEntry::~FMaterialExportDataEntry()
 	FLightmassMaterialProxy* LocalEmissiveMaterialProxy = EmissiveMaterialProxy;
 	FLightmassMaterialProxy* LocalOpacityMaterialProxy = OpacityMaterialProxy;
 	FLightmassMaterialProxy* LocalNormalMaterialProxy = NormalMaterialProxy;
-	ENQUEUE_RENDER_COMMAND(FMaterialExportDataEntryDelete)(
-		[LocalDiffuseMaterialProxy, LocalEmissiveMaterialProxy, LocalOpacityMaterialProxy, LocalNormalMaterialProxy](FRHICommandListImmediate& RHICmdList)
-		{
-			delete LocalDiffuseMaterialProxy;
-			delete LocalEmissiveMaterialProxy;
-			delete LocalOpacityMaterialProxy;
-			delete LocalNormalMaterialProxy;
-		}
-	);
+
+	if (LocalDiffuseMaterialProxy )
+	{
+		FMaterial::DeferredDelete(LocalDiffuseMaterialProxy);		
+	}
+
+	if (LocalEmissiveMaterialProxy)
+	{
+		FMaterial::DeferredDelete(LocalEmissiveMaterialProxy);
+	}
+
+	if (LocalOpacityMaterialProxy)
+	{
+		FMaterial::DeferredDelete(LocalOpacityMaterialProxy);
+	}
+
+	if (LocalNormalMaterialProxy)
+	{	
+		FMaterial::DeferredDelete(LocalNormalMaterialProxy);
+	}
 }
 
 //

@@ -11,6 +11,7 @@
 #include "Chaos/ImplicitObjectScaled.h"
 #include "Chaos/Collision/PBDCollisionConstraint.h"
 #include "Chaos/Triangle.h"
+#include "Chaos/TriangleMeshImplicitObject.h"
 #include "Chaos/TriangleRegister.h"
 
 namespace ChaosTest
@@ -2101,5 +2102,232 @@ namespace ChaosTest
 		TRigidTransform<Chaos::FReal, 3> BToATM( Translation , TRotation<FReal, 3>::Identity);
 		EXPECT_TRUE(GJKIntersection(BigBoxScaled, SmallBox, BToATM, FReal(0), Chaos::TVector<FReal, 3>(-16000, -16000, 500)));		
 
+	}
+
+	// Test known large triangle failure case
+	GTEST_TEST(GJKTests, GJK_LargeTriangleCase)
+	{
+		VectorRegister4Float TriMeshScaleVector = MakeVectorRegister(2000.0f, 2000.0f, 1.0f, 0.0f);
+
+		VectorRegister4Float A = MakeVectorRegister(100.0f, 0.0f, 100.0f, 0.0f);
+		VectorRegister4Float B = MakeVectorRegister(0.0f, 100.0f, 100.0f, 0.0f);
+		VectorRegister4Float C = MakeVectorRegister(0.0f, 0.0f, 100.0f, 0.0f);
+
+		A = VectorMultiply(A, TriMeshScaleVector);
+		B = VectorMultiply(B, TriMeshScaleVector);
+		C = VectorMultiply(C, TriMeshScaleVector);
+
+		FTriangleRegister Tri(A, B, C);
+		const VectorRegister4Float TriNormal = VectorCross(VectorSubtract(B, A), VectorSubtract(C, A));
+
+		FRealSingle Time;
+		VectorRegister4Float OutPositionSimd, OutNormalSimd;
+		Chaos::TSphere<Chaos::FReal, 3> QueryGeom({ 0, 0, 0 }, 5.0f);
+		VectorRegister4Float RotationSimd = MakeVectorRegister(0.0f, 0.0f, 0.0f, 0.0f);
+
+		VectorRegister4Float TranslationSimd = MakeVectorRegister(100000.0f, 100022.820f, 213.002823f, 0.0f);
+		VectorRegister4Float RayDirSimd = MakeVectorRegister(-2.22044605e-16f, 0.0f, -1.0f, 0.0f);
+		float LengthScale = 1.0f;
+		float CurDataLength = 108.002823f;
+		const bool bComputeMTD = true;
+		bool bFoundIntersection;
+		if (Tri.IsTooBigForSinglePrecision())
+		{
+			VectorRegister4Double OutPositionDouble, OutNormalDouble;
+			bFoundIntersection = GJKRaycast2ImplSimd<VectorRegister4Double>(Tri, QueryGeom, VectorRegister4Double(RotationSimd), VectorRegister4Double(TranslationSimd), VectorRegister4Double(RayDirSimd), LengthScale * CurDataLength, Time, OutPositionDouble, OutNormalDouble, bComputeMTD, GlobalVectorConstants::Double1000);
+			OutPositionSimd = MakeVectorRegisterFloatFromDouble(OutPositionDouble);
+			OutNormalSimd = MakeVectorRegisterFloatFromDouble(OutNormalDouble);
+		}
+		else
+		{
+			bFoundIntersection = GJKRaycast2ImplSimd<VectorRegister4Float>(Tri, QueryGeom, RotationSimd, TranslationSimd, RayDirSimd, LengthScale * CurDataLength, Time, OutPositionSimd, OutNormalSimd, bComputeMTD, GlobalVectorConstants::FloatMinusOne);
+		}
+
+		EXPECT_FALSE(bFoundIntersection);
+	}
+
+	GTEST_TEST(GJKTests, GJK_SweepConvexLargeTriangleInMesh)
+	{
+		using namespace Chaos;
+		TArray<FConvex::FVec3Type> ConvexSurface(
+			{
+			{5.0, -5.0, -5.0},
+			{-5.0, 5.0, -5.0},
+			{5.0, 5.0, -5.0},
+			{5.0, 5.0, 5.0},
+			{-5.0, -5.0, -5.0},
+			{-5.0, -5.0, 5.0},
+			{5.0, -5.0, 5.0},
+			{-5.0, 5.0, 5.0},
+			});
+
+		FConvex ConvexBox(MoveTemp(ConvexSurface), 0.0f);
+
+		FTriangleMeshImplicitObject::ParticlesType TrimeshParticles(
+			{
+				{500.0000000, 500.0000000, 0.0},
+				{500.0000000, -500.0000000, 0.0},
+				{-500.0000000, 500.0000000, 0.0},
+				{-500.0000000, -500.0000000, 0.0}
+			});
+
+		TArray<TVec3<int32>> Indices;
+		Indices.Emplace(1, 0, 2);
+		Indices.Emplace(1, 2, 3);
+
+		TArray<uint16> Materials;
+		Materials.Emplace(0);
+		Materials.Emplace(0);
+		FTriangleMeshImplicitObjectPtr TriangleMesh(new FTriangleMeshImplicitObject(MoveTemp(TrimeshParticles), MoveTemp(Indices), MoveTemp(Materials)));
+		TImplicitObjectScaled<FTriangleMeshImplicitObject> ScaledTriangleMesh = TImplicitObjectScaled<FTriangleMeshImplicitObject>(TriangleMesh, FVec3(10000.0, 10000.0, 1.0));
+
+		FQuat Rotation(0.00488796039, 0.00569311855, -0.000786740216, 0.999971569);
+		FVec3 Translation(10500.365723, -14500.4132690, 8.2289352);
+
+		TRigidTransform<FReal, 3> Transform(Translation, Rotation);
+
+
+		FVec3 Dir(-0.00339674903, 5.76980747e-05, -0.999994159);
+		FReal Length = 10.0;
+
+		FReal OutTime = -1;
+		FVec3 Normal(0.0f);
+		FVec3 Position(0.0f);
+		int32 FaceIndex = -1;
+		FVec3 FaceNormal(0.0);
+		bool bResult = ScaledTriangleMesh.LowLevelSweepGeom(ConvexBox, Transform, Dir, Length, OutTime, Position, Normal, FaceIndex, FaceNormal, 0.0f, true);
+		EXPECT_TRUE(bResult);
+		EXPECT_EQ(Position.Z, 0.0);
+		EXPECT_NEAR(Position.X, 10505.365723, 1);
+		EXPECT_NEAR(Position.Y, -14505.4132690, 1);
+	}
+
+	GTEST_TEST(GJKTests, GJK_SweepBoxLargeTriangleInMesh)
+	{
+		Chaos::TBox<Chaos::FReal, 3> QueryGeom({ -5, -5, -5 }, { 5, 5, 5 });
+
+		FTriangleMeshImplicitObject::ParticlesType TrimeshParticles(
+			{
+				{500.0000000, 500.0000000, 0.0},
+				{500.0000000, -500.0000000, 0.0},
+				{-500.0000000, 500.0000000, 0.0},
+				{-500.0000000, -500.0000000, 0.0}
+			});
+
+		TArray<TVec3<int32>> Indices;
+		Indices.Emplace(1, 0, 2);
+		Indices.Emplace(1, 2, 3);
+
+		TArray<uint16> Materials;
+		Materials.Emplace(0);
+		Materials.Emplace(0);
+		FTriangleMeshImplicitObjectPtr TriangleMesh(new FTriangleMeshImplicitObject(MoveTemp(TrimeshParticles), MoveTemp(Indices), MoveTemp(Materials)));
+		TImplicitObjectScaled<FTriangleMeshImplicitObject> ScaledTriangleMesh = TImplicitObjectScaled<FTriangleMeshImplicitObject>(TriangleMesh, FVec3(10000.0, 10000.0, 1.0));
+
+		FQuat Rotation(0.00488796039, 0.00569311855, -0.000786740216, 0.999971569);
+		FVec3 Translation(10500.365723, -14500.4132690, 8.2289352);
+
+		TRigidTransform<FReal, 3> Transform(Translation, Rotation);
+
+
+		FVec3 Dir(-0.00339674903, 5.76980747e-05, -0.999994159);
+		FReal Length = 10.0;
+
+		FReal OutTime = -1;
+		FVec3 Normal(0.0f);
+		FVec3 Position(0.0f);
+		int32 FaceIndex = -1;
+		FVec3 FaceNormal(0.0);
+		bool bResult = ScaledTriangleMesh.LowLevelSweepGeom(QueryGeom, Transform, Dir, Length, OutTime, Position, Normal, FaceIndex, FaceNormal, 0.0f, true);
+		EXPECT_TRUE(bResult);
+		EXPECT_EQ(Position.Z, 0.0);
+		EXPECT_NEAR(Position.X, 10505.365723, 1);
+		EXPECT_NEAR(Position.Y, -14505.4132690, 1);
+	}
+
+	GTEST_TEST(GJKTests, GJK_SweepSphereLargeTriangleInMesh)
+	{
+		Chaos::TSphere<Chaos::FReal, 3> QueryGeom({ 0, 0, 0 }, 5.0f);
+
+		FTriangleMeshImplicitObject::ParticlesType TrimeshParticles(
+			{
+				{500.0000000, 500.0000000, 0.0},
+				{500.0000000, -500.0000000, 0.0},
+				{-500.0000000, 500.0000000, 0.0},
+				{-500.0000000, -500.0000000, 0.0}
+			});
+
+		TArray<TVec3<int32>> Indices;
+		Indices.Emplace(1, 0, 2);
+		Indices.Emplace(1, 2, 3);
+
+		TArray<uint16> Materials;
+		Materials.Emplace(0);
+		Materials.Emplace(0);
+		FTriangleMeshImplicitObjectPtr TriangleMesh(new FTriangleMeshImplicitObject(MoveTemp(TrimeshParticles), MoveTemp(Indices), MoveTemp(Materials)));
+		TImplicitObjectScaled<FTriangleMeshImplicitObject> ScaledTriangleMesh = TImplicitObjectScaled<FTriangleMeshImplicitObject>(TriangleMesh, FVec3(10000.0, 10000.0, 1.0));
+
+		FQuat Rotation(0.00488796039, 0.00569311855, -0.000786740216, 0.999971569);
+		FVec3 Translation(10500.365723, -14500.4132690, 8.2289352);
+
+		TRigidTransform<FReal, 3> Transform(Translation, Rotation);
+
+
+		FVec3 Dir(-0.00339674903, 5.76980747e-05, -0.999994159);
+		FReal Length = 10.0;
+
+		FReal OutTime = -1;
+		FVec3 Normal(0.0f);
+		FVec3 Position(0.0f);
+		int32 FaceIndex = -1;
+		FVec3 FaceNormal(0.0);
+		bool bResult = ScaledTriangleMesh.LowLevelSweepGeom(QueryGeom, Transform, Dir, Length, OutTime, Position, Normal, FaceIndex, FaceNormal, 0.0f, true);
+		EXPECT_TRUE(bResult);
+		EXPECT_EQ(Position.Z, 0.0);
+		EXPECT_NEAR(Position.X, 10500.365723, 1e-1);
+		EXPECT_NEAR(Position.Y, -14500.4132690, 1e-1);
+	}
+
+	GTEST_TEST(GJKTests, GJK_SweepCapsuleLargeTriangleInMesh)
+	{
+		Chaos::FCapsule QueryGeom({ 0, 0, 1.0 }, { 0, 0, -1.0 }, 5.0f);
+
+		FTriangleMeshImplicitObject::ParticlesType TrimeshParticles(
+			{
+				{500.0000000, 500.0000000, 0.0},
+				{500.0000000, -500.0000000, 0.0},
+				{-500.0000000, 500.0000000, 0.0},
+				{-500.0000000, -500.0000000, 0.0}
+			});
+
+		TArray<TVec3<int32>> Indices;
+		Indices.Emplace(1, 0, 2);
+		Indices.Emplace(1, 2, 3);
+
+		TArray<uint16> Materials;
+		Materials.Emplace(0);
+		Materials.Emplace(0);
+		FTriangleMeshImplicitObjectPtr TriangleMesh(new FTriangleMeshImplicitObject(MoveTemp(TrimeshParticles), MoveTemp(Indices), MoveTemp(Materials)));
+		TImplicitObjectScaled<FTriangleMeshImplicitObject> ScaledTriangleMesh = TImplicitObjectScaled<FTriangleMeshImplicitObject>(TriangleMesh, FVec3(10000.0, 10000.0, 1.0));
+
+		FQuat Rotation(0.00488796039, 0.00569311855, -0.000786740216, 0.999971569);
+		FVec3 Translation(10500.365723, -14500.4132690, 8.2289352);
+
+		TRigidTransform<FReal, 3> Transform(Translation, Rotation);
+
+
+		FVec3 Dir(-0.00339674903, 5.76980747e-05, -0.999994159);
+		FReal Length = 10.0;
+
+		FReal OutTime = -1;
+		FVec3 Normal(0.0f);
+		FVec3 Position(0.0f);
+		int32 FaceIndex = -1;
+		FVec3 FaceNormal(0.0);
+		bool bResult = ScaledTriangleMesh.LowLevelSweepGeom(QueryGeom, Transform, Dir, Length, OutTime, Position, Normal, FaceIndex, FaceNormal, 0.0f, true);
+		EXPECT_TRUE(bResult);
+		EXPECT_EQ(Position.Z, 0.0);
+		EXPECT_NEAR(Position.X, 10500.365723, 1e-1);
+		EXPECT_NEAR(Position.Y, -14500.4132690, 1e-1);
 	}
 }

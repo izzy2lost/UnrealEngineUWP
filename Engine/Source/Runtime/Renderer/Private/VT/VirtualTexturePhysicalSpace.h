@@ -10,6 +10,8 @@
 #include "VirtualTextureShared.h"
 #include "VirtualTexturing.h"
 
+class FRDGExternalAccessQueue;
+
 /** Description that determines a unique physical space. This is filled out by a producer. */
 struct FVTPhysicalSpaceDescription
 {
@@ -136,7 +138,7 @@ public:
 		return PooledRenderTarget[Layer];
 	}
 
-	void FinalizeTextures(FRDGBuilder& GraphBuilder);
+	void FinalizeTextures(FRDGBuilder& GraphBuilder, FRDGExternalAccessQueue& ExternalAccessQueue);
 
 	/** Update internal tracking of residency. This is used to update stats and to calculate a mip bias to keep within the pool budget. */
 	void UpdateResidencyTracking(uint32 Frame);
@@ -157,6 +159,7 @@ private:
 	TRefCountPtr<IPooledRenderTarget> PooledRenderTarget[VIRTUALTEXTURE_SPACE_MAXLAYERS];
 	FShaderResourceViewRHIRef TextureSRV[VIRTUALTEXTURE_SPACE_MAXLAYERS];
 	FShaderResourceViewRHIRef TextureSRV_SRGB[VIRTUALTEXTURE_SPACE_MAXLAYERS];
+	FString PooledRenderTargetDebugNames[VIRTUALTEXTURE_SPACE_MAXLAYERS];
 
 	uint16 ID;
 	uint32 NumRefs;

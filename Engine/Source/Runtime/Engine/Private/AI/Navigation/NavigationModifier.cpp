@@ -32,7 +32,8 @@ FNavigationLinkBase::FNavigationLinkBase()
 	: LeftProjectHeight(0.0f), MaxFallDownLength(1000.0f), SnapRadius(30.f), SnapHeight(50.0f),
 	  Direction(ENavLinkDirection::BothWays), bUseSnapHeight(false), bSnapToCheapestArea(true),
 	  bCustomFlag0(false), bCustomFlag1(false), bCustomFlag2(false), bCustomFlag3(false), bCustomFlag4(false),
-	  bCustomFlag5(false), bCustomFlag6(false), bCustomFlag7(false)
+	  bCustomFlag5(false), bCustomFlag6(false), bCustomFlag7(false),
+	  bIsGenerated(false)
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UserId = InvalidUserId;
@@ -334,6 +335,12 @@ FAreaNavModifier::FAreaNavModifier(const FBox& Box, const FTransform& LocalToWor
 }
 
 FAreaNavModifier::FAreaNavModifier(const TArray<FVector>& InPoints, ENavigationCoordSystem::Type CoordType, const FTransform& LocalToWorld, const TSubclassOf<UNavAreaBase> InAreaClass)
+{
+	Init(InAreaClass);
+	SetConvex(InPoints.GetData(), 0, InPoints.Num(), CoordType, LocalToWorld);
+}
+
+FAreaNavModifier::FAreaNavModifier(const TConstArrayView<FVector> InPoints, ENavigationCoordSystem::Type CoordType, const FTransform& LocalToWorld, const TSubclassOf<UNavAreaBase> InAreaClass)
 {
 	Init(InAreaClass);
 	SetConvex(InPoints.GetData(), 0, InPoints.Num(), CoordType, LocalToWorld);
@@ -785,7 +792,12 @@ void FCompositeNavModifier::Empty()
 	NavMeshResolution = ENavigationDataResolution::Invalid;
 }
 
-FCompositeNavModifier FCompositeNavModifier::GetInstantiatedMetaModifier(const FNavAgentProperties* NavAgent, TWeakObjectPtr<UObject> WeakOwnerPtr) const
+FCompositeNavModifier FCompositeNavModifier::GetInstantiatedMetaModifier(const FNavAgentProperties* NavAgent, const TWeakObjectPtr<UObject> WeakOwnerPtr) const
+{
+	return GetInstantiatedMetaModifier(NavAgent, static_cast<const TWeakObjectPtr<const UObject>&>(WeakOwnerPtr));
+}
+
+FCompositeNavModifier FCompositeNavModifier::GetInstantiatedMetaModifier(const FNavAgentProperties* NavAgent, const TWeakObjectPtr<const UObject>& WeakOwnerPtr) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_MetaAreaTranslation);
 	FCompositeNavModifier Result;
@@ -794,13 +806,13 @@ FCompositeNavModifier FCompositeNavModifier::GetInstantiatedMetaModifier(const F
 	// should not be called when HasMetaAreas == false since it's a waste of performance
 	ensure(HasMetaAreas() == true);
 
-	UObject* ObjectOwner = WeakOwnerPtr.Get();
-	if (ObjectOwner == NULL)
+	const UObject* ObjectOwner = WeakOwnerPtr.Get();
+	if (ObjectOwner == nullptr)
 	{
 		return Result;
 	}
 	
-	auto FindActorOwner = [](UObject* Obj) -> const AActor*
+	auto FindActorOwner = [](const UObject* Obj) -> const AActor*
 	{
 		while (Obj)
 		{
@@ -813,8 +825,13 @@ FCompositeNavModifier FCompositeNavModifier::GetInstantiatedMetaModifier(const F
 		return nullptr;
 	};
 
-	const AActor* ActorOwner = Cast<AActor>(ObjectOwner) ? (AActor*)ObjectOwner : FindActorOwner(ObjectOwner);
-	if (ActorOwner == NULL)
+	const AActor* ActorOwner = Cast<AActor>(ObjectOwner);
+	if (ActorOwner == nullptr)
+	{
+		ActorOwner = FindActorOwner(ObjectOwner);
+	}
+
+	if (ActorOwner == nullptr)
 	{
 		return Result;
 	}
@@ -897,7 +914,7 @@ FCompositeNavModifier FCompositeNavModifier::GetInstantiatedMetaModifier(const F
 					NavLink.SetAreaClass(UNavAreaBase::PickAreaClassForAgent(NavLink.GetAreaClass(), *ActorOwner, *NavAgent));
 				}
 
-				Result.CustomLinks.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				Result.CustomLinks.RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 		}
 	}
@@ -905,7 +922,7 @@ FCompositeNavModifier FCompositeNavModifier::GetInstantiatedMetaModifier(const F
 	return Result;
 }
 
-void FCompositeNavModifier::CreateAreaModifiers(const UPrimitiveComponent* PrimComp, const TSubclassOf<UNavAreaBase> AreaClass)
+void FCompositeNavModifier::CreateAreaModifiers(const UPrimitiveComponent* PrimComp, const TSubclassOf<UNavAreaBase> AreaClass, const TSubclassOf<UNavAreaBase> AreaClassToReplace)
 {
 	UBodySetup* BodySetup = PrimComp ? ((UPrimitiveComponent*)PrimComp)->GetBodySetup() : nullptr;
 	if (BodySetup == nullptr)
@@ -919,6 +936,11 @@ void FCompositeNavModifier::CreateAreaModifiers(const UPrimitiveComponent* PrimC
 		const FBox BoxSize = BoxElem.CalcAABB(FTransform::Identity, 1.0f);
 
 		FAreaNavModifier AreaMod(BoxSize, PrimComp->GetComponentTransform(), AreaClass);
+		if (AreaClassToReplace)
+		{
+			AreaMod.SetAreaClassToReplace(AreaClassToReplace);
+			AreaMod.SetApplyMode(ENavigationAreaMode::Replace);
+		}
 		Add(AreaMod);
 	}
 
@@ -928,6 +950,11 @@ void FCompositeNavModifier::CreateAreaModifiers(const UPrimitiveComponent* PrimC
 		const FTransform AreaOffset(FVector(0, 0, -SphylElem.Length));
 
 		FAreaNavModifier AreaMod(SphylElem.Radius, SphylElem.Length * 2.0f, AreaOffset * PrimComp->GetComponentTransform(), AreaClass);
+		if (AreaClassToReplace)
+		{
+			AreaMod.SetAreaClassToReplace(AreaClassToReplace);
+			AreaMod.SetApplyMode(ENavigationAreaMode::Replace);
+		}
 		Add(AreaMod);
 	}
 
@@ -937,6 +964,11 @@ void FCompositeNavModifier::CreateAreaModifiers(const UPrimitiveComponent* PrimC
 		if (ConvexElem.VertexData.Num() > 0)
 		{
 			FAreaNavModifier AreaMod(UE::LWC::ConvertArrayType<FVector>(ConvexElem.VertexData), 0, ConvexElem.VertexData.Num(), ENavigationCoordSystem::Unreal, PrimComp->GetComponentTransform(), AreaClass);
+			if (AreaClassToReplace)
+			{
+				AreaMod.SetAreaClassToReplace(AreaClassToReplace);
+				AreaMod.SetApplyMode(ENavigationAreaMode::Replace);
+			}
 			Add(AreaMod);
 		}
 		else
@@ -951,6 +983,11 @@ void FCompositeNavModifier::CreateAreaModifiers(const UPrimitiveComponent* PrimC
 		const FTransform AreaOffset(FVector(0, 0, -SphereElem.Radius));
 
 		FAreaNavModifier AreaMod(SphereElem.Radius, SphereElem.Radius * 2.0f, AreaOffset * PrimComp->GetComponentTransform(), AreaClass);
+		if (AreaClassToReplace)
+		{
+			AreaMod.SetAreaClassToReplace(AreaClassToReplace);
+			AreaMod.SetApplyMode(ENavigationAreaMode::Replace);
+		}
 		Add(AreaMod);
 	}
 }
@@ -997,11 +1034,4 @@ uint32 FCompositeNavModifier::GetAllocatedSize() const
 	}
 
 	return IntCastChecked<uint32>(MemUsed);
-}
-
-bool FCompositeNavModifier::HasPerInstanceTransforms() const
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	return NavDataPerInstanceTransformDelegate.IsBound();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }

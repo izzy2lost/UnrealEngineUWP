@@ -32,14 +32,14 @@ typedef TSharedPtr<FLiveLinkSubjectUIEntry> FLiveLinkSubjectUIEntryPtr;
 
 namespace UE::LiveLink
 {
-	TSharedPtr<IDetailsView> CreateSourcesDetailsView(const TSharedPtr<FLiveLinkSourcesView>& InSourcesView, const TAttribute<bool>& bInReadOnly);
-	TSharedPtr<SLiveLinkDataView> CreateSubjectsDetailsView(FLiveLinkClient* InLiveLinkClient, const TAttribute<bool>& bInReadOnly);
+	TSharedPtr<IDetailsView> LIVELINKEDITOR_API CreateSourcesDetailsView(const TSharedPtr<FLiveLinkSourcesView>& InSourcesView, const TAttribute<bool>& bInReadOnly);
+	TSharedPtr<SLiveLinkDataView> LIVELINKEDITOR_API CreateSubjectsDetailsView(FLiveLinkClient* InLiveLinkClient, const TAttribute<bool>& bInReadOnly);
 }
 
 // Structure that defines a single entry in the subject UI
 struct FLiveLinkSubjectUIEntry
 {
-	FLiveLinkSubjectUIEntry(const FLiveLinkSubjectKey& InSubjectKey, FLiveLinkClient* InClient);
+	FLiveLinkSubjectUIEntry(const FLiveLinkSubjectKey& InSubjectKey, FLiveLinkClient* InClient, bool bIsSource = false);
 
 	// Subject key
 	FLiveLinkSubjectKey SubjectKey;
@@ -73,6 +73,9 @@ struct FLiveLinkSubjectUIEntry
 private:
 	// Whether the subject is virtual
 	bool bIsVirtualSubject = false;
+
+	// Whether this represents a source.
+	bool bIsSource = false;
 };
 
 // Structure that defines a single entry in the source UI

@@ -50,7 +50,7 @@ void FRDGResource::ValidateRHIAccess() const
 	}
 
 	check(DebugData);
-	checkf(DebugData->bAllowRHIAccess || GRDGAllowRHIAccess,
+	checkf(DebugData->bAllowRHIAccess || GRDGAllowRHIAccess || GRDGAllowRHIAccessAsync,
 		TEXT("Accessing the RHI resource of %s at this time is not allowed. If you hit this check in pass, ")
 		TEXT("that is due to this resource not being referenced in the parameters of your pass."),
 		Name);
@@ -130,9 +130,8 @@ void FRDGUniformBuffer::MarkResourceAsUsed()
 	});
 }
 
-FRDGUserValidation::FRDGUserValidation(FRDGAllocator& InAllocator, bool bInParallelExecuteEnabled)
+FRDGUserValidation::FRDGUserValidation(FRDGAllocator& InAllocator)
 	: Allocator(InAllocator)
-	, bParallelExecuteEnabled(bInParallelExecuteEnabled)
 {
 	checkf(!GRDGBuilderActive, TEXT("Another FRDGBuilder already exists on the stack. Only one builder can be created at a time. This builder instance should be merged into the parent one."));
 	GRDGBuilderActive = true;
@@ -835,6 +834,7 @@ void FRDGUserValidation::ValidateAddPass(const FRDGPass* Pass, bool bSkipPassAcc
 		}
 		break;
 		case UBMT_RDG_TEXTURE_SRV:
+		case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 		{
 			if (FRDGTextureSRVRef SRV = Parameter.GetAsTextureSRV())
 			{
@@ -1314,6 +1314,11 @@ void FRDGUserValidation::SetAllowRHIAccess(const FRDGPass* Pass, bool bAllowAcce
 				Texture->GetDebugData().bAllowRHIAccess = bAllowAccess;
 			}
 
+			if (FRDGTextureRef ResolveTexture = RenderTargets.DepthStencil.GetResolveTexture())
+			{
+				ResolveTexture->GetDebugData().bAllowRHIAccess = bAllowAccess;
+			}
+
 			if (FRDGTexture* Texture = RenderTargets.ShadingRateTexture)
 			{
 				Texture->GetDebugData().bAllowRHIAccess = bAllowAccess;
@@ -1416,11 +1421,11 @@ void FRDGBarrierValidation::ValidateBarrierBatchBegin(const FRDGPass* Pass, cons
 		for (const FRDGTransitionInfo& Transition : Transitions)
 		{
 			UE_LOG(LogRDG, Display, TEXT("\t\tMip(%d), Array(%d), Slice(%d): [%s, %s] -> [%s, %s]"),
-				Transition.MipIndex, Transition.ArraySlice, Transition.PlaneSlice,
-				*GetRHIAccessName(Transition.AccessBefore),
-				*GetRHIPipelineName(Batch.DebugPipelinesToBegin),
-				*GetRHIAccessName(Transition.AccessAfter),
-				*GetRHIPipelineName(Batch.DebugPipelinesToEnd));
+				Transition.Texture.MipIndex, Transition.Texture.ArraySlice, Transition.Texture.PlaneSlice,
+				*GetRHIAccessName((ERHIAccess)Transition.AccessBefore),
+				*GetRHIPipelineName(Batch.PipelinesToBegin),
+				*GetRHIAccessName((ERHIAccess)Transition.AccessAfter),
+				*GetRHIPipelineName(Batch.PipelinesToEnd));
 		}
 	}
 
@@ -1440,10 +1445,10 @@ void FRDGBarrierValidation::ValidateBarrierBatchBegin(const FRDGPass* Pass, cons
 			Buffer,
 			Buffer->GetRHIUnchecked(),
 			Buffer->Name,
-			*GetRHIAccessName(Transition.AccessBefore),
-			*GetRHIPipelineName(Batch.DebugPipelinesToBegin),
-			*GetRHIAccessName(Transition.AccessAfter),
-			*GetRHIPipelineName(Batch.DebugPipelinesToEnd));
+			*GetRHIAccessName((ERHIAccess)Transition.AccessBefore),
+			*GetRHIPipelineName(Batch.PipelinesToBegin),
+			*GetRHIAccessName((ERHIAccess)Transition.AccessAfter),
+			*GetRHIPipelineName(Batch.PipelinesToEnd));
 	}
 }
 
@@ -1505,21 +1510,6 @@ void FRDGBarrierValidation::ValidateBarrierBatchEnd(const FRDGPass* Pass, const 
 			{
 				LogHeader();
 				UE_LOG(LogRDG, Display, TEXT("\tRDG(%p) RHI(%p) %s - End"), Buffer, Buffer->GetRHIUnchecked(), Buffer->Name);
-			}
-		}
-
-		for (const auto& KeyValue : ResourceMap.Aliases)
-		{
-			const FRHITransientAliasingInfo& Info = KeyValue.Value;
-			if (Info.IsDiscard())
-			{
-				FRDGViewableResource* Resource = KeyValue.Key;
-
-				if (IsDebugAllowedForResource(Resource->Name))
-				{
-					LogHeader();
-					UE_LOG(LogRDG, Display, TEXT("\tRDG(%p) RHI(%p) %s - Discard"), Resource, Resource->GetRHIUnchecked(), Resource->Name);
-				}
 			}
 		}
 

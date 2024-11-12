@@ -26,6 +26,8 @@ class FLandscapeTiledImage
 {
 public:
 	FLandscapeTiledImage();
+
+	template<typename T>
 	FLandscapeFileInfo Load(const TCHAR* Filename);
 	
 	FIntPoint GetTileResolution() const { return TileResolution;  }

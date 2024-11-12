@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "LevelEditor.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 #include "GeometryCollection/GeometryCollectionProviderEditor.h"
@@ -56,6 +57,9 @@ public:
 private:
 	void RegisterMenus();
 
+	void CreateGeometrySelectionMenu(FMenuBuilder& InMenuBuilder);
+	TSharedRef<FExtender> OnExtendLevelEditorViewMenu(const TSharedRef<FUICommandList> InCommandList);
+
 private:
 	TArray<IConsoleObject*> EditorCommands;
 
@@ -70,5 +74,8 @@ private:
 
 	// Styleset for geom collection tool brushes/fonts etc.
 	TSharedPtr<FSlateStyleSet> StyleSet;
+
+	FLevelEditorModule::FLevelEditorMenuExtender ViewMenuExtender;
+	FDelegateHandle ViewMenuExtenderHandle;
 };
 

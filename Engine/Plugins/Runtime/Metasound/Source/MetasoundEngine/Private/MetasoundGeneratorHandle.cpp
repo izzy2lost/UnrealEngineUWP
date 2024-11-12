@@ -53,7 +53,7 @@ namespace Metasound
 
 			if (!Source.IsValid())
 			{
-				UE_LOG(LogMetaSound, Error, TEXT("Couldn't get the source for the audio component."));
+				UE_LOG(LogMetaSound, Error, TEXT("FMetaSoundGeneratorHandle missing source: %s."), *Handle->ToString());
 				return nullptr;
 			}
 			
@@ -82,6 +82,9 @@ namespace Metasound
 		return nullptr;
 	}
 
+	// Remove these PRAGMAs when cleaning up the deprecated OnGeneratorIOUpdated. 
+	// The curly brace line was throwing errors for usage of the deprecated member, presumably it was doing something to tear it down and complaining about it.
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FMetasoundGeneratorHandle::~FMetasoundGeneratorHandle()
 	{
 		check(IsInGameThread());
@@ -100,6 +103,7 @@ namespace Metasound
 		// unset the generator and clean up
 		SetGenerator(nullptr);
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	bool FMetasoundGeneratorHandle::IsValid() const
 	{
@@ -173,35 +177,6 @@ namespace Metasound
 		return UnwatchOutputInternal(OutputName, FWatchOutputUnifiedDelegate(OnOutputValueChanged), AnalyzerName, AnalyzerOutputName);
 	}
 
-	void FMetasoundGeneratorHandle::UpdateOutputWatchers()
-	{
-		METASOUND_LLM_SCOPE;
-		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundGeneratorHandle::UpdateOutputWatchers);
-
-		check(IsInGameThread());
-
-		int32 NumDequeued = 0;
-
-		while (TOptional<FOutputPayload> ChangedOutput = ChangedOutputs.Dequeue())
-		{
-			const FOutputWatcherKey WatcherKey
-			{
-				ChangedOutput->OutputName,
-				ChangedOutput->AnalyzerName,
-				ChangedOutput->OutputValue.Name
-			};
-
-			if (const FOutputWatcher* Watcher = OutputWatchers.Find(WatcherKey))
-			{
-				Watcher->OnOutputValueChanged.Broadcast(ChangedOutput->OutputName, ChangedOutput->OutputValue);
-			}
-
-			++NumDequeued;
-		}
-
-		ChangedOutputsQueueCount.store(FMath::Max(0, ChangedOutputsQueueCount.load() - NumDequeued));
-	}
-
 	void FMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
 		const FName TypeName,
 		const FName AnalyzerName,
@@ -229,6 +204,17 @@ namespace Metasound
 		}
 
 		return 0;
+	}
+
+	FString FMetasoundGeneratorHandle::ToString() const
+	{
+		if (!IsValid())
+		{
+			return FString::Printf(TEXT("Invalid Handle"));
+		}
+
+		check(AudioComponent.IsValid());
+		return FString::Printf(TEXT("%s [Id:%d] with owner %s"), *GetNameSafe(AudioComponent.Get()), AudioComponentId, *GetNameSafe(AudioComponent->GetOwner()));
 	}
 
 	void FMetasoundGeneratorHandle::SetGenerator(TWeakPtr<FMetasoundGenerator>&& InGenerator)
@@ -304,7 +290,7 @@ namespace Metasound
 			}
 
 			// Vertex interface updated (Live Update support)
-			GeneratorVertexInterfaceChangedDelegateHandle = PinnedGenerator->OnVertexInterfaceDataUpdated.AddSP(
+			GeneratorVertexInterfaceChangedDelegateHandle = PinnedGenerator->OnVertexInterfaceDataUpdatedWithChanges.AddSP(
 				AsShared(),
 				&FMetasoundGeneratorHandle::HandleGeneratorVertexInterfaceChanged);
 		}
@@ -321,7 +307,7 @@ namespace Metasound
 		{
 			PinnedGenerator->OnOutputChanged.Remove(GeneratorOutputChangedDelegateHandle);
 			PinnedGenerator->RemoveGraphSetCallback(GeneratorGraphSetDelegateHandle);
-			PinnedGenerator->OnVertexInterfaceDataUpdated.Remove(GeneratorVertexInterfaceChangedDelegateHandle);
+			PinnedGenerator->OnVertexInterfaceDataUpdatedWithChanges.Remove(GeneratorVertexInterfaceChangedDelegateHandle);
 		}
 	}
 
@@ -417,6 +403,38 @@ namespace Metasound
 		FixUpOutputWatchers();
 
 		return true;
+	}
+
+	void FMetasoundGeneratorHandle::UpdateOutputWatchersInternal()
+	{
+		METASOUND_LLM_SCOPE;
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundGeneratorHandle::UpdateOutputWatchersInternal);
+
+		check(IsInGameThread());
+
+		// Clear the flag *before* we drain the queue, so we don't leave any output updates behind.
+		OutputWatcherUpdateScheduled.clear();
+
+		int32 NumDequeued = 0;
+
+		while (TOptional<FOutputPayload> ChangedOutput = ChangedOutputs.Dequeue())
+		{
+			const FOutputWatcherKey WatcherKey
+			{
+				ChangedOutput->OutputName,
+				ChangedOutput->AnalyzerName,
+				ChangedOutput->OutputValue.Name
+			};
+
+			if (const FOutputWatcher* Watcher = OutputWatchers.Find(WatcherKey))
+			{
+				Watcher->OnOutputValueChanged.Broadcast(ChangedOutput->OutputName, ChangedOutput->OutputValue);
+			}
+
+			++NumDequeued;
+		}
+
+		ChangedOutputsQueueCount.store(FMath::Max(0, ChangedOutputsQueueCount.load() - NumDequeued));
 	}
 
 	bool FMetasoundGeneratorHandle::TryCreateAnalyzerAddress(
@@ -582,7 +600,7 @@ namespace Metasound
 		if (InAudioComponentId == GetAudioComponentId())
 		{
 			// Set the generator on the game thread. We grab a weak pointer in case this gets destroyed while we wait.
-			AsyncTask(ENamedThreads::GameThread, [WeakThis = AsWeak(), WeakGenerator = InGenerator.ToWeakPtr()]()
+			ExecuteOnGameThread(UE_SOURCE_LOCATION, [WeakThis = AsWeak(), WeakGenerator = InGenerator.ToWeakPtr()]()
 			{
 				if (const TSharedPtr<FMetasoundGeneratorHandle> PinnedThis = WeakThis.Pin())
 				{
@@ -604,7 +622,7 @@ namespace Metasound
 		if (InAudioComponentId == GetAudioComponentId())
 		{
 			// Unset the generator on the game thread. We grab a weak pointer in case this gets destroyed while we wait.
-			AsyncTask(ENamedThreads::GameThread, [WeakThis = AsWeak()]()
+			ExecuteOnGameThread(UE_SOURCE_LOCATION, [WeakThis = AsWeak()]()
 			{
 				if (const TSharedPtr<FMetasoundGeneratorHandle> PinnedThis = WeakThis.Pin())
 				{
@@ -620,7 +638,7 @@ namespace Metasound
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundGeneratorHandle::HandleGeneratorGraphSet);
 
 		// Defer to the game thread. We grab a weak pointer in case this gets destroyed while we wait.
-		AsyncTask(ENamedThreads::GameThread, [WeakThis = AsWeak()]()
+		ExecuteOnGameThread(UE_SOURCE_LOCATION, [WeakThis = AsWeak()]()
 		{
 			if (const TSharedPtr<FMetasoundGeneratorHandle> PinnedThis = WeakThis.Pin())
 			{
@@ -635,22 +653,29 @@ namespace Metasound
 		});
 	}
 
-	void FMetasoundGeneratorHandle::HandleGeneratorVertexInterfaceChanged(FVertexInterfaceData)
+	void FMetasoundGeneratorHandle::HandleGeneratorVertexInterfaceChanged(const TArray<FVertexInterfaceChange>& VertexInterfaceChanges)
 	{
 		METASOUND_LLM_SCOPE;
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundGeneratorHandle::HandleGeneratorVertexInterfaceChanged);
 
 		// Defer to the game thread. We grab a weak pointer in case this gets destroyed while we wait.
-		AsyncTask(ENamedThreads::GameThread, [WeakThis = AsWeak()]()
+		ExecuteOnGameThread(UE_SOURCE_LOCATION, [WeakThis = AsWeak(), VertexInterfaceChanges]()
 		{
 			if (const TSharedPtr<FMetasoundGeneratorHandle> PinnedThis = WeakThis.Pin())
 			{
 				PinnedThis->SendParametersToGenerator();
 				PinnedThis->FixUpOutputWatchers();
 
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				if (PinnedThis->OnGeneratorIOUpdated.IsBound())
 				{
 					PinnedThis->OnGeneratorIOUpdated.Execute();
+				}
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+				if (PinnedThis->OnGeneratorIOUpdatedWithChanges.IsBound())
+				{
+					PinnedThis->OnGeneratorIOUpdatedWithChanges.Execute(VertexInterfaceChanges);
 				}
 			}
 		});
@@ -679,6 +704,19 @@ namespace Metasound
 		
 		ChangedOutputs.Enqueue(AnalyzerName, OutputName, AnalyzerOutputName, OutputData);
 		ChangedOutputsQueueCount.fetch_add(1);
+
+		// Drain the queue on the game thread, but don't bother if it's already been scheduled
+		if (!OutputWatcherUpdateScheduled.test_and_set())
+		{
+			// Defer to the game thread. We grab a weak pointer in case this gets destroyed while we wait.
+			ExecuteOnGameThread(UE_SOURCE_LOCATION, [WeakThis = AsWeak()]()
+			{
+				if (const TSharedPtr<FMetasoundGeneratorHandle> PinnedThis = WeakThis.Pin())
+				{
+					PinnedThis->UpdateOutputWatchersInternal();
+				}
+			});
+		}
 	}
 }
 
@@ -747,6 +785,19 @@ bool UMetasoundGeneratorHandle::RemoveGraphSetCallback(const FDelegateHandle& Ha
 	return OnGeneratorsGraphChanged.Remove(Handle);
 }
 
+bool UMetasoundGeneratorHandle::TryCreateAnalyzerAddress(const FName OutputName, const FName AnalyzerName, const FName AnalyzerOutputName, Metasound::Frontend::FAnalyzerAddress& OutAnalyzerAddress)
+{
+	METASOUND_LLM_SCOPE;
+	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetasoundGeneratorHandle::WatchOutput);
+
+	if (!IsValid())
+	{
+		return false;
+	}
+
+	return GeneratorHandle->TryCreateAnalyzerAddress(OutputName, AnalyzerName, AnalyzerOutputName, OutAnalyzerAddress);
+}
+
 bool UMetasoundGeneratorHandle::WatchOutput(
 	const FName OutputName,
 	const FOnMetasoundOutputValueChanged& OnOutputValueChanged,
@@ -791,13 +842,7 @@ void UMetasoundGeneratorHandle::RegisterPassthroughAnalyzerForType(
 
 void UMetasoundGeneratorHandle::UpdateWatchers() const
 {
-	METASOUND_LLM_SCOPE;
-	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetasoundGeneratorHandle::UpdateWatchers);
-
-	if (IsValid())
-	{
-		GeneratorHandle->UpdateOutputWatchers();
-	}
+	// Do nothing. No longer necessary.
 }
 
 void UMetasoundGeneratorHandle::EnableRuntimeRenderTiming(const bool Enable) const
@@ -848,9 +893,16 @@ bool UMetasoundGeneratorHandle::InitGeneratorHandle(TWeakObjectPtr<UAudioCompone
 		OnGeneratorsGraphChanged.Broadcast();
 	});
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	GeneratorHandle->OnGeneratorIOUpdated.BindLambda([this]()
 	{
 		OnIOUpdated.Broadcast();
+	});
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	GeneratorHandle->OnGeneratorIOUpdatedWithChanges.BindLambda([this](const TArray<Metasound::FVertexInterfaceChange>& VertexInterfaceChanges)
+	{
+		OnIOUpdatedWithChanges.Broadcast(VertexInterfaceChanges);
 	});
 
 	return true;

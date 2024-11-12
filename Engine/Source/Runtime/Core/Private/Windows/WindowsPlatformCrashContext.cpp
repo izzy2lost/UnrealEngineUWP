@@ -15,7 +15,6 @@
 #include "HAL/ThreadHeartBeat.h"
 #include "HAL/ThreadManager.h"
 #include "Internationalization/Internationalization.h"
-#include "GenericPlatform/GenericPlatformCrashContextEx.h"
 #include "Misc/App.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
@@ -182,7 +181,7 @@ struct FAssertInfo
 	}
 };
 
-const TCHAR* const FWindowsPlatformCrashContext::UEGPUAftermathMinidumpName = TEXT("UEAftermathD3D12.nv-gpudmp");
+static constexpr TCHAR const NvAftermathDumpExtension[] = TEXT(".nv-gpudmp");
 
 namespace UE::Core::Private
 {
@@ -207,14 +206,12 @@ void FGenericCrashContext::CleanupPlatformSpecificFiles()
 	// Manually delete any potential leftover gpu dumps because the crash reporter will upload any leftover crash data from last session
 	const FString CrashVideoPath = FPaths::ProjectLogDir() + TEXT("CrashVideo.avi");
 	IFileManager::Get().Delete(*CrashVideoPath);
-
-	const FString GPUMiniDumpPath = FPaths::Combine(FPaths::ProjectLogDir(), FWindowsPlatformCrashContext::UEGPUAftermathMinidumpName);
-	IFileManager::Get().Delete(*GPUMiniDumpPath);
 }
 
 void FWindowsPlatformCrashContext::AddPlatformSpecificProperties() const
 {
 	AddCrashProperty(TEXT("PlatformIsRunningWindows"), 1);
+	AddCrashProperty(TEXT("PlatformIsRunningWine"), FWindowsPlatformMisc::IsWine());
 	AddCrashProperty(TEXT("IsRunningOnBattery"), FPlatformMisc::IsRunningOnBattery());
 	WIDECHAR DriveName = 0;
 	const TCHAR* BaseDir = FWindowsPlatformProcess::BaseDir();
@@ -285,13 +282,35 @@ void FWindowsPlatformCrashContext::CopyPlatformSpecificFiles(const TCHAR* Output
 		static_cast<void>(IFileManager::Get().Copy(*CrashVideoDstAbsolute, *CrashVideoPath));	// best effort, so don't care about result: couldn't copy -> tough, no video
 	}
 
-	// If present, include the gpu crash minidump
-	const FString GPUMiniDumpPath = FPaths::Combine(FPaths::ProjectLogDir(), FWindowsPlatformCrashContext::UEGPUAftermathMinidumpName);
-	if (IFileManager::Get().FileExists(*GPUMiniDumpPath))
+	// Find the newest GPU crash dump file
+	// Best effort, so don't care about result: couldn't copy -> tough, no GPU crash dump
+	TArray<FString> GPUDumpFiles;
+	IFileManager::Get().FindFiles(GPUDumpFiles, *FPaths::ProjectLogDir(), NvAftermathDumpExtension);
+	for (FString& GPUDumpFilename : GPUDumpFiles)
 	{
-		FString GPUMiniDumpFilename = FPaths::GetCleanFilename(GPUMiniDumpPath);
-		const FString GPUMiniDumpDstAbsolute = FPaths::Combine(OutputDirectory, *GPUMiniDumpFilename);
-		static_cast<void>(IFileManager::Get().Copy(*GPUMiniDumpDstAbsolute, *GPUMiniDumpPath));	// best effort, so don't care about result: couldn't copy -> tough, no video
+		GPUDumpFilename = FPaths::Combine(*FPaths::ProjectLogDir(), *GPUDumpFilename);
+	}
+
+	if (GPUDumpFiles.Num())
+	{
+		GPUDumpFiles.Sort([](FString LHS, FString RHS)
+		{
+			double LHSAge = IFileManager::Get().GetFileAgeSeconds(*LHS);
+			double RHSAge = IFileManager::Get().GetFileAgeSeconds(*RHS);
+
+			return LHSAge < RHSAge;
+		});
+		FString SelectedGPUCrashDump = GPUDumpFiles[0];
+
+		if (IFileManager::Get().FileExists(*SelectedGPUCrashDump))
+		{
+			FString GPUMiniDumpFilename = FPaths::GetCleanFilename(SelectedGPUCrashDump);
+			const FString GPUMiniDumpDstAbsolute = FPaths::Combine(OutputDirectory, *GPUMiniDumpFilename);
+			if (!IFileManager::Get().Move(*GPUMiniDumpDstAbsolute, *SelectedGPUCrashDump))
+			{
+				UE_LOG(LogWindows, Error, TEXT("Error moving GPU crash dump file %s to output crash directory"), *GPUMiniDumpFilename);
+			}
+		}
 	}
 }
 
@@ -582,7 +601,7 @@ int32 ReportCrashForMonitor(
 	HANDLE CrashingThreadHandle,
 	DWORD CrashingThreadId,
 	FProcHandle& CrashMonitorHandle,
-	FSharedCrashContextEx* SharedContext,
+	FSharedCrashContext* SharedContext,
 	void* WritePipe,
 	void* ReadPipe,
 	EErrorReportUI ReportUI)
@@ -591,7 +610,6 @@ int32 ReportCrashForMonitor(
 	FScopeLock ScopedMonitorLock(&GMonitorLock);
 
 	FGenericCrashContext::CopySharedCrashContext(*SharedContext);
-	CopyGPUBreadcrumbsToSharedCrashContext(*SharedContext);
 
 	// Set the platform specific crash context, so that we can stack walk and minidump from
 	// the crash reporter client.
@@ -764,7 +782,7 @@ int32 ReportCrashForMonitor(
 	// Write the shared context to the pipe
 	bool bPipeWriteSucceeded = true;
 	const uint8* DataIt = (const uint8*)SharedContext;
-	const uint8* DataEndIt = DataIt + sizeof(FSharedCrashContextEx);
+	const uint8* DataEndIt = DataIt + sizeof(FSharedCrashContext);
 	while (DataIt != DataEndIt && bPipeWriteSucceeded)
 	{
 		int32 OutDataWritten = 0;
@@ -1131,7 +1149,7 @@ private:
 	/** The crash report client process ID. */
 	uint32 CrashMonitorPid;
 	/** Memory allocated for crash context. */
-	FSharedCrashContextEx SharedContext;
+	FSharedCrashContext SharedContext;
 	
 
 	/** Thread main proc */
@@ -1731,7 +1749,7 @@ static void ReportEvent(ECrashContextType InType, const TCHAR* ErrorMessage, uin
 
 	// Ignore any ensure that could be fired by the code reporting an ensure.
 	TGuardValue<bool> ReentranceGuard(bReentranceGuard, true);
-	if (*ReentranceGuard) // Read the old value.
+	if (ReentranceGuard.GetOriginalValue()) // Read the old value.
 	{
 		return; // Already handling an ensure.
 	}

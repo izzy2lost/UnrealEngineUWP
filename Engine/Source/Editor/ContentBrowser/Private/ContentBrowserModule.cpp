@@ -48,6 +48,16 @@ IContentBrowserSingleton& FContentBrowserModule::Get() const
 	return *ContentBrowserSingleton;
 }
 
+void FContentBrowserModule::SetContentBrowserViewExtender(const FCreateViewExtender& InViewExtender)
+{
+	ContentBrowserViewExtender = InViewExtender;
+}
+
+FContentBrowserModule::FCreateViewExtender FContentBrowserModule::GetContentBrowserViewExtender()
+{
+	return ContentBrowserViewExtender;
+}
+
 FMainMRUFavoritesList* FContentBrowserModule::GetRecentlyOpenedAssets() const
 {
 	return GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->GetRecentlyOpenedAssets();

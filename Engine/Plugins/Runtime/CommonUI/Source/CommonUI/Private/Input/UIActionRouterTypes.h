@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Framework/Application/SlateApplication.h"
 #include "Input/UIActionBindingHandle.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
@@ -128,7 +129,7 @@ public:
 	
 	void AddScrollRecipient(const UWidget& ScrollRecipient);
 	void RemoveScrollRecipient(const UWidget& ScrollRecipient);
-	void AddInputPreprocessor(const TSharedRef<IInputProcessor>& InputPreprocessor, int32 DesiredIndex);
+	void AddInputPreprocessor(const TSharedRef<IInputProcessor>& InputPreprocessor, const FInputPreprocessorRegistrationKey& RegistrationInfo);
 
 	FSimpleDelegate OnActivated;
 	FSimpleDelegate OnDeactivated;
@@ -169,15 +170,7 @@ private:
 
 	bool bCanReceiveInput = false;
 
-	struct FPreprocessorRegistration
-	{
-		int32 DesiredIndex = INDEX_NONE;
-		TSharedRef<IInputProcessor> Preprocessor;
-		FPreprocessorRegistration(int32 InDesiredIndex, const TSharedRef<IInputProcessor>& InPreprocessor)
-			: DesiredIndex(InDesiredIndex), Preprocessor(InPreprocessor) 
-		{}
-	};
-	TArray<FPreprocessorRegistration> RegisteredPreprocessors;
+	TArray<FInputPreprocessorRegistration> RegisteredPreprocessors;
 
 	// Mutable so we can keep it clean during normal use
 	mutable TArray<TWeakObjectPtr<const UWidget>> ScrollRecipients;

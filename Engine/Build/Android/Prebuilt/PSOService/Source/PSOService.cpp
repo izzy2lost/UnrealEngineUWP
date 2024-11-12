@@ -13,6 +13,9 @@
 #include <android/sharedmem.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <sys/resource.h>
+#include <dirent.h>
 
 #define ENABLETRACING 0
 
@@ -51,6 +54,14 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VKValidationCallback(
 {
 	LOG_INFO( "VK Validation: %s", pMessage);
 	return VK_FALSE;
+}
+
+// gets current time in seconds
+double now_s() 
+{
+	struct timespec res;
+	clock_gettime(CLOCK_REALTIME, &res);
+	return (double) res.tv_sec + (double) res.tv_nsec / 1e9;
 }
 
 class FVulkanPSOCompiler
@@ -235,6 +246,8 @@ public:
 		DestroyPipelineCache();
 		vkDestroyDevice(Device, nullptr);
 		vkDestroyInstance(Instance, nullptr);
+		Device = VK_NULL_HANDLE;
+		Instance = VK_NULL_HANDLE;
 	}
 
 	struct GraphicsPipelineCreateInfo
@@ -837,6 +850,128 @@ public:
 
 };
 
+static void SetAffinity(pid_t ThreadId, const cpu_set_t& DesiredAffinitySet)
+{
+	int rescode = sched_setaffinity(ThreadId, sizeof(DesiredAffinitySet), &DesiredAffinitySet);
+	if (rescode)
+	{
+		LOG_ERROR("set affinity %d, %d, %x, errno %d", rescode, ThreadId, *((int*)&DesiredAffinitySet), errno);
+	}
+#ifndef NDEBUG
+	cpu_set_t TestAffinitySet;
+	CPU_ZERO(&TestAffinitySet);
+	rescode = sched_getaffinity(ThreadId, sizeof(TestAffinitySet), &TestAffinitySet);
+	LOG_VERBOSE("affinity Info: tid %d, desired %x, set %x, rescode %d, errno %d", ThreadId, *((int*)&DesiredAffinitySet), *((int*)&TestAffinitySet), rescode, errno);
+#endif
+}
+
+static void SetAffinityAllThreads(const cpu_set_t& DesiredAffinity)
+{
+	// this is required as some drivers have additional threads which need the same treatment.
+	// we dont know what they are so all threads get hit, any new threads inherit the current settings.
+	DIR* SelfTaskDirectory;
+	struct dirent* Entry;
+
+	static const char ThreadDir[] = "/proc/self/task";
+	SelfTaskDirectory = opendir(ThreadDir);
+	if (SelfTaskDirectory != NULL)
+	{
+		while ((Entry = readdir(SelfTaskDirectory)))
+		{
+			pid_t tid = strtol(Entry->d_name, nullptr, 10);
+			if (tid)
+			{
+				SetAffinity(tid, DesiredAffinity);
+			}
+		}
+		closedir(SelfTaskDirectory);
+	}
+	else
+	{
+		LOG_ERROR("set affinity failed to find thread dir %s", ThreadDir);
+		SetAffinity(0, DesiredAffinity);
+	}
+}
+
+JNI_METHOD void Java_com_epicgames_unreal_psoservices_PSOProgramService_NativeSetThreadPriority(JNIEnv* jenv, jobject thiz, jlong PriInfoIn)
+{
+	struct PrecompilePriInfo
+	{
+		PrecompilePriInfo(uint64_t InfoIn) : PriInfo(InfoIn) {}
+		bool ShouldSetSchedPolicy() const	{ return PriInfo & (1 << 0); }
+		bool ShouldSetNice() const			{ return PriInfo & (1 << 1); }
+		bool ShouldSetAffinity() const		{ return PriInfo & (1 << 2); }
+
+		char GetSchedPolicy() const			{ return (PriInfo << 8) & 0xff; }
+		char GetSchedPolicyPri() const		{ return ((PriInfo << 16) & 0xff) - 128; }
+		char GetNice() const				{ return ((PriInfo << 24) & 0xff) - 128; }
+		uint32_t GetAffinity() const		{ return (PriInfo >> 32) & 0xFFFFFFFF; }
+
+		uint64_t PriInfo = 0;
+	};
+
+	PrecompilePriInfo PriInfo(PriInfoIn);
+
+	if(PriInfo.ShouldSetSchedPolicy())
+	{
+		int InitialPolicy;
+		int NewPolicy = PriInfo.GetSchedPolicy();
+		int SchedPri = PriInfo.GetSchedPolicyPri();
+
+		struct sched_param Sched = { };
+		pthread_t InThread = pthread_self();
+		int getres = pthread_getschedparam(InThread, &InitialPolicy, &Sched);
+
+		int primax = sched_get_priority_max(NewPolicy);
+		int primin = sched_get_priority_min(NewPolicy);
+
+		Sched.sched_priority = SchedPri < primin ? primin : (SchedPri > primax ? primax : SchedPri);
+
+		LOG_VERBOSE("tinfo initial policy %d, desired %d, getres %d, errno %d, pridesired %d, primin %d primax %d", InitialPolicy, NewPolicy, getres, errno, Sched.sched_priority, primin, primax);
+
+		int rescode = sched_setscheduler(0, NewPolicy, &Sched);
+		if (rescode)
+		{
+			LOG_ERROR("setsched error %d, errno %d", rescode, errno);
+		}
+	}
+
+	if (PriInfo.ShouldSetNice())
+	{
+		int Nice = PriInfo.GetNice();
+		int InitialNice = getpriority(PRIO_PROCESS, 0);
+		int rescode = setpriority(PRIO_PROCESS, 0, Nice);
+		int resultNice = getpriority(PRIO_PROCESS, 0);
+		if (rescode)
+		{
+			LOG_ERROR("setpriority failed. initial nice %d, desired %d, res %d, errno %d, result %d ", InitialNice, Nice, rescode, errno, resultNice);
+		}
+	}
+
+	if (PriInfo.ShouldSetAffinity())
+	{
+		const uint32_t AffinityMask = PriInfo.GetAffinity();
+
+		cpu_set_t DesiredAffinitySet;
+		CPU_ZERO(&DesiredAffinitySet);
+		if (AffinityMask == 0xFFFFFFFF)
+		{
+			memset(&DesiredAffinitySet, 0xff, sizeof(DesiredAffinitySet));
+		}
+		else
+		{
+			for (int i = 0; i < 32; i++)
+			{
+				if (AffinityMask & (1 << i))
+				{
+					CPU_SET(i, &DesiredAffinitySet);
+				}
+			}
+		}
+		SetAffinityAllThreads(DesiredAffinitySet);
+	}
+}
+
 JNI_METHOD void Java_com_epicgames_unreal_psoservices_PSOProgramService_InitVKDevice(JNIEnv* jenv, jobject thiz)
 {
 
@@ -862,9 +997,11 @@ void ExitTest()
 	}
 }
 
-JNI_METHOD jobject Java_com_epicgames_unreal_psoservices_PSOProgramService_CompileVKGFXPSO(JNIEnv* jenv, jobject thiz, jbyteArray jVS, jbyteArray jPS, jbyteArray jPSO, jbyteArray jPSOCacheDataSource)
+JNI_METHOD jobject Java_com_epicgames_unreal_psoservices_PSOProgramService_CompileVKGFXPSO(JNIEnv* jenv, jobject thiz, jbyteArray jVS, jbyteArray jPS, jbyteArray jPSO, jbyteArray jPSOCacheDataSource, jfloatArray jCompilationDuration)
 {
 	ExitTest();
+
+	double CompilationStartTime = now_s();
 
 	const uint8_t* VS = (const uint8_t*)jenv->GetByteArrayElements(jVS, nullptr);
 	uint64_t VSSize = jenv->GetArrayLength(jVS);
@@ -891,14 +1028,26 @@ JNI_METHOD jobject Java_com_epicgames_unreal_psoservices_PSOProgramService_Compi
 		free(BinaryData);
 	}
 
+	double CompilationDuration = now_s() - CompilationStartTime;
+
+	float *CDA = jenv->GetFloatArrayElements(jCompilationDuration, nullptr);
+	if (CDA != nullptr)
+	{
+		CDA[0] = (float)CompilationDuration;
+		jenv->ReleaseFloatArrayElements(jCompilationDuration, CDA, 0);
+	}
+
 	return Data;
 }
 
 // the shared mem version takes an FD and a bunch of offsets.
 // another shared FD containing the result is returned.
-JNI_METHOD jint Java_com_epicgames_unreal_psoservices_PSOProgramService_CompileVKGFXPSOSHM(JNIEnv* jenv, jobject thiz, jint SHMemFD, jlong jVSSize, jlong jPSSize, jlong jPSOSize, jlong jPSOCacheDataSourceSize)
+JNI_METHOD jint Java_com_epicgames_unreal_psoservices_PSOProgramService_CompileVKGFXPSOSHM(JNIEnv* jenv, jobject thiz, jint SHMemFD, jlong jVSSize, jlong jPSSize, jlong jPSOSize, jlong jPSOCacheDataSourceSize, jfloatArray jCompilationDuration)
 {
 	ExitTest();
+
+	double CompilationStartTime = now_s();
+
 	{
 		BEGIN_TRACE("CompileVKGFXPSOSHM");
 		BEGIN_TRACE("CompileVKGFXPSOSHM_1");
@@ -982,6 +1131,16 @@ JNI_METHOD jint Java_com_epicgames_unreal_psoservices_PSOProgramService_CompileV
 	{
 		LOG_ERROR( "Mem alloc %d bytes failed (errno %d) ", AllocSize, errno);
 	}
+
+	double CompilationDuration = now_s() - CompilationStartTime;
+
+	float* CDA = jenv->GetFloatArrayElements(jCompilationDuration, nullptr);
+	if (CDA != nullptr)
+	{
+		CDA[0] = (float)CompilationDuration;
+		jenv->ReleaseFloatArrayElements(jCompilationDuration, CDA, 0);
+	}
+
 
 	END_TRACE();
 

@@ -8,6 +8,7 @@
 #include "SlateGlobals.h"
 #include "RHI.h"
 #include "RHICommandList.h"
+#include "RHIResourceUtils.h"
 #include "RenderResource.h"
 #include "Containers/ResourceArray.h"
 
@@ -91,11 +92,9 @@ public:
 	void ResetBufferUsage() { BufferUsageSize = 0; }
 
 	/** Resizes buffer, accumulates states safely on render thread */
-	void PreFillBuffer(int32 RequiredVertexCount, bool bShrinkToMinSize)
+	void PreFillBuffer(FRHICommandListBase& RHICmdList, int32 RequiredVertexCount, bool bShrinkToMinSize)
 	{
-		SCOPE_CYCLE_COUNTER(STAT_SlatePreFullBufferRTTime);
-
-		checkSlow(IsInRenderingThread());
+		SCOPE_CYCLE_COUNTER(STAT_SlatePreFullBufferTime);
 
 		if (RequiredVertexCount > 0 )
 		{
@@ -106,28 +105,26 @@ public:
 			int32 RequiredBufferSize = RequiredVertexCount*sizeof(VertexType);
 
 			// resize if needed
-			if(RequiredBufferSize > GetBufferSize() || bShrinkToMinSize)
+			if (RequiredBufferSize > GetBufferSize() || bShrinkToMinSize)
 			{
-				ResizeBuffer(RequiredBufferSize);
+				ResizeBuffer(RHICmdList, RequiredBufferSize);
 			}
 
 			BufferUsageSize = RequiredBufferSize;
 		}
-
 	}
 
 	int32 GetMinBufferSize() const { return MinBufferSize; }
 
 private:
 	/** Resizes the buffer to the passed in size.  Preserves internal data*/
-	void ResizeBuffer( int32 NewSizeBytes )
+	void ResizeBuffer(FRHICommandListBase& RHICmdList, int32 NewSizeBytes)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(Slate_RTResizeBuffer);
-		FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
 
 		int32 FinalSize = FMath::Max( NewSizeBytes, MinBufferSize );
 
-		if( FinalSize != 0 && FinalSize != BufferSize )
+		if (FinalSize != 0 && FinalSize != BufferSize)
 		{
 			VertexBufferRHI.SafeRelease();
 
@@ -176,11 +173,9 @@ public:
 	{
 		if (!IsValidRef(VertexBufferRHI))
 		{
-			static FStencilBufferResourceArray ResourceArray;
+			const uint32 Verts[] = { 0, 1, 2, 3 };
 
-			FRHIResourceCreateInfo CreateInfo(TEXT("SlateStencilClipVertexBuffer"));
-			CreateInfo.ResourceArray = &ResourceArray;
-			VertexBufferRHI = RHICmdList.CreateVertexBuffer(ResourceArray.GetResourceDataSize(), BUF_Static, CreateInfo);
+			VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("SlateStencilClipVertexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Verts));
 
 			// Ensure the vertex buffer could be created
 			check(IsValidRef(VertexBufferRHI));
@@ -195,24 +190,6 @@ public:
 
 	/** Returns a friendly name for this buffer. */
 	virtual FString GetFriendlyName() const { return TEXT("SlateElementVertices"); }
-
-private:
-	struct FStencilBufferResourceArray : FResourceArrayInterface
-	{
-		virtual const void* GetResourceData() const override
-		{
-			static uint32 Verts[] = { 0, 1, 2, 3};
-			return Verts;
-		}
-
-		virtual uint32 GetResourceDataSize() const override
-		{
-			return sizeof(uint32) * 4;
-		}
-
-		virtual void Discard() override {}
-		virtual bool IsStatic() const override { return true; }
-		virtual bool GetAllowCPUAccess() const override { return false; }
-		virtual void SetAllowCPUAccess(bool bInNeedsCPUAccess) override { }
-	};
 };
+
+extern TGlobalResource<FSlateStencilClipVertexBuffer> GSlateStencilClipVertexBuffer;

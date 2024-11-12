@@ -55,7 +55,7 @@ FVector2f ClosestPointOnSlateRotatedRect(const FVector2f &Point, const FSlateRot
 	Corners[2] = FVector2d(Corners[1]) + FVector2d(RotatedRect.ExtentY);
 	Corners[3] = FVector2d(Corners[0]) + FVector2d(RotatedRect.ExtentY);
 
-	FVector2f RetPoint;
+	FVector2f RetPoint = FVector2f::ZeroVector;
 	float ClosestDistSq = FLT_MAX;
 	for (int32 i = 0; i < NumOfCorners; ++i)
 	{
@@ -725,16 +725,6 @@ bool FHittestGrid::SameSize(const FHittestGrid* OtherGrid) const
 	return GridOrigin == OtherGrid->GridOrigin && GridWindowOrigin == OtherGrid->GridWindowOrigin && GridSize == OtherGrid->GridSize;
 }
 
-void FHittestGrid::AddWidget(const TSharedRef<SWidget>& InWidget, int32 InBatchPriorityGroup, int32 InLayerId, int32 InSecondarySort)
-{
-	AddWidget(&(InWidget.Get()), InBatchPriorityGroup, InLayerId, FSlateInvalidationWidgetSortOrder());
-}
-
-void FHittestGrid::AddWidget(const TSharedRef<SWidget>& InWidget, int32 InBatchPriorityGroup, int32 InLayerId, FSlateInvalidationWidgetSortOrder InSecondarySort)
-{
-	AddWidget(&(InWidget.Get()), InBatchPriorityGroup, InLayerId, InSecondarySort);
-}
-
 void FHittestGrid::AddWidget(const SWidget* InWidget, int32 InBatchPriorityGroup, int32 InLayerId, FSlateInvalidationWidgetSortOrder InSecondarySort)
 {
 	check(InWidget);
@@ -796,11 +786,6 @@ void FHittestGrid::AddWidget(const SWidget* InWidget, int32 InBatchPriorityGroup
 	}
 }
 
-void FHittestGrid::RemoveWidget(const TSharedRef<SWidget>& InWidget)
-{
-	RemoveWidget(&*InWidget);
-}
-
 void FHittestGrid::RemoveWidget(const SWidget* InWidget)
 {
 #if UE_SLATE_ENABLE_HITTEST_STATS
@@ -831,11 +816,6 @@ void FHittestGrid::RemoveWidget(const SWidget* InWidget)
 	RemoveGrid(InWidget);
 }
 
-void FHittestGrid::UpdateWidget(const TSharedRef<SWidget>& InWidget, FSlateInvalidationWidgetSortOrder InSecondarySort)
-{
-	UpdateWidget(&(InWidget.Get()), InSecondarySort);
-}
-
 void FHittestGrid::UpdateWidget(const SWidget* InWidget, FSlateInvalidationWidgetSortOrder InSecondarySort)
 {
 	check(InWidget);
@@ -848,11 +828,6 @@ void FHittestGrid::UpdateWidget(const SWidget* InWidget, FSlateInvalidationWidge
 bool FHittestGrid::ContainsWidget(const SWidget* InWidget) const
 {
 	return WidgetMap.Contains(InWidget);
-}
-
-void FHittestGrid::InsertCustomHitTestPath(const TSharedRef<SWidget> InWidget, TSharedRef<ICustomHitTestPath> CustomHitTestPath)
-{
-	InsertCustomHitTestPath(&InWidget.Get(), CustomHitTestPath);
 }
 
 void FHittestGrid::InsertCustomHitTestPath(const SWidget* InWidget, const TSharedRef<ICustomHitTestPath>& CustomHitTestPath)

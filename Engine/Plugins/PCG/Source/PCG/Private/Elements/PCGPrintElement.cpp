@@ -63,7 +63,6 @@ FPCGElementPtr UPCGPrintElementSettings::CreateElement() const
 bool FPCGPrintElement::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGPrintElement::Execute);
-
 	Context->OutputData.TaggedData = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
@@ -145,7 +144,7 @@ bool FPCGPrintElement::ExecuteInternal(FPCGContext* Context) const
 			HashKey32 = HashCombine(HashKey32, GetTypeHash(Context->Stack));
 
 			check(Context->SourceComponent.IsValid());
-			UPCGManagedDebugStringMessageKey* ManagedMessageKey = NewObject<UPCGManagedDebugStringMessageKey>(Context->SourceComponent.Get());
+			UPCGManagedDebugStringMessageKey* ManagedMessageKey = FPCGContext::NewObject_AnyThread<UPCGManagedDebugStringMessageKey>(Context, Context->SourceComponent.Get());
 			ManagedMessageKey->HashKey = static_cast<uint64>(HashKey32);
 
 			Context->SourceComponent->AddToManagedResources(ManagedMessageKey);

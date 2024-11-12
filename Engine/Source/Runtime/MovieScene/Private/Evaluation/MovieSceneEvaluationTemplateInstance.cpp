@@ -72,7 +72,7 @@ UMovieSceneEntitySystemLinker* FMovieSceneRootEvaluationTemplateInstance::Constr
 	return UMovieSceneEntitySystemLinker::FindOrCreateLinker(PlaybackContext, UE::MovieScene::EEntitySystemLinkerRole::Standalone, TEXT("DefaultEntitySystemLinker"));
 }
 
-void FMovieSceneRootEvaluationTemplateInstance::Initialize(UMovieSceneSequence& InRootSequence, IMovieScenePlayer& Player, UMovieSceneCompiledDataManager* InCompiledDataManager, TSharedPtr<FMovieSceneEntitySystemRunner> InRunner)
+void FMovieSceneRootEvaluationTemplateInstance::Initialize(UMovieSceneSequence& InRootSequence, IMovieScenePlayer& Player, UMovieSceneCompiledDataManager* InCompiledDataManager)
 {
 	using namespace UE::MovieScene;
 
@@ -116,9 +116,7 @@ void FMovieSceneRootEvaluationTemplateInstance::Initialize(UMovieSceneSequence& 
 	bReinitialize |= (PreviousCompiledDataManager != InCompiledDataManager);
 
 	// Reinitialize if the runner has changed.
-	TSharedPtr<FMovieSceneEntitySystemRunner> PreviousRunner = SharedPlaybackState ?
-		SharedPlaybackState->GetRunner() : nullptr;
-	bReinitialize |= (PreviousRunner != InRunner);
+	TSharedPtr<FMovieSceneEntitySystemRunner> PreviousRunner = SharedPlaybackState ? SharedPlaybackState->GetRunner() : nullptr;
 
 	// Reinitialize if the root sequence has changed.
 	UMovieSceneSequence* PreviousRootSequence = SharedPlaybackState ? 
@@ -157,26 +155,13 @@ void FMovieSceneRootEvaluationTemplateInstance::Initialize(UMovieSceneSequence& 
 		// when initializing the new root instance and shared playback state.
 		EntitySystemLinker = ConstructEntityLinker(Player);
 
-		if (ensure(InRunner) && EntitySystemLinker)
-		{
-			if (InRunner->IsAttachedToLinker() && InRunner->GetLinker() != EntitySystemLinker)
-			{
-				InRunner->DetachFromLinker();
-			}
-
-			if (!InRunner->IsAttachedToLinker())
-			{
-				InRunner->AttachToLinker(EntitySystemLinker);
-			}
-		}
-
 		// Create the new root instance and save its new shared playback state.
 		FRootInstanceHandle NewRootInstanceHandle;
 		if (EntitySystemLinker != nullptr && EntitySystemLinker->GetInstanceRegistry())
 		{
 			UObject* PlaybackContext = Player.GetPlaybackContext();
 			FInstanceRegistry* InstanceRegistry = EntitySystemLinker->GetInstanceRegistry();
-			NewRootInstanceHandle = InstanceRegistry->AllocateRootInstance(InRootSequence, PlaybackContext, InRunner, InCompiledDataManager);
+			NewRootInstanceHandle = InstanceRegistry->AllocateRootInstance(InRootSequence, PlaybackContext, InCompiledDataManager);
 			SharedPlaybackState = InstanceRegistry->GetInstance(NewRootInstanceHandle).GetSharedPlaybackState();
 			Player.InitializeRootInstance(SharedPlaybackState.ToSharedRef());
 		}
@@ -186,11 +171,6 @@ void FMovieSceneRootEvaluationTemplateInstance::Initialize(UMovieSceneSequence& 
 			Player.PreAnimatedState.Initialize(EntitySystemLinker, NewRootInstanceHandle);
 		}
 	}
-}
-
-void FMovieSceneRootEvaluationTemplateInstance::Evaluate(FMovieSceneContext Context, IMovieScenePlayer& Player)
-{
-	EvaluateSynchronousBlocking(Context);
 }
 
 void FMovieSceneRootEvaluationTemplateInstance::EvaluateSynchronousBlocking(FMovieSceneContext Context, IMovieScenePlayer& Player)
@@ -270,11 +250,9 @@ void FMovieSceneRootEvaluationTemplateInstance::EnableGlobalPreAnimatedStateCapt
 {
 	using namespace UE::MovieScene;
 
-	const FRootInstanceHandle RootInstanceHandle = GetRootInstanceHandle();
-	if (ensure(EntitySystemLinker && RootInstanceHandle.IsValid()))
+	if (ensure(SharedPlaybackState))
 	{
-		const FSequenceInstance& Instance = EntitySystemLinker->GetInstanceRegistry()->GetInstance(RootInstanceHandle);
-		Instance.GetPlayer()->PreAnimatedState.EnableGlobalPreAnimatedStateCapture();
+		SharedPlaybackState->GetPreAnimatedState().EnableGlobalPreAnimatedStateCapture();
 	}
 }
 
@@ -448,10 +426,9 @@ void FMovieSceneRootEvaluationTemplateInstance::PlaybackContextChanged(IMovieSce
 
 	// Only the playback context changed, so we keep the same sequence, runner, and compiled data manager.
 	UMovieSceneSequence* RootSequence = SharedPlaybackState->GetRootSequence();
-	TSharedPtr<FMovieSceneEntitySystemRunner> Runner = SharedPlaybackState->GetRunner();
 	UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
 
-	const bool bGlobalCapture = Player.PreAnimatedState.IsCapturingGlobalPreAnimatedState();
+	const bool bGlobalCapture = SharedPlaybackState->GetPreAnimatedState().IsCapturingGlobalPreAnimatedState();
 	const FRootInstanceHandle PreviousRootInstanceHandle = SharedPlaybackState->GetRootInstanceHandle();
 
 	if (PreviousRootInstanceHandle.IsValid() &&
@@ -462,6 +439,7 @@ void FMovieSceneRootEvaluationTemplateInstance::PlaybackContextChanged(IMovieSce
 	{
 		EntitySystemLinker->CleanupInvalidBoundObjects();
 
+		TSharedPtr<FMovieSceneEntitySystemRunner> Runner = SharedPlaybackState->GetRunner();
 		if (Runner)
 		{
 			if (Runner->QueueFinalUpdate(PreviousRootInstanceHandle))
@@ -483,20 +461,11 @@ void FMovieSceneRootEvaluationTemplateInstance::PlaybackContextChanged(IMovieSce
 	}
 
 	EntitySystemLinker = ConstructEntityLinker(Player);
-	if (Runner)
-	{
-		if (Runner->IsAttachedToLinker())
-		{
-			Runner->DetachFromLinker();
-		}
-
-		Runner->AttachToLinker(EntitySystemLinker);
-	}
 
 	UObject* PlaybackContext = Player.GetPlaybackContext();
 	FInstanceRegistry* InstanceRegistry = EntitySystemLinker->GetInstanceRegistry();
 	const FRootInstanceHandle RootInstanceHandle = InstanceRegistry->AllocateRootInstance(
-			*RootSequence, PlaybackContext, Runner, CompiledDataManager);
+			*RootSequence, PlaybackContext, CompiledDataManager);
 	FSequenceInstance& RootInstance = InstanceRegistry->MutateInstance(RootInstanceHandle);
 	SharedPlaybackState = RootInstance.GetSharedPlaybackState();
 	Player.InitializeRootInstance(SharedPlaybackState.ToSharedRef());
@@ -504,7 +473,7 @@ void FMovieSceneRootEvaluationTemplateInstance::PlaybackContextChanged(IMovieSce
 	Player.PreAnimatedState.Initialize(EntitySystemLinker, RootInstanceHandle);
 	if (bGlobalCapture)
 	{
-		Player.PreAnimatedState.EnableGlobalPreAnimatedStateCapture();
+		SharedPlaybackState->GetPreAnimatedState().EnableGlobalPreAnimatedStateCapture();
 	}
 }
 

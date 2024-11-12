@@ -1,15 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text;
-using System.Xml;
-using AutomationTool;
-using UnrealBuildBase;
 using System.Threading.Tasks;
+using System.Xml;
+using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
 namespace AutomationTool.Tasks
@@ -23,13 +20,13 @@ namespace AutomationTool.Tasks
 		/// Path to the docker-compose file
 		/// </summary>
 		[TaskParameter]
-		public string File;
+		public string File { get; set; }
 
 		/// <summary>
 		/// Arguments for the command
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 	}
 
 	/// <summary>
@@ -41,49 +38,49 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Parameters for this task
 		/// </summary>
-		DockerComposeDownTaskParameters Parameters;
+		readonly DockerComposeDownTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a Docker-Compose task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public DockerComposeDownTask(DockerComposeDownTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public DockerComposeDownTask(DockerComposeDownTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			StringBuilder Arguments = new StringBuilder("--ansi never ");
-			if (!String.IsNullOrEmpty(Parameters.File))
+			StringBuilder arguments = new StringBuilder("--ansi never ");
+			if (!String.IsNullOrEmpty(_parameters.File))
 			{
-				Arguments.Append($"--file {Parameters.File.QuoteArgument()} ");
+				arguments.Append($"--file {_parameters.File.QuoteArgument()} ");
 			}
-			Arguments.Append("down");
-			if (!String.IsNullOrEmpty(Parameters.Arguments))
+			arguments.Append("down");
+			if (!String.IsNullOrEmpty(_parameters.Arguments))
 			{
-				Arguments.Append($" {Parameters.Arguments}");
+				arguments.Append($" {_parameters.Arguments}");
 			}
 
-			Logger.LogInformation("Running docker compose {Arguments}", Arguments.ToString());
-			using (LogIndentScope Scope = new LogIndentScope("  "))
+			Logger.LogInformation("Running docker compose {Arguments}", arguments.ToString());
+			using (LogIndentScope scope = new LogIndentScope("  "))
 			{
-				await SpawnTaskBase.ExecuteAsync("docker-compose", Arguments.ToString());
+				await SpawnTaskBase.ExecuteAsync("docker-compose", arguments.ToString());
 			}
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>

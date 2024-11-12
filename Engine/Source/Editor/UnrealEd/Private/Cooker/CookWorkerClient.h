@@ -21,6 +21,8 @@ namespace UE::Cook { struct FDirectorConnectionInfo; }
 namespace UE::Cook { struct FDiscoveredPackageReplication; }
 namespace UE::Cook { struct FHeartbeatMessage; }
 namespace UE::Cook { struct FInitialConfigMessage; }
+namespace UE::Cook { struct FGenerationHelper; }
+namespace UE::Cook { struct FGeneratorEventMessage; }
 namespace UE::Cook { struct FPackageRemoteResult; }
 namespace UE::Cook { struct FRetractionRequestMessage; }
 
@@ -66,7 +68,12 @@ public:
 	void ReportPromoteToSaveComplete(FPackageData& PackageData);
 	/** Queue a message to the server that a package was discovered as needed in the cook. Will be sent during Tick. */
 	void ReportDiscoveredPackage(const FPackageData& PackageData, const FInstigator& Instigator,
-		FDiscoveredPlatformSet&& ReachablePlatforms);
+		FDiscoveredPlatformSet&& ReachablePlatforms, FGenerationHelper* ParentGenerationHelper, EUrgency Urgency);
+	/**
+	 * Queue a message to the server that a PackageGenerator queued its generated packages for cooking, and will
+	 * keep itself in memory until it receives an EGeneratorEvent::QueuedGeneratedPackagesFencePassed.
+	 */
+	void ReportGeneratorQueuedGeneratedPackages(FGenerationHelper& GenerationHelper);
 
 	/** Register a Collector for periodic ticking that sends messages to the Director. */
 	void Register(IMPCollector* Collector);
@@ -106,7 +113,7 @@ private:
 	/** Helper for Tick, pump receive messages from the Server. */
 	void PumpReceiveMessages();
 	/** Helper for PumpReceiveMessages: dispatch the messages received from the socket. */
-	void HandleReceiveMessages(TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& Messages);
+	void HandleReceiveMessages(TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& Messages, FName OptionalPackageName = NAME_None);
 	/** Helper for Tick, pump Send/Receive and check for whether we are done shutting down. */
 	void PumpDisconnect(FTickStackData& StackData);
 	/** Send the message immediately to the Socket. If cannot complete immediately, it will be finished during Tick. */
@@ -127,6 +134,7 @@ private:
 		FRetractionRequestMessage&& Message);
 	void HandleHeartbeatMessage(FMPCollectorClientMessageContext& Context, bool bReadSuccessful,
 		FHeartbeatMessage&& Message);
+	void HandleGeneratorMessage(FGeneratorEventMessage&& GeneratorMessage);
 
 private:
 	/**
@@ -146,11 +154,13 @@ private:
 	// Variables Read/Write only from the Scheduler thread
 	TSharedPtr<FInternetAddr> DirectorAddr;
 	TUniquePtr<FInitialConfigMessage> InitialConfigMessage;
+	TArray<UE::CompactBinaryTCP::FMarshalledMessage> DeferredInitializationMessages;
 	TRefCountPtr<FLogMessagesMessageHandler> LogMessageHandler;
 	TArray<ITargetPlatform*> OrderedSessionPlatforms;
 	TArray<ITargetPlatform*> OrderedSessionAndSpecialPlatforms;
 	TArray<FDiscoveredPackageReplication> PendingDiscoveredPackages;
 	TMap<FGuid, TRefCountPtr<IMPCollector>> Collectors;
+	TArray<FGeneratorEventMessage> PendingGeneratorEvents;
 	UE::CompactBinaryTCP::FSendBuffer SendBuffer;
 	UE::CompactBinaryTCP::FReceiveBuffer ReceiveBuffer;
 	FString DirectorURI;

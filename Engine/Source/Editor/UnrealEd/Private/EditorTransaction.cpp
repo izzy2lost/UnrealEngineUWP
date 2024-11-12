@@ -498,7 +498,7 @@ void FTransaction::FObjectRecord::Snapshot( FTransaction* Owner, UE::Transaction
 				ObjectAnnotationSnapshot->ComputeAdditionalObjectChanges(InitialObjectTransactionAnnotation.Get(), AdditionalObjectChanges);
 			}
 
-			CurrentObject->PostTransacted(FTransactionObjectEvent(Owner->GetId(), Owner->GetOperationId(), ETransactionObjectEventType::Snapshot, ETransactionObjectChangeCreatedBy::TransactionRecord, FTransactionObjectChange{ InitialDiffableObject.ObjectInfo, SnapshotDeltaChange }, ObjectAnnotationSnapshot));
+			CurrentObject->PostTransacted(FTransactionObjectEvent(Owner->GetId(), Owner->GetOperationId(), ETransactionObjectEventType::Snapshot, ETransactionObjectChangeCreatedBy::TransactionRecord, FTransactionObjectChange{ InitialDiffableObject.ObjectInfo, InitialDiffableObject.ObjectFlags, SnapshotDeltaChange }, ObjectAnnotationSnapshot));
 			for (const TTuple<UObject*, FTransactionObjectChange>& AdditionalObjectChangePair : AdditionalObjectChanges)
 			{
 				AdditionalObjectChangePair.Key->PostTransacted(FTransactionObjectEvent(Owner->GetId(), Owner->GetOperationId(), ETransactionObjectEventType::Snapshot, ETransactionObjectChangeCreatedBy::TransactionAnnotation, AdditionalObjectChangePair.Value, nullptr));
@@ -987,7 +987,7 @@ void FTransaction::Apply()
 				ChangedObjectTransactionAnnotation->ComputeAdditionalObjectChanges(InitialSerializedObject.ObjectAnnotation.Get(), AdditionalObjectChanges);
 			}
 
-			ChangedObject->PostTransacted(FTransactionObjectEvent(Id, OperationId, ETransactionObjectEventType::UndoRedo, ETransactionObjectChangeCreatedBy::TransactionRecord, FTransactionObjectChange{ InitialSerializedObject.ObjectId, MoveTemp(PrimaryDeltaChange) }, ChangedObjectTransactionAnnotation));
+			ChangedObject->PostTransacted(FTransactionObjectEvent(Id, OperationId, ETransactionObjectEventType::UndoRedo, ETransactionObjectChangeCreatedBy::TransactionRecord, FTransactionObjectChange{ InitialSerializedObject.ObjectId, InitialSerializedObject.ObjectFlags, MoveTemp(PrimaryDeltaChange) }, ChangedObjectTransactionAnnotation));
 			for (const TTuple<UObject*, FTransactionObjectChange>& AdditionalObjectChangePair : AdditionalObjectChanges)
 			{
 				AdditionalObjectChangePair.Key->PostTransacted(FTransactionObjectEvent(Id, OperationId, ETransactionObjectEventType::UndoRedo, ETransactionObjectChangeCreatedBy::TransactionAnnotation, AdditionalObjectChangePair.Value, nullptr));
@@ -1069,7 +1069,7 @@ void FTransaction::Finalize()
 				ChangedObjectTransactionAnnotation->ComputeAdditionalObjectChanges(ChangedObjectIt.Value.AnnotationSnapshot.Get(), AdditionalObjectChanges);
 			}
 
-			ChangedObject->PostTransacted(FTransactionObjectEvent(Id, OperationId, ETransactionObjectEventType::Finalized, ETransactionObjectChangeCreatedBy::TransactionRecord, FTransactionObjectChange{ InitialSerializedObject.ObjectId, DeltaChange }, ChangedObjectTransactionAnnotation));
+			ChangedObject->PostTransacted(FTransactionObjectEvent(Id, OperationId, ETransactionObjectEventType::Finalized, ETransactionObjectChangeCreatedBy::TransactionRecord, FTransactionObjectChange{ InitialSerializedObject.ObjectId, InitialSerializedObject.ObjectFlags, DeltaChange }, ChangedObjectTransactionAnnotation));
 			for (const TTuple<UObject*, FTransactionObjectChange>& AdditionalObjectChangePair : AdditionalObjectChanges)
 			{
 				AdditionalObjectChangePair.Key->PostTransacted(FTransactionObjectEvent(Id, OperationId, ETransactionObjectEventType::Finalized, ETransactionObjectChangeCreatedBy::TransactionAnnotation, AdditionalObjectChangePair.Value, nullptr));
@@ -1127,7 +1127,7 @@ FTransactionDiff FTransaction::GenerateDiff() const
 
 					TransactionDiff.DiffMap.Emplace(
 						FName(*TransactedObject->GetPathName()), 
-						MakeShared<FTransactionObjectEvent>(this->GetId(), OperationGuid, ETransactionObjectEventType::Finalized, ETransactionObjectChangeCreatedBy::TransactionRecord, FTransactionObjectChange{ ObjectRecord.SerializedObject.ObjectId, ObjectRecord.DeltaChange }, ObjectRecord.SerializedObject.ObjectAnnotation)
+						MakeShared<FTransactionObjectEvent>(this->GetId(), OperationGuid, ETransactionObjectEventType::Finalized, ETransactionObjectChangeCreatedBy::TransactionRecord, FTransactionObjectChange{ ObjectRecord.SerializedObject.ObjectId, ObjectRecord.SerializedObject.ObjectFlags, ObjectRecord.DeltaChange }, ObjectRecord.SerializedObject.ObjectAnnotation)
 						);
 
 					if (ObjectRecord.SerializedObjectFlip.ObjectAnnotation && ObjectRecord.SerializedObject.ObjectAnnotation)

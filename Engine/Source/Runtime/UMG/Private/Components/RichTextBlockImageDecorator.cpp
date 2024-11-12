@@ -40,13 +40,13 @@ public:
 
 		if (Height.IsSet())
 		{
-			IconHeight = Height.GetValue();
+			IconHeight = static_cast<float>(Height.GetValue());
 		}
 
 		float IconWidth = IconHeight;
 		if (Width.IsSet())
 		{
-			IconWidth = Width.GetValue();
+			IconWidth = static_cast<float>(Width.GetValue());
 		}
 
 		ChildSlot
@@ -125,7 +125,7 @@ protected:
 				{
 					if (FCString::Stricmp(GetData(*WidthString), TEXT("desired")) == 0)
 					{
-						Width = Brush->ImageSize.X;
+						Width = FMath::TruncToInt32(Brush->ImageSize.X);
 					}
 				}
 			}
@@ -142,7 +142,7 @@ protected:
 				{
 					if (FCString::Stricmp(GetData(*HeightString), TEXT("desired")) == 0)
 					{
-						Height = Brush->ImageSize.Y;
+						Height = FMath::TruncToInt32(Brush->ImageSize.Y);
 					}
 				}
 			}

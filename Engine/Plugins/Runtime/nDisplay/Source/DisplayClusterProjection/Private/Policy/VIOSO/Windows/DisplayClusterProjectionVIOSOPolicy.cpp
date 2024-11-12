@@ -165,7 +165,7 @@ bool FDisplayClusterProjectionVIOSOPolicy::ImplApplyWarpBlend_RenderThread(FRHIC
 	check(IsInRenderingThread());
 
 	// Get in\out remp resources ref from viewport
-	TArray<FRHITexture2D*> InputTextures, OutputTextures;
+	TArray<FRHITexture*> InputTextures, OutputTextures;
 
 	// Use for input first MipsShader texture if enabled in viewport render settings
 	//@todo: test if domeprojection support mips textures as warp input

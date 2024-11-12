@@ -32,6 +32,9 @@ public:
 	/** Helper to access easily Enable Uncontrolled Changelists setting */
 	static bool AreUncontrolledChangelistsEnabled();
 
+	/** Helper to access easily Requires Revision Control To Rename Localizable Assets setting */
+	static bool RequiresRevisionControlToRenameLocalizableAssets();
+
 public:
 	/** If enabled, adds a tag in changelist descriptions when they are validated */
 	UPROPERTY(config, EditAnywhere, Category = SourceControl, meta = (ToolTip = "Adds validation tag to changelist description on submit."))
@@ -52,4 +55,8 @@ public:
 	/** Map of collection names and additional text to apply to changelist descriptions when checking them in */
 	UPROPERTY(config, EditAnywhere, Category = SourceControl, meta=(MultiLine=true))
 	TMap<FName, FString> SpecificCollectionChangelistTags;
+
+	/** Revision Control is a requirement to move/rename/delete localizable assets */
+	UPROPERTY(config, EditAnywhere, Category = Internationalization, meta = (ToolTip = "If the project uses Localization and its localized content might not be on disk (but still in your Revision Control), then enabling this feature will require a Revision Control Provider to be configured to move/rename/delete files to be sure no localized variants become orphaned. (Works only with Perforce for now)"))
+	bool bRequiresRevisionControlToRenameLocalizableAssets = false;
 };

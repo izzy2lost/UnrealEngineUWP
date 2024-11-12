@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "../../../../../../Runtime/Launch/Resources/Windows/resource.h"
-#include "../../../../../../Runtime/Core/Public/Misc/CoreMiscDefines.h"
+#include "../../../../../../Runtime/Core/Public/HAL/PreprocessorHelpers.h"
 #include "../../../../../../Runtime/Launch/Resources/Version.h"
 
 #include "../../../Internal/SwitchboardListenerVersion.h"

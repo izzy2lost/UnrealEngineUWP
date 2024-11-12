@@ -38,6 +38,7 @@ namespace GLTF
 		KHR_MaterialsSpecular,
 		KHR_MaterialsEmissiveStrength,
 		KHR_MaterialsIridescence,
+		KHR_MaterialsAnisotropy,
 		KHR_TextureTransform,
 		KHR_DracoMeshCompression,
 		KHR_LightsPunctual,
@@ -54,6 +55,7 @@ namespace GLTF
 	{
 		FString       Name;
 		TArray<int32> Nodes;
+		TMap<FString, FString> Extras;
 		FString	      UniqueId; //will be generated in FAsset::GenerateNames
 	};
 

@@ -142,14 +142,14 @@ public:
 	// IPackageResourceManager interface
 	virtual bool SupportsLocalOnlyPaths() override;
 	virtual bool SupportsPackageOnlyPaths() override;
-	virtual bool DoesPackageExist(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-		FPackagePath* OutUpdatedPath = nullptr) override;
-	virtual int64 FileSize(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-		FPackagePath* OutUpdatedPath = nullptr) override;
-	virtual FOpenPackageResult OpenReadPackage(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-		FPackagePath* OutUpdatedPath = nullptr) override;
+	virtual bool DoesPackageExist(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+		EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath = nullptr) override;
+	virtual int64 FileSize(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+		EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath = nullptr) override;
+	virtual FOpenPackageResult OpenReadPackage(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+		EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath = nullptr) override;
 	virtual FOpenAsyncPackageResult OpenAsyncReadPackage(const FPackagePath& PackagePath,
-		EPackageSegment PackageSegment) override;
+		FBulkDataCookedIndex CookedIndex, EPackageSegment PackageSegment) override;
 	virtual IMappedFileHandle* OpenMappedHandleToPackage(const FPackagePath& PackagePath,
 		EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath = nullptr) override;
 	virtual bool TryMatchCaseOnDisk(const FPackagePath& PackagePath, FPackagePath* OutNormalizedPath = nullptr) override;
@@ -169,8 +169,14 @@ public:
 
 	// FTickableEditorObject interface
 	virtual void Tick(float DeltaTime) override;
-	virtual ETickableTickType GetTickableTickType() const override { return ETickableTickType::Always; }
-	virtual TStatId GetStatId() const override { return TStatId(); }
+	virtual ETickableTickType GetTickableTickType() const override
+	{
+		return ETickableTickType::Always;
+	}
+	virtual TStatId GetStatId() const override
+	{
+		return TStatId();
+	}
 
 	// IPackageDigestCache interface
 	virtual UE::EditorDomain::FPackageDigest GetPackageDigest(FName PackageDigest) override;
@@ -178,8 +184,8 @@ public:
 	// EditorDomain interface
 	/** Fetch data from game-thread sources that is required to calculate the PackageDigest of the given PackageName. */
 	void PrecachePackageDigest(FName PackageName);
-	bool IsReadingPackages() const { return bEditorDomainReadEnabled; }
-	bool IsWritingPackages() const { return bEditorDomainWriteEnabled; }
+	bool IsReadingPackages() const;
+	bool IsWritingPackages() const;
 
 	/** Request the download of the given packages from the upstream DDC server. */
 	void BatchDownload(TArrayView<FName> PackageNames);
@@ -288,3 +294,18 @@ private:
 	friend class FEditorDomainReadArchive;
 	friend class FEditorDomainAsyncReadFileHandle;
 };
+
+
+///////////////////////////////////////////////////////
+// Inline implementations
+///////////////////////////////////////////////////////
+
+inline bool FEditorDomain::IsReadingPackages() const
+{
+	return bEditorDomainReadEnabled;
+}
+
+inline bool FEditorDomain::IsWritingPackages() const
+{
+	return bEditorDomainWriteEnabled;
+}

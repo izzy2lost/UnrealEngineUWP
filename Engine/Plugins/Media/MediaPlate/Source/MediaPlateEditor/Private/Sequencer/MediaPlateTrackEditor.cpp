@@ -17,6 +17,7 @@
 #include "MovieSceneMediaTrack.h"
 #include "SceneOutlinerModule.h"
 #include "Sequencer/MediaTrackEditor.h"
+#include "SequencerSettings.h"
 
 #define LOCTEXT_NAMESPACE "FMediaPlateTrackEditor"
 
@@ -152,7 +153,7 @@ void FMediaPlateTrackEditor::AddTrackForComponent(UMediaPlateComponent* Componen
 		MediaTrack->SetDisplayName(LOCTEXT("MediaTrackName", "Media"));
 
 		// Populate track.
-		UMediaPlaylist* Playlist = Component->MediaPlaylist;
+		UMediaPlaylist* Playlist = Component->GetMediaPlaylist();
 		if (Playlist != nullptr)
 		{
 			for (int32 Index = 0; Index < Playlist->Num(); ++Index)
@@ -248,12 +249,16 @@ void FMediaPlateTrackEditor::OnBuildOutlinerEditWidget(FMenuBuilder& MenuBuilder
 				}
 				));
 
+			TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+			const float WidthOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+			const float HeightOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
 			// Create actor picker.
 			FSceneOutlinerModule& SceneOutlinerModule = 
 				FModuleManager::LoadModuleChecked<FSceneOutlinerModule>("SceneOutliner");
 			TSharedRef<SBox> Picker = SNew(SBox)
-				.WidthOverride(300.0f)
-				.HeightOverride(300.f)
+				.WidthOverride(WidthOverride)
+				.HeightOverride(HeightOverride)
 				[
 					SceneOutlinerModule.CreateActorPicker(InitOptions,
 						FOnActorPicked::CreateLambda([this](AActor* Actor)

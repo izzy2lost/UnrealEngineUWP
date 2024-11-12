@@ -19,6 +19,7 @@
 #include "ShaderParameterMacros.h"
 #include "ShaderParameterStruct.h"
 #include "Templates/UnrealTemplate.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 class FPointerTableBase;
 class FRDGTexture;
@@ -163,5 +164,34 @@ class FCopyRectPS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, InputSampler)
 		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+};
+
+/** Pixel shader to copy pixels from src to dst performing a format change that works on all platforms -- variation that accepts SRV */
+class FCopyRectSrvPS : public FGlobalShader
+{
+	DECLARE_EXPORTED_GLOBAL_SHADER(FCopyRectSrvPS, RENDERCORE_API);
+	SHADER_USE_PARAMETER_STRUCT(FCopyRectSrvPS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, InputSampler)
+		RENDER_TARGET_BINDING_SLOTS()
+		END_SHADER_PARAMETER_STRUCT()
+};
+
+/** Vertex shader to perform a screen rotation for Vulkan pre-rotation on mobile. */
+class FImagePreTransformVS : public FGlobalShader
+{
+	DECLARE_EXPORTED_GLOBAL_SHADER(FImagePreTransformVS, RENDERCORE_API);
+	SHADER_USE_PARAMETER_STRUCT(FImagePreTransformVS, FGlobalShader);
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return IsVulkanMobilePlatform(Parameters.Platform) || IsVulkanMobileSM5Platform(Parameters.Platform);
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(FVector4f, PreTransform)
 	END_SHADER_PARAMETER_STRUCT()
 };

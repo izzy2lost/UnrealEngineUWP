@@ -3,8 +3,8 @@
 
 #include "AnimNextRuntimeTest.h"
 
-#include "DecoratorBase/DecoratorReader.h"
-#include "Graph/AnimNextGraph.h"
+#include "TraitCore/TraitReader.h"
+#include "Graph/AnimNextAnimationGraph.h"
 #include "Graph/RigUnit_AnimNextGraphRoot.h"
 #include "Misc/AutomationTest.h"
 #include "Serialization/MemoryReader.h"
@@ -25,31 +25,34 @@ namespace UE::AnimNext
 		Swap(Registry, TmpRegistry);
 	}
 
-	bool FTestUtils::LoadFromArchiveBuffer(UAnimNextGraph& Graph, TArray<FNodeHandle>& NodeHandles, const TArray<uint8>& SharedDataArchiveBuffer)
+	bool FTestUtils::LoadFromArchiveBuffer(UAnimNextAnimationGraph& AnimationGraph, TArray<FNodeHandle>& NodeHandles, const TArray<uint8>& SharedDataArchiveBuffer)
 	{
 		FAnimNextGraphEvaluatorExecuteDefinition ExecuteDefinition;
 		ExecuteDefinition.Hash = 0;
 		ExecuteDefinition.MethodName = TEXT("Execute_0");
 
-		FAnimNextGraphEntryPoint& EntryPoint = Graph.EntryPoints.AddDefaulted_GetRef();
-		EntryPoint.EntryPointName = FRigUnit_AnimNextGraphRoot::DefaultEntryPoint;
-		EntryPoint.RootDecoratorHandle = FAnimNextEntryPointHandle(NodeHandles[0]);
-		Graph.ExecuteDefinition = ExecuteDefinition;
-		Graph.SharedDataArchiveBuffer = SharedDataArchiveBuffer;
-		Graph.GraphReferencedObjects.Empty();
+		// Manually add our entry point since we didn't go through a full RigVM graph
+		AnimationGraph.EntryPoints.Reset();
+
+		FAnimNextGraphEntryPoint& EntryPoint = AnimationGraph.EntryPoints.AddDefaulted_GetRef();
+		EntryPoint.EntryPointName = AnimationGraph.DefaultEntryPoint;
+		EntryPoint.RootTraitHandle = FAnimNextEntryPointHandle(NodeHandles[0]);
+		AnimationGraph.ExecuteDefinition = ExecuteDefinition;
+		AnimationGraph.SharedDataArchiveBuffer = SharedDataArchiveBuffer;
+		AnimationGraph.GraphReferencedObjects.Empty();
 
 		// Reconstruct our graph shared data
 		FMemoryReader GraphSharedDataArchive(SharedDataArchiveBuffer);
-		FDecoratorReader DecoratorReader(Graph.GraphReferencedObjects, GraphSharedDataArchive);
+		FTraitReader TraitReader(AnimationGraph.GraphReferencedObjects, GraphSharedDataArchive);
 
-		const FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(Graph.SharedDataBuffer);
-		if (ErrorState == FDecoratorReader::EErrorState::None)
+		const FTraitReader::EErrorState ErrorState = TraitReader.ReadGraph(AnimationGraph.SharedDataBuffer);
+		if (ErrorState == FTraitReader::EErrorState::None)
 		{
-			Graph.ResolvedRootDecoratorHandles.Add(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, DecoratorReader.ResolveEntryPointHandle(Graph.EntryPoints[0].RootDecoratorHandle));
+			AnimationGraph.ResolvedRootTraitHandles.Add(AnimationGraph.DefaultEntryPoint, TraitReader.ResolveEntryPointHandle(AnimationGraph.EntryPoints[0].RootTraitHandle));
 
 			for (FNodeHandle& NodeHandle : NodeHandles)
 			{
-				NodeHandle = DecoratorReader.ResolveNodeHandle(NodeHandle);
+				NodeHandle = TraitReader.ResolveNodeHandle(NodeHandle);
 			}
 
 			// Make sure our execute method is registered
@@ -58,8 +61,8 @@ namespace UE::AnimNext
 		}
 		else
 		{
-			Graph.SharedDataBuffer.Empty(0);
-			Graph.ResolvedRootDecoratorHandles.Add(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, FAnimNextDecoratorHandle());
+			AnimationGraph.SharedDataBuffer.Empty(0);
+			AnimationGraph.ResolvedRootTraitHandles.Add(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, FAnimNextTraitHandle());
 			return false;
 		}
 	}

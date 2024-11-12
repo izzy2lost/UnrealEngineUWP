@@ -30,14 +30,12 @@ class FStreamedAudioChunkSeekTable;
 class ICompressedAudioInfo
 {
 public:
-	ICompressedAudioInfo()
-		: StreamingSoundWave(nullptr)
-	{}
+	ENGINE_API ICompressedAudioInfo();
 
 	/**
 	* Virtual destructor.
 	*/
-	virtual ~ICompressedAudioInfo() { }
+	ENGINE_API virtual ~ICompressedAudioInfo();
 
 	/**
 	* Reads the header information of a compressed format
@@ -200,7 +198,7 @@ class IStreamedCompressedInfo : public ICompressedAudioInfo
 {
 public:
 	ENGINE_API IStreamedCompressedInfo();
-	virtual ~IStreamedCompressedInfo() {}
+	ENGINE_API virtual ~IStreamedCompressedInfo();
 
 	//~ Begin ICompressedInfo Interface
 	ENGINE_API virtual bool ReadCompressedInfo(const uint8* InSrcBufferData, uint32 InSrcBufferDataSize, FSoundQualityInfo* QualityInfo) override;
@@ -356,7 +354,24 @@ protected:
 struct IAudioInfoFactory 
 {	
 	virtual ~IAudioInfoFactory() = default;
-	virtual ICompressedAudioInfo* Create() = 0;	
+	virtual ICompressedAudioInfo* Create() = 0;
+
+	/**
+	 * Simple decode capabilities struct, filled out by the decoder factories.
+	 * NOTE: By Default support is expected unless we opt out.
+	 */
+	struct FCapabilities
+	{
+		bool bSupportsSeeking = true;
+		bool bSupportsSeekableStreaming = true;
+	};
+	/**
+	* 
+	 * Queries if the factory's decoder implementation supports seeking
+	 * @param bIsStreaming If the media is streaming or not.
+	 * @return true if seeking is supported, false otherwise.
+	 */
+	virtual bool IsSeekingSupported(const bool bIsStreaming) const = 0;
 };
 struct IAudioInfoFactoryRegistry
 {
@@ -367,7 +382,7 @@ struct IAudioInfoFactoryRegistry
 	virtual IAudioInfoFactory* Find(FName InName) const = 0;
 	
 	// Convenience helper.
-	ICompressedAudioInfo* Create(FName InName)
+	ICompressedAudioInfo* Create(FName InName) const
 	{
 		if (IAudioInfoFactory* Factory = Find(InName))
 		{
@@ -380,19 +395,39 @@ struct IAudioInfoFactoryRegistry
 class FSimpleAudioInfoFactory : public IAudioInfoFactory
 {
 public:
-	FSimpleAudioInfoFactory(TFunction<ICompressedAudioInfo*(void)> InLambda, FName InFormatName)
-	:  CreateLamda(InLambda), FormatName(InFormatName)
+	/**
+	 * Constructs a simple AudioInfo factory.
+	 * @param InLambda Lambda to Create a ICompressionAudioInfo object
+	 * @param InFormatName The factory name of the Format. "ADPCM" etc.
+	 * @param InCaps The Capabilities of the decoder implementation.
+	 */
+	FSimpleAudioInfoFactory(const TFunction<ICompressedAudioInfo*()>& InLambda, const FName& InFormatName, const FCapabilities InCaps = {})
+	:  CreateLambda(InLambda), FormatName(InFormatName), Capabilities(InCaps)
 	{
 		IAudioInfoFactoryRegistry::Get().Register(this, FormatName);
 	}
-	virtual ~FSimpleAudioInfoFactory() 
+	virtual ~FSimpleAudioInfoFactory() override 
 	{
 		IAudioInfoFactoryRegistry::Get().Unregister(this, FormatName);
 	}
-	virtual ICompressedAudioInfo* Create() override { return CreateLamda(); }
+	virtual ICompressedAudioInfo* Create() override { return CreateLambda(); }
+
+	/**
+	 * Quries if seeking is supported by the decoder.
+	 * @param bIsStreaming If the media is to be streamed or not.
+	 * @return True for supported, false otherwise.
+	 */
+	virtual bool IsSeekingSupported(const bool bIsStreaming) const override
+	{
+		return bIsStreaming ?
+			Capabilities.bSupportsSeekableStreaming :
+			Capabilities.bSupportsSeeking;
+	}
+	
 private:
-	TFunction<ICompressedAudioInfo* ()> CreateLamda;
+	TFunction<ICompressedAudioInfo* ()> CreateLambda;
 	FName FormatName;
+	FCapabilities Capabilities;
 };
 
 /**

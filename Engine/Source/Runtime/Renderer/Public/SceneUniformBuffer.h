@@ -213,7 +213,6 @@ private:
 	RENDERER_API const void* GetOrDefault(const FMemberId MemberId, const int32 ExpectedValueSize, FRDGBuilder& GraphBuilder) UE_LIFETIMEBOUND;
 
 	TRDGUniformBufferRef<FSceneUniformParameters> Buffer;
-	FRHIUniformBuffer* RHIBuffer;
 
 	bool bAnyMemberDirty;
 	TBitArray<> MemberHasBeenSet;

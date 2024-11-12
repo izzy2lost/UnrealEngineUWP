@@ -8,9 +8,6 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMDispatch_MakeStruct)
 #define LOCTEXT_NAMESPACE "RigVMDispatch_MakeStruct"
 
-const FName FRigVMDispatch_MakeStruct::ElementsName = TEXT("Elements");
-const FName FRigVMDispatch_MakeStruct::StructName = TEXT("Struct");
-
 const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_MakeStruct::GetArgumentInfos() const
 {
 	static TArray<FRigVMTemplateArgumentInfo> Infos;

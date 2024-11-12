@@ -13,14 +13,25 @@ UMockNetObjectFilter::UMockNetObjectFilter()
 {
 }
 
-void UMockNetObjectFilter::OnInit(FNetObjectFilterInitParams& Params)
+void UMockNetObjectFilter::OnInit(const FNetObjectFilterInitParams& Params)
 {
+	AddFilterTraits(ENetFilterTraits::NeedsUpdate);
+
 	++CallStatus.CallCounts.Init;
 
 	CallStatus.SuccessfulCallCounts.Init += Cast<UMockNetObjectFilterConfig>(Params.Config) != nullptr;
 
-	AddedObjectIndices.Init(Params.MaxObjectCount);
+	AddedObjectIndices.Init(Params.CurrentMaxInternalIndex);
 	AddedConnectionIndices.Init(Params.MaxConnectionCount + 1);
+}
+
+void UMockNetObjectFilter::OnDeinit()
+{
+}
+
+void UMockNetObjectFilter::OnMaxInternalNetRefIndexIncreased(uint32 NewMaxInternalIndex)
+{
+	AddedObjectIndices.SetNumBits(NewMaxInternalIndex);
 }
 
 void UMockNetObjectFilter::AddConnection(uint32 ConnectionId)
@@ -116,12 +127,12 @@ void UMockNetObjectFilter::Filter(FNetObjectFilteringParams& Params)
 	++CallStatus.CallCounts.Filter;
 
 	bool bIsProperCall = true;
-	UE::Net::FNetBitArrayView::ForAllExclusiveBits(Params.FilteredObjects, MakeNetBitArrayView(AddedObjectIndices), [](...) {}, [&bIsProperCall](...) {bIsProperCall = false; });
+	UE::Net::FNetBitArray::ForAllExclusiveBits(FilteredObjects, AddedObjectIndices, [](...) {}, [&bIsProperCall](...) {bIsProperCall = false; });
 	CallStatus.SuccessfulCallCounts.Filter += bIsProperCall;
 
 	if (CallSetup.Filter.bFilterOutByDefault)
 	{
-		Params.OutAllowedObjects.Reset();
+		Params.OutAllowedObjects.ClearAllBits();
 	}
 	else
 	{
@@ -137,88 +148,13 @@ void UMockNetObjectFilter::PostFilter(FNetObjectPostFilteringParams& Params)
 	CallStatus.SuccessfulCallCounts.PostFilter += bIsProperCall;
 }
 
-
-//**************************************************************************************************
-// UMockNetObjectFilterUsingFragmentData
-//**************************************************************************************************
-
-void UMockNetObjectFilterUsingFragmentData::OnInit(FNetObjectFilterInitParams& Params)
-{
-	Super::OnInit(Params);
-
-	SetupFilterType(ENetFilterType::PostPoll_FragmentBased);
-}
-
-bool UMockNetObjectFilterUsingFragmentData::AddObject(uint32 ObjectIndex, FNetObjectFilterAddObjectParams& Params)
-{
-	bool bResult = Super::AddObject(ObjectIndex, Params);
-
-	if (bResult)
-	{
-		// Check if object has the NetTest_FilterOut RepTag which says whether the object should be filtered out or not.
-		UE::Net::FRepTagFindInfo RepTagInfo;
-		if (UE::Net::FindRepTag(Params.Protocol, RepTag_NetTest_FilterOut, RepTagInfo))
-		{
-			// Warning: Using the internal state requires the proper NetSerializer and dequantization to get the value.
-			ObjectToFilterOutOffset.Add(ObjectIndex, RepTagInfo.InternalStateAbsoluteOffset);
-		}
-		else
-		{
-			ensureAlwaysMsgf(false, TEXT("Could not find FilterOut reptag in object index %u"), ObjectIndex);
-		}
-	}
-
-	return bResult;
-}
-
-void UMockNetObjectFilterUsingFragmentData::RemoveObject(uint32 ObjectIndex, const FNetObjectFilteringInfo& Params)
-{
-	Super::RemoveObject(ObjectIndex, Params);
-
-	ObjectToFilterOut.Remove(ObjectIndex);
-	ObjectToFilterOutOffset.Remove(ObjectIndex);
-}
-
-void UMockNetObjectFilterUsingFragmentData::UpdateObjects(FNetObjectFilterUpdateParams& Params)
-{
-	++CallStatus.CallCounts.UpdateObjects;
-
-	bool bIsProperCall = Params.ObjectCount <= AddedCount;
-	for (uint32 ObjectIndex : MakeArrayView(Params.ObjectIndices, Params.ObjectCount))
-	{
-		bIsProperCall = bIsProperCall && AddedObjectIndices.GetBit(ObjectIndex);
-
-		if (UPTRINT* InternalStateOffset = ObjectToFilterOutOffset.Find(ObjectIndex))
-		{
-			// Warning: This is generally not safe, not even for primitive types.
-			const bool bFilterOut = *reinterpret_cast<const bool*>((*Params.StateBuffers)[ObjectIndex] + *InternalStateOffset);
-			ObjectToFilterOut.Emplace(ObjectIndex, bFilterOut);
-		}
-	}
-	CallStatus.SuccessfulCallCounts.UpdateObjects += bIsProperCall;
-}
-
-void UMockNetObjectFilterUsingFragmentData::Filter(FNetObjectFilteringParams& Params)
-{
-	Super::Filter(Params);
-
-	// Go through objects with FilterOut wishes
-	for (const auto& Pair : ObjectToFilterOut)
-	{
-		Params.OutAllowedObjects.SetBitValue(Pair.Key, !Pair.Value);
-	}
-}
-
-
 //**************************************************************************************************
 // UMockNetObjectFilterWithCondition
 //**************************************************************************************************
 
-void UMockNetObjectFilterWithCondition::OnInit(FNetObjectFilterInitParams& Params)
+void UMockNetObjectFilterWithCondition::OnInit(const FNetObjectFilterInitParams& Params)
 {
 	Super::OnInit(Params);
-
-	SetupFilterType(ENetFilterType::PrePoll_Raw);
 
 	ReplicationSystem = Params.ReplicationSystem.Get();
 }
@@ -240,7 +176,7 @@ void UMockNetObjectFilterWithCondition::Filter(FNetObjectFilteringParams& Params
 
 	bool bIsProperCall = true;
 
-	Params.FilteredObjects.ForAllSetBits([&](uint32 ObjectIndex)
+	FilteredObjects.ForAllSetBits([&](uint32 ObjectIndex)
 	{
 		UTestFilteringObject* FilterObject = CastChecked<UTestFilteringObject>(ReplicationSystem->GetReplicationSystemInternal()->GetNetRefHandleManager().GetReplicatedObjectInstance(ObjectIndex));
 		

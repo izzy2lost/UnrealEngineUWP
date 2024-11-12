@@ -60,7 +60,8 @@ enum class EToolMenuInsertType : uint8
 	Default,
 	Before,
 	After,
-	First
+	First,
+	Last
 };
 
 USTRUCT(BlueprintType)

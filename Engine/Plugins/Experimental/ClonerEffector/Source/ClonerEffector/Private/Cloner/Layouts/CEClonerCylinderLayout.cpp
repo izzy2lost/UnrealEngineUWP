@@ -12,7 +12,7 @@ void UCEClonerCylinderLayout::SetBaseCount(int32 InBaseCount)
 	}
 
 	BaseCount = InBaseCount;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCylinderLayout::SetHeightCount(int32 InHeightCount)
@@ -23,7 +23,7 @@ void UCEClonerCylinderLayout::SetHeightCount(int32 InHeightCount)
 	}
 
 	HeightCount = InHeightCount;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCylinderLayout::SetHeight(float InHeight)
@@ -34,7 +34,7 @@ void UCEClonerCylinderLayout::SetHeight(float InHeight)
 	}
 
 	Height = InHeight;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCylinderLayout::SetRadius(float InRadius)
@@ -45,7 +45,7 @@ void UCEClonerCylinderLayout::SetRadius(float InRadius)
 	}
 
 	Radius = InRadius;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCylinderLayout::SetAngleStart(float InAngleStart)
@@ -56,7 +56,7 @@ void UCEClonerCylinderLayout::SetAngleStart(float InAngleStart)
 	}
 
 	AngleStart = InAngleStart;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCylinderLayout::SetAngleRatio(float InAngleRatio)
@@ -67,7 +67,7 @@ void UCEClonerCylinderLayout::SetAngleRatio(float InAngleRatio)
 	}
 
 	AngleRatio = InAngleRatio;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCylinderLayout::SetOrientMesh(bool bInOrientMesh)
@@ -78,7 +78,7 @@ void UCEClonerCylinderLayout::SetOrientMesh(bool bInOrientMesh)
 	}
 
 	bOrientMesh = bInOrientMesh;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCylinderLayout::SetPlane(ECEClonerPlane InPlane)
@@ -89,7 +89,7 @@ void UCEClonerCylinderLayout::SetPlane(ECEClonerPlane InPlane)
 	}
 
 	Plane = InPlane;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCylinderLayout::SetRotation(const FRotator& InRotation)
@@ -100,7 +100,7 @@ void UCEClonerCylinderLayout::SetRotation(const FRotator& InRotation)
 	}
 
 	Rotation = InRotation;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerCylinderLayout::SetScale(const FVector& InScale)
@@ -111,7 +111,7 @@ void UCEClonerCylinderLayout::SetScale(const FVector& InScale)
 	}
 
 	Scale = InScale;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 #if WITH_EDITOR

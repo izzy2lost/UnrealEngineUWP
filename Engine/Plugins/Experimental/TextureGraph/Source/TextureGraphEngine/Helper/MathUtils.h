@@ -19,8 +19,9 @@ public:
 	static FVector						MaxFVector();
 	static FVector2f					MinFVector2();
 	static FVector2f					MaxFVector2();
-	static void						UpdateBounds(FBox& bounds, const FVector& point);
-	static void						EncapsulateBound(FBox& bounds, FBox& otherBounds);
+	static void							UpdateBounds(FBox& bounds, const FVector& point);
+	static void							EncapsulateBound(FBox& bounds, FBox& otherBounds);
 	static FVector						GetDirection(float yzAngle, float xAngle, int xSign = 1);
-	static FBox						GetCombinedBounds(TArray<FBox> inputBounds);
+	static FBox							GetCombinedBounds(TArray<FBox> inputBounds);
+	static float						Step(float Y, float X);
 };

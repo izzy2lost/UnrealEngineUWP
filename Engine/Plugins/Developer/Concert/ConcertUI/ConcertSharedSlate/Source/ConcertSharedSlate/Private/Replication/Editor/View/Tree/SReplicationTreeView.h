@@ -4,7 +4,8 @@
 
 #include "Replication/Editor/View/Column/ReplicationColumnInfo.h"
 #include "Replication/Editor/View/Column/ReplicationColumnsUtils.h"
-#include "SReplicationColumnRow.h"
+#include "TreeItemTraitsInput.h"
+#include "TreeItemTraits.h"
 
 #include "Algo/RemoveIf.h"
 #include "Misc/TextFilter.h"
@@ -16,28 +17,65 @@
 #include "Widgets/Views/STreeView.h"
 #include "Styling/AppStyle.h"
 #include "Styling/CoreStyle.h"
+#include "Trace/ConcertTrace.h"
 
 #define LOCTEXT_NAMESPACE "SReplicationListView"
 
 namespace UE::ConcertSharedSlate
 {
+	enum class EItemFilterResult : uint8
+	{
+		/** The item passes the filter and should be displayed */
+		Include,
+		/** The item does not pass the filter and not should be displayed */
+		Exclude,
+		/** The item is only displayed if the filter passes on one of its children. If no child is included, the item is not displayed. */
+		IncludeOnlyIfChildIsIncluded
+	};
+
+	/** Result for the IsLessThan override delegate in SReplicationTreeView. */
+	enum class EComparisonOverride : uint8
+	{
+		/** Left < Right is to be treated as true */
+		Less,
+		/** Left < Right is to be treated as false */
+		NotLess,
+		/** Use the standard column comparision delegates to find out. */
+		UseDefault
+	};
+
+	/** Result for the GetSearchString override delegate in SReplicationTreeView. */
+	enum class ESearchTermResult : uint8
+	{
+		/** The delegate wants the passed in item to go through normal text search as well. */
+		UseDefault,
+		/** The delegate does not want the passed in item to go through the rest of the text search process. */
+		UseOverrideOnly,
+	};
+	
 	/**
-	 * Shared code for the list view for replicated actors and properties.
-	 * It is a table view that is searchable with a search box and exposes slots to add more filter widgets, such as SBasicFilterBar.
+	 * Shared code for the tree view for replicated actors and properties.
+	 * 
+	 * It is a tree view that is searchable with a search box and exposes slots to add more filter widgets, such as SBasicFilterBar.
+	 * The columns are modular and are abstracted by IReplicationTreeColumn. You can customize row content by specializing TReplicationTreeItemTraits;
+	 * the default implementation creates a SReplicationColumnRow, which uses IReplicationTreeColumn to draw the columns. 
 	 */
 	template<typename TItemType>
 	class SReplicationTreeView : public SCompoundWidget
 	{
 	public:
-
-		using TOverrideColumnWidget = typename SReplicationColumnRow<TItemType>::FOverrideColumnWidget;
-
-		DECLARE_DELEGATE_OneParam(FDeleteItems, const TArray<TSharedPtr<TItemType>>& SelectedItems);
-		DECLARE_DELEGATE_TwoParams(FGetItemChildren, TSharedPtr<TItemType> Item, TFunctionRef<void(TSharedPtr<TItemType>)> ProcessChild);
-		DECLARE_DELEGATE(FOnSelectionChanged);
 		
-		DECLARE_DELEGATE_RetVal_OneParam(bool, FCustomFilter, const TSharedPtr<TItemType>& Item);
-		DECLARE_DELEGATE_RetVal_OneParam(bool, FIsSearchableItem, const TSharedPtr<TItemType>& Item);
+		using FOverrideColumnWidget = typename TReplicationTreeData<TItemType>::FOverrideColumnWidget;
+		DECLARE_DELEGATE_OneParam(FDeleteItems, const TArray<TSharedPtr<TItemType>>& SelectedItems);
+		DECLARE_DELEGATE(FOnSelectionChanged);
+
+		// TODO UE-216456: The following callbacks could be extracted to a IReplicationItem<TItemType> to simplify SReplicationTreeView implementation 
+		using FOverrideRowWidget	= typename TReplicationTreeData<TItemType>::FOverrideRowWidget;
+		using FGetHoveredRowContent = typename TReplicationTreeData<TItemType>::FGetHoveredRowContent;
+		DECLARE_DELEGATE_RetVal_OneParam(EItemFilterResult, FCustomFilter, const TItemType& Item);
+		DECLARE_DELEGATE_RetVal_TwoParams(EComparisonOverride, FIsLessThanOverride, const TSharedPtr<TItemType>& Left, const TSharedPtr<TItemType>& Right);
+		DECLARE_DELEGATE_TwoParams(FGetItemChildren, TSharedPtr<TItemType> Item, TFunctionRef<void(TSharedPtr<TItemType>)> ProcessChild);
+		DECLARE_DELEGATE_RetVal_TwoParams(ESearchTermResult, FGetSearchTermsOverride, const TSharedPtr<TItemType>& Item, TArray<FString>& InOutSearchTerms);
 
 		enum class EContent
 		{
@@ -67,14 +105,19 @@ namespace UE::ConcertSharedSlate
 
 			/** Optional callback to do even more filtering of items. */
 			SLATE_EVENT(FCustomFilter, FilterItem)
-		
+			/** Optional. Gets the content to overlay on hovered rows; it covers the entire row. */
+			SLATE_EVENT(FGetHoveredRowContent, GetHoveredRowContent)
 			/**
 			 * Optional. If the delegate returns non-null, that widget will be used instead of the one the column would generate.
 			 * This is useful, e.g. if you want to generate a separator widget between items.
 			 */
-			SLATE_EVENT(TOverrideColumnWidget, OverrideColumnWidget)
-			/** Optional callback for determining whether this item can be searched. */
-			SLATE_EVENT(FIsSearchableItem, IsSearchableItem)
+			SLATE_EVENT(FOverrideColumnWidget, OverrideColumnWidget)
+			/** Optional. The widget returned by this delegate ends up overriding the default row widget. */
+			SLATE_EVENT(FOverrideRowWidget, OverrideRowWidget)
+			/** Optional. This delegate is used during sorting and can override the default sorting behaviour for some items. This can be used e.g. for category nodes. */
+			SLATE_EVENT(FIsLessThanOverride, OverrideIsLessThan)
+			/** Optional. Can generate custom terms for an item type. This can be used e.g. for category nodes. */
+			SLATE_EVENT(FGetSearchTermsOverride, OverrideGetSearchTerms)
 			
 			/** The columns this list should have */
 			SLATE_ARGUMENT(TArray<TReplicationColumnEntry<TItemType>>, Columns)
@@ -112,13 +155,18 @@ namespace UE::ConcertSharedSlate
 			OnGetChildrenDelegate = InArgs._OnGetChildren;
 			OnDeleteItemsDelegate = InArgs._OnDeleteItems;
 			CustomFilterDelegate = InArgs._FilterItem;
-			OverrideColumnWidget = InArgs._OverrideColumnWidget;
-			IsSearchableItemDelegate = InArgs._IsSearchableItem;
+			GetHoveredRowContentDelegate = InArgs._GetHoveredRowContent;
+			OverrideColumnWidgetDelegate = InArgs._OverrideColumnWidget;
+			OverrideRowWidgetDelegate = InArgs._OverrideRowWidget;
+			OverrideIsLessThanDelegate = InArgs._OverrideIsLessThan;
+			OverrideGetSearchTerms = InArgs._OverrideGetSearchTerms;
 			ExpandableColumnId = InArgs._ExpandableColumnLabel;
 			RowStyle = InArgs._RowStyle;
 			
 			SearchText = MakeShared<FText>();
-			SearchTextFilter = MakeShared<TTextFilter<const TSharedPtr<TItemType>&>>(TTextFilter<const TSharedPtr<TItemType>&>::FItemToStringArray::CreateSP(this, &SReplicationTreeView::PopulateSearchStrings));
+			SearchTextFilter = MakeShared<TTextFilter<const TSharedPtr<TItemType>&>>(
+				TTextFilter<const TSharedPtr<TItemType>&>::FItemToStringArray::CreateSP(this, &SReplicationTreeView::PopulateSearchStrings)
+				);
 			SearchTextFilter->OnChanged().AddSP(this, &SReplicationTreeView::RequestRefilter);
 			
 			ChildSlot
@@ -271,6 +319,7 @@ namespace UE::ConcertSharedSlate
 		
 		TArray<TSharedPtr<TItemType>> GetSelectedItems() const { return TreeView->GetSelectedItems(); }
 		const TArray<TSharedPtr<TItemType>>& GetFilteredRootItems() const { return FilteredRootItems; }
+		const FText& GetHighlightText() const { return *SearchText; }
 		
 		virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 		virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
@@ -300,10 +349,11 @@ namespace UE::ConcertSharedSlate
 		 */
 		TMap<FName, TSharedRef<IReplicationTreeColumn<TItemType>>> ColumnInstances;
 
+		/** Item source passed to the STreeView. */
 		TArray<TSharedPtr<TItemType>>* AllRootItems = nullptr;
-		/** Contains only the root items that passed the filters */
+		/** Contains only the root items that passed the filters. */
 		TArray<TSharedPtr<TItemType>> FilteredRootItems;
-		/** Includes ALL items in the hierarchy that have passed the filter. */
+		/** Includes ALL items in the hierarchy that have itself passed the filter or one of its children has passed the filter. */
 		TSet<TSharedPtr<TItemType>> AllFilteredItems;
 
 		struct FItemMetaData
@@ -331,10 +381,16 @@ namespace UE::ConcertSharedSlate
 		FDeleteItems OnDeleteItemsDelegate;
 		/** Optional delegate for filtering the items even more. */
 		FCustomFilter CustomFilterDelegate;
+		/** Optional. The content to overlay on hovered rows; it covers the entire row. */
+		FGetHoveredRowContent GetHoveredRowContentDelegate;
 		/** Optional delegate for overriding the column widgets. */
-		TOverrideColumnWidget OverrideColumnWidget;
-		/** Optional callback for determining whether this item can be filtered. If false, it will not be shown when searched. */
-		FIsSearchableItem IsSearchableItemDelegate;
+		FOverrideColumnWidget OverrideColumnWidgetDelegate;
+		/** Optional. The widget returned by this delegate ends up overriding the default row widget. */
+		FOverrideRowWidget OverrideRowWidgetDelegate;
+		/** Optional. This delegate is used during sorting and can override the default sorting behaviour for some items. */
+		FIsLessThanOverride OverrideIsLessThanDelegate;
+		/** Optional. Can generate custom terms for an item type. This can be used e.g. for category nodes. */
+		FGetSearchTermsOverride OverrideGetSearchTerms;
 
 		/** Style to use for rows */
 		const FTableRowStyle* RowStyle = nullptr;
@@ -363,7 +419,7 @@ namespace UE::ConcertSharedSlate
 		void PopulateSearchStrings(const TSharedPtr<TItemType>& Item, TArray<FString>& OutSearchStrings);
 		void ReapplyFilters();
 		EFilterResult ApplyFiltersRecursive(const TSharedPtr<TItemType>& Item, TSet<TSharedPtr<TItemType>>& FilteredItemsToShow);
-		bool PassesFilters(const TSharedPtr<TItemType>& Item);
+		EItemFilterResult PassesFilters(const TSharedPtr<TItemType>& Item);
 
 		/** Called after RootItems has changed. Removes all invalidated ItemMetaData entries */
 		void CleanseItemMetaData();
@@ -371,6 +427,9 @@ namespace UE::ConcertSharedSlate
 		void ReapplyExpansionStates();
 		/** Callback into tree view when expansion state is changed. */
 		void OnItemExpansionChanged(TSharedPtr<TItemType> Item, bool bIsExpanded);
+
+		/** @return Whether currently searching. */
+		bool IsSearching() const { return !SearchTextFilter->GetRawFilterText().IsEmpty(); }
 
 		// Sorting
 		void Resort();
@@ -393,6 +452,8 @@ namespace UE::ConcertSharedSlate
 	template <typename TItemType>
 	void SReplicationTreeView<TItemType>::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 	{
+		SCOPED_CONCERT_TRACE(TickReplicationTree);
+		
 		if (bFilterChanged)
 		{
 			ReapplyFilters();
@@ -411,6 +472,9 @@ namespace UE::ConcertSharedSlate
 	{
 		TSharedPtr<SVerticalBox> VerticalBox;
 		
+		const auto GetTreeVisibility = [this](){ return AllRootItems->IsEmpty() || FilteredRootItems.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible; };
+		const auto GetWarningVisibility = [this](){ return AllRootItems->IsEmpty() || FilteredRootItems.IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed; };
+		
 		TSharedRef<SWidget> Result = SNew(SBorder)
 			.BorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
 			.BorderBackgroundColor(FSlateColor(FLinearColor(0.6, 0.6, 0.6)))
@@ -422,6 +486,7 @@ namespace UE::ConcertSharedSlate
 				.FillHeight(1.f)
 				[
 					SAssignNew(TreeView, STreeView<TSharedPtr<TItemType>>)
+					.Visibility_Lambda(GetTreeVisibility)
 					.OnGetChildren(this, &SReplicationTreeView::GetRowChildren)
 					.TreeItemsSource(&FilteredRootItems)
 					.OnGenerateRow(this, &SReplicationTreeView::OnGenerateRowWidget)
@@ -443,7 +508,7 @@ namespace UE::ConcertSharedSlate
 				[
 					SNew(SWidgetSwitcher)
 					.WidgetIndex_Lambda([this](){ return AllRootItems->IsEmpty() ? 1 : 0; })
-					.Visibility_Lambda([this](){ return AllRootItems->IsEmpty() || FilteredRootItems.IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed; })
+					.Visibility_Lambda(GetWarningVisibility)
 					+SWidgetSwitcher::Slot() [ SNew(STextBlock).Text(LOCTEXT("AllFiltered", "All items are filtered.")) ]
 					+SWidgetSwitcher::Slot()
 					[
@@ -489,18 +554,26 @@ namespace UE::ConcertSharedSlate
 	TSharedRef<ITableRow> SReplicationTreeView<TItemType>::OnGenerateRowWidget(TSharedPtr<TItemType> Item, const TSharedRef<STableViewBase>& OwnerTable)
 	{
 		const typename SReplicationColumnRow<TItemType>::FGetColumn ColumnGetter =
-			SReplicationColumnRow<TItemType>::FGetColumn::CreateSP(
-				this,
-				&SReplicationTreeView::FindColumnByName
+			SReplicationColumnRow<TItemType>::FGetColumn::CreateSP(this, &SReplicationTreeView::FindColumnByName
 			);
-	
-		return SNew(SReplicationColumnRow<TItemType>, OwnerTable)
-			.HighlightText(SearchText)
-			.ColumnGetter(ColumnGetter)
-			.OverrideColumnWidget(OverrideColumnWidget)
-			.RowData(Item)
-			.ExpandableColumnLabel(ExpandableColumnId)
-			.Style(RowStyle);
+
+		const typename TReplicationTreeData<TItemType>::FGenerateRowArgs RowArgs
+		{
+			ColumnGetter,
+			OverrideColumnWidgetDelegate,
+			GetHoveredRowContentDelegate,
+			SearchText,
+			ExpandableColumnId,
+			RowStyle
+		};
+		const TSharedPtr<ITableRow> OverrideRowWidget = OverrideRowWidgetDelegate.IsBound()
+			? OverrideRowWidgetDelegate.Execute(Item, OwnerTable, RowArgs)
+			: nullptr;
+		
+		return OverrideRowWidget
+			? OverrideRowWidget.ToSharedRef()
+			// Compile-time decide the row that is supposed to be generated
+			: TReplicationTreeItemTraits<TItemType>::GenerateRowWidget(Item, OwnerTable, RowArgs);
 	}
 
 	template <typename TItemType>
@@ -513,8 +586,8 @@ namespace UE::ConcertSharedSlate
 				const bool bAllowedByFilter =
 					// When we applied the filter, was this item or one of its children allowed?
 					AllFilteredItems.Contains(ItemToAdd)
-					// Handle case where no filter has been applied, yet
-					|| PassesFilters(ItemToAdd);
+					// Handle case where no filter has been applied, yet. 
+					|| PassesFilters(ItemToAdd) != EItemFilterResult::Exclude;
 				if (bAllowedByFilter)
 				{
 					OutChildren.Add(ItemToAdd);
@@ -601,11 +674,12 @@ namespace UE::ConcertSharedSlate
 	template <typename TItemType>
 	void SReplicationTreeView<TItemType>::PopulateSearchStrings(const TSharedPtr<TItemType>& Item, TArray<FString>& OutSearchStrings)
 	{
-		if (IsSearchableItemDelegate.IsBound() && !IsSearchableItemDelegate.Execute(Item))
+		if (OverrideGetSearchTerms.IsBound()
+			&& OverrideGetSearchTerms.Execute(Item, OutSearchStrings) == ESearchTermResult::UseOverrideOnly)
 		{
 			return;
 		}
-
+		
 		for (const TPair<FName, TSharedRef<IReplicationTreeColumn<TItemType>>>& ColumnEntry : ColumnInstances)
 		{
 			ColumnEntry.Value->PopulateSearchString(*Item, OutSearchStrings);
@@ -615,6 +689,8 @@ namespace UE::ConcertSharedSlate
 	template <typename TItemType>
 	void SReplicationTreeView<TItemType>::ReapplyFilters()
 	{
+		SCOPED_CONCERT_TRACE(ReapplyFilters);
+		
 		// Try preserving the selected activity.
 		TArray<TSharedPtr<TItemType>> SelectedItems = TreeView->GetSelectedItems();
 
@@ -652,35 +728,52 @@ namespace UE::ConcertSharedSlate
 	typename SReplicationTreeView<TItemType>::EFilterResult SReplicationTreeView<TItemType>::ApplyFiltersRecursive(const TSharedPtr<TItemType>& Item, TSet<TSharedPtr<TItemType>>& FilteredItemsToShow)
 	{
 		bool bPassesAtLeastOnce = false;
-		if (PassesFilters(Item))
-		{
-			bPassesAtLeastOnce = true;
-			FilteredItemsToShow.Add(Item);
-		}
+		const EItemFilterResult ItemFilterResult = PassesFilters(Item);
 
+		bool bChildPassedAtLeastOnce = false;
 		if (OnGetChildrenDelegate.IsBound())
 		{
-			OnGetChildrenDelegate.Execute(Item, [this, &FilteredItemsToShow, &bPassesAtLeastOnce](TSharedPtr<TItemType> ItemToAdd)
+			OnGetChildrenDelegate.Execute(Item, [this, &FilteredItemsToShow, &bChildPassedAtLeastOnce](TSharedPtr<TItemType> ItemToAdd)
 			{
-				bPassesAtLeastOnce |= ApplyFiltersRecursive(ItemToAdd, FilteredItemsToShow) == EFilterResult::ItemOrChildrenPassFilter;
+				bChildPassedAtLeastOnce |= ApplyFiltersRecursive(ItemToAdd, FilteredItemsToShow) == EFilterResult::ItemOrChildrenPassFilter;
 			});
+			bPassesAtLeastOnce = bChildPassedAtLeastOnce;
+		}
+
+		bPassesAtLeastOnce |= ItemFilterResult == EItemFilterResult::Include
+			 || (ItemFilterResult == EItemFilterResult::IncludeOnlyIfChildIsIncluded && bChildPassedAtLeastOnce);
+		if (bPassesAtLeastOnce)
+		{
+			FilteredItemsToShow.Add(Item);
 		}
 
 		return bPassesAtLeastOnce ? EFilterResult::ItemOrChildrenPassFilter : EFilterResult::NoneInHierarchyPassFilter;
 	}
 
 	template <typename TItemType>
-	bool SReplicationTreeView<TItemType>::PassesFilters(const TSharedPtr<TItemType>& Item)
+	EItemFilterResult SReplicationTreeView<TItemType>::PassesFilters(const TSharedPtr<TItemType>& Item)
 	{
-		return SearchTextFilter->PassesFilter(Item)
-			&& (!CustomFilterDelegate.IsBound() || CustomFilterDelegate.Execute(Item));
+		if (SearchTextFilter->PassesFilter(Item))
+		{
+			return CustomFilterDelegate.IsBound()
+				? CustomFilterDelegate.Execute(*Item)
+				: EItemFilterResult::Include; 
+		}
+		return EItemFilterResult::Exclude;
 	}
 
 	template <typename TItemType>
 	void SReplicationTreeView<TItemType>::CleanseItemMetaData()
 	{
+		// While searching, all items are force expanded.
+		// Do not remove items from ItemMetaData while searching because we want to restore the expansion states after search is done.
+		if (IsSearching())
+		{
+			return;
+		}
+		
 		TMap<TSharedPtr<TItemType>, FItemMetaData> NewItemMetaData;
-		for (const TSharedPtr<TItemType>& Item : *AllRootItems)
+		for (const TSharedPtr<TItemType>& Item : AllFilteredItems)
 		{
 			NewItemMetaData.Add(Item, ItemMetaData.FindOrAdd(Item));
 		}
@@ -691,12 +784,18 @@ namespace UE::ConcertSharedSlate
 	void SReplicationTreeView<TItemType>::ReapplyExpansionStates()
 	{
 		// While searching, expand all items
-		bForceParentItemsExpanded = !SearchTextFilter->GetRawFilterText().IsEmpty();
-		
-		for (const TPair<TSharedPtr<TItemType>, FItemMetaData> MetaDataPair : ItemMetaData)
+		bForceParentItemsExpanded = IsSearching();
+
+		for (const TSharedPtr<TItemType> Item : AllFilteredItems)
 		{
-			const TSharedPtr<TItemType>& Item = MetaDataPair.Key;
-			TreeView->SetItemExpansion(Item, MetaDataPair.Value.bIsExpanded || bForceParentItemsExpanded);
+			if (const FItemMetaData* ItemInfo = ItemMetaData.Find(Item))
+			{
+				TreeView->SetItemExpansion(Item, ItemInfo->bIsExpanded || bForceParentItemsExpanded);
+			}
+			else
+			{
+				TreeView->SetItemExpansion(Item, bForceParentItemsExpanded);
+			}
 		}
 	}
 
@@ -728,6 +827,8 @@ namespace UE::ConcertSharedSlate
 	template <typename TItemType>
 	void SReplicationTreeView<TItemType>::Resort()
 	{
+		SCOPED_CONCERT_TRACE(Resort);
+		
 		Sort(FilteredRootItems);
 		// GetRowChildren will be called again, which will do the resort the children.
 		TreeView->RequestListRefresh();
@@ -736,6 +837,8 @@ namespace UE::ConcertSharedSlate
 	template <typename TItemType>
 	void SReplicationTreeView<TItemType>::Sort(TArray<TSharedPtr<TItemType>>& Items)
 	{
+		SCOPED_CONCERT_TRACE(SortReplicationTree);
+		
 		const auto IsLessThan = [this](const TSharedPtr<TItemType>& Left, const TSharedPtr<TItemType>& Right, const FName& ColumnName, EColumnSortMode::Type SortMode)
 		{
 			const TSharedPtr<IReplicationTreeColumn<TItemType>> Column = FindColumnByName(ColumnName);
@@ -746,8 +849,8 @@ namespace UE::ConcertSharedSlate
 
 			switch (SortMode)
 			{
-				case EColumnSortMode::Ascending: return Column->IsLessThan(*Left, *Right);
-				case EColumnSortMode::Descending: return Column->IsLessThan(*Right, *Left);
+				case EColumnSortMode::Ascending: return TReplicationTreeItemTraits<TItemType>::IsLessThan(*Left, *Right, *Column);
+				case EColumnSortMode::Descending: return TReplicationTreeItemTraits<TItemType>::IsLessThan(*Right, *Left, *Column);
 				case EColumnSortMode::None:
 				default: return false;
 			};
@@ -755,6 +858,12 @@ namespace UE::ConcertSharedSlate
 		
 		Items.Sort([this, &IsLessThan](const TSharedPtr<TItemType>& Left, const TSharedPtr<TItemType>& Right)
 		{
+			const EComparisonOverride ComparisonOverride = OverrideIsLessThanDelegate.IsBound() ? OverrideIsLessThanDelegate.Execute(Left, Right) : EComparisonOverride::UseDefault;
+			if (ComparisonOverride != EComparisonOverride::UseDefault)
+			{
+				return ComparisonOverride == EComparisonOverride::Less;
+			}
+			
 			if (PrimarySortInfo.IsValid() && IsLessThan(Left, Right, PrimarySortInfo.SortedColumnId, PrimarySortInfo.SortMode))
 			{
 				return true; // Left comes before Right

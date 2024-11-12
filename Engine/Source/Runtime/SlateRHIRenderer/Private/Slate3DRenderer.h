@@ -7,9 +7,6 @@
 #include "Interfaces/ISlate3DRenderer.h"
 #include "SlateRHIResourceManager.h"
 #include "Rendering/SlateDrawBuffer.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RenderingThread.h"
-#endif
 #include "RenderDeferredCleanup.h"
 #include "SlateRHIRenderingPolicy.h"
 
@@ -29,7 +26,7 @@ public:
 	virtual FSlateDrawBuffer& AcquireDrawBuffer() override;
 	virtual void ReleaseDrawBuffer(FSlateDrawBuffer& DrawBuffer) override;
 	virtual void DrawWindow_GameThread(FSlateDrawBuffer& DrawBuffer) override;
-	virtual void DrawWindowToTarget_RenderThread(FRHICommandListImmediate& RHICmdList, const struct FRenderThreadUpdateContext& Context) override;
+	virtual void DrawWindowToTarget_RenderThread(FRDGBuilder& GraphBuilder, const struct FRenderThreadUpdateContext& Context) override;
 
 private:
 
@@ -52,9 +49,9 @@ private:
 	/** The draw buffer that is currently free for use by the game thread */
 	uint8 FreeBufferIndex;
 
-	/** The depth buffer texture if any */
-	FTexture2DRHIRef DepthStencil;
-
 	/** Set to true when the render target was cleared and prevent another clear to be called for nothing.**/
-	bool bRenderTargetWasCleared;
+	bool bRenderTargetWasCleared = false;
+
+	bool bAllowColorDeficiencyCorrection = true;
+	bool bGammaCorrection;
 };

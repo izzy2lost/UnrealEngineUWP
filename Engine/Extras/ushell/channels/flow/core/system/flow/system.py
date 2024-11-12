@@ -69,20 +69,26 @@ class _CommandClass(_LoadableClass):
 class _CommandNode(_FlowObject):
     _MAGIC = 493
 
-    def __init__(self, system, node):
+    def __init__(self, system, path, node):
         super().__init__(system)
+        self._path = path
         self._node = node
+
+    def get_path(self):
+        return self._path
 
     def read_children(self):
         system = self.get_system()
         for name, child_node in self._node.items():
             if isinstance(name, str):
-                yield name, _CommandNode(system, child_node)
+                path = self.get_path() + "/" + name
+                yield name, _CommandNode(system, path, child_node)
 
     def find_child(self, name):
         child = self._node.get(name, None)
         if child:
-            return _CommandNode(self.get_system(), child)
+            path = self.get_path() + "/" + name
+            return _CommandNode(self.get_system(), path, child)
 
     def get_command_class(self):
         specs = self._node.get(_CommandNode._MAGIC, None)
@@ -99,14 +105,16 @@ class _CommandTree(_FlowObject):
         self._root_node = root_node
 
     def get_root_node(self):
-        return _CommandNode(self.get_system(), self._root_node)
+        return _CommandNode(self.get_system(), "", self._root_node)
 
     def find(self, arg_iter):
+        path = ""
         arg = None
         node = self._root_node
         for arg in arg_iter:
             try:
                 node = node[arg]
+                path += "/" + arg
             except KeyError:
                 break
         else:
@@ -116,30 +124,7 @@ class _CommandTree(_FlowObject):
             if arg != None: yield arg
             yield from arg_iter
 
-        return _CommandNode(self.get_system(), node), read_ret_args()
-
-
-
-#-------------------------------------------------------------------------------
-class _ExtensionClass(_LoadableClass):
-    pass
-
-#-------------------------------------------------------------------------------
-class _Extendable(_FlowObject):
-    def __init__(self, system, data):
-        super().__init__(system)
-        self._data = data
-
-    def read_extensions(self):
-        system = self.get_system()
-        yield from ((k, _ExtensionClass(system, k, v)) for k,v in self._data.items())
-
-    def get_extension_class(self, name):
-        specs = self._data.get(name, None)
-        if specs:
-            return _ExtensionClass(self.get_system(), "ext." + name, specs)
-
-        raise ValueError(f"Unknown extendable '{name}'")
+        return _CommandNode(self.get_system(), path, node), read_ret_args()
 
 
 
@@ -181,17 +166,6 @@ class _Channel(_FlowObject):
         if parent >= 0:
             return self.get_system().get_channel(parent)
 
-    def get_extendable(self, name):
-        extendable = self._data["extendables"].get(name, None)
-        if extendable:
-            return _Extendable(self.get_system(), extendable)
-
-        parent = self.get_parent()
-        if parent:
-            return parent.get_extendable(name)
-
-        raise ValueError(f"Unknown extendable '{name}'")
-
     def read_tools(self):
         for name, tool in self._data["tools"].items():
             yield _Tool(self.get_system(), name, tool)
@@ -229,7 +203,7 @@ class System(object):
         return self._working_dir
 
     def get_temp_dir(self):
-        ret = self.get_working_dir() + "temp/"
+        ret = self.get_working_dir() + "../temp/"
         try: os.mkdir(ret)
         except FileExistsError: pass
         return ret

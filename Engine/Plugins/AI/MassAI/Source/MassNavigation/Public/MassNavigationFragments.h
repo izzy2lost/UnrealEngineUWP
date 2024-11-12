@@ -112,20 +112,20 @@ struct MASSNAVIGATION_API FMassNavigationObstacleGridCellLocationFragment : publ
 };
 
 
-enum class MASSNAVIGATION_API EMassColliderType : uint8
+enum class EMassColliderType : uint8
 {
 	Circle,
 	Pill,
 };
 
-struct MASSNAVIGATION_API FMassCircleCollider
+struct FMassCircleCollider
 {
 	FMassCircleCollider() = default;
 	FMassCircleCollider(const float Radius) : Radius(Radius) {}
 	float Radius = 0.f;
 };
 
-struct MASSNAVIGATION_API FMassPillCollider
+struct FMassPillCollider
 {
 	FMassPillCollider() = default;
 	FMassPillCollider(const float Radius, const float HalfLength) : Radius(Radius), HalfLength(HalfLength) {}

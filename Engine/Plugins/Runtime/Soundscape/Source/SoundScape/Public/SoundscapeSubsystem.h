@@ -11,6 +11,7 @@
 
 class USoundscapePalette;
 class UActiveSoundscapePalette;
+struct FStreamableHandle;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSoundscapeSubsystem, Log, All);
 
@@ -245,7 +246,11 @@ private:
 	UPROPERTY()
 	TMap<TObjectPtr<USoundscapePalette>, TObjectPtr<UActiveSoundscapePalette>> ActivePalettes;
 
+	// Start Asynchronous Loading 
 	bool LoadPaletteCollection(FName PaletteCollectionName);
+	void CompleteAsyncLoading(FName PaletteCollectionName);
+
+	TMap<FName, TSharedPtr<FStreamableHandle>> ActiveAssetLoadHandles;
 
 	bool UnloadPaletteCollection(FName PaletteCollectionName);
 

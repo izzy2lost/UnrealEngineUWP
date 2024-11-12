@@ -217,9 +217,8 @@ FReply SRCProtocolBinding::ToggleRecording() const
 {
 	// Binding can't be nullptr
 	FRemoteControlProtocolBinding* Binding = ViewModel->GetBinding();
-	check(Binding);
-
-	if (const TSharedPtr<TStructOnScope<FRemoteControlProtocolEntity>> ProtocolEntity = Binding->GetRemoteControlProtocolEntityPtr())
+	const TSharedPtr<TStructOnScope<FRemoteControlProtocolEntity>> ProtocolEntity = Binding ? Binding->GetRemoteControlProtocolEntityPtr() : nullptr;
+	if (ensureMsgf(ProtocolEntity && ProtocolEntity->IsValid(), TEXT("Unexpected invalid binding or entity, cannot toggle recording.")))
 	{
 		const ERCBindingStatus BindingStatus = (*ProtocolEntity)->ToggleBindingStatus();
 		if (BindingStatus == ERCBindingStatus::Awaiting)
@@ -241,11 +240,9 @@ FReply SRCProtocolBinding::ToggleRecording() const
 
 FSlateColor SRCProtocolBinding::GetRecordingButtonColor() const
 {
-	// Binding can't be nullptr
 	FRemoteControlProtocolBinding* Binding = ViewModel->GetBinding();
-	check(Binding);
-
-	if (const TSharedPtr<TStructOnScope<FRemoteControlProtocolEntity>> ProtocolEntity = Binding->GetRemoteControlProtocolEntityPtr())
+	const TSharedPtr<TStructOnScope<FRemoteControlProtocolEntity>> ProtocolEntity = Binding ? Binding->GetRemoteControlProtocolEntityPtr() : nullptr;
+	if (ProtocolEntity && ProtocolEntity->IsValid())
 	{
 		const ERCBindingStatus BindingStatus = (*ProtocolEntity)->GetBindingStatus();
 
@@ -262,7 +259,6 @@ FSlateColor SRCProtocolBinding::GetRecordingButtonColor() const
 		}
 	}
 
-	ensure(false);
 	return FLinearColor::Black;
 }
 

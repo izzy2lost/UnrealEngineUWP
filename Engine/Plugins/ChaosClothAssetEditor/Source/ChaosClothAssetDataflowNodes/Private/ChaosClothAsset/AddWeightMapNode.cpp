@@ -9,7 +9,7 @@
 #include "ChaosClothAsset/WeightedValue.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "Dataflow/DataflowObject.h"
-#include "Utils/ClothingMeshUtils.h"
+#include "InteractiveToolChange.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AddWeightMapNode)
 
@@ -17,72 +17,6 @@
 
 namespace UE::Chaos::ClothAsset::Private
 {
-	void TransferWeightMap(
-		const TConstArrayView<FVector3f>& SourcePositions,
-		const TConstArrayView<FIntVector3>& InSourceIndices,
-		const TConstArrayView<float>& SourceWeights,
-		const TConstArrayView<FVector3f>& TargetPositions,
-		const TConstArrayView<FVector3f>& TargetNormals,
-		const TConstArrayView<FIntVector3>& InTargetIndices,
-		TArray<float>& TargetWeights)
-	{
-		check(TargetWeights.Num() == TargetPositions.Num());
-		if (!ensure(SourcePositions.Num() <= 65536))
-		{
-			return;  // MeshToMeshVertData below is limited to 16bit unsigned int indexes
-		}
-
-		TArray<uint32> SourceIndices;
-		SourceIndices.Reserve(InSourceIndices.Num() * 3);
-		for (const FIntVector3& InSourceIndex : InSourceIndices)
-		{
-			SourceIndices.Add(InSourceIndex[0]);
-			SourceIndices.Add(InSourceIndex[1]);
-			SourceIndices.Add(InSourceIndex[2]);
-		}
-		TArray<uint32> TargetIndices;
-		TargetIndices.Reserve(InTargetIndices.Num() * 3);
-		for (const FIntVector3& InTargetIndex : InTargetIndices)
-		{
-			TargetIndices.Add(InTargetIndex[0]);
-			TargetIndices.Add(InTargetIndex[1]);
-			TargetIndices.Add(InTargetIndex[2]);
-		}
-
-		const ClothingMeshUtils::ClothMeshDesc SourceMeshDesc(SourcePositions, SourceIndices);
-		const ClothingMeshUtils::ClothMeshDesc TargetMeshDesc(TargetPositions, TargetNormals, TargetIndices);
-
-		TArray<FMeshToMeshVertData> MeshToMeshVertData;
-		const FPointWeightMap* const MaxDistances = nullptr; // No need to update the vertex contribution on the transition maps
-		constexpr bool bUseSmoothTransitions = false;  // Smooth transitions are only used at rendering for now and not during LOD transitions
-		constexpr bool bUseMultipleInfluences = false;  // Multiple influences must not be used for LOD transitions
-		constexpr float SkinningKernelRadius = 0.f;  // KernelRadius is only required when using multiple influences
-
-		ClothingMeshUtils::GenerateMeshToMeshVertData(
-			MeshToMeshVertData,
-			TargetMeshDesc,
-			SourceMeshDesc,
-			MaxDistances,
-			bUseSmoothTransitions,
-			bUseMultipleInfluences,
-			SkinningKernelRadius);
-
-		check(MeshToMeshVertData.Num() == TargetWeights.Num());
-		for (int32 Index = 0; Index < TargetWeights.Num(); ++Index)
-		{
-			const FMeshToMeshVertData& MeshToMeshVertDatum = MeshToMeshVertData[Index];
-			
-			const uint16 VertIndex0 = MeshToMeshVertDatum.SourceMeshVertIndices[0];
-			const uint16 VertIndex1 = MeshToMeshVertDatum.SourceMeshVertIndices[1];
-			const uint16 VertIndex2 = MeshToMeshVertDatum.SourceMeshVertIndices[2];
-
-			TargetWeights[Index] = FMath::Clamp(
-				SourceWeights[VertIndex0] * MeshToMeshVertDatum.PositionBaryCoordsAndDist[0] +
-				SourceWeights[VertIndex1] * MeshToMeshVertDatum.PositionBaryCoordsAndDist[1] +
-				SourceWeights[VertIndex2] * MeshToMeshVertDatum.PositionBaryCoordsAndDist[2], 0.f, 1.f);
-		}
-	}
-
 	void TransferWeightMap(
 		const TConstArrayView<FVector2f>& InSourcePositions,
 		const TConstArrayView<FIntVector3>& SourceIndices,
@@ -120,35 +54,124 @@ namespace UE::Chaos::ClothAsset::Private
 		TArray<float> TargetWeights;
 		TargetWeights.SetNumUninitialized(TargetPositions.Num());
 
-		TransferWeightMap(SourcePositions, SourceIndices, SourceWeights, TargetPositions, TargetNormals, TargetIndices, TargetWeights);
+		FClothGeometryTools::TransferWeightMap(SourcePositions, SourceIndices, SourceWeights, TargetPositions, TargetNormals, TargetIndices, TArrayView<float>(TargetWeights));
 
 		for (int32 Index = 0; Index < TargetWeights.Num(); ++Index)
 		{
 			OutTargetWeights[TargetWeightsLookup[Index]] = TargetWeights[Index];
 		}
 	}
+
+
+	void SetVertexWeights(const TConstArrayView<float> InputMap, const TArray<float>& FinalValues, EChaosClothAssetWeightMapOverrideType OverrideType, TArray<float>& SourceVertexWeights)
+	{
+		if (InputMap.IsEmpty() || OverrideType == EChaosClothAssetWeightMapOverrideType::ReplaceAll)
+		{
+			// Default input is 0, so OverrideType doesn't matter.
+			SourceVertexWeights = FinalValues;
+			return;
+		}
+
+		check(InputMap.Num() == FinalValues.Num());
+		SourceVertexWeights.SetNumUninitialized(FinalValues.Num());
+		for (int32 Index = 0; Index < FinalValues.Num(); ++Index)
+		{
+			switch (OverrideType)
+			{
+			case EChaosClothAssetWeightMapOverrideType::ReplaceChanged:
+				if (InputMap[Index] == FinalValues[Index])
+				{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+					SourceVertexWeights[Index] = FChaosClothAssetAddWeightMapNode::ReplaceChangedPassthroughValue;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				}
+				else
+				{
+					SourceVertexWeights[Index] = FinalValues[Index];
+				}
+				break;
+			case EChaosClothAssetWeightMapOverrideType::Add:
+				SourceVertexWeights[Index] = FinalValues[Index] - InputMap[Index];
+				break;
+			default: unimplemented();
+			}
+		}
+	}
+
+	void CalculateFinalVertexWeightValues(const TConstArrayView<float> InputMap, TArrayView<float> FinalOutputMap, EChaosClothAssetWeightMapOverrideType OverrideType, const TArray<float>& SourceVertexWeights)
+	{
+		const int32 EndWeightIndex = FMath::Min(FinalOutputMap.Num(), SourceVertexWeights.Num());
+		if (InputMap.IsEmpty())
+		{
+			for (int32 Index = 0; Index < EndWeightIndex; ++Index)
+			{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				FinalOutputMap[Index] = FMath::Clamp(SourceVertexWeights[Index] == FChaosClothAssetAddWeightMapNode::ReplaceChangedPassthroughValue ?
+					0.f : SourceVertexWeights[Index], 0.f, 1.f);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			}
+			return;
+		}
+
+		check(InputMap.Num() == FinalOutputMap.Num());
+		for (int32 Index = 0; Index < EndWeightIndex; ++Index)
+		{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			if(SourceVertexWeights[Index] == FChaosClothAssetAddWeightMapNode::ReplaceChangedPassthroughValue)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			{
+				// This value is only set when OverrideType == ReplaceChanged, but it's possible the override type changed.
+				FinalOutputMap[Index] = FMath::Clamp(InputMap[Index], 0.f, 1.f);
+			}
+			else
+			{
+				switch (OverrideType)
+				{
+				case EChaosClothAssetWeightMapOverrideType::ReplaceAll:
+				case EChaosClothAssetWeightMapOverrideType::ReplaceChanged:
+					FinalOutputMap[Index] = FMath::Clamp(SourceVertexWeights[Index], 0.f, 1.f);
+					break;
+				case EChaosClothAssetWeightMapOverrideType::Add:
+					FinalOutputMap[Index] = FMath::Clamp(InputMap[Index] + SourceVertexWeights[Index], 0.f, 1.f);
+					break;
+				default: unimplemented();
+				}
+			}
+		}
+		if (InputMap.GetData() != FinalOutputMap.GetData())
+		{
+			// Fill in remaining values with InputMap
+			for (int32 Index = EndWeightIndex; Index < FinalOutputMap.Num(); ++Index)
+			{
+				FinalOutputMap[Index] = FMath::Clamp(InputMap[Index], 0.f, 1.f);
+			}
+		}
+	}
 }
 
-FChaosClothAssetAddWeightMapNode::FChaosClothAssetAddWeightMapNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetAddWeightMapNode::FChaosClothAssetAddWeightMapNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowTerminalNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
-	RegisterInputConnection(&TransferCollection);
+	RegisterInputConnection(&InputName.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue))
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&TransferCollection)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
 	RegisterOutputConnection(&Collection, &Collection);
 	RegisterOutputConnection(&Name);
 }
 
-void FChaosClothAssetAddWeightMapNode::SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const
+void FChaosClothAssetAddWeightMapNode::SetAssetValue(TObjectPtr<UObject> Asset, UE::Dataflow::FContext& Context) const
 {
 	using namespace UE::Chaos::ClothAsset;
 
 	if (UChaosClothAsset* const ClothAsset = Cast<UChaosClothAsset>(Asset.Get()))
 	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: Remove after adding the getter function (currently shelved!)  
-		if (UDataflow* const DataflowAsset = ClothAsset->DataflowAsset)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		if (UDataflow* const DataflowAsset = ClothAsset->GetDataflow())
 		{
-			const TSharedPtr<Dataflow::FGraph, ESPMode::ThreadSafe> Dataflow = DataflowAsset->GetDataflow();
+			const TSharedPtr<UE::Dataflow::FGraph, ESPMode::ThreadSafe> Dataflow = DataflowAsset->GetDataflow();
 			if (const TSharedPtr<FDataflowNode> BaseNode = Dataflow->FindBaseNode(this->GetGuid()))  // This is basically a safe const_cast
 			{
 				FChaosClothAssetAddWeightMapNode* const MutableThis = static_cast<FChaosClothAssetAddWeightMapNode*>(BaseNode.Get());
@@ -167,9 +190,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					const TSharedRef<const FManagedArrayCollection> TransferClothCollection = MakeShared<const FManagedArrayCollection>(MoveTemp(InTransferCollection));
 					FCollectionClothConstFacade TransferClothFacade(TransferClothCollection);
 
-					const FName InName(Name);
-					const uint32 NameTypeHash = HashCombineFast(GetTypeHash(InName), (uint32)TransferType);
-					const uint32 InTransferCollectionHash = (TransferClothFacade.IsValid() && InName != NAME_None) ?
+					const FName InInputName = GetInputName(Context);
+					const uint32 NameTypeHash = HashCombineFast(GetTypeHash(InInputName), (uint32)TransferType);
+					const uint32 InTransferCollectionHash = (TransferClothFacade.HasValidSimulationData() && InInputName != NAME_None) ?
 						HashCombineFast(TransferClothFacade.CalculateWeightMapTypeHash(), NameTypeHash) : 0;  // TODO: Remove after adding the function (currently shelved!)  
 				
 					if (TransferCollectionHash != InTransferCollectionHash)
@@ -178,10 +201,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 						if (TransferCollectionHash)
 						{
-							if (TransferClothFacade.HasWeightMap(InName))
+							if (TransferClothFacade.HasWeightMap(InInputName))
 							{
 								// Remap the weights
-								MutableThis->GetVertexWeights().SetNumZeroed(ClothFacade.GetNumSimVertices3D());
+								TArray<float> RemappedWeights;
+								RemappedWeights.SetNumZeroed(ClothFacade.GetNumSimVertices3D());
 
 								switch (TransferType)
 								{
@@ -190,24 +214,26 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 										TransferClothFacade.GetSimPosition2D(),
 										TransferClothFacade.GetSimIndices2D(),
 										TransferClothFacade.GetSimVertex3DLookup(),
-										TransferClothFacade.GetWeightMap(InName),
+										TransferClothFacade.GetWeightMap(InInputName),
 										ClothFacade.GetSimPosition2D(),
 										ClothFacade.GetSimIndices2D(),
 										ClothFacade.GetSimVertex3DLookup(),
-										MutableThis->GetVertexWeights());
+										RemappedWeights);
 										break;
 								case EChaosClothAssetWeightMapTransferType::Use3DSimMesh:
-									Private::TransferWeightMap(
+									FClothGeometryTools::TransferWeightMap(
 										TransferClothFacade.GetSimPosition3D(),
 										TransferClothFacade.GetSimIndices3D(),
-										TransferClothFacade.GetWeightMap(InName),
+										TransferClothFacade.GetWeightMap(InInputName),
 										ClothFacade.GetSimPosition3D(),
 										ClothFacade.GetSimNormal(),
 										ClothFacade.GetSimIndices3D(),
-										MutableThis->GetVertexWeights());
+										TArrayView<float>(RemappedWeights));
 										break;
 								default: unimplemented();
 								}
+
+								MutableThis->SetVertexWeights(ClothFacade.GetWeightMap(InInputName), RemappedWeights);
 							}
 						}
 					}
@@ -217,13 +243,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
-void FChaosClothAssetAddWeightMapNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetAddWeightMapNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	using namespace UE::Chaos::ClothAsset;
 
-	auto CopyWeightsIntoClothCollection = [this](TArrayView<float>& ClothWeights, const TArray<float>& SourceVertexWeights, bool bIsSim)
+	auto CheckSourceVertexWeights = [this](TArrayView<float>& ClothWeights, const TArray<float>& SourceVertexWeights, bool bIsSim)
 	{
-		const int32 MaxWeightIndex = FMath::Min(SourceVertexWeights.Num(), ClothWeights.Num());
 		if (SourceVertexWeights.Num() > 0 && SourceVertexWeights.Num() != ClothWeights.Num())
 		{
 			FClothDataflowTools::LogAndToastWarning(*this,
@@ -233,22 +258,20 @@ void FChaosClothAssetAddWeightMapNode::Evaluate(Dataflow::FContext& Context, con
 					SourceVertexWeights.Num(),
 					ClothWeights.Num()));
 		}
-
-		for (int32 VertexID = 0; VertexID < MaxWeightIndex; ++VertexID)
-		{
-			ClothWeights[VertexID] = SourceVertexWeights[VertexID];
-		}
 	};
 
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
+		// Evaluate InputName
+		const FName InInputName = GetInputName(Context);
+
 		// Evaluate in collection
 		FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
 		const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InCollection));
 		FCollectionClothFacade ClothFacade(ClothCollection);
 		if (ClothFacade.IsValid())  // Can only act on the collection if it is a valid cloth collection
 		{
-			const FName InName(Name);
+			const FName InName(Name.IsEmpty() ? InInputName : FName(Name));
 
 			// Copy simulation weights into cloth collection
 
@@ -268,7 +291,8 @@ void FChaosClothAssetAddWeightMapNode::Evaluate(Dataflow::FContext& Context, con
 				else
 				{
 					constexpr bool bIsSim = true;
-					CopyWeightsIntoClothCollection(ClothSimWeights, GetVertexWeights(), bIsSim);
+					CheckSourceVertexWeights(ClothSimWeights, GetVertexWeights(), bIsSim);
+					CalculateFinalVertexWeightValues(ClothFacade.GetWeightMap(InInputName), ClothSimWeights);
 				}
 			}
 			
@@ -290,7 +314,8 @@ void FChaosClothAssetAddWeightMapNode::Evaluate(Dataflow::FContext& Context, con
 				else
 				{
 					constexpr bool bIsSim = false;
-					CopyWeightsIntoClothCollection(ClothRenderWeights, GetRenderVertexWeights(), bIsSim);
+					CheckSourceVertexWeights(ClothRenderWeights, GetRenderVertexWeights(), bIsSim);
+					CalculateFinalRenderVertexWeightValues(ClothFacade.GetUserDefinedAttribute<float>(InInputName, ClothCollectionGroup::RenderVertices), ClothRenderWeights);
 				}
 			}
 
@@ -299,8 +324,111 @@ void FChaosClothAssetAddWeightMapNode::Evaluate(Dataflow::FContext& Context, con
 	}
 	else if (Out->IsA<FString>(&Name))
 	{
-		SetValue(Context, Name, &Name);
+		FString InputNameString = GetValue<FString>(Context, &InputName.StringValue);
+		UE::Chaos::ClothAsset::FWeightMapTools::MakeWeightMapName(InputNameString);
+		SetValue(Context, Name.IsEmpty() ? InputNameString : Name, &Name);
 	}
 }
+
+FName FChaosClothAssetAddWeightMapNode::GetInputName(UE::Dataflow::FContext& Context) const
+{
+	FString InputNameString = GetValue<FString>(Context, &InputName.StringValue);
+	UE::Chaos::ClothAsset::FWeightMapTools::MakeWeightMapName(InputNameString);
+	const FName InInputName(*InputNameString);
+	return InInputName != NAME_None ? InInputName : FName(Name);
+}
+
+void FChaosClothAssetAddWeightMapNode::SetVertexWeights(const TConstArrayView<float> InputMap, const TArray<float>& FinalValues)
+{
+	UE::Chaos::ClothAsset::Private::SetVertexWeights(InputMap, FinalValues, MapOverrideType, GetVertexWeights());
+}
+
+void FChaosClothAssetAddWeightMapNode::SetRenderVertexWeights(const TConstArrayView<float> InputMap, const TArray<float>& FinalValues)
+{
+	UE::Chaos::ClothAsset::Private::SetVertexWeights(InputMap, FinalValues, MapOverrideType, GetRenderVertexWeights());
+}
+
+void FChaosClothAssetAddWeightMapNode::CalculateFinalVertexWeightValues(const TConstArrayView<float> InputMap, TArrayView<float> FinalOutputMap) const
+{
+	UE::Chaos::ClothAsset::Private::CalculateFinalVertexWeightValues(InputMap, FinalOutputMap, MapOverrideType, GetVertexWeights());
+}
+
+void FChaosClothAssetAddWeightMapNode::CalculateFinalRenderVertexWeightValues(const TConstArrayView<float> InputMap, TArrayView<float> FinalOutputMap) const
+{
+	UE::Chaos::ClothAsset::Private::CalculateFinalVertexWeightValues(InputMap, FinalOutputMap, MapOverrideType, GetRenderVertexWeights());
+}
+
+
+// Object encapsulating a change to the AddWeightMap node's values. Used for Undo/Redo.
+class FChaosClothAssetAddWeightMapNode::FWeightMapNodeChange final : public FToolCommandChange
+{
+
+public: 
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FWeightMapNodeChange(const FChaosClothAssetAddWeightMapNode& Node) :
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		NodeGuid(Node.GetGuid()),
+		SavedWeights(Node.GetVertexWeights()),
+		SavedRenderWeights(Node.GetRenderVertexWeights()),
+		SavedMapOverrideType(Node.MapOverrideType),
+		SavedWeightMapName(Node.Name)
+	{}
+
+private:
+
+	FGuid NodeGuid;
+	TArray<float> SavedWeights;
+
+	// Note we could store only one set of weights and use a bool to determine whether we are updating sim or render vertices, however in the future 
+	// we may enable writing both weight maps to the node at once.
+	TArray<float> SavedRenderWeights;
+
+	EChaosClothAssetWeightMapOverrideType SavedMapOverrideType;
+	FString SavedWeightMapName;
+
+	virtual FString ToString() const final
+	{
+		return TEXT("ChaosClothAssetAddWeightMapNodeChange");
+	}
+
+	virtual void Apply(UObject* Object) final
+	{
+		SwapApplyRevert(Object);
+	}
+
+	virtual void Revert(UObject* Object) final
+	{
+		SwapApplyRevert(Object);
+	}
+
+	void SwapApplyRevert(UObject* Object)
+	{
+		if (UDataflow* const Dataflow = Cast<UDataflow>(Object))
+		{
+			if (const TSharedPtr<FDataflowNode> BaseNode = Dataflow->GetDataflow()->FindBaseNode(NodeGuid))
+			{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				if (FChaosClothAssetAddWeightMapNode* const Node = BaseNode->AsType<FChaosClothAssetAddWeightMapNode>())
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				{
+					Swap(Node->GetVertexWeights(), SavedWeights);
+					Swap(Node->GetRenderVertexWeights(), SavedRenderWeights);
+					Swap(Node->MapOverrideType, SavedMapOverrideType);
+					Swap(Node->Name, SavedWeightMapName);
+
+					Node->Invalidate();
+				}
+			}
+		}
+	}
+};
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+TUniquePtr<FToolCommandChange> FChaosClothAssetAddWeightMapNode::MakeWeightMapNodeChange(const FChaosClothAssetAddWeightMapNode& Node)
+{
+	return MakeUnique<FChaosClothAssetAddWeightMapNode::FWeightMapNodeChange>(Node);
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #undef LOCTEXT_NAMESPACE

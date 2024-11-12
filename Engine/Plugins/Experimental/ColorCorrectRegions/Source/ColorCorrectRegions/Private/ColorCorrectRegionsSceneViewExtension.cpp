@@ -303,11 +303,29 @@ namespace
 		}
 	}
 
+	void SortRegionProxiesByDistance(TArray<FColorCorrectRenderProxyPtr>& ProxiesDistanceBased, const FVector& ViewLocation)
+	{
+		check(IsInRenderingThread());
+
+		TMap<FColorCorrectRenderProxyPtr, double> DistanceMap;
+		for (FColorCorrectRenderProxyPtr State : ProxiesDistanceBased)
+		{
+			FVector CameraToRegionVec = (State->BoxOrigin - ViewLocation);
+			DistanceMap.Add(State, CameraToRegionVec.Dot(CameraToRegionVec));
+		}
+
+		ProxiesDistanceBased.Sort([&DistanceMap](const FColorCorrectRenderProxyPtr& A, const FColorCorrectRenderProxyPtr& B) {
+			// Regions with the same distance could potentially cause flickering on overlap
+			return DistanceMap[A] > DistanceMap[B];
+		});
+
+	}
+
 	bool RenderRegion
 		( FRDGBuilder& GraphBuilder
 		, const FSceneView& View
 		, const FSceneViewFamily& ViewFamily
-		, AColorCorrectRegion* Region
+		, FColorCorrectRenderProxyPtr RegionState
 		, const FIntRect& PrimaryViewRect
 		, const FScreenPassRenderTarget& SceneColorRenderTarget
 		, const float ScreenPercentage
@@ -318,18 +336,16 @@ namespace
 		, FGlobalShaderMap* GlobalShaderMap
 		, FRHIBlendState* DefaultBlendState)
 	{
-		SCOPED_GPU_STAT(GraphBuilder.RHICmdList, ColorCorrectRegion);
-		FRHIDepthStencilState* DepthStencilState = FScreenPassPipelineState::FDefaultDepthStencilState::GetRHI();
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, ColorCorrectRegion, "ColorCorrectRegion");
+		RDG_RHI_GPU_STAT_SCOPE(GraphBuilder, ColorCorrectRegion);
 
-		FColorCorrectRenderProxyPtr RegionState = Region->GetCCProxy_RenderThread();
+		FRHIDepthStencilState* DepthStencilState = FScreenPassPipelineState::FDefaultDepthStencilState::GetRHI();
 
 		/* If Region is pending for kill, invisible or disabled we don't need to render it.
 		*	If Region's Primitive is not visible in the current view's scene then we don't need to render it either.
 		*	We are checking if the region belongs to the same world as the view.
 		*/
 		if (!RegionState->bIsActiveThisFrame ||
-			Region->IsActorBeingDestroyed() ||
-			RegionState->World != ViewFamily.Scene->GetWorld() ||
 			View.HiddenPrimitives.Contains(RegionState->FirstPrimitiveId) ||
 			(View.ShowOnlyPrimitives.IsSet() && !View.ShowOnlyPrimitives->Contains(RegionState->FirstPrimitiveId))
 			)
@@ -444,11 +460,11 @@ namespace
 		}
 
 		TShaderRef<FColorCorrectGenericPS> PixelShader;
-		if (AColorCorrectionWindow* CCWindow = Cast<AColorCorrectionWindow>(Region))
+		if (RegionState->ProxyType == FColorCorrectRenderProxy::DistanceBased)
 		{
 			PixelShader = GetWindowShader(GlobalShaderMap, RegionState->WindowType, TemperatureType, bIsAdvanced, MergedStencilRenderTarget.IsValid());
 		}
-		else
+		else if (RegionState->ProxyType == FColorCorrectRenderProxy::PriorityBased)
 		{
 			PixelShader = GetRegionShader(GlobalShaderMap, RegionState->Type, TemperatureType, bIsAdvanced, MergedStencilRenderTarget.IsValid());
 		}
@@ -642,19 +658,22 @@ namespace
 
 }
 
-FColorCorrectRegionsSceneViewExtension::FColorCorrectRegionsSceneViewExtension(const FAutoRegister& AutoRegister, UColorCorrectRegionsSubsystem* InWorldSubsystem) :
-	FSceneViewExtensionBase(AutoRegister), WorldSubsystem(InWorldSubsystem)
+FColorCorrectRegionsSceneViewExtension::FColorCorrectRegionsSceneViewExtension(const FAutoRegister& AutoRegister, UWorld* InWorld,  UColorCorrectRegionsSubsystem* InWorldSubsystem) :
+	FWorldSceneViewExtension(AutoRegister, InWorld), WorldSubsystem(InWorldSubsystem)
 {
+}
+
+void FColorCorrectRegionsSceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
+{
+	WorldSubsystem->TransferStates();
 }
 
 void FColorCorrectRegionsSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessingInputs& Inputs)
 {
 	if (IsValid(WorldSubsystem))
 	{
-		FScopeLock RegionScopeLock(&WorldSubsystem->RegionAccessCriticalSection);
-
 		// Necessary for when an actor is added or removed from the scene. Also when priority is changed.
-		if ((WorldSubsystem->RegionsPriorityBased.Num() == 0 && WorldSubsystem->RegionsDistanceBased.Num() == 0) || !ViewSupportsRegions(View))
+		if ((WorldSubsystem->ProxiesPriorityBased.Num() == 0 && WorldSubsystem->ProxiesDistanceBased.Num() == 0) || !ViewSupportsRegions(View))
 		{
 			return;
 		}
@@ -719,12 +738,10 @@ void FColorCorrectRegionsSceneViewExtension::PrePostProcessPass_RenderThread(FRD
 		// We don't need to do this per region.
 		FSceneTextureShaderParameters SceneTextures = CreateSceneTextureShaderParameters(GraphBuilder, View, ESceneTextureSetupMode::All);
 
-		WorldSubsystem->SortRegionsByDistance(View.ViewLocation);
 		{
-			FScopeLock RegionScopeLock(&WorldSubsystem->RegionAccessCriticalSection);
-			for (auto It = WorldSubsystem->RegionsPriorityBased.CreateConstIterator(); It; ++It)
+			for (auto It = WorldSubsystem->ProxiesPriorityBased.CreateConstIterator(); It; ++It)
 			{
-				AColorCorrectRegion* Region = *It;
+				FColorCorrectRenderProxyPtr Region = *It;
 				RenderRegion(GraphBuilder
 					, View
 					, ViewFamily
@@ -739,9 +756,10 @@ void FColorCorrectRegionsSceneViewExtension::PrePostProcessPass_RenderThread(FRD
 					, GlobalShaderMap
 					, DefaultBlendState);
 			}
-			for (auto It = WorldSubsystem->RegionsDistanceBased.CreateConstIterator(); It; ++It)
+			SortRegionProxiesByDistance(WorldSubsystem->ProxiesDistanceBased, View.ViewLocation);
+			for (auto It = WorldSubsystem->ProxiesDistanceBased.CreateConstIterator(); It; ++It)
 			{
-				AColorCorrectRegion* Region = *It;
+				FColorCorrectRenderProxyPtr Region = *It;
 				RenderRegion(GraphBuilder
 					, View
 					, ViewFamily

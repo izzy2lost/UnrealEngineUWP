@@ -28,6 +28,9 @@
 #define	ERayTracingPrimaryRaysFlag_PrimaryView                 (1u << 1)
 #define	ERayTracingPrimaryRaysFlag_AllowSkipSkySample          (1u << 2)
 
+#define SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE 0
+#include "../Substrate/Substrate.ush"
+#include "../Substrate/SubstrateEvaluation.ush"
 
 int SamplesPerPixel;
 int MaxRefractionRays;
@@ -82,24 +85,15 @@ float3 GetSkyRadiance(float3 Direction, float Roughness)
 
 RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 {
-	// SUBSTRATE_TODO
-#if !SUBSTRATE_ENABLED
 	uint2 DispatchThreadId = DispatchRaysIndex().xy + View.ViewRectMin.xy;
 	uint2 PixelCoord = GetPixelCoord(DispatchThreadId, UpscaleFactor);
 	uint LinearIndex = PixelCoord.y * View.BufferSizeAndInvSize.x + PixelCoord.x; // TODO(Denoiser): PixelCoord or DispatchThreadId
 	
 	float2 InvBufferSize = View.BufferSizeAndInvSize.zw;
 	float2 UV = (float2(PixelCoord) + 0.5) * InvBufferSize;
-
-#if 0
-	FGBufferData GBufferData = GetGBufferDataFromSceneTextures(UV);
-#else
-	//#dxr-todo: workaround for flickering. UE-87281
-	FGBufferData GBufferData = GetGBufferDataFromSceneTexturesLoad(PixelCoord);
-#endif
-
-	float Depth = GBufferData.Depth;
-	float3 TranslatedWorldPosition = ReconstructTranslatedWorldPositionFromDepth(UV, Depth);
+	
+	float GBufferDepth = ConvertFromDeviceZ(SampleDeviceZFromSceneTextures(UV)); // CalcSceneDepth SampleDeviceZFromSceneTextures
+	float3 TranslatedWorldPosition = ReconstructTranslatedWorldPositionFromDepth(UV, GBufferDepth);
 
 	// Trace rays from camera origin to Gbuffer (only translucent objects are considered on the first ray, so a bias is not needed)
 	FRayDesc Ray = CreatePrimaryRay(UV);
@@ -150,6 +144,7 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 		const bool bRefractionEnableSkyLightContribution = true;
 #endif
 		float3 PathVertexRadiance = float3(0, 0, 0);
+		float MaxTraceDistance = 100000.0f;
 
 		RandomSequence RandSequence;
 
@@ -163,6 +158,7 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 			RandSequence,
 			PixelCoord,
 			MaxNormalBias,
+			MaxTraceDistance,
 			ReflectedShadowsType,
 			ShouldDoDirectLighting,
 			ShouldDoEmissiveAndIndirectLighting,
@@ -172,7 +168,55 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 			RayCone,
 			bRefractionEnableSkyLightContribution,
 			PathVertexRadiance);
-		LastRoughness = Payload.Roughness;
+
+		float PayloadRoughness = 0;
+		float3 PayloadDiffuseColor = 0;
+		float3 PayloadSpecularColor = 0;
+		float3 PayloadWorldTangent = 0;
+		float PayloadAnisotropy = 0;
+		float3 PayloadLuminanceWeight = 1.0;
+	#if SUBSTRATE_ENABLED
+		
+		float3 SubstrateMaterialThroughput = 1.0;
+		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(0, 0, 0);
+		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Payload.SubstrateData, SubstrateAddressing, Payload.SubstrateData);
+
+		BRANCH
+		if (SubstratePixelHeader.ClosureCount > 0) // With ray tracing, we only account for the first BSDF since all materials should be simplified to a single Closure.
+		{
+			const bool bSkipSSSMaterialOverride = true;
+			const FSubstrateBSDF BSDF = UnpackSubstrateBSDFIn(Payload.SubstrateData, SubstrateAddressing, SubstratePixelHeader, bSkipSSSMaterialOverride);
+			
+			if (SubstrateIsBSDFVisible(BSDF))
+			{
+				// Create the BSDF context
+				FSubstrateBSDFContext SubstrateBSDFContext = SubstrateCreateBSDFContext(SubstratePixelHeader, BSDF, SubstrateAddressing, -Ray.Direction);
+
+				PayloadRoughness = SLAB_ROUGHNESS(BSDF);
+				PayloadDiffuseColor = SubstrateGetBSDFDiffuseColor(BSDF);
+				PayloadSpecularColor = SubstrateGetBSDFSpecularColor(BSDF);
+				PayloadWorldTangent = SubstrateBSDFContext.X;
+				PayloadAnisotropy = SLAB_ANISOTROPY(BSDF);
+
+				PayloadLuminanceWeight = BSDF.LuminanceWeightV;
+				const float Coverage = saturate(Payload.Opacity);
+				SubstrateMaterialThroughput = (1.0 - Coverage) + Coverage * Payload.TransmittancePreCoverage;
+			}
+
+		}
+
+	#else
+
+		PayloadRoughness = Payload.Roughness;
+		PayloadDiffuseColor = Payload.DiffuseColor;
+		PayloadSpecularColor = Payload.SpecularColor;
+		PayloadWorldTangent = Payload.WorldTangent;
+		PayloadAnisotropy = Payload.Anisotropy;
+		PayloadLuminanceWeight = Payload.Opacity;
+
+	#endif
+
+		LastRoughness = PayloadRoughness;
 
 		//
 		// Handle no hit condition
@@ -192,8 +236,9 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 		//
 		// Handle surface lighting
 		//
+		
+		const float3 vertexRadianceWeight = PayloadLuminanceWeight;	// Opacity as coverage. This works for RAY_TRACING_BLEND_MODE_OPAQUE and RAY_TRACING_BLEND_MODE_TRANSLUCENT.
 
-		const float vertexRadianceWeight = Payload.Opacity;	// Opacity as coverage. This works for RAY_TRACING_BLEND_MODE_OPAQUE and RAY_TRACING_BLEND_MODE_TRANSLUCENT.
 		// It is also needed for RAY_TRACING_BLEND_MODE_ADDITIVE and  RAY_TRACING_BLEND_MODE_ALPHA_COMPOSITE: radiance contribution is alway weighted by coverage.
 		// #dxr_todo: I have not been able to setup a material using RAY_TRACING_BLEND_MODE_MODULATE.
 
@@ -217,7 +262,7 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 				float4 ClipPos = mul(float4(TranslatedHitPoint, 1.0f), PrimaryView.TranslatedWorldToClip);
 				float3 VolumeUV = ComputeVolumeUVFromNDC(ClipPos);
 
-				ViewFogInScatteringAndTransmittance = CombineVolumetricFog(ViewFogInScatteringAndTransmittance, VolumeUV, 0/*EyeIndex*/, GBufferData.Depth);
+				ViewFogInScatteringAndTransmittance = CombineVolumetricFog(ViewFogInScatteringAndTransmittance, VolumeUV, 0 /*EyeIndex*/, GBufferDepth);
 			}
 		}
 
@@ -227,7 +272,7 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 		if (bIsHoldout)
 		{
 			// A holdout object acts as if it was a background pixel so that it influences the alpha channel
-			BackgroundVisibility += Luminance(PathThroughput) * vertexRadianceWeight;
+			BackgroundVisibility += Luminance(PathThroughput * vertexRadianceWeight);
 		}
 
 		//
@@ -236,8 +281,8 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 
 		// Shorten the rays on rougher surfaces between user-provided min and max ray lengths.
 		// When a shortened ray misses the geometry, we fall back to local reflection capture sampling (similar to SSR).
-		const float LocalMaxRayDistance = bAllowSkySampling ? 1e27f : lerp(TranslucencyMaxRayDistance, TranslucencyMinRayDistance, Payload.Roughness);
-		if (Payload.Roughness < TranslucencyMaxRoughness)
+		const float LocalMaxRayDistance = bAllowSkySampling ? 1e27f : lerp(TranslucencyMaxRayDistance, TranslucencyMinRayDistance, PayloadRoughness);
+		if (PayloadRoughness < TranslucencyMaxRoughness)
 		{
 			// Trace reflection ray 
 			float2 RandSample = RandomSequence_GenerateSample2D(RandSequence);
@@ -247,9 +292,9 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 			ReflectionRay.TMax = LocalMaxRayDistance;
 			ReflectionRay.Origin = TranslatedHitPoint;
 
-			ModifyGGXAnisotropicNormalRoughness(Payload.WorldTangent, Payload.Anisotropy, Payload.Roughness, Payload.WorldNormal, Ray.Direction);
+			ModifyGGXAnisotropicNormalRoughness(PayloadWorldTangent, PayloadAnisotropy, PayloadRoughness, Payload.WorldNormal, Ray.Direction);
 
-			ReflectionRay.Direction = GenerateReflectedRayDirection(Ray.Direction, Payload.WorldNormal, Payload.Roughness, RandSample);
+			ReflectionRay.Direction = GenerateReflectedRayDirection(Ray.Direction, Payload.WorldNormal, PayloadRoughness, RandSample);
 			ApplyPositionBias(ReflectionRay, Payload.WorldNormal, MaxNormalBias);
 
 			const uint ReflectionRayFlags = RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
@@ -267,6 +312,7 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 				RandSequence,
 				PixelCoord,
 				MaxNormalBias,
+				MaxTraceDistance,
 				ReflectedShadowsType,
 				ShouldDoDirectLighting,
 				ShouldDoEmissiveAndIndirectLighting,
@@ -285,7 +331,7 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 
 			// #dxr_todo: reflection IOR and clear coat also? This only handles default material.
 			float NoV = saturate(dot(-Ray.Direction, Payload.WorldNormal));
-			const float3 ReflectionThroughput = EnvBRDF(Payload.SpecularColor, Payload.Roughness, NoV);
+			const float3 ReflectionThroughput = EnvBRDF(PayloadSpecularColor, PayloadRoughness, NoV);
 
 			// For reflections, we can only sample the height fog (volumetric fog is only for primary rays)
 			if (HeightFog > 0)
@@ -328,8 +374,25 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 				// noop => if lumen is not enabled: bRefractionEnableSkyLightContribution == true
 			}
 
-			PathRadiance += PathThroughput * vertexRadianceWeight * VolumeLighting * Payload.DiffuseColor;
+			PathRadiance += PathThroughput * vertexRadianceWeight * VolumeLighting * PayloadDiffuseColor;
 		}
+		
+		float3 RefractedDirection = Ray.Direction;
+	#if SUBSTRATE_ENABLED
+
+		bHasScattered = false;
+		PathThroughput *= SubstrateMaterialThroughput;
+
+		if (bIsHoldout)
+		{
+			// In the refraction case, the non-opaque part should also contribute to the holdout
+			// The net result is that the entire object becomes opaque for the alpha channel.
+			BackgroundVisibility += Luminance(PathThroughput) * (1.0 - Payload.Opacity);
+			PathThroughput = 0.0;
+			break;
+		}
+
+	#else // SUBSTRATE_ENABLED
 
 		// Update the refraction/transparency path transmittance and check stop condition
 		switch (Payload.BlendingMode)
@@ -367,7 +430,6 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 		//
 
 		// Set refraction ray for next iteration
-		float3 RefractedDirection = Ray.Direction;
 		if (Payload.ShadingModelID == SHADINGMODELID_THIN_TRANSLUCENT)
 		{
 			const float3 N = Payload.WorldNormal;
@@ -379,7 +441,7 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 			const float3 Transmittance = Payload.CustomData.xyz;
 			const float PathLength = rcp(saturate(abs(NoV) + 1e-5));
 			PathThroughput *= pow(Transmittance, PathLength) * Pow2(1 - F);
-			bHasScattered = true; // treat the thin translucency as refraction for consistency with solid glass, even though the ray is not bent
+			bHasScattered = false; // need to consider both refraction and translucency through the material by coverage.
 			if (bIsHoldout)
 			{
 				// In the refraction case, the non-opaque part should also contribute to the holdout
@@ -429,6 +491,8 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 			NextMaxRayDistance = LocalMaxRayDistance;
 		}
 
+	#endif // SUBSTRATE_ENABLED
+
 
 		//
 		// Setup refracted ray to be traced
@@ -439,7 +503,7 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 		Ray.TMax = NextMaxRayDistance;
 		Ray.Direction = RefractedDirection;
 		float SurfaceCurvature = 0.0f; /* #todo_dxr assume no curvature */
-		RayCone = PropagateRayCone(RayCone, SurfaceCurvature, Depth);
+		RayCone = PropagateRayCone(RayCone, SurfaceCurvature, GBufferDepth);
 	}
 
 	if (!bHasScattered)
@@ -465,5 +529,5 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 	PathRadiance = ClampToHalfFloatRange(PathRadiance);
 	ColorOutput[DispatchThreadId] = float4(PathRadiance, FinalAlpha);
 	RayHitDistanceOutput[DispatchThreadId] = HitDistance;
-#endif // !SUBSTRATE_ENABLED
+	
 }

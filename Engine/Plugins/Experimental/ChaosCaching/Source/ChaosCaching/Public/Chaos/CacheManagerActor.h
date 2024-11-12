@@ -60,6 +60,7 @@ struct FObservedComponent
 		bIsSimulating = OtherComponent.bIsSimulating;
 		bHasNotifyBreaks = OtherComponent.bHasNotifyBreaks;
 		bPlaybackEnabled = OtherComponent.bPlaybackEnabled;
+		USDCacheDirectory = OtherComponent.USDCacheDirectory;
 		bTriggered = OtherComponent.bTriggered;
 		AbsoluteTime = OtherComponent.AbsoluteTime;
 		TimeSinceTrigger = OtherComponent.TimeSinceTrigger;
@@ -75,6 +76,7 @@ struct FObservedComponent
 		bIsSimulating = OtherComponent.bIsSimulating;
 		bHasNotifyBreaks = OtherComponent.bHasNotifyBreaks;
 		bPlaybackEnabled = OtherComponent.bPlaybackEnabled;
+		USDCacheDirectory = OtherComponent.USDCacheDirectory;
 		bTriggered = OtherComponent.bTriggered;
 		AbsoluteTime = OtherComponent.AbsoluteTime;
 		TimeSinceTrigger = OtherComponent.TimeSinceTrigger;
@@ -198,7 +200,7 @@ public:
 	* Defines the (random access) time that represents the rest pose of the components managed by this cache.
 	* When in Play mode, the components are set to the state provided by the caches at this evaluated time.
 	*/
-	UPROPERTY(EditAnywhere, Interp, BlueprintReadWrite, Category = "Caching", meta=(SequencerTrackClass="MovieSceneFloatTrack"))
+	UPROPERTY(EditAnywhere, Interp, BlueprintReadWrite, Category = "Caching", meta=(SequencerTrackClass="/Script/MovieSceneTracks.MovieSceneFloatTrack"))
 	float StartTime;
 
 	/** AActor interface */
@@ -265,6 +267,21 @@ public:
 
 	/** Accessor to the manager observed components (read/write) */
 	TArray<FObservedComponent>& GetObservedComponents() {return ObservedComponents;}
+	
+	/** Find or add a primitive component to a cache manager */
+	CHAOSCACHING_API void FindOrAddObservedComponent(UPrimitiveComponent* InComponent, const FName& CacheName = TEXT(""), const bool bTransferSimulationFlag = false);
+
+	/** Remove a primitive component from the cache manager */
+	CHAOSCACHING_API void RemoveObservedComponent(UPrimitiveComponent* InComponent);
+	
+	/** Clear all the observed components */
+	CHAOSCACHING_API void ClearObservedComponents();
+	
+#if WITH_EDITOR
+	CHAOSCACHING_API void SetObservedComponentProperties(const ECacheMode& NewCacheMode);
+#endif
+	
+
 
 protected:
 
@@ -327,8 +344,6 @@ protected:
 
 	CHAOSCACHING_API FObservedComponent* FindObservedComponent(UPrimitiveComponent* InComponent);
 	CHAOSCACHING_API FObservedComponent& AddNewObservedComponent(UPrimitiveComponent* InComponent);
-	CHAOSCACHING_API FObservedComponent& FindOrAddObservedComponent(UPrimitiveComponent* InComponent);
-	CHAOSCACHING_API void ClearObservedComponents();
 
 	// Determines if the actor is allowed to record a cache.
 	bool bCanRecord;
@@ -337,9 +352,6 @@ protected:
 	bool bIsSimulating;
 
 private:
-#if WITH_EDITOR
-	CHAOSCACHING_API void SetObservedComponentProperties(const ECacheMode& NewCacheMode);
-#endif
 	
 	friend class UActorFactoryCacheManager; // Allows the actor factory to set up the observed list. See UActorFactoryCacheManager::PostSpawnActor
 

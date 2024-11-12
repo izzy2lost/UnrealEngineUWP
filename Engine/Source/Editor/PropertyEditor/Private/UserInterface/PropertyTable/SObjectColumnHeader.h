@@ -52,7 +52,7 @@ class SObjectColumnHeader : public SColumnHeader
 		{
 			TSharedRef< FPropertyEditor > PropertyEditor = FPropertyEditor::Create( Cell->GetNode().ToSharedRef(), Utilities.ToSharedRef() );
 
-			TWeakFieldPtr< FProperty > Property = PropertyTableRow->GetDataSource()->AsPropertyPath()->GetLeafMostProperty().Property.Get();
+			TWeakFieldPtr< const FProperty > Property = PropertyTableRow->GetDataSource()->AsPropertyPath()->GetLeafMostProperty().Property.Get();
 
 			if( Property->IsA( FBoolProperty::StaticClass() ) )
 			{

@@ -5,6 +5,7 @@
 #include "CoreTypes.h"
 #include "HAL/PlatformMath.h"
 #include "Misc/AssertionMacros.h"
+#include "Templates/Requires.h"
 #include <limits>
 #include <type_traits>
 

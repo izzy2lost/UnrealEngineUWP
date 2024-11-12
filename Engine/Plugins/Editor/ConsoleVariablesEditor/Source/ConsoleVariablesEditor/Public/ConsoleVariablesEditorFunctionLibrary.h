@@ -5,6 +5,8 @@
 #include "Containers/Array.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 
+#include "ConsoleVariablesEditorProjectSettings.h"
+
 #include "ConsoleVariablesEditorFunctionLibrary.generated.h"
 
 class FString;
@@ -23,7 +25,7 @@ public:
 
 	/** Loads the given asset in the Console Variables Editor and sets all its variable values. */
 	UFUNCTION(BlueprintCallable, Category = "Console Variables Editor")
-	static void LoadPresetIntoConsoleVariablesEditor(const UConsoleVariablesAsset* InAsset);
+	static void LoadPresetIntoConsoleVariablesEditor(const UConsoleVariablesAsset* InAsset, const EConsoleVariablesEditorPresetImportMode InImportMode = EConsoleVariablesEditorPresetImportMode::AddToExisting);
 
 	/*
 	 * Saves the current list in the Console Variables Editor to the given asset.

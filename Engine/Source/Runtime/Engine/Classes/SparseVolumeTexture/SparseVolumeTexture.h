@@ -220,6 +220,8 @@ public:
 #if WITH_EDITORONLY_DATA
 	// Removes the StreamableMipLevels bulk data if it was successfully cached to DDC.
 	void DropBulkData();
+	bool HasBuildFromDDCError() const;
+	void SetHasBuildFromDDCError(bool bHasError);
 	// Fills StreamableMipLevels with data from DDC. Returns true when done.
 	bool RebuildBulkDataFromCacheAsync(const UObject* Owner, bool& bFailed);
 	// Builds all the data from SourceData. Is called by Cache().
@@ -235,10 +237,15 @@ private:
 	enum class EDDCRebuildState : uint8
 	{
 		Initial,
+		InitialAfterFailed,
 		Pending,
 		Succeeded,
 		Failed,
 	};
+	static bool IsInitialState(EDDCRebuildState State)
+	{
+		return State == EDDCRebuildState::Initial || State == EDDCRebuildState::InitialAfterFailed;
+	}
 	TDontCopy<TPimplPtr<UE::DerivedData::FRequestOwner>> DDCRequestOwner;
 	std::atomic<EDDCRebuildState> DDCRebuildState;
 	std::atomic_int DDCRebuildNumFinishedRequests;
@@ -562,7 +569,9 @@ public:
 	//~ End USparseVolumeTexture Interface.
 
 #if WITH_EDITOR
+	UE_DEPRECATED(5.5, "OnAssetsAddExtraObjectsToDelete signature has been deprecated please use OnAddExtraObjectsToDelete instead")
 	ENGINE_API void OnAssetsAddExtraObjectsToDelete(TArray<UObject*>& ObjectsToDelete);
+	ENGINE_API void OnAddExtraObjectsToDelete(const TArray<UObject*>& InObjectsToDelete, TSet<UObject*>& OutSecondaryObjects);
 #endif
 
 protected:

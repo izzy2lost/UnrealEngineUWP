@@ -8,7 +8,7 @@
 #include "MediaObjectPool.h"
 
 
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "Misc/FrameRate.h"
 #include "Templates/RefCounting.h"
 
@@ -28,18 +28,18 @@ namespace UE::MediaIOCore
 			if (bIsSRGBInput)
 			{
 				Encoding = UE::Color::EEncoding::sRGB;
-				ColorSpace = UE::Color::EColorSpace::sRGB;
+				ColorSpaceType = UE::Color::EColorSpace::sRGB;
 			}
 			else
 			{
 				Encoding = UE::Color::EEncoding::Linear;
-				ColorSpace = UE::Color::EColorSpace::sRGB;
+				ColorSpaceType = UE::Color::EColorSpace::sRGB;
 			}
 		}
 
-		FColorFormatArgs(UE::Color::EEncoding InEncoding, UE::Color::EColorSpace InColorSpace)
+		FColorFormatArgs(UE::Color::EEncoding InEncoding, UE::Color::EColorSpace InColorSpaceType)
 			: Encoding(InEncoding)
-			, ColorSpace(InColorSpace)
+			, ColorSpaceType(InColorSpaceType)
 		{
 		}
 		
@@ -48,7 +48,7 @@ namespace UE::MediaIOCore
 		UE::Color::EEncoding Encoding = UE::Color::EEncoding::Linear;
 
 		/** Color space of the texture. */
-		UE::Color::EColorSpace ColorSpace = UE::Color::EColorSpace::sRGB;
+		UE::Color::EColorSpace ColorSpaceType = UE::Color::EColorSpace::sRGB;
 	};
 }
 
@@ -77,6 +77,9 @@ struct MEDIAIOCORE_API FMediaIOCoreSampleJITRConfigurationArgs
 
 	/** Sample converter to process this sample */
 	TSharedPtr<FMediaIOCoreTextureSampleConverter> Converter;
+	
+	/** Frame rate of the current sample. */
+	FFrameRate FrameRate;
 };
 
 
@@ -91,14 +94,6 @@ class MEDIAIOCORE_API FMediaIOCoreTextureSampleBase
 
 public:
 	FMediaIOCoreTextureSampleBase();
-
-	// Note: We need to explicitly disable warnings on these constructors/operators for clang to be happy with deprecated variables
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FMediaIOCoreTextureSampleBase(const FMediaIOCoreTextureSampleBase&) = default;
-	FMediaIOCoreTextureSampleBase(FMediaIOCoreTextureSampleBase&&) = default;
-	FMediaIOCoreTextureSampleBase& operator=(const FMediaIOCoreTextureSampleBase&) = default;
-	FMediaIOCoreTextureSampleBase& operator=(FMediaIOCoreTextureSampleBase&&) = default;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * Initialize the sample.
@@ -211,10 +206,8 @@ public:
 	/**
 	 * Set the OCIO settings used for color conversion.
 	 */
-	void SetColorConversionSettings(TSharedPtr<struct FOpenColorIOColorConversionSettings> InColorConversionSettings)
-	{
-		ColorConversionSettings = InColorConversionSettings;
-	}
+	void SetColorConversionSettings(TSharedPtr<struct FOpenColorIOColorConversionSettings> InColorConversionSettings);
+
 	/**
 	 * Request an uninitialized sample buffer.
 	 * Should be used when the buffer could be filled by something else.
@@ -224,6 +217,7 @@ public:
 	 */
 	virtual void* RequestBuffer(uint32 InBufferSize);
 
+
 	/**
 	 * Configure this sample for JITR
 	 *
@@ -232,9 +226,9 @@ public:
 	virtual bool InitializeJITR(const FMediaIOCoreSampleJITRConfigurationArgs& Args);
 
 	/** Marks this sample as one that is ready and awaiting for fast GPUDirect texture transfer */
-	void SetAwaitingForGPUTransfer()
+	void SetAwaitingForGPUTransfer(bool bIsAwaitingGPUTransfer = true)
 	{
-		bIsAwaitingForGPUTransfer = true;
+		bIsAwaitingForGPUTransfer = bIsAwaitingGPUTransfer;
 	}
 
 	/** Returns whether it's ready for GPUDirect texture transfer */
@@ -254,6 +248,11 @@ public:
 
 	/** Copies all neccessary data from a source sample to render JIT */
 	virtual void CopyConfiguration(const TSharedPtr<FMediaIOCoreTextureSampleBase>& SourceSample);
+protected:
+	/**
+	* Method that caches color conversion settings on Game thread.
+	*/
+	void CacheColorCoversionSettings_GameThread();
 
 public:
 	//~ IMediaTextureSample interface
@@ -315,13 +314,12 @@ public:
 
 	virtual bool IsOutputSrgb() const override;
 	
-	virtual FMatrix44d GetGamutToXYZMatrix() const override;
-	virtual FVector2d GetWhitePoint() const override;
-	virtual FVector2d GetDisplayPrimaryRed() const override;
-	virtual FVector2d GetDisplayPrimaryGreen() const override;
-	virtual FVector2d GetDisplayPrimaryBlue() const override;
+	virtual const UE::Color::FColorSpace& GetSourceColorSpace() const override;
 	virtual UE::Color::EEncoding GetEncodingType() const override;
 	virtual float GetHDRNitsNormalizationFactor() const override;
+	
+	/**Method that returns this sample's colorspace type.*/
+	virtual UE::Color::EColorSpace GetColorSpaceType() const;
 
 	virtual const void* GetBuffer() override
 	{
@@ -339,8 +337,32 @@ public:
 		return Buffer.GetData();
 	}
 
+	/**
+	 * Attemps to get the initialized buffer.
+	 * If buffer isn't initialized or of a different size, requests a new one.
+	 *
+	 * @param InBufferSize The size of the required video buffer.
+	 */
+	virtual void* GetOrRequestBuffer(uint32 InBufferSize);
+
+
+	virtual uint64 GetFrameNumber() const
+	{
+		return FrameNumber;
+	}
+
+	virtual void SetTime(const FTimespan& InTime)
+	{
+		Time = InTime;
+	}
+
+	virtual void SetFrameNumber(uint32 InFrameNumber)
+	{
+		FrameNumber = InFrameNumber;
+	}
+
 	//~ IMediaTextureSampleColorConverter interface
-	virtual bool ApplyColorConversion(FTexture2DRHIRef& InSrcTexture, FTexture2DRHIRef& InDstTexture) override;
+	virtual bool ApplyColorConversion(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InSrcTexture, FTextureRHIRef& InDstTexture) override;
 
 	void* GetMutableBuffer()
 	{
@@ -366,7 +388,7 @@ public:
 
 	void SetTexture(TRefCountPtr<FRHITexture> InRHITexture);
 	void SetDestructionCallback(TFunction<void(TRefCountPtr<FRHITexture>)> InDestructionCallback);
-
+	EPixelFormat GetPixelFormat();
 private:
 	/** Hold a texture to be used for gpu texture transfers. */
 	TRefCountPtr<FRHITexture> Texture;
@@ -409,6 +431,9 @@ protected:
 	/** Sample timecode. */
 	TOptional<FTimecode> Timecode;
 
+	/** Which engine frame number this sample corresponds to. */
+	std::atomic<uint64> FrameNumber;
+
 	/** Image dimensions */
 	uint32 Stride = 0;
 	uint32 Width  = 0;
@@ -428,18 +453,18 @@ protected:
 	UE::Color::EEncoding Encoding = UE::Color::EEncoding::Linear;
 
 	/** Color space enum of the incoming texture. */
-	UE::Color::EColorSpace ColorSpace = UE::Color::EColorSpace::sRGB;
+	UE::Color::EColorSpace ColorSpaceType = UE::Color::EColorSpace::sRGB;
 
 	/** Color space structure of the incoming texture. Used for retrieving chromaticities. */
 	UE::Color::FColorSpace ColorSpaceStruct = UE::Color::FColorSpace(UE::Color::EColorSpace::sRGB);
 
-private:
 	/** The player that created this sample */
 	TWeakPtr<FMediaIOCorePlayerBase> Player;
 
 	/** Custom converter that will be the one checking back with the player for just in time sample render purposes */
 	TSharedPtr<FMediaIOCoreTextureSampleConverter> Converter;
 
+private:
 	/**
 	 * A reference to the original sample that was chosen during JITR. The idea of this member is to keep
 	 * the original sample alive, prevent any of its resources from being released while this proxy sample is in use.
@@ -447,7 +472,7 @@ private:
 	TSharedPtr<FMediaIOCoreTextureSampleBase> OriginalSample;
 
 	/** Whether this sample's texture data is awaiting to be transferred by GPUDirect */
-	bool bIsAwaitingForGPUTransfer = false;
+	std::atomic<bool> bIsAwaitingForGPUTransfer;
 
 	/** Time offset evaluated on game thread for JITR */
 	double EvaluationOffsetInSeconds = 0;

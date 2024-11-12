@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimationRecorder.h"
+#include "Misc/QualifiedFrameTime.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Animation/AnimSequence.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -293,13 +294,8 @@ void FAnimationRecorder::StartRecord(USkeletalMeshComponent* Component, UAnimSeq
 	AnimationObject->RetargetSource = Component->GetSkeletalMeshAsset() ? AnimSkeleton->GetRetargetSourceForMesh(Component->GetSkeletalMeshAsset()) : NAME_None;
 	if (AnimationObject->RetargetSource == NAME_None)
 	{
-		AnimationObject->RetargetSourceAsset = Component->GetSkeletalMeshAsset();
-		//UpdateRetargetSourceAssetData() is protected so need to do a posteditchagned
-#if WITH_EDITOR
-		FProperty* PropertyChanged = UAnimSequence::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UAnimSequence, RetargetSourceAsset));
-		FPropertyChangedEvent PropertyUpdateStruct(PropertyChanged);
-		AnimationObject->PostEditChangeProperty(PropertyUpdateStruct);
-#endif
+		AnimationObject->SetRetargetSourceAsset(Component->GetSkeletalMeshAsset());
+		AnimationObject->UpdateRetargetSourceAssetData();
 	}
 
 	// record first-frame notifies
@@ -642,8 +638,21 @@ UAnimSequence* FAnimationRecorder::StopRecord(bool bShowMessage)
 
 	return nullptr;
 }
-
 void FAnimationRecorder::ProcessRecordedTimes(UAnimSequence* AnimSequence, USkeletalMeshComponent* SkeletalMeshComponent, const FString& HoursName, const FString& MinutesName, const FString& SecondsName, const FString& FramesName, const FString& SubFramesName, const FString& SlateName, const FString& Slate, const FTimecodeBoneMethod& TimecodeBoneMethod)
+{
+	FProcessRecordedTimeParams Params{
+		 .HoursName = HoursName,
+		 .MinutesName = MinutesName,
+		 .SecondsName = SecondsName,
+		 .FramesName = FramesName,
+		 .SubFramesName = SubFramesName,
+		 .SlateName = SlateName,
+		 .Slate = Slate
+	};
+	ProcessRecordedTimes(AnimSequence, SkeletalMeshComponent, TimecodeBoneMethod, Params);
+}
+
+void FAnimationRecorder::ProcessRecordedTimes(UAnimSequence* AnimSequence, USkeletalMeshComponent* SkeletalMeshComponent, const FTimecodeBoneMethod& TimecodeBoneMethod, const FProcessRecordedTimeParams& InParams)
 {
 	if (!AnimSequence || !SkeletalMeshComponent)
 	{
@@ -667,13 +676,14 @@ void FAnimationRecorder::ProcessRecordedTimes(UAnimSequence* AnimSequence, USkel
 	SubFrames.Reserve(RecordedTimes.Num());
 	Times.Reserve(RecordedTimes.Num());
 
+	FFrameRate TCRate = RecordingRate;
 	for (int32 KeyIndex = 0; KeyIndex < NumKeys; ++KeyIndex)
 	{
 		const float TimeToRecord = RecordingRate.AsSeconds(KeyIndex);
 
 		FQualifiedFrameTime RecordedTime = RecordedTimes[KeyIndex];
 		FTimecode Timecode = FTimecode::FromFrameNumber(RecordedTime.Time.FrameNumber, RecordedTime.Rate);
-		
+		TCRate = RecordedTime.Rate;
 		Hours.Add(Timecode.Hours);
 		Minutes.Add(Timecode.Minutes);
 		Seconds.Add(Timecode.Seconds);
@@ -706,8 +716,17 @@ void FAnimationRecorder::ProcessRecordedTimes(UAnimSequence* AnimSequence, USkel
 	}
 
 	// String is not animatable, just add 1 slate at the first key time
-	TArray<FString> Slates(&Slate, 1);
+	TArray<FString> Slates(&InParams.Slate, 1);
 	TArray<float> SlateTimes(&Times[0], 1);
+
+	float RecordingRateAsFloat = TCRate.AsDecimal();
+	TOptional<TArray<float>> Rates;
+	TOptional<TArray<float>> RateTimes;
+	if (InParams.RateName)
+	{
+		Rates = TArray<float>(&RecordingRateAsFloat, 1);
+		RateTimes = TArray<float>(&Times[0],1);
+	}
 
 	IAnimationDataController& Controller = AnimSequence->GetController();
 	IAnimationDataController::FScopedBracket ScopedBracket(Controller, LOCTEXT("AddTimeCodeAttributesBracket", "Adding Time Code attributes"));
@@ -750,7 +769,7 @@ void FAnimationRecorder::ProcessRecordedTimes(UAnimSequence* AnimSequence, USkel
 		{
 			// add tracks for the bone existing
 			FName BoneTreeName = AnimSkeleton->GetReferenceSkeleton().GetBoneName(BoneTreeIndex);
-			
+
 			const bool bUseThisBone = 
 				TimecodeBoneMethod.BoneMode == ETimecodeBoneMode::All ||
 				(TimecodeBoneMethod.BoneMode == ETimecodeBoneMode::Root && BoneIndex == 0) ||
@@ -762,14 +781,19 @@ void FAnimationRecorder::ProcessRecordedTimes(UAnimSequence* AnimSequence, USkel
 				continue;
 			}
 
-			UE::Anim::AddTypedCustomAttribute<FIntegerAnimationAttribute, int32>(FName(*HoursName), BoneTreeName, AnimSequence, MakeArrayView(Times), MakeArrayView(Hours));
-			UE::Anim::AddTypedCustomAttribute<FIntegerAnimationAttribute, int32>(FName(*MinutesName), BoneTreeName, AnimSequence, MakeArrayView(Times), MakeArrayView(Minutes));
-			UE::Anim::AddTypedCustomAttribute<FIntegerAnimationAttribute, int32>(FName(*SecondsName), BoneTreeName, AnimSequence, MakeArrayView(Times), MakeArrayView(Seconds));
-			UE::Anim::AddTypedCustomAttribute<FIntegerAnimationAttribute, int32>(FName(*FramesName), BoneTreeName, AnimSequence, MakeArrayView(Times), MakeArrayView(Frames));
+			UE::Anim::AddTypedCustomAttribute<FIntegerAnimationAttribute, int32>(FName(*InParams.HoursName), BoneTreeName, AnimSequence, MakeArrayView(Times), MakeArrayView(Hours));
+			UE::Anim::AddTypedCustomAttribute<FIntegerAnimationAttribute, int32>(FName(*InParams.MinutesName), BoneTreeName, AnimSequence, MakeArrayView(Times), MakeArrayView(Minutes));
+			UE::Anim::AddTypedCustomAttribute<FIntegerAnimationAttribute, int32>(FName(*InParams.SecondsName), BoneTreeName, AnimSequence, MakeArrayView(Times), MakeArrayView(Seconds));
+			UE::Anim::AddTypedCustomAttribute<FIntegerAnimationAttribute, int32>(FName(*InParams.FramesName), BoneTreeName, AnimSequence, MakeArrayView(Times), MakeArrayView(Frames));
 
-			UE::Anim::AddTypedCustomAttribute<FFloatAnimationAttribute, float>(FName(*SubFramesName), BoneTreeName, AnimSequence, MakeArrayView(Times), MakeArrayView(SubFrames));
+			UE::Anim::AddTypedCustomAttribute<FFloatAnimationAttribute, float>(FName(*InParams.SubFramesName), BoneTreeName, AnimSequence, MakeArrayView(Times), MakeArrayView(SubFrames));
 
-			UE::Anim::AddTypedCustomAttribute<FStringAnimationAttribute, FString>(FName(*SlateName), BoneTreeName, AnimSequence, MakeArrayView(SlateTimes), MakeArrayView(Slates));
+			if (Rates && RateTimes)
+			{
+				UE::Anim::AddTypedCustomAttribute<FFloatAnimationAttribute, float>(FName(*(InParams.RateName.GetValue())), BoneTreeName, AnimSequence, MakeArrayView(*RateTimes), MakeArrayView(*Rates));
+			}
+			UE::Anim::AddTypedCustomAttribute<FStringAnimationAttribute, FString>(FName(*InParams.SlateName), BoneTreeName, AnimSequence, MakeArrayView(SlateTimes), MakeArrayView(Slates));
+
 		}
 	}
 }
@@ -998,7 +1022,22 @@ bool FAnimationRecorder::Record(USkeletalMeshComponent* Component, FTransform co
 		}
 
 		TOptional<FQualifiedFrameTime> CurrentTime = FApp::GetCurrentFrameTime();
-		RecordedTimes.Add(CurrentTime.IsSet() ? CurrentTime.GetValue() : FQualifiedFrameTime());
+		if (CurrentTime)
+		{
+			FQualifiedFrameTime TimeToRecord = *CurrentTime;
+			if (TimeToRecord.Time.GetSubFrame() == 0)
+			{
+				FQualifiedFrameTime FrameTimeAsQualified(FrameToAdd, RecordingRate);
+				FFrameTime FrameTimeInTCRate = FrameTimeAsQualified.ConvertTo(TimeToRecord.Rate);
+				FFrameTime NewFrameTimeWithSubFrame(TimeToRecord.Time.GetFrame(), FrameTimeInTCRate.GetSubFrame());
+				TimeToRecord = FQualifiedFrameTime(NewFrameTimeWithSubFrame, CurrentTime->Rate);
+			}
+			RecordedTimes.Add(TimeToRecord);
+		}
+		else
+		{
+			RecordedTimes.Add(FQualifiedFrameTime());
+		}
 
 		if (AnimationSerializer)
 		{
@@ -1238,10 +1277,26 @@ void FAnimRecorderInstance::ProcessRecordedTimes(UAnimSequence* AnimSequence, US
 {
 	if (Recorder.IsValid())
 	{
-		Recorder->ProcessRecordedTimes(AnimSequence, SkeletalMeshComponent, HoursName, MinutesName, SecondsName, FramesName, SubFramesName, SlateName, Slate, TimecodeBoneMethod);
+		FProcessRecordedTimeParams Params{
+		 .HoursName = HoursName,
+		 .MinutesName = MinutesName,
+		 .SecondsName = SecondsName,
+		 .FramesName = FramesName,
+		 .SubFramesName = SubFramesName,
+		 .SlateName = SlateName,
+		 .Slate = Slate
+		};
+		Recorder->ProcessRecordedTimes(AnimSequence, SkeletalMeshComponent, TimecodeBoneMethod, Params);
 	}
 }
 
+void FAnimRecorderInstance::ProcessRecordedTimes(UAnimSequence* AnimSequence, USkeletalMeshComponent* SkeletalMeshComponent, const FTimecodeBoneMethod& TimecodeBoneMethod, const FProcessRecordedTimeParams& InParams)
+{
+	if (Recorder.IsValid())
+	{
+		Recorder->ProcessRecordedTimes(AnimSequence, SkeletalMeshComponent, TimecodeBoneMethod, InParams);
+	}
+}
 
 bool FAnimationRecorderManager::RecordAnimation(USkeletalMeshComponent* Component, const FString& AssetPath, const FString& AssetName, const FAnimationRecordingSettings& Settings)
 {
@@ -1408,7 +1463,7 @@ void FAnimationRecorderManager::StopRecordingAnimation(USkeletalMeshComponent* C
 			Inst.FinishRecording(bShowMessage);
 
 			// remove instance, which will clean itself up
-			RecorderInstances.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+			RecorderInstances.RemoveAtSwap(Idx, EAllowShrinking::No);
 
 			// all done
 			break;

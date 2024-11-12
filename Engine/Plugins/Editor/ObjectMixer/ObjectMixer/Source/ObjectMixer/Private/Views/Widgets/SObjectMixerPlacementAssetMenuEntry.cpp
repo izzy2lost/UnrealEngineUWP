@@ -186,7 +186,7 @@ FReply SObjectMixerPlacementAssetMenuEntry::OnMouseButtonUp(const FGeometry& MyG
 		}
 
 		GEditor->SelectNone(true, true, false);
-		GEditor->SelectActor(NewActor, true, false);
+		GEditor->SelectActor(NewActor, true, true);
 
 		return FReply::Handled();
 	}

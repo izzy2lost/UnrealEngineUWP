@@ -8,41 +8,31 @@
 
 #include "CoreMinimal.h"
 #include "HAL/PlatformMath.h"
+#include "Memory/LinearAllocator.h"
 
 class UObjectBase;
 
 class FUObjectAllocator
 {
 public:
-
-	/**
-	 * Constructor, initializes to no permanent object pool
-	 */
-	FUObjectAllocator() :
-	  PermanentObjectPoolSize(0),
-	  PermanentObjectPool(NULL),
-	  PermanentObjectPoolTail(NULL),
-		PermanentObjectPoolExceededTail(NULL)
-	{
-	}
-
 	/**
 	 * Allocates and initializes the permanent object pool
 	 *
 	 * @param InPermanentObjectPoolSize size of permanent object pool
 	 */
-	COREUOBJECT_API void AllocatePermanentObjectPool(int32 InPermanentObjectPoolSize);
+	UE_DEPRECATED(5.5, "Permanent Object Pool is handled by the global instance of FLinearAllocator now")
+	COREUOBJECT_API void AllocatePermanentObjectPool(int32 InPermanentObjectPoolSize) {}
 
 	/**
 	 * Prints a debugf message to allow tuning
 	 */
 	COREUOBJECT_API void BootMessage();
 
-	UE_DEPRECATED(5.1, "Use the more efficient FPermanentObjectPoolExtents instead")
-	FORCEINLINE bool ResidesInPermanentPool(const UObjectBase *Object) const
-	{
-		return ((const uint8*)Object >= PermanentObjectPool) && ((const uint8*)Object < PermanentObjectPoolTail);
-	}
+	/**
+	 * Disables allocation of objects from the persistend allocator
+	 * Needed by the Editor to be able to clean up all objects
+	 */
+	COREUOBJECT_API void DisablePersistentAllocator();
 
 	/**
 	 * Allocates a UObjectBase from the free store or the permanent object pool
@@ -60,18 +50,6 @@ public:
 	 * @param Object object to free
 	 */
 	COREUOBJECT_API void FreeUObject(UObjectBase *Object) const;
-
-private:
-	friend class FPermanentObjectPoolExtents;
-
-	/** Size in bytes of pool for objects disregarded for GC.								*/
-	int32							PermanentObjectPoolSize;
-	/** Begin of pool for objects disregarded for GC.										*/
-	uint8*						PermanentObjectPool;
-	/** Current position in pool for objects disregarded for GC.							*/
-	uint8*						PermanentObjectPoolTail;
-	/** Tail that exceeded the size of the permanent object pool, >= PermanentObjectPoolTail.		*/
-	uint8*						PermanentObjectPoolExceededTail;
 };
 
 /** Global UObjectBase allocator							*/
@@ -81,11 +59,11 @@ extern COREUOBJECT_API FUObjectAllocator GUObjectAllocator;
 class FPermanentObjectPoolExtents
 {
 public:
-	FORCEINLINE FPermanentObjectPoolExtents(const FUObjectAllocator& ObjectAllocator = GUObjectAllocator)
-		: Address(reinterpret_cast<uint64>(ObjectAllocator.PermanentObjectPool))
-		, Size(static_cast<uint64>(ObjectAllocator.PermanentObjectPoolSize))
+	FORCEINLINE FPermanentObjectPoolExtents(const FPersistentLinearAllocatorExtends& InAllocatorExtends = GPersistentLinearAllocatorExtends)
+		: Address(InAllocatorExtends.Address)
+		, Size(InAllocatorExtends.Size)
 	{}
-	
+
 	FORCEINLINE bool Contains(const UObjectBase* Object) const
 	{
 		return reinterpret_cast<uint64>(Object) - Address < Size;

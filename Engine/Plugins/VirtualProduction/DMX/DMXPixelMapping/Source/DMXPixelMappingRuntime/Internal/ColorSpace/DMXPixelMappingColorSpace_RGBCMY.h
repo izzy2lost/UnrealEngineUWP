@@ -4,13 +4,12 @@
 
 #include "DMXAttribute.h"
 #include "ColorSpace/DMXPixelMappingColorSpace.h"
-
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "Templates/UniquePtr.h"
 
 #include "DMXPixelMappingColorSpace_RGBCMY.generated.h"
 
-
+/** The color space of the DMX output */
 UENUM(BlueprintType)
 enum class EDMXPixelMappingOutputColorSpace_RGBCMY : uint8
 {
@@ -21,6 +20,16 @@ enum class EDMXPixelMappingOutputColorSpace_RGBCMY : uint8
 	Plasa UMETA(DisplayName = "PLASA RGB - ANSI E1.54")
 };
 
+/** The gamma mode of the DMX output */
+UENUM(BlueprintType)
+enum class EDMXPixelMappingGamma_RGBCMY : uint8
+{
+	Linear,
+	AsOutputColorSpace,
+	Custom
+};
+
+/** Defines how the luminance channel (typically Dimmer) is generated */
 UENUM(BlueprintType)
 enum class EDMXPixelMappingLuminanceType_RGBCMY : uint8
 {
@@ -45,8 +54,16 @@ public:
 	//~ End DMXPixelMappingColorSpace interface
 
 	/** The color space to use */
-	UPROPERTY(EditAnywhere, Category = "Color Space", Meta = (DisplayPriority = 1, DisplayName = "Output Color Space"))
+	UPROPERTY(EditAnywhere, Category = "Color Space", Meta = (DisplayName = "Output Color Space"))
 	EDMXPixelMappingOutputColorSpace_RGBCMY PixelMappingOutputColorSpace = EDMXPixelMappingOutputColorSpace_RGBCMY::sRGB;
+
+	/** Applies Gamma correction to the output DMX Values */
+	UPROPERTY(EditAnywhere, Category = "Color Space")
+	EDMXPixelMappingGamma_RGBCMY OutputGamma = EDMXPixelMappingGamma_RGBCMY::AsOutputColorSpace;
+
+	/** The custom Gamma, whereas OutColor = Pow(InColor, 1 / CustomGamma) */
+	UPROPERTY(EditAnywhere, Category = "Color Space", Meta = (UIMin = 0.0, UIMax = 4.0, EditCondition = "OutputGamma == EDMXPixelMappingGamma_RGBCMY::Custom", EditConditionHides))
+	float CustomGamma = 2.2f;
 
 	/** If set, converts Red to Cyan */
 	UPROPERTY(EditAnywhere, Category = "RGB")
@@ -94,6 +111,7 @@ public:
 
 protected:
 	//~ Begin UObject Interface
+	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
@@ -103,6 +121,15 @@ protected:
 private:
 	/** Updates the ColorSpace and ColorSpaceTransform members */
 	void UpdateColorSpaceAndTransform();
+
+	/** Applies gamma correction according to the color space to the Color. */
+	void EncodeGammaCorrection(EDMXPixelMappingOutputColorSpace_RGBCMY InPixelMappingOutputColorSpaceEnum, FLinearColor& InOutColor);
+
+	/** Applies a custom gamma correction to the Color. OutColor = Pow(InColor, CustomGamma) */
+	void EncodeGammaCorrection(float CustomGamma, FLinearColor& InOutColor);
+
+	/** Encodes Rec2020 in a linear color */
+	float EncodeRec2020(float InValue) const;
 
 	/** Gets the EColorSpace enum given the current Output Color Space Enum */
 	UE::Color::EColorSpace ConvertToOutputColorSpaceEnum(EDMXPixelMappingOutputColorSpace_RGBCMY InPixelMappingOutputColorSpaceEnum) const;

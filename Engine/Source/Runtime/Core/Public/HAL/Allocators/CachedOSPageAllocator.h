@@ -63,9 +63,14 @@ struct TCachedOSPageAllocator : private FCachedOSPageAllocator
 	{
 
 	}
-	uint64 GetCachedFreeTotal()
+	uint64 GetCachedFreeTotal() const
 	{
 		return CachedTotal;
+	}
+
+	uint64 GetCachedImmediatelyFreeable() const
+	{
+		return GetCachedFreeTotal();
 	}
 
 	bool IsOSAllocation(SIZE_T Size)

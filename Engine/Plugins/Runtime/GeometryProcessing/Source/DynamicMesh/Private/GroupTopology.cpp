@@ -67,7 +67,7 @@ bool FGroupTopology::RebuildTopology()
 	GroupFaceCounts.Init(0, MaxGroupID);
 	for (int tid : Mesh->TriangleIndicesItr())
 	{
-		int GroupID = FMath::Max(0, GetGroupID(tid));
+		int GroupID = GetGroupID(tid);
 		if (GroupIDToGroupIndexMap[GroupID] == -1)
 		{
 			FGroup NewGroup;
@@ -85,7 +85,7 @@ bool FGroupTopology::RebuildTopology()
 	// sort faces into groups
 	for (int tid : Mesh->TriangleIndicesItr())
 	{
-		int GroupID = FMath::Max(0, GetGroupID(tid));
+		int GroupID = GetGroupID(tid);
 		Groups[GroupIDToGroupIndexMap[GroupID]].Triangles.Add(tid);
 	}
 
@@ -491,7 +491,17 @@ void FGroupTopology::FindCornerNbrGroups(const TArray<int>& CornerIDs, TArray<in
 
 void FGroupTopology::FindCornerNbrEdges(int CornerID, TArray<int>& EdgesOut) const
 {
+	ForCornerNbrEdges(CornerID, [&EdgesOut](int32 EdgeID)
+	{
+		EdgesOut.Add(EdgeID);
+		return true;
+	});
+}
+
+void UE::Geometry::FGroupTopology::ForCornerNbrEdges(int CornerID, TFunctionRef<bool(int32 EdgeId)>ReturnTrueToContinue) const
+{
 	check(CornerID >= 0 && CornerID < Corners.Num());
+	TSet<int32> ProcessedEdges;
 	for (int GroupID : Corners[CornerID].NeighbourGroupIDs)
 	{
 		const FGroup* Group = FindGroupByID(GroupID);
@@ -500,13 +510,24 @@ void FGroupTopology::FindCornerNbrEdges(int CornerID, TArray<int>& EdgesOut) con
 			for (int32 EdgeID : Boundary.GroupEdges)
 			{
 				const FGroupEdge& Edge = Edges[EdgeID];
-				if (Edge.EndpointCorners.A == CornerID || Edge.EndpointCorners.B == CornerID)
+				if (Edge.EndpointCorners.A != CornerID && Edge.EndpointCorners.B != CornerID)
 				{
-					EdgesOut.AddUnique(EdgeID);
+					continue;
+				}
+
+				bool bAlreadyProcessed = false;
+				ProcessedEdges.Add(EdgeID, &bAlreadyProcessed);
+				if (bAlreadyProcessed)
+				{
+					continue;
+				}
+
+				if (!ReturnTrueToContinue(EdgeID))
+				{
+					return;
 				}
 			}
 		}
-
 	}
 }
 

@@ -27,15 +27,12 @@ protected:
 	UActorDescContainerInstance()
 #if WITH_EDITORONLY_DATA
 		: bIsInitialized(false) 
+		, bRegisteredDelegates(false)
 		, bCreateChildContainerHierarchy(false)
 #endif
 	{}
 
 #if WITH_EDITOR
-	//~ Begin UObject Interface
-	virtual void BeginDestroy() override;
-	//~ End UObject Interface
-
 	friend FWorldPartitionActorDescInstance;
 	friend UWorldPartition;
 		
@@ -45,8 +42,7 @@ public:
 		FInitializeParams(FName InContainerPackageName, bool bInCreateContainerInstanceHierarchy = false)
 			: ContainerPackageName(InContainerPackageName)
 			, bCreateContainerInstanceHierarchy(bInCreateContainerInstanceHierarchy)
-		{
-		}
+		{}
 				
 		FInitializeParams& SetParent(const UActorDescContainerInstance* InParentContainerInstance, const FGuid& InContainerActorGuid)
 		{
@@ -59,6 +55,12 @@ public:
 		FInitializeParams& SetTransform(const FTransform& InTransform)
 		{
 			Transform = InTransform;
+			return *this;
+		}
+
+		FInitializeParams& SetShouldRegisterEditorDeletages(bool bInShouldRegisterEditorDeletages)
+		{
+			bShouldRegisterEditorDeletages = bInShouldRegisterEditorDeletages;
 			return *this;
 		}
 
@@ -77,6 +79,7 @@ public:
 		TOptional<FTransform> Transform;
 
 		bool bCreateContainerInstanceHierarchy;
+		bool bShouldRegisterEditorDeletages = true;
 
 		/* Custom filter function used to filter actors descriptors. */
 		TUniqueFunction<bool(const FWorldPartitionActorDesc*)> FilterActorDescFunc;
@@ -101,6 +104,9 @@ public:
 	DECLARE_EVENT_OneParam(UActorDescContainerInstance, FActorDescInstanceUpdatedEvent, FWorldPartitionActorDescInstance*);
 	FActorDescInstanceUpdatedEvent OnActorDescInstanceUpdatedEvent;
 
+	DECLARE_EVENT_OneParam(UActorDescContainerInstance, FActorReplacedEvent, FWorldPartitionActorDescInstance*);
+	FActorReplacedEvent OnActorReplacedEvent;
+
 	ENGINE_API virtual void Initialize(const FInitializeParams& InParams);
 	ENGINE_API bool IsInitialized() const { return bIsInitialized; }
 	ENGINE_API virtual void Uninitialize();
@@ -120,6 +126,8 @@ public:
 	ENGINE_API FString GetExternalActorPath() const;
 	ENGINE_API FString GetExternalObjectPath() const;
 		
+	ENGINE_API virtual void GetPropertyOverridesForActor(const FActorContainerID& InContainerID, const FGuid& InActorGuid, TArray<FWorldPartitionRuntimeCellPropertyOverride>& OutPropertyOverrides) const {}
+
 	ENGINE_API TUniquePtr<FWorldPartitionActorDescInstance>* GetActorDescInstancePtr(const FGuid& InActorGuid) const;
 	ENGINE_API FWorldPartitionActorDescInstance* GetActorDescInstance(const FGuid& InActorGuid) const;
 	ENGINE_API FWorldPartitionActorDescInstance& GetActorDescInstanceChecked(const FGuid& InActorGuid) const;
@@ -139,6 +147,7 @@ public:
 
 	ENGINE_API const TMap<FGuid, TObjectPtr<UActorDescContainerInstance>>& GetChildContainerInstances() const { return ChildContainerInstances; }
 		
+	const UActorDescContainerInstance* GetParentContainerInstance() const { return ParentContainerInstance.Get(); }
 protected:
 	virtual void RegisterContainer(const FInitializeParams& InParams);
 	virtual void UnregisterContainer();
@@ -147,8 +156,8 @@ protected:
 	virtual FWorldPartitionActorDesc* GetActorDesc(const FGuid& InActorGuid) const;
 	virtual FWorldPartitionActorDesc* GetActorDescChecked(const FGuid& InActorGuid) const;
 
+	virtual FWorldPartitionActorDescInstance CreateActorDescInstance(FWorldPartitionActorDesc* InActorDesc) { return FWorldPartitionActorDescInstance(this, InActorDesc); }
 private:
-	void OnContainerUpdated(FName ContainerPackage);
 	void OnContainerReplaced(UActorDescContainer* InOldContainer, UActorDescContainer* InNewContainer);
 	void SetContainerPackage(FName InContainerPackageName);
 		
@@ -168,6 +177,7 @@ private:
 	void OnActorDescUpdated(FWorldPartitionActorDesc* InActorDesc);
 
 	void OnObjectsReplaced(const TMap<UObject*, UObject*>& InOldToNewObjectMap);
+	void OnEditorActorReplaced(AActor* InOldActor, AActor* InNewActor);
 
 	void OnRegisterChildContainerInstance(const FGuid& InActorGuid, UActorDescContainerInstance* InChildContainerInstance);
 	void OnUnregisterChildContainerInstance(const FGuid& InActorGuid);
@@ -175,7 +185,7 @@ private:
 	friend class UGameFeatureActionConvertContentBundleWorldPartitionBuilder;
 #endif
 
-private:
+protected:
 #if WITH_EDITORONLY_DATA
 	FSoftObjectPath												WorldContainerPath;
 	FSoftObjectPath												SourceWorldContainerPath;
@@ -184,6 +194,7 @@ private:
 	FActorContainerID											ContainerID;
 	FGuid														ContainerActorGuid;
 	TOptional<FTransform>										Transform;
+	TWeakObjectPtr<const UActorDescContainerInstance>			ParentContainerInstance;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UActorDescContainer>								Container;
@@ -192,6 +203,7 @@ private:
 	TMap<FGuid, TObjectPtr<UActorDescContainerInstance>>		ChildContainerInstances;
 
 	bool														bIsInitialized;
+	bool														bRegisteredDelegates;
 	bool														bCreateChildContainerHierarchy;
 #endif
 };

@@ -41,22 +41,28 @@ public:
 	, bUseDisabledSections(UseDisabledSections)
 	, bHasTangents(bWantTangents)
 	, Asset(SkinnedMeshComponent.GetSkinnedAsset())
-	, SrcLODInfo(SkinnedMeshComponent.GetSkinnedAsset()->GetLODInfo(RequestedLOD))
 	, SkeletalMeshRenderData(SkinnedMeshComponent.MeshObject->GetSkeletalMeshRenderData())
-	, IndexBuffer(SkinnedMeshComponent.MeshObject->GetSkeletalMeshRenderData().LODRenderData[RequestedLOD].MultiSizeIndexContainer.GetIndexBuffer())
-
 	{
-
-		// This step does the actual skinning (and isn't as const as the api suggests..)
-		Component->GetCPUSkinnedVertices(SkinnedVertices, RequestedLOD);
-		const FSkeletalMeshLODRenderData& LODData = SkeletalMeshRenderData.LODRenderData[RequestedLOD];
+		const int32 MinLODIndex = SkinnedMeshComponent.ComputeMinLOD();
+		const int32 MaxLODIndex = SkinnedMeshComponent.GetNumLODs() - 1;
+		LOD = FMath::Clamp<int32>(RequestedLOD, MinLODIndex, MaxLODIndex);
+		if (LOD != RequestedLOD)
+		{
+			UE_LOG(LogGeometry, Warning, TEXT("Requesting LOD %d within [%d, %d], clamping to %d"), RequestedLOD, MinLODIndex, MaxLODIndex, LOD);
+		}
 		
+		SrcLODInfo = Asset->GetLODInfo(LOD);
+		const FSkeletalMeshLODRenderData& LODData = SkeletalMeshRenderData.LODRenderData[LOD];
+		IndexBuffer = LODData.MultiSizeIndexContainer.GetIndexBuffer();
+		
+		// This step does the actual skinning (and isn't as const as the api suggests..)
+		Component->GetCPUSkinnedVertices(SkinnedVertices, LOD);
 
 		const int32 NumSections = LODData.RenderSections.Num();
 		
 		auto SkipSection = [&](const FSkelMeshRenderSection& SkelMeshSection)
 							{
-								return ( !bUseDisabledSections && !SkinnedMeshComponent.IsMaterialSectionShown(SkelMeshSection.MaterialIndex, RequestedLOD));
+								return ( !bUseDisabledSections && !SkinnedMeshComponent.IsMaterialSectionShown(SkelMeshSection.MaterialIndex, LOD));
 							};
 
 		// pre-compute number of tris & verts
@@ -78,6 +84,8 @@ public:
 		}
 		
 		// construct a list of all valid VertIDs for this mesh.
+		bool bLogMeshInfoDueToErrors = false;
+		
 		VertIDs.Reserve(NumVerts);
 		for (const FSkelMeshRenderSection& Section : LODData.RenderSections)
 		{
@@ -90,10 +98,33 @@ public:
 			const int32 NumSectionVtx = static_cast<int32>( Section.NumVertices );
 			for (int32 VtxIndex = BaseVertexIndex; VtxIndex < NumSectionVtx + BaseVertexIndex; ++VtxIndex)
 			{
-				VertIDs.Add(VtxIndex);
+				if (ensure(VtxIndex < SkinnedVertices.Num()))
+				{
+					VertIDs.Add(VtxIndex);
+				}
+				else 
+				{
+					bLogMeshInfoDueToErrors = true;
+				}
 			}
 		}
 
+		if (bLogMeshInfoDueToErrors)
+		{
+			UE_LOG(LogGeometry, Display, TEXT("LOD vertex mismatch with [%s -> %s]"), *SkinnedMeshComponent.GetPathName(), *SkinnedMeshComponent.GetSkinnedAsset()->GetPathName());
+			UE_LOG(LogGeometry, Display, TEXT(" - Total Vertex Count: %d"), SkinnedVertices.Num());
+			UE_LOG(LogGeometry, Display, TEXT(" - Render Data Vertex Count: %d"), LODData.StaticVertexBuffers.PositionVertexBuffer.GetNumVertices());
+			UE_LOG(LogGeometry, Display, TEXT(" - Total Index/Triangle Count: %d / %d "), IndexBuffer->Num(), IndexBuffer->Num() / 3);
+		 
+			for (int32 SectionIndex = 0; SectionIndex < LODData.RenderSections.Num(); SectionIndex++)
+			{
+				const FSkelMeshRenderSection& Section = LODData.RenderSections[SectionIndex];
+				UE_LOG(LogGeometry, Display, TEXT(" - Section[%d]: Skip? %s"), SectionIndex, SkipSection(Section) ? TEXT("Yes") : TEXT("No"));
+				UE_LOG(LogGeometry, Display, TEXT(" - - Vertex Base: %d - Vertex Count: %d"), Section.BaseVertexIndex, Section.NumVertices);
+				UE_LOG(LogGeometry, Display, TEXT(" - - Index Base: %d - Triangle Base: %d - Triangle Count: %d"),
+					Section.BaseIndex, Section.BaseIndex / 3, Section.NumTriangles);
+			}
+		}
 
 		// generate vertex weights and remap the indices
 		const FSkinWeightVertexBuffer* SkinWeightBuffer = Component->GetSkinWeightBuffer(LOD);
@@ -415,7 +446,7 @@ private:
 
 
 
-void SkinnedMeshComponentToDynamicMesh(USkinnedMeshComponent& SkinnedMeshComponent, Geometry::FDynamicMesh3& MeshOut, int32 RequestedLOD, bool bWantTangents)
+bool SkinnedMeshComponentToDynamicMesh(USkinnedMeshComponent& SkinnedMeshComponent, Geometry::FDynamicMesh3& MeshOut, int32 RequestedLOD, bool bWantTangents)
 {
 
 	MeshOut.Clear();
@@ -425,17 +456,17 @@ void SkinnedMeshComponentToDynamicMesh(USkinnedMeshComponent& SkinnedMeshCompone
 
 	if (!bIsValidSkinnedMeshComponent)
 	{
-		return;
+		return false;
 	}
 
 	if (RequestedLOD < 0 || RequestedLOD > NumLODs - 1)
 	{
-		return;
+		return false;
 	}
 
 	if (!SkinnedMeshComponent.GetSkinnedAsset())
 	{
-		return;
+		return false;
 	}
 
 
@@ -452,6 +483,7 @@ void SkinnedMeshComponentToDynamicMesh(USkinnedMeshComponent& SkinnedMeshCompone
 		SkinnedComponentConverter.Convert(MeshOut, SkinnedComponentWrapper, TriToGroupID, TriToMaterialID, bCopyTangents);
 	}
 
+	return true;
 }
 
 } // end namespace Conversion

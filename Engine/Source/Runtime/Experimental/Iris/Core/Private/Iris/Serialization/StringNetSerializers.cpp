@@ -9,6 +9,12 @@
 #include "Iris/Core/BitTwiddling.h"
 #include "Containers/StringConv.h"
 #include "GenericPlatform/GenericPlatformMemory.h"
+#include "Iris/ReplicationSystem/NameTokenStore.h"
+#include "Iris/ReplicationSystem/ReplicationSystem.h"
+#include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
+#include "Iris/Serialization/InternalNetSerializationContext.h"
+#include "Iris/Serialization/NetExportContext.h"
+#include "Net/Core/Trace/NetTrace.h"
 
 static_assert(sizeof(ANSICHAR) == sizeof(uint8), "ANSICHAR is expected to be one byte.");
 
@@ -44,6 +50,8 @@ struct FNameNetSerializer
 		uint16 ElementCount;
 		void* ElementStorage;
 	};
+
+	static_assert(GetNameNetSerializerSafeQuantizedSize() >= sizeof(FQuantizedType));
 
 	typedef FName SourceType;
 	typedef FQuantizedType QuantizedType;
@@ -412,6 +420,252 @@ bool FStringNetSerializer::Validate(FNetSerializationContext& Context, const FNe
 {
 	const SourceType& Source = *reinterpret_cast<const SourceType*>(Args.Source);
 	return FStringNetSerializerBase::Validate(Context, Args, Source);
+}
+
+// FNameAsNetTokenNetSerializer
+// Naive implementation ignoring numbers so it will reexport name part for each number.
+// Good thing is that it works for all different configurations of FNames
+struct FNameAsNetTokenNetSerializerQuantizedType
+{
+	// NetToken
+	FNetToken NetToken;
+
+	// If bIsString this is the Number, otherwise it's the EName
+	int32 ENameOrNumber;
+
+	// If the FName is hardcoded or not
+	uint32 bIsString : 1U;
+	// When serializing/deserializing the number is expressed as (MAX_int32 - number)
+	uint32 bEncodeNumberFromIntMax : 1U;
+};
+
+static_assert(GetNameNetSerializerSafeQuantizedSize() >= sizeof(FNameAsNetTokenNetSerializerQuantizedType));
+
+} // End of namespace UE::Net
+
+template<> struct TIsPODType<UE::Net::FNameAsNetTokenNetSerializerQuantizedType> { enum { Value = true }; };
+
+namespace UE::Net
+{
+
+struct FNameAsNetTokenNetSerializer
+{
+	// Version
+	static const uint32 Version = 0;
+
+	// Types
+
+	// Crafted such that zeroed memory will represent FName(NAME_None)
+	typedef FNameAsNetTokenNetSerializerQuantizedType FQuantizedType;
+	typedef FName SourceType;
+	typedef FQuantizedType QuantizedType;
+	typedef FNameAsNetTokenNetSerializerConfig ConfigType;
+
+	static const ConfigType DefaultConfig;
+
+	//
+	static void Serialize(FNetSerializationContext&, const FNetSerializeArgs& Args);
+	static void Deserialize(FNetSerializationContext&, const FNetDeserializeArgs& Args);
+
+	static void Quantize(FNetSerializationContext&, const FNetQuantizeArgs& Args);
+	static void Dequantize(FNetSerializationContext&, const FNetDequantizeArgs& Args);
+
+	static bool IsEqual(FNetSerializationContext&, const FNetIsEqualArgs& Args);
+	static bool Validate(FNetSerializationContext&, const FNetValidateArgs& Args);
+
+private:
+
+	// Utility methods, consolidate with other changes to NetTokenStore as next step.
+	static FName ResolveNetToken(FNetSerializationContext&, FNetToken NetToken);
+
+	static const uint32 BitCountNeededForEName;
+};
+
+UE_NET_IMPLEMENT_SERIALIZER_INTERNAL(FNameAsNetTokenNetSerializer);
+const FNameAsNetTokenNetSerializer::ConfigType FNameAsNetTokenNetSerializer::DefaultConfig;
+const uint32 FNameAsNetTokenNetSerializer::BitCountNeededForEName = UE::Net::GetBitsNeeded(MAX_NETWORKED_HARDCODED_NAME);
+
+void FNameAsNetTokenNetSerializer::Serialize(FNetSerializationContext& Context, const FNetSerializeArgs& Args)
+{
+	using namespace UE::Net::Private;
+
+	// For now we ignore this in default state hash
+	// We could probably output lowercase hash to allow validation of defaultstate.
+	if (Context.IsInitializingDefaultState())
+	{
+		return;
+	}
+
+	const QuantizedType& Value = *reinterpret_cast<QuantizedType*>(Args.Source);
+	
+	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
+	if (Writer->WriteBool(Value.bIsString))
+	{
+		// Always write the token
+		Context.GetNetTokenStore()->WriteNetTokenWithKnownType<FNameTokenStore>(Context, Value.NetToken);
+
+		// Export or add to pending exports for later export
+		FNetTokenStore::AppendExport(Context, Value.NetToken);
+	}
+	else
+	{
+		Writer->WriteBits(static_cast<uint32>(Value.ENameOrNumber), BitCountNeededForEName);
+	}
+}
+
+void FNameAsNetTokenNetSerializer::Deserialize(FNetSerializationContext& Context, const FNetDeserializeArgs& Args)
+{
+	using namespace Private;
+
+	// Unexpected, but consistent with Serialize.
+	if (Context.IsInitializingDefaultState())
+	{
+		return;
+	}
+
+	QuantizedType& Target = *reinterpret_cast<QuantizedType*>(Args.Target);
+
+	FNetBitStreamReader* Reader = Context.GetBitStreamReader();
+	if (const bool bIsString = Reader->ReadBool())
+	{
+		Target.bIsString = 1;
+
+		// Always Read the token
+		FNetToken NetToken = Context.GetNetTokenStore()->ReadNetTokenWithKnownType<FNameTokenStore>(Context);
+
+		if (Reader->IsOverflown())
+		{
+			return;
+		}
+
+		Target.NetToken = NetToken;
+	}
+	else
+	{
+		const uint32 ENameNumber = Reader->ReadBits(BitCountNeededForEName);
+		if (!ShouldReplicateAsInteger(EName(ENameNumber), FName(EName(ENameNumber))))
+		{
+			Context.SetError(GNetError_BitStreamError);
+			return;
+		}
+
+		Target.bIsString = 0U;
+		Target.bEncodeNumberFromIntMax = 0;
+		Target.ENameOrNumber = ENameNumber;
+	
+		Target.NetToken = FNetToken();
+	}
+}
+
+void FNameAsNetTokenNetSerializer::Quantize(FNetSerializationContext& Context, const FNetQuantizeArgs& Args)
+{
+	using namespace Private;
+
+	const SourceType SourceName = *reinterpret_cast<const SourceType*>(Args.Source);
+	QuantizedType& TargetName = *reinterpret_cast<QuantizedType*>(Args.Target);
+
+	const EName* AsEName = (SourceName.GetNumber() == NAME_NO_NUMBER_INTERNAL ? SourceName.ToEName() : nullptr);
+	const bool bIsString = (AsEName == nullptr || !ShouldReplicateAsInteger(*AsEName, SourceName));
+	if (bIsString)
+	{
+		TargetName.bIsString = 1;
+		TargetName.ENameOrNumber = 0;
+		TargetName.bEncodeNumberFromIntMax = 0;
+
+		// Store as NetToken
+		FNameTokenStore* NameTokenStore = Context.GetNetTokenStore()->GetDataStore<FNameTokenStore>();
+		TargetName.NetToken = NameTokenStore->GetOrCreateToken(SourceName);
+	}
+	else
+	{
+		TargetName.bIsString = 0;
+		// Again, this value doesn't matter for hardcoded names as we know they will start from 0
+		TargetName.bEncodeNumberFromIntMax = 0;
+		// The EName we do care about!
+		TargetName.ENameOrNumber = static_cast<int32>(static_cast<uint32>(*AsEName));
+
+		TargetName.NetToken = FNetToken();
+	}
+}
+
+FName FNameAsNetTokenNetSerializer::ResolveNetToken(FNetSerializationContext& Context, FNetToken NetToken)
+{
+	using namespace UE::Net::Private;
+
+	FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
+	FNameTokenStore* NameTokenStore = Context.GetNetTokenStore()->GetDataStore<FNameTokenStore>();
+	return NameTokenStore->ResolveToken(NetToken, InternalContext->ResolveContext.RemoteNetTokenStoreState);
+}
+
+void FNameAsNetTokenNetSerializer::Dequantize(FNetSerializationContext& Context, const FNetDequantizeArgs& Args)
+{
+	using namespace Private;
+
+	const QuantizedType& Source = *reinterpret_cast<const QuantizedType*>(Args.Source);
+	SourceType& Target = *reinterpret_cast<SourceType*>(Args.Target);
+
+	if (Source.bIsString)
+	{
+		// Resolve from RemoteNetToken
+		Target = FNameAsNetTokenNetSerializer::ResolveNetToken(Context, Source.NetToken);
+	}
+	else
+	{
+		Target = EName(static_cast<uint32>(Source.ENameOrNumber));
+	}
+}
+
+bool FNameAsNetTokenNetSerializer::IsEqual(FNetSerializationContext& Context, const FNetIsEqualArgs& Args)
+{
+	using namespace Private;
+
+	if (Args.bStateIsQuantized)
+	{
+		const QuantizedType& Value0 = *reinterpret_cast<const QuantizedType*>(Args.Source0);
+		const QuantizedType& Value1 = *reinterpret_cast<const QuantizedType*>(Args.Source1);
+
+		// Bits will cancel out when values are equal.
+		const bool bIsEqual = ((Value0.bIsString ^ Value1.bIsString) | (Value0.ENameOrNumber ^ Value1.ENameOrNumber)) == 0;
+		if (!bIsEqual)
+		{
+			return false;
+		}
+
+		// Need to compare actual FNames to properly compare non-auth and auth token
+		if (Value0.bIsString)
+		{
+			if (Value0.NetToken.IsAssignedByAuthority() != Value1.NetToken.IsAssignedByAuthority())
+			{
+				const FName Name0 = FNameAsNetTokenNetSerializer::ResolveNetToken(Context, Value0.NetToken);
+				const FName Name1 = FNameAsNetTokenNetSerializer::ResolveNetToken(Context, Value1.NetToken);
+				
+				if (Name0 != Name1)
+				{
+					return false;
+				}
+			}
+			else if (Value0.NetToken != Value1.NetToken)
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+	else
+	{
+		const SourceType& Value0 = *reinterpret_cast<const SourceType*>(Args.Source0);
+		const SourceType& Value1 = *reinterpret_cast<const SourceType*>(Args.Source1);
+		const bool bIsEqual = (Value0 == Value1);
+		return bIsEqual;
+	}
+}
+
+bool FNameAsNetTokenNetSerializer::Validate(FNetSerializationContext& Context, const FNetValidateArgs& Args)
+{
+	const SourceType& Value = *reinterpret_cast<const SourceType*>(Args.Source);
+	const bool bIsValid = Value.IsValid();
+	return bIsValid;
 }
 
 }

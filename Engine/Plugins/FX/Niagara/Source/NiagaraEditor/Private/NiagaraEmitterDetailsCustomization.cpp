@@ -53,9 +53,15 @@ void CustomizeEmitterData(IDetailLayoutBuilder& InDetailLayout, UNiagaraEmitter*
 				FPropertyChangedEvent ChangeEvent(Property);
 				VersionedNiagaraEmitter.Emitter->PostEditChangeVersionedProperty(ChangeEvent, VersionedNiagaraEmitter.Version);
 			};
+			const auto& PreEditChangeLambda = [VersionedNiagaraEmitter, Property]
+			{
+				VersionedNiagaraEmitter.Emitter->PreEditChange(Property);
+			};
 
 			PropertyRow->GetPropertyHandle()->SetOnChildPropertyValueChanged(FSimpleDelegate::CreateLambda(PostEditChangeLambda));
 			PropertyRow->GetPropertyHandle()->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda(PostEditChangeLambda));
+			PropertyRow->GetPropertyHandle()->SetOnPropertyValuePreChange(FSimpleDelegate::CreateLambda(PreEditChangeLambda));
+			PropertyRow->GetPropertyHandle()->SetOnChildPropertyValuePreChange(FSimpleDelegate::CreateLambda(PreEditChangeLambda));
 		}
 	}
 

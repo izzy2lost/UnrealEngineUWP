@@ -10,6 +10,13 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "SViewportToolBar.h"
 #include "IPreviewProfileController.h"
+#include "Templates/SharedPointer.h"
+#include "UObject/Object.h"
+#include "UObject/ObjectMacros.h"
+
+#include "SCommonEditorViewportToolbarBase.generated.h"
+
+class SComboButton;
 
 // This is the interface that the host of a SCommonEditorViewportToolbarBase must implement
 class ICommonEditorViewportToolbarInfoProvider
@@ -33,18 +40,21 @@ namespace CommonEditorViewportUtils
 		TSharedPtr<FUICommandInfo> ShowMenuItem;
 		FText LabelOverride;
 
+		UE_DEPRECATED(5.5, "Use the version of the show flags builder in FShowFlagMenuCommands")
 		FShowMenuCommand(TSharedPtr<FUICommandInfo> InShowMenuItem, const FText& InLabelOverride)
 			: ShowMenuItem(InShowMenuItem)
 			, LabelOverride(InLabelOverride)
 		{
 		}
 
+		UE_DEPRECATED(5.5, "Use the version of the show flags builder in FShowFlagMenuCommands")
 		FShowMenuCommand(TSharedPtr<FUICommandInfo> InShowMenuItem)
 			: ShowMenuItem(InShowMenuItem)
 		{
 		}
 	};
 
+	UE_DEPRECATED(5.5, "Use the version of the show flags builder in FShowFlagMenuCommands::BuildShowFlagsMenu which takes a UToolMenu instead")
 	static inline void FillShowMenu(class FMenuBuilder& MenuBuilder, TArray<FShowMenuCommand> MenuCommands, int32 EntryOffset)
 	{
 		// Generate entries for the standard show flags
@@ -59,6 +69,59 @@ namespace CommonEditorViewportUtils
 		}
 	}
 }
+
+UCLASS()
+class UNREALED_API UCommonViewportToolbarBaseMenuContext : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	TWeakPtr<const class SCommonEditorViewportToolbarBase> ToolbarWidget;
+};
+
+class UNREALED_API SPreviewSceneProfileSelector : public SCompoundWidget
+{
+public:
+	virtual ~SPreviewSceneProfileSelector() override
+	{
+	}
+
+	SLATE_BEGIN_ARGS(SPreviewSceneProfileSelector)
+	{}
+	SLATE_ARGUMENT(TSharedPtr<IPreviewProfileController>, PreviewProfileController)
+	SLATE_END_ARGS()
+	
+	void Construct(const FArguments& InArgs);
+
+protected:
+	UE_DEPRECATED(5.5, "Unused")
+	void UpdateAssetViewerProfileList()
+	{
+	}
+
+	UE_DEPRECATED(5.5, "Unused")
+	void UpdateAssetViewerProfileSelection()
+	{
+	}
+
+	UE_DEPRECATED(5.5, "Unused")
+	void OnSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type /*SelectInfo*/)
+	{
+	}
+
+	/** Creates and returns the asset viewer profile combo box.*/
+	TSharedRef<SWidget> MakeAssetViewerProfileComboBox();
+
+private:
+	/** Interface to set/get/list the preview profiles. */
+	TSharedPtr<IPreviewProfileController> PreviewProfileController;
+
+	/** Displays/Selects the active advanced viewer profile. */
+	TSharedPtr<SComboButton> AssetViewerProfileComboButton;
+
+	/** Builds the drop-down list for selecting a viewer profile. */
+	TSharedRef<SWidget> BuildComboMenu();
+};
 
 /**
  * A viewport toolbar widget for an asset or level editor that is placed in a viewport
@@ -75,7 +138,7 @@ public:
 		SLATE_ARGUMENT(TSharedPtr<IPreviewProfileController>, PreviewProfileController) // Should be null if the Preview doesn't require profile.
 	SLATE_END_ARGS()
 
-	UNREALED_API virtual ~SCommonEditorViewportToolbarBase();
+	UNREALED_API virtual ~SCommonEditorViewportToolbarBase(){};
 
 	UNREALED_API void Construct(const FArguments& InArgs, TSharedPtr<class ICommonEditorViewportToolbarInfoProvider> InInfoProvider);
 
@@ -89,14 +152,6 @@ private:
 	 * @return	Label to use for this menu label
 	 */
 	UNREALED_API FText GetCameraMenuLabel() const;
-
-
-	/**
-	 * Returns the label for the "View" tool bar menu, which changes depending on viewport show flags
-	 *
-	 * @return	Label to use for this menu label
-	 */
-	UNREALED_API FText GetViewMenuLabel() const;
 
 	/**
 	 * Generates the toolbar options menu content 
@@ -140,18 +195,8 @@ private:
 	 */
 	UNREALED_API TSharedRef<SWidget> GenerateViewModeOptionsMenu() const;
 
-	/**
-	 * @return The widget containing the perspective only FOV window.
-	 */
-	UNREALED_API TSharedRef<SWidget> GenerateFOVMenu() const;
-
 	/** Called by the FOV slider in the perspective viewport to get the FOV value */
 	UNREALED_API float OnGetFOVValue() const;
-
-	/**
-	 * @return The widget containing the far view plane slider.
-	 */
-	UNREALED_API TSharedRef<SWidget> GenerateFarViewPlaneMenu() const;
 
 	/** Called by the far view plane slider in the perspective viewport to get the far view plane value */
 	UNREALED_API float OnGetFarViewPlaneValue() const;
@@ -165,6 +210,15 @@ private:
 	UNREALED_API EVisibility GetRealtimeWarningVisibility() const;
 
 protected:
+	/**
+	 * @return The widget containing the perspective only FOV window.
+	 */
+	UNREALED_API TSharedRef<SWidget> GenerateFOVMenu() const;
+	/**
+	 * @return The widget containing the far view plane slider.
+	 */
+	UNREALED_API TSharedRef<SWidget> GenerateFarViewPlaneMenu() const;
+
 	// Merges the extender list from the host with the specified extender and returns the results
 	UNREALED_API TSharedPtr<FExtender> GetCombinedExtenderList(TSharedRef<FExtender> MenuExtender) const;
 
@@ -179,14 +233,14 @@ protected:
 	/** Extension allowing derived classes to add to left-aligned portion of the toolbar slots.*/
 	virtual void ExtendLeftAlignedToolbarSlots(TSharedPtr<SHorizontalBox> MainBoxPtr, TSharedPtr<SViewportToolBar> ParentToolBarPtr) const {}
 
-protected:
+	UNREALED_API virtual void FillShowFlagsMenu(class UToolMenu* InMenu) const;
+
 	// Returns the info provider for this viewport
 	UNREALED_API ICommonEditorViewportToolbarInfoProvider& GetInfoProvider() const;
 
 	// Get the viewport client
 	UNREALED_API class FEditorViewportClient& GetViewportClient() const;
 
-protected:
 	// Creates the view menu widget (override point for children)
 	UNREALED_API virtual TSharedRef<class SEditorViewportViewMenu> MakeViewMenu();
 
@@ -203,27 +257,8 @@ protected:
 	/** Called when the ScreenPercentage slider is adjusted in the viewport */
 	UNREALED_API void OnScreenPercentageValueChanged(int32 NewValue);
 
-	/** Update the list of asset viewer profiles displayed by the combo box. */
-	UNREALED_API void UpdateAssetViewerProfileList();
-	UNREALED_API void UpdateAssetViewerProfileSelection();
-
-	/** Invoked when the asset viewer profile combo box selection changes. */
-	UNREALED_API void OnAssetViewerProfileComboBoxSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type /*SelectInfo*/);
-
-	/** Creates and returns the asset viewr profile combo box.*/
-	UNREALED_API TSharedRef<SWidget> MakeAssetViewerProfileComboBox();
-
 private:
 	/** The viewport that we are in */
 	TWeakPtr<class ICommonEditorViewportToolbarInfoProvider> InfoProviderPtr;
-
-	/** Interface to set/get/list the preview profiles. */
-	TSharedPtr<IPreviewProfileController> PreviewProfileController;
-
-	/** List of advanced preview profiles to fill up the Profiles combo box. */
-	TArray<TSharedPtr<FString>> AssetViewerProfileNames;
-
-	/** Displays/Selects the active advanced viewer profile. */
-	TSharedPtr<STextComboBox> AssetViewerProfileComboBox;
 };
 

@@ -83,7 +83,7 @@ namespace UE::ConcertSyncCore
 	template <TIsObjectProcessorConcept TRealProcessorImpl>
 	void TObjectProcessorProxy_Frequency<TRealProcessorImpl>::ProcessObject(const FObjectReplicationProcessor::FObjectProcessArgs& Args)
 	{
-		const FConcertReplicatedObjectId& Object = Args.ObjectInfo;
+		const FConcertReplicatedObjectId& Object = Args.ObjectInfo.ObjectId;
 		const FConcertObjectReplicationSettings FrequencySettings = GetObjectFrequencySettingsDelegate.Execute(Object);
 
 		// Throttle calls to the real ProcessObject implementation based on the object's frequency settings

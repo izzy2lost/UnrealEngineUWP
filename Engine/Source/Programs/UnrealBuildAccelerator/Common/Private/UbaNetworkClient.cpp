@@ -11,7 +11,7 @@
 namespace uba
 {
 	NetworkClient::NetworkClient(bool& outCtorSuccess, const NetworkClientCreateInfo& info, const tchar* name)
-	: WorkManagerImpl(GetLogicalProcessorCount())
+	: WorkManagerImpl(info.workerCount == 0 ? GetLogicalProcessorCount() : info.workerCount)
 	,	m_logWriter(info.logWriter)
 	,	m_logger(info.logWriter, SetGetPrefix(name))
 	,	m_isConnected(true)
@@ -183,9 +183,9 @@ namespace uba
 		SCOPED_WRITE_LOCK(m_onConnectedFunctionsLock, lock);
 		for (auto& f : m_onConnectedFunctions)
 			f();
+		m_isConnected.Set();
 		lock.Leave();
 
-		m_isConnected.Set();
 		return true;
 	}
 
@@ -195,7 +195,7 @@ namespace uba
 	void NetworkClient::DisconnectCallback(void* context, const Guid& connectionUid, void* connection)
 	{
 		auto& c = *(Connection*)context;
-		c.owner.OnDisconnected(c);
+		c.owner.OnDisconnected(c, 1);
 		c.disconnectedEvent.Set();
 	}
 
@@ -209,10 +209,11 @@ namespace uba
 		connection->backendConnection = backendConnection;
 		connection->connected = 1;
 		connection->backend = &backend;
-		{
-			SCOPED_WRITE_LOCK(m_connectionsItLock, l);
-			m_connectionsIt = m_connections.begin();
-		}
+
+		SCOPED_WRITE_LOCK(m_connectionsItLock, l); // Take this lock to make sure callbacks are set before connection is used
+		m_connectionsIt = --m_connections.end();
+
+		m_logger.Detail(TC("Connected to server... (0x%p)"), backendConnection);
 		lock.Leave();
 
 		backend.SetDisconnectCallback(backendConnection, connection, DisconnectCallback);
@@ -241,7 +242,7 @@ namespace uba
 
 		if (messageSize == ErrorSize)
 		{
-			msg->m_error = true;
+			msg->m_error = 1;
 			msg->Done();
 			return true;
 		}
@@ -271,7 +272,7 @@ namespace uba
 	{
 		auto& msg = *(NetworkMessage*)bodyContext;
 		if (recvError)
-			msg.m_error = true;
+			msg.m_error = 2;
 		msg.Done();
 		return true;
 	}
@@ -283,7 +284,7 @@ namespace uba
 			SCOPED_READ_LOCK(m_connectionsLock, lock);
 			for (auto& c : m_connections)
 			{
-				OnDisconnected(c);
+				OnDisconnected(c, 0);
 				c.disconnectedEvent.IsSet(~0u);
 			}
 		}
@@ -291,14 +292,15 @@ namespace uba
 		{
 			SCOPED_WRITE_LOCK(m_connectionsLock, lock2);
 			m_connections.clear();
+			m_connectionsIt = m_connections.end();
 		}
 
 		FlushWork();
 	}
 
-	bool NetworkClient::StartListen(NetworkBackend& backend, u16 port)
+	bool NetworkClient::StartListen(NetworkBackend& backend, u16 port, const tchar* ip)
 	{
-		backend.StartListen(m_logger, port, nullptr, [&](void* connection, const sockaddr& remoteSockAddr)
+		backend.StartListen(m_logger, port, ip, [&](void* connection, const sockaddr& remoteSockAddr)
 			{
 				return AddConnection(backend, connection, nullptr);
 			});
@@ -318,6 +320,7 @@ namespace uba
 	{
 		StackBinaryWriter<64> writer;
 		NetworkMessage msg(*this, SystemServiceId, SystemMessageType_KeepAlive, writer);
+		writer.WriteByte(0); // Need to have a body
 		return msg.Send();
 	}
 
@@ -356,7 +359,7 @@ namespace uba
 	{
 		SCOPED_WRITE_LOCK(m_onConnectedFunctionsLock, lock);
 		m_onConnectedFunctions.push_back(function);
-		if (m_connectionCount.load() == 0)
+		if (!m_isConnected.IsSet(0))
 			return;
 		lock.Leave();
 		function();
@@ -403,11 +406,11 @@ namespace uba
 		return m_connections.front().backend;
 	}
 
-	void NetworkClient::OnDisconnected(Connection& connection)
+	void NetworkClient::OnDisconnected(Connection& connection, u32 reason)
 	{
 		if (connection.connected.exchange(0) == 1)
 		{
-			m_logger.Detail(TC("Disconnected from server..."));
+			m_logger.Detail(TC("Disconnected from server... (0x%p) (%u)"), connection.backendConnection, reason);
 
 			connection.backend->Shutdown(connection.backendConnection);
 
@@ -420,16 +423,14 @@ namespace uba
 			}
 		}
 
-		u16 messageId = 0;
 		SCOPED_WRITE_LOCK(m_activeMessagesLock, lock);
 		for (auto m : m_activeMessages)
 		{
 			if (m && m->m_connection == &connection)
 			{
-				m->m_error = true;
+				m->m_error = 3;
 				m->Done(false);
 			}
-			++messageId;
 		}
 	}
 
@@ -438,7 +439,15 @@ namespace uba
 		SCOPED_READ_LOCK(m_connectionsLock, connectionLock);
 		SCOPED_WRITE_LOCK(m_connectionsItLock, connectionItLock);
 		if (m_connectionsIt == m_connections.end())
+		{
+			if (m_isDisconnecting)
+				message.m_error = 11;
+			else if (!m_connections.empty())
+				message.m_error = 12; // should never happen
+			else
+				message.m_error = 6;
 			return false;
+		}
 
 		Connection& connection = *m_connectionsIt;
 		++m_connectionsIt;
@@ -454,17 +463,32 @@ namespace uba
 		BinaryWriter& writer = *message.m_sendWriter;
 
 		u16 messageId = 0;
-		Event gotResponse(true);
+		Event gotResponse;
+
 
 		if (response)
 		{
+			if (!async)
+			{
+				if (!gotResponse.Create(true))
+				{
+					m_logger.Error(TC("Failed to create event, this should not happen?!?"));
+					message.m_error = 13;
+					OnDisconnected(connection, 13);
+					return false;
+				}
+			}
+
 			while (true)
 			{
 				SCOPED_WRITE_LOCK(m_activeMessagesLock, lock);
 				if (m_availableMessageIds.empty())
 				{
 					if (!connection.connected)
+					{
+						message.m_error = 7;
 						return false;
+					}
 
 					if (m_activeMessageIdMax == 65534)
 					{
@@ -504,7 +528,9 @@ namespace uba
 		u32 sendSize = u32(writer.GetPosition());
 		u8* data = writer.GetData();
 		data[1] = messageId >> 8;
-		*(u32*)(data + 2) = (sendSize - 6) | u32(messageId) << 24;
+		u32 dataSize = sendSize - 6;
+		UBA_ASSERTF(dataSize, TC("NetworkMessage must have data size of at least 1."));
+		*(u32*)(data + 2) = dataSize | u32(messageId) << 24;
 
 		//m_logger.Debug(TC("Send: %u, %u, %u, %u"), data[0], data[1], data[2], sendSize - 7);
 
@@ -514,7 +540,8 @@ namespace uba
 			TimerScope ts(m_encryptTimer);
 			if (!Crypto::Encrypt(m_logger, m_cryptoKey, data + SendHeaderSize, bodySize))
 			{
-				OnDisconnected(connection);
+				message.m_error = 8;
+				OnDisconnected(connection, 8);
 				return false;
 			}
 		}
@@ -526,7 +553,8 @@ namespace uba
 			TimerScope ts(m_sendTimer);
 			if (!connection.backend->Send(m_logger, connection.backendConnection, data, sendSize, message.m_sendContext))
 			{
-				OnDisconnected(connection);
+				message.m_error = 9;
+				OnDisconnected(connection, 9);
 				return false;
 			}
 		}
@@ -536,17 +564,18 @@ namespace uba
 
 		if (response)
 		{
+			u64 waitStart = GetTime();
 			u32 timeoutMs = 10 * 60 * 1000;
 			if (!gotResponse.IsSet(timeoutMs))
 			{
-				m_logger.Error(TC("Timed out after 10 minutes waiting for message response from server."));
-				message.m_error = true;
+				m_logger.Error(TC("Timed out after %s waiting for message response from server."), TimeToText(GetTime() - waitStart, true).str);
+				message.m_error = 4;
 			}
 			else if (m_cryptoKey && !message.m_error && message.m_responseSize)
 			{
 				TimerScope ts(m_decryptTimer);
 				if (!Crypto::Decrypt(m_logger, m_cryptoKey, (u8*)message.m_response, message.m_responseSize))
-					message.m_error = true;
+					message.m_error = 5;
 			}
 		}
 		return !message.m_error;
@@ -632,7 +661,10 @@ namespace uba
 			UBA_ASSERT(!response.GetPosition());
 			TimerScope ts(m_client->m_decryptTimer);
 			if (!Crypto::Decrypt(m_client->m_logger, m_client->m_cryptoKey, (u8*)m_response, m_responseSize))
+			{
+				m_error = 10;
 				return false;
+			}
 		}
 		response.SetSize(response.GetPosition() + m_responseSize);
 		return true;
@@ -662,6 +694,6 @@ namespace uba
 			returnId();
 		}
 		if (hasId)
-			m_doneFunc(m_error, m_doneUserData);
+			m_doneFunc(m_error != 0, m_doneUserData);
 	}
 }

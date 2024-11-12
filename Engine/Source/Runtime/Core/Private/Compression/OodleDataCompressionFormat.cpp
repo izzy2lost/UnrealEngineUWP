@@ -202,13 +202,18 @@ struct FOodleDataCompressionFormat : ICompressionFormat
 		return FString::Printf(TEXT("C_%s_CL_%s_%s"), *GetCompressorString(), *GetCompressionLevelString(), OODLE_DERIVEDDATA_VER);
 	}
 
-	virtual bool Compress(void* OutCompressedBuffer, int32& OutCompressedSize, const void* InUncompressedBuffer, int32 InUncompressedSize, int32 InCompressionData, ECompressionFlags Flags) override
+	virtual bool Compress(void* OutCompressedBuffer, int64& OutCompressedSize, const void* InUncompressedBuffer, int64 InUncompressedSize, uintptr_t InCompressionData, ECompressionFlags Flags) override
 	{
 		// OutCompressedSize is read-write
-		int32 CompressedBufferSize = OutCompressedSize;
+		int64 CompressedBufferSize = OutCompressedSize;
 
 		// CompressedSize should be >= GetCompressedBufferSize(UncompressedSize, CompressionData)
-		check(CompressedBufferSize >= GetCompressedBufferSize(InUncompressedSize, InCompressionData));
+		int64 CheckCompressedBufferSize;
+		if (!GetCompressedBufferSize(CheckCompressedBufferSize, InUncompressedSize, InCompressionData))
+		{
+			return false;
+		}
+		check(CompressedBufferSize >= CheckCompressedBufferSize);
 
 		if ( Flags & COMPRESS_ForPackaging )
 		{
@@ -232,7 +237,7 @@ struct FOodleDataCompressionFormat : ICompressionFormat
 				{
 					// verify we can decode data made with DLL-enocder using the current decoder :
 
-					int32 DecodeSpaceSize = InUncompressedSize + 16; // FuzzSafe_Yes so shouldn't need big padding even on Oodle v5
+					int64 DecodeSpaceSize = InUncompressedSize + 16; // FuzzSafe_Yes so shouldn't need big padding even on Oodle v5
 					void * DecodeSpace = FMemory::Malloc(DecodeSpaceSize);
 					check( DecodeSpace != nullptr );
 
@@ -261,7 +266,7 @@ struct FOodleDataCompressionFormat : ICompressionFormat
 			}
 			else
 			{
-				OutCompressedSize = (int32) Result;
+				OutCompressedSize = Result;
 				return true;
 			}
 		}
@@ -291,32 +296,31 @@ struct FOodleDataCompressionFormat : ICompressionFormat
 			}
 			else
 			{
-				OutCompressedSize = (int32) Result;
+				OutCompressedSize = Result;
 				return true;
 			}
 		}
 	
 	}
 
-	virtual bool Uncompress(void* OutUncompressedBuffer, int32& OutUncompressedSize, const void* InCompressedBuffer, int32 InCompressedSize, int32 CompressionData) override
+	virtual bool Uncompress(void* OutUncompressedBuffer, int64 UncompressedSize, const void* InCompressedBuffer, int64 InCompressedSize, uintptr_t CompressionData) override
 	{
-		// OutUncompressedSize is read-write
 		return FOodleDataCompression::Decompress(
-			OutUncompressedBuffer, OutUncompressedSize,
+			OutUncompressedBuffer, UncompressedSize,
 			InCompressedBuffer,InCompressedSize);
 	}
 
-	virtual int32 GetCompressedBufferSize(int32 UncompressedSize, int32 CompressionData) override
+	virtual bool GetCompressedBufferSize(int64& OutBufferNeeded, int64 UncompressedSize, uintptr_t CompressionData) override
 	{
 		// CompressionData is not used
-		int32 Needed = (int32)OodleLZ_GetCompressedBufferSizeNeeded(Compressor, UncompressedSize);
+		int64 Needed = OodleLZ_GetCompressedBufferSizeNeeded(Compressor, UncompressedSize);
 
 		if ( OodleLZCompressFuncPtr != nullptr )
 		{
 			// older versions of Oodle needed larger padding
 			// old rule was 274 per 256KB :
 
-			int32 NumSeekChunks = (UncompressedSize + OODLELZ_BLOCK_LEN-1)/OODLELZ_BLOCK_LEN;
+			int64 NumSeekChunks = (UncompressedSize + OODLELZ_BLOCK_LEN-1)/OODLELZ_BLOCK_LEN;
 
 			Needed += 274*NumSeekChunks;
 
@@ -325,7 +329,8 @@ struct FOodleDataCompressionFormat : ICompressionFormat
 			//	so you'd need to know what version to use
 		}
 
-		return Needed;
+		OutBufferNeeded = Needed;
+		return true;
 	}
 };
 
@@ -334,7 +339,7 @@ extern ICompressionFormat * CreateOodleDataCompressionFormat();
 ICompressionFormat * CreateOodleDataCompressionFormat()
 {
 	// set up Oodle for packaging by parsing the command line options
-	// this is now down on first use of a pluggable ICompressionFormat
+	// this is now done on first use of a pluggable ICompressionFormat
 
 
 	// settings to use in non-tools context (eg. runtime game encoding) :
@@ -459,19 +464,17 @@ ICompressionFormat * CreateOodleDataCompressionFormat()
 
 			// NOTE : we get OodleCompressDLL from Engine.ini for the platform we are running *on* not the platform we are packaging *for*
 			// the ProjectPackaging settings we get on the command line from Game.ini come from the *target* platform
-			FString OodleDLL = "";
+			FString OodleDLL = TEXT("");
 
-			// check command line first : 
+			// do NOT read OodleCompressDLL from GConfig here; it is passed on command line from CopyBuildToStagingDirectory.Automation.cs : 
 			FParse::Value(FCommandLine::Get(), TEXT("OodleCompressDLL="), OodleDLL);
-
-			if ( OodleDLL.IsEmpty() && GConfig )
+			
+			if ( OodleDLL.Equals( TEXT("latest"), ESearchCase::IgnoreCase) )
 			{
-				// @todo Oodle : possibly remove this? unnecessary if it's always been put on command line
-				// UnrealPak and other "programs" do not read the project config hierarchy
-				// CopyBuildToStagingDirectory.Automation.cs reads this config value and passes it on the command line
-				GConfig->GetString(TEXT("OodleDataCompressionFormat"), TEXT("OodleCompressDLL"), OodleDLL, GEngineIni);
+				// allow use of "latest" as a synonym for not passing any OodleCompressDLL arg
+				OodleDLL = TEXT("");
 			}
-		
+			
 			if ( ! OodleDLL.IsEmpty() )
 			{
 				UE_LOG(OodleDataCompression, Display, TEXT("OodleCompressDLL=%s"), *OodleDLL);

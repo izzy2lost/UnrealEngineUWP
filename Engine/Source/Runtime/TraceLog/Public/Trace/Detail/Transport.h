@@ -42,6 +42,7 @@ struct FTidPacketBase
 	{
 		EncodedMarker = 0x8000,
 		PartialMarker = 0x4000, // now unused. fragmented aux-data has an event header
+		Verification  = 0x4000, // when set the packet data is immediately followed by 64-bit verification value, see UE_TRACE_PACKET_VERIFICATION
 		ThreadIdMask  = PartialMarker - 1,
 	};
 

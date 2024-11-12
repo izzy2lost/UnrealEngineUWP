@@ -12,7 +12,7 @@ SIZE_T RemoteControlTypeUtilities::GetPropertySize(const FProperty* InProperty, 
 {
 	check(InProperty);
 
-	const int32 ElementSize = InProperty->ElementSize;
+	const int32 ElementSize = InProperty->GetElementSize();
 	if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(InProperty))
 	{
 		return FScriptArrayHelper(ArrayProperty, InData).Num() * ElementSize;

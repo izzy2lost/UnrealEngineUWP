@@ -5,6 +5,8 @@
 #include "Engine/NetDriver.h"
 #include "Engine/NetSerialization.h"
 #include "Net/Serialization/FastArraySerializer.h"
+#include "UObject/ObjectKey.h"
+#include "Templates/TypeCompatibleBytes.h"
 #include "GameplayPrediction.generated.h"
 
 class UAbilitySystemComponent;
@@ -355,18 +357,23 @@ struct GAMEPLAYABILITIES_API FPredictionKey
 	/** Was this PredictionKey received from a NetSerialize or created locally? */
 	bool WasReceived() const
 	{
-		return PredictiveConnectionKey != 0;
+		return PredictiveConnectionObjectKey != FObjectKey();
 	}
 
 	bool WasLocallyGenerated() const
 	{
-		return (Current > 0) && (PredictiveConnectionKey == 0);
+		return (Current > 0) && (PredictiveConnectionObjectKey == FObjectKey());
 	}
 
 	bool operator==(const FPredictionKey& Other) const
 	{
 		// we're omitting Base here because it's not replicated
 		return Current == Other.Current && bIsServerInitiated == Other.bIsServerInitiated;
+	}
+
+	bool operator!=(const FPredictionKey& Other) const
+	{
+		return !(*this == Other);
 	}
 
 	FString ToString() const
@@ -380,7 +387,7 @@ struct GAMEPLAYABILITIES_API FPredictionKey
 		return ((InKey.Current << 1) | (InKey.bIsServerInitiated & 1));
 	}
 
-	UPTRINT GetPredictiveConnectionKey() const { return PredictiveConnectionKey; }
+	uint64 GetPredictiveConnectionKey() const { return BitCast<uint64>(PredictiveConnectionObjectKey); }
 
 private:
 	friend UE::Net::FPredictionKeyNetSerializer;
@@ -394,7 +401,7 @@ private:
 	}
 
 	/** On the server, uniquely identifies network connection this was serialized on/from.  See NetSerialize for additional information. */
-	UPTRINT PredictiveConnectionKey = 0;
+	FObjectKey PredictiveConnectionObjectKey;
 };
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
@@ -485,6 +492,49 @@ private:
 	TWeakObjectPtr<UNetDriver> DebugSavedNetDriver;
 	TOptional<FPredictionKey::KeyType> DebugBaseKeyOfChain;
 #endif
+};
+
+/**
+ * Possible results when evaluating how to deal with an FPredictionKey
+ */
+enum class EGasPredictionKeyResult : uint8
+{
+	// Silently drop the key (don't acknowledge it at all)
+	SilentlyDrop,
+
+	// Accept the key (e.g. server acknowledges the event happened)
+	Accept,
+
+	// Reject the key (e.g. server says the event never happened)
+	Reject
+};
+
+/**
+ * Discard the predictions that occur within this window.
+ * This is useful in a case where you don't intend to send a chain of generated events (FPredictionKeys) to the server.
+ * For example, we use this in a case where we want to play a Montage locally, and we notify the server unreliably (i.e. it is an optional event).
+ * Note: Nothing stops something within this scope from creating a valid key, then sending that valid key to the server.  This is meant for generated keys that aren't already going to be sent.
+ */
+struct GAMEPLAYABILITIES_API FScopedDiscardPredictions
+{
+	// Pass in the AbilitySystemComponent to discard predictions on.  Optionally, if we want to do something other than just Drop the prediction events you can override that.
+	explicit FScopedDiscardPredictions(UAbilitySystemComponent* AbilitySystemComponent, EGasPredictionKeyResult HowToHandlePredictions = EGasPredictionKeyResult::SilentlyDrop);
+
+	// When the scope ends, we will perform the final drop/ack/nack of the prediction chain
+	~FScopedDiscardPredictions();
+
+private:
+	// Weak pointer to the 'Owning' ASC.  If this ends up being invalid/null we don't do anything.
+	TWeakObjectPtr<UAbilitySystemComponent> Owner;
+
+	// The key that we're going to restore on the Owner
+	FPredictionKey KeyToRestoreOnOwner;
+
+	// How we're going to handle the resulting chain of predictions
+	EGasPredictionKeyResult PredictionKeyChainResult;
+
+	// This is the key that we're going to eventually acknowledge according to PredictionKeyChainResult
+	FPredictionKey BaseKeyToAck;
 };
 
 // -----------------------------------------------------------------

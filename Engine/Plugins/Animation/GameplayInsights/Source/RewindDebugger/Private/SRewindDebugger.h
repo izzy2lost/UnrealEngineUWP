@@ -36,7 +36,7 @@ public:
 		SLATE_ARGUMENT( TArray< TSharedPtr< RewindDebugger::FRewindDebuggerTrack > >*, DebugComponents );
 		SLATE_ARGUMENT(DebugTargetInitializer, DebugTargetActor);
 		SLATE_ARGUMENT(TBindablePropertyInitializer<double>, TraceTime);
-		SLATE_ARGUMENT(TBindablePropertyInitializer<float>, RecordingDuration);
+		SLATE_ARGUMENT(TBindablePropertyInitializer<double>, RecordingDuration);
 		SLATE_ATTRIBUTE(TArrayView<RewindDebugger::FRewindDebuggerTrackType>, TrackTypes);
 		SLATE_ATTRIBUTE(double, ScrubTime);
 		SLATE_ATTRIBUTE(bool, IsPIESimulating);
@@ -89,7 +89,7 @@ private:
 	FOnViewRangeChanged OnViewRangeChanged;
 	TRange<double> ViewRange;
 	TBindableProperty<double> TraceTime;
-	TBindableProperty<float> RecordingDuration;
+	TBindableProperty<double> RecordingDuration;
 
 	TSharedPtr<FUICommandList> CommandList;
 	const FRewindDebuggerCommands & Commands;

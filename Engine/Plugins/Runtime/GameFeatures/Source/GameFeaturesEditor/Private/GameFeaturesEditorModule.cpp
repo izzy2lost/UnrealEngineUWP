@@ -8,153 +8,23 @@
 
 #include "GameFeaturesSubsystem.h"
 #include "Interfaces/IPluginManager.h"
-#include "AssetRegistry/AssetRegistryModule.h"
-#include "AssetToolsModule.h"
-#include "IAssetTools.h"
-#include "Subsystems/AssetEditorSubsystem.h"
+#include "Features/IPluginsEditorFeature.h"
 #include "GameFeatureDataDetailsCustomization.h"
 #include "GameFeaturesEditorSettings.h"
 #include "GameFeaturesSubsystemSettings.h"
 #include "GameFeaturePluginMetadataCustomization.h"
+#include "GameFeaturePluginTemplate.h"
 #include "Logging/MessageLog.h"
-#include "Misc/Paths.h"
+#include "Misc/App.h"
+#include "Modules/ModuleManager.h"
 #include "SSettingsEditorCheckoutNotice.h"
 #include "Engine/AssetManagerSettings.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Engine/AssetManager.h"
-#include "HAL/FileManager.h"
-#include "Editor.h"
-#include "Dom/JsonValue.h"
 #include "PropertyEditorModule.h"
 
 #define LOCTEXT_NAMESPACE "GameFeatures"
-
-//////////////////////////////////////////////////////////////////////
-
-struct FGameFeaturePluginTemplateDescription : public FPluginTemplateDescription
-{
-	FGameFeaturePluginTemplateDescription(FText InName, FText InDescription, FString InOnDiskPath, FString InDefaultSubfolder
-		, TSubclassOf<UGameFeatureData> GameFeatureDataClassOverride, FString GameFeatureDataNameOverride, EPluginEnabledByDefault InEnabledByDefault)
-		: FPluginTemplateDescription(InName, InDescription, InOnDiskPath, /*bCanContainContent=*/ true, EHostType::Runtime)
-	{
-		SortPriority = 10;
-		bCanBePlacedInEngine = false;
-		DefaultSubfolder = InDefaultSubfolder;
-		GameFeatureDataName = !GameFeatureDataNameOverride.IsEmpty() ? GameFeatureDataNameOverride : FString();
-		GameFeatureDataClass = GameFeatureDataClassOverride != nullptr ? GameFeatureDataClassOverride : TSubclassOf<UGameFeatureData>(UGameFeatureData::StaticClass());
-		PluginEnabledByDefault = InEnabledByDefault;
-	}
-
-	virtual bool ValidatePathForPlugin(const FString& ProposedAbsolutePluginPath, FText& OutErrorMessage) override
-	{
-		if (!IsRootedInGameFeaturesRoot(ProposedAbsolutePluginPath))
-		{
-			OutErrorMessage = LOCTEXT("InvalidPathForGameFeaturePlugin", "Game features must be inside the Plugins/GameFeatures folder");
-			return false;
-		}
-
-		OutErrorMessage = FText::GetEmpty();
-		return true;
-	}
-
-	virtual void UpdatePathWhenTemplateSelected(FString& InOutPath) override
-	{
-		if (!IsRootedInGameFeaturesRoot(InOutPath))
-		{
-			InOutPath = GetGameFeatureRoot();
-		}
-	}
-
-	virtual void UpdatePathWhenTemplateUnselected(FString& InOutPath) override
-	{
-		InOutPath = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*FPaths::ProjectPluginsDir());
-		FPaths::MakePlatformFilename(InOutPath);
-	}
-
-	virtual void CustomizeDescriptorBeforeCreation(FPluginDescriptor& Descriptor) override
-	{
-		Descriptor.bExplicitlyLoaded = true;
-		Descriptor.AdditionalFieldsToWrite.FindOrAdd(TEXT("BuiltInInitialFeatureState")) = MakeShared<FJsonValueString>(TEXT("Active"));
-		Descriptor.Category = TEXT("Game Features");
-
-		// Game features should not be enabled by default if the game wants to strictly manage default settings in the target settings
-		Descriptor.EnabledByDefault = PluginEnabledByDefault;
-
-		if (Descriptor.Modules.Num() > 0)
-		{
-			Descriptor.Modules[0].Name = FName(*(Descriptor.Modules[0].Name.ToString() + TEXT("Runtime")));
-		}
-	}
-
-	virtual void OnPluginCreated(TSharedPtr<IPlugin> NewPlugin) override
-	{
-		// If the template includes an existing game feature data, do not create a new one.
-		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-		TArray<FAssetData> ObjectList;
-		FARFilter AssetFilter;
-		AssetFilter.ClassPaths.Add(UGameFeatureData::StaticClass()->GetClassPathName());
-		AssetFilter.PackagePaths.Add(FName(NewPlugin->GetMountedAssetPath()));
-		AssetFilter.bRecursiveClasses = true;
-		AssetFilter.bRecursivePaths = true;
-
-		AssetRegistryModule.Get().GetAssets(AssetFilter, ObjectList);
-
-		UObject* GameFeatureDataAsset = nullptr;
-
-		if (ObjectList.Num() <= 0)
-		{
-			// Create the game feature data asset
-			FAssetToolsModule& AssetToolsModule = FModuleManager::Get().LoadModuleChecked<FAssetToolsModule>("AssetTools");
-			FString const& AssetName = !GameFeatureDataName.IsEmpty() ? GameFeatureDataName : NewPlugin->GetName();
-			GameFeatureDataAsset = AssetToolsModule.Get().CreateAsset(AssetName, NewPlugin->GetMountedAssetPath(), GameFeatureDataClass, /*Factory=*/ nullptr);
-		}
-		else
-		{
-			GameFeatureDataAsset = ObjectList[0].GetAsset();
-		}
-		
-
-		// Activate the new game feature plugin
-		auto AdditionalFilter = [](const FString&, const FGameFeaturePluginDetails&, FBuiltInGameFeaturePluginBehaviorOptions&) -> bool { return true; };
-		UGameFeaturesSubsystem::Get().LoadBuiltInGameFeaturePlugin(NewPlugin.ToSharedRef(), AdditionalFilter,
-			FGameFeaturePluginLoadComplete::CreateLambda([GameFeatureDataAsset](const UE::GameFeatures::FResult&)
-			{
-				// Edit the new game feature data
-				if (GameFeatureDataAsset != nullptr)
-				{
-					GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(GameFeatureDataAsset);
-				}
-			}));
-	}
-
-	FString GetGameFeatureRoot() const
-	{
-		FString Result = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*(FPaths::ProjectPluginsDir() / TEXT("GameFeatures/")));
-
-		// Append the optional subfolder if specified.
-		if (!DefaultSubfolder.IsEmpty())
-		{
-			Result /= DefaultSubfolder + TEXT("/");
-		}
-
-		FPaths::MakePlatformFilename(Result);
-		return Result;
-	}
-
-	bool IsRootedInGameFeaturesRoot(const FString& InStr)
-	{
-		const FString ConvertedPath = FPaths::ConvertRelativePathToFull(FPaths::CreateStandardFilename(InStr / TEXT("test.uplugin")));
-		return GetDefault<UGameFeaturesSubsystemSettings>()->IsValidGameFeaturePlugin(ConvertedPath);
-	}
-
-	FString DefaultSubfolder;
-	TSubclassOf<UGameFeatureData> GameFeatureDataClass;
-	FString GameFeatureDataName;
-	EPluginEnabledByDefault PluginEnabledByDefault = EPluginEnabledByDefault::Disabled;
-};
-
-//////////////////////////////////////////////////////////////////////
 
 class FGameFeaturesEditorModule : public FDefaultModuleImpl
 {
@@ -242,6 +112,7 @@ class FGameFeaturesEditorModule : public FDefaultModuleImpl
 					PluginTemplate.Description,
 					PluginTemplate.Path.Path,
 					PluginTemplate.DefaultSubfolder,
+					PluginTemplate.DefaultPluginName,
 					PluginTemplate.DefaultGameFeatureDataClass,
 					PluginTemplate.DefaultGameFeatureDataName,
 					PluginTemplate.bIsEnabledByDefault ? EPluginEnabledByDefault::Enabled : EPluginEnabledByDefault::Disabled)));

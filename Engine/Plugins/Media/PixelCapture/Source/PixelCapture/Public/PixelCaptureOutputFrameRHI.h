@@ -24,12 +24,12 @@ public:
 		EPixelFormat Format;
 	};
 
-	FPixelCaptureOutputFrameRHI(FTexture2DRHIRef InFrameTexture)
+	FPixelCaptureOutputFrameRHI(FTextureRHIRef InFrameTexture)
 		: FrameTexture(InFrameTexture), bHasWrapperFormatData(false), WrapperData()
 	{
 	}
 
-	FPixelCaptureOutputFrameRHI(FTexture2DRHIRef InFrameTexture, WrapperFormatData InWrapperData)
+	FPixelCaptureOutputFrameRHI(FTextureRHIRef InFrameTexture, WrapperFormatData InWrapperData)
 		: FrameTexture(InFrameTexture), bHasWrapperFormatData(true), WrapperData(InWrapperData)
 	{
 	}
@@ -55,12 +55,12 @@ public:
 		return false;
 	}
 
-	FTexture2DRHIRef GetFrameTexture() const { return FrameTexture; }
+	FTextureRHIRef GetFrameTexture() const { return FrameTexture; }
 
-	void SetFrameTexture(FTexture2DRHIRef InFrameTexture) { FrameTexture = InFrameTexture; }
+	void SetFrameTexture(FTextureRHIRef InFrameTexture) { FrameTexture = InFrameTexture; }
 
 private:
-	FTexture2DRHIRef FrameTexture;
+	FTextureRHIRef FrameTexture;
 	bool bHasWrapperFormatData;
 	WrapperFormatData WrapperData;
 };

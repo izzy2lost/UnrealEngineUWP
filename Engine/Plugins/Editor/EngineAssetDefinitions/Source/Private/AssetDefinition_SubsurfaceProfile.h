@@ -19,7 +19,7 @@ public:
 	virtual TSoftClassPtr<UObject> GetAssetClass() const override { return USubsurfaceProfile::StaticClass(); }
 	virtual TConstArrayView<FAssetCategoryPath> GetAssetCategories() const override
     {
-    	static const auto Categories = { EAssetCategoryPaths::Material };
+    	static const auto Categories = { EAssetCategoryPaths::Material  / NSLOCTEXT("Material", "MaterialAssetSubMenu_Profiles", "Profiles") };
     	return Categories;
     }
 	// UAssetDefinition End

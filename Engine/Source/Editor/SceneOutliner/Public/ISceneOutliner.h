@@ -62,6 +62,12 @@ public:
 	virtual void AddFilterToFilterBar(const TSharedRef<FFilterBase<SceneOutliner::FilterBarType>>& InFilter) = 0;
 
 	/** 
+	 * Disable all filters currently active in the filter bar
+	 * @param bRemove if true, the filter will also be unpinned and removed from the filter bar
+	 */
+	virtual void DisableAllFilterBarFilters(bool bRemove) = 0;
+
+	/** 
 	 * Remove a filter from the scene outliner
 	 * @param Filter The Filter to remove
 	 * @return True if the filter was removed.
@@ -168,6 +174,9 @@ public:
 	/** Scrolls the outliner to the selected item(s). If more are selected, the chosen item is undeterministic. */
 	virtual void FrameSelectedItems() = 0;
 
+	/** Scrolls the outliner to the specified item if it's found. No action is done otherwise. */
+	virtual void FrameItem(const FSceneOutlinerTreeItemID& Item) = 0;
+
 	/** Get the active SceneOutlinerMode */
 	const ISceneOutlinerMode* GetMode() const { return Mode; }
 
@@ -179,6 +188,10 @@ public:
 
 	/** Retrieve an ISceneOutlinerTreeItem by its ID if it exists in the tree */
 	virtual FSceneOutlinerTreeItemPtr GetTreeItem(FSceneOutlinerTreeItemID, bool bIncludePending = false) = 0;
+
+	/** Set a delay (in seconds) before the the next requested UI refresh executes. Note: This only applies until the next refresh that executes
+	 * and any subsequent ones will be immediate. */
+	virtual void SetNextUIRefreshDelay(float InDelay) = 0;
 protected:
 	ISceneOutlinerMode* Mode;
 };

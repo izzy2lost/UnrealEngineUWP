@@ -3,10 +3,10 @@
 #include "DerivedDataBuildFunctionRegistry.h"
 
 #include "Containers/Map.h"
+#include "Containers/SharedString.h"
 #include "DerivedDataBuildFunction.h"
 #include "DerivedDataBuildFunctionFactory.h"
 #include "DerivedDataBuildPrivate.h"
-#include "DerivedDataSharedString.h"
 #include "Features/IModularFeatures.h"
 #include "HAL/CriticalSection.h"
 #include "Misc/AsciiSet.h"

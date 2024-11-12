@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 
 #include "MovieGraphCommon.generated.h"
 
@@ -44,6 +44,7 @@ enum class EMovieGraphContainerType : uint8
 {
 	None UMETA(Hidden),
 	Array,
+	Set,
 
 	Count UMETA(Hidden)
 };

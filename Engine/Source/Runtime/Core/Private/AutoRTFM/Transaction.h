@@ -5,6 +5,7 @@
 #include "HitSet.h"
 #include "IntervalTree.h"
 #include "LongJump.h"
+#include "StackRange.h"
 #include "Stats.h"
 #include "TaggedPtr.h"
 #include "TaskArray.h"
@@ -63,8 +64,11 @@ public:
 
     void DeferUntilCommit(TFunction<void()>&&);
     void DeferUntilAbort(TFunction<void()>&&);
+    void PushDeferUntilAbortHandler(const void* Key, TFunction<void()>&&);
+	bool PopDeferUntilAbortHandler(const void* Key);
+	bool PopAllDeferUntilAbortHandlers(const void* Key);
 
-    void AbortAndThrow();
+    [[noreturn]] void AbortAndThrow();
     void AbortWithoutThrowing();
     bool AttemptToCommit();
 
@@ -76,11 +80,16 @@ public:
     void DidAllocate(void* LogicalAddress, size_t Size);
     void DidFree(void* LogicalAddress);
 
+    // The stack range represents all stack memory inside the transaction scope
+    inline void SetStackRange(FStackRange Range) { StackRange = Range;} 
+    inline FStackRange GetStackRange() const { return StackRange; }
+
+    // Returns true if the LogicalAddress is within the stack of the transaction.
+    inline bool IsOnStack(const void* LogicalAddress) const;
+
 private:
     void Undo();
-    void AbortNested();
-    void AbortOuterNest();
-    
+
     void CommitNested();
     bool AttemptToCommitOuterNest();
 
@@ -88,6 +97,8 @@ private:
 
     void CollectStats() const;
     
+    bool ShouldRecordWrite(void* LogicalAddress) const;
+
     FContext* Context;
     
     // Are we nested? Then this is the parent.
@@ -105,6 +116,7 @@ private:
     FWriteLog WriteLog;
     FWriteLogBumpAllocator WriteLogBumpAllocator;
     TStatStorage<uint64_t> StatDepth = 1;
+    FStackRange StackRange;
 };
 
 } // namespace AutoRTFM

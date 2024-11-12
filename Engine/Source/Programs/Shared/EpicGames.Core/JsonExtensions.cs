@@ -19,7 +19,11 @@ namespace EpicGames.Core
 		/// <param name="reader">Token reader</param>
 		/// <param name="propertyName">Receives the property name on success</param>
 		/// <returns>True if the read succeeded</returns>
+#if NET7_0_OR_GREATER
+		public static bool TryReadNextPropertyName(scoped ref Utf8JsonReader reader, out ReadOnlySpan<byte> propertyName)
+#else
 		public static bool TryReadNextPropertyName(ref Utf8JsonReader reader, out ReadOnlySpan<byte> propertyName)
+#endif
 		{
 			if (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
 			{

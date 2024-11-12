@@ -50,5 +50,5 @@ struct FSingleAnimationPlayData
 	/** Populates this play data with the current state of the supplied instance. */
 	ENGINE_API void PopulateFrom(UAnimSingleNodeInstance* Instance);
 
-	void ValidatePosition();
+	ENGINE_API void ValidatePosition();
 };

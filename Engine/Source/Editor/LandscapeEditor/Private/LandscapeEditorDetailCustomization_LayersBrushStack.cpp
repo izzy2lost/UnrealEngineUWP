@@ -42,7 +42,10 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void FLandscapeEditorDetailCustomization_LayersBrushStack::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-	if (LandscapeEdMode && LandscapeEdMode->CurrentToolMode != nullptr)
+	if (LandscapeEdMode
+		&& LandscapeEdMode->GetLandscape()
+		&& (LandscapeEdMode->CurrentToolMode != nullptr)
+		&& (FName(LandscapeEdMode->CurrentTool->GetToolName()) != TEXT("Mask")))
 	{
 		IDetailCategoryBuilder& LayerCategory = DetailBuilder.EditCategory(FName("Edit Layer Blueprint Brushes"));
 
@@ -89,7 +92,7 @@ void FLandscapeEditorCustomNodeBuilder_LayersBrushStack::GenerateChildContent(ID
 		BrushesList->SetDropIndicator_Above(*FAppStyle::GetBrush("LandscapeEditor.TargetList.DropZone.Above"));
 		BrushesList->SetDropIndicator_Below(*FAppStyle::GetBrush("LandscapeEditor.TargetList.DropZone.Below"));
 
-		ChildrenBuilder.AddCustomRow(FText::FromString(FString(TEXT("Edit Layer Blueprint Brushes"))))
+		ChildrenBuilder.AddCustomRow(LOCTEXT("LandscapeEditLayerBlueprintBrushes", "Edit Layer Blueprint Brushes"))
 			.Visibility(EVisibility::Visible)
 			[
 				SNew(SVerticalBox)
@@ -500,7 +503,7 @@ FReply FLandscapeEditorCustomNodeBuilder_LayersBrushStack::HandleDragDetected(co
 {
 	if (FEdModeLandscape* LandscapeEdMode = GetEditorMode())
 	{
-		FLandscapeLayer* Layer = LandscapeEdMode->GetCurrentLayer();
+		const FLandscapeLayer* Layer = LandscapeEdMode->GetCurrentLayer();
 		if (Layer && !Layer->bLocked)
 		{
 			const TArray<ALandscapeBlueprintBrushBase*>& BrushStack = LandscapeEdMode->GetBrushesForCurrentLayer();

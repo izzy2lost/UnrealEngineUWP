@@ -25,6 +25,8 @@ public:
 	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override {};
 	/** ~End IPropertyTypeCustomization interface */
 
+	void AddExtractor(FName InExtractor);
+
 protected:
 	FPCGAttributePropertySelector* GetStruct();
 	const FPCGAttributePropertySelector* GetStruct() const;
@@ -41,7 +43,3 @@ protected:
 
 	TSharedPtr<IPropertyHandle> PropertyHandle;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "PCGPoint.h"
-#endif

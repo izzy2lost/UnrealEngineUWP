@@ -53,7 +53,7 @@ public class VulkanRHI : ModuleRules
 			);
 
 			// for Swappy
-			PublicDefinitions.Add("USE_ANDROID_SWAPPY=1");
+			PublicDefinitions.Add("USE_ANDROID_VULKAN_SWAPPY=1");
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{

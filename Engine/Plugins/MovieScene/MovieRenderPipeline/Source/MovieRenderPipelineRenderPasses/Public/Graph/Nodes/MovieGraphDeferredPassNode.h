@@ -17,6 +17,7 @@ public:
 	UMovieGraphDeferredRenderPassNode();
 
 	virtual void GetFormatResolveArgs(FMovieGraphResolveArgs& OutMergedFormatArgs, const FMovieGraphRenderDataIdentifier& InRenderDataIdentifier) const override;
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
 
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;
@@ -93,13 +94,13 @@ public:
 	* and can optionally be combined with OCIO profiles on the file output nodes to convert from Linear Values in Working Color Space
 	* (which is sRGB  (Rec. 709) by default, unless changed in the project settings).
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (EditCondition = "bOverride_bDisableToneCurve"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Post Processing", meta = (EditCondition = "bOverride_bDisableToneCurve"))
 	bool bDisableToneCurve;
 
 	/**
 	* Allow the output file OpenColorIO transform to be used on this render.
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (EditCondition = "bOverride_bAllowOCIO"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Post Processing", meta = (EditCondition = "bOverride_bAllowOCIO"))
 	bool bAllowOCIO;
 	
 	/** 
@@ -108,7 +109,7 @@ public:
 	* have to be used in combination with certain Show Flags to produce a result similar to what you see in
 	* the viewport.
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta=(EditCondition="bOverride_ViewModeIndex", InvalidEnumValues = "VMI_PathTracing"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "View Mode", meta=(EditCondition="bOverride_ViewModeIndex", InvalidEnumValues = "VMI_PathTracing,VMI_VisualizeBuffer,VMI_Unknown"))
 	TEnumAsByte<EViewModeIndex> ViewModeIndex;
 
 	/**

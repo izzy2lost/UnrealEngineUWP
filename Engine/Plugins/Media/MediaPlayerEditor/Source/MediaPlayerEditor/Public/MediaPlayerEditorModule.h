@@ -8,7 +8,6 @@
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
-class FImgMediaPlayer;
 class ISlateStyle;
 class UMediaPlayer;
 
@@ -45,5 +44,14 @@ public:
 	 * @param InStyle: the style chosen for this slider widget
 	 * @return Scrubber Widget
 	 */
+	UE_DEPRECATED(5.5, "Use version with TArrayView instead")
 	virtual TSharedRef<IMediaPlayerSlider> CreateMediaPlayerSliderWidget(UMediaPlayer* InMediaPlayer, const FSliderStyle& InStyle = FCoreStyle::Get().GetWidgetStyle<FSliderStyle>("Slider")) = 0;
+
+	/**
+	 * Creates a Widget to visualize playback time and scrub the content played by Media Players
+	 * @param InMediaPlayers: the players affected by the widget
+	 * @param InStyle: the style chosen for this slider widget
+	 * @return Scrubber Widget
+	 */
+	virtual TSharedRef<IMediaPlayerSlider> CreateMediaPlayerSliderWidget(const TArrayView<TWeakObjectPtr<UMediaPlayer>> InMediaPlayers, const FSliderStyle& InStyle = FCoreStyle::Get().GetWidgetStyle<FSliderStyle>("Slider")) = 0;
 };

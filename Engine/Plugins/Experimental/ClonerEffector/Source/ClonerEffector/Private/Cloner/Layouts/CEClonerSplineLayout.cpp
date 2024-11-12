@@ -2,7 +2,6 @@
 
 #include "Cloner/Layouts/CEClonerSplineLayout.h"
 
-#include "Cloner/CEClonerActor.h"
 #include "Cloner/CEClonerComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -13,6 +12,13 @@
 #include "Editor/EditorEngine.h"
 #endif
 
+#if WITH_EDITOR
+FName UCEClonerSplineLayout::GetSplineActorWeakName()
+{
+	return GET_MEMBER_NAME_CHECKED(UCEClonerSplineLayout, SplineActorWeak);
+}
+#endif
+
 void UCEClonerSplineLayout::SetCount(int32 InCount)
 {
 	if (Count == InCount)
@@ -21,7 +27,7 @@ void UCEClonerSplineLayout::SetCount(int32 InCount)
 	}
 
 	Count = InCount;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSplineLayout::SetSplineActorWeak(const TWeakObjectPtr<AActor>& InSplineActor)
@@ -32,7 +38,7 @@ void UCEClonerSplineLayout::SetSplineActorWeak(const TWeakObjectPtr<AActor>& InS
 	}
 
 	SplineActorWeak = InSplineActor;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSplineLayout::SetSplineActor(AActor* InSplineActor)
@@ -48,20 +54,25 @@ void UCEClonerSplineLayout::SetOrientMesh(bool bInOrientMesh)
 	}
 
 	bOrientMesh = bInOrientMesh;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 #if WITH_EDITOR
 void UCEClonerSplineLayout::SpawnLinkedSplineActor()
 {
-	const ACEClonerActor* ClonerActor = GetClonerActor();
+	const UCEClonerComponent* ClonerComponent = GetClonerComponent();
 
-	if (!ClonerActor)
+	if (!IsValid(ClonerComponent))
 	{
 		return;
 	}
 
-	UWorld* ClonerWorld = ClonerActor->GetWorld();
+	UWorld* ClonerWorld = ClonerComponent->GetWorld();
+
+	if (!IsValid(ClonerWorld))
+	{
+		return;
+	}
 
 	FActorSpawnParameters Params;
 	Params.bTemporaryEditorActor = false;
@@ -89,8 +100,8 @@ void UCEClonerSplineLayout::SpawnLinkedSplineActor()
 	// Rerun construction scripts
 	SpawnedSplineActor->RerunConstructionScripts();
 
-	SpawnedSplineActor->SetActorLocation(ClonerActor->GetActorLocation());
-	SpawnedSplineActor->SetActorRotation(ClonerActor->GetActorRotation());
+	SpawnedSplineActor->SetActorLocation(ClonerComponent->GetComponentLocation());
+	SpawnedSplineActor->SetActorRotation(ClonerComponent->GetComponentRotation());
 
 	SetSplineActorWeak(SpawnedSplineActor);
 	FActorLabelUtilities::RenameExistingActor(SpawnedSplineActor, TEXT("SplineActor"), true);
@@ -129,7 +140,7 @@ void UCEClonerSplineLayout::OnLayoutParametersChanged(UCEClonerComponent* InComp
 
 	InComponent->SetIntParameter(TEXT("SampleSplineCount"), Count);
 
-	const FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetAsset()->GetExposedParameters();
+	const FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetOverrideParameters();
 	static const FNiagaraVariable SampleSplineVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceSpline::StaticClass()), TEXT("SampleSpline"));
 	UNiagaraDataInterfaceSpline* SplineDI = Cast<UNiagaraDataInterfaceSpline>(ExposedParameters.GetDataInterface(SampleSplineVar));
 
@@ -141,6 +152,7 @@ void UCEClonerSplineLayout::OnLayoutParametersChanged(UCEClonerComponent* InComp
 	if (USplineComponent* SplineComponent = SplineComponentWeak.Get())
     {
 		SplineComponent->TransformUpdated.RemoveAll(this);
+
 		SplineComponentWeak.Reset();
     }
 
@@ -160,7 +172,7 @@ void UCEClonerSplineLayout::OnLayoutParametersChanged(UCEClonerComponent* InComp
 			USceneComponent::MarkRenderStateDirtyEvent.RemoveAll(this);
 			USceneComponent::MarkRenderStateDirtyEvent.AddUObject(this, &UCEClonerSplineLayout::OnSampleSplineRenderStateUpdated);
 
-			if (ACEClonerActor* ClonerActor = GetClonerActor())
+			if (AActor* ClonerActor = GetClonerActor())
 			{
 				ClonerActor->SetActorTransform(SplineActor->GetActorTransform());
 			}
@@ -170,13 +182,13 @@ void UCEClonerSplineLayout::OnLayoutParametersChanged(UCEClonerComponent* InComp
 
 void UCEClonerSplineLayout::OnSampleSplineTransformed(USceneComponent* InComponent, EUpdateTransformFlags InFlags, ETeleportType InType)
 {
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerSplineLayout::OnSampleSplineRenderStateUpdated(UActorComponent& InComponent)
 {
 	if (SplineActorWeak.IsValid() && InComponent.GetOwner() == SplineActorWeak.Get())
 	{
-		UpdateLayoutParameters();
+		MarkLayoutDirty();
 	}
 }

@@ -48,20 +48,20 @@ void BindForLegacyShaderParameters(FShader* Shader, int32 PermutationId, const F
  */
 
 #define SHADER_USE_PARAMETER_STRUCT_INTERNAL(ShaderClass, ShaderParentClass, bShouldBindEverything) \
+	ShaderClass() = default; \
 	ShaderClass(const ShaderMetaType::CompiledShaderInitializerType& Initializer) \
 		: ShaderParentClass(Initializer) \
 	{ \
 		BindForLegacyShaderParameters<FParameters>(this, Initializer.PermutationId, Initializer.ParameterMap, bShouldBindEverything); \
-	} \
-	\
-	ShaderClass() \
-	{ } \
+	}
+
+#define SHADER_ROOT_PARAMETERS_SIGNATURE() \
+	static inline const FShaderParametersMetadata* GetRootParametersMetadata() { return FParameters::FTypeInfo::GetStructMetadata(); }
 
 // TODO(RDG): would not even need ShaderParentClass anymore. And in fact should not so Bindings.Bind() is not being called twice.
 #define SHADER_USE_PARAMETER_STRUCT(ShaderClass, ShaderParentClass) \
 	SHADER_USE_PARAMETER_STRUCT_INTERNAL(ShaderClass, ShaderParentClass, true) \
-	\
-	static inline const FShaderParametersMetadata* GetRootParametersMetadata() { return FParameters::FTypeInfo::GetStructMetadata(); }
+	SHADER_ROOT_PARAMETERS_SIGNATURE()
 
 /** Use when sharing shader parameter binding with legacy parameters in the base class; i.e. FMaterialShader or FMeshMaterialShader.
  *  Note that this disables validation that the parameter struct contains all shader bindings.
@@ -69,18 +69,21 @@ void BindForLegacyShaderParameters(FShader* Shader, int32 PermutationId, const F
 #define SHADER_USE_PARAMETER_STRUCT_WITH_LEGACY_BASE(ShaderClass, ShaderParentClass) \
 	SHADER_USE_PARAMETER_STRUCT_INTERNAL(ShaderClass, ShaderParentClass, false)
 
+ /** Use when sharing shader parameter binding with legacy parameters in the base class; i.e. FMaterialShader or FMeshMaterialShader.
+  *  This forces the shader to be compiled with the Parameters.
+  */
+#define SHADER_USE_PARAMETER_STRUCT_MIXED(ShaderClass, ShaderParentClass) \
+	SHADER_USE_PARAMETER_STRUCT_INTERNAL(ShaderClass, ShaderParentClass, false) \
+	SHADER_ROOT_PARAMETERS_SIGNATURE()
+
 #define SHADER_USE_ROOT_PARAMETER_STRUCT(ShaderClass, ShaderParentClass) \
-	static inline const FShaderParametersMetadata* GetRootParametersMetadata() { return FParameters::FTypeInfo::GetStructMetadata(); } \
-	\
+	SHADER_ROOT_PARAMETERS_SIGNATURE() \
+	ShaderClass() = default; \
 	ShaderClass(const ShaderMetaType::CompiledShaderInitializerType& Initializer) \
 		: ShaderParentClass(Initializer) \
 	{ \
 		this->Bindings.BindForRootShaderParameters(this, Initializer.PermutationId, Initializer.ParameterMap); \
-	} \
-	\
-	ShaderClass() \
-	{ } \
-
+	}
 
  /** Dereferences the RHI resource from a shader parameter struct. */
 inline FRHIResource* GetShaderParameterResourceRHI(const void* Contents, uint16 MemberOffset, EUniformBufferBaseType MemberType)
@@ -149,6 +152,7 @@ inline void CollectSRVsToUnset(FRHIBatchedShaderUnbinds& BatchedUnbinds, const T
 	{
 		if (Parameter.BaseType == UBMT_SRV ||
 			Parameter.BaseType == UBMT_RDG_TEXTURE_SRV ||
+			Parameter.BaseType == UBMT_RDG_TEXTURE_NON_PIXEL_SRV ||
 			Parameter.BaseType == UBMT_RDG_BUFFER_SRV)
 		{
 			BatchedUnbinds.UnsetSRV(GetParameterIndex(Parameter));
@@ -224,6 +228,22 @@ inline void UnsetShaderSRVs(TRHICmdList& RHICmdList, const TShaderRef<TShaderCla
 	}
 }
 
+/** Set all resources described by ParametersMetadata using data from ParametersData as BindlessParameters */
+RENDERCORE_API void SetAllShaderParametersAsBindless(
+	FRHIBatchedShaderParameters& BatchedParameters,
+	const FShaderParametersMetadata* ParametersMetadata,
+	const void* ParametersData
+);
+
+template<typename TParameters>
+inline void SetAllShaderParametersAsBindless(
+	FRHIBatchedShaderParameters& BatchedParameters,
+	const TParameters& InParameters
+)
+{
+	SetAllShaderParametersAsBindless(BatchedParameters, TParameters::FTypeInfo::GetStructMetadata(), &InParameters);
+}
+
 RENDERCORE_API void SetShaderParameters(
 	FRHIBatchedShaderParameters& BatchedParameters,
 	const FShaderParameterBindings& Bindings,
@@ -238,7 +258,17 @@ inline void SetShaderParameters(
 	const typename TShaderClass::FParameters& Parameters)
 {
 	ValidateShaderParameters(Shader, ParametersMetadata, &Parameters);
-	SetShaderParameters(BatchedParameters, Shader->Bindings, ParametersMetadata, &Parameters);
+
+#if RHI_RAYTRACING
+	if (IsRayTracingShaderFrequency(Shader->GetFrequency()))
+	{
+		SetRayTracingShaderParameters(BatchedParameters, Shader->Bindings, ParametersMetadata, &Parameters);
+	}
+	else
+#endif // RHI_RAYTRACING
+	{
+		SetShaderParameters(BatchedParameters, Shader->Bindings, ParametersMetadata, &Parameters);
+	}
 }
 
 template<typename TShaderClass>
@@ -293,6 +323,19 @@ inline void SetShaderParameters(TRHICmdList& RHICmdList, const TShaderRef<TShade
 
 #if RHI_RAYTRACING
 
+/**
+* Similar to SetShaderParameters(), but also binds static uniform buffers that are skipped otherwise.
+* This helper function exists in UE 5.5 to aid with compatibility between FRHIBatchedShaderParameters and legacy FRayTracingShaderBindings[Writer].
+* It will be deprecated in a future release, once legacy FRayTracingShaderBindings[Writer] is removed.
+*/
+RENDERCORE_API void SetRayTracingShaderParameters(
+	FRHIBatchedShaderParameters& BatchedParameters,
+	const FShaderParameterBindings& Bindings,
+	const FShaderParametersMetadata* ParametersMetadata,
+	const void* ParametersData);
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS // Allow FRayTracingShaderBindingsWriter
+
 RENDERCORE_API void SetShaderParameters(
 	FRayTracingShaderBindingsWriter& RTBindingsWriter,
 	const FShaderParameterBindings& Bindings,
@@ -311,5 +354,7 @@ void SetShaderParameters(FRayTracingShaderBindingsWriter& RTBindingsWriter, cons
 
 	SetShaderParameters(RTBindingsWriter, Shader->Bindings, ParametersMetadata, &Parameters);
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #endif // RHI_RAYTRACING

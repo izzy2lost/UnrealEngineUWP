@@ -90,7 +90,7 @@ namespace UE4Paths_Private
 			{
 				if (!FCString::Strchr(VALID_SAVEDDIRSUFFIX_CHARACTERS, NonDefaultSavedDirSuffix[CharIdx]))
 				{
-					NonDefaultSavedDirSuffix.RemoveAt(CharIdx, 1, EAllowShrinking::No);
+					NonDefaultSavedDirSuffix.RemoveAt(CharIdx, EAllowShrinking::No);
 					--CharIdx;
 				}
 			}
@@ -142,6 +142,38 @@ namespace UE4Paths_Private
 
 		return FullyPathed;
 	}
+}
+
+namespace UE::Paths
+{
+	bool bIsComputingStaged = false;
+}
+
+bool FPaths::CanGetProjectDir()
+{
+	return !UE::Paths::bIsComputingStaged;
+}
+
+bool FPaths::IsStaged()
+{
+	static bool bHasInitialized = false;
+	static bool bIsStaged;
+
+	if (!bHasInitialized)
+	{
+		UE::Paths::bIsComputingStaged = true;
+
+		bIsStaged =
+#if !IS_PROGRAM
+			FPlatformProperties::RequiresCookedData() ||
+#endif
+			FileExists(Combine(EngineConfigDir(), FString::Printf(TEXT("StagedBuild_%s.ini"), FApp::GetProjectName())));
+
+		UE::Paths::bIsComputingStaged = false;
+		bHasInitialized = true;
+	}
+
+	return bIsStaged;
 }
 
 bool FPaths::ShouldSaveToUserDir()
@@ -343,6 +375,10 @@ FString FPaths::ConvertPath(const FString& Path, EPathConversion Method, const T
 		case EPathConversion::Engine_NoRedist:
 		case EPathConversion::Project_NoRedist:
 			return bAppendSuffix ? FPaths::Combine(Prefix, TEXT("Restricted/NoRedist"), Suffix) : FPaths::Combine(Prefix, TEXT("Restricted/NoRedist"));
+
+		case EPathConversion::Engine_LimitedAccess:
+		case EPathConversion::Project_LimitedAccess:
+			return bAppendSuffix ? FPaths::Combine(Prefix, TEXT("Restricted/LimitedAccess"), Suffix) : FPaths::Combine(Prefix, TEXT("Restricted/LimitedAccess"));
 	}
 	
 	return TEXT("");
@@ -661,22 +697,6 @@ const TArray<FString>& FPaths::GetEditorLocalizationPaths()
 	return StaticData.EditorLocalizationPaths;
 }
 
-const TArray<FString>& FPaths::GetCookedEditorLocalizationPaths()
-{
-	FStaticData& StaticData = TLazySingleton<FStaticData>::Get();
-
-	if (!StaticData.bCookedEditorLocalizationPathsInitialized)
-	{
-		if (GConfig && GConfig->IsReadyForUse())
-		{
-			GConfig->GetArray(TEXT("Internationalization"), TEXT("CookedLocalizationPaths"), StaticData.CookedEditorLocalizationPaths, GEditorIni);
-			StaticData.bCookedEditorLocalizationPathsInitialized = true;
-		}
-	}
-
-	return StaticData.CookedEditorLocalizationPaths;
-}
-
 const TArray<FString>& FPaths::GetPropertyNameLocalizationPaths()
 {
 	FStaticData& StaticData = TLazySingleton<FStaticData>::Get();
@@ -758,6 +778,7 @@ const TArray<FString>& FPaths::GetRestrictedFolderNames()
 
 	if (!StaticData.bRestrictedFolderNamesInitialized)
 	{
+		StaticData.RestrictedFolderNames.Add(TEXT("LimitedAccess"));
 		StaticData.RestrictedFolderNames.Add(TEXT("NotForLicensees"));
 		StaticData.RestrictedFolderNames.Add(TEXT("NoRedist"));
 		StaticData.RestrictedFolderNames.Add(TEXT("CarefullyRedist"));
@@ -1636,7 +1657,7 @@ FString FPaths::MakeValidFileName(const FString& InString, const TCHAR InReplace
 	return FString(Output.GetData());
 }
 
-bool FPaths::ValidatePath( const FString& InPath, FText* OutReason )
+bool FPaths::ValidatePath(const FString& InPath, FText* OutReason)
 {
 	const FString RestrictedChars = GetInvalidFileSystemChars();
 	static const TCHAR* RestrictedNames[] = {	TEXT("CON"), TEXT("PRN"), TEXT("AUX"), TEXT("CLOCK$"), TEXT("NUL"),
@@ -1646,76 +1667,104 @@ bool FPaths::ValidatePath( const FString& InPath, FText* OutReason )
 	FString Standardized = InPath;
 	NormalizeFilename(Standardized);
 	CollapseRelativeDirectories(Standardized);
-	RemoveDuplicateSlashes(Standardized);
-
-	// The loop below requires that the path not end with a /
-	if(Standardized.EndsWith(TEXT("/"), ESearchCase::CaseSensitive))
+	// Remove duplicate slashes, to normalize the path,
+	// but don't remove them at beginning so we can recognize network paths
+	if (Standardized.StartsWith(TEXT("//")))
 	{
-		Standardized.LeftChopInline(1, EAllowShrinking::No);
+		Standardized.RightChopInline(1, EAllowShrinking::No);
+		RemoveDuplicateSlashes(Standardized);
+		Standardized = TEXT("/") + MoveTemp(Standardized);
+	}
+	else
+	{
+		RemoveDuplicateSlashes(Standardized);
 	}
 
 	// Walk each part of the path looking for name errors
-	for(int32 StartPos = 0, EndPos = Standardized.Find(TEXT("/"), ESearchCase::CaseSensitive); ; 
-		StartPos = EndPos + 1, EndPos = Standardized.Find(TEXT("/"), ESearchCase::CaseSensitive, ESearchDir::FromStart, StartPos)
-		)
+	// Allow colons in the first component
+	bool bResult = true;
+	bool bAllowNextTokenToBeDrive = true;
+	FPathViews::IterateComponents(Standardized,
+		[&bAllowNextTokenToBeDrive,&Standardized,&RestrictedChars,&bResult,&OutReason]
+		(FStringView PathPart)
 	{
-		const bool bIsLastPart = EndPos == INDEX_NONE;
-		const FString PathPart = Standardized.Mid(StartPos, (bIsLastPart) ? MAX_int32 : EndPos - StartPos);
-
-		// If this is the first part of the path, it's possible for it to be a drive name and is allowed to contain a colon
-		if(StartPos == 0 && IsDrive(PathPart))
+		if (!bResult)
 		{
-			if(bIsLastPart)
-			{
-				break;
-			}
-			continue;
+			// Keep the first error and stop validating
+			return;
+		}
+		bool bAllowDrive = bAllowNextTokenToBeDrive;
+		bAllowNextTokenToBeDrive = false;
+		if (PathPart.IsEmpty())
+		{
+			// We can get an empty path part due to duplicate slashes at the beginning or a
+			// a terminating slash
+			return;
 		}
 
 		// Check for invalid characters
-		TCHAR CharString[] = { TEXT('\0'), TEXT('\0') };
 		FString MatchedInvalidChars;
-		for(const TCHAR* InvalidCharacters = *RestrictedChars; *InvalidCharacters; ++InvalidCharacters)
+		for (TCHAR InvalidCharacter : RestrictedChars)
 		{
-			CharString[0] = *InvalidCharacters;
-			if(PathPart.Contains(CharString))
+			int32 UnusedIndex;
+			if (PathPart.FindChar(InvalidCharacter, UnusedIndex))
 			{
-				MatchedInvalidChars += *InvalidCharacters;
+				if (InvalidCharacter == ':' && bAllowDrive && IsDrive(FString(PathPart)))
+				{
+					// Colons are allowed in drive specifiers
+					continue;
+				}
+				if (InvalidCharacter == '?')
+				{
+					int64 StartPos = PathPart.GetData() - *Standardized;
+					if (StartPos < 0 || StartPos > int64(Standardized.Len()))
+					{
+						StartPos = INDEX_NONE;
+					}
+					// ? is allowed at the beginning of the path to support windows-style long paths: "\\?\K:\LongPath"
+					if (StartPos == 2 && PathPart.Len() == 1 && Standardized.StartsWith(TEXT("//"))
+						&& Standardized.Len() > 4 && Standardized[3] == '/')
+					{
+						// Also allow a drive specifier in the next pathpart
+						bAllowNextTokenToBeDrive = true;
+						continue;
+					}
+				}
+
+				MatchedInvalidChars += InvalidCharacter;
 			}
 		}
-		if(MatchedInvalidChars.Len())
+
+		if (MatchedInvalidChars.Len())
 		{
-			if(OutReason)
+			if (OutReason)
 			{
 				FFormatNamedArguments Args;
 				Args.Add(TEXT("IllegalPathCharacters"), FText::FromString(MatchedInvalidChars));
 				*OutReason = FText::Format(NSLOCTEXT("Core", "PathContainsInvalidCharacters", "Path may not contain the following characters: {IllegalPathCharacters}"), Args);
 			}
-			return false;
+			bResult = false;
+			return;
 		}
 
 		// Check for reserved names
-		for(const TCHAR* RestrictedName : RestrictedNames)
+		for (const TCHAR* RestrictedName : RestrictedNames)
 		{
-			if(PathPart.Equals(RestrictedName, ESearchCase::IgnoreCase))
+			if (PathPart.Equals(RestrictedName, ESearchCase::IgnoreCase))
 			{
-				if(OutReason)
+				if (OutReason)
 				{
 					FFormatNamedArguments Args;
 					Args.Add(TEXT("RestrictedName"), FText::FromString(RestrictedName));
 					*OutReason = FText::Format(NSLOCTEXT("Core", "PathContainsRestrictedName", "Path may not contain a restricted name: {RestrictedName}"), Args);
 				}
-				return false;
+				bResult = false;
+				return;
 			}
 		}
+	});
 
-		if(bIsLastPart)
-		{
-			break;
-		}
-	}
-
-	return true;
+	return bResult;
 }
 
 void FPaths::Split( const FString& InPath, FString& PathPart, FString& FilenamePart, FString& ExtensionPart )

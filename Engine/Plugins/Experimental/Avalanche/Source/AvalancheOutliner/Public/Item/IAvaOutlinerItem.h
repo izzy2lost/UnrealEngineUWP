@@ -265,6 +265,12 @@ public:
 	/** The implementation to rename the item (e.g. for AActor it will be the Actor Label that is changed) */
 	virtual bool Rename(const FString& InName) = 0;
 
+	/** Whether this Item can be deleted or not */
+	virtual bool CanDelete() const = 0;
+
+	/** The implementation to delete the item */
+	virtual bool Delete() = 0;
+
 	/** Whether an Item can be Locked in any kind. E.g. Actors can be location-locked */
 	virtual bool CanLock() const = 0;
 

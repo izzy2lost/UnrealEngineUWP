@@ -59,6 +59,25 @@ public:
 		, Type(InType)
 	{
 	}
+
+	bool operator==(const FInterchangeMeshPayLoadKey& Other) const
+	{
+		return UniqueId.Equals(Other.UniqueId) && Type == Other.Type;
+	}
+
+	//Return the translator key merge with the transform
+	static FString GetTransformString(const FTransform& Transform)
+	{
+		const FQuat R(Transform.GetRotation());
+		const FVector TT(Transform.GetTranslation());
+		const FVector S(Transform.GetScale3D());
+		return FString::Printf(TEXT("%.5f,%.5f,%.5f|%.5f,%.5f,%.5f,%.5f|%.5f,%.5f,%.5f"), TT.X, TT.Y, TT.Z, R.X, R.Y, R.Z, R.W, S.X, S.Y, S.Z);
+	}
+
+	friend uint32 GetTypeHash(const FInterchangeMeshPayLoadKey& InterchangeMeshPayLoadKey)
+	{
+		return GetTypeHash(InterchangeMeshPayLoadKey.UniqueId + FString::FromInt(static_cast<int32>(InterchangeMeshPayLoadKey.Type)));
+	}
 };
 
 

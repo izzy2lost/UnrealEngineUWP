@@ -24,11 +24,14 @@ class FNiagaraRayTracingHelper;
 struct FNiagaraScriptDebuggerInfo;
 class FNiagaraSystemGpuComputeProxy;
 
+using FNiagaraDataChannelDataProxyPtr = TSharedPtr<struct FNiagaraDataChannelDataProxy>;
+
 // Public API for Niagara's Compute Dispatcher
 // This is generally used with DataInterfaces or Custom Renderers
 class FNiagaraGpuComputeDispatchInterface : public FFXSystemInterface
 {
 public:
+	DECLARE_EVENT_OneParam(FNiagaraGpuComputeDispatchInterface, FOnPreInitViewsEvent, FRDGBuilder&);
 	DECLARE_EVENT_OneParam(FNiagaraGpuComputeDispatchInterface, FOnPostPreRenderEvent, FRDGBuilder&);
 
 	static NIAGARA_API FNiagaraGpuComputeDispatchInterface* Get(class UWorld* World);
@@ -48,6 +51,11 @@ public:
 	/** Remove system instance proxy from the batcher. */
 	virtual void RemoveGpuComputeProxy(FNiagaraSystemGpuComputeProxy* ComputeProxy) = 0;
 
+	/** Add NDC Data to the batcher for tracking */
+	virtual void AddNDCDataProxy(FNiagaraDataChannelDataProxyPtr NDCDataProxy) = 0;
+	/** Add NDC Data to the batcher for tracking */
+	virtual void RemoveNDCDataProxy(FNiagaraDataChannelDataProxyPtr NDCDataProxy) = 0;
+
 	/**
 	 * Register work for GPU sorting (using the GPUSortManager).
 	 * The constraints of the sort request are defined in SortInfo.SortFlags.
@@ -65,6 +73,9 @@ public:
 	template<typename TManager>
 	TManager& GetOrCreateDataManager()
 	{
+		check(IsInParallelRenderingThread());
+
+		UE::TScopeLock ScopeLock(ComputeManagerGuard);
 		const FName ManagerName = TManager::GetManagerName();
 		for (auto& DataManager : GpuDataManagers)
 		{
@@ -150,7 +161,7 @@ public:
 	virtual void AddDebugReadback(FNiagaraSystemInstanceID InstanceID, TSharedPtr<FNiagaraScriptDebuggerInfo, ESPMode::ThreadSafe> DebugInfo, FNiagaraComputeExecutionContext* Context) = 0;
 
 	/** Processes all pending debug readbacks */
-	virtual void ProcessDebugReadbacks(FRHICommandListImmediate& RHICmdList, bool bWaitCompletion) = 0;
+	virtual void ProcessDebugReadbacks(FRHICommandList& RHICmdList, bool bWaitCompletion) = 0;
 
 	virtual FNiagaraAsyncGpuTraceHelper& GetAsyncGpuTraceHelper() const = 0;
 
@@ -182,10 +193,20 @@ public:
 	FORCEINLINE void MultiGPUResourceModified(FRHICommandList& RHICmdList, FRHITexture* Texture, bool bRequiredForSimulation, bool bRequiredForRendering) const {}
 #endif
 
-	/** Event that broadcast before any rendering work is prepared / executed for Niagara. */
-	FOnPostPreRenderEvent& GetOnPreRenderEvent() { return OnPreRenderEvent; }
-	/** Event that broadcast after all rendering for Niagara is complete. */
-	FOnPostPreRenderEvent& GetOnPostRenderEvent() { return OnPostRenderEvent; }
+	/**
+	Event that broadcast when we enter PreInitViews.
+	*/
+	FOnPreInitViewsEvent& GetOnPreInitViewsEvent() { check(IsInRenderingThread()); return OnPreInitViewsEvent; }
+	/**
+	Event that broadcast when we endter PreRender.
+	This is called before we prepare any work or add passes for simulating.
+	*/
+	FOnPostPreRenderEvent& GetOnPreRenderEvent() { check(IsInRenderingThread()); return OnPreRenderEvent; }
+	/**
+	Event that broadcast at the end of PostRenderOpaque.
+	This is called after all simulation passes have been added.
+	*/
+	FOnPostPreRenderEvent& GetOnPostRenderEvent() { check(IsInRenderingThread()); return OnPostRenderEvent; }
 
 protected:
 	EShaderPlatform							ShaderPlatform;
@@ -207,6 +228,9 @@ protected:
 	bool									bIsFirstViewFamily = true;
 	bool									bIsLastViewFamily = true;
 
+	FOnPreInitViewsEvent					OnPreInitViewsEvent;
 	FOnPostPreRenderEvent					OnPreRenderEvent;
 	FOnPostPreRenderEvent					OnPostRenderEvent;
+
+	UE::FMutex								ComputeManagerGuard;
 };

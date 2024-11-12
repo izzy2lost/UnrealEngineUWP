@@ -50,19 +50,13 @@ namespace HarmonixMetasoundTests::MidiStreamVertexAnalyzer
 		using namespace Metasound;
 
 		// Make the tempo and time sig maps
-		const TSharedPtr<FMidiFileData> MidiData = MakeShared<FMidiFileData>();
-		check(MidiData);
-		MidiData->Tracks.Add(FMidiTrack(TEXT("conductor")));
-		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(static_cast<uint8>(TimeSigNum), static_cast<uint8>(TimeSigDenom))));
-		MidiData->SongMaps.GetBarMap().AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNum, TimeSigDenom);
-		const int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(Tempo);
-		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
-		MidiData->SongMaps.GetTempoMap().AddTempoInfoPoint(MidiTempo, 0);
-		MidiData->Tracks[0].Sort();
-		MidiData->ConformToLength(std::numeric_limits<int32>::max());
+		const TSharedPtr<FSongMaps> SongMaps = MakeShared<FSongMaps>(Tempo, TimeSigNum, TimeSigDenom);
+		check(SongMaps);
+
+		SongMaps->SetSongLengthTicks(std::numeric_limits<int32>::max());
 
 		// Attach the maps
-		Clock->AttachToMidiResource(MidiData);
+		Clock->AttachToSongMapEvaluator(SongMaps);
 	}
 	
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -103,7 +97,7 @@ namespace HarmonixMetasoundTests::MidiStreamVertexAnalyzer
 		constexpr float Tempo = 87;
 		HarmonixMetasound::FMidiClockWriteRef Clock = HarmonixMetasound::FMidiClockWriteRef::CreateNew(Generator->OperatorSettings);
 		(*MidiIn)->SetClock(*Clock);
-		
+
 		bool CallbackSuccess = false;
 
 		constexpr int32 EventIntervalTicks = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt;
@@ -135,7 +129,7 @@ namespace HarmonixMetasoundTests::MidiStreamVertexAnalyzer
 				&& TestEqual("Correct velocity", EventInfo.GetVelocity(), NextExpectedVelocity);
 
 				// Check the timestamp
-				const int32 Tick = Clock->GetBarMap().MusicTimestampToTick(EventInfo.Timestamp);
+				const int32 Tick = Clock->GetSongMapEvaluator().MusicTimestampToTick(EventInfo.Timestamp);
 				CallbackSuccess = TestEqual("Timestamp matches", Tick, NextExpectedEventTicks);
 
 				++NextExpectedNoteNumber;
@@ -175,6 +169,15 @@ namespace HarmonixMetasoundTests::MidiStreamVertexAnalyzer
 			
 			// Advance the clock
 			{
+				if (i == 0)
+				{
+					Clock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
+				}
+				else
+				{
+					Clock->PrepareBlock();
+				}
+				int32 BlockOffset = SampleRemainder;
 				SampleRemainder += NumSamplesPerBlock;
 				constexpr int32 MidiGranularity = 128;
 				while (SampleRemainder >= MidiGranularity)
@@ -182,7 +185,8 @@ namespace HarmonixMetasoundTests::MidiStreamVertexAnalyzer
 					SampleCount += MidiGranularity;
 					SampleRemainder -= MidiGranularity;
 					const float AdvanceToMs = static_cast<float>(SampleCount) * 1000.0f / SampleRate;
-					Clock->AdvanceHiResToMs(0, AdvanceToMs, true);
+					Clock->AdvanceToMs(BlockOffset, AdvanceToMs);
+					BlockOffset += MidiGranularity;
 				}
 			}
 			

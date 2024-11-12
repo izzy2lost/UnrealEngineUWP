@@ -16,15 +16,15 @@ static uint32 GetHLODHash(const UHLODLayer* InHLODLayer)
 
 	uint32 HLODHash;
 
-	HLODHash = GetTypeHash(HLODLayer.GetLayerType());
+	HLODHash = static_cast<uint8>(HLODLayer.GetLayerType());
 	UE_LOG(LogHLODHash, VeryVerbose, TEXT(" - LayerType = %d"), HLODHash);
-
-	HLODHash = HashCombine(HLODLayer.GetHLODBuilderSettings()->GetCRC(), HLODHash);
+	
+	HLODHash = HashCombineFast(HLODLayer.GetHLODBuilderSettings()->GetCRC(), HLODHash);
 	UE_LOG(LogHLODHash, VeryVerbose, TEXT(" - HLODBuilderSettings = %d"), HLODHash);
 
-	HLODHash = HashCombine(HLODLayer.GetCellSize(), HLODHash);
+	HLODHash = HashCombineFast(HLODLayer.GetCellSize(), HLODHash);
 	UE_LOG(LogHLODHash, VeryVerbose, TEXT(" - CellSize = %d"), HLODHash);
-
+	
 	return HLODHash;
 }
 

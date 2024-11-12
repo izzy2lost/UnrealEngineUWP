@@ -124,6 +124,10 @@ namespace UnrealGameSyncCmd
 				null,
 				null
 			),
+			new CommandInfo("uninstall", typeof(UninstallCommand), null,
+				null,
+				null
+			),
 			new CommandInfo("upgrade", typeof(UpgradeCommand), typeof(UpgradeCommandOptions),
 				"ugs upgrade",
 				"Upgrades the current installation with the latest build of UGS."
@@ -183,6 +187,12 @@ namespace UnrealGameSyncCmd
 
 			[CommandLine("-Project=")]
 			public string? ProjectName { get; set; }
+
+			[CommandLine("-ClientRoot=")]
+			public string? ClientRoot { get; set; }
+
+			[CommandLine("-IgnoreExistingClients")]
+			public bool IgnoreExistingClients { get; set; }
 		}
 
 		class UpdateState
@@ -345,6 +355,16 @@ namespace UnrealGameSyncCmd
 
 		static void PrintHelp()
 		{
+			string appName = "UnrealGameSync Command-Line Tool";
+
+			string? productVersion = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location).ProductVersion;
+			if (productVersion != null)
+			{
+				appName = $"{appName} ({productVersion})";
+			}
+
+			Console.WriteLine(appName);
+			Console.WriteLine("");
 			Console.WriteLine("Usage:");
 			foreach (CommandInfo command in _commands)
 			{
@@ -527,9 +547,23 @@ namespace UnrealGameSyncCmd
 		static string[] ReadSyncFilter(UserWorkspaceSettings workspaceSettings, GlobalSettingsFile userSettings, ConfigFile projectConfig)
 		{
 			Dictionary<Guid, WorkspaceSyncCategory> syncCategories = ConfigUtils.GetSyncCategories(projectConfig);
+
+			// check if any category is from the role
+			IDictionary<string, Preset> roles = ConfigUtils.GetPresets(projectConfig);
+			if (roles.TryGetValue(workspaceSettings.Preset, out Preset? role))
+			{
+				foreach (RoleCategory roleCategory in role.Categories.Values)
+				{
+					if (syncCategories.TryGetValue(roleCategory.Id, out WorkspaceSyncCategory? category))
+					{
+						category.Enable = roleCategory.Enabled;
+					}
+				}
+			}
+			
 			ConfigSection? perforceSection = projectConfig.FindSection("Perforce");
 
-			string[] combinedSyncFilter = GlobalSettingsFile.GetCombinedSyncFilter(syncCategories, userSettings.Global.Filter, workspaceSettings.Filter, perforceSection);
+			string[] combinedSyncFilter = GlobalSettingsFile.GetCombinedSyncFilter(syncCategories, workspaceSettings.Preset, roles, userSettings.Global.Filter, workspaceSettings.Filter, perforceSection);
 
 			return combinedSyncFilter;
 		}
@@ -619,23 +653,26 @@ namespace UnrealGameSyncCmd
 				StreamRecord stream = streamResponse.Data;
 
 				// Get the new directory for the client
-				DirectoryReference clientDir = DirectoryReference.Combine(DirectoryReference.GetCurrentDirectory(), stream.Stream.Replace('/', '+'));
+				DirectoryReference clientDir = DirectoryReference.FromString(options.ClientRoot) ?? DirectoryReference.Combine(DirectoryReference.GetCurrentDirectory(), stream.Stream.Replace('/', '+'));
 				DirectoryReference.CreateDirectory(clientDir);
 
 				// Make up a new client name 
 				string clientName = options.ClientName ?? Regex.Replace($"{perforce.Settings.UserName}_{hostName}_{stream.Stream.Trim('/')}", "[^0-9a-zA-Z_.-]", "+");
 
-				// Check there are no existing clients under the current path
-				List<ClientsRecord> clients = await FindExistingClients(perforce, hostName, clientDir);
-				if (clients.Count > 0)
+				if (!options.IgnoreExistingClients)
 				{
-					if (clients.Count == 1 && clientName.Equals(clients[0].Name, StringComparison.OrdinalIgnoreCase) && clientDir == TryParseRoot(clients[0].Root))
+					// Check there are no existing clients under the current path
+					List<ClientsRecord> clients = await FindExistingClients(perforce, hostName, clientDir);
+					if (clients.Count > 0)
 					{
-						logger.LogInformation("Reusing existing client for {ClientDir} ({ClientName})", clientDir, options.ClientName);
-					}
-					else
-					{
-						throw new UserErrorException("Current directory is already within a Perforce workspace ({ClientName})", clients[0].Name);
+						if (clients.Count == 1 && clientName.Equals(clients[0].Name, StringComparison.OrdinalIgnoreCase) && clientDir == TryParseRoot(clients[0].Root))
+						{
+							logger.LogInformation("Reusing existing client for {ClientDir} ({ClientName})", clientDir, options.ClientName);
+						}
+						else
+						{
+							throw new UserErrorException("Current directory is already within a Perforce workspace ({ClientName})", clients[0].Name);
+						}
 					}
 				}
 
@@ -1160,6 +1197,10 @@ namespace UnrealGameSyncCmd
 			[CommandLine("-GpfOnlyCurrent", Value = "false")]
 			public bool? AllProjectsInSln { get; set; } = null;
 
+			[CommandLine("-GpfMinimalSln", Value = "true")]
+			[CommandLine("-GpfFullSln", Value = "false")]
+			public bool? UprojectSpecificSln { get; set; } = null;
+
 			[CommandLine("-Global")]
 			public bool Global { get; set; }
 		}
@@ -1181,6 +1222,10 @@ namespace UnrealGameSyncCmd
 				FilterSettings globalFilter = context.UserSettings.Global.Filter;
 				FilterSettings workspaceFilter = workspaceSettings.Filter;
 
+				IDictionary<string, Preset> roles = ConfigUtils.GetPresets(projectConfig);
+
+				roles.TryGetValue(workspaceSettings.Preset, out Preset? role);
+				
 				FilterCommandOptions options = context.Arguments.ApplyTo<FilterCommandOptions>(logger);
 				context.Arguments.CheckAllArgumentsUsed(context.Logger);
 
@@ -1217,6 +1262,12 @@ namespace UnrealGameSyncCmd
 						enabled = syncCategory.Enable;
 					}
 
+					if (role != null && role.Categories.TryGetValue(syncCategory.UniqueId, out RoleCategory? roleCategory))
+					{
+						scope = $"(Preset: {role.Name})";
+						enabled = roleCategory.Enabled;
+					}
+					
 					logger.LogInformation("  {Id,30} {Enabled,3} {Scope,-9} {Name}", syncCategory.UniqueId, enabled ? "Yes" : "No", scope, syncCategory.Name);
 				}
 
@@ -1234,6 +1285,15 @@ namespace UnrealGameSyncCmd
 					logger.LogInformation("");
 					logger.LogInformation("Workspace View:");
 					foreach (string line in workspaceFilter.View)
+					{
+						logger.LogInformation("  {Line}", line);
+					}
+				}
+				if (role != null && role.Views.Count > 0)
+				{
+					logger.LogInformation("");
+					logger.LogInformation("Preset View:");
+					foreach (string line in role.Views)
 					{
 						logger.LogInformation("  {Line}", line);
 					}
@@ -1290,6 +1350,7 @@ namespace UnrealGameSyncCmd
 
 				settings.AllProjects = commandOptions.AllProjects ?? settings.AllProjects;
 				settings.AllProjectsInSln = commandOptions.AllProjectsInSln ?? settings.AllProjectsInSln;
+				settings.UprojectSpecificSln = commandOptions.UprojectSpecificSln ?? settings.UprojectSpecificSln;
 			}
 
 			static Guid GetCategoryId(string text, IEnumerable<WorkspaceSyncCategory> syncCategories)
@@ -1434,7 +1495,7 @@ namespace UnrealGameSyncCmd
 				using ITokenStore tokenStore = TokenStoreFactory.CreateTokenStore();
 				IConfiguration providerConfiguration = ProviderConfigurationFactory.ReadConfiguration(engineDir, gameDir);
 				OidcTokenManager oidcTokenManager = OidcTokenManager.CreateTokenManager(providerConfiguration, tokenStore, new List<string>() { providerIdentifier });
-				OidcTokenInfo result = await oidcTokenManager.Login(providerIdentifier);
+				OidcTokenInfo result = await oidcTokenManager.LoginAsync(providerIdentifier);
 
 				logger.LogInformation("Logged in to provider {ProviderIdentifier}", providerIdentifier);
 			}
@@ -1519,42 +1580,149 @@ namespace UnrealGameSyncCmd
 		{
 			public override async Task ExecuteAsync(CommandContext context)
 			{
-				ILogger logger = context.Logger;
+				await UpdateInstallAsync(true, context.Logger);
+			}
+		}
 
-				if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-				{
-					DirectoryReference? userDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.UserProfile);
-					if (userDir != null)
-					{
-						FileReference configFile = FileReference.Combine(userDir, ".zshrc");
-						await AddAliasAsync(configFile, logger);
-					}
-				}
-				else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-				{
-					DirectoryReference? userDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.UserProfile);
-					if (userDir != null)
-					{
-						FileReference configFile = FileReference.Combine(userDir, ".bashrc");
-						await AddAliasAsync(configFile, logger);
-					}
-				}
+		class UninstallCommand : Command
+		{
+			public override async Task ExecuteAsync(CommandContext context)
+			{
+				await UpdateInstallAsync(false, context.Logger);
+			}
+		}
+
+		static async Task UpdateInstallAsync(bool install, ILogger logger)
+		{
+			DirectoryReference? installDir = GetInstallFolder();
+			if (installDir != null)
+			{
+				UpdateInstalledFiles(install, installDir, logger);
+			}
+			else
+			{
+				installDir = new FileReference(Assembly.GetExecutingAssembly().GetOriginalLocation()).Directory;
 			}
 
-			static async Task AddAliasAsync(FileReference configFile, ILogger logger)
+			if (OperatingSystem.IsWindows())
 			{
-				DirectoryReference currentDir = new FileReference(Assembly.GetExecutingAssembly().Location).Directory;
+				const string EnvVarName = "PATH";
 
-				List<string> lines = new List<string>();
-				if (FileReference.Exists(configFile))
+				string? pathVar = Environment.GetEnvironmentVariable(EnvVarName, EnvironmentVariableTarget.User);
+				pathVar ??= String.Empty;
+
+				List<string> paths = new List<string>(pathVar.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries));
+
+				int changes = paths.RemoveAll(x => x.Equals(installDir.FullName, StringComparison.OrdinalIgnoreCase));
+				if (install)
 				{
-					lines.AddRange(await FileReference.ReadAllLinesAsync(configFile));
-					lines.RemoveAll(x => Regex.IsMatch(x, @"^\s*alias\s+ugs\s*="));
+					paths.Add(installDir.FullName);
+					changes++;
 				}
-				lines.Add($"alias ugs={FileReference.Combine(currentDir, "ugs")}");
+				if (changes > 0)
+				{
+					pathVar = String.Join(Path.PathSeparator, paths);
+					Environment.SetEnvironmentVariable(EnvVarName, pathVar, EnvironmentVariableTarget.User);
+				}
 
-				await FileReference.WriteAllLinesAsync(configFile, lines);
+				if (install)
+				{
+					logger.LogInformation("Added {Path} to PATH environment variable", installDir);
+				}
+				else
+				{
+					logger.LogInformation("Removed {Path} from PATH environment variable", installDir);
+				}
+			}
+			else if (OperatingSystem.IsMacOS())
+			{
+				DirectoryReference? userDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.UserProfile);
+				if (userDir != null)
+				{
+					FileReference configFile = FileReference.Combine(userDir, ".zshrc");
+					await UpdateAliasAsync(configFile, install, installDir, logger);
+				}
+			}
+			else if (OperatingSystem.IsLinux())
+			{
+				DirectoryReference? userDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.UserProfile);
+				if (userDir != null)
+				{
+					FileReference configFile = FileReference.Combine(userDir, ".bashrc");
+					await UpdateAliasAsync(configFile, install, installDir, logger);
+				}
+			}
+		}
+
+		static DirectoryReference? GetInstallFolder()
+		{
+			if (OperatingSystem.IsWindows())
+			{
+				DirectoryReference? installDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.LocalApplicationData);
+				if (installDir != null)
+				{
+					return DirectoryReference.Combine(installDir, "Epic Games", "UgsCmd");
+				}
+			}
+			return null;
+		}
+
+		static void UpdateInstalledFiles(bool install, DirectoryReference installDir, ILogger logger)
+		{
+			FileReference assemblyFile = new FileReference(Assembly.GetExecutingAssembly().GetOriginalLocation());
+			DirectoryReference sourceDir = assemblyFile.Directory;
+
+			DirectoryReference TempDir = DirectoryReference.Combine(installDir.ParentDirectory!, "~" + installDir.GetDirectoryName());
+			if (DirectoryReference.Exists(TempDir))
+			{
+				DirectoryReference.Delete(TempDir, true);
+			}
+
+			if (DirectoryReference.Exists(installDir))
+			{
+				logger.LogInformation("Removing application files from {Dir}", installDir);
+
+				Directory.Move(installDir.FullName, TempDir.FullName);
+				DirectoryReference.Delete(TempDir, true);
+			}
+
+			if (install)
+			{
+				logger.LogInformation("Copying application files to {Dir}", installDir);
+
+				DirectoryReference.CreateDirectory(TempDir);
+				foreach (FileReference SourceFile in DirectoryReference.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
+				{
+					FileReference TargetFile = FileReference.Combine(TempDir, SourceFile.MakeRelativeTo(sourceDir));
+					DirectoryReference.CreateDirectory(TargetFile.Directory);
+					FileReference.Copy(SourceFile, TargetFile, true);
+				}
+				Directory.Move(TempDir.FullName, installDir.FullName);
+			}
+		}
+
+		static async Task UpdateAliasAsync(FileReference configFile, bool install, DirectoryReference installDir, ILogger logger)
+		{
+			List<string> lines = new List<string>();
+			if (FileReference.Exists(configFile))
+			{
+				lines.AddRange(await FileReference.ReadAllLinesAsync(configFile));
+				lines.RemoveAll(x => Regex.IsMatch(x, @"^\s*alias\s+ugs\s*="));
+			}
+			if (install)
+			{
+				lines.Add($"alias ugs={FileReference.Combine(installDir, "ugs")}");
+			}
+
+			await FileReference.WriteAllLinesAsync(configFile, lines);
+
+			if (install)
+			{
 				logger.LogInformation("Added 'ugs' alias to {ConfigFile}", configFile);
+			}
+			else
+			{
+				logger.LogInformation("Removed 'ugs' alias from {ConfigFile}", configFile);
 			}
 		}
 

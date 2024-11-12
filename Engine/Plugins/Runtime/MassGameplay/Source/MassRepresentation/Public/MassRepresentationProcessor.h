@@ -33,7 +33,7 @@ struct FMassRepresentationUpdateParams
 	bool bTestCollisionAvailibilityForActorVisualization = true;
 };
 
-UCLASS()
+UCLASS(Abstract)
 class MASSREPRESENTATION_API UMassRepresentationProcessor : public UMassProcessor
 {
 	GENERATED_BODY()

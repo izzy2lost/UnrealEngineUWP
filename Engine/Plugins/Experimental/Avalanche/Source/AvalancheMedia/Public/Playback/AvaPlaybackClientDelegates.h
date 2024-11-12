@@ -42,6 +42,7 @@ namespace UE::AvaPlaybackClient::Delegates
 		const FString& ServerName;
 		const FString& SequenceName;
 		EAvaPlayableSequenceEventType EventType;
+		int32 ServerFrameNumber;
 	};
 
 	struct FPlaybackTransitionEventArgs
@@ -51,6 +52,7 @@ namespace UE::AvaPlaybackClient::Delegates
 		const FString& ChannelName;
 		const FString& ServerName;
 		EAvaPlayableTransitionEventFlags EventFlags;
+		int32 ServerFrameNumber;
 	};
 
 	enum class EConnectionEvent : uint8

@@ -14,9 +14,9 @@
 
 struct FWidgetLayerListItem
 {
-	FWidgetLayerListItem(const FLandscapeLayer* InLayer, const TFunction<void(void)>& InOnLayerListUpdated, TArray<TSharedPtr<FWidgetLayerListItem>>* InWidgetLayerList)
-	: LayerName(InLayer->Name)
-	, LayerGuid(InLayer->Guid)
+	FWidgetLayerListItem(const FLandscapeLayer& InLayer, const TFunction<void(void)>& InOnLayerListUpdated, TArray<TSharedPtr<FWidgetLayerListItem>>* InWidgetLayerList)
+	: LayerName(InLayer.Name)
+	, LayerGuid(InLayer.Guid)
 	, OnLayerListUpdated(InOnLayerListUpdated)
 	, WidgetLayerList(InWidgetLayerList)
 	{}
@@ -174,33 +174,37 @@ private:
 
 /* SLandscapeLayerListDialog implementation */
 
-void SLandscapeLayerListDialog::Construct(const FArguments& InArgs, TArray<FLandscapeLayer>& InLayers)
+void SLandscapeLayerListDialog::Construct(const FArguments& InArgs, const TWeakObjectPtr<ALandscape>& InLandscape)
 {
-	LayerList = &InLayers;
+	Landscape = InLandscape;
+	check(Landscape.IsValid());
 
-	for(int LayerIndex = 0; LayerIndex < LayerList->Num(); ++LayerIndex)
+	int32 LayerIndex = 0;
+	TArrayView<const FLandscapeLayer> LandscapeLayers = Landscape->GetLayers();
+	for (const FLandscapeLayer& Layer : LandscapeLayers)
 	{
-		WidgetLayerList.Add(MakeShared<FWidgetLayerListItem>(&(*LayerList)[LayerList->Num() - 1 - LayerIndex], [this](){ OnLayerListUpdated(); }, &WidgetLayerList));
+		WidgetLayerList.Add(MakeShared<FWidgetLayerListItem>(LandscapeLayers[LandscapeLayers.Num() - 1 - LayerIndex], [this](){ OnLayerListUpdated(); }, &WidgetLayerList));
+		++LayerIndex;
 	}
 
 	WidgetLayerList[0]->bAllowedToDrag = true;
-	InsertedLayerIndex = InLayers.Num() - 1;
+	InsertedLayerIndex = LandscapeLayers.Num() - 1;
 	
 	// Construct list view
 	SAssignNew(LayerListView, SWidgetLayerListView)
-	.ItemHeight(20.0f)
 	.SelectionMode(ESelectionMode::Single)
 	.OnGenerateRow(this, &SLandscapeLayerListDialog::OnGenerateRow)
 	.ListItemsSource(&WidgetLayerList);
 	
-	FButton CancelButton(LOCTEXT("Cancel", "Cancel"));
-	FButton AcceptButton(LOCTEXT("Accept", "Accept"));
-	AcceptButton.OnClicked.BindSP(this, &SLandscapeLayerListDialog::OnAccept);
+	FButton CompleteButton(LOCTEXT("CompleteButtonText", "Complete"));
+	CompleteButton.OnClicked.BindSP(this, &SLandscapeLayerListDialog::OnComplete);
 	
 	// Construct custom dialog with list view supporting drag + drop
 	SCustomDialog::Construct(SCustomDialog::FArguments()
 		.Title(FText(LOCTEXT("LandscapeLayerListDialogTitleText", "Insert New Landscape Edit Layer")))
 		.UseScrollBox(false)
+		.WindowArguments(SWindow::FArguments()
+			.HasCloseButton(false))
 		.Content()
 		[
 			SNew(SBox)
@@ -216,8 +220,7 @@ void SLandscapeLayerListDialog::Construct(const FArguments& InArgs, TArray<FLand
 					.WrapTextAt(350)
 					.Text(FText::Format(LOCTEXT(
 						"LandscapeLayerListDialogInstructionText",
-						"Drag/drop the \"{0}\" layer in the list to choose where in the edit layers stack it should be inserted.\n"
-						"\n(Note: Closing the window or pressing cancel will result in the \"{0}\" layer going onto the top of the layer stack.)\n"),
+						"Drag/drop the \"{0}\" layer in the list to choose where in the edit layer stack it should be inserted.\n"),
 						FText::FromName(WidgetLayerList[0]->LayerName)))
 				]
 				+ SVerticalBox::Slot()
@@ -232,8 +235,7 @@ void SLandscapeLayerListDialog::Construct(const FArguments& InArgs, TArray<FLand
 			]
 		]
 		.Buttons({
-			AcceptButton,
-			CancelButton
+			CompleteButton
 		})
 	);
 }
@@ -251,8 +253,10 @@ TSharedRef<ITableRow> SLandscapeLayerListDialog::OnGenerateRow(TSharedPtr<FWidge
 	return SNew( SWidgetLayerListItem, InOwnerTableView, InListItem );
 }
 
-void SLandscapeLayerListDialog::OnAccept()
+void SLandscapeLayerListDialog::OnComplete()
 {
+	check(Landscape.IsValid());
+	TArrayView<const FLandscapeLayer> LandscapeLayers = Landscape->GetLayers();
 	// Find the draggable layer in WidgetLayerList
 	for (int WidgetLayerListIndex = 0; WidgetLayerListIndex < WidgetLayerList.Num(); ++WidgetLayerListIndex)
 	{
@@ -261,18 +265,15 @@ void SLandscapeLayerListDialog::OnAccept()
 		if (WidgetLayer->bAllowedToDrag)
 		{
 			// Find actual edit layer corresponding to draggable layer
-			for (int LayerIndex = 0; LayerIndex < LayerList->Num(); ++LayerIndex)
+			for (int32 LayerIndex = 0; LayerIndex < LandscapeLayers.Num(); ++LayerIndex)
 			{
-				const FLandscapeLayer& Layer = (*LayerList)[LayerIndex];
+				const FLandscapeLayer& Layer = LandscapeLayers[LayerIndex];
 
 				// Once found, remove and copy edit layer into correct spot in LayerList
 				if (WidgetLayer->LayerGuid == Layer.Guid)
 				{
-					const FLandscapeLayer LayerCopy = Layer;
-					
-					LayerList->RemoveAt(LayerIndex);
 					InsertedLayerIndex = WidgetLayerListIndex;
-					LayerList->Insert(LayerCopy, InsertedLayerIndex);
+					Landscape->ReorderLayer(LayerIndex, InsertedLayerIndex);
 					
 					return;
 				}

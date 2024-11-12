@@ -128,6 +128,7 @@ FScreenPassTexture AddDownsamplePass(
 		}
 		Output.ViewRect = FIntRect::DivideAndRoundUp(Inputs.SceneColor.ViewRect, 2);
 		Output.LoadAction = ERenderTargetLoadAction::ENoAction;
+		Output.UpdateVisualizeTextureExtent();
 	}
 
 	if (bIsComputePass)

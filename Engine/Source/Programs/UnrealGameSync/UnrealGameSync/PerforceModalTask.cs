@@ -82,11 +82,11 @@ namespace UnrealGameSync
 						string passwordPrompt;
 						if (String.IsNullOrEmpty(password))
 						{
-							passwordPrompt = $"Enter the password for user '{perforceSettings.UserName}' on server '{perforceSettings.ServerAndPort}'.";
+							passwordPrompt = $"Enter the Perforce password for user '{perforceSettings.UserName}' on server '{perforceSettings.ServerAndPort}'.";
 						}
 						else
 						{
-							passwordPrompt = $"Authentication failed. Enter the password for user '{perforceSettings.UserName}' on server '{perforceSettings.ServerAndPort}'.";
+							passwordPrompt = $"Perforce authentication failed. Enter the password for user '{perforceSettings.UserName}' on server '{perforceSettings.ServerAndPort}'.";
 						}
 
 						using PasswordWindow passwordWindow = new PasswordWindow(passwordPrompt, password ?? String.Empty);

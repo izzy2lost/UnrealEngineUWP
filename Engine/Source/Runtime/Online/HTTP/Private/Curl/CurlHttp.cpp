@@ -19,10 +19,27 @@
 #include <openssl/ssl.h>
 #endif
 
-TAutoConsoleVariable<bool> CVarCurlDebugServerResponseEnabled(
-	TEXT("http.CurlDebugServerResponseEnabled"),
+extern TAutoConsoleVariable<bool> CVarHttpSetGeneralFailureReasonFromCommonCode;
+
+TAutoConsoleVariable<bool> CVarHttpCurlSetResponseCodeWhenMarkAsCompleted(
+	TEXT("http.CurlSetResponseCodeWhenMarkAsCompleted"),
+	true,
+	TEXT("Set response code in when mark as completed, instead of setting it in FinishRequest."),
+	ECVF_SaveForNextBoot
+);
+
+TAutoConsoleVariable<bool> CVarHttpCurlReadContentLengthWhenFinish(
+	TEXT("http.CurlReadContentLengthWhenFinish"),
 	false,
-	TEXT("Enable debugging of server response")
+	TEXT("Whether to read content length from curl handle when finish request"),
+	ECVF_SaveForNextBoot
+);
+
+TAutoConsoleVariable<bool> CVarHttpCurlAllowHTTP2(
+	TEXT("http.CurlAllowHTTP2"),
+	false,
+	TEXT("Whether to allow HTTP/2 for curl requests"),
+	ECVF_Default
 );
 
 #if WITH_SSL
@@ -68,6 +85,7 @@ static CURLcode sslctx_function(CURL * curl, void * sslctx, void * parm)
 }
 #endif //#if WITH_SSL
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FCurlHttpRequest::FCurlHttpRequest()
 	: EasyHandle(nullptr)
 	, HeaderList(nullptr)
@@ -76,7 +94,6 @@ FCurlHttpRequest::FCurlHttpRequest()
 	, bRedirected(false)
 	, CurlAddToMultiResult(CURLM_OK)
 	, CurlCompletionResult(CURLE_OK)
-	, ElapsedTime(0.0f)
 	, bAnyHttpActivity(false)
 	, BytesSent(0)
 	, TotalBytesSent(0)
@@ -103,7 +120,14 @@ FCurlHttpRequest::FCurlHttpRequest()
 	// that reason we're disabling its use by default in the general purpose curl request wrapper and only
 	// allowing use of HTTP2 from other curl wrappers like the DerivedDataCache one.
 	// Note that CURL_HTTP_VERSION_1_1 was the default for libcurl version before 7.62.0
-	curl_easy_setopt(EasyHandle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+	if (CVarHttpCurlAllowHTTP2.GetValueOnAnyThread())
+	{
+		curl_easy_setopt(EasyHandle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
+	}
+	else
+	{
+		curl_easy_setopt(EasyHandle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+	}
 
 	// set certificate verification (disable to allow self-signed certificates)
 	if (FCurlHttpManager::CurlRequestOptions.bVerifyPeer)
@@ -288,6 +312,18 @@ void FCurlHttpRequest::SetURL(const FString& InURL)
 	URL = InURL;
 }
 
+void FCurlHttpRequest::SetOption(const FName Option, const FString& OptionValue)
+{
+	if (CompletionStatus == EHttpRequestStatus::Processing)
+	{
+		UE_LOG(LogHttp, Warning, TEXT("FCurlHttpRequest::SetOption() - attempted to set option on a request that is inflight"));
+		return;
+	}
+
+	check(EasyHandle);
+	FHttpRequestCommon::SetOption(Option, OptionValue);
+}
+
 void FCurlHttpRequest::SetContent(const TArray<uint8>& ContentPayload)
 {
 	SetContent(CopyTemp(ContentPayload));
@@ -451,11 +487,7 @@ size_t FCurlHttpRequest::ReceiveResponseHeaderCallback(void* Ptr, size_t SizeInB
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_ReceiveResponseHeaderCallback);
 
-	if (!ResponseCommon.IsValid())
-	{
-		ResponseCommon = MakeShared<FCurlHttpResponse>(*this);
-		TotalBytesRead = 0;
-	}
+	InitResponse();
 
 	OnAnyActivityOccur(TEXTVIEW("Received header"));
 
@@ -554,10 +586,7 @@ size_t FCurlHttpRequest::ReceiveResponseBodyCallback(void* Ptr, size_t SizeInBlo
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_ReceiveResponseBodyCallback);
 	LLM_SCOPE(ELLMTag::Networking);
 
-	if (!ResponseCommon.IsValid())
-	{
-		ResponseCommon = MakeShared<FCurlHttpResponse>(*this);
-	}
+	InitResponse();
 
 	OnAnyActivityOccur(TEXTVIEW("Received body"));
 
@@ -822,11 +851,6 @@ bool FCurlHttpRequest::SetupRequest()
 	UE_LOG(LogHttp, Verbose, TEXT("%p: Custom headers are %s"), this, Headers.Num() ? TEXT("present") : TEXT("NOT present"));
 	UE_LOG(LogHttp, Verbose, TEXT("%p: Payload size=%llu"), this, RequestPayload->GetContentLength());
 
-	if (GetHeader(TEXT("User-Agent")).IsEmpty())
-	{
-		SetHeader(TEXT("User-Agent"), FPlatformHttp::GetDefaultUserAgent());
-	}
-
 	// content-length should be present http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.4
 	if (GetHeader(TEXT("Content-Length")).IsEmpty())
 	{
@@ -856,6 +880,14 @@ bool FCurlHttpRequest::SetupRequestHttpThread()
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_SetupRequest_EASY_SETOPT);
 
 		curl_easy_setopt(EasyHandle, CURLOPT_URL, TCHAR_TO_ANSI(*URL));
+
+#if UE_HTTP_SUPPORT_UNIX_SOCKET
+		FString UnixSocketPath = GetOption(HttpRequestOptions::UnixSocketPath);
+		if (UnixSocketPath.Len() > 0)
+		{
+			curl_easy_setopt(EasyHandle, CURLOPT_UNIX_SOCKET_PATH, TCHAR_TO_ANSI(*UnixSocketPath));
+		}
+#endif //UE_HTTP_SUPPORT_UNIX_SOCKET
 
 		if (!FCurlHttpManager::CurlRequestOptions.LocalHostAddr.IsEmpty())
 		{
@@ -1013,6 +1045,11 @@ bool FCurlHttpRequest::SetupRequestHttpThread()
 	return true;
 }
 
+void FCurlHttpRequest::CleanupRequestHttpThread()
+{
+	curl_easy_setopt(EasyHandle, CURLOPT_SHARE, nullptr);
+}
+
 bool FCurlHttpRequest::ProcessRequest()
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_ProcessRequest);
@@ -1044,7 +1081,7 @@ bool FCurlHttpRequest::ProcessRequest()
 
 void FCurlHttpRequest::ClearInCaseOfRetry()
 {
-	IHttpThreadedRequest::ClearInCaseOfRetry();
+	FHttpRequestCommon::ClearInCaseOfRetry();
 
 	// Clear out response. If this is a re-used request, Response could point to a stale response until SetupRequestHttpThread is called
 	LastReportedBytesRead = 0;
@@ -1132,10 +1169,7 @@ void FCurlHttpRequest::CheckProgressDelegate()
 	{
 		LastReportedBytesSent = CurrentBytesSent;
 		LastReportedBytesRead = CurrentBytesRead;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		// Update response progress
-		OnRequestProgress().ExecuteIfBound(SharedThis(this), LastReportedBytesSent, LastReportedBytesRead);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		OnRequestProgress64().ExecuteIfBound(SharedThis(this), LastReportedBytesSent, LastReportedBytesRead);
 	}
 }
@@ -1154,6 +1188,19 @@ void FCurlHttpRequest::MarkAsCompleted(CURLcode InCurlCompletionResult)
 {
 	CurlCompletionResult = InCurlCompletionResult;
 	bCurlRequestCompleted = true;
+
+	if (CVarHttpCurlSetResponseCodeWhenMarkAsCompleted.GetValueOnAnyThread())
+	{
+		if (TSharedPtr<FCurlHttpResponse> Response = StaticCastSharedPtr<FCurlHttpResponse>(ResponseCommon))
+		{
+			// get the information
+			long HttpCode = 0;
+			if (CURLE_OK == curl_easy_getinfo(EasyHandle, CURLINFO_RESPONSE_CODE, &HttpCode))
+			{
+				Response->SetResponseCode(HttpCode);
+			}
+		}
+	}
 
 	StopActivityTimeoutTimer();
 }
@@ -1175,18 +1222,23 @@ void FCurlHttpRequest::FinishRequest()
 		{
 			Response->bSucceeded = (CURLE_OK == CurlCompletionResult);
 
-			// get the information
-			long HttpCode = 0;
-			if (CURLE_OK == curl_easy_getinfo(EasyHandle, CURLINFO_RESPONSE_CODE, &HttpCode))
+			if (!CVarHttpCurlSetResponseCodeWhenMarkAsCompleted.GetValueOnAnyThread())
 			{
-				Response->HttpCode = HttpCode;
+				// get the information
+				long HttpCode = 0;
+				if (CURLE_OK == curl_easy_getinfo(EasyHandle, CURLINFO_RESPONSE_CODE, &HttpCode))
+				{
+					Response->SetResponseCode(HttpCode);
+				}
 			}
 
 			// If content length wasn't received through response header 
 			if (Response->ContentLength == 0)
 			{
 				double ContentLengthDownload = 0.0;
-				if (CURLE_OK == curl_easy_getinfo(EasyHandle, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &ContentLengthDownload) && ContentLengthDownload > 0.0)
+				if (CVarHttpCurlReadContentLengthWhenFinish.GetValueOnAnyThread() && 
+					CURLE_OK == curl_easy_getinfo(EasyHandle, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &ContentLengthDownload) && 
+					ContentLengthDownload > 0.0)
 				{
 					Response->ContentLength = static_cast< uint64 >(ContentLengthDownload);
 				}
@@ -1197,10 +1249,10 @@ void FCurlHttpRequest::FinishRequest()
 				}
 			}
 
-			if (Response->HttpCode <= 0 && URL.StartsWith(TEXT("Http"), ESearchCase::IgnoreCase))
+			if (Response->GetResponseCode() <= 0 && URL.StartsWith(TEXT("Http"), ESearchCase::IgnoreCase))
 			{
 				UE_LOG(LogHttp, Warning, TEXT("%p: invalid HTTP response code received. URL: %s, HTTP code: %d, content length: %llu, actual payload size: %llu"),
-					this, *GetURL(), Response->HttpCode, Response->ContentLength, TotalBytesRead.load());
+					this, *GetURL(), Response->GetResponseCode(), Response->ContentLength, TotalBytesRead.load());
 				Response->bSucceeded = false;
 			}
 		}
@@ -1220,40 +1272,6 @@ void FCurlHttpRequest::FinishRequest()
 
 	if (Response.IsValid() && Response->bSucceeded)
 	{
-		bool bDebugServerResponse = CVarCurlDebugServerResponseEnabled.GetValueOnAnyThread() && (Response->GetResponseCode() >= 500 && Response->GetResponseCode() <= 503);
-
-		// log info about error responses to identify failed downloads
-		if (UE_LOG_ACTIVE(LogHttp, Verbose) || bDebugServerResponse)
-		{
-			if (bDebugServerResponse)
-			{
-				UE_LOG(LogHttp, Warning, TEXT("%p: request has been successfully processed. URL: %s, HTTP code: %d, content length: %llu, actual payload size: %llu, elapsed: %.2fs"),
-					this, *GetURL(), Response->HttpCode, Response->ContentLength, TotalBytesRead.load(), ElapsedTime);
-			}
-			else
-			{
-				UE_LOG(LogHttp, Log, TEXT("%p: request has been successfully processed. URL: %s, HTTP code: %d, content length: %llu, actual payload size: %llu, elapsed: %.2fs"),
-					this, *GetURL(), Response->HttpCode, Response->ContentLength, TotalBytesRead.load(), ElapsedTime);
-			}
-
-			TArray<FString> AllHeaders = Response->GetAllHeaders();
-			for (TArray<FString>::TConstIterator It(AllHeaders); It; ++It)
-			{
-				const FString& HeaderStr = *It;
-				if (!HeaderStr.StartsWith(TEXT("Authorization")) && !HeaderStr.StartsWith(TEXT("Set-Cookie")))
-				{
-					if (bDebugServerResponse)
-					{
-						UE_LOG(LogHttp, Warning, TEXT("%p Response Header %s"), this, *HeaderStr);
-					}
-					else
-					{
-						UE_LOG(LogHttp, Verbose, TEXT("%p Response Header %s"), this, *HeaderStr);
-					}
-				}
-			}
-		}
-
 		HandleRequestSucceed(Response);
 	}
 	else
@@ -1280,70 +1298,104 @@ void FCurlHttpRequest::FinishRequest()
 			}
 		}
 
-		SetStatus(EHttpRequestStatus::Failed);
-
-		// Mark last request attempt as completed but failed
-		if (bCanceled)
+		if (CVarHttpSetGeneralFailureReasonFromCommonCode.GetValueOnAnyThread())
 		{
-			SetFailureReason(EHttpFailureReason::Cancelled);
-		}
-		else if (bTimedOut)
-		{
-			SetFailureReason(EHttpFailureReason::TimedOut);
-		}
-		else if (bActivityTimedOut)
-		{
-			SetFailureReason(EHttpFailureReason::ConnectionError);
-		}
-		else if (bCurlRequestCompleted)
-		{
-			switch (CurlCompletionResult)
+			if (bCurlRequestCompleted)
 			{
-			case CURLE_COULDNT_CONNECT:
-			case CURLE_OPERATION_TIMEDOUT:
-			case CURLE_COULDNT_RESOLVE_PROXY:
-			case CURLE_COULDNT_RESOLVE_HOST:
-			case CURLE_SSL_CONNECT_ERROR:
+				switch (CurlCompletionResult)
+				{
+				case CURLE_COULDNT_CONNECT:
+				case CURLE_OPERATION_TIMEDOUT:
+				case CURLE_COULDNT_RESOLVE_PROXY:
+				case CURLE_COULDNT_RESOLVE_HOST:
+				case CURLE_SSL_CONNECT_ERROR:
 #if WITH_CURL_XCURL
-			case CURLE_SEND_ERROR:
+				case CURLE_SEND_ERROR:
 #endif
-				// report these as connection errors (safe to retry)
-				SetFailureReason(EHttpFailureReason::ConnectionError);
-				break;
-			default:
-				SetFailureReason(EHttpFailureReason::Other);
+					// report these as connection errors (safe to retry)
+					SetFailureReason(EHttpFailureReason::ConnectionError);
+					break;
+				default:
+					break;
+				}
 			}
+
+			HandleRequestFailed(Response);
 		}
 		else
 		{
-			SetFailureReason(EHttpFailureReason::Other);
+			SetStatus(EHttpRequestStatus::Failed);
+
+			// Mark last request attempt as completed but failed
+			if (bCanceled)
+			{
+				SetFailureReason(EHttpFailureReason::Cancelled);
+			}
+			else if (bTimedOut)
+			{
+				SetFailureReason(EHttpFailureReason::TimedOut);
+			}
+			else if (bActivityTimedOut)
+			{
+				SetFailureReason(EHttpFailureReason::ConnectionError);
+			}
+			else if (bCurlRequestCompleted)
+			{
+				switch (CurlCompletionResult)
+				{
+				case CURLE_COULDNT_CONNECT:
+				case CURLE_OPERATION_TIMEDOUT:
+				case CURLE_COULDNT_RESOLVE_PROXY:
+				case CURLE_COULDNT_RESOLVE_HOST:
+				case CURLE_SSL_CONNECT_ERROR:
+	#if WITH_CURL_XCURL
+				case CURLE_SEND_ERROR:
+	#endif
+					// report these as connection errors (safe to retry)
+					SetFailureReason(EHttpFailureReason::ConnectionError);
+					break;
+				default:
+					SetFailureReason(EHttpFailureReason::Other);
+				}
+			}
+			else
+			{
+				SetFailureReason(EHttpFailureReason::Other);
+			}
+
+			// Call delegate with failure
+			OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), Response, false);
+
+			//Delegate needs to know about the errors -- so clear out Response (since connection failed) afterwards...
+			ResponseCommon = nullptr;
+			TotalBytesRead = 0;
 		}
-		// Call delegate with failure
-		OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), Response, false);
-
-		//Delegate needs to know about the errors -- so clear out Response (since connection failed) afterwards...
-		ResponseCommon = nullptr;
-		TotalBytesRead = 0;
 	}
-}
-
-float FCurlHttpRequest::GetElapsedTime() const
-{
-	return ElapsedTime;
 }
 
 void FCurlHttpRequest::CleanupRequest()
 {
-	curl_easy_setopt(EasyHandle, CURLOPT_SHARE, nullptr);
-
 	CloseRequestPayloadDefaultImpl();
+}
+
+FHttpResponsePtr FCurlHttpRequest::CreateResponse()
+{
+	return MakeShared<FCurlHttpResponse>(*this);
+}
+
+void FCurlHttpRequest::MockResponseData()
+{
+	CurlCompletionResult = CURLE_OK;
+	bCurlRequestCompleted = true;
+
+	TSharedPtr<FCurlHttpResponse> Response = StaticCastSharedPtr<FCurlHttpResponse>(ResponseCommon);
+	Response->bSucceeded = true;
 }
 
 // FCurlHttpRequest
 
 FCurlHttpResponse::FCurlHttpResponse(const FCurlHttpRequest& InRequest)
 	: FHttpResponseCommon(InRequest)
-	, HttpCode(EHttpResponseCodes::Unknown)
 	, ContentLength(0)
 	, bIsReady(0)
 	, bSucceeded(0)
@@ -1405,16 +1457,13 @@ const TArray<uint8>& FCurlHttpResponse::GetContent() const
 	return Payload;
 }
 
-int32 FCurlHttpResponse::GetResponseCode() const
-{
-	return HttpCode;
-}
-
 FString FCurlHttpResponse::GetContentAsString() const
 {
 	// Content is NOT null-terminated; we need to specify lengths here
 	FUTF8ToTCHAR TCHARData(reinterpret_cast<const ANSICHAR*>(Payload.GetData()), Payload.Num());
 	return FString(TCHARData.Length(), TCHARData.Get());
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #endif //WITH_CURL

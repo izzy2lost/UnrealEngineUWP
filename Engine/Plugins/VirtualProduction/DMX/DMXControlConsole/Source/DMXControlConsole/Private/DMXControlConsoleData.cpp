@@ -4,6 +4,7 @@
 
 #include "Algo/Find.h"
 #include "Algo/Sort.h"
+#include "DMXControlConsoleCueStack.h"
 #include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleFaderGroup.h"
 #include "DMXControlConsoleFaderGroupRow.h"
@@ -13,8 +14,11 @@
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXLibrary.h"
+#include "Misc/ScopedSlowTask.h"
 #include "UObject/Package.h"
 
+
+#define LOCTEXT_NAMESPACE "DMXControlConsoleData"
 
 namespace UE::DMX::Private
 {
@@ -33,6 +37,11 @@ namespace UE::DMX::Private
 }
 
 
+UDMXControlConsoleData::UDMXControlConsoleData()
+{
+	CueStack = CreateDefaultSubobject<UDMXControlConsoleCueStack>(TEXT("CueStack"));
+}
+
 UDMXControlConsoleFaderGroupRow* UDMXControlConsoleData::AddFaderGroupRow(const int32 RowIndex = 0)
 {
 	if (!ensureMsgf(RowIndex >= 0, TEXT("Invalid index. Cannot add new fader group row to '%s' correctly."), *GetName()))
@@ -47,7 +56,7 @@ UDMXControlConsoleFaderGroupRow* UDMXControlConsoleData::AddFaderGroupRow(const 
 	return FaderGroupRow;
 }
 
-void UDMXControlConsoleData::DeleteFaderGroupRow(const TObjectPtr<UDMXControlConsoleFaderGroupRow>& FaderGroupRow)
+void UDMXControlConsoleData::DeleteFaderGroupRow(UDMXControlConsoleFaderGroupRow* FaderGroupRow)
 {
 	if (!ensureMsgf(FaderGroupRow, TEXT("Invalid fader group row, cannot delete from '%s'."), *GetName()))
 	{
@@ -135,9 +144,20 @@ void UDMXControlConsoleData::GenerateFromDMXLibrary()
 	using namespace UE::DMX::Private;
 	Algo::StableSortBy(FixturePatchesInLibrary, TFunction<int64(UDMXEntityFixturePatch*)>(&GetFixturePatchChannelAbsolute));
 
+#if WITH_EDITOR
+	// Start slow task
+	const float NumSteps = FixturePatchesInLibrary.Num();
+	FScopedSlowTask Task(NumSteps, LOCTEXT("GenerateFromDMXLibrarySlowTask", "Updating Control Console..."));
+	Task.MakeDialogDelayed(.5f);
+#endif // WITH_EDITOR
+
 	int32 CurrentUniverseID = 0;
 	for (int32 FixturePatchIndex = 0; FixturePatchIndex < FixturePatchesInLibrary.Num(); ++FixturePatchIndex)
 	{
+#if WITH_EDITOR
+		Task.EnterProgressFrame();
+#endif // WITH_EDITOR
+
 		UDMXEntityFixturePatch* FixturePatch = FixturePatchesInLibrary[FixturePatchIndex];
 		if (!FixturePatch)
 		{
@@ -181,11 +201,13 @@ void UDMXControlConsoleData::GenerateFromDMXLibrary()
 
 void UDMXControlConsoleData::StartSendingDMX()
 {
+	bPauseDMX = false;
 	bSendDMX = true;
 }
 
 void UDMXControlConsoleData::StopSendingDMX()
 {
+	bPauseDMX = false;
 	bSendDMX = false;
 
 	// Handle stop DMX modes
@@ -226,6 +248,19 @@ void UDMXControlConsoleData::StopSendingDMX()
 			}
 		}
 	}
+}
+
+void UDMXControlConsoleData::PauseSendingDMX()
+{
+	// When pausing, always use the stop mode that does not send DMX values
+	const EDMXControlConsoleStopDMXMode RestoreStopDMXMode = GetStopDMXMode();
+	SetStopDMXMode(EDMXControlConsoleStopDMXMode::DoNotSendValues);
+
+	StopSendingDMX();
+
+	SetStopDMXMode(RestoreStopDMXMode);
+
+	bPauseDMX = true;
 }
 
 void UDMXControlConsoleData::SetStopDMXMode(EDMXControlConsoleStopDMXMode NewStopDMXMode)
@@ -311,18 +346,11 @@ void UDMXControlConsoleData::Tick(float InDeltaTime)
 
 		OnDMXLibraryReloadedDelegate.Broadcast();
 	}
-		
+
 	if (!bSendDMX)
 	{
 		return;
 	}
-
-#if WITH_EDITOR
-	if (!bSendDMXInEditor && !GIsPlayInEditorWorld)
-	{
-		return;
-	}
-#endif // WITH_EDITOR
 
 	UDMXLibrary* DMXLibrary = GetDMXLibrary();
 	const FName DMXLibraryName = DMXLibrary ? DMXLibrary->GetFName() : "<Invalid DMX Library>";
@@ -432,10 +460,20 @@ void UDMXControlConsoleData::OnFixturePatchAddedToLibrary(UDMXLibrary* Library, 
 	using namespace UE::DMX::Private;
 	Algo::StableSortBy(FixturePatches, TFunction<int64(UDMXEntityFixturePatch*)>(&GetFixturePatchChannelAbsolute));
 
+#if WITH_EDITOR
+	const float NumSteps = Entities.Num();
+	FScopedSlowTask Task(NumSteps, LOCTEXT("OnFixturePatchAddedToLibrarySlowTask", "Updating Control Console..."));
+	Task.MakeDialogDelayed(.5f);
+#endif // WITH_EDITOR
+
 	// Generate Fader Group for each new Entity in DMX Library
 	int32 CurrentUniverseID = 0;
 	for (UDMXEntity* Entity : Entities)
 	{
+#if WITH_EDITOR
+		Task.EnterProgressFrame();
+#endif // WITH_EDITOR
+
 		UDMXEntityFixturePatch* FixturePatch = Cast<UDMXEntityFixturePatch>(Entity);
 		if (!FixturePatch)
 		{
@@ -478,3 +516,5 @@ void UDMXControlConsoleData::OnFixturePatchAddedToLibrary(UDMXLibrary* Library, 
 		OnFaderGroupAdded.Broadcast(FaderGroup);
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

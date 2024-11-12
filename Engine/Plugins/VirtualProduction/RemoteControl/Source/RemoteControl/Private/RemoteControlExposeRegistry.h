@@ -195,15 +195,15 @@ public:
 	 */
 	FName GenerateUniqueLabel(FName BaseName) const;
 
+	//~ Begin UObject interface
+	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
-
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
+	//~ End UObject interface
 
-	/**
-	 * @brief Rehash the entities after ids have been modified.
-	 */
-	void Rehash();
-	
+	/** Cache labels for all exposed entities. */
+	void CacheLabels();
+
 private:
 	/** Get a raw pointer to an entity using its id. */
 	TSharedPtr<FRemoteControlEntity> GetEntity(const FGuid& EntityId);
@@ -211,13 +211,17 @@ private:
 	/** Get a raw pointer to an entity using its id. */
 	TSharedPtr<const FRemoteControlEntity> GetEntity(const FGuid& EntityId) const;
 
-	/** Cache labels for all expose sets. */
-	void CacheLabels();
-
 private:
 	/** Holds the exposed entities. */
 	UPROPERTY()
-	TSet<FRCEntityWrapper> ExposedEntities;
+	TArray<FRCEntityWrapper> ExposedEntitiesArray;
+
+#if WITH_EDITORONLY_DATA
+	/** DEPRECATED 5.5 Holds the exposed entities. Instead refer to the new TArray<FRCEntityWrapper> URemoteControlExposeRegistry::ExposedEntities */
+	UE_DEPRECATED(5.5, "Changed to an ordered TArray.")
+	UPROPERTY()
+	TSet<FRCEntityWrapper> ExposedEntities_DEPRECATED;
+#endif //
 
 	/** Cache of label to ids. */
 	UPROPERTY(Transient)

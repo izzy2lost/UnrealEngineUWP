@@ -2,6 +2,7 @@
 
 #include "RivermaxMediaPlayer.h"
 
+#include "Engine/Engine.h"
 #include "IMediaEventSink.h"
 #include "IRivermaxCoreModule.h"
 #include "IRivermaxManager.h"
@@ -17,7 +18,9 @@
 #include "RivermaxMediaTextureSample.h"
 #include "RivermaxMediaUtils.h"
 #include "RivermaxPTPUtils.h"
+#include "RivermaxShaders.h"
 #include "RivermaxTracingUtils.h"
+#include "RivermaxTimecodeProvider.h"
 #include "RivermaxTypes.h"
 #include "Stats/Stats2.h"
 #include "Tasks/Task.h"
@@ -29,12 +32,21 @@
 
 #define LOCTEXT_NAMESPACE "FRivermaxMediaPlayer"
 
-DECLARE_CYCLE_STAT(TEXT("Rivermax MediaPlayer Request frame"), STAT_Rivermax_MediaPlayer_RequestFrame, STATGROUP_Media);
-DECLARE_CYCLE_STAT(TEXT("Rivermax MediaPlayer Process frame"), STAT_Rivermax_MediaPlayer_ProcessFrame, STATGROUP_Media);
+// Sample number with frame delay taken into account
+#define TO_EXPECTED_SAMPLE_FRAME_NUM(CURRENTFrameNum) GetFrameNumberWithAcountedLatency(FrameDelay, CURRENTFrameNum)
+
+// Sample index with frame delay taken into account
+#define TO_EXPECTED_SAMPLE_INDEX(CURRENTFrameNum) ConvertFrameNumToSampleIndex(FrameDelay, CURRENTFrameNum, kMaxNumVideoFrameBuffer)
+
+// Sample index to access sample in framelocked array
+#define FRAME_NUM_TO_INDEX(CURRENTFrameNum) (CURRENTFrameNum) % kMaxNumVideoFrameBuffer
+
+// Identifies if the player is in framelocking mode.
+#define IS_FRAMELOCKED() (EvaluationType == EMediaIOSampleEvaluationType::Timecode && bFramelock)
 
 DECLARE_GPU_STAT_NAMED(RivermaxMedia_SampleUsageFence, TEXT("RivermaxMedia_SampleUsageFence"));
 DECLARE_GPU_STAT_NAMED(Rmax_WaitForPixels, TEXT("Rmax_WaitForPixels"));
-
+DECLARE_GPU_STAT(RivermaxSource_SampleConversion);
 
 namespace UE::RivermaxMedia
 {
@@ -44,25 +56,61 @@ namespace UE::RivermaxMedia
 		TEXT("Override latency in framelock mode. 0 for 0 frame of latency and 1 for 1 frame of latency."),
 		ECVF_Default);
 
-	static TAutoConsoleVariable<int32> CVarRivermaxSampleUploadMode(
-		TEXT("Rivermax.Player.UploadMode"),
-		1,
-		TEXT("Mode 0: Upload is done on the render thread.\n"
-			"Mode 1: Upload is done in its own thread before being rendered."),
+	static TAutoConsoleVariable<float> CVarRivermaxDefaultThreadBlockTimeoutSec(
+		TEXT("Rivermax.Player.DefaultThreadBlockTimeoutSec"),
+		0.5,
+		TEXT("Overrides the wait time for the samples to be written to. In seconds. "),
 		ECVF_Default);
 
+	uint64 GetFrameNumberWithAcountedLatency(int64 InFrameDelay, uint64 FrameNumber)
+	{
+		const int64 ForcedLatency = CVarRivermaxForcedFramelockLatency.GetValueOnAnyThread();
+		return (FrameNumber - (uint64)FMath::Clamp(InFrameDelay + ForcedLatency, 0, 1));
+	}
+
+	uint8 ConvertFrameNumToSampleIndex(int64 InFrameDelay, uint64 FrameNumber, uint8 InMaxNumVideoFrameBuffer)
+	{
+		return (GetFrameNumberWithAcountedLatency(InFrameDelay, FrameNumber)) % InMaxNumVideoFrameBuffer;
+	}
+
+	/** Returns current time. Adjusted to UTC and rolled over at 24 hours. */
+	FTimespan GetCurrentPTPTimeOfDay()
+	{
+		FTimespan CurrentTimespan;
+
+		const int64 NumberOfTicksPerDay = 60 * 60 * 24 * ETimespan::TicksPerSecond;
+
+		IRivermaxCoreModule* RivermaxModule = FModuleManager::GetModulePtr<IRivermaxCoreModule>("RivermaxCore");
+		if (RivermaxModule && RivermaxModule->GetRivermaxManager())
+		{
+			// Converting from nanoseconds to ticks.
+			CurrentTimespan = FTimespan(RivermaxModule->GetRivermaxManager()->GetTime() / ETimespan::NanosecondsPerTick);
+			UTimecodeProvider* Provider = GEngine->GetTimecodeProvider();
+			
+			// Convert from TAI PTP Time to UTC
+			if (Provider && Provider->GetName().Contains("RivermaxTimecodeProvider"))
+			{
+				URivermaxTimecodeProvider* RmaxTimecodeProvider = static_cast<URivermaxTimecodeProvider*>(Provider);
+				CurrentTimespan -= FTimespan(0, 0, RmaxTimecodeProvider->UTCSecondsOffset);
+			}
+			else
+			{
+				UE_CALL_ONCE([&] { UE_LOG(LogRivermaxMedia, Warning, TEXT("Rivermax Timecode provider is required for accurate playback.")); });
+			}
+
+			// Rollover 24 hours.
+			CurrentTimespan = FTimespan(CurrentTimespan.GetTicks() % NumberOfTicksPerDay);
+		}
+
+		return CurrentTimespan;
+	}
 	/* FRivermaxVideoPlayer structors
 	 *****************************************************************************/
 
 	FRivermaxMediaPlayer::FRivermaxMediaPlayer(IMediaEventSink& InEventSink)
 		: Super(InEventSink)
-		, MaxNumVideoFrameBuffer(5)
 		, RivermaxThreadNewState(EMediaState::Closed)
-		, bIsSRGBInput(false)
-		, bUseVideo(false)
-		, SupportedSampleTypes(EMediaIOSampleType::None)
-		, bPauseRequested(false)
-		, MediaSamples(MakeUnique<FRivermaxMediaTextureSamples>())
+		, VideoTextureSamplePool(MakeUnique<FRivermaxMediaTextureSamplePool>())
 	{
 	}
 
@@ -88,20 +136,12 @@ namespace UE::RivermaxMedia
 			return false;
 		}
 
-		PlayerMode = (ERivermaxPlayerMode)Options->GetMediaOption(RivermaxMediaOption::PlayerMode, (int64)ERivermaxPlayerMode::Latest);
-		FrameTracking = {};
-
 		//Video related options
 		{
-			bIsSRGBInput = Options->GetMediaOption(RivermaxMediaOption::SRGBInput, bIsSRGBInput);
 			DesiredPixelFormat = (ERivermaxMediaSourcePixelFormat)Options->GetMediaOption(RivermaxMediaOption::PixelFormat, (int64)ERivermaxMediaSourcePixelFormat::RGB_8bit);
-			const bool bUseZeroLatency = Options->GetMediaOption(RivermaxMediaOption::ZeroLatency, true);
-			FrameLatency = bUseZeroLatency ? 0 : 1;
 			const bool bOverrideResolution = Options->GetMediaOption(RivermaxMediaOption::OverrideResolution, false);
 			bFollowsStreamResolution = !bOverrideResolution;
 		}
-
-		bUseVideo = true;
 
 		IRivermaxCoreModule* Module = FModuleManager::GetModulePtr<IRivermaxCoreModule>("RivermaxCore");
 		if (Module && ConfigureStream(Options))
@@ -114,13 +154,12 @@ namespace UE::RivermaxMedia
 		{
 			StreamResolution = StreamOptions.EnforcedResolution;
 		}
+
 		VideoTrackFormat.Dim = FIntPoint::ZeroValue;
 
-		FrameTracking.bWasFrameRequested = false;
-		FrameTracking.LastFrameRendered.Reset();
 		CurrentState = EMediaState::Preparing;
 		RivermaxThreadNewState = EMediaState::Preparing;
-		
+
 		if (InputStream == nullptr || !InputStream->Initialize(StreamOptions, *this))
 		{
 			UE_LOG(LogRivermaxMedia, Warning, TEXT("Failed to initialize Rivermax input stream."));
@@ -131,8 +170,6 @@ namespace UE::RivermaxMedia
 
 		// Setup our different supported channels based on source settings
 		SetupSampleChannels();
-
-		EventSink.ReceiveMediaEvent(EMediaEvent::MediaConnecting);
 
 #if WITH_EDITOR
 		if (FEngineAnalytics::IsAvailable())
@@ -162,15 +199,8 @@ namespace UE::RivermaxMedia
 			InputStream.Reset();
 		}
 
-		for(const TSharedPtr<FRivermaxSampleWrapper>& Sample : SamplePool)
-		{
-			Sample->Sample.Reset();
-			Sample->SampleConversionFence.SafeRelease();
-		}
-		SamplePool.Empty();
-
-		RivermaxThreadCurrentTextureSample.Reset();
-		SkippedFrames.Empty();
+		Samples->FlushSamples();
+		VideoTextureSamplePool.Reset();
 
 		Super::Close();
 	}
@@ -181,139 +211,108 @@ namespace UE::RivermaxMedia
 		return PlayerPluginGUID;
 	}
 
-	FString FRivermaxMediaPlayer::GetStats() const
-	{
-		FString Stats;
-
-		//todo
-
-		return Stats;
-	}
 
 #if WITH_EDITOR
 	const FSlateBrush* FRivermaxMediaPlayer::GetDisplayIcon() const
 	{
 		//todo for tdm
 		return nullptr;
-		//return IRivermaxMediaModule::Get().GetStyle()->GetBrush("RivermaxMediaIcon");
 	}
 #endif //WITH_EDITOR
 
-	bool FRivermaxMediaPlayer::OnVideoFrameRequested(const FRivermaxInputVideoFrameDescriptor& FrameInfo, FRivermaxInputVideoFrameRequest& OutVideoFrameRequest)
+	TSharedPtr<IRivermaxVideoSample> FRivermaxMediaPlayer::OnVideoFrameRequested(const FRivermaxInputVideoFrameDescriptor& FrameInfo)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FRivermaxMediaPlayer::OnVideoFrameRequested)
+		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("Rmax::FrameRequested %u"), (FrameInfo.FrameNumber)));
 
 		// If video is not playing, no need to provide samples when requested
 		if (!IsReadyToPlay())
 		{
-			return false;
+			return nullptr;
 		}
-
-		// Track first frame number that was requested in order to avoid waiting for a frame that will never come
-		if (FrameTracking.bWasFrameRequested == false)
-		{
-			FrameTracking.bWasFrameRequested = true;
-			FrameTracking.FirstFrameRequested = FrameInfo.FrameNumber;
-		}
-		else
-		{
-			if(FrameInfo.FrameNumber > (FrameTracking.LastFrameNumberRequested + 1))
-			{
-				UE_LOG(LogRivermaxMedia, Warning, TEXT("Frames were skipped. Last frame requested was '%d'. Current frame being requested is '%d'."), FrameTracking.LastFrameNumberRequested, FrameInfo.FrameNumber);
-				
-				// Skipped frames are only used in framelock mode to avoid stalling
-				if (PlayerMode == ERivermaxPlayerMode::Framelock)
-				{
-					FScopeLock Lock(&SkippedFrameCriticalSection);
-					
-					const uint32 MinInterval = FrameTracking.LastFrameNumberRequested + 1;
-					const uint32 MaxInterval = FrameInfo.FrameNumber - 1;
-					if (MinInterval <= MaxInterval)
-					{
-						const TInterval<uint32> Interval(MinInterval, MaxInterval);
-						SkippedFrames.Add(Interval);
-					}
-					else
-					{
-						//Wrap around case
-						const TInterval<uint32> FirstInterval(MinInterval, ~0);
-						const TInterval<uint32> SecondInterval(0, MaxInterval);
-						SkippedFrames.Add(FirstInterval);
-						SkippedFrames.Add(SecondInterval);
-					}
-				}
-			}
-		}
-
-		// Keep track of frames that are requested to detect gaps
-		FrameTracking.LastFrameNumberRequested = FrameInfo.FrameNumber;
 
 		if (FrameInfo.VideoBufferSize > 0)
 		{
-			uint32 NextRequestIndex = 0;
-			if(GetFrameRequestedIndex(FrameInfo, NextRequestIndex))
+			TSharedPtr<FRivermaxMediaTextureSample> Sample;
+			if (IS_FRAMELOCKED())
 			{
-				UE_LOG(LogRivermaxMedia, Verbose, TEXT("Starting to receive frame '%u' with timestamp %u at location %d"), FrameInfo.FrameNumber, FrameInfo.Timestamp, NextRequestIndex);
-				SamplePool[NextRequestIndex]->ReceptionState = ESampleReceptionState::Receiving;
-				SamplePool[NextRequestIndex]->FrameNumber = FrameInfo.FrameNumber;
-				SamplePool[NextRequestIndex]->Timestamp = FrameInfo.Timestamp;
-				RivermaxThreadCurrentTextureSample = SamplePool[NextRequestIndex];
-			
-				if (bDoesStreamSupportsGPUDirect)
+				// If input stream has somehow completely lost a frame (not even a single packet received) and we are 2 frames ahead of rendered frame.
+				if (FrameInfo.FrameNumber > LastFrameToAttemptReception + 1)
 				{
-					// Hand out location where to copy received data on gpu
-					OutVideoFrameRequest.GPUBuffer = RivermaxThreadCurrentTextureSample->Sample->GetGPUBuffer()->GetRHI();
+					//Invalidate previous samples in case one of them is still being rendered. 
+					for (uint64 PreviousFrameNumber = LastFrameToAttemptReception; PreviousFrameNumber < FrameInfo.FrameNumber; PreviousFrameNumber++)
+					{
+						TSharedPtr<FRivermaxMediaTextureSample> PreviousSample = FrameLockedSamples[FRAME_NUM_TO_INDEX(PreviousFrameNumber)];
+						if (PreviousSample->IsBeingRendered())
+						{
+							// This will stop the waiting thread from waiting for the start of the reception. 
+							PreviousSample->SetFrameNumber(PreviousFrameNumber);
+
+							// this will stop the waiting thread from copying invalid data and waiting for the copy.
+							PreviousSample->SetReceptionState(IRivermaxVideoSample::ESampleState::ReceptionError);
+
+							// this will stop the waiting thread from waiting for the sample reception.
+							PreviousSample->GetSampleReceivedEvent()->Trigger();
+						}
+					}
 				}
-				else
-				{
-					OutVideoFrameRequest.VideoBuffer = reinterpret_cast<uint8*>(RivermaxThreadCurrentTextureSample->Sample->RequestBuffer(FrameInfo.VideoBufferSize));
-				}
-				return true;
+
+				Sample = FrameLockedSamples[FRAME_NUM_TO_INDEX(FrameInfo.FrameNumber)];
+				Sample->GetSampleReceivedEvent()->Reset();
+
+			}
+			else
+			{
+				Sample = VideoTextureSamplePool->AcquireShared(false /*NoAllocation*/);
 			}
 
-			UE_LOG(LogRivermaxMedia, Verbose, TEXT("Failed to provide a frame for incoming frame %u with timestamp %u"), FrameInfo.FrameNumber, FrameInfo.Timestamp);
+			// (More of a sanity check. Shouldn't be in this state.).
+			if (!Sample.IsValid())
+			{
+				UE_LOG(LogRivermaxMedia, Warning, TEXT("Failed to provide a frame for incoming frame %u with timestamp %u"), FrameInfo.FrameNumber, FrameInfo.Timestamp);
+				return nullptr;
+			}
+
+			UE_LOG(LogRivermaxMedia, Verbose, TEXT("Starting to receive frame '%u' with timestamp %u"), FrameInfo.FrameNumber, FrameInfo.Timestamp);
+
+			// Until PTP Timecode is available sample records frame reception start time for sample picking.
+			Sample->FrameReceptionStart = GetCurrentPTPTimeOfDay();
+
+			// the following will be restored once we have true PTP timecode support.
+			//const double MediaFrameTimeSecs = UE::RivermaxCore::ConvertRTPTimeStampToSeconds(FrameInfo.Timestamp);
+			//Sample->SetTime(FTimespan::FromSeconds(MediaFrameTimeSecs));
+			Sample->SetFrameNumber(FrameInfo.FrameNumber);
+			Sample->SetReceptionState(IRivermaxVideoSample::ESampleState::ReadyForReception);
+			LastFrameToAttemptReception = FrameInfo.FrameNumber;
+			return Sample;
 		}
 
-		return false;
+		return nullptr;
 	}
 
 
-	void FRivermaxMediaPlayer::OnVideoFrameReceived(const FRivermaxInputVideoFrameDescriptor& FrameInfo, const FRivermaxInputVideoFrameReception& ReceivedVideoFrame)
+	void FRivermaxMediaPlayer::OnVideoFrameReceived(TSharedPtr<IRivermaxVideoSample> InReceivedVideoFrame)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FRivermaxMediaPlayer::OnVideoFrameReceived)
-
-
 		if (!IsReadyToPlay())
 		{
 			return;
 		}
 
-		if (bUseVideo && ReceivedVideoFrame.VideoBuffer)
-		{
-			if (RivermaxThreadCurrentTextureSample.IsValid())
-			{
-				if(RivermaxThreadCurrentTextureSample->ReceptionState == ESampleReceptionState::Receiving)
-				{
-					RivermaxThreadCurrentTextureSample->ReceptionState = ESampleReceptionState::Received;
-					RivermaxThreadCurrentTextureSample->bIsReadyToRender = bDoesStreamSupportsGPUDirect;
-				}
-				else
-				{
-					UE_LOG(LogRivermaxMedia, Verbose, TEXT("Discarding received frame %u since it was deemed unusable."), FrameInfo.FrameNumber);
-				}
-			}
-		}
-		
-		RivermaxThreadCurrentTextureSample.Reset();
-	}
+		TSharedPtr<FRivermaxMediaTextureSample> Sample = StaticCastSharedPtr<FRivermaxMediaTextureSample>(InReceivedVideoFrame);
+		check(Sample.IsValid());
 
-	void FRivermaxMediaPlayer::TickFetch(FTimespan DeltaTime, FTimespan Timecode)
-	{
-		Super::TickFetch(DeltaTime, Timecode);
-		if (InputStream && CurrentState == EMediaState::Playing)
+		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("Rmax::OnVideoFrameReceived %u"), (Sample->GetFrameNumber())));
+		if (!IS_FRAMELOCKED())
 		{
-			ProcessFrame();
+			Samples->AddVideo(Sample.ToSharedRef());
 		}
+		else
+		{
+			Sample->GetSampleReceivedEvent()->Trigger();
+		}
+
+		// Until PTP Timecode is available sample records frame reception start time for sample picking.
+		Sample->FrameReceptionEnd = GetCurrentPTPTimeOfDay();
+		
 	}
 
 	void FRivermaxMediaPlayer::TickInput(FTimespan DeltaTime, FTimespan Timecode)
@@ -341,7 +340,7 @@ namespace UE::RivermaxMedia
 		{
 			return;
 		}
-		
+
 		// Cache current stream detection, it could change while we are applying it
 		FIntPoint CachedStreamResolution;
 		{
@@ -352,27 +351,12 @@ namespace UE::RivermaxMedia
 		if (VideoTrackFormat.Dim != CachedStreamResolution)
 		{
 			UE_LOG(LogRivermaxMedia, Log, TEXT("Player needs to apply newly detected stream resolution : %dx%d"), CachedStreamResolution.X, CachedStreamResolution.Y);
-			
-			// Reset some frame tracking info while changing resolution
-			FrameTracking.bWasFrameRequested = false;
-			FrameTracking.LastFrameRendered.Reset();
 
 			{
 				WaitForPendingTasks();
 
-				// Cleanup allocated ressources for the current resolution
-				for (const TSharedPtr<FRivermaxSampleWrapper>& Sample : SamplePool)
-				{
-					Sample->Sample.Reset();
-					Sample->SampleConversionFence.SafeRelease();
-				}
-				SamplePool.Empty();
-
-				RivermaxThreadCurrentTextureSample.Reset();
-				SkippedFrames.Empty();
-
 				AllocateBuffers(CachedStreamResolution);
-				
+
 				VideoTrackFormat.Dim = CachedStreamResolution;
 			}
 
@@ -381,37 +365,8 @@ namespace UE::RivermaxMedia
 		TickTimeManagement();
 	}
 
-
 	/* FRivermaxMediaPlayer implementation
 	 *****************************************************************************/
-	void FRivermaxMediaPlayer::ProcessFrame()
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(RivermaxPlayerProcessFrame);
-
-		// Don't start making frame available until one is being received
-		if (FrameTracking.bWasFrameRequested == false)
-		{
-			return;
-		}
-
-		// Create a new media sample acting as a dummy container to be picked by MFW which we will fill during the late update
-		FSampleConfigurationArgs Args;
-		Args.bInIsSRGBInput = bIsSRGBInput;
-		Args.FrameRate = VideoFrameRate;
-		Args.Width = VideoTrackFormat.Dim.X;
-		Args.Height = VideoTrackFormat.Dim.Y;
-		Args.Player = StaticCastSharedPtr<FRivermaxMediaPlayer>(AsShared().ToSharedPtr());
-		Args.SampleFormat = DesiredPixelFormat;
-		Args.Time = FTimespan(GFrameCounter);
-
-		TSharedPtr<FRivermaxMediaTextureSample> EmptySample = MakeShared<FRivermaxMediaTextureSample>();
-		EmptySample->ConfigureSample(Args);
-		EmptySample->SetBuffer(CommonGPUBuffer);
-
-		// Update the current sample to be picked by MFW
-		MediaSamples->CurrentSample = EmptySample;
-	}
-
 	bool FRivermaxMediaPlayer::IsHardwareReady() const
 	{
 		return (RivermaxThreadNewState == EMediaState::Playing) || (RivermaxThreadNewState == EMediaState::Paused);
@@ -420,31 +375,38 @@ namespace UE::RivermaxMedia
 	void FRivermaxMediaPlayer::SetupSampleChannels()
 	{
 		FMediaIOSamplingSettings VideoSettings = BaseSettings;
-		VideoSettings.BufferSize = MaxNumVideoFrameBuffer;
+		VideoSettings.BufferSize = kMaxNumVideoFrameBuffer;
+
+		// TODO: Initialize Audio, Anc buffers
 		Samples->InitializeVideoBuffer(VideoSettings);
 	}
 
-	bool FRivermaxMediaPlayer::SetRate(float Rate)
+	TSharedPtr<FMediaIOCoreTextureSampleConverter> FRivermaxMediaPlayer::CreateTextureSampleConverter() const
 	{
-		if (FMath::IsNearlyEqual(Rate, 1.0f))
-		{
-			bPauseRequested = false;
-			return true;
-		}
+		return MakeShared<FRivermaxMediaTextureSampleConverter>();
+	}
 
-		if (FMath::IsNearlyEqual(Rate, 0.0f))
-		{
-			bPauseRequested = true;
-			return true;
-		}
+	TSharedPtr<FMediaIOCoreTextureSampleBase> FRivermaxMediaPlayer::AcquireTextureSample_AnyThread() const
+	{
 
-		return false;
+		if ((Samples->NumVideoSamples() > 0 || IsJustInTimeRenderingEnabled()) && ProxySampleDummy.IsValid())
+		{
+			FScopeLock Lock(&ProxySampleAccessCriticalSection);
+			// Create a copy of the proxy sample as Media Texture uses raw pointers for converters on Render thread and converter is set on game thread.
+			TSharedPtr<FRivermaxMediaTextureSample> SampleToReturn = MakeShared<FRivermaxMediaTextureSample>();
+			SampleToReturn->CopyConfiguration(ProxySampleDummy);
+			return SampleToReturn;
+		}
+		else
+		{
+			return nullptr;
+		}
 	}
 
 	void FRivermaxMediaPlayer::OnInitializationCompleted(const FRivermaxInputInitializationResult& Result)
 	{
 		RivermaxThreadNewState = Result.bHasSucceed ? EMediaState::Playing : EMediaState::Error;
-		bDoesStreamSupportsGPUDirect = Result.bIsGPUDirectSupported;
+		bStreamSupportsGPUDirect = Result.bIsGPUDirectSupported;
 	}
 
 	bool FRivermaxMediaPlayer::ConfigureStream(const IMediaOptions* Options)
@@ -482,46 +444,59 @@ namespace UE::RivermaxMedia
 
 	void FRivermaxMediaPlayer::AllocateBuffers(const FIntPoint& InResolution)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FRivermaxMediaPlayer::AllocateBuffers);
 		using namespace UE::RivermaxCore;
 		using namespace UE::RivermaxMediaUtils::Private;
 
-		// Take care of the common buffers first
+		if (VideoTextureSamplePool.IsValid())
 		{
-			// Create the common texture we are going to use
-			const FSourceBufferDesc BufferDescription = GetBufferDescription(InResolution, DesiredPixelFormat);
-			FRDGBufferDesc RDGBufferDesc = FRDGBufferDesc::CreateStructuredDesc(BufferDescription.BytesPerElement, BufferDescription.NumberOfElements);
-
-			// Required to share resource across different graphics API (DX, Cuda)
-			RDGBufferDesc.Usage |= EBufferUsageFlags::Shared;
-
-			TWeakPtr<FRivermaxMediaPlayer> WeakPlayer = StaticCastSharedRef<FRivermaxMediaPlayer>(AsShared());
-			ENQUEUE_RENDER_COMMAND(RivermaxPlayerBufferCreation)(
-				[WeakPlayer, RDGBufferDesc](FRHICommandListImmediate& CommandList)
-				{
-					if (TSharedPtr<FRivermaxMediaPlayer> Player = WeakPlayer.Pin())
-					{
-						Player->CommonGPUBuffer = AllocatePooledBuffer(RDGBufferDesc, TEXT("RmaxInput Buffer"));
-					}
-				});
+			VideoTextureSamplePool->Reset();
 		}
 
-		SamplePool.Empty();
+		VideoTextureSamplePool = MakeUnique<FRivermaxMediaTextureSamplePool>();
+		Samples->FlushSamples();
 
+		// Only need to store latest frame and the number of frames delayed by.
+		Samples->SetSampleBufferSize(FrameDelay + 1);
+
+
+		TSharedPtr<FRivermaxMediaTextureSample> NewSample;
 		// Allocate our pool of samples where incoming ones will be written and chosen from
-		for (int32 Index = 0; Index < MaxNumVideoFrameBuffer; Index++)
+		for (int32 Index = 0; Index < kMaxNumVideoFrameBuffer; Index++)
 		{
-			TSharedPtr<FRivermaxSampleWrapper> NewWrapper = MakeShared<FRivermaxSampleWrapper>();
-			NewWrapper->Sample = MakeShared<FRivermaxMediaTextureSample>();
-			NewWrapper->Sample->InitializeGPUBuffer(InResolution, DesiredPixelFormat);
-			NewWrapper->SampleConversionFence = RHICreateGPUFence(*FString::Printf(TEXT("RmaxConversionDoneFence_%02d"), Index));
-			NewWrapper->ReceptionState = ESampleReceptionState::Available;
-			SamplePool.Add(MoveTemp(NewWrapper));
+			NewSample = VideoTextureSamplePool->AcquireShared(true /*Allocate New*/);
+			NewSample->InitializeGPUBuffer(InResolution, DesiredPixelFormat, bStreamSupportsGPUDirect);
+			NewSample->SampleConversionFence = RHICreateGPUFence(*FString::Printf(TEXT("RmaxConversionDoneFence_%02d"), Index));
+			NewSample->SetReceptionState(IRivermaxSample::ESampleState::ReadyForReception);
+			NewSample->SetInputFormat(DesiredPixelFormat);
+			if (IS_FRAMELOCKED())
+			{
+				FrameLockedSamples[Index] = NewSample;
+			}
 		}
+
+		// Create the proxy sample that is going to be used for color conversion.
+		ENQUEUE_RENDER_COMMAND(FRivermaxMediaTextureSample)(
+			[NewSample, Resolution = InResolution, this](FRHICommandListImmediate& RHICmdList)
+			{
+				FScopeLock Lock(&ProxySampleAccessCriticalSection);
+
+				ProxySampleDummy = MakeShared<FRivermaxMediaTextureSample>();
+				ProxySampleDummy->SetTexture(CreateIntermediateRenderTarget(RHICmdList, Resolution, NewSample->GetPixelFormat(), NewSample->IsOutputSrgb()));
+				UE::MediaIOCore::FColorFormatArgs ColorArgs;
+				ColorArgs.ColorSpaceType = bOverrideSourceColorSpace ? (UE::Color::EColorSpace)OverrideSourceColorSpace : UE::Color::EColorSpace::None;
+				ColorArgs.Encoding = bOverrideSourceEncoding ? (UE::Color::EEncoding)OverrideSourceEncoding : UE::Color::EEncoding::None;
+
+				ProxySampleDummy->SetProperties(NewSample->GetStride(), VideoTrackFormat.Dim.X, VideoTrackFormat.Dim.X, NewSample->GetFormat(), FTimespan(0), FFrameRate(), FTimecode(), ColorArgs);
+			});
+
 
 		// Allocation is done on render thread so let's make sure it's completed before pursuing
 		FRenderCommandFence RenderFence;
 		RenderFence.BeginFence();
-		RenderFence.Wait();		
+		RenderFence.Wait();
+		VideoTextureSamplePool->Tick();
+
 	}
 
 	void FRivermaxMediaPlayer::OnStreamError()
@@ -531,338 +506,348 @@ namespace UE::RivermaxMedia
 		RivermaxThreadNewState = EMediaState::Error;
 	}
 
-	bool FRivermaxMediaPlayer::LateUpdateSetupSample(FSampleConverterOperationSetup& OutConverterSetup)
+	TRefCountPtr<FRHITexture> FRivermaxMediaPlayer::CreateIntermediateRenderTarget(FRHICommandListImmediate& RHICmdList, const FIntPoint& InDim, EPixelFormat InPixelFormat, bool bInSRGB)
 	{
+		TRefCountPtr<FRHITexture> TextureToReturn;
+		// create output render target if necessary
+		ETextureCreateFlags OutputCreateFlags = TexCreate_Dynamic | (bInSRGB ? TexCreate_SRGB : TexCreate_None) | TexCreate_UAV;
+		OutputCreateFlags |= TexCreate_UAV;
+		OutputCreateFlags |= ETextureCreateFlags::RenderTargetable;
+
+
+		const static FLazyName ClassName(TEXT("FRivermaxMediaTextureSample"));
+		const FRHITextureCreateDesc Desc =
+			FRHITextureCreateDesc::Create2D(TEXT("FRivermaxMediaTextureOutput"))
+			.SetExtent(InDim)
+			.SetFormat(InPixelFormat)
+			//.SetNumMips(1)
+			.SetFlags(OutputCreateFlags | ETextureCreateFlags::ShaderResource)
+			.SetInitialState(ERHIAccess::SRVMask)
+			.SetClearValue(FClearValueBinding(FLinearColor::Red))
+			.SetClassName(ClassName)
+			.SetOwnerName(*GetMediaName().ToString());
+
+		TextureToReturn = RHICmdList.CreateTexture(Desc);
+
+		TextureToReturn->SetName(TEXT("RivermaxMediaTexture"));
+		TextureToReturn->SetOwnerName(*GetMediaName().ToString());
+		return MoveTemp(TextureToReturn);
+	}
+
+	bool FRivermaxMediaPlayer::JustInTimeSampleRender_RenderThread(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDestinationTexture, TSharedPtr<FMediaIOCoreTextureSampleBase>& InJITRProxySample)
+	{
+		// Player renders into an intermediate render target that is then used to be converted into the right color encoding if needed.
+		InDestinationTexture = ProxySampleDummy->GetTexture();
 		TRACE_CPUPROFILER_EVENT_SCOPE(RivermaxPlayerLateUpdate);
+		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("Rmax::StartingRender %u"), (GFrameCounterRenderThread)));
 
-		// We only allow this function to run once per frame.
-		if (LastFrameNumberThatUpdatedJustInTime == GFrameCounterRenderThread)
+		// Sanity check to make sure that we are not rendering this sample twice per frame.
+		check(LastEngineRTFrameThatUpdatedJustInTime != GFrameCounterRenderThread);
+		LastEngineRTFrameThatUpdatedJustInTime = GFrameCounterRenderThread;
+
+		FFrameInfo FrameInformation;
+		FrameInformation.RequestedTimecode = InJITRProxySample->GetTimecode().Get(FTimecode());
+		FrameInformation.SampleTimespan = InJITRProxySample->GetTime().Time;
+		FrameInformation.EvaluationOffset = InJITRProxySample->GetEvaluationOffsetInSeconds();
+		FrameInformation.FrameNumber = GFrameCounterRenderThread;
+
+		TSharedPtr<FRivermaxMediaTextureSample> SamplePtr = StaticCastSharedPtr<FRivermaxMediaTextureSample>(PickSampleToRender_RenderThread(FrameInformation));
+		if (!SamplePtr.IsValid())
 		{
-			UE_LOG(LogRivermaxMedia, Verbose, TEXT("LateUpdate called more than once in GFrameCounterRenderThread %llu"), GFrameCounterRenderThread);
-			return false;
-		}
-		LastFrameNumberThatUpdatedJustInTime = GFrameCounterRenderThread;
-
-		FFrameExpectation NextFrameExpectations;
-		const bool bShouldRender = GetNextExpectedFrameInfo(NextFrameExpectations);
-
-		if (!bShouldRender)
-		{
-			UE_LOG(LogRivermaxMedia, VeryVerbose, TEXT("Skipping render for frame %llu."), GFrameCounterRenderThread);
-			return false;
-		}
-
-		if (NextFrameExpectations.FrameNumber < FrameTracking.FirstFrameRequested)
-		{
-			UE_LOG(LogRivermaxMedia, VeryVerbose, TEXT("Skipping render for frame number %llu. Expecting frame %u but first frame received is greater, %u."), GFrameCounterRenderThread, NextFrameExpectations.FrameNumber, FrameTracking.FirstFrameRequested);
+			UE_LOG(LogRivermaxMedia, Verbose, TEXT("Couldn't find a sample to render for frame %u."), FrameInformation.FrameNumber);
 			return false;
 		}
 
-		// Always clean up frames from the past. They will never be used
-		for (const TSharedPtr<FRivermaxSampleWrapper>& Frame : SamplePool)
+		if (!InDestinationTexture.IsValid())
 		{
-			if (Frame->ReceptionState != ESampleReceptionState::Available)
-			{
-				if (Frame->FrameNumber < NextFrameExpectations.FrameNumber)
-				{
-					Frame->ReceptionState = ESampleReceptionState::Available;
-
-					const FString LastRender = FrameTracking.LastFrameRendered.IsSet() ? FString::Printf(TEXT("%u"), FrameTracking.LastFrameRendered.GetValue()) : FString(TEXT("None"));
-					UE_LOG(LogRivermaxMedia, Verbose, TEXT("Making frame %u as available since it will never be processed. Last render = %s, next render = %u"), Frame->FrameNumber, *LastRender, NextFrameExpectations.FrameNumber);
-				}
-			}
+			UE_LOG(LogRivermaxMedia, Warning, TEXT("Couldn't find texture to render into for sample %u."), SamplePtr->GetFrameNumber());
+			return false;
 		}
-		
-		FrameTracking.LastFrameRendered = NextFrameExpectations.FrameNumber;
 
 		// Verify if the frame we will use for rendering is still being rendered for the previous one.
-		if (SamplePool[NextFrameExpectations.FrameIndex]->bIsPendingRendering)
+		if (!SamplePtr->TryLockForRendering())
 		{
-			UE_LOG(LogRivermaxMedia, Verbose, TEXT("Frame %u was still rendering when we expected to reuse its location. Waiting for it to complete."), NextFrameExpectations.FrameIndex);
-
-			TRACE_CPUPROFILER_EVENT_SCOPE(RmaxMediaWaitForFrameToBeAvailable);
-
-			// Frame should be rendered at some point so a timeout isn't required but we add one as a last resort to avoid lockups.
-			constexpr double TimeoutSeconds = 2.0;
-			const double StartTimeSeconds = FPlatformTime::Seconds();
-			while (SamplePool[NextFrameExpectations.FrameIndex]->bIsPendingRendering)
+			if (IS_FRAMELOCKED())
 			{
-				FPlatformProcess::SleepNoStats(SleepTimeSeconds);
-
-				if ((FPlatformTime::Seconds() - StartTimeSeconds) > TimeoutSeconds)
-				{
-					break;
-				}
-			}
-		}
-
-		// Mark this sample as pending since it's now going on the rendering path
-		SamplePool[NextFrameExpectations.FrameIndex]->bIsPendingRendering = true;
-
-		{
-			const int32 SampleUploadMode = CVarRivermaxSampleUploadMode.GetValueOnRenderThread();
-			if (SampleUploadMode == 0)
-			{
-				SampleUploadSetupRenderThreadMode(NextFrameExpectations, OutConverterSetup);
-				
-			}
-			else 
-			{
-				SampleUploadSetupTaskThreadMode(NextFrameExpectations, OutConverterSetup);
-			}
-
-			// Setup post sample usage pass 
-			OutConverterSetup.PostConvertFunc = [NextFrameExpectations, this] (FRDGBuilder& GraphBuilder)
-			{
-				PostSampleUsage(GraphBuilder, NextFrameExpectations);
-			};
-		}
-
-		return true;
-	}
-
-	bool FRivermaxMediaPlayer::GetNextExpectedFrameInfo(FFrameExpectation& OutExpectation)
-	{
-		switch (PlayerMode)
-		{
-			case ERivermaxPlayerMode::Framelock:
-			{
-				return GetNextExpectedFrameInfoForFramelock(OutExpectation);
-			}
-			case ERivermaxPlayerMode::Latest:
-			{
-				return GetNextExpectedFrameInfoForLatest(OutExpectation);
-			}
-			default:
-			{
-				checkNoEntry()
-			}
-		}
-
-		return false;
-	}
-
-	bool FRivermaxMediaPlayer::GetNextExpectedFrameInfoForFramelock(FFrameExpectation& OutExpectation)
-	{
-		uint32 CurrentLatency = FrameLatency;
-		const uint32 ForcedLatency = CVarRivermaxForcedFramelockLatency.GetValueOnRenderThread();
-		if (ForcedLatency == 0 || ForcedLatency == 1)
-		{
-			CurrentLatency = ForcedLatency;
-		}
-
-		OutExpectation.FrameNumber = GFrameCounterRenderThread - CurrentLatency;
-		OutExpectation.FrameIndex = OutExpectation.FrameNumber % MaxNumVideoFrameBuffer;
-		return true;
-	}
-
-	bool FRivermaxMediaPlayer::GetNextExpectedFrameInfoForLatest(FFrameExpectation& OutExpectation)
-	{
-		{
-			// Look for the latest frame already arrived
-			int32 HighestTimestampIndex = INDEX_NONE;
-			uint32 HighestTimestamp = 0;
-
-			int32 LowestTimestampIndex = INDEX_NONE;
-			uint32 LowestTimestamp = ~0;
-
-			// Use timestamps to pick the latest one. 
-			// If we have our frame rate mismatching 
-			for (int32 Index = 0; Index < SamplePool.Num(); ++Index)
-			{
-				const TSharedPtr<FRivermaxSampleWrapper>& Frame = SamplePool[Index];
-				if (Frame->ReceptionState == ESampleReceptionState::Received)
-				{
-					if (HighestTimestamp < Frame->Timestamp)
-					{
-						HighestTimestamp = Frame->Timestamp;
-						HighestTimestampIndex = Index;
-					}
-
-					if (LowestTimestamp > Frame->Timestamp)
-					{
-						LowestTimestamp = Frame->Timestamp;
-						LowestTimestampIndex = Index;
-					}
-				}
-			}
-
-			// Early exit if no frame was found
-			if (HighestTimestampIndex < 0)
-			{
+				UE_LOG(LogRivermaxMedia, Warning, TEXT("Framelocked sample %u was still rendering when we expected to reuse its location."), SamplePtr->GetFrameNumber());
 				return false;
-			}
-
-			check(LowestTimestampIndex >= 0);
-
-			// No point in rendering the same frame as last time
-			if (FrameTracking.LastFrameExpectation.FrameNumber == SamplePool[HighestTimestampIndex]->FrameNumber)
-			{
-				return false;
-			}
-			else if (FrameTracking.LastFrameExpectation.FrameNumber > SamplePool[HighestTimestampIndex]->FrameNumber)
-			{
-				// We have picked in the past a frame number higher than the highest in the buffers.
-				// This is unexpected, unless frame number has wrapped around.
-				UE_LOG(LogRivermaxMedia, Warning, TEXT("In latest mode, the sender's frame count seems to have reset from %u to %u."), FrameTracking.LastFrameExpectation.FrameNumber, SamplePool[HighestTimestampIndex]->FrameNumber);
-			}
-
-			// Fill what we are expecting to use to render
-			OutExpectation.FrameNumber = SamplePool[HighestTimestampIndex]->FrameNumber;
-			OutExpectation.FrameIndex = HighestTimestampIndex;
-
-			// Make the ones skipped available for reception again
-			TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FRivermaxTracingUtils::RmaxInSelectedFrameTraceEvents[OutExpectation.FrameNumber % 10]);
-
-			for (const TSharedPtr<FRivermaxSampleWrapper>& Frame : SamplePool)
-			{
-				if (Frame == SamplePool[OutExpectation.FrameIndex])
-				{
-					continue;
-				}
-
-				if (Frame->ReceptionState == ESampleReceptionState::Received)
-				{
-					UE_LOG(LogRivermaxMedia, Verbose, TEXT("Skipping frame %u since a better one was chosen, %u"), Frame->FrameNumber, OutExpectation.FrameNumber);
-					Frame->ReceptionState = ESampleReceptionState::Available;
-				}
-			}
-
-			FrameTracking.LastFrameExpectation = OutExpectation;
-		}
-
-		return true;
-	}
-
-	bool FRivermaxMediaPlayer::GetFrameRequestedIndex(const FRivermaxInputVideoFrameDescriptor& FrameInfo, uint32& OutExpectedIndex)
-	{
-		switch (PlayerMode)
-		{
-		case ERivermaxPlayerMode::Framelock:
-		{
-			return GetFrameRequestedIndexForFramelock(FrameInfo, OutExpectedIndex);
-		}
-		case ERivermaxPlayerMode::Latest:
-		{
-			return GetFrameRequestedIndexForLatest(FrameInfo, OutExpectedIndex);
-		}
-		default:
-		{
-			checkNoEntry()
-		}
-		}
-
-		return false;
-	}
-
-	bool FRivermaxMediaPlayer::GetFrameRequestedIndexForFramelock(const FRivermaxInputVideoFrameDescriptor& FrameInfo, uint32& OutExpectedIndex)
-	{
-		// We always store incoming frame number in its respective bucket
-		OutExpectedIndex = FrameInfo.FrameNumber % MaxNumVideoFrameBuffer;
-
-		TSharedPtr<FRivermaxSampleWrapper> ExpectedFrame = SamplePool[OutExpectedIndex];
-
-		// If the frame is available, it hasn't been picked up for render yet or it's done rendering
-		if (ExpectedFrame->ReceptionState == ESampleReceptionState::Available)
-		{
-			return true;
-		}
-
-		// If the frame is marked as received, it might not have been rendered yet 
-		else if (ExpectedFrame->ReceptionState == ESampleReceptionState::Received)
-		{
-			// Odd case where an incoming frame has the same frame number as before. In this case, we start over reception
-			if (ExpectedFrame->FrameNumber == FrameInfo.FrameNumber)
-			{
-				UE_LOG(LogRivermaxMedia, Warning, TEXT("Expected to receive frame while a matching frame number %u had not yet been rendered."), ExpectedFrame->FrameNumber);
 			}
 			else
 			{
-				// Otherwise, it means we have overran the render so we need to wait for it to become available
-				UE_LOG(LogRivermaxMedia, Warning, TEXT("Expected to receive frame %u but location is busy with frame not rendered yet. Waiting"), ExpectedFrame->FrameNumber);
-				
-				const double StartTimeSeconds = FPlatformTime::Seconds();
-				constexpr double TimeoutSeconds = 0.5;
-				while (ExpectedFrame->ReceptionState != ESampleReceptionState::Available)
-				{
-					FPlatformProcess::SleepNoStats(SleepTimeSeconds);
-					if ((FPlatformTime::Seconds() - StartTimeSeconds) > TimeoutSeconds)
-					{
-						UE_LOG(LogRivermaxMedia, Error, TEXT("Timed out waiting for frame %u to be rendered to receive frame %u into."), ExpectedFrame->FrameNumber, FrameInfo.FrameNumber);
-					
-						// Mark this frame as skipped since we're stealing it
-						FScopeLock Lock(&SkippedFrameCriticalSection);
-						const TInterval<uint32> Interval(ExpectedFrame->FrameNumber, ExpectedFrame->FrameNumber);
-						SkippedFrames.Add(Interval);
-
-						break;
-					}
-				}
+				UE_LOG(LogRivermaxMedia, Verbose, TEXT("Sample %u was either already rendered or is already being rendered."), SamplePtr->GetFrameNumber());
+				return false;
 			}
-			
-			return true;
 		}
 
-		return false;
+		FSampleConverterOperationSetup ConverterSetup;
+		SampleUploadSetupTaskThreadMode(SamplePtr, ConverterSetup);
+
+		// If no input data was provided, no need to render
+		if (ConverterSetup.GetGPUBufferFunc == nullptr && ConverterSetup.GetSystemBufferFunc == nullptr)
+		{
+			ensureMsgf(false, TEXT("Rivermax player late update succeeded but didn't provide any source data."));
+			return false;
+		}
+
+		FRDGBuilder GraphBuilder((FRHICommandListExecutor::GetImmediateCommandList()));
+		if (ConverterSetup.PreConvertFunc)
+		{
+			ConverterSetup.PreConvertFunc(GraphBuilder);
+		}
+
+		using namespace UE::RivermaxShaders;
+		using namespace UE::RivermaxMediaUtils::Private;
+
+		const FSourceBufferDesc SourceBufferDesc = GetBufferDescription(VideoTrackFormat.Dim, SamplePtr->GetInputFormat());
+		{
+			FRDGBufferRef InputBuffer;
+
+			RDG_GPU_STAT_SCOPE(GraphBuilder, RivermaxSource_SampleConversion);
+			SCOPED_DRAW_EVENT(GraphBuilder.RHICmdList, Rivermax_SampleConverter);
+
+			FRDGTextureRef OutputResource = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(InDestinationTexture, TEXT("RivermaxMediaTextureOutputResource")));
+
+			// If we have a valid GPUBuffer, i.e GPUDirect is involved, use that one. Otherwise, take the system buffer and upload it in a new structured buffer.
+			if (ConverterSetup.GetGPUBufferFunc)
+			{
+				InputBuffer = GraphBuilder.RegisterExternalBuffer(ConverterSetup.GetGPUBufferFunc(), TEXT("RMaxGPUBuffer"));
+			}
+			else if (ConverterSetup.GetSystemBufferFunc)
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(RivermaxSampleConverter::CreateStructuredBuffer);
+				FRDGBufferNumElementsCallback NumElementCallback = [NumElements = SourceBufferDesc.NumberOfElements]()
+					{
+						return NumElements;
+					};
+
+				FRDGBufferInitialDataCallback GetDataCallback = ConverterSetup.GetSystemBufferFunc;
+				FRDGBufferInitialDataSizeCallback TotalSizeCallback = [TotalSize = SourceBufferDesc.BytesPerElement * SourceBufferDesc.NumberOfElements]()
+					{
+						return TotalSize;
+					};
+
+				InputBuffer = CreateStructuredBuffer(GraphBuilder, TEXT("RivermaxInputBuffer"), SourceBufferDesc.BytesPerElement, MoveTemp(NumElementCallback), MoveTemp(GetDataCallback), MoveTemp(TotalSizeCallback));
+			}
+			else
+			{
+				return false;
+			}
+
+			const FIntPoint ProcessedOutputDimension = { (int32)SourceBufferDesc.NumberOfElements, 1 };
+			const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(SourceBufferDesc.NumberOfElements, 64);
+			FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
+
+			//Configure shader and add conversion pass based on desired pixel format
+			switch (SamplePtr->GetInputFormat())
+			{
+			case ERivermaxMediaSourcePixelFormat::YUV422_8bit:
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(RivermaxSampleConverter::YUV8ShaderSetup);
+
+				const FMatrix YUVToRGBMatrix = SamplePtr->GetYUVToRGBMatrix();
+				const FVector YUVOffset(MediaShaders::YUVOffset8bits);
+				TShaderMapRef<FYUV8Bit422ToRGBACS> ComputeShader(GlobalShaderMap);
+				FYUV8Bit422ToRGBACS::FParameters* Parameters = ComputeShader->AllocateAndSetParameters(GraphBuilder, InputBuffer, OutputResource, YUVToRGBMatrix, YUVOffset, ProcessedOutputDimension.X, ProcessedOutputDimension.Y);
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder
+					, RDG_EVENT_NAME("YUV8Bit422ToRGBA")
+					, ComputeShader
+					, Parameters
+					, GroupCount);
+				break;
+			}
+			case ERivermaxMediaSourcePixelFormat::YUV422_10bit:
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(RivermaxSampleConverter::YUV10ShaderSetup);
+
+				const FMatrix YUVToRGBMatrix = SamplePtr->GetYUVToRGBMatrix();
+				const FVector YUVOffset(MediaShaders::YUVOffset10bits);
+				TShaderMapRef<FYUV10Bit422ToRGBACS> ComputeShader(GlobalShaderMap);
+				FYUV10Bit422ToRGBACS::FParameters* Parameters = ComputeShader->AllocateAndSetParameters(GraphBuilder, InputBuffer, OutputResource, YUVToRGBMatrix, YUVOffset, ProcessedOutputDimension.X, ProcessedOutputDimension.Y);
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder
+					, RDG_EVENT_NAME("YUV10Bit422ToRGBA")
+					, ComputeShader
+					, Parameters
+					, GroupCount);
+				break;
+			}
+			case ERivermaxMediaSourcePixelFormat::RGB_8bit:
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(RivermaxSampleConverter::RGB8ShaderSetup);
+
+				TShaderMapRef<FRGB8BitToRGBA8CS> ComputeShader(GlobalShaderMap);
+				FRGB8BitToRGBA8CS::FParameters* Parameters = ComputeShader->AllocateAndSetParameters(GraphBuilder, InputBuffer, OutputResource, ProcessedOutputDimension.X, ProcessedOutputDimension.Y);
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder
+					, RDG_EVENT_NAME("RGB8BitToRGBA8")
+					, ComputeShader
+					, Parameters
+					, GroupCount);
+				break;
+			}
+			case ERivermaxMediaSourcePixelFormat::RGB_10bit:
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(RivermaxSampleConverter::RGB10ShaderSetup);
+
+				TShaderMapRef<FRGB10BitToRGBA10CS> ComputeShader(GlobalShaderMap);
+				FRGB10BitToRGBA10CS::FParameters* Parameters = ComputeShader->AllocateAndSetParameters(GraphBuilder, InputBuffer, OutputResource, ProcessedOutputDimension.X, ProcessedOutputDimension.Y);
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder
+					, RDG_EVENT_NAME("RGB10BitToRGBA")
+					, ComputeShader
+					, Parameters
+					, GroupCount);
+				break;
+			}
+			case ERivermaxMediaSourcePixelFormat::RGB_12bit:
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(RivermaxSampleConverter::RGB12ShaderSetup);
+
+				TShaderMapRef<FRGB12BitToRGBA12CS> ComputeShader(GlobalShaderMap);
+				FRGB12BitToRGBA12CS::FParameters* Parameters = ComputeShader->AllocateAndSetParameters(GraphBuilder, InputBuffer, OutputResource, ProcessedOutputDimension.X, ProcessedOutputDimension.Y);
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder
+					, RDG_EVENT_NAME("RGB12BitToRGBA")
+					, ComputeShader
+					, Parameters
+					, GroupCount);
+				break;
+			}
+			case ERivermaxMediaSourcePixelFormat::RGB_16bit_Float:
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(RivermaxSampleConverter::RGB16FloatShaderSetup);
+
+				TShaderMapRef<FRGB16fBitToRGBA16fCS> ComputeShader(GlobalShaderMap);
+				FRGB16fBitToRGBA16fCS::FParameters* Parameters = ComputeShader->AllocateAndSetParameters(GraphBuilder, InputBuffer, OutputResource, ProcessedOutputDimension.X, ProcessedOutputDimension.Y);
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder
+					, RDG_EVENT_NAME("RGB16fBitToRGBA")
+					, ComputeShader
+					, Parameters
+					, GroupCount);
+				break;
+			}
+			default:
+			{
+				ensureMsgf(false, TEXT("Unhandled pixel format (%d) given to Rivermax MediaSample converter"), SamplePtr->GetInputFormat());
+				return false;
+			}
+			}
+		}
+
+		if (ConverterSetup.PostConvertFunc)
+		{
+			ConverterSetup.PostConvertFunc(GraphBuilder);
+		}
+
+		GraphBuilder.Execute();
+		return true;
 	}
 
-	bool FRivermaxMediaPlayer::GetFrameRequestedIndexForLatest(const FRivermaxInputVideoFrameDescriptor& FrameInfo, uint32& OutExpectedIndex)
+	TSharedPtr<FMediaIOCoreTextureSampleBase> FRivermaxMediaPlayer::PickSampleToRenderFramelocked_RenderThread
+	(const FFrameInfo& InFrameInformation)
 	{
-		//If we are free running, go forward with the write index. If we receive too fast, we'll skip some.
-		const uint32 NextIndex = ((FrameTracking.LastFrameRequestedIndex + 1) % MaxNumVideoFrameBuffer);
-		if (SamplePool[NextIndex]->ReceptionState == ESampleReceptionState::Available)
+		TSharedPtr<FRivermaxMediaTextureSample> Sample = FrameLockedSamples[TO_EXPECTED_SAMPLE_INDEX(InFrameInformation.FrameNumber)];
+
+		return Sample;
+	}
+
+	TSharedPtr<FMediaIOCoreTextureSampleBase> FRivermaxMediaPlayer::PickSampleToRenderForTimeSynchronized_RenderThread(const FFrameInfo& InFrameInformation)
+	{
+		// Reference time based on evaluation type
+		FTimespan TargetSampleTimespan;
+
+		// Get base uncorrected reference point
+
+		if (EvaluationType == EMediaIOSampleEvaluationType::Timecode && InFrameInformation.RequestedTimecode != FTimecode())
 		{
-			OutExpectedIndex = NextIndex;
-			FrameTracking.LastFrameRequestedIndex = NextIndex;
-			return true;
+			// We'll use timecode data to find a proper sample
+			TargetSampleTimespan = InFrameInformation.RequestedTimecode.ToTimespan(VideoFrameRate);
 		}
 		else
 		{
-			return false;
+			// We'll use platform time to find a proper sample
+			TargetSampleTimespan = InFrameInformation.SampleTimespan;
 		}
+
+		// Apply time correction to the target time
+		const FTimespan RequestedOffsetTimespan = FTimespan::FromSeconds(InFrameInformation.EvaluationOffset);
+
+		// Latency adjusted VSync
+		const FTimespan TargetTimespanCorrected = TargetSampleTimespan - RequestedOffsetTimespan;
+
+		// Go over the sample pool and find a sample closest to the target time
+		int32 ClosestIndex = -1;
+		int64 SmallestInterval(TNumericLimits<int64>::Max());
+
+		// Get all available video samples
+		const TArray<TSharedPtr<IMediaTextureSample>> TextureSamples = Samples->GetVideoSamples();
+		if (TextureSamples.Num() == 0)
+		{
+			return nullptr;
+		}
+
+		for (int32 Index = 0; Index < TextureSamples.Num(); ++Index)
+		{
+			TSharedPtr<FRivermaxMediaTextureSample> Sample = StaticCastSharedPtr<FRivermaxMediaTextureSample>(TextureSamples[Index]);
+
+			// Either closest positive or closest negative
+			const int64 TestInterval = FMath::Abs((Sample->FrameReceptionStart - TargetTimespanCorrected).GetTicks());
+
+			// if VSync is within the time frame of sample's start and end of the reception it is the sample that is returned
+			// otherwise find the sample which began the reception closest to the required VSync.
+			if (TargetTimespanCorrected >= Sample->FrameReceptionStart && TargetTimespanCorrected < Sample->FrameReceptionEnd)
+			{
+				ClosestIndex = Index;
+				break;
+			}
+
+			// '<=' instead of '<' is used here intentionally. Turns out we might have
+			// some samples with the same timecode. To avoid early termination of the search '<=' is used.
+			if (TestInterval <= SmallestInterval)
+			{
+				ClosestIndex = Index;
+				SmallestInterval = TestInterval;
+			}
+			else
+			{
+				// Since our samples are stored in chronological order, it makes no sense
+				// to continue searching. The interval will continue increasing.
+				break;
+			}
+		}
+
+		checkSlow(ClosestIndex >= 0 && ClosestIndex < TextureSamples.Num());
+
+		// Finally, return the closest sample we found
+		return StaticCastSharedPtr<FMediaIOCoreTextureSampleBase, IMediaTextureSample, ESPMode::ThreadSafe>(TextureSamples[ClosestIndex]);
 	}
 
-	IMediaSamples& FRivermaxMediaPlayer::GetSamples()
-	{
-		return *MediaSamples.Get();
-	}
-
-	void FRivermaxMediaPlayer::TickTimeManagement()
-	{
-		// When other means of alignment will be required, we will need to update this
-		// For example, aligning streams using timecode won't work with this.
-		CurrentTime = FTimespan(GFrameCounter);
-	}
-
-	bool FRivermaxMediaPlayer::GetPlayerFeatureFlag(EFeatureFlag flag) const
-	{
-		//switch (flag)
-		//{
-		//case EFeatureFlag::UsePlaybackTimingV2:
-		//	return true;
-		//default:
-		//	break;
-		//}
-
-		return IMediaPlayer::GetPlayerFeatureFlag(flag);
-	}
-
-	void FRivermaxMediaPlayer::PostSampleUsage(FRDGBuilder& GraphBuilder, const FFrameExpectation& FrameExpectation)
+	void FRivermaxMediaPlayer::PostSampleUsage(FRDGBuilder& GraphBuilder, TSharedPtr<FRivermaxMediaTextureSample> Sample)
 	{
 		GraphBuilder.AddPass(RDG_EVENT_NAME("RivermaxPostSampleUsage"),
-			ERDGPassFlags::NeverCull, 
-			[FrameExpectation, this](FRHICommandList& RHICmdList)
+			ERDGPassFlags::NeverCull,
+			[SamplePtr = Sample, this](FRHICommandList& RHICmdList)
 			{
+				RHI_BREADCRUMB_EVENT_STAT(RHICmdList, RivermaxMedia_SampleUsageFence, "RivermaxMedia_SampleUsageFence");
 				SCOPED_GPU_STAT(RHICmdList, RivermaxMedia_SampleUsageFence);
-				SCOPED_DRAW_EVENT(RHICmdList, RivermaxMedia_SampleUsageFence);
+				TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("Rmax::ReleasingSample %u"), (SamplePtr->GetFrameNumber())));
 
 				// Write a fence in the post sample usage pass to be able to know when we can reuse it
-				RHICmdList.WriteGPUFence(SamplePool[FrameExpectation.FrameIndex]->SampleConversionFence);
+				RHICmdList.WriteGPUFence(SamplePtr->SampleConversionFence);
 
 				++TasksInFlight;
 
+				// This async task is waiting for the GPU to be finished with Sample's resources and then release them.
 				UE::Tasks::Launch(UE_SOURCE_LOCATION,
-					[FrameExpectation, this]()
+					[SamplePtr, this]()
 					{
 						ON_SCOPE_EXIT
 						{
@@ -872,8 +857,8 @@ namespace UE::RivermaxMedia
 						TRACE_CPUPROFILER_EVENT_SCOPE(RmaxWaitForShader);
 						do
 						{
-							const bool bHasValidFence = SamplePool[FrameExpectation.FrameIndex]->SampleConversionFence.IsValid();
-							const bool bHasFenceCompleted = bHasValidFence ? SamplePool[FrameExpectation.FrameIndex]->SampleConversionFence->Poll() : false;
+							const bool bHasValidFence = SamplePtr->SampleConversionFence.IsValid();
+							const bool bHasFenceCompleted = bHasValidFence ? SamplePtr->SampleConversionFence->Poll() : false;
 							if (bHasValidFence == false || bHasFenceCompleted)
 							{
 								break;
@@ -883,70 +868,29 @@ namespace UE::RivermaxMedia
 
 						} while (true);
 
-
-						UE_LOG(LogRivermaxMedia, Verbose, TEXT("Finished rendering frame %u with expectations being frame %u."), SamplePool[FrameExpectation.FrameIndex]->FrameNumber, FrameExpectation.FrameNumber);
-
-						// We clear the fence and signal that it can be re-used.
-						SamplePool[FrameExpectation.FrameIndex]->SampleConversionFence->Clear();
-						SamplePool[FrameExpectation.FrameIndex]->ReceptionState = ESampleReceptionState::Available;
-						SamplePool[FrameExpectation.FrameIndex]->bIsReadyToRender = false;
-						SamplePool[FrameExpectation.FrameIndex]->bIsPendingRendering = false;
-						SamplePool[FrameExpectation.FrameIndex]->LockedMemory = nullptr;
-						TryClearSkippedInterval(FrameExpectation.FrameNumber);
+						// We clear the sample states, mark this sample as ready for reuse and that rendering is completed.
+						SamplePtr->ShutdownPoolable();
 					});
 			});
 	}
 
-	void FRivermaxMediaPlayer::TryClearSkippedInterval(uint32 LastFrameRendered)
+	void FRivermaxMediaPlayer::OnVideoFrameReceptionError(TSharedPtr<IRivermaxVideoSample> InVideoFrameSample)
 	{
-		FScopeLock Lock(&SkippedFrameCriticalSection);
-
-		for (auto Iter = SkippedFrames.CreateIterator(); Iter; ++Iter)
+		TSharedPtr<FRivermaxMediaTextureSample> Sample = StaticCastSharedPtr<FRivermaxMediaTextureSample>(InVideoFrameSample);
+		if (!Sample.IsValid())
 		{
-			// If we just rendered a frame matching the max boundary of an interval, we are past it from now on
-			const TInterval<uint32>& Interval = *Iter;
-			if (LastFrameRendered == Interval.Max)
-			{
-				Iter.RemoveCurrent();
-				break;
-			}
-		}
-	}
-
-	bool FRivermaxMediaPlayer::IsFrameSkipped(uint32 FrameNumber) const
-	{
-		FScopeLock Lock(&SkippedFrameCriticalSection);
-
-		for (auto Iter = SkippedFrames.CreateConstIterator(); Iter; ++Iter)
-		{
-			// If we just rendered a frame matching the max boundary of an interval, we are passed it from now on
-			const TInterval<uint32>& Interval = *Iter;
-			if (Interval.Contains(FrameNumber))
-			{
-				return true;
-			}
+			return;
 		}
 
-		return false;
-	}
-
-	void FRivermaxMediaPlayer::OnVideoFrameReceptionError(const FRivermaxInputVideoFrameDescriptor& FrameInfo)
-	{
-		// In the case of an error, stamp back the frame in receiving state to available and mark it as skipped in case we are waiting on it
-		for (const TSharedPtr<FRivermaxSampleWrapper>& Sample : SamplePool)
+		UE_LOG(LogRivermaxMedia, Warning, TEXT("Issue receiving frame number %u."), Sample->GetFrameNumber());
+		if (Sample->IsBeingRendered())
 		{
-			// There can only be one frame receiving at the time
-			if (Sample->ReceptionState == ESampleReceptionState::Receiving)
-			{
-				UE_LOG(LogRivermaxMedia, Warning, TEXT("Error occured while receiving frame %u with timestamp %u."), Sample->FrameNumber, Sample->Timestamp);
-				Sample->ReceptionState = ESampleReceptionState::Available;
-
-				FScopeLock Lock(&SkippedFrameCriticalSection);
-				const TInterval<uint32> Interval(Sample->FrameNumber, Sample->FrameNumber);
-				SkippedFrames.Add(Interval);
-
-				return;
-			}
+			Sample->SetReceptionState(FRivermaxMediaTextureSample::ESampleState::ReceptionError);
+			Sample->GetSampleReceivedEvent()->Trigger();
+		}
+		else
+		{
+			Sample->SetReceptionState(FRivermaxMediaTextureSample::ESampleState::ReadyForReception);
 		}
 	}
 
@@ -956,9 +900,9 @@ namespace UE::RivermaxMedia
 		const FIntPoint NewResolution = { (int32)NewFormatInfo.Width, (int32)NewFormatInfo.Height };
 		bool bNeedReinitializing = (NewFormatInfo.PixelFormat != StreamOptions.PixelFormat);
 		bNeedReinitializing |= (NewFormatInfo.Width != VideoTrackFormat.Dim.X || NewFormatInfo.Height != VideoTrackFormat.Dim.Y);
-		
+
 		UE_LOG(LogRivermaxMedia, Log, TEXT("New video format detected: %dx%d with pixel format '%s'"), NewResolution.X, NewResolution.Y, *UEnum::GetValueAsString(NewFormat));
-		
+
 		if (bNeedReinitializing && bFollowsStreamResolution)
 		{
 			FScopeLock Lock(&StreamResolutionCriticalSection);
@@ -996,181 +940,168 @@ namespace UE::RivermaxMedia
 		}
 	}
 
-	void FRivermaxMediaPlayer::WaitForSample(const FFrameExpectation& FrameExpectation, FWaitConditionFunc WaitConditionFunction, bool bCanTimeout)
+	bool FRivermaxMediaPlayer::WaitForSample(TSharedPtr<FRivermaxMediaTextureSample> Sample, FWaitConditionFunc WaitConditionFunction, bool bCanTimeout)
 	{
 		const double StartTimeSeconds = FPlatformTime::Seconds();
-		constexpr double TimeoutSeconds = 0.5;
+		const double TimeoutSeconds = CVarRivermaxDefaultThreadBlockTimeoutSec.GetValueOnAnyThread();
 
 		while (true)
 		{
+			if (!IsReadyToPlay())
 			{
-				if (!IsReadyToPlay())
-				{
-					break;
-				}
+				return false;
+			}
 
-				if (FrameExpectation.FrameIndex == INDEX_NONE)
-				{
-					break;
-				}
+			// Our goal here is to wait until the expected frame is available to be used (received) unless there is a timeout
+			if (WaitConditionFunction(Sample))
+			{
+				return true;
+			}
 
-				if (IsFrameSkipped(FrameExpectation.FrameNumber))
+			{
+				FPlatformProcess::SleepNoStats(SleepTimeSeconds);
+				if (bCanTimeout && ((FPlatformTime::Seconds() - StartTimeSeconds) > TimeoutSeconds))
 				{
-					UE_LOG(LogRivermaxMedia, Verbose, TEXT("Stopped waiting for frame %u as it was marked as skipped."), FrameExpectation.FrameNumber);
-					break;
-				}
-
-				// Our goal here is to wait until the expected frame is available to be used (received) unless there is a timeout
-				const TSharedPtr<FRivermaxSampleWrapper>& Frame = SamplePool[FrameExpectation.FrameIndex];
-				if (WaitConditionFunction(Frame))
-				{
-					if (Frame->FrameNumber != FrameExpectation.FrameNumber)
-					{
-						UE_LOG(LogRivermaxMedia, Warning, TEXT("Rendering unexpected frame %u, when frame %u was expected."), Frame->FrameNumber, FrameExpectation.FrameNumber);
-					}
-					break;
-				}
-
-				{
-					FPlatformProcess::SleepNoStats(SleepTimeSeconds);
-					if (bCanTimeout && ((FPlatformTime::Seconds() - StartTimeSeconds) > TimeoutSeconds))
-					{
-						UE_LOG(LogRivermaxMedia, Error, TEXT("Timed out waiting for frame %u."), FrameExpectation.FrameNumber);
-						break;
-					}
+					UE_LOG(LogRivermaxMedia, Error, TEXT("Timed out waiting for frame %u."), Sample->GetFrameNumber());
+					return false;
 				}
 			}
 		}
 	}
 
-	void FRivermaxMediaPlayer::SampleUploadSetupRenderThreadMode(const FFrameExpectation& NextFrameExpectations, FSampleConverterOperationSetup& OutConverterSetup)
+	void FRivermaxMediaPlayer::SampleUploadSetupTaskThreadMode(TSharedPtr<FRivermaxMediaTextureSample> Sample, FSampleConverterOperationSetup& OutConverterSetup)
 	{
-		TSharedPtr<FRivermaxSampleWrapper> SampleWrapper = SamplePool[NextFrameExpectations.FrameIndex];
-		if (bDoesStreamSupportsGPUDirect)
-		{
-			OutConverterSetup.GetGPUBufferFunc = [SampleWrapper]() { return SampleWrapper->Sample->GetGPUBuffer(); };
-
-			// Setup requirements for sample to be ready to be rendered
-			FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-			RHICmdList.EnqueueLambda(
-				[NextFrameExpectations, this](FRHICommandList& RHICmdList)
-				{
-					FWaitConditionFunc ReadyToRenderConditionFunc = [](const TSharedPtr<FRivermaxSampleWrapper>& Sample)
-					{
-						return Sample->bIsReadyToRender.load();
-					};
-
-					TRACE_CPUPROFILER_EVENT_SCOPE(RmaxWaitSampleReadyness);
-					constexpr bool bCanTimeout = true;
-					WaitForSample(NextFrameExpectations, MoveTemp(ReadyToRenderConditionFunc), bCanTimeout);
-				}
-			);
-		}
-		else
-		{
-			// For system memory path, we wait for the sample to be received before returning it.
-			OutConverterSetup.GetSystemBufferFunc = [NextFrameExpectations, SampleWrapper, this]()
-			{
-				FWaitConditionFunc ReceivedConditionFunc = [](const TSharedPtr<FRivermaxSampleWrapper>& Sample)
-				{
-					return Sample->ReceptionState == ESampleReceptionState::Received;
-				};
-
-				TRACE_CPUPROFILER_EVENT_SCOPE(RmaxWaitSampleReception);
-				constexpr bool bCanTimeout = true;
-				WaitForSample(NextFrameExpectations, MoveTemp(ReceivedConditionFunc), bCanTimeout);
-
-				// We can return the system buffer once we know it has arrived
-				return SampleWrapper->Sample->GetBuffer();
-			};
-		}
-	}
-
-	void FRivermaxMediaPlayer::SampleUploadSetupTaskThreadMode(const FFrameExpectation& NextFrameExpectations, FSampleConverterOperationSetup& OutConverterSetup)
-	{
-		TSharedPtr<FRivermaxSampleWrapper> SampleWrapper = SamplePool[NextFrameExpectations.FrameIndex];
-
 		// We will always be providing a buffer already located on the GPU even when not using gpudirect
 		// Once a frame has arrived on system, we will upload it to the allocated gpu buffer.
-		OutConverterSetup.GetGPUBufferFunc = [SampleWrapper]() { return SampleWrapper->Sample->GetGPUBuffer(); };
+		OutConverterSetup.GetGPUBufferFunc = [SamplePtr = Sample]() { return SamplePtr->GetGPUBuffer(); };
 
-		OutConverterSetup.PreConvertFunc = [NextFrameExpectations, SampleWrapper, this](const FRDGBuilder& GraphBuilder)
-		{
-			// When GPUDirect is not involved, we have an extra step to do. We need to wait for the sample to be received
-			// but also initiate the memcopy to gpu memory for it to be rendered
-			if (bDoesStreamSupportsGPUDirect == false)
+		const uint64 NextFrameExpectations = (IS_FRAMELOCKED()) ? TO_EXPECTED_SAMPLE_FRAME_NUM(GFrameCounterRenderThread) : Sample->GetFrameNumber();
+
+		OutConverterSetup.PreConvertFunc = [SamplePtr = Sample, NextFrameExpectations, this](const FRDGBuilder& GraphBuilder)
 			{
-				constexpr uint32 Offset = 0;
-				const uint32 Size = SampleWrapper->Sample->GetGPUBuffer()->GetSize();
-				SampleWrapper->LockedMemory = GraphBuilder.RHICmdList.LockBuffer(SampleWrapper->Sample->GetGPUBuffer()->GetRHI(), Offset, Size, EResourceLockMode::RLM_WriteOnly);
+				TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("Rmax::01_PreConvertFunction %u"), (SamplePtr->GetFrameNumber())));
+				// When GPUDirect is not involved, we have an extra step to do. We need to wait for the sample to be received
+				// but also initiate the memcopy to gpu memory for it to be rendered
+				if (bStreamSupportsGPUDirect == false)
+				{
+					constexpr uint32 Offset = 0;
+					const uint32 Size = SamplePtr->GetGPUBuffer()->GetSize();
 
-				++TasksInFlight;
-				UE::Tasks::Launch(UE_SOURCE_LOCATION,
-					[NextFrameExpectations, Size, SampleWrapper, this]()
+					SamplePtr->SetAwaitingForGPUTransfer(true);
+
+					// Todo: Find a way to keep the buffer permanently locked.
+					if (SamplePtr->LockedMemory == nullptr)
 					{
-						ON_SCOPE_EXIT
-						{
-							--TasksInFlight;
-						};
+						SamplePtr->LockedMemory = GraphBuilder.RHICmdList.LockBuffer(SamplePtr->GetGPUBuffer()->GetRHI(), Offset, Size, EResourceLockMode::RLM_WriteOnly_NoOverwrite);
+					}
 
-						FWaitConditionFunc ReceivedConditionFunc = [](const TSharedPtr<FRivermaxSampleWrapper>& Sample)
+					++TasksInFlight;
+					UE::Tasks::Launch(UE_SOURCE_LOCATION,
+						[Size, SamplePtr, NextFrameExpectations, this]()
 						{
-							return Sample->ReceptionState == ESampleReceptionState::Received;
-						};
+							ON_SCOPE_EXIT
+							{
+								--TasksInFlight;
+							};
+							TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("Rmax::01_CopyPixels %u"), (NextFrameExpectations)));
 
-						{
-							TRACE_CPUPROFILER_EVENT_SCOPE(RmaxWaitSampleReception);
-							constexpr bool bCanTimeout = true;
-							WaitForSample(NextFrameExpectations, MoveTemp(ReceivedConditionFunc), bCanTimeout);
+							// Indicates if we sample reception started on the input thread.
+							bool bStreamReceptionStarted = true;
+
+							// In frame locked mode the packets potentially haven't started being received yet. 
+							// This waits for frame locked samples to start writing packets and then for the completion of the reception.
+							if (IS_FRAMELOCKED())
+							{
+								TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("Rmax::01_WaitForReception %u"), (NextFrameExpectations)));
+
+								// Waiting to start receiving.
+								const double TimeoutSeconds = CVarRivermaxDefaultThreadBlockTimeoutSec.GetValueOnAnyThread();
+								const double StartTimeSeconds = FPlatformTime::Seconds();
+								uint64 CurrentSampleFrameNumber = SamplePtr->GetFrameNumber();
+
+								while (CurrentSampleFrameNumber < NextFrameExpectations)
+								{
+									FPlatformProcess::SleepNoStats(SleepTimeSeconds);
+									if ((FPlatformTime::Seconds() - StartTimeSeconds) > TimeoutSeconds)
+									{
+										UE_LOG(LogRivermaxMedia, Warning, TEXT("Timed out waiting for frame #%u to start being received."), NextFrameExpectations);
+										bStreamReceptionStarted = false;
+										break;
+									}
+									CurrentSampleFrameNumber = SamplePtr->GetFrameNumber();
+								}
+
+								// At this point it is known that the sample reception has started or not.
+								if (bStreamReceptionStarted)
+								{
+									TRACE_CPUPROFILER_EVENT_SCOPE(RmaxWaitSampleReception);
+									TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("Rmax::02_WaitSampleReceived %u"), (NextFrameExpectations)));
+									// We wait for 2 Media Player frames to timeout. Reason: Due to 2110 standard anything more than 1 frame is going to be discarded.
+									// Since we are guaranteed to have started receiving the buffer we shouldn't wait longer than that.
+									const double TwoFrameTime = 2. / GetFrameRate().AsDecimal();
+									SamplePtr->GetSampleReceivedEvent()->Wait(FTimespan::FromSeconds(TwoFrameTime));
+								}
+							}
+
+							if (SamplePtr->GetFrameNumber() != NextFrameExpectations)
+							{
+								UE_LOG(LogRivermaxMedia, Warning, TEXT("Rendering unexpected frame %u, when frame %u was expected."), SamplePtr->GetFrameNumber(), NextFrameExpectations);
+							}
+
+							// In case reception failed mid way.
+							if (bStreamReceptionStarted && SamplePtr->GetReceptionState() != IRivermaxSample::ESampleState::ReceptionError)
+							{
+								TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("Rmax::03_CopyBufferToGPU %u"), (SamplePtr->GetFrameNumber())));
+								FMemory::Memcpy(SamplePtr->LockedMemory, SamplePtr->GetOrRequestBuffer(Size), Size);
+							}
+							else
+							{
+								UE_LOG(LogRivermaxMedia, Warning, TEXT("Incomplete or failed pixels will be rendered for frame %u"), NextFrameExpectations);
+							}
+
+							// Signals the RHI thread that the GPU transfer has completed.
+							SamplePtr->SetAwaitingForGPUTransfer(false);
 						}
+					);
+				}
 
-						// In case the wait failed, make sure it's received before copying
-						if (SamplePool[NextFrameExpectations.FrameIndex]->ReceptionState == ESampleReceptionState::Received)
-						{
-							TRACE_CPUPROFILER_EVENT_SCOPE(RmaxSampleUpload);
-							FMemory::Memcpy(SampleWrapper->LockedMemory, SampleWrapper->Sample->GetBuffer(), Size);
-						}
-						
-						// We always consider the sample ready to be rendered even if we haven't copied something over (timeout)
-						// RHI commands have already been submitted to look for that frame so we can't back out at this point
-						SampleWrapper->bIsReadyToRender = true;
+
+				RHI_BREADCRUMB_EVENT_STAT(GraphBuilder.RHICmdList, Rmax_WaitForPixels, "Rmax::WaitForPixels");
+				SCOPED_GPU_STAT(GraphBuilder.RHICmdList, Rmax_WaitForPixels);
+				// Since we are going to enqueue a lambda that can potentially sleep in the RHI thread if the pixels haven't arrived,
+				// we dispatch the existing commands (including the draw event start timing in the SCOPED_DRAW_EVENT above) before any potential sleep.
+				GraphBuilder.RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
+
+				// Setup requirements for sample to be ready to be rendered
+				GraphBuilder.RHICmdList.EnqueueLambda(
+					[SamplePtr, NextFrameExpectations, this](FRHICommandListImmediate&)
+					{
+						FWaitConditionFunc ReadyToRenderConditionFunc = [](const TSharedPtr<FRivermaxMediaTextureSample>& Sample)
+							{
+								return Sample->IsAwaitingForGPUTransfer() == false;
+							};
+
+						TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("Rmax::04_WaitForUploadToFinish %u"), (NextFrameExpectations)));
+
+						// Only accept timeouts here if we're going through the system memory in order to avoid timing out while doing
+						// the memcopy (buffer upload)
+						bool bCanTimeout = bStreamSupportsGPUDirect;
+						WaitForSample(SamplePtr, MoveTemp(ReadyToRenderConditionFunc), bCanTimeout);
 					}
 				);
-			}
-			
-			// Setup requirements for sample to be ready to be rendered
-			FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 
-			SCOPED_GPU_STAT(RHICmdList, Rmax_WaitForPixels);
-			SCOPED_DRAW_EVENT(RHICmdList, Rmax_WaitForPixels);
-
-			// Since we are going to enqueue a lambda that can potentially sleep in the RHI thread if the pixels haven't arrived,
-			// we dispatch the existing commands (including the draw event start timing in the SCOPED_DRAW_EVENT above) before any potential sleep.
-			RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
-
-			RHICmdList.EnqueueLambda(
-				[NextFrameExpectations, this](FRHICommandList& RHICmdList)
+				// Final step, if the memory was locked (non gpu direct), enqueue unlock after the wait for sample in order to render it
+				if (SamplePtr->LockedMemory && ensure(!bStreamSupportsGPUDirect))
 				{
-					FWaitConditionFunc ReadyToRenderConditionFunc = [](const TSharedPtr<FRivermaxSampleWrapper>& Sample)
-					{
-						return Sample->bIsReadyToRender.load();
-					};
-
-					TRACE_CPUPROFILER_EVENT_SCOPE(RmaxWaitSampleReadyness);
-
-					// Only accept timeouts here if we're going through the system memory in order to avoid timing out while doing
-					// the memcopy (buffer upload)
-					bool bCanTimeout = bDoesStreamSupportsGPUDirect;
-					WaitForSample(NextFrameExpectations, MoveTemp(ReadyToRenderConditionFunc), bCanTimeout);
+					GraphBuilder.RHICmdList.UnlockBuffer(SamplePtr->GetGPUBuffer()->GetRHI());
 				}
-			);
+			};
 
-			// Final step, if the memory was locked (non gpu direct), enqueue unlock after the wait for sample in order to render it
-			if (SampleWrapper->LockedMemory && ensure(!bDoesStreamSupportsGPUDirect))
+		// Setup post sample usage pass 
+		OutConverterSetup.PostConvertFunc = [SamplePtr = Sample, this](FRDGBuilder& GraphBuilder)
 			{
-				RHICmdList.UnlockBuffer(SampleWrapper->Sample->GetGPUBuffer()->GetRHI());
-			}
-		};
+				PostSampleUsage(GraphBuilder, SamplePtr);
+			};
 	}
 
 }

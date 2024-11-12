@@ -102,6 +102,9 @@ void FLevelEditorOutlinerSettings::SetupBuiltInCategories()
 	
 	TSharedPtr<FFilterCategory> VPFiltersCategory = MakeShared<FFilterCategory>(LOCTEXT("VPFiltersCategory", "Virtual Production"), FText::GetEmpty());
 	FilterBarCategories.Add(FLevelEditorOutlinerBuiltInCategories::VirtualProduction(), VPFiltersCategory);
+
+	TSharedPtr<FFilterCategory> SCCFiltersCategory = MakeShared<FFilterCategory>(LOCTEXT("SCCFiltersCategory", "Revision Control"), FText::GetEmpty());
+	FilterBarCategories.Add(FLevelEditorOutlinerBuiltInCategories::SourceControl(), SCCFiltersCategory);
 	
 	// Now convert some of the built in placement mode categories we want to filter categories and add them
 
@@ -297,16 +300,19 @@ void FLevelEditorOutlinerSettings::CreateDefaultFilters()
 
 bool FLevelEditorOutlinerSettings::DoesActorPassUnsavedFilter(const ISceneOutlinerTreeItem& InItem)
 {
-	return UnsavedAssets.Contains(USourceControlHelpers::PackageFilename(SceneOutliner::FSceneOutlinerHelpers::GetExternalPackageName(InItem)));
+	return UnsavedAssets.Contains(USourceControlHelpers::PackageFilename(InItem.GetPackageName()));
 }
 
 bool FLevelEditorOutlinerSettings::DoesActorPassUncontrolledFilter(const ISceneOutlinerTreeItem& InItem)
 {
-	FString ExternalPackageFilename = USourceControlHelpers::PackageFilename(SceneOutliner::FSceneOutlinerHelpers::GetExternalPackageName(InItem));
+	FString ExternalPackageFilename = USourceControlHelpers::PackageFilename(InItem.GetPackageName());
 	
 	for (const TSharedRef<FUncontrolledChangelistState>& UncontrolledChangelistState : UncontrolledChangelistStates)
 	{
-		return UncontrolledChangelistState->GetFilenames().Contains(ExternalPackageFilename);
+		if (UncontrolledChangelistState->GetFilenames().Contains(ExternalPackageFilename))
+		{
+			return true;
+		}
 	}
 	
 	return false;
@@ -331,7 +337,7 @@ void FLevelEditorOutlinerSettings::OnUnsavedAssetRemoved(const FString& InAsset)
 void FLevelEditorOutlinerSettings::CreateSCCFilters()
 {
 	// Source Control Category
-	TSharedPtr<FFilterCategory> SCCFiltersCategory = MakeShared<FFilterCategory>(LOCTEXT("SCCFiltersCategory", "Revision Control"), FText::GetEmpty());
+	TSharedPtr<FFilterCategory> SCCFiltersCategory = GetFilterCategory(FLevelEditorOutlinerBuiltInCategories::SourceControl());
 	
 	// Uncontrolled Actors Filter
 	FUncontrolledChangelistsModule& UncontrolledChangelistModule = FUncontrolledChangelistsModule::Get();

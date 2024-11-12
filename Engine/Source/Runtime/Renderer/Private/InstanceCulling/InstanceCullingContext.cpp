@@ -13,6 +13,7 @@
 #include "ScenePrivate.h"
 #include "SystemTextures.h"
 #include "InstanceCulling/InstanceCullingManager.h"
+#include "InstanceCullingDefinitions.h"
 #include "InstanceCullingLoadBalancer.h"
 #include "InstanceCullingMergedContext.h"
 #include "InstanceCullingOcclusionQuery.h"
@@ -298,20 +299,20 @@ void FInstanceCullingContext::AddInstancesToDrawCommand(uint32 IndirectArgsOffse
 	const bool bPreserveInstanceOrder = EnumHasAnyFlags(InstanceFlags, EInstanceFlags::PreserveInstanceOrder);
 	const bool bForceInstanceCulling = EnumHasAnyFlags(InstanceFlags, EInstanceFlags::ForceInstanceCulling);	
 
-	uint32 Payload;
+	uint32 Payload = (bDynamicInstanceDataOffset ? INSTANCE_CULLING_DYNAMIC_INSTANCE_DATA_OFFSET_BIT_MASK : 0U);
 	if (bPreserveInstanceOrder)
 	{
 		checkSlow(!EnumHasAnyFlags(Flags, EInstanceCullingFlags::NoInstanceOrderPreservation)); // this should have already been handled
 
 		// We need to provide full payload data for these instances
-		// NOTE: The extended payload data flag is in the lowest bit instead of the highest because the payload is not a full dword		
-		Payload = 1 | (uint32(PayloadData.Num()) << 1U);
+		// NOTE: The extended payload data flag is in the lowest bit instead of the highest because the payload is not a full dword, see FInstanceCullingLoadBalancerBase::PackItem
+		Payload |= (INSTANCE_CULLING_PRESERVE_INSTANCE_ORDER_BIT_MASK | (uint32(PayloadData.Num()) << INSTANCE_CULLING_PAYLOAD_NUM_COMMON_BITS));
 		PayloadData.Emplace(bDynamicInstanceDataOffset, IndirectArgsOffset, InstanceDataOffset, RunOffset, DrawCommandCompactionData.Num());
 	}
 	else
 	{
 		// Conserve space by packing the relevant payload information into the dword
-		Payload = (IndirectArgsOffset << 2U) | (bDynamicInstanceDataOffset ? 2U : 0U);
+		Payload |= (IndirectArgsOffset << INSTANCE_CULLING_PAYLOAD_NUM_COMMON_BITS);
 	}
 
 	// We special-case the single-instance (i.e., regular primitives) as they don't need culling (again), except where explicitly specified.
@@ -613,8 +614,8 @@ const TRDGUniformBufferRef<FInstanceCullingGlobalUniforms> FInstanceCullingConte
 class FInstanceCullingDeferredContext : public FInstanceCullingMergedContext
 {
 public:
-	FInstanceCullingDeferredContext(EShaderPlatform InShaderPlatform, FInstanceCullingManager* InInstanceCullingManager = nullptr)
-		: FInstanceCullingMergedContext(InShaderPlatform)
+	FInstanceCullingDeferredContext(EShaderPlatform InShaderPlatform, FInstanceCullingManager* InInstanceCullingManager = nullptr, int32 InNumBins=2)
+		: FInstanceCullingMergedContext(InShaderPlatform, false, InNumBins)
 		, InstanceCullingManager(InInstanceCullingManager)
 	{}
 
@@ -627,7 +628,7 @@ public:
 
 	bool bProcessed = false;
 
-	void ProcessBatched(TStaticArray<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FParameters*, static_cast<uint32>(EBatchProcessingMode::Num)> PassParameters);
+	void ProcessBatched(TArray<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FParameters*> PassParameters);
 
 #if MESH_DRAW_COMMAND_STATS
 	FRHIGPUBufferReadback* MeshDrawCommandStatsIndirectArgsReadbackBuffer = nullptr;
@@ -745,7 +746,7 @@ void FInstanceCullingContext::BuildRenderingCommandsInternal(
 	const bool bCullInstances = InstanceCullingManager != nullptr && CVarCullInstances.GetValueOnRenderThread() != 0;
 	const bool bAllowWPODisable = InstanceCullingManager != nullptr;
 
-	RDG_EVENT_SCOPE(GraphBuilder, "BuildRenderingCommands(Culling=%s)", bCullInstances ? TEXT("On") : TEXT("Off"));
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, BuildRenderingCommands, "BuildRenderingCommands(Culling=%s)", bCullInstances ? TEXT("On") : TEXT("Off"));
 	RDG_GPU_STAT_SCOPE(GraphBuilder, BuildRenderingCommands);
 
 	const bool bOrderPreservationEnabled = IsInstanceOrderPreservationEnabled();
@@ -983,7 +984,7 @@ void FInstanceCullingContext::BuildRenderingCommandsInternal(
 #endif
 }
 
-void FInstanceCullingDeferredContext::ProcessBatched(TStaticArray<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FParameters*, static_cast<uint32>(EBatchProcessingMode::Num)> PassParameters)
+void FInstanceCullingDeferredContext::ProcessBatched(TArray<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FParameters*> PassParameters)
 {
 	if (bProcessed)
 	{
@@ -1009,22 +1010,13 @@ void FInstanceCullingDeferredContext::ProcessBatched(TStaticArray<FBuildInstance
 
 	bProcessed = true;
 
-
 	// Finalize culling pass parameters
-	for (uint32 Mode = 0U; Mode < uint32(EBatchProcessingMode::Num); ++Mode)
+	for (uint32 BinIndex = 0U; BinIndex < uint32(LoadBalancers.Num()); ++BinIndex)
 	{
-		PassParameters[Mode]->NumViewIds = ViewIds.Num();
-		PassParameters[Mode]->LoadBalancerParameters.NumBatches = LoadBalancers[Mode].GetBatches().Num();
-		PassParameters[Mode]->LoadBalancerParameters.NumItems = LoadBalancers[Mode].GetItems().Num();
-		PassParameters[Mode]->LoadBalancerParameters.NumGroupsPerBatch = 1;
-
-		const bool bOcclusionCullInstances = PrevHZB != nullptr && FInstanceCullingContext::IsOcclusionCullingEnabled();
-		if (bOcclusionCullInstances)
-		{
-			PassParameters[Mode]->HZBTexture = PrevHZB;
-			PassParameters[Mode]->HZBSize = PrevHZB->Desc.Extent;
-			PassParameters[Mode]->HZBSampler = TStaticSamplerState< SF_Point, AM_Clamp, AM_Clamp, AM_Clamp >::GetRHI();
-		}
+		PassParameters[BinIndex]->NumViewIds = ViewIds.Num();
+		PassParameters[BinIndex]->LoadBalancerParameters.NumBatches = LoadBalancers[BinIndex].GetBatches().Num();
+		PassParameters[BinIndex]->LoadBalancerParameters.NumItems = LoadBalancers[BinIndex].GetItems().Num();
+		PassParameters[BinIndex]->LoadBalancerParameters.NumGroupsPerBatch = 1;
 	}
 }
 
@@ -1045,8 +1037,13 @@ FInstanceCullingDeferredContext *FInstanceCullingContext::CreateDeferredContext(
 	FGPUScene& GPUScene,
 	FInstanceCullingManager& InstanceCullingManager)
 {
-#define INST_CULL_CALLBACK_MODE(CustomCode) \
-	[PassParameters, DeferredContext, Mode]() \
+	// Bin 0 is reserved for UnCulled batches, every other bin is for each HZB. So at the very least we must have 2 bins.
+	// Generic batches with a null HZB will go in bin 1, together with the ones associated to the first HZB.
+
+	uint32 NumBins = FMath::Max(2, InstanceCullingManager.ViewPrevHZBs.Num() + 1);
+
+#define INST_CULL_CALLBACK_BIN_INDEX(CustomCode) \
+	[PassParameters, DeferredContext, BinIndex]() \
 	{ \
 		DeferredContext->ProcessBatched(PassParameters); \
 		return CustomCode; \
@@ -1067,29 +1064,30 @@ FInstanceCullingDeferredContext *FInstanceCullingContext::CreateDeferredContext(
 	INST_CULL_CALLBACK(DeferredContext->ArrayName.GetData()), \
 	INST_CULL_CALLBACK(DeferredContext->ArrayName.Num() * DeferredContext->ArrayName.GetTypeSize())
 
-#define INST_CULL_CREATE_STRUCT_BUFF_ARGS_MODE(ArrayName) \
+#define INST_CULL_CREATE_STRUCT_BUFF_ARGS_BIN_INDEX(ArrayName) \
 	GraphBuilder, \
 	TEXT("InstanceCulling.") TEXT(#ArrayName), \
-	DeferredContext->ArrayName[Mode].GetTypeSize(), \
-	INST_CULL_CALLBACK_MODE(DeferredContext->ArrayName[Mode].Num()), \
-	INST_CULL_CALLBACK_MODE(DeferredContext->ArrayName[Mode].GetData()), \
-	INST_CULL_CALLBACK_MODE(DeferredContext->ArrayName[Mode].Num() * DeferredContext->ArrayName[Mode].GetTypeSize())
+	DeferredContext->ArrayName[BinIndex].GetTypeSize(), \
+	INST_CULL_CALLBACK_BIN_INDEX(DeferredContext->ArrayName[BinIndex].Num()), \
+	INST_CULL_CALLBACK_BIN_INDEX(DeferredContext->ArrayName[BinIndex].GetData()), \
+	INST_CULL_CALLBACK_BIN_INDEX(DeferredContext->ArrayName[BinIndex].Num() * DeferredContext->ArrayName[BinIndex].GetTypeSize())
 
 	const ERHIFeatureLevel::Type FeatureLevel = GPUScene.GetFeatureLevel();
 	const EShaderPlatform ShaderPlatform = GPUScene.GetShaderPlatform();
 
-	FInstanceCullingDeferredContext* DeferredContext = GraphBuilder.AllocObject<FInstanceCullingDeferredContext>(ShaderPlatform, &InstanceCullingManager);
+	FInstanceCullingDeferredContext* DeferredContext = GraphBuilder.AllocObject<FInstanceCullingDeferredContext>(ShaderPlatform, &InstanceCullingManager, NumBins);
 
 	const bool bCullInstances = CVarCullInstances.GetValueOnRenderThread() != 0;
 	const bool bAllowWPODisable = true;
 
-	RDG_EVENT_SCOPE(GraphBuilder, "BuildRenderingCommandsDeferred(Culling=%s)", bCullInstances ? TEXT("On") : TEXT("Off"));
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, BuildRenderingCommandsDeferred, "BuildRenderingCommandsDeferred(Culling=%s)", bCullInstances ? TEXT("On") : TEXT("Off"));
 	RDG_GPU_STAT_SCOPE(GraphBuilder, BuildRenderingCommandsDeferred);
 
-	TStaticArray<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FParameters*, static_cast<uint32>(EBatchProcessingMode::Num)> PassParameters;
-	for (uint32 Mode = 0U; Mode < uint32(EBatchProcessingMode::Num); ++Mode)
+	TArray<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FParameters*> PassParameters;
+	PassParameters.SetNum(NumBins);
+	for (uint32 BinIndex = 0U; BinIndex < NumBins; ++BinIndex)
 	{
-		PassParameters[Mode] = GraphBuilder.AllocParameters<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FParameters>();
+		PassParameters[BinIndex] = GraphBuilder.AllocParameters<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FParameters>();
 	}
 
 	// Create buffers for compacting instances for draw commands that need it
@@ -1203,49 +1201,58 @@ FInstanceCullingDeferredContext *FInstanceCullingContext::CreateDeferredContext(
 	// Record the number of culling views to be able to check that no views referencing out-of bounds views are queued up
 	DeferredContext->NumCullingViews = InstanceCullingManager.CullingIntermediate.NumViews;
 
-	for (uint32 Mode = 0U; Mode < uint32(EBatchProcessingMode::Num); ++Mode)
+	for (uint32 BinIndex = 0U; BinIndex < NumBins; ++BinIndex)
 	{
-		*PassParameters[Mode] = PassParametersTmp;
+		*PassParameters[BinIndex] = PassParametersTmp;
 
-		FRDGBufferRef BatchIndsRDG = CreateStructuredBuffer(INST_CULL_CREATE_STRUCT_BUFF_ARGS_MODE(BatchInds));
-		PassParameters[Mode]->BatchInds = GraphBuilder.CreateSRV(BatchIndsRDG);
+		FRDGBufferRef BatchIndsRDG = CreateStructuredBuffer(INST_CULL_CREATE_STRUCT_BUFF_ARGS_BIN_INDEX(BatchInds));
+		PassParameters[BinIndex]->BatchInds = GraphBuilder.CreateSRV(BatchIndsRDG);
 
-		// 
+		// The first bin (0) is used for the EBatchProcessingMode::UnCulled batches
+		EBatchProcessingMode CurrentBatchProcessingMode = (BinIndex == 0) ? EBatchProcessingMode::UnCulled : EBatchProcessingMode::Generic;
+
 		FInstanceProcessingGPULoadBalancer::FGPUData Result;
 		FRDGBufferRef BatchBuffer = CreateStructuredBuffer(
 			GraphBuilder,
 			TEXT("InstanceCullingLoadBalancer.Batches"),
 			sizeof(FInstanceProcessingGPULoadBalancer::FPackedBatch),
-			INST_CULL_CALLBACK_MODE(DeferredContext->LoadBalancers[Mode].GetBatches().Num()),
-			INST_CULL_CALLBACK_MODE(DeferredContext->LoadBalancers[Mode].GetBatches().GetData()),
-			INST_CULL_CALLBACK_MODE(GetArrayDataSize(DeferredContext->LoadBalancers[Mode].GetBatches())));
+			INST_CULL_CALLBACK_BIN_INDEX(DeferredContext->LoadBalancers[BinIndex].GetBatches().Num()),
+			INST_CULL_CALLBACK_BIN_INDEX(DeferredContext->LoadBalancers[BinIndex].GetBatches().GetData()),
+			INST_CULL_CALLBACK_BIN_INDEX(GetArrayDataSize(DeferredContext->LoadBalancers[BinIndex].GetBatches())));
 
 		FRDGBufferRef ItemBuffer = CreateStructuredBuffer(
 			GraphBuilder,
 			TEXT("InstanceCullingLoadBalancer.Items"),
 			sizeof(FInstanceProcessingGPULoadBalancer::FPackedItem),
-			INST_CULL_CALLBACK_MODE(DeferredContext->LoadBalancers[Mode].GetItems().Num()),
-			INST_CULL_CALLBACK_MODE(DeferredContext->LoadBalancers[Mode].GetItems().GetData()),
-			INST_CULL_CALLBACK_MODE(GetArrayDataSize(DeferredContext->LoadBalancers[Mode].GetItems())));
+			INST_CULL_CALLBACK_BIN_INDEX(DeferredContext->LoadBalancers[BinIndex].GetItems().Num()),
+			INST_CULL_CALLBACK_BIN_INDEX(DeferredContext->LoadBalancers[BinIndex].GetItems().GetData()),
+			INST_CULL_CALLBACK_BIN_INDEX(GetArrayDataSize(DeferredContext->LoadBalancers[BinIndex].GetItems())));
 
-		PassParameters[Mode]->LoadBalancerParameters.BatchBuffer = GraphBuilder.CreateSRV(BatchBuffer);
-		PassParameters[Mode]->LoadBalancerParameters.ItemBuffer = GraphBuilder.CreateSRV(ItemBuffer);
-		PassParameters[Mode]->LoadBalancerParameters.NumGroupsPerBatch = 1;
-		PassParameters[Mode]->CurrentBatchProcessingMode = Mode;
+		PassParameters[BinIndex]->LoadBalancerParameters.BatchBuffer = GraphBuilder.CreateSRV(BatchBuffer);
+		PassParameters[BinIndex]->LoadBalancerParameters.ItemBuffer = GraphBuilder.CreateSRV(ItemBuffer);
+		PassParameters[BinIndex]->LoadBalancerParameters.NumGroupsPerBatch = 1;
+		PassParameters[BinIndex]->CurrentBatchProcessingMode = static_cast<uint32>(CurrentBatchProcessingMode);
 
-		const bool bOcclusionCullInstances = FInstanceCullingContext::IsOcclusionCullingEnabled();
+		FRDGTextureRef ViewPrevHZB = nullptr;
+
+		if (BinIndex > 0 && InstanceCullingManager.ViewPrevHZBs.Num() >= (int32)BinIndex)
+		{
+			ViewPrevHZB = GraphBuilder.RegisterExternalTexture(InstanceCullingManager.ViewPrevHZBs[BinIndex - 1]);
+		}
+		
+		bool bOcclusionCullInstances = ViewPrevHZB != nullptr && FInstanceCullingContext::IsOcclusionCullingEnabled();
+		
 		if (bOcclusionCullInstances)
 		{
-			// Fill with a placeholder as AddPass expects HZBTexture to be valid. ProcessBatched will fill with real HZB textures.
-			PassParameters[Mode]->HZBTexture = GraphBuilder.RegisterExternalTexture(GSystemTextures.BlackDummy);
-			PassParameters[Mode]->HZBSize = PassParameters[Mode]->HZBTexture->Desc.Extent;
-			PassParameters[Mode]->HZBSampler = TStaticSamplerState< SF_Point, AM_Clamp, AM_Clamp, AM_Clamp >::GetRHI();
+			PassParameters[BinIndex]->HZBTexture = ViewPrevHZB;
+			PassParameters[BinIndex]->HZBSize = ViewPrevHZB->Desc.Extent;
+			PassParameters[BinIndex]->HZBSampler = TStaticSamplerState< SF_Point, AM_Clamp, AM_Clamp, AM_Clamp >::GetRHI();
 		}
 
 		FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FBatchedDim>(true);
-		PermutationVector.Set<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FSingleInstanceModeDim>(EBatchProcessingMode(Mode) == EBatchProcessingMode::UnCulled);
-		PermutationVector.Set<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FCullInstancesDim>(bCullInstances && EBatchProcessingMode(Mode) != EBatchProcessingMode::UnCulled);
+		PermutationVector.Set<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FSingleInstanceModeDim>(CurrentBatchProcessingMode == EBatchProcessingMode::UnCulled);
+		PermutationVector.Set<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FCullInstancesDim>(bCullInstances && CurrentBatchProcessingMode != EBatchProcessingMode::UnCulled);
 		PermutationVector.Set<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FAllowWPODisableDim>(bAllowWPODisable);
 		PermutationVector.Set<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FOcclusionCullInstancesDim>(bOcclusionCullInstances);
 		PermutationVector.Set<FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FInstanceCompactionDim>(bEnableInstanceCompaction);
@@ -1254,10 +1261,10 @@ FInstanceCullingDeferredContext *FInstanceCullingContext::CreateDeferredContext(
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("CullInstances(%s)", BatchProcessingModeStr[Mode]),
+			RDG_EVENT_NAME("CullInstances(%s). Bin %d", BatchProcessingModeStr[uint32(CurrentBatchProcessingMode)], BinIndex),
 			ComputeShader,
-			PassParameters[Mode],
-			INST_CULL_CALLBACK_MODE(DeferredContext->LoadBalancers[Mode].GetWrappedCsGroupCount()));
+			PassParameters[BinIndex],
+			INST_CULL_CALLBACK_BIN_INDEX(DeferredContext->LoadBalancers[BinIndex].GetWrappedCsGroupCount()));
 	}
 
 	// TODO: Come up with a way to cull these passes when no compaction is needed. The group count resulting in (0, 0, 0) causes the pass lambdas to not execute,
@@ -1402,7 +1409,7 @@ void FInstanceCullingContext::AddClearIndirectArgInstanceCountPass(FRDGBuilder& 
 			ParametersMetadata,
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[ParametersMetadata, PassParameters, ComputeShader, NumIndirectArgsCallback = MoveTemp(NumIndirectArgsCallback)](FRHIComputeCommandList& RHICmdList)
+			[ParametersMetadata, PassParameters, ComputeShader, NumIndirectArgsCallback = MoveTemp(NumIndirectArgsCallback)](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			int32 NumIndirectArgs = NumIndirectArgsCallback();
 			PassParameters->NumIndirectArgs = NumIndirectArgs;
@@ -1476,6 +1483,7 @@ void FInstanceCullingContext::SetupDrawCommands(
 	}
 
 	int32 CurrentStateBucketId = -1;
+	EMeshDrawCommandCullingPayloadFlags CurrentCullingPayloadFlags = EMeshDrawCommandCullingPayloadFlags::Default;
 	MaxInstances = 1;
 	// Only used to supply stats
 	uint32 CurrentAutoInstanceCount = 1;
@@ -1507,7 +1515,7 @@ void FInstanceCullingContext::SetupDrawCommands(
 		// UniformBufferView path does not support merging ISM draws atm
 		const bool bCompactIdenticalCommands = bInCompactIdenticalCommands && (bUsesUniformBufferView ? (CurrentAutoInstanceCount < MaxPrimitiveBatchSize && !bUseIndirectDraw) : true);
 
-		if (bCompactIdenticalCommands && CurrentStateBucketId != -1 && VisibleMeshDrawCommand.StateBucketId == CurrentStateBucketId)
+		if (bCompactIdenticalCommands && CurrentStateBucketId != -1 && VisibleMeshDrawCommand.StateBucketId == CurrentStateBucketId && VisibleMeshDrawCommand.CullingPayloadFlags == CurrentCullingPayloadFlags)
 		{
 			// Drop since previous covers for this
 
@@ -1568,6 +1576,7 @@ void FInstanceCullingContext::SetupDrawCommands(
 			
 			// Record the last bucket ID (may be -1)
 			CurrentStateBucketId = VisibleMeshDrawCommand.StateBucketId;
+			CurrentCullingPayloadFlags = VisibleMeshDrawCommand.CullingPayloadFlags;
 
 			// If we have dropped any we need to move up to maintain 1:1
 			if (DrawCommandIndex > NumDrawCommandsOut)
@@ -1712,14 +1721,15 @@ void FInstanceCullingContext::SubmitDrawCommands(
 			}
 			
 			SceneArgs.PrimitiveIdOffset = OverrideArgs.InstanceDataByteOffset + DrawCommandInfo.InstanceDataByteOffset;
-			FMeshDrawCommand::SubmitDraw(*VisibleMeshDrawCommand.MeshDrawCommand, GraphicsMinimalPipelineStateSet, SceneArgs, InstanceFactor, RHICmdList, StateCache);
-			
-			// If MDC was split to a more than one batch, submit them without changing state
-			for (uint32 BatchIdx = 1; BatchIdx < DrawCommandInfo.NumBatches; ++BatchIdx)
+			if (FMeshDrawCommand::SubmitDraw(*VisibleMeshDrawCommand.MeshDrawCommand, GraphicsMinimalPipelineStateSet, SceneArgs, InstanceFactor, RHICmdList, StateCache))
 			{
-				SceneArgs.PrimitiveIdOffset += DrawCommandInfo.BatchDataStride;
-				SceneArgs.IndirectArgsByteOffset += sizeof(FRHIDrawIndexedIndirectParameters);
-				FMeshDrawCommand::SubmitDrawEnd(*VisibleMeshDrawCommand.MeshDrawCommand, SceneArgs, InstanceFactor, RHICmdList);
+				// If MDC was split to a more than one batch, submit them without changing state
+				for (uint32 BatchIdx = 1; BatchIdx < DrawCommandInfo.NumBatches; ++BatchIdx)
+				{
+					SceneArgs.PrimitiveIdOffset += DrawCommandInfo.BatchDataStride;
+					SceneArgs.IndirectArgsByteOffset += sizeof(FRHIDrawIndexedIndirectParameters);
+					FMeshDrawCommand::SubmitDrawEnd(*VisibleMeshDrawCommand.MeshDrawCommand, SceneArgs, InstanceFactor, RHICmdList);
+				}
 			}
 		}
 	}

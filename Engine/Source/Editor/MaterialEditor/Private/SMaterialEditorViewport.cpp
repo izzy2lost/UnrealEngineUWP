@@ -14,7 +14,11 @@
 #include "Engine/SkeletalMesh.h"
 #include "Engine/Texture2D.h"
 #include "Editor/UnrealEdEngine.h"
+#include "MaterialEditor.h"
 #include "MaterialEditor/MaterialEditorMeshComponent.h"
+#include "MaterialEditor/PreviewMaterial.h"
+#include "Materials/MaterialExpressionUserSceneTexture.h"
+#include "Materials/MaterialInstanceConstant.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Selection.h"
 #include "Editor.h"
@@ -23,6 +27,7 @@
 #include "MaterialEditorActions.h"
 #include "Slate/SceneViewport.h"
 #include "MaterialEditor.h"
+#include "MaterialInstanceEditor.h"
 #include "SMaterialEditorViewportToolBar.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Engine/TextureCube.h"
@@ -39,8 +44,12 @@
 #include "ImageUtils.h"
 #include "ISettingsModule.h"
 #include "Framework/Layout/ScrollyZoomy.h"
+#include "MaterialEditorViewportToolbarSections.h"
+#include "ToolMenus.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 
 #define LOCTEXT_NAMESPACE "MaterialEditor"
+#include "PreviewProfileController.h"
 #include "UnrealWidget.h"
 
 /** Viewport Client for the preview viewport */
@@ -118,7 +127,11 @@ void FMaterialEditorViewportClient::Tick(float DeltaSeconds)
 void FMaterialEditorViewportClient::Draw(FViewport* InViewport,FCanvas* Canvas)
 {
 	FEditorViewportClient::Draw(InViewport, Canvas);
-	MaterialEditorPtr.Pin()->DrawMessages(InViewport, Canvas);
+
+	if (MaterialEditorPtr.IsValid())
+	{
+		MaterialEditorPtr.Pin()->DrawMessages(InViewport, Canvas);
+	}
 }
 
 bool FMaterialEditorViewportClient::ShouldOrbitCamera() const
@@ -258,10 +271,13 @@ void SMaterialEditor3DPreviewViewport::Construct(const FArguments& InArgs)
 	PreviewMeshComponent = nullptr;
 	PostProcessVolumeActor = nullptr;
 
-	UMaterialInterface* Material = MaterialEditorPtr.Pin()->GetMaterialInterface();
-	if (Material)
+	if (MaterialEditorPtr.IsValid())
 	{
-		SetPreviewMaterial(Material);
+		UMaterialInterface* Material = MaterialEditorPtr.Pin()->GetMaterialInterface();
+		if (Material)
+		{
+			SetPreviewMaterial(Material);
+		}
 	}
 
 	SetPreviewAsset( GUnrealEd->GetThumbnailManager()->EditorSphere );
@@ -428,6 +444,196 @@ bool SMaterialEditor3DPreviewViewport::SetPreviewAssetByName(const TCHAR* InAsse
 	return bSuccess;
 }
 
+// Add user scene texture inputs from a material.  Doesn't clear TSet first, so can be used to accumulate inputs from multiple materials.
+static void GetUserSceneTextureInputs(UMaterialInterface* Material, TSet<FName>& OutUserSceneTextures)
+{
+	UMaterial* BaseMaterial = Material->GetBaseMaterial();
+	if (BaseMaterial)
+	{
+		// Get inputs from base material.  TMap key stores input, value stores instance override if present.
+		TMap<FName, FName> NewInputs;
+		TArray<const UMaterialExpressionUserSceneTexture*> UserSceneTextureExpressions;
+		BaseMaterial->GetAllExpressionsInMaterialAndFunctionsOfType(UserSceneTextureExpressions);
+
+		for (const UMaterialExpressionUserSceneTexture* UserSceneTextureExpression : UserSceneTextureExpressions)
+		{
+			if (!UserSceneTextureExpression->UserSceneTexture.IsNone())
+			{
+				NewInputs.Add(UserSceneTextureExpression->UserSceneTexture, NAME_None);
+			}
+		}
+
+		// Then get any overrides from material instances
+		TSet<UMaterialInterface*> MaterialDependencies;
+		Material->GetDependencies(MaterialDependencies);
+
+		for (UMaterialInterface* MaterialDependency : MaterialDependencies)
+		{
+			UMaterialInstanceConstant* MaterialInstance = Cast<UMaterialInstanceConstant>(MaterialDependency);
+			if (MaterialInstance)
+			{
+				for (FUserSceneTextureOverride& Override : MaterialInstance->UserSceneTextureOverrides)
+				{
+					FName* FoundInput = NewInputs.Find(Override.Key);
+
+					// Only accept the first override of a given value
+					if (FoundInput && FoundInput->IsNone())
+					{
+						*FoundInput = Override.Value;
+					}
+				}
+			}
+		}
+
+		// Finally, add the inputs to the output
+		for (auto NewInputIterator : NewInputs)
+		{
+			if (!NewInputIterator.Value.IsNone())
+			{
+				OutUserSceneTextures.Add(NewInputIterator.Value);
+			}
+			else
+			{
+				OutUserSceneTextures.Add(NewInputIterator.Key);
+			}
+		}
+	}
+}
+
+static bool IsParentOfEditedMaterialInstance(const FMaterialEditor* MaterialEditor, const TArray<UMaterialInstanceConstant*>& EditedMaterialInstances)
+{
+	for (UMaterialInstanceConstant* OtherInstance : EditedMaterialInstances)
+	{
+		UMaterial* BaseMaterial = OtherInstance->GetBaseMaterial();
+		if (BaseMaterial == MaterialEditor->Material || BaseMaterial == MaterialEditor->OriginalMaterial)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool IsParentOfEditedMaterialInstance(UMaterialInstanceConstant* EditedMaterialInstance, const TArray<UMaterialInstanceConstant*>& EditedMaterialInstances)
+{
+	for (UMaterialInstanceConstant* OtherInstance : EditedMaterialInstances)
+	{
+		if (OtherInstance != EditedMaterialInstance)
+		{
+			FMaterialInheritanceChain OtherInheritanceChain;
+			OtherInstance->GetMaterialInheritanceChain(OtherInheritanceChain);
+
+			if (OtherInheritanceChain.MaterialInstances.Contains(EditedMaterialInstance))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+// Recursively get all edited materials that have UserSceneTexture outputs that feed into Material.  Also returns inputs that
+// are missing, which may be useful to report as warnings to the log in the future.
+static void GetUserSceneTextureDependencies(UMaterialInterface* Material, TSet<UMaterialInterface*>& OutDependencies, TSet<FName>& OutMissingInputs)
+{
+	// Check if the current material has any UserSceneTexture inputs first
+	TSet<FName> InputsToProcess;
+	GetUserSceneTextureInputs(Material, InputsToProcess);
+	if (InputsToProcess.IsEmpty())
+	{
+		return;
+	}
+
+	// Generate a global list of edited materials that generate a given UserSceneTexture output (minus Material itself)
+	TMap<FName, TSet<UMaterialInterface*>> MaterialsByUserSceneTextureOutput;
+
+	UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+	TArray<UObject*> EditedAssets = AssetEditorSubsystem->GetAllEditedAssets();
+
+	// Get a list of material instances first -- if a material or instance is a parent of other loaded instances, only consider the outermost child instance
+	TArray<UMaterialInstanceConstant*> EditedMaterialInstances;
+	for (UObject* EditedAsset : EditedAssets)
+	{
+		UMaterialInstanceConstant* EditedMaterialInstance = Cast<UMaterialInstanceConstant>(EditedAsset);
+		if (EditedMaterialInstance)
+		{
+			EditedMaterialInstances.Add(EditedMaterialInstance);
+		}
+	}
+
+	for (UObject* EditedAsset : EditedAssets)
+	{
+		UPreviewMaterial* EditedMaterial = Cast<UPreviewMaterial>(EditedAsset);
+
+		if (EditedMaterial && EditedMaterial != Material && EditedMaterial->IsPostProcessMaterial() && !EditedMaterial->UserSceneTexture.IsNone())
+		{
+			TArray<IAssetEditorInstance*> Editors = AssetEditorSubsystem->FindEditorsForAsset(EditedAsset);
+			if (!Editors.IsEmpty() && Editors[0]->GetEditorName() == FName("MaterialEditor"))
+			{
+				const FMaterialEditor* MaterialEditor = (const FMaterialEditor*)Editors[0];
+
+				// If we are editing a material instance and its parent, we only want the child instance to be previewed.  Previewing multiple
+				// copies of the same base material would cause confusing and indeterminate results.  We pass in the MaterialEditor rather than
+				// the material, so we can check against both original and previewed variations of the material.
+				if (!MaterialEditor->bDestructing && !IsParentOfEditedMaterialInstance(MaterialEditor, EditedMaterialInstances))
+				{
+					MaterialsByUserSceneTextureOutput.FindOrAdd(EditedMaterial->UserSceneTexture).Add(EditedMaterial);
+				}
+			}
+		}
+
+		UMaterialInstanceConstant* EditedMaterialInstance = Cast<UMaterialInstanceConstant>(EditedAsset);
+
+		// If we are editing a material instance and its parent, we only want the child instance to be previewed.
+		if (EditedMaterialInstance && EditedMaterialInstance != Material && !IsParentOfEditedMaterialInstance(EditedMaterialInstance, EditedMaterialInstances))
+		{
+			UMaterial* BaseMaterial = EditedMaterialInstance->GetMaterial();
+
+			if (BaseMaterial->IsPostProcessMaterial())
+			{
+				FName UserSceneTextureOutput = EditedMaterialInstance->GetUserSceneTextureOutput(BaseMaterial);
+				if (UserSceneTextureOutput != NAME_None)
+				{
+					TArray<IAssetEditorInstance*> Editors = AssetEditorSubsystem->FindEditorsForAsset(EditedAsset);
+					if (!Editors.IsEmpty() && Editors[0]->GetEditorName() == FName("MaterialInstanceEditor"))
+					{
+						const FMaterialInstanceEditor* MaterialInstanceEditor = (const FMaterialInstanceEditor*)Editors[0];
+
+						if (!MaterialInstanceEditor->IsDestructing())
+						{
+							MaterialsByUserSceneTextureOutput.FindOrAdd(UserSceneTextureOutput).Add(EditedMaterialInstance);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Recursively process materials that generate inputs we care about.  InputsToProcess starts with the inputs from the original
+	// material, and accumulates inputs from other encountered materials.  Stops when no new unique elements get added to InputsToProcess.
+	for (int32 ElementIndex = 0; ElementIndex < InputsToProcess.Num(); ++ElementIndex)
+	{
+		// Find materials that generate an input we care about
+		FName Input = InputsToProcess[FSetElementId::FromInteger(ElementIndex)];
+		TSet<UMaterialInterface*>* MaterialsGeneratingInput = MaterialsByUserSceneTextureOutput.Find(Input);
+
+		if (MaterialsGeneratingInput)
+		{
+			// Add the materials to the dependency list
+			OutDependencies.Append(*MaterialsGeneratingInput);
+
+			// Add any inputs the new dependencies require
+			for (UMaterialInterface* MaterialGeneratingOutput : *MaterialsGeneratingInput)
+			{
+				GetUserSceneTextureInputs(MaterialGeneratingOutput, InputsToProcess);
+			}
+		}
+		else
+		{
+			OutMissingInputs.Add(Input);
+		}
+	}
+}
+
 void SMaterialEditor3DPreviewViewport::SetPreviewMaterial(UMaterialInterface* InMaterialInterface)
 {
 	PreviewMaterial = InMaterialInterface;
@@ -443,11 +649,35 @@ void SMaterialEditor3DPreviewViewport::SetPreviewMaterial(UMaterialInterface* In
 			GetViewportClient()->EngineShowFlags.SetPostProcessMaterial(true);
 		}
 
+		// Clear blendables, and re-add them (cleans up any post process materials with UserSceneTextures that are no longer used or loaded)
+		PostProcessVolumeActor->Settings.WeightedBlendables.Array.Empty(1);
+
+		{
+			// Add any edited post process materials that write UserSceneTextures used by this material, for better visualization.
+			// We want to add these before the main material, so the main material renders last (assuming equal priority).
+			TSet<UMaterialInterface*> UserSceneTextureDependencies;
+			TSet<FName> UserSceneTextureMissingInputs;
+
+			GetUserSceneTextureDependencies(PreviewMaterial, UserSceneTextureDependencies, UserSceneTextureMissingInputs);
+
+			// Add dependencies in reverse order, as dependency tree is traversed backwards from the main material's inputs, so earlier
+			// dependencies tend to end up later in the TSet.  This isn't a perfect dependency sort, but works correctly in typical cases.
+			// The user should set Blendable Priority as needed to sort in complex cases.
+			for (int32 DependencyIndex = UserSceneTextureDependencies.Num() - 1; DependencyIndex >= 0; --DependencyIndex)
+			{
+				UMaterialInterface* Dependency = UserSceneTextureDependencies[FSetElementId::FromInteger(DependencyIndex)];
+				PostProcessVolumeActor->AddOrUpdateBlendable(Dependency);
+			}
+		}
+
 		check (PreviewMaterial != nullptr);
 		PostProcessVolumeActor->AddOrUpdateBlendable(PreviewMaterial);
 		PostProcessVolumeActor->bEnabled = true;
 		PostProcessVolumeActor->BlendWeight = 1.0f;
 		PostProcessVolumeActor->bUnbound = true;
+
+		// Setting this forces this post process material to write to SceneColor instead of any UserSceneTexture it may have assigned, for preview purposes
+		PostProcessVolumeActor->Settings.PreviewBlendable = PreviewMaterial;
 
 		// Remove preview material from the preview mesh.
 		if (PreviewMeshComponent != nullptr)
@@ -455,6 +685,8 @@ void SMaterialEditor3DPreviewViewport::SetPreviewMaterial(UMaterialInterface* In
 			PreviewMeshComponent->OverrideMaterials.Empty();
 			PreviewMeshComponent->MarkRenderStateDirty();
 		}
+
+		GetViewportClient()->RedrawRequested(GetSceneViewport().Get());
 	}
 	else
 	{
@@ -524,12 +756,6 @@ void SMaterialEditor3DPreviewViewport::BindCommands()
 		FExecuteAction::CreateSP( this, &SMaterialEditor3DPreviewViewport::OnSetPreviewMeshFromSelection ),
 		FCanExecuteAction(),
 		FIsActionChecked::CreateSP( this, &SMaterialEditor3DPreviewViewport::IsPreviewMeshFromSelectionChecked ) );
-
-	CommandList->MapAction(
-		Commands.TogglePreviewGrid,
-		FExecuteAction::CreateSP( this, &SMaterialEditor3DPreviewViewport::TogglePreviewGrid ),
-		FCanExecuteAction(),
-		FIsActionChecked::CreateSP( this, &SMaterialEditor3DPreviewViewport::IsTogglePreviewGridChecked ) );
 
 	CommandList->MapAction(
 		Commands.TogglePreviewBackground,
@@ -642,17 +868,6 @@ bool SMaterialEditor3DPreviewViewport::IsPreviewMeshFromSelectionChecked() const
 	return (PreviewPrimType == TPT_None && PreviewMeshComponent != nullptr);
 }
 
-void SMaterialEditor3DPreviewViewport::TogglePreviewGrid()
-{
-	EditorViewportClient->SetShowGrid();
-	RefreshViewport();
-}
-
-bool SMaterialEditor3DPreviewViewport::IsTogglePreviewGridChecked() const
-{
-	return EditorViewportClient->IsSetShowGridChecked();
-}
-
 void SMaterialEditor3DPreviewViewport::TogglePreviewBackground()
 {
 	UAssetViewerSettings* Settings = UAssetViewerSettings::Get();
@@ -724,28 +939,176 @@ TSharedRef<FEditorViewportClient> SMaterialEditor3DPreviewViewport::MakeEditorVi
 	return EditorViewportClient.ToSharedRef();
 }
 
+TSharedPtr<SWidget> SMaterialEditor3DPreviewViewport::BuildViewportToolbar()
+{
+	const FName MaterialEditorViewportToolbarName = "MaterialEditor.ViewportToolbar";
+
+	// Register the viewport toolbar if another viewport hasn't already (it's shared).
+	{
+		if (!UToolMenus::Get()->IsMenuRegistered(MaterialEditorViewportToolbarName))
+		{
+			UToolMenu* const ViewportToolbarMenu = UToolMenus::Get()->RegisterMenu(
+				MaterialEditorViewportToolbarName, NAME_None /* parent */, EMultiBoxType::SlimHorizontalToolBar
+			);
+
+			ViewportToolbarMenu->StyleName = "ViewportToolbar";
+
+			// Add the Left-aligned part of the viewport toolbar.
+			{
+				// Adding it even if empty in order to keep proper toolbar layout
+				ViewportToolbarMenu->FindOrAddSection("Left");
+			}
+
+			// Add the right-aligned part of the viewport toolbar.
+			{
+				FToolMenuSection& RightSection = ViewportToolbarMenu->FindOrAddSection("Right");
+				RightSection.Alignment = EToolMenuSectionAlign::Last;
+
+				// Add the "Camera" submenu.
+				{
+					// Create our grandparent menu.
+					if (!UToolMenus::Get()->IsMenuRegistered("UnrealEd.ViewportToolbar.Camera"))
+					{
+						UToolMenus::Get()->RegisterMenu("UnrealEd.ViewportToolbar.Camera");
+					}
+
+					// Create our parent menu.
+					if (!UToolMenus::Get()->IsMenuRegistered("MaterialEditor.ViewportToolbar.Camera"))
+					{
+						UToolMenus::Get()->RegisterMenu(
+							"MaterialEditor.ViewportToolbar.Camera", "UnrealEd.ViewportToolbar.Camera"
+						);
+					}
+
+					// Create our menu.
+					UToolMenus::Get()->RegisterMenu(
+						"MaterialEditor.ViewportToolbar.CameraOptions", "MaterialEditor.ViewportToolbar.Camera"
+					);
+
+					UE::UnrealEd::ExtendCameraSubmenu("MaterialEditor.ViewportToolbar.CameraOptions");
+
+					FToolMenuEntry CameraSubmenu = UE::UnrealEd::CreateViewportToolbarCameraSubmenu();
+					CameraSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					RightSection.AddEntry(CameraSubmenu);
+				}
+
+				// Add the View Modes submenu.
+				{
+					FToolMenuEntry ViewModesSubmenu = UE::UnrealEd::CreateViewportToolbarViewModesSubmenu();
+					ViewModesSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					RightSection.AddEntry(ViewModesSubmenu);
+				}
+
+				// Add the Show submenu.
+				{
+					FToolMenuEntry ShowSubmenu = UE::MaterialEditor::CreateShowSubmenu();
+					ShowSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					RightSection.AddEntry(ShowSubmenu);
+				}
+
+				// Add the Performance and Scalability submenu.
+				{
+					FToolMenuEntry PerformanceAndScalabilitySubmenu =
+						UE::UnrealEd::CreatePerformanceAndScalabilitySubmenu();
+					PerformanceAndScalabilitySubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					RightSection.AddEntry(PerformanceAndScalabilitySubmenu);
+				}
+
+				// Add the "Preview Profile" sub menu.
+				{
+					PreviewProfileController = MakeShared<FPreviewProfileController>();
+					FToolMenuEntry PreviewProfileSubmenu =
+						UE::UnrealEd::CreateViewportToolbarAssetViewerProfileSubmenu(PreviewProfileController);
+					PreviewProfileSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+					RightSection.AddEntry(PreviewProfileSubmenu);
+				}
+			}
+		}
+	}
+
+	FToolMenuContext ViewportToolbarContext;
+	{
+		ViewportToolbarContext.AppendCommandList(GetCommandList());
+
+		// Add the UnrealEd viewport toolbar context.
+		{
+			UUnrealEdViewportToolbarContext* const ContextObject =
+				UE::UnrealEd::CreateViewportToolbarDefaultContext(SharedThis(this));
+
+			ViewportToolbarContext.AddObject(ContextObject);
+		}
+	}
+		const TSharedRef<SWidget> NewViewportToolbar = SNew(SBox)
+		// clang-format off
+		.Visibility_Lambda(
+			[this]() -> EVisibility
+			{
+				if (!UE::UnrealEd::ShowNewViewportToolbars())
+				{
+					return EVisibility::Collapsed;
+				}
+
+				return EVisibility::Visible;
+			}
+		)
+		[
+			UToolMenus::Get()->GenerateWidget(MaterialEditorViewportToolbarName, ViewportToolbarContext)
+		];
+		// clang-format on
+
+	return NewViewportToolbar;
+}
+
 void SMaterialEditor3DPreviewViewport::PopulateViewportOverlays(TSharedRef<class SOverlay> Overlay)
 {
-	Overlay->AddSlot()
-		.VAlign(VAlign_Top)
-		[
-			SNew(SMaterialEditorViewportToolBar, SharedThis(this))
-		];
+	const TSharedRef<SMaterialEditorViewportToolBar> OldViewportToolbar =
+		// clang-format off
+		SNew(SMaterialEditorViewportToolBar, SharedThis(this))
+			.Visibility_Lambda([this]() -> EVisibility
+			{
+				if (!UE::UnrealEd::ShowOldViewportToolbars())
+				{
+					return EVisibility::Collapsed;
+				}
+
+				return EVisibility::Visible;
+			});
+	// clang-format on
 
 	Overlay->AddSlot()
+		// clang-format off
+		.VAlign(VAlign_Top)
+		[
+			SNew(SVerticalBox)
+			.Visibility( EVisibility::SelfHitTestInvisible )
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 1.0f, 0.0f, 0.0f)
+			.VAlign(VAlign_Top)
+			[
+				OldViewportToolbar
+			]
+		];
+		// clang-format on
+
+	Overlay->AddSlot()
+		// clang-format off
 		.VAlign(VAlign_Bottom)
 		[
 			SNew(SMaterialEditorViewportPreviewShapeToolBar, SharedThis(this))
 		];
+		// clang-format on
 
 	// add the feature level display widget
 	Overlay->AddSlot()
+		// clang-format off
 		.VAlign(VAlign_Top)
 		.HAlign(HAlign_Right)
 		.Padding(5.0f)
 		[
 			BuildFeatureLevelWidget()
 		];
+		// clang-format on
 }
 
 EVisibility SMaterialEditor3DPreviewViewport::OnGetViewportContentVisibility() const
@@ -760,11 +1123,24 @@ EVisibility SMaterialEditor3DPreviewViewport::OnGetViewportContentVisibility() c
 
 void SMaterialEditor3DPreviewViewport::OnPropertyChanged(UObject* ObjectBeingModified, FPropertyChangedEvent& PropertyChangedEvent)
 {
-	if (ObjectBeingModified != nullptr && ObjectBeingModified == PreviewMaterial)
+	FProperty* PropertyThatChanged = PropertyChangedEvent.Property;
+	static const FString MaterialDomain = TEXT("MaterialDomain");
+	static const FString UserSceneTexture = TEXT("UserSceneTexture");
+	static const FString PostProcessOverrides = TEXT("PostProcessOverrides");
+
+	// We need to refresh other edited post process materials when a change is made that affects UserSceneTexture inputs or outputs, as previews
+	// include materials that generate UserSceneTexture dependencies.  Changing the material domain potentially converts a material to or from a
+	// Post Process domain material, adding or removing it as relevant to other previews.  Or changing any UserSceneTexture input or output, which
+	// includes the "UMaterial::UserSceneTexture" field, plus any FName field in the PostProcessOverrides member struct.
+	//
+	// We also need to refresh PreviewMaterial itself if its domain changes, regardless of whether it's a post process material.
+	if (ObjectBeingModified != nullptr && PropertyThatChanged != nullptr && PreviewMaterial)
 	{
-		FProperty* PropertyThatChanged = PropertyChangedEvent.Property;
-		static const FString MaterialDomain = TEXT("MaterialDomain");
-		if (PropertyThatChanged != nullptr && PropertyThatChanged->GetName() == MaterialDomain)
+		if ((ObjectBeingModified == PreviewMaterial && PropertyThatChanged->GetName() == MaterialDomain) ||
+			(PreviewMaterial->GetMaterial()->IsPostProcessMaterial() &&
+			 (PropertyThatChanged->GetName() == MaterialDomain ||
+			  PropertyThatChanged->GetName() == UserSceneTexture ||
+			  (PropertyThatChanged->IsA<FNameProperty>() && PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetName() == PostProcessOverrides))))
 		{
 			SetPreviewMaterial(PreviewMaterial);
 		}
@@ -998,7 +1374,13 @@ FChildren* SMaterialEditorUIPreviewZoomer::GetChildren()
 int32 SMaterialEditorUIPreviewZoomer::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
 	LayerId = SPanel::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
-	
+
+	// Set a UI scale for materials to use as reference, done on a per-window basis since don't want to change global uniforms per element
+	if (SWindow* ParentWindow = OutDrawElements.GetPaintWindow())
+	{
+		ParentWindow->SetViewportScaleUIOverride(ZoomLevel);
+	}
+
 	if (IsCurrentlyScrollable())
 	{
 		LayerId = ScrollyZoomy.PaintSoftwareCursorIfNeeded(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId);

@@ -18,6 +18,7 @@ class FLargeMemoryWriter : public FMemoryArchive
 public:
 	
 	CORE_API FLargeMemoryWriter(const int64 PreAllocateBytes = 0, bool bIsPersistent = false, const TCHAR* InFilename = nullptr);
+	CORE_API virtual ~FLargeMemoryWriter();
 
 	CORE_API virtual void Serialize(void* InData, int64 Num) override;
 

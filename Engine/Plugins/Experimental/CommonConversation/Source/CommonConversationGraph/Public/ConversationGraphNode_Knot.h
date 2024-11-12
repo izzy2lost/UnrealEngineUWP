@@ -6,6 +6,7 @@
 #include "ConversationGraphNode_Knot.generated.h"
 
 class SGraphNode;
+class UConversationGraphNode;
 
 UCLASS(MinimalAPI)
 class UConversationGraphNode_Knot : public UEdGraphNode
@@ -37,6 +38,16 @@ public:
 	{
 		return Pins[1];
 	}
+
+	void GatherAllInBoundGraphNodes(TArray<UConversationGraphNode*>& OutGraphNodes) const;
+	void GatherAllOutBoundGraphNodes(TArray<UConversationGraphNode*>& OutGraphNodes) const;
+
+	bool IsOutBoundConnectionAllowed(const UConversationGraphNode* OtherNode, FText& OutErrorMessage) const;
+	bool IsOutBoundConnectionAllowed(const UConversationGraphNode_Knot* OtherKnotNode, FText& OutErrorMessage) const;
+
+private:
+	void GatherAllInBoundGraphNodes_Internal(TArray<UConversationGraphNode*>& OutGraphNodes, TArray<const UConversationGraphNode_Knot*>& VisitedKnots) const;
+	void GatherAllOutBoundGraphNodes_Internal(TArray<UConversationGraphNode*>& OutGraphNodes, TArray<const UConversationGraphNode_Knot*>& VisitedKnots) const;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

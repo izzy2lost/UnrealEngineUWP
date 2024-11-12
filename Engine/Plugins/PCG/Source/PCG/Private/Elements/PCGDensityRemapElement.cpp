@@ -3,32 +3,39 @@
 #include "Elements/PCGDensityRemapElement.h"
 
 #include "PCGContext.h"
-#include "PCGCustomVersion.h"
 
 #include "PCGPoint.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGDensityRemapElement)
+
+UPCGDensityRemapSettings::UPCGDensityRemapSettings()
+{
+#if WITH_EDITOR
+	bExposeToLibrary = false;
+#endif // WITH_EDITOR
+}
 
 FPCGElementPtr UPCGDensityRemapSettings::CreateElement() const
 {
 	return MakeShared<FPCGDensityRemapElement>();
 }
 
-bool FPCGDensityRemapElement::ExecuteInternal(FPCGContext* Context) const
+bool FPCGDensityRemapElement::ExecuteInternal(FPCGContext* InContext) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDensityRemapElement::Execute);
 
+	ContextType* Context = static_cast<ContextType*>(InContext);
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	const UPCGDensityRemapSettings* Settings = Context->GetInputSettings<UPCGDensityRemapSettings>();
 	check(Settings);
-
-	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputs();
-	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 
 	const float InRangeMin = Settings->InRangeMin;
 	const float InRangeMax = Settings->InRangeMax;
 	const float OutRangeMin = Settings->OutRangeMin;
 	const float OutRangeMax = Settings->OutRangeMax;
 	const bool bExcludeValuesOutsideInputRange = Settings->bExcludeValuesOutsideInputRange;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// used to determine if a density value lies between TrueMin and TrueMax
 	const float InRangeTrueMin = FMath::Min(InRangeMin, InRangeMax);
@@ -52,7 +59,7 @@ bool FPCGDensityRemapElement::ExecuteInternal(FPCGContext* Context) const
 		Intercept = OutRangeMin;
 	}
 
-	ProcessPoints(Context, Inputs, Outputs, [bExcludeValuesOutsideInputRange, InRangeTrueMin, InRangeTrueMax, Slope, InRangeMin, Intercept](const FPCGPoint& InPoint, FPCGPoint& OutPoint)
+	return ExecutePointOperation(Context, [bExcludeValuesOutsideInputRange, InRangeTrueMin, InRangeTrueMax, Slope, InRangeMin, Intercept](const FPCGPoint& InPoint, FPCGPoint& OutPoint)
 	{
 		OutPoint = InPoint;
 		const float SourceDensity = InPoint.Density;
@@ -65,6 +72,4 @@ bool FPCGDensityRemapElement::ExecuteInternal(FPCGContext* Context) const
 
 		return true;
 	});
-
-	return true;
 }

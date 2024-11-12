@@ -13,14 +13,17 @@
 #include "AssetRegistry/AssetData.h"
 #include "UObject/UObjectIterator.h"
 #include "HAL/IConsoleManager.h"
+#include "Interfaces/Interface_PostProcessVolume.h"
 #include "MoviePipelineAntiAliasingSetting.h"
 #include "Tracks/MovieSceneSubTrack.h"
 #include "Tracks/MovieSceneCameraCutTrack.h"
 #include "Tracks/MovieSceneCinematicShotTrack.h"
 #include "Sections/MovieSceneCinematicShotSection.h"
 #include "Sections/MovieSceneCameraCutSection.h"
+#include "SceneView.h"
 #include "MovieScene.h"
 #include "MovieSceneSequence.h"
+#include "LevelSequence.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "Math/Halton.h"
 #include "Misc/Paths.h"
@@ -33,6 +36,12 @@
 #include "MovieRenderPipelineCoreModule.h"
 #include "RHI.h"
 #include "CineCameraComponent.h"
+#include "EngineUtils.h"
+#include "ClothingSimulationInteractor.h"
+#include "ClothingSimulationInterface.h"
+#include "ChaosClothAsset/ClothComponent.h"
+#include "ChaosClothAsset/ClothAssetInteractor.h"
+#include "Components/SkeletalMeshComponent.h"
 
 namespace UE
 {
@@ -148,6 +157,45 @@ namespace UE
 			return GFrameCounter;
 		}
 
+		void UpdateSceneViewForShowFlags(FSceneView* View)
+		{
+			if (View->Family->EngineShowFlags.Wireframe)
+			{
+				// Wireframe color is emissive-only, and mesh-modifying materials do not use material substitution, hence...
+				View->DiffuseOverrideParameter = FVector4f(0.f, 0.f, 0.f, 0.f);
+				View->SpecularOverrideParameter = FVector4f(0.f, 0.f, 0.f, 0.f);
+			}
+			else if (View->Family->EngineShowFlags.OverrideDiffuseAndSpecular)
+			{
+				View->DiffuseOverrideParameter = FVector4f(GEngine->LightingOnlyBrightness.R, GEngine->LightingOnlyBrightness.G, GEngine->LightingOnlyBrightness.B, 0.0f);
+				View->SpecularOverrideParameter = FVector4f(.1f, .1f, .1f, 0.0f);
+			}
+			else if (View->Family->EngineShowFlags.LightingOnlyOverride)
+			{
+				View->DiffuseOverrideParameter = FVector4f(GEngine->LightingOnlyBrightness.R, GEngine->LightingOnlyBrightness.G, GEngine->LightingOnlyBrightness.B, 0.0f);
+				View->SpecularOverrideParameter = FVector4f(0.f, 0.f, 0.f, 0.f);
+			}
+			else if (View->Family->EngineShowFlags.ReflectionOverride)
+			{
+				View->DiffuseOverrideParameter = FVector4f(0.f, 0.f, 0.f, 0.f);
+				View->SpecularOverrideParameter = FVector4f(1, 1, 1, 0.0f);
+				View->NormalOverrideParameter = FVector4f(0, 0, 1, 0.0f);
+				View->RoughnessOverrideParameter = FVector2D(0.0f, 0.0f);
+			}
+	
+			if (!View->Family->EngineShowFlags.Diffuse)
+			{
+				View->DiffuseOverrideParameter = FVector4f(0.f, 0.f, 0.f, 0.f);
+			}
+	
+			if (!View->Family->EngineShowFlags.Specular)
+			{
+				View->SpecularOverrideParameter = FVector4f(0.f, 0.f, 0.f, 0.f);
+			}
+	
+			static const FName BufferVisualizationMode(TEXT("WorldNormal"));
+			View->CurrentBufferVisualizationMode = BufferVisualizationMode;
+		}
 	}
 }
 
@@ -284,6 +332,11 @@ namespace MoviePipeline
 					}
 
 					Node->EvaluationType = Node->MovieScene->GetEvaluationType();
+
+					if (ULevelSequence* OwningSequence = Node->MovieScene->GetTypedOuter<ULevelSequence>())
+					{
+						Node->OriginalSequenceFlags = OwningSequence->GetFlags();
+					}
 				}
 
 				// Unlock the movie scene so we can make changes to sections below, it'll get re-locked later if needed.
@@ -348,6 +401,10 @@ namespace MoviePipeline
 				{
 					Node->MovieScene->SetPlaybackRange(Node->OriginalMovieScenePlaybackRange);
 					Node->MovieScene->SetEvaluationType(Node->EvaluationType);
+					if (ULevelSequence* OwningSequence = Node->MovieScene->GetTypedOuter<ULevelSequence>())
+					{
+						OwningSequence->SetSequenceFlags(Node->OriginalSequenceFlags);
+					}
 #if WITH_EDITOR
 					Node->MovieScene->SetReadOnly(Node->bOriginalMovieSceneReadOnly);
 					Node->MovieScene->SetPlaybackRangeLocked(Node->bOriginalMovieScenePlaybackRangeLocked);
@@ -661,6 +718,7 @@ namespace UE
 	namespace MoviePipeline
 	{
 		DECLARE_CYCLE_STAT(TEXT("STAT_MoviePipeline_HardwareMetadata"), STAT_HardwareMetadata, STATGROUP_MoviePipeline);
+		DECLARE_CYCLE_STAT(TEXT("STAT_MoviePipeline_ClothAdjust"), STAT_ClothSubstepAdjust, STATGROUP_MoviePipeline);
 
 		void ConformOutputFormatStringToken(FString& InOutFilenameFormatString, const FStringView InToken, const FName& InNodeName, const FName& InBranchName)
 		{
@@ -1022,6 +1080,140 @@ namespace UE
 			return FString::Printf(TEXT("%0*d"), InZeroPadCount, InFrameNumber);
 		}
 
+		void DoPostProcessBlend(const FVector& InViewLocation, const UWorld* InWorld, const FMinimalViewInfo& InViewInfo, FSceneView* InOutView)
+		{
+			for (IInterface_PostProcessVolume* PPVolume : InWorld->PostProcessVolumes)
+			{
+				const FPostProcessVolumeProperties VolumeProperties = PPVolume->GetProperties();
+
+				// Skip any volumes which are disabled
+				if (!VolumeProperties.bIsEnabled)
+				{
+					continue;
+				}
+
+				float LocalWeight = FMath::Clamp(VolumeProperties.BlendWeight, 0.0f, 1.0f);
+
+				if (!VolumeProperties.bIsUnbound)
+				{
+					float DistanceToPoint = 0.0f;
+					PPVolume->EncompassesPoint(InViewLocation, 0.0f, &DistanceToPoint);
+
+					if (DistanceToPoint >= 0 && DistanceToPoint < VolumeProperties.BlendRadius)
+					{
+						LocalWeight *= FMath::Clamp(1.0f - DistanceToPoint / VolumeProperties.BlendRadius, 0.0f, 1.0f);
+					}
+					else
+					{
+						LocalWeight = 0.0f;
+					}
+				}
+
+				InOutView->OverridePostProcessSettings(*VolumeProperties.Settings, LocalWeight);
+			}
+
+			// After blending all post processing volumes, blend the camera's post process settings too
+			InOutView->OverridePostProcessSettings(InViewInfo.PostProcessSettings, InViewInfo.PostProcessBlendWeight);
+		}
+
+		void SetSkeletalMeshClothSubSteps(const int32 InSubdivisionCount, UWorld* InWorld, TMap<TWeakObjectPtr<UObject>, TArray<::MoviePipeline::FClothSimSettingsCache>> InClothSimCache)
+		{
+			SCOPE_CYCLE_COUNTER(STAT_ClothSubstepAdjust);
+			for (TActorIterator<AActor> ActorIt(InWorld); ActorIt; ++ActorIt)
+			{
+				AActor* FoundActor = *ActorIt;
+				if (FoundActor)
+				{
+					TArray<USkeletalMeshComponent*> SkeletalMeshComponents;
+					FoundActor->GetComponents(SkeletalMeshComponents);
+
+					for (USkeletalMeshComponent* Component : SkeletalMeshComponents)
+					{
+						UClothingSimulationInteractor* ClothInteractor = Component->GetClothingSimulationInteractor();
+						if (ClothInteractor)
+						{
+							const int32 LODIndex = 0;  // There is only a NumSubSteps for LOD 0 in the Skeletal Mesh clothing system
+							TWeakObjectPtr<UObject> WeakPtr = TWeakObjectPtr<UClothingSimulationInteractor>(ClothInteractor);
+
+							TArray<::MoviePipeline::FClothSimSettingsCache>* ExistingCacheEntry = InClothSimCache.Find(WeakPtr);
+							if (!ExistingCacheEntry)
+							{
+								InClothSimCache.Add(WeakPtr);
+								ExistingCacheEntry = InClothSimCache.Find(WeakPtr);
+								ExistingCacheEntry->SetNumZeroed(1);  // Only store LOD 0
+								const int32 NumSubsteps = Component->GetClothingSimulation() ? FMath::Max(Component->GetClothingSimulation()->GetNumSubsteps(), 1)
+									: 1; // If there's no clothing simulation component just fall back to assuming they only had 1.
+								(*ExistingCacheEntry)[LODIndex].NumSubSteps = NumSubsteps;
+							}
+
+							ClothInteractor->SetNumSubsteps((*ExistingCacheEntry)[LODIndex].NumSubSteps * InSubdivisionCount);
+						}
+					}
+
+					TArray<UChaosClothComponent*> ChaosClothComponents;
+					FoundActor->GetComponents(ChaosClothComponents);
+
+					for (UChaosClothComponent* Component : ChaosClothComponents)
+					{
+						UChaosClothAssetInteractor* ClothAssetInteractor = Component->GetClothOutfitInteractor();
+						if (ClothAssetInteractor)
+						{
+							const int32 NumLODs = Component->GetNumLODs();
+							TWeakObjectPtr<UObject> WeakPtr = TWeakObjectPtr<UChaosClothAssetInteractor>(ClothAssetInteractor);
+
+							TArray<::MoviePipeline::FClothSimSettingsCache>* ExistingCacheEntry = InClothSimCache.Find(WeakPtr);
+							if (!ExistingCacheEntry)
+							{
+								InClothSimCache.Add(WeakPtr);
+								ExistingCacheEntry = InClothSimCache.Find(WeakPtr);
+								ExistingCacheEntry->SetNumUninitialized(NumLODs);
+								for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
+								{
+									constexpr int32 MinNumSubsteps = 1;
+									const int32 NumSubsteps = FMath::Max(ClothAssetInteractor->GetIntValue(TEXT("NumSubsteps"), LODIndex, MinNumSubsteps), MinNumSubsteps);
+									const int32 DynamicSubstepDeltaTime = ClothAssetInteractor->GetFloatValue(TEXT("DynamicSubstepDeltaTime"), LODIndex, MinNumSubsteps);
+									(*ExistingCacheEntry)[LODIndex].NumSubSteps = NumSubsteps;
+									(*ExistingCacheEntry)[LODIndex].DynamicSubstepDeltaTime = DynamicSubstepDeltaTime;
+								}
+							}
+
+							for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
+							{
+								if (ExistingCacheEntry->IsValidIndex(LODIndex))
+								{
+									ClothAssetInteractor->SetIntValue(TEXT("NumSubsteps"), LODIndex, (*ExistingCacheEntry)[LODIndex].NumSubSteps * InSubdivisionCount);
+									ClothAssetInteractor->SetFloatValue(TEXT("DynamicSubstepDeltaTime"), LODIndex, 0.f);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		void RestoreSkeletalMeshClothSubSteps(TMap<TWeakObjectPtr<UObject>, TArray<::MoviePipeline::FClothSimSettingsCache>> InClothSimCache)
+		{
+			for (const TPair<TWeakObjectPtr<UObject>, TArray<::MoviePipeline::FClothSimSettingsCache>>& Pair : InClothSimCache)
+			{
+				if (UObject* Object = Pair.Key.Get())
+				{
+					if (UClothingSimulationInteractor* ClothInteractor = Cast<UClothingSimulationInteractor>(Object))
+					{
+						const int32 LODIndex = 0;  // There is only a NumSubSteps for LOD 0 in the Skeletal Mesh clothing system
+						ClothInteractor->SetNumSubsteps(Pair.Value[LODIndex].NumSubSteps);
+					}
+					else if (UChaosClothAssetInteractor* ClothAssetInteractor = Cast<UChaosClothAssetInteractor>(Object))
+					{
+						for (int32 LODIndex = 0; LODIndex < Pair.Value.Num(); ++LODIndex)
+						{
+							ClothAssetInteractor->SetIntValue(TEXT("NumSubsteps"), LODIndex, Pair.Value[LODIndex].NumSubSteps);
+							ClothAssetInteractor->SetIntValue(TEXT("DynamicSubstepDeltaTime"), LODIndex, Pair.Value[LODIndex].DynamicSubstepDeltaTime);
+						}
+					}
+				}
+			}
+		}
+
 	}
 }
 namespace UE
@@ -1072,29 +1264,7 @@ namespace UE
 			float HaltonOffsetX = Halton(HaltonIndex, 2);
 			float HaltonOffsetY = Halton(HaltonIndex, 3);
 
-			float SpatialShiftX = 0.0f;
-			float SpatialShiftY = 0.0f;
-
-			static auto CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.TemporalAAFilterSize"));
-			float FilterSize = CVar->GetFloat();
-
-			// Scale distribution to set non-unit variance
-			// Variance = Sigma^2
-			float Sigma = 0.47f * FilterSize;
-
-			// Window to [-0.5, 0.5] output
-			// Without windowing we could generate samples far away on the infinite tails.
-			float OutWindow = 0.5f;
-			float InWindow = FMath::Exp(-0.5 * FMath::Square(OutWindow / Sigma));
-
-			// Box-Muller transform
-			float Theta = 2.0f * PI * HaltonOffsetY;
-			float r = Sigma * FMath::Sqrt(-2.0f * FMath::Loge((1.0f - HaltonOffsetX) * InWindow + HaltonOffsetX));
-
-			SpatialShiftX = r * FMath::Cos(Theta);
-			SpatialShiftY = r * FMath::Sin(Theta);
-
-			return FVector2f(SpatialShiftX, SpatialShiftY);
+			return FVector2f(HaltonOffsetX-0.5, HaltonOffsetY-0.5);
 		}
 	}
 }

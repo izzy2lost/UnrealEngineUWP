@@ -28,7 +28,7 @@ public:
 private:
 	void Update_RenderThread(FRHICommandListImmediate& RHICmdList, TSharedPtr<FProxyResourcesData> ProxyData);
 	bool UpdateResources_RenderThread(FRHICommandListImmediate& RHICmdList, TSharedPtr<FProxyResourcesData> ProxyData);
-	bool UpdateFrameProxyBackbuffer_RenderThread(FRHICommandListImmediate& RHICmdList, const FTexture2DRHIRef& InBackbuffer);
+	bool UpdateFrameProxyBackbuffer_RenderThread(FRHICommandListImmediate& RHICmdList, const FTextureRHIRef& InBackbuffer);
 
 private:
 	TSharedPtr<ITextureShareObjectProxy, ESPMode::ThreadSafe> ObjectProxy;

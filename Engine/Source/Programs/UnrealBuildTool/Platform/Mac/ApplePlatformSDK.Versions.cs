@@ -7,7 +7,7 @@ namespace UnrealBuildTool
 	/////////////////////////////////////////////////////////////////////////////////////
 	// If you are looking for version numbers, see Engine/Config/Apple/Apple_SDK.json
 	/////////////////////////////////////////////////////////////////////////////////////
-	
+
 	// NOTE: These are currently only used for Mac targets
 
 	partial class ApplePlatformSDK : UEBuildPlatformSDK
@@ -26,14 +26,10 @@ namespace UnrealBuildTool
 				DeploymentTarget = GetVersionFromConfig("EditorDeploymentTarget");
 			}
 
-			if (DeploymentTarget == null)
-			{
-				DeploymentTarget = GetRequiredVersionFromConfig("DeploymentTarget");
-			}
+			DeploymentTarget ??= GetRequiredVersionFromConfig("DeploymentTarget");
 
 			return DeploymentTarget;
 		}
-
 
 		/// <summary>
 		/// Get the default build target version for the given target type. This will be passed to clang when compiling/linking
@@ -49,10 +45,7 @@ namespace UnrealBuildTool
 				DeploymentTarget = GetVersionFromConfig("EditorBuildTarget");
 			}
 
-			if (DeploymentTarget == null)
-			{
-				DeploymentTarget = GetRequiredVersionFromConfig("BuildTarget");
-			}
+			DeploymentTarget ??= GetRequiredVersionFromConfig("BuildTarget");
 
 			return DeploymentTarget;
 		}

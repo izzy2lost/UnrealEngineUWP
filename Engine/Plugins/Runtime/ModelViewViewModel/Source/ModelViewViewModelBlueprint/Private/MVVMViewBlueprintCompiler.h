@@ -6,6 +6,7 @@
 #include "MVVMBlueprintView.h"
 #include "MVVMBlueprintViewCompilerInterface.h"
 #include "MVVMBlueprintViewEvent.h"
+#include "MVVMBlueprintViewCondition.h"
 #include "MVVMBlueprintViewModelContext.h"
 #include "Templates/ValueOrError.h"
 #include "Types/MVVMFieldVariant.h"
@@ -18,10 +19,12 @@ class FWidgetBlueprintCompilerContext;
 class UEdGraph;
 class UMVVMBlueprintView;
 class UMVVMBlueprintViewConversionFunction;
+class UMVVMBlueprintViewExtension;
 class UMVVMBlueprintViewEvent;
 class UMVVMViewClass;
 class UMVVMViewClassExtension;
 class UWidgetBlueprintGeneratedClass;
+
 namespace  UE::MVVM
 {
 	enum class EBindingMessageType : uint8;
@@ -43,6 +46,8 @@ private:
 	struct FGeneratedWriteFieldPathContext;
 	struct FCompilerBinding;
 	struct FCompilerEvent;
+	struct FCompilerCondition;
+	struct FCompilerExtension;
 
 public:
 	FMVVMViewBlueprintCompiler(FWidgetBlueprintCompilerContext& InCreationContext, UMVVMBlueprintView* BlueprintView);
@@ -65,6 +70,8 @@ public:
 	/** Compile the library and fill the view and viewclass */
 	bool Compile(UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
 
+	/** Get the list of generated function during the compilation process. */
+	TArray<FName> GetGeneratedFunctions() const;
 
 	static void TestGenerateSetter(const UBlueprint* Context, FStringView ObjectName, FStringView FieldPath, FStringView FunctionName);
 
@@ -78,15 +85,19 @@ private:
 	void CreateWidgetMap(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context);
 	void CreateBindingList(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context);
 	void CreateEventList(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context);
+	void CreateConditionList(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context);
+	void CreateExtensionList(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context);
 	void CreateRequiredProperties(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context);
 	void CreatePublicFunctionsDeclaration(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context);
 
 	// CreateFuntions
 	void CategorizeBindings(const FWidgetBlueprintCompilerContext::FCreateFunctionContext& Context);
 	void CategorizeEvents(const FWidgetBlueprintCompilerContext::FCreateFunctionContext& Context);
+	void CategorizeConditions(const FWidgetBlueprintCompilerContext::FCreateFunctionContext& Context);
 	void CreateWriteFieldContexts(const FWidgetBlueprintCompilerContext::FCreateFunctionContext& Context);
 	void CreateViewModelSetters(const FWidgetBlueprintCompilerContext::FCreateFunctionContext& Context);
 	void CreateIntermediateGraphFunctions(const FWidgetBlueprintCompilerContext::FCreateFunctionContext& Context);
+	void CategorizeAsyncFunctions(const FWidgetBlueprintCompilerContext::FCreateFunctionContext& Context);
 
 	// PreCompile
 	void FixCompilerBindingSelfSource(UWidgetBlueprintGeneratedClass* Class);
@@ -97,6 +108,7 @@ private:
 	void PreCompileViewModelCreatorContexts(UWidgetBlueprintGeneratedClass* Class);
 	void PreCompileBindings(UWidgetBlueprintGeneratedClass* Class);
 	void PreCompileEvents(UWidgetBlueprintGeneratedClass* Class);
+	void PreCompileConditions(UWidgetBlueprintGeneratedClass* Class);
 	void PreCompileViewExtensions(UWidgetBlueprintGeneratedClass* Class);
 	void PreCompileSourceDependencies(UWidgetBlueprintGeneratedClass* Class);
 
@@ -105,6 +117,7 @@ private:
 	void CompileBindings(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
 	void CompileEvaluateSources(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
 	void CompileEvents(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
+	void CompileConditions(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
 	void CompileViewExtensions(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
 	void SortSourceFields(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
 
@@ -138,7 +151,7 @@ private:
 	 * They can be a Widget, a viewmodel, or any object owned by the UserWidget.
 	 * They can be source or destination.
 	 */
-	struct FCompilerUserWidgetProperty
+	struct FCompilerUserWidgetProperty : Compiler::FBlueprintViewUserWidgetProperty
 	{
 		enum class ECreationType
 		{
@@ -146,19 +159,10 @@ private:
 			CreateIfDoesntExist,
 			CreateOnlyIfDoesntExist,
 		};
-		UClass* AuthoritativeClass = nullptr;
-		FName Name;
-		FText DisplayName;
-		FString CategoryName;
 		FString BlueprintSetter;
 		ECreationType CreationType = ECreationType::None;
-		bool bExposeOnSpawn = false;
-		bool bPrivate = false;
-		bool bReadOnly = false;
 		bool bInstanced = false;
 		bool bInstanceExposed = false;
-
-		const FProperty* Property = nullptr;
 	};
 	TArray<FCompilerUserWidgetProperty> NeededUserWidgetProperties;
 
@@ -239,10 +243,12 @@ private:
 	{
 		TArray<TWeakPtr<FCompilerBinding>> UsedByBindings;
 		TArray<TWeakPtr<FCompilerEvent>> UsedByEvents;
+		TArray<TWeakPtr<FCompilerCondition>> UsedByConditions;
 
 		TSharedPtr<FCompilerBindingSource> Source;
 		TArray<UE::MVVM::FMVVMConstFieldVariant> GeneratedFields; // the string path converted into field
 		TArray<UE::MVVM::FMVVMConstFieldVariant> SkeletalGeneratedFields; // the field path converted with getter and setter
+		EMVVMBlueprintFieldPathSource GeneratedFrom = EMVVMBlueprintFieldPathSource::None;
 
 		TSharedPtr<FCompilerNotifyFieldId> NotificationField;
 		FCompiledBindingLibraryCompiler::FFieldPathHandle LibraryCompilerHandle;
@@ -280,7 +286,7 @@ private:
 	TArray<TSharedRef<FGeneratedWriteFieldPathContext>> GeneratedWriteFieldPaths;
 
 	/**
-	 * The list of all the valid binding to iterates on.
+	 * The list of all the valid bindings to iterate on.
 	 */
 	struct FCompilerBinding
 	{
@@ -313,7 +319,7 @@ private:
 
 		TArray<TSharedPtr<FGeneratedReadFieldPathContext>> ReadPaths;
 		TSharedPtr<FGeneratedWriteFieldPathContext> WritePath;
-		TWeakObjectPtr<UMVVMBlueprintViewConversionFunction> ConversionFunction = nullptr;
+		TWeakObjectPtr<UMVVMBlueprintViewConversionFunction> ConversionFunction;
 
 		FCompiledBindingLibraryCompiler::FBindingHandle BindingHandle;
 		FCompiledBindingLibraryCompiler::FFieldPathHandle ConversionFunctionHandle;
@@ -322,18 +328,11 @@ private:
 	TArray<TSharedRef<FCompilerBinding>> ValidBindings;
 
 	/**
-	 * The list of all the valid binding to iterates on.
+	 * The list of all the valid events to iterate on.
 	 */
 	struct FCompilerEvent
 	{
-		enum class EType : int32
-		{
-			Unknown = 0, // was not evaluated yet
-			Invalid = -1, // evaluated and not valid
-			Valid = 1,
-		};
-		TWeakObjectPtr<UMVVMBlueprintViewEvent> Event = nullptr;
-		EType Type = EType::Unknown;
+		TWeakObjectPtr<UMVVMBlueprintViewEvent> Event;
 
 		TArray<TSharedPtr<FGeneratedReadFieldPathContext>> ReadPaths;
 		TSharedPtr<FGeneratedWriteFieldPathContext> WritePath;
@@ -347,14 +346,41 @@ private:
 	TArray<TSharedRef<FCompilerEvent>> ValidEvents;
 
 	/**
+	 * The list of all the valid conditions to iterate on.
+	 */
+	struct FCompilerCondition
+	{
+		TWeakObjectPtr<UMVVMBlueprintViewCondition> Condition;
+		TArray<TSharedPtr<FGeneratedReadFieldPathContext>> ReadPaths;
+		FName GeneratedGraphName;
+		FName SourceName; // may not be in the NeededBindingSources
+		FCompiledBindingLibraryCompiler::FFieldPathHandle DelegateFieldPathHandle;
+	};
+	TArray<TSharedRef<FCompilerCondition>> ValidConditions;
+
+	/**
+	 * The list of all the valid extension to iterates on.
+	 */
+	struct FCompilerExtension
+	{
+		TWeakObjectPtr<UMVVMBlueprintViewExtension> Extension;
+	};
+	TArray<TSharedRef<FCompilerExtension>> ValidExtensions;
+
+	/**
 	 * List of public expose function
 	 */
 	TArray<FName> FunctionPermissionsToAdd;
 
+	/**
+	 * List of generated function
+	 */
+	TArray<FName> GeneratedFunctions;
+
 private:
 	TMap<FName, UWidget*> WidgetNameToWidgetPointerMap;
 	FWidgetBlueprintCompilerContext& WidgetBlueprintCompilerContext;
-	TStrongObjectPtr<UMVVMBlueprintView> BlueprintView = nullptr;
+	TObjectPtr<UMVVMBlueprintView> BlueprintView = nullptr;
 	FCompiledBindingLibraryCompiler BindingLibraryCompiler;
 	bool bIsCreateVariableStepValid = true;
 	bool bIsCreateFunctionsStepValid = true;
@@ -364,27 +390,31 @@ private:
 private:
 	void AddMessage(const FText& MessageText, Compiler::EMessageType MessageType) const;
 	void AddMessages(TArrayView<TWeakPtr<FCompilerBinding>> Bindings, TArrayView<TWeakPtr<FCompilerEvent>> Events, const FText& MessageText, Compiler::EMessageType MessageType) const;
-	void AddMessageForBinding(const TSharedPtr<FCompilerBinding>& Binding, const FText& MessageText, Compiler::EMessageType MessageType, const FMVVMBlueprintPinId& ArgumentName) const;
-	void AddMessageForBinding(const FMVVMBlueprintViewBinding& Binding, const FText& MessageText, Compiler::EMessageType MessageType, const FMVVMBlueprintPinId& ArgumentName) const;
-	void AddMessageForEvent(const TSharedPtr<FCompilerEvent>& Event, const FText& MessageText, Compiler::EMessageType MessageType, const FMVVMBlueprintPinId& ArgumentName) const;
-	void AddMessageForEvent(const UMVVMBlueprintViewEvent* Event, const FText& MessageText, Compiler::EMessageType MessageType, const FMVVMBlueprintPinId& ArgumentName) const;
+	void AddMessageForBinding(const TSharedPtr<FCompilerBinding>& Binding, const FText& MessageText, Compiler::EMessageType MessageType, const FMVVMBlueprintPinId& PinId) const;
+	void AddMessageForBinding(const FMVVMBlueprintViewBinding& Binding, const FText& MessageText, Compiler::EMessageType MessageType, const FMVVMBlueprintPinId& PinId) const;
+	void AddMessageForEvent(const TSharedPtr<FCompilerEvent>& Event, const FText& MessageText, Compiler::EMessageType MessageType, const FMVVMBlueprintPinId& PinId) const;
+	void AddMessageForEvent(const UMVVMBlueprintViewEvent* Event, const FText& MessageText, Compiler::EMessageType MessageType, const FMVVMBlueprintPinId& PinId) const;
+	void AddMessageForCondition(const TSharedPtr<FCompilerCondition>& Condition, const FText& MessageText, Compiler::EMessageType MessageType, const FMVVMBlueprintPinId& PinId) const;
+	void AddMessageForCondition(const UMVVMBlueprintViewCondition* Condition, const FText& MessageText, Compiler::EMessageType MessageType, const FMVVMBlueprintPinId& PinId) const;
 	void AddMessageForViewModel(const FMVVMBlueprintViewModelContext& ViewModel, const FText& Message, Compiler::EMessageType MessageType) const;
 	void AddMessageForViewModel(const FText& ViewModelDisplayName, const FText& Message, Compiler::EMessageType MessageType) const;
 
 	struct FGetFieldsResult
 	{
 		TSharedPtr<FCompilerBindingSource> OptionalSource;
+		EMVVMBlueprintFieldPathSource GeneratedFrom = EMVVMBlueprintFieldPathSource::None;
 		TArray<FMVVMConstFieldVariant> GeneratedFields;
 	};
 	struct FCreateFieldsResult
 	{
 		TSharedPtr<FCompilerBindingSource> OptionalSource;
+		EMVVMBlueprintFieldPathSource GeneratedFrom = EMVVMBlueprintFieldPathSource::None;
 		TArray<UE::MVVM::FMVVMConstFieldVariant> GeneratedFields;
 		TArray<UE::MVVM::FMVVMConstFieldVariant> SkeletalGeneratedFields;
 	};
 	TValueOrError<FGetFieldsResult, FText> GetFields(const UWidgetBlueprintGeneratedClass* Class, const FMVVMBlueprintPropertyPath& PropertyPath) const;
 	TValueOrError<FCreateFieldsResult, FText> CreateFieldContext(const UWidgetBlueprintGeneratedClass* Class, const FMVVMBlueprintPropertyPath& PropertyPath, bool bForSourceReading) const;
-	TValueOrError<TSharedPtr<FCompilerNotifyFieldId>, FText> CreateNotifyFieldId(const UWidgetBlueprintGeneratedClass* Class, const TSharedPtr<FGeneratedReadFieldPathContext>& ReadFieldContext, const FMVVMBlueprintViewBinding& Binding);
+	TValueOrError<TSharedPtr<FCompilerNotifyFieldId>, FText> CreateNotifyFieldId(const UWidgetBlueprintGeneratedClass* Class, const TSharedPtr<FGeneratedReadFieldPathContext>& ReadFieldContext);
 
 	UMVVMViewClassExtension* CreateViewClassExtension(TSubclassOf<UMVVMViewClassExtension> ExtensionClass, UMVVMViewClass* ViewClass);
 

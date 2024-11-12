@@ -39,7 +39,7 @@ bool FDataflowOverrideNode::ShouldInvalidate(FName InKey) const
 }
 
 template <>
-int32 FDataflowOverrideNode::GetDefaultValue(Dataflow::FContext& Context) const
+int32 FDataflowOverrideNode::GetDefaultValue(UE::Dataflow::FContext& Context) const
 {
 	const FString DefaultValue = GetValue<FString>(Context, &Default, Default);
 	int32 DefaultIntValue = 0;
@@ -53,7 +53,7 @@ int32 FDataflowOverrideNode::GetDefaultValue(Dataflow::FContext& Context) const
 }
 
 template <>
-float FDataflowOverrideNode::GetDefaultValue(Dataflow::FContext& Context) const
+float FDataflowOverrideNode::GetDefaultValue(UE::Dataflow::FContext& Context) const
 {
 	const FString DefaultValue = GetValue<FString>(Context, &Default, Default);
 	float DefaultFloatValue = 0.f;
@@ -66,7 +66,7 @@ float FDataflowOverrideNode::GetDefaultValue(Dataflow::FContext& Context) const
 	return DefaultFloatValue;
 }
 
-FString FDataflowOverrideNode::GetValueFromAsset(Dataflow::FContext& Context, const UObject* InOwner) const
+FString FDataflowOverrideNode::GetValueFromAsset(UE::Dataflow::FContext& Context, const UObject* InOwner) const
 {
 	FName InKey = GetValue<FName>(Context, &Key, Key);
 	FString EmptyString;

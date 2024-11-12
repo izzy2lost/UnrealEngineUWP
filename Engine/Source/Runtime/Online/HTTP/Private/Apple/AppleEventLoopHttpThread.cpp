@@ -4,7 +4,8 @@
 
 #include "Apple/AppleHttp.h" 
 
-bool FAppleEventLoopHttpThread::StartThreadedRequest(IHttpThreadedRequest* Request)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+bool FAppleEventLoopHttpThread::StartThreadedRequest(FHttpRequestCommon* Request)
 {
 	FHttpResponsePtr Response = Request->GetResponse();
 	auto AppleResponse = StaticCastSharedPtr<FAppleHttpResponse>(Response);
@@ -15,7 +16,7 @@ bool FAppleEventLoopHttpThread::StartThreadedRequest(IHttpThreadedRequest* Reque
 	return FEventLoopHttpThread::StartThreadedRequest(Request);
 }
 
-void FAppleEventLoopHttpThread::CompleteThreadedRequest(IHttpThreadedRequest* Request)
+void FAppleEventLoopHttpThread::CompleteThreadedRequest(FHttpRequestCommon* Request)
 {
 }
 
@@ -24,12 +25,13 @@ void FAppleEventLoopHttpThread::CreateEventLoop()
 	UE::EventLoop::TEventLoop<FAppleHTTPIOManager>::FParams EventLoopParams;
 	EventLoopParams.IOManagerParams.ProcessRequests = [this]()
 	{ 
-		TArray<IHttpThreadedRequest*> RequestsToCancel;
-		TArray<IHttpThreadedRequest*> RequestsToComplete;
+		TArray<FHttpRequestCommon*> RequestsToCancel;
+		TArray<FHttpRequestCommon*> RequestsToComplete;
 		Process(RequestsToCancel, RequestsToComplete);
 	};
 	EventLoop.Emplace(MoveTemp(EventLoopParams));
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FAppleEventLoopHttpThread::DestroyEventLoop()
 {

@@ -8,8 +8,10 @@
 #include "DetailsViewArgs.h"
 #include "PropertyEditorModule.h"
 #include "IDetailsView.h"
+#include "ISequencer.h"
 #include "Modules/ModuleManager.h"
 #include "MovieScene/MovieSceneComposureExportTrack.h"
+#include "SequencerSettings.h"
 
 #define LOCTEXT_NAMESPACE "ComposureExportTrackEditor"
 
@@ -51,11 +53,15 @@ void FComposureExportTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBuilde
 		// Assign the object
 		DetailsView->SetObject(ExportTrack, true);
 
+		TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+		const float WidthOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+		const float HeightOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
 		// Add it to the menu
 		TSharedRef< SWidget > DetailsViewWidget =
 			SNew(SBox)
-			.MaxDesiredHeight(400.0f)
-			.WidthOverride(450.0f)
+			.WidthOverride(WidthOverride)
+			.HeightOverride(HeightOverride)
 		[
 			DetailsView
 		];

@@ -1,24 +1,26 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Network/Service/GenericBarrier/DisplayClusterGenericBarrierClient.h"
-#include "Network/Service/GenericBarrier/DisplayClusterGenericBarrierService.h"
-#include "Network/Service/GenericBarrier/DisplayClusterGenericBarrierStrings.h"
-#include "Network/Packet/DisplayClusterPacketInternal.h"
-#include "Network/Listener/DisplayClusterHelloMessageStrings.h"
-
-#include "Config/IPDisplayClusterConfigManager.h"
 
 #include "Cluster/IPDisplayClusterClusterManager.h"
 #include "Cluster/Controller/IDisplayClusterClusterNodeController.h"
 
-#include "DisplayClusterEnums.h"
+#include "Config/IPDisplayClusterConfigManager.h"
+
 #include "Misc/DisplayClusterGlobals.h"
 #include "Misc/DisplayClusterHelpers.h"
 #include "Misc/DisplayClusterLog.h"
 #include "Misc/DisplayClusterStrings.h"
 #include "Misc/DisplayClusterTypesConverter.h"
 
+#include "Network/Barrier/IDisplayClusterBarrier.h"
+#include "Network/Service/GenericBarrier/DisplayClusterGenericBarrierService.h"
+#include "Network/Service/GenericBarrier/DisplayClusterGenericBarrierStrings.h"
+#include "Network/Packet/DisplayClusterPacketInternal.h"
+#include "Network/Listener/DisplayClusterHelloMessageStrings.h"
+
 #include "DisplayClusterConfigurationTypes.h"
+#include "DisplayClusterEnums.h"
 
 
 FDisplayClusterGenericBarrierClient::FDisplayClusterGenericBarrierClient()
@@ -362,6 +364,22 @@ EDisplayClusterCommResult FDisplayClusterGenericBarrierClient::SyncOnBarrierWith
 	return Response->GetCommResult();
 }
 
+FDisplayClusterGenericBarrierService* FDisplayClusterGenericBarrierClient::GetGenericBarrierService() const
+{
+	if (IPDisplayClusterClusterManager* const ClusterMgr = GDisplayCluster->GetPrivateClusterMgr())
+	{
+		if (IDisplayClusterClusterNodeController* const ClusterNodeCtrl = ClusterMgr->GetClusterNodeController())
+		{
+			if (FDisplayClusterService* const Service = ClusterNodeCtrl->GetGenericBarriersServer())
+			{
+				return static_cast<FDisplayClusterGenericBarrierService*>(Service);
+			}
+		}
+	}
+
+	return nullptr;
+}
+
 bool FDisplayClusterGenericBarrierClient::ConfigureBarrierSyncDelegate(const FString& BarrierId, bool bSetup)
 {
 	// @note
@@ -376,9 +394,9 @@ bool FDisplayClusterGenericBarrierClient::ConfigureBarrierSyncDelegate(const FSt
 		{
 			if (ClusterMgr->IsPrimary())
 			{
-				if (IDisplayClusterClusterNodeController* ClusterNodeCtrl = ClusterMgr->GetClusterNodeController())
+				if (IDisplayClusterClusterNodeController* const ClusterNodeCtrl = ClusterMgr->GetClusterNodeController())
 				{
-					if (FDisplayClusterService* Service = ClusterNodeCtrl->GetGenericBarriersServer())
+					if (FDisplayClusterService* const Service = ClusterNodeCtrl->GetGenericBarriersServer())
 					{
 						FDisplayClusterGenericBarrierService* const GBService = static_cast<FDisplayClusterGenericBarrierService*>(Service);
 						if (TSharedPtr<IDisplayClusterBarrier, ESPMode::ThreadSafe> Barrier = GBService->GetBarrier(BarrierId))
@@ -389,7 +407,7 @@ bool FDisplayClusterGenericBarrierClient::ConfigureBarrierSyncDelegate(const FSt
 								if (!BarrierSyncDelegates.Contains(BarrierId))
 								{
 									BarrierSyncDelegates.Emplace(BarrierId);
-									Barrier->GetPreSyncEndDelegate().BindRaw(this, &FDisplayClusterGenericBarrierClient::OnPreBarrierSyncEnd);
+									Barrier->GetPreSyncEndDelegate().BindRaw(this, &FDisplayClusterGenericBarrierClient::OnBarrierSync);
 								}
 							}
 							// Release
@@ -412,14 +430,37 @@ bool FDisplayClusterGenericBarrierClient::ConfigureBarrierSyncDelegate(const FSt
 	return false;
 }
 
-void FDisplayClusterGenericBarrierClient::OnPreBarrierSyncEnd(const FString& BarrierId, const TMap<FString, TArray<uint8>>& RequestData, TMap<FString, TArray<uint8>>& ResponseData)
+void FDisplayClusterGenericBarrierClient::OnBarrierSync(FDisplayClusterBarrierPreSyncEndDelegateData& SyncData)
 {
-	if (FOnGenericBarrierSynchronizationDelegate* const Delegate = BarrierSyncDelegates.Find(BarrierId))
+	// Make sure the delegate is set
+	FOnGenericBarrierSynchronizationDelegate* const Delegate = BarrierSyncDelegates.Find(SyncData.BarrierId);
+	if (!Delegate || !Delegate->IsBound())
 	{
-		if (Delegate->IsBound())
-		{
-			FGenericBarrierSynchronizationDelegateData CallbackData{ BarrierId, RequestData, ResponseData };
-			Delegate->Execute(CallbackData);
-		}
+		return;
 	}
+
+	// Access GB server
+	FDisplayClusterGenericBarrierService* const GBService = GetGenericBarrierService();
+	checkSlow(GBService);
+	if (!GBService)
+	{
+		return;
+	}
+
+	// Get barrier info
+	const TSharedPtr<FDisplayClusterGenericBarrierService::FBarrierInfo> BarrierInfo = GBService->GetBarrierInfo(SyncData.BarrierId);
+	checkSlow(BarrierInfo.IsValid());
+	if (!BarrierInfo.IsValid())
+	{
+		return;
+	}
+
+	// Last thing before triggering the callback. For optimization purposes, we disable further barrier info updates.
+	// At this point we got a sync callback, therefore all the thread markers and cluster nodes for this barrier
+	// are known. No need to update anymore as we won't get any new information.
+	GBService->SetBarrierInfoUpdateLocked(SyncData.BarrierId, true);
+
+	// Now forward data to the handler
+	FGenericBarrierSynchronizationDelegateData CallbackData{ SyncData.BarrierId, BarrierInfo->ThreadToNodeMapping, SyncData.RequestData, SyncData.ResponseData };
+	Delegate->Execute(CallbackData);
 }

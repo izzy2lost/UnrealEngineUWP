@@ -20,6 +20,8 @@ void UAvaLookAtModifier::OnModifierAdded(EActorModifierCoreEnableReason InReason
 	{
 		SceneExtension->TrackSceneTree(0, &ReferenceActor);
 	}
+
+	bDeprecatedPropertiesMigrated = true;
 }
 
 void UAvaLookAtModifier::OnModifierEnabled(EActorModifierCoreEnableReason InReason)
@@ -107,7 +109,9 @@ void UAvaLookAtModifier::OnModifiedActorTransformed()
 
 void UAvaLookAtModifier::PostLoad()
 {
-	if (!bDeprecatedPropertiesMigrated)
+	if (!bDeprecatedPropertiesMigrated
+		&& ReferenceActor.ReferenceContainer == EAvaReferenceContainer::Other
+		&& ReferenceActor.ReferenceActorWeak == nullptr)
 	{
 		ReferenceActor.ReferenceContainer = EAvaReferenceContainer::Other;
 		ReferenceActor.ReferenceActorWeak = ReferenceActorWeak;
@@ -173,16 +177,16 @@ void UAvaLookAtModifier::OnReferenceActorChanged()
 	}
 }
 
-void UAvaLookAtModifier::SetAxis(const EAvaAxis NewAxis)
+void UAvaLookAtModifier::SetAxis(const EAvaAxis InAxis)
 {
-	Axis = NewAxis;
+	Axis = InAxis;
 
 	MarkModifierDirty();
 }
 
-void UAvaLookAtModifier::SetFlipAxis(const bool bNewFlipAxis)
+void UAvaLookAtModifier::SetFlipAxis(const bool bInFlipAxis)
 {
-	bFlipAxis = bNewFlipAxis;
+	bFlipAxis = bInFlipAxis;
 
 	MarkModifierDirty();
 }

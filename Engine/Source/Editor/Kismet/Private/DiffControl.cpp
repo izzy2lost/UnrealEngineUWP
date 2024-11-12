@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DiffControl.h"
-
+#include "Algo/Transform.h"
 #include "DiffResults.h"
 #include "GraphDiffControl.h"
 #include "SBlueprintDiff.h"
@@ -351,24 +351,61 @@ void FDetailsDiffControl::GenerateTreeEntriesWithoutComments(
 	for (auto&[Object, DetailsDiff] : DetailsDiffs)
 	{
 		Algo::Transform(DifferingProperties, PropertyAllowList,
-        [&Object = Object](const FSingleObjectDiffEntry& DiffEntry)
-        {
-        	return DiffEntry.Identifier.ResolvePath(Object);
-        });
-        
-        DetailsDiff.DetailsWidget()->UpdatePropertyAllowList(PropertyAllowList);
+		[&InObject = Object](const FSingleObjectDiffEntry& DiffEntry)
+		{
+			return DiffEntry.Identifier.ResolvePath(InObject);
+		});
+
+		DetailsDiff.DetailsWidget()->UpdatePropertyAllowList(PropertyAllowList);
 	}
-	
-	for (const FSingleObjectDiffEntry& Difference : DifferingProperties)
+
+	if (GenerateCustomEntriesCallback.IsBound())
 	{
-		TSharedPtr<FBlueprintDifferenceTreeEntry> Entry = MakeShared<FBlueprintDifferenceTreeEntry>(
+		TArray<FSingleObjectDiffEntry> CustomEntries;
+		GenerateCustomEntriesCallback.Execute(CustomEntries);
+		DifferingProperties.Append(CustomEntries);
+	}
+
+	auto GenerateDiffEntry = [&](const FSingleObjectDiffEntry& Difference)
+	{
+		return MakeShared<FBlueprintDifferenceTreeEntry>(
 			FOnDiffEntryFocused::CreateSP(TSharedFromThis<FDetailsDiffControl>::AsShared(), &FDetailsDiffControl::OnSelectDiffEntry, Difference.Identifier),
 			FGenerateDiffEntryWidget::CreateStatic(&GenerateObjectDiffWidget, Difference, RightRevision));
-		Children.Push(Entry);
-		OutRealDifferences.Push(Entry);
-		if (bPopulateOutTreeEntries)
+	};
+
+	if (OrganizeEntriesCallback.IsBound())
+	{
+		auto GenerateCategoryEntry = [&](FText& CategoryName)
 		{
-			OutTreeEntries.Push(Entry);
+			return MakeShared<FBlueprintDifferenceTreeEntry>(
+				/*InOnFocus*/nullptr,
+				FGenerateDiffEntryWidget::CreateStatic(&GenerateSimpleDiffWidget, CategoryName));
+		};
+
+		TArray<TSharedPtr<FBlueprintDifferenceTreeEntry>> Entries;
+		OrganizeEntriesCallback.Execute(Entries, DifferingProperties, GenerateDiffEntry, GenerateCategoryEntry);
+
+		for (const TSharedPtr<FBlueprintDifferenceTreeEntry>& Entry : Entries)
+		{
+			Children.Push(Entry);
+			OutRealDifferences.Push(Entry);
+			if (bPopulateOutTreeEntries)
+			{
+				OutTreeEntries.Push(Entry);
+			}
+		}
+	}
+	else
+	{
+		for (const FSingleObjectDiffEntry& Difference : DifferingProperties)
+		{
+			TSharedPtr<FBlueprintDifferenceTreeEntry> Entry = GenerateDiffEntry(Difference);
+			Children.Push(Entry);
+			OutRealDifferences.Push(Entry);
+			if (bPopulateOutTreeEntries)
+			{
+				OutTreeEntries.Push(Entry);
+			}
 		}
 	}
 }
@@ -413,8 +450,6 @@ TSharedRef<IDetailsView> FDetailsDiffControl::InsertObject(const UObject* Object
 		const TSharedRef<IDetailsView> OtherDetailsView = OtherDetailsDiff.DetailsWidget();
 		const auto ScrollRate = GetLinkedScrollRateAttribute(DetailsView, OtherDetailsView);
 		FDetailsDiff::LinkScrolling(DetailsDiff, OtherDetailsDiff, ScrollRate);
-		
-		const TSharedPtr<FAsyncDetailViewDiff> DifferencesWithRight = MakeShared<FAsyncDetailViewDiff>(OtherDetailsView, DetailsView);
 
 		PropertyTreeDifferences[OtherObject].Left = MakeShared<FAsyncDetailViewDiff>(DetailsView, OtherDetailsView);
 		PropertyTreeDifferences[Object].Right = PropertyTreeDifferences[OtherObject].Left;

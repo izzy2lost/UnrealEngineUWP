@@ -177,7 +177,7 @@ public:
 	~FPackageTracker();
 
 	/** Returns all packages that have been loaded since the last time GetNewPackages was called */
-	TMap<UPackage*, FInstigator> GetNewPackages();
+	TMap<FName, FInstigator> GetNewPackages();
 
 	/**
 	 * Copy all LoadedPackages into NewPackages. Called when reachability of all packages needs to be recalculated
@@ -213,7 +213,12 @@ public:
 			Function(Package);
 		}
 	}
-	void AddExpectedNeverLoadPackages(TArrayView<FName> PackageNames)
+	int32 NumLoadedPackages()
+	{
+		FReadScopeLock ScopeLock(Lock);
+		return LoadedPackages.Num();
+	}
+	void AddExpectedNeverLoadPackages(const TSet<FName>& PackageNames)
 	{
 		FWriteScopeLock ScopeLock(Lock);
 		ExpectedNeverLoadPackages.Append(PackageNames);
@@ -223,6 +228,12 @@ public:
 		FWriteScopeLock ScopeLock(Lock);
 		ExpectedNeverLoadPackages.Empty();
 	}
+
+	virtual SIZE_T GetAllocatedSize() const override
+	{
+		return LoadedPackages.GetAllocatedSize() + ExpectedNeverLoadPackages.GetAllocatedSize() + NewPackages.GetAllocatedSize();
+	}
+
 private:
 	void InitializeTracking();
 
@@ -234,7 +245,7 @@ private:
 	TSet<FName> ExpectedNeverLoadPackages;
 
 	// This list contains the UPackages loaded since last call to GetNewPackages
-	TMap<UPackage*, FInstigator> NewPackages;
+	TMap<FName, FInstigator> NewPackages;
 	bool bTrackingInitialized = false;
 };
 

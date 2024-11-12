@@ -16,8 +16,8 @@ namespace GeometryCollection::Facades
 		, ChildrenAttribute(InCollection, "Children", FTransformCollection::TransformGroup)
 		, LevelAttribute(InCollection, "Level", FTransformCollection::TransformGroup)
 		, SimulationTypeAttribute(InCollection, "SimulationType", FTransformCollection::TransformGroup)
-		, TransformIndexAttribute(InCollection, "TransformIndex", FTransformCollection::TransformGroup)
 		, TransformToGeometryIndexAttribute(InCollection, "TransformToGeometryIndex", FTransformCollection::TransformGroup)
+		, TransformIndexAttribute(InCollection, "TransformIndex", FGeometryCollection::GeometryGroup)
 		, VertexStartAttribute(InCollection, "VertexStart", FGeometryCollection::GeometryGroup)
 		, VertexCountAttribute(InCollection, "VertexCount", FGeometryCollection::GeometryGroup)
 		, FaceStartAttribute(InCollection, "FaceStart", FGeometryCollection::GeometryGroup)
@@ -251,7 +251,7 @@ namespace GeometryCollection::Facades
 				}
 				else // embedded should always have a parent, but if it somehow does not, just remove from selection
 				{
-					InOutSelection.RemoveAtSwap(SelBoneIdx, 1, EAllowShrinking::No);
+					InOutSelection.RemoveAtSwap(SelBoneIdx, EAllowShrinking::No);
 					--SelBoneIdx; // reconsider swapped-in-element at this idx next iter
 				}
 			}
@@ -456,7 +456,7 @@ namespace GeometryCollection::Facades
 
 			OutSelection.SetNum(Algo::RemoveIf(OutSelection, [&](int32 BoneIdx)
 				{
-					return SimType[BoneIdx] != FGeometryCollection::ESimulationTypes::FST_Rigid
+					return SimType[BoneIdx] != FGeometryCollection::ESimulationTypes::FST_Clustered
 						|| (ViewLevel != INDEX_NONE && Levels[BoneIdx] != ViewLevel);
 				}));
 		}
@@ -464,34 +464,29 @@ namespace GeometryCollection::Facades
 		return OutSelection;
 	}
 
-	void FCollectionTransformSelectionFacade::SelectContact(TArray<int32>& InOutSelection) const
+	void FCollectionTransformSelectionFacade::SelectContact(TArray<int32>& InOutSelection, bool bIncludeNeighborsInParentLevels) const
 	{
 		TSet<int32> NewSelection;
 
 		if (CanSelectContact())
 		{
-			// TODO: This needs to be looked at
 			if (TUniquePtr<FGeometryCollection> TempGeomCollection = TUniquePtr<FGeometryCollection>(ConstCollection.NewCopy<FGeometryCollection>()))
 			{
 				FGeometryCollectionProximityUtility ProximityUtility(TempGeomCollection.Get());
 				ProximityUtility.RequireProximity();
 
-				const TManagedArray<int32>& TransformIndex = TransformIndexAttribute.Get();
-				const TManagedArray<int32>& TransformToGeometryIndex = TransformToGeometryIndexAttribute.Get();
-				const TManagedArray<TSet<int32>>& Proximity = TempGeomCollection->GetAttribute<TSet<int32>>("Proximity", FGeometryCollection::TransformGroup);
+				const TManagedArray<int32>& TransformIndex = TempGeomCollection->TransformIndex;
+				const TManagedArray<int32>& TransformToGeometryIndex = TempGeomCollection->TransformToGeometryIndex;
+				const TManagedArray<TSet<int32>>& Proximity = TempGeomCollection->GetAttribute<TSet<int32>>("Proximity", FGeometryCollection::GeometryGroup);
+				Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(*TempGeomCollection);
 
 				for (int32 Bone : InOutSelection)
 				{
 					NewSelection.Add(Bone);
-					int32 GeometryIdx = TransformToGeometryIndex[Bone];
-					if (GeometryIdx != INDEX_NONE)
-					{
-						const TSet<int32>& Neighbors = Proximity[GeometryIdx];
-						for (int32 NeighborGeometryIndex : Neighbors)
+					ProximityUtility.EnumerateNeighbors(HierarchyFacade, Bone, [&NewSelection](int32 NeighborTransformIdx)
 						{
-							NewSelection.Add(TransformIndex[NeighborGeometryIndex]);
-						}
-					}
+							NewSelection.Add(NeighborTransformIdx);
+						}, bIncludeNeighborsInParentLevels, false /*bFilterDuplicates, not needed since we add to a set*/);
 				}
 			}
 		}
@@ -846,18 +841,23 @@ namespace GeometryCollection::Facades
 
 			for (int32 TransformIdx = 0; TransformIdx < NumTransforms; ++TransformIdx)
 			{
-				const FVector CentroidInBoneSpace(Centroids[TransformIdx]);
-
-				// Transform from BoneSpace to CollectionSpace
-				const FTransform CollectionSpaceTransform = TransformFacade.ComputeCollectionSpaceTransform(TransformIdx);
-				const FVector CentroidInCollectionSpace = CollectionSpaceTransform.TransformPosition(CentroidInBoneSpace);
-
-				// Transform with specified transform
-				const FVector CentroidInBoxSpace = InBoxTransform.InverseTransformPosition(CentroidInCollectionSpace);
-
-				if (InBox.IsInside(CentroidInBoxSpace))
+				const TManagedArray<int32>& TransformToGeometryIndices = TransformToGeometryIndexAttribute.Get();
+				const int32 GeometryIndex = TransformToGeometryIndices[TransformIdx];
+				if (Centroids.IsValidIndex(GeometryIndex))
 				{
-					OutSelection.Add(TransformIdx);
+					const FVector CentroidInBoneSpace(Centroids[GeometryIndex]);
+
+					// Transform from BoneSpace to CollectionSpace
+					const FTransform CollectionSpaceTransform = TransformFacade.ComputeCollectionSpaceTransform(TransformIdx);
+					const FVector CentroidInCollectionSpace = CollectionSpaceTransform.TransformPosition(CentroidInBoneSpace);
+
+					// Transform with specified transform
+					const FVector CentroidInBoxSpace = InBoxTransform.InverseTransformPosition(CentroidInCollectionSpace);
+
+					if (InBox.IsInside(CentroidInBoxSpace))
+					{
+						OutSelection.Add(TransformIdx);
+					}
 				}
 			}
 		}
@@ -1034,54 +1034,45 @@ namespace GeometryCollection::Facades
 	{
 		TArray<int32> OutSelection;
 
-		if (ConstCollection.HasGroup(FName(*GroupName)))
+		if (const TManagedArray<float>* FloatArray = ConstCollection.FindAttributeTyped<float>(FName(*AttrName), FName(*GroupName)))
 		{
-			if (ConstCollection.HasAttribute(FName(*AttrName), FName(*GroupName)))
+			for (int32 Idx = 0; Idx < FloatArray->Num(); ++Idx)
 			{
-				if (ConstCollection.GetAttributeType(FName(*AttrName), FName(*GroupName)) == EManagedArrayType::FFloatType)
+				const float FloatValue = (*FloatArray)[Idx];
+
+				if (bInsideRange)
 				{
-					const TManagedArray<float>& FloatArray = (const TManagedArray<float>&)ConstCollection.GetAttribute<float>(FName(*AttrName), FName(*GroupName));
-
-					for (int32 Idx = 0; Idx < FloatArray.Num(); ++Idx)
+					if (bInclusive)
 					{
-						const float FloatValue = FloatArray[Idx];
-
-						if (bInsideRange)
+						if (FloatValue >= Min && FloatValue <= Max)
 						{
-							if (bInclusive)
-							{
-								if (FloatValue >= Min && FloatValue <= Max)
-								{
-									OutSelection.Add(Idx);
-								}
-							}
-							else
-							{
-								if (FloatValue > Min && FloatValue < Max)
-								{
-									OutSelection.Add(Idx);
-								}
-							}
-						}
-						else
-						{
-							if (bInclusive)
-							{
-								if (FloatValue <= Min || FloatValue >= Max)
-								{
-									OutSelection.Add(Idx);
-								}
-							}
-							else
-							{
-								if (FloatValue < Min || FloatValue > Max)
-								{
-									OutSelection.Add(Idx);
-								}
-							}
+							OutSelection.Add(Idx);
 						}
 					}
-
+					else
+					{
+						if (FloatValue > Min && FloatValue < Max)
+						{
+							OutSelection.Add(Idx);
+						}
+					}
+				}
+				else
+				{
+					if (bInclusive)
+					{
+						if (FloatValue <= Min || FloatValue >= Max)
+						{
+							OutSelection.Add(Idx);
+						}
+					}
+					else
+					{
+						if (FloatValue < Min || FloatValue > Max)
+						{
+							OutSelection.Add(Idx);
+						}
+					}
 				}
 			}
 		}
@@ -1093,54 +1084,45 @@ namespace GeometryCollection::Facades
 	{
 		TArray<int32> OutSelection;
 
-		if (ConstCollection.HasGroup(FName(*GroupName)))
+		if (const TManagedArray<int32>* IntArray = ConstCollection.FindAttributeTyped<int32>(FName(*AttrName), FName(*GroupName)))
 		{
-			if (ConstCollection.HasAttribute(FName(*AttrName), FName(*GroupName)))
+			for (int32 Idx = 0; Idx < IntArray->Num(); ++Idx)
 			{
-				if (ConstCollection.GetAttributeType(FName(*AttrName), FName(*GroupName)) == EManagedArrayType::FFloatType)
+				const int32 IntValue = (*IntArray)[Idx];
+
+				if (bInsideRange)
 				{
-					const TManagedArray<int32>& IntArray = (const TManagedArray<int32>&)ConstCollection.GetAttribute<int>(FName(*AttrName), FName(*GroupName));
-
-					for (int32 Idx = 0; Idx < IntArray.Num(); ++Idx)
+					if (bInclusive)
 					{
-						const int32 IntValue = IntArray[Idx];
-
-						if (bInsideRange)
+						if (IntValue >= Min && IntValue <= Max)
 						{
-							if (bInclusive)
-							{
-								if (IntValue >= Min && IntValue <= Max)
-								{
-									OutSelection.Add(Idx);
-								}
-							}
-							else
-							{
-								if (IntValue > Min && IntValue < Max)
-								{
-									OutSelection.Add(Idx);
-								}
-							}
-						}
-						else
-						{
-							if (bInclusive)
-							{
-								if (IntValue <= Min || IntValue >= Max)
-								{
-									OutSelection.Add(Idx);
-								}
-							}
-							else
-							{
-								if (IntValue < Min || IntValue > Max)
-								{
-									OutSelection.Add(Idx);
-								}
-							}
+							OutSelection.Add(Idx);
 						}
 					}
-
+					else
+					{
+						if (IntValue > Min && IntValue < Max)
+						{
+							OutSelection.Add(Idx);
+						}
+					}
+				}
+				else
+				{
+					if (bInclusive)
+					{
+						if (IntValue <= Min || IntValue >= Max)
+						{
+							OutSelection.Add(Idx);
+						}
+					}
+					else
+					{
+						if (IntValue < Min || IntValue > Max)
+						{
+							OutSelection.Add(Idx);
+						}
+					}
 				}
 			}
 		}

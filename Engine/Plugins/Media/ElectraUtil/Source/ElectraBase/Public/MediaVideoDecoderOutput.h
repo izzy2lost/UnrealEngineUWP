@@ -43,6 +43,40 @@ protected:
 
 
 
+class IVideoDecoderTimecode : public TSharedFromThis<IVideoDecoderTimecode, ESPMode::ThreadSafe>
+{
+public:
+	struct FMPEGDefinition
+	{
+		// Calculated value as per:
+		//   clockTimestamp = ( ( hH * 60 + mM ) * 60 + sS ) * time_scale + nFrames * ( num_units_in_tick * ( 1 + nuit_field_based_flag ) ) + tOffset,
+		// can only be valid when there is timing information.
+		int64 clockTimestamp = 0;
+		// Values from a pic_timing() SEI in H.264 or from a time_code() SEI in H.265
+		uint32 num_units_in_tick = 0;			// from the SPS
+		uint32 time_scale = 0;					// from the SPS
+		int32 time_offset = 0;
+		uint16 n_frames = 0;
+		uint8 timing_info_present_flag = 0;		// from the SPS
+		uint8 clock_timestamp_flag = 0;
+		uint8 ct_type = 0;
+		uint8 nuit_field_based_flag = 0;
+		uint8 counting_type = 0;
+		uint8 full_timestamp_flag = 0;
+		uint8 discontinuity_flag = 0;
+		uint8 cnt_dropped_flag = 0;
+		uint8 seconds_value = 0;
+		uint8 minutes_value = 0;
+		uint8 hours_value = 0;
+		uint8 FromH26x = 0;		// last digit of the codec this comes from. 4=H.264, 5=H.265, etc. In case values need different interpretation.
+	};
+
+	virtual ~IVideoDecoderTimecode() = default;
+	virtual FMPEGDefinition const* GetMPEGDefinition() const = 0;
+};
+
+
+
 class IVideoDecoderColorimetry : public TSharedFromThis<IVideoDecoderColorimetry, ESPMode::ThreadSafe>
 {
 public:
@@ -126,9 +160,9 @@ public:
 	virtual ~FVideoDecoderOutput() = default;
 
 	virtual const Electra::FParamDict& GetDict() const
-	{ 
+	{
 		check(ParamDict.IsValid());
-		return *ParamDict; 
+		return *ParamDict;
 	}
 
 	virtual FDecoderTimeStamp GetTime() const
@@ -137,8 +171,21 @@ public:
 		{
 			return FDecoderTimeStamp(FTimespan::Zero(), 0);
 		}
-		Electra::FTimeValue pts(ParamDict->GetValue(IDecoderOutputOptionNames::PTS).GetTimeValue());
-		return FDecoderTimeStamp(pts.GetAsTimespan(), pts.GetSequenceIndex());
+		if (!(Cached.Flags & FCached::Valid_PTS))
+		{
+			Electra::FTimeValue pts(ParamDict->GetValue(IDecoderOutputOptionNames::PTS).GetTimeValue());
+			Cached.PTS = FDecoderTimeStamp(pts.GetAsTimespan(), pts.GetSequenceIndex());
+			FPlatformMisc::MemoryBarrier();
+			Cached.Flags |= FCached::Valid_PTS;
+		}
+		return Cached.PTS;
+	}
+
+	virtual void SetTime(const FDecoderTimeStamp& InTime)
+	{
+		Cached.PTS = FDecoderTimeStamp(InTime);
+		FPlatformMisc::MemoryBarrier();
+		Cached.Flags |= FCached::Valid_PTS;
 	}
 
 	virtual FTimespan GetDuration() const
@@ -147,7 +194,13 @@ public:
 		{
 			return FTimespan(0);
 		}
-		return FTimespan(ParamDict->GetValue(IDecoderOutputOptionNames::Duration).GetTimeValue().GetAsHNS());
+		if (!(Cached.Flags & FCached::Valid_Duration))
+		{
+			Cached.Duration = ParamDict->GetValue(IDecoderOutputOptionNames::Duration).GetTimeValue().GetAsTimespan();
+			FPlatformMisc::MemoryBarrier();
+			Cached.Flags |= FCached::Valid_Duration;
+		}
+		return Cached.Duration;
 	}
 
 	virtual FIntPoint GetOutputDim() const
@@ -183,7 +236,7 @@ public:
 			return FVideoDecoderCropInfo();
 		}
 		if (!(Cached.Flags & FCached::Valid_CropInfo))
-		{ 
+		{
 			Cached.CropInfo.CropLeft = (int32)ParamDict->GetValue(IDecoderOutputOptionNames::CropLeft).SafeGetInt64(0);
 			Cached.CropInfo.CropTop = (int32)ParamDict->GetValue(IDecoderOutputOptionNames::CropTop).SafeGetInt64(0);
 			Cached.CropInfo.CropRight = (int32)ParamDict->GetValue(IDecoderOutputOptionNames::CropRight).SafeGetInt64(0);
@@ -270,6 +323,15 @@ public:
 		return nullptr;
 	}
 
+	virtual TSharedPtr<const IVideoDecoderTimecode, ESPMode::ThreadSafe> GetTimecode() const
+	{
+		if (ParamDict && ParamDict->HaveKey(IDecoderOutputOptionNames::Timecode))
+		{
+			return ParamDict->GetValue(IDecoderOutputOptionNames::Timecode).GetSharedPointer<const IVideoDecoderTimecode>();
+		}
+		return nullptr;
+	}
+
 protected:
 	FVideoDecoderOutput() = default;
 
@@ -277,6 +339,11 @@ protected:
 	{
 		Cached.Flags = 0;
 		ParamDict = MoveTemp(InParamDict);
+#if !UE_BUILD_SHIPPING
+		// For debugging purposes, get the PTS and duration so they're easily accessible.
+		(void)GetTime();
+		(void)GetDuration();
+#endif
 	}
 
 private:
@@ -291,9 +358,13 @@ private:
 			Valid_CropInfo = 1 << 0,
 			Valid_OutputDim = 1 << 1,
 			Valid_Orientation = 1 << 2,
+			Valid_PTS = 1 << 3,
+			Valid_Duration = 1 << 4
 		};
 
 		FVideoDecoderCropInfo CropInfo;
+		FDecoderTimeStamp PTS;
+		FTimespan Duration;
 		FIntPoint OutputDim;
 		EVideoOrientation Orientation = EVideoOrientation::Original;;
 		uint32 Flags = 0;

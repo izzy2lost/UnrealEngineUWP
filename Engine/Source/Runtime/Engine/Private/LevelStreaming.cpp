@@ -88,6 +88,14 @@ namespace LevelStreamingCVars
 		TEXT("Whether level streaming will reuse the unloaded levels that aren't GC'd yet.\n")
 		TEXT("0: Disable, 1: Enable"),
 		ECVF_ReadOnly);
+
+	static bool bAllowIncrementalRemovalWhilePendingVisibility = true;
+	FAutoConsoleVariableRef CVarAllowIncrementalRemovalWhilePendingVisibility(
+		TEXT("LevelStreaming.AllowIncrementalRemovalWhilePendingVisibility"),
+		bAllowIncrementalRemovalWhilePendingVisibility,
+		TEXT("Whether incremental removal of a streaming level can be done while there's a pending visible streaming level being processed.\n")
+		TEXT("0: Disable, 1: Enable"),
+		ECVF_Default);
 }
 
 bool ULevelStreaming::DefaultAllowClientUseMakingInvisibleTransactionRequests()
@@ -127,6 +135,11 @@ bool ULevelStreaming::ShouldClientUseMakingVisibleTransactionRequest() const
 bool ULevelStreaming::ShouldServerUseMakingVisibleTransactionRequest()
 {
 	return LevelStreamingCVars::bShouldServerUseMakingVisibleTransactionRequest;
+}
+
+bool ULevelStreaming::AllowIncrementalRemovalWhilePendingVisibility()
+{
+	return LevelStreamingCVars::bAllowIncrementalRemovalWhilePendingVisibility;
 }
 
 bool ULevelStreaming::ShouldReuseUnloadedButStillAroundLevels(const ULevel* InLevel)
@@ -411,7 +424,9 @@ ULevelStreaming::ULevelStreaming(const FObjectInitializer& ObjectInitializer)
 				}
 			}
 			return FLinearColor::White;
-		});
+		},
+		[]() {},
+		LOCTEXT("LevelColor_ToopTip", "Colorize actor with its level color, otherwise the color is White."));
 	}
 #endif
 }
@@ -498,10 +513,42 @@ void ULevelStreaming::Serialize( FArchive& Ar )
 	
 	if (Ar.IsLoading())
 	{
-		if (GetOutermost()->HasAnyPackageFlags(PKG_PlayInEditor) && GetOutermost()->GetPIEInstanceID() != INDEX_NONE)
+		const bool bIsRunningPIE =
+			GetOutermost()->HasAnyPackageFlags(PKG_PlayInEditor) && 
+			GetOutermost()->GetPIEInstanceID() != INDEX_NONE
+		;
+
+		if (bIsRunningPIE)
 		{
 			RenameForPIE(GetOutermost()->GetPIEInstanceID());
 		}
+
+#if WITH_EDITOR
+		// If PackageNameToLoad doesn't match WorldAsset, we can potentially create a corrupt UPackage where the name and file path don't match.
+		// In this case, we have no option but to clear out PackageNameToLoad, since WorldAsset is the source of truth.
+		// Note that RenameForPIE intentionally creates a mismatch, but that's acceptable since PIE effectively creates transient duplicates.
+		if (Ar.IsPersistent() && !bIsRunningPIE)
+		{
+			const bool bHasMismatchedPackageName =
+				(PackageNameToLoad != NAME_None) &&
+				(PackageNameToLoad != WorldAsset.GetLongPackageFName())
+			;
+
+			if (bHasMismatchedPackageName)
+			{
+				const UPackage* Package = GetPackage();
+				ensure(Package);
+				const FString& PackageName = Package ? Package->GetName() : TEXT("Unknown package");
+
+				UE_LOG(LogLevelStreaming, Warning, TEXT("WorldAsset (%s) and PackageNameToLoad (%s) point to different streaming levels. PackageNameToLoad will be set to none. Resave this map (%s) to remove warnings."),
+					*WorldAsset.GetLongPackageName(),
+					*PackageNameToLoad.ToString(),
+					*PackageName);
+
+				PackageNameToLoad = NAME_None;
+			}
+		}
+#endif
 	}
 }
 
@@ -536,11 +583,17 @@ void ULevelStreaming::OnLevelRemoved()
 
 void ULevelStreaming::SetCurrentState(ELevelStreamingState NewState)
 {
+	ELevelStreamingState OldState = CurrentState;
+	CurrentState = NewState;
+
+	if (OldState != NewState)
+	{
+		OnCurrentStateChanged(OldState, NewState);
+	}
+
 	// TODO: We should only fire the delegate when the current state has changed, but first AsyncLevelLoadComplete needs to be fixed to 
 	// only set the new state once the LoadedLevel is assigned. Clients currently rely on getting a repeated notification after the loaded
 	// level is available.
-	ELevelStreamingState OldState = CurrentState;
-	CurrentState = NewState;
 	FLevelStreamingDelegates::OnLevelStreamingStateChanged.Broadcast(GetWorld(), this, GetLoadedLevel(), OldState, NewState);
 }
 
@@ -1268,8 +1321,7 @@ void ULevelStreaming::AddLevelToCollectionAfterReload()
 			LoadedLevel->GetCachedLevelCollection()->RemoveLevel(LoadedLevel);
 		}
 		// Add this level to the correct collection
-		const ELevelCollectionType CollectionType = bIsStatic ? ELevelCollectionType::StaticLevels : ELevelCollectionType::DynamicSourceLevels;
-		FLevelCollection& LC = GetWorld()->FindOrAddCollectionByType(CollectionType);
+		FLevelCollection& LC = GetWorld()->FindOrAddCollectionForLevelStreaming(this);
 		LC.AddLevel(LoadedLevel);
 	}
 }
@@ -1310,11 +1362,8 @@ void ULevelStreaming::SetLoadedLevel(ULevel* Level)
 	FLevelStreamingGCHelper::CancelUnloadRequest(LoadedLevel);
 
 	// Add this level to the correct collection
-	const ELevelCollectionType CollectionType =	bIsStatic ? ELevelCollectionType::StaticLevels : ELevelCollectionType::DynamicSourceLevels;
-
 	UWorld* World = GetWorld();
-
-	FLevelCollection& LC = World->FindOrAddCollectionByType(CollectionType);
+	FLevelCollection& LC = World->FindOrAddCollectionForLevelStreaming(this);
 	LC.RemoveLevel(PendingUnloadLevel);
 
 	if (PendingUnloadLevel)
@@ -1692,7 +1741,7 @@ bool ULevelStreaming::RequestLevel(UWorld* PersistentWorld, bool bAllowLevelLoad
 				InstancingContextPtr = &InstancingContext;
 			}
 #endif
-			LoadPackageAsync(PackagePath, DesiredPackageName, FLoadPackageAsyncDelegate::CreateUObject(this, &ULevelStreaming::AsyncLevelLoadComplete), PackageFlags, PIEInstanceID, GetPriority(), InstancingContextPtr);
+			AsyncRequestIDs.Add(LoadPackageAsync(PackagePath, DesiredPackageName, FLoadPackageAsyncDelegate::CreateUObject(this, &ULevelStreaming::AsyncLevelLoadComplete), PackageFlags, PIEInstanceID, GetPriority(), InstancingContextPtr));
 
 			// streamingServer: server loads everything?
 			// Editor immediately blocks on load and we also block if background level streaming is disabled.
@@ -1703,8 +1752,10 @@ bool ULevelStreaming::RequestLevel(UWorld* PersistentWorld, bool bAllowLevelLoad
 					UE_LOG(LogStreaming, Display, TEXT("ULevelStreaming::RequestLevel(%s) is flushing async loading"), *DesiredPackageName.ToString());
 				}
 
-				// Finish all async loading.
-				FlushAsyncLoading();
+				// Finish all async loading. Since we will clear our requests upon completion of all loads, 
+				// we take a copy so FlushAsyncLoading won't touch an invalidated array view
+				TArray<int32> LocalRequestIDs = AsyncRequestIDs;
+				FlushAsyncLoading(LocalRequestIDs);
 			}
 		}
 		else
@@ -1797,7 +1848,7 @@ void ULevelStreaming::AsyncLevelLoadComplete(const FName& InPackageName, UPackag
 
 					// Make sure the redirector is not in the way of the new world.
 					// Pass NULL as the name to make a new unique name and GetTransientPackage() for the outer to remove it from the package.
-					WorldRedirector->Rename(NULL, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+					WorldRedirector->Rename(NULL, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 
 					// Change the loaded world's type back to inactive since it won't be used.
 					DestinationWorld->WorldType = EWorldType::Inactive;
@@ -2037,6 +2088,9 @@ void ULevelStreaming::OnLoadingStarted()
 
 void ULevelStreaming::OnLoadingFinished()
 {
+	// Clear our request ids as we are done loading
+	AsyncRequestIDs.Empty();
+
 	UWorld* World = GetWorld();
 	if (World && World->IsGameWorld())
 	{
@@ -2076,7 +2130,7 @@ void ULevelStreaming::RenameForPIE(int32 PIEInstanceID, bool bKeepWorldAssetName
 		FSoftObjectPath::AddPIEPackageName(PlayWorldStreamingPackageName);
 		if (bKeepWorldAssetName)
 		{
-			SetWorldAsset(TSoftObjectPtr<UWorld>(FString::Printf(TEXT("%s.%s"), *PlayWorldStreamingPackageName.ToString(), *FPackageName::ObjectPathToObjectName(WorldAsset.ToString()))));
+			SetWorldAsset(TSoftObjectPtr<UWorld>(FSoftObjectPath(FString::Printf(TEXT("%s.%s"), *PlayWorldStreamingPackageName.ToString(), *FPackageName::ObjectPathToObjectName(WorldAsset.ToString())))));
 		}
 		else
 		{
@@ -2222,17 +2276,15 @@ void ULevelStreaming::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 		}
 		else if (PropertyName == GET_MEMBER_NAME_CHECKED(ULevelStreaming, bIsStatic))
 		{
-			if (LoadedLevel)
+			UWorld* World = GetWorld();
+			if (LoadedLevel && World)
 			{
-				const ELevelCollectionType NewCollectionType = bIsStatic ? ELevelCollectionType::StaticLevels : ELevelCollectionType::DynamicSourceLevels;
 				FLevelCollection* PreviousCollection = LoadedLevel->GetCachedLevelCollection();
+				FLevelCollection& LC = World->FindOrAddCollectionForLevelStreaming(this);
 
-				if (PreviousCollection && PreviousCollection->GetType() != NewCollectionType)
+				if (PreviousCollection && PreviousCollection != &LC)
 				{
 					PreviousCollection->RemoveLevel(LoadedLevel);
-
-					UWorld* World = GetWorld();
-					FLevelCollection& LC = World->FindOrAddCollectionByType(NewCollectionType);
 					LC.AddLevel(LoadedLevel);
 				}
 			}
@@ -2613,6 +2665,10 @@ ULevelStreamingDynamic* ULevelStreamingDynamic::LoadLevelInstance_Internal(const
     
 	// Setup streaming level object that will load specified map
 	ULevelStreamingDynamic* StreamingLevel = NewObject<ULevelStreamingDynamic>(Params.World, LevelStreamingClass, NAME_None, RF_Transient, NULL);
+	if (Params.LevelStreamingCreatedCallback)
+	{
+		Params.LevelStreamingCreatedCallback(StreamingLevel);
+	}
 
 	FSoftObjectPath WorldAssetPath(*WriteToString<512>(UnmodifiedLevelPackageName, TEXT("."), ShortPackageName));
     StreamingLevel->SetWorldAsset(TSoftObjectPtr<UWorld>(WorldAssetPath));

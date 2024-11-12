@@ -56,17 +56,18 @@ ETextureRenderTargetFormat AWaterBodyIsland::GetBrushRenderTargetFormat() const
 
 void AWaterBodyIsland::GetBrushRenderDependencies(TSet<UObject*>& OutDependencies) const 
 {
+	// Lazy-load the referenced textures : this allows the settings to not be editor-only but to only actually load data if GetBrushRenderDependencies is called (which is : only in the editor)
 	for (const TPair<FName, FWaterBodyWeightmapSettings>& Pair : WaterWeightmapSettings)
 	{
-		if (Pair.Value.ModulationTexture)
+		if (UTexture2D* Texture = Pair.Value.ModulationTexture.LoadSynchronous())
 		{
-			OutDependencies.Add(Pair.Value.ModulationTexture);
+			OutDependencies.Add(Texture);
 		}
 	}
 
-	if (WaterHeightmapSettings.Effects.Displacement.Texture)
+	if (UTexture2D* Texture = WaterHeightmapSettings.Effects.Displacement.Texture.LoadSynchronous())
 	{
-		OutDependencies.Add(WaterHeightmapSettings.Effects.Displacement.Texture);
+		OutDependencies.Add(Texture);
 	}
 }
 #endif //WITH_EDITOR

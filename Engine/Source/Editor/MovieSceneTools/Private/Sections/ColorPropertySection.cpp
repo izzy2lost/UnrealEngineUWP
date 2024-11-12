@@ -58,7 +58,7 @@ FReply FColorPropertySection::OnKeyDoubleClicked(const TArray<FKeyHandle>& KeyHa
 	FMovieSceneFloatChannel* BChannel = Proxy.GetChannel<FMovieSceneFloatChannel>(2);
 	FMovieSceneFloatChannel* AChannel = Proxy.GetChannel<FMovieSceneFloatChannel>(3);
 
-	FMovieSceneKeyColorPicker KeyColorPicker(ColorSection, RChannel, GChannel, BChannel, AChannel, KeyHandles);
+	FMovieSceneKeyColorPicker KeyColorPicker(ColorSection, RChannel, GChannel, BChannel, AChannel, KeyHandles, WeakSequencer);
 
 	return FReply::Handled();
 }

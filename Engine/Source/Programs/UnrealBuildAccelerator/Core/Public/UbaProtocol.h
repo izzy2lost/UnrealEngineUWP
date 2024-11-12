@@ -10,14 +10,17 @@ namespace uba
 		UBA_PROCESS_MESSAGE(Init) \
 		UBA_PROCESS_MESSAGE(CreateFile) \
 		UBA_PROCESS_MESSAGE(GetFullFileName) \
+		UBA_PROCESS_MESSAGE(GetLongPathName) \
 		UBA_PROCESS_MESSAGE(CloseFile) \
 		UBA_PROCESS_MESSAGE(DeleteFile) \
 		UBA_PROCESS_MESSAGE(CopyFile) \
 		UBA_PROCESS_MESSAGE(MoveFile) \
 		UBA_PROCESS_MESSAGE(Chmod) \
 		UBA_PROCESS_MESSAGE(CreateDirectory) \
+		UBA_PROCESS_MESSAGE(RemoveDirectory) \
 		UBA_PROCESS_MESSAGE(ListDirectory) \
 		UBA_PROCESS_MESSAGE(UpdateTables) \
+		UBA_PROCESS_MESSAGE(GetParentWrittenFiles) \
 		UBA_PROCESS_MESSAGE(CreateProcess) \
 		UBA_PROCESS_MESSAGE(StartProcess) \
 		UBA_PROCESS_MESSAGE(ExitChildProcess) \
@@ -32,6 +35,9 @@ namespace uba
 		UBA_PROCESS_MESSAGE(UpdateEnvironment) \
 		UBA_PROCESS_MESSAGE(GetNextProcess) \
 		UBA_PROCESS_MESSAGE(Custom) \
+		UBA_PROCESS_MESSAGE(SHGetKnownFolderPath) \
+		UBA_PROCESS_MESSAGE(RpcCommunication) \
+		UBA_PROCESS_MESSAGE(HostRun) \
 
 	enum MessageType : u8
 	{
@@ -46,7 +52,7 @@ namespace uba
 	inline constexpr u32 CommunicationMemSize = IsWindows ? 64*1024 : 64*1024*2; // Macos expands some commandlines to be crazy long
 
 	inline constexpr u32 FileMappingTableMemSize = 16 * 1024 * 1024;
-	inline constexpr u32 DirTableMemSize = 40 * 1024 * 1024;
+	inline constexpr u32 DirTableMemSize = 48 * 1024 * 1024;
 }
 
 // Currently only used for detoured process

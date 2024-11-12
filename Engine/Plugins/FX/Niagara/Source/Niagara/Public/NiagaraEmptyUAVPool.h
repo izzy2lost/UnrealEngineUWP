@@ -111,10 +111,6 @@ protected:
 	};
 
 	uint32 RDGUAVAccessCounter = 0;
-	FBufferRDGUAVPool BufferRDGUAVPool;
-	FTextureRDGUAVPool Texture2DRDGUAVPool;
-	FTextureRDGUAVPool Texture2DArrayRDGUAVPool;
-	FTextureRDGUAVPool Texture3DRDGUAVPool;
-	FTextureRDGUAVPool TextureCubeRDGUAVPool;
-	FTextureRDGUAVPool TextureCubeArrayRDGUAVPool;
+	TMap<EPixelFormat, FBufferRDGUAVPool> BufferRDGUAVPool;
+	TMap<TPair<EPixelFormat, ETextureDimension>, FTextureRDGUAVPool> TextureRDGUAVPool;
 };

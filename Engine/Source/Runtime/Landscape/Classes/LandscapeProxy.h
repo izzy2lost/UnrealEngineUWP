@@ -10,7 +10,7 @@
 #include "PhysicsEngine/BodyInstance.h"
 #include "Async/AsyncWork.h"
 #include "Engine/Texture.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "LandscapeNaniteComponent.h"
 #include "LandscapeWeightmapUsage.h"
 #include "LandscapeHeightfieldCollisionComponent.h"
@@ -68,13 +68,49 @@ LANDSCAPE_API extern bool GLandscapeEditModeActive;
 extern int32 GGrassMapUseRuntimeGeneration;
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnLandscapeProxyComponentDataChanged, ALandscapeProxy*, const FLandscapeProxyComponentDataChangedParams&);
+
+struct FOnLandscapeProxyFixupSharedDataParams
+{
+	/** Parent landscape actor for the landscape proxy on which OnLandscapeProxyFixupSharedData is triggered */
+	ALandscape* Landscape = nullptr;
+	/** Indicates whether UpgradeSharedProperties has been called on this proxy already (before this call) */
+	bool bUpgradeSharedPropertiesPerformed = false;
+};
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnLandscapeProxyFixupSharedDataDelegate, ALandscapeProxy* /*InProxy*/, const FOnLandscapeProxyFixupSharedDataParams& /*InParams*/);
 #endif // WITH_EDITOR
 
 
 // ----------------------------------------------------------------------------------
 
 USTRUCT()
-struct FLandscapeEditorLayerSettings
+struct FLandscapeTargetLayerSettings
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(Category = "General", EditAnywhere)
+	TObjectPtr<ULandscapeLayerInfoObject> LayerInfoObj;
+	
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FString ReimportLayerFilePath;
+
+	FLandscapeTargetLayerSettings() = default;
+
+	explicit FLandscapeTargetLayerSettings(ULandscapeLayerInfoObject* InLayerInfo, const FString& InFilePath = FString())
+		: LayerInfoObj(InLayerInfo)
+		, ReimportLayerFilePath(InFilePath)
+	{
+	}
+
+	bool operator==(const FLandscapeTargetLayerSettings& Other) const
+    {
+    	return LayerInfoObj == Other.LayerInfoObj;
+    }
+#endif // WITH_EDITORONLY_DATA
+};
+
+USTRUCT()
+struct UE_DEPRECATED(5.5, "FLandscapeEditorLayerSettings is deprecated; please use FLandscapeTargetLayerSettings instead")  FLandscapeEditorLayerSettings
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -332,14 +368,14 @@ public:
 };
 
 USTRUCT(meta = (Deprecated = "5.1"))
-struct UE_DEPRECATED(5.1, "FLandscapeProxyMaterialOverride is deprecated; please use FLandscapePerLODMaterialOverride instead") FLandscapeProxyMaterialOverride
+struct UE_DEPRECATED(all, "FLandscapeProxyMaterialOverride is deprecated; please use FLandscapePerLODMaterialOverride instead") FLandscapeProxyMaterialOverride
 {
 	GENERATED_USTRUCT_BODY()
 
-	UPROPERTY(EditAnywhere, Category = Landscape, meta = (UIMin = 0, UIMax = 8, ClampMin = 0, ClampMax = 8))
+	UPROPERTY()
 	FPerPlatformInt LODIndex;
 
-	UPROPERTY(EditAnywhere, Category = Landscape)
+	UPROPERTY()
 	TObjectPtr<UMaterialInterface> Material = nullptr;
 };
 
@@ -405,8 +441,9 @@ protected:
 	FGuid LandscapeGuid;
 
 	/** 
-	  * The original unmutated LandscapeGuid on the source asset, before instancing modfications.
+	  * The original unmutated LandscapeGuid on the source asset, before instancing modifications.
 	  **/
+	UPROPERTY(Transient, DuplicateTransient, meta = (LandscapeInherited))
 	FGuid OriginalLandscapeGuid;
 
 	/** Use Nanite to render landscape as a mesh on supported platforms. */
@@ -435,6 +472,8 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = Nanite, AdvancedDisplay, meta = (EditCondition = "bEnableNanite", LandscapeInherited))
 	float NaniteMaxEdgeLengthFactor = 16.0f;
+
+	LANDSCAPE_API static FOnLandscapeProxyFixupSharedDataDelegate OnLandscapeProxyFixupSharedDataDelegate;
 #endif // WITH_EDITORONLY_DATA
 
 	/** Disable runtime grass data generation.  If disabled, the grass maps will be serialized at cook time. Do not set directly, use ALandscape::SetDisableRuntimeGrassMapGeneration to ensure it is set on all loaded proxies. */
@@ -442,6 +481,10 @@ protected:
 	bool bDisableRuntimeGrassMapGeneration = false;
 
 public:
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	TMap<FName, TObjectPtr<ULandscapeLayerInfoObject>> TargetLayersForFixup;
+#endif //WITH_EDITORONLY_DATA
 	/** Offset in quads from global components grid origin (in quads) **/
 	UPROPERTY()
 	FIntPoint LandscapeSectionOffset;
@@ -451,14 +494,16 @@ public:
 	int32 MaxLODLevel;
 
 #if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.5, "Unused property : will be removed in a future version")
 	UPROPERTY()
 	float LODDistanceFactor_DEPRECATED;
 
+	UE_DEPRECATED(5.5, "Unused property : will be removed in a future version")
 	UPROPERTY()
 	TEnumAsByte<ELandscapeLODFalloff::Type> LODFalloff_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
 
-	UE_DEPRECATED(5.4, "Unused property")
+	UE_DEPRECATED(5.4, "Unused property : will be removed in a future version")
 	UPROPERTY()
 	float ComponentScreenSizeToUseSubSections;
 
@@ -496,7 +541,7 @@ public:
 
 	/** This controls the area that blends LOD between neighboring sections. At 1.0 it blends across the entire section, and lower numbers reduce the blend region to be closer to the boundary. */
 	UPROPERTY(EditAnywhere, Category = "LOD Distribution", meta = (DisplayName = "Blend Range", ClampMin = "0.01", ClampMax = "1.0", UIMin = "0.01", UIMax = "1.0", LandscapeInherited))
-	float LODBlendRange = 1.0f;
+	float LODBlendRange = 0.1f;
 
 #if WITH_EDITORONLY_DATA
 	/** LOD level to use when exporting the landscape to obj or FBX */
@@ -540,7 +585,7 @@ public:
 #if WITH_EDITORONLY_DATA
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UE_DEPRECATED(5.1, "LandscapeComponentMaterialOverride has been deprecated, use PerLODOverrideMaterials instead.")
+	UE_DEPRECATED(all, "LandscapeComponentMaterialOverride has been deprecated, use PerLODOverrideMaterials instead.")
 	UPROPERTY()
 	TArray<FLandscapeProxyMaterialOverride> LandscapeMaterialsOverride_DEPRECATED;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -553,7 +598,8 @@ public:
 
 	UPROPERTY(Transient)
 	bool bIsPerformingInteractiveActionOnLandscapeMaterialOverride;
-#endif 
+#endif // WITH_EDITORONLY_DATA
+
 	/**
 	 * Array of runtime virtual textures into which we draw this landscape.
 	 * The material also needs to be set up to output to a virtual texture.
@@ -624,7 +670,7 @@ public:
 	UPROPERTY(transient, duplicatetransient)
 	TArray<TObjectPtr<UHierarchicalInstancedStaticMeshComponent>> FoliageComponents;
 
-	UE_DEPRECATED(5.3, "NaniteComponent has been deprecated, use NaniteComponents instead.")
+	UE_DEPRECATED(all, "NaniteComponent has been deprecated, use NaniteComponents instead.")
 	UPROPERTY()
 	TObjectPtr<ULandscapeNaniteComponent> NaniteComponent_DEPRECATED;
 
@@ -661,6 +707,7 @@ public:
 	void UpdateGrassTypeSummary();
 
 	inline bool GetDisableRuntimeGrassMapGeneration() { return bDisableRuntimeGrassMapGeneration; }
+	inline void SetDisableRuntimeGrassMapGenerationProxyOnly(bool bInDisableRuntimeGrassMapGeneration) { bDisableRuntimeGrassMapGeneration = bInDisableRuntimeGrassMapGeneration; }
 
 	/**
 	 *	The resolution to cache lighting at, in texels/quad in one axis
@@ -706,6 +753,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Lighting, AdvancedDisplay, meta = (EditCondition = "CastShadow", LandscapeOverridable))
 	uint8 bAffectDistanceFieldLighting:1;
 
+	/** Controls whether the primitive should influence indirect lighting. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Lighting, AdvancedDisplay, meta=(LandscapeOverridable), Interp)
+	uint8 bAffectDynamicIndirectLighting:1;
+
+	/** Controls whether the primitive should affect indirect lighting when hidden. This flag is only used if bAffectDynamicIndirectLighting is true. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Lighting, meta=(EditCondition="bAffectDynamicIndirectLighting", DisplayName = "Affect Indirect Lighting While Hidden", LandscapeOverridable), Interp)
+	uint8 bAffectIndirectLightingWhileHidden:1;
+
 	/**
 	* Channels that this Landscape should be in.  Lights with matching channels will affect the Landscape.
 	* These channels only apply to opaque materials, direct lighting, and dynamic lighting and shadowing.
@@ -740,6 +795,10 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Lighting, meta = (LandscapeOverridable, ClampMin = "0.0", ClampMax = "10.0", UIMin = "0.0", UIMax = "10.0"))
 	float NonNaniteVirtualShadowMapInvalidationScreenSizeLimit = 0.2f;
 
+	/** If this is True, this primitive will render black with an alpha of 0, but all secondary effects (shadows, reflections, indirect lighting) remain. This feature requires the project settings "Alpha Output" and "Support Primitive Alpha Holdout". */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Rendering, meta=(LandscapeOverridable), Interp)
+	uint8 bHoldout : 1;
+
 	/** If true, the Landscape will be rendered in the CustomDepth pass (usually used for outlines) */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Rendering, meta=(DisplayName = "Render CustomDepth Pass", LandscapeOverridable))
 	uint32 bRenderCustomDepth:1;
@@ -770,7 +829,7 @@ public:
 	int32 SimpleCollisionMipLevel;
 
 	/** Collision profile settings for this landscape */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Collision, meta=(ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Collision, meta = (LandscapeOverridable))
 	FBodyInstance BodyInstance;
 
 	/**
@@ -790,6 +849,7 @@ public:
 	uint32 bBakeMaterialPositionOffsetIntoCollision:1;
 
 #if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.5, "Unused property : will be removed in a future version")
 	UPROPERTY()
 	TArray<TObjectPtr<ULandscapeLayerInfoObject>> EditorCachedLayerInfos_DEPRECATED;
 
@@ -800,9 +860,12 @@ public:
 	UPROPERTY()
 	FGuid ReimportDestinationLayerGuid;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "TargetLayers will be used instead")
 	UPROPERTY()
-	TArray<FLandscapeEditorLayerSettings> EditorLayerSettings;
-
+	TArray<FLandscapeEditorLayerSettings> EditorLayerSettings_DEPRECATED;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
 	TMap<UTexture2D*, FLandscapeEditLayerReadback*> HeightmapsCPUReadback;
 	TMap<UTexture2D*, FLandscapeEditLayerReadback*> WeightmapsCPUReadback;
 
@@ -861,20 +924,24 @@ public:
 	bool bUseLandscapeForCullingInvisibleHLODVertices;
 
 #if WITH_EDITORONLY_DATA
-	/** Specify how to choose the texture size of the resulting HLOD mesh */
-	UPROPERTY(EditAnywhere, Category = HLOD, meta = (DisplayName = "HLOD Texture Size Policy", LandscapeOverridable))
+	/** Specify how to choose the texture size of the resulting HLOD mesh. Specifying an HLOD Material Override will disable this option as no texture will be baked. */
+	UPROPERTY(EditAnywhere, Category = HLOD, meta = (DisplayName = "HLOD Texture Size Policy", LandscapeOverridable, EditCondition = "HLODMaterialOverride == nullptr"))
 	ELandscapeHLODTextureSizePolicy HLODTextureSizePolicy;
 
-	/** Specify the texture size to use for the HLOD mesh if HLODTextureSizePolicy is set to SpecificSize */
-	UPROPERTY(EditAnywhere, Category = HLOD, meta = (DisplayName = "HLOD Texture Size", LandscapeOverridable, EditCondition = "HLODTextureSizePolicy == ELandscapeHLODTextureSizePolicy::SpecificSize", EditConditionHides, ClampMin = "16", ClampMax = "8192"))
+	/** Specify the texture size to use for the HLOD mesh if HLODTextureSizePolicy is set to SpecificSize. Specifying an HLOD Material Override will disable this option as no texture will be baked. */
+	UPROPERTY(EditAnywhere, Category = HLOD, meta = (DisplayName = "HLOD Texture Size", LandscapeOverridable, EditCondition = "HLODMaterialOverride == nullptr && HLODTextureSizePolicy == ELandscapeHLODTextureSizePolicy::SpecificSize", ClampMin = "16", ClampMax = "8192"))
 	int32 HLODTextureSize;
 
-	/** Specify how to choose the LOD used as input for the HLOD mesh */
+	/** Specify a custom HLOD material to apply to the HLOD mesh. Specifying an HLOD Material Override will result in no texture being baked for the HLOD mesh. */
+	UPROPERTY(EditAnywhere, Category = HLOD, meta = (DisplayName = "HLOD Material Override", LandscapeOverridable))
+	TObjectPtr<UMaterialInterface> HLODMaterialOverride;
+
+	/** Specify how to choose the LOD used as input for the HLOD mesh. */
 	UPROPERTY(EditAnywhere, Category = HLOD, meta = (DisplayName = "HLOD Mesh Source LOD Policy", LandscapeOverridable))
 	ELandscapeHLODMeshSourceLODPolicy HLODMeshSourceLODPolicy;
 
-	/** Specify which LOD to use for the HLOD mesh if HLODMeshSourceLODPolicy is set to SpecificLOD */
-	UPROPERTY(EditAnywhere, Category = HLOD, meta = (DisplayName = "HLOD Mesh Source LOD", LandscapeOverridable, EditCondition = "HLODMeshSourceLODPolicy == ELandscapeHLODMeshSourceLODPolicy::SpecificLOD", EditConditionHides, ClampMin = "0"))
+	/** Specify which LOD to use for the HLOD mesh if HLODMeshSourceLODPolicy is set to SpecificLOD. */
+	UPROPERTY(EditAnywhere, Category = HLOD, meta = (DisplayName = "HLOD Mesh Source LOD", LandscapeOverridable, EditCondition = "HLODMeshSourceLODPolicy == ELandscapeHLODMeshSourceLODPolicy::SpecificLOD", ClampMin = "0"))
 	int32 HLODMeshSourceLOD;
 #endif
 
@@ -975,7 +1042,9 @@ public:
 	virtual void EditorApplyScale(const FVector& DeltaScale, const FVector* PivotLocation, bool bAltDown, bool bShiftDown, bool bCtrlDown) override;
 	virtual void EditorApplyMirror(const FVector& MirrorScale, const FVector& PivotLocation) override;
 	virtual void PostEditMove(bool bFinished) override;
+	virtual void OnLoadedActorRemovedFromLevel() override;
 	//~ End AActor Interface
+
 	virtual uint32 GetDefaultGridSize(UWorld* InWorld) const override { return 1; }
 	virtual FGuid GetGridGuid() const override { return LandscapeGuid; }
 	virtual TUniquePtr<class FWorldPartitionActorDesc> CreateClassActorDesc() const override;
@@ -995,6 +1064,9 @@ public:
 	static constexpr int32 NaniteComponentMaxSide = 8;
 	static constexpr int32 NaniteMaxComponents = NaniteComponentMaxSide * NaniteComponentMaxSide;
 	int32 NumNaniteRequiredComponents() const { return FMath::DivideAndRoundUp(LandscapeComponents.Num(), NaniteMaxComponents); }
+
+	UE_DEPRECATED(5.5, "This version of HasLayer is deprecated.  Use HasTargetLayer(ULandscapeLayerInfoObject* LayerInfoObject) instead.")
+	bool HasLayer(ULandscapeLayerInfoObject* LayerInfoObject) const;
 #endif	//WITH_EDITOR
 
 	bool AreNaniteComponentsValid(const FGuid& InProxyContentId) const;
@@ -1063,7 +1135,6 @@ public:
 
 		return true;
 	}
-	void TickGrass(const TArray<FVector>& Cameras, int32& InOutNumCompsCreated);
 	void ProcessAsyncGrassInstanceTasks(bool bWaitAsyncTasks, bool bForceSync, const TSet<UHierarchicalInstancedStaticMeshComponent*>& StillUsed);
 
 	/** Flush the grass cache, removing grass instances on the given components (or all proxy components if the component set is not specified).
@@ -1117,18 +1188,9 @@ public:
 	UE_DEPRECATED(5.4, "This version of RenderGrassMaps is deprecated.  Use BuildGrassMaps() instead.")
 	void RenderGrassMaps(const TArray<ULandscapeComponent*>& InLandscapeComponents, const TArray<ULandscapeGrassType*>& InGrassTypes) {}
 
-	struct UE_DEPRECATED(5.3, "FGIBakedTextureState is officially deprecated now and nothing updates it anymore") FGIBakedTextureState
-	{
-		FGuid CombinedStateId;
-		TArray<ULandscapeComponent*> Components;
-	};
-		
 	/** Update the landscape physical material render tasks */
 	void UpdatePhysicalMaterialTasks(bool bInShouldMarkDirty = false);
 	void UpdatePhysicalMaterialTasksStatus(TSet<ULandscapeComponent*>* OutdatedComponents, int32* OutdatedComponentsCount) const;
-
-	UE_DEPRECATED(5.3, "UpdateBakedTexturesCountdown is officially deprecated now and nothing updates it anymore")
-	int32 UpdateBakedTexturesCountdown;
 
 	/** Editor notification when changing feature level */
 	void OnFeatureLevelChanged(ERHIFeatureLevel::Type NewFeatureLevel);
@@ -1172,10 +1234,6 @@ public:
 	// Retrieve the screen size at which each LOD should be rendered
 	LANDSCAPE_API TArray<float> GetLODScreenSizeArray() const;
 
-	// Copy properties from parent Landscape actor
-	UE_DEPRECATED(5.3, "GetSharedProperties is being deprecated, please use CopySharedProperties or SynchronizeSharedProperties instead.")
-	LANDSCAPE_API void GetSharedProperties(ALandscapeProxy* Landscape);
-
 #if WITH_EDITOR
 	// Copy properties from parent Landscape actor
 	LANDSCAPE_API void CopySharedProperties(ALandscapeProxy* InLandscape);
@@ -1204,6 +1262,9 @@ public:
 
 	// Modifies the override state of the property given as argument.
 	virtual void SetSharedPropertyOverride(const FName& InPropertyName, const bool bIsOverriden) { }
+
+	/** Delegate that will be called whenever FixupSharedData is called, to inject some custom logic */
+	LANDSCAPE_API static FOnLandscapeProxyFixupSharedDataDelegate::RegistrationType& OnLandscapeProxyFixupSharedData() { return OnLandscapeProxyFixupSharedDataDelegate; }
 #endif // WITH_EDITOR
 
 	// Get Landscape Material assigned to this Landscape
@@ -1222,10 +1283,6 @@ public:
 
 	LANDSCAPE_API int32 GetOutdatedGrassMapCount() const;
 	LANDSCAPE_API void BuildGrassMaps(struct FScopedSlowTask* InSlowTask = nullptr);
-	UE_DEPRECATED(5.3, "BuildGIBakedTextures is officially deprecated now")
-	void BuildGIBakedTextures(struct FScopedSlowTask* InSlowTask = nullptr) {}
-	UE_DEPRECATED(5.3, "GetOutdatedGIBakedTextureComponentsCount is officially deprecated now returns 0")
-	int32 GetOutdatedGIBakedTextureComponentsCount() const { return 0; }
 	LANDSCAPE_API void BuildPhysicalMaterial(struct FScopedSlowTask* InSlowTask = nullptr);
 	LANDSCAPE_API void InvalidatePhysicalMaterial();
 	LANDSCAPE_API int32 GetOudatedPhysicalMaterialComponentsCount() const;
@@ -1233,6 +1290,7 @@ public:
 	LANDSCAPE_API virtual void CreateSplineComponent(const FVector& Scale3D) override;
 
 	virtual bool CanEditChange(const FProperty* InProperty) const override;
+	virtual void PostTransacted(const FTransactionObjectEvent& InTransactionEvent) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditImport() override;
 	virtual void PostEditUndo() override;
@@ -1245,6 +1303,12 @@ public:
 
 	LANDSCAPE_API static const TArray<FName>& GetLayersFromMaterial(UMaterialInterface* Material);
 	LANDSCAPE_API const TArray<FName>& GetLayersFromMaterial() const;
+
+	// Get all Layer names used by the materials assigned the proxy and components (Proxy Material, Component, Component LOD Material and Hole Material)
+	LANDSCAPE_API TArray<FName> RetrieveTargetLayerNamesFromMaterials() const;
+	
+	// Query all the LandscapeLayerInfo Objects from the weight layers allocated on this proxy.
+	TMap<FName, ULandscapeLayerInfoObject*> RetrieveTargetLayerInfosFromAllocations() const;
 
 	/**
 	* Creates a new LandscapeLayerInfoObject
@@ -1301,8 +1365,14 @@ public:
 	LANDSCAPE_API static ULandscapeMaterialInstanceConstant* GetLayerThumbnailMIC(UMaterialInterface* LandscapeMaterial, FName LayerName, UTexture2D* ThumbnailWeightmap, UTexture2D* ThumbnailHeightmap, ALandscapeProxy* Proxy);
 
 	/** Import the given Height/Weight data into this landscape */
+	UE_DEPRECATED(5.5, "Use the new method prototype which takes a TArrayView parameter for import layers")
 	LANDSCAPE_API void Import(const FGuid& InGuid, int32 InMinX, int32 InMinY, int32 InMaxX, int32 InMaxY, int32 InNumSubsections, int32 InSubsectionSizeQuads, const TMap<FGuid, TArray<uint16>>& InImportHeightData,
-							  const TCHAR* const InHeightmapFileName, const TMap<FGuid, TArray<FLandscapeImportLayerInfo>>& InImportMaterialLayerInfos, ELandscapeImportAlphamapType InImportMaterialLayerType, const TArray<struct FLandscapeLayer>* InImportLayers = nullptr);
+		const TCHAR* const InHeightmapFileName, const TMap<FGuid, TArray<FLandscapeImportLayerInfo>>& InImportMaterialLayerInfos, ELandscapeImportAlphamapType InImportMaterialLayerType, 
+		const TArray<struct FLandscapeLayer>* InImportLayers = nullptr);
+
+	LANDSCAPE_API void Import(const FGuid& InGuid, int32 InMinX, int32 InMinY, int32 InMaxX, int32 InMaxY, int32 InNumSubsections, int32 InSubsectionSizeQuads, const TMap<FGuid, TArray<uint16>>& InImportHeightData,
+		const TCHAR* const InHeightmapFileName, const TMap<FGuid, TArray<FLandscapeImportLayerInfo>>& InImportMaterialLayerInfos, ELandscapeImportAlphamapType InImportMaterialLayerType,
+		const TArrayView<const struct FLandscapeLayer>& InImportLayers);
 
 	struct FRawMeshExportParams
 	{
@@ -1316,12 +1386,12 @@ public:
 			// TODO [jonathan.bard] : RelativeToComponentsBoundsUV, /** Only valid when ComponentsToExport is set : normalized UVs spanning the ComponentToExport's bounds, i.e. (0,0) at the bottom left corner of those components' lower left component -> (1,1) at the top right corner of those components' upper right component */
 			RelativeToProxyBoundsUV, /** Normalized UVs spanning the landscape proxy's bounds, i.e. (0,0) at the bottom left corner of the proxy's lower left landscape component -> (1,1) at the top right corner of the proxy's upper right component */
 			// TODO[jonathan.bard] : RelativeToLandscapeBoundsUV, /** Normalized UVs spanning the entire landscape bounds, i.e. (0,0) at the bottom left corner of the landscape's lower left landscape component -> (1,1) at the top right corner of the landscape's upper right component */
-			HeightmapUV, /** Export the heightmaps' UV mapping */
-			WeightmapUV, /** Export the weightmaps' UV mapping */
-			// TODO[jonathan.bard] : LightmapUV, 
+			HeightmapUV,			/** Export the heightmaps' UV mapping */
+			WeightmapUV,			/** Export the weightmaps' UV mapping */
 			TerrainCoordMapping_XY, /** Similar to ETerrainCoordMappingType::TCMT_XY */
 			TerrainCoordMapping_XZ, /** Similar to ETerrainCoordMappingType::TCMT_XZ */
 			TerrainCoordMapping_YZ, /** Similar to ETerrainCoordMappingType::TCMT_YZ */
+			LightmapUV,				/** 0-1, with a bit of padding, across the mesh */
 
 			Num
 		};
@@ -1422,20 +1492,17 @@ public:
 	/** @return Current size of bounding rectangle in quads space */
 	LANDSCAPE_API FIntRect GetBoundingRect() const;
 
-	/** Creates a Texture2D for use by this landscape proxy or one of it's components. If OptionalOverrideOuter is not specified, the proxy is used. */
+	/** Creates a Texture2D for use by this landscape proxy or one of its components. If OptionalOverrideOuter is not specified, the proxy is used. */
 	LANDSCAPE_API UTexture2D* CreateLandscapeTexture(int32 InSizeX, int32 InSizeY, TextureGroup InLODGroup, ETextureSourceFormat InFormat, UObject* OptionalOverrideOuter = nullptr, bool bCompress = false, bool bMipChain = true) const;
 
-	/** Creates a Texture2DArray for use by this landscape proxy or one of it's components. If OptionalOverrideOuter is not specified, the proxy is used. */
+	/** Creates a Texture2DArray for use by this landscape proxy or one of its components. If OptionalOverrideOuter is not specified, the proxy is used. */
 	LANDSCAPE_API UTexture2DArray* CreateLandscapeTextureArray(int32 InSizeX, int32 InSizeY, int32 Slices, TextureGroup InLODGroup, ETextureSourceFormat InFormat, UObject* OptionalOverrideOuter = nullptr);
 	
-	/** Creates a Texture2D for use by this landscape proxy or one of it's components for tools .*/ 
+	/** Creates a Texture2D for use by this landscape proxy or one of its components for tools .*/ 
 	LANDSCAPE_API UTexture2D* CreateLandscapeToolTexture(int32 InSizeX, int32 InSizeY, TextureGroup InLODGroup, ETextureSourceFormat InFormat) const;
 
 	/** Creates a LandscapeWeightMapUsage object outered to this proxy. */
 	LANDSCAPE_API ULandscapeWeightmapUsage* CreateWeightmapUsage();
-
-	UE_DEPRECATED(5.3, "NumComponentsNeedingTextureBaking is officially deprecated now and nothing updates it anymore")
-	int32 NumComponentsNeedingTextureBaking;
 
 	/** remove an overlapping component. Called from MapCheck. */
 	LANDSCAPE_API void RemoveOverlappingComponent(ULandscapeComponent* Component);
@@ -1489,7 +1556,33 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Landscape")
 	LANDSCAPE_API virtual void DeleteUnusedLayers();
+	
+	// TargetLayer API Start
+	// ---------------------
+	
+	// Add a TargetLayer with a unique name and no layer object info
+	LANDSCAPE_API FLandscapeTargetLayerSettings& AddTargetLayer();
 
+	// Add a named TargetLayer 
+	LANDSCAPE_API FLandscapeTargetLayerSettings& AddTargetLayer(const FName& Name, const FLandscapeTargetLayerSettings& TargetLayerSettings, bool bPostEditChange = true);
+
+	// Update a existing Target Layer
+	LANDSCAPE_API bool UpdateTargetLayer(const FName& Name, const FLandscapeTargetLayerSettings& TargetLayerSettings, bool bPostEditChange = true);
+
+	// Remove Named TargetLayer,
+	// Returns true if a layer has been removed.
+	LANDSCAPE_API bool RemoveTargetLayer(const FName& Name, bool bPostEditChange = true);
+
+	// Query if a TargetLayer exists by Name or by checking the ULandscapeLayerInfoObject in  TargetLayerSettings
+	LANDSCAPE_API bool HasTargetLayer(const FName& Name) const;
+	LANDSCAPE_API bool HasTargetLayer(const FLandscapeTargetLayerSettings& TargetLayerSettings) const;
+	LANDSCAPE_API bool HasTargetLayer(const ULandscapeLayerInfoObject* LayerInfoObject) const;
+
+	// All the Target layers 
+	LANDSCAPE_API const TMap<FName, FLandscapeTargetLayerSettings>& GetTargetLayers() const;
+
+	// TargetLayer API End
+	// -------------------
 protected:
 	friend class ALandscape;
 
@@ -1527,7 +1620,10 @@ protected:
 	bool bUpgradeSharedPropertiesPerformed = false;
 #endif // WITH_EDITOR
 private:
-
+	
+	UPROPERTY(Category = "Target Layers", VisibleAnywhere, meta = (NoResetToDefault, LandscapeInherited) )
+	TMap<FName, FLandscapeTargetLayerSettings> TargetLayers;
+	
 	/** Returns Grass Update interval */
 	FORCEINLINE int32 GetGrassUpdateInterval() const 
 	{
@@ -1571,25 +1667,6 @@ private:
 
 
 #if WITH_EDITOR
-/**
- * Helper class used to Build or monitor Landscape GI Textures
- */
-class LANDSCAPE_API UE_DEPRECATED(5.3, "FLandscapeGIBakedTextureBuilder is officially deprecated now and nothing updates it anymore") FLandscapeGIBakedTextureBuilder
-{
-public:
-	FLandscapeGIBakedTextureBuilder(UWorld* InWorld)
-		:World(InWorld)
-	{}
-	void Build(){}
-	int32 GetOutdatedGIBakedTextureComponentsCount(bool bInForceUpdate = true) const { return 0; }
-
-private:
-	UWorld* World = nullptr;
-	mutable int32 OutdatedGIBakedTextureComponentsCount = 0;
-	mutable double GIBakedTexturesLastCheckTime = 0;
-};
-
-
 /**
  * Helper class used to Build or monitor Landscape Physical Material
  */

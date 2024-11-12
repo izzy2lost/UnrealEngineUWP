@@ -214,6 +214,9 @@ protected:
 
 TEST_CASE("Example demonstrating the features of StateGraph", "[Example]")
 {
+	// Ignore potenital depercated .ini warnings in this test.
+	LogConfig.SetVerbosity(ELogVerbosity::Error);
+
 	// Engine does this, but it's needed here to ensure GConfig is initialized for the test.
 	FConfigCacheIni::InitializeConfigSystem();
 

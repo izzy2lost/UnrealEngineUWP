@@ -14,6 +14,7 @@
 #include "Channels/MovieSceneChannelProxy.h"
 #include "Animation/AnimData/IAnimationDataModel.h"
 #include "Animation/AnimSequence.h"
+#include "Evaluation/MovieSceneEvaluationState.h"
 
 TSharedPtr<IMovieSceneSectionRecorder> FMovieScene3DTransformSectionRecorderFactory::CreateSectionRecorder(const FActorRecordingSettings& InActorRecordingSettings) const
 {
@@ -318,10 +319,15 @@ void FMovieScene3DTransformSectionRecorder::FinalizeSection(float CurrentTime)
 	// If recording a spawnable, update the spawnable object template to the first keyframe
 	if (MovieScene.IsValid() && Guid.IsValid())
 	{
-		FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(Guid);
-		if (Spawnable)
+		UMovieSceneSequence* ThisSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
+		TSharedRef<UE::MovieScene::FSharedPlaybackState> TransientPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(GetSourceObject(), ThisSequence);
+
+		if (AActor* ActorTemplatePtr = Cast<AActor>(MovieSceneHelpers::GetObjectTemplate(ThisSequence, Guid, TransientPlaybackState, 0)))
 		{
-			Spawnable->SpawnTransform = FirstTransform;
+			if (USceneComponent* RootComponent = ActorTemplatePtr->GetRootComponent())
+			{
+				RootComponent->SetRelativeTransform(FirstTransform);
+			}
 		}
 	}
 

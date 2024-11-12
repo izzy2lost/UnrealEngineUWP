@@ -44,16 +44,18 @@ public:
 
 
 // FDelayUntilNextTickAction
-// A simple delay action; triggers on the next update.
+// A simple delay action; triggers on the next engine tick. See also @CVarLatentActionGuaranteeEngineTickDelay
 class FDelayUntilNextTickAction : public FPendingLatentAction
 {
 public:
+	uint8 InitialFrameParity; // engine frame parity when this action was created (0=even, 1=odd)
 	FName ExecutionFunction;
 	int32 OutputLink;
 	FWeakObjectPtr CallbackTarget;
 
 	FDelayUntilNextTickAction(const FLatentActionInfo& LatentInfo)
-		: ExecutionFunction(LatentInfo.ExecutionFunction)
+		: InitialFrameParity((uint8)GFrameCounter & 1)
+		, ExecutionFunction(LatentInfo.ExecutionFunction)
 		, OutputLink(LatentInfo.Linkage)
 		, CallbackTarget(LatentInfo.CallbackTarget)
 	{
@@ -61,7 +63,8 @@ public:
 
 	virtual void UpdateOperation(FLatentResponse& Response) override
 	{
-		Response.FinishAndTriggerIf(true, ExecutionFunction, OutputLink, CallbackTarget);
+		const bool bShouldFinish = !LatentActionCVars::GuaranteeEngineTickDelay || (((uint8)GFrameCounter & 1) != InitialFrameParity);
+		Response.FinishAndTriggerIf(bShouldFinish, ExecutionFunction, OutputLink, CallbackTarget);
 	}
 
 #if WITH_EDITOR

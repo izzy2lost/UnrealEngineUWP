@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorFloatBase.h"
+#include "Animators/PropertyAnimatorNumericBase.h"
 #include "PropertyAnimatorShared.h"
 #include "PropertyAnimatorPulse.generated.h"
 
@@ -12,15 +12,11 @@
  * Applies an additive pulse movement with various options on supported float properties
  */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorPulse : public UPropertyAnimatorFloatBase
+class UPropertyAnimatorPulse : public UPropertyAnimatorNumericBase
 {
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* DefaultControllerName = TEXT("Pulse");
-
-	UPropertyAnimatorPulse();
-
 	PROPERTYANIMATOR_API void SetEasingFunction(EPropertyAnimatorEasingFunction InEasingFunction);
 	EPropertyAnimatorEasingFunction GetEasingFunction() const
 	{
@@ -35,7 +31,8 @@ public:
 
 protected:
 	//~ Begin UPropertyAnimatorFloatBase
-	virtual float Evaluate(double InTimeElapsed, const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorFloatContext* InOptions) const override;
+	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
+	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const override;
 	//~ End UPropertyAnimatorFloatBase
 
 	/** The easing function to use to modify the base effect */

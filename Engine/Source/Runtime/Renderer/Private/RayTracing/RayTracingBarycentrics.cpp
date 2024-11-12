@@ -14,6 +14,7 @@
 #include "RayTracing/RaytracingOptions.h"
 #include "RayTracing/RayTracingScene.h"
 #include "ScenePrivate.h"
+#include "RayTracing/RayTracing.h"
 
 #include "Rendering/NaniteStreamingManager.h"
 
@@ -38,6 +39,11 @@ class FRayTracingBarycentricsRGS : public FGlobalShader
 	{
 		return ERayTracingPayloadType::Default;
 	}
+
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
+	}
 };
 IMPLEMENT_GLOBAL_SHADER(FRayTracingBarycentricsRGS, "/Engine/Private/RayTracing/RayTracingBarycentrics.usf", "RayTracingBarycentricsMainRGS", SF_RayGen);
 
@@ -61,6 +67,11 @@ class FRayTracingBarycentricsCHS : public FGlobalShader
 		return ERayTracingPayloadType::Default;
 	}
 
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
+	}
+
 	FRayTracingBarycentricsCHS() = default;
 	FRayTracingBarycentricsCHS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
 		: FGlobalShader(Initializer)
@@ -78,8 +89,8 @@ class FRayTracingBarycentricsCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, Output)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteUniformParameters, NaniteUniformBuffer)
-
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteRasterUniformParameters, NaniteRasterUniformBuffer)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteShadingUniformParameters, NaniteShadingUniformBuffer)
 		SHADER_PARAMETER(float, RTDebugVisualizationNaniteCutError)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -95,7 +106,8 @@ class FRayTracingBarycentricsCS : public FGlobalShader
 		OutEnvironment.SetDefine(TEXT("INLINE_RAY_TRACING_THREAD_GROUP_SIZE_Y"), ThreadGroupSizeY);
 
 		OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
-		OutEnvironment.SetDefine(TEXT("NANITE_USE_UNIFORM_BUFFER"), 1);
+		OutEnvironment.SetDefine(TEXT("NANITE_USE_RASTER_UNIFORM_BUFFER"), 1);
+		OutEnvironment.SetDefine(TEXT("NANITE_USE_SHADING_UNIFORM_BUFFER"), 1);
 	}
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -117,7 +129,8 @@ void RenderRayTracingBarycentricsCS(FRDGBuilder& GraphBuilder, const FScene& Sce
 	PassParameters->Output = GraphBuilder.CreateUAV(SceneColor);
 	PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 	PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
-	PassParameters->NaniteUniformBuffer = CreateDebugNaniteUniformBuffer(GraphBuilder, Scene.GPUScene.InstanceSceneDataSOAStride);
+	PassParameters->NaniteRasterUniformBuffer = CreateDebugNaniteRasterUniformBuffer(GraphBuilder, Scene.GPUScene.InstanceSceneDataSOAStride);
+	PassParameters->NaniteShadingUniformBuffer = CreateDebugNaniteShadingUniformBuffer(GraphBuilder);
 
 	PassParameters->RTDebugVisualizationNaniteCutError = 0.0f;
 
@@ -134,25 +147,34 @@ void RenderRayTracingBarycentricsCS(FRDGBuilder& GraphBuilder, const FScene& Sce
 	FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("Barycentrics"), ComputeShader, PassParameters, GroupCount);
 }
 
-void RenderRayTracingBarycentricsRGS(FRDGBuilder& GraphBuilder, const FViewInfo& View, FRDGTextureRef SceneColor)
+void RenderRayTracingBarycentricsRGS(FRDGBuilder& GraphBuilder, const FScene& Scene, const FViewInfo& View, FRDGTextureRef SceneColor)
 {
+	const FRayTracingScene& RayTracingScene = Scene.RayTracingScene;
+
 	auto RayGenShader = View.ShaderMap->GetShader<FRayTracingBarycentricsRGS>();
 	auto ClosestHitShader = View.ShaderMap->GetShader<FRayTracingBarycentricsCHS>();
 
 	FRayTracingPipelineStateInitializer Initializer;
 
+	const FShaderBindingLayout* ShaderBindingLayout = RayTracing::GetShaderBindingLayout(View.GetShaderPlatform());
+	if (ShaderBindingLayout)
+	{
+		Initializer.ShaderBindingLayout = &ShaderBindingLayout->RHILayout;
+	}
+
 	FRHIRayTracingShader* RayGenShaderTable[] = { RayGenShader.GetRayTracingShader() };
 	Initializer.SetRayGenShaderTable(RayGenShaderTable);
 
 	FRHIRayTracingShader* HitGroupTable[] = { ClosestHitShader.GetRayTracingShader() };
-	Initializer.SetHitGroupTable(HitGroupTable);
-	Initializer.bAllowHitGroupIndexing = false; // Use the same hit shader for all geometry in the scene by disabling SBT indexing.
+	Initializer.SetHitGroupTable(HitGroupTable);	
 
 	FRHIRayTracingShader* MissTable[] = { View.ShaderMap->GetShader<FDefaultPayloadMS>().GetRayTracingShader() };
 	Initializer.SetMissShaderTable(MissTable);
 
 	FRayTracingPipelineState* Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(GraphBuilder.RHICmdList, Initializer);
 
+	FShaderBindingTableRHIRef SBT = Scene.RayTracingSBT.AllocateRHI(GraphBuilder.RHICmdList, ERayTracingShaderBindingMode::RTPSO, ERayTracingHitGroupIndexingMode::Disallow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
+	   
 	FRayTracingBarycentricsRGS::FParameters* RayGenParameters = GraphBuilder.AllocParameters<FRayTracingBarycentricsRGS::FParameters>();
 
 	RayGenParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
@@ -161,26 +183,31 @@ void RenderRayTracingBarycentricsRGS(FRDGBuilder& GraphBuilder, const FViewInfo&
 	RayGenParameters->Output = GraphBuilder.CreateUAV(SceneColor);
 
 	FIntRect ViewRect = View.ViewRect;
+	
+	FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
 
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("Barycentrics"),
 		RayGenParameters,
 		ERDGPassFlags::Compute,
-		[RayGenParameters, RayGenShader, &View, Pipeline, ViewRect](FRHIRayTracingCommandList& RHICmdList)
+		[RayGenParameters, RayGenShader, &View, SceneUniformBuffer, SBT, Pipeline, ViewRect](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
-		FRayTracingShaderBindingsWriter GlobalResources;
+		FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 		SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);
+		TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope = RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, RHICmdList);
 
 		// Dispatch rays using default shader binding table
-		RHICmdList.SetRayTracingMissShader(View.GetRayTracingSceneChecked(), 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
-		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), View.GetRayTracingSceneChecked(), GlobalResources, ViewRect.Size().X, ViewRect.Size().Y);
+		RHICmdList.SetDefaultRayTracingHitGroup(SBT, Pipeline, 0);
+		RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+		RHICmdList.CommitShaderBindingTable(SBT);
+		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), SBT, GlobalResources, ViewRect.Size().X, ViewRect.Size().Y);
 	});
 }
 
 void FDeferredShadingSceneRenderer::RenderRayTracingBarycentrics(FRDGBuilder& GraphBuilder, const FViewInfo& View, FRDGTextureRef SceneColor, bool bVisualizeProceduralPrimitives)
 {
-	const bool bRayTracingInline = ShouldRenderRayTracingEffect(ERayTracingPipelineCompatibilityFlags::Inline);
-	const bool bRayTracingPipeline = ShouldRenderRayTracingEffect(ERayTracingPipelineCompatibilityFlags::FullPipeline);
+	const bool bRayTracingInline = ShouldRenderRayTracingEffect(true, ERayTracingPipelineCompatibilityFlags::Inline, View);
+	const bool bRayTracingPipeline = ShouldRenderRayTracingEffect(true, ERayTracingPipelineCompatibilityFlags::FullPipeline, View);
 
 	if (bRayTracingInline)
 	{
@@ -188,7 +215,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingBarycentrics(FRDGBuilder& Gr
 	}
 	else if (bRayTracingPipeline)
 	{
-		RenderRayTracingBarycentricsRGS(GraphBuilder, View, SceneColor);
+		RenderRayTracingBarycentricsRGS(GraphBuilder, *Scene, View, SceneColor);
 	}
 }
 #endif

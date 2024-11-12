@@ -17,6 +17,7 @@
 #include "DerivedDataCacheRecord.h"
 #include "DerivedDataCacheUsageStats.h"
 #include "DerivedDataChunk.h"
+#include "DerivedDataHttpRequestQueue.h"
 #include "DerivedDataRequest.h"
 #include "DerivedDataRequestOwner.h"
 #include "DerivedDataValue.h"
@@ -174,123 +175,6 @@ static bool TryResolveCanonicalHost(const FAnsiStringView Uri, FAnsiStringBuilde
 	return false;
 }
 
-class FHttpCacheStoreRequestQueue
-{
-public:
-	using FOnRequest = TUniqueFunction<void (THttpUniquePtr<IHttpRequest>&& Request)>;
-
-	void Initialize(IHttpConnectionPool& ConnectionPool, const FHttpClientParams& ClientParams)
-	{
-		FHttpClientParams QueueParams = ClientParams;
-		QueueParams.OnDestroyRequest = [this, OnDestroyRequest = MoveTemp(QueueParams.OnDestroyRequest)]
-		{
-			if (OnDestroyRequest)
-			{
-				OnDestroyRequest();
-			}
-			if (!Queue.IsEmpty())
-			{
-				if (THttpUniquePtr<IHttpRequest> Request = Client->TryCreateRequest({}))
-				{
-					if (FQueueRequest* Waiter = Queue.Pop())
-					{
-						Waiter->Complete(MoveTemp(Request));
-					}
-				}
-			}
-		};
-		Client = ConnectionPool.CreateClient(QueueParams);
-	}
-
-	void CreateRequestAsync(IRequestOwner& Owner, const FHttpRequestParams& Params, FOnRequest&& OnRequest)
-	{
-		if (Params.bIgnoreMaxRequests)
-		{
-			THttpUniquePtr<IHttpRequest> Request = Client->TryCreateRequest(Params);
-			checkf(Request, TEXT("IHttpClient::TryCreateRequest returned null in spite of bIgnoreMaxRequests."));
-			OnRequest(MoveTemp(Request));
-			return;
-		}
-
-		while (THttpUniquePtr<IHttpRequest> Request = Client->TryCreateRequest(Params))
-		{
-			if (FQueueRequest* Waiter = Queue.Pop())
-			{
-				Waiter->Complete(MoveTemp(Request));
-			}
-			else
-			{
-				OnRequest(MoveTemp(Request));
-				return;
-			}
-		}
-
-		Queue.Push(new FQueueRequest(Owner, MoveTemp(OnRequest)));
-
-		while (THttpUniquePtr<IHttpRequest> Request = Client->TryCreateRequest(Params))
-		{
-			if (FQueueRequest* Waiter = Queue.Pop())
-			{
-				Waiter->Complete(MoveTemp(Request));
-			}
-			else
-			{
-				return;
-			}
-		}
-	}
-
-private:
-	class FQueueRequest : FRequestBase
-	{
-	public:
-		FQueueRequest(IRequestOwner& InOwner, FOnRequest&& InOnRequest)
-			: Owner(InOwner)
-			, OnRequest(MoveTemp(InOnRequest))
-		{
-			Owner.Begin(this);
-		}
-
-		void Complete(THttpUniquePtr<IHttpRequest>&& Request)
-		{
-			if (bComplete.exchange(true))
-			{
-				OnComplete.Wait();
-				return;
-			}
-			Owner.End(this, [this](THttpUniquePtr<IHttpRequest>&& Request)
-			{
-				OnRequest(MoveTemp(Request));
-				OnComplete.Notify();
-			}, MoveTemp(Request));
-		}
-
-	private:
-		void SetPriority(EPriority Priority) final
-		{
-		}
-
-		void Cancel() final
-		{
-			Complete({});
-		}
-
-		void Wait() final
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(HttpDDC_WaitOperation);
-			OnComplete.Wait();
-		}
-
-		IRequestOwner& Owner;
-		FOnRequest OnRequest;
-		FManualResetEvent OnComplete;
-		std::atomic<bool> bComplete = false;
-	};
-
-	THttpUniquePtr<IHttpClient> Client;
-	TLockFreePointerListFIFO<FQueueRequest, 0> Queue;
-};
-
 /**
  * Encapsulation for access token shared by all requests.
  */
@@ -443,10 +327,10 @@ private:
 	FDerivedDataCacheUsageStats UsageStats;
 	FBackendDebugOptions DebugOptions;
 	THttpUniquePtr<IHttpConnectionPool> ConnectionPool;
-	FHttpCacheStoreRequestQueue GetRequestQueue;
-	FHttpCacheStoreRequestQueue PutRefRequestQueue;
-	FHttpCacheStoreRequestQueue PutBlobsRequestQueue;
-	FHttpCacheStoreRequestQueue PutFinalizeRequestQueue;
+	FHttpRequestQueue GetRequestQueue;
+	FHttpRequestQueue PutRefRequestQueue;
+	FHttpRequestQueue PutBlobsRequestQueue;
+	FHttpRequestQueue PutFinalizeRequestQueue;
 
 	FCriticalSection AccessCs;
 	TUniquePtr<FHttpAccessToken> Access;
@@ -477,8 +361,7 @@ private:
 
 	class FHttpOperation;
 
-	FHttpCacheStoreRequestQueue& PickRequestQueue(EOperationCategory Category);
-	TUniquePtr<FHttpOperation> WaitForHttpOperation(EOperationCategory Category);
+	FHttpRequestQueue& PickRequestQueue(EOperationCategory Category);
 
 	/** Invokes the callback when an operation is available, or with null if canceled. */
 	void WaitForHttpOperationAsync(IRequestOwner& Owner, EOperationCategory Category, TUniqueFunction<void (TUniquePtr<FHttpOperation>&&)>&& OnOperation);
@@ -824,7 +707,7 @@ void FHttpCacheStore::FHttpOperation::GetStats(FRequestStats& OutStats) const
 	OutStats.PhysicalWriteSize += Stats.SendSize;
 	if (const EHttpMethod Method = Response->GetMethod(); Method == EHttpMethod::Get || Method == EHttpMethod::Head)
 	{
-		OutStats.AddLatency(FMonotonicTimeSpan::FromSeconds(Stats.StartTransferTime - Stats.ConnectTime));
+		OutStats.AddLatency(FMonotonicTimeSpan::FromSeconds(Stats.GetLatency()));
 	}
 }
 
@@ -1314,9 +1197,8 @@ void FHttpCacheStore::FGetRecordOp::GetRecordOnly(const FCacheKey& InKey, const 
 	OnRecordComplete = MoveTemp(InOnComplete);
 	RequestStats.Bucket = Key.Bucket;
 
-	TUniquePtr<FHttpOperation> Operation = CacheStore.WaitForHttpOperation(EOperationCategory::Get);
-	TRefCountPtr Self(this);
 	RequestTimer.Stop();
+	CacheStore.WaitForHttpOperationAsync(Owner, EOperationCategory::Get, [Self = TRefCountPtr(this)](TUniquePtr<FHttpOperation>&& Operation)
 	{
 		if (UNLIKELY(!Operation))
 		{
@@ -1338,7 +1220,7 @@ void FHttpCacheStore::FGetRecordOp::GetRecordOnly(const FCacheKey& InKey, const 
 			Operation->GetStats(Self->RequestStats);
 			Self->EndGetRef(MoveTemp(Operation));
 		});
-	}
+	});
 }
 
 void FHttpCacheStore::FGetRecordOp::EndGetRef(TUniquePtr<FHttpOperation> Operation)
@@ -1556,11 +1438,10 @@ void FHttpCacheStore::FGetRecordOp::GetValues(TConstArrayView<FValueWithId> Valu
 			continue;
 		}
 
-		TUniquePtr<FHttpOperation> Operation = CacheStore.WaitForHttpOperation(EOperationCategory::Get);
-		TRefCountPtr Self(this);
+		CacheStore.WaitForHttpOperationAsync(Owner, EOperationCategory::Get, [Self = TRefCountPtr(this), SharedOnComplete, Value](TUniquePtr<FHttpOperation>&& Operation)
 		{
 			Self->BeginGetValue(MoveTemp(Operation), Value, SharedOnComplete);
-		}
+		});
 	}
 }
 
@@ -1666,14 +1547,13 @@ void FHttpCacheStore::FGetRecordOp::GetValuesExist(TConstArrayView<FValueWithId>
 	}
 
 	FRequestTimer RequestTimer(RequestStats);
+	RequestTimer.Stop();
 
 	FRequestBarrier Barrier(Owner);
-	TUniquePtr<FHttpOperation> Operation = CacheStore.WaitForHttpOperation(EOperationCategory::Get);
-	TRefCountPtr Self(this);
-	RequestTimer.Stop();
+	CacheStore.WaitForHttpOperationAsync(Owner, EOperationCategory::Get, [Self = TRefCountPtr(this), Values = MoveTemp(QueryValues), OnComplete = MoveTemp(OnComplete)](TUniquePtr<FHttpOperation>&& Operation) mutable
 	{
-		Self->BeginGetValuesExist(MoveTemp(Operation), MoveTemp(QueryValues), MoveTemp(OnComplete));
-	}
+		Self->BeginGetValuesExist(MoveTemp(Operation), MoveTemp(Values), MoveTemp(OnComplete));
+	});
 }
 
 void FHttpCacheStore::FGetRecordOp::BeginGetValuesExist(TUniquePtr<FHttpOperation>&& Operation, TArray<FValueWithId>&& Values, FOnValueComplete&& OnComplete)
@@ -1838,12 +1718,11 @@ void FHttpCacheStore::FGetValueOp::Get(const FCacheKey& InKey, ECachePolicy InPo
 	Policy = InPolicy;
 	OnComplete = MoveTemp(InOnComplete);
 
-	TUniquePtr<FHttpOperation> Operation = CacheStore.WaitForHttpOperation(EOperationCategory::Get);
-	TRefCountPtr Self(this);
 	RequestTimer.Stop();
+	CacheStore.WaitForHttpOperationAsync(Owner, EOperationCategory::Get, [Self = TRefCountPtr(this)](TUniquePtr<FHttpOperation>&& Operation)
 	{
 		Self->BeginGetRef(MoveTemp(Operation));
-	}
+	});
 }
 
 void FHttpCacheStore::FGetValueOp::BeginGetRef(TUniquePtr<FHttpOperation>&& Operation)
@@ -2063,12 +1942,11 @@ void FHttpCacheStore::FExistsBatchOp::Exists(TConstArrayView<FCacheGetValueReque
 	BodyWriter.EndObject();
 	FCbFieldIterator Body = BodyWriter.Save();
 
-	TUniquePtr<FHttpOperation> Operation = CacheStore.WaitForHttpOperation(EOperationCategory::Get);
-	TRefCountPtr Self(this);
 	RequestTimer.Stop();
+	CacheStore.WaitForHttpOperationAsync(Owner, EOperationCategory::Get, [Self = TRefCountPtr(this), Body = MoveTemp(Body)](TUniquePtr<FHttpOperation>&& Operation) mutable
 	{
 		Self->BeginExists(MoveTemp(Operation), MoveTemp(Body));
-	}
+	});
 }
 
 void FHttpCacheStore::FExistsBatchOp::BeginExists(TUniquePtr<FHttpOperation>&& Operation, FCbFieldIterator&& Body)
@@ -2254,6 +2132,8 @@ FHttpCacheStore::FHttpCacheStore(const FHttpCacheStoreParams& Params, ICacheStor
 		EffectiveDomain.Reset();
 		EffectiveDomain.Append(ResolvedDomain);
 	}
+
+	UE_LOG(LogDerivedDataCache, Display, TEXT("%s: Using session id %s."), *NodeName, *WriteToString<64>(FApp::GetSessionObjectId()));
 
 #if WITH_SSL
 	if (!Params.HostPinnedPublicKeys.IsEmpty() && EffectiveDomain.ToView().StartsWith(ANSITEXTVIEW("https://")))
@@ -2584,7 +2464,7 @@ void FHttpCacheStore::SetAccessTokenAndUnlock(FScopeLock& Lock, FStringView Toke
 	}
 }
 
-FHttpCacheStoreRequestQueue& FHttpCacheStore::PickRequestQueue(EOperationCategory Category)
+FHttpRequestQueue& FHttpCacheStore::PickRequestQueue(EOperationCategory Category)
 {
 	switch (Category)
 	{
@@ -2600,34 +2480,6 @@ FHttpCacheStoreRequestQueue& FHttpCacheStore::PickRequestQueue(EOperationCategor
 		checkNoEntry();
 		return GetRequestQueue;
 	}
-}
-
-TUniquePtr<FHttpCacheStore::FHttpOperation> FHttpCacheStore::WaitForHttpOperation(EOperationCategory Category)
-{
-	if (Access && RefreshAccessTokenTime > 0.0 && RefreshAccessTokenTime < FPlatformTime::Seconds())
-	{
-		AcquireAccessToken();
-	}
-
-	THttpUniquePtr<IHttpRequest> Request;
-
-	{
-		FHttpRequestParams Params;
-		FRequestOwner BlockingOwner(EPriority::Blocking);
-		FHttpCacheStoreRequestQueue& RequestQueue = PickRequestQueue(Category);
-		RequestQueue.CreateRequestAsync(BlockingOwner, Params, [&Request](THttpUniquePtr<IHttpRequest>&& AsyncRequest)
-		{
-			Request = MoveTemp(AsyncRequest);
-		});
-		BlockingOwner.Wait();
-	}
-
-	if (Access)
-	{
-		Request->AddHeader(ANSITEXTVIEW("Authorization"), WriteToAnsiString<1024>(*Access));
-	}
-
-	return MakeUnique<FHttpOperation>(MoveTemp(Request));
 }
 
 void FHttpCacheStore::WaitForHttpOperationAsync(IRequestOwner& Owner, EOperationCategory Category, TUniqueFunction<void (TUniquePtr<FHttpOperation>&&)>&& OnOperation)
@@ -2657,7 +2509,7 @@ void FHttpCacheStore::WaitForHttpOperationAsync(IRequestOwner& Owner, EOperation
 void FHttpCacheStore::WaitForHttpRequestAsync(IRequestOwner& Owner, EOperationCategory Category, TUniqueFunction<void (THttpUniquePtr<IHttpRequest>&&)>&& OnRequest)
 {
 	FHttpRequestParams Params;
-	FHttpCacheStoreRequestQueue& RequestQueue = PickRequestQueue(Category);
+	FHttpRequestQueue& RequestQueue = PickRequestQueue(Category);
 	RequestQueue.CreateRequestAsync(Owner, Params, MoveTemp(OnRequest));
 }
 
@@ -2952,13 +2804,13 @@ void FHttpCacheStore::GetChunkGroupAsync(
 		return;
 	}
 
-	ECachePolicy GroupPolicy(ECachePolicy::None);
+	ECachePolicy GroupPolicy = ECachePolicy::SkipData | ECachePolicy::SkipMeta;
 	TArray<FCacheGetChunkRequest> RequestGroup;
 	RequestGroup.Reserve(static_cast<int>(EndRequest - StartRequest));
 	for (const FCacheGetChunkRequest* Request = StartRequest; Request != EndRequest; ++Request)
 	{
 		RequestGroup.Add(*Request);
-		GroupPolicy |= Request->Policy;
+		GroupPolicy = CombineCachePolicy(GroupPolicy, Request->Policy);
 	}
 
 	if (StartRequest->Id.IsValid())
@@ -3382,8 +3234,24 @@ void FHttpCacheStoreParams::Parse(const TCHAR* NodeName, const TCHAR* Config)
 
 	FParse::Value(Config, TEXT("OAuthScope="), OAuthScope);
 
+    // OAuth Provider Identifier
 	FParse::Value(Config, TEXT("OAuthProviderIdentifier="), OAuthProviderIdentifier);
-
+	if (FParse::Value(Config, TEXT("EnvOAuthProviderIdentifierOverride="), OverrideName))
+	{
+		FString ProviderEnv = FPlatformMisc::GetEnvironmentVariable(*OverrideName);
+		if (!ProviderEnv.IsEmpty())
+		{
+			OAuthProviderIdentifier = ProviderEnv;
+			UE_LOG(LogDerivedDataCache, Log, TEXT("%s: Found environment override for OAuthProviderIdentifier %s=%s"), NodeName, *OverrideName, *OAuthProviderIdentifier);
+		}
+	}
+	if (FParse::Value(Config, TEXT("CommandLineOAuthProviderIdentifierOverride="), OverrideName))
+	{
+		if (FParse::Value(FCommandLine::Get(), *(OverrideName + TEXT("=")), OAuthProviderIdentifier))
+		{
+			UE_LOG(LogDerivedDataCache, Log, TEXT("%s: Found command line override for OAuthProviderIdentifier %s=%s"), NodeName, *OverrideName, *OAuthProviderIdentifier);
+		}
+	}
 	FParse::Value(Config, TEXT("OAuthAccess="), OAuthAccessToken);
 	if (FParse::Value(Config, TEXT("OAuthAccessTokenEnvOverride="), OverrideName))
 	{

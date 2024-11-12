@@ -14,6 +14,7 @@
 #if PLATFORM_WINDOWS
 #include <iphlpapi.h>
 #include <ipifcons.h>
+#include <Mstcpip.h>
 #pragma comment (lib, "Netapi32.lib")
 #pragma comment (lib, "Ws2_32.lib")
 #pragma comment(lib, "IPHLPAPI.lib") // For GetAdaptersInfo
@@ -28,6 +29,7 @@
 #define INVALID_SOCKET -1
 #define SD_BOTH SHUT_RDWR
 #define WSAHOST_NOT_FOUND 0
+#define WSAENOTCONN ENOTCONN
 #define WSAEADDRINUSE EADDRINUSE
 #define closesocket(a) close(a)
 #define addrinfoW addrinfo
@@ -83,6 +85,8 @@ namespace uba
 
 		Thread recvThread;
 
+		bool allowLess = false;
+
 		Connection(const Connection&) = delete;
 		void operator=(const Connection&) = delete;
 	};
@@ -90,8 +94,9 @@ namespace uba
 	bool SetKeepAlive(Logger& logger, SOCKET socket);
 	bool SetBlocking(Logger& logger, SOCKET socket, bool blocking);
 	bool DisableNagle(Logger& logger, SOCKET socket);
+	bool EnableFastLoopback(Logger& logger, SOCKET socket);
 	bool SendSocket(Logger& logger, SOCKET socket, const void* b, u64 bufferLen);
-	bool RecvSocket(Logger& logger, SOCKET socket, void* b, u32 bufferLen, u32 timeoutMs, const Guid& connection, const tchar* hint1, const tchar* hint2, bool isFirstCall);
+	bool RecvSocket(Logger& logger, SOCKET socket, void* b, u32& bufferLen, u32 timeoutMs, const Guid& connection, const tchar* hint1, const tchar* hint2, bool isFirstCall, bool allowLess);
 
 	bool NetworkBackendTcp::EnsureInitialized(Logger& logger)
 	{
@@ -113,12 +118,26 @@ namespace uba
 		return true;
 	}
 
-	bool CloseSocket(Logger& logger, SOCKET s)
+	bool ShutdownSocket(Logger& logger, SOCKET s, const tchar* hint)
 	{
-		if (s != INVALID_SOCKET)
-			if (closesocket(s) == SOCKET_ERROR)
-				return logger.Error(TC("failed to close socket (%s)"), LastErrorToText(WSAGetLastError()).data);
-		return true;
+		if (s == INVALID_SOCKET)
+			return true;
+		if (shutdown(s, SD_BOTH) != SOCKET_ERROR)
+			return true;
+		if (WSAGetLastError() == WSAENOTCONN)
+			return true;
+		logger.Info(TC("Failed to shutdown socket %llu in %s (%s)"), u64(s), hint, LastErrorToText(WSAGetLastError()).data);
+		return false;
+	}
+
+	bool CloseSocket(Logger& logger, SOCKET s, const tchar* hint)
+	{
+		if (s == INVALID_SOCKET)
+			return true;
+		if (closesocket(s) != SOCKET_ERROR)
+			return true;
+		logger.Info(TC("Failed to close socket %llu in %s (%s)"), u64(s), hint, LastErrorToText(WSAGetLastError()).data);
+		return false;
 	}
 
 
@@ -140,10 +159,10 @@ namespace uba
 				continue;
 			SOCKET s = conn.socket;
 			conn.socket = INVALID_SOCKET;
-			shutdown(s, SD_BOTH);
+			ShutdownSocket(conn.logger, s, TC("Dtor"));
 			lock2.Leave();
 			conn.recvThread.Wait();
-			CloseSocket(conn.logger, s);
+			CloseSocket(conn.logger, s, TC("Dtor"));
 		}
 		m_connections.clear();
 
@@ -159,7 +178,7 @@ namespace uba
 		ScopedCriticalSection lock(conn.shutdownLock);
 		if (conn.socket == INVALID_SOCKET)
 			return;
-		shutdown(conn.socket, SD_BOTH);
+		ShutdownSocket(conn.logger, conn.socket, TC("Shutdown"));
 	}
 
 	bool NetworkBackendTcp::Send(Logger& logger, void* connection, const void* data, u32 dataSize, SendContext& sendContext)
@@ -224,6 +243,13 @@ namespace uba
 		ScopedCriticalSection lock(conn.shutdownLock);
 		conn.disconnectCallback = callback;
 		conn.disconnectContext = context;
+	}
+
+	void NetworkBackendTcp::SetAllowLessThanBodySize(void* connection, bool allow)
+	{
+		auto& conn = *(Connection*)connection;
+		ScopedCriticalSection lock(conn.shutdownLock);
+		conn.allowLess = allow;
 	}
 
 	bool NetworkBackendTcp::StartListen(Logger& logger, u16 port, const tchar* ip, const ListenConnectedFunc& connectedFunc)
@@ -330,7 +356,7 @@ namespace uba
 		if (listenSocket == INVALID_SOCKET)
 			return logger.Error(TC("socket failed (%s)"), LastErrorToText(WSAGetLastError()).data);
 
-		auto listenSocketCleanup = MakeGuard([&]() { CloseSocket(logger, listenSocket); });
+		auto listenSocketCleanup = MakeGuard([&]() { CloseSocket(logger, listenSocket, TC("listen cleanup")); });
 
 		u32 reuseAddr = 1;
 		if (::setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuseAddr, sizeof reuseAddr) == SOCKET_ERROR)
@@ -400,9 +426,11 @@ namespace uba
 
 			if (!DisableNagle(logger, clientSocket) || !SetKeepAlive(logger, clientSocket))
 			{
-				CloseSocket(logger, clientSocket);
+				CloseSocket(logger, clientSocket, TC("disable nagle"));
 				continue;
 			}
+
+			EnableFastLoopback(logger, clientSocket);
 
 			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 			auto it = m_connections.emplace(m_connections.end(), logger, clientSocket);
@@ -412,7 +440,7 @@ namespace uba
 
 			if (!entry.connectedFunc(&conn, remoteSockAddr))
 			{
-				shutdown(clientSocket, SD_BOTH);
+				ShutdownSocket(logger, clientSocket, TC("ThreadListen"));
 				conn.ready.Set();
 				conn.recvThread.Wait();
 				SCOPED_WRITE_LOCK(m_connectionsLock, lock2);
@@ -440,7 +468,7 @@ namespace uba
 				u32 bodySize = 0;
 
 				u8 headerData[MaxHeaderSize];
-				if (!RecvSocket(logger, connection.socket, headerData, connection.headerSize, connection.recvTimeoutMs, connection.uid, connection.recvHint, TC(""), isFirst))
+				if (!RecvSocket(logger, connection.socket, headerData, connection.headerSize, connection.recvTimeoutMs, connection.uid, connection.recvHint, TC(""), isFirst, false))
 					break;
 				isFirst = false;
 
@@ -458,7 +486,7 @@ namespace uba
 				if (!bodySize)
 					continue;
 
-				bool success = RecvSocket(logger, connection.socket, bodyData, bodySize, connection.recvTimeoutMs, connection.uid, connection.recvHint, TC("Body"), false);
+				bool success = RecvSocket(logger, connection.socket, bodyData, bodySize, connection.recvTimeoutMs, connection.uid, connection.recvHint, TC("Body"), false, connection.allowLess);
 
 				m_totalRecv += bodySize;
 
@@ -497,8 +525,8 @@ namespace uba
 
 		if (s == INVALID_SOCKET)
 			return;
-		shutdown(s, SD_BOTH);
-		CloseSocket(logger, s);
+		ShutdownSocket(logger, s, TC("ThreadRecv"));
+		CloseSocket(logger, s, TC("ThreadRecv"));
 	}
 
 	bool NetworkBackendTcp::Connect(Logger& logger, const tchar* ip, const ConnectedFunc& connectedFunc, u16 port, bool* timedOut)
@@ -556,7 +584,7 @@ namespace uba
 			return logger.Error(TC("socket failed (%s)"), LastErrorToText(WSAGetLastError()).data);
 
 		// Create guard in case we fail to connect (will be cancelled further down if we succeed)
-		auto socketClose = MakeGuard([&]() { CloseSocket(logger, socketFd); });
+		auto socketClose = MakeGuard([&]() { CloseSocket(logger, socketFd, TC("Connect")); });
 
 		// Set to non-blocking just for the connect call (we want to control the connect timeout after connect using select instead)
 		if (!SetBlocking(logger, socketFd, false))
@@ -649,6 +677,9 @@ namespace uba
 		if (!SetKeepAlive(logger, socketFd))
 			return false;
 
+		EnableFastLoopback(logger, socketFd);
+
+
 		socketClose.Cancel();
 
 		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
@@ -659,7 +690,7 @@ namespace uba
 
 		if (!connectedFunc(&conn, remoteSocketAddr, timedOut))
 		{
-			shutdown(socketFd, SD_BOTH);
+			ShutdownSocket(logger, socketFd, TC("Connect"));
 			conn.ready.Set();
 			conn.recvThread.Wait();
 			SCOPED_WRITE_LOCK(m_connectionsLock, lock2);
@@ -708,6 +739,32 @@ namespace uba
 		return true;
 	}
 
+	bool EnableFastLoopback(Logger& logger, SOCKET socket)
+	{
+#if 0 // PLATFORM_WINDOWS // Disabled for now because it seems like it is not supported on windows 11
+		static bool mightBeSupported = true;
+		if (!mightBeSupported)
+			return true;
+		int optionValue = 1;
+		DWORD ret = 0;
+		int status = WSAIoctl(socket, SIO_LOOPBACK_FAST_PATH, &optionValue, sizeof(optionValue), NULL, 0, &ret, 0, 0);
+		if (status != SOCKET_ERROR)
+			return true;
+		u32 lastError = GetLastError();
+		if (lastError == WSAEOPNOTSUPP)
+		{
+			mightBeSupported = false;
+			return true;
+		}
+		#if UBA_DEBUG
+		logger.Warning(TC("WSAIoctl SIO_LOOPBACK_FAST_PATH failed (error: %s)"), LastErrorToText(lastError).data);
+		#endif
+		return false;
+#else
+		return true;
+#endif
+	}
+
 	bool SetKeepAlive(Logger& logger, SOCKET socket)
 	{
 		u32 value = 1;
@@ -739,7 +796,7 @@ namespace uba
 		return true;
 	}
 
-	bool RecvSocket(Logger& logger, SOCKET socket, void* b, u32 bufferLen, u32 timeoutMs, const Guid& connection, const tchar* hint1, const tchar* hint2, bool isFirstCall)
+	bool RecvSocket(Logger& logger, SOCKET socket, void* b, u32& bufferLen, u32 timeoutMs, const Guid& connection, const tchar* hint1, const tchar* hint2, bool isFirstCall, bool allowLess)
 	{
 		u8* buffer = (u8*)b;
 		u32 recvLeft = bufferLen;
@@ -794,6 +851,12 @@ namespace uba
 			}
 			recvLeft -= (u32)read;
 			buffer += read;
+
+			if (allowLess)
+			{
+				bufferLen = read;
+				break;
+			}
 		}
 		return true;
 	}
@@ -897,7 +960,7 @@ namespace uba
 		if (m_socket != INVALID_SOCKET)
 		{
 			LoggerWithWriter logger(g_nullLogWriter);
-			CloseSocket(logger, m_socket);
+			CloseSocket(logger, m_socket, TC("HttpDtor"));
 		}
 
 		#if PLATFORM_WINDOWS
@@ -953,7 +1016,7 @@ namespace uba
 		// TODO: Fix so we reuse socket connection for multiple queries
 		if (*m_host)// && _stricmp(m_host, host) != 0)
 		{
-			CloseSocket(logger, m_socket);
+			CloseSocket(logger, m_socket, TC("HttpQuery"));
 			m_socket = INVALID_SOCKET;
 			*m_host = 0;
 		}

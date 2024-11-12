@@ -63,26 +63,37 @@ namespace UE::Blueprint::Private
 		bBlamePrintString,
 		TEXT("When true, prints the Blueprint Asset and Function that generated calls to Print String. Useful for tracking down screen message spam."));
 
-	void Generic_SetStructurePropertyByName(UObject* OwnerObject, FName StructPropertyName, FStructProperty* SrcStructProperty, const void* SrcStructAddr)
+	void Generic_SetStructurePropertyByName(UObject* OwnerObject, FName StructPropertyName, const FStructProperty* SrcStructProperty, const void* SrcStructAddr)
 	{
 		if (OwnerObject != nullptr)
 		{
-			FStructProperty* DestStructProperty = FindFProperty<FStructProperty>(OwnerObject->GetClass(), StructPropertyName);
+			const FStructProperty* DestStructProperty = FindFProperty<FStructProperty>(OwnerObject->GetClass(), StructPropertyName);
 
 			// SrcStructAddr and SrcStructProperty can be null in certain scenarios.
 			// For example, retrieving an element reference from an array of user structs in BP can result in a null source.
 			// We'll report a BP exception in that case, but we also need to soft-fail here to prevent an assert in CopyValuesInternal.
 
-			bool bCanSetStructureProperty =
+			const bool bHasValidParameters =
 				(DestStructProperty != nullptr) &&
 				(SrcStructProperty != nullptr) &&
-				(SrcStructAddr != nullptr) &&
-				SrcStructProperty->SameType(DestStructProperty);
+				(SrcStructAddr != nullptr)
+			;
 
-			if (bCanSetStructureProperty)
+			if (bHasValidParameters)
 			{
-				void* DestStructAddr = DestStructProperty->ContainerPtrToValuePtr<void>(OwnerObject);
-				DestStructProperty->CopyValuesInternal(DestStructAddr, SrcStructAddr, 1);
+				const UStruct* SourceStruct = SrcStructProperty->Struct;
+				const UStruct* DestStruct = DestStructProperty->Struct;
+
+				if (ensure(SourceStruct && DestStruct))
+				{
+					// For derived structs, this can lead to object slicing in some contexts, but that's expected behavior.
+
+					if (SourceStruct->IsChildOf(DestStruct))
+					{
+						void* DestStructAddr = DestStructProperty->ContainerPtrToValuePtr<void>(OwnerObject);
+						DestStructProperty->CopyValuesInternal(DestStructAddr, SrcStructAddr, 1);
+					}
+				}
 			}
 		}
 	}
@@ -392,7 +403,7 @@ void UKismetSystemLibrary::PrintString(const UObject* WorldContextObject, const 
 				case NM_Client:
 					// GPlayInEditorID 0 is always the server, so 1 will be first client.
 					// You want to keep this logic in sync with GeneratePIEViewportWindowTitle and UpdatePlayInEditorWorldDebugString
-					Prefix = FString::Printf(TEXT("Client %d: "), GPlayInEditorID);
+					Prefix = FString::Printf(TEXT("Client %d: "), UE::GetPlayInEditorID());
 					break;
 				case NM_DedicatedServer:
 				case NM_ListenServer:
@@ -1152,24 +1163,28 @@ void UKismetSystemLibrary::SetBoolPropertyByName(UObject* Object, FName Property
 
 void UKismetSystemLibrary::SetObjectPropertyByName(UObject* Object, FName PropertyName, UObject* Value)
 {
-	if(Object != NULL && Value != NULL)
+	if (Object)
 	{
-		FObjectPropertyBase* ObjectProp = FindFProperty<FObjectPropertyBase>(Object->GetClass(), PropertyName);
-		if(ObjectProp != NULL && Value->IsA(ObjectProp->PropertyClass)) // check it's the right type
+		if (FObjectPropertyBase* ObjectProp = FindFProperty<FObjectPropertyBase>(Object->GetClass(), PropertyName))
 		{
-			ObjectProp->SetObjectPropertyValue_InContainer(Object, Value);
-		}		
+			if (!Value || Value->IsA(ObjectProp->PropertyClass)) // check it's the right type
+			{
+				ObjectProp->SetObjectPropertyValue_InContainer(Object, Value);
+			}
+		}
 	}
 }
 
 void UKismetSystemLibrary::SetClassPropertyByName(UObject* Object, FName PropertyName, TSubclassOf<UObject> Value)
 {
-	if (Object && *Value)
+	if (Object)
 	{
-		FClassProperty* ClassProp = FindFProperty<FClassProperty>(Object->GetClass(), PropertyName);
-		if (ClassProp != NULL && Value->IsChildOf(ClassProp->MetaClass)) // check it's the right type
+		if (FClassProperty* ClassProp = FindFProperty<FClassProperty>(Object->GetClass(), PropertyName))
 		{
-			ClassProp->SetObjectPropertyValue_InContainer(Object, *Value);
+			if (!*Value || Value->IsChildOf(ClassProp->MetaClass)) // check it's the right type
+			{
+				ClassProp->SetObjectPropertyValue_InContainer(Object, *Value);
+			}
 		}
 	}
 }
@@ -1430,6 +1445,29 @@ UClass* UKismetSystemLibrary::LoadClassAsset_Blocking(TSoftClassPtr<UObject> Ass
 	return AssetClass.LoadSynchronous();
 }
 
+bool UKismetSystemLibrary::IsObjectOfSoftClass(const UObject* Object, TSoftClassPtr<UObject> SoftClass)
+{
+	if (!Object)
+	{
+		return false;
+	}
+
+	TSubclassOf<UObject> ObjectClass = SoftClass.Get();
+	if (!ObjectClass)
+	{
+		return false;
+	}
+
+	TSubclassOf<UInterface> InterfaceClass = ObjectClass.Get();
+	if (InterfaceClass)
+	{
+		check(Object->GetClass());
+		return Object->GetClass()->ImplementsInterface(InterfaceClass);
+	}
+
+	return Object->IsA(ObjectClass);
+}
+
 UObject* UKismetSystemLibrary::Conv_SoftObjectReferenceToObject(const TSoftObjectPtr<UObject>& SoftObject)
 {
 	return SoftObject.Get();
@@ -1558,19 +1596,6 @@ void UKismetSystemLibrary::SetCollisionProfileNameProperty(UObject* Object, FNam
 	check(0);
 }
 
-void UKismetSystemLibrary::Generic_SetStructurePropertyByName(UObject* OwnerObject, FName StructPropertyName, const void* SrcStructAddr)
-{
-	if (OwnerObject != nullptr)
-	{
-		FStructProperty* StructProp = FindFProperty<FStructProperty>(OwnerObject->GetClass(), StructPropertyName);
-		if (StructProp != nullptr)
-		{
-			void* Dest = StructProp->ContainerPtrToValuePtr<void>(OwnerObject);
-			StructProp->CopyValuesInternal(Dest, SrcStructAddr, 1);
-		}
-	}
-}
-
 void UKismetSystemLibrary::GetActorListFromComponentList(const TArray<UPrimitiveComponent*>& ComponentList, UClass* ActorClassFilter, TArray<class AActor*>& OutActorList)
 {
 	OutActorList.Empty();
@@ -1590,8 +1615,6 @@ void UKismetSystemLibrary::GetActorListFromComponentList(const TArray<UPrimitive
 		}
 	}
 }
-
-
 
 bool UKismetSystemLibrary::SphereOverlapActors(const UObject* WorldContextObject, const FVector SpherePos, float SphereRadius, const TArray<TEnumAsByte<EObjectTypeQuery> > & ObjectTypes, UClass* ActorClassFilter, const TArray<AActor*>& ActorsToIgnore, TArray<AActor*>& OutActors)
 {
@@ -2751,6 +2774,18 @@ void UKismetSystemLibrary::LaunchURL(const FString& URL)
 	}
 }
 
+void UKismetSystemLibrary::LaunchExternalUrl(const TArray<FString>& DomainStrings, const FString& URL)
+{
+	if (!URL.IsEmpty())
+	{
+		UE::Core::FURLRequestFilter::FRequestMap AllowedDomains;
+		AllowedDomains.Add(TEXT("http"), DomainStrings);
+		UE::Core::FURLRequestFilter Filter(AllowedDomains);
+
+		FPlatformProcess::LaunchURLFiltered(*URL, nullptr, nullptr, Filter);
+	}
+}
+
 bool UKismetSystemLibrary::CanLaunchURL(const FString& URL)
 {
 	if (!URL.IsEmpty())
@@ -3245,17 +3280,28 @@ bool UKismetSystemLibrary::Generic_SetEditorProperty(UObject* Object, const FNam
 			{
 				void* SparseDest = Object->GetClass()->GetOrCreateSparseClassData();
 
+				// If the object is a template, instances of it may need to be updated as well depending on whether they are inheriting their
+				// current value. Detect those instances which haven't overwritten the value. In the case of sparse data, this applies to
+				// subclass CDOs.
+				TArray<void*> ArchetypeInstances;
+				const bool bObjectIsTemplate = PropertyAccessUtil::IsObjectTemplate(Object);
+				if (bObjectIsTemplate)
+				{
+					PropertyAccessUtil::GetArchetypeInstancesInheritingPropertyValue_AsContainerData(SparseProp, Object, ArchetypeInstances);
+				}
+
 				SparseDataAccessResult = PropertyAccessUtil::SetPropertyValue_InContainer(
 					SparseProp,
 					SparseDest,
+					ArchetypeInstances,
 					ValueProp,
 					ValuePtr,
 					INDEX_NONE,
 					PropertyAccessUtil::EditorReadOnlyFlags,
-					PropertyAccessUtil::IsObjectTemplate(Object),
+					bObjectIsTemplate,
 					[SparseProp, Object, ChangeNotifyMode]()
 					{
-						return PropertyAccessUtil::BuildBasicChangeNotify(SparseProp, Object, ChangeNotifyMode);
+						return PropertyAccessUtil::BuildBasicChangeNotify(SparseProp, Object, ChangeNotifyMode, EPropertyChangeType::ValueSet);
 					});
 				if (*SparseDataAccessResult == EPropertyAccessResultFlags::Success)
 				{
@@ -3364,18 +3410,13 @@ DEFINE_FUNCTION(UKismetSystemLibrary::execSetEditorProperty)
 	*(bool*)RESULT_PARAM = bResult;
 }
 
-bool UKismetSystemLibrary::ResetEditorProperty(UObject* Object, const FName PropertyName, const EPropertyAccessChangeNotifyMode ChangeNotifyMode)
+namespace UE::Blueprint::Private
 {
-	if (!Object)
-	{
-		LogRuntimeError(NSLOCTEXT("KismetSystemLibrary", "ResetEditorProperty_AccessNone", "Accessed None attempting to call ResetEditorProperty."));
-		return false;
-	}
-
-	auto FindArchetypeValue = [Object, PropertyName](const FProperty*& OutArchetypeProperty, const void*& OutArchetypeValuePtr)
+	void FindArchetypeValue(UObject* Object, const FName PropertyName, const FProperty*& OutArchetypeProperty, const void*& OutArchetypeValuePtr, bool& OutIsSparseData)
 	{
 		OutArchetypeProperty = nullptr;
 		OutArchetypeValuePtr = nullptr;
+		OutIsSparseData = false;
 
 		const FProperty* ObjectProp = PropertyAccessUtil::FindPropertyByName(PropertyName, Object->GetClass());
 		if ((!ObjectProp || ObjectProp->HasAnyPropertyFlags(CPF_Deprecated)) && Object->HasAllFlags(RF_ClassDefaultObject))
@@ -3388,6 +3429,7 @@ bool UKismetSystemLibrary::ResetEditorProperty(UObject* Object, const FName Prop
 				{
 					if (UScriptStruct* SparseDataArchetypeStruct = Object->GetClass()->GetSparseClassDataArchetypeStruct())
 					{
+						OutIsSparseData = true;
 						OutArchetypeProperty = SparseProp;
 						OutArchetypeValuePtr = SparseProp->ContainerPtrToValuePtrForDefaults<const void>(SparseDataArchetypeStruct, Object->GetClass()->GetArchetypeForSparseClassData());
 					}
@@ -3404,11 +3446,21 @@ bool UKismetSystemLibrary::ResetEditorProperty(UObject* Object, const FName Prop
 				OutArchetypeValuePtr = ObjectProp->ContainerPtrToValuePtrForDefaults<const void>(ObjectArchetype->GetClass(), ObjectArchetype);
 			}
 		}
-	};
+	}
+}
+
+bool UKismetSystemLibrary::ResetEditorProperty(UObject* Object, const FName PropertyName, const EPropertyAccessChangeNotifyMode ChangeNotifyMode)
+{
+	if (!Object)
+	{
+		LogRuntimeError(NSLOCTEXT("KismetSystemLibrary", "ResetEditorProperty_AccessNone", "Accessed None attempting to call ResetEditorProperty."));
+		return false;
+	}
 
 	const FProperty* ArchetypeProperty = nullptr;
 	const void* ArchetypeValuePtr = nullptr;
-	FindArchetypeValue(ArchetypeProperty, ArchetypeValuePtr);
+	bool bIsSparseData = false;
+	UE::Blueprint::Private::FindArchetypeValue(Object, PropertyName, ArchetypeProperty, ArchetypeValuePtr, bIsSparseData);
 	if (!ArchetypeValuePtr)
 	{
 		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Property '%s' on '%s' (%s) had no archetype value to reset to"), *PropertyName.ToString(), *Object->GetPathName(), *Object->GetClass()->GetName()), ELogVerbosity::Warning, UE::Blueprint::Private::PropertySetFailedWarning);
@@ -3416,6 +3468,67 @@ bool UKismetSystemLibrary::ResetEditorProperty(UObject* Object, const FName Prop
 	}
 
 	return Generic_SetEditorProperty(Object, PropertyName, ArchetypeValuePtr, ArchetypeProperty, ChangeNotifyMode);
+}
+
+EEditorPropertyValueState UKismetSystemLibrary::IsEditorPropertyOverridden(UObject* Object, const FName PropertyName)
+{
+	if (!Object)
+	{
+		LogRuntimeError(NSLOCTEXT("KismetSystemLibrary", "IsEditorPropertyOverridden_AccessNone", "Accessed None attempting to call IsEditorPropertyOverridden."));
+		return EEditorPropertyValueState::NotFound;
+	}
+
+	const FProperty* ArchetypeProperty = nullptr;
+	const void* ArchetypeValuePtr = nullptr;
+	bool bIsSparseData = false;
+	UE::Blueprint::Private::FindArchetypeValue(Object, PropertyName, ArchetypeProperty, ArchetypeValuePtr, bIsSparseData);
+	if (!ArchetypeValuePtr)
+	{
+		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Property '%s' on '%s' (%s) had no archetype value to query against"), *PropertyName.ToString(), *Object->GetPathName(), *Object->GetClass()->GetName()), ELogVerbosity::Warning, UE::Blueprint::Private::PropertyGetFailedWarning);
+		return EEditorPropertyValueState::NotFound;
+	}
+
+	if (EPropertyAccessResultFlags AccessResult = PropertyAccessUtil::CanGetPropertyValue(ArchetypeProperty);
+		EnumHasAnyFlags(AccessResult, EPropertyAccessResultFlags::PermissionDenied))
+	{
+		if (EnumHasAnyFlags(AccessResult, EPropertyAccessResultFlags::AccessProtected))
+		{
+			FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Property '%s' on '%s' (%s) is protected and cannot be read"), *PropertyName.ToString(), *Object->GetPathName(), *Object->GetClass()->GetName()), ELogVerbosity::Warning, UE::Blueprint::Private::PropertyGetFailedWarning);
+			return EEditorPropertyValueState::AccessDenied;
+		}
+
+		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Property '%s' on '%s' (%s) cannot be read"), *PropertyName.ToString(), *Object->GetPathName(), *Object->GetClass()->GetName()), ELogVerbosity::Warning, UE::Blueprint::Private::PropertyGetFailedWarning);
+		return EEditorPropertyValueState::AccessDenied;
+	}
+
+	auto GetPropertyValueForDiff = [Object, ArchetypeProperty](const void* PropertyValuePtr) -> FString
+	{
+		uint32 PortFlags = PPF_ForDiff;
+		if (!Object->IsTemplate())
+		{
+			PortFlags |= PPF_ForDiffInstanceOnly;
+		}
+		if (ArchetypeProperty->ContainsInstancedObjectProperty())
+		{
+			PortFlags |= PPF_DeepComparison;
+		}
+
+		FString DefaultValue;
+		ArchetypeProperty->ExportTextItem_Direct(DefaultValue, PropertyValuePtr, PropertyValuePtr, nullptr, PortFlags);
+		return DefaultValue;
+	};
+
+	const void* ObjectValuePtr = bIsSparseData
+		? ArchetypeProperty->ContainerPtrToValuePtr<const void>(Object->GetClass()->GetOrCreateSparseClassData())
+		: ArchetypeProperty->ContainerPtrToValuePtr<const void>(Object);
+
+	const FString ObjectValue = GetPropertyValueForDiff(ObjectValuePtr);
+	const FString ArchetypeValue = GetPropertyValueForDiff(ArchetypeValuePtr);
+	const bool bIsIdentical = ObjectValue.Equals(ArchetypeValue, ESearchCase::CaseSensitive);
+
+	return bIsIdentical
+		? EEditorPropertyValueState::Default
+		: EEditorPropertyValueState::Overridden;
 }
 
 #endif	// WITH_EDITOR

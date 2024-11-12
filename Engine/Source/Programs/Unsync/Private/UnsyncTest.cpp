@@ -1,14 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UnsyncTest.h"
+#include "UnsyncChunking.h"
 #include "UnsyncCore.h"
+#include "UnsyncDiff.h"
 #include "UnsyncFile.h"
 #include "UnsyncHash.h"
 #include "UnsyncScan.h"
+#include "UnsyncTarget.h"
 #include "UnsyncTest.h"
 #include "UnsyncThread.h"
 #include "UnsyncUtil.h"
-#include "UnsyncTarget.h"
 
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <md5-sse2.h>
@@ -882,6 +884,12 @@ RunTests(const std::string& Preset)
 		TestBasicHash();
 	}
 
+	if (Preset == "chunking" || Preset == "all")
+	{
+		extern void TestChunking();
+		TestChunking();
+	}
+
 	if (Preset == "sync" || Preset == "all")
 	{
 		for (auto Weak : WeakList)
@@ -895,8 +903,6 @@ RunTests(const std::string& Preset)
 
 	if (Preset == "perf" || Preset == "all")
 	{
-		FConcurrencyPolicyScope SingleThreadedScope(1);
-
 		TestPerfComputeBlocksVariable(EWeakHashAlgorithmID::Naive, EStrongHashAlgorithmID::Blake3_128);
 		TestPerfComputeBlocksVariable(EWeakHashAlgorithmID::BuzHash, EStrongHashAlgorithmID::Blake3_128);
 		TestPerfComputeBlocksVariable(EWeakHashAlgorithmID::BuzHash, EStrongHashAlgorithmID::Blake3_160);
@@ -939,6 +945,24 @@ RunTests(const std::string& Preset)
 	{
 		extern void TestFileAttrib();
 		TestFileAttrib();
+	}
+
+	if (Preset == "pathutil" || Preset == "all")
+	{
+		extern void TestPathUtil();
+		TestPathUtil();
+	}
+
+	if (Preset == "horde_manifest_decode" || Preset == "all")
+	{
+		extern void TestHordeManifestDecode();
+		TestHordeManifestDecode();
+	}
+
+	if (Preset == "horde_artifact_format" || Preset == "all")
+	{
+		extern void TestHordeArtifactFormat();
+		TestHordeArtifactFormat();
 	}
 }
 

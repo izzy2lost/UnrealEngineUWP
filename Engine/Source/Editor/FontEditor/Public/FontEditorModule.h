@@ -10,8 +10,10 @@
 #include "UObject/NameTypes.h"
 
 class IFontEditor;
+class IFontFaceEditor;
 class IToolkitHost;
 class UFont;
+class UFontFace;
 
 extern const FName FontEditorAppIdentifier;
 
@@ -26,4 +28,7 @@ class IFontEditorModule : public IModuleInterface,
 public:
 	/** Creates a new Font editor */
 	virtual TSharedRef<IFontEditor> CreateFontEditor( const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, UFont* Font ) = 0;
+
+	/** Creates a new Font Face editor */
+	virtual TSharedRef<IFontFaceEditor> CreateFontFaceEditor( const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, UFontFace* FontFace ) = 0;
 };

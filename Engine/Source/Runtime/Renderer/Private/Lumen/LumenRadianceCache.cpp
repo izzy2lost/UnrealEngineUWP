@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LumenRadianceCache.h"
+#include "LumenRadianceCacheInternal.h"
 #include "RendererPrivate.h"
 #include "ScenePrivate.h"
 #include "SceneUtils.h"
@@ -15,7 +16,7 @@ int32 GRadianceCacheUpdate = 1;
 FAutoConsoleVariableRef CVarRadianceCacheUpdate(
 	TEXT("r.Lumen.RadianceCache.Update"),
 	GRadianceCacheUpdate,
-	TEXT("Whether to update radiance cache every frame"),
+	TEXT("Whether to update radiance cache every frame. Useful for debugging."),
 	ECVF_RenderThreadSafe
 );
 
@@ -23,7 +24,7 @@ int32 GRadianceCacheForceFullUpdate = 0;
 FAutoConsoleVariableRef CVarRadianceForceFullUpdate(
 	TEXT("r.Lumen.RadianceCache.ForceFullUpdate"),
 	GRadianceCacheForceFullUpdate,
-	TEXT(""),
+	TEXT("Whether to update entuire radiance cache once. Useful for debugging."),
 	ECVF_RenderThreadSafe
 );
 
@@ -116,6 +117,7 @@ namespace LumenRadianceCache
 	{
 		FRadianceCacheInputs RadianceCacheInputs;
 		RadianceCacheInputs.CalculateIrradiance = 0;
+		RadianceCacheInputs.ProbeTMinScale = 1.0f;
 		RadianceCacheInputs.IrradianceProbeResolution = 0;
 		RadianceCacheInputs.InvClipmapFadeSize = 1.0f;
 		return RadianceCacheInputs;
@@ -145,10 +147,8 @@ namespace LumenRadianceCache
 			const FRadianceCacheClipmap& Clipmap = RadianceCacheState.Clipmaps[ClipmapIndex];
 
 			SetRadianceProbeClipmapTMin(OutParameters, ClipmapIndex, Clipmap.ProbeTMin);
-			SetWorldPositionToRadianceProbeCoordScale(OutParameters, ClipmapIndex, Clipmap.WorldPositionToProbeCoordScale);
-			SetWorldPositionToRadianceProbeCoordBias(OutParameters, ClipmapIndex, (FVector3f)Clipmap.WorldPositionToProbeCoordBias);
-			SetRadianceProbeCoordToWorldPositionScale(OutParameters, ClipmapIndex, Clipmap.ProbeCoordToWorldCenterScale);
-			SetRadianceProbeCoordToWorldPositionBias(OutParameters, ClipmapIndex, (FVector3f)Clipmap.ProbeCoordToWorldCenterBias);
+			SetClipmapCornerTWS(OutParameters, ClipmapIndex, Clipmap.CornerTranslatedWorldSpace);
+			SetClipmapCellSize(OutParameters, ClipmapIndex, Clipmap.CellSize);
 		}
 
 		const FVector2f ProbeAtlasResolutionInProbesAsFloat = FVector2f(RadianceCacheInputs.ProbeAtlasResolutionInProbes);
@@ -188,8 +188,7 @@ namespace LumenRadianceCache
 		{
 			const FRadianceCacheClipmap& Clipmap = RadianceCacheState.Clipmaps[ClipmapIndex];
 
-			SetWorldPositionToRadianceProbeCoord(MarkParameters.PackedWorldPositionToRadianceProbeCoord[ClipmapIndex], (FVector3f)Clipmap.WorldPositionToProbeCoordBias, Clipmap.WorldPositionToProbeCoordScale);
-			SetRadianceProbeCoordToWorldPosition(MarkParameters.PackedRadianceProbeCoordToWorldPosition[ClipmapIndex], (FVector3f)Clipmap.ProbeCoordToWorldCenterBias, Clipmap.ProbeCoordToWorldCenterScale);
+			MarkParameters.ClipmapCornerTWSAndCellSizeForMark[ClipmapIndex] = FVector4f(Clipmap.CornerTranslatedWorldSpace, Clipmap.CellSize);
 		}
 
 		MarkParameters.RadianceProbeClipmapResolutionForMark = RadianceCacheInputs.RadianceProbeClipmapResolution;
@@ -335,7 +334,7 @@ class FUpdateCacheForUsedProbesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWProbeLastUsedFrame)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture3D<uint>, LastFrameRadianceProbeIndirectionTexture)
 		SHADER_PARAMETER_STRUCT_INCLUDE(LumenRadianceCache::FRadianceCacheInterpolationParameters, RadianceCacheParameters)
-		SHADER_PARAMETER_ARRAY(FVector4f, PackedLastFrameRadianceProbeCoordToWorldPosition, [LumenRadianceCache::MaxClipmaps])
+		SHADER_PARAMETER_ARRAY(FVector4f, LastFrameClipmapCornerTWSAndCellSize, [LumenRadianceCache::MaxClipmaps])
 		SHADER_PARAMETER(uint32, FrameNumber)
 		SHADER_PARAMETER(uint32, NumFramesToKeepCachedProbes)
 		SHADER_PARAMETER(uint32, MaxNumProbes)
@@ -772,7 +771,7 @@ class FSetupTraceFromProbesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWTraceProbesIndirectArgs)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWSortProbeTraceTilesIndirectArgs)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWRadianceCacheHardwareRayTracingIndirectArgs)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWHardwareRayTracingRayAllocatorBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWHardwareRayTracingRayAllocatorBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, ProbeTraceTileAllocator)
 		SHADER_PARAMETER(uint32, SortTraceTilesGroupSize)
 	END_SHADER_PARAMETER_STRUCT()
@@ -1048,6 +1047,95 @@ public:
 
 IMPLEMENT_GLOBAL_SHADER(FFixupBordersAndGenerateMipsCS, "/Engine/Private/Lumen/LumenRadianceCache.usf", "FixupBordersAndGenerateMipsCS", SF_Compute);
 
+struct FClipmapLevelGeometry
+{
+	/** Origin point, snapped to the cell grid of this level with floor(). */
+	FVector SnappedOrigin;
+	/** Worldspace length of this level on each axis. */
+	FVector Size;
+	/** Worldspace length of each cell on this level. */
+	FVector CellSize;
+
+	/** 
+	 * Shift the cell grid such that the center of a cell on this level
+	 * lines up with the center of a cell on every level below this one.
+	 */
+	FVector GetCenterAlignedOrigin() const
+	{
+		return SnappedOrigin - (0.5 * CellSize);
+	}
+};
+
+struct FClipmapGeometry
+{
+	/** Origin of this clipmap before snapping, so this point may not lie on the cell grid */
+	FVector Origin;
+	/** Worldspace length of each cell on the level. */
+	FVector Level0CellSize;
+	/** Resolution of the grid on each level */
+	FIntVector CellsPerLevel;
+	/** The maximum level present in this clipmap. Levels may also go below 0. */
+	int MaxLevel;
+
+	static FVector SnapToGrid(const FVector& Position, const FVector& GridCellSize)
+	{
+		FVector SnapUnits(
+			FMath::FloorToDouble(Position.X / GridCellSize.X),
+			FMath::FloorToDouble(Position.Y / GridCellSize.Y),
+			FMath::FloorToDouble(Position.Z / GridCellSize.Z));
+		FVector SnappedPosition(
+			SnapUnits.X * GridCellSize.X,
+			SnapUnits.Y * GridCellSize.Y,
+			SnapUnits.Z * GridCellSize.Z);
+		return SnappedPosition;
+	}
+
+	FVector GetCellSize(int Level) const
+	{
+		return Level0CellSize * FMath::Pow(2.0f, static_cast<float>(Level));
+	}
+
+	FClipmapGeometry(
+		/** Clipmap origin, in absolute world space */
+		FVector InOrigin,
+		int InMaxLevel,
+		FVector InLevel0CellSize,
+		FIntVector InCellsPerLevel)
+	: Origin(InOrigin)
+	, Level0CellSize(InLevel0CellSize)
+	, CellsPerLevel(InCellsPerLevel)
+	, MaxLevel(InMaxLevel)
+	{ }
+
+	FClipmapGeometry(
+		/** Clipmap origin, in absolute world space */
+		FVector InOrigin,
+		int InMaxLevel,
+		double InLevel0CellSize,
+		int InCellsPerLevel)
+	: FClipmapGeometry(InOrigin, InMaxLevel, FVector(InLevel0CellSize), FIntVector(InCellsPerLevel))
+	{ }
+
+	FClipmapLevelGeometry GetLevel(int Level) const
+	{
+		FClipmapLevelGeometry LevelGeometry;
+		LevelGeometry.CellSize = GetCellSize(Level);
+		LevelGeometry.SnappedOrigin = SnapToGrid(Origin, LevelGeometry.CellSize);
+		LevelGeometry.Size = LevelGeometry.CellSize * (FVector)CellsPerLevel;
+		return LevelGeometry;
+	}
+
+	/** 
+	 * Return the root origin of this clipmap, which is the origin of the last level.
+	 * This point is guaranteed to line up with the cell grid on every level.
+	 */
+	FVector GetRootOrigin() const
+	{
+		FClipmapLevelGeometry LastLevel = GetLevel(MaxLevel);
+		return LastLevel.SnappedOrigin;
+	}
+};
+
 bool UpdateRadianceCacheState(FRDGBuilder& GraphBuilder, const FViewInfo& View, const LumenRadianceCache::FRadianceCacheInputs& RadianceCacheInputs, FRadianceCacheState& CacheState)
 {
 	bool bResetState = CacheState.ClipmapWorldExtent != RadianceCacheInputs.ClipmapWorldExtent || CacheState.ClipmapDistributionBase != RadianceCacheInputs.ClipmapDistributionBase;
@@ -1055,6 +1143,7 @@ bool UpdateRadianceCacheState(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 	CacheState.ClipmapWorldExtent = RadianceCacheInputs.ClipmapWorldExtent;
 	CacheState.ClipmapDistributionBase = RadianceCacheInputs.ClipmapDistributionBase;
 
+	const float ClipmapWorldExtent = RadianceCacheInputs.ClipmapWorldExtent;
 	const int32 ClipmapResolution = RadianceCacheInputs.RadianceProbeClipmapResolution;
 	const int32 NumClipmaps = RadianceCacheInputs.NumRadianceProbeClipmaps;
 
@@ -1062,35 +1151,28 @@ bool UpdateRadianceCacheState(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 
 	CacheState.Clipmaps.SetNum(NumClipmaps);
 
-	for (int32 ClipmapIndex = 0; ClipmapIndex < NumClipmaps; ++ClipmapIndex)
+	double Level0CellSize = (ClipmapWorldExtent * 2.0f) / ClipmapResolution;
+	FClipmapGeometry ClipmapGeometry(NewViewOrigin, NumClipmaps - 1, Level0CellSize, ClipmapResolution);
+
+	for (int32 LevelIndex = 0; LevelIndex < NumClipmaps; ++LevelIndex)
 	{
-		FRadianceCacheClipmap& Clipmap = CacheState.Clipmaps[ClipmapIndex];
+		FClipmapLevelGeometry LevelGeometry = ClipmapGeometry.GetLevel(LevelIndex);
 
-		const float ClipmapExtent = RadianceCacheInputs.ClipmapWorldExtent * FMath::Pow(RadianceCacheInputs.ClipmapDistributionBase, ClipmapIndex);
-		const float CellSize = (2.0f * ClipmapExtent) / ClipmapResolution;
 
-		FIntVector GridCenter;
-		GridCenter.X = FMath::FloorToInt(NewViewOrigin.X / CellSize);
-		GridCenter.Y = FMath::FloorToInt(NewViewOrigin.Y / CellSize);
-		GridCenter.Z = FMath::FloorToInt(NewViewOrigin.Z / CellSize);
+		const FVector WorldspaceCorner = LevelGeometry.GetCenterAlignedOrigin() - (LevelGeometry.Size / 2.0);
+		const FVector3f Corner = (FVector3f)(WorldspaceCorner + View.ViewMatrices.GetPreViewTranslation());
+		const float ClipmapExtent = LevelGeometry.Size.X / 2.0;
+		const float CellSize = LevelGeometry.CellSize.X;
 
-		const FVector SnappedCenter = FVector(GridCenter) * CellSize;
-
-		Clipmap.Center = SnappedCenter;
+		FRadianceCacheClipmap& Clipmap = CacheState.Clipmaps[LevelIndex];
+		Clipmap.Center = LevelGeometry.SnappedOrigin;
 		Clipmap.Extent = ClipmapExtent;
 		Clipmap.VolumeUVOffset = FVector(0.0f, 0.0f, 0.0f);
+		Clipmap.CornerTranslatedWorldSpace = Corner;
 		Clipmap.CellSize = CellSize;
 
-		// Shift the clipmap grid down so that probes align with other clipmaps
-		const FVector ClipmapMin = Clipmap.Center - Clipmap.Extent - 0.5f * Clipmap.CellSize;
-
-		Clipmap.ProbeCoordToWorldCenterBias = ClipmapMin + 0.5f * Clipmap.CellSize;
-		Clipmap.ProbeCoordToWorldCenterScale = Clipmap.CellSize;
-
-		Clipmap.WorldPositionToProbeCoordScale = 1.0f / CellSize;
-		Clipmap.WorldPositionToProbeCoordBias = -ClipmapMin / CellSize;
 		
-		Clipmap.ProbeTMin = RadianceCacheInputs.CalculateIrradiance ? 0.0f : FVector(CellSize, CellSize, CellSize).Size();
+		Clipmap.ProbeTMin = RadianceCacheInputs.CalculateIrradiance ? 0.0f : FVector(CellSize, CellSize, CellSize).Size() * RadianceCacheInputs.ProbeTMinScale;
 	}
 
 	return bResetState;
@@ -1108,18 +1190,6 @@ float GetSupersampleDistanceFromCamera(const FUpdateInputs& Inputs)
 {
 	return GLumenRadianceCacheSupersampleDistanceFromCamera;
 }
-
-class FRadianceCacheSetup
-{
-public:
-	TArray<FRadianceCacheClipmap> LastFrameClipmaps;
-	FRDGTextureRef DepthProbeAtlasTexture;
-	FRDGTextureRef FinalIrradianceAtlas;
-	FRDGTextureRef ProbeOcclusionAtlas;
-	FRDGTextureRef FinalRadianceAtlas;
-	FRDGTextureRef RadianceProbeAtlasTextureSource;
-	bool bPersistentCache;
-};
 
 void UpdateRadianceCaches(
 	FRDGBuilder& GraphBuilder, 
@@ -1176,13 +1246,16 @@ void UpdateRadianceCaches(
 			SetupOutputs.ProbeOcclusionAtlas = nullptr;
 			SetupOutputs.FinalRadianceAtlas = nullptr;
 
+			const EPixelFormat LightingDataFormat = Lumen::GetLightingDataFormat();
+
 			if (RadianceCacheInputs.CalculateIrradiance)
 			{
 				const FIntPoint FinalIrradianceAtlasSize(RadianceCacheInputs.ProbeAtlasResolutionInProbes * (RadianceCacheInputs.IrradianceProbeResolution + 2 * (1 << RadianceCacheInputs.FinalRadianceAtlasMaxMip)));
 
 				if (RadianceCacheState.FinalIrradianceAtlas.IsValid()
 					&& RadianceCacheState.FinalIrradianceAtlas->GetDesc().Extent == FinalIrradianceAtlasSize
-					&& RadianceCacheState.FinalIrradianceAtlas->GetDesc().NumMips == RadianceCacheInputs.FinalRadianceAtlasMaxMip + 1)
+					&& RadianceCacheState.FinalIrradianceAtlas->GetDesc().NumMips == RadianceCacheInputs.FinalRadianceAtlasMaxMip + 1
+					&& RadianceCacheState.FinalIrradianceAtlas->GetDesc().Format == LightingDataFormat)
 				{
 					SetupOutputs.FinalIrradianceAtlas = GraphBuilder.RegisterExternalTexture(RadianceCacheState.FinalIrradianceAtlas);
 				}
@@ -1190,7 +1263,7 @@ void UpdateRadianceCaches(
 				{
 					FRDGTextureDesc FinalRadianceAtlasDesc = FRDGTextureDesc::Create2D(
 						FinalIrradianceAtlasSize,
-						PF_FloatRGB,
+						LightingDataFormat,
 						FClearValueBinding::None,
 						TexCreate_ShaderResource | TexCreate_UAV,
 						RadianceCacheInputs.FinalRadianceAtlasMaxMip + 1);
@@ -1231,7 +1304,8 @@ void UpdateRadianceCaches(
 
 				if (RadianceCacheState.FinalRadianceAtlas.IsValid()
 					&& RadianceCacheState.FinalRadianceAtlas->GetDesc().Extent == FinalRadianceAtlasSize
-					&& RadianceCacheState.FinalRadianceAtlas->GetDesc().NumMips == RadianceCacheInputs.FinalRadianceAtlasMaxMip + 1)
+					&& RadianceCacheState.FinalRadianceAtlas->GetDesc().NumMips == RadianceCacheInputs.FinalRadianceAtlasMaxMip + 1
+					&& RadianceCacheState.FinalRadianceAtlas->GetDesc().Format == LightingDataFormat)
 				{
 					SetupOutputs.FinalRadianceAtlas = GraphBuilder.RegisterExternalTexture(RadianceCacheState.FinalRadianceAtlas);
 				}
@@ -1239,7 +1313,7 @@ void UpdateRadianceCaches(
 				{
 					FRDGTextureDesc FinalRadianceAtlasDesc = FRDGTextureDesc::Create2D(
 						FinalRadianceAtlasSize,
-						PF_FloatRGB,
+						LightingDataFormat,
 						FClearValueBinding::None,
 						TexCreate_ShaderResource | TexCreate_UAV,
 						RadianceCacheInputs.FinalRadianceAtlasMaxMip + 1);
@@ -1256,19 +1330,20 @@ void UpdateRadianceCaches(
 
 			SetupOutputs.RadianceProbeAtlasTextureSource = nullptr;
 
-			FRDGTextureDesc ProbeAtlasDesc = FRDGTextureDesc::Create2D(
-				RadianceProbeAtlasTextureSize,
-				PF_FloatRGB,
-				FClearValueBinding::None,
-				TexCreate_ShaderResource | TexCreate_UAV);
-
 			if (RadianceCacheState.RadianceProbeAtlasTexture.IsValid()
-				&& RadianceCacheState.RadianceProbeAtlasTexture->GetDesc().Extent == RadianceProbeAtlasTextureSize)
+				&& RadianceCacheState.RadianceProbeAtlasTexture->GetDesc().Extent == RadianceProbeAtlasTextureSize
+				&& RadianceCacheState.RadianceProbeAtlasTexture->GetDesc().Format == LightingDataFormat)
 			{
 				SetupOutputs.RadianceProbeAtlasTextureSource = GraphBuilder.RegisterExternalTexture(RadianceCacheState.RadianceProbeAtlasTexture);
 			}
 			else
 			{
+				FRDGTextureDesc ProbeAtlasDesc = FRDGTextureDesc::Create2D(
+					RadianceProbeAtlasTextureSize,
+					LightingDataFormat,
+					FClearValueBinding::None,
+					TexCreate_ShaderResource | TexCreate_UAV);
+
 				SetupOutputs.RadianceProbeAtlasTextureSource = GraphBuilder.CreateTexture(ProbeAtlasDesc, TEXT("Lumen.RadianceCache.RadianceProbeAtlasTextureSource"));
 			}
 
@@ -1472,7 +1547,7 @@ void UpdateRadianceCaches(
 					{
 						const FRadianceCacheClipmap& Clipmap = Setup.LastFrameClipmaps[ClipmapIndex];
 
-						SetRadianceProbeCoordToWorldPosition(PassParameters->PackedLastFrameRadianceProbeCoordToWorldPosition[ClipmapIndex], (FVector3f)Clipmap.ProbeCoordToWorldCenterBias, Clipmap.ProbeCoordToWorldCenterScale);
+						PassParameters->LastFrameClipmapCornerTWSAndCellSize[ClipmapIndex] = FVector4f(Clipmap.CornerTranslatedWorldSpace, Clipmap.CellSize);
 					}
 
 					auto ComputeShader = View.ShaderMap->GetShader<FUpdateCacheForUsedProbesCS>(0);
@@ -1925,7 +2000,7 @@ void UpdateRadianceCaches(
 			TraceProbesIndirectArgs[RadianceCacheIndex] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(4), TEXT("Lumen.RadianceCache.TraceProbesIndirectArgs"));
 			SortProbeTraceTilesIndirectArgs[RadianceCacheIndex] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(5), TEXT("Lumen.RadianceCache.SortProbeTraceTilesIndirectArgs"));
 			RadianceCacheHardwareRayTracingIndirectArgs[RadianceCacheIndex] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(6), TEXT("Lumen.RadianceCache.RadianceCacheHardwareRayTracingIndirectArgs"));
-			HardwareRayTracingRayAllocatorBuffer[RadianceCacheIndex] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("Lumen.RadianceCache.HardwareRayTracing.RayAllocatorBuffer"));
+			HardwareRayTracingRayAllocatorBuffer[RadianceCacheIndex] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 1), TEXT("Lumen.RadianceCache.HardwareRayTracing.RayAllocatorBuffer"));
 
 			{
 				FSetupTraceFromProbesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSetupTraceFromProbesCS::FParameters>();
@@ -1987,49 +2062,40 @@ void UpdateRadianceCaches(
 			}
 		}
 
-		for (int32 RadianceCacheIndex = 0; RadianceCacheIndex < InputArray.Num(); RadianceCacheIndex++)
+		if (Lumen::UseHardwareRayTracedRadianceCache(ViewFamily))
 		{
-			const FUpdateInputs& Inputs = InputArray[RadianceCacheIndex];
-			const FRadianceCacheInputs& RadianceCacheInputs = Inputs.RadianceCacheInputs;
-			const FViewInfo& View = Inputs.View;
-			const FRadianceCacheSetup& Setup = SetupOutputArray[RadianceCacheIndex];
-
-			FLumenCardTracingParameters TracingParameters;
-			GetLumenCardTracingParameters(GraphBuilder, View, *Scene->GetLumenSceneData(View), FrameTemporaries, /*bSurfaceCacheFeedback*/ false, TracingParameters);
-
-			FUpdateOutputs& Outputs = OutputArray[RadianceCacheIndex];
-			FRadianceCacheState& RadianceCacheState = Outputs.RadianceCacheState;
-			FRadianceCacheInterpolationParameters& RadianceCacheParameters = Outputs.RadianceCacheParameters;
-
-			FRDGTextureUAVRef RadianceProbeAtlasTextureUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(Setup.RadianceProbeAtlasTextureSource));
-			FRDGTextureUAVRef DepthProbeTextureUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(Setup.DepthProbeAtlasTexture));
-			const int32 MaxNumProbes = RadianceCacheInputs.ProbeAtlasResolutionInProbes.X * RadianceCacheInputs.ProbeAtlasResolutionInProbes.Y;
-			const int32 MaxProbeTraceTileResolution = RadianceCacheInputs.RadianceProbeResolution / FRadianceCacheTraceFromProbesCS::GetGroupSize() * 2;
-
-			if (Lumen::UseHardwareRayTracedRadianceCache(*View.Family))
+			RenderLumenHardwareRayTracingRadianceCache(
+				GraphBuilder,
+				Scene,
+				FrameTemporaries,
+				InputArray,
+				OutputArray,
+				SetupOutputArray,
+				ProbeTraceTileAllocator,
+				ProbeTraceTileData,
+				ProbeTraceData,
+				HardwareRayTracingRayAllocatorBuffer,
+				TraceProbesIndirectArgs,
+				ComputePassFlags);
+		}
+		else
+		{
+			for (int32 RadianceCacheIndex = 0; RadianceCacheIndex < InputArray.Num(); RadianceCacheIndex++)
 			{
-				RenderLumenHardwareRayTracingRadianceCache(
-					GraphBuilder,
-					Scene,
-					GetSceneTextureParameters(GraphBuilder, View),
-					View,
-					TracingParameters,
-					RadianceCacheParameters,
-					Inputs.Configuration,
-					MaxNumProbes,
-					MaxProbeTraceTileResolution,
-					ProbeTraceData[RadianceCacheIndex],
-					ProbeTraceTileData[RadianceCacheIndex],
-					ProbeTraceTileAllocator[RadianceCacheIndex],
-					TraceProbesIndirectArgs[RadianceCacheIndex],
-					HardwareRayTracingRayAllocatorBuffer[RadianceCacheIndex],
-					RadianceCacheHardwareRayTracingIndirectArgs[RadianceCacheIndex],
-					RadianceProbeAtlasTextureUAV,
-					DepthProbeTextureUAV,
-					ComputePassFlags);
-			}
-			else
-			{
+				const FUpdateInputs& Inputs = InputArray[RadianceCacheIndex];
+				const FRadianceCacheInputs& RadianceCacheInputs = Inputs.RadianceCacheInputs;
+				const FViewInfo& View = Inputs.View;
+				const FRadianceCacheSetup& Setup = SetupOutputArray[RadianceCacheIndex];
+
+				FLumenCardTracingParameters TracingParameters;
+				GetLumenCardTracingParameters(GraphBuilder, View, *Scene->GetLumenSceneData(View), FrameTemporaries, /*bSurfaceCacheFeedback*/ false, TracingParameters);
+
+				FUpdateOutputs& Outputs = OutputArray[RadianceCacheIndex];
+				FRadianceCacheInterpolationParameters& RadianceCacheParameters = Outputs.RadianceCacheParameters;
+
+				FRDGTextureUAVRef RadianceProbeAtlasTextureUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(Setup.RadianceProbeAtlasTextureSource));
+				FRDGTextureUAVRef DepthProbeTextureUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(Setup.DepthProbeAtlasTexture));
+
 				FRadianceCacheTraceFromProbesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FRadianceCacheTraceFromProbesCS::FParameters>();
 				PassParameters->TracingParameters = TracingParameters;
 				SetupLumenDiffuseTracingParametersForProbe(View, PassParameters->IndirectTracingParameters, -1.0f);
@@ -2042,8 +2108,8 @@ void UpdateRadianceCaches(
 				PassParameters->TraceProbesIndirectArgs = TraceProbesIndirectArgs[RadianceCacheIndex];
 
 				FRadianceCacheTraceFromProbesCS::FPermutationDomain PermutationVector;
-				PermutationVector.Set<FRadianceCacheTraceFromProbesCS::FTraceGlobalSDF>(Lumen::UseGlobalSDFTracing(*View.Family));
-				PermutationVector.Set<FRadianceCacheTraceFromProbesCS::FSimpleCoverageBasedExpand>(Lumen::UseGlobalSDFTracing(*View.Family) && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
+				PermutationVector.Set<FRadianceCacheTraceFromProbesCS::FTraceGlobalSDF>(Lumen::UseGlobalSDFTracing(View.Family->EngineShowFlags));
+				PermutationVector.Set<FRadianceCacheTraceFromProbesCS::FSimpleCoverageBasedExpand>(Lumen::UseGlobalSDFTracing(View.Family->EngineShowFlags) && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
 				PermutationVector.Set<FRadianceCacheTraceFromProbesCS::FDynamicSkyLight>(Lumen::ShouldHandleSkyLight(Scene, *View.Family));
 				auto ComputeShader = View.ShaderMap->GetShader<FRadianceCacheTraceFromProbesCS>(PermutationVector);
 

@@ -49,6 +49,7 @@
 #include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/GameEngine.h"
 #include "Engine/LevelStreaming.h"
+#include "Templates/GuardValueAccessors.h"
 #include "Engine/Selection.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Logging/MessageLog.h"
@@ -151,6 +152,7 @@ UPackageTools::UPackageTools(const FObjectInitializer& ObjectInitializer)
 	void UPackageTools::RestoreStandaloneOnReachableObjects()
 	{
 		check(GIsEditor);
+		TRACE_CPUPROFILER_EVENT_SCOPE(UPackageTools::RestoreStandaloneOnReachableObjects);
 
 		if (PackagesBeingUnloaded && ObjectsThatHadFlagsCleared.Num() > 0)
 		{
@@ -163,7 +165,7 @@ UPackageTools::UPackageTools(const FObjectInitializer& ObjectInitializer)
 						Object->SetFlags(RF_Standalone);
 					}
 					return true;
-				}, true, RF_NoFlags, UE::GC::GUnreachableObjectFlag);
+				}, true, RF_NoFlags, EInternalObjectFlags::Unreachable);
 			}
 		}
 	}
@@ -842,7 +844,7 @@ UPackageTools::UPackageTools(const FObjectInitializer& ObjectInitializer)
 	{
 		bool bResult = false;
 
-		TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+		TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
 
 		FTextBuilder ErrorMessageBuilder;
 
@@ -1047,7 +1049,9 @@ UPackageTools::UPackageTools(const FObjectInitializer& ObjectInitializer)
 			GEngine->NotifyToolsOfObjectReplacement(InPackageReloadedEvent->GetRepointedObjects());
 
 			// Notify any Blueprints that are about to be unloaded, and destroy any leftover worlds.
-			ForEachObjectWithPackage(InPackageReloadedEvent->GetOldPackage(), [](UObject* InObject)
+			TArray<UObject*> Objects;
+			GetObjectsWithPackage(InPackageReloadedEvent->GetOldPackage(), Objects, true, RF_Transient, EInternalObjectFlags::Garbage);
+			for (UObject* InObject : Objects)
 			{
 				if (UBlueprint* BP = Cast<UBlueprint>(InObject))
 				{
@@ -1072,8 +1076,7 @@ UPackageTools::UPackageTools(const FObjectInitializer& ObjectInitializer)
 						World->CleanupWorld();
 					}
 				}
-				return true;
-			}, true, RF_Transient, EInternalObjectFlags::Garbage);
+			}
 		}
 
 		if (InPackageReloadPhase == EPackageReloadPhase::OnPackageFixup)

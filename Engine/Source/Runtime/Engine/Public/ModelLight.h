@@ -48,13 +48,15 @@ public:
 	virtual FLightRayIntersection IntersectLightRay(const FVector& Start,const FVector& End,bool bFindNearestIntersection) const override;
 	//FStaticLightingTextureMapping interface.
 
+	virtual bool IsInstancedMesh() const override { return false; }
+
 	virtual bool IsValidMapping() const override
 	{
 		return Model.IsValid() && !Model->bInvalidForStaticLighting;
 	}
 
 #if WITH_EDITOR
-	virtual void Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, ULevel* LightingScenario) override;
+	virtual void Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, const FStaticLightingBuildContext* LightingContext) override;
 	virtual bool DebugThisMapping() const override;
 
 	/** 

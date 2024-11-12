@@ -4,8 +4,6 @@
 #include "GammaCorrectionCommon.ush"
 #include "SlateShaderCommon.ush"
 
-float4x4 ViewProjection;
-
 VertexToPixelInterpolants Main(
 	in float4 InTextureCoordinates : ATTRIBUTE0,
 	in float2 InMaterialTextureCoordinates : ATTRIBUTE1,
@@ -41,10 +39,6 @@ VertexToPixelInterpolants Main(
 	VertexParameters.WorldPosition = WorldPosition.xyz;
 
 	VertexParameters.VertexColor = VOut.Color;
-
-	// Init primitive flags to a good default.
-	VertexParameters.SceneData.Primitive.Flags = GetDefaultPrimitiveSceneDataFlags();
-	VertexParameters.SceneData.Primitive.VisibilityFlags = GetDefaultPrimitiveVisibilityFlags();
 	VertexParameters.LWCData = MakeMaterialLWCData(VertexParameters);
 
 	bool bCalledEvaluateVertexMaterialAttributes = false;
@@ -122,12 +116,12 @@ VertexToPixelInterpolants Main(
 	}
 #endif
 
-	WorldPosition.xyz = GetMaterialWorldPositionOffset(VertexParameters);
+	WorldPosition.xyz = GetMaterialWorldPositionOffsetRaw(VertexParameters);
 #endif
 
 #endif // USE_MATERIALS
 
-	VOut.Position = mul(WorldPosition, ViewProjection);
+	VOut.Position = mul(WorldPosition, SlateView.ViewProjection);
 
 	return VOut;
 }

@@ -238,6 +238,8 @@ private:
 	 */
 	void RefreshDisplayManager();
 
+	void GetExpansionState(UStruct* BaseStruct, FStringPrefixTree& OutPrefixTree) const;
+
 	/**
 	* The @code FDetailsViewStyle& @endcode shared pointer which provides style
 	* information for this details view.

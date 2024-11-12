@@ -64,6 +64,9 @@ public:
 	/** Get the tolerance to use when adding or accessing data in a calibrated LensFile */
 	float GetCalibrationInputTolerance() const { return CalibrationInputTolerance; }
 
+	/** Get the length of time (in seconds) the calibration tool will wait when attempting to detect a checkerboard pattern in the media image */
+	float GetCheckerboardDetectionTimeout() const { return CheckerboardDetectionTimeout; }
+
 	/** Get the default MaterialInterface used by the input Model Handler class to write the undistortion displacement map */
 	UMaterialInterface* GetDefaultUndistortionDisplacementMaterial(const TSubclassOf<ULensDistortionModelHandlerBase>& InModelHandler) const;
 
@@ -100,6 +103,10 @@ private:
 	/** Tolerance to use when adding or accessing data in a calibrated LensFile */
 	UPROPERTY(config, EditAnywhere, Category = "Settings")
 	float CalibrationInputTolerance = 0.001f;
+
+	/** Length of time (in seconds) the calibration tool will wait when attempting to detect a checkerboard pattern in the media image */
+	UPROPERTY(config, EditAnywhere, Category = "Settings")
+	float CheckerboardDetectionTimeout = 2.0f;
 
 	/** Map of Lens Distortion Model Handler classes to the default displacement map material used by that class */
 	UPROPERTY(config)

@@ -5,39 +5,59 @@
 #include "DMMaterialValueFloat.h"
 #include "DMMaterialValueFloat3RPY.generated.h"
  
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIAL_API UDMMaterialValueFloat3RPY : public UDMMaterialValueFloat
+/**
+ * Component representing an FRotator value. Manages its own parameter.
+ */
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialValueFloat3RPY : public UDMMaterialValueFloat
 {
 	GENERATED_BODY()
  
 public: 
+	UDMMaterialValueFloat3RPY();
+
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	const FRotator& GetValue() const { return Value; }
  
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetValue(const FRotator& InValue);
+	DYNAMICMATERIAL_API void SetValue(const FRotator& InValue);
  
 #if WITH_EDITOR
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	FRotator GetDefaultValue() const { return DefaultValue; }
+	const FRotator& GetDefaultValue() const { return DefaultValue; }
  
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetDefaultValue(FRotator InDefaultValue);
+	DYNAMICMATERIAL_API void SetDefaultValue(const FRotator& InDefaultValue);
+#endif
+
+#if WITH_EDITOR
+	//~ Begin IDMJsonSerializable
+	DYNAMICMATERIAL_API virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
+	DYNAMICMATERIAL_API virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
+	//~ End IDMJsonSerializable
 #endif
  
 	//~ Begin UDMMaterialValue
-	virtual void SetMIDParameter(UMaterialInstanceDynamic* InMID) const override;
+	DYNAMICMATERIAL_API virtual void SetMIDParameter(UMaterialInstanceDynamic* InMID) const override;
 #if WITH_EDITOR
-	virtual void GenerateExpression(const TSharedRef<IDMMaterialBuildStateInterface>& InBuildState) const override;
-	virtual int32 GetInnateMaskOutput(int32 OutputChannels) const override;
-	virtual bool IsDefaultValue() const override;
-	virtual void ApplyDefaultValue() override;
-	virtual void ResetDefaultValue() override;
+	DYNAMICMATERIAL_API virtual void GenerateExpression(const TSharedRef<IDMMaterialBuildStateInterface>& InBuildState) const override;
+	DYNAMICMATERIAL_API virtual int32 GetInnateMaskOutput(int32 OutputChannels) const override;
+	DYNAMICMATERIAL_API virtual bool IsDefaultValue() const override;
+	DYNAMICMATERIAL_API virtual void ApplyDefaultValue() override;
+	DYNAMICMATERIAL_API virtual void ResetDefaultValue() override;
+	DYNAMICMATERIAL_API virtual UDMMaterialValueDynamic* ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic) override;
 #endif
 	// ~End UDMMaterialValue
+
+	//~ Begin UDMMaterialComponent
+#if WITH_EDITOR
+	DYNAMICMATERIAL_API virtual FString GetComponentPathComponent() const override;
+	DYNAMICMATERIAL_API virtual FText GetComponentDescription() const override;
+#endif
+	//~ End UDMMaterialComponent
  
 protected: 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetValue, Setter = SetValue, BlueprintSetter = SetValue, Category = "Material Designer",
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter, Setter, BlueprintSetter = SetValue, Category = "Material Designer",
 		meta = (AllowPrivateAccess = "true", DisplayName = "Rotation"))
 	FRotator Value;
  
@@ -46,6 +66,4 @@ protected:
 		meta = (AllowPrivateAccess = "true"))
 	FRotator DefaultValue;
 #endif
- 
-	UDMMaterialValueFloat3RPY();
 };

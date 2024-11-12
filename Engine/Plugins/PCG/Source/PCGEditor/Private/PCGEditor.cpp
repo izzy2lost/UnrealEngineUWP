@@ -12,6 +12,7 @@
 #include "PCGInputOutputSettings.h"
 #include "PCGPin.h"
 #include "PCGSubsystem.h"
+#include "Compute/IPCGNodeSourceTextProvider.h"
 #include "Elements/PCGReroute.h"
 #include "Helpers/PCGSubgraphHelpers.h"
 #include "Rendering/SlateRenderer.h"
@@ -39,6 +40,7 @@
 #include "SPCGEditorGraphLogView.h"
 #include "SPCGEditorGraphNodePalette.h"
 #include "SPCGEditorGraphProfilingView.h"
+#include "Widgets/SPCGEditorNodeSource.h"
 
 #include "AssetToolsModule.h"
 #include "EdGraphUtilities.h"
@@ -49,6 +51,7 @@
 #include "PropertyEditorModule.h"
 #include "SNodePanel.h"
 #include "ScopedTransaction.h"
+#include "ShaderCore.h"
 #include "SourceCodeNavigation.h"
 #include "ToolMenu.h"
 #include "ToolMenuEntry.h"
@@ -90,6 +93,7 @@ namespace FPCGEditor_private
 	const FName DeterminismID = FName(TEXT("Determinism"));
 	const FName ProfilingID = FName(TEXT("Profiling"));
 	const FName LogID = FName(TEXT("Log"));
+	const FName NodeSourceID = FName(TEXT("NodeSource"));
 }
 
 UPCGEditorGraph* FPCGEditor::GetPCGEditorGraph(UPCGGraph* InGraph)
@@ -111,6 +115,7 @@ UPCGEditorGraph* FPCGEditor::GetPCGEditorGraph(UPCGGraph* InGraph)
 
 void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<class IToolkitHost>& InToolkitHost, UPCGGraph* InPCGGraph)
 {
+	FCoreUObjectDelegates::OnObjectsReplaced.AddSP(this, &FPCGEditor::OnObjectsReplaced);
 	PCGGraphBeingEdited = InPCGGraph;
 
 	// Initializes the UPCGEditorGraph if needed
@@ -140,6 +145,7 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 	DeterminismWidget = CreateDeterminismWidget();
 	ProfilingWidget = CreateProfilingWidget();
 	LogWidget = CreateLogWidget();
+	NodeSourceWidget = CreateNodeSourceWidget();
 
 	BindCommands();
 	RegisterToolbar();
@@ -201,6 +207,9 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 
 	InitAssetEditor(InMode, InToolkitHost, PCGGraphEditorAppName, StandaloneDefaultLayout, /*bCreateDefaultStandaloneMenu=*/ true, /*bCreateDefaultToolbar=*/ true, InPCGGraph);
 
+	PCGGraphBeingEdited->OnGraphChangedDelegate.AddRaw(this, &FPCGEditor::OnGraphChanged);
+	PCGGraphBeingEdited->OnNodeSourceCompiledDelegate.AddRaw(this, &FPCGEditor::OnNodeSourceCompiled);
+
 	// Hook to map change / delete actor to refresh debug object selection list, to help prevent it going stale.
 	FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
 	LevelEditor.OnMapChanged().AddRaw(this, &FPCGEditor::OnMapChanged);
@@ -231,6 +240,27 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 	}
 }
 
+void FPCGEditor::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap)
+{
+	if (UObject* NewComponentBeingInspected = ReplacementMap.FindRef(PCGComponentBeingInspected.GetEvenIfUnreachable()))
+	{
+		PCGComponentBeingInspected = Cast<UPCGComponent>(NewComponentBeingInspected);
+	}
+
+	if (UObject* NewLastValidPCGComponentBeingInspected = ReplacementMap.FindRef(LastValidPCGComponentBeingInspected.GetEvenIfUnreachable()))
+	{
+		LastValidPCGComponentBeingInspected = Cast<UPCGComponent>(NewLastValidPCGComponentBeingInspected);
+	}
+
+	StackBeingInspected.ReplaceRoot(ReplacementMap);
+
+	// Propagate object replacement to the debug object tree view too
+	if (DebugObjectTreeWidget)
+	{
+		DebugObjectTreeWidget->OnObjectsReplaced(ReplacementMap);
+	}
+}
+
 UPCGEditorGraph* FPCGEditor::GetPCGEditorGraph()
 {
 	return PCGEditorGraph;
@@ -244,44 +274,69 @@ void FPCGEditor::SetStackBeingInspected(const FPCGStack& FullStack)
 		return;
 	}
 
-	UPCGComponent* OldComponent = PCGComponentBeingInspected.Get();
+	UPCGComponent* LastComponent = LastValidPCGComponentBeingInspected.Get();
 	UPCGComponent* NewComponent = const_cast<UPCGComponent*>(FullStack.GetRootComponent());
-	const bool bComponentChanged = (NewComponent != OldComponent);
 
-	if (OldComponent)
+	if (NewComponent && NewComponent != LastComponent)
 	{
-		if (bComponentChanged)
+		if (LastComponent && LastComponent->IsInspecting())
 		{
-			OldComponent->DisableInspection();
+			LastComponent->DisableInspection();
 		}
 
-		if (PCGGraphBeingEdited)
+		LastValidPCGComponentBeingInspected = NewComponent;
+	}
+
+	if (PCGGraphBeingEdited)
+	{
+		if (PCGGraphBeingEdited->IsInspecting())
 		{
 			PCGGraphBeingEdited->DisableInspection();
 		}
-	}
 
-	const bool bNewComponentStartedInspecting = NewComponent && !NewComponent->IsInspecting();
+		PCGGraphBeingEdited->EnableInspection(StackBeingInspected);
+	}
 
 	PCGComponentBeingInspected = NewComponent;
 
 	StackBeingInspected = FullStack;
 	OnInspectedStackChangedDelegate.Broadcast(StackBeingInspected);
 
-	if (NewComponent)
-	{
-		if (bComponentChanged)
-		{
-			PCGComponentBeingInspected->EnableInspection();
-		}
+	UpdateAfterInspectedStackChanged();
+}
 
-		if (PCGGraphBeingEdited)
-		{
-			PCGGraphBeingEdited->EnableInspection(StackBeingInspected);
-		}
+void FPCGEditor::OnComponentGenerated(UPCGComponent* InComponent)
+{
+	if (DebugObjectTreeWidget)
+	{
+		DebugObjectTreeWidget->RequestRefresh();
 	}
 
-	UpdateDebugAfterComponentSelection(OldComponent, NewComponent, bNewComponentStartedInspecting);
+	if(InComponent == GetPCGComponentBeingInspected())
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGEditor::SetStackBeingInspected::BroadcastStackBeingInspected);
+		OnInspectedStackChangedDelegate.Broadcast(StackBeingInspected);
+	}
+}
+
+void FPCGEditor::UpdateAfterInspectedStackChanged()
+{
+	UPCGComponent* Component = PCGComponentBeingInspected.Get();
+
+	if (Component)
+	{
+		// Implementation note: if we're inspecting and have not pre-run the graph, then it probably makes sense to enable inspection by default. 
+		// TODO This could be selected with a cvar though.
+		const bool bHasBeenGeneratedThisSession = Component->bGenerated && Component->WasGeneratedThisSession();
+		const bool bWasInspecting = Component->IsInspecting();
+		const bool bNeedsInspection = Algo::AnyOf(AttributesWidgets, [](const TSharedPtr<SPCGEditorGraphAttributeListView>& ALV) { return ALV->GetNodeBeingInspected() != nullptr; });
+
+		if (!bHasBeenGeneratedThisSession || (bNeedsInspection && !bWasInspecting))
+		{
+			Component->EnableInspection();
+			UpdateDebugAfterComponentSelection(Component, Component, true);
+		}
+	}
 
 	check(PCGEditorGraph);
 	for (UEdGraphNode* Node : PCGEditorGraph->Nodes)
@@ -290,7 +345,7 @@ void FPCGEditor::SetStackBeingInspected(const FPCGStack& FullStack)
 		{
 			// Update now that component has changed. Will fire OnNodeChanged if necessary.
 			EPCGChangeType ChangeType = PCGNode->UpdateErrorsAndWarnings();
-			ChangeType |= PCGNode->UpdateStructuralVisualization(NewComponent, &StackBeingInspected);
+			ChangeType |= PCGNode->UpdateStructuralVisualization(Component, &StackBeingInspected);
 
 			if (ChangeType != EPCGChangeType::None)
 			{
@@ -310,7 +365,7 @@ void FPCGEditor::ClearStackBeingInspected()
 
 void FPCGEditor::UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponent, UPCGComponent* InNewComponent, bool bInNewComponentStartedInspecting)
 {
-	if (!ensure(PCGGraphBeingEdited) || (InOldComponent == InNewComponent))
+	if (!ensure(PCGGraphBeingEdited))
 	{
 		return;
 	}
@@ -366,7 +421,7 @@ void FPCGEditor::UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponen
 		});
 
 		// Regenerate to clear debug info if switching components, or if changing from a component to null.
-		if (InNewComponent || bDebugFlagSetOnAnyNode)
+		if (InNewComponent != InOldComponent && (InNewComponent || bDebugFlagSetOnAnyNode))
 		{
 			// Use original component - debug can be displayed both by the local component and parent local components.
 			RefreshComponent(InOldComponent->GetOriginalComponent());
@@ -384,6 +439,11 @@ void FPCGEditor::UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponen
 const FPCGStack* FPCGEditor::GetStackBeingInspected() const
 {
 	return StackBeingInspected.GetStackFrames().IsEmpty() ? nullptr : &StackBeingInspected;
+}
+
+void FPCGEditor::SetSourceEditorTargetObject(UObject* InObject)
+{
+	NodeSourceWidget->SetTextProviderObject(InObject);
 }
 
 void FPCGEditor::JumpToNode(const UEdGraphNode* InNode)
@@ -492,6 +552,10 @@ void FPCGEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager
 	InTabManager->RegisterTabSpawner(FPCGEditor_private::LogID, FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_Log))
 		.SetDisplayName(LOCTEXT("LogCaptureTab", "Log Capture"))
 		.SetGroup(WorkspaceMenuCategoryRef);
+
+	InTabManager->RegisterTabSpawner(FPCGEditor_private::NodeSourceID, FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_NodeSource))
+		.SetDisplayName(LOCTEXT("NodeSourceTab", "Node Source Editor"))
+		.SetGroup(WorkspaceMenuCategoryRef);
 }
 
 void FPCGEditor::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)
@@ -509,6 +573,9 @@ void FPCGEditor::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTa
 	InTabManager->UnregisterTabSpawner(FPCGEditor_private::AttributesID[3]);
 	InTabManager->UnregisterTabSpawner(FPCGEditor_private::FindID);
 	InTabManager->UnregisterTabSpawner(FPCGEditor_private::DeterminismID);
+	InTabManager->UnregisterTabSpawner(FPCGEditor_private::ProfilingID);
+	InTabManager->UnregisterTabSpawner(FPCGEditor_private::LogID);
+	InTabManager->UnregisterTabSpawner(FPCGEditor_private::NodeSourceID);
 
 	FAssetEditorToolkit::UnregisterTabSpawners(InTabManager);
 }
@@ -909,6 +976,8 @@ void FPCGEditor::OnForceGraphRegeneration_Clicked()
 			}
 
 			ChangeType |= EPCGChangeType::GenerationGrid;
+
+			ChangeType |= EPCGChangeType::ShaderSource;
 		}
 
 		PCGGraphBeingEdited->ForceNotificationForEditor(ChangeType);
@@ -973,6 +1042,7 @@ void FPCGEditor::OnDeterminismNodeTest()
 	DeterminismWidget->ClearItems();
 	DeterminismWidget->BuildBaseColumns();
 
+	int64 TestIndex = 0;
 	for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
 	{
 		check(Object);
@@ -996,6 +1066,7 @@ void FPCGEditor::OnDeterminismNodeTest()
 				check(PCGNode && PCGNode->GetSettings());
 
 				TSharedPtr<FDeterminismTestResult> NodeResult = MakeShared<FDeterminismTestResult>();
+				NodeResult->Index = TestIndex++;
 				NodeResult->TestResultTitle = FName(*PCGNode->GetNodeTitle(EPCGNodeTitleType::ListView).ToString());
 				NodeResult->TestResultName = PCGNode->GetName();
 				NodeResult->Seed = PCGNode->GetSettings()->GetSeed();
@@ -1085,6 +1156,7 @@ void FPCGEditor::OnDeterminismGraphTest()
 	DeterminismWidget->AddColumn(ColumnInfo);
 
 	TSharedPtr<FDeterminismTestResult> TestResult = MakeShared<FDeterminismTestResult>();
+	TestResult->Index = 0;
 	TestResult->TestResultTitle = TEXT("Full Graph Test");
 	TestResult->TestResultName = PCGGraphBeingEdited->GetName();
 	TestResult->Seed = PCGComponentBeingInspected->Seed;
@@ -1598,6 +1670,19 @@ bool FPCGEditor::CanConvertRerouteToNamedReroute() const
 	return false;
 }
 
+bool FPCGEditor::IsNodeSourceEditorTabClosed() const
+{
+	return !TabManager.IsValid() || !TabManager->FindExistingLiveTab(FPCGEditor_private::NodeSourceID).IsValid();
+}
+
+void FPCGEditor::SpawnNodeSourceEditorTab()
+{
+	if (TabManager.IsValid() && !TabManager->FindExistingLiveTab(FPCGEditor_private::NodeSourceID))
+	{
+		TabManager->TryInvokeTab(FPCGEditor_private::NodeSourceID);
+	}
+}
+
 void FPCGEditor::OnCollapseNodesInSubgraph()
 {
 	if (!InternalValidationOnAction())
@@ -1941,6 +2026,9 @@ void FPCGEditor::OnToggleInspected()
 	{
 		DebugObjectTreeWidget->SetNodeBeingInspected(nullptr);
 	}
+
+	// Turn on "inspecting" on graph if we now have at least one inspected node and had none before
+	UpdateAfterInspectedStackChanged();
 }
 
 bool FPCGEditor::CanToggleInspected() const
@@ -2026,6 +2114,14 @@ void FPCGEditor::OnToggleEnabled()
 	{
 		FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorToggleEnableTransactionMessage", "PCG Editor: Toggle Enable Nodes"), nullptr);
 
+		UPCGGraph* PCGGraph = PCGEditorGraph ? PCGEditorGraph->GetPCGGraph() : nullptr;
+		if (!ensure(PCGGraph))
+		{
+			return;
+		}
+
+		PCGGraph->DisableNotificationsForEditor();
+
 		bool bChanged = false;
 		for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
 		{
@@ -2046,6 +2142,8 @@ void FPCGEditor::OnToggleEnabled()
 				bChanged = true;
 			}
 		}
+
+		PCGGraph->EnableNotificationsForEditor();
 
 		if (bChanged)
 		{
@@ -2659,7 +2757,7 @@ void FPCGEditor::OnCreateComment()
 		FPCGEditorGraphSchemaAction_NewComment CommentAction;
 
 		TSharedPtr<SGraphEditor> GraphEditorPtr = SGraphEditor::FindGraphEditorForGraph(PCGEditorGraph);
-		FVector2D Location;
+		FVector2D Location = FVector2D::ZeroVector;
 		if (GraphEditorPtr)
 		{
 			Location = GraphEditorPtr->GetPasteLocation();
@@ -2818,15 +2916,26 @@ void FPCGEditor::OnClose()
 		{
 			PCGComponentBeingInspected->DisableInspection();
 		}
+	}
 
-		if (PCGGraphBeingEdited && PCGGraphBeingEdited->IsInspecting())
+	if (LastValidPCGComponentBeingInspected.IsValid())
+	{
+		if (LastValidPCGComponentBeingInspected->IsInspecting())
 		{
-			PCGGraphBeingEdited->DisableInspection();
+			LastValidPCGComponentBeingInspected->DisableInspection();
 		}
 	}
 
 	if (PCGGraphBeingEdited)
 	{
+		PCGGraphBeingEdited->OnGraphChangedDelegate.RemoveAll(this);
+		PCGGraphBeingEdited->OnNodeSourceCompiledDelegate.RemoveAll(this);
+
+		if (PCGGraphBeingEdited->IsInspecting())
+		{
+			PCGGraphBeingEdited->DisableInspection();
+		}
+
 		if (PCGGraphBeingEdited->NotificationsForEditorArePausedByUser())
 		{
 			PCGGraphBeingEdited->ToggleUserPausedNotificationsForEditor();
@@ -2838,6 +2947,8 @@ void FPCGEditor::OnClose()
 		UnregisterDelegatesForWorld(GEditor->GetEditorWorldContext().World());
 		UnregisterDelegatesForWorld(GEditor->PlayWorld.Get());
 	}
+
+	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
 }
 
 void FPCGEditor::InitToolMenuContext(FToolMenuContext& MenuContext)
@@ -2884,6 +2995,11 @@ TSharedRef<SPCGEditorGraphLogView> FPCGEditor::CreateLogWidget()
 	return SNew(SPCGEditorGraphLogView, SharedThis(this));
 }
 
+TSharedRef<SPCGEditorNodeSource> FPCGEditor::CreateNodeSourceWidget()
+{
+	return SNew(SPCGEditorNodeSource, SharedThis(this));
+}
+
 void FPCGEditor::OnSelectedNodesChanged(const TSet<UObject*>& NewSelection)
 {
 	TArray<TWeakObjectPtr<UObject>> SelectedObjects;
@@ -2907,6 +3023,11 @@ void FPCGEditor::OnSelectedNodesChanged(const TSet<UObject*>& NewSelection)
 	{
 		PropertyDetailsWidget->SetObjects(SelectedObjects, /*bForceRefresh=*/true);
 	}
+
+	// Give a single selected node with valid settings to the source editor, or give it null so it can clear the UI.
+	UPCGEditorGraphNode* SelectedNode = (NewSelection.Num() == 1) ? Cast<UPCGEditorGraphNode>(*NewSelection.CreateConstIterator()) : nullptr;
+	UPCGNode* PCGNode = SelectedNode ? SelectedNode->GetPCGNode() : nullptr;
+	SetSourceEditorTargetObject(PCGNode ? PCGNode->GetSettings() : nullptr);
 }
 
 void FPCGEditor::OnNodeTitleCommitted(const FText& NewText, ETextCommit::Type CommitInfo, UEdGraphNode* NodeBeingChanged)
@@ -2985,9 +3106,28 @@ void FPCGEditor::JumpToDefinition(const UClass* Class) const
 	}
 }
 
-void FPCGEditor::OnComponentGenerationCompleteOrCancelled(UPCGSubsystem* Subsystem)
+void FPCGEditor::OnComponentUnregistered(UPCGComponent* Component)
 {
-	DebugObjectTreeWidget->RequestRefresh();
+	// Refresh the debug object tree to avoid stale entries from components that have been unregistered.
+	if (!Component || Component->GetGraph() == PCGGraphBeingEdited)
+	{
+		DebugObjectTreeWidget->RequestRefresh();
+	}
+}
+
+void FPCGEditor::OnComponentGenerationDone(UPCGSubsystem* Subsystem, UPCGComponent* Component, EPCGGenerationStatus Status)
+{
+	// We want to refresh if the component that is done generating has generated the current graph being edited,
+	// or if it is the root of the current stack being inspected (for subgraphs to also be refreshed).
+	// If we don't have a component, we refresh nonetheless.
+	const bool bShouldRefresh = !Component || StackBeingInspected.GetRootComponent() == Component || Component->GetGraph() == PCGGraphBeingEdited;
+
+	if (!bShouldRefresh)
+	{
+		return;
+	}
+
+	OnComponentGenerated(Component);
 
 	const bool CacheDebuggingEnabled = Subsystem && Subsystem->IsGraphCacheDebuggingEnabled();
 
@@ -3023,7 +3163,8 @@ void FPCGEditor::RegisterDelegatesForWorld(UWorld* World)
 
 	if (UPCGSubsystem* Subsystem = UPCGSubsystem::GetInstance(World))
 	{
-		Subsystem->OnComponentGenerationCompleteOrCancelled.AddRaw(this, &FPCGEditor::OnComponentGenerationCompleteOrCancelled);
+		Subsystem->OnPCGComponentUnregistered.AddRaw(this, &FPCGEditor::OnComponentUnregistered);
+		Subsystem->OnPCGComponentGenerationDone.AddRaw(this, &FPCGEditor::OnComponentGenerationDone);
 	}
 }
 
@@ -3031,7 +3172,29 @@ void FPCGEditor::UnregisterDelegatesForWorld(UWorld* World)
 {
 	if (UPCGSubsystem* Subsystem = UPCGSubsystem::GetInstance(World))
 	{
-		Subsystem->OnComponentGenerationCompleteOrCancelled.RemoveAll(this);
+		Subsystem->OnPCGComponentUnregistered.RemoveAll(this);
+		Subsystem->OnPCGComponentGenerationDone.RemoveAll(this);
+	}
+}
+
+void FPCGEditor::OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType)
+{
+	if (!!(ChangeType & EPCGChangeType::ShaderSource))
+	{
+		// Flush the shader file cache in case we are editing engine or data interface shaders.
+		// We could make the user do this manually, but that makes iterating on data interfaces really painful.
+		FlushShaderFileCache();
+	}
+}
+
+void FPCGEditor::OnNodeSourceCompiled(const UPCGNode* InNode, const FPCGCompilerDiagnostics& InDiagnostics)
+{
+	check(NodeSourceWidget);
+
+	const UPCGSettings* Settings = InNode ? InNode->GetSettings() : nullptr;
+	if (Settings && NodeSourceWidget->GetTextProviderObject() == Settings)
+	{
+		NodeSourceWidget->OnDiagnosticsUpdated(InDiagnostics);
 	}
 }
 
@@ -3166,6 +3329,16 @@ TSharedRef<SDockTab> FPCGEditor::SpawnTab_Log(const FSpawnTabArgs& Args)
 		.TabColorScale(GetTabColorScale())
 		[
 			LogWidget.ToSharedRef()
+		];
+}
+
+TSharedRef<SDockTab> FPCGEditor::SpawnTab_NodeSource(const FSpawnTabArgs& Args)
+{
+	return SNew(SDockTab)
+		.Label(LOCTEXT("PCGNodeSourceTitle", "Node Source Editor"))
+		.TabColorScale(GetTabColorScale())
+		[
+			NodeSourceWidget.ToSharedRef()
 		];
 }
 

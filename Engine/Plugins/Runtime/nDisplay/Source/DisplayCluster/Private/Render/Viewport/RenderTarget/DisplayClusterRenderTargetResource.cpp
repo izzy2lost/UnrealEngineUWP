@@ -18,11 +18,11 @@ FDisplayClusterViewportTextureResource::FDisplayClusterViewportTextureResource(c
 
 void FDisplayClusterViewportTextureResource::InitRHI(FRHICommandListBase&)
 {
-	FTexture2DRHIRef NewTextureRHI;
+	FTextureRHIRef NewTextureRHI;
 
 	if (GetResourceSettings().GetNumMips() > 1)
 	{
-		FTexture2DRHIRef DummyTextureRHI;
+		FTextureRHIRef DummyTextureRHI;
 		ImplInitDynamicRHI_RenderTargetResource2D(NewTextureRHI, DummyTextureRHI);
 	}
 	else
@@ -39,7 +39,7 @@ void FDisplayClusterViewportTextureResource::InitRHI(FRHICommandListBase&)
 void FDisplayClusterViewportRenderTargetResource::InitRHI(FRHICommandListBase&)
 {
 	// Create RTT and shader resources
-	FTexture2DRHIRef NewTextureRHI;
+	FTextureRHIRef NewTextureRHI;
 	ImplInitDynamicRHI_RenderTargetResource2D(RenderTargetTextureRHI, NewTextureRHI);
 	TextureRHI = (FTextureRHIRef&)NewTextureRHI;
 

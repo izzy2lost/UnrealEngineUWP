@@ -3,6 +3,8 @@
 using System.Collections.Generic;
 using System.Xml;
 
+#nullable enable
+
 namespace AutomationTool
 {
 	/// <summary>

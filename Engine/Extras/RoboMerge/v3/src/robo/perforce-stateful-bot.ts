@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 import { ContextualLogger, NpmLogLevel } from "../common/logger";
-import { Change, ChangelistStatus, PerforceContext } from "../common/perforce";
+import { Change, PerforceContext } from "../common/perforce";
 import { BotIPC, ReconsiderArgs } from "./bot-interfaces";
 import { BlockagePauseInfo, BlockagePauseInfoMinimal } from "./status-types";
 import { Branch, OperationResult } from "./branch-interfaces";
@@ -152,10 +152,11 @@ export abstract class PerforceStatefulBot implements BotIPC {
 	}
 
 	abstract forceSetLastClWithContext(value: number, culprit: string, reason: string, unblock: boolean): number;
+	abstract setGateCl(value: number, culprit: string, reason: string): Promise<number | null>;
 
-	async _getChange(changeCl: number, path?: string, status?: ChangelistStatus) : Promise<Change | string> {
+	async _getChange(changeCl: number) : Promise<Change | string> {
 		try {
-			return await this.p4.getChange(path || this.branch.rootPath, changeCl, status)
+			return await this.p4.getChange(changeCl)
 		}
 		catch (err) {
 			return err.toString()

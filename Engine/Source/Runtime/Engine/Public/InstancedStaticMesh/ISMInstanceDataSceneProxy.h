@@ -42,11 +42,6 @@ public:
 
 	inline const FInstanceSceneDataBuffers& GetData() const { return InstanceSceneDataBuffers; }
 
-	/**
-	 * Get the legacy instance data (which is available on legacy platforms).
-	 */
-	virtual ENGINE_API FStaticMeshInstanceBuffer* GetLegacyInstanceBuffer() { return nullptr; }
-
 	//void BuildLegacyData();
 
 	/**
@@ -89,6 +84,8 @@ protected:
 	
 	template <typename IndexRemapType>
 	void ApplyAttributeChanges(FISMInstanceUpdateChangeSet &ChangeSet, const IndexRemapType &IndexRemap, FInstanceSceneDataBuffers::FWriteView &ProxyData);
+
+	void TestAndApplyInstanceBufferSizeFixup(int32 PostUpdateNumInstances);
 
 	FStaticShaderPlatform ShaderPlatform;
 	ERHIFeatureLevel::Type FeatureLevel;

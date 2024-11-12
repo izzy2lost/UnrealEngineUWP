@@ -214,7 +214,7 @@ struct FPropertyAccessEditorSystem
 				int32 ArrayIndex = INDEX_NONE;
 				PropertyPathHelpers::FindFieldNameAndArrayIndex(SegmentString.Len(), *SegmentString, PropertyNameLength, &PropertyNamePtr, ArrayIndex);
 				ensure(PropertyNamePtr != nullptr);
-				FString PropertyNameString(PropertyNameLength, PropertyNamePtr);
+				FString PropertyNameString = FString::ConstructFromPtrSize(PropertyNamePtr, PropertyNameLength);
 				Segment.Name = FName(*PropertyNameString, FNAME_Find);
 				Segment.ArrayIndex = ArrayIndex;
 

@@ -6,61 +6,59 @@ D3D12Device.h: D3D12 Device Interfaces
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "RHIBreadcrumbs.h"
+#include "RHIDiagnosticBuffer.h"
+
 #include "D3D12BindlessDescriptors.h"
+#include "D3D12CommandContext.h"
 #include "D3D12Descriptors.h"
+#include "D3D12Query.h"
+#include "D3D12Queue.h"
+#include "D3D12Resources.h"
+#include "D3D12Submission.h"
+#include "D3D12GPUProfiler.h"
 
 class FD3D12Device;
 class FD3D12DynamicRHI;
 class FD3D12Buffer;
+class FD3D12Queue;
 class FD3D12ExplicitDescriptorHeapCache;
 class FD3D12RayTracingPipelineCache;
 class FD3D12RayTracingCompactionRequestHandler;
 struct FD3D12RayTracingPipelineInfo;
 
-// Counterpart to UEDiagnosticBuffer in D3DCommon.ush
-struct FD3D12DiagnosticBufferData
+//
+// Diagnostic buffer, backed by a virtual heap. Stays accessible after a GPU crash to allow readback of diagnostic messages.
+// Also used to track the progress of the GPU via breadcrumb markers.
+//
+class FD3D12DiagnosticBuffer : public FRHIDiagnosticBuffer
 {
-	uint32 Counter;
-	uint32 MessageID;
-	union
-	{
-		int32  AsInt[4];
-		uint32 AsUint[4];
-		float  AsFloat[4];
-	} Payload;
-};
+private:
 
-static_assert(sizeof(FD3D12DiagnosticBufferData) == 6 * sizeof(uint32),
-	"Remember to change UEDiagnosticBuffer layout in the shaders when changing FD3D12DiagnosticBufferData");
-
-// Helper data used to track GPU progress on this command queue
-struct FD3D12DiagnosticBuffer
-{
 	TRefCountPtr<FD3D12Heap> Heap;
 	TRefCountPtr<FD3D12Resource> Resource;
 
-	void* CpuAddress = nullptr;
 	D3D12_GPU_VIRTUAL_ADDRESS GpuAddress = 0;
+	D3D12_GPU_VIRTUAL_ADDRESS ToGPUAddress(void* Ptr) const
+	{
+		return GpuAddress + (uintptr_t(Ptr) - uintptr_t(Data));
+	}
 
-	FD3D12DiagnosticBuffer(TRefCountPtr<FD3D12Heap>&& Heap, TRefCountPtr<FD3D12Resource>&& Resource, void* CpuAddress, D3D12_GPU_VIRTUAL_ADDRESS GpuAddress)
-		: Heap(MoveTemp(Heap))
-		, Resource(MoveTemp(Resource))
-		, CpuAddress(CpuAddress)
-		, GpuAddress(GpuAddress)
-	{}
-
-	TArray<uint16> FreeContextIds;
-	FCriticalSection CriticalSection;
-	uint32 BreadCrumbsContextSize = 0;
-
-	uint32 BreadCrumbsOffset = 0;
-	uint32 BreadCrumbsSize = 0;
-
-	uint32 DiagnosticsOffset = 0;
-	uint32 DiagnosticsSize = 0;
-
+public:
+	FD3D12DiagnosticBuffer(FD3D12Queue& Queue);
 	~FD3D12DiagnosticBuffer();
+
+	D3D12_GPU_VIRTUAL_ADDRESS GetGPUQueueData     () const { return ToGPUAddress(Data); }
+
+#if WITH_RHI_BREADCRUMBS
+	D3D12_GPU_VIRTUAL_ADDRESS GetGPUQueueMarkerIn () const { return ToGPUAddress(&Data->MarkerIn ); }
+	D3D12_GPU_VIRTUAL_ADDRESS GetGPUQueueMarkerOut() const { return ToGPUAddress(&Data->MarkerOut); }
+
+	uint32 ReadMarkerIn () const { return Data->MarkerIn;  }
+	uint32 ReadMarkerOut() const { return Data->MarkerOut; }
+#endif
+
+	bool IsValid() const { return Resource.IsValid(); }
 };
 
 // Encapsulates the state required for tracking GPU queue performance across a frame.
@@ -68,13 +66,20 @@ class FD3D12Timing
 {
 public:
 	FD3D12Queue& Queue;
+	D3D12_QUERY_DATA_PIPELINE_STATISTICS PipelineStats {};
+
+#if RHI_NEW_GPU_PROFILER
+	// Timer calibration data
+	uint64 GPUFrequency = 0, GPUTimestamp = 0;
+	uint64 CPUFrequency = 0, CPUTimestamp = 0;
+
+	UE::RHI::GPUProfiler::FEventStream EventStream;
+
+#else
 
 	TArray<uint64> Timestamps;
 	int32 TimestampIndex = 0;
-
 	uint64 BusyCycles = 0;
-
-	D3D12_QUERY_DATA_PIPELINE_STATISTICS PipelineStats {};
 
 	uint64 GetCurrentTimestamp()  const { return Timestamps[TimestampIndex]; }
 	uint64 GetPreviousTimestamp() const { return Timestamps[TimestampIndex - 1]; }
@@ -83,6 +88,8 @@ public:
 	bool IsStartingWork()    const { return (TimestampIndex & 0x01) == 0x00; }
 
 	void AdvanceTimestamp() { TimestampIndex++; }
+
+#endif
 
 	FD3D12Timing(FD3D12Queue& Queue)
 		: Queue(Queue)
@@ -97,6 +104,12 @@ public:
 	FD3D12Device* const Device;
 	ED3D12QueueType const QueueType;
 
+	// The underlying D3D queue object
+	TRefCountPtr<ID3D12CommandQueue> D3DCommandQueue;
+
+	// A single D3D fence to manage completion of work on this queue
+	FD3D12Fence Fence;
+
 	struct : public TQueue<FD3D12Payload*, EQueueMode::Mpsc>
 	{
 		FD3D12Payload* Peek()
@@ -108,90 +121,13 @@ public:
 		}		
 	} PendingSubmission, PendingInterrupt;
 
-	FD3D12Payload*          PayloadToSubmit    = nullptr;
-	FD3D12CommandAllocator* BarrierAllocator   = nullptr;
+	FD3D12Payload*          PayloadToSubmit  = nullptr;
+	FD3D12CommandAllocator* BarrierAllocator = nullptr;
 	FD3D12QueryAllocator    BarrierTimestamps;
 
 	uint32 NumCommandListsInBatch = 0;
 
-	// Query ranges/locations to be resolved when the submission thread receives a command list which is still open.
-	TArray<FD3D12QueryRange   > PendingQueryRanges;
-	TArray<FD3D12QueryLocation> PendingTimestampQueries;
-	TArray<FD3D12QueryLocation> PendingOcclusionQueries;
-	TArray<FD3D12QueryLocation> PendingPipelineStatsQueries;
-
-	// Executes the current payload, returning the latest fence value signaled for this queue.
-	uint64 ExecutePayload();
-
-	bool bRequiresSignal = false;
-
-	// On some hardware, some auxiliary queue types may not support tile mapping and a separate queue must be used
-	bool bSupportsTileMapping = true;
-
-	// The underlying D3D queue object
-	TRefCountPtr<ID3D12CommandQueue> D3DCommandQueue;
-
-	// A single D3D fence to manage completion of work on this queue
-	FD3D12Fence Fence;
-
-	// Tracks what fence values this queue has awaited on other queues.
-	struct FRemoteFenceState
-	{
-		uint64 MaxValueAwaited = 0;
-		uint64 NextValueToAwait = 0;
-	};
-	TMap<FD3D12Fence*, FRemoteFenceState> RemoteFenceStates;
-
-	uint64 SignalFence()
-	{
-		if (bRequiresSignal)
-		{
-			bRequiresSignal = false;
-			uint64 ValueToSignal = ++Fence.LastSignaledValue;
-			VERIFYD3D12RESULT(D3DCommandQueue->Signal(
-				Fence.D3DFence,
-				ValueToSignal
-			));
-
-			return ValueToSignal;
-		}
-		else
-		{
-			return Fence.LastSignaledValue;
-		}
-	}
-
-	TArray<FD3D12Fence*, TInlineAllocator<GD3D12MaxNumQueues>> FencesToAwait;
-	void EnqueueFenceWait(FD3D12Fence* RemoteFence, uint64 Value)
-	{
-		uint64& NextValueToAwait = RemoteFenceStates.FindOrAdd(RemoteFence).NextValueToAwait;
-		NextValueToAwait = FMath::Max(NextValueToAwait, Value);
-		FencesToAwait.AddUnique(RemoteFence);
-	}
-
-	void FlushFenceWaits()
-	{
-		for (FD3D12Fence* FenceToAwait : FencesToAwait)
-		{
-			FRemoteFenceState& RemoteFenceState = RemoteFenceStates.FindChecked(FenceToAwait);
-
-			// Skip issuing the fence wait if we've previously awaited the same fence with a higher value.
-			if (RemoteFenceState.NextValueToAwait > RemoteFenceState.MaxValueAwaited)
-			{
-				VERIFYD3D12RESULT(D3DCommandQueue->Wait(
-					FenceToAwait->D3DFence,
-					RemoteFenceState.NextValueToAwait
-				));
-
-				RemoteFenceState.MaxValueAwaited = FMath::Max(
-					RemoteFenceState.MaxValueAwaited,
-					RemoteFenceState.NextValueToAwait
-				);
-			}
-		}
-
-		FencesToAwait.Reset();
-	}
+	FD3D12BatchedPayloadObjects BatchedObjects;
 
 	// A pool of reusable command list/allocator/context objects
 	struct
@@ -201,41 +137,38 @@ public:
 		TD3D12ObjectPool<FD3D12CommandList     > Lists;
 	} ObjectPool;
 
-	TUniquePtr<FD3D12DiagnosticBuffer> DiagnosticBuffer;
-
-	const D3D12_GPU_VIRTUAL_ADDRESS GetDiagnosticBufferGPUAddress() const
-	{
-		return DiagnosticBuffer
-			? DiagnosticBuffer->GpuAddress + DiagnosticBuffer->DiagnosticsOffset
-			: 0;
-	}
-
-	const FD3D12DiagnosticBufferData* GetDiagnosticBufferData() const
-	{
-		const uint8* Address = DiagnosticBuffer
-			? reinterpret_cast<const uint8*>(DiagnosticBuffer->CpuAddress) + DiagnosticBuffer->DiagnosticsOffset
-			: nullptr;
-		return reinterpret_cast<const FD3D12DiagnosticBufferData*>(Address);
-	}
-
-	// Get the CPU readable data from the breadcrumb data - this data is still valid after the Device is Lost
-	const void* GetBreadCrumbBufferData() const
-	{
-		return DiagnosticBuffer
-			? reinterpret_cast<const uint8*>(DiagnosticBuffer->CpuAddress) + DiagnosticBuffer->BreadCrumbsOffset
-			: nullptr;
-	}
-
 	// The active timing struct on this queue. Updated / accessed by the interrupt thread.
 	FD3D12Timing* Timing = nullptr;
 
-	uint64 CumulativeIdleTicks = 0;
-	uint64 LastEndTime = 0;
+	TUniquePtr<FD3D12DiagnosticBuffer> DiagnosticBuffer;
+
+	// On some hardware, some auxiliary queue types may not support tile mapping and a separate queue must be used
+	bool bSupportsTileMapping = true;
+
+	static constexpr uint32 MaxBatchedPayloads = 128;
+	using FPayloadArray = TArray<FD3D12Payload*, TInlineAllocator<MaxBatchedPayloads>>;
+
+	// Batches the current payload's command lists, returning the latest fence value signaled for this queue.
+	uint64 FinalizePayload(bool bRequiresSignal, FPayloadArray& PayloadsToHandDown);
+
+	// Call the underlying ID3D12Queue::ExecuteCommandLists function
+	void ExecuteCommandLists(TArrayView<ID3D12CommandList*> D3DCommandLists
+#if ENABLE_RESIDENCY_MANAGEMENT
+		, TArrayView<FD3D12ResidencySet*> ResidencySets
+#endif
+	);
 
 	FD3D12Queue(FD3D12Device* Device, ED3D12QueueType QueueType);
 	~FD3D12Queue();
 
-	void SetupAfterDeviceCreation();
+#if RHI_NEW_GPU_PROFILER
+	UE::RHI::GPUProfiler::FQueue GetProfilerQueue() const;
+#endif
+
+private:
+	// Internal fence which may be used before calling ExecuteCommandLists
+	FD3D12Fence ExecuteCommandListsFence;
+
 };
 
 class FD3D12Device final : public FD3D12SingleNodeGPUObject, public FNoncopyable, public FD3D12AdapterChild
@@ -246,20 +179,27 @@ public:
 
 	ID3D12Device* GetDevice();
 
-	// GPU Profiler
-	FORCEINLINE D3D12RHI::FD3DGPUProfiler& GetGPUProfiler() { return GPUProfilingData; }
+#if RHI_NEW_GPU_PROFILER
+	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)	{ /*checkNoEntry();*/ } // @todo - new gpu profiler
+	void RegisterGPUDispatch(FIntVector GroupCount)	                        { /*checkNoEntry();*/ } // @todo - new gpu profiler
+#else
+	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)	{ GPUProfilingData.RegisterGPUWork(NumPrimitives, NumVertices); }
+	void RegisterGPUDispatch(FIntVector GroupCount)	                        { GPUProfilingData.RegisterGPUDispatch(GroupCount); }
 
-	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0);
-	void RegisterGPUDispatch(FIntVector GroupCount);
+	// GPU Profiler
+	FORCEINLINE FD3D12GPUProfiler& GetGPUProfiler() { return GPUProfilingData; }
+#endif
 
 	uint64 GetTimestampFrequency(ED3D12QueueType QueueType);
+
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FGPUTimingCalibrationTimestamp GetCalibrationTimestamp(ED3D12QueueType QueueType);
+#endif
 
 	// Misc
 	void BlockUntilIdle();
 	D3D12_RESOURCE_ALLOCATION_INFO GetResourceAllocationInfoUncached(const FD3D12ResourceDesc& InDesc);
 	D3D12_RESOURCE_ALLOCATION_INFO GetResourceAllocationInfo(const FD3D12ResourceDesc& InDesc);
-	TUniquePtr<FD3D12DiagnosticBuffer> CreateDiagnosticBuffer(const D3D12_RESOURCE_DESC& Desc, const TCHAR* Name);
 
 	void									  InitExplicitDescriptorHeap();
 	FD3D12ExplicitDescriptorHeapCache*		  GetExplicitDescriptorHeapCache() { return ExplicitDescriptorHeapCache; }
@@ -294,7 +234,8 @@ public:
 	// Descriptor Managers
 	inline FD3D12DescriptorHeapManager&     GetDescriptorHeapManager    () { return DescriptorHeapManager;     }
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	inline FD3D12BindlessDescriptorManager& GetBindlessDescriptorManager() { return BindlessDescriptorManager; }
+	FD3D12BindlessDescriptorAllocator& GetBindlessDescriptorAllocator() { return BindlessDescriptorAllocator; }
+	FD3D12BindlessDescriptorManager& GetBindlessDescriptorManager() { return BindlessDescriptorManager; }
 #endif
 	inline FD3D12OnlineDescriptorManager&   GetOnlineDescriptorManager  () { return OnlineDescriptorManager;   }
 	inline FD3D12OfflineDescriptorManager&  GetOfflineDescriptorManager (ERHIDescriptorHeapType InType)
@@ -314,7 +255,7 @@ public:
 	inline FD3D12ResidencyManager& GetResidencyManager() { return ResidencyManager; }
 
 	// Samplers
-	FD3D12SamplerState* CreateSampler(const FSamplerStateInitializerRHI& Initializer);
+	FD3D12SamplerState* CreateSampler(const FSamplerStateInitializerRHI& Initializer, FD3D12SamplerState* FirstLinkedObject);
 	void CreateSamplerInternal(const D3D12_SAMPLER_DESC& Desc, D3D12_CPU_DESCRIPTOR_HANDLE Descriptor);
 
 	// Command Allocators
@@ -323,10 +264,10 @@ public:
 
 	// Contexts
 	FD3D12CommandContext&   GetDefaultCommandContext() { return *ImmediateCommandContext; }
+	FD3D12ContextCommon*    ObtainContext           (ED3D12QueueType QueueType);
 	FD3D12ContextCopy*      ObtainContextCopy       () { return static_cast<FD3D12ContextCopy*   >(ObtainContext(ED3D12QueueType::Copy  )); }
 	FD3D12CommandContext*   ObtainContextCompute    () { return static_cast<FD3D12CommandContext*>(ObtainContext(ED3D12QueueType::Async )); }
 	FD3D12CommandContext*   ObtainContextGraphics   () { return static_cast<FD3D12CommandContext*>(ObtainContext(ED3D12QueueType::Direct)); }
-	FD3D12ContextCommon*    ObtainContext           (ED3D12QueueType QueueType);
 	void                    ReleaseContext          (FD3D12ContextCommon* Context);
 
 	// Queries
@@ -346,6 +287,16 @@ public:
 	void SetupAfterDeviceCreation();
 	void CleanupResources();
 
+	// Wrapper of ID3D12Device::CreateCommandList
+	HRESULT CreateCommandList(
+		UINT                    nodeMask,
+		D3D12_COMMAND_LIST_TYPE type,
+		ID3D12CommandAllocator* pCommandAllocator,
+		ID3D12PipelineState*    pInitialState,
+		REFIID                  riid,
+		void**                  ppCommandList
+	);
+
 	TRefCountPtr<ID3D12CommandQueue> TileMappingQueue;
 	FD3D12Fence TileMappingFence;
 
@@ -355,7 +306,9 @@ private:
 	void UpdateMSAASettings();
 	void UpdateConstantBufferPageProperties();
 
-	D3D12RHI::FD3DGPUProfiler GPUProfilingData;
+#if (RHI_NEW_GPU_PROFILER == 0)
+	FD3D12GPUProfiler GPUProfilingData;
+#endif
 
 	struct FResidencyManager : public FD3D12ResidencyManager
 	{
@@ -365,6 +318,7 @@ private:
 
 	FD3D12DescriptorHeapManager     DescriptorHeapManager;
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	FD3D12BindlessDescriptorAllocator& BindlessDescriptorAllocator;
 	FD3D12BindlessDescriptorManager BindlessDescriptorManager;
 #endif
 	TArray<FD3D12OfflineDescriptorManager, TInlineAllocator<(uint32)ERHIDescriptorHeapType::Count>> OfflineDescriptorManagers;

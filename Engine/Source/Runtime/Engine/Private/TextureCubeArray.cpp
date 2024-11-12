@@ -224,7 +224,7 @@ public:
 		return Owner->GetNumSlices();
 	}
 
-	FTextureCubeRHIRef GetTextureCubeRHI() const
+	FTextureRHIRef GetTextureCubeRHI() const
 	{
 		return TextureCubeRHI;
 	}
@@ -234,7 +234,7 @@ public:
 	const FTextureCubeArrayResource* GetProxiedResource() const { return ProxiedResource; }
 private:
 	/** A reference to the texture's RHI resource as a cube-map texture. */
-	FTextureCubeRHIRef TextureCubeRHI;
+	FTextureRHIRef TextureCubeRHI;
 
 	/** Local copy/ cache of mip data. Only valid between creation and first call to InitRHI */
 	TArray<void*> MipData;
@@ -504,10 +504,12 @@ uint32 UTextureCubeArray::CalcTextureMemorySize(int32 MipCount) const
 		int32 FirstMip = FMath::Max(0, NumMips - MipCount);
 		FIntPoint MipExtents = CalcMipMapExtent(SizeX, SizeY, Format, FirstMip);
 
-		// TODO add RHICalcTextureCubeArrayPlatformSize
-		uint32 TextureAlign = 0;
-		uint64 TextureSize = RHICalcTextureCubePlatformSize(MipExtents.X, Format, FMath::Max(1, MipCount), TexCreate_None, FRHIResourceCreateInfo(GetPlatformData()->GetExtData()), TextureAlign) * ArraySize;
-		Size = (uint32)TextureSize;
+		const FRHITextureDesc Desc =
+			FRHITextureCreateDesc::CreateCubeArray(TEXT("Temp"), MipExtents.X, ArraySize, Format)
+			.SetNumMips(FMath::Max(1, MipCount))
+			.SetExtData(GetPlatformData()->GetExtData());
+
+		Size = RHICalcTexturePlatformSize(Desc).Size;
 	}
 	return Size;
 }
@@ -752,16 +754,12 @@ ENGINE_API void UTextureCubeArray::InvalidateTextureSource()
 {
 	Modify();
 
-	if (GetPlatformData())
-	{
-		delete GetPlatformData();
-		SetPlatformData(nullptr);
-	}
+	SetPlatformData(nullptr);
 
 	Source = FTextureSource();
 	Source.SetOwner(this);
+
 	UpdateResource();
-	
 }
 #endif
 

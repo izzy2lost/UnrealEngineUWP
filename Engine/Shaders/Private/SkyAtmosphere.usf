@@ -124,6 +124,8 @@ Texture2DMS<float, MSAA_SAMPLE_COUNT> MSAADepthTexture;
 // Only available for shaders ran per view, so this constant should not be accessed in common code such as IntegrateSingleScatteredLuminance for instance.
 float AerialPerspectiveStartDepthKm;
 
+// Propagate alpha with (View.RenderingReflectionCaptureMask == 0.0f) guarantee
+uint bPropagateAlphaNonReflection;
 
 // - RayOrigin: ray origin
 // - RayDir: normalized ray direction
@@ -164,8 +166,8 @@ float3 GetScreenWorldDir(in float4 SVPos)
 {
 	float2 ScreenPosition = SvPositionToScreenPosition(SVPos).xy;
 	const float Depth = 1000000.0f;
-	float4 WorldPos = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, Depth), Depth, 1), View.ScreenToTranslatedWorld);
-	return GetCameraVectorFromTranslatedWorldPosition(WorldPos.xyz);
+	float4 TranslatedWorldPos = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, Depth), Depth, 1), View.ScreenToTranslatedWorld);
+	return GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPos.xyz);
 }
 
 // This is the world position of the camera. It is also force to be at the top of the virutal planet surface. 
@@ -736,12 +738,13 @@ SingleScatteringResult IntegrateSingleScatteredLuminance(
 		// The way to fix that is to use a proper analytical integration as porposed in slide 28 of http://www.frostbite.com/2015/08/physically-based-unified-volumetric-rendering-in-frostbite/ 
 		// However, it is possible to disable as it can also work using simple power serie sum unroll up to 5th order. The rest of the orders has a really low contribution. 
 #define MULTI_SCATTERING_POWER_SERIE 0 
+		const float3 SafeMediumExtinction = max(Medium.Extinction, 1.e-9);
 #if MULTI_SCATTERING_POWER_SERIE==0 
 		// 1 is the integration of luminance over the 4pi of a sphere, and assuming an isotropic phase function of 1.0/(4*PI) 
 		Result.MultiScatAs1 += Throughput * Medium.Scattering * 1.0f * dt;
 #else 
 		float3 MS = Medium.Scattering * 1;
-		float3 MSint = (MS - MS * SampleTransmittance) / Medium.Extinction;
+		float3 MSint = (MS - MS * SampleTransmittance) / SafeMediumExtinction;
 		Result.MultiScatAs1 += Throughput * MSint;
 #endif 
 
@@ -752,9 +755,9 @@ SingleScatteringResult IntegrateSingleScatteredLuminance(
 		Throughput	*= SampleTransmittance;
 #else
 		// See slide 28 at http://www.frostbite.com/2015/08/physically-based-unified-volumetric-rendering-in-frostbite/ 
-		float3 Sint			= (S        - S        * SampleTransmittance) / Medium.Extinction;	// integrate along the current step segment 
-		float3 SintMieOnly	= (SMieOnly - SMieOnly * SampleTransmittance) / Medium.Extinction;
-		float3 SintRayOnly	= (SRayOnly - SRayOnly * SampleTransmittance) / Medium.Extinction;
+		float3 Sint			= (S        - S        * SampleTransmittance) / SafeMediumExtinction;	// integrate along the current step segment 
+		float3 SintMieOnly	= (SMieOnly - SMieOnly * SampleTransmittance) / SafeMediumExtinction;
+		float3 SintRayOnly	= (SRayOnly - SRayOnly * SampleTransmittance) / SafeMediumExtinction;
 		L			+= Throughput * Sint;														// accumulate and also take into account the transmittance from previous steps
 		LMieOnly	+= Throughput * SintMieOnly;
 		LRayOnly	+= Throughput * SintRayOnly;
@@ -828,19 +831,36 @@ float4 PrepareOutput(float3 PreExposedLuminance, float3 Transmittance = float3(1
 	const float GreyScaleTransmittance = dot(Transmittance, float3(1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f));
 	float4 LuminanceAlpha = float4(SafePreExposedLuminance, GreyScaleTransmittance);
 	
-#if POST_PROCESS_ALPHA
-	if (View.RenderingReflectionCaptureMask == 0.0f)
+	FLATTEN
+	if(bPropagateAlphaNonReflection > 0)
 	{
+#if SUPPORT_PRIMITIVE_ALPHA_HOLDOUT
 		LuminanceAlpha.rgb	= IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags) ? 0.0f : LuminanceAlpha.rgb;
+#endif
 		LuminanceAlpha.a	= 1 - GreyScaleTransmittance;
 	}
-#endif
 	
 	return LuminanceAlpha;
 
 }
 
 uint DepthReadDisabled;
+
+void UpdateVisibleSkyAlpha(in float DeviceZ, inout float4 OutLuminance)
+{
+	// This is for parity with the sky dome mesh behavior.
+	// Output fully opaque alpha if looking through outer space, if atmosphere is not in holdout.
+	bool bOutputFullyOpaque = (bPropagateAlphaNonReflection > 0) && (DeviceZ == FarDepthValue);
+#if SUPPORT_PRIMITIVE_ALPHA_HOLDOUT
+	bOutputFullyOpaque &= !IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags);	
+#endif
+
+	FLATTEN
+	if (bOutputFullyOpaque)
+	{
+		OutLuminance.a = 1.0;
+	}
+}
 
 void RenderSkyAtmosphereRayMarchingPS(
 	in float4 SVPos : SV_POSITION,
@@ -868,8 +888,12 @@ void RenderSkyAtmosphereRayMarchingPS(
 	//}
 
 	// World position are relative to the planet center (itself expressed within translated world space)
-	float3 WorldPos = GetTranslatedCameraPlanetPos();
 	float3 WorldDir = GetScreenWorldDir(SVPos);
+	float3 WorldPos = GetTranslatedCameraPlanetPos();
+	if(IsOrthoProjection())
+	{
+		WorldPos += GetTranslatedWorldCameraPosFromView(SVPos.xy, true);
+	}
 
 	float3 PreExposedL = 0;
 	float3 LuminanceScale = 1.0f;
@@ -954,16 +978,16 @@ void RenderSkyAtmosphereRayMarchingPS(
 		float3 SkyLuminance = SkyLuminanceTransmittance.rgb;
 
 		float3 SkyGreyTransmittance = 1.0f;
-	#if POST_PROCESS_ALPHA
-		if (View.RenderingReflectionCaptureMask == 0.0f)
+		FLATTEN
+		if(bPropagateAlphaNonReflection > 0)
 		{
 			SkyGreyTransmittance = SkyLuminanceTransmittance.aaa;
 		}
-	#endif
 
 		PreExposedL += SkyLuminance * LuminanceScale * (ViewOneOverPreExposure * OutputPreExposure);
 	
 		OutLuminance = PrepareOutput(PreExposedL, SkyGreyTransmittance);
+		UpdateVisibleSkyAlpha(DeviceZ, OutLuminance);
 		return;
 	}
 #endif
@@ -994,6 +1018,7 @@ void RenderSkyAtmosphereRayMarchingPS(
 	float Transmittance = AP.a;
 
 	OutLuminance = PrepareOutput(PreExposedL, float3(Transmittance, Transmittance, Transmittance));
+	UpdateVisibleSkyAlpha(DeviceZ, OutLuminance);
 	return;
 #endif
 
@@ -1050,6 +1075,7 @@ void RenderSkyAtmosphereRayMarchingPS(
 	output.Transmittance = float4(ss.Transmittance, 1.0f);
 #else
 	OutLuminance = PrepareOutput(PreExposedL, ss.Transmittance);
+	UpdateVisibleSkyAlpha(DeviceZ, OutLuminance);
 	return;
 #endif
 
@@ -1321,11 +1347,8 @@ void RenderSkyViewLutCS(uint3 ThreadId : SV_DispatchThreadID)
 ////////////////////////////////////////////////////////////
 
 // see SkyAtmosphereRendering.cpp GetSkyLutTextureFormat
-#if SHADING_PATH_MOBILE
-RWTexture2D<float4> DistantSkyLightLutUAV;
-#else
-RWTexture2D<float3> DistantSkyLightLutUAV;
-#endif
+RWStructuredBuffer<float4> DistantSkyLightLutBufferUAV;
+RWBuffer<float4> MobileDistantSkyLightLutBufferUAV;
 //Buffer<float4> UniformSphereSamplesBuffer;
 float4 AtmosphereLightDirection0;
 float4 AtmosphereLightDirection1;
@@ -1416,12 +1439,12 @@ void RenderDistantSkyLightLutCS(uint3 ThreadId : SV_DispatchThreadID)
 		const float SamplerSolidAngle = 4.0f * PI / float(THREADGROUP_SIZE * THREADGROUP_SIZE);
 		const float3 Illuminance = AccumulatedLuminanceSamples * SamplerSolidAngle;
 		const float3 UniformPhaseFunction = 1.0f / (4.0f * PI);
+		
 		// Luminance assuming scattering in a medium with a uniform phase function.
-#if SHADING_PATH_MOBILE
-		DistantSkyLightLutUAV[int2(PixPos)] = float4(Illuminance * UniformPhaseFunction, 0.0f);
-#else
-		DistantSkyLightLutUAV[int2(PixPos)] = Illuminance * UniformPhaseFunction;
-#endif
+		const float4 OutputResult			= float4(Illuminance * UniformPhaseFunction, 0.0f);
+		DistantSkyLightLutBufferUAV[0]		= OutputResult;
+		MobileDistantSkyLightLutBufferUAV[0]= OutputResult;
+		
 		// Since this is ran once per scene, we do not have access to view data (VIEWDATA_AVAILABLE==0). 
 		// So this buffer is not pre-exposed today.
 	}
@@ -1459,6 +1482,11 @@ void RenderCameraAerialPerspectiveVolumeCS(uint3 ThreadId : SV_DispatchThreadID)
 	float4 SVPos = float4(View.ViewRectMin.xy + UV * View.ViewSizeAndInvSize.xy, 0.0f, 1.0f);// SV_POS as if resolution was the one from the scene view.
 	float3 WorldDir = GetScreenWorldDir(SVPos);
 	float3 CamPos = GetTranslatedCameraPlanetPos();
+	if (IsOrthoProjection())
+	{
+		CamPos += GetTranslatedWorldCameraPosFromView(SVPos.xy, true);
+	}
+
 
 	if (RealTimeReflection360Mode)
 	{
@@ -1592,7 +1620,7 @@ void RenderCameraAerialPerspectiveVolumeCS(uint3 ThreadId : SV_DispatchThreadID)
 		AerialPespectiveViewDistanceScale,
 		tMaxMax);
 
-#if POST_PROCESS_ALPHA
+#if SUPPORT_PRIMITIVE_ALPHA_HOLDOUT
 	if (IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags) && !RealTimeReflection360Mode)
 	{
 		ss.L *= 0;

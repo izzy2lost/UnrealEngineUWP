@@ -18,8 +18,26 @@ namespace Geometry
 class FColliderMesh;
 class FGroupTopology;
 struct FGroupTopologySelection;
+	
+enum class EEnumerateSelectionMapping : uint8
+{
+	None         = 0,
+	
+	FacesToFaces = 1 << 0,
+	FacesToEdges = 1 << 1,
 
-
+	Default = FacesToFaces,
+};
+ENUM_CLASS_FLAGS(EEnumerateSelectionMapping);
+	
+enum class EEnumerateSelectionConversionParams
+{
+	/** Converts to components whose constituent parts are all contained in the initial selection. */
+	ContainSelection,
+	/** Converts to components where any of its constituent parts are included in the initial selection. */
+	ExpandSelection
+};
+	
 /**
  * Test if SelectionA and SelectionB are the same selection.
  * This is currently relatively expensive on Polygroup selections due to how they are encoded
@@ -85,19 +103,42 @@ DYNAMICMESH_API bool UpdateSelectionWithNewElements(
 
 
 /**
- * Call VertexFunc for each selected Mesh element (vertex/edge/tri) in MeshSelection.
- * ApplyTransform will be applied to Vertex Positions before calling VertexFunc
+ * Prefer pointer version for ApplyTransform in EnumerateTriangleSelectionVertices
  */
+UE_DEPRECATED(5.5, "EnumerateTriangleSelectionVertices with ApplyTransform passed a reference is deprecated. "
+				   "Please use the function of the same name which takes ApplyTransform as a pointer instead")
 DYNAMICMESH_API bool EnumerateTriangleSelectionVertices(
 	const FGeometrySelection& MeshSelection,
 	const UE::Geometry::FDynamicMesh3& Mesh,
 	const FTransform& ApplyTransform,
 	TFunctionRef<void(uint64, const FVector3d&)> VertexFunc
 );
+
+/**
+ * Call VertexFunc for each selected Mesh element (vertex/edge/tri) in MeshSelection.
+ * ApplyTransform will be applied to Vertex Positions before calling VertexFunc
+ *
+ * For Triangles: includes all 3 points which make up each selected triangle
+ * For Edges: includes both vertex endpoints of each selected edge
+ * For Vertices: includes each selected vertex
+ */
+DYNAMICMESH_API bool EnumerateTriangleSelectionVertices(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	const FTransform* ApplyTransform,
+	TFunctionRef<void(uint64, const FVector3d&)> VertexFunc
+);
+
 /**
  * Call VertexFunc for each selected Mesh element (vertex/edge/tri) in the set
  * of polygroup faces/edges/corners specified by GroupSelection (relative to GroupTopology parameter)
  * ApplyTransform will be applied to Vertex Positions before calling VertexFunc
+ *
+ * For Faces: enumerates all vertices in the selected polygroup(s), including internal, non-Corner vertices
+ * For Edges/Boundaries: enumerates the TriVerts which make up the selected PolyEdge(s)
+ * For Verts/Corners: returns the TriVert that corresponds to the selected Corner(s)
+ *
+ * For rendering purposes, use EnumeratePolygroupSelectionElements
  */
 DYNAMICMESH_API bool EnumeratePolygroupSelectionVertices(
 	const FGeometrySelection& GroupSelection,
@@ -143,13 +184,87 @@ DYNAMICMESH_API bool EnumeratePolygroupSelectionTriangles(
 	const UE::Geometry::FPolygroupSet& GroupSet,
 	TFunctionRef<void(int32)> TriangleFunc
 );
+/**
+ * Call EdgeFunc for each mesh EdgeID included in MeshSelection.
+ * EdgeFunc may be called multiple times for the same EdgeID.
+ * This will forward to EnumerateTriangleSelectionEdges() or 
+ * EnumeratePolygroupSelectionEdges() depending on the selection topology type.
+ * If UseGroupSet and MeshSelection is for polygroups, the default Mesh group layer will be used.
+ * For polygroups - all edges and vertices within the polygroup are included, not exclusively Group Boundaries or Group Corners
+ */
+DYNAMICMESH_API bool EnumerateSelectionEdges(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	TFunctionRef<void(int32)> EdgeFunc,
+	const UE::Geometry::FPolygroupSet* UseGroupSet = nullptr
+);
+/**
+ * Call EdgeFunc for each mesh EdgeID included in MeshSelection.
+ * For Triangles, all 3 edges are included.
+ * For Edges, all selected edges are included
+ * For Vertices, all edges touching each selected vertex are included.
+ */
+DYNAMICMESH_API bool EnumerateTriangleSelectionEdges(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	TFunctionRef<void(int32)> EdgeFunc
+);
+/**
+ * Call EdgeFunc for each mesh EdgeID included in MeshSelection, where MeshSelection has polygroup topology.
+ * For Polygroup Faces, all edges (including internal, non-border edges) in the polygroup are included.
+ * For Polygroup Borders, includes all mesh edges which are a part of the selected GroupEdge(s)/BorderEdge(s)
+ * For Polygroup Corners, includes all mesh edges in all GroupEdge(s) which touch the selected Corner(s)
+ *
+ * For rendering purposes, use EnumeratePolygroupSelectionElements
+ */
+DYNAMICMESH_API bool EnumeratePolygroupSelectionEdges(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	const UE::Geometry::FPolygroupSet& GroupSet,
+	TFunctionRef<void(int32)> EdgeFunc
+);
+
+/**
+ * Version of EnumeratePolygroupSelectionEdges which uses GroupTopology
+ *
+* Call EdgeFunc for each mesh EdgeID included in MeshSelection, where MeshSelection has polygroup topology.
+ * For Polygroup Faces, all edges (including internal, non-border edges) in the polygroup are included.
+ * For Polygroup Borders, includes all mesh edges which are a part of the selected GroupEdge(s)/BorderEdge(s)
+ * For Polygroup Corners, includes all mesh edges in all GroupEdge(s) which touch the selected Corner(s)
+ */
+DYNAMICMESH_API bool EnumeratePolygroupSelectionEdges(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	const UE::Geometry::FGroupTopology& GroupTopology,
+	TFunctionRef<void(int32)> EdgeFunc
+);	
+	
+/** Prefer EnumerateTriangleSelectionElements with Flags parameter. */
+DYNAMICMESH_API bool EnumerateTriangleSelectionElements(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	TFunctionRef<void(int32, const FVector3d&)> VertexFunc,
+	TFunctionRef<void(int32, const FSegment3d&)> EdgeFunc,
+	TFunctionRef<void(int32, const FTriangle3d&)> TriangleFunc,
+	const FTransform* ApplyTransform = nullptr,
+	const bool bMapFacesToEdgeLoops = false
+);
 
 
 /**
- * Call VertexFunc/EdgeFunc/TriangleFunc for the vertices/edges/triangles identified by MeshSelection.
- * Since a MeshSelection only stores vertices, edges, or triangles, but not combined, only one
- * of these functions will be invoked during a call to this function.
- * This function is useful to collect up geometry that needs to be rendered for a given MeshSelection
+ * Enumerates the renderable geometry for a given MeshSelection when in Triangle Topology mode.
+ *
+ * Calls VertexFunc/EdgeFunc/TriangleFunc for the vertices/edges/triangles
+ * identified by MeshSelection. Since a MeshSelection only stores vertices
+ * edges, or triangles, but not combined, only one of these functions will be
+ * invoked during a call to this function.
+ *
+ * This function employs the component specific variants (ex.
+ * EnumerateTriangleSelectionTriangles) but the overall intention of this function
+ * is to collect the renderable geometry representations of the selection.
+ * In triangle topology mode only, there is not a difference between 
+ * all selection elements and the desired rendered elements. However, this function
+ * is still used for render representation for consistency and clarity.
  * @param ApplyTransform if non-null, transform is applied to the 3D geometry
  */
 DYNAMICMESH_API bool EnumerateTriangleSelectionElements(
@@ -159,15 +274,35 @@ DYNAMICMESH_API bool EnumerateTriangleSelectionElements(
 	TFunctionRef<void(int32, const FSegment3d&)> EdgeFunc,
 	TFunctionRef<void(int32, const FTriangle3d&)> TriangleFunc,
 	const FTransform* ApplyTransform = nullptr,
-	bool bMapFacesToEdgeLoops = false
+	const EEnumerateSelectionMapping Flags = EEnumerateSelectionMapping::Default
+);
+
+/** Prefer EnumeratePolygroupSelectionElements with Flags parameter. */
+DYNAMICMESH_API bool EnumeratePolygroupSelectionElements(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	const FGroupTopology* GroupTopology,
+	TFunctionRef<void(int32, const FVector3d&)> VertexFunc,
+	TFunctionRef<void(int32, const FSegment3d&)> EdgeFunc,
+	TFunctionRef<void(int32, const FTriangle3d&)> TriangleFunc,
+	const FTransform* ApplyTransform = nullptr,
+	const bool bMapFacesToEdgeLoops = false
 );
 /**
- * Call VertexFunc/EdgeFunc/TriangleFunc for the mesh vertices/edges/triangles identified by MeshSelection,
- * where MeshSelection has polygroup topology referring to the provided GroupTopology
- * Since a MeshSelection only stores vertices, edges, or triangles, but not combined, only one
- * of these functions will be invoked during a call to this function.
- * This function is useful to collect up geometry that needs to be rendered for a given MeshSelection
- * @param ApplyTransform if non-null, transform is applied to the 3D geometry
+ * Enumerates the renderable geometry for a given MeshSelection when in Polygroup Topology mode.
+ *
+ * Calls VertexFunc/EdgeFunc/TriangleFunc for the vertices/edges/triangles
+ * identified by MeshSelection. Since a MeshSelection only stores vertices
+ * edges, or triangles, but not combined, only one of these functions will be
+ * invoked during a call to this function.
+ *
+ * This function differs from the component specific variants (ex.
+ * EnumeratePolygroupSelectionTriangles) by only collecting the renderable
+ * geometry representations of the selection. For instance, a polygroup
+ * face may only want to render the triangles and border edges, while
+ * EnumeratePolygroupSelectionTriangles would collect all triangles and
+ * edges within that polygroup face. This is the difference between render
+ * representation and component conversion.
  */
 DYNAMICMESH_API bool EnumeratePolygroupSelectionElements(
 	const FGeometrySelection& MeshSelection,
@@ -177,7 +312,7 @@ DYNAMICMESH_API bool EnumeratePolygroupSelectionElements(
 	TFunctionRef<void(int32, const FSegment3d&)> EdgeFunc,
 	TFunctionRef<void(int32, const FTriangle3d&)> TriangleFunc,
 	const FTransform* ApplyTransform = nullptr,
-	bool bMapFacesToEdgeLoops = false
+	const EEnumerateSelectionMapping Flags = EEnumerateSelectionMapping::Default
 );
 
 
@@ -211,32 +346,45 @@ DYNAMICMESH_API bool InitializeSelectionFromTriangles(
  *                 To:    Triangle               Polygroup           
  *   From:                Vertex  Edge    Face   Vertex  Edge    Face
  *   ----------------------------------------------------------------
- *   Triangle Vertex      1       .       .      .       .       .   
- *   Triangle Edge        1       1       .      .       .       .   
- *   Triangle Face        1       1       1      4#      3#      2#  
- *   Polygroup Vertex     6#      .       .      1       .       .   
- *   Polygroup Edge       5#      .       .      .       1       .   
- *   Polygroup Face       .       .       .      .       .       1   
+ *   Triangle Vertex      1       1       7      4#      7#       7#   
+ *   Triangle Edge        1       1       8      4#      1#       8#   
+ *   Triangle Face        1       1       1      4#      3#       2#  
+ *   Polygroup Vertex     6#      9#      9      1       7#       7#   
+ *   Polygroup Edge       5#      1#      8      1#      1        8#   
+ *   Polygroup Face       1#      1#      1      1#      1#       1   
  *   ================================================================
  *
  *   Key:
  *   .  These conversions are not implemented... yet? GroupTopology is ignored
- *   1  supported. The implementation is obvious/unambiguous
- *   2  supported. Polygroup faces containing any input triangle are selected
- *   3  supported. Polygroup edges containing any input triangle edge are selected, but
+ *   1  - The implementation is obvious/unambiguous
+ *   2  - Polygroup faces containing any input triangle are selected
+ *   3  - Polygroup edges containing any input triangle edge are selected, but
  *                 polygroup edges containing only input triangle vertices are not.
- *   4  supported. Polygroup corners coinciding with any input triangle vertex are selected
- *   5  supported. All mesh vertices along the polygroup edge are selected
- *   6  supported. All mesh vertices coinciding with polygroup corners are selected
+ *   4  - Polygroup corners coinciding with any input triangle face/edge/vertex are selected
+ *   5  - All mesh vertices along the polygroup edge are selected
+ *   6  - All mesh vertices coinciding with polygroup corners are selected
+ *   7  - All Elements which immediately touch any input vertex/corner are selected
+ *   8  - All triangles or faces on either side of the any input edge are selected
+ *			PolyEdge->TriFace includes all triangles in both groups which the edge borders
+ *   9  - All edges in each PolyEdge with touch any input Corner are selected
+ *		  All triangles in each PolyFace which touch any input Corner are selected
  *   #  indicates GroupTopology must not be null for this combination. If this symbol is missing GroupTopology is ignored
  *
  * @return true if conversion is supported and was computed successfully, return false otherwise
  */
+UE_DEPRECATED(5.5, "This version of ConvertSelection is deprecated, please use the version with the EENumerateSelectionConversionParams parameter going forward.")	
 DYNAMICMESH_API bool ConvertSelection(
 	const UE::Geometry::FDynamicMesh3& Mesh,
 	const FGroupTopology* GroupTopology,
 	const FGeometrySelection& FromSelectionIn,
 	FGeometrySelection& ToSelectionOut);
+
+DYNAMICMESH_API bool ConvertSelection(
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	const FGroupTopology* GroupTopology,
+	const FGeometrySelection& FromSelectionIn,
+	FGeometrySelection& ToSelectionOut,
+	const EEnumerateSelectionConversionParams ConversionParams);
 
 /**
  * Convert the given MeshSelection to a list of Triangles and Vertices into the Mesh,

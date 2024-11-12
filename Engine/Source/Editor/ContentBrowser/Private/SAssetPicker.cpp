@@ -3,15 +3,18 @@
 #include "SAssetPicker.h"
 
 #include "AssetRegistry/AssetData.h"
+#include "AssetTextFilter.h"
 #include "AssetThumbnail.h"
 #include "CollectionManagerTypes.h"
 #include "ContentBrowserDataFilter.h"
 #include "ContentBrowserItem.h"
+#include "ContentBrowserStyle.h"
 #include "ContentBrowserUtils.h"
 #include "CoreGlobals.h"
 #include "Delegates/Delegate.h"
 #include "Editor.h"
 #include "Editor/EditorEngine.h"
+#include "Filters.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/Commands/UIAction.h"
@@ -174,7 +177,7 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 			[
 				SNew(SImage)
 				.ColorAndOpacity(FSlateColor::UseForeground())
-				.Image(FAppStyle::GetBrush("ContentBrowser.ColumnViewDeveloperFolderIcon"))
+				.Image(UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetBrush("ContentBrowser.ColumnViewDeveloperFolderIcon"))
 			]
 		];
 	}
@@ -240,8 +243,8 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 				.AutoHeight()
 				[
 					SNew(SButton)
-						.ButtonStyle( FAppStyle::Get(), "ContentBrowser.NoneButton" )
-						.TextStyle( FAppStyle::Get(), "ContentBrowser.NoneButtonText" )
+						.ButtonStyle(UE::ContentBrowser::Private::FContentBrowserStyle::Get(), "ContentBrowser.NoneButton" )
+						.TextStyle(UE::ContentBrowser::Private::FContentBrowserStyle::Get(), "ContentBrowser.NoneButtonText" )
 						.Text( LOCTEXT("NoneButtonText", "( None )") )
 						.ToolTipText( LOCTEXT("NoneButtonTooltip", "Clears the asset selection.") )
 						.HAlign(HAlign_Center)
@@ -270,29 +273,22 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 		];
 
 		// Use the 'other developer' filter from the filter list widget. 
-		OtherDevelopersFilter = StaticCastSharedPtr<FFrontendFilter_ShowOtherDevelopers>(FilterListPtr->GetFrontendFilter(TEXT("ShowOtherDevelopers")));
+		OtherDevelopersFilter = StaticCastSharedPtr<FFilter_HideOtherDevelopers>(FilterListPtr->GetFrontendFilter(TEXT("HideOtherDevelopersBackend")));
 	}
 	else
 	{
 		// Filter UI is off, but the 'other developer' filter is a built-in feature.
-		OtherDevelopersFilter = MakeShared<FFrontendFilter_ShowOtherDevelopers>(nullptr);
-		FrontendFilters->Add(OtherDevelopersFilter);
+		OtherDevelopersFilter = MakeShared<FFilter_HideOtherDevelopers>(nullptr, FName(SaveSettingsName));
+		OtherDevelopersFilter->SetActiveInCollection(OtherDevelopersFilter.ToSharedRef(), false, *FrontendFilters);
 	}
 
 	// Make game-specific filter
 	FOnShouldFilterAsset ShouldFilterAssetDelegate;
 	{
 		FAssetReferenceFilterContext AssetReferenceFilterContext;
-		AssetReferenceFilterContext.ReferencingAssets = InArgs._AssetPickerConfig.AdditionalReferencingAssets;
-		if (InArgs._AssetPickerConfig.PropertyHandle.IsValid())
-		{
-			TArray<UObject*> ReferencingObjects;
-			InArgs._AssetPickerConfig.PropertyHandle->GetOuterObjects(ReferencingObjects);
-			for (UObject* ReferencingObject : ReferencingObjects)
-			{
-				AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(ReferencingObject));
-			}
-		}
+		AssetReferenceFilterContext.AddReferencingAssets(InArgs._AssetPickerConfig.AdditionalReferencingAssets);
+		AssetReferenceFilterContext.AddReferencingAssetsFromPropertyHandle(InArgs._AssetPickerConfig.PropertyHandle);
+
 		TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor ? GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext) : nullptr;
 		if (AssetReferenceFilter.IsValid())
 		{
@@ -315,6 +311,12 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 		}
 	}
 
+	if (!InArgs._AssetPickerConfig.bAutohideSearchBar)
+	{
+		TextFilter = MakeShared<FAssetTextFilter>();
+	}
+	
+	// clang-format off
 	VerticalBox->AddSlot()
 	.FillHeight(1.f)
 	[
@@ -331,6 +333,8 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 		.OnVisualizeAssetToolTip(InArgs._AssetPickerConfig.OnVisualizeAssetToolTip)
 		.OnAssetToolTipClosing(InArgs._AssetPickerConfig.OnAssetToolTipClosing)
 		.FrontendFilters(FrontendFilters)
+		.TextFilter(TextFilter)
+		.ShowRedirectors_Lambda([this]() { return ContentBrowserUtils::ShouldShowRedirectors(FilterListPtr); })
 		.InitialSourcesData(CurrentSourcesData)
 		.InitialBackendFilter(CurrentBackendFilter)
 		.InitialViewType(InArgs._AssetPickerConfig.InitialAssetViewType)
@@ -359,8 +363,9 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 		.CustomColumns(InArgs._AssetPickerConfig.CustomColumns)
 		.OnSearchOptionsChanged(this, &SAssetPicker::HandleSearchSettingsChanged)
 		.InitialThumbnailSize(InArgs._AssetPickerConfig.InitialThumbnailSize)
+		.AssetViewOptionsProfile(InArgs._AssetPickerConfig.AssetViewOptionsProfile)
 	];
-
+	// clang-format on
 
 	HorizontalBox->AddSlot()
 	.AutoWidth()
@@ -381,9 +386,8 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 
 	LoadSettings();
 
-	if (AssetViewPtr.IsValid() && !InArgs._AssetPickerConfig.bAutohideSearchBar)
+	if (TextFilter.IsValid())
 	{
-		TextFilter = MakeShareable(new FFrontendFilter_Text());
 		bool bClassNamesProvided = (InArgs._AssetPickerConfig.Filter.ClassPaths.Num() != 1);
 		TextFilter->SetIncludeClassName(bClassNamesProvided || AssetViewPtr->IsIncludingClassNames());
 		TextFilter->SetIncludeAssetPath(AssetViewPtr->IsIncludingAssetPaths());
@@ -483,12 +487,10 @@ void SAssetPicker::SetSearchBoxText(const FText& InSearchText)
 		TextFilter->SetRawFilterText(InSearchText);
 		if (InSearchText.IsEmpty())
 		{
-			FrontendFilters->Remove(TextFilter);
 			AssetViewPtr->SetUserSearching(false);
 		}
 		else
 		{
-			FrontendFilters->Add(TextFilter);
 			AssetViewPtr->SetUserSearching(true);
 		}
 	}
@@ -538,16 +540,21 @@ void SAssetPicker::SetNewBackendFilter(const FARFilter& NewFilter)
 void SAssetPicker::OnFilterChanged()
 {
 	FARFilter Filter;
+	TArray<TSharedRef<const FPathPermissionList>> CustomPermissionLists;
 	
 	if ( FilterListPtr.IsValid() )
 	{
-		Filter = FilterListPtr->GetCombinedBackendFilter();
+		Filter = FilterListPtr->GetCombinedBackendFilter(CustomPermissionLists);
+	}
+	else if (!IsShowingOtherDevelopersContent())
+	{
+		CustomPermissionLists.Add(OtherDevelopersFilter->GetPathPermissionList());
 	}
 
 	Filter.Append(CurrentBackendFilter);
 	if (AssetViewPtr.IsValid())
 	{
-		AssetViewPtr->SetBackendFilter( Filter );
+		AssetViewPtr->SetBackendFilter(Filter, &CustomPermissionLists);
 	}
 }
 
@@ -652,10 +659,29 @@ void SAssetPicker::RefreshAssetView(bool bRefreshSources)
 	}
 }
 
+bool SAssetPicker::IsShowingOtherDevelopersContent() const
+{
+	if (FilterListPtr.IsValid())
+	{
+		return !FilterListPtr->IsFrontendFilterActive(OtherDevelopersFilter);
+	}
+	else
+	{
+		for (int32 i=0; i < FrontendFilters->Num(); ++i)
+		{
+			if (FrontendFilters->GetFilterAtIndex(i) == OtherDevelopersFilter)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
 FText SAssetPicker::GetShowOtherDevelopersToolTip() const
 {
 	// NOTE: This documents the filter effect rather than the button action.
-	if (FilterListPtr ? FilterListPtr->IsFrontendFilterActive(OtherDevelopersFilter) : OtherDevelopersFilter->GetShowOtherDeveloperAssets())
+	if (IsShowingOtherDevelopersContent())
 	{
 		return LOCTEXT("ShowingOtherDevelopersFilterTooltipText", "Showing Other Developers Assets");
 	}
@@ -674,7 +700,14 @@ void SAssetPicker::HandleShowOtherDevelopersCheckStateChanged( ECheckBoxState In
 	}
 	else
 	{
-		OtherDevelopersFilter->SetShowOtherDeveloperAssets(InCheckboxState == ECheckBoxState::Checked); // The checked state matches the active state.
+		if (InCheckboxState == ECheckBoxState::Checked)
+		{
+			OtherDevelopersFilter->SetActiveInCollection(OtherDevelopersFilter.ToSharedRef(), /* do show other developers content*/ false, *FrontendFilters);
+		}
+		else
+		{
+			OtherDevelopersFilter->SetActiveInCollection(OtherDevelopersFilter.ToSharedRef(), /* do not show other developers content*/ true, *FrontendFilters);
+		}
 	}
 }
 
@@ -686,7 +719,14 @@ ECheckBoxState SAssetPicker::GetShowOtherDevelopersCheckState() const
 	}
 	else
 	{
-		return OtherDevelopersFilter->GetShowOtherDeveloperAssets() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; // The checked state matches the active state.
+		if (IsShowingOtherDevelopersContent())
+		{
+			return ECheckBoxState::Checked;
+		}
+		else
+		{
+			return ECheckBoxState::Unchecked;
+		}
 	}
 }
 

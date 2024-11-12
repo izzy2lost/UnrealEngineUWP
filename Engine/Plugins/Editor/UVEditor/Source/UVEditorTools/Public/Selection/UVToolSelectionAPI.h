@@ -132,6 +132,12 @@ public:
 
 	// Selection mechanic controls:
 
+	/**
+	 * Most clients shouldn't need to touch the selection mechanic directly, but it can
+	 * be useful for certain utility functions that exist on the mechanic.
+	 */
+	const UUVEditorMeshSelectionMechanic* GetSelectionMechanic() const { return SelectionMechanic; }
+
 	void SetSelectionMechanicEnabled(bool bEnabled);
 
 	struct FSelectionMechanicOptions
@@ -340,6 +346,18 @@ public:
 	// UUVToolContextObject
 	virtual void Shutdown() override;
 	virtual void OnToolEnded(UInteractiveTool* DeadTool) override;
+
+	// Holds the properties of the UV Live Preview Selection (in 3d viewport) for customization
+	struct FLivePreviewSelectionUXSettings
+	{
+		TOptional<FColor> SelectionColor;
+		TOptional<float> LineThickness;
+		TOptional<float> PointSize;
+	};
+
+	// Sets the UV Live Preview Selection settings
+	void SetLivePreviewSelectionUXSettings(const FLivePreviewSelectionUXSettings& Settings) const;
+
 protected:
 	TArray<FUVToolSelection> CurrentSelections;
 	TArray<FUVToolSelection> CurrentUnsetSelections;

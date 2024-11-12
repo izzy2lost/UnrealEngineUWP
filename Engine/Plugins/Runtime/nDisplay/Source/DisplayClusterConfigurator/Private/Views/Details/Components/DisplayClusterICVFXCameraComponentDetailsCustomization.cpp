@@ -10,6 +10,7 @@
 #include "DisplayClusterRootActor.h"
 #include "UObject/SoftObjectPtr.h"
 
+#include "ColorGradingEditorUtil.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "IDetailGroup.h"
@@ -26,7 +27,7 @@ namespace DisplayClusterICVFXCameraComponentDetailsCustomizationUtils
 		{
 			TEXT("Variable"),
 			TEXT("TransformCommon"),
-			DisplayClusterConfigurationStrings::categories::ICVFXCategory,
+			DisplayClusterConfigurationStrings::categories::InnerFrustumCategory,
 			DisplayClusterConfigurationStrings::categories::ICVFXCameraCategory,
 			DisplayClusterConfigurationStrings::categories::CameraColorGradingCategory,
 			DisplayClusterConfigurationStrings::categories::OCIOCategory,
@@ -40,7 +41,7 @@ namespace DisplayClusterICVFXCameraComponentDetailsCustomizationUtils
 		{
 			int32 CurrentSortOrder = Pair.Value->GetSortOrder();
 
-			int32 DesiredSortOrder;
+			int32 DesiredSortOrder = 0;
 			if (CategoryOrder.Find(Pair.Key, DesiredSortOrder))
 			{
 				CurrentSortOrder = DesiredSortOrder;
@@ -98,7 +99,14 @@ void FDisplayClusterICVFXCameraComponentDetailsCustomization::CustomizeDetails(I
 	InLayoutBuilder.HideCategory(TEXT("Sockets"));
 
 	// Rename "Inner Frustum Color Grading" to "Color Grading" for brevity, as the category itself needs to remain distinct from the camera's "Color Grading" category.
-	InLayoutBuilder.EditCategory(DisplayClusterConfigurationStrings::categories::CameraColorGradingCategory, LOCTEXT("ICVFXColorGradingCategoryLabel", "Color Grading"));
+	IDetailCategoryBuilder& ColorGradingCategory = InLayoutBuilder.EditCategory(DisplayClusterConfigurationStrings::categories::CameraColorGradingCategory, LOCTEXT("ICVFXColorGradingCategoryLabel", "Color Grading"));
+
+	// Add the Color Grading button at the top of the new category
+	ColorGradingCategory.AddCustomRow(NSLOCTEXT("ColorCorrectWindowDetails", "OpenColorGrading", "Open Color Grading"))
+		.RowTag("OpenColorGrading")
+		[
+			ColorGradingEditorUtil::MakeColorGradingLaunchButton()
+		];
 
 	IDetailCategoryBuilder& CameraCategory = InLayoutBuilder.EditCategory(DisplayClusterConfigurationStrings::categories::ICVFXCameraCategory, LOCTEXT("ICVFXCameraCategoryLabel", "Camera"));
 

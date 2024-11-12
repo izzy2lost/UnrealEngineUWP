@@ -26,7 +26,11 @@ struct  FObjectCacheEventSink
 	static ENGINE_API void NotifyUsedMaterialsChanged_Concurrent(const IPrimitiveComponent* PrimitiveComponent, const TArray<UMaterialInterface*>& UsedMaterials);
 	static ENGINE_API void NotifyRenderStateChanged_Concurrent(UActorComponent*);
 	static ENGINE_API void NotifyRenderStateChanged_Concurrent(IPrimitiveComponent*);
-	static ENGINE_API void NotifyReferencedTextureChanged_Concurrent(UMaterialInterface*);
+	static ENGINE_API void NotifyMaterialChanged_Concurrent(UMaterialInterface*);
+	static inline void NotifyReferencedTextureChanged_Concurrent(UMaterialInterface* InMaterial)
+	{
+		NotifyMaterialChanged_Concurrent(InMaterial);
+	}
 	static ENGINE_API void NotifyStaticMeshChanged_Concurrent(IStaticMeshComponent*);
 	static ENGINE_API void NotifyMaterialDestroyed_Concurrent(UMaterialInterface*);
 	static ENGINE_API void NotifyCompositeTextureChanged_Concurrent(UTexture*);

@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage
 {
-	namespace Internal
+	namespace Private
 	{
 		template<typename TContainer, typename T>
 		void AddDataToContainer(TContainer& Container, FName Name, T Value)
@@ -43,14 +43,14 @@ namespace TypedElementDataStorage
 		}
 	}
 
-	ENUM_CLASS_FLAGS(TypedElementDataStorage::FColumnMetaData::EFlags)
+	ENUM_CLASS_FLAGS(FColumnMetaData::EFlags)
 
 		template<typename T>
 	bool FMetaDataBase::AddImmutableData(FName Name, T&& Value)
 	{
 		if (!ImmutableData.Contains(Name))
 		{
-			Internal::AddDataToContainer(ImmutableData, Name, Forward<T>(Value));
+			Private::AddDataToContainer(ImmutableData, Name, Forward<T>(Value));
 			return true;
 		}
 		else
@@ -62,7 +62,7 @@ namespace TypedElementDataStorage
 	template<typename T>
 	void FMetaDataBase::AddOrSetMutableData(FName Name, T&& Value)
 	{
-		Internal::AddDataToContainer(MutableData, Name, Forward<T>(Value));
+		Private::AddDataToContainer(MutableData, Name, Forward<T>(Value));
 	}
 
 
@@ -163,4 +163,4 @@ namespace TypedElementDataStorage
 				return Result;
 			});
 	}
-} // namespace TypedElementDataStorage
+} // namespace UE::Editor::DataStorage

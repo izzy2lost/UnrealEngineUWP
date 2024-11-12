@@ -4,7 +4,13 @@
 	MetalViewport.cpp: Metal viewport RHI implementation.
 =============================================================================*/
 
+#include "MetalViewport.h"
+#include "MetalDynamicRHI.h"
 #include "MetalRHIPrivate.h"
+#include "MetalCommandBuffer.h"
+#include "MetalProfiler.h"
+#include "MetalRHIVisionOSBridge.h"
+#include "MetalDevice.h"
 
 #import <QuartzCore/CAMetalLayer.h>
 
@@ -16,14 +22,11 @@
 #endif
 #include "RenderCommandFence.h"
 #include "Containers/Set.h"
-#include "MetalCommandBuffer.h"
-#include "MetalProfiler.h"
 #include "RenderUtils.h"
-#include "MetalRHIVisionOSBridge.h"
+#include "Engine/RendererSettings.h"
 
 extern int32 GMetalSupportsIntermediateBackBuffer;
 extern int32 GMetalSeparatePresentThread;
-extern int32 GMetalNonBlockingPresent;
 extern float GMetalPresentFramePacing;
 
 #if PLATFORM_IOS
@@ -34,6 +37,14 @@ static FAutoConsoleVariableRef CVarMetalEnablePresentPacing(
 	   TEXT(""),
 		ECVF_Default);
 #endif
+
+
+int32 GMetalNonBlockingPresent = 0;
+static FAutoConsoleVariableRef CVarMetalNonBlockingPresent(
+	TEXT("rhi.Metal.NonBlockingPresent"),
+	GMetalNonBlockingPresent,
+	TEXT("When enabled (> 0) this will force MetalRHI to query if a back-buffer is available to present and if not will skip the frame. Only functions on macOS, it is ignored on iOS/tvOS.\n")
+	TEXT("(Off by default (0))"));
 
 #if PLATFORM_MAC
 
@@ -71,8 +82,9 @@ static FAutoConsoleVariableRef CVarMetalEnablePresentPacing(
 static FCriticalSection ViewportsMutex;
 static TSet<FMetalViewport*> Viewports;
 
-FMetalViewport::FMetalViewport(void* WindowHandle, uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen, EPixelFormat Format)
-	: Drawable{nullptr}
+FMetalViewport::FMetalViewport(FMetalDevice& InDevice, void* WindowHandle, uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen, EPixelFormat Format)
+	: Device(InDevice)
+	, Drawable{nullptr}
 	, BackBuffer{nullptr, nullptr}
 	, Mutex{}
 	, DrawableTextures{}
@@ -113,7 +125,7 @@ FMetalViewport::FMetalViewport(void* WindowHandle, uint32 InSizeX, uint32 InSize
 		Layer.magnificationFilter = kCAFilterNearest;
 		Layer.minificationFilter = kCAFilterNearest;
 
-		[Layer setDevice:(__bridge id<MTLDevice>)GetMetalDeviceContext().GetDevice()];
+		[Layer setDevice:(__bridge id<MTLDevice>)Device.GetDevice()];
 		
 		[Layer setFramebufferOnly:NO];
 		[Layer removeAllAnimations];
@@ -160,7 +172,7 @@ uint32 FMetalViewport::GetViewportIndex(EMetalViewportAccessFlag Accessor) const
 	switch(Accessor)
 	{
 		case EMetalViewportAccessRHI:
-			check(IsInRHIThread() || IsInRenderingThread());
+			check(IsInParallelRenderingThread());
 			// Deliberate fall-through
 		case EMetalViewportAccessDisplayLink: // Displaylink is not an index, merely an alias that avoids the check...
 			return (GRHISupportsRHIThread && IsRunningRHIInSeparateThread()) ? EMetalViewportAccessRHI : EMetalViewportAccessRenderer;
@@ -176,19 +188,12 @@ uint32 FMetalViewport::GetViewportIndex(EMetalViewportAccessFlag Accessor) const
 	}
 }
 
-void FMetalViewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen,EPixelFormat Format)
+void FMetalViewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen, EPixelFormat Format)
 {
 	bIsFullScreen = bInIsFullscreen;
 	uint32 Index = GetViewportIndex(EMetalViewportAccessGame);
 	
 	bool bUseHDR = GRHISupportsHDROutput && Format == GRHIHDRDisplayOutputFormat;
-	
-	// Format can come in as PF_Unknown in the LDR case or if this RHI doesn't support HDR.
-	// So we'll fall back to BGRA8 in those cases.
-	if (!bUseHDR)
-	{
-		Format = PF_B8G8R8A8;
-	}
 	
     MTL::PixelFormat MetalFormat = (MTL::PixelFormat)GPixelFormats[Format].PlatformFormat;
 	
@@ -240,16 +245,19 @@ void FMetalViewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 	// (even though Apple's HDR displays are P3)
 	// and its compositor will do the conversion.
 	{
-		IOSAppDelegate* AppDelegate = [IOSAppDelegate GetDelegate];
-		FIOSView* IOSView = AppDelegate.IOSView;
-		CAMetalLayer* MetalLayer = (CAMetalLayer*) IOSView.layer;
-		
-		if (MetalFormat != (MTL::PixelFormat) MetalLayer.pixelFormat)
-		{
-			MetalLayer.pixelFormat = (MTLPixelFormat) MetalFormat;
-		}
-		
-		[IOSView UpdateRenderWidth:InSizeX andHeight:InSizeY];
+		dispatch_sync(dispatch_get_main_queue(), ^{
+			IOSAppDelegate* AppDelegate = [IOSAppDelegate GetDelegate];
+			FIOSView* IOSView = AppDelegate.IOSView;
+			
+			CAMetalLayer* MetalLayer = (CAMetalLayer*) IOSView.layer;
+			
+			if (MetalFormat != (MTL::PixelFormat) MetalLayer.pixelFormat)
+			{
+				MetalLayer.pixelFormat = (MTLPixelFormat) MetalFormat;
+			}
+			
+			[IOSView UpdateRenderWidth:InSizeX andHeight:InSizeY];
+		});
 	}
 #endif
 
@@ -271,12 +279,12 @@ void FMetalViewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 		
 		CreateDesc.SetInitialState(RHIGetDefaultResourceState(CreateDesc.Flags, false));
 
-		NewBackBuffer = new FMetalSurface(nullptr, CreateDesc);
+		NewBackBuffer = new FMetalSurface(Device, nullptr, FMetalTextureCreateDesc(Device, CreateDesc));
 		NewBackBuffer->Viewport = this;
 
         if (GMetalSupportsIntermediateBackBuffer && GMetalSeparatePresentThread)
         {
-            DoubleBuffer = new FMetalSurface(nullptr, CreateDesc);
+            DoubleBuffer = new FMetalSurface(Device, nullptr, FMetalTextureCreateDesc(Device, CreateDesc));
             DoubleBuffer->Viewport = this;
         }
 
@@ -518,14 +526,20 @@ void FMetalViewport::Present(FMetalCommandQueue& CommandQueue, bool bLockToVsync
 						// high level RHI BeginFrame/EndFrame this will not fine.
 						// Otherwise the recording of the Present time will be offset by one in the
 						// FMetalGPUProfiler frame indices.
-      
+						
+						dispatch_semaphore_t& FrameSemaphore = Device.GetFrameSemaphore();
+						dispatch_retain(FrameSemaphore);
+						
 #if PLATFORM_MAC
 						FMetalView* theView = View;
-						MTL::HandlerFunction CommandBufferHandler = [LocalDrawable, theView](MTL::CommandBuffer* cmd_buf)
+						MTL::HandlerFunction CommandBufferHandler = [LocalDrawable, theView, FrameSemaphore](MTL::CommandBuffer* cmd_buf)
 #else
-                        MTL::HandlerFunction CommandBufferHandler = [LocalDrawable](MTL::CommandBuffer* cmd_buf)
+                        MTL::HandlerFunction CommandBufferHandler = [LocalDrawable, FrameSemaphore](MTL::CommandBuffer* cmd_buf)
 #endif
 						{
+							dispatch_semaphore_signal(FrameSemaphore);
+							dispatch_release(FrameSemaphore);
+							
 							FMetalGPUProfiler::RecordPresent(cmd_buf);
 							LocalDrawable->release();
 #if PLATFORM_MAC
@@ -549,8 +563,6 @@ void FMetalViewport::Present(FMetalCommandQueue& CommandQueue, bool bLockToVsync
 						CurrentCommandBuffer->GetMTLCmdBuffer()->addCompletedHandler(CommandBufferHandler);
 
                         {
-                            LocalDrawable->retain();
-                            
                             // Queue this on the current command buffer to ensure that all work is committed prior to the present, present only knows about dependencies on committed work.
                             if (MinPresentDuration && GEnablePresentPacing)
                             {
@@ -565,6 +577,8 @@ void FMetalViewport::Present(FMetalCommandQueue& CommandQueue, bool bLockToVsync
                         METAL_GPUPROFILE(Stats->End(CurrentCommandBuffer->GetMTLCmdBuffer()));
                         CommandQueue.CommitCommandBuffer(CurrentCommandBuffer);
 						
+						// Wait for the frame semaphore
+						dispatch_semaphore_wait(Device.GetFrameSemaphore(), DISPATCH_TIME_FOREVER);
 					}
 				}
 			}
@@ -619,15 +633,26 @@ void FMetalViewport::GetDrawableImmersiveTextures(EMetalViewportAccessFlag Acces
 }
 
 // This is the present for Immersive visionOS, through the OXRVisionOS plugin.
-void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersiveParams& VisionOSParams)
+void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersiveParams* InVisionOSParams)
 {
+	// The null param case means that we are not really submitting a frame to the compositor.
+	if (InVisionOSParams == nullptr)
+	{
+		FScopeLock Lock(&Mutex);
+		
+		dispatch_semaphore_t& FrameSemaphore = Device.GetFrameSemaphore();
+		dispatch_semaphore_signal(FrameSemaphore);
+		return;
+	}
+	
+	const MetalRHIVisionOS::PresentImmersiveParams& VisionOSParams = *InVisionOSParams;
+	
 	check(SwiftLayer);  // If no SwiftLayer we should not be trying to be immersive.
 	check(VisionOSParams.SwiftFrame);
 
-	FMetalRHICommandContext* Context = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
-	FMetalDeviceContext& DeviceContext = GetMetalDeviceContext();
-	FMetalRenderPass& RenderPass = DeviceContext.GetCurrentRenderPass();
-
+	check(VisionOSParams.RHICommandContext);
+	FMetalRHICommandContext& Context = *static_cast<FMetalRHICommandContext*>(VisionOSParams.RHICommandContext);
+	
 	FScopeLock Lock(&Mutex);
 	
 	TRefCountPtr<FMetalSurface> MyLastCompleteFrame = GetMetalSurfaceFromRHITexture(VisionOSParams.Texture);
@@ -639,8 +664,6 @@ void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersivePa
 		MTLTexturePtr DrawableTexture = NS::RetainPtr(DrawableTextureParam);
 		MTLTexturePtr DrawableDepthTexture = NS::RetainPtr(DrawableDepthTextureParam);
 		{
-			FScopeLock BlockLock(&Mutex);
-			
 			if (DrawableTexture)
 			{
 				// TODO Currently we are using intermediate back buffer to connect the OXRVisionOS Swapchain to the drawable.
@@ -657,23 +680,11 @@ void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersivePa
 						NSUInteger Width = FMath::Min(Src->width(), Dst->width());
 						NSUInteger Height = FMath::Min(Src->height(), Dst->height());
 						
-						RenderPass.CopyFromTextureToTexture(Src.get(), 0, 0, MTL::Origin(0, 0, 0), MTL::Size(Width, Height, 1), Dst.get(), 0, 0, MTL::Origin(0, 0, 0));
+						Context.CopyFromTextureToTexture(Src.get(), 0, 0, MTL::Origin(0, 0, 0), MTL::Size(Width, Height, 1), Dst.get(), 0, 0, MTL::Origin(0, 0, 0));
 					}
 
 					{
-						//HACK BEGIN
-						// using LastCompleteFrame, the color result, is very wrong, but the depth texture is not yet plumbed through
-						// on the mobile rendere and providing nothing results in an all black scene while this results in mostly-ok-pixels.
-						// With the deferred renderer depth does already work, so flip this to using depth.
-						static bool bUseRealDepth = false;
-						static bool bCheckedConfig = false;
-						if (bCheckedConfig == false) {
-							GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("bSupportsMetalMRT"), bUseRealDepth, GEngineIni);
-							bCheckedConfig = true;
-						}
-						TRefCountPtr<FMetalSurface> Texture = bUseRealDepth ? MyLastCompleteDepth : MyLastCompleteFrame;
-						//HACK END
-						
+						TRefCountPtr<FMetalSurface> Texture = MyLastCompleteDepth;
 						check(IsValidRef(Texture));
 						MTLTexturePtr Src = Texture->Texture;
 						MTLTexturePtr& Dst = DrawableDepthTexture;
@@ -681,15 +692,55 @@ void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersivePa
 						NS::UInteger Width = FMath::Min(Src->width(), Dst->width());
 						NS::UInteger Height = FMath::Min(Src->height(), Dst->height());
 						
-						RenderPass.CopyFromTextureToTexture(Src.get(), 0, 0, MTL::Origin(0, 0, 0), MTL::Size(Width, Height, 1), Dst.get(), 0, 0, MTL::Origin(0, 0, 0));
+						Context.CopyFromTextureToTexture(Src.get(), 0, 0, MTL::Origin(0, 0, 0), MTL::Size(Width, Height, 1), Dst.get(), 0, 0, MTL::Origin(0, 0, 0));
 					}
 				}
+				
+				TArray<FMetalCommandBuffer*> Buffers = Context.Finalize();
+				check(Buffers.Num() > 0);
+				
+				// We need to attach the completion handler and the present signal to the final
+				// command buffer
+				FMetalCommandBuffer* FinalCommandBuffer = Buffers.Last();
+				
+#if ENABLE_METAL_GPUPROFILE
+				FMetalProfiler* Profiler = FMetalProfiler::GetProfiler();
+				FMetalCommandBufferStats* Stats = Profiler->AllocateCommandBuffer(FinalCommandBuffer->GetMTLCmdBuffer(), 0);
+#endif
+				
+				{
+					dispatch_semaphore_t& FrameSemaphore = Device.GetFrameSemaphore();
+					dispatch_retain(FrameSemaphore);
+					MTL::HandlerFunction CommandBufferHandler = [FrameSemaphore](MTL::CommandBuffer* cmd_buf)
+					{
+						dispatch_semaphore_signal(FrameSemaphore);
+						dispatch_release(FrameSemaphore);
+						
+						FMetalGPUProfiler::RecordPresent(cmd_buf);
+					};
+					FinalCommandBuffer->GetMTLCmdBuffer()->addCompletedHandler(CommandBufferHandler);
+				}
+				
+				cp_drawable_encode_present(VisionOSParams.SwiftDrawable, (__bridge id<MTLCommandBuffer>)FinalCommandBuffer->GetMTLCmdBuffer().get());
+				cp_frame_t CompositorServicesFrame = VisionOSParams.SwiftFrame;
 
-				RenderPass.EndRenderPass();
-				RenderPass.EncodePresentImmersive(VisionOSParams.SwiftDrawable, VisionOSParams.SwiftFrame);
+				METAL_GPUPROFILE(Stats->End(FinalCommandBuffer->GetMTLCmdBuffer()));			
+				
+				for(FMetalCommandBuffer* Buffer : Buffers)
+				{
+					Context.GetDevice().GetCommandQueue().CommitCommandBuffer(Buffer);
+				}
+				Context.ResetContext();
+				
+				cp_frame_end_submission(CompositorServicesFrame);
+				
+				// Wait for the frame semaphore
+				dispatch_semaphore_wait(Device.GetFrameSemaphore(), DISPATCH_TIME_FOREVER);
 			}
 		}
 	}
+	
+	FMetalGPUProfiler::ResetFrameBufferTimings();
 }
 #endif //PLATFORM_VISIONOS
 
@@ -697,12 +748,19 @@ void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersivePa
 /*=============================================================================
  *	The following RHI functions must be called from the main thread.
  *=============================================================================*/
-FViewportRHIRef FMetalDynamicRHI::RHICreateViewport(void* WindowHandle,uint32 SizeX,uint32 SizeY,bool bIsFullscreen,EPixelFormat PreferredPixelFormat)
+FViewportRHIRef FMetalDynamicRHI::RHICreateViewport(void* WindowHandle, uint32 SizeX, uint32 SizeY, bool bIsFullscreen, EPixelFormat PreferredPixelFormat)
 {
 	check( IsInGameThread() );
     MTL_SCOPED_AUTORELEASE_POOL;
     
-	return new FMetalViewport(WindowHandle, SizeX, SizeY, bIsFullscreen, PreferredPixelFormat);
+	// Use a default pixel format if none was specified
+	if (PreferredPixelFormat == PF_Unknown)
+	{
+		static const auto* CVarDefaultBackBufferPixelFormat = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.DefaultBackBufferPixelFormat"));
+		PreferredPixelFormat = EDefaultBackBufferPixelFormat::Convert2PixelFormat(EDefaultBackBufferPixelFormat::FromInt(CVarDefaultBackBufferPixelFormat->GetValueOnAnyThread()));
+	}
+	
+	return new FMetalViewport(*Device, WindowHandle, SizeX, SizeY, bIsFullscreen, PreferredPixelFormat);
 }
 
 void FMetalDynamicRHI::RHIResizeViewport(FRHIViewport* Viewport, uint32 SizeX, uint32 SizeY, bool bIsFullscreen)
@@ -710,13 +768,20 @@ void FMetalDynamicRHI::RHIResizeViewport(FRHIViewport* Viewport, uint32 SizeX, u
 	RHIResizeViewport(Viewport, SizeX, SizeY, bIsFullscreen, PF_Unknown);
 }
 
-void FMetalDynamicRHI::RHIResizeViewport(FRHIViewport* ViewportRHI,uint32 SizeX,uint32 SizeY,bool bIsFullscreen,EPixelFormat Format)
+void FMetalDynamicRHI::RHIResizeViewport(FRHIViewport* ViewportRHI, uint32 SizeX, uint32 SizeY, bool bIsFullscreen, EPixelFormat PreferredPixelFormat)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
 	check( IsInGameThread() );
 
+	// Use a default pixel format if none was specified
+	if (PreferredPixelFormat == PF_Unknown)
+	{
+		static const auto* CVarDefaultBackBufferPixelFormat = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.DefaultBackBufferPixelFormat"));
+		PreferredPixelFormat = EDefaultBackBufferPixelFormat::Convert2PixelFormat(EDefaultBackBufferPixelFormat::FromInt(CVarDefaultBackBufferPixelFormat->GetValueOnAnyThread()));
+	}
+	
 	FMetalViewport* Viewport = ResourceCast(ViewportRHI);
-	Viewport->Resize(SizeX, SizeY, bIsFullscreen, Format);
+	Viewport->Resize(SizeX, SizeY, bIsFullscreen, PreferredPixelFormat);
 }
 
 void FMetalDynamicRHI::RHITick( float DeltaTime )
@@ -730,16 +795,9 @@ void FMetalDynamicRHI::RHITick( float DeltaTime )
 
 void FMetalRHICommandContext::RHIBeginDrawingViewport(FRHIViewport* ViewportRHI, FRHITexture* RenderTargetRHI)
 {
-	check(false);
-}
-
-void FMetalRHIImmediateCommandContext::RHIBeginDrawingViewport(FRHIViewport* ViewportRHI, FRHITexture* RenderTargetRHI)
-{
     MTL_SCOPED_AUTORELEASE_POOL;
 	FMetalViewport* Viewport = ResourceCast(ViewportRHI);
 	check(Viewport);
-		
-	((FMetalDeviceContext*)Context)->BeginDrawingViewport(Viewport);
 
 	// Set the render target and viewport.
 	if (RenderTargetRHI)
@@ -756,23 +814,56 @@ void FMetalRHIImmediateCommandContext::RHIBeginDrawingViewport(FRHIViewport* Vie
 
 void FMetalRHICommandContext::RHIEndDrawingViewport(FRHIViewport* ViewportRHI,bool bPresent,bool bLockToVsync)
 {
-	check(false);
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
+	FMetalViewport* Viewport = ResourceCast(ViewportRHI);
+
+	// enqueue a present if desired
+	static bool const bOffscreenOnly = FParse::Param(FCommandLine::Get(), TEXT("MetalOffscreenOnly"));
+	if (bPresent && !bOffscreenOnly)
+	{
+		bool bNeedNativePresent = true;
+#if PLATFORM_MAC || PLATFORM_VISIONOS
+		// Handle custom present
+		FRHICustomPresent* const CustomPresent = Viewport->GetCustomPresent();
+		if (CustomPresent != nullptr)
+		{
+			int32 SyncInterval = 0;
+			{
+				SCOPE_CYCLE_COUNTER(STAT_MetalCustomPresentTime);
+                SetCustomPresentViewport(Viewport);
+                bNeedNativePresent = CustomPresent->Present(*this, SyncInterval);
+                SetCustomPresentViewport(nullptr);
+			}
+			
+			FMetalCommandBuffer* CurrentCommandBuffer = CurrentEncoder.GetCommandBuffer();
+			check(CurrentCommandBuffer && CurrentCommandBuffer->GetMTLCmdBuffer());
+			
+			MTL::HandlerFunction Handler = [CustomPresent](MTL::CommandBuffer*) {
+				CustomPresent->PostPresent();
+			};
+			
+			CurrentCommandBuffer->GetMTLCmdBuffer()->addScheduledHandler(Handler);
+		}
+#endif
+		
+		if (bNeedNativePresent)
+		{
+			Viewport->Present(CommandQueue, bLockToVsync);
+		}
+	}
+	
+	Device.EndDrawingViewport(bPresent);
+	
+	Viewport->ReleaseDrawable();
 }
 
-void FMetalRHIImmediateCommandContext::RHIEndDrawingViewport(FRHIViewport* ViewportRHI,bool bPresent,bool bLockToVsync)
+FTextureRHIRef FMetalDynamicRHI::RHIGetViewportBackBuffer(FRHIViewport* ViewportRHI)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
     
 	FMetalViewport* Viewport = ResourceCast(ViewportRHI);
-	((FMetalDeviceContext*)Context)->EndDrawingViewport(Viewport, bPresent, bLockToVsync);
-}
-
-FTexture2DRHIRef FMetalDynamicRHI::RHIGetViewportBackBuffer(FRHIViewport* ViewportRHI)
-{
-    MTL_SCOPED_AUTORELEASE_POOL;
-    
-	FMetalViewport* Viewport = ResourceCast(ViewportRHI);
-	return FTexture2DRHIRef(Viewport->GetBackBuffer(EMetalViewportAccessRenderer).GetReference());
+	return FTextureRHIRef(Viewport->GetBackBuffer(EMetalViewportAccessRenderer).GetReference());
 }
 
 void FMetalDynamicRHI::RHIAdvanceFrameForGetViewportBackBuffer(FRHIViewport* ViewportRHI)

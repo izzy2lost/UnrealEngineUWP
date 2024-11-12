@@ -3,7 +3,12 @@
 //-----------------------------------------------------------------------------
 //	Include Files
 //-----------------------------------------------------------------------------
+#include "D3D12DescriptorCache.h"
+#include "D3D12ExplicitDescriptorCache.h"
 #include "D3D12RHIPrivate.h"
+#include "D3D12RayTracing.h"
+#include "D3D12StateCachePrivate.h"
+#include "D3D12PipelineState.h"
 
 bool FD3D12DescriptorCache::HeapRolledOver(ERHIDescriptorHeapType InHeapType)
 {
@@ -59,7 +64,7 @@ void FD3D12DescriptorCache::Init(uint32 InNumLocalViewDescriptors, uint32 InNumS
 	NumLocalViewDescriptors = bUsingViewHeap ? InNumLocalViewDescriptors : 0;
 
 	CurrentViewHeap = bUsingViewHeap  ? &SubAllocatedViewHeap : nullptr;
-	CurrentSamplerHeap = IsUsingBindlessSamplers() ? nullptr : &LocalSamplerHeap;
+	CurrentSamplerHeap = nullptr;
 }
 
 bool FD3D12DescriptorCache::SetDescriptorHeaps(bool bForceHeapChanged)
@@ -82,7 +87,7 @@ bool FD3D12DescriptorCache::SetDescriptorHeaps(bool bForceHeapChanged)
 
 	ID3D12DescriptorHeap* PendingViewHeap =
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-		IsUsingBindlessResources() ? BindlessResourcesHeap->GetHeap() :
+		BindlessResourcesHeap ? BindlessResourcesHeap->GetHeap() :
 #endif
 		CurrentViewHeap->GetHeap();
 	if (LastSetViewHeap != PendingViewHeap)
@@ -90,7 +95,9 @@ bool FD3D12DescriptorCache::SetDescriptorHeaps(bool bForceHeapChanged)
 		// The view heap changed, so dirty the descriptor tables.
 		bHeapChanged = true;
 
-		if (!IsUsingBindlessResources())
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+		if (!BindlessResourcesHeap)
+#endif
 		{
 			Context.StateCache.DirtyViewDescriptorTables();
 		}
@@ -142,10 +149,8 @@ void FD3D12DescriptorCache::OpenCommandList()
 	LastSetSamplerHeap = nullptr;
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	if (IsUsingBindlessSamplers() || IsUsingBindlessResources())
-	{
-		GetParentDevice()->GetBindlessDescriptorManager().OpenCommandList(Context);
-	}
+	// Always call the Bindless Manager OpenCommandList, it will determine when it needs to do anything.
+	GetParentDevice()->GetBindlessDescriptorManager().OpenCommandList(Context);
 
 	if (!IsUsingBindlessSamplers())
 #endif
@@ -178,15 +183,17 @@ void FD3D12DescriptorCache::CloseCommandList()
 	}
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	if (IsUsingBindlessSamplers() || IsUsingBindlessResources())
-	{
-		GetParentDevice()->GetBindlessDescriptorManager().CloseCommandList(Context);
-	}
+	// Always call the Bindless Manager CloseCommandList, it will determine when it needs to do anything.
+	GetParentDevice()->GetBindlessDescriptorManager().CloseCommandList(Context);
 
 	if (!IsUsingBindlessSamplers())
 #endif
 	{
-		LocalSamplerHeap.CloseCommandList();
+		if (bLocalSamplerHeapOpen)
+		{
+			LocalSamplerHeap.CloseCommandList();
+			bLocalSamplerHeapOpen = false;
+		}
 
 		GetParentDevice()->GetGlobalSamplerHeap().ConsolidateUniqueSamplerTables(UniqueTables);
 		UniqueTables.Reset();
@@ -273,10 +280,12 @@ D3D12_GPU_DESCRIPTOR_HANDLE FD3D12DescriptorCache::BuildUAVTable(EShaderFrequenc
 
 void FD3D12DescriptorCache::SetUAVTable(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12UnorderedAccessViewCache& Cache, uint32 SlotsNeeded, const D3D12_GPU_DESCRIPTOR_HANDLE& BindDescriptor)
 {
-	check(ShaderStage == SF_Compute || ShaderStage == SF_Pixel);
+	check(ShaderStage == SF_Compute || ShaderStage == SF_Pixel || ShaderStage == SF_Vertex);
 	const uint32 RootParameterIndex = RootSignature->UAVRDTBindSlot(ShaderStage);
 
-	if (ShaderStage == SF_Pixel)
+	check(FD3D12RootSignature::IsValidBindSlot(RootParameterIndex));
+
+	if (ShaderStage == SF_Pixel || ShaderStage == SF_Vertex)
 	{
 		Context.GraphicsCommandList()->SetGraphicsRootDescriptorTable(RootParameterIndex, BindDescriptor);
 	}
@@ -492,6 +501,14 @@ D3D12_GPU_DESCRIPTOR_HANDLE FD3D12DescriptorCache::BuildSRVTable(EShaderFrequenc
 
 			Context.TransitionResource(SRV, State & ValidResourceStates);
 			Context.UpdateResidency(Cache.Resources[ShaderStage][SlotIndex]);
+
+#if RHI_RAYTRACING
+			FD3D12RayTracingScene* RayTracingScene = SRV->GetRayTracingScene();
+			if (RayTracingScene)
+			{
+				RayTracingScene->UpdateResidency(Context);
+			}
+#endif
 		}
 		else
 		{
@@ -612,13 +629,29 @@ void FD3D12DescriptorCache::SetConstantBufferViews(EShaderFrequency ShaderStage,
 	{
 		const uint32 RDTIndex = RootSignature->CBVRDTBindSlot(ShaderStage);
 		ensure(RDTIndex != 255);
-		Context.GraphicsCommandList()->SetComputeRootDescriptorTable(RDTIndex, BindDescriptor);
+
+		if (RDTIndex < 64)
+		{
+			Context.GraphicsCommandList()->SetComputeRootDescriptorTable(RDTIndex, BindDescriptor);
+		}
+		else
+		{
+			UE_LOG(LogD3D12RHI, Error, TEXT("SetComputeRootDescriptorTable call exceed max 64 slots: %d "), RDTIndex);
+		}
 	}
 	else
 	{
 		const uint32 RDTIndex = RootSignature->CBVRDTBindSlot(ShaderStage);
 		ensure(RDTIndex != 255);
-		Context.GraphicsCommandList()->SetGraphicsRootDescriptorTable(RDTIndex, BindDescriptor);
+
+		if (RDTIndex < 64)
+		{
+			Context.GraphicsCommandList()->SetGraphicsRootDescriptorTable(RDTIndex, BindDescriptor);
+		}
+		else
+		{
+			UE_LOG(LogD3D12RHI, Error, TEXT("SetGraphicsRootDescriptorTable call exceed max 64 slots: %d "), RDTIndex);
+		}
 	}
 
 	// We changed the descriptor table, so all resources bound to slots outside of the table's range are now dirty.
@@ -634,7 +667,7 @@ void FD3D12DescriptorCache::SetConstantBufferViews(EShaderFrequency ShaderStage,
 #endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 }
 
-void FD3D12DescriptorCache::SetRootConstantBuffers(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12ConstantBufferCache& Cache, CBVSlotMask SlotsNeededMask)
+void FD3D12DescriptorCache::SetRootConstantBuffers(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12ConstantBufferCache& Cache, CBVSlotMask SlotsNeededMask, FD3D12StateCache* StateCache)
 {
 	CBVSlotMask& CurrentDirtySlotMask = Cache.DirtySlotMask[ShaderStage];
 	check(CurrentDirtySlotMask != 0);	// All dirty slots for the current shader stage.
@@ -656,14 +689,93 @@ void FD3D12DescriptorCache::SetRootConstantBuffers(EShaderFrequency ShaderStage,
 		if (FD3D12ConstantBufferCache::IsSlotDirty(RDCBVSlotsNeededMask, SlotIndex))
 		{
 			const D3D12_GPU_VIRTUAL_ADDRESS CurrentGPUVirtualAddress = Cache.CurrentGPUVirtualAddress[ShaderStage][SlotIndex];
-			check(CurrentGPUVirtualAddress != 0);
-			if (ShaderStage == SF_Compute)
+			if (CurrentGPUVirtualAddress == 0)
 			{
-				Context.GraphicsCommandList()->SetComputeRootConstantBufferView(BaseIndex + SlotIndex, CurrentGPUVirtualAddress);
+				FString ShaderHashList;
+
+				switch(ShaderStage)
+				{
+					case SF_Vertex:
+					case SF_Mesh:
+					case SF_Amplification:
+					case SF_Pixel:
+					case SF_Geometry:
+					{
+						FD3D12GraphicsPipelineState* GraphicsPSO = StateCache->GetGraphicsPipelineState();
+						if (!GraphicsPSO)
+						{
+							// Shouldn't happen, but we don't want to crash while crashing.
+							ShaderHashList = TEXT("NO GRAPHICS PSO!");
+							break;
+						}
+
+						FSHA1 PipelineHasher;
+
+						const auto AddShaderHash = [&PipelineHasher, &ShaderHashList](const FRHIShader* Shader)
+						{
+							FSHAHash ShaderHash;
+							if (Shader)
+							{
+								ShaderHash = Shader->GetHash();
+								ShaderHashList.Appendf(TEXT("%s: %s, "), GetShaderFrequencyString(Shader->GetFrequency(), false), *ShaderHash.ToString());
+							}
+							PipelineHasher.Update(&ShaderHash.Hash[0], sizeof(FSHAHash));
+						};
+
+						AddShaderHash(GraphicsPSO->GetVertexShader());
+						AddShaderHash(GraphicsPSO->GetMeshShader());
+						AddShaderHash(GraphicsPSO->GetAmplificationShader());
+						AddShaderHash(GraphicsPSO->GetPixelShader());
+						AddShaderHash(GraphicsPSO->GetGeometryShader());
+
+						PipelineHasher.Final();
+						FSHAHash PipelineHash;
+						PipelineHasher.GetHash(&PipelineHash.Hash[0]);
+
+						ShaderHashList.Appendf(TEXT("Pipeline: %s"), *PipelineHash.ToString());
+						break;
+					}
+
+					case SF_Compute:
+					{
+						FD3D12ComputePipelineState* ComputePSO = StateCache->GetComputePipelineState();
+						if (ComputePSO && ComputePSO->GetComputeShader())
+						{
+							ShaderHashList.Appendf(TEXT("Compute: %s"), *ComputePSO->GetComputeShader()->GetHash().ToString());
+						}
+						else
+						{
+							// Shouldn't happen, but we don't want to crash while crashing.
+							ShaderHashList = TEXT("NO COMPUTE SHADER!");
+						}
+						break;
+					}
+
+					default:
+					{
+						ShaderHashList = TEXT("NO PSO FOR STAGE!");
+						break;
+					}
+				}
+
+				UE_LOG(LogD3D12RHI, Fatal, TEXT("Missing uniform buffer at slot %u, stage %s. Please check the high level drawing code. Hashes: %s."), SlotIndex, GetShaderFrequencyString(ShaderStage), *ShaderHashList);
+			}
+
+
+			if ((BaseIndex + SlotIndex) < 64)
+			{
+				if (ShaderStage == SF_Compute)
+				{
+					Context.GraphicsCommandList()->SetComputeRootConstantBufferView(BaseIndex + SlotIndex, CurrentGPUVirtualAddress);
+				}
+				else
+				{
+					Context.GraphicsCommandList()->SetGraphicsRootConstantBufferView(BaseIndex + SlotIndex, CurrentGPUVirtualAddress);
+				}
 			}
 			else
 			{
-				Context.GraphicsCommandList()->SetGraphicsRootConstantBufferView(BaseIndex + SlotIndex, CurrentGPUVirtualAddress);
+				UE_LOG(LogD3D12RHI, Error, TEXT("%s call exceed max 64 slots: %d "), (ShaderStage == SF_Compute) ? TEXT("SetComputeRootConstantBufferView") : TEXT("SetGraphicsRootConstantBufferView"), BaseIndex + SlotIndex);
 			}
 
 			// Update residency.
@@ -714,6 +826,9 @@ bool FD3D12DescriptorCache::SwitchToContextLocalSamplerHeap()
 {
 	check(!IsUsingBindlessSamplers());
 
+	LocalSamplerHeap.OpenCommandList();
+	bLocalSamplerHeapOpen = true;
+
 	CurrentSamplerHeap = &LocalSamplerHeap;
 
 	bool bDescriptorHeapsChanged = SetDescriptorHeaps();
@@ -725,6 +840,7 @@ bool FD3D12DescriptorCache::SwitchToContextLocalSamplerHeap()
 void FD3D12DescriptorCache::SwitchToGlobalSamplerHeap()
 {
 	check(!IsUsingBindlessSamplers());
+	check(!bLocalSamplerHeapOpen);
 
 	FD3D12GlobalOnlineSamplerHeap& GlobalSamplerHeap = GetParentDevice()->GetGlobalSamplerHeap();
 	LocalSamplerSet = GlobalSamplerHeap.GetUniqueDescriptorTables();
@@ -732,8 +848,10 @@ void FD3D12DescriptorCache::SwitchToGlobalSamplerHeap()
 }
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-void FD3D12DescriptorCache::SwitchToNewBindlessResourceHeap(FD3D12DescriptorHeap* InHeap)
+bool FD3D12DescriptorCache::SwitchToNewBindlessResourceHeap(FD3D12DescriptorHeap* InHeap)
 {
+	bool bSetNewHeaps = false;
+
 	if (ensure(IsUsingBindlessResources()))
 	{
 		BindlessResourcesHeap = InHeap;
@@ -744,16 +862,47 @@ void FD3D12DescriptorCache::SwitchToNewBindlessResourceHeap(FD3D12DescriptorHeap
 			check(BindlessSamplersHeap != nullptr);
 		}
 
+		// Switch to the new heaps
+		bSetNewHeaps = SetDescriptorHeaps();
+
 		// If we didn't change heaps, then the caller sent us the wrong heap.
-		ensure(SetDescriptorHeaps());
+		ensure(bSetNewHeaps);
 	}
+
+	return bSetNewHeaps;
 }
 #endif
 
-void FD3D12DescriptorCache::OverrideLastSetHeaps(ID3D12DescriptorHeap* ViewHeap, ID3D12DescriptorHeap* SamplerHeap)
+void FD3D12DescriptorCache::SetExplicitDescriptorCache(FD3D12ExplicitDescriptorCache& ExplicitDescriptorCache)
 {
-	ID3D12DescriptorHeap* ViewHeapToSet = ViewHeap ? ViewHeap : LastSetViewHeap;
-	ID3D12DescriptorHeap* SamplerHeapToSet = SamplerHeap ? SamplerHeap : LastSetSamplerHeap;
+	ID3D12DescriptorHeap* ViewHeapToSet = nullptr;
+	ID3D12DescriptorHeap* SamplerHeapToSet = nullptr;
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	// We have three scenarios:
+	//   Bindless on globally: BindlessHeaps and LastSetXXX will match
+	//   Bindless RT Only: BindlessHeaps will override LastSetXXX
+	//   No Bindless:  BindlessHeaps will be null, ExplicitDescriptorCache heaps will override LastSetXXX
+
+	const FD3D12DescriptorHeapPair BindlessHeaps = GetParentDevice()->GetBindlessDescriptorManager().GetExplicitHeapsForContext(Context, ExplicitDescriptorCache.BindlessConfiguration);
+
+	ViewHeapToSet = BindlessHeaps.ResourceHeap ? BindlessHeaps.ResourceHeap->GetHeap() : nullptr;
+	SamplerHeapToSet = BindlessHeaps.SamplerHeap ? BindlessHeaps.SamplerHeap->GetHeap() : nullptr;
+#endif
+
+	const bool bViewHeapIsBindless = (ViewHeapToSet != nullptr);
+
+	if (!ViewHeapToSet)
+	{
+		check(ExplicitDescriptorCache.ViewHeap.GetParentDevice() == GetParentDevice());
+		ViewHeapToSet = ExplicitDescriptorCache.ViewHeap.D3D12Heap;
+	}
+
+	if (!SamplerHeapToSet)
+	{
+		check(ExplicitDescriptorCache.SamplerHeap.GetParentDevice() == GetParentDevice());
+		SamplerHeapToSet = ExplicitDescriptorCache.SamplerHeap.D3D12Heap;
+	}
 
 	if (ViewHeapToSet != LastSetViewHeap || SamplerHeapToSet != LastSetSamplerHeap)
 	{
@@ -763,16 +912,18 @@ void FD3D12DescriptorCache::OverrideLastSetHeaps(ID3D12DescriptorHeap* ViewHeap,
 		ID3D12DescriptorHeap* ppHeaps[] = { ViewHeapToSet, SamplerHeapToSet };
 		Context.GraphicsCommandList()->SetDescriptorHeaps(UE_ARRAY_COUNT(ppHeaps), ppHeaps);
 
-		bHeapsOverridden = true;
+		bUsingExplicitCacheHeaps = true;
+		bExplicitViewHeapIsBindless = bViewHeapIsBindless;
 	}
 }
 
-void FD3D12DescriptorCache::RestoreAfterExternalHeapsSet()
+void FD3D12DescriptorCache::UnsetExplicitDescriptorCache()
 {
-	if (bHeapsOverridden)
+	if (bUsingExplicitCacheHeaps)
 	{
 		SetDescriptorHeaps();
-		bHeapsOverridden = false;
+		bUsingExplicitCacheHeaps = false;
+		bExplicitViewHeapIsBindless = false;
 	}
 }
 
@@ -799,18 +950,16 @@ bool FD3D12OnlineHeap::CanReserveSlots(uint32 NumSlots)
 	const uint32 HeapSize = GetTotalSize();
 
 	// Sanity checks
-	if (0 == NumSlots)
+	if (NumSlots == 0)
 	{
 		return true;
 	}
+
 	if (NumSlots > HeapSize)
 	{
-#if !defined(_HAS_EXCEPTIONS) || _HAS_EXCEPTIONS == 1
-		throw E_OUTOFMEMORY;
-#else
-		UE_LOG(LogD3D12RHI, Fatal, TEXT("Unable to reserve slot"));
-#endif
+		return false;
 	}
+
 	uint32 FirstRequestedSlot = NextSlotIndex;
 	uint32 SlotAfterReservation = NextSlotIndex + NumSlots;
 
@@ -855,14 +1004,7 @@ uint32 FD3D12OnlineHeap::ReserveSlots(uint32 NumSlotsRequested)
 	const uint32 HeapSize = GetTotalSize();
 
 	// Sanity checks
-	if (NumSlotsRequested > HeapSize)
-	{
-#if !defined(_HAS_EXCEPTIONS) || _HAS_EXCEPTIONS == 1
-		throw E_OUTOFMEMORY;
-#else
-		return HeapExhaustedValue;
-#endif
-	}
+	check(NumSlotsRequested <= HeapSize);
 
 	// CanReserveSlots should have been called first
 	check(CanReserveSlots(NumSlotsRequested));
@@ -975,18 +1117,16 @@ void FD3D12GlobalOnlineSamplerHeap::ConsolidateUniqueSamplerTables(TArrayView<FD
 				}
 
 				uint32 HeapSlot = ReserveSlots(Table.Key.Count);
-				if (HeapSlot != FD3D12OnlineHeap::HeapExhaustedValue)
-				{
-					D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor = GetCPUSlotHandle(HeapSlot);
 
-					GetParentDevice()->GetDevice()->CopyDescriptors(
-						1, &DestDescriptor, &Table.Key.Count,
-						Table.Key.Count, Table.CPUTable, nullptr /* sizes */,
-						FD3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+				D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor = GetCPUSlotHandle(HeapSlot);
 
-					Table.GPUHandle = GetGPUSlotHandle(HeapSlot);
-					UniqueDescriptorTables->Add(Table);
-				}
+				GetParentDevice()->GetDevice()->CopyDescriptors(
+					1, &DestDescriptor, &Table.Key.Count,
+					Table.Key.Count, Table.CPUTable, nullptr /* sizes */,
+					FD3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+
+				Table.GPUHandle = GetGPUSlotHandle(HeapSlot);
+				UniqueDescriptorTables->Add(Table);
 			}
 		}
 	}
@@ -1181,24 +1321,35 @@ void FD3D12LocalOnlineHeap::HeapLoopedAround()
 	DescriptorCache.HeapLoopedAround(Heap->GetType());
 }
 
+void FD3D12LocalOnlineHeap::RecycleSlots()
+{
+	// Free up slots for finished command lists
+	FSyncPointEntry SyncPoint;
+	while (SyncPoints.Peek(SyncPoint) && SyncPoint.SyncPoint->IsComplete())
+	{
+		SyncPoints.Dequeue(SyncPoint);
+		FirstUsedSlot = SyncPoint.LastSlotInUse + 1;
+	}
+}
+
+void FD3D12LocalOnlineHeap::OpenCommandList()
+{
+	RecycleSlots();
+}
+
 void FD3D12LocalOnlineHeap::CloseCommandList()
 {
 	if (NextSlotIndex > 0)
 	{
 		// Track the previous command list
-		SyncPointEntry SyncPoint;
+		FSyncPointEntry SyncPoint;
 		SyncPoint.SyncPoint = Context.GetContextSyncPoint();
 		SyncPoint.LastSlotInUse = NextSlotIndex - 1;
 		SyncPoints.Enqueue(SyncPoint);
 
 		Entry.SyncPoint = Context.GetContextSyncPoint();
 
-		// Free up slots for finished command lists
-		while (SyncPoints.Peek(SyncPoint) && SyncPoint.SyncPoint->IsComplete())
-		{
-			SyncPoints.Dequeue(SyncPoint);
-			FirstUsedSlot = SyncPoint.LastSlotInUse + 1;
-		}
+		RecycleSlots();
 	}
 }
 
@@ -1212,7 +1363,7 @@ uint32 GetTypeHash(const FD3D12SamplerArrayDesc& Key)
 	return FD3D12PipelineStateCache::HashData((void*)Key.SamplerID, Key.Count * sizeof(Key.SamplerID[0]));
 }
 
-uint32 GetTypeHash(const FD3D12QuantizedBoundShaderState& Key)
+uint32 GetTypeHash(const FD3D12UniqueSamplerTable& Table)
 {
-	return FD3D12PipelineStateCache::HashData((void*)&Key, sizeof(Key));
+	return FD3D12PipelineStateCache::HashData((void*)Table.Key.SamplerID, Table.Key.Count * sizeof(Table.Key.SamplerID[0]));
 }

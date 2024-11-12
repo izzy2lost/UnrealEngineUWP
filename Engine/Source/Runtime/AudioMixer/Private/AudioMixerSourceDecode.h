@@ -110,6 +110,7 @@ namespace Audio
 	{
 		int32 NumSamplesWritten;
 		bool bIsFinished;
+		float RelativeRenderCost = 1.f;
 
 #if ENABLE_AUDIO_DEBUG
 		double CPUDuration = 0.0;

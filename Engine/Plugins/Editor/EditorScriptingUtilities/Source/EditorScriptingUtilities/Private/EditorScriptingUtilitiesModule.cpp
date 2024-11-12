@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 
-#include "EditorPythonExecuter.h"
 #include "Modules/ModuleManager.h"
 
 /**
@@ -11,12 +10,10 @@ class FEditorScriptingUtilitiesModule : public IModuleInterface
 {
 	virtual void StartupModule() override
 	{
-		FEditorPythonExecuter::OnStartupModule();
 	}
 
 	virtual void ShutdownModule() override
 	{
-		FEditorPythonExecuter::OnShutdownModule();
 	}
 };
 

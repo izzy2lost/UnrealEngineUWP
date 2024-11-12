@@ -12,6 +12,7 @@
 #include "MoviePipelineQueue.h"
 #include "MoviePipelinePrimaryConfig.h"
 #include "MoviePipelineQueueSubsystem.h"
+#include "LevelSequence.h"
 
 // Slate Includes
 #include "Widgets/SBoxPanel.h"
@@ -93,9 +94,6 @@ void SMoviePipelineGraphPanel::Construct(const FArguments& InArgs)
 		PipelineQueueEditorWidget->SetSelectedJobs(Jobs);
 	}
 
-	FGraphAppearanceInfo AppearanceInfo;
-	AppearanceInfo.CornerText = LOCTEXT("EditorCornerText", "Movie Graph Config");
-
 	SGraphEditor::FGraphEditorEvents InEvents;
 	InEvents.OnSelectionChanged = SGraphEditor::FOnSelectionChanged::CreateSP(this, &SMoviePipelineGraphPanel::OnSelectedNodesChanged);
 	InEvents.OnNodeDoubleClicked = FSingleNodeEvent::CreateSP(this, &SMoviePipelineGraphPanel::OnNodeDoubleClicked);
@@ -107,6 +105,10 @@ void SMoviePipelineGraphPanel::Construct(const FArguments& InArgs)
 
 	// Create the EdGraph if it has not yet been created. It is saved as part of the runtime graph to prevent it from being re-created every time the
 	// graph is opened (and therefore dirtying the package).
+	//
+	// Note: Now that the editor graph is saved with the runtime graph, the !EdGraph condition will rarely be true (because when the "template"
+	// runtime graph is duplicated into a new runtime graph, the editor graph comes along as well). There may be other scenarios where a new runtime
+	// graph is created without a duplication though, so this code path remains.
 	if (!EdGraph)
 	{
 		EdGraph = Cast<UMoviePipelineEdGraph>(FBlueprintEditorUtils::CreateNewGraph(CurrentGraph, TEXT("MoviePipelineEdGraph"), UMoviePipelineEdGraph::StaticClass(), UMovieGraphSchema::StaticClass()));
@@ -121,7 +123,7 @@ void SMoviePipelineGraphPanel::Construct(const FArguments& InArgs)
 	}
 	else
 	{
-		EdGraph->RegisterDelegates(CurrentGraph);
+		EdGraph->InitFromRuntimeGraph(CurrentGraph);
 	}
 	
 	MakeEditorCommands();
@@ -133,7 +135,7 @@ void SMoviePipelineGraphPanel::Construct(const FArguments& InArgs)
 		.GraphToEdit(EdGraph)
 		.AdditionalCommands(GraphEditorCommands)
 		.GraphEvents(InEvents)
-		.Appearance(AppearanceInfo)
+		.Appearance(this, &SMoviePipelineGraphPanel::GetGraphAppearanceInfo)
 	];
 }
 
@@ -237,7 +239,7 @@ void SMoviePipelineGraphPanel::OnCreateComment() const
 		FMovieGraphSchemaAction_NewComment CommentAction;
 		
 		const TSharedPtr<SGraphEditor> GraphEditorPtr = SGraphEditor::FindGraphEditorForGraph(CurrentGraph->PipelineEdGraph);
-		FVector2D Location;
+		FVector2D Location = FVector2D::ZeroVector;
 		if (GraphEditorPtr)
 		{
 			Location = GraphEditorPtr->GetPasteLocation();
@@ -641,6 +643,11 @@ void SMoviePipelineGraphPanel::ClearGraphSelection() const
 	GraphEditorWidget->ClearSelectionSet();
 }
 
+TWeakPtr<SGraphEditor> SMoviePipelineGraphPanel::GetGraphEditor() const
+{
+	return GraphEditorWidget.ToWeakPtr();
+}
+
 bool SMoviePipelineGraphPanel::MatchesContext(const FTransactionContext& InContext, const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const
 {
 	// ToDo: If we wanted to rebuild the graph less often, we could make all of our transactions have a context
@@ -662,7 +669,6 @@ void SMoviePipelineGraphPanel::PostUndo(bool bSuccess)
 			// This unfortunately causes the graph to flicker for one frame, but all Blueprint Graphs do this.
 			// This is needed so that when a node is pasted, then undone, the widgets on the graph for the now
 			// deleted nodes also get removed, otherwise we try to draw them and they're pointed to invalid uobjects.
-			GraphEditorWidget->ClearSelectionSet();
 			GraphEditorWidget->NotifyGraphChanged();
 
 			FSlateApplication::Get().DismissAllMenus();
@@ -715,6 +721,15 @@ void SMoviePipelineGraphPanel::OnNodeTitleCommitted(const FText& NewText, ETextC
 		NodeBeingChanged->Modify();
 		NodeBeingChanged->OnRenameNode(NewText.ToString());
 	}
+}
+
+FGraphAppearanceInfo SMoviePipelineGraphPanel::GetGraphAppearanceInfo() const
+{
+	FGraphAppearanceInfo AppearanceInfo;
+	AppearanceInfo.CornerText = LOCTEXT("EditorCornerText", "Movie Graph Config");
+	AppearanceInfo.PIENotifyText = LOCTEXT("PIENotifyText", "RENDERING");
+
+	return AppearanceInfo;
 }
 
 FReply SMoviePipelineGraphPanel::OnRenderLocalRequested()

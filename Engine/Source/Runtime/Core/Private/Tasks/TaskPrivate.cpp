@@ -5,6 +5,14 @@
 
 #include "Async/TaskGraphInterfaces.h"
 
+CORE_API bool GTaskGraphAlwaysWaitWithNamedThreadSupport = 0;
+static FAutoConsoleVariableRef CVarTaskGraphAlwaysWaitWithNamedThreadSupport(
+	TEXT("TaskGraph.AlwaysWaitWithNamedThreadSupport"),
+	GTaskGraphAlwaysWaitWithNamedThreadSupport,
+	TEXT("Default to pumping the named thread tasks when waiting on named threads to avoid potential deadlocks."),
+	ECVF_ReadOnly
+);
+
 namespace UE::Tasks
 {
 	namespace Private
@@ -41,9 +49,15 @@ namespace UE::Tasks
 				return;
 			}
 #endif
+			
+			// In case a thread is waiting on us to perform retraction, now is the time to try retraction again.
+			// This needs to be before the launch as performing the execution can destroy the task.
+			StateChangeEvent.Notify();
 
-			bWakeUpWorker |= LowLevelTasks::FSchedulerTls::IsBusyWaiting();
+			// This needs to be the last line touching any of the task's properties.
 			bWakeUpWorker |= LowLevelTasks::FScheduler::Get().TryLaunch(LowLevelTask, bWakeUpWorker ? LowLevelTasks::EQueuePreference::GlobalQueuePreference : LowLevelTasks::EQueuePreference::LocalQueuePreference, bWakeUpWorker);
+
+			// Use-after-free territory, do not touch any of the task's properties here.
 		}
 
 		thread_local uint32 TaskRetractionRecursion = 0;
@@ -70,17 +84,17 @@ namespace UE::Tasks
 
 		bool FTaskBase::TryRetractAndExecute(FTimeout Timeout, uint32 RecursionDepth/* = 0*/)
 		{
+			if (IsCompleted() || Timeout.IsExpired())
+			{
+				return IsCompleted();
+			}
+
 			TRACE_CPUPROFILER_EVENT_SCOPE(FTaskBase::TryRetractAndExecute);
 
 			if (!IsAwaitable())
 			{
 				UE_LOG(LogTemp, Fatal, TEXT("Deadlock detected! A task can't be waited here, e.g. because it's being executed by the current thread"));
 				return false;
-			}
-
-			if (IsCompleted() || Timeout)
-			{
-				return IsCompleted();
 			}
 
 #if TASKGRAPH_NEW_FRONTEND
@@ -130,7 +144,7 @@ namespace UE::Tasks
 				return true;
 			}
 
-			if (Timeout)
+			if (Timeout.IsExpired())
 			{
 				return IsCompleted();
 			}
@@ -180,7 +194,7 @@ namespace UE::Tasks
 
 		bool FTaskBase::Wait(FTimeout Timeout)
 		{
-			if (IsCompleted() || Timeout)
+			if (IsCompleted() || Timeout.IsExpired())
 			{
 				return IsCompleted();
 			}
@@ -189,6 +203,19 @@ namespace UE::Tasks
 			TRACE_CPUPROFILER_EVENT_SCOPE(Tasks::Wait);
 
 			return WaitImpl(Timeout);
+		}
+
+		bool ShouldForceWaitWithNamedThreadsSupport(EExtendedTaskPriority Priority);
+		void FTaskBase::Wait()
+		{
+			if (GTaskGraphAlwaysWaitWithNamedThreadSupport || ShouldForceWaitWithNamedThreadsSupport(ExtendedPriority))
+			{
+				WaitWithNamedThreadsSupport();
+			}
+			else
+			{
+				WaitImpl(FTimeout::Never());
+			}
 		}
 
 		void FTaskBase::WaitWithNamedThreadsSupport()
@@ -201,6 +228,13 @@ namespace UE::Tasks
 			TRACE_CPUPROFILER_EVENT_SCOPE(FTaskBase::WaitWithNamedThreadsSupport);
 			TaskTrace::FWaitingScope WaitingScope(GetTraceId());
 
+			TryRetractAndExecute(FTimeout::Never());
+
+			if (IsCompleted())
+			{
+				return;
+			}
+
 			if (!TryWaitOnNamedThread(*this))
 			{
 				WaitImpl(FTimeout::Never());
@@ -209,37 +243,42 @@ namespace UE::Tasks
 
 		bool FTaskBase::WaitImpl(FTimeout Timeout)
 		{
-			// ignore the result as we still have to make sure the task is completed upon returning from this function call
-			TryRetractAndExecute(Timeout);
-
-			// spin for a while with hope the task is getting completed right now, to avoid getting blocked by a pricy syscall
-			const uint32 MaxSpinCount = 40;
-			for (uint32 SpinCount = 0; SpinCount != MaxSpinCount && !IsCompleted() && !Timeout; ++SpinCount)
+			while (true)
 			{
-				FPlatformProcess::Yield(); // YieldThread() was much slower on some platforms with low core count and contention for CPU
+				// ignore the result as we still have to make sure the task is completed upon returning from this function call
+				TryRetractAndExecute(Timeout);
+
+				// spin for a while with hope the task is getting completed right now, to avoid getting blocked by a pricey syscall
+				const uint32 MaxSpinCount = 40;
+				for (uint32 SpinCount = 0; SpinCount != MaxSpinCount && !IsCompleted() && !Timeout.IsExpired(); ++SpinCount)
+				{
+					FPlatformProcess::Yield(); // YieldThread() was much slower on some platforms with low core count and contention for CPU
+				}
+
+				if (IsCompleted() || Timeout.IsExpired())
+				{
+					return IsCompleted();
+				}
+
+				auto Token = StateChangeEvent.PrepareWait();
+
+				// Important to check the condition a second time after PrepareWait has been called to make sure we don't
+				// miss an important state change event.
+				if (IsCompleted())
+				{
+					return true;
+				}
+
+				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(FTaskBase::WaitImpl_StateChangeEvent_WaitFor);
+
+					// Always flush events before entering a wait to make sure there's nothing missing in Unreal Insights that could prevent us understanding what's going on.
+					TRACE_CPUPROFILER_EVENT_FLUSH();
+					StateChangeEvent.WaitFor(Token, UE::FMonotonicTimeSpan::FromMilliseconds(Timeout.GetRemainingRoundedUpMilliseconds()));
+				}
+
+				// Once the state of the task has changed (either closed or scheduled), it's time to do another round of retraction to help if possible.
 			}
-
-			if (IsCompleted() || Timeout)
-			{
-				return IsCompleted();
-			}
-
-			// the event must be alive for the task and this function lifetime, we don't know which one will be finished first as waiting can 
-			// time out before the waiting task is completed
-			FSharedEventRef CompletionEvent;
-			auto WaitingTaskBody = [CompletionEvent] { CompletionEvent->Trigger(); };
-			using FWaitingTask = TExecutableTask<decltype(WaitingTaskBody)>;
-
-			TRefCountPtr<FWaitingTask> WaitingTask{ FWaitingTask::Create(TEXT("Waiting Task"), MoveTemp(WaitingTaskBody), ETaskPriority::Default /* doesn't matter*/, EExtendedTaskPriority::Inline, ETaskFlags::None), /*bAddRef=*/ false };
-			WaitingTask->AddPrerequisites(*this);
-
-			if (WaitingTask->TryLaunch(sizeof(WaitingTask)))
-			{	// was executed inline
-				check(WaitingTask->IsCompleted());
-				return true;
-			}
-
-			return CompletionEvent->Wait(Timeout.GetRemainingRoundedUpMilliseconds());
 		}
 
 		FTaskBase* FTaskBase::TryPushIntoPipe()
@@ -259,7 +298,7 @@ namespace UE::Tasks
 
 		void FTaskBase::ClearPipe()
 		{
-			GetPipe()->TryClearTask(*this);
+			GetPipe()->ClearTask(*this);
 		}
 
 		static thread_local FTaskBase* CurrentTask = nullptr;
@@ -282,7 +321,7 @@ namespace UE::Tasks
 			// handle waiting only on a named thread and if not called from inside a task
 			FTaskGraphInterface& TaskGraph = FTaskGraphInterface::Get();
 			ENamedThreads::Type CurrentThread = TaskGraph.GetCurrentThreadIfKnown();
-			if (CurrentThread < ENamedThreads::ActualRenderingThread /* is a named thread? */ && !TaskGraph.IsThreadProcessingTasks(CurrentThread))
+			if (CurrentThread <= ENamedThreads::ActualRenderingThread /* is a named thread? */ && !TaskGraph.IsThreadProcessingTasks(CurrentThread))
 			{
 				// execute other tasks of this named thread while waiting
 				ETaskPriority Dummy;
@@ -533,5 +572,25 @@ namespace UE::Tasks
 		}
 
 #endif // !TASKGRAPH_NEW_FRONTEND
+
+		bool ShouldForceWaitWithNamedThreadsSupport(EExtendedTaskPriority ExtendedPriority)
+		{
+			// We force wait named thread support when we're waiting on a task that must run on the same thread we're currently on.
+			// If we don't do this, it's a guaranteed deadlock.
+#if TASKGRAPH_NEW_FRONTEND
+			const bool bIsNamedThreadTask = ExtendedPriority >= EExtendedTaskPriority::GameThreadNormalPri;
+			if (bIsNamedThreadTask)
+			{
+				FTaskGraphInterface& TaskGraph = FTaskGraphInterface::Get();
+				ENamedThreads::Type CurrentThreadIndex = ENamedThreads::GetThreadIndex(TaskGraph.GetCurrentThreadIfKnown());
+				if (CurrentThreadIndex <= ENamedThreads::ActualRenderingThread)
+				{
+					ENamedThreads::Type TaskThreadIndex = ENamedThreads::GetThreadIndex(TranslatePriority(ExtendedPriority));
+					return TaskThreadIndex == CurrentThreadIndex;
+				}
+			}
+#endif
+			return false;
+		}
 	}
 }

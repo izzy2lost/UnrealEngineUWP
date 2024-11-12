@@ -2,7 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 
-BEGIN_DEFINE_SPEC(FAutomationExpectedErrorTest, "TestFramework.ExpectedError", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FAutomationExpectedErrorTest, "TestFramework.ExpectedError", EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 END_DEFINE_SPEC(FAutomationExpectedErrorTest)
 void FAutomationExpectedErrorTest::Define()
 {
@@ -137,7 +137,7 @@ void FAutomationExpectedErrorTest::Define()
 // IMPORTANT: The pass condition for these tests is that they FAIL. To prevent
 // the expected failures from interfering with regular test runs, these tests
 // must be run manually.
-BEGIN_DEFINE_SPEC(FAutomationExpectedErrorFailureTest, "TestFramework.ExpectedError", EAutomationTestFlags::NegativeFilter | EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::RequiresUser)
+BEGIN_DEFINE_SPEC(FAutomationExpectedErrorFailureTest, "TestFramework.ExpectedError", EAutomationTestFlags::NegativeFilter | EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::RequiresUser)
 END_DEFINE_SPEC(FAutomationExpectedErrorFailureTest)
 void FAutomationExpectedErrorFailureTest::Define()
 {
@@ -199,7 +199,7 @@ void FAutomationExpectedErrorFailureTest::Define()
 	});
 }
 
-BEGIN_DEFINE_SPEC(FAutomationExpectedMessageTest, "TestFramework.ExpectedMessage", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FAutomationExpectedMessageTest, "TestFramework.ExpectedMessage", EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 END_DEFINE_SPEC(FAutomationExpectedMessageTest)
 void FAutomationExpectedMessageTest::Define()
 {

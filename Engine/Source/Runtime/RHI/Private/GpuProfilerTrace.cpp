@@ -22,7 +22,7 @@ static TAutoConsoleVariable<int32> CVarGpuProfilerMaxEventBufferSizeKB(
 	ECVF_Default);
 
 
-struct
+struct FGpuTraceFrame
 {
 	int64							CalibrationBias;
 	FGPUTimingCalibrationTimestamp	Calibration;
@@ -33,7 +33,13 @@ struct
 	bool							bActive;
 	uint8*							EventBuffer = nullptr;
 	uint32							MaxEventBufferSize = 0;
-} GCurrentFrame;
+};
+
+#if RHI_NEW_GPU_PROFILER
+FGpuTraceFrame GCurrentFrames[2];
+#else
+FGpuTraceFrame GCurrentFrame;
+#endif
 
 static TSet<uint32> GEventNames;
 
@@ -63,9 +69,19 @@ UE_TRACE_EVENT_END()
 
 } // namespace GpuProfilerTrace
 
-void FGpuProfilerTrace::BeginFrame(FGPUTimingCalibrationTimestamp& Calibration)
+#if RHI_NEW_GPU_PROFILER
+#define GPU_TRACE_ARG , uint32 GPUIndex
+#else
+#define GPU_TRACE_ARG
+#endif
+
+void FGpuProfilerTrace::BeginFrame(FGPUTimingCalibrationTimestamp& Calibration GPU_TRACE_ARG)
 {
 	using namespace GpuProfilerTrace;
+
+#if RHI_NEW_GPU_PROFILER
+	FGpuTraceFrame& GCurrentFrame = GCurrentFrames[GPUIndex];
+#endif
 
 	if (!bool(GpuChannel))
 	{
@@ -78,7 +94,7 @@ void FGpuProfilerTrace::BeginFrame(FGPUTimingCalibrationTimestamp& Calibration)
 	GCurrentFrame.EventBufferSize = 0;
 	GCurrentFrame.bActive = true;
 
-	int32 NeededSize = CVarGpuProfilerMaxEventBufferSizeKB.GetValueOnRenderThread() * 1024;
+	int32 NeededSize = CVarGpuProfilerMaxEventBufferSizeKB.GetValueOnAnyThread() * 1024;
 	if ((GCurrentFrame.MaxEventBufferSize != NeededSize) && (NeededSize > 0))
 	{
 		FMemory::Free(GCurrentFrame.EventBuffer);
@@ -87,9 +103,13 @@ void FGpuProfilerTrace::BeginFrame(FGPUTimingCalibrationTimestamp& Calibration)
 	}
 }
 
-void FGpuProfilerTrace::SpecifyEventByName(const FName& Name)
+void FGpuProfilerTrace::SpecifyEventByName(const FName& Name GPU_TRACE_ARG)
 {
 	using namespace GpuProfilerTrace;
+
+#if RHI_NEW_GPU_PROFILER
+	FGpuTraceFrame& GCurrentFrame = GCurrentFrames[GPUIndex];
+#endif
 
 	if (!GCurrentFrame.bActive)
 	{
@@ -114,9 +134,13 @@ void FGpuProfilerTrace::SpecifyEventByName(const FName& Name)
 	}
 }
 
-void FGpuProfilerTrace::BeginEventByName(const FName& Name, uint32 FrameNumber, uint64 TimestampMicroseconds)
+void FGpuProfilerTrace::BeginEventByName(const FName& Name, uint32 FrameNumber, uint64 TimestampMicroseconds GPU_TRACE_ARG)
 {
 	using namespace GpuProfilerTrace;
+
+#if RHI_NEW_GPU_PROFILER
+	FGpuTraceFrame& GCurrentFrame = GCurrentFrames[GPUIndex];
+#endif
 
 	if (!GCurrentFrame.bActive)
 	{
@@ -151,9 +175,13 @@ void FGpuProfilerTrace::BeginEventByName(const FName& Name, uint32 FrameNumber, 
 	GCurrentFrame.EventBufferSize = BufferPtr - GCurrentFrame.EventBuffer + sizeof(uint32);
 }
 
-void FGpuProfilerTrace::EndEvent(uint64 TimestampMicroseconds)
+void FGpuProfilerTrace::EndEvent(uint64 TimestampMicroseconds GPU_TRACE_ARG)
 {
 	using namespace GpuProfilerTrace;
+
+#if RHI_NEW_GPU_PROFILER
+	FGpuTraceFrame& GCurrentFrame = GCurrentFrames[GPUIndex];
+#endif
 
 	if (!GCurrentFrame.bActive)
 	{
@@ -180,6 +208,10 @@ void FGpuProfilerTrace::EndEvent(uint64 TimestampMicroseconds)
 void FGpuProfilerTrace::EndFrame(uint32 GPUIndex)
 {
 	using namespace GpuProfilerTrace;
+
+#if RHI_NEW_GPU_PROFILER
+	FGpuTraceFrame& GCurrentFrame = GCurrentFrames[GPUIndex];
+#endif
 
 	if (GCurrentFrame.bActive && GCurrentFrame.EventBufferSize)
 	{
@@ -208,13 +240,20 @@ void FGpuProfilerTrace::EndFrame(uint32 GPUIndex)
 	GCurrentFrame.bActive = false;
 }
 
+#undef GPU_TRACE_ARG
+
 void FGpuProfilerTrace::Deinitialize()
 {
 	using namespace GpuProfilerTrace;
 
-	FMemory::Free(GCurrentFrame.EventBuffer);
-	GCurrentFrame.EventBuffer = nullptr;
-	GCurrentFrame.MaxEventBufferSize = 0;
+#if RHI_NEW_GPU_PROFILER
+	for (FGpuTraceFrame& GCurrentFrame : GCurrentFrames)
+#endif
+	{
+		FMemory::Free(GCurrentFrame.EventBuffer);
+		GCurrentFrame.EventBuffer = nullptr;
+		GCurrentFrame.MaxEventBufferSize = 0;
+	}
 }
 
 #endif

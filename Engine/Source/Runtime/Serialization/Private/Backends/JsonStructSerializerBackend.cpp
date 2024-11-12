@@ -102,7 +102,7 @@ void FJsonStructSerializerBackend::WriteProperty(const FStructSerializerState& S
 		}
 		else
 		{
-			WritePropertyValue(State, (double)ByteProperty->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+			WritePropertyValue(State, ByteProperty->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 		}
 	}
 
@@ -119,33 +119,33 @@ void FJsonStructSerializerBackend::WriteProperty(const FStructSerializerState& S
 	// signed integers
 	else if (State.FieldType == FIntProperty::StaticClass())
 	{
-		WritePropertyValue(State, (double)CastFieldChecked<FIntProperty>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+		WritePropertyValue(State, CastFieldChecked<FIntProperty>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 	}
 	else if (State.FieldType == FInt8Property::StaticClass())
 	{
-		WritePropertyValue(State, (double)CastFieldChecked<FInt8Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+		WritePropertyValue(State, CastFieldChecked<FInt8Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 	}
 	else if (State.FieldType == FInt16Property::StaticClass())
 	{
-		WritePropertyValue(State, (double)CastFieldChecked<FInt16Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+		WritePropertyValue(State, CastFieldChecked<FInt16Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 	}
 	else if (State.FieldType == FInt64Property::StaticClass())
 	{
-		WritePropertyValue(State, (double)CastFieldChecked<FInt64Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+		WritePropertyValue(State, CastFieldChecked<FInt64Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 	}
 
 	// unsigned integers
 	else if (State.FieldType == FUInt16Property::StaticClass())
 	{
-		WritePropertyValue(State, (double)CastFieldChecked<FUInt16Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+		WritePropertyValue(State, CastFieldChecked<FUInt16Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 	}
 	else if (State.FieldType == FUInt32Property::StaticClass())
 	{
-		WritePropertyValue(State, (double)CastFieldChecked<FUInt32Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+		WritePropertyValue(State, CastFieldChecked<FUInt32Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 	}
 	else if (State.FieldType == FUInt64Property::StaticClass())
 	{
-		WritePropertyValue(State, (double)CastFieldChecked<FUInt64Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+		WritePropertyValue(State, CastFieldChecked<FUInt64Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 	}
 
 	// names, strings & text
@@ -202,4 +202,41 @@ void FJsonStructSerializerBackend::WriteProperty(const FStructSerializerState& S
 	{
 		UE_LOG(LogSerialization, Verbose, TEXT("FJsonStructSerializerBackend: Property %s cannot be serialized, because its type (%s) is not supported"), *State.ValueProperty->GetFName().ToString(), *State.ValueType->GetFName().ToString());
 	}
+}
+
+bool FJsonStructSerializerBackend::WritePODArray(const FStructSerializerState& State)
+{
+	if (State.ElementIndex != INDEX_NONE)
+	{
+		return false;
+	}
+
+	// This code serializes TArray<uint8> in the same way FStructSerializer would do. However, we iterate over
+	// elements directly while FStructSerializer allocates one FStructSerializerState (64 bytes) for each
+	// byte item. As a result, one 1 MB of binary data would require more than 64 MB of temporary state data.
+	FArrayProperty* ArrayProperty = CastField<FArrayProperty>(State.ValueProperty);
+	if (ArrayProperty && (CastField<FByteProperty>(ArrayProperty->Inner) || CastField<FInt8Property>(ArrayProperty->Inner)))
+	{
+		FScriptArrayHelper ArrayHelper(ArrayProperty, ArrayProperty->ContainerPtrToValuePtr<void>(State.ValueData));
+
+		FStructSerializerState InnerState(nullptr, ArrayProperty->Inner, EStructSerializerStateFlags::None);
+
+		for (int32 Index = 0; Index < ArrayHelper.Num(); ++Index)
+		{
+			if (ArrayHelper.IsValidIndex(Index))
+			{
+				InnerState.ValueData = ArrayHelper.GetRawPtr(Index);
+
+				WriteProperty(InnerState);
+			}
+		}
+
+		// We need to close the array ourselves because FStructSerializer doesn't do this after we've declared we've completed
+		// serialization by returning true.
+		EndArray(State);
+
+		return true;
+	}
+
+	return false;
 }

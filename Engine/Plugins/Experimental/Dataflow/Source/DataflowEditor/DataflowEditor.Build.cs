@@ -30,12 +30,15 @@ namespace UnrealBuildTool.Rules
 					"DataflowEngine",
 					"DataflowEnginePlugin",
 					"DataflowNodes",
+					"DataflowSimulation",
 					"DynamicMesh",
 					"Engine",
 					"EditorFramework",
 					"EditorInteractiveToolsFramework",
 					"EditorStyle",
+					"GeometryCache",
 					"GeometryCore",
+					"GeometryCollectionEngine",
 					"GeometryFramework",
 					"GraphEditor",
 					"InputCore",
@@ -52,6 +55,7 @@ namespace UnrealBuildTool.Rules
 					"RenderCore",
 					"RHI",
 					"SceneOutliner",
+					"SkeletonEditor",
 					"Slate",
 					"SlateCore",
 					"StaticMeshDescription",
@@ -63,7 +67,8 @@ namespace UnrealBuildTool.Rules
 					"XmlParser",
 					"EditorWidgets",
 					"KismetWidgets",      // SScrubControlPanel
-					"AnimGraph"           // UAnimSingleNodeInstance
+					"AnimGraph", 
+					"ChaosCaching" // UAnimSingleNodeInstance
 				}
 			);
 		}

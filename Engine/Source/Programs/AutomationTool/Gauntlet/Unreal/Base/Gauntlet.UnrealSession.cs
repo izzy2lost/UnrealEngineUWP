@@ -135,6 +135,11 @@ namespace Gauntlet
 		public bool DeferredLaunch { get; set; }
 
 		/// <summary>
+		/// Whether this role will compress screenshots produced as an artifact into a jpeg format
+		/// </summary>
+		public bool CompressScreenshots { get; set; }
+
+		/// <summary>
 		/// Is this role Null?
 		/// </summary>
 		public bool IsNullRole() { return RoleModifier == ERoleModifier.Null; }
@@ -160,7 +165,7 @@ namespace Gauntlet
 		/// <param name="InConfiguration"></param>
 		/// <param name="InCommandLine"></param>
 		/// <param name="InOptions"></param>
-		public UnrealSessionRole(UnrealTargetRole InType, UnrealTargetPlatform? InPlatform, UnrealTargetConfiguration InConfiguration, string InCommandLine = null, IConfigOption<UnrealAppConfig> InOptions = null)
+		public UnrealSessionRole(UnrealTargetRole InType, UnrealTargetPlatform? InPlatform, UnrealTargetConfiguration InConfiguration, string InCommandLine = null, IConfigOption<UnrealAppConfig> InOptions = null, bool CompressScreenshots = true)
 		{
 			RoleType = InType;
 
@@ -179,13 +184,13 @@ namespace Gauntlet
 
 			RequiredBuildFlags = BuildFlags.None;
 
-			if (Globals.Params.ParseParam("dev") && !RoleType.UsesEditor())
+			if (Globals.IsRunningDev && !RoleType.UsesEditor())
 			{
 				RequiredBuildFlags |= BuildFlags.CanReplaceExecutable;
 			}
 
-			// Enforce build flags for the platform build that support it 
-			IDeviceBuildSupport TargetBuildSupport = Gauntlet.Utils.InterfaceHelpers.FindImplementations<IDeviceBuildSupport>().Where(B => B.CanSupportPlatform(InPlatform)).FirstOrDefault();
+			// Enforce build flags for the platform build that support it
+			IDeviceBuildSupport TargetBuildSupport = InterfaceHelpers.FindImplementations<IDeviceBuildSupport>().Where(B => B.CanSupportPlatform(InPlatform)).FirstOrDefault();
 			if (TargetBuildSupport != null)
 			{
 				if (Globals.Params.ParseParam("bulk") && TargetBuildSupport.CanSupportBuildType(BuildFlags.Bulk))
@@ -216,7 +221,8 @@ namespace Gauntlet
             FilesToCopy = new List<UnrealFileToCopy>();
 			CommandLineParams = new GauntletCommandLine();
 			RoleModifier = ERoleModifier.None;
-        }
+			this.CompressScreenshots = CompressScreenshots;
+		}
 
         /// <summary>
         /// Debugging aid
@@ -467,7 +473,7 @@ namespace Gauntlet
 		/// Shutdown the session by killing any remaining processes.
 		/// </summary>
 		/// <returns></returns>
-		public void Shutdown()
+		public void Shutdown(bool GenerateDumpOnKill = false)
 		{
 			// Kill any remaining client processes
 			if (ClientApps != null)
@@ -479,7 +485,7 @@ namespace Gauntlet
 					Log.Info("Shutting down {0} clients", RunningApps.Count);
 					RunningApps.ForEach(App =>
 					{
-						App.Kill();
+						App.Kill(GenerateDumpOnKill);
 						// Apps that are still running have timed out => fail
 						IDeviceUsageReporter.RecordEnd(App.Device.Name, App.Device.Platform, IDeviceUsageReporter.EventType.Test, IDeviceUsageReporter.EventState.Success);
 					});
@@ -501,12 +507,12 @@ namespace Gauntlet
 				if (ServerApp.HasExited == false)
 				{
 					Log.Info("Shutting down server");
-					ServerApp.Kill();
+					ServerApp.Kill(GenerateDumpOnKill);
 				}
 			}
 
 			// kill anything that's left
-			RunningRoles.Where(R => !R.Role.InstallOnly && R.AppInstance.HasExited == false).ToList().ForEach(R => R.AppInstance.Kill());
+			RunningRoles.Where(R => !R.Role.InstallOnly && R.AppInstance.HasExited == false).ToList().ForEach(R => R.AppInstance.Kill(GenerateDumpOnKill));
 
 			// Wait for it all to end
 			RunningRoles.Where(R => !R.Role.InstallOnly).ToList().ForEach(R => R.AppInstance.WaitForExit());
@@ -546,7 +552,7 @@ namespace Gauntlet
 		/// <param name="InSessionRole"></param>
 		/// <param name="InAppInstance"></param>
 		/// <param name="InArtifactPath"></param>
-		/// <param name="InLogSummary"></param>
+		/// <param name="InLogPath"></param>
 		public UnrealRoleArtifacts(UnrealSessionRole InSessionRole, IAppInstance InAppInstance, string InArtifactPath, string InLogPath)
 		{
 			SessionRole = InSessionRole;
@@ -699,7 +705,6 @@ namespace Gauntlet
 		/// <summary>
 		/// Helper that reserves and returns a list of available devices based on the passed in roles
 		/// </summary>
-		/// <param name="Configs"></param>
 		/// <returns></returns>
 		public bool TryReserveDevices()
 		{
@@ -732,7 +737,13 @@ namespace Gauntlet
 		{
 			for (; Attempts > 0; --Attempts)
 			{
-				if(Globals.CancelSignalled || TryReserveDevices())
+				if(Globals.CancelSignalled)
+				{
+					ReleaseSessionDevices();
+					return false;
+				}
+
+				if(TryReserveDevices())
 				{
 					return true;
 				}
@@ -743,6 +754,7 @@ namespace Gauntlet
 			}
 
 			Log.Error("Failed to reserve devices after {Attempts}", Attempts);
+			ReleaseSessionDevices();
 			return false;
 		}
 
@@ -790,8 +802,12 @@ namespace Gauntlet
 				// Reserve devices, if needed
 				if (!TryReserveDevices(DeviceReservationAttempts))
 				{
+					if(Globals.CancelSignalled)
+					{
+						return null;
+					}
+
 					// If device reservation fails, the device pool cannot support this launch.
-					DevicePool.Instance.ReportDeviceReservationState();
 					throw new AutomationException("Failed to acquire all devices for launch. See above for details.");
 				}
 
@@ -815,7 +831,7 @@ namespace Gauntlet
 				}
 				catch (Exception Ex)
 				{
-					if(IsOutOfSpaceException(Ex))
+					if(IsOutOfSpaceException(Ex) || IsOverlayException(Ex))
 					{
 						RemainingAttempts = 0;
 						ReleaseSessionDevices();
@@ -978,10 +994,9 @@ namespace Gauntlet
 
 			// We only want to move artifacts for editor data if there was a crash on a buildmachine.
 			// Also, don't move artifacts in dev mode, because peoples saved data could be huuuuuuuge!
-			bool IsDevBuild = InContext.TestParams.ParseParam("dev");
 			bool IsEditorBuild = InRunningRole.Role.RoleType.UsesEditor();
 			bool IsBuildMachine = CommandUtils.IsBuildMachine;
-			bool SkipArchivingAssets = IsDevBuild || (IsEditorBuild && (IsBuildMachine == false || InRunningRole.AppInstance.ExitCode == 0));
+			bool SkipArchivingAssets = Globals.IsRunningDev || (IsEditorBuild && (IsBuildMachine == false || InRunningRole.AppInstance.ExitCode == 0));
 			bool bRetainArtifacts = InContext.TestParams.ParseParam("RetainDeviceArtifacts");
 
 			// Check if we should copy artifacts
@@ -998,7 +1013,7 @@ namespace Gauntlet
 							{
 								SubDirectory.Delete(true);
 							}
-							catch(Exception Exception)
+							catch (Exception Exception)
 							{
 								Log.Info("Encountered a {Exception} when attempting to delete PersistentDownloadDirectory {Directory}. The PDD will be present in artifacts", Exception, SubDirectory);
 							}
@@ -1009,9 +1024,16 @@ namespace Gauntlet
 					// Perform the copy
 					try
 					{
+						// Save screenshots and create a gif when not running a server
+						if (!InRunningRole.Role.RoleType.IsServer())
+						{
+							SaveScreenshots(RoleName, SourceDirectory.FullName, DestinationDirectory.FullName, InRunningRole.Role.CompressScreenshots);
+						}
+
+						// Copy remaining artifacts
 						SystemHelpers.CopyDirectory(SourceDirectory.FullName, DestinationDirectory.FullName, SystemHelpers.CopyOptions.Default, TruncateLongPathFilter);
 					}
-					catch(Exception Exception)
+					catch (Exception Exception)
 					{
 						bRetainArtifacts = true;
 						Log.Warning("Encountered an {Exception} when copying saved artifacts from {SourceDirectory} to {DestinationDirectory}. " +
@@ -1024,21 +1046,28 @@ namespace Gauntlet
 						// Account for any read-only files.
 						void SetAttributesNormal(DirectoryInfo Directory)
 						{
-							foreach(FileInfo File in Directory.GetFiles())
+							foreach (FileInfo File in Directory.GetFiles())
 							{
 								File.Attributes = FileAttributes.Normal;
 							}
-							foreach(DirectoryInfo SubDirectory in Directory.GetDirectories())
+							foreach (DirectoryInfo SubDirectory in Directory.GetDirectories())
 							{
 								SetAttributesNormal(SubDirectory);
 							}
 						};
-						SetAttributesNormal(SourceDirectory);
+						try
+						{
+							SetAttributesNormal(SourceDirectory);
+						}
+						catch
+						{
+							Log.Info("Could not remove the read-only attribute from {SourceDirectory}.", SourceDirectory);
+						}
 						try
 						{
 							SourceDirectory.Delete(true);
 						}
-						catch(Exception Exception)
+						catch (Exception Exception)
 						{
 							Log.Info("Encountered an {Exception} when deleting source artifacts at {SourceDirectory}. Artifacts will remain on the device.", Exception, SourceDirectory);
 						}
@@ -1055,7 +1084,7 @@ namespace Gauntlet
 				{
 					Log.Info("Skipping archival of assets for editor {Role}", RoleName);
 				}
-				else if (IsDevBuild)
+				else if (Globals.IsRunningDev)
 				{
 					Log.Info("Skipping archival of assets for dev build");
 				}
@@ -1076,7 +1105,7 @@ namespace Gauntlet
 						{
 							SystemHelpers.CopyDirectory(AdditionalSourceDirectory.FullName, TargetDirectory);
 						}
-						catch(Exception Exception)
+						catch (Exception Exception)
 						{
 							Log.Warning("Encountered an {Exception} when trying to copy additional artifact directory {BaseCopyDirectory}" +
 								" from {AdditionalSourceDirectory} to {TargetDirectory}.",
@@ -1087,112 +1116,46 @@ namespace Gauntlet
 			}
 
 			// Now write the role's log file
-			string ArtifactLogFilePath = string.Empty;
-			int MaxLogSize = 1024 * 1024 * 1024;
-			int LogSize = InRunningRole.AppInstance.StdOut.Length * sizeof(char);
-			bool bIgnoreMaxSize = Globals.Params.ParseParam("NoMaxLogSize");
-			if (!bIgnoreMaxSize && LogSize > MaxLogSize)
+			string ArtifactLogFilePath = Path.GetFullPath(Path.Combine(DestinationDirectory.FullName, RoleName + "Output.log"));
+			try
 			{
-				Log.Warning("The process log for Role {0} was over 1 GB in size. A log artifact will not be generated for this process.", InRunningRole.ToString());
-			}
-			else
-			{
-				try
+				if (!InRunningRole.AppInstance.WriteOutputToFile(ArtifactLogFilePath))
 				{
-					ArtifactLogFilePath = Path.Combine(DestinationDirectory.FullName, RoleName + "Output.log");
-
-					// Write a short gauntlet blurb before the entire process log
-					using (StreamWriter Writer = new(ArtifactLogFilePath, false))
-					{
-						Writer.WriteLine("------ Gauntlet Test ------");
-						Writer.WriteLine(string.Format("Role: {0}\r\n", InRunningRole.Role));
-						Writer.WriteLine(string.Format("Automation Command: {0}\r\n", Environment.CommandLine));
-						Writer.WriteLine("---------------------------");
-						Writer.Write(UnrealLogParser.SanitizeLogText(InRunningRole.AppInstance.StdOut));
-					}
-					Log.Info($"Wrote {RoleName} Log to {ArtifactLogFilePath}");
-
-					// On build machines, copy all role logs to Horde.
-					if (IsBuildMachine)
-					{
-						string HordeLogFilePath = Path.Combine(CommandUtils.CmdEnv.LogFolder, RoleName + "Output.log");
-						File.Copy(ArtifactLogFilePath, HordeLogFilePath, true);
-					}
-				}
-				catch (Exception Ex)
-				{
-					string Message = "Encountered an {0} when attempting to write the {1} process log. The log may contain malformed encoding and will not be present on horde. {2}";
-					Log.Warning(Message, Ex.GetType().Name, RoleName, Ex.Message);
+					ArtifactLogFilePath = string.Empty;
 				}
 			}
-
-			bool bRetainCrashdumps = InContext.TestParams.ParseParam("RetainCrashDumps");
-			if (InRunningRole.AppInstance.Device.CopyCrashDumps())
+			catch (Exception Ex)
 			{
-				DirectoryInfo CrashDumpDirectory = new DirectoryInfo(InRunningRole.AppInstance.Device.CrashDumpPath);
-				if (CrashDumpDirectory.Exists)
+				string Message = "Encountered an {0} when attempting to write the {1} process log. The log will not be present in the artifacts.\n {2}";
+				Log.Warning(Message, Ex.GetType().Name, RoleName, Ex.Message);
+				ArtifactLogFilePath = string.Empty;
+			}
+
+			if (!string.IsNullOrEmpty(ArtifactLogFilePath))
+			{
+				Log.Info($"Wrote {RoleName} Log to {ArtifactLogFilePath}");
+
+				// On build machines, copy all role logs to Horde.
+				if (IsBuildMachine && Horde.IsHordeJob)
 				{
-					string DesinationCrashDumpDirectory = Path.Combine(DestinationDirectory.FullName, "CrashDumps");
-
-					try
+					// Extract the log path portion that includes the Gauntlet test name. ie: UE.BootTest(Win64_Test_Client)\Client\ClientOutput.log
+					// That is to handle situation where multiple tests are run within the same Gauntlet Session and logs get overwritten.
+					string LogName = ArtifactLogFilePath.Replace(Path.GetFullPath(InContext.Options.LogDir), "").TrimStart(Path.DirectorySeparatorChar);
+					if (Path.IsPathFullyQualified(LogName))
 					{
-						Log.Info("Copying crash dumps from {0} to {1}", CrashDumpDirectory.FullName, DesinationCrashDumpDirectory);
-						SystemHelpers.CopyDirectory(CrashDumpDirectory.FullName, DesinationCrashDumpDirectory);
+						// The path was expected to be relative to LogDir, however it appeared to be an absolute path.
+						// So we revert to default behavior and save the log directly in UAT log folder.
+						LogName = RoleName + "Output.log";
 					}
-					catch (Exception Exception)
-					{
-						bRetainCrashdumps = true;
-						Log.Warning("Encountered an {Exception} when copying crash dumps from {SourceDirectory} to {DestinationDirectory}. " +
-							"Crash dumps will not be saved locally, but the source crash dumps will not be deleted.", Exception, CrashDumpDirectory, DesinationCrashDumpDirectory);
-					}
-
-					if (!bRetainCrashdumps)
-					{
-						try
-						{
-							CrashDumpDirectory.Delete(true);
-						}
-						catch (Exception Exception)
-						{
-							Log.Info("Encountered an {Exception} when deleting source crash dumps at {SourceDirectory}. Crash dumps will remain on the device.", Exception, SourceDirectory);
-						}
-					}
+					string HordeLogFilePath = Path.GetFullPath(Path.Combine(CommandUtils.CmdEnv.LogFolder, LogName));
+					Log.Verbose($"Copy log for Horde to {HordeLogFilePath}");
+					string TargetDirectry = Path.GetDirectoryName(HordeLogFilePath);
+					if (!Directory.Exists(TargetDirectry)) { Directory.CreateDirectory(TargetDirectry); }
+					File.Copy(ArtifactLogFilePath, HordeLogFilePath, true);
 				}
 			}
 
-			// Convert any screenshots to jpegs and create a gif when not running a server
-			if (!InRunningRole.Role.RoleType.IsServer())
-			{
-				try
-				{
-					DirectoryInfo ScreenshotDirectory = new(Path.Combine(DestinationDirectory.FullName, "Screenshots"));
-					if (ScreenshotDirectory.Exists)
-					{
-						foreach (DirectoryInfo ScreenshotSubdirectory in ScreenshotDirectory.EnumerateDirectories())
-						{
-							if (ScreenshotSubdirectory.GetFiles().Any())
-							{
-								Log.Info("Downsizing and gifying session images at {0}", ScreenshotSubdirectory.FullName);
-
-								// Downsize first so gif-step is quicker and takes less resources.
-								Utils.Image.ConvertImages(ScreenshotSubdirectory.FullName, ScreenshotSubdirectory.FullName, "jpg", true);
-
-								string GifPath = GenerateNotTakenFilePath(Path.Combine(DestinationDirectory.FullName, RoleName + "Test.gif"));
-								if (Utils.Image.SaveImagesAsGif(ScreenshotSubdirectory.FullName, GifPath))
-								{
-									Log.Info("Saved gif to {0}", GifPath);
-								}
-							}
-						}
-					}
-				}
-				catch (Exception Ex)
-				{
-					Log.Info("Failed to downsize and gif-ify images! {0}", Ex.Message);
-				}
-			}
-
-			// TODO REMOVEME- this should go elsewhere, likely a util that can be called or inserted by relevant test nodes.
+			// TODO REMOVEME- this should go elsewhere, likely a utile that can be called or inserted by relevant test nodes.
 			SavePSOs(InContext, InRunningRole, DestinationDirectory.FullName);
 			// END REMOVEME
 
@@ -1322,7 +1285,6 @@ namespace Gauntlet
 					{
 						if (ReservationRetries == 0)
 						{
-							DevicePool.Instance.ReportDeviceReservationState();
 							throw new AutomationException("Unable to acquire all devices for test.");
 						}
 						Log.Info("\nUnable to find enough device(s). Waiting {0} secs (retries left={1})\n", ReservationRetryWait, --ReservationRetries);
@@ -1336,6 +1298,7 @@ namespace Gauntlet
 				}
 
 				Dictionary<IAppInstall, UnrealSessionRole> InstallsToRoles = new Dictionary<IAppInstall, UnrealSessionRole>();
+				Dictionary<IAppInstall, UnrealAppConfig> InstallsToConfig = new Dictionary<IAppInstall, UnrealAppConfig>();
 
 				// create a copy of our list
 				IEnumerable<ITargetDevice> DevicesToInstallOn = UnrealDeviceReservation.ReservedDevices.ToArray();
@@ -1420,6 +1383,7 @@ namespace Gauntlet
 						Role.ConfigureDevice?.Invoke(Device);
 
 						InstallsToRoles[Install] = Role;
+						InstallsToConfig[Install] = AppConfig;
 
 						if (ReinstallPerPass)
 						{
@@ -1430,6 +1394,7 @@ namespace Gauntlet
 					{
 						Install = RolesToInstalls[Role];
 						InstallsToRoles[Install] = Role;
+						InstallsToConfig[Install] = AppConfig;
 						Log.Info("Using previous install of {0} on {1}", Install.Name, Install.Device.Name);
 					}
 				}
@@ -1562,7 +1527,7 @@ namespace Gauntlet
 		/// </summary>
 		private bool DeviceMatchesRoleConstraint(UnrealSessionRole Role, ITargetDevice Device)
 		{
-			bool bRoleMatchesConstraint = DevicePool.Instance.GetConstraint(Device) == Role.Constraint;
+			bool bRoleMatchesConstraint = Role.Constraint.Equals(DevicePool.Instance.GetConstraint(Device));
 
 			return Device.IsConnected
 				&& Device.Platform == Role.Platform
@@ -1577,6 +1542,7 @@ namespace Gauntlet
 		{
 			// Order by constraint. This ensures roles with constraints have their devices selected first.
 			IEnumerable<UnrealSessionRole> RolesSortedByConstraint = SessionRoles.OrderBy(R => R.Constraint.IsIdentity() ? 1 : 0);
+			IEnumerable<ITargetDevice> ReservedDevices = UnrealDeviceReservation.ReservedDevices;
 
 			foreach (UnrealSessionRole Role in RolesSortedByConstraint)
 			{
@@ -1592,7 +1558,7 @@ namespace Gauntlet
 					{
 						try
 						{
-							DeviceToAssign = UnrealDeviceReservation.ReservedDevices.Where(Device => DeviceMatchesRoleConstraint(Role, Device)).First();
+							DeviceToAssign = ReservedDevices.Where(Device => DeviceMatchesRoleConstraint(Role, Device)).First();
 							IDeviceUsageReporter.RecordStart(DeviceToAssign.Name, DeviceToAssign.Platform, IDeviceUsageReporter.EventType.Device, IDeviceUsageReporter.EventState.Success);
 						}
 						catch (Exception Ex)
@@ -1604,6 +1570,7 @@ namespace Gauntlet
 					}
 
 					RolesToDevices.Add(Role, DeviceToAssign);
+					ReservedDevices = ReservedDevices.Except(Enumerable.Repeat(DeviceToAssign, 1));
 				}
 			}
 
@@ -1677,7 +1644,12 @@ namespace Gauntlet
 					}
 
 					Device.CleanArtifacts();
-					Device.CopyAdditionalFiles(AppConfig.FilesToCopy);
+
+					if(AppConfig.Build.SupportsAdditionalFileCopy)
+					{
+						Device.CopyAdditionalFiles(AppConfig.FilesToCopy);
+					}
+
 					Role.ConfigureDevice?.Invoke(Device);
 				}
 				catch(Exception Ex)
@@ -1688,6 +1660,12 @@ namespace Gauntlet
 					{
 						// If on desktop platform, we are not retrying.
 						// It is unlikely that space is going to be made and InstallBuildParallel has marked the build path as problematic.
+						Log.Error(KnownLogEvents.Gauntlet_DeviceEvent, Message);
+						throw;
+					}
+					else if(IsOverlayException(Ex))
+					{
+						// Errors with Overlay executables are caused by missing files or improper setup, inform user and exit early
 						Log.Error(KnownLogEvents.Gauntlet_DeviceEvent, Message);
 						throw;
 					}
@@ -1716,6 +1694,7 @@ namespace Gauntlet
 			{
 				UnrealSessionRole Role = RoleInstall.Key;
 				IAppInstall Install = RoleInstall.Value;
+				UnrealAppConfig Config = RolesToConfigs[Role];
 
 				// InstallOnly roles don't execute a process
 				if (Role.InstallOnly)
@@ -1765,6 +1744,70 @@ namespace Gauntlet
 			}
 
 			return new UnrealSessionInstance(RoleInstances.ToArray(), DeferredRolesToInstalls);
+		}
+
+		private void SaveScreenshots(string RoleName, string SourceDirectory, string DestinationDirectory, bool bCompressImages)
+		{
+			try
+			{
+				string ScreenshotPath = PathUtils.FindRelevantPath(BasePath: SourceDirectory, "Screenshots");
+
+				if (string.IsNullOrEmpty(ScreenshotPath) || !Directory.Exists(ScreenshotPath))
+				{
+					Log.Verbose("Could not locate Screenshots subdirectory in artifact path {ArtifactPath}. Skipping GIF creation", SourceDirectory);
+					return;
+				}
+
+				// Image transformation relies on the image being directly on the host PC
+				// This means it can't be on a remote device, or in a network storage.
+				// The screenshots directory will be copied to a temp directory for the transformations, and then moved to the final artifact destination.
+				DirectoryInfo ScreenshotDirectory = new(ScreenshotPath);
+				DirectoryInfo ImageStage = new(Path.Combine(Path.GetTempPath(), "ImageStage", RoleName));
+				if (ImageStage.Exists)
+				{
+					ImageStage.Delete(true);
+				}
+
+				// Copy the images to a the staging directory
+				SystemHelpers.CopyDirectory(ScreenshotPath, ImageStage.FullName, SystemHelpers.CopyOptions.Mirror);
+
+				// Creates an enumerable containing both the root directory and any sub directories
+				IEnumerable<DirectoryInfo> ImageDirectories = ImageStage
+					.EnumerateDirectories()
+					.Concat(Enumerable.Repeat(ImageStage, 1));
+
+				// Compress the images and convert them to a gif
+				foreach (DirectoryInfo ImageDirectory in ImageDirectories)
+				{
+					FileInfo[] Files = ImageDirectory.GetFiles();
+					if (Files.Any())
+					{
+						if (bCompressImages)
+						{
+							Image.ConvertImages(ImageDirectory.FullName, ImageDirectory.FullName, "jpg", true);
+						}
+
+						string GifPath = GenerateNotTakenFilePath(Path.Combine(DestinationDirectory, RoleName + "Test.gif"));
+						if (Image.SaveImagesAsGif(ImageDirectory.FullName, GifPath))
+						{
+							Log.Info("Saved gif to {0}", GifPath);
+						}
+					}
+				}
+
+				// Now, copy the compressed images in the temp staged directory to the desired artifact destination
+				string RelativeScreenshotDirectory = ScreenshotPath.Replace(SourceDirectory, string.Empty).Trim('\\').Trim('/');
+				string ScreenshotDestination = Path.Combine(DestinationDirectory, RelativeScreenshotDirectory);
+				SystemHelpers.CopyDirectory(ImageStage.FullName, ScreenshotDestination, SystemHelpers.CopyOptions.Mirror);
+
+				// Delete the source screenshot directory so they aren't duplicated in the following artifact copy
+				ScreenshotDirectory.Delete(true);
+				ImageStage.Delete(true);
+			}
+			catch (Exception Ex)
+			{
+				Log.Info("Failed to downsize and gif-ify images! {0}", Ex.Message);
+			}
 		}
 
 		private void SavePSOs(UnrealTestContext InContext, UnrealSessionInstance.RoleInstance InRunningRole, string DestSavedDir)
@@ -1939,6 +1982,11 @@ namespace Gauntlet
 		private bool IsOutOfSpaceException(Exception Ex)
 		{
 			return Ex.Message.Contains("not enough space", StringComparison.OrdinalIgnoreCase);
+		}
+
+		private bool IsOverlayException(Exception Ex)
+		{
+			return Ex.Message.Contains("Overlay Error", StringComparison.OrdinalIgnoreCase);
 		}
 	}
 

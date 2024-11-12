@@ -215,6 +215,8 @@ void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const 
 		this->TabManager = NewTabManager;
 
 		TArray<TWeakObjectPtr<UObject>> ObjectsToEditWeak;
+		EVisibility VisibilityWhileCompiling = GetVisibilityWhileAssetCompiling();
+
 		ObjectsToEditWeak.Reserve(ObjectsToEdit.Num());
 		for (UObject* Object : ObjectsToEdit)
 		{
@@ -223,7 +225,7 @@ void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const 
 		NewMajorTab->SetContent
 		( 
 			SAssignNew( NewStandaloneHost, SStandaloneAssetEditorToolkitHost, NewTabManager, AppIdentifier )
-			.Visibility_Lambda([ObjectsToEditWeak]()
+			.Visibility_Lambda([ObjectsToEditWeak,VisibilityWhileCompiling]()
 				{
 					for (const TWeakObjectPtr<UObject> Object : ObjectsToEditWeak)
 					{
@@ -231,11 +233,11 @@ void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const 
 						{
 							if (AsyncAsset->IsCompiling())
 							{
-								return EVisibility::Collapsed;
+								return VisibilityWhileCompiling;
 							}
 						}
 					}
-					return EVisibility::All;
+					return EVisibility::Visible;
 				})
 			.OnRequestClose(this, &FAssetEditorToolkit::OnRequestClose, EAssetEditorCloseReason::AssetEditorHostClosed)
 			.OnClose(this, &FAssetEditorToolkit::OnClose)
@@ -250,16 +252,20 @@ void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const 
 
 	check( ToolkitHost.IsValid() );
 	ToolkitManager.RegisterNewToolkit( SharedThis( this ) );
-	
+
 	ToolkitCommands->MapAction(
 		FAssetEditorCommonCommands::Get().SaveAsset,
 		FExecuteAction::CreateSP( this, &FAssetEditorToolkit::SaveAsset_Execute ),
-		FCanExecuteAction::CreateSP( this, &FAssetEditorToolkit::CanSaveAsset_Internal ));
+		FCanExecuteAction::CreateSP( this, &FAssetEditorToolkit::CanSaveAsset_Internal ),
+		FIsActionChecked(),
+		FIsActionButtonVisible::CreateSP( this, &FAssetEditorToolkit::IsSaveAssetVisible ));
 
 	ToolkitCommands->MapAction(
 		FAssetEditorCommonCommands::Get().SaveAssetAs,
 		FExecuteAction::CreateSP( this, &FAssetEditorToolkit::SaveAssetAs_Execute ),
-		FCanExecuteAction::CreateSP( this, &FAssetEditorToolkit::CanSaveAssetAs_Internal ));
+		FCanExecuteAction::CreateSP( this, &FAssetEditorToolkit::CanSaveAssetAs_Internal ),
+		FIsActionChecked(),
+		FIsActionButtonVisible::CreateSP( this, &FAssetEditorToolkit::IsSaveAssetAsVisible ));
 
 	ToolkitCommands->MapAction(
 		FGlobalEditorCommonCommands::Get().FindInContentBrowser,
@@ -308,7 +314,10 @@ void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const 
 		TSharedRef<FTabManager::FLayout> LayoutToUse = FLayoutSaveRestore::LoadFromConfig(GEditorLayoutIni, StandaloneDefaultLayout);
 
 		// Actually create the widget content
-		NewStandaloneHost->SetupInitialContent(LayoutToUse, NewMajorTab, bCreateDefaultStandaloneMenu);
+		if (NewStandaloneHost)
+		{
+			NewStandaloneHost->SetupInitialContent(LayoutToUse, NewMajorTab, bCreateDefaultStandaloneMenu);
+		}	
 	}
 	
 	// Create toolbars
@@ -637,6 +646,11 @@ bool FAssetEditorToolkit::CanSaveAsset_Internal() const
 	return CanSaveAsset();
 }
 
+bool FAssetEditorToolkit::IsSaveAssetVisible() const
+{
+	return true;
+}
+
 void FAssetEditorToolkit::SaveAsset_Execute()
 {
 	if (EditingObjects.Num() == 0)
@@ -652,6 +666,9 @@ void FAssetEditorToolkit::SaveAsset_Execute()
 		return;
 	}
 
+	TArray<UObject*> SavedObjects;
+	SavedObjects.Reserve(ObjectsToSave.Num());
+
 	TArray<UPackage*> PackagesToSave;
 
 	for (UObject* Object : ObjectsToSave)
@@ -664,10 +681,13 @@ void FAssetEditorToolkit::SaveAsset_Execute()
 		else
 		{
 			PackagesToSave.Add(Object->GetOutermost());
+			SavedObjects.Add(Object);
 		}
 	}
 
 	FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, bCheckDirtyOnAssetSave, /*bPromptToSave=*/ false);
+
+	OnAssetsSaved(SavedObjects);
 }
 
 bool FAssetEditorToolkit::CanSaveAssetAs_Internal() const
@@ -678,6 +698,11 @@ bool FAssetEditorToolkit::CanSaveAssetAs_Internal() const
 	}
 
 	return CanSaveAssetAs();
+}
+
+bool FAssetEditorToolkit::IsSaveAssetAsVisible() const
+{
+	return IsActuallyAnAsset();
 }
 
 void FAssetEditorToolkit::SaveAssetAs_Execute()
@@ -955,6 +980,15 @@ void FAssetEditorToolkit::SwitchToWorldCentricEditor_Execute( TWeakPtr< FAssetEd
 }
 
 
+
+EVisibility FAssetEditorToolkit::GetVisibilityWhileAssetCompiling() const
+{
+	// don't tick GUI of asset editor when asset is compiling
+	//	this is to prevent deadlocks in broken asset editors
+	// @todo : change this default to Visible and instead return Collapsed only in the editors that need this bodge
+	return EVisibility::Collapsed;
+}
+
 void FAssetEditorToolkit::FindInContentBrowser_Execute()
 {
 	TArray< UObject* > ObjectsToSyncTo;
@@ -1062,10 +1096,7 @@ void FAssetEditorToolkit::FillDefaultFileMenuCommands(FToolMenuSection& InSectio
 	if (UAssetEditorToolkitMenuContext* Context = InSection.FindContext<UAssetEditorToolkitMenuContext>())
 	{
 		InSection.AddMenuEntry(FAssetEditorCommonCommands::Get().SaveAsset, TAttribute<FText>(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "AssetEditor.SaveAsset")).InsertPosition = InsertPosition;
-		if( IsActuallyAnAsset() )
-		{
-			InSection.AddMenuEntry(FAssetEditorCommonCommands::Get().SaveAssetAs, TAttribute<FText>(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "AssetEditor.SaveAssetAs")).InsertPosition = InsertPosition;
-		}
+		InSection.AddMenuEntry(FAssetEditorCommonCommands::Get().SaveAssetAs, TAttribute<FText>(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "AssetEditor.SaveAssetAs")).InsertPosition = InsertPosition;
 	}
 
 	if( IsWorldCentricAssetEditor() )
@@ -1518,12 +1549,18 @@ bool FAssetEditorToolkit::IsActuallyAnAsset() const
 
 void FAssetEditorToolkit::AddMenuExtender(TSharedPtr<FExtender> Extender)
 {
-	StandaloneHost.Pin()->GetMenuExtenders().AddUnique(Extender);
+	if (TSharedPtr<SStandaloneAssetEditorToolkitHost> StandaloneHostPtr = StandaloneHost.Pin())
+	{
+		StandaloneHostPtr->GetMenuExtenders().AddUnique(Extender);
+	}
 }
 
 void FAssetEditorToolkit::RemoveMenuExtender(TSharedPtr<FExtender> Extender)
 {
-	StandaloneHost.Pin()->GetMenuExtenders().Remove(Extender);
+	if (TSharedPtr<SStandaloneAssetEditorToolkitHost> StandaloneHostPtr = StandaloneHost.Pin())
+	{
+		StandaloneHostPtr->GetMenuExtenders().Remove(Extender);
+	}
 }
 
 void FAssetEditorToolkit::AddToolbarExtender(TSharedPtr<FExtender> Extender)
@@ -1556,7 +1593,10 @@ TSharedPtr<FExtensibilityManager> FAssetEditorToolkit::GetSharedToolBarExtensibi
 
 void FAssetEditorToolkit::SetMenuOverlay( TSharedRef<SWidget> Widget )
 {
-	StandaloneHost.Pin()->SetMenuOverlay( Widget );
+	if (TSharedPtr<SStandaloneAssetEditorToolkitHost> StandaloneHostPtr = StandaloneHost.Pin())
+	{
+		StandaloneHostPtr->SetMenuOverlay(Widget);
+	}
 }
 
 void FAssetEditorToolkit::AddToolbarWidget(TSharedRef<SWidget> Widget)

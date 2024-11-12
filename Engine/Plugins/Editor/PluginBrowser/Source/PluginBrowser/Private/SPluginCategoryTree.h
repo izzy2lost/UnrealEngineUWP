@@ -91,6 +91,9 @@ private:
 	/** Category for built-in plugins */
 	TSharedPtr<FPluginCategory> BuiltInCategory;
 
+	/** Category for external plugins */
+	TSharedPtr<FPluginCategory> ExternalCategory;
+
 	/** Category for installed plugins */
 	TSharedPtr<FPluginCategory> InstalledCategory;
 

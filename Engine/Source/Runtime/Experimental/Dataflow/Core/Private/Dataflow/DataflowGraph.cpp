@@ -8,17 +8,26 @@
 #include "Logging/LogMacros.h"
 #include "Dataflow/DataflowArchive.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 
 DEFINE_LOG_CATEGORY_STATIC(DATAFLOW_LOG, Error, All);
 
-namespace Dataflow
+namespace UE::Dataflow
 {
+	TSet<FName> FGraph::RegisteredFilters = {};
 
 	FGraph::FGraph(FGuid InGuid)
 		: Guid(InGuid)
 	{
 	}
 
+	void FGraph::Reset()
+	{
+		Nodes.Reset();
+		FilteredNodes.Reset();
+		Connections.Reset();
+		DisabledNodes.Reset();
+	}
 
 	void FGraph::RemoveNode(TSharedPtr<FDataflowNode> Node)
 	{
@@ -50,9 +59,15 @@ namespace Dataflow
 			}
 		}
 		Nodes.Remove(Node);
-		if (Node->IsA(FDataflowTerminalNode::StaticType()))
+		for(const FName& RegisteredType : RegisteredFilters)
 		{
-			TerminalNodes.Remove(Node);
+			if (Node->IsA(RegisteredType))
+			{
+				if(TArray< TSharedPtr<FDataflowNode> >* FoundNodes = FilteredNodes.Find(RegisteredType))
+				{
+					FoundNodes->Remove(Node);
+				}
+			}
 		}
 	}
 
@@ -101,22 +116,49 @@ namespace Dataflow
 	{
 		if (ensure(OutputConnection && InputConnection))
 		{
-			OutputConnection->AddConnection(InputConnection);
-			InputConnection->AddConnection(OutputConnection);
-			Connections.Add(FLink(
-				OutputConnection->GetOwningNode()->GetGuid(), OutputConnection->GetGuid(),
-				InputConnection->GetOwningNode()->GetGuid(), InputConnection->GetGuid()));
+			FDataflowOutput* const OldOutputConnection = InputConnection->GetConnection();
+			if (OldOutputConnection != OutputConnection)
+			{
+				if (OldOutputConnection)
+				{
+					UE_LOG(LogChaosDataflow, Verbose, TEXT("FGraph::Connect(): Disconnecting output [%s:%s] from input [%s:%s]"),
+						OldOutputConnection && OldOutputConnection->GetOwningNode() ? *OldOutputConnection->GetOwningNode()->GetName().ToString() : TEXT("Invalid"),
+						OldOutputConnection ? *OldOutputConnection->GetName().ToString() : TEXT("Invalid"),
+						InputConnection->GetOwningNode() ? *InputConnection->GetOwningNode()->GetName().ToString() : TEXT("Invalid"),
+						*InputConnection->GetName().ToString());
+					// Note: Do not remove the expired connection from the input to avoid an unnecessary invalidation.
+					//       Simply clobber it with calling AddConnection() on the input instead.
+					OldOutputConnection->RemoveConnection(InputConnection);
+					Connections.RemoveSwap(FLink(
+						OldOutputConnection->GetOwningNode()->GetGuid(), OldOutputConnection->GetGuid(),
+						InputConnection->GetOwningNode()->GetGuid(), InputConnection->GetGuid()));
+				}
+				UE_LOG(LogChaosDataflow, Verbose, TEXT("FGraph::Connect(): Connecting output [%s:%s] to input [%s:%s]"),
+					OutputConnection->GetOwningNode() ? *OutputConnection->GetOwningNode()->GetName().ToString() : TEXT("Invalid"),
+					*OutputConnection->GetName().ToString(),
+					InputConnection->GetOwningNode() ? *InputConnection->GetOwningNode()->GetName().ToString() : TEXT("Invalid"),
+					*InputConnection->GetName().ToString());
+				OutputConnection->AddConnection(InputConnection);
+				InputConnection->AddConnection(OutputConnection);
+				Connections.Add(FLink(
+					OutputConnection->GetOwningNode()->GetGuid(), OutputConnection->GetGuid(),
+					InputConnection->GetOwningNode()->GetGuid(), InputConnection->GetGuid()));
+			}
 		}
 	}
 
 	void FGraph::Disconnect(FDataflowOutput* OutputConnection, FDataflowInput* InputConnection)
 	{
+		UE_LOG(LogChaosDataflow, Verbose, TEXT("FGraph::Disconnect(): Disconnecting output [%s:%s] from input [%s:%s]"),
+			OutputConnection->GetOwningNode() ? *OutputConnection->GetOwningNode()->GetName().ToString() : TEXT("Invalid"),
+			*OutputConnection->GetName().ToString(),
+			InputConnection->GetOwningNode() ? *InputConnection->GetOwningNode()->GetName().ToString() : TEXT("Invalid"),
+			*InputConnection->GetName().ToString());
 		OutputConnection->RemoveConnection(InputConnection);
 		InputConnection->RemoveConnection(OutputConnection);
 		Connections.RemoveSwap(FLink(
 			OutputConnection->GetOwningNode()->GetGuid(), OutputConnection->GetGuid(),
 			InputConnection->GetOwningNode()->GetGuid(), InputConnection->GetGuid()));
-
 	}
 
 	void FGraph::AddReferencedObjects(FReferenceCollector& Collector)
@@ -130,6 +172,7 @@ namespace Dataflow
 	void FGraph::Serialize(FArchive& Ar, UObject* OwningObject)
 	{
 		Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
+		Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
 
 		Ar << Guid;
 		if (Ar.IsSaving())
@@ -171,6 +214,11 @@ namespace Dataflow
 					ArType = Output->GetType();
 					ArName = Output->GetName();
 					Ar << ArGuid << ArType << ArName;
+
+					bool bIsAnytype = Output->IsAnyType();
+					Ar << bIsAnytype;
+					bool bIsHidden = Output->GetPinIsHidden();
+					Ar << bIsHidden;
 				}
 
 				int32 ArNumInputs = Node->GetInputs().Num();
@@ -181,6 +229,11 @@ namespace Dataflow
 					ArType = Input->GetType();
 					ArName = Input->GetName();
 					Ar << ArGuid << ArType << ArName;
+
+					bool bIsAnytype = Input->IsAnyType();
+					Ar << bIsAnytype;
+					bool bIsHidden = Input->GetPinIsHidden();
+					Ar << bIsHidden;
 				}
 			}
 			DATAFLOW_OPTIONAL_BLOCK_WRITE_END();
@@ -191,12 +244,36 @@ namespace Dataflow
 
 	void FGraph::SerializeForLoading(FArchive& Ar, FGraph* InGraph, UObject* OwningObject)
 	{
+		InGraph->Reset();
+
+		const bool bDataflowSeparateInputOutputSerialization = (Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) >= FUE5MainStreamObjectVersion::DataflowSeparateInputOutputSerialization);
+		const bool bDataflowAnyTypeSupport = (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::DataflowAnyTypeSupport);
+		const bool bDataflowTemplateTypeFix = (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::DataflowTemplatedTypeFix);
+
 		FGuid ArGuid;
 		FName ArType, ArName;
 		int32 ArNum = 0;
 
 		TMap<FGuid, TSharedPtr<FDataflowNode> > NodeGuidMap;
 		TMap<FGuid, FDataflowConnection* > ConnectionGuidMap;
+		TArray<FDataflowConnection*> ConnectionsToFix;
+
+		// returns true if the connection is to be fixed
+		auto AddTemplateTypedConnectionToBeFixed = [&ConnectionsToFix, bDataflowTemplateTypeFix](FDataflowConnection* Connection, FName SerializedType) -> bool
+			{
+				if (Connection && !bDataflowTemplateTypeFix)
+				{
+					const bool bSametype = (Connection->GetType() == SerializedType);
+					const bool bIsOldTemplatedType = !bSametype && Connection->GetType().ToString().StartsWith(SerializedType.ToString());
+					if (bIsOldTemplatedType)
+					{
+						Connection->ForceSimpleType(SerializedType);
+						ConnectionsToFix.Add(Connection);
+						return true;
+					}
+				}
+				return false;
+			};
 
 		Ar << ArNum;
 		for (int32 Ndx = ArNum; Ndx > 0; Ndx--)
@@ -210,7 +287,9 @@ namespace Dataflow
 				ensure(!NodeGuidMap.Contains(ArGuid));
 				NodeGuidMap.Add(ArGuid, Node);
 
-				if ((Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) < FUE5MainStreamObjectVersion::DataflowSeparateInputOutputSerialization))
+				const bool bDataflowHideablePinSupport = (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::DataflowHideablePins);
+
+				if (!bDataflowSeparateInputOutputSerialization)
 				{
 
 					// former input / output serialization method where we only store aggregate number of inputs and outputs
@@ -252,7 +331,10 @@ namespace Dataflow
 							}
 							if (Connection)
 							{
-								check(Connection->GetType() == ArType);
+								if (!AddTemplateTypedConnectionToBeFixed(Connection, ArType))
+								{
+									check(Connection->GetType() == ArType);
+								}
 								Connection->SetGuid(ArGuid);
 								ensure(!ConnectionGuidMap.Contains(ArGuid));
 								ConnectionGuidMap.Add(ArGuid, Connection);
@@ -268,6 +350,8 @@ namespace Dataflow
 					// be referenced when deserializing them below ( see Dataflow Node AddPin method )
 					Node->SerializeInternal(Ar);
 
+					bool bIsAnyType = false;
+					bool bIsHidden = true;
 					// Outputs deserialization
 					{
 						int32 ArNumOutputs;
@@ -276,10 +360,34 @@ namespace Dataflow
 						for (int32 OutputIndex = 0; OutputIndex < ArNumOutputs; OutputIndex++)
 						{
 							Ar << ArGuid << ArType << ArName;
-
-							if (FDataflowOutput* Output = Node->FindOutput(ArName))
+							if (bDataflowAnyTypeSupport)
 							{
-								check(Output->GetType() == ArType);
+								Ar << bIsAnyType;
+							}
+							if (bDataflowHideablePinSupport)
+							{
+								Ar << bIsHidden;
+							}
+
+							FDataflowOutput* Output = Node->FindOutput(ArName);
+							if (!Output)
+							{
+								// Find out if the output has recently been redirected
+								Output = Node->RedirectSerializedOutput(ArName);
+								UE_CLOG(Output, LogChaos, Display, TEXT("Output (%s) has been redirected to output (%s) in Dataflow node (%s).")
+									, *ArName.ToString(), *Output->GetName().ToString(), *ArNodeName.ToString());
+							}
+							if (Output)
+							{
+								if (bIsAnyType)
+								{
+									Output->SetAsAnyType(bIsAnyType, ArType);
+								}
+								if (!AddTemplateTypedConnectionToBeFixed(Output, ArType))
+								{
+									check(Output->GetType() == ArType || bIsAnyType);
+								}
+								Output->SetPinIsHidden(bIsHidden);
 								Output->SetGuid(ArGuid);
 								ensure(!ConnectionGuidMap.Contains(ArGuid));
 								ConnectionGuidMap.Add(ArGuid, Output);
@@ -302,10 +410,34 @@ namespace Dataflow
 						for (int32 InputIndex = 0; InputIndex < ArNumInputs; InputIndex++)
 						{
 							Ar << ArGuid << ArType << ArName;
-
-							if (FDataflowInput* Input = Node->FindInput(ArName))
+							if (bDataflowAnyTypeSupport)
 							{
-								check(Input->GetType() == ArType);
+								Ar << bIsAnyType;
+							}
+							if (bDataflowHideablePinSupport)
+							{
+								Ar << bIsHidden;
+							}
+
+							FDataflowInput* Input = Node->FindInput(ArName);
+							if (!Input)
+							{
+								// Find out if the input has recently been redirected
+								Input = Node->RedirectSerializedInput(ArName);
+								UE_CLOG(Input, LogChaos, Display, TEXT("Input (%s) has been redirected to input (%s) in Dataflow node (%s).")
+									, *ArName.ToString(), *Input->GetName().ToString(), *ArNodeName.ToString());
+							}
+							if (Input)
+							{
+								if (bIsAnyType)
+								{
+									Input->SetAsAnyType(bIsAnyType, ArType);
+								}
+								if (!AddTemplateTypedConnectionToBeFixed(Input, ArType))
+								{
+									check(Input->GetType() == ArType || bIsAnyType);
+								}
+								Input->SetPinIsHidden(bIsHidden);
 								Input->SetGuid(ArGuid);
 								ensure(!ConnectionGuidMap.Contains(ArGuid));
 								ConnectionGuidMap.Add(ArGuid, Input);
@@ -339,13 +471,30 @@ namespace Dataflow
 			{
 				if (ConnectionGuidMap.Contains(Con.Input) && ConnectionGuidMap.Contains(Con.Output))
 				{
-					if (ConnectionGuidMap[Con.Input]->GetType() == ConnectionGuidMap[Con.Output]->GetType())
+					if (ConnectionGuidMap[Con.Output] && ConnectionGuidMap[Con.Output]->Direction == FPin::EDirection::OUTPUT &&
+						ConnectionGuidMap[Con.Input] && ConnectionGuidMap[Con.Input]->Direction == FPin::EDirection::INPUT)
 					{
-						InGraph->Connect(static_cast<FDataflowOutput*>(ConnectionGuidMap[Con.Output]), static_cast<FDataflowInput*>(ConnectionGuidMap[Con.Input]));
+						FDataflowOutput* Output = static_cast<FDataflowOutput*>(ConnectionGuidMap[Con.Output]);
+						FDataflowInput* Input = static_cast<FDataflowInput*>(ConnectionGuidMap[Con.Input]);
+						if (Input->GetType() == Output->GetType())
+						{
+							InGraph->Connect(Output, Input);
+						}
 					}
 				}
 			}
 		}
+
+		// fix templated types if any : see bDataflowTemplateTypeFix
+		for (FDataflowConnection* ConnectionToFix : ConnectionsToFix)
+		{
+			ConnectionToFix->FixAndPropagateType();
+		}
+	}
+
+	void RegisterNodeFilter(const FName& NodeFilter)
+	{
+		FGraph::RegisteredFilters.Add(NodeFilter);
 	}
 }
 

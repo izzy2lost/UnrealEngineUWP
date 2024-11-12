@@ -31,7 +31,8 @@ public class OnlineTestsCore : ModuleRules
 				"OnlineServicesOSSAdapter",
 				"SSL",
 				"Json",
-				"JsonUtilities"
+				"JsonUtilities",
+				"HTTP"
 			}
 		);
 
@@ -40,6 +41,12 @@ public class OnlineTestsCore : ModuleRules
 		{
 			PublicDefinitions.Add(String.Format("ONLINETESTS_USEEXTERNAUTH=0"));
 		}
+
+		PrivateIncludePaths.AddRange(
+			new string[] {
+				Path.Combine(Target.RelativeEnginePath, "Restricted", "NotForLicensees", "Source", "Programs", "OnlineTests", "Private")
+			}
+		);
 	}
 }
 

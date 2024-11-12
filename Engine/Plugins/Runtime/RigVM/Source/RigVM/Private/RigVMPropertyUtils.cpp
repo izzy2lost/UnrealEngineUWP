@@ -4,7 +4,7 @@
 
 #include "RigVMModule.h"
 #include "RigVMTypeUtils.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Misc/AssertionMacros.h"
 #include "UObject/TextProperty.h"
 
@@ -18,6 +18,21 @@ void RigVMPropertyUtils::GetTypeFromProperty(const FProperty* InProperty, FName&
 	else if (CastField<FIntProperty>(InProperty))
 	{
 		OutTypeName = TEXT("int32");
+		OutTypeObject = nullptr;
+	}
+	else if (CastField<FInt64Property>(InProperty))
+	{
+		OutTypeName = TEXT("int64");
+		OutTypeObject = nullptr;
+	}
+	else if (CastField<FUInt32Property>(InProperty))
+	{
+		OutTypeName = TEXT("uint32");
+		OutTypeObject = nullptr;
+	}
+	else if (CastField<FUInt64Property>(InProperty))
+	{
+		OutTypeName = TEXT("uint64");
 		OutTypeObject = nullptr;
 	}
 	else if (CastField<FFloatProperty>(InProperty))
@@ -56,6 +71,11 @@ void RigVMPropertyUtils::GetTypeFromProperty(const FProperty* InProperty, FName&
 		{
 			OutTypeName = BytePropertyEnum->GetFName();
 			OutTypeObject = BytePropertyEnum;
+		}
+		else
+		{
+			OutTypeName = TEXT("uint8");
+			OutTypeObject = nullptr;
 		}
 	}
 	else if (const FStructProperty* StructProperty = CastField<FStructProperty>(InProperty))

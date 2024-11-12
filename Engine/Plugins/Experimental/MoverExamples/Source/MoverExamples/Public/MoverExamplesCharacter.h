@@ -7,11 +7,17 @@
 #include "GameFramework/Pawn.h"
 #include "MoverExamplesCharacter.generated.h"
 
+class UNavMoverComponent;
 class UInputAction;
 class UCharacterMoverComponent;
 struct FInputActionValue;
 
-UCLASS()
+/** 
+ * MoverExamplesCharacter: the base pawn class used by the MoverExamples plugin. Handles coalescing of input events.
+ * Cannot be instantiated on its own.
+ */ 
+
+UCLASS(Abstract)
 class MOVEREXAMPLES_API AMoverExamplesCharacter : public APawn, public IMoverInputProducerInterface
 {
 	GENERATED_BODY()
@@ -42,6 +48,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category=MoverExamples)
 	virtual void RequestMoveByVelocity(const FVector& DesiredVelocity) { CachedMoveInputVelocity=DesiredVelocity; }
 
+	//~ Begin INavAgentInterface Interface
+	virtual FVector GetNavAgentLocation() const override;
+	//~ End INavAgentInterface Interface
+	
+	virtual void UpdateNavigationRelevance() override;
+	
 protected:
 	// Entry point for input production. Do not override. To extend in derived character types, override OnProduceInput for native types or implement "Produce Input" blueprint event
 	virtual void ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext& InputCmdResult) override;
@@ -55,19 +67,19 @@ protected:
 
 	/** Move Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input)
-	UInputAction* MoveInputAction;
+	TObjectPtr<UInputAction> MoveInputAction;
    
 	/** Look Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input)
-	UInputAction* LookInputAction;
+	TObjectPtr<UInputAction> LookInputAction;
 
 	/** Jump Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input)
-	UInputAction* JumpInputAction;
+	TObjectPtr<UInputAction> JumpInputAction;
 
 	/** Fly Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input)
-	UInputAction* FlyInputAction;
+	TObjectPtr<UInputAction> FlyInputAction;
 
 public:
 	// Whether or not we author our movement inputs relative to whatever base we're standing on, or leave them in world space
@@ -97,6 +109,10 @@ protected:
 	UPROPERTY(Category = Movement, VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCharacterMoverComponent> CharacterMotionComponent;
 
+	/** Holds functionality for nav movement data and functions */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, Category="Nav Movement")
+	TObjectPtr<UNavMoverComponent> NavMoverComponent;
+	
 private:
 	FVector LastAffirmativeMoveInput = FVector::ZeroVector;	// Movement input (intent or velocity) the last time we had one that wasn't zero
 

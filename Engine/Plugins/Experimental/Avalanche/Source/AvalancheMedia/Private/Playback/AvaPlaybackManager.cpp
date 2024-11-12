@@ -128,6 +128,19 @@ namespace UE::AvaPlaybackManager::Private
 			return true;
 		}
 	};
+
+	FString GetPrettyPlaybackInstanceInfo(const FAvaPlaybackInstance* InPlaybackInstance)
+	{
+		if (InPlaybackInstance)
+		{
+			return FString::Printf(TEXT("Id:%s, Asset:%s, Channel:%s, UserData:\"%s\""),
+				*InPlaybackInstance->GetInstanceId().ToString(),
+				*InPlaybackInstance->GetSourcePath().GetAssetName(),
+				*InPlaybackInstance->GetChannelName(),
+				*InPlaybackInstance->GetInstanceUserData());
+		}
+		return TEXT("");
+	}
 }
 
 FAvaPlaybackManager::FAvaPlaybackManager()
@@ -343,67 +356,49 @@ void FAvaPlaybackManager::InvalidatePlaybackAssetEntry(const FSoftObjectPath& In
 	PlaybackAssetEntries.Remove(InAssetPath);
 }
 
-UAvaPlaybackGraph*  FAvaPlaybackManager::LoadPlaybackObject(const FSoftObjectPath& InAssetPath, const FString& InChannelName) const
+UAvaPlaybackGraph* FAvaPlaybackManager::LoadPlaybackObject(const FSoftObjectPath& InAssetPath, const FString& InChannelName) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FAvaPlaybackManager::LoadPlaybackObject);
 	
 	const FString PackageName = InAssetPath.GetLongPackageName();
-	const FString AssetName = InAssetPath.GetAssetName();
-	
-	// First check if the package is already loaded.
-	UPackage* TempPackage = FindPackage(nullptr, *PackageName);
 
-	if (!TempPackage)
+	// Fast path: avoid a sync package load for maps.
+	// The generated playback graph will load it async using a level streaming playable.
+	if (FAvaPlaybackUtils::IsMapAsset(PackageName))
 	{
-		// Short cut: avoid sync package load for maps.
-		// The playback object will load it async using level streaming.
-		if (FAvaPlaybackUtils::IsMapAsset(PackageName))
-		{
-			UAvaPlaybackGraph* const AvaPlayback = BuildPlaybackFromWorld(TSoftObjectPtr<UWorld>(InAssetPath), InChannelName);
-			check(AvaPlayback);
-			return AvaPlayback;
-		}
-
-		// Todo: Investigate LoadPackageAsync.
-		// For now, we tolerate a sync load here because there will be hitch from converting the
-		// Motion Design Asset to a world.
-		TempPackage = LoadPackage(nullptr, *PackageName, LOAD_None );
+		UAvaPlaybackGraph* const AvaPlayback = BuildPlaybackFromWorld(TSoftObjectPtr<UWorld>(InAssetPath), InChannelName);
+		check(AvaPlayback);
+		return AvaPlayback;
 	}
 	
-	if (TempPackage)
+	UObject* LoadedAsset = InAssetPath.ResolveObject();
+	if (!LoadedAsset)
 	{
-		if (UObject* FoundObject = FindObject<UObject>(TempPackage, *AssetName))
+		LoadedAsset = InAssetPath.TryLoad();
+		if (!LoadedAsset)
 		{
-			// When the asset is an Motion Design Playback, it is loaded directly.
-			if (UAvaPlaybackGraph* const AvaPlayback = Cast<UAvaPlaybackGraph>(FoundObject))
-			{
-				return AvaPlayback;
-			}
-
-			if (const UWorld* const World = Cast<UWorld>(FoundObject))
-			{
-				UAvaPlaybackGraph* const AvaPlayback = BuildPlaybackFromWorld(World, InChannelName);
-				check(AvaPlayback);
-				return AvaPlayback;
-			}
-
-			UE_LOG(LogAvaPlaybackManager, Error,
-				TEXT("Asset \"%s\" in package \"%s\" is not a supported Motion Design playback asset (\"%s\")."),
-				*AssetName, *PackageName, *FoundObject->GetClass()->GetFullName());
-		}
-		else
-		{
-			UE_LOG(LogAvaPlaybackManager, Error,
-				TEXT("Failed to find asset \"%s\" in package \"%s\""),
-				*AssetName, *PackageName);
+			UE_LOG(LogAvaPlaybackManager, Error, TEXT("Failed to load asset \"%s\""), *InAssetPath.ToString());
+			return nullptr;
 		}
 	}
-	else
+	
+	// When the asset is a Playback Graph, it is used directly.
+	if (UAvaPlaybackGraph* const AvaPlayback = Cast<UAvaPlaybackGraph>(LoadedAsset))
 	{
-		UE_LOG(LogAvaPlaybackManager, Error,
-			TEXT("Failed to load package \"%s\""),
-			*PackageName);
+		return AvaPlayback;
 	}
+
+	if (UWorld* const World = Cast<UWorld>(LoadedAsset))
+	{
+		UAvaPlaybackGraph* const AvaPlayback = BuildPlaybackFromWorld(World, InChannelName);
+		check(AvaPlayback);
+		return AvaPlayback;
+	}
+
+	UE_LOG(LogAvaPlaybackManager, Error,
+		TEXT("Asset \"%s\" is not a supported Motion Design playback asset (\"%s\")."),
+		*InAssetPath.ToString(), *LoadedAsset->GetClass()->GetFullName());
+	
 	return nullptr;
 }
 
@@ -847,67 +842,90 @@ void FAvaPlaybackInstance::SetInstanceUserData(const FString& InUserData)
 bool FAvaPlaybackInstance::UpdateStatus()
 {
 	using namespace UE::AvaPlaybackManager::Private;
-	if (IsPlaybackValid(Playback))
+	using namespace UE::AvaPlayback::Utils;
+	
+	if (!IsPlaybackValid(Playback))
 	{
-		EAvaPlaybackStatus NewStatus = Status;
+		return false;
+	}
+	
+	EAvaPlaybackStatus NewStatus = Status;
 
-		if (Playback->IsPlaying())
+	if (Playback->IsPlaying())
+	{
+		if (const UAvaPlayable* Playable = Playback->FindPlayable(SourcePath, ChannelFName))
 		{
-			if (const UAvaPlayable* Playable = Playback->FindPlayable(SourcePath, ChannelFName))
+			switch (Playable->GetPlayableStatus())
 			{
-				switch (Playable->GetPlayableStatus())
-				{
-				case EAvaPlayableStatus::Unloaded:
-					NewStatus = EAvaPlaybackStatus::Available;
-					break;
-				case EAvaPlayableStatus::Loading:
-					NewStatus = EAvaPlaybackStatus::Loading;
-					break;
-				case EAvaPlayableStatus::Loaded:
-					NewStatus = EAvaPlaybackStatus::Loaded;
-					break;
-				case EAvaPlayableStatus::Visible:
-					NewStatus = Playable->GetPlayableGroup()->IsRenderTargetReady() ? EAvaPlaybackStatus::Started : EAvaPlaybackStatus::Starting;
-					break;
-				}
-			}
-			else
-			{
-				// The game instance may not be created yet. The RefreshPlayback is done on the next tick.
+			case EAvaPlayableStatus::Unloaded:
+				NewStatus = EAvaPlaybackStatus::Available;
+				break;
+			case EAvaPlayableStatus::Loading:
 				NewStatus = EAvaPlaybackStatus::Loading;
+				break;
+			case EAvaPlayableStatus::Loaded:
+				NewStatus = EAvaPlaybackStatus::Loaded;
+				break;
+			case EAvaPlayableStatus::Visible:
+				NewStatus = Playable->GetPlayableGroup()->IsRenderTargetReady() ? EAvaPlaybackStatus::Started : EAvaPlaybackStatus::Starting;
+				break;
 			}
 		}
 		else
 		{
-			// Even if not playing, we could have a game instance already, it can be preloaded now.
-			if (const UAvaPlayable* Playable = Playback->FindPlayable(SourcePath, ChannelFName))
-			{
-				switch (Playable->GetPlayableStatus())
-				{
-				case EAvaPlayableStatus::Unloaded:
-					NewStatus = EAvaPlaybackStatus::Available;
-					break;
-				case EAvaPlayableStatus::Loading:
-					NewStatus = EAvaPlaybackStatus::Loading;
-					break;
-				case EAvaPlayableStatus::Loaded:
-				case EAvaPlayableStatus::Visible:
-					NewStatus = EAvaPlaybackStatus::Loaded;
-					break;
-				}
-			}
-			else
-			{
-				NewStatus = EAvaPlaybackStatus::Loading;
-			}
-		}
+			// The game instance may not be created yet. The RefreshPlayback is done on the next tick.
+			NewStatus = EAvaPlaybackStatus::Loading;
 
-		if (NewStatus != Status)
-		{
-			Status = NewStatus;
-			return true;
+			// Reporting possible edge case:
+			if (Status != NewStatus)
+			{
+				UE_LOG(LogAvaPlaybackManager, Verbose,
+					TEXT("%s Playback Instance {%s} Status Changed: %s -> %s because Playable \"%s\" (%s) was not found in PLAYING instance."),
+					*GetBriefFrameInfo(), *GetPrettyPlaybackInstanceInfo(this), *StaticEnumToString(Status), *StaticEnumToString(NewStatus),
+					*SourcePath.GetAssetName(), *ChannelName);
+			}
 		}
 	}
+	else
+	{
+		// Even if not playing, we could have a game instance already, it can be preloaded now.
+		if (const UAvaPlayable* Playable = Playback->FindPlayable(SourcePath, ChannelFName))
+		{
+			switch (Playable->GetPlayableStatus())
+			{
+			case EAvaPlayableStatus::Unloaded:
+				NewStatus = EAvaPlaybackStatus::Available;
+				break;
+			case EAvaPlayableStatus::Loading:
+				NewStatus = EAvaPlaybackStatus::Loading;
+				break;
+			case EAvaPlayableStatus::Loaded:
+			case EAvaPlayableStatus::Visible:
+				NewStatus = EAvaPlaybackStatus::Loaded;
+				break;
+			}
+		}
+		else
+		{
+			NewStatus = EAvaPlaybackStatus::Loading;
+			
+			// Reporting possible edge case:
+			if (Status != NewStatus)
+			{
+				UE_LOG(LogAvaPlaybackManager, Verbose,
+					TEXT("%s Playback Instance {%s} Status Changed: %s -> %s because Playable \"%s\" (%s) was not found in instance."),
+					*GetBriefFrameInfo(), *GetPrettyPlaybackInstanceInfo(this), *StaticEnumToString(Status), *StaticEnumToString(NewStatus),
+					*SourcePath.GetAssetName(), *ChannelName);
+			}
+		}
+	}
+
+	if (NewStatus != Status)
+	{
+		Status = NewStatus;
+		return true;
+	}
+	
 	return false;
 }
 

@@ -2,28 +2,11 @@
 
 #pragma once
 #include "ChaosVDParticleDataWrapper.h"
+#include "DataWrappers/ChaosVDDataSerializationMacros.h"
 #include "UObject/Class.h"
 #include "UObject/ObjectMacros.h"
 
 #include "ChaosVDJointDataWrappers.generated.h"
-
-#ifndef CVD_IMPLEMENT_SERIALIZER
-		#define CVD_IMPLEMENT_SERIALIZER(Type) \
-		inline FArchive& operator<<(FArchive& Ar, Type& Data) \
-		{\
-			Data.Serialize(Ar); \
-			return Ar; \
-		} \
-		template<>\
-		struct TStructOpsTypeTraits<Type> : public TStructOpsTypeTraitsBase2<Type> \
-		{\
-			enum\
-			{\
-				WithSerializer = true,\
-			};\
-		};\
-
-#endif
 
 UENUM()
 enum class EChaosVDJointReSimType
@@ -378,10 +361,9 @@ public:
 CVD_IMPLEMENT_SERIALIZER(FChaosVDJointSettingsDataWrapper)
 
 USTRUCT()
-struct FChaosVDJointConstraint : public FChaosVDWrapperDataBase
+struct FChaosVDJointConstraint : public FChaosVDConstraintDataWrapperBase
 {
 	GENERATED_BODY()
-public:
 
 	inline static FStringView WrapperTypeName = TEXT("FChaosVDJointConstraint");
 
@@ -399,8 +381,10 @@ public:
 	
 	UPROPERTY(VisibleAnywhere, Category=JointSettings)
 	FChaosVDJointSettingsDataWrapper JointSettings;
-
-	bool bIsSelectedInEditor = false;
+	
+	CHAOSVDRUNTIME_API virtual int32 GetSolverID() const override { return SolverID; }
+	CHAOSVDRUNTIME_API virtual int32 GetParticleIDAtSlot(EChaosVDParticlePairIndex IndexSlot) const override { return ParticleParIndexes[static_cast<int32>(IndexSlot)]; }
+	CHAOSVDRUNTIME_API virtual int32 GetConstraintIndex () const override {return ConstraintIndex; }
 };
 
 CVD_IMPLEMENT_SERIALIZER(FChaosVDJointConstraint)

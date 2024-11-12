@@ -4,10 +4,12 @@
 
 #include "AvaMediaDefines.h"
 #include "AvaTagHandle.h"
+#include "AvaTransitionEnums.h"
 #include "Playable/AvaPlayableRemoteControlValues.h"
 #include "AvaRundownPage.generated.h"
 
 class UAvaRundown;
+class URemoteControlPreset;
 
 UENUM()
 enum class EAvaRundownPageStatus : uint8
@@ -79,7 +81,7 @@ public:
 	bool IsValidPage() const;
 
 	void Rename(const FString& InNewName);
-	void RenameFriendlyName (const FString& InNewName);
+	void RenameFriendlyName(const FString& InNewName);
 	
 	int32 GetPageId() const { return PageId; }
 	void SetPageId(int32 InPageId) { PageId = InPageId; } // Do not use lightly.
@@ -92,6 +94,8 @@ public:
 	bool IsComboTemplate() const { return IsTemplate() && !CombinedTemplateIds.IsEmpty();}
 	
 	const TSet<int32>& GetInstancedIds() const { return Instances; }
+
+	void ResetInstancedIds() { Instances.Reset(); }	// For internal use only.
 
 	const FString& GetPageName() const { return PageName; }
 	void SetPageName(const FString& InPageName) { PageName = InPageName; }
@@ -113,6 +117,9 @@ public:
 	
 	FAvaTagHandle GetTransitionLayer(const UAvaRundown* InRundown, int32 InTemplateIndex = 0) const;
 	TArray<FAvaTagHandle> GetTransitionLayers(const UAvaRundown* InRundown) const;
+
+	EAvaTransitionInstancingMode GetTransitionMode( const UAvaRundown* InRundown, int32 InTemplateIndex = 0) const;
+	TArray<EAvaTransitionInstancingMode> GetTransitionModes(const UAvaRundown* InRundown) const;
 	
 	/**
 	 * Appends the page's program status(es).
@@ -173,7 +180,7 @@ public:
 
 	EAvaPlayableRemoteControlChanges PruneRemoteControlValues(const FAvaPlayableRemoteControlValues& InRemoteControlValues);
 	EAvaPlayableRemoteControlChanges UpdateRemoteControlValues(const FAvaPlayableRemoteControlValues& InRemoteControlValues, bool bInUpdateDefaults);
-	
+
 	bool HasRemoteControlEntityValue(const FGuid& InId) const { return RemoteControlValues.HasEntityValue(InId); }
 	const FAvaPlayableRemoteControlValue* GetRemoteControlEntityValue(const FGuid& InId) const { return RemoteControlValues.GetEntityValue(InId); }
 	void SetRemoteControlEntityValue(const FGuid& InId, const FAvaPlayableRemoteControlValue& InValue);
@@ -181,8 +188,18 @@ public:
 	bool HasRemoteControlControllerValue(const FGuid& InId) const { return RemoteControlValues.HasControllerValue(InId); }
 	const FAvaPlayableRemoteControlValue* GetRemoteControlControllerValue(const FGuid& InId) const { return RemoteControlValues.GetControllerValue(InId); }
 	void SetRemoteControlControllerValue(const FGuid& InId, const FAvaPlayableRemoteControlValue& InValue);
-	
+
 	const FAvaPlayableRemoteControlValues& GetRemoteControlValues() const { return RemoteControlValues; }
+	bool GetDefaultRemoteControlValues(const UAvaRundown* InRundown, bool bInUseTemplateValues, FAvaPlayableRemoteControlValues& OutValues) const;
+	bool GetDefaultEntityValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues, FAvaPlayableRemoteControlValue& OutValue) const;
+	bool GetDefaultControllerValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues, FAvaPlayableRemoteControlValue& OutValue) const;
+
+	bool IsDefaultEntityValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues) const;
+	bool IsDefaultControllerValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues) const;
+
+	EAvaPlayableRemoteControlChanges ResetRemoteControlValues(const UAvaRundown* InRundown, bool bInUseTemplateValues, bool bInIsDefault);
+	EAvaPlayableRemoteControlChanges ResetRemoteControlEntityValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues, bool bInIsDefault);
+	EAvaPlayableRemoteControlChanges ResetRemoteControlControllerValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues, bool bInIsDefault);
 
 	friend FORCEINLINE uint32 GetTypeHash(const FAvaRundownPage& InPage)
 	{
@@ -269,4 +286,7 @@ protected:
 	/** Transition Layer Tag cached from the transition tree. Cached for fast display in page/template list. */
 	UPROPERTY(VisibleAnywhere, Category = "Motion Design")
 	FAvaTagHandle TransitionLayerTag;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Motion Design")
+	EAvaTransitionInstancingMode TransitionMode = EAvaTransitionInstancingMode::New;
 };

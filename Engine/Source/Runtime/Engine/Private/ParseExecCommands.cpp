@@ -56,13 +56,16 @@ namespace ParseExecCommands
 
 	TArray<FString> ParseExecCmdsFromCommandLine(const FString& InKey)
 	{
+		TArray<FString> Result;
+
 		FString Line;
-		if (FParse::Value(FCommandLine::Get(), *(InKey + TEXT("=")), Line, /*bShouldStopOnSeparator*/false))
+		const TCHAR* CommandLine = FCommandLine::Get();
+		while (CommandLine && FParse::Value(CommandLine, *(InKey + TEXT("=")), Line, /*bShouldStopOnSeparator*/false, &CommandLine))
 		{
-			return ParseExecCmds(Line);
+			Result.Append(ParseExecCmds(Line));
 		}
 
-		return TArray<FString>();
+		return Result;
 	}
 
 	void QueueDeferredCommands(const TArray<FString>& CommandArray)

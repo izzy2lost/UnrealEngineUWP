@@ -13,9 +13,7 @@ struct FMediaTileCoordinate
 {
 	uint16 X, Y;
 
-	FORCEINLINE FMediaTileCoordinate()
-	{
-	}
+	FMediaTileCoordinate() = default;
 
 	FORCEINLINE explicit FMediaTileCoordinate(uint16 InX, uint16 InY)
 		: X(InX)

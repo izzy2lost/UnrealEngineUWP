@@ -12,5 +12,5 @@ namespace UE::NNEHlslShaders::Internal
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_X"), FBatchNormalizationConstants::NUM_GROUP_THREADS);
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(TBatchNormalizationCS, "/NNE/NNEHlslShadersBatchNormalization.usf", "BatchNormalization", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(TBatchNormalizationCS, "/NNEHlslShaders/NNEHlslShadersBatchNormalization.usf", "BatchNormalization", SF_Compute);
 } // UE::NNEHlslShaders::Internal

@@ -17,6 +17,10 @@
 #define GBUFFER_REFACTOR 0
 #endif
 
+#ifndef ALLOW_SSS_MATERIAL_OVERRIDE
+#define ALLOW_SSS_MATERIAL_OVERRIDE 1
+#endif
+
 #if SHADING_PATH_DEFERRED
 
 #if !SUPPORTS_INDEPENDENT_SAMPLERS
@@ -744,64 +748,62 @@ FGBufferData MobileDecodeGBuffer(half4 InGBufferA, half4 InGBufferB, half4 InGBu
 	return GBuffer;
 }
 
-#if MOBILE_DEFERRED_SHADING && PIXELSHADER
+#if MOBILE_DEFERRED_SHADING
 
-#if METAL_PROFILE
+#define	FRAMEBUFFER_FETCH_ACCESS (IS_MOBILE_DEFERREDSHADING_SUBPASS && PIXELSHADER && ALLOW_FRAMEBUFFER_FETCH)
+
+#if (METAL_PROFILE && FRAMEBUFFER_FETCH_ACCESS)
 #include "/Engine/Public/Platform/Metal/MetalSubpassSupport.ush"
-#elif VULKAN_PROFILE
+#elif (VULKAN_PROFILE && FRAMEBUFFER_FETCH_ACCESS)
 #include "/Engine/Public/Platform/Vulkan/VulkanSubpassSupport.ush"
-#elif COMPILER_GLSL_ES3_1
+#elif (USE_GLES_FBF_DEFERRED && FRAMEBUFFER_FETCH_ACCESS)
 #include "/Engine/Public/Platform/GL/GLSubpassSupport.ush"
 #endif
 
 void MobileFetchGBuffer(in float2 UV, out half4 GBufferA, out half4 GBufferB, out half4 GBufferC, out half4 GBufferD, out float SceneDepth)
 {
-	GBufferD = 0;
-
-#if VULKAN_PROFILE
+#if (VULKAN_PROFILE && FRAMEBUFFER_FETCH_ACCESS)
 	GBufferA = VulkanSubpassFetch1(); 
 	GBufferB = VulkanSubpassFetch2(); 
 	GBufferC = VulkanSubpassFetch3();
-#if MOBILE_EXTENDED_GBUFFER
-	GBufferD = VulkanSubpassFetch4();
-#endif
-	SceneDepth = ConvertFromDeviceZ(VulkanSubpassDepthFetch());
-#elif (METAL_PROFILE && !MAC)
+	#if MOBILE_EXTENDED_GBUFFER
+		GBufferD = VulkanSubpassFetch4();
+	#endif
+#elif (METAL_PROFILE && !MAC && FRAMEBUFFER_FETCH_ACCESS)
 	GBufferA = SubpassFetchRGBA_1(); 
 	GBufferB = SubpassFetchRGBA_2(); 
 	GBufferC = SubpassFetchRGBA_3(); 
-#if MOBILE_EXTENDED_GBUFFER
-	GBufferD = SubpassFetchRGBA_4();
-	SceneDepth = ConvertFromDeviceZ(SubpassFetchR_5());
-#else
-	SceneDepth = ConvertFromDeviceZ(SubpassFetchR_4());
-#endif
-#elif USE_GLES_FBF_DEFERRED
+	#if MOBILE_EXTENDED_GBUFFER
+		GBufferD = SubpassFetchRGBA_4();
+	#endif
+#elif (USE_GLES_FBF_DEFERRED && FRAMEBUFFER_FETCH_ACCESS)
 	GBufferA = GLSubpassFetch1(); 
 	GBufferB = GLSubpassFetch2(); 
 	GBufferC = GLSubpassFetch3();  
 	GBufferD = 0; // PLS is limited to 128bits
-	SceneDepth = ConvertFromDeviceZ(DepthbufferFetchES2());
 #else
 	GBufferA = Texture2DSampleLevel(MobileSceneTextures.GBufferATexture, MobileSceneTextures.GBufferATextureSampler, UV, 0); 
 	GBufferB = Texture2DSampleLevel(MobileSceneTextures.GBufferBTexture, MobileSceneTextures.GBufferBTextureSampler, UV, 0);
 	GBufferC = Texture2DSampleLevel(MobileSceneTextures.GBufferCTexture, MobileSceneTextures.GBufferCTextureSampler, UV, 0);
-#if MOBILE_EXTENDED_GBUFFER
-	GBufferD = Texture2DSampleLevel(MobileSceneTextures.GBufferDTexture, MobileSceneTextures.GBufferDTextureSampler, UV, 0);
-#endif
-	SceneDepth = ConvertFromDeviceZ(Texture2DSampleLevel(MobileSceneTextures.SceneDepthTexture, MobileSceneTextures.SceneDepthTextureSampler, UV, 0).r);
+	#if MOBILE_EXTENDED_GBUFFER
+		GBufferD = Texture2DSampleLevel(MobileSceneTextures.GBufferDTexture, MobileSceneTextures.GBufferDTextureSampler, UV, 0);
+	#endif
 #endif
 
-#if FORCE_DEPTH_TEXTURE_READS || PLATFORM_NEEDS_DEPTH_TEXTURE_READS
+#if	(FRAMEBUFFER_FETCH_ACCESS && VULKAN_PROFILE)
+	SceneDepth = ConvertFromDeviceZ(VulkanSubpassDepthFetch());
+#elif (FRAMEBUFFER_FETCH_ACCESS && (USE_SCENE_DEPTH_AUX || USE_GLES_FBF_DEFERRED))
+	SceneDepth = ConvertFromDeviceZ(DepthbufferFetchES2());
+#else
 	SceneDepth = ConvertFromDeviceZ(Texture2DSampleLevel(MobileSceneTextures.SceneDepthTexture, MobileSceneTextures.SceneDepthTextureSampler, UV, 0).r);
 #endif
 }
 #endif //MOBILE_DEFERRED_SHADING
 
-FGBufferData MobileFetchAndDecodeGBuffer(in float2 UV, in float2 PixelPos)
+FGBufferData MobileFetchAndDecodeGBuffer(in float2 UV, in float2 PixelPos, uint ViewId)
 {
 	FGBufferData GBuffer = (FGBufferData)0;
-#if (MOBILE_DEFERRED_SHADING && IS_MOBILE_DEFERREDSHADING_SUBPASS && PIXELSHADER)
+#if MOBILE_DEFERRED_SHADING
 	float SceneDepth = 0; 
 	half4 GBufferA = 0;
 	half4 GBufferB = 0;
@@ -813,12 +815,23 @@ FGBufferData MobileFetchAndDecodeGBuffer(in float2 UV, in float2 PixelPos)
 #else
 	GBuffer.Depth = CalcSceneDepth(UV);
 #endif
-
-	GBuffer.CustomDepth = ConvertFromDeviceZ(Texture2DSample(MobileSceneTextures.CustomDepthTexture, MobileSceneTextures.CustomDepthTextureSampler, UV).r);
+#if	MOBILE_MULTI_VIEW
+	GBuffer.CustomDepth = ConvertFromDeviceZ(Texture2DArraySample(MobileSceneTextures.CustomDepthTextureArray, MobileSceneTextures.CustomDepthTextureSampler, float3(UV, ViewId)).r);
+	GBuffer.CustomStencil = MobileSceneTextures.CustomStencilTextureArray.Load(int4(PixelPos.xy, ViewId, 0)) STENCIL_COMPONENT_SWIZZLE;
+#else
+	GBuffer.CustomDepth = ConvertFromDeviceZ(Texture2DSample(MobileSceneTextures.CustomDepthTexture, MobileSceneTextures.CustomDepthTextureSampler, float3(UV, ViewId)).r);
 	GBuffer.CustomStencil = MobileSceneTextures.CustomStencilTexture.Load(int3(PixelPos.xy, 0)) STENCIL_COMPONENT_SWIZZLE;
+#endif
+
 
 	return GBuffer;
 }
+
+FGBufferData MobileFetchAndDecodeGBuffer(in float2 UV, in float2 PixelPos)
+{
+	return MobileFetchAndDecodeGBuffer(UV, PixelPos, 0);
+}
+
 #endif //SHADING_PATH_MOBILE
 
 /** Populates OutGBufferA, B and C */
@@ -900,9 +913,9 @@ bool AdjustBaseColorAndSpecularColorForSubsurfaceProfileLighting(inout float3 Ba
 	const bool bCheckerboardRequired = View.bSubsurfacePostprocessEnabled > 0;
 #else
 	const bool bCheckerboardRequired = View.bSubsurfacePostprocessEnabled > 0 && View.bCheckerboardSubsurfaceProfileRendering > 0;
-	BaseColor = View.bSubsurfacePostprocessEnabled ? float3(1, 1, 1) : BaseColor;
+	BaseColor = (ALLOW_SSS_MATERIAL_OVERRIDE && View.bSubsurfacePostprocessEnabled) ? float3(1, 1, 1) : BaseColor;
 #endif
-	if (bCheckerboardRequired)
+	if (bCheckerboardRequired && ALLOW_SSS_MATERIAL_OVERRIDE)
 	{
 		// because we adjust the BaseColor here, we need StoredBaseColor
 		// we apply the base color later in SubsurfaceRecombinePS()
@@ -915,16 +928,16 @@ void AdjustBaseColorAndSpecularColorForSubsurfaceProfileLighting(inout float3 Ba
 {
 // If this function is called in translucent pass, we should not modify the BaseColor, instead directly read the base color as it is. 
 // The translucent pass is called after the main post process subsurface scattering pass, it will not affect previous logic.
-#if MATERIALBLENDING_TRANSLUCENT
+#if MATERIALBLENDING_TRANSLUCENT || !ALLOW_SSS_MATERIAL_OVERRIDE
 	return;
-#endif
-
+#else
 	const bool bCheckerboardRequired = AdjustBaseColorAndSpecularColorForSubsurfaceProfileLighting(BaseColor, Specular, bChecker);
 	if (bCheckerboardRequired)
 	{
 		// in SubsurfaceRecombinePS() does not multiply with Specular so we do it here
 		SpecularColor *= !bChecker;
 	}
+#endif
 }
 
 /** Populates FGBufferData */

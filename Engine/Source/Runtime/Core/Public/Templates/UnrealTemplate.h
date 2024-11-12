@@ -8,6 +8,7 @@
 #include "Templates/CopyQualifiersAndRefsFromTo.h"
 #include "Templates/UnrealTypeTraits.h"
 #include "Templates/RemoveReference.h"
+#include "Templates/Requires.h"
 #include "Templates/TypeCompatibleBytes.h"
 #include "Templates/Identity.h"
 #include "Traits/IsContiguousContainer.h"
@@ -54,7 +55,7 @@ FORCEINLINE void Move(T& A,typename TMoveSupportTraits<T>::Copy B)
 	A.~T();
 
 	// Use placement new and a copy constructor so types with const members will work.
-	new(&A) T(B);
+	::new((void*)&A) T(B);
 }
 
 /** This is used to provide type specific behavior for a move which may change the value of B. */
@@ -65,7 +66,7 @@ FORCEINLINE void Move(T& A,typename TMoveSupportTraits<T>::Move B)
 	A.~T();
 
 	// Use placement new and a copy constructor so types with const members will work.
-	new(&A) T(MoveTemp(B));
+	::new((void*)&A) T(MoveTemp(B));
 }
 
 /**
@@ -344,13 +345,13 @@ template <typename RefType, typename AssignedType = RefType>
 struct TGuardValue : private FNoncopyable
 {
 	[[nodiscard]] TGuardValue(RefType& ReferenceValue, const AssignedType& NewValue)
-	: RefValue(ReferenceValue), OldValue(ReferenceValue)
+	: RefValue(ReferenceValue), OriginalValue(ReferenceValue)
 	{
 		RefValue = NewValue;
 	}
 	~TGuardValue()
 	{
-		RefValue = OldValue;
+		RefValue = OriginalValue;
 	}
 
 	/**
@@ -359,14 +360,25 @@ struct TGuardValue : private FNoncopyable
 	 *
 	 * @return	a const reference to the original data value
 	 */
+	UE_DEPRECATED(5.5, "Use GetOriginalValue() instead.")
 	FORCEINLINE const AssignedType& operator*() const
 	{
-		return OldValue;
+		return OriginalValue;
+	}
+
+	/**
+	 * Provides read-only access to the original value of the data being tracked by this struct
+	 *
+	 * @return	a const reference to the original data value
+	 */
+	FORCEINLINE const AssignedType& GetOriginalValue() const
+	{
+		return OriginalValue;
 	}
 
 private:
 	RefType& RefValue;
-	AssignedType OldValue;
+	AssignedType OriginalValue;
 };
 
 
@@ -381,7 +393,7 @@ template <typename RefType, typename AssignedType = RefType>
 struct TOptionalGuardValue : private FNoncopyable
 {
 	[[nodiscard]] TOptionalGuardValue(RefType& ReferenceValue, const AssignedType& NewValue)
-		: RefValue(ReferenceValue), OldValue(ReferenceValue)
+		: RefValue(ReferenceValue), OriginalValue(ReferenceValue)
 	{
 		if (RefValue != NewValue)
 		{
@@ -390,9 +402,9 @@ struct TOptionalGuardValue : private FNoncopyable
 	}
 	~TOptionalGuardValue()
 	{
-		if (RefValue != OldValue)
+		if (RefValue != OriginalValue)
 		{
-			RefValue = OldValue;
+			RefValue = OriginalValue;
 		}
 	}
 
@@ -402,14 +414,25 @@ struct TOptionalGuardValue : private FNoncopyable
 	 *
 	 * @return	a const reference to the original data value
 	 */
+	UE_DEPRECATED(5.5, "Use GetOriginalValue() instead.")
 	FORCEINLINE const AssignedType& operator*() const
 	{
-		return OldValue;
+		return OriginalValue;
+	}
+
+	/**
+	 * Provides read-only access to the original value of the data being tracked by this struct
+	 *
+	 * @return	a const reference to the original data value
+	 */
+	FORCEINLINE const AssignedType& GetOriginalValue() const
+	{
+		return OriginalValue;
 	}
 
 private:
 	RefType& RefValue;
-	AssignedType OldValue;
+	AssignedType OriginalValue;
 };
 
 template <typename FuncType>
@@ -523,7 +546,7 @@ template <typename T> struct TRemovePointer<T*> { typedef T Type; };
  * const object, because we would prefer to be informed when MoveTemp will have no effect.
  */
 template <typename T>
-UE_INTRINSIC_CAST FORCEINLINE std::remove_reference_t<T>&& MoveTemp(T&& Obj)
+UE_INTRINSIC_CAST FORCEINLINE constexpr std::remove_reference_t<T>&& MoveTemp(T&& Obj) noexcept
 {
 	using CastType = std::remove_reference_t<T>;
 
@@ -541,7 +564,7 @@ UE_INTRINSIC_CAST FORCEINLINE std::remove_reference_t<T>&& MoveTemp(T&& Obj)
  * where you can but not stop compilation.
  */
 template <typename T>
-UE_INTRINSIC_CAST FORCEINLINE std::remove_reference_t<T>&& MoveTempIfPossible(T&& Obj)
+UE_INTRINSIC_CAST FORCEINLINE constexpr std::remove_reference_t<T>&& MoveTempIfPossible(T&& Obj) noexcept
 {
 	using CastType = std::remove_reference_t<T>;
 	return (CastType&&)Obj;
@@ -577,7 +600,7 @@ FORCEINLINE T CopyTemp(const T& Val)
  * create a PR value without stopping compilation.
  */
 template <typename T>
-FORCEINLINE std::decay_t<T> CopyTempIfNecessary(T&& Val)
+FORCEINLINE constexpr std::decay_t<T> CopyTempIfNecessary(T&& Val)
 {
 	return (T&&)Val;
 }
@@ -587,13 +610,13 @@ FORCEINLINE std::decay_t<T> CopyTempIfNecessary(T&& Val)
  * This is UE's equivalent of std::forward.
  */
 template <typename T>
-UE_INTRINSIC_CAST FORCEINLINE T&& Forward(std::remove_reference_t<T>& Obj)
+UE_INTRINSIC_CAST FORCEINLINE constexpr T&& Forward(std::remove_reference_t<T>& Obj) noexcept
 {
 	return (T&&)Obj;
 }
 
 template <typename T>
-UE_INTRINSIC_CAST FORCEINLINE T&& Forward(std::remove_reference_t<T>&& Obj)
+UE_INTRINSIC_CAST FORCEINLINE constexpr T&& Forward(std::remove_reference_t<T>&& Obj) noexcept
 {
 	return (T&&)Obj;
 }
@@ -747,8 +770,8 @@ FORCEINLINE T ImplicitConv(typename TIdentity<T>::Type Obj)
  */
 template <
 	typename T,
-	typename Base,
-	decltype(ImplicitConv<const volatile Base*>((std::remove_reference_t<T>*)nullptr))* = nullptr
+	typename Base
+	UE_REQUIRES(std::is_convertible_v<std::remove_reference_t<T>*, const volatile Base*>)
 >
 UE_INTRINSIC_CAST FORCEINLINE decltype(auto) ForwardAsBase(std::remove_reference_t<T>& Obj)
 {
@@ -757,8 +780,8 @@ UE_INTRINSIC_CAST FORCEINLINE decltype(auto) ForwardAsBase(std::remove_reference
 
 template <
 	typename T,
-	typename Base,
-	decltype(ImplicitConv<const volatile Base*>((std::remove_reference_t<T>*)nullptr))* = nullptr
+	typename Base
+	UE_REQUIRES(std::is_convertible_v<std::remove_reference_t<T>*, const volatile Base*>)
 >
 UE_INTRINSIC_CAST FORCEINLINE decltype(auto) ForwardAsBase(std::remove_reference_t<T>&& Obj)
 {

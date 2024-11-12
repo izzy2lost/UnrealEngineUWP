@@ -44,19 +44,10 @@ static inline void PreloadInnerStructMembers(FStructProperty* StructProperty)
 IMPLEMENT_FIELD(FStructProperty)
 
 FStructProperty::FStructProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-	: FProperty(InOwner, InName, InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 	, Struct(nullptr)
 {
-	ElementSize = 0;
-}
-
-FStructProperty::FStructProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, int32 InOffset, EPropertyFlags InFlags, UScriptStruct* InStruct)
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	: FProperty(InOwner, InName, InObjectFlags, InOffset, InStruct->GetCppStructOps() ? InStruct->GetCppStructOps()->GetComputedPropertyFlags() | InFlags : InFlags)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	, Struct( InStruct )
-{
-	ElementSize = Struct->PropertiesSize;
+	SetElementSize(0);
 }
 
 static EPropertyFlags GetStructComputedPropertyFlags(const UECodeGen_Private::FStructPropertyParams& Prop)
@@ -71,18 +62,18 @@ static EPropertyFlags GetStructComputedPropertyFlags(const UECodeGen_Private::FS
 }
 
 FStructProperty::FStructProperty(FFieldVariant InOwner, const UECodeGen_Private::FStructPropertyParams& Prop)
-	: FProperty(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, GetStructComputedPropertyFlags(Prop))
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, GetStructComputedPropertyFlags(Prop))
 {
 	Struct = Prop.ScriptStructFunc ? Prop.ScriptStructFunc() : nullptr;
 }
 
 #if WITH_EDITORONLY_DATA
 FStructProperty::FStructProperty(UField* InField)
-	: FProperty(InField)
+	: Super(InField)
 {
 	UStructProperty* SourceProperty = CastChecked<UStructProperty>(InField);
 	Struct = SourceProperty->Struct;
-	check(ElementSize == SourceProperty->ElementSize); // this should've been set by FProperty
+	check(GetElementSize() == SourceProperty->ElementSize); // this should've been set by FProperty
 }
 #endif // WITH_EDITORONLY_DATA
 
@@ -118,7 +109,7 @@ void FStructProperty::LinkInternal(FArchive& Ar)
 	}
 	PreloadInnerStructMembers(this);
 	
-	ElementSize = Align(Struct->PropertiesSize, Struct->GetMinAlignment());
+	SetElementSize(Align(Struct->PropertiesSize, Struct->GetMinAlignment()));
 	if(UScriptStruct::ICppStructOps* Ops = Struct->GetCppStructOps())
 	{
 		PropertyFlags |= Ops->GetComputedPropertyFlags();
@@ -374,6 +365,107 @@ void FStructProperty::DestroyValueInternal( void* Dest ) const
 	Struct->DestroyStruct(Dest, ArrayDim);
 }
 
+bool FStructProperty::ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const
+{
+	// Skip if already being processed.
+	if (EncounteredStructProps.Contains(this))
+	{
+		return false;
+	}
+
+	if (!Struct)
+	{
+		UE_LOG(LogGarbage, Warning, TEXT("Broken FStructProperty does not have a UStruct: %s"), *GetFullName() );
+		return false;
+	}
+
+	if (const UScriptStruct::ICppStructOps* CppStructOps = Struct->GetCppStructOps())
+	{
+		if (CppStructOps->HasClearOnFinishDestroy())
+		{
+			return true;
+		}
+	}
+
+	EncounteredStructProps.Add(this);
+
+	bool bValue = false;
+	for (const FProperty* Property = Struct->PropertyLink; Property; Property = Property->PropertyLinkNext)
+	{
+		if (Property->ContainsFinishDestroy(EncounteredStructProps))
+		{
+			bValue = true;
+			break;
+		}
+	}
+
+	EncounteredStructProps.RemoveSingleSwap(this, EAllowShrinking::No);
+	
+	return bValue;
+}
+
+void FStructProperty::FinishDestroyInternal( void* Data ) const
+{
+	const int32 Stride = Struct->GetStructureSize();
+	
+	if (UScriptStruct::ICppStructOps* CppStructOps = Struct->GetCppStructOps())
+	{
+		if (CppStructOps->HasClearOnFinishDestroy())
+		{
+			Struct->ClearScriptStruct(Data, ArrayDim);
+			return;
+		}
+	}
+	
+	for (int32 ArrayIndex = 0; ArrayIndex < ArrayDim; ArrayIndex++)
+	{
+		uint8* ItemData = (uint8*)Data + ArrayIndex * Stride;
+		for (const FProperty* Property = Struct->PropertyLink; Property; Property = Property->PropertyLinkNext)
+		{
+			Property->FinishDestroy(Property->ContainerPtrToValuePtr<void>(ItemData));
+		}
+	}
+}
+
+bool FStructProperty::HasIntrusiveUnsetOptionalState() const  
+{ 
+	if (UScriptStruct::ICppStructOps* CppStructOps = Struct->GetCppStructOps())
+	{
+		return CppStructOps->HasIntrusiveUnsetOptionalState();
+	}
+	return false;
+}
+
+void FStructProperty::InitializeIntrusiveUnsetOptionalValue(void* Data) const 
+{
+	if (UScriptStruct::ICppStructOps* CppStructOps = Struct->GetCppStructOps())
+	{
+		CppStructOps->InitializeIntrusiveUnsetOptionalValue(Data);
+		return;
+	}
+	checkf(false, TEXT("This should only be called when there is an intrusive unset state, which requires CppStructOps"));
+}
+
+bool FStructProperty::IsIntrusiveOptionalValueSet(const void* Data) const 
+{
+	if (UScriptStruct::ICppStructOps* CppStructOps = Struct->GetCppStructOps())
+	{
+		return CppStructOps->IsIntrusiveOptionalValueSet(Data);
+	}
+	checkf(false, TEXT("This should only be called when there is an intrusive unset state, which requires CppStructOps"));
+	return false;
+}
+
+void FStructProperty::ClearIntrusiveOptionalValue(void* Data) const 
+{
+	if (UScriptStruct::ICppStructOps* CppStructOps = Struct->GetCppStructOps())
+	{
+		CppStructOps->ClearIntrusiveOptionalValue(Data);
+		return;
+	}
+	checkf(false, TEXT("This should only be called when there is an intrusive unset state, which requires CppStructOps"));
+}
+
 /**
  * Creates new copies of components
  * 
@@ -386,7 +478,7 @@ void FStructProperty::InstanceSubobjects( void* Data, void const* DefaultData, U
 {
 	for (int32 Index = 0; Index < ArrayDim; Index++)
 	{
-		Struct->InstanceSubobjectTemplates( (uint8*)Data + ElementSize * Index, DefaultData ? (uint8*)DefaultData + ElementSize * Index : NULL, Struct, InOwner, InstanceGraph );
+		Struct->InstanceSubobjectTemplates( (uint8*)Data + GetElementSize() * Index, DefaultData ? (uint8*)DefaultData + GetElementSize() * Index : NULL, Struct, InOwner, InstanceGraph );
 	}
 }
 
@@ -465,35 +557,6 @@ void FStructProperty::AppendSchemaHash(FBlake3& Builder, bool bSkipEditorOnly) c
 }
 #endif
 
-#if WITH_EDITORONLY_DATA
-static const FName NAME_StructOriginalType(ANSITEXTVIEW("OriginalType"));
-
-static UE::FPropertyTypeName FindOriginalType(const FStructProperty* Struct)
-{
-	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
-	if (Context && Context->bImpersonateProperties)
-	{
-		const FString* OriginalType = Struct->FindMetaData(NAME_StructOriginalType);
-		if (!OriginalType)
-		{
-			//@note: To support metadata defined on array of struct in UPROPERTY for testing purposes
-			if (FField* OwnerField = Struct->Owner.ToField())
-			{
-				OriginalType = OwnerField->FindMetaData(NAME_StructOriginalType);
-			}
-		}
-		if (OriginalType)
-		{
-			if (UE::FPropertyTypeNameBuilder Type; Type.TryParse(*OriginalType))
-			{
-				return Type.Build();
-			}
-		}
-	}
-	return {};
-}
-#endif // WITH_EDITORONLY_DATA
-
 bool FStructProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
 {
 	if (!Super::LoadTypeName(Type, Tag))
@@ -508,9 +571,22 @@ bool FStructProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTa
 		{
 			return true;
 		}
-		// TODO: Look up the struct based on the guid.
-		// TODO: Use the fallback struct if allowed.
 	}
+
+	// TODO: Look up the struct based on the guid.
+	//const FName StructGuidName = Type.GetParameterName(1);
+	//if (FGuid StructGuid; !StructGuidName.IsNone() && FGuid::Parse(StructGuidName.ToString(), StructGuid) && StructGuid.IsValid())
+	//{
+	//}
+
+#if WITH_EDITORONLY_DATA
+	if (Tag && Tag->SerializeType == EPropertyTagSerializeType::Property)
+	{
+		Struct = GetFallbackStruct();
+		SetMetaData(UE::NAME_OriginalType, *WriteToString<256>(Type.GetParameter(0)));
+		return true;
+	}
+#endif // WITH_EDITORONLY_DATA
 
 	return false;
 }
@@ -524,7 +600,7 @@ void FStructProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
 
 	Type.BeginParameters();
 #if WITH_EDITORONLY_DATA
-	if (const UE::FPropertyTypeName OriginalType = FindOriginalType(this); !OriginalType.IsEmpty())
+	if (const UE::FPropertyTypeName OriginalType = UE::FindOriginalType(this); !OriginalType.IsEmpty())
 	{
 		Type.AddType(OriginalType);
 	}
@@ -563,11 +639,30 @@ bool FStructProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 	}
 
 #if WITH_EDITORONLY_DATA
-	if (const UE::FPropertyTypeName OriginalType = FindOriginalType(this); !OriginalType.IsEmpty())
+	if (const UE::FPropertyTypeName OriginalType = UE::FindOriginalType(this); !OriginalType.IsEmpty())
 	{
 		return StructName == OriginalType.GetName();
 	}
 #endif // WITH_EDITORONLY_DATA
 
 	return false;
+}
+
+EPropertyVisitorControlFlow FStructProperty::Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
+{
+	// Indicate in the path that this property contains inner properties
+	Path.Top().bContainsInnerProperties = true;
+
+	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, Data, InFunc);
+
+	if (RetVal == EPropertyVisitorControlFlow::StepInto)
+	{
+		RetVal = Struct->Visit(Path, Data, InFunc);
+	}
+	return RetVal;
+}
+
+void* FStructProperty::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const
+{
+	return Struct->ResolveVisitedPathInfo(Data, Info);
 }

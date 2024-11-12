@@ -14,20 +14,21 @@
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"
 #include "IRemoteControlModule.h"
-#include "RCVirtualPropertyContainer.h"
-#include "RCVirtualProperty.h"
 #include "Misc/CoreDelegates.h"
-#include "Misc/TransactionObjectEvent.h"
 #include "Misc/Optional.h"
+#include "Misc/TransactionObjectEvent.h"
+#include "RCSignatureRegistry.h"
+#include "RCVirtualProperty.h"
+#include "RCVirtualPropertyContainer.h"
 #include "RemoteControlActor.h"
 #include "RemoteControlBinding.h"
 #include "RemoteControlEntityFactory.h"
 #include "RemoteControlExposeRegistry.h"
 #include "RemoteControlFieldPath.h"
-#include "RemoteControlPropertyIdRegistry.h"
 #include "RemoteControlLogger.h"
 #include "RemoteControlObjectVersion.h"
 #include "RemoteControlPresetRebindingManager.h"
+#include "RemoteControlPropertyIdRegistry.h"
 #include "RemoteControlTransactionListenerHelper.h"
 
 #include "UObject/Object.h"
@@ -38,6 +39,7 @@
 #include "Editor.h"
 #include "EngineAnalytics.h"
 #include "Engine/Blueprint.h"
+#include "RemoteControlSettings.h"
 #include "TimerManager.h"
 #include "UObject/PackageReload.h"
 #endif
@@ -672,6 +674,7 @@ URemoteControlPreset::URemoteControlPreset()
 	, RebindingManager(MakePimpl<FRemoteControlPresetRebindingManager>())
 {
 	Registry = CreateDefaultSubobject<URemoteControlExposeRegistry>(FName("ExposeRegistry"));
+	Signatures = CreateDefaultSubobject<URCSignatureRegistry>(TEXT("Signatures"));
 
 	PropertyIdRegistry = CreateDefaultSubobject<URemoteControlPropertyIdRegistry>(FName("PropertyIdRegistry"));
 	PropertyIdRegistry->Initialize();
@@ -772,6 +775,27 @@ TWeakPtr<FRemoteControlActor> URemoteControlPreset::ExposeActor(AActor* Actor, F
 	return StaticCastSharedPtr<FRemoteControlActor>(Expose(MoveTemp(RCActor), FRemoteControlActor::StaticStruct(), Args.GroupId));
 }
 
+TSharedPtr<FRemoteControlProperty> URemoteControlPreset::FindExposedProperty(UObject* InOuterObject, const FRCFieldPathInfo& InFieldPath) const
+{
+	if (!InOuterObject || !Registry)
+	{
+		return nullptr;
+	}
+
+	const FString FieldPathStr = InFieldPath.ToString();
+
+	const TArray<UObject*> OuterObjects = { InOuterObject };
+
+	for (TSharedPtr<FRemoteControlProperty> Property : Registry->GetExposedEntities<FRemoteControlProperty>())
+	{
+		if (Property->FieldPathInfo.ToString() == FieldPathStr && Property->ContainsBoundObjects(OuterObjects))
+		{
+			return Property;
+		}
+	}
+
+	return nullptr;
+}
 
 FName URemoteControlPreset::GenerateUniqueLabel(const FName InDesiredName) const
 {
@@ -1810,8 +1834,10 @@ void URemoteControlPreset::RenewEntityIds()
 		}
 	}
 
+	// Cache labels for all exposed entities
+	Registry->CacheLabels();
+
 	// Rehash the registries
-	Registry->Rehash();
 	PropertyIdRegistry->UpdateEntityIds(EntityIdMap);
 	Layout.UpdateEntityIds(EntityIdMap);
 	
@@ -1898,6 +1924,21 @@ void URemoteControlPreset::Serialize(FArchive& Ar)
 		{
 			PresetId = FGuid::NewGuid();
 		}
+		
+#if WITH_EDITOR
+		// 5.5 - Upgrade to per perset protocol modify operation flags
+		if (Ar.CustomVer(FRemoteControlObjectVersion::GUID) < FRemoteControlObjectVersion::AddedPerPresetModifyOperationFlags)
+		{
+			const URemoteControlSettings* Settings = GetDefault<URemoteControlSettings>();
+
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			if (Settings->bProtocolsGenerateTransactions_DEPRECATED)
+			{
+				ModifyOperationFlagsForProtocols = ERCModifyOperationFlags::None;
+			}
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
+#endif
 	}
 }
 
@@ -2157,7 +2198,7 @@ void URemoteControlPreset::OnObjectPropertyChanged(UObject* Object, struct FProp
 			{
 				if (UMeshComponent* MeshComponent = Cast<UMeshComponent>(Object))
 				{
-					if (CacheEntry.bHadValue && MeshComponent->OverrideMaterials[CacheEntry.ArrayIndex] == NULL)
+					if (CacheEntry.bHadValue && MeshComponent->OverrideMaterials.IsValidIndex(CacheEntry.ArrayIndex) && MeshComponent->OverrideMaterials[CacheEntry.ArrayIndex] == NULL)
 					{
 						FRCResetToDefaultArgs Args;
 						Args.Property = Event.Property;
@@ -2270,7 +2311,7 @@ void URemoteControlPreset::OnPreObjectPropertyChanged(UObject* Object, const cla
 								{
 									FPreMaterialModifiedCache& NewEntry = PreMaterialModifiedCache.FindOrAdd(RCProperty->GetId());
 									NewEntry.ArrayIndex = RCProperty->FieldPathInfo.Segments[0].ArrayIndex;
-									NewEntry.bHadValue = MeshComponent->OverrideMaterials[NewEntry.ArrayIndex] != NULL;
+									NewEntry.bHadValue = MeshComponent->OverrideMaterials.IsValidIndex(NewEntry.ArrayIndex) && MeshComponent->OverrideMaterials[NewEntry.ArrayIndex] != NULL;
 								}
 							}
 							
@@ -2479,7 +2520,7 @@ void URemoteControlPreset::OnActorDeleted(AActor* Actor)
 	{
 		for (auto It = Bindings.CreateIterator(); It; ++It)
 		{
-			UObject* ResolvedObject = (*It)->Resolve();
+			UObject* ResolvedObject = *It ? (*It)->Resolve() : nullptr;
 			if (ResolvedObject && (Actor == ResolvedObject || Actor == ResolvedObject->GetTypedOuter<AActor>()))
 			{
 				// Defer binding clean up to next frame in case the actor deletion is actually an actor being moved to a different sub level.

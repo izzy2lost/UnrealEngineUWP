@@ -3,8 +3,10 @@
 #include "Editor/RigVMDetailsViewWrapperObject.h"
 #include "RigVMCore/RigVMStruct.h"
 #include "RigVMModel/Nodes/RigVMUnitNode.h"
+#include "RigVMModel/Nodes/RigVMDispatchNode.h"
 #include "Modules/ModuleManager.h"
 #include "Algo/Sort.h"
+#include "RigVMTypeUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMDetailsViewWrapperObject)
 
@@ -52,7 +54,7 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForStruct(UScriptStruct* InStruc
 			}
 			while (DiscardedWrapperClassIndex < INT_MAX);
 
-			(*ExistingClass)->Rename(*DiscardedWrapperClassName, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			(*ExistingClass)->Rename(*DiscardedWrapperClassName, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			
 			(*ExistingClass)->RemoveFromRoot();
 		}
@@ -219,6 +221,11 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 
 	// determine if all nodes are unit nodes and match their script struct
 	TArray<UScriptStruct*> UnitStructs;
+	TArray<const FRigVMDispatchFactory*> DispatchFactories;
+	TArray<const FRigVMGraphFunctionIdentifier> FunctionIdentifiers;
+	
+	const UClass* NodeClass = InNodes[0]->GetClass();
+	bool bMatchingNodes = true;
 	for(URigVMNode* Node : InNodes)
 	{
 		if(URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(Node))
@@ -227,6 +234,38 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 			{
 				UnitStructs.AddUnique(ScriptStruct);
 			}
+		}
+		else if(URigVMDispatchNode* DispatchNode = Cast<URigVMDispatchNode>(Node))
+		{
+			if(const FRigVMDispatchFactory* Factory = DispatchNode->GetFactory())
+			{
+				DispatchFactories.AddUnique(Factory);
+			}
+		}
+		else if(URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(Node))
+		{
+			FunctionIdentifiers.AddUnique(FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer);
+		}
+
+		if(NodeClass != Node->GetClass())
+		{
+			bMatchingNodes = false;
+		}
+	}
+
+	if(bMatchingNodes)
+	{
+		if(!UnitStructs.IsEmpty())
+		{
+			bMatchingNodes = UnitStructs.Num() == 1;
+		}
+		else if(!DispatchFactories.IsEmpty())
+		{
+			bMatchingNodes = DispatchFactories.Num() == 1;
+		}
+		else if(!FunctionIdentifiers.IsEmpty())
+		{
+			bMatchingNodes = FunctionIdentifiers.Num() == 1;
 		}
 	}
 
@@ -294,6 +333,36 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 		}
 		Notation = FString::Printf(TEXT("%s(%s)"), *FString::Join(StructNames, TEXT("|")), *Notation);
 	}
+	if(DispatchFactories.Num() > 0)
+	{
+		// sort the factories to ensure we get the same notation each time
+		Algo::Sort(DispatchFactories, [](const FRigVMDispatchFactory* A, const FRigVMDispatchFactory* B) -> bool
+		{
+			return B->GetFactoryName().LexicalLess(A->GetFactoryName());
+		});
+
+		TArray<FString> FactoryNames;
+		for(const FRigVMDispatchFactory* Factory : DispatchFactories)
+		{
+			FactoryNames.Add(Factory->GetFactoryName().ToString());
+		}
+		Notation = FString::Printf(TEXT("%s(%s)"), *FString::Join(FactoryNames, TEXT("|")), *Notation);
+	}
+	if(FunctionIdentifiers.Num() > 0)
+	{
+		// sort the functions to ensure we get the same notation each time
+		Algo::Sort(FunctionIdentifiers, [](const FRigVMGraphFunctionIdentifier& A, const FRigVMGraphFunctionIdentifier& B) -> bool
+		{
+			return A.GetLibraryNodePath() > B.GetLibraryNodePath();
+		});
+
+		TArray<FString> IdentifierStrings;
+		for(const FRigVMGraphFunctionIdentifier& Identifier : FunctionIdentifiers)
+		{
+			IdentifierStrings.Add(Identifier.GetLibraryNodePath());
+		}
+		Notation = FString::Printf(TEXT("%s(%s)"), *FString::Join(IdentifierStrings, TEXT("|")), *Notation);
+	}
 
 	const FPerClassInfo PerClassInfo(Notation);
 	if(UClass** ExistingClass = InfoToClass.Find(PerClassInfo))
@@ -319,7 +388,7 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 			}
 			while (DiscardedWrapperClassIndex < INT_MAX);
 
-			(*ExistingClass)->Rename(*DiscardedWrapperClassName, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			(*ExistingClass)->Rename(*DiscardedWrapperClassName, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			
 			(*ExistingClass)->RemoveFromRoot();
 		}
@@ -363,14 +432,6 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 
 	for(URigVMPin* Pin : PinsToInspect)
 	{
-		static FString BoolString = TEXT("bool");
-		static FString Int32String = TEXT("int32");
-		static FString IntString = TEXT("int");
-		static FString FloatString = TEXT("float");
-		static FString DoubleString = TEXT("double");
-		static FString StringString = TEXT("FString");
-		static FString NameString = TEXT("FName");
-
 		FProperty* Property = nullptr;
 		FProperty** ElementProperty = &Property;
 		FFieldVariant PropertyOwner = WrapperClass;
@@ -400,28 +461,28 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 			}
 		}
 
-		if(BaseCPPType.Equals(BoolString, ESearchCase::IgnoreCase))
+		if(BaseCPPType.Equals(RigVMTypeUtils::BoolType, ESearchCase::IgnoreCase))
 		{
 			(*ElementProperty) = new FBoolProperty(PropertyOwner, Pin->GetFName(), RF_Public);;
 		}
-		else if(BaseCPPType.Equals(Int32String, ESearchCase::IgnoreCase) ||
-			BaseCPPType.Equals(IntString, ESearchCase::IgnoreCase))
+		else if(BaseCPPType.Equals(RigVMTypeUtils::Int32Type, ESearchCase::IgnoreCase) ||
+			BaseCPPType.Equals(RigVMTypeUtils::IntType, ESearchCase::IgnoreCase))
 		{
 			(*ElementProperty) = new FIntProperty(PropertyOwner, Pin->GetFName(), RF_Public);;
 		}
-		else if(BaseCPPType.Equals(FloatString, ESearchCase::IgnoreCase))
+		else if(BaseCPPType.Equals(RigVMTypeUtils::FloatType, ESearchCase::IgnoreCase))
 		{
 			(*ElementProperty) = new FFloatProperty(PropertyOwner, Pin->GetFName(), RF_Public);;
 		}
-		else if(BaseCPPType.Equals(DoubleString, ESearchCase::IgnoreCase))
+		else if(BaseCPPType.Equals(RigVMTypeUtils::DoubleType, ESearchCase::IgnoreCase))
 		{
 			(*ElementProperty) = new FDoubleProperty(PropertyOwner, Pin->GetFName(), RF_Public);;
 		}
-		else if(BaseCPPType.Equals(StringString, ESearchCase::IgnoreCase))
+		else if(BaseCPPType.Equals(RigVMTypeUtils::FStringType, ESearchCase::IgnoreCase))
 		{
 			(*ElementProperty) = new FStrProperty(PropertyOwner, Pin->GetFName(), RF_Public);;
 		}
-		else if(BaseCPPType.Equals(NameString, ESearchCase::IgnoreCase))
+		else if(BaseCPPType.Equals(RigVMTypeUtils::FNameType, ESearchCase::IgnoreCase))
 		{
 			(*ElementProperty) = new FNameProperty(PropertyOwner, Pin->GetFName(), RF_Public);;
 		}
@@ -507,6 +568,59 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 				}
 			}
 		}
+	}
+	
+	if(bMatchingNodes)
+	{
+		if(DispatchFactories.Num() > 0)
+		{
+			const FRigVMDispatchFactory* Factory = DispatchFactories[0];
+
+			for(URigVMPin* Pin : PinsToInspect)
+			{
+				const FString DefaultValue = Factory->GetArgumentDefaultValue(Pin->GetFName(), Pin->GetTypeIndex());
+				if(!DefaultValue.IsEmpty())
+				{
+					if(FProperty* Property = WrapperClass->FindPropertyByName(Pin->GetFName()))
+					{
+						uint8* TargetMemory = Property->ContainerPtrToValuePtr<uint8>(CDO);
+						
+						// use error pipe to ignore errors
+						FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+						Property->ImportText_Direct(*DefaultValue, TargetMemory, CDO, PPF_None, &ErrorPipe);
+					}
+				}
+			}
+		}
+
+		if(FunctionIdentifiers.Num() > 0)
+		{
+			const FRigVMGraphFunctionIdentifier Identifier = FunctionIdentifiers[0];
+			const FRigVMGraphFunctionHeader Header = FRigVMGraphFunctionHeader::FindGraphFunctionHeader(Identifier);
+
+			for(URigVMPin* Pin : PinsToInspect)
+			{
+				const FRigVMGraphFunctionArgument* Argument = Header.Arguments.FindByPredicate([Pin](const FRigVMGraphFunctionArgument& InArgument)-> bool
+				{
+					return InArgument.Name == Pin->GetFName();
+				});
+				if(Argument)
+				{
+					if(!Argument->DefaultValue.IsEmpty())
+					{
+						if(FProperty* Property = WrapperClass->FindPropertyByName(Pin->GetFName()))
+						{
+							uint8* TargetMemory = Property->ContainerPtrToValuePtr<uint8>(CDO);
+							
+							// use error pipe to ignore errors
+							FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+							Property->ImportText_Direct(*Argument->DefaultValue, TargetMemory, CDO, PPF_None, &ErrorPipe);
+						}
+					}
+				}
+			}
+		}
+
 	}
 
 #if WITH_EDITOR

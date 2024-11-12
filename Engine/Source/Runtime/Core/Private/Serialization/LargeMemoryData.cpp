@@ -2,6 +2,7 @@
 
 #include "Serialization/LargeMemoryData.h"
 
+#include "AutoRTFM/AutoRTFM.h"
 #include "Containers/LockFreeList.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/UnrealMemory.h"
@@ -127,18 +128,30 @@ std::atomic<int32> FPooledLargeMemoryData::FreeListLength;
 
 FPooledLargeMemoryData::FPooledLargeMemoryData()
 {
-	Data = FreeList.Pop();
-	if (Data != nullptr)
+	AutoRTFM::Open([&]
 	{
-		--FreeListLength;
-	}
-	else
-	{
-		Data = new FLargeMemoryData();
-	}
+		Data = FreeList.Pop();
+		if (Data != nullptr)
+		{
+			--FreeListLength;
+		}
+		else
+		{
+			Data = new FLargeMemoryData();
+		}
+	});
+	AutoRTFM::OnAbort([Data = this->Data] { Free(Data); });
 }
 
 FPooledLargeMemoryData::~FPooledLargeMemoryData()
+{
+	// If outside of a closed transaction, immediately free the FLargeMemoryData.
+	// If inside a closed transaction, then defer the free until the transaction
+	// completes as writes to the memory may be undone if the transaction aborts.
+	AutoRTFM::OnCommit([Data = this->Data] { Free(Data); });
+}
+
+void FPooledLargeMemoryData::Free(FLargeMemoryData* Data)
 {
 	if (Data->GetSize() > GPooledLargeMemoryData_MaxElementSize)
 	{

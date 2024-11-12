@@ -271,6 +271,33 @@ void SetSingleShaderValue(
 // Mixed mode binding utilities
 
 /// Utility to set all legacy and non-legacy parameters for a shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
+template<typename TShaderType, typename... TArguments>
+inline void SetBatchedShaderParametersMixed(
+	FRHIBatchedShaderParameters& BatchedParameters,
+	const TShaderRef<TShaderType>& InShader,
+	const typename TShaderType::FParameters& Parameters,
+	TArguments&&... InArguments)
+{
+	// New Style first
+	SetShaderParameters(BatchedParameters, InShader, Parameters);
+
+	// Legacy second
+	InShader->SetParameters(BatchedParameters, Forward<TArguments>(InArguments)...);
+}
+
+template<typename TShaderType, typename TShaderTypeRHI, typename... TArguments>
+UE_DEPRECATED(5.5, "SetBatchedShaderParametersMixed does not need an RHI shader")
+inline void SetBatchedShaderParametersMixed(
+	FRHIBatchedShaderParameters& BatchedParameters,
+	const TShaderRef<TShaderType>& InShader,
+	TShaderTypeRHI* InShaderRHI,
+	const typename TShaderType::FParameters& Parameters,
+	TArguments&&... InArguments)
+{
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
+}
+
+/// Utility to set all legacy and non-legacy parameters for a shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
 template<typename TRHICmdList, typename TShaderType, typename TShaderTypeRHI, typename... TArguments>
 inline void SetShaderParametersMixed(
 	TRHICmdList& RHICmdList,
@@ -280,14 +307,64 @@ inline void SetShaderParametersMixed(
 	TArguments&&... InArguments)
 {
 	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-
-	// New Style first
-	SetShaderParameters(BatchedParameters, InShader, Parameters);
-
-	// Legacy second
-	InShader->SetParameters(BatchedParameters, Forward<TArguments>(InArguments)...);
-
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
 	RHICmdList.SetBatchedShaderParameters(InShaderRHI, BatchedParameters);
+}
+
+/// Utility to set all legacy and non-legacy parameters for a Vertex shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
+template<typename TShaderType, typename... TArguments>
+UE_DEPRECATED(5.5, "Please use SetBatchedShaderParametersMixed directly.")
+inline void SetShaderParametersMixedVS(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)
+{
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
+}
+
+/// Utility to set all legacy and non-legacy parameters for a Mesh shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
+template<typename TShaderType, typename... TArguments>
+UE_DEPRECATED(5.5, "Please use SetBatchedShaderParametersMixed directly.")
+inline void SetShaderParametersMixedMS(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)
+{
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
+}
+
+/// Utility to set all legacy and non-legacy parameters for an Amplification shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
+template<typename TShaderType, typename... TArguments>
+UE_DEPRECATED(5.5, "Please use SetBatchedShaderParametersMixed directly.")
+inline void SetShaderParametersMixedAS(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)
+{
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
+}
+
+/// Utility to set all legacy and non-legacy parameters for a Pixel shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
+template<typename TShaderType, typename... TArguments>
+UE_DEPRECATED(5.5, "Please use SetBatchedShaderParametersMixed directly.")
+inline void SetShaderParametersMixedPS(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)
+{
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
+}
+
+/// Utility to set all legacy and non-legacy parameters for a Geometry shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
+template<typename TShaderType, typename... TArguments>
+UE_DEPRECATED(5.5, "Please use SetBatchedShaderParametersMixed directly.")
+inline void SetShaderParametersMixedGS(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)
+{
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
+}
+
+/// Utility to set all legacy and non-legacy parameters for a Compute shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
+template<typename TShaderType, typename... TArguments>
+UE_DEPRECATED(5.5, "Please use SetBatchedShaderParametersMixed directly.")
+inline void SetShaderParametersMixedCS(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)
+{
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
+}
+
+/// Utility to set all legacy and non-legacy parameters for a WorkGraph shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
+template<typename TShaderType, typename... TArguments>
+UE_DEPRECATED(5.5, "Please use SetBatchedShaderParametersMixed directly.")
+inline void SetShaderParametersMixedWS(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)
+{
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
 }
 
 /// Utility to set all legacy and non-legacy parameters for a Vertex shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
@@ -409,81 +486,6 @@ inline void UnsetShaderParametersLegacyCS(TRHICmdList& RHICmdList, const TShader
 	}
 }
 
-/**
- * Sets the value of a  shader parameter.  Template'd on shader type
- * A template parameter specified the type of the parameter value.
- * NOTE: Shader should be the param ref type, NOT the param type, since Shader is passed by value. 
- * Otherwise AddRef/ReleaseRef will be called many times.
- */
-template<typename ShaderRHIParamRef, class ParameterType, typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetShaderValue with FRHIBatchedShaderParameters should be used.")
-void SetShaderValue(
-	TRHICmdList& RHICmdList,
-	const ShaderRHIParamRef& Shader,
-	const FShaderParameter& Parameter,
-	const ParameterType& Value,
-	uint32 ElementIndex = 0
-	)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetShaderValue(BatchedParameters, Parameter, Value, ElementIndex);
-	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
-}
-
-
-template<typename ShaderRHIParamRef, class ParameterType>
-UE_DEPRECATED(5.3, "SetShaderValue with FRHIBatchedShaderParameters should be used.")
-void SetShaderValueOnContext(
-	IRHICommandContext& RHICmdListContext,
-	const ShaderRHIParamRef& Shader,
-	const FShaderParameter& Parameter,
-	const ParameterType& Value,
-	uint32 ElementIndex = 0
-	)
-{
-	FRHIBatchedShaderParameters BatchedParameters;
-	SetShaderValue(BatchedParameters, Parameter, Value, ElementIndex);
-	RHICmdListContext.RHISetBatchedShaderParameters(Shader, BatchedParameters);
-}
-
-/**
- * Sets the value of a shader parameter array.  Template'd on shader type
- * A template parameter specified the type of the parameter value.
- * NOTE: Shader should be the param ref type, NOT the param type, since Shader is passed by value. 
- * Otherwise AddRef/ReleaseRef will be called many times.
- */
-template<typename ShaderRHIParamRef,class ParameterType, typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetShaderValueArray with FRHIBatchedShaderParameters should be used.")
-void SetShaderValueArray(
-	TRHICmdList& RHICmdList,
-	const ShaderRHIParamRef& Shader,
-	const FShaderParameter& Parameter,
-	const ParameterType* Values,
-	uint32 NumElements,
-	uint32 BaseElementIndex = 0
-	)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetShaderValueArray(BatchedParameters, Parameter, Values, NumElements, BaseElementIndex);
-	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
-}
-
-/** Specialization of the above for C++ bool type. */
-template<typename ShaderRHIParamRef, typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetShaderValueArray with FRHIBatchedShaderParameters should be used.")
-void SetShaderValueArray(
-	TRHICmdList& RHICmdList,
-	const ShaderRHIParamRef& Shader,
-	const FShaderParameter& Parameter,
-	const bool* Values,
-	uint32 NumElements,
-	uint32 BaseElementIndex = 0
-	)
-{
-	UE_LOG(LogShaders, Fatal, TEXT("SetShaderValueArray does not support bool arrays."));
-}
-
-
 // LWC_TODO: Setting guards to catch attempts to pass a type with double components. Could just convert these to the correct type internally, but would prefer to catch potential issues + optimize where possible.
 #define GUARD_SETSHADERVALUE(_TYPE)																																						\
 template<typename ShaderRHIParamRef, typename TRHICmdList>																																\
@@ -508,31 +510,6 @@ GUARD_SETSHADERVALUE(::FSphere3)
 GUARD_SETSHADERVALUE(FBox3)
 
 /**
- * Sets the value of a shader surface parameter (e.g. to access MSAA samples).
- * Template'd on shader type (e.g. pixel shader or compute shader).
- */
-template<typename TRHIShader, typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetTextureParameter with FRHIBatchedShaderParameters should be used.")
-FORCEINLINE void SetTextureParameter(TRHICmdList& RHICmdList, TRHIShader* Shader, const FShaderResourceParameter& Parameter, FRHITexture* TextureRHI)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetTextureParameter(BatchedParameters, Parameter, TextureRHI);
-	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
-}
-
-/**
- * Sets the value of a shader sampler parameter. Template'd on shader type.
- */
-template<typename TRHIShader, typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetSamplerParameter with FRHIBatchedShaderParameters should be used.")
-FORCEINLINE void SetSamplerParameter(TRHICmdList& RHICmdList, TRHIShader* Shader, const FShaderResourceParameter& Parameter, FRHISamplerState* SamplerStateRHI)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetSamplerParameter(BatchedParameters, Parameter, SamplerStateRHI);
-	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
-}
-
-/**
  * Sets the value of a shader texture parameter. Template'd on shader type.
  */
 template<typename TRHIShader, typename TRHICmdList>
@@ -540,215 +517,5 @@ FORCEINLINE void SetTextureParameter(TRHICmdList& RHICmdList, TRHIShader* Shader
 {
 	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
 	SetTextureParameter(BatchedParameters, TextureParameter, SamplerParameter, SamplerStateRHI, TextureRHI);
-	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
-}
-
-/**
- * Sets the value of a shader texture parameter.  Template'd on shader type
- */
-template<typename TRHIShader, typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetTextureParameter with FRHIBatchedShaderParameters should be used.")
-FORCEINLINE void SetTextureParameter(TRHICmdList& RHICmdList, TRHIShader* Shader, const FShaderResourceParameter& TextureParameter, const FShaderResourceParameter& SamplerParameter, const FTexture* Texture)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetTextureParameter(BatchedParameters, TextureParameter, SamplerParameter, Texture);
-	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
-}
-
-/**
- * Sets the value of a shader resource view parameter
- * Template'd on shader type (e.g. pixel shader or compute shader).
- */
-template<typename TRHIShader, typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetSRVParameter with FRHIBatchedShaderParameters should be used.")
-FORCEINLINE void SetSRVParameter(TRHICmdList& RHICmdList, TRHIShader* Shader, const FShaderResourceParameter& Parameter, FRHIShaderResourceView* SRV)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetSRVParameter(BatchedParameters, Parameter, SRV);
-	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
-}
-
-template<typename TRHIShader, typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetSRVParameter with FRHIBatchedShaderParameters should be used.")
-FORCEINLINE void SetSRVParameter(TRHICmdList& RHICmdList, const TRefCountPtr<TRHIShader>& Shader, const FShaderResourceParameter& Parameter, FRHIShaderResourceView* SRV)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetSRVParameter(BatchedParameters, Parameter, SRV);
-	RHICmdList.SetBatchedShaderParameters(Shader.GetReference(), BatchedParameters);
-}
-
-template<typename TRHIShader, typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetUAVParameter with FRHIBatchedShaderParameters should be used.")
-FORCEINLINE void SetUAVParameterSafeShader(TRHICmdList& RHICmdList, TRHIShader* Shader, const FShaderResourceParameter& Parameter, FRHIUnorderedAccessView* UAV)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetUAVParameter(BatchedParameters, Parameter, UAV);
-	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
-}
-
-UE_DEPRECATED(5.3, "SetUAVParameter with FRHIBatchedShaderParameters should be used.")
-FORCEINLINE void SetUAVParameter(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* Shader, const FShaderResourceParameter& Parameter, FRHIUnorderedAccessView* UAV)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetUAVParameter(BatchedParameters, Parameter, UAV);
-	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
-}
-
-UE_DEPRECATED(5.3, "SetUAVParameter with FRHIBatchedShaderParameters should be used.")
-FORCEINLINE void SetUAVParameter(FRHICommandList& RHICmdList, FRHIPixelShader* Shader, const FShaderResourceParameter& Parameter, FRHIUnorderedAccessView* UAV)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetUAVParameter(BatchedParameters, Parameter, UAV);
-	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
-}
-
-
-template<typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetUAVParameter with FRHIBatchedShaderParameters should be used.")
-inline bool SetUAVParameterIfCS(TRHICmdList& RHICmdList, FRHIVertexShader* Shader, const FShaderResourceParameter& UAVParameter, FRHIUnorderedAccessView* UAV)
-{
-	return false;
-}
-
-template<typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetUAVParameter with FRHIBatchedShaderParameters should be used.")
-inline bool SetUAVParameterIfCS(TRHICmdList& RHICmdList, FRHIPixelShader* Shader, const FShaderResourceParameter& UAVParameter, FRHIUnorderedAccessView* UAV)
-{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	SetUAVParameter(RHICmdList, Shader, UAVParameter, UAV);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	return UAVParameter.IsBound();
-}
-
-template<typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetUAVParameter with FRHIBatchedShaderParameters should be used.")
-inline bool SetUAVParameterIfCS(TRHICmdList& RHICmdList, FRHIGeometryShader* Shader, const FShaderResourceParameter& UAVParameter, FRHIUnorderedAccessView* UAV)
-{
-	return false;
-}
-
-template<typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetUAVParameter with FRHIBatchedShaderParameters should be used.")
-inline bool SetUAVParameterIfCS(TRHICmdList& RHICmdList, FRHIComputeShader* Shader, const FShaderResourceParameter& UAVParameter, FRHIUnorderedAccessView* UAV)
-{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	SetUAVParameter(RHICmdList, Shader, UAVParameter, UAV);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	return UAVParameter.IsBound();
-}
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-template<typename TShaderRHIRef, typename TRHICmdList>
-inline void FRWShaderParameter::SetBuffer(TRHICmdList& RHICmdList, const TShaderRHIRef& Shader, const FRWBuffer& RWBuffer) const
-{
-	if (!SetUAVParameterIfCS(RHICmdList, Shader, UAVParameter, RWBuffer.UAV))
-	{
-		SetSRVParameter(RHICmdList, Shader, SRVParameter, RWBuffer.SRV);
-	}
-}
-
-template<typename TShaderRHIRef, typename TRHICmdList>
-inline void FRWShaderParameter::SetBuffer(TRHICmdList& RHICmdList, const TShaderRHIRef& Shader, const FRWBufferStructured& RWBuffer) const
-{
-	if (!SetUAVParameterIfCS(RHICmdList, Shader, UAVParameter, RWBuffer.UAV))
-	{
-		SetSRVParameter(RHICmdList, Shader, SRVParameter, RWBuffer.SRV);
-	}
-}
-
-template<typename TShaderRHIRef, typename TRHICmdList>
-inline void FRWShaderParameter::SetTexture(TRHICmdList& RHICmdList, const TShaderRHIRef& Shader, FRHITexture* Texture, FRHIUnorderedAccessView* UAV) const
-{
-	if (!SetUAVParameterIfCS(RHICmdList, Shader, UAVParameter, UAV))
-	{
-		SetTextureParameter(RHICmdList, Shader, SRVParameter, Texture);
-	}
-}
-
-template<typename TRHICmdList>
-inline void FRWShaderParameter::SetUAV(TRHICmdList& RHICmdList, FRHIComputeShader* ComputeShader, FRHIUnorderedAccessView* UAV) const
-{
-	SetUAVParameter(RHICmdList, ComputeShader, UAVParameter, UAV);
-}
-
-template<typename TRHICmdList>
-inline void FRWShaderParameter::UnsetUAV(TRHICmdList& RHICmdList, FRHIComputeShader* ComputeShader) const
-{
-	SetUAVParameter(RHICmdList, ComputeShader,UAVParameter,FUnorderedAccessViewRHIRef());
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-/** Sets the value of a shader uniform buffer parameter to a uniform buffer containing the struct. */
-template<typename TShaderRHIRef, typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetUniformBufferParameter with FRHIBatchedShaderParameters should be used.")
-inline void SetUniformBufferParameter(
-	TRHICmdList& RHICmdList,
-	const TShaderRHIRef& Shader,
-	const FShaderUniformBufferParameter& Parameter,
-	FRHIUniformBuffer* UniformBufferRHI
-	)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetUniformBufferParameter(BatchedParameters, Parameter, UniformBufferRHI);
-	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
-}
-
-/** Sets the value of a shader uniform buffer parameter to a uniform buffer containing the struct. */
-template<typename TShaderRHIRef, typename TBufferStruct, typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetUniformBufferParameter with FRHIBatchedShaderParameters should be used.")
-inline void SetUniformBufferParameter(
-	TRHICmdList& RHICmdList,
-	const TShaderRHIRef& Shader,
-	const TShaderUniformBufferParameter<TBufferStruct>& Parameter,
-	const TUniformBufferRef<TBufferStruct>& UniformBufferRef
-	)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetUniformBufferParameter(BatchedParameters, Parameter, UniformBufferRef);
-	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
-}
-
-/** Sets the value of a shader uniform buffer parameter to a uniform buffer containing the struct. */
-template<typename TShaderRHIRef, typename TBufferStruct, typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetUniformBufferParameter with FRHIBatchedShaderParameters should be used.")
-inline void SetUniformBufferParameter(
-	TRHICmdList& RHICmdList,
-	const TShaderRHIRef& Shader,
-	const TShaderUniformBufferParameter<TBufferStruct>& Parameter,
-	const TUniformBuffer<TBufferStruct>& UniformBuffer
-	)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetUniformBufferParameter(BatchedParameters, Parameter, UniformBuffer);
-	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
-}
-
-/** Sets the value of a shader uniform buffer parameter to a value of the struct. */
-template<typename TShaderRHIRef,typename TBufferStruct>
-UE_DEPRECATED(5.3, "SetUniformBufferParameterImmediate with FRHIBatchedShaderParameters should be used.")
-inline void SetUniformBufferParameterImmediate(
-	FRHICommandList& RHICmdList,
-	const TShaderRHIRef& Shader,
-	const TShaderUniformBufferParameter<TBufferStruct>& Parameter,
-	const TBufferStruct& UniformBufferValue
-	)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetUniformBufferParameterImmediate(BatchedParameters, Parameter, UniformBufferValue);
-	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
-}
-
-/** Sets the value of a shader uniform buffer parameter to a value of the struct. */
-template<typename TShaderRHIRef,typename TBufferStruct, typename TRHICmdList>
-UE_DEPRECATED(5.3, "SetUniformBufferParameterImmediate with FRHIBatchedShaderParameters should be used.")
-inline void SetUniformBufferParameterImmediate(
-	TRHICmdList& RHICmdList,
-	const TShaderRHIRef& Shader,
-	const TShaderUniformBufferParameter<TBufferStruct>& Parameter,
-	const TBufferStruct& UniformBufferValue
-	)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetUniformBufferParameterImmediate(BatchedParameters, Parameter, UniformBufferValue);
 	RHICmdList.SetBatchedShaderParameters(Shader, BatchedParameters);
 }

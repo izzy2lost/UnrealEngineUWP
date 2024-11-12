@@ -6,7 +6,7 @@
 
 class UModifierCompilationBlueprintExtension;
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	/** Manages all of the plugin's UBlueprintExtensions making sure they are added when a Blueprint asset is loaded. */
 	class FCompilationExtensionManager : public TSharedFromThis<FCompilationExtensionManager>

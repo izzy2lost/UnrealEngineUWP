@@ -38,6 +38,10 @@ struct FOutputLogCreationParams
 
 	/** Maps each log category to whether it should be selected or deselected by default. The caller is responsible to enter valid category names. */
 	FDefaultCategorySelectionMap DefaultCategorySelection;
-	
+
+	/** Called when the console tab is closed. */
 	FSimpleDelegate OnCloseConsole;
+
+	/** Do we want to support limited console output with a predefined limit. */
+	TOptional<int32> LoggingLimit;
 };

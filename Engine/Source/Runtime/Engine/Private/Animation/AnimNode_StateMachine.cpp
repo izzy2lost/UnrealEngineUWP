@@ -299,10 +299,18 @@ void FAnimNode_StateMachine::ConditionallyCacheBonesForState(int32 StateIndex, F
 {
 	// Only call CacheBones when needed.
 	check(StateCacheBoneCounters.IsValidIndex(StateIndex));
-	if (!StateCacheBoneCounters[StateIndex].IsSynchronized_Counter(Context.AnimInstanceProxy->GetCachedBonesCounter()))
+
+	const FGraphTraversalCounter& ProxyCachedBonesCounter = Context.AnimInstanceProxy->GetCachedBonesCounter();
+
+	// Check both the frame and counter
+	// Multiple anim instances can be linked together and their LODs can be independent
+	// This means that a sub-instance can have its LOD change, causing the value we cache here to run ahead
+	// of the one from the main anim instance. When the LOD of the main instance will change, we'll reset
+	// all the counters to match it which can cause them to run backwards
+	if (!StateCacheBoneCounters[StateIndex].IsSynchronized_All(ProxyCachedBonesCounter))
 	{
 		// keep track of states that have had CacheBones called on.
-		StateCacheBoneCounters[StateIndex].SynchronizeWith(Context.AnimInstanceProxy->GetCachedBonesCounter());
+		StateCacheBoneCounters[StateIndex].SynchronizeWith(ProxyCachedBonesCounter);
 
 		FAnimationCacheBonesContext CacheBoneContext(Context.AnimInstanceProxy);
 		StatePoseLinks[StateIndex].CacheBones(CacheBoneContext);
@@ -389,7 +397,7 @@ void FAnimNode_StateMachine::Update_AnyThread(const FAnimationUpdateContext& Con
 		if (QueuedTransitionEvents[RequestIndex].HasExpired())
 		{
 			UE_LOG(LogAnimTransitionRequests, Verbose, TEXT("'%s' expired (Machine: %s)"), *QueuedTransitionEvents[RequestIndex].EventName.ToString(), *GetMachineDescription()->MachineName.ToString());
-			QueuedTransitionEvents.RemoveAt(RequestIndex, 1, EAllowShrinking::No);
+			QueuedTransitionEvents.RemoveAt(RequestIndex, EAllowShrinking::No);
 		}
 	}
 	QueuedTransitionEvents.Shrink();
@@ -764,7 +772,27 @@ bool FAnimNode_StateMachine::FindValidTransition(const FAnimationUpdateContext& 
 			{
 				if (const UAnimationAsset* AnimAsset = RelevantPlayer->GetAnimAsset())
 				{
-					const float AnimTimeRemaining = AnimAsset->GetPlayLength() - RelevantPlayer->GetAccumulatedTime();
+					float AnimTimeRemaining = AnimAsset->GetPlayLength() - RelevantPlayer->GetAccumulatedTime();
+
+					// Check whether the player looped last frame
+					if (RelevantPlayer->IsLooping() && AnimTimeRemaining > 0.f)
+					{
+						if (const FDeltaTimeRecord* DeltaTimeRecord = RelevantPlayer->GetDeltaTimeRecord())
+						{
+							if (DeltaTimeRecord->IsPreviousValid())
+							{
+								const float DeltaTimeFromPlayer = RelevantPlayer->GetAccumulatedTime() - DeltaTimeRecord->GetPrevious();
+								const float DeltaTimeFromRecord = DeltaTimeRecord->Delta;
+
+								// deal with negative play rates
+								if (DeltaTimeFromPlayer * DeltaTimeFromRecord < 0.f)
+								{
+									AnimTimeRemaining = 0.f;
+								}
+							}
+						}
+					}
+
 					const FAnimationTransitionBetweenStates& TransitionInfo = GetTransitionInfo(TransitionRule.TransitionIndex);
 				
 					// For transitions that go to a conduit the user is not able to edit the transition's cross fade duration,
@@ -1417,7 +1445,7 @@ void FAnimNode_StateMachine::ClearTransitionEvents(const FName& EventName)
 		if (QueuedTransitionEvents[RequestIndex].EventName.IsEqual(EventName))
 		{
 			UE_LOG(LogAnimTransitionRequests, Verbose, TEXT("Clearing '%s' request (Machine %s)"), *EventName.ToString(), *GetMachineDescription()->MachineName.ToString());
-			QueuedTransitionEvents.RemoveAt(RequestIndex, 1, EAllowShrinking::No);
+			QueuedTransitionEvents.RemoveAt(RequestIndex, EAllowShrinking::No);
 		}
 	}
 	QueuedTransitionEvents.Shrink();
@@ -1468,7 +1496,7 @@ void FAnimNode_StateMachine::ConsumeMarkedTransitionEvents()
 #if WITH_EDITORONLY_DATA
 			HandledTransitionEvents.Add(QueuedTransitionEvents[RequestIndex]);
 #endif
-			QueuedTransitionEvents.RemoveAt(RequestIndex, 1, EAllowShrinking::No);
+			QueuedTransitionEvents.RemoveAt(RequestIndex, EAllowShrinking::No);
 		}
 	}
 	QueuedTransitionEvents.Shrink();

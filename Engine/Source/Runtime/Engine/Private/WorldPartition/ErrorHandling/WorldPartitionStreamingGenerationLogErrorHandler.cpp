@@ -4,6 +4,7 @@
 #include "WorldPartition/ErrorHandling/WorldPartitionStreamingGenerationLogErrorHandler.h"
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/DataLayer/DataLayerInstanceWithAsset.h"
+#include "WorldPartition/DataLayer/WorldDataLayers.h"
 
 #define UE_ASSET_LOG_ACTORDESCVIEW(CategoryName, Verbosity, ActorDescView, Format, ...) \
 	UE_ASSET_LOG(LogWorldPartition, Log, *ActorDescView.GetActorPackage().ToString(), Format, ##__VA_ARGS__)
@@ -21,7 +22,7 @@ void FStreamingGenerationLogErrorHandler::OnInvalidReference(const IWorldPartiti
 void FStreamingGenerationLogErrorHandler::OnInvalidReferenceGridPlacement(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView)
 {
 	static const FString SpatiallyLoadedActor(TEXT("Spatially loaded actor"));
-	static const FString NonSpatiallyLoadedActor(TEXT("Non-spatially loaded loaded actor"));
+	static const FString NonSpatiallyLoadedActor(TEXT("Non-spatially loaded actor"));
 
 	UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("%s %s reference %s %s"), ActorDescView.GetIsSpatiallyLoaded() ? *SpatiallyLoadedActor : *NonSpatiallyLoadedActor, *GetActorName(ActorDescView), ReferenceActorDescView.GetIsSpatiallyLoaded() ? *SpatiallyLoadedActor : *NonSpatiallyLoadedActor, *GetActorName(ReferenceActorDescView));
 }
@@ -47,6 +48,11 @@ void FStreamingGenerationLogErrorHandler::OnInvalidReferenceRuntimeGrid(const IW
 	UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("Actor %s references an actor in a different runtime grid %s"), *GetActorName(ActorDescView), *GetActorName(ReferenceActorDescView));
 }
 
+void FStreamingGenerationLogErrorHandler::OnDataLayersLoadFilterMismatch(const IWorldPartitionActorDescInstanceView& ActorDescView)
+{
+	UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("Actor %s contains runtime data layers with different types of Load Filter"), *GetActorName(ActorDescView));
+}
+
 void FStreamingGenerationLogErrorHandler::OnInvalidWorldReference(const IWorldPartitionActorDescInstanceView& ActorDescView, EWorldReferenceInvalidReason Reason)
 {
 	switch(Reason)
@@ -70,9 +76,25 @@ void FStreamingGenerationLogErrorHandler::OnInvalidDataLayerAssetType(const UDat
 	UE_ASSET_LOG(LogWorldPartition, Log, DataLayerInstance, TEXT("Data Layer is not compatible with Data Layer asset %s type %s"), *DataLayerAsset->GetName(), *DataLayerAsset->GetClass()->GetName());
 }
 
-void FStreamingGenerationLogErrorHandler::OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent)
+void FStreamingGenerationLogErrorHandler::OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent, EDataLayerHierarchyInvalidReason Reason)
 {
-	UE_ASSET_LOG(LogWorldPartition, Log, DataLayerInstance, TEXT("Data Layer %s is of Type %s and its parent %s is of type %s"), *DataLayerInstance->GetDataLayerFullName(), *UEnum::GetValueAsString(DataLayerInstance->GetType()), *Parent->GetDataLayerFullName(), *UEnum::GetValueAsString(Parent->GetType()));
+	switch (Reason)
+	{
+	case EDataLayerHierarchyInvalidReason::ClientOnlyDataLayerCantBeChild:
+		UE_ASSET_LOG(LogWorldPartition, Log, DataLayerInstance, TEXT("Client-only Data Layer %s can't be child of parent %s"), *DataLayerInstance->GetDataLayerFullName(), *Parent->GetDataLayerFullName());
+		break;
+	case EDataLayerHierarchyInvalidReason::ServerOnlyDataLayerCantBeChild:
+		UE_ASSET_LOG(LogWorldPartition, Log, DataLayerInstance, TEXT("Server-only Data Layer %s can't be child of parent %s"), *DataLayerInstance->GetDataLayerFullName(), *Parent->GetDataLayerFullName());
+		break;
+	case EDataLayerHierarchyInvalidReason::IncompatibleDataLayerType:
+		UE_ASSET_LOG(LogWorldPartition, Log, DataLayerInstance, TEXT("Data Layer %s is of Type %s and its parent %s is of type %s"), *DataLayerInstance->GetDataLayerFullName(), *UEnum::GetValueAsString(DataLayerInstance->GetType()), *Parent->GetDataLayerFullName(), *UEnum::GetValueAsString(Parent->GetType()));
+		break;
+	}
+}
+
+void FStreamingGenerationLogErrorHandler::OnInvalidWorldDataLayersReference(const AWorldDataLayers* WorldDataLayers, const UDataLayerInstance* DataLayerInstance, const FText& Reason)
+{
+	UE_ASSET_LOG(LogWorldPartition, Log, DataLayerInstance, TEXT("Actor %s can't reference data layer %s because of asset reference restrictions (%s)"), *WorldDataLayers->GetName(), *DataLayerInstance->GetDataLayerFullName(), *Reason.ToString());
 }
 
 void FStreamingGenerationLogErrorHandler::OnDataLayerAssetConflict(const UDataLayerInstanceWithAsset* DataLayerInstance, const UDataLayerInstanceWithAsset* ConflictingDataLayerInstance)
@@ -94,10 +116,10 @@ void FStreamingGenerationLogErrorHandler::OnLevelInstanceInvalidWorldAsset(const
 	case ELevelInstanceInvalidReason::WorldAssetNotFound:
 		UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("Actor %s has an invalid world asset %s"), *ActorName, *WorldAsset.ToString());
 		break;
-	case ELevelInstanceInvalidReason::WorldAssetNotUsingExternalActors:
-		UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("Actor %s world asset %s is not using external actors"), *ActorName, *WorldAsset.ToString());
+	case ELevelInstanceInvalidReason::WorldAssetDontContainActorsMetadata:
+		UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("Actor %s world asset %s is not using external actors, resave level to add compatibility."), *ActorName, *WorldAsset.ToString());
 		break;
-	case ELevelInstanceInvalidReason::WorldAssetImcompatiblePartitioned:
+	case ELevelInstanceInvalidReason::WorldAssetIncompatiblePartitioned:
 		UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("Actor %s world asset %s is partitioned but not marked as compatible"), *ActorName, *WorldAsset.ToString());
 		break;
 	case ELevelInstanceInvalidReason::WorldAssetHasInvalidContainer:

@@ -6,13 +6,110 @@
 
 #pragma once
 
+#include "Templates/Requires.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/FieldPath.h"
 
+#include <type_traits>
+
+template<class T>
+struct TWeakFieldPtr;
+
+template <
+	typename LhsType,
+	typename RhsType
+	UE_REQUIRES(UE_REQUIRES_EXPR((LhsType*)nullptr == (RhsType*)nullptr))
+>
+bool operator==(const TWeakFieldPtr<LhsType>& Lhs, const TWeakFieldPtr<RhsType>& Rhs);
+
+template <
+	typename LhsType,
+	typename RhsType
+	UE_REQUIRES(UE_REQUIRES_EXPR((LhsType*)nullptr == (const RhsType*)nullptr))
+>
+bool operator==(const TWeakFieldPtr<LhsType>& Lhs, const RhsType* Rhs);
+
+template <
+	typename LhsType,
+	typename RhsType
+	UE_REQUIRES(UE_REQUIRES_EXPR((const LhsType*)nullptr == (RhsType*)nullptr))
+>
+bool operator==(const LhsType* Lhs, const TWeakFieldPtr<RhsType>& Rhs);
+
+#if !PLATFORM_COMPILER_HAS_GENERATED_COMPARISON_OPERATORS
+template <
+	typename LhsType,
+	typename RhsType
+	UE_REQUIRES(UE_REQUIRES_EXPR((LhsType*)nullptr != (RhsType*)nullptr))
+>
+bool operator!=(const TWeakFieldPtr<LhsType>& Lhs, const TWeakFieldPtr<RhsType>& Rhs);
+
+template <
+	typename LhsType,
+	typename RhsType
+	UE_REQUIRES(UE_REQUIRES_EXPR((LhsType*)nullptr != (const RhsType*)nullptr))
+>
+bool operator!=(const TWeakFieldPtr<LhsType>& Lhs, const RhsType* Rhs);
+
+template <
+	typename LhsType,
+	typename RhsType
+	UE_REQUIRES(UE_REQUIRES_EXPR((const LhsType*)nullptr != (RhsType*)nullptr))
+>
+bool operator!=(const LhsType* Lhs, const TWeakFieldPtr<RhsType>& Rhs);
+#endif
+
 template<class T>
 struct TWeakFieldPtr
 {
+	template <typename>
+	friend struct TWeakFieldPtr;
+
+	template <
+		typename LhsType,
+		typename RhsType
+		UE_REQUIRES_FRIEND(UE_REQUIRES_EXPR((LhsType*)nullptr == (RhsType*)nullptr))
+	>
+	friend bool operator==(const TWeakFieldPtr<LhsType>& Lhs, const TWeakFieldPtr<RhsType>& Rhs);
+
+	template <
+		typename LhsType,
+		typename RhsType
+		UE_REQUIRES_FRIEND(UE_REQUIRES_EXPR((LhsType*)nullptr == (const RhsType*)nullptr))
+	>
+	friend bool operator==(const TWeakFieldPtr<LhsType>& Lhs, const RhsType* Rhs);
+
+	template <
+		typename LhsType,
+		typename RhsType
+		UE_REQUIRES_FRIEND(UE_REQUIRES_EXPR((const LhsType*)nullptr == (RhsType*)nullptr))
+	>
+	friend bool operator==(const LhsType* Lhs, const TWeakFieldPtr<RhsType>& Rhs);
+
+#if !PLATFORM_COMPILER_HAS_GENERATED_COMPARISON_OPERATORS
+	template <
+		typename LhsType,
+		typename RhsType
+		UE_REQUIRES_FRIEND(UE_REQUIRES_EXPR((LhsType*)nullptr != (RhsType*)nullptr))
+	>
+	friend bool operator!=(const TWeakFieldPtr<LhsType>& Lhs, const TWeakFieldPtr<RhsType>& Rhs);
+
+	template <
+		typename LhsType,
+		typename RhsType
+		UE_REQUIRES_FRIEND(UE_REQUIRES_EXPR((LhsType*)nullptr != (const RhsType*)nullptr))
+	>
+	friend bool operator!=(const TWeakFieldPtr<LhsType>& Lhs, const RhsType* Rhs);
+
+	template <
+		typename LhsType,
+		typename RhsType
+		UE_REQUIRES_FRIEND(UE_REQUIRES_EXPR((const LhsType*)nullptr != (RhsType*)nullptr))
+	>
+	friend bool operator!=(const LhsType* Lhs, const TWeakFieldPtr<RhsType>& Rhs);
+#endif
+
 private:
 
 	// These exists only to disambiguate the two constructors below
@@ -43,30 +140,33 @@ public:
 	* @param Object object to create a weak pointer to
 	**/
 	template <
-		typename U,
-		typename = decltype(ImplicitConv<T*>((U*)nullptr))
-		>
-		FORCEINLINE TWeakFieldPtr(U* InField, EDummy1 = Dummy1)
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
+	>
+	FORCEINLINE TWeakFieldPtr(U* InField, EDummy1 = Dummy1)
 		: Owner(InField ? InField->GetOwnerUObject() : (UObject*)nullptr)
 		, Field(InField)
 	{
 		// This static assert is in here rather than in the body of the class because we want
 		// to be able to define TWeakFieldPtr<UUndefinedClass>.
-		static_assert(TPointerIsConvertibleFromTo<T, const volatile FField>::Value, "TWeakFieldPtr can only be constructed with FField types");
+		static_assert(std::is_convertible_v<T*, const volatile FField*>, "TWeakFieldPtr can only be constructed with FField types");
 	}
 
 	/**
 	* Construct from another weak pointer of another type, intended for derived-to-base conversions
 	* @param Other weak pointer to copy from
 	**/
-	template <typename OtherT>
+	template <
+		typename OtherT
+		UE_REQUIRES(std::is_convertible_v<OtherT*, T*>)
+	>
 	FORCEINLINE TWeakFieldPtr(const TWeakFieldPtr<OtherT>& Other)
 		: Owner(Other.Owner)
 		, Field(Other.Field)
 	{
-		// It's also possible that this static_assert may fail for valid conversions because
-		// one or both of the types have only been forward-declared.
-		static_assert(TPointerIsConvertibleFromTo<OtherT, T>::Value, "Unable to convert TWeakFieldPtr - types are incompatible");
+		// This static assert is in here rather than in the body of the class because we want
+		// to be able to define TWeakFieldPtr<UUndefinedClass>.
+		static_assert(std::is_convertible_v<T*, const volatile FField*>, "TWeakFieldPtr can only be constructed with FField types");
 	}
 
 	/**
@@ -82,8 +182,11 @@ public:
 	* Copy from an object pointer
 	* @param Object object to create a weak pointer to
 	**/
-	template<class U>
-	FORCEINLINE typename TEnableIf<!TLosesQualifiersFromTo<U, T>::Value>::Type operator=(const U* InField)
+	template <
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
+	>
+	FORCEINLINE void operator=(U* InField)
 	{
 		Owner = InField ? InField->GetOwnerUObject() : (UObject*)nullptr;
 		Field = (U*)InField;
@@ -93,13 +196,12 @@ public:
 	* Assign from another weak pointer, intended for derived-to-base conversions
 	* @param Other weak pointer to copy from
 	**/
-	template <typename OtherT>
+	template <
+		typename OtherT
+		UE_REQUIRES(std::is_convertible_v<OtherT*, T*>)
+	>
 	FORCEINLINE void operator=(const TWeakFieldPtr<OtherT>& Other)
 	{
-		// It's also possible that this static_assert may fail for valid conversions because
-		// one or both of the types have only been forward-declared.
-		static_assert(TPointerIsConvertibleFromTo<OtherT, T>::Value, "Unable to convert TWeakFieldPtr - types are incompatible");
-
 		Owner = Other.Owner;
 		Field = Other.Field;
 	}
@@ -209,7 +311,7 @@ public:
 	}
 
 	/** Hash function. */
-	FORCEINLINE friend uint32 GetTypeHash(const TWeakFieldPtr& WeakObjectPtr)
+	[[nodiscard]] FORCEINLINE friend uint32 GetTypeHash(const TWeakFieldPtr& WeakObjectPtr)
 	{
 		return GetTypeHash(WeakObjectPtr.Field);
 	}
@@ -219,111 +321,145 @@ public:
 		Ar << Owner;
 		Ar << Field;
 	}
-
-	/**
-	* Compare weak pointers for equality
-	* @param Other weak pointer to compare to
-	**/
-	template <typename TOther>
-	FORCEINLINE bool operator==(const TWeakFieldPtr<TOther> &Other) const
-	{
-		static_assert(TPointerIsConvertibleFromTo<TOther, const FField>::Value, "TWeakFieldPtr can only be compared with FField types");
-		static_assert(TPointerIsConvertibleFromTo<T, const TOther>::Value, "Unable to compare TWeakFieldPtr with raw pointer - types are incompatible");
-
-		return Field == Other.Field;
-	}
-
-	/**
-	* Compare weak pointers for inequality
-	* @param Other weak pointer to compare to
-	**/
-	template <typename TOther>
-	FORCEINLINE bool operator!=(const TWeakFieldPtr<TOther> &Other) const
-	{
-		static_assert(TPointerIsConvertibleFromTo<TOther, const FField>::Value, "TWeakFieldPtr can only be compared with FField types");
-		static_assert(TPointerIsConvertibleFromTo<T, const TOther>::Value, "Unable to compare TWeakFieldPtr with raw pointer - types are incompatible");
-
-		return Field != Other.Field;
-	}
-
-	/**
-	* Compare weak pointers for equality
-	* @param Other pointer to compare to
-	**/
-	template <typename TOther>
-	FORCEINLINE bool operator==(const TOther* Other) const
-	{
-		static_assert(TPointerIsConvertibleFromTo<TOther, const FField>::Value, "TWeakFieldPtr can only be compared with FField types");
-		static_assert(TPointerIsConvertibleFromTo<T, const TOther>::Value, "Unable to compare TWeakFieldPtr with raw pointer - types are incompatible");
-
-		return Field == Other;
-	}
-
-	/**
-	* Compare weak pointers for inequality
-	* @param Other pointer to compare to
-	**/
-	template <typename TOther>
-	FORCEINLINE bool operator!=(const TOther* Other) const
-	{
-		static_assert(TPointerIsConvertibleFromTo<TOther, const FField>::Value, "TWeakFieldPtr can only be compared with FField types");
-		static_assert(TPointerIsConvertibleFromTo<T, const TOther>::Value, "Unable to compare TWeakFieldPtr with raw pointer - types are incompatible");
-
-		return Field != Other;
-	}
 };
+
+/**
+* Compare weak pointers for equality
+* @param Lhs weak pointer to compare
+* @param Rhs weak pointer to compare
+**/
+template <
+	typename LhsType,
+	typename RhsType
+	UE_REQUIRES_DEFINITION(UE_REQUIRES_EXPR((LhsType*)nullptr == (RhsType*)nullptr))
+>
+FORCEINLINE bool operator==(const TWeakFieldPtr<LhsType>& Lhs, const TWeakFieldPtr<RhsType>& Rhs)
+{
+	return Lhs.Field == Rhs.Field;
+}
+
+/**
+* Compare weak pointers for equality
+* @param Lhs weak pointer to compare
+* @param Rhs pointer to compare
+**/
+template <
+	typename LhsType,
+	typename RhsType
+	UE_REQUIRES_DEFINITION(UE_REQUIRES_EXPR((LhsType*)nullptr == (const RhsType*)nullptr))
+>
+FORCEINLINE bool operator==(const TWeakFieldPtr<LhsType>& Lhs, const RhsType* Rhs)
+{
+	return Lhs.Field == Rhs;
+}
+
+/**
+* Compare weak pointers for equality
+* @param Lhs pointer to compare
+* @param Rhs weak pointer to compare
+**/
+template <
+	typename LhsType,
+	typename RhsType
+	UE_REQUIRES_DEFINITION(UE_REQUIRES_EXPR((const LhsType*)nullptr == (RhsType*)nullptr))
+>
+FORCEINLINE bool operator==(const LhsType* Lhs, const TWeakFieldPtr<RhsType>& Rhs)
+{
+	return Lhs == Rhs.Field;
+}
+
+/**
+* Test weak pointer for null
+* @param Lhs weak pointer to test
+**/
+template <typename LhsType>
+FORCEINLINE bool operator==(const TWeakFieldPtr<LhsType>& Lhs, TYPE_OF_NULLPTR)
+{
+	return !Lhs.Get();
+}
+
+/**
+* Test weak pointer for null
+* @param Rhs weak pointer to test
+**/
+template <typename RhsType>
+FORCEINLINE bool operator==(TYPE_OF_NULLPTR, const TWeakFieldPtr<RhsType>& Rhs)
+{
+	return !Rhs.Get();
+}
+
+#if !PLATFORM_COMPILER_HAS_GENERATED_COMPARISON_OPERATORS
+/**
+* Compare weak pointers for inequality
+* @param Lhs weak pointer to compare
+* @param Rhs weak pointer to compare
+**/
+template <
+	typename LhsType,
+	typename RhsType
+	UE_REQUIRES_DEFINITION(UE_REQUIRES_EXPR((LhsType*)nullptr != (RhsType*)nullptr))
+>
+FORCEINLINE bool operator!=(const TWeakFieldPtr<LhsType>& Lhs, const TWeakFieldPtr<RhsType>& Rhs)
+{
+	return !(Lhs == Rhs);
+}
+
+/**
+* Compare weak pointers for inequality
+* @param Lhs weak pointer to compare
+* @param Rhs pointer to compare
+**/
+template <
+	typename LhsType,
+	typename RhsType
+	UE_REQUIRES_DEFINITION(UE_REQUIRES_EXPR((LhsType*)nullptr != (const RhsType*)nullptr))
+>
+FORCEINLINE bool operator!=(const TWeakFieldPtr<LhsType>& Lhs, const RhsType* Rhs)
+{
+	return !(Lhs == Rhs);
+}
+
+/**
+* Compare weak pointers for inequality
+* @param Lhs pointer to compare
+* @param Rhs weak pointer to compare
+**/
+template <
+	typename LhsType,
+	typename RhsType
+	UE_REQUIRES_DEFINITION(UE_REQUIRES_EXPR((const LhsType*)nullptr != (RhsType*)nullptr))
+>
+FORCEINLINE bool operator!=(const LhsType* Lhs, const TWeakFieldPtr<RhsType>& Rhs)
+{
+	return !(Lhs == Rhs);
+}
+
+/**
+* Test weak pointer for non-null
+* @param Lhs weak pointer to test
+**/
+template <typename LhsType>
+FORCEINLINE bool operator!=(const TWeakFieldPtr<LhsType>& Lhs, TYPE_OF_NULLPTR)
+{
+	return !(Lhs == nullptr);
+}
+
+/**
+* Test weak pointer for non-null
+* @param Rhs weak pointer to test
+**/
+template <typename RhsType>
+FORCEINLINE bool operator!=(TYPE_OF_NULLPTR, const TWeakFieldPtr<RhsType>& Rhs)
+{
+	return !(nullptr == Rhs);
+}
+#endif
 
 // Helper function which deduces the type of the initializer
 template <typename T>
 FORCEINLINE TWeakFieldPtr<T> MakeWeakFieldPtr(T* Ptr)
 {
 	return TWeakFieldPtr<T>(Ptr);
-}
-
-template <typename LhsT, typename RhsT>
-FORCENOINLINE bool operator==(const LhsT* Lhs, const TWeakFieldPtr<RhsT>& Rhs)
-{
-	// It's also possible that these static_asserts may fail for valid conversions because
-	// one or both of the types have only been forward-declared.
-	static_assert(TPointerIsConvertibleFromTo<LhsT, const FField>::Value, "TWeakFieldPtr can only be compared with FField types");
-	static_assert(TPointerIsConvertibleFromTo<LhsT, RhsT>::Value || TPointerIsConvertibleFromTo<RhsT, LhsT>::Value, "Unable to compare TWeakFieldPtr with raw pointer - types are incompatible");
-
-	return Rhs == Lhs;
-}
-
-template <typename LhsT>
-FORCENOINLINE bool operator==(const TWeakFieldPtr<LhsT>& Lhs, TYPE_OF_NULLPTR)
-{
-	return !Lhs.IsValid();
-}
-
-template <typename RhsT>
-FORCENOINLINE bool operator==(TYPE_OF_NULLPTR, const TWeakFieldPtr<RhsT>& Rhs)
-{
-	return !Rhs.IsValid();
-}
-
-template <typename LhsT, typename RhsT>
-FORCENOINLINE bool operator!=(const LhsT* Lhs, const TWeakFieldPtr<RhsT>& Rhs)
-{
-	// It's also possible that these static_asserts may fail for valid conversions because
-	// one or both of the types have only been forward-declared.
-	static_assert(TPointerIsConvertibleFromTo<LhsT, const FField>::Value, "TWeakFieldPtr can only be compared with FField types");
-	static_assert(TPointerIsConvertibleFromTo<LhsT, RhsT>::Value || TPointerIsConvertibleFromTo<RhsT, LhsT>::Value, "Unable to compare TWeakFieldPtr with raw pointer - types are incompatible");
-
-	return Rhs != Lhs;
-}
-
-template <typename LhsT>
-FORCENOINLINE bool operator!=(const TWeakFieldPtr<LhsT>& Lhs, TYPE_OF_NULLPTR)
-{
-	return Lhs.IsValid();
-}
-
-template <typename RhsT>
-FORCENOINLINE bool operator!=(TYPE_OF_NULLPTR, const TWeakFieldPtr<RhsT>& Rhs)
-{
-	return Rhs.IsValid();
 }
 
 template<class T> struct TIsPODType<TWeakFieldPtr<T> > { enum { Value = true }; };

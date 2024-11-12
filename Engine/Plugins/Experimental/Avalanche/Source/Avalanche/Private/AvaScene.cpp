@@ -2,6 +2,7 @@
 
 #include "AvaScene.h"
 #include "AvaAssetTags.h"
+#include "AvaCameraSubsystem.h"
 #include "AvaRemoteControlUtils.h"
 #include "AvaSceneSettings.h"
 #include "AvaSceneState.h"
@@ -26,15 +27,23 @@ DEFINE_LOG_CATEGORY_STATIC(LogAvaScene, Log, All);
 
 #define LOCTEXT_NAMESPACE "AvaScene"
 
-void AAvaScene::OnSceneCreated(FString&& InCreationType)
-{
 #if WITH_EDITOR
+void AAvaScene::NotifySceneEvent(ESceneAction InAction)
+{
 	if (FEngineAnalytics::IsAvailable())
 	{
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.SceneCreated"), FAnalyticsEventAttribute(TEXT("CreationType"), MoveTemp(InCreationType)));
+		FString ActionName;
+		switch (InAction)
+		{
+		case ESceneAction::Created:     ActionName = TEXT("Created"); break;
+		case ESceneAction::Activated:   ActionName = TEXT("Activated"); break;
+		case ESceneAction::Deactivated: ActionName = TEXT("Deactivated"); break;
+		}
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.Scene")
+			, FAnalyticsEventAttribute(TEXT("Action"), MoveTemp(ActionName)));
 	}
-#endif
 }
+#endif
 
 AAvaScene* AAvaScene::GetScene(ULevel* InLevel, bool bInCreateSceneIfNotFound)
 {
@@ -64,7 +73,9 @@ AAvaScene* AAvaScene::GetScene(ULevel* InLevel, bool bInCreateSceneIfNotFound)
 #endif
 
 	AAvaScene* const NewScene = World->SpawnActor<AAvaScene>(SpawnParameters);
-	OnSceneCreated(/*CreationType*/TEXT("Spawned"));
+#if WITH_EDITOR
+	NotifySceneEvent(ESceneAction::Created);
+#endif
 	return NewScene;
 }
 
@@ -74,11 +85,6 @@ AAvaScene::AAvaScene()
 
 	SceneState = CreateDefaultSubobject<UAvaSceneState>(TEXT("SceneState"));
 
-	if (SceneState)
-	{
-		SceneState->SetSceneSettings(SceneSettings);
-	}
-
 	RemoteControlPreset = CreateDefaultSubobject<URemoteControlPreset>(TEXT("RemoteControlPreset"));
 
 	StartupCameraName = NAME_None;
@@ -86,7 +92,7 @@ AAvaScene::AAvaScene()
 #if WITH_EDITOR
 	if (!HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
 	{
-		PreWorldRenameDelegate = FWorldDelegates::OnPreWorldRename.AddUObject(this, &AAvaScene::OnWorldRenamed);
+		PreWorldRenameDelegate = FWorldDelegates::OnPostWorldRename.AddUObject(this, &AAvaScene::OnWorldRenamed);
 		WorldTagGetterDelegate = UObject::FAssetRegistryTag::OnGetExtraObjectTagsWithContext.AddUObject(this, &AAvaScene::OnGetWorldTags);
 	}
 #endif
@@ -118,7 +124,7 @@ IAvaSequencePlaybackObject* AAvaScene::GetScenePlayback() const
 }
 
 #if WITH_EDITOR
-void AAvaScene::OnWorldRenamed(UWorld* InWorld, const TCHAR* InName, UObject* InNewOuter, ERenameFlags InFlags, bool& bOutShouldFailRename)
+void AAvaScene::OnWorldRenamed(UWorld* InWorld)
 {
 	if (FUObjectThreadContext::Get().IsRoutingPostLoad || InWorld != GetWorld())
 	{
@@ -129,7 +135,7 @@ void AAvaScene::OnWorldRenamed(UWorld* InWorld, const TCHAR* InName, UObject* In
 	{
 		if (Sequence)
 		{
-			Sequence->OnOuterWorldRenamed(InName, InNewOuter, InFlags, bOutShouldFailRename);
+			Sequence->OnOuterWorldRenamed(this);
 		}
 	}
 }
@@ -186,7 +192,7 @@ bool AAvaScene::AddSequence(UAvaSequence* InSequence)
 #if WITH_EDITOR
 		if (FEngineAnalytics::IsAvailable())
 		{
-			FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.AddedSequence"));
+			FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.Sequence"), TEXT("Action"), TEXT("AddedSequence"));
 		}
 #endif
 
@@ -266,64 +272,77 @@ void AAvaScene::RebuildSequenceTree()
 	IAvaSequenceProvider::RebuildSequenceTree();
 }
 
+void AAvaScene::OnValuesApplied_Implementation()
+{
+	if (UAvaCameraSubsystem* CameraSubsystem = UAvaCameraSubsystem::Get(this))
+	{
+		CameraSubsystem->ConditionallyUpdateViewTarget(GetLevel());
+	}
+}
+
 void AAvaScene::PostActorCreated()
 {
 	Super::PostActorCreated();
+	RegisterObjects();
+}
 
-	if (!HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
+void AAvaScene::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (UAvaCameraSubsystem* CameraSubsystem = UAvaCameraSubsystem::Get(this))
 	{
-		FAvaRemoteControlUtils::RegisterRemoteControlPreset(RemoteControlPreset, /*bInEnsureUniqueId*/ false);
+		CameraSubsystem->RegisterScene(GetLevel());
 	}
+}
 
-	// Register AAvaScenes created past Subsystem Initialization
-	if (UAvaSceneSubsystem* SceneSubsystem = FAvaWorldSubsystemUtils::GetWorldSubsystem<UAvaSceneSubsystem>(this))
+void AAvaScene::EndPlay(const EEndPlayReason::Type InEndPlayReason)
+{
+	Super::EndPlay(InEndPlayReason);
+
+	if (UAvaCameraSubsystem* CameraSubsystem = UAvaCameraSubsystem::Get(this))
 	{
-		SceneSubsystem->RegisterSceneInterface(GetLevel(), this);
+		CameraSubsystem->UnregisterScene(GetLevel());
 	}
 }
 
 void AAvaScene::PostLoad()
 {
 	Super::PostLoad();
+	RegisterObjects();
 
-	if (!HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
+	if (SceneState)
 	{
-		FAvaRemoteControlUtils::RegisterRemoteControlPreset(RemoteControlPreset, /*bInEnsureUniqueId*/ true);
+		SceneState->Initialize(SceneSettings);
 	}
+}
 
-	// Register AAvaScenes created past Subsystem Initialization
-	if (UAvaSceneSubsystem* SceneSubsystem = FAvaWorldSubsystemUtils::GetWorldSubsystem<UAvaSceneSubsystem>(this))
+void AAvaScene::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	if (SceneState)
 	{
-		SceneSubsystem->RegisterSceneInterface(GetLevel(), this);
+		SceneState->Initialize(SceneSettings);
 	}
 }
 
 void AAvaScene::PostDuplicate(EDuplicateMode::Type InDuplicateMode)
 {
 	Super::PostDuplicate(InDuplicateMode);
-	if (!HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
-	{
-		FAvaRemoteControlUtils::RegisterRemoteControlPreset(RemoteControlPreset, /*bInEnsureUniqueId*/ true);
-	}
+	RegisterObjects();
 }
 
 void AAvaScene::PostEditImport()
 {
 	Super::PostEditImport();
-	if (!HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
-	{
-		FAvaRemoteControlUtils::RegisterRemoteControlPreset(RemoteControlPreset, /*bInEnsureUniqueId*/ true);
-	}
+	RegisterObjects();
 }
 
 void AAvaScene::BeginDestroy()
 {
 	Super::BeginDestroy();
 
-	if (!HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
-	{
-		FAvaRemoteControlUtils::UnregisterRemoteControlPreset(RemoteControlPreset);
-	}
+	UnregisterObjects();
 
 #if WITH_EDITOR
 	FWorldDelegates::OnPreWorldRename.Remove(PreWorldRenameDelegate);
@@ -340,5 +359,37 @@ void AAvaScene::SetStartupCameraName(FName InName)
 	StartupCameraName = InName;
 }
 #endif
+
+void AAvaScene::RegisterObjects()
+{
+	if (!HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
+	{
+		FAvaRemoteControlUtils::RegisterRemoteControlPreset(RemoteControlPreset, /*bInEnsureUniqueId*/ true);
+	}
+
+	// Register AAvaScenes created past Subsystem Initialization
+	if (UAvaSceneSubsystem* SceneSubsystem = FAvaWorldSubsystemUtils::GetWorldSubsystem<UAvaSceneSubsystem>(this))
+	{
+		SceneSubsystem->RegisterSceneInterface(GetLevel(), this);
+	}
+
+	if (UAvaSequenceSubsystem* SequenceSubsystem = FAvaWorldSubsystemUtils::GetWorldSubsystem<UAvaSequenceSubsystem>(this))
+	{
+		SequenceSubsystem->RegisterSequenceProvider(GetLevel(), this);
+	}
+}
+
+void AAvaScene::UnregisterObjects()
+{
+	if (!HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
+	{
+		FAvaRemoteControlUtils::UnregisterRemoteControlPreset(RemoteControlPreset);
+	}
+
+	if (UAvaSequenceSubsystem* SequenceSubsystem = FAvaWorldSubsystemUtils::GetWorldSubsystem<UAvaSequenceSubsystem>(this))
+	{
+		SequenceSubsystem->UnregisterSequenceProvider(GetLevel(), this);
+	}
+}
 
 #undef LOCTEXT_NAMESPACE

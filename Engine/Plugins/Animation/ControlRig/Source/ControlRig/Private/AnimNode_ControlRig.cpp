@@ -232,7 +232,7 @@ UClass* FAnimNode_ControlRig::GetTargetClass() const
 	return DefaultControlRigClass;
 }
 
-void FAnimNode_ControlRig::UpdateInput(UControlRig* InControlRig, const FPoseContext& InOutput)
+void FAnimNode_ControlRig::UpdateInput(UControlRig* InControlRig, FPoseContext& InOutput)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
@@ -836,6 +836,13 @@ void FAnimNode_ControlRig::PropagateInputProperties(const UObject* InSourceInsta
 					if(ensure(ObjectProperty->SameType(Variable.Property)))
 					{
 						ObjectProperty->CopyCompleteValue(Variable.Memory, SrcPtr);
+					}
+				}
+				else if(FEnumProperty* EnumProperty = CastField<FEnumProperty>(CallerProperty))
+				{
+					if(ensure(EnumProperty->SameType(Variable.Property)))
+					{
+						EnumProperty->CopyCompleteValue(Variable.Memory, SrcPtr);
 					}
 				}
 				else

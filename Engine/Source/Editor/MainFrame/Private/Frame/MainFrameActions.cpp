@@ -109,10 +109,10 @@ void FMainFrameCommands::RegisterCommands()
 	ActionList->MapAction(ViewChangelists, FExecuteAction::CreateStatic( &FMainFrameActionCallbacks::ViewChangelists ), FCanExecuteAction::CreateStatic( &FMainFrameActionCallbacks::CanViewChangelists ) );
 
 	UI_COMMAND( SubmitContent, "Submit Content", "Opens a dialog with check in options for content and levels.", EUserInterfaceActionType::Button, FInputChord() );
-	ActionList->MapAction( SubmitContent, FExecuteAction::CreateLambda([]() { FSourceControlWindows::ChoosePackagesToCheckIn(); }), FCanExecuteAction::CreateStatic(&FSourceControlWindows::CanChoosePackagesToCheckIn ), FGetActionCheckState(), FIsActionButtonVisible::CreateStatic(FSourceControlWindows::ShouldChoosePackagesToCheckBeVisible) );
+	ActionList->MapAction( SubmitContent, FExecuteAction::CreateLambda([]() { FSourceControlWindows::ChoosePackagesToCheckIn(); }), FCanExecuteAction::CreateStatic( &FMainFrameActionCallbacks::CanSubmitContent ), FGetActionCheckState(), FIsActionButtonVisible::CreateStatic(FSourceControlWindows::ShouldChoosePackagesToCheckBeVisible) );
 
 	UI_COMMAND( SyncContent, "Sync Content", "Saves all unsaved levels and assets to disk and then downloads the latest versions from revision control.", EUserInterfaceActionType::Button, FInputChord() );
-	ActionList->MapAction(SyncContent, FExecuteAction::CreateLambda([]() { FSourceControlWindows::SyncLatest(); }), FCanExecuteAction::CreateStatic( &FSourceControlWindows::CanSyncLatest ) );
+	ActionList->MapAction( SyncContent, FExecuteAction::CreateLambda([]() {  FSourceControlWindows::SyncLatest(); }), FCanExecuteAction::CreateStatic( &FMainFrameActionCallbacks::CanSyncContent ) );
 
 	UI_COMMAND( ConnectToSourceControl, "Connect to Revision Control...", "Connect to a revision control system for tracking changes to your content and levels.", EUserInterfaceActionType::Button, FInputChord() );
 	ActionList->MapAction( ConnectToSourceControl, FExecuteAction::CreateStatic( &FMainFrameActionCallbacks::ConnectToSourceControl ), DefaultExecuteAction );
@@ -330,6 +330,22 @@ void FMainFrameActionCallbacks::SaveAll()
 	const bool bNotifyNoPackagesSaved = false;
 	const bool bCanBeDeclined = false;
 	FEditorFileUtils::SaveDirtyPackages( bPromptUserToSave, bSaveMapPackages, bSaveContentPackages, bFastSave, bNotifyNoPackagesSaved, bCanBeDeclined );
+}
+
+bool FMainFrameActionCallbacks::CanSubmitContent()
+{
+	// The 'Submit Content' operation could lead to a world reload (in UEFN) that takes the user out of their selected editor mode.
+	// Piggy back on the 'CanAutoSave' functionality to determine if now is a good time to trigger a 'Submit Content' SCC operation.
+
+	return GLevelEditorModeTools().CanAutoSave() && FSourceControlWindows::CanChoosePackagesToCheckIn();
+}
+
+bool FMainFrameActionCallbacks::CanSyncContent()
+{
+	// The 'Sync Content' operation could lead to a world reload (in UEFN) that takes the user out of their selected editor mode.
+	// Piggy back on the 'CanAutoSave' functionality to determine if now is a good time to trigger a 'Sync Content' SCC operation.
+
+	return GLevelEditorModeTools().CanAutoSave() && FSourceControlWindows::CanSyncLatest();
 }
 
 TArray<FRecentProjectFile> FMainFrameActionCallbacks::RecentProjects;

@@ -62,6 +62,7 @@
 #include "WidgetBlueprintEditorUtils.h"
 
 #include "ObjectEditorUtils.h"
+#include "PreviewScene.h"
 #include "ScopedTransaction.h"
 #include "Components/NamedSlot.h"
 
@@ -376,11 +377,16 @@ void SDesignerView::Construct(const FArguments& InArgs, TSharedPtr<FWidgetBluepr
 		]
 	);
 
-	auto PinnedBlueprintEditor = BlueprintEditor.Pin();
-	PinnedBlueprintEditor->OnSelectedWidgetsChanged.AddRaw(this, &SDesignerView::OnEditorSelectionChanged);
-	PinnedBlueprintEditor->OnHoveredWidgetSet.AddRaw(this, &SDesignerView::OnHoveredWidgetSet);
-	PinnedBlueprintEditor->OnHoveredWidgetCleared.AddRaw(this, &SDesignerView::OnHoveredWidgetCleared);
-	PinnedBlueprintEditor->OnWidgetPreviewUpdated.AddRaw(this, &SDesignerView::OnPreviewNeedsRecreation);
+	InBlueprintEditor->OnSelectedWidgetsChanged.AddSP(this, &SDesignerView::OnEditorSelectionChanged);
+	InBlueprintEditor->OnHoveredWidgetSet.AddSP(this, &SDesignerView::OnHoveredWidgetSet);
+	InBlueprintEditor->OnHoveredWidgetCleared.AddSP(this, &SDesignerView::OnHoveredWidgetCleared);
+	InBlueprintEditor->OnWidgetPreviewUpdated.AddSP(this, &SDesignerView::OnPreviewNeedsRecreation);
+	InBlueprintEditor->OnSelectedAnimationChanged.AddSP(this, &SDesignerView::OnSelectedAnimationChanged);
+
+	if (const TSharedPtr<ISequencer>& Sequencer = InBlueprintEditor->GetSequencer())
+	{
+		Sequencer->OnViewportSelectionLimitedChanged().AddSP(this, &SDesignerView::OnSelectionLimitedChanged);
+	}
 
 	DesignerHittestGrid = MakeShared<FHittestGrid>();
 
@@ -420,7 +426,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 
 	// Outline and text for important state.
 	+ SOverlay::Slot()
-	.Padding(0)
+	.Padding(0.0f)
 	.VAlign(VAlign_Fill)
 	.HAlign(HAlign_Fill)
 	[
@@ -429,7 +435,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 
 		// Top-right corner text indicating PIE is active
 		+ SOverlay::Slot()
-		.Padding(0)
+		.Padding(0.0f)
 		.VAlign(VAlign_Fill)
 		.HAlign(HAlign_Fill)
 		[
@@ -440,7 +446,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 
 		// Top-right corner text indicating PIE is active
 		+ SOverlay::Slot()
-		.Padding(20)
+		.Padding(20.0f)
 		.VAlign(VAlign_Top)
 		.HAlign(HAlign_Right)
 		[
@@ -461,19 +467,33 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		.VAlign(VAlign_Center)
-		.Padding(6, 2, 0, 0)
+		.Padding(6.0f, 2.0f, 0.0f, 0.0f)
 		[
-			SNew(STextBlock)
-			.TextStyle(FAppStyle::Get(), "Graph.ZoomText")
-			.Text(this, &SDesignerView::GetZoomText)
-			.ColorAndOpacity(this, &SDesignerView::GetZoomTextColorAndOpacity)
-			.Visibility(EVisibility::SelfHitTestInvisible)
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				SNew(STextBlock)
+				.TextStyle(FAppStyle::Get(), TEXT("Graph.ZoomText"))
+				.Text(this, &SDesignerView::GetZoomText)
+				.ColorAndOpacity(this, &SDesignerView::GetZoomTextColorAndOpacity)
+				.Visibility(EVisibility::SelfHitTestInvisible)
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				SNew(STextBlock)
+				.TextStyle(FAppStyle::Get(), TEXT("Graph.ZoomText"))
+				.Text(LOCTEXT("SequencerSelectionLimited", "Sequencer Selection Limited"))
+				.ColorAndOpacity(FLinearColor(1.f, 1.f, 1.f, 0.25f))
+				.Visibility(this, &SDesignerView::GetSelectionLimitedTextVisibility)
+			]
 		]
 
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		.VAlign(VAlign_Center)
-		.Padding(40, 2, 0, 0)
+		.Padding(40.0f, 2.0f, 0.0f, 0.0f)
 		[
 			SNew(STextBlock)
 			.TextStyle(FAppStyle::Get(), "Graph.ZoomText")
@@ -486,7 +506,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		.VAlign(VAlign_Center)
-		.Padding(40, 2, 0, 0)
+		.Padding(40.0f, 2.0f, 0.0f, 0.0f)
 		[
 			SNew(STextBlock)
 			.TextStyle(FAppStyle::Get(), "Graph.ZoomText")
@@ -498,14 +518,16 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 
 		+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
+		.VAlign(VAlign_Top)
 		[
 			SNew(SSpacer)
-			.Size(FVector2D(1, 1))
+			.Size(FVector2D(1.0f, 1.0f))
 		]
 
 		+ SHorizontalBox::Slot()
 		.Padding(0.0f, 1.0f)
 		.AutoWidth()
+		.VAlign(VAlign_Top)
 		[
 			SNew(SDesignerToolBar)
 			.CommandList(CommandList)
@@ -513,6 +535,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		+ SHorizontalBox::Slot()
 		.Padding(0.0f, 1.0f)
 		.AutoWidth()
+		.VAlign(VAlign_Top)
 		[
 			SNew(SButton)
 			.ButtonStyle(&ToolBarStyle.ButtonStyle)
@@ -528,42 +551,45 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		]
 
 		+ SHorizontalBox::Slot()
-			.AutoWidth()
+		.AutoWidth()
+		.VAlign(VAlign_Top)
+		[
+			SNew(SButton)
+			.ButtonStyle(&ToolBarStyle.ButtonStyle)
+			.ToolTipText(LOCTEXT("SwapAspectRatio_ToolTip", "Switch between Landscape and Portrait"))
+			.OnClicked(this, &SDesignerView::HandleSwapAspectRatioClicked)
+			.ContentPadding(ToolBarStyle.ButtonPadding)
+			.IsEnabled(this, &SDesignerView::GetAspectRatioSwitchEnabled)
+			.VAlign(VAlign_Center)
 			[
-				SNew(SButton)
-				.ButtonStyle(&ToolBarStyle.ButtonStyle)
-				.ToolTipText(LOCTEXT("SwapAspectRatio_ToolTip", "Switch between Landscape and Portrait"))
-				.OnClicked(this, &SDesignerView::HandleSwapAspectRatioClicked)
-				.ContentPadding(ToolBarStyle.ButtonPadding)
-				.IsEnabled(this, &SDesignerView::GetAspectRatioSwitchEnabled)
-				.VAlign(VAlign_Center)
-				[
-					SNew(SImage)
-					.Image(this, &SDesignerView::GetAspectRatioSwitchImage)
-					.ColorAndOpacity(FSlateColor::UseForeground())
-				]
+				SNew(SImage)
+				.Image(this, &SDesignerView::GetAspectRatioSwitchImage)
+				.ColorAndOpacity(FSlateColor::UseForeground())
 			]
+		]
 		+ SHorizontalBox::Slot()
-			.AutoWidth()
+		.AutoWidth()
+		.VAlign(VAlign_Top)
+		[
+			SNew(SButton)
+			.ButtonStyle(&ToolBarStyle.ButtonStyle)
+			.ToolTipText(LOCTEXT("Mirror_ToolTip", "Flip the current safe zones"))
+			.OnClicked(this, &SDesignerView::HandleFlipSafeZonesClicked)
+			.ContentPadding(ToolBarStyle.ButtonPadding)
+			.IsEnabled(this, &SDesignerView::GetFlipDeviceEnabled)
+			.VAlign(VAlign_Center)
 			[
-				SNew(SButton)
-				.ButtonStyle(&ToolBarStyle.ButtonStyle)
-				.ToolTipText(LOCTEXT("Mirror_ToolTip", "Flip the current safe zones"))
-				.OnClicked(this, &SDesignerView::HandleFlipSafeZonesClicked)
-				.ContentPadding(ToolBarStyle.ButtonPadding)
-				.IsEnabled(this, &SDesignerView::GetFlipDeviceEnabled)
-				.VAlign(VAlign_Center)
-				[
-					SNew(SImage)
-					.Image(FAppStyle::Get().GetBrush("UMGEditor.Mirror"))
-					.ColorAndOpacity(FSlateColor::UseForeground())
-				]
+				SNew(SImage)
+				.Image(FAppStyle::Get().GetBrush("UMGEditor.Mirror"))
+				.ColorAndOpacity(FSlateColor::UseForeground())
 			]
+		]
 
 		// Preview Screen Size
 		+ SHorizontalBox::Slot()
 		.Padding(2.0f,0.0f)
 		.AutoWidth()
+		.VAlign(VAlign_Top)
 		[
 			SNew(SComboButton)
 			.ButtonStyle(&ToolBarStyle.ButtonStyle)
@@ -582,6 +608,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		+ SHorizontalBox::Slot()
 		.Padding(2.0f, 0.0f)
 		.AutoWidth()
+		.VAlign(VAlign_Top)
 		[
 			SNew(SComboButton)
 			.ButtonStyle(&ToolBarStyle.ButtonStyle)
@@ -597,7 +624,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.Padding(FMargin(2, 0))
+		.Padding(FMargin(2.0f, 0.0f))
 		.VAlign(VAlign_Center)
 		[
 			SNew(STextBlock)
@@ -607,7 +634,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.Padding(FMargin(2, 0))
+		.Padding(FMargin(2.0f, 0.0f))
 		.VAlign(VAlign_Center)
 		[
 			SNew(SNumericEntryBox<int32>)
@@ -619,12 +646,12 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 			.Value(this, &SDesignerView::GetCustomResolutionWidth)
 			.OnValueChanged(this, &SDesignerView::OnCustomResolutionWidthChanged)
 			.Visibility(this, &SDesignerView::GetCustomResolutionEntryVisibility)
-			.MinDesiredValueWidth(50)
+			.MinDesiredValueWidth(50.0f)
 			.ToolTipText(LOCTEXT("CustomSize_WidthTooltip", "1+\tSets the width of the widget in the designer.\n0\tThe width will match the desired width of the widget."))
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.Padding(FMargin(2, 0))
+		.Padding(FMargin(2.0f, 0.0f))
 		.VAlign(VAlign_Center)
 		[
 			SNew(STextBlock)
@@ -634,7 +661,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.Padding(FMargin(2, 0))
+		.Padding(FMargin(2.0f, 0.0f))
 		.VAlign(VAlign_Center)
 		[
 			SNew(SNumericEntryBox<int32>)
@@ -663,7 +690,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 			.BorderBackgroundColor(FLinearColor(0.10, 0.10, 0.10, 0.75))
 			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
-			.Padding(FMargin(0, 5))
+			.Padding(FMargin(0.0f, 5.0f))
 			.Visibility(this, &SDesignerView::GetInfoBarVisibility)
 			[
 				SNew(STextBlock)
@@ -681,7 +708,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.Padding(6, 0, 0, 2)
+		.Padding(6.0f, 0.0f, 0.0f, 2.0f)
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot()
@@ -713,7 +740,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
 		.HAlign(HAlign_Right)
-		.Padding(0, 0, 6, 2)
+		.Padding(0.0f, 0.0f, 6.0f, 2.0f)
 		[
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
@@ -728,7 +755,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
-			.Padding(6, 0, 0, 0)
+			.Padding(6.0f, 0.0f, 0.0f, 0.0f)
 			.VAlign(VAlign_Bottom)
 			[
 				SNew(SButton)
@@ -769,6 +796,12 @@ SDesignerView::~SDesignerView()
 		PinnedEditor->OnHoveredWidgetSet.RemoveAll(this);
 		PinnedEditor->OnHoveredWidgetCleared.RemoveAll(this);
 		PinnedEditor->OnWidgetPreviewUpdated.RemoveAll(this);
+		PinnedEditor->OnSelectedAnimationChanged.RemoveAll(this);
+
+		if (const TSharedPtr<ISequencer> Sequencer = PinnedEditor->GetSequencer())
+		{
+			Sequencer->OnViewportSelectionLimitedChanged().RemoveAll(this);
+		}
 	}
 
 	if ( GEditor )
@@ -1406,7 +1439,7 @@ FVector2D SDesignerView::GetExtensionPosition(TSharedRef<FDesignerSurfaceElement
 			}
 			else
 			{
-				FVector2D WidgetPosition;
+				FVector2D WidgetPosition = FVector2D::ZeroVector;
 
 				// Get the initial offset based on the location around the selected object.
 				switch (ExtensionElement->GetLocation())
@@ -1684,35 +1717,42 @@ FReply SDesignerView::OnMouseButtonDown(const FGeometry& MyGeometry, const FPoin
 	{
 		if ( MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton )
 		{
-			const TSet<FWidgetReference>& SelectedWidgets = GetSelectedWidgets();
-
-			bool bResolvePendingSelectionImmediately = true;
-
-			if (SelectedWidgets.Num() > 0)
+			if (IsSelectableInSequencer(PendingSelectedWidget.GetPreview()))
 			{
-				for (const auto& SelectedWidget : SelectedWidgets)
-				{
-					auto PendingTemplate = PendingSelectedWidget.GetTemplate();
-					auto SelectedTemplate = SelectedWidget.GetTemplate();
+				const TSet<FWidgetReference>& SelectedWidgets = GetSelectedWidgets();
 
-					if ( PendingSelectedWidget == SelectedWidget || ( PendingTemplate && SelectedTemplate && PendingTemplate->IsChildOf( SelectedTemplate ) ) )
+				bool bResolvePendingSelectionImmediately = true;
+
+				if (SelectedWidgets.Num() > 0)
+				{
+					for (const auto& SelectedWidget : SelectedWidgets)
 					{
-						bResolvePendingSelectionImmediately = false;
-						break;
+						auto PendingTemplate = PendingSelectedWidget.GetTemplate();
+						auto SelectedTemplate = SelectedWidget.GetTemplate();
+
+						if ( PendingSelectedWidget == SelectedWidget || ( PendingTemplate && SelectedTemplate && PendingTemplate->IsChildOf( SelectedTemplate ) ) )
+						{
+							bResolvePendingSelectionImmediately = false;
+							break;
+						}
 					}
 				}
-			}
 
-			// If the newly clicked item is a child of the active selection, add it to the pending set of selected 
-			// widgets, if they begin dragging we can just move the parent, but if it's not part of the parent set, 
-			// we want to immediately begin dragging it.  Also if the currently selected widget is the root widget, 
-			// we won't be moving it so just resolve immediately.
-			if ( bResolvePendingSelectionImmediately )
+				// If the newly clicked item is a child of the active selection, add it to the pending set of selected 
+				// widgets, if they begin dragging we can just move the parent, but if it's not part of the parent set, 
+				// we want to immediately begin dragging it.  Also if the currently selected widget is the root widget, 
+				// we won't be moving it so just resolve immediately.
+				if ( bResolvePendingSelectionImmediately )
+				{
+					ResolvePendingSelectedWidgets();
+				}
+
+				DraggingStartPositionScreenSpace = MouseEvent.GetScreenSpacePosition();
+			}
+			else
 			{
-				ResolvePendingSelectedWidgets();
+				PendingSelectedWidget = FWidgetReference();
 			}
-
-			DraggingStartPositionScreenSpace = MouseEvent.GetScreenSpacePosition();
 		}
 	}
 	else
@@ -1835,15 +1875,18 @@ FReply SDesignerView::OnMouseMove(const FGeometry& MyGeometry, const FPointerEve
 	
 
 	// Update the hovered widget under the mouse
-	auto PinnedBlueprintEditor = BlueprintEditor.Pin();
-	FWidgetHitResult HitResult;
-	if ( FindWidgetUnderCursor(MyGeometry, MouseEvent, UWidget::StaticClass(), HitResult) )
+	if (const TSharedPtr<FWidgetBlueprintEditor> PinnedBlueprintEditor = BlueprintEditor.Pin())
 	{
-		PinnedBlueprintEditor->SetHoveredWidget(HitResult.Widget);
-	}
-	else if (PinnedBlueprintEditor->GetHoveredWidget().IsValid())
-	{
-		PinnedBlueprintEditor->ClearHoveredWidget();
+		FWidgetHitResult HitResult;
+		if (FindWidgetUnderCursor(MyGeometry, MouseEvent, UWidget::StaticClass(), HitResult)
+			&& IsSelectableInSequencer(HitResult.Widget.GetPreview()))
+		{
+			PinnedBlueprintEditor->SetHoveredWidget(HitResult.Widget);
+		}
+		else if (PinnedBlueprintEditor->GetHoveredWidget().IsValid())
+		{
+			PinnedBlueprintEditor->ClearHoveredWidget();
+		}
 	}
 
 	return FReply::Unhandled();
@@ -2408,6 +2451,25 @@ void SDesignerView::Tick( const FGeometry& AllottedGeometry, const double InCurr
 
 void SDesignerView::OnPaintBackground(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId) const
 {
+	// In order to get material parameter collections to function properly, we need the editor preview world's Scene
+	// properly propagated through to any widgets that depend on that functionality. 
+	if (TSharedPtr<FWidgetBlueprintEditor> BlueprintEditorPtr = BlueprintEditor.Pin())
+	{
+		if (FPreviewScene* Preview = BlueprintEditorPtr->GetPreviewScene())
+		{
+			if (FSceneInterface* Scene = Preview->GetWorld()->Scene)
+			{
+				FSlateApplication::Get().GetRenderer()->RegisterCurrentScene(Scene);
+			}
+		}
+	}
+
+	// Set a UI scale for materials to use as reference, done on a per-window basis since don't want to change global uniforms per element
+	if (SWindow* ParentWindow = OutDrawElements.GetPaintWindow())
+	{
+		ParentWindow->SetViewportScaleUIOverride(GetZoomAmount());
+	}
+
 	SDesignSurface::OnPaintBackground(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId);
 
 	if (bShowResolutionOutlines)
@@ -2705,8 +2767,15 @@ void SDesignerView::ProcessDropAndAddWidget(const FGeometry& MyGeometry, const F
 
 		FScopedTransaction Transaction(LOCTEXT("Designer_AddWidget", "Add Widget"));
 
+		FText DropOnTargetFailureText = FText::GetEmpty();
+		const bool bShouldPreventDropOnTargetExtensions = FWidgetBlueprintEditorUtils::ShouldPreventDropOnTargetExtensions(Target, SelectedDragDropOp, DropOnTargetFailureText);
+		if ( bShouldPreventDropOnTargetExtensions )
+		{
+			DragOperation->SetCursorOverride(EMouseCursor::SlashedCircle);
+			DragAndDropTransaction.Cancel();
+		}
 		// If there's no root widget go ahead and add the widget into the root slot.
-		if ( BP->WidgetTree->RootWidget == nullptr )
+		else if ( BP->WidgetTree->RootWidget == nullptr )
 		{
 			if ( !bIsPreview )
 			{
@@ -2885,8 +2954,11 @@ void SDesignerView::MoveWidgets(const FGeometry& MyGeometry, const FDragDropEven
 			FWidgetReference TargetReference = bIsPreview ? BlueprintEditor.Pin()->GetReferenceFromPreview(Target) : BlueprintEditor.Pin()->GetReferenceFromTemplate(Target);
 			BlueprintEditor.Pin()->SetHoveredWidget(TargetReference);
 
+			FText DropOnTargetFailureText = FText::GetEmpty();
+			const bool bShouldPreventDropOnTargetExtensions = FWidgetBlueprintEditorUtils::ShouldPreventDropOnTargetExtensions(Target, SelectedDragDropOp, DropOnTargetFailureText);
+
 			// If the widget being hovered over is a panel, attempt to place it into that panel.
-			if (Target && Target->IsA(UPanelWidget::StaticClass()))
+			if (Target && Target->IsA(UPanelWidget::StaticClass()) && !bShouldPreventDropOnTargetExtensions)
 			{
 				bWidgetMoved = true;
 
@@ -3804,6 +3876,111 @@ FReply SDesignerView::HandleFlipSafeZonesClicked()
 EVisibility SDesignerView::GetRulerVisibility() const
 {
 	return EVisibility::Visible;
+}
+
+bool SDesignerView::IsSelectableInSequencer(UWidget* const InWidget) const
+{
+	const TSharedPtr<FWidgetBlueprintEditor> WidgetBlueprintEditor = BlueprintEditor.Pin();
+	if (!WidgetBlueprintEditor.IsValid()
+		|| WidgetBlueprintEditor->GetCurrentAnimation() == UWidgetAnimation::GetNullAnimation())
+	{
+		return true;
+	}
+
+	const TSharedPtr<ISequencer>& Sequencer = WidgetBlueprintEditor->GetSequencer();
+	if (!Sequencer.IsValid() || !Sequencer->IsViewportSelectionLimited())
+	{
+		return true;
+	}
+
+	return Sequencer->IsObjectSelectableInViewport(InWidget);
+}
+
+void SDesignerView::OnSelectedAnimationChanged()
+{
+	const TSharedPtr<FWidgetBlueprintEditor> WidgetBlueprintEditor = BlueprintEditor.Pin();
+	if (!WidgetBlueprintEditor.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<ISequencer>& ActiveSequencer = WidgetBlueprintEditor->GetSequencer();
+	if (!ActiveSequencer.IsValid())
+	{
+		return;
+	}
+
+	if (ActiveSequencer->IsViewportSelectionLimited())
+	{
+		DeselectNonSequencerWidgets();
+	}
+}
+
+void SDesignerView::OnSelectionLimitedChanged(const bool bInEnabled)
+{
+	if (bInEnabled)
+	{
+		DeselectNonSequencerWidgets();
+	}
+}
+
+void SDesignerView::DeselectNonSequencerWidgets()
+{
+	const TSharedPtr<FWidgetBlueprintEditor> WidgetBlueprintEditor = BlueprintEditor.Pin();
+	if (!WidgetBlueprintEditor.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<ISequencer>& ActiveSequencer = WidgetBlueprintEditor->GetSequencer();
+	if (!ActiveSequencer.IsValid())
+	{
+		return;
+	}
+
+	const TSet<FWidgetReference>& SelectedWidgets = WidgetBlueprintEditor->GetSelectedWidgets();
+	if (SelectedWidgets.IsEmpty())
+	{
+		return;
+	}
+
+	TSet<FWidgetReference> NewSelection;
+
+	for (const FWidgetReference& WidgetReference : SelectedWidgets)
+	{
+		UWidget* const Widget = WidgetReference.GetPreview();
+		if (!IsValid(Widget))
+		{
+			continue;
+		}
+
+		if (!ActiveSequencer->IsViewportSelectionLimited()
+			|| WidgetBlueprintEditor->GetCurrentAnimation() == UWidgetAnimation::GetNullAnimation()
+			|| ActiveSequencer->IsObjectSelectableInViewport(Widget))
+		{
+			NewSelection.Add(WidgetReference);
+		}
+	}
+
+	WidgetBlueprintEditor->SelectWidgets(NewSelection, false);
+}
+
+EVisibility SDesignerView::GetSelectionLimitedTextVisibility() const
+{
+	const TSharedPtr<FWidgetBlueprintEditor> WidgetBlueprintEditor = BlueprintEditor.Pin();
+	if (!WidgetBlueprintEditor.IsValid())
+	{
+		return EVisibility::Collapsed;
+	}
+
+	const TSharedPtr<ISequencer>& ActiveSequencer = WidgetBlueprintEditor->GetSequencer();
+	if (!ActiveSequencer.IsValid() || !ActiveSequencer->IsViewportSelectionLimited())
+	{
+		return EVisibility::Collapsed;
+	}
+
+	return (WidgetBlueprintEditor->GetCurrentAnimation() == UWidgetAnimation::GetNullAnimation())
+		? EVisibility::Collapsed : EVisibility::SelfHitTestInvisible;
 }
 
 #undef LOCTEXT_NAMESPACE

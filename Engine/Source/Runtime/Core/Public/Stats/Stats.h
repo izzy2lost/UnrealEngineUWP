@@ -16,6 +16,7 @@
 #include "StatsCommon.h"
 #include "ProfilingDebugging/UMemoryDefines.h"
 #include "Stats/Stats2.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 /** 
  *	Learn about the Stats System at docs.unrealengine.com
@@ -66,19 +67,25 @@ public:
 	 */
 	FORCEINLINE_STATS FScopeCycleCounter( TStatId StatId, EStatFlags StatFlags, bool bAlways = false)
 	{
-		Start( StatId, StatFlags, bAlways);
+		AutoRTFM::Open([&]{ Start( StatId, StatFlags, bAlways); });
+		AutoRTFM::PushOnAbortHandler(this, [this](){ this->Stop(); });
 	}
 
 	FORCEINLINE_STATS FScopeCycleCounter(TStatId StatId, bool bAlways = false)
 		: FScopeCycleCounter(StatId, EStatFlags::None, bAlways)
-	{}
+	{
+	}
 
 	/**
 	 * Updates the stat with the time spent
 	 */
 	FORCEINLINE_STATS ~FScopeCycleCounter()
 	{
-		Stop();
+		AutoRTFM::PopOnAbortHandler(this);
+		AutoRTFM::Open([&]
+		{
+			Stop();
+		});
 	}
 
 };
@@ -186,8 +193,12 @@ public:
 	{
 		if (GCycleStatsShouldEmitNamedEvents && InStatId.IsValidStat())
 		{
-			bPop = true;
-			FPlatformMisc::BeginNamedEvent(FColor(0), InStatId.StatString);
+			AutoRTFM::Open([&]
+			{
+				bPop = true;
+				FPlatformMisc::BeginNamedEvent(FColor(0), InStatId.StatString);
+			});
+			AutoRTFM::PushOnAbortHandler(this, [](){ FPlatformMisc::EndNamedEvent(); });
 		}
 	}
 
@@ -198,10 +209,15 @@ public:
 
 	FORCEINLINE ~FScopeCycleCounter()
 	{
-		if (bPop)
+		AutoRTFM::PopOnAbortHandler(this);
+
+		AutoRTFM::Open([&]
 		{
-			FPlatformMisc::EndNamedEvent();
-		}
+			if (bPop)
+			{
+				FPlatformMisc::EndNamedEvent();
+			}
+		});
 	}
 private:
 #if USE_LIGHTWEIGHT_STATS_FOR_HITCH_DETECTION && USE_HITCH_DETECTION
@@ -258,6 +274,10 @@ FORCEINLINE void StatsPrimaryEnableSubtract(int32 Value = 1)
 	FScopeCycleCounter StatNamedEventsScope_##Stat(TStatId(ANSI_TO_PROFILING(#Stat))); \
 	SCOPE_CYCLE_COUNTER_TO_TRACE(#Stat, Stat, true);
 
+#define SCOPE_CYCLE_COUNTER_STATID(StatId) \
+	FScopeCycleCounter StatNamedEventsScope_STATID(StatId); \
+	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_CONDITIONAL(StatId.StatString, StatId.StatString != nullptr && GCycleStatsShouldEmitNamedEvents > 0);
+
 #define CONDITIONAL_SCOPE_CYCLE_COUNTER(Stat,bCondition) \
 	FScopeCycleCounter StatNamedEventsScope_##Stat(bCondition ? ANSI_TO_PROFILING(#Stat) : nullptr); \
 	SCOPE_CYCLE_COUNTER_TO_TRACE(#Stat, Stat, bCondition);
@@ -299,6 +319,9 @@ public:
 #define SCOPE_CYCLE_COUNTER(Stat) \
 	FLightweightStatScope LightweightStatScope_##Stat(TEXT(#Stat));
 
+#define SCOPE_CYCLE_COUNTER_STATID(StatId) \
+	FLightweightStatScope LightweightStatScope_##Stat(TEXT("Lightweight StatId Scope"));
+
 #define CONDITIONAL_SCOPE_CYCLE_COUNTER(Stat,bCondition) \
 	FLightweightStatScope LightweightStatScope_##Stat(bCondition ? TEXT(#Stat) : nullptr);
 
@@ -307,6 +330,7 @@ public:
 
 #else
 #define SCOPE_CYCLE_COUNTER(Stat)
+#define SCOPE_CYCLE_COUNTER_STATID(StatId)
 #define QUICK_SCOPE_CYCLE_COUNTER(Stat)
 #define DECLARE_SCOPE_CYCLE_COUNTER(CounterName,StatId,GroupId)
 #define CONDITIONAL_SCOPE_CYCLE_COUNTER(Stat,bCondition)

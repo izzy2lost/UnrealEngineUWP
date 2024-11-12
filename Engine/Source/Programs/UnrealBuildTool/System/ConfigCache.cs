@@ -180,6 +180,11 @@ namespace UnrealBuildTool
 			public DirectoryReference? HotfixDir;
 
 			/// <summary>
+			/// If specified, this hierarchy will include plugins enabled for the given target type
+			/// </summary>
+			public TargetType? IncludePluginsForTargetType;
+
+			/// <summary>
 			/// Constructor
 			/// </summary>
 			/// <param name="Type">The hierarchy type</param>
@@ -188,7 +193,8 @@ namespace UnrealBuildTool
 			/// <param name="CustomConfig">Custom config subdirectory to load</param>
 			/// <param name="OverrideStrings">Custom override strings</param>
 			/// <param name="HotfixDir">A hotfix directory where modifications/additions to config files can be read from</param>
-			public ConfigHierarchyKey(ConfigHierarchyType Type, DirectoryReference? ProjectDir, UnrealTargetPlatform Platform, string CustomConfig, List<string> OverrideStrings, DirectoryReference? HotfixDir)
+			/// <param name="IncludePluginsForTargetType">If specified, this hierarchy will unclude plugins enabled for the given target type</param>
+			public ConfigHierarchyKey(ConfigHierarchyType Type, DirectoryReference? ProjectDir, UnrealTargetPlatform Platform, string CustomConfig, List<string> OverrideStrings, DirectoryReference? HotfixDir, TargetType? IncludePluginsForTargetType)
 			{
 				this.Type = Type;
 				this.ProjectDir = ProjectDir;
@@ -196,6 +202,7 @@ namespace UnrealBuildTool
 				this.CustomConfig = CustomConfig;
 				this.OverrideStrings = OverrideStrings;
 				this.HotfixDir = HotfixDir;
+				this.IncludePluginsForTargetType = IncludePluginsForTargetType;
 			}
 
 			/// <summary>
@@ -212,7 +219,8 @@ namespace UnrealBuildTool
 					OtherKey.Platform == Platform &&
 					OtherKey.CustomConfig == CustomConfig &&
 					OtherKey.OverrideStrings.SequenceEqual(OverrideStrings) &&
-					OtherKey.HotfixDir == HotfixDir;
+					OtherKey.HotfixDir == HotfixDir &&
+					OtherKey.IncludePluginsForTargetType == IncludePluginsForTargetType;
 			}
 
 			/// <summary>
@@ -231,6 +239,7 @@ namespace UnrealBuildTool
 					Hash = (Hash * 31) + OverrideString.GetHashCode();
 				}
 				Hash = (Hash * 31) + ((HotfixDir == null) ? 0 : HotfixDir.GetHashCode());
+				Hash = (Hash * 31) + ((IncludePluginsForTargetType == null) ? 0 : IncludePluginsForTargetType.GetHashCode());
 
 				return Hash;
 			}
@@ -281,27 +290,33 @@ namespace UnrealBuildTool
 		/// <param name="CustomConfig">Optional override config directory to search, for support of multiple target types</param>
 		/// <param name="CustomArgs">Optional list of command line arguments added to the existing command line arguments</param>
 		/// <param name="HotfixDir">A hotfix directory where modifications/additions to config files can be read from</param>
+		/// <param name="IncludePluginsForTargetType">If specified, this hierarchy will unclude plugins enabled for the given target type</param>
 		/// <returns>The requested config hierarchy</returns>
-		public static ConfigHierarchy ReadHierarchy(ConfigHierarchyType Type, DirectoryReference? ProjectDir, UnrealTargetPlatform Platform, string CustomConfig = "", string[]? CustomArgs = null, DirectoryReference? HotfixDir = null)
+		public static ConfigHierarchy ReadHierarchy(ConfigHierarchyType Type, DirectoryReference? ProjectDir, UnrealTargetPlatform Platform, string CustomConfig = "", string[]? CustomArgs = null, DirectoryReference? HotfixDir = null, TargetType? IncludePluginsForTargetType = null)
 		{
-			CommandLineArguments CombinedArgs = new CommandLineArguments(Environment.GetCommandLineArgs());
-
+			CommandLineArguments CombinedArgs;
 			if (CustomArgs != null)
 			{
+				List<string> CommandLineArgs = new List<string>(Environment.GetCommandLineArgs());
 				foreach (string CustomArg in CustomArgs)
 				{
 					if (CustomArg.StartsWith("-", StringComparison.InvariantCultureIgnoreCase))
 					{
-						CombinedArgs.Append(CustomArg);
+						CommandLineArgs.Add(CustomArg);
 					}
 					else
 					{
-						CombinedArgs.Append("-" + CustomArg);
+						CommandLineArgs.Add("-" + CustomArg);
 					}
 				}
+				CombinedArgs = new CommandLineArguments(CommandLineArgs.ToArray());
+			}
+			else
+			{
+				CombinedArgs = new CommandLineArguments(Environment.GetCommandLineArgs());
 			}
 
-			return ReadHierarchy(Type, ProjectDir, Platform, CustomConfig, CombinedArgs, HotfixDir);
+			return ReadHierarchy(Type, ProjectDir, Platform, CustomConfig, CombinedArgs, HotfixDir, IncludePluginsForTargetType);
 		}
 
 		/// <summary>
@@ -313,12 +328,13 @@ namespace UnrealBuildTool
 		/// <param name="CustomConfig">Optional override config directory to search, for support of multiple target types</param>
 		/// <param name="CmdLineArgs">The command line arguments to parse</param>
 		/// <param name="HotfixDir">A hotfix directory where modifications/additions to config files can be read from</param>
+		/// <param name="IncludePluginsForTargetType">If specified, this hierarchy will unclude plugins enabled for the given target type</param>
 		/// <returns>The requested config hierarchy</returns>
 		public static ConfigHierarchy ReadHierarchy(ConfigHierarchyType Type, DirectoryReference? ProjectDir, UnrealTargetPlatform Platform,
-			string CustomConfig, CommandLineArguments CmdLineArgs, DirectoryReference? HotfixDir = null)
+			string CustomConfig, CommandLineArguments CmdLineArgs, DirectoryReference? HotfixDir = null, TargetType? IncludePluginsForTargetType = null)
 		{
 			// Handle command line overrides
-			List<String> OverrideStrings = new List<String>();
+			List<string> OverrideStrings = new List<string>();
 
 			string IniConfigArgPrefix = "-ini:" + Enum.GetName(typeof(ConfigHierarchyType), Type) + ":";
 			string CustomConfigPrefix = "-CustomConfig=";
@@ -339,20 +355,17 @@ namespace UnrealBuildTool
 				}
 			}
 
-			if (CustomConfig == null)
-			{
-				CustomConfig = String.Empty;
-			}
+			CustomConfig ??= String.Empty;
 
 			// Get the key to use for the cache. It cannot be null, so we use the engine directory if a project directory is not given.
-			ConfigHierarchyKey Key = new ConfigHierarchyKey(Type, ProjectDir, Platform, CustomConfig, OverrideStrings, HotfixDir);
+			ConfigHierarchyKey Key = new ConfigHierarchyKey(Type, ProjectDir, Platform, CustomConfig, OverrideStrings, HotfixDir, IncludePluginsForTargetType);
 
 			ILogger Logger = NullLogger.Instance;
 
 			if (bDumpIniLoads)
 			{
 				Logger = Log.Logger;
-			};
+			}
 
 			// Try to get the cached hierarchy with this key
 			Logger.LogInformation($"Requested Hierarchy: {Type},{ProjectDir},{Platform},{CustomConfig}");
@@ -360,7 +373,7 @@ namespace UnrealBuildTool
 			{
 				// Find all the input files
 				List<ConfigFile> Files = new List<ConfigFile>();
-				foreach (FileReference IniFileName in ConfigHierarchy.EnumerateConfigFileLocations(Type, ProjectDir, Platform, CustomConfig))
+				foreach (FileReference IniFileName in ConfigHierarchy.EnumerateConfigFileLocations(Type, ProjectDir, Platform, CustomConfig, IncludePluginsForTargetType))
 				{
 					ConfigFile? File;
 					Logger.LogInformation($"Trying to load: {IniFileName}");
@@ -452,9 +465,10 @@ namespace UnrealBuildTool
 		/// <param name="ProjectDir">Path to the project directory</param>
 		/// <param name="Platform">The platform being built</param>
 		/// <param name="TargetObject">Object to receive the settings</param>
-		public static void ReadSettings(DirectoryReference? ProjectDir, UnrealTargetPlatform Platform, object TargetObject)
+		/// <param name="CustomConfig">Optional override config directory to search, for support of multiple target types</param>
+		public static void ReadSettings(DirectoryReference? ProjectDir, UnrealTargetPlatform Platform, object TargetObject, string CustomConfig = "")
 		{
-			ReadSettings(ProjectDir, Platform, TargetObject, null, null);
+			ReadSettings(ProjectDir, Platform, TargetObject, null, null, CustomConfig);
 		}
 
 		/// <summary>
@@ -465,7 +479,8 @@ namespace UnrealBuildTool
 		/// <param name="TargetObject">Object to receive the settings</param>
 		/// <param name="ConfigValues">Will be populated with config values that were retrieved. May be null.</param>
 		/// <param name="CmdLineArgs">Command line arguments, if null the application's command line arguments will be used</param>
-		internal static void ReadSettings(DirectoryReference? ProjectDir, UnrealTargetPlatform Platform, object TargetObject, Dictionary<ConfigDependencyKey, IReadOnlyList<string>?>? ConfigValues, CommandLineArguments? CmdLineArgs)
+		/// <param name="CustomConfig">Optional override config directory to search, for support of multiple target types</param>
+		internal static void ReadSettings(DirectoryReference? ProjectDir, UnrealTargetPlatform Platform, object TargetObject, Dictionary<ConfigDependencyKey, IReadOnlyList<string>?>? ConfigValues, CommandLineArguments? CmdLineArgs, string CustomConfig = "")
 		{
 			List<ConfigMember> Members = FindConfigMembersForType(TargetObject.GetType());
 
@@ -476,11 +491,11 @@ namespace UnrealBuildTool
 
 				if (CmdLineArgs == null)
 				{
-					Hierarchy = ReadHierarchy(Member.Attribute.ConfigType, ProjectDir, Platform);
+					Hierarchy = ReadHierarchy(Member.Attribute.ConfigType, ProjectDir, Platform, CustomConfig);
 				}
 				else
 				{
-					Hierarchy = ReadHierarchy(Member.Attribute.ConfigType, ProjectDir, Platform, "", CmdLineArgs);
+					Hierarchy = ReadHierarchy(Member.Attribute.ConfigType, ProjectDir, Platform, CustomConfig, CmdLineArgs);
 				}
 
 				// Get the key name

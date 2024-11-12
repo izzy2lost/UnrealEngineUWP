@@ -22,7 +22,6 @@
 #include "LandscapeEditorObject.h"
 #include "Landscape.h"
 #include "LandscapeStreamingProxy.h"
-#include "LandscapeTiledImage.h"
 #include "LandscapeRegionUtils.h"
 #include "LandscapeEditorPrivate.h"
 #include "LandscapeEditorUtils.h"
@@ -713,7 +712,7 @@ FText FLandscapeEditorDetailCustomization_NewLandscape::GetSectionSize(TSharedRe
 {
 	int32 QuadsPerSection = 0;
 	FPropertyAccess::Result Result = PropertyHandle->GetValue(QuadsPerSection);
-	check(Result == FPropertyAccess::Success);
+	check(Result != FPropertyAccess::Fail);
 
 	if (Result == FPropertyAccess::MultipleValues)
 	{
@@ -748,7 +747,7 @@ FText FLandscapeEditorDetailCustomization_NewLandscape::GetSectionsPerComponent(
 {
 	int32 SectionsPerComponent = 0;
 	FPropertyAccess::Result Result = PropertyHandle->GetValue(SectionsPerComponent);
-	check(Result == FPropertyAccess::Success);
+	check(Result != FPropertyAccess::Fail);
 
 	if (Result == FPropertyAccess::MultipleValues)
 	{
@@ -987,7 +986,7 @@ void FLandscapeEditorDetailCustomization_NewLandscape::AddComponents(ULandscapeI
 			TArray<ULandscapeComponent*> ComponentsUsingHeightmap;
 			ComponentsUsingHeightmap.Add(NewComponent);
 
-			for (const FLandscapeLayer& Layer : Landscape->LandscapeLayers)
+			for (const FLandscapeLayer& Layer : Landscape->GetLayers())
 			{
 				// Since we do not share heightmap when adding new component, we will provided the required array, but they will only be used for 1 component
 				TMap<UTexture2D*, UTexture2D*> CreatedHeightmapTextures;
@@ -1119,7 +1118,7 @@ FReply FLandscapeEditorDetailCustomization_NewLandscape::OnCreateButtonClicked()
 		ReimportHeightmapFilePath = UISettings->ImportLandscape_HeightmapFilename;
 	}
 
-	Landscape->Import(FGuid::NewGuid(), 0, 0, SizeX - 1, SizeY - 1, UISettings->NewLandscape_SectionsPerComponent, QuadsPerSection, HeightDataPerLayers, *ReimportHeightmapFilePath, MaterialLayerDataPerLayers, UISettings->ImportLandscape_AlphamapType);
+	Landscape->Import(FGuid::NewGuid(), 0, 0, SizeX - 1, SizeY - 1, UISettings->NewLandscape_SectionsPerComponent, QuadsPerSection, HeightDataPerLayers, *ReimportHeightmapFilePath, MaterialLayerDataPerLayers, UISettings->ImportLandscape_AlphamapType, TArrayView<const FLandscapeLayer>());
 
 	ULandscapeInfo* LandscapeInfo = Landscape->GetLandscapeInfo();
 	check(LandscapeInfo);
@@ -1154,11 +1153,11 @@ FReply FLandscapeEditorDetailCustomization_NewLandscape::OnCreateButtonClicked()
 		{
 			if (LandscapeEdMode->NewLandscapePreviewMode == ENewLandscapePreviewMode::ImportLandscape)
 			{
-				Landscape->EditorLayerSettings.Add(FLandscapeEditorLayerSettings(LayerInfo, ImportLandscapeLayersList[i].SourceFilePath));
+				Landscape->AddTargetLayer(LayerInfo->LayerName, FLandscapeTargetLayerSettings(LayerInfo, ImportLandscapeLayersList[i].SourceFilePath));
 			}
 			else
 			{
-				Landscape->EditorLayerSettings.Add(FLandscapeEditorLayerSettings(LayerInfo));
+				Landscape->AddTargetLayer(LayerInfo->LayerName, FLandscapeTargetLayerSettings(LayerInfo));
 			}
 
 			int32 LayerInfoIndex = LandscapeInfo->GetLayerInfoIndex(ImportLandscapeLayersList[i].LayerName);
@@ -1223,8 +1222,11 @@ FReply FLandscapeEditorDetailCustomization_NewLandscape::OnCreateButtonClicked()
 			double RegionSizeX = RegionSizeXTexels * LandscapeProxy->GetActorScale3D().X;
 			double RegionSizeY = RegionSizeYTexels * LandscapeProxy->GetActorScale3D().Y;
 			ALocationVolume* RegionVolume = LandscapeRegionUtils::CreateLandscapeRegionVolume(World, LandscapeProxy, RegionCoordinate, RegionSizeX);
-			RegionVolumes.Add(RegionVolume);
-			
+			if (RegionVolume)
+			{
+				RegionVolumes.Add(RegionVolume);
+			}
+
 			TArray<ALandscapeProxy*> CreatedStreamingProxies;
 			AddComponents(LandscapeInfo, LandscapeSubsystem, NewComponents, CreatedStreamingProxies);
 			
@@ -1248,7 +1250,7 @@ FReply FLandscapeEditorDetailCustomization_NewLandscape::OnCreateButtonClicked()
 
 			// ensures all the final height textures have been updated.
 			LandscapeInfo->ForceLayersFullUpdate();
-			LandscapeEditorUtils::SaveLandscapeProxies(MakeArrayView(CreatedStreamingProxies));
+			LandscapeEditorUtils::SaveLandscapeProxies(World, MakeArrayView(CreatedStreamingProxies));
 			LandscapeBounds += LandscapeInfo->GetCompleteBounds();
 
 			Progress.EnterProgressFrame(1.0f , FText::Format(LOCTEXT("LandscapeCreateRegion", "Creating Landscape Editor Regions ({0}, {1})"), RegionCoordinate.X, RegionCoordinate.Y));
@@ -1282,7 +1284,7 @@ FReply FLandscapeEditorDetailCustomization_NewLandscape::OnCreateButtonClicked()
 			return true;
 		});
 
-		LandscapeEditorUtils::SaveLandscapeProxies(MakeArrayView(AllProxies));
+		LandscapeEditorUtils::SaveLandscapeProxies(World, MakeArrayView(AllProxies));
 	}
 
 	return FReply::Handled();

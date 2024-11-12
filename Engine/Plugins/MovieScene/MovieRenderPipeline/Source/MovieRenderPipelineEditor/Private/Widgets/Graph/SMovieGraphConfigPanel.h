@@ -5,6 +5,7 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 #include "EditorUndoClient.h"
+#include "GraphEditor.h"
 
 class UMoviePipelineConfigBase;
 class SGraphEditor;
@@ -44,6 +45,9 @@ public:
 	/** Clears the selection in the graph widget being displayed. */
 	void ClearGraphSelection() const;
 
+	/** Gets the graph editor that's contained within this widget. */
+	TWeakPtr<SGraphEditor> GetGraphEditor() const;
+
 	// FEditorUndoClient interface
 	virtual bool MatchesContext(const FTransactionContext& InContext, const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const override;
 	virtual void PostUndo(bool bSuccess) override;
@@ -76,6 +80,9 @@ private:
 	void OnSelectedNodesChanged(const TSet<class UObject*>& NewSelection);
 	void OnNodeDoubleClicked(class UEdGraphNode* Node);
 	void OnNodeTitleCommitted(const FText& NewText, ETextCommit::Type CommitInfo, UEdGraphNode* NodeBeingChanged);
+
+	/** Provides appearance info to the graph widget. */
+	FGraphAppearanceInfo GetGraphAppearanceInfo() const;
 	
 	TObjectPtr<class UMovieGraphConfig> CurrentGraph;
 private:

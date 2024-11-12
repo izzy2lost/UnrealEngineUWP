@@ -9,7 +9,7 @@
 
 #include <ctype.h>
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 namespace UE {
 namespace Trace {
@@ -25,17 +25,17 @@ static FTraceChannel	TraceLogChannelDetail;
 FChannel&				TraceLogChannel			= TraceLogChannelDetail;
 
 ///////////////////////////////////////////////////////////////////////////////
-UE_TRACE_EVENT_BEGIN(Trace, ChannelAnnounce, NoSync|Important)
-	UE_TRACE_EVENT_FIELD(uint32, Id)
-	UE_TRACE_EVENT_FIELD(bool, IsEnabled)
-	UE_TRACE_EVENT_FIELD(bool, ReadOnly)
-	UE_TRACE_EVENT_FIELD(AnsiString, Name)
-UE_TRACE_EVENT_END()
+UE_TRACE_MINIMAL_EVENT_BEGIN(Trace, ChannelAnnounce, NoSync|Important)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint32, Id)
+	UE_TRACE_MINIMAL_EVENT_FIELD(bool, IsEnabled)
+	UE_TRACE_MINIMAL_EVENT_FIELD(bool, ReadOnly)
+	UE_TRACE_MINIMAL_EVENT_FIELD(AnsiString, Name)
+UE_TRACE_MINIMAL_EVENT_END()
 
-UE_TRACE_EVENT_BEGIN(Trace, ChannelToggle, NoSync|Important)
-	UE_TRACE_EVENT_FIELD(uint32, Id)
-	UE_TRACE_EVENT_FIELD(bool, IsEnabled)
-UE_TRACE_EVENT_END()
+UE_TRACE_MINIMAL_EVENT_BEGIN(Trace, ChannelToggle, NoSync|Important)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint32, Id)
+	UE_TRACE_MINIMAL_EVENT_FIELD(bool, IsEnabled)
+UE_TRACE_MINIMAL_EVENT_END()
 
 ///////////////////////////////////////////////////////////////////////////////
 static FChannel* volatile	GHeadChannel;			// = nullptr;
@@ -156,8 +156,8 @@ void FChannel::Setup(const ANSICHAR* InChannelName, const InitArgs& InArgs)
 		}
 	}
 
-	// If channel is initialized after the all channels are disabled (post static init)
-	// this channel needs to be disabled.
+	// If channel is initialized after all channels are disabled (post static init)
+	// this channel needs to be disabled too.
 	if (GChannelsInitialized)
 	{
 		Enabled = -1;
@@ -167,7 +167,7 @@ void FChannel::Setup(const ANSICHAR* InChannelName, const InitArgs& InArgs)
 ///////////////////////////////////////////////////////////////////////////////
 void FChannel::Announce() const
 {
-	UE_TRACE_LOG(Trace, ChannelAnnounce, TraceLogChannel, Name.Len * sizeof(ANSICHAR))
+	UE_TRACE_MINIMAL_LOG(Trace, ChannelAnnounce, TraceLogChannel, Name.Len * sizeof(ANSICHAR))
 		<< ChannelAnnounce.Id(Name.Hash)
 		<< ChannelAnnounce.IsEnabled(IsEnabled())
 		<< ChannelAnnounce.ReadOnly(Args.bReadOnly)
@@ -177,8 +177,11 @@ void FChannel::Announce() const
 ///////////////////////////////////////////////////////////////////////////////
 void FChannel::Initialize()
 {
-	// All channels are initialized as enabled (zero), and act like so during
-	// from process start until this method is called (i.e. when Trace is initalized).
+	// During static initialization, all channels are created as enabled (zero),
+	// and act like so from the process start until this method is called (i.e. when Trace is initialized).
+	// Now we can disable all channels.
+	// Channels specified on the command line (using -trace=<channels> argument)
+	// will be further re-enabled after this call.
 	ToggleAll(false);
 	GChannelsInitialized = true;
 }
@@ -247,11 +250,12 @@ FChannel* FChannel::FindChannel(const ANSICHAR* ChannelName)
 
 	return nullptr;
 }
-
+	
 ///////////////////////////////////////////////////////////////////////////////
-void FChannel::EnumerateChannels(ChannelIterFunc Func, void* User) 
+FChannel* FChannel::FindChannel(FChannelId ChannelId)
 {
 	using namespace Private;
+
 	FChannel* ChannelLists[] =
 	{
 		AtomicLoadAcquire(&GNewChannelList),
@@ -261,9 +265,14 @@ void FChannel::EnumerateChannels(ChannelIterFunc Func, void* User)
 	{
 		for (; Channel != nullptr; Channel = Channel->Next)
 		{
-			Func(Channel->Name.Ptr, Channel->IsEnabled(), User);
+			if (Channel->Name.Hash == ChannelId)
+			{
+				return Channel;
+			}
 		}
 	}
+
+	return nullptr;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -285,6 +294,7 @@ void FChannel::EnumerateChannels(ChannelIterCallback Func, void* User)
 			Info.Desc = Channel->Args.Desc;
 			Info.bIsEnabled = Channel->IsEnabled();
 			Info.bIsReadOnly = Channel->Args.bReadOnly;
+			Info.Id = Channel->Name.Hash;
 			bool Result = Func(Info, User);
 			if (!Result)
 			{
@@ -300,7 +310,7 @@ bool FChannel::Toggle(bool bEnabled)
 	using namespace Private;
 	AtomicStoreRelaxed(&Enabled, bEnabled ? 1 : -1);
 
-	UE_TRACE_LOG(Trace, ChannelToggle, TraceLogChannel)
+	UE_TRACE_MINIMAL_LOG(Trace, ChannelToggle, TraceLogChannel)
 		<< ChannelToggle.Id(Name.Hash)
 		<< ChannelToggle.IsEnabled(IsEnabled());
 
@@ -320,4 +330,4 @@ bool FChannel::Toggle(const ANSICHAR* ChannelName, bool bEnabled)
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

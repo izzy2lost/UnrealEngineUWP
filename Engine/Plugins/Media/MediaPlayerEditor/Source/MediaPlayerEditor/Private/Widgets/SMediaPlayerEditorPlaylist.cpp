@@ -191,7 +191,6 @@ void SMediaPlayerEditorPlaylist::Construct(const FArguments& InArgs, UMediaPlaye
 					[
 						// media source list
 						SAssignNew(MediaSourceListView, SListView<TSharedPtr<FMediaSourceTableEntry>>)
-							.ItemHeight(24.0f)
 							.ListItemsSource(&MediaSourceList)
 							.SelectionMode(ESelectionMode::Single)
 							.OnGenerateRow_Lambda([this](TSharedPtr<FMediaSourceTableEntry> Entry, const TSharedRef<STableViewBase>& OwnerTable) -> TSharedRef<ITableRow>

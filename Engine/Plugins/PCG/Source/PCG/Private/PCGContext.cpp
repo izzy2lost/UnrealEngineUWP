@@ -2,6 +2,7 @@
 
 #include "PCGContext.h"
 #include "PCGComponent.h"
+#include "PCGGraph.h"
 #include "PCGParamData.h"
 #include "PCGPin.h"
 #include "PCGSubsystem.h"
@@ -21,6 +22,22 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGContext)
 
 #define LOCTEXT_NAMESPACE "PCGContext"
+
+namespace PCGContextHelpers
+{
+	template <typename T>
+	bool GetOverrideParamValue(const IPCGAttributeAccessor& InAccessor, T& OutValue)
+	{
+		// Override were using the first entry (0) by default.
+		FPCGAttributeAccessorKeysEntries FirstEntry(PCGMetadataEntryKey(0));
+		return InAccessor.Get<T>(OutValue, FirstEntry, EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible);
+	}
+}
+
+FPCGTaskId FPCGContext::GetGraphExecutionTaskId() const
+{
+	return ensure(Stack) ? Stack->GetGraphExecutionTaskId() : InvalidPCGTaskId;
+}
 
 FString FPCGContext::GetTaskName() const
 {
@@ -95,7 +112,7 @@ const UPCGSettingsInterface* FPCGContext::GetInputSettingsInterface() const
 	}
 }
 
-void FPCGContext::InitializeSettings()
+void FPCGContext::InitializeSettings(bool bSkipPostLoad)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGContext::InitializeSettings);
 
@@ -126,12 +143,85 @@ void FPCGContext::InitializeSettings()
 
 			if (bHasParamConnected)
 			{
-				SettingsWithOverride = Cast<UPCGSettings>(StaticDuplicateObject(NodeSettings, GetTransientPackage()));
-				SettingsWithOverride->SetFlags(RF_Transient);
+				// If we have an override, we are not on the main thread and there is a hard ref override, we need to make sure that all objects
+				// are loaded. If not, we need to schedule the task on the main thread.
+				const bool bIsInGameThread = IsInGameThread();
+				if (!bIsInGameThread && NodeSettings->HasAnyOverridableHardReferences())
+				{
+					for (const FPCGSettingsOverridableParam& Param : OverridableParams)
+					{
+						// If the param is not a hard ref, ignore.
+						if (!Param.IsHardReferenceOverride())
+						{
+							continue;
+						}
 
+						PCGAttributeAccessorHelpers::AccessorParamResult AccessorResult{};
+						TUniquePtr<const IPCGAttributeAccessor> AttributeAccessor = PCGAttributeAccessorHelpers::CreateConstAccessorForOverrideParamWithResult(InputData, Param, &AccessorResult);
+
+						// If the accessor failed to be created, ignore
+						if (!AttributeAccessor.IsValid())
+						{
+							continue;
+						}
+
+						FSoftObjectPath ObjectPath;
+						if (PCGContextHelpers::GetOverrideParamValue(*AttributeAccessor, ObjectPath))
+						{
+							FGCScopeGuard GCScope;
+							if (!ObjectPath.ResolveObject())
+							{
+								// We have an override value that is not loaded, and we are not on the main thread. We need to schedule the task on the main thread.
+								bOverrideSettingsOnMainThread = true;
+								break;
+							}
+						}
+					}
+				}
+			
+				FObjectDuplicationParameters DuplicateParams(const_cast<UPCGSettings*>(NodeSettings), GetTransientPackage());
+				DuplicateParams.bSkipPostLoad = bSkipPostLoad;
+				DuplicateParams.ApplyFlags = RF_Transient;
+			
+				TMap<UObject*, UObject*> CreatedObjects;
+				DuplicateParams.CreatedObjects = &CreatedObjects;
+				
+				{
+					FGCScopeGuard Scope;
+					SettingsWithOverride = Cast<UPCGSettings>(StaticDuplicateObjectEx(DuplicateParams));
+				}
+			
+				for (auto& KeyValuePair : CreatedObjects)
+				{
+					if (KeyValuePair.Value)
+					{
+						if (!bIsInGameThread)
+						{
+							// Outside of GameThread we need to clear the Async flags on newly duplicated objects
+							AsyncObjects.Add(KeyValuePair.Value);
+						}
+
+						if (bSkipPostLoad)
+						{
+							// We are not calling PostLoad so remove the NeedPostLoad flags here
+							KeyValuePair.Value->ClearFlags(EObjectFlags::RF_NeedPostLoad | EObjectFlags::RF_NeedPostLoadSubobjects);
+						}
+#if WITH_EDITOR
+						// @todo_pcg: find a way to avoid the call to SetupCallbacks() all together but for now unregister the callbacks after duplication
+						if (UPCGGraphInstance* GraphInstance = Cast<UPCGGraphInstance>(KeyValuePair.Value))
+						{
+							GraphInstance->TeardownCallbacks();
+						}
+#endif
+					}
+				}
+				
 				// Force seed copy to prevent issue due to delta serialization vs. Seed being initialized in the constructor only for new nodes
 				SettingsWithOverride->Seed = NodeSettings->Seed;
 				SettingsWithOverride->OriginalSettings = NodeSettings;
+
+				// If anything needs to be done by the Settings object after its been duplicated for override it should be done in here, outside of the gamethread that might include code that would be normally done in PostLoad
+				SettingsWithOverride->OnOverrideSettingsDuplicated(bSkipPostLoad);
 			}
 		}
 	}
@@ -140,6 +230,10 @@ void FPCGContext::InitializeSettings()
 void FPCGContext::OverrideSettings()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGContext::OverrideSettings);
+
+	// If we have to be on the main thread check it there. It is necessary for overrides of hard references that are not yet loaded. We can reset the flag afterwards.
+	check(!bOverrideSettingsOnMainThread || IsInGameThread());
+	bOverrideSettingsOnMainThread = false;
 
 	// Use original settings to avoid recomputing OverridableParams() everytime
 	const UPCGSettings* OriginalSettings = GetOriginalSettings<UPCGSettings>();
@@ -243,12 +337,14 @@ void FPCGContext::OverrideSettings()
 			FPCGAttributeAccessorKeysEntries FirstEntry(PCGMetadataEntryKey(0));
 					
 			PropertyType Value{};
-			if (!AttributeAccessor->Get<PropertyType>(Value, FirstEntry, EPCGAttributeAccessorFlags::AllowBroadcast | EPCGAttributeAccessorFlags::AllowConstructible))
+			if (!PCGContextHelpers::GetOverrideParamValue(*AttributeAccessor, Value))
 			{
 				PCGE_LOG_C(Warning, GraphAndLog, this, FText::Format(LOCTEXT("ConversionFailed", "Parameter '{0}' cannot be converted from attribute '{1}'"), FText::FromName(Param.Label), FText::FromName(AttributeName)));
 				return false;
 			}
 
+			// Setting properties (ex: FSoftObjectPath) can end up doing StaticFindObject which needs to be protected from running at same time as GC
+			FGCScopeGuard GCScope;
 			FPCGAttributeAccessorKeysSingleObjectPtr PropertyObjectKey(Container);
 			PropertyAccessor->Set<PropertyType>(Value, PropertyObjectKey);
 
@@ -269,9 +365,26 @@ void FPCGContext::OverrideSettings()
 						}
 						else if constexpr (std::is_same_v<FSoftClassPath, PropertyType>)
 						{
-							if (const UClass* Class = Cast<UClass>(Value.ResolveObject()))
+							UClass* Subclass = nullptr;
+							if (const FClassProperty* ClassProp = CastField<const FClassProperty>(Param.Properties.Last()))
 							{
-								bInvalid = ObjectProperty->PropertyClass && !Class->IsChildOf(ObjectProperty->PropertyClass);
+								Subclass = ClassProp->MetaClass;
+							}
+							else if (const FSoftClassProperty* SoftClassProp = CastField<const FSoftClassProperty>(Param.Properties.Last()))
+							{
+								Subclass = SoftClassProp->MetaClass;
+							}
+							else
+							{
+								// TODO: should we use prop -> GetOwnerProperty()->GetClassMetadata(TEXT("MetaClass")) ?
+								bInvalid = true;
+							}
+
+							const UClass* ValueClass = (bInvalid ? nullptr : Cast<UClass>(Value.ResolveObject()));
+
+							if (ValueClass)
+							{
+								bInvalid = !Subclass || !ValueClass->IsChildOf(Subclass);
 							}
 						}
 
@@ -292,6 +405,9 @@ void FPCGContext::OverrideSettings()
 			OverriddenParams.Add(&Param);
 		}
 	}
+
+	// Make sure CacheCrc is up to date
+	SettingsWithOverride->CacheCrc();
 }
 
 bool FPCGContext::IsValueOverriden(const FName PropertyName)
@@ -342,6 +458,12 @@ void FPCGContext::AddStructReferencedObjects(FReferenceCollector& Collector)
 {
 	InputData.AddReferences(Collector);
 	OutputData.AddReferences(Collector);
+
+	for (TPair<FPCGDataCollection, FPCGDataCollection>& CachedIOResult : CachedInputToOutputInternalResults)
+	{
+		CachedIOResult.Key.AddReferences(Collector);
+		CachedIOResult.Value.AddReferences(Collector);
+	}
 
 	if (SettingsWithOverride)
 	{

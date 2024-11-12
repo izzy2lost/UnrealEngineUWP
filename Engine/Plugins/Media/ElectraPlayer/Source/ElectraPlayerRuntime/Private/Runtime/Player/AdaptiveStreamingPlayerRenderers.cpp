@@ -73,8 +73,7 @@ namespace Electra
 			// If there is no renderer to wrap there should not be a wrapper created in the first place!
 			check(WrappedRenderer.IsValid());
 			NumPendingReturnBuffers = 0;
-			NumEnqueuedSamples = 0;
-			EnqueuedDuration.SetToZero();
+			EnqueuedSamples.Empty();
 		}
 
 	private:
@@ -94,8 +93,10 @@ namespace Electra
 
 
 		FTimeValue GetEnqueuedSampleDuration() override;
-		int32 GetNumEnqueuedSamples(FTimeValue* OutOptionalDuration) override;
+		int32 GetNumEnqueuedSamples(TArray<FEnqueuedSampleInfo>* OutOptionalSampleInfos) override;
 
+		void AlwaysEmitSamplesWhenPaused(bool bEmitAlways) override;
+		void SetPlaybackRate(double InCurrentPlaybackRate, double InIntendedPlaybackRate, bool bInCurrentlyPaused) override;
 		void DisableHoldbackOfFirstRenderableVideoFrame(bool bDisableHoldback) override;
 
 		FTimeRange GetSupportedRenderRateScale() override;
@@ -132,6 +133,9 @@ namespace Electra
 		int64 CurrentValidityValue = 0;
 		EStreamType Type = EStreamType::Unsupported;
 		bool bIsRunning = false;
+		double CurrentPlaybackRate = 0.0;
+		double IntendedPlaybackRate = 0.0;
+		bool bAlwaysEmitSamplesWhenPaused = false;
 		bool bDoNotHoldBackFirstVideoFrame = true;
 		uint32 NumBuffersNotHeldBack = 0;
 
@@ -150,7 +154,7 @@ namespace Electra
 				bool DiffersFrom(int32 InSampleRate, int32 InNumChannels)
 				{ return InSampleRate != SampleRate || InNumChannels != NumChannels; }
 				void Update(int32 InSampleRate, int32 InNumChannels)
-				{ 
+				{
 					SampleRate = InSampleRate;
 					NumChannels = InNumChannels;
 				}
@@ -231,8 +235,7 @@ namespace Electra
 		FAudioVars AudioVars;
 
 		// Stats
-		int32 NumEnqueuedSamples = 0;
-		FTimeValue EnqueuedDuration;
+		TArray<FEnqueuedSampleInfo> EnqueuedSamples;
 	};
 
 
@@ -256,7 +259,7 @@ void FAdaptiveStreamingWrappedRenderer::SampleReleasedToPool(IDecoderOutput* InD
 	check(InDecoderOutput);
 	if (InDecoderOutput && RenderClock.IsValid())
 	{
-		int64 ValidityValue = InDecoderOutput->GetMutablePropertyDictionary().GetValue(RenderOptionKeys::ValidityValue).SafeGetInt64(0);
+		int64 ValidityValue = InDecoderOutput->GetMutablePropertyDictionary().GetValue(RenderOptionKeys::ValidityValue).SafeGetInt64(-1);
 		if (ValidityValue == CurrentValidityValue)
 		{
 			FTimeValue RenderTime = InDecoderOutput->GetMutablePropertyDictionary().GetValue(RenderOptionKeys::PTS).SafeGetTimeValue(FTimeValue::GetInvalid());
@@ -275,16 +278,13 @@ void FAdaptiveStreamingWrappedRenderer::SampleReleasedToPool(IDecoderOutput* InD
 
 			{
 				FScopeLock lock(&Lock);
-
-				if (--NumEnqueuedSamples < 0)
+				for(int32 i=0; i<EnqueuedSamples.Num(); ++i)
 				{
-					NumEnqueuedSamples = 0;
-				}
-
-				EnqueuedDuration -= Duration;
-				if (!EnqueuedDuration.IsValid() || EnqueuedDuration < FTimeValue::GetZero())
-				{
-					EnqueuedDuration = FTimeValue::GetZero();
+					if (EnqueuedSamples[i].PTS == RenderTime)
+					{
+						EnqueuedSamples.RemoveAt(i);
+						break;
+					}
 				}
 			}
 		}
@@ -302,10 +302,6 @@ UEMediaError FAdaptiveStreamingWrappedRenderer::CreateBufferPool(const FParamDic
 	LLM_SCOPE(ELLMTag::ElectraPlayer);
 
 	FParamDict Parameters(InParameters);
-
-	NumBuffersInCirculation = 0;
-	NumEnqueuedSamples = 0;
-	EnqueuedDuration.SetToZero();
 
 	// Ask for larger buffers in case of audio. For playback speed changes we may need to create artificial
 	// samples to slow down audio playback and need larger buffers for that.
@@ -336,7 +332,12 @@ UEMediaError FAdaptiveStreamingWrappedRenderer::CreateBufferPool(const FParamDic
 			AudioVars.TempoChanger->SetMaxOutputSamples(AudioVars.MaxOutputSampleBlockSize);
 		}
 	}
-	return WrappedRenderer->CreateBufferPool(Parameters);
+	UEMediaError Error = WrappedRenderer->CreateBufferPool(Parameters);
+	// Clear the buffer bookkeeping values as creating a buffer _may_ call `SampleReleasedToPool()` to populate
+	// its internal structures without us having requested a buffer yet.
+	NumBuffersInCirculation = 0;
+	EnqueuedSamples.Empty();
+	return Error;
 }
 
 UEMediaError FAdaptiveStreamingWrappedRenderer::AcquireBuffer(IBuffer*& OutBuffer, int32 TimeoutInMicroseconds, const FParamDict& InParameters)
@@ -421,8 +422,7 @@ UEMediaError FAdaptiveStreamingWrappedRenderer::ReturnAudioBuffer(IBuffer* Buffe
 				UEMediaError Error = ReturnBufferCommon(Buffer, bRender, InSampleProperties);
 				check(Error == UEMEDIA_ERROR_OK);
 				Error = WrappedRenderer->AcquireBuffer(Buffer, 0, NoParams);
-				check(Error == UEMEDIA_ERROR_OK);
-				if (Error != UEMEDIA_ERROR_OK)
+				if (!ensure(Error == UEMEDIA_ERROR_OK))
 				{
 					return Error;
 				}
@@ -452,15 +452,24 @@ UEMediaError FAdaptiveStreamingWrappedRenderer::ReturnBufferCommon(IBuffer* Buff
 	bool bIsUnusedReturnBuffer = bRender == false && InSampleProperties.GetValue(RenderOptionKeys::EOSFlag).SafeGetBool(false) == false;
 
 	FScopeLock lock(&Lock);
-	EnqueuedDuration += Duration;
-	++NumEnqueuedSamples;
+	FEnqueuedSampleInfo& enqInf = EnqueuedSamples.Emplace_GetRef();
+	enqInf.Duration = Duration;
+	enqInf.PTS = InSampleProperties.GetValue(RenderOptionKeys::PTS).SafeGetTimeValue(FTimeValue::GetInvalid());
 
 	if (!bIsUnusedReturnBuffer)
 	{
 		bool bHoldback = !bIsRunning;
+
+		// Never hold back when the player is paused?
+		// The main player state as set by the user through API calls, not the current actual rate which
+		// may be different during prerolling and buffering!
+		if (bAlwaysEmitSamplesWhenPaused && IntendedPlaybackRate == 0.0)
+		{
+			bHoldback = false;
+		}
 		// If the video renderer shall not hold back the first frame (used for scrubbing video)
 		// then we pass it out. The count is reset in Flush().
-		if (Type == EStreamType::Video && bDoNotHoldBackFirstVideoFrame)
+		else if (Type == EStreamType::Video && bDoNotHoldBackFirstVideoFrame)
 		{
 			if (NumBuffersNotHeldBack == 0)
 			{
@@ -493,8 +502,7 @@ UEMediaError FAdaptiveStreamingWrappedRenderer::ReleaseBufferPool()
 	LLM_SCOPE(ELLMTag::ElectraPlayer);
 
 	ReturnAllPendingBuffers(false);
-	NumEnqueuedSamples = 0;
-	EnqueuedDuration.SetToZero();
+	EnqueuedSamples.Empty();
 	AudioVars.Reset();
 	Lock.Unlock();
 
@@ -534,9 +542,8 @@ UEMediaError FAdaptiveStreamingWrappedRenderer::Flush(const FParamDict& InOption
 
 	ReturnAllPendingBuffers(true);
 	++CurrentValidityValue;
-	NumEnqueuedSamples = 0;
 	NumBuffersNotHeldBack = 0;
-	EnqueuedDuration.SetToZero();
+	EnqueuedSamples.Empty();
 	AudioVars.Reset();
 	Lock.Unlock();
 
@@ -584,10 +591,18 @@ void FAdaptiveStreamingWrappedRenderer::ReturnAllPendingBuffers(bool bForFlush)
 FTimeValue FAdaptiveStreamingWrappedRenderer::GetEnqueuedSampleDuration()
 {
 	FScopeLock lock(&Lock);
-	return EnqueuedDuration;
+	FTimeValue dur(FTimeValue::GetZero());
+	for(auto &it : EnqueuedSamples)
+	{
+		if (it.PTS.IsValid())
+		{
+			dur += it.Duration;
+		}
+	}
+	return dur;
 }
 
-int32 FAdaptiveStreamingWrappedRenderer::GetNumEnqueuedSamples(FTimeValue* OutOptionalDuration)
+int32 FAdaptiveStreamingWrappedRenderer::GetNumEnqueuedSamples(TArray<IAdaptiveStreamingWrappedRenderer::FEnqueuedSampleInfo>* OutOptionalSampleInfos)
 {
 	FScopeLock lock(&Lock);
 
@@ -599,11 +614,30 @@ int32 FAdaptiveStreamingWrappedRenderer::GetNumEnqueuedSamples(FTimeValue* OutOp
 		DurAvail = FTimeValue::GetZero();
 	}
 
-	if (OutOptionalDuration)
+	if (OutOptionalSampleInfos)
 	{
-		*OutOptionalDuration = EnqueuedDuration + DurAvail;
+		for(auto &it : EnqueuedSamples)
+		{
+			if (it.PTS.IsValid())
+			{
+				(*OutOptionalSampleInfos).Emplace(it);
+			}
+		}
 	}
-	return NumEnqueuedSamples + NumAvail;
+	return EnqueuedSamples.Num() + NumAvail;
+}
+
+void FAdaptiveStreamingWrappedRenderer::AlwaysEmitSamplesWhenPaused(bool bEmitAlways)
+{
+	FScopeLock lock(&Lock);
+	bAlwaysEmitSamplesWhenPaused = bEmitAlways;
+}
+
+void FAdaptiveStreamingWrappedRenderer::SetPlaybackRate(double InCurrentPlaybackRate, double InIntendedPlaybackRate, bool bInCurrentlyPaused)
+{
+	FScopeLock lock(&Lock);
+	CurrentPlaybackRate = bInCurrentlyPaused ? 0.0 : InCurrentPlaybackRate;
+	IntendedPlaybackRate = bInCurrentlyPaused ? 0.0 : InIntendedPlaybackRate;
 }
 
 void FAdaptiveStreamingWrappedRenderer::DisableHoldbackOfFirstRenderableVideoFrame(bool bInDisableHoldback)

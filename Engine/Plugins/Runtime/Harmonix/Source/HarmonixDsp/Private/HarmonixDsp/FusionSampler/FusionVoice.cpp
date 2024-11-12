@@ -28,13 +28,6 @@ namespace FusionVoice
 const double FFusionVoice::kMaxPitchOffsetCents = 12 * HarmonixDsp::kCentsPerOctave;
 
 FFusionVoice::FFusionVoice()
-	: MySampler(nullptr)
-	, bWaitingForAttack(false)
-	, KeyZone(nullptr)
-	, PitchShifter(nullptr)
-	, OctaveShift(0.0f)
-	, MaxAudioLevel(0.0f)
-	, VoicePool(nullptr)
 {
 
 	ActiveRenderer = MakeShared<FStreamingAudioRendererV2>();
@@ -218,7 +211,7 @@ void FFusionVoice::Kill()
 	}
 }
 
-void FFusionVoice::Init(FFusionVoicePool* InOwner, uint32 InDebugID, bool bDecompressSamplesOnLoad)
+void FFusionVoice::Init(FFusionVoicePool* InOwner, uint32 InDebugID)
 {
 	VoicePool = InOwner;
 	DebugID = InDebugID;
@@ -342,28 +335,28 @@ void FFusionVoice::AttackWithTargetNote(uint8 InMidiNoteNumber, float InGain, in
 	{
 		if (KeyZone->TimeStretchConfig.bMaintainTime)
 		{
-			float EventBeat = (float)InEventTick / MySampler->GetTicksPerQuarterNote();
-			float SamplerBeat = MySampler->GetBeat();
-			float ErrorBeats = SamplerBeat - EventBeat;
+			float EventQuarterNote = (float)InEventTick / MySampler->GetTicksPerQuarterNote();
+			float SamplerQuarterNote = MySampler->GetQuarterNote();
+			float ErrorBeats = SamplerQuarterNote - EventQuarterNote;
 			float ErrorMs = ErrorBeats * 60000.0f / KeyZone->TimeStretchConfig.OriginalTempo;
 			if (ErrorMs > 10.0f)
 			{
 				// gotta let the render code skip forward a bit in process otherwise this voice will be out of sync by a lot!
-				StartBeat = (float)InEventTick / Harmonix::Midi::Constants::GTicksPerQuarterNote;
+				StartQuarterNote = (float)InEventTick / Harmonix::Midi::Constants::GTicksPerQuarterNote;
 			}
 			else
 			{
-				StartBeat = SamplerBeat;
+				StartQuarterNote = SamplerQuarterNote;
 			}
 		}
 		else
 		{
-			StartBeat = MySampler->GetBeat();
+			StartQuarterNote = MySampler->GetQuarterNote();
 		}
 	}
 	else
 	{
-		StartBeat = (float)InEventTick / Harmonix::Midi::Constants::GTicksPerQuarterNote;
+		StartQuarterNote = (float)InEventTick / Harmonix::Midi::Constants::GTicksPerQuarterNote;
 	}
 
 	// multiply by 100.0?
@@ -740,22 +733,22 @@ uint32 FFusionVoice::Process(uint32 InSliceIndex, uint32 InSubsliceIndex, float*
 			MaintainPitchWhenSpeedChanges = true;
 
 			// check for resync...
-			float currentMidiBeat = MySampler->GetBeat();
+			float CurrentMidiQuarterNote = MySampler->GetQuarterNote();
 
-			if (currentMidiBeat > StartBeat && (SamplePos > LastVsoPos || !bHasRenderedAnySamples))
+			if (CurrentMidiQuarterNote > StartQuarterNote && (SamplePos > LastVsoPos || !bHasRenderedAnySamples))
 			{
 				LastVsoPos = SamplePos;
 
-				float ElapsedBeats = currentMidiBeat - StartBeat;
+				float ElapsedBeats = CurrentMidiQuarterNote - StartQuarterNote;
 				float ExpectedElapsedMs = ElapsedBeats * 60000.0f / KeyZone->TimeStretchConfig.OriginalTempo;
 
-				float currentSampleFrame = (PitchShifter->HasCurrentSampleFrame() && bHasRenderedAnySamples) ? (float)StartPos + (float)PitchShifter->GetCurrentSampleFrame() : (float)SamplePos;
+				float CurrentSampleFrame = (PitchShifter->HasCurrentSampleFrame() && bHasRenderedAnySamples) ? (float)StartPos + (float)PitchShifter->GetCurrentSampleFrame() : (float)SamplePos;
 				if (KeyZone->SampleStartOffset != -1)
 				{
-					currentSampleFrame -= KeyZone->SampleStartOffset;
+					CurrentSampleFrame -= KeyZone->SampleStartOffset;
 				}
 
-				float ActualElapsedMs = (currentSampleFrame * 1000.0f) / KeyZone->SoundWaveProxy->GetSampleRate();
+				float ActualElapsedMs = (CurrentSampleFrame * 1000.0f) / KeyZone->SoundWaveProxy->GetSampleRate();
 				float ErrorMs = ActualElapsedMs - ExpectedElapsedMs;
 
 				if (!bHasRenderedAnySamples)

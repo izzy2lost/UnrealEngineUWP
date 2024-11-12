@@ -47,6 +47,7 @@
 #include "Texture/InterchangeTexturePayloadInterface.h"
 #include "TextureCompiler.h"
 #include "TextureImportSettings.h"
+#include "TextureImportUtils.h"
 #include "TextureResource.h"
 #include "UDIMUtilities.h"
 #include "UObject/ObjectMacros.h"
@@ -460,6 +461,11 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 	{
 		check(!InBlockSourcesData.IsEmpty());
 
+		// note if only one image in UDIM set is found,
+		//	then SetupTexture2DSourceDataFromBulkData_Editor will wind up discarding the UDIM parse
+		//	and instead import it as a single image.
+		// eg. if you have something like "test_1024.bmp" it will not be treated as UDIM with offsets of X=3 and Y=2
+
 		TArray<const TPair<int32, FString>*> UDIMsAndSourcesFileArray;
 		UDIMsAndSourcesFileArray.Reserve(InBlockSourcesData.Num());
 		int32 OrginalSourceDataIndex = INDEX_NONE;
@@ -592,7 +598,26 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 						
 						ERawImageFormat::Type BlockedImageRawFormat = FImageCoreUtils::ConvertToRawImageFormat(BlockedImage.Format);
 						FImage DestImage(Image.SizeX, Image.SizeY, BlockedImageRawFormat, BlockedImage.bSRGB ? EGammaSpace::sRGB : EGammaSpace::Linear);
-						FImageCore::CopyImage(SourceImage, DestImage);
+
+						{
+							FImage GrayScaleImage;
+							switch (ImageRawFormat)
+							{
+							case ERawImageFormat::R16F:
+								// falls through
+							case ERawImageFormat::R32F:
+							{
+								GrayScaleImage.Init(Image.SizeX, Image.SizeY, ERawImageFormat::G16, Image.bSRGB ? EGammaSpace::sRGB : EGammaSpace::Linear);
+								FImageCore::CopyImage(SourceImage, GrayScaleImage);
+								SourceImage = GrayScaleImage;
+								break;
+							}
+							default:
+								break;
+							}
+
+							FImageCore::CopyImage(SourceImage, DestImage);
+						}
 
 						Image.RawData = MakeUniqueBufferFromArray(MoveTemp(DestImage.RawData));
 						Image.Format = BlockedImage.Format;
@@ -674,12 +699,18 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 				TextureFactoryNode->GetCustomPreferCompressedSourceData(bShoudImportCompressedImage);
 			}
 
-			// Is there a case were a translator can be both interface and how should the factory chose which to invoke?
-			if (const IInterchangeTexturePayloadInterface* TextureTranslator = Cast<IInterchangeTexturePayloadInterface>(Translator))
+			const IInterchangeTexturePayloadInterface* TextureTranslator = Cast<IInterchangeTexturePayloadInterface>(Translator);
+			const IInterchangeBlockedTexturePayloadInterface* BlockedTextureTranslator = Cast<IInterchangeBlockedTexturePayloadInterface>(Translator);
+
+			// If the translator implements both interfaces we need to decide which one to invoke
+			const bool bInvokeBlockedInterface = (BlockedTextureTranslator && !TextureTranslator)
+										   || (BlockedTextureTranslator && TextureTranslator && !BlockAndSourceDataFiles.IsEmpty());
+
+			if (TextureTranslator && !bInvokeBlockedInterface)
 			{
 				if (BlockAndSourceDataFiles.IsEmpty())
 				{
-					if (Translator->GetClass() == UInterchangeJPGTranslator::StaticClass() 
+					if (Translator->GetClass() == UInterchangeJPGTranslator::StaticClass()
 						|| Translator->GetClass() == UInterchangeUEJPEGTranslator::StaticClass())
 					{
 						// Honor setting from TextureImporter.RetainJpegFormat in Editor.ini if it exists (ideally we should deprecate this as it is confusing and probably not thread safe)
@@ -704,7 +735,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 					return FTexturePayloadVariant(TInPlaceType<TOptional<FImportBlockedImage>>(), GetBlockedTexturePayloadDataFromSourceFiles(SourceData, BlockAndSourceDataFiles, Translator));
 				}
 			}
-			else if (const IInterchangeBlockedTexturePayloadInterface* BlockedTextureTranslator = Cast<IInterchangeBlockedTexturePayloadInterface>(Translator))
+			else if (bInvokeBlockedInterface)
 			{
 				return FTexturePayloadVariant(TInPlaceType<TOptional<FImportBlockedImage>>(), BlockedTextureTranslator->GetBlockedTexturePayloadData(PayloadKey, AlternateTexturePath));
 			}
@@ -735,8 +766,260 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 	void SetupTextureSourceDataFromBulkData(UTexture* Texture, const FImportImage& Image, UE::Serialization::FEditorBulkData::FSharedBufferWithID&& BufferAndId, bool bIsReimport);
 
 #if WITH_EDITOR
-	void SetupTextureSourceDataFromBulkData_Editor(UTexture* Texture, const FImportImage& Image, UE::Serialization::FEditorBulkData::FSharedBufferWithID&& BufferAndId, bool bIsReimport)
+	
+	// "Nearest" is in log scale (eg. in ratio sense) not linear value difference
+	//	RoundToNearestPowerOfTwo32(0) == 1
+	static inline uint64 RoundToNearestPowerOfTwo32(const uint32 x)
 	{
+		uint64 up = FMath::RoundUpToPowerOfTwo64(x);
+		uint64 dn = up>>1;
+	
+		// input arg is 32 bit so squares fit in 64
+		return ( up*dn <= x*x ) ? up : dn;
+	}
+
+	// Image and BufferAndId will be read from and mutated if a resize is done
+	void ResizeImportImageIfNeeded(UTexture* Texture, FImportImage& Image, int64 NumSlices, UE::Serialization::FEditorBulkData::FSharedBufferWithID & BufferAndId)
+	{
+		// Image.RawData ignored; use BufferAndId instead for payload bytes
+		//	NumSlices not changed by import (no volumes here)
+		Image.RawData.Reset();
+
+		if ( Texture->VirtualTextureStreaming )
+		{
+			// may already be set for a reimport
+			return;
+		}
+
+		int64 LimitPixelCount = GetDefault<UTextureImportSettings>()->GetAutoLimitPixelCount();
+		if ( LimitPixelCount == 0 )
+		{
+			return;
+		}
+
+		int64 InitialPixelCount = (int64) Image.SizeX * Image.SizeY * NumSlices;
+		if ( InitialPixelCount <= LimitPixelCount )
+		{
+			return;
+		}
+
+		// ensure resizing to 1x1xNumSlices will get us under LimitPixelCount
+		int64 MinLimitPixelCount = 16384;
+		check( NumSlices <= MinLimitPixelCount );
+		if ( LimitPixelCount < MinLimitPixelCount )
+		{
+			UE_LOG(LogInterchangeImport, Warning, TEXT("Tiny LimitPixelCount %lld changed to %lld ."), LimitPixelCount, MinLimitPixelCount );
+			LimitPixelCount = MinLimitPixelCount;
+		}
+
+		if ( Texture->GetTextureClass() == ETextureClass::TwoD && NumSlices == 1 && GetDefault<UTextureImportSettings>()->IsImportAutoVTEnabled() )
+		{
+			// see ShouldTextureBeVirtualByAutoImportSize
+			Texture->VirtualTextureStreaming = true;
+			return;
+		}
+
+		// texture is not VT and exceeds pixel count limit, do resize
+		
+		const int64 BytesPerPixel = FTextureSource::GetBytesPerPixel(Image.Format);
+
+		if ( Image.NumMips > 1 )
+		{
+			// for existing-mips, handle by stepping down the existing mips first
+			//	existing mips must either be full mip chains or just one
+			
+			check( Image.RawDataCompressionFormat == TSCF_None );
+
+			int64 MipIndex = 0;
+			int64 NewSizeX = Image.SizeX;
+			int64 NewSizeY = Image.SizeY;
+			int64 BytesDiscarded = 0;
+			while( NewSizeX * NewSizeY * NumSlices > LimitPixelCount )
+			{
+				BytesDiscarded += NewSizeX * NewSizeY * NumSlices * BytesPerPixel;
+
+				MipIndex ++;				
+				NewSizeX = FMath::Max<int64>(NewSizeX>>1,1);
+				NewSizeY = FMath::Max<int64>(NewSizeY>>1,1);
+			}
+			
+			FSharedBuffer SrcBuffer = BufferAndId.GetPayload();
+			FMemoryView SrcView = SrcBuffer.GetView();
+
+			check( SrcView.GetSize() == Image.ComputeBufferSize() );
+
+			if ( MipIndex < Image.NumMips )
+			{
+				// just truncate the large mips off the front of the buffer
+				
+				UE_LOG(LogInterchangeImport, Display, TEXT("Image %s larger than GetAutoLimitPixelCount.  Dropping existing mips: %d x %d -> %d x %d (%d slices)"),
+					*Texture->GetName(),
+					Image.SizeX,Image.SizeY,
+					NewSizeX,NewSizeY,
+					NumSlices);
+
+				Image.SizeX = NewSizeX;
+				Image.SizeY = NewSizeY;
+				Image.NumMips -= MipIndex;
+
+				check( (int64)SrcView.GetSize() > BytesDiscarded );
+				SrcView = SrcView.RightChop( BytesDiscarded );
+				
+				check( SrcView.GetSize() == Image.ComputeBufferSize() );
+
+				BufferAndId = UE::Serialization::FEditorBulkData::FSharedBufferWithID( FSharedBuffer::Clone(SrcView) );
+
+				// done just by stepping down existing mips, no actual resizing needed
+				return;
+			}
+			else
+			{
+				// didn't have enough mips to step down
+				// just change to 1 mip only and resize from there
+				
+				UE_LOG(LogInterchangeImport, Display, TEXT("Image %s has existing mips but not a full set, discarding."),
+					*Texture->GetName() );
+
+				Image.NumMips = 1;
+				SrcView = SrcView.LeftChop( Image.SizeX * Image.SizeY * NumSlices * BytesPerPixel );
+				
+				check( SrcView.GetSize() == Image.ComputeBufferSize() );
+
+				BufferAndId = UE::Serialization::FEditorBulkData::FSharedBufferWithID( FSharedBuffer::Clone(SrcView) );
+
+				// continue to resizing
+			}
+		}
+
+		// since we are resizing anyway, may as well change to pow2 also
+		// note that we change both dimensions to pow2
+		//	 which can change the aspect ratio if the source was not square or pow2
+
+		int64 LargerDim  = FMath::Max<int64>(Image.SizeX,Image.SizeY);
+		int64 SmallerDim = FMath::Min<int64>(Image.SizeX,Image.SizeY);
+		double OriginalDimRatio = (double) SmallerDim / LargerDim;
+
+		LargerDim = FMath::RoundUpToPowerOfTwo64(LargerDim);
+
+		for(;;)
+		{
+			LargerDim >>= 1;
+			SmallerDim = RoundToNearestPowerOfTwo32( FMath::RoundToInt32( LargerDim * OriginalDimRatio) );
+
+			if ( LargerDim * SmallerDim * NumSlices <= LimitPixelCount )
+			{
+				break;
+			}
+		}
+
+		int64 NewSizeX,NewSizeY;
+		if ( Image.SizeX >= Image.SizeY )
+		{
+			NewSizeX = LargerDim;
+			NewSizeY = SmallerDim;
+		}
+		else
+		{
+			NewSizeX = SmallerDim;
+			NewSizeY = LargerDim;
+		}
+
+		UE_LOG(LogInterchangeImport, Display, TEXT("Image %s larger than GetAutoLimitPixelCount.  Resizing %d x %d -> %d x %d (%d slices)"),
+			*Texture->GetName(),
+			Image.SizeX,Image.SizeY,
+			NewSizeX,NewSizeY,
+			NumSlices);
+
+		check( Image.NumMips == 1 );
+		
+		int64 SrcBytesPerSlice = (int64) Image.SizeX * Image.SizeY * BytesPerPixel;
+		int64 DstBytesPerSlice = (int64) NewSizeX * NewSizeY * BytesPerPixel;
+
+		FUniqueBuffer DstBuffer = FUniqueBuffer::Alloc(DstBytesPerSlice * NumSlices);
+		uint8 * DstBufferData = (uint8 *) DstBuffer.GetData();
+
+		FSharedBuffer SrcBuffer = BufferAndId.GetPayload();
+		
+		const uint8 * SrcBufferData = (const uint8 *) SrcBuffer.GetData();
+		int64 SrcBufferSize = SrcBuffer.GetSize();
+		
+		FImageView Src,Dst;
+
+		Src.SizeX = Image.SizeX;
+		Src.SizeY = Image.SizeY;
+		Src.NumSlices = 1;
+		Src.Format = FImageCoreUtils::ConvertToRawImageFormat(Image.Format);
+		Src.GammaSpace = Image.bSRGB ? EGammaSpace::sRGB : EGammaSpace::Linear;
+
+		Dst = Src;
+		Dst.SizeX = NewSizeX;
+		Dst.SizeY = NewSizeY;
+		
+		check( Src.GetImageSizeBytes() == SrcBytesPerSlice );
+		check( Dst.GetImageSizeBytes() == DstBytesPerSlice );
+
+		if ( Image.RawDataCompressionFormat != TSCF_None )
+		{
+			// only single 2d images can import compressed currently :
+			check( NumSlices == 1 );
+
+			// decompress image data
+			FImage SrcImage;
+			bool bOk = FImageUtils::DecompressImage(SrcBufferData,SrcBufferSize,SrcImage);
+			if ( ! bOk )
+			{
+				UE_LOG(LogInterchangeImport, Warning, TEXT("DecompressImage failed on [%s]."), *(Texture->GetName()) );
+				return;
+			}
+			
+			// read SrcImage , not "Src"
+
+			Dst.RawData = DstBufferData;
+
+			FImageCore::ResizeImage(SrcImage,Dst,FImageCore::EResizeImageFilter::Default);
+
+			// change Image now holds uncompressed data:
+			Image.RawDataCompressionFormat = TSCF_None;
+		}
+		else
+		{
+			// SrcBuffer contains raw images
+			check( SrcBufferSize == SrcBytesPerSlice * NumSlices );
+			if ( SrcBufferSize != SrcBytesPerSlice * NumSlices )
+			{
+				UE_LOG(LogInterchangeImport, Warning, TEXT("Invalid SrcBufferSize on [%s]."), *(Texture->GetName()) );
+				return;
+			}
+
+			// ResizeImage default edge mode is Clamp, so this is okay for cube map faces
+
+			for(int64 SliceIndex=0;SliceIndex<NumSlices;SliceIndex++)
+			{
+				Src.RawData = (void *)( SrcBufferData + SrcBytesPerSlice * SliceIndex );
+	
+				Dst.RawData = DstBufferData + DstBytesPerSlice * SliceIndex;
+
+				FImageCore::ResizeImage(Src,Dst,FImageCore::EResizeImageFilter::Default);
+			}
+		}
+
+		SrcBuffer.Reset(); // release the FSharedBuffer ref
+
+		// mutate Image:
+		Image.SizeX = NewSizeX;
+		Image.SizeY = NewSizeY;
+
+		// mutate BufferAndId
+		BufferAndId = UE::Serialization::FEditorBulkData::FSharedBufferWithID( DstBuffer.MoveToShared() );
+	}
+
+	void SetupTextureSourceDataFromBulkData_Editor(UTexture* Texture, FImportImage& Image, UE::Serialization::FEditorBulkData::FSharedBufferWithID&& BufferAndId, bool bIsReimport)
+	{
+		// Image has a .RawData but it is ignored here
+		//	use BufferAndId for the pixel data instead
+
+		ResizeImportImageIfNeeded(Texture,Image,1,BufferAndId);
+
 		Texture->Source.InitWithCompressedSourceData(
 			Image.SizeX,
 			Image.SizeY,
@@ -765,6 +1048,9 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 	{
 		if (BlockedImage.BlocksData.Num() > 1)
 		{
+			// note: ResizeImportImageIfNeeded not done
+			//	no size limit for UDIM
+
 			Texture2D->Source.InitBlocked(
 				&BlockedImage.Format,
 				BlockedImage.BlocksData.GetData(),
@@ -779,6 +1065,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 				
 				Texture2D->SRGB = UE::TextureUtilitiesCommon::GetDefaultSRGB(BlockedImage.CompressionSettings,BlockedImage.Format,BlockedImage.bSRGB);
 
+				// UDIM/Blocked must be VT :
 				Texture2D->VirtualTextureStreaming = true;
 
 				if (BlockedImage.MipGenSettings.IsSet())
@@ -790,7 +1077,8 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 		}
 		else
 		{
-			//Import as a normal texture
+			// only 1 image in UDIM set found
+			//Import as a normal texture (not VT/not UDIM)
 			FImportImage Image;
 			Image.Format = BlockedImage.Format;
 			Image.CompressionSettings = BlockedImage.CompressionSettings;
@@ -801,18 +1089,33 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 			Image.SizeX = Block.SizeX;
 			Image.SizeY = Block.SizeY;
 			Image.NumMips = Block.NumMips;
+			// note any UDIM block X,Y offset is discarded
 
 			SetupTextureSourceDataFromBulkData_Editor(Texture2D, Image, MoveTemp(BufferAndId), bIsReimport);
 		}
 	}
 
-	void SetupTextureSourceDataFromBulkData_Editor(UTexture* Texture, const FImportSlicedImage& SlicedImage, UE::Serialization::FEditorBulkData::FSharedBufferWithID&& BufferAndId,  bool bIsReimport)
+	void SetupTextureSourceDataFromBulkData_Editor(UTexture* Texture, FImportSlicedImage& SlicedImage, UE::Serialization::FEditorBulkData::FSharedBufferWithID&& BufferAndId,  bool bIsReimport)
 	{
+		bool bTextureIsVolume = Texture->GetTextureClass() == ETextureClass::Volume;
+		if ( SlicedImage.bIsVolume )
+		{
+			check( bTextureIsVolume );
+
+			// @@ no Volume resize currently
+		}
+		else
+		{
+			// NumSlice not changed by resize
+			// FImportSlicedImage passed as FImportImage
+			ResizeImportImageIfNeeded(Texture,SlicedImage,SlicedImage.NumSlice,BufferAndId);
+		}
+
 		Texture->Source.InitLayered(
 			SlicedImage.SizeX,
 			SlicedImage.SizeY,
 			SlicedImage.NumSlice,
-			1,
+			1, // NumLayers
 			SlicedImage.NumMips,
 			&SlicedImage.Format,
 			MoveTemp(BufferAndId)
@@ -1093,6 +1396,9 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 	FGraphEventArray GenerateHashSourceFilesTasks(const UInterchangeSourceData* SourceData, TArray<FString>&& FilesToHash, TArray<FAssetImportInfo::FSourceFile>& OutSourceFiles)
 	{
+		// This hashing is quite slow (MD5 single threaded)
+		// it is needed for the auto-reimport feature that detects changed files by comparing their hashes
+
 		struct FHashSourceTaskBase
 		{
 			/**
@@ -1200,8 +1506,10 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 	{
 		Texture2D->SRGB = UE::TextureUtilitiesCommon::GetDefaultSRGB(Texture2D->CompressionSettings,ImportImage.Format,ImportImage.bSRGB);
 		
+		ERawImageFormat::Type SourcePixelRawFormat = FImageCoreUtils::ConvertToRawImageFormat(ImportImage.Format);
+
 		ERawImageFormat::Type PixelFormatRawFormat;
-		const EPixelFormat PixelFormat = FImageCoreUtils::GetPixelFormatForRawImageFormat(FImageCoreUtils::ConvertToRawImageFormat(ImportImage.Format), &PixelFormatRawFormat);
+		const EPixelFormat PixelFormat = FImageCoreUtils::GetPixelFormatForRawImageFormat(SourcePixelRawFormat, &PixelFormatRawFormat);
 
 		UE::Serialization::FEditorBulkData BulkData;
 		BulkData.UpdatePayload(MoveTemp(BufferAndId));
@@ -1209,7 +1517,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 		const EGammaSpace SourceGammaSpace = ImportImage.bSRGB ? EGammaSpace::sRGB : EGammaSpace::Linear;
 		constexpr int32 NumSlices = 1;
-		FImageView SourceImageView(const_cast<void*>(Payload.Get().GetData()), ImportImage.SizeX, ImportImage.SizeY, NumSlices, PixelFormatRawFormat, SourceGammaSpace);
+		FImageView SourceImageView(const_cast<void*>(Payload.Get().GetData()), ImportImage.SizeX, ImportImage.SizeY, NumSlices, SourcePixelRawFormat, SourceGammaSpace);
 
 		FImage DecompressedSourceImage;
 		if (ImportImage.RawDataCompressionFormat != TSCF_None)
@@ -1380,7 +1688,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 		return false;
 	}
 
-	void SetupTextureSourceDataFromBulkData(UTexture* Texture, const FImportImage& Image, UE::Serialization::FEditorBulkData::FSharedBufferWithID&& BufferAndId, bool bIsReimport)
+	void SetupTextureSourceDataFromBulkData(UTexture* Texture, FImportImage& Image, UE::Serialization::FEditorBulkData::FSharedBufferWithID&& BufferAndId, bool bIsReimport)
 	{
 #if WITH_EDITOR
 		SetupTextureSourceDataFromBulkData_Editor(Texture, Image, MoveTemp(BufferAndId), bIsReimport);
@@ -1446,31 +1754,9 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 		// The texture has been imported and has no editor specific changes applied so we clear the painted flag.
 		Texture2D->bHasBeenPaintedInEditor = false;
 
-		// If the texture is larger than a certain threshold make it VT. This is explicitly done after the
-		// application of the existing settings above, so if a texture gets reimported at a larger size it will
-		// still be properly flagged as a VT (note: What about reimporting at a lower resolution?)
-		static const TConsoleVariableData<int32>* CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures"));
-		check(CVarVirtualTexturesEnabled);
-
-		static const auto CVarVirtualTexturesAutoImportEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VT.EnableAutoImport"));
-		check(CVarVirtualTexturesAutoImportEnabled);
-
-		if (CVarVirtualTexturesEnabled->GetValueOnGameThread() && CVarVirtualTexturesAutoImportEnabled->GetValueOnGameThread())
+		if ( UE::TextureUtilitiesCommon::ShouldTextureBeVirtualByAutoImportSize(Texture2D) )
 		{
-			const int64 VirtualTextureAutoEnableThreshold = GetDefault<UTextureImportSettings>()->AutoVTSize;
-			const int64 VirtualTextureAutoEnableThresholdPixels = VirtualTextureAutoEnableThreshold * VirtualTextureAutoEnableThreshold;
-
-			// We do this in pixels so a 8192 x 128 texture won't get VT enabled 
-			// We use the Source size instead of simple Texture2D->GetSizeX() as this uses the size of the platform data
-			// however for a new texture platform data may not be generated yet, and for an reimport of a texture this is the size of the
-			// old texture. 
-			// Using source size gives one small caveat. It looks at the size before mipmap power of two padding adjustment.
-			if ( (int64) Texture2D->Source.GetSizeX() * Texture2D->Source.GetSizeY() >= VirtualTextureAutoEnableThresholdPixels ||
-				Texture2D->Source.GetSizeX() > UTexture::GetMaximumDimensionOfNonVT() ||
-				Texture2D->Source.GetSizeY() > UTexture::GetMaximumDimensionOfNonVT())
-			{
-				Texture2D->VirtualTextureStreaming = true;
-			}
+			Texture2D->VirtualTextureStreaming = true;
 		}
 #endif // WITH_EDITORONLY_DATA
 	}
@@ -1930,7 +2216,7 @@ void UInterchangeTextureFactory::CheckForInvalidResolutions(UE::Interchange::Pri
 			for (int32 Index = 0; Index < BlockedImage.BlocksData.Num(); ++Index)
 			{
 				const FTextureSourceBlock& Block = BlockedImage.BlocksData[Index];
-				if (!FImportImageHelper::IsImportResolutionValid(Block.SizeX, Block.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
+				if (!UE::TextureUtilitiesCommon::IsImportResolutionValid(Block.SizeX, Block.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
 				{
 					FString SourceFile;
 					if (const UInterchangeTexture2DFactoryNode* Texture2DFactoryNode = Cast<UInterchangeTexture2DFactoryNode>(TextureFactoryNode))
@@ -1965,7 +2251,7 @@ void UInterchangeTextureFactory::CheckForInvalidResolutions(UE::Interchange::Pri
 		if (ImagePtr->IsSet())
 		{
 			const FImportImage& Image = ImagePtr->GetValue();
-			if (UTextureCube::StaticClass() != TextureFactoryNode->GetObjectClass() && !FImportImageHelper::IsImportResolutionValid(Image.SizeX, Image.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
+			if (UTextureCube::StaticClass() != TextureFactoryNode->GetObjectClass() && !UE::TextureUtilitiesCommon::IsImportResolutionValid(Image.SizeX, Image.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
 			{
 				AddErrorMessage(SourceData->GetFilename(), ErrorMessage);
 
@@ -1979,7 +2265,7 @@ void UInterchangeTextureFactory::CheckForInvalidResolutions(UE::Interchange::Pri
 		if (LightProfilePtr->IsSet())
 		{
 			const FImportLightProfile& LightProfile = LightProfilePtr->GetValue();
-			if (!FImportImageHelper::IsImportResolutionValid(LightProfile.SizeX, LightProfile.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
+			if (!UE::TextureUtilitiesCommon::IsImportResolutionValid(LightProfile.SizeX, LightProfile.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
 			{
 				AddErrorMessage(SourceData->GetFilename(), ErrorMessage);
 
@@ -1994,7 +2280,7 @@ void UInterchangeTextureFactory::CheckForInvalidResolutions(UE::Interchange::Pri
 		{
 			const FImportSlicedImage& SlicedImage = SlicedImagePtr->GetValue();
 
-			if (!FImportImageHelper::IsImportResolutionValid(SlicedImage.SizeX, SlicedImage.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
+			if (!UE::TextureUtilitiesCommon::IsImportResolutionValid(SlicedImage.SizeX, SlicedImage.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
 			{
 				AddErrorMessage(SourceData->GetFilename(), ErrorMessage);
 
@@ -2027,6 +2313,36 @@ bool UInterchangeTextureFactory::SetSourceFilename(const UObject* Object, const 
 #endif
 
 	return false;
+}
+
+void UInterchangeTextureFactory::BackupSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UTexture* Texture = Cast<UTexture>(Object))
+	{
+		UE::Interchange::FFactoryCommon::BackupSourceData(Texture->AssetImportData.Get());
+	}
+#endif
+}
+
+void UInterchangeTextureFactory::ReinstateSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UTexture* Texture = Cast<UTexture>(Object))
+	{
+		UE::Interchange::FFactoryCommon::ReinstateSourceData(Texture->AssetImportData.Get());
+	}
+#endif
+}
+
+void UInterchangeTextureFactory::ClearBackupSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UTexture* Texture = Cast<UTexture>(Object))
+	{
+		UE::Interchange::FFactoryCommon::ClearBackupSourceData(Texture->AssetImportData.Get());
+	}
+#endif
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -62,7 +62,7 @@ class FLightmassExporter
 {
 public:
 
-	FLightmassExporter( UWorld* InWorld );
+	FLightmassExporter(const FStaticLightingBuildContext& LightingContext);
 	virtual ~FLightmassExporter();
 
 	void SetLevelSettings(FLightmassWorldInfoSettings& InLevelSettings)
@@ -232,8 +232,6 @@ private:
 
 	FString LevelName;
 
-	TMap<FGuid, const TWeakObjectPtr<ULevel>> LevelGuids;
-
 	// lights objects
 	TArray<const class UDirectionalLightComponent*> DirectionalLights;
 	TArray<const class UPointLightComponent*> PointLights;
@@ -255,6 +253,7 @@ private:
 	TArray<FLandscapeStaticLightingTextureMapping*> LandscapeTextureMappings;
 
 	TArray<class FStaticLightingGlobalVolumeMapping*> VolumeMappings;
+	TArray<class FLandscapeStaticLightingGlobalVolumeMapping*> LandscapeVolumeMappings;
 
 	// materials
 	TArray<UMaterialInterface*> Materials;
@@ -272,6 +271,9 @@ private:
 	/** The world we are exporting from */
 	UWorld* World;
 
+	/** The ligthing context we are exporting for, used to acquire some mappings & GUIDs that are contextual  */
+	const FStaticLightingBuildContext&	LightingContext;
+
 	/** Friends */
 	friend class FBSPSurfaceStaticLighting;
 	friend class FStaticMeshStaticLightingMesh;
@@ -280,6 +282,7 @@ private:
 	friend class FLandscapeStaticLightingMesh;
 	friend class FLandscapeStaticLightingTextureMapping;
 	friend class FStaticLightingGlobalVolumeMapping;
+	friend class FLandscapeStaticLightingGlobalVolumeMapping;
 };
 
 /** Lightmass Importer class */
@@ -398,6 +401,8 @@ public:
 	{
 		bImportCompletedMappingsImmediately = bInImportCompletedMappingsImmediately;
 	}
+	
+	void SetVolumetricLightMapImportMode(bool bUseVLMCellGrid);
 
 	/** Exports everything but the materials */
 	void InitiateExport();
@@ -454,6 +459,9 @@ public:
 	void	ProcessAvailableMappings();
 
 protected:
+
+	friend struct FDeferredMappingsBundle;
+	
 	enum StaticLightingType
 	{
 		SLT_Texture		// FStaticLightingTextureMapping
@@ -470,6 +478,9 @@ protected:
 		StaticLightingType	Type;
 		/** The mapping guid read in */
 		FGuid				MappingGuid;
+		/** The owner guid for this mapping */
+		FGuid				OwnerGuid;
+
 		/** The execution time this mapping took */
 		double				ExecutionTime;
 		/** Whether the mapping has been processed yet */
@@ -498,6 +509,8 @@ protected:
 		{
 			return NULL;
 		}
+
+		virtual void Serialize(FArchive& Ar);
 	};
 
 	/**
@@ -506,7 +519,7 @@ protected:
 	struct FTextureMappingImportHelper : public FMappingImportHelper
 	{
 		/** The texture mapping being imported */
-		FStaticLightingTextureMapping* TextureMapping;
+		TRefCountPtr<FStaticLightingTextureMapping> TextureMapping;
 		/** The imported quantized lightmap data */
 		FQuantizedLightmapData* QuantizedData;
 		/** The percentage of unmapped texels */
@@ -545,6 +558,15 @@ protected:
 		{
 			return this;
 		}
+
+		virtual void Serialize(FArchive& Ar) override;
+
+		friend FArchive& operator<<(FArchive& Ar, FTextureMappingImportHelper& Helper)
+		{
+			Helper.Serialize(Ar);
+			return Ar;
+		}
+
 	};
 
 	/**
@@ -606,6 +628,7 @@ protected:
 	FLightmassExporter* Exporter;
 	FLightmassImporter* Importer;
 	const FStaticLightingSystem& System;
+	struct FDeferredMappingsBundle* DeferredMappings = nullptr;
 
 	NSwarm::FSwarmInterface&	Swarm;
 	bool						bSwarmConnectionIsValid;
@@ -682,6 +705,9 @@ protected:
 
 	/** Queue of messages from the swarm callback, to be processed by the main thread */
 	TArray<FLightmassAlertMessage> SwarmCallbackMessages;
+	
+	FString DeferredMappingsDirectory;
+	bool bSplitToVLMCellGrid = false;
 
 	/**
 	 *	Import all mappings that have been completed so far.
@@ -715,6 +741,13 @@ protected:
 
 	/** Gets the texture mapping for the specified GUID */
 	FStaticLightingTextureMapping*	GetStaticLightingTextureMapping( const FGuid& MappingGuid );
+
+	/** Deferred mappings handling */
+	void DeferMapping(FTextureMappingImportHelper* ImportHelper);
+	bool IsDeferredMapping(const FGuid& Guid);
+	void ExportDeferredMappings();
+	void ImportDeferredMappings();
+	void ClearImportedDeferredMappings();
 
 	/**
 	 *	Import the texture mapping 

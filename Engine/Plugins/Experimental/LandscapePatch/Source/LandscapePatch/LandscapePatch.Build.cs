@@ -41,5 +41,18 @@ public class LandscapePatch : ModuleRules
 				"Projects", // IPluginManager
 			}
 			);
+			
+		if (Target.bBuildEditor)
+        {
+			PrivateDependencyModuleNames.AddRange(
+				new string[] {
+					// These are for some fix-up operations to transition patches to a newer
+					// system and delete some old actors (triggered by user).
+					"LevelEditor",
+					"TypedElementRuntime",
+					"UnrealEd", // FScopedTransaction
+				}
+			);
+		}
 	}
 }

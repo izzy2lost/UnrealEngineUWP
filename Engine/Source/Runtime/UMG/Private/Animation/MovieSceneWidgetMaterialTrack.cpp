@@ -66,6 +66,7 @@ bool UMovieSceneWidgetMaterialTrack::PopulateEvaluationFieldImpl(const TRange<FF
 		{
 			FMovieSceneEvaluationFieldEntityMetaData SectionMetaData = InMetaData;
 			SectionMetaData.Flags = Entry.Flags;
+			SectionMetaData.Condition = MovieSceneHelpers::GetSequenceCondition(this, ParameterSection, true);
 
 			ParameterSection->ExternalPopulateEvaluationField(SectionEffectiveRange, SectionMetaData, OutFieldBuilder);
 		}

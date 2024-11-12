@@ -10,7 +10,7 @@
 #include "Drawing/UVLayoutPreview.h"
 #include "UVEditorToolAnalyticsUtils.h"
 #include "Selection/UVToolSelectionAPI.h"
-#include "Operators/UVEditorTexelDensityOp.h"
+#include "ParameterizationOps/TexelDensityOp.h"
 #include "DynamicMesh/DynamicMeshAABBTree3.h"
 
 #include "UVEditorTexelDensityTool.generated.h"

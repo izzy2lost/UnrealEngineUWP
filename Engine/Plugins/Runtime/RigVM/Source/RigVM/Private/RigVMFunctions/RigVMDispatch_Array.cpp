@@ -9,20 +9,6 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMDispatch_Array)
 #define LOCTEXT_NAMESPACE "RigVMDispatch_Array"
 
-const FName& FRigVMDispatch_ArrayBase::ExecuteName = FRigVMStruct::ExecuteContextName;
-const FName FRigVMDispatch_ArrayBase::ArrayName = TEXT("Array");
-const FName FRigVMDispatch_ArrayBase::ValuesName = TEXT("Values");
-const FName FRigVMDispatch_ArrayBase::NumName = TEXT("Num");
-const FName FRigVMDispatch_ArrayBase::IndexName = TEXT("Index");
-const FName FRigVMDispatch_ArrayBase::ElementName = TEXT("Element");
-const FName FRigVMDispatch_ArrayBase::SuccessName = TEXT("Success");
-const FName FRigVMDispatch_ArrayBase::OtherName = TEXT("Other");
-const FName FRigVMDispatch_ArrayBase::CloneName = TEXT("Clone");
-const FName FRigVMDispatch_ArrayBase::CountName = TEXT("Count");
-const FName FRigVMDispatch_ArrayBase::RatioName = TEXT("Ratio");
-const FName FRigVMDispatch_ArrayBase::ResultName = TEXT("Result");
-const FName& FRigVMDispatch_ArrayBase::CompletedName = FRigVMStruct::ControlFlowCompletedName;
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///
 #if WITH_EDITOR
@@ -199,7 +185,7 @@ const TArray<FRigVMExecuteArgument>& FRigVMDispatch_ArrayBaseMutable::GetExecute
 	const FRigVMDispatchContext& InContext) const
 {
 	static const TArray<FRigVMExecuteArgument> Arguments = {
-			{ExecuteName, ERigVMPinDirection::IO}
+			{FRigVMStruct::ExecuteContextName, ERigVMPinDirection::IO}
 	};
 	return Arguments;
 }
@@ -365,7 +351,7 @@ FText FRigVMDispatch_ArrayReset::GetArgumentTooltip(const FName& InArgumentName,
 
 FName FRigVMDispatch_ArrayGetNum::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		ArrayName,
 		NumName
 	};
@@ -427,7 +413,7 @@ FText FRigVMDispatch_ArrayGetNum::GetArgumentTooltip(const FName& InArgumentName
 
 FName FRigVMDispatch_ArraySetNum::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		ArrayName,
 		NumName
 	};
@@ -490,9 +476,88 @@ FText FRigVMDispatch_ArraySetNum::GetArgumentTooltip(const FName& InArgumentName
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+FName FRigVMDispatch_ArrayInit::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
+{
+	static const FLazyName ArgumentNames[] = {
+		ArrayName,
+		NumName,
+		ElementName
+	};
+	check(InTotalOperands == UE_ARRAY_COUNT(ArgumentNames));
+	return ArgumentNames[InOperandIndex];
+}
+
+const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_ArrayInit::GetArgumentInfos() const
+{
+	static TArray<FRigVMTemplateArgumentInfo> Infos;
+	if (Infos.IsEmpty())
+	{
+		Infos.Emplace(CreateArgumentInfo(ArrayName, ERigVMPinDirection::IO));
+		Infos.Emplace(CreateArgumentInfo(NumName, ERigVMPinDirection::Input));
+		Infos.Emplace(CreateArgumentInfo(ElementName, ERigVMPinDirection::Input));
+	};
+	return Infos;
+}
+
+FRigVMTemplateTypeMap FRigVMDispatch_ArrayInit::OnNewArgumentType(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex) const
+{
+	check(InArgumentName == ArrayName);
+	return {
+		{ArrayName, InTypeIndex},
+		{NumName, RigVMTypeUtils::TypeIndex::Int32},
+		{ElementName, FRigVMRegistry_NoLock::GetForRead().GetBaseTypeFromArrayTypeIndex_NoLock(InTypeIndex)}
+	};
+}
+
+void FRigVMDispatch_ArrayInit::Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray Predicates)
+{
+	const FArrayProperty* ArrayProperty = CastFieldChecked<FArrayProperty>(Handles[0].GetProperty());
+	FScriptArrayHelper ArrayHelper(ArrayProperty, Handles[0].GetData());
+	const int32* Num = (int32*)Handles[1].GetData();
+	const FProperty* ValueProperty = Handles[2].GetProperty();
+	const uint8* ValueData = Handles[2].GetData();
+
+	if(InContext.IsValidArraySize(*Num))
+	{
+		ArrayHelper.EmptyAndAddValues(*Num);
+		for (int32 Index=0; Index<ArrayHelper.Num(); ++Index)
+		{
+			URigVMMemoryStorage::CopyProperty(ArrayProperty->Inner, ArrayHelper.GetElementPtr(Index), ValueProperty, ValueData);
+		}
+	}
+}
+
+#if WITH_EDITOR
+
+FText FRigVMDispatch_ArrayInit::GetNodeTooltip(const FRigVMTemplateTypeMap& InTypes) const
+{
+	return LOCTEXT("ArrayInitToolTip", "Sets the size of the array, initializing all elements to the given value.\nModifies the input array.");
+}
+
+FText FRigVMDispatch_ArrayInit::GetArgumentTooltip(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex) const
+{
+	if(InArgumentName == ArrayName)
+	{
+		return LOCTEXT("ArrayInit_ArrayArgumentToolTip", "The array to initialize.");
+	}
+	if(InArgumentName == NumName)
+	{
+		return LOCTEXT("ArrayInit_NumArgumentToolTip", "The new size of the array.");
+	}
+	if(InArgumentName == ElementName)
+	{
+		return LOCTEXT("ArrayInit_ElementArgumentToolTip", "The value that is set to all elements.");
+	}
+	return FText();
+}
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 FName FRigVMDispatch_ArrayGetAtIndex::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		ArrayName,
 		IndexName,
 		ElementName
@@ -522,12 +587,12 @@ FRigVMTemplateTypeMap FRigVMDispatch_ArrayGetAtIndex::OnNewArgumentType(const FN
 		return {
 			{ArrayName, InTypeIndex},
 			{IndexName, RigVMTypeUtils::TypeIndex::Int32},
-			{ElementName, FRigVMRegistry::Get().GetBaseTypeFromArrayTypeIndex(InTypeIndex)}
+			{ElementName, FRigVMRegistry_NoLock::GetForRead().GetBaseTypeFromArrayTypeIndex_NoLock(InTypeIndex)}
 		};
 	}
 
 	return {
-		{ArrayName, FRigVMRegistry::Get().GetArrayTypeFromBaseTypeIndex(InTypeIndex)},
+		{ArrayName, FRigVMRegistry_NoLock::GetForRead().GetArrayTypeFromBaseTypeIndex_NoLock(InTypeIndex)},
 		{IndexName, RigVMTypeUtils::TypeIndex::Int32},
 		{ElementName, InTypeIndex}
 	};
@@ -577,7 +642,7 @@ FText FRigVMDispatch_ArrayGetAtIndex::GetArgumentTooltip(const FName& InArgument
 
 FName FRigVMDispatch_ArraySetAtIndex::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		ArrayName,
 		IndexName,
 		ElementName
@@ -607,12 +672,12 @@ FRigVMTemplateTypeMap FRigVMDispatch_ArraySetAtIndex::OnNewArgumentType(const FN
 		return {
 			{ArrayName, InTypeIndex},
 			{IndexName, RigVMTypeUtils::TypeIndex::Int32},
-			{ElementName, FRigVMRegistry::Get().GetBaseTypeFromArrayTypeIndex(InTypeIndex)}
+			{ElementName, FRigVMRegistry_NoLock::GetForRead().GetBaseTypeFromArrayTypeIndex_NoLock(InTypeIndex)}
 		};
 	}
 
 	return {
-		{ArrayName, FRigVMRegistry::Get().GetArrayTypeFromBaseTypeIndex(InTypeIndex)},
+		{ArrayName, FRigVMRegistry_NoLock::GetForRead().GetArrayTypeFromBaseTypeIndex_NoLock(InTypeIndex)},
 		{IndexName, RigVMTypeUtils::TypeIndex::Int32},
 		{ElementName, InTypeIndex}
 	};
@@ -662,7 +727,7 @@ FText FRigVMDispatch_ArraySetAtIndex::GetArgumentTooltip(const FName& InArgument
 
 FName FRigVMDispatch_ArrayAdd::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		ArrayName,
 		ElementName,
 		IndexName
@@ -783,7 +848,7 @@ FText FRigVMDispatch_ArrayInsert::GetArgumentTooltip(const FName& InArgumentName
 
 FName FRigVMDispatch_ArrayRemove::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		ArrayName,
 		IndexName
 	};
@@ -880,7 +945,7 @@ FText FRigVMDispatch_ArrayReverse::GetArgumentTooltip(const FName& InArgumentNam
 
 FName FRigVMDispatch_ArrayFind::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		ArrayName,
 		ElementName,
 		IndexName,
@@ -911,14 +976,14 @@ FRigVMTemplateTypeMap FRigVMDispatch_ArrayFind::OnNewArgumentType(const FName& I
 	{
 		return {
 			{ArrayName, InTypeIndex},
-			{ElementName, FRigVMRegistry::Get().GetBaseTypeFromArrayTypeIndex(InTypeIndex)},
+			{ElementName, FRigVMRegistry_NoLock::GetForRead().GetBaseTypeFromArrayTypeIndex_NoLock(InTypeIndex)},
 			{IndexName, RigVMTypeUtils::TypeIndex::Int32},
 			{SuccessName, RigVMTypeUtils::TypeIndex::Bool}
 		};
 	}
 
 	return {
-		{ArrayName, FRigVMRegistry::Get().GetArrayTypeFromBaseTypeIndex(InTypeIndex)},
+		{ArrayName, FRigVMRegistry_NoLock::GetForRead().GetArrayTypeFromBaseTypeIndex_NoLock(InTypeIndex)},
 		{ElementName, InTypeIndex},
 		{IndexName, RigVMTypeUtils::TypeIndex::Int32},
 		{SuccessName, RigVMTypeUtils::TypeIndex::Bool}
@@ -994,7 +1059,7 @@ FText FRigVMDispatch_ArrayFind::GetArgumentTooltip(const FName& InArgumentName, 
 
 FName FRigVMDispatch_ArrayAppend::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		ArrayName,
 		OtherName
 	};
@@ -1077,7 +1142,7 @@ FText FRigVMDispatch_ArrayAppend::GetArgumentTooltip(const FName& InArgumentName
 
 FName FRigVMDispatch_ArrayClone::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		ArrayName,
 		CloneName
 	};
@@ -1262,7 +1327,7 @@ FText FRigVMDispatch_ArrayUnion::GetArgumentTooltip(const FName& InArgumentName,
 
 FName FRigVMDispatch_ArrayDifference::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		ArrayName,
 		OtherName,
 		ResultName
@@ -1430,7 +1495,7 @@ FText FRigVMDispatch_ArrayIntersection::GetArgumentTooltip(const FName& InArgume
 
 FName FRigVMDispatch_ArrayIterator::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		ArrayName,
 		ElementName,
 		IndexName,
@@ -1464,7 +1529,7 @@ const TArray<FRigVMExecuteArgument>& FRigVMDispatch_ArrayIterator::GetExecuteArg
 	if(ExecuteArguments.IsEmpty())
 	{
 		ExecuteArguments = FRigVMDispatch_ArrayBaseMutable::GetExecuteArguments_Impl(InContext);
-		ExecuteArguments.Emplace(CompletedName, ERigVMPinDirection::Output);
+		ExecuteArguments.Emplace(FRigVMStruct::ControlFlowCompletedName, ERigVMPinDirection::Output);
 	}
 	return ExecuteArguments;
 }
@@ -1472,13 +1537,13 @@ const TArray<FRigVMExecuteArgument>& FRigVMDispatch_ArrayIterator::GetExecuteArg
 const TArray<FName>& FRigVMDispatch_ArrayIterator::GetControlFlowBlocks_Impl(
 	const FRigVMDispatchContext& InContext) const
 {
-	static const TArray<FName> Blocks = {ExecuteName, CompletedName};
+	static const TArray<FName> Blocks = {FRigVMStruct::ExecuteContextName, FRigVMStruct::ControlFlowCompletedName};
 	return Blocks;
 }
 
 const bool FRigVMDispatch_ArrayIterator::IsControlFlowBlockSliced(const FName& InBlockName) const
 {
-	return InBlockName == ExecuteName;
+	return InBlockName == FRigVMStruct::ExecuteContextName;
 }
 
 FRigVMTemplateTypeMap FRigVMDispatch_ArrayIterator::OnNewArgumentType(const FName& InArgumentName,
@@ -1490,7 +1555,7 @@ FRigVMTemplateTypeMap FRigVMDispatch_ArrayIterator::OnNewArgumentType(const FNam
 	{
 		return {
 			{ArrayName, InTypeIndex},
-			{ElementName, FRigVMRegistry::Get().GetBaseTypeFromArrayTypeIndex(InTypeIndex)},
+			{ElementName, FRigVMRegistry_NoLock::GetForRead().GetBaseTypeFromArrayTypeIndex_NoLock(InTypeIndex)},
 			{IndexName, RigVMTypeUtils::TypeIndex::Int32},
 			{CountName, RigVMTypeUtils::TypeIndex::Int32},
 			{RatioName, RigVMTypeUtils::TypeIndex::Float},
@@ -1499,7 +1564,7 @@ FRigVMTemplateTypeMap FRigVMDispatch_ArrayIterator::OnNewArgumentType(const FNam
 	}
 
 	return {
-		{ArrayName, FRigVMRegistry::Get().GetArrayTypeFromBaseTypeIndex(InTypeIndex)},
+		{ArrayName, FRigVMRegistry_NoLock::GetForRead().GetArrayTypeFromBaseTypeIndex_NoLock(InTypeIndex)},
 		{ElementName, InTypeIndex},
 		{IndexName, RigVMTypeUtils::TypeIndex::Int32},
 		{CountName, RigVMTypeUtils::TypeIndex::Int32},
@@ -1518,7 +1583,7 @@ void FRigVMDispatch_ArrayIterator::Execute(FRigVMExtendedExecuteContext& InConte
 
 	if(Block.IsNone())
 	{
-		Block = ExecuteName;
+		Block = FRigVMStruct::ExecuteContextName;
 		Count = ArrayHelper.Num();
 		Index = -1;;
 		Ratio = 0.f;
@@ -1532,7 +1597,7 @@ void FRigVMDispatch_ArrayIterator::Execute(FRigVMExtendedExecuteContext& InConte
 
 	if(Index >= Count)
 	{
-		Block = CompletedName;
+		Block = FRigVMStruct::ControlFlowCompletedName;
 		return;
 	}
 	
@@ -1570,7 +1635,7 @@ FText FRigVMDispatch_ArrayIterator::GetArgumentTooltip(const FName& InArgumentNa
 	{
 		return LOCTEXT("ArrayIterator_RatioArgumentToolTip", "A float ratio from 0.0 (first element) to 1.0 (last element).");
 	}
-	if(InArgumentName == CompletedName)
+	if(InArgumentName == FRigVMStruct::ControlFlowCompletedName)
 	{
 		return LOCTEXT("ArrayIterator_CompletedArgumentToolTip", "The execute block to run once the loop has completed.");
 	}

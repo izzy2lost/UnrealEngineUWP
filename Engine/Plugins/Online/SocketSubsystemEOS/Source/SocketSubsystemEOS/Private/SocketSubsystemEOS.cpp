@@ -103,7 +103,7 @@ bool FSocketSubsystemEOS::Init(FString& Error)
 		EOS_EResult Result = EOS_P2P_SetRelayControl(P2PHandle, &Options);
 		if (Result != EOS_EResult::EOS_Success && Result != EOS_EResult::EOS_NoChange)
 		{
-			UE_LOG(LogSocketSubsystemEOS, Warning, TEXT("[FSocketSubsystemEOS::Init] EOS_P2P_SetRelayControl failed with result [%s]"), UTF8_TO_TCHAR(EOS_EResult_ToString(Result)));
+			UE_LOG(LogSocketSubsystemEOS, Warning, TEXT("[FSocketSubsystemEOS::Init] EOS_P2P_SetRelayControl failed with result [%s]"), *LexToString(Result));
 		}
 	}
 #endif

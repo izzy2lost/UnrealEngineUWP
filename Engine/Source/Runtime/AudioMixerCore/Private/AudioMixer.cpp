@@ -63,23 +63,6 @@ FAutoConsoleVariableRef CVarRenderThreadAffinity(
 	TEXT("0: Disabled (Default), otherwise overriden thread affinity."),
 	ECVF_Default);
 
-
-static int32 EnableDetailedWindowsDeviceLoggingCVar = 0;
-FAutoConsoleVariableRef CVarEnableDetailedWindowsDeviceLogging(
-	TEXT("au.EnableDetailedWindowsDeviceLogging"),
-	EnableDetailedWindowsDeviceLoggingCVar,
-	TEXT("Enables detailed windows device logging.\n")
-	TEXT("0: Not Enabled, 1: Enabled"),
-	ECVF_Default);
-
-static int32 DisableDeviceSwapCVar = 0;
-FAutoConsoleVariableRef CVarDisableDeviceSwap(
-	TEXT("au.DisableDeviceSwap"),
-	DisableDeviceSwapCVar,
-	TEXT("Disable device swap handling code for Audio Mixer on Windows.\n")
-	TEXT("0: Not Enabled, 1: Enabled"),
-	ECVF_Default);
-
 static int32 bUseThreadedDeviceSwapCVar = 1;
 FAutoConsoleVariableRef CVarUseThreadedDeviceSwap(
 	TEXT("au.UseThreadedDeviceSwap"),
@@ -473,7 +456,7 @@ namespace Audio
 
 	void IAudioMixerPlatformInterface::StartRunningNullDevice()
 	{
-		UE_LOG(LogAudioMixer, Verbose, TEXT("StartRunningNullDevice() called, InstanceID=%d"), InstanceID);
+		UE_LOG(LogAudioMixer, Display, TEXT("StartRunningNullDevice() called, InstanceID=%d"), InstanceID);
 		SCOPED_NAMED_EVENT(FMixerPlatformXAudio2_StartRunningNullDevice, FColor::Blue);
 		
 		auto ThrowAwayBuffer = [this]() { this->ReadNextBuffer(); };
@@ -502,7 +485,7 @@ namespace Audio
 
 	void IAudioMixerPlatformInterface::StopRunningNullDevice()
 	{		
-		UE_LOG(LogAudioMixer, Verbose, TEXT("StopRunningNullDevice() called, InstanceID=%d"), InstanceID);
+		UE_LOG(LogAudioMixer, Display, TEXT("StopRunningNullDevice() called, InstanceID=%d"), InstanceID);
 		SCOPED_NAMED_EVENT(FMixerPlatformXAudio2_StopRunningNullDevice, FColor::Blue);
 
 		if (NullDeviceCallback.IsValid())
@@ -777,6 +760,8 @@ namespace Audio
 	{	
 		LLM_SCOPE(ELLMTag::AudioMixer);
 
+		FScopedFTZFloatMode FTZ;
+
 		uint32 ReturnVal = 0;
 		FMemory::SetupTLSCachesOnCurrentThread();
 
@@ -887,16 +872,6 @@ namespace Audio
 			return true;
 		}
 		return false;
-	}
-
-	bool IAudioMixer::ShouldIgnoreDeviceSwaps()
-	{
-		return DisableDeviceSwapCVar != 0;
-	}
-
-	bool IAudioMixer::ShouldLogDeviceSwaps()
-	{
-		return EnableDetailedWindowsDeviceLoggingCVar != 0;
 	}
 
 	bool IAudioMixer::ShouldUseThreadedDeviceSwap()

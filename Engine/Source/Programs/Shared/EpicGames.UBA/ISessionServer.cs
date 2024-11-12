@@ -55,6 +55,11 @@ namespace EpicGames.UBA
 		public bool AllowKillOnMem { get; init; }
 
 		/// <summary>
+		/// Store .obj files compressed on disk
+		/// </summary>
+		public bool StoreObjFilesCompressed { get; init; }
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="rootDirectory">Root directory to store content addressable data</param>
@@ -66,7 +71,8 @@ namespace EpicGames.UBA
 		/// <param name="detailedTrace">More detailed trace information</param>
 		/// <param name="allowWaitOnMem">Wait for memory before starting new processes</param>
 		/// <param name="allowKillOnMem">Kill processes when close to run out of memory</param>
-		public SessionServerCreateInfo(string rootDirectory, string traceOutputFile, bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem, bool allowKillOnMem)
+		/// <param name="storeObjFilesCompressed">Store .obj files compressed on disk</param>
+		public SessionServerCreateInfo(string rootDirectory, string traceOutputFile, bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem, bool allowKillOnMem, bool storeObjFilesCompressed)
 		{
 			RootDirectory = rootDirectory;
 			TraceOutputFile = traceOutputFile;
@@ -77,6 +83,7 @@ namespace EpicGames.UBA
 			DetailedTrace = detailedTrace;
 			AllowWaitOnMem = allowWaitOnMem;
 			AllowKillOnMem = allowKillOnMem;
+			StoreObjFilesCompressed = storeObjFilesCompressed;
 		}
 	}
 
@@ -213,6 +220,24 @@ namespace EpicGames.UBA
 		/// <param name="id">The id returned by BeginExternalProcess</param>
 		/// <param name="exitCode">The exit code of the external process</param>
 		public abstract void EndExternalProcess(uint id, uint exitCode);
+
+		/// <summary>
+		/// Writes external status to the uba trace stream which can then be visualized by ubavisualizer
+		/// </summary>
+		/// <param name="processesTotal">Total processes in session</param>
+		/// <param name="processesDone">Processes done in session</param>
+		/// <param name="errorCount">Number of errors in session</param>
+		public abstract void UpdateProgress(uint processesTotal, uint processesDone, uint errorCount);
+
+		/// <summary>
+		/// Writes external status to the uba trace stream which can then be visualized by ubavisualizer
+		/// </summary>
+		/// <param name="statusRow">Row of status text. Reuse one index to show one line in visualizer</param>
+		/// <param name="statusColumn">The identation of status name that will be shown in visualizer</param>
+		/// <param name="statusText">The status text that will be shown in visualizer</param>
+		/// <param name="statusType">The status type</param>
+		/// <param name="statusLink">Optional hyperlink that can be used to make text clickable in visualizer</param>
+		public abstract void UpdateStatus(uint statusRow, uint statusColumn, string statusText, LogEntryType statusType, string? statusLink = null);
 
 		/// <summary>
 		/// Set a custom cas key for a process's tracked inputs

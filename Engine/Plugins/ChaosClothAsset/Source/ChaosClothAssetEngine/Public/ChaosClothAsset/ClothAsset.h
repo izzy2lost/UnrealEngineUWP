@@ -5,7 +5,15 @@
 #include "Engine/SkinnedAsset.h"
 #include "ReferenceSkeleton.h"
 #include "RenderCommandFence.h"
+#include "PerQualityLevelProperties.h"
+#include "Dataflow/DataflowContent.h"
 #include "ClothAsset.generated.h"
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dataflow instead.") Dataflow {}
+#endif
 
 class FSkeletalMeshRenderData;
 class FSkeletalMeshModel;
@@ -35,7 +43,7 @@ ENUM_CLASS_FLAGS(EClothAssetAsyncProperties);
  * Cloth asset for pattern based simulation.
  */
 UCLASS(hidecategories = Object, BlueprintType)
-class CHAOSCLOTHASSETENGINE_API UChaosClothAsset : public USkinnedAsset
+class CHAOSCLOTHASSETENGINE_API UChaosClothAsset : public USkinnedAsset, public IDataflowContentOwner
 {
 	GENERATED_BODY()
 public:
@@ -51,7 +59,14 @@ public:
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
+	virtual void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) override;
 	//~ End UObject interface
+
+	//~ Begin IDataflowContentOwner interface 
+	virtual TObjectPtr<UDataflowBaseContent> CreateDataflowContent() override;
+	virtual void WriteDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const override;
+	virtual void ReadDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) override;
+	//~ End IDataflowContentOwner interface 
 
 	//~ Begin USkinnedAsset interface
 	virtual FReferenceSkeleton& GetRefSkeleton()								
@@ -105,6 +120,7 @@ public:
 	virtual int32 GetPlatformMinLODIdx(const ITargetPlatform* TargetPlatform) const override;
 	virtual const FPerPlatformBool& GetDisableBelowMinLodStripping() const override { return DisableBelowMinLodStripping; }
 	virtual const FPerPlatformInt& GetMinLod() const override;
+	virtual bool IsMinLodQualityLevelEnable() const override;
 #if WITH_EDITOR
 	/* Build a LOD model for the targeted platform. */
 	virtual void BuildLODModel(const ITargetPlatform* TargetPlatform, int32 LODIndex) override;
@@ -173,27 +189,30 @@ public:
 	 */
 	void SetReferenceSkeleton(const FReferenceSkeleton* ReferenceSkeleton, bool bRebuildModels = true, bool bRebindMeshes = true);
 
-	/** Set the bone hierachy to use for this cloth. */
-	UE_DEPRECATED(5.3, "Use SetReferenceSkeleton(const FReferenceSkeleton*, bool, bool) instead")
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	void SetReferenceSkeleton(const FReferenceSkeleton& InReferenceSkeleton, bool bRebuildClothSimulationModel = true) { GetRefSkeleton() = InReferenceSkeleton; UpdateSkeleton(bRebuildClothSimulationModel); }
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	const FPerQualityLevelInt& GetQualityLevelMinLod() const { return MinQualityLevelLOD; }
+	void SetQualityLevelMinLod(FPerQualityLevelInt InMinLod) { MinQualityLevelLOD = MoveTemp(InMinLod); }
+	static void OnLodStrippingQualityLevelChanged(IConsoleVariable* Variable);
 
-	/** Set the skinning weights for all of the sim vertices to be bound to the root node of the reference skeleton. */
-	UE_DEPRECATED(5.3, "Use FClothGeometryTools::BindMeshToRootBone or SetReferenceSkeleton(const FReferenceSkeleton*, bool, bool) instead.")
-	void BindSimMeshToRootBone();
+	/**
+	 * Set the Dataflow graph asset for this cloth asset.
+	 * @param InDataflow The new dataflow asset.
+	 */
+	void SetDataflow(UDataflow* InDataflow) { DataflowAsset = InDataflow; }
 
-	//
-	// Dataflow
-	//
-	UE_DEPRECATED(5.3, "Do not use. Will be made private in 5.4")
-	UPROPERTY(EditAnywhere, Category = "Dataflow")
-	TObjectPtr<UDataflow> DataflowAsset;
+	/** Return the Dataflow graph asset associated to this cloth asset if any. */
+	UDataflow* GetDataflow() { return DataflowAsset; }
 
-	UE_DEPRECATED(5.3, "Do not use. Will be made private in 5.4")
-	UPROPERTY(EditAnywhere, Category = "Dataflow")
-	FString DataflowTerminal = "ClothAssetTerminal";
+	/** Return the Dataflow graph asset associated to this cloth asset if any, const version. */
+	const UDataflow* GetDataflow() const { return DataflowAsset; }
 
+	/**
+	 * Set the name of the Dataflow terminal node for this cloth asset.
+	 * @param InDataflowTerminal The new name of the Dataflow terminal node.
+	 */
+	void SetDataflowTerminal(const FString& InDataflowTerminal) { DataflowTerminal = InDataflowTerminal; }
+
+	/** Return the Dataflow graph asset associated to this cloth asset if any. */
+	const FString& GetDataflowTerminal() const { return DataflowTerminal; }
 
 #if WITH_EDITORONLY_DATA
 
@@ -206,6 +225,14 @@ public:
 #endif
 
 private:
+	/** Dataflow asset. */
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+	TObjectPtr<UDataflow> DataflowAsset;
+
+	/** Dataflow Asset terminal node. */
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+	FString DataflowTerminal = "ClothAssetTerminal";
+
 	//~ Begin USkinnedAsset interface
 	/** Initial step for the Post Load process - Can't be done in parallel. */
 	virtual void BeginPostLoadInternal(FSkinnedAssetPostLoadContext& Context) override;
@@ -228,10 +255,6 @@ private:
 
 	/** Re-calculate the bounds for this asset. */
 	void CalculateBounds();
-
-	/** Update the bone informations after a change of skeleton. */
-	UE_DEPRECATED(5.3, "Use Build() instead")
-	void UpdateSkeleton(bool bRebuildClothSimulationModel = true);
 
 #if WITH_EDITOR
 	/** Build the SkeletalMeshLODModel for this asset. */
@@ -286,10 +309,15 @@ private:
 	/** Struct containing information for each LOD level, such as materials to use, and when use the LOD. Not currently editable or customizable through the Dataflow. */
 	UPROPERTY(VisibleAnywhere, EditFixedSize, Category = LevelOfDetails)
 	TArray<FSkeletalMeshLODInfo> LODInfo;
+	
+	/** Set the Minimum LOD by Quality Level. This property is used when "Use Cloth Asset Min LOD Per Quality Levels" is set at the Project level. Otherwise, the (per platform) Minimum LOD value is used.*/
+	UPROPERTY(EditAnywhere, Category = LODSettings, meta = (DisplayName = "Quality Level Minimum LOD"))
+	FPerQualityLevelInt MinQualityLevelLOD;
 
 	UPROPERTY(EditAnywhere, Category = LODSettings)
 	FPerPlatformBool DisableBelowMinLodStripping;
 
+	/** Set the Minimum LOD by platform. This property is overriden by "Quality Level Minimum LOD" when "Use Cloth Asset Min LOD Per Quality Levels" is set at the Project level.*/
 	UPROPERTY(EditAnywhere, Category = LODSettings, Meta = (DisplayName = "Minimum LOD"))
 	FPerPlatformInt MinLod;
 

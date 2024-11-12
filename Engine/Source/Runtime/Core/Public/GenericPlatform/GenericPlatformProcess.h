@@ -268,9 +268,6 @@ struct FGenericPlatformProcess
 	/** Allow the platform to do anything it needs for render thread */
 	static void SetupRenderThread() { }
 
-	/** Allow the platform to do anything it needs for the RHI thread */
-	static void SetupRHIThread() { }
-
 	/** Allow the platform to do anything it needs for audio thread */
 	static void SetupAudioThread() { }
 
@@ -725,9 +722,6 @@ struct FGenericPlatformProcess
 	 * @return true if the platform can use multiple threads, false otherwise.
 	 */
 	static CORE_API bool SupportsMultithreading();
-	
-	/** Enables Real Time Mode on the current thread. */
-	static void SetRealTimeMode() { }
 
 	/**
 	 * Creates or opens an interprocess synchronization object.
@@ -799,7 +793,7 @@ struct FGenericPlatformProcess
 	 */
 	static FORCEINLINE void Yield()
 	{
-#if PLATFORM_CPU_X86_FAMILY
+#if PLATFORM_USE_SSE2_FOR_THREAD_YIELD
 		_mm_pause();
 #elif PLATFORM_CPU_ARM_FAMILY
 #	if !defined(__clang__)
@@ -808,7 +802,8 @@ struct FGenericPlatformProcess
 		__builtin_arm_yield();
 #	endif
 #else
-#	error Unsupported architecture!
+	// the platform with other architectures must override this to not have this function be called
+	unimplemented();
 #endif
 	}
 
@@ -828,7 +823,8 @@ struct FGenericPlatformProcess
 #elif __has_builtin(__builtin_readcyclecounter)
 			return __builtin_readcyclecounter();
 #else
-#	error Unsupported architecture!
+	// the platform with other architectures must override this to not have this function be called
+	unimplemented();
 #endif
 		};
 

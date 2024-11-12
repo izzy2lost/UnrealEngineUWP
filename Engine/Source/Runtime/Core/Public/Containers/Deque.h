@@ -225,7 +225,7 @@ public:
 	{
 		GrowIfRequired();
 		ElementType* Target = GetData() + Tail;
-		new (Target) ElementType(Forward<ArgsType>(Args)...);
+		::new ((void*)Target) ElementType(Forward<ArgsType>(Args)...);
 		Tail = UE::Deque::Private::WrapAround(Tail + 1, Capacity);
 		Count++;
 		return *Target;
@@ -241,7 +241,7 @@ public:
 		GrowIfRequired();
 		Head = UE::Deque::Private::WrapAround(Head + Capacity - 1, Capacity);
 		ElementType* Target = GetData() + Head;
-		new (Target) ElementType(Forward<ArgsType>(Args)...);
+		::new ((void*)Target) ElementType(Forward<ArgsType>(Args)...);
 		Count++;
 		return *Target;
 	}
@@ -556,7 +556,7 @@ private:
 			RelocateConstructItems<ElementType>(TempStorage.GetAllocation(), GetData(), Tail);
 			const SizeType HeadToEndOffset = Capacity - Head;
 			ShiftElementsLeft(HeadToEndOffset);
-			RelocateConstructItems<ElementType>(GetData() + HeadToEndOffset, TempStorage.GetAllocation(), Tail);
+			RelocateConstructItems<ElementType>(GetData() + HeadToEndOffset, (ElementType*)TempStorage.GetAllocation(), Tail);
 		}
 	}
 

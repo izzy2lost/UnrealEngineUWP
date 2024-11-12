@@ -1,17 +1,20 @@
 # Copyright Epic Games, Inc. All Rights Reserved.
+
+import argparse
+import signal
+import sys
+
+from PySide6 import QtCore, QtWidgets
+
 from switchboard.config import SETTINGS, CONFIG
 from switchboard.switchboard_scripting import ScriptManager
 from .switchboard_dialog import SwitchboardDialog
 from .switchboard_logging import LOGGER
 
-import signal
-import sys
-import argparse
-
-from PySide6 import QtCore, QtWidgets
 
 # Build resources
 # "Engine\Extras\ThirdPartyNotUE\SwitchboardThirdParty\Python\Scripts\pyside6-rcc" -o "Engine\Plugins\VirtualProduction\Switchboard\Source\Switchboard\switchboard\resources.py" "Engine\Plugins\VirtualProduction\Switchboard\Source\Switchboard\switchboard\ui\resources.qrc"
+
 
 def parse_arguments():
     ''' Parses command line arguments and returns the populated namespace 
@@ -21,6 +24,7 @@ def parse_arguments():
     parser.add_argument('--scriptargs', default='', help='String to pass to SwichboardScriptBase subclass as arguments')
     args, unknown = parser.parse_known_args()
     return args
+
 
 def launch():
     """
@@ -85,7 +89,7 @@ def launch():
     timer.timeout.connect(lambda: None)
 
     # execute the app
-    appresult = app.exec_()
+    appresult = app.exec()
 
     # script exit
     script_manager.on_exit()

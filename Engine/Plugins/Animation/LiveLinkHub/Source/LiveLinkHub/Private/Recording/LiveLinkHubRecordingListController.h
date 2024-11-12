@@ -8,7 +8,7 @@
 #include "LiveLinkHub.h"
 #include "LiveLinkHubLog.h"
 #include "LiveLinkHubPlaybackController.h"
-#include "LiveLinkHubRecordingListController.h"
+#include "LiveLinkHubRecordingController.h"
 #include "SLiveLinkHubRecordingListView.h"
 #include "LiveLinkRecording.h"
 #include "Modules/ModuleManager.h"
@@ -34,20 +34,33 @@ public:
 	}
 
 private:
-	/** Handler called when a recording a clicked to start the recording.  */
+	/** Handler called when a recording is clicked which will start the recording. */
 	void OnImportRecording(const FAssetData& AssetData)
 	{
-		UObject* RecordingAssetData = AssetData.GetAsset();
-		if (!RecordingAssetData)
+		if (const TSharedPtr<FLiveLinkHub> HubPtr = LiveLinkHub.Pin())
 		{
-			UE_LOG(LogLiveLinkHub, Warning, TEXT("Failed to import recording %s"), *AssetData.AssetName.ToString());
-			return;
-		}
+			if (HubPtr->GetRecordingController()->IsRecording())
+			{
+				return;
+			}
 
-		ULiveLinkRecording* ImportedRecording = Cast<ULiveLinkRecording>(RecordingAssetData);
-		
-		if (TSharedPtr<FLiveLinkHub> HubPtr = LiveLinkHub.Pin())
-		{
+			UObject* RecordingAssetData = AssetData.GetAsset();
+			if (!RecordingAssetData)
+			{
+				UE_LOG(LogLiveLinkHub, Warning, TEXT("Failed to import recording %s"), *AssetData.AssetName.ToString());
+				return;
+			}
+
+			ULiveLinkRecording* ImportedRecording = CastChecked<ULiveLinkRecording>(RecordingAssetData);
+			
+			if (UE::IsSavingPackage(nullptr) && !ImportedRecording->IsFullyLoaded())
+			{
+				// With async saving we risk triggering checks during StaticFindObjectFast, even if the package we are loading isn't the one
+				// being saved. This won't occur if the recording is fully loaded into memory already.
+				UE_LOG(LogLiveLinkHub, Warning, TEXT("Can't start recording because a package is saving"));
+				return;
+			}
+			
 			HubPtr->GetPlaybackController()->PreparePlayback(ImportedRecording);
 		}
 	}
@@ -56,7 +69,7 @@ private:
 	{
 		if (const TSharedPtr<FLiveLinkHub> HubPtr = LiveLinkHub.Pin())
 		{
-			HubPtr->GetPlaybackController()->Eject();
+			HubPtr->GetPlaybackController()->EjectAndUnload();
 		}
 	}
 

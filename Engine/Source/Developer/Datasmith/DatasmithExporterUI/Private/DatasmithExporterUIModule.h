@@ -3,6 +3,7 @@
 #pragma once
 
 #include "IDatasmithExporterUIModule.h"
+#include "IDirectLinkUI.h"
 
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"

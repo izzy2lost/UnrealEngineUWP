@@ -28,9 +28,9 @@ bool UAvaShapeFactory::CanCreateActorFrom(const FAssetData& AssetData, FText& Ou
 		return false;
 	}
 
-	if (UClass* AssetClass = AssetData.GetClass())
+	if (const UClass* AssetClass = AssetData.GetClass(EResolveClass::Yes))
 	{
-		return AssetClass->IsChildOf<AAvaShapeActor>();
+		return AssetClass->IsChildOf(NewActorClass);
 	}
 
 	return false;
@@ -84,6 +84,16 @@ AActor* UAvaShapeFactory::SpawnActor(UObject* InAsset, ULevel* InLevel, const FT
 	return ShapeActor;
 }
 
+void UAvaShapeFactory::PostSpawnActor(UObject* InAsset, AActor* InNewActor)
+{
+	Super::PostSpawnActor(InAsset, InNewActor);
+
+	if (AAvaShapeActor* NewShapeActor = Cast<AAvaShapeActor>(InNewActor))
+	{
+		FActorLabelUtilities::RenameExistingActor(NewShapeActor, NewShapeActor->GetDefaultActorLabel(), /** Unique*/true);
+	}
+}
+
 void UAvaShapeFactory::PostPlaceAsset(TArrayView<const FTypedElementHandle> InHandle, const FAssetPlacementInfo& InPlacementInfo, const FPlacementOptions& InPlacementOptions)
 {
 	Super::PostPlaceAsset(InHandle, InPlacementInfo, InPlacementOptions);
@@ -91,10 +101,10 @@ void UAvaShapeFactory::PostPlaceAsset(TArrayView<const FTypedElementHandle> InHa
 	if (!InPlacementOptions.bIsCreatingPreviewElements && FEngineAnalytics::IsAvailable())
 	{
 		TArray<FAnalyticsEventAttribute> Attributes;
-		if (MeshClass)
-		{
-			Attributes.Emplace(TEXT("MeshClass"), MeshClass->GetName());	
-		}
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.PlaceShape"), Attributes);
+		Attributes.Reserve(3);
+		Attributes.Emplace(TEXT("ToolClass"), GetNameSafe(GetClass()));
+		Attributes.Emplace(TEXT("ActorClass"), GetNameSafe(NewActorClass));
+		Attributes.Emplace(TEXT("SubobjectClass"), GetNameSafe(MeshClass));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.PlaceActor"), Attributes);
 	}
 }

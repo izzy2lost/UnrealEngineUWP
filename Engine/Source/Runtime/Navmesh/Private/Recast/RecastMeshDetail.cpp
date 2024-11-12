@@ -749,7 +749,7 @@ static bool buildPolyDetail(rcContext* ctx, const rcReal* in, const int nin,
 
 static void getHeightData(const rcCompactHeightfield& chf,
 						  const unsigned short* poly, const int npoly,
-						  const unsigned short* verts, const int bs,
+						  const unsigned short* verts, const rcBorderSize bs,	//@UE
 						  rcHeightPatch& hp, rcIntArray& stack)
 {
 	// Floodfill the heightfield to get 2D height data,
@@ -781,7 +781,7 @@ static void getHeightData(const rcCompactHeightfield& chf,
 				az < hp.ymin || az >= hp.ymin+hp.height)
 				continue;
 			
-			const rcCompactCell& c = chf.cells[(ax+bs)+(az+bs)*chf.width];
+			const rcCompactCell& c = chf.cells[(ax+bs.low)+(az+bs.low)*chf.width];	//@UE
 			for (int i = (int)c.index, ni = (int)(c.index+c.count); i < ni; ++i)
 			{
 				const rcCompactSpan& s = chf.spans[i];
@@ -853,7 +853,7 @@ static void getHeightData(const rcCompactHeightfield& chf,
 			if (hp.data[ax-hp.xmin+(ay-hp.ymin)*hp.width] != 0)
 				continue;
 			
-			const int ai = (int)chf.cells[(ax+bs)+(ay+bs)*chf.width].index + rcGetCon(cs, dir);
+			const int ai = (int)chf.cells[(ax+bs.low)+(ay+bs.low)*chf.width].index + rcGetCon(cs, dir);	//@UE
 
 			int idx = ax-hp.xmin+(ay-hp.ymin)*hp.width;
 			hp.data[idx] = 1;
@@ -909,7 +909,7 @@ static void getHeightData(const rcCompactHeightfield& chf,
 			if (hp.data[ax-hp.xmin+(ay-hp.ymin)*hp.width] != RC_UNSET_HEIGHT)
 				continue;
 			
-			const int ai = (int)chf.cells[(ax+bs)+(ay+bs)*chf.width].index + rcGetCon(cs, dir);
+			const int ai = (int)chf.cells[(ax+bs.low)+(ay+bs.low)*chf.width].index + rcGetCon(cs, dir);	//@UE
 			
 			const rcCompactSpan& as = chf.spans[ai];
 			int idx = ax-hp.xmin+(ay-hp.ymin)*hp.width;
@@ -967,7 +967,7 @@ bool rcBuildPolyMeshDetail(rcContext* ctx, const rcPolyMesh& mesh, const rcCompa
 	const rcReal cs = mesh.cs;
 	const rcReal ch = mesh.ch;
 	const rcReal* orig = mesh.bmin;
-	const int borderSize = mesh.borderSize;
+	const rcBorderSize borderSize = mesh.borderSize;	//@UE
 	
 	rcIntArray edges(64);
 	rcIntArray tris(512);

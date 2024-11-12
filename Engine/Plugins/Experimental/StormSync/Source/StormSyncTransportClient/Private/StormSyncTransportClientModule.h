@@ -19,6 +19,7 @@ public:
 	virtual void ShutdownModule() override;
 
 	//~ Begin IStormSyncTransportClientModule
+	virtual void StartClientEndpoint(const FString& InEndpointFriendlyName) override;
 	virtual TSharedPtr<IStormSyncTransportClientLocalEndpoint> CreateClientLocalEndpoint(const FString& InEndpointFriendlyName) const override;
 	virtual FString GetClientEndpointMessageAddressId() const override;
 	virtual FMessageEndpointSharedPtr GetClientMessageEndpoint() const override;
@@ -29,15 +30,6 @@ public:
 	//~ End IStormSyncTransportClientModule
 
 private:
-	/** The name of the ava pak to use when none is provided from command line arguments */
-	static constexpr const TCHAR* DefaultPakName = TEXT("SyncPak");
-	
-	/** Our message endpoint provider */
-	TSharedPtr<IStormSyncTransportClientLocalEndpoint, ESPMode::ThreadSafe> ClientEndpoint;
-	
-	/** References of registered console commands via IConsoleManager */
-	TArray<IConsoleObject*> ConsoleCommands;
-
 	/** Called from StartupModule and sets up console commands for the plugin via IConsoleManager */
 	void RegisterConsoleCommands();
 
@@ -45,14 +37,42 @@ private:
 	void UnregisterConsoleCommands();
 	
 	/** Event handler to kick in operations once engine is fully initialized (to publish a client connect message) */
-	void OnEngineLoopInitComplete();
+	void OnPostEngineInit();
 
+	/** Publish the client endpoint's ping message. */
+	void PublishStatusPingMessage() const;
+
+	/** Command handler for starting the client. */
+	void ExecuteStartClient(const TArray<FString>& InArgs);
+	
 	/** Command handler for ping command */
-	void ExecutePing(const TArray<FString>& Args);
+	void ExecutePing(const TArray<FString>& InArgs);
 	
 	/** Command handler for sync pak command */
-	void ExecuteSyncPak(const TArray<FString>& Args);
-	
+	void ExecuteSyncPak(const TArray<FString>& InArgs);
+
+	/** Command handler for displaying debug info. */
+	void ExecuteDebug(const TArray<FString>& InArgs);
+
+	/** Command handler for sending a status ping. */
+	void ExecuteDebugPing(const TArray<FString>& InArgs);
+
 	/** Returns a new package descriptor pulling info from command line options */
-	static FStormSyncPackageDescriptor CreatePackageDescriptorFromCommandLine(const FString& Argv);
+	static FStormSyncPackageDescriptor CreatePackageDescriptorFromCommandLine(const FString& InArgv);
+
+private:
+	/** The name of the ava pak to use when none is provided from command line arguments */
+	static constexpr const TCHAR* DefaultPakName = TEXT("SyncPak");
+
+	/** Default client endpoint name. */
+	static constexpr const TCHAR* DefaultClientEndpointName = TEXT("Client");
+	
+	/** Our message endpoint provider */
+	TSharedPtr<IStormSyncTransportClientLocalEndpoint, ESPMode::ThreadSafe> ClientEndpoint;
+	
+	/** References of registered console commands via IConsoleManager */
+	TArray<IConsoleObject*> ConsoleCommands;
+
+	/** Indicates when the engine init is complete. This is used to know when pending messages can be published. */
+	bool bEngineInitComplete = false;
 };

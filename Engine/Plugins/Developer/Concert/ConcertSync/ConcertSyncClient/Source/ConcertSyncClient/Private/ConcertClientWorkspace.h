@@ -36,6 +36,7 @@ namespace UE::ConcertSyncClient
 	};
 }
 
+struct FConcertSyncReplicationActivity;
 struct FScopedSlowTask;
 
 DECLARE_MULTICAST_DELEGATE(FOnWorkspaceEndFrameCompleted);
@@ -62,6 +63,7 @@ public:
 	virtual bool FindTransactionEvent(const int64 TransactionEventId, FConcertSyncTransactionEvent& OutTransactionEvent, const bool bMetaDataOnly) const override;
 	virtual TFuture<TOptional<FConcertSyncTransactionEvent>> FindOrRequestTransactionEvent(const int64 TransactionEventId, const bool bMetaDataOnly) override;
 	virtual bool FindPackageEvent(const int64 PackageEventId, FConcertSyncPackageEventMetaData& OutPackageEvent) const override;
+	virtual bool FindReplicationEvent(const int64 ReplicationEventId, FConcertSyncReplicationEvent& OutReplicationEvent) const override;
 	virtual void GetActivities(const int64 FirstActivityIdToFetch, const int64 MaxNumActivities, TMap<FGuid, FConcertClientInfo>& OutEndpointClientInfoMap, TArray<FConcertSessionActivity>& OutActivities) const override;
 	virtual int64 GetLastActivityId() const override;
 	virtual FOnActivityAddedOrUpdated& OnActivityAddedOrUpdated() override;
@@ -191,6 +193,14 @@ private:
 	 * @param InPackageActivity		The package activity to set.
 	 */
 	void SetPackageActivity(const FConcertSyncPackageActivity& InPackageActivity);
+
+	/**
+	 * Set a replication activity in the session database, creating or replacing it.
+	 * @note The endpoint ID referenced by the activity must exist in the database (@see SetEndpoint).
+	 *
+	 * @param InReplicationActivity		The replication activity to set.
+	 */
+	void SetReplicationActivity(const FConcertSyncReplicationActivity& InReplicationActivity);
 
 	/**
 	 * Called after any updated in the session database.

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LandscapeNaniteComponent.h"
+#include "DerivedDataCacheInterface.h"
 #include "LandscapeEdit.h"
 #include "LandscapeRender.h"
 #include "MaterialDomain.h"
@@ -12,6 +13,7 @@
 #include "NaniteDefinitions.h"
 #include "UObject/Package.h"
 #include "RenderUtils.h"
+#include "Serialization/MemoryReader.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LandscapeNaniteComponent)
 
@@ -39,11 +41,20 @@
 #endif
 
 extern float LandscapeNaniteAsyncDebugWait;
+namespace UE::Landscape
+{
+	extern int32 NaniteExportCacheMaxQuadCount;
+}
 
 ULandscapeNaniteComponent::ULandscapeNaniteComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, bEnabled(true)
 {
+	// We don't want Nanite representation in ray tracing
+	bVisibleInRayTracing = false;
+
+	// We don't want WPO evaluation enabled on landscape meshes
+	bEvaluateWorldPositionOffset = false;
 }
 
 void ULandscapeNaniteComponent::PostLoad()
@@ -61,7 +72,7 @@ void ULandscapeNaniteComponent::PostLoad()
 			&& (NaniteStaticMesh->GetOuter() != CurrentPackage))
 		{
 			// Change the outer : 
-			NaniteStaticMesh->Rename(nullptr, CurrentPackage, REN_ForceNoResetLoaders);
+			NaniteStaticMesh->Rename(nullptr, CurrentPackage);
 		}
 	}
 #endif // WITH_EDITOR
@@ -71,6 +82,15 @@ void ULandscapeNaniteComponent::PostLoad()
 	{
 		// Ensure that the component lighting and shadow settings matches the actor
 		UpdatedSharedPropertiesFromActor();
+	}
+
+	// Override settings that may have been serialized previously with the wrong values
+	{
+		// We don't want Nanite representation in ray tracing
+		bVisibleInRayTracing = false;
+
+		// We don't want WPO evaluation enabled on landscape meshes
+		bEvaluateWorldPositionOffset = false;
 	}
 }
 
@@ -112,18 +132,15 @@ void ULandscapeNaniteComponent::UpdatedSharedPropertiesFromActor()
 	bCastHiddenShadow = LandscapeProxy->bCastHiddenShadow;
 	bCastShadowAsTwoSided = LandscapeProxy->bCastShadowAsTwoSided;
 	bAffectDistanceFieldLighting = LandscapeProxy->bAffectDistanceFieldLighting;
+	bAffectDynamicIndirectLighting = LandscapeProxy->bAffectDynamicIndirectLighting;
+	bAffectIndirectLightingWhileHidden = LandscapeProxy->bAffectIndirectLightingWhileHidden;
 	bRenderCustomDepth = LandscapeProxy->bRenderCustomDepth;
 	CustomDepthStencilWriteMask = LandscapeProxy->CustomDepthStencilWriteMask;
 	CustomDepthStencilValue = LandscapeProxy->CustomDepthStencilValue;
 	SetCullDistance(LandscapeProxy->LDMaxDrawDistance);
 	LightingChannels = LandscapeProxy->LightingChannels;
+	bHoldout = LandscapeProxy->bHoldout;
 	ShadowCacheInvalidationBehavior = LandscapeProxy->ShadowCacheInvalidationBehavior;
-
-	// We don't want Nanite representation in ray tracing
-	bVisibleInRayTracing = false;
-
-	// We don't want WPO evaluation enabled on landscape meshes
-	bEvaluateWorldPositionOffset = false;
 }
 
 void ULandscapeNaniteComponent::SetEnabled(bool bValue)
@@ -153,6 +170,8 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 {
 	UE_LOG(LogLandscape, VeryVerbose, TEXT("InitializeForLandscapeAsync actor: '%s' package:'%s'"), *Landscape->GetActorNameOrLabel(), *Landscape->GetPackage()->GetName());
 
+	check(bVisibleInRayTracing == false);
+
 	UWorld* World = Landscape->GetWorld();
 	
 	ULandscapeSubsystem* LandscapeSubSystem = World->GetSubsystem<ULandscapeSubsystem>();
@@ -162,13 +181,14 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 	FGraphEventRef StaticMeshBuildCompleteEvent = FGraphEvent::CreateGraphEvent();
 	
 	TSharedRef<UE::Landscape::Nanite::FAsyncBuildData> AsyncBuildData = Landscape->MakeAsyncNaniteBuildData(GetLandscapeActor()->GetNaniteLODIndex(), InComponentsToExport);
-	
-	FGraphEventRef ExportMeshEvent = FFunctionGraphTask::CreateAndDispatchWhenReady([AsyncBuildData,  Name = Landscape->GetActorNameOrLabel()]()
+
+	FGraphEventRef ExportMeshEvent = FFunctionGraphTask::CreateAndDispatchWhenReady(
+		[AsyncBuildData, ProxyContentId = NewProxyContentId, Name = Landscape->GetActorNameOrLabel()]()
 		{			
 			TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeNaniteComponent::ExportLandscapeAsync-ExportMeshTask);
 
 			UE_LOG(LogLandscape, VeryVerbose, TEXT("Exporting actor '%s' package:'%s'"), *Name, *AsyncBuildData->LandscapeWeakRef->GetPackage()->GetName());
-			double StartTimeSeconds = FPlatformTime::Seconds();
+			const double StartTimeSeconds = FPlatformTime::Seconds();
 
 			if (!AsyncBuildData->LandscapeWeakRef.IsValid() || AsyncBuildData->bCancelled)
 			{
@@ -187,12 +207,40 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			AsyncBuildData->SourceModel = &AsyncBuildData->NaniteStaticMesh->AddSourceModel();
 			AsyncBuildData->NaniteMeshDescription = AsyncBuildData->NaniteStaticMesh->CreateMeshDescription(0);
 
+			// ExportToRawMeshDataCopy places Lightmap UVs in coord 2
+			const int32 LightmapUVCoordIndex = 2;
+			AsyncBuildData->NaniteStaticMesh->SetLightMapCoordinateIndex(LightmapUVCoordIndex);
+
+			// create a hash key for the DDC cache of the landscape static mesh export
+			FString ExportDDCKey;
+			{
+				// Mesh Export Version, expressed as a GUID string.  Change this if any of the mesh building code here changes.
+				// NOTE: this does not invalidate the outer cache where we check if nanite meshes need to be rebuilt on load/cook.
+				// it only invalidates the MeshExport DDC cache here.
+				static const char* MeshExportVersion = "070c6830-8d06-42a3-f43e-0709bc41a5a8";
+
+				FSHA1 Hasher;
+				check(PLATFORM_LITTLE_ENDIAN); // not sure if NewProxyContentId byte order is platform agnostic or not
+				Hasher.Update(reinterpret_cast<const uint8*>(&ProxyContentId), sizeof(FGuid));
+				Hasher.Update(reinterpret_cast<const uint8*>(MeshExportVersion), strlen(MeshExportVersion));
+
+				// since we can break proxies into multiple nanite meshes, the hash needs to include which piece(s) we are building here
+				for (ULandscapeComponent* Component : AsyncBuildData->InputComponents)
+				{
+					FIntPoint ComponentBase = Component->GetSectionBase();
+					Hasher.Update(reinterpret_cast<const uint8*>(&ComponentBase), sizeof(FIntPoint));
+				}
+
+				ExportDDCKey = Hasher.Finalize().ToString();
+			}
+
 			// Don't allow the engine to recalculate normals
 			AsyncBuildData->SourceModel->BuildSettings.bRecomputeNormals = false;
 			AsyncBuildData->SourceModel->BuildSettings.bRecomputeTangents = false;
 			AsyncBuildData->SourceModel->BuildSettings.bRemoveDegenerates = false;
 			AsyncBuildData->SourceModel->BuildSettings.bUseHighPrecisionTangentBasis = false;
-			AsyncBuildData->SourceModel->BuildSettings.bUseFullPrecisionUVs = false;
+			AsyncBuildData->SourceModel->BuildSettings.bUseFullPrecisionUVs = false;			
+			AsyncBuildData->SourceModel->BuildSettings.bGenerateLightmapUVs = false; // we generate our own Lightmap UVs; don't stomp on them!
 
 			FMeshNaniteSettings& NaniteSettings = AsyncBuildData->NaniteStaticMesh->NaniteSettings;
 			NaniteSettings.bEnabled = true;
@@ -218,33 +266,99 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			ExportParams.UVConfiguration.ExportUVMappingTypes.SetNumZeroed(4);
 			ExportParams.UVConfiguration.ExportUVMappingTypes[0] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XY; // In LandscapeVertexFactory, Texcoords0 = ETerrainCoordMappingType::TCMT_XY (or ELandscapeCustomizedCoordType::LCCT_CustomUV0)
 			ExportParams.UVConfiguration.ExportUVMappingTypes[1] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XZ; // In LandscapeVertexFactory, Texcoords1 = ETerrainCoordMappingType::TCMT_XZ (or ELandscapeCustomizedCoordType::LCCT_CustomUV1)
-			ExportParams.UVConfiguration.ExportUVMappingTypes[2] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_YZ; // In LandscapeVertexFactory, Texcoords2 = ETerrainCoordMappingType::TCMT_YZ (or ELandscapeCustomizedCoordType::LCCT_CustomUV2)
-			ExportParams.UVConfiguration.ExportUVMappingTypes[3] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::WeightmapUV; // In LandscapeVertexFactory, Texcoords3 = ELandscapeCustomizedCoordType::LCCT_WeightMapUV
+			ExportParams.UVConfiguration.ExportUVMappingTypes[2] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::LightmapUV;			  // Note that this does not match LandscapeVertexFactory's usage, but we work around it in the material graph node to remap TCMT_YZ
+			ExportParams.UVConfiguration.ExportUVMappingTypes[3] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::WeightmapUV;			  // In LandscapeVertexFactory, Texcoords3 = ELandscapeCustomizedCoordType::LCCT_WeightMapUV
+
+			// in case we do generate lightmap UVs, use the "XY" mapping as the source chart UV, and store them to UV channel 2
+			AsyncBuildData->SourceModel->BuildSettings.SrcLightmapIndex = 0;
+			AsyncBuildData->SourceModel->BuildSettings.DstLightmapIndex = LightmapUVCoordIndex;
+
 			// COMMENT [jonathan.bard] ATM Nanite meshes only support up to 4 UV sets so we cannot support those 2 : 
 			//ExportParams.UVConfiguration.ExportUVMappingTypes[4] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::LightmapUV; // In LandscapeVertexFactory, Texcoords4 = lightmap UV
 			//ExportParams.UVConfiguration.ExportUVMappingTypes[5] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::HeightmapUV; // // In LandscapeVertexFactory, Texcoords5 = heightmap UV
 
-			bool bSuccess = AsyncBuildData->LandscapeWeakRef->ExportToRawMeshDataCopy(ExportParams, *AsyncBuildData->NaniteMeshDescription, AsyncBuildData.Get());
+			// calculate the lightmap resolution for the proxy, and the number of quads
+			int32 ProxyLightmapRes = 64;
+			int32 ProxyQuadCount = 0;
+			{
+				const int32 ComponentSizeQuads = AsyncBuildData->LandscapeWeakRef->ComponentSizeQuads;
+				const float LightMapRes = AsyncBuildData->LandscapeWeakRef->StaticLightingResolution;
+			
+				// min/max section bases of all exported components
+				FIntPoint MinSectionBase(INT_MAX, INT_MAX);
+				FIntPoint MaxSectionBase(-INT_MAX, -INT_MAX);
+				for (ULandscapeComponent* Component : AsyncBuildData->InputComponents)
+				{
+					FIntPoint SectionBase{ Component->SectionBaseX, Component->SectionBaseY };
+					MinSectionBase = MinSectionBase.ComponentMin(SectionBase);
+					MaxSectionBase = MaxSectionBase.ComponentMax(SectionBase);
+					ProxyQuadCount += ComponentSizeQuads;
+				}
+				int ProxyQuadsX = (MaxSectionBase.X + ComponentSizeQuads + 1 - MinSectionBase.X);
+				int ProxyQuadsY = (MaxSectionBase.Y + ComponentSizeQuads + 1 - MinSectionBase.Y);
 
+				// as the lightmap is just mapped as a square, it uses the square bounds to determine the resolution
+				ProxyLightmapRes = (ProxyQuadsX > ProxyQuadsY ? ProxyQuadsX : ProxyQuadsY) * LightMapRes;
+			}
+
+			AsyncBuildData->NaniteStaticMesh->SetLightMapResolution(ProxyLightmapRes);
+
+			const bool bUseNaniteExportCache = (UE::Landscape::NaniteExportCacheMaxQuadCount < 0) || (ProxyQuadCount <= UE::Landscape::NaniteExportCacheMaxQuadCount);
+
+			bool bSuccess = false;
+			int64 DDCReadBytes = 0;
+			int64 DDCWriteBytes = 0;
+			
+			if (TArray64<uint8> MeshDescriptionData; 
+				bUseNaniteExportCache && GetDerivedDataCacheRef().GetSynchronous(*ExportDDCKey, MeshDescriptionData, *AsyncBuildData->LandscapeWeakRef->GetFullName()))
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeNaniteComponent::ExportLandscapeAsync - ReadExportedMeshFromDDC);
+
+				FMemoryReaderView Reader(MakeMemoryView(MeshDescriptionData));
+				AsyncBuildData->NaniteMeshDescription->Serialize(Reader);
+
+				bSuccess = true;
+				DDCReadBytes += MeshDescriptionData.Num();
+			}
+			else
+			{
+				// build the nanite mesh description
+				bSuccess = AsyncBuildData->LandscapeWeakRef->ExportToRawMeshDataCopy(ExportParams, *AsyncBuildData->NaniteMeshDescription, AsyncBuildData.Get());
+
+				// Apply the mesh description cleanup/optimization here instead of during DDC build (avoids expensive large mesh copies)
+				FMeshDescriptionHelper MeshDescriptionHelper(&AsyncBuildData->SourceModel->BuildSettings);
+				MeshDescriptionHelper.SetupRenderMeshDescription(AsyncBuildData->NaniteStaticMesh, *AsyncBuildData->NaniteMeshDescription, true /* Is Nanite */, false /* bNeedTangents */);
+
+				// cache mesh description, only if we succeeded (failure may be non-deterministic)
+				if (bUseNaniteExportCache && bSuccess)
+				{
+					// serialize the nanite mesh description and submit it to DDC 
+					TArray64<uint8> MeshDescriptionData64;
+					FMemoryWriter64 Writer(MeshDescriptionData64);
+					AsyncBuildData->NaniteMeshDescription->Serialize(Writer);
+
+					GetDerivedDataCacheRef().Put(*ExportDDCKey, MeshDescriptionData64, *AsyncBuildData->LandscapeWeakRef->GetFullName());
+					DDCWriteBytes += MeshDescriptionData64.Num();
+				}
+			}
+
+			const double ExportSeconds = FPlatformTime::Seconds() - StartTimeSeconds;
 			if (!bSuccess)
 			{
+				UE_LOG(LogLandscape, Log, TEXT("Failed export of raw static mesh for Nanite landscape (%i components) for actor %s : (DDC: %d, DDC read: %lld bytes, DDC write: %lld bytes, key: %s, export: %f seconds)"), AsyncBuildData->InputComponents.Num(), *Name, bUseNaniteExportCache, DDCReadBytes, DDCWriteBytes, *ExportDDCKey, ExportSeconds);
 				AsyncBuildData->bCancelled = true;
 				return;
 			}
-		
-			// Apply the mesh description cleanup/optimization here instead of during DDC build (avoids expensive large mesh copies)
-			{
-				FMeshDescriptionHelper MeshDescriptionHelper(&AsyncBuildData->SourceModel->BuildSettings);
-				MeshDescriptionHelper.SetupRenderMeshDescription(AsyncBuildData->NaniteStaticMesh, *AsyncBuildData->NaniteMeshDescription, true /* Is Nanite */, false /* bNeedTangents */);
-			}
 
+			// check we have one polygon group per component
 			const FPolygonGroupArray& PolygonGroups = AsyncBuildData->NaniteMeshDescription->PolygonGroups();
 			checkf(bSuccess && (PolygonGroups.Num() == AsyncBuildData->InputComponents.Num()), TEXT("Invalid landscape static mesh raw mesh export for actor %s (%i components)"), *Name, AsyncBuildData->InputComponents.Num());
 			check(AsyncBuildData->InputMaterials.Num() == AsyncBuildData->InputComponents.Num());
 			AsyncBuildData->MeshAttributes = MakeShared<FStaticMeshAttributes>(*AsyncBuildData->NaniteMeshDescription);
 
-			UE_LOG(LogLandscape, Verbose, TEXT("Successful export of raw static mesh for Nanite landscape (%i components) for actor %s"), AsyncBuildData->InputComponents.Num(), *Name);
+			TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeNaniteComponent::ExportLandscapeAsync - CommitMeshDescription);
 
+			// commit the mesh description to build the static mesh for realz
 			UStaticMesh::FCommitMeshDescriptionParams CommitParams;
 			CommitParams.bMarkPackageDirty = false;
 			CommitParams.bUseHashAsGuid = true;
@@ -252,7 +366,9 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			AsyncBuildData->NaniteStaticMesh->CommitMeshDescription(0u, CommitParams);
 			AsyncBuildData->bExportResult = true;
 
-			const  double DurationSeconds = FPlatformTime::Seconds() - StartTimeSeconds;
+			const double DurationSeconds = FPlatformTime::Seconds() - StartTimeSeconds;
+			UE_LOG(LogLandscape, Log, TEXT("Successful export of raw static mesh for Nanite landscape (%i components) for actor %s : (DDC: %d, DDC read: %lld bytes, DDC write: %lld bytes, key: %s, export: %f seconds, commit: %f seconds)"), AsyncBuildData->InputComponents.Num(), *Name, bUseNaniteExportCache, DDCReadBytes, DDCWriteBytes, *ExportDDCKey, ExportSeconds, DurationSeconds - ExportSeconds);
+
 			if (const double ExtraWait = FMath::Max(LandscapeNaniteAsyncDebugWait - DurationSeconds, 0.0); ExtraWait > 0.0)
 			{
 				FPlatformProcess::Sleep(ExtraWait);

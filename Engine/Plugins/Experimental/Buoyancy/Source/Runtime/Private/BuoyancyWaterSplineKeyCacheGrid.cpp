@@ -2,9 +2,12 @@
 
 #include "BuoyancyWaterSplineKeyCacheGrid.h"
 #include "CoreMinimal.h"
+#include "BuoyancyStats.h"
 
 float FSplineKeyCacheGrid::GetClosestSplineKey(const FBuoyancyWaterSplineData& WaterSplineData, const Chaos::FVec3& WorldPosition)
 {
+	LLM_SCOPE_BYTAG(BuoyancyParticleDataTag);
+
 	// Convert the world position into a position local to the water spline
 	const FVector LocalPosition = WaterSplineData.Transform.InverseTransformPosition(WorldPosition);
 
@@ -82,6 +85,11 @@ float FSplineKeyCacheGrid::GetGridSize() const
 uint32 FSplineKeyCacheGrid::GetCacheLimit() const
 {
 	return CacheLimit;
+}
+
+SIZE_T FSplineKeyCacheGrid::GetAllocatedSize() const
+{
+	return SplineKeyCache.GetAllocatedSize();
 }
 
 Chaos::TVec3<int32> FSplineKeyCacheGrid::GetCacheKey(const FVector& LocalPos) const

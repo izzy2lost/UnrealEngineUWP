@@ -123,3 +123,19 @@ namespace GlobalVectorConstants
 	inline constexpr VectorRegister RotationSignificantThreshold = MakeVectorRegisterConstant(1.0 - UE_DELTA*UE_DELTA, 1.0 - UE_DELTA*UE_DELTA, 1.0 - UE_DELTA*UE_DELTA, 1.0 - UE_DELTA*UE_DELTA);
 }
 
+struct FScopedFTZFloatMode
+{
+	FScopedFTZFloatMode()
+	{
+		ControlRegisterState = VectorGetControlRegister();
+		VectorSetControlRegister(ControlRegisterState | VECTOR_DENORMALS_FLUSH_TO_ZERO);
+	}
+
+	~FScopedFTZFloatMode()
+	{
+		VectorSetControlRegister(ControlRegisterState);
+	}
+
+private:
+	uint32 ControlRegisterState;
+};

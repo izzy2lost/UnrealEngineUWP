@@ -27,6 +27,7 @@
 #include "CanvasRender.h"
 #include "LocalVertexFactory.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
+#include "PrimitiveUniformShaderParametersBuilder.h"
 #include "MeshPassProcessor.h"
 #include "RHIStaticStates.h"
 #include "RendererInterface.h"
@@ -511,7 +512,19 @@ public:
 
 		FMeshBatch& MeshElement = *RenderContext.Alloc<FMeshBatch>();
 		FMeshBuilderOneFrameResources& OneFrameResource = *RenderContext.Alloc<FMeshBuilderOneFrameResources>();
-		DynamicMeshBuilder.GetMeshElement(FMatrix::Identity, Data.MaterialRenderProxy, SDPG_Foreground, true, false, 0, OneFrameResource, MeshElement);
+
+		// Provide custom primitive params to prevent world position offset from moving the mesh
+		FPrimitiveUniformShaderParameters PrimitiveParams = FPrimitiveUniformShaderParametersBuilder{}
+			.Defaults()
+				.LocalToWorld(FMatrix::Identity)
+				.ActorWorldPosition(FMatrix::Identity.GetOrigin())
+				.WorldBounds(FBoxSphereBounds(EForceInit::ForceInit))
+				.LocalBounds(FBoxSphereBounds(EForceInit::ForceInit))
+				.ReceivesDecals(false)
+				.OutputVelocity(true)
+				.EvaluateWorldPositionOffset(false)
+			.Build();
+		DynamicMeshBuilder.GetMeshElement(PrimitiveParams, Data.MaterialRenderProxy, SDPG_Foreground, true, 0, OneFrameResource, MeshElement);
 
 		check(OneFrameResource.IsValidForRendering());
 
@@ -753,11 +766,11 @@ bool FMeshRenderer::RenderMaterialTexCoordScales(struct FMaterialMergeData& InMa
 	check(IsInGameThread());
 	check(InRenderTarget);
 
-	// Create a canvas for the render target and clear it to black
+	// Create a canvas for the render target and clear it to transparent
 	FTextureRenderTargetResource* RTResource = InRenderTarget->GameThread_GetRenderTargetResource();
 	FCanvas Canvas(RTResource, NULL, FGameTime::GetTimeSinceAppStart(), GMaxRHIFeatureLevel);
 	const FRenderTarget* CanvasRenderTarget = Canvas.GetRenderTarget();
-	Canvas.Clear(FLinearColor::Black);
+	Canvas.Clear(FLinearColor::Transparent);
 
 	// Set show flag view mode to output tex coord scale
 	FEngineShowFlags ShowFlags(ESFIM_Game);

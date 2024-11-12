@@ -39,7 +39,7 @@ struct FVelocityRendering
 	static ETextureCreateFlags GetCreateFlags(EShaderPlatform ShaderPlatform);
 	
 	/** Returns the render target description for the velocity buffer. */
-	static FRDGTextureDesc GetRenderTargetDesc(EShaderPlatform ShaderPlatform, FIntPoint Extent);
+	static FRDGTextureDesc GetRenderTargetDesc(EShaderPlatform ShaderPlatform, FIntPoint Extent, const bool bRequireMultiView = false);
 
 	/** Returns true if a velocity pass is supported. */
 	static bool IsVelocityPassSupported(EShaderPlatform ShaderPlatform);
@@ -52,9 +52,6 @@ struct FVelocityRendering
 
 	/** Returns true if the velocity pass is using parallel dispatch. */
 	static bool IsParallelVelocity(EShaderPlatform ShaderPlatform);
-
-	/** Returns true if we wait for outstanding tasks in velocity pass. */
-	static bool IsVelocityWaitForTasksEnabled(EShaderPlatform ShaderPlatform);
 };
 
 /**
@@ -94,6 +91,9 @@ protected:
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode,
 		TArray<FPSOPrecacheData>& PSOInitializers);
+
+protected:
+	EDepthDrawingMode EarlyZPassMode = DDM_None;
 };
 
 /**
@@ -107,7 +107,8 @@ public:
 		ERHIFeatureLevel::Type FeatureLevel,
 		const FSceneView* InViewIfDynamicMeshCommand,
 		const FMeshPassProcessorRenderState& InPassDrawRenderState,
-		FMeshPassDrawListContext* InDrawListContext);
+		FMeshPassDrawListContext* InDrawListContext,
+		EDepthDrawingMode InEarlyZPassMode);
 
 	/** Returns true if the object is capable of having velocity for any frame. */
 	static bool PrimitiveCanHaveVelocity(EShaderPlatform ShaderPlatform, const FPrimitiveSceneProxy* PrimitiveSceneProxy);

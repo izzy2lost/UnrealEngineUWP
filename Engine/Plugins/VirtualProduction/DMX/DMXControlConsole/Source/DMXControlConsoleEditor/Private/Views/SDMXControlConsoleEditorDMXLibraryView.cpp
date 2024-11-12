@@ -53,24 +53,16 @@ namespace UE::DMX::Private
 
 		ChildSlot
 			[
-				SNew(SScrollBox)
-				.Orientation(Orient_Vertical)
-
-				+ SScrollBox::Slot()
-				.AutoSize()
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.AutoHeight()
 				[
-					SNew(SVerticalBox)
-					+ SVerticalBox::Slot()
-					.AutoHeight()
-					[
-						ControlConsoleDataDetailsView.ToSharedRef()
-					]
+					ControlConsoleDataDetailsView.ToSharedRef()
+				]
 
-					+ SVerticalBox::Slot()
-					.AutoHeight()
-					[
-						SAssignNew(FixturePatchVerticalBox, SDMXControlConsoleEditorFixturePatchVerticalBox, EditorModel.Get())
-					]
+				+ SVerticalBox::Slot()
+				[
+					SAssignNew(FixturePatchVerticalBox, SDMXControlConsoleEditorFixturePatchVerticalBox, EditorModel.Get())
 				]
 			];
 	}

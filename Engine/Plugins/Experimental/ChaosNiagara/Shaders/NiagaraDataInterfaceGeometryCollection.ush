@@ -4,6 +4,8 @@
 NiagaraDataInterfaceGeometryCollection.ush 
 =============================================================================*/
 
+#include "/Plugin/FX/Niagara/Private/NiagaraTransformUtils.ush"
+
 /* -----------------------------------------------------------------
  * static mesh constants and context
  * -----------------------------------------------------------------
@@ -15,12 +17,16 @@ NiagaraDataInterfaceGeometryCollection.ush
 
 float3			{ParameterName}_BoundsMin;
 float3			{ParameterName}_BoundsMax;
-uint			{ParameterName}_NumPieces;
+int				{ParameterName}_NumPieces;
+float3			{ParameterName}_RootTransform_Translation;
+float4			{ParameterName}_RootTransform_Rotation;
+float3			{ParameterName}_RootTransform_Scale;
 Buffer<float4>	{ParameterName}_WorldTransformBuffer;
 Buffer<float4>	{ParameterName}_PrevWorldTransformBuffer;
 Buffer<float4>	{ParameterName}_WorldInverseTransformBuffer;
 Buffer<float4>	{ParameterName}_PrevWorldInverseTransformBuffer;
 Buffer<float4>	{ParameterName}_BoundsBuffer;
+ByteAddressBuffer  {ParameterName}_ElementTransforms;
 
 /* -----------------------------------------------------------------
  * Position / Transform utils
@@ -62,7 +68,6 @@ float3x4 DIGeometryCollection_GetPreviousInverse(in int ElementIndex)
 	const int BufferOffset = 3 * ElementIndex;
     return float3x4({ParameterName}_PrevWorldInverseTransformBuffer[BufferOffset], {ParameterName}_PrevWorldInverseTransformBuffer[BufferOffset+1], {ParameterName}_PrevWorldInverseTransformBuffer[BufferOffset+2]);
 }
-
 
 /* -----------------------------------------------------------------
  * Collision detection utils
@@ -146,6 +151,48 @@ float DIGeometryCollection_GetBoxProjection(in float3 LocalPosition, in float3 B
 	return BoxDistance;
 }
 
+void GetNumElements_{ParameterName}(out int OutCount)
+{
+	OutCount = {ParameterName}_NumPieces;
+}
+
+void GetGeometryComponentTransform_{ParameterName}(out float3 OutPosition, out float4 OutRotation, out float3 OutScale)
+{
+	OutPosition = {ParameterName}_RootTransform_Translation;
+	OutRotation = {ParameterName}_RootTransform_Rotation;
+	OutScale = {ParameterName}_RootTransform_Scale;
+}
+
+void GetElementTransform_{ParameterName}(in int InElementIndex, out float3 OutTranslation, out float4 OutRotation, out float3 OutScale)
+{
+	OutTranslation = 0;
+	OutRotation = 0;
+	OutScale = 0;
+	if (InElementIndex >= 0 && InElementIndex < {ParameterName}_NumPieces)
+	{
+		uint TransformIndex = InElementIndex * 10 * 4;
+		FNiagaraTransform ElementTransform = LoadTransform({ParameterName}_ElementTransforms, TransformIndex);
+		OutTranslation = ElementTransform.Translation;
+		OutRotation = ElementTransform.Rotation;
+		OutScale = ElementTransform.Scale;
+	}
+}
+
+void GetElementBounds_{ParameterName}(in int InElementIndex, out float3 OutCenter, out float3 OutBoundingBox)
+{
+	if (InElementIndex >= 0 && InElementIndex < {ParameterName}_NumPieces)
+	{
+		uint TransformIndex = InElementIndex * 10 * 4;
+		FNiagaraTransform ElementTransform = LoadTransform({ParameterName}_ElementTransforms, TransformIndex);
+		OutCenter = ElementTransform.Translation;
+		OutBoundingBox = {ParameterName}_BoundsBuffer[InElementIndex].xyz;
+	}
+	else
+	{
+		OutCenter = 0;
+		OutBoundingBox = 0;
+	}
+}
 
 /* -----------------------------------------------------------------
  * Get the closest element to the world position
@@ -204,8 +251,7 @@ void DIGeometryCollection_GetClosestPointNoNormal(in float3 WorldPosition, in fl
 
 void GetClosestPointNoNormal_{ParameterName}(in float3 WorldPosition, in float DeltaTime, in float TimeFraction, out float ClosestDistance, out float3 OutClosestPosition, out float3 OutClosestVelocity)
 {
-	DIGeometryCollection_GetClosestPointNoNormal(WorldPosition,DeltaTime,TimeFraction, ClosestDistance,
-		OutClosestPosition,OutClosestVelocity);
+	DIGeometryCollection_GetClosestPointNoNormal(WorldPosition,DeltaTime, TimeFraction, ClosestDistance, OutClosestPosition, OutClosestVelocity);
 }
 
 #undef BOX_INDEX

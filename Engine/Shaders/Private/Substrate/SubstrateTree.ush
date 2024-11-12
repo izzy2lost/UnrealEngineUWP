@@ -16,17 +16,30 @@
 ///////////////////////////////////////////////////////////////////////////////
 // Tree processing functions
 
+#if SUBSTRATE_COMPILER_SUPPORTS_STRUCT_FORWARD_DECLARATION
 void FSubstrateTree::UpdateSingleBSDFOperatorCoverageTransmittance(
 	FSubstratePixelHeader SubstratePixelHeader,
 	int BSDFIndex,
 	FSubstrateIntegrationSettings Settings,
 	float3 V)
+#else
+void UpdateSingleBSDFOperatorCoverageTransmittance(
+	inout FSubstrateTree InSubstrateTree,
+	FSubstratePixelHeader SubstratePixelHeader,
+	int BSDFIndex,
+	FSubstrateIntegrationSettings Settings,
+	float3 V)
+#endif
 {
 #if SUBSTRATE_INLINE_SHADING
 
-	
-#define CurrentBSDF this.BSDFs[BSDFIndex]
-#define Op this.Operators[CurrentBSDF.OperatorIndex]
+#if SUBSTRATE_COMPILER_SUPPORTS_STRUCT_FORWARD_DECLARATION
+	#define CurrentBSDF this.BSDFs[BSDFIndex]
+	#define Op this.Operators[CurrentBSDF.OperatorIndex]
+#else
+	#define CurrentBSDF InSubstrateTree.BSDFs[BSDFIndex]
+	#define Op InSubstrateTree.Operators[CurrentBSDF.OperatorIndex]
+#endif
 
 	// this feature is only needed for development/editor - we can compile it out for a shipping build (see r.CompileShadersForDevelopment cvar help)
 #if USE_DEVELOPMENT_SHADERS

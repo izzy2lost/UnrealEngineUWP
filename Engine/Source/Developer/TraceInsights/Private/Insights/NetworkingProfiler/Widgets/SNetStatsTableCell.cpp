@@ -11,13 +11,18 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/SExpanderArrow.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/Table.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
-#include "Insights/Table/ViewModels/Table.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
 #include "Insights/NetworkingProfiler/Widgets/SNetStatsTableRow.h"
 
-#define LOCTEXT_NAMESPACE "SNetStatsView"
+#define LOCTEXT_NAMESPACE "UE::Insights::NetworkingProfiler::SNetStatsView"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -155,5 +160,7 @@ TSharedRef<SWidget> SNetStatsTableCell::GenerateWidgetForStatsColumn(const FArgu
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef LOCTEXT_NAMESPACE

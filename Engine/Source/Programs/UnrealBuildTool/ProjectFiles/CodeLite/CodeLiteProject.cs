@@ -22,7 +22,10 @@ namespace UnrealBuildTool
 		// Check if the XElement is empty.
 		bool IsEmpty(IEnumerable<XElement> en)
 		{
-			foreach (XElement c in en) { return false; }
+			foreach (XElement c in en)
+			{
+				return false;
+			}
 			return true;
 		}
 
@@ -62,7 +65,7 @@ namespace UnrealBuildTool
 			//
 			// Create the folder where the project files goes if it does not exist
 			//
-			String FilePath = Path.GetDirectoryName(ProjectFilePath.FullName)!;
+			string FilePath = Path.GetDirectoryName(ProjectFilePath.FullName)!;
 			if ((FilePath.Length > 0) && !Directory.Exists(FilePath))
 			{
 				Directory.CreateDirectory(FilePath);
@@ -81,7 +84,7 @@ namespace UnrealBuildTool
 			{
 				string[] tmp = target.ToString()!.Split('.');
 				string ProjectTargetFileName = Path.GetDirectoryName(ProjectFilePath.FullName) + "/" + tmp[0] + ProjectExtension;
-				String TargetName = tmp[0];
+				string TargetName = tmp[0];
 				TargetType ProjectTargetType = target.TargetRules!.Type;
 
 				//
@@ -115,7 +118,7 @@ namespace UnrealBuildTool
 					//
 					// Try to get the correct relative folder representation for the project.
 					//
-					String CurrentFilePath = "";
+					string CurrentFilePath = "";
 					// TODO It seems that the full pathname doesn't work for some files like .ini, .usf, .ush
 					if ((ProjectTargetType == TargetType.Client) ||
 						(ProjectTargetType == TargetType.Editor) ||

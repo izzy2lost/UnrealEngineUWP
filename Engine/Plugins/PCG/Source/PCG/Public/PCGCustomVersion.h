@@ -77,6 +77,9 @@ struct FPCGCustomVersion
 		// New gate for new data, so any node that has a non Point pin don't do any ToPointData by default.
 		NoMoreSpatialDataConversionToPointDataByDefaultOnNonPointPins = 22,
 
+		// Attributes and tags can now contain spaces and will no longer be parsed by spaces.
+		AttributesAndTagsCanContainSpaces = 23,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
@@ -88,8 +91,3 @@ struct FPCGCustomVersion
 private:
 	FPCGCustomVersion() {}
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "Misc/Guid.h"
-#endif

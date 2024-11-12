@@ -33,6 +33,7 @@ public:
 	 * @param bInMakeLowerCase - Whether to lower case filenames and directories.
 	 */
 	CORE_API FLocalTimestampDirectoryVisitor( IPlatformFile& InFileInterface, const TArray<FString>& InDirectoriesToIgnore, const TArray<FString>& InDirectoriesToNotRecurse, bool bInCacheDirectories = false, bool bInMakeLowerCase = false );
+	CORE_API virtual ~FLocalTimestampDirectoryVisitor();
 
 public:
 

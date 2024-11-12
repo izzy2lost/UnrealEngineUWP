@@ -23,7 +23,6 @@ class MOVER_API UPhysicsDrivenWalkingMode : public UWalkingMode, public IPhysics
 public:
 
 	virtual void OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState) override;
-	virtual bool AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FVector& PriorVelocity, FMoverTickEndData& Output);
 
 	virtual void UpdateConstraintSettings(Chaos::FCharacterGroundConstraint& Constraint) const override;
 	virtual void OnContactModification_Internal(const FPhysicsMoverSimulationContactModifierParams& Params, Chaos::FCollisionContactModifier& Modifier) const override;
@@ -75,6 +74,11 @@ public:
 	// and jumping are still possible even though the character has started falling under gravity
 	UPROPERTY(EditAnywhere, Category = "Physics Mover", meta = (ClampMin = "0", UIMin = "0", ForceUnits = "s"))
 	float MaxUnsupportedTimeBeforeFalling = 0.06f;
+
+	// This setting is relevant for pawns landing on sloped surfaces. When enabled, no sliding occurs
+	// for vertical landing velocities. When disabled, the sliding is governed by the friction forces.
+	UPROPERTY(EditAnywhere, Category = "Physics Mover")
+	bool bHandleVerticalLandingSeparately = true;
 
 protected:
 	void SwitchToState(const FName& StateName, const FSimulationTickParams& Params, FMoverTickEndData& OutputState);

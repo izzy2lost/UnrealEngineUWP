@@ -100,15 +100,19 @@ void UWebAPIOperation::Visit(TFunctionRef<void(IWebAPISchemaObjectInterface*&)> 
 	}
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 void UWebAPIOperation::BindToTypeInfo()
 {
 	check(Name.HasTypeInfo());
 
-	if(Name.TypeInfo->Model.IsNull())
+	if(!Name.TypeInfo->GetModel())
 	{
-		Name.TypeInfo->Model = this;
+		Name.TypeInfo->SetModel(this);
 	}
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #if WITH_EDITOR
 void UWebAPIOperation::SetCodeText(const FString& InCodeText)

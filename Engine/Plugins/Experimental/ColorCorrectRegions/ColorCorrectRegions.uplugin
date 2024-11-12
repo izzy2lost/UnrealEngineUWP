@@ -30,6 +30,10 @@
 		{
 			"Name": "nDisplayModularFeatures",
 			"Enabled": true
+		},
+		{
+			"Name": "ColorGrading",
+			"Enabled": true
 		}
 	]
 }

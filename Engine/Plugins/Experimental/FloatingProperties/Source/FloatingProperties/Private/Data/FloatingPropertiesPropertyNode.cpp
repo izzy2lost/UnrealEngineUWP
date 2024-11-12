@@ -98,7 +98,7 @@ TSharedPtr<FFloatingPropertiesPropertyNode> FFloatingPropertiesPropertyNode::Rem
 
 	Child->PropertyPosition = CalculatePropertyPosition(
 		LinkedList->GetDraggableArea(), 
-		Child->GetPropertyWidget()->GetDesiredSize(),
+		Child->GetPropertyWidget()->GetAbsolutePropertySize(),
 		Child->GetCachedPosition()
 	);
 
@@ -409,10 +409,9 @@ FVector2f FFloatingPropertiesPropertyNode::GetStackSize() const
 
 	for (const TSharedRef<FFloatingPropertiesPropertyNode>& Node : GetNodeStack())
 	{
-		const FVector2f DesiredSize = Node->GetPropertyWidget()->GetDesiredSize();
-
-		StackSize.X = FMath::Max(StackSize.X, DesiredSize.X);
-		StackSize.Y += DesiredSize.Y;
+		const FVector2f NodeWidgetSize = Node->GetPropertyWidget()->GetAbsolutePropertySize();
+		StackSize.X = FMath::Max(StackSize.X, NodeWidgetSize.X);
+		StackSize.Y += NodeWidgetSize.Y;
 	}
 
 	return StackSize;
@@ -445,7 +444,7 @@ EFloatingPropertiesUpdateResult FFloatingPropertiesPropertyNode::UpdatePropertyN
 		}
 
 		const FVector2f& PreviousNodePosition = ParentNode->CachedPosition;
-		const FVector2f PreviousNodeSize = ParentNode->PropertyWidget->GetDesiredSize();
+		const FVector2f PreviousNodeSize = ParentNode->PropertyWidget->GetAbsolutePropertySize();
 
 		SetCachedPosition({
 			PreviousNodePosition.X,
@@ -504,7 +503,7 @@ EFloatingPropertiesUpdateResult FFloatingPropertiesPropertyNode::UpdatePropertyN
 
 FVector2f FFloatingPropertiesPropertyNode::CalculateAnchorMultiplier(const FFloatingPropertiesClassPropertyPosition& InPropertyPosition)
 {
-	FVector2f AnchorMultiplier;
+	FVector2f AnchorMultiplier = FVector2f::ZeroVector;
 
 	switch (InPropertyPosition.HorizontalAnchor.GetValue())
 	{

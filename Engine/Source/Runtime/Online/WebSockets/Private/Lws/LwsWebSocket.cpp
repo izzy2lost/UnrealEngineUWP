@@ -309,7 +309,7 @@ int FLwsWebSocket::LwsCallback(lws* Instance, lws_callback_reasons Reason, void*
 
 			if (ReceiveBuffer.Len() + Length > MaxTextMessageBufferSize)
 			{
-				FString ReasonString = FString::Printf(TEXT("Received text message exceeded memory limit of %lu bytes"), MaxTextMessageBufferSize);
+				FString ReasonString = FString::Printf(TEXT("Received text message exceeded memory limit of %" UINT64_FMT " bytes"), MaxTextMessageBufferSize);
 				Close(LWS_CLOSE_STATUS_MESSAGE_TOO_LARGE, ReasonString);
 
 				UE_LOG(LogWebSockets, Verbose, TEXT("Received text message too large - use SetTextMessageMemoryLimit() to increase buffer size. Current Size=%lu"), MaxTextMessageBufferSize);
@@ -476,7 +476,7 @@ int FLwsWebSocket::LwsCallback(lws* Instance, lws_callback_reasons Reason, void*
 		LwsConnection = nullptr;
 
 		FUTF8ToTCHAR Convert((const ANSICHAR*)Data, Length);
-		FString CloseReasonString(Convert.Length(), Convert.Get());
+		FString CloseReasonString = FString::ConstructFromPtrSize(Convert.Get(), Convert.Length());
 		bool bWakeGameThread = false;
 		UE_LOG(LogWebSockets, Verbose, TEXT("FLwsWebSocket[%d]::LwsCallback: Received LWS_CALLBACK_CLIENT_CONNECTION_ERROR, setting State=%s CloseReason=%s PreviousState=%s"),
 			Identifier, ToString(EState::Error), *CloseReasonString, ToString(State));

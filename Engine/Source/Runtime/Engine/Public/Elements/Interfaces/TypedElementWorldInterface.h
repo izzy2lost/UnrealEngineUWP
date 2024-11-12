@@ -16,6 +16,7 @@ class ULevel;
 class UTypedElementSelectionSet; 
 class UWorld;
 struct FCollisionShape;
+struct FCollisionQueryParams;
 struct FConvexVolume;
 struct FEngineShowFlags;
 struct FWorldSelectionElementArgs;
@@ -173,6 +174,21 @@ public:
 	 * Attempt to find a suitable (non-intersecting) transform for the given element along the given path.
 	 */
 	virtual bool FindSuitableTransformAlongPath(const FTypedElementHandle& InElementHandle, const FVector& InPathStart, const FVector& InPathEnd, const FCollisionShape& InTestShape, TArrayView<const FTypedElementHandle> InElementsToIgnore, FTransform& OutSuitableTransform)
+	{
+		return false;
+	}
+
+	/**
+	 * Attempt to modify FCollisionQueryParams so that the given element (and optionally any attached 
+	 * sub-elements, if the element is part of a hierarchy) is ignored in the query. 
+	 *
+	 * For instance, this can be used to support dragging elements into the scene and raycasting for a
+	 * target location without hitting the preview.
+	 * 
+	 * @return true if the collision query parameters were modified.
+	 */
+	virtual bool AddIgnoredElementToCollisionQueryParams(const FTypedElementHandle& InElementHandle,
+		FCollisionQueryParams& InOutParams, bool bAlsoIgnoreSubElements = true)
 	{
 		return false;
 	}
@@ -469,6 +485,7 @@ struct TTypedElement<ITypedElementWorldInterface> : public TTypedElementBase<ITy
 	void NotifyMovementEnded() const { InterfacePtr->NotifyMovementEnded(*this); }
 	bool FindSuitableTransformAtPoint(const FTransform& InPotentialTransform, FTransform& OutSuitableTransform) const { return InterfacePtr->FindSuitableTransformAtPoint(*this, InPotentialTransform, OutSuitableTransform); }
 	bool FindSuitableTransformAlongPath(const FVector& InPathStart, const FVector& InPathEnd, const FCollisionShape& InTestShape, TArrayView<const FTypedElementHandle> InElementsToIgnore, FTransform& OutSuitableTransform) const { return InterfacePtr->FindSuitableTransformAlongPath(*this, InPathStart, InPathEnd, InTestShape, InElementsToIgnore, OutSuitableTransform); }
+	bool AddIgnoredElementToCollisionQueryParams(const FTypedElementHandle& InElementHandle, FCollisionQueryParams& InOutParams, bool bAlsoIgnoreSubElements = true) const { return InterfacePtr->AddIgnoredElementToCollisionQueryParams(InElementHandle, InOutParams, bAlsoIgnoreSubElements); }
 	bool CanDeleteElement() const { return InterfacePtr->CanDeleteElement(*this); }
 	bool DeleteElement(UWorld* InWorld, UTypedElementSelectionSet* InSelectionSet, const FTypedElementDeletionOptions& InDeletionOptions) const { return InterfacePtr->DeleteElement(*this, InWorld, InSelectionSet, InDeletionOptions); }
 	bool CanDuplicateElement() const { return InterfacePtr->CanDuplicateElement(*this); }

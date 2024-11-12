@@ -20,6 +20,7 @@
 #include "LandscapeFileFormatRaw.h"
 #include "LandscapeEditorServices.h"
 #include "LandscapeImageFileCache.h"
+#include "LandscapeSettings.h"
 #include "SLandscapeLayerListDialog.h"
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -335,7 +336,7 @@ public:
 	/**
 	* ILandscapeEditorServices implementation
 	*/
-	virtual int32 GetOrCreateEditLayer(FName InEditLayerName, ALandscape* InTargetLandscape) override;
+	virtual int32 GetOrCreateEditLayer(FName InEditLayerName, ALandscape* InTargetLandscape, const TSubclassOf<ULandscapeEditLayerBase>& InEditLayerClass) override;
 	virtual void RefreshDetailPanel() override;
 
 protected:
@@ -522,17 +523,25 @@ FLandscapeImageFileCache& FLandscapeEditorModule::GetImageFileCache() const
 	return *LandscapeImageFileCache;
 }
 
-int32 FLandscapeEditorModule::GetOrCreateEditLayer(FName InEditLayerName, ALandscape* InTargetLandscape)
+int32 FLandscapeEditorModule::GetOrCreateEditLayer(FName InEditLayerName, ALandscape* InTargetLandscape, const TSubclassOf<ULandscapeEditLayerBase>& InEditLayerClass)
 {
 	// Insertion logic is left to the user through modal drag + drop dialog : 
 	int32 ExistingLayerIndex = InTargetLandscape->GetLayerIndex(InEditLayerName);
 	if (ExistingLayerIndex == INDEX_NONE)
 	{
-		InTargetLandscape->CreateLayer(InEditLayerName);
-		TSharedPtr<SLandscapeLayerListDialog> Dialog = SNew(SLandscapeLayerListDialog, InTargetLandscape->LandscapeLayers);
-		Dialog->ShowModal();
-		ExistingLayerIndex = Dialog->GetInsertedLayerIndex();
+		ExistingLayerIndex = InTargetLandscape->CreateLayer(InEditLayerName, InEditLayerClass);
+
+		const ULandscapeSettings* Settings = GetDefault<ULandscapeSettings>();
+		if (Settings && Settings->bShowDialogForAutomaticLayerCreation)
+		{
+			TSharedPtr<SLandscapeLayerListDialog> Dialog = SNew(SLandscapeLayerListDialog, InTargetLandscape);
+			Dialog->ShowModal();
+			ExistingLayerIndex = Dialog->GetInsertedLayerIndex();
+		}
 	}
+
+	RefreshDetailPanel();
+
 	return ExistingLayerIndex;
 }
 

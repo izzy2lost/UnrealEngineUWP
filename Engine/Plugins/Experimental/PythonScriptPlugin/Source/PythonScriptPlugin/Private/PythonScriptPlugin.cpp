@@ -41,6 +41,7 @@
 
 #if WITH_EDITOR
 #include "EditorSupportDelegates.h"
+#include "EditorUtilities/EditorPythonExecuter.h"
 #include "DesktopPlatformModule.h"
 #include "Styling/AppStyle.h"
 #include "Engine/Engine.h"
@@ -67,6 +68,8 @@
 #include <locale.h>
 
 #define LOCTEXT_NAMESPACE "PythonScriptPlugin"
+
+#define UE_PYTHON_DEFER_INIT (1)
 
 #if WITH_PYTHON
 
@@ -138,6 +141,80 @@ struct FPythonScopedArgv
 	TArray<PyUtil::FPyApiChar*> PyCommandLineArgPtrs;
 };
 
+struct FScopedEncodingGuard
+{
+	FScopedEncodingGuard()
+	{
+		// Python 3 changes the console mode from O_TEXT to O_BINARY which affects other uses of the console
+		// So change the console mode back to its current setting after Py_Initialize has been called
+#if PLATFORM_WINDOWS
+		// We call _setmode here to cache the current state
+		CA_SUPPRESS(6031)
+		fflush(stdin);
+		StdInMode = _setmode(_fileno(stdin), _O_TEXT);
+		CA_SUPPRESS(6031)
+		fflush(stdout);
+		StdOutMode = _setmode(_fileno(stdout), _O_TEXT);
+		CA_SUPPRESS(6031)
+		fflush(stderr);
+		StdErrMode = _setmode(_fileno(stderr), _O_TEXT);
+#endif	// PLATFORM_WINDOWS
+
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 7
+		// Python 3.7+ changes the C locale which affects functions using C string APIs
+		// So change the C locale back to its current setting after Py_Initialize has been called
+		if (const char* CurrentLocalePtr = setlocale(LC_ALL, nullptr))
+		{
+			CurrentLocale = ANSI_TO_TCHAR(CurrentLocalePtr);
+		}
+#endif	// PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 7
+	}
+
+	~FScopedEncodingGuard()
+	{
+#if PLATFORM_WINDOWS
+		// We call _setmode here to restore the previous state
+		if (StdInMode != -1)
+		{
+			CA_SUPPRESS(6031)
+				fflush(stdin);
+			CA_SUPPRESS(6031)
+				_setmode(_fileno(stdin), StdInMode);
+		}
+		if (StdOutMode != -1)
+		{
+			CA_SUPPRESS(6031)
+				fflush(stdout);
+			CA_SUPPRESS(6031)
+				_setmode(_fileno(stdout), StdOutMode);
+		}
+		if (StdErrMode != -1)
+		{
+			CA_SUPPRESS(6031)
+				fflush(stderr);
+			CA_SUPPRESS(6031)
+				_setmode(_fileno(stderr), StdErrMode);
+		}
+#endif	// PLATFORM_WINDOWS
+
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 7
+		// We call setlocale here to restore the previous state
+		if (!CurrentLocale.IsEmpty())
+		{
+			setlocale(LC_ALL, TCHAR_TO_ANSI(*CurrentLocale));
+		}
+#endif	// PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 7
+	}
+
+private:
+	FString CurrentLocale;
+#if PLATFORM_WINDOWS
+	int StdErrMode = -1;
+	int StdOutMode = -1;
+	int StdInMode = -1;
+#endif	// PLATFORM_WINDOWS
+};
+
 FPythonCommandExecutor::FPythonCommandExecutor(IPythonScriptPlugin* InPythonScriptPlugin)
 	: PythonScriptPlugin(InPythonScriptPlugin)
 {
@@ -169,7 +246,7 @@ FText FPythonCommandExecutor::GetHintText() const
 	return LOCTEXT("PythonCommandExecutorHintText", "Enter Python script or a filename");
 }
 
-void FPythonCommandExecutor::GetAutoCompleteSuggestions(const TCHAR* Input, TArray<FString>& Out)
+void FPythonCommandExecutor::GetSuggestedCompletions(const TCHAR* Input, TArray<FConsoleSuggestion>& Out)
 {
 }
 
@@ -248,7 +325,7 @@ FText FPythonREPLCommandExecutor::GetHintText() const
 	return LOCTEXT("PythonREPLCommandExecutorHintText", "Enter a Python statement");
 }
 
-void FPythonREPLCommandExecutor::GetAutoCompleteSuggestions(const TCHAR* Input, TArray<FString>& Out)
+void FPythonREPLCommandExecutor::GetSuggestedCompletions(const TCHAR* Input, TArray<FConsoleSuggestion>& Out)
 {
 }
 
@@ -704,6 +781,10 @@ FSimpleMulticastDelegate& FPythonScriptPlugin::OnPythonShutdown()
 
 void FPythonScriptPlugin::StartupModule()
 {
+#if WITH_EDITOR
+	FEditorPythonExecuter::OnStartupModule();
+#endif
+
 	if (!IsPythonAvailable())
 	{
 		return;
@@ -712,26 +793,32 @@ void FPythonScriptPlugin::StartupModule()
 #if WITH_PYTHON
 	LLM_SCOPE_BYNAME(TEXT("PythonScriptPlugin"));
 
+#if !UE_PYTHON_DEFER_INIT
 	InitializePython();
+#endif
+
 	IModularFeatures::Get().RegisterModularFeature(IConsoleCommandExecutor::ModularFeatureName(), &CmdExec);
 	IModularFeatures::Get().RegisterModularFeature(IConsoleCommandExecutor::ModularFeatureName(), &CmdREPLExec);
 
 	check(!RemoteExecution);
 	RemoteExecution = MakeUnique<FPythonScriptRemoteExecution>(this);
 
-#if WITH_EDITOR
-	FPythonScriptPluginEditorStyle::Get();
 	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FPythonScriptPlugin::OnPostEngineInit);
-#endif // WITH_EDITOR
-
 	FCoreDelegates::OnPreExit.AddRaw(this, &FPythonScriptPlugin::ShutdownPython);
 #endif	// WITH_PYTHON
 }
 
 #if WITH_PYTHON
-#if WITH_EDITOR
 void FPythonScriptPlugin::OnPostEngineInit()
 {
+	LLM_SCOPE_BYNAME(TEXT("PythonScriptPlugin"));
+
+#if UE_PYTHON_DEFER_INIT
+	InitializePython();
+#endif
+
+#if WITH_EDITOR
+	FPythonScriptPluginEditorStyle::Get();
 	if (UToolMenus::IsToolMenuUIEnabled())
 	{
 		check(CmdMenu == nullptr);
@@ -742,13 +829,17 @@ void FPythonScriptPlugin::OnPostEngineInit()
 			ExecPythonCommand(*InString);
 		}));
 	}
+#endif // WITH_EDITOR
 }
 
-#endif // WITH_EDITOR
 #endif // WITH_PYTHON
 
 void FPythonScriptPlugin::ShutdownModule()
 {
+#if WITH_EDITOR
+	FEditorPythonExecuter::OnShutdownModule();
+#endif
+
 	if (!IsPythonAvailable())
 	{
 		return;
@@ -756,12 +847,11 @@ void FPythonScriptPlugin::ShutdownModule()
 
 #if WITH_PYTHON
 	FCoreDelegates::OnPreExit.RemoveAll(this);
+	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 
 	RemoteExecution.Reset();
 
 #if WITH_EDITOR
-	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
-
 	if (CmdMenu)
 	{
 		CmdMenu->OnShutdownMenu();
@@ -812,6 +902,10 @@ void FPythonScriptPlugin::InitializePython()
 
 	bInitialized = true;
 
+	FScopedSlowTask SlowTask(1, LOCTEXT("InitializingPython", "Initializing Python..."));
+	SlowTask.Visibility = ESlowTaskVisibility::Important; // this function can be very slow, users will benefit from our messages
+	SlowTask.MakeDialog();
+
 	const UPythonScriptPluginSettings* PythonPluginSettings = GetDefault<UPythonScriptPluginSettings>();
 
 	// HACK: This env var must be cleared or it carries into python subprocesses and python sys.executable detection breaking venvs
@@ -839,30 +933,7 @@ void FPythonScriptPlugin::InitializePython()
 		static_assert(PY_MAJOR_VERSION >= 3, "Unreal Engine Python integration doesn't support versions prior to Python 3.x");
 		UE_LOG(LogPython, Log, TEXT("Using Python %d.%d.%d"), PY_MAJOR_VERSION, PY_MINOR_VERSION, PY_MICRO_VERSION);
 
-		// Python 3 changes the console mode from O_TEXT to O_BINARY which affects other uses of the console
-		// So change the console mode back to its current setting after Py_Initialize has been called
-#if PLATFORM_WINDOWS
-		// We call _setmode here to cache the current state
-		CA_SUPPRESS(6031)
-		fflush(stdin);
-		const int StdInMode  = _setmode(_fileno(stdin), _O_TEXT);
-		CA_SUPPRESS(6031)
-		fflush(stdout);
-		const int StdOutMode = _setmode(_fileno(stdout), _O_TEXT);
-		CA_SUPPRESS(6031)
-		fflush(stderr);
-		const int StdErrMode = _setmode(_fileno(stderr), _O_TEXT);
-#endif	// PLATFORM_WINDOWS
-
-#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 7
-		// Python 3.7+ changes the C locale which affects functions using C string APIs
-		// So change the C locale back to its current setting after Py_Initialize has been called
-		FString CurrentLocale;
-		if (const char* CurrentLocalePtr = setlocale(LC_ALL, nullptr))
-		{
-			CurrentLocale = ANSI_TO_TCHAR(CurrentLocalePtr);
-		}
-#endif	// PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 7
+		FScopedEncodingGuard EncodingGuard;
 
 		// Check if the interpreter is should run in isolation mode.
 		int IsolatedInterpreterFlag = PythonPluginSettings->bIsolateInterpreterEnvironment ? 1 : 0;
@@ -888,6 +959,7 @@ void FPythonScriptPlugin::InitializePython()
 
 #if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 11
 		ModulePyConfig.isolated = IsolatedInterpreterFlag;
+		ModulePyConfig.stdio_encoding = Utf8String.GetData();
 #elif PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 4
 		Py_IsolatedFlag = IsolatedInterpreterFlag; // If not zero, sys.path contains neither the script's directory nor the user's site-packages directory.
 		Py_SetStandardStreamEncoding("utf-8", nullptr);
@@ -916,40 +988,10 @@ void FPythonScriptPlugin::InitializePython()
 			PyEval_InitThreads();
 		}
 #endif // PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION < 7
-
-#if PLATFORM_WINDOWS
-		// We call _setmode here to restore the previous state
-		if (StdInMode != -1)
-		{
-			CA_SUPPRESS(6031)
-			fflush(stdin);
-			CA_SUPPRESS(6031)
-			_setmode(_fileno(stdin), StdInMode);
-		}
-		if (StdOutMode != -1)
-		{
-			CA_SUPPRESS(6031)
-			fflush(stdout);
-			CA_SUPPRESS(6031)
-			_setmode(_fileno(stdout), StdOutMode);
-		}
-		if (StdErrMode != -1)
-		{
-			CA_SUPPRESS(6031)
-			fflush(stderr);
-			CA_SUPPRESS(6031)
-			_setmode(_fileno(stderr), StdErrMode);
-		}
-#endif	// PLATFORM_WINDOWS
-
-#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 7
-		// We call setlocale here to restore the previous state
-		if (!CurrentLocale.IsEmpty())
-		{
-			setlocale(LC_ALL, TCHAR_TO_ANSI(*CurrentLocale));
-		}
-#endif	// PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 7
-
+	}
+	
+	// Setup UE conventions for the embedded interpreter environment
+	{
 #if PY_MAJOR_VERSION >=3 && PY_MINOR_VERSION >= 11
 		// Set default argv to [""]
 		FPyObjectPtr PyArgvList = MakeEmptyArgvList();
@@ -1355,7 +1397,8 @@ void FPythonScriptPlugin::RunStartupScripts()
 		const FString PotentialFilePath = PySysPath / TEXT("init_unreal.py");
 		if (FPaths::FileExists(PotentialFilePath))
 		{
-			Progress.EnterProgressFrame(1.0f, FText::Format(LOCTEXT("PythonScriptPluginInitScripts_Running", "Running {0}..."), FText::FromString(PotentialFilePath)));
+			FText StartupScriptInfoText = FText::Format(LOCTEXT("PythonScriptPluginInitScripts_Running", "Running start-up script {0}..."), FText::FromString(PotentialFilePath));
+			Progress.EnterProgressFrame(1.0f, StartupScriptInfoText);
 			Progress.ForceRefresh();
 
 			// Execute these files in the "public" scope, as if their contents had been run directly in the console
@@ -1363,7 +1406,7 @@ void FPythonScriptPlugin::RunStartupScripts()
 			FPythonCommandEx InitUnrealPythonCommand;
 			InitUnrealPythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
 			
-			FScopedDurationTimeLogger ScopedTimer(FString::Printf(TEXT("Running Python start-up script '%s'"), *PotentialFilePath));
+			UE_SCOPED_TIMER(*StartupScriptInfoText.ToString(), LogPython, Display);
 			RunFile(*PotentialFilePath, *InitUnrealPythonCommand.Command, InitUnrealPythonCommand);
 		}
 		else
@@ -1374,9 +1417,10 @@ void FPythonScriptPlugin::RunStartupScripts()
 
 	for (const FString& StartupScript : GetDefault<UPythonScriptPluginSettings>()->StartupScripts)
 	{
-		Progress.EnterProgressFrame(1.0f, FText::Format(LOCTEXT("PythonScriptPluginInitScripts_Running", "Running {0}..."), FText::FromString(StartupScript)));
-		
-		FScopedDurationTimeLogger ScopedTimer(FString::Printf(TEXT("Running Python start-up script '%s'"), *StartupScript));
+		FText StartupScriptInfoText = FText::Format(LOCTEXT("PythonScriptPluginInitScripts_Running", "Running start-up script {0}..."), FText::FromString(StartupScript));
+		Progress.EnterProgressFrame(1.0f, StartupScriptInfoText);
+
+		UE_SCOPED_TIMER(*StartupScriptInfoText.ToString(), LogPython, Display);
 		ExecPythonCommand(*StartupScript);
 	}
 
@@ -1490,7 +1534,12 @@ PyObject* FPythonScriptPlugin::EvalString(const TCHAR* InStr, const TCHAR* InCon
 		return nullptr;
 	}
 
-	return PyEval_EvalCode((PyUtil::FPyCodeObjectType*)PyCodeObj.Get(), InGlobalDict, InLocalDict);
+	FScopedEncodingGuard EncodingGuard;
+	PyUtil::FEvalStack::Get().PushContext(PyUtil::FEvalStack::FEvalContext{ InContext, InGlobalDict, InLocalDict});
+	PyObject* PyEvalResult = PyEval_EvalCode((PyUtil::FPyCodeObjectType*)PyCodeObj.Get(), InGlobalDict, InLocalDict);
+	PyUtil::FEvalStack::Get().PopContext();
+
+	return PyEvalResult;
 }
 
 bool FPythonScriptPlugin::RunString(FPythonCommandEx& InOutPythonCommand)
@@ -1539,7 +1588,7 @@ bool FPythonScriptPlugin::RunString(FPythonCommandEx& InOutPythonCommand)
 
 bool FPythonScriptPlugin::RunFile(const TCHAR* InFile, const TCHAR* InArgs, FPythonCommandEx& InOutPythonCommand)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPythonScriptPlugin::RunFile)
+	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("FPythonScriptPlugin::RunFile(%s)"), InFile ? InFile : TEXT("null")));
 
 	auto ResolveFilePath = [InFile]() -> FString
 	{
@@ -1757,19 +1806,18 @@ void FPythonScriptPlugin::OnAssetRenamed(const FAssetData& Data, const FString& 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPythonScriptPlugin::OnAssetRenamed)
 
 	FPyWrapperTypeRegistry& PyWrapperTypeRegistry = FPyWrapperTypeRegistry::Get();
-	const FName OldPackageName = *FPackageName::ObjectPathToPackageName(OldName);
 	
 	// If this asset has an associated Python type, then we need to rename it
-	if (PyWrapperTypeRegistry.HasWrappedTypeForObjectName(OldPackageName))
+	if (PyWrapperTypeRegistry.HasWrappedTypeForObjectName(OldName))
 	{
 		if (const UObject* AssetPtr = PyGenUtil::GetAssetTypeRegistryType(Data.GetAsset()))
 		{
-			PyWrapperTypeRegistry.UpdateGenerateWrappedTypeForRename(OldPackageName, AssetPtr);
+			PyWrapperTypeRegistry.UpdateGenerateWrappedTypeForRename(OldName, AssetPtr);
 			OnAssetUpdated(AssetPtr);
 		}
 		else
 		{
-			PyWrapperTypeRegistry.RemoveGenerateWrappedTypeForDelete(OldPackageName);
+			PyWrapperTypeRegistry.RemoveGenerateWrappedTypeForDelete(OldName);
 		}
 	}
 }
@@ -1781,9 +1829,10 @@ void FPythonScriptPlugin::OnAssetRemoved(const FAssetData& Data)
 	FPyWrapperTypeRegistry& PyWrapperTypeRegistry = FPyWrapperTypeRegistry::Get();
 	
 	// If this asset has an associated Python type, then we need to remove it
-	if (PyWrapperTypeRegistry.HasWrappedTypeForObjectName(Data.PackageName))
+	const FSoftObjectPath AssetPath = Data.GetSoftObjectPath();
+	if (PyWrapperTypeRegistry.HasWrappedTypeForObjectName(AssetPath))
 	{
-		PyWrapperTypeRegistry.RemoveGenerateWrappedTypeForDelete(Data.PackageName);
+		PyWrapperTypeRegistry.RemoveGenerateWrappedTypeForDelete(AssetPath);
 	}
 }
 
@@ -1882,6 +1931,8 @@ void FPythonScriptPlugin::PopulatePythonFileContextMenu(UToolMenu* InMenu)
 #endif	// WITH_EDITOR
 
 #endif	// WITH_PYTHON
+
+#undef UE_PYTHON_DEFER_INIT
 
 IMPLEMENT_MODULE(FPythonScriptPlugin, PythonScriptPlugin)
 

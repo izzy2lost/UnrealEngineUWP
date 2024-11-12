@@ -22,6 +22,9 @@ namespace UnrealBuildTool.Rules
                     "Slate",
                     "SlateCore",
                     "UnrealEd",
+                    "UMGEditor",
+                    "UMG",
+                    "DataValidation"
                 }
             );
         }

@@ -104,7 +104,7 @@ UMaterialInstanceDynamic* UMaterialInstanceDynamic::Create(UMaterialInterface* P
 				ExistingMID->Rename(
 					nullptr,
 					TransientPackage,
-					REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional
+					REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional
 				);
 			}
 #endif

@@ -2,7 +2,7 @@
 /**
 	@file		ntv2formatdescriptor.h
 	@brief		Declares the NTV2FormatDescriptor class.
-	@copyright	(C) 2016-2021 AJA Video Systems, Inc.
+	@copyright	(C) 2016-2022 AJA Video Systems, Inc.
 **/
 
 #ifndef NTV2FORMATDESC_H
@@ -33,8 +33,8 @@ typedef NTV2RasterLineOffsets::iterator			NTV2RasterLineOffsetsIter;			///< @bri
 AJAExport std::ostream & NTV2PrintRasterLineOffsets (const NTV2RasterLineOffsets & inObj, std::ostream & inOutStream = std::cout);
 
 /**
-	@brief	This provides additional information about a video frame for a given video standard or format and pixel format,
-			including the total number of lines, number of pixels per line, line pitch, and which line contains the start
+	@brief	Describes a video frame for a given video standard or format and pixel format, including the
+			total number of lines, number of pixels per line, line pitch, and which line contains the start
 			of active video.
 	@note	It is possible to construct a format descriptor that is not supported by the AJA device.
 **/
@@ -61,18 +61,6 @@ public:
 											const ULWord inNumPixels,
 											const ULWord inLinePitch,
 											const ULWord inFirstActiveLine = 0);
-#if !defined (NTV2_DEPRECATE_13_0)
-	explicit	NTV2_DEPRECATED_f(NTV2FormatDescriptor (const NTV2Standard inVideoStandard,
-														const NTV2FrameBufferFormat inFrameBufferFormat,
-														const bool inVANCenabled,
-														const bool in2Kby1080 = false,
-														const bool inWideVANC = false));	///< @deprecated	Use the constructor that accepts an ::NTV2VANCMode parameter instead.
-
-	explicit	NTV2_DEPRECATED_f(NTV2FormatDescriptor (const NTV2VideoFormat inVideoFormat,
-														const NTV2FrameBufferFormat inFrameBufferFormat,
-														const bool inVANCenabled,
-														const bool inWideVANC = false));	///< @deprecated	Use the constructor that accepts an ::NTV2VANCMode parameter instead.
-#endif	//	!defined (NTV2_DEPRECATE_13_0)
 
 	/**
 		@brief		Constructs me from the given video standard, pixel format, and VANC settings.
@@ -99,8 +87,13 @@ public:
 		@name	Inquiry
 	**/
 	///@{
-	inline bool		IsValid (void) const		{return numLines && numPixels && mNumPlanes && mLinePitch[0];}	///< @return	True if valid;  otherwise false.
-	inline bool		IsVANC (void) const			{return firstActiveLine > 0;}									///< @return	True if VANC geometry;  otherwise false.
+	/**
+		@return		True if valid -- i.e. non-zero line count, non-zero pixel count, non-zero plane count,
+					non-zero line pitch (1st plane), and a non-zero bit count (for luma or chroma).
+	**/
+	inline bool		IsValid (void) const		{return numLines && numPixels && mNumPlanes && mLinePitch[0]
+													&& (mNumBitsLuma || mNumBitsChroma);}
+	inline bool		IsVANC (void) const			{return GetFirstActiveLine() > 0;}	///< @return	True if VANC geometry;  otherwise false.
 	inline bool		IsPlanar (void) const		{return GetNumPlanes() > 1 || NTV2_IS_FBF_PLANAR (mPixelFormat);}	///< @return	True if planar format;  otherwise false.
 
 	/**
@@ -192,15 +185,15 @@ public:
 	inline ULWord	GetVisibleRasterHeight (void) const								{return GetFullRasterHeight() - GetFirstActiveLine();}
 
 	/**
-		@brief		Answers with an NTV2_POINTER that describes the given row (and plane) given the NTV2_POINTER
+		@brief		Answers with an NTV2Buffer that describes the given row (and plane) given the NTV2Buffer
 					that describes the frame buffer.
 		@param[in]	inFrameBuffer		Specifies the frame buffer (that includes all planes, if planar).
-		@param		inOutRowBuffer		Receives the NTV2_POINTER that references the row (and plane) in the frame buffer.
+		@param		inOutRowBuffer		Receives the NTV2Buffer that references the row (and plane) in the frame buffer.
 		@param[in]	inRowIndex0			Specifies the row of interest in the buffer, where zero is the topmost row.
 		@param[in]	inPlaneIndex0		Optionally specifies the plane of interest. Defaults to zero.
 		@return		True if successful;  otherwise false.
 	**/
-	bool			GetRowBuffer (const NTV2_POINTER & inFrameBuffer, NTV2_POINTER & inOutRowBuffer,  const ULWord inRowIndex0,  const UWord inPlaneIndex0 = 0) const;	//	New in SDK 16.0
+	bool			GetRowBuffer (const NTV2Buffer & inFrameBuffer, NTV2Buffer & inOutRowBuffer,  const ULWord inRowIndex0,  const UWord inPlaneIndex0 = 0) const;	//	New in SDK 16.0
 
 	/**
 		@return		A pointer to the start of the given row in the given buffer, or NULL if row index is bad
@@ -322,19 +315,32 @@ public:
 	inline NTV2VideoFormat			GetVideoFormat (void) const		{return mVideoFormat;}						///< @return	The video format I was created with.
 	inline NTV2FrameBufferFormat	GetPixelFormat (void) const		{return mPixelFormat;}						///< @return	The pixel format I was created with.
 	inline NTV2VANCMode				GetVANCMode (void) const		{return mVancMode;}							///< @return	The VANC mode I was created with.
-	inline bool						IsSDFormat (void) const			{return NTV2_IS_SD_VIDEO_FORMAT(GetVideoFormat()) || NTV2_IS_SD_STANDARD(GetVideoStandard());}	///< @return	True if I was created with an SD video format or standard.
+	inline bool						IsSD (void) const {return NTV2_IS_SD_VIDEO_FORMAT(GetVideoFormat()) || NTV2_IS_SD_STANDARD(GetVideoStandard());}		///< @return	True if I was created with an SD video format or standard.
+	inline bool						IsHD (void) const {return NTV2_IS_HD_VIDEO_FORMAT(GetVideoFormat()) || NTV2_IS_HD_STANDARD(GetVideoStandard());}		///< @return	True if I was created with an HD video format or standard.
+	inline bool						IsUHD (void) const {return NTV2_IS_UHD_VIDEO_FORMAT(GetVideoFormat()) || NTV2_IS_UHD_STANDARD(GetVideoStandard());}		///< @return	True if I was created with an UHD video format or standard.
+	inline bool						Is4K (void) const {return NTV2_IS_4K_VIDEO_FORMAT(GetVideoFormat()) || NTV2_IS_4K_STANDARD(GetVideoStandard());}		///< @return	True if I was created with an 4K video format or standard.
+	inline bool						IsUHD2 (void) const {return NTV2_IS_UHD2_VIDEO_FORMAT(GetVideoFormat()) || NTV2_IS_UHD2_STANDARD(GetVideoStandard());}	///< @return	True if I was created with an UHD2 video format or standard.
+	inline bool						Is8K (void) const {return NTV2_IS_8K_VIDEO_FORMAT(GetVideoFormat()) || NTV2_IS_8K_STANDARD(GetVideoStandard());}		///< @return	True if I was created with an 8K video format or standard.
 	inline bool						IsQuadRaster (void) const		{return NTV2_IS_QUAD_STANDARD(mStandard) || NTV2_IS_4K_VIDEO_FORMAT(mVideoFormat);}	///< @return	True if I was created with a 4K/UHD video format or standard.
 	inline bool						IsTallVanc (void) const			{return mVancMode == NTV2_VANCMODE_TALL;}	///< @return	True if I was created with just "tall" VANC.
 	inline bool						IsTallerVanc (void) const		{return mVancMode == NTV2_VANCMODE_TALLER;}	///< @return	True if I was created with "taller" VANC.
 	inline NTV2FrameGeometry		GetFrameGeometry (void) const	{return mFrameGeometry;}					///< @return	The frame geometry I was created with.
+	inline UByte					GetNumBitsLuma (void) const		{return mNumBitsLuma;}						///< @return	The number of bits per luminance (Y) component sample. New in SDK 17.0.
+	inline UByte					GetNumBitsChroma (void) const	{return mNumBitsChroma;}					///< @return	The number of bits per chroma component sample. New in SDK 17.0.
+	inline UByte					GetNumBitsAlpha (void) const	{return mNumBitsAlpha;}						///< @return	The number of bits per alpha component sample. New in SDK 17.0.
+	inline bool						HasAlpha (void) const			{return IsValid() && GetNumBitsAlpha();}	///< @return	True if I have an alpha channel. New in SDK 17.0.
+	inline bool						IsRGB (void) const				{return GetNumBitsLuma() ? false : true;}	///< @return	True if my pixel format is RGB. New in SDK 17.0.
 	bool							Is2KFormat (void) const;		///< @return	True if I was created with a 2Kx1080 video format.
 	///@}
-
+#if !defined(NTV2_DEPRECATE_16_3)
+	inline bool						IsSDFormat (void) const			{return NTV2_IS_SD_VIDEO_FORMAT(GetVideoFormat()) || NTV2_IS_SD_STANDARD(GetVideoStandard());} ///< @deprecated	Obsolete starting in SDK 16.3.
+#endif
 	void							MakeInvalid (void);				///< @brief	Resets me into an invalid (NULL) state.
 
 	private:
 		friend class CNTV2CaptionRenderer;	//	The caption renderer needs to call SetPixelFormat
 		inline void					SetPixelFormat (const NTV2PixelFormat inPixFmt)		{mPixelFormat = inPixFmt;}			///< @brief	Internal use only
+		inline void					SetBitsPerComponent (const UByte inLuma, const UByte inChroma, const UByte inAlpha)	{mNumBitsLuma = inLuma; mNumBitsChroma = inChroma; mNumBitsAlpha = inAlpha;}
 		void						FinalizePlanar (void);			///< @brief	Completes initialization for planar formats
 
 	//	Member Data
@@ -351,11 +357,13 @@ public:
 		ULWord					mLinePitch[4];		///< @brief	Number of bytes per row/line (per-plane)
 		UWord					mNumPlanes;			///< @brief	Number of planes
 		NTV2FrameGeometry		mFrameGeometry;		///< @brief My originating frame geometry
+		UByte					mNumBitsLuma;		///≤ @brief	Number of bits in luminance component (0 for RGB)
+		UByte					mNumBitsChroma;		///≤ @brief	Number of bits in chroma components
+		UByte					mNumBitsAlpha;		///≤ @brief	Number of bits in alpha component (0 if no alpha)
 
 };	//	NTV2FormatDescriptor
 
 typedef NTV2FormatDescriptor NTV2FormatDesc;	///< @brief Shorthand for ::NTV2FormatDescriptor
-
 
 /**
 	@brief		Writes the given NTV2FormatDescriptor to the specified output stream.
@@ -365,19 +373,6 @@ typedef NTV2FormatDescriptor NTV2FormatDesc;	///< @brief Shorthand for ::NTV2For
 **/
 AJAExport inline std::ostream & operator << (std::ostream & inOutStream, const NTV2FormatDescriptor & inFormatDesc)	{return inFormatDesc.Print (inOutStream);}
 
-
-#if !defined (NTV2_DEPRECATE_13_0)
-	AJAExport NTV2FormatDescriptor GetFormatDescriptor (const NTV2Standard			inVideoStandard,
-														const NTV2FrameBufferFormat	inFrameBufferFormat,
-														const bool					inVANCenabled	= false,
-														const bool					in2Kby1080		= false,
-														const bool					inWideVANC		= false);
-
-AJAExport NTV2FormatDescriptor GetFormatDescriptor (const NTV2VideoFormat			inVideoFormat,
-													 const NTV2FrameBufferFormat	inFrameBufferFormat,
-													 const bool						inVANCenabled	= false,
-													 const bool						inWideVANC		= false);
-#endif	//	!defined (NTV2_DEPRECATE_12_6)
 
 /**
 	@brief		Unpacks a line of NTV2_FBF_10BIT_YCBCR video into 16-bit-per-component YUV data.
@@ -389,11 +384,5 @@ AJAExport NTV2FormatDescriptor GetFormatDescriptor (const NTV2VideoFormat			inVi
 	@return		True if successful;  otherwise false.
 **/
 AJAExport bool		UnpackLine_10BitYUVtoUWordSequence (const void * pIn10BitYUVLine, const NTV2FormatDescriptor & inFormatDesc, UWordSequence & out16BitYUVLine);
-
-
-#if !defined (NTV2_DEPRECATE)
-	extern AJAExport const NTV2FormatDescriptor formatDescriptorTable [NTV2_NUM_STANDARDS] [NTV2_FBF_NUMFRAMEBUFFERFORMATS];
-#endif	//	!defined (NTV2_DEPRECATE)
-
 
 #endif	//	NTV2FORMATDESC_H

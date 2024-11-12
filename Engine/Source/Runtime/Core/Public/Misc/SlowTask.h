@@ -71,6 +71,9 @@ private:
 	/** Avoid calling hierarchical dialog creation if not required */
 	bool bSkipRecursiveDialogCreation : 1;
 
+	/** Id of the traced timing region */
+	uint64 RegionId;
+
 	/** Prevent copying */
 	FSlowTask(const FSlowTask&);
 

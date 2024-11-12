@@ -16,7 +16,12 @@ public:
 
 	~ULevelVariantSetsFunctionDirector()
 	{
+	}
+
+	virtual void BeginDestroy() override
+	{
 		OnDestroy.Broadcast(this);
+		Super::BeginDestroy();
 	}
 
 	OnDirectorDestroyed& GetOnDestroy()

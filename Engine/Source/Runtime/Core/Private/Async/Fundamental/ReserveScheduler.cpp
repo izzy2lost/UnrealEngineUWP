@@ -13,6 +13,8 @@
 
 extern CORE_API bool GTaskGraphUseDynamicPrioritization;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 namespace LowLevelTasks
 {
 
@@ -122,3 +124,5 @@ void FReserveScheduler::StopWorkers()
 }
 
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

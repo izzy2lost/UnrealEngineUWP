@@ -27,12 +27,19 @@ enum ELightShaderParameterFlags
 	RectAsSpotLight=1,
 };
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class FLightSceneProxyFixLayout
+{
+public:
+	virtual ~FLightSceneProxyFixLayout() = default;
+};
+
 /**
  * Encapsulates the data which is used to render a light by the rendering thread.
  * The constructor is called from the game thread, and after that the rendering thread owns the object.
  * FLightSceneProxy is in the engine module and is subclassed to implement various types of lights.
  */
-class FLightSceneProxy
+class FLightSceneProxy : public FLightSceneProxyFixLayout
 {
 public:
 
@@ -192,6 +199,7 @@ public:
 	inline float GetContactShadowCastingIntensity() const { return ContactShadowCastingIntensity; }
 	inline float GetContactShadowNonCastingIntensity() const { return ContactShadowNonCastingIntensity; }
 	inline float GetSpecularScale() const { return SpecularScale; }
+	inline float GetDiffuseScale() const { return DiffuseScale; }
 	inline FVector GetLightFunctionScale() const { return LightFunctionScale; }
 	inline float GetLightFunctionFadeDistance() const { return LightFunctionFadeDistance; }
 	inline float GetLightFunctionDisabledBrightness() const { return LightFunctionDisabledBrightness; }
@@ -203,6 +211,8 @@ public:
 	inline bool HasStaticShadowing() const { return bStaticShadowing; }
 	inline bool CastsDynamicShadow() const { return bCastDynamicShadow; }
 	inline bool CastsStaticShadow() const { return bCastStaticShadow; }
+	inline bool AllowMegaLights() const { return bAllowMegaLights; }
+	TEnumAsByte<EMegaLightsShadowMethod::Type> GetMegaLightsShadowMethod() const { return MegaLightsShadowMethod; }
 	inline bool CastsTranslucentShadows() const { return bCastTranslucentShadows; }
 	inline bool CastsVolumetricShadow() const { return bCastVolumetricShadow; }
 	inline bool CastsHairStrandsDeepShadow() const { return bCastHairStrandsDeepShadow; }
@@ -223,6 +233,7 @@ public:
 	inline FName GetComponentFName() const { return ComponentName; }
 
 	inline bool IsSelected() const { return bSelected; }
+	inline void SetSelected(bool bNewSelected) { bSelected = bNewSelected; }
 
 	/**
 	 * Use to get the owning actor label (or component name as fallback, if the owner is null or ENABLE_DEBUG_LABELS is off) for diagnostic messages, debug or profiling.
@@ -308,6 +319,9 @@ protected:
 	/** The scene the primitive is in. */
 	FSceneInterface* SceneInterface;
 
+	/** The light's scene info. */
+	class FLightSceneInfo* LightSceneInfo;
+
 	/** The homogeneous position of the light. */
 	FVector4 Position;
 
@@ -319,9 +333,6 @@ protected:
 
 	/** A transform from light space into world space. */
 	FMatrix LightToWorld;
-
-	/** The light's scene info. */
-	class FLightSceneInfo* LightSceneInfo;
 
 	/** Scale for indirect lighting from this light.  When 0, indirect lighting is disabled. */
 	float IndirectLightingScale;
@@ -351,6 +362,9 @@ protected:
 
 	/** Specular scale */
 	float SpecularScale;
+
+	/** Diffuse scale */
+	float DiffuseScale;
 
 	/** The light's persistent shadowing GUID. */
 	FGuid LightGuid;
@@ -444,12 +458,25 @@ protected:
 	/** Whether to render csm shadows for movable objects only (mobile). */
 	uint8 bUseWholeSceneCSMForMovableObjects : 1;
 
-	const uint8 bSelected : 1;
+    /** Is the light selected in the editor? */
+	uint8 bSelected : 1;
+
+	/** Whether the light should be rendered with MegaLights. */
+	const uint8 bAllowMegaLights : 1;
+
+	/** Whether the light shadows are computed with shadow-mapping or ray-tracing (when available). */
+	const TEnumAsByte<EMegaLightsShadowMethod::Type> MegaLightsShadowMethod;
+
+	/**
+	* The light index in order to be able to read matrix and parameters when reading the light function atlas for that light.
+	* A value of 0 means this is the default identity light function and no light function sampling will be done in shader.
+	*/
+	uint8 LightFunctionAtlasLightIndex;
 
 	/** The index of the atmospheric light. Multiple lights can be considered when computing the sky/atmospheric scattering. */
 	const uint8 AtmosphereSunLightIndex;
 
-	const FLinearColor AtmosphereSunDiskColorScale;
+	FLinearColor AtmosphereSunDiskColorScale;
 
 	/** The light type (ELightComponentType) */
 	const uint8 LightType;
@@ -490,12 +517,6 @@ protected:
 
 	/** IES texture atlas id. */
 	uint32 IESAtlasId;
-
-	/**
-	 * The light index in order to be able to read matrix and parameters when reading the light function atlas for that light.
-	 * A value of 0 means this is the default identity light function and no light function sampling will be done in shader.
-	 */
-	uint8 LightFunctionAtlasLightIndex;
 
 	/**
 	 * Updates the light proxy's cached transforms.

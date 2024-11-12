@@ -47,33 +47,6 @@ public class Win64Platform : Platform
 		return Devices.ToArray();
 	}
 
-	public override void PlatformSetupParams(ref ProjectParams Params)
-	{
-		base.PlatformSetupParams(ref Params);
-
-		// use a custom deployment handler if one is requested
-		Params.PreModifyDeploymentContextCallback = new Action<ProjectParams, DeploymentContext>((ProjectParams Params, DeploymentContext SC) =>
-		{
-			if (SC.CustomDeployment == null)
-			{			
-				string CustomDeploymentName = null;
-
-				ConfigHierarchy EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, Params.RawProjectPath.Directory, PlatformType, SC.CustomConfig);
-				EngineIni.GetString("/Script/WindowsTargetPlatform.WindowsTargetSettings", "CustomDeployment", out CustomDeploymentName);
-
-				if (string.IsNullOrEmpty(CustomDeploymentName))
-				{
-					CustomDeploymentName = Params.CustomDeploymentHandler;
-				}
-
-				if (!string.IsNullOrEmpty(CustomDeploymentName))
-				{
-					SC.CustomDeployment = CustomDeploymentHandler.Create(CustomDeploymentName, this);
-				}
-			}			
-		});
-	}
-
 	public override void Deploy(ProjectParams Params, DeploymentContext SC)
 	{
 		// We only care about deploying for SteamDeck
@@ -185,7 +158,8 @@ public class Win64Platform : Platform
 
 						foreach (StagedFileReference StagePath in StagedFiles)
 						{
-							StageBootstrapExecutable(SC, BootstrapExeName, Executable.Path, StagePath, BootstrapArguments);
+							StagedFileReference RemappedStagePath = DeploymentContext.ApplyDirectoryRemap(SC, StagePath);
+							StageBootstrapExecutable(SC, BootstrapExeName, Executable.Path, RemappedStagePath, BootstrapArguments);
 						}
 					}
 				}
@@ -358,6 +332,24 @@ public class Win64Platform : Platform
 		return new List<string> { ".pdb", ".map" };
 	}
 
+	public override CustomDeploymentHandler GetCustomDeploymentHandler(ProjectParams Params, DeploymentContext SC)
+	{
+		ConfigHierarchy EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, Params.RawProjectPath.Directory, PlatformType, SC.CustomConfig);
+		EngineIni.GetString("/Script/WindowsTargetPlatform.WindowsTargetSettings", "CustomDeployment", out string CustomDeploymentName);
+
+		if (string.IsNullOrEmpty(CustomDeploymentName))
+		{
+			CustomDeploymentName = Params.CustomDeploymentHandler;
+		}
+
+		if (!string.IsNullOrEmpty(CustomDeploymentName))
+		{
+			return CustomDeploymentHandler.Create(CustomDeploymentName, this);
+		}
+
+		return base.GetCustomDeploymentHandler(Params, SC);
+	}
+
 	public override bool SignExecutables(DeploymentContext SC, ProjectParams Params)
 	{
 		// Sign everything we built
@@ -367,7 +359,7 @@ public class Win64Platform : Platform
 		return true;
 	}
 
-	public void StageAppLocalDependencies(ProjectParams Params, DeploymentContext SC, string PlatformDir)
+	public void StageAppLocalDependencies(ProjectParams Params, DeploymentContext SC, string SourcePlatformDir)
 	{
 		Dictionary<string, string> PathVariables = new Dictionary<string, string>();
 		PathVariables["EngineDir"] = SC.EngineRoot.FullName;
@@ -379,11 +371,11 @@ public class Win64Platform : Platform
 		{
 			string ExpandedAppLocalDir = Utils.ExpandVariables(AppLocalDirectory, PathVariables);
 
-			DirectoryReference BaseAppLocalDependenciesPath = Path.IsPathRooted(ExpandedAppLocalDir) ? new DirectoryReference(CombinePaths(ExpandedAppLocalDir, PlatformDir)) : DirectoryReference.Combine(SC.ProjectRoot, ExpandedAppLocalDir, PlatformDir);
+			DirectoryReference BaseAppLocalDependenciesPath = Path.IsPathRooted(ExpandedAppLocalDir) ? new DirectoryReference(CombinePaths(ExpandedAppLocalDir, SourcePlatformDir)) : DirectoryReference.Combine(SC.ProjectRoot, ExpandedAppLocalDir, SourcePlatformDir);
 			if (DirectoryReference.Exists(BaseAppLocalDependenciesPath))
 			{
-				StageAppLocalDependenciesToDir(SC, BaseAppLocalDependenciesPath, StagedDirectoryReference.Combine("Engine", "Binaries", PlatformDir));
-				StageAppLocalDependenciesToDir(SC, BaseAppLocalDependenciesPath, StagedDirectoryReference.Combine(SC.RelativeProjectRootForStage, "Binaries", PlatformDir));
+				StageAppLocalDependenciesToDir(SC, BaseAppLocalDependenciesPath, StagedDirectoryReference.Combine("Engine", "Binaries", PlatformType.ToString()));
+				StageAppLocalDependenciesToDir(SC, BaseAppLocalDependenciesPath, StagedDirectoryReference.Combine(SC.RelativeProjectRootForStage, "Binaries", PlatformType.ToString()));
 			}
 			else
 			{
@@ -410,9 +402,9 @@ public class Win64Platform : Platform
 	}
 
     /// <summary>
-    /// Try to get the SYMSTORE.EXE path from the given Windows SDK version
+    /// Try to get the symstore.exe path from the given Windows SDK version
     /// </summary>
-    /// <returns>Path to SYMSTORE.EXE</returns>
+    /// <returns>Path to symstore.exe</returns>
 	[SupportedOSPlatform("windows")]
     private static FileReference GetSymStoreExe()
     {
@@ -424,15 +416,8 @@ public class Win64Platform : Platform
 
 			if (DirectoryReference.Exists(WindowsKitsDebuggersDirAutoSdk))
 			{
-				// Defaulting to the x86 because of a known issue with the latest x64 version
-				// x64 version gets the errorcode STATUS_ENTRYPOINT_NOT_FOUND on some configurations
-				FileReference SymStoreExe32 = FileReference.Combine(WindowsKitsDebuggersDirAutoSdk, "x86", "SymStore.exe");
-				if (FileReference.Exists(SymStoreExe32))
-				{
-					return SymStoreExe32;
-				}
 
-				FileReference SymStoreExe64 = FileReference.Combine(WindowsKitsDebuggersDirAutoSdk, "x64", "SymStore.exe");
+				FileReference SymStoreExe64 = FileReference.Combine(WindowsKitsDebuggersDirAutoSdk, "x64", "symstore.exe");
 				if (FileReference.Exists(SymStoreExe64))
 				{
 					return SymStoreExe64;
@@ -443,19 +428,13 @@ public class Win64Platform : Platform
 		List<KeyValuePair<string, DirectoryReference>> WindowsSdkDirs = WindowsExports.GetWindowsSdkDirs();
 		foreach (DirectoryReference WindowsSdkDir in WindowsSdkDirs.Select(x => x.Value))
 		{
-			FileReference SymStoreExe64 = FileReference.Combine(WindowsSdkDir, "Debuggers", "x64", "SymStore.exe");
+			FileReference SymStoreExe64 = FileReference.Combine(WindowsSdkDir, "Debuggers", "x64", "symstore.exe");
 			if (FileReference.Exists(SymStoreExe64))
 			{
 				return SymStoreExe64;
 			}
-
-			FileReference SymStoreExe32 = FileReference.Combine(WindowsSdkDir, "Debuggers", "x86", "SymStore.exe");
-			if (FileReference.Exists(SymStoreExe32))
-			{
-				return SymStoreExe32;
-			}
 		}
-		throw new AutomationException("Unable to find a Windows SDK installation containing PDBSTR.EXE");
+		throw new AutomationException("Unable to find a Windows SDK installation containing Debuggers/x64/symstore.exe");
     }
 
 	[SupportedOSPlatform("windows")]
@@ -469,16 +448,7 @@ public class Win64Platform : Platform
 
 			if (DirectoryReference.Exists(WindowsKitsDebuggersDirAutoSdk))
 			{
-				// Defaulting to the x86 because of a known issue with the latest x64 version
-				// x64 version gets the errorcode STATUS_ENTRYPOINT_NOT_FOUND on some configurations
-				FileReference PdbCopyExe32 = FileReference.Combine(WindowsKitsDebuggersDirAutoSdk, "x86", "PdbCopy.exe");
-				if (FileReference.Exists(PdbCopyExe32))
-				{
-					OutLocation = PdbCopyExe32;
-					return true;
-				}
-
-				FileReference PdbCopyExe64 = FileReference.Combine(WindowsKitsDebuggersDirAutoSdk, "x64", "PdbCopy.exe");
+				FileReference PdbCopyExe64 = FileReference.Combine(WindowsKitsDebuggersDirAutoSdk, "x64", "pdbcopy.exe");
 				if (FileReference.Exists(PdbCopyExe64))
 				{
 					OutLocation = PdbCopyExe64;
@@ -491,28 +461,12 @@ public class Win64Platform : Platform
 		List<KeyValuePair<string, DirectoryReference>> WindowsSdkDirs = WindowsExports.GetWindowsSdkDirs();
 		foreach (DirectoryReference WindowsSdkDir in WindowsSdkDirs.Select(x => x.Value))
 		{
-			FileReference PdbCopyExe = FileReference.Combine(WindowsSdkDir, "Debuggers", "x64", "PdbCopy.exe");
-			if (FileReference.Exists(PdbCopyExe))
+			FileReference PdbCopyExe64 = FileReference.Combine(WindowsSdkDir, "Debuggers", "x64", "pdbcopy.exe");
+			if (FileReference.Exists(PdbCopyExe64))
 			{
-				OutLocation = PdbCopyExe;
+				OutLocation = PdbCopyExe64;
 				return true;
 			}
-		}
-
-		// Look for an installation of the MSBuild 14
-		FileReference LocationMsBuild14 = FileReference.Combine(DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.ProgramFilesX86), "MSBuild", "Microsoft", "VisualStudio", "v14.0", "AppxPackage", "PDBCopy.exe");
-		if(FileReference.Exists(LocationMsBuild14))
-		{
-			OutLocation = LocationMsBuild14;
-			return true;
-		}
-
-		// Look for an installation of the MSBuild 12
-		FileReference LocationMsBuild12 = FileReference.Combine(DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.ProgramFilesX86), "MSBuild", "Microsoft", "VisualStudio", "v12.0", "AppxPackage", "PDBCopy.exe");
-		if(FileReference.Exists(LocationMsBuild12))
-		{
-			OutLocation = LocationMsBuild12;
-			return true;
 		}
 
 		// Otherwise fail
@@ -535,7 +489,7 @@ public class Win64Platform : Platform
 		FileReference PdbCopyLocation;
 		if(!TryGetPdbCopyLocation(out PdbCopyLocation))
 		{
-			throw new AutomationException("Unable to find installation of PDBCOPY.EXE, which is required to strip symbols. This tool is included as part of the 'Windows Debugging Tools' component of the Windows 10 SDK (https://developer.microsoft.com/en-us/windows/downloads/windows-10-sdk).");
+			throw new AutomationException("Unable to find installation of pdbcopy.exe, which is required to strip symbols. This tool is included as part of the 'Windows Debugging Tools' component of the Windows 10 SDK (https://developer.microsoft.com/en-us/windows/downloads/windows-10-sdk).");
 		}
 
 		ProcessStartInfo StartInfo = new ProcessStartInfo();
@@ -560,8 +514,9 @@ public class Win64Platform : Platform
     {
 		Logger.LogInformation("Publishing symbols to \"{SymbolStoreDirectory}\" (source indexing: {bIndexSources})", SymbolStoreDirectory, bIndexSources);
 
-		// Get the SYMSTORE.EXE path, using the latest SDK version we can find.
+		// Get the symstore.exe path, using the latest SDK version we can find.
 		FileReference SymStoreExe = GetSymStoreExe();
+		Logger.LogInformation("Using '{Path}' Version {Version}", SymStoreExe, FileVersionInfo.GetVersionInfo(SymStoreExe.FullName).FileVersion);
 
 		List<FileReference> FilesToAdd = Files.Where(x => x.HasExtension(".pdb") || x.HasExtension(".exe") || x.HasExtension(".dll")).ToList();
 		if(FilesToAdd.Count > 0)
@@ -599,7 +554,7 @@ public class Win64Platform : Platform
 				// Copy everything to the temp symstore
 				ProcessStartInfo StartInfo = new ProcessStartInfo();
 				StartInfo.FileName = SymStoreExe.FullName;
-				StartInfo.Arguments = string.Format("add /f \"@{0}\" /s \"{1}\" /t \"{2}\"", TempFileName, TempSymStoreDir, Product);
+				StartInfo.Arguments = string.Format("add /f \"@{0}\" /s \"{1}\" /t \"{2}\" /o", TempFileName, TempSymStoreDir, Product);
 				StartInfo.UseShellExecute = false;
 				StartInfo.CreateNoWindow = true;
 				if (Utils.RunLocalProcessAndLogOutput(StartInfo, Log.Logger) != 0)
@@ -794,7 +749,7 @@ public class Win64Platform : Platform
 			throw new AutomationException($"Failed to query the source code information for '{DepotFilter}'.");
 		}
 
-		// Get the PDBSTR.EXE path, using the latest SDK version we can find.
+		// Get the pdbstr.exe path, using the latest SDK version we can find.
 		FileReference PdbStrExe = GetPdbStrExe();
 
 		// Get the path to the generated SRCSRV.INI file
@@ -843,7 +798,7 @@ public class Win64Platform : Platform
 	/// <summary>
 	/// Executes the PdbStr tool.
 	/// </summary>
-	/// <param name="PdbStrExe">Path to PdbStr.exe</param>
+	/// <param name="PdbStrExe">Path to pdbstr.exe</param>
 	/// <param name="PdbFile">The PDB file to embed source information for</param>
 	/// <param name="SrcSrvIni">Ini file containing settings to embed</param>
 	/// <param name="State">The current loop state</param>
@@ -890,9 +845,9 @@ public class Win64Platform : Platform
 	}
 
 	/// <summary>
-	/// Try to get the PDBSTR.EXE path from the Windows SDK
+	/// Try to get the pdbstr.exe path from the Windows SDK
 	/// </summary>
-	/// <returns>Path to PDBSTR.EXE</returns>
+	/// <returns>Path to pdbstr.exe</returns>
 	[SupportedOSPlatform("windows")]
 	static FileReference GetPdbStrExe()
 	{
@@ -906,15 +861,7 @@ public class Win64Platform : Platform
 
 			if (DirectoryReference.Exists(WindowsKitsDebuggersDirAutoSdk))
 			{
-				// Defaulting to the x86 because of a known issue with the latest x64 version
-				// x64 version gets the errorcode STATUS_ENTRYPOINT_NOT_FOUND on some configurations
-				FileReference CheckPdbStrExe32 = FileReference.Combine(WindowsKitsDebuggersDirAutoSdk, "x86", "SrcSrv", "PdbStr.exe");
-				if (FileReference.Exists(CheckPdbStrExe32))
-				{
-					return CheckPdbStrExe32;
-				}
-
-				FileReference CheckPdbStrExe64 = FileReference.Combine(WindowsKitsDebuggersDirAutoSdk, "x64", "SrcSrv", "PdbStr.exe");
+				FileReference CheckPdbStrExe64 = FileReference.Combine(WindowsKitsDebuggersDirAutoSdk, "x64", "srcsrv", "pdbstr.exe");
 				if (FileReference.Exists(CheckPdbStrExe64))
 				{
 					return CheckPdbStrExe64;
@@ -924,19 +871,14 @@ public class Win64Platform : Platform
 
 		foreach (DirectoryReference WindowsSdkDir in WindowsSdkDirs.Select(x => x.Value))
 		{
-			FileReference CheckPdbStrExe64 = FileReference.Combine(WindowsSdkDir, "Debuggers", "x64", "SrcSrv", "PdbStr.exe");
+			FileReference CheckPdbStrExe64 = FileReference.Combine(WindowsSdkDir, "Debuggers", "x64", "srcsrv", "pdbstr.exe");
 			if (FileReference.Exists(CheckPdbStrExe64))
 			{
 				return CheckPdbStrExe64;
 			}
-
-			FileReference CheckPdbStrExe32 = FileReference.Combine(WindowsSdkDir, "Debuggers", "x86", "SrcSrv", "PdbStr.exe");
-			if (FileReference.Exists(CheckPdbStrExe32))
-			{
-				return CheckPdbStrExe32;
-			}
 		}
-		throw new AutomationException("Unable to find a Windows SDK installation containing PDBSTR.EXE");
+
+        throw new AutomationException("Unable to find a Windows SDK installation containing Debuggers/x64/srcsrv/pdbstr.exe");
 	}
 
 	public override string[] SymbolServerDirectoryStructure

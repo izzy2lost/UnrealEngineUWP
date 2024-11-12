@@ -45,7 +45,7 @@ namespace BuildPatchTool
 			{
 				// Overwrite trailing slash with terminator, and trim size.
 				UriPath.GetCharArray()[TrailingSlashIdx--] = 0;
-				UriPath.GetCharArray().SetNum(UriPath.GetCharArray().Num() - 1, false);
+				UriPath.GetCharArray().SetNum(UriPath.GetCharArray().Num() - 1, EAllowShrinking::No);
 			}
 		}
 

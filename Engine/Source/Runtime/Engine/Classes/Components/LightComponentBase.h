@@ -20,8 +20,11 @@ class ULightComponentBase : public USceneComponent
 	 * The GUID changes whenever the light position changes.
 	 */
 	UPROPERTY()
-	FGuid LightGuid;
+	FGuid OriginalLightGuid;
 
+	UPROPERTY()
+	FGuid LightGuid;
+	
 	/**  */
 	UPROPERTY()
 	float Brightness_DEPRECATED;

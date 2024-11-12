@@ -25,7 +25,7 @@ DECLARE_DELEGATE_TwoParams(FDebugDrawDelegate, UCanvas*, APlayerController*);
 class FDebugRenderSceneProxy : public FPrimitiveSceneProxy
 {
 public:
-	virtual ~FDebugRenderSceneProxy() {};
+	ENGINE_API virtual ~FDebugRenderSceneProxy();
 	
 	ENGINE_API SIZE_T GetTypeHash() const override;
 
@@ -37,7 +37,7 @@ public:
 		Invalid = 3,
 	};
 	ENGINE_API FDebugRenderSceneProxy(const UPrimitiveComponent* InComponent);
-	FDebugRenderSceneProxy(FDebugRenderSceneProxy const&) = default;
+	ENGINE_API FDebugRenderSceneProxy(FDebugRenderSceneProxy const&);
 
 	// FPrimitiveSceneProxy interface.
 

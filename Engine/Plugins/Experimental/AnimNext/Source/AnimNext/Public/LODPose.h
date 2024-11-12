@@ -81,6 +81,18 @@ struct FLODPose
 		return RefPose != nullptr ? RefPose->GetNumBonesForLOD(LODLevel) : 0;
 	}
 
+	const TArrayView<const FBoneIndexType> GetLODBoneIndexToParentLODBoneIndexMap() const
+	{
+		if (LODLevel != INVALID_LOD_LEVEL && RefPose != nullptr)
+		{
+			return RefPose->GetLODBoneIndexToParentLODBoneIndexMap(LODLevel);
+		}
+		else
+		{
+			return TArrayView<const FBoneIndexType>();
+		}
+	}
+
 	const TArrayView<const FBoneIndexType> GetLODBoneIndexToMeshBoneIndexMap() const
 	{
 		if (LODLevel != INVALID_LOD_LEVEL && RefPose != nullptr)

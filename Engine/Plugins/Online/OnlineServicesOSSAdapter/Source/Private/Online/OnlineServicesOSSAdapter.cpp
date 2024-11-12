@@ -22,8 +22,8 @@
 
 namespace UE::Online {
 
-FOnlineServicesOSSAdapter::FOnlineServicesOSSAdapter(EOnlineServices InServicesType, const FString& InConfigName, FName InInstanceName, IOnlineSubsystem* InSubsystem)
-	: FOnlineServicesCommon(InConfigName, InInstanceName)
+FOnlineServicesOSSAdapter::FOnlineServicesOSSAdapter(EOnlineServices InServicesType, const FString& InServiceConfigName, FName InInstanceName, IOnlineSubsystem* InSubsystem)
+	: FOnlineServicesCommon(InServiceConfigName, InInstanceName, NAME_None)
 	, ServicesType(InServicesType)
 	, Subsystem(InSubsystem)
 {

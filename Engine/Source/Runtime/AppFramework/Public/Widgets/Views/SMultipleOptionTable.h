@@ -202,7 +202,6 @@ void SMultipleOptionTable<OptionType>::Construct(const FArguments& InArgs, const
 					.DefaultLabel(LOCTEXT("OptionListIsSelectedColumnHeader", "IsSelected"))
 					.FillWidth(1.0f)
 					)
-					.ItemHeight(16.0f)
 					.ListItemsSource(Options)
 					.OnGenerateRow(this, &SMultipleOptionTable::HandleOptionListViewGenerateRow)
 					.SelectionMode(ESelectionMode::None)

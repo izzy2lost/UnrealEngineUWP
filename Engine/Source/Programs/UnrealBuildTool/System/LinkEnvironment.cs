@@ -255,6 +255,11 @@ namespace UnrealBuildTool
 		public string? PGOFilenamePrefix;
 
 		/// <summary>
+		/// Platform specific filename where pre-merged PGO profiling data is saved.
+		/// </summary>
+		public string? PGOMergedFilenamePrefix;
+
+		/// <summary>
 		/// Whether to request the linker create a map file as part of the build
 		/// </summary>
 		public bool bCreateMapFile;
@@ -419,6 +424,7 @@ namespace UnrealBuildTool
 			bPGOProfile = Other.bPGOProfile;
 			PGODirectory = Other.PGODirectory;
 			PGOFilenamePrefix = Other.PGOFilenamePrefix;
+			PGOMergedFilenamePrefix = Other.PGOMergedFilenamePrefix;
 			bCreateMapFile = Other.bCreateMapFile;
 			bUsePDBFiles = Other.bUsePDBFiles;
 			bUseFastPDBLinking = Other.bUseFastPDBLinking;
@@ -465,7 +471,7 @@ namespace UnrealBuildTool
 				ArchConfig.GetFolderNameForArchitectures(Other.Architectures),
 				ArchConfig.GetFolderNameForArchitecture(OverrideArchitecture)));
 
-			if (DependenciesToSkipPerArchitecture.Count() > 0)
+			if (DependenciesToSkipPerArchitecture.Count > 0)
 			{
 				// add more arrays here?
 				Libraries = Libraries.Where(x => !DependenciesToSkipPerArchitecture.ContainsKey(x.FullName) || !DependenciesToSkipPerArchitecture[x.FullName].Contains(Architecture)).ToList();

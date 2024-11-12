@@ -9,6 +9,7 @@
 #include "WorldPartition/ContentBundle/Outliner/ContentBundleStatusColumn.h"
 #include "WorldPartition/ContentBundle/Outliner/ContentBundleClientColumn.h"
 #include "WorldPartition/ContentBundle/Outliner/ContentBundleActorCountColumn.h"
+#include "WorldPartition/WorldPartition.h"
 
 namespace ContentBundleOutlinerPrivate
 {
@@ -43,7 +44,11 @@ void SContentBundleBrowser::Construct(const FArguments& InArgs)
 	ChildSlot
 	[
 		SAssignNew(ContentAreaBox, SVerticalBox)
-		.IsEnabled_Lambda([]() { return GWorld ? UWorld::IsPartitionedWorld(GWorld) : false; })
+		.IsEnabled_Lambda([]()
+		{
+			UWorldPartition* WorldPartition = GWorld ? GWorld->GetWorldPartition() : nullptr;
+			return WorldPartition && WorldPartition->IsContentBundleEnabled();
+		})
 	];
 
 	ContentAreaBox->AddSlot()

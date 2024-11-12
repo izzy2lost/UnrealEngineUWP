@@ -14,6 +14,8 @@ UDisplayClusterStageIsosphereComponent::UDisplayClusterStageIsosphereComponent(c
 
 	IsosphereMesh = IsosphereMeshFinder.Object;
 
+	BodyInstance.SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	
 	SetHiddenInGame(true);
 	SetVisibility(false);
 }

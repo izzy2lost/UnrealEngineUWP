@@ -6,8 +6,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "RHI.h"
 #include "RHIResources.h"
+#include "VulkanCommon.h"
+#include "VulkanThirdParty.h"
 
 class FVulkanDevice;
 

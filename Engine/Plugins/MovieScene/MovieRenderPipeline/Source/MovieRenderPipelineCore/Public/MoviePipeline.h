@@ -88,18 +88,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
 	void SetInitializationTime(const FDateTime& InDateTime) { InitializationTime = InDateTime; InitializationTimeOffset = FTimespan(); }
 
-	/** Deprecated. Use OnMoviePipelineWorkFinished() instead. */
-	UE_DEPRECATED(4.27, "Use OnMoviePipelineWorkFinished() instead.")
-	FMoviePipelineFinishedNative& OnMoviePipelineFinished()
-	{
-		return OnMoviePipelineFinishedDelegateNative;
-	}
-
-	/** Deprecated. Use OnMoviePipelineWorkFinishedDelegate instead */
-	UE_DEPRECATED(4.27, "Use OnMoviePipelineWorkFinishedDelegate instead.")
-	UPROPERTY(BlueprintAssignable, Category = "Movie Render Pipeline")
-	FMoviePipelineFinished OnMoviePipelineFinishedDelegate;
-
 	/**
 	* Get the Primary Configuration used to render this shot. This contains the global settings for the shot, as well as per-shot
 	* configurations which can contain their own settings.
@@ -107,10 +95,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline")
 	UMoviePipelinePrimaryConfig* GetPipelinePrimaryConfig() const;
 	
-	UE_DEPRECATED(5.2, "GetPipelineMasterConfig is deprecated. Please use GetPipelinePrimaryConfig instead")
-	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline", meta=(DeprecatedFunction, DeprecationMessage = "Use GetPipelinePrimaryConfig"))
-	UMoviePipelinePrimaryConfig* GetPipelineMasterConfig() const { return GetPipelinePrimaryConfig(); }
-
 public:
 	ULevelSequence* GetTargetSequence() const { return TargetSequence; }
 
@@ -132,6 +116,18 @@ public:
 	void GetSidecarCameraData(UMoviePipelineExecutorShot* InShot, int32 InCameraIndex, FMinimalViewInfo& OutViewInfo, class UCameraComponent** OutCameraComponent) const;
 	bool GetSidecarCameraViewPoints(UMoviePipelineExecutorShot* InShot, TArray<FVector>& OutSidecarViewLocations, TArray<FRotator>& OutSidecarViewRotations) const;
 
+	/** Gets any cached overscan for the specified camera, or 0 if no cached overscan was found */
+	float GetCachedCameraOverscan(int32 InCameraIndex) const;
+
+	/** Gets whether there is a cached overscan value for the specified camera */
+	bool HasCachedCameraOverscan(int32 InCameraIndex) const;
+
+	/** Caches the provided overscan value for the specified camera */
+	void CacheCameraOverscan(int32 InCameraIndex, float InCameraOverscan);
+
+	/** Outputs a warning message regarding animated overscan to the MRQ log if one has not already been output  */
+	void WarnAboutAnimatedOverscan(float InInitialOverscan);
+	
 #if WITH_EDITOR
 	const FMovieSceneExportMetadata& GetOutputMetadata() const { return OutputMetadata; }
 #endif
@@ -319,10 +315,6 @@ private:
 
 	/** Handles transitioning between states, preventing reentrancy. Normal state flow should be respected, does not handle arbitrary x to y transitions. */
 	void TransitionToState(const EMovieRenderPipelineState InNewState);
-
-	void SetSkeletalMeshClothSubSteps(const int32 InSubdivisionCount);
-	void RestoreSkeletalMeshClothSubSteps();
-
 private:
 	/** Custom TimeStep used to drive the engine while rendering. */
 	UPROPERTY(Transient, Instanced)
@@ -395,9 +387,6 @@ private:
 	/** When we originally initialize we store the offset from UTC (which is what GetInitializationTime() is in), but we clear this if you call SetInitializationTime. */
 	FTimespan InitializationTimeOffset;
 
-	/** Deprecated. */
-	FMoviePipelineFinishedNative OnMoviePipelineFinishedDelegateNative;
-
 	/**
 	 * We have to apply camera motion vectors manually. So we keep the current and previous frame's camera view and rotation.
 	 * Then we render a sequence of the same movement, and update after running the game sim.
@@ -412,11 +401,6 @@ public:
 	/** A debug image sequence writer in the event they want to dump every sample generated on its own. */
 	IImageWriteQueue* ImageWriteQueue;
 
-	/** Optional widget for feedback during render */
-	UE_DEPRECATED(5.1, "Use SetViewportInitArgs instead.")
-	UPROPERTY(Transient)
-	TSubclassOf<UMovieRenderDebugWidget> DebugWidgetClass;
-	
 	/** Used to track first-render submissions (for 3d renders) to set the correct flags on the renderer module. */
 	bool bHasRenderedFirstViewThisFrame;
 
@@ -439,12 +423,9 @@ private:
 
 	TSharedPtr<MoviePipeline::FCameraCutSubSectionHierarchyNode> CachedSequenceHierarchyRoot;
 
-	struct FClothSimSettingsCache
-	{
-		int32 NumSubSteps;
-	};
 
-	TMap<TWeakObjectPtr<class UClothingSimulationInteractor>, FClothSimSettingsCache> ClothSimCache;
+	/** Simulation settings cache per cloth interactor object. Needs one per LOD, hence the array. */
+	TMap<TWeakObjectPtr<UObject>, TArray<MoviePipeline::FClothSimSettingsCache>> ClothSimCache;
 
 	struct FRenderTimeStatistics
 	{
@@ -454,6 +435,12 @@ private:
 
 	TMap<int32, FRenderTimeStatistics> RenderTimeFrameStatistics;
 
+	/** Caches the camera overscan used during setup to ensure that overscan-scaled resolution stays constant for every frame during a render */
+	TMap<int32, float> CameraOverscanCache;
+
+	/** Indicates if the user has already been warned about animate overscan if it is detected so that logs aren't flooded with warning messages */
+	bool bHasWarnedAboutAnimatedOverscan = false;
+	
 public:
 	static FString DefaultDebugWidgetAsset;
 };

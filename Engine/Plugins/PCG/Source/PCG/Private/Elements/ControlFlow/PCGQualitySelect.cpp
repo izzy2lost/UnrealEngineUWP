@@ -33,7 +33,13 @@ EPCGDataType UPCGQualitySelectSettings::GetCurrentPinTypes(const UPCGPin* InPin)
 		return Super::GetCurrentPinTypes(InPin);
 	}
 
-	const EPCGDataType InputType = GetTypeUnionOfIncidentEdges(PCGQualityHelpers::GetQualityPinLabel());
+	// In the case of this node, really we want the union of all inputs on all pins.
+	EPCGDataType InputType = EPCGDataType::None;
+	for (const FPCGPinProperties& PinProperties : InputPinProperties())
+	{
+		InputType |= GetTypeUnionOfIncidentEdges(PinProperties.Label);
+	}
+
 	return (InputType != EPCGDataType::None) ? InputType : EPCGDataType::Any;
 }
 

@@ -16,6 +16,7 @@
 #include "MLDeformerModelInstance.h"
 #include "MLDeformerTrainingInputAnim.h"
 #include "MLDeformerOctree.h"
+#include "MLDeformerPaintMode.h"
 #include "AnimationEditorPreviewActor.h"
 #include "AnimationEditorViewportClient.h"
 #include "EditorModeManager.h"
@@ -124,6 +125,23 @@ namespace UE::MLDeformer
 		);
 
 		UpdateLODMappings();
+		UpdateTrainingDeviceList();
+	}
+
+	void FMLDeformerEditorModel::UpdateVertexAttributeNames()
+	{
+		const TArray<FName> AttributeNames = Model->GetVertexAttributeNames();
+
+		// Now build a list of shared pointers to attribute names.
+		VertexAttributeNames.Reset();
+		VertexAttributeNames.Reserve(AttributeNames.Num() + 1);
+
+		const FName DisabledName = FName(LOCTEXT("DisabledString", "Disabled").ToString());
+		VertexAttributeNames.Emplace(MakeShared<FName>(DisabledName));
+		for (int32 Index = 0; Index < AttributeNames.Num(); ++Index)
+		{
+			VertexAttributeNames.Emplace(MakeShared<FName>(AttributeNames[Index]));
+		}
 	}
 
 	void FMLDeformerEditorModel::CreateSamplers()
@@ -164,6 +182,69 @@ namespace UE::MLDeformer
 	void FMLDeformerEditorModel::AddReferencedObjects(FReferenceCollector& Collector)
 	{
 		Collector.AddReferencedObject(EditorInputInfo);
+	}
+
+	void FMLDeformerEditorModel::CopyBaseSettingsFromModel(const FMLDeformerEditorModel* SourceEditorModel)
+	{
+		UMLDeformerModel* SourceModel = SourceEditorModel->GetModel();
+		if (SourceModel == nullptr)
+		{
+			return;
+		}
+
+		UMLDeformerModel* TargetModel = GetModel();
+		check(TargetModel);
+
+		// Copy model properties.
+		TargetModel->SetSkeletalMesh(SourceModel->GetSkeletalMesh());
+		TargetModel->SetAlignmentTransform(SourceModel->GetAlignmentTransform());
+		TargetModel->SetTrainingFrameLimit(SourceModel->GetTrainingFrameLimit());
+		if (TargetModel->DoesSupportBones())
+		{
+			TargetModel->SetBoneIncludeList(SourceModel->GetBoneIncludeList());
+		}
+		if (TargetModel->DoesSupportCurves())
+		{
+			TargetModel->SetCurveIncludeList(SourceModel->GetCurveIncludeList());
+		}
+
+		// Copy visualization properties.
+		const UMLDeformerVizSettings* SourceVizSettings = SourceModel->GetVizSettings();
+		UMLDeformerVizSettings* TargetVizSettings = TargetModel->GetVizSettings();
+		check(TargetVizSettings);
+		if (SourceVizSettings)
+		{
+			TargetVizSettings->SetLabelHeight(SourceVizSettings->GetLabelHeight());
+			TargetVizSettings->SetVisualizationMode(SourceVizSettings->GetVisualizationMode());
+			TargetVizSettings->SetMeshSpacing(SourceVizSettings->GetMeshSpacing());
+			TargetVizSettings->SetLabelScale(SourceVizSettings->GetLabelScale());
+			TargetVizSettings->SetDrawLabels(SourceVizSettings->GetDrawLabels());
+			TargetVizSettings->SetWeight(SourceVizSettings->GetWeight());
+			TargetVizSettings->SetTestAnimSequence((UAnimSequence*)SourceVizSettings->GetTestAnimSequence());
+			TargetVizSettings->SetTrainingFrameNumber(SourceVizSettings->GetTrainingFrameNumber());
+			TargetVizSettings->SetTestingFrameNumber(SourceVizSettings->GetTestingFrameNumber());
+			TargetVizSettings->SetAnimPlaySpeed(SourceVizSettings->GetAnimPlaySpeed());
+			TargetVizSettings->SetDrawLinearSkinnedActor(SourceVizSettings->GetDrawLinearSkinnedActor());
+			TargetVizSettings->SetDrawMLDeformedActor(SourceVizSettings->GetDrawMLDeformedActor());
+			TargetVizSettings->SetDrawGroundTruthActor(SourceVizSettings->GetDrawGroundTruthActor());
+			TargetVizSettings->SetDrawMLCompareActors(SourceVizSettings->GetDrawMLCompareActors());
+			TargetVizSettings->SetDrawDebugActorBounds(SourceVizSettings->GetDrawDebugActorBounds());
+			TargetVizSettings->SetDrawVertexDeltas(SourceVizSettings->GetDrawVertexDeltas());
+			TargetVizSettings->SetXRayDeltas(SourceVizSettings->GetXRayDeltas());
+			TargetVizSettings->SetHeatMapMax(SourceVizSettings->GetHeatMapMax());
+			TargetVizSettings->SetGroundTruthLerp(SourceVizSettings->GetGroundTruthLerp());
+			TargetVizSettings->SetShowHeatMap(SourceVizSettings->GetShowHeatMap());
+			TargetVizSettings->SetHeatMapMode(SourceVizSettings->GetHeatMapMode());
+			TargetVizSettings->SetDebugBoundsColor(SourceVizSettings->GetDebugBoundsColor());
+			TargetVizSettings->SetCompareActors(SourceVizSettings->GetCompareActors());
+
+			// NOTE: We don't copy the DeformerGraph on purpose, as this model might need another one, so we let it get the default graph.
+		}
+
+		ActiveTrainingInputAnimIndex = SourceEditorModel->GetActiveTrainingInputAnimIndex();
+
+		TargetModel->UpdateMemoryUsage();
+		UpdateMemoryUsage();	
 	}
 
 	void FMLDeformerEditorModel::UpdateEditorInputInfo()
@@ -649,7 +730,6 @@ namespace UE::MLDeformer
 		UpdateActorTransforms();
 		UpdateLabels();
 		UpdateActorLODs();
-		CheckTrainingDataFrameChanged();
 		ApplyDebugActorTransforms();
 
 		// Debug draw elements inside the PIE viewport when PIE is active.
@@ -743,6 +823,8 @@ namespace UE::MLDeformer
 		const bool bShowTrainingData = (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TrainingData);
 		const bool bShowTestData = (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TestData);
 		const bool bIsDebugging = (GetEditor()->GetDebugActor() != nullptr);
+		const bool bInDefaultMode = GetEditor()->IsDefaultModeActive();
+
 		for (FMLDeformerEditorActor* EditorActor : EditorActors)
 		{
 			if (EditorActor)
@@ -766,6 +848,7 @@ namespace UE::MLDeformer
 				}
 
 				bIsVisible &= EditorActor->HasVisualMesh();
+				bIsVisible &= bInDefaultMode;
 
 				EditorActor->SetVisibility(bIsVisible);
 			}
@@ -849,6 +932,7 @@ namespace UE::MLDeformer
 			SkeletalMeshComponent->SetPosition(CurrentPlayTime);
 			SkeletalMeshComponent->SetPlayRate(TestAnimSpeed);
 			SkeletalMeshComponent->Play(true);
+			UpdateStepInterpolationMode();
 		}
 
 		// Update all compare actors.
@@ -895,10 +979,10 @@ namespace UE::MLDeformer
 		UpdateIsReadyForTrainingState();
 
 		const int32 TrainingFrame = Model->GetVizSettings()->GetTrainingFrameNumber();
-		SetTrainingFrame(TrainingFrame);
+		SetTrainingFrame(TrainingFrame, false);
 
 		const int32 TestFrame = Model->GetVizSettings()->GetTestingFrameNumber();
-		SetTestFrame(TestFrame);
+		SetTestFrame(TestFrame, false);
 
 		UpdateEditorInputInfo();
 		CheckTrainingDataFrameChanged();
@@ -909,6 +993,7 @@ namespace UE::MLDeformer
 		float PlayOffset = static_cast<float>(NewScrubTime);
 
 		UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
+		bool bFrameChanged = true;
 		if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TrainingData)
 		{
 			const int32 TargetFrame = GetTrainingFrameAtTime(NewScrubTime);
@@ -921,6 +1006,10 @@ namespace UE::MLDeformer
 				}
 			}
 			VizSettings->SetTrainingFrameNumber(TargetFrame);
+			if (!bIsScrubbing)
+			{
+				CheckTrainingDataFrameChanged();
+			}
 		}
 		else if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TestData)
 		{
@@ -931,9 +1020,63 @@ namespace UE::MLDeformer
 				if (EditorActor && EditorActor->IsTestActor())
 				{
 					EditorActor->SetPlayPosition(PlayOffset);
+					UMLDeformerComponent* MLDComponent = EditorActor->GetMLDeformerComponent();
+					if (MLDComponent)
+					{
+						if (MLDComponent->GetModelInstance())
+						{
+							MLDComponent->GetModelInstance()->SetGroundTruthFrameIndex(TargetFrame);
+						}
+					}
 				}
 			}
 			VizSettings->SetTestingFrameNumber(TargetFrame);
+		}
+		
+		bIsScrubbingTimeline = bIsScrubbing;
+		UpdatePaintModePose(/*bFullUpdate=*/!bIsScrubbing);
+
+		// If we scrubbed and we were playing before, and we are in ground truth heat map mode, then we need to possibly enable the heatmap again.
+		// We disable it while playing in ground truth mode as we cannot really get correct ground truth heatmaps during playback because of interpolation and other issues.
+		// If we do not do this, then while ground truth heat map is enabled and we are playing, and we scrub, then the heat map isn't enabled again.
+		if (VizSettings->GetShowHeatMap() && VizSettings->GetHeatMapMode() == EMLDeformerHeatMapMode::GroundTruth)
+		{
+			UpdateHeatMapMaterialBasedOnMode();
+		}
+	}
+
+	void FMLDeformerEditorModel::UpdatePaintModePose(bool bFullUpdate)
+	{
+		if (!Editor->IsInitialized() || !Editor->IsPaintModeActive())
+		{
+			return;
+		}
+
+		UEdMode* ActiveMode = Editor->GetEditorModeManager().GetActiveScriptableMode(UMLDeformerPaintMode::Id);
+		UMLDeformerPaintMode* PaintMode = CastChecked<UMLDeformerPaintMode>(ActiveMode);
+		if (!PaintMode)
+		{
+			return;
+		}
+
+		UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
+		FMLDeformerEditorActor* EditorActor = nullptr;
+		if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TrainingData)
+		{
+			EditorActor = FindEditorActor(ActorID_Train_Base);
+		}
+		else if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TestData)
+		{
+			EditorActor = FindEditorActor(ActorID_Test_MLDeformed);
+		}
+		else
+		{
+			checkf(false, TEXT("Unexpected visualization mode"));
+		}
+
+		if (EditorActor)
+		{		
+			PaintMode->UpdatePose(EditorActor->GetSkeletalMeshComponent(), bFullUpdate);
 		}
 	}
 
@@ -989,25 +1132,25 @@ namespace UE::MLDeformer
 		return Model->GetVizSettings()->GetTestAnimSequence() ? Model->GetVizSettings()->GetTestAnimSequence()->GetFrameAtTime(TimeInSeconds) : 0;
 	}
 
-	void FMLDeformerEditorModel::SetTrainingFrame(int32 FrameNumber)
+	void FMLDeformerEditorModel::SetTrainingFrame(int32 FrameNumber, bool bIsScrubbing)
 	{
 		UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
 		VizSettings->SetTrainingFrameNumber(FrameNumber);
 		ClampCurrentTrainingFrameIndex();
 		if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TrainingData)
 		{
-			OnTimeSliderScrubPositionChanged(GetTrainingTimeAtFrame(FrameNumber), false);
+			OnTimeSliderScrubPositionChanged(GetTrainingTimeAtFrame(FrameNumber), bIsScrubbing);
 		}
 	}
 
-	void FMLDeformerEditorModel::SetTestFrame(int32 FrameNumber)
+	void FMLDeformerEditorModel::SetTestFrame(int32 FrameNumber, bool bIsScrubbing)
 	{
 		UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
 		VizSettings->SetTestingFrameNumber(FrameNumber);
 		ClampCurrentTestFrameIndex();
 		if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TestData)
 		{
-			OnTimeSliderScrubPositionChanged(GetTestTimeAtFrame(FrameNumber), false);
+			OnTimeSliderScrubPositionChanged(GetTestTimeAtFrame(FrameNumber), bIsScrubbing);
 		}
 	}
 
@@ -1091,8 +1234,7 @@ namespace UE::MLDeformer
 			}
 		}
 		else
-		if (Property->GetFName() == UMLDeformerModel::GetAlignmentTransformPropertyName() ||
-		    Property->GetFName() == UMLDeformerModel::GetDeltaCutoffLengthPropertyName())
+		if (Property->GetFName() == UMLDeformerModel::GetAlignmentTransformPropertyName())
 		{
 			if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
 			{
@@ -1140,6 +1282,13 @@ namespace UE::MLDeformer
 		{
 			SetHeatMapMaterialEnabled(Model->GetVizSettings()->GetShowHeatMap());
 			UpdateDeformerGraph();
+			UpdateStepInterpolationMode();
+			UpdateHeatMapMaterialBasedOnMode();
+		}
+		else if (Property->GetFName() == UMLDeformerVizSettings::GetHeatMapModePropertyName())
+		{
+			UpdateStepInterpolationMode();
+			UpdateHeatMapMaterialBasedOnMode();
 		}
 		else
 		if (Property->GetFName() == UMLDeformerVizSettings::GetDrawLinearSkinnedActorPropertyName() ||
@@ -1157,6 +1306,7 @@ namespace UE::MLDeformer
 		{
 			UpdateDeformerGraph();
 			GetEditor()->GetVizSettingsDetailsView()->ForceRefresh();
+			GetEditor()->GetModelDetailsView()->ForceRefresh();
 		}
 	}
 
@@ -1180,11 +1330,11 @@ namespace UE::MLDeformer
 		{
 			if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TrainingData)
 			{
-				SetTrainingFrame(GetTrainingFrameAtTime(CalcTimelinePosition()));
+				SetTrainingFrame(GetTrainingFrameAtTime(CalcTimelinePosition()), false);
 			}
 			else if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TestData)
 			{
-				SetTestFrame(GetTestFrameAtTime(CalcTimelinePosition()));
+				SetTestFrame(GetTestFrameAtTime(CalcTimelinePosition()), false);
 			}
 		}
 
@@ -1195,6 +1345,35 @@ namespace UE::MLDeformer
 				EditorActor->SetPlaySpeed(VizSettings->GetAnimPlaySpeed());
 				EditorActor->Pause(bMustPause);
 			}
+		}
+
+		if (VizSettings->GetShowHeatMap() && VizSettings->GetHeatMapMode() == EMLDeformerHeatMapMode::GroundTruth)
+		{
+			if (!bMustPause)
+			{
+				SetHeatMapMaterialEnabled(false);
+			}
+			else
+			{
+				SetHeatMapMaterialEnabled(VizSettings->GetShowHeatMap());
+			}
+		}
+	}
+
+	void FMLDeformerEditorModel::UpdateHeatMapMaterialBasedOnMode()
+	{
+		const FMLDeformerEditorActor* BaseActor = GetVisualizationModeBaseActor();
+		const bool bIsPlaying = (BaseActor && BaseActor->IsPlaying());
+		const UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
+		const bool bInTestMode = (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TestData);
+
+		if (bIsPlaying && VizSettings->GetHeatMapMode() == EMLDeformerHeatMapMode::GroundTruth)
+		{
+			SetHeatMapMaterialEnabled(false);
+		}
+		else
+		{
+			SetHeatMapMaterialEnabled(VizSettings->GetShowHeatMap());
 		}
 	}
 
@@ -1735,7 +1914,7 @@ namespace UE::MLDeformer
 
 			// Draw the deltas for the current frame.
 			USkeletalMesh* SkelMesh = Model->GetSkeletalMesh();
-			if (bDrawDeltas && Model->GetSkeletalMesh() && SkelMesh->GetImportedModel())
+			if (bDrawDeltas && Model->GetSkeletalMesh() && SkelMesh->GetImportedModel() && !IsScrubbingTimeline())
 			{
 				const FLinearColor DeltasColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.Deltas.Color");
 				const FLinearColor DebugVectorsColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.DebugVectors.Color");
@@ -1754,10 +1933,11 @@ namespace UE::MLDeformer
 					// Render a delta for every render vertex in this LOD.
 					if (!Mapping.IsEmpty()) // If we have LOD mapping data.
 					{
+						const TArray<int32>& MeshToImportVertexMap = SkelMesh->GetImportedModel()->LODModels[0].MeshToImportVertexMap;
 						for (int32 RenderVertexIndex = 0; RenderVertexIndex < Mapping.Num(); ++RenderVertexIndex)
 						{
 							const int32 LOD0VertexIndex = Mapping[RenderVertexIndex]; // Get the vertex number in LOD0.
-							const int32 VertexIndex = SkelMesh->GetImportedModel()->LODModels[0].MeshToImportVertexMap[LOD0VertexIndex]; // Get the imported vertex number.
+							const int32 VertexIndex = MeshToImportVertexMap[LOD0VertexIndex]; // Get the imported vertex number.
 							const int32 ArrayIndex = 3 * VertexIndex; // 3 floats per delta, so multiply by 3.
 							const FVector Delta(
 								VertexDeltas[ArrayIndex], 
@@ -1780,7 +1960,7 @@ namespace UE::MLDeformer
 								VertexDeltas[ArrayIndex + 2]);
 							const FVector VertexPos = (FVector)LinearSkinnedPositions[Index];
 							PDI->DrawLine(VertexPos, VertexPos + Delta, DeltasColor, DepthGroup);
-						}				
+						}
 					}
 				}
 			}
@@ -2071,6 +2251,7 @@ namespace UE::MLDeformer
 		SampleDeltas();
 		Model->InitGPUData();
 		UpdateMemoryUsage();
+		RefreshMLDeformerComponents();
 	}
 
 	FMLDeformerEditorActor* FMLDeformerEditorModel::GetTimelineEditorActor() const
@@ -2661,36 +2842,46 @@ namespace UE::MLDeformer
 		return (float)ScrubPosition.AsDecimal() / (float)GetFrameRate();
 	}
 
-	void FMLDeformerEditorModel::SetScrubPosition(FFrameTime NewScrubPostion)
+	void FMLDeformerEditorModel::SetScrubPosition(FFrameTime NewScrubPosition)
 	{
-		const double FrameNumber = NewScrubPostion.AsDecimal() * (double)GetFrameRate() / (double)GetTickResolution();
+		SetScrubPosition(NewScrubPosition, false);
+	}
+
+	void FMLDeformerEditorModel::SetScrubPosition(FFrameTime NewScrubPosition, bool bIsScrubbing)
+	{
+		const double FrameNumber = NewScrubPosition.AsDecimal() * (double)GetFrameRate() / (double)GetTickResolution();
 		ScrubPosition.FrameNumber = (int32)FrameNumber;
 
 		const UMLDeformerVizSettings* VizSettings = GetModel()->GetVizSettings();
 		if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TrainingData)
 		{
-			SetTrainingFrame(ScrubPosition.FrameNumber.Value);
+			SetTrainingFrame(ScrubPosition.FrameNumber.Value, bIsScrubbing);
 		}
 		else if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TestData)
 		{
-			SetTestFrame(ScrubPosition.FrameNumber.Value);
+			SetTestFrame(ScrubPosition.FrameNumber.Value, bIsScrubbing);
 		}
 	}
 
-	void FMLDeformerEditorModel::SetScrubPosition(FFrameNumber NewScrubPostion)
+	void FMLDeformerEditorModel::SetScrubPosition(FFrameNumber NewScrubPosition)
+	{
+		SetScrubPosition(NewScrubPosition, false);
+	}
+
+	void FMLDeformerEditorModel::SetScrubPosition(FFrameNumber NewScrubPosition, bool bIsScrubbing)
 	{
 		const double Resolution = GetTickResolution();
-		const double ClampedValue = FMath::Clamp((double)NewScrubPostion.Value, PlaybackRange.GetLowerBoundValue() * Resolution, PlaybackRange.GetUpperBoundValue() * Resolution);
+		const double ClampedValue = FMath::Clamp((double)NewScrubPosition.Value, PlaybackRange.GetLowerBoundValue() * Resolution, PlaybackRange.GetUpperBoundValue() * Resolution);
 		const int32 FrameValue = ClampedValue * (double)GetFrameRate() / Resolution;
 
 		const UMLDeformerVizSettings* VizSettings = GetModel()->GetVizSettings();
 		if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TrainingData)
 		{
-			SetTrainingFrame(FrameValue);
+			SetTrainingFrame(FrameValue, bIsScrubbing);
 		}
 		else if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TestData)
 		{
-			SetTestFrame(FrameValue);
+			SetTestFrame(FrameValue, bIsScrubbing);
 		}
 	}
 
@@ -3100,6 +3291,43 @@ namespace UE::MLDeformer
 			}
 		}
 	}
+
+	void FMLDeformerEditorModel::UpdateStepInterpolationMode()
+	{
+		// Force step interpolation when viewing the heatmap in ground truth mode.
+		UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
+		FMLDeformerEditorActor* MLDeformerEditorActor = static_cast<FMLDeformerEditorActor*>(FindEditorActor(ActorID_Test_MLDeformed));
+		if (MLDeformerEditorActor)
+		{
+			USkeletalMeshComponent* SkelMeshComponent = MLDeformerEditorActor->GetSkeletalMeshComponent();
+			if (SkelMeshComponent)
+			{
+				UAnimSingleNodeInstance* AnimInstance = Cast<UAnimSingleNodeInstance>(SkelMeshComponent->GetAnimInstance());
+				if (AnimInstance)
+				{
+					const bool bForceStepInterpolation = VizSettings->GetShowHeatMap() && (VizSettings->GetHeatMapMode() == EMLDeformerHeatMapMode::GroundTruth) && VizSettings->HasTestGroundTruth();
+					const TOptional<EAnimInterpolationType> InterpolationOverride = bForceStepInterpolation ? EAnimInterpolationType::Step : TOptional<EAnimInterpolationType>();
+					AnimInstance->SetInterpolationOverride(InterpolationOverride);				
+				}
+			}
+		}
+	}
+
+	TVertexAttributesConstRef<float> FMLDeformerEditorModel::FindVertexAttributes(FName AttributeName) const
+	{
+		const USkeletalMesh* SkelMesh = Model->GetSkeletalMesh();
+		if (SkelMesh)
+		{
+			const int32 LodLevel = 0;
+			const FMeshDescription* MeshDescription = SkelMesh->GetMeshDescription(LodLevel);
+			if (MeshDescription)
+			{
+				return MeshDescription->VertexAttributes().GetAttributesRef<float>(AttributeName);
+			}
+		}
+		return TVertexAttributesConstRef<float>();
+	}
+
 }	// namespace UE::MLDeformer
 
 #undef LOCTEXT_NAMESPACE

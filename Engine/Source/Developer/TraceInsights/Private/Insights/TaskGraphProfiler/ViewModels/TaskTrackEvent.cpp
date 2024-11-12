@@ -2,7 +2,7 @@
 
 #include "Insights/TaskGraphProfiler/ViewModels/TaskTrackEvent.h"
 
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -95,13 +95,13 @@ FString FTaskTrackEvent::GetEventName() const
 	case ETaskEventType::Completed:
 		return TEXT("Completed");
 	case ETaskEventType::PrerequisiteStarted:
-		return FString::Printf(TEXT("Prerequisite Task %d Executing"), GetTaskId());	
+		return FString::Printf(TEXT("Prerequisite Task %" UINT64_FMT " Executing"), GetTaskId());	
 	case ETaskEventType::ParentStarted:
-		return FString::Printf(TEXT("Parent Task %d Executing"), GetTaskId());
+		return FString::Printf(TEXT("Parent Task %" UINT64_FMT " Executing"), GetTaskId());
 	case ETaskEventType::NestedStarted:
-		return FString::Printf(TEXT("Nested Task %d Executing"), GetTaskId());
+		return FString::Printf(TEXT("Nested Task %" UINT64_FMT " Executing"), GetTaskId());
 	case ETaskEventType::SubsequentStarted:
-		return FString::Printf(TEXT("Subsequent Task %d Executing"), GetTaskId());
+		return FString::Printf(TEXT("Subsequent Task %" UINT64_FMT " Executing"), GetTaskId());
 
 	default:
 		checkf(false, TEXT("Unknown task event type"));
@@ -114,4 +114,4 @@ FString FTaskTrackEvent::GetEventName() const
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler

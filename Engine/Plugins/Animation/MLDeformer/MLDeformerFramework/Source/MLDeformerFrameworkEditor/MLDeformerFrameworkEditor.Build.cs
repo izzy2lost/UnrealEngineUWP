@@ -54,6 +54,20 @@ namespace UnrealBuildTool.Rules
 					"RHI",
 					"AssetDefinition",
 					"SkeletalMeshDescription",
+
+					"EditorInteractiveToolsFramework",
+					"InteractiveToolsFramework",
+					"MeshModelingTools",
+					"MeshModelingToolsEditorOnly",
+					"MeshModelingToolsEditorOnlyExp",
+					"MeshModelingToolsExp",
+					"ModelingComponentsEditorOnly",
+					"ModelingToolsEditorMode",
+					"ModelingComponents",
+					"SkeletalMeshEditor",
+					"SkeletalMeshUtilitiesCommon",
+					"WidgetRegistration",
+					"StatusBar"
 				}
 			);
 

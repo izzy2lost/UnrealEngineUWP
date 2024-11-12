@@ -65,7 +65,7 @@ void FTextInfoColumn::PopulateSearchStrings(const ISceneOutlinerTreeItem& Item, 
 	FString String = GetTextForItem.Execute(Item);
 	if (String.Len())
 	{
-		OutSearchStrings.Add(String);
+		OutSearchStrings.Add(MoveTemp(String));
 	}
 }
 

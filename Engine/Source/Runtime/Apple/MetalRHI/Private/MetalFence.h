@@ -3,7 +3,8 @@
 
 #pragma once
 
-#import <Metal/Metal.h>
+#include "MetalRHIPrivate.h"
+#include "Containers/LockFreeList.h"
 
 #pragma clang diagnostic ignored "-Wnullability-completeness"
 

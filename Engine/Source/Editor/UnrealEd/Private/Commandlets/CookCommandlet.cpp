@@ -25,6 +25,7 @@
 #include "IPlatformFileSandboxWrapper.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
+#include "Logging/StructuredLog.h"
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
@@ -81,7 +82,7 @@ UCookCommandlet::UCookCommandlet( const FObjectInitializer& ObjectInitializer )
 	LogToConsole = false;
 }
 
-bool UCookCommandlet::CookOnTheFly( FGuid InstanceId, int32 Timeout, bool bForceClose, const TArray<ITargetPlatform*>& TargetPlatforms)
+bool UCookCommandlet::CookOnTheFly( FGuid InstanceId, int32 Port, int32 Timeout, bool bForceClose, const TArray<ITargetPlatform*>& TargetPlatforms)
 {
 	UCookOnTheFlyServer *CookOnTheFlyServer = NewObject<UCookOnTheFlyServer>();
 
@@ -100,7 +101,7 @@ bool UCookCommandlet::CookOnTheFly( FGuid InstanceId, int32 Timeout, bool bForce
 	CookOnTheFlyServer->Initialize( ECookMode::CookOnTheFly, CookFlags );
 
 	UCookOnTheFlyServer::FCookOnTheFlyStartupOptions CookOnTheFlyStartupOptions;
-	CookOnTheFlyStartupOptions.bBindAnyPort = InstanceId.IsValid();
+	CookOnTheFlyStartupOptions.Port = Port;
 	CookOnTheFlyStartupOptions.bZenStore = Switches.Contains(TEXT("ZenStore"));
 	CookOnTheFlyStartupOptions.bPlatformProtocol = Switches.Contains(TEXT("PlatformProtocol"));
 	CookOnTheFlyStartupOptions.TargetPlatforms = TargetPlatforms;
@@ -220,10 +221,20 @@ int32 UCookCommandlet::Main(const FString& CmdLineParams)
 		FString InstanceIdString;
 		bool bForceClose = Switches.Contains(TEXT("FORCECLOSE"));
 
+		int32 Port = UCookOnTheFlyServer::FCookOnTheFlyStartupOptions::DefaultPort;
+		if (!FParse::Value(*Params, TEXT("port="), Port))
+		{
+			Port = UCookOnTheFlyServer::FCookOnTheFlyStartupOptions::DefaultPort;
+		}
+
 		FGuid InstanceId;
 		if (FParse::Value(*Params, TEXT("InstanceId="), InstanceIdString))
 		{
-			if (!FGuid::Parse(InstanceIdString, InstanceId))
+			if (FGuid::Parse(InstanceIdString, InstanceId) && InstanceId.IsValid())
+			{
+				Port = UCookOnTheFlyServer::FCookOnTheFlyStartupOptions::AnyPort;
+			}
+			else
 			{
 				UE_LOG(LogCookCommandlet, Warning, TEXT("Invalid InstanceId on command line: %s"), *InstanceIdString);
 			}
@@ -235,7 +246,14 @@ int32 UCookCommandlet::Main(const FString& CmdLineParams)
 			Timeout = 180;
 		}
 
-		CookOnTheFly( InstanceId, Timeout, bForceClose, TargetPlatforms);
+		if (Switches.Contains(TEXT("ODSC")))
+		{
+			// ODSC piggybacks on the cook commandlet but does not cook any packages. Turn -iterative on to prevent
+			// an unnecessary clearing of the cook results.
+			bIterativeCooking = true;
+		}
+
+		CookOnTheFly( InstanceId, Port, Timeout, bForceClose, TargetPlatforms);
 	}
 	else if (Switches.Contains(TEXT("COOKWORKER")))
 	{
@@ -267,6 +285,12 @@ bool UCookCommandlet::CookByTheBook(const TArray<ITargetPlatform*>& Platforms)
 		// Add shared build flag to method flag, and enable iterative
 		IterateFlags |= ECookInitializationFlags::IterateSharedBuild;
 
+		bIterativeCooking = true;
+	}
+	if (Switches.Contains(TEXT("ODSC")))
+	{
+		// ODSC piggybacks on the cook commandlet but does not cook any packages. Turn -iterative on to prevent
+		// an unnecessary clearing of the cook results.
 		bIterativeCooking = true;
 	}
 
@@ -420,12 +444,27 @@ bool UCookCommandlet::CookByTheBook(const TArray<ITargetPlatform*>& Platforms)
 		CookOptions |= Switches.Contains(TEXT("ValidationErrorsAreFatal")) ? ECookByTheBookOptions::ValidationErrorsAreFatal : ECookByTheBookOptions::None;
 	}
 
+	const ECookByTheBookOptions SkipRequestFlags = ECookByTheBookOptions::NoAlwaysCookMaps |
+		ECookByTheBookOptions::NoDefaultMaps | ECookByTheBookOptions::NoGameAlwaysCookPackages |
+		ECookByTheBookOptions::NoInputPackages | ECookByTheBookOptions::ForceDisableSaveGlobalShaders;
 	if (bCookSinglePackage)
 	{
-		const ECookByTheBookOptions SinglePackageFlags = ECookByTheBookOptions::NoAlwaysCookMaps | ECookByTheBookOptions::NoDefaultMaps | ECookByTheBookOptions::NoGameAlwaysCookPackages |
-			ECookByTheBookOptions::NoInputPackages | ECookByTheBookOptions::SkipSoftReferences | ECookByTheBookOptions::ForceDisableSaveGlobalShaders;
-		CookOptions |= SinglePackageFlags;
+		CookOptions |= SkipRequestFlags;
+		CookOptions |= ECookByTheBookOptions::SkipSoftReferences;
 		CookOptions |= bKeepSinglePackageRefs ? ECookByTheBookOptions::None : ECookByTheBookOptions::SkipHardReferences;
+	}
+	if (Switches.Contains(TEXT("CookSkipRequests")))
+	{
+		CookOptions |= SkipRequestFlags;
+		CookOptions |= ECookByTheBookOptions::NoStartupPackages;
+	}
+	if (Switches.Contains(TEXT("CookSkipSoftRefs")))
+	{
+		CookOptions |= ECookByTheBookOptions::SkipSoftReferences;
+	}
+	if (Switches.Contains(TEXT("CookSkipHardRefs")))
+	{
+		CookOptions |= ECookByTheBookOptions::SkipHardReferences;
 	}
 
 	// Also append any cookdirs from the project ini files; these dirs are relative to the game content directory or start with a / root
@@ -563,11 +602,11 @@ void UCookCommandlet::RunCookByTheBookCook(UCookOnTheFlyServer* CookOnTheFlyServ
 	if (bShouldVerifyEDLCookInfo)
 	{
 		bool bFullReferencesExpected = !(CookOptions & ECookByTheBookOptions::SkipHardReferences);
-		UE::SavePackageUtilities::VerifyEDLCookInfo([](ELogVerbosity::Type Verbosity, FStringView Message)
+		UE::SavePackageUtilities::VerifyEDLCookInfo([](UE::FLogRecord&& Record)
 			{
 #if !NO_LOGGING
-				FMsg::Logf(__FILE__, __LINE__, LogCook.GetCategoryName(), Verbosity, TEXT("%.*s"),
-				Message.Len(), Message.GetData());
+				Record.SetCategory(LogCook.GetCategoryName());
+				UE::DispatchDynamicLogRecord(Record);
 #endif
 			}, bFullReferencesExpected);
 	}
@@ -632,7 +671,7 @@ void UCookCommandlet::ConditionalCollectGarbage(uint32 TickResults, UCookOnTheFl
 
 		int32 JobsToLogAt = GShaderCompilingManager->GetNumRemainingJobs();
 		double NextFlushMsgSeconds = FPlatformTime::Seconds();
-		UE_SCOPED_COOKTIMER(CookByTheBook_ShaderJobFlush);
+		UE_SCOPED_COOKTIMER_AND_DURATION(CookByTheBook_ShaderJobFlush, DetailedCookStats::ShaderFlushTimeSec);
 		UE_LOG(LogCookCommandlet, Display, TEXT("Detected max mem exceeded - forcing shader compilation flush"));
 		while (true)
 		{
@@ -675,13 +714,7 @@ void UCookCommandlet::ConditionalCollectGarbage(uint32 TickResults, UCookOnTheFl
 		UE_SCOPED_COOKTIMER(CookByTheBook_TickAssetRegistry);
 		FAssetRegistryModule::TickAssetRegistry(-1.0f);
 	}
-#if OUTPUT_COOKTIMING
-	TOptional<FScopedDurationTimer> CBTBScopedDurationTimer;
-	if (!COTFS.IsCookOnTheFlyMode())
-	{
-		CBTBScopedDurationTimer.Emplace(DetailedCookStats::TickLoopGCTimeSec);
-	}
-#endif
+	UE_SCOPED_COOKTIMER_AND_DURATION(CookCommandlet_GC, DetailedCookStats::TickLoopGCTimeSec);
 	UE_SCOPED_COOKTIMER(CookCommandlet_GC);
 
 	const FPlatformMemoryStats MemStatsBeforeGC = FPlatformMemory::GetStats();
@@ -696,7 +729,16 @@ void UCookCommandlet::ConditionalCollectGarbage(uint32 TickResults, UCookOnTheFl
 	UE_LOG(LogCookCommandlet, Display, TEXT("GarbageCollection...%s (%s)"), *GCType, *GCReason);
 	{
 		TGuardValue<bool> SoftGCGuard(UPackage::bSupportCookerSoftGC, true);
+		COTFS.OnCookerStartCollectGarbage(TickResults);
 		CollectGarbage(RF_NoFlags);
+		COTFS.OnCookerEndCollectGarbage(TickResults);
+		if (COTFS.NeedsDiagnosticSecondGC())
+		{
+			UE_LOG(LogCookCommandlet, Display, TEXT("Second GarbageCollect requested by cooker..."));
+			COTFS.OnCookerStartCollectGarbage(TickResults);
+			CollectGarbage(RF_NoFlags);
+			COTFS.OnCookerEndCollectGarbage(TickResults);
+		}
 	}
 
 	COTFS.ClearGarbageCollectType();

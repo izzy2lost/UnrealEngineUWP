@@ -41,8 +41,14 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Subobject Data")
 	static void GetHandle(const FSubobjectData& Data, FSubobjectDataHandle& OutHandle) { OutHandle = Data.GetHandle(); }
 
+	/**
+	* @return Get the parent handle for this subobject data
+	*/
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Subobject Data")
-	FText GetDisplayName(const FSubobjectData& Data) { return Data.GetDisplayName(); }
+	static void GetParentHandle(const FSubobjectData& Data, FSubobjectDataHandle& OutHandle) { OutHandle = Data.GetParentHandle(); }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Subobject Data")
+	static FText GetDisplayName(const FSubobjectData& Data) { return Data.GetDisplayName(); }
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Subobject Data")
 	static FName GetVariableName(const FSubobjectData& Data) { return Data.GetVariableName(); }
@@ -91,7 +97,7 @@ public:
 	static const UObject* GetObjectForBlueprint(const FSubobjectData& Data, UBlueprint* Blueprint);
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="Subobject Data")
-	UBlueprint* GetBlueprint(const FSubobjectData& Data) { return Data.GetBlueprint(); }
+	static UBlueprint* GetBlueprint(const FSubobjectData& Data) { return Data.GetBlueprint(); }
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="Subobject Data")
 	static bool IsInstancedComponent(const FSubobjectData& Data) { return Data.IsInstancedComponent(); }

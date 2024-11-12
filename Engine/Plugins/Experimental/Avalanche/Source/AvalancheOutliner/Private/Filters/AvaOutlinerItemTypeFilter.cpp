@@ -127,6 +127,11 @@ bool FAvaOutlinerItemTypeFilterData::PassesFilterText(const FAvaOutlinerObject& 
 
 bool FAvaOutlinerItemTypeFilter::PassesFilter(FAvaOutlinerFilterType InItem) const
 {
+	if (FilterPassDelegate.IsBound())
+	{
+		return FilterPassDelegate.Execute(InItem);
+	}
+
 	auto ItemPassesFilter = [this](FAvaOutlinerFilterType InItem)
 	{
 		if (const FAvaOutlinerObject* ObjectItem = InItem.CastTo<FAvaOutlinerObject>())

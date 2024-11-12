@@ -245,8 +245,10 @@ bool UAudioCaptureTimecodeProvider::Initialize(class UEngine* InEngine)
 		return false;
 	}
 	
-	check(Implementation == nullptr);
-	delete Implementation; // in case
+	if (!ensure(Implementation == nullptr))
+	{
+		delete Implementation;
+	}
 
 	Implementation = new FLinearTimecodeAudioCaptureCustomTimeStepImplementation(this);
 	bool bInitialized = Implementation->Init();

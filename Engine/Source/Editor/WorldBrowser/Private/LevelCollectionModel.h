@@ -7,6 +7,7 @@
 #include "Engine/World.h"
 #include "TickableEditorObject.h"
 #include "WorldBrowserDragDrop.h"
+#include "Misc/EnumClassFlags.h"
 #include "Misc/IFilter.h"
 #include "LevelModel.h"
 
@@ -20,21 +21,25 @@ class UMaterialInterface;
 typedef IFilter< const FLevelModel* >				LevelFilter;
 typedef TFilterCollection< const FLevelModel* >		LevelFilterCollection;
 
-/**
- * Interface for non-UI presentation logic for a world
- */
+enum class EBuildHierarchyMenuFlags
+{
+	None,
+	ShowGameVisibility = 1 << 0
+};
+ENUM_CLASS_FLAGS(EBuildHierarchyMenuFlags);
+
+/** Interface for non-UI presentation logic for a world. */
 class WORLDBROWSER_API FLevelCollectionModel
 	: public TSharedFromThis<FLevelCollectionModel>	
 	, public FTickableEditorObject
 {
 public:
+	
 	DECLARE_EVENT_OneParam( FLevelCollectionModel, FOnNewItemAdded, TSharedPtr<FLevelModel>);
 	DECLARE_EVENT( FLevelCollectionModel, FSimpleEvent );
-
-
-public:
+	
 	FLevelCollectionModel();
-	virtual ~FLevelCollectionModel();
+	virtual ~FLevelCollectionModel() override;
 
 	/** FTickableEditorObject interface */
 	virtual void Tick( float DeltaTime ) override;
@@ -96,21 +101,32 @@ public:
 	/**	@return	Found level model with specified level package name */
 	TSharedPtr<FLevelModel> FindLevelModel(const FName& PackageName) const;
 
-	/**	Hides level in the world */
-	void HideLevels(const FLevelModelList& InLevelList);
-	
-	/**	Shows level in the world */
-	void ShowLevels(const FLevelModelList& InLevelList);
+	/**	Hides level in editor worlds */
+	void HideLevelsInEditor(const FLevelModelList& InLevelList);
+
+	/**	Shows level in editor worlds */
+	void ShowLevelsInEditor(const FLevelModelList& InLevelList);
 
 	/** Toggles the selected levels to a visible state; toggles all other levels to an invisible state */
-	void ShowOnlySelectedLevels();
+	void ShowInEditorOnlySelectedLevels();
 
 	/** Toggles the selected levels to an invisible state; toggles all other levels to a visible state */
-	void ShowAllButSelectedLevels();
+	void ShowInEditorAllButSelectedLevels();
+	
+	/**	Hides level in game worlds */
+	void HideLevelsInGame(const FLevelModelList& InLevelList);
+
+	/**	Shows level in game worlds */
+	void ShowLevelsInGame(const FLevelModelList& InLevelList);
+
+	/** Toggles the selected levels to a visible state for game worlds; toggles all other levels to an invisible state */
+	void ShowInGameOnlySelectedLevels();
+
+	/** Toggles the selected levels to an invisible state for game worlds; toggles all other levels to a visible state */
+	void ShowInGameAllButSelectedLevels();
 
 	/**	Unlocks level in the world */
 	void UnlockLevels(const FLevelModelList& InLevelList);
-	
 	/**	Locks level in the world */
 	void LockLevels(const FLevelModelList& InLevelList);
 
@@ -125,7 +141,6 @@ public:
 
 	/**	Loads level from disk */
 	void LoadLevels(const FLevelModelList& InLevelList);
-	
 	/**	Unloads levels from the editor */
 	virtual void UnloadLevels(const FLevelModelList& InLevelList);
 
@@ -154,7 +169,7 @@ public:
 	virtual bool PassesAllFilters(const FLevelModel& InLevelModel) const;
 	
 	/**	Builds 'hierarchy' commands menu for a selected levels */
-	virtual void BuildHierarchyMenu(FMenuBuilder& InMenuBuilder) const;
+	virtual void BuildHierarchyMenu(FMenuBuilder& InMenuBuilder, EBuildHierarchyMenuFlags Flags) const;
 	
 	/**	Customize 'File' section in main menu  */
 	virtual void CustomizeFileMainMenu(FMenuBuilder& InMenuBuilder) const;
@@ -236,6 +251,12 @@ public:
 
 	/** @return whether any of the currently selected levels is editable and visible*/
 	bool AreAnySelectedLevelsEditableAndVisible() const;
+
+	/** @return Whether game visibility of the selected levels is allowed to be changed. */
+	bool CanExecuteGameVisibilityCommandsForSelectedLevels() const;
+	
+	/** @return Whether game visibility of levels is allowed to be changed. */
+	bool CanExecuteGameVisibilityCommands() const;
 	
 	/** @return whether currently only one level selected and it is editable */
 	bool IsSelectedLevelEditable() const;
@@ -411,7 +432,7 @@ protected:
 
 	/** Inverts level selection in the collection view model */
 	void InvertSelection_Executed();
-	
+
 	/** Adds the Actors in the selected Levels from the viewport's existing selection */
 	void SelectActors_Executed();
 
@@ -421,23 +442,41 @@ protected:
 	/** Set level `Use External Actors` to bExternal  */
 	void ConvertLevelToExternalActors_Executed(bool bExternal);
 
-	/** Toggles selected levels to a visible state in the viewports */
-	void ShowSelectedLevels_Executed();
+	/** Toggles selected levels to a visible state in the viewports for editor worlds */
+	void ShowInEditorSelectedLevels_Executed();
+
+	/** Toggles selected levels to an invisible state in the viewports for editor worlds */
+	void HideInEditorSelectedLevels_Executed();
+
+	/** Toggles the selected levels to a visible state for editor worlds; toggles all other levels to an invisible state. */
+	void ShowInEditorOnlySelectedLevels_Executed();
+
+	/** Toggles the selected levels to an invisible state for editor worlds; toggles all other levels to a visible state. */
+	void ShowInEditorAllButSelectedLevels_Executed();
+
+	/** Toggles all levels to a visible state in the viewports for editor worlds */
+	void ShowInEditorAllLevels_Executed();
+
+	/** Hides all levels to an invisible state in the viewports for editor worlds */
+	void HideInEditorAllLevels_Executed();
+
+	/** Toggles selected levels to a visible state in the viewports for game worlds */
+	void ShowInGameSelectedLevels_Executed();
 
 	/** Toggles selected levels to an invisible state in the viewports */
-	void HideSelectedLevels_Executed();
+	void HideInGameSelectedLevels_Executed();
 
-	/** Toggles the selected levels to a visible state; toggles all other levels to an invisible state */
-	void ShowOnlySelectedLevels_Executed();
-	
-	/** Toggles the selected levels to an invisible state; toggles all other levels to a visible state */
-	void ShowAllButSelectedLevels_Executed();
+	/** Toggles the selected levels to a visible state for game worlds; toggles all other levels to an invisible state. */
+	void ShowInGameOnlySelectedLevels_Executed();
 
-	/** Toggles all levels to a visible state in the viewports */
-	void ShowAllLevels_Executed();
+	/** Toggles the selected levels to an invisible state for game worlds; toggles all other levels to a visible state. */
+	void ShowInGameAllButSelectedLevels_Executed();
 
-	/** Hides all levels to an invisible state in the viewports */
-	void HideAllLevels_Executed();
+	/** Toggles all levels to a visible state in the viewports for game worlds */
+	void ShowInGameAllLevels_Executed();
+
+	/** Hides all levels to an invisible state in the viewports for game worlds */
+	void HideInGameAllLevels_Executed();
 	
 	/** Locks selected levels */
 	void LockSelectedLevels_Executed();
@@ -456,7 +495,7 @@ protected:
 
 	/** Unlocks all levels */
 	void UnlockAllLevels_Executed();
-
+	
 	/** Toggle all read-only levels */
 	void ToggleReadOnlyLevels_Executed();
 
@@ -485,13 +524,16 @@ protected:
 	}
 	
 	/** Fills MenuBulder with Lock level related commands */
-	void FillLockSubMenu(class FMenuBuilder& MenuBuilder);
-	
+	void FillLockSubMenu(FMenuBuilder& MenuBuilder);
+
 	/** Fills MenuBulder with level visisbility related commands */
-	void FillVisibilitySubMenu(class FMenuBuilder& MenuBuilder);
+	void FillEditorVisibilitySubMenu(FMenuBuilder& MenuBuilder);
+
+	/** Fills MenuBulder with level visisbility related commands */
+	void FillGameVisibilitySubMenu(FMenuBuilder& MenuBuilder);
 
 	/** Fills MenuBulder with SCC related commands */
-	void FillSourceControlSubMenu(class FMenuBuilder& MenuBuilder);
+	void FillSourceControlSubMenu(FMenuBuilder& MenuBuilder);
 				
 protected:
 	/**  */

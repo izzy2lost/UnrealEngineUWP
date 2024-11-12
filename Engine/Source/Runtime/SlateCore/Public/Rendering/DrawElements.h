@@ -6,6 +6,7 @@
 #include "Rendering/DrawElementCoreTypes.h"
 #include "Rendering/DrawElementTypes.h"
 #include "Rendering/DrawElementPayloads.h"
+#include "Tasks/Task.h"
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "Fonts/FontCache.h"
@@ -236,15 +237,6 @@ public:
 	SLATECORE_API ~FSlateWindowElementList();
 
 	/** @return Get the window that we will be painting */
-	UE_DEPRECATED(4.21, "FSlateWindowElementList::GetWindow is not thread safe but window element lists are accessed on multiple threads.  Please call GetPaintWindow instead")
-	FORCEINLINE TSharedPtr<SWindow> GetWindow() const
-	{
-		// check that we are in game thread or are in slate/movie loading thread
-		check(IsInGameThread() || IsInSlateThread());
-		return WeakPaintWindow.Pin();
-	}
-
-	/** @return Get the window that we will be painting */
 	SWindow* GetPaintWindow() const
 	{
 		check(IsInGameThread() || IsInSlateThread());
@@ -403,8 +395,17 @@ public:
 	SLATECORE_API void ResetElementList();
 
 
-	FSlateBatchData& GetBatchData() { return BatchData; }
-	FSlateBatchData& GetBatchDataHDR() { return BatchDataHDR; }
+	FSlateBatchData& GetBatchData()
+	{
+		FinishMergeRenderBatches();
+		return BatchData;
+	}
+
+	FSlateBatchData& GetBatchDataHDR()
+	{
+		FinishMergeRenderBatches();
+		return BatchDataHDR;
+	}
 
 	SLATECORE_API void SetRenderTargetWindow(SWindow* InRenderTargetWindow);
 
@@ -446,6 +447,10 @@ private:
 	TArrayView<FSlateCachedElementData* const> GetCachedElementDataList() const { return MakeArrayView(CachedElementDataList.GetData(), CachedElementDataList.Num()); }
 
 	FSlateCachedElementData* GetCurrentCachedElementData() const { return CachedElementDataListStack.Num() ? CachedElementDataList[CachedElementDataListStack.Top()] : nullptr; }
+
+	SLATECORE_API void StartMergeRenderBatches();
+	SLATECORE_API void FinishMergeRenderBatches();
+
 private:
 	/**
 	* Window which owns the widgets that are being painted but not necessarily rendered to
@@ -468,6 +473,8 @@ private:
 
 	/** Batched data used for rendering */
 	FSlateBatchData BatchDataHDR;
+
+	UE::Tasks::FTask MergeBatchDataTask;
 
 	/**  */
 	FSlateClippingManager ClippingManager;

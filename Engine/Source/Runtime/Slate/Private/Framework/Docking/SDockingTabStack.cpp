@@ -497,7 +497,12 @@ void SDockingTabStack::OnFocusChanging( const FWeakWidgetPath& PreviousFocusPath
 FReply SDockingTabStack::OnMouseButtonDown( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent )
 {
 	const TSharedPtr<SDockTab> ForegroundTab = TabWell->GetForegroundTab();
-	if ( ForegroundTab.IsValid() && !ForegroundTab->IsActive() )
+
+	const bool bIsRelevantButtonForTabFocus = MouseEvent.GetPressedButtons().Contains(EKeys::LeftMouseButton)
+			|| MouseEvent.GetPressedButtons().Contains(EKeys::RightMouseButton)
+			|| MouseEvent.GetPressedButtons().Contains(EKeys::MiddleMouseButton);
+
+	if (bIsRelevantButtonForTabFocus && ForegroundTab.IsValid() && !ForegroundTab->IsActive())
 	{
 		FGlobalTabmanager::Get()->SetActiveTab( ForegroundTab );
 #if PLATFORM_LINUX
@@ -1233,7 +1238,35 @@ const FSlateBrush* SDockingTabStack::GetTabStackBorderImage() const
 
 int32 SDockingTabStack::OpenPersistentTab( const FTabId& TabId, int32 OpenLocationAmongActiveTabs )
 {
-	const int32 ExistingClosedTabIndex = Tabs.IndexOfByPredicate(FTabMatcher(TabId, static_cast<ETabState::Type>(ETabState::ClosedTab|ETabState::SidebarTab)));
+	int32 ExistingClosedTabIndex = Tabs.IndexOfByPredicate(FTabMatcher(TabId, static_cast<ETabState::Type>(ETabState::ClosedTab|ETabState::SidebarTab)));
+
+	if (ExistingClosedTabIndex == INDEX_NONE)
+	{
+		// Check for a persistent opened tab that isn't actually opened ( in the live tabs ).
+		// This situation can happen in some corner cases, e.g:
+		// - If the process is terminated after a periodic layout save.
+		// - If the layout save on editor shutdown occurs before an editor mode is deactivated.
+		// In any case we want to treat this opened tab as a closed tab instead of creating a new tab.
+		const bool bTreatIndexNoneAsWildcard = false;
+		const int32 ExistingOpenedTabIndex = Tabs.IndexOfByPredicate(FTabMatcher(TabId, static_cast<ETabState::Type>(ETabState::OpenedTab), bTreatIndexNoneAsWildcard));
+		if (ExistingOpenedTabIndex != INDEX_NONE)
+		{
+			bool bHasLiveTab = false;
+			const TArray< TSharedRef<SDockTab> > LiveTabs = this->GetTabs().AsArrayCopy();
+			for (int32 TabIndex = 0; TabIndex < LiveTabs.Num(); ++TabIndex)
+			{
+				if (TabId == LiveTabs[TabIndex]->GetLayoutIdentifier())
+				{
+					bHasLiveTab = true;
+					break;
+				}
+			}
+			if (!bHasLiveTab)
+			{
+				ExistingClosedTabIndex = ExistingOpenedTabIndex;
+			}
+		}
+	}
 
 	if (OpenLocationAmongActiveTabs == INDEX_NONE)
 	{						

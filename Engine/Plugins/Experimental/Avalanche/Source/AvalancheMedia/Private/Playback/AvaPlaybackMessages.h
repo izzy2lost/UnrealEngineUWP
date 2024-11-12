@@ -8,6 +8,7 @@
 #include "Framework/AvaInstanceSettings.h"
 #include "PixelFormat.h"
 #include "Playable/AvaPlayableRemoteControlValues.h"
+#include "Playable/AvaPlayableSettings.h"
 #include "Playback/Nodes/Events/Actions/AvaPlaybackAnimations.h"
 #include "Viewport/AvaViewportQualitySettings.h"
 #include "AvaPlaybackMessages.generated.h"
@@ -215,6 +216,18 @@ struct FAvaPlaybackInstanceSettingsUpdate : public FAvaPlaybackClientMessageBase
 	FAvaInstanceSettings InstanceSettings;
 };
 
+/**
+ *	Request for the client to replicate it's Motion Design instance settings to the server.
+ **/
+USTRUCT()
+struct FAvaPlaybackPlayableSettingsUpdate : public FAvaPlaybackClientMessageBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FAvaPlayableSettings PlayableSettings;
+};
+
 UENUM()
 enum class EAvaPlaybackPackageEvent
 {
@@ -418,10 +431,13 @@ struct FAvaPlaybackSequenceEvent : public FAvaPlaybackServerMessageBase
 	FString ChannelName;
 	
 	UPROPERTY()
-	FString SequenceName;
+	FString SequenceLabel;
 
 	UPROPERTY()
 	EAvaPlayableSequenceEventType EventType = EAvaPlayableSequenceEventType::None;
+
+	UPROPERTY()
+	int32 FrameNumber = 0;
 };
 
 USTRUCT()
@@ -510,6 +526,9 @@ struct FAvaPlaybackTransitionEvent : public FAvaPlaybackServerMessageBase
 	UPROPERTY()
 	uint8 EventFlags = static_cast<uint8>(EAvaPlayableTransitionEventFlags::None);
 
+	UPROPERTY()
+	int32 FrameNumber = 0;
+
 	// Because the enum is used as flags, we need to convert to uint8 manually. (Can't use TEnumAsByte for this apparently.)
 	EAvaPlayableTransitionEventFlags GetEventFlags() const { return static_cast<EAvaPlayableTransitionEventFlags>(EventFlags);}
 	void SetEventFlags(EAvaPlayableTransitionEventFlags InFlags) { EventFlags = static_cast<uint8>(InFlags);}
@@ -577,7 +596,7 @@ struct FAvaBroadcastChannelSettingsUpdate : public FAvaPlaybackClientMessageBase
 	UPROPERTY()
 	FString Channel;
 
-	UPROPERTY()
+	UPROPERTY(meta = (HideHeader, ShowPresets))
 	FAvaViewportQualitySettings QualitySettings;
 };
 

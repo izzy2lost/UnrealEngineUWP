@@ -4,6 +4,9 @@
 
 #include "DiffPackageWriter.h"
 
+class UCookOnTheFlyServer;
+class FIterativeValidateMPCollector; 
+
 /**
  * A CookedPackageWriter that diffs the cook results of iteratively-unmodified packages between their last cook
  * results and the current cook.
@@ -18,8 +21,9 @@ public:
 		Phase1,
 		Phase2,
 	};
-	FIterativeValidatePackageWriter(TUniquePtr<ICookedPackageWriter>&& InInner, EPhase InPhase,
-		const FString& ResolvedMetadataPath);
+	FIterativeValidatePackageWriter(UCookOnTheFlyServer& InCOTFS, TUniquePtr<ICookedPackageWriter>&& InInner,
+		EPhase InPhase, const FString& ResolvedMetadataPath,
+		UE::Cook::FDeterminismManager* InDeterminismManager);
 
 	// IPackageWriter
 	virtual void BeginPackage(const FBeginPackageInfo& Info) override;
@@ -48,12 +52,7 @@ public:
 	virtual bool IsAnotherSaveNeeded(FSavePackageResultStruct& PreviousResult, FSavePackageArgs& SaveArgs) override;
 
 protected:
-	virtual void OnDiffWriterMessage(ELogVerbosity::Type Verbosity, FStringView Message) override;
-	void LogIterativeDifferences();
-	void Save();
-	void Load();
-	void Serialize(FArchive& Ar);
-	FString GetIterativeValidatePath() const;
+	enum class EPackageStatus : uint8;
 
 	enum class ESaveAction : uint8
 	{
@@ -61,6 +60,20 @@ protected:
 		SaveToInner,
 		IgnoreResults,
 	};
+
+	enum class EPackageStatus : uint8
+	{
+		NotYetProcessed,
+		DeclaredUnmodified_ConfirmedUnmodified,
+		DeclaredUnmodified_FoundModified_IndeterminismOrFalsePositive,
+		DeclaredUnmodified_FoundModified_Indeterminism,
+		DeclaredUnmodified_FoundModified_FalsePositive,
+		DeclaredUnmodified_FoundModified_OnIgnoreList,
+		DeclaredUnmodified_NotYetProcessed,
+		DeclaredModified_WillNotVerify,
+		Count
+	};
+
 	struct FMessage
 	{
 		FString Text;
@@ -68,39 +81,59 @@ protected:
 	};
 	friend FArchive& operator<<(FArchive& Ar, FMessage& Message);
 
-	/**
-	 * Written during Phase1, read during Phase2. Read/Written during AllInOnePhase. Packages that we thought were iteratively
-	 * unchanged and that were confirmed upon resave to be unchanged.
-	 */
-	TSet<FName> IterativeValidated;
-	/**
-	 * Written during Phase1, read during Phase2. Unused in AllInOnePhase. Packages that we thought were iteratively
-	 * unchanged but in which we discovered differences. But the differences might be due to indeterminism. Phase2
-	 * splits this container into IndeterminismFailed entries and IterativeFalseNegative entries.
-	 */
-	TMap<FName, TArray<FMessage>> IterativeFailed;
-	/**
-	 * Read during Phase2. Unused in AllInOnePhase. Packages that we thought were iteratively unchanged but that had
-	 * differences when saved, but those differences turned out to be due to indeterminism.
-	 */
-	TSet<FName> IndeterminismFailed;
-	/**
-	 * Read during Phase2. Read/Written during AllInOnePhase. Packages that we thought were iteratively unchanged but that had
-	 * differences when saved, and no indeterminism detected (AllInOnePhase does not search for indeterminism, so all packages
-	 * with differences end up here), so they must be a bug in the iteratvely unchanged decision.
-	 */
-	TSet<FName> IterativeFalseNegative;
-	/**
-	 * Unused in Phase1,Phase2. In AllInOnePhase, this records packages that we think are iteratively unchanged.
-	 * We do a 2-pass or 3-pass save for these: look for diffs and then save to disk. For packages not in this list
-	 * we do a 1-pass save: save it to disk without looking for diffs.
-	 */
-	TSet<FName> IterativelyUnmodified;
+	struct FStatusCounts
+	{
+		FStatusCounts()
+		{
+			Data = MakeUniformStaticArray<uint32, (uint32)EPackageStatus::Count>(0);
+		}
 
+		uint32& operator[](EPackageStatus PackageStatus) 
+		{ 
+			return Data[(uint32)PackageStatus]; 
+		}
+
+	private:
+		TStaticArray<uint32, (uint32)EPackageStatus::Count> Data;
+	};
+
+	struct FPackageStatusInfo
+	{
+		FTopLevelAssetPath AssetClass;
+		EPackageStatus Status;
+	};
+
+protected:
+	virtual void OnDiffWriterMessage(ELogVerbosity::Type Verbosity, FStringView Message) override;
+	void LogIterativeDifferences();
+	void Save();
+	void Load();
+	void Serialize(FArchive& Ar);
+	FString GetIterativeValidatePath() const;
+	EPackageStatus GetPackageStatus(FName PackageName) const;
+	void SetPackageStatus(FName PackageName, EPackageStatus NewStatus);
+	FStatusCounts CountPackagesByStatus();
+	TMap<FTopLevelAssetPath, int32> GetSummaryFalsePositiveCounts();
+
+protected:
+	TMap<FName, FPackageStatusInfo> PackageStatusMap;
+	TMap<FName, TArray<FMessage>> PackageMessageMap;
+	TSet<FName> PackageIgnoreList;
 	FString MetadataPath;
-	int32 ModifiedCount = 0;
+	UCookOnTheFlyServer& COTFS;
 	EPhase Phase = EPhase::AllInOnePhase;
 	ESaveAction SaveAction = ESaveAction::IgnoreResults;
 	bool bPackageFirstPass = false;
 	bool bReadOnly = true;
+
+	friend class FIterativeValidateMPCollector;
+	friend FCbWriter& operator<<(FCbWriter& Writer, const FMessage& Message);
+	friend bool LoadFromCompactBinary(FCbFieldView Field, FMessage& Path);
+	friend FCbWriter& operator<<(FCbWriter& Writer, EPackageStatus Status);
+	friend bool LoadFromCompactBinary(FCbFieldView Field, EPackageStatus& Status);
+	friend FArchive& operator<<(FArchive& Writer, FPackageStatusInfo& Info);
+	friend FCbWriter& operator<<(FCbWriter& Writer, const FPackageStatusInfo& Info);
+	friend bool LoadFromCompactBinary(FCbFieldView Field, FPackageStatusInfo& Info);
 };
+
+

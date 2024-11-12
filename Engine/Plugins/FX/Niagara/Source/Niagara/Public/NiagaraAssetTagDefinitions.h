@@ -19,7 +19,8 @@ UENUM()
 enum class ENiagaraAssetTagDefinitionImportance : uint8
 {
 	Primary UMETA(ToolTip="This Asset Tag Definition is considered important and will get displayed in the primary filter UI in the Niagara Asset Browsers."),
-	Secondary UMETA(ToolTip="This Asset Tag Definition is considered less important and will only get displayed in the additional drop down filter UI in the Niagara Asset Browsers.")
+	Secondary UMETA(ToolTip="This Asset Tag Definition is considered less important and will only get displayed in the additional drop down filter UI in the Niagara Asset Browsers."),
+	Internal UMETA(ToolTip="This Asset Tag Definition is for internal use only, and will not be displayed in the primary tag view nor the secondary drop down filter UI.")
 	//Both UMETA(ToolTip="This Asset Tag Definition will be displayed in both primary UI & the additional filter drop downs.")
 };
 
@@ -110,7 +111,12 @@ private:
 	FGuid AssetTagDefinitionGuid;
 };
 
-/** An asset to define multiple tag definitions; used to sort and categorize Niagara assets. */
+/** An Asset Tag Definition defines a tag that can be added to various Niagara assets for sorting & filtering purposes.
+ * For example, custom tags will show up in the Create Niagara System dialog to filter available emitters.
+ * They can also be used to filter assets in the content browser, when used with the custom filter option.
+ *
+ * You can modify asset tags in the content browser by right-clicking on a Niagara asset, then use the "Manage Tags" submenu to add or remove them.
+ */
 UCLASS()
 class NIAGARA_API UNiagaraAssetTagDefinitions : public UObject
 {

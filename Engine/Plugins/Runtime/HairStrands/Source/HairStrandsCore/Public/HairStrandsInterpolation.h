@@ -82,10 +82,14 @@ void AddGroomCacheUpdatePass(
 	FGlobalShaderMap* ShaderMap,
 	uint32 InstanceRegisteredIndex,
 	uint32 PointCount,
+	uint32 CurveCount,
 	float InterpolationFactor,
+	float InMaxHairRadius,
 	FGroomCacheResources CacheResources0,
 	FGroomCacheResources CacheResources1,
-	FRDGBufferSRVRef InBuffer,
+	FRDGBufferSRVRef InRestPositionBuffer,
+	FRDGBufferSRVRef InRestCurveBuffer,
+	FRDGBufferSRVRef InRestPointToCurveBuffer,
 	FRDGBufferSRVRef InDeformedOffsetBuffer,
 	FRDGBufferUAVRef OutBuffer);
 

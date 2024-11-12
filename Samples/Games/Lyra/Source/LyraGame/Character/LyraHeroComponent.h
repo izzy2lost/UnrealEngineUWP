@@ -86,24 +86,8 @@ protected:
 	void Input_AutoRun(const FInputActionValue& InputActionValue);
 
 	TSubclassOf<ULyraCameraMode> DetermineCameraMode() const;
-	
-	void OnInputConfigActivated(const FLoadedMappableConfigPair& ConfigPair);
-	void OnInputConfigDeactivated(const FLoadedMappableConfigPair& ConfigPair);
 
 protected:
-
-	/**
-	 * Input Configs that should be added to this player when initializing the input. These configs
-	 * will NOT be registered with the settings because they are added at runtime. If you want the config
-	 * pair to be in the settings, then add it via the GameFeatureAction_AddInputConfig
-	 * 
-	 * NOTE: You should only add to this if you do not have a game feature plugin accessible to you.
-	 * If you do, then use the GameFeatureAction_AddInputConfig instead. 
-	 */
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UE_DEPRECATED(5.3, "DefaultInputConfigs have been deprecated, use DefaultInputMappings instead")
-	TArray<FMappableConfigPair> DefaultInputConfigs;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
 	UPROPERTY(EditAnywhere)
 	TArray<FInputMappingContextAndPriority> DefaultInputMappings;

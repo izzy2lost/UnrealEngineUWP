@@ -43,11 +43,10 @@
  *   Given: TArray< TSharedPtr<FText> > Items;
  *
  *   SNew( SListView< TSharedPtr<FText> > )
- *     .ItemHeight(24)
  *     .ListItemsSource( &Items )
  *     .OnGenerateRow(this, &MyClass::GenerateItemRow)
  *
- * In the example we make all our widgets be 24 screen units tall. The ListView will create widgets based on data items
+ * The ListView will create widgets based on data items
  * in the Items TArray. When the ListView needs to generate an item, it will do so using the specified OnGenerateRow method.
  *
  * A sample implementation of MyClass::GenerateItemRow has to return a STableRow with optional content:
@@ -92,9 +91,9 @@ public:
 		, _OnGeneratePinnedRow()
 		, _OnEntryInitialized()
 		, _OnRowReleased()
-		, _ItemHeight(16)
 		, _MaxPinnedItems(6)
 		, _OnContextMenuOpening()
+		, _OnItemsRebuilt()
 		, _OnMouseButtonClick()
 		, _OnMouseButtonDoubleClick()
 		, _OnSelectionChanged()
@@ -111,6 +110,7 @@ public:
 		, _ConsumeMouseWheel(EConsumeMouseWheel::WhenScrollingPossible)
 		, _WheelScrollMultiplier(GetGlobalScrollAmount())
 		, _NavigationScrollOffset(0.5f)
+		, _ScrollBarPadding(0.0f)
 		, _HandleGamepadEvents( true )
 		, _HandleDirectionalNavigation( true )
 		, _HandleSpacebarSelection(false)
@@ -140,11 +140,13 @@ public:
 
 		SLATE_ITEMS_SOURCE_ARGUMENT( ItemType, ListItemsSource )
 
-		SLATE_ATTRIBUTE( float, ItemHeight )
+		SLATE_ATTRIBUTE_DEPRECATED( float, ItemHeight, 5.5, "The ItemHeight is only used for Tile. See ShouldArrangeAsTiles")
 
 		SLATE_ATTRIBUTE(int32, MaxPinnedItems)
 
 		SLATE_EVENT( FOnContextMenuOpening, OnContextMenuOpening )
+
+		SLATE_EVENT( FSimpleDelegate, OnItemsRebuilt )
 
 		SLATE_EVENT(FOnMouseButtonClick, OnMouseButtonClick)
 
@@ -163,6 +165,8 @@ public:
 		SLATE_ARGUMENT( TSharedPtr<SScrollBar>, ExternalScrollbar )
 
 		SLATE_ARGUMENT( EOrientation, Orientation )
+
+		SLATE_ARGUMENT( EScrollIntoViewAlignment, ScrollIntoViewAlignment )
 
 		SLATE_ARGUMENT( bool, EnableAnimatedScrolling)
 
@@ -183,6 +187,8 @@ public:
 		SLATE_ARGUMENT( float, WheelScrollMultiplier );
 
 		SLATE_ARGUMENT( float, NavigationScrollOffset );
+
+		SLATE_ARGUMENT( FMargin, ScrollBarPadding );
 
 		SLATE_ARGUMENT( bool, HandleGamepadEvents );
 
@@ -222,6 +228,7 @@ public:
 
 		this->SetItemsSource(InArgs.MakeListItemsSource(this->SharedThis(this)));
 		this->OnContextMenuOpening = InArgs._OnContextMenuOpening;
+		this->OnItemsRebuilt = InArgs._OnItemsRebuilt;
 		this->OnClick = InArgs._OnMouseButtonClick;
 		this->OnDoubleClick = InArgs._OnMouseButtonDoubleClick;
 		this->OnSelectionChanged = InArgs._OnSelectionChanged;
@@ -244,6 +251,7 @@ public:
 
 		this->bEnableAnimatedScrolling = InArgs._EnableAnimatedScrolling;
 		this->FixedLineScrollOffset = InArgs._FixedLineScrollOffset;
+		this->ScrollIntoViewAlignment = InArgs._ScrollIntoViewAlignment;
 
 		this->OnItemToString_Debug = InArgs._OnItemToString_Debug.IsBound()
 			? InArgs._OnItemToString_Debug
@@ -256,6 +264,7 @@ public:
 
 		this->MaxPinnedItems = InArgs._MaxPinnedItems;
 		this->DefaultMaxPinnedItems = InArgs._MaxPinnedItems;
+		this->ScrollBarSlotPadding = InArgs._ScrollBarPadding;
 
 		// Check for any parameters that the coder forgot to specify.
 		FString ErrorString;
@@ -284,8 +293,8 @@ public:
 		}
 		else
 		{
-			// Make the TableView
-			ConstructChildren( 0, InArgs._ItemHeight, EListItemAlignment::LeftAligned, InArgs._HeaderRow, InArgs._ExternalScrollbar, InArgs._Orientation, InArgs._OnListViewScrolled, InArgs._ScrollBarStyle, InArgs._PreventThrottling );
+			// Make the ListView
+			ConstructChildren( 0.0f, 0.0f, EListItemAlignment::LeftAligned, InArgs._HeaderRow, InArgs._ExternalScrollbar, InArgs._Orientation, InArgs._OnListViewScrolled, InArgs._ScrollBarStyle, InArgs._PreventThrottling );
 			if(this->ScrollBar.IsValid())
 			{
 				this->ScrollBar->SetDragFocusCause(InArgs._ScrollbarDragFocusCause);
@@ -306,6 +315,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		, ItemToScrollIntoView(TListTypeTraits<ItemType>::MakeNullPtr())
 		, UserRequestingScrollIntoView(0)
 		, ItemToNotifyWhenInView(TListTypeTraits<ItemType>::MakeNullPtr())
+		, ScrollIntoViewAlignment(EScrollIntoViewAlignment::CenterAligned)
 		, IsFocusable(true)
 	{ 
 #if WITH_ACCESSIBILITY
@@ -525,7 +535,7 @@ public:
 			}
 
 			// If it's valid we'll scroll it into view and return an explicit widget in the FNavigationReply
-			if (ItemsSourceRef.IsValidIndex(AttemptSelectIndex))
+			if (ItemsSourceRef.IsValidIndex(AttemptSelectIndex) && this->bIsGamepadScrollingEnabled)
 			{
 				TOptional<ItemType> ItemToSelect = Private_FindNextSelectableOrNavigableWithIndexAndDirection(ItemsSourceRef[AttemptSelectIndex], AttemptSelectIndex, AttemptSelectIndex >= CurSelectionIndex);
 				if (ItemToSelect.IsSet())
@@ -1225,8 +1235,8 @@ private:
 
 				if (PinnedItem)
 				{
-					// Navigate to the pinned item on click
-					OwnerListView->RequestNavigateToItem(*PinnedItem);
+					// Select the pinned item on click 
+					OwnerListView->NavigationSelect(*PinnedItem, MouseEvent);
 					return FReply::Handled();
 				}
 			}
@@ -2020,6 +2030,12 @@ public:
 		}
 	}
 
+	/* Sets ScrollIntoViewAlignment which allows to stick the selected item to either side or center */
+	void SetScrollIntoViewAlignment (EScrollIntoViewAlignment NewScrollIntoViewAlignment)
+	{
+		ScrollIntoViewAlignment = NewScrollIntoViewAlignment;
+	}
+
 	/**
 	 * Find a widget for this item if it has already been constructed.
 	 *
@@ -2118,13 +2134,40 @@ protected:
 				// When navigating, we don't want to scroll partially visible existing rows all the way to the center, so we count partially displayed indices in the displayed range
 				const double MinDisplayedIndex = bNavigateOnScrollIntoView ? FMath::FloorToDouble(CurrentScrollOffset) : FMath::CeilToDouble(CurrentScrollOffset);
 				const double MaxDisplayedIndex = bNavigateOnScrollIntoView ? FMath::CeilToDouble(CurrentScrollOffset + NumFullEntriesInView) : FMath::FloorToDouble(CurrentScrollOffset + NumFullEntriesInView);
-				if (IndexOfItem < MinDisplayedIndex || IndexOfItem > MaxDisplayedIndex)
+				if (IndexOfItem < MinDisplayedIndex || IndexOfItem > MaxDisplayedIndex || 
+					ScrollIntoViewAlignment == EScrollIntoViewAlignment::TopOrLeft || 
+					ScrollIntoViewAlignment == EScrollIntoViewAlignment::BottomOrRight)
 				{
 					// Scroll the top of the listview to the item in question
 					double NewScrollOffset = IndexOfItem;
 
-					// Center the list view on the item in question.
-					NewScrollOffset -= (NumLiveWidgets / 2.0);
+					switch (ScrollIntoViewAlignment)
+					{
+					case EScrollIntoViewAlignment::CenterAligned:
+						// Center the list view on the item in question.
+						NewScrollOffset -= (NumLiveWidgets / 2.0);
+						break;
+
+					case EScrollIntoViewAlignment::IntoView:
+						if (IndexOfItem > MaxDisplayedIndex)
+						{
+							// Bring the new item in question to the bottom
+							NewScrollOffset -= (NumLiveWidgets - 1.0);
+						}
+
+						// The alternative is that IndexOfItem < MinDisplayedIndex, and NewScrollOffset is already correct for that case
+						break;
+
+					case EScrollIntoViewAlignment::TopOrLeft:
+						// Set NewScrollOffset to exactly IndexOfItem to ensure it's at the top/left
+						NewScrollOffset = IndexOfItem;
+						break;
+
+					case EScrollIntoViewAlignment::BottomOrRight:
+						// Set NewScrollOffset to position the item at the bottom/right
+						NewScrollOffset = IndexOfItem - (NumLiveWidgets - 1.0);
+						break;
+					}
 
 					// Limit offset to top and bottom of the list.
 					const double MaxScrollOffset = FMath::Max(0.0, static_cast<double>(Items.Num()) - NumLiveWidgets);
@@ -2466,6 +2509,7 @@ protected:
 
 	/**
 	 * Selects the specified item and scrolls it into view. If shift is held, it will be a range select.
+	 * If ctrl is held and multi selection is allowed, the item will be added to the list of currently selected items
 	 * 
 	 * @param ItemToSelect		The item that was selected by a keystroke
 	 * @param InInputEvent	The key event that caused this selection
@@ -2501,7 +2545,12 @@ protected:
 
 					this->Private_SelectRangeFromCurrentTo(ItemToSelect.GetValue());
 				}
-
+				// For ctrl select, simply add the item to the list of currently selected items
+				else
+				{
+					this->Private_SetItemSelection(ItemToSelect.GetValue(), true, true);
+				}
+				
 				this->Private_SignalSelectionChanged(ESelectInfo::OnNavigation);
 			}
 			else
@@ -2567,6 +2616,9 @@ protected:
 
 	/** When set, the list will notify this item when it has been scrolled into view */
 	NullableItemType ItemToNotifyWhenInView;
+
+	/** How to scroll an item into view */
+	EScrollIntoViewAlignment ScrollIntoViewAlignment;
 
 	/** Delegate to invoke when selection changes. */
 	FOnSelectionChanged OnSelectionChanged;

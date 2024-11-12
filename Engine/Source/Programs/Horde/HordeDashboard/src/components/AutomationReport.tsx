@@ -223,7 +223,7 @@ class TestReportGenerator {
       });
 
       if (jobIds.size) {
-         const jobs = await backend.getJobsByIds(Array.from(jobIds), { filter: "id,batches" }, false);
+         const jobs = await backend.getJobsByIds(Array.from(jobIds), { filter: "id,batches" });
          jobs.forEach(j => {
             const metas = allMetaEvents.filter(m => m.jobId === j.id);
             metas.forEach(m => {
@@ -331,7 +331,7 @@ const ErrorPane: React.FC<{ failure: TestFailureEvent }> = ({ failure }) => {
          return <div>???</div>;
       }
 
-      const url = `/log/${failure.logId}?lineindex=${event.lineIndex}`;
+      const url = `/log/${failure.logId}?lineIndex=${event.lineIndex + 1}`;
 
       const lines = event.lines.filter(line => line.message?.trim().length).map(line => <Stack styles={{ root: { paddingLeft: 8, paddingRight: 8, lineBreak: "anywhere", whiteSpace: "pre-wrap", lineHeight: 18, fontSize: 10, fontFamily: "Horde Cousine Regular, monospace, monospace" } }}> <Link className="log-link" target="_blank" to={url}>{renderLine(navigate, line, undefined, {})}</Link></Stack>);
 

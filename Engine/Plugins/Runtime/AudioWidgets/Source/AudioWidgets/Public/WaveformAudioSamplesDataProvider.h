@@ -42,9 +42,12 @@ namespace AudioWidgets
 		void StartProcessing();
 		void StopProcessing();
 
-		FFixedSampledSequenceView GetDataView() { return DataView; };
-		uint32 GetNumChannels() { return NumChannels; }
-		const UAudioBus* GetAudioBus() { return AudioBus; }
+		FFixedSampledSequenceView GetDataView() const { return DataView; };
+		uint32 GetNumChannels() const { return NumChannels; }
+		const UAudioBus* GetAudioBus() const { return AudioBus; }
+
+		float GetMaxTimeWindowMs() const { return MaxTimeWindowMs; }
+		void SetMaxTimeWindowMs(const float InMaxTimeWindowMs);
 
 		void SetChannelToAnalyze(const int32 InChannel);
 		void SetTriggerMode(const EAudioOscilloscopeTriggerMode InTriggerMode);
@@ -66,7 +69,7 @@ namespace AudioWidgets
 		uint32 NumChannels          = 0;
 		uint32 SampleRate           = 0;
 
-		uint32 TimeWindowMaxTimeSamples = 0;
+		float MaxTimeWindowMs = 0.0f;
 
 		const Audio::FMixerDevice* MixerDevice = nullptr;
 

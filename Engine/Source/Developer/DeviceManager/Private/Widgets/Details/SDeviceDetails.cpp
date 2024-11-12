@@ -95,7 +95,6 @@ void SDeviceDetails::Construct(const FArguments& InArgs, const TSharedRef<FDevic
 							[
 								// feature list view
 								SAssignNew(FeatureListView, SListView<TSharedPtr<FDeviceDetailsFeature>>)
-									.ItemHeight(24.0f)
 									.ListItemsSource(&FeatureList)
 									.OnGenerateRow_Lambda(FeatureListGenerateRow)
 									.SelectionMode(ESelectionMode::None)

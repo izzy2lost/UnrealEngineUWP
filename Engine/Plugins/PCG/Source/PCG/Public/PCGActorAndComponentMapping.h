@@ -4,6 +4,7 @@
 
 #include "PCGCommon.h"
 #include "Elements/PCGActorSelector.h"
+#include "Grid/PCGGridDescriptor.h"
 #include "Grid/PCGComponentOctree.h"
 #include "RuntimeGen/PCGRuntimeGenScheduler.h"
 
@@ -27,6 +28,11 @@ class UPCGComponent;
 class UPCGGraph;
 class UPCGSubsystem;
 class UWorld;
+class UWorldPartition;
+class FWorldPartitionActorDescInstance;
+class FPackageReloadedEvent;
+
+enum class EPackageReloadPhase : uint8;
 
 /**
 * This class handle any necessary mapping between actors and pcg components.
@@ -45,7 +51,7 @@ public:
 	~FPCGActorAndComponentMapping() = default;
 
 	/** Initializes callbacks, etc, tied to the PCG subsystem */
-	void Initialize(UWorld* World);
+	void Initialize();
 
 	/** Deinitializes callbacks, etc, tied to the PCG subsystem */
 	void Deinitialize();
@@ -53,9 +59,14 @@ public:
 	/** Should be called by the subsystem to handle delayed operations. */
 	void Tick();
 
+	/** Returns the PCGSubystem's World */
+	UWorld* GetWorld() const;
+
 #if WITH_EDITOR
 	/** Notify that we exited the Landscape edit mode. */
 	void NotifyLandscapeEditModeExited();
+
+	static void BuildPartitionActorRecords(APCGWorldActor* PCGWorldActor, UWorldPartition* WorldPartition, TMap<FPCGGridCellDescriptor, FGuid>& OutPartitionActorRecords, TSet<FGuid>& OutInvalidPartitionActors);
 #endif // WITH_EDITOR
 
 	/** Register a new PCG Component or update it. Returns true if it was added/updated. Thread safe */
@@ -82,12 +93,15 @@ public:
 	/** Return a copy of all the registered components. Thread safe */
 	TSet<UPCGComponent*> GetAllRegisteredComponents() const;
 
-	/** Retrieves a local component using grid size and grid coordinates, returns nullptr if no such component is found. */
-	UPCGComponent* GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent, bool bRuntimeGenerated = false) const;
+	/** Retrieves a local component using grid descriptor and grid coordinates, returns nullptr if no such component is found. */
+	UPCGComponent* GetLocalComponent(const FPCGGridDescriptor& GridDescriptor, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent) const;
 
-	/** Retrieves a partition actor using grid size and grid coordinates, returns nullptr if no such partition actor is found. */
-	APCGPartitionActor* GetPartitionActor(uint32 GridSize, const FIntVector& CellCoords, bool bRuntimeGenerated = false) const;
+	APCGPartitionActor* GetPartitionActor(const FPCGGridDescriptor& GridDescriptor, const FIntVector& CellCoords) const;
 
+#if WITH_EDITOR
+	/** Returns true if there is record of a partition actor living in a certain grid cell, regardless of whether or not it is loaded. */
+	bool DoesPartitionActorRecordExist(const FPCGGridDescriptor& GridDescriptor, const FIntVector& GridCoords) const;
+#endif
 private:
 
 #if WITH_EDITOR
@@ -96,9 +110,6 @@ private:
 
 	/** If the partition grid size change, call this to empty the Partition actors map */
 	void ResetPartitionActorsMap();
-
-	void RegisterTrackingCallbacks();
-	void TeardownTrackingCallbacks();
 
 	void RegisterTracking(UPCGComponent* InComponent);
 	void UpdateTracking(UPCGComponent* InComponent, bool bInShouldDirtyActors, const TArray<FPCGSelectionKey>* OptionalChangedKeys = nullptr);
@@ -140,6 +151,9 @@ private:
 	/** Update the current mapping between a PCG component and its PCG Partition actors */
 	void UpdateMappingPCGComponentPartitionActor(UPCGComponent* InComponent);
 
+	/** Returns the current mapping between a PCG component and its PCG Partition actors */
+	TSet<TObjectPtr<APCGPartitionActor>> GetPCGComponentPartitionActorMappings(UPCGComponent* InComponent) const;
+	
 	/** Delete the current mapping between a PCG component and its PCG Partition actors */
 	void DeleteMappingPCGComponentPartitionActor(UPCGComponent* InComponent);
 
@@ -159,6 +173,9 @@ private:
 	/** Return true if the actor is tracked.*/
 	bool IsActorTracked(const AActor* InActor) const;
 
+	void OnPackageReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent);
+	void OnActorDescInstanceAdded(FWorldPartitionActorDescInstance* InActorDescInstance);
+	void OnActorDescInstanceRemoved(FWorldPartitionActorDescInstance* InActorDescInstance);
 	void OnActorAdded(AActor* InActor);
 	void OnActorLoaded(AActor& InActor);
 	void OnActorAdded_Internal(AActor* InActor, bool bShouldDirty);
@@ -195,6 +212,9 @@ private:
 
 	/** Gather all settings from a given component that track the key, and clear the cache for them. Returns true if we should dirty afterwards (aka at least one settings was cleared and/or landscape changed). */
 	bool ClearCacheForKeys(const TArray<FPCGSelectionKey>& InKeys, const UPCGComponent* InComponent, const bool bIntersect, const UObject* InOriginatingChange) const;
+
+	/** Build initial records for existing partition actors */
+	void BuildPartitionActorRecords();
 #endif // WITH_EDITOR
 
 private:
@@ -206,29 +226,21 @@ private:
 	FPCGComponentOctreeAndMap PartitionedOctree;
 
 	/** Mapping from grid size and grid coords to partition actor. We can only have 1 partition actor per grid cell. */
-	TMap<uint32, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>> PartitionActorsMap;
+	TMap<FPCGGridDescriptor, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>> PartitionActorsMap;
 	mutable FRWLock PartitionActorsMapLock;
-
-	/** Mapping from grid size and grid coords to RuntimeGen partition actor. We can only have 1 RuntimeGen partition actor per grid cell. */
-	TMap<uint32, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>> RuntimeGenPartitionActorsMap;
-	mutable FRWLock RuntimeGenPartitionActorsMapLock;
 
 	/** Mapping between original components and its overlapping partition actors. */
 	TMap<const UPCGComponent*, TSet<TObjectPtr<APCGPartitionActor>>> ComponentToPartitionActorsMap;
 	mutable FRWLock ComponentToPartitionActorsMapLock;
 
-	/** Mapping between original components and its overlapping RuntimeGen partition actors. */
-	TMap<const UPCGComponent*, TSet<TObjectPtr<APCGPartitionActor>>> ComponentToRuntimeGenPartitionActorsMap;
-	mutable FRWLock ComponentToRuntimeGenPartitionActorsMapLock;
-
-	/** Components to be unregister at the next frame. cf. UnregisterComponent for a better understanding on why it is needed. */
-	TSet<UPCGComponent*> DelayedComponentToUnregister;
-	mutable FCriticalSection DelayedComponentToUnregisterLock;
-
 	/** Will hold all the components that are not partitioned (and not local) and are tracking something. Will be use to dispatch actor tracking updates. */
 	FPCGComponentOctreeAndMap NonPartitionedOctree;
 
 #if WITH_EDITOR
+	/** Components to be unregister at the next frame. cf. UnregisterComponent for a better understanding on why it is needed. */
+	TSet<UPCGComponent*> DelayedComponentToUnregister;
+	mutable FCriticalSection DelayedComponentToUnregisterLock;
+	
 	// Tracking actors
 	/** Keep a mapping between tracked keys and the components that track them, and the tracking needs to be culled.*/
 	TMap<FPCGSelectionKey, TSet<UPCGComponent*>> CulledTrackedKeysToComponentsMap;
@@ -259,5 +271,10 @@ private:
 
 	// Time keeper for cleaning up cached previous actor data
 	double LastPreviousActorDataCleanup = -1.0;
+
+	// Set of existing PCG Partition Actors (for World Partition worlds)
+	TMap<FPCGGridCellDescriptor, FGuid> PartitionActorRecords;
+	// Previously generated PCG Partition Actors to ignore (will prevent them from getting registered and mark them for deletion)
+	TSet<FGuid> InvalidPartitionActors;
 #endif // WITH_EDITOR
 };

@@ -41,7 +41,7 @@ const FName FGeometryCollection::SimulatableParticlesAttribute("SimulatableParti
 const FName FGeometryCollection::SimulationTypeAttribute("SimulationType");
 const FName FGeometryCollection::StatusFlagsAttribute("StatusFlags");
 const FName FGeometryCollection::ExternalCollisionsAttribute("ExternalCollisions");
-
+const FName FGeometryCollection::ColorAttribute("Color");
 
 bool FGeometryCollection::AreCollisionParticlesEnabled()
 {
@@ -57,6 +57,8 @@ FGeometryCollection::FGeometryCollection(FGeometryCollectionDefaults InDefaults)
 {
 	Construct();
 }
+
+FGeometryCollection::~FGeometryCollection() = default;
 
 void FGeometryCollection::DefineGeometrySchema(FManagedArrayCollection& InCollection)
 {
@@ -77,7 +79,7 @@ void FGeometryCollection::DefineGeometrySchema(FManagedArrayCollection& InCollec
 	InCollection.AddAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
 	InCollection.AddAttribute<FVector3f>("Normal", FGeometryCollection::VerticesGroup);
 	GeometryCollection::UV::DefineUVSchema(InCollection);
-	InCollection.AddAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup);
+	InCollection.AddAttribute<FLinearColor>(FGeometryCollection::ColorAttribute, FGeometryCollection::VerticesGroup);
 	InCollection.AddAttribute<FVector3f>("TangentU", FGeometryCollection::VerticesGroup);
 	InCollection.AddAttribute<FVector3f>("TangentV", FGeometryCollection::VerticesGroup);
 	InCollection.AddAttribute<int32>("BoneMap", FGeometryCollection::VerticesGroup, TransformDependency);
@@ -120,7 +122,7 @@ void FGeometryCollection::Construct()
 	// Vertices Group
 	AddExternalAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup, Vertex);
 	AddExternalAttribute<FVector3f>("Normal", FGeometryCollection::VerticesGroup, Normal);
-	AddExternalAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup, Color);
+	AddExternalAttribute<FLinearColor>(FGeometryCollection::ColorAttribute, FGeometryCollection::VerticesGroup, Color);
 	AddExternalAttribute<FVector3f>("TangentU", FGeometryCollection::VerticesGroup, TangentU);
 	AddExternalAttribute<FVector3f>("TangentV", FGeometryCollection::VerticesGroup, TangentV);
 	AddExternalAttribute<int32>("BoneMap", FGeometryCollection::VerticesGroup, BoneMap, TransformDependency);
@@ -174,6 +176,31 @@ void FGeometryCollection::SetDefaults(FName Group, uint32 StartSize, uint32 NumE
 			Color[Idx] = Defaults.DefaultVertexColor;
 		}
 	}
+}
+
+void FGeometryCollection::Append(const FManagedArrayCollection& InCollection)
+{	
+	/* InCollection data is appended to the front*/
+	Super::Append(InCollection);
+	if (const FGeometryCollection* InTypedCollection = InCollection.Cast<FGeometryCollection>())
+	{
+		const int32 Offset = InTypedCollection->NumElements(GeometryGroup);
+		const int32 OtherSize = InTypedCollection->NumElements(TransformGroup);
+		const int32 Size = NumElements(TransformGroup);
+		/*TransformToGeometryIndex does not have GeometryGroup dependency, update manually*/
+		for (int32 Idx = OtherSize; Idx < Size; ++Idx)
+		{
+			if (TransformToGeometryIndex[Idx] != INDEX_NONE)
+			{
+				TransformToGeometryIndex[Idx] += Offset;
+			}
+		}
+	}
+}
+
+void FGeometryCollection::AppendCollection(const FGeometryCollection& InCollection)
+{
+	Append(InCollection);
 }
 
 // MaterialIDOffset is based on the number of materials added by this append geometry call
@@ -755,7 +782,10 @@ void FGeometryCollection::ReorderTransformElements(const TArray<int32>& NewOrder
 	Pairs.Reserve(NumGeometries);
 	for (int32 GeomIdx = 0; GeomIdx < NumGeometries; ++GeomIdx)
 	{
-		Pairs.Emplace(NewOrder[TransformIndex[GeomIdx]], GeomIdx);
+		if (TransformIndex[GeomIdx] != INDEX_NONE)
+		{
+			Pairs.Emplace(NewOrder[TransformIndex[GeomIdx]], GeomIdx);
+		}
 	}
 	Pairs.Sort();
 
@@ -772,7 +802,7 @@ void FGeometryCollection::ReorderTransformElements(const TArray<int32>& NewOrder
 		// remap the parents (-1 === Invalid )
 		if (Parent[Index] != -1)
 		{
-			Parent[Index] -= NewOrder[Parent[Index]];
+			Parent[Index] = NewOrder[Parent[Index]];
 		}
 
 		// remap children
@@ -1610,23 +1640,16 @@ void FGeometryCollection::Init(FGeometryCollection* Collection, const TArray<flo
 
 		// set the vertex information
 		TManagedArray<FVector2f>* UV0 = Collection->FindUVLayer(0);
-		FVector3f TempVertices(0.f, 0.f, 0.f);
 		for (int32 Idx = 0; Idx < NumNewVertices; ++Idx)
 		{
 			Vertices[Idx] = FVector3f(RawVertexArray[3 * Idx], RawVertexArray[3 * Idx + 1], RawVertexArray[3 * Idx + 2]);
-			TempVertices += Vertices[Idx];
 			(*UV0)[Idx] = FVector2f::ZeroVector;
 
 			Colors[Idx] = Collection->Defaults.DefaultVertexColor;
 			BoneMap[Idx] = 0;
 		}
 
-		
-
-		// set the particle information
-		TempVertices /= (float)NumNewVertices;
-		Transform[0] = FTransform3f(TempVertices);
-		Transform[0].NormalizeRotation();
+		Transform[0] = FTransform3f(FVector3f(0.f,0.f,0.f));
 
 		// set the index information
 		TArray<FVector3f> FaceNormals;
@@ -2143,5 +2166,16 @@ void FGeometryCollection::UpdateOldAttributeNames()
 	this->RemoveGroup("Structure");
 }
 
-
+TArray<int32> FGeometryCollection::TransformSelectionToGeometryIndices(const TArray<int32>& Transforms)
+{
+	TArray<int32> Geometries;
+	for (const int32& TransformIdx : Transforms)
+	{
+		if (TransformToGeometryIndex.IsValidIndex(TransformIdx)	&& IsGeometry(TransformIdx))
+		{
+			Geometries.Add(TransformToGeometryIndex[TransformIdx]);
+		}
+	}
+	return Geometries;
+}
 

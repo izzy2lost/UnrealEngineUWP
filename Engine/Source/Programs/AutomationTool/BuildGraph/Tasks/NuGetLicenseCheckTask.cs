@@ -1,22 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.Core;
-using Microsoft.Extensions.Logging;
 using System;
-using System.CodeDom;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Web;
 using System.Xml;
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
 
 namespace AutomationTool.Tasks
@@ -30,31 +26,31 @@ namespace AutomationTool.Tasks
 		/// Base directory for running the command
 		/// </summary>
 		[TaskParameter]
-		public string BaseDir;
+		public string BaseDir { get; set; }
 
 		/// <summary>
 		/// Specifies a list of packages to ignore for version checks, separated by semicolons. Optional version number may be specified with 'name@version' syntax.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string IgnorePackages;
+		public string IgnorePackages { get; set; }
 
 		/// <summary>
 		/// Directory containing allowed licenses
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public DirectoryReference LicenseDir;
+		public DirectoryReference LicenseDir { get; set; }
 
 		/// <summary>
 		/// Path to a csv file to write with list of packages and their licenses
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference CsvFile;
+		public FileReference CsvFile { get; set; }
 
 		/// <summary>
 		/// Override path to dotnet executable
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference DotNetPath;
+		public FileReference DotNetPath { get; set; }
 	}
 
 	/// <summary>
@@ -68,18 +64,15 @@ namespace AutomationTool.Tasks
 			public List<string> Urls { get; set; } = new List<string>();
 		}
 
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		NuGetLicenseCheckTaskParameters Parameters;
+		readonly NuGetLicenseCheckTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a NuGetLicenseCheckTask task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public NuGetLicenseCheckTask(NuGetLicenseCheckTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public NuGetLicenseCheckTask(NuGetLicenseCheckTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		enum PackageState
@@ -93,224 +86,224 @@ namespace AutomationTool.Tasks
 
 		class PackageInfo
 		{
-			public string Name;
-			public string Version;
-			public string ProjectUrl;
-			public LicenseInfo License;
-			public string LicenseSource;
-			public PackageState State;
-			public FileReference Descriptor;
+			public string _name;
+			public string _version;
+			public string _projectUrl;
+			public LicenseInfo _license;
+			public string _licenseSource;
+			public PackageState _state;
+			public FileReference _descriptor;
 		}
 
 		class LicenseInfo
 		{
-			public IoHash Hash;
-			public string Text;
-			public string NormalizedText;
-			public string Extension;
-			public bool Approved;
-			public FileReference File;
+			public IoHash _hash;
+			public string _text;
+			public string _normalizedText;
+			public string _extension;
+			public bool _approved;
+			public FileReference _file;
 		}
 
-		LicenseInfo FindOrAddLicense(Dictionary<IoHash, LicenseInfo> Licenses, string Text, string Extension)
+		static LicenseInfo FindOrAddLicense(Dictionary<IoHash, LicenseInfo> licenses, string text, string extension)
 		{
-			string NormalizedText = Text;
-			NormalizedText = Regex.Replace(NormalizedText, @"^\s+", "", RegexOptions.Multiline);
-			NormalizedText = Regex.Replace(NormalizedText, @"\s+$", "", RegexOptions.Multiline);
-			NormalizedText = Regex.Replace(NormalizedText, "^(?:MIT License|The MIT License \\(MIT\\))\n", "", RegexOptions.Multiline);
-			NormalizedText = Regex.Replace(NormalizedText, "^Copyright \\(c\\)[^\n]*\\s*(?:All rights reserved\\.?\\s*)?", "", RegexOptions.Multiline);
-			NormalizedText = Regex.Replace(NormalizedText, @"\s+", " ");
-			NormalizedText = NormalizedText.Trim();
+			string normalizedText = text;
+			normalizedText = Regex.Replace(normalizedText, @"^\s+", "", RegexOptions.Multiline);
+			normalizedText = Regex.Replace(normalizedText, @"\s+$", "", RegexOptions.Multiline);
+			normalizedText = Regex.Replace(normalizedText, "^(?:MIT License|The MIT License \\(MIT\\))\n", "", RegexOptions.Multiline);
+			normalizedText = Regex.Replace(normalizedText, "^Copyright \\(c\\)[^\n]*\\s*(?:All rights reserved\\.?\\s*)?", "", RegexOptions.Multiline);
+			normalizedText = Regex.Replace(normalizedText, @"\s+", " ");
+			normalizedText = normalizedText.Trim();
 
-			byte[] Data = Encoding.UTF8.GetBytes(NormalizedText);
-			IoHash Hash = IoHash.Compute(Data);
+			byte[] data = Encoding.UTF8.GetBytes(normalizedText);
+			IoHash hash = IoHash.Compute(data);
 
-			LicenseInfo LicenseInfo;
-			if (!Licenses.TryGetValue(Hash, out LicenseInfo))
+			LicenseInfo licenseInfo;
+			if (!licenses.TryGetValue(hash, out licenseInfo))
 			{
-				LicenseInfo = new LicenseInfo();
-				LicenseInfo.Hash = Hash;
-				LicenseInfo.Text = Text;
-				LicenseInfo.NormalizedText = NormalizedText;
-				LicenseInfo.Extension = Extension;
-				Licenses.Add(Hash, LicenseInfo);
+				licenseInfo = new LicenseInfo();
+				licenseInfo._hash = hash;
+				licenseInfo._text = text;
+				licenseInfo._normalizedText = normalizedText;
+				licenseInfo._extension = extension;
+				licenses.Add(hash, licenseInfo);
 			}
-			return LicenseInfo;
+			return licenseInfo;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			FileReference DotNetPath = Parameters.DotNetPath ?? Unreal.DotnetPath;
+			FileReference dotNetPath = _parameters.DotNetPath ?? Unreal.DotnetPath;
 
-			IProcessResult NuGetOutput = await ExecuteAsync(DotNetPath.FullName, $"nuget locals global-packages --list", LogOutput: false);
-			if (NuGetOutput.ExitCode != 0)
+			IProcessResult nuGetOutput = await ExecuteAsync(dotNetPath.FullName, $"nuget locals global-packages --list", logOutput: false);
+			if (nuGetOutput.ExitCode != 0)
 			{
-				throw new AutomationException("DotNet terminated with an exit code indicating an error ({0})", NuGetOutput.ExitCode);
+				throw new AutomationException("DotNet terminated with an exit code indicating an error ({0})", nuGetOutput.ExitCode);
 			}
 
-			List<DirectoryReference> NuGetPackageDirs = new List<DirectoryReference>();
-			foreach (string Line in NuGetOutput.Output.Split('\n'))
+			List<DirectoryReference> nuGetPackageDirs = new List<DirectoryReference>();
+			foreach (string line in nuGetOutput.Output.Split('\n'))
 			{
-				int ColonIdx = Line.IndexOf(':');
-				if (ColonIdx != -1)
+				int colonIdx = line.IndexOf(':', StringComparison.Ordinal);
+				if (colonIdx != -1)
 				{
-					DirectoryReference NuGetPackageDir = new DirectoryReference(Line.Substring(ColonIdx + 1).Trim());
-					Logger.LogInformation("Using NuGet package directory: {Path}", NuGetPackageDir);
-					NuGetPackageDirs.Add(NuGetPackageDir);
+					DirectoryReference nuGetPackageDir = new DirectoryReference(line.Substring(colonIdx + 1).Trim());
+					Logger.LogInformation("Using NuGet package directory: {Path}", nuGetPackageDir);
+					nuGetPackageDirs.Add(nuGetPackageDir);
 				}
 			}
 
 			const string UnknownPrefix = "Unknown-";
 
-			IProcessResult PackageListOutput = await ExecuteAsync(DotNetPath.FullName, "list package --include-transitive", WorkingDir: Parameters.BaseDir, LogOutput: false);
-			if (PackageListOutput.ExitCode != 0)
+			IProcessResult packageListOutput = await ExecuteAsync(dotNetPath.FullName, "list package --include-transitive", workingDir: _parameters.BaseDir, logOutput: false);
+			if (packageListOutput.ExitCode != 0)
 			{
-				throw new AutomationException("DotNet terminated with an exit code indicating an error ({0})", PackageListOutput.ExitCode);
+				throw new AutomationException("DotNet terminated with an exit code indicating an error ({0})", packageListOutput.ExitCode);
 			}
 
-			Dictionary<string, PackageInfo> Packages = new Dictionary<string, PackageInfo>();
-			foreach (string Line in PackageListOutput.Output.Split('\n'))
+			Dictionary<string, PackageInfo> packages = new Dictionary<string, PackageInfo>();
+			foreach (string line in packageListOutput.Output.Split('\n'))
 			{
-				Match Match = Regex.Match(Line, @"^\s*>\s*([^\s]+)\s+(?:[^\s]+\s+)?([^\s]+)\s*$");
-				if (Match.Success)
+				Match match = Regex.Match(line, @"^\s*>\s*([^\s]+)\s+(?:[^\s]+\s+)?([^\s]+)\s*$");
+				if (match.Success)
 				{
-					PackageInfo Info = new PackageInfo();
-					Info.Name = Match.Groups[1].Value;
-					Info.Version = Match.Groups[2].Value;
-					Packages.TryAdd($"{Info.Name}@{Info.Version}", Info);
+					PackageInfo info = new PackageInfo();
+					info._name = match.Groups[1].Value;
+					info._version = match.Groups[2].Value;
+					packages.TryAdd($"{info._name}@{info._version}", info);
 				}
 			}
 
-			DirectoryReference PackageRootDir = DirectoryReference.Combine(DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
-			if (!DirectoryReference.Exists(PackageRootDir))
+			DirectoryReference packageRootDir = DirectoryReference.Combine(DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
+			if (!DirectoryReference.Exists(packageRootDir))
 			{
-				throw new AutomationException("Missing NuGet package cache at {0}", PackageRootDir);
+				throw new AutomationException("Missing NuGet package cache at {0}", packageRootDir);
 			}
 
-			HashSet<string> LicenseUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			HashSet<string> licenseUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-			Dictionary<IoHash, LicenseInfo> Licenses = new Dictionary<IoHash, LicenseInfo>();
-			if (Parameters.LicenseDir != null)
+			Dictionary<IoHash, LicenseInfo> licenses = new Dictionary<IoHash, LicenseInfo>();
+			if (_parameters.LicenseDir != null)
 			{
-				Logger.LogInformation("Reading allowed licenses from {LicenseDir}", Parameters.LicenseDir);
-				foreach (FileReference File in DirectoryReference.EnumerateFiles(Parameters.LicenseDir))
+				Logger.LogInformation("Reading allowed licenses from {LicenseDir}", _parameters.LicenseDir);
+				foreach (FileReference file in DirectoryReference.EnumerateFiles(_parameters.LicenseDir))
 				{
-					if (!File.GetFileName().StartsWith(UnknownPrefix, StringComparison.OrdinalIgnoreCase))
+					if (!file.GetFileName().StartsWith(UnknownPrefix, StringComparison.OrdinalIgnoreCase))
 					{
 						try
 						{
-							if (File.HasExtension(".json"))
+							if (file.HasExtension(".json"))
 							{
-								byte[] Data = await FileReference.ReadAllBytesAsync(File);
-								LicenseConfig Config = JsonSerializer.Deserialize<LicenseConfig>(Data, new JsonSerializerOptions { PropertyNameCaseInsensitive = true, AllowTrailingCommas = true, ReadCommentHandling = JsonCommentHandling.Skip });
-								LicenseUrls.UnionWith(Config.Urls);
+								byte[] data = await FileReference.ReadAllBytesAsync(file);
+								LicenseConfig config = JsonSerializer.Deserialize<LicenseConfig>(data, new JsonSerializerOptions { PropertyNameCaseInsensitive = true, AllowTrailingCommas = true, ReadCommentHandling = JsonCommentHandling.Skip });
+								licenseUrls.UnionWith(config.Urls);
 							}
-							else if (File.HasExtension(".txt") || File.HasExtension(".html"))
+							else if (file.HasExtension(".txt") || file.HasExtension(".html") || file.HasExtension(".md"))
 							{
-								string Text = await FileReference.ReadAllTextAsync(File);
-								LicenseInfo License = FindOrAddLicense(Licenses, Text, File.GetFileNameWithoutExtension());
-								License.File = File;
-								License.Approved = true;
+								string text = await FileReference.ReadAllTextAsync(file);
+								LicenseInfo license = FindOrAddLicense(licenses, text, file.GetFileNameWithoutExtension());
+								license._file = file;
+								license._approved = true;
 							}
 						}
 						catch (Exception ex)
 						{
-							throw new AutomationException(ex, $"Error parsing {File}: {ex.Message}");
+							throw new AutomationException(ex, $"Error parsing {file}: {ex.Message}");
 						}
 					}
 				}
 			}
 
-			HashSet<string> IgnorePackages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-			if (Parameters.IgnorePackages != null)
+			HashSet<string> ignorePackages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			if (_parameters.IgnorePackages != null)
 			{
-				IgnorePackages.UnionWith(Parameters.IgnorePackages.Split(';'));
+				ignorePackages.UnionWith(_parameters.IgnorePackages.Split(';'));
 			}
 
-			Dictionary<string, LicenseInfo> LicenseUrlToInfo = new Dictionary<string, LicenseInfo>(StringComparer.OrdinalIgnoreCase);
-			foreach (PackageInfo Info in Packages.Values)
+			Dictionary<string, LicenseInfo> licenseUrlToInfo = new Dictionary<string, LicenseInfo>(StringComparer.OrdinalIgnoreCase);
+			foreach (PackageInfo info in packages.Values)
 			{
-				if (IgnorePackages.Contains(Info.Name) || IgnorePackages.Contains($"{Info.Name}@{Info.Version}"))
+				if (ignorePackages.Contains(info._name) || ignorePackages.Contains($"{info._name}@{info._version}"))
 				{
-					Info.State = PackageState.IgnoredViaArgs;
+					info._state = PackageState.IgnoredViaArgs;
 					continue;
 				}
 
-				DirectoryReference PackageDir = NuGetPackageDirs.Select(x => DirectoryReference.Combine(x, Info.Name.ToLowerInvariant(), Info.Version.ToLowerInvariant())).FirstOrDefault(x => DirectoryReference.Exists(x));
-				if (PackageDir == null)
+				DirectoryReference packageDir = nuGetPackageDirs.Select(x => DirectoryReference.Combine(x, info._name.ToLowerInvariant(), info._version.ToLowerInvariant())).FirstOrDefault(x => DirectoryReference.Exists(x));
+				if (packageDir == null)
 				{
-					Info.State = PackageState.MissingPackageFolder;
+					info._state = PackageState.MissingPackageFolder;
 					continue;
 				}
 
-				Info.Descriptor = FileReference.Combine(PackageDir, $"{Info.Name.ToLowerInvariant()}.nuspec");
-				if (!FileReference.Exists(Info.Descriptor))
+				info._descriptor = FileReference.Combine(packageDir, $"{info._name.ToLowerInvariant()}.nuspec");
+				if (!FileReference.Exists(info._descriptor))
 				{
-					Info.State = PackageState.MissingPackageDescriptor;
+					info._state = PackageState.MissingPackageDescriptor;
 					continue;
 				}
 
-				using (Stream Stream = FileReference.Open(Info.Descriptor, FileMode.Open, FileAccess.Read, FileShare.Read))
+				using (Stream stream = FileReference.Open(info._descriptor, FileMode.Open, FileAccess.Read, FileShare.Read))
 				{
-					XmlTextReader XmlReader = new XmlTextReader(Stream);
-					XmlReader.Namespaces = false;
+					using XmlTextReader xmlReader = new XmlTextReader(stream);
+					xmlReader.Namespaces = false;
 
-					XmlDocument XmlDocument = new XmlDocument();
-					XmlDocument.Load(XmlReader);
+					XmlDocument xmlDocument = new XmlDocument();
+					xmlDocument.Load(xmlReader);
 
-					XmlNode ProjectUrlNode = XmlDocument.SelectSingleNode("/package/metadata/projectUrl");
-					Info.ProjectUrl = ProjectUrlNode?.InnerText;
+					XmlNode projectUrlNode = xmlDocument.SelectSingleNode("/package/metadata/projectUrl");
+					info._projectUrl = projectUrlNode?.InnerText;
 
-					if (Info.License == null)
+					if (info._license == null)
 					{
-						XmlNode LicenseNode = XmlDocument.SelectSingleNode("/package/metadata/license");
-						if (LicenseNode?.Attributes["type"]?.InnerText?.Equals("file", StringComparison.Ordinal) ?? false)
+						XmlNode licenseNode = xmlDocument.SelectSingleNode("/package/metadata/license");
+						if (licenseNode?.Attributes["type"]?.InnerText?.Equals("file", StringComparison.Ordinal) ?? false)
 						{
-							FileReference LicenseFile = FileReference.Combine(PackageDir, LicenseNode.InnerText);
-							if (FileReference.Exists(LicenseFile))
+							FileReference licenseFile = FileReference.Combine(packageDir, licenseNode.InnerText);
+							if (FileReference.Exists(licenseFile))
 							{
-								string Text = await FileReference.ReadAllTextAsync(LicenseFile);
-								Info.License = FindOrAddLicense(Licenses, Text, LicenseFile.GetExtension());
-								Info.LicenseSource = LicenseFile.FullName;
+								string text = await FileReference.ReadAllTextAsync(licenseFile);
+								info._license = FindOrAddLicense(licenses, text, licenseFile.GetExtension());
+								info._licenseSource = licenseFile.FullName;
 							}
 						}
 					}
 
-					if (Info.License == null)
+					if (info._license == null)
 					{
-						XmlNode LicenseUrlNode = XmlDocument.SelectSingleNode("/package/metadata/licenseUrl");
+						XmlNode licenseUrlNode = xmlDocument.SelectSingleNode("/package/metadata/licenseUrl");
 
-						string LicenseUrl = LicenseUrlNode?.InnerText;
-						if (LicenseUrl != null)
+						string licenseUrl = licenseUrlNode?.InnerText;
+						if (licenseUrl != null)
 						{
-							LicenseUrl = Regex.Replace(LicenseUrl, @"^https://github.com/(.*)/blob/(.*)$", @"https://raw.githubusercontent.com/$1/$2");
-							Info.LicenseSource = LicenseUrl;
+							licenseUrl = Regex.Replace(licenseUrl, @"^https://github.com/(.*)/blob/(.*)$", @"https://raw.githubusercontent.com/$1/$2");
+							info._licenseSource = licenseUrl;
 
-							if (!LicenseUrlToInfo.TryGetValue(LicenseUrl, out Info.License))
+							if (!licenseUrlToInfo.TryGetValue(licenseUrl, out info._license))
 							{
-								using (HttpClient Client = new HttpClient())
+								using (HttpClient client = new HttpClient())
 								{
-									using HttpResponseMessage Response = await Client.GetAsync(LicenseUrl);
-									if (!Response.IsSuccessStatusCode)
+									using HttpResponseMessage response = await client.GetAsync(licenseUrl);
+									if (!response.IsSuccessStatusCode)
 									{
-										Logger.LogError("Unable to fetch license from {LicenseUrl}", LicenseUrl);
+										Logger.LogError("Unable to fetch license from {LicenseUrl}", licenseUrl);
 									}
 									else
 									{
-										string Text = await Response.Content.ReadAsStringAsync();
-										string Type = (Response.Content.Headers.ContentType?.MediaType == "text/html") ? ".html" : ".txt";
-										Info.License = FindOrAddLicense(Licenses, Text, Type);
-										if (!Info.License.Approved)
+										string text = await response.Content.ReadAsStringAsync();
+										string type = (response.Content.Headers.ContentType?.MediaType == "text/html") ? ".html" : ".txt";
+										info._license = FindOrAddLicense(licenses, text, type);
+										if (!info._license._approved)
 										{
-											Info.License.Approved = LicenseUrls.Contains(LicenseUrl);
+											info._license._approved = licenseUrls.Contains(licenseUrl);
 										}
-										LicenseUrlToInfo.Add(LicenseUrl, Info.License);
+										licenseUrlToInfo.Add(licenseUrl, info._license);
 									}
 								}
 							}
@@ -318,102 +311,102 @@ namespace AutomationTool.Tasks
 					}
 				}
 
-				Info.State = PackageState.Valid;
+				info._state = PackageState.Valid;
 			}
 
 			Logger.LogInformation("Referenced Packages:");
 			Logger.LogInformation("");
-			foreach (PackageInfo Info in Packages.Values.OrderBy(x => x.Name).ThenBy(x => x.Version))
+			foreach (PackageInfo info in packages.Values.OrderBy(x => x._name).ThenBy(x => x._version))
 			{
-				switch (Info.State)
+				switch (info._state)
 				{
 					case PackageState.IgnoredViaArgs:
-						Logger.LogInformation("  {Name,-60} {Version,-10} Explicitly ignored via task arguments", Info.Name, Info.Version);
+						Logger.LogInformation("  {Name,-60} {Version,-10} Explicitly ignored via task arguments", info._name, info._version);
 						break;
 					case PackageState.MissingPackageFolder:
-						Logger.LogInformation("  {Name,-60} {Version,-10} NuGet package not found", Info.Name, Info.Version);
+						Logger.LogInformation("  {Name,-60} {Version,-10} NuGet package not found", info._name, info._version);
 						break;
 					case PackageState.MissingPackageDescriptor:
-						Logger.LogWarning("  {Name,-60} {Version,-10} Missing package descriptor: {NuSpecFile}", Info.Name, Info.Version, Info.Descriptor);
+						Logger.LogWarning("  {Name,-60} {Version,-10} Missing package descriptor: {NuSpecFile}", info._name, info._version, info._descriptor);
 						break;
 					case PackageState.Valid:
-						if (Info.License == null)
+						if (info._license == null)
 						{
-							Logger.LogError("  {Name,-60} {Version,-10} No license metadata found", Info.Name, Info.Version);
+							Logger.LogError("  {Name,-60} {Version,-10} No license metadata found", info._name, info._version);
 						}
-						else if (!Info.License.Approved)
+						else if (!info._license._approved)
 						{
-							Logger.LogWarning("  {Name,-60} {Version,-10} {Hash}", Info.Name, Info.Version, Info.License.Hash);
+							Logger.LogWarning("  {Name,-60} {Version,-10} {Hash}", info._name, info._version, info._license._hash);
 						}
 						else
 						{
-							Logger.LogInformation("  {Name,-60} {Version,-10} {Hash}", Info.Name, Info.Version, Info.License.Hash);
+							Logger.LogInformation("  {Name,-60} {Version,-10} {Hash}", info._name, info._version, info._license._hash);
 						}
 						break;
 					default:
-						Logger.LogError("  {Name,-60} {Version,-10} Unhandled state: {State}", Info.Name, Info.Version, Info.State);
+						Logger.LogError("  {Name,-60} {Version,-10} Unhandled state: {State}", info._name, info._version, info._state);
 						break;
 				}
 			}
 
-			Dictionary<LicenseInfo, List<PackageInfo>> MissingLicenses = new Dictionary<LicenseInfo, List<PackageInfo>>();
-			foreach (PackageInfo PackageInfo in Packages.Values)
+			Dictionary<LicenseInfo, List<PackageInfo>> missingLicenses = new Dictionary<LicenseInfo, List<PackageInfo>>();
+			foreach (PackageInfo packageInfo in packages.Values)
 			{
-				if (PackageInfo.License != null && !PackageInfo.License.Approved)
+				if (packageInfo._license != null && !packageInfo._license._approved)
 				{
-					List<PackageInfo> LicensePackages;
-					if (!MissingLicenses.TryGetValue(PackageInfo.License, out LicensePackages))
+					List<PackageInfo> licensePackages;
+					if (!missingLicenses.TryGetValue(packageInfo._license, out licensePackages))
 					{
-						LicensePackages = new List<PackageInfo>();
-						MissingLicenses.Add(PackageInfo.License, LicensePackages);
+						licensePackages = new List<PackageInfo>();
+						missingLicenses.Add(packageInfo._license, licensePackages);
 					}
-					LicensePackages.Add(PackageInfo);
+					licensePackages.Add(packageInfo);
 				}
 			}
 
-			if (MissingLicenses.Count > 0)
+			if (missingLicenses.Count > 0)
 			{
-				DirectoryReference LicenseDir = Parameters.LicenseDir ?? DirectoryReference.Combine(Unreal.RootDirectory, "Engine", "Saved", "Licenses");
-				DirectoryReference.CreateDirectory(LicenseDir);
+				DirectoryReference licenseDir = _parameters.LicenseDir ?? DirectoryReference.Combine(Unreal.RootDirectory, "Engine", "Saved", "Licenses");
+				DirectoryReference.CreateDirectory(licenseDir);
 
 				Logger.LogInformation("");
 				Logger.LogInformation("Missing licenses:");
-				foreach ((LicenseInfo MissingLicense, List<PackageInfo> MissingLicensePackages) in MissingLicenses.OrderBy(x => x.Key.Hash))
+				foreach ((LicenseInfo missingLicense, List<PackageInfo> missingLicensePackages) in missingLicenses.OrderBy(x => x.Key._hash))
 				{
-					FileReference OutputFile = FileReference.Combine(LicenseDir, $"{UnknownPrefix}{MissingLicense.Hash}{MissingLicense.Extension}");
-					await FileReference.WriteAllTextAsync(OutputFile, MissingLicense.Text);
+					FileReference outputFile = FileReference.Combine(licenseDir, $"{UnknownPrefix}{missingLicense._hash}{missingLicense._extension}");
+					await FileReference.WriteAllTextAsync(outputFile, missingLicense._text);
 
 					Logger.LogInformation("");
-					Logger.LogInformation("  {LicenseFile}", OutputFile);
-					foreach (PackageInfo LicensePackage in MissingLicensePackages)
+					Logger.LogInformation("  {LicenseFile}", outputFile);
+					foreach (PackageInfo licensePackage in missingLicensePackages)
 					{
-						Logger.LogInformation("  -> {Name} {Version} ({Source})", LicensePackage.Name, LicensePackage.Version, LicensePackage.LicenseSource);
+						Logger.LogInformation("  -> {Name} {Version} ({Source})", licensePackage._name, licensePackage._version, licensePackage._licenseSource);
 					}
 				}
 			}
 
-			if (Parameters.CsvFile != null)
+			if (_parameters.CsvFile != null)
 			{
-				Logger.LogInformation("Writing {File}", Parameters.CsvFile);
-				DirectoryReference.CreateDirectory(Parameters.CsvFile.Directory);
-				using (StreamWriter writer = new StreamWriter(Parameters.CsvFile.FullName))
+				Logger.LogInformation("Writing {File}", _parameters.CsvFile);
+				DirectoryReference.CreateDirectory(_parameters.CsvFile.Directory);
+				using (StreamWriter writer = new StreamWriter(_parameters.CsvFile.FullName))
 				{
 					await writer.WriteLineAsync($"Package,Version,Project Url,License Url,License Hash,License File");
-					foreach (PackageInfo PackageInfo in Packages.Values)
+					foreach (PackageInfo packageInfo in packages.Values)
 					{
-						string RelativeLicensePath = "";
-						if (PackageInfo.License?.File != null)
+						string relativeLicensePath = "";
+						if (packageInfo._license?._file != null)
 						{
-							RelativeLicensePath = PackageInfo.License.File.MakeRelativeTo(Parameters.CsvFile.Directory);
+							relativeLicensePath = packageInfo._license._file.MakeRelativeTo(_parameters.CsvFile.Directory);
 						}
 
-						string LicenseUrl = "";
-						if (PackageInfo.LicenseSource != null && PackageInfo.LicenseSource.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+						string licenseUrl = "";
+						if (packageInfo._licenseSource != null && packageInfo._licenseSource.StartsWith("http", StringComparison.OrdinalIgnoreCase))
 						{
-							LicenseUrl = PackageInfo.LicenseSource;
+							licenseUrl = packageInfo._licenseSource;
 						}
 
-						await writer.WriteLineAsync($"\"{PackageInfo.Name}\",\"{PackageInfo.Version}\",{PackageInfo.ProjectUrl},{LicenseUrl},{PackageInfo.License?.Hash},{RelativeLicensePath}");
+						await writer.WriteLineAsync($"\"{packageInfo._name}\",\"{packageInfo._version}\",{packageInfo._projectUrl},{licenseUrl},{packageInfo._license?._hash},{relativeLicensePath}");
 					}
 				}
 			}
@@ -422,9 +415,9 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>

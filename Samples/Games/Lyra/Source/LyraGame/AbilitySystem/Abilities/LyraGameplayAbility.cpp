@@ -123,6 +123,7 @@ void ULyraGameplayAbility::NativeOnAbilityFailedToActivate(const FGameplayTagCon
 		{
 			FLyraAbilityMontageFailureMessage Message;
 			Message.PlayerController = GetActorInfo().PlayerController.Get();
+			Message.AvatarActor = GetActorInfo().AvatarActor.Get();
 			Message.FailureTags = FailedReason;
 			Message.FailureMontage = pMontage;
 
@@ -324,7 +325,7 @@ bool ULyraGameplayAbility::DoesAbilitySatisfyTagRequirements(const UAbilitySyste
 	const FGameplayTag& MissingTag = AbilitySystemGlobals.ActivateFailTagsMissingTag;
 
 	// Check if any of this ability's tags are currently blocked
-	if (AbilitySystemComponent.AreAbilityTagsBlocked(AbilityTags))
+	if (AbilitySystemComponent.AreAbilityTagsBlocked(GetAssetTags()))
 	{
 		bBlocked = true;
 	}
@@ -339,7 +340,7 @@ bool ULyraGameplayAbility::DoesAbilitySatisfyTagRequirements(const UAbilitySyste
 	// Expand our ability tags to add additional required/blocked tags
 	if (LyraASC)
 	{
-		LyraASC->GetAdditionalActivationTagRequirements(AbilityTags, AllRequiredTags, AllBlockedTags);
+		LyraASC->GetAdditionalActivationTagRequirements(GetAssetTags(), AllRequiredTags, AllBlockedTags);
 	}
 
 	// Check to see the required/blocked tags for this ability
@@ -440,10 +441,8 @@ void ULyraGameplayAbility::GetAbilitySource(FGameplayAbilitySpecHandle Handle, c
 
 void ULyraGameplayAbility::TryActivateAbilityOnSpawn(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) const
 {
-	const bool bIsPredicting = (Spec.ActivationInfo.ActivationMode == EGameplayAbilityActivationMode::Predicting);
-
 	// Try to activate if activation policy is on spawn.
-	if (ActorInfo && !Spec.IsActive() && !bIsPredicting && (ActivationPolicy == ELyraAbilityActivationPolicy::OnSpawn))
+	if (ActorInfo && !Spec.IsActive() && (ActivationPolicy == ELyraAbilityActivationPolicy::OnSpawn))
 	{
 		UAbilitySystemComponent* ASC = ActorInfo->AbilitySystemComponent.Get();
 		const AActor* AvatarActor = ActorInfo->AvatarActor.Get();

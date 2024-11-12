@@ -54,8 +54,13 @@ const getStyles: IStyleFunction<IMarkdownStyleProps, IMarkdownStyles> = () => {
 
             },
             'a > code': {
-
-               padding: "3px 6px !important"
+               
+            },
+            'td > a': {
+               fontFamily: "Horde Cousine Regular",
+               fontSize: "12px",
+               backgroundColor: dashboard.darktheme ? "#25282A" : "#f2f2f2",
+               padding: "3px 0px 2px 6px !important"
 
             },
             'td > code': {

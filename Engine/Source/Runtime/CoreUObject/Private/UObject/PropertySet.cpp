@@ -129,23 +129,14 @@ namespace UESetProperty_Private
 IMPLEMENT_FIELD(FSetProperty)
 
 FSetProperty::FSetProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-	: FSetProperty_Super(InOwner, InName, InObjectFlags)
-{
-	// This is expected to be set post-construction by AddCppProperty
-	ElementProp = nullptr;
-}
-
-FSetProperty::FSetProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, int32 InOffset, EPropertyFlags InFlags)
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-: FSetProperty_Super(InOwner, InName, InObjectFlags, InOffset, InFlags)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	: Super(InOwner, InName, InObjectFlags)
 {
 	// This is expected to be set post-construction by AddCppProperty
 	ElementProp = nullptr;
 }
 
 FSetProperty::FSetProperty(FFieldVariant InOwner, const UECodeGen_Private::FSetPropertyParams& Prop)
-	: FSetProperty_Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
 {
 	// This is expected to be set post-construction by AddCppProperty
 	ElementProp = nullptr;
@@ -153,7 +144,7 @@ FSetProperty::FSetProperty(FFieldVariant InOwner, const UECodeGen_Private::FSetP
 
 #if WITH_EDITORONLY_DATA
 FSetProperty::FSetProperty(UField* InField)
-	: FSetProperty_Super(InField)
+	: Super(InField)
 {
 	USetProperty* SourceProperty = CastChecked<USetProperty>(InField);
 	SetLayout = SourceProperty->SetLayout;
@@ -271,12 +262,6 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 		{
 			if (NumElementsToRemove)
 			{
-				TOptional<TGuardValue<bool>> SerializeUnknownProperty;
-				if (Context)
-				{
-					SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
-				}
-
 				// Load and discard elements to remove, set is empty
 				void* TempElementStorage = FMemory::Malloc(SetLayout.Size);
 				ElementProp->InitializeValue(TempElementStorage);
@@ -299,7 +284,6 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 			for (; Num; --Num)
 			{
 				int32 Index = SetHelper.AddDefaultValue_Invalid_NeedsRehash();
-				UE::FSerializedPropertyPathIndexScope SerializedPropertyPathIndex(Context, Index, UE::ESerializedPropertyPathNotify::Yes);
 				ElementProp->SerializeItem(ElementsArray.EnterElement(), SetHelper.GetElementPtrWithoutCheck(Index));
 			}
 		}
@@ -317,12 +301,6 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 			if (NumElementsToRemove)
 			{
-				TOptional<TGuardValue<bool>> SerializeUnknownProperty;
-				if (Context)
-				{
-					SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
-				}
-
 				TempElementStorage = (uint8*)FMemory::Malloc(SetLayout.Size);
 				ElementProp->InitializeValue(TempElementStorage);
 
@@ -351,19 +329,10 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 				ElementProp->InitializeValue(TempElementStorage);
 			}
 
-			// Disable serialization of unknown properties until the TODO in the loop is addressed.
-			TOptional<TGuardValue<bool>> SerializeUnknownProperty;
-			if (Context)
-			{
-				SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
-			}
-
 			FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ElementProp, this);
 			// Read remaining items into container
 			for (; Num; --Num)
 			{
-				// TODO: SetIndex on Context->SerializedPropertyPath and remove the element from the bag later if it existed.
-
 				// Read key into temporary storage
 				ElementProp->SerializeItem(ElementsArray.EnterElement(), TempElementStorage);
 
@@ -705,7 +674,7 @@ const TCHAR* FSetProperty::ImportText_Internal(const TCHAR* Buffer, void* Contai
 		return Buffer + 1;
 	}
 
-	TempElementStorage = (uint8*)FMemory::Malloc(ElementProp->ElementSize);
+	TempElementStorage = (uint8*)FMemory::Malloc(ElementProp->GetElementSize());
 	// From this point failure should empty the set
 	bSuccess = false;
 
@@ -816,6 +785,25 @@ void FSetProperty::DestroyValueInternal(void* Data) const
 bool FSetProperty::PassCPPArgsByRef() const
 {
 	return true;
+}
+
+bool FSetProperty::ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const
+{
+	check(ElementProp);
+	return ElementProp->ContainsFinishDestroy(EncounteredStructProps);
+}
+
+void FSetProperty::FinishDestroyInternal( void* Data ) const
+{
+	if ((ElementProp->PropertyFlags & (CPF_IsPlainOldData | CPF_NoDestructor)) == 0)
+	{
+		FScriptSetHelper SetHelper(this, Data);
+		for (FScriptSetHelper::FIterator It(SetHelper); It; ++It)
+		{
+			uint8* ElementPtr = SetHelper.GetElementPtr(It);
+			ElementProp->FinishDestroy(ElementPtr);
+		}
+	}
 }
 
 /**
@@ -1140,4 +1128,78 @@ bool FSetProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 	const FProperty* LocalElementProp = ElementProp;
 	check(LocalElementProp);
 	return LocalElementProp->CanSerializeFromTypeName(Type.GetParameter(0));
+}
+
+EPropertyVisitorControlFlow FSetProperty::Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& InData, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
+{
+	// Indicate in the path that this property contains inner properties
+	Path.Top().bContainsInnerProperties = true;
+
+	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, InData, InFunc);
+
+	if (RetVal == EPropertyVisitorControlFlow::StepInto)
+	{
+		checkf(ElementProp, TEXT("Expecting a valid inner property type"));
+		FScriptSetHelper SetHelper(this, InData.PropertyData);
+
+		FPropertyVisitorScope Scope(Path, FPropertyVisitorInfo(ElementProp));
+		for (FScriptSetHelper::FIterator It(SetHelper); It; ++It)
+		{
+			// visit element
+			Path.Top().SetIndex(It.GetLogicalIndex(), EPropertyVisitorInfoType::ContainerIndex);
+
+			FPropertyVisitorData Data = InData.VisitPropertyData(SetHelper.GetElementPtr(It));
+
+			RetVal = ElementProp->Visit(Path, Data, InFunc);
+			if (RetVal == EPropertyVisitorControlFlow::Stop)
+			{
+				return EPropertyVisitorControlFlow::Stop;
+			}
+			if (RetVal == EPropertyVisitorControlFlow::StepOut)
+			{
+				return EPropertyVisitorControlFlow::StepOver;
+			}
+		}
+	}
+	return RetVal;
+}
+
+void* FSetProperty::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const
+{
+	if (Info.PropertyInfo == EPropertyVisitorInfoType::ContainerIndex && Info.Property == ElementProp)
+	{
+		return GetValueAddressAtIndex_Direct(Info.Property, Data, Info.Index);
+	}
+
+	return nullptr;
+}
+
+bool FSetProperty::HasIntrusiveUnsetOptionalState() const
+{
+	return true;
+}
+
+void FSetProperty::InitializeIntrusiveUnsetOptionalValue(void* Data) const
+{
+	// FScriptSet's unset state constructor is good enough
+	Super::InitializeIntrusiveUnsetOptionalValue(Data);
+}
+
+bool FSetProperty::IsIntrusiveOptionalValueSet(const void* Data) const
+{
+	// FScriptSet's unset state comparison is good enough
+	return Super::IsIntrusiveOptionalValueSet(Data);
+}
+
+void FSetProperty::ClearIntrusiveOptionalValue(void* Data) const
+{
+	// Destroy any inner elements first, because FScriptSet's destructor will only free memory
+	if (IsIntrusiveOptionalValueSet(Data))
+	{
+		FScriptSetHelper SetHelper(this, Data);
+		SetHelper.EmptyElements();
+
+		// Call Super to actually reset the optional to the unset state, now that any elements have been destroyed
+		Super::ClearIntrusiveOptionalValue(Data);
+	}
 }

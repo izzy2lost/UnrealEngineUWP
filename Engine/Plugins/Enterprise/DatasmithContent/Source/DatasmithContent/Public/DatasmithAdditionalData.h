@@ -4,9 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
+#include "Templates/Requires.h"
 #include "Templates/SubclassOf.h"
 #include "AssetRegistry/AssetData.h"
 #include "DatasmithAssetImportData.h"
+
+#include <type_traits>
 
 #include "DatasmithAdditionalData.generated.h"
 
@@ -35,8 +38,8 @@ namespace Datasmith
 	 * @return DataType*    Created instance
 	 */
 	template<
-		class DataType,
-		typename = decltype(ImplicitConv<UDatasmithAdditionalData*>((DataType*)nullptr))
+		class DataType
+		UE_REQUIRES(std::is_convertible_v<DataType*, UDatasmithAdditionalData*>)
 	>
 	inline DataType* MakeAdditionalData()
 	{
@@ -56,8 +59,8 @@ namespace Datasmith
 	 * @return TArray<DataType*>    The list of additional data stored on the given asset
 	 */
 	template<
-		class DataType,
-		typename = decltype(ImplicitConv<UDatasmithAdditionalData*>((DataType*)nullptr))
+		class DataType
+		UE_REQUIRES(std::is_convertible_v<DataType*, UDatasmithAdditionalData*>)
 	>
 	inline TArray<DataType*> GetMultipleAdditionalData(const FAssetData& SourceAssetData, int MaxCount=0)
 	{
@@ -92,8 +95,8 @@ namespace Datasmith
 	 * @return DataType*        nullptr if no Additional data is stored on the given asset
 	 */
 	template<
-		class DataType,
-		typename = decltype(ImplicitConv<UDatasmithAdditionalData*>((DataType*)nullptr))
+		class DataType
+		UE_REQUIRES(std::is_convertible_v<DataType*, UDatasmithAdditionalData*>)
 	>
 	inline DataType* GetAdditionalData(const FAssetData& SourceAssetData)
 	{

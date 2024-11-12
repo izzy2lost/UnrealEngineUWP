@@ -2,8 +2,8 @@
 
 #include "NavigationSystemTypes.h"
 #include "NavLinkCustomInterface.h"
-#include "NavMesh/RecastNavMeshGenerator.h"
 #include "NavigationSystem.h"
+#include "NavMesh/RecastGeometryExport.h"
 #include "Engine/World.h"
 #include "NavCollision.h"
 #include "PhysicsEngine/BodySetup.h"
@@ -48,7 +48,7 @@ namespace NavigationHelper
 			return;
 		}
 #if WITH_RECAST
-		FRecastNavMeshGenerator::ExportRigidBodyGeometry(*RigidBody, OutVertexBuffer, OutIndexBuffer, OutBounds, LocalToWorld);
+		FRecastGeometryExport::ExportRigidBodyGeometry(*RigidBody, OutVertexBuffer, OutIndexBuffer, OutBounds, LocalToWorld);
 #endif // WITH_RECAST
 	}
 
@@ -59,7 +59,7 @@ namespace NavigationHelper
 			return;
 		}
 #if WITH_RECAST
-		FRecastNavMeshGenerator::ExportRigidBodyGeometry(*RigidBody
+		FRecastGeometryExport::ExportRigidBodyGeometry(*RigidBody
 			, NavCollision->GetMutableTriMeshCollision().VertexBuffer, NavCollision->GetMutableTriMeshCollision().IndexBuffer
 			, NavCollision->GetMutableConvexCollision().VertexBuffer, NavCollision->GetMutableConvexCollision().IndexBuffer
 			, NavCollision->ConvexShapeIndices
@@ -70,7 +70,7 @@ namespace NavigationHelper
 	void GatherCollision(const FKAggregateGeom& AggGeom, UNavCollision& NavCollision)
 	{
 #if WITH_RECAST
-		FRecastNavMeshGenerator::ExportAggregatedGeometry(
+		FRecastGeometryExport::ExportAggregatedGeometry(
 			AggGeom,
 			NavCollision.GetMutableConvexCollision().VertexBuffer,
 			 NavCollision.GetMutableConvexCollision().IndexBuffer,

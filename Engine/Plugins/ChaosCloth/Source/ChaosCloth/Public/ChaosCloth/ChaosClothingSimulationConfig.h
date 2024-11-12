@@ -22,8 +22,6 @@ namespace Chaos
 	{
 	public:
 		CHAOSCLOTH_API FClothingSimulationConfig();
-		UE_DEPRECATED(5.3, "Use TArray version of this constructor.")
-		CHAOSCLOTH_API FClothingSimulationConfig(const TSharedPtr<const FManagedArrayCollection>& InPropertyCollection);
 		CHAOSCLOTH_API FClothingSimulationConfig(const TArray<TSharedPtr<const FManagedArrayCollection>>& InPropertyCollections);
 
 		CHAOSCLOTH_API ~FClothingSimulationConfig();
@@ -40,14 +38,6 @@ namespace Chaos
 		 * @param bUseLegacyConfig Whether to make the config a legacy cloth config, so that the constraints disable themselves with missing masks, ...etc.
 		 */
 		CHAOSCLOTH_API void Initialize(const UChaosClothConfig* ClothConfig, const UChaosClothSharedSimConfig* ClothSharedConfig, bool bUseLegacyConfig = false);
-
-		/** Initialize config from a property collection. */
-		UE_DEPRECATED(5.3, "Use TArray version of Initialize.")
-		CHAOSCLOTH_API void Initialize(const TSharedPtr<const FManagedArrayCollection>& InPropertyCollection)
-		{
-			Initialize(TArray<TSharedPtr<const FManagedArrayCollection>>({ InPropertyCollection }));
-			bIsLegacySingleLOD = true;
-		}
 
 		/** Initialize config from an array of property collections (one per LOD). */
 		CHAOSCLOTH_API void Initialize(const TArray<TSharedPtr<const FManagedArrayCollection>>& InPropertyCollections);

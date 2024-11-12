@@ -4,6 +4,7 @@
 
 #include "Math/Color.h"
 #include "UObject/ObjectMacros.h"
+#include "AudioColorMapper.generated.h"
 
 UENUM(BlueprintType)
 enum class EAudioColorGradient : uint8

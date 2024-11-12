@@ -2,7 +2,7 @@
 
 import { observable, action, when, makeObservable } from "mobx";
 import backend from '../backend';
-import { JobData, ArtifactData, TestData } from './Api';
+import { JobData, TestData } from './Api';
 
 export type DataWrapper = {
     postPropertiesUpdate(): void
@@ -32,8 +32,6 @@ export class TestDataWrapper implements TestData {
 
     get type(): string { return this.key.split('::', 2)[0]; }
 
-    private jobArtifacts?: ArtifactData[];
-    private artifactMap?: Map<string, ArtifactData | undefined>;
     private artifactV2Map: Map<string, object | undefined> = new Map();
     private artifactV2Id?: string;
     private jobdata?: JobData;
@@ -93,7 +91,7 @@ export class TestDataWrapper implements TestData {
 
     async getArtifacts() {
 
-        if (this.jobArtifacts?.length || this.artifactV2Id) {
+        if (this.artifactV2Id) {
             return;
         }
 
@@ -101,38 +99,21 @@ export class TestDataWrapper implements TestData {
             this.jobdata = await backend.getJob(this.jobId);
         }
 
-        if (this.jobdata?.useArtifactsV2) {
-
-            const v = await backend.getJobArtifactsV2(undefined, [`job:${this.jobId}/step:${this.stepId}`]);
-            const av2 = v?.artifacts.find(a => a.type === "step-saved")
-            if (av2?.id) {
-               this.artifactV2Id = av2.id;
-            } else {
-                console.error("Unable to get step-saved artifacts v2 for report");
-            }
-
+        const v = await backend.getJobArtifactsV2(undefined, [`job:${this.jobId}/step:${this.stepId}`]);
+        const av2 = v?.artifacts.find(a => a.type === "step-saved")
+        if (av2?.id) {
+            this.artifactV2Id = av2.id;
         } else {
-
-            this.jobArtifacts = await backend.getJobArtifacts(this.jobId, this.stepId);
-
+            console.error("Unable to get step-saved artifacts v2 for report");
         }
+
     }
 
     async getArtifactImageLink(referencePath: string) {
 
         await this.getArtifacts();
 
-        const artifactName = referencePath.replace(/\\/g, '/');
-
-        if (this.artifactV2Id) {
-           return `${backend.serverUrl}/api/v2/artifacts/${this.artifactV2Id}/file?path=Engine/Programs/AutomationTool/Saved/Logs/RunUnreal/${encodeURIComponent(referencePath)}&inline=true`;
-        }
-
-        const artifact = this.jobArtifacts!.find(a => a.name.indexOf(artifactName) > -1);
-        if (artifact) {
-           return `${backend.serverUrl}/api/v1/artifacts/${artifact.id}/download?Code=${artifact.code}`;
-        }
-        return undefined;
+        return `${backend.serverUrl}/api/v2/artifacts/${this.artifactV2Id}/file?path=Engine/Programs/AutomationTool/Saved/Logs/RunUnreal/${encodeURIComponent(referencePath)}&inline=true`;
 
     }
 
@@ -158,31 +139,10 @@ export class TestDataWrapper implements TestData {
                 this.artifactV2Map.set(path, result);
                 return data;
             }
-
-            return undefined;
-        }
-
-        if (!this.artifactMap) {
-            this.artifactMap = new Map();
-        }
-
-        if (this.artifactMap.has(artifactName)) {
-            return this.artifactMap.get(artifactName);
-        }
-
-        const found = this.jobArtifacts?.find((value) => value.name.indexOf(artifactName) > -1);
-        this.artifactMap.set(artifactName, found);
-
-
-        if (found?.id) {
-            try {
-                return await backend.getArtifactDataById(found.id);
-            } catch (ex) {
-                console.error(ex);
-            }
         }
 
         return undefined;
+        
     }
 
     async getJobStepName() {
@@ -196,11 +156,7 @@ export class TestDataWrapper implements TestData {
         let stepName = "";
         const batch = this.jobdata.batches?.find(b => b.steps.find(s => s.id === this.stepId));
         const stepNode = batch?.steps.find(s => s.id === this.stepId);
-        const groups = this.jobdata?.graphRef?.groups;
-        if (groups && stepNode && batch) {
-            stepName = groups[batch.groupIdx]?.nodes[stepNode.nodeIdx]?.name;
-        }
-        this.stepName = stepName;
+        stepName = stepNode?.name ?? "";
 
         return this.stepName;
     }

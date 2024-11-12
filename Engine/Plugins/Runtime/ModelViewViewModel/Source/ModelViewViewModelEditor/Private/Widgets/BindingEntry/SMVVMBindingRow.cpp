@@ -125,6 +125,8 @@ TSharedRef<SWidget> SBindingRow::BuildRowWidget()
 					.OnDrop(this, &SBindingRow::HandleFieldSelectorDrop, false)
 					.OnDragEnter(this, &SBindingRow::HandleFieldSelectorDragEnter, false)
 					.ShowContext(false)
+					.CanCreateEvent(true)
+					.ToolTipText(FText::Join(FText::FromString("\n"), LOCTEXT("MVVMDestTooltipHeader", "Destination"), LOCTEXT("MVVMDestTooltipBody", "The property to hook data into.")))
 				]
 			]
 
@@ -169,6 +171,7 @@ TSharedRef<SWidget> SBindingRow::BuildRowWidget()
 					.OnGetSelectionContext(this, &SBindingRow::GetSelectedSelectionContext, true)
 					.OnDrop(this, &SBindingRow::HandleFieldSelectorDrop, true)
 					.OnDragEnter(this, &SBindingRow::HandleFieldSelectorDragEnter, true)
+					.ToolTipText(FText::Join(FText::FromString("\n"), LOCTEXT("MVVMSrcTooltipHeader", "Source"), LOCTEXT("MVVMSrcTooltipBody", "The source of data to bind to.")))
 				]
 			]
 
@@ -394,7 +397,7 @@ FMVVMLinkedPinValue SBindingRow::GetFieldSelectedValue(bool bSourceToDest) const
 	return FMVVMLinkedPinValue();
 }
 
-void SBindingRow::HandleFieldSelectionChanged(FMVVMLinkedPinValue Value, bool bSource)
+void SBindingRow::HandleFieldSelectionChanged(FMVVMLinkedPinValue Value, SFieldSelectorMenu::ESelectionType SelectionType, bool bSource)
 {
 	UWidgetBlueprint* WidgetBlueprint = GetBlueprint();
 	FMVVMBlueprintViewBinding* ViewBinding = GetThisViewBinding();
@@ -424,7 +427,8 @@ void SBindingRow::HandleFieldSelectionChanged(FMVVMLinkedPinValue Value, bool bS
 		{
 			if (Value.IsPropertyPath())
 			{
-				Subsystem->SetDestinationPathForBinding(WidgetBlueprint, *ViewBinding, Value.GetPropertyPath());
+				const bool bAllowEventConversion = SelectionType == SFieldSelectorMenu::ESelectionType::Event;
+				Subsystem->SetDestinationPathForBinding(WidgetBlueprint, *ViewBinding, Value.GetPropertyPath(), bAllowEventConversion);
 			}
 			else if (Value.IsConversionFunction())
 			{
@@ -436,7 +440,7 @@ void SBindingRow::HandleFieldSelectionChanged(FMVVMLinkedPinValue Value, bool bS
 			}
 			else
 			{
-				Subsystem->SetDestinationPathForBinding(WidgetBlueprint, *ViewBinding, FMVVMBlueprintPropertyPath());
+				Subsystem->SetDestinationPathForBinding(WidgetBlueprint, *ViewBinding, FMVVMBlueprintPropertyPath(), false);
 			}
 		}
 	}
@@ -518,7 +522,7 @@ FReply SBindingRow::HandleFieldSelectorDrop(const FGeometry& MyGeometry, const F
 	}
 	else
 	{
-		Subsystem->SetDestinationPathForBinding(WidgetBlueprint, *ViewBinding, PropertyPath.GetValue());
+		Subsystem->SetDestinationPathForBinding(WidgetBlueprint, *ViewBinding, PropertyPath.GetValue(), false);
 	}
 	return FReply::Handled();
 }
@@ -688,7 +692,7 @@ FText SBindingRow::GetCurrentBindingModeLabel() const
 {
 	if (FMVVMBlueprintViewBinding* ViewBinding = GetThisViewBinding())
 	{
-		return GetBindingModeLabel(ViewBinding->BindingType);
+		return FText::Join(FText::FromString(TEXT("\n")), LOCTEXT("BindingMode", "Mode"), GetBindingModeLabel(ViewBinding->BindingType));
 	}
 	return FText::GetEmpty();
 }

@@ -3,6 +3,7 @@
 #include "UnsyncCmdSync.h"
 #include "UnsyncFile.h"
 #include "UnsyncProxy.h"
+#include "UnsyncFilter.h"
 
 namespace unsync {
 
@@ -20,6 +21,27 @@ CmdSync(const FCmdSyncOptions& Options)
 
 		return Options.Filter ? Options.Filter->Resolve(Path) : Path;
 	};
+
+	if (Options.Source.empty())
+	{
+		UNSYNC_ERROR(L"Sync source location is invalid");
+		return 1;
+	}
+
+	if (Options.Target.empty())
+	{
+		UNSYNC_ERROR(L"Sync target location is invalid");
+		return 1;
+	}
+
+	for (const FPath& Path : Options.Overlays)
+	{
+		if (Path.empty())
+		{
+			UNSYNC_ERROR(L"Sync overlay location is invalid");
+			return 1;
+		}
+	}
 
 	FProxyPool ProxyPool(Options.Remote, Options.AuthDesc);
 
@@ -62,19 +84,24 @@ CmdSync(const FCmdSyncOptions& Options)
 	if (ProxyPool.IsValid())
 	{
 		const FRemoteProtocolFeatures& Features = ProxyPool.GetFeatures();
-		if (Features.bFileDownload && Features.bDirectoryListing)
+		if (ProxyPool.RemoteDesc.Protocol == EProtocolFlavor::Horde)
+		{
+			UNSYNC_LOG(L"Horde server supports direct file, manifest and block download");
+			bSourceFileSystemRequired = false;
+		}
+		else if (Features.bFileDownload && Features.bDirectoryListing)
 		{
 			UNSYNC_LOG(L"Server supports direct file access");
 			bSourceFileSystemRequired = false;
 		}
-		else if (Features.bDownloadByHash && bSourceIsManifestHash)
+		else if (Features.bManifestDownload && bSourceIsManifestHash)
 		{
-			UNSYNC_LOG(L"Server supports access by manifest hash");
+			UNSYNC_LOG(L"Server supports access by manifest ID");
 			bSourceFileSystemRequired = false;
 		}
 		else
 		{
-			UNSYNC_VERBOSE2(L"Server does not support direct file access or download by manifest hash. Source file system access is required.");
+			UNSYNC_VERBOSE2(L"Server does not support direct file access or download by manifest ID. Source file system access is required.");
 		}
 	}
 
@@ -113,7 +140,7 @@ CmdSync(const FCmdSyncOptions& Options)
 		
 		if (bSourceIsManifestHash)
 		{
-			UNSYNC_ERROR(L"Sync overlay option is not compatible with sync by manifest hash.");
+			UNSYNC_ERROR(L"Sync overlay option is not compatible with sync by manifest ID.");
 			return 1;
 		}
 
@@ -155,15 +182,15 @@ CmdSync(const FCmdSyncOptions& Options)
 
 			if (bSourceFileSystemRequired)
 			{
-				SyncOptions.SourceType = ESyncSourceType::FileSystem;
+				SyncOptions.SourceType = ESourceType::FileSystem;
 			}
-			else if (bSourceIsManifestHash)
+			else if (bSourceIsManifestHash || ProxyPool.RemoteDesc.Protocol == EProtocolFlavor::Horde)
 			{
-				SyncOptions.SourceType = ESyncSourceType::ServerWithManifestHash;
+				SyncOptions.SourceType = ESourceType::ServerWithManifestId;
 			}
 			else
 			{
-				SyncOptions.SourceType = ESyncSourceType::Server;
+				SyncOptions.SourceType = ESourceType::Server;
 			}
 
 			SyncOptions.Source					   = ResolvedSource;
@@ -192,6 +219,7 @@ CmdSync(const FCmdSyncOptions& Options)
 			SyncFileOptions.Algorithm			 = Options.Algorithm;
 			SyncFileOptions.BlockSize			 = uint32(64_KB);
 			SyncFileOptions.bValidateTargetFiles = Options.bValidateTargetFiles;
+			SyncFileOptions.SourceType			 = ESourceType::FileSystem;
 
 			return SyncFile(Options.Source, Options.Target, Options.Target, SyncFileOptions).Succeeded() ? 0 : 1;
 		}

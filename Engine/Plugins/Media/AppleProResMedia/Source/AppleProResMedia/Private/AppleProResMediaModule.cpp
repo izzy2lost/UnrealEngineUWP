@@ -77,6 +77,9 @@ class FAppleProResMediaModule : public IModuleInterface
 			);
 		}
 #endif //WITH_EDITOR
+
+		// Add exemption to FName::NameToDisplayString formatting to ensure "ProRes" is displayed without a space
+		FName::AddNameToDisplayStringExemption(TEXT("ProRes"));
 	}
 
 	virtual void ShutdownModule() override

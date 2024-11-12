@@ -13,25 +13,36 @@
 #include "Widgets/Images/SLayeredImage.h"
 #include "Widgets/Layout/SSeparator.h"
 
-FToolBarButtonBlock::FToolBarButtonBlock( FButtonArgs ButtonArgs )
-: FMultiBlock( ButtonArgs.Command, ButtonArgs.CommandList, NAME_None, EMultiBlockType::ToolBarButton )
-	, LabelOverride( ButtonArgs.LabelOverride )
-	, ToolTipOverride( ButtonArgs.ToolTipOverride )
-	, IconOverride( ButtonArgs.IconOverride )
-   // , BorderBrushName(ButtonArgs.BorderBrushName)
+FToolBarButtonBlock::FToolBarButtonBlock(FButtonArgs ButtonArgs)
+	: FMultiBlock(ButtonArgs.Command, ButtonArgs.CommandList, NAME_None, EMultiBlockType::ToolBarButton)
+	, LabelOverride(ButtonArgs.LabelOverride)
+	, ToolbarLabelOverride(ButtonArgs.ToolbarLabelOverride)
+	, ToolTipOverride(ButtonArgs.ToolTipOverride)
+	, IconOverride(ButtonArgs.IconOverride)
 	, LabelVisibility()
-	, UserInterfaceActionType(ButtonArgs.UserInterfaceActionType != EUserInterfaceActionType::None ?
-		ButtonArgs.UserInterfaceActionType : EUserInterfaceActionType::Button)
+	, UserInterfaceActionType(
+		  ButtonArgs.UserInterfaceActionType != EUserInterfaceActionType::None ? ButtonArgs.UserInterfaceActionType
+																			   : EUserInterfaceActionType::Button
+	  )
 	, bIsFocusable(false)
 	, bForceSmallIcons(false)
+	, GetDecoratedButtonDelegate(ButtonArgs.GetDecoratedButtonDelegate)
 {
 }
 
-FToolBarButtonBlock::FToolBarButtonBlock( const TSharedPtr< const FUICommandInfo > InCommand, TSharedPtr< const FUICommandList > InCommandList, const TAttribute<FText>& InLabelOverride, const TAttribute<FText>& InToolTipOverride, const TAttribute<FSlateIcon>& InIconOverride )
-	: FMultiBlock( InCommand, InCommandList, NAME_None, EMultiBlockType::ToolBarButton )
-	, LabelOverride( InLabelOverride )
-	, ToolTipOverride( InToolTipOverride )
-	, IconOverride( InIconOverride )
+FToolBarButtonBlock::FToolBarButtonBlock(
+	const TSharedPtr<const FUICommandInfo> InCommand,
+	TSharedPtr<const FUICommandList> InCommandList,
+	const TAttribute<FText>& InLabelOverride,
+	const TAttribute<FText>& InToolTipOverride,
+	const TAttribute<FSlateIcon>& InIconOverride,
+	TAttribute<FText> InToolbarLabelOverride
+)
+	: FMultiBlock(InCommand, InCommandList, NAME_None, EMultiBlockType::ToolBarButton)
+	, LabelOverride(InLabelOverride)
+	, ToolbarLabelOverride(InToolbarLabelOverride)
+	, ToolTipOverride(InToolTipOverride)
+	, IconOverride(InIconOverride)
 	, LabelVisibility()
 	, UserInterfaceActionType(EUserInterfaceActionType::Button)
 	, bIsFocusable(false)
@@ -39,11 +50,19 @@ FToolBarButtonBlock::FToolBarButtonBlock( const TSharedPtr< const FUICommandInfo
 {
 }
 
-FToolBarButtonBlock::FToolBarButtonBlock( const TAttribute<FText>& InLabel, const TAttribute<FText>& InToolTip, const TAttribute<FSlateIcon>& InIcon, const FUIAction& InUIAction, const EUserInterfaceActionType InUserInterfaceActionType )
-	: FMultiBlock( InUIAction )
-	, LabelOverride( InLabel )
-	, ToolTipOverride( InToolTip )
-	, IconOverride( InIcon )
+FToolBarButtonBlock::FToolBarButtonBlock(
+	const TAttribute<FText>& InLabel,
+	const TAttribute<FText>& InToolTip,
+	const TAttribute<FSlateIcon>& InIcon,
+	const FUIAction& InUIAction,
+	const EUserInterfaceActionType InUserInterfaceActionType,
+	TAttribute<FText> InToolbarLabelOverride
+)
+	: FMultiBlock(InUIAction)
+	, LabelOverride(InLabel)
+	, ToolbarLabelOverride(InToolbarLabelOverride)
+	, ToolTipOverride(InToolTip)
+	, IconOverride(InIcon)
 	, LabelVisibility()
 	, UserInterfaceActionType(InUserInterfaceActionType)
 	, bIsFocusable(false)
@@ -59,6 +78,11 @@ void FToolBarButtonBlock::SetCustomMenuDelegate(const FNewMenuDelegate& InCustom
 void FToolBarButtonBlock::SetOnGetMenuContent(const FOnGetContent& InOnGetMenuContent)
 {
 	OnGetMenuContent = InOnGetMenuContent;
+}
+
+void FToolBarButtonBlock::SetGetDecoratedButtonDelegate( const FGetDecoratedButtonDelegate& InGetDecoratedButtonDelegate )
+{
+	GetDecoratedButtonDelegate = InGetDecoratedButtonDelegate;
 }
 
 void FToolBarButtonBlock::CreateMenuEntry(FMenuBuilder& MenuBuilder) const
@@ -186,7 +210,11 @@ void SToolBarButtonBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, con
 
 	// Allow the block to override the action's label and tool tip string, if desired
 	TAttribute<FText> ActualLabel;
-	if (ToolBarButtonBlock->LabelOverride.IsSet())
+	if (ToolBarButtonBlock->ToolbarLabelOverride.IsSet())
+	{
+		ActualLabel = ToolBarButtonBlock->ToolbarLabelOverride;
+	}
+	else if (ToolBarButtonBlock->LabelOverride.IsSet())
 	{
 		ActualLabel = ToolBarButtonBlock->LabelOverride;
 	}
@@ -207,10 +235,6 @@ void SToolBarButtonBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, con
 	{
 		ActualToolTip = UICommand.IsValid() ? UICommand->GetDescription() : FText::GetEmpty();
 	}
-
-	// If a key is bound to the command, append it to the tooltip text.
-	TWeakPtr<const FUICommandInfo> Action = ToolBarButtonBlock->GetAction();
-	ActualToolTip = TAttribute< FText >::Create(TAttribute<FText>::FGetter::CreateStatic(&Local::AppendKeyBindingToToolTip, ActualToolTip, Action ) );
 	
 	// If we were supplied an image than go ahead and use that, otherwise we use a null widget
 	TSharedRef<SLayeredImage> IconWidget =
@@ -228,8 +252,28 @@ void SToolBarButtonBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, con
 		|| bIsSlimHorizontalUniformToolBar)
 	{
 		const FVector2f IconSize = ToolBarStyle.IconSize;
-		const TSharedRef<STextBlock> TextBlock = SNew(STextBlock)
-				.Visibility(LabelVisibility)
+		const TSharedRef<STextBlock> TextBlock =
+			SNew(STextBlock)
+				// Collapse empty labels to prevent them from taking up visible space.
+				.Visibility_Lambda(
+					[WeakBlock = SharedThis(this).ToWeakPtr(), ActualLabel]() -> EVisibility
+					{
+						// Check first if the label is empty, and if so collapse it.
+						if (ActualLabel.IsSet() && ActualLabel.Get().IsEmpty())
+						{
+							return EVisibility::Collapsed;
+						}
+						// Only now check the set override.
+						else if (TSharedPtr<SToolBarButtonBlock> Block = WeakBlock.Pin())
+						{
+							return Block->LabelVisibility.Get();
+						}
+						else
+						{
+							return EVisibility::Visible;
+						}
+					}
+				)
 				.Text(ActualLabel)
 				.TextStyle(&ToolBarStyle.LabelStyle); // Smaller font for tool tip labels
 
@@ -306,6 +350,7 @@ void SToolBarButtonBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, con
 	EMultiBlockLocation::Type BlockLocation = GetMultiBlockLocation();
 	
 	// What type of UI should we create for this block?
+	TWeakPtr<const FUICommandInfo> Action = ToolBarButtonBlock->GetAction();
 	EUserInterfaceActionType UserInterfaceType = ToolBarButtonBlock->UserInterfaceActionType;
 	if ( Action.IsValid() )
 	{
@@ -331,7 +376,7 @@ void SToolBarButtonBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, con
 			.ButtonStyle(ToolbarButtonStyle)
 			.IsEnabled(this, &SToolBarButtonBlock::IsEnabled)
 			.OnClicked(this, &SToolBarButtonBlock::OnClicked)
-			.ToolTip(FMultiBoxSettings::ToolTipConstructor.Execute(ActualToolTip, nullptr, Action.Pin()))
+			.ToolTip(FMultiBoxSettings::ToolTipConstructor.Execute(ActualToolTip, nullptr, Action.Pin(), /*ShowActionShortcut=*/ true))
 			.IsFocusable(bIsFocusable)
 			[
 				ButtonContent
@@ -354,7 +399,7 @@ void SToolBarButtonBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, con
 						.Style(CheckStyle)
 						.CheckBoxContentUsesAutoWidth(false)
 						.IsFocusable(bIsFocusable)
-						.ToolTip( FMultiBoxSettings::ToolTipConstructor.Execute( ActualToolTip, nullptr, Action.Pin()))		
+						.ToolTip( FMultiBoxSettings::ToolTipConstructor.Execute( ActualToolTip, nullptr, Action.Pin(), /*ShowActionShortcut=*/ true))		
 						.OnCheckStateChanged(this, &SToolBarButtonBlock::OnCheckStateChanged )
 						.OnGetMenuContent( ToolBarButtonBlock->OnGetMenuContent )
 						.IsChecked(this, &SToolBarButtonBlock::GetCheckState)
@@ -375,6 +420,11 @@ void SToolBarButtonBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, con
 				[
 					CheckBox.ToSharedRef()
 				];
+		}
+		
+		if ( ToolBarButtonBlock->GetDecoratedButtonDelegate.IsBound() )
+		{
+			CheckBoxWidget = ToolBarButtonBlock->GetDecoratedButtonDelegate.Execute( CheckBoxWidget );
 		}
 
 		ChildSlot
@@ -530,7 +580,18 @@ bool SToolBarButtonBlock::IsEnabled() const
  */
 EVisibility SToolBarButtonBlock::GetBlockVisibility() const
 {
-	TSharedPtr< const FUICommandList > ActionList = MultiBlock->GetActionList();
+	// Let the visibility override take prescedence here.
+	// However, if it returns Visible, let the other methods have a chance to change that.
+	if (MultiBlock->GetVisibilityOverride().IsSet())
+	{
+		const EVisibility OverrideVisibility = MultiBlock->GetVisibilityOverride().Get();
+		if (OverrideVisibility != EVisibility::Visible)
+		{
+			return OverrideVisibility;
+		}
+	}
+
+	TSharedPtr<const FUICommandList> ActionList = MultiBlock->GetActionList();
 	const FUIAction& DirectActions = MultiBlock->GetDirectActions();
 	if( ActionList.IsValid() )
 	{

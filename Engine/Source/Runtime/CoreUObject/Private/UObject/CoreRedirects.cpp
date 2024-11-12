@@ -8,15 +8,25 @@
 #include "UObject/TopLevelAssetPath.h"
 #include "UObject/UnrealType.h"
 
+#include "Algo/Compare.h"
 #include "GenericPlatform/GenericPlatformFile.h"
+#include "Hash/Blake3.h"
+#include "Logging/StructuredLog.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/PackageName.h"
 #include "Misc/ScopeRWLock.h"
+#include "RedirectionSummary.h"
 #include "Serialization/DeferredMessageLog.h"
 #include "Templates/Casts.h"
+
+#include "AutoRTFM/AutoRTFM.h"
+
+#if WITH_EDITOR
+#include "Misc/RedirectCollector.h"
+#endif
 
 DEFINE_LOG_CATEGORY(LogCoreRedirects);
 
@@ -24,9 +34,425 @@ DEFINE_LOG_CATEGORY(LogCoreRedirects);
 #	define UE_WITH_CORE_REDIRECTS 1
 #endif
 
+#define COREREDIRECT_STATS 0
+#if COREREDIRECT_STATS
+static int sSubstringLookups = 0;
+static int sSubstringPredictHit = 0;
+static int sSubstringPredictMiss = 0;
+FAutoConsoleCommand StaticLoadTrackerDump(TEXT("CoreRedirects.SubstringPrediction.StatsDump"), TEXT(""), FConsoleCommandDelegate::CreateLambda([]()
+	{
+		UE_LOG(LogCoreRedirects, Log, TEXT(
+			"==========================================\n"
+			"Dumping Substring Stats\n\n"
+			"Lookups:\t\t\t\t%d\n"
+			"Prediction Hit:\t\t%d\n"
+			"Prediction Miss:\t\t%d\n"
+			"=========================================="
+		), sSubstringLookups, sSubstringPredictHit, sSubstringPredictMiss);
+	}));
+
+#define COREREDIRECT_STATS_UPDATE_PREDICTION_LOOKUP() do{ sSubstringLookups++; }while(false)
+#define COREREDIRECT_STATS_UPDATE_PREDICTION_RESULT(bFound) do{ if(bFound){ sSubstringPredictHit++; } else { sSubstringPredictMiss++; }}while(false)
+#else
+#define COREREDIRECT_STATS_UPDATE_PREDICTION_LOOKUP()
+#define COREREDIRECT_STATS_UPDATE_PREDICTION_RESULT(bFound)
+#endif
+
+/* 
+* Small helper class to deal with the string representation of FNames while trying to minimize copies 
+* without relying on internal details of FName. Due to the sheer volume of CoreRedirects, it's 
+* significant to avoid the copies where possible. We maintain UTF8 encoding for FNames when dealing with Wildcard
+* redirects since UTF8 overlays ASCII allowing pure ASCII strings to be compact, greatly improving PredictMatch efficiency.
+* We also need a common encoding for how we store substring redirects and how we query them to ensure we do not generate
+* false negatives in our fuzzy searchs using PredictMatch; UTF8 will allow us to still predict non-ASCII substrings.
+*/
+namespace UE::CoreRedirects::Private
+{
+	struct FNameUtf8String
+	{
+		FNameUtf8String() : UTF8() {}
+		~FNameUtf8String() {}
+		FNameUtf8String(FName Name)
+			: UTF8()
+		{
+			// FName will append "None" when FName.IsNone. Instead treat empty string as None
+			if (!Name.IsNone())
+			{
+				Name.AppendString(UTF8);
+			}
+		}
+
+		operator FUtf8StringView() const
+		{ 
+			return UTF8; 
+		}
+
+		bool IsNone() const
+		{
+			return Len() == 0;
+		}
+
+		const UTF8CHAR* GetData() const
+		{
+			return UTF8.GetData();
+		}
+
+		int32 Len() const
+		{
+			return UTF8.Len();
+		}
+
+		int32 ByteLength() const
+		{
+			return UTF8.Len() * sizeof(UTF8CHAR);
+		}
+
+		bool StartsWith(const FUtf8StringView InPrefix, ESearchCase::Type InSearchCase) const
+		{
+			return UTF8.ToView().StartsWith(InPrefix, InSearchCase);
+		}
+
+		bool EndsWith(const FUtf8StringView InSuffix, ESearchCase::Type InSearchCase) const
+		{
+			return UTF8.ToView().EndsWith(InSuffix, InSearchCase);
+		}
+
+		bool Contains(const FUtf8StringView InSubstring, ESearchCase::Type InSearchCase) const
+		{
+			return (INDEX_NONE != UE::String::FindFirst(UTF8, InSubstring, InSearchCase));
+		}
+
+		void ReplaceAt(int32 Pos, int32 RemoveLen, FNameUtf8String& Str)
+		{
+			UTF8.ReplaceAt(Pos, RemoveLen, Str);
+		}
+
+		void RightChopInline(int Len)
+		{
+			UTF8.RemoveAt(0, Len);
+		}
+
+		TUtf8StringBuilder<FName::StringBufferSize> UTF8;
+	};
+
+	struct FCoreRedirectObjectUtf8Name
+	{
+		FCoreRedirectObjectUtf8Name(const FCoreRedirectObjectName& InName)
+			: ObjectName(InName.ObjectName)
+			, OuterName(InName.OuterName)
+			, PackageName(InName.PackageName)
+		{
+		}
+
+		FNameUtf8String ObjectName;
+		FNameUtf8String OuterName;
+		FNameUtf8String PackageName;
+	};
+
+	struct SubstringMatcher
+	{
+		static bool Matches(const FName LHS, const FNameUtf8String& RHSString, bool bPartialLHS, bool bPartialRHS)
+		{
+			const bool bLHSIsNone = LHS.IsNone();
+			const bool bRHSIsNone = RHSString.IsNone();
+			if (bLHSIsNone || bRHSIsNone)
+			{
+				return bLHSIsNone == bRHSIsNone || ((!bLHSIsNone || bPartialLHS) && (!bRHSIsNone || bPartialRHS));
+			}
+
+			FNameUtf8String LHSString(LHS);
+			return RHSString.Contains(LHSString, ESearchCase::IgnoreCase);
+		}
+	};
+
+	struct PrefixMatcher
+	{
+		static bool Matches(const FName LHS, const FNameUtf8String& RHSString, bool bPartialLHS, bool bPartialRHS)
+		{
+			const bool bLHSIsNone = LHS.IsNone();
+			const bool bRHSIsNone = RHSString.IsNone();
+			if (bLHSIsNone || bRHSIsNone)
+			{
+				return bLHSIsNone == bRHSIsNone || ((!bLHSIsNone || bPartialLHS) && (!bRHSIsNone || bPartialRHS));
+			}
+
+			FNameUtf8String LHSString(LHS);
+			return RHSString.StartsWith(LHSString, ESearchCase::IgnoreCase);
+		}
+	};
+
+	struct SuffixMatcher
+	{
+		static bool Matches(const FName LHS, const FNameUtf8String& RHSString, bool bPartialLHS, bool bPartialRHS)
+		{
+			const bool bLHSIsNone = LHS.IsNone();
+			const bool bRHSIsNone = RHSString.IsNone();
+			if (bLHSIsNone || bRHSIsNone)
+			{
+				return bLHSIsNone == bRHSIsNone || ((!bLHSIsNone || bPartialLHS) && (!bRHSIsNone || bPartialRHS));
+			}
+
+			FNameUtf8String LHSString(LHS);
+			return RHSString.EndsWith(LHSString, ESearchCase::IgnoreCase);
+		}
+	};
+
+	template <typename Matcher>
+	static bool MatchWildcardRedirect(const FCoreRedirectObjectName& InRedirect, 
+		const FCoreRedirectObjectUtf8Name& InUtf8Name, bool bPartialLHS, bool bPartialRHS)
+	{
+		if (!Matcher::Matches(InRedirect.ObjectName, InUtf8Name.ObjectName, bPartialLHS, bPartialRHS))
+		{
+			return false;
+		}
+		if (!Matcher::Matches(InRedirect.OuterName, InUtf8Name.OuterName, bPartialLHS, bPartialRHS))
+		{
+			return false;
+		}
+		if (!Matcher::Matches(InRedirect.PackageName, InUtf8Name.PackageName, bPartialLHS, bPartialRHS))
+		{
+			return false;
+		}
+		return true;
+	}
+
+	static bool MatchSubstring(const FCoreRedirectObjectName& InSubstringRedirect, const FCoreRedirectObjectUtf8Name& InUtf8Name,
+		bool bPartialLHS, bool bPartialRHS)
+	{
+		return MatchWildcardRedirect<SubstringMatcher>(InSubstringRedirect, InUtf8Name, bPartialLHS, bPartialRHS);
+	}
+
+	static bool MatchPrefix(const FCoreRedirectObjectName& InPrefixRedirect, const FCoreRedirectObjectUtf8Name& InUtf8Name,
+		bool bPartialLHS, bool bPartialRHS)
+	{
+		return MatchWildcardRedirect<PrefixMatcher>(InPrefixRedirect, InUtf8Name, bPartialLHS, bPartialRHS);
+	}
+
+	static bool MatchSuffix(const FCoreRedirectObjectName& InSuffixRedirect, const FCoreRedirectObjectUtf8Name& InUtf8Name,
+		bool bPartialLHS, bool bPartialRHS)
+	{
+		return MatchWildcardRedirect<SuffixMatcher>(InSuffixRedirect, InUtf8Name, bPartialLHS, bPartialRHS);
+	}
+
+
+	bool RunAssetRedirectTests()
+	{
+		bool bSuccess = true;
+
+		// Test
+		TMap<FSoftObjectPath, FSoftObjectPath> Redirects;
+
+		struct FTestDefinition
+		{
+			const TCHAR* Origin = nullptr;
+			const TCHAR* Destination = nullptr;
+			const TCHAR* TestDescription = nullptr;
+			ECoreRedirectFlags RedirectFlags = ECoreRedirectFlags::None;
+			bool ExpectTrue = true;
+		};
+		TArray<FTestDefinition> Tests;
+
+		// Simple single redirection BasicName --> BasicNewName
+		{
+			FTestDefinition& BasicTest = Tests.AddDefaulted_GetRef();
+			BasicTest.Origin = TEXT("/Game/BasicName.BasicName");
+			BasicTest.Destination = TEXT("/Game/BasicNewName.BasicNewName");
+			BasicTest.TestDescription = TEXT("basic asset redirect with Type_Object");
+			BasicTest.RedirectFlags = ECoreRedirectFlags::Type_Object;
+			BasicTest.ExpectTrue = true;
+
+			{
+				FSoftObjectPath SourcePath(BasicTest.Origin);
+				FSoftObjectPath DestPath(BasicTest.Destination);
+				Redirects.Add(SourcePath, DestPath);
+			}
+		}
+
+		// Multi-asset package redirections. bp_orig_name + _C + Default --> bp_new_name + _C + Default
+		{
+			FTestDefinition& DefaultObjectTest = Tests.AddDefaulted_GetRef();
+			DefaultObjectTest.Origin = TEXT("/Plugin/bp_orig_name.Default__bp_orig_name_C");
+			DefaultObjectTest.Destination = TEXT("/Plugin/bp_new_name.Default__bp_new_name_C");
+			DefaultObjectTest.TestDescription = TEXT("default object asset redirect with Type_Object");
+			DefaultObjectTest.RedirectFlags = ECoreRedirectFlags::Type_Object;
+			DefaultObjectTest.ExpectTrue = true;
+
+			FTestDefinition& BPGCTest = Tests.AddDefaulted_GetRef();
+			BPGCTest.Origin = TEXT("/Plugin/bp_orig_name.bp_orig_name_C");
+			BPGCTest.Destination = TEXT("/Plugin/bp_new_name.bp_new_name_C");
+			BPGCTest.TestDescription = TEXT("default BPGC asset redirect with Type_Class");
+			BPGCTest.RedirectFlags = ECoreRedirectFlags::Type_Class;
+			BPGCTest.ExpectTrue = true;
+
+			FTestDefinition& InstanceOnlyTest = Tests.AddDefaulted_GetRef();
+			InstanceOnlyTest.Origin = BPGCTest.Origin;
+			InstanceOnlyTest.Destination = BPGCTest.Destination;
+			InstanceOnlyTest.RedirectFlags = ECoreRedirectFlags::Type_Class | ECoreRedirectFlags::Category_InstanceOnly;
+			InstanceOnlyTest.TestDescription = TEXT("category instance only");
+			InstanceOnlyTest.ExpectTrue = false;
+
+			{
+				FSoftObjectPath SourcePath(TEXT("/Plugin/bp_orig_name.Default__bp_orig_name_C"));
+				FSoftObjectPath DestPath(TEXT("/Plugin/bp_new_name.Default__bp_new_name_C"));
+				Redirects.Add(SourcePath, DestPath);
+			}
+
+			{
+				FSoftObjectPath SourcePath(TEXT("/Plugin/bp_orig_name.bp_orig_name_C"));
+				FSoftObjectPath DestPath(TEXT("/Plugin/bp_new_name.bp_new_name_C"));
+				Redirects.Add(SourcePath, DestPath);
+			}
+
+			{
+				FSoftObjectPath SourcePath(TEXT("/Plugin/bp_orig_name.bp_orig_name"));
+				FSoftObjectPath DestPath(TEXT("/Plugin/bp_new_name.bp_new_name"));
+				Redirects.Add(SourcePath, DestPath);
+			}
+		}
+
+		FCoreRedirects::AddAssetRedirects(Redirects);
+
+		if (!FCoreRedirects::ValidateAssetRedirects())
+		{
+			bSuccess = false;
+			UE_LOG(LogCoreRedirects, Error, TEXT("Failed asset redirect validation."));
+		}
+
+		for (auto& Test : Tests)
+		{
+			FCoreRedirectObjectName OldName(Test.Origin);
+			FCoreRedirectObjectName NewName = FCoreRedirects::GetRedirectedName(Test.RedirectFlags, OldName);
+			if (NewName.ToString().Equals(Test.Destination) != Test.ExpectTrue)
+			{
+				bSuccess = false;
+				UE_LOG(LogCoreRedirects, Error, TEXT("Failed %s. Source = %s was unexpectedly redirected to %s"),
+					Test.TestDescription, Test.Origin, *NewName.ToString());
+			}
+			if (Test.ExpectTrue)
+			{
+				TArray<FCoreRedirectObjectName> OldNames;
+				if (!FCoreRedirects::FindPreviousNames(Test.RedirectFlags, NewName, OldNames))
+				{
+					bSuccess = false;
+					UE_LOG(LogCoreRedirects, Error, TEXT("Failed to FindPreviousNames for %s"), Test.Destination);
+				}
+				else
+				{
+					bool bContainsName = false;
+					for (const FCoreRedirectObjectName& ReverseOldName : OldNames)
+					{
+						if (ReverseOldName.ToString().Compare(Test.Origin))
+						{
+							bContainsName = true;
+							break;
+						}
+					}
+					if (!bContainsName)
+					{
+						bSuccess = false;
+						UE_LOG(LogCoreRedirects, Error, TEXT("Failed to find expected previous name for %s"), Test.Destination);
+					}
+				}
+			}
+		}
+
+		// Remove all redirects temporarily and verify no test finds a redirection
+		FCoreRedirects::RemoveAllAssetRedirects();
+		for (auto& Test : Tests)
+		{
+			FCoreRedirectObjectName OldName(Test.Origin);
+			FCoreRedirectObjectName NewName = FCoreRedirects::GetRedirectedName(Test.RedirectFlags, OldName);
+			if (!NewName.ToString().Equals(Test.Origin))
+			{
+				bSuccess = false;
+				UE_LOG(LogCoreRedirects, Error, TEXT("Found unexpected redirect from %s to %s"),
+					Test.Origin, *NewName.ToString());
+			}
+		}
+
+#if WITH_EDITOR
+		// ensure that it's safe to add any redirector in GRedirectCollector
+		{
+			TDynamicUniqueLock<FCriticalSection> ScopeLock(GRedirectCollector.AcquireLock());
+			const TMap<FSoftObjectPath, FSoftObjectPath>& RedirectMap = GRedirectCollector.GetObjectPathRedirectionMapUnderLock(ScopeLock);
+			TArray<const FCoreRedirect> RedirectList;
+			for (const TPair<FSoftObjectPath, FSoftObjectPath>& Redirect : RedirectMap)
+			{
+				RedirectList.Emplace(ECoreRedirectFlags::Type_Asset, Redirect.Key.ToString(), Redirect.Value.ToString());
+			}
+
+			FCoreRedirects::AddRedirectList(RedirectList, TEXT("GRedirectCollector"));
+			if (!FCoreRedirects::ValidateAssetRedirects())
+			{
+				bSuccess = false;
+				UE_LOG(LogCoreRedirects, Error, TEXT("Failed asset redirect validation."));
+			}
+		}
+		FCoreRedirects::RemoveAllAssetRedirects();
+#endif
+
+		// Ensure validation failure if chains exist
+		{
+			TMap<FSoftObjectPath, FSoftObjectPath> ChainRedirects;
+
+			{
+				FSoftObjectPath SourcePath(TEXT("/Game/Chain_FirstName.Chain_FirstName"));
+				FSoftObjectPath DestPath(TEXT("/Game/Chain_SecondName.Chain_SecondName"));
+				ChainRedirects.Add(SourcePath, DestPath);
+			}
+
+			{
+				FSoftObjectPath SourcePath(TEXT("/Game/Chain_SecondName.Chain_SecondName"));
+				FSoftObjectPath DestPath(TEXT("/Game/Chain_ThirdName.Chain_ThirdName"));
+				ChainRedirects.Add(SourcePath, DestPath);
+			}
+
+			{
+				FSoftObjectPath SourcePath(TEXT("/Game/Chain_ThirdName.Chain_ThirdName"));
+				FSoftObjectPath DestPath(TEXT("/Game/Chain_FourthName.Chain_FourthName"));
+				ChainRedirects.Add(SourcePath, DestPath);
+			}
+
+			FCoreRedirects::AddAssetRedirects(ChainRedirects);
+			if (FCoreRedirects::ValidateAssetRedirects())
+			{
+				bSuccess = false;
+				UE_LOG(LogCoreRedirects, Error, TEXT("Failed to detect erroneous chained redirect in ValidateAssetRedirects()"));
+			}
+			FCoreRedirects::RemoveAllAssetRedirects();
+		}
+
+		// Re-add the redirects so that they are in place for subsequent tests. This can help
+		// detect unexpected interactions between asset redirects and legacy types of redirects
+		FCoreRedirects::AddAssetRedirects(Redirects);
+
+		return bSuccess;
+	}
+}
+
+#if WITH_EDITOR
+FRedirectionSummary GRedirectionSummary;
+#endif
+
 FCoreRedirectObjectName::FCoreRedirectObjectName(const FTopLevelAssetPath& TopLevelAssetPath)
 	: FCoreRedirectObjectName(TopLevelAssetPath.GetAssetName(), NAME_None, TopLevelAssetPath.GetPackageName())
 {
+}
+
+FCoreRedirectObjectName::FCoreRedirectObjectName(const FSoftObjectPath& SoftObjectPath)
+{
+	if (!SoftObjectPath.IsSubobject())
+	{
+		PackageName = SoftObjectPath.GetLongPackageFName();
+		ObjectName = SoftObjectPath.GetAssetFName();
+	}
+	else
+	{
+		if (!ExpandNames(SoftObjectPath.ToString(), ObjectName, OuterName, PackageName))
+		{
+			Reset();
+		}
+	}
 }
 
 FCoreRedirectObjectName::FCoreRedirectObjectName(const FString& InString)
@@ -86,33 +512,202 @@ void FCoreRedirectObjectName::Reset()
 	ObjectName = OuterName = PackageName = NAME_None;
 }
 
-bool FCoreRedirectObjectName::Matches(const FCoreRedirectObjectName& Other, bool bCheckSubstring) const
+void FCoreRedirects::FWildcardData::Add(const FCoreRedirect& Redirect)
 {
-	return Matches(Other, EMatchFlags::CheckSubString);
+	if (Redirect.IsSubstringMatch())
+	{
+		Substrings.Add(Redirect);
+		AddPredictionWords(Redirect);
+	}
+	else if (Redirect.IsPrefixMatch())
+	{
+		Prefixes.Add(Redirect);
+	}
+	else
+	{
+		check(Redirect.IsSuffixMatch());
+		Suffixes.Add(Redirect);
+	}
+}
+
+void FCoreRedirects::FWildcardData::AddPredictionWords(const FCoreRedirect& Redirect)
+{
+	using namespace UE::CoreRedirects::Private;
+
+	const FName Names[3] = { Redirect.OldName.ObjectName, Redirect.OldName.OuterName, Redirect.OldName.PackageName };
+	for (const FName& Name : Names)
+	{
+		if (Name.IsNone())
+		{
+			continue;
+		}
+
+		FNameUtf8String NameView(Name);
+
+		// Since we only predict based on a small window of characters (8), 
+		// try to use characters that will be more unique by removing common prefixes.
+		// Note, this does not affect the actual substring matching, only
+		// our prediction and more specifically our false positive rate.
+		FUtf8StringView CommonPrefixes[] = 
+		{ "/", "Script/", "Temp/", "Extra/", "Memory/", "Config/", "Game/", "Engine/", "Transient/", "Niagara/"};
+
+		for (FUtf8StringView Prefix : CommonPrefixes)
+		{
+			// Only remove the prefix if doing so won't leave the string empty.
+			// To consider: To keep entropy high, we might want to consider only performing the 
+			// removal if we leave 'n' number of characers for our prediction.
+			if (NameView.Len() > Prefix.Len() && NameView.StartsWith(Prefix, ESearchCase::IgnoreCase))
+			{
+				NameView.RightChopInline(Prefix.Len());
+			}
+		}
+
+		// Predict match doesn't interpret character data, however in order to avoid false negatives
+		// we need to ensure all PredictionWords are added in the same encoding we will be using
+		// for comparisons in MatchSubstringApproximate
+		PredictMatch.AddPredictionWord((uint8*) NameView.GetData(), (uint16) NameView.ByteLength());
+	}
+}
+
+bool FCoreRedirects::FWildcardData::MatchSubstringApproximate(const UE::CoreRedirects::Private::FCoreRedirectObjectUtf8Name& InUtf8Name) const
+{
+	using namespace UE::CoreRedirects::Private;
+
+	const FNameUtf8String* Names[3] = { &InUtf8Name.ObjectName, &InUtf8Name.OuterName, &InUtf8Name.PackageName };
+	for (const FNameUtf8String* Name : Names)
+	{
+		if (Name->IsNone())
+		{
+			continue;
+		}
+
+		if (PredictMatch.MatchApproximate((const uint8*) Name->GetData(), (uint16) Name->ByteLength()))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void FCoreRedirects::FWildcardData::Rebuild()
+{
+	PredictMatch.Reset();
+
+	for (const FCoreRedirect& Redirect : Substrings)
+	{
+		AddPredictionWords(Redirect);
+	}
+}
+
+bool FCoreRedirects::FWildcardData::Matches(ECoreRedirectFlags InFlags, const FCoreRedirectObjectName& InName, 
+	ECoreRedirectMatchFlags InMatchFlags, TArray<const FCoreRedirect*>& OutFoundRedirects) const
+{
+	using namespace UE::CoreRedirects::Private;
+
+	bool bFound = false;
+	const bool bPartialRHS = EnumHasAnyFlags(InMatchFlags, ECoreRedirectMatchFlags::AllowPartialMatch);
+
+	// Substring implies prefix and suffix matches. For wildcard matches we must search all three
+	// types as each can be defined distinctly
+	const bool bSubstringMatch = EnumHasAllFlags(InFlags, ECoreRedirectFlags::Option_MatchSubstring);
+	const bool bPrefixMatch = EnumHasAllFlags(InFlags, ECoreRedirectFlags::Option_MatchPrefix);
+	const bool bSuffixMatch = EnumHasAllFlags(InFlags, ECoreRedirectFlags::Option_MatchSuffix);
+
+	// Creating the string form of InName is expensive so early out if we know we can
+	if ((!bSubstringMatch && !bPrefixMatch && !bSuffixMatch) ||
+		(Prefixes.IsEmpty() && Suffixes.IsEmpty() && Substrings.IsEmpty()))
+	{
+		return false;
+	}
+
+	const FCoreRedirectObjectUtf8Name ObjectUtf8Name(InName);
+	if (bPrefixMatch)
+	{
+		for (const FCoreRedirect& CheckRedirect : Prefixes)
+		{
+			if (MatchPrefix(CheckRedirect.OldName, ObjectUtf8Name, true /*bPartialLHS*/, bPartialRHS))
+			{
+				bFound = true;
+				OutFoundRedirects.Add(&CheckRedirect);
+			}
+		}
+	}
+
+	if (bSuffixMatch)
+	{
+		for (const FCoreRedirect& CheckRedirect : Suffixes)
+		{
+			if (MatchSuffix(CheckRedirect.OldName, ObjectUtf8Name, true /*bPartialLHS*/, bPartialRHS))
+			{
+				bFound = true;
+				OutFoundRedirects.Add(&CheckRedirect);
+			}
+		}
+	}
+	
+	if (bSubstringMatch && !Substrings.IsEmpty())
+	{
+		COREREDIRECT_STATS_UPDATE_PREDICTION_LOOKUP();
+		// Perform a fuzzy match against all known substrings. We may have false positives
+		// so we must still perform a stronger check on a fuzzy match. However we can eliminate
+		// the common failure case quickly with a fast fuzzy match.
+		if (MatchSubstringApproximate(ObjectUtf8Name))
+		{
+			// We found a possible substring match, so now do a slow match to find if we really match
+			for (const FCoreRedirect& CheckRedirect : Substrings)
+			{
+				if (MatchSubstring(CheckRedirect.OldName, ObjectUtf8Name, true /*bPartialLHS*/, bPartialRHS))
+				{
+					bFound = true;
+					OutFoundRedirects.Add(&CheckRedirect);
+				}
+			}
+			COREREDIRECT_STATS_UPDATE_PREDICTION_RESULT(bFound);
+		}
+	}
+
+	return bFound;
 }
 
 bool FCoreRedirectObjectName::Matches(const FCoreRedirectObjectName& Other, EMatchFlags MatchFlags) const
 {
+	using namespace UE::CoreRedirects::Private;
+
 	bool bPartialLHS = !EnumHasAnyFlags(MatchFlags, EMatchFlags::DisallowPartialLHSMatch);
 	bool bPartialRHS = EnumHasAnyFlags(MatchFlags, EMatchFlags::AllowPartialRHSMatch);
-	bool bSubString = EnumHasAllFlags(MatchFlags, EMatchFlags::CheckSubString);
+	bool bSubstring = EnumHasAllFlags(MatchFlags, EMatchFlags::CheckSubString);
+	bool bPrefix = EnumHasAllFlags(MatchFlags, EMatchFlags::CheckPrefix);
+	bool bSuffix = EnumHasAllFlags(MatchFlags, EMatchFlags::CheckSuffix);
 
-	auto FieldMatches = [bPartialLHS, bPartialRHS, bSubString](FName LHS, FName RHS)
+	// Substring implies prefix and suffix so we must check it first
+	if (bSubstring)
 	{
-		if (LHS.IsNone() || RHS.IsNone())
+		return MatchSubstring(*this, Other, bPartialLHS, bPartialRHS);
+	}
+	else if(bPrefix)
+	{
+		return MatchPrefix(*this, Other, bPartialLHS, bPartialRHS);
+	}
+	else if (bSuffix)
+	{
+		return MatchSuffix(*this, Other, bPartialLHS, bPartialRHS);
+	}
+
+	auto FieldMatches = [bPartialLHS, bPartialRHS, bSubstring, bPrefix, bSuffix](FName LHS, FName RHS)
+	{
+		if (LHS == RHS)
+			return true;
+
+		const bool bLHSIsNone = LHS.IsNone();
+		const bool bRHSIsNone = RHS.IsNone();
+		if (bLHSIsNone || bRHSIsNone)
 		{
-			return LHS == RHS || ((!LHS.IsNone() || bPartialLHS) && (!RHS.IsNone() || bPartialRHS));
+			return (!bLHSIsNone || bPartialLHS) && (!bRHSIsNone || bPartialRHS);
 		}
-		else if (bSubString)
-		{
-			// Much slower, see if RHS contains the substring LHS.
-			return INDEX_NONE != UE::String::FindFirst(WriteToString<FName::StringBufferSize>(RHS), WriteToString<FName::StringBufferSize>(LHS), ESearchCase::IgnoreCase);
-		}
-		else
-		{
-			return LHS == RHS;
-		}
+
+		return false;
 	};
+
 	if (!FieldMatches(ObjectName, Other.ObjectName))
 	{
 		return false;
@@ -188,18 +783,31 @@ void FCoreRedirectObjectName::UnionFieldsInline(const FCoreRedirectObjectName& O
 	}
 }
 
+FName FCoreRedirectObjectName::GetSearchKey(ECoreRedirectFlags Type) const
+{
+	if (EnumHasAnyFlags(Type, ECoreRedirectFlags::Type_Package | ECoreRedirectFlags::Type_Asset))
+	{
+		return PackageName;
+	}
+
+	return ObjectName;
+}
+
 bool FCoreRedirectObjectName::HasValidCharacters(ECoreRedirectFlags Type) const
 {
 	static FString InvalidRedirectCharacters = TEXT("\"',|&!~\n\r\t@#(){}[]=;^%$`");
 	static FString InvalidObjectRedirectCharacters = TEXT(".\n\r\t"); // Object and field names in Blueprints are very permissive...
 
-	return ObjectName.IsValidXName(EnumHasAnyFlags(Type, ECoreRedirectFlags::Type_Object | ECoreRedirectFlags::Type_Property | ECoreRedirectFlags::Type_Function) ? InvalidObjectRedirectCharacters : InvalidRedirectCharacters)
+	return ObjectName.IsValidXName(
+		EnumHasAnyFlags(Type, ECoreRedirectFlags::Type_Object | ECoreRedirectFlags::Type_Property| ECoreRedirectFlags::Type_Function)
+		? InvalidObjectRedirectCharacters : InvalidRedirectCharacters)
 		&& OuterName.IsValidXName(InvalidRedirectCharacters) && PackageName.IsValidXName(InvalidRedirectCharacters);
 }
 
-bool FCoreRedirectObjectName::ExpandNames(const FString& InString, FName& OutName, FName& OutOuter, FName &OutPackage)
+bool FCoreRedirectObjectName::ExpandNames(const FStringView InStringView, FName& OutName, FName& OutOuter, FName &OutPackage)
 {
-	FString FullString = InString.TrimStartAndEnd();
+	FStringView FullStringView = InStringView.TrimStartAndEnd();
+	FullStringView.TrimStartAndEndInline();
 
 	// Parse (/path.)?(outerchain.)?(name) where path and outerchain are optional
 	// We also need to support (/path.)?(singleouter:)?(name) because the second delimiter in a chain is : for historical reasons
@@ -208,11 +816,9 @@ bool FCoreRedirectObjectName::ExpandNames(const FString& InString, FName& OutNam
 	int32 LastPeriodIndex = INDEX_NONE;
 	int32 FirstColonIndex = INDEX_NONE;
 	int32 LastColonIndex = INDEX_NONE;
-
-	FullString.FindChar(TEXT('/'), SlashIndex);
-
-	FullString.FindChar(TEXT('.'), FirstPeriodIndex);
-	FullString.FindChar(TEXT(':'), FirstColonIndex);
+	FullStringView.FindChar(TEXT('/'), SlashIndex);
+	FullStringView.FindChar(TEXT('.'), FirstPeriodIndex);
+	FullStringView.FindChar(TEXT(':'), FirstColonIndex);
 
 	if (FirstColonIndex != INDEX_NONE && (FirstPeriodIndex == INDEX_NONE || FirstColonIndex < FirstPeriodIndex))
 	{
@@ -225,17 +831,17 @@ bool FCoreRedirectObjectName::ExpandNames(const FString& InString, FName& OutNam
 		// If start with /, fill in package name, otherwise name
 		if (SlashIndex != INDEX_NONE)
 		{
-			OutPackage = FName(*FullString);
+			OutPackage = FName(FullStringView);
 		}
 		else
 		{
-			OutName = FName(*FullString);
+			OutName = FName(FullStringView);
 		}
 		return true;
 	}
 
-	FullString.FindLastChar(TEXT('.'), LastPeriodIndex);
-	FullString.FindLastChar(TEXT(':'), LastColonIndex);
+	FullStringView.FindLastChar(TEXT('.'), LastPeriodIndex);
+	FullStringView.FindLastChar(TEXT(':'), LastColonIndex);
 
 	if (LastColonIndex != INDEX_NONE && (LastPeriodIndex == INDEX_NONE || LastColonIndex > LastPeriodIndex))
 	{
@@ -246,19 +852,19 @@ bool FCoreRedirectObjectName::ExpandNames(const FString& InString, FName& OutNam
 	if (SlashIndex == INDEX_NONE)
 	{
 		// No /, so start from beginning. There must be an outer if we got this far
-		OutOuter = FName(*FullString.Mid(0, LastPeriodIndex));
+		OutOuter = FName(FullStringView.Mid(0, LastPeriodIndex));
 	}
 	else
 	{
-		OutPackage = FName(*FullString.Left(FirstPeriodIndex));
+		OutPackage = FName(FullStringView.Left(FirstPeriodIndex));
 		if (FirstPeriodIndex != LastPeriodIndex)
 		{
 			// Extract Outer between periods
-			OutOuter = FName(*FullString.Mid(FirstPeriodIndex + 1, LastPeriodIndex - FirstPeriodIndex - 1));
+			OutOuter = FName(FullStringView.Mid(FirstPeriodIndex + 1, LastPeriodIndex - FirstPeriodIndex - 1));
 		}
 	}
 
-	OutName = FName(*FullString.Mid(LastPeriodIndex + 1));
+	OutName = FName(FullStringView.Mid(LastPeriodIndex + 1));
 
 	return true;
 }
@@ -271,7 +877,6 @@ FString FCoreRedirectObjectName::CombineNames(FName NewName, FName NewOuter, FNa
 	{
 		// If Outer is simple, need to use : instead of . because : is used for second delimiter only
 		FString OuterString = NewOuter.ToString();
-
 		int32 DelimIndex = INDEX_NONE;
 
 		if (OuterString.FindChar(TEXT('.'), DelimIndex) || OuterString.FindChar(TEXT(':'), DelimIndex))
@@ -392,7 +997,7 @@ const TCHAR* FCoreRedirect::ParseValueChanges(const TCHAR* Buffer)
 	}
 }
 
-static FORCEINLINE bool CheckRedirectFlagsMatch(ECoreRedirectFlags FlagsA, ECoreRedirectFlags FlagsB)
+static bool CheckRedirectFlagsMatch(ECoreRedirectFlags FlagsA, ECoreRedirectFlags FlagsB)
 {
 	// For type, check it includes the matching type
 	const bool bTypesOverlap = !!((FlagsA & FlagsB) & ECoreRedirectFlags::Type_AllMask);
@@ -401,7 +1006,6 @@ static FORCEINLINE bool CheckRedirectFlagsMatch(ECoreRedirectFlags FlagsA, ECore
 	const bool bCategoriesMatch = (FlagsA & ECoreRedirectFlags::Category_AllMask) == (FlagsB & ECoreRedirectFlags::Category_AllMask);
 
 	// Options are not considered in this function; Flags will match at this point regardless of their bits in Options_AllMask
-
 	return bTypesOverlap && bCategoriesMatch;
 }
 
@@ -413,21 +1017,42 @@ bool FCoreRedirect::Matches(ECoreRedirectFlags InFlags, const FCoreRedirectObjec
 	{
 		return false;
 	}
+
+	if (EnumHasAnyFlags(InFlags, ECoreRedirectFlags::Type_Asset))
+	{
+		// Type_Asset matches should always be exact. They will either exactly match a package entry or an object entry
+		MatchFlags |= ECoreRedirectMatchFlags::DisallowPartialLHSMatch;
+	}
+
 	return Matches(InName, MatchFlags);
 }
-
 
 bool FCoreRedirect::Matches(const FCoreRedirectObjectName& InName, ECoreRedirectMatchFlags MatchFlags) const
 {
 	FCoreRedirectObjectName::EMatchFlags NameMatchFlags = FCoreRedirectObjectName::EMatchFlags::None;
-	if (IsSubstringMatch())
-	{
-		NameMatchFlags |= FCoreRedirectObjectName::EMatchFlags::CheckSubString;
-	}
+
 	if (EnumHasAllFlags(MatchFlags, ECoreRedirectMatchFlags::AllowPartialMatch))
 	{
 		NameMatchFlags |= FCoreRedirectObjectName::EMatchFlags::AllowPartialRHSMatch;
 	}
+
+	if (EnumHasAllFlags(MatchFlags, ECoreRedirectMatchFlags::DisallowPartialLHSMatch))
+	{
+		NameMatchFlags |= FCoreRedirectObjectName::EMatchFlags::DisallowPartialLHSMatch;
+	}
+	if (IsSubstringMatch())
+	{
+		NameMatchFlags |= FCoreRedirectObjectName::EMatchFlags::CheckSubString;
+	}
+	else if (IsPrefixMatch())
+	{
+		NameMatchFlags |= FCoreRedirectObjectName::EMatchFlags::CheckPrefix;
+	}
+	else if (IsSuffixMatch())
+	{
+		NameMatchFlags |= FCoreRedirectObjectName::EMatchFlags::CheckSuffix;
+	}
+
 	return OldName.Matches(InName, NameMatchFlags);
 }
 
@@ -438,70 +1063,267 @@ bool FCoreRedirect::HasValueChanges() const
 
 bool FCoreRedirect::IsSubstringMatch() const
 {
-	return !!(RedirectFlags & ECoreRedirectFlags::Option_MatchSubstring);
+	return EnumHasAllFlags(RedirectFlags, ECoreRedirectFlags::Option_MatchSubstring);
 }
 
-FCoreRedirectObjectName FCoreRedirect::RedirectName(const FCoreRedirectObjectName& OldObjectName) const
+FCoreRedirectObjectName FCoreRedirect::RedirectName(const FCoreRedirectObjectName& OldObjectName, bool bIsKnownToMatch) const
 {
-	FCoreRedirectObjectName ModifyName(OldObjectName);
+	using namespace UE::CoreRedirects::Private;
+
+	const bool bIsSubstringMatch = IsSubstringMatch();
+	const bool bIsPrefixMatch = IsPrefixMatch();
+	const bool bIsSuffixMatch = IsSuffixMatch();
+
+	auto ConvertNames = [bIsSubstringMatch, bIsPrefixMatch, bIsSuffixMatch, bIsKnownToMatch](FName CurrentName,
+		FName RedirectOldName, FName RedirectNewName)
+		{
+			if ((RedirectOldName != RedirectNewName) && !CurrentName.IsNone())
+			{
+				if (RedirectOldName.IsNone())
+				{
+					return RedirectNewName;
+				}
+
+				if (bIsSubstringMatch)
+				{
+					FNameUtf8String OutName(CurrentName);
+					FNameUtf8String Substring(RedirectOldName);
+					FNameUtf8String ReplacementName(RedirectNewName);
+					int ReplacePos = UE::String::FindFirst(OutName, Substring, ESearchCase::IgnoreCase);
+
+					if (!bIsKnownToMatch && ReplacePos == INDEX_NONE)
+					{
+						return CurrentName;
+					}
+					check(ReplacePos != INDEX_NONE);
+
+					OutName.ReplaceAt(ReplacePos, Substring.Len(), ReplacementName);
+					return FName(OutName);
+				}
+				else if (bIsPrefixMatch)
+				{
+					FNameUtf8String OutName(CurrentName);
+					FNameUtf8String Prefix(RedirectOldName);
+					FNameUtf8String ReplacementName(RedirectNewName);
+
+					if (!bIsKnownToMatch && !OutName.StartsWith(Prefix, ESearchCase::IgnoreCase))
+					{
+						return CurrentName;
+					}
+					// bKnownToMatch implies FPrefixMatcher::Matches(CurrentName, RedirectOldName), 
+					// so OutName.StartsWith(Prefix) is true, so we skip the stringcompare
+					check(OutName.Len() >= Prefix.Len());
+
+					OutName.ReplaceAt(0, Prefix.Len(), ReplacementName);
+					return FName(OutName);
+				}
+				else if (bIsSuffixMatch)
+				{
+					FNameUtf8String OutName(CurrentName);
+					FNameUtf8String Suffix(RedirectOldName);
+					FNameUtf8String ReplacementName(RedirectNewName);
+
+					if (!bIsKnownToMatch && !OutName.EndsWith(Suffix, ESearchCase::IgnoreCase))
+					{
+						return CurrentName;
+					}
+					// bKnownToMatch implies FSuffixMatcher::Matches(CurrentName, RedirectOldName), 
+					// so OutName.EndsWith(Suffix) is true, so we skip the stringcompare
+					check(OutName.Len() >= Suffix.Len());
+
+					OutName.ReplaceAt(OutName.Len() - Suffix.Len(), Suffix.Len(), ReplacementName);
+					return FName(OutName);
+				}
+				else
+				{
+					return RedirectNewName;
+				}
+			}
+			return CurrentName;
+		};
 
 	// Convert names that are different and non empty
-	if (OldName.ObjectName != NewName.ObjectName && !ModifyName.ObjectName.IsNone())
+	FCoreRedirectObjectName ModifyName(OldObjectName);
+	ModifyName.ObjectName = ConvertNames(OldObjectName.ObjectName, OldName.ObjectName, NewName.ObjectName);
+
+	if (OldName.OuterName == NewName.OuterName)
 	{
-		if (IsSubstringMatch())
-		{
-			ModifyName.ObjectName = FName(*OldObjectName.ObjectName.ToString().Replace(*OldName.ObjectName.ToString(), *NewName.ObjectName.ToString()));
-		}
-		else
-		{
-			ModifyName.ObjectName = NewName.ObjectName;
-		}
-	}
-	// If package name and object name are specified, copy outer also it was set to null explicitly
-	if ((OldName.OuterName != NewName.OuterName || (NewName.PackageName != NAME_None && NewName.ObjectName != NAME_None)) && !ModifyName.OuterName.IsNone())
-	{
-		if (IsSubstringMatch())
-		{
-			ModifyName.OuterName = FName(*OldObjectName.OuterName.ToString().Replace(*OldName.OuterName.ToString(), *NewName.OuterName.ToString()));
-		}
-		else
+		// If package name and object name are specified, overwrite outer also since it was set to null explicitly
+		if (OldName.OuterName.IsNone() && !NewName.PackageName.IsNone() && !NewName.ObjectName.IsNone() && !ModifyName.OuterName.IsNone())
 		{
 			ModifyName.OuterName = NewName.OuterName;
 		}
 	}
-	if (OldName.PackageName != NewName.PackageName && !ModifyName.PackageName.IsNone())
+	else
 	{
-		if (IsSubstringMatch())
-		{
-			ModifyName.PackageName = FName(*OldObjectName.PackageName.ToString().Replace(*OldName.PackageName.ToString(), *NewName.PackageName.ToString()));
-		}
-		else
-		{
-			ModifyName.PackageName = NewName.PackageName;
-		}
+		ModifyName.OuterName = ConvertNames(OldObjectName.OuterName, OldName.OuterName, NewName.OuterName);
 	}
+	
+	ModifyName.PackageName = ConvertNames(OldObjectName.PackageName, OldName.PackageName, NewName.PackageName);
 
 	return ModifyName;
+}
+
+FCoreRedirectObjectName FCoreRedirect::RedirectName(const FCoreRedirectObjectName& OldObjectName) const
+{
+	return RedirectName(OldObjectName, false /* bIsKnownToMatch */);
 }
 
 bool FCoreRedirect::IdenticalMatchRules(const FCoreRedirect& Other) const
 {
 	// All types now use the full path
-	ECoreRedirectFlags TypeFlags = RedirectFlags & ECoreRedirectFlags::Type_AllMask;
 	return RedirectFlags == Other.RedirectFlags && OldName == Other.OldName;
 }
 
+void FCoreRedirect::AppendHash(FBlake3& Hasher) const
+{
+	Hasher.Update(&RedirectFlags, sizeof(RedirectFlags));
+	OldName.AppendHash(Hasher);
+	NewName.AppendHash(Hasher);
+	OverrideClassName.AppendHash(Hasher);
+	TArray<TPair<FString, FString>> ValueArray = ValueChanges.Array();
+	Algo::Sort(ValueArray);
+	for (const TPair<FString, FString>& Pair : ValueArray)
+	{
+		Hasher.Update(*Pair.Key, Pair.Key.Len() * sizeof((*Pair.Key)[0]));
+		Hasher.Update(*Pair.Value, Pair.Value.Len() * sizeof((*Pair.Value)[0]));
+	}
+}
 
-bool FCoreRedirects::bInitialized = false;
-bool FCoreRedirects::bInDebugMode = false;
+int FCoreRedirect::Compare(const FCoreRedirect& Other) const
+{
+	if (RedirectFlags != Other.RedirectFlags)
+	{
+		return RedirectFlags < Other.RedirectFlags ? -1 : 1;
+	}
+	int Compare = OldName.Compare(Other.OldName);
+	if (Compare != 0)
+	{
+		return Compare;
+	}
+	Compare = NewName.Compare(Other.NewName);
+	if (Compare != 0)
+	{
+		return Compare;
+	}
+	Compare = OverrideClassName.Compare(Other.OverrideClassName);
+	if (Compare != 0)
+	{
+		return Compare;
+	}
+	Compare = Algo::CompareMap(ValueChanges, Other.ValueChanges);
+	if (Compare != 0)
+	{
+		return Compare;
+	}
+
+	return 0;
+}
+
+void FCoreRedirectObjectName::AppendHash(FBlake3& Hasher) const
+{
+	FNameBuilder NameStr;
+	int32 Marker = 0xabacadab;
+	if (!PackageName.IsNone())
+	{
+		NameStr << PackageName;
+		Hasher.Update(NameStr.GetData(), NameStr.Len() * sizeof(NameStr.GetData()[0]));
+	}
+	Hasher.Update(&Marker, sizeof(Marker));
+	if (!OuterName.IsNone())
+	{
+		NameStr.Reset();
+		NameStr << OuterName;
+		Hasher.Update(NameStr.GetData(), NameStr.Len() * sizeof(NameStr.GetData()[0]));
+	}
+	Hasher.Update(&Marker, sizeof(Marker));
+	if (!ObjectName.IsNone())
+	{
+		NameStr.Reset();
+		NameStr << ObjectName;
+		Hasher.Update(NameStr.GetData(), NameStr.Len() * sizeof(NameStr.GetData()[0]));
+	}
+	Hasher.Update(&Marker, sizeof(Marker));
+}
+
+int FCoreRedirectObjectName::Compare(const FCoreRedirectObjectName& Other) const
+{
+	if (PackageName != Other.PackageName)
+	{
+		return PackageName.Compare(Other.PackageName);
+	}
+	if (OuterName != Other.OuterName)
+	{
+		return OuterName.Compare(Other.OuterName);
+	}
+	if (ObjectName != Other.ObjectName)
+	{
+		return ObjectName.Compare(Other.ObjectName);
+	}
+	return 0;
+}
+
+std::atomic<bool> FCoreRedirects::bInitialized = false;
+std::atomic<bool> FCoreRedirects::bInDebugMode = false;
 bool FCoreRedirects::bValidatedOnce = false;
-#if WITH_COREREDIRECTS_MULTITHREAD_WARNING
-bool FCoreRedirects::bIsInMultithreadedPhase = false;
-#endif
 
 TMap<FName, ECoreRedirectFlags> FCoreRedirects::ConfigKeyMap;
 FCoreRedirects::FRedirectTypeMap FCoreRedirects::RedirectTypeMap;
-FRWLock FCoreRedirects::KnownMissingLock;
+FCoreRedirects::FRWLockWithExclusiveRecursion FCoreRedirects::RWLock;
+
+namespace UE::CoreRedirects::Private
+{
+class FRWWithExclusiveRecursionScopeLockForRead
+{
+public:
+	explicit FRWWithExclusiveRecursionScopeLockForRead(FCoreRedirects::FRWLockWithExclusiveRecursion& InLock)
+	: InternalLock(InLock)
+	, NeedsUnlock(true)
+	{
+		UE_AUTORTFM_OPEN { InternalLock.ReadLock(); };
+		AutoRTFM::PushOnAbortHandler(this, [this] { this->InternalLock.ReadUnlock(); });
+	}
+
+	~FRWWithExclusiveRecursionScopeLockForRead()
+	{
+		if (NeedsUnlock)
+		{
+			AutoRTFM::PopOnAbortHandler(this);
+			UE_AUTORTFM_OPEN { InternalLock.ReadUnlock(); };
+		}
+	}
+protected:
+
+	enum class EInitFlag
+	{
+		InitFlag
+	};
+
+	FRWWithExclusiveRecursionScopeLockForRead(FCoreRedirects::FRWLockWithExclusiveRecursion& InLock, EInitFlag Unused)
+	: InternalLock(InLock)
+	, NeedsUnlock(false)
+	{}
+
+	FCoreRedirects::FRWLockWithExclusiveRecursion& InternalLock;
+	bool NeedsUnlock;
+};
+
+class FRWWithExclusiveRecursionScopeLockForWrite :  public FRWWithExclusiveRecursionScopeLockForRead
+{
+public:
+	explicit FRWWithExclusiveRecursionScopeLockForWrite(FCoreRedirects::FRWLockWithExclusiveRecursion& InLock)
+	: FRWWithExclusiveRecursionScopeLockForRead(InLock, EInitFlag::InitFlag)
+	{
+		InternalLock.WriteLock();
+	}
+
+	~FRWWithExclusiveRecursionScopeLockForWrite()
+	{
+		InternalLock.WriteUnlock();
+	}
+};
+
+}
 
 FCoreRedirects::FRedirectNameMap& FCoreRedirects::FRedirectTypeMap::FindOrAdd(ECoreRedirectFlags Key)
 {
@@ -512,8 +1334,9 @@ FCoreRedirects::FRedirectNameMap& FCoreRedirects::FRedirectTypeMap::FindOrAdd(EC
 	}
 
 	TPair<ECoreRedirectFlags, FRedirectNameMap>* OldData = FastIterable.GetData();
-	TPair<ECoreRedirectFlags, FRedirectNameMap>& NewPair =
-		FastIterable.Emplace_GetRef(Key, FRedirectNameMap());
+	TPair<ECoreRedirectFlags, FRedirectNameMap>& NewPair = FastIterable.Emplace_GetRef(Key, FRedirectNameMap());
+
+	// Check to ensure FastIterable did not reallocate after emplacement
 	if (FastIterable.GetData() == OldData)
 	{
 		NameMap = &NewPair.Value;
@@ -526,6 +1349,12 @@ FCoreRedirects::FRedirectNameMap& FCoreRedirects::FRedirectTypeMap::FindOrAdd(EC
 			Map.Add(Pair.Key, &Pair.Value);
 		}
 	}
+
+	if (EnumHasAnyFlags(Key, ECoreRedirectFlags::Option_MatchWildcardMask))
+	{
+		NewPair.Value.Wildcards.Reset(new FWildcardData());
+	}
+	
 	return NewPair.Value;
 }
 
@@ -542,124 +1371,162 @@ void FCoreRedirects::FRedirectTypeMap::Empty()
 
 void FCoreRedirects::Initialize()
 {
-	if (bInitialized)
+	ensureMsgf(IsInGameThread(), TEXT("FCoreRedirects can only be initialized on the game thread."));
+	if (bInitialized.load(std::memory_order_relaxed))
 	{
 		return;
 	}
-	bInitialized = true;
-
-#if !UE_BUILD_SHIPPING && !NO_LOGGING
-	if (FParse::Param(FCommandLine::Get(), TEXT("FullDebugCoreRedirects")))
+	
 	{
-		// Enable debug mode and set to maximum verbosity
-		bInDebugMode = true;
-		LogCoreRedirects.SetVerbosity(ELogVerbosity::VeryVerbose);
-		FCoreDelegates::OnFEngineLoopInitComplete.AddStatic(ValidateAllRedirects);
+		FCoreRedirectorScopeLockForWrite ScopeLock(RWLock);
+
+#if !UE_BUILD_SHIPPING
+		if (FParse::Param(FCommandLine::Get(), TEXT("FullDebugCoreRedirects")))
+		{
+			// Enable debug mode and set to maximum verbosity
+			bInDebugMode.store(true, std::memory_order_relaxed);
+			UE_SET_LOG_VERBOSITY(LogCoreRedirects, VeryVerbose);
+			FCoreDelegates::OnFEngineLoopInitComplete.AddStatic(ValidateAllRedirects);
+		}
+		else if (FParse::Param(FCommandLine::Get(), TEXT("DebugCoreRedirects")))
+		{
+			// Enable debug mode and increase log levels but don't show every message
+			bInDebugMode.store(true, std::memory_order_relaxed);
+			UE_SET_LOG_VERBOSITY(LogCoreRedirects, Verbose);
+			FCoreDelegates::OnFEngineLoopInitComplete.AddStatic(ValidateAllRedirects);
+		}
+#endif
+
+		// Setup map
+		ConfigKeyMap.Add(TEXT("ObjectRedirects"), ECoreRedirectFlags::Type_Object);
+		ConfigKeyMap.Add(TEXT("ClassRedirects"), ECoreRedirectFlags::Type_Class);
+		ConfigKeyMap.Add(TEXT("StructRedirects"), ECoreRedirectFlags::Type_Struct);
+		ConfigKeyMap.Add(TEXT("EnumRedirects"), ECoreRedirectFlags::Type_Enum);
+		ConfigKeyMap.Add(TEXT("FunctionRedirects"), ECoreRedirectFlags::Type_Function);
+		ConfigKeyMap.Add(TEXT("PropertyRedirects"), ECoreRedirectFlags::Type_Property);
+		ConfigKeyMap.Add(TEXT("PackageRedirects"), ECoreRedirectFlags::Type_Package);
+		ConfigKeyMap.Add(TEXT("AssetRedirects"), ECoreRedirectFlags::Type_Asset);
+
+		RegisterNativeRedirectsUnderWriteLock(ScopeLock);
+
+		// Prepopulate RedirectTypeMap entries that some threads write to after the engine goes multi-threaded.
+		// Most RedirectTypeMap entries are written to only from InitUObject's call to ReadRedirectsFromIni, and at that point the Engine is single-threaded.
+		// Known missing packages and plugin loads can add entries to existing lists but will not add brand new types.
+		// Taking advantage of this, we treat the list of Key/Value pairs of RedirectTypeMap as immutable and read from it without synchronization.
+		// Note that the values for those written-during-multithreading entries need to be synchronized; it is only the list of Key/Value pairs that is immutable.
+		RedirectTypeMap.FindOrAdd(ECoreRedirectFlags::Type_Package | ECoreRedirectFlags::Category_Removed | ECoreRedirectFlags::Option_MissingLoad);
+
+		bInitialized.store(true, std::memory_order_release);
 	}
-	else if (FParse::Param(FCommandLine::Get(), TEXT("DebugCoreRedirects")))
-	{
-		// Enable debug mode and increase log levels but don't show every message
-		bInDebugMode = true;
-		LogCoreRedirects.SetVerbosity(ELogVerbosity::Verbose);
-		FCoreDelegates::OnFEngineLoopInitComplete.AddStatic(ValidateAllRedirects);
-	}
-#endif
-
-#if WITH_COREREDIRECTS_MULTITHREAD_WARNING
-	// Setting IsInMultithreadedPhase has to occur after LoadModule("AssetRegistry") (which can write to FCoreRedirects) and
-	// before the first package is queued onto the async loading thread (which reads from FCoreRedirects multithreaded). OnPostEngineInit is in that window.
-	FCoreDelegates::OnPostEngineInit.AddStatic(EnterMultithreadedPhase);
-#endif
-
-	// Setup map
-	ConfigKeyMap.Add(TEXT("ObjectRedirects"), ECoreRedirectFlags::Type_Object);
-	ConfigKeyMap.Add(TEXT("ClassRedirects"), ECoreRedirectFlags::Type_Class);
-	ConfigKeyMap.Add(TEXT("StructRedirects"), ECoreRedirectFlags::Type_Struct);
-	ConfigKeyMap.Add(TEXT("EnumRedirects"), ECoreRedirectFlags::Type_Enum);
-	ConfigKeyMap.Add(TEXT("FunctionRedirects"), ECoreRedirectFlags::Type_Function);
-	ConfigKeyMap.Add(TEXT("PropertyRedirects"), ECoreRedirectFlags::Type_Property);
-	ConfigKeyMap.Add(TEXT("PackageRedirects"), ECoreRedirectFlags::Type_Package);
-
-	RegisterNativeRedirects();
-
-	// Prepopulate RedirectTypeMap entries that some threads write to after the engine goes multi-threaded.
-	// Most RedirectTypeMap entries are written to only from InitUObject's call to ReadRedirectsFromIni, and at that point the Engine is single-threaded.
-	// Known missing packages and plugin loads can add entries to existing lists but will not add brand new types.
-	// Taking advantage of this, we treat the list of Key/Value pairs of RedirectTypeMap as immutable and read from it without synchronization.
-	// Note that the values for those written-during-multithreading entries need to be synchronized; it is only the list of Key/Value pairs that is immutable.
-#if WITH_COREREDIRECTS_MULTITHREAD_WARNING
-	check(!bIsInMultithreadedPhase);
-#endif
-	RedirectTypeMap.FindOrAdd(ECoreRedirectFlags::Type_Package | ECoreRedirectFlags::Category_Removed | ECoreRedirectFlags::Option_MissingLoad);
-
 	// Enable to run startup tests
-	//RunTests();
+	// RunTests();
 }
-
-#if WITH_COREREDIRECTS_MULTITHREAD_WARNING
-void FCoreRedirects::EnterMultithreadedPhase()
-{
-	bIsInMultithreadedPhase = true;
-}
-#endif
 
 bool FCoreRedirects::RedirectNameAndValues(ECoreRedirectFlags Type, const FCoreRedirectObjectName& OldObjectName,
 	FCoreRedirectObjectName& NewObjectName, const FCoreRedirect** FoundValueRedirect, ECoreRedirectMatchFlags MatchFlags)
 {
+	FCoreRedirectorScopeLockForRead ScopeLock(RWLock);
+	return RedirectNameAndValuesUnderReadLock(Type, OldObjectName, NewObjectName, FoundValueRedirect, MatchFlags, ScopeLock);
+}
+
+bool FCoreRedirects::RedirectNameAndValuesUnderReadLock(ECoreRedirectFlags Type, const FCoreRedirectObjectName& OldObjectName,
+	FCoreRedirectObjectName& NewObjectName, const FCoreRedirect** FoundValueRedirect, ECoreRedirectMatchFlags MatchFlags,
+	const FCoreRedirectorScopeLockForRead& HeldLock)
+{
+	auto ProcessRedirect = [&FoundValueRedirect, OldObjectName](const FCoreRedirect* Redirect, const FCoreRedirectObjectName& NewObjectName)
+	{
+		if (FoundValueRedirect && (Redirect->HasValueChanges() || Redirect->OverrideClassName.IsValid()))
+		{
+			if (*FoundValueRedirect)
+			{
+				if ((*FoundValueRedirect)->ValueChanges.OrderIndependentCompareEqual(Redirect->ValueChanges) == false)
+				{
+					UE_LOG(LogCoreRedirects, Error, TEXT("RedirectNameAndValues(%s) found multiple conflicting value redirects, %s and %s!"),
+						*OldObjectName.ToString(), *(*FoundValueRedirect)->OldName.ToString(), *Redirect->OldName.ToString());
+				}
+			}
+			else
+			{
+				// Set value redirects for processing outside
+				*FoundValueRedirect = Redirect;
+			}
+		}
+
+		return Redirect->RedirectName(NewObjectName, true /* bIsKnownToMatch */);
+	};
+
 	NewObjectName = OldObjectName;
 	TArray<const FCoreRedirect*> FoundRedirects;
-
-	if (GetMatchingRedirects(Type, OldObjectName, FoundRedirects, MatchFlags))
+	if (GetMatchingRedirectsUnderReadLock(Type, OldObjectName, FoundRedirects, MatchFlags, HeldLock))
 	{
-		// Sort them based on match
-		FoundRedirects.Sort([&OldObjectName](const FCoreRedirect& A, const FCoreRedirect& B) { return A.OldName.MatchScore(OldObjectName) > B.OldName.MatchScore(OldObjectName); });
-
-		// Apply in order
-		for (int32 i = 0; i < FoundRedirects.Num(); i++)
+		if (FoundRedirects.Num() > 1)
 		{
-			const FCoreRedirect* Redirect = FoundRedirects[i];
+			// Sort them based on match
+			FoundRedirects.Sort([&OldObjectName](const FCoreRedirect& A, const FCoreRedirect& B) 
+				{ return A.OldName.MatchScore(OldObjectName) > B.OldName.MatchScore(OldObjectName); });
+			NewObjectName = ProcessRedirect(FoundRedirects[0], NewObjectName);
 
-			if (!Redirect)
+			// Apply in order
+			for (int32 i = 1; i < FoundRedirects.Num(); i++)
 			{
-				continue;
-			}
+				const FCoreRedirect* Redirect = FoundRedirects[i];
 
-			// Only apply if name match is still valid, if it already renamed part of it it may not apply any more. Don't want to check flags as those were checked in the gather step
-			if (Redirect->Matches(NewObjectName, MatchFlags))
-			{
-				if (FoundValueRedirect && (Redirect->HasValueChanges() || Redirect->OverrideClassName.IsValid()))
+				// Only apply if name match is still valid, if it already renamed part of it it may not apply any more. 
+				// Don't want to check flags as those were checked in the gather step
+				if (Redirect->Matches(NewObjectName, MatchFlags))
 				{
-					if (*FoundValueRedirect)
-					{
-						if ((*FoundValueRedirect)->ValueChanges.OrderIndependentCompareEqual(Redirect->ValueChanges) == false)
-						{
-							UE_LOG(LogCoreRedirects, Error, TEXT("RedirectNameAndValues(%s) found multiple conflicting value redirects, %s and %s!"), *OldObjectName.ToString(), *(*FoundValueRedirect)->OldName.ToString(), *Redirect->OldName.ToString());
-						}
-					}
-					else
-					{
-						// Set value redirects for processing outside
-						*FoundValueRedirect = Redirect;
-					}
+					NewObjectName = ProcessRedirect(Redirect, NewObjectName);
 				}
+			}
+		}
+		else
+		{
+			const FCoreRedirect* Redirect = FoundRedirects[0];
+			NewObjectName = ProcessRedirect(Redirect, NewObjectName);
+		}
+	}
 
-				NewObjectName = Redirect->RedirectName(NewObjectName);
+	const bool bDidRedirect = NewObjectName != OldObjectName;
+	UE_CLOG(IsInDebugMode() && bDidRedirect, LogCoreRedirects, Verbose,
+		TEXT("RedirectNameAndValues(%s) replaced by %s"), *OldObjectName.ToString(), *NewObjectName.ToString());
+	return bDidRedirect;
+}
+
+bool FCoreRedirects::ValidateAssetRedirectsUnderReadLock(const FCoreRedirectorScopeLockForRead& HeldLock)
+{
+	bool bValidationSucceeded = true;
+	FRedirectNameMap* RedirectNameMap = RedirectTypeMap.Find(ECoreRedirectFlags::Type_Asset);
+	if (RedirectNameMap != nullptr)
+	{
+		for (const TPair<FName, TArray<FCoreRedirect>>& Pair : RedirectNameMap->RedirectMap)
+		{
+			// Pairs are package --> redirects because the search key for Type_Asset is the package name
+			for (const FCoreRedirect& Redirect : Pair.Value)
+			{
+				const FCoreRedirectObjectName& SearchName = Redirect.NewName;
+
+				TArray<const FCoreRedirect*> MatchingRedirects;
+				GetMatchingRedirects(ECoreRedirectFlags::Type_Asset, SearchName, MatchingRedirects);
+				for (const FCoreRedirect* MatchingRedirect : MatchingRedirects)
+				{
+					UE_LOG(LogCoreRedirects, Warning, TEXT("Found redirect from existing redirect. Chained redirects will not be followed. %s --> %s --> %s"),
+						*Redirect.OldName.ToString(), *SearchName.ToString(), *MatchingRedirect->NewName.ToString());
+					bValidationSucceeded = false;
+				}
 			}
 		}
 	}
 
-	UE_CLOG(bInDebugMode && NewObjectName != OldObjectName, LogCoreRedirects, Verbose, 
-		TEXT("RedirectNameAndValues(%s) replaced by %s"), *OldObjectName.ToString(), *NewObjectName.ToString());
-
-	return NewObjectName != OldObjectName;
+	return bValidationSucceeded;
 }
 
 FCoreRedirectObjectName FCoreRedirects::GetRedirectedName(ECoreRedirectFlags Type,
 	const FCoreRedirectObjectName& OldObjectName, ECoreRedirectMatchFlags MatchFlags)
 {
+	FCoreRedirectorScopeLockForRead ScopeLock(RWLock);
 	FCoreRedirectObjectName NewObjectName;
 
-	RedirectNameAndValues(Type, OldObjectName, NewObjectName, nullptr, MatchFlags);
+	RedirectNameAndValuesUnderReadLock(Type, OldObjectName, NewObjectName, nullptr, MatchFlags, ScopeLock);
 
 	return NewObjectName;
 }
@@ -667,14 +1534,16 @@ FCoreRedirectObjectName FCoreRedirects::GetRedirectedName(ECoreRedirectFlags Typ
 const TMap<FString, FString>* FCoreRedirects::GetValueRedirects(ECoreRedirectFlags Type,
 	const FCoreRedirectObjectName& OldObjectName, ECoreRedirectMatchFlags MatchFlags)
 {
+	FCoreRedirectorScopeLockForRead ScopeLock(RWLock);
 	FCoreRedirectObjectName NewObjectName;
 	const FCoreRedirect* FoundRedirect = nullptr;
 
-	RedirectNameAndValues(Type, OldObjectName, NewObjectName, &FoundRedirect, MatchFlags);
+	RedirectNameAndValuesUnderReadLock(Type, OldObjectName, NewObjectName, &FoundRedirect, MatchFlags, ScopeLock);
 
 	if (FoundRedirect && FoundRedirect->ValueChanges.Num() > 0)
 	{
-		UE_CLOG(bInDebugMode, LogCoreRedirects, VeryVerbose, TEXT("GetValueRedirects found %d matches for %s"), FoundRedirect->ValueChanges.Num(), *OldObjectName.ToString());
+		UE_CLOG(IsInDebugMode() , LogCoreRedirects, VeryVerbose, TEXT("GetValueRedirects found %d matches for %s"),
+			FoundRedirect->ValueChanges.Num(), *OldObjectName.ToString());
 
 		return &FoundRedirect->ValueChanges;
 	}
@@ -685,14 +1554,25 @@ const TMap<FString, FString>* FCoreRedirects::GetValueRedirects(ECoreRedirectFla
 bool FCoreRedirects::GetMatchingRedirects(ECoreRedirectFlags SearchFlags, const FCoreRedirectObjectName& OldObjectName,
 	TArray<const FCoreRedirect*>& FoundRedirects, ECoreRedirectMatchFlags MatchFlags)
 {
+	FCoreRedirectorScopeLockForRead ScopeLock(RWLock);
+	return GetMatchingRedirectsUnderReadLock(SearchFlags, OldObjectName, FoundRedirects, MatchFlags, ScopeLock);
+}
+
+bool FCoreRedirects::GetMatchingRedirectsUnderReadLock(ECoreRedirectFlags SearchFlags, const FCoreRedirectObjectName& OldObjectName,
+	TArray<const FCoreRedirect*>& FoundRedirects, ECoreRedirectMatchFlags MatchFlags, const FCoreRedirectorScopeLockForRead& HeldLock)
+{
 	// Look for all redirects that match the given names and flags
 	bool bFound = false;
-	
+
+	// We always search Type_Asset as well as whatever is requested
+	// That is because asset redirectors can redirect packages (implicitly) and any UObject type (explicitly)
+	SearchFlags |= ECoreRedirectFlags::Type_Asset;
+
 	// If we're not explicitly searching for packages, and not looking for removed things, and not searching for partial matches
 	// based on ObjectName only, add the implicit (Type=Package,Category=None) redirects
 	const bool bSearchPackageRedirects = !(SearchFlags & ECoreRedirectFlags::Type_Package) &&
 		!(SearchFlags & ECoreRedirectFlags::Category_Removed) &&
-			(!(MatchFlags & ECoreRedirectMatchFlags::AllowPartialMatch) || !OldObjectName.PackageName.IsNone());
+		(!(MatchFlags & ECoreRedirectMatchFlags::AllowPartialMatch) || !OldObjectName.PackageName.IsNone());
 
 	// Determine list of maps to look over, need to handle being passed multiple types in a bit mask
 	for (const TPair<ECoreRedirectFlags, FRedirectNameMap>& Pair : RedirectTypeMap)
@@ -700,18 +1580,27 @@ bool FCoreRedirects::GetMatchingRedirects(ECoreRedirectFlags SearchFlags, const 
 		ECoreRedirectFlags PairFlags = Pair.Key;
 
 		// We need to check all maps that match the search or package flags
-		if (CheckRedirectFlagsMatch(PairFlags, SearchFlags) || (bSearchPackageRedirects && CheckRedirectFlagsMatch(PairFlags, ECoreRedirectFlags::Type_Package)))
+		if (CheckRedirectFlagsMatch(PairFlags, SearchFlags) || 
+			(bSearchPackageRedirects && CheckRedirectFlagsMatch(PairFlags, ECoreRedirectFlags::Type_Package)))
 		{
-			const TArray<FCoreRedirect>* RedirectsForName = Pair.Value.RedirectMap.Find(OldObjectName.GetSearchKey(PairFlags));
-
-			if (RedirectsForName)
+			if (EnumHasAnyFlags(PairFlags, ECoreRedirectFlags::Option_MatchWildcardMask))
 			{
-				for (const FCoreRedirect& CheckRedirect : *RedirectsForName)
+				const FWildcardData* Wildcards = Pair.Value.Wildcards.Get();
+				check(Wildcards);
+				bFound |= Wildcards->Matches(PairFlags, OldObjectName, MatchFlags, FoundRedirects);
+			}
+			else
+			{
+				const TArray<FCoreRedirect>* RedirectsForName = Pair.Value.RedirectMap.Find(OldObjectName.GetSearchKey(PairFlags));
+				if (RedirectsForName)
 				{
-					if (CheckRedirect.Matches(PairFlags, OldObjectName, MatchFlags))
+					for (const FCoreRedirect& CheckRedirect : *RedirectsForName)
 					{
-						bFound = true;
-						FoundRedirects.Add(&CheckRedirect);
+						if (CheckRedirect.Matches(PairFlags, OldObjectName, MatchFlags))
+						{
+							bFound = true;
+							FoundRedirects.Add(&CheckRedirect);
+						}
 					}
 				}
 			}
@@ -723,13 +1612,35 @@ bool FCoreRedirects::GetMatchingRedirects(ECoreRedirectFlags SearchFlags, const 
 
 bool FCoreRedirects::FindPreviousNames(ECoreRedirectFlags SearchFlags, const FCoreRedirectObjectName& NewObjectName, TArray<FCoreRedirectObjectName>& PreviousNames)
 {
+	FCoreRedirectorScopeLockForRead ScopeLock(RWLock);
+
 	// Look for reverse direction redirects
 	bool bFound = false;
 
 	// If we're not explicitly searching for packages or looking for removed things, add the implicit (Type=Package,Category=None) redirects
 	const bool bSearchPackageRedirects = !(SearchFlags & ECoreRedirectFlags::Type_Package) && !(SearchFlags & ECoreRedirectFlags::Category_Removed);
 
-	// Determine list of maps to look over, need to handle being passed multiple Flagss in a bit mask
+	// We always search Type_Asset as well as whatever is requested
+	// That is because asset redirectors can redirect packages (implicitly) and any UObject type (explicitly)
+	SearchFlags |= ECoreRedirectFlags::Type_Asset;
+
+	auto TryReverseRedirect = [](const FCoreRedirect& Redirect, const FCoreRedirectObjectName& NewObjectName, TArray<FCoreRedirectObjectName>& PreviousNames)
+		{
+			FCoreRedirect ReverseRedirect = FCoreRedirect(Redirect);
+			ReverseRedirect.OldName = Redirect.NewName;
+			ReverseRedirect.NewName = Redirect.OldName;
+
+			FCoreRedirectObjectName OldName = ReverseRedirect.RedirectName(NewObjectName, true /* bIsKnownToMatch */);
+
+			if (OldName != NewObjectName)
+			{
+				PreviousNames.AddUnique(OldName);
+				return true;
+			}
+			return false;
+		};
+
+	// Determine list of maps to look over, need to handle being passed multiple Flags in a bit mask
 	for (const TPair<ECoreRedirectFlags, FRedirectNameMap>& Pair : RedirectTypeMap)
 	{
 		ECoreRedirectFlags PairFlags = Pair.Key;
@@ -737,28 +1648,51 @@ bool FCoreRedirects::FindPreviousNames(ECoreRedirectFlags SearchFlags, const FCo
 		// We need to check all maps that match the search or package flags
 		if (CheckRedirectFlagsMatch(PairFlags, SearchFlags) || (bSearchPackageRedirects && CheckRedirectFlagsMatch(PairFlags, ECoreRedirectFlags::Type_Package)))
 		{
-			for (const TPair<FName, TArray<FCoreRedirect>>& RedirectPair : Pair.Value.RedirectMap)
+			if (EnumHasAnyFlags(PairFlags, ECoreRedirectFlags::Option_MatchWildcardMask))
 			{
-				for (const FCoreRedirect& Redirect : RedirectPair.Value)
+				const FWildcardData* Wildcards = Pair.Value.Wildcards.Get();
+				check(Wildcards);
+
+				FCoreRedirectObjectName::EMatchFlags MatchFlags = FCoreRedirectObjectName::EMatchFlags::None;
+				const TArray<FCoreRedirect>* WildcardRedirects = nullptr;
+
+				if (EnumHasAllFlags(PairFlags, ECoreRedirectFlags::Option_MatchSubstring))
 				{
-					FCoreRedirectObjectName::EMatchFlags MatchFlags = FCoreRedirectObjectName::EMatchFlags::None;
-					if (Redirect.IsSubstringMatch())
-					{
-						MatchFlags |= FCoreRedirectObjectName::EMatchFlags::CheckSubString;
-					}
+					WildcardRedirects = &Wildcards->Substrings;
+					MatchFlags |= FCoreRedirectObjectName::EMatchFlags::CheckSubString;
+				}
+				else if (EnumHasAllFlags(PairFlags, ECoreRedirectFlags::Option_MatchPrefix))
+				{
+					WildcardRedirects = &Wildcards->Prefixes;
+					MatchFlags |= FCoreRedirectObjectName::EMatchFlags::CheckPrefix;
+				}
+				else if (EnumHasAllFlags(PairFlags, ECoreRedirectFlags::Option_MatchSuffix))
+				{
+					WildcardRedirects = &Wildcards->Suffixes;
+					MatchFlags |= FCoreRedirectObjectName::EMatchFlags::CheckSuffix;
+				}
+				check(WildcardRedirects);
+
+				for (const FCoreRedirect& Redirect : *WildcardRedirects)
+				{
 					if (Redirect.NewName.Matches(NewObjectName, MatchFlags))
 					{
-						// Construct a reverse redirect
-						FCoreRedirect ReverseRedirect = FCoreRedirect(Redirect);
-						ReverseRedirect.OldName = Redirect.NewName;
-						ReverseRedirect.NewName = Redirect.OldName;
-
-						FCoreRedirectObjectName OldName = ReverseRedirect.RedirectName(NewObjectName);
-
-						if (OldName != NewObjectName)
+						bFound |= TryReverseRedirect(Redirect, NewObjectName, PreviousNames);
+					}
+				}
+			}
+			else
+			{
+				FCoreRedirectObjectName::EMatchFlags MatchFlags = 
+					EnumHasAnyFlags(PairFlags, ECoreRedirectFlags::Type_Asset) 
+						? FCoreRedirectObjectName::EMatchFlags::AllowPartialRHSMatch : FCoreRedirectObjectName::EMatchFlags::None;
+				for (const TPair<FName, TArray<FCoreRedirect>>& RedirectPair : Pair.Value.RedirectMap)
+				{
+					for (const FCoreRedirect& Redirect : RedirectPair.Value)
+					{
+						if (Redirect.NewName.Matches(NewObjectName, MatchFlags))
 						{
-							bFound = true;
-							PreviousNames.AddUnique(OldName);
+							bFound |= TryReverseRedirect(Redirect, NewObjectName, PreviousNames);
 						}
 					}
 				}
@@ -766,7 +1700,7 @@ bool FCoreRedirects::FindPreviousNames(ECoreRedirectFlags SearchFlags, const FCo
 		}
 	}
 
-	UE_CLOG(bFound && bInDebugMode, LogCoreRedirects, VeryVerbose, TEXT("FindPreviousNames found %d previous names for %s"), PreviousNames.Num(), *NewObjectName.ToString());
+	UE_CLOG(bFound && IsInDebugMode(), LogCoreRedirects, VeryVerbose, TEXT("FindPreviousNames found %d previous names for %s"), PreviousNames.Num(), *NewObjectName.ToString());
 
 	return bFound;
 }
@@ -775,8 +1709,8 @@ bool FCoreRedirects::IsKnownMissing(ECoreRedirectFlags Type, const FCoreRedirect
 {
 	TArray<const FCoreRedirect*> FoundRedirects;
 
-	FRWScopeLock ScopeLock(KnownMissingLock, FRWScopeLockType::SLT_ReadOnly);
-	return FCoreRedirects::GetMatchingRedirects(Type | ECoreRedirectFlags::Category_Removed, ObjectName, FoundRedirects);
+	FCoreRedirectorScopeLockForRead ScopeLock(RWLock);
+	return FCoreRedirects::GetMatchingRedirectsUnderReadLock(Type | ECoreRedirectFlags::Category_Removed, ObjectName, FoundRedirects, ECoreRedirectMatchFlags::None, ScopeLock);
 }
 
 bool FCoreRedirects::AddKnownMissing(ECoreRedirectFlags Type, const FCoreRedirectObjectName& ObjectName, ECoreRedirectFlags Channel)
@@ -786,7 +1720,6 @@ bool FCoreRedirects::AddKnownMissing(ECoreRedirectFlags Type, const FCoreRedirec
 	check((Channel & ~ECoreRedirectFlags::Option_MissingLoad) == ECoreRedirectFlags::None);
 	FCoreRedirect NewRedirect(Type | ECoreRedirectFlags::Category_Removed | Channel, ObjectName, FCoreRedirectObjectName());
 
-	FRWScopeLock ScopeLock(KnownMissingLock, FRWScopeLockType::SLT_Write);
 	return AddRedirectList(TArrayView<const FCoreRedirect>(&NewRedirect, 1), TEXT("AddKnownMissing"));
 }
 
@@ -795,7 +1728,6 @@ bool FCoreRedirects::RemoveKnownMissing(ECoreRedirectFlags Type, const FCoreRedi
 	check((Channel & ~ECoreRedirectFlags::Option_MissingLoad) == ECoreRedirectFlags::None);
 	FCoreRedirect RedirectToRemove(Type | ECoreRedirectFlags::Category_Removed | Channel, ObjectName, FCoreRedirectObjectName());
 
-	FRWScopeLock ScopeLock(KnownMissingLock, FRWScopeLockType::SLT_Write);
 	return RemoveRedirectList(TArrayView<const FCoreRedirect>(&RedirectToRemove, 1), TEXT("RemoveKnownMissing"));
 }
 
@@ -804,7 +1736,7 @@ void FCoreRedirects::ClearKnownMissing(ECoreRedirectFlags Type, ECoreRedirectFla
 	check((Channel & ~ECoreRedirectFlags::Option_MissingLoad) == ECoreRedirectFlags::None);
 	ECoreRedirectFlags RedirectFlags = Type | ECoreRedirectFlags::Category_Removed | Channel;
 
-	FRWScopeLock ScopeLock(KnownMissingLock, FRWScopeLockType::SLT_Write);
+	FCoreRedirectorScopeLockForWrite ScopeLock(RWLock);
 	FRedirectNameMap* RedirectNameMap = RedirectTypeMap.Find(RedirectFlags);
 	if (RedirectNameMap)
 	{
@@ -812,15 +1744,45 @@ void FCoreRedirects::ClearKnownMissing(ECoreRedirectFlags Type, ECoreRedirectFla
 	}
 }
 
+#if WITH_EDITOR
+void FCoreRedirects::AppendHashOfRedirectsAffectingPackages(FBlake3& Hasher, TConstArrayView<FName> PackageNames)
+{
+	GRedirectionSummary.AppendHashAffectingPackages(Hasher, PackageNames);
+}
+
+void FCoreRedirects::AppendHashOfGlobalRedirects(FBlake3& Hasher)
+{
+	GRedirectionSummary.AppendHashGlobal(Hasher);
+}
+
+void FCoreRedirects::RecordAddedObjectRedirector(const FSoftObjectPath& Source, const FSoftObjectPath& Dest)
+{
+	FCoreRedirect ConvertedToCoreRedirect(ECoreRedirectFlags::Type_Object,
+		FCoreRedirectObjectName(Source), FCoreRedirectObjectName(Dest));
+	GRedirectionSummary.Add(ConvertedToCoreRedirect, false /* bIsWildcardMatch */);
+}
+
+void FCoreRedirects::RecordRemovedObjectRedirector(const FSoftObjectPath& Source, const FSoftObjectPath& Dest)
+{
+	FCoreRedirect ConvertedToCoreRedirect(ECoreRedirectFlags::Type_Object,
+		FCoreRedirectObjectName(Source), FCoreRedirectObjectName(Dest));
+	GRedirectionSummary.Remove(ConvertedToCoreRedirect, false /* bIsWildcardMatch */);
+}
+
+#endif
+
 bool FCoreRedirects::RunTests()
 {
 	bool bSuccess = true;
+
 	FRedirectTypeMap BackupMap = MoveTemp(RedirectTypeMap);
-#if WITH_COREREDIRECTS_MULTITHREAD_WARNING
-	bool BackupIsInMultithreadedPhase = bIsInMultithreadedPhase;
-	bIsInMultithreadedPhase = false;
-#endif
 	RedirectTypeMap.Empty();
+#if WITH_EDITOR
+	FRedirectionSummary BackupSummary = MoveTemp(GRedirectionSummary);
+	GRedirectionSummary = FRedirectionSummary();
+#endif
+
+	UE_LOG(LogCoreRedirects, Log, TEXT("Running FCoreRedirect Tests"));
 
 	TArray<FCoreRedirect> NewRedirects;
 
@@ -833,10 +1795,22 @@ bool FCoreRedirects::RunTests()
 	NewRedirects.Emplace(ECoreRedirectFlags::Type_Class | ECoreRedirectFlags::Category_InstanceOnly, TEXT("/Game/Package.Class"), TEXT("/Game/Package.ClassInstance"));
 	NewRedirects.Emplace(ECoreRedirectFlags::Type_Package, TEXT("/Game/Package"), TEXT("/Game/Package2"));
 	NewRedirects.Emplace(ECoreRedirectFlags::Type_Package | ECoreRedirectFlags::Option_MatchSubstring, TEXT("/oldgame"), TEXT("/newgame"));
+	NewRedirects.Emplace(ECoreRedirectFlags::Type_Package | ECoreRedirectFlags::Option_MatchSubstring, TEXT("/古いゲーム"), TEXT("/新しいゲーム"));
+	NewRedirects.Emplace(ECoreRedirectFlags::Type_Package | ECoreRedirectFlags::Option_MatchSubstring, TEXT("/混合部分文字列"), TEXT("/mixed_substring"));
+	NewRedirects.Emplace(ECoreRedirectFlags::Type_Package | ECoreRedirectFlags::Option_MatchPrefix, TEXT("/oldprefix"), TEXT("/newprefix"));
+	NewRedirects.Emplace(ECoreRedirectFlags::Type_Package | ECoreRedirectFlags::Option_MatchPrefix, TEXT("/古いプレフィックス"), TEXT("/新しいプレフィックス"));
+	NewRedirects.Emplace(ECoreRedirectFlags::Type_Package | ECoreRedirectFlags::Option_MatchPrefix, TEXT("/混合接頭辞"), TEXT("/mixed_prefix"));
+	NewRedirects.Emplace(ECoreRedirectFlags::Type_Package | ECoreRedirectFlags::Option_MatchSuffix, TEXT("/oldsuffix"), TEXT("/newsuffix"));
+	NewRedirects.Emplace(ECoreRedirectFlags::Type_Package | ECoreRedirectFlags::Option_MatchSuffix, TEXT("/古い接尾辞"), TEXT("/新しい接尾辞"));
+	NewRedirects.Emplace(ECoreRedirectFlags::Type_Package | ECoreRedirectFlags::Option_MatchSuffix, TEXT("/混合接尾辞"), TEXT("/mixed_suffix"));
 	NewRedirects.Emplace(ECoreRedirectFlags::Type_Package | ECoreRedirectFlags::Category_Removed, TEXT("/Game/RemovedPackage"), TEXT("/Game/RemovedPackage"));
 	NewRedirects.Emplace(ECoreRedirectFlags::Type_Package | ECoreRedirectFlags::Category_Removed | ECoreRedirectFlags::Option_MissingLoad, TEXT("/Game/MissingLoadPackage"), TEXT("/Game/MissingLoadPackage"));
 
 	AddRedirectList(NewRedirects, TEXT("RunTests"));
+
+	// Run the asset tests first so that their entries are present when we run the other tests
+	// That way we can confirm that having asset type redirects doesn't break existing tests
+	bSuccess = bSuccess && UE::CoreRedirects::Private::RunAssetRedirectTests();
 
 	struct FRedirectTest
 	{
@@ -850,8 +1824,6 @@ bool FCoreRedirects::RunTests()
 	};
 
 	TArray<FRedirectTest> Tests;
-
-	UE_LOG(LogCoreRedirects, Log, TEXT("Running FCoreRedirect Tests"));
 
 	// Package-specific property rename and package rename apply
 	Tests.Emplace(TEXT("/Game/PackageSpecific.Class:Property"), TEXT("/Game/PackageSpecific.Class:Property4"), ECoreRedirectFlags::Type_Property);
@@ -867,8 +1839,22 @@ bool FCoreRedirects::RunTests()
 	Tests.Emplace(TEXT("/Game/PackageOther.Class"), TEXT("/Game/PackageOther.Class2"), ECoreRedirectFlags::Type_Class);
 	// Check instance option
 	Tests.Emplace(TEXT("/Game/Package.Class"), TEXT("/Game/Package2.ClassInstance"), ECoreRedirectFlags::Type_Class | ECoreRedirectFlags::Category_InstanceOnly);
-	// Substring test
-	Tests.Emplace(TEXT("/oldgame/Package.DefaultClass"), TEXT("/newgame/Package.DefaultClass"), ECoreRedirectFlags::Type_Class);
+
+	// String manipulation tests. While we use TCHAR for input, FNames will coerce storage to ASCII where possible 
+	// so we validate we can support truly wide strings as well as mixed string manipulation operations.
+
+	// Substring tests
+	Tests.Emplace(TEXT("/oldgame/Package.DefaultClass"), TEXT("/newgame/Package.DefaultClass"), ECoreRedirectFlags::Type_Package);
+	Tests.Emplace(TEXT("/古いゲーム/Package.DefaultClass"), TEXT("/新しいゲーム/Package.DefaultClass"), ECoreRedirectFlags::Type_Package);
+	Tests.Emplace(TEXT("/混合部分文字列/Package.DefaultClass"), TEXT("/mixed_substring/Package.DefaultClass"), ECoreRedirectFlags::Type_Package);
+	// Prefix tests
+	Tests.Emplace(TEXT("/oldprefix_SomeGame/Package.DefaultClass"), TEXT("/newprefix_SomeGame/Package.DefaultClass"), ECoreRedirectFlags::Type_Package);
+	Tests.Emplace(TEXT("/古いプレフィックス_SomeGame/Package.DefaultClass"), TEXT("/新しいプレフィックス_SomeGame/Package.DefaultClass"), ECoreRedirectFlags::Type_Package);
+	Tests.Emplace(TEXT("/混合接頭辞_SomeGame/Package.DefaultClass"), TEXT("/mixed_prefix_SomeGame/Package.DefaultClass"), ECoreRedirectFlags::Type_Package);
+	// Suffix tests
+	Tests.Emplace(TEXT("/Game/Package/oldsuffix"), TEXT("/Game/Package/newsuffix"), ECoreRedirectFlags::Type_Package);
+	Tests.Emplace(TEXT("/Game/Package/古い接尾辞"), TEXT("/Game/Package/新しい接尾辞"), ECoreRedirectFlags::Type_Package);
+	Tests.Emplace(TEXT("/Game/Package/混合接尾辞"), TEXT("/Game/Package/mixed_suffix"), ECoreRedirectFlags::Type_Package);
 
 	for (FRedirectTest& Test : Tests)
 	{
@@ -886,12 +1872,39 @@ bool FCoreRedirects::RunTests()
 	TArray<FCoreRedirectObjectName> OldNames;
 
 	FindPreviousNames(ECoreRedirectFlags::Type_Class, FCoreRedirectObjectName(TEXT("/Game/PackageOther.Class2")), OldNames);
-
 	if (OldNames.Num() != 1 || OldNames[0].ToString() != TEXT("/Game/PackageOther.Class"))
 	{
 		bSuccess = false;
-		UE_LOG(LogCoreRedirects, Error, TEXT("FCoreRedirect Test Failed: ReverseLookup!"));
+		UE_LOG(LogCoreRedirects, Error, TEXT("FCoreRedirect Test Failed: ReverseLookup (direct matching)!"));
 	}
+	OldNames.Empty();
+
+	// Check reverse lookup - substring
+	FindPreviousNames(ECoreRedirectFlags::Type_Package, FCoreRedirectObjectName(TEXT("/newgame/TestPackage")), OldNames);
+	if (OldNames.Num() != 1 || OldNames[0].ToString() != TEXT("/oldgame/TestPackage"))
+	{
+		bSuccess = false;
+		UE_LOG(LogCoreRedirects, Error, TEXT("FCoreRedirect Test Failed: ReverseLookup (substring matching)!"));
+	}
+	OldNames.Empty();
+
+	// Check reverse lookup - prefix
+	FindPreviousNames(ECoreRedirectFlags::Type_Package, FCoreRedirectObjectName(TEXT("/newprefix_SomeGame/TestPackage")), OldNames);
+	if (OldNames.Num() != 1 || OldNames[0].ToString() != TEXT("/oldprefix_SomeGame/TestPackage"))
+	{
+		bSuccess = false;
+		UE_LOG(LogCoreRedirects, Error, TEXT("FCoreRedirect Test Failed: ReverseLookup (prefix matching)!"));
+	}
+	OldNames.Empty();
+
+	// Check reverse lookup - suffix
+	FindPreviousNames(ECoreRedirectFlags::Type_Package, FCoreRedirectObjectName(TEXT("/TestGame/newsuffix")), OldNames);
+	if (OldNames.Num() != 1 || OldNames[0].ToString() != TEXT("/TestGame/oldsuffix"))
+	{
+		bSuccess = false;
+		UE_LOG(LogCoreRedirects, Error, TEXT("FCoreRedirect Test Failed: ReverseLookup (suffix matching)!"));
+	}
+	OldNames.Empty();
 
 	// Check removed
 	if (!IsKnownMissing(ECoreRedirectFlags::Type_Package, FCoreRedirectObjectName(TEXT("/Game/RemovedPackage"))))
@@ -962,14 +1975,93 @@ bool FCoreRedirects::RunTests()
 
 	// Restore old state
 	RedirectTypeMap = MoveTemp(BackupMap);
-#if WITH_COREREDIRECTS_MULTITHREAD_WARNING
-	bIsInMultithreadedPhase = BackupIsInMultithreadedPhase;
+#if WITH_EDITOR
+	GRedirectionSummary = MoveTemp(BackupSummary);
 #endif
 
+	UE_LOG(LogCoreRedirects, Log, TEXT("FCoreRedirect Test %s!"), (bSuccess ? TEXT("Passed") : TEXT("Failed")));
 	return bSuccess;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCoreRedirectTest, "System.Core.Misc.CoreRedirects", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+void FCoreRedirects::AddAssetRedirects(const TMap<FSoftObjectPath, FSoftObjectPath>& InRedirects)
+{
+	if (InRedirects.Num() > 0)
+	{
+		FCoreRedirectorScopeLockForWrite ScopeLock(RWLock);
+		FRedirectNameMap* ExistingMap = &RedirectTypeMap.FindOrAdd(ECoreRedirectFlags::Type_Asset);
+		int32 NumAdded = 0;
+		int32 NumSkipped = 0;
+		for (const TPair<FSoftObjectPath, FSoftObjectPath>& Pair : InRedirects)
+		{
+			// Asset redirects are, by definition, not package redirects
+			if (Pair.Key.GetLongPackageFName().IsNone() || Pair.Value.GetAssetFName().IsNone())
+			{
+				UE_LOG(LogCoreRedirects, Warning, TEXT("Attempted to register asset redirector that was missing a package or object name. Redirector was from %s to %s"),
+					*Pair.Key.ToString(), *Pair.Value.ToString());
+				NumSkipped++;
+				continue;
+			}
+
+			// Asset redirects use the package as the lookup key but contain multiple redirects underneath
+			// Conceptually, for each object redirector we add two core redirects: one for the package and one for the object itself
+			// In practice, we can just add the package redirect the first time
+
+			FCoreRedirect ObjectRedirector(ECoreRedirectFlags::Type_Asset, Pair.Key.ToString(), Pair.Value.ToString());
+			TArray<FCoreRedirect>& ExistingRedirects = ExistingMap->RedirectMap.FindOrAdd(ObjectRedirector.GetSearchKey());
+
+			if (ExistingRedirects.Num() == 0)
+			{
+				// This is a new redirector. Add two entries, one for the package first
+				FCoreRedirect PackageRedirect(ECoreRedirectFlags::Type_Asset, 
+					Pair.Key.GetLongPackageName(), Pair.Value.GetLongPackageName());
+
+				ExistingRedirects.Add(PackageRedirect);
+			}
+
+			// Check that, among the existing redirects, this one won't be a duplicate. Don't bother checking the package entry
+			bool bShouldAddRedirect = true;
+			for (int32 RedirectIndex = 1; RedirectIndex < ExistingRedirects.Num(); RedirectIndex++)
+			{
+				if (Pair.Key.GetLongPackageFName() == ExistingRedirects[RedirectIndex].OldName.PackageName
+					&& Pair.Key.GetAssetName() == ExistingRedirects[RedirectIndex].OldName.ObjectName)
+				{
+					const FCoreRedirectObjectName& ExistingTargetName = ExistingRedirects[0].NewName;
+
+					UE_LOGFMT(LogCoreRedirects, Error, "Skipping new redirect target '{target}' due to existing map from '{source}' to '{dest}'",
+						Pair.Value.ToString(), Pair.Key.ToString(), ExistingTargetName.ToString());
+
+					bShouldAddRedirect = false;
+					NumSkipped++;
+					break;
+				}
+			}
+
+			if (bShouldAddRedirect)
+			{
+				ExistingRedirects.Add(ObjectRedirector);
+				NumAdded++;
+			}
+		}
+
+		UE_LOG(LogCoreRedirects, Display, 
+			TEXT("Object redirects provided to FCoreRedirects: %d. Redirects add: %d. Redirects skipped: %d"),
+			InRedirects.Num(), NumAdded, NumSkipped);
+
+		if (IsInDebugMode())
+		{
+			ValidateAssetRedirects();
+		}
+	}
+}
+
+void FCoreRedirects::RemoveAllAssetRedirects()
+{
+	FCoreRedirectorScopeLockForWrite ScopeLock(RWLock);
+	FRedirectNameMap* ExistingMap = &RedirectTypeMap.FindOrAdd(ECoreRedirectFlags::Type_Asset);
+	ExistingMap->RedirectMap.Reset();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCoreRedirectTest, "System.Core.Misc.CoreRedirects", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FCoreRedirectTest::RunTest(const FString& Parameters)
 {
 	return FCoreRedirects::RunTests();
@@ -977,11 +2069,13 @@ bool FCoreRedirectTest::RunTest(const FString& Parameters)
 
 bool FCoreRedirects::ReadRedirectsFromIni(const FString& IniName)
 {
+	FCoreRedirectorScopeLockForWrite ScopeLock(RWLock);
 	Initialize();
 
 	if (GConfig)
 	{
-		const FConfigSection* RedirectSection = GConfig->GetSection(TEXT("CoreRedirects"), false, IniName);
+		const TCHAR* RedirectSectionName = TEXT("CoreRedirects");
+		const FConfigSection* RedirectSection = GConfig->GetSection(RedirectSectionName, false, IniName);
 		if (RedirectSection)
 		{
 			TArray<FCoreRedirect> NewRedirects;
@@ -993,12 +2087,14 @@ bool FCoreRedirects::ReadRedirectsFromIni(const FString& IniName)
 				bool bInstanceOnly = false;
 				bool bRemoved = false;
 				bool bMatchSubstring = false;
+				bool bMatchWildcard = false;
 
 				const FString& ValueString = It.Value().GetValue();
 
 				FParse::Bool(*ValueString, TEXT("InstanceOnly="), bInstanceOnly);
 				FParse::Bool(*ValueString, TEXT("Removed="), bRemoved);
 				FParse::Bool(*ValueString, TEXT("MatchSubstring="), bMatchSubstring);
+				FParse::Bool(*ValueString, TEXT("MatchWildcard="), bMatchWildcard);
 
 				FParse::Value(*ValueString, TEXT("OldName="), OldName);
 				FParse::Value(*ValueString, TEXT("NewName="), NewName);
@@ -1022,9 +2118,55 @@ bool FCoreRedirects::ReadRedirectsFromIni(const FString& IniName)
 						NewFlags |= ECoreRedirectFlags::Category_Removed;
 					}
 
-					if (bMatchSubstring)
+					if (bMatchWildcard || bMatchSubstring)
 					{
-						NewFlags |= ECoreRedirectFlags::Option_MatchSubstring;
+						UE_CLOG(bMatchSubstring, LogCoreRedirects, Warning, TEXT("ReadRedirectsFromIni(%s) 'MatchSubstring=' is deprecated. "
+							"Please prefer `MatchWildcard=' instead for redirect %s.\n\t"
+							"For more information refer to the documentation in Engine/Config/BaseEngine.ini."), *IniName, *ValueString);
+
+						constexpr FStringView WildcardMarker(TEXTVIEW("..."));
+						bool bMatchPrefix = OldName.EndsWith(WildcardMarker, ESearchCase::CaseSensitive);
+						bool bMatchSuffix = OldName.StartsWith(WildcardMarker, ESearchCase::CaseSensitive);
+
+						bMatchSubstring = bMatchSubstring || (bMatchPrefix && bMatchSuffix);
+
+						// Count how many '...' there are to ensure the OldName is not malformed
+						int WildcardCount = 0;
+						int StartPos = 0;
+						FStringView OldNameView(OldName);
+						while ((StartPos = OldNameView.Find(WildcardMarker, StartPos)) != INDEX_NONE)
+						{
+							StartPos += WildcardMarker.Len();
+							WildcardCount++;
+						}
+
+						if ((!bMatchPrefix && !bMatchSuffix && !bMatchSubstring)		  // No wildcards found and not handling MatchSubstring (no '...')
+							|| (WildcardCount > ((int)bMatchPrefix + (int)bMatchSuffix))) // Ensure we don't have more wildcards than necessary
+						{
+							UE_LOG(LogCoreRedirects, Error, TEXT("ReadRedirectsFromIni(%s) failed to parse OldName for wildcard redirect %s! "
+								"OldName must be of the form 'PrefixName...', '...SubstringName...' or '...SuffixName'. For more information refer to the documentation in Engine/Config/BaseEngine.ini."), *IniName, *ValueString);
+							continue;
+						}
+
+						if (bMatchPrefix)
+						{
+							NewFlags |= ECoreRedirectFlags::Option_MatchPrefix;
+							OldName.LeftChopInline(WildcardMarker.Len(), EAllowShrinking::No);
+						}
+
+						if (bMatchSuffix)
+						{
+							NewFlags |= ECoreRedirectFlags::Option_MatchSuffix;
+							OldName.RightChopInline(WildcardMarker.Len(), EAllowShrinking::No);
+						}
+
+						// UE-209583 - Convert prefix and suffix matches to substring matches since prefix/suffix is currently unoptimized
+						if (bMatchPrefix || bMatchSuffix)
+						{
+							bMatchSubstring = true;
+						}
+
+						NewFlags |= bMatchSubstring ? ECoreRedirectFlags::Option_MatchSubstring : ECoreRedirectFlags::None;
 					}
 
 					FCoreRedirect* Redirect = &NewRedirects.Emplace_GetRef(NewFlags, FCoreRedirectObjectName(OldName), FCoreRedirectObjectName(NewName));
@@ -1035,7 +2177,6 @@ bool FCoreRedirects::ReadRedirectsFromIni(const FString& IniName)
 					}
 
 					int32 ValueChangesIndex = ValueString.Find(TEXT("ValueChanges="));
-				
 					if (ValueChangesIndex != INDEX_NONE)
 					{
 						// Look for first (
@@ -1060,6 +2201,9 @@ bool FCoreRedirects::ReadRedirectsFromIni(const FString& IniName)
 				}
 			}
 
+			// We no longer need the redirect config data in memory so remove it entirely
+			GConfig->RemoveSectionFromBranch(RedirectSectionName, *IniName);
+
 			return AddRedirectList(NewRedirects, IniName);
 		}
 		else
@@ -1076,11 +2220,17 @@ bool FCoreRedirects::ReadRedirectsFromIni(const FString& IniName)
 
 bool FCoreRedirects::AddRedirectList(TArrayView<const FCoreRedirect> Redirects, const FString& SourceString)
 {
+	FCoreRedirectorScopeLockForWrite ScopeLock(RWLock);
 	Initialize();
+	return AddRedirectListUnderWriteLock(Redirects, SourceString, ScopeLock);
+}
 
+bool FCoreRedirects::AddRedirectListUnderWriteLock(TArrayView<const FCoreRedirect> Redirects, const FString & SourceString, 
+	const FCoreRedirectorScopeLockForWrite& HeldLock)
+{
 	UE_LOG(LogCoreRedirects, Verbose, TEXT("AddRedirect(%s) adding %d redirects"), *SourceString, Redirects.Num());
 
-	if (bInDebugMode && bValidatedOnce)
+	if (IsInDebugMode() && bValidatedOnce)
 	{
 		// Validate on apply because we finished our initial validation pass
 		ValidateRedirectList(Redirects, SourceString);
@@ -1095,19 +2245,29 @@ bool FCoreRedirects::AddRedirectList(TArrayView<const FCoreRedirect> Redirects, 
 			continue;
 		}
 
-		if ((!NewRedirect.OldName.HasValidCharacters(NewRedirect.RedirectFlags) && !FPackageName::IsVersePackage(NewRedirect.OldName.PackageName.ToString()))
-			|| (!NewRedirect.NewName.HasValidCharacters(NewRedirect.RedirectFlags) && !FPackageName::IsVersePackage(NewRedirect.NewName.PackageName.ToString())))
+		// Type_Asset redirects derive from UObjectRedirector instances on disk.
+		// Therefore we can assume that the names in it are valid (because they exist)
+		// This is as opposed to redirects that are manually created either in code or in 
+		// ini files and which should be subject to additional validation.
+		// Because the validation in HasValidCharacters does not perfectly align with other systems,
+		// there can exist assets which are valid, are referenced by UObjectRedirector assets, but which
+		// fail the check.
+		if (!EnumHasAnyFlags(NewRedirect.RedirectFlags, ECoreRedirectFlags::Type_Asset))
 		{
-			UE_LOG(LogCoreRedirects, Error, TEXT("AddRedirect(%s) failed to add redirect from %s to %s with invalid characters!"), *SourceString, *NewRedirect.OldName.ToString(), *NewRedirect.NewName.ToString());
-			continue;
+			if ((!NewRedirect.OldName.HasValidCharacters(NewRedirect.RedirectFlags) && !FPackageName::IsVersePackage(NewRedirect.OldName.PackageName.ToString()))
+				|| (!NewRedirect.NewName.HasValidCharacters(NewRedirect.RedirectFlags) && !FPackageName::IsVersePackage(NewRedirect.NewName.PackageName.ToString())))
+			{
+				UE_LOG(LogCoreRedirects, Error, TEXT("AddRedirect(%s) failed to add redirect from %s to %s with invalid characters!"), *SourceString, *NewRedirect.OldName.ToString(), *NewRedirect.NewName.ToString());
+				continue;
+			}
 		}
 
-		if (NewRedirect.IsSubstringMatch())
+		if (NewRedirect.IsWildcardMatch())
 		{
-			UE_LOG(LogCoreRedirects, Log, TEXT("AddRedirect(%s) has substring redirect %s, these are very slow and should be resolved as soon as possible!"), *SourceString, *NewRedirect.OldName.ToString());
+			UE_LOG(LogCoreRedirects, Log, TEXT("AddRedirect(%s) has wildcard redirect %s, these are very slow and should be resolved as soon as possible! Please refer to the documentation in Engine/Config/BaseEngine.ini."), *SourceString, *NewRedirect.OldName.ToString());
 		}
 		
-		if (AddSingleRedirect(NewRedirect, SourceString))
+		if (AddSingleRedirectUnderWriteLock(NewRedirect, SourceString, HeldLock))
 		{
 			bAddedAny = true;
 
@@ -1117,7 +2277,7 @@ bool FCoreRedirects::AddRedirectList(TArrayView<const FCoreRedirect> Redirects, 
 				FCoreRedirect ValueRedirect = NewRedirect;
 				ValueRedirect.OldName = ValueRedirect.NewName;
 
-				AddSingleRedirect(ValueRedirect, SourceString);
+				AddSingleRedirectUnderWriteLock(ValueRedirect, SourceString, HeldLock);
 			}
 		}
 	}
@@ -1125,26 +2285,39 @@ bool FCoreRedirects::AddRedirectList(TArrayView<const FCoreRedirect> Redirects, 
 	return bAddedAny;
 }
 
-bool FCoreRedirects::AddSingleRedirect(const FCoreRedirect& NewRedirect, const FString& SourceString)
+bool FCoreRedirects::AddSingleRedirectUnderWriteLock(const FCoreRedirect& NewRedirect, const FString& SourceString, 
+	const FCoreRedirectorScopeLockForWrite& HeldLock)
 {
+	const bool bIsWildcardMatch = NewRedirect.IsWildcardMatch();
 	FRedirectNameMap* ExistingNameMap;
-#if WITH_COREREDIRECTS_MULTITHREAD_WARNING
-	if (bIsInMultithreadedPhase)
+
+	ExistingNameMap = &RedirectTypeMap.FindOrAdd(NewRedirect.RedirectFlags);
+
+	TArray<FCoreRedirect>* ExistingRedirects = nullptr;
+	if (bIsWildcardMatch)
 	{
-		ExistingNameMap = RedirectTypeMap.Find(NewRedirect.RedirectFlags);
-		checkf(ExistingNameMap, TEXT("Once EnterMultithreadedPhase has been called, it is no longer valid to add redirects of new types."));
+		if (NewRedirect.IsSubstringMatch())
+		{
+			ExistingRedirects = &ExistingNameMap->Wildcards->Substrings;
+		}
+		else if (NewRedirect.IsPrefixMatch())
+		{
+			ExistingRedirects = &ExistingNameMap->Wildcards->Prefixes;
+		}
+		else if (NewRedirect.IsSuffixMatch())
+		{
+			ExistingRedirects = &ExistingNameMap->Wildcards->Suffixes;
+		}
+		check(ExistingRedirects);
 	}
 	else
-#endif
 	{
-		ExistingNameMap = &RedirectTypeMap.FindOrAdd(NewRedirect.RedirectFlags);
+		ExistingRedirects = &ExistingNameMap->RedirectMap.FindOrAdd(NewRedirect.GetSearchKey());
 	}
-	TArray<FCoreRedirect>& ExistingRedirects = ExistingNameMap->RedirectMap.FindOrAdd(NewRedirect.GetSearchKey());
-
-	bool bFoundDuplicate = false;
 
 	// Check for duplicate
-	for (FCoreRedirect& ExistingRedirect : ExistingRedirects)
+	bool bFoundDuplicate = false;
+	for (FCoreRedirect& ExistingRedirect : *ExistingRedirects)
 	{
 		if (ExistingRedirect.IdenticalMatchRules(NewRedirect))
 		{
@@ -1195,12 +2368,24 @@ bool FCoreRedirects::AddSingleRedirect(const FCoreRedirect& NewRedirect, const F
 		return false;
 	}
 
-	ExistingRedirects.Add(NewRedirect);
+	if (bIsWildcardMatch)
+	{
+		ExistingNameMap->Wildcards->Add(NewRedirect);
+	}
+	else
+	{
+		ExistingRedirects->Add(NewRedirect);
+	}
+#if WITH_EDITOR
+	GRedirectionSummary.Add(NewRedirect, bIsWildcardMatch);
+#endif
+
 	return true;
 }
 
 bool FCoreRedirects::RemoveRedirectList(TArrayView<const FCoreRedirect> Redirects, const FString& SourceString)
 {
+	FCoreRedirectorScopeLockForWrite ScopeLock(RWLock);
 	UE_LOG(LogCoreRedirects, Verbose, TEXT("RemoveRedirect(%s) Removing %d redirects"), *SourceString, Redirects.Num());
 
 	bool bRemovedAny = false;
@@ -1230,25 +2415,61 @@ bool FCoreRedirects::RemoveRedirectList(TArrayView<const FCoreRedirect> Redirect
 			continue;
 		}
 
-		if (RedirectToRemove.IsSubstringMatch())
+		if (RedirectToRemove.IsWildcardMatch())
 		{
-			UE_LOG(LogCoreRedirects, Log, TEXT("RemoveRedirect(%s) has substring redirect %s, these are very slow and should be resolved as soon as possible!"), *SourceString, *RedirectToRemove.OldName.ToString());
+			UE_LOG(LogCoreRedirects, Log, TEXT("RemoveRedirect(%s) has wildcard redirect %s, these are very slow and should be resolved as soon as possible! Please refer to the documentation in Engine/Config/BaseEngine.ini."), *SourceString, *RedirectToRemove.OldName.ToString());
 		}
 
-		bRemovedAny |= RemoveSingleRedirect(RedirectToRemove, SourceString);
+		bRemovedAny |= RemoveSingleRedirectUnderWriteLock(RedirectToRemove, SourceString, ScopeLock);
 	}
 
 	return bRemovedAny;
 }
 
-bool FCoreRedirects::RemoveSingleRedirect(const FCoreRedirect& RedirectToRemove, const FString& SourceString)
+bool FCoreRedirects::IsInitialized()
 {
+	// Use an atomic variable rather than take a read lock because we might already be under a read lock
+	return bInitialized.load(std::memory_order_acquire);
+}
+
+bool FCoreRedirects::IsInDebugMode()
+{
+	// Use an atomic variable rather than take a read lock because we might already be under a read lock
+	return bInDebugMode.load(std::memory_order_relaxed);
+}
+
+bool FCoreRedirects::RemoveSingleRedirectUnderWriteLock(const FCoreRedirect& RedirectToRemove, const FString& SourceString,
+	const FCoreRedirectorScopeLockForWrite& HeldLock)
+{
+	const bool bIsWildcardMatch = RedirectToRemove.IsWildcardMatch();
 	FRedirectNameMap* ExistingNameMap = RedirectTypeMap.Find(RedirectToRemove.RedirectFlags);
+
 	if (!ExistingNameMap)
 	{
 		return false;
 	}
-	TArray<FCoreRedirect>* ExistingRedirects = ExistingNameMap->RedirectMap.Find(RedirectToRemove.GetSearchKey());
+
+	TArray<FCoreRedirect>* ExistingRedirects = nullptr;
+	if (bIsWildcardMatch)
+	{
+		if (RedirectToRemove.IsSubstringMatch())
+		{
+			ExistingRedirects = &ExistingNameMap->Wildcards->Substrings;
+		}
+		else if (RedirectToRemove.IsPrefixMatch())
+		{
+			ExistingRedirects = &ExistingNameMap->Wildcards->Prefixes;
+		}
+		else if (RedirectToRemove.IsSuffixMatch())
+		{
+			ExistingRedirects = &ExistingNameMap->Wildcards->Suffixes;
+		}
+	}
+	else
+	{
+		ExistingRedirects = ExistingNameMap->RedirectMap.Find(RedirectToRemove.GetSearchKey());
+	}
+
 	if (!ExistingRedirects)
 	{
 		return false;
@@ -1271,6 +2492,19 @@ bool FCoreRedirects::RemoveSingleRedirect(const FCoreRedirect& RedirectToRemove,
 			ExistingRedirects->RemoveAt(ExistingRedirectIndex);
 			break;
 		}
+	}
+
+	if (bRemovedRedirect)
+	{
+		if (bIsWildcardMatch)
+		{
+			// We removed a substring redirect so we need to regenerate our prediction 
+			// tables to avoid unnecessary false positives
+			ExistingNameMap->Wildcards->Rebuild();
+		}
+#if WITH_EDITOR
+		GRedirectionSummary.Remove(RedirectToRemove, bIsWildcardMatch);
+#endif
 	}
 
 	return bRemovedRedirect;
@@ -1366,6 +2600,7 @@ void FCoreRedirects::ValidateRedirectList(TArrayView<const FCoreRedirect> Redire
 
 void FCoreRedirects::ValidateAllRedirects()
 {
+	FCoreRedirectorScopeLockForRead ReadLock(RWLock);
 	bValidatedOnce = true;
 
 	// Validate all existing redirects
@@ -1380,6 +2615,21 @@ void FCoreRedirects::ValidateAllRedirects()
 			ValidateRedirectList(ArrayPair.Value, ListName);
 		}
 	}
+
+	ValidateAssetRedirectsUnderReadLock(ReadLock);
+}
+
+bool FCoreRedirects::ValidateAssetRedirects()
+{
+	FCoreRedirectorScopeLockForRead ReadLock(RWLock);
+	return ValidateAssetRedirectsUnderReadLock(ReadLock);
+}
+
+const TMap<FName, ECoreRedirectFlags>& FCoreRedirects::GetConfigKeyMap()
+{
+	// The config key map is only written to during initialization. That allows us to provide unguarded access after initialization
+	ensureMsgf(IsInitialized(), TEXT("It is not legal to read the config key map until after FCoreRedirects has been initialized."));
+	return ConfigKeyMap;
 }
 
 ECoreRedirectFlags FCoreRedirects::GetFlagsForTypeName(FName PackageName, FName TypeName)
@@ -2179,7 +3429,7 @@ static void RegisterNativeRedirects49(TArray<FCoreRedirect>& Redirects)
 
 UE_ENABLE_OPTIMIZATION_SHIP
 
-void FCoreRedirects::RegisterNativeRedirects()
+void FCoreRedirects::RegisterNativeRedirectsUnderWriteLock(const FCoreRedirectorScopeLockForWrite& HeldLock)
 {
 	// Registering redirects here instead of in baseengine.ini is faster to parse and can clean up the ini, but is not required
 	TArray<FCoreRedirect> Redirects;
@@ -2190,10 +3440,80 @@ void FCoreRedirects::RegisterNativeRedirects()
 
 	// 4.10 and later are in baseengine.ini
 
-	AddRedirectList(Redirects, TEXT("RegisterNativeRedirects"));
+	AddRedirectListUnderWriteLock(Redirects, TEXT("RegisterNativeRedirects"), HeldLock);
 }
 #else
-void FCoreRedirects::RegisterNativeRedirects()
+void FCoreRedirects::RegisterNativeRedirectsUnderWriteLock(const FCoreRedirectorScopeLock& HeldLock)
 {
 }
 #endif // UE_WITH_CORE_REDIRECTS
+
+void FCoreRedirects::FRWLockWithExclusiveRecursion::ReadLock()
+{
+	int32 InitialLockOwner = WriteLockOwnerThreadId.load(std::memory_order_relaxed);
+	
+	// Avoid calling GetCurrentThreadId in the common case where we start out unlocked
+	// If we are unowned at the start, then there are three cases to consider:
+	// 1. We are unlocked. In that case we'll pass the InitialLockOwner check and call ReadLock()
+	// 2. We are already in a ReadLock() state. Taking the read lock again will cause us to deadlock. 
+	// That is part of the contract for this lock so it's okay.
+	// 3. We are write locked, in which case we'll enter the first block 
+	if (InitialLockOwner != 0)
+	{
+		// If we are initially write locked, there are two possibilities:
+		// 1. This thread owns the write lock. In that case, it's safe to just bump the recursion count
+		// 2. Another thread owns the write lock, in which case we want to block with a ReadLock()
+		if (InitialLockOwner == FPlatformTLS::GetCurrentThreadId())
+		{
+			// Allow recursive read locking by bumping the recursion count
+			RecursionCount++;
+		}
+		else
+		{
+			InternalLock.ReadLock();
+		}
+	}
+	else
+	{
+		// We may or may not still be locked at this point if another thread took a WriteLock
+		// but it doesn't matter because in either case we want to take a ReadLock and potentially wait
+		InternalLock.ReadLock();
+	}
+}
+
+void FCoreRedirects::FRWLockWithExclusiveRecursion::WriteLock()
+{
+	uint32 CurrentThreadId = FPlatformTLS::GetCurrentThreadId();
+	if (WriteLockOwnerThreadId.load(std::memory_order_relaxed) != CurrentThreadId)
+	{
+		InternalLock.WriteLock();
+		WriteLockOwnerThreadId = CurrentThreadId;
+	}
+	RecursionCount++;
+}
+
+void FCoreRedirects::FRWLockWithExclusiveRecursion::WriteUnlock()
+{
+	ensure(WriteLockOwnerThreadId.load(std::memory_order_relaxed) == FPlatformTLS::GetCurrentThreadId());
+	ensure(RecursionCount > 0);
+	RecursionCount--;
+	if (RecursionCount == 0)
+	{
+		WriteLockOwnerThreadId.store(0, std::memory_order_relaxed);
+		InternalLock.WriteUnlock();
+	}
+}
+
+void FCoreRedirects::FRWLockWithExclusiveRecursion::ReadUnlock()
+{
+	if (RecursionCount > 0)
+	{
+		ensureMsgf(WriteLockOwnerThreadId.load(std::memory_order_relaxed) == FPlatformTLS::GetCurrentThreadId(), 
+			TEXT("Called ReadUnlock() on a lock held exclusively by another thread."));
+		RecursionCount--;
+	}
+	else
+	{
+		InternalLock.ReadUnlock();
+	}
+}

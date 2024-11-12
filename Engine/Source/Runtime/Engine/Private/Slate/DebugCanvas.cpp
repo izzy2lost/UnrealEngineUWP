@@ -16,6 +16,7 @@
 #include "IHeadMountedDisplay.h"
 #include "RenderTargetPool.h"
 #include "ViewportClient.h"
+#include "RenderGraphUtils.h"
 
 /**
  * Simple representation of the backbuffer that the debug canvas renders to
@@ -31,29 +32,41 @@ public:
 	}
 
 	/** Sets the texture that this target renders to */
-	void SetRenderTargetTexture( FRHITexture* InRHIRef )
+	void SetRenderTargetTexture(FRDGTexture* InRDGTexture)
 	{
-		RenderTargetTextureRHI = InRHIRef;
+		RDGTexture = InRDGTexture;
 	}
 
 	/** Clears the render target texture */
 	void ClearRenderTargetTexture()
 	{
-		RenderTargetTextureRHI.SafeRelease();
+		RDGTexture = nullptr;
 	}
 
-	/** Sets the viewport rect for the render target */
-	void SetViewRect( const FIntRect& InViewRect ) 
-	{ 
+	const FTextureRHIRef& GetRenderTargetTexture() const override
+	{
+		static FTextureRHIRef NullRef;
+		return NullRef;
+	}
+
+	FRDGTextureRef GetRenderTargetTexture(FRDGBuilder&) const override
+	{
+		return RDGTexture;
+	}
+
+	void SetViewRect(const FIntRect& InViewRect)
+	{
 		ViewRect = InViewRect;
 	}
 
 	/** Gets the viewport rect for the render target */
 	const FIntRect& GetViewRect() const 
 	{
-		return ViewRect; 
+		return ViewRect;
 	}
+
 private:
+	FRDGTexture* RDGTexture = nullptr;
 	FIntRect ViewRect;
 };
 
@@ -234,40 +247,24 @@ void FDebugCanvasDrawer::InitDebugCanvas(FViewportClient* ViewportClient, UWorld
 	}
 }
 
-void FDebugCanvasDrawer::Draw_RenderThread(FRHICommandListImmediate& RHICmdList, const void* InWindowBackBuffer, const FSlateCustomDrawParams& Params)
+void FDebugCanvasDrawer::Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPassInputs& Inputs)
 {
-	check( IsInRenderingThread() );
-	check(RHICmdList.IsOutsideRenderPass());
+	RDG_EVENT_SCOPE(GraphBuilder, "DrawDebugCanvas");
+	TRACE_CPUPROFILER_EVENT_SCOPE(DrawDebugCanvas);
 
-	SCOPED_DRAW_EVENT(RHICmdList, DrawDebugCanvas);
-
-	QUICK_SCOPE_CYCLE_COUNTER(Stat_DrawDebugCanvas);
-	if( RenderThreadCanvas.IsValid() )
+	if (RenderThreadCanvas.IsValid())
 	{
-		FRHITexture* RT = InWindowBackBuffer != nullptr ? ((FTexture2DRHIRef*)InWindowBackBuffer)->GetReference() : nullptr;
-		FTextureRHIRef HMDSwapchain = nullptr;	// Attention: RT could point to HMDSwapchain later.
+		FRDGTexture* OutputTexture = Inputs.OutputTexture;
+
 		if (RenderThreadCanvas->IsUsingInternalTexture())
 		{
-			if (LayerTexture && RenderThreadCanvas->GetParentCanvasSize() != LayerTexture->GetDesc().Extent)
-			{
-				LayerTexture.SafeRelease();
-			}
-
-			if (!LayerTexture)
-			{
-				// Set TexCreate_NoFastClear because the fast CMASK clear was not working on ps4.
-				FPooledRenderTargetDesc Desc(FPooledRenderTargetDesc::Create2DDesc(RenderThreadCanvas->GetParentCanvasSize(), PF_B8G8R8A8, FClearValueBinding(), ETextureCreateFlags::None, ETextureCreateFlags::RenderTargetable | ETextureCreateFlags::NoFastClear, false));
-				Desc.DebugName = TEXT("DebugCanvasLayerTexture");
-				GRenderTargetPool.FindFreeElement(RHICmdList, Desc, LayerTexture, TEXT("DebugCanvasLayerTexture"));
-				UE_LOG(LogProfilingDebugging, Log, TEXT("Allocated a %d x %d texture for HMD canvas layer"), RenderThreadCanvas->GetParentCanvasSize().X, RenderThreadCanvas->GetParentCanvasSize().Y);
-			}
+			FTextureRHIRef HMDSwapChain;
 
 			IStereoLayers* const StereoLayers = (GEngine && GEngine->IsStereoscopic3D() && GEngine->StereoRenderingDevice.IsValid()) ? GEngine->StereoRenderingDevice->GetStereoLayers() : nullptr;
-
-			FTextureRHIRef HMDNull = nullptr;
 			if (StereoLayers)
 			{
-				StereoLayers->GetAllocatedTexture(LayerID, HMDSwapchain, HMDNull);
+				FTextureRHIRef HMDNull;
+				StereoLayers->GetAllocatedTexture(LayerID, HMDSwapChain, HMDNull);
 
 				// If drawing to a layer tell the spectator screen controller to copy that layer to the spectator screen.
 				if (StereoLayers->ShouldCopyDebugLayersToSpectatorScreen() && LayerID != INVALID_LAYER_ID && GEngine && GEngine->XRSystem)
@@ -283,21 +280,45 @@ void FDebugCanvasDrawer::Draw_RenderThread(FRHICommandListImmediate& RHICmdList,
 					}
 				}
 			}
-			RT = reinterpret_cast<FRHITexture*>(HMDSwapchain == nullptr ? LayerTexture->GetRHI() : HMDSwapchain.GetReference());
-		}
-		RHICmdList.Transition(FRHITransitionInfo(RT, ERHIAccess::Unknown, ERHIAccess::RTV));
-		RenderTarget->SetRenderTargetTexture(RT);
 
-		if (RenderThreadCanvas->IsScaledToRenderTarget() && RT) 
+			if (LayerTexture && RenderThreadCanvas->GetParentCanvasSize() != LayerTexture->GetDesc().Extent)
+			{
+				LayerTexture.SafeRelease();
+			}
+
+			if (HMDSwapChain)
+			{
+				OutputTexture = RegisterExternalTexture(GraphBuilder, HMDSwapChain, TEXT("HMDSwapChainTexture"));
+			}
+			else if (LayerTexture)
+			{
+				OutputTexture = GraphBuilder.RegisterExternalTexture(LayerTexture);
+			}
+			else
+			{
+				OutputTexture = GraphBuilder.CreateTexture(
+					FRDGTextureDesc::Create2D(RenderThreadCanvas->GetParentCanvasSize(), PF_B8G8R8A8, FClearValueBinding(), ETextureCreateFlags::RenderTargetable),
+					TEXT("DebugCanvasLayerTexture"));
+
+				LayerTexture = GraphBuilder.ConvertToExternalTexture(OutputTexture);
+
+				UE_LOG(LogProfilingDebugging, Log, TEXT("Allocated a %d x %d texture for HMD canvas layer"), RenderThreadCanvas->GetParentCanvasSize().X, RenderThreadCanvas->GetParentCanvasSize().Y);
+			}
+		}
+
+		RenderTarget->SetRenderTargetTexture(OutputTexture);
+
+		if (RenderThreadCanvas->IsUsingInternalTexture())
 		{
-			RenderThreadCanvas->SetRenderTargetRect( FIntRect(0, 0, (RT)->GetSizeX(), (RT)->GetSizeY()) );
+			RenderThreadCanvas->SetRenderTargetRect(FIntRect(FIntPoint::ZeroValue, OutputTexture->Desc.Extent));
 		}
 		else
 		{
-			RenderThreadCanvas->SetRenderTargetRect( RenderTarget->GetViewRect() );
+			RenderThreadCanvas->SetRenderTargetRect(RenderTarget->GetViewRect());
 		}
 
-		RenderThreadCanvas->Flush_RenderThread(RHICmdList, true);
+		RenderThreadCanvas->Flush_RenderThread(GraphBuilder, true);
+
 		RenderTarget->ClearRenderTargetTexture();
 	}
 }

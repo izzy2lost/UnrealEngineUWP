@@ -156,12 +156,21 @@ public:
 
 	/**
 	 * Exports the currently opened USD Stage to a single "flattened" USD layer.
-	 * Corresponds to the "File -> Export -> All Layers" action on the USD Stage Editor menu bar.
+	 * Corresponds to the "File -> Export -> Flattened stage" action on the USD Stage Editor menu bar.
 	 * @param OutputLayer - File path (e.g. "C:/ExportFolder/out.usda") to export the flattened layer to.
 	 *                      If this path is the empty string a dialog will be shown to let the user pick the file.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "USD|Menu Actions")
 	static void FileExportFlattenedStage(const FString& OutputLayer);
+
+	/**
+	 * Exports the currently opened USD Stage to a single "flattened" USD layer.
+	 * Corresponds to the "File -> Export -> Flattened layer stack" action on the USD Stage Editor menu bar.
+	 * @param OutputLayer - File path (e.g. "C:/ExportFolder/out.usda") to export the flattened layer to.
+	 *                      If this path is the empty string a dialog will be shown to let the user pick the file.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "USD|Menu Actions")
+	static void FileExportFlattenedLayerStack(const FString& OutputLayer);
 
 	/**
 	 * Reloads all layers of the current USD Stage.

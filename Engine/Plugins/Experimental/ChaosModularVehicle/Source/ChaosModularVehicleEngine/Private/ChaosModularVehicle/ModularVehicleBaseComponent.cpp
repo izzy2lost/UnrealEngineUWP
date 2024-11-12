@@ -4,24 +4,25 @@
 #include "ChaosModularVehicle/ChaosSimModuleManager.h"
 #include "ChaosModularVehicle/VehicleSimBaseComponent.h"
 #include "ChaosModularVehicle/ModularVehicleDefaultAsyncInput.h"
+#include "ChaosModularVehicle/ModularVehicleAnimationInstance.h"
+#include "ChaosModularVehicle/InputProducer.h"
 #include "Engine/Engine.h"
 #include "Engine/Canvas.h"
 #include "Engine/OverlapResult.h"
 #include "PhysicsEngine/PhysicsSettings.h"
 #include "PhysicsEngine/ClusterUnionComponent.h"
 #include "PhysicsEngine/PhysicsObjectExternalInterface.h"
-#include "PhysicsReplication.h"
 #include "Net/Core/PushModel/PushModel.h"
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/Pawn.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "SimModule/SimModuleTree.h"
-#include "Chaos/PBDSuspensionConstraints.h"
 
 #include "ChaosModularVehicle/ChaosSimModuleManagerAsyncCallback.h"
 
 DEFINE_LOG_CATEGORY(LogModularBase);
+
 
 bool bModularVehicle_SuspensionConstraint_Enabled = true;
 FAutoConsoleVariableRef CVarModularVehicleSuspensionConstraintEnabled(TEXT("p.ModularVehicle.SuspensionConstraint.Enabled"), bModularVehicle_SuspensionConstraint_Enabled, TEXT("Enable/Disable suspension constraint falling back to simple forces when constraint disabled (requires restart)."));
@@ -56,19 +57,6 @@ UModularVehicleBaseComponent::UModularVehicleBaseComponent(const FObjectInitiali
 	EngineRPM = 0.0f;
 	EngineTorque = 0.0f;
 
-	//// #TODO: currently ordering of this must match EModularVehicleInputType
-	//InputInterpolationRates.Reset();
-	//InputInterpolationRates.Add(FModularVehicleInputRate(FString("Throttle")));
-	//InputInterpolationRates.Add(FModularVehicleInputRate(FString("Brake")));
-	//InputInterpolationRates.Add(FModularVehicleInputRate(FString("Clutch")));
-	//InputInterpolationRates.Add(FModularVehicleInputRate(FString("Steering")));
-	//InputInterpolationRates.Add(FModularVehicleInputRate(FString("Handbrake")));
-	//InputInterpolationRates.Add(FModularVehicleInputRate(FString("Pitch")));
-	//InputInterpolationRates.Add(FModularVehicleInputRate(FString("Roll")));
-	//InputInterpolationRates.Add(FModularVehicleInputRate(FString("Yaw")));
-	//InputInterpolationRates.Add(FModularVehicleInputRate(FString("Gear")));
-	//InputInterpolationRates.Add(FModularVehicleInputRate(FString("DebugIndex")));
-
 	if (bUsingNetworkPhysicsPrediction)
 	{
 		static const FName NetworkPhysicsComponentName(TEXT("PC_NetworkPhysicsComponent"));
@@ -79,6 +67,8 @@ UModularVehicleBaseComponent::UModularVehicleBaseComponent(const FObjectInitiali
 	}
 
 	bIsLocallyControlled = false;
+
+	InputProducerClass = UVehicleDefaultInputProducer::StaticClass();
 }
 
 UModularVehicleBaseComponent::~UModularVehicleBaseComponent()
@@ -111,7 +101,7 @@ APlayerController* UModularVehicleBaseComponent::GetPlayerController() const
 
 bool UModularVehicleBaseComponent::IsLocallyControlled() const
 {
-	if (bIsLocallyControlled && !GetWorld()->IsNetMode(NM_DedicatedServer))
+	if (bIsLocallyControlled)
 	{
 		return true;
 	}
@@ -122,6 +112,46 @@ bool UModularVehicleBaseComponent::IsLocallyControlled() const
 	}
 	return false;
 }
+
+void UModularVehicleBaseComponent::ProduceInput(int32 PhysicsStep, int32 NumSteps)
+{
+	if (InputProducer)
+	{
+		InputProducer->ProduceInput(PhysicsStep, NumSteps, InputNameMap, InputsContainer);
+	}
+}
+
+//void UModularVehicleBaseComponent::GenerateInputModifiers(const TArray<FModuleInputSetup>& CombinedInputConfiguration)
+//{
+//	for (const FModuleInputSetup& InputSetup : CombinedInputConfiguration)
+//	{
+//		if (InputSetup.InputModifierClass != nullptr)
+//		{
+//			UDefaultModularVehicleInputModifier* NewPtr = NewObject<UDefaultModularVehicleInputModifier>(this, InputSetup.InputModifierClass);
+//			InputModifiers.Add(NewPtr);
+//		}
+//		else
+//		{
+//			InputModifiers.Add(nullptr);
+//		}
+//	}
+//}
+
+//void UModularVehicleBaseComponent::ApplyInputModifiers(float DeltaTime, const FModuleInputContainer& RawValue)
+//{
+//	check(InputModifiers.Num() == InputsContainer.GetNumInputs());
+//	for (int I = 0; I < InputsContainer.GetNumInputs(); I++)
+//	{
+//		if (InputModifiers[I] != nullptr)
+//		{
+//			InputsContainer.SetValueAtIndex(I, InputModifiers[I]->InterpInputValue(DeltaTime, InputsContainer.GetValueAtIndex(I), RawValue.GetValueAtIndex(I)));
+//		}
+//		else
+//		{
+//			InputsContainer.SetValueAtIndex(I, RawValue.GetValueAtIndex(I));
+//		}
+//	}
+//}
 
 
 void UModularVehicleBaseComponent::OnCreatePhysicsState()
@@ -153,6 +183,7 @@ void UModularVehicleBaseComponent::OnCreatePhysicsState()
 		{
 			// register interface to handle network prediction callbacks
 			// #Note: in our case we don't yet know what the replication data will be since the modules are built after this point at runtime
+			FScopedModuleInputInitializer SetSetup(InputConfig);
 			NetworkPhysicsComponent->CreateDataHistory<FPhysicsModularVehicleTraits>(this);
 
 			if (bIsLocallyControlled)
@@ -195,7 +226,8 @@ int GenerateNewGuid()
 	return Val++;
 }
 
-void UModularVehicleBaseComponent::CreateAssociatedSimComponents(const UPrimitiveComponent* AttachedComponent, int ParentIndex, int TransformIndex, Chaos::FSimTreeUpdates& TreeUpdatesOut)
+
+void UModularVehicleBaseComponent::CreateAssociatedSimComponents(USceneComponent* AttachedComponent, int ParentIndex, int TransformIndex, Chaos::FSimTreeUpdates& TreeUpdatesOut)
 {
 	using namespace Chaos;
 	if (AttachedComponent == nullptr || ClusterUnionComponent == nullptr)
@@ -209,14 +241,14 @@ void UModularVehicleBaseComponent::CreateAssociatedSimComponents(const UPrimitiv
 
 	ensure(TransformIndex < ChildParticles.Num());
 
-	if (const UVehicleSimBaseComponent* Component = Cast<UVehicleSimBaseComponent>(AttachedComponent))
+	if (IVehicleSimBaseComponentInterface* ComponentInterface = Cast<IVehicleSimBaseComponentInterface>(AttachedComponent))
 	{
 		FTransform ClusterUnionComponentTransform = ClusterUnionComponent->GetComponentTransform();
 		FTransform ComponentTransform = AttachedComponent->GetComponentTransform().GetRelativeTransform(ClusterUnionComponentTransform);
 
 		int TreeIndex = INDEX_NONE;
 
-		Chaos::ISimulationModuleBase* NewModule = Component->CreateNewCoreModule();
+		Chaos::ISimulationModuleBase* NewModule = ComponentInterface->CreateNewCoreModule();
 
 		TUniquePtr<Chaos::FSimModuleTree>& SimModuleTree = VehicleSimulationPT->AccessSimComponentTree();
 
@@ -251,14 +283,42 @@ void UModularVehicleBaseComponent::CreateAssociatedSimComponents(const UPrimitiv
 		FTransform ClusterredTransform(FQuat::Identity, InitialTransform.GetLocation());
 		NewModule->SetClusteredTransform(ClusterredTransform);
 
+		const bool bIsAnimationEnabled = ComponentInterface->GetAnimationEnabled();
+		const FName ComponentBoneName = ComponentInterface->GetBoneName();
+		if (bIsAnimationEnabled && (ComponentBoneName != NAME_None))
+		{
+			// if bone already exists then use that (seperate wheel and suspension modules can share same bone)
+
+			int FoundIndex = -1;
+			for (int I = 0; I < ModuleAnimationSetups.Num(); I++)
+			{
+				if (ModuleAnimationSetups[I].BoneName == ComponentBoneName)
+				{
+					FoundIndex = I;
+					break;
+				}
+			}
+
+			const FVector& ComponentAnimationOffset = ComponentInterface->GetAnimationOffset();
+			if (FoundIndex != -1)
+			{
+				NewModule->SetAnimationData(ComponentBoneName, ComponentAnimationOffset, FoundIndex);
+			}
+			else
+			{
+				NewModule->SetAnimationData(ComponentBoneName, ComponentAnimationOffset, ModuleAnimationSetups.Num());
+				FModuleAnimationSetup AnimSetup(NewModule->GetBoneName());
+				ModuleAnimationSetups.Add(AnimSetup);
+			}
+		}
+
+		// store the tree index in the original sim component
+		ComponentInterface->SetTreeIndex(TreeIndex);
 		ParentIndex = TreeIndex;
 
-		if (bModularVehicle_SuspensionConstraint_Enabled)
+		if (Chaos::FClusterUnionPhysicsProxy* Proxy = ClusterUnionComponent->GetPhysicsProxy())
 		{
-			if (NewModule->GetSimType() == Chaos::eSimType::Suspension)
-			{
-				CreateConstraint(NewModule);
-			}
+			NewModule->OnConstruction_External(Proxy);
 		}
 	}
 
@@ -269,9 +329,9 @@ void UModularVehicleBaseComponent::CreateAssociatedSimComponents(const UPrimitiv
 	// recurse down tree, converting all SimComponents to proper simulation modules
 	for (USceneComponent* Child : Children)
 	{
-		if (UVehicleSimBaseComponent* ChildSimComponent = Cast<UVehicleSimBaseComponent>(Child))
+		if (IVehicleSimBaseComponentInterface* ChildSimComponent = Cast<IVehicleSimBaseComponentInterface>(Child))
 		{
-			CreateAssociatedSimComponents(ChildSimComponent, ParentIndex, TransformIndex, TreeUpdatesOut);
+			CreateAssociatedSimComponents(Child, ParentIndex, TransformIndex, TreeUpdatesOut);
 		}
 	}
 
@@ -314,6 +374,32 @@ void UModularVehicleBaseComponent::BeginPlay()
 			AddGeometryCollectionsFromOwnedActor();
 		}
 	}
+
+	// control input setup - unfortunately can't do this in OnCreatePhysics since RootComponent->GetChildrenComponents will not work 
+	// at that time and AssimilateComponentInputs will not find any controls in the component hierarchy
+	TArray<FModuleInputSetup> CombinedInputConfiguration;
+	AssimilateComponentInputs(CombinedInputConfiguration);
+
+	if (!InputProducer && InputProducerClass)
+	{
+		InputProducer = NewObject<UVehicleInputProducerBase>(this, InputProducerClass);
+	}
+
+	if (InputProducer)
+	{
+		InputProducer->InitializeContainer(CombinedInputConfiguration, InputNameMap);
+	}
+
+	InputsContainer.Initialize(CombinedInputConfiguration, InputNameMap);
+
+	if (!bUsingNetworkPhysicsPrediction)
+	{
+		ReplicatedState.Container = InputsContainer;
+	}
+	// #TODO reinstate ? GenerateInputModifiers(CombinedInputConfiguration);
+
+	VehicleSimulationPT->SetInputMappings(InputNameMap);
+
 }
 
 void UModularVehicleBaseComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -328,99 +414,6 @@ void UModularVehicleBaseComponent::TickComponent(float DeltaTime, ELevelTick Tic
 
 }
 
-void UModularVehicleBaseComponent::CreateConstraint(Chaos::ISimulationModuleBase* NewModule)
-{
-	check(NewModule->GetSimType() == Chaos::eSimType::Suspension);
-	Chaos::FSuspensionSimModule* SuspensionModule = static_cast<Chaos::FSuspensionSimModule*>(NewModule);
-
-	const Chaos::FSuspensionSettings& Setup = SuspensionModule->Setup();
-	const FVector& LocalOffset = SuspensionModule->GetInitialParticleTransform().GetLocation();
-
-	if (ClusterUnionComponent && ClusterUnionComponent->GetPhysicsProxy())
-	{
-		const Chaos::FPhysicsObjectHandle& PhysicsObject = ClusterUnionComponent->GetPhysicsProxy()->GetPhysicsObjectHandle();
-
-		if ( FChaosScene* Scene = static_cast<FChaosScene*>(FPhysicsObjectExternalInterface::GetScene({ &PhysicsObject, 1 })) )
-		{
-			FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite(Scene);
-			if (const Chaos::FGeometryParticle* Particle = Interface->GetParticle(PhysicsObject))
-			{
-				FPhysicsConstraintHandle ConstraintHandle = FPhysicsInterface::CreateSuspension(PhysicsObject, LocalOffset);
-
-				if (ConstraintHandle.IsValid())
-				{
-					ConstraintHandles.Add(ConstraintHandle);
-
-					if (Chaos::FSuspensionConstraint* Constraint = static_cast<Chaos::FSuspensionConstraint*>(ConstraintHandle.Constraint))
-					{
-						Constraint->SetHardstopStiffness(1.0f);
-						Constraint->SetSpringStiffness(Setup.SpringRate * 0.25f);
-						Constraint->SetSpringPreload(Setup.SpringPreload);
-						Constraint->SetSpringDamping(Setup.SpringDamping * 5.0f);
-						Constraint->SetMinLength(-Setup.MaxRaise);
-						Constraint->SetMaxLength(Setup.MaxDrop);
-						Constraint->SetAxis(-Setup.SuspensionAxis);
-
-						SuspensionModule->SetSuspensionConstraint(Constraint);
-						SuspensionModule->SetConstraintIndex(ConstraintHandles.Num()-1);
-					}
-				}
-			}
-		}
-	}
-}
-
-void UModularVehicleBaseComponent::DestroyConstraint(int ConstraintIndex)
-{
-	if (ConstraintIndex >= 0 && ConstraintIndex < ConstraintHandles.Num())
-	{
-		FPhysicsConstraintHandle ConstraintHandle = ConstraintHandles[ConstraintIndex];
-		FPhysicsCommand::ExecuteWrite(ConstraintHandle, [&](const FPhysicsConstraintHandle& Constraint)
-			{
-				FPhysicsInterface::ReleaseConstraint(ConstraintHandle);
-			});
-
-		ConstraintHandles[ConstraintIndex].Reset();
-	}
-
-}
-
-void UModularVehicleBaseComponent::DestroyAllConstraints()
-{
-	if (ConstraintHandles.Num() > 0)
-	{
-		for (FPhysicsConstraintHandle ConstraintHandle : ConstraintHandles)
-		{
-			if (ConstraintHandle.IsValid())
-			{
-				FPhysicsCommand::ExecuteWrite(ConstraintHandle, [&](const FPhysicsConstraintHandle& Constraint)
-					{
-						FPhysicsInterface::ReleaseConstraint(ConstraintHandle);
-					});
-			}
-		}
-	}
-	ConstraintHandles.Empty();
-
-}
-
-void UModularVehicleBaseComponent::EnableConstraint(int ConstraintIndex, bool bEnabled)
-{
-	if (ConstraintIndex >= 0 && ConstraintIndex < ConstraintHandles.Num())
-	{
-		FPhysicsConstraintHandle ConstraintHandle = ConstraintHandles[ConstraintIndex];
-		FPhysicsCommand::ExecuteWrite(ConstraintHandle, [&](const FPhysicsConstraintHandle& Constraint)
-			{
-				if (Chaos::FSuspensionConstraint* SuspensionConstraint = static_cast<Chaos::FSuspensionConstraint*>(ConstraintHandle.Constraint))
-				{
-					SuspensionConstraint->SetEnabled(bEnabled);
-				}
-			});
-
-		ConstraintHandles[ConstraintIndex].Reset();
-	}
-
-}
 
 int32 UModularVehicleBaseComponent::FindComponentAddOrder(UPrimitiveComponent* InComponent)
 {
@@ -494,22 +487,12 @@ void UModularVehicleBaseComponent::UpdateState(float DeltaTime)
 	// Should we remove input instead of relying on replicated state in that case?
 	if (bProcessLocally && PVehicleOutput)
 	{
-		// Apply Inputs locally
-		SteeringInput = SteeringInputRate.InterpInputValue(DeltaTime, SteeringInput, RawSteeringInput);
-		ThrottleInput = ThrottleInputRate.InterpInputValue(DeltaTime, ThrottleInput, RawThrottleInput);
-		BrakeInput = BrakeInputRate.InterpInputValue(DeltaTime, BrakeInput, RawBrakeInput);
-		HandbrakeInput = HandbrakeInputRate.InterpInputValue(DeltaTime, HandbrakeInput, RawHandbrakeInput);
-		PitchInput = PitchInputRate.InterpInputValue(DeltaTime, PitchInput, RawPitchInput);
-		RollInput = RollInputRate.InterpInputValue(DeltaTime, RollInput, RawRollInput);
-		YawInput = YawInputRate.InterpInputValue(DeltaTime, YawInput, RawYawInput);
-		BoostInput = BoostInputRate.InterpInputValue(DeltaTime, BoostInput, RawBoostInput);
-		DriftInput = DriftInputRate.InterpInputValue(DeltaTime, DriftInput, RawDriftInput);
-		ReverseInput = RawReverseInput;
+		//ApplyInputModifiers(DeltaTime, RawInputsContainer); #TODO: If we put this back where does it go
 
 		if (!bUsingNetworkPhysicsPrediction)
 		{
 			// and send to server - (ServerUpdateState_Implementation below)
-			ServerUpdateState(SteeringInput, ThrottleInput, BrakeInput, HandbrakeInput, -1, RollInput, PitchInput, YawInput, BoostInput, DriftInput, ReverseInput);
+			ServerUpdateState(InputsContainer, bKeepVehicleAwake);
 		}
 
 		if (PawnOwner && PawnOwner->IsNetMode(NM_Client))
@@ -520,49 +503,21 @@ void UModularVehicleBaseComponent::UpdateState(float DeltaTime)
 	else if (!bUsingNetworkPhysicsPrediction)
 	{
 		// use replicated values for remote pawns
-		ThrottleInput = ReplicatedState.Throttle;
-		SteeringInput = ReplicatedState.Steering;
-		BrakeInput = ReplicatedState.Brake;
-		HandbrakeInput = ReplicatedState.Handbrake;
-		PitchInput = ReplicatedState.Pitch;
-		RollInput = ReplicatedState.Roll;
-		YawInput = ReplicatedState.Yaw;
-		BoostInput = ReplicatedState.Boost;
-		DriftInput = ReplicatedState.Drift;
-		ReverseInput = ReplicatedState.Reverse;
+		InputsContainer = ReplicatedState.Container;
+		bKeepVehicleAwake = ReplicatedState.KeepAwake;
 	}
 }
 
-bool UModularVehicleBaseComponent::ServerUpdateState_Validate(float InSteeringInput, float InThrottleInput, float InBrakeInput, float InHandbrakeInput, int32 InCurrentGear, float InRollInput, float InPitchInput, float InYawInput, float InBoostInput, float InDriftInput, bool InReverseInput)
+bool UModularVehicleBaseComponent::ServerUpdateState_Validate(const FModuleInputContainer& InputsIn, bool KeepAwake)
 {
 	return true;
 }
 
-void UModularVehicleBaseComponent::ServerUpdateState_Implementation(float InSteeringInput, float InThrottleInput, float InBrakeInput
-	, float InHandbrakeInput, int32 InCurrentGear, float InRollInput, float InPitchInput, float InYawInput, float InBoostInput, float InDriftInput, bool InReverseInput)
+void UModularVehicleBaseComponent::ServerUpdateState_Implementation(const FModuleInputContainer& InputsIn, bool KeepAwake)
 {
-	SteeringInput = InSteeringInput;
-	ThrottleInput = InThrottleInput;
-	BrakeInput = InBrakeInput;
-	HandbrakeInput = InHandbrakeInput;
-	RollInput = InRollInput;
-	PitchInput = InPitchInput;
-	YawInput = InYawInput;
-	BoostInput = InBoostInput;
-	DriftInput = InDriftInput;
-	ReverseInput = InReverseInput;
-
 	// update state of inputs
-	ReplicatedState.Steering = InSteeringInput;
-	ReplicatedState.Throttle = InThrottleInput;
-	ReplicatedState.Brake = InBrakeInput;
-	ReplicatedState.Handbrake = InHandbrakeInput;
-	ReplicatedState.Roll = InRollInput;
-	ReplicatedState.Pitch = InPitchInput;
-	ReplicatedState.Yaw = InYawInput;
-	ReplicatedState.Boost = InBoostInput;
-	ReplicatedState.Drift = InDriftInput;
-	ReplicatedState.Reverse = InReverseInput;
+	ReplicatedState.KeepAwake = KeepAwake;
+	ReplicatedState.Container = InputsIn;
 }
 
 
@@ -670,44 +625,85 @@ void UModularVehicleBaseComponent::ParallelUpdate(float DeltaTime)
 	{
 		if (CurrentOutput->bValid && PVehicleOutput)
 		{
+			PVehicleOutput->Clean();
+			int NumItems = CurrentOutput->VehicleSimOutput.SimTreeOutputData.Num();
+			PVehicleOutput->SimTreeOutputData.Reserve(NumItems);
+
 			if (const FModularVehicleAsyncOutput* NextOutput = static_cast<FModularVehicleAsyncOutput*>(NextAsyncOutput))
 			{
-				PVehicleOutput->Clean();
-
-				int NumItems = CurrentOutput->VehicleSimOutput.SimTreeOutputData.Num();
-				PVehicleOutput->SimTreeOutputData.Reserve(NumItems);
-
 				for (int I = 0; I < NumItems; I++)
 				{
-					// #TODO: check we are lerping current/next of the same thing - the number can grow/shrink when construction/destruction happens
 					if (I < NextOutput->VehicleSimOutput.SimTreeOutputData.Num())
 					{
 						Chaos::FSimOutputData* CurrentSimData = CurrentOutput->VehicleSimOutput.SimTreeOutputData[I];
 						Chaos::FSimOutputData* NextSimData = NextOutput->VehicleSimOutput.SimTreeOutputData[I];
 						PVehicleOutput->SimTreeOutputData.EmplaceAt(I, CurrentSimData->MakeNewData());
 						PVehicleOutput->SimTreeOutputData[I]->Lerp(*CurrentSimData, *NextSimData, OutputInterpAlpha);
-
-						// extract/cache some generally useful values as we go as trying to locate this data later requires a search
-						if (PVehicleOutput->SimTreeOutputData[I]->GetType() == Chaos::eSimType::Transmission)
-						{
-							// if there is more than one transmission then the last one will inform us of the current gear
-							CurrentGear = static_cast<Chaos::FTransmissionOutputData*>(PVehicleOutput->SimTreeOutputData[I])->CurrentGear;
-						}
-						else if (PVehicleOutput->SimTreeOutputData[I]->GetType() == Chaos::eSimType::Engine)
-						{
-							// if there is more than one engine then the last one will inform us of the engine RPM
-							Chaos::FEngineOutputData* Engine = static_cast<Chaos::FEngineOutputData*>(PVehicleOutput->SimTreeOutputData[I]);
-
-							EngineRPM = Engine->RPM;
-							EngineTorque = Engine->Torque;
-						}
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-						PVehicleOutput->SimTreeOutputData[I]->DebugString = NextOutput->VehicleSimOutput.SimTreeOutputData[I]->DebugString;
-#endif
+					}
+					else
+					{
+						Chaos::FSimOutputData* CurrentSimData = CurrentOutput->VehicleSimOutput.SimTreeOutputData[I];
+						PVehicleOutput->SimTreeOutputData.EmplaceAt(I, CurrentSimData->MakeNewData());
+						*PVehicleOutput->SimTreeOutputData[I] = *CurrentSimData;
 					}
 				}
 			}
+			else
+			{
+				for (int I = 0; I < NumItems; I++)
+				{
+					Chaos::FSimOutputData* CurrentSimData = CurrentOutput->VehicleSimOutput.SimTreeOutputData[I];
+					PVehicleOutput->SimTreeOutputData.EmplaceAt(I, CurrentSimData->MakeNewData());
+					*PVehicleOutput->SimTreeOutputData[I] = *CurrentSimData;
+				}
+			}
+
+
+			for (int I = 0; I < NumItems; I++)
+			{
+				// extract/cache some generally useful values as we go as trying to locate this data later requires a search
+				if (PVehicleOutput->SimTreeOutputData[I]->IsSimType<Chaos::FTransmissionSimModule>())
+				{
+					// if there is more than one transmission then the last one will inform us of the current gear
+					CurrentGear = static_cast<Chaos::FTransmissionOutputData*>(PVehicleOutput->SimTreeOutputData[I])->CurrentGear;
+				}
+				else if (PVehicleOutput->SimTreeOutputData[I]->IsSimType<Chaos::FEngineSimModule>())
+				{
+					// if there is more than one engine then the last one will inform us of the engine RPM
+					Chaos::FEngineOutputData* Engine = static_cast<Chaos::FEngineOutputData*>(CurrentOutput->VehicleSimOutput.SimTreeOutputData[I]);
+
+					EngineRPM = Engine->RPM;
+					EngineTorque = Engine->Torque;
+				}
+
+
+				if (Chaos::FSimOutputData* ModuleOutput = PVehicleOutput->SimTreeOutputData[I])
+				{
+					if ((ModuleOutput->AnimationSetupIndex >= 0) && (ModuleOutput->AnimationSetupIndex < ModuleAnimationSetups.Num()))
+					{
+						ModuleAnimationSetups[ModuleOutput->AnimationSetupIndex].AnimFlags |= ModuleOutput->AnimFlags;
+
+						if (ModuleOutput->AnimFlags & Chaos::EAnimationFlags::AnimateRotation)
+						{
+							ModuleAnimationSetups[ModuleOutput->AnimationSetupIndex].RotOffset = ModuleOutput->AnimationRotOffset;
+						}
+
+						if (ModuleOutput->AnimFlags & Chaos::EAnimationFlags::AnimatePosition)
+						{
+							ModuleAnimationSetups[ModuleOutput->AnimationSetupIndex].LocOffset = ModuleOutput->AnimationLocOffset;
+						}
+					}
+				}
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+				if (PVehicleOutput && !PVehicleOutput->SimTreeOutputData.IsEmpty() && PVehicleOutput->SimTreeOutputData[I])
+				{
+					PVehicleOutput->SimTreeOutputData[I]->DebugString = CurrentOutput->VehicleSimOutput.SimTreeOutputData[I]->DebugString;
+				}
+#endif
+
+			}
+
 
 		}
 	}
@@ -725,17 +721,10 @@ void UModularVehicleBaseComponent::Update(float DeltaTime)
 
 		FModularVehicleAsyncInput* AsyncInput = static_cast<FModularVehicleAsyncInput*>(CurAsyncInput);
 
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Throttle = ThrottleInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Boost = BoostInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Drift = DriftInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Brake = BrakeInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Steering = SteeringInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Handbrake = HandbrakeInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Roll = RollInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Pitch = PitchInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Yaw = YawInput;
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Reverse = ReverseInput;
 		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.KeepAwake = bKeepVehicleAwake;
+
+		// All control inputs
+		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Container = InputsContainer;
 
 		FCollisionQueryParams TraceParams(NAME_None, FCollisionQueryParams::GetUnknownStatId(), false, nullptr);
 		TraceParams.bReturnPhysicalMaterial = true;	// we need this to get the surface friction coefficient
@@ -743,6 +732,7 @@ void UModularVehicleBaseComponent::Update(float DeltaTime)
 		TraceParams.bTraceComplex = bSuspensionTraceComplex;
 		AsyncInput->PhysicsInputs.TraceParams = TraceParams;
 		AsyncInput->PhysicsInputs.TraceCollisionResponse = SuspensionTraceCollisionResponses;
+		AsyncInput->PhysicsInputs.TraceType = TraceType;
 	}
 
 
@@ -762,52 +752,84 @@ const FTransform& UModularVehicleBaseComponent::GetComponentTransform() const
 
 void UModularVehicleBaseComponent::ActionTreeUpdates(Chaos::FSimTreeUpdates* NextTreeUpdates)
 {
-	Chaos::FClusterUnionPhysicsProxy* Proxy = ClusterUnionComponent->GetPhysicsProxy();
-	Chaos::FPBDRigidsSolver* Solver = Proxy->GetSolver<Chaos::FPBDRigidsSolver>();
+	if (ClusterUnionComponent)
+	{
+		if (Chaos::FClusterUnionPhysicsProxy* Proxy = ClusterUnionComponent->GetPhysicsProxy())
+		{
+			if (Chaos::FPBDRigidsSolver* Solver = Proxy->GetSolver<Chaos::FPBDRigidsSolver>())
+			{
 	Solver->EnqueueCommandImmediate([Proxy, this, NextTreeUpdates = *NextTreeUpdates]() mutable
 		{
-			if (VehicleSimulationPT)
+			if (IsValid(this) && bPhysicsStateCreated && VehicleSimulationPT)
 			{
 				TUniquePtr<Chaos::FSimModuleTree>& SimModuleTree = VehicleSimulationPT->AccessSimComponentTree();
-				SimModuleTree->AppendTreeUpdates(NextTreeUpdates);
-				FModularVehicleBuilder::FixupTreeLinks(SimModuleTree);
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-				if (bModularVehicle_DumpModuleTreeStructure_Enabled)
+				if(SimModuleTree.IsValid())
 				{
-					UE_LOG(LogTemp, Warning, TEXT("SimTreeModules:") );
-					for (int I = 0; I < SimModuleTree->GetNumNodes(); I++)
+					SimModuleTree->AppendTreeUpdates(NextTreeUpdates);
+					FModularVehicleBuilder::FixupTreeLinks(SimModuleTree);
+
+	#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+					if (bModularVehicle_DumpModuleTreeStructure_Enabled)
 					{
-						if (Chaos::ISimulationModuleBase* Module = SimModuleTree->GetNode(I).SimModule)
+						UE_LOG(LogTemp, Warning, TEXT("SimTreeModules:") );
+						for (int I = 0; I < SimModuleTree->GetNumNodes(); I++)
 						{
-							FString String;
-							Module->GetDebugString(String);
-							UE_LOG(LogTemp, Warning, TEXT("..%s"), *String);
+							if (Chaos::ISimulationModuleBase* Module = SimModuleTree->GetNode(I).SimModule)
+							{
+								FString String;
+								Module->GetDebugString(String);
+								UE_LOG(LogTemp, Warning, TEXT("..%s"), *String);
+							}
 						}
 					}
-				}
-#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
-				// Network replication data needs to be updated, this is currently studily slow
-				if (NetworkPhysicsComponent)
-				{
-					TSharedPtr<Chaos::FBaseRewindHistory>& History = NetworkPhysicsComponent->GetStateHistory();
-					Chaos::TDataRewindHistory<FNetworkModularVehicleStates>* StateHistory = static_cast<Chaos::TDataRewindHistory<FNetworkModularVehicleStates>*>(History.Get());
-					if (StateHistory)
+					// Network replication data needs to be updated, this is currently studily slow
+					if (NetworkPhysicsComponent)
 					{
-						// #TODO: we are rebuilding from scratch every time there is a single change, there must be a better way!
-						// not sure of it is safe to update the data at this time?
-						for (int I = 0; I < StateHistory->GetDataHistory().Num(); I++)
+						TSharedPtr<Chaos::FBaseRewindHistory>& History = NetworkPhysicsComponent->GetStateHistory_Internal();
+						Chaos::TDataRewindHistory<FNetworkModularVehicleStates>* StateHistory = static_cast<Chaos::TDataRewindHistory<FNetworkModularVehicleStates>*>(History.Get());
+						if (StateHistory)
 						{
-							FNetworkModularVehicleStates& State = StateHistory->GetDataHistory()[I];
-							State.ModuleData.Empty();
-
-							VehicleSimulationPT->AccessSimComponentTree()->GenerateReplicationStructure(State.ModuleData);
+							// #TODO: we are rebuilding from scratch every time there is a single change, there must be a better way!
+							// not sure of it is safe to update the data at this time?
+							for (int I = 0; I < StateHistory->GetDataHistory().Num(); I++)
+							{
+								FNetworkModularVehicleStates& State = StateHistory->GetDataHistory()[I];
+								State.ModuleData.Empty();
+								TUniquePtr<Chaos::FSimModuleTree>& InnerSimModuleTree = VehicleSimulationPT->AccessSimComponentTree();
+								if(InnerSimModuleTree.IsValid())
+								{
+									InnerSimModuleTree->GenerateReplicationStructure(State.ModuleData);
+								}
+							}
 						}
 					}
 				}
 			}
 		});
+}
+		}
+	}
+}
+
+int32 UModularVehicleBaseComponent::FindParentsLastSimComponent(const USceneComponent* AttachedComponent)
+{
+	if (USceneComponent* AttachParent = AttachedComponent->GetAttachParent())
+	{
+		TArray<USceneComponent*> Children;
+		AttachParent->GetChildrenComponents(false, Children);
+
+		for (int32 ChildIndex = Children.Num() - 1; ChildIndex >= 0; --ChildIndex)
+		{
+			if (IVehicleSimBaseComponentInterface* ChildSimComponent = Cast<IVehicleSimBaseComponentInterface>(Children[ChildIndex]))
+			{
+				return ChildSimComponent->GetTreeIndex();
+			}
+		}
+	}
+
+	return INDEX_NONE;
 }
 
 void UModularVehicleBaseComponent::AddComponentToSimulation(UPrimitiveComponent* InComponent, const TArray<FClusterUnionBoneData>& BonesData, const TArray<FClusterUnionBoneData>& RemovedBoneIDs, bool bIsNew)
@@ -833,7 +855,8 @@ void UModularVehicleBaseComponent::AddComponentToSimulation(UPrimitiveComponent*
 			ComponentAddOrder = FindComponentAddOrder(InComponent);
 		}
 
-		int ParentID = INDEX_NONE; // always at root
+		int ParentID = FindParentsLastSimComponent(InComponent);
+
 		Chaos::FSimTreeUpdates LatestTreeUpdates;
 		CreateAssociatedSimComponents(InComponent, ParentID, NextTransformIndex, LatestTreeUpdates);
 
@@ -868,35 +891,32 @@ void UModularVehicleBaseComponent::RemoveComponentFromSimulation(UPrimitiveCompo
 
 		for (USceneComponent* ComponentPart : Components)
 		{
-			if (UVehicleSimBaseComponent* ChangedComponent = Cast<UVehicleSimBaseComponent>(ComponentPart))
+			if (IVehicleSimBaseComponentInterface* ChangedComponent = Cast<IVehicleSimBaseComponentInterface>(ComponentPart))
 			{
-				if (FVehicleComponentData* ComponentData = ComponentToPhysicsObjects.Find(ChangedComponent))
+				if (FVehicleComponentData* ComponentData = ComponentToPhysicsObjects.Find(ComponentPart))
 				{
 					LatestTreeUpdates.RemoveNode(ComponentData->Guid);
-					ComponentToPhysicsObjects.Remove(ChangedComponent);
+					ComponentToPhysicsObjects.Remove(ComponentPart);
 				}
 			}
 		}
 
 		TUniquePtr<Chaos::FSimModuleTree>& SimModuleTree = VehicleSimulationPT->AccessSimComponentTree();
-		for (const Chaos::FPendingModuleDeletions& TreeUpdate : LatestTreeUpdates.GetDeletedModules())
+		if(SimModuleTree.IsValid())
 		{
-			for (int Index = 0; Index < SimModuleTree->GetNumNodes(); Index++)
+			for (const Chaos::FPendingModuleDeletions& TreeUpdate : LatestTreeUpdates.GetDeletedModules())
 			{
-				if (Chaos::ISimulationModuleBase* SimModule = SimModuleTree->GetNode(Index).SimModule)
+				for (int Index = 0; Index < SimModuleTree->GetNumNodes(); Index++)
 				{
-					if (SimModule->GetGuid() == TreeUpdate.Guid)
+					if (Chaos::ISimulationModuleBase* SimModule = SimModuleTree->GetNode(Index).SimModule)
 					{
-						SimModule->SetAnimationEnabled(false);
-						SimModule->SetStateFlags(Chaos::eSimModuleState::Disabled);
-
-						if (SimModule->GetSimType() == Chaos::eSimType::Suspension)
+						if (SimModule->GetGuid() == TreeUpdate.Guid)
 						{
-							Chaos::FSuspensionSimModule* SuspensionModule = static_cast<Chaos::FSuspensionSimModule*>(SimModule);
-							DestroyConstraint(SuspensionModule->GetConstraintIndex());
+							SimModule->SetAnimationEnabled(false);
+							SimModule->SetStateFlags(Chaos::eSimModuleState::Disabled);
+							SimModule->OnTermination_External();
+							break;
 						}
-
-						break;
 					}
 				}
 			}
@@ -906,11 +926,13 @@ void UModularVehicleBaseComponent::RemoveComponentFromSimulation(UPrimitiveCompo
 		Chaos::FPBDRigidsSolver* Solver = Proxy->GetSolver<Chaos::FPBDRigidsSolver>();
 		Solver->EnqueueCommandImmediate([Proxy, this, LatestTreeUpdates = LatestTreeUpdates]() mutable
 			{
-
-				if (VehicleSimulationPT)
+				if (IsValid(this) && bPhysicsStateCreated && VehicleSimulationPT)
 				{
 					TUniquePtr<Chaos::FSimModuleTree>& SimModuleTree = VehicleSimulationPT->AccessSimComponentTree();
-					SimModuleTree->AppendTreeUpdates(LatestTreeUpdates);
+					if(SimModuleTree.IsValid())
+					{
+						SimModuleTree->AppendTreeUpdates(LatestTreeUpdates);
+					}
 				}
 			});
 
@@ -924,7 +946,8 @@ void UModularVehicleBaseComponent::SetLocallyControlled(bool bLocallyControlledI
 	bIsLocallyControlled = false;
 	if (UWorld* World = GetWorld())
 	{
-		if (!World->IsNetMode(NM_DedicatedServer))
+		// guard against invalid case that can lead to bad networking state
+		if (GetOwner() && GetOwner()->GetLocalRole() != ENetRole::ROLE_SimulatedProxy)
 		{
 			bIsLocallyControlled = bLocallyControlledIn;
 		}
@@ -932,9 +955,40 @@ void UModularVehicleBaseComponent::SetLocallyControlled(bool bLocallyControlledI
 
 	if (bUsingNetworkPhysicsPrediction && NetworkPhysicsComponent)
 	{
-		NetworkPhysicsComponent->SetIsRelayingLocalInputs(bLocallyControlledIn);
+		NetworkPhysicsComponent->SetIsRelayingLocalInputs(bIsLocallyControlled);
 	}
 
+}
+
+void UModularVehicleBaseComponent::AssimilateComponentInputs(TArray<FModuleInputSetup>& OutCombinedInputs)
+{
+	// copy the input setup from this class
+	OutCombinedInputs = InputConfig;
+
+	// append the input setup from all module sim components attached to same actor
+	if (APawn* Pawn = Cast<APawn>(GetOwner()))
+	{
+		if (USceneComponent* RootComponent = Pawn->GetRootComponent())
+		{
+			TArray<USceneComponent*> ChildComponents;
+			RootComponent->GetChildrenComponents(true, ChildComponents);
+
+			for (USceneComponent* Component : ChildComponents)
+			{
+				if (IVehicleSimBaseComponentInterface* GCComponent = Cast<IVehicleSimBaseComponentInterface>(Component))
+				{
+					// don't add duplicates, i.e. 4 wheels could be looking for a single steering input
+					for (FModuleInputSetup& Config : GCComponent->GetInputConfig())
+					{
+						if (OutCombinedInputs.Find(Config) == INDEX_NONE)
+						{
+							OutCombinedInputs.Append(GCComponent->GetInputConfig());
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 void UModularVehicleBaseComponent::CreateVehicleSim()
@@ -981,19 +1035,16 @@ void UModularVehicleBaseComponent::DestroyVehicleSim()
 				SimManager->RemoveVehicle(this);
 			}
 
-			LocalSolver->EnqueueCommandImmediate([this, PhysScene = PhysScene]() mutable
-				{
-					if (PVehicleOutput.IsValid())
-					{
-						PVehicleOutput.Reset(nullptr);
-					}
+			if (PVehicleOutput.IsValid())
+			{
+				PVehicleOutput.Reset(nullptr);
+			}
 
-					if (VehicleSimulationPT)
-					{
-						VehicleSimulationPT->Terminate();
-						VehicleSimulationPT.Reset(nullptr);
-					}
-				});
+			if (VehicleSimulationPT)
+			{
+				VehicleSimulationPT->Terminate();
+				VehicleSimulationPT.Reset(nullptr);
+			}
 		}
 
 	}
@@ -1051,72 +1102,83 @@ void UModularVehicleBaseComponent::AddGeometryCollectionsFromOwnedActor()
 	}
 }
 
-void UModularVehicleBaseComponent::SetThrottleInput(float Throttle)
+void UModularVehicleBaseComponent::SetInputProducerClass(TSubclassOf<UVehicleInputProducerBase> InInputProducerClass)
 {
-	RawThrottleInput = FMath::Clamp(Throttle, -1.0f, 1.0f);
+	InputProducerClass = InInputProducerClass;
+	if (!InputProducer)
+	{
+		InputProducer = NewObject<UVehicleInputProducerBase>(this, InputProducerClass);
+	}
 }
 
-void UModularVehicleBaseComponent::SetBoostInput(float Boost)
+void UModularVehicleBaseComponent::SetInputBool(const FName Name, const bool Value)
 {
-	RawBoostInput = FMath::Clamp(Boost, -1.0f, 1.0f);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
 
-void UModularVehicleBaseComponent::SetDriftInput(float Drift)
+void UModularVehicleBaseComponent::SetInputAxis1D(const FName Name, const double Value)
 {
-	RawDriftInput = FMath::Clamp(Drift, -1.0f, 1.0f);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
 
-void UModularVehicleBaseComponent::IncreaseThrottleInput(float ThrottleDelta)
+void UModularVehicleBaseComponent::SetInputAxis2D(const FName Name, const FVector2D Value)
 {
-	RawThrottleInput = FMath::Clamp(RawThrottleInput + ThrottleDelta, 0.f, 1.0f);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
 
-void UModularVehicleBaseComponent::DecreaseThrottleInput(float ThrottleDelta)
+void UModularVehicleBaseComponent::SetInputAxis3D(const FName Name, const FVector Value)
 {
-	RawThrottleInput = FMath::Clamp(RawThrottleInput - ThrottleDelta, 0.f, 1.0f);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
 
-void UModularVehicleBaseComponent::SetBrakeInput(float Brake)
+void UModularVehicleBaseComponent::SetInput(const FName& Name, const bool Value)
 {
-	RawBrakeInput = FMath::Clamp(Brake, -1.0f, 1.0f);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
 
-void UModularVehicleBaseComponent::SetSteeringInput(float Steering)
+void UModularVehicleBaseComponent::SetInput(const FName& Name, const double Value)
 {
-	RawSteeringInput = FMath::Clamp(Steering, -1.0f, 1.0f);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
 
-void UModularVehicleBaseComponent::SetPitchInput(float Pitch)
+void UModularVehicleBaseComponent::SetInput(const FName& Name, const FVector2D& Value)
 {
-	RawPitchInput = FMath::Clamp(Pitch, -1.0f, 1.0f);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
 
-void UModularVehicleBaseComponent::SetRollInput(float Roll)
+void UModularVehicleBaseComponent::SetInput(const FName& Name, const FVector& Value)
 {
-	RawRollInput = FMath::Clamp(Roll, -1.0f, 1.0f);
+	if (InputProducer)
+	{
+		InputProducer->BufferInput(InputNameMap, Name, Value);
+	}
 }
-
-void UModularVehicleBaseComponent::SetYawInput(float Yaw)
-{
-	RawYawInput = FMath::Clamp(Yaw, -1.0f, 1.0f);
-}
-
-void UModularVehicleBaseComponent::SetHandbrakeInput(float Handbrake)
-{
-	RawHandbrakeInput = Handbrake;
-}
-
-void UModularVehicleBaseComponent::SetReverseInput(bool Reverse)
-{
-	RawReverseInput = Reverse;
-}
-
 
 void UModularVehicleBaseComponent::SetGearInput(int32 Gear)
 {
-	RawGearInput = Gear;
+	GearInput = Gear;
 }
-
 
 int32 UModularVehicleBaseComponent::GetCurrentGear()
 {
@@ -1146,16 +1208,13 @@ void UModularVehicleBaseComponent::ShowDebugInfo(AHUD* HUD, UCanvas* Canvas, con
 
 	// draw input values
 	Canvas->SetDrawColor(FColor::White);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Throttle Raw  (%3.2f) %3.2f"), RawThrottleInput, ThrottleInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Boost Raw     (%3.2f) %3.2f"), RawBoostInput, BoostInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Drift Raw     (%3.2f) %3.2f"), RawDriftInput, DriftInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Brake Raw     (%3.2f) %3.2f"), RawBrakeInput, BrakeInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Steering Raw  (%3.2f) %3.2f"), RawSteeringInput, SteeringInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Handbrake Raw (%3.2f) %3.2f"), RawHandbrakeInput, HandbrakeInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Roll Raw      (%3.2f) %3.2f"), RawRollInput, RollInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Pitch Raw     (%3.2f) %3.2f"), RawPitchInput, PitchInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Yaw Raw       (%3.2f) %3.2f"), RawYawInput, YawInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Reverse Raw   (%3.2f) %3.2f"), RawReverseInput, ReverseInput), 4, YPos);
+
+	for (int I = 0; I < InputsContainer.GetNumInputs(); I++)
+	{
+		float Interpolated = InputsContainer.GetValueAtIndex(I).GetMagnitude();
+
+		YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("%s %3.2f"), *InputConfig[I].Name.ToString(), Interpolated), 4, YPos);
+	}
 
 	YPos += 10;
 
@@ -1166,4 +1225,16 @@ void UModularVehicleBaseComponent::ShowDebugInfo(AHUD* HUD, UCanvas* Canvas, con
 	}
 #endif
 
+}
+
+void UModularVehicleBaseComponent::LogInputSetup()
+{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	const FModuleInputContainer::FInputNameMap& NameMap = InputNameMap;
+
+	for (auto& NamePair : NameMap)
+	{ 
+		UE_LOG(LogTemp, Warning, TEXT("Input: %s %d"), *NamePair.Key.ToString(), NamePair.Value);
+	}
+#endif //!(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 }

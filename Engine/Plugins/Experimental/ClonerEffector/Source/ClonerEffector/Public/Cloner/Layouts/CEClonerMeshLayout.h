@@ -19,6 +19,11 @@ class UCEClonerMeshLayout : public UCEClonerLayoutBase
 	friend class FAvaClonerActorVisualizer;
 
 public:
+#if WITH_EDITOR
+	static CLONEREFFECTOR_API FName GetSampleActorWeakName();
+	static CLONEREFFECTOR_API FName GetAssetName();
+#endif
+
 	UCEClonerMeshLayout()
 		: UCEClonerLayoutBase(
 			TEXT("Mesh")
@@ -84,22 +89,25 @@ protected:
 
 	void OnSampleMeshTransformed(USceneComponent* InComponent, EUpdateTransformFlags InFlags, ETeleportType InType);
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetCount", Getter="GetCount", Category="Layout")
-	int32 Count = 3 * 3 * 3;
+	UFUNCTION()
+	void OnSampleActorDestroyed(AActor* InDestroyedActor);
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetAsset", Getter="GetAsset", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	ECEClonerMeshAsset Asset = ECEClonerMeshAsset::StaticMesh;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSampleData", Getter="GetSampleData", Category="Layout")
-	ECEClonerMeshSampleData SampleData = ECEClonerMeshSampleData::Vertices;
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSampleActorWeak", Getter="GetSampleActorWeak", DisplayName="SampleActor", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Sample Actor", Category="Layout", meta=(DisplayAfter="Asset"))
 	TWeakObjectPtr<AActor> SampleActorWeak;
 
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
+	int32 Count = 3 * 3 * 3;
+
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
+	ECEClonerMeshSampleData SampleData = ECEClonerMeshSampleData::Vertices;
+
+private:
 	UPROPERTY(Transient)
 	TWeakObjectPtr<USceneComponent> SceneComponentWeak;
 
-private:
 #if WITH_EDITOR
 	/** Used for PECP */
 	static const TCEPropertyChangeDispatcher<UCEClonerMeshLayout> PropertyChangeDispatcher;

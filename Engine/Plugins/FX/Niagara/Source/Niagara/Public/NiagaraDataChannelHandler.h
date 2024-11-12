@@ -12,18 +12,27 @@ Some more complex handlers may want to divide up the scene in various different 
 */
 
 #include "NiagaraDataChannelPublic.h"
+#include "RenderCommandFence.h"
 #include "NiagaraDataChannelHandler.generated.h"
 
-UCLASS(Experimental, abstract, BlueprintType, MinimalAPI)
+class FNiagaraGpuComputeDispatchInterface;
+struct FNiagaraDataChannelData;
+
+UCLASS(abstract, BlueprintType, MinimalAPI)
 class UNiagaraDataChannelHandler : public UObject
 {
 public:
 
 	GENERATED_BODY()
-
-	NIAGARA_API virtual ~UNiagaraDataChannelHandler();
+	
+	//UObject Interface
+	NIAGARA_API virtual void BeginDestroy()override;
+	NIAGARA_API virtual bool IsReadyForFinishDestroy()override;
+	//UObject Interface END
 
 	NIAGARA_API virtual void Init(const UNiagaraDataChannel* InChannel);
+
+	NIAGARA_API virtual void Cleanup();
 
 	NIAGARA_API virtual void BeginFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld);
 
@@ -58,6 +67,11 @@ public:
 	/** Returns the tick group we're currently being processed or most recently processed. */
 	ETickingGroup GetCurrentTickGroup() { return CurrentTG; }
 
+	void OnComputeDispatchInterfaceDestroyed(FNiagaraGpuComputeDispatchInterface* InComputeDispatchInterface);
+
+	template<typename TAction>
+	void ForEachNDCData(TAction Func);
+
 protected:
 
 	UPROPERTY()
@@ -72,4 +86,23 @@ protected:
 	TObjectPtr<UNiagaraDataChannelReader> Reader;
 
 	ETickingGroup CurrentTG = ETickingGroup::TG_PrePhysics;
+
+	//Weak refs to all NDC data created for this handler.
+	//Allows us to perform book keeping and other operations on all data when needed.
+	TArray<TWeakPtr<FNiagaraDataChannelData>> WeakDataArray;
+
+	FRenderCommandFence RTFence;
 };
+
+template<typename TAction>
+void UNiagaraDataChannelHandler::ForEachNDCData(TAction Func)
+{
+	check(IsInGameThread());
+	for(auto& WeakData : WeakDataArray)
+	{
+		if(FNiagaraDataChannelDataPtr DataPtr = WeakData.Pin())
+		{
+			Func(DataPtr);
+		}
+	}
+}

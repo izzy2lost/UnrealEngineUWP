@@ -26,7 +26,6 @@
 #include "HAL/LowLevelMemStats.h"
 #include "Logging/MessageLog.h"
 #include "Misc/MapErrors.h"
-#include "Misc/ScopeRWLock.h"
 #include "Misc/UObjectToken.h"
 #include "Net/Core/PushModel/PushModel.h"
 #include "Net/UnrealNetwork.h"
@@ -39,6 +38,8 @@
 #include "UObject/FrameworkObjectVersion.h"
 #include "PSOPrecacheMaterial.h"
 #include "Materials/MaterialInterface.h"
+#include "ObjectCacheContext.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #if WITH_EDITOR
 #include "Kismet2/ComponentEditorUtils.h"
@@ -109,6 +110,14 @@ FAutoConsoleVariableRef CVarEnableDeferredPhysicsCreation(
 	TEXT("Enables/Disables deferred physics creation.")
 );
 
+// Allows for CreatePhysicsState to be deferred, to batch work and parallelize.
+int32 GPrecachePSOsOnComponentRecreateRenderContext = 1;
+FAutoConsoleVariableRef CVarPrecachePSOsOnComponentRecreateRenderContext(
+	TEXT("r.PrecachePSOsOnComponentRecreateRenderContext"),
+	GPrecachePSOsOnComponentRecreateRenderContext,
+	TEXT("If > 0, re-creating a component's render context will also re-precache the component's PSOs.")
+);
+
 void FRegisterComponentContext::Process()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRegisterComponentContext::Process)
@@ -154,7 +163,11 @@ void FRegisterComponentContext::Process()
 
 	for (UPrimitiveComponent* Primitive : SendRenderDynamicDataPrimitives)
 	{
-		Primitive->SendRenderDynamicData_Concurrent();
+		// With incremetal updates the component can be registered, added to send render data queue, then destroyed by an actor chain so we must test it's still valid before sending render data.
+		if (::IsValid(Primitive))
+		{
+			Primitive->SendRenderDynamicData_Concurrent();
+		}
 	}
 	SendRenderDynamicDataPrimitives.Empty();
 }
@@ -298,23 +311,62 @@ void FGlobalComponentReregisterContext::UpdateAllPrimitiveSceneInfos()
 	check(ScenesToUpdateAllPrimitiveSceneInfos.Num() == 0);
 }
 
+
+FComponentRecreateRenderStateContext::~FComponentRecreateRenderStateContext()
+{
+	if (Component && !Component->IsRenderStateCreated() && Component->IsRegistered())
+	{
+		if (GPrecachePSOsOnComponentRecreateRenderContext)
+		{
+			Component->PrecachePSOs();
+		}
+		Component->CreateRenderState_Concurrent(nullptr);
+
+		UpdateAllPrimitiveSceneInfosForSingleComponent(Component, ScenesToUpdateAllPrimitiveSceneInfos);
+	}
+
+	if (ComponentInterface && !ComponentInterface->IsRenderStateCreated() && ComponentInterface->IsRegistered())
+	{
+		if (GPrecachePSOsOnComponentRecreateRenderContext)
+		{
+ 			ComponentInterface->PrecachePSOs();
+		}
+		ComponentInterface->CreateRenderState(nullptr);
+
+		UpdateAllPrimitiveSceneInfosForSingleComponentInterface(ComponentInterface, ScenesToUpdateAllPrimitiveSceneInfos);
+	}
+}
+
 FGlobalComponentRecreateRenderStateContext::FGlobalComponentRecreateRenderStateContext()
 {
 	if (FApp::CanEverRender())
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FGlobalComponentRecreateRenderStateContext::FGlobalComponentRecreateRenderStateContext);
 
-		ActiveGlobalRecreateRenderStateContextCount++;
+		//ActiveGlobalRecreateRenderStateContextCount++;
 
 		// wait until resources are released
 		FlushRenderingCommands();
 
+		FObjectCacheContextScope ObjectCacheScope;
+		for (IPrimitiveComponent* PrimitiveComponent: ObjectCacheScope.GetContext().GetPrimitiveComponents())
+		{
+			if (PrimitiveComponent->IsRegistered() && PrimitiveComponent->IsRenderStateCreated())
+			{
+				ComponentContexts.Emplace(PrimitiveComponent, &ScenesToUpdateAllPrimitiveSceneInfos);
+			}
+		}
+
 		// recreate render state for all components.
 		for (UActorComponent* Component : TObjectRange<UActorComponent>())
 		{
-			if (Component->IsRegistered() && Component->IsRenderStateCreated())
+			// Those are obtained through FObjectCacheContext
+			if (!Component->IsA<UPrimitiveComponent>())
 			{
-				ComponentContexts.Emplace(Component, &ScenesToUpdateAllPrimitiveSceneInfos);
+				if (Component->IsRegistered() && Component->IsRenderStateCreated())
+				{
+					ComponentContexts.Emplace(Component, &ScenesToUpdateAllPrimitiveSceneInfos);
+				}
 			}
 		}
 
@@ -324,7 +376,7 @@ FGlobalComponentRecreateRenderStateContext::FGlobalComponentRecreateRenderStateC
 
 FGlobalComponentRecreateRenderStateContext::FGlobalComponentRecreateRenderStateContext(const TArray<UActorComponent*>& InComponents)
 {
-	if (FApp::CanEverRender() && ++ActiveGlobalRecreateRenderStateContextCount == 1)
+	if (FApp::CanEverRender() /*&& ++ActiveGlobalRecreateRenderStateContextCount == 1*/)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FGlobalComponentRecreateRenderStateContext::FGlobalComponentRecreateRenderStateContext);
 
@@ -350,10 +402,10 @@ FGlobalComponentRecreateRenderStateContext::~FGlobalComponentRecreateRenderState
 
 	if (FApp::CanEverRender())
 	{
-		check(ActiveGlobalRecreateRenderStateContextCount > 0);
+		//check(ActiveGlobalRecreateRenderStateContextCount > 0);
 
 		// Check if this is the last active context
-		if (--ActiveGlobalRecreateRenderStateContextCount == 0)
+		//if (--ActiveGlobalRecreateRenderStateContextCount == 0)
 		{
 			// Clear the PSO material request cache to make sure PSO collection happens again on possible changed data
 			ClearMaterialPSORequests();
@@ -382,7 +434,7 @@ UActorComponent::FOnMarkRenderStateDirty UActorComponent::MarkRenderStateDirtyEv
 
 const FString UActorComponent::ComponentTemplateNameSuffix(TEXT("_GEN_VARIABLE"));
 TMap<UActorComponent*, TArray<FSimpleMemberReference>> UActorComponent::AllUCSModifiedProperties;
-FRWLock UActorComponent::AllUCSModifiedPropertiesLock;
+FTransactionallySafeRWLock UActorComponent::AllUCSModifiedPropertiesLock;
 
 UActorComponent::UActorComponent(const FObjectInitializer& ObjectInitializer /*= FObjectInitializer::Get()*/)
 	: Super(ObjectInitializer)
@@ -392,6 +444,7 @@ UActorComponent::UActorComponent(const FObjectInitializer& ObjectInitializer /*=
 	PrimaryComponentTick.TickGroup = TG_DuringPhysics;
 	PrimaryComponentTick.bStartWithTickEnabled = true;
 	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bAllowTickBatching = true;
 	PrimaryComponentTick.SetTickFunctionEnable(false);
 
 	MarkedForEndOfFrameUpdateArrayIndex = INDEX_NONE;
@@ -485,7 +538,7 @@ void UActorComponent::PostLoad()
 		{
 			if (UCSModifiedProperties_DEPRECATED.Num())
 			{
-				FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
+				FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
 				AllUCSModifiedProperties.Add(this, MoveTemp(UCSModifiedProperties_DEPRECATED));
 			}
 		}
@@ -1395,7 +1448,7 @@ void UActorComponent::RegisterComponentWithWorld(UWorld* InWorld, FRegisterCompo
 
 	if (MyOwner && MyOwner->GetClass()->HasAnyClassFlags(CLASS_NewerVersionExists))
 	{
-		UE_LOG(LogActorComponent, Log, TEXT("RegisterComponentWithWorld: Owner belongs to a DEADCLASS"));
+		UE_LOG(LogActorComponent, Log, TEXT("RegisterComponentWithWorld: Owner belongs to a DEADCLASS %s"), *GetPathNameSafe(MyOwner->GetClass()));
 		return;
 	}
 
@@ -1773,9 +1826,10 @@ void UActorComponent::ExecuteRegisterEvents(FRegisterComponentContext* Context)
 
 void UActorComponent::ExecuteUnregisterEvents()
 {
+	// Delay the destroying the physics, as well as the rendering state until after we commit
 	DestroyPhysicsState();
 
-	if(bRenderStateCreated)
+	if (bRenderStateCreated)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_ComponentDestroyRenderState);
 		checkf(bRegistered, TEXT("Component has render state when not registered (%s)"), *GetFullName());
@@ -1783,7 +1837,7 @@ void UActorComponent::ExecuteUnregisterEvents()
 		checkf(!bRenderStateCreated, TEXT("Failed to route DestroyRenderState_Concurrent (%s)"), *GetFullName());
 	}
 
-	if(bRegistered)
+	if (bRegistered)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_ComponentOnUnregister);
 		OnUnregister();
@@ -2433,7 +2487,7 @@ void UActorComponent::DetermineUCSModifiedProperties()
 			}
 		}
 
-		FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
+		FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
 		if (UCSModifiedProperties.Num() > 0)
 		{
 			AllUCSModifiedProperties.Add(this, MoveTemp(UCSModifiedProperties));
@@ -2447,7 +2501,7 @@ void UActorComponent::DetermineUCSModifiedProperties()
 
 void UActorComponent::GetUCSModifiedProperties(TSet<const FProperty*>& ModifiedProperties) const
 {
-	FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_ReadOnly);
+	FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_ReadOnly);
 	if (TArray<FSimpleMemberReference>* UCSModifiedProperties = AllUCSModifiedProperties.Find(this))
 	{
 		for (const FSimpleMemberReference& MemberReference : *UCSModifiedProperties)
@@ -2459,7 +2513,7 @@ void UActorComponent::GetUCSModifiedProperties(TSet<const FProperty*>& ModifiedP
 
 void UActorComponent::RemoveUCSModifiedProperties(const TArray<FProperty*>& Properties)
 {
-	FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
+	FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
 	if (TArray<FSimpleMemberReference>* UCSModifiedProperties = AllUCSModifiedProperties.Find(this))
 	{
 		for (FProperty* Property : Properties)
@@ -2473,13 +2527,15 @@ void UActorComponent::RemoveUCSModifiedProperties(const TArray<FProperty*>& Prop
 
 void UActorComponent::ClearUCSModifiedProperties()
 {
-	FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
+	FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
 	AllUCSModifiedProperties.Remove(this);
 }
 
 void UActorComponent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
-	FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_ReadOnly);
+	Super::AddReferencedObjects(InThis, Collector);
+
+	FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_ReadOnly);
 	if (TArray<FSimpleMemberReference>* UCSModifiedProperties = AllUCSModifiedProperties.Find(CastChecked<UActorComponent>(InThis)))
 	{
 		for (FSimpleMemberReference& MemberReference : *UCSModifiedProperties)
@@ -2506,11 +2562,18 @@ void UActorComponent::HandleCanEverAffectNavigationChange(bool bForceUpdate)
 	{
 		if (bCanEverAffectNavigation)
 		{
+			// Update cached value
 			bNavigationRelevant = IsNavigationRelevant();
+
+			// Notify the navigation system
 			FNavigationSystem::OnComponentRegistered(*this);
 		}
 		else
 		{
+			// Update cached value
+			bNavigationRelevant = false;
+
+			// Notify the navigation system
 			FNavigationSystem::OnComponentUnregistered(*this);
 		}
 	}
@@ -2535,7 +2598,7 @@ void UActorComponent::Serialize(FArchive& Ar)
 			TArray<FSimpleMemberReference> UCSModifiedProperties;
 			Ar << UCSModifiedProperties;
 
-			FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
+			FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
 			if (UCSModifiedProperties.Num() > 0)
 			{
 				AllUCSModifiedProperties.Add(this, MoveTemp(UCSModifiedProperties));
@@ -2547,7 +2610,7 @@ void UActorComponent::Serialize(FArchive& Ar)
 		}
 		else
 		{
-			FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_ReadOnly);
+			FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_ReadOnly);
 			if (TArray<FSimpleMemberReference>* UCSModifiedProperties = AllUCSModifiedProperties.Find(this))
 			{
 				Ar << *UCSModifiedProperties;

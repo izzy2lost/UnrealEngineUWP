@@ -25,6 +25,7 @@
 #include "UObject/UObjectAnnotation.h"
 #include "Serialization/ArchiveCountMem.h"
 #include "Misc/PackageName.h"
+#include "Templates/GuardValueAccessors.h"
 #include "UObject/PackageFileSummary.h"
 #include "UObject/ReferenceChainSearch.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
@@ -123,6 +124,7 @@
 #include "MovieSceneCaptureModule.h"
 
 #include "WorldPartition/WorldPartition.h"
+#include "WorldPartition/ContentBundle/ContentBundleWorldSubsystem.h"
 #include "WorldPartition/ErrorHandling/WorldPartitionStreamingGenerationMapCheckErrorHandler.h"
 
 #include "Kismet2/KismetEditorUtilities.h"
@@ -1093,7 +1095,7 @@ bool UEditorEngine::CanTransact()
 	// we can transact if we have a transaction buffer and aren't currently loading packages or  routing postload.
 	// No transaction should be created during loading
 	return Trans != nullptr &&
-		!GIsEditorLoadingPackage &&
+		!UE::GetIsEditorLoadingPackage() &&
 		!FUObjectThreadContext::Get().IsRoutingPostLoad;
 }
 
@@ -1243,7 +1245,7 @@ UTransactor* UEditorEngine::CreateTrans()
 
 	if (!GConfig->GetInt(TEXT("Undo"), TEXT("UndoBufferSize"), UndoBufferSize, GEditorPerProjectIni))
 	{
-		UndoBufferSize = 16;
+		UndoBufferSize = 256;
 	}
 
 	UE_LOG(LogInit, Log, TEXT("Undo buffer set to %d MB"), UndoBufferSize);
@@ -1787,6 +1789,13 @@ void UEditorEngine::RebuildModelFromBrushes(TArray<ABrush*> &BrushesToBuild, UMo
 
 void UEditorEngine::RebuildAlteredBSP()
 {
+	if (bIsRebuildingAlteredBSP)
+	{
+		return;
+	}
+
+	TGuardValue<bool> GuardIsRebuildingAlteredBSP(bIsRebuildingAlteredBSP, true);
+
 	if( !GIsTransacting )
 	{
 		// Early out if BSP auto-updating is disabled
@@ -2347,7 +2356,7 @@ bool UEditorEngine::Map_Load(const TCHAR* Str, FOutputDevice& Ar)
 
 #define LOCTEXT_NAMESPACE "EditorEngine"
 	// We are beginning a map load
-	TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+	TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
 
 	FWorldContext &Context = GetEditorWorldContext();
 	check(Context.World() == GWorld);
@@ -2562,7 +2571,11 @@ bool UEditorEngine::Map_Load(const TCHAR* Str, FOutputDevice& Ar)
 						FSoftObjectPath(*WriteToString<256>(WorldPackage->GetName(), TEXT("."), ShortWorldPackageName))
 					);
 
-					LoadFlags |= LOAD_RegenerateBulkDataGuids;
+					// Add remapping for the _BuiltData.uasset package file as well (assuming that the template has one)
+					FName BuiltDataOriginal = FName(*WriteToString<256>(LongTempFname, TEXT("_BuiltData")));
+					FName BuiltDataRemapped = FName(*WriteToString<256>(WorldPackageFName, TEXT("_BuiltData")));
+					
+					WorldPackageInstancingContext.AddPackageMapping(BuiltDataOriginal, BuiltDataRemapped);
 
 					WorldPackage = LoadPackage( WorldPackage, *LongTempFname, LoadFlags, nullptr /* InReaderOverride */, &WorldPackageInstancingContext);
 					WorldPackage->SetPackageFlags(PKG_NewlyCreated);
@@ -3019,20 +3032,34 @@ public:
 		ULevel* OldCurrentLevel = World->GetCurrentLevel();
 		World->SetCurrentLevel( SrcLevel );
 
-		// Set the selection set to be precisely the actors belonging to this job,
-		// but make sure not to deselect selected BSP surfaces. 
-		GEditor->SelectNone( false, true );
-		for ( int32 ActorIndex = 0 ; ActorIndex < Actors.Num() ; ++ActorIndex )
+		UTypedElementSelectionSet* SelectionSet = GEditor->GetSelectedActors()->GetElementSelectionSet();
+		check(SelectionSet);
 		{
-			AActor* Actor = Actors[ ActorIndex ];
-			GEditor->SelectActor( Actor, true, false );
+			FTypedElementList::FScopedClearNewPendingChange ClearNewPendingChange = SelectionSet->GetScopedClearNewPendingChange();
 
-			// Groups cannot contain actors in different levels.  If the current actor is in a group but not being moved to the same level as the group
-			// then remove the actor from the group
-			AGroupActor* GroupActor = AGroupActor::GetParentForActor( Actor );
-			if( GroupActor && GroupActor->GetLevel() != DestLevel )
+			const FTypedElementSelectionOptions SelectionOptions = FTypedElementSelectionOptions()
+				.SetAllowHidden(false)
+				.SetWarnIfLocked(false)
+				.SetAllowLegacyNotifications(false)
+				.SetAllowSubRootSelection(true);
+
+			// Set the selection set to be precisely the actors belonging to this job,
+			// but make sure not to deselect selected BSP surfaces. 
+			GEditor->SelectNone(false, true);
+			for (int32 ActorIndex = 0; ActorIndex < Actors.Num(); ++ActorIndex)
 			{
-				GroupActor->Remove( *Actor );
+				AActor* Actor = Actors[ActorIndex];
+				FTypedElementHandle ElementHandle = UEngineElementsLibrary::AcquireEditorActorElementHandle(Actor);
+
+				SelectionSet->SelectElement(ElementHandle, SelectionOptions);
+
+				// Groups cannot contain actors in different levels.  If the current actor is in a group but not being moved to the same level as the group
+				// then remove the actor from the group
+				AGroupActor* GroupActor = AGroupActor::GetParentForActor(Actor);
+				if (GroupActor && GroupActor->GetLevel() != DestLevel)
+				{
+					GroupActor->Remove(*Actor);
+				}
 			}
 		}
 
@@ -3227,15 +3254,20 @@ bool UEditorEngine::CanCopySelectedActorsToClipboard( UWorld* InWorld, FCopySele
 				CopySelected.LevelAllActorsAreIn = Actor->GetLevel();
 			}
 
-			if (Actor->GetLevel())
+			IConsoleVariable* TemporaryActorCopyCvar = IConsoleManager::Get().FindConsoleVariable(TEXT("TypedElements.EnableTemporaryActorCopy"));
+
+			if (TemporaryActorCopyCvar && !TemporaryActorCopyCvar->GetBool())
 			{
-				if (UWorld* ActorWorld = Actor->GetLevel()->GetWorld())
+				if (Actor->GetLevel())
 				{
-					// If the actor is in a PIE world but doesn't have an editor counterpart it means it's a temporary
-					// actor spawned to the world. These actors can cause issues when copied so have been disabled.
-					if (ActorWorld->WorldType == EWorldType::PIE && !GEditor->ObjectsThatExistInEditorWorld.Get(Actor))
+					if (UWorld* ActorWorld = Actor->GetLevel()->GetWorld())
 					{
-						return false;
+						// If the actor is in a PIE world but doesn't have an editor counterpart it means it's a temporary
+						// actor spawned to the world. These actors can cause issues when copied so have been disabled.
+						if (ActorWorld->WorldType == EWorldType::PIE && !GEditor->ObjectsThatExistInEditorWorld.Get(Actor))
+						{
+							return false;
+						}
 					}
 				}
 			}
@@ -3477,11 +3509,25 @@ void UEditorEngine::CopySelectedActorsToClipboard( UWorld* InWorld, bool bShould
 
 		// Restore old selection
 		GEditor->SelectNone( false, true );
-		for (const TWeakObjectPtr<AActor>& Actor : CurrentlySelectedActors)
+
+		UTypedElementSelectionSet* SelectionSet = GEditor->GetSelectedActors()->GetElementSelectionSet();
+		check(SelectionSet);
 		{
-			if (AActor* ActorPtr = Actor.Get())
+			FTypedElementList::FScopedClearNewPendingChange ClearNewPendingChange = SelectionSet->GetScopedClearNewPendingChange();
+			const FTypedElementSelectionOptions SelectionOptions = FTypedElementSelectionOptions()
+				.SetAllowHidden(false)
+				.SetWarnIfLocked(false)
+				.SetAllowLegacyNotifications(false)
+				.SetAllowSubRootSelection(true);
+
+			for (const TWeakObjectPtr<AActor>& Actor : CurrentlySelectedActors)
 			{
-				GEditor->SelectActor(ActorPtr, true, false);
+				if (AActor* ActorPtr = Actor.Get())
+				{
+					FTypedElementHandle ElementHandle = UEngineElementsLibrary::AcquireEditorActorElementHandle(ActorPtr);
+					
+					SelectionSet->SelectElement(ElementHandle, SelectionOptions);
+				}
 			}
 		}
 	}
@@ -3684,7 +3730,7 @@ void UEditorEngine::SetPropertyColorationTarget(UWorld* InWorld, const FString& 
 		if (PropertyChain)
 		{
 			GPropertyColorationChain = new TSharedRef<FEditPropertyChain>(*PropertyChain);
-			GbColorationClassIsActor = GPropertyColorationClass->IsChildOf( AActor::StaticClass() );
+			GbColorationClassIsActor = GPropertyColorationClass && GPropertyColorationClass->IsChildOf(AActor::StaticClass());
 			GbColorationPropertyIsObjectProperty = CastField<FObjectPropertyBase>(GPropertyColorationProperty) != NULL;
 			
 			FActorPrimitiveColorHandler::Get().RefreshPrimitiveColorHandler(TEXT("PropertyColor"), InWorld);
@@ -3897,6 +3943,11 @@ bool UEditorEngine::Map_Check( UWorld* InWorld, const TCHAR* Str, FOutputDevice&
 	{
 		FStreamingGenerationMapCheckErrorHandler MapCheckErrorHandler;
 		WorldPartition->CheckForErrors(&MapCheckErrorHandler);
+	}
+
+	if (InWorld->ContentBundleManager)
+	{
+		InWorld->ContentBundleManager->CheckForErrors();
 	}
 
 	GWarn->StatusUpdate( 0, ProgressDenominator, CheckMapLocText );

@@ -78,10 +78,11 @@ namespace UE::Chaos::ClothAsset
 
 		/**
 		* Unwrap and build SimMesh data from a DynamicMesh
+		* Normals are only imported if the DynamicMesh has both a UVOverlay and a NormalOverlay
 		*/
 		static void BuildSimMeshFromDynamicMesh(
 			const TSharedRef<FManagedArrayCollection>& ClothCollection,
-			const UE::Geometry::FDynamicMesh3& DynamicMesh, int32 UVChannelIndex, const FVector2f& UVScale, bool bAppend);
+			const UE::Geometry::FDynamicMesh3& DynamicMesh, int32 UVChannelIndex, const FVector2f& UVScale, bool bAppend, bool bImportNormals = false);
 
 		/**
 		* Remove (topologically) degenerate triangles. Remove any vertices that aren't in a triangle. Compact any lookup arrays that contain INDEX_NONEs.
@@ -117,6 +118,45 @@ namespace UE::Chaos::ClothAsset
 		 */
 		static void SampleVertices(const TConstArrayView<FVector3f> VertexPositions, float CullDiameterSq, TSet<int32>& OutVertexSet);
 
+		/**
+		 * Get a copy of the selection, converting to the desired group if possible.
+		 * Currently only conversions between vertex and face components on the same mesh type are supported.
+		 * @param ClothCollection to query
+		 * @param SelectionName the selection name
+		 * @param GroupName the group name
+		 * @param bSecondarySelection get the secondary selection
+		 * @param OutSelectionSet copy of the selection. Unchanged when function returns false.
+		 * @return success (will return false if the selection is not found or conversion is not possible)
+		 */
+		UE_DEPRECATED(5.5, "Please use the version with no bSecondarySelection parameter")
+		static bool ConvertSelectionToNewGroupType(const TSharedRef<const FManagedArrayCollection>& ClothCollection, const FName& SelectionName, const FName& GroupName, bool bSecondarySelection, TSet<int32>& OutSelectionSet);
 
+		/**
+		 * Get a copy of the selection, converting to the desired group if possible.
+		 * Currently only conversions between vertex and face components on the same mesh type are supported.
+		 * @param ClothCollection to query
+		 * @param SelectionName the selection name
+		 * @param GroupName the group name
+		 * @param OutSelectionSet copy of the selection. Unchanged when function returns false.
+		 * @return success (will return false if the selection is not found or conversion is not possible)
+		 */
+		static bool ConvertSelectionToNewGroupType(const TSharedRef<const FManagedArrayCollection>& ClothCollection, const FName& SelectionName, const FName& GroupName, TSet<int32>& OutSelectionSet);
+
+		/**
+		 * Transfer a vertex weight map from a source to target mesh
+		 */
+		static void TransferWeightMap(
+			const TConstArrayView<FVector3f>& SourcePositions,
+			const TConstArrayView<FIntVector3>& InSourceIndices,
+			const TConstArrayView<float>& SourceWeights,
+			const TConstArrayView<FVector3f>& TargetPositions,
+			const TConstArrayView<FVector3f>& TargetNormals,
+			const TConstArrayView<FIntVector3>& InTargetIndices,
+			const TArrayView<float>& TargetWeights);
+
+		/**
+		 * Generate KinematicVertices3D set from the given MaxDistance weight map, MaxDistance values, and any additional kinematic vertices.
+		 */
+		static TSet<int32> GenerateKinematicVertices3D(const TSharedRef<FManagedArrayCollection>& ClothCollection, const FName& MaxDistanceMap, const FVector2f& MaxDistanceValues, const FName& InputKinematicVertices, float KinematicDistanceThreshold = 0.1f);
 	};
 }  // End namespace UE::Chaos::ClothAsset

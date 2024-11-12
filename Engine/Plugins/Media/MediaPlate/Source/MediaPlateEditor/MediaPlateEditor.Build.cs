@@ -19,6 +19,7 @@ public class MediaPlateEditor : ModuleRules
 			new string[]
 			{
 				"AssetDefinition",
+				"ApplicationCore",
 				"CinematicCamera",
 				"CoreUObject",
 				"DesktopWidgets",
@@ -42,7 +43,8 @@ public class MediaPlateEditor : ModuleRules
 				"Slate",
 				"SlateCore",
 				"UnrealEd",
+				"HoldoutComposite"
 			}
-			);
+		);
 	}
 }

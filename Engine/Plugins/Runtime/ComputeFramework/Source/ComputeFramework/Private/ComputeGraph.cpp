@@ -65,6 +65,14 @@ void UComputeGraph::PostLoad()
 {
 	Super::PostLoad();
 
+	for (UComputeDataInterface* DataInterface : DataInterfaces)
+	{
+		if (DataInterface)
+		{
+			DataInterface->ConditionalPostLoad();
+		}
+	}
+	
 #if WITH_EDITOR
 	// PostLoad our kernel dependencies before any compiling.
 	for (UComputeKernel* Kernel : KernelInvocations)
@@ -373,6 +381,12 @@ FComputeGraphRenderProxy* UComputeGraph::CreateRenderProxy() const
 							{
 								Invocation.bSupportsUnifiedDispatch &= DataInterface->CanSupportUnifiedDispatch();
 							}
+
+							// If the data interface is requesting readback and is a kernel output, register it.
+							if (!GraphEdge.bKernelInput && DataInterface->GetRequiresReadback())
+							{
+								Invocation.ReadbackProviderIndices.AddUnique(GraphEdge.DataInterfaceIndex);
+							}
 						}
 					}
 				}
@@ -426,6 +440,21 @@ namespace
 		
 		for (int32 ParameterIndex = bHasReturnWrap ? 1 : 0; ParameterIndex < NumWrapParams; ++ParameterIndex)
 		{
+			switch (FnWrap.ParamTypes[ParameterIndex].Modifier)
+			{
+			case EShaderParamModifier::In:
+				StringBuilder.Append(TEXT("in "));
+				break;
+			case EShaderParamModifier::Out:
+				StringBuilder.Append(TEXT("out "));
+				break;
+			case EShaderParamModifier::InOut:
+				StringBuilder.Append(TEXT("inout "));
+				break;
+			default:
+				break;
+			}
+
 			StringBuilder.Append(*FnWrap.ParamTypes[ParameterIndex].TypeDeclaration);
 			StringBuilder.Appendf(TEXT(" P%d"), ParameterIndex);
 			StringBuilder.Append((ParameterIndex < NumWrapParams - 1) ? TEXT(", ") : TEXT(""));
@@ -517,7 +546,7 @@ FString UComputeGraph::BuildKernelSource(
 	// Add virtual source includes from the additional sources.
 	for (TPair<FString, FString> const& AdditionalSource : InAdditionalSources)
 	{
-		HLSL += FString::Printf(TEXT("#include \"%s\"\n"), *AdditionalSource.Key);
+		HLSL += FString::Printf(TEXT("\n#include \"%s\"\n"), *AdditionalSource.Key);
 
 		// Accumulate the source HLSL to the local hash state.
 		HashState.UpdateWithString(*AdditionalSource.Value, AdditionalSource.Value.Len());
@@ -553,7 +582,7 @@ FString UComputeGraph::BuildKernelSource(
 			{
 				// The generated path has a magic unique prefix which the compilation manager knows to strip before resolving errors.
 				FString MagicVirtualPath = FString::Printf(TEXT("/Engine/Generated/DataInterface/%s%s"), *NamePrefix, ShaderVirtualPath);
-				HLSL += FString::Printf(TEXT("#include \"%s\"\n"), *MagicVirtualPath);
+				HLSL += FString::Printf(TEXT("\n#include \"%s\"\n"), *MagicVirtualPath);
 				FString DataInterfaceHLSL;
 				DataInterface->GetHLSL(DataInterfaceHLSL, NamePrefix);
 				OutGeneratedSources.Add(MagicVirtualPath, DataInterfaceHLSL);
@@ -758,6 +787,8 @@ void UComputeGraph::BeginCacheForCookedPlatformData(ITargetPlatform const* Targe
 {
 	TArray<FName> ShaderFormats;
 	TargetPlatform->GetAllTargetedShaderFormats(ShaderFormats);
+
+	KernelResources.SetNum(KernelInvocations.Num());
 
 	for (int32 KernelIndex = 0; KernelIndex < KernelInvocations.Num(); ++KernelIndex)
 	{

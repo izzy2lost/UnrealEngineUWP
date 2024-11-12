@@ -49,7 +49,7 @@ namespace EpicGames.UHT.Types
 		/// <inheritdoc/>
 		private StringBuilder AppendSubClassText(StringBuilder builder)
 		{
-			builder.Append("TSubclassOf<").Append(MetaClass?.SourceName).Append(">");
+			builder.Append("TSubclassOf<").Append(MetaClass?.SourceName).Append('>');
 			return builder;
 		}
 

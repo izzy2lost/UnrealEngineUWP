@@ -4,7 +4,6 @@
 #include "AvaTransitionCommands.h"
 #include "AvaTransitionEditorEnums.h"
 #include "AvaTransitionEditorLog.h"
-#include "AvaTransitionEditorStyle.h"
 #include "AvaTransitionEditorUtils.h"
 #include "AvaTransitionTree.h"
 #include "AvaTransitionTreeEditorData.h"
@@ -12,8 +11,10 @@
 #include "Behavior/IAvaTransitionBehavior.h"
 #include "IAvaTransitionModule.h"
 #include "StateTreeDelegates.h"
+#include "Styling/AvaTransitionEditorStyle.h"
 #include "ToolMenu.h"
 #include "ToolMenuSection.h"
+#include "Settings/AvaTransitionEditorSettings.h"
 #include "ViewModels/AvaTransitionEditorViewModel.h"
 #include "Widgets/Layout/SBox.h"
 
@@ -59,11 +60,6 @@ IAvaTransitionEditorModule::FOnBuildDefaultTransitionTree& FAvaTransitionEditorM
 	return OnBuildDefaultTransitionTree;
 }
 
-IAvaTransitionEditorModule::FOnCompileTransitionTree& FAvaTransitionEditorModule::GetOnCompileTransitionTree()
-{
-	return OnCompileTransitionTree;
-}
-
 void FAvaTransitionEditorModule::GenerateTransitionTreeOptionsMenu(UToolMenu* InMenu, IAvaTransitionBehavior* InTransitionBehavior)
 {
 	if (!InMenu || !InTransitionBehavior)
@@ -89,6 +85,19 @@ void FAvaTransitionEditorModule::GenerateTransitionTreeOptionsMenu(UToolMenu* In
 			, FCanExecuteAction()
 			, FIsActionChecked::CreateStatic(&UE::AvaTransitionEditor::IsTransitionTreeEnabled, TransitionTreeWeak))
 		, EUserInterfaceActionType::ToggleButton);
+
+	if (const TSharedPtr<SWidget> ModeSelector = UE::AvaTransitionEditor::CreateTransitionInstancingModeSelector(TransitionTree))
+	{
+		GeneralSection.AddEntry(FToolMenuEntry::InitWidget(TEXT("TransitionModeSelector")
+			, SNew(SBox)
+				[
+					ModeSelector.ToSharedRef()
+				]
+			, FText::GetEmpty()
+			, /*bNoIndent*/true
+			, /*bSearchable*/false
+			, /*bNoPadding*/true));
+	}
 
 	if (TSharedPtr<SWidget> LayerPicker = UE::AvaTransitionEditor::CreateTransitionLayerPicker(Cast<UAvaTransitionTreeEditorData>(TransitionTree->EditorData), /*bInCompileOnLayerPicked*/true))
 	{
@@ -118,22 +127,34 @@ void FAvaTransitionEditorModule::ValidateStateTree(UAvaTransitionTree* InTransit
 	// Disable Tree by default if being set up for the first time
 	InTransitionTree->SetEnabled(false);
 
-	UAvaTransitionTreeEditorData* const EditorData = NewObject<UAvaTransitionTreeEditorData>(InTransitionTree, NAME_None, RF_Transactional);
-	check(EditorData);
+	UAvaTransitionTreeEditorData* EditorData;
 
-	EditorData->Schema = NewObject<UAvaTransitionTreeSchema>(EditorData);
+	const UAvaTransitionEditorSettings* TransitionEditorSettings = GetDefault<UAvaTransitionEditorSettings>();
+	check(TransitionEditorSettings);
 
-	InTransitionTree->EditorData = EditorData;
-
-	// Build the Default Tree
-	if (OnBuildDefaultTransitionTree.IsBound())
+	if (UAvaTransitionTreeEditorData* TemplateEditorData = TransitionEditorSettings->LoadDefaultTemplateEditorData())
 	{
-		OnBuildDefaultTransitionTree.Execute(*EditorData);
+		EditorData = DuplicateObject<UAvaTransitionTreeEditorData>(TemplateEditorData, InTransitionTree);
+		check(EditorData);
 	}
 	else
 	{
-		EditorData->AddRootState();	
+		EditorData = NewObject<UAvaTransitionTreeEditorData>(InTransitionTree, NAME_None, RF_Transactional);
+		check(EditorData);
+
+		EditorData->Schema = NewObject<UAvaTransitionTreeSchema>(EditorData);
+
+		if (OnBuildDefaultTransitionTree.IsBound())
+		{
+			OnBuildDefaultTransitionTree.Execute(*EditorData);
+		}
+		else
+		{
+			EditorData->AddRootState();	
+		}
 	}
+
+	InTransitionTree->EditorData = EditorData;
 
 	// Compile in Advanced Mode here so that no new nodes are generated from outside
 	FAvaTransitionCompiler Compiler;

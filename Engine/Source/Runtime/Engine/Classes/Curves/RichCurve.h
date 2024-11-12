@@ -81,15 +81,15 @@ struct FRichCurveKey
 	GENERATED_USTRUCT_BODY()
 
 	/** Interpolation mode between this key and the next */
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Key")
 	TEnumAsByte<ERichCurveInterpMode> InterpMode;
 
 	/** Mode for tangents at this key */
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Key")
 	TEnumAsByte<ERichCurveTangentMode> TangentMode;
 
 	/** If either tangent at this key is 'weighted' */
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Key")
 	TEnumAsByte<ERichCurveTangentWeightMode> TangentWeightMode;
 
 	/** Time at this key */
@@ -323,13 +323,9 @@ public:
 	ENGINE_API virtual void BakeCurve(float SampleRate, float FirstKeyTime, float LastKeyTime) final override;
 
 	/** Remove redundant keys, comparing against Tolerance */
-	UE_DEPRECATED(5.1, "FRichCurve::RemoveRedundantKeys is deprecated, use signature with additional SampleRate or RemoveRedundantAutoTangentKeys instead")
-	void RemoveRedundantKeys(float Tolerance) { RemoveRedundantAutoTangentKeys(Tolerance); }
 	ENGINE_API void RemoveRedundantAutoTangentKeys(float Tolerance);
 	ENGINE_API virtual void RemoveRedundantKeys(float Tolerance, FFrameRate SampleRate) final override;
 
-	UE_DEPRECATED(5.1, "FRichCurve::RemoveRedundantKeys is deprecated, use signature with additional SampleRate or RemoveRedundantAutoTangentKeys instead")
-	void RemoveRedundantKeys(float Tolerance, float FirstKeyTime, float LastKeyTime) { RemoveRedundantAutoTangentKeys(Tolerance, FirstKeyTime, LastKeyTime); }
 	ENGINE_API void RemoveRedundantAutoTangentKeys(float Tolerance, float FirstKeyTime, float LastKeyTime);
 	ENGINE_API virtual void RemoveRedundantKeys(float Tolerance, float FirstKeyTime, float LastKeyTime, FFrameRate SampleRate) final override;
 

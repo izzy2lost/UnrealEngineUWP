@@ -28,8 +28,8 @@ DEFINE_LOG_CATEGORY_STATIC(LogDebugRaycastCrash, All, All);
 // To debug the recast AStar enable this define
 #define ENABLE_RECAST_ASTAR_LOGGING 0
 #if ENABLE_RECAST_ASTAR_LOGGING
-	DEFINE_LOG_CATEGORY_STATIC(LogRaycastAStart, Warning, All);
-	#define UE_RECAST_ASTAR_LOG(Verbosity, Format, ...) UE_LOG(LogRaycastAStart, Verbosity, Format, __VA_ARGS__)
+	DEFINE_LOG_CATEGORY_STATIC(LogRecastAStar, Display, All);
+	#define UE_RECAST_ASTAR_LOG(Verbosity, Format, ...) UE_LOG(LogRecastAStar, Verbosity, Format, __VA_ARGS__)
 #else
 	#define UE_RECAST_ASTAR_LOG(...)
 #endif
@@ -779,17 +779,24 @@ void dtNavMeshQuery::closestPointOnPolyInTile(const dtMeshTile* tile, const dtPo
 	dtReal verts[DT_VERTS_PER_POLYGON*3];
 	dtReal edged[DT_VERTS_PER_POLYGON];
 	dtReal edget[DT_VERTS_PER_POLYGON];
-	const int nv = poly->vertCount;
+	const int nv = dtMin(poly->vertCount, DT_VERTS_PER_POLYGON);
 	for (int i = 0; i < nv; ++i)
+	{
 		dtVcopy(&verts[i*3], &tile->verts[poly->verts[i]*3]);
+	}
 	
 	dtVcopy(closest, pos);
+	if (nv == 0)
+	{
+		return;
+	}
+
 	if (!dtDistancePtPolyEdgesSqr(pos, verts, nv, edged, edget))
 	{
 		// Point is outside the polygon, dtClamp to nearest edge.
-		dtReal dmin = DT_REAL_MAX;
-		int imin = -1;
-		for (int i = 0; i < nv; ++i)
+		dtReal dmin = edged[0];
+		int imin = 0;
+		for (int i = 1; i < nv; ++i)
 		{
 			if (edged[i] < dmin)
 			{
@@ -797,9 +804,9 @@ void dtNavMeshQuery::closestPointOnPolyInTile(const dtMeshTile* tile, const dtPo
 				imin = i;
 			}
 		}
+		CA_ASSUME(imin < nv);
 		const dtReal* va = &verts[imin*3];
 		const dtReal* vb = &verts[((imin+1)%nv)*3];
-		CA_SUPPRESS(6385);
 		dtVlerp(closest, va, vb, edget[imin]);
 	}
 
@@ -864,7 +871,14 @@ dtStatus dtNavMeshQuery::closestPointOnPolyBoundary(dtPolyRef ref, const dtReal*
 	const dtMeshTile* tile = 0;
 	const dtPoly* poly = 0;
 	if (dtStatusFailed(m_nav->getTileAndPolyByRef(ref, &tile, &poly)))
+	{
 		return DT_FAILURE | DT_INVALID_PARAM;
+	}
+
+	if (poly->vertCount == 0)
+	{
+		return DT_FAILURE;
+	}
 	
 	// Collect vertices.
 	dtReal verts[DT_VERTS_PER_POLYGON*3];
@@ -886,9 +900,9 @@ dtStatus dtNavMeshQuery::closestPointOnPolyBoundary(dtPolyRef ref, const dtReal*
 	else
 	{
 		// Point is outside the polygon, dtClamp to nearest edge.
-		dtReal dmin = DT_REAL_MAX;
-		int imin = -1;
-		for (int i = 0; i < nv; ++i)
+		dtReal dmin = edged[0];
+		int imin = 0;
+		for (int i = 1; i < nv; ++i)
 		{
 			if (edged[i] < dmin)
 			{
@@ -896,9 +910,9 @@ dtStatus dtNavMeshQuery::closestPointOnPolyBoundary(dtPolyRef ref, const dtReal*
 				imin = i;
 			}
 		}
+		CA_ASSUME(imin < nv);
 		const dtReal* va = &verts[imin*3];
 		const dtReal* vb = &verts[((imin+1)%nv)*3];
-		CA_SUPPRESS(6385);
 		dtVlerp(closest, va, vb, edget[imin]);
 	}
 	
@@ -1153,7 +1167,12 @@ dtStatus dtNavMeshQuery::findNearestPoly(const dtReal* center, const dtReal* ext
 	{
 		dtPolyRef ref = polys[i];
 		dtReal closestPtPoly[3];
-		closestPointOnPoly(ref, referenceLocation, closestPtPoly);
+		const dtStatus result = closestPointOnPoly(ref, referenceLocation, closestPtPoly);
+		if (dtStatusFailed(result))
+		{
+			continue;
+		}
+
 		const dtReal d = dtVdistSqr(referenceLocation, closestPtPoly);
 		const dtReal h = dtAbs(center[1] - closestPtPoly[1]);
 //@UE END
@@ -1215,7 +1234,12 @@ dtStatus dtNavMeshQuery::findNearestPoly2D(const dtReal* center, const dtReal* e
 	{
 		dtPolyRef ref = polys[i];
 		dtReal closestPtPoly[3];
-		closestPointOnPoly(ref, referenceLocation, closestPtPoly);
+		const dtStatus result = closestPointOnPoly(ref, referenceLocation, closestPtPoly);
+		if (result & DT_FAILURE)
+		{
+			continue;
+		}
+
 		const dtReal dSq = dtVdist2DSqr(referenceLocation, closestPtPoly);
 		const dtReal h = dtAbs(center[1] - closestPtPoly[1]);
 
@@ -1311,7 +1335,12 @@ dtStatus dtNavMeshQuery::findNearestContainingPoly(const dtReal* center, const d
 		if (inPoly)
 		{
 			dtReal closestPtPoly[3];
-			closestPointOnPoly(ref, center, closestPtPoly);
+			const dtStatus result = closestPointOnPoly(ref, center, closestPtPoly);
+			if (result & DT_FAILURE)
+			{
+				continue;
+			}
+
 			const dtReal d = dtVdistSqr(center, closestPtPoly);
 			const dtReal x = dtAbs(center[0] - closestPtPoly[0]);
 			const dtReal z = dtAbs(center[2] - closestPtPoly[2]);
@@ -1583,6 +1612,7 @@ dtStatus dtNavMeshQuery::findPath(dtPolyRef startRef, dtPolyRef endRef,
 	startNode->total = dtVdist(startPos, endPos) * H_SCALE;
 	startNode->id = startRef;
 	startNode->flags = DT_NODE_OPEN;
+	UE_RECAST_ASTAR_LOG(Display, TEXT("Start by pushing %lld"), startRef);
 	m_openList->push(startNode);
 	m_queryNodes++;
 
@@ -1598,6 +1628,7 @@ dtStatus dtNavMeshQuery::findPath(dtPolyRef startRef, dtPolyRef endRef,
 	{
 		// Remove node from open list and put it in closed list.
 		dtNode* bestNode = m_openList->pop();
+		UE_RECAST_ASTAR_LOG(Display, TEXT("   Pop %lld"), bestNode->id);
 		bestNode->flags &= ~DT_NODE_OPEN;
 		bestNode->flags |= DT_NODE_CLOSED;
 		
@@ -1645,7 +1676,7 @@ dtStatus dtNavMeshQuery::findPath(dtPolyRef startRef, dtPolyRef endRef,
 				|| !filter->isValidLinkSide(link.side))
 				//@UE END
 			{
-				UE_RECAST_ASTAR_LOG( Warning, TEXT("Filtered %lld from %lld"), neighbourRef, bestRef);
+				UE_RECAST_ASTAR_LOG(Display, TEXT("      Filtered %lld from %lld, isValidLinkSide %i"), neighbourRef, bestRef, filter->isValidLinkSide(link.side));
 				continue;
 			}
 			
@@ -1657,21 +1688,23 @@ dtStatus dtNavMeshQuery::findPath(dtPolyRef startRef, dtPolyRef endRef,
 			
 			if (!filter->passFilter(neighbourRef, neighbourTile, neighbourPoly) || !passLinkFilterByRef(neighbourTile, neighbourRef))
 			{
-				UE_RECAST_ASTAR_LOG(Warning, TEXT("Filtered %lld from %lld"), neighbourRef, bestRef);
+				UE_RECAST_ASTAR_LOG(Display, TEXT("      Filtered %lld from %lld, filter->isVirtual %i, passFilter %i, passLinkFilterByRef %i"),
+					neighbourRef, bestRef, filter->getIsVirtual(),
+					filter->passFilter(neighbourRef, neighbourTile, neighbourPoly), passLinkFilterByRef(neighbourTile, neighbourRef));
 				continue;
 			}
 
 			dtNode* neighbourNode = m_nodePool->getNode(neighbourRef);
 			if (!neighbourNode)
 			{
-				UE_RECAST_ASTAR_LOG(Warning, TEXT("Reach Limit %lld from %lld"), neighbourRef, bestRef);
+				UE_RECAST_ASTAR_LOG(Display, TEXT("      Reach Limit %lld from %lld"), neighbourRef, bestRef);
 				status |= DT_OUT_OF_NODES;
 				continue;
 			}
 //@UE BEGIN
 			else if (shouldIgnoreClosedNodes && (neighbourNode->flags & DT_NODE_CLOSED) != 0)
 			{
-				UE_RECAST_ASTAR_LOG(Warning, TEXT("Skipping closed %lld from %lld"), neighbourRef, bestRef);
+				UE_RECAST_ASTAR_LOG(Display, TEXT("      Skipping closed %lld from %lld"), neighbourRef, bestRef);
 				continue;
 			}
 //@UE END
@@ -1716,27 +1749,27 @@ dtStatus dtNavMeshQuery::findPath(dtPolyRef startRef, dtPolyRef endRef,
 			// The node is already in open list and the new result is worse, skip.
 			if ((neighbourNode->flags & DT_NODE_OPEN) && total >= neighbourNode->total)
 			{
-				UE_RECAST_ASTAR_LOG(Warning, TEXT("Skipping new cost higher %lld from %lld cost %f total %f prev cost %f"), neighbourRef, bestRef, cost, total, neighbourNode->total);
+				UE_RECAST_ASTAR_LOG(Display, TEXT("      Skipping new cost higher %lld from %lld cost %f total %f prev cost %f"), neighbourRef, bestRef, cost, total, neighbourNode->total);
 				continue;
 			}
 
 			// The node is already visited and process, and the new result is worse, skip.
 			if ((neighbourNode->flags & DT_NODE_CLOSED) && total >= neighbourNode->total)
 			{
-				UE_RECAST_ASTAR_LOG(Warning, TEXT("Skipping new cost higher %lld from %lld cost %f total %f prev cost %f"), neighbourRef, bestRef, cost, total, neighbourNode->total);
+				UE_RECAST_ASTAR_LOG(Display, TEXT("      Skipping new cost higher %lld from %lld cost %f total %f prev cost %f"), neighbourRef, bestRef, cost, total, neighbourNode->total);
 				continue;
 			}
 
 			// Cost of current link is DT_UNWALKABLE_POLY_COST, skip.
 			if (curCost == DT_UNWALKABLE_POLY_COST)
 			{
-				UE_RECAST_ASTAR_LOG(Warning, TEXT("Skipping unwalkable poly %lld from %lld cost %f total %f prev cost %f"), neighbourRef, bestRef, cost, total, neighbourNode->total);
+				UE_RECAST_ASTAR_LOG(Display, TEXT("      Skipping unwalkable poly %lld from %lld cost %f total %f prev cost %f"), neighbourRef, bestRef, cost, total, neighbourNode->total);
 				continue;
 			}
 
 			if (total > costLimit) //@UE
 			{
-				UE_RECAST_ASTAR_LOG(Warning, TEXT("Skipping reach cost limit poly %lld from %lld cost %f total %f prev cost %f limit %f"), neighbourRef, bestRef, cost, total, neighbourNode->total, costLimit);
+				UE_RECAST_ASTAR_LOG(Display, TEXT("      Skipping reach cost limit poly %lld from %lld cost %f total %f prev cost %f limit %f"), neighbourRef, bestRef, cost, total, neighbourNode->total, costLimit);
 				continue;
 			}
 
@@ -1752,7 +1785,7 @@ dtStatus dtNavMeshQuery::findPath(dtPolyRef startRef, dtPolyRef endRef,
 			{
 				// Already in open, update node location.
 				m_openList->modify(neighbourNode);
-				UE_RECAST_ASTAR_LOG(Warning, TEXT("Modifying %lld from %lld cost %f total %f"), neighbourRef, bestRef, cost, total);
+				UE_RECAST_ASTAR_LOG(Display, TEXT("   Modifying %lld from %lld cost %f total %f"), neighbourRef, bestRef, cost, total);
 			}
 			else
 			{
@@ -1760,13 +1793,13 @@ dtStatus dtNavMeshQuery::findPath(dtPolyRef startRef, dtPolyRef endRef,
 				neighbourNode->flags |= DT_NODE_OPEN;
 				m_openList->push(neighbourNode);
 				m_queryNodes++;
-				UE_RECAST_ASTAR_LOG(Warning, TEXT("Pushing %lld from %lld cost %f total %f"), neighbourRef, bestRef, cost, total);
+				UE_RECAST_ASTAR_LOG(Display, TEXT("   Pushing %lld from %lld cost %f total %f"), neighbourRef, bestRef, cost, total);
 			}
 			
 			// Update nearest node to target so far.
 			if (heuristic < lastBestNodeCost)
 			{
-				UE_RECAST_ASTAR_LOG(Warning, TEXT("New best path %lld from %lld new best heuristic %f prev best heuristic %f"), neighbourRef, bestRef, heuristic, lastBestNodeCost);
+				UE_RECAST_ASTAR_LOG(Display, TEXT("New best path %lld from %lld new best heuristic %f prev best heuristic %f"), neighbourRef, bestRef, heuristic, lastBestNodeCost);
 				lastBestNodeCost = heuristic;
 				lastBestNode = neighbourNode;
 			}
@@ -3260,7 +3293,7 @@ dtStatus dtNavMeshQuery::raycast(dtPolyRef startRef, const dtReal* startPos, con
 		m_nav->getTileAndPolyByRefUnsafe(curRef, &tile, &poly);
 		
 		// Check if poly has valid data, bail out otherwise
-		if (poly == nullptr || poly->vertCount > DT_VERTS_PER_POLYGON)
+		if (poly == nullptr || poly->vertCount > DT_VERTS_PER_POLYGON || poly->vertCount == 0)
 		{
 			if (pathCount)
 				*pathCount = n;
@@ -4389,7 +4422,13 @@ static void storeWallSegment(const dtNavMesh* nav, const dtMeshTile* tile, const
 	{
 		return;
 	}
-	
+
+	// Skip for polys that don't have vertices (e.g. nav links)
+	if (poly->vertCount == 0)
+	{
+		return;
+	}
+
 	const dtReal* va = &tile->verts[poly->verts[edge] * 3];
 	const dtReal* vb = &tile->verts[poly->verts[(edge + 1) % poly->vertCount] * 3];
 
@@ -5045,6 +5084,10 @@ dtStatus dtNavMeshQuery::findDistanceToWall(dtPolyRef startRef, const dtReal* ce
 		const dtMeshTile* bestTile = 0;
 		const dtPoly* bestPoly = 0;
 		m_nav->getTileAndPolyByRefUnsafe(bestRef, &bestTile, &bestPoly);
+		if (bestPoly->vertCount == 0)
+		{
+			continue;
+		}
 		
 		// Get parent poly and tile.
 		dtPolyRef parentRef = 0;

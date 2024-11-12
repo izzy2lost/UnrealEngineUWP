@@ -17,6 +17,8 @@ namespace UnrealGame
 	/// </summary>
 	public class FortGPUTestbedPerfTest : DefaultTest
 	{
+		private UnrealLogStreamParser LogParser;
+
 		public FortGPUTestbedPerfTest(Gauntlet.UnrealTestContext InContext)
 			: base(InContext)
 		{
@@ -37,12 +39,15 @@ namespace UnrealGame
 		{
 			if (TestInstance.ClientApps.Length > 0)
 			{
-				IAppInstance App = TestInstance.ClientApps.First();
-
-				UnrealLogParser Log = new UnrealLogParser(App.StdOut);
+				if (LogParser == null)
+				{
+					IAppInstance App = TestInstance.ClientApps.First();
+					LogParser = new UnrealLogStreamParser(App.GetLogBufferReader());
+				}
+				LogParser.ReadStream();
 
 				// Look for message that test is completed
-				if (Log.GetAllMatchingLines("FortGPUTestbedPerfTest Finished").Length > 0)
+				if (LogParser.GetLogLinesContaining("FortGPUTestbedPerfTest Finished").Any())
 				{
 					MarkTestComplete();
 					SetUnrealTestResult(TestResult.Passed);

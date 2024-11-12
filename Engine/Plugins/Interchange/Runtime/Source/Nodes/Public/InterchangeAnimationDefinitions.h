@@ -3,44 +3,365 @@
 #pragma once
 
 #include "UObject/NameTypes.h"
+#include "Types/AttributeStorage.h"
+
+#include "InterchangeAnimationDefinitions.generated.h"
+
+UENUM()
+enum class EInterchangePropertyTracks : int32
+{
+	/** Common Properties*/
+	AffectDistanceFieldLighting,
+	AffectDynamicIndirectLighting,
+	AffectIndirectLightingWhileHidden,
+	AutoActivate,
+	BodyInstanceAngularDamping,
+	BodyInstancebEnableGravity,
+	BodyInstancebNotifyRigidBodyCollision,
+	BodyInstancebSimulatePhysics,
+	BodyInstancebUpdateKinematicFromSimulation,
+	BodyInstancebUseCCD,
+	BodyInstanceLinearDamping,
+	BodyInstanceMassScale,
+	BoundsScale,
+	CastContactShadow,
+	CastHiddenShadow,
+	CastInsetShadow,
+	CastShadow,
+	CustomDepthStencilValue,
+	CustomDepthStencilWriteMask,
+	DefaultUpVector,
+	DrawDebug,
+	EmissiveLightSource,
+	ExcludeFromLightAttachmentGroup,
+	HiddenInGame, // This visibility property is set on the Component
+	HiddenInSceneCapture,
+	Holdout,
+	LightAttachmentsAsGroup,
+	Mobility,
+	OnlyOwnerSee,
+	OwnerNoSee,
+	ReceivesDecals,
+	RenderCustomDepth,
+	RenderInDepthPass,
+	RenderInMainPass,
+	SingleSampleShadowFromStationaryLights,
+	TranslucencySortDistanceOffset,
+	VisibleInRayTracing,
+	VisibleInSceneCaptureOnly,
+	Visibility, // This visibility property is set on the Actor
+
+	/** Light Properties */
+	LightAffectGlobalIllumination,
+	LightAffectReflection,
+	LightAffectTranslucentLighting,
+	LightAtmosphereSunDiskColorScale,
+	LightAtmosphereSunLight,
+	LightAtmosphereSunLightIndex,
+	LightAttenuationRadius,
+	LightBarnDoorAngle,
+	LightBarnDoorLength,
+	LightBloomMaxBrightness,
+	LightBloomScale,
+	LightBloomThreshold,
+	LightBloomTint,
+	LightCascadeDistributionExponent,
+	LightCascadeTransitionFraction,
+	LightCastDeepShadow,
+	LightCastShadows,
+	LightCastVolumetricShadow,
+	LightCloudAmbientOcclusionStrength,
+	LightCloudScatteredLuminanceScale,
+	LightCloudShadowOnAtmosphereStrength,
+	LightCloudShadowOnSurfaceStrength,
+	LightCloudShadowStrength,
+	LightColor,
+	LightDynamicShadowCascades,
+	LightDynamicShadowDistanceMovableLight,
+	LightDynamicShadowDistanceStationaryLight,
+	LightEnableLightShaftBloom,
+	LightEnableLightShaftOcclusion,
+	LightFalloffExponent,
+	LightForceCachedShadowsForMovablePrimitives,
+	LightForwardShadingPriority,
+	LightFunctionFadeDistance,
+	LightFunctionScale,
+	LightIESBrightnessScale,
+	LightIndirectLightingIntensity,
+	LightInnerConeAngle,
+	LightIntensity,
+	LightIntensityUnits,
+	LightInverseExposureBlend,
+	LightLowerHemisphereColor,
+	LightmassSettingsLightSourceAngle,
+	LightMinOcclusion,
+	LightModulatedShadowColor,
+	LightOcclusionDepthRange,
+	LightOcclusionExponent,
+	LightOcclusionMaskDarkness,
+	LightOcclusionTint,
+	LightOuterConeAngle,
+	LightSamplesPerPixel,
+	LightShadowAmount,
+	LightShadowBias,
+	LightShadowCascadeBiasDistribution,
+	LightShadowDistanceFadeoutFraction,
+	LightShadowSlopeBias,
+	LightShadowSourceAngleFactor,
+	LightShaftOverrideDirection,
+	LightSoftSourceRadius,
+	LightSourceAngle,
+	LightSourceCubemapAngle,
+	LightSourceHeight,
+	LightSourceLength,
+	LightSourceRadius,
+	LightSourceSoftAngle,
+	LightSourceWidth,
+	LightSpecularScale,
+	LightDiffuseScale,
+	LightTemperature,
+	LightTransmission,
+	LightUseIESBrightness,
+	LightUseInverseSquaredFalloff,
+	LightUseTemperature,
+	LightVolumetricScatteringIntensity,
+
+	/** Camera Properties*/
+	CameraAspectRatio,
+	CameraAspectRatioAxisConstraint,
+	CameraAutoCalculateOrthoPlanes,
+	CameraAutoPlaneShift,
+	CameraConstrainAspectRatio,
+	CameraCurrentAperture,
+	CameraCurrentFocalLength,
+	CameraCustomNearClippingPlane,
+	CameraFieldOfView,
+	CameraFilmbackSensorAspectRatio,
+	CameraFilmbackSensorHeight,
+	CameraFilmbackSensorWidth,
+	CameraFocusSettingsFocusOffset,
+	CameraFocusSettingsManualFocusDistance,
+	CameraFocusSettingsTrackingFocusSettingsRelativeOffset,
+	CameraOrthoFarClipPlane,
+	CameraOrthoNearClipPlane,
+	CameraOrthoWidth,
+	CameraOverrideAspectRatioAxisConstraint,
+	CameraPostProcessBlendWeight,
+	CameraPostProcessSettingsAmbientCubemapIntensity,
+	CameraPostProcessSettingsAmbientCubemapTint,
+	CameraPostProcessSettingsAmbientOcclusionBias,
+	CameraPostProcessSettingsAmbientOcclusionFadeDistance,
+	CameraPostProcessSettingsAmbientOcclusionFadeRadius,
+	CameraPostProcessSettingsAmbientOcclusionIntensity,
+	CameraPostProcessSettingsAmbientOcclusionMipBlend,
+	CameraPostProcessSettingsAmbientOcclusionMipScale,
+	CameraPostProcessSettingsAmbientOcclusionMipThreshold,
+	CameraPostProcessSettingsAmbientOcclusionPower,
+	CameraPostProcessSettingsAmbientOcclusionQuality,
+	CameraPostProcessSettingsAmbientOcclusionRadius,
+	CameraPostProcessSettingsAmbientOcclusionStaticFraction,
+	CameraPostProcessSettingsAmbientOcclusionTemporalBlendWeight,
+	CameraPostProcessSettingsAutoExposureBias,
+	CameraPostProcessSettingsAutoExposureHighPercent,
+	CameraPostProcessSettingsAutoExposureLowPercent,
+	CameraPostProcessSettingsAutoExposureMaxBrightness,
+	CameraPostProcessSettingsAutoExposureMinBrightness,
+	CameraPostProcessSettingsAutoExposureSpeedDown,
+	CameraPostProcessSettingsAutoExposureSpeedUp,
+	CameraPostProcessSettingsBloom1Size,
+	CameraPostProcessSettingsBloom1Tint,
+	CameraPostProcessSettingsBloom2Size,
+	CameraPostProcessSettingsBloom2Tint,
+	CameraPostProcessSettingsBloom3Size,
+	CameraPostProcessSettingsBloom3Tint,
+	CameraPostProcessSettingsBloom4Size,
+	CameraPostProcessSettingsBloom4Tint,
+	CameraPostProcessSettingsBloom5Size,
+	CameraPostProcessSettingsBloom5Tint,
+	CameraPostProcessSettingsBloom6Size,
+	CameraPostProcessSettingsBloom6Tint,
+	CameraPostProcessSettingsBloomConvolutionBufferScale,
+	CameraPostProcessSettingsBloomConvolutionCenterUV,
+	CameraPostProcessSettingsBloomConvolutionPreFilterMax,
+	CameraPostProcessSettingsBloomConvolutionPreFilterMin,
+	CameraPostProcessSettingsBloomConvolutionPreFilterMult,
+	CameraPostProcessSettingsBloomConvolutionScatterDispersion,
+	CameraPostProcessSettingsBloomConvolutionSize,
+	CameraPostProcessSettingsBloomDirtMaskIntensity,
+	CameraPostProcessSettingsBloomDirtMaskTint,
+	CameraPostProcessSettingsBloomIntensity,
+	CameraPostProcessSettingsBloomSizeScale,
+	CameraPostProcessSettingsBloomThreshold,
+	CameraPostProcessSettingsBlueCorrection,
+	CameraPostProcessSettingsChromaticAberrationStartOffset,
+	CameraPostProcessSettingsColorContrast,
+	CameraPostProcessSettingsColorContrastHighlights,
+	CameraPostProcessSettingsColorContrastMidtones,
+	CameraPostProcessSettingsColorContrastShadows,
+	CameraPostProcessSettingsColorCorrectionHighlightsMax,
+	CameraPostProcessSettingsColorCorrectionHighlightsMin,
+	CameraPostProcessSettingsColorCorrectionShadowsMax,
+	CameraPostProcessSettingsColorGain,
+	CameraPostProcessSettingsColorGainHighlights,
+	CameraPostProcessSettingsColorGainMidtones,
+	CameraPostProcessSettingsColorGainShadows,
+	CameraPostProcessSettingsColorGamma,
+	CameraPostProcessSettingsColorGammaHighlights,
+	CameraPostProcessSettingsColorGammaMidtones,
+	CameraPostProcessSettingsColorGammaShadows,
+	CameraPostProcessSettingsColorGradingIntensity,
+	CameraPostProcessSettingsColorOffset,
+	CameraPostProcessSettingsColorOffsetHighlights,
+	CameraPostProcessSettingsColorOffsetMidtones,
+	CameraPostProcessSettingsColorOffsetShadows,
+	CameraPostProcessSettingsColorSaturation,
+	CameraPostProcessSettingsColorSaturationHighlights,
+	CameraPostProcessSettingsColorSaturationMidtones,
+	CameraPostProcessSettingsColorSaturationShadows,
+	CameraPostProcessSettingsDepthOfFieldBladeCount,
+	CameraPostProcessSettingsDepthOfFieldDepthBlurAmount,
+	CameraPostProcessSettingsDepthOfFieldDepthBlurRadius,
+	CameraPostProcessSettingsDepthOfFieldFarBlurSize,
+	CameraPostProcessSettingsDepthOfFieldFarTransitionRegion,
+	CameraPostProcessSettingsDepthOfFieldFocalDistance,
+	CameraPostProcessSettingsDepthOfFieldFocalRegion,
+	CameraPostProcessSettingsDepthOfFieldFstop,
+	CameraPostProcessSettingsDepthOfFieldMinFstop,
+	CameraPostProcessSettingsDepthOfFieldNearBlurSize,
+	CameraPostProcessSettingsDepthOfFieldNearTransitionRegion,
+	CameraPostProcessSettingsDepthOfFieldOcclusion,
+	CameraPostProcessSettingsDepthOfFieldScale,
+	CameraPostProcessSettingsDepthOfFieldSkyFocusDistance,
+	CameraPostProcessSettingsDepthOfFieldUseHairDepth,
+	CameraPostProcessSettingsDepthOfFieldVignetteSize,
+	CameraPostProcessSettingsDynamicGlobalIlluminationMethod,
+	CameraPostProcessSettingsExpandGamut,
+	CameraPostProcessSettingsFilmBlackClip,
+	CameraPostProcessSettingsFilmGrainHighlightsMax,
+	CameraPostProcessSettingsFilmGrainHighlightsMin,
+	CameraPostProcessSettingsFilmGrainIntensity,
+	CameraPostProcessSettingsFilmGrainIntensityHighlights,
+	CameraPostProcessSettingsFilmGrainIntensityMidtones,
+	CameraPostProcessSettingsFilmGrainIntensityShadows,
+	CameraPostProcessSettingsFilmGrainShadowsMax,
+	CameraPostProcessSettingsFilmGrainTexelSize,
+	CameraPostProcessSettingsFilmShoulder,
+	CameraPostProcessSettingsFilmSlope,
+	CameraPostProcessSettingsFilmToe,
+	CameraPostProcessSettingsFilmWhiteClip,
+	CameraPostProcessSettingsHistogramLogMax,
+	CameraPostProcessSettingsHistogramLogMin,
+	CameraPostProcessSettingsIndirectLightingColor,
+	CameraPostProcessSettingsIndirectLightingIntensity,
+	CameraPostProcessSettingsLensFlareBokehSize,
+	CameraPostProcessSettingsLensFlareIntensity,
+	CameraPostProcessSettingsLensFlareThreshold,
+	CameraPostProcessSettingsLensFlareTint,
+	CameraPostProcessSettingsLocalExposureBlurredLuminanceBlend,
+	CameraPostProcessSettingsLocalExposureBlurredLuminanceKernelSizePercent,
+	CameraPostProcessSettingsLocalExposureDetailStrength,
+	CameraPostProcessSettingsLocalExposureHighlightContrastScale,
+	CameraPostProcessSettingsLocalExposureHighlightThreshold,
+	CameraPostProcessSettingsLocalExposureMiddleGreyBias,
+	CameraPostProcessSettingsLocalExposureShadowContrastScale,
+	CameraPostProcessSettingsLocalExposureShadowThreshold,
+	CameraPostProcessSettingsLumenDiffuseColorBoost,
+	CameraPostProcessSettingsLumenFinalGatherLightingUpdateSpeed,
+	CameraPostProcessSettingsLumenFinalGatherQuality,
+	CameraPostProcessSettingsLumenFinalGatherScreenTraces,
+	CameraPostProcessSettingsLumenFrontLayerTranslucencyReflections,
+	CameraPostProcessSettingsLumenFullSkylightLeakingDistance,
+	CameraPostProcessSettingsLumenMaxReflectionBounces,
+	CameraPostProcessSettingsLumenMaxRefractionBounces,
+	CameraPostProcessSettingsLumenMaxRoughnessToTraceReflections,
+	CameraPostProcessSettingsLumenMaxTraceDistance,
+	CameraPostProcessSettingsLumenRayLightingMode,
+	CameraPostProcessSettingsLumenReflectionQuality,
+	CameraPostProcessSettingsLumenReflectionsScreenTraces,
+	CameraPostProcessSettingsLumenSceneDetail,
+	CameraPostProcessSettingsLumenSceneLightingQuality,
+	CameraPostProcessSettingsLumenSceneLightingUpdateSpeed,
+	CameraPostProcessSettingsLumenSceneViewDistance,
+	CameraPostProcessSettingsLumenSkylightLeaking,
+	CameraPostProcessSettingsMotionBlurAmount,
+	CameraPostProcessSettingsMotionBlurMax,
+	CameraPostProcessSettingsMotionBlurPerObjectSize,
+	CameraPostProcessSettingsPathTracingMaxBounces,
+	CameraPostProcessSettingsPathTracingMaxPathIntensity,
+	CameraPostProcessSettingsRayTracingAO,
+	CameraPostProcessSettingsRayTracingAOIntensity,
+	CameraPostProcessSettingsRayTracingAORadius,
+	CameraPostProcessSettingsRayTracingAOSamplesPerPixel,
+	CameraPostProcessSettingsRayTracingTranslucencyMaxRoughness,
+	CameraPostProcessSettingsRayTracingTranslucencyRefraction,
+	CameraPostProcessSettingsRayTracingTranslucencyRefractionRays,
+	CameraPostProcessSettingsRayTracingTranslucencySamplesPerPixel,
+	CameraPostProcessSettingsRayTracingTranslucencyShadows,
+	CameraPostProcessSettingsReflectionMethod,
+	CameraPostProcessSettingsSceneColorTint,
+	CameraPostProcessSettingsSceneFringeIntensity,
+	CameraPostProcessSettingsScreenSpaceReflectionIntensity,
+	CameraPostProcessSettingsScreenSpaceReflectionMaxRoughness,
+	CameraPostProcessSettingsScreenSpaceReflectionQuality,
+	CameraPostProcessSettingsSharpen,
+	CameraPostProcessSettingsTemperatureType,
+	CameraPostProcessSettingsToneCurveAmount,
+	CameraPostProcessSettingsTranslucencyType,
+	CameraPostProcessSettingsVignetteIntensity,
+	CameraPostProcessSettingsWhiteTemp,
+	CameraPostProcessSettingsWhiteTint,
+	CameraProjectionMode,
+	CameraUpdateOrthoPlanes,
+	CameraUseCameraHeightAsViewTarget,
+	CameraUseFieldOfViewForLOD,
+
+	/** Common Mesh Properties */
+	MeshOverlayMaterialMaxDrawDistance, 
+
+	/** Skinned Mesh Properties */
+	SkinnedMeshCapsuleIndirectShadowMinVisibility,
+	SkinnedMeshCastCapsuleDirectShadow,
+	SkinnedMeshCastCapsuleIndirectShadow,
+	SkinnedMeshRenderStatic,
+	SkinnedMeshVisibilityBasedAnimTickOption,
+
+	/** Skeletal Mesh Properties */
+	SkeletalMesh,
+	SkeletalMeshAllowClothActors,
+	SkeletalMeshAnimationMode,
+	SkeletalMeshClothBlendWeight,
+	SkeletalMeshClothMaxDistanceScale,
+
+	/** Static Mesh Properties */
+	StaticMeshDistanceFieldSelfShadowBias,
+	StaticMeshEvaluateWorldPositionOffset,
+	StaticMeshEvaluateWorldPositionOffsetInRayTracing,
+	StaticMeshForcedLodModel,
+	StaticMeshReverseCulling,
+	StaticMeshWorldPositionOffsetDisableDistance,
+
+	StaticMesh,
+
+	None = -1 UMETA(hidden),
+};
 
 namespace UE
 {
 	namespace Interchange
 	{
-		namespace Animation
+		template<> struct TAttributeTypeTraits<EInterchangePropertyTracks>
 		{
-			namespace PropertyTracks
+			static constexpr EAttributeTypes GetType()
 			{
-				const FName Visibility = TEXT("Actor.bHidden");
-
-				namespace Light
-				{
-					const FName Color = TEXT("Light.LightColor");
-					const FName Intensity = TEXT("Light.Intensity");
-					const FName IntensityUnits = TEXT("Light.IntensityUnits");
-					const FName Temperature = TEXT("Light.Temperature");
-					const FName UseTemperature = TEXT("Light.bUseTemperature");
-				}
-
-				namespace Camera
-				{
-					const FName AutoActivate = TEXT("Camera.bAutoActivate");
-					const FName AspectRatioAxisConstraint = TEXT("Camera.AspectRatioAxisConstraint");
-					const FName ConstrainAspectRatio = TEXT("Camera.bConstrainAspectRatio");
-					const FName CurrentAperture = TEXT("Camera.CurrentAperture");
-					const FName CurrentFocalLength = TEXT("Camera.CurrentFocalLength");
-					const FName CustomNearClippingPlane = TEXT("Camera.CustomNearClippingPlane");
-					const FName FieldOfView = TEXT("Camera.FieldOfView");
-					const FName Mobility = TEXT("Camera.Mobility");
-					const FName OrthoFarClipPlane = TEXT("Camera.OrthoFarClipPlane");
-					const FName OrthoWidth = TEXT("Camera.OrthoWidth");
-					const FName PostProcessBlendWeight = TEXT("Camera.PostProcessBlendWeight");
-					const FName ProjectionMode = TEXT("Camera.ProjectionMode");
-					const FName ShouldUpdatePhysicsVolume = TEXT("Camera.bShouldUpdatePhysicsVolume");
-					const FName UseFieldOfViewForLOD = TEXT("Camera.bUseFieldOfViewForLOD");
-				}
+				return EAttributeTypes::Int32;
 			}
-		}
+			static FString ToString(const uint16& Value)
+			{
+				int32 ValueConv = Value;
+				FStringFormatOrderedArguments OrderedArguments;
+				OrderedArguments.Add(FStringFormatArg(ValueConv));
+				return FString::Format(TEXT("{0}"), OrderedArguments);
+			}
+		};
 	}
 }

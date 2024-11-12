@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "D3D12RHIPrivate.h"
+#include "D3D12RayTracing.h"
 
 // -----------------------------------------------------------------------------------------------------
 //
@@ -8,8 +9,13 @@
 //
 // -----------------------------------------------------------------------------------------------------
 
-FD3D12ShaderResourceView::FD3D12ShaderResourceView(FD3D12Device* InDevice)
-	: TD3D12View(InDevice, ERHIDescriptorHeapType::Standard)
+FD3D12ShaderResourceView::FD3D12ShaderResourceView(FD3D12Device* InDevice, FD3D12ShaderResourceView* FirstLinkedObject)
+	: TD3D12View(InDevice, ERHIDescriptorHeapType::Standard, FirstLinkedObject)
+{}
+
+FD3D12ShaderResourceView::FD3D12ShaderResourceView(FD3D12Device* InDevice, FD3D12ShaderResourceView* FirstLinkedObject, FD3D12RayTracingScene* InRayTracingScene)
+	: TD3D12View(InDevice, ERHIDescriptorHeapType::Standard, FirstLinkedObject)
+	, RayTracingScene(InRayTracingScene)
 {}
 
 void FD3D12ShaderResourceView::UpdateResourceInfo(const FResourceInfo& InResource, const D3D12_SHADER_RESOURCE_VIEW_DESC& InD3DViewDesc, EFlags InFlags)
@@ -50,13 +56,13 @@ void FD3D12ShaderResourceView::CreateView(FResourceInfo const& InResource, D3D12
 	TD3D12View::CreateView(InResource, InD3DViewDesc);
 }
 
-void FD3D12ShaderResourceView::UpdateView(FRHICommandListBase& RHICmdList, const FResourceInfo& InResource, const D3D12_SHADER_RESOURCE_VIEW_DESC& InD3DViewDesc, EFlags InFlags)
+void FD3D12ShaderResourceView::UpdateView(FD3D12ContextArray const& Contexts, const FResourceInfo& InResource, const D3D12_SHADER_RESOURCE_VIEW_DESC& InD3DViewDesc, EFlags InFlags)
 {
 	UpdateResourceInfo(InResource, InD3DViewDesc, InFlags);
-	TD3D12View::UpdateView(RHICmdList, InResource, InD3DViewDesc);
+	TD3D12View::UpdateView(Contexts, InResource, InD3DViewDesc);
 }
 
-void FD3D12ShaderResourceView::ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
+void FD3D12ShaderResourceView::ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
 {
 	check(IsInitialized());
 
@@ -76,25 +82,32 @@ void FD3D12ShaderResourceView::ResourceRenamed(FRHICommandListBase& RHICmdList, 
 	}
 #endif
 
-	TD3D12View::ResourceRenamed(RHICmdList, InRenamedResource, InNewResourceLocation);
+	TD3D12View::ResourceRenamed(Contexts, InRenamedResource, InNewResourceLocation);
 }
 
-void FD3D12ShaderResourceView::UpdateMinLODClamp(FRHICommandListBase& RHICmdList, float MinLODClamp)
+void FD3D12ShaderResourceView::UpdateMinLODClamp(FD3D12ContextArray const& Contexts, float MinLODClamp)
 {
 	check(IsInitialized());
+
+	FLOAT* pResourceMinLODClamp = nullptr;
 
 	switch (D3DViewDesc.ViewDimension)
 	{
 	default: checkNoEntry(); return; // not supported
-	case D3D12_SRV_DIMENSION_TEXTURE2D       : D3DViewDesc.Texture2D       .ResourceMinLODClamp = MinLODClamp; break;
-	case D3D12_SRV_DIMENSION_TEXTURE2DARRAY  : D3DViewDesc.Texture2DArray  .ResourceMinLODClamp = MinLODClamp; break;
-	case D3D12_SRV_DIMENSION_TEXTURE3D       : D3DViewDesc.Texture3D       .ResourceMinLODClamp = MinLODClamp; break;
-	case D3D12_SRV_DIMENSION_TEXTURECUBE     : D3DViewDesc.TextureCube     .ResourceMinLODClamp = MinLODClamp; break;
-	case D3D12_SRV_DIMENSION_TEXTURECUBEARRAY: D3DViewDesc.TextureCubeArray.ResourceMinLODClamp = MinLODClamp; break;
+	case D3D12_SRV_DIMENSION_TEXTURE2D       : pResourceMinLODClamp = &D3DViewDesc.Texture2D       .ResourceMinLODClamp; break;
+	case D3D12_SRV_DIMENSION_TEXTURE2DARRAY  : pResourceMinLODClamp = &D3DViewDesc.Texture2DArray  .ResourceMinLODClamp; break;
+	case D3D12_SRV_DIMENSION_TEXTURE3D       : pResourceMinLODClamp = &D3DViewDesc.Texture3D       .ResourceMinLODClamp; break;
+	case D3D12_SRV_DIMENSION_TEXTURECUBE     : pResourceMinLODClamp = &D3DViewDesc.TextureCube     .ResourceMinLODClamp; break;
+	case D3D12_SRV_DIMENSION_TEXTURECUBEARRAY: pResourceMinLODClamp = &D3DViewDesc.TextureCubeArray.ResourceMinLODClamp; break;
 	}
 
-	UpdateDescriptor();
-	UpdateBindlessSlot(RHICmdList);
+	if (pResourceMinLODClamp && *pResourceMinLODClamp != MinLODClamp)
+	{
+		*pResourceMinLODClamp = MinLODClamp;
+
+		UpdateDescriptor();
+		UpdateBindlessSlot(Contexts);
+	}
 }
 
 void FD3D12ShaderResourceView::UpdateDescriptor()
@@ -265,7 +278,7 @@ void FD3D12ShaderResourceView_RHI::CreateView()
 	}
 }
 
-void FD3D12ShaderResourceView_RHI::UpdateView(FRHICommandListBase& RHICmdList)
+void FD3D12ShaderResourceView_RHI::UpdateView(FD3D12ContextArray const& Contexts)
 {
 	if (IsBuffer())
 	{
@@ -274,7 +287,7 @@ void FD3D12ShaderResourceView_RHI::UpdateView(FRHICommandListBase& RHICmdList)
 		D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc{};
 		const EFlags CreateFlags = TranslateDesc(SRVDesc, Buffer, ViewDesc.Buffer.SRV.GetViewInfo(Buffer));
 
-		FD3D12ShaderResourceView::UpdateView(RHICmdList, Buffer, SRVDesc, CreateFlags);
+		FD3D12ShaderResourceView::UpdateView(Contexts, Buffer, SRVDesc, CreateFlags);
 	}
 	else
 	{
@@ -283,13 +296,17 @@ void FD3D12ShaderResourceView_RHI::UpdateView(FRHICommandListBase& RHICmdList)
 		D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc{};
 		const EFlags CreateFlags = TranslateDesc(SRVDesc, Texture, ViewDesc.Texture.SRV.GetViewInfo(Texture));
 
-		FD3D12ShaderResourceView::UpdateView(RHICmdList, Texture, SRVDesc, CreateFlags);
+		FD3D12ShaderResourceView::UpdateView(Contexts, Texture, SRVDesc, CreateFlags);
 	}
 }
 
-FD3D12ShaderResourceView_RHI::FD3D12ShaderResourceView_RHI(FD3D12Device* InDevice, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc)
+FD3D12ShaderResourceView_RHI::FD3D12ShaderResourceView_RHI(FD3D12Device* InDevice, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc, FD3D12ShaderResourceView_RHI* FirstLinkedObject)
 	: FRHIShaderResourceView(InResource, InViewDesc)
-	, FD3D12ShaderResourceView(InDevice)
+#if RHI_RAYTRACING
+	, FD3D12ShaderResourceView(InDevice, FirstLinkedObject, InViewDesc.Buffer.SRV.BufferType == FRHIViewDesc::EBufferType::AccelerationStructure ? FD3D12DynamicRHI::ResourceCast(InViewDesc.Buffer.SRV.RayTracingScene) : nullptr)
+#else
+	, FD3D12ShaderResourceView(InDevice, FirstLinkedObject)
+#endif
 {}
 
 
@@ -306,17 +323,15 @@ FShaderResourceViewRHIRef FD3D12DynamicRHI::RHICreateShaderResourceView(class FR
 		? FD3D12DynamicRHI::ResourceCast(static_cast<FRHIBuffer* >(Resource))->GetLinkedObjectsGPUMask()
 		: FD3D12DynamicRHI::ResourceCast(static_cast<FRHITexture*>(Resource))->GetLinkedObjectsGPUMask();
 
-	FD3D12ShaderResourceView_RHI* View = GetAdapter().CreateLinkedObject<FD3D12ShaderResourceView_RHI>(RelevantGPUs, [&](FD3D12Device* Device)
+	FD3D12ShaderResourceView_RHI* View = GetAdapter().CreateLinkedObject<FD3D12ShaderResourceView_RHI>(RelevantGPUs, [&](FD3D12Device* Device, FD3D12ShaderResourceView_RHI* FirstLinkedObject)
 	{
 		FRHIViewableResource* TargetResource = ViewDesc.IsBuffer()
 			? static_cast<FRHIViewableResource*>(FD3D12DynamicRHI::ResourceCast(static_cast<FRHIBuffer* >(Resource), Device->GetGPUIndex()))
 			: static_cast<FRHIViewableResource*>(FD3D12DynamicRHI::ResourceCast(static_cast<FRHITexture*>(Resource), Device->GetGPUIndex()));
 
-		return new FD3D12ShaderResourceView_RHI(Device, TargetResource, ViewDesc);
+		return new FD3D12ShaderResourceView_RHI(Device, TargetResource, ViewDesc, FirstLinkedObject);
 	});
 
-	bool bDynamic = View->IsBuffer() && EnumHasAnyFlags(View->GetBuffer()->GetUsage(), EBufferUsageFlags::AnyDynamic);
-	View->CreateViews(RHICmdList, bDynamic);
-
+	View->CreateViews(RHICmdList);
 	return View;
 }

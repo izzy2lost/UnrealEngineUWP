@@ -31,6 +31,7 @@ public:
 		, _ForegroundColor(FSlateColor::UseStyle())
 		, _OptionsSource()
 		, _OnSelectionChanged()
+		, _bAlwaysSelectItem(false)
 		, _OnGenerateWidget()
 		, _InitiallySelectedItem(nullptr)
 		, _Method()
@@ -54,6 +55,7 @@ public:
 
 		SLATE_ARGUMENT(const TArray< TSharedPtr<FString> >*, OptionsSource)
 		SLATE_EVENT(FOnSelectionChanged, OnSelectionChanged)
+		SLATE_ARGUMENT(bool, bAlwaysSelectItem)
 		SLATE_EVENT(FOnGenerateWidget, OnGenerateWidget)
 
 		/** Called when combo box is opened, before list is actually created */
@@ -164,6 +166,9 @@ private:
 
 	/** Filtered list that is actually displayed */
 	TArray< TSharedPtr<FString> > FilteredOptionsSource;
+
+	/** If true OnSelectionChanged delegate is executed on every input. */
+	bool bAlwaysSelectItem : 1;
 };
 
 

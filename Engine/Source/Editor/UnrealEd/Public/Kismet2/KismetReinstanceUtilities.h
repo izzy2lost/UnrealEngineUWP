@@ -318,12 +318,13 @@ public:
 	 * @param NewUObject where to store those pre-created sub objects
 	 * @param CreatedInstanceMap in/out of the result of all of the pre-created objects
 	 * @param OldToNewInstanceMap optional parameter of the possible re-instanced sub objects if any
+	 * @param OrderedListOfObjectToCopy List of object to copy in order
 	 */
-	static UNREALED_API void PreCreateSubObjectsForReinstantiation(const TMap<UClass*, UClass*>& OldToNewClassMap, UObject* OldObject, UObject* NewUObject, TMap<UObject*, UObject*>& CreatedInstanceMap, const TMap<UObject*, UObject*>* OldToNewInstanceMap = nullptr);
+	static UNREALED_API void PreCreateSubObjectsForReinstantiation(const TMap<UClass*, UClass*>& OldToNewClassMap, UObject* OldObject, UObject* NewUObject, TMap<UObject*, UObject*>& CreatedInstanceMap, const TMap<UObject*, UObject*>* OldToNewInstanceMap = nullptr, TArray< TTuple<UObject*, UObject*>>* OrderedListOfObjectToCopy = nullptr);
 
 private:
 	/** Handles the sub object pre-creation recursively */
-	static UNREALED_API void PreCreateSubObjectsForReinstantiation_Inner(const TSet<UObject*>& OldInstancedSubObjects, const TMap<UClass*, UClass*>& OldToNewClassMap, UObject* OldObject, UObject* NewUObject, TMap<UObject*, UObject*>& CreatedInstanceMap, const TMap<UObject*, UObject*>* OldToNewInstanceMap);
+	static UNREALED_API void PreCreateSubObjectsForReinstantiation_Inner(const TSet<UObject*>* OldInstancedSubObjects, const TMap<UClass*, UClass*>& OldToNewClassMap, UObject* OldObject, UObject* NewUObject, TMap<UObject*, UObject*>& CreatedInstanceMap, const TMap<UObject*, UObject*>* OldToNewInstanceMap, TArray< TTuple<UObject*, UObject*>>* OrderedListOfObjectToCopy);
 
 	/** Handles the work of ReplaceInstancesOfClass, handling both normal replacement of instances and batch */
 	static UNREALED_API void ReplaceInstancesOfClass_Inner(const TMap<UClass*, UClass*>& InOldToNewClassMap, const FReplaceInstancesOfClassParameters& Params);

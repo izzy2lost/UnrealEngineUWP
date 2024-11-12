@@ -25,7 +25,7 @@
 #include "UObject/UnrealType.h"
 #include "Engine/BlueprintCore.h"
 #include "Engine/BlueprintGeneratedClass.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Engine/UserDefinedEnum.h"
 #include "GameFramework/Actor.h"
 #include "Interfaces/IPluginManager.h"
@@ -879,14 +879,8 @@ void ExtractFunctionParams(const UFunction* InFunc, TArray<FGeneratedWrappedMeth
 	auto AddGeneratedWrappedMethodParameter = [InFunc](const FProperty* InParam, TArray<FGeneratedWrappedMethodParameter>& OutParams)
 	{
 		const FString ParamName = InParam->GetName();
-		const FName DefaultValueMetaDataKey = *FString::Printf(TEXT("CPP_Default_%s"), *ParamName);
-
 		FString PythonParamName = PythonizePropertyName(ParamName, EPythonizeNameCase::Lower);
-		if (!InFunc->HasAnyFunctionFlags(FUNC_Static) && PythonParamName == TEXTVIEW("self"))
-		{
-			// self is a reserved function parameter name
-			PythonParamName.InsertAt(0, TEXT('_'));
-		}
+		const FName DefaultValueMetaDataKey = *FString::Printf(TEXT("CPP_Default_%s"), *ParamName);
 
 		FGeneratedWrappedMethodParameter& GeneratedWrappedMethodParam = OutParams.AddDefaulted_GetRef();
 		GeneratedWrappedMethodParam.ParamName = TCHARToUTF8Buffer(*PythonParamName);
@@ -1328,7 +1322,7 @@ PyObject* GetPropertyValue(const UStruct* InStruct, const void* InStructData, co
 	return PyUtil::GetPropertyValue(InStruct, InStructData, InPropDef.Prop, InAttributeName, InOwnerPyObject, InErrorCtxt);
 }
 
-int SetPropertyValue(const UStruct* InStruct, void* InStructData, PyObject* InValue, const FGeneratedWrappedProperty& InPropDef, const char *InAttributeName, const FPropertyAccessChangeNotify* InChangeNotify, const uint64 InReadOnlyFlags, const bool InOwnerIsTemplate, const TCHAR* InErrorCtxt)
+int SetPropertyValue(const UStruct* InStruct, void* InStructData, PyObject* InValue, const FGeneratedWrappedProperty& InPropDef, const char *InAttributeName, const FPropertyAccessChangeNotify* InChangeNotify, const uint64 InReadOnlyFlags, const bool InOwnerIsTemplate, const TCHAR* InErrorCtxt, const TConstArrayView<void*>& InArchetypeInstContainers)
 {
 	// Has this property been deprecated?
 	if (InStruct && InPropDef.Prop && InPropDef.DeprecationMessage.IsSet())
@@ -1350,7 +1344,7 @@ int SetPropertyValue(const UStruct* InStruct, void* InStructData, PyObject* InVa
 		}
 	}
 
-	return PyUtil::SetPropertyValue(InStruct, InStructData, InValue, InPropDef.Prop, InAttributeName, InChangeNotify, InReadOnlyFlags, InOwnerIsTemplate, InErrorCtxt);
+	return PyUtil::SetPropertyValue(InStruct, InStructData, InValue, InPropDef.Prop, InAttributeName, InChangeNotify, InReadOnlyFlags, InOwnerIsTemplate, InErrorCtxt, InArchetypeInstContainers);
 }
 
 FString BuildFunctionDocString(const UFunction* InFunc, const FString& InFuncPythonName, const TArray<FGeneratedWrappedMethodParameter>& InInputParams, const TArray<FGeneratedWrappedMethodParameter>& InOutputParams, const bool* InStaticOverride)
@@ -1656,7 +1650,7 @@ TArray<const UClass*> GetExportedInterfacesForClass(const UClass* InClass)
 
 bool ShouldExportClass(const UClass* InClass)
 {
-	return IsScriptExposedClass(InClass) || HasScriptExposedFields(InClass);
+	return InClass->GetOuter()->IsA<UPackage>() && (IsScriptExposedClass(InClass) || HasScriptExposedFields(InClass));
 }
 
 bool ShouldExportStruct(const UScriptStruct* InStruct)
@@ -1677,12 +1671,12 @@ bool ShouldExportStruct(const UScriptStruct* InStruct)
 	}
 	*/
 
-	return IsScriptExposedStruct(InStruct) || HasScriptExposedFields(InStruct);
+	return InStruct->GetOuter()->IsA<UPackage>() && (IsScriptExposedStruct(InStruct) || HasScriptExposedFields(InStruct));
 }
 
 bool ShouldExportEnum(const UEnum* InEnum)
 {
-	return IsScriptExposedEnum(InEnum);
+	return InEnum->GetOuter()->IsA<UPackage>() && IsScriptExposedEnum(InEnum);
 }
 
 bool ShouldExportEnumEntry(const UEnum* InEnum, int32 InEnumEntryIndex)
@@ -1735,7 +1729,7 @@ bool IsValidName(FStringView InName, FText* OutError)
 		{
 			if (OutError)
 			{
-				*OutError = FText::Format(NSLOCTEXT("PyGenUtil", "InvalidName_RestrictedCharacter", "Name contains '{0}' which is invalid for Python"), FText::AsCultureInvariant(FString(1, &Char)));
+				*OutError = FText::Format(NSLOCTEXT("PyGenUtil", "InvalidName_RestrictedCharacter", "Name contains '{0}' which is invalid for Python"), FText::AsCultureInvariant(FString::ConstructFromPtrSize(&Char, 1)));
 			}
 			return false;
 		}
@@ -1811,7 +1805,7 @@ FString PythonizeName(FStringView InName, const EPythonizeNameCase InNameCase)
 			{
 				break;
 			}
-			PythonizedName.RemoveAt(CharIndex, 1, EAllowShrinking::No);
+			PythonizedName.RemoveAt(CharIndex, EAllowShrinking::No);
 		}
 
 		PrevBreak = NameBreak;
@@ -2215,7 +2209,7 @@ void PythonizeValueImpl(const FProperty* InProp, const void* InPropValue, const 
 	}
 	for (int32 ArrIndex = 0; ArrIndex < InProp->ArrayDim; ++ArrIndex)
 	{
-		const void* PropArrValue = ((uint8*)InPropValue) + (InProp->ElementSize * ArrIndex);
+		const void* PropArrValue = ((uint8*)InPropValue) + (InProp->GetElementSize() * ArrIndex);
 		if (ArrIndex > 0)
 		{
 			OutPythonDefaultValue += TEXT(", ");
@@ -2274,8 +2268,8 @@ void PythonizeValueImpl(const FProperty* InProp, const void* InPropValue, const 
 			else // Use the path string as default value.
 			{
 				OutPythonDefaultValue += bUseStrictTyping
-					? FString::Printf(TEXT("%sFieldPath(\"%s\")"), UnrealNamespace, *GetPropertyPythonName(FieldPathProp), *FieldPathStrValue)
-					: FString::Printf(TEXT("FieldPath(\"%s\")"), *GetPropertyPythonName(FieldPathProp), *FieldPathStrValue);
+					? FString::Printf(TEXT("%sFieldPath(\"%s\")"), UnrealNamespace, *FieldPathStrValue)
+					: FString::Printf(TEXT("FieldPath(\"%s\")"), *FieldPathStrValue);
 			}
 		}
 		else if (const FObjectPropertyBase* ObjProp = CastField<const FObjectPropertyBase>(InProp))
@@ -2603,51 +2597,6 @@ const UObject* GetAssetTypeRegistryType(const UObject* InObj)
 	return InObj;
 }
 
-FName GetAssetTypeRegistryName(const UObject* InObj)
-{
-	// Note: If this changes then the functions in FPythonScriptPlugin that deal with FAssetData also need updating!
-	return InObj->GetOutermost()->GetFName();
-}
-
-FName GetTypeRegistryName(const UClass* InClass)
-{
-	return IsBlueprintGeneratedClass(InClass)
-		? GetAssetTypeRegistryName(InClass)
-		: InClass->GetFName();
-}
-
-FName GetTypeRegistryName(const UScriptStruct* InStruct)
-{
-	return IsBlueprintGeneratedStruct(InStruct)
-		? GetAssetTypeRegistryName(InStruct)
-		: InStruct->GetFName();
-}
-
-FName GetTypeRegistryName(const UEnum* InEnum)
-{
-	return IsBlueprintGeneratedEnum(InEnum)
-		? GetAssetTypeRegistryName(InEnum)
-		: InEnum->GetFName();
-}
-
-FName GetTypeRegistryName(const UFunction* InDelegateSignature)
-{
-	// Two different UObject-based classes can each declare in their body a delegate with the same type name, but possibly
-	// with different parameters. While they will share the same FName, they aren't be the same type. Make the type registry
-	// name unique to each delegate.
-	if (UObject* Outer = InDelegateSignature->GetOuter())
-	{
-		if (UClass* OuterClass = Cast<UClass>(Outer))
-		{
-			FNameBuilder ConcatName(Outer->GetFName());
-			ConcatName += "_";
-			InDelegateSignature->GetFName().AppendString(ConcatName);
-			return FName(*ConcatName);
-		}
-	}
-	return InDelegateSignature->GetFName();
-}
-
 FString GetFieldModule(const UField* InField)
 {
 	UPackage* ScriptPackage = InField->GetOutermost();
@@ -2746,7 +2695,7 @@ bool GetFieldPythonNameFromMetaDataImpl(const FFieldVariant& InField, const FNam
 	return false;
 }
 
-bool GetDeprecatedFieldPythonNamesFromMetaDataImpl(const FFieldVariant& InField, const FName InMetaDataKey, TArray<FString>& OutFieldNames)
+bool GetDeprecatedFieldPythonNamesFromMetaDataImpl(const FFieldVariant& InField, const FName InMetaDataKey, TArray<TTuple<FSoftObjectPath, FString>>& OutFieldNames)
 {
 	// See if we have a name override in the meta-data
 	if (!InMetaDataKey.IsNone())
@@ -2756,28 +2705,38 @@ bool GetDeprecatedFieldPythonNamesFromMetaDataImpl(const FFieldVariant& InField,
 		// This may be a semi-colon separated list - everything but the first item is deprecated
 		if (!FieldName.IsEmpty())
 		{
-			FieldName.ParseIntoArray(OutFieldNames, TEXT(";"), false);
+			TArray<FString> LocalFieldNames;
+			FieldName.ParseIntoArray(LocalFieldNames, TEXT(";"), false);
 
 			// Remove the non-deprecated entry
-			if (OutFieldNames.Num() > 0)
+			if (LocalFieldNames.Num() > 0)
 			{
-				OutFieldNames.RemoveAt(0, 1, EAllowShrinking::No);
+				LocalFieldNames.RemoveAt(0, EAllowShrinking::No);
 			}
 
 			// Trim whitespace and remove empty items
-			OutFieldNames.RemoveAll([](FString& InStr)
+			LocalFieldNames.RemoveAll([](FString& InStr)
 			{
 				InStr.TrimStartAndEndInline();
 				return InStr.IsEmpty();
 			});
 
-			for (const FString& FieldNamePart : OutFieldNames)
+			OutFieldNames.Reset(LocalFieldNames.Num());
 			{
-				FText ValidationError;
-				if (!IsValidName(FieldNamePart, &ValidationError))
+				const FString FieldLeafName = InField.GetName();
+				const FString FieldPathName = InField.GetPathName();
+				for (const FString& FieldNamePart : LocalFieldNames)
 				{
-					const FString FieldPathName = InField.IsUObject() ? InField.Get<UField>()->GetPathName() : InField.Get<FField>()->GetPathName();
-					REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("'%s' has an invalid '%s' meta-data value '%s' (from '%s'): %s."), *FieldPathName, *InMetaDataKey.ToString(), *FieldNamePart, *FieldName, *ValidationError.ToString());
+					FText ValidationError;
+					if (!IsValidName(FieldNamePart, &ValidationError))
+					{
+						REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("'%s' has an invalid '%s' meta-data value '%s' (from '%s'): %s."), *FieldPathName, *InMetaDataKey.ToString(), *FieldNamePart, *FieldName, *ValidationError.ToString());
+					}
+
+					FString DeprecatedFieldPathName = FieldPathName;
+					DeprecatedFieldPathName.RemoveFromEnd(FieldLeafName);
+					DeprecatedFieldPathName.Append(FieldNamePart);
+					OutFieldNames.Add(MakeTuple(FSoftObjectPath(DeprecatedFieldPathName), FieldNamePart));
 				}
 			}
 
@@ -2806,7 +2765,7 @@ FString GetFieldPythonNameImpl(const FFieldVariant& InField, const FName InMetaD
 		// Strip the "E" prefix from enum names
 		if (InField.IsA<UEnum>() && FieldName.Len() >= 2 && FieldName[0] == TEXT('E') && FChar::IsUpper(FieldName[1]))
 		{
-			FieldName.RemoveAt(0, 1, EAllowShrinking::No);
+			FieldName.RemoveAt(0, EAllowShrinking::No);
 		}
 
 		// Classes, structs, and enums will no longer have their C++ prefix at this point
@@ -2835,9 +2794,9 @@ FString GetFieldPythonNameImpl(const FFieldVariant& InField, const FName InMetaD
 	return FieldName;
 }
 
-TArray<FString> GetDeprecatedFieldPythonNamesImpl(const FFieldVariant& InField, const FName InMetaDataKey)
+TArray<TTuple<FSoftObjectPath, FString>> GetDeprecatedFieldPythonNamesImpl(const FFieldVariant& InField, const FName InMetaDataKey)
 {
-	TArray<FString> FieldNames;
+	TArray<TTuple<FSoftObjectPath, FString>> FieldNames;
 
 	// First see if we have a name override in the meta-data
 	if (GetDeprecatedFieldPythonNamesFromMetaDataImpl(InField, InMetaDataKey, FieldNames))
@@ -2867,7 +2826,7 @@ TArray<FString> GetDeprecatedFieldPythonNamesImpl(const FFieldVariant& InField, 
 	{
 		RedirectFlags = ECoreRedirectFlags::Type_Enum;
 	}
-	
+
 	const FCoreRedirectObjectName CurrentName = FCoreRedirectObjectName(InField.GetPathName());
 	TArray<FCoreRedirectObjectName> PreviousNames;
 	FCoreRedirects::FindPreviousNames(RedirectFlags, CurrentName, PreviousNames);
@@ -2912,15 +2871,71 @@ TArray<FString> GetDeprecatedFieldPythonNamesImpl(const FFieldVariant& InField, 
 			}
 		}
 
+		// Redirects may be from a live field
+		// We want to skip those redirects as the real field still exists
+		if (InField.IsA<UClass>() || InField.IsA<UScriptStruct>() || InField.IsA<UEnum>())
+		{
+			UObject* PreviousType = nullptr;
+			if (!PreviousName.PackageName.IsNone())
+			{
+				// Try a qualified search first...
+				PreviousType = StaticFindObject(InField.Get<UObject>()->GetClass(), nullptr, *PreviousName.ToString());
+			}
+			if (!PreviousType)
+			{
+				// Try an unqualified search too, as the redirector might be broken or incorrect...
+				PreviousType = StaticFindFirstObject(InField.Get<UObject>()->GetClass(), *PreviousName.ObjectName.ToString(), EFindFirstObjectOptions::ExactClass | EFindFirstObjectOptions::NativeFirst);
+			}
+			if (PreviousType)
+			{
+				continue;
+			}
+		}
+		else if (InField.IsA<UFunction>())
+		{
+			if (const UClass* OwnerClass = InField.Get<UFunction>()->GetOwnerClass())
+			{
+				if (const UFunction* ExistingFunction = OwnerClass->FindFunctionByName(PreviousName.ObjectName);
+					ExistingFunction && ShouldExportFunction(ExistingFunction))
+				{
+					continue;
+				}
+			}
+		}
+		else if (InField.IsA<FProperty>())
+		{
+			if (const UStruct* OwnerStruct = InField.Get<FProperty>()->GetOwnerStruct())
+			{
+				if (const FProperty* ExistingProperty = OwnerStruct->FindPropertyByName(PreviousName.ObjectName);
+					ExistingProperty && ShouldExportProperty(ExistingProperty))
+				{
+					continue;
+				}
+			}
+		}
+
 		FString FieldName = PreviousName.ObjectName.ToString();
 
 		// Strip the "E" prefix from enum names
 		if (InField.IsA<UEnum>() && FieldName.Len() >= 2 && FieldName[0] == TEXT('E') && FChar::IsUpper(FieldName[1]))
 		{
-			FieldName.RemoveAt(0, 1, EAllowShrinking::No);
+			FieldName.RemoveAt(0, EAllowShrinking::No);
 		}
 
-		FieldNames.AddUnique(MoveTemp(FieldName));
+		// Only add a single redirector for each previous name
+		if (FieldNames.ContainsByPredicate([&FieldName](TTuple<FSoftObjectPath, FString>& FieldNamePair) { return FieldNamePair.Value == FieldName; }))
+		{
+			continue;
+		}
+
+		// If PackageName is empty then assume that we're still using the same package as the current field
+		FCoreRedirectObjectName PreviousNameWithPackage = PreviousName;
+		if (PreviousNameWithPackage.PackageName.IsNone())
+		{
+			PreviousNameWithPackage.PackageName = InField.GetOutermost()->GetFName();
+		}
+
+		FieldNames.Add(MakeTuple(FSoftObjectPath(PreviousNameWithPackage.ToString()), MoveTemp(FieldName)));
 	}
 
 	return FieldNames;
@@ -2931,7 +2946,7 @@ FString GetClassPythonName(const UClass* InClass)
 	return GetFieldPythonNameImpl(InClass, ScriptNameMetaDataKey);
 }
 
-TArray<FString> GetDeprecatedClassPythonNames(const UClass* InClass)
+TArray<TTuple<FSoftObjectPath, FString>> GetDeprecatedClassPythonNames(const UClass* InClass)
 {
 	return GetDeprecatedFieldPythonNamesImpl(InClass, ScriptNameMetaDataKey);
 }
@@ -2941,7 +2956,7 @@ FString GetStructPythonName(const UScriptStruct* InStruct)
 	return GetFieldPythonNameImpl(InStruct, ScriptNameMetaDataKey);
 }
 
-TArray<FString> GetDeprecatedStructPythonNames(const UScriptStruct* InStruct)
+TArray<TTuple<FSoftObjectPath, FString>> GetDeprecatedStructPythonNames(const UScriptStruct* InStruct)
 {
 	return GetDeprecatedFieldPythonNamesImpl(InStruct, ScriptNameMetaDataKey);
 }
@@ -2951,7 +2966,7 @@ FString GetEnumPythonName(const UEnum* InEnum)
 	return GetFieldPythonNameImpl(InEnum, ScriptNameMetaDataKey);
 }
 
-TArray<FString> GetDeprecatedEnumPythonNames(const UEnum* InEnum)
+TArray<TTuple<FSoftObjectPath, FString>> GetDeprecatedEnumPythonNames(const UEnum* InEnum)
 {
 	return GetDeprecatedFieldPythonNamesImpl(InEnum, ScriptNameMetaDataKey);
 }
@@ -3023,15 +3038,15 @@ FString GetFunctionPythonName(const UFunction* InFunc)
 	return PythonizeName(FuncName, EPythonizeNameCase::Lower);
 }
 
-TArray<FString> GetDeprecatedFunctionPythonNames(const UFunction* InFunc)
+TArray<TTuple<FSoftObjectPath, FString>> GetDeprecatedFunctionPythonNames(const UFunction* InFunc)
 {
 	const UClass* FuncOwner = InFunc->GetOwnerClass();
 	check(FuncOwner);
 
-	TArray<FString> FuncNames = GetDeprecatedFieldPythonNamesImpl(InFunc, ScriptNameMetaDataKey);
+	TArray<TTuple<FSoftObjectPath, FString>> FuncNames = GetDeprecatedFieldPythonNamesImpl(InFunc, ScriptNameMetaDataKey);
 	for (auto FuncNamesIt = FuncNames.CreateIterator(); FuncNamesIt; ++FuncNamesIt)
 	{
-		FString& FuncName = *FuncNamesIt;
+		FString& FuncName = FuncNamesIt->Value;
 
 		// Remove any deprecated names that clash with an existing Python exposed function
 		const UFunction* DeprecatedFunc = FuncOwner->FindFunctionByName(*FuncName);
@@ -3057,13 +3072,14 @@ FString GetScriptMethodPythonName(const UFunction* InFunc)
 	return GetFunctionPythonName(InFunc);
 }
 
-TArray<FString> GetDeprecatedScriptMethodPythonNames(const UFunction* InFunc)
+TArray<TTuple<FSoftObjectPath, FString>> GetDeprecatedScriptMethodPythonNames(const UFunction* InFunc)
 {
-	TArray<FString> ScriptMethodNames;
+	TArray<TTuple<FSoftObjectPath, FString>> ScriptMethodNames;
 	if (GetDeprecatedFieldPythonNamesFromMetaDataImpl(InFunc, ScriptMethodMetaDataKey, ScriptMethodNames))
 	{
-		for (FString& ScriptMethodName : ScriptMethodNames)
+		for (TTuple<FSoftObjectPath, FString>& ScriptMethodNamePair : ScriptMethodNames)
 		{
+			FString& ScriptMethodName = ScriptMethodNamePair.Value;
 			ScriptMethodName = PythonizeName(ScriptMethodName, EPythonizeNameCase::Lower);
 		}
 		return ScriptMethodNames;
@@ -3072,7 +3088,7 @@ TArray<FString> GetDeprecatedScriptMethodPythonNames(const UFunction* InFunc)
 }
 
 FString GetScriptConstantPythonName(const UFunction* InFunc)
-	{
+{
 	FString ScriptConstantName;
 	if (!GetFieldPythonNameFromMetaDataImpl(InFunc, ScriptConstantMetaDataKey, ScriptConstantName))
 	{
@@ -3081,15 +3097,16 @@ FString GetScriptConstantPythonName(const UFunction* InFunc)
 	return PythonizeName(ScriptConstantName, EPythonizeNameCase::Upper);
 }
 
-TArray<FString> GetDeprecatedScriptConstantPythonNames(const UFunction* InFunc)
+TArray<TTuple<FSoftObjectPath, FString>> GetDeprecatedScriptConstantPythonNames(const UFunction* InFunc)
 {
-	TArray<FString> ScriptConstantNames;
+	TArray<TTuple<FSoftObjectPath, FString>> ScriptConstantNames;
 	if (!GetDeprecatedFieldPythonNamesFromMetaDataImpl(InFunc, ScriptConstantMetaDataKey, ScriptConstantNames))
 	{
 		ScriptConstantNames = GetDeprecatedFieldPythonNamesImpl(InFunc, ScriptNameMetaDataKey);
 	}
-	for (FString& ScriptConstantName : ScriptConstantNames)
+	for (TTuple<FSoftObjectPath, FString>& ScriptConstantNamePair : ScriptConstantNames)
 	{
+		FString& ScriptConstantName = ScriptConstantNamePair.Value;
 		ScriptConstantName = PythonizeName(ScriptConstantName, EPythonizeNameCase::Upper);
 	}
 	return ScriptConstantNames;
@@ -3101,15 +3118,15 @@ FString GetPropertyPythonName(const FProperty* InProp)
 	return PythonizePropertyName(PropName, EPythonizeNameCase::Lower);
 }
 
-TArray<FString> GetDeprecatedPropertyPythonNames(const FProperty* InProp)
+TArray<TTuple<FSoftObjectPath, FString>> GetDeprecatedPropertyPythonNames(const FProperty* InProp)
 {
 	const UStruct* PropOwner = InProp->GetOwnerStruct();
 	check(PropOwner);
 
-	TArray<FString> PropNames = GetDeprecatedFieldPythonNamesImpl(InProp, ScriptNameMetaDataKey);
+	TArray<TTuple<FSoftObjectPath, FString>> PropNames = GetDeprecatedFieldPythonNamesImpl(InProp, ScriptNameMetaDataKey);
 	for (auto PropNamesIt = PropNames.CreateIterator(); PropNamesIt; ++PropNamesIt)
 	{
-		FString& PropName = *PropNamesIt;
+		FString& PropName = PropNamesIt->Value;
 
 		// Remove any deprecated names that clash with an existing Python exposed property
 		const FProperty* DeprecatedProp = PropOwner->FindPropertyByName(*PropName);

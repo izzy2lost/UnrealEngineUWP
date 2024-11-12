@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Engine/TextureRenderTarget2D.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Modules/ModuleInterface.h"
 #include "PixelFormat.h"

@@ -11,13 +11,14 @@
 #include "ChaosClothAsset/ClothEditorPreviewScene.h"
 #include "ChaosClothAsset/ClothEditorContextObject.h"
 #include "ChaosClothAsset/ClothEditorToolBuilders.h"
-#include "ChaosClothAsset/AddWeightMapNode.h"
+#include "ChaosClothAsset/WeightMapNode.h"
 #include "ChaosClothAsset/TransferSkinWeightsNode.h"
 #include "ChaosClothAsset/SelectionNode.h"
 #include "AssetEditorModeManager.h"
 #include "Drawing/MeshElementsVisualizer.h"
 #include "EditorViewportClient.h"
 #include "EdModeInteractiveToolsContext.h"
+#include "EngineAnalytics.h"
 #include "Framework/Commands/UICommandList.h"
 #include "InteractiveTool.h"
 #include "ModelingToolTargetUtil.h"
@@ -63,6 +64,7 @@
 #include "ChaosClothAsset/ClothGeometryTools.h"
 #include "DynamicMesh/NonManifoldMappingSupport.h"
 #include "DynamicMesh/MeshNormals.h"
+#include "Dataflow/DataflowRenderingFactory.h"	// For Dataflow View Modes
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ClothEditorMode)
 
@@ -73,6 +75,10 @@ const FEditorModeID UChaosClothAssetEditorMode::EM_ChaosClothAssetEditorModeId =
 
 namespace UE::Chaos::ClothAsset::Private
 {
+	bool bClothEditorEnableToolsInPIE = true;
+	FAutoConsoleVariableRef CVARClothEditorEnableToolsInPIE(TEXT("p.ChaosCloth.EnableToolsInPIE"), bClothEditorEnableToolsInPIE,
+		TEXT("Enable Cloth Editor tools while Play In Editor is running [def:true]"));
+
 	void RemoveClothWeightMaps(UE::Chaos::ClothAsset::FCollectionClothFacade& ClothFacade, const TArray<FName>& WeightMapNames)
 	{
 		for (const FName& WeightMapName : WeightMapNames)
@@ -109,6 +115,11 @@ namespace UE::Chaos::ClothAsset::Private
 		return FLinearColor::MakeFromHSV8(Seed, 180, 140);
 	}
 
+	FString GetToolName(const UInteractiveTool& Tool)
+	{
+		const FString* const ToolName = FTextInspector::GetSourceString(Tool.GetToolInfo().ToolDisplayName);
+		return ToolName ? *ToolName : FString(TEXT("<Invalid ToolName>"));
+	}
 }
 
 
@@ -138,6 +149,52 @@ void UChaosClothAssetEditorMode::Enter()
 
 	// Register gizmo ContextObject for use inside interactive tools
 	UE::TransformGizmoUtil::RegisterTransformGizmoContextObject(GetInteractiveToolsContext());
+
+
+	//
+	// Engine Analytics
+	//
+
+	// Log mode starting
+	if (FEngineAnalytics::IsAvailable())
+	{
+		LastModeStartTimestamp = FDateTime::UtcNow();
+		TArray<FAnalyticsEventAttribute> EventAttributes;
+		EventAttributes.Add(FAnalyticsEventAttribute(TEXT("Timestamp"), LastModeStartTimestamp.ToString()));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.ChaosClothEditor.Enter"), EventAttributes);
+
+		// Log tool starting
+		GetToolManager()->OnToolStarted.AddLambda([this](UInteractiveToolManager* Manager, UInteractiveTool* Tool)
+		{
+			if (FEngineAnalytics::IsAvailable() && Tool)
+			{
+				LastToolStartTimestamp = FDateTime::UtcNow();
+
+				TArray<FAnalyticsEventAttribute> EventAttributes;
+				EventAttributes.Add(FAnalyticsEventAttribute(TEXT("ToolName"), UE::Chaos::ClothAsset::Private::GetToolName(*Tool)));
+				EventAttributes.Add(FAnalyticsEventAttribute(TEXT("Timestamp"), LastToolStartTimestamp.ToString()));
+
+				FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.ChaosClothEditor.ToolStarted"), EventAttributes);
+			}
+		});
+
+		// Log tool ending
+		GetToolManager()->OnToolEnded.AddLambda([this](UInteractiveToolManager* Manager, UInteractiveTool* Tool)
+		{
+			if (FEngineAnalytics::IsAvailable() && Tool)
+			{
+				const FDateTime Now = FDateTime::UtcNow();
+				const FTimespan ToolUsageDuration = Now - LastToolStartTimestamp;
+
+				TArray<FAnalyticsEventAttribute> EventAttributes;
+				EventAttributes.Add(FAnalyticsEventAttribute(TEXT("ToolName"), UE::Chaos::ClothAsset::Private::GetToolName(*Tool)));
+				EventAttributes.Add(FAnalyticsEventAttribute(TEXT("Timestamp"), Now.ToString()));
+				EventAttributes.Add(FAnalyticsEventAttribute(TEXT("Duration.Seconds"), static_cast<float>(ToolUsageDuration.GetTotalSeconds())));
+
+				FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.ChaosClothEditor.ToolEnded"), EventAttributes);
+			}
+		});
+	}
 }
 
 void UChaosClothAssetEditorMode::AddToolTargetFactories()
@@ -177,8 +234,17 @@ void UChaosClothAssetEditorMode::RegisterClothTool(TSharedPtr<FUICommandInfo> UI
 		{
 			// Check if we need to switch view modes before starting the tool
 			TArray<UE::Chaos::ClothAsset::EClothPatternVertexType> SupportedModes;
-			ClothToolBuilder->GetSupportedViewModes(SupportedModes);
 
+			const UDataflowContextObject* EditorContextObject = ToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
+			if (!EditorContextObject)
+			{
+				InitializeContextObject();
+				EditorContextObject = ToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
+			}
+			checkf(EditorContextObject, TEXT("Failed to find or create ContextObject"));
+			ClothToolBuilder->GetSupportedViewModes(*EditorContextObject, SupportedModes);
+
+			bDynamicMeshUseInputCollection = true;
 			if (SupportedModes.Num() > 0 && !SupportedModes.Contains(this->GetConstructionViewMode()))
 			{
 				if (!bShouldRestoreSavedConstructionViewMode)
@@ -190,6 +256,15 @@ void UChaosClothAssetEditorMode::RegisterClothTool(TSharedPtr<FUICommandInfo> UI
 
 				// switch to the preferred view mode for the tool that's about to start
 				this->SetConstructionViewMode(SupportedModes[0]);
+			}
+			else
+			{
+				const bool bCurrentDynamicMeshIsInput = EditorContextObject->IsUsingInputCollection();
+
+				if (!bCurrentDynamicMeshIsInput || bDynamicMeshComponentInitDeferred)
+				{
+					ReinitializeDynamicMeshComponents();
+				}
 			}
 
 			// Check if we need to disable wireframe mode before starting tool.
@@ -223,35 +298,31 @@ void UChaosClothAssetEditorMode::RegisterClothTool(TSharedPtr<FUICommandInfo> UI
 
 }
 
+void UChaosClothAssetEditorMode::AddNode(FName NewNodeType)
+{
+	const FName ConnectionType = FManagedArrayCollection::StaticType();
+	const FName ConnectionName("Collection");
+
+	UEdGraphNode* const CurrentlySelectedNode = GetSingleSelectedNodeWithOutputType(ConnectionType);
+	checkf(CurrentlySelectedNode, TEXT("No node with FManagedArrayCollection output is currently selected in the Dataflow graph"));
+
+	const UEdGraphNode* const NewNode = CreateAndConnectNewNode(NewNodeType, *CurrentlySelectedNode, ConnectionType, ConnectionName);
+	verifyf(NewNode, TEXT("Failed to create a new node: %s"), *NewNodeType.ToString());
+
+	StartToolForSelectedNode(NewNode);
+}
+
+bool UChaosClothAssetEditorMode::CanAddNode(FName NewNodeType) const
+{
+	const UEdGraphNode* const CurrentlySelectedNode = GetSingleSelectedNodeWithOutputType(FManagedArrayCollection::StaticType());
+	return (CurrentlySelectedNode != nullptr);
+}
+
 void UChaosClothAssetEditorMode::RegisterAddNodeCommand(TSharedPtr<FUICommandInfo> AddNodeCommand, const FName& NewNodeType, TSharedPtr<FUICommandInfo> StartToolCommand)
 {
-	auto AddNode = [this](const FName& NewNodeType)
-	{
-		const FName ConnectionType = FManagedArrayCollection::StaticType();
-		const FName ConnectionName("Collection");
+	// ToolkitCommands->MapAction(AddNodeCommand) is done in FChaosClothAssetEditorToolkit
 
-		UEdGraphNode* const CurrentlySelectedNode = GetSingleSelectedNodeWithOutputType(ConnectionType);
-		checkf(CurrentlySelectedNode, TEXT("No node with FManagedArrayCollection output is currently selected in the Dataflow graph"));
-
-		const UEdGraphNode* const NewNode = CreateAndConnectNewNode(NewNodeType, *CurrentlySelectedNode, ConnectionType, ConnectionName);
-		verifyf(NewNode, TEXT("Failed to create a new node: %s"), *NewNodeType.ToString());
-
-		StartToolForSelectedNode(NewNode);
-	};
-
-	auto CanAddNode = [this](const FName& NewNodeType) -> bool
-	{
-		const UEdGraphNode* const CurrentlySelectedNode = GetSingleSelectedNodeWithOutputType(FManagedArrayCollection::StaticType());
-		return (CurrentlySelectedNode != nullptr);
-	};
-
-	const TSharedRef<FUICommandList>& CommandList = Toolkit->GetToolkitCommands();
-
-	CommandList->MapAction(AddNodeCommand,
-		FExecuteAction::CreateWeakLambda(this, AddNode, NewNodeType),
-		FCanExecuteAction::CreateWeakLambda(this, CanAddNode, NewNodeType)
-	);
-
+	NodeTypeToAddNodeCommandMap.Add(NewNodeType, AddNodeCommand);
 	NodeTypeToToolCommandMap.Add(NewNodeType, StartToolCommand);
 }
 
@@ -270,7 +341,7 @@ void UChaosClothAssetEditorMode::RegisterTools()
 
 	UClothEditorWeightMapPaintToolBuilder* WeightMapPaintToolBuilder = NewObject<UClothEditorWeightMapPaintToolBuilder>();
 	RegisterClothTool(CommandInfos.BeginWeightMapPaintTool, FChaosClothAssetEditorCommands::BeginWeightMapPaintToolIdentifier, WeightMapPaintToolBuilder, WeightMapPaintToolBuilder, ConstructionViewportToolsContext);
-	RegisterAddNodeCommand(CommandInfos.AddWeightMapNode, FChaosClothAssetAddWeightMapNode::StaticType(), CommandInfos.BeginWeightMapPaintTool);
+	RegisterAddNodeCommand(CommandInfos.AddWeightMapNode, FChaosClothAssetWeightMapNode::StaticType(), CommandInfos.BeginWeightMapPaintTool);
 
 	UClothTransferSkinWeightsToolBuilder* TransferToolBuilder = NewObject<UClothTransferSkinWeightsToolBuilder>();
 	RegisterClothTool(CommandInfos.BeginTransferSkinWeightsTool, FChaosClothAssetEditorCommands::BeginTransferSkinWeightsToolIdentifier, TransferToolBuilder, TransferToolBuilder, ConstructionViewportToolsContext);
@@ -278,7 +349,7 @@ void UChaosClothAssetEditorMode::RegisterTools()
 
 	UClothMeshSelectionToolBuilder* SelectionToolBuilder = NewObject<UClothMeshSelectionToolBuilder>();
 	RegisterClothTool(CommandInfos.BeginMeshSelectionTool, FChaosClothAssetEditorCommands::BeginMeshSelectionToolIdentifier, SelectionToolBuilder, SelectionToolBuilder, ConstructionViewportToolsContext);
-	RegisterAddNodeCommand(CommandInfos.AddMeshSelectionNode, FChaosClothAssetSelectionNode::StaticType(), CommandInfos.BeginMeshSelectionTool);
+	RegisterAddNodeCommand(CommandInfos.AddMeshSelectionNode, FChaosClothAssetSelectionNode_v2::StaticType(), CommandInfos.BeginMeshSelectionTool);
 }
 
 bool UChaosClothAssetEditorMode::ShouldToolStartBeAllowed(const FString& ToolIdentifier) const
@@ -297,7 +368,15 @@ bool UChaosClothAssetEditorMode::ShouldToolStartBeAllowed(const FString& ToolIde
 		}
 	}
 
-	return Super::ShouldToolStartBeAllowed(ToolIdentifier);
+	if (UE::Chaos::ClothAsset::Private::bClothEditorEnableToolsInPIE)
+	{
+		// UEdMode::ShouldToolStartBeAllowed returns (!GEditor->PlayWorld && !GIsPlayInEditorWorld) but we want to allow tools to start while in PIE
+		return true;
+	}
+	else
+	{
+		return UBaseCharacterFXEditorMode::ShouldToolStartBeAllowed(ToolIdentifier);
+	}
 }
 
 void UChaosClothAssetEditorMode::CreateToolkit()
@@ -328,6 +407,7 @@ void UChaosClothAssetEditorMode::OnToolEnded(UInteractiveToolManager* Manager, U
 		bShouldRestoreConstructionViewSeams = false;
 	}
 
+	bDynamicMeshUseInputCollection = false;
 	if (bShouldRestoreSavedConstructionViewMode)
 	{
 		SetConstructionViewMode(SavedConstructionViewMode);
@@ -397,14 +477,29 @@ void UChaosClothAssetEditorMode::Exit()
 	}
 	ClothSeamDraw = nullptr;
 
-	if (DataflowComponent)
+	if (SurfaceNormalDraw)
 	{
-		DataflowComponent->UnregisterComponent();
-		DataflowComponent->DestroyComponent();
+		SurfaceNormalDraw->Disconnect();
 	}
+	SurfaceNormalDraw = nullptr;
 
 	PropertyObjectsToTick.Empty();
 	PreviewScene = nullptr;
+
+	//
+	// Engine Analytics
+	//
+	// Log mode exit
+	if (FEngineAnalytics::IsAvailable())
+	{
+		const FTimespan ModeUsageDuration = FDateTime::UtcNow() - LastModeStartTimestamp;
+
+		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Add(FAnalyticsEventAttribute(TEXT("Timestamp"), FDateTime::UtcNow().ToString()));
+		Attributes.Add(FAnalyticsEventAttribute(TEXT("Duration.Seconds"), static_cast<float>(ModeUsageDuration.GetTotalSeconds())));
+
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.ChaosClothEditor.Exit"));
+	}
 
 	Super::Exit();
 }
@@ -460,14 +555,22 @@ bool UChaosClothAssetEditorMode::IsComponentSelected(const UPrimitiveComponent* 
 }
 
 
-void UChaosClothAssetEditorMode::SetSelectedClothCollection(TSharedPtr<FManagedArrayCollection> Collection, TSharedPtr<FManagedArrayCollection> InputCollection)
+void UChaosClothAssetEditorMode::SetSelectedClothCollection(TSharedPtr<FManagedArrayCollection> Collection, TSharedPtr<FManagedArrayCollection> InputCollection, bool bDeferDynamicMeshInitForTool)
 {
 	SelectedClothCollection = Collection;
 	SelectedInputClothCollection = InputCollection;
-	ReinitializeDynamicMeshComponents();
 
-	// The first time we get a valid mesh, refocus the camera on it
-	FirstTimeFocusRestSpaceViewport();
+	if (bDeferDynamicMeshInitForTool)
+	{
+		bDynamicMeshComponentInitDeferred = true;
+	}
+	else
+	{
+		ReinitializeDynamicMeshComponents();
+
+		// The first time we get a valid mesh, refocus the camera on it
+		FirstTimeFocusRestSpaceViewport();
+	}
 }
 
 TSharedPtr<FManagedArrayCollection> UChaosClothAssetEditorMode::GetClothCollection()
@@ -620,6 +723,50 @@ void UChaosClothAssetEditorMode::InitializeSeamDraw()
 }
 
 
+void UChaosClothAssetEditorMode::InitializeSurfaceNormalDraw()
+{
+	if (!SurfaceNormalDraw)
+	{
+		return;
+	}
+
+	SurfaceNormalDraw->RemoveAllLineSets();
+
+	if (!bConstructionViewNormalsVisible)
+	{
+		return;
+	}
+
+	if (!DynamicMeshComponent || !DynamicMeshComponent->GetMesh())
+	{
+		return;
+	}
+
+	const UE::Geometry::FDynamicMesh3& Mesh = *DynamicMeshComponent->GetMesh();
+
+	const float LineLength = 2.0f;
+	const float LineThickness = 1.0f;
+
+	if (Mesh.HasAttributes())
+	{
+		if (const UE::Geometry::FDynamicMeshNormalOverlay* const NormalOverlay = Mesh.Attributes()->PrimaryNormals())
+		{
+			SurfaceNormalDraw->CreateOrUpdateLineSet(TEXT("Normals"), NormalOverlay->MaxElementID(),
+			[&NormalOverlay, &Mesh, LineLength, LineThickness](int32 Index, TArray<FRenderableLine>& Lines)
+			{
+				if (NormalOverlay->IsElement(Index))
+				{
+					int32 ParentVtx = NormalOverlay->GetParentVertex(Index);
+					FVector3f Normal = NormalOverlay->GetElement(Index);
+					FVector3f Origin = (FVector3f)Mesh.GetVertex(ParentVtx);
+					Lines.Add(FRenderableLine((FVector)Origin, (FVector)Origin + LineLength * (FVector)Normal, FColor(15, 15, 240), LineThickness));
+				}
+			}, 1);
+		}
+	}
+}
+
+
 void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 {
 	using namespace UE::Chaos::ClothAsset;
@@ -717,13 +864,19 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 		ClothSeamDraw->Disconnect();
 	}
 
+	if (SurfaceNormalDraw)
+	{
+		SurfaceNormalDraw->Disconnect();
+	}
+
 	PropertyObjectsToTick.Empty();	// TODO: We only want to empty the wireframe display properties. Is anything else using this array?
 	DynamicMeshComponent = nullptr;
 	DynamicMeshComponentParentActor = nullptr;
 	WireframeDraw = nullptr;
 	ClothSeamDraw = nullptr;
+	SurfaceNormalDraw = nullptr;
 
-	TSharedPtr<FManagedArrayCollection> Collection = GetClothCollection();
+	TSharedPtr<FManagedArrayCollection> Collection = bDynamicMeshUseInputCollection ? GetInputClothCollection() : GetClothCollection();
 	if (!Collection)
 	{
 		return;
@@ -755,7 +908,7 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 		for (int32 PatternID = 0; PatternID < ClothFacade.GetNumSimPatterns(); ++PatternID)
 		{
 			const FCollectionClothSimPatternConstFacade Pattern = ClothFacade.GetSimPattern(PatternID);
-			const FLinearColor PatternColor = Private::PseudoRandomColor(PatternID);
+			const FLinearColor PatternColor = UE::Chaos::ClothAsset::Private::PseudoRandomColor(PatternID);
 
 			for (int32 TriID = 0; TriID < Pattern.GetNumSimFaces(); ++TriID)
 			{
@@ -822,12 +975,20 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 	InitializeSeamDraw();
 	ClothSeamDraw->SetAllVisible(bRestSpaceMeshVisible && bConstructionViewSeamsVisible);
 
+	SurfaceNormalDraw = NewObject<UPreviewGeometry>(this);
+	SurfaceNormalDraw->CreateInWorld(GetWorld(), FTransform::Identity);
+	InitializeSurfaceNormalDraw();
+	SurfaceNormalDraw->SetAllVisible(bRestSpaceMeshVisible && bConstructionViewNormalsVisible);
+
 	DynamicMeshComponent->OnMeshChanged.Add(
 		FSimpleMulticastDelegate::FDelegate::CreateLambda([this]()
 		{
 			InitializeSeamDraw();
 			const bool bRestSpaceMeshVisible = DynamicMeshComponent->GetVisibleFlag();
 			ClothSeamDraw->SetAllVisible(bRestSpaceMeshVisible&& bConstructionViewSeamsVisible);
+
+			InitializeSurfaceNormalDraw();
+			SurfaceNormalDraw->SetAllVisible(bRestSpaceMeshVisible && bConstructionViewNormalsVisible);
 		}));
 
 
@@ -848,6 +1009,10 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 			{
 				ClothSeamDraw->SetAllVisible(bRestSpaceMeshVisible && bConstructionViewSeamsVisible);
 			}
+			if (SurfaceNormalDraw)
+			{
+				SurfaceNormalDraw->SetAllVisible(bRestSpaceMeshVisible && bConstructionViewNormalsVisible);
+			}
 		});
 
 
@@ -857,12 +1022,7 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 
 	// Update the context object with the ConstructionViewMode and Collection used to build the DynamicMeshComponents, so 
 	// tools know how to use the components.
-	UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
-	UClothEditorContextObject* EditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>();
-	if (ensure(EditorContextObject))
-	{
-		EditorContextObject->SetClothCollection(ConstructionViewMode, Collection, GetInputClothCollection());
-	}
+	UpdateContextObject(Collection);
 }
 
 void UChaosClothAssetEditorMode::RefocusRestSpaceViewportClient()
@@ -921,9 +1081,6 @@ void UChaosClothAssetEditorMode::InitializeTargets(const TArray<TObjectPtr<UObje
 	check(PreviewScene);
 
 	UBaseCharacterFXEditorMode::InitializeTargets(AssetsIn);
-
-	DataflowComponent = NewObject<UDataflowComponent>();
-	DataflowComponent->RegisterComponentWithWorld(PreviewScene->GetWorld());
 }
 
 void UChaosClothAssetEditorMode::SoftResetSimulation()
@@ -1037,11 +1194,6 @@ int32 UChaosClothAssetEditorMode::GetNumLODs() const
 	return 0;
 }
 
-UDataflowComponent* UChaosClothAssetEditorMode::GetDataflowComponent() const
-{
-	return DataflowComponent;
-}
-
 void UChaosClothAssetEditorMode::ModeTick(float DeltaTime)
 {
 	Super::ModeTick(DeltaTime);
@@ -1104,6 +1256,15 @@ void UChaosClothAssetEditorMode::ModeTick(float DeltaTime)
 		bShouldClearTeleportFlag = true;		// clear the flag next tick
 	}
 
+	if (bDynamicMeshComponentInitDeferred)
+	{
+		ReinitializeDynamicMeshComponents();
+
+		// The first time we get a valid mesh, refocus the camera on it
+		FirstTimeFocusRestSpaceViewport();
+
+		bDynamicMeshComponentInitDeferred = false;
+	}
 
 	if (!NodeTypeForPendingToolStart.IsNone() && !GetToolManager()->HasActiveTool(EToolSide::Left))
 	{
@@ -1118,10 +1279,15 @@ void UChaosClothAssetEditorMode::ModeTick(float DeltaTime)
 		NodeTypeForPendingToolStart = FName();
 	}
 
+	const bool bIsInPIEOrSIE = GEditor->PlayWorld != NULL || GEditor->bIsSimulatingInEditor;
+	const bool bShouldPause = PreviewScene->GetPreviewSceneDescription()->bPauseWhilePlayingInEditor && bIsInPIEOrSIE;
 
-	if (PreviewScene->GetWorld())
+	if (!bShouldPause)
 	{
-		PreviewScene->GetWorld()->Tick(ELevelTick::LEVELTICK_All, DeltaTime);
+		if (PreviewScene->GetWorld())
+		{
+			PreviewScene->GetWorld()->Tick(ELevelTick::LEVELTICK_All, DeltaTime);
+		}
 	}
 }
 
@@ -1260,8 +1426,15 @@ bool UChaosClothAssetEditorMode::CanChangeConstructionViewModeTo(UE::Chaos::Clot
 	const IChaosClothAssetEditorToolBuilder* const ClothToolBuilder = Cast<const IChaosClothAssetEditorToolBuilder>(ActiveToolBuilder);
 	checkf(ClothToolBuilder, TEXT("Cloth Editor has an active Tool Builder that does not implement IChaosClothAssetEditorToolBuilder"));
 
+	const UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
+	checkf(RestSpaceToolsContext, TEXT("Cloth Editor Mode doesn't have a valid InteractiveToolsContext"));
+
+	const UDataflowContextObject* const EditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
+	checkf(EditorContextObject, TEXT("ContextObject not found in ContextObjectStore despite having an active tool. This should have been created by the time a tool is activated"));
+
 	TArray<UE::Chaos::ClothAsset::EClothPatternVertexType> SupportedViewModes;
-	ClothToolBuilder->GetSupportedViewModes(SupportedViewModes);
+	ClothToolBuilder->GetSupportedViewModes(*EditorContextObject, SupportedViewModes);
+
 	return SupportedViewModes.Contains(NewViewMode);
 }
 
@@ -1335,6 +1508,22 @@ bool UChaosClothAssetEditorMode::CanSetConstructionViewSeamsCollapse() const
 	return bConstructionViewSeamsVisible && (ConstructionViewMode == UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D);
 }
 
+void UChaosClothAssetEditorMode::ToggleConstructionViewSurfaceNormals()
+{
+	bConstructionViewNormalsVisible = !bConstructionViewNormalsVisible;
+	ReinitializeDynamicMeshComponents();
+}
+
+bool UChaosClothAssetEditorMode::CanSetConstructionViewSurfaceNormalsActive() const
+{
+	if (GetToolManager()->HasActiveTool(EToolSide::Left))
+	{
+		return false;
+	}
+
+	return true;
+}
+
 
 void UChaosClothAssetEditorMode::TogglePatternColor()
 {
@@ -1391,25 +1580,58 @@ void UChaosClothAssetEditorMode::InitializeContextObject()
 {
 	UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
 
-	UClothEditorContextObject* EditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>();
-	if (!EditorContextObject)
+	// Dataflow context object
+	UDataflowContextObject* DataflowContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
+	if (!DataflowContextObject)
 	{
-		EditorContextObject = NewObject<UClothEditorContextObject>();
-		RestSpaceToolsContext->ContextObjectStore->AddContextObject(EditorContextObject);
+		DataflowContextObject = NewObject<UDataflowContextObject>();
+		RestSpaceToolsContext->ContextObjectStore->AddContextObject(DataflowContextObject);
 	}
 
-	EditorContextObject->Init(DataflowGraphEditor, ConstructionViewMode, SelectedClothCollection, SelectedInputClothCollection);
+	DataflowContextObject->SetConstructionViewMode(UE::Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(ClothViewModeToDataflowViewModeName(ConstructionViewMode)));
 
-	check(EditorContextObject);
+	if (const TSharedPtr<SDataflowGraphEditor> GraphEditor = DataflowGraphEditor.Pin())
+	{
+		if (UEdGraphNode* const SingleSelectedNode = GraphEditor->GetSingleSelectedNode())
+		{
+			if (UDataflowEdNode* const SelectedDataflowEdNode = Cast<UDataflowEdNode>(SingleSelectedNode))
+			{
+				DataflowContextObject->SetSelectedNode(SelectedDataflowEdNode);
+			}
+		}
+	}
+	DataflowContextObject->SetDataflowContext(DataflowContext.Pin());
+	DataflowContextObject->SetDataflowAsset(DataflowGraph.Get());
+}
 
+void UChaosClothAssetEditorMode::UpdateContextObject(const TSharedPtr<FManagedArrayCollection>& Collection)
+{
+	UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
+	
+	if (UDataflowContextObject* DataflowContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>())
+	{
+		DataflowContextObject->SetConstructionViewMode(UE::Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(ClothViewModeToDataflowViewModeName(ConstructionViewMode)));
+
+		DataflowContextObject->SetSelectedCollection(Collection, bDynamicMeshUseInputCollection);
+	}
 }
 
 void UChaosClothAssetEditorMode::DeleteContextObject()
 {
 	UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
-	if (UClothEditorContextObject* ClothEditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>())
+	if (UDataflowContextObject* DataflowContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>())
 	{
-		RestSpaceToolsContext->ContextObjectStore->RemoveContextObject(ClothEditorContextObject);
+		RestSpaceToolsContext->ContextObjectStore->RemoveContextObject(DataflowContextObject);
+	}
+}
+
+void UChaosClothAssetEditorMode::SetDataflowContext(TWeakPtr<UE::Dataflow::FEngineContext> InDataflowContext)
+{
+	DataflowContext = InDataflowContext;
+	UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
+	if (UDataflowContextObject* DataflowContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>())
+	{
+		DataflowContextObject->SetDataflowContext(DataflowContext.Pin());
 	}
 }
 

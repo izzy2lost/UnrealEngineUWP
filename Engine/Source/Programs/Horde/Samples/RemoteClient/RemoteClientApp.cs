@@ -58,7 +58,7 @@ namespace RemoteClient
 			}
 			else
 			{
-				services.AddHordeHttpClient(x => x.BaseAddress = new Uri(options.Server));
+				services.AddHorde(x => x.ServerUrl = new Uri(options.Server));
 				services.AddSingleton<IComputeClient, ServerComputeClient>();
 			}
 
@@ -110,11 +110,11 @@ namespace RemoteClient
 				await channel.ForkAsync(BackgroundChannelId, 4 * 1024 * 1024, default);
 
 				// Upload the sandbox to the primary channel.
-				using BundleStorageClient storage =  BundleStorageClient.CreateInMemory(logger);
+				BundleStorageNamespace storage = BundleStorageNamespace.CreateInMemory(logger);
 
 				await using (IBlobWriter writer = storage.CreateBlobWriter())
 				{
-					IBlobRef<DirectoryNode> sandbox = await writer.WriteFilesAsync(uploadDir);
+					IHashedBlobRef<DirectoryNode> sandbox = await writer.WriteFilesAsync(uploadDir);
 					await writer.FlushAsync();
 					await channel.UploadFilesAsync("", sandbox.GetLocator(), storage.Backend);
 				}

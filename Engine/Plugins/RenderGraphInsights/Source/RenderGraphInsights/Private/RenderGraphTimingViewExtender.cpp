@@ -11,7 +11,7 @@ namespace UE
 namespace RenderGraphInsights
 {
 
-void FRenderGraphTimingViewExtender::OnBeginSession(Insights::ITimingViewSession& InSession)
+void FRenderGraphTimingViewExtender::OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession)
 {
 	if (InSession.GetName() != FInsightsManagerTabs::TimingProfilerTabId)
 	{
@@ -32,7 +32,7 @@ void FRenderGraphTimingViewExtender::OnBeginSession(Insights::ITimingViewSession
 	}
 }
 
-void FRenderGraphTimingViewExtender::OnEndSession(Insights::ITimingViewSession& InSession)
+void FRenderGraphTimingViewExtender::OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession)
 {
 	if (InSession.GetName() != FInsightsManagerTabs::TimingProfilerTabId)
 	{
@@ -48,7 +48,7 @@ void FRenderGraphTimingViewExtender::OnEndSession(Insights::ITimingViewSession& 
 	PerSessionDataMap.Remove(&InSession);
 }
 
-void FRenderGraphTimingViewExtender::Tick(Insights::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
+void FRenderGraphTimingViewExtender::Tick(UE::Insights::Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
 {
 	FPerSessionData* PerSessionData = PerSessionDataMap.Find(&InSession);
 	if(PerSessionData != nullptr)
@@ -57,7 +57,7 @@ void FRenderGraphTimingViewExtender::Tick(Insights::ITimingViewSession& InSessio
 	}
 }
 
-void FRenderGraphTimingViewExtender::ExtendFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder)
+void FRenderGraphTimingViewExtender::ExtendFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder)
 {
 	FPerSessionData* PerSessionData = PerSessionDataMap.Find(&InSession);
 	if (PerSessionData != nullptr)

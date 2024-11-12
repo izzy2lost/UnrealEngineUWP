@@ -88,8 +88,7 @@ void TDynamicBoneAttributeBase<ParentType, AttribValueType>::Append(const Attrib
 template<typename ParentType, typename AttribValueType>
 void TDynamicBoneAttributeBase<ParentType, AttribValueType>::Serialize(FArchive& Ar)
 {	
-	/** TODO: Not supported for now */
-	checkNoEntry();
+	Ar << AttribValues;
 }
 
 // Instantiate for linker

@@ -3,6 +3,7 @@
 #include "InstallBundleSourceBulk.h"
 
 #include "DefaultInstallBundleManagerPrivate.h"
+#include "HAL/PlatformFileManager.h"
 #include "HAL/PlatformFile.h"
 #include "IPlatformFilePak.h"
 #include "InstallBundleManagerUtil.h"
@@ -10,6 +11,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Internationalization/Regex.h"
+#include "Misc/App.h"
 
 #define LOG_SOURCE_BULK(Verbosity, Format, ...) LOG_INSTALL_BUNDLE_MAN(Verbosity, TEXT("InstallBundleSourceBulk: ") Format, ##__VA_ARGS__)
 
@@ -269,13 +271,13 @@ void FInstallBundleSourceBulk::AsyncInit_MakeBundlesForBulkBuild()
 		
 		for (const FString& SearchDir : PakSearchDirs)
 		{
-			IPlatformFile::GetPlatformPhysical().FindFilesRecursively(*FoundFiles, *SearchDir, FileExtension);
+			FPlatformFileManager::Get().GetPlatformPhysical().FindFilesRecursively(*FoundFiles, *SearchDir, FileExtension);
 		}
 
 #if PLATFORM_IOS
 		// Only scan the root folder on IOS for shaderlibs.  Running this on windows is very expensive
 		// if the content dir contains loose assets which is common during development.
-		IPlatformFile::GetPlatformPhysical().FindFiles(*FoundFiles, *ContentDir, TEXT(".metallib"));
+		FPlatformFileManager::Get().GetPlatformPhysical().FindFiles(*FoundFiles, *ContentDir, TEXT(".metallib"));
 #endif // PLATFORM_IOS
 	},
 	[this, FoundFiles]()
@@ -451,6 +453,11 @@ EInstallBundleInstallState FInstallBundleSourceBulk::GetBundleInstallState(FName
 	return EInstallBundleInstallState::UpToDate;
 }
 
+FInstallBundleSourceType FInstallBundleSourceBulk::GetSourceType() const
+{ 
+	return FInstallBundleSourceType(TEXT("Bulk")); 
+}
+
 FInstallBundleSourceInitInfo FInstallBundleSourceBulk::Init(
 	TSharedRef<InstallBundleUtil::FContentRequestStatsMap> InRequestStats,
 	TSharedPtr<IAnalyticsProviderET> InAnalyticsProvider,
@@ -554,18 +561,21 @@ void FInstallBundleSourceBulk::RequestUpdateContent(FRequestUpdateContentBundleC
 		ResultInfo.ContentPaths = *BundleFileList;
 	}
 
-#if PLATFORM_IOS
+	TArray<FString> NonUFSShaderLibPathsExtensions;
+	GConfig->GetArray(TEXT("InstallBundleManager.Shaderlib"), TEXT("ExtensionList"), NonUFSShaderLibPathsExtensions, GInstallBundleIni);
 	for (const FString& Path : ResultInfo.ContentPaths)
 	{
-		if (Path.EndsWith(TEXT(".metallib")))
+		for (const FString& Ext : NonUFSShaderLibPathsExtensions)
 		{
-			LOG_SOURCE_BULK_OVERRIDE(Context.LogVerbosityOverride, Display, TEXT("Found metallib %s for Bundle %s"), *Path, *Context.BundleName.ToString());
-			
-			ResultInfo.NonUFSShaderLibPaths.Add(FPaths::GetPath(Path));
+			if (Path.EndsWith(*Ext))
+			{
+				LOG_SOURCE_BULK_OVERRIDE(Context.LogVerbosityOverride, Display, TEXT("Found metallib %s for Bundle %s"), *Path, *Context.BundleName.ToString());
+				ResultInfo.NonUFSShaderLibPaths.Add(FPaths::GetPath(Path));
+			}
 		}
 	}
-#endif // PLATFORM_IOS
-
+	
+	ResultInfo.ProjectName = FApp::GetProjectName();
 	Context.CompleteCallback.ExecuteIfBound(AsShared(), MoveTemp(ResultInfo));
 }
 

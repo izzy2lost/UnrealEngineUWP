@@ -15,6 +15,8 @@ class IWorldPartitionEditorModule : public IModuleInterface
 public:
 	virtual ~IWorldPartitionEditorModule() {}
 
+	static ENGINE_API IWorldPartitionEditorModule& Get();
+
 	virtual bool ConvertMap(const FString& InLongPackageName) = 0;
 
 	UE_DEPRECATED(5.1, "Use RunBuilder with UWorld* instead.")
@@ -66,6 +68,25 @@ public:
 	virtual void SetHLODInEditorMaxDrawDistance(double InMaxDrawDistance) = 0;
 
 	virtual bool IsHLODInEditorAllowed(UWorld* InWorld, FText* OutDisallowedReason = nullptr) const = 0;
+
+	/**
+     * Parameters for the WriteHLODStats() method.
+     */	
+	struct FWriteHLODStatsParams
+	{
+		enum class EStatsType : uint8
+		{
+			Default,
+			InputDetails
+		};
+
+		UWorld* World = nullptr;
+		FString Filename;
+		EStatsType StatsType = EStatsType::Default;
+	};
+
+	/** Writes various HLOD stats to a file. */
+	virtual bool WriteHLODStats(const FWriteHLODStatsParams& Params) const = 0;
 
 	/** Triggered when a world is added. */
 	DECLARE_EVENT_OneParam(IWorldPartitionEditorModule, FWorldPartitionCreated, UWorld*);

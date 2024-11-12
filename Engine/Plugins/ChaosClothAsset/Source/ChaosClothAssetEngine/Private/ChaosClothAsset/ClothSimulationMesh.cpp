@@ -5,16 +5,23 @@
 #include "ChaosClothAsset/ClothSimulationModel.h"
 #include "ChaosClothAsset/ClothSimulationContext.h"
 #include "ClothSimulationMesh.h"
+#include "ReferenceSkeleton.h"
 
 namespace UE::Chaos::ClothAsset
 {
 	FClothSimulationMesh::FClothSimulationMesh(const FChaosClothSimulationModel& InClothSimulationModel, const FClothSimulationContext& InClothSimulationContext, const FString& DebugName)
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		: ::Chaos::FClothingSimulationMesh(DebugName)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, ClothSimulationModel(InClothSimulationModel)
 		, ClothSimulationContext(InClothSimulationContext)
 	{
+#if CHAOS_DEBUG_DRAW
+		const int32 ReferenceBoneIndex = GetReferenceBoneIndex();
+		const int32 UsedBoneNameIndex = ClothSimulationModel.UsedBoneIndices.Find(ReferenceBoneIndex);
+		if (ClothSimulationModel.UsedBoneNames.IsValidIndex(UsedBoneNameIndex))
+		{
+			ReferenceBoneName = ClothSimulationModel.UsedBoneNames[UsedBoneNameIndex];
+		}
+#endif
 	}
 
 	int32 FClothSimulationMesh::GetNumLODs() const

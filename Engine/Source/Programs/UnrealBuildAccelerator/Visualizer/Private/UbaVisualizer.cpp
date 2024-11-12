@@ -1,58 +1,204 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaVisualizer.h"
+#include "UbaConfig.h"
 #include <algorithm>
 
 #include <uxtheme.h>
 #include <dwmapi.h>
+#include <shellscalingapi.h>
+
+#pragma comment (lib, "Shcore.lib")
 #pragma comment (lib, "UxTheme.lib")
 #pragma comment (lib, "Dwmapi.lib")
 #define WM_NEWTRACE WM_USER+1
-
-enum
-{
-	Popup_CopySessionInfo = 3,
-	Popup_CopyProcessInfo,
-	Popup_CopyProcessLog,
-	Popup_Replay,
-	Popup_Pause,
-	Popup_Play,
-	Popup_JumpToEnd,
-	Popup_ShowText,
-	Popup_ShowCreateWriteColors,
-	Popup_SaveAs,
-	Popup_Quit,
-};
+#define WM_SETTITLE WM_USER+2
 
 namespace uba
 {
-	class LineCountLogger : public Logger
+	enum
 	{
-	public:
-		virtual void BeginScope() override {}
-		virtual void EndScope() override {}
-		virtual void Log(LogEntryType type, const wchar_t* str, u32 strLen) override { ++lineCount; }
-		u32 lineCount = 0;
+		Popup_CopySessionInfo = 3,
+		Popup_CopyProcessInfo,
+		Popup_CopyProcessLog,
+		Popup_Replay,
+		Popup_Pause,
+		Popup_Play,
+		Popup_JumpToEnd,
+
+		#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) Popup_##name,
+		UBA_VISUALIZER_FLAGS2
+		#undef UBA_VISUALIZER_FLAG
+
+		Popup_IncreaseFontSize,
+		Popup_DecreaseFontSize,
+
+		Popup_SaveAs,
+		Popup_SaveSettings,
+		Popup_OpenSettings,
+		Popup_Quit,
+	};
+
+	VisualizerConfig::VisualizerConfig(const tchar* fn) : filename(fn)
+	{
+		fontName = TC("Arial");
+	}
+
+	bool VisualizerConfig::Load(Logger& logger)
+	{
+		Config config;
+		if (!config.LoadFromFile(logger, filename.c_str()))
+		{
+			DWORD value = 1;
+			DWORD valueSize = sizeof(value);
+			if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", L"AppsUseLightTheme", RRF_RT_REG_DWORD, NULL, &value, &valueSize) == ERROR_SUCCESS)
+				DarkMode = value == 0;
+
+			return false;
+		}
+		config.GetValueAsInt(x, L"X");
+		config.GetValueAsInt(y, L"Y");
+		config.GetValueAsU32(width, L"Width");
+		config.GetValueAsU32(height, L"Height");
+		config.GetValueAsU32(fontSize, L"FontSize");
+		config.GetValueAsString(fontName, L"FontName");
+		config.GetValueAsU32(maxActiveVisible, L"MaxActiveVisible");
+		config.GetValueAsU32(maxActiveProcessHeight, L"MaxActiveProcessHeight");
+		#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) config.GetValueAsBool(show##name, L"Show" #name);
+		UBA_VISUALIZER_FLAGS1
+		#undef UBA_VISUALIZER_FLAG
+		#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) config.GetValueAsBool(name, TC(#name));
+		UBA_VISUALIZER_FLAGS2
+		#undef UBA_VISUALIZER_FLAG
+		return true;
+	}
+
+	bool VisualizerConfig::Save(Logger& logger)
+	{
+		Config config;
+		config.AddValue(L"X", x);
+		config.AddValue(L"Y", y);
+		config.AddValue(L"Width", width);
+		config.AddValue(L"Height", height);
+		config.AddValue(L"FontSize", fontSize);
+		config.AddValue(L"FontName", fontName.c_str());
+		config.AddValue(L"MaxActiveVisible", maxActiveVisible);
+		config.AddValue(L"MaxActiveProcessHeight", maxActiveProcessHeight);
+		#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) config.AddValue(L"Show" #name, show##name);
+		UBA_VISUALIZER_FLAGS1
+		#undef UBA_VISUALIZER_FLAG
+		#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) config.AddValue(TC(#name), name);
+		UBA_VISUALIZER_FLAGS2
+		#undef UBA_VISUALIZER_FLAG
+		return config.SaveToFile(logger, filename.c_str());
+	}
+
+	enum VisualizerFlag
+	{
+		#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) VisualizerFlag_##name,
+		UBA_VISUALIZER_FLAGS1
+		#undef UBA_VISUALIZER_FLAG
+		VisualizerFlag_Count
 	};
 
 	class DrawTextLogger : public Logger
 	{
 	public:
-		DrawTextLogger(HDC h, const RECT& r, int fh) : hdc(h), rect(r), fontHeight(fh) {}
+		DrawTextLogger(HWND hw, HDC h, int fh, HBRUSH bb)
+		:	hwnd(hw)
+		,	hdc(h)
+		,	fontHeight(fh)
+		,	backgroundBrush(bb)
+		{
+			textColor = GetTextColor(hdc);
+		}
 
 		virtual void BeginScope() override {}
 		virtual void EndScope() override {}
 		virtual void Log(LogEntryType type, const wchar_t* str, u32 strLen) override
 		{
-			DrawTextW(hdc, str, strLen, &rect, DT_SINGLELINE);
-			rect.top += fontHeight;
+			RECT textRect{0,0,0,0};
+			DrawTextW(hdc, str, strLen, &textRect, DT_CALCRECT);
+
+			lines.emplace_back(TString(str, strLen), textOffset, height, textColor);
+			width = Max(width, int(textRect.right + textOffset));
+			height += fontHeight;
 		}
 
-		DrawTextLogger& SetColor(COLORREF c) { SetTextColor(hdc, c); return *this; }
+		void AddSpace(int space = 5)
+		{
+			height += space;
+		}
 
+		void AddTextOffset(int offset)
+		{
+			textOffset += offset;
+		}
+
+		void AddWidth(int extra)
+		{
+			extraWidth += extra;
+		}
+
+		void DrawAtPos(int x, int y)
+		{
+			RECT r;
+			r.left = x;
+			r.top = y;
+			r.right = r.left + width;
+			r.bottom = r.top + height;
+
+			RECT clientRect;
+			GetClientRect(hwnd, &clientRect);
+
+			if (r.right > clientRect.right)
+				OffsetRect(&r, -width - 15, 0);
+			if (r.bottom > clientRect.bottom)
+			{
+				OffsetRect(&r, 0, clientRect.bottom - r.bottom);
+				if (r.top < 0)
+					OffsetRect(&r, 0, -r.top);
+			}
+
+			RECT fillRect = r;
+			fillRect.right += 2 + extraWidth;
+			FillRect(hdc, &fillRect, backgroundBrush);
+
+			for (auto& line : lines)
+			{
+				RECT tr = r;
+				tr.left += line.left;
+				tr.top += line.top;
+				SetTextColor(hdc, line.color);
+				DrawTextW(hdc, line.str.data(), u32(line.str.size()), &tr, DT_SINGLELINE);
+			}
+		}
+
+		void DrawAtCursor()
+		{
+			POINT p;
+			GetCursorPos(&p);
+			ScreenToClient(hwnd, &p);
+			p.x += 3;
+			p.y += 3;
+			DrawAtPos(p.x, p.y);
+		}
+
+		DrawTextLogger& SetColor(COLORREF c) { textColor = c; return *this; }
+
+		int width = 0;
+		int height = 0;
+		int textOffset = 2;
+		int extraWidth = 0;
+		struct Line { TString str; int left; int top; COLORREF color; };
+		Vector<Line> lines;
+
+		HWND hwnd;
 		HDC hdc;
-		RECT rect;
 		int fontHeight;
+		HBRUSH backgroundBrush;
+		COLORREF textColor;
+		bool isFirst = true;
 	};
 
 	class WriteTextLogger : public Logger
@@ -65,14 +211,13 @@ namespace uba
 		TString& m_out;
 	};
 
-	Visualizer::Visualizer(Logger& logger)
+	Visualizer::Visualizer(VisualizerConfig& config, Logger& logger)
 	:	m_logger(logger)
+	,	m_config(config)
 	,	m_trace(logger)
 	{
-		for (bool& visible : m_visibleComponents)
-			visible = true;
-		m_visibleComponents[ComponentType_DetailedData] = false;
-		m_visibleComponents[ComponentType_Workers] = false;
+		memset(m_activeProcessFont, 0, sizeof(m_activeProcessFont));
+		memset(m_activeProcessCountHistory, 0, sizeof(m_activeProcessCountHistory));
 	}
 
 	Visualizer::~Visualizer()
@@ -86,12 +231,6 @@ namespace uba
 		delete m_client;
 	}
 
-	void Visualizer::SetTheme(bool dark)
-	{
-		m_isThemeSet = true;
-		m_useDarkMode = dark;
-	}
-
 	bool Visualizer::ShowUsingListener(const wchar_t* channelName)
 	{
 		TraceChannel channel(m_logger);
@@ -101,18 +240,31 @@ namespace uba
 			return false;
 		}
 
+		m_listenTimeout.Create(false);
+
 		m_listenChannel.Append(channelName);
 		m_looping = true;
 		m_autoScroll = false;
-		m_thread.Start([this]() { ThreadLoop(); return 0;});
+		if (!StartHwndThread())
+			return true;
 
-		while (!m_hwnd)
-			if (m_thread.Wait(10))
-				return true;
+		{
+			StringBuffer<> title;
+			PostNewTitle(GetTitlePrefix(title).Appendf(L"Listening for new sessions on channel '%s'", m_listenChannel.data));
+		}
 
 		StringBuffer<256> traceName;
 		while (m_hwnd)
 		{
+			if (m_locked)
+			{
+				m_listenTimeout.IsSet(1000);
+				continue;
+			}
+
+			if (m_parentHwnd && !IsWindow(m_parentHwnd))
+				PostQuit();
+
 			traceName.Clear();
 			if (!channel.Read(traceName))
 			{
@@ -120,12 +272,26 @@ namespace uba
 				return false;
 			}
 
-			if (traceName.count && !traceName.Equals(m_newTraceName.data))
+			if (traceName.count)
 			{
-				m_newTraceName.Clear().Append(traceName);
-				PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);
+				StringBuffer<128> filter;
+				if (!m_config.ShowAllTraces)
+				{
+					OwnerInfo ownerInfo = GetOwnerInfo();
+					if (ownerInfo.pid)
+						filter.Appendf(L"_%s%u", ownerInfo.id, ownerInfo.pid);
+				}
+
+				if (!traceName.Equals(m_newTraceName.data) && traceName.EndsWith(filter.data))
+				{
+					m_newTraceName.Clear().Append(traceName);
+					PostNewTrace(0, false);
+				}
 			}
-			Sleep(1000);
+			else
+				m_newTraceName.Clear();
+
+			m_listenTimeout.IsSet(1000);
 		}
 
 		return true;
@@ -133,11 +299,11 @@ namespace uba
 
 	bool Visualizer::ShowUsingNamedTrace(const wchar_t* namedTrace)
 	{
-		if (!m_trace.StartReadNamed(m_traceView, namedTrace))
-			return false;
-		m_namedTrace.Append(namedTrace);
 		m_looping = true;
-		m_thread.Start([this]() { ThreadLoop(); return 0;});
+		if (!StartHwndThread())
+			return true;
+		m_newTraceName.Append(namedTrace);
+		PostNewTrace(0, false);
 		return true;
 	}
 
@@ -146,11 +312,10 @@ namespace uba
 		auto destroyClient = MakeGuard([&]() { delete m_client; m_client = nullptr; });
 		m_looping = true;
 		m_autoScroll = false;
-		m_thread.Start([this]() { ThreadLoop(); return 0; });
+		if (!StartHwndThread())
+			return true;
 
-		while (!m_hwnd)
-			if (m_thread.Wait(10))
-				return true;
+		m_clientDisconnect.Create(true);
 
 		wchar_t dots[] = TC("....");
 		u32 dotsCounter = 0;
@@ -161,28 +326,32 @@ namespace uba
 			if (!m_client)
 			{
 				bool ctorSuccess = true;
-				m_client = new NetworkClient(ctorSuccess, {});
+				NetworkClientCreateInfo ncci;
+				ncci.workerCount = 1;
+				m_client = new NetworkClient(ctorSuccess, ncci);
 				if (!ctorSuccess)
 					return false;
 			}
 
 			StringBuffer<> title;
-			GetTitlePrefix(title);
-			title.Appendf(L"Trying to connect to %s:%u%s", host, port, dots + ((dotsCounter--) % 4));
-			SetWindowTextW(m_hwnd, title.data);
+			PostNewTitle(GetTitlePrefix(title).Appendf(L"Trying to connect to %s:%u%s", host, port, dots + ((dotsCounter--) % 4)));
 
 			if (!m_client->Connect(backend, host, port))
 				continue;
 
-			PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);
+			PostNewTitle(GetTitlePrefix(title).Appendf(L"Connected to %s:%u", host, port));
+			PostNewTrace(0, false);
 
-			while (m_hwnd && m_client->IsConnected())
-				Sleep(1000);
+			while (m_hwnd && m_client->IsConnected() && !m_clientDisconnect.IsSet(1000))
+				;
+
+			PostNewTitle(GetTitlePrefix(title).Appendf(L"Disconnected..."));
 
 			m_client->Disconnect();
 			delete m_client;
 			m_client = nullptr;
-			Sleep(2000); // To prevent it from reconnecting to the same thing again and get thrown out (since it will post a WM_NEWTRACE and clean everything
+			m_clientDisconnect.Reset();
+			Sleep(4000); // To prevent it from reconnecting to the same thing again and get thrown out (since it will post a WM_NEWTRACE and clean everything
 		}
 		return true;
 	}
@@ -191,14 +360,19 @@ namespace uba
 	{
 		m_looping = true;
 		m_autoScroll = false;
-		m_thread.Start([this]() { ThreadLoop(); return 0;});
+		if (!StartHwndThread())
+			return true;
+		m_fileName.Append(fileName);
+		PostNewTrace(replay, 0);
+		return true;
+	}
 
+	bool Visualizer::StartHwndThread()
+	{
+		m_thread.Start([this]() { ThreadLoop(); return 0;});
 		while (!m_hwnd)
 			if (m_thread.Wait(10))
-				return true;
-		m_fileName.Append(fileName);
-		m_replay = replay;
-		PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);
+				return false;
 		return true;
 	}
 
@@ -212,13 +386,37 @@ namespace uba
 		return m_hwnd;
 	}
 
-	void Visualizer::GetTitlePrefix(StringBufferBase& out)
+	void Visualizer::Lock(bool lock)
 	{
+		m_locked = lock;
+	}
+
+	StringBufferBase& Visualizer::GetTitlePrefix(StringBufferBase& out)
+	{
+		out.Clear();
 		out.Append(L"UbaVisualizer");
 		#if UBA_DEBUG
 		out.Append(L" (DEBUG)");
 		#endif
 		out.Append(L" - ");
+		return out;
+	}
+
+	bool Visualizer::Unselect()
+	{
+		if (m_processSelected || m_sessionSelectedIndex != ~0u || m_statsSelected || m_timelineSelected || m_fetchedFilesSelected != ~0u || m_workSelected || !m_hyperLinkSelected.empty())
+		{
+			m_processSelected = false;
+			m_sessionSelectedIndex = ~0u;
+			m_statsSelected = false;
+			m_buttonSelected = ~0u;
+			m_timelineSelected = 0;
+			m_fetchedFilesSelected = ~0u;
+			m_workSelected = false;
+			m_hyperLinkSelected.clear();
+			return true;
+		}
+		return false;
 	}
 
 	void Visualizer::Reset()
@@ -231,29 +429,21 @@ namespace uba
 		m_textBitmaps.clear();
 		m_lastBitmap = 0;
 		m_lastBitmapOffset = BitmapCacheHeight;
-		m_traceView.Clear();
-		m_autoScroll = true;
-		m_scrollPosX = 0;
-		m_scrollPosY = 0;
+		//m_autoScroll = true;
+		//m_scrollPosX = 0;
+		//m_scrollPosY = 0;
 		//m_zoomValue = 0.75f;
 		//m_horizontalScaleValue = 1.0f;
 
-		//m_replay = 0;
 		m_startTime = GetTime();
 		m_pauseTime = 0;
+
+		Unselect();
 	}
 
-	void Visualizer::ThreadLoop()
+	void Visualizer::InitBrushes()
 	{
-		if (!m_isThemeSet)
-		{
-			DWORD value = 1;
-			DWORD valueSize = sizeof(value);
-			if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", L"AppsUseLightTheme", RRF_RT_REG_DWORD, NULL, &value, &valueSize) == ERROR_SUCCESS)
-				m_useDarkMode = value == 0;
-		}
-
-		if (m_useDarkMode)
+		if (m_config.DarkMode)
 		{
 			m_textColor = RGB(190, 190, 190);
 			m_textWarningColor = RGB(190, 190, 0);
@@ -274,6 +464,8 @@ namespace uba
 			m_processBrushes[1].success = CreateSolidBrush(RGB(10, 140, 10));
 			m_processBrushes[0].send = CreateSolidBrush(RGB(10, 115, 10));
 			m_processBrushes[1].send = CreateSolidBrush(RGB(10, 145, 10));
+			m_processBrushes[0].cacheFetch = CreateSolidBrush(RGB(24, 112, 110));
+			m_processBrushes[1].cacheFetch = CreateSolidBrush(RGB(31, 143, 138));
 
 			m_workBrush = CreateSolidBrush(RGB(70, 70, 100));
 
@@ -309,6 +501,9 @@ namespace uba
 			m_processBrushes[0].send = CreateSolidBrush(RGB(80, 210, 80));
 			m_processBrushes[1].send = CreateSolidBrush(RGB(90, 250, 90));
 
+			m_processBrushes[0].cacheFetch = CreateSolidBrush(RGB(150, 150, 200));
+			m_processBrushes[1].cacheFetch = CreateSolidBrush(RGB(170, 170, 200));
+
 			m_workBrush = CreateSolidBrush(RGB(150, 150, 200));
 
 			m_backgroundBrush = GetSysColorBrush(0);
@@ -327,73 +522,103 @@ namespace uba
 		m_recvPen = CreatePen(PS_SOLID, 1, m_recvColor);
 		m_cpuPen = CreatePen(PS_SOLID, 1, m_cpuColor);
 		m_memPen = CreatePen(PS_SOLID, 1, m_memColor);
+	}
+
+	void Visualizer::ThreadLoop()
+	{
+		if (m_config.parent)
+		{
+			SetProcessDpiAwareness(PROCESS_SYSTEM_DPI_AWARE);
+		}
+
+		InitBrushes();
 
 		LOGBRUSH br = { 0 };
 		GetObject(m_backgroundBrush, sizeof(br), &br);
 		m_processUpdatePen = CreatePen(PS_SOLID, 2, RGB(GetRValue(br.lbColor), GetGValue(br.lbColor), GetBValue(br.lbColor)));
 
 		HINSTANCE hInstance = GetModuleHandle(NULL);
-		u32 winPosX = 100;
-		u32 winPosY = 100;
-		u32 winWidth = 1500;
-		u32 winHeight = 1500;
+		int winPosX = m_config.x;
+		int winPosY = m_config.y;
+		int winWidth = m_config.width;
+		int winHeight = m_config.height;
+
+		RECT rectCombined;
+		SetRectEmpty(&rectCombined);
+		EnumDisplayMonitors(0, 0, [](HMONITOR hMon,HDC hdc,LPRECT lprcMonitor,LPARAM pData)
+		{
+			RECT* rectCombined = reinterpret_cast<RECT*>(pData);
+			UnionRect(rectCombined, rectCombined, lprcMonitor);
+			return TRUE;
+		}, (LPARAM)&rectCombined);
+
+		winPosX = Max(int(rectCombined.left), winPosX);
+		winPosY = Max(int(rectCombined.top), winPosY);
+		winPosX = Min(int(rectCombined.right) - winWidth, winPosX);
+		winPosY = Min(int(rectCombined.bottom) - winHeight, winPosY);
 
 		WNDCLASSEX wndClassEx;
 		ZeroMemory(&wndClassEx, sizeof(wndClassEx));
 		wndClassEx.cbSize = sizeof(wndClassEx);
 		wndClassEx.style = CS_HREDRAW | CS_VREDRAW;
 		wndClassEx.lpfnWndProc = &StaticWinProc;
-		wndClassEx.hIcon = NULL;//Icon;
-		wndClassEx.hCursor = LoadCursor(NULL, IDC_ARROW);
+		wndClassEx.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(123));
+		wndClassEx.hCursor = 0;
 		wndClassEx.hInstance = hInstance;
 		wndClassEx.hbrBackground = NULL;
 		wndClassEx.lpszClassName = TEXT("UbaVisualizer");
 		ATOM wndClassAtom = RegisterClassEx(&wndClassEx);
 
-		NONCLIENTMETRICS nonClientMetrics;
-		nonClientMetrics.cbSize = sizeof(nonClientMetrics);
-		SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(nonClientMetrics), &nonClientMetrics, 0);
-		//m_font = (HFONT)CreateFontIndirect(&nonClientMetrics.lfMessageFont);
-		m_font = (HFONT)CreateFontW(-9, 0, 0, 0, FW_NORMAL, false, false, false, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Arial");
+		UpdateDefaultFont();
+
+		UpdateProcessFont();
 
 		const TCHAR* fontName = TEXT("Consolas");
-		m_popupFont = (HFONT)CreateFontW(-12, 0, 0, 0, FW_NORMAL, false, false, false, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 0, FIXED_PITCH | FF_MODERN, fontName);
-		m_popupFontHeight = 14;
+		m_popupFont.handle = (HFONT)CreateFontW(-12, 0, 0, 0, FW_NORMAL, false, false, false, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, FIXED_PITCH | FF_MODERN, fontName);
+		m_popupFont.height = 14;
 		//m_popupFont = (HFONT)GetStockObject(SYSTEM_FIXED_FONT);
 
 		DWORD windowStyle = WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_CLIPCHILDREN | WS_VSCROLL | WS_HSCROLL;
 		const TCHAR* windowClassName = MAKEINTATOM(wndClassAtom);
 
-		StringBuffer<> title;
-		GetTitlePrefix(title);
-		if (!m_namedTrace.IsEmpty())
-			title.Append(m_namedTrace);
-		else if (!m_fileName.IsEmpty())
-			title.Append(m_fileName);
-		else if (m_listenChannel.count)
-			title.Appendf(L"Listening for new sessions on channel '%s'", m_listenChannel.data);
-		else
-			title.Append(L"Socket");
+		DWORD exStyle = 0;
+		if (m_config.parent)
+			windowStyle = WS_POPUP | WS_VSCROLL | WS_HSCROLL;// | WS_VISIBLE;
 
-		m_hwnd = CreateWindowEx(0, windowClassName, title.data, windowStyle, winPosX, winPosY, winWidth, winHeight, NULL, NULL, hInstance, this);
-		SetWindowLongPtr(m_hwnd, GWLP_USERDATA, (LONG_PTR)this);
+		StringBuffer<> title;
+		GetTitlePrefix(title).Append(L"Initializing...");
+
+		HWND hwnd = CreateWindowEx(exStyle, windowClassName, title.data, windowStyle, winPosX, winPosY, winWidth, winHeight, NULL, NULL, hInstance, this);
+		SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)this);
 
 		BOOL cloak = TRUE;
-		DwmSetWindowAttribute(m_hwnd, DWMWA_CLOAK, &cloak, sizeof(cloak));
+		DwmSetWindowAttribute(hwnd, DWMWA_CLOAK, &cloak, sizeof(cloak));
 
-		if (m_useDarkMode)
+		//if (m_config.DarkMode)
 		{
-			SetWindowTheme(m_hwnd, L"DarkMode_Explorer", NULL);
-			SendMessageW(m_hwnd, WM_THEMECHANGED, 0, 0);
+			SetWindowTheme(hwnd, L"DarkMode_Explorer", NULL);
+			SendMessageW(hwnd, WM_THEMECHANGED, 0, 0);
 			BOOL useDarkMode = true;
 			u32 attribute = 20; // DWMWA_USE_IMMERSIVE_DARK_MODE
-			DwmSetWindowAttribute(m_hwnd, attribute, &useDarkMode, sizeof(useDarkMode));
+			DwmSetWindowAttribute(hwnd, attribute, &useDarkMode, sizeof(useDarkMode));
 		}
 
 		HitTestResult res;
 		HitTest(res, { -1, -1 });
 
-		ShowWindow(m_hwnd, SW_SHOW);
+		if (m_config.parent)
+		{
+			m_parentHwnd = (HWND)(uintptr_t)m_config.parent;
+			if (!SetParent(hwnd, m_parentHwnd))
+ 				m_logger.Error(L"SetParent failed using parentHwnd 0x%llx", m_parentHwnd);
+
+			PostMessage(m_parentHwnd, 0x0444, 0, (LPARAM)hwnd);
+		}
+
+		m_hwnd = hwnd;
+
+		if (!m_parentHwnd)
+			ShowWindow(m_hwnd, SW_SHOW);
 		UpdateWindow(m_hwnd);
 		UpdateScrollbars(true);
 
@@ -418,11 +643,15 @@ namespace uba
 				if (!m_looping || msg.message == WM_QUIT || msg.message == WM_DESTROY || msg.message == WM_CLOSE)
 				{
 					if (m_hwnd)
+					{
+						if (m_config.AutoSaveSettings)
+							SaveSettings();
 						DestroyWindow(m_hwnd);
-					DeleteObject(m_font);
+					}
 					UnregisterClass(windowClassName, hInstance);
 					m_hwnd = 0;
 					m_looping = false;
+					m_listenTimeout.Set();
 					break;
 				}
 			}
@@ -446,6 +675,149 @@ namespace uba
 			m_traceView.finished = false;
 			SetTimer(m_hwnd, 0, 200, NULL);
 		}
+	}
+
+	void Visualizer::StartDragToScroll(const POINT& anchor)
+	{
+		// Uses reference-counter method since multiple input events (left and middle mouse button) can trigger the drag-to-scroll mechansim
+		if (m_dragToScrollCounter == 0)
+		{
+			m_processSelected = false;
+			m_sessionSelectedIndex = ~0u;
+			m_statsSelected = false;
+			m_buttonSelected = ~0u;
+			m_timelineSelected = 0;
+			m_fetchedFilesSelected = ~0u;
+			m_workSelected = false;
+			m_hyperLinkSelected.clear();
+			m_autoScroll = false;
+			m_mouseAnchor = { anchor.x, anchor.y };
+			m_scrollAtAnchorX = m_scrollPosX;
+			m_scrollAtAnchorY = m_scrollPosY;
+			SetCapture(m_hwnd);
+			Redraw(false);
+		}
+		++m_dragToScrollCounter;
+	}
+
+	void Visualizer::StopDragToScroll()
+	{
+		if (m_dragToScrollCounter > 0)
+			--m_dragToScrollCounter;
+		if (m_dragToScrollCounter != 0)
+			return;
+
+		ReleaseCapture();
+		if (UpdateSelection())
+			Redraw(false);
+	}
+
+	void Visualizer::SaveSettings()
+	{
+		RECT rect;
+		GetWindowRect(m_hwnd, &rect);
+
+		m_config.x = rect.left;
+		m_config.y = rect.top;
+		m_config.width = rect.right - rect.left;
+		m_config.height = rect.bottom - rect.top;
+		m_config.Save(m_logger);
+	}
+
+	void Visualizer::DirtyBitmaps(bool full)
+	{
+		for (auto& session : m_traceView.sessions)
+			for (auto& processor : session.processors)
+				for (auto& process : processor.processes)
+				{
+					process.bitmapDirty = true;
+					if (full)
+						process.bitmap = 0;
+				}
+
+		if (!full)
+			return;
+
+		for (HBITMAP bm : m_textBitmaps)
+			DeleteObject(bm);
+		DeleteObject(m_lastBitmap);
+		m_textBitmaps.clear();
+		m_lastBitmapOffset = BitmapCacheHeight;
+		m_lastBitmap = 0;
+	}
+
+	void Visualizer::UpdateFont(Font& font, int height, bool createUnderline)
+	{
+		font.height = height;
+
+		int fh = height;
+		font.offset = 0;
+		if (height <= 13)
+		{
+			++fh;
+			--font.offset;
+		}
+		if (height <= 11)
+			++fh;
+		if (height <= 9)
+			++fh;
+		if (height <= 8)
+			++fh;
+		if (height <= 6)
+			++fh;
+		if (height <= 4)
+			--font.offset;
+
+		if (font.handle)
+			DeleteObject(font.handle);
+		if (font.handleUnderlined)
+			DeleteObject(font.handleUnderlined);
+
+		//NONCLIENTMETRICS nonClientMetrics;
+		//nonClientMetrics.cbSize = sizeof(nonClientMetrics);
+		//SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(nonClientMetrics), &nonClientMetrics, 0);
+		//m_font = (HFONT)CreateFontIndirect(&nonClientMetrics.lfMessageFont);
+
+		font.handle = (HFONT)CreateFontW(4 - fh, 0, 0, 0, FW_NORMAL, 0, 0, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, m_config.fontName.c_str());
+		if (createUnderline)
+			font.handleUnderlined = (HFONT)CreateFontW(4 - fh, 0, 0, 0, FW_NORMAL, 0, 1, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, m_config.fontName.c_str());
+	}
+
+	void Visualizer::UpdateDefaultFont()
+	{
+		UpdateFont(m_defaultFont, m_config.fontSize, true);
+		m_sessionStepY = m_defaultFont.height + 4;
+
+		m_timelineFont = m_defaultFont;
+	}
+
+	void Visualizer::UpdateProcessFont()
+	{
+		m_zoomValue = 1.0f + m_boxHeight / 30.0f;
+		int fontHeight = Max(m_boxHeight - 2, 1);
+		UpdateFont(m_processFont, fontHeight, false);
+		m_progressRectLeft = int(5 + float(m_processFont.height) * 1.8f);
+		DirtyBitmaps(true);
+	}
+
+	void Visualizer::ChangeFontSize(int offset)
+	{
+		m_config.fontSize += offset;
+		m_config.fontSize = Max(m_config.fontSize, 10u);
+		UpdateDefaultFont();
+		Redraw(true);
+	}
+
+	void Visualizer::Redraw(bool now)
+	{
+		u32 flags = RDW_INVALIDATE;
+		if (now)
+			flags |= RDW_UPDATENOW;
+		RedrawWindow(m_hwnd, NULL, NULL, flags);
+
+		u32 activeProcessCount = u32(m_trace.m_activeProcesses.size());
+		for (u32 i=0; i!=sizeof_array(m_activeProcessCountHistory); ++i)
+			m_activeProcessCountHistory[i] = activeProcessCount;
 	}
 
 	void Visualizer::PaintClient(const Function<void(HDC hdc, HDC memDC, RECT& clientRect)>& paintFunc)
@@ -474,23 +846,19 @@ namespace uba
 		ReleaseDC(m_hwnd, hdc);
 	}
 
-	constexpr int ProgressRectLeft = 30;
 	constexpr int GraphHeight = 30;
-	constexpr int RawBoxHeight = 15;
-	constexpr int SessionStepY = RawBoxHeight + 2;
-	constexpr int FontHeight = 13;
 
 	struct SessionRec
 	{
 		TraceView::Session* session;
 		u32 index;
 	};
-	void Populate(SessionRec* recs, TraceView& traceView)
+	void Populate(SessionRec* recs, TraceView& traceView, bool sort)
 	{
 		u32 count = u32(traceView.sessions.size());
 		for (u32 i = 0, e = count; i != e; ++i)
 			recs[i] = { &traceView.sessions[i], i };
-		if (count <= 1)
+		if (count <= 1 || !sort)
 			return;
 		std::sort(recs + 1, recs + traceView.sessions.size(), [](SessionRec& a, SessionRec& b)
 			{
@@ -506,32 +874,28 @@ namespace uba
 
 	void Visualizer::PaintAll(HDC hdc, const RECT& clientRect)
 	{
-		u64 currentTime = m_paused ? m_pauseStart : GetTime();
-		u64 playTime = currentTime - m_traceView.startTime - m_pauseTime;
-		if (m_replay)
-			playTime *= m_replay;
+		u64 playTime = GetPlayTime();
 
 		int posY = int(m_scrollPosY);
-		float boxHeight = float(RawBoxHeight)*m_zoomValue;
-		int stepY = int(boxHeight) + 2;
 		float scaleX = 50.0f*m_zoomValue*m_horizontalScaleValue;
 
 		RECT progressRect = clientRect;
-		progressRect.left += ProgressRectLeft;
-		progressRect.bottom -= 30;
+		progressRect.left += m_progressRectLeft;
 
-		bool shouldDrawText = m_showText && m_zoomValue > 0.27f;
+		if (m_config.showTimeline)
+		{
+			progressRect.bottom -= m_defaultFont.height + 10;
+		}
 
 		SetBkMode(hdc, TRANSPARENT);
 		SetTextColor(hdc, m_textColor);
-		SelectObject(hdc, m_font);
 
 		HDC textDC = CreateCompatibleDC(hdc);
 		SetTextColor(textDC, m_textColor);
-		SelectObject(textDC, m_font);
+		SelectObject(textDC, m_processFont.handle);
 		SelectObject(textDC, GetStockObject(NULL_BRUSH));
 		SetBkMode(textDC, TRANSPARENT);
-		SetBkColor(hdc, m_useDarkMode ? RGB(70, 70, 70) : RGB(180, 180, 180));
+		SetBkColor(hdc, m_config.DarkMode ? RGB(70, 70, 70) : RGB(180, 180, 180));
 
 		//TEXTMETRIC metric;
 		//GetTextMetrics(textDC, &metric);
@@ -543,87 +907,220 @@ namespace uba
 
 		u64 lastStop = 0;
 
-		if (!m_traceView.statusMap.empty())
+		SetActiveFont(m_defaultFont);
+
+		auto drawStatusText = [&](const StringView& text, LogEntryType type, int posX, int endX, bool moveY, bool underlined = false)
+			{
+				RECT rect;
+				rect.left = posX;
+				rect.right = endX;
+				rect.top = posY + m_activeFont.offset;
+				rect.bottom = posY + m_activeFont.height + 2;
+				SetTextColor(hdc, type == LogEntryType_Info ? m_textColor : (type == LogEntryType_Error ? m_textErrorColor : m_textWarningColor));
+
+				if (underlined)
+					SelectObject(m_activeHdc, m_activeFont.handleUnderlined);
+				ExtTextOutW(hdc, rect.left, posY, ETO_CLIPPED, &rect, text.data, text.count, NULL);
+				if (underlined)
+					SelectObject(m_activeHdc, m_activeFont.handle);
+				if (moveY)
+					posY = rect.bottom;
+			};
+
+		auto drawIndentedText = [&](const StringView& text, LogEntryType type, int indent, bool moveY, bool underlined = false)
+			{
+				int posX = 5 + indent*m_defaultFont.height;
+				drawStatusText(text, type, posX, clientRect.right, moveY, underlined);
+			};
+
+		if (m_config.showProgress && m_traceView.progressProcessesTotal)
 		{
-			posY += 4;
+			drawIndentedText(ToView(L"Progress"), LogEntryType_Info, 1, false);
 
-			auto drawStatusText = [&](const TString& text, LogEntryType type, int left, bool moveY)
-				{
-					RECT rect;
-					rect.left = left;
-					rect.right = clientRect.right;
-					rect.top = posY;
-					rect.bottom = posY + FontHeight + 2;
-					SetTextColor(hdc, type == LogEntryType_Info ? m_textColor : (type == LogEntryType_Error ? m_textErrorColor : m_textWarningColor));
-					ExtTextOutW(hdc, left, posY, ETO_CLIPPED, &rect, text.c_str(), u32(text.size()), NULL);
-					if (moveY)
-						posY = rect.bottom;
-				};
+			float progress = float(m_traceView.progressProcessesDone) / m_traceView.progressProcessesTotal;
+			u32 width = m_activeFont.height * 18;
+			RECT rect;
+			rect.left = 3 + 6*m_activeFont.height;
+			rect.right = rect.left + width;
+			rect.top = posY;
+			rect.bottom = posY + m_activeFont.height;
+			FillRect(hdc, &rect, m_processBrushes[0].inProgress);
 
+			rect.right = rect.left + int(progress*width);//durationMs/100;
+			FillRect(hdc, &rect, m_traceView.progressErrorCount ? m_processBrushes[0].error : m_processBrushes[0].success);
+
+			const tchar* remoteDisabled = TC(""); // TODO: Only show this in "advanced mode" m_traceView.remoteExecutionDisabled ? TC("   (Remote spawn disabled)") : TC("");
+			StringBuffer<> str;
+			str.Appendf(L"%u%%    %u / %u %s", u32(progress*100.0f), m_traceView.progressProcessesDone, m_traceView.progressProcessesTotal, remoteDisabled);
+			drawIndentedText(str, LogEntryType_Info, 6, true);
+		}
+
+		if (m_config.showStatus && !m_traceView.statusMap.empty())
+		{
+			u32 lastRow = ~0u;
+			u32 row = ~0u;
 			for (auto& kv : m_traceView.statusMap)
 			{
 				auto& status = kv.second;
-				if (status.name.empty() && status.text.empty())
+				if (status.text.empty())
 					continue;
-				drawStatusText(status.name, status.type, 5 + status.nameIndent*15, false);
-				drawStatusText(status.text, status.type, 5 + status.textIndent*15, true);
+				row = u32(kv.first >> 32);
+				if (lastRow != ~0u && lastRow != row)
+					posY += m_activeFont.height + 2;
+				lastRow = row;
+				u32 column = u32(kv.first & ~0u);
+				drawIndentedText(status.text, status.type, column, false, !status.link.empty());
 			}
+			if (row != ~0u)
+				posY += m_activeFont.height + 2;
+
 			SetTextColor(hdc, m_textColor);
-			posY += 4;
+			posY += 3;
 		}
+		
+		if (m_config.showActiveProcesses && !m_trace.m_activeProcesses.empty())
+		{
+			auto drawBox = [&](u64 start, u64 stop, int height, bool selected, bool inProgress)
+				{
+					//int left = 3 + 6*m_activeFont.height;
+					//int right = rect.left + durationMs/100;
+					int posX = int(m_scrollPosX) + progressRect.left;
+					bool done = stop != ~u64(0);
+					if (!done)
+						stop = playTime;
+					int left = int(posX + TimeToS(start) * scaleX);
+					int right = int(posX + TimeToS(stop) * scaleX) - 1;
+
+					RECT rect;
+					rect.left = left;
+					rect.right = right;
+					rect.top = posY;
+					rect.bottom = posY + height;
+					FillRect(hdc, &rect, inProgress ? m_processBrushes[selected].inProgress : m_processBrushes[selected].success);
+					return rect;
+				};
+
+			m_activeProcessCountHistory[m_activeProcessCountHistoryIterator++ % sizeof_array(m_activeProcessCountHistory)] = u32(m_trace.m_activeProcesses.size());
+
+			PaintActiveProcesses(posY, clientRect, [&](TraceView::ProcessLocation& processLocation, u32 boxHeight, bool firstWithHeight)
+				{
+					auto& session = m_trace.GetSession(m_traceView, processLocation.sessionIndex);
+					TraceView::Process& process = session.processors[processLocation.processorIndex].processes[processLocation.processIndex];
+
+					bool selected = m_processSelected && m_processSelectedLocation == processLocation;
+
+					if (m_config.showFinishedProcesses)
+					{
+						u32 index = processLocation.processIndex;
+						while (index > 0)
+						{
+							--index;
+							TraceView::Process& process2 = session.processors[processLocation.processorIndex].processes[index];
+							drawBox(process2.start, process2.stop, boxHeight, false, false);
+						}
+					}
+
+					RECT boxRect = drawBox(process.start, process.stop, boxHeight, selected, true);
+
+					u32 v = boxHeight - 1;
+
+					if (v > 4)
+					{
+						u32 fontIndex = Min(v, u32(sizeof_array(m_activeProcessFont) - 1));
+						if (!m_activeProcessFont[fontIndex].handle)
+						{
+							UpdateFont(m_activeProcessFont[fontIndex], fontIndex - 1, false);
+							m_activeProcessFont[fontIndex].offset += 1;
+						}
+						if (firstWithHeight)
+							SetActiveFont(m_activeProcessFont[fontIndex]);
+
+						StringBuffer<> str;
+						auto firstPar = -1;//process.description.find_first_of('(');
+						if (firstPar != -1 && *process.description.rbegin() == ')')
+						{
+							str.Append(process.description.c_str() + firstPar + 1).Resize(str.count-1);
+							str.Append(L"  ").Append(process.description.c_str(), firstPar);
+						}
+						else
+							str.Append(process.description);
+
+						if (process.isRemote)
+							str.Append(L" [").Append(session.name).Append(']');
+						else if (process.cacheFetch)
+							str.Append(L" [cache]");
+						if (boxRect.left < 0)
+							str.Appendf(L"   %s", TimeToText(playTime - process.start, true).str);
+						//drawIndentedText(str, LogEntryType_Info, 1, true);
+						drawStatusText(str, LogEntryType_Info, Max(int(boxRect.left+1), 1), boxRect.right, false);
+					}
+				});
+		}
+
+		int boxHeight = m_boxHeight;
+		int stepY = int(boxHeight) + 2;
+		int processStepY = boxHeight + 1;
 
 		TraceView::WorkRecord selectedWork;
 
 		SessionRec sortedSessions[1024];
-		Populate(sortedSessions, m_traceView);
+		Populate(sortedSessions, m_traceView, m_config.SortActiveRemoteSessions);
 
 		TraceView::ProcessLocation processLocation { 0, 0, 0 };
 		for (u64 i = 0, e = m_traceView.sessions.size(); i != e; ++i)
 		{
+			bool isFirst = i == 0;
 			auto& session = *sortedSessions[i].session;
 			bool hasUpdates = !session.updates.empty();
-			if (!hasUpdates && session.processors.empty())
-				continue;
+			if (!isFirst)
+			{
+				if (!hasUpdates && session.processors.empty())
+					continue;
+
+				if (!m_config.showFinishedProcesses && session.disconnectTime != ~u64(0))
+					continue;
+			}
 
 			processLocation.sessionIndex = sortedSessions[i].index;
-			bool isFirst = i == 0;
 			if (!isFirst)
 				posY += 3;
 
-			if (posY + stepY >= progressRect.top && posY <= progressRect.bottom)
+			if (m_config.showTitleBars)
 			{
-				SelectObject(hdc, m_separatorPen);
-				MoveToEx(hdc, 0, posY, NULL);
-				LineTo(hdc, clientRect.right, posY);
-
-				StringBuffer<> text;
-				text.Append(session.name);
-
-				if (hasUpdates && session.disconnectTime == ~u64(0))
+				if (posY + stepY >= progressRect.top && posY <= progressRect.bottom)
 				{
-					u64 ping = session.updates.back().ping;
-					u64 memAvail = session.updates.back().memAvail;
-					float cpuLoad = session.updates.back().cpuLoad;
+					SelectObject(hdc, m_separatorPen);
+					MoveToEx(hdc, 0, posY, NULL);
+					LineTo(hdc, clientRect.right, posY);
 
-					text.Appendf(L" - Cpu: %.1f%%", cpuLoad * 100.0f);
-					if (memAvail)
-						text.Appendf(L" Mem: %ls/%ls", BytesToText(session.memTotal - memAvail).str, BytesToText(session.memTotal).str);
-					if (ping)
-						text.Appendf(L" Ping: %ls", TimeToText(ping, false, m_traceView.frequency).str);
-					if (!session.notification.empty())
-						text.Append(L" - ").Append(session.notification);
-				}
-				else
-				{
-					text.Append(L" - Disconnected");
-					if (!session.notification.empty())
-						text.Append(L" (").Append(session.notification).Append(')');
-				}
+					StringBuffer<> text;
+					text.Append(session.fullName);
 
-				bool selected = m_sessionSelectedIndex == processLocation.sessionIndex;
+					if (hasUpdates && session.disconnectTime == ~u64(0))
+					{
+						u64 ping = session.updates.back().ping;
+						u64 memAvail = session.updates.back().memAvail;
+						float cpuLoad = session.updates.back().cpuLoad;
 
-				int textBottom = Min(posY + SessionStepY, int(progressRect.bottom));
-				{
+						text.Appendf(L" - Cpu: %.1f%%", cpuLoad * 100.0f);
+						if (memAvail)
+							text.Appendf(L" Mem: %ls/%ls", BytesToText(session.memTotal - memAvail).str, BytesToText(session.memTotal).str);
+						if (ping)
+							text.Appendf(L" Ping: %ls", TimeToText(ping, false, m_traceView.frequency).str);
+						if (!session.notification.empty())
+							text.Append(L" - ").Append(session.notification);
+					}
+					else if (!isFirst)
+					{
+						text.Append(L" - Disconnected");
+						if (!session.notification.empty())
+							text.Append(L" (").Append(session.notification).Append(')');
+					}
+
+					bool selected = m_sessionSelectedIndex == processLocation.sessionIndex;
+
+					int textBottom = Min(posY + m_sessionStepY, int(progressRect.bottom));
+
 					RECT rect;
 					rect.left = 5;
 					rect.right = clientRect.right;
@@ -636,10 +1133,10 @@ namespace uba
 					if (selected)
 						SetBkMode(hdc, TRANSPARENT);
 				}
+				posY += m_sessionStepY;
 			}
-			posY += SessionStepY;
 
-			bool showGraph = m_visibleComponents[ComponentType_SendRecv] || m_visibleComponents[ComponentType_CpuMem];
+			bool showGraph = m_config.showNetworkStats || m_config.showCpuMemStats;
 			if (showGraph && hasUpdates)
 			{
 				if (posY + GraphHeight >= progressRect.top && posY + GraphHeight - 5 < progressRect.bottom)
@@ -689,7 +1186,7 @@ namespace uba
 
 						if (!isFirstUpdate && x > clientRect.left && prevX <= clientRect.right)
 						{
-							if (m_visibleComponents[ComponentType_SendRecv] && updateSend != 0 && updateRecv != 0)
+							if (m_config.showNetworkStats && updateSend != 0 && updateRecv != 0)
 							{
 								SelectObject(hdc, m_sendPen);
 								MoveToEx(hdc, prevX, prevSendY, NULL);
@@ -698,7 +1195,7 @@ namespace uba
 								MoveToEx(hdc, prevX, prevRecvY, NULL);
 								LineTo(hdc, x, recvY);
 							}
-							if (m_visibleComponents[ComponentType_CpuMem])
+							if (m_config.showCpuMemStats)
 							{
 								SelectObject(hdc, m_cpuPen);
 								MoveToEx(hdc, prevX, prevCpuY, NULL);
@@ -722,7 +1219,7 @@ namespace uba
 				posY += GraphHeight;
 			}
 
-			if (m_visibleComponents[ComponentType_DetailedData])
+			if (m_config.showDetailedData)
 			{
 				auto drawText = [&](const StringBufferBase& text, RECT& rect)
 					{
@@ -737,38 +1234,31 @@ namespace uba
 				PaintDetailedStats(posY, progressRect, session, isRemote, playTime, drawText);
 			}
 
-			if (m_visibleComponents[ComponentType_Bars])
+			SetActiveFont(m_processFont);
+
+			bool shouldDrawText = m_processFont.height > 4;
+
+			if (m_config.showProcessBars)
 			{
 				processLocation.processorIndex = 0;
 				for (auto& processor : session.processors)
 				{
-					if (posY + SessionStepY >= progressRect.top && posY < progressRect.bottom)
+					bool drawProcessorIndex = m_config.showFinishedProcesses;
+
+					if (posY + m_sessionStepY >= progressRect.top && posY < progressRect.bottom)
 					{
-						float barHeight = boxHeight;
+						int barHeight = boxHeight;
 						int textOffsetY = 0;
-						if (posY + int(boxHeight) > progressRect.bottom)
+						if (posY + boxHeight > progressRect.bottom)
 						{
-							float newBarHeight = Min(barHeight, float(progressRect.bottom - posY));
+							int newBarHeight = Min(barHeight, int(progressRect.bottom - posY));
 							textOffsetY = int(barHeight - newBarHeight);
 							barHeight = newBarHeight;
 						}
 
-						const int textHeight = int(barHeight);
+						const int textHeight = barHeight;
 						const int rectBottom = posY + textHeight;
-						const int offsetY = (textHeight - FontHeight + textOffsetY) / 2;
-
-						if (shouldDrawText)
-						{
-							RECT rect;
-							rect.left = 5;
-							rect.right = progressRect.left - 5;
-							rect.top = posY;
-							rect.bottom = rectBottom;
-
-							StringBuffer<> buf;
-							buf.AppendValue(u64(processLocation.processorIndex) + 1);
-							ExtTextOutW(hdc, 5, posY + offsetY, ETO_CLIPPED, &rect, buf.data, buf.count, NULL);
-						}
+						const int offsetY = (textHeight - m_processFont.height + textOffsetY) / 2;
 
 						processLocation.processIndex = 0;
 						int posX = int(m_scrollPosX) + progressRect.left;
@@ -776,28 +1266,28 @@ namespace uba
 						{
 							int left = int(posX + TimeToS(process.start) * scaleX);
 
+							auto pig = MakeGuard([&]() { ++processLocation.processIndex; });
+
 							if (left >= progressRect.right)
-							{
-								++processLocation.processIndex;
 								continue;
-							}
 
 							u64 stop = process.stop;
 							bool done = stop != ~u64(0);
 							if (!done)
 								stop = playTime;
+							else if (!m_config.showFinishedProcesses)
+								continue;
+
+							drawProcessorIndex = true;
 
 							RECT rect;
 							rect.left = left;
 							rect.right = int(posX + TimeToS(stop) * scaleX) - 1;
 							rect.top = posY;
-							rect.bottom = rectBottom;
+							rect.bottom = rectBottom - 1;
 
 							if (rect.right <= progressRect.left)
-							{
-								++processLocation.processIndex;
 								continue;
-							}
 
 							rect.right = Max(int(rect.right), left + 1);
 
@@ -810,7 +1300,7 @@ namespace uba
 							++rect.top;
 
 							int processWidth = rect.right - rect.left;
-							if (shouldDrawText && processWidth > 3)
+							if (shouldDrawText && m_config.ShowProcessText && processWidth > 3)
 							{
 								if (!process.bitmap || process.bitmapDirty)
 								{
@@ -826,7 +1316,7 @@ namespace uba
 										}
 										process.bitmap = m_lastBitmap;
 										process.bitmapOffset = m_lastBitmapOffset;
-										m_lastBitmapOffset += FontHeight;
+										m_lastBitmapOffset += m_processFont.height;
 									}
 									if (lastSelectedBitmap != process.bitmap)
 									{
@@ -834,8 +1324,8 @@ namespace uba
 										lastSelectedBitmap = process.bitmap;
 									}
 
-									RECT rect2{ 0, int(process.bitmapOffset), 256, int(process.bitmapOffset) + FontHeight };
-									RECT rect3{ 0, int(process.bitmapOffset), processWidth, int(process.bitmapOffset) + FontHeight };
+									RECT rect2{ 0, int(process.bitmapOffset), 256, int(process.bitmapOffset) + m_processFont.height };
+									RECT rect3{ 0, int(process.bitmapOffset), processWidth, int(process.bitmapOffset) + m_processFont.height };
 									if (!done)
 										rect3.right = 256;
 
@@ -843,18 +1333,20 @@ namespace uba
 
 									rect2.left += 3; // Move in text a bit
 									
-									bool dropShadow = m_useDarkMode;
+									int textY = rect2.top + m_processFont.offset;
+
+									bool dropShadow = m_config.DarkMode;
 									if (dropShadow)
 									{
 										SetTextColor(textDC, RGB(5, 60, 5));
 										++rect2.left;
-										++rect2.top;
-										ExtTextOutW(textDC, rect2.left, rect2.top, ETO_CLIPPED, &rect2, process.description.c_str(), int(process.description.size()), NULL);
+										++textY;
+										ExtTextOutW(textDC, rect2.left, textY, ETO_CLIPPED, &rect2, process.description.c_str(), int(process.description.size()), NULL);
 										--rect2.left;
-										--rect2.top;
+										--textY;
 									}
 									SetTextColor(textDC, m_textColor);
-									ExtTextOutW(textDC, rect2.left, rect2.top, ETO_CLIPPED, &rect2, process.description.c_str(), int(process.description.size()), NULL);
+									ExtTextOutW(textDC, rect2.left, textY, ETO_CLIPPED, &rect2, process.description.c_str(), int(process.description.size()), NULL);
 
 									if (!selected)
 										process.bitmapDirty = false;
@@ -874,7 +1366,7 @@ namespace uba
 									bitmapOffsetY -= bltOffsetY;
 									bltOffsetY = 0;
 								}
-								int height = Min(textHeight, FontHeight);
+								int height = Min(textHeight, m_processFont.height);
 								if (bltOffsetY + height > textHeight)
 									height = textHeight - bltOffsetY;
 
@@ -892,14 +1384,28 @@ namespace uba
 									BitBlt(hdc, rect.left, rect.top + bltOffsetY, width, height, textDC, bitmapOffsetX, bitmapOffsetY, SRCCOPY);
 								}
 							}
-							++processLocation.processIndex;
+						}
+
+						if (drawProcessorIndex)
+						{
+							RECT rect;
+							rect.left = 5;
+							rect.right = progressRect.left - 5;
+							rect.top = posY;
+							rect.bottom = rectBottom;
+
+							StringBuffer<> buf;
+							buf.AppendValue(u64(processLocation.processorIndex) + 1);
+							ExtTextOutW(hdc, 5, posY + offsetY, ETO_CLIPPED, &rect, buf.data, buf.count, NULL);
 						}
 					}
 
 					lastStop = Max(lastStop, processor.processes.rbegin()->stop);
 
 					++processLocation.processorIndex;
-					posY += stepY;
+
+					if (drawProcessorIndex)
+						posY += processStepY;
 				}
 			}
 			else
@@ -909,25 +1415,25 @@ namespace uba
 						lastStop = Max(lastStop, processor.processes.rbegin()->stop);
 			}
 
-			if (m_visibleComponents[ComponentType_Workers] && isFirst)
+			if (m_config.showWorkers && isFirst)
 			{
 				u32 trackIndex = 0;
 				for (auto& workTrack : m_traceView.workTracks)
 				{
-					if (posY + SessionStepY >= progressRect.top && posY <= progressRect.bottom)
+					if (posY + m_sessionStepY >= progressRect.top && posY <= progressRect.bottom)
 					{
 						int textOffsetY = 0;
-						float barHeight = boxHeight;
+						int barHeight = boxHeight;
 						if (posY + int(boxHeight) > progressRect.bottom)
 						{
-							float newBarHeight = Min(barHeight, float(progressRect.bottom - posY));
-							textOffsetY = int(barHeight - newBarHeight);
+							int newBarHeight = Min(barHeight, int(progressRect.bottom - posY));
+							textOffsetY = barHeight - newBarHeight;
 							barHeight = newBarHeight;
 						}
 
-						const int textHeight = int(barHeight);
+						const int textHeight = barHeight;
 						const int rectBottom = posY + textHeight;
-						const int offsetY = (textHeight - FontHeight + textOffsetY) / 2;
+						const int offsetY = (textHeight - m_processFont.height + textOffsetY) / 2;
 
 						if (shouldDrawText)
 						{
@@ -989,7 +1495,6 @@ namespace uba
 							rect.right = int(posX + stopTime * scaleX) - 1;
 							rect.top = posY;
 							rect.bottom = rectBottom;
-							//rect.bottom = posY + int(float(18) * m_zoomValue);
 
 							if (rect.right <= progressRect.left)
 							{
@@ -1018,7 +1523,7 @@ namespace uba
 							++rect.top;
 
 							int processWidth = rect.right - rect.left;
-							if (shouldDrawText && processWidth > 3)
+							if (shouldDrawText && m_config.ShowProcessText && processWidth > 3)
 							{
 								if (!work.bitmap)
 								{
@@ -1032,13 +1537,13 @@ namespace uba
 									}
 									SelectObject(textDC, m_lastBitmap);
 
-									RECT rect2{ 0,m_lastBitmapOffset,256, m_lastBitmapOffset + FontHeight };
+									RECT rect2{ 0,m_lastBitmapOffset,256, m_lastBitmapOffset + m_processFont.height };
 
 									FillRect(textDC, &rect2, m_workBrush);
 									ExtTextOutW(textDC, rect2.left, rect2.top, ETO_CLIPPED, &rect2, work.description, int(wcslen(work.description)), NULL);
 									work.bitmap = m_lastBitmap;
 									work.bitmapOffset = m_lastBitmapOffset;
-									m_lastBitmapOffset += FontHeight;
+									m_lastBitmapOffset += m_processFont.height;
 								}
 
 								if (lastSelectedBitmap != work.bitmap)
@@ -1055,7 +1560,7 @@ namespace uba
 									bitmapOffsetY -= bltOffsetY;
 									bltOffsetY = 0;
 								}
-								int height = Min(textHeight, FontHeight);
+								int height = Min(textHeight, m_processFont.height);
 								if (bltOffsetY + height > textHeight)
 									height = textHeight - bltOffsetY;
 
@@ -1080,349 +1585,48 @@ namespace uba
 					posY += stepY;
 				}
 			}
+
+			SetActiveFont(m_defaultFont);
 		}
 
 		SelectObject(textDC, oldBmp);
 		DeleteObject(nullBmp);
 		DeleteDC(textDC);
 
-		m_contentWidth = ProgressRectLeft + int(TimeToS(lastStop != ~u64(0) ? lastStop : playTime) * scaleX);
+		m_contentWidth = m_progressRectLeft + Max(0, int(TimeToS((lastStop != 0 && lastStop != ~u64(0)) ? lastStop : playTime) * scaleX));
+		
+
 		m_contentHeight = posY - int(m_scrollPosY) + stepY + 14;
 
-		if (m_visibleComponents[ComponentType_Timeline])
+		float timelineSelected = m_timelineSelected;
+
+		if (m_config.showTimeline && !m_traceView.sessions.empty())
 			PaintTimeline(hdc, clientRect);
 
+		if (m_config.showCursorLine && m_mouseOverWindow)
 		{
-			int top = 5;
-			int bottom = SessionStepY - 3;
-			int left = progressRect.right - 16;
-			int right = progressRect.right - 7;
-			for (int i = sizeof_array(m_visibleComponents) - 1; i >= 0; --i)
-			{
-				SelectObject(hdc, m_buttonSelected == u32(i) ? m_textPen : m_checkboxPen);
-				SelectObject(hdc, GetStockObject(NULL_BRUSH));
-				Rectangle(hdc, left, top, right, bottom);
-
-				if (m_visibleComponents[i])
-				{
-					MoveToEx(hdc, left + 2, top + 2, NULL);
-					LineTo(hdc, right - 2, bottom - 2);
-					MoveToEx(hdc, right - 3, top + 2, NULL);
-					LineTo(hdc, left + 1, bottom - 2);
-				}
-
-				left -= 14;
-				right -= 14;
-			}
-
-			top -= 2;
-			left -= 20;
-			if (m_visibleComponents[ComponentType_CpuMem])
-			{
-				SetTextColor(hdc, m_cpuColor);
-				ExtTextOutW(hdc, left, top, 0, NULL, L"CPU", 3, NULL);
-				left -= 25;
-
-				SetTextColor(hdc, m_memColor);
-				ExtTextOutW(hdc, left, top, 0, NULL, L"MEM", 3, NULL);
-				left -= 25;
-			}
-			if (m_visibleComponents[ComponentType_SendRecv])
-			{
-				SetTextColor(hdc, m_sendColor);
-				ExtTextOutW(hdc, left, top, 0, NULL, L"SND", 3, NULL);
-				left -= 25;
-
-				SetTextColor(hdc, m_recvColor);
-				ExtTextOutW(hdc, left, top, 0, NULL, L"RCV", 3, NULL);
-			}
-			SetTextColor(hdc, m_textColor);
+			float timeScale = (m_horizontalScaleValue * m_zoomValue)*50.0f;
+			float startOffset = -(m_scrollPosX / timeScale);
+			POINT pos;
+			GetCursorPos(&pos);
+			ScreenToClient(m_hwnd, &pos);
+			timelineSelected = startOffset + (pos.x - m_progressRectLeft) / timeScale;
 		}
 
-		auto GetClientCursorPos = [this](POINT& p)
-			{
-				GetCursorPos(&p);
-				ScreenToClient(m_hwnd, &p);
-				p.x += 3;
-				p.y += 3;
-			};
-
-		if (m_processSelected)
-		{
-			TraceView::Process& process = *m_traceView.GetProcess(m_processSelectedLocation);
-			bool hasStorageStats = false;
-			u32 lineCount = 4;
-			u64 duration = 0;
-			
-			int width = 290;
-			Vector<TString> logLines;
-			u32 maxCharCount = 50u;
-
-			bool hasExited = process.stop != ~u64(0);
-			if (hasExited)
-			{
-				LineCountLogger counter;
-				process.processStats.Print(counter, m_traceView.frequency);
-				u32 prevLineCount = counter.lineCount;
-				process.sessionStats.Print(counter, m_traceView.frequency);
-				process.storageStats.Print(counter, m_traceView.frequency);
-				process.systemStats.Print(counter, false, m_traceView.frequency);
-				hasStorageStats = prevLineCount != counter.lineCount;
-				lineCount = 6 + counter.lineCount;
-				if (hasStorageStats)
-					lineCount += 6;
-				duration = process.stop - process.start;
-				if (process.exitCode != 0)
-					++lineCount;
-
-				if (!process.logLines.empty())
-				{
-					u32 lineMaxCount = 0;
-					for (auto& line : process.logLines)
-					{
-						u32 offset = 0;
-						u32 left = u32(line.text.size());
-						while (left)
-						{
-							u32 toCopy = Min(left, maxCharCount);
-							lineMaxCount = Max(lineMaxCount, toCopy);
-							logLines.push_back(line.text.substr(offset, toCopy));
-							offset += toCopy;
-							left -= toCopy;
-						}
-					}
-
-					width = Max(width, int(lineMaxCount) * 7 + 2*14);
-
-					lineCount += u32(logLines.size()) + 1;
-				}
-			}
-			else
-			{
-				duration = playTime - process.start;
-			}
-
-			int height = lineCount*m_popupFontHeight;
-
-			POINT p;
-			GetClientCursorPos(p);
-			RECT r;
-			r.left = p.x;
-			r.top = p.y;
-			r.right = r.left + width;
-			r.bottom = r.top + height;
-
-			if (r.right > clientRect.right)
-				OffsetRect(&r, -width, 0);
-			if (r.bottom > clientRect.bottom)
-			{
-				OffsetRect(&r, 0, clientRect.bottom - r.bottom);
-				if (r.top < 0)
-					OffsetRect(&r, 0, -r.top);
-			}
-
-			FillRect(hdc, &r, m_tooltipBackgroundBrush);
-
-			r.top += 5;
-			SelectObject(hdc, m_popupFont);
-			DrawTextLogger logger(hdc, r, m_popupFontHeight);
-
-			logger.Info(L"  %ls", process.description.c_str());
-			logger.Info(L"  Start:     %ls", TimeToText(process.start, true).str);
-			logger.Info(L"  Duration:  %ls", TimeToText(duration, true).str);
-			if (hasExited && process.exitCode != 0)
-				logger.Info(L"  ExitCode:  %u", process.exitCode);
-			logger.Info(L"");
-
-			if (process.stop != ~u64(0))
-			{
-				logger.Info(L"  ----------- Process stats -----------");
-				process.processStats.Print(logger, m_traceView.frequency);
-				if (hasStorageStats)
-				{
-					logger.Info(L"");
-					logger.Info(L"  ----------- Session stats -----------");
-					process.sessionStats.Print(logger, m_traceView.frequency);
-					logger.Info(L"");
-					logger.Info(L"  ----------- Storage stats -----------");
-					process.storageStats.Print(logger, m_traceView.frequency);
-					logger.Info(L"");
-					logger.Info(L"  ----------- System stats ------------");
-					process.systemStats.Print(logger, false, m_traceView.frequency);
-				}
-
-				if (!logLines.empty())
-				{
-					logger.Info(L"  ---------------- Log ----------------");
-					logger.rect.left += 14;
-					for (auto& line : logLines)
-						logger.Log(LogEntryType_Info, line.c_str(), u32(line.size()));
-				}
-			}
-		}
-		else if (m_workSelected && selectedWork.description)
-		{
-			int width = 290;
-			int height = 3*m_popupFontHeight;
-			POINT p;
-			GetClientCursorPos(p);
-			RECT r;
-			r.left = p.x;
-			r.top = p.y;
-			r.right = r.left + width;
-			r.bottom = r.top + height;
-
-			u64 duration;
-			if (selectedWork.stop != ~u64(0))
-				duration = selectedWork.stop - selectedWork.start;
-			else
-				duration = playTime - selectedWork.start;
-
-			r.bottom += 10;
-			FillRect(hdc, &r, m_tooltipBackgroundBrush);
-
-			r.top += 5;
-			SelectObject(hdc, m_popupFont);
-			DrawTextLogger logger(hdc, r, m_popupFontHeight);
-			logger.Info(L"  %ls", selectedWork.description);
-			logger.Info(L"  Start:     %ls", TimeToText(selectedWork.start, true).str);
-			logger.Info(L"  Duration:  %ls", TimeToText(duration, true).str);
-		}
-		else if (m_sessionSelectedIndex != ~0u)
-		{
-			int width = 290;
-
-			Vector<TString> summary = m_traceView.sessions[m_sessionSelectedIndex].summary;
-			if (summary.empty())
-			{
-				if (m_traceView.finished)
-					summary.push_back(L" Session summary not available on this trace version");
-				else
-					summary.push_back(L" Session summary not available until session is done");
-				summary.push_back(L"");
-				width = 380;
-			}
-
-			int height = int(summary.size())*m_popupFontHeight;
-
-			POINT p;
-			GetCursorPos(&p);
-			ScreenToClient(m_hwnd, &p);
-			RECT r;
-			r.left = p.x;
-			r.top = p.y;
-			r.right = r.left + width;
-			r.bottom = r.top + height;
-
-			if (r.right > clientRect.right)
-				OffsetRect(&r, -width, 0);
-			if (r.bottom > clientRect.bottom)
-			{
-				OffsetRect(&r, 0, -height);
-				if (r.top < 0)
-					OffsetRect(&r, 0, -r.top);
-			}
-			FillRect(hdc, &r, m_tooltipBackgroundBrush);
-
-			r.top += 5;
-			SelectObject(hdc, m_popupFont);
-
-			for (auto& line : summary)
-			{
-				DrawTextW(hdc, line.c_str(), int(line.size()), &r, DT_SINGLELINE);
-				r.top += m_popupFontHeight;
-			}
-		}
-		else if (m_statsSelected)
-		{
-			int width = 160;
-			int lineCount = m_stats.ping ? 5 : 4;
-			int height = lineCount * m_popupFontHeight + 6;
-
-			POINT p;
-			GetCursorPos(&p);
-			ScreenToClient(m_hwnd, &p);
-			RECT r;
-			r.left = p.x;
-			r.top = p.y;
-			r.right = r.left + width;
-			r.bottom = r.top + height;
-
-			if (r.right > clientRect.right)
-				OffsetRect(&r, -width, 0);
-			if (r.bottom > clientRect.bottom)
-			{
-				OffsetRect(&r, 0, -height);
-				if (r.top < 0)
-					OffsetRect(&r, 0, -r.top);
-			}
-			FillRect(hdc, &r, m_tooltipBackgroundBrush);
-
-			r.top += 3;
-
-			SelectObject(hdc, m_popupFont);
-			DrawTextLogger logger(hdc, r, m_popupFontHeight);
-			logger.SetColor(m_cpuColor).Info(L"  Cpu: %.1f%%", m_stats.cpuLoad * 100.0f);
-			logger.SetColor(m_memColor).Info(L"  Mem: %ls/%ls", BytesToText(m_stats.memTotal - m_stats.memAvail).str, BytesToText(m_stats.memTotal).str);
-			logger.SetColor(m_recvColor).Info(L"  Recv: %ls/s", BytesToText(m_stats.recvBytesPerSecond).str);
-			logger.SetColor(m_sendColor).Info(L"  Send: %ls/s", BytesToText(m_stats.sendBytesPerSecond).str);
-			if (m_stats.ping)
-				logger.Info(L"  Ping: %ls", TimeToText(m_stats.ping, false, m_traceView.frequency).str);
-		}
-		else if (m_buttonSelected != ~0u)
-		{
-			const wchar_t* tooltip[] =
-			{
-				L"network stats",
-				L"cpu/mem stats",
-				L"process bars",
-				L"timeline",
-				L"detailed data (use -BoxDetailedTrace for even more)",
-				L"workers (threads on host taking care of requests from helpers)",
-			};
-
-			int width = int(wcslen(tooltip[m_buttonSelected])+5) * 7 + 5;
-			int lineCount = 1;
-			int height = lineCount * m_popupFontHeight;
-
-			POINT p;
-			GetCursorPos(&p);
-			ScreenToClient(m_hwnd, &p);
-			RECT r;
-			r.left = p.x;
-			r.top = p.y;
-			r.right = r.left + width;
-			r.bottom = r.top + height;
-
-			if (r.right > clientRect.right)
-				OffsetRect(&r, -width, 0);
-			if (r.bottom > clientRect.bottom)
-			{
-				OffsetRect(&r, 0, -height);
-				if (r.top < 0)
-					OffsetRect(&r, 0, -r.top);
-			}
-			FillRect(hdc, &r, m_tooltipBackgroundBrush);
-
-			bool vis = m_visibleComponents[m_buttonSelected];
-			SelectObject(hdc, m_popupFont);
-			DrawTextLogger logger(hdc, r, m_popupFontHeight);
-			logger.Info(L"%ls %ls", vis ? L"Hide" : L"Show", tooltip[m_buttonSelected]);
-		}
-		else if (m_timelineSelected)
+		if (timelineSelected)
 		{
 			int posX = int(m_scrollPosX) + progressRect.left;
-			int left = int(posX + m_timelineSelected * scaleX);
-			int timelineTop = Min(posY, int(progressRect.bottom)) + 2;
+			int left = int(posX + timelineSelected * scaleX);
+			int timelineTop = GetTimelineTop(clientRect);
 
 			// TODO: Draw line up
 			MoveToEx(hdc, left, 2, NULL);
 			LineTo(hdc, left, timelineTop);
 
-			if (m_timelineSelected >= 0)
+			if (timelineSelected >= 0)
 			{
 				StringBuffer<> b;
-				u32 milliseconds = u32(m_timelineSelected * 1000.0f);
+				u32 milliseconds = u32(timelineSelected * 1000.0f);
 				u32 seconds = milliseconds / 1000;
 				milliseconds -= seconds * 1000;
 				u32 minutes = seconds / 60;
@@ -1448,18 +1652,336 @@ namespace uba
 					b.Append('0');
 				b.AppendValue(milliseconds);
 
-				RECT r;
-				r.left = left + 4;
-				r.top = timelineTop - 20;
-				r.right = left + b.count*8;
-				r.bottom = r.top + 15;
-
-				FillRect(hdc, &r, m_tooltipBackgroundBrush);
-				SelectObject(hdc, m_popupFont);
-				DrawTextLogger logger(hdc, r, m_popupFontHeight);
+				SetActiveFont(m_popupFont);
+				DrawTextLogger logger(m_hwnd, hdc, m_popupFont.height, m_tooltipBackgroundBrush);
 
 				logger.Info(L"%s", b.data);
+				logger.DrawAtPos(left + 4, timelineTop - 20);
 			}
+		}
+
+		{
+			int boxSide = 8;
+			int boxStride = boxSide + 2;
+			int top = 5;
+			int bottom = top + boxSide;
+			int left = progressRect.right - 7 - boxSide;
+			int right = progressRect.right - 7;
+			bool* values = &m_config.showProgress;
+			for (int i = VisualizerFlag_Count - 1; i >= 0; --i)
+			{
+				SelectObject(hdc, m_buttonSelected == u32(i) ? m_textPen : m_checkboxPen);
+				SelectObject(hdc, GetStockObject(NULL_BRUSH));
+				Rectangle(hdc, left, top, right, bottom);
+
+				if (values[i])
+				{
+					MoveToEx(hdc, left + 2, top + 2, NULL);
+					LineTo(hdc, right - 2, bottom - 2);
+					MoveToEx(hdc, right - 3, top + 2, NULL);
+					LineTo(hdc, left + 1, bottom - 2);
+				}
+
+				left -= boxStride;
+				right -= boxStride;
+			}
+
+			top -= 2;
+
+			auto drawText = [&](const tchar* text, COLORREF color)
+				{
+					SetTextColor(hdc, color);
+					RECT r{left, top, left+200, top+200};
+					auto strLen = TStrlen(text);
+					DrawTextW(hdc, text, strLen, &r, DT_SINGLELINE|DT_NOCLIP|DT_CALCRECT);
+					left -= (r.right - r.left) + 5;
+					r.left = left;
+					DrawTextW(hdc, text, strLen, &r, DT_SINGLELINE|DT_NOCLIP);
+				};
+
+			if (m_config.showCpuMemStats)
+			{
+				SetActiveFont(m_defaultFont);
+				drawText(L"CPU", m_cpuColor);
+				drawText(L"MEM", m_memColor);
+			}
+			if (m_config.showNetworkStats)
+			{
+				SetActiveFont(m_defaultFont);
+				drawText(L"SND", m_sendColor);
+				drawText(L"RCV", m_recvColor);
+			}
+			SetTextColor(hdc, m_textColor);
+		}
+
+		if (m_processSelected)
+		{
+			const TraceView::Process& process = m_traceView.GetProcess(m_processSelectedLocation);
+			u64 duration = 0;
+			
+			Vector<TString> logLines;
+			u32 maxCharCount = 50u;
+
+			bool hasExited = process.stop != ~u64(0);
+			if (hasExited)
+			{
+				duration = process.stop - process.start;
+
+				if (!process.logLines.empty())
+				{
+					u32 lineMaxCount = 0;
+					for (auto& line : process.logLines)
+					{
+						u32 offset = 0;
+						u32 left = u32(line.text.size());
+						while (left)
+						{
+							u32 toCopy = Min(left, maxCharCount);
+							lineMaxCount = Max(lineMaxCount, toCopy);
+							logLines.push_back(line.text.substr(offset, toCopy));
+							offset += toCopy;
+							left -= toCopy;
+						}
+					}
+				}
+			}
+			else
+			{
+				duration = playTime - process.start;
+			}
+
+			SetActiveFont(m_popupFont);
+			DrawTextLogger logger(m_hwnd, hdc, m_popupFont.height, m_tooltipBackgroundBrush);
+
+			logger.AddTextOffset(-10); // Remove spaces in the front
+			logger.AddWidth(3);
+
+			logger.AddSpace(2);
+			logger.Info(L"  %ls", process.description.c_str());
+			logger.Info(L"  Host:        %ls", m_processSelectedLocation.sessionIndex == 0 ? TC("local") : m_traceView.GetSession(m_processSelectedLocation).name.c_str());
+			logger.Info(L"  ProcessId:  %6u", process.id);
+			logger.Info(L"  Start:     %7ls", TimeToText(process.start, true).str);
+			logger.Info(L"  Duration:  %7ls", TimeToText(duration, true).str);
+			if (!process.returnedReason.empty())
+				logger.Info(L"  Returned: %7s", process.returnedReason.data());
+			if (hasExited && process.exitCode != 0)
+				logger.Info(L"  ExitCode: %7u", process.exitCode);
+
+			const auto& breadcrumbs = process.breadcrumbs;
+			if (!breadcrumbs.empty())
+			{
+				constexpr TString::size_type maxLineLen = 37;
+				logger.Info(L"");
+				logger.Info(L"  ------------ Breadcrumbs ------------");
+				for (TString::size_type lineStart = 0, lineEnd = 0; lineEnd < breadcrumbs.size(); lineStart = lineEnd + 1)
+				{
+					// Log each individual line
+					lineEnd = breadcrumbs.find(L'\n', lineStart);
+					TString line = (lineEnd == TString::npos ? breadcrumbs.substr(lineStart) : breadcrumbs.substr(lineStart, lineEnd - lineStart));
+
+					// Break each line down into smaller section if they are longer than the maximum allowed length
+					if (line.size() > maxLineLen)
+					{
+						for (TString::size_type sectionStart = 0, sectionEnd = 0; sectionStart < line.size(); sectionStart = sectionEnd)
+						{
+							const TString::size_type maxSectionLen = sectionStart == 0 ? maxLineLen : maxLineLen - 2;
+							sectionEnd = std::min<TString::size_type>(sectionEnd + maxSectionLen, line.size());
+							TString section = (sectionStart == 0 ? L"  " : L"    ") + line.substr(sectionStart, sectionEnd - sectionStart);
+							logger.Info(section.c_str());
+						}
+					}
+					else
+					{
+						line = L"  " + line;
+						logger.Info(line.c_str());
+					}
+				}
+			}
+
+			if (process.stop != ~u64(0) && !process.stats.empty())
+			{
+				BinaryReader reader(process.stats.data(), 0, process.stats.size());
+				ProcessStats processStats;
+				SessionStats sessionStats;
+				StorageStats storageStats;
+				KernelStats kernelStats;
+				CacheStats cacheStats;
+
+				if (process.cacheFetch)
+				{
+					if (!process.returnedReason.empty())
+						logger.Info(L"  Cache:       Miss");
+					else
+						logger.Info(L"  Cache:        Hit");
+					cacheStats.Read(reader, m_traceView.version);
+					if (reader.GetLeft())
+					{
+						storageStats.Read(reader, m_traceView.version);
+						kernelStats.Read(reader, m_traceView.version);
+					}
+				}
+				else
+				{
+					processStats.Read(reader, m_traceView.version);
+
+					if (reader.GetLeft())
+					{
+						if (process.isRemote)
+							sessionStats.Read(reader, m_traceView.version);
+						storageStats.Read(reader, m_traceView.version);
+						kernelStats.Read(reader, m_traceView.version);
+					}
+				}
+
+				if (processStats.hostTotalTime)
+				{
+					logger.Info(L"");
+					logger.Info(L"  ----------- Detours stats -----------");
+					processStats.Print(logger, m_traceView.frequency);
+				}
+
+				if (!sessionStats.IsEmpty())
+				{
+					logger.Info(L"");
+					logger.Info(L"  ----------- Session stats -----------");
+					sessionStats.Print(logger, m_traceView.frequency);
+				}
+
+				if (!cacheStats.IsEmpty())
+				{
+					logger.Info(L"");
+					logger.Info(L"  ------------ Cache stats ------------");
+					cacheStats.Print(logger, m_traceView.frequency);
+				}
+
+				if (!storageStats.IsEmpty())
+				{
+					logger.Info(L"");
+					logger.Info(L"  ----------- Storage stats -----------");
+					storageStats.Print(logger, m_traceView.frequency);
+				}
+
+				if (!kernelStats.IsEmpty())
+				{
+					logger.Info(L"");
+					logger.Info(L"  ----------- Kernel stats ------------");
+					kernelStats.Print(logger, false, m_traceView.frequency);
+				}
+
+				auto findIt = m_traceView.cacheWrites.find(process.id);
+				if (findIt != m_traceView.cacheWrites.end())
+				{
+					TraceView::CacheWrite& write = findIt->second;
+					logger.Info(L"");
+					logger.Info(L"  -------- Cache write stats ----------");
+					logger.Info(L"  Duration                    %9s", TimeToText(write.end - write.start).str);
+					logger.Info(L"  Success                     %9s", write.success ? L"true" : L"false");
+					logger.Info(L"  Bytes sent                  %9s", BytesToText(write.bytesSent).str);
+
+				}
+
+				if (!logLines.empty())
+				{
+					logger.Info(L"");
+					logger.Info(L"  ---------------- Log ----------------");
+					logger.AddTextOffset(14);
+					for (auto& line : logLines)
+						logger.Log(LogEntryType_Info, line.c_str(), u32(line.size()));
+				}
+			}
+			logger.AddSpace(3);
+			logger.DrawAtCursor();
+		}
+		else if (m_workSelected && selectedWork.description)
+		{
+			u64 duration;
+			if (selectedWork.stop != ~u64(0))
+				duration = selectedWork.stop - selectedWork.start;
+			else
+				duration = playTime - selectedWork.start;
+
+			SetActiveFont(m_popupFont);
+			DrawTextLogger logger(m_hwnd, hdc, m_popupFont.height, m_tooltipBackgroundBrush);
+
+			logger.AddSpace();
+			logger.Info(L"  %ls", selectedWork.description);
+			logger.Info(L"  Start:     %ls", TimeToText(selectedWork.start, true).str);
+			logger.Info(L"  Duration:  %ls", TimeToText(duration, true).str);
+			logger.AddSpace();
+			logger.DrawAtCursor();
+		}
+		else if (m_sessionSelectedIndex != ~0u)
+		{
+			int width = 290;
+
+			Vector<TString> summary = m_traceView.sessions[m_sessionSelectedIndex].summary;
+			if (summary.empty())
+			{
+				if (m_traceView.finished)
+					summary.push_back(L" Session summary not available on this trace version");
+				else
+					summary.push_back(L" Session summary not available until session is done");
+				summary.push_back(L"");
+				width = 380;
+			}
+
+			int height = int(summary.size())*m_popupFont.height;
+
+			POINT p;
+			GetCursorPos(&p);
+			ScreenToClient(m_hwnd, &p);
+			RECT r;
+			r.left = p.x;
+			r.top = p.y;
+			r.right = r.left + width;
+			r.bottom = r.top + height;
+
+			if (r.right > clientRect.right)
+				OffsetRect(&r, -width, 0);
+			if (r.bottom > clientRect.bottom)
+			{
+				OffsetRect(&r, 0, -height);
+				if (r.top < 0)
+					OffsetRect(&r, 0, -r.top);
+			}
+			FillRect(hdc, &r, m_tooltipBackgroundBrush);
+
+			r.top += 5;
+			SetActiveFont(m_popupFont);
+
+			for (auto& line : summary)
+			{
+				DrawTextW(hdc, line.c_str(), int(line.size()), &r, DT_SINGLELINE);
+				r.top += m_popupFont.height;
+			}
+		}
+		else if (m_statsSelected)
+		{
+			SetActiveFont(m_popupFont);
+			DrawTextLogger logger(m_hwnd, hdc, m_popupFont.height, m_tooltipBackgroundBrush);
+			logger.AddSpace(3);
+			logger.SetColor(m_cpuColor).Info(L"  Cpu: %.1f%%", m_stats.cpuLoad * 100.0f);
+			logger.SetColor(m_memColor).Info(L"  Mem: %ls/%ls", BytesToText(m_stats.memTotal - m_stats.memAvail).str, BytesToText(m_stats.memTotal).str);
+			logger.SetColor(m_recvColor).Info(L"  Recv: %lsps", BytesToText(m_stats.recvBytesPerSecond*8).str);
+			logger.SetColor(m_sendColor).Info(L"  Send: %lsps", BytesToText(m_stats.sendBytesPerSecond*8).str);
+			if (m_stats.ping)
+				logger.Info(L"  Ping: %ls", TimeToText(m_stats.ping, false, m_traceView.frequency).str);
+			logger.AddSpace(3);
+			logger.DrawAtCursor();
+		}
+		else if (m_buttonSelected != ~0u)
+		{
+			const wchar_t* tooltip[] =
+			{
+				#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) desc,
+				UBA_VISUALIZER_FLAGS1
+				#undef UBA_VISUALIZER_FLAG
+			};
+
+			SetActiveFont(m_popupFont);
+			DrawTextLogger logger(m_hwnd, hdc, m_popupFont.height, m_tooltipBackgroundBrush);
+			logger.Info(L"%ls %ls", L"Show", tooltip[m_buttonSelected]);
+			logger.DrawAtCursor();
 		}
 		else if (m_fetchedFilesSelected != ~0u)
 		{
@@ -1467,37 +1989,18 @@ namespace uba
 			auto& fetchedFiles = session.fetchedFiles;
 			if (!fetchedFiles.empty() && !fetchedFiles[0].hint.empty())
 			{
+				/*
 				int colWidth = 500;
 				int width = colWidth * 2;
-				int height = Min(int(clientRect.bottom), int(fetchedFiles.size() * m_popupFontHeight));
+				int height = Min(int(clientRect.bottom), int(fetchedFiles.size() * m_popupFont.height));
 
-
-				POINT p;
-				GetCursorPos(&p);
-				ScreenToClient(m_hwnd, &p);
-				RECT r;
-				r.left = p.x;
-				r.top = p.y;
-				r.right = r.left + width;
-				r.bottom = r.top + height;
-
-				if (r.right > clientRect.right)
-					OffsetRect(&r, -width, 0);
-				if (r.bottom > clientRect.bottom)
-				{
-					OffsetRect(&r, 0, -height);
-					if (r.top < 0)
-						OffsetRect(&r, 0, -r.top);
-				}
-				FillRect(hdc, &r, m_tooltipBackgroundBrush);
-
-				SelectObject(hdc, m_font);
-				DrawTextLogger logger(hdc, r, FontHeight);
+				SetActiveFont(m_defaultFont);
+				DrawTextLogger logger(m_hwnd, hdc, r, m_font.height, m_tooltipBackgroundBrush);
 				for (auto& f : fetchedFiles)
 				{
 					if (f.hint == TC("KnownInput"))
 						continue;
-					if (logger.rect.top >= r.bottom - FontHeight)
+					if (logger.rect.top >= r.bottom - m_font.height)
 					{
 						if (logger.rect.left + colWidth >= r.right)
 						{
@@ -1509,11 +2012,113 @@ namespace uba
 					}
 					logger.Info(L"%s", f.hint.c_str());
 				}
+				logger.DrawAtCursor();
+				*/
 			}
 		}
 	}
 
 	u64 ConvertTime(const TraceView& view, u64 time);
+
+	void Visualizer::PaintActiveProcesses(int& posY, const RECT& clientRect, const Function<void(TraceView::ProcessLocation&, u32, bool)>& drawProcess)
+	{
+		SetActiveFont(m_processFont);
+		int startPosY = posY;
+
+		Map<u64, TraceView::ProcessLocation*> activeProcesses;
+		u32 remoteCount = 0;
+		for (auto& kv : m_trace.m_activeProcesses)
+		{
+			auto& active = kv.second;
+			TraceView::Process& process = m_trace.GetSession(m_traceView, active.sessionIndex).processors[active.processorIndex].processes[active.processIndex];
+			u64 start = process.start; //~0llu - process.start;
+			activeProcesses.try_emplace(start, &active);
+			if (process.isRemote)
+				++remoteCount;
+		}
+
+		u32 maxHeight = clientRect.bottom;
+
+		bool fillHeight = !m_config.showDetailedData && !m_config.showTitleBars && !m_config.showCpuMemStats && !m_config.showNetworkStats && !m_config.showProcessBars;
+		if (fillHeight)
+		{
+			maxHeight = clientRect.bottom - posY;
+			if (m_config.showTimeline)
+				maxHeight -= GetTimelineHeight();
+		}
+		else
+		{
+			u32 maxHeight2 = m_config.maxActiveVisible * (m_activeFont.height + 2);
+			maxHeight = Min(maxHeight, maxHeight2);
+		}
+
+		u32 maxSize = Min(m_config.maxActiveProcessHeight, 32u);
+		u32 maxSizeMinusOne = maxSize - 1;
+
+		u32 counts[128] = { 0 };
+
+		u32 highestHistoryCount = 0;
+		for (u32 i=0; i!= sizeof_array(m_activeProcessCountHistory) - 1; ++i)
+			highestHistoryCount = Max(highestHistoryCount, m_activeProcessCountHistory[i]);
+
+		u32 activeProcessCount = highestHistoryCount;
+		counts[0] = activeProcessCount;
+		u32 totalHeight = counts[0]*2;
+		while (totalHeight < maxHeight && counts[maxSizeMinusOne] != activeProcessCount)
+		{
+			bool changed = false;
+			for (u32 i=0; i!=maxSizeMinusOne; ++i)
+			{
+				if (counts[i] && counts[i] > counts[i+1]*2 + 1)
+				{
+					--counts[i];
+					++counts[i+1];
+					++totalHeight;
+					changed = true;
+				}
+			}
+			if (!changed)
+			{
+				for (u32 j=0; j!=maxSizeMinusOne; ++j)
+				{
+					if (!counts[j])
+						continue;
+					++counts[j + 1];
+					--counts[j];
+					++totalHeight;
+					break;
+				}
+			}
+		}
+
+		auto it = activeProcesses.begin();
+		auto itEnd = activeProcesses.end();
+		int endY = int(startPosY + maxHeight);
+		for (u32 i=0;i!=maxSize;++i)
+		{
+			u32 v = maxSizeMinusOne - i;
+			u32 boxHeight = v + 1;
+
+			for (u32 j=0;j!=counts[v];++j)
+			{
+				if (it == itEnd || posY >= endY)
+					break;
+				auto& active = *it->second;
+				++it;
+				drawProcess(active, boxHeight, j == 0);
+				posY += boxHeight + 1;
+			}
+		}
+
+		//if (fillHeight)
+		//	posY = clientRect.bottom-1;//startPosY; // To prevent vertical scrollbar
+		if (fillHeight || counts[maxSizeMinusOne] != activeProcessCount)
+			posY = startPosY + maxHeight;
+		else
+			posY += 3;
+
+		SetActiveFont(m_defaultFont);
+	}
 
 	void Visualizer::PaintProcessRect(TraceView::Process& process, HDC hdc, RECT rect, const RECT& progressRect, bool selected, bool writingBitmap)
 	{
@@ -1521,16 +2126,18 @@ namespace uba
 		bool done = process.stop != ~u64(0);
 
 		HBRUSH brush = m_processBrushes[selected].success;
-		if (process.returned)
+		if (!process.returnedReason.empty())
 			brush = m_processBrushes[selected].returned;
 		else if (!done)
 			brush = m_processBrushes[selected].inProgress;
+		else if (process.cacheFetch)
+			brush = m_processBrushes[selected].cacheFetch;
 		else if (process.exitCode != 0)
 			brush = m_processBrushes[selected].error;
 
-		u64 writeFilesTime = Max(process.processStats.writeFiles.time, process.processStats.sendFiles.time);
+		u64 writeFilesTime = process.writeFilesTime;
 
-		if (!done || process.exitCode != 0 || !m_showCreateWriteColors || (TimeToMs(writeFilesTime, m_traceView.frequency) < 300 && TimeToMs(process.processStats.createFile.time, m_traceView.frequency) < 300))
+		if (!done || process.exitCode != 0 || !m_config.ShowReadWriteColors || (TimeToMs(writeFilesTime, m_traceView.frequency) < 300 && TimeToMs(process.createFilesTime, m_traceView.frequency) < 300))
 		{
 			if (writingBitmap)
 				rect.right = 256;
@@ -1544,7 +2151,7 @@ namespace uba
 		RECT main = rect;
 		int width = rect.right - rect.left;
 
-		double recvPart = (double(ConvertTime(m_traceView, process.processStats.createFile.time)) / duration);
+		double recvPart = (double(ConvertTime(m_traceView, process.createFilesTime)) / duration);
 		if (int headSize = int(recvPart * width))
 		{
 			UBA_ASSERT(headSize > 0);
@@ -1596,11 +2203,9 @@ namespace uba
 
 	void Visualizer::PaintTimeline(HDC hdc, const RECT& clientRect)
 	{
-		float boxHeight = float(RawBoxHeight) * m_zoomValue;
-		int posY = m_contentHeight - int(boxHeight) - 14;
+		SetActiveFont(m_timelineFont);
+		int top = GetTimelineTop(clientRect);
 		float timeScale = (m_horizontalScaleValue*m_zoomValue)*50.0f;
-		int top = Min(posY, int(clientRect.bottom - SessionStepY - 10));
-			
 		float startOffset = ((m_scrollPosX/timeScale) - int(m_scrollPosX/timeScale)) * timeScale;
 		int index = -int(startOffset/timeScale);
 			
@@ -1623,7 +2228,7 @@ namespace uba
 		int lineStepSize = textStepSize / 5;
 
 		RECT progressRect = clientRect;
-		progressRect.left += ProgressRectLeft;
+		progressRect.left += m_progressRectLeft;
 
 		SelectObject(hdc, m_textPen);
 
@@ -1656,7 +2261,7 @@ namespace uba
 				{
 					RECT textRect;
 					textRect.top = top + 8;
-					textRect.bottom = textRect.top + 15;
+					textRect.bottom = textRect.top + m_activeFont.height;
 					textRect.right = pos + 20;
 					textRect.left = pos - 20;
 					DrawTextW(hdc, buffer.data, buffer.count, &textRect, DT_SINGLELINE | DT_CENTER);
@@ -1690,7 +2295,7 @@ namespace uba
 
 	void Visualizer::PaintDetailedStats(int& posY, const RECT& progressRect, TraceView::Session& session, bool isRemote, u64 playTime, const DrawTextFunc& drawTextFunc)
 	{
-		int stepY = FontHeight;
+		int stepY = m_activeFont.height;
 		int startPosY = posY;
 		int posX = progressRect.left + 5;
 		RECT textRect;
@@ -1728,8 +2333,8 @@ namespace uba
 					recvPerS = u64((u.recv - session.prevRecv) / duration);
 				}
 				drawText(L"ClientId: %u  TcpCount: %u", session.clientUid.data1, u.connectionCount);
-				drawText(L"Recv: %ls (%s/s)", BytesToText(u.recv), BytesToText(recvPerS));
-				drawText(L"Send: %ls (%s/s)", BytesToText(u.send), BytesToText(sendPerS));
+				drawText(L"Recv: %ls (%sps)", BytesToText(u.recv), BytesToText(recvPerS*8));
+				drawText(L"Send: %ls (%sps)", BytesToText(u.send), BytesToText(sendPerS*8));
 			}
 
 			if (session.disconnectTime == ~u64(0))
@@ -1780,7 +2385,7 @@ namespace uba
 		{
 			drawText(L"Finished Processes: %u (local: %u)", m_traceView.totalProcessExitedCount, session.processExitedCount);
 			drawText(L"Active Processes: %u (local: %u)", m_traceView.totalProcessActiveCount, session.processActiveCount);
-			drawText(L"Active Helpers: %u", m_traceView.activeSessionCount - 1);
+			drawText(L"Active Helpers: %u", Max(1u, m_traceView.activeSessionCount) - 1);
 
 			if (!session.updates.empty())
 			{
@@ -1794,91 +2399,186 @@ namespace uba
 						sendPerS = u64((u.send - session.prevSend) / duration);
 						recvPerS = u64((u.recv - session.prevRecv) / duration);
 					}
-					drawText(L"Recv: %ls (%s/s)", BytesToText(u.recv), BytesToText(recvPerS));
-					drawText(L"Send: %ls (%s/s)", BytesToText(u.send), BytesToText(sendPerS));
+					drawText(L"Recv: %ls (%sps)", BytesToText(u.recv), BytesToText(recvPerS));
+					drawText(L"Send: %ls (%sps)", BytesToText(u.send), BytesToText(sendPerS));
 				}
 			}
 		}
 	}
 
-	void Visualizer::HitTest(HitTestResult& outResult, const POINT& pos)
+	u64 Visualizer::GetPlayTime()
 	{
 		u64 currentTime = m_paused ? m_pauseStart : GetTime();
-		u64 playTime = currentTime - m_traceView.startTime - m_pauseTime;
+		u64 playTime = 0;
+		if (m_traceView.startTime)
+			playTime = currentTime - m_traceView.startTime - m_pauseTime;
 		if (m_replay)
 			playTime *= m_replay;
+		return playTime;
+	}
+
+	int Visualizer::GetTimelineHeight()
+	{
+		return m_timelineFont.height + 8;
+	}
+
+	int Visualizer::GetTimelineTop(const RECT& clientRect)
+	{
+		int timelineHeight = GetTimelineHeight();
+		int posY = m_contentHeight - timelineHeight;
+		int maxY = int(clientRect.bottom - timelineHeight);
+		return m_config.LockTimelineToBottom ? maxY : Min(posY, maxY);
+	}
+
+	void Visualizer::HitTest(HitTestResult& outResult, const POINT& pos)
+	{
+		SetActiveFont(m_defaultFont);
+
+		u64 playTime = GetPlayTime();
 
 		RECT clientRect;
 		GetClientRect(m_hwnd, &clientRect);
 
 		int posY = int(m_scrollPosY);
-		float boxHeight = float(RawBoxHeight)*m_zoomValue;
-		int stepY = int(boxHeight) + 2;
+		int boxHeight = m_boxHeight;
+		int processStepY = boxHeight + 1;
 		float scaleX = 50.0f*m_zoomValue*m_horizontalScaleValue;
 
 		RECT progressRect = clientRect;
-		progressRect.left += ProgressRectLeft;
+		progressRect.left += m_progressRectLeft;
 		progressRect.bottom -= 30;
 
 		{
+			int boxSide = 8;
+			int boxStride = boxSide + 2;
 			int top = 5;
-			int bottom = SessionStepY - 3;
-			int left = progressRect.right - 16;
+			int bottom = top + boxSide;
+			int left = progressRect.right - 7 - boxSide;
 			int right = progressRect.right - 7;
-			for (int i = sizeof_array(m_visibleComponents) - 1; i >= 0; --i)
+			for (int i = VisualizerFlag_Count - 1; i >= 0; --i)
 			{
 				if (pos.x >= left && pos.x <= right && pos.y >= top && pos.y <= bottom)
 				{
 					outResult.buttonSelected = i;
 					return;
 				}
-				left -= 14;
-				right -= 14;
+				left -= boxStride;
+				right -= boxStride;
 			}
 		}
+
+		outResult.section = 0;
 
 		u64 lastStop = 0;
 
-		if (!m_traceView.statusMap.empty())
+		if (m_config.showProgress && m_traceView.progressProcessesTotal)
+			posY += m_activeFont.height + 2;
+
+		if (m_config.showStatus && !m_traceView.statusMap.empty())
 		{
-			posY += 4;
-			auto drawStatusText = [&]() { posY = posY + FontHeight + 2; };
+			u32 lastRow = ~0u;
+			u32 row = ~0u;
 			for (auto& kv : m_traceView.statusMap)
-				if (!kv.second.name.empty() || !kv.second.text.empty())
-					drawStatusText();
-			posY += 4;
+			{
+				if (kv.second.text.empty())
+					continue;
+
+				row = u32(kv.first >> 32);
+				if (lastRow != ~0u && lastRow != row)
+					posY += m_activeFont.height + 2;
+				lastRow = row;
+
+				if (!kv.second.link.empty())
+				{
+					if (pos.y >= posY && pos.y < posY + m_activeFont.height && pos.x > 20 && pos.x < 80) // TODO: x is just hard coded to fit horde for now
+					{
+						outResult.hyperLink = kv.second.link;
+						return;
+					}
+				}
+			}
+			if (row != ~0u)
+				posY += m_activeFont.height + 2;
+			posY += 3;
 		}
+
+		if (pos.y < posY)
+			return;
+
+		outResult.section = 1;
 
 		TraceView::ProcessLocation& outLocation = outResult.processLocation;
 
+		if (m_config.showActiveProcesses && !m_trace.m_activeProcesses.empty())
+		{
+			PaintActiveProcesses(posY, clientRect, [&](TraceView::ProcessLocation& processLocation, u32 boxHeight, bool firstWithHeight)
+				{
+					if (pos.y < posY || pos.y > posY + int(boxHeight))
+						return;
+					auto& session = m_trace.GetSession(m_traceView, processLocation.sessionIndex);
+					TraceView::Process& process = session.processors[processLocation.processorIndex].processes[processLocation.processIndex];
+
+					int posX = int(m_scrollPosX) + progressRect.left;
+					u64 stop = process.stop;
+					bool done = stop != ~u64(0);
+					if (!done)
+						stop = playTime;
+					int left = int(posX + TimeToS(process.start) * scaleX);
+					int right = int(posX + TimeToS(stop) * scaleX) - 1;
+
+					if (pos.x >= left && pos.x <= right)
+					{
+						outLocation.sessionIndex = processLocation.sessionIndex;
+						outLocation.processorIndex = processLocation.processorIndex;
+						outLocation.processIndex = processLocation.processIndex;
+						outResult.processSelected = true;
+						return;
+					}
+				});
+			if (outResult.processSelected)
+				return;
+		}
+
+		if (pos.y < posY)
+			return;
+
+		outResult.section = 2;
+
 		SessionRec sortedSessions[1024];
-		Populate(sortedSessions, m_traceView);
+		Populate(sortedSessions, m_traceView, m_config.SortActiveRemoteSessions);
 
 		for (u64 i = 0, e = m_traceView.sessions.size(); i != e; ++i)
 		{
+			bool isFirst = i == 0;
 			auto& session = *sortedSessions[i].session;
-
 			bool hasUpdates = !session.updates.empty();
-			if (!hasUpdates && session.processors.empty())
-				continue;
+			if (!isFirst)
+			{
+				if (!hasUpdates && session.processors.empty())
+					continue;
+				if (!m_config.showFinishedProcesses && session.disconnectTime != ~u64(0))
+					continue;
+			}
 
 			u32 sessionIndex = sortedSessions[i].index;
-			bool isFirst = i == 0;
 			if (!isFirst)
 				posY += 3;
 
-			if (pos.y >= posY && pos.y < posY + SessionStepY)
+			if (m_config.showTitleBars)
 			{
-				if (pos.x < 500)
+				if (pos.y >= posY && pos.y < posY + m_sessionStepY)
 				{
-					outResult.sessionSelectedIndex = sessionIndex;
-					return;
+					if (pos.x < 500)
+					{
+						outResult.sessionSelectedIndex = sessionIndex;
+						return;
+					}
 				}
+
+				posY += m_sessionStepY;
 			}
 
-			posY += SessionStepY;
-
-			bool showGraph = m_visibleComponents[ComponentType_SendRecv] || m_visibleComponents[ComponentType_CpuMem];
+			bool showGraph = m_config.showNetworkStats || m_config.showCpuMemStats;
 			if (showGraph && !session.updates.empty())
 			{
 				if (pos.y >= posY && pos.y < posY + GraphHeight)
@@ -1925,7 +2625,7 @@ namespace uba
 				posY += GraphHeight;
 			}
 
-			if (m_visibleComponents[ComponentType_DetailedData])
+			if (m_config.showDetailedData)
 			{
 				auto drawText = [&](const StringBufferBase& text, RECT& rect)
 					{
@@ -1936,12 +2636,14 @@ namespace uba
 				PaintDetailedStats(posY, progressRect, session, i != 0, playTime, drawText);
 			}
 
-			if (m_visibleComponents[ComponentType_Bars])
+			if (m_config.showProcessBars)
 			{
 				u32 processorIndex = 0;
 				for (auto& processor : session.processors)
 				{
-					if (pos.y < progressRect.bottom && posY + stepY >= progressRect.top && posY <= progressRect.bottom && pos.y >= posY-1 && pos.y < posY-1 + stepY)
+					bool drawProcessorIndex = m_config.showFinishedProcesses;
+
+					if (pos.y < progressRect.bottom && posY + processStepY >= progressRect.top && posY <= progressRect.bottom && pos.y >= posY-1 && pos.y < posY-1 + processStepY)
 					{
 						u32 processIndex = 0;
 						int posX = int(m_scrollPosX) + progressRect.left;
@@ -1949,11 +2651,11 @@ namespace uba
 						{
 							int left = int(posX + TimeToS(process.start) * scaleX);
 
+							auto pig = MakeGuard([&]() { ++processIndex; });
+
 							if (left >= progressRect.right)
-							{
-								++processIndex;
 								continue;
-							}
+
 							if (left < progressRect.left)
 								left = progressRect.left;
 
@@ -1961,16 +2663,18 @@ namespace uba
 							bool done = stopTime != ~u64(0);
 							if (!done)
 								stopTime = playTime;
+							else if (!m_config.showFinishedProcesses)
+								continue;
+
+							drawProcessorIndex = true;
 
 							RECT rect;
 							rect.left = left;
 							rect.right = int(posX + TimeToS(stopTime) * scaleX);
 
 							if (rect.right <= progressRect.left)
-							{
-								++processIndex;
 								continue;
-							}
+
 							rect.right = Max(int(rect.right), left + 1);
 							rect.top = posY;
 							rect.bottom = posY + int(float(18) * m_zoomValue);
@@ -1983,14 +2687,15 @@ namespace uba
 								outResult.processSelected = true;
 								return;
 							}
-							++processIndex;
 						}
 					}
 
 					if (!processor.processes.empty())
 						lastStop = Max(lastStop, processor.processes.rbegin()->stop);
 
-					posY += stepY;
+					if (drawProcessorIndex)
+						posY += processStepY;
+
 					++processorIndex;
 				}
 			}
@@ -2001,12 +2706,12 @@ namespace uba
 						lastStop = Max(lastStop, processor.processes.rbegin()->stop);
 			}
 
-			if (m_visibleComponents[ComponentType_Workers] && isFirst)
+			if (m_config.showWorkers && isFirst)
 			{
 				int trackIndex = 0;
 				for (auto& workTrack : m_traceView.workTracks)
 				{
-					if (pos.y < progressRect.bottom && posY + stepY >= progressRect.top && posY <= progressRect.bottom && pos.y >= posY-1 && pos.y < posY-1 + stepY)
+					if (pos.y < progressRect.bottom && posY + processStepY >= progressRect.top && posY <= progressRect.bottom && pos.y >= posY-1 && pos.y < posY-1 + processStepY)
 					{
 						u32 workIndex = 0;
 						int posX = int(m_scrollPosX) + progressRect.left;
@@ -2051,54 +2756,79 @@ namespace uba
 						}
 					}
 					++trackIndex;
-					posY += stepY;
+					posY += processStepY;
 				}
 			}
-
-			if (m_visibleComponents[ComponentType_Timeline])
-			{
-				int timelineTop = Min(posY, int(progressRect.bottom));
-				if (pos.y >= timelineTop && pos.y < timelineTop + 40)
-				{
-					float timeScale = (m_horizontalScaleValue * m_zoomValue)*50.0f;
-					float startOffset = -(m_scrollPosX / timeScale);
-					outResult.timelineSelected = startOffset + (pos.x - ProgressRectLeft) / timeScale;
-				}
-			}
-
 		}
 
-		m_contentWidth = ProgressRectLeft + int(TimeToS(lastStop != ~u64(0) ? lastStop : playTime) * scaleX);
-		m_contentHeight = posY - int(m_scrollPosY) + stepY + 14;
+		m_contentWidth = m_progressRectLeft + Max(0, int(TimeToS((lastStop != 0 && lastStop != ~u64(0)) ? lastStop : playTime) * scaleX));
+		m_contentHeight = posY - int(m_scrollPosY) + processStepY + 14;
+
+		if (m_config.showTimeline && !m_traceView.sessions.empty())
+		{
+			int timelineTop = GetTimelineTop(clientRect);
+			if (pos.y >= timelineTop)// && pos.y < timelineTop + 40)
+			{
+				outResult.section = 3;
+				float timeScale = (m_horizontalScaleValue * m_zoomValue)*50.0f;
+				float startOffset = -(m_scrollPosX / timeScale);
+				outResult.timelineSelected = startOffset + (pos.x - m_progressRectLeft) / timeScale;
+			}
+		}
 	}
 
-	void Visualizer::WriteProcessStats(Logger& out, TraceView::Process& process)
+	void Visualizer::WriteProcessStats(Logger& out, const TraceView::Process& process)
 	{
-		bool hasStorageStats = true;
 		bool hasExited = process.stop != ~u64(0);
 		out.Info(L"  %ls", process.description.c_str());
+		out.Info(L"  ProcessId: %u", process.id);
 		out.Info(L"  Start:     %ls", TimeToText(process.start, true).str);
 		if (hasExited)
 			out.Info(L"  Duration:  %ls", TimeToText(process.stop - process.start, true).str);
 		if (hasExited && process.exitCode != 0)
 			out.Info(L"  ExitCode:  %u", process.exitCode);
-		out.Info(L"");
 
 		if (process.stop != ~u64(0))
 		{
-			out.Info(L"  ----------- Process stats -----------");
-			process.processStats.Print(out, m_traceView.frequency);
-			if (hasStorageStats)
+			out.Info(L"");
+
+			BinaryReader reader(process.stats.data(), 0, process.stats.size());
+			ProcessStats processStats;
+			SessionStats sessionStats;
+			StorageStats storageStats;
+			KernelStats kernelStats;
+
+			processStats.Read(reader, m_traceView.version);
+			if (reader.GetLeft())
+			{
+				if (process.isRemote)
+					sessionStats.Read(reader, m_traceView.version);
+				storageStats.Read(reader, m_traceView.version);
+				kernelStats.Read(reader, m_traceView.version);
+			}
+
+			out.Info(L"  ----------- Detours stats -----------");
+			processStats.Print(out, m_traceView.frequency);
+
+			if (!sessionStats.IsEmpty())
 			{
 				out.Info(L"");
 				out.Info(L"  ----------- Session stats -----------");
-				process.sessionStats.Print(out, m_traceView.frequency);
+				sessionStats.Print(out, m_traceView.frequency);
+			}
+
+			if (!storageStats.IsEmpty())
+			{
 				out.Info(L"");
 				out.Info(L"  ----------- Storage stats -----------");
-				process.storageStats.Print(out, m_traceView.frequency);
+				storageStats.Print(out, m_traceView.frequency);
+			}
+
+			if (!kernelStats.IsEmpty())
+			{
 				out.Info(L"");
-				out.Info(L"  ----------- System stats ------------");
-				process.systemStats.Print(out, false, m_traceView.frequency);
+				out.Info(L"  ----------- Kernel stats ------------");
+				kernelStats.Print(out, false, m_traceView.frequency);
 			}
 		}
 	}
@@ -2122,17 +2852,8 @@ namespace uba
 
 	void Visualizer::UnselectAndRedraw()
 	{
-		if (m_processSelected || m_sessionSelectedIndex != ~0u || m_statsSelected || m_timelineSelected || m_fetchedFilesSelected != ~0u || m_workSelected)
-		{
-			m_processSelected = false;
-			m_sessionSelectedIndex = ~0u;
-			m_statsSelected = false;
-			m_buttonSelected = ~0u;
-			m_timelineSelected = 0;
-			m_fetchedFilesSelected = ~0u;
-			m_workSelected = false;
-			RedrawWindow(m_hwnd, NULL, NULL, RDW_INVALIDATE);
-		}
+		if (Unselect() || m_config.showCursorLine)
+			Redraw(false);
 	}
 
 	bool Visualizer::UpdateAutoscroll()
@@ -2140,21 +2861,34 @@ namespace uba
 		if (!m_autoScroll)
 			return false;
 
-		u64 currentTime = m_paused ? m_pauseStart : GetTime();
-		u64 playTime = currentTime - m_traceView.startTime - m_pauseTime;
-		if (m_replay)
-			playTime *= m_replay;
+		u64 playTime = GetPlayTime();
+
 
 		RECT rect;
 		GetClientRect(m_hwnd, &rect);
+		if (rect.right == 0)
+			return false;
+
 		float timeS = TimeToS(playTime);
-		m_scrollPosX = Min(0.0f, (float)rect.right - timeS*50.0f*m_horizontalScaleValue*m_zoomValue - ProgressRectLeft);
-		return true;
+
+		if (m_config.AutoScaleHorizontal)
+		{
+			m_scrollPosX = 0;
+			timeS = Max(timeS, 20.0f/m_zoomValue);
+			m_horizontalScaleValue = Max(float(rect.right - m_progressRectLeft - 2)/(m_zoomValue*timeS*50.0f), 0.001f);
+			return true;
+		}
+		else
+		{
+			float oldScrollPosX = m_scrollPosX;
+			m_scrollPosX = Min(0.0f, (float)rect.right - timeS*50.0f*m_horizontalScaleValue*m_zoomValue - m_progressRectLeft);
+			return oldScrollPosX != m_scrollPosX;
+		}
 	}
 
 	bool Visualizer::UpdateSelection()
 	{
-		if (!m_mouseOverWindow || m_middleMouseDown)
+		if (!m_mouseOverWindow || m_dragToScrollCounter > 0)
 			return false;
 		POINT pos;
 		GetCursorPos(&pos);
@@ -2162,12 +2896,16 @@ namespace uba
 
 		HitTestResult res;
 		HitTest(res, pos);
+
+		m_activeSection = res.section;
+
 		if (res.processSelected == m_processSelected && res.processLocation == m_processSelectedLocation &&
 			res.sessionSelectedIndex == m_sessionSelectedIndex &&
 			res.statsSelected == m_statsSelected && memcmp(&res.stats, &m_stats, sizeof(Stats)) == 0 &&
 			res.buttonSelected == m_buttonSelected && res.timelineSelected == m_timelineSelected &&
 			res.fetchedFilesSelected == m_fetchedFilesSelected &&
-			res.workSelected == m_workSelected && res.workTrack == m_workTrack && res.workIndex == m_workIndex)
+			res.workSelected == m_workSelected && res.workTrack == m_workTrack && res.workIndex == m_workIndex &&
+			res.hyperLink == m_hyperLinkSelected)
 			return false;
 		m_processSelected = res.processSelected;
 		m_processSelectedLocation = res.processLocation;
@@ -2180,6 +2918,7 @@ namespace uba
 		m_workSelected = res.workSelected;
 		m_workTrack = res.workTrack;
 		m_workIndex = res.workIndex;
+		m_hyperLinkSelected = res.hyperLink;
 		return true;
 	}
 
@@ -2190,10 +2929,10 @@ namespace uba
 
 		SCROLLINFO si;
 		si.cbSize = sizeof(SCROLLINFO);
-		si.fMask = SIF_ALL;
+		si.fMask = SIF_ALL | SIF_DISABLENOSCROLL;
 		si.nMin = 0;
 		si.nMax = m_contentHeight;
-		si.nPage = rect.bottom;
+		si.nPage = int(rect.bottom);
 		si.nPos = -int(m_scrollPosY);
 		si.nTrackPos = 0;
 		SetScrollInfo(m_hwnd, SB_VERT, &si, redraw);
@@ -2204,50 +2943,83 @@ namespace uba
 		SetScrollInfo(m_hwnd, SB_HORZ, &si, redraw);
 	}
 
+	void Visualizer::SetActiveFont(const Font& font)
+	{
+		m_activeFont = font;
+		if (m_activeHdc)
+			SelectObject(m_activeHdc, font.handle);
+	}
+
+	void Visualizer::PostNewTrace(u32 replay, bool paused)
+	{
+		KillTimer(m_hwnd, 0);
+		PostMessage(m_hwnd, WM_NEWTRACE, replay, paused);
+	}
+
+	void Visualizer::PostNewTitle(const StringView& title)
+	{
+		PostMessage(m_hwnd, WM_SETTITLE, 0, (LPARAM)_wcsdup(title.data));
+	}
+
+	void Visualizer::PostQuit()
+	{
+		m_looping = false;
+		PostMessage(m_hwnd, WM_USER+666, 0, 0);
+	}
+
 	LRESULT Visualizer::WinProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 	{
 		switch (Msg)
 		{
+		case WM_SETTITLE:
+		{
+			auto title = (wchar_t*)lParam;
+			SetWindowTextW(hWnd, title);
+			free(title);
+			break;
+		}
 		case WM_NEWTRACE:
 		{
-			if (!m_traceView.finished)
-				return 0;
+			m_replay = u32(wParam);
+			m_paused = lParam;
+			m_autoScroll = true;
+			m_scrollPosX = 0;
+			m_scrollPosY = 0;
 			Reset();
 			StringBuffer<> title;
 			GetTitlePrefix(title);
 
 			auto g = MakeGuard([&]()
 				{
-					RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE|RDW_UPDATENOW);
+					Redraw(true);
 					UpdateScrollbars(true);
 				});
 
 			if (m_client)
 			{
 				if (!m_trace.StartReadClient(m_traceView, *m_client))
+				{
+					m_clientDisconnect.Set();
 					return false;
+				}
 				m_namedTrace.Clear().Append(m_newTraceName);
-				title.Appendf(L"Connected to host");
 				m_traceView.finished = false;
 			}
 			else if (!m_fileName.IsEmpty())
 			{
-				if (!m_trace.ReadFile(m_traceView, m_fileName.data, m_replay != 0))
-					return false;
-				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
-				title.Append(m_fileName);
+				m_trace.ReadFile(m_traceView, m_fileName.data, m_replay != 0);
 				m_traceView.finished = m_replay == 0;
+				PostNewTitle(GetTitlePrefix(title).Appendf(L"%s (v%u)", m_fileName.data, m_traceView.version));
 			}
 			else
 			{
-				if (!m_trace.StartReadNamed(m_traceView, m_newTraceName.data, true))
+				if (!m_trace.StartReadNamed(m_traceView, m_newTraceName.data, true, m_replay != 0))
 					return false;
 				m_namedTrace.Clear().Append(m_newTraceName);
-				title.Appendf(L"%s (Listening for new sessions on channel '%s')", m_namedTrace.data, m_listenChannel.data);
 				m_traceView.finished = false;
+				PostNewTitle(GetTitlePrefix(title).Appendf(L"%s (Listening for new sessions on channel '%s')", m_namedTrace.data, m_listenChannel.data));
 			}
 
-			SetWindowTextW(m_hwnd, title.data);
 			SetTimer(m_hwnd, 0, 200, NULL);
 			return 0;
 		}
@@ -2257,14 +3029,13 @@ namespace uba
 			// and GetMessage will stay stuck indefinitely.
 			if (wParam == SC_CLOSE)
 			{
-				m_looping = false;
+				PostQuit();
 				return 0;
 			}
 		break;
 
 		case WM_DESTROY:
-			m_looping = false;
-			//PostQuitMessage(0);
+			PostQuit();
 			return 0;
 
 		case WM_ERASEBKGND:
@@ -2275,7 +3046,9 @@ namespace uba
 			PaintClient([&](HDC hdc, HDC memDC, RECT& rect)
 				{
 					FillRect(memDC, &rect, m_backgroundBrush);
+					m_activeHdc = memDC;
 					PaintAll(memDC, rect);
+					m_activeHdc = 0;
 					BitBlt(hdc, 0, 0, rect.right - rect.left, rect.bottom - rect.top, memDC, 0, 0, SRCCOPY);
 				});
 			break;
@@ -2288,7 +3061,7 @@ namespace uba
 			int width = LOWORD(lParam);
 			if (m_contentWidth && m_contentWidth + m_scrollPosX < width)
 				m_scrollPosX = float(Min(0, width - m_contentWidth));
-			UpdateScrollbars(false);
+			UpdateScrollbars(true);
 			break;
 		}
 		case WM_TIMER:
@@ -2297,19 +3070,28 @@ namespace uba
 			if (!m_paused)
 			{
 				u64 timeOffset = (GetTime() - m_startTime - m_pauseTime) * m_replay;
-				if (!m_namedTrace.IsEmpty())
-					m_trace.UpdateReadNamed(m_traceView, changed);
-				else if (!m_fileName.IsEmpty() && m_replay)
-					m_trace.UpdateReadFile(m_traceView, timeOffset, changed);
+				if (!m_fileName.IsEmpty())
+				{
+					if (m_replay)
+						m_trace.UpdateReadFile(m_traceView, timeOffset, changed);
+				}
 				else if (m_client)
-					m_trace.UpdateReadClient(m_traceView, *m_client, changed);
+				{
+					if (!m_trace.UpdateReadClient(m_traceView, *m_client, changed))
+						m_clientDisconnect.Set();
+				}
+				else
+				{
+					if (!m_trace.UpdateReadNamed(m_traceView, m_replay ? timeOffset : ~u64(0), changed))
+						m_listenTimeout.Set();
+				}
 			}
 
 			if (m_traceView.finished)
 			{
 				m_autoScroll = false;
 				KillTimer(m_hwnd, 0);
-				UpdateScrollbars(true);
+				changed = true;
 			}
 
 			changed = UpdateAutoscroll() || changed;
@@ -2319,7 +3101,7 @@ namespace uba
 				UpdateScrollbars(true);
 
 				u64 startTime = GetTime();
-				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE|RDW_UPDATENOW);
+				RedrawWindow(m_hwnd, NULL, NULL, RDW_INVALIDATE|RDW_UPDATENOW);
 				u64 paintTimeMs = TimeToMs(GetTime() - startTime);
 				u32 waitTime = u32(Min(paintTimeMs * 5, 200ull));
 				if (!m_traceView.finished)
@@ -2329,57 +3111,117 @@ namespace uba
 		}
 		case WM_MOUSEWHEEL:
 		{
-			if (m_middleMouseDown)
+			if (m_dragToScrollCounter > 0)
 				break;
 
-			int delta = GET_WHEEL_DELTA_WPARAM(wParam);// / WHEEL_DELTA;
+			int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+			bool controlDown = GetAsyncKeyState(VK_CONTROL) & (1<<15);
+			bool shiftDown = GetAsyncKeyState(VK_LSHIFT) & (1<<15);
 
-			RECT r;
-			GetClientRect(hWnd, &r);
-
-			SHORT controlState = GetAsyncKeyState(VK_CONTROL);
-			if (controlState & (1<<15))
+			if (m_config.ScaleHorizontalWithScrollWheel || controlDown || shiftDown)
 			{
-				float newValue = Max(m_zoomValue + float(delta)*0.0005f, 0.05f);
-				m_scrollPosY = Min(0.0f, float(m_scrollPosY)*newValue/m_zoomValue);//LOWORD(lParam);
-				m_scrollPosX = Min(0.0f, float(m_scrollPosX)*newValue/m_zoomValue);//LOWORD(lParam);
+				if (m_activeSection == 2 || !controlDown) // process bars
+				{
+					RECT r;
+					GetClientRect(hWnd, &r);
 
-				m_zoomValue = newValue;
+					// Use mouse cursor as scroll anchor point
+					POINT cursorPos = {};
+					GetCursorPos(&cursorPos);
+					ScreenToClient(m_hwnd, &cursorPos);
+
+					float newScaleValue = m_horizontalScaleValue;
+					int newBoxHeight = m_boxHeight;
+
+					if (controlDown)
+					{
+						if (delta < 0)
+						{
+							if (newBoxHeight > 1)
+								--newBoxHeight;
+						}
+						else if (delta > 0)
+							++newBoxHeight;
+												}
+					else
+						newScaleValue = Max(m_horizontalScaleValue + m_horizontalScaleValue*float(delta)*0.0006f, 0.001f);
+
+					// TODO: m_progressRectLeft changes with zoom so anchor logic is wrong
+					const float scrollAnchorOffsetX = float(cursorPos.x) - m_progressRectLeft;
+					const float scrollAnchorOffsetY = 0;//float(cursorPos.y)*m_zoomValue;// - m_progressRectLeft;
+
+					float oldZoomValue = m_zoomValue;
+					if (newBoxHeight != m_boxHeight)
+					{
+						m_boxHeight = newBoxHeight;
+						UpdateProcessFont();
+					}
+
+					m_scrollPosY = Min(0.0f, float(m_scrollPosY - scrollAnchorOffsetY)*(m_zoomValue/oldZoomValue) + scrollAnchorOffsetY);
+					m_scrollPosX = Min(0.0f, float(m_scrollPosX - scrollAnchorOffsetX)*(m_zoomValue/oldZoomValue)*(newScaleValue/m_horizontalScaleValue) + scrollAnchorOffsetX);//LOWORD(lParam);
+
+					if (m_horizontalScaleValue != newScaleValue)
+						m_horizontalScaleValue = newScaleValue;
+
+
+					UpdateAutoscroll();
+					UpdateSelection();
+
+					int minScroll = r.right - m_contentWidth;
+					m_scrollPosX = Min(0.0f, Max(m_scrollPosX, float(minScroll)));
+					m_scrollPosY = Min(0.0f, Max(m_scrollPosY, float(r.bottom - m_contentHeight)));
+
+					//if (!m_traceView.finished && m_scrollPosX <= minScroll)
+					//	m_autoScroll = true;
+
+		
+					if (m_config.ShowReadWriteColors)
+						for (auto& session : m_traceView.sessions)
+							for (auto& processor : session.processors)
+								for (auto& process : processor.processes)
+									//if (TimeToMs(process.writeFilesTime, m_traceView.frequency) >= 300 || TimeToMs(process.createFilesTime, m_traceView.frequency) >= 300)
+										process.bitmapDirty = true;
+				}
+				else if (m_activeSection == 1) // active processes
+				{
+					if (delta < 0)
+						m_config.maxActiveProcessHeight = Max(m_config.maxActiveProcessHeight - 1u, 5u);
+					else if (delta > 0)
+						m_config.maxActiveProcessHeight = Min(m_config.maxActiveProcessHeight + 1u, 32u);
+				}
+				else if (m_activeSection == 0 || m_activeSection == 3) // status/timeline
+				{
+					if (delta < 0)
+						m_config.fontSize -= 1;
+					else if (delta > 0)
+						m_config.fontSize += 1;
+					UpdateDefaultFont();
+				}
+				UpdateScrollbars(true);
+				Redraw(false);
 			}
 			else
 			{
-				float newValue = m_horizontalScaleValue + m_horizontalScaleValue*float(delta)*0.0006f;
-				m_scrollPosX = Min(0.0f, float(m_scrollPosX)*newValue/m_horizontalScaleValue);//LOWORD(lParam);
-				m_horizontalScaleValue = newValue;
+				RECT r;
+				GetClientRect(hWnd, &r);
+				float oldScrollY = m_scrollPosY;
+				m_scrollPosY = m_scrollPosY + delta;
+				m_scrollPosY = Min(Max(m_scrollPosY, float(r.bottom - m_contentHeight)), 0.0f);
+				if (oldScrollY != m_scrollPosY)
+				{
+					UpdateScrollbars(true);
+					Redraw(false);
+				}
 			}
-
-			UpdateAutoscroll();
-			UpdateSelection();
-
-			int minScroll = r.right - m_contentWidth;
-			m_scrollPosX = Min(0.0f, Max(m_scrollPosX, float(minScroll)));
-			m_scrollPosY = Min(0.0f, Max(m_scrollPosY, float(r.bottom - m_contentHeight)));
-
-			//if (!m_traceView.finished && m_scrollPosX <= minScroll)
-			//	m_autoScroll = true;
-
-		
-			if (m_showCreateWriteColors)
-				for (auto& session : m_traceView.sessions)
-					for (auto& processor : session.processors)
-						for (auto& process : processor.processes)
-							if (TimeToMs(Max(process.processStats.writeFiles.time, process.processStats.sendFiles.time), m_traceView.frequency) >= 300 || TimeToMs(process.processStats.createFile.time, m_traceView.frequency) >= 300)
-								process.bitmapDirty = true;
-
-			UpdateScrollbars(true);
-			RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE);
 			break;
 		}
 		case WM_MOUSEMOVE:
 		{
+			//m_logger.Info(TC("Section: %u"), m_activeSection);
+
 			POINTS p = MAKEPOINTS(lParam);
 			POINT pos{ p.x, p.y };
-			if (m_middleMouseDown)
+			if (m_dragToScrollCounter > 0)
 			{
 				RECT r;
 				GetClientRect(hWnd, &r);
@@ -2399,12 +3241,12 @@ namespace uba
 						m_autoScroll = true;
 				}
 				UpdateScrollbars(true);
-				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE);
+				Redraw(false);
 			}
 			else
 			{
-				if (UpdateSelection())
-					RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE);
+				if (UpdateSelection() || m_config.showCursorLine)
+					Redraw(false);
 				/*
 				else
 				{
@@ -2446,68 +3288,121 @@ namespace uba
 
 		case WM_MBUTTONDOWN:
 		{
-			m_processSelected = false;
-			m_sessionSelectedIndex = ~0u;
-			m_statsSelected = false;
-			m_buttonSelected = ~0u;
-			m_timelineSelected = 0;
-			m_fetchedFilesSelected = ~0u;
-			m_workSelected = false;
-			m_autoScroll = false;
 			POINTS p = MAKEPOINTS(lParam);
-			m_mouseAnchor = {p.x, p.y};
-			m_scrollAtAnchorX = m_scrollPosX;
-			m_scrollAtAnchorY = m_scrollPosY;
-			m_middleMouseDown = true;
-			SetCapture(hWnd);
-			RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE);
+			StartDragToScroll(POINT{ p.x, p.y });
 			break;
 		}
 
 		case WM_MOUSEACTIVATE:
 		{
-			if (LOWORD(lParam) == HTCLIENT)
-				return MA_ACTIVATEANDEAT;
-			break;
+			if (LOWORD(lParam) != HTCLIENT)
+				break;
+
+			if (m_parentHwnd)
+			{
+				//PostMessage(wParam, WM_MOUSEACTIVATE, wParam, lParam);
+				//SetForegroundWindow(m_parentHwnd);
+				//SetFocus(m_parentHwnd);
+				//SetWindowPos((HWND)wParam, HWND_TOP, 0, 0, 0, 0, SWP_ASYNCWINDOWPOS | SWP_NOMOVE | SWP_NOSIZE);
+				PostMessage(m_parentHwnd, 0x0445, 0, 0);
+				//return MA_NOACTIVATEANDEAT;
+			}
+			return MA_ACTIVATEANDEAT;
 		}
 
 		case WM_LBUTTONDOWN:
 		{
 			if (m_buttonSelected != ~0u)
 			{
-				m_visibleComponents[m_buttonSelected] = !m_visibleComponents[m_buttonSelected];
+				bool* values = &m_config.showProgress;
+				values[m_buttonSelected] = !values[m_buttonSelected];
 				HitTestResult res;
 				HitTest(res, { -1, -1 });
 				UpdateScrollbars(true);
-				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE);
+				Redraw(false);
 			}
 			else if (m_timelineSelected)
 			{
-				if (!m_fileName.IsEmpty()) // Only works for files right now
+				if (!m_client) // Does not work for network streams
 				{
+					float timelineSelected = Max(m_timelineSelected, 0.0f);
 					Reset();
-					if (!m_trace.ReadFile(m_traceView, m_fileName.data, true))
-						return false;
+
 					bool changed;
-					u64 time = MsToTime(u64(m_timelineSelected * 1000.0));
-					m_traceView.finished = false;
-					m_trace.UpdateReadFile(m_traceView, time, changed);
-					m_pauseStart = m_startTime + time;
-					if (m_paused || !m_replay)
+					u64 time = MsToTime(u64(timelineSelected * 1000.0));
+
+					if (!m_fileName.IsEmpty())
 					{
-						m_pauseTime = 0;
-						m_paused = true;
+						if (!m_trace.ReadFile(m_traceView, m_fileName.data, true))
+							return false;
 					}
 					else
 					{
-						m_pauseTime = GetTime() - m_pauseStart;
+						if (!m_trace.StartReadNamed(m_traceView, nullptr, true, true))
+							return false;
+						if (m_traceView.realStartTime + time > m_startTime)
+							time = m_startTime - m_traceView.realStartTime;
+					}
+
+					m_traceView.finished = false;
+					if (!m_fileName.IsEmpty())
+						m_trace.UpdateReadFile(m_traceView, time, changed);
+					else
+						m_trace.UpdateReadNamed(m_traceView, time, changed);
+
+					m_pauseStart = m_startTime + time;
+					m_pauseTime = m_startTime - m_pauseStart;
+
+					if (!m_paused)
+					{
+						m_autoScroll = true;
+						m_replay = 1;
+						SetTimer(m_hwnd, 0, 200, NULL);
+					}
+					else
+					{
+						m_pauseTime = 0;
 					}
 
 					HitTestResult res;
 					HitTest(res, { -1, -1 });
+					
+					RECT r;
+					GetClientRect(hWnd, &r);
+					m_scrollPosX = Min(Max(m_scrollPosX, float(r.right - m_contentWidth)), 0.0f);
+					m_scrollPosY = Min(0.0f, Max(m_scrollPosY, float(r.bottom - m_contentHeight)));
+
 					UpdateScrollbars(true);
-					RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+					Redraw(true);
 				}
+			}
+			else if (!m_hyperLinkSelected.empty())
+			{
+				ShellExecuteW(NULL, L"open", m_hyperLinkSelected.c_str(), NULL, NULL, SW_SHOW);
+			}
+			else
+			{
+				POINTS p = MAKEPOINTS(lParam);
+				StartDragToScroll(POINT{ p.x, p.y });
+			}
+			break;
+		}
+
+		case WM_SETCURSOR:
+		{
+			static HCURSOR arrow = LoadCursorW(NULL, IDC_ARROW);
+			static HCURSOR hand = LoadCursorW(NULL, IDC_HAND);
+			if (!m_hyperLinkSelected.empty())
+				SetCursor(hand);
+			else
+				SetCursor(arrow);
+			break;
+		}
+		case WM_LBUTTONUP:
+		{
+			if (!(m_buttonSelected != ~0u || m_timelineSelected))
+			{
+				StopDragToScroll();
 			}
 			break;
 		}
@@ -2521,8 +3416,14 @@ namespace uba
 			HMENU hMenu = CreatePopupMenu();
 			ClientToScreen(hWnd, &point);
 
-			AppendMenuW(hMenu, MF_STRING, Popup_ShowText, m_showText ? L"&Hide Process text" : L"&Show Process text");
-			AppendMenuW(hMenu, MF_STRING, Popup_ShowCreateWriteColors, m_showCreateWriteColors ? L"&Hide Create/Write colors" : L"&Show Create/Write colors");
+			#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) \
+				AppendMenuW(hMenu, MF_STRING | (m_config.name ? MF_CHECKED : 0), Popup_##name, desc);
+			UBA_VISUALIZER_FLAGS2
+			#undef UBA_VISUALIZER_FLAG
+
+			AppendMenuW(hMenu, MF_STRING, Popup_IncreaseFontSize, L"&Increase Font Size");
+			AppendMenuW(hMenu, MF_STRING, Popup_DecreaseFontSize, L"&Decrease Font Size");
+
 			AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
 
 			if (m_sessionSelectedIndex != ~0u)
@@ -2532,37 +3433,46 @@ namespace uba
 			}
 			else if (m_processSelected)
 			{
-				TraceView::Process& process = *m_traceView.GetProcess(m_processSelectedLocation);
+				const TraceView::Process& process = m_traceView.GetProcess(m_processSelectedLocation);
 
 				AppendMenuW(hMenu, MF_STRING, Popup_CopyProcessInfo, L"&Copy Process Info");
 				if (!process.logLines.empty())
 					AppendMenuW(hMenu, MF_STRING, Popup_CopyProcessLog, L"Copy Process &Log");
 				AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
 			}
-			if (m_fileName.data)
+
+			if (!m_traceView.sessions.empty())
 			{
-				if (!m_replay)
-					AppendMenuW(hMenu, MF_STRING, Popup_Replay, L"&Replay Trace");
-				else
+				if (!m_client)
 				{
-					if (m_paused)
-						AppendMenuW(hMenu, MF_STRING, Popup_Play, L"&Play");
+					if (!m_replay || m_traceView.finished)
+						AppendMenuW(hMenu, MF_STRING, Popup_Replay, L"&Replay Trace");
 					else
-						AppendMenuW(hMenu, MF_STRING, Popup_Pause, L"&Pause");
-					AppendMenuW(hMenu, MF_STRING, Popup_JumpToEnd, L"&Jump To End");
+					{
+						if (m_paused)
+							AppendMenuW(hMenu, MF_STRING, Popup_Play, L"&Play");
+						else
+							AppendMenuW(hMenu, MF_STRING, Popup_Pause, L"&Pause");
+						AppendMenuW(hMenu, MF_STRING, Popup_JumpToEnd, L"&Jump To End");
+					}
 				}
+
+				if (m_fileName.IsEmpty())
+					AppendMenuW(hMenu, MF_STRING, Popup_SaveAs, L"&Save Trace");
+
+				AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
 			}
 
-			AppendMenuW(hMenu, MF_STRING, Popup_SaveAs, L"&Save Trace");
-			AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+			AppendMenuW(hMenu, MF_STRING, Popup_SaveSettings, L"Save Position/Settings");
+			AppendMenuW(hMenu, MF_STRING, Popup_OpenSettings, L"Open Settings file");
 			AppendMenuW(hMenu, MF_STRING, Popup_Quit, L"&Quit");
 			m_showPopup = true;
 			switch (TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_RIGHTBUTTON, point.x, point.y, 0, hWnd, NULL))
 			{
 			case Popup_SaveAs:
 			{
-				OPENFILENAME ofn;       // common dialog box structure
-				TCHAR szFile[260] = { 0 };       // if using TCHAR macros
+				OPENFILENAME ofn;
+				TCHAR szFile[260] = { 0 };
 
 				// Initialize OPENFILENAME
 				ZeroMemory(&ofn, sizeof(ofn));
@@ -2581,22 +3491,52 @@ namespace uba
 					m_trace.SaveAs(ofn.lpstrFile);
 				break;
 			}
-			case Popup_ShowText:
-				m_showText = !m_showText;
-				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+			case Popup_ShowProcessText:
+				m_config.ShowProcessText = !m_config.ShowProcessText;
+				Redraw(true);
 				break;
-			case Popup_ShowCreateWriteColors:
-				m_showCreateWriteColors = !m_showCreateWriteColors;
-				for (auto& session : m_traceView.sessions)
-					for (auto& processor : session.processors)
-						for (auto& process : processor.processes)
-								process.bitmapDirty = true;
-				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+			case Popup_ShowReadWriteColors:
+				m_config.ShowReadWriteColors = !m_config.ShowReadWriteColors;
+				DirtyBitmaps(false);
+				Redraw(true);
+				break;
+			case Popup_ScaleHorizontalWithScrollWheel:
+				m_config.ScaleHorizontalWithScrollWheel = !m_config.ScaleHorizontalWithScrollWheel;
+				break;
+			case Popup_ShowAllTraces:
+				m_config.ShowAllTraces = !m_config.ShowAllTraces;
+				break;
+			case Popup_SortActiveRemoteSessions:
+				m_config.SortActiveRemoteSessions = !m_config.SortActiveRemoteSessions;
+				Redraw(true);
+				break;
+			case Popup_AutoScaleHorizontal:
+				m_config.AutoScaleHorizontal = !m_config.AutoScaleHorizontal;
+				Redraw(true);
+				break;
+			case Popup_LockTimelineToBottom:
+				m_config.LockTimelineToBottom = !m_config.LockTimelineToBottom;
+				Redraw(true);
+				break;
+			case Popup_DarkMode:
+			{
+				m_config.DarkMode = !m_config.DarkMode;
+				DirtyBitmaps(false);
+				InitBrushes();
+				SetWindowTheme(m_hwnd, m_config.DarkMode ? L"DarkMode_Explorer" : L"Explorer", NULL);
+				SendMessageW(m_hwnd, WM_THEMECHANGED, 0, 0);
+				BOOL useDarkMode = m_config.DarkMode;
+				u32 attribute = 20; // DWMWA_USE_IMMERSIVE_DARK_MODE
+				DwmSetWindowAttribute(m_hwnd, attribute, &useDarkMode, sizeof(useDarkMode));
+				Redraw(true);
+				break;
+			}
+			case Popup_AutoSaveSettings:
+				m_config.AutoSaveSettings = !m_config.AutoSaveSettings;
 				break;
 
 			case Popup_Replay:
-				m_replay = 1;
-				PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);
+				PostNewTrace(1, false);
 				break;
 
 			case Popup_Play:
@@ -2609,19 +3549,33 @@ namespace uba
 
 			case Popup_JumpToEnd:
 				m_traceView.finished = true;
-				m_replay = 0;
-				PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);
+				PostNewTrace(0, false);
+				break;
+
+			case Popup_SaveSettings:
+				SaveSettings();
+				break;
+
+			case Popup_OpenSettings:
+				ShellExecuteW(NULL, L"open", m_config.filename.c_str(), NULL, NULL, SW_SHOW);
 				break;
 
 			case Popup_Quit: // Quit
-				m_looping = false;
+				PostQuit();
+				break;
+
+			case Popup_IncreaseFontSize:
+				ChangeFontSize(1);
+				break;
+			case Popup_DecreaseFontSize:
+				ChangeFontSize(-1);
 				break;
 
 			case Popup_CopySessionInfo:
 			{
 				TString str;
 				auto& session = m_traceView.sessions[m_sessionSelectedIndex];
-				str.append(session.name).append(TC("\n"));
+				str.append(session.fullName).append(TC("\n"));
 				for (auto& line : session.summary)
 					str.append(line).append(TC("\n"));
 				CopyTextToClipboard(str);
@@ -2632,7 +3586,7 @@ namespace uba
 			{
 				TString str;
 				WriteTextLogger logger(str);
-				TraceView::Process& process = *m_traceView.GetProcess(m_processSelectedLocation);
+				const TraceView::Process& process = m_traceView.GetProcess(m_processSelectedLocation);
 				WriteProcessStats(logger, process);
 				CopyTextToClipboard(str);
 				break;
@@ -2640,7 +3594,7 @@ namespace uba
 			case Popup_CopyProcessLog:
 			{
 				TString str;
-				TraceView::Process& process = *m_traceView.GetProcess(m_processSelectedLocation);
+				const TraceView::Process& process = m_traceView.GetProcess(m_processSelectedLocation);
 				bool isFirst = true;
 				for (auto line : process.logLines)
 				{
@@ -2662,10 +3616,7 @@ namespace uba
 
 		case WM_MBUTTONUP:
 		{
-			ReleaseCapture();
-			m_middleMouseDown = false;
-			if (UpdateSelection())
-				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE);
+			StopDragToScroll();
 			//m_processSelected = false;
 			break;
 		}
@@ -2673,6 +3624,10 @@ namespace uba
 		{
 			if (wParam == VK_SPACE)
 				Pause(!m_paused);
+			if (wParam == VK_ADD)
+				++m_replay;
+			if (wParam == VK_SUBTRACT)
+				--m_replay;
 			break;
 		}
 		case WM_VSCROLL:
@@ -2680,11 +3635,18 @@ namespace uba
 				RECT r;
 				GetClientRect(hWnd, &r);
 				float oldScrollY = m_scrollPosY;
+
+				// HIWORD(wParam) only carries 16-bits, so use GetScrollInfo for larger scroll areas
+				SCROLLINFO scrollInfo = {};
+				scrollInfo.cbSize = sizeof(scrollInfo);
+				scrollInfo.fMask = SIF_TRACKPOS;
+				GetScrollInfo(m_hwnd, SB_VERT, &scrollInfo);
+
 				switch (LOWORD(wParam))
 				{
 				case SB_THUMBTRACK:
 				case SB_THUMBPOSITION:
-					m_scrollPosY = -float(HIWORD(wParam));
+					m_scrollPosY = -float(scrollInfo.nTrackPos);
 					break;
 				case SB_PAGEDOWN:
 					m_scrollPosY = m_scrollPosY - r.bottom;
@@ -2704,7 +3666,7 @@ namespace uba
 				if (oldScrollY != m_scrollPosY)
 				{
 					UpdateScrollbars(true);
-					RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE);
+					Redraw(false);
 				}
 				return 0;
 			}
@@ -2715,17 +3677,23 @@ namespace uba
 				float oldScrollX = m_scrollPosX;
 				bool autoScroll = false;
 
+				// HIWORD(wParam) only carries 16-bits, so use GetScrollInfo for larger scroll areas
+				SCROLLINFO scrollInfo = {};
+				scrollInfo.cbSize = sizeof(scrollInfo);
+				scrollInfo.fMask = SIF_TRACKPOS;
+				GetScrollInfo(m_hwnd, SB_HORZ, &scrollInfo);
+
 				switch (LOWORD(wParam))
 				{
 				case SB_THUMBTRACK:
-					m_scrollPosX = -float(HIWORD(wParam));
+					m_scrollPosX = -float(scrollInfo.nTrackPos);
 					if (m_contentWidthWhenThumbTrack == 0)
 						m_contentWidthWhenThumbTrack = m_contentWidth;
 					break;
 				case SB_THUMBPOSITION:
 					autoScroll = m_contentWidthWhenThumbTrack - r.right <= HIWORD(wParam) + 10;
 					m_contentWidthWhenThumbTrack = 0;
-					m_scrollPosX = -float(HIWORD(wParam));
+					m_scrollPosX = -float(scrollInfo.nTrackPos);
 					break;
 				case SB_PAGEDOWN:
 					m_scrollPosX = m_scrollPosX - r.right;
@@ -2750,7 +3718,7 @@ namespace uba
 				if (oldScrollX != m_scrollPosX)
 				{
 					UpdateScrollbars(true);
-					RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE);
+					Redraw(false);
 				}
 				return 0;
 			}
@@ -2765,6 +3733,7 @@ namespace uba
 		{
 			thisPtr = (Visualizer*)lParam;
 			SetWindowLongPtr(hWnd, GWLP_USERDATA, lParam);
+			//EnableNonClientDpiScaling(hWnd);
 		}
 		if (thisPtr && hWnd == thisPtr->m_hwnd)
 			return thisPtr->WinProc(hWnd, Msg, wParam, lParam);

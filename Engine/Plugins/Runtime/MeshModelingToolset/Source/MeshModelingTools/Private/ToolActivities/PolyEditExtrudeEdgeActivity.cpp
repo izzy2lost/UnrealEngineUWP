@@ -13,7 +13,6 @@
 #include "InteractiveToolManager.h"
 #include "MeshOpPreviewHelpers.h"
 #include "ModelingOperators.h" // FDynamicMeshOperator
-#include "Operations/ExtrudeBoundaryEdges.h"
 #include "SceneManagement.h"
 #include "Selection/PolygonSelectionMechanic.h"
 #include "Selection/StoredMeshSelectionUtil.h"
@@ -30,6 +29,7 @@ namespace PolyEditExtrudeEdgeActivityLocals
 	// These should match what is used in UMeshTopologySelectionMechanic (or better, live in a common place)
 	const FColor GroupLineColor = FColor::Red;
 	const float GroupLineThickness = 1.0f;
+	const float GroupLineDepthBias = 0.5f;
 
 	const FColor ExtrudeFrameLineColor = FColor::Orange;
 	const float ExtrudeFrameLineThickness = 0.5f;
@@ -90,7 +90,7 @@ namespace PolyEditExtrudeEdgeActivityLocals
 			case EPolyEditExtrudeEdgeDirectionMode::LocalExtrudeFrames:
 				Extruder.OffsetPositionFunc = [this](const FVector3d& Position, const FExtrudeBoundaryEdges::FExtrudeFrame& ExtrudeFrame, int32 SourceVid)
 				{
-					return ExtrudeFrame.Frame.FromFramePoint(ExtrudeFrame.Scaling * LocalFrameParams);
+					return ExtrudeFrame.FromFramePoint(LocalFrameParams);
 				};
 				break;
 			case EPolyEditExtrudeEdgeDirectionMode::SingleDirection:
@@ -166,7 +166,7 @@ TUniquePtr<UE::Geometry::FDynamicMeshOperator> UPolyEditExtrudeEdgeActivity::Mak
 		FVector3d WorldDestination = SingleDirectionVectorWorldSpace + ExtrudeFrameForGizmoWorldSpace.Origin;
 
 		Op->SingleDirectionVector = CurrentMeshTransform.InverseTransformPosition(WorldDestination)
-			- ExtrudeFrameForGizmoMeshSpace.Origin;
+			- ExtrudeFrameForGizmoMeshSpace.Frame.Origin;
 	}
 	else
 	{
@@ -174,7 +174,6 @@ TUniquePtr<UE::Geometry::FDynamicMeshOperator> UPolyEditExtrudeEdgeActivity::Mak
 		
 		Op->LocalFrameParams = ExtrudeFrameForGizmoMeshSpace.ToFramePoint(
 			CurrentMeshTransform.InverseTransformPosition(WorldDestination));
-		Op->LocalFrameParams /= ExtrudeFrameScaling;
 	}
 
 	return Op;
@@ -228,8 +227,13 @@ void UPolyEditExtrudeEdgeActivity::Setup(UInteractiveTool* ParentToolIn)
 
 		auto AdjustVectorLength = [this](FVector3d& VectorToAdjust)
 		{
+			if (bExtrudeDistanceWasNegative)
+			{
+				// The normlized extrude vector is actually in the opposite direction
+				VectorToAdjust *= -1;
+			}
 			VectorToAdjust.Normalize();
-			if (VectorToAdjust.IsNearlyZero())
+			if (VectorToAdjust.IsZero())
 			{
 				VectorToAdjust = FVector3d::UnitX();
 			}
@@ -244,6 +248,7 @@ void UPolyEditExtrudeEdgeActivity::Setup(UInteractiveTool* ParentToolIn)
 		{
 			AdjustVectorLength(ParamsInWorldExtrudeFrame);
 		}
+		bExtrudeDistanceWasNegative = Settings->Distance < 0;
 
 		if (bIsRunning)
 		{
@@ -592,7 +597,7 @@ void UPolyEditExtrudeEdgeActivity::UpdateDrawnPreviewEdges()
 			
 			FIndex2i EdgeVids = Mesh.GetEdgeV(Eid);
 			Lines.Add(FRenderableLine(Mesh.GetVertex(EdgeVids.A), Mesh.GetVertex(EdgeVids.B),
-				GroupLineColor, GroupLineThickness));
+				GroupLineColor, GroupLineThickness, GroupLineDepthBias));
 		});
 	});
 }
@@ -698,15 +703,14 @@ void UPolyEditExtrudeEdgeActivity::RecalculateGizmoExtrudeFrame()
 		NewVertData[0].SourceEidPair.B, 
 		ExtrudeFrame, Settings->bAdjustToExtrudeEvenly ? MAX_VERT_MOVEMENT_ADJUSTMENT_SCALE : 1.0);
 
-	ExtrudeFrameForGizmoMeshSpace = ExtrudeFrame.Frame;
-	ExtrudeFrameScaling = ExtrudeFrame.Scaling;
+	ExtrudeFrameForGizmoMeshSpace = ExtrudeFrame;
 
 	// This method of finding the extrude frame in world space isn't quite right in the case of nonuniform scale. However
 	// it seems hard to find any perfect solution, and in the end, it's not critical because we'll probably be able to get
 	// extrusion parameters out of an imperfect frame anyway.
 	ExtrudeFrameForGizmoWorldSpace = FFrame3d(
-		CurrentMeshTransform.TransformPosition(ExtrudeFrameForGizmoMeshSpace.Origin),
-		CurrentMeshTransform.TransformRotation(FQuat(ExtrudeFrameForGizmoMeshSpace.Rotation)));
+		CurrentMeshTransform.TransformPosition(ExtrudeFrameForGizmoMeshSpace.Frame.Origin),
+		CurrentMeshTransform.TransformRotation(FQuat(ExtrudeFrameForGizmoMeshSpace.Frame.Rotation)));
 }
 
 void UPolyEditExtrudeEdgeActivity::Render(IToolsContextRenderAPI* RenderAPI)

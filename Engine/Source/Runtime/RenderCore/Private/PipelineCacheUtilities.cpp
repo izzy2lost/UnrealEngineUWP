@@ -69,8 +69,9 @@ namespace Private
 		{
 			AddingPipelineCacheVersion = 5,
 			AddingDepthBounds = 6,
+			AddedWorkGraphFrequencies = 7,
 
-			Current = AddingDepthBounds
+			Current = AddedWorkGraphFrequencies
 		};
 
 		/** Magic to reject other files */
@@ -309,7 +310,7 @@ namespace Private
 
 bool UE::PipelineCacheUtilities::LoadStableKeysFile(const FStringView& Filename, TArray<FStableShaderKeyAndValue>& InOutArray)
 {
-	TUniquePtr<FArchive> FileArchiveInner(IFileManager::Get().CreateFileReader(*FString(Filename.Len(), Filename.GetData())));
+	TUniquePtr<FArchive> FileArchiveInner(IFileManager::Get().CreateFileReader(*FString::ConstructFromPtrSize(Filename.GetData(), Filename.Len())));
 	if (!FileArchiveInner)
 	{
 		return false;
@@ -390,7 +391,7 @@ bool UE::PipelineCacheUtilities::LoadStableKeysFile(const FStringView& Filename,
 
 bool UE::PipelineCacheUtilities::SaveStableKeysFile(const FStringView& Filename, const TSet<FStableShaderKeyAndValue>& Values)
 {
-	TUniquePtr<FArchive> FileArchiveInner(IFileManager::Get().CreateFileWriter(*FString(Filename.Len(), Filename.GetData())));
+	TUniquePtr<FArchive> FileArchiveInner(IFileManager::Get().CreateFileWriter(*FString::ConstructFromPtrSize(Filename.GetData(), Filename.Len())));
 	if (!FileArchiveInner)
 	{
 		return false;
@@ -602,10 +603,10 @@ bool UE::PipelineCacheUtilities::LoadStablePipelineCacheFile(const FString& File
 		return false;
 	}
 
-	// start restrictive, as the format isn't really forward compatible, nor needs to be
-	if (Header.Version > SupportedHeader.Version)
+	// start restrictive, as the format is neither forward compatible, nor backward compatible
+	if (Header.Version != SupportedHeader.Version)
 	{
-		UE_LOG(LogPipelineCacheUtilities, Warning, TEXT("Rejecting %s, version is too new (%d vs expected %d)."), *Filename, int(Header.Version), int(SupportedHeader.Version));
+		UE_LOG(LogPipelineCacheUtilities, Warning, TEXT("Rejecting %s, version %d is not supported (current supported version is %d)."), *Filename, int(Header.Version), int(SupportedHeader.Version));
 		return false;
 	}
 

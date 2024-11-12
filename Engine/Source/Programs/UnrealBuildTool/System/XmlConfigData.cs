@@ -96,7 +96,7 @@ namespace UnrealBuildTool
 
 		public class ValueInfo
 		{
-			public TargetMember Target {  get; init; }
+			public TargetMember Target { get; init; }
 			public object Value { get; init; }
 			public FileReference SourceFile { get; init; }
 			public XmlConfigFileAttribute XmlConfigAttribute { get; init; }

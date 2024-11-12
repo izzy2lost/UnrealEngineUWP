@@ -50,19 +50,46 @@ namespace UE::Interchange::Private
 	{
 		static FInterchangePropertyTracksHelper& GetInstance();
 
-		UMovieSceneSection* GetSection(UMovieScene* MovieScene, const UInterchangeAnimationTrackNode& AnimationTrackNode, const FGuid& ObjectBinding, const FName& Property) const;
+		UMovieSceneSection* GetSection(UMovieScene* MovieScene, const UInterchangeAnimationTrackNode& AnimationTrackNode, const FGuid& ObjectBinding, EInterchangePropertyTracks Property) const;
 
 	private:
 		FInterchangePropertyTracksHelper();
 
 		struct FInterchangeProperty
 		{
+			FInterchangeProperty(FString&& ClassType, FString&& Path, FString&& Name)
+				: ClassType{ MoveTemp(ClassType) }
+				, Path{ MoveTemp(Path) }
+				, Name{ MoveTemp(Name) }
+			{}
+
+			FInterchangeProperty(FString&& ClassType, FString&& Path, FString&& Name, UEnum* EnumClass)
+				: ClassType{ MoveTemp(ClassType) }
+				, Path{ MoveTemp(Path) }
+				, Name{ MoveTemp(Name) }
+				, VariantProperty{ TInPlaceType<UEnum*>{}, EnumClass}
+			{}
+
+			FInterchangeProperty(FString&& ClassType, FString&& Path, FString&& Name, int32 NumChannelsUsed)
+				: ClassType{ MoveTemp(ClassType) }
+				, Path{ MoveTemp(Path) }
+				, Name{ MoveTemp(Name) }
+				, VariantProperty{ TInPlaceType<int32>{}, NumChannelsUsed }
+			{}
+
+			FInterchangeProperty(FString && ClassType, FString && Path, FString && Name, UClass * ObjectPropertyClass)
+				: ClassType{ MoveTemp(ClassType) }
+				, Path{ MoveTemp(Path) }
+				, Name{ MoveTemp(Name) }
+				, VariantProperty{ TInPlaceType<UClass*>{}, ObjectPropertyClass }
+			{}
+
 			FString ClassType; // Float, Double, Byte, etc. Basically the class name of the UMovieSceneTrack
 			FString Path;
 			FName Name;
-			UEnum* EnumClass = nullptr; // Only used for Enum property tracks
+			TVariant<UEnum*, int32, UClass*> VariantProperty; // These are mutually exclusive, we can only have one of a kind (Either an Enum, or Number of channels used for a Vector, or an Object Path)
 		};
 
-		TMap<FName, FInterchangeProperty> PropertyTracks;
+		TMap<EInterchangePropertyTracks, FInterchangeProperty> PropertyTracks;
 	};
 }

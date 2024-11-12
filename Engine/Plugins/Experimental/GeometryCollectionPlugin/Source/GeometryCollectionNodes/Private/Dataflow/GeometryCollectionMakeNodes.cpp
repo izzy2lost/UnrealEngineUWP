@@ -40,7 +40,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionMakeNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void GeometryCollectionMakeNodes()
 	{
@@ -56,13 +56,14 @@ namespace Dataflow
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FMakeLiteralVectorDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FMakeTransformDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FMakeQuaternionDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FMakeFloatArrayDataflowNode);
 
 		// Generators
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY_NODE_COLORS_BY_CATEGORY("Generators", FLinearColor(.4f, 0.8f, 0.f), CDefaultNodeBodyTintColor);
 	}
 }
 
-void FMakeLiteralStringDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMakeLiteralStringDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FString>(&String))
 	{
@@ -70,7 +71,7 @@ void FMakeLiteralStringDataflowNode::Evaluate(Dataflow::FContext& Context, const
 	}
 }
 
-void FMakePointsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMakePointsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<FVector>>(&Points))
 	{
@@ -78,7 +79,7 @@ void FMakePointsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataf
 	}
 }
 
-void FMakeBoxDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMakeBoxDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FBox>(&Box))
 	{
@@ -100,7 +101,7 @@ void FMakeBoxDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflow
 }
 
 
-void FMakeSphereDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMakeSphereDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FSphere>(&Sphere))
 	{
@@ -112,7 +113,7 @@ void FMakeSphereDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataf
 }
 
 
-void FMakeLiteralFloatDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMakeLiteralFloatDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&Float))
 	{
@@ -120,7 +121,7 @@ void FMakeLiteralFloatDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 	}
 }
 
-void FMakeLiteralIntDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMakeLiteralIntDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<int32>(&Int))
 	{
@@ -128,7 +129,7 @@ void FMakeLiteralIntDataflowNode::Evaluate(Dataflow::FContext& Context, const FD
 	}
 }
 
-void FMakeLiteralBoolDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMakeLiteralBoolDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<bool>(&Bool))
 	{
@@ -136,7 +137,7 @@ void FMakeLiteralBoolDataflowNode::Evaluate(Dataflow::FContext& Context, const F
 	}
 }
 
-void FMakeLiteralVectorDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMakeLiteralVectorDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FVector>(&Vector))
 	{
@@ -145,7 +146,7 @@ void FMakeLiteralVectorDataflowNode::Evaluate(Dataflow::FContext& Context, const
 	}
 }
 
-void FMakeTransformDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMakeTransformDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FTransform>(&OutTransform))
 	{
@@ -157,7 +158,7 @@ void FMakeTransformDataflowNode::Evaluate(Dataflow::FContext& Context, const FDa
 	}
 }
 
-void FMakeQuaternionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMakeQuaternionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FQuat>(&Quaternion))
 	{
@@ -166,4 +167,17 @@ void FMakeQuaternionDataflowNode::Evaluate(Dataflow::FContext& Context, const FD
 	}
 }
 
+void FMakeFloatArrayDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&FloatArray))
+	{
+		const int32 InNumElements = GetValue(Context, &NumElements);
+		const float InValue = GetValue(Context, &Value);
+
+		TArray<float> OutFloatArray;
+		OutFloatArray.Init(InValue, InNumElements);
+
+		SetValue(Context, OutFloatArray, &FloatArray);
+	}
+}
 

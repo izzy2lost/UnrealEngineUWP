@@ -9,7 +9,7 @@ class UPersonaOptions;
 class FControlRigEditorEditMode : public FControlRigEditMode
 {
 public:
-	static FName ModeName;
+	static inline const FLazyName ModeName = FLazyName(TEXT("EditMode.ControlRigEditor"));
 	
 	virtual bool IsInLevelEditor() const override { return false; }
 	virtual bool AreEditingControlRigDirectly() const override { return true; }
@@ -32,5 +32,6 @@ public:
 class FModularRigEditorEditMode : public FControlRigEditorEditMode
 {
 public:
-	static FName ModeName;
+
+	static inline const FLazyName ModeName = FLazyName(TEXT("EditMode.ModularRigEditor"));
 };

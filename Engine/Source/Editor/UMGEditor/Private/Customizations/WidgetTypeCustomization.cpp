@@ -80,11 +80,11 @@ TSharedRef<SWidget> FWidgetTypeCustomization::GetPopupContent()
 			]
 
 			+ SVerticalBox::Slot()
-			.Padding(0, 2.0f, 0, 0)
+			.Padding(0.0f, 2.0f, 0.0f, 0.0f)
 			.AutoHeight()
 			[
 				SNew(SBox)
-				.MaxDesiredHeight(300)
+				.MaxDesiredHeight(300.0f)
 				[
 					WidgetListView.ToSharedRef()
 				]

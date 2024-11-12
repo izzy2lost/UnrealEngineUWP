@@ -9,9 +9,6 @@
 #include "CollisionQueryParams.h"
 #include "EngineDefines.h"
 #include "GameFramework/PlayerController.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "PhysxUserData.h"
-#endif
 #include "Physics/PhysicsInterfaceCore.h"
 #include "Physics/PhysicsInterfaceTypes.h"
 #include "PhysicsPublic.h"
@@ -81,22 +78,43 @@ struct FInitBodySpawnParams
 	FPhysicsAggregateHandle Aggregate;
 };
 
-struct FInitBodiesHelperBase
+namespace Chaos::Private
 {
-	ENGINE_API FInitBodiesHelperBase(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, class UBodySetup* InBodySetup, class UPrimitiveComponent* InPrimitiveComp, FPhysScene* InRBScene, const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate);
+	// Private base class necessary to keep friend access to FBodyInstance
+	struct FInitBodiesHelperBaseInternal
+	{
+	protected:
+		void SetBodyInstanceExternalCollisionProfileBodySetup(FBodyInstance* BodyInstance, UBodySetup* ExternalCollisionProfileBodySetup);
+		void UpdateBodyInstanceSolverAsyncDeltaTime(FBodyInstance* BodyInstance);
+	};
+}
 
-	FInitBodiesHelperBase(const FInitBodiesHelperBase& InHelper) = delete;
-	FInitBodiesHelperBase(FInitBodiesHelperBase&& InHelper) = delete;
-	FInitBodiesHelperBase& operator=(const FInitBodiesHelperBase& InHelper) = delete;
-	FInitBodiesHelperBase& operator=(FInitBodiesHelperBase&& InHelper) = delete;
+template <typename InAllocatorType = FDefaultAllocator>
+struct TInitBodiesHelperBase : public Chaos::Private::FInitBodiesHelperBaseInternal
+{
+public:
+	ENGINE_API TInitBodiesHelperBase(TArray<FBodyInstance*, InAllocatorType>& InBodies, TArray<FTransform, InAllocatorType>& InTransforms,
+		class UBodySetup* InBodySetup, class UPrimitiveComponent* InPrimitiveComp, FPhysScene* InRBScene, 
+		const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate);
+	
+	ENGINE_API TInitBodiesHelperBase(TArray<FBodyInstance*, InAllocatorType>& InBodies, TArray<FTransform, InAllocatorType>& InTransforms,
+		class UBodySetup* InBodySetup, class UPrimitiveComponent* InComponent, UObject* InSourceObject, FPhysScene* InRBScene,
+		const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate);
+
+	TInitBodiesHelperBase(const TInitBodiesHelperBase& InHelper) = delete;
+	TInitBodiesHelperBase(TInitBodiesHelperBase&& InHelper) = delete;
+	TInitBodiesHelperBase& operator=(const TInitBodiesHelperBase& InHelper) = delete;
+	TInitBodiesHelperBase& operator=(TInitBodiesHelperBase&& InHelper) = delete;
 
 	FORCEINLINE bool IsStatic() const { return bStatic; }
 
 	//The arguments passed into InitBodies
-	TArray<FBodyInstance*>& Bodies;   
-	TArray<FTransform>& Transforms;
+	TArray<FBodyInstance*, InAllocatorType>& Bodies;
+	TArray<FTransform, InAllocatorType>& Transforms;
+
 	class UBodySetup* BodySetup;
 	class UPrimitiveComponent* PrimitiveComp;
+	UObject* SourceObject;
 	FPhysScene* PhysScene;
 	FPhysicsAggregateHandle Aggregate;
 
@@ -130,16 +148,24 @@ protected:
 
 };
 
-template <bool bCompileStatic>
-struct FInitBodiesHelper : public FInitBodiesHelperBase
+using FInitBodiesHelperBase = TInitBodiesHelperBase<FDefaultAllocator>;
+
+template <bool bCompileStatic, typename InAllocatorType = FDefaultAllocator>
+struct FInitBodiesHelper : public TInitBodiesHelperBase<InAllocatorType>
 {
-	FInitBodiesHelper(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, class UBodySetup* InBodySetup, class UPrimitiveComponent* InPrimitiveComp, FPhysScene* InRBScene, const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate)
-	: FInitBodiesHelperBase(InBodies, InTransforms, InBodySetup, InPrimitiveComp, InRBScene, InSpawnParams, InAggregate)
+	FInitBodiesHelper(TArray<FBodyInstance*, InAllocatorType>& InBodies, TArray<FTransform, InAllocatorType>& InTransforms, class UBodySetup* InBodySetup,
+		class UPrimitiveComponent* InPrimitiveComp, FPhysScene* InRBScene,
+		const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate);
+
+	FInitBodiesHelper(TArray<FBodyInstance*, InAllocatorType>& InBodies, TArray<FTransform, InAllocatorType>& InTransforms, class UBodySetup* InBodySetup,
+		class UPrimitiveComponent* InComponent, class UObject* InOwnerObject, FPhysScene* InRBScene,
+		const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate)
+		: TInitBodiesHelperBase<InAllocatorType>(InBodies, InTransforms, InBodySetup, InComponent, InOwnerObject, InRBScene, InSpawnParams, InAggregate)
 	{
 		//Compute all the needed constants
-		bStatic = bCompileStatic || SpawnParams.bStaticPhysics;
-		SkelMeshComp = bCompileStatic ? nullptr : Cast<USkeletalMeshComponent>(PrimitiveComp);
-		if(SpawnParams.bPhysicsTypeDeterminesSimulation)
+		this->bStatic = bCompileStatic || this->SpawnParams.bStaticPhysics;
+		this->SkelMeshComp = bCompileStatic ? nullptr : Cast<USkeletalMeshComponent>(this->PrimitiveComp);
+		if (this->SpawnParams.bPhysicsTypeDeterminesSimulation)
 		{
 			this->UpdateSimulatingAndBlendWeight();
 		}
@@ -174,7 +200,7 @@ struct FInitBodiesHelperWithData : public FInitBodiesHelperBase
 		//Compute all the needed constants
 		bStatic = bCompileStatic || SpawnParams.bStaticPhysics;
 		SkelMeshComp = bCompileStatic ? nullptr : Cast<USkeletalMeshComponent>(PrimitiveComp);
-		if(SpawnParams.bPhysicsTypeDeterminesSimulation)
+		if (SpawnParams.bPhysicsTypeDeterminesSimulation)
 		{
 			this->UpdateSimulatingAndBlendWeight();
 		}
@@ -244,6 +270,15 @@ private:
 	friend struct FBodyInstance;
 };
 
+template<>
+struct TStructOpsTypeTraits<FCollisionResponse> : public TStructOpsTypeTraitsBase2<FCollisionResponse>
+{
+	enum
+	{
+		WithIdenticalViaEquality = true
+	};
+};
+
 enum class BodyInstanceSceneState : uint8
 {
 	NotAdded,
@@ -285,6 +320,18 @@ struct FBodyInstance : public FBodyInstanceCore
 	/** When we are a body within a SkeletalMeshComponent, we cache the index of the bone we represent, to speed up sync'ing physics to anim. */
 	int16 InstanceBoneIndex;
 
+	/** [PhysX Only] This physics body's solver iteration count for position. Increasing this will be more CPU intensive, but better stabilized.  */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Physics, meta = (ClampMin = "1", UIMin = "1"))
+	uint8 PositionSolverIterationCount;
+
+	/** [PhysX Only] This physics body's solver iteration count for velocity. Increasing this will be more CPU intensive, but better stabilized. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Physics, meta = (ClampMin = "1", UIMin = "1"))
+	uint8 VelocitySolverIterationCount;
+
+	/** [PhysX Only] This physics body's solver iteration count for projection. Increasing this will be more CPU intensive, but better stabilized. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Physics, meta = (ClampMin = "1", UIMin = "1"))
+	uint8 ProjectionSolverIterationCount;
+
 private:
 	/** Enum indicating what type of object this should be considered as when it moves */
 	UPROPERTY(EditAnywhere, Category=Custom)
@@ -306,14 +353,14 @@ private:
 	TEnumAsByte<ECollisionEnabled::Type> CollisionEnabled;
 
 	/** When per-shape collision is changed at runtime, state is stored in an optional array of per-shape collision state.
-	*	Before this array's IsSet state is true, collision values from the BodySetup's AggGeom are used in GetShapeCollisionEnabled.
+	*	Before bShapeCollisionEnabledIsSet state is true, collision values from the BodySetup's AggGeom are used in GetShapeCollisionEnabled.
 	*/
-	TOptional<TArray<TEnumAsByte<ECollisionEnabled::Type>>> ShapeCollisionEnabled;
+	TArray<TEnumAsByte<ECollisionEnabled::Type>> ShapeCollisionEnabled;
 
 	/** When per-shape collision responses are changed at runtime, state is stored in an optional array of per-shape
-	*	collision response settings. If this is not set, the base body instance's CollisionResponses member is used for all shapes.
+	*	collision response settings. If bShapeCollisionResponsesIsSet is false, the base body instance's CollisionResponses member is used for all shapes.
 	*/
-	TOptional<TArray<TPair<int32, FCollisionResponse>>> ShapeCollisionResponses;
+	TArray<TPair<int32, FCollisionResponse>> ShapeCollisionResponses;
 
 public:
 	// Current state of the physics body for tracking deferred addition and removal.
@@ -332,6 +379,10 @@ public:
 	uint8 bUseCCD : 1;
 
 private:
+
+	uint8 bShapeCollisionEnabledIsSet : 1;
+	uint8 bShapeCollisionResponsesIsSet : 1;
+
 	/** [EXPERIMENTAL] If true Motion-Aware Collision Detection (MACD) will be used for this component */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Collision)
 	uint8 bUseMACD : 1;
@@ -430,7 +481,7 @@ protected:
 	/** 
 	 * @brief Enable automatic inertia conditioning to stabilize constraints.
 	 * 
-	 * Inertia conitioning increases inertia when an object is long and thin and also when it has joints that are outside the
+	 * Inertia conditioning increases inertia when an object is long and thin and also when it has joints that are outside the
 	 * collision shapes of the body. Increasing the inertia reduces the amount of rotation applied at joints which helps stabilize
 	 * joint chains, especially when bodies are small. In principle you can get the same behaviour by setting the InertiaTensorScale
 	 * appropriately, but this takes some of the guesswork out of it.
@@ -465,6 +516,10 @@ public:
 private:
 	void UpdateSolverAsyncDeltaTime();
 
+	/** Collision Profile Name **/
+	UPROPERTY(EditAnywhere, Category=Custom)
+	FName CollisionProfileName;
+
 public:
 	/** Current scale of physics - used to know when and how physics must be rescaled to match current transform of OwnerComponent. */
 	FVector Scale3D;
@@ -477,22 +532,6 @@ public:
 	UPROPERTY() 
 	struct FCollisionResponseContainer ResponseToChannels_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
-
-private:
-
-	/** Collision Profile Name **/
-	UPROPERTY(EditAnywhere, Category=Custom)
-	FName CollisionProfileName;
-
-public:
-
-	/** [PhysX Only] This physics body's solver iteration count for position. Increasing this will be more CPU intensive, but better stabilized.  */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Physics)
-	uint8 PositionSolverIterationCount;
-
-	/** [PhysX Only] This physics body's solver iteration count for velocity. Increasing this will be more CPU intensive, but better stabilized. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Physics)
-	uint8 VelocitySolverIterationCount;
 
 private:
 	/** Custom Channels for Responses*/
@@ -529,6 +568,8 @@ public:
 	/** Returns the mass override. See MassInKgOverride for documentation */
 	float GetMassOverride() const { return MassInKgOverride; }
 
+	bool IsUsingMACD() const { return bUseMACD; }
+
 	/** Sets the mass override */
 	ENGINE_API void SetMassOverride(float MassInKG, bool bNewOverrideMass = true);
 
@@ -546,13 +587,17 @@ public:
 	UPROPERTY(EditAnywhere, Category = Physics, meta = (DisplayName = "Plane Normal"))
 	FVector CustomDOFPlaneNormal;
 
-	/** User specified offset for the center of mass of this object, from the calculated location */
+	/** User specified offset for this object's Center of Mass. The offset is defined in bone space and will be added to the calculated location. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Physics, meta = (DisplayName = "Center Of Mass Offset"))
 	FVector COMNudge;
 
 	/** Per-instance scaling of mass */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Physics, meta = (ClampMin = "0.001", UIMin = "0.001"))
 	float MassScale;
+
+	/** What gravity group the BI should use, which determines rate of acceleration */
+	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category = Physics, meta = (ClampMin = "0", UIMin = "0", UIMax = "7"))
+	uint8 GravityGroupIndex;
 
 	/** Per-instance scaling of inertia (bigger number means  it'll be harder to rotate) */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Physics)
@@ -628,8 +673,11 @@ public:
 	TSharedPtr<TArray<ANSICHAR>> CharDebugName;
 #endif
 
-	/** PrimitiveComponent containing this body.   */
+	/** PrimitiveComponent containing this body, if relevant.   */
 	TWeakObjectPtr<class UPrimitiveComponent> OwnerComponent;
+
+	/** Source object for this body. If OwnerComponent is not null, this will typically be the owning actor. */
+	TWeakObjectPtr<UObject> SourceObject;
 
 	/** Constructor **/
 	ENGINE_API FBodyInstance();
@@ -660,6 +708,21 @@ public:
 	*/
 	ENGINE_API void InitBody(UBodySetup* Setup, const FTransform& Transform, UPrimitiveComponent* PrimComp, FPhysScene* InRBScene, const FInitBodySpawnParams& SpawnParams);
 
+	/**
+	 * Initialise a single rigid body (this FBodyInstance) for the given body setup
+	 *  @param Setup The setup to use to create the body
+	 *  @param Transform Transform of the body
+	 *  @param PrimComp The owning component
+	 *  @param SourceObject The source object. If null and PrimComp is not null, it will be set
+	 *   to the owning actor.
+	 *  @param InRBScene The physics scene to place the body into
+	 *  @param SpawnParams The parameters for determining certain spawn behavior
+	 *  @param InAggregate An aggregate to place the body into
+	 */
+	ENGINE_API void InitBody(UBodySetup* Setup, const FTransform& Transform, 
+		UPrimitiveComponent* PrimComp, UObject* SourceObject, 
+		FPhysScene* InRBScene, const FInitBodySpawnParams& SpawnParams);
+
 	/** Validate a body transform, outputting debug info
 	 *	@param Transform Transform to debug
 	 *	@param DebugName Name of the instance for logging
@@ -675,8 +738,18 @@ public:
 	 *	@param InRBScene
 	 */
 	static ENGINE_API void InitStaticBodies(const TArray<FBodyInstance*>& Bodies, const TArray<FTransform>& Transforms, UBodySetup* BodySetup, class UPrimitiveComponent* PrimitiveComp, FPhysScene* InRBScene);
-
-
+	
+	/**
+	 * Standalone path to batch initialize large amounts of static bodies.
+	 * Note that this function will steal Bodies and Transforms arrays.
+	 *	@param Bodies The list of BodyInstances to initialize.
+	 *	@param Transforms The list of BodyInstance transform
+	 *	@param BodySetup The BodySetup to use
+	 *	@param PrimitiveComp The associated primitive component
+	 *	@param InRBScene The associated physics scene
+	 */
+	static ENGINE_API void InitStaticBodies(TArray<FBodyInstance*>&& Bodies, TArray<FTransform>&& Transforms, UBodySetup* BodySetup, class UPrimitiveComponent* PrimitiveComp, FPhysScene* InRBScene);
+	
 	/** Get the scene that owns this body. */
 	ENGINE_API FPhysScene* GetPhysicsScene();
 	ENGINE_API const FPhysScene* GetPhysicsScene() const;
@@ -793,8 +866,10 @@ public:
 
 	/** Returns the body's mass */
 	ENGINE_API float GetBodyMass() const;
-	/** Return bounds of physics representation */
+	/** Return bounds of physics representation in world space */
 	ENGINE_API FBox GetBodyBounds() const;
+	/** Return bounds of physics representation in world space */
+	ENGINE_API FBox GetBodyBoundsLocal() const;
 	/** Return the body's inertia tensor. This is returned in local mass space */
 	ENGINE_API FVector GetBodyInertiaTensor() const;
 
@@ -892,6 +967,8 @@ public:
 	ENGINE_API void SetInstanceNotifyRBCollision(bool bNewNotifyCollision);
 	/** Enables/disables whether this body is affected by gravity. */
 	ENGINE_API void SetEnableGravity(bool bGravityEnabled);
+	/** Sets the gravity group index, which determines acceleration when gravity is enabled. */
+	ENGINE_API void SetGravityGroupIndex(int32 NewGravityGroupIndex);
 	/** Enables/disables whether this body, when kinematic, is updated from the simulation rather than when setting the kinematic target. */
 	ENGINE_API void SetUpdateKinematicFromSimulation(bool bUpdateKinematicFromSimulation);
 	/** Enables/disables contact modification */
@@ -909,8 +986,18 @@ public:
 	 */
 	ENGINE_API void SetUseMACD(bool bInUseMACD);
 
+	ENGINE_API void SetPositionSolverIterationCount(uint8 PositionSolverIterationCountIn);
+
+	ENGINE_API void SetVelocitySolverIterationCount(uint8 VelocitySolverIterationCountIn);
+
+	ENGINE_API void SetProjectionSolverIterationCount(uint8 ProjectionSolverIterationCountIn);
+
 	/** [EXPERIMENTAL] Whether Motion-Aware Collision Detection is enabled */
 	bool GetUseMACD() const { return bUseMACD != 0; }
+
+	uint8 GetPositionSolverIterationCount() const { return PositionSolverIterationCount; }
+	uint8 GetVelocitySolverIterationCount() const { return VelocitySolverIterationCount; }
+	uint8 GetProjectionSolverIterationCount() const { return ProjectionSolverIterationCount; }
 
 	/** Disable/Re-Enable this body in the solver,  when disable, the body won't be part of the simulation ( regardless if it's dynamic or kinematic ) and no collision will occur 
 	* this can be used for performance control situation for example
@@ -1328,7 +1415,7 @@ private:
 	friend struct FUpdateCollisionResponseHelper;
 	friend class FBodySetupDetails;
 	
-	friend struct FInitBodiesHelperBase;
+	friend struct Chaos::Private::FInitBodiesHelperBaseInternal;
 	friend class FBodyInstanceCustomizationHelper;
 	friend class FFoliageTypeCustomizationHelpers;
 

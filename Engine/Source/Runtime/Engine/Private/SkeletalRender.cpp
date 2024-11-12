@@ -67,6 +67,7 @@ FSkeletalMeshObject::FSkeletalMeshObject(USkinnedMeshComponent* InMeshComponent,
 #if RHI_RAYTRACING
 , bSupportRayTracing(IsSkeletalMeshRayTracingSupported() && InMeshComponent->GetSkinnedAsset()->GetSupportRayTracing())
 , bHiddenMaterialVisibilityDirtyForRayTracing(false)
+, bRayTracingGeometryRequiresUpdate(false)
 , RayTracingMinLOD(InMeshComponent->GetSkinnedAsset()->GetRayTracingMinLOD())
 #endif
 #if !UE_BUILD_SHIPPING
@@ -79,7 +80,6 @@ FSkeletalMeshObject::FSkeletalMeshObject(USkinnedMeshComponent* InMeshComponent,
 ,	SelectedEditorMaterial(InMeshComponent->GetSelectedEditorMaterial())
 #endif	
 ,	SkeletalMeshRenderData(InSkelMeshRenderData)
-,	SkeletalMeshLODInfo(InMeshComponent->GetSkinnedAsset()->GetLODInfoArray())
 ,	SkinCacheEntry(nullptr)
 ,	SkinCacheEntryForRayTracing(nullptr)
 ,	LastFrameNumber(0)
@@ -116,10 +116,13 @@ FSkeletalMeshObject::~FSkeletalMeshObject()
 {
 }
 
-void FSkeletalMeshObject::UpdateMinDesiredLODLevel(const FSceneView* View, const FBoxSphereBounds& Bounds, int32 FrameNumber)
+void FSkeletalMeshObject::UpdateMinDesiredLODLevel(const FSceneView* View, const FBoxSphereBounds& Bounds)
 {
+	check(View);
+	check(View->Family);
+
 	// Thumbnail rendering doesn't contribute to MinDesiredLODLevel calculation
-	if (View->Family && (View->Family->bThumbnailRendering || !View->Family->GetIsInFocus()))
+	if ((View->Family->bThumbnailRendering || !View->Family->GetIsInFocus()))
 	{
 		return;
 	}
@@ -128,37 +131,44 @@ void FSkeletalMeshObject::UpdateMinDesiredLODLevel(const FSceneView* View, const
 	float LODScale = FMath::Clamp(SkeletalMeshLODRadiusScale->GetValueOnRenderThread(), 0.25f, 1.0f);
 
 	const float ScreenRadiusSquared = ComputeBoundsScreenRadiusSquared(Bounds.Origin, Bounds.SphereRadius, *View) * LODScale * LODScale;
+	const uint32 FrameNumber = View->Family->FrameNumber;
 
-	checkf( SkeletalMeshLODInfo.Num() == SkeletalMeshRenderData->LODRenderData.Num(), TEXT("Mismatched LOD arrays. SkeletalMeshLODInfo.Num() = %d, SkeletalMeshRenderData->LODRenderData.Num() = %d"), SkeletalMeshLODInfo.Num(), SkeletalMeshRenderData->LODRenderData.Num());
+	checkf(LODInfo.Num() == SkeletalMeshRenderData->LODRenderData.Num(), TEXT("Mismatched LOD arrays. LODInfo.Num() = %d, SkeletalMeshRenderData->LODRenderData.Num() = %d"), LODInfo.Num(), SkeletalMeshRenderData->LODRenderData.Num());
 
 	// Need the current LOD
 	const int32 CurrentLODLevel = GetLOD();
-	const float HysteresisOffset = 0.f;
 
 	int32 NewLODLevel = 0;
 
 	// Look for a lower LOD if the EngineShowFlags is enabled
-	if( View->Family && 1==View->Family->EngineShowFlags.LOD )
+	if (View->Family->EngineShowFlags.LOD)
 	{
 		// Iterate from worst to best LOD
-		for(int32 LODLevel = SkeletalMeshRenderData->LODRenderData.Num()-1; LODLevel > 0; LODLevel--)
+		for (int32 LODLevel = SkeletalMeshRenderData->LODRenderData.Num() - 1; LODLevel > 0; LODLevel--)
 		{
 			// Get ScreenSize for this LOD
-			float ScreenSize = SkeletalMeshLODInfo[LODLevel].ScreenSize.GetValue();
+			float ScreenSize = LODInfo[LODLevel].ScreenSize.GetValue();
 
 			// If we are considering shifting to a better (lower) LOD, bias with hysteresis.
-			if(LODLevel  <= CurrentLODLevel)
+			if (LODLevel  <= CurrentLODLevel)
 			{
-				ScreenSize += SkeletalMeshLODInfo[LODLevel].LODHysteresis;
+				ScreenSize += LODInfo[LODLevel].LODHysteresis;
 			}
 
 			// If have passed this boundary, use this LOD
-			if(FMath::Square(ScreenSize * 0.5f) > ScreenRadiusSquared)
+			if (FMath::Square(ScreenSize * 0.5f) > ScreenRadiusSquared)
 			{
 				NewLODLevel = LODLevel;
 				break;
 			}
 		}
+	}
+
+	// When rendering multiple views we need to guard the assignment with a mutex since relevance can occur in parallel.
+	const bool bMultiView = View->Family->Views.Num() > 1;
+	if (bMultiView)
+	{
+		DesiredLODLevelMutex.Lock();
 	}
 
 	if (!LastFrameNumber)
@@ -183,6 +193,11 @@ void FSkeletalMeshObject::UpdateMinDesiredLODLevel(const FSceneView* View, const
 	{
 		WorkingMaxDistanceFactor = FMath::Max(WorkingMaxDistanceFactor, ScreenRadiusSquared);
 		WorkingMinDesiredLODLevel = FMath::Min(WorkingMinDesiredLODLevel, NewLODLevel);
+	}
+
+	if (bMultiView)
+	{
+		DesiredLODLevelMutex.Unlock();
 	}
 }
 
@@ -237,24 +252,32 @@ bool FSkeletalMeshObject::IsMaterialHidden(int32 InLODIndex,int32 MaterialIdx) c
  */
 void FSkeletalMeshObject::InitLODInfos(const USkinnedMeshComponent* SkelComponent)
 {
-	LODInfo.Empty(SkeletalMeshLODInfo.Num());
-	for (int32 Idx=0; Idx < SkeletalMeshLODInfo.Num(); Idx++)
+	const USkinnedAsset* SkinnedAsset = SkelComponent->GetSkinnedAsset();
+	const int32 LODCount = SkinnedAsset->GetLODNum();
+	
+	LODInfo.Reset(LODCount);
+	for (int32 Idx=0; Idx < LODCount; Idx++)
 	{
-		FSkelMeshObjectLODInfo& MeshLODInfo = *new(LODInfo) FSkelMeshObjectLODInfo();
+		const FSkeletalMeshLODInfo& MeshLODInfo = *SkinnedAsset->GetLODInfo(Idx);
+		FSkelMeshObjectLODInfo& MeshObjectLODInfo = LODInfo.AddDefaulted_GetRef();
+
+		MeshObjectLODInfo.ScreenSize = MeshLODInfo.ScreenSize;
+		MeshObjectLODInfo.LODHysteresis = MeshLODInfo.LODHysteresis;
+		
 		if (SkelComponent->LODInfo.IsValidIndex(Idx))
 		{
 			const FSkelMeshComponentLODInfo &Info = SkelComponent->LODInfo[Idx];
 
-			MeshLODInfo.HiddenMaterials = Info.HiddenMaterials;
-		}		
+			MeshObjectLODInfo.HiddenMaterials = Info.HiddenMaterials;
+		}
 	}
 }
 
 float FSkeletalMeshObject::GetScreenSize(int32 LODIndex) const
 {
-	if (SkeletalMeshLODInfo.IsValidIndex(LODIndex))
+	if (LODInfo.IsValidIndex(LODIndex))
 	{
-		return SkeletalMeshLODInfo[LODIndex].ScreenSize.GetValue();
+		return LODInfo[LODIndex].ScreenSize.GetValue();
 	}
 	return 0.f;
 }
@@ -315,7 +338,7 @@ Global functions
 -----------------------------------------------------------------------------*/
 
 void UpdateRefToLocalMatricesInner(TArray<FMatrix44f>& ReferenceToLocal, const TArray<FTransform>& ComponentTransform, const TArray<uint8>& BoneVisibilityStates, const TArray<int32>* LeaderBoneMap,
-	const TArray<FMatrix44f>* RefBasesInvMatrix, const FReferenceSkeleton& RefSkeleton, const FSkeletalMeshRenderData* InSkeletalMeshRenderData, int32 LODIndex, const TArray<FBoneIndexType>* ExtraRequiredBoneIndices)
+	const TArray<FMatrix44f>* RefBasesInvMatrix, const FReferenceSkeleton& RefSkeleton, const FSkeletalMeshRenderData* InSkeletalMeshRenderData, int32 LODIndex, const TArray<FBoneIndexType>* ExtraRequiredBoneIndices, TArray<FTransform>* LeaderBoneMappedComponentSpaceTransform)
 {
 	const FSkeletalMeshLODRenderData& LOD = InSkeletalMeshRenderData->LODRenderData[LODIndex];
 
@@ -405,6 +428,15 @@ void UpdateRefToLocalMatricesInner(TArray<FMatrix44f>& ReferenceToLocal, const T
 		}
 	}
 
+	if (LeaderBoneMappedComponentSpaceTransform && bIsLeaderCompValid)
+	{
+		LeaderBoneMappedComponentSpaceTransform->SetNumUninitialized(ReferenceToLocal.Num());
+		for (int32 ThisBoneIndex = 0; ThisBoneIndex < ReferenceToLocal.Num(); ++ThisBoneIndex)
+		{
+			(*LeaderBoneMappedComponentSpaceTransform)[ThisBoneIndex] = FTransform((FMatrix)ReferenceToLocal[ThisBoneIndex]);
+		}
+	}
+
 	for (int32 ThisBoneIndex = 0; ThisBoneIndex < ReferenceToLocal.Num(); ++ThisBoneIndex)
 	{
 		ReferenceToLocal[ThisBoneIndex] = (*RefBasesInvMatrix)[ThisBoneIndex] * ReferenceToLocal[ThisBoneIndex];
@@ -417,8 +449,10 @@ void UpdateRefToLocalMatricesInner(TArray<FMatrix44f>& ReferenceToLocal, const T
  * @param	SkeletalMeshComponent - mesh primitive with updated bone matrices
  * @param	LODIndex - each LOD has its own mapping of bones to update
  * @param	ExtraRequiredBoneIndices - any extra bones apart from those active in the LOD that we'd like to update
+ * @param	LeaderBoneMappedComponentSpaceTransform - optional output of follower component space transforms.
  */
-void UpdateRefToLocalMatrices( TArray<FMatrix44f>& ReferenceToLocal, const USkinnedMeshComponent* InMeshComponent, const FSkeletalMeshRenderData* InSkeletalMeshRenderData, int32 LODIndex, const TArray<FBoneIndexType>* ExtraRequiredBoneIndices )
+void UpdateRefToLocalMatrices( TArray<FMatrix44f>& ReferenceToLocal, const USkinnedMeshComponent* InMeshComponent, const FSkeletalMeshRenderData* InSkeletalMeshRenderData, 
+	int32 LODIndex, const TArray<FBoneIndexType>* ExtraRequiredBoneIndices, TArray<FTransform>* LeaderBoneMappedComponentSpaceTransform)
 {
 	const USkinnedAsset* const SkinnedAsset = InMeshComponent->GetSkinnedAsset();
 	const USkinnedMeshComponent* const LeaderComp = InMeshComponent->LeaderPoseComponent.Get();
@@ -469,7 +503,7 @@ void UpdateRefToLocalMatrices( TArray<FMatrix44f>& ReferenceToLocal, const USkin
 		return;
 	}
 
-	UpdateRefToLocalMatricesInner(ReferenceToLocal, ComponentTransform, BoneVisibilityStates, (bIsLeaderCompValid)? &LeaderBoneMap : nullptr, RefBasesInvMatrix, RefSkeleton, InSkeletalMeshRenderData, LODIndex, ExtraRequiredBoneIndices);
+	UpdateRefToLocalMatricesInner(ReferenceToLocal, ComponentTransform, BoneVisibilityStates, (bIsLeaderCompValid)? &LeaderBoneMap : nullptr, RefBasesInvMatrix, RefSkeleton, InSkeletalMeshRenderData, LODIndex, ExtraRequiredBoneIndices, LeaderBoneMappedComponentSpaceTransform);
 }
 
 void UpdatePreviousRefToLocalMatrices(TArray<FMatrix44f>& ReferenceToLocal, const USkinnedMeshComponent* InMeshComponent, const FSkeletalMeshRenderData* InSkeletalMeshRenderData, int32 LODIndex, const TArray<FBoneIndexType>* ExtraRequiredBoneIndices)
@@ -521,7 +555,7 @@ void UpdatePreviousRefToLocalMatrices(TArray<FMatrix44f>& ReferenceToLocal, cons
 
 		return;
 	}
-	UpdateRefToLocalMatricesInner(ReferenceToLocal, ComponentTransform, BoneVisibilityStates, (bIsLeaderCompValid) ? &LeaderBoneMap : nullptr, RefBasesInvMatrix, RefSkeleton, InSkeletalMeshRenderData, LODIndex, ExtraRequiredBoneIndices);
+	UpdateRefToLocalMatricesInner(ReferenceToLocal, ComponentTransform, BoneVisibilityStates, (bIsLeaderCompValid) ? &LeaderBoneMap : nullptr, RefBasesInvMatrix, RefSkeleton, InSkeletalMeshRenderData, LODIndex, ExtraRequiredBoneIndices, nullptr);
 }
 
 bool IsSkeletalMeshClothBlendEnabled()

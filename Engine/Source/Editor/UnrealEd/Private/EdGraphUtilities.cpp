@@ -432,7 +432,7 @@ void FEdGraphUtilities::RenameGraphCloseToName(UEdGraph* Graph, const FString& B
 		if (Graph->Rename(*NewName, Graph->GetOuter(), REN_Test))
 		{
 			UBlueprint* BP = FBlueprintEditorUtils::FindBlueprintForGraphChecked(Graph);
-			Graph->Rename(*NewName, Graph->GetOuter(), (BP->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : 0) | REN_DontCreateRedirectors);
+			Graph->Rename(*NewName, Graph->GetOuter(), REN_DontCreateRedirectors);
 			return;
 		}
 
@@ -446,7 +446,7 @@ void FEdGraphUtilities::RenameGraphToNameOrCloseToName(UEdGraph* Graph, const FS
 	if (Graph->Rename(*DesiredName, Graph->GetOuter(), REN_Test))
 	{
 		UBlueprint* BP = FBlueprintEditorUtils::FindBlueprintForGraphChecked(Graph);
-		Graph->Rename(*DesiredName, Graph->GetOuter(), (BP->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : 0) | REN_DontCreateRedirectors);
+		Graph->Rename(*DesiredName, Graph->GetOuter(), REN_DontCreateRedirectors);
 	}
 	else
 	{

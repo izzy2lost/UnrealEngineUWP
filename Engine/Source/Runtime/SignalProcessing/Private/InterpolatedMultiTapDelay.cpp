@@ -48,7 +48,7 @@ namespace Audio
 		{
 			FMemory::Memcpy(&DelayLine[WriteIndex], InBuffer.GetData(), InNumSamples * sizeof(float));
 			WriteIndex += InNumSamples;
-			WriteIndex = FMath::Wrap<uint32>(WriteIndex, 0, DelayLine.Num());
+			WriteIndex = FMath::WrapExclusive((uint32)WriteIndex, (uint32)0, (uint32)DelayLine.Num());
 		}
 	}
 
@@ -77,7 +77,7 @@ namespace Audio
 		const float SampleStride = FMath::Clamp((float)(EndSample - StartSample) / (float)OutputNumSamples, 0.25f, 4.f);
 		const uint32 FixedSampleRate = (uint32)(SampleStride * 65536.f);
 
-		StartSample = FMath::Wrap(StartSample, 0, DelayBufferNumSamples - 1);
+		StartSample = FMath::WrapExclusive(StartSample, 0, DelayBufferNumSamples);
 		
 		Resampler.CurrentFrameFraction = StartSampleFraction;
 		const int32 FramesNeeded = (int32)Resampler.SourceFramesNeeded(OutputNumSamples, FixedSampleRate);

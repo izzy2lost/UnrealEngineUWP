@@ -59,11 +59,10 @@ namespace EpicGames.UBA
 		/// Create a ILogger object
 		/// </summary>
 		/// <param name="logger">The Microsoft.Extensions.Logging.ILogger to wrap</param>
-		/// <param name="showDetail">Will log out detailed log entries from native uba to logger</param>
 		/// <returns>The ILogger</returns>
-		public static ILogger CreateLogger(Microsoft.Extensions.Logging.ILogger logger, bool showDetail)
+		public static ILogger CreateLogger(Microsoft.Extensions.Logging.ILogger logger)
 		{
-			return new LoggerImpl(logger, showDetail);
+			return new LoggerImpl(logger);
 		}
 	}
 }

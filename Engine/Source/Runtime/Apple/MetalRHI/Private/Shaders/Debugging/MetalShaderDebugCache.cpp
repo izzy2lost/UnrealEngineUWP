@@ -4,18 +4,14 @@
 	MetalShaderDebugCache.cpp: Metal RHI Shader Debug Cache.
 =============================================================================*/
 
+#include "MetalShaderDebugCache.h"
 #include "CoreMinimal.h"
-
-THIRD_PARTY_INCLUDES_START
-#include "MetalInclude.h"
-THIRD_PARTY_INCLUDES_END
 
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
 
-#include "MetalShaderDebugCache.h"
 #include "MetalShaderDebugZipFile.h"
 
 #if !UE_BUILD_SHIPPING

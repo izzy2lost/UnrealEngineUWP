@@ -17,13 +17,14 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/STreeView.h"
+#include "Materials/MaterialExpressionMaterialSample.h"
 
 class IPropertyHandle;
 class SMaterialLayersFunctionsInstanceTree;
 class UDEditorParameterValue;
 class UMaterialEditorInstanceConstant;
 
-class SMaterialLayersFunctionsInstanceTreeItem : public STableRow< TSharedPtr<FSortedParamData> >
+class SMaterialLayersFunctionsInstanceTreeItem : public STableRow< TSharedPtr<FSortedParamData> >, public IDraggableItem
 {
 public:
 
@@ -58,7 +59,7 @@ public:
 	void OnNameChanged(const FText& InText, ETextCommit::Type CommitInfo, SMaterialLayersFunctionsInstanceTree* InTree, int32 Counter);
 
 
-	void OnLayerDragEnter(const FDragDropEvent& DragDropEvent)
+	void OnLayerDragEnter(const FDragDropEvent& DragDropEvent) override
 	{
 		if (StackParameterData->ParameterInfo.Index != 0)
 		{
@@ -66,12 +67,12 @@ public:
 		}
 	}
 
-	void OnLayerDragLeave(const FDragDropEvent& DragDropEvent)
+	void OnLayerDragLeave(const FDragDropEvent& DragDropEvent) override
 	{
 		bIsHoveredDragTarget = false;
 	}
 
-	void OnLayerDragDetected()
+	void OnLayerDragDetected() override
 	{
 		bIsBeingDragged = true;
 	}
@@ -101,22 +102,33 @@ class SMaterialLayersFunctionsInstanceWrapper : public SCompoundWidget
 public:
 	SLATE_BEGIN_ARGS(SMaterialLayersFunctionsInstanceWrapper)
 		: _InMaterialEditorInstance(nullptr),
+		_InGenerator(nullptr),
 		_InShowHiddenDelegate()
 	{}
 
-	SLATE_ARGUMENT(UMaterialEditorInstanceConstant*, InMaterialEditorInstance)
+	SLATE_ARGUMENT(UMaterialEditorParameters*, InMaterialEditorInstance)
+	SLATE_ARGUMENT(TSharedPtr<class IPropertyRowGenerator>, InGenerator)
 	SLATE_ARGUMENT(FGetShowHiddenParameters, InShowHiddenDelegate)
 
 	SLATE_END_ARGS()
 	void Refresh();
 	void Construct(const FArguments& InArgs);
-	void SetEditorInstance(UMaterialEditorInstanceConstant* InMaterialEditorInstance);
-
+	void SetEditorInstance(UMaterialEditorParameters* InMaterialEditorInstance);
+	
+	TSharedPtr<class IPropertyRowGenerator> GetGenerator();
 	TAttribute<ECheckBoxState> IsParamChecked;
 	TWeakObjectPtr<class UDEditorParameterValue> LayerParameter;
-	class UMaterialEditorInstanceConstant* MaterialEditorInstance;
+	class UMaterialEditorParameters* MaterialEditorInstance;
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	TSharedPtr<class SMaterialSubstrateTree> NestedTree;
+#else
 	TSharedPtr<class SMaterialLayersFunctionsInstanceTree> NestedTree;
+#endif
 	FSimpleDelegate OnLayerPropertyChanged;
+	
+	
+private:
+	TWeakPtr<class IPropertyRowGenerator> Generator;
 };
 
 class SMaterialLayersFunctionsInstanceTree : public STreeView<TSharedPtr<FSortedParamData>>

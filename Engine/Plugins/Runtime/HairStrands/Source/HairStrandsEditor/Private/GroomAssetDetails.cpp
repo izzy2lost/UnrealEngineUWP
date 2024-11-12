@@ -141,7 +141,7 @@ TSharedRef<SUniformGridPanel> MakeHairStrandsCurveInfoGrid(const FSlateFontInfo&
 	[
 		SNew(STextBlock)
 		.Font(DetailFontInfo)
-		.Text(LOCTEXT("HairInfo_CPPerCurveEmpty", ""))
+		.Text(FText())
 	];
 	Grid->AddSlot(1, 2) // x, y
 	.HAlign(HAlign_Right)
@@ -322,7 +322,7 @@ TSharedRef<SUniformGridPanel> MakeHairStrandsInfoGrid(const FSlateFontInfo& Deta
 	[
 		SNew(STextBlock)
 		.Font(DetailFontInfo)
-		.Text(LOCTEXT("HairInfo_GuideWidth", ""))
+		.Text(FText())
 	];
 	Grid->AddSlot(2, 3) // x, y
 	.HAlign(HAlign_Right)

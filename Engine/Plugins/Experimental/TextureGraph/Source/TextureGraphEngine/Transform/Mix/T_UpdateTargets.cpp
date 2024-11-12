@@ -5,7 +5,6 @@
 #include "2D/TargetTextureSet.h"
 #include "Profiling/StatGroup.h"
 #include "Job/JobBatch.h"
-#include "Profiling/RenderDoc/RenderDocManager.h"
 #include "Model/Mix/MixSettings.h"
 #include "Model/Mix/MixInterface.h"
 
@@ -56,9 +55,6 @@ AsyncTransformResultPtr T_UpdateTargets::Exec(const TransformArgs& Args)
 		}
 	}
 
-	if (Args.Cycle->GetBatch() && Args.Cycle->GetBatch()->IsCaptureRenderDoc())
-		TextureGraphEngine::GetRenderDocManager()->EndCapture();
-
 	return cti::make_ready_continuable(std::make_shared<TransformResult>());
 }
 
@@ -78,3 +74,4 @@ void T_UpdateTargets::Create(MixUpdateCyclePtr Cycle, int32 TargetId, bool Shoul
 		JobUPtr job = CreateJob(Cycle, TargetId, ShouldUpdate);
 	Cycle->AddJob(TargetId, std::move(job));
 }
+

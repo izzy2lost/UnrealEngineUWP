@@ -1,4 +1,27 @@
-/* Copyright Epic Games, Inc. All Rights Reserved. */
+/*
+ * Copyright (c) 2023 Epic Games, Inc. All Rights Reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY EPIC GAMES, INC. ``AS IS AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL EPIC GAMES, INC. OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ */
 
 #ifndef VERSE_HEAP_H
 #define VERSE_HEAP_H
@@ -152,7 +175,7 @@ static PAS_ALWAYS_INLINE void verse_heap_notify_allocation(uintptr_t bytes_alloc
         uintptr_t old_live_bytes;
 
         old_live_bytes = verse_heap_live_bytes;
-        new_live_bytes = verse_heap_live_bytes + bytes_allocated;
+        new_live_bytes = old_live_bytes + bytes_allocated;
         PAS_ASSERT(new_live_bytes > old_live_bytes);
 
         if (pas_compare_and_swap_uintptr_weak(&verse_heap_live_bytes, old_live_bytes, new_live_bytes))
@@ -175,7 +198,7 @@ static PAS_ALWAYS_INLINE void verse_heap_notify_deallocation(uintptr_t bytes_dea
 		uintptr_t new_live_bytes;
         
         old_live_bytes = verse_heap_live_bytes;
-        new_live_bytes = verse_heap_live_bytes - bytes_deallocated;
+        new_live_bytes = old_live_bytes - bytes_deallocated;
         PAS_ASSERT(new_live_bytes < old_live_bytes);
 
         if (pas_compare_and_swap_uintptr_weak(&verse_heap_live_bytes, old_live_bytes, new_live_bytes))
@@ -197,7 +220,7 @@ static PAS_ALWAYS_INLINE void verse_heap_notify_sweep(uintptr_t bytes_swept)
 		uintptr_t new_swept_bytes;
         
         old_swept_bytes = verse_heap_swept_bytes;
-        new_swept_bytes = verse_heap_swept_bytes + bytes_swept;
+        new_swept_bytes = old_swept_bytes + bytes_swept;
         PAS_ASSERT(new_swept_bytes > old_swept_bytes);
 
         if (pas_compare_and_swap_uintptr_weak(&verse_heap_swept_bytes, old_swept_bytes, new_swept_bytes))

@@ -151,7 +151,7 @@ namespace UnrealBuildTool
 				{
 					string[] tmp = CurrentTarget.ToString().Split('.');
 					string ProjectTargetFileName = CurProject.ProjectFilePath.Directory.MakeRelativeTo(PrimaryProjectPath) + "/" + tmp[0] + ProjectExtension;
-					String ProjectName = tmp[0];
+					string ProjectName = tmp[0];
 
 					XElement CodeLiteWorkspaceProject = new XElement("Project");
 					XAttribute CodeLiteWorkspaceProjectName = new XAttribute("Name", ProjectName);
@@ -258,7 +258,7 @@ namespace UnrealBuildTool
 						foreach (ProjectTarget target in CurProject.ProjectTargets.OfType<ProjectTarget>())
 						{
 							string[] tmp = target.ToString().Split('.');
-							String ProjectName = tmp[0];
+							string ProjectName = tmp[0];
 
 							XElement CodeLiteWorkspaceBuildMatrixConfigurationProject = new XElement("Project");
 							XAttribute CodeLiteWorkspaceBuildMatrixConfigurationProjectName = new XAttribute("Name", ProjectName);

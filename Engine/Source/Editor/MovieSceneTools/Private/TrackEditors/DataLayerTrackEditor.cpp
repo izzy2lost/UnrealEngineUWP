@@ -85,15 +85,42 @@ struct FDataLayerSection
 							.Text(this, &FDataLayerSection::GetPrerollText)
 						]
 					]
-
-					+ SVerticalBox::Slot()
-					[
-						SNew(STextBlock)
-						.Text(this, &FDataLayerSection::GetLayerBarText)
-						.AutoWrapText(true)
-					]
 				]
 			];
+	}
+
+	FText GetSectionToolTip() const override
+	{
+		UMovieSceneDataLayerSection* Section = WeakSection.Get();
+		UDataLayerEditorSubsystem* SubSystem = UDataLayerEditorSubsystem::Get();
+
+		if (SubSystem && Section)
+		{
+			FString LayerName;
+
+			const TArray<UDataLayerAsset*>& DataLayerAssets = Section->GetDataLayerAssets();
+			for (int32 Index = 0; Index < DataLayerAssets.Num(); ++Index)
+			{
+				UDataLayerInstance* DataLayerInstance = SubSystem->GetDataLayerInstance(DataLayerAssets[Index]);
+				if (DataLayerInstance)
+				{
+					LayerName += DataLayerInstance->GetDataLayerFullName();
+				}
+				else
+				{
+					LayerName += FText::Format(LOCTEXT("UnknownDataLayer", "**invalid: {0}**"), FText::FromString(DataLayerAssets[Index]->GetFullName())).ToString();
+				}
+
+				if (Index < DataLayerAssets.Num() - 1)
+				{
+					LayerName += TEXT("\n");
+				}
+			}
+
+			return FText::FromString(LayerName);
+		}
+
+		return FText();
 	}
 
 	FText GetVisibilityText() const
@@ -123,40 +150,6 @@ struct FDataLayerSection
 			case EDataLayerRuntimeState::Loaded:    return LOCTEXT("PrerollText_Loaded", "(Loaded over time in preroll)");
 			case EDataLayerRuntimeState::Activated:	return LOCTEXT("PrerollText_Activated", "(Activated over time in preroll)");
 			}
-		}
-
-		return FText();
-	}
-
-	FText GetLayerBarText() const
-	{
-		UMovieSceneDataLayerSection* Section   = WeakSection.Get();
-		UDataLayerEditorSubsystem*   SubSystem = UDataLayerEditorSubsystem::Get();
-
-		if (SubSystem && Section)
-		{
-			FString LayerName;
-
-			const TArray<UDataLayerAsset*>& DataLayerAssets = Section->GetDataLayerAssets();
-			for (int32 Index = 0; Index < DataLayerAssets.Num(); ++Index)
-			{
-				UDataLayerInstance* DataLayerInstance = SubSystem->GetDataLayerInstance(DataLayerAssets[Index]);
-				if (DataLayerInstance)
-				{
-					LayerName += DataLayerInstance->GetDataLayerFullName();
-				}
-				else
-				{
-					LayerName += FText::Format(LOCTEXT("UnknownDataLayer", "**invalid: {0}**"), FText::FromString(DataLayerAssets[Index]->GetFullName())).ToString();
-				}
-
-				if (Index < DataLayerAssets.Num()-1)
-				{
-					LayerName += TEXT(", ");
-				}
-			}
-
-			return FText::FromString(LayerName);
 		}
 
 		return FText();
@@ -293,7 +286,7 @@ TSharedRef<ISequencerSection> FDataLayerTrackEditor::MakeSectionInterface(UMovie
 void FDataLayerTrackEditor::BuildAddTrackMenu(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.AddMenuEntry(
-		LOCTEXT("AddTrack", "Data Layer"),
+		LOCTEXT("AddTrack", "Data Layer Track"),
 		LOCTEXT("AddTrackToolTip", "Adds a new track that can load, activate or unload Data Layers in a World Partition world."),
 		FSlateIcon(FAppStyle::GetAppStyleSetName(), "Sequencer.Tracks.DataLayer"),
 		FUIAction(FExecuteAction::CreateRaw(this, &FDataLayerTrackEditor::HandleAddTrack)));

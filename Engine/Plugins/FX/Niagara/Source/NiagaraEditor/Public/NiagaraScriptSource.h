@@ -17,12 +17,13 @@ struct FNiagaraVMExecutableDataId;
 UCLASS(MinimalAPI)
 class UNiagaraScriptSource final : public UNiagaraScriptSourceBase
 {
-	GENERATED_UCLASS_BODY()
+	GENERATED_BODY()
 
+public:
 	/** Graph for particle update expression */
 	UPROPERTY()
 	TObjectPtr<class UNiagaraGraph>	NodeGraph = nullptr;
-
+	
 	bool bIsCompilationCopy = false;
 	bool bIsReleased = false;
 	
@@ -59,6 +60,7 @@ class UNiagaraScriptSource final : public UNiagaraScriptSourceBase
 
 	NIAGARAEDITOR_API virtual bool AddModuleIfMissing(FString ModulePath, ENiagaraScriptUsage Usage, bool& bOutFoundModule)override;
 
+	virtual void MigrateParameterDataToHierarchyRoot(FVersionedNiagaraScriptData& OwnerData) override;
 
 	void FixupRenamedParameters(UNiagaraNodeFunctionCall* FunctionCallNode, TConstArrayView<FNiagaraVariable> ModuleInputVariables, FNiagaraParameterStore& RapidIterationParameters, const TArray<FNiagaraVariable>& OldRapidIterationVariables, const FVersionedNiagaraEmitter& Emitter, ENiagaraScriptUsage ScriptUsage) const;
 	void InitializeNewParameters(UNiagaraNodeFunctionCall* FunctionCallNode, TConstArrayView<FNiagaraVariable> ModuleInputVariables, FNiagaraParameterStore& RapidIterationParameters, const FVersionedNiagaraEmitter& VersionedEmitter, ENiagaraScriptUsage ScriptUsage, TSet<FNiagaraVariableBase>& ValidRapidIterationParameters) const;

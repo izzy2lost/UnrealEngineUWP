@@ -16,7 +16,7 @@ namespace Chaos::Softs
 class FPBDSpringConstraintsBase
 {
 public:
-	template<int32 Valence, TEMPLATE_REQUIRES(Valence >= 2 && Valence <= 4)>
+	template<int32 Valence UE_REQUIRES(Valence >= 2 && Valence <= 4)>
 	FPBDSpringConstraintsBase(
 		const FSolverParticlesRange& Particles,
 		const TArray<TVector<int32, Valence>>& InConstraints,
@@ -51,7 +51,7 @@ public:
 		}
 	}
 
-	template<int32 Valence, TEMPLATE_REQUIRES(Valence >= 2 && Valence <= 4)>
+	template<int32 Valence UE_REQUIRES(Valence >= 2 && Valence <= 4)>
 	FPBDSpringConstraintsBase(
 		const FSolverParticles& Particles,
 		int32 InParticleOffset,
@@ -123,9 +123,8 @@ protected:
 	}
 
 private:
-	template<int32 Valence, typename Predicate>
-	typename TEnableIf<Valence >= 2 && Valence <= 4, TArray<TVector<int32, 2>>>::Type
-	TrimConstraints(const TArray<TVector<int32, Valence>>& InConstraints, Predicate TrimPredicate)
+	template<int32 Valence, typename Predicate UE_REQUIRES(Valence >= 2 && Valence <= 4)>
+	TArray<TVector<int32, 2>> TrimConstraints(const TArray<TVector<int32, Valence>>& InConstraints, Predicate TrimPredicate)
 	{
 		TSet<TVec2<int32>> TrimmedConstraints;
 		TrimmedConstraints.Reserve(Valence == 2 ? InConstraints.Num() : InConstraints.Num() * Chaos::Utilities::NChooseR(Valence, 2));

@@ -78,7 +78,7 @@ struct FIOSPlatformProperties
 	}
 	static FORCEINLINE bool SupportsMemoryMappedAnimation()
 	{
-		return false;
+		return true;
 	}
 	static FORCEINLINE int64 GetMemoryMappingAlignment()
 	{
@@ -125,9 +125,25 @@ struct FTVOSPlatformProperties : public FIOSPlatformProperties
 	}
 };
 
+struct FVisionOSPlatformProperties : public FIOSPlatformProperties
+{
+	static FORCEINLINE const char* PlatformName()
+	{
+		return "IOS";
+	}
+
+	static FORCEINLINE const char* IniPlatformName()
+	{
+		return "VisionOS";
+	}
+};
+
 #ifdef PROPERTY_HEADER_SHOULD_DEFINE_TYPE
 
-
+#if PLATFORM_VISIONOS
+typedef FVisionOSPlatformProperties FPlatformProperties;
+#else
 typedef FIOSPlatformProperties FPlatformProperties;
+#endif
 
 #endif

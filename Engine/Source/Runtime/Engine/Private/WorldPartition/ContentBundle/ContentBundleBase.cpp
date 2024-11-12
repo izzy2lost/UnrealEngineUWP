@@ -107,11 +107,6 @@ FString FContentBundleBase::GetExternalStreamingObjectPackagePath() const
 	return ContentBundlePaths::GetCookedContentBundleLevelFolder(*this) + ContentBundlePaths::GetGeneratedFolderName() + TEXT("/") + GetExternalStreamingObjectPackageName();
 }
 
-FString FContentBundleBase::GetExternalStreamingObjectName() const
-{
-	return SlugStringForValidName(GetDisplayName() + TEXT("_") + GetDescriptor()->GetGuid().ToString() + TEXT("_ExternalStreamingObject"));
-}
-
 UWorld* FContentBundleBase::GetInjectedWorld() const
 {
 	return InjectedWorld;
@@ -136,7 +131,8 @@ void FContentBundleBase::SetStatus(EContentBundleStatus NewStatus)
 {
 	check(NewStatus != Status);
 
-	UE_LOG(LogContentBundle, Log, TEXT("%s State changing from %s to %s"), 
+	UE_LOG(LogContentBundle, Verbose, TEXT("%s State changing from %s to %s"), 
 		*ContentBundle::Log::MakeDebugInfoString(*this), *UEnum::GetDisplayValueAsText(Status).ToString(), *UEnum::GetDisplayValueAsText(NewStatus).ToString());
+
 	Status = NewStatus;
 }

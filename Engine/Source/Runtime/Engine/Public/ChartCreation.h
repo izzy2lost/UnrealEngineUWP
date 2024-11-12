@@ -80,6 +80,9 @@ public:
 		/** The number of sync loads performed in this frame. */
 		uint32 SyncLoadCount;
 
+		/** Number of async packages in the loading queue */
+		int32 NumAsyncPackages;
+
 		// Should this frame be considered for histogram generation (controlled by t.FPSChart.MaxFrameDeltaSecsBeforeDiscarding)
 		bool bBinThisFrame;
 
@@ -110,6 +113,7 @@ public:
 			, FlushAsyncLoadingTime(0.0)
 			, FlushAsyncLoadingCount(0)
 			, SyncLoadCount(0)
+			, NumAsyncPackages(0)
 			, bBinThisFrame(false)
 			, bGameThreadBound(false)
 			, bRenderThreadBound(false)
@@ -147,6 +151,9 @@ public:
 
 	// Hitch time histogram (in seconds)
 	FHistogram DynamicResHistogram;
+
+	// Track size of the async loader package queue (I/O)
+	FHistogram AsyncPackageQueueHistogram;
 
 	/** Number of frames for each time of <boundtype> **/
 	uint32 NumFramesBound_GameThread;
@@ -299,6 +306,8 @@ public:
 	{
 		return HitchTimeHistogram.GetAverageOfAllMeasures();
 	}
+
+	ENGINE_API double GetPercentFramesIOBusy(int32 StartingBin=0) const;
 
 	void ChangeLabel(const FString& NewLabel)
 	{

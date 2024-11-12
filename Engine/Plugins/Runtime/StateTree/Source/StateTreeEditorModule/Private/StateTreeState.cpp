@@ -4,9 +4,11 @@
 #include "StateTree.h"
 #include "StateTreeEditorData.h"
 #include "StateTreeConditionBase.h"
+#include "StateTreeConsiderationBase.h"
 #include "StateTreeTaskBase.h"
 #include "StateTreeDelegates.h"
 #include "StateTreePropertyHelpers.h"
+#include "Customizations/StateTreeEditorNodeUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeState)
 
@@ -43,9 +45,22 @@ FStateTreeTransition::FStateTreeTransition(const EStateTreeTransitionTrigger InT
 
 FStateTreeTransition::FStateTreeTransition(const EStateTreeTransitionTrigger InTrigger, const FGameplayTag InEventTag, const EStateTreeTransitionType InType, const UStateTreeState* InState)
 	: Trigger(InTrigger)
-	, EventTag(InEventTag)
+	, RequiredEvent{InEventTag}
 {
 	State = InState ? InState->GetLinkToState() : FStateTreeStateLink(InType);
+}
+
+void FStateTreeTransition::PostSerialize(const FArchive& Ar)
+{
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (EventTag_DEPRECATED.IsValid())
+	{
+		RequiredEvent.Tag = EventTag_DEPRECATED;
+		EventTag_DEPRECATED = FGameplayTag();
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -92,7 +107,7 @@ void UStateTreeState::PreEditChange(FEditPropertyChain& PropertyAboutToChange)
 		if (Type == EStateTreeStateType::Linked
 			|| Type == EStateTreeStateType::LinkedAsset)
 		{
-			Parameters.Reset();
+			Parameters.ResetParametersAndOverrides();
 		}
 	}
 }
@@ -126,6 +141,7 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 	static const FStateTreeEditPropertyPath StateParametersPath(UStateTreeState::StaticClass(), TEXT("Parameters"));
 	static const FStateTreeEditPropertyPath StateTasksPath(UStateTreeState::StaticClass(), TEXT("Tasks"));
 	static const FStateTreeEditPropertyPath StateEnterConditionsPath(UStateTreeState::StaticClass(), TEXT("EnterConditions"));
+	static const FStateTreeEditPropertyPath StateConsiderationsPath(UStateTreeState::StaticClass(), TEXT("Considerations"));
 	static const FStateTreeEditPropertyPath StateTransitionsPath(UStateTreeState::StaticClass(), TEXT("Transitions"));
 	static const FStateTreeEditPropertyPath StateTransitionsConditionsPath(UStateTreeState::StaticClass(), TEXT("Transitions.Conditions"));
 	static const FStateTreeEditPropertyPath StateTransitionsIDPath(UStateTreeState::StaticClass(), TEXT("Transitions.ID"));
@@ -141,9 +157,9 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 		}
 	}
 
-	// Broadcast selection type changes so that the UI can update.
 	if (ChangePropertyPath.IsPathExact(SelectionBehaviorPath))
 	{
+		// Broadcast selection type changes so that the UI can update.
 		const UStateTree* StateTree = GetTypedOuter<UStateTree>();
 		if (ensure(StateTree))
 		{
@@ -153,7 +169,13 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 	
 	if (ChangePropertyPath.IsPathExact(StateTypePath))
 	{
-		// Remove any tasks and evaluators when they are not used.
+		// Reset Selection Behavior back to Try Enter State for group and linked types
+		if (Type == EStateTreeStateType::Group || Type == EStateTreeStateType::Linked || Type == EStateTreeStateType::LinkedAsset)
+		{
+			SelectionBehavior = EStateTreeStateSelectionBehavior::TryEnterState;
+		}
+
+		// Remove any tasks when they are not used.
 		if (Type == EStateTreeStateType::Group || Type == EStateTreeStateType::Linked || Type == EStateTreeStateType::LinkedAsset)
 		{
 			Tasks.Reset();
@@ -201,17 +223,13 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 		}
 	}
 
-	// Broadcast subtree parameter layout edits so that the linked states can adapt.
+	// Broadcast subtree parameter layout edits so that the linked states can adapt, and bindings can update.
 	if (ChangePropertyPath.IsPathExact(StateParametersPath))
 	{
-		if (!(Type == EStateTreeStateType::Linked
-				|| Type == EStateTreeStateType::LinkedAsset))
+		const UStateTree* StateTree = GetTypedOuter<UStateTree>();
+		if (ensure(StateTree))
 		{
-			const UStateTree* StateTree = GetTypedOuter<UStateTree>();
-			if (ensure(StateTree))
-			{
-				UE::StateTree::Delegates::OnStateParametersChanged.Broadcast(*StateTree, ID);
-			}
+			UE::StateTree::Delegates::OnStateParametersChanged.Broadcast(*StateTree, ID);
 		}
 	}
 
@@ -240,10 +258,6 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 			const int32 ArrayIndex = ChangePropertyPath.GetPropertyArrayIndex(StateTasksPath);
 			if (Tasks.IsValidIndex(ArrayIndex))
 			{
- 				if (FStateTreeTaskBase* Task = Tasks[ArrayIndex].Node.GetMutablePtr<FStateTreeTaskBase>())
-				{
-					Task->Name = FName(Task->Name.ToString() + TEXT(" Duplicate"));
-				}
 				const FGuid OldStructID = Tasks[ArrayIndex].ID; 
 				Tasks[ArrayIndex].ID = FGuid::NewGuid();
 				CopyBindings(OldStructID, Tasks[ArrayIndex].ID);
@@ -256,13 +270,21 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 			const int32 ArrayIndex = ChangePropertyPath.GetPropertyArrayIndex(StateEnterConditionsPath);
 			if (EnterConditions.IsValidIndex(ArrayIndex))
 			{
-				if (FStateTreeConditionBase* Condition = EnterConditions[ArrayIndex].Node.GetMutablePtr<FStateTreeConditionBase>())
-				{
-					Condition->Name = FName(Condition->Name.ToString() + TEXT(" Duplicate"));
-				}
 				const FGuid OldStructID = EnterConditions[ArrayIndex].ID; 
 				EnterConditions[ArrayIndex].ID = FGuid::NewGuid();
 				CopyBindings(OldStructID, EnterConditions[ArrayIndex].ID);
+			}
+		}
+
+		// Utility Considerations
+		if (ChangePropertyPath.IsPathExact(StateConsiderationsPath))
+		{
+			const int32 ArrayIndex = ChangePropertyPath.GetPropertyArrayIndex(StateConsiderationsPath);
+			if (Considerations.IsValidIndex(ArrayIndex))
+			{
+				const FGuid OldStructID = Considerations[ArrayIndex].ID;
+				Considerations[ArrayIndex].ID = FGuid::NewGuid();
+				CopyBindings(OldStructID, Considerations[ArrayIndex].ID);
 			}
 		}
 
@@ -296,10 +318,6 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 				FStateTreeTransition& Transition = Transitions[TransitionsIndex];
 				if (Transition.Conditions.IsValidIndex(ConditionsIndex))
 				{
-					if (FStateTreeConditionBase* Condition = Transition.Conditions[ConditionsIndex].Node.GetMutablePtr<FStateTreeConditionBase>())
-					{
-						Condition->Name = FName(Condition->Name.ToString() + TEXT(" Duplicate"));
-					}
 					const FGuid OldStructID = Transition.Conditions[ConditionsIndex].ID;
 					Transition.Conditions[ConditionsIndex].ID = FGuid::NewGuid();
 					CopyBindings(OldStructID, Transition.Conditions[ConditionsIndex].ID);
@@ -330,6 +348,7 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 	{
 		if (ChangePropertyPath.IsPathExact(StateTasksPath)
 			|| ChangePropertyPath.IsPathExact(StateEnterConditionsPath)
+			|| ChangePropertyPath.IsPathExact(StateConsiderationsPath)
 			|| ChangePropertyPath.IsPathExact(StateTransitionsConditionsPath))
 		{
 			if (UStateTreeEditorData* TreeData = GetTypedOuter<UStateTreeEditorData>())
@@ -344,7 +363,10 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 		}
 	}
 
-	UE::StateTree::PropertyHelpers::DispatchPostEditToNodes(*this, PropertyChangedEvent);
+	if (UStateTreeEditorData* TreeData = GetTypedOuter<UStateTreeEditorData>())
+	{
+		UE::StateTree::PropertyHelpers::DispatchPostEditToNodes(*this, PropertyChangedEvent, *TreeData);
+	}
 }
 
 void UStateTreeState::PostLoad()
@@ -380,9 +402,60 @@ void UStateTreeState::PostLoad()
 			}
 		}
 	}
+
+	if (CurrentVersion < FStateTreeCustomVersion::AddedCheckingParentsPrerequisites)
+	{
+		bCheckPrerequisitesWhenActivatingChildDirectly = false;
+	}
 	
 #endif // WITH_EDITORONLY_DATA
 
+#if WITH_EDITOR
+	for (FStateTreeEditorNode& EnterConditionEditorNode : EnterConditions)
+	{
+		if (FStateTreeNodeBase* ConditionNode = EnterConditionEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
+		{
+			UE::StateTreeEditor::EditorNodeUtils::ConditionalUpdateNodeInstanceData(EnterConditionEditorNode, *this);
+			ConditionNode->PostLoad(EnterConditionEditorNode.GetInstance());
+		}
+	}
+
+	for (FStateTreeEditorNode& ConsiderationEditorNode : Considerations)
+	{
+		if (FStateTreeNodeBase* ConsiderationNode = ConsiderationEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
+		{
+			UE::StateTreeEditor::EditorNodeUtils::ConditionalUpdateNodeInstanceData(ConsiderationEditorNode, *this);
+			ConsiderationNode->PostLoad(ConsiderationEditorNode.GetInstance());
+		}
+	}
+
+	for (FStateTreeEditorNode& TaskEditorNode : Tasks)
+	{
+		if (FStateTreeNodeBase* TaskNode = TaskEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
+		{
+			UE::StateTreeEditor::EditorNodeUtils::ConditionalUpdateNodeInstanceData(TaskEditorNode, *this);
+			TaskNode->PostLoad(TaskEditorNode.GetInstance());
+		}
+	}
+
+	if (FStateTreeNodeBase* SingleTaskNode = SingleTask.Node.GetMutablePtr<FStateTreeNodeBase>())
+	{
+		UE::StateTreeEditor::EditorNodeUtils::ConditionalUpdateNodeInstanceData(SingleTask, *this);
+		SingleTaskNode->PostLoad(SingleTask.GetInstance());
+	}
+
+	for (FStateTreeTransition& Transition : Transitions)
+	{
+		for (FStateTreeEditorNode& TransitionConditionEditorNode : Transition.Conditions)
+		{
+			if (FStateTreeNodeBase* ConditionNode = TransitionConditionEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
+			{
+				UE::StateTreeEditor::EditorNodeUtils::ConditionalUpdateNodeInstanceData(TransitionConditionEditorNode, *this);
+				ConditionNode->PostLoad(TransitionConditionEditorNode.GetInstance());
+			}
+		}
+	}
+#endif // WITH_EDITOR
 }
 
 void UStateTreeState::UpdateParametersFromLinkedSubtree()
@@ -394,7 +467,7 @@ void UStateTreeState::UpdateParametersFromLinkedSubtree()
 	}
 	else
 	{
-		Parameters.Reset();
+		Parameters.ResetParametersAndOverrides();
 	}
 }
 
@@ -514,10 +587,44 @@ const UStateTreeState* UStateTreeState::GetNextSelectableSiblingState() const
 	return nullptr;
 }
 
+FString UStateTreeState::GetPath() const
+{
+	TArray<const UStateTreeState*> States;
+	for (const UStateTreeState* CurrState = this; CurrState; CurrState = CurrState->Parent)
+	{
+		States.Add(CurrState);
+	}
+	Algo::Reverse(States);
+	
+	FStringBuilderBase Result;
+	for (const UStateTreeState* CurrState : States)
+	{
+		if (Result.Len() > 0)
+		{
+			Result.Append(TEXT("/"));
+		}
+		Result.Append(CurrState->Name.ToString());
+	}
+
+	return Result.ToString();
+}
+
 FStateTreeStateLink UStateTreeState::GetLinkToState() const
 {
 	FStateTreeStateLink Link(EStateTreeTransitionType::GotoState);
 	Link.Name = Name;
 	Link.ID = ID;
 	return Link;
+}
+
+TSubclassOf<UStateTreeSchema> UStateTreeState::GetSchema() const
+{
+	if (const UStateTreeEditorData* EditorData = GetTypedOuter<UStateTreeEditorData>())
+	{
+		if (EditorData->Schema)
+		{
+			return EditorData->Schema->GetClass();
+		}
+	}
+	return nullptr;
 }

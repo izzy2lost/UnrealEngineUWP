@@ -38,8 +38,6 @@ AColorCorrectRegion::AColorCorrectRegion(const FObjectInitializer& ObjectInitial
 	, Enabled(true)
 	, bEnablePerActorCC(false)
 	, PerActorColorCorrection(EColorCorrectRegionStencilType::IncludeStencil)
-	, ColorCorrectRegionsSubsystem(nullptr)
-	, ColorCorrectRenderProxy(MakeShared<FColorCorrectRenderProxy>())
 {
 	PrimaryActorTick.bCanEverTick = true;
 
@@ -52,13 +50,6 @@ AColorCorrectRegion::AColorCorrectRegion(const FObjectInitializer& ObjectInitial
 	IdentityComponent->CastShadow = false;
 	IdentityComponent->SetHiddenInGame(false);
 
-#if WITH_METADATA
-	if (!Cast<AColorCorrectionWindow>(this))
-	{
-		CreateIcon();
-	}
-#endif
-
 #if WITH_EDITOR
 	if (!IsTemplate())
 	{
@@ -68,161 +59,11 @@ AColorCorrectRegion::AColorCorrectRegion(const FObjectInitializer& ObjectInitial
 #endif
 }
 
-void AColorCorrectRegion::BeginPlay()
-{	
-	Super::BeginPlay();
-	if (const UWorld* World = GetWorld())
-	{
-		ColorCorrectRegionsSubsystem = World->GetSubsystem<UColorCorrectRegionsSubsystem>();
-	}
-
-	if (ColorCorrectRegionsSubsystem.IsValid())
-	{
-		ColorCorrectRegionsSubsystem->OnActorSpawned(this);
-	}
-}
-
-void AColorCorrectRegion::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-	if (ColorCorrectRegionsSubsystem.IsValid())
-	{
-		ColorCorrectRegionsSubsystem->OnActorDeleted(this, false);
-		ColorCorrectRegionsSubsystem = nullptr;
-	}
-	Super::EndPlay(EndPlayReason);
-}
-
-void AColorCorrectRegion::BeginDestroy()
-{
-	if (ColorCorrectRegionsSubsystem.IsValid())
-	{
-		ColorCorrectRegionsSubsystem->OnActorDeleted(this, true);
-		ColorCorrectRegionsSubsystem = nullptr;
-	}
-	
-	Super::BeginDestroy();
-}
-
 bool AColorCorrectRegion::ShouldTickIfViewportsOnly() const
 {
 	return true;
 }
 
-void AColorCorrectRegion::TickActor(float DeltaTime, ELevelTick TickType, FActorTickFunction& ThisTickFunction)
-{
-	Super::Tick(DeltaTime);
-
-	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("CCR.TickActor %s"), *GetName()));
-
-	TransferState();
-
-
-	// Check to make sure that no ids have been changed externally.
-	{
-		TimeWaited += DeltaTime;
-		const float WaitTimeInSecs = 1.0;
-
-		if (!ColorCorrectRegionsSubsystem.IsValid())
-		{
-			if (const UWorld* World = GetWorld())
-			{
-				ColorCorrectRegionsSubsystem = World->GetSubsystem<UColorCorrectRegionsSubsystem>();
-			}
-		}
-		
-		if (ColorCorrectRegionsSubsystem.IsValid() && TimeWaited >= WaitTimeInSecs)
-		{
-			ColorCorrectRegionsSubsystem->CheckAssignedActorsValidity(this);
-			TimeWaited = 0;
-		}
-
-	}
-}
-
-void AColorCorrectRegion::TransferState()
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("CCR.TransferState %s"), *GetName()));
-
-	FColorCorrectRenderProxyPtr TempCCRStateRenderThread = MakeShared<FColorCorrectRenderProxy>();
-	if (AColorCorrectionWindow* CCWindow = Cast<AColorCorrectionWindow>(this))
-	{
-		TempCCRStateRenderThread->WindowType = CCWindow->WindowType;
-	}
-	else
-	{
-		TempCCRStateRenderThread->Type = Type;
-	}
-
-	TempCCRStateRenderThread->bIsActiveThisFrame = IsValid(this)
-		&& Enabled
-#if WITH_EDITOR
-		&& !IsHiddenEd()
-#endif 
-		&& !(GetWorld()->HasBegunPlay() && IsHidden());
-
-	TempCCRStateRenderThread->World = GetWorld();
-	TempCCRStateRenderThread->Priority = Priority;
-	TempCCRStateRenderThread->Intensity = Intensity;
-
-	// Inner could be larger than outer, in which case we need to make sure these are swapped.
-	TempCCRStateRenderThread->Inner = FMath::Min<float>(Outer, Inner);
-	TempCCRStateRenderThread->Outer = FMath::Max<float>(Outer, Inner);
-
-	if (TempCCRStateRenderThread->Inner == TempCCRStateRenderThread->Outer)
-	{
-		TempCCRStateRenderThread->Inner -= 0.0001;
-	}
-
-	TempCCRStateRenderThread->Falloff = Falloff;
-	TempCCRStateRenderThread->Invert = Invert;
-	TempCCRStateRenderThread->TemperatureType = TemperatureType;
-	TempCCRStateRenderThread->Temperature = Temperature;
-	TempCCRStateRenderThread->Tint = Tint;
-	TempCCRStateRenderThread->ColorGradingSettings = ColorGradingSettings;
-	TempCCRStateRenderThread->bEnablePerActorCC = bEnablePerActorCC;
-	TempCCRStateRenderThread->PerActorColorCorrection = PerActorColorCorrection;
-
-	GetActorBounds(false, TempCCRStateRenderThread->BoxOrigin, TempCCRStateRenderThread->BoxExtent);
-	TempCCRStateRenderThread->ActorLocation = (FVector3f)GetActorLocation();
-	TempCCRStateRenderThread->ActorRotation = (FVector3f)GetActorRotation().Euler();
-	TempCCRStateRenderThread->ActorScale = (FVector3f)GetActorScale();
-
-	// Transfer Stencil Ids.
-	{
-
-		for (const TSoftObjectPtr<AActor>& StencilActor : AffectedActors)
-		{
-			if (!StencilActor.IsValid())
-			{
-				continue;
-			}
-			TArray<UPrimitiveComponent*> PrimitiveComponents;
-			StencilActor->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
-			for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
-			{
-				if (PrimitiveComponent->bRenderCustomDepth)
-				{
-					TempCCRStateRenderThread->StencilIds.Add(static_cast<uint32>(PrimitiveComponent->CustomDepthStencilValue));
-				}
-			}
-		}
-	}
-
-	// Store component id to be used on render thread.
-	if (!(TempCCRStateRenderThread->FirstPrimitiveId == IdentityComponent->GetPrimitiveSceneId()))
-	{
-		TempCCRStateRenderThread->FirstPrimitiveId = IdentityComponent->GetPrimitiveSceneId();
-	}
-
-	{
-		ENQUEUE_RENDER_COMMAND(CopyCCProxy)([this, CCRStateToCopy = MoveTemp(TempCCRStateRenderThread)](FRHICommandListImmediate& RHICmdList)
-			{
-				ColorCorrectRenderProxy = CCRStateToCopy;
-			}
-		);
-	}
-
-}
 
 #if WITH_EDITOR
 void AColorCorrectRegion::OnSequencerTimeChanged(TWeakPtr<ISequencer> InSequencer)
@@ -235,6 +76,12 @@ void AColorCorrectRegion::OnSequencerTimeChanged(TWeakPtr<ISequencer> InSequence
 
 void AColorCorrectRegion::HandleAffectedActorsPropertyChange(uint32 ActorListChangeType)
 {
+	TWeakObjectPtr<UColorCorrectRegionsSubsystem> ColorCorrectRegionsSubsystem;
+	if (const UWorld* World = GetWorld())
+	{
+		ColorCorrectRegionsSubsystem = World->GetSubsystem<UColorCorrectRegionsSubsystem>();
+	}
+
 	if (ActorListChangeType == EPropertyChangeType::ArrayAdd
 		|| ActorListChangeType == EPropertyChangeType::ValueSet)
 	{
@@ -258,6 +105,7 @@ void AColorCorrectRegion::HandleAffectedActorsPropertyChange(uint32 ActorListCha
 				AffectedActors.FindOrAdd(TSoftObjectPtr<AActor>());
 			}
 		}
+
 		if (ColorCorrectRegionsSubsystem.IsValid())
 		{
 			ColorCorrectRegionsSubsystem->AssignStencilIdsToPerActorCC(this);
@@ -276,7 +124,7 @@ void AColorCorrectRegion::HandleAffectedActorsPropertyChange(uint32 ActorListCha
 }
 
 #if WITH_METADATA
-void AColorCorrectRegion::CreateIcon()
+void AColorCorrectionRegion::CreateIcon()
 {
 	// Create billboard component
 	if (GIsEditor && !IsRunningCommandlet())
@@ -335,14 +183,6 @@ void AColorCorrectRegion::PostEditChangeProperty(struct FPropertyChangedEvent& P
 {
 	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
 
-	if (!ColorCorrectRegionsSubsystem.IsValid())
-	{
-		if (const UWorld* World = GetWorld())
-		{
-			ColorCorrectRegionsSubsystem = World->GetSubsystem<UColorCorrectRegionsSubsystem>();
-		}
-	}
-
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(AColorCorrectRegion, AffectedActors))
 	{
 		/** Since there might be Dialogs involved we need to run this on game thread. */
@@ -350,17 +190,6 @@ void AColorCorrectRegion::PostEditChangeProperty(struct FPropertyChangedEvent& P
 		{
 			HandleAffectedActorsPropertyChange(ActorListChangeType);
 		});
-	}
-
-	// Reorder all CCRs after the Priority property has changed.
-	// Also, in context of Multi-User: PropertyChangedEvent can be a stub without the actual property data. 
-	// Therefore we need to refresh priority if PropertyChangedEvent.Property is nullptr. 
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(AColorCorrectRegion, Priority) || PropertyChangedEvent.Property == nullptr)
-	{
-		if (ColorCorrectRegionsSubsystem.IsValid())
-		{
-			ColorCorrectRegionsSubsystem->SortRegionsByPriority();
-		}
 	}
 
 	// Stage actor properties
@@ -550,6 +379,11 @@ FName AColorCorrectRegion::GetPositionalPropertiesMemberName() const
 AColorCorrectionRegion::AColorCorrectionRegion(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+
+#if WITH_METADATA
+		CreateIcon();
+#endif
+
 	UMaterial* Material = LoadObject<UMaterial>(NULL, TEXT("/ColorCorrectRegions/Materials/M_ColorCorrectRegionTransparentPreview.M_ColorCorrectRegionTransparentPreview"), NULL, LOAD_None, NULL);
 	const TArray<UStaticMesh*> StaticMeshes =
 	{

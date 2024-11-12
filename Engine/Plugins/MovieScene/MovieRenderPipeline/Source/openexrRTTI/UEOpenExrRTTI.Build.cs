@@ -9,6 +9,7 @@ public class UEOpenExrRTTI : ModuleRules
 		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) || Target.Platform == UnrealTargetPlatform.Mac || Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
         {
 			bEnableExceptions = true;
+			bDisableAutoRTFMInstrumentation = true; // AutoRTFM cannot be used with exceptions
 
 			// To write metadata into EXR files, we need to enable RTTI. To limit the spread of RTTI modules
 			// this module can selectively expose the functionality that needs RTTI.

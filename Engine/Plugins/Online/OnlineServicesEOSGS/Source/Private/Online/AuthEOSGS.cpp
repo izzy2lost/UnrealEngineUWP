@@ -7,10 +7,27 @@
 #include "IEOSSDKManager.h"
 #include "Misc/CommandLine.h"
 #include "Online/AuthErrors.h"
+#include "Online/EOSAuthLoginOptionsCommon.h"
 #include "Online/OnlineErrorEOSGS.h"
 #include "Online/OnlineIdEOSGS.h"
 #include "Online/OnlineServicesEOSGS.h"
 #include "Online/OnlineUtils.h"
+#include "Online/OnlineUtilsCommon.h"
+
+#if __has_include(COMPILED_PLATFORM_HEADER(EOSAuthLoginOptions.h))
+#include COMPILED_PLATFORM_HEADER(EOSAuthLoginOptions.h)
+#else 
+namespace UE::Online
+{
+    using FPlatformEOSAuthLoginOptions = FEOSAuthLoginOptionsCommon;
+}
+#endif
+
+TAutoConsoleVariable<bool> CVarEnableExternalAuthUserAuthToken (
+	TEXT("Online.EOS.EnableExternalAuthUserAuthToken"),
+	false,
+	TEXT("Configures GetExternalAuthTokenImpl to use EOS_Auth_CopyUserAuthToken when true, and EOS_Auth_CopyIdToken when false."),
+	ECVF_Default);
 
 #include "eos_auth.h"
 #include "eos_connect.h"
@@ -187,34 +204,9 @@ TDefaultErrorResultInternal<FEOSConnectLoginOptions> FEOSConnectLoginOptions::Cr
 	return TDefaultErrorResultInternal<FEOSConnectLoginOptions>(MoveTemp(EOSConnectLoginOptions));
 }
 
-enum class EEOSAuthTranslationFlags : uint8
-{
-	None = 0,
-	SetId = 1 << 0,
-	SetTokenFromString = 1 << 1,
-	SetTokenFromExternalAuth = 1 << 2,
-};
-ENUM_CLASS_FLAGS(EEOSAuthTranslationFlags);
-
-struct FEOSAuthTranslationTraits
-{
-	EOS_ELoginCredentialType Type;
-	EEOSAuthTranslationFlags Flags;
-};
-
-struct FEOSExternalAuthTranslationTraits
-{
-	EOS_EExternalCredentialType Type;
-};
-
-class FEOSAuthLoginOptions : public EOS_Auth_LoginOptions
+class FEOSAuthLoginOptions : public FPlatformEOSAuthLoginOptions
 {
 public:
-	FEOSAuthLoginOptions(const FEOSAuthLoginOptions&) = delete;
-	FEOSAuthLoginOptions& operator=(const FEOSAuthLoginOptions&) = delete;
-	FEOSAuthLoginOptions(FEOSAuthLoginOptions&&);
-	FEOSAuthLoginOptions& operator=(FEOSAuthLoginOptions&&);
-
 	static TDefaultErrorResultInternal<FEOSAuthLoginOptions> Create(
 		FName CredentialsType,
 		const FString& CredentialsId,
@@ -228,108 +220,8 @@ private:
 		const TVariant<FString, FExternalAuthToken>& CredentialsToken,
 		const TArray<FString>& Scopes);
 
-	FEOSAuthLoginOptions();
-
-	static const FEOSAuthTranslationTraits* GetLoginTranslatorTraits(FName Name);
-	static const FEOSExternalAuthTranslationTraits* GetExternalAuthTranslationTraits(FName ExternalAuthType);
-
-	EOS_Auth_Credentials CredentialsData;
-	TArray<char> IdUtf8;
-	TArray<char> TokenUtf8;
+	FEOSAuthLoginOptions() = default;
 };
-
-const FEOSAuthTranslationTraits* FEOSAuthLoginOptions::GetLoginTranslatorTraits(FName Name)
-{
-	static const TMap<FName, FEOSAuthTranslationTraits> SupportedLoginTranslatorTraits = {
-		{ LoginCredentialsType::Password, { EOS_ELoginCredentialType::EOS_LCT_Password, EEOSAuthTranslationFlags::SetId | EEOSAuthTranslationFlags::SetTokenFromString } },
-		{ LoginCredentialsType::ExchangeCode, { EOS_ELoginCredentialType::EOS_LCT_ExchangeCode, EEOSAuthTranslationFlags::SetTokenFromString } },
-		{ LoginCredentialsType::PersistentAuth, { EOS_ELoginCredentialType::EOS_LCT_PersistentAuth, EEOSAuthTranslationFlags::None } },
-		{ LoginCredentialsType::Developer, { EOS_ELoginCredentialType::EOS_LCT_Developer, EEOSAuthTranslationFlags::SetId | EEOSAuthTranslationFlags::SetTokenFromString } },
-		{ LoginCredentialsType::RefreshToken, { EOS_ELoginCredentialType::EOS_LCT_RefreshToken, EEOSAuthTranslationFlags::SetTokenFromString } },
-		{ LoginCredentialsType::AccountPortal, { EOS_ELoginCredentialType::EOS_LCT_AccountPortal, EEOSAuthTranslationFlags::SetId | EEOSAuthTranslationFlags::SetTokenFromString } },
-		{ LoginCredentialsType::ExternalAuth, { EOS_ELoginCredentialType::EOS_LCT_ExternalAuth, EEOSAuthTranslationFlags::SetTokenFromExternalAuth } },
-	};
-
-	return SupportedLoginTranslatorTraits.Find(Name);
-}
-
-const FEOSExternalAuthTranslationTraits* FEOSAuthLoginOptions::GetExternalAuthTranslationTraits(FName ExternalAuthType)
-{
-	static const TMap<FName, FEOSExternalAuthTranslationTraits> SupportedExternalAuthTraits = {
-		{ ExternalLoginType::Epic, { EOS_EExternalCredentialType::EOS_ECT_EPIC } },
-		{ ExternalLoginType::SteamSessionTicket, { EOS_EExternalCredentialType::EOS_ECT_STEAM_SESSION_TICKET } },
-		{ ExternalLoginType::PsnIdToken, { EOS_EExternalCredentialType::EOS_ECT_PSN_ID_TOKEN } },
-		{ ExternalLoginType::XblXstsToken, { EOS_EExternalCredentialType::EOS_ECT_XBL_XSTS_TOKEN } },
-		{ ExternalLoginType::DiscordAccessToken, { EOS_EExternalCredentialType::EOS_ECT_DISCORD_ACCESS_TOKEN } },
-		{ ExternalLoginType::GogSessionTicket, { EOS_EExternalCredentialType::EOS_ECT_GOG_SESSION_TICKET } },
-		{ ExternalLoginType::NintendoIdToken, { EOS_EExternalCredentialType::EOS_ECT_NINTENDO_ID_TOKEN } },
-		{ ExternalLoginType::NintendoNsaIdToken, { EOS_EExternalCredentialType::EOS_ECT_NINTENDO_NSA_ID_TOKEN } },
-		{ ExternalLoginType::UplayAccessToken, { EOS_EExternalCredentialType::EOS_ECT_UPLAY_ACCESS_TOKEN } },
-		{ ExternalLoginType::OpenIdAccessToken, { EOS_EExternalCredentialType::EOS_ECT_OPENID_ACCESS_TOKEN } },
-		{ ExternalLoginType::DeviceIdAccessToken, { EOS_EExternalCredentialType::EOS_ECT_DEVICEID_ACCESS_TOKEN } },
-		{ ExternalLoginType::AppleIdToken, { EOS_EExternalCredentialType::EOS_ECT_APPLE_ID_TOKEN } },
-		{ ExternalLoginType::GoogleIdToken, { EOS_EExternalCredentialType::EOS_ECT_GOOGLE_ID_TOKEN } },
-		{ ExternalLoginType::OculusUserIdNonce, { EOS_EExternalCredentialType::EOS_ECT_OCULUS_USERID_NONCE } },
-		{ ExternalLoginType::ItchioJwt, { EOS_EExternalCredentialType::EOS_ECT_ITCHIO_JWT } },
-		{ ExternalLoginType::ItchioKey, { EOS_EExternalCredentialType::EOS_ECT_ITCHIO_KEY } },
-		{ ExternalLoginType::EpicIdToken, { EOS_EExternalCredentialType::EOS_ECT_EPIC_ID_TOKEN } },
-		{ ExternalLoginType::AmazonAccessToken, { EOS_EExternalCredentialType::EOS_ECT_AMAZON_ACCESS_TOKEN } },
-	};
-
-	return SupportedExternalAuthTraits.Find(ExternalAuthType);
-}
-
-FEOSAuthLoginOptions::FEOSAuthLoginOptions(FEOSAuthLoginOptions&& Other)
-{
-	*this = MoveTemp(Other);
-}
-
-FEOSAuthLoginOptions& FEOSAuthLoginOptions::operator=(FEOSAuthLoginOptions&& Other)
-{
-	CredentialsData = Other.CredentialsData;
-
-	// Pointer fixup.
-	if (CredentialsData.Id)
-	{
-		IdUtf8 = MoveTemp(Other.IdUtf8);
-		CredentialsData.Id = IdUtf8.GetData();
-	}
-	if (CredentialsData.Token)
-	{
-		TokenUtf8 = MoveTemp(Other.TokenUtf8);
-		CredentialsData.Token = TokenUtf8.GetData();
-	}
-	if (CredentialsData.SystemAuthCredentialsOptions)
-	{
-		// todo
-	}
-
-	Credentials = &CredentialsData;
-	ApiVersion = Other.ApiVersion;
-	ScopeFlags = Other.ScopeFlags;
-
-	Other.Credentials = nullptr;
-	return *this;
-}
-
-FEOSAuthLoginOptions::FEOSAuthLoginOptions()
-{
-	// EOS_Auth_LoginOptions init
-	UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_LOGIN_API_LATEST, 3);
-	ApiVersion = 2;
-	Credentials = &CredentialsData;
-	ScopeFlags = EOS_EAuthScopeFlags::EOS_AS_NoFlags;
-	LoginFlags = 0;
-
-	// EOS_Auth_Credentials init
-	UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_CREDENTIALS_API_LATEST, 4);
-	CredentialsData.ApiVersion = 4;
-	CredentialsData.Id = nullptr;
-	CredentialsData.Token = nullptr;
-	CredentialsData.Type = EOS_ELoginCredentialType::EOS_LCT_Password;
-	CredentialsData.SystemAuthCredentialsOptions = nullptr;
-	CredentialsData.ExternalType = EOS_EExternalCredentialType::EOS_ECT_EPIC;
-}
 
 TDefaultErrorResultInternal<FEOSAuthLoginOptions> FEOSAuthLoginOptions::Create(
 	FName CredentialsType,
@@ -423,9 +315,16 @@ TDefaultErrorResultInternal<FEOSAuthLoginOptions> FEOSAuthLoginOptions::CreateIm
 		FCStringAnsi::Strncpy(EOSAuthLoginOptions.TokenUtf8.GetData(), TCHAR_TO_UTF8(*ExternalAuthToken.Data), EOSAuthLoginOptions.TokenUtf8.Num());
 		EOSAuthLoginOptions.CredentialsData.Token = EOSAuthLoginOptions.TokenUtf8.GetData();
 		EOSAuthLoginOptions.CredentialsData.ExternalType = ExternalAuthTranslationTraits->Type;
+		EOSAuthLoginOptions.LinkAccountFlags = ExternalAuthTranslationTraits->LinkAccountFlags;
+
+		UE_LOG(LogOnlineServices, VeryVerbose, TEXT("FEOSAuthLoginOptions::Create: Using token type: %s, Token data: %.*s"), *ExternalAuthToken.Type.ToString(), ExternalAuthToken.Data.Len(), *ExternalAuthToken.Data);
 	}
 
-	// todo: handle SystemAuthCredentialsOptions
+	if (!InitSystemAuthCredentialOptions(EOSAuthLoginOptions))
+	{
+		UE_LOG(LogOnlineServices, Warning, TEXT("FEOSAuthLoginOptions::Create: Failed - Failed to initialize system credential options"));
+		return TDefaultErrorResultInternal<FEOSAuthLoginOptions>(Errors::InvalidCreds());
+	}
 
 	// Translate scopes.
 	bool bAllScopesValid = true;
@@ -575,6 +474,14 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthEOSGS::Login(FAuthLogin::Params&& Params)
 	Op->Then([this](TOnlineAsyncOp<FAuthLogin>& InAsyncOp)
 	{
 		const FAuthLogin::Params& Params = InAsyncOp.GetParams();
+
+		// Check that user is valid.
+		if (!Params.PlatformUserId.IsValid())
+		{
+			InAsyncOp.SetError(Errors::InvalidParams());
+			return;
+		}
+
 		TSharedPtr<FAccountInfoEOS> AccountInfoEOS = AccountInfoRegistryEOS.Find(Params.PlatformUserId);
 		if (!AccountInfoEOS)
 		{
@@ -616,7 +523,7 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthEOSGS::Login(FAuthLogin::Params&& Params)
 					if (LoginResult.IsError())
 					{
 						UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::Login] Failure: LoginEASImpl %s"), *LoginResult.GetErrorValue().GetLogString());
-						Op->SetError(Errors::Unknown(MoveTemp(LoginResult.GetErrorValue())));
+						Op->SetError(MoveTemp(LoginResult.GetErrorValue()));
 					}
 					else
 					{
@@ -652,19 +559,14 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthEOSGS::Login(FAuthLogin::Params&& Params)
 			if (AuthTokenResult.IsError())
 			{
 				UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::Login] Failure: GetExternalAuthTokenImpl %s"), *AuthTokenResult.GetErrorValue().GetLogString());
-				InAsyncOp.SetError(Errors::Unknown(MoveTemp(AuthTokenResult.GetErrorValue())));
 
 				// Failed to acquire token - logout EAS.
 				LogoutEASImpl(FAuthLogoutEASImpl::Params{ AccountInfoEOS->EpicAccountId })
-				.Next([Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&& LogoutResult) mutable -> void
+				.Next([AsyncOp = InAsyncOp.AsShared(), Error = MoveTemp(AuthTokenResult.GetErrorValue()), Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&&) mutable -> void
 				{
-					if (LogoutResult.IsError())
-					{
-						UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::Login] Failure: LogoutEASImpl %s"), *LogoutResult.GetErrorValue().GetLogString());
-					}
+					AsyncOp->SetError(MoveTemp(Error));
 					Promise.EmplaceValue(FAuthLoginConnectImpl::Params{});
 				});
-
 				return Future;
 			}
 
@@ -695,23 +597,19 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthEOSGS::Login(FAuthLogin::Params&& Params)
 
 		// Attempt connect login.
 		LoginConnectImpl(LoginConnectParams)
-		.Next([this, AccountInfoEOS, Op = InAsyncOp.AsShared(), Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLoginConnectImpl>&& LoginResult) mutable -> void
+		.Next([this, AccountInfoEOS, AsyncOp = InAsyncOp.AsShared(), Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLoginConnectImpl>&& LoginResult) mutable -> void
 		{
 			if (LoginResult.IsError())
 			{
 				UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::Login] Failure: LoginConnectImpl %s"), *LoginResult.GetErrorValue().GetLogString());
-				Op->SetError(Errors::Unknown(MoveTemp(LoginResult.GetErrorValue())));
 
 				// Logout of EAS on login failure if necessary.
 				if (AccountInfoEOS->EpicAccountId)
 				{
 					LogoutEASImpl(FAuthLogoutEASImpl::Params{ AccountInfoEOS->EpicAccountId })
-					.Next([Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&& LogoutResult) mutable -> void
+					.Next([AsyncOp = AsyncOp->AsShared(), Error = MoveTemp(LoginResult.GetErrorValue()), Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&&) mutable -> void
 					{
-						if (LogoutResult.IsError())
-						{
-							UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::Login] Failure: LogoutEASImpl %s"), *LogoutResult.GetErrorValue().GetLogString());
-						}
+						AsyncOp->SetError(MoveTemp(Error));
 						Promise.EmplaceValue();
 					});
 				}
@@ -749,25 +647,23 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthEOSGS::Login(FAuthLogin::Params&& Params)
 			{
 				FOnlineError ProductUserIdError(Errors::FromEOSResult(ProductUserIdResult));
 				UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::Login] Failure: EOS_ProductUserId_ToString %s"), *ProductUserIdError.GetLogString());
-				InAsyncOp.SetError(Errors::Unknown(MoveTemp(ProductUserIdError)));
 
 				// Handle EAS logout if needed.
 				if (AccountInfoEOS->EpicAccountId)
 				{
 					TPromise<void> Promise;
 					TFuture<void> Future = Promise.GetFuture();
-
 					LogoutEASImpl(FAuthLogoutEASImpl::Params{ AccountInfoEOS->EpicAccountId })
-					.Next([Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&& LogoutResult) mutable -> void
+					.Next([AsyncOp = InAsyncOp.AsShared(), Error = MoveTemp(ProductUserIdError), Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&&) mutable -> void
 					{
-						if (LogoutResult.IsError())
-						{
-							UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::Login] Failure: LogoutEASImpl %s"), *LogoutResult.GetErrorValue().GetLogString());
-						}
+						AsyncOp->SetError(MoveTemp(Error));
 						Promise.EmplaceValue();
 					});
-
 					return Future;
+				}
+				else
+				{
+					InAsyncOp.SetError(MoveTemp(ProductUserIdError));
 				}
 			}
 		}
@@ -860,17 +756,11 @@ TOnlineAsyncOpHandle<FAuthLogout> FAuthEOSGS::Logout(FAuthLogout::Params&& Param
 		{
 			TPromise<void> Promise;
 			TFuture<void> Future = Promise.GetFuture();
-
 			LogoutEASImpl(FAuthLogoutEASImpl::Params{ AccountInfoEOS->EpicAccountId })
-			.Next([this, AccountInfoEOS, Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&& LogoutResult) mutable -> void
+			.Next([Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&&) mutable -> void
 			{
-				if (LogoutResult.IsError())
-				{
-					UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::Logout] Failure: LogoutEASImpl %s"), *LogoutResult.GetErrorValue().GetLogString());
-				}
 				Promise.EmplaceValue();
 			});
-
 			return Future;
 		}
 		else
@@ -916,6 +806,28 @@ TOnlineAsyncOpHandle<FAuthBeginVerifiedAuthSession> FAuthEOSGS::BeginVerifiedAut
 	TOnlineAsyncOpRef<FAuthBeginVerifiedAuthSession> Operation = GetOp<FAuthBeginVerifiedAuthSession>(MoveTemp(Params));
 	Operation->SetError(Errors::NotImplemented());
 	return Operation->GetHandle();
+}
+
+TOnlineResult<FAuthGetRelyingParty> FAuthEOSGS::GetRelyingParty(FAuthGetRelyingParty::Params&& Params) const
+{
+	IEOSSDKManager* Manager = IEOSSDKManager::Get();
+	const FString& PlatformConfigName = GetServices<FOnlineServicesEOSGS>().GetEOSPlatformHandle()->GetConfigName();
+	const FEOSSDKPlatformConfig* Config = Manager ? Manager->GetPlatformConfig(PlatformConfigName) : nullptr;
+	if (Config == nullptr)
+	{
+		UE_LOG(LogOnlineServices, Error, TEXT("[%hs]: No configuration found for EOS platform %s."), __FUNCTION__, *PlatformConfigName);
+		return TOnlineResult<FAuthGetRelyingParty>(Errors::NotConfigured());
+	}
+
+	FString OutRelyingParty = Config->RelyingPartyURI;
+	if (OutRelyingParty.IsEmpty())
+	{
+		UE_LOG(LogOnlineServices, Warning, TEXT("[%hs]: Relying party configuration is missing for sandbox %s"), __FUNCTION__, *Config->SandboxId);
+		return TOnlineResult<FAuthGetRelyingParty>(Errors::NotConfigured());
+	}
+
+	UE_LOG(LogOnlineServices, VeryVerbose, TEXT("[%hs]: Using relying party: %s"), __FUNCTION__, *OutRelyingParty);
+	return TOnlineResult<FAuthGetRelyingParty>(FAuthGetRelyingParty::Result{MoveTemp(OutRelyingParty)});
 }
 
 TOnlineAsyncOpHandle<FAuthEndVerifiedAuthSession> FAuthEOSGS::EndVerifiedAuthSession(FAuthEndVerifiedAuthSession::Params&& Params)
@@ -976,14 +888,38 @@ TFuture<TDefaultErrorResult<FAuthLoginEASImpl>> FAuthEOSGS::LoginEASImpl(const F
 		return MakeFulfilledPromise<TDefaultErrorResult<FAuthLoginEASImpl>>(MoveTemp(LoginOptionsResult.GetErrorValue())).GetFuture();
 	}
 
-	const bool IsPersistentAuthLogin = LoginParams.CredentialsType == LoginCredentialsType::PersistentAuth;
+	const bool bIsPersistentAuthLogin = LoginParams.CredentialsType == LoginCredentialsType::PersistentAuth;
+	const EOS_ELinkAccountFlags LinkAccountFlags = LoginOptionsResult.GetOkValue().GetLinkAccountFlags();
 
 	TPromise<TDefaultErrorResult<FAuthLoginEASImpl>> Promise;
 	TFuture<TDefaultErrorResult<FAuthLoginEASImpl>> Future = Promise.GetFuture();
-
-	EOS_Async(EOS_Auth_Login, AuthHandle, MoveTemp(LoginOptionsResult.GetOkValue()),
-	[AuthHandle = AuthHandle, IsPersistentAuthLogin, Promise = MoveTemp(Promise)](const EOS_Auth_LoginCallbackInfo* Data) mutable -> void
+    
+	FEOSAuthLoginOptions LoginOptions = MoveTemp(LoginOptionsResult.GetOkValue());
+    
+#if PLATFORM_IOS
+	const EDeviceScreenOrientation OriginalDeviceOrientation = FPlatformMisc::GetAllowedDeviceOrientation();
+	// TODO move this into ASWebAuthenticationSession callbacks when they become available.
+	if (LoginOptions.Credentials->Type == EOS_ELoginCredentialType::EOS_LCT_AccountPortal)
 	{
+		FPlatformMisc::SetAllowedDeviceOrientation(EDeviceScreenOrientation::FullSensor);
+	}
+#endif
+
+	EOS_Async(EOS_Auth_Login, AuthHandle, MoveTemp(LoginOptions),
+	[this, bIsPersistentAuthLogin, PlatformUserId = LoginParams.PlatformUserId, LinkAccountFlags, bAutoLinkAccount = LoginParams.bAutoLinkAccount, Promise = MoveTemp(Promise)
+#if PLATFORM_IOS
+		, OriginalDeviceOrientation
+#endif
+	](const EOS_Auth_LoginCallbackInfo* Data) mutable -> void
+	{
+#if PLATFORM_IOS
+        // TODO move this into ASWebAuthenticationSession callbacks when they become available.
+		if (FPlatformMisc::GetAllowedDeviceOrientation() != OriginalDeviceOrientation)
+		{
+			FPlatformMisc::SetAllowedDeviceOrientation(OriginalDeviceOrientation);
+		}
+#endif
+        
 		UE_LOG(LogOnlineServices, Verbose, TEXT("[FAuthEOSGS::LoginEASImpl] EOS_Auth_Login Result: [%s]"), *LexToString(Data->ResultCode));
 
 		if (Data->ResultCode == EOS_EResult::EOS_Success)
@@ -992,25 +928,44 @@ TFuture<TDefaultErrorResult<FAuthLoginEASImpl>> FAuthEOSGS::LoginEASImpl(const F
 		}
 		else if (Data->ResultCode == EOS_EResult::EOS_InvalidUser && Data->ContinuanceToken != nullptr)
 		{
-			EOS_Auth_LinkAccountOptions LinkAccountOptions = {};
-			LinkAccountOptions.ApiVersion = 1;
-			LinkAccountOptions.ContinuanceToken = Data->ContinuanceToken;
-			UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_LINKACCOUNT_API_LATEST, 1);
-
-			EOS_Async(EOS_Auth_LinkAccount, AuthHandle, LinkAccountOptions,
-			[Promise = MoveTemp(Promise)](const EOS_Auth_LinkAccountCallbackInfo* Data) mutable -> void
+			if (bAutoLinkAccount)
 			{
-				UE_LOG(LogOnlineServices, Verbose, TEXT("[FAuthEOSGS::LoginEASImpl] EOS_Auth_LinkAccount Result: [%s]"), *LexToString(Data->ResultCode));
+				EOS_Auth_LinkAccountOptions LinkAccountOptions = {};
+				LinkAccountOptions.ApiVersion = 1;
+				LinkAccountOptions.ContinuanceToken = Data->ContinuanceToken;
+				LinkAccountOptions.LinkAccountFlags = LinkAccountFlags;
+				UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_LINKACCOUNT_API_LATEST, 1);
 
-				if (Data->ResultCode == EOS_EResult::EOS_Success)
+				EOS_Async(EOS_Auth_LinkAccount, AuthHandle, LinkAccountOptions,
+				[Promise = MoveTemp(Promise)](const EOS_Auth_LinkAccountCallbackInfo* Data) mutable -> void
 				{
-					Promise.SetValue(TDefaultErrorResult<FAuthLoginEASImpl>(FAuthLoginEASImpl::Result{ Data->LocalUserId }));
+					UE_LOG(LogOnlineServices, Verbose, TEXT("[FAuthEOSGS::LoginEASImpl] EOS_Auth_LinkAccount Result: [%s]"), *LexToString(Data->ResultCode));
+
+					if (Data->ResultCode == EOS_EResult::EOS_Success)
+					{
+						Promise.SetValue(TDefaultErrorResult<FAuthLoginEASImpl>(FAuthLoginEASImpl::Result{ Data->LocalUserId }));
+					}
+					else
+					{
+						Promise.SetValue(TDefaultErrorResult<FAuthLoginEASImpl>(Errors::FromEOSResult(Data->ResultCode)));
+					}
+				});
+			}
+			else
+			{
+				UE_LOG(LogOnlineServices, Verbose, TEXT("[FAuthEOSGS::LoginEASImpl] Saving link account continuance token for manual link account usage."));
+				if (FUserScopedData* UserData = GetOrCreateUserScopedData(PlatformUserId))
+				{
+					UserData->LastLoginContinuationId = FLoginContinuationId(EOnlineServices::Epic, NextLoginContinuationId++);
+					UserData->LoginContinuations.Add(FLoginContinuationData{UserData->LastLoginContinuationId, Data->ContinuanceToken, LinkAccountFlags});
 				}
 				else
 				{
-					Promise.SetValue(TDefaultErrorResult<FAuthLoginEASImpl>(Errors::FromEOSResult(Data->ResultCode)));
+					UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::LoginEASImpl] Failed to access user scoped data."));
 				}
-			});
+
+				Promise.SetValue(TDefaultErrorResult<FAuthLoginEASImpl>(Errors::FromEOSResult(Data->ResultCode)));
+			}
 		}
 		else
 		{
@@ -1022,7 +977,7 @@ TFuture<TDefaultErrorResult<FAuthLoginEASImpl>> FAuthEOSGS::LoginEASImpl(const F
 				Data->ResultCode == EOS_EResult::EOS_Auth_InvalidToken;
 
 			// Remove persistent auth credentials when they are found to be invalid.
-			if (IsPersistentAuthLogin && bShouldRemoveCachedToken)
+			if (bIsPersistentAuthLogin && bShouldRemoveCachedToken)
 			{
 				EOS_Auth_DeletePersistentAuthOptions DeletePersistentAuthOptions = {};
 				DeletePersistentAuthOptions.ApiVersion = 2;
@@ -1063,14 +1018,14 @@ TFuture<TDefaultErrorResult<FAuthLogoutEASImpl>> FAuthEOSGS::LogoutEASImpl(const
 	EOS_Async(EOS_Auth_Logout, AuthHandle, LogoutOptions,
 	[Promise = MoveTemp(Promise)](const EOS_Auth_LogoutCallbackInfo* Data) mutable -> void
 	{
-		UE_LOG(LogOnlineServices, Verbose, TEXT("[FAuthEOSGS::LogoutEASImpl] EOS_Auth_Logout Result: [%s]"), *LexToString(Data->ResultCode));
-
 		if (Data->ResultCode == EOS_EResult::EOS_Success)
 		{
+			UE_LOG(LogOnlineServices, Verbose, TEXT("[FAuthEOSGS::LogoutEASImpl] EOS_Auth_Logout Result: [%s]"), *LexToString(Data->ResultCode));
 			Promise.SetValue(TDefaultErrorResult<FAuthLogoutEASImpl>(FAuthLogoutEASImpl::Result{}));
 		}
 		else
 		{
+			UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::LogoutEASImpl] EOS_Auth_Logout Result: [%s]"), *LexToString(Data->ResultCode));
 			Promise.SetValue(TDefaultErrorResult<FAuthLogoutEASImpl>(Errors::FromEOSResult(Data->ResultCode)));
 		}
 	});
@@ -1080,28 +1035,56 @@ TFuture<TDefaultErrorResult<FAuthLogoutEASImpl>> FAuthEOSGS::LogoutEASImpl(const
 
 TDefaultErrorResult<FAuthGetExternalAuthTokenImpl> FAuthEOSGS::GetExternalAuthTokenImpl(const FAuthGetExternalAuthTokenImpl::Params& Params)
 {
-	EOS_Auth_CopyIdTokenOptions CopyIdTokenOptions = {};
-	CopyIdTokenOptions.ApiVersion = 1;
-	CopyIdTokenOptions.AccountId = Params.EpicAccountId;
-	UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_COPYIDTOKEN_API_LATEST, 1);
-
-	EOS_Auth_IdToken* IdToken = nullptr;
-	EOS_EResult Result = EOS_Auth_CopyIdToken(AuthHandle, &CopyIdTokenOptions, &IdToken);
-	if (Result == EOS_EResult::EOS_Success)
+	if (CVarEnableExternalAuthUserAuthToken.GetValueOnGameThread())
 	{
-		ON_SCOPE_EXIT
-		{
-			EOS_Auth_IdToken_Release(IdToken);
-		};
+		EOS_Auth_CopyUserAuthTokenOptions Options = {};
+		Options.ApiVersion = 1;
+		UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_COPYUSERAUTHTOKEN_API_LATEST, 1);
 
-		FExternalAuthToken ExternalAuthToken;
-		ExternalAuthToken.Type = ExternalLoginType::EpicIdToken;
-		ExternalAuthToken.Data = UTF8_TO_TCHAR(IdToken->JsonWebToken);
-		return TDefaultErrorResult<FAuthGetExternalAuthTokenImpl>(FAuthGetExternalAuthTokenImpl::Result{ MoveTemp(ExternalAuthToken) });
+		EOS_Auth_Token* Token = nullptr;
+		const EOS_EResult Result = EOS_Auth_CopyUserAuthToken(AuthHandle, &Options, Params.EpicAccountId, &Token);
+		if (Result == EOS_EResult::EOS_Success)
+		{
+			ON_SCOPE_EXIT
+			{
+				EOS_Auth_Token_Release(Token);
+			};
+
+			FExternalAuthToken ExternalAuthToken;
+			ExternalAuthToken.Type = ExternalLoginType::Epic;
+			ExternalAuthToken.Data = UTF8_TO_TCHAR(Token->AccessToken);
+			return TDefaultErrorResult<FAuthGetExternalAuthTokenImpl>(FAuthGetExternalAuthTokenImpl::Result{ MoveTemp(ExternalAuthToken) });
+		}
+		else
+		{
+			return TDefaultErrorResult<FAuthGetExternalAuthTokenImpl>(Errors::FromEOSResult(Result));
+		}
 	}
 	else
 	{
-		return TDefaultErrorResult<FAuthGetExternalAuthTokenImpl>(Errors::FromEOSResult(Result));
+		EOS_Auth_CopyIdTokenOptions Options = {};
+		Options.ApiVersion = 1;
+		Options.AccountId = Params.EpicAccountId;
+		UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_COPYIDTOKEN_API_LATEST, 1);
+
+		EOS_Auth_IdToken* IdToken = nullptr;
+		const EOS_EResult Result = EOS_Auth_CopyIdToken(AuthHandle, &Options, &IdToken);
+		if (Result == EOS_EResult::EOS_Success)
+		{
+			ON_SCOPE_EXIT
+			{
+				EOS_Auth_IdToken_Release(IdToken);
+			};
+
+			FExternalAuthToken ExternalAuthToken;
+			ExternalAuthToken.Type = ExternalLoginType::EpicIdToken;
+			ExternalAuthToken.Data = UTF8_TO_TCHAR(IdToken->JsonWebToken);
+			return TDefaultErrorResult<FAuthGetExternalAuthTokenImpl>(FAuthGetExternalAuthTokenImpl::Result{ MoveTemp(ExternalAuthToken) });
+		}
+		else
+		{
+			return TDefaultErrorResult<FAuthGetExternalAuthTokenImpl>(Errors::FromEOSResult(Result));
+		}
 	}
 }
 
@@ -1195,7 +1178,7 @@ TOnlineAsyncOpHandle<FAuthConnectLoginRecoveryImpl> FAuthEOSGS::ConnectLoginReco
 		if (AuthTokenResult.IsError())
 		{
 			UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::ConnectLoginRecoveryImplOp] Failure: GetExternalAuthTokenImpl %s"), *AuthTokenResult.GetErrorValue().GetLogString());
-			InAsyncOp.SetError(Errors::Unknown(MoveTemp(AuthTokenResult.GetErrorValue())));
+			InAsyncOp.SetError(MoveTemp(AuthTokenResult.GetErrorValue()));
 
 			// Reinitialize recovery timer.
 			InitializeConnectLoginRecoveryTimer(AccountInfoEOS);
@@ -1219,7 +1202,7 @@ TOnlineAsyncOpHandle<FAuthConnectLoginRecoveryImpl> FAuthEOSGS::ConnectLoginReco
 			if (LoginResult.IsError())
 			{
 				UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::ConnectLoginRecoveryImplOp] Failure: LoginConnectImpl %s"), *LoginResult.GetErrorValue().GetLogString());
-				Op->SetError(Errors::Unknown(MoveTemp(LoginResult.GetErrorValue())));
+				Op->SetError(MoveTemp(LoginResult.GetErrorValue()));
 
 				// Reinitialize recovery timer.
 				InitializeConnectLoginRecoveryTimer(AccountInfoEOS);
@@ -1532,6 +1515,34 @@ void FAuthEOSGS::InitializeConnectLoginRecoveryTimer(const TSharedRef<FAccountIn
 FAccountId FAuthEOSGS::CreateAccountId(const EOS_ProductUserId ProductUserId)
 {
 	return FOnlineAccountIdRegistryEOSGS::Get().FindOrAddAccountId(ProductUserId);
+}
+
+FAuthEOSGS::FUserScopedData* FAuthEOSGS::GetUserScopedData(FPlatformUserId PlatformUserId)
+{
+	const int32 UserIndex = FPlatformMisc::GetUserIndexForPlatformUser(PlatformUserId);
+	return UserScopedData.IsValidIndex(UserIndex) ? &UserScopedData[UserIndex] : nullptr;
+}
+
+const FAuthEOSGS::FUserScopedData* FAuthEOSGS::GetUserScopedData(FPlatformUserId PlatformUserId) const
+{
+	const int32 UserIndex = FPlatformMisc::GetUserIndexForPlatformUser(PlatformUserId);
+	return UserScopedData.IsValidIndex(UserIndex) ? &UserScopedData[UserIndex] : nullptr;
+}
+
+FAuthEOSGS::FUserScopedData* FAuthEOSGS::GetOrCreateUserScopedData(FPlatformUserId PlatformUserId)
+{
+	const int32 UserIndex = FPlatformMisc::GetUserIndexForPlatformUser(PlatformUserId);
+	if (UserIndex == INDEX_NONE)
+	{
+		return nullptr;
+	}
+
+	if (!UserScopedData.IsValidIndex(UserIndex))
+	{
+		UserScopedData.Insert(UserIndex, FUserScopedData());
+	}
+
+	return &UserScopedData[UserIndex];
 }
 
 /* UE::Online */ }

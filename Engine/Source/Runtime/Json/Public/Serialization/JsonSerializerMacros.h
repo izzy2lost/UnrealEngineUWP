@@ -56,6 +56,28 @@
 			} \
 		}
 
+#define JSON_SERIALIZE_OPTIONAL_MAP(JsonName, JsonMap) \
+	if (Serializer.IsLoading() && !JsonMap.IsSet() && Serializer.GetObject().IsValid() && Serializer.GetObject()->HasTypedField<EJson::Object>(TEXTVIEW(JsonName))) \
+	{ \
+		JsonMap.Emplace(); \
+	} \
+	\
+	if (JsonMap.IsSet()) \
+	{ \
+		Serializer.SerializeMap(TEXTVIEW(JsonName), JsonMap.GetValue()); \
+	}
+
+#define JSON_SERIALIZE_OPTIONAL_ARRAY(JsonName, JsonArray) \
+	if (Serializer.IsLoading() && !JsonArray.IsSet() && Serializer.GetObject().IsValid() && Serializer.GetObject()->HasTypedField<EJson::Array>(TEXTVIEW(JsonName))) \
+	{ \
+		JsonArray.Emplace(); \
+	} \
+	\
+	if (JsonArray.IsSet()) \
+	{ \
+		Serializer.SerializeArray(TEXTVIEW(JsonName), JsonArray.GetValue()); \
+	}
+
 #define JSON_SERIALIZE_ARRAY(JsonName, JsonArray) \
 		Serializer.SerializeArray(TEXTVIEW(JsonName), JsonArray)
 		
@@ -213,6 +235,38 @@
 				Serializer.StartObject(MakeStringView(It.Key())); \
 				It.Value().Serialize(Serializer, true); \
 				Serializer.EndObject(); \
+			} \
+			Serializer.EndObject(); \
+		}
+
+#define JSON_SERIALIZE_MAP_ARRAY_SERIALIZABLE(JsonName, JsonMap, ElementType) \
+		if (Serializer.IsLoading()) \
+		{ \
+			if (Serializer.GetObject()->HasTypedField<EJson::Object>(TEXTVIEW(JsonName))) \
+			{ \
+				TSharedPtr<FJsonObject> JsonObj = Serializer.GetObject()->GetObjectField(TEXTVIEW(JsonName)); \
+				for (auto MapIt = JsonObj->Values.CreateConstIterator(); MapIt; ++MapIt) \
+				{ \
+					TArray<ElementType> NewEntry; \
+					for (auto ArrayIt : MapIt.Value()->AsArray()) \
+					{ \
+						NewEntry.Add_GetRef(ElementType()).FromJson(ArrayIt->AsObject()); \
+					} \
+					JsonMap.Add(MapIt.Key(), NewEntry); \
+				} \
+			} \
+		} \
+		else \
+		{ \
+			Serializer.StartObject(TEXTVIEW(JsonName)); \
+			for (auto It = JsonMap.CreateIterator(); It; ++It) \
+			{ \
+				Serializer.StartArray(It.Key()); \
+				for (auto ArrayEntry : It.Value()) \
+				{ \
+					ArrayEntry.Serialize(Serializer, false); \
+				} \
+				Serializer.EndArray(); \
 			} \
 			Serializer.EndObject(); \
 		}

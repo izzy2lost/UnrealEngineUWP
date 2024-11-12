@@ -53,7 +53,7 @@ void UPixelStreamingMediaTexture::OnFrame(FTextureRHIRef Frame)
 	AsyncTask(ENamedThreads::ActualRenderingThread, [this, Frame]() {
 		FScopeLock Lock(&RenderSyncContext);
 
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+		FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 		UpdateTextureReference(RHICmdList, Frame);
 	});
 }
@@ -72,23 +72,23 @@ void UPixelStreamingMediaTexture::InitializeResources()
 				.SetFlags(ETextureCreateFlags::Dynamic | ETextureCreateFlags::ShaderResource | TexCreate_RenderTargetable)
 				.SetInitialState(ERHIAccess::SRVMask);
 	
-		RenderableTexture = RHICreateTexture(RenderTargetTextureDesc);
+		RenderableTexture = RHICmdList.CreateTexture(RenderTargetTextureDesc);
 		ShaderTexture2D = RenderableTexture;
 	
 		CurrentResource->TextureRHI = RenderableTexture;
 
-		RHIUpdateTextureReference(TextureReference.TextureReferenceRHI, CurrentResource->TextureRHI);
+		RHICmdList.UpdateTextureReference(TextureReference.TextureReferenceRHI, CurrentResource->TextureRHI);
 	});
 }
 
-void UPixelStreamingMediaTexture::UpdateTextureReference(FRHICommandList& RHICmdList, FTexture2DRHIRef Reference)
+void UPixelStreamingMediaTexture::UpdateTextureReference(FRHICommandList& RHICmdList, FTextureRHIRef Reference)
 {
 	if (CurrentResource != nullptr)
 	{
 		if (Reference.IsValid() && CurrentResource->TextureRHI != Reference)
 		{
 			CurrentResource->TextureRHI = Reference;
-			RHIUpdateTextureReference(TextureReference.TextureReferenceRHI, CurrentResource->TextureRHI);
+			RHICmdList.UpdateTextureReference(TextureReference.TextureReferenceRHI, CurrentResource->TextureRHI);
 		}
 		else if (!Reference.IsValid())
 		{

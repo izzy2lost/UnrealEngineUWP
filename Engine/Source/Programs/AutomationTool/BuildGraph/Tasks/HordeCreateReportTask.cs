@@ -1,15 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using Microsoft.Extensions.Logging;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Xml;
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 
 namespace AutomationTool.Tasks
 {
@@ -22,25 +20,25 @@ namespace AutomationTool.Tasks
 		/// Name for the report
 		/// </summary>
 		[TaskParameter]
-		public string Name;
+		public string Name { get; set; }
 
 		/// <summary>
 		/// Where to display the report
 		/// </summary>
 		[TaskParameter]
-		public string Scope;
+		public string Scope { get; set; }
 
 		/// <summary>
 		/// Where to show the report
 		/// </summary>
 		[TaskParameter]
-		public string Placement;
+		public string Placement { get; set; }
 
 		/// <summary>
 		/// Text to be displayed
 		/// </summary>
 		[TaskParameter]
-		public string Text;
+		public string Text { get; set; }
 	}
 
 	/// <summary>
@@ -52,51 +50,51 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Parameters for this task.
 		/// </summary>
-		HordeCreateReportTaskParameters Parameters;
+		readonly HordeCreateReportTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor.
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task.</param>
-		public HordeCreateReportTask(HordeCreateReportTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task.</param>
+		public HordeCreateReportTask(HordeCreateReportTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job.</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include.</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job.</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include.</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			FileReference ReportTextFile = FileReference.Combine(new DirectoryReference(CommandUtils.CmdEnv.LogFolder), $"{Parameters.Name}.md");
-			await FileReference.WriteAllTextAsync(ReportTextFile, Parameters.Text);
+			FileReference reportTextFile = FileReference.Combine(new DirectoryReference(CommandUtils.CmdEnv.LogFolder), $"{_parameters.Name}.md");
+			await FileReference.WriteAllTextAsync(reportTextFile, _parameters.Text);
 
-			FileReference ReportJsonFile = FileReference.Combine(new DirectoryReference(CommandUtils.CmdEnv.LogFolder), $"{Parameters.Name}.report.json");
-			using (FileStream ReportJsonStream = FileReference.Open(ReportJsonFile, FileMode.Create, FileAccess.Write, FileShare.Read))
+			FileReference reportJsonFile = FileReference.Combine(new DirectoryReference(CommandUtils.CmdEnv.LogFolder), $"{_parameters.Name}.report.json");
+			using (FileStream reportJsonStream = FileReference.Open(reportJsonFile, FileMode.Create, FileAccess.Write, FileShare.Read))
 			{
-				using (Utf8JsonWriter Writer = new Utf8JsonWriter(ReportJsonStream))
+				using (Utf8JsonWriter writer = new Utf8JsonWriter(reportJsonStream))
 				{
-					Writer.WriteStartObject();
-					Writer.WriteString("scope", Parameters.Scope);
-					Writer.WriteString("name", Parameters.Name);
-					Writer.WriteString("placement", Parameters.Placement);
-					Writer.WriteString("fileName", ReportTextFile.GetFileName());
-					Writer.WriteEndObject();
+					writer.WriteStartObject();
+					writer.WriteString("scope", _parameters.Scope);
+					writer.WriteString("name", _parameters.Name);
+					writer.WriteString("placement", _parameters.Placement);
+					writer.WriteString("fileName", reportTextFile.GetFileName());
+					writer.WriteEndObject();
 				}
 			}
 
-			Logger.LogInformation("Written report to {TextFile} and {JsonFile}: \"{Text}\"", ReportTextFile, ReportJsonFile, Parameters.Text);
+			Logger.LogInformation("Written report to {TextFile} and {JsonFile}: \"{Text}\"", reportTextFile, reportJsonFile, _parameters.Text);
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>

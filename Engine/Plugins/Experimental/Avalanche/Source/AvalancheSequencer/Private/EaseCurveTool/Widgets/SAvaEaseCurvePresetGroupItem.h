@@ -13,7 +13,7 @@ class STableViewBase;
 struct FAvaEaseCurvePreset;
 
 DECLARE_DELEGATE_RetVal_OneParam(bool, FAvaEaseCurvePresetDelegate, const TSharedPtr<FAvaEaseCurvePreset>& /*InPreset*/)
-DECLARE_DELEGATE_RetVal_TwoParams(bool, FAvaEaseCurvePresetClickDelegate, const TSharedPtr<FAvaEaseCurvePreset>& /*InPreset*/, const FModifierKeysState& /*InModifierKeys*/)
+DECLARE_DELEGATE_RetVal_OneParam(bool, FAvaEaseCurvePresetClickDelegate, const TSharedPtr<FAvaEaseCurvePreset>& /*InPreset*/)
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FAvaEaseCurvePresetRenameDelegate, const TSharedPtr<FAvaEaseCurvePreset>& /*InPreset*/, const FString& /*InNewName*/)
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FAvaEaseCurvePresetMoveDelegate, const TSharedPtr<FAvaEaseCurvePreset>& /*InPreset*/, const FString& /*InNewCategoryName*/)
 
@@ -30,6 +30,7 @@ public:
 		SLATE_EVENT(FAvaEaseCurvePresetClickDelegate, OnClick)
 		SLATE_EVENT(FAvaEaseCurvePresetDelegate, OnDelete)
 		SLATE_EVENT(FAvaEaseCurvePresetRenameDelegate, OnRename)
+		SLATE_EVENT(FAvaEaseCurvePresetDelegate, OnSetQuickEase)
 		SLATE_EVENT(FAvaEaseCurvePresetMoveDelegate, OnBeginMove)
 		SLATE_EVENT(FAvaEaseCurvePresetMoveDelegate, OnEndMove)
 	SLATE_END_ARGS()
@@ -44,8 +45,6 @@ public:
 	void TriggerEndMove();
 
 protected:
-	void HandlePresetClick() const;
-
 	void HandleRenameTextCommitted(const FText& InNewText, ETextCommit::Type InCommitType) const;
 
 	FReply HandleDeleteClick() const;
@@ -55,8 +54,13 @@ protected:
 	EVisibility GetBorderVisibility() const;
 	const FSlateBrush* GetBackgroundImage() const;
 
+	FSlateColor GetQuickPresetIconColor() const;
 	EVisibility GetQuickPresetIconVisibility() const;
 	FText GetQuickPresetIconToolTip() const;
+
+	bool IsQuickEasePreset() const;
+
+	FReply HandleSetQuickEase();
 
 	//~ Begin SWidget
 	virtual FReply OnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
@@ -68,9 +72,12 @@ protected:
 	TSharedPtr<FAvaEaseCurvePreset> Preset;
 	TAttribute<bool> bIsEditMode;
 	TAttribute<bool> IsSelected;
+	
 	FAvaEaseCurvePresetClickDelegate OnClick;
 	FAvaEaseCurvePresetDelegate OnDelete;
 	FAvaEaseCurvePresetRenameDelegate OnRename;
+	FAvaEaseCurvePresetDelegate OnSetQuickEase;
+	
 	FAvaEaseCurvePresetMoveDelegate OnBeginMove;
 	FAvaEaseCurvePresetMoveDelegate OnEndMove;
 

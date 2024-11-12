@@ -10,7 +10,7 @@ void SMediaPlateEditorPlaylist::Construct(const FArguments& InArgs, UMediaPlateC
 {
 	MediaPlate = &InMediaPlate;
 
-	SMediaPlaylistEditorTracks::Construct(SMediaPlaylistEditorTracks::FArguments(), MediaPlate->MediaPlaylist, InStyle);
+	SMediaPlaylistEditorTracks::Construct(SMediaPlaylistEditorTracks::FArguments(), MediaPlate->GetMediaPlaylist(), InStyle);
 }
 
 void SMediaPlateEditorPlaylist::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
@@ -22,10 +22,10 @@ void SMediaPlateEditorPlaylist::Tick(const FGeometry& AllottedGeometry, const do
 	{
 		// Did the playlist change?
 		UMediaPlaylist* MediaPlaylist = MediaPlaylistPtr.Get();
-		if (MediaPlaylist != MediaPlate->MediaPlaylist)
+		if (MediaPlaylist != MediaPlate->GetMediaPlaylist())
 		{
 			// Refresh.
-			MediaPlaylistPtr = MediaPlate->MediaPlaylist;
+			MediaPlaylistPtr = MediaPlate->GetMediaPlaylist();
 			RefreshPlaylist();
 		}
 	}

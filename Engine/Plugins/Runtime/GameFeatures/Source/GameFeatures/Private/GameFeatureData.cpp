@@ -7,6 +7,7 @@
 #include "InstallBundleUtils.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/ConfigContext.h"
+#include "Misc/ConfigUtilities.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/CoreRedirects.h"
 #include "DeviceProfiles/DeviceProfile.h"
@@ -84,21 +85,77 @@ static TAutoConsoleVariable<bool> CVarAllowRuntimeDeviceProfiles(
 void UGameFeatureData::InitializeBasePluginIniFile(const FString& PluginInstalledFilename) const
 {
 	const FString PluginName = FPaths::GetBaseFilename(PluginInstalledFilename);
-	const FString PluginConfigDir = FPaths::GetPath(PluginInstalledFilename) / TEXT("Config/");
-	const FString EngineConfigDir = FPaths::EngineConfigDir();
 
-	const bool bIsBaseIniName = false;
-	const bool bForceReloadFromDisk = false;
-	const bool bWriteDestIni = false;
+	static bool bUseNewDynamicLayers = IConsoleManager::Get().FindConsoleVariable(TEXT("ini.UseNewDynamicLayers"))->GetInt() != 0;
+	bool bIncludePluginNameInBranchName = true;
 
-	// This will be the generated path including platform
-	FString PluginConfigFilename = GConfig->GetConfigFilename(*PluginName);
-
-	// Try the deprecated path first that doesn't include the Default prefix
-	FConfigFile& PluginConfig = GConfig->Add(PluginConfigFilename, FConfigFile());
-	if (!FConfigCacheIni::LoadExternalIniFile(PluginConfig, *PluginName, *EngineConfigDir, *PluginConfigDir, bIsBaseIniName, nullptr, bForceReloadFromDisk, bWriteDestIni))
+	// DEPRECATED NAMING PATH - must keep because these files are read in as a single file, not in a hierarchical way, so 
+	// they don't have the + syntax for arrays
 	{
-		// Now try the same rules as PluginManager using Default and the config hierarchy
+		const FString PluginConfigDir = FPaths::GetPath(PluginInstalledFilename) / TEXT("Config/");
+		const FString EngineConfigDir = FPaths::EngineConfigDir();
+
+		const bool bIsBaseIniName = false;
+		const bool bForceReloadFromDisk = false;
+		const bool bWriteDestIni = false;
+
+		// This will be the generated path including platform
+		FString PluginConfigFilename = GConfig->GetConfigFilename(*PluginName);
+
+		// Try the deprecated path first that doesn't include the Default prefix
+		FConfigFile& PluginConfig = GConfig->Add(PluginConfigFilename, FConfigFile());
+		if (FConfigCacheIni::LoadExternalIniFile(PluginConfig, *PluginName, *EngineConfigDir, *PluginConfigDir, bIsBaseIniName, nullptr, bForceReloadFromDisk, bWriteDestIni))
+		{
+			// This is the deprecated loading path that doesn't handle cases like + in arrays
+			UE_LOG(LogGameFeatures, Log, TEXT("[GameFeatureData %s]: Loaded deprecated config %s, rename to start with Default for normal parsing"), *GetPathNameSafe(this), *PluginConfigFilename);
+
+			// register this plugin, so the ConfigContext.Load, and future loads, know about it
+			if (bUseNewDynamicLayers)
+			{
+				TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(PluginName);
+				FConfigCacheIni::RegisterPlugin(*Plugin->GetName(), Plugin->GetBaseDir(), Plugin->GetExtensionBaseDirs(), DynamicLayerPriority::GameFeature, bIncludePluginNameInBranchName);
+			}
+
+			FCoreRedirects::ReadRedirectsFromIni(PluginConfigFilename);
+			ReloadConfigs(PluginConfig);
+
+			return;
+		}
+	}
+
+	if (bUseNewDynamicLayers)
+	{
+		TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(PluginName);
+
+		// attempt to load config branch named for the plugin
+
+		UE_LOG(LogGameFeatures, Verbose, TEXT("Loading GameFeature base plugin hierarchy for %s"), *PluginName);
+
+		// register this plugin, so the ConfigContext.Load, and future loads, know about it
+		FConfigCacheIni::RegisterPlugin(*Plugin->GetName(), Plugin->GetBaseDir(), Plugin->GetExtensionBaseDirs(), DynamicLayerPriority::GameFeature, bIncludePluginNameInBranchName);
+
+		// load the plugin inis and track the modified sections
+		FConfigContext Context = FConfigContext::ReadIntoGConfig();
+		FString PluginConfigFilename;
+		Context.ConfigFileTag = *Plugin->GetName();
+		Context.Load(*PluginName, PluginConfigFilename);
+
+		FConfigFile* PluginConfig = GConfig->Find(PluginConfigFilename);
+		if (PluginConfig)
+		{
+			ReloadConfigs(*PluginConfig);
+		}
+
+		// @todo move this into ReloadObjectsFromModifiedConfigSections?
+		FCoreRedirects::ReadRedirectsFromIni(PluginConfigFilename);
+
+		return;
+	}
+	
+	{
+		// Now use old method to load the plugin hierarchy without the registering plugin stuff above
+		FString PluginConfigFilename = GConfig->GetConfigFilename(*PluginName);
+		FConfigFile& PluginConfig = GConfig->Add(PluginConfigFilename, FConfigFile());
 		FConfigContext Context = FConfigContext::ReadIntoPluginFile(PluginConfig, *FPaths::GetPath(PluginInstalledFilename),
 				IPluginManager::Get().FindPluginFromPath(PluginName)->GetExtensionBaseDirs());
 
@@ -113,20 +170,40 @@ void UGameFeatureData::InitializeBasePluginIniFile(const FString& PluginInstalle
 			ReloadConfigs(PluginConfig);
 		}
 	}
-	else
-	{
-		// This is the deprecated loading path that doesn't handle cases like + in arrays
-		UE_LOG(LogGameFeatures, Log, TEXT("[GameFeatureData %s]: Loaded deprecated config %s, rename to start with Default for normal parsing"), *GetPathNameSafe(this), *PluginConfigFilename);
-
-		FCoreRedirects::ReadRedirectsFromIni(PluginConfigFilename);
-		ReloadConfigs(PluginConfig);
-	}
 }
 
 void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& PluginInstalledFilename) const
 {
-	UDeviceProfileManager& DeviceProfileManager = UDeviceProfileManager::Get();
+	static bool bUseNewDynamicLayers = IConsoleManager::Get().FindConsoleVariable(TEXT("ini.UseNewDynamicLayers"))->GetInt() != 0;
+	if (bUseNewDynamicLayers)
+	{
+		const FName PluginName = *FPaths::GetBaseFilename(PluginInstalledFilename);
+		//TSharedPtr<IPlugin> PluginSystemPlugin = IPluginManager::Get().FindPlugin(PluginName);
+		//	checkf(FPaths::GetPath(PluginInstalledStandardFilename) == PluginSystemPlugin->GetBaseDir(), TEXT("Expected plugin system to have matching BaseDir to GFD plugin"));
 
+		UE_LOG(LogGameFeatures, Verbose, TEXT("Loading GameFeature config modification for %s"), *PluginName.ToString());
+		
+		UE::DynamicConfig::PerformDynamicConfig(PluginName, [PluginName](FConfigModificationTracker* ChangeTracker)
+			{
+				// set which sections to track for cvars, with their priority
+				ChangeTracker->CVars.Add(TEXT("ConsoleVariables")).CVarPriority = (int)ECVF_SetByPluginLowPriority;
+				ChangeTracker->CVars.Add(TEXT("ConsoleVariables_HighPriority")).CVarPriority = (int)ECVF_SetByPluginHighPriority;
+
+				// apply plugin modifications from this plugin to the everything
+				FConfigCacheIni::AddPluginToAllBranches(PluginName, ChangeTracker);
+
+				// give hotfix a chance to run at that point
+				{
+#define HOTFIX_BRANCH(Ini) UE::DynamicConfig::HotfixPluginForBranch.Broadcast(PluginName, #Ini, ChangeTracker);
+					ENUMERATE_KNOWN_INI_FILES(HOTFIX_BRANCH);
+#undef HOTFIX_BRANCH
+				}
+			});
+
+		return;
+	}
+
+	UDeviceProfileManager& DeviceProfileManager = UDeviceProfileManager::Get();
 	FString PlatformName = FPlatformProperties::IniPlatformName();
 
 #if ALLOW_OTHER_PLATFORM_CONFIG
@@ -479,9 +556,7 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 				const FString PluginIniPath = FString::Printf(TEXT("%s%s.ini"), *ConfigDirectory, *PluginIniName);
 				ExistingConfig->CombineFromBuffer(ConfigAsString, PluginIniPath);
 
-#if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
 				FConfigFile::OverrideFromCommandline(ExistingConfig, Ini.Name);
-#endif // ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
 
 				if (Ini.bCreateDeviceProfiles)
 				{
@@ -689,6 +764,24 @@ FString UGameFeatureData::GetInstallBundleName(FStringView PluginName, bool bEve
 	}
 }
 
+FString UGameFeatureData::GetOptionalInstallBundleName(FStringView PluginName, bool bEvenIfDoesntExist /*= false*/)
+{
+	const FString OptionalBundleName = FString::Printf(TEXT("GFP_%.*sOptional"), PluginName.Len(), PluginName.GetData());
+	if (bEvenIfDoesntExist)
+	{
+		return OptionalBundleName;
+	}
+
+	if (InstallBundleUtil::HasInstallBundleInConfig(OptionalBundleName))
+	{
+		return OptionalBundleName;
+	}
+	else
+	{
+		return TEXT("");
+	}
+}
+
 void UGameFeatureData::GetPluginName(FString& PluginName) const
 {
 	UGameFeatureData::GetPluginName(this, PluginName);
@@ -720,26 +813,26 @@ void UGameFeatureData::GetPluginName(const UGameFeatureData* GFD, FString& Plugi
 	}
 }
 
-bool UGameFeatureData::IsGameFeaturePluginRegistered() const
+bool UGameFeatureData::IsGameFeaturePluginRegistered(bool bCheckForRegistering /*= false*/) const
 {
 	FString PluginURL;
 	FString PluginName;
 	GetPluginName(PluginName);
 	if (UGameFeaturesSubsystem::Get().GetPluginURLByName(PluginName, PluginURL))
 	{
-		return UGameFeaturesSubsystem::Get().IsGameFeaturePluginRegistered(PluginURL);
+		return UGameFeaturesSubsystem::Get().IsGameFeaturePluginRegistered(PluginURL, bCheckForRegistering);
 	}
 	return false;
 }
 
-bool UGameFeatureData::IsGameFeaturePluginActive() const
+bool UGameFeatureData::IsGameFeaturePluginActive(bool bCheckForActivating /*= false*/) const
 {
 	FString PluginURL;
 	FString PluginName;
 	GetPluginName(PluginName);
 	if (UGameFeaturesSubsystem::Get().GetPluginURLByName(PluginName, PluginURL))
 	{
-		return UGameFeaturesSubsystem::Get().IsGameFeaturePluginActive(PluginURL);
+		return UGameFeaturesSubsystem::Get().IsGameFeaturePluginActive(PluginURL, bCheckForActivating);
 	}
 	return false;
 }

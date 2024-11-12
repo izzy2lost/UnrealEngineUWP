@@ -33,7 +33,7 @@ namespace UnrealBuildTool
 		private static bool RequiresCompilation(IEnumerable<FileReference> SourceFiles, FileReference AssemblyManifestFilePath, FileReference OutputAssemblyPath, ILogger Logger)
 		{
 			// Do not compile the file if it's installed
-			if (UnrealBuildTool.IsFileInstalled(OutputAssemblyPath))
+			if (Unreal.IsFileInstalled(OutputAssemblyPath))
 			{
 				Logger.LogDebug("Skipping {OutputAssemblyPath}: File is installed", OutputAssemblyPath);
 				return false;
@@ -208,6 +208,7 @@ namespace UnrealBuildTool
 
 			MetadataReferences.Add(MetadataReference.CreateFromFile(typeof(object).Assembly.Location));
 			MetadataReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location));
+			MetadataReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("System.CodeDom").Location));
 			MetadataReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("System.Collections").Location));
 			MetadataReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("System.IO").Location));
 			MetadataReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("System.IO.FileSystem").Location));
@@ -228,6 +229,14 @@ namespace UnrealBuildTool
 			MetadataReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("Microsoft.Win32.Registry").Location));
 
 			// RNGCryptoServiceProvider, used to generate random hex bytes
+			try
+			{
+				// Does not exist for .NET6
+				MetadataReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("System.Security.Cryptography").Location));
+			}
+			catch (FileNotFoundException)
+			{
+			}
 			MetadataReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("System.Security.Cryptography.Algorithms").Location));
 			MetadataReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("System.Security.Cryptography.Csp").Location));
 

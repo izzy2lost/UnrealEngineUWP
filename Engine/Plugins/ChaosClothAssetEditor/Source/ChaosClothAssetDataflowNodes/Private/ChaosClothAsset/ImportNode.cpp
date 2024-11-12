@@ -16,29 +16,24 @@
 
 #define LOCTEXT_NAMESPACE "ChaosClothAssetImportNode"
 
-FChaosClothAssetImportNode::FChaosClothAssetImportNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetImportNode::FChaosClothAssetImportNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterOutputConnection(&Collection);
 }
 
-void FChaosClothAssetImportNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetImportNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	using namespace UE::Chaos::ClothAsset;
 	using namespace Chaos::Softs;
 
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		if (ReimportAsset.bRefreshAsset)
-		{
-			ReimportAsset.bRefreshAsset = false;
-		}
-
 		bool bSetValue = false;
 		if (ClothAsset)
 		{
 			// Copy the main cloth asset details to this dataflow's owner if any
-			if (const Dataflow::FEngineContext* EngineContext = Context.AsType<Dataflow::FEngineContext>())
+			if (const UE::Dataflow::FEngineContext* EngineContext = Context.AsType<UE::Dataflow::FEngineContext>())
 			{
 				if (const UChaosClothAsset* const OwnerClothAsset = Cast<UChaosClothAsset>(EngineContext->Owner))
 				{
@@ -100,7 +95,7 @@ void FChaosClothAssetImportNode::Evaluate(Dataflow::FContext& Context, const FDa
 			}
 		}
 		SetValue(Context, MoveTemp(*ClothCollection), &Collection);
-}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

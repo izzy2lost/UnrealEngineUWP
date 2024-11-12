@@ -6,6 +6,7 @@ using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -18,7 +19,7 @@ namespace EpicGames.Core
 	/// </summary>
 	[JsonConverter(typeof(IoHashJsonConverter))]
 	[TypeConverter(typeof(IoHashTypeConverter))]
-	public struct IoHash : IEquatable<IoHash>, IComparable<IoHash>
+	public readonly struct IoHash : IEquatable<IoHash>, IComparable<IoHash>
 	{
 		/// <summary>
 		/// Length of an IoHash
@@ -125,6 +126,21 @@ namespace EpicGames.Core
 				return FromBlake3(hasher);
 			}
 		}
+
+		/// <summary>
+		/// Creates the IoHash for a string with a given encoding
+		/// </summary>
+		/// <param name="data">Data to compute the hash for</param>
+		/// <param name="encoding">The character encoding of the data</param>
+		/// <returns>New hash instance containing the hash of the data</returns>
+		public static IoHash Compute(string data, Encoding encoding) => Compute(encoding.GetBytes(data));
+
+		/// <summary>
+		/// Creates the IoHash for a string with the default encoding
+		/// </summary>
+		/// <param name="data">Data to compute the hash for</param>
+		/// <returns>New hash instance containing the hash of the data</returns>
+		public static IoHash Compute(string data) => Compute(data, Encoding.Default);
 
 		/// <summary>
 		/// Creates the IoHash for a stream.
@@ -374,20 +390,41 @@ namespace EpicGames.Core
 	public static class IoHashExtensions
 	{
 		/// <summary>
+		/// Read an <see cref="IoHash"/> from a binary archive
+		/// </summary>
+		/// <param name="reader">Reader to serialize data from</param>
+		/// <returns>New IoHash instance</returns>
+		public static IoHash? ReadIoHash(this BinaryArchiveReader reader)
+		{
+			byte[]? data = reader.ReadByteArray();
+			return data == null ? null : new IoHash(data);
+		}
+
+		/// <summary>
 		/// Read an <see cref="IoHash"/> from a memory reader
 		/// </summary>
-		/// <param name="reader"></param>
-		/// <returns></returns>
+		/// <param name="reader">Reader to serialize data from</param>
+		/// <returns>New IoHash instance</returns>
 		public static IoHash ReadIoHash(this IMemoryReader reader)
 		{
 			return new IoHash(reader.ReadFixedLengthBytes(IoHash.NumBytes).Span);
 		}
 
 		/// <summary>
+		/// Write an <see cref="IoHash"/> to a binary archive
+		/// </summary>
+		/// <param name="writer">The writer to output data to</param>
+		/// <param name="hash">The IoHash to write</param>
+		public static void WriteIoHash(this BinaryArchiveWriter writer, IoHash? hash)
+		{
+			writer.WriteByteArray(hash?.ToByteArray());
+		}
+
+		/// <summary>
 		/// Write an <see cref="IoHash"/> to a memory writer
 		/// </summary>
-		/// <param name="writer"></param>
-		/// <param name="hash"></param>
+		/// <param name="writer">The writer to output data to</param>
+		/// <param name="hash">The IoHash to write</param>
 		public static void WriteIoHash(this IMemoryWriter writer, IoHash hash)
 		{
 			hash.CopyTo(writer.GetSpan(IoHash.NumBytes));

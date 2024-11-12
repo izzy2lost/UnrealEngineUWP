@@ -3,6 +3,7 @@
 #pragma once
 
 #include "GenericPlatform/GenericApplication.h"
+#include "HAL/IConsoleManager.h"
 #include "AndroidWindow.h"
 #if USE_ANDROID_JNI
 #include "Android/AndroidJavaEnv.h"
@@ -103,6 +104,11 @@ public:
 	virtual void Tick(const float TimeDelta) override;
 
 	virtual bool IsGamepadAttached() const override;
+
+	bool GetNativeWindowResolution(int32_t& OutWidth, int32_t& OutHeight) const;
+
+	static TAutoConsoleVariable<bool> CVarAndroidSupportsTimestampQueries;
+	static TAutoConsoleVariable<bool> CVarAndroidSupportsDynamicResolution;
 
 protected:
 

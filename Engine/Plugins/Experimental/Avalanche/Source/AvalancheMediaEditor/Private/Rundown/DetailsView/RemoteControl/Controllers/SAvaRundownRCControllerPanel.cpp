@@ -1,18 +1,21 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaRundownRCControllerPanel.h"
-
 #include "AvaRundownRCControllerItem.h"
 #include "Behaviour/Builtin/Path/RCSetAssetByPathBehaviour.h"
 #include "Controller/RCController.h"
+#include "IAvaMediaEditorModule.h"
 #include "IDetailTreeNode.h"
 #include "IPropertyRowGenerator.h"
 #include "Playable/AvaPlayableRemoteControl.h"
 #include "RCVirtualProperty.h"
+#include "Rundown/AvaRundownCommands.h"
 #include "Rundown/AvaRundownEditor.h"
 #include "Rundown/AvaRundownEditorUtils.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPage.h"
+#include "Rundown/DetailsView/RemoteControl/Controllers/AvaRundownPageControllerContextMenu.h"
+#include "Rundown/Pages/AvaRundownPageControllerContext.h"
 #include "Widgets/Views/SHeaderRow.h"
 #include "Widgets/Views/SListView.h"
 
@@ -34,6 +37,10 @@ void SAvaRundownRCControllerPanel::Construct(const FArguments& InArgs, const TSh
 	RundownEditorWeak = InRundownEditor;
 	ActivePageId = FAvaRundownPage::InvalidPageId;
 
+	CommandList = MakeShared<FUICommandList>();
+
+	ContextMenu = MakeShared<FAvaRundownPageControllerContextMenu>(CommandList);
+
 	ChildSlot
 	[
 		SNew(SBorder)
@@ -42,7 +49,8 @@ void SAvaRundownRCControllerPanel::Construct(const FArguments& InArgs, const TSh
 		[
 			SAssignNew(ControllerContainer, SListView<FAvaRundownRCControllerItemPtr>)
 			.ListItemsSource(&ControllerItems)
-			.SelectionMode(ESelectionMode::None)
+			.SelectionMode(ESelectionMode::Multi)
+			.OnContextMenuOpening(this, &SAvaRundownRCControllerPanel::GetContextMenuContent)
 			.OnGenerateRow(this, &SAvaRundownRCControllerPanel::OnGenerateControllerRow)
 			.HeaderRow(
 				SNew(SHeaderRow)
@@ -70,11 +78,6 @@ bool SAvaRundownRCControllerPanel::HasRemoteControlPreset(const URemoteControlPr
 		}
 	}
 	return false;
-}
-
-void SAvaRundownRCControllerPanel::OnPageSelectionChanged(const TArray<int32>& InSelectedPageIds)
-{
-	Refresh(InSelectedPageIds);
 }
 
 void SAvaRundownRCControllerPanel::UpdatePropertyRowGenerators(int32 InNumGenerators)
@@ -218,7 +221,7 @@ void SAvaRundownRCControllerPanel::Refresh(const TArray<int32>& InSelectedPageId
 
 	ActivePageId = InSelectedPageIds.IsEmpty() ? FAvaRundownPage::InvalidPageId : InSelectedPageIds[0];
 
-	const UAvaRundown* Rundown = GetRundown();
+	UAvaRundown* Rundown = GetRundown();
 	const FAvaRundownPage& Page = GetActivePage(Rundown);
 	
 	if (!Page.IsValidPage())
@@ -289,7 +292,8 @@ void SAvaRundownRCControllerPanel::UpdateDefaultValuesAndRefresh(const TArray<in
 
 void SAvaRundownRCControllerPanel::OnRemoteControlControllerModified(URemoteControlPreset* InPreset, const TSet<FGuid>& InModifiedControllerIds)
 {
-	if (!IsValid(InPreset) || !HasRemoteControlPreset(InPreset))
+	// Note: Ignore changes from the RCP Transaction listener.
+	if (!IsValid(InPreset) || !HasRemoteControlPreset(InPreset) || GIsTransacting)
 	{
 		return;
 	}
@@ -430,6 +434,21 @@ FAvaRundownPage& SAvaRundownRCControllerPanel::GetActivePageMutable(UAvaRundown*
 	return FAvaRundownPage::NullPage;
 }
 
+const TArray<FAvaRundownRCControllerItemPtr> SAvaRundownRCControllerPanel::GetSelectedControllerItems() const
+{
+	return ControllerContainer->GetSelectedItems();
+}
+
+TSharedPtr<SWidget> SAvaRundownRCControllerPanel::GetContextMenuContent()
+{
+	const TArray<FAvaRundownRCControllerItemPtr> SelectedItems = GetSelectedControllerItems();
+	if (SelectedItems.Num() > 0)
+	{
+		return ContextMenu->GeneratePageContextMenuWidget(RundownEditorWeak, GetActivePageMutable(), SharedThis(this));
+	}
+	return SNullWidget::NullWidget;
+}
+
 SAvaRundownRCControllerPanel::FPropertyRowGeneratorWrapper::FPropertyRowGeneratorWrapper(SAvaRundownRCControllerPanel* InParentPanel)
 	: ParentPanel(InParentPanel)
 {
@@ -454,10 +473,20 @@ void SAvaRundownRCControllerPanel::FPropertyRowGeneratorWrapper::NotifyPostChang
 	
 	if (URemoteControlPreset* Preset = PresetWeak.Get())
 	{
+		const TSharedPtr<FAvaRundownEditor> RundownEditor = ParentPanel ? ParentPanel->RundownEditorWeak.Pin() : nullptr;
+
+		// Only capture a modification when scrubbing starts.
+		if (!OngoingPropertyChanges.Contains(InPropertyThatChanged) && RundownEditor)
+		{
+			OngoingPropertyChanges.Add(InPropertyThatChanged);
+			RundownEditor->BeginModify();
+		}
+
 		Preset->OnModifyController(InPropertyChangedEvent);
 		if (ParentPanel && InPropertyChangedEvent.ChangeType & EPropertyChangeType::ValueSet)
 		{
 			ParentPanel->UpdatePageSummary(true);
+			OngoingPropertyChanges.Remove(InPropertyThatChanged);
 		}
 	}
 }

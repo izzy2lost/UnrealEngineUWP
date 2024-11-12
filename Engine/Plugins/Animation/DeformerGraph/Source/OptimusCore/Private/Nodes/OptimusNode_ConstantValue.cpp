@@ -3,10 +3,12 @@
 #include "Nodes/OptimusNode_ConstantValue.h"
 
 #include "OptimusDataTypeRegistry.h"
+#include "OptimusValue.h"
 #include "OptimusNodePin.h"
 #include "OptimusNodeGraph.h"
 
 #include "OptimusHelpers.h"
+#include "OptimusValueContainerStruct.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusNode_ConstantValue)
 
@@ -71,9 +73,9 @@ UClass* UOptimusNode_ConstantValueGeneratorClass::GetClassForType(UPackage* InPa
 }
 
 
-void UOptimusNode_ConstantValue::PostLoad()
+void UOptimusNode_ConstantValue::PostLoadNodeSpecificData()
 {
-	Super::PostLoad();
+	Super::PostLoadNodeSpecificData();
 
 	if (!GetClass()->GetOuter()->IsA<UPackage>())
 	{
@@ -81,6 +83,27 @@ void UOptimusNode_ConstantValue::PostLoad()
 		// because the engine no longer supports asset object as uclass outer
 		Optimus::RenameObject(GetClass(), nullptr, GetPackage());
 	}
+}
+
+FOptimusValueContainerStruct UOptimusNode_ConstantValue::GetValue() const
+{
+	FOptimusValueContainerStruct ValueContainer;
+	
+	const UOptimusNodePin *ValuePin = FindPinFromPath({TEXT("Value")});
+	if (ensure(ValuePin))
+	{
+		const FProperty *ValueProperty = ValuePin->GetPropertyFromPin();
+		FOptimusDataTypeRef DataType = GetValueDataType();
+		if (ensure(ValueProperty) && ensure(DataType.IsValid()))
+		{
+			TArrayView<const uint8> ValueData(ValueProperty->ContainerPtrToValuePtr<uint8>(this), ValueProperty->GetSize());
+
+			ValueContainer.SetType(DataType);
+			ValueContainer.SetValue(DataType, ValueData);
+		}
+	}
+
+	return ValueContainer;
 }
 
 
@@ -101,13 +124,12 @@ void UOptimusNode_ConstantValue::PostEditChangeProperty(FPropertyChangedEvent& P
 #endif // WITH_EDITOR
 
 
-FString UOptimusNode_ConstantValue::GetValueName() const
+FOptimusValueIdentifier UOptimusNode_ConstantValue::GetValueIdentifier() const
 {
-	return GetName();
+	return {EOptimusValueType::Constant, Optimus::GetSanitizedNameForHlsl(*GetNodePath())};
 }
 
-
-FOptimusDataTypeRef UOptimusNode_ConstantValue::GetValueType() const
+FOptimusDataTypeRef UOptimusNode_ConstantValue::GetValueDataType() const
 {
 	const UOptimusNode_ConstantValueGeneratorClass* Class = GetGeneratorClass();
 	if (ensure(Class))
@@ -116,30 +138,6 @@ FOptimusDataTypeRef UOptimusNode_ConstantValue::GetValueType() const
 	}
 	return {};
 }
-
-
-FShaderValueType::FValue UOptimusNode_ConstantValue::GetShaderValue() const
-{
-	const UOptimusNodePin *ValuePin = FindPinFromPath({TEXT("Value")});
-	if (ensure(ValuePin))
-	{
-		const FProperty *ValueProperty = ValuePin->GetPropertyFromPin();
-		FOptimusDataTypeRef DataType = GetValueType();
-		if (ensure(ValueProperty) && ensure(DataType.IsValid()))
-		{
-			TArrayView<const uint8> ValueData(ValueProperty->ContainerPtrToValuePtr<uint8>(this), ValueProperty->GetSize());
-			FShaderValueType::FValue ValueResult = DataType->MakeShaderValue();
-
-			if (DataType->ConvertPropertyValueToShader(ValueData, ValueResult))
-			{
-				return ValueResult;
-			}
-		}
-	}
-	
-	return {};
-}
-
 
 FTopLevelAssetPath UOptimusNode_ConstantValue::GetAssetPathForClassDefiner() const
 {
@@ -180,7 +178,7 @@ UClass* UOptimusNode_ConstantValue::GetClassFromCreationString(
 
 void UOptimusNode_ConstantValue::ConstructNode()
 {
-	SetDisplayName(FText::Format(FText::FromString(TEXT("{0} Constant")), GetValueType()->DisplayName));
+	SetDisplayName(FText::Format(FText::FromString(TEXT("{0} Constant")), GetValueDataType()->DisplayName));
 
 	UOptimusNode::ConstructNode();
 }

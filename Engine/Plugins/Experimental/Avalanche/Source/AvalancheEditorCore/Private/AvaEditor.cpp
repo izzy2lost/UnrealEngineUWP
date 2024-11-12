@@ -224,20 +224,15 @@ void FAvaEditor::ForEachExtension(TFunctionRef<void(const TSharedRef<IAvaEditorE
 	}
 }
 
-void FAvaEditor::RecordActivationChangedEvent()
+void FAvaEditor::NotifySceneActivationEvent()
 {
-	if (!FEngineAnalytics::IsAvailable())
-	{
-		return;
-	}
-
 	if (bIsActive)
 	{
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.Activated"));
+		Provider->OnSceneActivated();
 	}
 	else
 	{
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.Deactivated"));
+		Provider->OnSceneDeactivated();
 	}
 }
 
@@ -252,7 +247,7 @@ void FAvaEditor::Activate(TSharedPtr<IToolkitHost> InOverrideToolkitHost)
 
 	bIsActive = true;
 
-	RecordActivationChangedEvent();
+	NotifySceneActivationEvent();
 
 	BindDelegates();
 
@@ -306,7 +301,7 @@ void FAvaEditor::Deactivate()
 
 	bIsActive = false;
 
-	RecordActivationChangedEvent();
+	NotifySceneActivationEvent();
 
 	UnbindDelegates();
 
@@ -415,6 +410,21 @@ UWorld* FAvaEditor::GetWorld() const
 	return nullptr;
 }
 
+void FAvaEditor::OnSceneObjectChanged()
+{
+	UObject* OldSceneObject = GetSceneObject(EAvaEditorObjectQueryType::SkipSearch);
+
+	// Clear cached scene object as scene object changed
+	SceneObjectWeak.Reset();
+
+	UObject* NewSceneObject = GetSceneObject(EAvaEditorObjectQueryType::SearchOnly);
+
+	ForEachExtension([OldSceneObject, NewSceneObject](const TSharedRef<IAvaEditorExtension>& InExtension)
+	{
+		InExtension->OnSceneObjectChanged(OldSceneObject, NewSceneObject);
+	});
+}
+
 UObject* FAvaEditor::GetSceneObject(EAvaEditorObjectQueryType InQueryType) const
 {
 	// Return cached version if we are skipping search or if already valid
@@ -423,8 +433,12 @@ UObject* FAvaEditor::GetSceneObject(EAvaEditorObjectQueryType InQueryType) const
 		return SceneObjectWeak.Get();
 	}
 
-	UWorld* const SceneWorld   = GetWorld();
-	UObject* const SceneObject = Provider->GetSceneObject(SceneWorld, InQueryType);
+	UObject* SceneObject = nullptr;
+
+	if (UWorld* SceneWorld = GetWorld())
+	{
+		SceneObject = Provider->GetSceneObject(SceneWorld, InQueryType);
+	}
 
 	const_cast<FAvaEditor*>(this)->SceneObjectWeak = SceneObject;
 	return SceneObject;
@@ -861,7 +875,7 @@ bool FAvaEditor::PasteFromString(FString& InPastedData) const
 			// Pop the Temporary Tag added on Copy, which would be the Actor Path of Source Actor
 			const FName CopiedTag = InPastedActor->Tags.Pop();
 
-			TSoftObjectPtr<AActor> SourceActor(CopiedTag.ToString());
+			TSoftObjectPtr<AActor> SourceActor = TSoftObjectPtr<AActor>(FSoftObjectPath(CopiedTag.ToString()));
 
 			PastedActors.Emplace(InPastedActor, MoveTemp(SourceActor));
 		}

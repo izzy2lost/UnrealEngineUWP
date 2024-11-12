@@ -24,7 +24,7 @@ void UTG_Expression::Serialize(FArchive& Ar)
 	// in the case of Loading, let s check the expression version retreived and log if we detect an older version
 	if (Ar.IsLoading() && (InstanceExpressionClassVersion < this->GetExpressionClassVersion()))
 	{
-		UE_LOG(LogTextureGraph, Log, TEXT("Detected an expression in a previous version"));
+		UE_LOG(LogTextureGraph, VeryVerbose, TEXT("Detected an expression in a previous version"));
 	}
 }
 
@@ -64,13 +64,14 @@ FTG_Signature::FInit UTG_Expression::GetSignatureInitArgsFromClass() const
 		FName PropName = FName(Prop->GetNameCPP());
 		FName PropTypeName = FName(Prop->GetCPPType());
 		bool bIsNotConnectable = false; // by default all arguments are connectable
+
 #if WITH_EDITORONLY_DATA
-		
 		auto PropertyTGType = Prop->GetMetaData(TEXT("TGType"));
 		bIsNotConnectable = Prop->HasMetaData(TEXT("TGPinNotConnectable"));
 #else
 		FString PropertyTGType;
 #endif
+
 		// Add NotConnectable for certain types:
 		{
 			FByteProperty* ByteProperty = CastField<FByteProperty>(*Prop);
@@ -132,7 +133,7 @@ void UTG_Expression::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 	
-	UE_LOG(LogTextureGraph, Log, TEXT("Expression PostEditChangeProperty. ChangeType: %d"), (int32)PropertyChangedEvent.ChangeType);
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("Expression PostEditChangeProperty. ChangeType: %d"), (int32)PropertyChangedEvent.ChangeType);
 
 	NotifyExpressionChanged(PropertyChangedEvent);
 }
@@ -303,6 +304,7 @@ void UTG_Expression::CopyVarToExpressionArgument(const FTG_Argument& Arg, FTG_Va
 
 	CopyVarGeneric(Arg, InVar, true);
 }
+
 void UTG_Expression::CopyVarFromExpressionArgument(const FTG_Argument& Arg, FTG_Var* InVar)
 {
 	if (InVar->CopyGeneric(this, Arg, false))
@@ -320,5 +322,5 @@ void UTG_Expression::LogEvaluation(FTG_EvaluationContext* InContext)
 	for (auto& VarMapEntry : InContext->Outputs.VarArguments)
 		OutVarIds.Emplace(VarMapEntry.Value.Var->GetId());
 
-	UE_LOG(LogTextureGraph, Log, TEXT("%-*s %s"), UTG_Graph::LogHeaderWidth, *GetDefaultName().ToString(), *UTG_Graph::LogCall(InVarIds, OutVarIds));
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("%-*s %s"), UTG_Graph::LogHeaderWidth, *GetDefaultName().ToString(), *UTG_Graph::LogCall(InVarIds, OutVarIds));
 }

@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosVehicleMovementComponent.h"
+#include "BodySetupCore.h"
 #include "EngineGlobals.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/Engine.h"
+#include "Engine/SkinnedAsset.h"
 #include "CanvasItem.h"
 #include "Engine/Canvas.h"
 #include "Components/StaticMeshComponent.h"
@@ -33,7 +35,6 @@
 #include "GameFramework/HUD.h"
 #include "PhysicsEngine/PhysicsSettings.h"
 
-#include "PhysicsReplication.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "Chaos/Particle/ParticleUtilities.h"
 #include "Chaos/ParticleHandleFwd.h"
@@ -1286,7 +1287,7 @@ void UChaosVehicleMovementComponent::ProcessSleeping(const FControlInputs& Contr
 		PrevReplicatedSteeringInput = ReplicatedState.SteeringInput;
 
 		// Wake if control input pressed
-		if ((VehicleState.bSleeping && bControlInputPressed) || GVehicleDebugParams.DisableVehicleSleep)
+		if (bControlInputPressed || GVehicleDebugParams.DisableVehicleSleep)
 		{
 			VehicleState.bSleeping = false;
 			VehicleState.SleepCounter = 0;

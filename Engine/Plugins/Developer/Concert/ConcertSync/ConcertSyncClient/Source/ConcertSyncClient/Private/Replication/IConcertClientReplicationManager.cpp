@@ -13,19 +13,18 @@ namespace UE::ConcertSyncClient::Replication::Private
 	{
 		for (const FSoftObjectPath& ObjectPath : Objects)
 		{
-			Manager.ForEachRegisteredStream([&InCallback, &ObjectPath](const FConcertReplicationStream& StreamDescription)
+			bool bWasFound = false;
+			Manager.ForEachRegisteredStream([&InCallback, &ObjectPath, &bWasFound](const FConcertReplicationStream& StreamDescription)
 			{
 				const bool bStreamContainsObject = StreamDescription.BaseDescription.ReplicationMap.ReplicatedObjects.Contains(ObjectPath);
 				if (bStreamContainsObject)
 				{
+					bWasFound = true;
 					InCallback(ObjectPath, StreamDescription.BaseDescription.Identifier);
-				}
-				else
-				{
-					UE_LOG(LogConcert, Warning, TEXT("Object %s is not a valid argument because it is not contained in any stream."), *ObjectPath.ToString());
 				}
 				return EBreakBehavior::Continue;
 			});
+			UE_CLOG(!bWasFound, LogConcert, Warning, TEXT("Object %s is not a valid argument because it is not contained in any stream."), *ObjectPath.ToString());
 		}
 	}
 }
@@ -42,7 +41,7 @@ TArray<FConcertReplicationStream> IConcertClientReplicationManager::GetRegistere
 	return Result;
 }
 
-TFuture<FConcertReplication_ChangeAuthority_Response> IConcertClientReplicationManager::TakeAuthorityOver(TArrayView<const FSoftObjectPath> Objects)
+TFuture<FConcertReplication_ChangeAuthority_Response> IConcertClientReplicationManager::TakeAuthorityOver(TConstArrayView<FSoftObjectPath> Objects)
 {
 	using namespace UE::ConcertSyncClient::Replication;
 	
@@ -73,7 +72,7 @@ TFuture<FConcertReplication_ChangeAuthority_Response> IConcertClientReplicationM
 	return RequestAuthorityChange(MoveTemp(Request));
 }
 
-TFuture<FConcertReplication_ChangeAuthority_Response> IConcertClientReplicationManager::ReleaseAuthorityOf(TArrayView<const FSoftObjectPath> Objects)
+TFuture<FConcertReplication_ChangeAuthority_Response> IConcertClientReplicationManager::ReleaseAuthorityOf(TConstArrayView<FSoftObjectPath> Objects)
 {
 	using namespace UE::ConcertSyncClient::Replication;
 	
@@ -113,4 +112,47 @@ TMap<FSoftObjectPath, TSet<FGuid>> IConcertClientReplicationManager::GetClientOw
 		return EBreakBehavior::Continue;
 	});
 	return Result;
+}
+
+TSet<FConcertObjectInStreamID> IConcertClientReplicationManager::GetSyncControlledObjects() const
+{
+	TSet<FConcertObjectInStreamID> Result;
+	const uint32 NumObjects = NumSyncControlledObjects();
+	if (NumObjects == 0)
+	{
+		return Result;
+	}
+	
+	Result.Reserve(NumObjects);
+	ForEachSyncControlledObject([&](const FConcertObjectInStreamID& Object)
+	{
+		Result.Add(Object);
+		return EBreakBehavior::Continue;
+	});
+	return Result;
+}
+
+TFuture<FConcertReplication_ChangeMuteState_Response> IConcertClientReplicationManager::MuteObjects(TConstArrayView<FSoftObjectPath> Objects, EConcertReplicationMuteOption Flags)
+{
+	FConcertReplication_ChangeMuteState_Request Request;
+	for (const FSoftObjectPath& Object : Objects)
+	{
+		Request.ObjectsToMute.Add(Object, { Flags });
+	}
+	return ChangeMuteState(Request);
+}
+
+TFuture<FConcertReplication_ChangeMuteState_Response> IConcertClientReplicationManager::UnmuteObjects(TSet<FSoftObjectPath> Objects, EConcertReplicationMuteOption Flags)
+{
+	FConcertReplication_ChangeMuteState_Request Request;
+	for (const FSoftObjectPath& Object : Objects)
+	{
+		Request.ObjectsToUnmute.Add(Object, { Flags });
+	}
+	return ChangeMuteState(Request);
+}
+
+TFuture<FConcertReplication_QueryMuteState_Response> IConcertClientReplicationManager::QueryMuteState(TSet<FSoftObjectPath> Objects)
+{
+	return QueryMuteState(FConcertReplication_QueryMuteState_Request{ MoveTemp(Objects) });
 }

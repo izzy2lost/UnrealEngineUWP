@@ -6,12 +6,14 @@
 #include "TestMacros/Assertions.h"
 #include "ObjectPtrTestClass.h"
 #include "UObject/Package.h"
+#include "Logging/LogScopedVerbosityOverride.h"
 #include "Misc/ScopeExit.h"
 #include "UObject/UnrealType.h"
 #include "UObject/LinkerPlaceholderExportObject.h"
 #include "UObject/LinkerPlaceholderClass.h"
 #include "UObject/ObjectHandleTracking.h"
-#include "LowLevelTestsRunner/WarnFilterScope.h"
+#include "UObject/PropertyHelper.h"
+#include "Tests/WarnFilterScope.h"
 #include "Misc/AssetRegistryInterface.h"
 #include "AssetRegistry/AssetData.h"
 #include "ObjectRefTrackingTestBase.h"
@@ -41,7 +43,7 @@ TEST_CASE("UE::CoreUObject::FObjectProperty::CheckValidAddress")
 	UObjectPtrTestClassWithRef* Obj = NewObject<UObjectPtrTestClassWithRef>(TestPackage, TEXT("Object"));
 	UObjectPtrTestClass* Other = NewObject<UObjectPtrTestClass>(Obj, TEXT("Other"));
 
-#if UE_WITH_OBJECT_HANDLE_TRACKING
+#if UE_WITH_OBJECT_HANDLE_TRACKING && UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	FObjectHandle Handle = MakeUnresolvedHandle(Other);
 	TObjectPtr<UObjectPtrTestClass> ObjectPtr = *reinterpret_cast<TObjectPtr<UObjectPtrTestClass>*>(&Handle);
 #else
@@ -62,9 +64,9 @@ TEST_CASE("UE::CoreUObject::FObjectProperty::CheckValidAddress")
 	Obj->ObjectPtr = reinterpret_cast<UObjectPtrTestClass*>(Obj);
 	CHECK(Obj->ObjectPtr != nullptr);
 
-	UE::Testing::FWarnFilterScope _([](const TCHAR* Message, ELogVerbosity::Type Verbosity, const FName& Category)
+	FWarnFilterScope _([](const TCHAR* Message, ELogVerbosity::Type Verbosity, const FName& Category)
 		{
-			if (Category == TEXT("LogProperty") && FCString::Strstr(Message, TEXT("Reference will be nullptred")) && Verbosity == ELogVerbosity::Type::Warning)
+			if (Category == TEXT("LogProperty") && FCString::Strstr(Message, TEXT("Reference will be nulled")) && Verbosity == ELogVerbosity::Type::Warning)
 			{
 				return true;
 			}
@@ -92,7 +94,9 @@ TEST_CASE("UE::CoreUObject::FObjectProperty::CheckValidAddressNonNullable")
 #endif
 	UClass* Class = UObjectPtrTestClassWithRef::StaticClass();
 	FObjectProperty* Property = CastField<FObjectProperty>(Class->FindPropertyByName(TEXT("ObjectPtrNonNullable")));
+	FObjectProperty* AbstractProperty = CastField<FObjectProperty>(Class->FindPropertyByName(TEXT("ObjectPtrAbstractNonNullable")));
 	REQUIRE(Property != nullptr);
+	REQUIRE(AbstractProperty != nullptr);
 
 	UPackage* TestPackage = NewObject<UPackage>(nullptr, TEXT("/Temp/TestPackageName"), RF_Transient);
 	UPackage* OtherTestPackage = NewObject<UPackage>(nullptr, TEXT("/Temp/CheckValidAddressNonNullableOther"), RF_Transient);
@@ -103,30 +107,50 @@ TEST_CASE("UE::CoreUObject::FObjectProperty::CheckValidAddressNonNullable")
 	};
 	UObjectPtrTestClassWithRef* Obj = NewObject<UObjectPtrTestClassWithRef>(TestPackage, TEXT("Object"));
 	UObjectPtrTestClass* Other = NewObject<UObjectPtrTestClass>(Obj, TEXT("Other"));
+	UObjectPtrAbstractDerivedTestClass* AbstractDerivedOther = NewObject<UObjectPtrAbstractDerivedTestClass>(Obj, TEXT("AbstractDerivedOther"));
 
-#if UE_WITH_OBJECT_HANDLE_TRACKING
+#if UE_WITH_OBJECT_HANDLE_TRACKING && UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	FObjectHandle Handle = MakeUnresolvedHandle(Other);
+	FObjectHandle AbstractDerivedHandle = MakeUnresolvedHandle(AbstractDerivedOther);
 	TObjectPtr<UObjectPtrTestClass> ObjectPtr = *reinterpret_cast<TObjectPtr<UObjectPtrTestClass>*>(&Handle);
+	TObjectPtr<UObjectPtrAbstractDerivedTestClass> AbstractDerivedObjectPtr = *reinterpret_cast<TObjectPtr<UObjectPtrAbstractDerivedTestClass>*>(&AbstractDerivedHandle);
 #else
 	TObjectPtr<UObjectPtrTestClass> ObjectPtr = Other;
+	TObjectPtr<UObjectPtrAbstractDerivedTestClass> AbstractDerivedObjectPtr = AbstractDerivedOther;
 #endif
 
 	//property is already null should stay null
 	CHECK(!Obj->ObjectPtrNonNullable);
+	CHECK(!Obj->ObjectPtrAbstractNonNullable);
 	Property->CheckValidObject(&Obj->ObjectPtrNonNullable, ObjectPtr);
+	AbstractProperty->CheckValidObject(&Obj->ObjectPtrAbstractNonNullable, AbstractDerivedObjectPtr);
 	CHECK(!Obj->ObjectPtrNonNullable);
+	CHECK(!Obj->ObjectPtrAbstractNonNullable);
 
 	//valid assignment
 	Obj->ObjectPtrNonNullable = ObjectPtr;
+	Obj->ObjectPtrAbstractNonNullable = AbstractDerivedObjectPtr;
 	Property->CheckValidObject(&Obj->ObjectPtrNonNullable, nullptr);
+	AbstractProperty->CheckValidObject(&Obj->ObjectPtrAbstractNonNullable, nullptr);
 	CHECK(Obj->ObjectPtrNonNullable == ObjectPtr);
+	CHECK(Obj->ObjectPtrAbstractNonNullable == AbstractDerivedObjectPtr);
+
+	// Disable property warnings that will fire because we're deliberately setting non-nullable properties to null
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogProperty, ELogVerbosity::NoLogging);
+
+	using UE::CoreUObject::Private::ENonNullableBehavior;
+	using UE::CoreUObject::Private::GetNonNullableBehavior;
+	ENonNullableBehavior NonNullableBehavior = GetNonNullableBehavior();
 
 	bAllowRead = true; //has resolve the old value to construct a new default value for the property
+
 	//assign a bad value to the pointer
 	Obj->ObjectPtrNonNullable = reinterpret_cast<UObjectPtrTestClass*>(OtherTestPackage);
+	Obj->ObjectPtrAbstractNonNullable = reinterpret_cast<UObjectPtrAbstractTestClass*>(OtherTestPackage);
 	CHECK(Obj->ObjectPtrNonNullable != nullptr);
+	CHECK(Obj->ObjectPtrAbstractNonNullable != nullptr);
 
-	UE::Testing::FWarnFilterScope _([](const TCHAR* Message, ELogVerbosity::Type Verbosity, const FName& Category)
+	FWarnFilterScope _([](const TCHAR* Message, ELogVerbosity::Type Verbosity, const FName& Category)
 		{
 			if (Category == TEXT("LogProperty") && FCString::Strstr(Message, TEXT("Reference will be defaulted to")) && Verbosity == ELogVerbosity::Type::Warning)
 			{
@@ -135,16 +159,41 @@ TEST_CASE("UE::CoreUObject::FObjectProperty::CheckValidAddressNonNullable")
 			return false;
 		});
 	Property->CheckValidObject(&Obj->ObjectPtrNonNullable, ObjectPtr);
-	CHECK(Obj->ObjectPtrNonNullable == ObjectPtr); //non nullable properties should be assigned the old value
+	AbstractProperty->CheckValidObject(&Obj->ObjectPtrAbstractNonNullable, AbstractDerivedObjectPtr);
+	if (NonNullableBehavior == ENonNullableBehavior::CreateDefaultObjectIfPossible)
+	{
+		CHECK(Obj->ObjectPtrNonNullable == ObjectPtr); //non nullable properties should be assigned the old value
+		CHECK(Obj->ObjectPtrAbstractNonNullable == AbstractDerivedObjectPtr); //abstract non nullable properties should be assigned the old value
+	}
+	else
+	{
+		CHECK(Obj->ObjectPtrNonNullable == nullptr); //non nullable properties should be nulled if invalid
+		CHECK(Obj->ObjectPtrAbstractNonNullable == nullptr); //abstract non nullable properties should be nulled
+	}
 
 	//assign a bad value to the pointer
 	Obj->ObjectPtrNonNullable = reinterpret_cast<UObjectPtrTestClass*>(Obj);
+	Obj->ObjectPtrAbstractNonNullable = reinterpret_cast<UObjectPtrAbstractTestClass*>(Obj);
 	CHECK(Obj->ObjectPtrNonNullable != nullptr);
+	CHECK(Obj->ObjectPtrAbstractNonNullable != nullptr);
 
-	//new value is required for non nullable properties
-	Property->CheckValidObject(&Obj->ObjectPtrNonNullable, nullptr);
-	CHECK(Obj->ObjectPtrNonNullable != nullptr);
-	CHECK(Obj->ObjectPtrNonNullable->IsA(UObjectPtrTestClass::StaticClass()));
+	if (NonNullableBehavior == ENonNullableBehavior::CreateDefaultObjectIfPossible)
+	{
+		//new value is required for non nullable properties
+		Property->CheckValidObject(&Obj->ObjectPtrNonNullable, nullptr);
+		AbstractProperty->CheckValidObject(&Obj->ObjectPtrAbstractNonNullable, nullptr);
+		CHECK(Obj->ObjectPtrNonNullable != nullptr);
+		CHECK(Obj->ObjectPtrNonNullable->IsA(UObjectPtrTestClass::StaticClass()));
+		CHECK(Obj->ObjectPtrAbstractNonNullable == nullptr);
+	}
+	else
+	{
+		//null is required for invalid non nullable properties
+		Property->CheckValidObject(&Obj->ObjectPtrNonNullable, nullptr);
+		AbstractProperty->CheckValidObject(&Obj->ObjectPtrAbstractNonNullable, nullptr);
+		CHECK(Obj->ObjectPtrNonNullable == nullptr);
+		CHECK(Obj->ObjectPtrAbstractNonNullable == nullptr);
+	}
 }
 
 class FMockArchive : public FArchive
@@ -274,6 +323,17 @@ public:
 	virtual UE::AssetRegistry::EExists TryGetAssetPackageData(FName PackageName, FAssetPackageData& OutPackageData) const override
 	{
 		return UE::AssetRegistry::EExists::Exists;
+	}
+
+	virtual UE::AssetRegistry::EExists TryGetAssetPackageData(FName PackageName, FAssetPackageData& OutPackageData, FName& OutCorrectCasePackageName) const override
+	{
+		return UE::AssetRegistry::EExists::Exists;
+	}
+
+	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback,
+		UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const override
+	{
+		return true;
 	}
 
 	IAssetRegistryInterface* Old;
@@ -421,7 +481,7 @@ TEST_CASE("UE::FObjectProperty::Identical::ObjectPtr")
 	TObjectPtr<UObject> Obj1 = NewObject<UObjectPtrTestClass>(TestPackage, TEXT("UObjectPtrTestClass"));
 	TObjectPtr<UObject> Obj2 = NewObject<UObjectPtrTestClass>(TestPackage2, TEXT("UObjectPtrTestClass"));
 
-#if UE_WITH_OBJECT_HANDLE_TRACKING
+#if UE_WITH_OBJECT_HANDLE_TRACKING && UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 
 	FObjectHandle Handle1 = MakeUnresolvedHandle(ObjWithRef.Get());
 	FObjectHandle Handle2 = MakeUnresolvedHandle(Obj1.Get());
@@ -442,7 +502,7 @@ TEST_CASE("UE::FObjectProperty::Identical::ObjectPtr")
 
 	CHECK(ResolveCount == 0);
 	CHECK(Property->Identical(&Obj1, &Obj2, PPF_DeepComparison));
-#if UE_WITH_OBJECT_HANDLE_TRACKING
+#if UE_WITH_OBJECT_HANDLE_TRACKING && UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	CHECK(ResolveCount == 2);
 #endif
 	
@@ -501,7 +561,7 @@ TEST_CASE("UE::FObjectProperty::CopySingleValue")
 	UObject* RawPtr = Obj1;
 	TObjectPtr<UObject> PtrObj2 = Obj2;
 
-#if UE_WITH_OBJECT_HANDLE_TRACKING
+#if UE_WITH_OBJECT_HANDLE_TRACKING && UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	FObjectHandle Handle = MakeUnresolvedHandle(Obj2);
 	PtrObj2 = TObjectPtr<UObject>(FObjectPtr(Handle) );
 #endif
@@ -515,7 +575,6 @@ TEST_CASE("UE::FObjectProperty::CopySingleValue")
 	CHECK(PtrObj2 == RawPtr);
 
 	CHECK(RawProperty->GetClass() == PtrProperty->GetClass());
-
 }
 
 

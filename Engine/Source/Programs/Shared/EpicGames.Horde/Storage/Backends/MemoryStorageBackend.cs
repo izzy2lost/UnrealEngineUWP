@@ -18,7 +18,7 @@ namespace EpicGames.Horde.Storage.Backends
 		record class AliasListNode(BlobLocator Locator, int Rank, ReadOnlyMemory<byte> Data, AliasListNode? Next);
 
 		readonly ConcurrentDictionary<BlobLocator, ReadOnlyMemory<byte>> _blobs = new ConcurrentDictionary<BlobLocator, ReadOnlyMemory<byte>>();
-		readonly ConcurrentDictionary<RefName, BlobRefValue> _refs = new ConcurrentDictionary<RefName, BlobRefValue>();
+		readonly ConcurrentDictionary<RefName, HashedBlobRefValue> _refs = new ConcurrentDictionary<RefName, HashedBlobRefValue>();
 		readonly ConcurrentDictionary<string, AliasListNode?> _aliases = new ConcurrentDictionary<string, AliasListNode?>(StringComparer.Ordinal);
 
 		/// <summary>
@@ -29,7 +29,7 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <summary>
 		/// Accessor for all refs stored by the client
 		/// </summary>
-		public IReadOnlyDictionary<RefName, BlobRefValue> Refs => _refs;
+		public IReadOnlyDictionary<RefName, HashedBlobRefValue> Refs => _refs;
 
 		/// <inheritdoc/>
 		public bool SupportsRedirects => false;
@@ -65,10 +65,20 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task<BlobLocator> WriteBlobAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default)
+		public async Task WriteBlobAsync(BlobLocator locator, Stream stream, IReadOnlyCollection<BlobLocator>? imports, CancellationToken cancellationToken = default)
+		{
+			byte[] data = await stream.ReadAllBytesAsync(cancellationToken);
+			if (!_blobs.TryAdd(locator, data))
+			{
+				throw new InvalidOperationException($"Locator {locator} has already been written");
+			}
+		}
+
+		/// <inheritdoc/>
+		public async Task<BlobLocator> WriteBlobAsync(Stream stream, IReadOnlyCollection<BlobLocator>? imports, string? prefix = null, CancellationToken cancellationToken = default)
 		{
 			BlobLocator locator = StorageHelpers.CreateUniqueLocator(prefix);
-			_blobs[locator] = await stream.ReadAllBytesAsync(cancellationToken);
+			await WriteBlobAsync(locator, stream, imports, cancellationToken);
 			return locator;
 		}
 
@@ -77,7 +87,11 @@ namespace EpicGames.Horde.Storage.Backends
 			=> default;
 
 		/// <inheritdoc/>
-		public ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default)
+		public ValueTask<Uri?> TryGetBlobWriteRedirectAsync(BlobLocator locator, IReadOnlyCollection<BlobLocator> imports, CancellationToken cancellationToken = default)
+			=> default;
+
+		/// <inheritdoc/>
+		public ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(IReadOnlyCollection<BlobLocator> imports, string? prefix = null, CancellationToken cancellationToken = default)
 			=> default;
 
 		#endregion
@@ -167,21 +181,21 @@ namespace EpicGames.Horde.Storage.Backends
 		public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken) => Task.FromResult(_refs.TryRemove(name, out _));
 
 		/// <inheritdoc/>
-		public Task<BlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public Task<HashedBlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
-			BlobRefValue? value;
+			HashedBlobRefValue? value;
 			if (_refs.TryGetValue(name, out value))
 			{
-				return Task.FromResult<BlobRefValue?>(value);
+				return Task.FromResult<HashedBlobRefValue?>(value);
 			}
 			else
 			{
-				return Task.FromResult<BlobRefValue?>(null);
+				return Task.FromResult<HashedBlobRefValue?>(null);
 			}
 		}
 
 		/// <inheritdoc/>
-		public Task WriteRefAsync(RefName name, BlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public Task WriteRefAsync(RefName name, HashedBlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			_refs[name] = value;
 			return Task.CompletedTask;

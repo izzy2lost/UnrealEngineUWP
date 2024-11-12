@@ -18,7 +18,6 @@ public class RigVM : ModuleRules
 				"DeveloperSettings",
 				"Engine",
 				"Projects",
-				"StructUtils",
 			}
 		);
 
@@ -33,5 +32,7 @@ public class RigVM : ModuleRules
 				}
             );
         }
+
+		bDisableAutoRTFMInstrumentation = true;
     }
 }

@@ -3,8 +3,10 @@
 #pragma once
 
 #include "Components/DMMaterialComponent.h"
-#include "DMDefs.h"
+
 #include "Components/DMMaterialStage.h"
+#include "DMDefs.h"
+
 #include "DMMaterialLayer.generated.h"
 
 class UDMMaterialEffectStack;
@@ -12,65 +14,70 @@ class UDMMaterialSlot;
 class UDMMaterialStage;
 class UMaterialExpression;
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer", Meta = (DisplayName = "Material Designer Layer"))
-class DYNAMICMATERIALEDITOR_API UDMMaterialLayerObject : public UDMMaterialComponent
+/** A collection of stages. */
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer", Meta = (DisplayName = "Material Designer Layer"))
+class UDMMaterialLayerObject : public UDMMaterialComponent
 {
 	GENERATED_BODY()
 
 public:
-	static const FString StagesPathToken;
-	static const FString BasePathToken;
-	static const FString MaskPathToken;
-	static const FString EffectStackPathToken;
+	DYNAMICMATERIALEDITOR_API static const FString StagesPathToken;
+	DYNAMICMATERIALEDITOR_API static const FString BasePathToken;
+	DYNAMICMATERIALEDITOR_API static const FString MaskPathToken;
+	DYNAMICMATERIALEDITOR_API static const FString EffectStackPathToken;
 
 	using FStageCallbackFunc = TFunctionRef<void(UDMMaterialStage*)>;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialLayerObject* CreateLayer(UDMMaterialSlot* InSlot, EDMMaterialPropertyType InMaterialProperty, 
+	static DYNAMICMATERIALEDITOR_API UDMMaterialLayerObject* CreateLayer(UDMMaterialSlot* InSlot, EDMMaterialPropertyType InMaterialProperty,
 		const TArray<UDMMaterialStage*>& InStages);
 	
-	static UDMMaterialLayerObject* DeserializeFromString(UDMMaterialSlot* InOuter, const FString& InSerializedString);
+	DYNAMICMATERIALEDITOR_API static UDMMaterialLayerObject* DeserializeFromString(UDMMaterialSlot* InOuter, const FString& InSerializedString);
 
-	UDMMaterialLayerObject();
+	DYNAMICMATERIALEDITOR_API UDMMaterialLayerObject();
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialSlot* GetSlot() const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialSlot* GetSlot() const;
 
+	/** Find the index of this layer in the slot. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	int32 FindIndex() const;
+	DYNAMICMATERIALEDITOR_API int32 FindIndex() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	const FText& GetLayerName() const { return LayerName; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetLayerName(const FText& InName);
+	DYNAMICMATERIALEDITOR_API void SetLayerName(const FText& InName);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool IsEnabled() const;
+	DYNAMICMATERIALEDITOR_API bool IsEnabled() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool SetEnabled(bool bInIsEnabled);
+	DYNAMICMATERIALEDITOR_API bool SetEnabled(bool bInIsEnabled);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	EDMMaterialPropertyType GetMaterialProperty() const;
+	DYNAMICMATERIALEDITOR_API EDMMaterialPropertyType GetMaterialProperty() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool SetMaterialProperty(EDMMaterialPropertyType InMaterialProperty);
+	DYNAMICMATERIALEDITOR_API bool SetMaterialProperty(EDMMaterialPropertyType InMaterialProperty);
 
+	/** Texture UV Link means that all stages use the same Texture UV from the base stage, if available. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	bool IsTextureUVLinkEnabled() const;
+	DYNAMICMATERIALEDITOR_API bool IsTextureUVLinkEnabled() const;
+
+	/** Texture UV Link means that all stages use the same Texture UV from the base stage, if available. */
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API bool SetTextureUVLinkEnabled(bool bInValue);
+
+	/** Texture UV Link means that all stages use the same Texture UV from the base stage, if available. */
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API bool ToggleTextureUVLinkEnabled();
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool SetTextureUVLinkEnabled(bool bInValue);
+	DYNAMICMATERIALEDITOR_API UDMMaterialLayerObject* GetPreviousLayer(EDMMaterialPropertyType InUsingProperty, EDMMaterialLayerStage InSearchFor) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool ToggleTextureUVLinkEnabled();
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialLayerObject* GetPreviousLayer(EDMMaterialPropertyType InUsingProperty, EDMMaterialLayerStage InSearchFor) const;
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialLayerObject* GetNextLayer(EDMMaterialPropertyType InUsingProperty, EDMMaterialLayerStage InSearchFor) const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialLayerObject* GetNextLayer(EDMMaterialPropertyType InUsingProperty, EDMMaterialLayerStage InSearchFor) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	bool CanMoveLayerAbove(UDMMaterialLayerObject* InLayer) const;
@@ -79,80 +86,79 @@ public:
 	bool CanMoveLayerBelow(UDMMaterialLayerObject* InLayer) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStage* GetStage(EDMMaterialLayerStage InStageType = EDMMaterialLayerStage::All, bool bInCheckEnabled = false) const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialStage* GetStage(EDMMaterialLayerStage InStageType = EDMMaterialLayerStage::All, bool bInCheckEnabled = false) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	TArray<UDMMaterialStage*> GetStages(EDMMaterialLayerStage InStageType = EDMMaterialLayerStage::All, bool bInCheckEnabled = false) const;
+	DYNAMICMATERIALEDITOR_API TArray<UDMMaterialStage*> GetStages(EDMMaterialLayerStage InStageType = EDMMaterialLayerStage::All, bool bInCheckEnabled = false) const;
 
-	const TArray<TObjectPtr<UDMMaterialStage>>& GetAllStages() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	EDMMaterialLayerStage GetStageType(const UDMMaterialStage* InStage) const;
+	DYNAMICMATERIALEDITOR_API const TArray<TObjectPtr<UDMMaterialStage>>& GetAllStages() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStage* GetFirstValidStage(EDMMaterialLayerStage InStageScope) const;
+	DYNAMICMATERIALEDITOR_API EDMMaterialLayerStage GetStageType(const UDMMaterialStage* InStage) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStage* GetLastValidStage(EDMMaterialLayerStage InStageScope) const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialStage* GetFirstValidStage(EDMMaterialLayerStage InStageScope) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool HasValidStage(const UDMMaterialStage* InStage) const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialStage* GetLastValidStage(EDMMaterialLayerStage InStageScope) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool HasValidStageOfType(EDMMaterialLayerStage InStageScope = EDMMaterialLayerStage::All) const;
+	DYNAMICMATERIALEDITOR_API bool HasValidStage(const UDMMaterialStage* InStage) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API bool HasValidStageOfType(EDMMaterialLayerStage InStageScope = EDMMaterialLayerStage::All) const;
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	bool IsStageEnabled(EDMMaterialLayerStage InStageScope = EDMMaterialLayerStage::All) const;
+	DYNAMICMATERIALEDITOR_API bool IsStageEnabled(EDMMaterialLayerStage InStageScope = EDMMaterialLayerStage::All) const;
 
 	/** Checks for the first enabled and valid stage. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStage* GetFirstEnabledStage(EDMMaterialLayerStage InStageScope) const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialStage* GetFirstEnabledStage(EDMMaterialLayerStage InStageScope) const;
 
 	/** Checks for the last enabled and valid stage. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStage* GetLastEnabledStage(EDMMaterialLayerStage InStageScope) const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialStage* GetLastEnabledStage(EDMMaterialLayerStage InStageScope) const;
+
+	/** Replace the specified stage. */
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API bool SetStage(EDMMaterialLayerStage InStageType, UDMMaterialStage* InStage);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool SetStage(EDMMaterialLayerStage InStageType, UDMMaterialStage* InStage);
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool AreAllStagesValid(EDMMaterialLayerStage InStageScope) const;
+	DYNAMICMATERIALEDITOR_API bool AreAllStagesValid(EDMMaterialLayerStage InStageScope) const;
 
 	/** Checks if both stages are enabled and valid */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool AreAllStagesEnabled(EDMMaterialLayerStage InStageScope) const;
+	DYNAMICMATERIALEDITOR_API bool AreAllStagesEnabled(EDMMaterialLayerStage InStageScope) const;
+
+	/** Iterate over all the valid stages, whether they are enabled or not. */
+	DYNAMICMATERIALEDITOR_API void ForEachValidStage(EDMMaterialLayerStage InStageScope, FStageCallbackFunc InCallback) const;
+
+	/** Iterate over only the enabled stages. */
+	DYNAMICMATERIALEDITOR_API void ForEachEnabledStage(EDMMaterialLayerStage InStageScope, FStageCallbackFunc InCallback) const;
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	bool IsStageBeingEdited(EDMMaterialLayerStage InStageScope = EDMMaterialLayerStage::All) const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialEffectStack* GetEffectStack() const;
 
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStage* GetFirstStageBeingEdited(EDMMaterialLayerStage InStageScope) const;
-
-	void ForEachValidStage(EDMMaterialLayerStage InStageScope, FStageCallbackFunc InCallback) const;
-
-	void ForEachEnabledStage(EDMMaterialLayerStage InStageScope, FStageCallbackFunc InCallback) const;
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialEffectStack* GetEffectStack() const;
-
+	/** Used for copy+pasting. */
 	FString SerializeToString() const;
 
-	void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
+	DYNAMICMATERIALEDITOR_API void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
 
-	bool ApplyEffects(const TSharedRef<FDMMaterialBuildState>& InBuildState, const UDMMaterialStage* InStage,
+	/** Apply the effects from this layer's effect stack to the given expressions based on the type of stage. */
+	DYNAMICMATERIALEDITOR_API bool ApplyEffects(const TSharedRef<FDMMaterialBuildState>& InBuildState, const UDMMaterialStage* InStage,
 		TArray<UMaterialExpression*>& InOutStageExpressions, int32& InOutLastExpressionOutputChannel, int32& InOutLastExpressionOutputIndex) const;
 
 	//~ Begin UDMMaterialComponent
-	virtual UDMMaterialComponent* GetParentComponent() const override;
-	virtual FString GetComponentPathComponent() const override;
-	virtual FText GetComponentDescription() const override;
-	virtual void Update(EDMUpdateType InUpdateType) override;
-	virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
+	DYNAMICMATERIALEDITOR_API virtual UDMMaterialComponent* GetParentComponent() const override;
+	DYNAMICMATERIALEDITOR_API virtual FString GetComponentPathComponent() const override;
+	DYNAMICMATERIALEDITOR_API virtual FText GetComponentDescription() const override;
+	DYNAMICMATERIALEDITOR_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 	//~ End UDMMaterialComponent
 
 	//~ Begin UObject
-	virtual bool Modify(bool bInAlwaysMarkDirty = true) override;
-	virtual void PostEditUndo() override;
+	DYNAMICMATERIALEDITOR_API virtual bool Modify(bool bInAlwaysMarkDirty = true) override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditUndo() override;
 	//~ End UObject
 
 protected:
@@ -175,8 +181,8 @@ protected:
 	bool bLinkedUVs;
 
 	//~ Begin UDMMaterialComponent
-	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
-	virtual void OnComponentAdded() override;
-	virtual void OnComponentRemoved() override;
+	DYNAMICMATERIALEDITOR_API virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentAdded() override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentRemoved() override;
 	//~ End UDMMaterialComponent
 };

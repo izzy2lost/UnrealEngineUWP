@@ -73,6 +73,11 @@ public:
 	 */
 	ENGINE_API void ClearPreviousTransform(UObject* Component);
 
+	virtual SIZE_T GetAllocatedSize() const override
+	{
+		return SimulatedTransforms.GetAllocatedSize();
+	}
+
 private:
 
 	//~ FTickableGameObject interface - used for removing transforms that are no longer valid

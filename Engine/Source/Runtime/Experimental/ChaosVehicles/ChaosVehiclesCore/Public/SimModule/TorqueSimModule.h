@@ -9,14 +9,15 @@ namespace Chaos
 {
 	class FTorqueSimModule;
 
-	struct CHAOSVEHICLESCORE_API FTorqueSimModuleDatas : public FModuleNetData
+	struct CHAOSVEHICLESCORE_API FTorqueSimModuleData
+		: public FModuleNetData
+		, public Chaos::TSimulationModuleTypeable<FTorqueSimModule,FTorqueSimModuleData>
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		FTorqueSimModuleDatas(int NodeArrayIndex, const FString& InDebugString) : FModuleNetData(NodeArrayIndex, InDebugString) {}
+		FTorqueSimModuleData(int NodeArrayIndex, const FString& InDebugString) : FModuleNetData(NodeArrayIndex, InDebugString) {}
 #else
-		FTorqueSimModuleDatas(int NodeArrayIndex) : FModuleNetData(NodeArrayIndex) {}
+		FTorqueSimModuleData(int NodeArrayIndex) : FModuleNetData(NodeArrayIndex) {}
 #endif
-		virtual eSimType GetType() override { return eSimType::TorqueSim; }
 
 		virtual void FillSimState(ISimulationModuleBase* SimModule) override;
 
@@ -45,11 +46,12 @@ namespace Chaos
 	};
 
 
-	class CHAOSVEHICLESCORE_API FTorqueSimModule : public ISimulationModuleBase
+	class CHAOSVEHICLESCORE_API FTorqueSimModule : public ISimulationModuleBase, public TSimulationModuleTypeable<FTorqueSimModule>
 	{
-		friend FTorqueSimModuleDatas;
+		friend FTorqueSimModuleData;
 
 	public:
+		DEFINE_CHAOSSIMTYPENAME(FTorqueSimModule);
 		FTorqueSimModule()
 			: DriveTorque(0.f)
 			, LoadTorque(0.f)
@@ -63,8 +65,6 @@ namespace Chaos
 		 * Is Module of a specific type - used for casting
 		 */
 		virtual bool IsBehaviourType(eSimModuleTypeFlags InType) const { return (InType & TorqueBased); }
-
-		virtual eSimType GetSimType() const { return eSimType::TorqueSim; }
 
 		void SetDriveTorque(float TorqueIn) { DriveTorque = TorqueIn; }
 		float GetDriveTorque() const { return DriveTorque; }
@@ -116,6 +116,33 @@ namespace Chaos
 		float BrakingTorque;
 		float AngularVelocity;
 		float AngularPosition;
+	};
+
+	class CHAOSVEHICLESCORE_API FWheelBaseInterface : public FTorqueSimModule, public TSimulationModuleTypeable<FWheelBaseInterface>
+	{
+	public:
+		DEFINE_CHAOSSIMTYPENAME(FWheelBaseInterface);
+		
+		FWheelBaseInterface()
+			: SuspensionSimTreeIndex(ISimulationModuleBase::INVALID_IDX)
+			, SurfaceFriction(1.0f)
+			, ForceIntoSurface(0.0f)
+		{}
+
+		void SetSuspensionSimTreeIndex(int IndexIn) { SuspensionSimTreeIndex = IndexIn; }
+		int GetSuspensionSimTreeIndex() const { return SuspensionSimTreeIndex; }
+		void SetSurfaceFriction(float FrictionIn) { SurfaceFriction = FrictionIn; }
+		void SetForceIntoSurface(float ForceIntoSurfaceIn) { ForceIntoSurface = ForceIntoSurfaceIn; }
+		float GetForceIntoSurface() const { return ForceIntoSurface; }
+		float GetSurfaceFriction() const { return SurfaceFriction; }
+
+		virtual float GetWheelRadius() const = 0;
+
+	protected:
+		int SuspensionSimTreeIndex;
+		float SurfaceFriction;
+		float ForceIntoSurface;
+
 	};
 
 

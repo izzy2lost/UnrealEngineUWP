@@ -15,7 +15,7 @@ class FNiagaraSystemToolkitModeBase : public FApplicationMode
 {
 public:
 	FNiagaraSystemToolkitModeBase(FName InModeName, TWeakPtr<FNiagaraSystemToolkit> InSystemToolkit);
-	~FNiagaraSystemToolkitModeBase();
+	virtual ~FNiagaraSystemToolkitModeBase() override;
 	
 	virtual void RegisterTabFactories(TSharedPtr<FTabManager> InTabManager) override;
 
@@ -34,7 +34,6 @@ private:
 	TSharedRef<SDockTab> SpawnTab_SystemParameterDefinitions(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Details(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_SelectedEmitterGraph(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_DebugSpreadsheet(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_DebugCacheSpreadsheet(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_PreviewSettings(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_GeneratedCode(const FSpawnTabArgs& Args);
@@ -47,6 +46,8 @@ private:
 	TSharedRef<SDockTab> SpawnTab_UserParameters(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_UserParametersHierarchyEditor(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_SummaryViewEditor(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_ScratchPadHierarchyEditor(const FSpawnTabArgs& Args);
+
 
 protected:
 	TWeakPtr<FNiagaraSystemToolkit> SystemToolkit;
@@ -56,6 +57,8 @@ protected:
 	FDelegateHandle LastSystemSelectionUpdateDelegate;
 	FDelegateHandle LastGraphEditDelegate;
 	FDelegateHandle UpdateSummaryViewHandle;
+	FDelegateHandle UpdateScratchPadScriptHierarchyHandle;
+
 	int32 SwitcherIdx;
 	TSharedPtr<FNiagaraObjectSelection> ObjectSelection;
 	FText ObjectSelectionSubHeaderText;
@@ -69,11 +72,18 @@ protected:
 	
 	TSharedRef<SWidget> CreateSummaryViewWidget() const;
 	void UpdateSummaryViewOnSelectionChanged() const;
-	
 	void OnSummaryViewEditorClosed(TSharedRef<SDockTab> DockTab) const;
 
-	TWeakPtr< class FNiagaraScratchPadScriptViewModel > LastActiveDocumentModel;
+	FReply SummonScratchPadScriptHierarchyEditor();
+	TSharedRef<SWidget> CreateScratchPadHierarchyWidget();
+	void UpdateScratchPadActiveScriptChanged(TSharedPtr<SDockTab> DockTab);
+	void OnScratchPadHierarchyEditorClosed(TSharedRef<SDockTab> DockTab);
+	EVisibility GetSummonScratchPadHierarchyEditorButtonVisibility() const;
+	
 	TSharedPtr<class SBox> SummaryViewContainer;
+	TSharedPtr<class SBox> ScratchPadHierarchyContainer;
+	TWeakPtr<class FNiagaraScratchPadScriptViewModel> LastActiveScratchPadViewModel;
+
 public:
 	static const FName ViewportTabID;
 	static const FName CurveEditorTabID;
@@ -83,7 +93,6 @@ public:
 	static const FName SystemParameterDefinitionsTabID;
 	static const FName DetailsTabID;
 	static const FName SelectedEmitterGraphTabID;
-	static const FName DebugSpreadsheetTabID;
 	static const FName DebugCacheSpreadsheetTabID;
 	static const FName PreviewSettingsTabId;
 	static const FName GeneratedCodeTabID;
@@ -95,6 +104,7 @@ public:
 	static const FName VersioningTabID;
 	static const FName UserParametersTabID;
 	static const FName UserParametersHierarchyTabID;
-	static const FName EmitterSummaryViewEditorTabID;;
+	static const FName EmitterSummaryViewEditorTabID;
+	static const FName ScratchPadHierarchyEditorTabID;
 };
 

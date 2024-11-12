@@ -237,8 +237,10 @@ protected:
 		EConsumeMouseWheel ConsumeMouseWheel = EConsumeMouseWheel::WhenScrollingPossible;
 		bool bReturnFocusToSelection = false;
 		EOrientation Orientation = Orient_Vertical;
+		EScrollIntoViewAlignment ScrollIntoViewAlignment = EScrollIntoViewAlignment::CenterAligned;
 		const FTableViewStyle* ListViewStyle = &FUMGCoreStyle::Get().GetWidgetStyle<FTableViewStyle>("ListView");
 		const FScrollBarStyle* ScrollBarStyle = &FUMGCoreStyle::Get().GetWidgetStyle<FScrollBarStyle>("ScrollBar");
+		FMargin ScrollBarPadding = FMargin(0.0f);
 		bool bPreventThrottling = false;
 	};
 
@@ -257,8 +259,10 @@ protected:
 			.SelectionMode(Args.SelectionMode)
 			.ReturnFocusToSelection(Args.bReturnFocusToSelection)
 			.Orientation(Args.Orientation)
+			.ScrollIntoViewAlignment(Args.ScrollIntoViewAlignment)
 			.ListViewStyle(Args.ListViewStyle)
 			.ScrollBarStyle(Args.ScrollBarStyle)
+			.ScrollBarPadding(Args.ScrollBarPadding)
 			.PreventThrottling(Args.bPreventThrottling)
 			.OnGenerateRow_UObject(Implementer, &UListViewBaseT::HandleGenerateRow)
 			.OnSelectionChanged_UObject(Implementer, &UListViewBaseT::HandleSelectionChanged)
@@ -429,9 +433,9 @@ private:
 	{
 		if (SListView<ItemType>* MyListView = GetMyListView())
 		{
-			const FVector2D DistanceRemaining = MyListView->GetScrollDistanceRemaining();
-			OnListViewScrolledInternal(OffsetInItems, DistanceRemaining.Y);
-			OnListViewScrolled().Broadcast(OffsetInItems, DistanceRemaining.Y);
+			const FVector2f DistanceRemaining = UE::Slate::CastToVector2f(MyListView->GetScrollDistanceRemaining());
+			OnListViewScrolledInternal(static_cast<float>(OffsetInItems), DistanceRemaining.Y);
+			OnListViewScrolled().Broadcast(static_cast<float>(OffsetInItems), DistanceRemaining.Y);
 		}
 	}
 
@@ -536,6 +540,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = ListView)
 	UMG_API void SetScrollOffset(const float InScrollOffset);
 
+	/** Stops the scroll inertia */
+	UFUNCTION(BlueprintCallable, Category = ListView)
+	UMG_API void EndInertialScrolling();
+
 	UFUNCTION(BlueprintCallable, Category = ListViewBase)
 	UMG_API void SetWheelScrollMultiplier(float NewWheelScrollMultiplier);
 
@@ -545,6 +553,10 @@ public:
 	/** Enable/Disable the ability of the list to scroll. This should be use as a temporary disable. */
 	UFUNCTION(BlueprintCallable, Category = ListViewBase)
 	UMG_API void SetIsPointerScrollingEnabled(bool bInIsPointerScrollingEnabled);
+
+	/** Enable/Disable the ability of the list to scroll via gamepad. */
+	UFUNCTION(BlueprintCallable, Category = ListViewBase)
+	UMG_API void SetIsGamepadScrollingEnabled(bool bInIsGamepadScrollingEnabled);
 
 	/**
 	 * Sets the list to refresh on the next tick.
@@ -678,6 +690,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Scrolling)
 	bool bEnableScrollAnimation = false;
 	
+	/** The speed to apply when lerping in the scroll animation. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Scrolling)
+	float ScrollingAnimationInterpolationSpeed = 12.f;
+
 	/** True to enable lerped animation when scrolling through the list with touch*/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Scrolling)
 	bool bInEnableTouchAnimatedScrolling = false;
@@ -697,6 +713,10 @@ protected:
 	/** Enable/Disable scrolling using Touch or Mouse. */
 	UPROPERTY(EditDefaultsOnly, Category = Scrolling)
 	bool bIsPointerScrollingEnabled = true;
+
+	/** Enable/Disable scrolling using Gamepad. */
+	UPROPERTY(EditDefaultsOnly, Category = Scrolling)
+	bool bIsGamepadScrollingEnabled = true;
 
 	UPROPERTY(EditAnywhere, Category = Scrolling)
 	bool bEnableFixedLineOffset = false;

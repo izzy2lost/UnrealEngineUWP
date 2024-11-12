@@ -72,30 +72,51 @@ public:
  */
 struct FNotificationButtonInfo
 {
-	FNotificationButtonInfo( const FText& InText, const FText& InToolTip, FSimpleDelegate InCallback, SNotificationItem::ECompletionState VisibleInState = SNotificationItem::CS_Pending )
+	using FVisibilityDelegate = TDelegate<EVisibility(SNotificationItem::ECompletionState)>;
+	using FIsEnabledDelegate = TDelegate<bool(SNotificationItem::ECompletionState)>;
+
+	FNotificationButtonInfo( const TAttribute<FText>& InText, const TAttribute<FText>& InToolTip, FSimpleDelegate InCallback, SNotificationItem::ECompletionState VisibleInState = SNotificationItem::CS_Pending )
 		: Text( InText )
 		, ToolTip( InToolTip )
-		, Callback( InCallback )
+		, Callback( MoveTemp(InCallback) )
+		, VisibilityCallback()
+		, IsEnabledCallback()
 		, VisibilityOnNone( VisibleInState == SNotificationItem::CS_None ? EVisibility::Visible : EVisibility::Collapsed )
 		, VisibilityOnPending( VisibleInState == SNotificationItem::CS_Pending ? EVisibility::Visible : EVisibility::Collapsed )
 		, VisibilityOnSuccess( VisibleInState == SNotificationItem::CS_Success ? EVisibility::Visible : EVisibility::Collapsed )
 		, VisibilityOnFail( VisibleInState == SNotificationItem::CS_Fail ? EVisibility::Visible : EVisibility::Collapsed )
 	{ }
 
+	FNotificationButtonInfo( const TAttribute<FText>& InText, const TAttribute<FText>& InToolTip, FSimpleDelegate InCallback, FVisibilityDelegate InVisibilityCallback, FIsEnabledDelegate InIsEnabledCallback = FIsEnabledDelegate() )
+		: Text( InText )
+		, ToolTip( InToolTip )
+		, Callback( MoveTemp(InCallback) )
+		, VisibilityCallback( MoveTemp(InVisibilityCallback) )
+		, IsEnabledCallback( MoveTemp(InIsEnabledCallback) )
+		, VisibilityOnNone( VisibilityCallback.IsBound() ? EVisibility::Collapsed : EVisibility::Visible )
+		, VisibilityOnPending( VisibilityCallback.IsBound() ? EVisibility::Collapsed : EVisibility::Visible )
+		, VisibilityOnSuccess( VisibilityCallback.IsBound() ? EVisibility::Collapsed : EVisibility::Visible )
+		, VisibilityOnFail( VisibilityCallback.IsBound() ? EVisibility::Collapsed : EVisibility::Visible )
+	{ }
+
 	/** Message on the button */
-	FText Text;
+	TAttribute<FText> Text;
 	/** Tip displayed when moused over */
-	FText ToolTip;
+	TAttribute<FText> ToolTip;
 	/** Method called when button clicked */
 	FSimpleDelegate Callback;
+	/** Method called to decide if the button if visible; overrides the EVisibility data below if bound */
+	FVisibilityDelegate VisibilityCallback;
+	/** Method called to decide if the button is enabled; assumes enabled if unbound */
+	FIsEnabledDelegate IsEnabledCallback;
 
-	/** Visibility of the button when the completion state of the button is SNotificationItem::ECompletionState::None */
+	/** Visibility of the button when the completion state of the button is SNotificationItem::ECompletionState::None and VisibilityCallback is unbound */
 	EVisibility VisibilityOnNone;
-	/** Visibility of the button when the completion state of the button is SNotificationItem::ECompletionState::Pending */
+	/** Visibility of the button when the completion state of the button is SNotificationItem::ECompletionState::Pending and VisibilityCallback is unbound */
 	EVisibility VisibilityOnPending;
-	/** Visibility of the button when the completion state of the button is SNotificationItem::ECompletionState::Success */
+	/** Visibility of the button when the completion state of the button is SNotificationItem::ECompletionState::Success and VisibilityCallback is unbound */
 	EVisibility VisibilityOnSuccess;
-	/** Visibility of the button when the completion state of the button is SNotificationItem::ECompletionState::Fail */
+	/** Visibility of the button when the completion state of the button is SNotificationItem::ECompletionState::Fail and VisibilityCallback is unbound */
 	EVisibility VisibilityOnFail;
 };
 

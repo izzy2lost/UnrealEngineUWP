@@ -56,8 +56,8 @@ private:
 	/** The property handle for the Camera property of the UDisplayClusterConfigurationViewport object */
 	TSharedPtr<IPropertyHandle> CameraHandle;
 
-	/** A cached pointer to the "None" option that is added to the list of options in the dropdown menu */
-	TSharedPtr<FString>	NoneOption;
+	/** A cached pointer to the "DefaultViewPoint" option that is added to the list of options in the dropdown menu */
+	TSharedPtr<FString> DefaultViewPointComponentNameOption;
 
 	/** A weak reference to the UDisplayClusterConfigurationViewport object being edited by the details panel */
 	TWeakObjectPtr<UDisplayClusterConfigurationViewport> ConfigurationViewportPtr;

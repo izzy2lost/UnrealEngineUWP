@@ -125,12 +125,10 @@ TArrayView<const TWeakPtr<STrackLane>> STrackLane::GetChildLanes() const
 
 bool STrackLane::IsPinned() const
 {
+	TSharedPtr<IOutlinerExtension> Outliner = WeakOutlinerItem.Pin();
 	TSharedPtr<IPinnableExtension> Pinnable = WeakOutlinerItem.ImplicitPin();
-	if (Pinnable)
-	{
-		return Pinnable->IsPinned();
-	}
-	return false;
+
+	return (Pinnable && Pinnable->IsPinned()) || (Outliner && Outliner->ShouldAnchorToTop());
 }
 
 void STrackLane::OnHierarchyUpdated()

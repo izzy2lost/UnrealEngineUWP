@@ -25,15 +25,15 @@ struct TEXTUREGRAPHENGINE_API FViewportSettings
 {
 	GENERATED_BODY()
 	
-	UPROPERTY(EditAnywhere, Category = "Viewport Settings", NoClear)
+	UPROPERTY(EditAnywhere, Category = "Viewport Material", NoClear)
 	TObjectPtr<UMaterial> Material;
 	
-	UPROPERTY(EditAnywhere, EditFixedSize, Category = "Viewport Settings")
+	UPROPERTY(EditAnywhere, EditFixedSize, Category = "Viewport Material")
 	TArray<FMaterialMappingInfo> MaterialMappingInfos;
-
+	
 	void InitDefaultSettings(FName InitialTargetName);
 	void SetDefaultTarget(FName DefaultTargetName);
-
+	
 	UMaterial* GetDefaultMaterial();
 	
 	FName GetMaterialName() const;
@@ -43,9 +43,11 @@ struct TEXTUREGRAPHENGINE_API FViewportSettings
 	bool RemoveMaterialMappingForTarget(FName OutputNode);
 	void OnMaterialUpdate();
 	void OnTargetRename(const FName OldName, const FName NewName);
+
+	int  NumAssignedTargets();
 	
 	DECLARE_MULTICAST_DELEGATE(FViewportSettingsUpdateEvent)
-	FViewportSettingsUpdateEvent OnViewportMaterialChangeEvent;
+	FViewportSettingsUpdateEvent OnViewportMaterialChangedEvent;
 
 	DECLARE_MULTICAST_DELEGATE(FMaterialMappingChangedEvent)
 	FMaterialMappingChangedEvent OnMaterialMappingChangedEvent;

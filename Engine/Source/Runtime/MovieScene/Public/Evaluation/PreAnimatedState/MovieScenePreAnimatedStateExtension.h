@@ -43,6 +43,7 @@ struct FPreAnimatedTemplateCaptureSources;
 struct FPreAnimatedTrackInstanceCaptureSources;
 struct FPreAnimatedTrackInstanceInputCaptureSources;
 struct FRestoreStateParams;
+struct FSharedPlaybackState;
 struct IPreAnimatedCaptureSource;
 struct IPreAnimatedStorage;
 
@@ -282,8 +283,15 @@ public:
 	 */
 	MOVIESCENE_API bool ContainsAnyStateForInstanceHandle(FRootInstanceHandle RootInstanceHandle) const;
 
+public:
 
-	// Use FScopedPreAnimatedCaptureSource to capture from a specific source rather than globally
+	// These methods for globally saving pre-animated state shouldn't be used directly:
+	//
+	// - use FScopedPreAnimatedCaptureSource to capture from a specific source.
+	//
+	// - use the similar methods on SharedPlaybackState->GetPreAnimatedState() to save only when it's
+	//   needed for that given sequence instance.
+	//
 	MOVIESCENE_API void SavePreAnimatedState(FMovieSceneAnimTypeID InTokenType, const IMovieScenePreAnimatedGlobalTokenProducer& Producer);
 	MOVIESCENE_API void SavePreAnimatedState(UObject& InObject, FMovieSceneAnimTypeID InTokenType, const IMovieScenePreAnimatedTokenProducer& Producer);
 
@@ -325,7 +333,6 @@ public:
 private:
 
 	MOVIESCENE_API void FreeGroupInternal(FPreAnimatedStorageGroupHandle Handle);
-	MOVIESCENE_API bool ShouldCaptureAnyState() const;
 
 	MOVIESCENE_API void AddReferencedObjects(UMovieSceneEntitySystemLinker*, FReferenceCollector& ReferenceCollector);
 
@@ -336,6 +343,9 @@ private:
 			FContributionRemover RemoveFunc);
 
 public:
+
+	/** Called to handle replaced objects */
+	void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap);
 
 	/** The number of requests that have been made to capture global state - only one should exist per playing sequence */
 	uint32 NumRequestsForGlobalState;

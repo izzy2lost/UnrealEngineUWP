@@ -48,6 +48,9 @@ struct CORE_API FFortniteSeasonBranchObjectVersion
 		// Changing Chaos::FImplicitObjectUnion to store an int32 vs a uint16 for NumLeafObjects.
 		ChaosImplicitObjectUnionLeafObjectsToInt32,
 
+		// Chaos Visual Debugger : Adding serialization for properties that were being recorded, but not serialized
+		CVDSerializationFixMissingSerializationProperties,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

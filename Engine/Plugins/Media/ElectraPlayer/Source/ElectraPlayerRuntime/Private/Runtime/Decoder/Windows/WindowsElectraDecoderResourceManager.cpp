@@ -152,11 +152,8 @@ bool FElectraDecoderResourceManagerWindows::RunCodeAsync(TFunction<void()>&& Cod
 bool FElectraDecoderResourceManagerWindows::SetupRenderBufferFromDecoderOutputFromMFSample(IMediaRenderer::IBuffer* InOutBufferToSetup, TSharedPtr<FParamDict, ESPMode::ThreadSafe> InOutBufferPropertes, TSharedPtr<IElectraDecoderVideoOutput, ESPMode::ThreadSafe> InDecoderOutput, FElectraDecoderResourceManagerWindows::IDecoderPlatformResource* InPlatformSpecificResource)
 {
 	TSharedPtr<FElectraPlayerVideoDecoderOutputPC, ESPMode::ThreadSafe> DecoderOutput = InOutBufferToSetup->GetBufferProperties().GetValue(RenderOptionKeys::Texture).GetSharedPointer<FElectraPlayerVideoDecoderOutputPC>();
-	FInstanceVars* Vars = static_cast<FInstanceVars*>(InPlatformSpecificResource);
-
-	if (DecoderOutput.IsValid() && Vars != nullptr)
+	if (DecoderOutput.IsValid())
 	{
-		TSharedPtr<IVideoDecoderResourceDelegate, ESPMode::ThreadSafe> PinnedResourceDelegate = Vars->VideoDecoderResourceDelegate.Pin();
 
 		FElectraVideoDecoderOutputCropValues Crop = InDecoderOutput->GetCropValues();
 		InOutBufferPropertes->Set(IDecoderOutputOptionNames::Width, FVariantValue((int64)InDecoderOutput->GetWidth()));
@@ -235,7 +232,7 @@ bool FElectraDecoderResourceManagerWindows::SetupRenderBufferFromDecoderOutputFr
 			{
 				//
 				// DX12 (with DX11 decode device) & non-DX
-				// 
+				//
 				// (access buffer for CPU use)
 				//
 				TRefCountPtr<IMF2DBuffer> Buffer2D;
@@ -407,7 +404,8 @@ bool FElectraDecoderResourceManagerWindows::SetupRenderBufferFromDecoderOutput(I
 
 	TSharedPtr<FElectraPlayerVideoDecoderOutputPC, ESPMode::ThreadSafe> DecoderOutput = InOutBufferToSetup->GetBufferProperties().GetValue(RenderOptionKeys::Texture).GetSharedPointer<FElectraPlayerVideoDecoderOutputPC>();
 	FInstanceVars* Vars = static_cast<FInstanceVars*>(InPlatformSpecificResource);
-	if (DecoderOutput.IsValid())
+	TSharedPtr<IVideoDecoderResourceDelegate, ESPMode::ThreadSafe> PinnedResourceDelegate = Vars ? Vars->VideoDecoderResourceDelegate.Pin() : nullptr;
+	if (DecoderOutput.IsValid() && Vars != nullptr && PinnedResourceDelegate.IsValid())
 	{
 		//
 		// Image buffers?
@@ -474,7 +472,7 @@ bool FElectraDecoderResourceManagerWindows::SetupRenderBufferFromDecoderOutput(I
 				case EElectraDecoderPlatformPixelEncoding::ARGB_BigEndian:	DecPixEnc = EVideoDecoderPixelEncoding::ARGB_BigEndian; break;
 				default: DecPixEnc = EVideoDecoderPixelEncoding::Native; break;
 			}
-			
+
 			int32 Pitch = ImageBuffers->GetBufferPitchByIndex(0);
 
 			InOutBufferPropertes->Set(IDecoderOutputOptionNames::PixelFormat, FVariantValue((int64)RHIPixFmt));
@@ -531,7 +529,7 @@ bool FElectraDecoderResourceManagerWindows::SetupRenderBufferFromDecoderOutput(I
 							FElectraDecoderOutputSync OutputSync;
 							ImageBuffers->GetBufferTextureSyncByIndex(0, OutputSync);
 
-							DecoderOutput->InitializeWithResource(D3D12Device, Resource, Pitch, OutputSync, FIntPoint(InDecoderOutput->GetDecodedWidth(), InDecoderOutput->GetDecodedHeight()), InOutBufferPropertes, Vars->VideoDecoderResourceDelegate,
+							DecoderOutput->InitializeWithResource(D3D12Device, Resource, Pitch, OutputSync, FIntPoint(InDecoderOutput->GetDecodedWidth(), InDecoderOutput->GetDecodedHeight()), InOutBufferPropertes, PinnedResourceDelegate,
 																  Vars->D3D12ResourcePool, Vars->MaxWidth, Vars->MaxHeight, Vars->MaxOutputBuffers);
 							return true;
 						}

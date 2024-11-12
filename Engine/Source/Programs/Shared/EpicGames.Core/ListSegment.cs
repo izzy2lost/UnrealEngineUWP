@@ -166,7 +166,7 @@ namespace EpicGames.Core
 			readonly int _maxIndex;
 
 			/// <inheritdoc/>
-			public T Current
+			public readonly T Current
 			{
 				get
 				{
@@ -190,7 +190,7 @@ namespace EpicGames.Core
 			}
 
 			/// <inheritdoc/>
-			void IDisposable.Dispose()
+			readonly void IDisposable.Dispose()
 			{
 			}
 
@@ -201,7 +201,7 @@ namespace EpicGames.Core
 			}
 
 			/// <inheritdoc/>
-			object? IEnumerator.Current => Current;
+			readonly object? IEnumerator.Current => Current;
 
 			/// <inheritdoc/>
 			void IEnumerator.Reset() => throw new InvalidOperationException();

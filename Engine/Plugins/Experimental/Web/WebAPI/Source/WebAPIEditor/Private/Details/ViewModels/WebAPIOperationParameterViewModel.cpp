@@ -59,7 +59,7 @@ void FWebAPIOperationParameterViewModel::Initialize()
 	bool bIsTypeResolved = true;
 	if(Type.HasTypeInfo() && !Type.TypeInfo->bIsBuiltinType)
 	{
-		bIsTypeResolved = !Type.TypeInfo->Model.IsNull();
+		bIsTypeResolved = Type.TypeInfo->GetModel() != nullptr;
 	}
 	
 	if(!bIsTypeResolved)

@@ -17,6 +17,7 @@ namespace UE::Net
 	struct FReplicationProtocol;
 	namespace Private
 	{
+		typedef uint32 FInternalNetRefIndex;
 		class FNetRefHandleManager;
 	};
 }
@@ -29,6 +30,7 @@ struct FReplicationStateStorageInitParams
 	UReplicationSystem* ReplicationSystem = nullptr;
 	const Private::FNetRefHandleManager* NetRefHandleManager = nullptr;
 	uint32 MaxObjectCount = 0;
+	uint32 MaxInternalNetRefIndex = 0;
 	uint32 MaxConnectionCount = 0;
 	uint32 MaxDeltaCompressedObjectCount = 0;
 };
@@ -64,6 +66,7 @@ public:
 	~FReplicationStateStorage();
 
 	void Init(FReplicationStateStorageInitParams& InitParams);
+	void Deinit();
 
 	/*
 	 * Returns a buffer to a state of the requested type. Only supports CurrentSendState and CurrentRecvState. May return null
@@ -96,6 +99,9 @@ public:
 	 */
 	void CommitBaselineReservation(uint32 ObjectIndex, uint8* Storage, EReplicationStateType Base);
 
+	/** Called when the maximum InternalNetRefIndex increased and we need to realloc our lists */
+	void OnMaxInternalNetRefIndexIncreased(UE::Net::Private::FInternalNetRefIndex NewMaxInternalIndex);
+
 private:
 	using ObjectInfoIndexType = uint16;
 
@@ -120,8 +126,6 @@ private:
 		const uint8* StateBuffers[(unsigned)EStateBufferType::Count] = {};
 		uint16 AllocationCount = 0;
 	};
-
-	void Deinit();
 
 	FPerObjectInfo* GetOrCreatePerObjectInfoForObject(uint32 ObjectIndex);
 	FPerObjectInfo* GetPerObjectInfoForObject(uint32 ObjectIndex);

@@ -85,10 +85,10 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptMeshReadLOD
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite, Category = LOD)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = LOD)
 	EGeometryScriptLODType LODType = EGeometryScriptLODType::MaxAvailable;
 
-	UPROPERTY(BlueprintReadWrite, Category = LOD)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = LOD)
 	int32 LODIndex = 0;
 };
 
@@ -98,10 +98,10 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptMeshWriteLOD
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite, Category = LOD)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = LOD)
 	bool bWriteHiResSource = false;
 
-	UPROPERTY(BlueprintReadWrite, Category = LOD)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = LOD)
 	int32 LODIndex = 0;
 };
 
@@ -190,13 +190,13 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptTriangle
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	FVector Vector0 = FVector::ZeroVector;
 
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	FVector Vector1 = FVector::ZeroVector;
 
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	FVector Vector2 = FVector::ZeroVector;
 };
 
@@ -206,16 +206,16 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptTrianglePoint
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bValid = false;
 
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	int TriangleID = -1;
 
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	FVector Position = FVector::ZeroVector;
 
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	FVector BaryCoords = FVector::ZeroVector;
 };
 
@@ -225,13 +225,13 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptUVTriangle
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	FVector2D UV0 = FVector2D::ZeroVector;
 
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	FVector2D UV1 = FVector2D::ZeroVector;
 
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	FVector2D UV2 = FVector2D::ZeroVector;
 };
 
@@ -247,16 +247,16 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptColorFlags
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite, Category = Color)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Color)
 	bool bRed = true;
 
-	UPROPERTY(BlueprintReadWrite, Category = Color)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Color)
 	bool bGreen = true;
 
-	UPROPERTY(BlueprintReadWrite, Category = Color)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Color)
 	bool bBlue = true;
 
-	UPROPERTY(BlueprintReadWrite, Category = Color)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Color)
 	bool bAlpha = true;
 
 	bool AllSet() const { return bRed && bGreen && bBlue && bAlpha; }
@@ -278,11 +278,11 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptGroupLayer
 	GENERATED_BODY()
 public:
 	/** If true,the default/standard PolyGroup Layer is used */
-	UPROPERTY(BlueprintReadWrite, Category = LOD)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = LOD)
 	bool bDefaultLayer = true;
 
 	/** Index of an extended PolyGroup Layer (which may or may not exist on any given Mesh) */
-	UPROPERTY(BlueprintReadWrite, Category = LOD)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = LOD)
 	int ExtendedLayerIndex = 0;
 };
 
@@ -304,6 +304,7 @@ enum class EGeometryScriptIndexType : uint8
 	// Index lists of Any type are compatible with any other index list type
 	Any,
 	Triangle,
+	Edge,
 	Vertex,
 	MaterialID,
 	PolygroupID UMETA(DisplayName = "PolyGroup ID")
@@ -314,18 +315,18 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptIndexList
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadWrite, Category = IndexList)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = IndexList)
 	EGeometryScriptIndexType IndexType = EGeometryScriptIndexType::Any;
 public:
 	TSharedPtr<TArray<int>> List;
 
-	void Reset(EGeometryScriptIndexType TargetIndexType)
+	void Reset(EGeometryScriptIndexType TargetIndexType, int32 Num = 0)
 	{
 		if (List.IsValid() == false)
 		{
 			List = MakeShared<TArray<int>>();
 		}
-		List->Reset();
+		List->Reset(Num);
 		IndexType = TargetIndexType;
 	}
 
@@ -362,13 +363,13 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptTriangleList
 public:
 	TSharedPtr<TArray<FIntVector>> List;
 
-	void Reset()
+	void Reset(int32 Num = 0)
 	{
 		if (List.IsValid() == false)
 		{
 			List = MakeShared<TArray<FIntVector>>();
 		}
-		List->Reset();
+		List->Reset(Num);
 	}
 
 	// Required by TStructOpsTypeTraits interface
@@ -399,13 +400,13 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptScalarList
 public:
 	TSharedPtr<TArray<double>> List;
 
-	void Reset()
+	void Reset(int32 Num = 0)
 	{
 		if (List.IsValid() == false)
 		{
 			List = MakeShared<TArray<double>>();
 		}
-		List->Reset();
+		List->Reset(Num);
 	}
 
 	// Required by TStructOpsTypeTraits interface
@@ -437,13 +438,13 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptVectorList
 public:
 	TSharedPtr<TArray<FVector>> List;
 
-	void Reset()
+	void Reset(int32 Num = 0)
 	{
 		if (List.IsValid() == false)
 		{
 			List = MakeShared<TArray<FVector>>();
 		}
-		List->Reset();
+		List->Reset(Num);
 	}
 
 	// Required by TStructOpsTypeTraits interface
@@ -474,13 +475,13 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptUVList
 public:
 	TSharedPtr<TArray<FVector2D>> List;
 
-	void Reset()
+	void Reset(int32 Num = 0)
 	{
 		if (List.IsValid() == false)
 		{
 			List = MakeShared<TArray<FVector2D>>();
 		}
-		List->Reset();
+		List->Reset(Num);
 	}
 
 	// Required by TStructOpsTypeTraits interface
@@ -512,13 +513,13 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptColorList
 public:
 	TSharedPtr<TArray<FLinearColor>> List;
 
-	void Reset()
+	void Reset(int32 Num = 0)
 	{
 		if (List.IsValid() == false)
 		{
 			List = MakeShared<TArray<FLinearColor>>();
 		}
-		List->Reset();
+		List->Reset(Num);
 	}
 
 	// Required by TStructOpsTypeTraits interface
@@ -552,13 +553,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Options")
 	bool bClosedLoop = false;
 
-	void Reset()
+	void Reset(int32 Num = 0)
 	{
 		if (!Path.IsValid())
 		{
 			Path = MakeShared<TArray<FVector>>();
 		}
-		Path->Reset();
+		Path->Reset(Num);
 	}
 
 	// Required by TStructOpsTypeTraits interface
@@ -589,13 +590,13 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptSimplePolygon
 public:
 	TSharedPtr<TArray<FVector2D>> Vertices;
 
-	void Reset()
+	void Reset(int32 Num = 0)
 	{
 		if (Vertices.IsValid() == false)
 		{
 			Vertices = MakeShared<TArray<FVector2D>>();
 		}
-		Vertices->Reset();
+		Vertices->Reset(Num);
 	}
 
 	// Required by TStructOpsTypeTraits interface
@@ -628,7 +629,7 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptGeneralPolygonList
 public:
 	TSharedPtr<TArray<UE::Geometry::FGeneralPolygon2d>> Polygons;
 
-	void Reset();
+	void Reset(int32 Num = 0);
 
 	// Required by TStructOpsTypeTraits interface
 	bool operator==(const FGeometryScriptGeneralPolygonList& Other) const
@@ -795,13 +796,13 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptDebugMessage
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	EGeometryScriptDebugMessageType MessageType = EGeometryScriptDebugMessageType::ErrorMessage;
 
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	EGeometryScriptErrorType ErrorType = EGeometryScriptErrorType::UnknownError;
 
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	FText Message = FText();
 };
 
@@ -811,7 +812,7 @@ class GEOMETRYSCRIPTINGCORE_API UGeometryScriptDebug : public UObject
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite, Category = Messages)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Messages)
 	TArray<FGeometryScriptDebugMessage> Messages;
 
 

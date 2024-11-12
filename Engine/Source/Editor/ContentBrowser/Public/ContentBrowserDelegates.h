@@ -131,6 +131,9 @@ DECLARE_DELEGATE_OneParam(FOnObjectPathChosenForSave, const FString& /*ObjectPat
 /** Called when custom behavior is needed for allowing folders to toggle their private content edit state */
 DECLARE_DELEGATE_RetVal_OneParam(bool, FIsFolderShowPrivateContentToggleableDelegate, const FStringView /*VirtualFolderPath*/);
 
+/** Called when a custom folder color is set on a folder */
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnSetFolderColor, const FString& /*FolderPath*/)
+
 /** Contains the delegates used to handle a custom drag-and-drop in the asset view */
 struct FAssetViewDragAndDropExtender
 {

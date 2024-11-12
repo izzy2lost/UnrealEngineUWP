@@ -219,7 +219,7 @@ FAnalyticsProviderETEventCache::FAnalyticsProviderETEventCache(int32 InMaximumPa
 // We End with {"Events":[{"EventName":"<NAME>","DateOffset":"<OFFSET>",<DefaultAttrs>,<Attrs>}]}
 void FAnalyticsProviderETEventCache::AddToCache(FString EventName, const TArray<FAnalyticsEventAttribute>& Attributes)
 {
-	FScopeLock ScopedLock(&CachedEventsCS);
+	FTransactionallySafeScopeLock ScopedLock(&CachedEventsCS);
 
 	// If we estimate that 110% of the size estimate (in case there are a lot of Json escaping or multi-byte UTF8 chars) will exceed our max payload, queue up a flush. 
 	const int32 EventSizeEstimate = EventCacheStatic::ComputeEventSize(EventName, Attributes, CachedDefaultAttributeUTF8Stream.Num());
@@ -277,7 +277,7 @@ void FAnalyticsProviderETEventCache::AddToCache(FString EventName)
 
 void FAnalyticsProviderETEventCache::SetDefaultAttributes(TArray<FAnalyticsEventAttribute>&& DefaultAttributes)
 {
-	FScopeLock ScopedLock(&CachedEventsCS);
+	FTransactionallySafeScopeLock ScopedLock(&CachedEventsCS);
 
 	// store the array so we can return if if the user asks again.
 	CachedDefaultAttributes = MoveTemp(DefaultAttributes);
@@ -297,25 +297,25 @@ void FAnalyticsProviderETEventCache::SetDefaultAttributes(TArray<FAnalyticsEvent
 
 TArray<FAnalyticsEventAttribute> FAnalyticsProviderETEventCache::GetDefaultAttributes() const
 {
-	FScopeLock ScopedLock(&CachedEventsCS);
+	FTransactionallySafeScopeLock ScopedLock(&CachedEventsCS);
 	return CachedDefaultAttributes;
 }
 
 int32 FAnalyticsProviderETEventCache::GetDefaultAttributeCount() const
 {
-	FScopeLock ScopedLock(&CachedEventsCS);
+	FTransactionallySafeScopeLock ScopedLock(&CachedEventsCS);
 	return CachedDefaultAttributes.Num();
 }
 
 FAnalyticsEventAttribute FAnalyticsProviderETEventCache::GetDefaultAttribute(int32 AttributeIndex) const
 {
-	FScopeLock ScopedLock(&CachedEventsCS);
+	FTransactionallySafeScopeLock ScopedLock(&CachedEventsCS);
 	return CachedDefaultAttributes[AttributeIndex];
 }
 
 FString FAnalyticsProviderETEventCache::FlushCache(SIZE_T* OutEventCount)
 {
-	FScopeLock ScopedLock(&CachedEventsCS);
+	FTransactionallySafeScopeLock ScopedLock(&CachedEventsCS);
 	if (OutEventCount)
 	{
 		*OutEventCount = CachedEventEntries.Num();
@@ -327,7 +327,7 @@ FString FAnalyticsProviderETEventCache::FlushCache(SIZE_T* OutEventCount)
 
 TArray<uint8> FAnalyticsProviderETEventCache::FlushCacheUTF8()
 {
-	FScopeLock ScopedLock(&CachedEventsCS);
+	FTransactionallySafeScopeLock ScopedLock(&CachedEventsCS);
 
 	// if there's nothing queued up, flush what we have.
 	if (FlushQueue.Num() == 0 && CachedEventEntries.Num() > 0)
@@ -339,7 +339,7 @@ TArray<uint8> FAnalyticsProviderETEventCache::FlushCacheUTF8()
 	{
 		// pull out the first element without copying the array or shrinking the queue size
 		TArray<uint8> Payload = MoveTemp(FlushQueue[0]);
-		FlushQueue.RemoveAt(0, 1, EAllowShrinking::No);
+		FlushQueue.RemoveAt(0, EAllowShrinking::No);
 		return Payload;
 	}
 
@@ -353,7 +353,7 @@ TArray<uint8> FAnalyticsProviderETEventCache::FlushCacheUTF8()
 void FAnalyticsProviderETEventCache::QueueFlush()
 {
 	const double StartTime = FPlatformTime::Seconds();
-	FScopeLock ScopedLock(&CachedEventsCS);
+	FTransactionallySafeScopeLock ScopedLock(&CachedEventsCS);
 
 	// early exit if nothing to flush.
 	if (CachedEventEntries.Num() == 0)
@@ -428,7 +428,7 @@ void FAnalyticsProviderETEventCache::QueueFlush()
 
 bool FAnalyticsProviderETEventCache::CanFlush() const
 {
-	FScopeLock ScopedLock(&CachedEventsCS);
+	FTransactionallySafeScopeLock ScopedLock(&CachedEventsCS);
 	return CachedEventEntries.Num() > 0 || FlushQueue.Num() > 0;
 }
 
@@ -439,7 +439,7 @@ bool FAnalyticsProviderETEventCache::HasFlushesQueued() const
 
 int FAnalyticsProviderETEventCache::GetNumCachedEvents() const
 {
-	FScopeLock ScopedLock(&CachedEventsCS);
+	FTransactionallySafeScopeLock ScopedLock(&CachedEventsCS);
 	return CachedEventEntries.Num();
 }
 
@@ -453,7 +453,7 @@ void FAnalyticsProviderETEventCache::SetPreallocatedPayloadSize(int32 InPrealloc
 	// if we are asking for a smaller buffer try to accommodate immediately.
 	if (PreallocatedPayloadSize < (int32)CachedEventUTF8Stream.GetAllocatedSize())
 	{
-		FScopeLock ScopedLock(&CachedEventsCS);
+		FTransactionallySafeScopeLock ScopedLock(&CachedEventsCS);
 		TArray<uint8> NewPayload;
 		NewPayload.Reserve(PreallocatedPayloadSize);
 		NewPayload = CachedEventUTF8Stream;
@@ -471,7 +471,7 @@ int32 FAnalyticsProviderETEventCache::GetSetPreallocatedPayloadSize() const
 #include "Misc/AutomationTest.h"
 #include <limits>
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnalyticsProviderETEventCacheTest, "System.Analytics.AnalyticsETEventCache", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnalyticsProviderETEventCacheTest, "System.Analytics.AnalyticsETEventCache", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FAnalyticsProviderETEventCacheTest::RunTest(const FString& Parameters)
 {
 	// Zero out the DateOffset so we can test against constant strings.

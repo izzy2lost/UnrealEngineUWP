@@ -8,20 +8,20 @@ namespace UnrealBuildTool
 	/// Attribute which can be applied to a TargetRules-dervied class to indicate which configurations it supports
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-	public class SupportedConfigurationsAttribute : Attribute
+	public sealed class SupportedConfigurationsAttribute : Attribute
 	{
 		/// <summary>
 		/// Array of supported platforms
 		/// </summary>
-		public readonly UnrealTargetConfiguration[] Configurations;
+		public UnrealTargetConfiguration[] Configurations { get; }
 
 		/// <summary>
 		/// Initialize the attribute with a list of configurations
 		/// </summary>
-		/// <param name="Configurations">Variable-length array of configuration arguments</param>
-		public SupportedConfigurationsAttribute(params UnrealTargetConfiguration[] Configurations)
+		/// <param name="configurations">Variable-length array of configuration arguments</param>
+		public SupportedConfigurationsAttribute(params UnrealTargetConfiguration[] configurations)
 		{
-			this.Configurations = Configurations;
+			Configurations = configurations;
 		}
 	}
 }

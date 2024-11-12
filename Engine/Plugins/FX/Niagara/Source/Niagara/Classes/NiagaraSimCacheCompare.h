@@ -16,6 +16,9 @@ public:
 	/** Default float tolerance when comparing caches */
 	float DefaultFloatTolerance = 0.01f;
 
+	/** Tolerance when comparing quaternions, if not set uses the default UE tolerance. */
+	TOptional<float> DefaultQuaternionTolerance;
+
 	/** Should we exclude known none deterministic variables, i.e. ID / MaterialRandom. */
 	bool bExcludeNoneDeterministicVariables = true;
 

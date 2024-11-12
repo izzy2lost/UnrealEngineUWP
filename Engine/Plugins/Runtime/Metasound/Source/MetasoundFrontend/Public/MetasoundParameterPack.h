@@ -506,6 +506,15 @@ public:
 	{
 		return ParameterStoragePtr.Get();
 	}
+
+	friend FORCEINLINE uint32 GetTypeHash(const FMetasoundParameterStorageWrapper& InParameterStorageWrapper)
+	{
+		if (InParameterStorageWrapper.IsPackValid())
+		{
+			return GetTypeHash(InParameterStorageWrapper->Storage);
+		}
+		return INDEX_NONE;
+	}
 };
 
 DECLARE_METASOUND_DATA_REFERENCE_TYPES(FMetasoundParameterStorageWrapper, METASOUNDFRONTEND_API, FMetasoundParameterStorageWrapperTypeInfo, FMetasoundParameterStorageWrapperReadRef, FMetasoundParameterStorageWrapperWriteRef)

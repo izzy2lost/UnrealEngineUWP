@@ -46,13 +46,34 @@
 
 */
 
+/**
+ * Declare a node parameter that can be accessed by other code (e.g. tests)
+ * @param API_EXPORT If this parameter should be available to other modules (common), provide your module API export here
+ * @param PARAM_NAME The parameter name
+ */
+#define DECLARE_METASOUND_PARAM(API_EXPORT, PARAM_NAME) \
+	API_EXPORT extern const FLazyName PARAM_NAME##Name;
+
+/**
+ * Use this macro to define your parameter if you used DECLARE_METASOUND_PARAM, otherwise just use METASOUND_PARAM in a source file
+ */
 #if WITH_EDITOR
-#define LOC_DEFINE_REGION
+#define DEFINE_METASOUND_PARAM(NAME, NAME_TEXT, TOOLTIP_TEXT) \
+	const FLazyName NAME##Name = TEXT(NAME_TEXT); \
+	static const FText NAME##Tooltip = LOCTEXT(#NAME "Tooltip", TOOLTIP_TEXT); \
+	static const FText NAME##DisplayName = LOCTEXT(#NAME "DisplayName", NAME_TEXT);
+#else 
+#define DEFINE_METASOUND_PARAM(NAME, NAME_TEXT, TOOLTIP_TEXT) \
+	const FLazyName NAME##Name = TEXT(NAME_TEXT); \
+	static const FText NAME##Tooltip = FText::GetEmpty(); \
+	static const FText NAME##DisplayName = FText::GetEmpty();
+#endif // WITH_EDITOR
+
+#if WITH_EDITOR
 #define METASOUND_PARAM(NAME, NAME_TEXT, TOOLTIP_TEXT) \
 	static const FLazyName NAME##Name = TEXT(NAME_TEXT); \
 	static const FText NAME##Tooltip = LOCTEXT(#NAME "Tooltip", TOOLTIP_TEXT); \
 	static const FText NAME##DisplayName = LOCTEXT(#NAME "DisplayName", NAME_TEXT); 
-#undef LOC_DEFINE_REGION
 #else 
 #define METASOUND_PARAM(NAME, NAME_TEXT, TOOLTIP_TEXT) \
 	static const FLazyName NAME##Name = TEXT(NAME_TEXT); \
@@ -66,6 +87,9 @@
 #define METASOUND_GET_PARAM_METADATA(NAME) FDataVertexMetadata { NAME##Tooltip, NAME##DisplayName }
 #define METASOUND_GET_PARAM_DISPLAYNAME(NAME) NAME##DisplayName
 #define METASOUND_GET_PARAM_NAME_AND_METADATA(NAME) METASOUND_GET_PARAM_NAME(NAME), METASOUND_GET_PARAM_METADATA(NAME)
+
+#define METASOUND_GET_PARAM_METADATA_ADVANCED(NAME) FDataVertexMetadata { NAME##Tooltip, NAME##DisplayName, true }
+#define METASOUND_GET_PARAM_NAME_AND_METADATA_ADVANCED(NAME) METASOUND_GET_PARAM_NAME(NAME), METASOUND_GET_PARAM_METADATA_ADVANCED(NAME)
 
 #define METASOUND_GET_PARAM_NAME_WITH_INDEX(NAME, INDEX) *FString::Format(*static_cast<FName>(NAME##Name).ToString(), {INDEX})
 #if WITH_EDITOR

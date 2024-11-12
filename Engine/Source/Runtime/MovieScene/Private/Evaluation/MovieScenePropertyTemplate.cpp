@@ -18,6 +18,10 @@ void PropertyTemplate::FSectionData::Initialize(FName InPropertyName, FString In
 	PropertyBindings = MakeShareable(new FTrackInstancePropertyBindings(InPropertyName, MoveTemp(InPropertyPath)));
 }
 
+FMovieScenePropertySectionTemplate::FMovieScenePropertySectionTemplate() = default;
+FMovieScenePropertySectionTemplate::FMovieScenePropertySectionTemplate(const FMovieScenePropertySectionTemplate&) = default;
+FMovieScenePropertySectionTemplate::~FMovieScenePropertySectionTemplate() = default;
+
 FMovieScenePropertySectionTemplate::FMovieScenePropertySectionTemplate(FName PropertyName, const FString& InPropertyPath)
 	: PropertyData(PropertyName, InPropertyPath)
 {}

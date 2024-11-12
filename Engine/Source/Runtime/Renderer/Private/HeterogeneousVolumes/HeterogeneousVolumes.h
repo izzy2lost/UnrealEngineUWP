@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreTypes.h"
+#include "ConvexVolume.h"
 #include "RendererInterface.h"
 #include "ShaderParameterMacros.h"
 
@@ -33,6 +34,7 @@ struct FVolumetricMeshBatch;
 bool ShouldRenderHeterogeneousVolumes(const FScene* Scene);
 bool ShouldRenderHeterogeneousVolumesForAnyView(const TArrayView<FViewInfo>& Views);
 bool ShouldRenderHeterogeneousVolumesForView(const FViewInfo& View);
+bool ShouldRenderHeterogeneousVolumesAsHoldoutForView(const FViewInfo& View);
 bool DoesMaterialShaderSupportHeterogeneousVolumes(const FMaterialShaderParameters& Parameters);
 bool DoesMaterialShaderSupportHeterogeneousVolumes(const FMaterial& Material);
 bool ShouldRenderMeshBatchWithHeterogeneousVolumes(
@@ -60,7 +62,10 @@ namespace HeterogeneousVolumes
 	// CVars
 	FIntVector GetVolumeResolution(const IHeterogeneousVolumeInterface*);
 	FIntVector GetLightingCacheResolution(const IHeterogeneousVolumeInterface*, float LODFactor);
+	FIntVector GetAmbientOcclusionResolution(const IHeterogeneousVolumeInterface*, float LODFactor);
 
+	int32 GetDownsampleFactor();
+	FIntPoint GetScaledViewRect(FIntRect ViewRect);
 	float GetShadowStepSize();
 	float GetMaxTraceDistance();
 	float GetMaxShadowTraceDistance();
@@ -68,6 +73,8 @@ namespace HeterogeneousVolumes
 	float GetMaxStepCount();
 	float GetMinimumVoxelSizeInFrustum();
 	float GetMinimumVoxelSizeOutsideFrustum();
+	float GetShadingRateForFrustumGrid();
+	float GetShadingRateForOrthoGrid();
 
 	// Shadow generation
 	enum class EShadowMode
@@ -93,6 +100,14 @@ namespace HeterogeneousVolumes
 	uint32 GetSparseVoxelMipBias();
 	int32 GetBottomLevelGridResolution();
 	int32 GetIndirectionGridResolution();
+	enum class EStochasticFilteringMode
+	{
+		Disabled,
+		Constant,
+		Linear,
+		Cubic
+	};
+	EStochasticFilteringMode GetStochasticFilteringMode();
 	
 	bool ShouldJitter();
 	bool ShouldRefineSparseVoxels();
@@ -105,6 +120,10 @@ namespace HeterogeneousVolumes
 	bool UseAdaptiveVolumetricShadowMapForSelfShadowing(const FPrimitiveSceneProxy* PrimitiveSceneProxy);
 	bool ShouldApplyHeightFog();
 	bool ShouldApplyVolumetricFog();
+	bool SupportsOverlappingVolumes();
+	bool EnableAmbientOcclusion();
+	bool UseExistenceMask();
+	bool UseAnalyticDerivatives();
 
 	enum class EFogMode
 	{
@@ -122,9 +141,31 @@ namespace HeterogeneousVolumes
 	int GetVoxelCount(FIntVector VolumeResolution);
 	int GetVoxelCount(const FRDGTextureDesc& TextureDesc);
 	FIntVector GetMipVolumeResolution(FIntVector VolumeResolution, uint32 MipLevel);
-	float CalcLOD(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
-	float CalcLODFactor(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
+
+	struct FLODInfo
+	{
+		// Orthographic projection
+		FBoxSphereBounds WorldSceneBounds = FBoxSphereBounds(EForceInit::ForceInit);
+
+		// Perspective projection
+		FVector WorldOrigin = FVector::ZeroVector;
+		FIntRect ViewRect;
+
+		FConvexVolume WorldShadowFrustum;
+		float FOV = PI / 4.0f;
+		float NearClippingDistance = 1.0f;
+		float DownsampleFactor = 1.0f;
+
+		// Projection type
+		bool bIsPerspective = false;
+	};
+
 	float CalcLODFactor(float LOD);
+	float CalcLODFactor(const HeterogeneousVolumes::FLODInfo& LODInfo, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
+	float CalcLODFactor(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
+	float CalcLOD(const HeterogeneousVolumes::FLODInfo& LODInfo, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
+	float CalcLOD(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
+	bool IsHoldout(const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface);
 
 	const FProjectedShadowInfo* GetProjectedShadowInfo(const FVisibleLightInfo* VisibleLightInfo, int32 ShadowIndex);
 	bool IsDynamicShadow(const FVisibleLightInfo* VisibleLightInfo);
@@ -264,11 +305,12 @@ enum class EVoxelGridBuildMode
 struct FVoxelGridBuildOptions
 {
 	EVoxelGridBuildMode VoxelGridBuildMode = EVoxelGridBuildMode::PathTracing;
-	float MinimumVoxelSizeOutsideFrustum = HeterogeneousVolumes::GetMinimumVoxelSizeOutsideFrustum();
-	float MinimumVoxelSizeInFrustum = HeterogeneousVolumes::GetMinimumVoxelSizeInFrustum();
+	float ShadingRateInFrustum = HeterogeneousVolumes::GetShadingRateForFrustumGrid();
+	float ShadingRateOutOfFrustum = HeterogeneousVolumes::GetShadingRateForOrthoGrid();
 
 	bool bBuildOrthoGrid = true;
 	bool bBuildFrustumGrid = true;
+	bool bUseProjectedPixelSizeForOrthoGrid = false;
 	bool bJitter = HeterogeneousVolumes::ShouldJitter();
 };
 
@@ -370,7 +412,7 @@ struct FAVSMLinkedListPackedData
 
 struct FAVSMIndirectionPackedData
 {
-	uint32 Data[2];
+	uint32 Data[4];
 };
 
 struct FAVSMSamplePackedData
@@ -390,8 +432,29 @@ BEGIN_UNIFORM_BUFFER_STRUCT(FAdaptiveVolumetricShadowMapUniformBufferParameters,
 	SHADER_PARAMETER(int32, bIsDirectionalLight)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, LinkedListBuffer)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, IndirectionBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint4>, IndirectionBuffer)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, SampleBuffer)
+END_UNIFORM_BUFFER_STRUCT()
+
+BEGIN_SHADER_PARAMETER_STRUCT(FAdaptiveVolumetricShadowMapParameters, RENDERER_API)
+	SHADER_PARAMETER_ARRAY(FMatrix44f, TranslatedWorldToShadow, [6])
+	SHADER_PARAMETER(FVector3f, TranslatedWorldOrigin)
+	SHADER_PARAMETER(FVector4f, TranslatedWorldPlane)
+
+	SHADER_PARAMETER(FIntPoint, Resolution)
+	SHADER_PARAMETER(int32, NumShadowMatrices)
+	SHADER_PARAMETER(int32, MaxSampleCount)
+	SHADER_PARAMETER(int32, bIsEmpty)
+	SHADER_PARAMETER(int32, bIsDirectionalLight)
+
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, LinkedListBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint4>, IndirectionBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, SampleBuffer)
+END_SHADER_PARAMETER_STRUCT()
+
+BEGIN_UNIFORM_BUFFER_STRUCT(FAdaptiveVolumetricShadowMaps, )
+	SHADER_PARAMETER_STRUCT(FAdaptiveVolumetricShadowMapParameters, AVSM)
+	SHADER_PARAMETER_STRUCT(FAdaptiveVolumetricShadowMapParameters, CameraAVSM)
 END_UNIFORM_BUFFER_STRUCT()
 
 namespace HeterogeneousVolumes {
@@ -463,11 +526,17 @@ namespace HeterogeneousVolumes {
 
 } // namespace HeterogeneousVolumes
 
+TRDGUniformBufferRef<FAdaptiveVolumetricShadowMaps> CreateAdaptiveVolumetricShadowMapUniformBuffers(
+	FRDGBuilder& GraphBuilder,
+	FSceneViewState* ViewState,
+	const FLightSceneInfo* LightSceneInfo
+);
+
 void RenderWithLiveShading(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -479,7 +548,8 @@ void RenderWithLiveShading(
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
 	// Output
-	FRDGTextureRef& HeterogeneousVolumeRadiance
+	FRDGTextureRef& HeterogeneousVolumeRadiance,
+	FRDGTextureRef& HeterogeneousVolumeHoldout
 );
 
 void RenderWithPreshading(
@@ -487,8 +557,7 @@ void RenderWithPreshading(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -508,7 +577,6 @@ void RenderTransmittanceWithVoxelGrid(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	const TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters>& OrthoGridUniformBuffer,
 	const TRDGUniformBufferRef<FFrustumVoxelGridUniformBufferParameters>& FrustumGridUniformBuffer,
@@ -521,7 +589,6 @@ void RenderAdaptiveVolumetricShadowMapWithVoxelGrid(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
@@ -536,7 +603,6 @@ void RenderAdaptiveVolumetricShadowMapWithLiveShading(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Light data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos
@@ -547,7 +613,6 @@ void RenderAdaptiveVolumetricCameraMapWithVoxelGrid(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Volume data
 	const TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters>& OrthoGridUniformBuffer,
@@ -559,7 +624,6 @@ void RenderAdaptiveVolumetricCameraMapWithLiveShading(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View
 );
 
@@ -610,7 +674,6 @@ void RenderSingleScatteringWithVoxelGrid(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
@@ -661,6 +724,49 @@ void GenerateSparseVoxels(
 	FRDGBufferRef& VoxelBuffer
 );
 
+void RenderExistenceMaskWithLiveShading(
+	FRDGBuilder& GraphBuilder,
+	// Scene data
+	const FScene* Scene,
+	const FViewInfo& View,
+	const FSceneTextures& SceneTextures,
+	// Object data
+	const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface,
+	const FMaterialRenderProxy* DefaultMaterialRenderProxy,
+	FPersistentPrimitiveIndex PersistentPrimitiveIndex,
+	const FBoxSphereBounds LocalBoxSphereBounds,
+	FIntVector ExistenceMaskTextureResolution,
+	// Output
+	FRDGTextureRef& ExistenceMaskTexture
+);
+
+void DilateExistenceMask(
+	FRDGBuilder& GraphBuilder,
+	// Scene data
+	const FScene* Scene,
+	const FViewInfo& View,
+	// Existence texture data
+	FRDGTextureRef ExistenceMaskTexture,
+	FIntVector ExistenceMaskTextureResolution,
+	// Output
+	FRDGTextureRef& DilatedExistenceTexture
+);
+
+void RenderAmbientOcclusionWithLiveShading(
+	FRDGBuilder& GraphBuilder,
+	// Scene data
+	const FScene* Scene,
+	const FViewInfo& View,
+	const FSceneTextures& SceneTextures,
+	// Object data
+	const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface,
+	const FMaterialRenderProxy* DefaultMaterialRenderProxy,
+	FPersistentPrimitiveIndex PersistentPrimitiveIndex,
+	const FBoxSphereBounds LocalBoxSphereBounds,
+	// Output
+	FRDGTextureRef& AmbientOcclusionTexture
+);
+
 #if RHI_RAYTRACING
 
 void GenerateRayTracingGeometryInstance(
@@ -674,7 +780,7 @@ void GenerateRayTracingGeometryInstance(
 	FRDGBufferRef NumVoxelsBuffer,
 	TRDGUniformBufferRef<FSparseVoxelUniformBufferParameters> SparseVoxelUniformBuffer,
 	// Output
-	TArray<FRayTracingGeometryRHIRef>& RayTracingGeometries,
+	TArray<FRayTracingGeometryRHIRef, SceneRenderingAllocator>& RayTracingGeometries,
 	TArray<FMatrix>& RayTracingTransforms
 );
 
@@ -684,8 +790,8 @@ void GenerateRayTracingScene(
 	const FScene* Scene,
 	const FViewInfo& View,
 	// Ray tracing data
-	TArray<FRayTracingGeometryRHIRef>& RayTracingGeometries,
-	TArray<FMatrix>& RayTracingTransforms,
+	TConstArrayView<FRayTracingGeometryRHIRef> RayTracingGeometries,
+	TConstArrayView<FMatrix> RayTracingTransforms,
 	// Output
 	FRayTracingScene& RayTracingScene
 );
@@ -694,7 +800,7 @@ void RenderLightingCacheWithPreshadingHardwareRayTracing(
 	FRDGBuilder& GraphBuilder,
 	// Scene data
 	const FScene* Scene,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const FSceneTextures& SceneTextures,
 	// Light data
 	bool bApplyEmissionAndTransmittance,
@@ -711,6 +817,7 @@ void RenderLightingCacheWithPreshadingHardwareRayTracing(
 	TRDGUniformBufferRef<FSparseVoxelUniformBufferParameters> SparseVoxelUniformBuffer,
 	// Ray tracing data
 	FRayTracingScene& RayTracingScene,
+	TConstArrayView<FRayTracingGeometryRHIRef> RayTracingGeometries,
 	// Output
 	FRDGTextureRef& LightingCacheTexture
 );
@@ -719,7 +826,7 @@ void RenderSingleScatteringWithPreshadingHardwareRayTracing(
 	FRDGBuilder& GraphBuilder,
 	// Scene data
 	const FScene* Scene,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const FSceneTextures& SceneTextures,
 	// Light data
 	bool bApplyEmissionAndTransmittance,
@@ -736,6 +843,7 @@ void RenderSingleScatteringWithPreshadingHardwareRayTracing(
 	TRDGUniformBufferRef<FSparseVoxelUniformBufferParameters> SparseVoxelUniformBuffer,
 	// Ray tracing data
 	FRayTracingScene& RayTracingScene,
+	TConstArrayView<FRayTracingGeometryRHIRef> RayTracingGeometries,
 	// Transmittance volume
 	FRDGTextureRef LightingCacheTexture,
 	// Output

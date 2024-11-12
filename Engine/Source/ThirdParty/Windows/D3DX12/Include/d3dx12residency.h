@@ -1096,7 +1096,9 @@ namespace D3DX12Residency
 					const HRESULT LowerHR = ExecuteSubset(Queue, CommandLists, ResidencySets, Half);
 					const HRESULT UpperHR = ExecuteSubset(Queue, &CommandLists[Half], &ResidencySets[Half], Count - Half);
 
-					return (LowerHR == S_OK && UpperHR == S_OK) ? S_OK : E_FAIL;
+					// BEGIN EPIC MOD
+					return LowerHR != S_OK ? LowerHR : UpperHR;
+					// END EPIC MOD
 				}
 
 

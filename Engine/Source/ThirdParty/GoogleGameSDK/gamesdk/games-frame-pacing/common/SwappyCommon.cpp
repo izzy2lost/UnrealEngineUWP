@@ -141,10 +141,6 @@ SwappyCommon::SwappyCommon(JNIEnv* env, jobject jactivity)
         return;
     }
 
-    mANativeWindow_setFrameRate =
-        reinterpret_cast<PFN_ANativeWindow_setFrameRate>(
-            dlsym(mLibAndroid, "ANativeWindow_setFrameRate"));
-
     if (!SwappyCommonSettings::getFromApp(env, mJactivity, &mCommonSettings))
         return;
 
@@ -155,14 +151,25 @@ SwappyCommon::SwappyCommon(JNIEnv* env, jobject jactivity)
         return;
     }
 
+    if (!SwappyDisplayManager::useSwappyDisplayManager(
+            mCommonSettings.sdkVersion)) {
+        mANativeWindow_setFrameRate =
+            reinterpret_cast<PFN_ANativeWindow_setFrameRate>(
+                dlsym(mLibAndroid, "ANativeWindow_setFrameRate"));
+    }
+
     mChoreographerFilter = std::make_unique<ChoreographerFilter>(
         mCommonSettings.refreshPeriod,
         mCommonSettings.sfVsyncOffset - mCommonSettings.appVsyncOffset,
-        [this]() { return wakeClient(); });
+        [this](std::optional<std::chrono::nanoseconds> sfToVsyncDelay) {
+            return wakeClient(sfToVsyncDelay);
+        });
 
     mChoreographerThread = ChoreographerThread::createChoreographerThread(
         ChoreographerThread::Type::Swappy, mJVM, jactivity,
-        [this] { mChoreographerFilter->onChoreographer(); },
+        [this](std::optional<std::chrono::nanoseconds> sfToVsyncDelay) {
+            mChoreographerFilter->onChoreographer(sfToVsyncDelay);
+        },
         [this] { onRefreshRateChanged(); }, mCommonSettings.sdkVersion);
     if (!mChoreographerThread->isInitialized()) {
         SWAPPY_LOGE("failed to initialize ChoreographerThread");
@@ -185,6 +192,7 @@ SwappyCommon::SwappyCommon(JNIEnv* env, jobject jactivity)
                                                 mCommonSettings.appVsyncOffset,
                                                 mCommonSettings.sfVsyncOffset});
 
+    mInitialRefreshPeriod = mCommonSettings.refreshPeriod;
     SWAPPY_LOGI(
         "Initialized Swappy with vsyncPeriod=%lld, appOffset=%lld, "
         "sfOffset=%lld",
@@ -204,18 +212,23 @@ SwappyCommon::SwappyCommon(const SwappyCommonSettings& settings)
     mChoreographerFilter = std::make_unique<ChoreographerFilter>(
         mCommonSettings.refreshPeriod,
         mCommonSettings.sfVsyncOffset - mCommonSettings.appVsyncOffset,
-        [this]() { return wakeClient(); });
+        [this](std::optional<std::chrono::nanoseconds> sfToVsyncDelay) {
+            return wakeClient(sfToVsyncDelay);
+        });
     mUsingExternalChoreographer = true;
     mChoreographerThread = ChoreographerThread::createChoreographerThread(
         ChoreographerThread::Type::App, nullptr, nullptr,
-        [this] { mChoreographerFilter->onChoreographer(); }, [] {},
-        mCommonSettings.sdkVersion);
+        [this](std::optional<std::chrono::nanoseconds> sfToVsyncDelay) {
+            mChoreographerFilter->onChoreographer(sfToVsyncDelay);
+        },
+        [] {}, mCommonSettings.sdkVersion);
 
     Settings::getInstance()->addListener([this]() { onSettingsChanged(); });
     Settings::getInstance()->setDisplayTimings({mCommonSettings.refreshPeriod,
                                                 mCommonSettings.appVsyncOffset,
                                                 mCommonSettings.sfVsyncOffset});
 
+    mInitialRefreshPeriod = mCommonSettings.refreshPeriod;
     SWAPPY_LOGI(
         "Initialized Swappy with vsyncPeriod=%lld, appOffset=%lld, "
         "sfOffset=%lld",
@@ -225,6 +238,9 @@ SwappyCommon::SwappyCommon(const SwappyCommonSettings& settings)
 }
 
 SwappyCommon::~SwappyCommon() {
+    // Remove the settings' listeners before destroying Choreographer objects
+    // because the listeners may contain references to the objects
+    Settings::getInstance()->removeAllListeners();
     // destroy all threads first before the other members of this class
     mChoreographerThread.reset();
     mChoreographerFilter.reset();
@@ -258,16 +274,18 @@ void SwappyCommon::onRefreshRateChanged() {
                 1e9f / settings.refreshPeriod.count());
 }
 
-nanoseconds SwappyCommon::wakeClient() {
+nanoseconds SwappyCommon::wakeClient(
+    std::optional<std::chrono::nanoseconds> sfToVsyncDelay) {
     std::lock_guard<std::mutex> lock(mWaitingMutex);
     ++mCurrentFrame;
-
     // We're attempting to align with SurfaceFlinger's vsync, but it's always
     // better to be a little late than a little early (since a little early
     // could cause our frame to be picked up prematurely), so we pad by an
     // additional millisecond.
     mCurrentFrameTimestamp =
         std::chrono::steady_clock::now() + mMeasuredSwapDuration.load() + 1ms;
+
+    mSfToVsyncDelay = sfToVsyncDelay;
     mWaitingCondition.notify_all();
     return mMeasuredSwapDuration;
 }
@@ -279,7 +297,9 @@ void SwappyCommon::onChoreographer(int64_t frameTimeNanos) {
         mUsingExternalChoreographer = true;
         mChoreographerThread = ChoreographerThread::createChoreographerThread(
             ChoreographerThread::Type::App, nullptr, nullptr,
-            [this] { mChoreographerFilter->onChoreographer(); },
+            [this](std::optional<std::chrono::nanoseconds> sfToVsyncDelay) {
+                mChoreographerFilter->onChoreographer(sfToVsyncDelay);
+            },
             [this] { onRefreshRateChanged(); }, mCommonSettings.sdkVersion);
     }
 
@@ -291,9 +311,14 @@ bool SwappyCommon::waitForNextFrame(const SwapHandlers& h) {
     bool presentationTimeIsNeeded;
 
     // We do not want to hold the mutex while waiting, so make a local copy of
-    // the flag.
+    // the flags.
     mMutex.lock();
     bool localAutoSwapIntervalEnabled = mAutoSwapIntervalEnabled;
+    bool localFramePacingEnabled = mFramePacingEnabled;
+
+    // We do the blocking wait when pacing or request by the app when not
+    // pacing.
+    bool localBlockingWaitEnabled = mBlockingWaitEnabled || mFramePacingEnabled;
     mMutex.unlock();
 
     const nanoseconds cpuTime =
@@ -310,22 +335,29 @@ bool SwappyCommon::waitForNextFrame(const SwapHandlers& h) {
     if (mCommonSettings.refreshPeriod * mAutoSwapInterval <=
             mAutoSwapIntervalThreshold.load() ||
         !localAutoSwapIntervalEnabled) {
-        waitUntilTargetFrame();
+        if (localFramePacingEnabled) waitUntilTargetFrame();
 
-        // wait for the previous frame to be rendered
-        while (!h.lastFrameIsComplete()) {
-            lateFrames++;
-            waitOneFrame();
+        if (localBlockingWaitEnabled) {
+            // wait for the previous frame to be rendered
+            while (!h.lastFrameIsComplete()) {
+                lateFrames++;
+                waitOneFrame();
+            }
         }
 
         mPresentationTime += lateFrames * mCommonSettings.refreshPeriod;
-        presentationTimeIsNeeded = true;
+        presentationTimeIsNeeded = localFramePacingEnabled;
     } else {
         presentationTimeIsNeeded = false;
     }
 
-    const nanoseconds gpuTime = h.getPrevFrameGpuTime();
-    addFrameDuration({cpuTime, gpuTime, mCurrentFrame > mTargetFrame});
+    // If last frame is not finished, return -1 for GPU time.
+    const nanoseconds gpuTime =
+        (h.lastFrameIsComplete()) ? h.getPrevFrameGpuTime() : -1ns;
+
+    // Keep track of durations only if frame pacing is enabled.
+    if (localFramePacingEnabled)
+        addFrameDuration({cpuTime, gpuTime, mCurrentFrame > mTargetFrame});
 
     postWaitCallbacks(cpuTime, gpuTime);
 
@@ -343,6 +375,22 @@ void SwappyCommon::updateDisplayTimings() {
     SWAPPY_LOGW_ONCE_IF(!mWindow,
                         "ANativeWindow not configured, frame rate will not be "
                         "reported to Android platform");
+
+    if (mFramePacingToggleRequested) {
+        // In case frame pacing is toggled, set the update here.
+        mFramePacingEnabled = !mFramePacingEnabled;
+        mFramePacingToggleRequested = false;
+    }
+    if (mFramePacingResetRequested) {
+        // In case of reset, just issue the update for setting refresh period.
+        setPreferredRefreshPeriod(mInitialRefreshPeriod);
+        mFramePacingResetRequested = false;
+        return;
+    }
+
+    if (!mFramePacingEnabled) {
+        return;
+    }
 
     if (!mTimingSettingsNeedUpdate && !mWindowChanged) {
         return;
@@ -565,6 +613,17 @@ bool SwappyCommon::swapFaster(int newSwapInterval) {
 
 bool SwappyCommon::updateSwapInterval() {
     std::lock_guard<std::mutex> lock(mMutex);
+
+    // A request to reset the frame-pacing is made, so reset the internal swap
+    // state to the initial state and clear the frame durations collected.
+    if (mFramePacingResetRequested) {
+        mAutoSwapInterval = 1;
+        mMeasuredSwapDuration = 0ns;
+        mSwapDuration = 0ns;
+        mCommonSettings.refreshPeriod = mInitialRefreshPeriod;
+        mFrameDurations.clear();
+        return true;
+    }
     if (!mAutoSwapIntervalEnabled) return false;
 
     if (!mFrameDurations.hasEnoughSamples()) return false;
@@ -583,8 +642,8 @@ bool SwappyCommon::updateSwapInterval() {
     // Define upper and lower bounds based on the swap duration
     const nanoseconds upperBoundForThisRefresh =
         mCommonSettings.refreshPeriod * mAutoSwapInterval;
-//    const nanoseconds lowerBoundForThisRefresh =
-//        mCommonSettings.refreshPeriod * (mAutoSwapInterval - 1) - FRAME_MARGIN;
+    const nanoseconds lowerBoundForThisRefresh =
+        mCommonSettings.refreshPeriod * (mAutoSwapInterval - 1) - FRAME_MARGIN;
 
     const int missedFramesPercent = mFrameDurations.getMissedFramePercent();
 
@@ -594,7 +653,7 @@ bool SwappyCommon::updateSwapInterval() {
     SWAPPY_LOGV("Average gpu frame time = %.2f",
                 (averageFrameTime.getGpuTime().count()) / 1e6f);
     SWAPPY_LOGV("upperBound = %.2f", upperBoundForThisRefresh.count() / 1e6f);
-  //  SWAPPY_LOGV("lowerBound = %.2f", lowerBoundForThisRefresh.count() / 1e6f);
+    SWAPPY_LOGV("lowerBound = %.2f", lowerBoundForThisRefresh.count() / 1e6f);
     SWAPPY_LOGV("frame missed = %d%%", missedFramesPercent);
 
     bool configChanged = false;
@@ -612,8 +671,8 @@ bool SwappyCommon::updateSwapInterval() {
     // So we shouldn't miss any frames with this config but maybe we can go
     // faster ? we check the pipeline frame time here as we prefer lower swap
     // interval than no pipelining
-    else if (missedFramesPercent == 0 && swapFasterCondition() /* &&
-             pipelineFrameTime < lowerBoundForThisRefresh*/) {
+    else if (missedFramesPercent == 0 && swapFasterCondition() &&
+             pipelineFrameTime < lowerBoundForThisRefresh) {
         if (swapFaster(newSwapInterval)) configChanged = true;
     }
 
@@ -838,10 +897,12 @@ void SwappyCommon::startFrame() {
 
     int32_t currentFrame;
     std::chrono::steady_clock::time_point currentFrameTimestamp;
+    std::optional<std::chrono::nanoseconds> sfToVsyncDelay;
     {
         std::unique_lock<std::mutex> lock(mWaitingMutex);
         currentFrame = mCurrentFrame;
         currentFrameTimestamp = mCurrentFrameTimestamp;
+        sfToVsyncDelay = mSfToVsyncDelay;
     }
 
     // Whether to add a wait to fix buffer stuffing.
@@ -853,6 +914,9 @@ void SwappyCommon::startFrame() {
     if (mBufferStuffingFixWait > 0 && mLastLatencyRecorded) {
         int32_t lastLatency = mLastLatencyRecorded();
         int expectedLatency = mAutoSwapInterval * intervals;
+        if (sfToVsyncDelay) {
+            expectedLatency += *sfToVsyncDelay / mCommonSettings.refreshPeriod;
+        }
         TRACE_INT("ExpectedLatency", expectedLatency);
         if (mBufferStuffingFixCounter == 0) {
             if (lastLatency > expectedLatency) {
@@ -872,6 +936,14 @@ void SwappyCommon::startFrame() {
     }
     mTargetFrame = currentFrame + mAutoSwapInterval;
     if (waitFrame) mTargetFrame += 1;
+
+    // If available, use the SF to Vsync delay to target the specific
+    // vsync instead of guessing when the vsync is going to be
+    if (sfToVsyncDelay) {
+        currentFrameTimestamp += *sfToVsyncDelay -
+                                 mCommonSettings.refreshPeriod / 2 -
+                                 mMeasuredSwapDuration.load() - 1ms;
+    }
 
     // We compute the target time as now
     //   + the time the buffer will be on the GPU and in the queue to the
@@ -1045,6 +1117,11 @@ bool SwappyCommon::isDeviceUnsupported() {
 
 int SwappyCommon::getSupportedRefreshPeriodsNS(uint64_t* out_refreshrates,
                                                int allocated_entries) {
+    if (mDisplayManager) {
+        mSupportedRefreshPeriods =
+            mDisplayManager->getSupportedRefreshPeriods();
+    }
+
     if (!mSupportedRefreshPeriods) return 0;
     if (!out_refreshrates) return (*mSupportedRefreshPeriods).size();
 
@@ -1055,6 +1132,29 @@ int SwappyCommon::getSupportedRefreshPeriodsNS(uint64_t* out_refreshrates,
     }
 
     return (*mSupportedRefreshPeriods).size();
+}
+
+void SwappyCommon::resetFramePacing() {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    // Just set the flag here, we actually reset at the end of the frame.
+    mFramePacingResetRequested = true;
+}
+
+void SwappyCommon::enableFramePacing(bool enable) {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    // Set flags that are applied at the end of the frame.
+    if (mFramePacingEnabled != enable) {
+        mFramePacingToggleRequested = true;
+        mFramePacingResetRequested = true;
+    }
+}
+
+void SwappyCommon::enableBlockingWait(bool enable) {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    mBlockingWaitEnabled = enable;
 }
 
 }  // namespace swappy

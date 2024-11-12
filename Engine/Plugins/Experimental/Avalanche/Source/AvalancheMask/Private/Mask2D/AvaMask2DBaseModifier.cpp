@@ -8,6 +8,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "Engine/CanvasRenderTarget2D.h"
 #include "Engine/Engine.h"
+#include "Engine/Level.h"
 #include "Framework/AvaGizmoComponent.h"
 #include "GeometryMaskCanvas.h"
 #include "GeometryMaskReadComponent.h"
@@ -23,6 +24,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Subsystems/ActorModifierCoreSubsystem.h"
+#include "Text3DComponent.h"
 
 #define LOCTEXT_NAMESPACE "AvaMask2DModifier"
 
@@ -504,8 +506,10 @@ UActorComponent* UAvaMask2DBaseModifier::FindOrAddMaskComponent(TSubclassOf<UAct
 
 bool UAvaMask2DBaseModifier::ActorSupportsMaskReadWrite(const AActor* InActor)
 {
-	// Currently only applies to primitive components
-	return InActor->FindComponentByClass<UPrimitiveComponent>() != nullptr;
+	// Only supports primitives and Text3D component.
+	// Note: Actors holding Text3D Components do eventually get Text Mesh Subobjects; but this should still return true even if these components are not yet built (the build is queued)
+	return InActor->FindComponentByClass<UText3DComponent>()
+		|| InActor->FindComponentByClass<UPrimitiveComponent>();
 }
 
 bool UAvaMask2DBaseModifier::TryResolveParentChannel()
@@ -518,7 +522,7 @@ bool UAvaMask2DBaseModifier::TryResolveParentChannel()
 		const IGeometryMaskReadInterface* ReadComponent = nullptr;
 		while (ReadComponent == nullptr && Parent)
 		{
-			ReadComponent = Cast<IGeometryMaskReadInterface>(Parent->FindComponentByInterface<UGeometryMaskReadInterface>());
+			ReadComponent = Parent->FindComponentByInterface<IGeometryMaskReadInterface>();
 			Parent = Parent->GetAttachParentActor();
 		}
 
@@ -659,17 +663,25 @@ void UAvaMask2DBaseModifier::OnMaskSetCanvas(const UGeometryMaskCanvas* InCanvas
 
 void UAvaMask2DBaseModifier::TryResolveCanvas()
 {
-	const UWorld* World = GetWorld();
-	if (!World)
+	const AActor* Actor = GetModifiedActor();
+	if (!Actor)
 	{
 		return;
 	}
-	
-	if (UGeometryMaskWorldSubsystem* MaskSubsystem = World->GetSubsystem<UGeometryMaskWorldSubsystem>())
+
+	const ULevel* Level = Actor->GetLevel();
+	if (!Level || !Level->OwningWorld)
 	{
-		UGeometryMaskCanvas* Canvas = MaskSubsystem->GetNamedCanvas(GetChannel());
-		LastResolvedCanvasName = Canvas->GetCanvasName();
-		CanvasWeak = Canvas;
+		return;
+	}
+
+	if (UGeometryMaskWorldSubsystem* MaskSubsystem = Level->OwningWorld->GetSubsystem<UGeometryMaskWorldSubsystem>())
+	{
+		if (UGeometryMaskCanvas* Canvas = MaskSubsystem->GetNamedCanvas(Level, GetChannel()))
+		{
+			LastResolvedCanvasName = Canvas->GetCanvasName();
+			CanvasWeak = Canvas;
+		}
 	}
 }
 
@@ -685,20 +697,21 @@ UTexture* UAvaMask2DBaseModifier::TryResolveCanvasTexture(AActor* InActor, FAvaM
 	{
 		return CanvasTexture;
 	}
-	
-	if (!GetWorld())
+
+	const ULevel* Level = InActor->GetLevel();
+	if (!Level || !Level->OwningWorld)
 	{
 		return nullptr;
 	}
 
 	// Try get canvas texture if already available
-	UGeometryMaskWorldSubsystem* MaskSubsystem = GetWorld()->GetSubsystem<UGeometryMaskWorldSubsystem>();
+	UGeometryMaskWorldSubsystem* MaskSubsystem = Level->OwningWorld->GetSubsystem<UGeometryMaskWorldSubsystem>();
 	if (!MaskSubsystem)
 	{
 		return nullptr;
 	}
-			
-	if (const UGeometryMaskCanvas* Canvas = MaskSubsystem->GetNamedCanvas(Channel))
+
+	if (const UGeometryMaskCanvas* Canvas = MaskSubsystem->GetNamedCanvas(Level, Channel))
 	{
 		// Cache canvas texture
 		UTexture* CanvasTexture = Canvas->GetTexture();

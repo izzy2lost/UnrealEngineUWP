@@ -12,12 +12,14 @@
 
 #include "JsonImporterHelper.h"
 #include "FusionPatchJsonImporter.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 
 #include "Misc/FeedbackContext.h"
 #include "Misc/MessageDialog.h"
 #include "Misc/Paths.h"
 #include "Misc/PackageName.h"
 #include "EditorFramework/AssetImportData.h"
+#include "FileHelpers.h"
 #include "UObject/Package.h"
 #include "HAL/FileManager.h"
 
@@ -106,47 +108,64 @@ EReimportResult::Type UFusionPatchAssetFactory::Reimport(UObject* Obj)
 	return EReimportResult::Failed;
 }
 
-void UFusionPatchAssetFactory::PostImportCleanUp()
+void UFusionPatchAssetFactory::CleanUp()
 {
-	ApplyOptionsToAllImport = false;
-	ReplaceExistingSamplesResponse = EAppReturnType::No;
+	ImportCounter = 0;
+	ApplyOptionsToAllImport = EApplyAllOption::Unset;
+	ReplaceExistingSamples = true;
+
+	// prompt to save the imported objects collected during entire import
+	TArray<UPackage*> PackagesToSave;
+	Algo::Transform(ImportedObjects, PackagesToSave, [](const UObject* Object) { return Object->GetPackage(); });
+    UEditorLoadingAndSavingUtils::SavePackagesWithDialog(PackagesToSave, true);
+    ImportedObjects.Empty();
+
+	UFactory::CleanUp();
 }
+
 
 bool UFusionPatchAssetFactory::GetReplaceExistingSamplesResponse(const FString& InName)
 {
-	if (ReplaceExistingSamplesResponse == EAppReturnType::YesAll)
-	{
-		return true;
-	}
-
-	if (ReplaceExistingSamplesResponse == EAppReturnType::NoAll)
-	{
-		return false;
-	}
-
 	const FText ReplaceExistingTitle = NSLOCTEXT("FusionPatchImporter", "ReplaceExistingSamplesTitle", "Replace Existing Samples");
 	const FText ReplaceExistingMessage = FText::Format(NSLOCTEXT("FusionPatchImporter", "ReplaceExistingSamplesMsg", 
-		"Would you like to reimport and replace existing Sound Wave Assets in the directory with Samples referenced by this Fusion Fatch?" 
+		"You are Reimporting a Fusion Patch with existing samples. Would you like to reimport existing Sound Wave Assets?" 
 		"\n\nPatch Name: {0}"
-		"\n\nYes. Reimport and replace existing Samples with the new samples."
-		"\n\nNo. New Samples will be imported, but existing Samples will be unchanged. The Fusion Patch will reference any existing Samples in the directory with matching names."), 
+		"\n\nYes. Reimport existing Samples. *If you made changes to any samples*, you will want to do this."
+		"\n\nNo.  Don't reimport existing Samples. Just reimport the Fusion Patch settings"), 
 		FText::FromString(InName));
-	ReplaceExistingSamplesResponse = UEditorDialogLibrary::ShowMessage(ReplaceExistingTitle, ReplaceExistingMessage, EAppMsgType::YesNoYesAllNoAll, ReplaceExistingSamplesResponse, EAppMsgCategory::Info);
+	EAppReturnType::Type ReplaceExistingSamplesResponse = UEditorDialogLibrary::ShowMessage(ReplaceExistingTitle, ReplaceExistingMessage, EAppMsgType::YesNo, EAppReturnType::No, EAppMsgCategory::Info);
 	
 
 	switch (ReplaceExistingSamplesResponse)
 	{
 	case EAppReturnType::Yes:
-	case EAppReturnType::YesAll:
 		return true;
 	case EAppReturnType::No:
-	case EAppReturnType::NoAll:
 		return false;
 	default:
 		ensureMsgf(false, TEXT("Unexpected response! default behavior is to NOT replace existing samples"));
 		return false;
 	}
 }
+
+bool UFusionPatchAssetFactory::GetApplyOptionsToAllImportResponse()
+{
+	const FText ReplaceExistingTitle = NSLOCTEXT("FusionPatchImporter", "ApplyOptionsToAllTitle", "Apply Options to All");
+	const FText ReplaceExistingMessage = NSLOCTEXT("FusionPatchImporter", "ApplyOptionsToALlMsg", "Would you like to apply the selected options to all files being imported?");
+	EAppReturnType::Type Response = UEditorDialogLibrary::ShowMessage(ReplaceExistingTitle, ReplaceExistingMessage, EAppMsgType::YesNo, EAppReturnType::No, EAppMsgCategory::Info);
+
+	switch (Response)
+	{
+	case EAppReturnType::Yes:
+		return true;
+	case EAppReturnType::No:
+		return false;
+	default:
+		ensureMsgf(false, TEXT("Unexpected response! default behavior is to NOT apply all"));
+		return false;
+	}
+}
+
 
 void UFusionPatchAssetFactory::UpdateFusionPatchImportNotificationItem(TSharedPtr<SNotificationItem> InItem, bool bImportSuccessful, FName InName)
 {
@@ -165,44 +184,64 @@ void UFusionPatchAssetFactory::UpdateFusionPatchImportNotificationItem(TSharedPt
 
 UObject* UFusionPatchAssetFactory::FactoryCreateText(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, const TCHAR* Type, const TCHAR*& Buffer, const TCHAR* BufferEnd, FFeedbackContext* Warn)
 {
+	AdditionalImportedObjects.Empty();
+	
+	// get the existing fusion patch if we're reimporting
+	UFusionPatch* FusionPatch = FindObject<UFusionPatch>(InParent, *InName.ToString());
+	
 	const FString LongPackagePath = FPackageName::GetLongPackagePath(InParent->GetOutermost()->GetPathName());
 
-	const UFusionPatchImportOptions* ImportOptions = nullptr;
-	
-	if (!ApplyOptionsToAllImport)
+	const UFusionPatchImportOptions* ImportOptions = GetDefault<UFusionPatchImportOptions>();
+
+	// detect when we're importing another file so we can ask if we would like to apply the previously set settings to this and all other files
+	// import counter gets reset after all files have been imported
+	++ImportCounter;
+	if (ApplyOptionsToAllImport == EApplyAllOption::Unset && ImportCounter > 1)
 	{
-		bool WasOkayPressed = false;
+		ApplyOptionsToAllImport = GetApplyOptionsToAllImportResponse() ? EApplyAllOption::Yes : EApplyAllOption::No;
+	}
+	
+	if (ApplyOptionsToAllImport != EApplyAllOption::Yes)
+	{
 		UFusionPatchImportOptions::FArgs Args;
-		Args.Directory = LongPackagePath;
+		Args.PatchName = InName;
+		// If we're reimporting and the fusion patch has saved off the samples directory
+		if (FusionPatch && !FusionPatch->SamplesImportDir.IsEmpty())
+		{
+			Args.Directory = FusionPatch->SamplesImportDir;
+		}
+		else
+		{
+			// Default samples directory to subdirectory in current directory: [CurrentDirectory] / [PatchName]
+			Args.Directory = LongPackagePath / InName.ToString();
+		}
+
+		bool WasOkayPressed = false;
 		ImportOptions = UFusionPatchImportOptions::GetWithDialog(MoveTemp(Args), WasOkayPressed);
 		if (!WasOkayPressed)
 		{
 			// import cancelled by user
 			return nullptr;
 		}
-		ApplyOptionsToAllImport = true;
-	}
-	else
-	{
-		UFusionPatchImportOptions* MutableOptions = GetMutableDefault<UFusionPatchImportOptions>();
-		if (MutableOptions->SamplesImportDir.Path.IsEmpty())
+
+		if (!ensure(ImportOptions))
 		{
-			MutableOptions->SamplesImportDir.Path = LongPackagePath;	
+			return nullptr;
 		}
-		ImportOptions = MutableOptions;
-	}
 
-	if (Warn->ReceivedUserCancel())
-	{
-		return nullptr;
-	}
+		if (Warn->ReceivedUserCancel())
+		{
+			return nullptr;
+		}
 
-	const bool ReplaceExistingSamples = GetReplaceExistingSamplesResponse(InName.ToString());
+		// If the fusion patch already exists, ask whether we want to replace existing samples.
+		// otherwise, always replace existing samples by default
+		ReplaceExistingSamples = FusionPatch != nullptr ? GetReplaceExistingSamplesResponse(InName.ToString()) : true;
+	}
 	
 	const FString SourceFile = GetCurrentFilename();
-	AdditionalImportedObjects.Empty();
 	FString JsonString;
-	const FString DtaString(BufferEnd - Buffer, Buffer);
+	const FString DtaString = FString::ConstructFromPtrSize(Buffer, BufferEnd - Buffer);
 
 	FDtaParser::DtaStringToJsonString(DtaString, JsonString);
 	FString ErrorMessage;
@@ -210,7 +249,6 @@ UObject* UFusionPatchAssetFactory::FactoryCreateText(UClass* InClass, UObject* I
 	bool bImportSuccessful = false;
 	if (JsonObj.IsValid())
 	{
-		UFusionPatch* FusionPatch = FindObject<UFusionPatch>(InParent, *InName.ToString());
 		if (!FusionPatch)
 		{
 			FusionPatch = NewObject<UFusionPatch>(InParent, InName, Flags);
@@ -232,7 +270,7 @@ UObject* UFusionPatchAssetFactory::FactoryCreateText(UClass* InClass, UObject* I
 		ImportArgs.SampleCompressionType = ImportOptions->SampleCompressionType;
 
 		TArray<FString> ImportErrors;
-		if (FFusionPatchJsonImporter::TryParseJson(JsonObj, FusionPatch, ImportArgs, ImportErrors))
+		if (FFusionPatchJsonImporter::TryParseJson(JsonObj, FusionPatch, AdditionalImportedObjects, ImportArgs, ImportErrors))
 		{
 			UE_LOG(LogFusionPatchAssetFactory, Log, TEXT("Successfully imported FusionPatch asset"));
 
@@ -241,8 +279,13 @@ UObject* UFusionPatchAssetFactory::FactoryCreateText(UClass* InClass, UObject* I
 				FusionPatch->AssetImportData->Update(SourceFile);
 			}
 
+			// save off the samples dest path for simplifying reimporting
+			FusionPatch->SamplesImportDir = ImportArgs.SamplesDestPath;
+			
 			bImportSuccessful = true;
 			UpdateFusionPatchImportNotificationItem(ImportNotificationItem, bImportSuccessful, InName);
+			ImportedObjects.Append(AdditionalImportedObjects);
+			ImportedObjects.Add(FusionPatch);
 			return FusionPatch;
 		}
 		else

@@ -12,6 +12,7 @@
 #include "Chaos/Collision/CollisionFilterBits.h"
 #include "ChaosCheck.h"
 #include "Chaos/ChaosDebugDrawDeclares.h"
+#include "Chaos/AsyncInitBodyHelper.h"
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "PhysicsInterfaceTypesCore.h"
 #if CHAOS_DEBUG_DRAW
@@ -125,8 +126,10 @@ void PBDRigidParticleDefaultConstruct(FConcrete& Concrete, const FPBDRigidPartic
 	Concrete.SetLinearEtherDrag(0.f);
 	Concrete.SetAngularEtherDrag(0.f);
 	Concrete.SetGravityEnabled(Params.bGravityEnabled);
+	Concrete.SetGravityGroupIndex(0);
 	Concrete.SetCCDEnabled(Params.bCCDEnabled);
 	Concrete.SetMACDEnabled(false);
+	Concrete.SetIterationSettings(Private::FIterationSettings(INDEX_NONE, INDEX_NONE, INDEX_NONE));
 	Concrete.SetDisabled(Params.bDisabled);
 	Concrete.SetSleepType(ESleepType::MaterialSleep);
 }
@@ -937,13 +940,13 @@ public:
 		SetW(Velocities.W());
 	}
 
-	void SetKinematicTarget(const TKinematicTarget<T, d>& InKinematicTarget, bool bInvalidate = true)
+	void SetKinematicTarget(const FKinematicTarget& InKinematicTarget, bool bInvalidate = true)
 	{
 		KinematicGeometryParticles->KinematicTarget(ParticleIdx) = InKinematicTarget;
 	}
 
-	const TKinematicTarget<T, d>& KinematicTarget() const { return KinematicGeometryParticles->KinematicTarget(ParticleIdx); }
-	TKinematicTarget<T, d>& KinematicTarget() { return KinematicGeometryParticles->KinematicTarget(ParticleIdx); }
+	const FKinematicTarget& KinematicTarget() const { return KinematicGeometryParticles->KinematicTarget(ParticleIdx); }
+	FKinematicTarget& KinematicTarget() { return KinematicGeometryParticles->KinematicTarget(ParticleIdx); }
 
 	//Really only useful when using a transient handle
 	const TKinematicGeometryParticleHandleImp<T, d, true>* Handle() const { return KinematicGeometryParticles->Handle(ParticleIdx); }
@@ -1303,6 +1306,31 @@ public:
 	inline void SetMACDEnabled(bool bEnabled)
 	{
 		PBDRigidParticles->ControlFlags(ParticleIdx).SetMACDEnabled(bEnabled);
+	}
+
+	inline Private::FIterationSettings IterationSettings() const
+	{
+		return PBDRigidParticles->ParticleIterationCounts(ParticleIdx);
+	}
+
+	inline void SetIterationSettings(const Private::FIterationSettings& IterationSettingsIn)
+	{
+		PBDRigidParticles->ParticleIterationCounts(ParticleIdx) = IterationSettingsIn;
+	}
+
+	inline void SetPositionSolverIterations(const int32 PositionIterationsIn)
+	{
+		PBDRigidParticles->ParticleIterationCounts(ParticleIdx).SetNumPositionIterations(PositionIterationsIn);
+	}
+
+	inline void SetVelocitySolverIterations(const int32 VelocityIterationsIn)
+	{
+		PBDRigidParticles->ParticleIterationCounts(ParticleIdx).SetNumVelocityIterations(VelocityIterationsIn);
+	}
+
+	inline void SetProjectionSolverIterations(const int32 ProjectionIterationsIn)
+	{
+		PBDRigidParticles->ParticleIterationCounts(ParticleIdx).SetNumProjectionIterations(ProjectionIterationsIn);
 	}
 
 	inline bool OneWayInteraction() const
@@ -1715,6 +1743,11 @@ public:
 	FKinematicGeometryParticleHandle* CastToKinematicParticle() { return MHandle->CastToKinematicParticle(); }
 	const FPBDRigidParticleHandle* CastToRigidParticle() const { return MHandle->CastToRigidParticle(); }
 	FPBDRigidParticleHandle* CastToRigidParticle() { return MHandle->CastToRigidParticle(); }
+	const TPBDGeometryCollectionParticleHandleImp<FReal, 3, true>* CastToGeometryCollection() const { return MHandle->CastToGeometryCollection(); }
+	TPBDGeometryCollectionParticleHandleImp<FReal, 3, true>* CastToGeometryCollection() { return MHandle->CastToGeometryCollection(); }
+	const TPBDRigidClusteredParticleHandleImp<FReal, 3, true>* CastToClustered() const { return MHandle->CastToClustered(); }
+	TPBDRigidClusteredParticleHandleImp<FReal, 3, true>* CastToClustered() { return MHandle->CastToClustered(); }
+
 	const FGeometryParticleHandle* GeometryParticleHandle() const { return MHandle; }
 	FGeometryParticleHandle* GeometryParticleHandle() { return MHandle; }
 	//Needed for templated code to be the same
@@ -1836,6 +1869,17 @@ public:
 		}
 
 		return false;
+	}
+
+	Private::FIterationSettings IterationSettings() const
+	{
+		if (MHandle->CastToRigidParticle())
+		{
+			return MHandle->CastToRigidParticle()->IterationSettings();
+		}
+
+		return Private::FIterationSettings(0, 0, 0);
+	
 	}
 
 	bool HasCollisionConstraintFlag(const ECollisionConstraintFlags Flag)  const
@@ -2688,7 +2732,7 @@ public:
 		return Geometry && Geometry->IsValidGeometry();	//todo: if we want support for sample particles without geometry we need to adjust this
 	}
 
-	static TGeometryParticle<T, d>* SerializationFactory(FChaosArchive& Ar, TGeometryParticle<T, d>* Serializable);
+	static inline TGeometryParticle<T, d>* SerializationFactory(FChaosArchive& Ar, TGeometryParticle<T, d>* Serializable);
 
 	const TVector<T, d>& X() const { return MXR.Read().X(); }
 	const TVector<T, d>& GetX() const { return MXR.Read().X(); }
@@ -2862,6 +2906,7 @@ public:
 		for (FShapeInstanceProxyPtr& Shape : InShapes)
 		{
 			ensure(Idx < MShapesArray.Num());
+			Shape->ModifyShapeIndex(Idx);
 			MShapesArray[Idx++] = MoveTemp(Shape);
 		}
 	}
@@ -3040,16 +3085,13 @@ protected:
 	template <typename Lambda>
 	void ModifyGeometry(const Lambda& Func, const bool bDirectAccess = false)
 	{
-		ensure(IsInGameThread());
-
 		return ModifyGeometry(bDirectAccess ? EGeometryAccess::Direct : EGeometryAccess::DeepCopy, Func);
 	}
 
 	template <typename Lambda>
 	void ModifyGeometry(EGeometryAccess AccessType, const Lambda& Func)
 	{
-		ensure(IsInGameThread());
-
+		ensure(Chaos::CVars::bEnableAsyncInitBody || IsInGameThread());
 		FPhysicsSolverBase* Solver = Proxy ? Proxy->GetSolverBase() : nullptr;
 
 		if(Solver == nullptr)
@@ -3344,6 +3386,12 @@ public:
 	{
 		MMiscData.Modify(true, MDirtyFlags, Proxy, [bInEnabled](auto& Data) { Data.SetGravityEnabled(bInEnabled); });
 	}
+
+	int32 GravityGroupIndex() const { return MMiscData.Read().GravityGroupIndex(); }
+	void SetGravityGroupIndex(int32 NewIndex)
+	{
+		MMiscData.Modify(true, MDirtyFlags, Proxy, [NewIndex](auto& Data) { Data.SetGravityGroupIndex(NewIndex); });
+	}
 	
 	bool UpdateKinematicFromSimulation() const { return MMiscData.Read().UpdateKinematicFromSimulation(); }
 	void SetUpdateKinematicFromSimulation(const bool bUpdateKinematicFromSimulation)
@@ -3385,6 +3433,28 @@ public:
 	void SetMACDEnabled(bool bInEnabled)
 	{
 		MMiscData.Modify(true, MDirtyFlags, Proxy, [bInEnabled](auto& Data) { Data.SetMACDEnabled(bInEnabled); });
+	}
+
+	Private::FIterationSettings IterationSettings() const { return MMiscData.Read().IterationSettings(); }
+
+	void SetIterationSettings(const Private::FIterationSettings& SolverIterationSettingsIn)
+	{
+		MMiscData.Modify(true, MDirtyFlags, Proxy, [SolverIterationSettingsIn](auto& Data) { Data.SetIterationSettings(SolverIterationSettingsIn); });
+	}
+
+	void SetPositionSolverIterations(const uint32 PositionSolverIterationCount)
+	{
+		MMiscData.Modify(true, MDirtyFlags, Proxy, [PositionSolverIterationCount](auto& Data) { Data.SetPositionSolverIterationCount((int32)PositionSolverIterationCount); });
+	}
+
+	void SetVelocitySolverIterations(const uint32 VelocitySolverIterationCount)
+	{
+		MMiscData.Modify(true, MDirtyFlags, Proxy, [VelocitySolverIterationCount](auto& Data) { Data.SetVelocitySolverIterationCount((int32)VelocitySolverIterationCount); });
+	}
+
+	void SetProjectionSolverIterations(const uint32 ProjectionSolverIterationCount)
+	{
+		MMiscData.Modify(true, MDirtyFlags, Proxy, [ProjectionSolverIterationCount](auto& Data) { Data.SetProjectionSolverIterationCount((int32)ProjectionSolverIterationCount); });
 	}
 
 	bool InertiaConditioningEnabled() const { return MMiscData.Read().InertiaConditioningEnabled(); }
@@ -3788,7 +3858,7 @@ FORCEINLINE_DEBUGGABLE FAccelerationStructureHandle::FAccelerationStructureHandl
 	if (InGeometryParticle)
 	{
 		ensure(CachedUniqueIdx.IsValid());
-		ensure(IsInGameThread());
+		ensure(Chaos::CVars::bEnableAsyncInitBody || IsInGameThread());
 		if (bUsePrefiltering)
 		{
 			UpdatePrePreFilter(*InGeometryParticle);
@@ -3910,14 +3980,15 @@ inline void SetObjectStateHelper(IPhysicsProxyBase& Proxy, FPBDRigidParticle& Ri
 
 CHAOS_API void SetObjectStateHelper(IPhysicsProxyBase& Proxy, FPBDRigidParticleHandle& Rigid, EObjectStateType InState, bool bAllowEvents = false, bool bInvalidate = true);
 
-#if PLATFORM_MAC || PLATFORM_LINUX
+#if !IS_MERGEDMODULES
+#if PLATFORM_COMPILER_CLANG
 extern template class CHAOS_API ISpatialAcceleration<FAccelerationStructureHandle, FReal, 3>;
 extern template class CHAOS_API ISpatialVisitor<FAccelerationStructureHandle, FReal>;
 #else
 extern template class ISpatialAcceleration<FAccelerationStructureHandle, FReal, 3>;
 extern template class ISpatialVisitor<FAccelerationStructureHandle, FReal>;
 #endif
-
+#endif
 
 } // namespace Chaos
 

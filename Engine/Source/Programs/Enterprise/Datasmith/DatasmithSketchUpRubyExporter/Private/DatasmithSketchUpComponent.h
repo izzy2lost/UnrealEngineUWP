@@ -40,10 +40,10 @@ namespace DatasmithSketchUp
 			: ParentNode(nullptr)
 			, Entity(InEntity)
 			, Depth(0)
-			,  bVisibilityInvalidated(true)
-			,  bPropertiesInvalidated(true)
-			,  bMeshActorsInvalidated(true)
-			,  bHierarchyInvalidated(true)
+			, bVisibilityInvalidated(true)
+			, bPropertiesInvalidated(true)
+			, bMeshActorsInvalidated(true)
+			, bTransformSupportedByUE(true)
 		{}
 
 		FNodeOccurence(FNodeOccurence* InParentNode, FEntity& InEntity)
@@ -53,11 +53,15 @@ namespace DatasmithSketchUp
 			, bVisibilityInvalidated(true)
 			, bPropertiesInvalidated(true)
 			, bMeshActorsInvalidated(true)
-			, bHierarchyInvalidated(true)
+			, bTransformSupportedByUE(true)
 		{}
 
-		// Update node hierarchy, bForceUpdate - to make update node and descendants when transform changes
+		// Update visibility of each node
 		void UpdateVisibility(FExportContext& Context);
+		// Parse tree to update transformation info:
+		// is transform can be directly converted to Unreal? Unreal only supports translation/rotation/scaling, with non-uniform scaling is only for leaf(bottommost) nodes when rotation is present
+		// todo: better name?
+		void UpdateTransformations(FExportContext& Context);
 		void Update(FExportContext& Context);
 
 		void ResetNodeActors(FExportContext& Context); // Reset actors before update
@@ -65,7 +69,7 @@ namespace DatasmithSketchUp
 
 		void InvalidateProperties(); // Invalidate name and transform. Invalidate propagates down the hierarchy - child transforms depend on the parent
 		void InvalidateMeshActors();
-		void SetVisibility(bool);
+		bool SetVisibility(bool);
 
 
 		FString GetActorName();
@@ -84,8 +88,20 @@ namespace DatasmithSketchUp
 
 		// Data that is computed from the hierarchy where Entity occurrence resides
 		int32 Depth;
+
+		// Original transform the node had in SketchUp
+		SUTransformation WorldTransformSource;
+		// Transform to have on a Datasmith actor
 		SUTransformation WorldTransform;
+		// Transform to have on a Datasmith Mesh actor
+		SUTransformation MeshActorWorldTransform;
+		// Local Transform to bake mesh with, so that MeshActorWorldTransform * BakeTransform = WorldTransformSource
+		// BakeTransform contains that part of the source transform which is not supported by Unreal(i.e. "skew"/"shear")
+		SUTransformation BakeTransform;
+
 		FMaterialIDType InheritedMaterialID;
+		// Resolved Layer/Tag on the node after considering own and parent's
+		// The rule: Default(Layer0 or Untagged in UI) layer/tag is overridden by parent's
 		SULayerRef EffectiveLayerRef = SU_INVALID;
 		bool bVisible = true; // Computed visibility for this occurrence(affecting descendants)
 
@@ -105,6 +121,7 @@ namespace DatasmithSketchUp
 		uint8 bPropertiesInvalidated:1; // Whether this occurrence properties(transform, name) need to be updated
 		uint8 bMeshActorsInvalidated:1; // Whether this occurrence MeshActors need updating. Happens initially when node was added and when node geometry is invalidated
 		uint8 bHierarchyInvalidated:1; // Children need to be rebuilt
+		uint8 bTransformSupportedByUE:1;
 	};
 
 	// For SketchUp's Definition that provides access to Entities and converts to Datasmith
@@ -123,7 +140,7 @@ namespace DatasmithSketchUp
 		void EntityVisible(FEntity* Entity, bool bVisible);
 
 		// Modification methods
-		virtual void AddInstance(FExportContext& Context, TSharedPtr<FComponentInstance> Instance) = 0; // Register child CompoenntInstance Entity of Definition's Entities
+		virtual void AddInstance(FExportContext& Context, TSharedPtr<FComponentInstance> Instance) = 0; // Register child ComponentInstance Entity of Definition's Entities
 		virtual void AddImage(FExportContext& Context, TSharedPtr<FImage> Image) = 0;
 
 		virtual void InvalidateInstancesGeometry(FExportContext& Context) = 0; // Mark that all instances(and their occurrences) needed to be updated
@@ -133,8 +150,6 @@ namespace DatasmithSketchUp
 		virtual FString GetSketchupSourceGUID() = 0; // Guid of the definition, SketchUp hashes definition contents into guid
 		virtual FString GetSketchupSourceName() = 0; // Name used for label
 		virtual FString GetSketchupSourceId() = 0; // Unique name identifier
-
-		virtual SUTransformation GetMeshBakedTransform() = 0; // Transform that may be used to bake geometry
 
 		FEntities& GetEntities()
 		{
@@ -186,18 +201,12 @@ namespace DatasmithSketchUp
 		virtual FString GetSketchupSourceGUID() override;
 		virtual FString GetSketchupSourceName() override;
 		virtual FString GetSketchupSourceId() override;
-
-		virtual SUTransformation GetMeshBakedTransform() override;
 		// End FDefinition
 
 		// Register/unregister instanced of this definition
 		void LinkComponentInstance(FComponentInstance* ComponentInstance);
 		void UnlinkComponentInstance(FComponentInstance* ComponentInstance);
 		void RemoveComponentDefinition(FExportContext& Context);
-
-		bool ShouldBakeTransformIntoMesh();
-		void GetLocalTransform(FComponentInstance& ComponentInstance, SUTransformation& SComponentInstanceLocalTransform);
-		void ComponentInstancePropertiesInvalidated();
 
 		// Source SketchUp component ID.
 		FComponentDefinitionIDType SketchupSourceID;
@@ -210,8 +219,6 @@ namespace DatasmithSketchUp
 		SUComponentDefinitionRef ComponentDefinitionRef;
 
 		TUniquePtr<FMetadata> ParsedMetadata; // Shared metadata parsed from source SU component to be added to each occurrence actor's datasmith metatada element
-
-		bool bBakeTransformIntoMesh = false;
 	};
 
 
@@ -236,8 +243,6 @@ namespace DatasmithSketchUp
 		virtual FString GetSketchupSourceGUID() override;
 		virtual FString GetSketchupSourceName()  override;
 		virtual FString GetSketchupSourceId() override;
-
-		virtual SUTransformation GetMeshBakedTransform() override;
 		// End FDefinition
 
 		bool UpdateModel(FExportContext& Context);
@@ -256,7 +261,7 @@ namespace DatasmithSketchUp
 
 		FEntities(FDefinition& InDefinition) : Definition(InDefinition) {}
 
-		void UpdateGeometry(FExportContext& Context);
+		void UpdateGeometry(FExportContext& Context, TArray<FNodeOccurence*> NodesToInstance, TArray<FNodeOccurence*> NodesToBake);
 		void AddMeshesToDatasmithScene(FExportContext& Context);
 		void RemoveMeshesFromDatasmithScene(FExportContext& Context);
 
@@ -275,34 +280,53 @@ namespace DatasmithSketchUp
 	{
 	public:
 
-		int32 GetMeshCount()
+
+		class FExportedGeometry
 		{
-			return Meshes.Num();
+		public:
+			int32 GetMeshCount()
+			{
+				return Meshes.Num();
+			}
+
+			const TCHAR* GetMeshElementName(int32 MeshIndex);
+			bool IsMeshUsingInheritedMaterial(int32 MeshIndex);
+
+			TArray<TSharedPtr<FDatasmithInstantiatedMesh>> Meshes;
+		};
+
+		FExportedGeometry& GetOccurrenceExportedGeometry(FNodeOccurence& Node)
+		{
+			if (FExportedGeometry* Found = ExportedGeometryForNode.Find(&Node))
+			{
+				// todo: remove check
+				check(!Node.bTransformSupportedByUE);
+				return *Found;
+			}
+
+			check(Node.bTransformSupportedByUE || 0==ExportedGeometryForInstances.GetMeshCount());
+			return ExportedGeometryForInstances;
 		}
 
-		const TCHAR* GetMeshElementName(int32 MeshIndex);
-		bool IsMeshUsingInheritedMaterial(int32 MeshIndex);
 		int32 GetInheritedMaterialOverrideSlotId();
 
-		TArray<TSharedPtr<FDatasmithInstantiatedMesh>> Meshes;
+		void SetMaterial(const TCHAR* MaterialName, TFunctionRef<bool(const FDatasmithInstantiatedMesh& Mesh, int32& OutSlotId)> SlotMapping);
+
+		void ForEachExportedMesh(TFunctionRef<void(FDatasmithInstantiatedMesh&)> Callback);
+		void ExportOneMesh(FExportContext& Context, const TSharedPtr<class FDatasmithSketchUpMesh>& ExtractedMesh, FExportedGeometry& ExportedGeometry, int32 MeshIndex, const FString& MeshElementName, const FString& MeshLabel, SUTransformation Transform);
+
+		// Geometry exported for instanced nodes, which doesn't need baking transform into the exported geometry
+		FExportedGeometry ExportedGeometryForInstances;
+		// Geometry exported for nodes, which require baking transform into the exported geometry for proper result
+		TArray<TPair<SUTransformation, FExportedGeometry>>  ExportedGeometryForTransform;
+		TMap<FNodeOccurence*, FExportedGeometry>  ExportedGeometryForNode;
+
+		// Extracted data
 		TSet<int32> FaceIds; // EntityId of all the VISIBLE faces composing the mesh
 		TSet<DatasmithSketchUp::FEntityIDType> Layers; // EntityId of all layers assigned to geometry faces(needed to identify if geometry needs to be rebuilt when layer visibility changes)
-
 		TSet<FMaterial*> MaterialsUsed;
 		bool bDefaultMaterialUsed = false;
 
-		bool IsDefaultLayerMaterialUsed()
-		{
-			return bDefaultMaterialUsed;
-		}
-
-		void SetDefaultLayerMaterialUsed()
-		{
-			bDefaultMaterialUsed = true;
-		}
-
-		// todo: update reusing datasmith elements? 
-		// todo: update occurrences that used this entities - MeshActors need to be refreshed in accordance to OR this could be done on a level higher?
 	};
 
 	// Interface to implement SketchUp Entity Node - i.e. an instance of a ComponentDefinition(ComponentInstance or Group), Model, Image
@@ -319,14 +343,18 @@ namespace DatasmithSketchUp
 		virtual ~FEntity() {}
 
 		virtual int64 GetPersistentId() = 0;
-		virtual FString GetName() = 0;
+		virtual FString GetEntityName() = 0;
+		virtual FString GetEntityLabel() = 0;
 
 		virtual void ApplyOverrideMaterialToNode(FNodeOccurence& Node, FMaterialOccurrence& Material) = 0;
 
 		virtual void UpdateOccurrence(FExportContext& Context, FNodeOccurence& Node) = 0; // Update occurrence of this entity
+		virtual void UpdateOccurrenceLayer(FExportContext& Context, FNodeOccurence&) = 0; // Resolve effective layer for the occurrence
 		virtual void UpdateOccurrenceVisibility(FExportContext& Context, FNodeOccurence&) = 0;  // Re-evaluate visibility of entity's occurrence
 		virtual void UpdateOccurrenceMeshActors(FExportContext& Context, FNodeOccurence& Node) = 0; // Rebuild datasmith actors of entity's occurrence
 		virtual void ResetOccurrenceActors(FExportContext& Context, FNodeOccurence& Node) = 0; // Remove datasmith actors of entity's occurrence from datasmith scene
+		virtual void UpdateOccurrenceTransformation(FExportContext& Context, FNodeOccurence& Node) {}
+
 
 		virtual void InvalidateOccurrencesGeometry(FExportContext& Context) = 0;
 		virtual void InvalidateOccurrencesProperties(FExportContext& Context) = 0;
@@ -397,10 +425,7 @@ namespace DatasmithSketchUp
 	public:
 		FComponentDefinition& Definition;
 
-		FComponentInstance(SUEntityRef InEntityRef, FComponentDefinition& InDefinition)
-			: Super(InEntityRef)
-			, Definition(InDefinition)
-		{}
+		FComponentInstance(SUEntityRef InEntityRef, FComponentDefinition& InDefinition);
 
 		virtual ~FComponentInstance() override;
 
@@ -409,10 +434,13 @@ namespace DatasmithSketchUp
 		virtual bool GetAssignedMaterial(FMaterialIDType& MaterialId) override;
 		virtual void InvalidateOccurrencesGeometry(FExportContext& Context) override;
 		virtual void UpdateOccurrence(FExportContext& Context, FNodeOccurence& Node) override;
+		virtual void UpdateOccurrenceTransformation(FExportContext& Context, FNodeOccurence& Node);
 
 		virtual void InvalidateOccurrencesProperties(FExportContext& Context) override;
 		virtual int64 GetPersistentId() override;
-		virtual FString GetName() override;
+		virtual FString GetEntityName() override;
+		virtual FString GetEntityLabel() override;
+		virtual void UpdateOccurrenceLayer(FExportContext& Context, FNodeOccurence&) override;
 		virtual void UpdateOccurrenceVisibility(FExportContext& Context, FNodeOccurence&) override;
 		virtual void UpdateMetadata(FExportContext& Context) override;
 		virtual void UpdateEntityProperties(FExportContext& Context) override;
@@ -447,15 +475,16 @@ namespace DatasmithSketchUp
 
 		FImage(SUImageRef InEntityRef);
 
-		virtual ~FImage() override
-		{
-		}
+		virtual ~FImage() override;
 
 		virtual int64 GetPersistentId() override;
-		virtual FString GetName() override;
+		virtual FString GetEntityName() override;
+		virtual FString GetEntityLabel() override;
+
 		virtual void ApplyOverrideMaterialToNode(FNodeOccurence& Node, FMaterialOccurrence& Material) override;
 		virtual void UpdateOccurrence(FExportContext& Context, FNodeOccurence& Node) override;
 		void RemoveImageFromDatasmithScene(FExportContext& Context);
+		virtual void UpdateOccurrenceLayer(FExportContext& Context, FNodeOccurence&) override;
 		virtual void UpdateOccurrenceVisibility(FExportContext& Context, FNodeOccurence&) override;
 		virtual void UpdateOccurrenceMeshActors(FExportContext& Context, FNodeOccurence& Node) override;
 		virtual void ResetOccurrenceActors(FExportContext& Context, FNodeOccurence& Node) override;
@@ -506,7 +535,9 @@ namespace DatasmithSketchUp
 		// void UpdateOccurrence(FExportContext& Context, FNodeOccurence& Node) override;
 		virtual void InvalidateOccurrencesProperties(FExportContext& Context) override;
 		virtual int64 GetPersistentId() override;
-		virtual FString GetName() override;
+		virtual FString GetEntityName() override;
+		virtual FString GetEntityLabel() override;
+		virtual void UpdateOccurrenceLayer(FExportContext& Context, FNodeOccurence&) override;
 		virtual void UpdateOccurrenceVisibility(FExportContext& Context, FNodeOccurence&) override;
 
 		virtual void UpdateMetadata(FExportContext& Context) override;

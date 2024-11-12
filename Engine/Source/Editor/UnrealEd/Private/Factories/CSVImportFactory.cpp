@@ -277,6 +277,8 @@ UObject* UCSVImportFactory::FactoryCreateText(UClass* InClass, UObject* InParent
 			{
 				TempImportDataTable->CopyImportOptions(DataTableImportOptions);
 			}
+			
+			TMap<FName, TUniquePtr<uint8[]>> TempRowMap;
 
 			// If there is an existing table, need to call this to free data memory before recreating object
 			UDataTable::FOnDataTableChanged OldOnDataTableChanged;
@@ -287,6 +289,19 @@ UObject* UCSVImportFactory::FactoryCreateText(UClass* InClass, UObject* InParent
 				OldOnDataTableChanged = MoveTemp(ExistingTable->OnDataTableChanged());
 				ExistingTable->OnDataTableChanged().Clear();
 				DataTableClass = ExistingTable->GetClass();
+				
+				TMap<FName, uint8*> ExistingTableRowMap;
+				ExistingTableRowMap = ExistingTable->GetRowMap();
+
+				if (ExistingTable->bPreserveExistingValues)
+				{
+					// Copy each existing row to the temporary map
+					for (const TPair<FName, uint8*>& TableRow : ExistingTableRowMap)
+					{
+						TempRowMap.Add(TableRow.Key, CopyRow(TableRow.Value, ExistingTable->RowStruct));
+					}
+				}
+				
 				ExistingTable->EmptyTable();
 			}
 
@@ -298,7 +313,19 @@ UObject* UCSVImportFactory::FactoryCreateText(UClass* InClass, UObject* InParent
 			if (!CurrentFilename.IsEmpty())
 			{
 				NewTable->AssetImportData->Update(CurrentFilename);
+			}
 
+			if (NewTable->bPreserveExistingValues && ExistingTable)
+			{
+				ensure(NewTable->RowStruct == ExistingTable->RowStruct);
+				
+				for (TPair<FName, TUniquePtr<uint8[]>>& Row : TempRowMap)
+				{
+					if (const FTableRowBase* RowBase = reinterpret_cast<FTableRowBase*>(Row.Value.Get()))
+					{
+						NewTable->AddRow(Row.Key, *RowBase);
+					}
+				}
 			}
 
 			// Go ahead and create table from string
@@ -427,6 +454,15 @@ EReimportResult::Type UCSVImportFactory::Reimport(UObject* Obj, const FString& P
 		}
 	}
 	return EReimportResult::Failed;
+}
+
+TUniquePtr<uint8[]> UCSVImportFactory::CopyRow(const uint8* RowData, const UScriptStruct* RowStruct) const
+{
+	const int32 RowSize = RowStruct->GetStructureSize();
+	TUniquePtr<uint8[]> NewRowData = MakeUnique<uint8[]>(RowSize);
+	RowStruct->InitializeStruct(NewRowData.Get());
+	RowStruct->CopyScriptStruct(NewRowData.Get(), RowData);
+	return NewRowData;
 }
 
 TArray<FString> UCSVImportFactory::DoImportDataTable(const FCSVImportSettings& InImportSettings, UDataTable* TargetDataTable)

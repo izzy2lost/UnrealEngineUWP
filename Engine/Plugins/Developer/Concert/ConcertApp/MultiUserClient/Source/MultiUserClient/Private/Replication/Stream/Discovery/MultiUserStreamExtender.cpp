@@ -8,7 +8,7 @@
 #include "Replication/Editor/Model/Extension/IStreamExtensionContext.h"
 #include "Settings/MultiUserReplicationSettings.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FMultiUserStreamExtender::FMultiUserStreamExtender(const FGuid& InClientId, FReplicationDiscoveryContainer& InRegisteredExtenders)
 		: ClientId(InClientId)
@@ -23,8 +23,11 @@ namespace UE::MultiUserClient
 
 	void FMultiUserStreamExtender::ExtendStream(UObject& ExtendedObject, ConcertSharedSlate::IStreamExtensionContext& Context)
 	{
-		ExtendBySettings.ExtendStream(ExtendedObject, Context);
-		ExtendStreamWithRegisteredDiscoverers(ExtendedObject, Context);
+		if (bShouldExtend)
+		{
+			ExtendBySettings.ExtendStream(ExtendedObject, Context);
+			ExtendStreamWithRegisteredDiscoverers(ExtendedObject, Context);
+		}
 	}
 	
 	void FMultiUserStreamExtender::ExtendStreamWithRegisteredDiscoverers(UObject& ExtendedObject, ConcertSharedSlate::IStreamExtensionContext& Context) const

@@ -186,7 +186,7 @@ void FConstraintChannelCurveModel::DrawCurve(const FCurveEditor& CurveEditor, co
 	// Constraint Channels don't draw any lines so there's no need to fill out the Interpolating Points array.
 }
 
-void FConstraintChannelCurveModel::GetKeys(const FCurveEditor& CurveEditor, double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const
+void FConstraintChannelCurveModel::GetKeys(double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const
 {
 	FMovieSceneConstraintChannel* Channel = GetChannel();
 	UMovieSceneSection* Section = WeakSection.Get();

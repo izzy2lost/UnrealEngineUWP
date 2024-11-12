@@ -24,4 +24,13 @@ public:
 
 	/** Displays a window with the given texture, preserving aspect ratio and almost full screen */
 	static void DisplayTextureInWindowAlmostFullScreen(UTexture2D* Texture, FText&& Title, float ScreenMarginFactor = 0.85f);
+
+	/** Displays a warning dialog box asking if a user wants to merge one focus point into another
+	 * @param bOutReplaceExistingZoomPoints Whether the user wants to replace existing zoom points in the merge
+	 * @return true if the user accepted the merge, false otherwise */
+	static bool ShowMergeFocusWarning(bool& bOutReplaceExistingZoomPoints);
+
+	/** Displays a warning dialog box asking if the user wants to replace one zoom point with another
+	 * @return true if the user accepted the replace, false otherwise */
+	static bool ShowReplaceZoomWarning();
 };

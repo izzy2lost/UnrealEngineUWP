@@ -67,6 +67,8 @@ FNavigationPath::FNavigationPath(const TArray<FVector>& Points, AActor* InBase)
 	}
 }
 
+FNavigationPath::~FNavigationPath() = default;
+
 void FNavigationPath::InternalResetNavigationPath()
 {
 	ShortcutNodeRefs.Reset();
@@ -519,7 +521,7 @@ void UNavigationPath::EnableDebugDrawing(bool bShouldDrawDebugData, FLinearColor
 	}
 }
 
-void UNavigationPath::EnableRecalculationOnInvalidation(TEnumAsByte<ENavigationOptionFlag::Type> DoRecalculation)
+void UNavigationPath::EnableRecalculationOnInvalidation(const ENavigationOptionFlag DoRecalculation)
 {
 	if (DoRecalculation != RecalculateOnInvalidation)
 	{
@@ -597,13 +599,4 @@ void UNavigationPath::SetPathPointsFromPath(FNavigationPath& NativePath)
 	{
 		PathPoints.Add(PathPoint.Location);
 	}
-}
-
-
-//------------------------------------------------------------------------//
-// deprecated functions
-//------------------------------------------------------------------------//
-void FNavigationPath::DebugDraw(const ANavigationData* NavData, FColor PathColor, UCanvas* Canvas, bool bPersistent, const uint32 NextPathPointIndex) const
-{
-	DebugDraw(NavData, PathColor, Canvas, bPersistent, -1.f, NextPathPointIndex);
 }

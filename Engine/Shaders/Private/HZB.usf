@@ -19,33 +19,18 @@ Texture2D		ParentTextureMip;
 SamplerState	ParentTextureMipSampler;
 
 
-float4 Gather4(Texture2D Texture, SamplerState TextureSampler, float2 BufferUV)
-#if COMPILER_GLSL || FEATURE_LEVEL < FEATURE_LEVEL_SM5
+float4 Gather4(Texture2D Texture, SamplerState TextureSampler, float2 BufferUV, uint Level)
 {
-	float2 UV[4];
-	
 	// min(..., InputViewportMaxBound) because we don't want to sample outside of the viewport
 	// when the view size has odd dimensions on X/Y axis.
-	UV[0] = min(BufferUV + float2(-0.25f, -0.25f) * InvSize, InputViewportMaxBound);
-	UV[1] = min(BufferUV + float2( 0.25f, -0.25f) * InvSize, InputViewportMaxBound);
-	UV[2] = min(BufferUV + float2(-0.25f,  0.25f) * InvSize, InputViewportMaxBound);
-	UV[3] = min(BufferUV + float2( 0.25f,  0.25f) * InvSize, InputViewportMaxBound);
-
-	float4 Out;
-	Out.x = Texture.SampleLevel(TextureSampler, UV[0], 0 ).r;
-	Out.y = Texture.SampleLevel(TextureSampler, UV[1], 0 ).r;
-	Out.z = Texture.SampleLevel(TextureSampler, UV[2], 0 ).r;
-	Out.w = Texture.SampleLevel(TextureSampler, UV[3], 0 ).r;
-
-	return Out;
-}
-#else
-{
 	float2 UV = min(BufferUV + float2(-0.25f, -0.25f) * InvSize, InputViewportMaxBound - InvSize);
-	return Texture.GatherRed(TextureSampler, UV, 0);
+	return Texture.GatherRed(TextureSampler, UV, Level);
 }
-#endif
 
+float4 Gather4(Texture2D Texture, SamplerState TextureSampler, float2 BufferUV)
+{
+	return Gather4(Texture, TextureSampler, BufferUV, 0);
+}
 
 #if COMPUTESHADER
 
@@ -59,7 +44,7 @@ RWTexture2D<float> ClosestHZBOutput_1;
 RWTexture2D<float> ClosestHZBOutput_2;
 RWTexture2D<float> ClosestHZBOutput_3;
 
-groupshared float SharedMinDeviceZ[GROUP_TILE_SIZE * GROUP_TILE_SIZE];
+groupshared uint SharedMinDeviceZ[GROUP_TILE_SIZE * GROUP_TILE_SIZE];
 groupshared float SharedMaxDeviceZ[GROUP_TILE_SIZE * GROUP_TILE_SIZE];
 
 float RoundUpF16(float DeviceZ)
@@ -170,6 +155,23 @@ float4 Gather4VisZ(float2 BufferUV, uint2 PixelCoord)
 
 #endif
 
+#if DIM_FROXELS
+
+#define FROXEL_HASH_BUFFER_SIZE (GROUP_TILE_SIZE * GROUP_TILE_SIZE)
+#define FROXEL_HASH_THREAD_GROUP_SIZE (GROUP_TILE_SIZE * GROUP_TILE_SIZE)
+
+#define FROXEL_SHARED_HASH_BUFFER_VAR SharedMinDeviceZ
+
+#include "Froxel/FroxelBuild.ush"
+
+
+#if GROUP_TILE_SIZE != FROXEL_TILE_SIZE
+	#error "The froxel construction algorithm assumes the group size matches the tile size, if this is changed this code needs to be updated"
+#endif
+
+#endif // DIM_FROXELS
+
+
 [numthreads(GROUP_TILE_SIZE, GROUP_TILE_SIZE, 1)]
 void HZBBuildCS(
 	uint2 GroupId : SV_GroupID,
@@ -181,7 +183,12 @@ void HZBBuildCS(
 		uint2 GroupThreadId = InitialTilePixelPositionForReduction2x2(MAX_MIP_BATCH_SIZE - 1, GroupThreadIndex);
 	#endif
 
-	uint2 DispatchThreadId = GROUP_TILE_SIZE * GroupId + GroupThreadId;
+	uint2 GroupOffset = GROUP_TILE_SIZE * GroupId;
+	uint2 DispatchThreadId = GroupOffset + GroupThreadId;
+
+	// whether or not any of the threads in the group is going to look at valid pixels, a lot don't in the HZB build because of POT rounding.
+	uint2 MinPixelCoord = (GroupOffset << 1) + PixelViewPortMinMax.xy;
+	bool bValidGroup = all(MinPixelCoord < PixelViewPortMinMax.zw);
 
 	float2 BufferUV = (DispatchThreadId + 0.5) * DispatchThreadIdToBufferUV.xy + DispatchThreadIdToBufferUV.zw;
 	float4 DeviceZ = Gather4(ParentTextureMip, ParentTextureMipSampler, BufferUV);
@@ -195,6 +202,20 @@ void HZBBuildCS(
 
 	float MinDeviceZ = min(min3(DeviceZ.x, DeviceZ.y, DeviceZ.z), DeviceZ.w);
 	float MaxDeviceZ = max(max3(DeviceZ.x, DeviceZ.y, DeviceZ.z), DeviceZ.w);
+
+#if DIM_FROXELS
+	// 2x as each thread does 2x2 through Gather
+	uint2 LocalTileId = (2 * GroupThreadId) / (FROXEL_TILE_SIZE);
+	uint LocalLinearTileId = LocalTileId.y * 2 + LocalTileId.x;
+	 // 2x2 tiles per group
+	uint2 GroupTileOffset = GroupId * 2;
+	uint2 TileId = GroupTileOffset + LocalTileId;
+
+	if (bValidGroup)
+	{
+		HashBuildFroxelsFromDeviceZ(DeviceZ, GroupThreadIndex, LocalLinearTileId, GroupTileOffset);
+	}
+#endif
 	
 	uint2 OutputPixelPos = DispatchThreadId;
 	
@@ -212,18 +233,26 @@ void HZBBuildCS(
 	}
 	#else
 	{
-		SharedMinDeviceZ[GroupThreadIndex] = MinDeviceZ;
+		SharedMinDeviceZ[GroupThreadIndex] = asuint(MinDeviceZ);
 		SharedMaxDeviceZ[GroupThreadIndex] = MaxDeviceZ;
+#if FEATURE_LEVEL >= FEATURE_LEVEL_SM6 || PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS
+		const uint LaneCount = WaveGetLaneCount();
+#else
+		// Actual wave size is unknown, assume the worst
+		const uint LaneCount = 0u;
+#endif
 	
 		UNROLL
-		for (uint MipLevel = 1; MipLevel < DIM_MIP_LEVEL_COUNT; MipLevel++)
+		for (uint MipLevel = 1; MipLevel < DIM_MIP_LEVEL_COUNT; ++MipLevel)
 		{
 			const uint TileSize = uint(GROUP_TILE_SIZE) >> MipLevel;
 			const uint ReduceBankSize = TileSize * TileSize;
 			
-			// LDS has been written before.
-			if (MipLevel == 1)
+			// More waves than one wrote to LDS, need to sync.
+			if ((ReduceBankSize << 2u) > LaneCount)
+			{
 				GroupMemoryBarrierWithGroupSync();
+			}
 
 			BRANCH
 			if (GroupThreadIndex < ReduceBankSize)
@@ -237,7 +266,7 @@ void HZBBuildCS(
 				for (uint i = 1; i < 4; i++)
 				{
 					uint LDSIndex = GroupThreadIndex + i * ReduceBankSize;
-					ParentMinDeviceZ[i] = SharedMinDeviceZ[LDSIndex];
+					ParentMinDeviceZ[i] = asfloat(SharedMinDeviceZ[LDSIndex]);
 					ParentMaxDeviceZ[i] = SharedMaxDeviceZ[LDSIndex];
 				}
 				
@@ -247,7 +276,7 @@ void HZBBuildCS(
 				OutputPixelPos = OutputPixelPos >> 1;
 				OutputMipLevel(MipLevel, OutputPixelPos, MinDeviceZ, MaxDeviceZ);
 				
-				SharedMinDeviceZ[GroupThreadIndex] = MinDeviceZ;
+				SharedMinDeviceZ[GroupThreadIndex] = asuint(MinDeviceZ);
 				SharedMaxDeviceZ[GroupThreadIndex] = MaxDeviceZ;
 			}
 		}
@@ -258,10 +287,12 @@ void HZBBuildCS(
 
 #elif PIXELSHADER
 
+uint SourceMipIndex;
+
 void HZBBuildPS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0)
 {
 	float2 BufferUV = SvPosition.xy * DispatchThreadIdToBufferUV.xy + DispatchThreadIdToBufferUV.zw;
-	float4 DeviceZ = Gather4(ParentTextureMip, ParentTextureMipSampler, BufferUV);
+	float4 DeviceZ = Gather4(ParentTextureMip, ParentTextureMipSampler, BufferUV, SourceMipIndex);
 
 	float FurthestDeviceZ = min(min(DeviceZ.x, DeviceZ.y), min(DeviceZ.z, DeviceZ.w));
 

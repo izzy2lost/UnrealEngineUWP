@@ -3,6 +3,7 @@
 #include "ShadowMap.h"
 #include "Engine/Level.h"
 #include "Engine/MapBuildDataRegistry.h"
+#include "StaticLightingBuildContext.h"
 #include "Components/LightComponent.h"
 
 #include "Engine/World.h"
@@ -192,7 +193,7 @@ struct FShadowMapPendingTexture : FTextureLayout
 	 *
 	 * @param	InWorld	World in which the textures exist
 	 */
-	void StartEncoding(ULevel* LightingScenario, ITextureCompressorModule* Compressor);
+	void StartEncoding(const FStaticLightingBuildContext* LightingContext, ITextureCompressorModule* Compressor);
 
 	/**
 	 * Create UObjects required in the encoding step, this is so we can multithread teh encode step
@@ -304,7 +305,7 @@ void FShadowMapPendingTexture::CreateUObjects()
 	bCreatedUObjects = true;
 }
 
-void FShadowMapPendingTexture::StartEncoding(ULevel* LightingScenario, ITextureCompressorModule* Compressor)
+void FShadowMapPendingTexture::StartEncoding(const FStaticLightingBuildContext* LightingContext, ITextureCompressorModule* Compressor)
 {
 	FOptionalTaskTagScope Scope(ETaskTag::EParallelGameThread);
 
@@ -322,7 +323,7 @@ void FShadowMapPendingTexture::StartEncoding(ULevel* LightingScenario, ITextureC
 	{
 		// Create the uncompressed top mip-level.
 		TArray< TArray<FFourDistanceFieldSamples> > MipData;
-		const int32 NumChannelsUsed = FShadowMap2D::EncodeSingleTexture(LightingScenario, *this, Texture, MipData);
+		const int32 NumChannelsUsed = FShadowMap2D::EncodeSingleTexture(LightingContext, *this, Texture, MipData);
 
 		Texture->Source.Init2DWithMipChain(GetSizeX(), GetSizeY(), NumChannelsUsed == 1 ? TSF_G8 : TSF_BGRA8);
 		Texture->MipGenSettings = TMGS_LeaveExistingMips;
@@ -718,12 +719,12 @@ TRefCountPtr<FShadowMap2D> FShadowMap2D::AllocateInstancedShadowMap(UObject* Lig
  * @param	InWorld				World in which the textures exist
  * @param	bLightingSuccessful	Whether the lighting build was successful or not.
  */
-void FShadowMap2D::EncodeTextures(UWorld* InWorld, ULevel* LightingScenario, bool bLightingSuccessful, bool bMultithreadedEncode)
+void FShadowMap2D::EncodeTextures(const FStaticLightingBuildContext* LightingContext, bool bLightingSuccessful, bool bMultithreadedEncode)
 {
 	if ( bLightingSuccessful )
 	{
 		GWarn->BeginSlowTask( NSLOCTEXT("ShadowMap2D", "BeginEncodingShadowMapsTask", "Encoding shadow-maps"), false );
-		const int32 PackedLightAndShadowMapTextureSize = InWorld->GetWorldSettings()->PackedLightAndShadowMapTextureSize;
+		const int32 PackedLightAndShadowMapTextureSize = LightingContext->World->GetWorldSettings()->PackedLightAndShadowMapTextureSize;
 
 		ITextureCompressorModule* TextureCompressorModule = &FModuleManager::LoadModuleChecked<ITextureCompressorModule>(TEXTURE_COMPRESSOR_MODULENAME);
 
@@ -810,7 +811,7 @@ void FShadowMap2D::EncodeTextures(UWorld* InWorld, ULevel* LightingScenario, boo
 			for (auto& PendingTexture : PendingTextures)
 			{
 				PendingTexture.CreateUObjects();
-				auto AsyncEncodeTask = new (AsyncEncodeTasks)FAsyncEncode<FShadowMapPendingTexture>(&PendingTexture, LightingScenario, Counter, TextureCompressorModule);
+				auto AsyncEncodeTask = new (AsyncEncodeTasks)FAsyncEncode<FShadowMapPendingTexture>(&PendingTexture, LightingContext, Counter, TextureCompressorModule);
 				GThreadPool->AddQueuedWork(AsyncEncodeTask);
 			}
 
@@ -826,7 +827,7 @@ void FShadowMap2D::EncodeTextures(UWorld* InWorld, ULevel* LightingScenario, boo
 			for (int32 TextureIndex = 0; TextureIndex < PendingTextures.Num(); TextureIndex++)
 			{
 				FShadowMapPendingTexture& PendingTexture = PendingTextures[TextureIndex];
-				PendingTexture.StartEncoding(LightingScenario, TextureCompressorModule);
+				PendingTexture.StartEncoding(LightingContext, TextureCompressorModule);
 			}
 		}
 
@@ -853,7 +854,7 @@ void FShadowMap2D::EncodeTextures(UWorld* InWorld, ULevel* LightingScenario, boo
 		for (int32 TextureIndex = 0; TextureIndex < PendingTextures.Num(); TextureIndex++)
 		{
 			FShadowMapPendingTexture& PendingTexture = PendingTextures[TextureIndex];
-			PendingTexture.FinishCachingTextures(InWorld);
+			PendingTexture.FinishCachingTextures(LightingContext->World);
 			if (bUpdateStatus && ((TextureIndex % 20) == 0))
 			{
 				GWarn->UpdateProgress(TextureIndex, PendingTextures.Num());
@@ -869,7 +870,7 @@ void FShadowMap2D::EncodeTextures(UWorld* InWorld, ULevel* LightingScenario, boo
 	}
 }
 
-int32 FShadowMap2D::EncodeSingleTexture(ULevel* LightingScenario, FShadowMapPendingTexture& PendingTexture, UShadowMapTexture2D* Texture, TArray< TArray<FFourDistanceFieldSamples> >& MipData)
+int32 FShadowMap2D::EncodeSingleTexture(const FStaticLightingBuildContext* LightingContext, FShadowMapPendingTexture& PendingTexture, UShadowMapTexture2D* Texture, TArray< TArray<FFourDistanceFieldSamples> >& MipData)
 {
 	TArray<FFourDistanceFieldSamples>* TopMipData = new(MipData) TArray<FFourDistanceFieldSamples>();
 	TopMipData->Empty(PendingTexture.GetSizeX() * PendingTexture.GetSizeY());
@@ -889,8 +890,7 @@ int32 FShadowMap2D::EncodeSingleTexture(ULevel* LightingScenario, FShadowMapPend
 			for (const auto& ShadowMapPair : Allocation.ShadowMapData)
 			{
 				ULightComponent* CurrentLight = ShadowMapPair.Key;
-				ULevel* StorageLevel = LightingScenario ? LightingScenario : CurrentLight->GetOwner()->GetLevel();
-				UMapBuildDataRegistry* Registry = StorageLevel->MapBuildData;
+				UMapBuildDataRegistry* Registry = LightingContext->GetOrCreateRegistryForActor(CurrentLight->GetOwner());
 				const FLightComponentMapBuildData* LightBuildData = Registry->GetLightBuildData(CurrentLight->LightGuid);
 
 				// Should have been setup by ReassignStationaryLightChannels

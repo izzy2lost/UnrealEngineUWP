@@ -10,6 +10,8 @@
 #endif
 #include "BehaviorTree/BehaviorTreeTypes.h"
 #include "BehaviorTree/BTDecorator.h"
+#include "BehaviorTree/ValueOrBBKey.h"
+#include "NavFilters/NavigationQueryFilter.h"
 #include "BTDecorator_DoesPathExist.generated.h"
 
 class UBehaviorTree;
@@ -51,11 +53,11 @@ public:
 	uint32 bUseSelf:1;
 
 	UPROPERTY(EditAnywhere, Category=Condition)
-	TEnumAsByte<EPathExistanceQueryType::Type> PathQueryType;
+	FValueOrBBKey_Enum PathQueryType;
 
 	/** "None" will result in default filter being used */
 	UPROPERTY(Category=Node, EditAnywhere)
-	TSubclassOf<UNavigationQueryFilter> FilterClass;
+	FValueOrBBKey_Class FilterClass = TSubclassOf<UNavigationQueryFilter>();
 
 	AIMODULE_API virtual bool CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const override;
 	AIMODULE_API virtual FString GetStaticDescription() const override;

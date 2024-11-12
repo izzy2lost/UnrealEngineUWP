@@ -790,7 +790,7 @@ UE_NET_TEST_FIXTURE(FTestCancelPendingDestroyFixture, TestCancelPendingDestroyFr
 	UE_NET_ASSERT_EQ(Client1Object->IntA, ServerObject->IntA);
 
 	// Filter out object to cause a PendingDestroy for Client0
-	FNetObjectGroupHandle ExclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle ExclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(ExclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddExclusionFilterGroup(ExclusionGroupHandle);
 

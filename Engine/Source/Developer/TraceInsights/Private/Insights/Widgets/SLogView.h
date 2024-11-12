@@ -12,12 +12,19 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/SListView.h"
 
-// Insights
-#include "Insights/Common/Stopwatch.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+
+// TraceInsights
 #include "Insights/ViewModels/LogFilter.h"
 #include "Insights/ViewModels/LogMessage.h"
 
 class FMenuBuilder;
+
+namespace UE::Insights::TimingProfiler { class STimingView; }
+
+namespace UE::Insights
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -71,11 +78,15 @@ public:
 	FLogMessageCache& GetCache() { return Cache; }
 
 	TSharedPtr<FLogMessage> GetSelectedLogMessage() const;
-	void SelectedLogMessageByLogIndex(int32 LogIndex);
+	void SelectLogMessage(TSharedPtr<FLogMessage> LogMessage);
+	void SelectLogMessageByLogIndex(int32 LogIndex);
+	void SelectLogMessageByClosestTime(double Time);
 
 	FText GetFilterText() const { return FilterTextBox->GetText(); }
 
 	bool IsFilteringAsyncTaskCancelRequested() const { return bIsFilteringAsyncTaskCancelRequested; }
+
+	TSharedPtr<TimingProfiler::STimingView> GetTimingView() const;
 
 protected:
 	/** Generate a new list view row. */
@@ -83,9 +94,9 @@ protected:
 
 	void InitCommandList();
 
-	void SelectLogMessage(TSharedPtr<FLogMessage> LogMessage);
 	void OnMouseButtonClick(TSharedPtr<FLogMessage> LogMessage);
 	void OnSelectionChanged(TSharedPtr<FLogMessage> LogMessage, ESelectInfo::Type SelectInfo);
+	void OnSelectedLogMessageChanged(TSharedPtr<FLogMessage> LogMessage);
 
 	void FilterTextBox_OnTextChanged(const FText& InFilterText);
 	void OnFilterChanged();
@@ -107,7 +118,7 @@ protected:
 
 	bool ShowHideAllCategories_IsChecked() const;
 	void ShowHideAllCategories_Execute();
-	
+
 	bool IsLogCategoryEnabled(FName InName) const;
 	void ToggleCategory(FName InName);
 
@@ -162,19 +173,32 @@ protected:
 	FLogFilter Filter;
 	uint64 FilterChangeNumber;
 
-	int32 FilteringStartIndex; // Start index (of the range of log messages to filter) currenly used by the async task
-	int32 FilteringEndIndex; // End index (of the range of log messages to filter) currenly used by the async task
-	uint64 FilteringChangeNumber; // Change number of the filter currenly used by the async task
+	int32 FilteringStartIndex; // Start index (of the range of log messages to filter) currently used by the async task
+	int32 FilteringEndIndex; // End index (of the range of log messages to filter) currently used by the async task
+	uint64 FilteringChangeNumber; // Change number of the filter currently used by the async task
 	TUniquePtr<FAsyncTask<FLogFilteringAsyncTask>> FilteringAsyncTask; // The async task to filter log messages on a worker thread
 	mutable volatile bool bIsFilteringAsyncTaskCancelRequested; // true if we want the async task to finish asap
 
 	/** Stopwatch used to measure how long it takes to filter the message list. */
 	mutable FStopwatch FilteringStopwatch;
 
+	/**
+	 * Total number of log categories (including duplicates; last value read from LogProvider).
+	 * Used to detect when more log categories are added in the LogProvider, so we can update UI.
+	 */
 	int32 TotalNumCategories;
 
-	/** Total number of log messages processed, from the source Trace session. Used to detect when new log messages are added in the source Trace session. */
+	/**
+	 * Total number of log messages (last value read from LogProvider).
+	 * Used to detect when new log messages are added in the LogProvider, so we can update UI.
+	 */
 	int32 TotalNumMessages;
+
+	/**
+	 * Total number of inserts in the source table of log messages (last value read from LogProvider).
+	 * Used to detect when the order of log messages changes in source table, so we can invalidate the cache.
+	 */
+	int32 TotalNumInserts;
 
 	/** true if the list of messages is not yet updated (the filter has changed and/or the source trace messages have changed) */
 	bool bIsDirty;
@@ -188,8 +212,10 @@ protected:
 	/** Cached log messages. */
 	mutable FLogMessageCache Cache;
 
-	/** List of trace log messages to show in list view (i.e. filtered). */
-	TArray<TSharedPtr<FLogMessage>> Messages; // TODO: this needs virtualisation (an a new SListView)
+	/** List of trace log messages to show in list view. */
+	TArray<TSharedPtr<FLogMessage>> FilteredMessages;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights

@@ -31,7 +31,7 @@ struct FWeightedRandomSampler
 	DECLARE_TYPE_LAYOUT(FWeightedRandomSampler, Abstract);
 public:
 	ENGINE_API FWeightedRandomSampler();
-	virtual ~FWeightedRandomSampler() { }
+	ENGINE_API virtual ~FWeightedRandomSampler();
 
 	/**
 	Takes two random values (0...1) and returns the corresponding element index.

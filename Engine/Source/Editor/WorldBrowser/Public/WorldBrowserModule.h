@@ -7,6 +7,7 @@
 #include "LevelEditor.h"
 
 class FLevelCollectionModel;
+namespace UE::WorldHierarchy { class IWorldHierarchy; }
 
 /**
  * The module holding all of the UI related pieces for SubLevels management
@@ -29,7 +30,10 @@ public:
 	/**
 	 * Creates a levels hierarchy widget
 	 */
-	virtual TSharedRef<class SWidget> CreateWorldBrowserHierarchy();
+	UE_DEPRECATED(5.5, "Use CreateWorldBrowserHierarchyWidget instead.")
+	virtual TSharedRef<SWidget> CreateWorldBrowserHierarchy();
+	/** Creates a levels hierarchy widget */
+	virtual TSharedRef<UE::WorldHierarchy::IWorldHierarchy> CreateWorldBrowserHierarchyWidget();
 	
 	/**
 	 * Creates a levels details widget

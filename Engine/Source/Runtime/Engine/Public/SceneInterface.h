@@ -9,15 +9,7 @@
 #include "RenderGraphFwd.h"
 #include "Engine/EngineTypes.h"
 #include "PrimitiveComponentId.h"
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "RHI.h"
-#include "SceneTypes.h"
-#include "SceneUtils.h"
-#include "Math/SHMath.h"
-#include "RenderGraphDefinitions.h"
-#endif
+#include "ShowFlags.h"
 
 class AWorldSettings;
 class FArchive;
@@ -578,6 +570,9 @@ public:
 	}
 	virtual void UpdateSceneSettings(AWorldSettings* WorldSettings) {}
 
+	virtual void StartUpdatePrimitiveTransform(int32 NumPrimitives) = 0;
+	virtual void FinishUpdatePrimitiveTransform() = 0;
+
 	/**
 	* Gets the GPU Skin Cache system associated with the scene.
 	*/
@@ -695,13 +690,24 @@ public:
 	/** Contains settings used to construct scene view for custom render pass during the renderer construction. */
 	struct FCustomRenderPassRendererInput
 	{
+		FCustomRenderPassRendererInput()
+			: EngineShowFlags(ESFIM_Game)
+		{
+		}
+
 		/** Data used to construct scene view for the custom render pass. */
 		FVector ViewLocation;
 		FMatrix ViewRotationMatrix;
 		FMatrix ProjectionMatrix;
 		TSet<FPrimitiveComponentId> HiddenPrimitives;
 		TOptional<TSet<FPrimitiveComponentId>> ShowOnlyPrimitives;
+		FEngineShowFlags EngineShowFlags;
 		const AActor* ViewActor = nullptr;
+		class FSceneViewStateInterface* ViewStateInterface = nullptr;
+		int32 PostVolumeUserFlags = 0;						// UserFlags from Post Process Volume, used if bOverridesPostVolumeUserFlags set, allows per-view material overrides
+		bool bIsSceneCapture = false;
+		bool bUseMainViewFamilyShowFlags = false;			// Custom render pass should use flags from main view family, rather than ones in this structure
+		bool bOverridesPostVolumeUserFlags = false;			// Use PostVolumeUserFlags, instead of flags from main view family
 
 		class FCustomRenderPassBase* CustomRenderPass = nullptr;
 	};

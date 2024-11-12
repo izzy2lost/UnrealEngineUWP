@@ -22,25 +22,24 @@ export const LabelsPanelV2: React.FC<{ jobDetails: JobDetailsV2, dataView: JobDa
 
    const labelIdx = query.get("label") ? parseInt(query.get("label")!) : undefined;
    const qlabel = jobDetails.labelByIndex(labelIdx);
-   if (typeof (labelIdx) === `number` && !qlabel) {            
+   if (typeof (labelIdx) === `number` && !qlabel) {
       return null;
    }
-   
+
    const jobFilter = jobDetails.filter;
 
    // subscribe   
    if (jobFilter.inputChanged) { }
 
    const batchFilter = query.get("batch");
-   if (batchFilter)
-   {
-      return null;   
+   if (batchFilter) {
+      return null;
    }
 
    let labels = jobDetails.labels.filter(label => label.stateResponse.state !== LabelState.Unspecified);
 
    if (qlabel) {
-      labels = labels.filter(l => l.category === qlabel?.category && l.name === qlabel?.name);
+      labels = labels.filter(l => l.stateResponse.dashboardCategory === qlabel?.stateResponse.dashboardCategory && l.stateResponse.dashboardName === qlabel?.stateResponse.dashboardName);
    }
 
    const stateFilter = jobFilter.filterStates;
@@ -78,7 +77,7 @@ export const LabelsPanelV2: React.FC<{ jobDetails: JobDetailsV2, dataView: JobDa
 
       return include;
 
-   });   
+   });
 
    if (!labels) {
       return null;
@@ -90,14 +89,14 @@ export const LabelsPanelV2: React.FC<{ jobDetails: JobDetailsV2, dataView: JobDa
    };
 
    const categories: Set<string> = new Set();
-   labels.forEach(label => { if (label.name) { categories.add(label.category!); } });
+   labels.forEach(label => { if (label.stateResponse.dashboardName ?? "") { categories.add(label.stateResponse.dashboardCategory!); } });
 
 
    let items = Array.from(categories.values()).map(c => {
       return {
          category: c,
-         labels: labels.filter(label => label.name && (label.category === c)).sort((a, b) => {
-            return a.name! < b.name! ? -1 : 1;
+         labels: labels.filter(label => label.stateResponse.dashboardName && (label.stateResponse.dashboardCategory === c)).sort((a, b) => {
+            return a.stateResponse.dashboardName! < b.stateResponse.dashboardName! ? -1 : 1;
          })
       } as LabelItem;
    }).filter(item => item.labels?.length).sort((a, b) => {
@@ -108,17 +107,17 @@ export const LabelsPanelV2: React.FC<{ jobDetails: JobDetailsV2, dataView: JobDa
 
    if (filter.search) {
       items = items.filter(i => {
-         i.labels = i.labels.filter(label => label.name.toLowerCase().indexOf(filter.search!.toLowerCase()) !== -1);
+         i.labels = i.labels.filter(label => (label.stateResponse.dashboardName ?? "").toLowerCase().indexOf(filter.search!.toLowerCase()) !== -1);
          return i.labels.length !== 0;
       });
    }
 
    if (filter.currentInput) {
       items = items.filter(i => {
-         i.labels = i.labels.filter(label => label.name.toLowerCase().indexOf(filter.currentInput!.toLowerCase()) !== -1);
+         i.labels = i.labels.filter(label => (label.stateResponse.dashboardName ?? "").toLowerCase().indexOf(filter.currentInput!.toLowerCase()) !== -1);
          return i.labels.length !== 0;
       });
-   }   
+   }
 
    if (!items.length) {
       return null;
@@ -154,28 +153,31 @@ export const LabelsPanelV2: React.FC<{ jobDetails: JobDetailsV2, dataView: JobDa
 
                   let filtered = false;
                   if (qlabel) {
-                     if (qlabel.category !== label.category || qlabel.name !== label.name) {
+                     if (qlabel.stateResponse.dashboardCategory !== label.stateResponse.dashboardCategory || qlabel.stateResponse.dashboardName !== label.stateResponse.dashboardName) {
                         filtered = true;
                      }
                   }
-                  return <Stack key={`labels_${label.category}_${label.name}`} className={hordeClasses.badge}>
+                  return <Stack key={`labels_${label.stateResponse.dashboardCategory}_${label.stateResponse.dashboardName}`} className={hordeClasses.badge}>
                      <DefaultButton
                         onClick={() => {
-                           if (qlabel?.category === label.category && qlabel?.name === label.name) {
+                           if (qlabel?.stateResponse.dashboardCategory === label.stateResponse.dashboardCategory && qlabel?.stateResponse.dashboardName === label.stateResponse.dashboardName) {
                               navigate(location.pathname)
                            } else {
 
-                              const idx = jobDetails.labelIndex(label.name, label.category);
+                              let idx = -1;
+                              if (label.stateResponse.dashboardName?.length) {
+                                 idx = jobDetails.labelIndex(label.stateResponse.dashboardName, label.stateResponse.dashboardCategory);
+                              }
                               if (idx >= 0) {
                                  navigate(location.pathname + `?label=${idx}`)
                               } else {
-                                 navigate(location.pathname, {replace: true})
-                              }                              
+                                 navigate(location.pathname, { replace: true })
+                              }
                            }
 
                         }}
-                        key={label.name} style={{ backgroundColor: color.primaryColor, color: textColor, filter: filtered ? "brightness(0.70)" : undefined }}
-                        text={label.name!}>
+                        key={label.stateResponse.dashboardName ?? ""} style={{ backgroundColor: color.primaryColor, color: textColor, filter: filtered ? "brightness(0.70)" : undefined }}
+                        text={label.stateResponse.dashboardName ?? ""}>
                         {!!color.secondaryColor && <div style={{
                            borderLeft: "10px solid transparent",
                            borderRight: `10px solid ${color.secondaryColor}`,
@@ -200,7 +202,7 @@ export const LabelsPanelV2: React.FC<{ jobDetails: JobDetailsV2, dataView: JobDa
 
    return <Stack styles={{ root: { paddingTop: 18, paddingRight: 12 } }}>
       <Stack style={{ paddingLeft: 12 }}>
-         <Stack styles={{root:{selectors: {'.ms-DetailsRow': {backgroundColor: dashboard.darktheme ? modeColors.content : undefined}}}}}>
+         <Stack styles={{ root: { selectors: { '.ms-DetailsRow': { backgroundColor: dashboard.darktheme ? modeColors.content : undefined } } } }}>
             <DetailsList
                isHeaderVisible={false}
                indentWidth={0}

@@ -74,12 +74,14 @@ struct VHeapInt final : VHeapValue
 
 	COREUOBJECT_API static VHeapInt* CreateZero(FAllocationContext Context);
 
-	COREUOBJECT_API static VHeapInt* Add(FRunningContext, VHeapInt& X, VHeapInt& Y);
-	COREUOBJECT_API static VHeapInt* Sub(FRunningContext, VHeapInt& X, VHeapInt& Y);
-	COREUOBJECT_API static VHeapInt* Multiply(FRunningContext, VHeapInt& X, VHeapInt& Y);
-	COREUOBJECT_API static VHeapInt* Divide(FRunningContext, VHeapInt& X, VHeapInt& Y, bool* bOutHasNonZeroRemainder = nullptr);
-	COREUOBJECT_API static VHeapInt* Modulo(FRunningContext, VHeapInt& X, VHeapInt& Y);
-	COREUOBJECT_API static VHeapInt* UnaryMinus(FRunningContext, VHeapInt& X);
+	COREUOBJECT_API static VHeapInt* Add(FAllocationContext, VHeapInt& X, VHeapInt& Y);
+	COREUOBJECT_API static VHeapInt* Sub(FAllocationContext, VHeapInt& X, VHeapInt& Y);
+	COREUOBJECT_API static VHeapInt* Multiply(FAllocationContext, VHeapInt& X, VHeapInt& Y);
+	COREUOBJECT_API static VHeapInt* Divide(FAllocationContext, VHeapInt& X, VHeapInt& Y, bool* bOutHasNonZeroRemainder = nullptr);
+	COREUOBJECT_API static VHeapInt* Modulo(FAllocationContext, VHeapInt& X, VHeapInt& Y);
+	// Note, modulo result is always positive, even where `Modulo` would produce a negative result.
+	COREUOBJECT_API static TTuple<VHeapInt*, Digit> DivideModulo(FAllocationContext, VHeapInt&, Digit);
+	COREUOBJECT_API static VHeapInt* UnaryMinus(FAllocationContext, VHeapInt& X);
 
 	enum class ComparisonResult
 	{
@@ -127,7 +129,7 @@ private:
 	void SetSign(bool NewSign) { Sign = NewSign; }
 
 	void SetDigit(const uint32 Index, Digit Value); // Use only when initializing.
-	VHeapInt* RightTrim(FRunningContext);
+	VHeapInt* RightTrim(FAllocationContext);
 
 	static VHeapInt* CreateFromImpl(FAllocationContext, uint64 Value, bool sign);
 
@@ -146,6 +148,7 @@ private:
 	static_assert(MaxLengthBits % DigitBits == 0);
 
 	static ComparisonResult AbsoluteCompare(const VHeapInt& X, const VHeapInt& Y);
+	static ComparisonResult AbsoluteCompare(const VHeapInt&, Digit);
 	static void MultiplyAccumulate(const VHeapInt& Multiplicand, Digit Multiplier, VHeapInt* Accumulator, uint32 AccumulatorIndex);
 
 	// Digit arithmetic helpers.
@@ -153,17 +156,17 @@ private:
 	static Digit DigitSub(Digit A, Digit B, Digit& Borrow);
 	static Digit DigitMul(Digit A, Digit B, Digit& High);
 
-	static VHeapInt* Copy(FRunningContext, const VHeapInt& X);
+	static VHeapInt* Copy(FAllocationContext, const VHeapInt& X);
 
-	static VHeapInt* AbsoluteAdd(FRunningContext, VHeapInt& X, VHeapInt& Y, bool ResultSign);
-	static VHeapInt* AbsoluteSub(FRunningContext, VHeapInt& X, VHeapInt& Y, bool ResultSign);
+	static VHeapInt* AbsoluteAdd(FAllocationContext, VHeapInt& X, VHeapInt& Y, bool ResultSign);
+	static VHeapInt* AbsoluteSub(FAllocationContext, VHeapInt& X, VHeapInt& Y, bool ResultSign);
 
 	Digit AbsoluteInplaceAdd(const VHeapInt& Summand, uint32 StartIndex);
 	Digit AbsoluteInplaceSub(const VHeapInt& Subtrahend, uint32 StartIndex);
 	void InplaceRightShift(uint32 Shift);
 
-	static bool AbsoluteDivWithDigitDivisor(FRunningContext Context, const VHeapInt& X, Digit Divisor, VHeapInt** Quotient, Digit& Remainder);
-	static void AbsoluteDivWithHeapIntDivisor(FRunningContext Context, const VHeapInt& Dividend, const VHeapInt& Divisor, VHeapInt** Quotient, VHeapInt** Remainder, bool* bOutHasNonZeroRemainder = nullptr);
+	static bool AbsoluteDivWithDigitDivisor(FAllocationContext Context, const VHeapInt& X, Digit Divisor, VHeapInt** Quotient, Digit& Remainder);
+	static void AbsoluteDivWithHeapIntDivisor(FAllocationContext Context, const VHeapInt& Dividend, const VHeapInt& Divisor, VHeapInt** Quotient, VHeapInt** Remainder, bool* bOutHasNonZeroRemainder = nullptr);
 	inline static Digit DigitDiv(Digit high, Digit low, Digit divisor, Digit& remainder);
 
 	enum class LeftShiftMode
@@ -172,7 +175,7 @@ private:
 		AlwaysAddOneDigit
 	};
 
-	static VHeapInt* AbsoluteLeftShiftAlwaysCopy(FRunningContext Context, const VHeapInt& X, uint32 Shift, LeftShiftMode Mode);
+	static VHeapInt* AbsoluteLeftShiftAlwaysCopy(FAllocationContext Context, const VHeapInt& X, uint32 Shift, LeftShiftMode Mode);
 	inline static bool ProductGreaterThan(Digit Factor1, Digit Factor2, Digit High, Digit Low);
 
 	static void InternalMultiplyAdd(const VHeapInt& Source, Digit Factor, Digit Summand, uint32 N, VHeapInt* Result);
@@ -210,7 +213,7 @@ inline uint32 GetTypeHash(const VHeapInt& HeapInt)
 
 	for (uint32 I = 0; I < HeapInt.GetLength(); I++)
 	{
-		::HashCombineFast(Result, ::GetTypeHash(HeapInt.GetDigit(I)));
+		Result = ::HashCombineFast(Result, ::GetTypeHash(HeapInt.GetDigit(I)));
 	}
 
 	return Result;

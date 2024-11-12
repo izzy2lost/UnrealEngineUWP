@@ -9,6 +9,7 @@
 #include "MoviePipelineSurfaceReader.h"
 #include "CanvasTypes.h"
 #include "MovieRenderOverlappedImage.h"
+#include "OpenColorIORendering.h"
 #include "Engine/RendererSettings.h"
 #include "UnrealClient.h"
 #include "SceneViewExtensionContext.h"
@@ -38,24 +39,17 @@ FSceneViewInitOptions FMovieGraphImagePassBase::CreateViewInitOptions(const UE::
 	ViewInitOptions.SetViewRectangle(FIntRect(FIntPoint(0, 0), RenderResolution));
 	ViewInitOptions.ViewRotationMatrix = FInverseRotationMatrix(InCameraInfo.ViewInfo.Rotation);
 	ViewInitOptions.ViewActor = InCameraInfo.ViewActor;
-	ViewInitOptions.ProjectionMatrix = InCameraInfo.ProjectionMatrix;
-
+	
 	// Rotate the view 90 degrees to match the rest of the engine.
 	ViewInitOptions.ViewRotationMatrix = ViewInitOptions.ViewRotationMatrix * FMatrix(
 		FPlane(0, 0, 1, 0),
 		FPlane(1, 0, 0, 0),
 		FPlane(0, 1, 0, 0),
 		FPlane(0, 0, 0, 1));
-	
-	float ViewFOV = InCameraInfo.ViewInfo.FOV;
-
-	// Inflate our FOV to support the overscan 
-	// ToDo: This is a duplicate of the logic in CalculateProjectionMatrix, should combine.
-	ViewFOV = 2.0f * FMath::RadiansToDegrees(FMath::Atan((1.0f + InCameraInfo.OverscanFraction) * FMath::Tan(FMath::DegreesToRadians( ViewFOV * 0.5f ))));
 
 	ViewInitOptions.SceneViewStateInterface = InViewStateRef.GetReference();
-	ViewInitOptions.FOV = ViewFOV;
-	ViewInitOptions.DesiredFOV = ViewFOV;
+	ViewInitOptions.FOV = InCameraInfo.ViewInfo.FOV;
+	ViewInitOptions.DesiredFOV = InCameraInfo.ViewInfo.FOV;
 	
 	return ViewInitOptions;
 }
@@ -69,7 +63,7 @@ FSceneView* FMovieGraphImagePassBase::CreateSceneView(const FSceneViewInitOption
 	InViewFamily->Views.Add(View);
 
 	View->StartFinalPostprocessSettings(InInitOptions.ViewLocation);
-	ApplyCameraManagerPostProcessBlends(View);
+	ApplyCameraManagerPostProcessBlends(View, InCameraInfo.ViewInfo, InCameraInfo.bUseCameraManagerPostProcess);
 
 	// Scaling sensor size inversely with the the projection matrix [0][0] should physically
 	// cause the circle of confusion to be unchanged.
@@ -78,10 +72,32 @@ FSceneView* FMovieGraphImagePassBase::CreateSceneView(const FSceneViewInitOption
 	View->LensPrincipalPointOffsetScale = CalculatePrinciplePointOffsetForTiling(InCameraInfo.TilingParams);
 	View->EndFinalPostprocessSettings(InInitOptions);
 
+	UE::MovieRenderPipeline::UpdateSceneViewForShowFlags(View);
+
+	for (int ViewExt = 0; ViewExt < InViewFamily->ViewExtensions.Num(); ViewExt++)
+	{
+		InViewFamily->ViewExtensions[ViewExt]->SetupView(*InViewFamily, *View);
+	}
+
 	return View;
 }
 
-void FMovieGraphImagePassBase::ApplyCameraManagerPostProcessBlends(FSceneView* InView) const
+DefaultRenderer::FRenderTargetInitParams FMovieGraphImagePassBase::GetRenderTargetInitParams(const FMovieGraphTimeStepData& InTimeData, const FIntPoint& InResolution)
+{
+	DefaultRenderer::FRenderTargetInitParams InitParams;
+
+	InitParams.Size = InResolution;
+
+	// OCIO: Since this is a manually created Render target we don't need Gamma to be applied.
+	// We use this render target to render to via a display extension that utilizes Display Gamma
+	// which has a default value of 2.2 (DefaultDisplayGamma), therefore we need to set Gamma on this render target to 2.2 to cancel out any unwanted effects.
+	InitParams.TargetGamma = FOpenColorIORendering::DefaultDisplayGamma;
+	InitParams.PixelFormat = PF_FloatRGBA;
+
+	return InitParams;
+}
+
+void FMovieGraphImagePassBase::ApplyCameraManagerPostProcessBlends(FSceneView* InView, const FMinimalViewInfo& InViewInfo, bool bUseCameraManagerPostProcess) const
 {
 	check(InView);
 
@@ -91,43 +107,49 @@ void FMovieGraphImagePassBase::ApplyCameraManagerPostProcessBlends(FSceneView* I
 		return;
 	}
 
-	APlayerController* LocalPlayerController = GraphRenderer->GetWorld()->GetFirstPlayerController();
-	// CameraAnim override
-	if (LocalPlayerController->PlayerCameraManager)
+	if (bUseCameraManagerPostProcess)
 	{
-		TArray<FPostProcessSettings> const* CameraAnimPPSettings;
-		TArray<float> const* CameraAnimPPBlendWeights;
-		LocalPlayerController->PlayerCameraManager->GetCachedPostProcessBlends(CameraAnimPPSettings, CameraAnimPPBlendWeights);
-
-		if (LocalPlayerController->PlayerCameraManager->bEnableFading)
+		APlayerController* LocalPlayerController = GraphRenderer->GetWorld()->GetFirstPlayerController();
+		// CameraAnim override
+		if (LocalPlayerController->PlayerCameraManager)
 		{
-			InView->OverlayColor = LocalPlayerController->PlayerCameraManager->FadeColor;
-			InView->OverlayColor.A = FMath::Clamp(LocalPlayerController->PlayerCameraManager->FadeAmount, 0.f, 1.f);
-		}
+			TArray<FPostProcessSettings> const* CameraAnimPPSettings;
+			TArray<float> const* CameraAnimPPBlendWeights;
+			LocalPlayerController->PlayerCameraManager->GetCachedPostProcessBlends(CameraAnimPPSettings, CameraAnimPPBlendWeights);
 
-		if (LocalPlayerController->PlayerCameraManager->bEnableColorScaling)
-		{
-			FVector ColorScale = LocalPlayerController->PlayerCameraManager->ColorScale;
-			InView->ColorScale = FLinearColor(ColorScale.X, ColorScale.Y, ColorScale.Z);
-		}
+			if (LocalPlayerController->PlayerCameraManager->bEnableFading)
+			{
+				InView->OverlayColor = LocalPlayerController->PlayerCameraManager->FadeColor;
+				InView->OverlayColor.A = FMath::Clamp(LocalPlayerController->PlayerCameraManager->FadeAmount, 0.f, 1.f);
+			}
 
-		FMinimalViewInfo ViewInfo = LocalPlayerController->PlayerCameraManager->GetCameraCacheView();
-		for (int32 PPIdx = 0; PPIdx < CameraAnimPPBlendWeights->Num(); ++PPIdx)
-		{
-			InView->OverridePostProcessSettings((*CameraAnimPPSettings)[PPIdx], (*CameraAnimPPBlendWeights)[PPIdx]);
-		}
+			if (LocalPlayerController->PlayerCameraManager->bEnableColorScaling)
+			{
+				FVector ColorScale = LocalPlayerController->PlayerCameraManager->ColorScale;
+				InView->ColorScale = FLinearColor(ColorScale.X, ColorScale.Y, ColorScale.Z);
+			}
 
-		InView->OverridePostProcessSettings(ViewInfo.PostProcessSettings, ViewInfo.PostProcessBlendWeight);
+			FMinimalViewInfo ViewInfo = LocalPlayerController->PlayerCameraManager->GetCameraCacheView();
+			for (int32 PPIdx = 0; PPIdx < CameraAnimPPBlendWeights->Num(); ++PPIdx)
+			{
+				InView->OverridePostProcessSettings((*CameraAnimPPSettings)[PPIdx], (*CameraAnimPPBlendWeights)[PPIdx]);
+			}
+
+			InView->OverridePostProcessSettings(ViewInfo.PostProcessSettings, ViewInfo.PostProcessBlendWeight);
+		}
+	}
+	else
+	{
+		UE::MoviePipeline::DoPostProcessBlend(InViewInfo.Location, GraphRenderer->GetWorld(), InViewInfo, InView);
 	}
 }
 
-TSharedRef<FSceneViewFamilyContext> FMovieGraphImagePassBase::CreateSceneViewFamily(const FViewFamilyInitData& InInitData, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const
+TSharedRef<FSceneViewFamilyContext> FMovieGraphImagePassBase::CreateSceneViewFamily(const FViewFamilyInitData& InInitData) const
 {
-
 	EViewModeIndex ViewModeIndex = InInitData.ViewModeIndex;
 	FEngineShowFlags ShowFlags = InInitData.ShowFlags;
 
-	const bool bIsPerspective = InCameraInfo.ViewInfo.ProjectionMode == ECameraProjectionMode::Type::Perspective;
+	const bool bIsPerspective = InInitData.ProjectionMode == ECameraProjectionMode::Type::Perspective;
 
 	// Allow the Engine Showflag system to override our engine showflags, based on our view mode index.
 	// This is required for certain debug view modes (to have matching show flags set for rendering).
@@ -146,15 +168,21 @@ TSharedRef<FSceneViewFamilyContext> FMovieGraphImagePassBase::CreateSceneViewFam
 	// Need to add the engine-wide view extensions, as rendering code may depend on them (ie: landscapes)
 	OutViewFamily->ViewExtensions.Append(GEngine->ViewExtensions->GatherActiveExtensions(FSceneViewExtensionContext(InInitData.World->Scene)));
 
+	for (FSceneViewExtensionRef& ViewExt : OutViewFamily->ViewExtensions)
+	{
+		ViewExt->SetupViewFamily(*OutViewFamily);
+	}
+
 	return OutViewFamily;
 }
+
+
 
 void FMovieGraphImagePassBase::ApplyMovieGraphOverridesToViewFamily(TSharedRef<FSceneViewFamilyContext> InOutFamily, const FViewFamilyInitData& InInitData) const
 {
 	// Used to specify if the Tone Curve is being applied or not to our Linear Output data
 	InOutFamily->SceneCaptureSource = InInitData.SceneCaptureSource;
 	InOutFamily->bWorldIsPaused = InInitData.bWorldIsPaused;
-	// InOutFamily->ViewMode = ViewModeIndex;
 	InOutFamily->bOverrideVirtualTextureThrottle = true;
 	
 	// We need to check if this is the first FSceneView being submitted to the renderer module, and set some flags on the ViewFamily for ensuring some
@@ -202,6 +230,8 @@ void FMovieGraphImagePassBase::ApplyMovieGraphOverridesToSceneView(TSharedRef<FS
 	// determinism with things like TAA.
 	FSceneView* View = const_cast<FSceneView*>(InOutFamily->Views[0]);
 	View->OverrideFrameIndexValue = InInitData.FrameIndex;
+	View->OverrideOutputFrameIndexValue = InInitData.TimeData.OutputFrameNumber;
+
 	// Each shot should initialize a scene history from scratch so there should be no need to do an extra camera cut flag.
 	View->bCameraCut = false; 
 	View->AntiAliasingMethod = InInitData.AntiAliasingMethod;
@@ -237,19 +267,6 @@ void FMovieGraphImagePassBase::ApplyMovieGraphOverridesToSceneView(TSharedRef<FS
 		}
 	}
 
-	// Orthographic cameras don't support anti-aliasing outside the path tracer (other than FXAA)
-	const bool bIsOrthographicCamera = !View->IsPerspectiveProjection();
-	if (bIsOrthographicCamera)
-	{
-		bool bIsSupportedAAMethod = View->AntiAliasingMethod == EAntiAliasingMethod::AAM_FXAA;
-		bool bIsPathTracer = InOutFamily->EngineShowFlags.PathTracing;
-		bool bWarnJitters = InCameraInfo.ProjectionMatrixJitterAmount.SquaredLength() > SMALL_NUMBER;
-		if ((!bIsPathTracer && !bIsSupportedAAMethod) || bWarnJitters)
-		{
-			UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Orthographic Cameras are only supported with PathTracer or Deferred with FXAA Anti-Aliasing"));
-		}
-	}
-
 	{
 		bool bMethodWasUnsupported = false;
 		if (View->AntiAliasingMethod == AAM_TemporalAA && !SupportsGen4TAA(View->GetShaderPlatform()))
@@ -273,8 +290,8 @@ void FMovieGraphImagePassBase::ApplyMovieGraphOverridesToSceneView(TSharedRef<FS
 	{
 		// If we're not using TAA, TSR, or Path Tracing we will apply the View Matrix projection jitter. Normally TAA sets this
 		// inside FSceneRenderer::PreVisibilityFrameSetup. Path Tracing does its own anti-aliasing internally.
-		bool bApplyProjectionJitter = !bIsOrthographicCamera
-			&& !InOutFamily->EngineShowFlags.PathTracing
+		bool bApplyProjectionJitter = 
+			   !InOutFamily->EngineShowFlags.PathTracing
 			&& !IsTemporalAccumulationBasedMethod(View->AntiAliasingMethod);
 		if (bApplyProjectionJitter)
 		{
@@ -283,116 +300,61 @@ void FMovieGraphImagePassBase::ApplyMovieGraphOverridesToSceneView(TSharedRef<FS
 	}
 }
 
-FMatrix FMovieGraphImagePassBase::CalculateProjectionMatrix(const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const
+void FMovieGraphImagePassBase::CalculateProjectionMatrix(UE::MovieGraph::DefaultRenderer::FCameraInfo& InOutCameraInfo, FSceneViewProjectionData& InOutProjectionData, const FIntPoint InBackbufferResolution, const FIntPoint InAccumulatorResolution) const
 {
-	// Calculate a Projection Matrix. This code unfortunately ends up similar to, but not quite the same as FMinimalViewInfo::CalculateProjectionMatrixGivenView
-	FMatrix BaseProjMatrix;
-	
 	// TileSize should respect the actual backbuffer size being used by the render.
-	float ViewRectWidth = InCameraInfo.TilingParams.TileSize.X;
-	float ViewRectHeight = InCameraInfo.TilingParams.TileSize.Y;
+	float ViewRectWidth = InBackbufferResolution.X;
+	float ViewRectHeight = InBackbufferResolution.Y;
+	FIntRect ViewRect = FIntRect(FIntPoint(0, 0), InBackbufferResolution);
 
 	const float DestAspectRatio = ViewRectWidth / ViewRectHeight;
-	const float CameraAspectRatio = InCameraInfo.bAllowCameraAspectRatio ? InCameraInfo.ViewInfo.AspectRatio : DestAspectRatio;
+	const float CameraAspectRatio = InOutCameraInfo.bAllowCameraAspectRatio ? InOutCameraInfo.ViewInfo.AspectRatio : DestAspectRatio;
 	
-	float ViewFOV = InCameraInfo.ViewInfo.FOV;
+	const int TotalTileCount = InOutCameraInfo.TilingParams.TileCount.X * InOutCameraInfo.TilingParams.TileCount.Y;
 
-	// Inflate our FOV to support the overscan 
-	ViewFOV = 2.0f * FMath::RadiansToDegrees(FMath::Atan((1.0f + InCameraInfo.OverscanFraction) * FMath::Tan(FMath::DegreesToRadians(ViewFOV * 0.5f))));
-	
-	if (InCameraInfo.ViewInfo.ProjectionMode == ECameraProjectionMode::Orthographic)
+	// If they're using high-resolution tiling we can't support letterboxing (as the blended areas we would render with
+	// would have been cropped via letterboxing), so to handle this scenario we disable aspect ratio constraints and then
+	// manually rescale the view (if needed) to mimick the effect of letterboxing.
+	TEnumAsByte<EAspectRatioAxisConstraint> AspectRatioAxisConstraint = InOutCameraInfo.ViewInfo.AspectRatioAxisConstraint.Get(EAspectRatioAxisConstraint::AspectRatio_MaintainXFOV);
+	if (TotalTileCount > 1 && InOutCameraInfo.ViewInfo.bConstrainAspectRatio)
 	{
-		const float YScale = 1.0f / InCameraInfo.ViewInfo.AspectRatio;
-		const float OverscanScale = 1.0f + (InCameraInfo.OverscanFraction);
+		if (CameraAspectRatio < DestAspectRatio)
+		{
+			AspectRatioAxisConstraint = EAspectRatioAxisConstraint::AspectRatio_MaintainYFOV;
+			InOutCameraInfo.ViewInfo.OrthoWidth *= (DestAspectRatio / CameraAspectRatio);
 
-		const float HalfOrthoWidth = (InCameraInfo.ViewInfo.OrthoWidth / 2.0f) * OverscanScale;
-		const float ScaledOrthoHeight = (InCameraInfo.ViewInfo.OrthoWidth / 2.0f) * OverscanScale * YScale;
+			// Off-center camera projections are calculated based on constrained aspect ratios, but those are disabled
+			// when using high-resolution tiling. This means that we need to scale the offset projection as well.
+			// 
+			// To calculate the required size change, we can look at an Aspect Ratio of 0.5 inside a square output, 
+			// ie: the rendered area is 1000 x 2000 for an output that is 2000x2000 (this is 0.5 of 1.0). With an
+			// off-center projection, an offset of 1.0 on X originally only moved by 500 pixels (1000x0.5), but with the aspect
+			// ratio constraint disabled, it now applies to the full output image (2000x0.5) resulting in a move that is twice as big.
+			// 
+			// To resolve this, we scale the offset by the CameraAspectRatio / DestAspectRatio, which is 0.5 / 1.0 for this example,
+			// meaning we multiply the user-intended offset (1.0) by 0.5, resulting in the originally desired 500px offset.
+			const double Ratio = CameraAspectRatio / DestAspectRatio; // ex: Ratio = 0.5 / 1
+			InOutCameraInfo.ViewInfo.OffCenterProjectionOffset.X *= Ratio;
+		}
+		else if (CameraAspectRatio > DestAspectRatio)
+		{
+			// Don't rescale the width and keep it X-constrained.
+			AspectRatioAxisConstraint = EAspectRatioAxisConstraint::AspectRatio_MaintainXFOV;
 
-		const float NearPlane = InCameraInfo.ViewInfo.OrthoNearClipPlane;
-		const float FarPlane = InCameraInfo.ViewInfo.OrthoFarClipPlane;
-
-		const float ZScale = 1.0f / (FarPlane - NearPlane);
-		const float ZOffset = -NearPlane;
-
-		BaseProjMatrix = FReversedZOrthoMatrix(
-			HalfOrthoWidth,
-			ScaledOrthoHeight,
-			ZScale,
-			ZOffset
-		);
+			// Like above, off-center projections need to be rescaled too.
+			const double Ratio = DestAspectRatio / CameraAspectRatio;
+			InOutCameraInfo.ViewInfo.OffCenterProjectionOffset.Y *= Ratio;
+		}
+		InOutCameraInfo.ViewInfo.bConstrainAspectRatio = false;
 	}
-	else
-	{
-		float XAxisMultiplier;
-		float YAxisMultiplier;
 
-		if (InCameraInfo.ViewInfo.bConstrainAspectRatio)
-		{
-			// If the camera's aspect ratio has a thinner width, then stretch the horizontal fov more than usual to 
-			// account for the extra with of (before constraining - after constraining)
-			if (InCameraInfo.ViewInfo.AspectRatio < DestAspectRatio)
-			{
-				const float ConstrainedWidth = ViewRectHeight * InCameraInfo.ViewInfo.AspectRatio;
-				XAxisMultiplier = ConstrainedWidth / (float)ViewRectWidth;
-				YAxisMultiplier = InCameraInfo.ViewInfo.AspectRatio;
-			}
-			// Simplified some math here but effectively functions similarly to the above, the unsimplified code would look like:
-			// const float ConstrainedHeight = ViewRectWidth / CameraCache.AspectRatio;
-			// YAxisMultiplier = (ConstrainedHeight / ViewInitOptions.GetViewRect.Height()) * CameraCache.AspectRatio;
-			else
-			{
-				XAxisMultiplier = 1.0f;
-				YAxisMultiplier = ViewRectWidth / ViewRectHeight;
-			}
-		}
-		else
-		{
-			const EAspectRatioAxisConstraint AspectRatioAxisConstraint = GetDefault<ULocalPlayer>()->AspectRatioAxisConstraint;
-			if (((ViewRectWidth > ViewRectHeight) && (AspectRatioAxisConstraint == AspectRatio_MajorAxisFOV)) || (AspectRatioAxisConstraint == AspectRatio_MaintainXFOV))
-			{
-				//if the viewport is wider than it is tall
-				XAxisMultiplier = 1.0f;
-				YAxisMultiplier = ViewRectWidth / ViewRectHeight;
-			}
-			else
-			{
-				//if the viewport is taller than it is wide
-				XAxisMultiplier = ViewRectHeight / ViewRectWidth;
-				YAxisMultiplier = 1.0f;
-			}
-		}
-
-		const float MinZ = InCameraInfo.ViewInfo.GetFinalPerspectiveNearClipPlane();
-		const float MaxZ = MinZ;
-		// Avoid zero ViewFOV's which cause divide by zero's in projection matrix
-		const float MatrixFOV = FMath::Max(0.001f, ViewFOV) * (float)PI / 360.0f;
+	FIntRect ViewExtents = FViewport::CalculateViewExtents(InOutCameraInfo.ViewInfo.AspectRatio, DestAspectRatio, ViewRect, InAccumulatorResolution);
 
 
-		if ((bool)ERHIZBuffer::IsInverted)
-		{
-			BaseProjMatrix = FReversedZPerspectiveMatrix(
-				MatrixFOV,
-				MatrixFOV,
-				XAxisMultiplier,
-				YAxisMultiplier,
-				MinZ,
-				MaxZ
-			);
-		}
-		else
-		{
-			BaseProjMatrix = FPerspectiveMatrix(
-				MatrixFOV,
-				MatrixFOV,
-				XAxisMultiplier,
-				YAxisMultiplier,
-				MinZ,
-				MaxZ
-			);
-		}
-	}
 	
-	return BaseProjMatrix;
+
+	// This function updates data in both the FMinimalViewInfo and the ProjectionData
+	FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(InOutCameraInfo.ViewInfo, AspectRatioAxisConstraint, ViewExtents, InOutProjectionData);
 }
 
 FVector4f FMovieGraphImagePassBase::CalculatePrinciplePointOffsetForTiling(const UE::MovieGraph::DefaultRenderer::FMovieGraphTilingParams& InTilingParams) const 
@@ -446,11 +408,18 @@ void FMovieGraphImagePassBase::ModifyProjectionMatrixForTiling(const UE::MovieGr
 
 	if (bInOrthographic)
 	{
+		// Scale the off-center projection matrix too so that it's appropriately sized down for each tile.
+		InOutProjectionMatrix.M[3][0] /= ScaleX;
+		InOutProjectionMatrix.M[3][1] /= ScaleY;
 		InOutProjectionMatrix.M[3][0] += OffsetX / PadRatioX;
 		InOutProjectionMatrix.M[3][1] += OffsetY / PadRatioY;
 	}
 	else
 	{
+		// Scale the off-center projection matrix too so that it's appropriately sized down for each tile.
+		InOutProjectionMatrix.M[2][0] /= ScaleX;
+		InOutProjectionMatrix.M[2][1] /= ScaleY;
+		// Then offset it for this particular tile.
 		InOutProjectionMatrix.M[2][0] += OffsetX / PadRatioX;
 		InOutProjectionMatrix.M[2][1] += OffsetY / PadRatioY;
 	}
@@ -459,7 +428,7 @@ void FMovieGraphImagePassBase::ModifyProjectionMatrixForTiling(const UE::MovieGr
 
 void FMovieGraphImagePassBase::PostRendererSubmission(
 	const UE::MovieGraph::FMovieGraphSampleState& InSampleState,
-	const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InRenderTargetInitParams, FCanvas& InCanvas, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo)
+	const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InRenderTargetInitParams, FCanvas& InCanvas, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const
 {
 	// We have a pool of accumulators - we multi-thread the accumulation on the task graph, and for each frame,
 	// the task has the previous samples as pre-reqs to keep the accumulation in order. However, each accumulator
@@ -471,37 +440,31 @@ void FMovieGraphImagePassBase::PostRendererSubmission(
 		return;
 	}
 
-	FMoviePipelineAccumulatorPoolPtr SampleAccumulatorPool = GraphRenderer->GetOrCreateAccumulatorPool<FImageOverlappedAccumulator>();
-	UE::MovieGraph::DefaultRenderer::FSurfaceAccumulatorPool::FInstancePtr AccumulatorInstance = SampleAccumulatorPool->GetAccumulatorInstance_GameThread<FImageOverlappedAccumulator>(InSampleState.TraversalContext.Time.OutputFrameNumber, InSampleState.TraversalContext.RenderDataIdentifier);
-	
 	FMoviePipelineSurfaceQueuePtr LocalSurfaceQueue = GraphRenderer->GetOrCreateSurfaceQueue(InRenderTargetInitParams);
 	LocalSurfaceQueue->BlockUntilAnyAvailable();
 
-	FMovieGraphRenderDataAccumulationArgs AccumulationArgs;
-	{
-		AccumulationArgs.OutputMerger = GraphRenderer->GetOwningGraph()->GetOutputMerger();
-		AccumulationArgs.ImageAccumulator = StaticCastSharedPtr<FImageOverlappedAccumulator>(AccumulatorInstance->Accumulator);
-		AccumulationArgs.bIsFirstSample = InSampleState.TraversalContext.Time.bIsFirstTemporalSampleForFrame;
-		AccumulationArgs.bIsLastSample = InSampleState.TraversalContext.Time.bIsLastTemporalSampleForFrame;
-	}
+	TSharedRef<FMovieGraphRenderDataAccumulationArgs> AccumulationArgs =
+		StaticCastSharedRef<FMovieGraphRenderDataAccumulationArgs>(GetOrCreateAccumulator(GraphRenderer, InSampleState));
 
-	auto OnSurfaceReadbackFinished = [this, InSampleState, AccumulationArgs, AccumulatorInstance](TUniquePtr<FImagePixelData>&& InPixelData)
+	auto OnSurfaceReadbackFinished = [this, InSampleState, AccumulationArgs](TUniquePtr<FImagePixelData>&& InPixelData)
 	{
-		UE::Tasks::TTask<void> Task = UE::Tasks::Launch(UE_SOURCE_LOCATION, [PixelData = MoveTemp(InPixelData), InSampleState, AccumulationArgs, AccumulatorInstance]() mutable
+		FAccumulatorSampleFunc AccumulateFunction = GetAccumulateSampleFunction();
+		
+		const UE::Tasks::TTask<void> Task = UE::Tasks::Launch(UE_SOURCE_LOCATION, [PixelData = MoveTemp(InPixelData), InSampleState, AccumulationArgs, AccumulateFunction]() mutable
 		{
 			// Enqueue a encode for this frame onto our worker thread.
-			AccumulateSample_TaskThread(MoveTemp(PixelData), InSampleState, AccumulationArgs);
+			AccumulateFunction(MoveTemp(PixelData), InSampleState, AccumulationArgs);
 
 			// We have to defer clearing the accumulator until after sample accumulation has finished
-			if (AccumulationArgs.bIsLastSample)
+			if (AccumulationArgs->bIsLastSample)
 			{
 				// Final sample has now been executed, free the accumulator for reuse.
-				AccumulatorInstance->SetIsActive(false);
+				AccumulationArgs->AccumulatorInstance->SetIsActive(false);
 			}
-		}, AccumulatorInstance->TaskPrereq);
+		}, AccumulationArgs->AccumulatorInstance->TaskPrereq);
 
 		// Make the next accumulation task that uses this accumulator use the task we just created as a pre-req.
-		AccumulatorInstance->TaskPrereq = Task;
+		AccumulationArgs->AccumulatorInstance->TaskPrereq = Task;
 
 		// Because we're run on a separate thread, we need to check validity differently. The standard
 		// TWeakObjectPtr will report non-valid during GC (even if the object it's pointing to isn't being
@@ -541,24 +504,15 @@ TFunction<void(TUniquePtr<FImagePixelData>&&)> FMovieGraphImagePassBase::MakeFor
 	{
 		return nullptr;
 	}
-	
-	FMoviePipelineAccumulatorPoolPtr SampleAccumulator = GraphRenderer->GetOrCreateAccumulatorPool<FImageOverlappedAccumulator>();
-	UE::MovieGraph::DefaultRenderer::FSurfaceAccumulatorPool::FInstancePtr AccumulatorInstance =
-		SampleAccumulator->GetAccumulatorInstance_GameThread<FImageOverlappedAccumulator>(
-			InTimeData.RenderedFrameNumber, InSampleState.TraversalContext.RenderDataIdentifier);
-	
-	FMovieGraphRenderDataAccumulationArgs AccumulationArgs;
-	{
-		AccumulationArgs.OutputMerger = GraphRenderer->GetOwningGraph()->GetOutputMerger();
-		AccumulationArgs.ImageAccumulator = StaticCastSharedPtr<FImageOverlappedAccumulator>(AccumulatorInstance->Accumulator);
-		AccumulationArgs.bIsFirstSample = InTimeData.bIsFirstTemporalSampleForFrame;
-		AccumulationArgs.bIsLastSample = InTimeData.bIsLastTemporalSampleForFrame;
-	}
+		
+	// TODO: Is this correct? The prior code is *slightly* different.
+	TSharedRef<FMovieGraphRenderDataAccumulationArgs> AccumulationArgs =
+		StaticCastSharedRef<FMovieGraphRenderDataAccumulationArgs>(GetOrCreateAccumulator(GraphRenderer, InSampleState));
 
 	// The legacy surface reader takes the payload just so it can shuffle it into our callback, but we can just include the data
 	// directly in the callback, so this is just a dummy payload.
 	TSharedRef<FImagePixelDataPayload, ESPMode::ThreadSafe> FramePayload = MakeShared<FImagePixelDataPayload, ESPMode::ThreadSafe>();
-	auto Callback = [this, InSampleState, FramePayload, AccumulationArgs, AccumulatorInstance](TUniquePtr<FImagePixelData>&& InPixelData)
+	auto Callback = [this, InSampleState, FramePayload, AccumulationArgs](TUniquePtr<FImagePixelData>&& InPixelData)
 	{
 		// Transfer the framePayload to the returned data
 		TUniquePtr<FImagePixelData> PixelDataWithPayload = nullptr;
@@ -586,27 +540,49 @@ TFunction<void(TUniquePtr<FImagePixelData>&&)> FMovieGraphImagePassBase::MakeFor
 			checkNoEntry();
 		}
 
-		UE::Tasks::TTask<void> Task = UE::Tasks::Launch(UE_SOURCE_LOCATION, [PixelData = MoveTemp(PixelDataWithPayload), InSampleState, AccumulationArgs, AccumulatorInstance]() mutable
+		FAccumulatorSampleFunc AccumulateFunction = GetAccumulateSampleFunction();
+
+		UE::Tasks::TTask<void> Task = UE::Tasks::Launch(UE_SOURCE_LOCATION, [PixelData = MoveTemp(PixelDataWithPayload), InSampleState, AccumulationArgs, AccumulateFunction]() mutable
 		{
 			// Enqueue a encode for this frame onto our worker thread.
-			AccumulateSample_TaskThread(MoveTemp(PixelData), InSampleState, AccumulationArgs);
+			AccumulateFunction(MoveTemp(PixelData), InSampleState, AccumulationArgs);
 
 			// We have to defer clearing the accumulator until after sample accumulation has finished
-			if (AccumulationArgs.bIsLastSample)
+			if (AccumulationArgs->bIsLastSample)
 			{
 				// Final sample has now been executed, free the accumulator for reuse.
-				AccumulatorInstance->SetIsActive(false);
+				AccumulationArgs->AccumulatorInstance->SetIsActive(false);
 			}
-		}, AccumulatorInstance->TaskPrereq);
+		}, AccumulationArgs->AccumulatorInstance->TaskPrereq);
 
 		// Make the next accumulation task that uses this accumulator use the task we just created as a pre-req.
-		AccumulatorInstance->TaskPrereq = Task;
+		AccumulationArgs->AccumulatorInstance->TaskPrereq = Task;
 	};
 
 	return Callback;
 }
 
-void AccumulateSample_TaskThread(TUniquePtr<FImagePixelData>&& InPixelData, const ::UE::MovieGraph::FMovieGraphSampleState InSampleState, const FMovieGraphRenderDataAccumulationArgs& InAccumulationParams)
+TSharedRef<::MoviePipeline::IMoviePipelineAccumulationArgs> FMovieGraphImagePassBase::GetOrCreateAccumulator(const TObjectPtr<UMovieGraphDefaultRenderer> InGraphRenderer, const FMovieGraphSampleState& InSampleState) const
+{
+	const FMoviePipelineAccumulatorPoolPtr SampleAccumulatorPool = InGraphRenderer->GetOrCreateAccumulatorPool<FImageOverlappedAccumulator>();
+	const DefaultRenderer::FSurfaceAccumulatorPool::FInstancePtr AccumulatorInstance = SampleAccumulatorPool->GetAccumulatorInstance_GameThread<FImageOverlappedAccumulator>(InSampleState.TraversalContext.Time.OutputFrameNumber, InSampleState.TraversalContext.RenderDataIdentifier);
+
+	TSharedRef<FMovieGraphRenderDataAccumulationArgs> AccumulationArgs = MakeShared<FMovieGraphRenderDataAccumulationArgs>();
+	AccumulationArgs->OutputMerger = InGraphRenderer->GetOwningGraph()->GetOutputMerger();
+	AccumulationArgs->ImageAccumulator = StaticCastSharedPtr<FImageOverlappedAccumulator>(AccumulatorInstance->Accumulator);
+	AccumulationArgs->AccumulatorInstance = SampleAccumulatorPool->GetAccumulatorInstance_GameThread<FImageOverlappedAccumulator>(InSampleState.TraversalContext.Time.OutputFrameNumber, InSampleState.TraversalContext.RenderDataIdentifier);
+	AccumulationArgs->bIsFirstSample = InSampleState.TraversalContext.Time.bIsFirstTemporalSampleForFrame;
+	AccumulationArgs->bIsLastSample = InSampleState.TraversalContext.Time.bIsLastTemporalSampleForFrame;
+
+	return AccumulationArgs;
+}
+
+FMovieGraphImagePassBase::FAccumulatorSampleFunc FMovieGraphImagePassBase::GetAccumulateSampleFunction() const
+{
+	return AccumulateSample_TaskThread;
+}
+
+void AccumulateSample_TaskThread(TUniquePtr<FImagePixelData>&& InPixelData, const ::UE::MovieGraph::FMovieGraphSampleState InSampleState, const TSharedRef<::MoviePipeline::IMoviePipelineAccumulationArgs> InAccumulatorArgs)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(MoviePipeline_AccumulateSample);
 		
@@ -617,7 +593,9 @@ void AccumulateSample_TaskThread(TUniquePtr<FImagePixelData>&& InPixelData, cons
 	TSharedPtr<FMovieGraphSampleState> SampleStatePayload = MakeShared<FMovieGraphSampleState>(InSampleState);
 	SamplePixelData->SetPayload(StaticCastSharedPtr<IImagePixelDataPayload>(SampleStatePayload));
 
-	TSharedPtr<IMovieGraphOutputMerger, ESPMode::ThreadSafe> OutputMergerPin = InAccumulationParams.OutputMerger.Pin();
+	const TSharedRef<FMovieGraphRenderDataAccumulationArgs, ESPMode::ThreadSafe> AccumulatorArgs = StaticCastSharedRef<FMovieGraphRenderDataAccumulationArgs>(InAccumulatorArgs);
+
+	const TSharedPtr<IMovieGraphOutputMerger, ESPMode::ThreadSafe> OutputMergerPin = AccumulatorArgs->OutputMerger.Pin();
 	if (!OutputMergerPin.IsValid())
 	{
 		return;
@@ -642,7 +620,7 @@ void AccumulateSample_TaskThread(TUniquePtr<FImagePixelData>&& InPixelData, cons
 		return;
 	}
 
-	TSharedPtr<FImageOverlappedAccumulator> AccumulatorPin = InAccumulationParams.ImageAccumulator.Pin();
+	const TSharedPtr<FImageOverlappedAccumulator> AccumulatorPin = StaticCastWeakPtr<FImageOverlappedAccumulator>(AccumulatorArgs->ImageAccumulator).Pin();
 	if (AccumulatorPin->NumChannels == 0)
 	{
 		LLM_SCOPE_BYNAME(TEXT("MoviePipeline/ImageAccumulatorInitMemory"));

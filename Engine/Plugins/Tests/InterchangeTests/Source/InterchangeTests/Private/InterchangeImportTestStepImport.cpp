@@ -19,6 +19,30 @@ TTuple<UE::Interchange::FAssetImportResultPtr, UE::Interchange::FSceneImportResu
 	// Empty the destination folder here if requested
 	if (bEmptyDestinationFolderPriorToImport)
 	{
+		for (UObject* AssetObject : Data.ResultObjects)
+		{
+			UPackage* PackageObject = AssetObject->GetPackage();
+			if (!ensure(PackageObject))
+			{
+				continue;
+			}
+			// Mark all objects in the package as garbage, and remove the standalone flag, so that GC can remove the temporary asset later
+			//Also rename them so we dont found them if we re-import the same file at the same place
+			TArray<UObject*> ObjectsInPackage;
+			GetObjectsWithPackage(PackageObject, ObjectsInPackage, true);
+			for (UObject* ObjectInPackage : ObjectsInPackage)
+			{
+				//Do not rename actors
+				if (!ObjectInPackage->IsA<AActor>())
+				{
+					const ERenameFlags RenameFlags = REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty;
+					ObjectInPackage->Rename(nullptr, nullptr, RenameFlags);
+				}
+				ObjectInPackage->ClearFlags(RF_Standalone | RF_Public);
+				ObjectInPackage->MarkAsGarbage();
+			}
+		}
+
 		Data.ResultObjects.Empty();
 		Data.ImportedAssets.Empty();
 
@@ -123,7 +147,7 @@ FTestStepResults UInterchangeImportTestStepImport::FinishStep(FInterchangeImport
 			// Renaming the original objects avoids having to do a GC sweep here (this is done at the end of each test step)
 			// Any existing references to them will be retained but irrelevant.
 			// Then the new object can be loaded in their place, as if it were being loaded for the first time.
-			const ERenameFlags RenameFlags = REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty;
+			const ERenameFlags RenameFlags = REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty;
 			PackageObject->Rename(*(PackageObject->GetName() + TEXT("_TRASH")), nullptr, RenameFlags);
 			PackageObject->RemoveFromRoot();
 			PackageObject->MarkAsGarbage();

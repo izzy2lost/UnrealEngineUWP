@@ -74,6 +74,9 @@ public:
 	
 	void CreateNewProfile();
 	FReply OnProfileSelected(FName InProfileName);
+
+	bool CanAddChannel();
+	void AddChannel();
 	
 protected:
 	void RegisterApplicationModes();

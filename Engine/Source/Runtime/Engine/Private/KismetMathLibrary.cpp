@@ -15,12 +15,14 @@
 #include "Misc/QualifiedFrameTime.h"
 #include "Templates/SubclassOf.h"
 
+#include <type_traits>
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(KismetMathLibrary)
 
 #define LOCTEXT_NAMESPACE "UKismetMathLibrary"
 
 /** Interpolate a linear alpha value using an ease mode and function. */
-template<typename FloatType, TEMPLATE_REQUIRES(TIsFloatingPoint<FloatType>::Value)>
+template<typename FloatType UE_REQUIRES(std::is_floating_point_v<FloatType>)>
 FloatType EaseAlpha(FloatType InAlpha, uint8 EasingFunc, FloatType BlendExp, int32 Steps)
 {
 	switch (EasingFunc)
@@ -254,26 +256,6 @@ double UKismetMathLibrary::Log(double A, double Base)
 	{
 		Result = FMath::Loge(A) / FMath::Loge(Base);
 	}
-	return Result;
-}
-
-int32 UKismetMathLibrary::FMod(float Dividend, float Divisor, float& Remainder)
-{
-	int32 Result;
-	if (Divisor != 0.f)
-	{
-		const float Quotient = Dividend / Divisor;
-		Result = (Quotient < 0.f ? -1 : 1) * FMath::FloorToInt32(FMath::Abs(Quotient));
-		Remainder = FMath::Fmod(Dividend, Divisor);
-	}
-	else
-	{
-		FFrame::KismetExecutionMessage(TEXT("Attempted modulo 0 - returning 0."), ELogVerbosity::Warning, DivideByZeroWarning);
-
-		Result = 0;
-		Remainder = 0.f;
-	}
-
 	return Result;
 }
 
@@ -1151,108 +1133,6 @@ void UKismetMathLibrary::SeedRandomStream(FRandomStream& Stream)
 void UKismetMathLibrary::SetRandomStreamSeed(FRandomStream& Stream, int32 NewSeed)
 {
 	Stream.Initialize(NewSeed);
-}
-
-void UKismetMathLibrary::MinimumAreaRectangle(class UObject* WorldContextObject, const TArray<FVector>& InVerts, const FVector& SampleSurfaceNormal, FVector& OutRectCenter, FRotator& OutRectRotation, float& OutSideLengthX, float& OutSideLengthY, bool bDebugDraw)
-{
-	float MinArea = -1.f;
-	float CurrentArea = -1.f;
-	FVector SupportVectorA, SupportVectorB;
-	FVector RectSideA, RectSideB;
-	float MinDotResultA, MinDotResultB, MaxDotResultA, MaxDotResultB;
-	FVector TestEdge;
-	float TestEdgeDot = 0.f;
-	FVector PolyNormal(0.f, 0.f, 1.f);
-	TArray<int32> PolyVertIndices;
-
-	// Bail if we receive an empty InVerts array
-	if (InVerts.Num() == 0)
-	{
-		return;
-	}
-
-	// Compute the approximate normal of the poly, using the direction of SampleSurfaceNormal for guidance
-	PolyNormal = (InVerts[InVerts.Num() / 3] - InVerts[0]) ^ (InVerts[InVerts.Num() * 2 / 3] - InVerts[InVerts.Num() / 3]);
-	if ((PolyNormal | SampleSurfaceNormal) < 0.f)
-	{
-		PolyNormal = -PolyNormal;
-	}
-
-	// Transform the sample points to 2D
-	FMatrix SurfaceNormalMatrix = FRotationMatrix::MakeFromZX(PolyNormal, FVector(1.f, 0.f, 0.f));
-	TArray<FVector> TransformedVerts;
-	OutRectCenter = FVector(0.f);
-	for (int32 Idx = 0; Idx < InVerts.Num(); ++Idx)
-	{
-		OutRectCenter += InVerts[Idx];
-		TransformedVerts.Add(SurfaceNormalMatrix.InverseTransformVector(InVerts[Idx]));
-	}
-	OutRectCenter /= InVerts.Num();
-
-	// Compute the convex hull of the sample points
-	ConvexHull2D::ComputeConvexHullLegacy(TransformedVerts, PolyVertIndices);
-
-	// Minimum area rectangle as computed by http://www.geometrictools.com/Documentation/MinimumAreaRectangle.pdf
-	for (int32 Idx = 1; Idx < PolyVertIndices.Num() - 1; ++Idx)
-	{
-		SupportVectorA = (TransformedVerts[PolyVertIndices[Idx]] - TransformedVerts[PolyVertIndices[Idx-1]]).GetSafeNormal();
-		SupportVectorA.Z = 0.f;
-		SupportVectorB.X = -SupportVectorA.Y;
-		SupportVectorB.Y = SupportVectorA.X;
-		SupportVectorB.Z = 0.f;
-		MinDotResultA = MinDotResultB = MaxDotResultA = MaxDotResultB = 0.f;
-
-		for (int TestVertIdx = 1; TestVertIdx < PolyVertIndices.Num(); ++TestVertIdx)
-		{
-			TestEdge = TransformedVerts[PolyVertIndices[TestVertIdx]] - TransformedVerts[PolyVertIndices[0]];
-			TestEdgeDot = SupportVectorA | TestEdge;
-			if (TestEdgeDot < MinDotResultA)
-			{
-				MinDotResultA = TestEdgeDot;
-			}
-			else if (TestEdgeDot > MaxDotResultA)
-			{
-				MaxDotResultA = TestEdgeDot;
-			}
-
-			TestEdgeDot = SupportVectorB | TestEdge;
-			if (TestEdgeDot < MinDotResultB)
-			{
-				MinDotResultB = TestEdgeDot;
-			}
-			else if (TestEdgeDot > MaxDotResultB)
-			{
-				MaxDotResultB = TestEdgeDot;
-			}
-		}
-
-		CurrentArea = (MaxDotResultA - MinDotResultA) * (MaxDotResultB - MinDotResultB);
-		if (MinArea < 0.f || CurrentArea < MinArea)
-		{
-			MinArea = CurrentArea;
-			RectSideA = SupportVectorA * (MaxDotResultA - MinDotResultA);
-			RectSideB = SupportVectorB * (MaxDotResultB - MinDotResultB);
-		}
-	}
-
-	RectSideA = SurfaceNormalMatrix.TransformVector(RectSideA);
-	RectSideB = SurfaceNormalMatrix.TransformVector(RectSideB);
-	OutRectRotation = FRotationMatrix::MakeFromZX(PolyNormal, RectSideA).Rotator();
-	OutSideLengthX = RectSideA.Size();
-	OutSideLengthY = RectSideB.Size();
-
-#if ENABLE_DRAW_DEBUG
-	if (bDebugDraw)
-	{
-		if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
-		{
-			DrawDebugSphere(World, OutRectCenter, 10.f, 12, FColor::Yellow, true);
-			DrawDebugCoordinateSystem(World, OutRectCenter, SurfaceNormalMatrix.Rotator(), 100.f, true);
-			DrawDebugLine(World, OutRectCenter - RectSideA * 0.5f + FVector(0, 0, 10.f), OutRectCenter + RectSideA * 0.5f + FVector(0, 0, 10.f), FColor::Green, true, -1, 0, 5.f);
-			DrawDebugLine(World, OutRectCenter - RectSideB * 0.5f + FVector(0, 0, 10.f), OutRectCenter + RectSideB * 0.5f + FVector(0, 0, 10.f), FColor::Blue, true, -1, 0, 5.f);
-		}
-	}
-#endif
 }
 
 void UKismetMathLibrary::MinAreaRectangle(class UObject* WorldContextObject, const TArray<FVector>& InPoints, const FVector& SampleSurfaceNormal,

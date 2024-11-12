@@ -63,6 +63,7 @@
 #include "Styling/ToolBarStyle.h"
 #include "PlatformInfo.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "ViewportToolbar/LevelEditorViewportToolbarSections.h"
 
 FName FLevelEditorToolBar::SecondaryModeToolbarName("LevelEditor.SecondaryToolbar");
 
@@ -80,15 +81,13 @@ namespace PreviewModeFunctionality
 	FText GetPreviewModeTooltip()
 	{
 #define LOCTEXT_NAMESPACE "LevelEditorToolBar"
-		EShaderPlatform PreviewShaderPlatform = GEditor->PreviewPlatform.PreviewShaderPlatformName != NAME_None ?
-			FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(GEditor->PreviewPlatform.PreviewShaderPlatformName) :
-			GetFeatureLevelShaderPlatform(GEditor->PreviewPlatform.PreviewFeatureLevel);
+		EShaderPlatform PreviewShaderPlatform = GEditor->PreviewPlatform.GetShaderPlatform();
 
 		EShaderPlatform MaxRHIFeatureLevelPlatform = GetFeatureLevelShaderPlatform(GMaxRHIFeatureLevel);
 
 		{
-			const FText& RenderingAsPlatformName = FDataDrivenShaderPlatformInfo::GetFriendlyName(GEditor->PreviewPlatform.bPreviewFeatureLevelActive ? PreviewShaderPlatform : MaxRHIFeatureLevelPlatform);
-			const FText& SwitchToPlatformName = FDataDrivenShaderPlatformInfo::GetFriendlyName(GEditor->PreviewPlatform.bPreviewFeatureLevelActive ? MaxRHIFeatureLevelPlatform : PreviewShaderPlatform);
+			const FText& RenderingAsPlatformName = GEditor->PreviewPlatform.bPreviewFeatureLevelActive ? GEditor->PreviewPlatform.GetFriendlyName() : FDataDrivenShaderPlatformInfo::GetFriendlyName(MaxRHIFeatureLevelPlatform);
+			const FText& SwitchToPlatformName = GEditor->PreviewPlatform.bPreviewFeatureLevelActive ? FDataDrivenShaderPlatformInfo::GetFriendlyName(MaxRHIFeatureLevelPlatform) :GEditor->PreviewPlatform.GetFriendlyName();
 			if (PreviewShaderPlatform == MaxRHIFeatureLevelPlatform)
 			{
 				return FText::Format(LOCTEXT("PreviewModeViewingAs", "Viewing {0}."), RenderingAsPlatformName);
@@ -109,7 +108,7 @@ namespace PreviewModeFunctionality
 	{
 		const FPreviewPlatformMenuItem* Item = FDataDrivenPlatformInfoRegistry::GetAllPreviewPlatformMenuItems().FindByPredicate([](const FPreviewPlatformMenuItem& TestItem)
 			{
-				return GEditor->PreviewPlatform.PreviewPlatformName == TestItem.PlatformName && GEditor->PreviewPlatform.PreviewShaderFormatName == TestItem.ShaderFormat && GEditor->PreviewPlatform.PreviewShaderPlatformName == TestItem.PreviewShaderPlatformName;
+				return GEditor->PreviewPlatform.PreviewPlatformName == TestItem.PlatformName;
 			});
 		if (Item)
 		{
@@ -388,6 +387,10 @@ namespace LevelEditorActionHelpers
 	 */
 	void GetSelectSettingsClassSubMenu(UToolMenu* InMenu, UClass* InRootClass, FOnClassPicked InOnClassPicked)
 	{
+		// The contents of this menu are added as a custom widget with its own search field so we
+		// disable searching in this parent menu to avoid displaying two search fields to the user.
+		InMenu->bSearchable = false;
+
 		FClassViewerInitializationOptions Options;
 		Options.Mode = EClassViewerMode::ClassPicker;
 		Options.DisplayMode = EClassViewerDisplayMode::ListView;
@@ -421,6 +424,10 @@ namespace LevelEditorActionHelpers
 	 */
 	void GetCreateSettingsClassSubMenu(UToolMenu* InMenu, UClass* InRootClass, FOnClassPicked InOnClassPicked)
 	{
+		// The contents of this menu are added as a custom widget with its own search field so we
+		// disable searching in this parent menu to avoid displaying two search fields to the user.
+		InMenu->bSearchable = false;
+
 		FClassViewerInitializationOptions Options;
 		Options.Mode = EClassViewerMode::ClassPicker;
 		Options.DisplayMode = EClassViewerDisplayMode::ListView;
@@ -605,8 +612,8 @@ namespace LevelEditorActionHelpers
 #define LOCTEXT_NAMESPACE "LevelToolBarViewMenu"
 		Section.AddDynamicEntry(InName, FNewToolMenuSectionDelegate::CreateLambda([=](FToolMenuSection& InSection)
 		{
-			ULevelEditorMenuContext* Context = InSection.FindContext<ULevelEditorMenuContext>();
-			if (Context && Context->LevelEditor.IsValid())
+			if (ULevelEditorMenuContext* const Context = InSection.FindContext<ULevelEditorMenuContext>();
+			Context && Context->LevelEditor.IsValid())
 			{
 				LevelEditorActionHelpers::FBlueprintMenuSettings GameModeMenuSettings;
 				GameModeMenuSettings.EditCommand =
@@ -1642,32 +1649,6 @@ TSharedRef< SWidget > FLevelEditorToolBar::MakeLevelEditorToolBar( const TShared
 		];
 }
 
-static void MakeMaterialQualityLevelMenu( UToolMenu* InMenu )
-{
-	{
-		FToolMenuSection& Section = InMenu->AddSection("LevelEditorMaterialQualityLevel", NSLOCTEXT( "LevelToolBarViewMenu", "MaterialQualityLevelHeading", "Material Quality Level" ) );
-		Section.AddMenuEntry(FLevelEditorCommands::Get().MaterialQualityLevel_Low);
-		Section.AddMenuEntry(FLevelEditorCommands::Get().MaterialQualityLevel_Medium);
-		Section.AddMenuEntry(FLevelEditorCommands::Get().MaterialQualityLevel_High);
-		Section.AddMenuEntry(FLevelEditorCommands::Get().MaterialQualityLevel_Epic);
-	}
-}
-
-static void MakeShaderModelPreviewMenu( UToolMenu* InMenu )
-{
-#define LOCTEXT_NAMESPACE "LevelToolBarViewMenu"
-
-	FToolMenuSection& Section = InMenu->AddSection("EditorPreviewMode", LOCTEXT("EditorPreviewModeDevices", "Preview Devices"));
-
-	// Preview platforms discovered from ITargetPlatforms.
-	for (auto& Item : FLevelEditorCommands::Get().PreviewPlatformOverrides)
-	{
-		Section.AddMenuEntry(Item);
-	}
-
-#undef LOCTEXT_NAMESPACE
-}
-
 static void MakeScalabilityMenu( UToolMenu* InMenu )
 {
 	{
@@ -1766,37 +1747,15 @@ void FLevelEditorToolBar::RegisterQuickSettingsMenu()
 			LOCTEXT( "ScalabilitySubMenu_ToolTip", "Open the engine scalability settings" ),
 			FNewToolMenuDelegate::CreateStatic( &MakeScalabilityMenu ) );
 
-		Section.AddSubMenu(
-			"MaterialQualityLevel",
-			LOCTEXT( "MaterialQualityLevelSubMenu", "Material Quality Level" ),
-			LOCTEXT( "MaterialQualityLevelSubMenu_ToolTip", "Sets the value of the CVar \"r.MaterialQualityLevel\" (low=0, high=1, medium=2, Epic=3). This affects materials via the QualitySwitch material expression." ),
-			FNewToolMenuDelegate::CreateStatic( &MakeMaterialQualityLevelMenu ) );
-
-		Section.AddSubMenu(
-			"FeatureLevelPreview",
-			LOCTEXT("PreviewPlatformSubMenu", "Preview Platform"),
-			LOCTEXT("PreviewPlatformSubMenu_ToolTip", "Sets the preview platform used by the main editor"),
-			FNewToolMenuDelegate::CreateStatic(&MakeShaderModelPreviewMenu));
+		Section.AddEntry(UE::LevelEditor::CreateMaterialQualityLevelSubmenu());
+		Section.AddEntry(UE::LevelEditor::CreateFeatureLevelPreviewSubmenu());
 	}
 
 	{
 		FToolMenuSection& Section = Menu->AddSection("LevelEditorAudio", LOCTEXT("AudioHeading", "Real Time Audio") );
-		TSharedRef<SWidget> VolumeItem = SNew(SHorizontalBox)
-											+SHorizontalBox::Slot()
-											.FillWidth(0.9f)
-											.Padding( FMargin(2.0f, 0.0f, 0.0f, 0.0f) )
-											[
-												SNew(SVolumeControl)
-												.ToolTipText_Static(&FLevelEditorActionCallbacks::GetAudioVolumeToolTip)
-												.Volume_Static(&FLevelEditorActionCallbacks::GetAudioVolume)
-												.OnVolumeChanged_Static(&FLevelEditorActionCallbacks::OnAudioVolumeChanged)
-												.Muted_Static(&FLevelEditorActionCallbacks::GetAudioMuted)
-												.OnMuteChanged_Static(&FLevelEditorActionCallbacks::OnAudioMutedChanged)
-											]
-											+SHorizontalBox::Slot()
-											.FillWidth(0.1f);
 
-		Section.AddEntry(FToolMenuEntry::InitWidget("Volume", VolumeItem, LOCTEXT("VolumeControlLabel","Volume")));
+		Section.AddEntry(FToolMenuEntry::InitWidget(
+			"Volume", UE::LevelEditor::BuildVolumeControlCustomWidget(), LOCTEXT("VolumeControlLabel", "Volume")));
 	}
 
 	{
@@ -1929,6 +1888,10 @@ void FLevelEditorToolBar::RegisterOpenBlueprintMenu()
 		/** Generates 'open blueprint' sub-menu */
 		static void MakeOpenBPClassMenu(UToolMenu* InMenu)
 		{
+			// The contents of this menu are added as a custom widget with its own search field so we
+			// disable searching in this parent menu to avoid displaying two search fields to the user.
+			InMenu->bSearchable = false;
+
 			FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 
 			// Configure filter for asset picker

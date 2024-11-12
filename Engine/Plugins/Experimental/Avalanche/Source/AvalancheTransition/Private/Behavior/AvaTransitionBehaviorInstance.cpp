@@ -39,6 +39,15 @@ IAvaTransitionBehavior* FAvaTransitionBehaviorInstance::GetBehavior() const
 	return BehaviorWeak.Get();
 }
 
+const UAvaTransitionTree* FAvaTransitionBehaviorInstance::GetTransitionTree() const
+{
+	if (const IAvaTransitionBehavior* Behavior = GetBehavior())
+	{
+		return Behavior->GetTransitionTree();
+	}
+	return nullptr;
+}
+
 FAvaTagHandle FAvaTransitionBehaviorInstance::GetTransitionLayer() const
 {
 	return TransitionContext.GetTransitionLayer();
@@ -64,6 +73,11 @@ FAvaTransitionContext& FAvaTransitionBehaviorInstance::GetTransitionContext()
 	return TransitionContext;
 }
 
+FAvaTransitionSceneOwner FAvaTransitionBehaviorInstance::GetTransitionSceneOwner() const
+{
+	return TransitionSceneOwner;
+}
+
 void FAvaTransitionBehaviorInstance::SetTransitionType(EAvaTransitionType InTransitionType)
 {
 	TransitionContext.TransitionType = InTransitionType;
@@ -71,18 +85,15 @@ void FAvaTransitionBehaviorInstance::SetTransitionType(EAvaTransitionType InTran
 
 bool FAvaTransitionBehaviorInstance::Setup()
 {
-	RunStatus = EStateTreeRunStatus::Unset;
+	// Mark Run Status as running on setup so that on start all the nodes are on this status,
+	// even if their state tree hasn't started yet
+	RunStatus = EStateTreeRunStatus::Running;
 	TOptional<FAvaTransitionExecutionContext> Context = UpdateContext();
 	return Context.IsSet();
 }
 
 void FAvaTransitionBehaviorInstance::Start()
 {
-	if (RunStatus != EStateTreeRunStatus::Unset)
-	{
-		return;
-	}
-
 	// If this Instance is not Enabled for Transition, finish immediately
 	if (!IsEnabled())
 	{
@@ -145,6 +156,11 @@ void FAvaTransitionBehaviorInstance::SetOverrideLayer(const FAvaTagHandle& InOve
 void FAvaTransitionBehaviorInstance::SetLogContext(const FString& InContext)
 {
 	LogContext = InContext;
+}
+
+void FAvaTransitionBehaviorInstance::AddReferencedObjects(FReferenceCollector& InCollector)
+{
+	InstanceData.AddStructReferencedObjects(InCollector);
 }
 
 void FAvaTransitionBehaviorInstance::ConditionallyStop()
@@ -243,7 +259,7 @@ TOptional<FAvaTransitionExecutionContext> FAvaTransitionBehaviorInstance::MakeCo
 
 	const FStateTreeReference& StateTreeReference = InBehavior->GetStateTreeReference();
 
-	FAvaTransitionExecutionContext Context(InBehavior->AsUObject(), *StateTreeReference.GetStateTree(), InstanceData);
+	FAvaTransitionExecutionContext Context(*this, InBehavior->AsUObject(), *StateTreeReference.GetStateTree(), InstanceData);
 	if (!Context.IsValid())
 	{
 		return TOptional<FAvaTransitionExecutionContext>();

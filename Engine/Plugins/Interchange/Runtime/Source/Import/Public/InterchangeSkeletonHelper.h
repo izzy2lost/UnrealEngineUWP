@@ -37,9 +37,11 @@ namespace UE::Interchange::Private
 			, const bool bUseTimeZeroAsBindPose
 			, bool& bOutDiffPose);
 
-		static bool IsCompatibleSkeleton(const USkeleton* Skeleton, const FString RootJoinUid, const UInterchangeBaseNodeContainer* BaseNodeContainer, bool bConvertStaticToSkeletalActive);
+		static bool IsCompatibleSkeleton(const USkeleton* Skeleton, const FString RootJoinUid, const UInterchangeBaseNodeContainer* BaseNodeContainer, bool bConvertStaticToSkeletalActive, bool bCheckForIdenticalSkeleton = false);
 		static void RecursiveAddSkeletonMetaDataValues(UInterchangeBaseNodeContainer* NodeContainer, UInterchangeBaseNode* DestinationNode, const FString& JointUid);
-	private:
+
+		static void RecursiveBoneHasBindPose(const UInterchangeBaseNodeContainer* NodeContainer, const FString& JointNodeId, bool& bHasBoneWithoutBindPose);
+
 		static void RecursiveAddBones(const UInterchangeBaseNodeContainer* NodeContainer
 			, const FString& JointNodeId
 			, TArray <FJointInfo>& JointInfos
@@ -49,6 +51,7 @@ namespace UE::Interchange::Private
 			, bool& bOutDiffPose
 			, TArray<FString>& OutBoneNotBindNames);
 
+	private:
 		static FName SkeletalLodGetBoneName(const TArray<FMeshBoneInfo>& SkeletalLodRawInfos, int32 BoneIndex);
 		static int32 SkeletalLodFindBoneIndex(const TArray<FMeshBoneInfo>& SkeletalLodRawInfos, FName BoneName);
 		static int32 SkeletalLodGetParentIndex(const TArray<FMeshBoneInfo>& SkeletalLodRawInfos, int32 BoneIndex);

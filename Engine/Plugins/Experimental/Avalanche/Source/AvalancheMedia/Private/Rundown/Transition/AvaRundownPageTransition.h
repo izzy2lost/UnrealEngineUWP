@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AvaTag.h"
+#include "AvaTagId.h"
 #include "Playable/AvaPlayable.h"
 #include "Playback/Transition/AvaPlaybackTransition.h"
 #include "UObject/Object.h"
@@ -27,9 +27,15 @@ class UAvaRundownPageTransition : public UAvaPlaybackTransition
 	GENERATED_BODY()
 	
 public:
+	static UAvaRundownPageTransition* MakeNew(UAvaRundown* InRundown);
+	
 	bool AddEnterPage(UAvaRundownPagePlayer* InPagePlayer);
 	bool AddPlayingPage(UAvaRundownPagePlayer* InPagePlayer);
 	bool AddExitPage(UAvaRundownPagePlayer* InPagePlayer);
+
+	TConstArrayView<TWeakObjectPtr<UAvaRundownPagePlayer>> GetEnterPlayers() const { return EnterPlayersWeak; }
+	TConstArrayView<TWeakObjectPtr<UAvaRundownPagePlayer>> GetPlayingPlayers() const { return PlayingPlayersWeak; }
+	TConstArrayView<TWeakObjectPtr<UAvaRundownPagePlayer>> GetExitPlayers() const { return ExitPlayersWeak; }
 	
 	//~ Begin IAvaPlayableVisibilityConstraint
 	virtual bool IsVisibilityConstrained(const UAvaPlayable* InPlayable) const override;
@@ -55,6 +61,14 @@ public:
 
 	UAvaRundown* GetRundown() const;
 
+	/** Instances will not be added to the playable transition. */
+	UPROPERTY(Transient)
+	TSet<FGuid> InstancesBypassingTransition;
+
+	/** Reused existing instance player. Will be added both as "entering" and "playing" in the playable transition. */
+	UPROPERTY(Transient)
+	TSet<FGuid> ReusedInstances;
+
 protected:
 	UAvaRundownPlaybackInstancePlayer* FindInstancePlayerForPlayable(const UAvaPlayable* InPlayable) const;
 	UAvaRundownPagePlayer* FindPagePlayerForPlayable(const UAvaPlayable* InPlayable) const;
@@ -67,6 +81,7 @@ protected:
 
 	void MakePlayableTransition();
 
+	FString GetInstanceName() const;
 	void LogDetailedTransitionInfo() const;
 	FString GetBriefTransitionDescription() const;
 
@@ -87,6 +102,8 @@ protected:
 	TArray<TWeakObjectPtr<UAvaRundownPagePlayer>> ExitPlayersWeak;
 
 	TSet<FAvaTagId> CachedTransitionLayers;
+	
+	TSet<FGuid> InstancesMarkedForDiscard;
 	
 	UPROPERTY(Transient)
 	TObjectPtr<UAvaPlayableTransition> PlayableTransition;

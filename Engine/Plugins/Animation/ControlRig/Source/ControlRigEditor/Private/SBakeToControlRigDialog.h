@@ -4,11 +4,11 @@
 #include "CoreMinimal.h"
 #include "Delegates/Delegate.h"
 #include "Widgets/SWindow.h"
+#include "Misc/FrameRate.h"
 
-DECLARE_DELEGATE_ThreeParams(FBakeToControlDelegate, bool, float, bool);
+DECLARE_DELEGATE_FourParams(FBakeToControlDelegate, bool, float, FFrameRate, bool);
 
 struct BakeToControlRigDialog
 {
 	static void GetBakeParams(FBakeToControlDelegate& Delegate, const FOnWindowClosed& OnClosedDelegate);
-
 };

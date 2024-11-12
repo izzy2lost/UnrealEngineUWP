@@ -41,6 +41,7 @@
 #include "MovieSceneTrack.h"
 #include "ScopedTransaction.h"
 #include "Sections/MovieSceneCameraShakeSection.h"
+#include "SequencerSettings.h"
 #include "MVVM/Views/ViewUtilities.h"
 #include "SlotBase.h"
 #include "Templates/Casts.h"
@@ -158,7 +159,8 @@ TSharedRef<SWidget> FCameraShakeTrackEditor::BuildCameraShakeSubMenu(FGuid Objec
 
 void FCameraShakeTrackEditor::AddCameraShakeSubMenu(FMenuBuilder& MenuBuilder, TArray<FGuid> ObjectBindings)
 {
-	UMovieSceneSequence* Sequence = GetSequencer() ? GetSequencer()->GetFocusedMovieSceneSequence() : nullptr;
+	TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+	UMovieSceneSequence* Sequence = SequencerPtr ? SequencerPtr->GetFocusedMovieSceneSequence() : nullptr;
 
 	FAssetPickerConfig AssetPickerConfig;
 	{
@@ -194,9 +196,12 @@ void FCameraShakeTrackEditor::AddCameraShakeSubMenu(FMenuBuilder& MenuBuilder, T
 
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 
+	const float WidthOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+	const float HeightOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
 	TSharedPtr<SBox> MenuEntry = SNew(SBox)
-		.WidthOverride(300.0f)
-		.HeightOverride(300.f)
+		.WidthOverride(WidthOverride)
+		.HeightOverride(HeightOverride)
 		[
 			ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig)
 		];

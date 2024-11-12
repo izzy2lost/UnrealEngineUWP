@@ -171,7 +171,6 @@ void SPCGEditorGraphFind::Construct(const FArguments& InArgs, TSharedPtr<FPCGEdi
 			.BorderImage(FAppStyle::GetBrush("Menu.Background"))
 			[
 				SAssignNew(TreeView, STreeViewType)
-				.ItemHeight(24)
 				.TreeItemsSource(&ItemsFound)
 				.OnGenerateRow(this, &SPCGEditorGraphFind::OnGenerateRow)
 				.OnGetChildren(this, &SPCGEditorGraphFind::OnGetChildren)

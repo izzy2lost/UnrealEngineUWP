@@ -9,19 +9,23 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Mime;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Blake3;
+using EpicGames.AspNet;
+using EpicGames.Core;
 using Jupiter.FunctionalTests.Storage;
 using Jupiter.Implementation;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Serilog;
 using Serilog.Core;
-using EpicGames.AspNet;
-using EpicGames.Core;
+using EpicGames.Serialization;
+using Jupiter.Controllers;
+using Jupiter.Tests.Functional;
 
 namespace Jupiter.FunctionalTests.CompressedBlobs
 {
@@ -471,6 +475,75 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
 				byte[] blobContent = await result.Content.ReadAsByteArrayAsync();
 				CollectionAssert.AreEqual(payload, blobContent);
 			}
+		}
+
+		
+		[TestMethod]
+		public async Task MultipleBlobChecksBodyCBAsync()
+		{
+			BlobId uncompressedPayloadIdentifier = new BlobId("dce31eb416f3dcb4c8250ac545eda3930919d3ff");
+			{
+				// seed a compressed payload
+				byte[] texturePayload = await File.ReadAllBytesAsync($"ContentId/Payloads/dce31eb416f3dcb4c8250ac545eda3930919d3ff");
+
+				using ByteArrayContent content = new(texturePayload);
+				content.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompressedBuffer);
+				HttpResponseMessage uploadResult = await Client!.PutAsync(new Uri($"api/v1/compressed-blobs/{TestNamespace}/{uncompressedPayloadIdentifier}", UriKind.Relative), content);
+				uploadResult.EnsureSuccessStatusCode();
+			}
+
+			BlobId newContent = BlobId.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
+			using HttpRequestMessage request = new(HttpMethod.Post, new Uri($"api/v1/compressed-blobs/{TestNamespace}/exist", UriKind.Relative));
+			CbWriter writer = new CbWriter();
+			writer.BeginUniformArray(CbFieldType.Hash);
+			writer.WriteHashValue(uncompressedPayloadIdentifier.AsIoHash());
+			writer.WriteHashValue(newContent.AsIoHash());
+			writer.EndUniformArray();
+			byte[] buf = writer.ToByteArray();
+			request.Content = new ByteArrayContent(buf);
+			request.Content.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompactBinary);
+
+			HttpResponseMessage response = await Client!.SendAsync(request);
+			Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
+			Assert.AreEqual("application/json", response.Content.Headers.ContentType!.MediaType);
+
+			string s = await response.Content.ReadAsStringAsync();
+			HeadMultipleResponse? result = JsonSerializer.Deserialize<HeadMultipleResponse>(s, JsonTestUtils.DefaultJsonSerializerSettings);
+
+			Assert.IsNotNull(result);
+			Assert.AreEqual(1, result.Needs.Length);
+			Assert.AreEqual(newContent, result.Needs[0]);
+		}
+
+		[TestMethod]
+		public async Task MultipleBlobChecksBodyJsonAsync()
+		{
+			BlobId uncompressedPayloadIdentifier = new BlobId("dce31eb416f3dcb4c8250ac545eda3930919d3ff");
+			{
+				// seed a compressed payload
+				byte[] texturePayload = await File.ReadAllBytesAsync($"ContentId/Payloads/dce31eb416f3dcb4c8250ac545eda3930919d3ff");
+
+				using ByteArrayContent content = new(texturePayload);
+				content.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompressedBuffer);
+				HttpResponseMessage uploadResult = await Client!.PutAsync(new Uri($"api/v1/compressed-blobs/{TestNamespace}/{uncompressedPayloadIdentifier}", UriKind.Relative), content);
+				uploadResult.EnsureSuccessStatusCode();
+			}
+
+			BlobId newContent = BlobId.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
+			using HttpRequestMessage request = new(HttpMethod.Post, new Uri($"api/v1/compressed-blobs/{TestNamespace}/exist", UriKind.Relative));
+			string jsonBody = JsonSerializer.Serialize(new BlobId[] { uncompressedPayloadIdentifier, newContent });
+			request.Content = new StringContent(jsonBody, Encoding.UTF8, MediaTypeNames.Application.Json);
+
+			HttpResponseMessage response = await Client!.SendAsync(request);
+			Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
+			Assert.AreEqual("application/json", response.Content.Headers.ContentType!.MediaType);
+
+			string s = await response.Content.ReadAsStringAsync();
+			HeadMultipleResponse? result = JsonSerializer.Deserialize<HeadMultipleResponse>(s, JsonTestUtils.DefaultJsonSerializerSettings);
+
+			Assert.IsNotNull(result);
+			Assert.AreEqual(1, result.Needs.Length);
+			Assert.AreEqual(newContent, result.Needs[0]);
 		}
 	}
 }

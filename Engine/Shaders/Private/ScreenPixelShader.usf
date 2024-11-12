@@ -10,7 +10,11 @@
 	#define SCREEN_PS_FROM_SLICE0   0
 #endif
 
-#if SCREEN_PS_FROM_SLICE0
+#ifndef SCREEN_PS_UNWRAP_SLICES
+	#define SCREEN_PS_UNWRAP_SLICES 0
+#endif
+
+#if (SCREEN_PS_FROM_SLICE0 || SCREEN_PS_UNWRAP_SLICES)
 	Texture2DArray InTexture;
 
 	// if source is an array, we only need the first slice
@@ -33,6 +37,17 @@ void Main(
 {
 	OutColor = TexOrArr2DSample(InTexture, InTextureSampler, Input.UV);
 }
+
+#if SCREEN_PS_UNWRAP_SLICES
+void MainUnwrap(
+	FScreenVertexOutput Input,
+	out float4 OutColor : SV_Target0
+	)
+{
+	// for the first half of the screen, sample from slice 0, for the second, from slice 1
+	OutColor = InTexture.Sample(InTextureSampler, float3(frac(Input.UV.x * 2.0), Input.UV.y, (float)((int)(2 * Input.UV.x))) );
+}
+#endif
 
 void MainInvertAlpha(
 	FScreenVertexOutput Input,

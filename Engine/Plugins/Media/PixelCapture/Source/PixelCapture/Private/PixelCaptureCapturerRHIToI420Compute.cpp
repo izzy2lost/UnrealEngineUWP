@@ -111,7 +111,7 @@ void FPixelCaptureCapturerRHIToI420Compute::BeginProcess(const IPixelCaptureInpu
 	MarkCPUWorkStart();
 
 	const FPixelCaptureInputFrameRHI& RHISourceFrame = StaticCast<const FPixelCaptureInputFrameRHI&>(InputFrame);
-	FTexture2DRHIRef SourceTexture = RHISourceFrame.FrameTexture;
+	FTextureRHIRef SourceTexture = RHISourceFrame.FrameTexture;
 
 	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 

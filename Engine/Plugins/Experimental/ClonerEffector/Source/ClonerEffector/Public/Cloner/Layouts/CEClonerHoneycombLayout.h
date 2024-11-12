@@ -85,6 +85,24 @@ public:
 		return WidthSpacing;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Cloner|Layout|Honeycomb")
+	CLONEREFFECTOR_API void SetTwistFactor(float InFactor);
+
+	UFUNCTION(BlueprintPure, Category="Cloner|Layout|Honeycomb")
+	float GetTwistFactor() const
+	{
+		return TwistFactor;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Cloner|Layout|Honeycomb")
+	CLONEREFFECTOR_API void SetTwistAxis(ECEClonerAxis InAxis);
+
+	UFUNCTION(BlueprintPure, Category="Cloner|Layout|Honeycomb")
+	ECEClonerAxis GetTwistAxis() const
+	{
+		return TwistAxis;
+	}
+
 protected:
 	//~ Begin UObject
 #if WITH_EDITOR
@@ -92,30 +110,38 @@ protected:
 #endif
 	//~ End UObject
 
+	void OnTwistAxisChanged();
+
 	//~ Begin UCEClonerLayoutBase
 	virtual void OnLayoutParametersChanged(UCEClonerComponent* InComponent) override;
 	//~ End UCEClonerLayoutBase
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetPlane", Getter="GetPlane", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout", meta=(InvalidEnumValues="Custom"))
 	ECEClonerPlane Plane = ECEClonerPlane::XY;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetWidthCount", Getter="GetWidthCount", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	int32 WidthCount = 3;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetHeightCount", Getter="GetHeightCount", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	int32 HeightCount = 3;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetWidthOffset", Getter="GetWidthOffset", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	float WidthOffset = 0.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetHeightOffset", Getter="GetHeightOffset", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	float HeightOffset = 0.5f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetWidthSpacing", Getter="GetWidthSpacing", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	float WidthSpacing = 105.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetHeightSpacing", Getter="GetHeightSpacing", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	float HeightSpacing = 105.f;
+
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout", meta=(UIMin="0", UIMax="100"))
+	float TwistFactor = 0.f;
+
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout", meta=(InvalidEnumValues="Custom"))
+	ECEClonerAxis TwistAxis = ECEClonerAxis::Y;
 
 private:
 #if WITH_EDITOR

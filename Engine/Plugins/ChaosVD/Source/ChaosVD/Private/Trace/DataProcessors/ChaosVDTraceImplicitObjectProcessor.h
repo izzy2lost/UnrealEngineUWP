@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "IChaosVDDataProcessor.h"
+#include "ChaosVDDataProcessorBase.h"
 
 /**
  * Data processor implementation that is able to deserialize traced Implicit objects
  */
-class FChaosVDTraceImplicitObjectProcessor final : public IChaosVDDataProcessor
+class FChaosVDTraceImplicitObjectProcessor final : public FChaosVDDataProcessorBase
 {
 public:
 	explicit FChaosVDTraceImplicitObjectProcessor();

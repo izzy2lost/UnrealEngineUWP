@@ -56,7 +56,7 @@ bool FPCGDataNumElement::ExecuteInternal(FPCGContext* Context) const
 
 	const int32 InputDataCount = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel).Num();
 
-	UPCGParamData* OutputParamData = NewObject<UPCGParamData>();
+	UPCGParamData* OutputParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 	FPCGMetadataAttribute<int32>* NumAttribute = OutputParamData->Metadata->CreateAttribute<int32>(Settings->OutputAttributeName, InputDataCount, /*bAllowInterpolation=*/false, /*bOverrideParent=*/false);
 
 	if (!NumAttribute)

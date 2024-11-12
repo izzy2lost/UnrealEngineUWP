@@ -124,6 +124,8 @@ public:
 
 	void OnBeginRendering_RenderThread();
 
+	void OnBeginFrame_RHIThread(FRHICommandListImmediate* InRHICommandList);
+
 	XrResult XrBeginFrame(
 		const XrFrameBeginInfo* frameBeginInfo);
 
@@ -154,7 +156,6 @@ public:
 	{
 		int32 FrameCounter = -1;
 		XrTime PredictedDisplayTime = 0;
-		IRHICommandContext* CommandListContext = nullptr;
 		//FTransform HMDPoseInTrackerSpace = FTransform::Identity;
 		//PoseData HmdPose = {};
 		cp_frame_t SwiftFrame = nullptr;
@@ -166,6 +167,8 @@ public:
 		CFTimeInterval SwiftFinalFrameTimeInterval = 0;
         ar_device_anchor_t DeviceAnchor = nullptr;
 		bool bSynchronizing = true; // when true we are in the process of starting up a new session and the new frame state has not yet propagated.
+		bool bShouldRender = false;
+		bool bSessionLost = false;
 		XrFovf HmdFovs[2];
         int32 LocateViewInfoBufferIndex = 0;
 		int32 RenderToGameFrameStateIndex = -1;
@@ -252,6 +255,11 @@ private:
 	ar_world_tracking_provider_t ARKitWorldTrackingProvider = nullptr;
 	ar_device_anchor_t ARKitHMDAnchor = nullptr;
 	
+	// mutexes to protect apple api functions from concurrent calls
+	// We do not protect the early startup calls, before OXRVisionOSSession is involved.  They should be single threaded.
+	mutable FCriticalSection CpLayerMutex; // Protect all cp_label_ calls.
+	//mutable FCriticalSection CpFrameMutex; // Currently we are restricting cp_frame_ calls to the Render thread by not having an RHI thread, however we may want to change that in the future...
+	
 	// Hand Tracking
 public:
 	struct FOXRVisionOSHandTracker
@@ -286,6 +294,6 @@ private:
 	static_assert(XR_HAND_LEFT_EXT == 1 && XR_HAND_RIGHT_EXT == 2);  // We will assume this to use value-1 as array index.
 	FOXRVisionOSHandTracker& GetHandTracker(XrHandEXT Hand) { return HandTrackers[Hand - 1]; }
 	const FOXRVisionOSHandTracker& GetHandTracker(XrHandEXT Hand) const { return HandTrackers[Hand - 1]; }
-	bool ValidateXrHandTrackerEXT(XrHandTrackerEXT handTracker) { return (((FOXRVisionOSHandTracker*)handTracker) - ((FOXRVisionOSHandTracker*)&HandTrackers)) <= 1; }
+	bool ValidateXrHandTrackerEXT(XrHandTrackerEXT HandTracker) { return (((FOXRVisionOSHandTracker*)HandTracker) - ((FOXRVisionOSHandTracker*)&HandTrackers)) <= 1; }
 	void SyncHandTracking();
 };

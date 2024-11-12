@@ -89,7 +89,8 @@ extern RENDERER_API void DrawHmdMesh(
 	FIntPoint TargetSize,
 	FIntPoint TextureSize,
 	EStereoscopicPass StereoView,
-	const TShaderRef<FShader>& VertexShader
+	const TShaderRef<FShader>& VertexShader,
+	int32 InstanceCount = 1
 	);
 
 // NOTE: Assumes previously set PSO has PrimitiveType = PT_TriangleList
@@ -108,7 +109,8 @@ extern RENDERER_API void DrawPostProcessPass(
 	const TShaderRef<FShader>& VertexShader,
 	int32 StereoViewIndex,
 	bool bHasCustomMesh,
-	EDrawRectangleFlags Flags = EDRF_Default
+	EDrawRectangleFlags Flags = EDRF_Default,
+	int32 InstanceCount = 1
 	);
 
 class FTesselatedScreenRectangleIndexBuffer : public FIndexBuffer

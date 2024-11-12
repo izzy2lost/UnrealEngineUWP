@@ -21,6 +21,70 @@
 static FName NAME_ActorMetaDataClass(TEXT("ActorMetaDataClass"));
 static FName NAME_ActorMetaData(TEXT("ActorMetaData"));
 
+namespace FWorldPartitionActorDescUtilsPrivate
+{
+	static FString ResolveClassRedirector(const FString& InClassName)
+	{
+		FString ClassName;
+		FString ClassPackageName;
+		if (!InClassName.Split(TEXT("."), &ClassPackageName, &ClassName))
+		{
+			ClassName = *InClassName;
+		}
+
+		// Look for a class redirectors
+		const FCoreRedirectObjectName OldClassName = FCoreRedirectObjectName(*ClassName, NAME_None, *ClassPackageName);
+		const FCoreRedirectObjectName NewClassName = FCoreRedirects::GetRedirectedName(ECoreRedirectFlags::Type_Class, OldClassName);
+
+		return NewClassName.ToString();
+	}
+
+	static UClass* GetActorNativeClassFromClassName(FName InClassName)
+	{
+		// Avoid an assert when calling StaticFindObject during save to retrieve the actor's class.
+		// Since we are only looking for a native class, the call to StaticFindObject is legit.
+		TGuardValue<bool> GIsSavingPackageGuard(GIsSavingPackage, false);
+
+		// Look for a class redirectors
+		const FString ActorNativeClassName = FWorldPartitionActorDescUtilsPrivate::ResolveClassRedirector(InClassName.ToString());
+		
+		// Handle deprecated short class names
+		const FTopLevelAssetPath ClassPath = FAssetData::TryConvertShortClassNameToPathName(*ActorNativeClassName, ELogVerbosity::Log);
+
+		// Lookup the native class
+		return UClass::TryFindTypeSlow<UClass>(ClassPath.ToString(), EFindFirstObjectOptions::ExactClass);
+	}
+}
+
+FWorldPartitionActorDescUtils::FActorDescInitParams::FActorDescInitParams(const AActor* InActor)
+{
+	// Avoid an assert when calling StaticFindObject during save to retrieve the actor's class.
+	// Since we are only looking for a native class, the call to StaticFindObject is legit.
+	TGuardValue<bool> GIsSavingPackageGuard(GIsSavingPackage, false);
+
+	TUniquePtr<FWorldPartitionActorDesc> ActorDesc(InActor->CreateActorDesc());
+
+	PathName = *InActor->GetPathName();
+	NativeClassName = *(GetParentNativeClass(InActor->GetClass()))->GetPathName();
+	AssetData = FWorldPartitionActorDescUtils::GetAssetDataFromActorDescriptor(ActorDesc);
+}
+
+FWorldPartitionActorDescUtils::FActorDescInitParams::FActorDescInitParams(const FString& InString)
+{
+	TArray<FString> ParsedAssetData;
+	if (InString.ParseIntoArray(ParsedAssetData, TEXT(",")))
+	{
+		PathName = *ParsedAssetData[0];
+		NativeClassName = *ParsedAssetData[1];
+		AssetData = *ParsedAssetData[2];
+	}
+}
+
+FString FWorldPartitionActorDescUtils::FActorDescInitParams::ToString() const
+{
+	return FString::Printf(TEXT("%s,%s,%s"), *PathName.ToString(), *NativeClassName.ToString(), *AssetData);
+}
+
 FName FWorldPartitionActorDescUtils::ActorMetaDataClassTagName()
 {
 	return NAME_ActorMetaDataClass;
@@ -29,22 +93,6 @@ FName FWorldPartitionActorDescUtils::ActorMetaDataClassTagName()
 FName FWorldPartitionActorDescUtils::ActorMetaDataTagName()
 {
 	return NAME_ActorMetaData;
-}
-
-static FString ResolveClassRedirector(const FString& InClassName)
-{
-	FString ClassName;
-	FString ClassPackageName;
-	if (!InClassName.Split(TEXT("."), &ClassPackageName, &ClassName))
-	{
-		ClassName = *InClassName;
-	}
-
-	// Look for a class redirectors
-	const FCoreRedirectObjectName OldClassName = FCoreRedirectObjectName(*ClassName, NAME_None, *ClassPackageName);
-	const FCoreRedirectObjectName NewClassName = FCoreRedirects::GetRedirectedName(ECoreRedirectFlags::Type_Class, OldClassName);
-
-	return NewClassName.ToString();
 }
 
 bool FWorldPartitionActorDescUtils::IsValidActorDescriptorFromAssetData(const FAssetData& InAssetData)
@@ -57,51 +105,67 @@ UClass* FWorldPartitionActorDescUtils::GetActorNativeClassFromAssetData(const FA
 	FString ActorMetaDataClass;
 	if (InAssetData.GetTagValue(NAME_ActorMetaDataClass, ActorMetaDataClass))
 	{
-		// Avoid an assert when calling StaticFindObject during save to retrieve the actor's class.
-		// Since we are only looking for a native class, the call to StaticFindObject is legit.
-		TGuardValue<bool> GIsSavingPackageGuard(GIsSavingPackage, false);
-
-		// Look for a class redirectors
-		const FString ActorNativeClassName = ResolveClassRedirector(ActorMetaDataClass);
-		
-		// Handle deprecated short class names
-		const FTopLevelAssetPath ClassPath = FAssetData::TryConvertShortClassNameToPathName(*ActorNativeClassName, ELogVerbosity::Log);
-
-		// Lookup the native class
-		return UClass::TryFindTypeSlow<UClass>(ClassPath.ToString(), EFindFirstObjectOptions::ExactClass);
+		return GetActorNativeClassFromString(ActorMetaDataClass);
 	}
 	return nullptr;
+}
+
+UClass* FWorldPartitionActorDescUtils::GetActorNativeClassFromString(const FString& InClassPath)
+{
+	// Avoid an assert when calling StaticFindObject during save to retrieve the actor's class.
+	// Since we are only looking for a native class, the call to StaticFindObject is legit.
+	TGuardValue<bool> GIsSavingPackageGuard(GIsSavingPackage, false);
+
+	// Look for a class redirectors
+	const FString ActorNativeClassName = FWorldPartitionActorDescUtilsPrivate::ResolveClassRedirector(InClassPath);
+
+	// Handle deprecated short class names
+	const FTopLevelAssetPath ClassPath = FAssetData::TryConvertShortClassNameToPathName(*ActorNativeClassName, ELogVerbosity::Log);
+
+	// Lookup the native class
+	return UClass::TryFindTypeSlow<UClass>(ClassPath.ToString(), EFindFirstObjectOptions::ExactClass);
+}
+
+TUniquePtr<FWorldPartitionActorDesc> FWorldPartitionActorDescUtils::GetActorDescriptorFromInitParams(const FActorDescInitParams& InActorDescInitParams, FName InPackageName)
+{
+	FWorldPartitionActorDescInitData ActorDescInitData = FWorldPartitionActorDescInitData()
+		.SetNativeClass(FWorldPartitionActorDescUtilsPrivate::GetActorNativeClassFromClassName(InActorDescInitParams.NativeClassName))
+		.SetPackageName(InPackageName)
+		.SetActorPath(InActorDescInitParams.PathName.ToString());
+
+	verify(FBase64::Decode(InActorDescInitParams.AssetData, ActorDescInitData.GetSerializedData()));
+
+	TUniquePtr<FWorldPartitionActorDesc> NewActorDesc(AActor::StaticCreateClassActorDesc(ActorDescInitData.NativeClass ? ActorDescInitData.NativeClass : AActor::StaticClass()));
+
+	NewActorDesc->Init(ActorDescInitData);
+			
+	if (!ActorDescInitData.NativeClass)
+	{
+		UE_LOG(LogWorldPartition, Warning, TEXT("Invalid class for actor guid `%s` ('%s') from package '%s'"), *NewActorDesc->GetGuid().ToString(), *NewActorDesc->GetActorName().ToString(), *NewActorDesc->GetActorPackage().ToString());
+		NewActorDesc->NativeClass.Reset();
+	}
+
+	return NewActorDesc;
 }
 
 TUniquePtr<FWorldPartitionActorDesc> FWorldPartitionActorDescUtils::GetActorDescriptorFromAssetData(const FAssetData& InAssetData)
 {
 	if (IsValidActorDescriptorFromAssetData(InAssetData))
 	{
-		// Fixing here for now until following jira tasks are closed to unblock users that are renaming plugins:
-		// @todo_ow: remove once https://jira.it.epicgames.com/browse/UE-168245 & https://jira.it.epicgames.com/browse/UE-144431 are closed
-		FSoftObjectPath ActorPath = InAssetData.GetSoftObjectPath();
-		ActorPath.FixupCoreRedirects();
-
-		FWorldPartitionActorDescInitData ActorDescInitData = FWorldPartitionActorDescInitData()
-			.SetNativeClass(GetActorNativeClassFromAssetData(InAssetData))
-			.SetPackageName(InAssetData.PackageName)
-			.SetActorPath(ActorPath);
-
 		FString ActorMetaDataStr;
-		verify(InAssetData.GetTagValue(NAME_ActorMetaData, ActorMetaDataStr));
-		verify(FBase64::Decode(ActorMetaDataStr, ActorDescInitData.SerializedData));
-
-		TUniquePtr<FWorldPartitionActorDesc> NewActorDesc(AActor::StaticCreateClassActorDesc(ActorDescInitData.NativeClass ? ActorDescInitData.NativeClass : AActor::StaticClass()));
-
-		NewActorDesc->Init(ActorDescInitData);
-			
-		if (!ActorDescInitData.NativeClass)
+		if (InAssetData.GetTagValue(NAME_ActorMetaData, ActorMetaDataStr))
 		{
-			UE_LOG(LogWorldPartition, Warning, TEXT("Invalid class for actor guid `%s` ('%s') from package '%s'"), *NewActorDesc->GetGuid().ToString(), *NewActorDesc->GetActorName().ToString(), *NewActorDesc->GetActorPackage().ToString());
-			NewActorDesc->NativeClass.Reset();
-		}
+			// Fixing here for now until following jira tasks are closed to unblock users that are renaming plugins:
+			// @todo_ow: remove once https://jira.it.epicgames.com/browse/UE-168245 & https://jira.it.epicgames.com/browse/UE-144431 are closed
+			FSoftObjectPath ActorPath = InAssetData.GetSoftObjectPath();
+			ActorPath.FixupCoreRedirects();
 
-		return NewActorDesc;
+			FActorDescInitParams ActorDescInitParams;
+			ActorDescInitParams.PathName = *ActorPath.ToString();
+			ActorDescInitParams.NativeClassName = *GetActorNativeClassFromAssetData(InAssetData)->GetPathName();
+			ActorDescInitParams.AssetData = ActorMetaDataStr;
+			return GetActorDescriptorFromInitParams(ActorDescInitParams, InAssetData.PackageName);
+		}
 	}
 
 	return nullptr;
@@ -174,7 +238,7 @@ bool FWorldPartitionActorDescUtils::GetPatchedAssetDataFromAssetData(const FAsse
 
 		FString ActorMetaDataStr;
 		verify(InAssetData.GetTagValue(NAME_ActorMetaData, ActorMetaDataStr));
-		verify(FBase64::Decode(ActorMetaDataStr, ActorDescInitData.SerializedData));
+		verify(FBase64::Decode(ActorMetaDataStr, ActorDescInitData.GetSerializedData()));
 
 		TArray<uint8> PatchedData;
 		FWorldPartitionActorDesc::Patch(ActorDescInitData, PatchedData, InAssetDataPatcher);

@@ -32,6 +32,10 @@ public:
 	/** Iterate over all protocols matching the ProtocolId, mostly used by debug functionality with no sideeffects */
 	template<typename T>
 	void ForEachProtocol(FReplicationProtocolIdentifier ProtocolId, T&& Functor) const;
+
+	/** Iterate over all protocols. */
+	template<typename T>
+	void ForEachProtocol(T&& Functor) const;
 	
 	/* Destroy existing replication protocol */
 	IRISCORE_API void DestroyReplicationProtocol(const FReplicationProtocol* ReplicationProtocol);
@@ -88,5 +92,14 @@ void FReplicationProtocolManager::ForEachProtocol(FReplicationProtocolIdentifier
 	}
 }
 
+template<typename T>
+void FReplicationProtocolManager::ForEachProtocol(T&& Functor) const
+{
+	for (auto It = RegisteredProtocols.CreateConstIterator(); It; ++It)
+	{
+		const FRegisteredProtocolInfo& Info = It.Value();
+		Functor(Info.Protocol, Info.ArchetypeOrCDOUsedAsKey);
+	}
+}
 
 }

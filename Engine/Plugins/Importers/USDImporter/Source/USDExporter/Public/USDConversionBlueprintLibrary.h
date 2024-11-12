@@ -148,6 +148,12 @@ public:
 		const FString& Extension
 	);
 
+	UFUNCTION(BlueprintCallable, Category = "USD|Analytics")
+	static void BlockAnalyticsEvents();
+
+	UFUNCTION(BlueprintCallable, Category = "USD|Analytics")
+	static void ResumeAnalyticsEvents();
+
 	/**
 	 * Removes all the prim specs for Prim on the given Layer.
 	 *

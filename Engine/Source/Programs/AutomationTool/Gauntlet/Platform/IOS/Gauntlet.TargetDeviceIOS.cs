@@ -1,251 +1,243 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Threading;
 using System.Linq;
-using System.Security.Cryptography;
-using AutomationTool;
-using UnrealBuildTool;
+using System.Data;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Collections.Generic;
+using System.Security.Cryptography;
 using EpicGames.Core;
+using Gauntlet.Utils;
+using AutomationTool;
+using UnrealBuildTool;
+using static AutomationTool.CommandUtils;
 
-/*
-
-General Device Notes (and areas for improvement):
-
-1) We don't currently support parallel iOS tests, see https://jira.it.epicgames.net/browse/UEATM-219
-2) Device Farm devices should be in airplane mode + wifi to avoid No Sim warning notification
-
-*/
+/** IOS General Notes:
+ * 
+ *	Functionality:
+ *	
+ *		Tooling for iOS automation is in a tumultuous state.
+ *		Historically, ios-deploy was used to manage all aspects of automation.
+ *		However, recent changes in Apple's system framework have made ios-deploy obsolete for launching apps for iOS versions 17+ (See for details: https://github.com/ios-control/ios-deploy/issues/588)
+ *		Alternative tools offer most - but not all - of the features needed to install, launch, monitor, and debug an app.
+ *		Because of this, Gauntlet iOS automation is restricted to running on a Mac host and mixes and matches which tools are used for a given operation.
+ *		
+ *		For now, TargetDeviceIOS uses the following tools to support automation:
+ *			ios-deploy			- Third party CLI tool, still used for legacy operations and copying files to/from device - https://github.com/ios-control/ios-deploy
+ *			devicectl			- Apple's core device framework. Has issues with copying files FROM the device, but handles just about everything else - run 'xcrun devicectl' for details
+ *			libimobiledevice	- Cross-platform third party library, only used for ease of bulk content copies - https://libimobiledevice.org/
+ *			
+ *		In general:
+ *			IF you are using xcode versions 15 or below AND iOS version 16 or below, ios-deploy will be primarily used
+ *			IF you are using xcode version 16+, devicectl will be primarily used
+ *			IF you are using trying to test on iOS versions 17+, you MUST upgrade to XCode 16 which contains critical app monitoring features. (See https://forums.developer.apple.com/forums/thread/756393)
+			
+		*** IMPORTANT ****
+		Testing iOS 17+ and iOS 16 or lower in a single pass is not supported. Doing so can result in undefined behavior.
+		If you need to do this, separate the testing into separate passes targeting each device.
+ *			
+ *	Other:
+ *	
+ *		- Builds (including local developer builds used with -dev) must already be signed. If built with UBT, signing is already part of the process. Automated re-signing may be added in the future.
+ *		- Installing builds requires your device to be added to a mobile provision, and for your build to have been signed with an embedded mobile provision containing the device (See https://developer.apple.com/documentation/xcode/distributing-your-app-to-registered-devices)
+ *		- If your app installs content after launch, consider using a bulk build to prevent timeouts. This also lets you more rapidly test -dev apps because code and content are separated
+ *		- If your app requires additional permissions, consider using MDM profiles to prevent permission pop-ups from blocking your tests
+ */
 
 namespace Gauntlet
 {
-
-	class IOSAppInstance : IAppInstance
-	{
-		protected IOSAppInstall Install;
-		public IOSAppInstance(IOSAppInstall InInstall, IProcessResult InProcess, string InCommandLine)			
-		{
-			Install = InInstall;
-			this.CommandLine = InCommandLine;
-			this.ProcessResult = InProcess;		
-		}
-
-		public string ArtifactPath
-		{
-			get
-			{
-				if (bHaveSavedArtifacts == false)
-				{
-					if (HasExited)
-					{
-						SaveArtifacts();
-						bHaveSavedArtifacts = true;
-					}
-				}
-				
-				return Install.IOSDevice.LocalCachePath + "/" + Install.IOSDevice.DeviceArtifactPath;
-			}
-		}
-
-		public ITargetDevice Device
-		{
-			get
-			{
-				return Install.Device;
-			}
-		}
-
-		protected void SaveArtifacts()
-		{
-			TargetDeviceIOS Device = Install.IOSDevice;
-
-			// copy remote artifacts to local		
-			string CommandLine = String.Format("--bundle_id {0} --download={1} --to {2}", Install.PackageName, Device.DeviceArtifactPath, Device.LocalCachePath);
-
-			IProcessResult DownloadCmd = Device.ExecuteIOSDeployCommand(CommandLine, 120);
-
-			if (DownloadCmd.ExitCode != 0)
-			{
-				Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "Failed to retrieve artifacts. {Output}", DownloadCmd.Output);
-			}
-			
-		}
-
-		public IProcessResult ProcessResult { get; private set; }
-
-		public bool HasExited { get { return ProcessResult.HasExited; } }
-
-		public bool WasKilled { get; protected set; }		
-
-		public int ExitCode { get { return ProcessResult.ExitCode; } }
-
-		public string CommandLine { get; private set; }
-
-		public string StdOut 
-		{  
-			get
-			{
-				if (HasExited)
-				{
-					// The ios application is being run under lldb by ios-deploy
-					// lldb catches crashes and we have it setup to dump thread callstacks
-					// parse any crash dumps into Unreal crash format and append to output
-					string CrashLog = LLDBCrashParser.GenerateCrashLog(ProcessResult.Output);
-
-					if (!string.IsNullOrEmpty(CrashLog))
-					{
-						return String.Format("{0}\n{1}", ProcessResult.Output, CrashLog);
-					}
-				}
-
-				return ProcessResult.Output;
-
-			}
-		}
-
-		public int WaitForExit()
-		{
-			if (!HasExited)
-			{
-				ProcessResult.WaitForExit();
-			}
-
-			return ExitCode;
-		}
-
-		public void Kill()
-		{
-			if (!HasExited)
-			{
-				WasKilled = true;
-				ProcessResult.ProcessObject.Kill(true);
-			}
-		}
-
-
-		internal bool bHaveSavedArtifacts;		
-	}
-
-
-	class IOSAppInstall : IAppInstall
-	{
-		public string Name { get; protected set; }
-			
-		public string CommandLine { get; protected set; }
-
-        public string PackageName { get; protected set; }
-
-		public ITargetDevice Device { get { return IOSDevice; } }
-
-		public TargetDeviceIOS IOSDevice;
-
-		public IOSAppInstall(string InName, TargetDeviceIOS InDevice, string InPackageName, string InCommandLine)
-		{
-			Name = InName;			
-			CommandLine = InCommandLine;
-            PackageName = InPackageName;
-
-			IOSDevice = InDevice;
-		}
-
-		public IAppInstance Run()
-		{
-			return Device.Run(this);
-		}
-	}
-
-	public class IOSDeviceFactory : IDeviceFactory
-	{
-		public bool CanSupportPlatform(UnrealTargetPlatform? Platform)
-		{
-			return Platform == UnrealTargetPlatform.IOS;
-		}
-
-		public ITargetDevice CreateDevice(string InRef, string InCachePath, string InParam)
-		{
-			return new TargetDeviceIOS(InRef, InCachePath);
-		}
-	}
-
 	/// <summary>
 	/// iOS implementation of a device to run applications
 	/// </summary>
 	public class TargetDeviceIOS : ITargetDevice
 	{
+		public class ConnectedDevice
+		{
+			public string UUID;
+			public int IOSMajorVersion;
+			public bool bConnected;
+			public ITargetDevice AssignedDevice;
+			public bool IsAssigned => AssignedDevice != null;
+			public ConnectedDevice(string UUID, int IOSMajorVersion, bool bConnected)
+			{
+				this.UUID = UUID;
+				this.IOSMajorVersion = IOSMajorVersion;
+				this.bConnected = bConnected;
+			}		
+		}
+
+		/// <summary>
+		/// Whether or not devicectl is used to run most device operations
+		/// ios-deploy will be used when this is false.
+		/// This property is set based on the installed version of xcode and the ios version of the device
+		/// </summary>
+		private static bool UseDeviceCtl;
+
+		/// <summary>
+		/// Collection of devices visible to the UAT host
+		/// </summary>
+		private static Dictionary<string, ConnectedDevice> ConnectedDevices;
+
+		/// <summary>
+		/// Currently active version of XCode. This can be changed between installed versions using 'xcodes select'
+		/// </summary>
+		private static int XCodeMajorVersion;
+
+		/// <summary>
+		/// Creating an iOS device requires several queries to be performed first.
+		/// These results are cached and gated from being refreshed behind this bool
+		/// </summary>
+		private static bool bStaticInitialized;
+
+		/// <summary>
+		/// Prevents separate start threads from managing connected device management at the same time (bulk only)
+		/// </summary>
+		private static object InitializerMutex = new object();
+
+		/// <summary>
+		/// Prevents separate start threads from writing to the network build cache directory at the same time(bulk only)
+		/// </summary>
+		private static object CacheMutex = new object();
+
+		/// <summary>
+		/// Used to prevent re-copies of an entire network share build in the event of a device failure (bulk only)
+		/// </summary>
+		private static bool HasCopiedNetworkBuild = false;
+
+		#region ITargetDevice
 		public string Name { get; protected set; }
+
+		public UnrealTargetPlatform? Platform => UnrealTargetPlatform.IOS;
+
+		public ERunOptions RunOptions { get; set; }
+
+		public bool IsConnected => ConnectedDevices.ContainsKey(UUID) && ConnectedDevices[UUID].bConnected;
+
+		public bool IsOn => true;
+
+		public bool IsAvailable => true;
+		#endregion
+
+		[AutoParam(60 * 60 * 2)] // iOS installs can be slow... 2 hour default
+		public int MaxInstallTime { get; protected set; }
+
+		/// <summary>
+		/// Temp path we use to push/pull things from the device
+		/// </summary>
+		public string LocalCachePath { get; protected set; }
 
 		/// <summary>
 		/// Low-level device name (uuid)
 		/// </summary>
-		public string DeviceName { get; protected set; }
-		
-		protected Dictionary<EIntendedBaseCopyDirectory, string> LocalDirectoryMappings { get; set; }
+		public string UUID { get; protected set; }
+
+		protected Dictionary<EIntendedBaseCopyDirectory, string> LocalDirectoryMappings { get; set; } = new();
+
+		private bool IsDefaultDevice = false;
+
+		private IOSAppInstall InstallCache = null;
 
 		public TargetDeviceIOS(string InName, string InCachePath = null)
 		{
-			KillZombies();
+			AutoParam.ApplyParamsAndDefaults(this, Globals.Params.AllArguments);
 
-			var DefaultDevices = GetConnectedDeviceUUID();			
+			if (BuildHostPlatform.Current.Platform != UnrealTargetPlatform.Mac)
+			{
+				throw new AutomationException("Creation of an iOS target device is only supported on Mac at this time.");
+			}
 
-			IsDefaultDevice = (String.IsNullOrEmpty(InName) || InName.Equals("default", StringComparison.OrdinalIgnoreCase));
+			InitializeDevices();
 
-			Name = InName;
-			LocalDirectoryMappings = new Dictionary<EIntendedBaseCopyDirectory, string>();
+			IsDefaultDevice = string.IsNullOrEmpty(InName) || InName.Equals("default", StringComparison.OrdinalIgnoreCase);
+			Name = IsDefaultDevice ? "default" : InName;
 
-			// If no device name or its 'default' then use the first default device
 			if (IsDefaultDevice)
-			{				
-				if (DefaultDevices.Count() == 0)
+			{
+				IEnumerable<ConnectedDevice> AvailableDevices = ConnectedDevices.Values.Where(Device => !Device.IsAssigned);
+				if(!AvailableDevices.Any())
 				{
-					throw new AutomationException("No default device available");
+					throw new AutomationException("Ran out of unassigned default devices. Ensure all devices are properly connected to the host.");
 				}
 
-				DeviceName = DefaultDevices.First();
+				if(!AvailableDevices.Where(Device => Device.bConnected).Any())
+				{
+					// If some devices are detected, but none connected, attempt connection
+					UUID = AvailableDevices.First().UUID;
+					Log.Info("Attempting to connect to {UUID}", UUID);
+					if (!Connect())
+					{
+						throw new AutomationException("Failed to connect to {DeviceName}. Ensure the device is properly connected to the host.", UUID);
+					}
+				}
+				else
+				{
+					// Just select the first available device
+					UUID = AvailableDevices.Where(Device => Device.bConnected).First().UUID;
+				}
 
-				Log.Verbose("Selected device {0} as default", DeviceName);
+				Log.Verbose("Selected device {DeviceName} as default device", UUID);
 			}
 			else
 			{
-				DeviceName = InName.Trim();
-				if (!DefaultDevices.Contains(DeviceName))
+				UUID = Name;
+				if (!ConnectedDevices.ContainsKey(Name))
 				{
-					throw new AutomationException("Device with UUID {0} not found in device list", DeviceName);
+					throw new AutomationException("Device with UUID {0} not found in device list", UUID);
+				}
+				if (!ConnectedDevices[UUID].bConnected)
+				{
+					Log.Info("Attempting to connect to {DeviceName}");
+					if(!Connect())
+					{
+						throw new AutomationException("Failed to connect to {DeviceName}", UUID);
+					}
 				}
 			}
 
-			// setup local cache
-			LocalCachePath = InCachePath ?? Path.Combine(GauntletAppCache, "Device_" + Name);
+			ConnectedDevices[UUID].AssignedDevice = this;
+
+			if(XCodeMajorVersion < 15)
+			{
+				UseDeviceCtl = false;
+			}
+			else if(XCodeMajorVersion == 15)
+			{
+				if(ConnectedDevices[UUID].IOSMajorVersion < 17)
+				{
+					UseDeviceCtl = false;
+				}
+				else
+				{
+					string Message = "As of XCode 15, Apple has removed DeveloperDiskImages for iOS 17 and beyond. " +
+						"Because of this, ios-deploy cannot be used to run and montior apps within Gauntlet. " +
+						"Instead, DeviceCtl replaces this functionality which is fully available as of XCode 16. " +
+						"Update to XCode 16 to prevent this error.";
+					throw new AutomationException(Message);
+				}
+			}
+			else
+			{
+				UseDeviceCtl = true;
+			}
+
+			LocalCachePath = InCachePath ?? Path.Combine(Globals.TempDir, "IOSDevice_" + UUID);
 		}
 
-		bool IsDefaultDevice = false;		
-
 		#region IDisposable Support
-		private bool disposedValue = false; // To detect redundant calls
+		private bool DisposedValue = false; // To detect redundant calls
+		~TargetDeviceIOS()
+		{
+			Dispose(false);
+		}
 
 		protected virtual void Dispose(bool disposing)
 		{
-			if (!disposedValue)
+			if (!DisposedValue)
 			{
-				try
-				{
-					if (Directory.Exists(LocalCachePath))
-					{
-						Directory.Delete(LocalCachePath, true);
-					}
-				}
-				catch (Exception Ex)
-				{
-					Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "TargetDeviceIOS.Dispose() threw: {Exception}", Ex.Message);
-				}
-				finally
-				{
-					disposedValue = true;
-				}
-
+				// TODO: dispose managed state (managed objects).
+				DisposedValue = true;
 			}
 		}
 
@@ -258,718 +250,931 @@ namespace Gauntlet
 		}
 		#endregion
 
-		public CommandUtils.ERunOptions RunOptions { get; set; }
-
-		public IAppInstance Run(IAppInstall App)
+		#region ITargetDevice
+		public bool Connect()
 		{
-			IOSAppInstall IOSApp = App as IOSAppInstall;
-
-			if (IOSApp == null)
+			if(UseDeviceCtl)
 			{
-				throw new DeviceException("AppInstance is of incorrect type!");
-			}
-
-			string CommandLine = IOSApp.CommandLine.Replace("\"", "\\\\\"");
-			
-			Log.Info("Launching {0} on {1}", App.Name, ToString());
-			Log.Verbose("\t{0}", CommandLine);
-
-			// ios-deploy notes: -L launches detached, -I non-interactive  (exits when app exits), -r uninstalls before install (removes app Documents folder)
-			// -t <seconds> number of seconds to wait for device to be connected
-
-			// setup symbols if available
-			string DSymBundle = "";
-			string DSymDir = Path.Combine(GauntletAppCache, "Symbols");
-
-			if (Directory.Exists(DSymDir))
-			{
-				DSymBundle = Directory.GetDirectories(DSymDir).Where(D => Path.GetExtension(D).ToLower() == ".dsym").FirstOrDefault();
-				DSymBundle = string.IsNullOrEmpty(DSymBundle) ? "" : DSymBundle = " -S \"" + DSymBundle + "\"";
-			}
-
-			string CL = "--noinstall -I" + DSymBundle + " -b \"" + LocalAppBundle + "\" --args '" + CommandLine.Trim() + "'";
-
-			IProcessResult Result = ExecuteIOSDeployCommand(CL, 0);
-
-			Thread.Sleep(5000);
-
-			// Give ios-deploy a chance to throw out any errors...
-			if (Result.HasExited)
-			{
-				Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "ios-deploy exited early: " + Result.Output);
-				throw new DeviceException("Failed to launch on {0}. {1}", Name, Result.Output);
-			}
-
-			return new IOSAppInstance(IOSApp, Result, IOSApp.CommandLine);
-		}
-
-		/// <summary>
-		/// Remove the application entirely from the iOS device, this includes any persistent app data in /Documents
-		/// </summary>
-		private void RemoveApplication(IOSBuild Build)
-		{
-			string CommandLine = String.Format("--bundle_id {0} --uninstall_only", Build.PackageName);
-			ExecuteIOSDeployCommand(CommandLine);
-		}
-
-		/// <summary>
-		/// Remove artifacts from device
-		/// </summary>
-		private bool CleanDeviceArtifacts(IOSBuild Build)
-		{			
-			try
-			{
-				Log.Verbose("Cleaning device artifacts");
-
-				string CleanCommand = String.Format("--bundle_id {0} --rmtree {1}", Build.PackageName, DeviceArtifactPath);
-				IProcessResult Result = ExecuteIOSDeployCommand(CleanCommand, 120);
-
-				if (Result.ExitCode != 0)
+				if(ConnectedDevices.ContainsKey(UUID) && ConnectedDevices[UUID].bConnected)
 				{
-					Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "Failed to clean artifacts from device");
+					return true; // already connected
+				}
+
+				IProcessResult ConnectResult = ExecuteDevicectlCommand("manage pair");
+				if(ConnectResult.ExitCode != 0)
+				{
+					Log.Info("Connecting to {DeviceName} exited with code {ExitCode}:\n{Output}", UUID, ConnectResult.ExitCode, ConnectResult.Output);
 					return false;
 				}
 
-			}
-			catch (Exception Ex)
-			{
-				Log.Verbose("Exception while cleaning artifacts from device: {0}", Ex.Message);
-			}
-
-			return true;
-
-		}
-
-		/// <summary>
-		/// Checks whether version of deployed bundle matches local IPA
-		/// </summary>
-		bool CheckDeployedIPA(IOSBuild Build)
-		{
-			try
-			{
-				Log.Verbose("Checking deployed IPA hash");
-
-				string CommandLine = String.Format("--bundle_id {0} --download={1} --to {2}", Build.PackageName, "/Documents/IPAHash.txt", LocalCachePath);
-				IProcessResult Result = ExecuteIOSDeployCommand(CommandLine, 120);
-
-				if (Result.ExitCode != 0)
+				string DetailsFile = Path.GetTempFileName();
+				string DetailsCommand = string.Format("device info details -j {0}", DetailsFile);
+				IProcessResult DetailResult = ExecuteDevicectlCommand(DetailsCommand);
+				if(DetailResult.ExitCode != 0)
 				{
+					Log.Info("Detailing {DeviceName} exited with code {ExitCode}. Skipping connection:\n{Output}", UUID, DetailResult.ExitCode, ConnectResult.Output);
+				}
+
+				JsonObject JsonDevice = JsonObject.Parse(File.ReadAllText(DetailsFile)).GetObjectField("result");
+
+				JsonObject ConnectionProperties = JsonDevice
+					.GetObjectField("connectionProperties");
+				string PairStatus = ConnectionProperties.GetStringField("pairingState");
+
+				if(!PairStatus.Equals("paired", StringComparison.OrdinalIgnoreCase))
+				{
+					Log.Info("{DeviceName}'s pair status is still not paired. Skipping connection.", UUID);
 					return false;
 				}
 
-				string Hash = File.ReadAllText(LocalCachePath + "/Documents/IPAHash.txt").Trim();
-				string StoredHash = File.ReadAllText(IPAHashFilename).Trim();
-
-				if (Hash == StoredHash)
+				if(ConnectedDevices.ContainsKey(UUID))
 				{
-					Log.Verbose("Deployed app hash matched cached IPA hash");
-					return true;
-				}
-
-			}
-			catch (Exception Ex)
-			{
-				if (!Ex.Message.Contains("is denied"))
-				{
-					Log.Verbose("Unable to pull cached IPA cache from device, cached file may not exist: {0}", Ex.Message);
-				}
-			}
-
-			Log.Verbose("Deployed app hash doesn't match, IPA will be installed");
-			return false;
-
-		}
-
-		/// <summary>
-		/// Resign application using local executable and update debug symbols
-		/// </summary>
-		void ResignApplication(UnrealAppConfig AppConfig)
-		{
-			// check that we have the signing stuff we need
-			string SignProvision = Globals.Params.ParseValue("signprovision", String.Empty);
-			string SignEntitlements = Globals.Params.ParseValue("signentitlements", String.Empty);
-			string SigningIdentity =  Globals.Params.ParseValue("signidentity", String.Empty);
-			
-			// handle signing provision
-			if (string.IsNullOrEmpty(SignProvision) || !File.Exists(SignProvision))
-			{
-				throw new AutomationException("Absolute path to existing provision must be specified, example: -signprovision=/path/to/myapp.provision");
-			}
-			
-			// handle entitlements
-			// Note this extracts entitlements: which may be useful when using same provision/entitlements?: codesign -d --entitlements :entitlements.plist ~/.gauntletappcache/Payload/Example.app/
-
-			if (string.IsNullOrEmpty(SignEntitlements) || !File.Exists(SignEntitlements))
-			{
-				throw new AutomationException("Absolute path to existing entitlements must be specified, example: -signprovision=/path/to/entitlements.plist");
-			}
-
-			// signing identity
-			if (string.IsNullOrEmpty(SigningIdentity))
-			{
-				throw new AutomationException("Signing identity must be specified, example: -signidentity=\"iPhone Developer: John Smith\"");
-			}
-
-			string ProjectName = AppConfig.ProjectName;
-			string BundleName = Path.GetFileNameWithoutExtension(LocalAppBundle);
-			string ExecutableName = UnrealHelpers.GetExecutableName(ProjectName, UnrealTargetPlatform.IOS, AppConfig.Configuration, AppConfig.ProcessType, "");
-			string CachedAppPath = Path.Combine(GauntletAppCache, "Payload", string.Format("{0}.app", BundleName));			
-
-			string LocalExecutable = Path.Combine(Environment.CurrentDirectory, ProjectName, string.Format("Binaries/IOS/{0}", ExecutableName));
-			if (!File.Exists(LocalExecutable))
-			{
-				throw new AutomationException("Local executable not found for -dev argument: {0}", LocalExecutable);
-			}
-
-			File.WriteAllText(CacheResignedFilename, "The application has been resigned");
-
-			// copy local executable
-			FileInfo SrcInfo = new FileInfo(LocalExecutable);			
-			string DestPath = Path.Combine(CachedAppPath, BundleName);
-			SrcInfo.CopyTo(DestPath, true);
-			Log.Verbose("Copied local executable from {0} to {1}", LocalExecutable, DestPath);
-
-			// copy provision
-			SrcInfo = new FileInfo(SignProvision);
-			DestPath = Path.Combine(CachedAppPath, "embedded.mobileprovision");
-			SrcInfo.CopyTo(DestPath, true);
-			Log.Verbose("Copied provision from {0} to {1}", SignProvision, DestPath);
-
-			// handle symbols
-			string LocalSymbolsDir = Path.Combine(Environment.CurrentDirectory, ProjectName, string.Format("Binaries/IOS/{0}.dSYM", ExecutableName));
-			DestPath = Path.Combine(GauntletAppCache, string.Format("Symbols/{0}.dSYM", ExecutableName));
-
-			if (Directory.Exists(DestPath))
-			{
-				Directory.Delete(DestPath, true);
-			}
-
-			if (Directory.Exists(LocalSymbolsDir))
-			{				
-				CommandUtils.CopyDirectory_NoExceptions(LocalSymbolsDir, DestPath, true);
-			}
-			else
-			{
-				Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "No symbols found for local build at {Directory}, removing cached app symbols", LocalSymbolsDir);
-			}
-
-			// resign application
-			// @todo: this asks for password unless "Always Allow" is selected, also for builders, document how to permanently grant codesign access to keychain
-			string SignArgs = string.Format("-f -s \"{0}\" --entitlements \"{1}\" \"{2}\"", SigningIdentity, SignEntitlements, CachedAppPath);
-			Log.Info("\nResigning app, please enter keychain password if prompted:\n\ncodesign {0}", SignArgs);
-			var Result = IOSBuild.ExecuteCommand("codesign", SignArgs);
-			if (Result.ExitCode != 0)
-			{
-				throw new AutomationException("Failed to resign application");
-			}
-		}
-
-		// We need to lock around setting up the IPA
-		static object IPALock = new object();
-		public IAppInstall InstallApplication(UnrealAppConfig AppConfig)
-		{
-            IOSBuild Build = AppConfig.Build as IOSBuild;
-
-			// Ensure Build exists
-			if (Build == null)
-			{
-				throw new AutomationException("Invalid build for IOS!");
-			}
-
-			bool CacheResigned = false;
-			bool UseLocalExecutable = Globals.Params.ParseParam("dev");
-
-			lock(IPALock)
-			{
-				Log.Info("Installing using IPA {0}", Build.SourceIPAPath);
-
-				// device artifact path
-				DeviceArtifactPath = string.Format("/Documents/{0}/Saved", AppConfig.ProjectName);
-
-				CacheResigned = File.Exists(CacheResignedFilename);
-
-				if (CacheResigned && !UseLocalExecutable)
-				{
-					if (File.Exists(IPAHashFilename))
-					{
-						Log.Verbose("App was resigned, invalidating app cache");
-						File.Delete(IPAHashFilename);
-					}
-				}
-
-				PrepareIPA(Build);
-
-				// local executable support
-				if (UseLocalExecutable)
-				{
-					ResignApplication(AppConfig);
-				}
-			}
-
-			if (CacheResigned || UseLocalExecutable || !CheckDeployedIPA(Build))
-			{
-				// uninstall will clean all device artifacts
-				ExecuteIOSDeployCommand(String.Format("--uninstall -b \"{0}\"", LocalAppBundle), 20 * 60);
-			}
-			else
-			{
-				// remove device artifacts
-				CleanDeviceArtifacts(Build);
-			}
-
-			// parallel iOS tests use same app install folder, so lock it as setup is quick
-			lock (Globals.MainLock)
-			{
-				// local app install with additional files, this directory will be mirrored to device in a single operation
-				string AppInstallPath;
-
-				AppInstallPath = Path.Combine(Globals.TempDir, "iOSAppInstall");
-
-				if (Directory.Exists(AppInstallPath))
-				{
-					Directory.Delete(AppInstallPath, true);
-				}
-
-				Directory.CreateDirectory(AppInstallPath);
-
-				if (LocalDirectoryMappings.Count == 0)
-				{
-					PopulateDirectoryMappings(AppInstallPath);
-				}
-
-				//@todo: Combine Build and AppConfig files, this should be done in higher level code, not per device implementation
-
-				if (AppConfig.FilesToCopy != null)
-				{
-					foreach (UnrealFileToCopy FileToCopy in AppConfig.FilesToCopy)
-					{
-						string PathToCopyTo = Path.Combine(LocalDirectoryMappings[FileToCopy.TargetBaseDirectory], FileToCopy.TargetRelativeLocation);
-
-						if (File.Exists(FileToCopy.SourceFileLocation))
-						{
-							FileInfo SrcInfo = new FileInfo(FileToCopy.SourceFileLocation);
-							SrcInfo.IsReadOnly = false;
-							string DirectoryToCopyTo = Path.GetDirectoryName(PathToCopyTo);
-							if (!Directory.Exists(DirectoryToCopyTo))
-							{
-								Directory.CreateDirectory(DirectoryToCopyTo);
-							}
-							if (File.Exists(PathToCopyTo))
-							{
-								FileInfo ExistingFile = new FileInfo(PathToCopyTo);
-								ExistingFile.IsReadOnly = false;
-							}
-
-							SrcInfo.CopyTo(PathToCopyTo, true);
-							Log.Verbose("Copying app install: {0} to {1}", FileToCopy, DirectoryToCopyTo);
-						}
-						else
-						{
-							Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "File to copy {File} not found", FileToCopy);
-						}
-					}
-				}
-
-				// copy mapped files in a single pass
-				string CopyCommand = String.Format("--bundle_id {0} --upload={1} --to {2}", Build.PackageName, AppInstallPath, DeviceArtifactPath);
-				ExecuteIOSDeployCommand(CopyCommand, 120);
-
-				// store the IPA hash to avoid redundant deployments
-				CopyCommand = String.Format("--bundle_id {0} --upload={1} --to {2}", Build.PackageName, IPAHashFilename, "/Documents/IPAHash.txt");
-				ExecuteIOSDeployCommand(CopyCommand, 120);
-			}
-
-			IOSAppInstall IOSApp = new IOSAppInstall(AppConfig.Name, this, Build.PackageName, AppConfig.CommandLine);
-			return IOSApp;
-		}
-
-		public void FullClean()
-		{
-
-		}
-
-		public void CleanArtifacts()
-		{
-
-		}
-
-		public void InstallBuild(UnrealAppConfig AppConfiguration)
-		{
-
-		}
-
-		public IAppInstall CreateAppInstall(UnrealAppConfig AppConfig)
-		{
-			return null;
-		}
-
-		public void CopyAdditionalFiles(IEnumerable<UnrealFileToCopy> FilesToCopy)
-		{
-
-		}
-
-		public void PopulateDirectoryMappings(string ProjectDir)
-		{
-			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Build, Path.Combine(ProjectDir, "Build"));
-			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Binaries, Path.Combine(ProjectDir, "Binaries"));
-			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Config, Path.Combine(ProjectDir, "Config"));
-            LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Content, Path.Combine(ProjectDir, "Content"));
-            LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Demos, Path.Combine(ProjectDir, "Demos"));
-			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.PersistentDownloadDir, Path.Combine(ProjectDir, "Saved", "PersistentDownloadDir"));
-			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Profiling, Path.Combine(ProjectDir, "Profiling"));
-            LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Saved, ProjectDir);
-        }
-
-
-		public UnrealTargetPlatform? Platform { get { return UnrealTargetPlatform.IOS; } }
-
-		/// <summary>
-		/// Temp path we use to push/pull things from the device
-		/// </summary>
-		public string LocalCachePath { get; protected set; }
-
-
-		/// <summary>
-		/// Artifact (e.g. Saved) path on the device
-		/// </summary>
-		public string DeviceArtifactPath { get; protected set;  }
-
-
-		#region Device State Management
-
-		// NOTE: We check that a default device UUID or the one specifed is connected with 'ios-deploy --detect' at device creation time
-		// otherwise, ios-deploy doesn't currently support this style of queries
-		// It might be possible to add additional lldb queries/commands through the python interface (there are various solutions for reboot, though the ones I have found require jailbreaking)
-		public bool IsAvailable { get { return true; } }
-		public bool IsConnected { get { return Connected; } }
-		public bool IsOn { get { return true; } }
-		public bool PowerOn() { return true; }
-		public bool PowerOff() { return true; }
-		
-		public bool Reboot() 
-		{ 
-			const string Cmd = "/usr/local/bin/idevicediagnostics";
-			if (!File.Exists(Cmd))
-			{
-				Log.Verbose("Rebooting iOS device requires idevicediagnostics binary");
-				return true;
-			}
-
-			var Result = IOSBuild.ExecuteCommand(Cmd, string.Format("restart -u {0}", DeviceName));
-			if (Result.ExitCode != 0)
-			{
-				Log.Warning(string.Format("Failed to reboot iOS device {0}, restart command failed", DeviceName));
-				return true;
-			}
-
-			// initial wait 20 seconds
-			Thread.Sleep(20 * 1000);
-
-			const int WaitPeriod = 10;
-			int WaitTime = 120;
-			bool rebooted = false;
-			do
-			{
-				Result = IOSBuild.ExecuteCommand(Cmd, string.Format("diagnostics WiFi -u {0}", DeviceName));
-				if (Result.ExitCode == 0)
-				{
-					rebooted = true;
-					break;
-				}
-				
-				Thread.Sleep(WaitPeriod * 1000);
-				WaitTime -= WaitPeriod;
-
-			} while (WaitTime > 0);
-
-			if (!rebooted) 
-			{
-				Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "Failed to reboot iOS device {Name}, device didn't come back after restart", DeviceName);
-			}
-
-			return true; 
-		}
-
-		static Dictionary<string, bool> ConnectedDevices = new Dictionary<string, bool>();
-		bool Connected = false;
-
-		public bool Connect() 
-		{ 
-			lock (Globals.MainLock)
-			{
-				if (Connected)
-				{
-					return true;								
-				}
-
-				bool ExistingConnection = false;
-				if (ConnectedDevices.TryGetValue(DeviceName, out ExistingConnection))
-				{
-					if (ExistingConnection)
-					{
-						throw new AutomationException("Connected to already connected device");
-					}
-				}
-
-				ConnectedDevices[DeviceName] = true;
-
-				Connected = true;
-			}
-
-			return true; 
-		}
-		public bool Disconnect(bool bForce=false)
-		{ 
-			lock (Globals.MainLock)
-			{
-				if (!Connected)
-				{
-					return true;								
-				}
-
-				Connected = false;
-
-				if (ConnectedDevices.ContainsKey(DeviceName))
-				{
-					ConnectedDevices.Remove(DeviceName);
-				}
-
-			}
-
-			return true; 
-		}
-
-		#endregion
-
-		public override string ToString()
-		{
-			return Name;
-		}
-
-
-		/// <summary>
-		/// Get UUID of all connected iOS devices
-		/// </summary>
-		List<string> GetConnectedDeviceUUID()
-		{
-			var Result = ExecuteIOSDeployCommand("--detect", 60, true, false);
-
-			if (Result.ExitCode != 0)
-			{
-				return new List<string>();
-			}
-
-			MatchCollection DeviceMatches = Regex.Matches(Result.Output, @"(.?)Found\ ([a-z0-9]{40}|[A-Z0-9]{8}-[A-Z0-9]{16})");
-
-			return DeviceMatches.Cast<Match>().Select<Match, string>(
-				M => M.Groups[2].ToString()
-			).ToList();
-		}
-
-		static bool ZombiesKilled = false;
-
-		// Get rid of any zombie lldb/iosdeploy processes, this needs to be reworked to use tracked process id's when running parallel tests across multiple AutomationTool.exe processes on test workers
-		void KillZombies()
-		{
-
-			if (ZombiesKilled)
-			{
-				return;
-			}
-
-			ZombiesKilled = true;
-
-			IOSBuild.ExecuteCommand("killall", "ios-deploy");
-			Thread.Sleep(2500);
-			IOSBuild.ExecuteCommand("killall", "lldb");			
-			Thread.Sleep(2500);
-		}
-		
-		// Gauntlet cache folder for tracking device/ipa state
-		string GauntletAppCache
-		{
-			get
-			{	
-				return Path.Combine(Globals.TempDir, "IOSAppCache");
-			}
-		}
-
-		// path to locally extracted (and possibly resigned) app bundle
-		// Note: ios-deploy works with app bundles, which requires the IPA be unzipped for deployment (this will allow us to resign in the future as well)
-		string LocalAppBundle = null;
-
-		// the current IPA MD5 hash, which is tracked to avoid unneccessary deployments and unzip operations
-		string IPAHashFilename { get { return Path.Combine(GauntletAppCache, "IPAHash.txt"); } }
-
-		// file whose presence signals that cache was resigned
-		string CacheResignedFilename { get { return Path.Combine(GauntletAppCache, "Resigned.txt"); } }
-
-
-		/// <summary>
-		/// Generate MD5 and cache IPA bundle files
-		/// </summary>
-		private bool PrepareIPA(IOSBuild Build)
-		{	
-			Log.Info("Preparing IPA {0}", Build.SourceIPAPath);
-
-			try
-			{	
-				// cache the unzipped app using a MD5 checksum, avoiding needing to unzip		
-				string Hash = null;
-				string StoredHash = null;
-				using (var MD5Hash = MD5.Create())
-				{
-					using (var Stream = File.OpenRead(Build.SourceIPAPath))
-					{
-						Hash = BitConverter.ToString(MD5Hash.ComputeHash(Stream)).Replace("-", "").ToLowerInvariant();
-					}
-				}
-				string PayloadDir = Path.Combine(GauntletAppCache, "Payload");
-				string SymbolsDir = Path.Combine(GauntletAppCache, "Symbols");
-				
-				if (File.Exists(IPAHashFilename) && Directory.Exists(PayloadDir))
-				{
-					StoredHash = File.ReadAllText(IPAHashFilename).Trim();
-					if (Hash != StoredHash)
-					{
-						Log.Verbose("IPA hash out of date, clearing cache");
-						StoredHash = null;
-					}
-				}
-
-				if (String.IsNullOrEmpty(StoredHash) || Hash != StoredHash)
-				{
-					if (Directory.Exists(PayloadDir))
-					{
-						Directory.Delete(PayloadDir, true);
-					}
-
-					if (Directory.Exists(SymbolsDir))
-					{
-						Directory.Delete(SymbolsDir, true);
-					}
-
-					if (File.Exists(CacheResignedFilename))
-					{
-						File.Delete(CacheResignedFilename);
-					}
-
-					Log.Verbose("Unzipping IPA {0} to cache at: {1}", Build.SourceIPAPath, GauntletAppCache);
-
-					string Output;
-					if (!IOSBuild.ExecuteIPADittoCommand(String.Format("-x -k {0} {1}", Build.SourceIPAPath, GauntletAppCache), out Output, PayloadDir))
-					{
-						throw new Exception(String.Format("Unable to extract IPA {0}", Build.SourceIPAPath));
-					}
-
-					// Cache symbols for symbolicated callstacks
-					string SymbolsZipFile = string.Format("{0}/../../Symbols/{1}.dSYM.zip", Path.GetDirectoryName(Build.SourceIPAPath), Path.GetFileNameWithoutExtension(Build.SourceIPAPath));
-
-					Log.Verbose("Checking Symbols at {0}", SymbolsZipFile);
-
-					if (File.Exists(SymbolsZipFile))
-					{						
-						Log.Verbose("Unzipping Symbols {0} to cache at: {1}", SymbolsZipFile, SymbolsDir);
-
-						if (!IOSBuild.ExecuteIPAZipCommand(String.Format("{0} -d {1}", SymbolsZipFile, SymbolsDir), out Output, SymbolsDir))
-						{
-							throw new Exception(String.Format("Unable to extract build symbols {0} -> {1}", SymbolsZipFile, SymbolsDir));
-						}
-					}					
-
-					// store hash
-					File.WriteAllText(IPAHashFilename, Hash);
-
-					Log.Verbose("IPA cached");
+					ConnectedDevices[UUID].bConnected = true;
 				}
 				else
 				{
-					Log.Verbose("Using cached IPA");
+					string OSVersionString = JsonDevice.GetObjectField("deviceProperties").GetStringField("osVersionNumber");
+					int IOSMajorVersion = int.Parse(OSVersionString.Substring(0, OSVersionString.IndexOf('.')));
+
+					ConnectedDevice Device = new ConnectedDevice(UUID, IOSMajorVersion, true);
+					ConnectedDevices.Add(UUID, Device);
 				}
-
-				LocalAppBundle = Directory.GetDirectories(PayloadDir).Where(D => Path.GetExtension(D) == ".app").FirstOrDefault();
-
-				if (String.IsNullOrEmpty(LocalAppBundle))
-				{
-					throw new Exception(String.Format("Unable to find app in local app bundle {0}", PayloadDir));
-				}
-
 			}
-			catch (Exception Ex)
-			{
-				throw new AutomationException("Unable to prepare {0} : {1}", Build.SourceIPAPath, Ex.Message);
-			}		
 
 			return true;
+		}
+
+		public bool Disconnect(bool bForce = false)
+		{
+			// Disconnecting from an iOS device causes a lot of problems for device farm automation
+			// Namely, re-pairing a device requires someone to re-trust the host PC manually
+			return true;
+		}
+
+		public bool PowerOn()
+		{
+			return true;
+		}
+
+		public bool PowerOff()
+		{
+			return true;
+		}
+
+		public bool Reboot()
+		{
+			// Rebooting tends to lock the device and break connections requiring manual intervention to unlock the device
+			return true; 
 		}
 
 		public Dictionary<EIntendedBaseCopyDirectory, string> GetPlatformDirectoryMappings()
 		{
-			if (LocalDirectoryMappings.Count == 0)
-			{
-				Log.Warning("Platform directory mappings have not been populated for this platform! This should be done within InstallApplication()");
-			}
 			return LocalDirectoryMappings;
 		}
-
-		public IProcessResult ExecuteIOSDeployCommand(String CommandLine, int WaitTime = 60, bool WarnOnTimeout = true, bool UseDeviceID = true)
+		public override string ToString()
 		{
-			if (UseDeviceID && !IsDefaultDevice)
+			return Name;
+		}
+		#endregion
+
+		public void FullClean()
+		{
+			string AppOutput;
+			if (UseDeviceCtl)
 			{
-				CommandLine = String.Format("--id {0} {1}", DeviceName, CommandLine);
-			}
+				IProcessResult AppListResult = ExecuteDevicectlCommand("device info apps");
+				if (AppListResult.ExitCode != 0)
+				{
+					throw new AutomationException("App list exited with code {0}: {1}", AppListResult.ExitCode, AppListResult.Output);
+				}
 
-			String IOSDeployPath = Path.Combine(Globals.UnrealRootDir, "Engine/Extras/ThirdPartyNotUE/ios-deploy/bin/ios-deploy");
-
-			if (!File.Exists(IOSDeployPath))
-			{
-				throw new AutomationException("Unable to run ios-deploy binary at {0}", IOSDeployPath);
-			}
-
-			CommandUtils.ERunOptions RunOptions = CommandUtils.ERunOptions.NoWaitForExit;
-
-			if (Log.IsVeryVerbose)
-			{
-				RunOptions |= CommandUtils.ERunOptions.AllowSpew;
+				AppOutput = AppListResult.Output;
 			}
 			else
 			{
-				RunOptions |= CommandUtils.ERunOptions.NoLoggingOfRunCommand;
+				IProcessResult AppListResult = ExecuteIOSDeployCommand("-B");
+				if (AppListResult.ExitCode != 0)
+				{
+					throw new AutomationException("App list exited with code {0}: {1}", AppListResult.ExitCode, AppListResult.Output);
+				}
+
+				AppOutput = AppListResult.Output;
 			}
 
-			Log.Verbose("ios-deploy executing '{0}'", CommandLine);
+			Regex AppRegex = new Regex("com[^\\s]*"); // Ex. com.epicgames.enginetest
+			IEnumerable<string> AppList = AppRegex.Matches(AppOutput)
+				.Where(Match => Match.Success)
+				.Select(Match => Match.Value)
+				.Where(Match => !Match.Contains("com.apple.", StringComparison.OrdinalIgnoreCase));
 
-			IProcessResult Result = CommandUtils.Run(IOSDeployPath, CommandLine, Options: RunOptions);
-
-			if (WaitTime > 0)
+			foreach (string App in AppList)
 			{
-				DateTime StartTime = DateTime.Now;
+				Log.Info("Uninstalling {App}...", App);
 
-				Result.ProcessObject.WaitForExit(WaitTime * 1000);
-
-				if (Result.HasExited == false)
+				IProcessResult UninstallResult;
+				if(UseDeviceCtl)
 				{
-					if ((DateTime.Now - StartTime).TotalSeconds >= WaitTime)
-					{
-						string Message = String.Format("IOSDeployPath timeout after {0} secs: {1}, killing process", WaitTime, CommandLine);
+					UninstallResult = ExecuteDevicectlCommand(string.Format("device uninstall app {0}", App));
+				}
+				else
+				{
+					UninstallResult = ExecuteIOSDeployCommand(string.Format("--bundle_id {0} --uninstall_only", App));
+				}
 
-						if (WarnOnTimeout)
-						{ 
-							Log.Warning(Message);
-						}
-						else
-						{
-							Log.Info(Message);
-						}
-						
-						Result.ProcessObject.Kill();
-						// wait up to 15 seconds for process exit
-						Result.ProcessObject.WaitForExit(15000);
-					}
+				UninstallResult.WaitForExit();
+				if (UninstallResult.ExitCode != 0)
+				{
+					throw new AutomationException("Uninstalling {0} exited with code {1}: {2}", App, UninstallResult.ExitCode, UninstallResult.Output);
+				}
+			}
+		}
+
+		public void CleanArtifacts()
+		{
+			if(InstallCache == null)
+			{
+				throw new AutomationException("Could not deduce Bundle ID and project name due to invalid installation cache. " +
+					"Either specify the Bundle ID and Project Name using this function's overload OR ensure CreateAppInstall has been called first.");
+			}
+
+			CleanArtifacts(InstallCache.PackageName, InstallCache.ProjectName);
+		}
+
+		public void CleanArtifacts(string BundleID, string ProjectName)
+		{
+			string EngineSavedDirectory = "/Documents/Engine/Saved";
+			string ProjectSavedDirectory = string.Format("/Documents/{0}/Saved", ProjectName);
+
+			string CleanEngine = string.Format("--bundle_id {0} --rmtree {1}", BundleID, EngineSavedDirectory);
+			string CleanProject = string.Format("--bundle_id {0} --rmtree {1}", BundleID, ProjectSavedDirectory);
+
+			IProcessResult Result = ExecuteIOSDeployCommand(CleanEngine);
+			Result.WaitForExit();
+			if (Result.ExitCode != 0)
+			{
+				throw new AutomationException("Cleaning Engine artifacts for {0} exited with code {1}:\n{2}", BundleID, Result.ExitCode, Result.Output);
+			}
+
+			Result = ExecuteIOSDeployCommand(CleanProject);
+			Result.WaitForExit();
+			if (Result.ExitCode != 0)
+			{
+				throw new AutomationException("Cleaning Project artifacts for {0} exited with code {1}:\n{2}", BundleID, Result.ExitCode, Result.Output);
+			}
+		}
+
+		public void InstallBuild(UnrealAppConfig AppConfig)
+		{
+			if(AppConfig.Build is not IOSBuild Build)
+			{
+				throw new AutomationException("Unsupported build type {0} for iOS!", AppConfig.Build.GetType());
+			}
+
+			string BuildPath = Build.SourcePath;
+			string AppName = Path.GetFileName(Build.SourcePath);
+			if (Globals.IsRunningDev && AppConfig.OverlayExecutable.GetOverlay(BuildPath, out string OverlayExecutable))
+			{
+				BuildPath = OverlayExecutable;
+			}
+			else if(Build.IsIPAFile)
+			{
+				// If the build is an IPA file, unzip it to the cache directory
+				string BuildCache = Path.Combine(LocalCachePath, "TempBuildCache");
+				string PayloadDirectory = Path.Combine(BuildCache, "Payload");
+
+				if(Directory.Exists(PayloadDirectory))
+				{
+					Directory.Delete(PayloadDirectory, true);
+				}
+				Directory.CreateDirectory(BuildCache);
+
+				string IPACommand = string.Format("-x -k {0} {1}", BuildPath, BuildCache);
+				if (!AppleBuild.ExecuteIPADittoCommand(IPACommand, out string Output, PayloadDirectory))
+				{
+					throw new AutomationException("Unable to extract IPA {0}:\n{1}", Build.SourcePath, Output);
+				}
+
+				BuildPath = Directory.EnumerateDirectories(PayloadDirectory, "*.app").FirstOrDefault();
+				if(BuildPath == null)
+				{
+					throw new AutomationException("Failed to find app within IPA payload directory!");
 				}
 			}
 
+			// Uninstall any existing form of the app
+			IProcessResult Result;
+			if(UseDeviceCtl)
+			{
+				Result = ExecuteDevicectlCommand(string.Format("device uninstall app {0}", Build.PackageName));
+			}
+			else
+			{
+				Result = ExecuteIOSDeployCommand(string.Format("--bundle_id {0} --uninstall_only", Build.PackageName));
+			}
+
+			Result.WaitForExit();
+			if(Result.ExitCode != 0)
+			{
+				throw new AutomationException("Uninstall exited with code {0}:\n{1}", Result.ExitCode, Result.Output);
+			}
+
+			// Install the app
+			// Bad provisions can cause this to spit out errors, ignore these and let higher levels manage the exception's verbosity
+			using(ScopedSuspendECErrorParsing ErrorSuspension = new())
+			{
+				if(UseDeviceCtl)
+				{ 
+					Result = ExecuteDevicectlCommand(string.Format("device install app {0} -v", BuildPath), MaxInstallTime, AdditionalOptions: ERunOptions.NoStdOutRedirect);
+				}
+				else
+				{
+					Result = ExecuteIOSDeployCommand(string.Format("-b \"{0}\"", BuildPath), MaxInstallTime, AdditionalOptions: ERunOptions.NoStdOutRedirect);			
+				}
+			}
+
+			if (Result.ExitCode != 0)
+			{
+				throw new AutomationException("Install exited with code {0}:\n{1}", Result.ExitCode, Result.Output);
+			}
+			
+			if(Build.Flags.HasFlag(BuildFlags.Bulk))
+			{
+				int PayloadIndex = Build.SourcePath.IndexOf("/Payload");
+				DirectoryInfo RootBuildDirectory = new(Build.SourcePath.Substring(0, PayloadIndex));
+					
+				string PackageDirectory = RootBuildDirectory.Parent.FullName;
+				string BulkBuildPath = RootBuildDirectory.FullName;
+				string BulkContentsPath = Path.Combine(PackageDirectory, "BulkContents");
+				if(!Directory.Exists(BulkContentsPath))
+				{
+					throw new AutomationException("Could not locate a bulk contents directory when attempting to install a bulk build. Is your bulk build configured correctly?");
+				}
+
+				// When targeting a build in the network share, pull the build down to the host first for a faster install.
+				// Note: it's only faster when the device is connected via USB 3.0, so WiFi is actually faster for our device farm because we use 2.0 for host connections
+				// When running on builders, we'll just copy the build directly from the share
+				string BuildVolume = GetVolumeName(PackageDirectory);
+				string CurrentVolume = GetVolumeName(Environment.CurrentDirectory);
+				if(!BuildVolume.Equals(CurrentVolume, StringComparison.OrdinalIgnoreCase) && !IsBuildMachine)
+				{
+					string BuildCache = Path.Combine(LocalCachePath, "TempBuildCache");
+					string RelativeBuildPath = BulkBuildPath.Replace(PackageDirectory, string.Empty).TrimStart('\\').Trim('/');
+					string RelativeContentPath = BulkContentsPath.Replace(PackageDirectory, string.Empty).Trim('\\').Trim('/');
+
+					string DestinationBuildPath = Path.Combine(BuildCache, RelativeBuildPath);
+					string DestinationContentPath = Path.Combine(BuildCache, RelativeContentPath);
+					
+					lock(CacheMutex)
+					{
+						if(!HasCopiedNetworkBuild)
+						{
+							if (Directory.Exists(BuildCache))
+							{
+								Directory.Delete(BuildCache, true);
+							}
+							Directory.CreateDirectory(BuildCache);
+
+							Log.Info("Copying {Source} to {Dest}", BulkBuildPath, DestinationBuildPath);
+							SystemHelpers.CopyDirectory(BulkBuildPath, DestinationBuildPath, SystemHelpers.CopyOptions.Mirror);
+							Log.Info("Copying {Source} to {Dest}", BulkContentsPath, DestinationContentPath);
+							SystemHelpers.CopyDirectory(BulkContentsPath, DestinationContentPath, SystemHelpers.CopyOptions.Mirror);
+
+							Log.Info("Copy to host complete. Starting deploy to {DeviceName}", UUID);
+
+							// If a device has an issue and we need to select a new one, don't re-copy the whole build from the network again!
+							HasCopiedNetworkBuild = true;
+						}
+
+						BulkBuildPath = DestinationBuildPath;
+					}
+				}
+
+				string IDeviceFS = Path.Combine(Globals.UnrealRootDir, "Engine", "Extras", "ThirdPartyNotUE", "libimobiledevice", "mac", "idevicefs");
+				string BulkContentCopyCommand = string.Format("-u {0} -b {1} -x RequiredCommands.txt", UUID, Build.PackageName);
+
+				if(IsBuildMachine)
+				{
+					// Required for forcing install via pre-paired network device instead of USB
+					BulkContentCopyCommand += " -n";
+				}
+
+				Result = ExecuteDeploymentCommand(IDeviceFS, BulkContentCopyCommand, MaxInstallTime, true, BulkBuildPath, ERunOptions.NoStdOutRedirect);
+
+				if(Result.ExitCode != 0)
+				{
+					throw new AutomationException("Copying bulk content failed with exit code {0}. See above for info", Result.ExitCode);
+				}
+			}
+		}
+
+		public IAppInstall CreateAppInstall(UnrealAppConfig AppConfig)
+		{
+			if (AppConfig.Build is not IOSBuild Build)
+			{
+				throw new AutomationException("Unsupported build type {0} for iOS!", AppConfig.Build.GetType());
+			}
+
+			string ProjectDirectory = string.Format("/Documents/{0}", AppConfig.ProjectName);
+			PopulateDirectoryMappings(ProjectDirectory);
+
+			string AppPath = null;
+			if(!UseDeviceCtl)
+			{
+				if(Globals.IsRunningDev)
+				{
+					AppConfig.OverlayExecutable.GetOverlay(Build.SourcePath, out AppPath);
+				}
+				else
+				{
+					AppPath = Build.SourcePath;
+				}
+			}
+
+			InstallCache = new IOSAppInstall(AppConfig.Name, this, Build.PackageName, AppConfig.CommandLine, AppConfig.ProjectName, AppPath);
+			return InstallCache;
+		}
+
+		public void CopyAdditionalFiles(IEnumerable<UnrealFileToCopy> FilesToCopy)
+		{
+			if(InstallCache == null || string.IsNullOrEmpty(InstallCache.PackageName))
+			{
+				throw new AutomationException("Could not deduce Bundle ID due to invalid installation cache. " +
+					"Either specify the Bundle ID using this function's overload OR ensure CreateAppInstall has been called first.");
+			}
+
+			CopyAdditionalFiles(FilesToCopy, InstallCache.PackageName);
+		}
+
+		public void CopyAdditionalFiles(IEnumerable<UnrealFileToCopy> FilesToCopy, string BundleID)
+		{
+			if (FilesToCopy == null || !FilesToCopy.Any())
+			{
+				return;
+			}
+
+			if (!LocalDirectoryMappings.Any())
+			{
+				throw new AutomationException("Attempted to copy additional files before LocalDirectoryMappings were populated." +
+					"{0} must call PopulateDirectoryMappings before attempting to call CopyAdditionalFiles", this.GetType());
+			}
+
+			foreach (UnrealFileToCopy FileToCopy in FilesToCopy)
+			{
+				FileInfo SourceFile = new FileInfo(FileToCopy.SourceFileLocation);
+				FileInfo DestinationFile = new FileInfo(string.Format("/{0}/{1}", LocalDirectoryMappings[FileToCopy.TargetBaseDirectory], FileToCopy.TargetRelativeLocation));
+				if (!SourceFile.Exists)
+				{
+					Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "File to copy {File} not found. Skipping copy.", FileToCopy);
+				}
+				SourceFile.IsReadOnly = false;
+
+				Log.Verbose("Copying {Source} to {Destination}", SourceFile, DestinationFile);
+
+				string CopyCommand = string.Format("--bundle_id {0} --upload={1} --to {2}",
+					BundleID, SourceFile, DestinationFile);
+				IProcessResult Result = ExecuteIOSDeployCommand(CopyCommand, 120);
+	
+				if(Result.ExitCode != 0)
+				{
+					if (Result.ExitCode != 0)
+					{
+						throw new AutomationException("Copy of {0} to {1} exited with code {2}:\n{3}",
+							SourceFile, DestinationFile, Result.ExitCode, Result.Output);
+					}
+				}
+			}
+		}
+
+		public void PopulateDirectoryMappings(string ProjectDirectory)
+		{
+			string SavedDirectory = ProjectDirectory + "/Saved";
+
+			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Build, ProjectDirectory + "/Build");
+			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Binaries, ProjectDirectory + "/Binaries");
+			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Config, SavedDirectory + "/Config");
+            LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Content, ProjectDirectory + "/Content");
+            LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Demos, SavedDirectory + "/Demos");
+			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.PersistentDownloadDir, SavedDirectory + "/PersistentDownloadDir");
+			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Profiling, SavedDirectory + "/Profiling");
+            LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Saved, SavedDirectory);
+        }
+
+		public IAppInstance Run(IAppInstall Install)
+		{
+			if (Install is not IOSAppInstall IOSInstall)
+			{
+				throw new DeviceException("AppInstance is of incorrect type!");
+			}
+
+			// Copy the commandline into a uecommandline.txt
+			string CommandLine = IOSInstall.CommandLine.Trim();
+			string TempCommandLine = Path.GetTempFileName();
+			File.WriteAllText(TempCommandLine, CommandLine);
+
+			IProcessResult CommandLineCopyResult;
+			if(UseDeviceCtl)
+			{
+				string CopyCommand = string.Format("device copy to --device {0} --source {1} --destination {2} --domain-type appDataContainer --domain-identifier {3}", 
+					UUID, TempCommandLine, Path.Combine("Documents", "uecommandline.txt"), IOSInstall.PackageName);
+				CommandLineCopyResult = ExecuteDevicectlCommand(CopyCommand, UseDeviceID: false);
+			}
+			else
+			{
+				string CopyCommand = string.Format("--bundle_id {0} --upload={1} --to {2}",
+					IOSInstall.PackageName, TempCommandLine, Path.Combine("/Documents", "uecommandline.txt"));
+				CommandLineCopyResult = ExecuteIOSDeployCommand(CopyCommand);
+			}
+
+			if(CommandLineCopyResult.ExitCode != 0)
+			{
+				throw new AutomationException("Failed to copy uecommandline file to device!");
+			}
+
+			Log.Info("Launching {0} on {1}", Install.Name, this);
+			Log.Verbose(IOSInstall.CommandLine);
+
+			ILongProcessResult AppProcess;
+			if(UseDeviceCtl)
+			{
+				// device process launch	base command
+				// --terminate-existing		exit any existing forms of the app
+				// --console				pipe process stdout to devicectl, also holds onto the process until exit instead of immediate exit
+				// --device					device to run on
+				string LaunchCommand = string.Format("device process launch --terminate-existing --console --device {0} {1}", UUID, IOSInstall.PackageName);
+				AppProcess = ExecuteDevicectlCommandNoWait(LaunchCommand, AdditionalOptions: ERunOptions.SpewIsVerbose, LocalCache: IOSInstall.Device.LocalCachePath);
+			}
+			else
+			{
+				if (IOSInstall.AppPath == null)
+				{
+					// Sanity check, this should never happen, but it would be tricky to debug without an explicit message if it did!
+					throw new AutomationException("The provided install to run has a null app path, this likely means the install was designed " +
+						"to run with devicectl instead of ios-deploy.");
+				}
+
+				// -m		Skip installation
+				// -I		Non-interactive mode, just launch and end launch process when app process ends
+				// -b		path to bundle to run
+				string LaunchCommand = string.Format("-m -I -b \"{0}\"", IOSInstall.AppPath);
+				AppProcess = ExecuteIOSDeployCommandNoWait(LaunchCommand, LocalCache: IOSInstall.Device.LocalCachePath);
+			}
+
+			if (AppProcess.HasExited)
+			{
+				throw new DeviceException("Failed to launch on {0}. {1}", Name, AppProcess.Output);
+			}
+
+			return new IOSAppInstance(IOSInstall, AppProcess, IOSInstall.CommandLine);
+		}
+
+		public static IProcessResult ExecuteIOSDeployCommand(string CommandLine, string Device, int WaitTime = 60, bool WarnOnTimeout = true, ERunOptions AdditionalOptions = ERunOptions.None)
+		{
+			string IOSDeploy = Path.Combine(Globals.UnrealRootDir, "Engine/Extras/ThirdPartyNotUE/ios-deploy/bin/ios-deploy");
+			if (!string.IsNullOrEmpty(Device))
+			{
+				CommandLine = string.Format("{0} -i {1}", CommandLine, Device);
+			}
+
+			return ExecuteDeploymentCommand(IOSDeploy, CommandLine, WaitTime, WarnOnTimeout, AdditionalOptions: AdditionalOptions);
+		}
+
+		public static ILongProcessResult ExecuteIOSDeployCommandNoWait(string CommandLine, ERunOptions AdditionalOptions = ERunOptions.None, string LocalCache = null)
+		{
+			string IOSDeploy = Path.Combine(Globals.UnrealRootDir, "Engine/Extras/ThirdPartyNotUE/ios-deploy/bin/ios-deploy");
+			return ExecuteDeploymentCommandNoWait(IOSDeploy, CommandLine, AdditionalOptions: AdditionalOptions, LocalCache: LocalCache);
+		}
+
+		public IProcessResult ExecuteIOSDeployCommand(string CommandLine, int WaitTime = 60, bool WarnOnTimeout = true, bool UseDeviceID = true, ERunOptions AdditionalOptions = ERunOptions.None)
+		{
+			if (UseDeviceID && !IsDefaultDevice)
+			{
+				return ExecuteIOSDeployCommand(CommandLine, UUID, WaitTime, WarnOnTimeout, AdditionalOptions);
+			}
+			else
+			{
+				return ExecuteIOSDeployCommand(CommandLine, null, WaitTime, WarnOnTimeout, AdditionalOptions);
+			}
+		}
+
+		public static IProcessResult ExecuteDevicectlCommand(string CommandLine, string Device, int WaitTime = 60, bool WarnOnTimeout = true, ERunOptions AdditionalOptions = ERunOptions.None)
+		{
+			CommandLine = string.Format("devicectl {0}", CommandLine);
+
+			string XCRun = "/usr/bin/xcrun";
+			if (!string.IsNullOrEmpty(Device))
+			{
+				CommandLine = string.Format("{0} --device {1}", CommandLine, Device);
+			}
+
+			return ExecuteDeploymentCommand(XCRun, CommandLine, WaitTime, WarnOnTimeout, AdditionalOptions: AdditionalOptions);
+		}
+
+		public static ILongProcessResult ExecuteDevicectlCommandNoWait(string CommandLine, ERunOptions AdditionalOptions = ERunOptions.None, string LocalCache = null)
+		{
+			CommandLine = string.Format("devicectl {0}", CommandLine);
+			string XCRun = "/usr/bin/xcrun";
+			return ExecuteDeploymentCommandNoWait(XCRun, CommandLine, AdditionalOptions: AdditionalOptions, LocalCache: LocalCache);
+		}
+
+		public IProcessResult ExecuteDevicectlCommand(string CommandLine, int WaitTime = 60, bool WarnOnTimeout = true, bool UseDeviceID = true, ERunOptions AdditionalOptions = ERunOptions.None)
+		{
+			if(UseDeviceID)
+			{
+				return ExecuteDevicectlCommand(CommandLine, UUID, WaitTime, WarnOnTimeout, AdditionalOptions);
+			}
+			else
+			{
+				return ExecuteDevicectlCommand(CommandLine, null, WaitTime, WarnOnTimeout, AdditionalOptions);
+			}
+		}
+
+		private static IProcessResult ExecuteDeploymentCommand(string Executable, string CommandLine, int WaitTime = 60, bool WarnOnTimeout = true, string WorkingDir = null, ERunOptions AdditionalOptions = ERunOptions.None)
+		{
+			if (!AdditionalOptions.HasFlag(ERunOptions.UseShellExecute) && !File.Exists(Executable))
+			{
+				throw new AutomationException("Unable to find deployment binary at {0}", Executable);
+			}
+
+			Log.Info("{DeploymentExecutable} executing '{Command}'", Executable, CommandLine);
+
+			ERunOptions RunOptions = ERunOptions.NoWaitForExit | AdditionalOptions;
+			RunOptions |= Log.IsVeryVerbose
+				? ERunOptions.AllowSpew
+				: ERunOptions.NoLoggingOfRunCommand;
+
+
+			IProcessResult Result = null;
+			try
+			{
+				Result = CommandUtils.Run(Executable, CommandLine, Options: RunOptions, WorkingDir: WorkingDir);
+
+				if (WaitTime > 0)
+				{
+					DateTime StartTime = DateTime.Now;
+
+					Result.ProcessObject.WaitForExit(WaitTime * 1000);
+
+					if (Result.HasExited == false)
+					{
+						if ((DateTime.Now - StartTime).TotalSeconds >= WaitTime)
+						{
+							string Message = string.Format("{0} timeout after {1} secs: {2}, killing process", Executable, WaitTime, CommandLine);
+
+							if (WarnOnTimeout)
+							{
+								Log.Warning(Message);
+							}
+							else
+							{
+								Log.Info(Message);
+							}
+
+							Result.ProcessObject?.Kill();
+							Result.ProcessObject?.WaitForExit(15000);
+						}
+					}
+				}
+			}
+			catch (Exception Ex)
+			{
+				Log.Warning("Encountered an {ExceptionType} while running device command {Exception}", Ex.GetType().Name, Ex.Message);
+			}
+
 			return Result;
+		}
+
+		private static ILongProcessResult ExecuteDeploymentCommandNoWait(string Executable, string CommandLine, string WorkingDir = null, ERunOptions AdditionalOptions = ERunOptions.None, string LocalCache = null)
+		{
+			if (!AdditionalOptions.HasFlag(ERunOptions.UseShellExecute) && !File.Exists(Executable))
+			{
+				throw new AutomationException("Unable to find deployment binary at {0}", Executable);
+			}
+
+			Log.Info("{DeploymentExecutable} executing '{Command}'", Executable, CommandLine);
+
+			ERunOptions RunOptions = ERunOptions.NoWaitForExit | AdditionalOptions;
+			RunOptions |= Log.IsVeryVerbose
+				? ERunOptions.AllowSpew
+				: ERunOptions.NoLoggingOfRunCommand;
+
+
+			ILongProcessResult Result = null;
+			try
+			{
+				Result = new LongProcessResult(Executable, CommandLine, Options: RunOptions, WorkingDir: WorkingDir, LocalCache: LocalCache);
+			}
+			catch (Exception Ex)
+			{
+				Log.Warning("Encountered an {ExceptionType} while running device command {Exception}", Ex.GetType().Name, Ex.Message);
+			}
+
+			return Result;
+		}
+
+		private static void InitializeDevices()
+		{
+			lock (InitializerMutex)
+			{
+				if (bStaticInitialized)
+				{
+					if (!ConnectedDevices.Any())
+					{
+						throw new AutomationException("No iOS device connections were detected! Verify the host's setup.");
+					}
+
+					return;
+				}
+
+				bStaticInitialized = true;
+
+				// Determine which version of XCode is installed
+				// On XCode version 15 or greater, devicectl will be used to manage deployments
+				// On XCode version 14 or lower, ios-deploy will be used to manage deployments
+				IProcessResult VersionResult = CommandUtils.Run("xcodebuild", "-version");
+				if (VersionResult.ExitCode != 0)
+				{
+					throw new AutomationException("XCode version query exited with code {0}. Do you have XCode installed?\n{1}", VersionResult.ExitCode, VersionResult.Output);
+				}
+
+				Match VersionMatch = Regex.Match(VersionResult.Output, @"Xcode\ (?<Version>\d+)");
+				if (!VersionMatch.Success)
+				{
+					throw new AutomationException("Failed to match version output, has Apple changed output formatting?");
+				}
+
+				XCodeMajorVersion = int.Parse(VersionMatch.Groups[1].Value);
+
+				UseDeviceCtl = XCodeMajorVersion >= 15;
+
+				// Gather the iOS devices are connected to this UAT host
+				ConnectedDevices = GetConnectedDevices();
+
+				// Clear any zombie processes previous UAT instances may have left running
+				AppleBuild.ExecuteCommand("killall", "xcrun").WaitForExit();
+				AppleBuild.ExecuteCommand("killall", "ios-deploy").WaitForExit();
+				AppleBuild.ExecuteCommand("killall", "lldb").WaitForExit();
+
+				if (!ConnectedDevices.Any())
+				{
+					throw new AutomationException("No iOS device connections were detected! Verify the host's setup.");
+				}
+			}
+		}
+
+		private static Dictionary<string, ConnectedDevice> GetConnectedDevices()
+		{
+			Dictionary<string, ConnectedDevice> Devices = new();
+
+			if (UseDeviceCtl)
+			{
+				string ListFile = Path.GetTempFileName();
+				string ListCommand = string.Format("list devices -j {0}", ListFile);
+
+				IProcessResult ListResult = ExecuteDevicectlCommand(ListCommand, null);
+				if (ListResult.ExitCode != 0)
+				{
+					Log.Error("List devices exited with code {0}:\n{1}", ListResult.ExitCode, ListResult.Output);
+					return null;
+				}
+
+				if(!File.Exists(ListFile))
+				{
+					Log.Error("Could not find list device output file at {FilePath}", ListFile);
+					return null;
+				}
+
+				string Text = File.ReadAllText(ListFile);
+				JsonObject[] JsonDevices = JsonObject.Parse(File.ReadAllText(ListFile))
+					.GetObjectField("result")
+					.GetObjectArrayField("devices");
+
+				foreach (JsonObject JsonDevice in JsonDevices)
+				{
+					string UUID = JsonDevice.GetObjectField("hardwareProperties").GetStringField("udid");
+					string OSVersionString = JsonDevice.GetObjectField("deviceProperties").GetStringField("osVersionNumber");
+					int IOSMajorVersion = int.Parse(OSVersionString.Substring(0, OSVersionString.IndexOf('.')));
+					bool bIsPaired = JsonDevice.GetObjectField("connectionProperties").GetStringField("pairingState").Equals("paired", StringComparison.OrdinalIgnoreCase);
+
+					ConnectedDevice Device = new ConnectedDevice(UUID, IOSMajorVersion, bIsPaired);
+					Devices.Add(UUID, Device);
+				}
+			}
+			else
+			{
+				IProcessResult DetectResult = ExecuteIOSDeployCommand("--detect", null);
+				if (DetectResult.ExitCode != 0)
+				{
+					Log.Warning("Detect devices exited with code {0}:\n{1}", DetectResult.ExitCode, DetectResult.Output);
+					return null;
+				}
+
+				IEnumerable<Match> DeviceMatches = Regex
+					.Matches(DetectResult.Output, @"(.?)Found\ ([a-z0-9]{40}|[A-Z0-9]{8}-[A-Z0-9]{16})(.*?)(\d+\.)")
+					.Where(Match => Match.Success);
+
+				foreach(Match Match in DeviceMatches)
+				{
+					string UUID = Match.Groups[2].ToString();
+					string OSVersionString = Match.Groups[4].ToString();
+					int IOSMajorVersion = int.Parse(OSVersionString.Substring(0, OSVersionString.IndexOf('.')));
+
+					ConnectedDevice Device = new ConnectedDevice(UUID, IOSMajorVersion, true);
+					Devices.Add(UUID, Device);
+				}
+			}
+
+			return Devices;
+		}
+
+		private static string GetVolumeName(string InPath)
+		{
+			Match M = Regex.Match(InPath, @"/Volumes/(.+?)/");
+
+			if (M.Success)
+			{
+				return M.Groups[1].ToString();
+			}
+
+			return string.Empty;
+		}
+
+		// DEPRECATED
+		public IAppInstall InstallApplication(UnrealAppConfig AppConfig)
+		{
+			InstallBuild(AppConfig);
+			return CreateAppInstall(AppConfig);
+		}
+	}
+
+	class IOSAppInstall : IAppInstall
+	{
+		public string Name { get; protected set; }
+
+		public string AppPath { get; protected set; }
+
+		public string CommandLine { get; protected set; }
+
+		public string PackageName { get; protected set; }
+
+		public string ProjectName { get; protected set; }
+
+		public ITargetDevice Device => IOSDevice;
+
+		public TargetDeviceIOS IOSDevice;
+
+		public IOSAppInstall(string InName, TargetDeviceIOS InDevice, string InPackageName,
+			string InCommandLine, string InProjectName, string InAppPath = null)
+		{
+			Name = InName;
+			AppPath = InAppPath;
+			IOSDevice = InDevice;
+			CommandLine = InCommandLine;
+			PackageName = InPackageName;
+			ProjectName = InProjectName;
+		}
+
+		public IAppInstance Run()
+		{
+			return Device.Run(this);
+		}
+	}
+
+	class IOSAppInstance : IAppInstance
+	{
+		public ITargetDevice Device => Install.Device;
+		public TargetDeviceIOS IOSDevice => Device as TargetDeviceIOS;
+		public ILongProcessResult LaunchProcess { get; private set; }
+		public string CommandLine { get; private set; }
+		public bool WasKilled { get; protected set; }
+		public int ExitCode => LaunchProcess.ExitCode;
+		public bool HasExited => LaunchProcess.HasExited;
+
+		public string ArtifactPath
+		{
+			get
+			{
+				if (!bHaveSavedArtifacts)
+				{
+					if (HasExited)
+					{
+						SaveArtifacts();
+						bHaveSavedArtifacts = true;
+					}
+				}
+
+				return Path.Combine(IOSDevice.LocalCachePath, "Saved");
+			}
+		}
+
+		public string StdOut
+		{
+			get
+			{
+				CheckGeneratedCrashLog();
+				return LaunchProcess.Output;
+			}
+		}
+		private void CheckGeneratedCrashLog()
+		{
+			// The ios application is being run under lldb by ios-deploy
+			// lldb catches crashes and we have it setup to dump thread callstacks
+			// parse any crash dumps into Unreal crash format and append to output
+			if (HasExited && !bWasCheckedForCrash)
+			{
+				bWasCheckedForCrash = true;
+				string CrashLog = LLDBCrashParser.GenerateCrashLog(LaunchProcess.GetLogReader());
+				if (!string.IsNullOrEmpty(CrashLog))
+				{
+					LaunchProcess.AppendToOutput(CrashLog, false);
+				}
+			}
+		}
+
+		public ILogStreamReader GetLogReader()
+		{
+			CheckGeneratedCrashLog();
+			return LaunchProcess.GetLogReader();
+		}
+
+		public ILogStreamReader GetLogBufferReader() => LaunchProcess.GetLogBufferReader();
+
+		public bool WriteOutputToFile(string FilePath) => LaunchProcess.WriteOutputToFile(FilePath) != null;
+
+		protected IOSAppInstall Install;
+
+		protected bool bHaveSavedArtifacts = false;
+		protected bool bWasCheckedForCrash = false;
+
+		public IOSAppInstance(IOSAppInstall InInstall, ILongProcessResult InProcess, string InCommandLine)
+		{
+			Install = InInstall;
+			this.CommandLine = InCommandLine;
+			this.LaunchProcess = InProcess;
+		}
+
+		public int WaitForExit()
+		{
+			if (!HasExited)
+			{
+				LaunchProcess.WaitForExit();
+			}
+
+			return ExitCode;
+		}
+
+		public void Kill(bool bGenerateDump = false)
+		{
+			if (!HasExited)
+			{
+				WasKilled = true;
+				LaunchProcess.ProcessObject.Kill(true);
+			}
+		}
+
+		protected void SaveArtifacts()
+		{
+			IProcessResult DownloadResult;
+			string SourceArtifactPath = IOSDevice.GetPlatformDirectoryMappings()[EIntendedBaseCopyDirectory.Saved];
+			string DestinationArtifactPath = Path.Combine(IOSDevice.LocalCachePath, "Saved");
+
+			if (Directory.Exists(DestinationArtifactPath))
+			{
+				Directory.Delete(DestinationArtifactPath, true);
+			}
+
+			// ios-deploy will copy the entire Documents directory, we just want the contents
+			// We'll copy the directory to a temp path before moving the contents into the saved directory
+			string TempPath = Path.Combine(IOSDevice.LocalCachePath, "Temp");
+			if (Directory.Exists(TempPath))
+			{
+				Directory.Delete(TempPath, true);
+			}
+			Directory.CreateDirectory(TempPath);
+
+			string CopyCommand = string.Format("--bundle_id {0} --download={1} --to {2}",
+				Install.PackageName, SourceArtifactPath, TempPath);
+			DownloadResult = IOSDevice.ExecuteIOSDeployCommand(CopyCommand, 120);
+			if (DownloadResult.ExitCode != 0)
+			{
+				string Error = string.Format("Copying artifacts from device failed with code {0}:\n{1}\nArtifacts will not be saved.",
+					DownloadResult.ExitCode, DownloadResult.Output);
+				Log.Error(KnownLogEvents.Gauntlet_DeviceEvent, Error);
+			}
+
+			try
+			{
+				string DocumentsPath = Path.Combine(TempPath, "Documents");
+				if (Directory.Exists(DocumentsPath))
+				{
+					Directory.Move(DocumentsPath, DestinationArtifactPath);
+				}
+
+				Directory.Delete(TempPath, true);
+			}
+			catch (Exception Ex)
+			{
+				Log.Error(KnownLogEvents.Gauntlet_DeviceEvent, "Failed to move artifacts out of temp directory:\n{Exception}", Ex.Message);
+			}
 		}
 	}
 
@@ -992,9 +1197,9 @@ namespace Gauntlet
 			public override string ToString()
 			{
 				// symbolicated
-				if (!String.IsNullOrEmpty(Source))
+				if (!string.IsNullOrEmpty(Source))
 				{
-					return string.Format("Error: [Callstack] 0x{0} {1}!{2} [{3}{4}]", Address, Module, Symbol.Replace(" ", "^"), Source, String.IsNullOrEmpty(Line) ? "" : ":" + Line);
+					return string.Format("Error: [Callstack] 0x{0} {1}!{2} [{3}{4}]", Address, Module, Symbol.Replace(" ", "^"), Source, string.IsNullOrEmpty(Line) ? "" : ":" + Line);
 				}
 
 				// unsymbolicated
@@ -1018,15 +1223,15 @@ namespace Gauntlet
 		}
 
 		/// <summary>
-		/// Parse lldb thread crash dump to Unreal log format 
-		/// </summary>		
-		public static string GenerateCrashLog(string LogOutput)
+		/// Parse lldb thread crash dump to Unreal log format
+		/// </summary>
+		public static string GenerateCrashLog(ILogStreamReader LogReader)
 		{
 			try
 			{
 				DateTime TimeStamp;
 				int Frame;
-				ThreadInfo Thread = ParseCallstack(LogOutput, out TimeStamp, out Frame);
+				ThreadInfo Thread = ParseCallstack(LogReader, out TimeStamp, out Frame);
 				if (Thread == null)
 				{
 					return null;
@@ -1038,7 +1243,7 @@ namespace Gauntlet
 				CrashLog.Append(string.Join("\n", Thread.Frames));
 
 				return CrashLog.ToString();
-			} 
+			}
 			catch (Exception Ex)
 			{
 				Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "Exception parsing LLDB callstack {Exception}", Ex.Message);
@@ -1048,7 +1253,7 @@ namespace Gauntlet
 
 		}
 
-		static ThreadInfo ParseCallstack(string LogOutput, out DateTime Timestamp, out int FrameNum)
+		private static ThreadInfo ParseCallstack(ILogStreamReader LogReader, out DateTime Timestamp, out int FrameNum)
 		{
 			Timestamp = DateTime.UtcNow;
 			FrameNum = 0;
@@ -1059,16 +1264,11 @@ namespace Gauntlet
 			Regex SymbolicatedFrameRegex = new Regex(@"\*?\s#(?<framenum>\d+):\s0x(?<address>[\da-f]+)\s(?<module>.+)\`(?<symbol>.+)(\sat\s)(?<source>.+)\s\[opt\]");
 			Regex UnsymbolicatedFrameRegex = new Regex(@"\*?frame\s#(?<framenum>\d+):\s0x(?<address>[\da-f]+)\s(?<module>.+)\`(?<symbol>.+)(\s\+\s(?<offset>\d+))?");
 
-			LinkedList<string> CrashLog = new LinkedList<string>(Regex.Split(LogOutput, "\r\n|\r|\n"));
-
 			List<ThreadInfo> Threads = new List<ThreadInfo>();
 			ThreadInfo Thread = null;
 
-			var LineNode = CrashLog.First;
-			while (LineNode != null)
+			foreach(string Line in LogReader.EnumerateNextLines())
 			{
-				string Line = LineNode.Value.Trim();
-
 				// If Gauntlet marks the test as complete, ignore any thread dumps from forcing process to exit
 				if (Line.Contains("**** TEST COMPLETE. EXIT CODE: 0 ****"))
 				{
@@ -1092,7 +1292,6 @@ namespace Gauntlet
 						Timestamp = new DateTime(Year, Month, Day, Hour, Minute, Second);
 					}
 
-					LineNode = LineNode.Next;
 					continue;
 				}
 
@@ -1173,8 +1372,6 @@ namespace Gauntlet
 
 					}
 				}
-
-				LineNode = LineNode.Next;
 			}
 
 			if (Threads.Count(T => T.Current == true) > 1)
@@ -1197,9 +1394,20 @@ namespace Gauntlet
 			}
 
 			return Thread;
+		}
+	}
 
+	public class IOSDeviceFactory : IDeviceFactory
+	{
+		public bool CanSupportPlatform(UnrealTargetPlatform? Platform)
+		{
+			return Platform == UnrealTargetPlatform.IOS;
 		}
 
+		public ITargetDevice CreateDevice(string InRef, string InCachePath, string InParam)
+		{
+			return new TargetDeviceIOS(InRef, InCachePath);
+		}
 	}
 
 	public class IOSBuildSupport : BaseBuildSupport

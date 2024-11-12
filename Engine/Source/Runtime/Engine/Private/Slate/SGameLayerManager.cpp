@@ -578,33 +578,27 @@ TSharedPtr<SGameLayerManager::FPlayerLayer> SGameLayerManager::FindOrCreatePlaye
 
 void SGameLayerManager::RemoveMissingPlayerLayers(const TArray<ULocalPlayer*>& GamePlayers)
 {
-	TArray<ULocalPlayer*> ToRemove;
-
 	// Find the player layers for players that no longer exist
-	for (auto& PlayerLayerEntry : PlayerLayers)
+	for (auto PlayerLayerIt = PlayerLayers.CreateIterator(); PlayerLayerIt; ++PlayerLayerIt)
 	{
-		ULocalPlayer* Key = Cast<ULocalPlayer>(PlayerLayerEntry.Key.ResolveObjectPtr());
-		if ( !GamePlayers.Contains(Key) )
+		ULocalPlayer* Key = Cast<ULocalPlayer>(PlayerLayerIt.Key().ResolveObjectPtr());
+		if ((Key == nullptr) || !GamePlayers.Contains(Key))
 		{
-			ToRemove.Add(Key);
+			const TSharedPtr<FPlayerLayer> Layer = PlayerLayerIt.Value();
+			PlayerCanvas->RemoveSlot(Layer->Widget.ToSharedRef());
+			PlayerLayerIt.RemoveCurrent();
 		}
-	}
-
-	// Remove the missing players
-	for ( ULocalPlayer* Player : ToRemove )
-	{
-		RemovePlayerWidgets(Player);
 	}
 }
 
 void SGameLayerManager::RemovePlayerWidgets(ULocalPlayer* LocalPlayer)
 {
-	FObjectKey LocalPlayerKey(LocalPlayer);
-
-	TSharedPtr<FPlayerLayer> Layer = PlayerLayers.FindRef(LocalPlayerKey);
-	PlayerCanvas->RemoveSlot(Layer->Widget.ToSharedRef());
-
-	PlayerLayers.Remove(LocalPlayerKey);
+	TSharedPtr<FPlayerLayer> Layer;
+	const FObjectKey LocalPlayerKey(LocalPlayer);
+	if (PlayerLayers.RemoveAndCopyValue(LocalPlayerKey, Layer))
+	{
+		PlayerCanvas->RemoveSlot(Layer->Widget.ToSharedRef());
+	}
 }
 
 void SGameLayerManager::AddOrUpdatePlayerLayers(const FGeometry& AllottedGeometry, UGameViewportClient* ViewportClient, const TArray<ULocalPlayer*>& GamePlayers)
@@ -636,7 +630,7 @@ void SGameLayerManager::AddOrUpdatePlayerLayers(const FGeometry& AllottedGeometr
 			FPerPlayerSplitscreenData& SplitData = SplitInfo[SplitType].PlayerData[PlayerIndex];
 
 			// Viewport Sizes
-			FVector2D Position(0, 0);
+			FVector2D Position(0.0, 0.0);
 			FVector2D Size(SplitData.SizeX, SplitData.SizeY);
 			GetNormalizeRect(Player, Position, Size);
 
@@ -650,6 +644,19 @@ void SGameLayerManager::AddOrUpdatePlayerLayers(const FGeometry& AllottedGeometr
 
 			PlayerLayer->Slot->SetSize(Size);
 			PlayerLayer->Slot->SetPosition(Position);
+		}
+		else
+		{
+			TSharedPtr<FPlayerLayer> PlayerLayer = PlayerLayers.FindRef(Player);
+			if (PlayerLayer.IsValid())
+			{
+				// Viewport Sizes
+				FVector2D Position(0.0, 0.0);
+				FVector2D Size(0.0, 0.0);
+
+				PlayerLayer->Slot->SetSize(Size);
+				PlayerLayer->Slot->SetPosition(Position);
+			}
 		}
 	}
 }

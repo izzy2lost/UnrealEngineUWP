@@ -28,6 +28,8 @@
 #include "Widgets/Views/STableViewBase.h"
 #include "Widgets/Views/STreeView.h"
 
+class FAsyncDetailViewDiff;
+class SLinkableScrollBar;
 class FBlueprintDifferenceTreeEntry;
 class FSpawnTabArgs;
 class FTabManager;
@@ -126,6 +128,8 @@ struct KISMET_API FDiffPanel
 
 	/** The widget that contains the revision info in graph mode */
 	TSharedPtr<SWidget>				OverlayGraphRevisionInfo;
+
+	TSharedPtr<SLinkableScrollBar> DetailScrollbar;
 private:
 	/** Command list for this diff panel */
 	TSharedPtr<FUICommandList> GraphEditorCommands;
@@ -262,6 +266,9 @@ protected:
 
 	/*The two panels used to show the old & new revision*/ 
 	FDiffPanel				PanelOld, PanelNew;
+
+	/* Diff info about the kismet panels in blueprint graph diff view */
+	TSharedPtr<FAsyncDetailViewDiff> GraphDetailDiff;
 	
 	/** If the two views should be locked */
 	bool	bLockViews;

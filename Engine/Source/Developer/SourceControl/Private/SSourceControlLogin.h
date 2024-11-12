@@ -2,21 +2,20 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#if SOURCE_CONTROL_WITH_SLATE
+
 #include "ISourceControlModule.h"
 #include "ISourceControlProvider.h"
-#if SOURCE_CONTROL_WITH_SLATE
+#include "Input/Reply.h"
 #include "Layout/Visibility.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
-#include "Input/Reply.h"
-#include "Widgets/SCompoundWidget.h"
 #include "Widgets/Layout/SBorder.h"
-#endif
+#include "Widgets/SCompoundWidget.h"
 
 class FActiveTimerHandle;
 class IDetailsView;
-class SWindow;
 class SBox;
+class SWindow;
 
 namespace ELoginConnectionState
 {
@@ -27,9 +26,6 @@ namespace ELoginConnectionState
 		Connected,
 	};
 }
-
-#if SOURCE_CONTROL_WITH_SLATE
-
 
 class SSourceControlLogin : public SCompoundWidget
 {
@@ -91,6 +87,9 @@ private:
 
 	/** Requests confirmation of disabling source control */
 	bool ConfirmDisableSourceControl() const;
+
+	/** Flushes all current revision control settings to disk */
+	void SaveSettingsToDisk() const;
 
 private:
 	/** The frequency at which to tick to scc module when inside a modal window */

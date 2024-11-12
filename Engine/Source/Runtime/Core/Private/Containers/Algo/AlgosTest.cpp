@@ -13,6 +13,7 @@
 #include "Algo/IntroSort.h"
 #include "Algo/IsHeap.h"
 #include "Algo/IsSorted.h"
+#include "Algo/Mismatch.h"
 #include "Algo/Sort.h"
 #include "Algo/Transform.h"
 #include "Algo/IndexOf.h"
@@ -680,12 +681,137 @@ public:
 		}
 	}
 
+	void TestMismatch()
+	{
+		{
+			TArray<int32> Empty;
+			TArray<int32> DataA = { 1, 2, 3, 4, 5, 6 };
+			TArray<int32> DataB = { 1, 2, 3, 7, 8, 9 };
+			TArray<int32> DataC = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+			// Test empty ranges
+			check(Algo::Mismatch(Empty, Empty) == 0);
+			check(Algo::Mismatch(Empty, DataA) == 0);
+			check(Algo::Mismatch(DataA, Empty) == 0);
+
+			// Test common initial sequences
+			check(Algo::Mismatch(DataA, DataB) == 3);
+			check(Algo::Mismatch(DataB, DataA) == 3);
+
+			// Test equal sequences
+			check(Algo::Mismatch(DataA, DataA) == 6);
+			check(Algo::Mismatch(DataB, DataB) == 6);
+			check(Algo::Mismatch(DataC, DataC) == 9);
+
+			// Test subsequences
+			check(Algo::Mismatch(DataA, DataC) == 6);
+			check(Algo::Mismatch(DataC, DataA) == 6);
+		}
+
+		{
+			auto CompareCaseInsensitive = [](TCHAR Lhs, TCHAR Rhs)
+			{
+				return FChar::ToUpper(Lhs) == FChar::ToUpper(Rhs);
+			};
+
+			FString Empty;
+			FString DataA = TEXT("HeLlO wOrLd");
+			FString DataB = TEXT("HELLO GOODBYE");
+			FString DataC = TEXT("hello");
+
+			// Test empty ranges with custom equality
+			check(Algo::Mismatch(Empty, Empty, CompareCaseInsensitive) == 0);
+			check(Algo::Mismatch(Empty, DataA, CompareCaseInsensitive) == 0);
+			check(Algo::Mismatch(DataA, Empty, CompareCaseInsensitive) == 0);
+
+			// Test common initial sequences
+			check(Algo::Mismatch(DataA, DataB, CompareCaseInsensitive) == 6);
+			check(Algo::Mismatch(DataB, DataA, CompareCaseInsensitive) == 6);
+
+			// Test equal sequences
+			check(Algo::Mismatch(DataA, DataA, CompareCaseInsensitive) == 11);
+			check(Algo::Mismatch(DataB, DataB, CompareCaseInsensitive) == 13);
+			check(Algo::Mismatch(DataC, DataC, CompareCaseInsensitive) == 5);
+
+			// Test subsequences
+			check(Algo::Mismatch(DataA, DataC, CompareCaseInsensitive) == 5);
+			check(Algo::Mismatch(DataC, DataA, CompareCaseInsensitive) == 5);
+			check(Algo::Mismatch(DataB, DataC, CompareCaseInsensitive) == 5);
+			check(Algo::Mismatch(DataC, DataB, CompareCaseInsensitive) == 5);
+		}
+
+		{
+			auto Square = [](int32 Val)
+			{
+				return Val * Val;
+			};
+
+			TArray<int32> Empty;
+			TArray<int32> DataA = { 1, 2, 3, 4, 5, 6 };
+			TArray<int32> DataB = { -1, -2, -3, -7, -8, -9 };
+			TArray<int32> DataC = { 1, -2, 3, -4, 5, -6, 7, -8, 9 };
+
+			// Test empty ranges with projection
+			check(Algo::MismatchBy(Empty, Empty, Square) == 0);
+			check(Algo::MismatchBy(Empty, DataA, Square) == 0);
+			check(Algo::MismatchBy(DataA, Empty, Square) == 0);
+
+			// Test common initial sequences with projection
+			check(Algo::MismatchBy(DataA, DataB, Square) == 3);
+			check(Algo::MismatchBy(DataB, DataA, Square) == 3);
+
+			// Test equal sequences with projection
+			check(Algo::MismatchBy(DataA, DataA, Square) == 6);
+			check(Algo::MismatchBy(DataB, DataB, Square) == 6);
+			check(Algo::MismatchBy(DataC, DataC, Square) == 9);
+
+			// Test subsequences with projection
+			check(Algo::MismatchBy(DataA, DataC, Square) == 6);
+			check(Algo::MismatchBy(DataC, DataA, Square) == 6);
+		}
+
+		{
+			struct FStringWrapper
+			{
+				FString Str;
+			};
+
+			auto CompareCaseInsensitive = [](const FString& Lhs, const FString& Rhs)
+			{
+				return Lhs.Equals(Rhs, ESearchCase::IgnoreCase);
+			};
+
+			TArray<FStringWrapper> Empty;
+			TArray<FStringWrapper> DataA = { { TEXT("Class") }, { TEXT("Struct") }, { TEXT("Enum") }, { TEXT("Float") }, { TEXT("Int") }, { TEXT("Char") } };
+			TArray<FStringWrapper> DataB = { { TEXT("class") }, { TEXT("struct") }, { TEXT("enum") }, { TEXT("public") }, { TEXT("protected") }, { TEXT("private") } };
+			TArray<FStringWrapper> DataC = { { TEXT("CLASS") }, { TEXT("STRUCT") }, { TEXT("ENUM") }, { TEXT("FLOAT") }, { TEXT("INT") }, { TEXT("CHAR") }, { TEXT("PUBLIC") }, { TEXT("PROTECTED") }, { TEXT("PRIVATE") } };
+
+			// Test empty ranges with projection and custom equality
+			check(Algo::MismatchBy(Empty, Empty, &FStringWrapper::Str, CompareCaseInsensitive) == 0);
+			check(Algo::MismatchBy(Empty, DataA, &FStringWrapper::Str, CompareCaseInsensitive) == 0);
+			check(Algo::MismatchBy(DataA, Empty, &FStringWrapper::Str, CompareCaseInsensitive) == 0);
+
+			// Test common initial sequences with projection and custom equality
+			check(Algo::MismatchBy(DataA, DataB, &FStringWrapper::Str, CompareCaseInsensitive) == 3);
+			check(Algo::MismatchBy(DataB, DataA, &FStringWrapper::Str, CompareCaseInsensitive) == 3);
+
+			// Test equal sequences with projection and custom equality
+			check(Algo::MismatchBy(DataA, DataA, &FStringWrapper::Str, CompareCaseInsensitive) == 6);
+			check(Algo::MismatchBy(DataB, DataB, &FStringWrapper::Str, CompareCaseInsensitive) == 6);
+			check(Algo::MismatchBy(DataC, DataC, &FStringWrapper::Str, CompareCaseInsensitive) == 9);
+
+			// Test subsequences with projection and custom equality
+			check(Algo::MismatchBy(DataA, DataC, &FStringWrapper::Str, CompareCaseInsensitive) == 6);
+			check(Algo::MismatchBy(DataC, DataA, &FStringWrapper::Str, CompareCaseInsensitive) == 6);
+		}
+	}
+
 private:
 	TArray<int> TestData;
 	TArray<int> TestData2;
 };
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAlgosTest, FAlgosTestBase, "System.Core.Misc.Algos", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAlgosTest, FAlgosTestBase, "System.Core.Misc.Algos", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 
 bool FAlgosTest::RunTest(const FString& Parameters)
 {
@@ -703,6 +829,7 @@ bool FAlgosTest::RunTest(const FString& Parameters)
 	TestEditDistance();
 	TestEditDistanceArray();
 	TestIncludes();
+	TestMismatch();
 	Cleanup();
 
 	return true;

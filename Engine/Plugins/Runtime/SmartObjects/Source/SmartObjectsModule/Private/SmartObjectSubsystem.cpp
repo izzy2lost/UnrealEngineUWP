@@ -642,7 +642,7 @@ void USmartObjectSubsystem::AbortAll(const FSmartObjectHandle Handle, FSmartObje
 					OnSlotChanged(SmartObjectRuntime, *RuntimeSlot, SlotHandle, ESmartObjectChangeReason::OnReleased, Payload);
 
 					UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Slot %s released by an abort"), *LexToString(ClaimHandle.SlotHandle));
-					UE_VLOG_LOCATION(this, LogSmartObject, Display, SmartObjectRuntime.Transform.TransformPosition(FVector(RuntimeSlot->Offset)), /*Radius*/50.f, FColor::Red, TEXT("Released by abort"));
+					UE_VLOG_LOCATION(this, LogSmartObject, Display, SmartObjectRuntime.Transform.TransformPosition(FVector(RuntimeSlot->Offset)), /*Radius*/50, FColor::Red, TEXT("Released by abort"));
 				}
 				break;
 			}
@@ -669,15 +669,14 @@ bool USmartObjectSubsystem::RegisterSmartObject(USmartObjectComponent& SmartObje
 		return false;
 	}
 
-	TOptional<bool> bIsValid = Definition->IsValid();
-	if (bIsValid.IsSet() == false)
+	if (Definition->HasBeenValidated() == false)
 	{
 		UE_VLOG_UELOG(this, LogSmartObject, Log, TEXT("Attempting to register '%s' while its DefinitionAsset has not been Validated. Validating now."),
 			*UE::SmartObject::DebugGetComponentName(SmartObjectComponent));
-		bIsValid = Definition->Validate();
+		Definition->Validate();
 	}
 	
-	if (bIsValid.GetValue() == false)
+	if (Definition->IsDefinitionValid() == false)
 	{
 		UE_VLOG_UELOG(this, LogSmartObject, Log, TEXT("Attempting to register '%s' while its DefinitionAsset fails validation test. Bailing out."
 													" Resave asset '%s' to see the errors and fix the problem."),
@@ -1240,24 +1239,6 @@ bool USmartObjectSubsystem::EvaluateSlotConditions(
 	return true;
 }
 
-FSmartObjectClaimHandle USmartObjectSubsystem::Claim(const FSmartObjectHandle Handle, const FSmartObjectRequestFilter& Filter)
-{
-	const FSmartObjectRuntime* SmartObjectRuntime = GetValidatedRuntime(Handle, __FUNCTION__);
-	if (SmartObjectRuntime == nullptr)
-	{
-		return FSmartObjectClaimHandle::InvalidHandle;
-	}
-
-	TArray<FSmartObjectSlotHandle> SlotHandles;
-	FindSlots(Handle, *SmartObjectRuntime, Filter, SlotHandles, {});
-	if (SlotHandles.IsEmpty())
-	{
-		return FSmartObjectClaimHandle::InvalidHandle;
-	}
-
-	return MarkSlotAsClaimed(SlotHandles.Top(), {});
-}
-
 FSmartObjectClaimHandle USmartObjectSubsystem::MarkSlotAsClaimed(const FSmartObjectSlotHandle SlotHandle, const FConstStructView UserData)
 {
 	return MarkSlotAsClaimed(SlotHandle, ESmartObjectClaimPriority::Normal, UserData);
@@ -1296,7 +1277,7 @@ FSmartObjectClaimHandle USmartObjectSubsystem::MarkSlotAsClaimed(const FSmartObj
 		ensureMsgf(Slot->Release(ExistingClaim, /*bAborted*/ true), TEXT("Expecting the release to always succeed, since the slot can be claimed based on earlier check."));
 			
 		UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Released using handle '%s' due to claim override"), *LexToString(ExistingClaim));
-		UE_VLOG_LOCATION(this, LogSmartObject, Display, GetSlotLocation(ExistingClaim).GetValue(), 50.f, FColor::White, TEXT("Released (Override)"));
+		UE_VLOG_LOCATION(this, LogSmartObject, Display, GetSlotLocation(ExistingClaim).GetValue(), 50, FColor::White, TEXT("Released (Override)"));
 		OnSlotChanged(*SmartObjectRuntime, *Slot, ExistingClaim.SlotHandle, ESmartObjectChangeReason::OnReleased, Payload);
 
 		bIsClaimOverridden = true;
@@ -1310,7 +1291,7 @@ FSmartObjectClaimHandle USmartObjectSubsystem::MarkSlotAsClaimed(const FSmartObj
 		bClaimed ? TEXT("SUCCEEDED") : TEXT("FAILED"),
 		*LexToString(ClaimHandle),
 		*UEnum::GetValueAsString(Slot->GetState()));
-	UE_CVLOG_LOCATION(bClaimed, this, LogSmartObject, Display, GetSlotLocation(ClaimHandle).GetValue(), 50.f, FColor::Yellow, TEXT("Claim %s"), bIsClaimOverridden ? TEXT("[Override]") : TEXT(""));
+	UE_CVLOG_LOCATION(bClaimed, this, LogSmartObject, Display, GetSlotLocation(ClaimHandle).GetValue(), 50, FColor::Yellow, TEXT("Claim %s"), bIsClaimOverridden ? TEXT("[Override]") : TEXT(""));
 
 	if (bClaimed)
 	{
@@ -1411,7 +1392,7 @@ const USmartObjectBehaviorDefinition* USmartObjectSubsystem::MarkSlotAsOccupied(
 	}
 
 	UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Start using handle '%s'"), *LexToString(ClaimHandle));
-	UE_VLOG_LOCATION(this, LogSmartObject, Display, GetSlotLocation(ClaimHandle).GetValue(), 50.f, FColor::Green, TEXT("Use"));
+	UE_VLOG_LOCATION(this, LogSmartObject, Display, GetSlotLocation(ClaimHandle).GetValue(), 50, FColor::Green, TEXT("Use"));
 
 	FSmartObjectRuntimeSlot& Slot = SmartObjectRuntime.Slots[ClaimHandle.SlotHandle.GetSlotIndex()];
 
@@ -1443,7 +1424,7 @@ bool USmartObjectSubsystem::MarkSlotAsFree(const FSmartObjectClaimHandle& ClaimH
 	if (bSuccess)
 	{
 		UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Released using handle '%s'"), *LexToString(ClaimHandle));
-		UE_VLOG_LOCATION(this, LogSmartObject, Display, GetSlotLocation(ClaimHandle).GetValue(), 50.f, FColor::White, TEXT("Released"));
+		UE_VLOG_LOCATION(this, LogSmartObject, Display, GetSlotLocation(ClaimHandle).GetValue(), 50, FColor::White, TEXT("Released"));
 		OnSlotChanged(*SmartObjectRuntime, *Slot, ClaimHandle.SlotHandle, ESmartObjectChangeReason::OnReleased, Payload);
 	}
 
@@ -2672,7 +2653,7 @@ void USmartObjectSubsystem::AddContainerToSimulation(const FSmartObjectContainer
 		const USmartObjectDefinition* Definition = InSmartObjectContainer.GetDefinitionForEntry(Entry);
 		USmartObjectComponent* Component = Entry.GetComponent();
 
-		if (Definition == nullptr || Definition->IsValid() == false)
+		if (Definition == nullptr || Definition->IsDefinitionValid() == false)
 		{
 			UE_CVLOG_UELOG(Component != nullptr, Component->GetOwner(), LogSmartObject, Error,
 				TEXT("Skipped runtime data creation for SmartObject %s: Invalid definition"), *GetNameSafe(Component->GetOwner()));

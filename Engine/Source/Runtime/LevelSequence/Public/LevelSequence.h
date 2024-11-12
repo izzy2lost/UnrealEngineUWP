@@ -42,7 +42,11 @@ public:
 	// UMovieSceneSequence interface
 	LEVELSEQUENCE_API virtual void BindPossessableObject(const FGuid& ObjectId, UObject& PossessedObject, UObject* Context) override;
 	LEVELSEQUENCE_API virtual bool CanPossessObject(UObject& Object, UObject* InPlaybackContext) const override;
+
+	UE_DEPRECATED(5.5, "Use the version that takes a SharedPlaybackState")
 	LEVELSEQUENCE_API virtual FGuid FindBindingFromObject(UObject* InObject, UObject* Context) const override;
+	LEVELSEQUENCE_API virtual FGuid FindBindingFromObject(UObject* InObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState) const override;
+
 	LEVELSEQUENCE_API virtual void GatherExpiredObjects(const FMovieSceneObjectCache& InObjectCache, TArray<FGuid>& OutInvalidIDs) const override;
 	LEVELSEQUENCE_API virtual UMovieScene* GetMovieScene() const override;
 	LEVELSEQUENCE_API virtual UObject* GetParentObject(UObject* Object) const override;
@@ -50,6 +54,7 @@ public:
 	LEVELSEQUENCE_API virtual void UnbindObjects(const FGuid& ObjectId, const TArray<UObject*>& InObjects, UObject* InContext) override;
 	LEVELSEQUENCE_API virtual void UnbindInvalidObjects(const FGuid& ObjectId, UObject* InContext) override;
 	LEVELSEQUENCE_API virtual bool AllowsSpawnableObjects() const override;
+	LEVELSEQUENCE_API virtual bool AllowsCustomBindings() const override;
 	LEVELSEQUENCE_API virtual bool CanRebindPossessable(const FMovieScenePossessable& InPossessable) const override;
 	LEVELSEQUENCE_API virtual UObject* MakeSpawnableTemplateFromInstance(UObject& InSourceObject, FName ObjectName) override;
 	LEVELSEQUENCE_API virtual bool CanAnimateObject(UObject& InObject) const override;
@@ -73,15 +78,22 @@ public:
 
 
 #if WITH_EDITOR
-	LEVELSEQUENCE_API virtual ETrackSupport IsTrackSupported(TSubclassOf<class UMovieSceneTrack> InTrackClass) const override;
+	LEVELSEQUENCE_API virtual ETrackSupport IsTrackSupportedImpl(TSubclassOf<class UMovieSceneTrack> InTrackClass) const override;
 	LEVELSEQUENCE_API virtual void GetAssetRegistryTagMetadata(TMap<FName, FAssetRegistryTagMetadata>& OutMetadata) const override;
 	LEVELSEQUENCE_API virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	LEVELSEQUENCE_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
-	LEVELSEQUENCE_API virtual void PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const override;
-	
+protected:
+	LEVELSEQUENCE_API virtual void ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const override;
+public:
+
 	DECLARE_DELEGATE_RetVal_OneParam(void, FPostDuplicateEvent, ULevelSequence*);
 	static LEVELSEQUENCE_API FPostDuplicateEvent PostDuplicateEvent;
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FFixupDynamicBindingsEvent, ULevelSequence*);
+	static LEVELSEQUENCE_API FFixupDynamicBindingsEvent FixupDynamicBindingsEvent;
+
+
 #endif
 
 	LEVELSEQUENCE_API virtual void PostDuplicate(bool bDuplicateForPIE) override;
@@ -94,8 +106,10 @@ public:
 	UE_DEPRECATED(5.4, "Use the base class LocateBoundObjects()")
 	LEVELSEQUENCE_API void LocateBoundObjects(const FGuid& ObjectId, UObject* Context, const FLevelSequenceBindingReference::FResolveBindingParams& InResolveBindingParams, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const;
 
+	
 #if WITH_EDITOR
 
+	LEVELSEQUENCE_API virtual void IterateDynamicBindings(TFunction<void(const FGuid&, FMovieSceneDynamicBinding&)> InCallback) override;
 
 public:
 
@@ -121,6 +135,14 @@ protected:
 	 * Invoked when this level sequence's director blueprint has been recompiled
 	 */
 	LEVELSEQUENCE_API void OnDirectorRecompiled(UBlueprint*);
+
+private:
+#if WITH_EDITOR
+	// Used to convert any old spawnables in this movie scene to use the custom binding system
+	bool ConvertOldSpawnables();
+	// Used to convert possessables using deprecated 'DynamicBinding' to a custom director blueprint binding
+	void ConvertDynamicBindingPossessable(FMovieScenePossessable& Possessable);
+#endif
 
 #endif // WITH_EDITOR
 

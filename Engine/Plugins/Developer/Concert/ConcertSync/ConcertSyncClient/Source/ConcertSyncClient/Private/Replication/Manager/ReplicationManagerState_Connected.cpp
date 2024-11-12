@@ -8,101 +8,67 @@
 #include "ReplicationManagerState_Disconnected.h"
 #include "Replication/ChangeStreamSharedUtils.h"
 #include "Replication/Formats/FullObjectFormat.h"
+#include "Replication/Messages/ChangeClientEvent.h"
 #include "Replication/Messages/Handshake.h"
 #include "Replication/Processing/ClientReplicationDataCollector.h"
 #include "Replication/Processing/ObjectReplicationApplierProcessor.h"
 #include "Replication/Processing/ObjectReplicationReceiver.h"
+#include "Utils/LocalSyncControl.h"
+#include "Utils/NetworkMessageLogging.h"
+#include "Utils/ReplicationManagerUtils.h"
 
 #include "Algo/RemoveIf.h"
-#include "JsonObjectConverter.h"
 #include "Misc/ScopeExit.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
 
 namespace UE::ConcertSyncClient::Replication
 {
-	TAutoConsoleVariable<bool> CVarSimulateAuthorityTimeouts(
-		TEXT("Concert.Replication.SimulateAuthorityTimeouts"),
-		false,
-		TEXT("Whether the client should pretend that authority requests timed out instead of sending to the server.")
-		);
-	TAutoConsoleVariable<bool> CVarSimulateQueryTimeouts(
-		TEXT("Concert.Replication.SimulateQueryTimeouts"),
-		false,
-		TEXT("Whether the client should pretend that query requests timed out instead of sending to the server.")
-		);
-	TAutoConsoleVariable<bool> CVarSimulateStreamChangeTimeouts(
-		TEXT("Concert.Replication.SimulateStreamChangeTimeouts"),
-		false,
-		TEXT("Whether the client should pretend that stream change requests timed out instead of sending to the server.")
-		);
-
-	TAutoConsoleVariable<bool> CVarSimulateAuthorityRejection(
-		TEXT("Concert.Replication.SimulateAuthorityRejection"),
-		false,
-		TEXT("Whether the client should pretend that authority change requests were rejected.")
-		);
-
-	TAutoConsoleVariable<bool> CVarLogStreamRequestsAndResponsesOnClient(
-		TEXT("Concert.Replication.LogStreamRequestsAndResponsesOnClient"),
-		false,
-		TEXT("Whether to log changes to streams.")
-		);
-	TAutoConsoleVariable<bool> CVarLogAuthorityRequestsAndResponsesOnClient(
-		TEXT("Concert.Replication.LogAuthorityRequestsAndResponsesOnClient"),
-		false,
-		TEXT("Whether to log changes to authority.")
-		);
-
-	namespace Private
-	{
-		template<typename TMessage>
-		static void LogNetworkMessage(const TAutoConsoleVariable<bool>& ShouldLog, const TMessage& Message)
-		{
-			if (ShouldLog.GetValueOnAnyThread())
-			{
-				FString JsonString;
-				FJsonObjectConverter::UStructToJsonObjectString(TMessage::StaticStruct(), &Message, JsonString, 0, 0);
-				UE_LOG(LogConcert, Log, TEXT("%s\n%s"), *TMessage::StaticStruct()->GetName(), *JsonString);
-			}
-		}
-	}
-	
 	FReplicationManagerState_Connected::FReplicationManagerState_Connected(
-		TSharedRef<IConcertClientSession> LiveSession,
-		IConcertClientReplicationBridge* ReplicationBridge,
-		TArray<FConcertReplicationStream> StreamDescriptions,
-		FReplicationManager& Owner
+		TSharedRef<IConcertClientSession> InLiveSession,
+		IConcertClientReplicationBridge& ReplicationBridge,
+		FReplicationManager& Owner,
+		EConcertSyncSessionFlags SessionFlags,
+		TArray<FConcertReplicationStream> InitialStreams,
+		const FConcertReplication_ChangeSyncControl& InitialSyncControl
 		)
 		: FReplicationManagerState(Owner)
-		, LiveSession(LiveSession)
+		, LiveSession(InLiveSession)
 		, ReplicationBridge(ReplicationBridge)
-		, RegisteredStreams(MoveTemp(StreamDescriptions))
+		, SessionFlags(SessionFlags)
+		, RegisteredStreams(MoveTemp(InitialStreams))
 		// TODO DP: Use config to determine which replication format to use
-		, ReplicationFormat(MakeShared<ConcertSyncCore::FFullObjectFormat>())
-		, ReplicationDataSource(MakeShared<FClientReplicationDataCollector>(
+		, ReplicationFormat(MakeUnique<ConcertSyncCore::FFullObjectFormat>())
+		, SyncControl(*LiveSession)
+		, ReplicationDataSource(
 			ReplicationBridge,
-			ReplicationFormat,
+			*ReplicationFormat,
+			SyncControl,
 			FClientReplicationDataCollector::FGetClientStreams::CreateLambda([this]()
 			{
 				return &RegisteredStreams;
 			}),
 			LiveSession->GetSessionClientEndpointId()
-			))
+			)
 		, Sender(
 			ConcertSyncCore::FGetObjectFrequencySettings::CreateRaw(this, &FReplicationManagerState_Connected::GetObjectFrequencySettings),
-			LiveSession->GetSessionServerEndpointId(), LiveSession, ReplicationDataSource
+			InLiveSession->GetSessionServerEndpointId(), *LiveSession, ReplicationDataSource
 			)
-		, ReceivedDataCache(MakeShared<ConcertSyncCore::FObjectReplicationCache>(ReplicationFormat))
-		, Receiver(MakeShared<ConcertSyncCore::FObjectReplicationReceiver>(LiveSession, ReceivedDataCache))
-		, ReceivedReplicationQueuer(FClientReplicationDataQueuer::Make(ReplicationBridge, ReceivedDataCache))
-		, ReplicationApplier(MakeShared<FObjectReplicationApplierProcessor>(ReplicationBridge, ReplicationFormat, ReceivedReplicationQueuer))
-	{}
+		, ReceivedDataCache(MakeShared<ConcertSyncCore::FObjectReplicationCache>(*ReplicationFormat))
+		, Receiver(*InLiveSession, *ReceivedDataCache)
+		, ReceivedReplicationQueuer(FClientReplicationDataQueuer::Make(ReplicationBridge, *ReceivedDataCache))
+		, ReplicationApplier(ReplicationBridge, *ReplicationFormat, *ReceivedReplicationQueuer)
+	{
+		SyncControl.ProcessSyncControlChange(InitialSyncControl);
+		SyncControl.OnPreSyncControlChanged().AddLambda([this](){ OnPreSyncControlChangedDelegate.Broadcast(); });
+		SyncControl.OnPostSyncControlChanged().AddLambda([this](){ OnPostSyncControlChangedDelegate.Broadcast(); });
+	}
 
 	FReplicationManagerState_Connected::~FReplicationManagerState_Connected()
 	{
 		// Technically not needed due to AddSP but let's be nice and clean up after ourselves
 		LiveSession->OnTick().RemoveAll(this);
+		LiveSession->UnregisterCustomEventHandler<FConcertReplication_ChangeClientEvent>(this);
 	}
 
 	TFuture<FJoinReplicatedSessionResult> FReplicationManagerState_Connected::JoinReplicationSession(FJoinReplicatedSessionArgs Args)
@@ -114,7 +80,7 @@ namespace UE::ConcertSyncClient::Replication
 	void FReplicationManagerState_Connected::LeaveReplicationSession()
 	{
 		LiveSession->SendCustomEvent(FConcertReplication_LeaveEvent{}, LiveSession->GetSessionServerEndpointId(), EConcertMessageFlags::ReliableOrdered);
-		ChangeState(MakeShared<FReplicationManagerState_Disconnected>(LiveSession, ReplicationBridge, GetOwner()));
+		ChangeState(MakeShared<FReplicationManagerState_Disconnected>(LiveSession, ReplicationBridge, GetOwner(), SessionFlags));
 	}
 
 	IConcertClientReplicationManager::EStreamEnumerationResult FReplicationManagerState_Connected::ForEachRegisteredStream(
@@ -144,23 +110,25 @@ namespace UE::ConcertSyncClient::Replication
 		
 		// Stop replicating removed objects right now: the server will remove authority after processing this request.
 		// At that point, it will log errors for receiving replication data from a client without authority.
-		HandleReleasingReplicatedObjects(Args);
+		ApplyAuthorityChangeRemovedObjects(Args);
+		// We don't need worry about updating sync control until it is processed below - the local client will not attempt to replicate the object
+		// because we just locally updated the authority cache.
 
-		Private::LogNetworkMessage(CVarLogAuthorityRequestsAndResponsesOnClient, Args);
+		LogNetworkMessage(CVarLogAuthorityRequestsAndResponsesOnClient, Args);
 		return LiveSession->SendCustomRequest<FConcertReplication_ChangeAuthority_Request, FConcertReplication_ChangeAuthority_Response>(Args, LiveSession->GetSessionServerEndpointId())
 			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args](FConcertReplication_ChangeAuthority_Response&& Response) mutable
 			{
-				Private::LogNetworkMessage(CVarLogAuthorityRequestsAndResponsesOnClient, Response);
+				LogNetworkMessage(CVarLogAuthorityRequestsAndResponsesOnClient, Response);
 				
 				if (const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin()
 					; ThisPin && Response.ErrorCode == EReplicationResponseErrorCode::Handled)
 				{
-					ThisPin->UpdateReplicatedObjectsAfterAuthorityChange(MoveTemp(Args), Response);
+					ThisPin->FinalizePredictedAuthorityChange(Args, Response.RejectedObjects, Response.SyncControl);
 				}
 				else if (ThisPin && Response.ErrorCode == EReplicationResponseErrorCode::Timeout)
 				{
 					// HandleReleasingReplicatedObjects caused Args.ReleaseAuthority to stop being replicated. Revert.
-					ThisPin->RevertReleasingReplicatedObjects(Args);
+					ThisPin->RevertAuthorityChangeReleasedObjects(Args);
 				}
 
 				return FConcertReplication_ChangeAuthority_Response { MoveTemp(Response) };
@@ -196,23 +164,25 @@ namespace UE::ConcertSyncClient::Replication
 		
 		// Stop replicating removed objects right now: the server will remove authority after processing this request.
 		// At that point, it will log errors for receiving replication data from a client without authority.
-		HandleRemovingReplicatedObjects(Args);
+		TMap<FSoftObjectPath, TArray<FGuid>> PredictedChange = PredictAndApplyStreamChangeRemovedObjects(Args);
+		// We don't need worry about updating sync control until it is processed below - the local client will not attempt to replicate the object
+		// because we just locally updated the replication cache.
 		
-		Private::LogNetworkMessage(CVarLogStreamRequestsAndResponsesOnClient, Args);
+		LogNetworkMessage(CVarLogStreamRequestsAndResponsesOnClient, Args);
 		return LiveSession->SendCustomRequest<FConcertReplication_ChangeStream_Request, FConcertReplication_ChangeStream_Response>(Args, LiveSession->GetSessionServerEndpointId())
-			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args](FConcertReplication_ChangeStream_Response&& Response)
+			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args, PredictedChange = MoveTemp(PredictedChange)](FConcertReplication_ChangeStream_Response&& Response)
 			{
-				Private::LogNetworkMessage(CVarLogStreamRequestsAndResponsesOnClient, Response);
+				LogNetworkMessage(CVarLogStreamRequestsAndResponsesOnClient, Response);
 
 				const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin();
 				if (ThisPin && Response.IsSuccess())
 				{
-					ThisPin->UpdateReplicatedObjectsAfterStreamChange(Args, Response);
+					ThisPin->FinalizePredictedStreamChange(Args);
 				}
 				else if (ThisPin && Response.ErrorCode == EReplicationResponseErrorCode::Timeout)
 				{
 					// HandleRemovingReplicatedObjects caused Request.ObjectsToRemove to stop being replicated. Revert.
-					ThisPin->RevertRemovingReplicatedObjects(Args);
+					ThisPin->RevertPredictedStreamChangeRemovedObjects(PredictedChange);
 				}
 				
 				return FConcertReplication_ChangeStream_Response { MoveTemp(Response) };
@@ -225,13 +195,13 @@ namespace UE::ConcertSyncClient::Replication
 	{
 		TSet<FGuid> Result;
 		int32 ExpectedNumStreams = 0;
-		ReplicationDataSource->ForEachOwnedObject([this, &Callback, &Result, &ExpectedNumStreams](const FSoftObjectPath& ObjectPath)
+		ReplicationDataSource.ForEachOwnedObject([this, &Callback, &Result, &ExpectedNumStreams](const FSoftObjectPath& ObjectPath)
 		{
 			// Reuse TSet (if possible) for a slightly better memory footprint
 			ExpectedNumStreams = FMath::Max(ExpectedNumStreams, Result.Num());
 			Result.Empty(Result.Num());
 			
-			ReplicationDataSource->AppendOwningStreamsForObject(ObjectPath, Result);
+			ReplicationDataSource.AppendOwningStreamsForObject(ObjectPath, Result);
 			return Callback(ObjectPath, MoveTemp(Result));
 		});
 		return EAuthorityEnumerationResult::Iterated;
@@ -242,13 +212,101 @@ namespace UE::ConcertSyncClient::Replication
 		) const
 	{
 		TSet<FGuid> Result;
-		ReplicationDataSource->AppendOwningStreamsForObject(ObjectPath, Result);
+		ReplicationDataSource.AppendOwningStreamsForObject(ObjectPath, Result);
 		return Result;
+	}
+
+	IConcertClientReplicationManager::ESyncControlEnumerationResult FReplicationManagerState_Connected::ForEachSyncControlledObject(TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID& Object)> Callback) const
+	{
+		return SyncControl.EnumerateAllowedObjects(Callback)
+			? ESyncControlEnumerationResult::Iterated
+			: ESyncControlEnumerationResult::NoneAvailable;
+	}
+
+	TFuture<FConcertReplication_ChangeMuteState_Response> FReplicationManagerState_Connected::ChangeMuteState(FConcertReplication_ChangeMuteState_Request Request)
+	{
+		if (!EnumHasAnyFlags(SessionFlags, EConcertSyncSessionFlags::ShouldAllowGlobalMuting) || CVarSimulateMuteRequestRejection.GetValueOnAnyThread())
+		{
+			return MakeFulfilledPromise<FConcertReplication_ChangeMuteState_Response>(FConcertReplication_ChangeMuteState_Response{ EConcertReplicationMuteErrorCode::Rejected }).GetFuture();
+		}
+
+		FLocalSyncControl::FPredictedObjectRemoval PredictedChanges = SyncControl.PredictAndApplyMuteChanges(Request);
+		
+		LogNetworkMessage(CVarLogMuteRequestsAndResponsesOnClient, Request);
+		return LiveSession->SendCustomRequest<FConcertReplication_ChangeMuteState_Request, FConcertReplication_ChangeMuteState_Response>(Request, LiveSession->GetSessionServerEndpointId())
+			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), PredictedChanges = MoveTemp(PredictedChanges)](FConcertReplication_ChangeMuteState_Response&& Response)
+			{
+				LogNetworkMessage(CVarLogMuteRequestsAndResponsesOnClient, Response);
+				if (const TSharedPtr<FReplicationManagerState_Connected> This = WeakThis.Pin())
+				{
+					This->SyncControl.ApplyOrRevertMuteResponse(PredictedChanges, Response);
+				}
+				return Response;
+			});
+	}
+
+	TFuture<FConcertReplication_QueryMuteState_Response> FReplicationManagerState_Connected::QueryMuteState(FConcertReplication_QueryMuteState_Request Request)
+	{
+		if (!EnumHasAnyFlags(SessionFlags, EConcertSyncSessionFlags::ShouldAllowGlobalMuting))
+		{
+			return MakeFulfilledPromise<FConcertReplication_QueryMuteState_Response>().GetFuture();
+		}
+		
+		return LiveSession->SendCustomRequest<FConcertReplication_QueryMuteState_Request, FConcertReplication_QueryMuteState_Response>(
+			Request,
+			LiveSession->GetSessionServerEndpointId()
+			);
+	}
+
+	TFuture<FConcertReplication_RestoreContent_Response> FReplicationManagerState_Connected::RestoreContent(FConcertReplication_RestoreContent_Request Request)
+	{
+		if (!EnumHasAnyFlags(SessionFlags, EConcertSyncSessionFlags::ShouldEnableReplicationActivities))
+		{
+			return MakeFulfilledPromise<FConcertReplication_RestoreContent_Response>(FConcertReplication_RestoreContent_Response{ EConcertReplicationRestoreErrorCode::NotSupported }).GetFuture();
+		}
+		
+		FLocalSyncControl::FPredictedObjectRemoval PredictedChanges = SyncControl.PredictAndApplyRestoreContentChanges(Request);
+
+		// We want the response to contain ClientInfo to update our internal state - so set the SendNewState flag
+		const bool bWantedNewState = EnumHasAnyFlags(Request.Flags, EConcertReplicationRestoreContentFlags::SendNewState);
+		Request.Flags |= EConcertReplicationRestoreContentFlags::SendNewState;
+		LogNetworkMessage(CVarLogRestoreContentRequestsAndResponsesOnClient, Request);
+		
+		return LiveSession->SendCustomRequest<FConcertReplication_RestoreContent_Request, FConcertReplication_RestoreContent_Response>(Request, LiveSession->GetSessionServerEndpointId())
+			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), PredictedChanges = MoveTemp(PredictedChanges)](FConcertReplication_RestoreContent_Response&& Response)
+			{
+				LogNetworkMessage(CVarLogRestoreContentRequestsAndResponsesOnClient, Response);
+				
+				const TSharedPtr<FReplicationManagerState_Connected> This = WeakThis.Pin();
+				if (!This)
+				{
+					return Response;
+				}
+
+				This->SyncControl.ApplyOrRevertRestoreContentResponse(PredictedChanges, Response);
+				if (Response.IsSuccess())
+				{
+					// Update the list of objects we'll be replicating. This is why we added the SendNewState flag above.
+					This->UpdateReplicatedObjectAfterServerSideChange(Response.ClientInfo);
+				}
+				
+				return Response;
+			})
+			.Next([bWantedNewState](FConcertReplication_RestoreContent_Response&& Response)
+			{
+				// Since we added EConcertReplicationRestoreContentFlags::SendNewState above, remove the returned data if the flag was not originally in the request.
+				if (!bWantedNewState)
+				{
+					Response.ClientInfo = {};
+				}
+				return Response;
+			});
 	}
 
 	void FReplicationManagerState_Connected::OnEnterState()
 	{
 		LiveSession->OnTick().AddSP(this, &FReplicationManagerState_Connected::Tick);
+		LiveSession->RegisterCustomEventHandler<FConcertReplication_ChangeClientEvent>(this, &FReplicationManagerState_Connected::HandleChangeClientEvent);
 	}
 
 	void FReplicationManagerState_Connected::Tick(IConcertClientSession& Session, float DeltaTime)
@@ -256,12 +314,41 @@ namespace UE::ConcertSyncClient::Replication
 		// TODO UE-190714: We should set a time budget for the client so ticking does not cause frame spikes
 		const ConcertSyncCore::FProcessObjectsParams Params { DeltaTime };
 		Sender.ProcessObjects(Params);
-		ReplicationApplier->ProcessObjects(Params);
+		ReplicationApplier.ProcessObjects(Params);
 	}
 
-	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterStreamChange(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplication_ChangeStream_Response& Response)
+	TMap<FSoftObjectPath, TArray<FGuid>> FReplicationManagerState_Connected::PredictAndApplyStreamChangeRemovedObjects(const FConcertReplication_ChangeStream_Request& Request)
 	{
-		OnPreStreamsChangedDelegate.Broadcast(Request, { Response });
+		TMap<FSoftObjectPath, TArray<FGuid>> PredicatedRemovedObjects = ComputeRemovedObjects(RegisteredStreams, Request);
+		ApplyStreamChangeRemovedObjects(PredicatedRemovedObjects);
+		return PredicatedRemovedObjects;
+	}
+
+	void FReplicationManagerState_Connected::ApplyStreamChangeRemovedObjects(const TMap<FSoftObjectPath, TArray<FGuid>>& PredicatedRemovedObjects)
+	{
+		for (const TPair<FSoftObjectPath, TArray<FGuid>>& RemovedObjectInfo : PredicatedRemovedObjects)
+		{
+			ReplicationDataSource.RemoveReplicatedObjectStreams(RemovedObjectInfo.Key, RemovedObjectInfo.Value);
+		}
+	}
+
+	void FReplicationManagerState_Connected::RevertPredictedStreamChangeRemovedObjects(const TMap<FSoftObjectPath, TArray<FGuid>>& PredictedChange)
+	{
+		for (const TPair<FSoftObjectPath, TArray<FGuid>>& RemovedObjectInfo : PredictedChange)
+		{
+			ReplicationDataSource.AddReplicatedObjectStreams(RemovedObjectInfo.Key, RemovedObjectInfo.Value);
+		}
+	}
+	
+	void FReplicationManagerState_Connected::FinalizePredictedStreamChange(const FConcertReplication_ChangeStream_Request& StreamChange)
+	{
+		SyncControl.ProcessStreamChange(StreamChange);
+		UpdateReplicatedObjectsAfterStreamChange(StreamChange);
+	}
+	
+	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterStreamChange(const FConcertReplication_ChangeStream_Request& Request)
+	{
+		OnPreStreamsChangedDelegate.Broadcast();
 		ON_SCOPE_EXIT{ OnPostStreamsChangedDelegate.Broadcast(); };
 		
 		// Build RegisteredStreams while RegisteredStreams has the old, unupdated state
@@ -290,58 +377,46 @@ namespace UE::ConcertSyncClient::Replication
 		
 		for (const TPair<FSoftObjectPath, TArray<FGuid>>& ModifiedObject : BundledModifiedObjects)
 		{
-			ReplicationDataSource->OnObjectStreamModified(ModifiedObject.Key, ModifiedObject.Value);
+			ReplicationDataSource.OnObjectStreamModified(ModifiedObject.Key, ModifiedObject.Value);
 		}
 	}
 
-	namespace Private
+	void FReplicationManagerState_Connected::ApplyAuthorityChangeRemovedObjects(const FConcertReplication_ChangeAuthority_Request& Request)
 	{
-		static void ForEachObjectRemovedFromStreams(const FConcertReplication_ChangeStream_Request& Request, TFunctionRef<void(const FSoftObjectPath& ObjectPath, const TArray<FGuid>& Streams)> Callback)
+		for (const TPair<FSoftObjectPath, FConcertStreamArray>& ReleaseAuthority : Request.ReleaseAuthority)
 		{
-			TMap<FSoftObjectPath, TArray<FGuid>> BundledRemovedObjects;
-			for (const FConcertObjectInStreamID& RemovedObject : Request.ObjectsToRemove)
-			{
-				BundledRemovedObjects.FindOrAdd(RemovedObject.Object).Add(RemovedObject.StreamId);
-			}
-			for (const TPair<FSoftObjectPath, TArray<FGuid>>& RemovedObjectInfo : BundledRemovedObjects)
-			{
-				Callback(RemovedObjectInfo.Key, RemovedObjectInfo.Value);
-			}
+			ReplicationDataSource.RemoveReplicatedObjectStreams(ReleaseAuthority.Key, ReleaseAuthority.Value.StreamIds);
 		}
 	}
 
-	void FReplicationManagerState_Connected::HandleRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request) const
+	void FReplicationManagerState_Connected::RevertAuthorityChangeReleasedObjects(const FConcertReplication_ChangeAuthority_Request& Request)
 	{
-		Private::ForEachObjectRemovedFromStreams(Request, [this](const FSoftObjectPath& Object, const TArray<FGuid>& RemovedStreams)
+		for (const TPair<FSoftObjectPath, FConcertStreamArray>& ReleaseAuthority : Request.ReleaseAuthority)
 		{
-			ReplicationDataSource->RemoveReplicatedObjectStreams(Object, RemovedStreams);
-		});
+			ReplicationDataSource.AddReplicatedObjectStreams(ReleaseAuthority.Key, ReleaseAuthority.Value.StreamIds);
+		}
 	}
 
-	void FReplicationManagerState_Connected::RevertRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request) const
+	void FReplicationManagerState_Connected::FinalizePredictedAuthorityChange(const FConcertReplication_ChangeAuthority_Request& AuthorityChange, const TMap<FSoftObjectPath, FConcertStreamArray>& RejectedObjects, const FConcertReplication_ChangeSyncControl& SyncControlChange)
 	{
-		Private::ForEachObjectRemovedFromStreams(Request, [this](const FSoftObjectPath& Object, const TArray<FGuid>& RemovedStreams)
-		{
-			ReplicationDataSource->AddReplicatedObjectStreams(Object, RemovedStreams);
-		});
+		SyncControl.ProcessAuthorityChange(AuthorityChange, SyncControlChange);
+		UpdateReplicatedObjectsAfterAuthorityChange(AuthorityChange, RejectedObjects);
 	}
-
-	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterAuthorityChange(FConcertReplication_ChangeAuthority_Request&& Request, const FConcertReplication_ChangeAuthority_Response& Response) const
+	
+	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const TMap<FSoftObjectPath, FConcertStreamArray>& RejectedObjects)
 	{
-		OnPreAuthorityChangedDelegate.Broadcast(Request, { Response });
+		OnPreAuthorityChangedDelegate.Broadcast();
 		ON_SCOPE_EXIT{ OnPostAuthorityChangedDelegate.Broadcast(); };
 		
-		for (TPair<FSoftObjectPath, FConcertStreamArray>& TakeAuthority : Request.TakeAuthority)
+		for (const TPair<FSoftObjectPath, FConcertStreamArray>& TakeAuthority : Request.TakeAuthority)
 		{
 			const FSoftObjectPath& ReplicatedObject = TakeAuthority.Key;
-			// Request will be discarded so ...
-			FConcertStreamArray& ReplicatedStreams = TakeAuthority.Value;
+			FConcertStreamArray ReplicatedStreams = TakeAuthority.Value;
 			
 			UE_CLOG(ReplicatedStreams.StreamIds.IsEmpty(), LogConcert, Warning, TEXT("Your FConcertReplication_ChangeAuthority_Request::TakeAuthority request contained empty stream ID array for object %s"), *ReplicatedObject.ToString());
-			const FConcertStreamArray* RejectedStreams = Response.RejectedObjects.Find(ReplicatedObject);
+			const FConcertStreamArray* RejectedStreams = RejectedObjects.Find(ReplicatedObject);
 			if (RejectedStreams)
 			{
-				// ... reuse the memory
 				ReplicatedStreams.StreamIds.SetNum(Algo::RemoveIf(ReplicatedStreams.StreamIds, [RejectedStreams](const FGuid& Stream)
 				{
 					return RejectedStreams->StreamIds.Contains(Stream);
@@ -351,24 +426,36 @@ namespace UE::ConcertSyncClient::Replication
 			const bool bWasFullyRejected = ReplicatedStreams.StreamIds.IsEmpty(); 
 			if (!bWasFullyRejected)
 			{
-				ReplicationDataSource->AddReplicatedObjectStreams(TakeAuthority.Key, ReplicatedStreams.StreamIds);
+				ReplicationDataSource.AddReplicatedObjectStreams(TakeAuthority.Key, ReplicatedStreams.StreamIds);
 			}
 		}
 	}
 
-	void FReplicationManagerState_Connected::HandleReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request) const
+	void FReplicationManagerState_Connected::UpdateReplicatedObjectAfterServerSideChange(const FConcertQueriedClientInfo& NewState)
 	{
-		for (const TPair<FSoftObjectPath, FConcertStreamArray>& ReleaseAuthority : Request.ReleaseAuthority)
+		OnPreStreamsChangedDelegate.Broadcast();
+		OnPreAuthorityChangedDelegate.Broadcast();
+		ON_SCOPE_EXIT
 		{
-			ReplicationDataSource->RemoveReplicatedObjectStreams(ReleaseAuthority.Key, ReleaseAuthority.Value.StreamIds);
-		}
-	}
+			OnPostStreamsChangedDelegate.Broadcast();
+			OnPostAuthorityChangedDelegate.Broadcast();
+		};
+		
+		// The list of registered streams has changed
+		RegisteredStreams.Empty(NewState.Streams.Num());
+		Algo::Transform(NewState.Streams, RegisteredStreams, [](const FConcertBaseStreamInfo& Info)
+		{
+			return FConcertReplicationStream{ Info };
+		});
 
-	void FReplicationManagerState_Connected::RevertReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request) const
-	{
-		for (const TPair<FSoftObjectPath, FConcertStreamArray>& ReleaseAuthority : Request.ReleaseAuthority)
+		// This affects the objects we'll be replicating
+		ReplicationDataSource.ClearReplicatedObjects();
+		for (const FConcertAuthorityClientInfo& AuthorityState : NewState.Authority)
 		{
-			ReplicationDataSource->AddReplicatedObjectStreams(ReleaseAuthority.Key, ReleaseAuthority.Value.StreamIds);
+			for (const FSoftObjectPath& ObjectPath : AuthorityState.AuthoredObjects)
+			{
+				ReplicationDataSource.AddReplicatedObjectStreams(ObjectPath, { AuthorityState.StreamId });
+			}
 		}
 	}
 

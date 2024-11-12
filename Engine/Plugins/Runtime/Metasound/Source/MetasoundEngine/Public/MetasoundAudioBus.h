@@ -29,9 +29,21 @@ namespace Metasound
 		{
 			return AudioBusProxy;
 		}
-		
+
+		friend FORCEINLINE uint32 GetTypeHash(const Metasound::FAudioBusAsset& InAudioBusAsset)
+		{
+			const FAudioBusProxyPtr& Proxy = InAudioBusAsset.GetAudioBusProxy();
+			if (Proxy.IsValid())
+			{
+				return GetTypeHash(*Proxy);
+			}
+			return INDEX_NONE;
+		}
 	};
 
 	DECLARE_METASOUND_DATA_REFERENCE_TYPES(FAudioBusAsset, METASOUNDENGINE_API, FAudioBusAssetTypeInfo, FAudioBusAssetReadRef, FAudioBusAssetWriteRef)
+
+	METASOUNDENGINE_API int32 AudioBusReaderNodeInitialNumBlocks(int32 BlockSizeFrames, int32 AudioMixerOutputFrames);
+	METASOUNDENGINE_API int32 AudioBusWriterNodeInitialNumBlocks(int32 BlockSizeFrames, int32 AudioMixerOutputFrames);
 }
  

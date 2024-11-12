@@ -162,3 +162,41 @@ bool UComponentElementWorldInterface::FindSuitableTransformAlongPath(const FType
 	return false;
 }
 
+bool UComponentElementWorldInterface::AddIgnoredElementToCollisionQueryParams(const FTypedElementHandle& InElementHandle, FCollisionQueryParams& InOutParams, bool bAlsoIgnoreSubElements)
+{
+	UActorComponent* Component = Cast<USceneComponent>(ComponentElementDataUtil::GetComponentFromHandle(InElementHandle));
+
+	// Only primitive components are able to be ignored themselves, but scene components
+	// could have children that might be ignorable. 
+
+	TArray<UPrimitiveComponent*> ComponentsToIgnore;
+	if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component))
+	{
+		ComponentsToIgnore.Add(PrimitiveComponent);
+	}
+
+	if (bAlsoIgnoreSubElements)
+	{
+		TArray<USceneComponent*> ChildComponents;
+		if (USceneComponent* SceneComponent = Cast<USceneComponent>(Component))
+		{
+			SceneComponent->GetChildrenComponents(true, ChildComponents);
+		}
+
+		for (USceneComponent* Child : ChildComponents)
+		{
+			if (UPrimitiveComponent* CastChild = Cast<UPrimitiveComponent>(Child))
+			{
+				ComponentsToIgnore.Add(CastChild);
+			}
+		}
+	}
+
+	if (!ComponentsToIgnore.IsEmpty())
+	{
+		InOutParams.AddIgnoredComponents(ComponentsToIgnore);
+		return true;
+	}
+	return false;
+}
+

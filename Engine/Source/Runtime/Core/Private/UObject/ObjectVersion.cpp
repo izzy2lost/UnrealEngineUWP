@@ -9,6 +9,7 @@
 #include "Misc/AssertionMacros.h"
 #include "Serialization/Archive.h"
 #include "Serialization/CompactBinary.h"
+#include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryWriter.h"
 
 // @see ObjectVersion.h for the list of changes/defines
@@ -40,22 +41,18 @@ FArchive& operator<<(FArchive& Ar, FPackageFileVersion& Version)
 	return Ar;
 }
 
-FCbWriter& operator<<(FCbWriter& Writer, const FPackageFileVersion& Version)
+FCbWriter& FPackageFileVersion::Write(FCbWriter& Writer) const
 {
 	Writer.BeginObject();
-	Writer << "ue4version" << Version.FileVersionUE4;
-	Writer << "ue5version" << Version.FileVersionUE5;
+	Writer << "ue4version" << FileVersionUE4;
+	Writer << "ue5version" << FileVersionUE5;
 	Writer.EndObject();
-
 	return Writer;
 }
 
-FPackageFileVersion FromCbObject(const FCbObject& Obj)
+bool FPackageFileVersion::TryRead(const FCbFieldView& FieldView)
 {
-	FPackageFileVersion Version;
-
-	Version.FileVersionUE4 = Obj["ue4version"].AsInt32();
-	Version.FileVersionUE5 = Obj["ue5version"].AsInt32();
-
-	return Version;
+	bool bOk = LoadFromCompactBinary(FieldView["ue4version"], FileVersionUE4);
+	bOk = LoadFromCompactBinary(FieldView["ue5version"], FileVersionUE5) & bOk;
+	return bOk;
 }

@@ -141,8 +141,22 @@ MODELINGCOMPONENTS_API FMeshDescription GetMeshDescriptionCopy(
  * @param bWantMeshTangents if true, tangents will be returned if the target has them available. This may require that they be auto-calculated in some cases (which may be expensive)
  * @return a created DynamicMesh3, which may be empty if the Target doesn't have a mesh 
  */
-MODELINGCOMPONENTS_API UE::Geometry::FDynamicMesh3 GetDynamicMeshCopy(UToolTarget* Target, bool bWantMeshTangents = false);
+	UE_DEPRECATED(5.5, "Use GetDynamicMeshCopy which takes a FGetMeshParameters instead.")
+	MODELINGCOMPONENTS_API UE::Geometry::FDynamicMesh3 GetDynamicMeshCopy(UToolTarget* Target, bool bWantMeshTangents);
+	
+/**
+ * Fetch a DynamicMesh3 representing the given ToolTarget. This may be a conversion of the output of GetMeshDescription().
+ * This function returns a copy, so the caller can take ownership of this Mesh.
+ * @param InGetMeshParams to specify various options like specific LOD and/or tangents on the returned mesh.
+ * if InGetMeshParams.bWantMeshTangents is true, tangents will be returned if the target has them available. This may require that they be auto-calculated in some cases (which may be expensive)
+ * @return a created DynamicMesh3, which may be empty if the Target doesn't have a mesh 
+ */
+	MODELINGCOMPONENTS_API UE::Geometry::FDynamicMesh3 GetDynamicMeshCopy(
+		UToolTarget* Target,
+		const FGetMeshParameters& InGetMeshParams = FGetMeshParameters());
 
+/** @return The triangle count of Target's persistent dynamic mesh or its mesh description, if available, or 0 otherwise */
+MODELINGCOMPONENTS_API int32 GetTriangleCount(UToolTarget* Target);
 
 /**
  * EDynamicMeshUpdateResult is returned by functions below that update a ToolTarget with a new Mesh
@@ -253,6 +267,23 @@ namespace Internal
 	MODELINGCOMPONENTS_API void CommitDynamicMeshViaIPersistentDynamicMeshSource(
 		IPersistentDynamicMeshSource& DynamicMeshSource,
 		const UE::Geometry::FDynamicMesh3& UpdatedMesh, bool bHaveModifiedTopology);
+
+#if WITH_EDITOR
+	/**
+	 * Internal path for use by tool targets to invoke PostEditChange with conditional capture for undo
+	 * transactions. This capture is controlled by the CVar 'modeling.CapturePostEditChangeInTransactions'.
+	 *
+	 * PostEditChange can include arbitrary user code which can lead to a tool transaction capturing data
+	 * beyond the modifications the tool has made, opening up the risk of various side effects. It is
+	 * recommended that PostEditChange is not included in a transaction scope since PostEditUndo will
+	 * reinvoke PostEditChange and provide the user code the opportunity to reapply its changes in response
+	 * to the data modifications being made.
+	 *
+	 * That said, not all user code in PostEditChange is well behaved and deterministic so we provide the CVar
+	 * to toggle this behavior.
+	 */
+	MODELINGCOMPONENTS_API void PostEditChangeWithConditionalUndo(UObject* Object);
+#endif
 }
 
 /**

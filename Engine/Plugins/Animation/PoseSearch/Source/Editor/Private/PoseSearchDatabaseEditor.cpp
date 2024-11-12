@@ -5,7 +5,8 @@
 #include "Framework/Application/SlateApplication.h"
 #include "GameFramework/WorldSettings.h"
 #include "IStructureDetailsView.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
+#include "PoseSearchDatabaseAssetBrowser.h"
 #include "Modules/ModuleManager.h"
 #include "PoseSearch/PoseSearchDerivedData.h"
 #include "PoseSearchDatabaseAssetTree.h"
@@ -38,6 +39,7 @@ namespace UE::PoseSearch
 		static const FName SelectionDetailsID;
 		static const FName StatisticsOverview;
 		static const FName DataDetailsID;
+		static const FName AssetBrowserID;
 	};
 
 	const FName FDatabaseEditorTabs::AssetDetailsID(TEXT("PoseSearchDatabaseEditorAssetDetailsTabID"));
@@ -47,6 +49,7 @@ namespace UE::PoseSearch
 	const FName FDatabaseEditorTabs::SelectionDetailsID(TEXT("PoseSearchDatabaseEditorSelectionDetailsID"));
 	const FName FDatabaseEditorTabs::StatisticsOverview(TEXT("PoseSearchDatabaseEditorStatisticsOverviewID"));
 	const FName FDatabaseEditorTabs::DataDetailsID(TEXT("PoseSearchDatabaseEditorDataDetailsTabID"));
+	const FName FDatabaseEditorTabs::AssetBrowserID(TEXT("PoseSearchDatabaseEditorAssetBrowserID"));
 
 	const UPoseSearchDatabase* FDatabaseEditor::GetPoseSearchDatabase() const
 	{
@@ -226,51 +229,70 @@ namespace UE::PoseSearch
 				DatabaseAsset->RegisterOnSynchronizeWithExternalDependencies(UPoseSearchDatabase::FOnDerivedDataRebuild::CreateSP(this, &FDatabaseEditor::RefreshEditor));
 			}
 		}
+
+		// Create asset browser widget
+		AssetBrowserWidget = SNew(SPoseSearchDatabaseAssetBrowser, ViewModel);
 		
 		// Define Editor Layout
 		const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout =
-		FTabManager::NewLayout("Standalone_PoseSearchDatabaseEditor_Layout_v0.13")
+		FTabManager::NewLayout("Standalone_PoseSearchDatabaseEditor_Layout_v0.14")
 			->AddArea
 			(
-				FTabManager::NewPrimaryArea()->SetOrientation(Orient_Horizontal)
+				// Main application area
+				FTabManager::NewPrimaryArea()
+				->SetOrientation(Orient_Vertical)
 				->Split
 				(
-					FTabManager::NewSplitter()->SetOrientation(Orient_Vertical)
-					->SetSizeCoefficient(0.4f)
+					FTabManager::NewSplitter()
+					->SetOrientation(Orient_Horizontal)
 					->Split
 					(
-						FTabManager::NewStack()
-						->SetSizeCoefficient(0.6f)
-						->AddTab(FDatabaseEditorTabs::AssetTreeViewID, ETabState::OpenedTab)
-						->SetHideTabWell(false)
+						FTabManager::NewSplitter()->SetOrientation(Orient_Vertical)
+						->SetSizeCoefficient(0.2f)
+						->Split
+						(
+							FTabManager::NewStack()
+							->SetSizeCoefficient(0.6f)
+							->AddTab(FDatabaseEditorTabs::AssetTreeViewID, ETabState::OpenedTab)
+							->SetHideTabWell(false)
+						)
+						->Split
+						(
+							FTabManager::NewStack()
+							->SetSizeCoefficient(0.4f)
+							->AddTab(FDatabaseEditorTabs::AssetDetailsID, ETabState::OpenedTab)
+							->SetHideTabWell(false)
+						)
 					)
 					->Split
 					(
-						FTabManager::NewStack()
-						->SetSizeCoefficient(0.4f)
-						->AddTab(FDatabaseEditorTabs::AssetDetailsID, ETabState::OpenedTab)
-						->SetHideTabWell(false)
-					)
-				)
-				->Split
-				(
-					FTabManager::NewSplitter()->SetOrientation(Orient_Vertical)
-					->SetSizeCoefficient(0.6f)
-					->Split
-					(
-						FTabManager::NewStack()
-						->SetSizeCoefficient(0.6f)
-						->AddTab(FDatabaseEditorTabs::ViewportID, ETabState::OpenedTab)
-						->SetHideTabWell(true)
-					)
-					->Split
-					(
-						FTabManager::NewStack()
-						->SetSizeCoefficient(0.4f)
-						->AddTab(FDatabaseEditorTabs::StatisticsOverview, ETabState::OpenedTab)
-						->AddTab(FDatabaseEditorTabs::PreviewSettingsID, ETabState::OpenedTab)
-						->AddTab(FDatabaseEditorTabs::DataDetailsID, ETabState::OpenedTab)
-						->AddTab(FDatabaseEditorTabs::SelectionDetailsID, ETabState::OpenedTab)
+						FTabManager::NewSplitter()->SetOrientation(Orient_Vertical)
+						->SetSizeCoefficient(0.8f)
+						->Split
+						(
+							FTabManager::NewSplitter()->SetOrientation(Orient_Horizontal)
+							->Split(
+								FTabManager::NewStack()
+								->SetSizeCoefficient(0.75f)
+								->AddTab(FDatabaseEditorTabs::ViewportID, ETabState::OpenedTab)
+								->SetHideTabWell(true)
+									
+							)
+							->Split(
+								FTabManager::NewStack()
+								->SetSizeCoefficient(0.25f)
+								->AddTab(FDatabaseEditorTabs::AssetBrowserID, ETabState::OpenedTab)
+							)
+						)
+						->Split
+						(
+							FTabManager::NewStack()
+							->SetSizeCoefficient(0.4f)
+							->AddTab(FDatabaseEditorTabs::StatisticsOverview, ETabState::OpenedTab)
+							->AddTab(FDatabaseEditorTabs::PreviewSettingsID, ETabState::OpenedTab)
+							->AddTab(FDatabaseEditorTabs::DataDetailsID, ETabState::OpenedTab)
+							->AddTab(FDatabaseEditorTabs::SelectionDetailsID, ETabState::OpenedTab)
+						)
 					)
 				)
 			);
@@ -359,6 +381,13 @@ namespace UE::PoseSearch
 			.SetDisplayName(LOCTEXT("DataDetailsTab", "Data Details"))
 			.SetGroup(WorkspaceMenuCategoryRef)
 			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "GraphEditor.EventGraph_16x"));
+		
+		InTabManager->RegisterTabSpawner(
+			FDatabaseEditorTabs::AssetBrowserID,
+			FOnSpawnTab::CreateSP(this, &FDatabaseEditor::SpawnTab_AssetBrowser))
+			.SetDisplayName(LOCTEXT("AssetBrowserTab", "Asset Browser"))
+			.SetGroup(WorkspaceMenuCategoryRef);
+			// .SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "GraphEditor.EventGraph_16x"));
 	}
 
 	void FDatabaseEditor::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
@@ -372,6 +401,7 @@ namespace UE::PoseSearch
 		InTabManager->UnregisterTabSpawner(FDatabaseEditorTabs::SelectionDetailsID);
 		InTabManager->UnregisterTabSpawner(FDatabaseEditorTabs::StatisticsOverview);
 		InTabManager->UnregisterTabSpawner(FDatabaseEditorTabs::DataDetailsID);
+		InTabManager->UnregisterTabSpawner(FDatabaseEditorTabs::AssetBrowserID);
 	}
 
 	FName FDatabaseEditor::GetToolkitFName() const
@@ -497,7 +527,18 @@ namespace UE::PoseSearch
 				DataDetails.ToSharedRef()
 			];
 	}
-
+	
+	TSharedRef<SDockTab> FDatabaseEditor::SpawnTab_AssetBrowser(const FSpawnTabArgs& Args) const
+	{
+		check(Args.GetTabId() == FDatabaseEditorTabs::AssetBrowserID);
+		
+		return SNew(SDockTab)
+			.Label(LOCTEXT("AssetBrowser_Title", "Asset Browser"))
+			[
+				AssetBrowserWidget.ToSharedRef()
+			];
+	}
+	
 	void FDatabaseEditor::OnFinishedChangingSelectionProperties(const FPropertyChangedEvent& PropertyChangedEvent)
 	{
 	}
@@ -517,16 +558,12 @@ namespace UE::PoseSearch
 		{
 			for (TSharedPtr<FDatabaseAssetTreeNode>& SelectedItem : SelectedItems)
 			{
-				if (!SelectedItem.IsValid() || !PoseSearchDatabase->GetAnimationAssets().IsValidIndex(SelectedItem->SourceAssetIdx))
+				if (!SelectedItem.IsValid() || !PoseSearchDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SelectedItem->SourceAssetIdx))
 				{
 					continue;
 				}
 
-				const FInstancedStruct& DatabaseAsset = PoseSearchDatabase->GetAnimationAssetStruct(SelectedItem->SourceAssetIdx);
-				const UScriptStruct* ScriptStruct = DatabaseAsset.GetScriptStruct();
-				FSelectionWidget& SelectionWidget = FindOrAddSelectionWidget(ScriptStruct);
-
-				if (const FPoseSearchDatabaseSequence* DatabaseSequence = DatabaseAsset.GetPtr<FPoseSearchDatabaseSequence>())
+				if (const FPoseSearchDatabaseSequence* DatabaseSequence = PoseSearchDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseSequence>(SelectedItem->SourceAssetIdx))
 				{
 					UPoseSearchDatabaseSequenceReflection* NewSelectionReflection = NewObject<UPoseSearchDatabaseSequenceReflection>();
 					NewSelectionReflection->AddToRoot();
@@ -535,10 +572,10 @@ namespace UE::PoseSearch
 					NewSelectionReflection->Sequence.bHasRootMotion = DatabaseSequence->IsRootMotionEnabled();
 					NewSelectionReflection->SetSourceLink(SelectedItem, AssetTreeWidget);
 					NewSelectionReflection->SetFlags(RF_Transactional);
-
-					SelectionWidget.SelectedReflections.Add(NewSelectionReflection);
+					
+					FindOrAddSelectionWidget(FPoseSearchDatabaseSequence::StaticStruct()).SelectedReflections.Add(NewSelectionReflection);
 				}
-				else if (const FPoseSearchDatabaseAnimComposite* DatabaseAnimComposite = DatabaseAsset.GetPtr<FPoseSearchDatabaseAnimComposite>())
+				else if (const FPoseSearchDatabaseAnimComposite* DatabaseAnimComposite = PoseSearchDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimComposite>(SelectedItem->SourceAssetIdx))
 				{
 					UPoseSearchDatabaseAnimCompositeReflection* NewSelectionReflection = NewObject<UPoseSearchDatabaseAnimCompositeReflection>();
 					NewSelectionReflection->AddToRoot();
@@ -548,9 +585,9 @@ namespace UE::PoseSearch
 					NewSelectionReflection->SetSourceLink(SelectedItem, AssetTreeWidget);
 					NewSelectionReflection->SetFlags(RF_Transactional);
 					
-					SelectionWidget.SelectedReflections.Add(NewSelectionReflection);
+					FindOrAddSelectionWidget(FPoseSearchDatabaseAnimComposite::StaticStruct()).SelectedReflections.Add(NewSelectionReflection);
 				}
-				else if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseAsset.GetPtr<FPoseSearchDatabaseBlendSpace>())
+				else if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = PoseSearchDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseBlendSpace>(SelectedItem->SourceAssetIdx))
 				{
 					UPoseSearchDatabaseBlendSpaceReflection* NewSelectionReflection = NewObject<UPoseSearchDatabaseBlendSpaceReflection>();
 					NewSelectionReflection->AddToRoot();
@@ -560,9 +597,9 @@ namespace UE::PoseSearch
 					NewSelectionReflection->SetSourceLink(SelectedItem, AssetTreeWidget);
 					NewSelectionReflection->SetFlags(RF_Transactional);
 					
-					SelectionWidget.SelectedReflections.Add(NewSelectionReflection);
+					FindOrAddSelectionWidget(FPoseSearchDatabaseBlendSpace::StaticStruct()).SelectedReflections.Add(NewSelectionReflection);
 				}
-				else if (const FPoseSearchDatabaseAnimMontage* DatabaseAnimMontage = DatabaseAsset.GetPtr<FPoseSearchDatabaseAnimMontage>())
+				else if (const FPoseSearchDatabaseAnimMontage* DatabaseAnimMontage = PoseSearchDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimMontage>(SelectedItem->SourceAssetIdx))
 				{
 					UPoseSearchDatabaseAnimMontageReflection* NewSelectionReflection = NewObject<UPoseSearchDatabaseAnimMontageReflection>();
 					NewSelectionReflection->AddToRoot();
@@ -572,19 +609,19 @@ namespace UE::PoseSearch
 					NewSelectionReflection->SetSourceLink(SelectedItem, AssetTreeWidget);
 					NewSelectionReflection->SetFlags(RF_Transactional);
 
-					SelectionWidget.SelectedReflections.Add(NewSelectionReflection);
+					FindOrAddSelectionWidget(FPoseSearchDatabaseAnimMontage::StaticStruct()).SelectedReflections.Add(NewSelectionReflection);
 				}
-				else if (const FPoseSearchDatabaseMultiSequence* DatabaseMultiSequence = DatabaseAsset.GetPtr<FPoseSearchDatabaseMultiSequence>())
+				else if (const FPoseSearchDatabaseMultiAnimAsset* DatabaseMultiAnimAsset = PoseSearchDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseMultiAnimAsset>(SelectedItem->SourceAssetIdx))
 				{
-					UPoseSearchDatabaseMultiSequenceReflection* NewSelectionReflection = NewObject<UPoseSearchDatabaseMultiSequenceReflection>();
+					UPoseSearchDatabaseMultiAnimAssetReflection* NewSelectionReflection = NewObject<UPoseSearchDatabaseMultiAnimAssetReflection>();
 					NewSelectionReflection->AddToRoot();
-					static_cast<FPoseSearchDatabaseMultiSequence&>(NewSelectionReflection->MultiSequence) = *DatabaseMultiSequence;
-					NewSelectionReflection->MultiSequence.bLooping = DatabaseMultiSequence->IsLooping();
-					NewSelectionReflection->MultiSequence.bHasRootMotion = DatabaseMultiSequence->IsRootMotionEnabled();
+					static_cast<FPoseSearchDatabaseMultiAnimAsset&>(NewSelectionReflection->MultiAnimAsset) = *DatabaseMultiAnimAsset;
+					NewSelectionReflection->MultiAnimAsset.bLooping = DatabaseMultiAnimAsset->IsLooping();
+					NewSelectionReflection->MultiAnimAsset.bHasRootMotion = DatabaseMultiAnimAsset->IsRootMotionEnabled();
 					NewSelectionReflection->SetSourceLink(SelectedItem, AssetTreeWidget);
 					NewSelectionReflection->SetFlags(RF_Transactional);
 
-					SelectionWidget.SelectedReflections.Add(NewSelectionReflection);
+					FindOrAddSelectionWidget(FPoseSearchDatabaseMultiAnimAsset::StaticStruct()).SelectedReflections.Add(NewSelectionReflection);
 				}
 				else
 				{

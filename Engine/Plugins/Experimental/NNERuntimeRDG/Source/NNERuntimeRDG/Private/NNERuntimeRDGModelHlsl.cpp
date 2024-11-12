@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGModelHlsl.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNETensor.h"
 #include "NNERuntimeRDGHlsl.h"
 #include "NNERuntimeRDGHlslOp.h"
@@ -19,7 +21,7 @@ FOperatorHlsl* OpCreate(const FOperatorDesc& OpDesc, TConstArrayView<NNE::FTenso
 
 	if (!CreateFn)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Hlsl MLOperatorRegistry failed to find operator: %s"), *OpDesc.GetFullName());
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Operator registry failed to find operator: %s"), *OpDesc.GetFullName());
 		return nullptr;
 	}
 
@@ -27,7 +29,7 @@ FOperatorHlsl* OpCreate(const FOperatorDesc& OpDesc, TConstArrayView<NNE::FTenso
 
 	if (!Op->Initialize(InputTensorDescs, OutputTensorDescs, AttributeMap))
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Hlsl runtime: Error initializing operator: %s"), *OpDesc.GetFullName());
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Error initializing operator: %s"), *OpDesc.GetFullName());
 		delete Op;
 		return nullptr;
 	}
@@ -97,8 +99,16 @@ bool FModelInstance::PrepareModelRDG(FRDGBuilder& RDGBuilder)
 	{
 		const TRefCountPtr<FRDGPooledBuffer>& PooledBuffer = WeightsExternalRDGResources[Idx];
 		FTensorRDG& Tensor = WeightTensorRDGs[Idx];
-		FRDGBufferRef Buffer = RDGBuilder.RegisterExternalBuffer(PooledBuffer);
-		Tensor.SetBuffer(Buffer);
+		// Only register external buffer when weight tensor is NOT zero-sized.
+		if(Tensor.HasPreparedData())
+		{
+			FRDGBufferRef Buffer = RDGBuilder.RegisterExternalBuffer(PooledBuffer);
+			Tensor.SetBuffer(Buffer);
+		}
+		else
+		{
+			Tensor.SetBuffer(nullptr);
+		}
 	}
 
 	return true;
@@ -158,7 +168,7 @@ bool FModelInstance::Init(TConstArrayView<uint8> ModelData)
 
 		if (!Op) //Op.Shader.IsNull())
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Failed to create operator:%s"), *OperatorDesc.GetFullName());
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Failed to create operator:%s"), *OperatorDesc.GetFullName());
 
 			//Note: Need to cleanup operators
 			return false;
@@ -195,7 +205,7 @@ void FModelInstance::AddDispatchOps_RenderThread(FRDGBuilder& GraphBuilder)
 		OutputTensors.Reset(OperatorOutputTensorIndices.Num());
 		for (int32 i : OperatorOutputTensorIndices[Idx])
 		{
-			AllOutputTensorConstant &= AllTensorRDGRefs[i]->HasPreparedData();
+			AllOutputTensorConstant &= AllTensorRDGRefs[i]->IsConstant();
 			OutputTensors.Add(AllTensorRDGRefs[i]);
 		}
 
@@ -206,7 +216,7 @@ void FModelInstance::AddDispatchOps_RenderThread(FRDGBuilder& GraphBuilder)
 		}
 	}
 
-	//If a model output is constant we upload to it (a user provided GPU buffer).
+	//If a model output is constant (and non-empty) we upload to it (a user provided GPU buffer).
 	for (const FTensorRDG& OutputTensor : OutputTensorRDGs)
 	{
 		if (OutputTensor.HasPreparedData())
@@ -222,7 +232,7 @@ int FModelInstance::PrepareTensorShapesAndData()
 	
 	if (Operators.Num() == 0)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("No operators in model"));
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("No operators in model"));
 		return -1;
 	}
 
@@ -240,6 +250,10 @@ int FModelInstance::PrepareTensorShapesAndData()
 			AllInitializedTensors[Idx] = true;
 		}
 		for (int32 Idx : WeightTensorIndices)
+		{
+			AllInitializedTensors[Idx] = true;
+		}
+		for (int32 Idx : EmptyTensorIndices)
 		{
 			AllInitializedTensors[Idx] = true;
 		}
@@ -276,7 +290,7 @@ int FModelInstance::PrepareTensorShapesAndData()
 		{
 			//Operator could not prepare the output tensors, meaning we can't allocate
 			//output buffer before running the model. This runtime does not support this.
-			UE_LOG(LogNNE, Warning, TEXT("Could not deduce tensor shapes for this model during shape inference, HLSL runtime wont support the model as it need to precompute all shapes for performance reasons."));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Could not deduce tensor shapes for this model during shape inference, HLSL runtime wont support the model as it need to precompute all shapes for performance reasons."));
 			AllTensorRDGRefs.Reset();
 			return -1;
 		}
@@ -292,24 +306,25 @@ int FModelInstance::PrepareTensorShapesAndData()
 	return 0;
 }
 
-namespace UploadHelper
+void FModelInstance::PrepareWeights()
 {
+	check(WeightsExternalRDGResources.IsEmpty());
 
-void EnqueueTensorUpload(TArray<TRefCountPtr<FRDGPooledBuffer>>& OutExternalRDGResources,
-	FTensorRDGArray& TensorToUploadRDGs, ERDGInitialDataFlags CopyDataFlag)
+	auto EnqueueTensorUpload = [](TArray<TRefCountPtr<FRDGPooledBuffer>>& OutExternalRDGResources,
+								  FTensorRDGArray& TensorToUploadRDGs, ERDGInitialDataFlags CopyDataFlag)
 	{
 		OutExternalRDGResources.Reset();
 		OutExternalRDGResources.SetNum(TensorToUploadRDGs.Num());
 
-		bool AtLeastOneConstantTensor = false;
+		bool AtLeastOneConstantNonEmptyTensor = false;
 		for (const FTensorRDG& TensorRDG : TensorToUploadRDGs)
 		{
 			if (TensorRDG.HasPreparedData())
 			{
-				AtLeastOneConstantTensor = true;
+				AtLeastOneConstantNonEmptyTensor = true;
 			}
 		}
-		if (!AtLeastOneConstantTensor)
+		if (!AtLeastOneConstantNonEmptyTensor)
 		{
 			return;
 		}
@@ -360,17 +375,10 @@ void EnqueueTensorUpload(TArray<TRefCountPtr<FRDGPooledBuffer>>& OutExternalRDGR
 		Signal->Wait();	// Wait for render thread to finish
 
 		FGenericPlatformProcess::ReturnSynchEventToPool(Signal);
-	}
-}
-
-bool FModelInstance::PrepareWeights()
-{
-	check(WeightsExternalRDGResources.IsEmpty());
+	};
 
 	// Data is not copied. A GPU sync will happens see EnqueueTensorUpload().
-	UploadHelper::EnqueueTensorUpload(WeightsExternalRDGResources, WeightTensorRDGs, ERDGInitialDataFlags::NoCopy);
-
-	return true;
+	EnqueueTensorUpload(WeightsExternalRDGResources, WeightTensorRDGs, ERDGInitialDataFlags::NoCopy);
 }
 
 TSharedPtr<NNE::IModelInstanceRDG> FModel::CreateModelInstanceRDG()

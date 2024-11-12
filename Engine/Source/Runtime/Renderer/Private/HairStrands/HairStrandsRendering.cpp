@@ -120,7 +120,7 @@ void RenderHairPrePass(
 	for (FViewInfo& View : Views)
 	{
 		const bool bIsViewCompatible = IsHairStrandsEnabled(EHairStrandsShaderType::Strands, View.GetShaderPlatform());
-		if (!View.Family || !bIsViewCompatible)
+		if (!View.Family || !bIsViewCompatible || !View.Family->EngineShowFlags.Hair)
 			continue;
 
 		// For stereo rendering, hair groups/voxelization/deep-shadow are only produced once
@@ -142,7 +142,6 @@ void RenderHairPrePass(
 				// Render DeepShadow for the second view, as for now the computations are view dependent. 
 				// This needs to be view independent to share result between eyes.
 				RenderHairStrandsDeepShadows(GraphBuilder, Scene, View, InstanceCullingManager);
-				GraphBuilder.AddDispatchHint();
 				return;
 			}
 		}
@@ -155,9 +154,7 @@ void RenderHairPrePass(
 			View.ViewState->HairStrandsViewStateData.Init();
 		}
 
-		//SCOPED_GPU_STAT(RHICmdList, HairRendering);
 		CreateHairStrandsMacroGroups(GraphBuilder, Scene, View, InstancesVisibilityType, View.HairStrandsViewData);
-		GraphBuilder.AddDispatchHint();
 
 		// Voxelization and Deep Opacity Maps
 		VoxelizeHairStrands(GraphBuilder, Scene, View, InstanceCullingManager, PreViewStereoCorrection);
@@ -166,7 +163,6 @@ void RenderHairPrePass(
 			AddMeshDrawTransitionPass(GraphBuilder, View, View.HairStrandsViewData.MacroGroupDatas);
 		}
 		RenderHairStrandsDeepShadows(GraphBuilder, Scene, View, InstanceCullingManager);
-		GraphBuilder.AddDispatchHint();
 	}
 }
 
@@ -180,7 +176,7 @@ void RenderHairBasePass(
 	for (FViewInfo& View : Views)
 	{
 		const bool bIsViewCompatible = IsHairStrandsEnabled(EHairStrandsShaderType::Strands, View.GetShaderPlatform());
-		if (View.Family && bIsViewCompatible && View.HairStrandsViewData.MacroGroupDatas.Num() > 0)
+		if (View.Family && View.Family->EngineShowFlags.Hair && bIsViewCompatible && View.HairStrandsViewData.MacroGroupDatas.Num() > 0)
 		{
 			RenderHairStrandsVisibilityBuffer(
 				GraphBuilder, 

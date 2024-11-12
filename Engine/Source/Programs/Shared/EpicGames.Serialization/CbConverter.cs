@@ -64,13 +64,13 @@ namespace EpicGames.Serialization
 	public abstract class CbConverter<T> : CbConverter
 	{
 		/// <inheritdoc/>
-		public override sealed object? ReadObject(CbField field) => Read(field);
+		public sealed override object? ReadObject(CbField field) => Read(field);
 
 		/// <inheritdoc/>
-		public override sealed void WriteObject(CbWriter writer, object? value) => Write(writer, (T)value!);
+		public sealed override void WriteObject(CbWriter writer, object? value) => Write(writer, (T)value!);
 
 		/// <inheritdoc/>
-		public override sealed void WriteNamedObject(CbWriter writer, CbFieldName name, object? value) => WriteNamed(writer, name, (T)value!);
+		public sealed override void WriteNamedObject(CbWriter writer, CbFieldName name, object? value) => WriteNamed(writer, name, (T)value!);
 
 		/// <summary>
 		/// Reads an object from a field

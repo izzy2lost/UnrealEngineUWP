@@ -33,6 +33,8 @@ public class UnrealVirtualizationToolTarget : TargetRules
 		// Reduce the final exe/pdb size
 		WindowsPlatform.bStripUnreferencedSymbols = true;
 		WindowsPlatform.bMergeIdenticalCOMDATs = true;
+		WindowsPlatform.bUseBundledDbgHelp = false;
+		WindowsPlatform.bPixProfilingEnabled = false;
 
 		bEnableTrace = true;
 		GlobalDefinitions.Add("UE_SUPPORT_FULL_PACKAGEPATH=1");

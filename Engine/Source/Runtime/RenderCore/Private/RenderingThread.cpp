@@ -31,6 +31,7 @@
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "Async/TaskTrace.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "HAL/ThreadManager.h"
 #include "ProfilingDebugging/CountersTrace.h"
 
 //
@@ -44,12 +45,13 @@ UE_TRACE_CHANNEL_DEFINE(RenderCommandsChannel);
 
 RENDERCORE_API bool GIsThreadedRendering = false;
 RENDERCORE_API bool GUseThreadedRendering = false;
+RENDERCORE_API TOptional<bool> GPendingUseThreadedRendering;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	RENDERCORE_API TAtomic<bool> GMainThreadBlockedOnRenderThread(false);
 #endif // #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
-static FRunnable* GRenderingThreadRunnable = NULL;
+static FRunnable* GRenderingThreadRunnable = nullptr;
 
 /** If the rendering thread has been terminated by an unhandled exception, this contains the error message. */
 FString GRenderingThreadError;
@@ -91,140 +93,57 @@ static FAutoConsoleVariable CVarRenderThreadPollPeriodMs(
 	FConsoleVariableDelegate::CreateStatic(&OnRenderThreadPollPeriodMsChanged)
 );
 
-/** Function to stall the rendering thread **/
-static void SuspendRendering()
+bool GRenderCommandFenceBundling = true;
+FAutoConsoleVariableRef CVarRenderCommandFenceBundling(
+	TEXT("r.RenderCommandFenceBundling"),
+	GRenderCommandFenceBundling,
+	TEXT("Controls whether render command fences are allowed to be batched.\n")
+	TEXT(" 0: disabled;\n")
+	TEXT(" 1: enabled (default);\n"),
+	ECVF_Default);
+
+inline ERenderCommandPipeMode GetValidatedRenderCommandPipeMode(int32 CVarValue)
 {
-	++GIsRenderingThreadSuspended;
+	ERenderCommandPipeMode Mode = ERenderCommandPipeMode::None;
+
+	switch (CVarValue)
+	{
+	case 1:
+		Mode = ERenderCommandPipeMode::RenderThread;
+		break;
+	case 2:
+		Mode = ERenderCommandPipeMode::All;
+		break;
+	}
+
+	const bool bAllowThreading = !GRHICommandList.Bypass() && FApp::ShouldUseThreadingForPerformance() && GIsThreadedRendering;
+
+	if (Mode == ERenderCommandPipeMode::All && !bAllowThreading)
+	{
+		Mode = ERenderCommandPipeMode::RenderThread;
+	}
+
+	if (!FApp::CanEverRender() || IsMobilePlatform(GMaxRHIShaderPlatform))
+	{
+		Mode = ERenderCommandPipeMode::None;
+	}
+
+	return Mode;
 }
 
-/** Function to wait and resume rendering thread **/
-static void WaitAndResumeRendering()
-{
-	while ( GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed) )
+ERenderCommandPipeMode GRenderCommandPipeMode = ERenderCommandPipeMode::None;
+FAutoConsoleVariable CVarRenderCommandPipeMode(
+	TEXT("r.RenderCommandPipeMode"),
+	2,
+	TEXT("Controls behavior of the main render thread command pipe.")
+	TEXT(" 0: Render commands are launched individually as tasks;\n")
+	TEXT(" 1: Render commands are enqueued into a render command pipe for the render thread only.;\n")
+	TEXT(" 2: Render commands are enqueued into a render command pipe for all declared pipes.;\n"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Variable)
 	{
-		// Just sleep a little bit.
-		FPlatformProcess::Sleep( 0.001f ); //@todo this should be a more principled wait
-	}
-    
-	// set the thread back to real time mode
-	FPlatformProcess::SetRealTimeMode();
-}
-
-/**
- *	Constructor that flushes and suspends the renderthread
- *	@param bRecreateThread	- Whether the rendering thread should be completely destroyed and recreated, or just suspended.
- */
-FSuspendRenderingThread::FSuspendRenderingThread( bool bInRecreateThread )
-{
-	// Pause asset streaming to prevent rendercommands from being enqueued.
-	SuspendTextureStreamingRenderTasks();
-
-	bRecreateThread = bInRecreateThread;
-	bUseRenderingThread = GUseThreadedRendering;
-	bWasRenderingThreadRunning = GIsThreadedRendering;
-	if ( bRecreateThread )
-	{
-		StopRenderingThread();
-		// GUseThreadedRendering should be set to false after StopRenderingThread call since
-		// otherwise a wrong context could be used.
-		GUseThreadedRendering = false;
-		++GIsRenderingThreadSuspended;
-	}
-	else
-	{
-		if ( GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed) == 0 )
-		{
-			// First tell the render thread to finish up all pending commands and then suspend its activities.
-			// this ensures that async stuff will be completed too
-			FlushRenderingCommands();
-			
-			if (GIsThreadedRendering)
-			{
-				DECLARE_CYCLE_STAT(TEXT("FSimpleDelegateGraphTask.SuspendRendering"),
-					STAT_FSimpleDelegateGraphTask_SuspendRendering,
-					STATGROUP_TaskGraphTasks);
-
-				ENamedThreads::Type RenderThread = ENamedThreads::GetRenderThread();
-
-				FGraphEventRef CompleteHandle = FSimpleDelegateGraphTask::CreateAndDispatchWhenReady(
-					FSimpleDelegateGraphTask::FDelegate::CreateStatic(&SuspendRendering),
-					GET_STATID(STAT_FSimpleDelegateGraphTask_SuspendRendering), NULL, RenderThread);
-
-				// Busy wait while Kismet debugging, to avoid opportunistic execution of game thread tasks
-				// If the game thread is already executing tasks, then we have no choice but to spin
-				if (GIntraFrameDebuggingGameThread || FTaskGraphInterface::Get().IsThreadProcessingTasks(ENamedThreads::GameThread) ) 
-				{
-					while (!GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed))
-					{
-						FPlatformProcess::Sleep(0.0f);
-					}
-				}
-				else
-				{
-					QUICK_SCOPE_CYCLE_COUNTER(STAT_FSuspendRenderingThread);
-					FTaskGraphInterface::Get().WaitUntilTaskCompletes(CompleteHandle, ENamedThreads::GameThread);
-				}
-				check(GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed));
-			
-				// Now tell the render thread to busy wait until it's resumed
-				DECLARE_CYCLE_STAT(TEXT("FSimpleDelegateGraphTask.WaitAndResumeRendering"),
-					STAT_FSimpleDelegateGraphTask_WaitAndResumeRendering,
-					STATGROUP_TaskGraphTasks);
-
-				FSimpleDelegateGraphTask::CreateAndDispatchWhenReady(
-					FSimpleDelegateGraphTask::FDelegate::CreateStatic(&WaitAndResumeRendering),
-					GET_STATID(STAT_FSimpleDelegateGraphTask_WaitAndResumeRendering), NULL, RenderThread);
-			}
-			else
-			{
-				SuspendRendering();
-			}
-		}
-		else
-		{
-			// The render-thread is already suspended. Just bump the ref-count.
-			++GIsRenderingThreadSuspended;
-		}
-	}
-}
-
-/** Destructor that starts the renderthread again */
-FSuspendRenderingThread::~FSuspendRenderingThread()
-{
-	if ( bRecreateThread )
-	{
-		GUseThreadedRendering = bUseRenderingThread;
-		--GIsRenderingThreadSuspended;
-		if ( bUseRenderingThread && bWasRenderingThreadRunning )
-		{
-			StartRenderingThread();
-            
-            // Now tell the render thread to set it self to real time mode
-			DECLARE_CYCLE_STAT(TEXT("FSimpleDelegateGraphTask.SetRealTimeMode"),
-				STAT_FSimpleDelegateGraphTask_SetRealTimeMode,
-				STATGROUP_TaskGraphTasks);
-
-            FSimpleDelegateGraphTask::CreateAndDispatchWhenReady(
-                FSimpleDelegateGraphTask::FDelegate::CreateStatic(&FPlatformProcess::SetRealTimeMode),
-				GET_STATID(STAT_FSimpleDelegateGraphTask_SetRealTimeMode), NULL, ENamedThreads::GetRenderThread()
-			);
-        }
-	}
-	else
-	{
-		// Resume the render thread again.
-		--GIsRenderingThreadSuspended;
-	}
-
-	// Resume any asset streaming
-	ResumeTextureStreamingRenderTasks();
-
-	if (IsAsyncLoadingMultithreaded())
-	{
-		ResumeAsyncLoading();
-	}
-}
-
+		UE::RenderCommandPipe::StopRecording();
+		GRenderCommandPipeMode = GetValidatedRenderCommandPipeMode(Variable->GetInt());
+	}));
 
 /**
  * Tick all rendering thread tickable objects
@@ -295,60 +214,70 @@ uint32 GRHIThreadTime = 0;
 uint32 GRenderThreadTimeCriticalPath = 0;
 
 /** The RHI thread runnable object. */
-class FRHIThread : public FRunnable
+class FRHIThread : private FRunnable
 {
+	FRunnableThread* Thread = nullptr;
+
 public:
-	FRunnableThread* Thread;
+	static inline ERHIThreadMode TargetMode = ERHIThreadMode::DedicatedThread;
 
 	FRHIThread()
-		: Thread(nullptr)
 	{
 		check(IsInGameThread());
+
+		UE::Trace::ThreadGroupBegin(TEXT("Render"));
+
+		Thread = FRunnableThread::Create(
+			this, 
+			TEXT("RHIThread"), 
+			512 * 1024,
+			FPlatformAffinity::GetRHIThreadPriority(), 
+			FPlatformAffinity::GetRHIThreadMask(), 
+			FPlatformAffinity::GetRHIThreadFlags()
+		);
+		check(Thread);
+
+		UE::Trace::ThreadGroupEnd();
 	}
 
-	virtual bool Init(void) override
+	~FRHIThread()
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		GRHIThreadId = FPlatformTLS::GetCurrentThreadId();
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		return true;
+		check(IsInGameThread());
+
+		// Signal the task graph to make the RHI thread exit, and wait for it.
+		TGraphTask<FReturnGraphTask>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(ENamedThreads::RHIThread);
+		Thread->WaitForCompletion();
+
+		delete Thread;
 	}
 
 	virtual uint32 Run() override
 	{
 		LLM_SCOPE(ELLMTag::RHIMisc);
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		FCsvProfiler::Get()->SetRHIThreadId(FPlatformTLS::GetCurrentThreadId());
 #endif
-
-		FMemory::SetupTLSCachesOnCurrentThread();
 		{
 			FTaskTagScope Scope(ETaskTag::ERhiThread);
-			FPlatformProcess::SetupRHIThread();
-			FTaskGraphInterface::Get().AttachToThread(ENamedThreads::RHIThread);
-			FTaskGraphInterface::Get().ProcessThreadUntilRequestReturn(ENamedThreads::RHIThread);
+
+			FMemory::SetupTLSCachesOnCurrentThread();
+			{
+				FScopedRHIThreadOwnership ThreadOwnershipScope(true);
+			
+				FTaskGraphInterface::Get().AttachToThread(ENamedThreads::RHIThread);
+				FTaskGraphInterface::Get().ProcessThreadUntilRequestReturn(ENamedThreads::RHIThread);
+			}
+			FMemory::ClearAndDisableTLSCachesOnCurrentThread();
 		}
-		FMemory::ClearAndDisableTLSCachesOnCurrentThread();
+
+#if CSV_PROFILER_STATS
+		FCsvProfiler::Get()->SetRHIThreadId(0);
+#endif
+
 		return 0;
 	}
-
-	static FRHIThread& Get()
-	{
-		static FRHIThread Singleton;
-		return Singleton;
-	}
-
-	void Start()
-	{
-		UE::Trace::ThreadGroupBegin(TEXT("Render"));
-		Thread = FRunnableThread::Create(this, TEXT("RHIThread"), 512 * 1024, FPlatformAffinity::GetRHIThreadPriority(),
-			FPlatformAffinity::GetRHIThreadMask(), FPlatformAffinity::GetRHIThreadFlags()
-			);
-		check(Thread);
-		UE::Trace::ThreadGroupEnd();
-	}
-};
+} static *GRHIThread = nullptr;
 
 /** The rendering thread main loop */
 void RenderingThreadMain( FEvent* TaskGraphBoundSyncEvent )
@@ -369,9 +298,6 @@ void RenderingThreadMain( FEvent* TaskGraphBoundSyncEvent )
 		TaskGraphBoundSyncEvent->Trigger();
 	}
 
-	// set the thread back to real time mode
-	FPlatformProcess::SetRealTimeMode();
-
 #if STATS
 	if (FThreadStats::WillEverCollectData())
 	{
@@ -385,30 +311,8 @@ void RenderingThreadMain( FEvent* TaskGraphBoundSyncEvent )
 	{
 		FTaskTagScope TaskTagScope(ETaskTag::ERenderingThread);
 
-		struct FScopedRHIThreadOwnership
-		{
-			/** Tracks if we have acquired ownership */
-			bool bAcquiredThreadOwnership = false;
-
-			FScopedRHIThreadOwnership()
-			{
-				// Acquire rendering context ownership on the current thread, unless using an RHI thread, which will be the real owner
-				if (!IsRunningRHIInSeparateThread())
-				{
-					bAcquiredThreadOwnership = true;
-					RHIAcquireThreadOwnership();
-				}
-			}
-
-			~FScopedRHIThreadOwnership()
-			{
-				// Release rendering context ownership on the current thread if we had acquired it
-				if (bAcquiredThreadOwnership)
-				{
-					RHIReleaseThreadOwnership();
-				}
-			}
-		} ThreadOwnershipScope;
+		// Acquire rendering context ownership on the current thread, unless using an RHI thread, which will be the real owner
+		FScopedRHIThreadOwnership ThreadOwnershipScope(!IsRunningRHIInSeparateThread());
 
 		FTaskGraphInterface::Get().ProcessThreadUntilRequestReturn(RenderThread);
 	}
@@ -615,7 +519,7 @@ public:
 		while(GRunRenderingThreadHeartbeat.Load(EMemoryOrder::Relaxed))
 		{
 			FPlatformProcess::Sleep(1.f/(4.0f * GRenderingThreadMaxIdleTickFrequency));
-			if (!GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed) && OutstandingHeartbeats.GetValue() < 4)
+			if (OutstandingHeartbeats.GetValue() < 4)
 			{
 				OutstandingHeartbeats.Increment();
 				ENQUEUE_RENDER_COMMAND(HeartbeatTickTickables)(
@@ -624,7 +528,7 @@ public:
 						OutstandingHeartbeats.Decrement();
 						// make sure that rendering thread tickables get a chance to tick, even if the render thread is starving
 						// but if GSuspendRenderingTickables is != 0 a flush is happening so don't tick during it
-						if (!GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed) && !GSuspendRenderingTickables.Load(EMemoryOrder::Relaxed))
+						if (!GSuspendRenderingTickables.Load(EMemoryOrder::Relaxed))
 						{
 							TickRenderingTickables();
 						}
@@ -695,62 +599,16 @@ static FString BuildRenderingThreadName( uint32 ThreadIndex )
 	return FString::Printf( TEXT( "%s %u" ), *FName( NAME_RenderThread ).GetPlainNameString(), ThreadIndex );
 }
 
-
-
-class FOwnershipOfRHIThreadTask : public FCustomStatIDGraphTaskBase
+static void StartRenderingThread()
 {
-public:
-	/**
-	*	Constructor
-	*	@param StatId The stat id for this task.
-	*	@param InDesiredThread; Thread to run on, can be ENamedThreads::AnyThread
-	**/
-	FOwnershipOfRHIThreadTask(bool bInAcquireOwnership, TStatId StatId)
-		: FCustomStatIDGraphTaskBase(StatId)
-		, bAcquireOwnership(bInAcquireOwnership)
+	check(IsInGameThread());
+
+	// Do nothing if we're already in the right mode
+	if (GIsThreadedRendering || !GUseThreadedRendering)
 	{
+		check(GIsThreadedRendering == GUseThreadedRendering);
+		return;
 	}
-
-	/**
-	*	Retrieve the thread that this task wants to run on.
-	*	@return the thread that this task should run on.
-	**/
-	ENamedThreads::Type GetDesiredThread()
-	{
-		return ENamedThreads::RHIThread;
-	}
-
-	static ESubsequentsMode::Type GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
-
-	/**
-	*	Actually execute the task.
-	*	@param	CurrentThread; the thread we are running on
-	*	@param	MyCompletionGraphEvent; my completion event. Not always useful since at the end of DoWork, you can assume you are done and hence further tasks do not need you as a prerequisite.
-	*	However, MyCompletionGraphEvent can be useful for passing to other routines or when it is handy to set up subsequents before you actually do work.
-	**/
-	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
-	{
-		check(IsInRHIThread());
-		if (bAcquireOwnership)
-		{
-			GDynamicRHI->RHIAcquireThreadOwnership();
-		}
-		else
-		{
-			GDynamicRHI->RHIReleaseThreadOwnership();
-		}
-	}
-
-private:
-	bool bAcquireOwnership;
-};
-
-
-
-void StartRenderingThread()
-{
-	static uint32 ThreadCount = 0;
-	check(!GIsThreadedRendering && GUseThreadedRendering);
 
 	check(!IsRHIThreadRunning() && !GIsRunningRHIInSeparateThread_InternalUseOnly && !GIsRunningRHIInDedicatedThread_InternalUseOnly && !GIsRunningRHIInTaskThread_InternalUseOnly);
 
@@ -762,32 +620,31 @@ void StartRenderingThread()
 	// will run on GT after RT is enabled
 	FlushRenderingCommands();
 
-	if (GUseRHIThread_InternalUseOnly)
-	{
-		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);		
-		if (!FTaskGraphInterface::Get().IsThreadProcessingTasks(ENamedThreads::RHIThread))
-		{
-			FRHIThread::Get().Start();
-		}
-		DECLARE_CYCLE_STAT(TEXT("Wait For RHIThread"), STAT_WaitForRHIThread, STATGROUP_TaskGraphTasks);
+	GDynamicRHI->RHIReleaseThreadOwnership();
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		GRHIThread_InternalUseOnly = FRHIThread::Get().Thread;
-		GRHIThreadId = FRHIThread::Get().Thread->GetThreadID();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	switch (GRHISupportsRHIThread ? FRHIThread::TargetMode : ERHIThreadMode::None)
+	{
+	case ERHIThreadMode::DedicatedThread:
+		GIsRunningRHIInSeparateThread_InternalUseOnly  = true;
 		GIsRunningRHIInDedicatedThread_InternalUseOnly = true;
-		GIsRunningRHIInSeparateThread_InternalUseOnly = true;
+		GIsRunningRHIInTaskThread_InternalUseOnly      = false;
 
-		FGraphEventRef CompletionEvent = TGraphTask<FOwnershipOfRHIThreadTask>::CreateTask(NULL, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(true, GET_STATID(STAT_WaitForRHIThread));
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_StartRenderingThread);
-		FTaskGraphInterface::Get().WaitUntilTaskCompletes(CompletionEvent, ENamedThreads::GameThread_Local);
+		// Start the dedicated RHI thread
+		GRHIThread = new FRHIThread();
+		break;
 
-		GRHICommandList.LatchBypass();
-	}
-	else if (GUseRHITaskThreads_InternalUseOnly)
-	{
-		GIsRunningRHIInSeparateThread_InternalUseOnly = true;
-		GIsRunningRHIInTaskThread_InternalUseOnly = true;
+	case ERHIThreadMode::Tasks:
+		GIsRunningRHIInSeparateThread_InternalUseOnly  = true;
+		GIsRunningRHIInDedicatedThread_InternalUseOnly = false;
+		GIsRunningRHIInTaskThread_InternalUseOnly      = true;
+		break;
+
+	default: checkNoEntry(); [[fallthrough]];
+	case ERHIThreadMode::None:
+		GIsRunningRHIInSeparateThread_InternalUseOnly  = false;
+		GIsRunningRHIInDedicatedThread_InternalUseOnly = false;
+		GIsRunningRHIInTaskThread_InternalUseOnly      = false;
+		break;
 	}
 
 	// Turn on the threaded rendering flag.
@@ -796,11 +653,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	// Create the rendering thread.
 	GRenderingThreadRunnable = new FRenderingThread();
 
+	static uint32 ThreadCount = 0;
+
 	UE::Trace::ThreadGroupBegin(TEXT("Render"));
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	GRenderingThread = 
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		FRunnableThread::Create(GRenderingThreadRunnable, *BuildRenderingThreadName(ThreadCount), 0, FPlatformAffinity::GetRenderingThreadPriority(), FPlatformAffinity::GetRenderingThreadMask(), FPlatformAffinity::GetRenderingThreadFlags());
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	GRenderingThread =
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	FRunnableThread::Create(GRenderingThreadRunnable, *BuildRenderingThreadName(ThreadCount), 0, FPlatformAffinity::GetRenderingThreadPriority(), FPlatformAffinity::GetRenderingThreadMask(), FPlatformAffinity::GetRenderingThreadFlags());
 	UE::Trace::ThreadGroupEnd();
 
 	// Wait for render thread to have taskgraph bound before we dispatch any tasks for it.
@@ -809,10 +668,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	// register
 	IConsoleManager::Get().RegisterThreadPropagation(0, &FConsoleRenderThreadPropagation::GetSingleton());
 
+	ENQUEUE_RENDER_COMMAND(LatchBypass)([](FRHICommandListImmediate&)
+	{
+		GRHICommandList.LatchBypass();
+	});
+
 	// ensure the thread has actually started and is idling
 	FRenderCommandFence Fence;
 	Fence.BeginFence();
 	Fence.Wait();
+
+	GRenderCommandPipeMode = GetValidatedRenderCommandPipeMode(CVarRenderCommandPipeMode->GetInt());
 
 	GRunRenderingThreadHeartbeat = true;
 	// Create the rendering thread heartbeat
@@ -840,11 +706,16 @@ void UnregisterStopRenderingThreadDelegate(FDelegateHandle InDelegateHandle)
 	GStopRenderingThreadDelegate.Remove(InDelegateHandle);
 }
 
-void StopRenderingThread()
+static void StopRenderingThread()
 {
 	// This function is not thread-safe. Ensure it is only called by the main game thread.
-	check( IsInGameThread() );
-	
+	check(IsInGameThread());
+
+	if (!GIsThreadedRendering)
+	{
+		return;
+	}
+
 	// unregister
 	IConsoleManager::Get().RegisterThreadPropagation();
 
@@ -852,95 +723,135 @@ void StopRenderingThread()
 	if (GRunRenderingThreadHeartbeat)
 	{
 		GRunRenderingThreadHeartbeat = false;
+
 		// Wait for the rendering thread heartbeat to return.
 		GRenderingThreadHeartbeat->WaitForCompletion();
+
 		delete GRenderingThreadHeartbeat;
-		GRenderingThreadHeartbeat = NULL;
+		GRenderingThreadHeartbeat = nullptr;
+
 		delete GRenderingThreadRunnableHeartbeat;
-		GRenderingThreadRunnableHeartbeat = NULL;
+		GRenderingThreadRunnableHeartbeat = nullptr;
 	}
 
-	if( GIsThreadedRendering )
+	GStopRenderingThreadDelegate.Broadcast();
+
+	// Get the list of objects which need to be cleaned up when the rendering thread is done with them.
+	FPendingCleanupObjects* PendingCleanupObjects = GetPendingCleanupObjects();
+
+	// Make sure we're not in the middle of streaming textures.
+	SuspendTextureStreamingRenderTasks();
+
+	// Wait for the rendering thread to finish executing all enqueued commands.
+	FlushRenderingCommands();
+
+	// Shutdown RHI thread
+	delete GRHIThread;
+	GRHIThread = nullptr;
+
+	GIsRunningRHIInSeparateThread_InternalUseOnly  = false;
+	GIsRunningRHIInDedicatedThread_InternalUseOnly = false;
+	GIsRunningRHIInTaskThread_InternalUseOnly      = false;
+
+	// Turn off the threaded rendering flag.
+	GIsThreadedRendering = false;
+
 	{
-		GStopRenderingThreadDelegate.Broadcast();
+		FGraphEventRef QuitTask = TGraphTask<FReturnGraphTask>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(ENamedThreads::GetRenderThread());
 
-		// Get the list of objects which need to be cleaned up when the rendering thread is done with them.
-		FPendingCleanupObjects* PendingCleanupObjects = GetPendingCleanupObjects();
-
-		// Make sure we're not in the middle of streaming textures.
-		SuspendTextureStreamingRenderTasks();
-
-		// Wait for the rendering thread to finish executing all enqueued commands.
-		FlushRenderingCommands();
-
-		// The rendering thread may have already been stopped during the call to GFlushStreamingFunc or FlushRenderingCommands.
-		if ( GIsThreadedRendering )
+		// Busy wait while BP debugging, to avoid opportunistic execution of game thread tasks
+		// If the game thread is already executing tasks, then we have no choice but to spin
+		if (GIntraFrameDebuggingGameThread || FTaskGraphInterface::Get().IsThreadProcessingTasks(ENamedThreads::GameThread))
 		{
-			if (IsRHIThreadRunning())
+			while ((QuitTask.GetReference() != nullptr) && !QuitTask->IsComplete())
 			{
-				DECLARE_CYCLE_STAT(TEXT("Wait For RHIThread Finish"), STAT_WaitForRHIThreadFinish, STATGROUP_TaskGraphTasks);
-				FGraphEventRef ReleaseTask = TGraphTask<FOwnershipOfRHIThreadTask>::CreateTask(NULL, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(false, GET_STATID(STAT_WaitForRHIThreadFinish));
-				QUICK_SCOPE_CYCLE_COUNTER(STAT_StopRenderingThread_RHIThread);
-				FTaskGraphInterface::Get().WaitUntilTaskCompletes(ReleaseTask, ENamedThreads::GameThread_Local);
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				GRHIThread_InternalUseOnly = nullptr;
-				GRHIThreadId = 0;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				FPlatformProcess::Sleep(0.0f);
 			}
-
-			GIsRunningRHIInSeparateThread_InternalUseOnly = false;
-			GIsRunningRHIInDedicatedThread_InternalUseOnly = false;
-			GIsRunningRHIInTaskThread_InternalUseOnly = false;
-
-
-			check(!GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed));
-
-			// Turn off the threaded rendering flag.
-			GIsThreadedRendering = false;
-
-			{
-				FGraphEventRef QuitTask = TGraphTask<FReturnGraphTask>::CreateTask(NULL, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(ENamedThreads::GetRenderThread());
-
-				// Busy wait while BP debugging, to avoid opportunistic execution of game thread tasks
-				// If the game thread is already executing tasks, then we have no choice but to spin
-				if (GIntraFrameDebuggingGameThread || FTaskGraphInterface::Get().IsThreadProcessingTasks(ENamedThreads::GameThread) ) 
-				{
-					while ((QuitTask.GetReference() != nullptr) && !QuitTask->IsComplete())
-					{
-						FPlatformProcess::Sleep(0.0f);
-					}
-				}
-				else
-				{
-					QUICK_SCOPE_CYCLE_COUNTER(STAT_StopRenderingThread);
-					FTaskGraphInterface::Get().WaitUntilTaskCompletes(QuitTask, ENamedThreads::GameThread_Local);
-				}
-			}
-
-			// Wait for the rendering thread to return.
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			GRenderingThread->WaitForCompletion();
-
-			// Destroy the rendering thread objects.
-			delete GRenderingThread;
-
-			GRenderingThread = NULL;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-			
-			GRHICommandList.LatchBypass();
-
-			delete GRenderingThreadRunnable;
-			GRenderingThreadRunnable = NULL;
 		}
-
-		// Delete the pending cleanup objects which were in use by the rendering thread.
-		delete PendingCleanupObjects;
-
-		// Update can now resume with renderthread being the gamethread.
-		ResumeTextureStreamingRenderTasks();
+		else
+		{
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_StopRenderingThread);
+			FTaskGraphInterface::Get().WaitUntilTaskCompletes(QuitTask, ENamedThreads::GameThread_Local);
+		}
 	}
+
+	// Wait for the rendering thread to return.
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	GRenderingThread->WaitForCompletion();
+
+	// Destroy the rendering thread objects.
+	delete GRenderingThread;
+	GRenderingThread = nullptr;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	GDynamicRHI->RHIAcquireThreadOwnership();
+
+	GRHICommandList.LatchBypass();
+
+	delete GRenderingThreadRunnable;
+	GRenderingThreadRunnable = nullptr;
+
+	// Delete the pending cleanup objects which were in use by the rendering thread.
+	delete PendingCleanupObjects;
+
+	// Update can now resume with renderthread being the gamethread.
+	ResumeTextureStreamingRenderTasks();
 
 	check(!IsRHIThreadRunning());
+}
+
+RENDERCORE_API void LatchRenderThreadConfiguration()
+{
+	check(IsInGameThread());
+
+	// Check for pending state changes from the "togglerenderingthread" and "r.RHIThread.Enable" commands.
+	if ((GPendingUseThreadedRendering.IsSet() && GPendingUseThreadedRendering != GUseThreadedRendering) ||
+		(GPendingRHIThreadMode.IsSet() && *GPendingRHIThreadMode != FRHIThread::TargetMode))
+	{
+		// Something changed. Stop and restart the rendering and RHI threads according to the new config.
+		StopRenderingThread();
+
+		if (GPendingUseThreadedRendering.IsSet())
+		{
+			GUseThreadedRendering = *GPendingUseThreadedRendering;
+			GPendingUseThreadedRendering.Reset();
+		}
+
+		if (GPendingRHIThreadMode.IsSet())
+		{
+			FRHIThread::TargetMode = *GPendingRHIThreadMode;
+			GPendingRHIThreadMode.Reset();
+		}
+
+		StartRenderingThread();
+	}
+
+	ENQUEUE_RENDER_COMMAND(LatchBypass)([](FRHICommandListImmediate&)
+	{
+		GRHICommandList.LatchBypass();
+	});
+}
+
+RENDERCORE_API void InitRenderingThread()
+{
+	UE_CALL_ONCE([]()
+	{
+		if (FParse::Param(FCommandLine::Get(), TEXT("norhithread")))
+		{
+			FRHIThread::TargetMode = ERHIThreadMode::None;
+		}
+
+		SCOPED_BOOT_TIMING("StartRenderingThread");
+		StartRenderingThread();
+	});
+}
+
+RENDERCORE_API void ShutdownRenderingThread()
+{
+	UE_CALL_ONCE([]()
+	{
+		StopRenderingThread();
+	});
 }
 
 void CheckRenderingThreadHealth()
@@ -1002,7 +913,7 @@ static struct FRenderCommandFenceBundlerState
 
 void StartRenderCommandFenceBundler()
 {
-	if (!GIsThreadedRendering)
+	if (!GIsThreadedRendering || !GRenderCommandFenceBundling)
 	{
 		return;
 	}
@@ -1101,178 +1012,87 @@ bool IsRenderThreadTimeoutSuspended()
 	return GTimeoutSuspendCount > 0;
 }
 
-TAutoConsoleVariable<int32> CVarGTSyncType(
-	TEXT("r.GTSyncType"),
-	0,
-	TEXT("Determines how the game thread syncs with the render thread, RHI thread and GPU.\n")
-	TEXT("Syncing to the GPU swap chain flip allows for lower frame latency.\n")
-	TEXT(" 0 - Sync the game thread with the render thread (default).\n")
-	TEXT(" 1 - Sync the game thread with the RHI thread.\n")
-	TEXT(" 2 - Sync the game thread with the GPU swap chain flip (only on supported platforms).\n"),
-	ECVF_Default);
-
-FRHICOMMAND_MACRO(FRHISyncFrameCommand)
-{
-	UE::Tasks::FTaskEvent TaskEvent;
-	int32 GTSyncType;
-
-	FORCEINLINE_DEBUGGABLE FRHISyncFrameCommand(UE::Tasks::FTaskEvent InTaskEvent, int32 InGTSyncType)
-		: TaskEvent(MoveTemp(InTaskEvent))
-		, GTSyncType(InGTSyncType)
-	{}
-
-	void Execute(FRHICommandListBase& CmdList)
-	{
-		if (GTSyncType == 1)
-		{
-			// Sync the Game Thread with the RHI Thread
-
-			// "Complete" the graph event
-			TaskEvent.Trigger();
-		}
-		else
-		{
-			// This command runs *after* a present has happened, so the counter has already been incremented.
-			// Subtracting 1 gives us the index of the frame that has *just* been presented.
-			RHITriggerTaskEventOnFlip(GRHIPresentCounter - 1, TaskEvent);
-		}
-	}
-};
-
 FRenderCommandFence::FRenderCommandFence() = default;
 FRenderCommandFence::~FRenderCommandFence() = default;
 
-void FRenderCommandFence::BeginFence(bool bSyncToRHIAndGPU)
+void FRenderCommandFence::BeginFence(ESyncDepth SyncDepth)
 {
 	if (!GIsThreadedRendering)
 	{
 		return;
 	}
+
+	check(IsInGameThread());
 	
-	if (GRenderCommandFenceBundlerState.Event && IsInGameThread())
+	if (GRenderCommandFenceBundlerState.Event && SyncDepth == ESyncDepth::RenderThread)
 	{
+		// Case for game->render thread syncs when fence bundling is enabled. These are used
+		// throughout the engine when resources are destroyed. The fence bundling is an optimization
+		// to avoid the overhead of hundreds of individual fences.
+		// We aren't syncing any deeper than the render thread, so just use the bundled fence event.
 		CompletionTask = *GRenderCommandFenceBundlerState.Event;
 		return;
 	}
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRenderCommandFence::BeginFence);
+	UE::Tasks::FTaskEvent Event{ UE_SOURCE_LOCATION };
 
-	struct FRenderCommandPipeFence : public TConcurrentLinearObject<FRenderCommandPipeFence>
+	if (GRenderCommandFenceBundlerState.Event)
 	{
-		FRenderCommandPipeFence(int32 InNumRefs)
-			: NumRefs(InNumRefs)
-		{}
-
-		void Trigger(int32 NumTriggerRefs = 1)
-		{
-			if (NumRefs.fetch_sub(NumTriggerRefs, std::memory_order_release) == 1)
-			{
-				std::atomic_thread_fence(std::memory_order_acquire);
-				CompletionTaskEvent.Trigger();
-				delete this;
-			}
-		}
-
-		UE::Tasks::FTaskEvent CompletionTaskEvent{ UE_SOURCE_LOCATION };
-		std::atomic_int32_t NumRefs;
-	};
-
-	TConstArrayView<FRenderCommandPipe*> Pipes = GRenderCommandPipeMode == ERenderCommandPipeMode::All
-		? UE::RenderCommandPipe::GetPipes()
-		: TConstArrayView<FRenderCommandPipe*>{};
-
-	FRenderCommandPipeBitArray ActivePipeBits;
-	int32 NumActivePipes = 0;
-
-	for (FRenderCommandPipe* Pipe : Pipes)
-	{
-		// Skip pipes that aren't recording or replaying any work.
-		const bool bIsActive = Pipe->IsRecording() && !Pipe->IsEmpty();
-		ActivePipeBits.Add(bIsActive);
-		NumActivePipes += bIsActive ? 1 : 0;
+		// Render command fences are bundled, but we're syncing deeper than the render thread.
+		// Flush the fence bundler so we can insert an RHIThread (or deeper) fence in the right location.
+		Event.AddPrerequisites(*GRenderCommandFenceBundlerState.Event);
+		FlushRenderCommandFenceBundler();
 	}
 
-	FRenderCommandPipeFence* Fence = nullptr;
-
-	if (NumActivePipes > 0)
+	if (GRenderCommandPipeMode == ERenderCommandPipeMode::All)
 	{
-		Fence = new FRenderCommandPipeFence(NumActivePipes + 1);
-
-		for (FRenderCommandPipeSetBitIterator BitIt(ActivePipeBits); BitIt; ++BitIt)
+		for (FRenderCommandPipe* Pipe : UE::RenderCommandPipe::GetPipes())
 		{
-			FRenderCommandPipe* Pipe = Pipes[BitIt.GetIndex()];
-
-			ENQUEUE_RENDER_COMMAND(BeginFence)(Pipe, [Fence]
+			// Skip pipes that aren't recording or replaying any work.
+			if (Pipe->IsRecording() && !Pipe->IsEmpty())
 			{
-				Fence->Trigger();
+				UE::Tasks::FTaskEvent PipeEvent { UE_SOURCE_LOCATION };
+				Event.AddPrerequisites(PipeEvent);
+
+				ENQUEUE_RENDER_COMMAND(BeginFence)([PipeEvent = MoveTemp(PipeEvent)](FRHICommandList&) mutable
+				{
+					PipeEvent.Trigger();
+				});
+			}
+		}
+	}
+
+	ENQUEUE_RENDER_COMMAND(BeginFence)([Event, SyncDepth](FRHICommandListImmediate& RHICmdList) mutable
+	{
+		if (SyncDepth == ESyncDepth::RenderThread)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(SyncTrigger_RenderThread);
+			Event.Trigger();
+		}
+		else
+		{
+			RHICmdList.EnqueueLambda([SyncDepth, Event](FRHICommandListImmediate&) mutable
+			{
+				if (SyncDepth == ESyncDepth::RHIThread)
+				{
+					// Sync the Game Thread with the RHI Thread
+					TRACE_CPUPROFILER_EVENT_SCOPE(SyncTrigger_RHIThread);
+					Event.Trigger();
+				}
+				else
+				{
+					// This command runs *after* a present has happened, so the counter has already been incremented.
+					// Subtracting 1 gives us the index of the frame that has *just* been presented.
+					RHITriggerTaskEventOnFlip(GRHIPresentCounter - 1, Event);
+				}
 			});
+			RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
 		}
-	}
+	});
 
-	const int32 GTSyncType = CVarGTSyncType.GetValueOnAnyThread();
-
-	if (bSyncToRHIAndGPU)
-	{
-		// Don't sync to the RHI and GPU if GtSyncType is disabled, or we're not vsyncing
-		//@TODO: do this logic in the caller?
-		static auto CVarVsync = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VSync"));
-		check(CVarVsync != nullptr);
-
-		if (GTSyncType == 0 || CVarVsync->GetInt() == 0)
-		{
-			bSyncToRHIAndGPU = false;
-		}
-	}
-
-	if (bSyncToRHIAndGPU)
-	{
-		UE::Tasks::FTaskEvent CompletionTaskEvent{ UE_SOURCE_LOCATION };
-
-		if (Fence)
-		{
-			// RHI frame sync command requires a task event, so connect it to the ref-counted fence event.
-			CompletionTaskEvent.AddPrerequisites(Fence->CompletionTaskEvent);
-			Fence->Trigger();
-		}
-
-		ENQUEUE_RENDER_COMMAND(FSyncFrameCommand)(
-			[CompletionTaskEvent, GTSyncType, bSyncToRHIAndGPU](FRHICommandListImmediate& RHICmdList) mutable
-		{
-			if (IsRHIThreadRunning())
-			{
-				ALLOC_COMMAND_CL(RHICmdList, FRHISyncFrameCommand)(MoveTemp(CompletionTaskEvent), GTSyncType);
-				RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
-			}
-			else
-			{
-				FRHISyncFrameCommand Command(MoveTemp(CompletionTaskEvent), GTSyncType);
-				Command.Execute(RHICmdList);
-			}
-		});
-
-		CompletionTask = MoveTemp(CompletionTaskEvent);
-	}
-	else if (Fence)
-	{
-		CompletionTask = Fence->CompletionTaskEvent;
-
-		ENQUEUE_RENDER_COMMAND(BeginFence)([Fence](FRHICommandListBase& RHICmdList)
-		{
-			Fence->Trigger();
-		});
-	}
-	else
-	{
-		UE::Tasks::FTaskEvent CompletionTaskEvent{ UE_SOURCE_LOCATION };
-
-		ENQUEUE_RENDER_COMMAND(BeginFence)([CompletionTaskEvent](FRHICommandListBase& RHICmdList) mutable
-		{
-			CompletionTaskEvent.Trigger();
-		});
-
-		CompletionTask = MoveTemp(CompletionTaskEvent);
-	}
-} //-V773
+	CompletionTask = MoveTemp(Event);
+}
 
 bool FRenderCommandFence::IsFenceComplete() const
 {
@@ -1296,6 +1116,9 @@ uint32 GGameThreadTime = 0;
 /** How much idle time on the game thread. It's set once per frame in FViewport::Draw. */
 uint32 GGameThreadWaitTime = 0;
 
+/** How many cycles the gamethread used, including dependent wait time. */
+uint32 GGameThreadTimeCriticalPath = 0;
+
 /** How many cycles it took to swap buffers to present the frame. */
 uint32 GSwapBufferTime = 0;
 
@@ -1313,6 +1136,62 @@ static FAutoConsoleVariableRef CVarTimeoutForBlockOnRenderFence(
 	GTimeoutForBlockOnRenderFence,
 	TEXT("Number of milliseconds the game thread should wait before failing when waiting on a render thread fence.")
 );
+
+static void HandleRenderTaskHang(uint32 ThreadThatHung, double HangDuration)
+{
+	// Get the name of the hung thread
+	FString ThreadName = FThreadManager::GetThreadName(ThreadThatHung);
+	if (ThreadName.IsEmpty())
+	{
+		ThreadName = FString::Printf(TEXT("unknown thread (%u)"), ThreadThatHung);
+	}
+	
+#if !PLATFORM_WINDOWS || (PLATFORM_USE_MINIMAL_HANG_DETECTION && 1)
+	UE_LOG(LogRendererCore, Fatal, TEXT("GameThread timed out waiting for %s after %.02f secs"), *ThreadName, HangDuration);
+#else
+	// Capture the stack in the thread that hung
+	static const int32 MaxStackFrames = 100;
+	uint64 StackFrames[MaxStackFrames];
+	int32 NumStackFrames = FPlatformStackWalk::CaptureThreadStackBackTrace(ThreadThatHung, StackFrames, MaxStackFrames);
+
+	// Convert the stack trace to text
+	TArray<FString> StackLines;
+	for (int32 Idx = 0; Idx < NumStackFrames; Idx++)
+	{
+		ANSICHAR Buffer[1024];
+		Buffer[0] = '\0';
+		FPlatformStackWalk::ProgramCounterToHumanReadableString(Idx, StackFrames[Idx], Buffer, sizeof(Buffer));
+		StackLines.Add(Buffer);
+	}
+	
+	// Dump the callstack and the thread name to log
+	FString StackTrimmed;
+	UE_LOG(LogRendererCore, Error, TEXT("GameThread timed out waiting for %s after %.02f seconds:"), *ThreadName, HangDuration);
+	for (int32 Idx = 0; Idx < StackLines.Num(); Idx++)
+	{
+		UE_LOG(LogRendererCore, Error, TEXT("  %s"), *StackLines[Idx]);
+		if (StackTrimmed.Len() < 512)
+		{
+			StackTrimmed += TEXT("  ");
+			StackTrimmed += StackLines[Idx];
+			StackTrimmed += LINE_TERMINATOR;
+		}
+	}
+
+	const FString ErrorMessage = FString::Printf(TEXT("GameThread timed out waiting for %s after %.02f seconds:%s%s%sCheck log for full callstack."),
+		*ThreadName, HangDuration, LINE_TERMINATOR, *StackTrimmed, LINE_TERMINATOR);
+	
+	GLog->Panic();
+	ReportHang(*ErrorMessage, StackFrames, NumStackFrames, ThreadThatHung);
+	if (FApp::CanEverRender())
+	{
+		FPlatformMisc::MessageBoxExt(EAppMsgType::Ok,
+			*NSLOCTEXT("MessageDialog", "ReportHangError_Body", "The application has hung and will now close. We apologize for the inconvenience.").ToString(),
+			*NSLOCTEXT("MessageDialog", "ReportHangError_Title", "Application Hang Detected").ToString());
+	}
+	FPlatformMisc::RequestExit(true, TEXT("GameThreadWaitForTask"));
+#endif
+}
 
 /**
  * Block the game thread waiting for a task to finish on the rendering thread.
@@ -1386,21 +1265,7 @@ static void GameThreadWaitForTask(const UE::Tasks::FTask& Task, bool bEmptyGameT
 
 				RenderThreadTimeoutClock.Tick();
 
-				bool IsGpuAlive = true;
 				const bool bOverdue = RenderThreadTimeoutClock.Seconds() >= EndTime && FThreadHeartBeat::Get().IsBeating();
-
-				if (bOverdue)
-				{
-					if (GDynamicRHI)
-					{
-						IsGpuAlive = GDynamicRHI->CheckGpuHeartbeat();
-					}
-				}
-
-				if (!IsGpuAlive)
-				{
-					UE_LOG(LogRendererCore, Fatal, TEXT("GPU has hung or crashed!"));
-				}
 
 				// track whether the thread ensured, if so don't do timeout checks
 				bRenderThreadEnsured |= FDebug::IsEnsuring();
@@ -1412,7 +1277,12 @@ static void GameThreadWaitForTask(const UE::Tasks::FTask& Task, bool bEmptyGameT
 				{
 					if (bOverdue && !bDisabled && !IsRenderThreadTimeoutSuspended() && !FPlatformMisc::IsDebuggerPresent())
 					{
-						UE_LOG(LogRendererCore, Fatal, TEXT("GameThread timed out waiting for RenderThread after %.02f secs"), RenderThreadTimeoutClock.Seconds() - StartTime);
+						double HangDuration = RenderThreadTimeoutClock.Seconds() - StartTime;
+						// TODO: Walk the wait chain instead of explicitly setting the render thread as the hung thread id
+						PRAGMA_DISABLE_DEPRECATION_WARNINGS
+						uint32 ThreadThatHung = GRenderThreadId;
+						PRAGMA_ENABLE_DEPRECATION_WARNINGS
+						HandleRenderTaskHang(ThreadThatHung, HangDuration);
 					}
 				}
 #endif
@@ -1609,66 +1479,29 @@ FPendingCleanupObjects* GetPendingCleanupObjects()
 	return new FPendingCleanupObjects;
 }
 
-void SetRHIThreadEnabled(bool bEnableDedicatedThread, bool bEnableRHIOnTaskThreads)
-{
-	if (bEnableDedicatedThread != GUseRHIThread_InternalUseOnly || bEnableRHIOnTaskThreads != GUseRHITaskThreads_InternalUseOnly)
-	{
-		if ((bEnableRHIOnTaskThreads || bEnableDedicatedThread) && !GIsThreadedRendering)
-		{
-			check(!IsRunningRHIInSeparateThread());
-			UE_LOG(LogConsoleResponse, Display, TEXT("Can't switch to RHI thread mode when we are not running a multithreaded renderer."));
-		}
-		else
-		{
-			StopRenderingThread();
-			if (bEnableRHIOnTaskThreads)
-			{
-				GUseRHIThread_InternalUseOnly = false;
-				GUseRHITaskThreads_InternalUseOnly = true;
-			}
-			else if (bEnableDedicatedThread)
-			{
-				GUseRHIThread_InternalUseOnly = true;
-				GUseRHITaskThreads_InternalUseOnly = false;
-			}
-			else
-			{
-				GUseRHIThread_InternalUseOnly = false;
-				GUseRHITaskThreads_InternalUseOnly = false;
-			}
-			StartRenderingThread();
-		}
-	}
-	if (IsRunningRHIInSeparateThread())
-	{
-		if (IsRunningRHIInDedicatedThread())
-		{
-			UE_LOG(LogConsoleResponse, Display, TEXT("RHIThread is now running on a dedicated thread."));
-		}
-		else
-		{
-			check(IsRunningRHIInTaskThread());
-			UE_LOG(LogConsoleResponse, Display, TEXT("RHIThread is now running on task threads."));
-		}
-	}
-	else
-	{
-		check(!IsRunningRHIInTaskThread() && !IsRunningRHIInDedicatedThread());
-		UE_LOG(LogConsoleResponse, Display, TEXT("RHIThread is disabled."));
-	}
-
-}
-
 static void HandleRHIThreadEnableChanged(const TArray<FString>& Args)
 {
-	if (Args.Num() > 0)
+	check(IsInGameThread());
+	switch (Args.Num() == 1 ? FCString::Atoi(*Args[0]) : -1)
 	{
-		const int32 UseRHIThread = FCString::Atoi(*Args[0]);
-		SetRHIThreadEnabled(UseRHIThread == 1, UseRHIThread == 2);
-	}
-	else
-	{
+	case 0:
+		GPendingRHIThreadMode = ERHIThreadMode::None;
+		UE_LOG(LogConsoleResponse, Display, TEXT("RHI thread will be disabled."))
+		break;
+
+	case 1:
+		GPendingRHIThreadMode = ERHIThreadMode::DedicatedThread;
+		UE_LOG(LogConsoleResponse, Display, TEXT("RHI thread will be enabled (dedicated thread)."))
+		break;
+
+	case 2:
+		GPendingRHIThreadMode = ERHIThreadMode::Tasks;
+		UE_LOG(LogConsoleResponse, Display, TEXT("RHI thread will be enabled (task threads)."))
+		break;
+
+	default:
 		UE_LOG(LogConsoleResponse, Display, TEXT("Usage: r.RHIThread.Enable 0=off,  1=dedicated thread,  2=task threads; Currently %d"), IsRunningRHIInSeparateThread() ? (IsRunningRHIInDedicatedThread() ? 1 : 2) : 0);
+		break;
 	}
 }
 
@@ -1677,49 +1510,6 @@ static FAutoConsoleCommand CVarRHIThreadEnable(
 	TEXT("Enables/disabled the RHI Thread and determine if the RHI work runs on a dedicated thread or not.\n"),	
 	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleRHIThreadEnableChanged)
 	);
-
-inline ERenderCommandPipeMode GetValidatedRenderCommandPipeMode(int32 CVarValue)
-{
-	ERenderCommandPipeMode Mode = ERenderCommandPipeMode::None;
-
-	switch (CVarValue)
-	{
-	case 1:
-		Mode = ERenderCommandPipeMode::RenderThread;
-		break;
-	case 2:
-		Mode = ERenderCommandPipeMode::All;
-		break;
-	}
-
-	const bool bAllowThreading = !GRHICommandList.Bypass() && FApp::ShouldUseThreadingForPerformance() && GIsThreadedRendering;
-
-	if (Mode == ERenderCommandPipeMode::All && !bAllowThreading)
-	{
-		Mode = ERenderCommandPipeMode::RenderThread;
-	}
-
-	if (!FApp::CanEverRender() || IsMobilePlatform(GMaxRHIShaderPlatform))
-	{
-		Mode = ERenderCommandPipeMode::None;
-	}
-
-	return Mode;
-}
-
-ERenderCommandPipeMode GRenderCommandPipeMode = ERenderCommandPipeMode::None;
-FAutoConsoleVariable CVarRenderCommandPipeMode(
-	TEXT("r.RenderCommandPipeMode"),
-	2,
-	TEXT("Controls behavior of the main render thread command pipe.")
-	TEXT(" 0: Render commands are launched individually as tasks;\n")
-	TEXT(" 1: Render commands are enqueued into a render command pipe for the render thread only.;\n")
-	TEXT(" 2: Render commands are enqueued into a render command pipe for all declared pipes.;\n"),
-	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Variable)
-	{
-		UE::RenderCommandPipe::StopRecording();
-		GRenderCommandPipeMode = GetValidatedRenderCommandPipeMode(Variable->GetInt());
-	}));
 
 FRenderThreadCommandPipe FRenderThreadCommandPipe::Instance;
 
@@ -1777,8 +1567,6 @@ public:
 
 			AllPipes.Emplace(*PipeIt);
 		}
-
-		GRenderCommandPipeMode = GetValidatedRenderCommandPipeMode(CVarRenderCommandPipeMode->GetInt());
 	}
 
 	void StartRecording()
@@ -1850,7 +1638,7 @@ public:
 			{
 				Pipe->bRecording = true;
 
-				FRenderCommandPipe::FFrame* NextFrame = new FRenderCommandPipe::FFrame(Pipe->Name, TaskEvent);
+				FRenderCommandPipe::FFrame* NextFrame = new FRenderCommandPipe::FFrame(TaskEvent);
 				PipesToStartRecording.Emplace(Pipe, NextFrame);
 
 				UE::TScopeLock PipeLock(Pipe->Mutex);
@@ -1981,7 +1769,7 @@ private:
 				FRenderCommandPipe* Pipe = AllPipes[BitIt.GetIndex()];
 				FRenderCommandPipe::FFrame*& Frame_RenderThread = Pipe->Frame_RenderThread;
 				check(Frame_RenderThread);
-				Frame_RenderThread->Pipe.WaitUntilEmpty();
+				Frame_RenderThread->LastTask.Wait();
 
 				if (Frame_RenderThread->RHICmdList)
 				{
@@ -2169,7 +1957,7 @@ void FRenderCommandPipe::EnqueueAndLaunch(FFunctionVariant&& FunctionVariant, co
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_ON_CHANNEL_STR("RenderCommandPipe LaunchTask", RenderCommandsChannel)
 	
-		Frame_GameThread->Pipe.Launch(Name, [this]
+		Frame_GameThread->LastTask = UE::Tasks::Launch(Name, [this]
 		{
 			check(Frame_RenderThread);
 			TRACE_CPUPROFILER_EVENT_SCOPE_ON_CHANNEL_STR("RenderCommandPipe ReplayCommands", RenderCommandsChannel)
@@ -2194,6 +1982,6 @@ void FRenderCommandPipe::EnqueueAndLaunch(FFunctionVariant&& FunctionVariant, co
 			UE::RenderCommandPipe::ReplayingPipe = PreviousReplayingPipe;
 			NumInFlightCommands.fetch_sub(PoppedQueue.Num(), std::memory_order_release);
 	
-		}, Frame_GameThread->TaskEvent);
+		}, Frame_GameThread->LastTask);
 	}
 }

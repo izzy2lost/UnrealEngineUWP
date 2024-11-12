@@ -44,9 +44,6 @@ class WATER_API IWaterBrushActorInterface
 	 */
 	virtual bool CanEverAffectWaterMesh() const = 0;
 
-	UE_DEPRECATED(5.1, "Renamed to CanEverAffectWaterMesh")
-	virtual bool CanAffectWaterMesh() const { return CanEverAffectWaterMesh(); };
-
 #if WITH_EDITOR
 	/** 
 	 * Returns the curve settings for this water actor

@@ -8,6 +8,8 @@
 #include "SNiagaraParameterEditor.h"
 #include "ViewModels/HierarchyEditor/NiagaraHierarchyViewModelBase.h"
 
+class UNiagaraScriptVariable;
+
 /** A base class for generating rows based on a given hierarchy root that contains sections, categories and user parameters. */
 class FNiagaraUserParameterNodeBuilder : public IDetailCustomNodeBuilder, public TSharedFromThis<FNiagaraUserParameterNodeBuilder>, FSelfRegisteringEditorUndoClient, FGCObject
 {

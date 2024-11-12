@@ -187,7 +187,7 @@ namespace ShaderPrint
 	public:
 		void InitRHI(FRHICommandListBase&) override
 		{
-			Buffer = AllocatePooledBuffer(FRDGBufferDesc::CreateStructuredDesc(4, GetCountersUintSize()), TEXT("ShaderPrint.EmptyValueBuffer"));
+			Buffer = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(4, GetCountersUintSize()), TEXT("ShaderPrint.EmptyValueBuffer"));
 		}
 	};
 
@@ -823,7 +823,7 @@ namespace ShaderPrint
 					RDG_EVENT_NAME("ShaderPrint::ClearCounters"),
 					PassParameters,
 					ERDGPassFlags::Compute,
-					[PassParameters, ComputeShader](FRHICommandList& RHICmdList)
+					[PassParameters, ComputeShader](FRDGAsyncTask, FRHICommandList& RHICmdList)
 					{
 						FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *PassParameters, FIntVector(1, 1, 1));
 					});
@@ -1059,7 +1059,7 @@ namespace ShaderPrint
 				RDG_EVENT_NAME("ShaderPrint::DrawSymbols"),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[VertexShader, PixelShader, PassParameters, ViewRect](FRHICommandList& RHICmdList)
+				[VertexShader, PixelShader, PassParameters, ViewRect](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				
 				FGraphicsPipelineStateInitializer GraphicsPSOInit;
@@ -1111,7 +1111,7 @@ namespace ShaderPrint
 				RDG_EVENT_NAME("ShaderPrint::CopyLineArgs(%s%s)", bLines ? TEXT("Lines") : TEXT("Triangles"), bLocked ? TEXT(",Locked") : TEXT("")),
 				Parameters,
 				ERDGPassFlags::Compute,
-				[Parameters, ComputeShader](FRHICommandList& RHICmdList)
+				[Parameters, ComputeShader](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *Parameters, FIntVector(1, 1, 1));
 				});
@@ -1152,7 +1152,7 @@ namespace ShaderPrint
 			RDG_EVENT_NAME("ShaderPrint::Draw(%s%s)", bLines ? TEXT("Lines") : TEXT("Triangles"), bLocked ? TEXT(",Locked") : TEXT("")),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[VertexShader, PixelShader, PassParameters, IndirectBuffer, Viewport, bLines](FRHICommandList& RHICmdList)
+			[VertexShader, PixelShader, PassParameters, IndirectBuffer, Viewport, bLines](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				// Marks the indirect draw parameter as used by the pass, given it's not used directly by any of the shaders.
 				PassParameters->VS.IndirectBuffer->MarkResourceAsUsed();

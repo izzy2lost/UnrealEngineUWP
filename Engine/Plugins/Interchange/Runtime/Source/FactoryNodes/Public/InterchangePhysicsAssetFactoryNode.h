@@ -100,6 +100,12 @@ public:
 		IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(SkeletalMeshUid, FString)
 	}
 
+	/** Return if the import of the class is allowed at runtime.*/
+	virtual bool IsRuntimeImportAllowed() const override
+	{
+		return false;
+	}
+
 private:
 
 	void FillAssetClassFromAttribute()

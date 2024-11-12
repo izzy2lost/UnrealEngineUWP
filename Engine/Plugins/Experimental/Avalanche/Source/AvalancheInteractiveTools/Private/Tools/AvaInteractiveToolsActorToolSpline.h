@@ -14,7 +14,6 @@ public:
 	UAvaInteractiveToolsActorToolSpline();
 
 	//~ Begin UAvaInteractiveToolsToolBase
-	virtual bool UseIdentityLocation() const override { return false; }
 	virtual bool UseIdentityRotation() const override { return false; }
 	virtual FName GetCategoryName() override;
 	virtual FAvaInteractiveToolsToolParameters GetToolParameters() const override;

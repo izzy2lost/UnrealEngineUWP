@@ -160,7 +160,6 @@ namespace Chaos
 						{
 							const FRigidTransform3 OtherShapeWorldTransform = FRigidTransform3(OtherShape->GetLeafRelativeTransform()) * OtherWorldTransform;
 
-							FMTDInfo MTDInfo;
 							const bool bOverlapHit = OverlapQuery(
 								*OtherImplicit,
 								OtherShapeWorldTransform,

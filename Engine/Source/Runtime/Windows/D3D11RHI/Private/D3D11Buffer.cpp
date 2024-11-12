@@ -260,42 +260,45 @@ void FD3D11DynamicRHI::UnlockBuffer_BottomOfPipe(FRHICommandListBase& RHICmdList
 	}
 }
 
-void FD3D11DynamicRHI::RHICopyBuffer(FRHIBuffer* SourceBufferRHI, FRHIBuffer* DestBufferRHI)
+void FD3D11DynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos)
 {
-	FD3D11Buffer* SourceBuffer = ResourceCast(SourceBufferRHI);
-	FD3D11Buffer* DestBuffer = ResourceCast(DestBufferRHI);
+	RHICmdList.EnqueueLambda(TEXT("FD3D11DynamicRHI::RHIReplaceResources"),
+		[ReplaceInfos = MoveTemp(ReplaceInfos)](FRHICommandListBase&)
+		{
+			for (FRHIResourceReplaceInfo const& Info : ReplaceInfos)
+			{
+				switch (Info.GetType())
+				{
+				default:
+					checkNoEntry();
+					break;
 
-	D3D11_BUFFER_DESC SourceBufferDesc;
-	SourceBuffer->Resource->GetDesc(&SourceBufferDesc);
-	
-	D3D11_BUFFER_DESC DestBufferDesc;
-	DestBuffer->Resource->GetDesc(&DestBufferDesc);
+				case FRHIResourceReplaceInfo::EType::Buffer:
+					{
+						FD3D11Buffer* Dst = ResourceCast(Info.GetBuffer().Dst);
+						FD3D11Buffer* Src = ResourceCast(Info.GetBuffer().Src);
 
-	check(SourceBufferDesc.ByteWidth == DestBufferDesc.ByteWidth);
+						if (Src)
+						{
+							// The source buffer should not have any associated views.
+							check(!Src->HasLinkedViews());
 
-	Direct3DDeviceIMContext->CopyResource(DestBuffer->Resource,SourceBuffer->Resource);
+							Dst->TakeOwnership(*Src);
+						}
+						else
+						{
+							Dst->ReleaseOwnership();
+						}
 
-	GPUProfilingData.RegisterGPUWork(1);
-}
+						Dst->UpdateLinkedViews();
+					}
+					break;
+				}
+			}
+		}
+	);
 
-void FD3D11DynamicRHI::RHITransferBufferUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIBuffer* DestBuffer, FRHIBuffer* SrcBuffer)
-{
-	FD3D11Buffer* Dst = ResourceCast(DestBuffer);
-	FD3D11Buffer* Src = ResourceCast(SrcBuffer);
-
-	if (Src)
-	{
-		// The source buffer should not have any associated views.
-		check(!Src->HasLinkedViews());
-
-		Dst->TakeOwnership(*Src);
-	}
-	else
-	{
-		Dst->ReleaseOwnership();
-	}
-
-	Dst->UpdateLinkedViews();
+	RHICmdList.RHIThreadFence(true);
 }
 
 void FD3D11DynamicRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHIBuffer* BufferRHI, const TCHAR* Name)

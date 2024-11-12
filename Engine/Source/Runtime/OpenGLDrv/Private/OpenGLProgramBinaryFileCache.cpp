@@ -4,8 +4,8 @@
 	OpenGLProgramBinaryFileCache.cpp: OpenGL program binary file cache stores/loads a set of binary ogl programs.
 =============================================================================*/
 
-#include "OpenGLShaders.h"
 #include "OpenGLProgramBinaryFileCache.h"
+#include "OpenGLShaders.h"
 #include "HAL/PlatformFileManager.h"
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
@@ -554,7 +554,7 @@ void FOpenGLProgramBinaryCache::OnShaderPipelineCacheOpened(FString const& Name,
 			check(!FAndroidOpenGL::AreRemoteCompileServicesActive() || IsPrecachingEnabled());
 			if(FAndroidOpenGL::AreRemoteCompileServicesActive() == false)
 			{
-				FAndroidOpenGL::StartAndWaitForRemoteCompileServices(GNumRemoteProgramCompileServices);
+				FAndroidOpenGL::StartRemoteCompileServices(GNumRemoteProgramCompileServices);
 			}
 		}
 #endif
@@ -962,7 +962,7 @@ void FOpenGLProgramBinaryCache::AddProgramBinaryDataToBinaryCache(const FOpenGLP
 		TotalUncompressed += Header->UncompressedSize;
 		TotalCompressed += ProgramBinarySize;
 
-		UE_LOG(LogRHI, Verbose, TEXT("AppendProgramBinaryFile: total Uncompressed: %d, total Compressed %d, Total saved so far: %d"), TotalUncompressed, TotalCompressed, TotalUncompressed - TotalCompressed);
+		UE_LOG(LogRHI, Verbose, TEXT("AddProgramBinaryDataToBinaryCache: total Uncompressed: %d, total Compressed %d, Total saved so far: %d"), TotalUncompressed, TotalCompressed, TotalUncompressed - TotalCompressed);
 	}
 	UE_LOG(LogRHI, VeryVerbose, TEXT("AddProgramBinaryDataToBinaryCache: written Program %s to cache (%d bytes)"), *ProgramKey.ToString(), BinaryProgramDataView.Num());
 

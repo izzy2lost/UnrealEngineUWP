@@ -63,6 +63,7 @@ namespace CSVTools
 			"       -fixedPointPrecisionScale <1..N> - scale for fixed point graph rendering (>1 gives subpixel accuracy)"+
 			"       -graphOnly\n" +
 			"       -hideEventNames <1|0>\n" +
+			"       -showAllEventNames <1|0> - don't filter out event names if they're too dense\n" +
 			"       -hideStatPrefix <list>\n" +
 			"       -hierarchySeparator <character>\n" +
 			"       -highlightEventRegions <startEventName,endEventName>\n" +
@@ -71,6 +72,10 @@ namespace CSVTools
 			"       -legend <list> \n" +
 			"       -maxHierarchyDepth <depth>\n" +
 			"       -minX <value> -maxX <value> -minY <value> -maxY <value>\n" +
+			"       -startEvent <name>\n" +
+			"       -startEventOffset <value>\n" +
+			"       -endEvent <name>\n" +
+			"       -endEventOffset <value>\n" +
 			"       -maxAutoMaxY <value> - clamp automatic maxY to this\n" +
 			"       -noMetadata\n" +
 			"       -noSnap\n" +
@@ -323,9 +328,21 @@ namespace CSVTools
 
 			// Events
 			graphParams.showEventNames = GetListArg("showEvents");
-			graphParams.showEventNameText = GetIntArg("hideEventNames", 0) == 0;
+			if ( GetIntArg("hideEventNames", 0) == 1 )
+			{
+				graphParams.showEventNameTextMode = ShowEventTextMode.Hide;
+			}
+			else if (GetIntArg("showAllEventNames", 0) == 1)
+			{
+				graphParams.showEventNameTextMode = ShowEventTextMode.ShowAll;
+			}
 			graphParams.highlightEventRegions = GetListArg("highlightEventRegions", ',');
 
+			// Start/end event
+			graphParams.startEvent = GetArg("startEvent", null);
+			graphParams.startEventOffset = GetIntArg("startEventOffset", 0);
+			graphParams.endEvent = GetArg("endEvent", null);
+			graphParams.endEventOffset = GetIntArg("endEventOffset", 0);
 
 			// Smoothing
 			graphParams.smooth = GetArg("smooth") == "1";
@@ -479,7 +496,7 @@ namespace CSVTools
 				}
 				catch (System.Exception e)
 				{
-					Console.WriteLine("[ERROR] " + e.Message);
+					Console.Error.WriteLine("[ERROR] " + e.Message);
 					if (Debugger.IsAttached)
 					{
 						throw;

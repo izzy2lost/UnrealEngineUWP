@@ -1,7 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Commandlets/GatherTextFromSourceCommandlet.h"
+#include "Algo/Unique.h"
+#include "Async/ParallelFor.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformMath.h"
 #include "Misc/AsciiSet.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -9,6 +12,7 @@
 #include "Algo/Transform.h"
 #include "Internationalization/InternationalizationMetadata.h"
 #include "Internationalization/TextNamespaceUtil.h"
+#include "ProfilingDebugging/ScopedTimers.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogGatherTextFromSourceCommandlet, Log, All);
 
@@ -22,7 +26,7 @@ UGatherTextFromSourceCommandlet::UGatherTextFromSourceCommandlet(const FObjectIn
 {
 }
 
-const FString UGatherTextFromSourceCommandlet::FPreProcessorDescriptor::DefineString(TEXT("#define "));
+const FString UGatherTextFromSourceCommandlet::DefineString(TEXT("#define "));
 const FString UGatherTextFromSourceCommandlet::FPreProcessorDescriptor::UndefString(TEXT("#undef "));
 const FString UGatherTextFromSourceCommandlet::FPreProcessorDescriptor::IfString(TEXT("#if "));
 const FString UGatherTextFromSourceCommandlet::FPreProcessorDescriptor::IfDefString(TEXT("#ifdef "));
@@ -32,7 +36,50 @@ const FString UGatherTextFromSourceCommandlet::FPreProcessorDescriptor::EndIfStr
 const FString UGatherTextFromSourceCommandlet::FPreProcessorDescriptor::DefinedString(TEXT("defined "));
 const FString UGatherTextFromSourceCommandlet::FPreProcessorDescriptor::IniNamespaceString(TEXT("["));
 const FString UGatherTextFromSourceCommandlet::FMacroDescriptor::TextMacroString(TEXT("TEXT"));
-const FString UGatherTextFromSourceCommandlet::ChangelistName(TEXT("Update Localization"));
+const FString UGatherTextFromSourceCommandlet::MacroString_LOCTEXT(TEXT("LOCTEXT"));
+const FString UGatherTextFromSourceCommandlet::MacroString_NSLOCTEXT(TEXT("NSLOCTEXT"));
+const FString UGatherTextFromSourceCommandlet::MacroString_UI_COMMAND(TEXT("UI_COMMAND"));
+const FString UGatherTextFromSourceCommandlet::MacroString_UI_COMMAND_EXT(TEXT("UI_COMMAND_EXT"));
+
+// Nested macro statistics, to track any supported features
+// See https://gcc.gnu.org/onlinedocs/gcc-3.0.1/cpp_3.html
+struct FParsedNestedMacroStats
+{
+	std::atomic<int32> DuplicateExact = 0;
+	std::atomic<int32> DuplicateMacroName = 0;
+	std::atomic<int32> DuplicateExcluded = 0;
+	std::atomic<int32> Concatenation = 0;
+	std::atomic<int32> Variadic = 0;
+	std::atomic<int32> SizeInBytes = 0;
+
+	std::atomic<int32> Nested_LOCTEXT = 0;
+	std::atomic<int32> Nested_NSLOCTEXT = 0;
+	std::atomic<int32> Nested_UI_COMMAND = 0;
+	std::atomic<int32> Nested_UI_COMMAND_EXT = 0;
+
+	std::atomic<int32> PrepassBegin = 0;
+	std::atomic<int32> PrepassEnd = 0;
+	std::atomic<int32> MainpassBegin = 0;
+	std::atomic<int32> MainpassMid = 0;
+	std::atomic<int32> MainpassEnd = 0;
+
+	std::atomic<int32> SubmitNested = 0;
+	std::atomic<int32> Submit = 0;
+};
+static FParsedNestedMacroStats NestedMacroStats;
+
+struct FFileTypeStats
+{
+	std::atomic<int32> FileType_h = 0;
+	std::atomic<int32> FileType_inl = 0;
+	std::atomic<int32> FileType_c = 0;
+	std::atomic<int32> FileType_cpp = 0;
+	std::atomic<int32> FileType_ini = 0;
+	std::atomic<int32> FileType_other = 0;
+	std::atomic<int32> FileType_total = 0;
+	std::atomic<double> Duration_sec = 0.0f;
+};
+static FFileTypeStats FileTypeStats[EGatherSourcePasses::Mainpass + 1];
 
 bool UGatherTextFromSourceCommandlet::ShouldRunInPreview(const TArray<FString>& Switches, const TMap<FString, FString>& ParamVals) const
 {
@@ -43,6 +90,7 @@ bool UGatherTextFromSourceCommandlet::ShouldRunInPreview(const TArray<FString>& 
 
 int32 UGatherTextFromSourceCommandlet::Main( const FString& Params )
 {
+	UE_SCOPED_TIMER(TEXT("UGatherTextFromSourceCommandlet::Main"), LogGatherTextFromSourceCommandlet, Display);
 	// Parse command line - we're interested in the param vals
 	TArray<FString> Tokens;
 	TArray<FString> Switches;
@@ -142,78 +190,17 @@ int32 UGatherTextFromSourceCommandlet::Main( const FString& Params )
 		return 0;
 	}
 
-	//Ensure all filters are unique.
+	// Ensure all filters are unique.
 	TArray<FString> UniqueSourceFileSearchFilters;
 	for (const FString& SourceFileSearchFilter : FileNameFilters)
 	{
 		UniqueSourceFileSearchFilters.AddUnique(SourceFileSearchFilter);
 	}
 
-	// Build the final set of include/exclude paths to scan.
 	TArray<FString> IncludePathFilters;
-	Algo::Transform(SearchDirectoryPaths, IncludePathFilters, [](const FString& SearchDirectoryPath)
-	{
-		const TCHAR LastChar = SearchDirectoryPath.Len() > 0 ? SearchDirectoryPath[SearchDirectoryPath.Len() - 1] : 0;
-		return (LastChar == TEXT('*') || LastChar == TEXT('?'))
-			? SearchDirectoryPath								// Already a wildcard
-			: FPaths::Combine(SearchDirectoryPath, TEXT("*"));	// Add a catch-all wildcard
-	});
-
-	FGatherTextDelegates::GetAdditionalGatherPaths.Broadcast(GatherManifestHelper->GetTargetName(), IncludePathFilters, ExcludePathFilters);
-
-	// Search in the root folder for each of the wildcard filters specified and build a list of files
 	TArray<FString> FilesToProcess;
-	{
-		TArray<FString> RootSourceFiles;
-		TSet<FString, FLocKeySetFuncs> ProcessedSearchDirectoryPaths;
-		for (const FString& IncludePathFilter : IncludePathFilters)
-		{
-			constexpr FAsciiSet Wildcards("*?");
-
-			FString SearchDirectoryPath = IncludePathFilter;
-			if (const TCHAR* FirstWildcard = FAsciiSet::FindFirstOrEnd(*SearchDirectoryPath, Wildcards); *FirstWildcard != 0)
-			{
-				// Trim the wildcard from this search path
-				SearchDirectoryPath = SearchDirectoryPath.Left(UE_PTRDIFF_TO_INT32(FirstWildcard - *SearchDirectoryPath));
-				SearchDirectoryPath = FPaths::GetPath(MoveTemp(SearchDirectoryPath));
-			}
-
-			bool bAlreadyProcessed = false;
-			ProcessedSearchDirectoryPaths.Add(SearchDirectoryPath, &bAlreadyProcessed);
-			if (bAlreadyProcessed)
-			{
-				continue;
-			}
-
-			for (const FString& UniqueSourceFileSearchFilter : UniqueSourceFileSearchFilters)
-			{
-				IFileManager::Get().FindFilesRecursive(RootSourceFiles, *SearchDirectoryPath, *UniqueSourceFileSearchFilter, true, false, false);
-
-				for (FString& RootSourceFile : RootSourceFiles)
-				{
-					if (FPaths::IsRelative(RootSourceFile))
-					{
-						RootSourceFile = FPaths::ConvertRelativePathToFull(MoveTemp(RootSourceFile));
-					}
-				}
-
-				FilesToProcess.Append(MoveTemp(RootSourceFiles));
-				RootSourceFiles.Reset();
-			}
-		}
-	}
-
-	const FFuzzyPathMatcher FuzzyPathMatcher = FFuzzyPathMatcher(IncludePathFilters, ExcludePathFilters);
-	FilesToProcess.RemoveAll([&FuzzyPathMatcher](const FString& FoundFile)
-	{
-		// Filter out assets whose package file paths do not pass the "fuzzy path" filters.
-		if (FuzzyPathMatcher.TestPath(FoundFile) != FFuzzyPathMatcher::EPathMatch::Included)
-		{
-			return true;
-		}
-
-		return false;
-	});
+	GetFilesToProcess(SearchDirectoryPaths, UniqueSourceFileSearchFilters, IncludePathFilters, ExcludePathFilters, FilesToProcess, true);
+	CountFileTypes(FilesToProcess, EGatherSourcePasses::Mainpass);
 	
 	// Return if no source files were found
 	if( FilesToProcess.Num() == 0 )
@@ -252,78 +239,294 @@ int32 UGatherTextFromSourceCommandlet::Main( const FString& Params )
 		}
 	}
 
-	// Get the loc macros and their syntax
-	TArray<FParsableDescriptor*> Parsables;
-
-	Parsables.Add(new FDefineDescriptor());
-
-	Parsables.Add(new FUndefDescriptor());
-
-	Parsables.Add(new FIfDescriptor());
-
-	Parsables.Add(new FIfDefDescriptor());
-
-	Parsables.Add(new FElIfDescriptor());
-
-	Parsables.Add(new FElseDescriptor());
-
-	Parsables.Add(new FEndIfDescriptor());
-
-	Parsables.Add(new FUICommandMacroDescriptor());
-
-	Parsables.Add(new FUICommandExtMacroDescriptor());
-
-	Parsables.Add(new FMetasoundParamMacroDescriptor());
-	
-	// New Localization System with Namespace as literal argument.
-	Parsables.Add(new FStringMacroDescriptor( FString(TEXT("NSLOCTEXT")),
-		FStringMacroDescriptor::FMacroArg(FStringMacroDescriptor::MAS_Namespace, true),
-		FStringMacroDescriptor::FMacroArg(FStringMacroDescriptor::MAS_Identifier, true),
-		FStringMacroDescriptor::FMacroArg(FStringMacroDescriptor::MAS_SourceText, true)));
-	
-	// New Localization System with Namespace as preprocessor define.
-	Parsables.Add(new FStringMacroDescriptor( FString(TEXT("LOCTEXT")),
-		FStringMacroDescriptor::FMacroArg(FStringMacroDescriptor::MAS_Identifier, true),
-		FStringMacroDescriptor::FMacroArg(FStringMacroDescriptor::MAS_SourceText, true)));
-
-	Parsables.Add(new FStringTableMacroDescriptor());
-
-	Parsables.Add(new FStringTableFromFileMacroDescriptor(TEXT("LOCTABLE_FROMFILE_ENGINE"), FPaths::EngineContentDir()));
-
-	Parsables.Add(new FStringTableFromFileMacroDescriptor(TEXT("LOCTABLE_FROMFILE_GAME"), FPaths::ProjectContentDir()));
-
-	Parsables.Add(new FStringTableEntryMacroDescriptor());
-
-	Parsables.Add(new FStringTableEntryMetaDataMacroDescriptor());
-
-	Parsables.Add(new FStructuredLogMacroDescriptor(TEXT("UE_LOGFMT_LOC"), FStructuredLogMacroDescriptor::EFlags::None));
-	Parsables.Add(new FStructuredLogMacroDescriptor(TEXT("UE_LOGFMT_LOC_EX"), FStructuredLogMacroDescriptor::EFlags::None));
-	Parsables.Add(new FStructuredLogMacroDescriptor(TEXT("UE_LOGFMT_NSLOC"), FStructuredLogMacroDescriptor::EFlags::Namespace));
-	Parsables.Add(new FStructuredLogMacroDescriptor(TEXT("UE_LOGFMT_NSLOC_EX"), FStructuredLogMacroDescriptor::EFlags::Namespace));
-
-	Parsables.Add(new FIniNamespaceDescriptor());
-
-	// Init a parse context to track the state of the file parsing 
-	FSourceFileParseContext ParseCtxt(this);
-
 	// Get whether we should gather editor-only data. Typically only useful for the localization of UE itself.
-	if (!GetBoolFromConfig(*SectionName, TEXT("ShouldGatherFromEditorOnlyData"), ParseCtxt.ShouldGatherFromEditorOnlyData, GatherTextConfigPath))
+	bool ShouldGatherFromEditorOnlyData = false;
+	if (!GetBoolFromConfig(*SectionName, TEXT("ShouldGatherFromEditorOnlyData"), ShouldGatherFromEditorOnlyData, GatherTextConfigPath))
 	{
-		ParseCtxt.ShouldGatherFromEditorOnlyData = false;
+		ShouldGatherFromEditorOnlyData = false;
 	}
 
-	// Parse all source files for macros and add entries to SourceParsedEntries
-	for ( FString& SourceFile : FilesToProcess)
+	// Prepass for nested macros
+	bool SkipNestedMacroPrepass = Switches.Contains(UGatherTextCommandletBase::SkipNestedMacroPrepassSwitch);
+	static TArray<FParsedNestedMacro> PrepassResults;
+	static bool RanPrepassOnce = false;
+	if (!SkipNestedMacroPrepass && !RanPrepassOnce)
 	{
+		double StartTime = FPlatformTime::Seconds();
+
+		// We parse all files, since we do not have an include graph to know which are needed for main pass
+		TArray<FString> SearchDirectoryPathsPrepass;
+		SearchDirectoryPathsPrepass.Add(TEXT("%LOCENGINEROOT%Source"));
+		SearchDirectoryPathsPrepass.Add(TEXT("%LOCENGINEROOT%Plugins"));
+		if (FApp::HasProjectName())
+		{
+			SearchDirectoryPathsPrepass.Add(TEXT("%LOCPROJECTROOT%Source"));
+			SearchDirectoryPathsPrepass.Add(TEXT("%LOCPROJECTROOT%Plugins"));
+		}
+		for (FString& Path : SearchDirectoryPathsPrepass)
+		{
+			ResolveLocalizationPath(Path);
+		}
+		TArray<FString> ExcludePathFiltersPrepass;
+		ExcludePathFiltersPrepass.Add(TEXT("%LOCENGINEROOT%Source/ThirdParty/*"));
+		for (FString& Path : ExcludePathFiltersPrepass)
+		{
+			ResolveLocalizationPath(Path);
+		}
+
+		TArray<FString> IncludePathFiltersPrepass;
+		TArray<FString> FilesToProcessPrepass;
+		TArray<FString> FileNameFiltersPrepass = { TEXT("*.cpp"), TEXT("*.h"), TEXT(".inl") };
+		GetFilesToProcess(SearchDirectoryPathsPrepass, FileNameFiltersPrepass, IncludePathFiltersPrepass, ExcludePathFiltersPrepass, FilesToProcessPrepass, false);
+		CountFileTypes(FilesToProcessPrepass, EGatherSourcePasses::Prepass);
+
+		RunPass(EGatherSourcePasses::Prepass, ShouldGatherFromEditorOnlyData, FilesToProcessPrepass, GatheredSourceBasePath, PrepassResults);
+
+		double Duration = FPlatformTime::Seconds() - StartTime;
+		FileTypeStats[EGatherSourcePasses::Prepass].Duration_sec = Duration;
+		UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("Ran source prepass for nested macros in %.2f seconds"), Duration);
+
+		RanPrepassOnce = true;
+	}
+
+	// Mainpass
+	{
+		double StartTime = FPlatformTime::Seconds();
+
+		RunPass(EGatherSourcePasses::Mainpass, ShouldGatherFromEditorOnlyData, FilesToProcess, GatheredSourceBasePath, PrepassResults);
+
+		double Duration = FPlatformTime::Seconds() - StartTime;
+		FileTypeStats[EGatherSourcePasses::Mainpass].Duration_sec = Duration;
+		UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("Ran source mainpass in %.2f seconds"), Duration);
+	}
+
+	return 0;
+}
+
+void UGatherTextFromSourceCommandlet::GetFilesToProcess(const TArray<FString>& SearchDirectoryPaths, const TArray<FString>& FileNameFilters, TArray<FString>& IncludePathFilters, TArray<FString>& ExcludePathFilters, TArray<FString>& FilesToProcess, bool bAdditionalGatherPaths) const
+{
+	// Build the final set of include/exclude paths to scan.
+	Algo::Transform(SearchDirectoryPaths, IncludePathFilters, [](const FString& SearchDirectoryPath)
+	{
+		const TCHAR LastChar = SearchDirectoryPath.Len() > 0 ? SearchDirectoryPath[SearchDirectoryPath.Len() - 1] : 0;
+		return (LastChar == TEXT('*') || LastChar == TEXT('?'))
+			? SearchDirectoryPath								// Already a wildcard
+			: FPaths::Combine(SearchDirectoryPath, TEXT("*"));	// Add a catch-all wildcard
+	});
+
+	if (bAdditionalGatherPaths)
+	{
+		FGatherTextDelegates::GetAdditionalGatherPaths.Broadcast(GatherManifestHelper->GetTargetName(), IncludePathFilters, ExcludePathFilters);
+	}
+
+	// Search in the root folder for each of the wildcard filters specified and build a list of files
+	{
+		class FFileMatch : public IPlatformFile::FDirectoryVisitor
+		{
+		public:
+			const TArray<FString>& WildCards;
+
+			UE::FMutex RootSourceFilesLock;
+			TArray<FString> RootSourceFiles;
+
+			FFileMatch(const TArray<FString>& InWildCards)
+				: IPlatformFile::FDirectoryVisitor(EDirectoryVisitorFlags::ThreadSafe)
+				, WildCards(InWildCards)
+			{
+			}
+
+			virtual bool Visit(const TCHAR* FilenameOrDirectory, bool bIsDirectory)
+			{
+				if (!bIsDirectory)
+				{
+					FString FullFilename = FilenameOrDirectory;
+					FString LeafFilename = FPaths::GetCleanFilename(FullFilename);
+
+					bool bMatchesWildCard = false;
+					if (!LeafFilename.EndsWith(TEXTVIEW(".generated.h")) && !LeafFilename.EndsWith(TEXTVIEW(".gen.cpp"))) // Always skip UHT generated files
+					{
+						for (const FString& WildCard : WildCards)
+						{
+							if (LeafFilename.MatchesWildcard(WildCard))
+							{
+								bMatchesWildCard = true;
+								break;
+							}
+						}
+					}
+
+					if (bMatchesWildCard)
+					{
+						UE::TScopeLock ScopeLock(RootSourceFilesLock);
+						RootSourceFiles.Add(MoveTemp(FullFilename));
+					}
+				}
+
+				return true;
+			}
+		};
+
+		FFileMatch Visitor(FileNameFilters);
+		TSet<FString, FLocKeySetFuncs> ProcessedSearchDirectoryPaths;
+		for (const FString& IncludePathFilter : IncludePathFilters)
+		{
+			constexpr FAsciiSet Wildcards("*?");
+
+			FString SearchDirectoryPath = IncludePathFilter;
+			if (const TCHAR* FirstWildcard = FAsciiSet::FindFirstOrEnd(*SearchDirectoryPath, Wildcards); *FirstWildcard != 0)
+			{
+				// Trim the wildcard from this search path
+				SearchDirectoryPath = SearchDirectoryPath.Left(UE_PTRDIFF_TO_INT32(FirstWildcard - *SearchDirectoryPath));
+				SearchDirectoryPath = FPaths::GetPath(MoveTemp(SearchDirectoryPath));
+			}
+			if (FPaths::IsRelative(SearchDirectoryPath))
+			{
+				SearchDirectoryPath = FPaths::ConvertRelativePathToFull(MoveTemp(SearchDirectoryPath));
+			}
+
+			bool bAlreadyProcessed = false;
+			ProcessedSearchDirectoryPaths.Add(SearchDirectoryPath, &bAlreadyProcessed);
+			if (bAlreadyProcessed)
+			{
+				continue;
+			}
+
+			IFileManager::Get().IterateDirectoryRecursively(*SearchDirectoryPath, Visitor);
+			FilesToProcess.Append(MoveTemp(Visitor.RootSourceFiles));
+			Visitor.RootSourceFiles.Reset();
+		}
+	}
+
+	const FFuzzyPathMatcher FuzzyPathMatcher = FFuzzyPathMatcher(IncludePathFilters, ExcludePathFilters);
+	FilesToProcess.RemoveAll([&FuzzyPathMatcher](const FString& FoundFile)
+	{
+		// Filter out assets whose package file paths do not pass the "fuzzy path" filters.
+		if (FuzzyPathMatcher.TestPath(FoundFile) != FFuzzyPathMatcher::EPathMatch::Included)
+		{
+			return true;
+		}
+
+		return false;
+	});
+	FilesToProcess.Sort([](const FString& LHS, const FString& RHS)
+	{
+		return (LHS < RHS);
+	});
+	// Remove duplicates
+	FilesToProcess.SetNum(Algo::Unique(FilesToProcess));
+}
+
+void UGatherTextFromSourceCommandlet::GetParsables(TArray<FParsableDescriptor*>& Parsables, EGatherSourcePasses Pass, TArray<FParsedNestedMacro>& PrepassResults)
+{
+	// Get the loc macros and their syntax
+	if (Pass == EGatherSourcePasses::Prepass)
+	{
+		Parsables.Add(new FNestedMacroPrepassDescriptor(PrepassResults));
+	}
+	else
+	{
+		Parsables.Add(new FDefineDescriptor());
+
+		Parsables.Add(new FUndefDescriptor());
+
+		Parsables.Add(new FIfDescriptor());
+
+		Parsables.Add(new FIfDefDescriptor());
+
+		Parsables.Add(new FElIfDescriptor());
+
+		Parsables.Add(new FElseDescriptor());
+
+		Parsables.Add(new FEndIfDescriptor());
+
+		Parsables.Add(new FUICommandMacroDescriptor());
+
+		Parsables.Add(new FUICommandExtMacroDescriptor());
+	
+		// New Localization System with Namespace as literal argument.
+		Parsables.Add(new FStringMacroDescriptor(FString(MacroString_NSLOCTEXT),
+			FStringMacroDescriptor::FMacroArg(FStringMacroDescriptor::MAS_Namespace, true),
+			FStringMacroDescriptor::FMacroArg(FStringMacroDescriptor::MAS_Identifier, true),
+			FStringMacroDescriptor::FMacroArg(FStringMacroDescriptor::MAS_SourceText, true)));
+
+		// New Localization System with Namespace as preprocessor define.
+		Parsables.Add(new FStringMacroDescriptor(FString(MacroString_LOCTEXT),
+			FStringMacroDescriptor::FMacroArg(FStringMacroDescriptor::MAS_Identifier, true),
+			FStringMacroDescriptor::FMacroArg(FStringMacroDescriptor::MAS_SourceText, true)));
+
+		Parsables.Add(new FStringTableMacroDescriptor());
+
+		Parsables.Add(new FStringTableFromFileMacroDescriptor(TEXT("LOCTABLE_FROMFILE_ENGINE"), FPaths::EngineContentDir()));
+
+		Parsables.Add(new FStringTableFromFileMacroDescriptor(TEXT("LOCTABLE_FROMFILE_GAME"), FPaths::ProjectContentDir()));
+
+		Parsables.Add(new FStringTableEntryMacroDescriptor());
+
+		Parsables.Add(new FStringTableEntryMetaDataMacroDescriptor());
+
+		Parsables.Add(new FStructuredLogMacroDescriptor(TEXT("UE_LOGFMT_LOC"), FStructuredLogMacroDescriptor::EFlags::None));
+		Parsables.Add(new FStructuredLogMacroDescriptor(TEXT("UE_LOGFMT_LOC_EX"), FStructuredLogMacroDescriptor::EFlags::None));
+		Parsables.Add(new FStructuredLogMacroDescriptor(TEXT("UE_LOGFMT_NSLOC"), FStructuredLogMacroDescriptor::EFlags::Namespace));
+		Parsables.Add(new FStructuredLogMacroDescriptor(TEXT("UE_LOGFMT_NSLOC_EX"), FStructuredLogMacroDescriptor::EFlags::Namespace));
+
+		Parsables.Add(new FIniNamespaceDescriptor());
+
+		PrunePrepassResults(PrepassResults);
+
+		for (const FParsedNestedMacro& Result : PrepassResults)
+		{
+			if (!Result.bExclude)
+			{
+				Parsables.Add(new FNestedMacroDescriptor(Result.MacroName, Result.MacroNameNested, Result.Filename, Result.Content));
+			}
+		}
+	}
+}
+
+void UGatherTextFromSourceCommandlet::RunPass(EGatherSourcePasses Pass, bool ShouldGatherFromEditorOnlyData, const TArray<FString>& FilesToProcess, const FString& GatheredSourceBasePath, TArray<FParsedNestedMacro>& PrepassResults)
+{
+	// Make a batch copy of all the data needed for each core
+	// This avoids accessing member functions for thread safety. It also avoids expensive locking and atomics.
+	// The only atomics used are FParsedNestedMacroStats, for simplicity.
+
+	const int32 CountCores = FPlatformMisc::NumberOfCoresIncludingHyperthreads();
+	const int32 CountThreads = ParallelForImpl::GetNumberOfThreadTasks(CountCores, 1, EParallelForFlags::None);
+
+	struct FBatchPerThread
+	{
+		TArray<FString> Files;
+		TArray<FSourceFileParseContext> Contexts;				// Context per file
+		TArray<FParsableDescriptor*> Parsables;
+		TArray<FParsedNestedMacro> PrepassResults;				// May be large data, currently 90kb, copy per core only not per file
+		TArray<FManifestEntryResult> MainpassResults;
+		TMap<FName, FString> SplitPlatforms;
+	};
+	TArray<FBatchPerThread> Batches;
+	Batches.Init(FBatchPerThread(), CountThreads);
+
+	int32 FilesPerCore = FMath::CeilToInt((float)FilesToProcess.Num() / (float)CountThreads);
+	int32 FileIndex = 0;
+	for (const FString& SourceFile : FilesToProcess)
+	{
+		int32 Core = FileIndex / FilesPerCore;
+		FBatchPerThread& Batch = Batches[Core];
+
+		Batch.Files.Add(SourceFile);
+
+		FSourceFileParseContext ParseCtxt(Batch.SplitPlatforms, Batch.MainpassResults);
+		ParseCtxt.Pass = Pass;
+		ParseCtxt.ShouldGatherFromEditorOnlyData = ShouldGatherFromEditorOnlyData;
 		ParseCtxt.Filename = SourceFile;
 		ParseCtxt.FileTypes = ParseCtxt.Filename.EndsWith(TEXT(".ini")) ? EGatherTextSourceFileTypes::Ini : EGatherTextSourceFileTypes::Cpp;
 		FPaths::MakePathRelativeTo(ParseCtxt.Filename, *GatheredSourceBasePath);
+		ParseCtxt.LineIdx = 0;
 		ParseCtxt.LineNumber = 0;
-		ParseCtxt.FilePlatformName = GetSplitPlatformNameFromPath(ParseCtxt.Filename);
+		ParseCtxt.FilePlatformName = GetSplitPlatformNameFromPath(SourceFile);
 		ParseCtxt.LineText.Reset();
 		ParseCtxt.Namespace.Reset();
 		ParseCtxt.RawStringLiteralClosingDelim.Reset();
 		ParseCtxt.ExcludedRegion = false;
+		ParseCtxt.EndParsingCurrentLine = false;
 		ParseCtxt.WithinBlockComment = false;
 		ParseCtxt.WithinLineComment = false;
 		ParseCtxt.WithinStringLiteral = false;
@@ -331,72 +534,120 @@ int32 UGatherTextFromSourceCommandlet::Main( const FString& Params )
 		ParseCtxt.WithinStartingLine = nullptr;
 		ParseCtxt.TextLines.Reset();
 		ParseCtxt.FlushMacroStack();
+		Batch.Contexts.Add(ParseCtxt);
 
-		FString SourceFileText;
-		if (!FFileHelper::LoadFileToString(SourceFileText, *SourceFile))
+		++FileIndex;
+	}
+
+	// Setup batches
+	for (int32 i = 0; i < CountThreads; ++i)
+	{
+		FBatchPerThread& Batch = Batches[i];
+
+		Batch.PrepassResults = PrepassResults;
+		GetParsables(Batch.Parsables, Pass, Batch.PrepassResults);
+
+		Batch.SplitPlatforms = SplitPlatforms;
+	}
+
+	ParallelFor(Batches.Num(), [&Batches, &Pass](int32 Index)
+	{
+		FBatchPerThread& Batch = Batches[Index];
+		TArray<FParsableDescriptor*>& Parsables = Batch.Parsables;
+		TArray<FParsedNestedMacro>& PrepassResults = Batch.PrepassResults;
+
+		// Parse source files for macros
+		for (int32 i = 0; i < Batch.Files.Num(); ++i)
 		{
-			UE_LOG(LogGatherTextFromSourceCommandlet, Error, TEXT("%s: GatherTextSource failed to open file"), *ParseCtxt.Filename);
-		}
-		else
-		{
-			if (!ParseSourceText(SourceFileText, Parsables, ParseCtxt))
+			const FString& SourceFile = Batch.Files[i];
+			FSourceFileParseContext& ParseCtxt = Batch.Contexts[i];
+
+			FString SourceFileText;
+			if (!FFileHelper::LoadFileToString(SourceFileText, *SourceFile))
 			{
-				UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("%s: GatherTextSource error(s) parsing source file"), *ParseCtxt.Filename);
+				UE_LOG(LogGatherTextFromSourceCommandlet, Error, TEXT("%s: GatherTextSource failed to open file"), *ParseCtxt.Filename);
 			}
 			else
 			{
-				if (ParseCtxt.WithinNamespaceDefineLineNumber != INDEX_NONE)
+				if (!ParseSourceText(SourceFileText, Parsables, ParseCtxt, PrepassResults))
+				{
+					UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("%s: GatherTextSource error(s) parsing source file"), *ParseCtxt.Filename);
+				}
+				else if (ParseCtxt.WithinNamespaceDefineLineNumber != INDEX_NONE)
 				{
 					UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("%s(%d): Missing '#undef LOCTEXT_NAMESPACE' for '#define LOCTEXT_NAMESPACE'"), *ParseCtxt.Filename, ParseCtxt.WithinNamespaceDefineLineNumber);
 				}
 			}
 		}
-	}
-	
-	// Process any parsed string tables
-	for (const auto& ParsedStringTablePair : ParseCtxt.ParsedStringTables)
-	{
-		if (ParsedStringTablePair.Value.SourceLocation.Line == INDEX_NONE)
-		{
-			UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("String table with ID '%s' had %d entries parsed for it, but the table was never registered. Skipping for gather."), *ParsedStringTablePair.Key.ToString(), ParsedStringTablePair.Value.TableEntries.Num());
-		}
-		else
-		{
-			for (const auto& ParsedStringTableEntryPair : ParsedStringTablePair.Value.TableEntries)
-			{
-				if (!ParsedStringTableEntryPair.Value.bIsEditorOnly || ParseCtxt.ShouldGatherFromEditorOnlyData)
-				{
-					FManifestContext SourceContext;
-					SourceContext.Key = ParsedStringTableEntryPair.Key;
-					SourceContext.SourceLocation = ParsedStringTableEntryPair.Value.SourceLocation.ToString();
-					SourceContext.PlatformName = ParsedStringTableEntryPair.Value.PlatformName;
+	});
 
-					const FParsedStringTableEntryMetaDataMap* ParsedMetaDataMap = ParsedStringTablePair.Value.MetaDataEntries.Find(ParsedStringTableEntryPair.Key);
-					if (ParsedMetaDataMap && ParsedMetaDataMap->Num() > 0)
+	// Collect results from batches
+	for (int32 i = 0; i < CountThreads; ++i)
+	{
+		const FBatchPerThread& Batch = Batches[i];
+
+		for (int32 j = 0; j < Batch.Files.Num(); ++j)
+		{
+			const FSourceFileParseContext& ParseCtxt = Batch.Contexts[j];
+
+			// Process any parsed string tables
+			for (const auto& ParsedStringTablePair : ParseCtxt.ParsedStringTables)
+			{
+				if (ParsedStringTablePair.Value.SourceLocation.Line == INDEX_NONE)
+				{
+					UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("String table with ID '%s' had %d entries parsed for it, but the table was never registered. Skipping for gather."), *ParsedStringTablePair.Key.ToString(), ParsedStringTablePair.Value.TableEntries.Num());
+				}
+				else
+				{
+					for (const auto& ParsedStringTableEntryPair : ParsedStringTablePair.Value.TableEntries)
 					{
-						SourceContext.InfoMetadataObj = MakeShareable(new FLocMetadataObject());
-						for (const auto& ParsedMetaDataPair : *ParsedMetaDataMap)
+						if (!ParsedStringTableEntryPair.Value.bIsEditorOnly || ParseCtxt.ShouldGatherFromEditorOnlyData)
 						{
-							if (!ParsedMetaDataPair.Value.bIsEditorOnly || ParseCtxt.ShouldGatherFromEditorOnlyData)
+							FManifestContext SourceContext;
+							SourceContext.Key = ParsedStringTableEntryPair.Key;
+							SourceContext.SourceLocation = ParsedStringTableEntryPair.Value.SourceLocation.ToString();
+							SourceContext.PlatformName = ParsedStringTableEntryPair.Value.PlatformName;
+
+							const FParsedStringTableEntryMetaDataMap* ParsedMetaDataMap = ParsedStringTablePair.Value.MetaDataEntries.Find(ParsedStringTableEntryPair.Key);
+							if (ParsedMetaDataMap && ParsedMetaDataMap->Num() > 0)
 							{
-								SourceContext.InfoMetadataObj->SetStringField(ParsedMetaDataPair.Key.ToString(), ParsedMetaDataPair.Value.MetaData);
+								SourceContext.InfoMetadataObj = MakeShareable(new FLocMetadataObject());
+								for (const auto& ParsedMetaDataPair : *ParsedMetaDataMap)
+								{
+									if (!ParsedMetaDataPair.Value.bIsEditorOnly || ParseCtxt.ShouldGatherFromEditorOnlyData)
+									{
+										SourceContext.InfoMetadataObj->SetStringField(ParsedMetaDataPair.Key.ToString(), ParsedMetaDataPair.Value.MetaData);
+									}
+								}
 							}
+
+							GatherManifestHelper->AddSourceText(ParsedStringTablePair.Value.TableNamespace, FLocItem(ParsedStringTableEntryPair.Value.SourceString), SourceContext);
 						}
 					}
-
-					GatherManifestHelper->AddSourceText(ParsedStringTablePair.Value.TableNamespace, FLocItem(ParsedStringTableEntryPair.Value.SourceString), SourceContext);
 				}
 			}
 		}
-	}
 
-	// Clear parsables list safely
-	for (int32 i=0; i<Parsables.Num(); i++)
-	{
-		delete Parsables[i];
-	}
+		if (Pass == EGatherSourcePasses::Prepass)
+		{
+			// Collect prepass results from Batches
+			PrepassResults.Append(Batch.PrepassResults);
+		}
+		else if (Pass == EGatherSourcePasses::Mainpass)
+		{
+			// Submit mainpass results to manifest helper
+			for (const FManifestEntryResult& Result : Batch.MainpassResults)
+			{
+				GatherManifestHelper->AddSourceText(Result.Namespace, FLocItem(Result.Source), Result.Context, &Result.Description);
+			}
+		}
 
-	return 0;
+		// Clear parsables list safely
+		for (int32 j = 0; j < Batch.Parsables.Num(); ++j)
+		{
+			delete Batch.Parsables[j];
+		}
+	}
 }
 
 FString UGatherTextFromSourceCommandlet::UnescapeLiteralCharacterEscapeSequences(const FString& InString)
@@ -731,14 +982,14 @@ FString UGatherTextFromSourceCommandlet::StripCommentsFromToken(const FString& I
 	return StrippedToken.TrimStartAndEnd();
 }
 
-bool UGatherTextFromSourceCommandlet::ParseSourceText(const FString& Text, const TArray<FParsableDescriptor*>& Parsables, FSourceFileParseContext& ParseCtxt)
+bool UGatherTextFromSourceCommandlet::ParseSourceText(const FString& Text, const TArray<FParsableDescriptor*>& Parsables, FSourceFileParseContext& ParseCtxt, TArray<FParsedNestedMacro>& PrepassResults)
 {
 	// Cache array of parsables and tokens valid for this filetype
 	TArray< FParsableDescriptor*> ParsablesForFile;
 	TArray<FString> ParsableTokensForFile;
 	for (FParsableDescriptor* Parsable : Parsables)
 	{
-		if (Parsable->MatchesFileTypes(ParseCtxt.FileTypes))
+		if (Parsable->IsApplicableFileType(ParseCtxt.FileTypes) && Parsable->IsApplicableFile(ParseCtxt.Filename))
 		{
 			ParsablesForFile.Add(Parsable);
 			ParsableTokensForFile.Add(Parsable->GetToken());
@@ -777,13 +1028,26 @@ bool UGatherTextFromSourceCommandlet::ParseSourceText(const FString& Text, const
 	Text.ParseIntoArrayLines(TextLines, false);
 
 	// Move through the text lines looking for the tokens that denote the items in the Parsables list 
-	for (int32 LineIdx = 0; LineIdx < TextLines.Num(); LineIdx++)
+	int32& LineIdx = ParseCtxt.LineIdx;
+	for (LineIdx = 0; LineIdx < TextLines.Num(); LineIdx++)
 	{
 		// Remove spaces at the end of the line.
 		TextLines[LineIdx].TrimEndInline();
 		const FString& Line = TextLines[LineIdx];
-		if ( Line.IsEmpty() )
+		if (Line.IsEmpty())
+		{
 			continue;
+		}
+		ParseCtxt.LineNumber = LineIdx + 1;
+
+		// Skip any lines handled in prepass
+		int32 AdvanceByLines = 0;
+		if ((ParseCtxt.Pass != EGatherSourcePasses::Prepass) &&
+			HandledInPrepass(PrepassResults, ParseCtxt.Filename, ParseCtxt.LineNumber, AdvanceByLines))
+		{
+			LineIdx += AdvanceByLines;
+			continue;
+		}
 
 		// Use these pending vars to defer parsing a token hit until longer tokens can't hit too
 		int32 PendingParseIdx = INDEX_NONE;
@@ -792,7 +1056,6 @@ bool UGatherTextFromSourceCommandlet::ParseSourceText(const FString& Text, const
 		{
 			Element = 0;
 		}
-		ParseCtxt.LineNumber = LineIdx + 1;
 		ParseCtxt.LineText = Line;
 		ParseCtxt.WithinLineComment = false;
 		ParseCtxt.EndParsingCurrentLine = false;
@@ -855,8 +1118,8 @@ bool UGatherTextFromSourceCommandlet::ParseSourceText(const FString& Text, const
 									{
 										break;
 									}
-									// We also permit '_' to support the use of _JSON as a delimiter for the raw strings 
-									if (DelimChar == 0 || !(FChar::IsAlnum(DelimChar) || DelimChar == TCHAR('_')))
+									// We also permit '_' to support the use of _JSON as a delimiter for the raw strings. Also, '|' and '!' are common.
+									if (DelimChar == 0 || !(FChar::IsAlnum(DelimChar) || DelimChar == TCHAR('_') || DelimChar == TCHAR('|') || DelimChar == TCHAR('!')))
 									{
 										bIsValid = false;
 										break;
@@ -995,7 +1258,7 @@ bool UGatherTextFromSourceCommandlet::ParseSourceText(const FString& Text, const
 				continue;
 			}
 
-			// Go through all the Parserables to find matches
+			// Go through all the Parsables to find matches
 			for (int32 ParIdx = 0; ParIdx < ParsablesForFile.Num(); ++ParIdx)
 			{
 				FParsableDescriptor* Parsable = ParsablesForFile[ParIdx];
@@ -1092,6 +1355,171 @@ bool UGatherTextFromSourceCommandlet::ParseSourceText(const FString& Text, const
 	return true;
 }
 
+void UGatherTextFromSourceCommandlet::CountFileTypes(const TArray<FString>& FilesToProcess, EGatherSourcePasses Pass)
+{
+	FileTypeStats[Pass].FileType_total = FilesToProcess.Num();
+
+	for (const FString& SourceFile : FilesToProcess)
+	{
+		if (SourceFile.EndsWith(TEXT(".h"), ESearchCase::IgnoreCase))
+		{
+			++FileTypeStats[Pass].FileType_h;
+		}
+		else if (SourceFile.EndsWith(TEXT(".inl"), ESearchCase::IgnoreCase))
+		{
+			++FileTypeStats[Pass].FileType_inl;
+		}
+		else if (SourceFile.EndsWith(TEXT(".c"), ESearchCase::IgnoreCase))
+		{
+			++FileTypeStats[Pass].FileType_c;
+		}
+		else if (SourceFile.EndsWith(TEXT(".cpp"), ESearchCase::IgnoreCase))
+		{
+			++FileTypeStats[Pass].FileType_cpp;
+		}
+		else if (SourceFile.EndsWith(TEXT(".ini"), ESearchCase::IgnoreCase))
+		{
+			++FileTypeStats[Pass].FileType_ini;
+		}
+		else
+		{
+			++FileTypeStats[Pass].FileType_other;
+		}
+	}
+}
+
+void UGatherTextFromSourceCommandlet::PrunePrepassResults(TArray<FParsedNestedMacro>& Results)
+{
+	Results.Sort([](const FParsedNestedMacro& LHS, const FParsedNestedMacro& RHS)
+	{
+		return (LHS.MacroName < RHS.MacroName);
+	});
+
+	{
+		// Find exact duplicates
+		NestedMacroStats.DuplicateExact = 0;
+		for (int32 i = 0; i < Results.Num() - 1; ++i)
+		{
+			int32 j = i + 1;
+
+			if (Results[i] == Results[j])
+			{
+				++NestedMacroStats.DuplicateExact;
+			}
+		}
+	}
+
+	// Remove exact duplicates
+	Results.SetNum(Algo::Unique(Results));
+
+	{
+		// Find duplicates with the same macro name and contained macro
+		NestedMacroStats.DuplicateMacroName = 0;
+		NestedMacroStats.DuplicateExcluded = 0;
+
+		for (int32 i = 0; i < Results.Num() - 1; ++i)
+		{
+			int32 j = i + 1;
+
+			if (Results[i].MacroName == Results[j].MacroName &&
+				Results[i].MacroNameNested == Results[j].MacroNameNested)
+			{
+				++NestedMacroStats.DuplicateMacroName;
+
+				// If the duplicate macros are in header files, mark them for exclusion.
+				// We exclude header (.h) files only, because we don't have a full include graph to determine where they are used, their scope.
+				// In comparison, macros in translation units (.cpp files) are limited in scope to the same file.
+				// Without an include graph, the pragmatic solution is to give these macros unique names.
+				// We mark them excluded as opposed to removing them, because the regular macro descriptors need to check if they are nested.
+
+				if (Results[i].Filename.EndsWith(TEXT(".h"), ESearchCase::IgnoreCase) ||
+					Results[j].Filename.EndsWith(TEXT(".h"), ESearchCase::IgnoreCase))
+				{
+					++NestedMacroStats.DuplicateExcluded;
+
+					UE_LOG(LogGatherTextFromSourceCommandlet, Error, TEXT("Excluding duplicate %s macro in header files: %s:%d %s:%d"), *Results[i].MacroName, *Results[i].Filename, Results[i].LineStart, *Results[j].Filename, Results[j].LineStart);
+
+					Results[i].bExclude = true;
+					Results[j].bExclude = true;
+				}
+			}
+		}
+	}
+
+	// Collect size of results, to know whether it's reasonable to make a copy per thread (to avoid locking and atomics)
+	NestedMacroStats.SizeInBytes = 0;
+	for (const FParsedNestedMacro& Result : Results)
+	{
+		NestedMacroStats.SizeInBytes += FParsedNestedMacro::Size(Result);
+	}
+}
+
+bool UGatherTextFromSourceCommandlet::HandledInPrepass(const TArray<FParsedNestedMacro>& Results, const FString& Filename, int32 LineNumber, int32& AdvanceByLines)
+{
+	AdvanceByLines = 0;
+
+	// Check whether this Filename+Linenumber was handled in prepass
+	for (const FParsedNestedMacro& Result : Results)
+	{
+		if (LineNumber == Result.LineStart &&
+			Filename == Result.Filename)
+		{
+			AdvanceByLines = (Result.LineCount - 1);
+			return true;
+		}
+	}
+	return false;
+}
+
+void UGatherTextFromSourceCommandlet::LogStats()
+{
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("---Gather Source Stats------------------------"));
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("---Prepass------------------------------------"));
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("*.h =                   %14d files"), FileTypeStats[EGatherSourcePasses::Prepass].FileType_h.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("*.inl =                 %14d files"), FileTypeStats[EGatherSourcePasses::Prepass].FileType_inl.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("*.c =                   %14d files"), FileTypeStats[EGatherSourcePasses::Prepass].FileType_c.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("*.cpp =                 %14d files"), FileTypeStats[EGatherSourcePasses::Prepass].FileType_cpp.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("*.ini =                 %14d files"), FileTypeStats[EGatherSourcePasses::Prepass].FileType_ini.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("Other =                 %14d files"), FileTypeStats[EGatherSourcePasses::Prepass].FileType_other.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("Total =                 %14d files"), FileTypeStats[EGatherSourcePasses::Prepass].FileType_total.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("Duration =              %14.2f seconds"), FileTypeStats[EGatherSourcePasses::Prepass].Duration_sec.load());
+
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("---Mainpass-----------------------------------"));
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("*.h =                   %14d files"), FileTypeStats[EGatherSourcePasses::Mainpass].FileType_h.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("*.inl =                 %14d files"), FileTypeStats[EGatherSourcePasses::Mainpass].FileType_inl.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("*.c =                   %14d files"), FileTypeStats[EGatherSourcePasses::Mainpass].FileType_c.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("*.cpp =                 %14d files"), FileTypeStats[EGatherSourcePasses::Mainpass].FileType_cpp.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("*.ini =                 %14d files"), FileTypeStats[EGatherSourcePasses::Mainpass].FileType_ini.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("Other =                 %14d files"), FileTypeStats[EGatherSourcePasses::Mainpass].FileType_other.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("Total =                 %14d files"), FileTypeStats[EGatherSourcePasses::Mainpass].FileType_total.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("Duration =              %14.2f seconds"), FileTypeStats[EGatherSourcePasses::Mainpass].Duration_sec.load());
+
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("---Nested Macro-------------------------------"));
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("DuplicateExact =        %14d"), NestedMacroStats.DuplicateExact.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("DuplicateMacroName =    %14d"), NestedMacroStats.DuplicateMacroName.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("DuplicateExcluded =     %14d"), NestedMacroStats.DuplicateExcluded.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("Concatenation =         %14d"), NestedMacroStats.Concatenation.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("Variadic =              %14d"), NestedMacroStats.Variadic.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("SizeInBytes =           %14d bytes"), NestedMacroStats.SizeInBytes.load());
+
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT(""));
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("Nested_LOCTEXT =        %14d"), NestedMacroStats.Nested_LOCTEXT.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("Nested_NSLOCTEXT =      %14d"), NestedMacroStats.Nested_NSLOCTEXT.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("Nested_UI_COMMAND =     %14d"), NestedMacroStats.Nested_UI_COMMAND.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("Nested_UI_COMMAND_EXT = %14d"), NestedMacroStats.Nested_UI_COMMAND_EXT.load());
+
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT(""));
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("PrepassBegin =          %14d"), NestedMacroStats.PrepassBegin.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("PrepassEnd =            %14d"), NestedMacroStats.PrepassEnd.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("MainpassBegin =         %14d"), NestedMacroStats.MainpassBegin.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("MainpassMid =           %14d"), NestedMacroStats.MainpassMid.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("MainpassEnd =           %14d"), NestedMacroStats.MainpassEnd.load());
+
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT(""));
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("Submit =                %14d"), NestedMacroStats.Submit.load());
+	UE_LOG(LogGatherTextFromSourceCommandlet, Display, TEXT("SubmitNested =          %14d"), NestedMacroStats.SubmitNested.load());
+}
+
 int32 UGatherTextFromSourceCommandlet::FMacroArgumentGatherer::GetNumberOfArguments() const 
 {
 	return Args.Num();
@@ -1115,7 +1543,7 @@ bool UGatherTextFromSourceCommandlet::FMacroArgumentGatherer::Gather(const TCHAR
 	{
 		return false;
 	}
-	FString NewArgument = FString(Count, Arg);
+	FString NewArgument = FString::ConstructFromPtrSize(Arg, Count);
 	NewArgument.TrimEndInline();
 
 	int32 CurrentArgLen = CurrentArgument.Len();
@@ -1152,17 +1580,25 @@ void UGatherTextFromSourceCommandlet::FMacroArgumentGatherer::ExtractArguments(T
 	Args.Empty();
 }
 
-bool UGatherTextFromSourceCommandlet::FSourceFileParseContext::AddManifestText( const FString& Token, const FString& InNamespace, const FString& SourceText, const FManifestContext& Context )
+void UGatherTextFromSourceCommandlet::FSourceFileParseContext::AddManifestText(const FString& Token, const FString& InNamespace, const FString& SourceText, const FManifestContext& Context, bool IsNested)
 {
 	const bool bIsEditorOnly = EvaluateEditorOnlyDefineState() == EEditorOnlyDefineState::Defined;
 
 	if (!bIsEditorOnly || ShouldGatherFromEditorOnlyData)
 	{
 		const FString EntryDescription = FString::Printf(TEXT("%s macro"), *Token);
-		return OwnerCommandlet->GatherManifestHelper->AddSourceText(InNamespace, FLocItem(SourceText), Context, &EntryDescription);
-	}
 
-	return false;
+		MainpassResults.Emplace(InNamespace, SourceText, Context, EntryDescription);
+
+		if (IsNested)
+		{
+			++NestedMacroStats.SubmitNested;
+		}
+		else
+		{
+			++NestedMacroStats.Submit;
+		}
+	}
 }
 
 void UGatherTextFromSourceCommandlet::FSourceFileParseContext::PushMacroBlock( const FString& InBlockCtx )
@@ -1386,7 +1822,7 @@ void UGatherTextFromSourceCommandlet::FSourceFileParseContext::AddStringTableFro
 		if (TmpStringTable->ImportStrings(FullImportPath))
 		{
 			const FSourceLocation SourceLocation = FSourceLocation(InTableFilename, INDEX_NONE);
-			const FName TablePlatformName = OwnerCommandlet->GetSplitPlatformNameFromPath(InTableFilename);
+			const FName TablePlatformName = GetSplitPlatformNameFromPath_Static(InTableFilename, SplitPlatforms);
 
 			TmpStringTable->EnumerateSourceStrings([&](const FString& InKey, const FString& InSourceString)
 			{
@@ -1543,7 +1979,7 @@ bool UGatherTextFromSourceCommandlet::FMacroDescriptor::ParseArgumentString(cons
 	const TCHAR* Cursor = ArgStart;
 	for (; 0 < BracketStack; ++Cursor)
 	{
-		// First: check is we are at end of line.
+		// First: check if we are at end of line.
 		if ('\0' == *Cursor)
 		{
 			if (Cursor - ArgStart > 0)
@@ -1677,7 +2113,7 @@ bool UGatherTextFromSourceCommandlet::FMacroDescriptor::ParseArgumentString(cons
 		// We just closed the last ')' this is the end of all args for this macro 
 		if (0 == BracketStack)
 		{
-			// If the arg is empty it means we found a closing braket after a ',' or at the begining of a line			
+			// If the arg is empty it means we found a closing bracket after a ',' or at the begining of a line			
 			if (Cursor - ArgStart > 0)
 			{
 				if (!ArgsGatherer.Gather(ArgStart, UE_PTRDIFF_TO_INT32(Cursor - ArgStart)))
@@ -1842,7 +2278,7 @@ void UGatherTextFromSourceCommandlet::FUICommandMacroDescriptor::TryParseArgs(co
 			CommandContext.SourceLocation = SourceLocation;
 			CommandContext.PlatformName = Context.FilePlatformName;
 
-			Context.AddManifestText(GetToken(), Namespace, SourceText, CommandContext);
+			Context.AddManifestText(GetToken(), Namespace, SourceText, CommandContext, Context.bIsNested);
 
 			// parse DefaultLangTooltipString argument - this arg will be in quotes without TEXT macro
 			FString TooltipSourceText = Arguments[ArgIndexOffset + 2];
@@ -1858,7 +2294,7 @@ void UGatherTextFromSourceCommandlet::FUICommandMacroDescriptor::TryParseArgs(co
 					CommandTooltipContext.SourceLocation = SourceLocation;
 					CommandTooltipContext.PlatformName = CommandContext.PlatformName;
 
-					Context.AddManifestText(GetToken(), Namespace, TooltipSourceText, CommandTooltipContext);
+					Context.AddManifestText(GetToken(), Namespace, TooltipSourceText, CommandTooltipContext, Context.bIsNested);
 				}
 			}
 		}
@@ -1909,113 +2345,404 @@ void UGatherTextFromSourceCommandlet::FUICommandExtMacroDescriptor::TryParse(con
 	}
 }
 
-void UGatherTextFromSourceCommandlet::FMetasoundParamMacroDescriptor::TryParseArgs(const FString& Text, FSourceFileParseContext& Context, const TArray<FString>& Arguments, const int32 ArgIndexOffset) const
+void UGatherTextFromSourceCommandlet::FNestedMacroPrepassDescriptor::TryParse(const FString& Text, FSourceFileParseContext& Context) const
 {
-	FString NameArgument = Arguments[ArgIndexOffset];
-	// Remove whitespace at the start of the line.
-	NameArgument.TrimStartInline();
+	++NestedMacroStats.PrepassBegin;
 
-	// NAME should neverbe be in quotes 
-	bool HasQuotes = false;
-	FString MacroDesc = FString::Printf(TEXT("%s(%d): \"InDescription\" argument in %s macro"), *Context.Filename, Context.LineNumber, *GetToken());
-	FString SourceLocation = FSourceLocation(Context.Filename, Context.LineNumber).ToString();
-	if (PrepareArgument(NameArgument, true, MacroDesc, HasQuotes))
+	if (Context.ExcludedRegion || Context.WithinBlockComment || Context.WithinLineComment || Context.WithinStringLiteral)
 	{
-		if (HasQuotes)
-		{
-			UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("%s: %s macro has NAME argument enclosed in double quotes and cannot be gathered. Please make sure the argument is not enclosed in double quotes."), *SourceLocation, *GetToken());
-			return;
-		}
-		else if (NameArgument.IsEmpty())
-		{
-			//The metasound param does not have a NAME so we cannot gather it 
-			UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("%s: %s macro has an empty NAME argument and cannot be gathered."), *SourceLocation, *GetToken());
-			return;
-		}
+		return;
 	}
 
-	FString NameText= Arguments[ArgIndexOffset + 1];
-	// Remove whitespace at the start of the line.
-	NameText.TrimStartInline();
+	++NestedMacroStats.PrepassEnd;
 
-	// NAME_TEXT should always be in quotes 
-	HasQuotes = false;
-	if (PrepareArgument(NameText, true, MacroDesc, HasQuotes))
+	TArray<FString> TextLines;
+	for (int32 i = Context.LineIdx; i < Context.TextLines.Num(); ++i)
 	{
-		if (!HasQuotes)
+		// We do not use StripCommentsFromToken here, as it modifies Context
+		FString TextLine = Context.TextLines[i].TrimStartAndEnd();
+		if (TextLine.IsEmpty())
 		{
-			UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("%s: %s macro has NAME_TEXT argument not enclosed in double quotes and cannot be gathered. Please make sure the argument is enclosed in double quotes."), *SourceLocation, *GetToken());
-			return;
+			continue;
 		}
-		else if (NameText.IsEmpty())
+
+		if (!TextLine.EndsWith("\\"))
 		{
-			//The metasound param does not have a NAME_TEXT so we cannot gather it 
-			UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("%s: %s macro has an empty NAME_TEXT argumentand cannot be gathered."), *SourceLocation, *GetToken());
-			return;
+			TextLines.Add(TextLine);	// Collect trailing line
+			break;
 		}
+		TextLines.Add(TextLine);
 	}
 
-	// parse TOOLTIP_TEXT argument- this arg will be in quotes without TEXT macro
-	FString TooltipSourceText = Arguments[ArgIndexOffset + 2];
-	TooltipSourceText.TrimStartInline();
-	MacroDesc = FString::Printf(TEXT("%s(%d): \"InDescription\" argument in %s macro"), *Context.Filename, Context.LineNumber, *GetToken());
-	if (PrepareArgument(TooltipSourceText, true, MacroDesc, HasQuotes))
+	FString MacroLines = FString::Join(TextLines, TEXT("\n"));
+
+	// Remove #define from start
+	MacroLines = MacroLines.RightChop(UGatherTextFromSourceCommandlet::DefineString.Len()).TrimStart();
+
+	// Find the Opening bracket
+	int32 Pos = MacroLines.Find(TEXT("("), ESearchCase::CaseSensitive);
+	if (Pos < 0)
 	{
-		if (!HasQuotes)
-		{
-			UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("%s: %s macro has a TOOLTIP_TEXT argument not enclosed in double quotes and cannot be gathered. Please ensure the argument is enclosed in double quotes."), *SourceLocation, *GetToken());
-			return;
-		}
-		else if (TooltipSourceText.IsEmpty())
-		{
-			UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("%s: %s macro has an empty TOOLTIP_TEXT and cannot be gathered."), *SourceLocation, *GetToken());
-			return;
-		}
-		else
-		{
-			// All Metasound loc data is editor only 
-			static const FString WithEditorString = TEXT("WITH_EDITOR");
+		return;
+	}
 
-			// Create the tooltip entry first 
-			FManifestContext MetasoundArgumentContext;
-			MetasoundArgumentContext.Key = NameArgument + TEXT("ToolTip");
-			MetasoundArgumentContext.SourceLocation = SourceLocation;
-			MetasoundArgumentContext.PlatformName = Context.FilePlatformName;
+	FString MacroName = MacroLines.Mid(0, Pos);		// excludes bracket
+	FString Content = MacroLines.RightChop(Pos);	// includes open and close brackets
+	MacroName.TrimEndInline();
+	Content.TrimStartInline();
 
-			// We manually append to the macro stack  for editor only due to the nature of METASOUND_PARAM
-			Context.PushMacroBlock(WithEditorString);
-			Context.AddManifestText(GetToken(), Context.Namespace, TooltipSourceText, MetasoundArgumentContext);
+	// Any combination of the regular macros can be nested within this macro
+	int32 LineStart = Context.LineNumber;
+	int32 LineCount = TextLines.Num();
+	bool bAdvance = false;
+	if (Content.Contains(MacroString_LOCTEXT, ESearchCase::CaseSensitive) &&
+		!Content.Contains(TEXT("LOCTEXT_NAMESPACE"), ESearchCase::CaseSensitive))
+	{
+		PrepassResults.Emplace(MacroName, MacroString_LOCTEXT, Context.Filename, Content, LineStart, LineCount);
+		++NestedMacroStats.Nested_LOCTEXT;
+		bAdvance = true;
+	}
+	if (Content.Contains(MacroString_NSLOCTEXT, ESearchCase::CaseSensitive))
+	{
+		PrepassResults.Emplace(MacroName, MacroString_NSLOCTEXT, Context.Filename, Content, LineStart, LineCount);
+		++NestedMacroStats.Nested_NSLOCTEXT;
+		bAdvance = true;
+	}
+	if (Content.Contains(MacroString_UI_COMMAND, ESearchCase::CaseSensitive))
+	{
+		PrepassResults.Emplace(MacroName, MacroString_UI_COMMAND, Context.Filename, Content, LineStart, LineCount);
+		++NestedMacroStats.Nested_UI_COMMAND;
+		bAdvance = true;
+	}
+	if (Content.Contains(MacroString_UI_COMMAND_EXT, ESearchCase::CaseSensitive))
+	{
+		PrepassResults.Emplace(MacroName, MacroString_UI_COMMAND_EXT, Context.Filename, Content, LineStart, LineCount);
+		++NestedMacroStats.Nested_UI_COMMAND_EXT;
+		bAdvance = true;
+	}
 
-			// now add the display name entry. We can recycle a lot of the values used for tooltips  
-			MetasoundArgumentContext.Key = NameArgument + TEXT("DisplayName");
-			Context.AddManifestText(GetToken(), Context.Namespace, NameText, MetasoundArgumentContext);
-
-			// Now we pop the editor only macro 
-			Context.PopMacroBlock();
-		}
+	if (bAdvance)
+	{
+		Context.LineIdx += (LineCount - 1);
 	}
 }
 
-void UGatherTextFromSourceCommandlet::FMetasoundParamMacroDescriptor::TryParse(const FString& Text, FSourceFileParseContext& Context) const
+static int32 FindMatching(const FString& Params, TCHAR Opener, TCHAR Closer, int32 Depth)
 {
-	// Attempt to parse something of the format
-	// METASOUND_PARAM(NAME, NAME_TEXT, TOOLTIP_TEXT)
-
-	if (!Context.ExcludedRegion && !Context.WithinBlockComment && !Context.WithinLineComment && !Context.WithinStringLiteral)
+	int32 Pos = 0;
+	for (const TCHAR* Char = *Params; *Char; ++Char)
 	{
-		TArray<FString> Arguments;
-		if (ParseArgsFromMacro(StripCommentsFromToken(Text, Context), Arguments, Context))
+		if (*Char == Opener)
 		{
-			// Validate that we got the rightnumber of Arguments
-			if (Arguments.Num() < GetMinNumberOfArgument())
+			++Depth;
+		}
+		else if (*Char == Closer)
+		{
+			--Depth;
+			if (Depth == 0)
 			{
-				UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("%s(%d): Expected at least %d arguments for %s macro, but got %d. %s"), *Context.Filename, Context.LineNumber, GetMinNumberOfArgument(), *GetToken(), Arguments.Num(), *FLocTextHelper::SanitizeLogOutput(Context.LineText.TrimStartAndEnd()));
-				return;
+				return Pos;
 			}
+		}
+		++Pos;
+	}
+	return -1;
+}
 
-			TryParseArgs(Text, Context, Arguments, 0);
+void UGatherTextFromSourceCommandlet::FNestedMacroDescriptor::TryParse(const FString& Text, FSourceFileParseContext& Context) const
+{
+	++NestedMacroStats.MainpassBegin;
+
+	if (Context.ExcludedRegion || Context.WithinBlockComment || Context.WithinLineComment || Context.WithinStringLiteral)
+	{
+		return;
+	}
+
+	// Ignore matches of the prefix, such as METASOUND_PARAM_EXTERN when we're looking for METASOUND_PARAM
+	int32 Pos = Text.Find(TEXT("("), ESearchCase::CaseSensitive);
+	if (Pos < 0)
+	{
+		return;
+	}
+	FString MacroName = GetToken();
+	FString MacroNameCurrent = Text.Mid(0, Pos);		// excludes bracket
+	MacroNameCurrent.TrimEndInline();
+	if (MacroNameCurrent != MacroName)
+	{
+		return;
+	}
+
+	// Ignore matches of the suffix, such as DECLARE_METASOUND_PARAM when we're looking for METASOUND_PARAM
+	Pos = Context.LineText.Find(MacroName, ESearchCase::CaseSensitive);
+	if (Pos > 0)
+	{
+		TCHAR Char = Context.LineText[Pos - 1];
+		if (!FText::IsWhitespace(Char) && Char != TCHAR('(') && Char != TCHAR('{'))
+		{
+			return;
 		}
 	}
+
+	// Parse outer macro values									MACRONAME("first", "second", "third")
+	TArray<FString> ArgArrayValues;
+	FSourceFileParseContext LocalCtxt1 = Context;		// Local context copy, to avoid changes to the main context
+	ParseArgsFromMacro(StripCommentsFromToken(Text, LocalCtxt1), ArgArrayValues, LocalCtxt1);
+	for (FString& Arg : ArgArrayValues)
+	{
+		Arg.TrimStartAndEndInline();
+	}
+
+	// Parse outer macro param names from token and content		MACRONAME(param0, param1, param2)
+	FString MacroContent = MacroName;
+	MacroContent.Append(Content);
+
+	TArray<FString> ArgArray;
+	FSourceFileParseContext LocalCtxt2 = Context;		// Local context copy, to avoid changes to the main context
+	ParseArgsFromMacro(StripCommentsFromToken(MacroContent, LocalCtxt2), ArgArray, LocalCtxt2);
+	Pos = 0;
+	int32 PosLast = ArgArray.Num() - 1;
+	bool bVariadic = false;
+	for (FString& Arg : ArgArray)
+	{
+		Arg.TrimStartAndEndInline();
+
+		if (Arg.Contains(TEXT("##")))
+		{
+			UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("%s(%d): Concatenation in %s macro with \"##\" not supported"), *Context.Filename, Context.LineNumber, *MacroName);
+			++NestedMacroStats.Concatenation;
+			return;
+		}
+
+		if (Arg.Contains(TEXT("...")))
+		{
+			++NestedMacroStats.Variadic;
+		
+			if (Pos != PosLast)
+			{
+				UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("%s(%d): Variadic in %s macro with \"...\" must be last param"), *Context.Filename, Context.LineNumber, *MacroName);
+				return;
+			}
+			bVariadic = true;
+		}
+		++Pos;
+	}
+
+	if (bVariadic)
+	{
+		if ((ArgArray.Num() - 1) > ArgArrayValues.Num())
+		{
+			UE_LOG(LogGatherTextFromSourceCommandlet, Error, TEXT("%s(%d): Expected minimum of %d arguments for %s variadic macro, but got %d. %s"), *Context.Filename, Context.LineNumber, (ArgArray.Num() - 1), *GetToken(), ArgArrayValues.Num(), *FLocTextHelper::SanitizeLogOutput(Context.LineText.TrimStartAndEnd()));
+			return;
+		}
+	}
+	else if (ArgArray.Num() != ArgArrayValues.Num())
+	{
+		UE_LOG(LogGatherTextFromSourceCommandlet, Error, TEXT("%s(%d): Expected %d arguments for %s macro, but got %d. %s"), *Context.Filename, Context.LineNumber, ArgArray.Num(), *GetToken(), ArgArrayValues.Num(), *FLocTextHelper::SanitizeLogOutput(Context.LineText.TrimStartAndEnd()));
+		return;
+	}
+
+	// Create map of argument to replacement argument
+	TMap<FString, FString> ArgToValueMap;
+	for (int32 ArgIdx = 0; ArgIdx < ArgArray.Num(); ++ArgIdx)
+	{
+		FString Arg = ArgArray[ArgIdx];	
+		if (Arg.Contains(TEXT("...")))
+		{
+			// For variadic, collect remaining args
+			TArray<FString> VarArgs;
+			for (int32 VarIdx = ArgIdx; VarIdx < ArgArrayValues.Num(); ++VarIdx)
+			{
+				VarArgs.Add(ArgArrayValues[VarIdx]);
+			}
+			FString VarArgsAll = FString::Join(VarArgs, TEXT(", "));
+			ArgToValueMap.Emplace(TEXT("__VA_ARGS__"), VarArgsAll);
+			break;
+		}
+		else
+		{
+			ArgToValueMap.Emplace(Arg, ArgArrayValues[ArgIdx]);
+		}
+	}
+	// Sort the map, so longer params with the same prefix are replaced first (example: NAME vs NAME_TEXT)
+	ArgToValueMap.KeySort([](const FString& LHS, const FString& RHS)
+	{
+		return LHS.Len() > RHS.Len();
+	});
+
+	// Parse inner macro from Contents
+	FMacroDescriptor* InnerDescriptor = nullptr;
+	if (MacroNameNested == MacroString_LOCTEXT)
+	{
+		// New Localization System with Namespace as preprocessor define.
+		InnerDescriptor = new FStringMacroDescriptor(FString(MacroString_LOCTEXT),
+			FStringMacroDescriptor::FMacroArg(FStringMacroDescriptor::MAS_Identifier, true),
+			FStringMacroDescriptor::FMacroArg(FStringMacroDescriptor::MAS_SourceText, true));
+	}
+	else if (MacroNameNested == MacroString_NSLOCTEXT)
+	{
+		// New Localization System with Namespace as literal argument.
+		InnerDescriptor = new FStringMacroDescriptor(FString(MacroString_NSLOCTEXT),
+			FStringMacroDescriptor::FMacroArg(FStringMacroDescriptor::MAS_Namespace, true),
+			FStringMacroDescriptor::FMacroArg(FStringMacroDescriptor::MAS_Identifier, true),
+			FStringMacroDescriptor::FMacroArg(FStringMacroDescriptor::MAS_SourceText, true));
+	}
+	else if (MacroNameNested == MacroString_UI_COMMAND)
+	{
+		InnerDescriptor = new FUICommandMacroDescriptor();
+	}
+	else if (MacroNameNested == MacroString_UI_COMMAND_EXT)
+	{
+		InnerDescriptor = new FUICommandExtMacroDescriptor();
+	}
+	ensure(InnerDescriptor != nullptr);
+
+	// Replace params in any contained macros
+	Pos = 0;
+	while ((Pos = Content.Find(MacroNameNested, ESearchCase::CaseSensitive, ESearchDir::FromStart, Pos)) >= 0)
+	{
+		// Trim content down to just the current arguments
+		FString MacroInner = Content.RightChop(Pos + MacroNameNested.Len() + 1);	// exclude macro name
+		int32 PosClose = FindMatching(MacroInner, TCHAR('('), TCHAR(')'), 1);
+		if (PosClose < 0)
+		{
+			UE_LOG(LogGatherTextFromSourceCommandlet, Error, TEXT("%s(%d): Missing matching closing bracket in %s macro"), *Context.Filename, Context.LineNumber, *MacroName);
+			delete InnerDescriptor;
+			return;
+		}
+		FString MacroInnerParams = MacroInner.Mid(0, PosClose);						// exclude bracket
+
+		for (const auto& Pair : ArgToValueMap)
+		{
+			MacroInnerParams.ReplaceInline(*Pair.Key, *Pair.Value, ESearchCase::CaseSensitive);
+		}
+
+		FString ParamsNewAll;
+		TryParseArgs(MacroInnerParams, ParamsNewAll);
+
+		FString ParamsWrapped = MacroNameNested;
+		ParamsWrapped += TEXT('(');
+		ParamsWrapped += ParamsNewAll;
+		ParamsWrapped += TEXT(')');
+
+		FSourceFileParseContext LocalCtxt3 = Context;				// Local context copy, to avoid changes to the main context
+		LocalCtxt3.bIsNested = true;
+		if (InnerDescriptor)
+		{
+			InnerDescriptor->TryParse(ParamsWrapped, LocalCtxt3);
+		}
+
+		++NestedMacroStats.MainpassMid;
+		++Pos;
+	}
+	delete InnerDescriptor;
+
+	++NestedMacroStats.MainpassEnd;
+}
+
+bool UGatherTextFromSourceCommandlet::FNestedMacroDescriptor::IsApplicableFile(const FString& InFilename) const
+{
+	// If this nested macro was found in a translation unit (.cpp) then it can only be used in the same file
+	if (Filename.EndsWith(TEXT(".cpp"), ESearchCase::IgnoreCase) &&
+		Filename != InFilename)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+void UGatherTextFromSourceCommandlet::FNestedMacroDescriptor::TryParseArgs(const FString& MacroInnerParams, FString& ParamsNewAll)
+{
+	// Split by comma delimiter, but not within quotes
+	TArray<FString> Params;
+	FString Collect;
+	Collect.Reserve(MacroInnerParams.Len());
+	bool bWithinQuote = false;
+	const TCHAR* CharPrev = *MacroInnerParams;
+	for (const TCHAR* Char = *MacroInnerParams; *Char; ++Char)
+	{
+		if (*Char == TEXT('\"') && *CharPrev != TEXT('\\'))
+		{
+			// Within non-escaped quotes
+			bWithinQuote = !bWithinQuote;
+		}
+		else if (*Char == TEXT(',') && !bWithinQuote)
+		{
+			Params.Add(Collect);
+			Collect.Reset();
+			CharPrev = Char;
+			continue;
+		}
+		Collect += *Char;
+		CharPrev = Char;
+	}
+	Params.Add(Collect);
+
+	TArray<FString> ParamsNew;
+	for (const FString& Param : Params)
+	{
+		FString ParamTrim = Param.TrimStartAndEnd();
+
+		if (ParamTrim.StartsWith(TEXT("\"")) || ParamTrim.StartsWith(TEXT("#")))
+		{
+			Collect.Reset();
+			Collect.Reserve(ParamTrim.Len());
+			bWithinQuote = false;
+			bool bWithinStringification = false;
+			CharPrev = *ParamTrim;
+			for (const TCHAR* Char = *ParamTrim; *Char; ++Char)
+			{
+				if (*Char == TEXT('\"') && *CharPrev != TEXT('\\'))
+				{
+					// Within non-escaped quotes
+					bWithinQuote = !bWithinQuote;
+					CharPrev = Char;
+					// Skip quotes, we'll requote
+					continue;
+				}
+				if (*Char == TEXT('#') && !bWithinQuote)
+				{
+					bWithinStringification = true;
+					CharPrev = Char;
+					continue;
+				}
+				if (bWithinStringification)
+				{
+					// Stringification ends when finding a quote or space
+					bool bIsQuote = (*Char == TEXT('\"'));
+					bool bIsSpace = (*Char == TEXT(' '));
+					if (bIsQuote)
+					{
+						bWithinQuote = true;
+					}
+					if (bIsQuote || bIsSpace)
+					{
+						bWithinStringification = false;
+						CharPrev = Char;
+						continue;
+					}
+				}
+				if (bWithinStringification || bWithinQuote)
+				{
+					Collect += *Char;
+				}
+				CharPrev = Char;
+			}
+		}
+		else
+		{
+			Collect = ParamTrim;
+		}
+
+		FString ParamRebuild;
+		ParamRebuild += TEXT('\"');
+		ParamRebuild += Collect;
+		ParamRebuild += TEXT('\"');
+
+		ParamsNew.Add(ParamRebuild);
+	}
+
+	ParamsNewAll = FString::Join(ParamsNew, TEXT(", "));
 }
 
 void UGatherTextFromSourceCommandlet::FStringMacroDescriptor::TryParse(const FString& Text, FSourceFileParseContext& Context) const
@@ -2081,10 +2808,17 @@ void UGatherTextFromSourceCommandlet::FStringMacroDescriptor::TryParse(const FSt
 					}
 				}
 
-				if ( Identifier.IsEmpty() )
+				if (Identifier.IsEmpty())
 				{
-					//The command doesn't have an identifier so we can't gather it
+					// The command doesn't have an identifier so we can't gather it
 					UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("%s: %s macro has an empty identifier and cannot be gathered."), *SourceLocation, *GetToken() );
+					return;
+				}
+
+				if (SourceText.IsEmpty())
+				{
+					// The command doesn't have a source text so we can't gather it
+					UE_LOG(LogGatherTextFromSourceCommandlet, Warning, TEXT("%s: %s macro has an empty source text and cannot be gathered."), *SourceLocation, *GetToken() );
 					return;
 				}
 
@@ -2107,7 +2841,7 @@ void UGatherTextFromSourceCommandlet::FStringMacroDescriptor::TryParse(const FSt
 						TextNamespaceUtil::StripPackageNamespaceInline(Namespace.GetValue());
 					}
 
-					Context.AddManifestText( GetToken(), Namespace.GetValue(), SourceText, MacroContext );
+					Context.AddManifestText(GetToken(), Namespace.GetValue(), SourceText, MacroContext, Context.bIsNested);
 				}
 			}
 		}
@@ -2361,7 +3095,7 @@ void UGatherTextFromSourceCommandlet::FStructuredLogMacroDescriptor::TryParse(co
 				MacroContext.SourceLocation = SourceLocation;
 				MacroContext.PlatformName = Context.FilePlatformName;
 
-				Context.AddManifestText(GetToken(), Namespace, Format, MacroContext);
+				Context.AddManifestText(GetToken(), Namespace, Format, MacroContext, Context.bIsNested);
 			}
 		}
 	}
@@ -2383,6 +3117,19 @@ void UGatherTextFromSourceCommandlet::FIniNamespaceDescriptor::TryParse(const FS
 			}
 		}
 	}
+}
+
+int32 UGatherTextFromSourceCommandlet::FParsedNestedMacro::Size(const UGatherTextFromSourceCommandlet::FParsedNestedMacro& Result)
+{
+	int32 SizeInBytes = 0;
+	SizeInBytes += Result.MacroName.GetAllocatedSize();
+	SizeInBytes += Result.MacroNameNested.GetAllocatedSize();
+	SizeInBytes += Result.Filename.GetAllocatedSize();
+	SizeInBytes += Result.Content.GetAllocatedSize();
+	SizeInBytes += sizeof(Result.LineStart);
+	SizeInBytes += sizeof(Result.LineCount);
+	SizeInBytes += sizeof(Result.bExclude);
+	return SizeInBytes;
 }
 
 #undef LOC_DEFINE_REGION

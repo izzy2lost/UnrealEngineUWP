@@ -1,178 +1,282 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
-using System.Text.Json;
-using System.IO;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
-using UnrealBuildBase;
-using Microsoft.Extensions.Logging;
-using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
-using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Nodes;
-using System.Threading;
-using System.Data;
-using EpicGames.Horde.Storage.Backends;
-using Microsoft.Extensions.DependencyInjection;
+using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Artifacts;
-using System.Linq;
-using System.Diagnostics;
+using EpicGames.Horde.Commits;
+using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Nodes;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Symbols;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 #nullable enable
 
 namespace AutomationTool.Tasks
 {
 	/// <summary>
-	/// Parameters for a CreateArtifact task
+	/// Parameters for a <see cref="CreateArtifactTask"/>.
 	/// </summary>
 	public class CreateArtifactTaskParameters
 	{
 		/// <summary>
-		/// Name for the artifact
+		/// Name of the artifact
 		/// </summary>
 		[TaskParameter]
-		public string Name = String.Empty;
+		public string Name { get; set; } = null!;
 
 		/// <summary>
-		/// Type of the artifact
-		/// </summary>
-		[TaskParameter(Optional = true)]
-		public string Type = "unknown";
-
-		/// <summary>
-		/// Description for the artifact
-		/// </summary>
-		[TaskParameter(Optional = true)]
-		public string? Description;
-
-		/// <summary>
-		/// Base directory to resolve relative paths for input files.
+		/// The artifact type. Determines the permissions and expiration policy for the artifact.
 		/// </summary>
 		[TaskParameter]
-		public string? BaseDir;
+		public string Type { get; set; } = null!;
 
 		/// <summary>
-		/// Changelist number for this artifact
+		/// Description for the artifact. Will be shown through the Horde dashboard.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int? Change;
+		public string? Description { get; set; }
 
 		/// <summary>
-		/// Files to be uploaded.
+		/// Base path for the uploaded files. All the tagged files must be under this directory. Defaults to the workspace root directory.
 		/// </summary>
-		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files = "...";
+		[TaskParameter(Optional = true)]
+		public string? BaseDir { get; set; }
+
+		/// <summary>
+		/// Stream containing the artifact.
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string? StreamId { get; set; }
+
+		/// <summary>
+		/// Commit for the uploaded artifact.
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string? Commit { get; set; }
+
+		/// <summary>
+		/// Files to include in the artifact.
+		/// </summary>
+		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
+		public string Files { get; set; } = null!;
+
+		/// <summary>
+		/// Queryable keys for this artifact, separated by semicolons.
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string? Keys { get; set; }
+
+		/// <summary>
+		/// Other metadata for the artifact, separated by semicolons.
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string? Metadata { get; set; }
+
+		/// <summary>
+		/// Whether to add aliases for symbol files
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public bool Symbols { get; set; }
 	}
 
 	/// <summary>
-	/// Deploys a tool update through Horde
+	/// Uploads an artifact to Horde
 	/// </summary>
 	[TaskElement("CreateArtifact", typeof(CreateArtifactTaskParameters))]
-	public class CreateArtifactTask : SpawnTaskBase
+	public class CreateArtifactTask : BgTaskImpl
 	{
-		class LoggerProviderAdapter : ILoggerProvider
-		{
-			readonly ILogger _logger;
-
-			public LoggerProviderAdapter(ILogger logger) => _logger = logger;
-			public ILogger CreateLogger(string categoryName) => _logger;
-			public void Dispose() { }
-		}
+		readonly CreateArtifactTaskParameters _parameters;
 
 		/// <summary>
-		/// Parameters for this task
+		/// Constructor.
 		/// </summary>
-		CreateArtifactTaskParameters Parameters;
+		/// <param name="parameters">Parameters for this task.</param>
+		public CreateArtifactTask(CreateArtifactTaskParameters parameters)
+			=> _parameters = parameters;
 
 		/// <summary>
-		/// Construct a Helm task
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public CreateArtifactTask(CreateArtifactTaskParameters InParameters)
+		/// <param name="job">Information about the current job.</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include.</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			Parameters = InParameters;
-		}
+			ArtifactName name = new ArtifactName(_parameters.Name);
+			ArtifactType type = new ArtifactType(_parameters.Type);
+			List<string> keys = (_parameters.Keys ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+			List<string> metadata = (_parameters.Metadata ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
 
-		/// <summary>
-		/// Execute the task.
-		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
-		{
-			// Create a DI container for building the graph
-			ServiceCollection serviceCollection = new ServiceCollection();
-			serviceCollection.AddHorde();
-			serviceCollection.AddLogging(builder => builder.AddProvider(new LoggerProviderAdapter(Log.Logger)));
-			serviceCollection.Configure<HordeOptions>(x => x.AllowAuthPrompt = !Automation.IsBuildMachine);
-			serviceCollection.Configure<LoggerFilterOptions>(options => options.AddFilter(typeof(HttpClient).FullName, LogLevel.Warning));
-
-			await using ServiceProvider serviceProvider = serviceCollection.BuildServiceProvider();
-
-			ArtifactName artifactName = new ArtifactName(Parameters.Name);
-			ArtifactType artifactType = new ArtifactType(Parameters.Type);
-
-			HordeHttpClient hordeHttpClient = serviceProvider.GetRequiredService<HordeHttpClient>();
-			int? change = (Parameters.Change == 0) ? (int?)null : Parameters.Change;
-			CreateArtifactResponse response = await hordeHttpClient.CreateArtifactAsync(artifactName, artifactType, Parameters.Description, change: change);
-			Logger.LogInformation("Creating artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) (ns: {NamespaceId}, ref: {RefName})", response.ArtifactId, artifactName, artifactType, response.NamespaceId, response.RefName);
-
-			Stopwatch timer = Stopwatch.StartNew();
-
-			HttpStorageClientFactory httpStorageClientFactory = serviceProvider.GetRequiredService<HttpStorageClientFactory>();
-			using (IStorageClient client = httpStorageClientFactory.CreateClient(response.NamespaceId, response.Token))
+			// Add keys for the job that's executing
+			string? jobId = Environment.GetEnvironmentVariable("UE_HORDE_JOBID");
+			if (!String.IsNullOrEmpty(jobId))
 			{
-				await using (IBlobWriter writer = client.CreateBlobWriter(response.RefName))
+				keys.Add($"job:{jobId}");
+
+				string? stepId = Environment.GetEnvironmentVariable("UE_HORDE_STEPID");
+				if (!String.IsNullOrEmpty(stepId))
 				{
-					DirectoryReference baseDir = ResolveDirectory(Parameters.BaseDir);
-					List<FileInfo> files = ResolveFilespec(baseDir, Parameters.Files, TagNameToFileSet).Select(x => x.ToFileInfo()).ToList();
-
-					int totalCount = files.Count;
-					long totalSize = files.Sum(x => x.Length);
-
-					IBlobRef<DirectoryNode> outputNodeRef = await writer.WriteFilesAsync(baseDir.ToDirectoryInfo(), files, progress: new UpdateStatsLogger(totalCount, totalSize, Logger));
-					await writer.FlushAsync();
-
-					await client.WriteRefAsync(response.RefName, outputNodeRef);
+					keys.Add($"job:{jobId}/step:{stepId}");
 				}
 			}
 
-			Logger.LogInformation("Completed in {Time:n1}s", timer.Elapsed.TotalSeconds);
+			// Figure out the current change and stream id
+			StreamId streamId;
+			if (!String.IsNullOrEmpty(_parameters.StreamId))
+			{
+				streamId = new StreamId(_parameters.StreamId);
+			}
+			else
+			{
+				string? streamIdEnvVar = Environment.GetEnvironmentVariable("UE_HORDE_STREAMID");
+				if (!String.IsNullOrEmpty(streamIdEnvVar))
+				{
+					streamId = new StreamId(streamIdEnvVar);
+				}
+				else
+				{
+					throw new AutomationException("Missing UE_HORDE_STREAMID environment variable; unable to determine current stream.");
+				}
+			}
+
+			CommitId commitId;
+			if (!String.IsNullOrEmpty(_parameters.Commit))
+			{
+				commitId = new CommitId(_parameters.Commit);
+			}
+			else
+			{
+				int change = CommandUtils.P4Env.Changelist;
+				if (change > 0)
+				{
+					commitId = CommitId.FromPerforceChange(CommandUtils.P4Env.Changelist);
+				}
+				else
+				{
+					throw new AutomationException("Unknown changelist. Please run with -P4.");
+				}
+			}
+
+			// Resolve the files to include
+			DirectoryReference baseDir = ResolveDirectory(_parameters.BaseDir);
+			List<FileReference> files = BgTaskImpl.ResolveFilespec(baseDir, _parameters.Files, tagNameToFileSet).ToList();
+
+			bool validFiles = true;
+			foreach (FileReference file in files)
+			{
+				if (!file.IsUnderDirectory(baseDir))
+				{
+					Logger.LogError("Artifact file {File} is not under {BaseDir}", file, baseDir);
+					validFiles = false;
+				}
+			}
+
+			if (!validFiles)
+			{
+				throw new AutomationException($"Unable to create artifact {name} with given file list.");
+			}
+
+			// Create the new artifact
+			IHordeClient hordeClient = CommandUtils.ServiceProvider.GetRequiredService<IHordeClient>();
+			IArtifactBuilder artifact = await hordeClient.Artifacts.CreateAsync(name, type, _parameters.Description, streamId, commitId, keys, metadata);
+			Logger.LogInformation("Creating artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with namespace {NamespaceId}, ref {RefName} ({Link})", artifact.Id, name, type, artifact.NamespaceId, artifact.RefName, $"{hordeClient.ServerUrl}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
+
+			// Upload the files
+			Stopwatch timer = Stopwatch.StartNew();
+
+			IHashedBlobRef<DirectoryNode> rootRef;
+			await using (IBlobWriter blobWriter = artifact.CreateBlobWriter())
+			{
+				rootRef = await blobWriter.WriteFilesAsync(baseDir, files);
+			}
+
+			// Tag any uploaded symbols
+			if (_parameters.Symbols)
+			{
+				foreach (FileReference file in files)
+				{
+					string? hash = await SymStore.GetHashAsync(file, Logger, default);
+					if (hash != null)
+					{
+						string path = file.MakeRelativeTo(baseDir);
+
+						FileEntry? fileEntry = await FindFileAsync(rootRef, path);
+						if (fileEntry == null)
+						{
+							Logger.LogWarning("Unable to find file {Path} in uploaded data.", path);
+						}
+						else
+						{
+							string fileName = file.GetFileName().ToUpperInvariant();
+							string alias = $"sym:{fileName}/{hash}/{fileName}";
+							Logger.LogInformation("Adding symbol alias: {Alias}", alias);
+							await artifact.AddAliasAsync(alias, fileEntry.Target.Handle);
+						}
+					}
+				}
+			}
+
+			// Finalize the artifact
+			await artifact.CompleteAsync(rootRef);
+			Logger.LogInformation("Uploaded artifact {ArtifactId} in {Time:n1}s", artifact.Id, timer.Elapsed.TotalSeconds);
 		}
 
-		/// <summary>
-		/// Output this task out to an XML writer.
-		/// </summary>
-		public override void Write(XmlWriter Writer)
+		static async Task<FileEntry?> FindFileAsync(IBlobRef<DirectoryNode> rootDir, string path, CancellationToken cancellationToken = default)
 		{
-			Write(Writer, Parameters);
+			string[] fragments = path.Split('/', '\\');
+			if (fragments.Length == 0)
+			{
+				return null;
+			}
+
+			IBlobRef<DirectoryNode> directoryRef = rootDir;
+			for (int idx = 0;; idx++)
+			{
+				DirectoryNode directory = await directoryRef.ReadBlobAsync(cancellationToken);
+				if (idx + 1 < fragments.Length)
+				{
+					if (directory.TryGetDirectoryEntry(fragments[idx], out DirectoryEntry? directoryEntry))
+					{
+						directoryRef = directoryEntry.Handle;
+					}
+					else
+					{
+						return null;
+					}
+				}
+				else
+				{
+					if (directory.TryGetFileEntry(fragments[idx], out FileEntry? fileEntry))
+					{
+						return fileEntry;
+					}
+					else
+					{
+						return null;
+					}
+				}
+			}
 		}
 
-		/// <summary>
-		/// Find all the tags which are used as inputs to this task
-		/// </summary>
-		/// <returns>The tag names which are read by this task</returns>
+		/// <inheritdoc/>
+		public override void Write(XmlWriter writer)
+			=> Write(writer, _parameters);
+
+		/// <inheritdoc/>
 		public override IEnumerable<string> FindConsumedTagNames()
-		{
-			return FindTagNamesFromList(Parameters.Files);
-		}
+			=> FindTagNamesFromFilespec(_parameters.Files);
 
-		/// <summary>
-		/// Find all the tags which are modified by this task
-		/// </summary>
-		/// <returns>The tag names which are modified by this task</returns>
+		/// <inheritdoc/>
 		public override IEnumerable<string> FindProducedTagNames()
-		{
-			yield break;
-		}
+			=> Enumerable.Empty<string>();
 	}
 }

@@ -22,7 +22,7 @@ IMPLEMENT_MODULE(FStreamingPauseRenderingModule, StreamingPauseRendering);
 class FBackgroundView : public ISlateViewport
 {
 public:
-	FBackgroundView(FTexture2DRHIRef RenderTargetTexture, FIntPoint InSize)
+	FBackgroundView(FTextureRHIRef RenderTargetTexture, FIntPoint InSize)
 		: RenderTarget( new FSlateRenderTargetRHI(RenderTargetTexture, InSize.X, InSize.Y))
 		, Size(InSize)
 	{
@@ -96,7 +96,7 @@ void FStreamingPauseRenderingModule::ShutdownModule()
 void FStreamingPauseRenderingModule::BeginStreamingPause( FViewport* GameViewport )
 {
 	// If a movie is already playing don't bother starting one
-	if(GetMoviePlayer()->IsInitialized() && !GetMoviePlayer()->IsMovieCurrentlyPlaying() && IsMoviePlayerEnabled())
+	if (IsMoviePlayerEnabled() && (GetMoviePlayer()->IsInitialized() && !GetMoviePlayer()->IsMovieCurrentlyPlaying()))
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FStreamingPauseRenderingModule::BeginStreamingPause);
 

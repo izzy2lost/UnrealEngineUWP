@@ -75,6 +75,7 @@ namespace Chaos
 		, ClusterParameters(InParameters)
 		, InitData(InInitData)
 	{
+		InterpolationData = MakeUnique<FProxyInterpolationBase>();
 	}
 
 	void FClusterUnionPhysicsProxy::Initialize_External()
@@ -478,17 +479,22 @@ namespace Chaos
 			return false;
 		}
 
+		FProxyInterpolationBase* InterpData = GetInterpolationData();
 		if (Error)
 		{
-			const FReal ErrorMagSq = Error->ErrorX.SizeSquared();
-			const FReal MaxErrorCorrection = GetRenderInterpMaximumErrorCorrectionBeforeSnapping();
+			InterpData = GetOrCreateErrorInterpolationData<FProxyInterpolationError>();
+			check(InterpData);
+
+			// If error is within interpolation limit, set the number of physics frames to interpolate over, else leave at 0 frames to instantly correct the error.
+			const FReal MaxErrorCorrection = RenderInterpolationCVars::RenderInterpMaximumErrorCorrectionBeforeSnapping;
 			int32 RenderInterpErrorCorrectionDurationTicks = 0;
-			if (ErrorMagSq < MaxErrorCorrection * MaxErrorCorrection)
+			if (Error->ErrorX.SizeSquared() < (MaxErrorCorrection * MaxErrorCorrection))
 			{
-				RenderInterpErrorCorrectionDurationTicks = FMath::FloorToInt32(GetRenderInterpErrorCorrectionDuration() / AsyncFixedTimeStep); // Convert duration from seconds to simulation ticks
+				RenderInterpErrorCorrectionDurationTicks = FMath::FloorToInt32(RenderInterpolationCVars::RenderInterpErrorCorrectionDuration / AsyncFixedTimeStep); // Convert duration from seconds to simulation ticks
 			}
-			InterpolationData.AccumlateErrorXR(Error->ErrorX, Error->ErrorR, SolverSyncTimestamp, RenderInterpErrorCorrectionDurationTicks);
+			InterpData->AccumlateErrorXR(Error->ErrorX, Error->ErrorR, SolverSyncTimestamp, RenderInterpErrorCorrectionDurationTicks);
 		}
+		const bool bHasInterpolationData = InterpData != nullptr;
 
 		SyncedData_External.bIsAnchored = CurrentPullData.bIsAnchored;
 		SyncedData_External.bDidSyncGeometry = false;
@@ -559,19 +565,22 @@ namespace Chaos
 				return OverwriteProperty.Timestamp <= SolverSyncTimestamp ? (OverwriteProperty.Timestamp < SolverSyncTimestamp ? &Prev : &OverwriteProperty.Value) : nullptr;
 			};
 
-			const bool bIsReplicationErrorSmoothing = InterpolationData.IsErrorSmoothing();
+			if (bHasInterpolationData)
+			{
+				InterpData->UpdateError(SolverSyncTimestamp, AsyncFixedTimeStep);
+			}
+			const bool bIsReplicationErrorSmoothing = bHasInterpolationData ? InterpData->IsErrorSmoothing() : false;
 			bool DirectionalDecayPerformed = false;
-			InterpolationData.UpdateError(SolverSyncTimestamp, AsyncFixedTimeStep);
 
 			if (const FVec3* Prev = LerpHelper(PullData.X, ProxyTimestamp->OverWriteX))
 			{
-				if (GetRenderInterpErrorDirectionalDecayMultiplier() > 0.0f)
+				if (bHasInterpolationData && RenderInterpolationCVars::RenderInterpErrorDirectionalDecayMultiplier > 0.0f)
 				{
-					DirectionalDecayPerformed = InterpolationData.DirectionalDecay(NextPullData->X - *Prev);
+					DirectionalDecayPerformed = InterpData->DirectionalDecay(NextPullData->X - *Prev);
 				}
 
 				const FVec3 NewX = bIsReplicationErrorSmoothing ?
-					FMath::Lerp(*Prev, NextPullData->X, *Alpha) + InterpolationData.GetErrorX(*Alpha) :
+					FMath::Lerp(*Prev, NextPullData->X, *Alpha) + InterpData->GetErrorX(*Alpha) :
 					FMath::Lerp(*Prev, NextPullData->X, *Alpha);
 
 				Particle_External->SetX(NewX, false);
@@ -580,7 +589,7 @@ namespace Chaos
 			if (const FQuat* Prev = LerpHelper(PullData.R, ProxyTimestamp->OverWriteR))
 			{
 				const FQuat NewR = bIsReplicationErrorSmoothing ? 
-					InterpolationData.GetErrorR(*Alpha) * FMath::Lerp(*Prev, NextPullData->R, *Alpha) : 
+					InterpData->GetErrorR(*Alpha) * FMath::Lerp(*Prev, NextPullData->R, *Alpha) : 
 					FMath::Lerp(*Prev, NextPullData->R, *Alpha);
 		
 				Particle_External->SetR(NewR, false);
@@ -599,21 +608,22 @@ namespace Chaos
 			}
 
 #if CHAOS_DEBUG_DRAW
-			if (GetRenderInterpDebugDraw())
+			if (RenderInterpolationCVars::bRenderInterpDebugDraw)
 			{
-				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(NextPullData->X, FVector(2, 1, 1), NextPullData->R, FColor::Yellow, false, 5.f, 0, 0.5f);
-				Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PullData.X, NextPullData->X, 0.5f, FColor::Yellow, false, 5.0f, 0, 0.5f);
-				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Particle_External->GetX(), FVector(2, 1, 1), Particle_External->R(), DirectionalDecayPerformed ? FColor::Cyan : FColor::Green, false, 5.f, 0, 0.5f);
+				const FVector ZOffset = FVector(0, 0, RenderInterpolationCVars::RenderInterpDebugDrawZOffset);
+				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(ZOffset + NextPullData->X, FVector(2, 1, 1), NextPullData->R, FColor::Yellow, false, 5.f, 0, 0.5f);
+				Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(ZOffset + PullData.X, ZOffset + NextPullData->X, 0.5f, FColor::Yellow, false, 5.0f, 0, 0.5f);
+				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(ZOffset + Particle_External->GetX(), FVector(2, 1, 1), Particle_External->R(), DirectionalDecayPerformed ? FColor::Cyan : FColor::Green, false, 5.f, 0, 0.5f);
 
 				if (bIsReplicationErrorSmoothing)
 				{
 					if (Error)
 					{
-						Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(PullData.X, FVector(4, 2, 2), PullData.R, FColor::Red, false, 5.f, 0, 0.5f);
-						Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PullData.X, (PullData.X + InterpolationData.GetErrorX(0)), 1, FColor::Red, false, 5.0f, 0, 0.5f);
+						Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(ZOffset + PullData.X, FVector(4, 2, 2), PullData.R, FColor::Red, false, 5.f, 0, 0.5f);
+						Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(ZOffset + PullData.X, ZOffset + (PullData.X + InterpData->GetErrorX(0)), 1, FColor::Red, false, 5.0f, 0, 0.5f);
 					}
 
-					Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow((Particle_External->GetX() - InterpolationData.GetErrorX(*Alpha)), Particle_External->GetX(), 1, FColor::Blue, false, 5.0f, 0, 0.5f);
+					Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(ZOffset + (Particle_External->GetX() - InterpData->GetErrorX(*Alpha)), ZOffset + Particle_External->GetX(), 1, FColor::Blue, false, 5.0f, 0, 0.5f);
 				}
 			}
 #endif // CHAOS_DEBUG_DRAW
@@ -841,7 +851,7 @@ namespace Chaos
 			[this, Objects, Transforms, bLock]() mutable
 			{
 				FReadPhysicsObjectInterface_Internal Interface = FPhysicsObjectInternalInterface::GetRead();
-				TArray<FPBDRigidParticleHandle*> Particles = Interface.GetAllRigidParticles(Objects);
+				TArray<FPBDRigidParticleHandle*> Particles = Interface.GetAllRigidParticles(Objects, /* bIncludeNulls */ true);
 				if (ensure(Particles.Num() == Objects.Num()))
 				{
 					FPBDRigidsEvolutionGBF& Evolution = *static_cast<FPBDRigidsSolver*>(Solver)->GetEvolution();

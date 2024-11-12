@@ -25,8 +25,8 @@ namespace UnrealBuildTool
 
 		class TimingData
 		{
-			public Double ExecutorTiming = 0;
-			public Double CPUTiming = 0;
+			public double ExecutorTiming = 0;
+			public double CPUTiming = 0;
 			public int UnitySize = 0;
 			public int NumFiles = 0;
 
@@ -286,10 +286,7 @@ namespace UnrealBuildTool
 			}
 
 			TimingData? BestTimingData = AllTimingData.MinBy(TimingData => TimingData.ExecutorTiming);
-			if (BestTimingData == null)
-			{
-				BestTimingData = AllTimingData[0];
-			}
+			BestTimingData ??= AllTimingData[0];
 			return BestTimingData;
 		}
 

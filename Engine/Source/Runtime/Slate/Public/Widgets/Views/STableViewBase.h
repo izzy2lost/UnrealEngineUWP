@@ -14,6 +14,7 @@
 #include "Framework/Layout/InertialScrollManager.h"
 #include "Framework/Layout/Overscroll.h"
 #include "Styling/SlateTypes.h"
+#include "Widgets/SBoxPanel.h"
 
 #include "STableViewBase.generated.h"
 
@@ -51,6 +52,23 @@ enum class EListItemAlignment : uint8
 
 	/** Items are evenly stretched to distribute any extra space on the line */
 	Fill,
+};
+
+/** How the list panel scrolls an offscreen item into view */
+UENUM(BlueprintType)
+enum class EScrollIntoViewAlignment : uint8
+{
+	/** Item will only be scrolled enough to be brought into view */
+	IntoView,
+
+	/** Always scroll the widget so it appears at the top/Left of the scrollable area. */
+	TopOrLeft,
+
+	/** Item will be aligned to the center of the view */
+	CenterAligned,
+
+	/** Always scroll the widget so it appears at the bottom/Right of the scrollable area. */
+	BottomOrRight
 };
 
 DECLARE_DELEGATE_OneParam(
@@ -111,6 +129,9 @@ public:
 	/** @return The number of Widgets we currently have generated. */
 	SLATE_API int32 GetNumGeneratedChildren() const;
 
+	/** @return The generated row widget at the specified index if it exists (NULL otherwise). */
+	SLATE_API TSharedPtr<SWidget> GetGeneratedChildAt(int32 Index) const;
+
 	SLATE_API TSharedPtr<SHeaderRow> GetHeaderRow() const;
 
 	/** @return Returns true if the user is currently interactively scrolling the view by holding
@@ -161,6 +182,8 @@ public:
 
 	SLATE_API void SetScrollbarVisibility(const EVisibility InVisibility);
 
+	SLATE_API void SetScrollbarPadding(const FMargin& InScrollbarPadding);
+
 	/** Returns true if scrolling is possible; false if the view is big enough to fit all the content. */
 	SLATE_API bool IsScrollbarNeeded() const;
 
@@ -169,6 +192,9 @@ public:
 
 	/** Sets whether the list should lerp between scroll offsets or jump instantly between them. */
 	SLATE_API void SetIsScrollAnimationEnabled(bool bInEnableScrollAnimation);
+
+	/** Sets the speed of lerp between scroll offsets. */
+	SLATE_API void SetScrollingAnimationInterpolationSpeed(float InScrollingAnimationInterpolationSpeed);
 
 	/** Sets whether the list should lerp between scroll offsets or jump instantly between them with touch. */
 	SLATE_API void SetEnableTouchAnimatedScrolling(bool bInEnableTouchAnimatedScrolling);
@@ -185,8 +211,11 @@ public:
 	/** Sets the multiplier applied when wheel scrolling. Higher numbers will cover more distance per click of the wheel. */
 	SLATE_API void SetWheelScrollMultiplier(float NewWheelScrollMultiplier);
 
-	/** Enables/disables being able to scroll. This should be use as a temporary mean to disable scrolling. */
+	/** Enables/disables being able to scroll via pointer. This should be use as a temporary mean to disable scrolling. */
 	SLATE_API void SetIsPointerScrollingEnabled(bool bInIsPointerScrollingEnabled);
+
+	/** Enables/disables being able to scroll via gamepad. */
+	SLATE_API void SetIsGamepadScrollingEnabled(bool bInIsGamepadScrollingEnabled);
 
 	/** Sets the Background Brush */
 	SLATE_API void SetBackgroundBrush(const TAttribute<const FSlateBrush*>& InBackgroundBrush);
@@ -226,6 +255,7 @@ public:
 protected:
 
 	SLATE_API STableViewBase( ETableViewMode::Type InTableViewMode );
+	SLATE_API virtual ~STableViewBase();
 
 	/** Returns the "true" scroll offset where the list will ultimately settle (and may already be). */
 	SLATE_API double GetTargetScrollOffset() const;
@@ -360,6 +390,7 @@ protected:
 	/** @return how many pinned items are in the table */
 	SLATE_API int32 GetNumPinnedItems() const;
 
+	UE_DEPRECATED(5.5, "The Pinned items visibility is no more an attribute.")
 	SLATE_API EVisibility GetPinnedItemsVisiblity() const;
 
 	enum class EScrollIntoViewResult
@@ -404,6 +435,9 @@ protected:
 	/** The scroll bar widget */
 	TSharedPtr< SScrollBar > ScrollBar;
 
+	/** Padding to the scrollbox */
+	FMargin ScrollBarSlotPadding;
+
 	/** Delegate to call when the table view is scrolled */
 	FOnTableViewScrolled OnTableViewScrolled;
 
@@ -416,6 +450,9 @@ protected:
 
 	/** True to lerp smoothly between offsets when the desired scroll offset changes. */
 	bool bEnableAnimatedScrolling = false;
+
+	/** The speed of interpolation for the scrolling animation */
+	float ScrollingAnimationInterpolationSpeed = 12.f;
 
 	/** True to lerp smoothly between offsets when the desired scroll offset changes with touch. */
 	bool bEnableTouchAnimatedScrolling = false;
@@ -460,6 +497,9 @@ protected:
 	/** Delegate to invoke when the context menu should be opening. If it is nullptr, a context menu will not be summoned. */
 	FOnContextMenuOpening OnContextMenuOpening;
 
+	/** Delegate to invoke after the children have been regenerated. */
+	FSimpleDelegate OnItemsRebuilt;
+
 	/** The selection mode that this tree/list is in. Note that it is up to the generated ITableRows to respect this setting. */
 	TAttribute<ESelectionMode::Type> SelectionMode;
 
@@ -478,8 +518,11 @@ protected:
 	/** How much to scroll when using mouse wheel */
 	float WheelScrollMultiplier;
 
-	/** Wheter the list is allowed to scroll. */
+	/** Whether the list is allowed to scroll via cursor. */
 	bool bIsPointerScrollingEnabled = true;
+
+	/** Whether the list is allowed to scroll via gamepad. */
+	bool bIsGamepadScrollingEnabled = true;
 
 	/** The layout and scroll orientation of the list */
 	EOrientation Orientation = Orient_Vertical;
@@ -517,6 +560,13 @@ protected:
 private:
 	/** When true, a refresh should occur the next tick */
 	bool bItemsNeedRefresh = false;
+
+	union
+	{
+		// vertical scroll bar is stored in horizontal box and vice versa
+		SHorizontalBox::FSlot* VerticalScrollBarSlot; // valid when Orientation == Orient_Vertical
+		SVerticalBox::FSlot* HorizontalScrollBarSlot; // valid when Orientation == Orient_Horizontal
+	};
 };
 
 

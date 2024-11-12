@@ -208,6 +208,8 @@ private:
 	/** Handle dropping something on one of our collections */
 	FReply HandleDragDropOnCollectionItem(TSharedRef<FCollectionItem> CollectionItem, const FGeometry& Geometry, const FDragDropEvent& DragDropEvent);
 
+	void HandleSettingChanged(FName PropertyName);
+
 	/** Recursively expand the parent items of this collection to ensure that it is visible */
 	void ExpandParentItems(const TSharedRef<FCollectionItem>& InCollectionItem);
 
@@ -377,4 +379,7 @@ private:
 
 	/** True if we should queue an SCC refresh for the collections on the next Tick */
 	bool bQueueSCCRefresh;
+
+	/** True if we need to update the source control state of items on next tick */
+	bool bQueueItemStatusUpdate = false;
 };

@@ -39,6 +39,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SDPIScaler();
+	SLATE_API virtual ~SDPIScaler();
 
 	SLATE_API void Construct( const FArguments& InArgs );
 
@@ -59,11 +60,6 @@ protected:
 	SLATE_API virtual float GetRelativeLayoutScale(int32 ChildIndex, float LayoutScaleMultiplier) const override;
 
 	TSlateAttributeRef<float> GetDPIScaleAttribute() const { return TSlateAttributeRef<float>(SharedThis(this), DPIScaleAttribute); }
-
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.0, "Direct access to DPIScale is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<float> DPIScale;
-#endif
 
 	struct FDPIScalerOneChildSlot : ::TSingleWidgetChildrenWithBasicLayoutSlot<EInvalidateWidgetReason::None> // we want to add it to the Attribute descriptor
 	{

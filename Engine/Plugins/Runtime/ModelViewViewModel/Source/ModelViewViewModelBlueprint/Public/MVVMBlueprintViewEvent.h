@@ -4,16 +4,21 @@
 
 #include "MVVMPropertyPath.h"
 #include "MVVMBlueprintPin.h"
+#include "View/MVVMViewTypes.h"
 
 #include "MVVMBlueprintViewEvent.generated.h"
 
 struct FEdGraphEditAction;
 class UEdGraph;
 class UK2Node;
+class UMVVMK2Node_AreSourcesValidForEvent;
 class UWidgetBlueprint;
 
 /**
- *
+ * Binding for an event that MVVM will listen too. Does not imply 
+ * the MVVM graph itself will use events.
+ * 
+ * Ex: UButton::OnClick 
  */
 UCLASS(Within = MVVMBlueprintView)
 class MODELVIEWVIEWMODELBLUEPRINT_API UMVVMBlueprintViewEvent : public UObject
@@ -70,7 +75,12 @@ public:
 		return GraphName;
 	}
 
-	void RemoveWrapperGraph();
+	enum ERemoveWrapperGraphParam
+	{
+		RemoveConversionFunctionCurrentValues, // when removing or changing the conversion function, we want to remove all the conversion function parameters
+		LeaveConversionFunctionCurrentValues // when we remove the wrapper graph because the event path has changed, we want to keep the conversion function parameters
+	};
+	void RemoveWrapperGraph(ERemoveWrapperGraphParam ActionForCurrentValues = RemoveConversionFunctionCurrentValues);
 
 	UK2Node* GetWrapperNode() const
 	{
@@ -91,6 +101,8 @@ public:
 	void UpdatePinValues();
 	/** Keep the orphaned pins. Add the missing pins. */
 	bool HasOrphanedPin() const;
+	/** Event sources are tested at runtime to check if they are valid. */
+	void UpdateEventKey(FMVVMViewClass_EventKey EventKey);
 
 	UEdGraphPin* GetOrCreateGraphPin(const FMVVMBlueprintPinId& Pin);
 
@@ -129,9 +141,10 @@ private:
 	void HandleGraphChanged(const FEdGraphEditAction& Action);
 	void HandleUserDefinedPinRenamed(UK2Node* InNode, FName OldPinName, FName NewPinName);
 	UWidgetBlueprint* GetWidgetBlueprintInternal() const;
-	void SetCachedWrapperGraphInternal(UEdGraph* Graph, UK2Node* Node);
+	void SetCachedWrapperGraphInternal(UEdGraph* Graph, UK2Node* Node, UMVVMK2Node_AreSourcesValidForEvent* SourceNode);
 	UEdGraph* CreateWrapperGraphInternal();
 	void LoadPinValuesInternal();
+	void UpdateEventKeyInternal();
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
@@ -150,6 +163,9 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
 	FName GraphName;
 
+	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
+	FMVVMViewClass_EventKey EventKey;
+
 	mutable TArray<FMessage> Messages;
 	bool bLoadingPins = false;
 
@@ -159,6 +175,11 @@ private:
 	UPROPERTY(Transient, DuplicateTransient)
 	mutable TObjectPtr<UK2Node> CachedWrapperNode;
 
+	UPROPERTY(Transient, DuplicateTransient)
+	mutable TObjectPtr<UMVVMK2Node_AreSourcesValidForEvent> CachedSourceValidNode;
+
 	FDelegateHandle OnGraphChangedHandle;
 	FDelegateHandle OnUserDefinedPinRenamedHandle;
+
+	bool bNeedsToRegenerateChildren;
 };

@@ -40,6 +40,7 @@ FSlateRenderBatch::FSlateRenderBatch(
 	, ShaderType(InShaderType)
 	, DrawPrimitiveType(InPrimitiveType)
 	, DrawEffects(InDrawEffects)
+	, CachedUsedPostBuffers(ESlatePostRT::None)
 	, bIsMergable(true)
 	, bIsMerged(false)
 {

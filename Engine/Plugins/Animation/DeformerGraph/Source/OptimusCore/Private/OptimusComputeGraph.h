@@ -7,8 +7,10 @@
 
 #include "OptimusComputeGraph.generated.h"
 
+enum class EMeshDeformerOutputBuffer : uint8;
 class UOptimusDeformer;
 class UOptimusNode;
+class UOptimusGraphDataInterface;
 
 UCLASS()
 class UOptimusComputeGraph :
@@ -24,10 +26,13 @@ public:
 	// UComputeGraph overrides
 	void OnKernelCompilationComplete(int32 InKernelIndex, FComputeKernelCompileResults const& InCompileResults) override;
 
+	EMeshDeformerOutputBuffer GetOutputBuffers() const;
 protected:
 	// Lookup into Graphs array from the UComputeGraph kernel index. 
 	UPROPERTY()
 	TArray<TWeakObjectPtr<const UOptimusNode>> KernelToNode;
 
+	UOptimusGraphDataInterface* GetGraphDataInterfaceForPostLoadFixUp();
+	
 	friend class UOptimusDeformer;
 };

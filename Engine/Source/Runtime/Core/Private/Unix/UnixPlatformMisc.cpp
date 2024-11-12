@@ -763,7 +763,31 @@ int32 FUnixPlatformMisc::NumberOfCoresIncludingHyperthreads()
 
 const TCHAR* FUnixPlatformMisc::GetNullRHIShaderFormat()
 {
-	return TEXT("SF_VULKAN_SM5");
+	if (FParse::Param(FCommandLine::Get(), TEXT("sm5")))
+	{
+		return TEXT("SF_VULKAN_SM5");
+	}
+	else if (FParse::Param(FCommandLine::Get(), TEXT("sm6")))
+	{
+		return TEXT("SF_VULKAN_SM6");
+	}
+	else
+	{
+		// Limit to the highest SM supported by the project
+		TArray<FString> TargetedShaderFormats;
+		GConfig->GetArray(TEXT("/Script/LinuxTargetPlatform.LinuxTargetSettings"), TEXT("TargetedRHIs"), TargetedShaderFormats, GEngineIni);
+		if (TargetedShaderFormats.Contains(TEXT("SF_VULKAN_SM6")))
+		{
+			return TEXT("SF_VULKAN_SM6");
+		}
+		if (TargetedShaderFormats.Contains(TEXT("SF_VULKAN_SM5")))
+		{
+			return TEXT("SF_VULKAN_SM5");
+		}
+	}
+
+	// Default to SM6
+	return TEXT("SF_VULKAN_SM6");
 }
 
 #define CPUINFO_TOKENS                            \
@@ -1397,7 +1421,7 @@ bool FUnixPlatformMisc::IsDebuggerPresent()
 
 	int StatusFile = -1;
 	bool bDebugging = false;
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN
 	{
 		StatusFile = open("/proc/self/status", O_RDONLY);
 
@@ -1425,7 +1449,7 @@ bool FUnixPlatformMisc::IsDebuggerPresent()
 
 			close(StatusFile);
 		}
-	});
+	};
 	return bDebugging;
 }
 #endif // !UE_BUILD_SHIPPING
@@ -1647,7 +1671,7 @@ namespace
 
 // If we fail to create a Guid with urandom fallback to the generic platform.
 // This maybe need to be tweaked for Servers and hard fail here
-void FUnixPlatformMisc::CreateGuid(FGuid& Result)
+UE_AUTORTFM_ALWAYS_OPEN void FUnixPlatformMisc::CreateGuid(FGuid& Result)
 {
 	int BytesRead = SysGetRandom(&Result, sizeof(Result));
 
@@ -1783,8 +1807,7 @@ int32 FUnixPlatformMisc::NumberOfWorkerThreadsToSpawn()
 {
 	static int32 MaxServerWorkerThreads = 4;
 
-	extern CORE_API int32 GUseNewTaskBackend;
-	int32 MaxWorkerThreads = GUseNewTaskBackend ? INT32_MAX : 26;
+	int32 MaxWorkerThreads = INT32_MAX;
 
 	int32 NumberOfCores = FPlatformMisc::NumberOfCores();
 	int32 NumberOfCoresIncludingHyperthreads = FPlatformMisc::NumberOfCoresIncludingHyperthreads();

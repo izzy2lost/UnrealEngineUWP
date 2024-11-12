@@ -29,6 +29,29 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogPropertyEditor, Log, All);
 
+namespace UE::Private
+{
+	static UClass* GetMetaClass(const FProperty* ForProperty)
+	{
+		if(!ForProperty)
+		{
+			return nullptr;
+		}
+		else if(const FClassProperty* ClassProp = CastField<FClassProperty>(ForProperty))
+		{
+			return ToRawPtr(ClassProp->MetaClass);
+		}
+		else if(const FSoftClassProperty* SoftClassProp = CastField<FSoftClassProperty>(ForProperty))
+		{
+			return ToRawPtr(SoftClassProp->MetaClass);
+		}
+		else
+		{
+			return ToRawPtr(FEditorClassUtils::GetClassFromString(ForProperty->GetMetaData("MetaClass")));
+		}
+	}
+}
+
 const FString FPropertyEditor::MultipleValuesDisplayName = NSLOCTEXT("PropertyEditor", "MultipleValues", "Multiple Values").ToString();
 
 TSharedRef< FPropertyEditor > FPropertyEditor::Create( const TSharedRef< class FPropertyNode >& InPropertyNode, const TSharedRef<class IPropertyUtilities >& InPropertyUtilities )
@@ -56,6 +79,17 @@ FText FPropertyEditor::GetDisplayName() const
 	if ( ItemPropertyNode != NULL )
 	{
 		return ItemPropertyNode->GetDisplayName();
+	}
+
+	if (const FComplexPropertyNode* ComplexPropertyNode = PropertyNode->AsComplexNode())
+	{
+		const FText DisplayName = ComplexPropertyNode->GetDisplayName();
+
+		// Does this property define its own name?
+		if (!DisplayName.IsEmpty())
+		{
+			return DisplayName;
+		}
 	}
 
 	FString DisplayName;
@@ -346,8 +380,7 @@ void FPropertyEditor::OnClearItem()
 void FPropertyEditor::MakeNewBlueprint()
 {
 	FProperty* NodeProperty = PropertyNode->GetProperty();
-	FClassProperty* ClassProp = CastField<FClassProperty>(NodeProperty);
-	UClass* Class = (ClassProp ? ToRawPtr(ClassProp->MetaClass) : ToRawPtr(FEditorClassUtils::GetClassFromString(NodeProperty->GetMetaData("MetaClass"))));
+	UClass* Class = UE::Private::GetMetaClass(NodeProperty);
 
 	UClass* RequiredInterface = FEditorClassUtils::GetClassFromString(NodeProperty->GetMetaData("MustImplement"));
 
@@ -509,9 +542,9 @@ bool FPropertyEditor::DoesPassFilterRestrictions() const
 	return PropertyNode->HasNodeFlags( EPropertyNodeFlags::IsSeenDueToFiltering ) != 0;
 }
 
-bool FPropertyEditor::IsEditConst() const
+bool FPropertyEditor::IsEditConst(const bool bIncludeEditCondition) const
 {
-	return PropertyNode->IsEditConst();
+	return PropertyNode->IsEditConst(bIncludeEditCondition);
 }
 
 bool FPropertyEditor::SupportsEditConditionToggle() const
@@ -555,6 +588,7 @@ void FPropertyEditor::ToggleEditConditionState()
 	FPropertyChangedEvent ChangeEvent(PropertyNode->GetProperty(), EPropertyChangeType::ToggleEditable);
 	ChangeEvent.SetArrayIndexPerObject(ArrayIndicesPerObject);
 	PropertyNode->NotifyPostChange( ChangeEvent, PropertyUtilities->GetNotifyHook() );
+	PropertyUtilities->NotifyFinishedChangingProperties(ChangeEvent);
 }
 
 void FPropertyEditor::OnGetClassesForAssetPicker( TArray<const UClass*>& OutClasses )

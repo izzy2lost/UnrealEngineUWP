@@ -20,10 +20,19 @@ struct FAvaShapeParametricMaterial
 {
 	GENERATED_BODY()
 
-	static inline constexpr int32 OPAQUE_LIT = 0;
-	static inline constexpr int32 TRANSLUCENT_LIT = 1;
-	static inline constexpr int32 OPAQUE_UNLIT = 2;
-	static inline constexpr int32 TRANSLUCENT_UNLIT = 3;
+	enum EMaterialType : int32
+	{
+		Opaque = 0,
+		Translucent = 1 << 0,
+
+		Lit = 0,
+		Unlit = 1 << 1,
+
+		TwoSided = 0,
+		OneSided = 1 << 2,
+
+		MaterialTypeCount = Translucent + Unlit + OneSided + 1
+	};
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnMaterialChanged, FAvaShapeParametricMaterial&)
 	DECLARE_MULTICAST_DELEGATE(FOnMaterialParameterChanged)
@@ -105,6 +114,13 @@ struct FAvaShapeParametricMaterial
 
 	AVALANCHESHAPES_API void SetUseUnlitMaterial(bool bInUse);
 
+	bool GetUseTwoSidedMaterial() const
+	{
+		return bUseTwoSidedMaterial;
+	}
+
+	AVALANCHESHAPES_API void SetUseTwoSidedMaterial(bool bInUse);
+
 	/** Set parameter values on a material instance */
 	AVALANCHESHAPES_API void SetMaterialParameterValues(UMaterialInstanceDynamic* InMaterialInstance, bool bInNotifyUpdate = false) const;
 
@@ -156,6 +172,10 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Material", meta=(DisplayName="Use Unlit Material", AllowPrivateAccess = "true"))
 	bool bUseUnlitMaterial;
 
+	// whether the material is one sided or two sided
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Material", meta = (DisplayName = "Use Two Sided Material", AllowPrivateAccess = "true"))
+	bool bUseTwoSidedMaterial;
+
 private:
 	static FOnMaterialChanged OnMaterialChangedDelegate;
 
@@ -164,7 +184,7 @@ private:
 	int32 ActiveInstanceIndex = INDEX_NONE;
 
 	/** Load parents materials to create instance materials */
-	void LoadDefaultMaterials();
+	void LoadDefaultMaterials() const;
 
 	/** Create an instance material based on the current active parent */
 	UMaterialInstanceDynamic* CreateMaterialInstance(UObject* InOuter);

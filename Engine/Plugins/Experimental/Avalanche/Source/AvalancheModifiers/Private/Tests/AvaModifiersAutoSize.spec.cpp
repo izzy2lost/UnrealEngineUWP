@@ -12,7 +12,7 @@
 #if WITH_AUTOMATION_TESTS
 
 BEGIN_DEFINE_SPEC(AvalancheModifiersAutoSize, "Avalanche.Modifiers.AutoSize",
-                  EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+                  EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	AAvaTestDynamicMeshActor* ReferenceActor;
 	AAvaTestDynamicMeshActor* ModifiedActor;

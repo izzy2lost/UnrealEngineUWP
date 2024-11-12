@@ -47,6 +47,7 @@ protected:
 
 public:
 	//~Begin UPCGSettings interface
+	virtual bool RequiresDataFromPreTask() const override { return true; }
 	virtual bool HasFlippedTitleLines() const override { return true; }
 	// The graph may contain nodes that have side effects, don't assume we can cull even when unwired.
 	// TODO: For static SGs we could probably compute this value based on the subgraph nodes.
@@ -103,6 +104,7 @@ public:
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("Subgraph")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGSubgraphSettings", "NodeTitle", "Subgraph"); }
+	virtual FLinearColor GetNodeTitleColor() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Subgraph; }
 	virtual UObject* GetJumpTargetForDoubleClick() const override;
 	virtual bool GetPinExtraIcon(const UPCGPin* InPin, FName& OutExtraIcon, FText& OutTooltip) const override { return false; }
@@ -164,6 +166,7 @@ struct FPCGSubgraphContext : public FPCGContext
 	TArray<FPCGTaskId> SubgraphTaskIds;
 	bool bScheduledSubgraph = false;
 	FInstancedStruct GraphInstanceParametersOverride;
+	TSet<TObjectPtr<const UPCGData>> ReferencedObjects;
 
 	// Analyze input data to detect if there is any override for the user parameters. If so will duplicate it to gather overrides.
 	void InitializeUserParametersStruct();
@@ -171,8 +174,11 @@ struct FPCGSubgraphContext : public FPCGContext
 	// If we have a subgraph override, update the underlying duplicated parameters with the overrides from the subgraph.
 	void UpdateOverridesWithOverriddenGraph();
 
+	void AddToReferencedObjects(const FPCGDataCollection& InDataCollection);
+
 protected:
 	virtual void* GetUnsafeExternalContainerForOverridableParam(const FPCGSettingsOverridableParam& InParam) override;
+	virtual void AddExtraStructReferencedObjects(FReferenceCollector& Collector);
 };
 
 class FPCGSubgraphElement : public IPCGElement
@@ -188,15 +194,17 @@ protected:
 	void PrepareSubgraphUserParameters(const UPCGSubgraphSettings* Settings, FPCGSubgraphContext* Context, FPCGDataCollection& OutputData) const;
 };
 
+// Implementation note: this node forwards data, but does not keep that data alive. This is the responsibility of the corresponding FPCGSubgraphContext
 class FPCGInputForwardingElement : public IPCGElement
 {
 public:
-	FPCGInputForwardingElement(const FPCGDataCollection& InputToForward);
+	explicit FPCGInputForwardingElement(const FPCGDataCollection& InputToForward);
 
+	// Since this class is stateful because it owns a FPCGDataCollection it can't be cached unless it implements a proper GetDependenciesCrc.
+	// For now since it only forwards its input, we just disable the caching.
+	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 	virtual bool IsPassthrough(const UPCGSettings* InSettings) const override { return true; }
 	FPCGDataCollection Input;
-
-	TArray<UPCGData*> RootedData;
 };

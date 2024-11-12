@@ -15,5 +15,8 @@ class AUDIOEXTENSIONS_API UAudioPropertiesSheetAssetBase : public UObject
 	GENERATED_BODY()
 
 public: 
-	virtual bool CopyToObjectProperties(TObjectPtr<UObject> TargetObject, const TObjectPtr<const UAudioPropertiesBindings> PropertiesBindings) const { return false; };
+#if WITH_EDITOR
+	UFUNCTION(BlueprintCallable, BlueprintPure=false, Category="AudioProperties")
+	virtual bool CopyToObjectProperties(UObject* TargetObject) const { return false; };
+#endif
 };

@@ -74,7 +74,97 @@ ReturnType SimpleMeshBoneWeightEdit(
 	return RetVal;
 }
 
+/** Validate that the bone hierarchy stored on the mesh is a proper tree with a single root node and no cycles. */
+static bool ValidateBoneHierarchy(
+	const FDynamicMesh3& InMesh,
+	UGeometryScriptDebug* InDebug
+	)
+{
+	if (!InMesh.HasAttributes() || InMesh.Attributes()->GetNumBones() == 0)
+	{
+		AppendError(InDebug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("ValidateBoneHierarchy_NoBones", "No bone attributes defined on the mesh."));
+		return false;
+	}
 
+	const int32 NumBones = InMesh.Attributes()->GetNumBones();
+	if (NumBones > 1 && !InMesh.Attributes()->GetBoneParentIndices())
+	{
+		AppendError(InDebug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("ValidateBoneHierarchy_MultpleBonesNoParents", "Multiple bones defined but no parent indices present."));
+		return false;
+	}
+
+	const FDynamicMeshBoneNameAttribute* NameAttrib = InMesh.Attributes()->GetBoneNames(); 
+	const FDynamicMeshBoneParentIndexAttribute* ParentIndexAttrib = InMesh.Attributes()->GetBoneParentIndices(); 
+
+	TSet<FName> BoneNamesSeen;
+	
+	int32 RootBoneIndex = INDEX_NONE;
+	for (int32 BoneIndex = 0; BoneIndex < NumBones; BoneIndex++)
+	{
+		const FName BoneName = NameAttrib->GetValue(BoneIndex);
+		
+		if (BoneName == NAME_None)
+		{
+			AppendError(InDebug, EGeometryScriptErrorType::InvalidInputs, FText::Format(LOCTEXT("ValidateBoneHierarchy_UnnamedBone", "Bone at index {0} has no name."), FText::AsNumber(BoneIndex)));
+			return false;
+		}
+		if (BoneNamesSeen.Contains(BoneName))
+		{
+			AppendError(InDebug, EGeometryScriptErrorType::InvalidInputs, FText::Format(LOCTEXT("ValidateBoneHierarchy_DuplicateBoneNames", "Bone '{0}' defined more than once."), FText::FromName(BoneName)));
+			return false;
+		}
+		BoneNamesSeen.Add(BoneName);
+
+		const int32 ParentBoneIndex = ParentIndexAttrib->GetValue(BoneIndex); 
+		if (ParentBoneIndex == INDEX_NONE)
+		{
+			if (RootBoneIndex != INDEX_NONE)
+			{
+				AppendError(InDebug, EGeometryScriptErrorType::InvalidInputs, 
+					FText::Format(LOCTEXT("ValidateBoneHierarchy_MultpleRootBones", "Multiple root bones found ('{0}' and '{1}')."),
+						FText::FromName(BoneName), FText::FromName(NameAttrib->GetValue(RootBoneIndex))));
+				return false;
+			}
+
+			RootBoneIndex = BoneIndex;
+		}
+		else if (ParentBoneIndex < 0 || ParentBoneIndex >= NumBones)
+        {
+            AppendError(InDebug, EGeometryScriptErrorType::InvalidInputs, 
+             	FText::Format(LOCTEXT("ValidateBoneHierarchy_InvalidParentBoneIndex", "Parent bone index {0} for bone '{1}' is invalid ({2} bones defined)."),
+             		FText::AsNumber(ParentBoneIndex), FText::FromName(NameAttrib->GetValue(BoneIndex)), FText::AsNumber(NumBones)));
+            return false;
+        }
+	}
+
+	// Once we've verified that all bones are properly named, all the parent indices are valid and there's only one root, let's check for cycles.
+	TSet<int32> BoneIndicesVisited;
+	
+	for (int32 BoneIndex = 0; BoneIndex < NumBones; BoneIndex++)
+	{
+		BoneIndicesVisited.Reset();
+
+		int32 CurrentBoneIndex = BoneIndex;
+		while (CurrentBoneIndex != RootBoneIndex)
+		{
+			// We store a set of all visited indices rather than just check if a bone cycles back onto itself, since the cycle could be up the hierarchy
+			// and not cycle back on the starting bone.
+			BoneIndicesVisited.Add(CurrentBoneIndex);
+			
+			const int32 ParentBoneIndex = ParentIndexAttrib->GetValue(CurrentBoneIndex);
+			if (BoneIndicesVisited.Contains(ParentBoneIndex))
+			{
+				AppendError(InDebug, EGeometryScriptErrorType::InvalidInputs, 
+					FText::Format(LOCTEXT("ValidateBoneHierarchy_FoundCycle", "Bone '{0}' does not connect up to the root bone '{1}' but connects into a cycle instead."),
+						FText::FromName(NameAttrib->GetValue(CurrentBoneIndex)), FText::FromName(NameAttrib->GetValue(RootBoneIndex))));
+				return false;
+			}
+			CurrentBoneIndex = ParentBoneIndex;
+		}
+	}
+
+	return true;
+}
 
 
 UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::MeshHasBoneWeights(
@@ -123,6 +213,36 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::MeshCreateBoneWeig
 	return TargetMesh;
 }
 
+
+UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::MeshCopyBoneWeights(
+	UDynamicMesh* TargetMesh,
+	bool& bProfileExisted,
+	FGeometryScriptBoneWeightProfile TargetProfile,
+	FGeometryScriptBoneWeightProfile SourceProfile
+	)
+{
+	bProfileExisted = false;
+	if (TargetMesh)
+	{
+		TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh)
+		{
+			if (!EditMesh.HasAttributes())
+			{
+				return;
+			}
+			
+			const FDynamicMeshVertexSkinWeightsAttribute* SourceAttribute = EditMesh.Attributes()->GetSkinWeightsAttribute(SourceProfile.GetProfileName());
+			FDynamicMeshVertexSkinWeightsAttribute* TargetAttribute = EditMesh.Attributes()->GetSkinWeightsAttribute(TargetProfile.GetProfileName());
+			if (!SourceAttribute || !TargetAttribute)
+			{
+				return;
+			}
+
+			TargetAttribute->Copy(*SourceAttribute);
+		}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, false);
+	}
+	return TargetMesh;
+}
 
 
 UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::GetMaxBoneWeightIndex(
@@ -241,7 +361,8 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::SetVertexBoneWeigh
 	int VertexID,
 	const TArray<FGeometryScriptBoneWeight>& BoneWeights,
 	bool& bHasValidBoneWeights,
-	FGeometryScriptBoneWeightProfile Profile)
+	FGeometryScriptBoneWeightProfile Profile,
+	UGeometryScriptDebug* Debug)
 {
 	bool bHasBoneWeightProfile = false;
 	bHasValidBoneWeights = SimpleMeshBoneWeightEdit<bool>(TargetMesh, Profile, bHasBoneWeightProfile, false,
@@ -253,12 +374,17 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::SetVertexBoneWeigh
 			TArray<FBoneWeight> NewWeightsList;
 			for (int32 k = 0; k < Num; ++k)
 			{
+				if (BoneWeights[k].BoneIndex < 0)
+				{
+					AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SetVertexBoneWeights_InvalidInput", "SetVertexBoneWeights: Invalid bone index provided; falling back to 0 as bone index."));
+				}
+
 				FBoneWeight NewWeight;
-				NewWeight.SetBoneIndex(BoneWeights[k].BoneIndex);
+				NewWeight.SetBoneIndex(FMath::Max(0, BoneWeights[k].BoneIndex));
 				NewWeight.SetWeight(BoneWeights[k].Weight);
 				NewWeightsList.Add(NewWeight);
 			}
-			FBoneWeights NewBoneWeights = FBoneWeights::Create(NewWeightsList);
+			const FBoneWeights NewBoneWeights = FBoneWeights::Create(NewWeightsList);
 			SkinWeights.SetValue(VertexID, NewBoneWeights);
 			return true;
 		}
@@ -268,11 +394,51 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::SetVertexBoneWeigh
 	return TargetMesh;
 }
 
+void UGeometryScriptLibrary_MeshBoneWeightFunctions::BlendBoneWeights(
+	const TArray<FGeometryScriptBoneWeight>& BoneWeightsA,
+	const TArray<FGeometryScriptBoneWeight>& BoneWeightsB,
+	float Alpha, 
+	TArray<FGeometryScriptBoneWeight>& Result,
+	UGeometryScriptDebug* Debug
+	)
+{
+	TArray<FBoneWeight, TInlineAllocator<UE::AnimationCore::MaxInlineBoneWeightCount>> RawWeightsA;
+
+	for (const FGeometryScriptBoneWeight& BoneWeight: BoneWeightsA)
+	{
+		
+		if (BoneWeight.BoneIndex < 0)
+		{
+			AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("BlendBoneWeights_InvalidInput", "BlendBoneWeights: Invalid bone index provided; falling back to 0 as bone index."));
+		}
+		RawWeightsA.Add(FBoneWeight(FMath::Max(0, BoneWeight.BoneIndex), BoneWeight.Weight));
+	}
+	
+	TArray<FBoneWeight, TInlineAllocator<UE::AnimationCore::MaxInlineBoneWeightCount>> RawWeightsB;
+	for (const FGeometryScriptBoneWeight& BoneWeight: BoneWeightsB)
+	{
+		if (BoneWeight.BoneIndex < 0)
+		{
+			AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("BlendBoneWeights_InvalidInput", "BlendBoneWeights: Invalid bone index provided; falling back to 0 as bone index."));
+		}
+		RawWeightsB.Add(FBoneWeight(FMath::Max(0, BoneWeight.BoneIndex), BoneWeight.Weight));
+	}
+	
+	FBoneWeights NewWeights = NewWeights.Blend(FBoneWeights::Create(RawWeightsA), FBoneWeights::Create(RawWeightsB), Alpha);
+	
+	Result.SetNum(NewWeights.Num());
+	for (FBoneWeight BoneWeight: NewWeights)
+	{
+		Result.Emplace(BoneWeight.GetBoneIndex(), BoneWeight.GetWeight());
+	}
+}	
+
 
 UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::SetAllVertexBoneWeights(
 	UDynamicMesh* TargetMesh,
 	const TArray<FGeometryScriptBoneWeight>& BoneWeights, 
-	FGeometryScriptBoneWeightProfile Profile
+	FGeometryScriptBoneWeightProfile Profile,
+	UGeometryScriptDebug* Debug
 	)
 {
 	bool bHasBoneWeightProfile = false;
@@ -280,8 +446,13 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::SetAllVertexBoneWe
 	TArray<FBoneWeight> NewWeightsList;
 	for (int32 k = 0; k < Num; ++k)
 	{
+		if (BoneWeights[k].BoneIndex < 0)
+		{
+			AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SetAllVertexBoneWeights_InvalidInput", "SetAllVertexBoneWeights: Invalid bone index provided; falling back to 0 as bone index."));
+		}
+		
 		FBoneWeight NewWeight;
-		NewWeight.SetBoneIndex(BoneWeights[k].BoneIndex);
+		NewWeight.SetBoneIndex(FMath::Max(0, BoneWeights[k].BoneIndex));
 		NewWeight.SetWeight(BoneWeights[k].Weight);
 		NewWeightsList.Add(NewWeight);
 	}
@@ -296,6 +467,148 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::SetAllVertexBoneWe
 		}
 		return true;
 	});
+
+	return TargetMesh;
+}
+
+UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::PruneBoneWeights(
+	UDynamicMesh* TargetMesh,
+	const TArray<FName>& BonesToPrune, 
+	FGeometryScriptPruneBoneWeightsOptions Options,
+	FGeometryScriptBoneWeightProfile Profile,
+	UGeometryScriptDebug* Debug
+	)
+{
+	if (TargetMesh == nullptr)
+	{
+		AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("PruneBoneWeights_InvalidInput", "PruneBoneWeights: TargetMesh is Null"));
+		return TargetMesh;
+	}
+	
+	// Nothing to do?
+	if (BonesToPrune.IsEmpty())
+	{
+		return TargetMesh;
+	}
+	
+	// Validate that we're not trying to prune the root bone.
+	TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh)
+	{
+		if (!EditMesh.HasAttributes() || !EditMesh.Attributes()->HasBones() || EditMesh.Attributes()->GetNumBones() == 0)
+		{
+			UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("PruneBoneWeights_NoBones", "Target mesh has no bone attribute"));
+			return;
+		}
+		
+		if (!ValidateBoneHierarchy(EditMesh, Debug))
+		{
+			return;
+		}
+
+		const TArray<FName>& BoneNames = EditMesh.Attributes()->GetBoneNames()->GetAttribValues();
+		const TArray<int32>& BoneParents = EditMesh.Attributes()->GetBoneParentIndices()->GetAttribValues();
+
+		TArray<int32> BoneIndicesToPrune;
+		for (FName BoneName: BonesToPrune)
+		{
+			int32 BoneIndex = BoneNames.IndexOfByKey(BoneName);
+			if (BoneIndex > 0)
+			{
+				BoneIndicesToPrune.Add(BoneIndex);
+			}
+			else if (!Options.bIgnoredInvalidBones)
+			{
+				if (BoneIndex == 0)
+				{
+					UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("PruneBoneWeights_RootBoneInvalid", "Pruning the root bone is not allowed"));
+					return;
+				}
+				else
+				{
+					UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, FText::Format(LOCTEXT("PruneBoneWeights_InvalidBone", "Invalid bone '{0}'"), FText::FromName(BoneName)));
+					return;
+				}
+			}
+		}
+
+		FDynamicMeshVertexSkinWeightsAttribute* SkinWeights = EditMesh.Attributes()->GetSkinWeightsAttribute(Profile.GetProfileName());
+		if (!SkinWeights)
+		{
+			UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, FText::Format(LOCTEXT("PruneBoneWeights_UnknownProfile", "Unknown skin weight profile '{0}'"), FText::FromName(Profile.GetProfileName())));
+			return;
+		}
+		
+		// Order the bones by descending tree depth.
+		auto BoneDepth = [&BoneParents](int32 BoneIndex)
+		{
+			int32 Depth = 0;
+			while (BoneParents[BoneIndex] != INDEX_NONE)
+			{
+				Depth++;
+				BoneIndex = BoneParents[BoneIndex];
+			}
+			return Depth;
+		};
+		BoneIndicesToPrune.StableSort([BoneDepth](int32 BoneIndexA, int32 BoneIndexB)
+		{
+			return BoneDepth(BoneIndexA) > BoneDepth(BoneIndexB);
+		});
+
+		// Iteratively prune bones such that we properly propagate weights up the skeleton if multiple bones along the same
+		// path are being removed.
+		for (const int32 BoneIndex: BoneIndicesToPrune)
+		{
+			for (const int32 VertexID : EditMesh.VertexIndicesItr())
+			{
+				FBoneWeights BoneWeights;
+				SkinWeights->GetValue(VertexID, BoneWeights);
+
+				const int32 WeightIndex = BoneWeights.FindWeightIndexByBone(BoneIndex);
+				if (WeightIndex == INDEX_NONE)
+				{
+					continue;
+				}
+
+				const int32 ParentBoneIndex = BoneParents[BoneIndex];
+				checkSlow(ParentBoneIndex != INDEX_NONE);
+				
+				if (BoneWeights.Num() == 1)
+				{
+					// Is it the last remaining bone weight? Re-assign this vertex to the parent.
+					BoneWeights = FBoneWeights::Create({FBoneWeight(ParentBoneIndex, MaxRawBoneWeight)});
+				}
+				else if (Options.ReassignmentType == EGeometryScriptPruneBoneWeightsAssignmentType::RenormalizeRemaining)
+				{
+					// Just remove the weight and renormalize what's remaining.
+					BoneWeights.RemoveBoneWeight(BoneIndex);
+				}
+				else if (Options.ReassignmentType == EGeometryScriptPruneBoneWeightsAssignmentType::ReassignToParent)
+				{
+					FBoneWeightsSettings SettingsNoNormalize;
+					SettingsNoNormalize.SetNormalizeType(EBoneWeightNormalizeType::None);
+					
+					FBoneWeight BoneWeight = BoneWeights[WeightIndex];
+
+					// Remove the weight but don't normalize yet.
+					BoneWeights.RemoveBoneWeight(BoneIndex, SettingsNoNormalize);
+
+					// If the parent weight already exists, add the child weight to it.
+					if (const int32 ParentWeightIndex = BoneWeights.FindWeightIndexByBone(ParentBoneIndex);
+						ParentWeightIndex != INDEX_NONE)
+					{
+						FBoneWeight ParentBoneWeight = BoneWeights[ParentWeightIndex];
+						BoneWeight.SetRawWeight(BoneWeight.GetRawWeight() + ParentBoneWeight.GetRawWeight());
+					}
+
+					// Set the weight to be the combination of the removed weight and the parent and renormalize now.
+					BoneWeight.SetBoneIndex(ParentBoneIndex);
+					BoneWeights.SetBoneWeight(BoneWeight);
+				}
+
+				SkinWeights->SetValue(VertexID, BoneWeights);
+			}
+		}
+	}, EDynamicMeshChangeType::AttributeEdit, EDynamicMeshAttributeChangeFlags::Unknown, false);
 
 	return TargetMesh;
 }
@@ -352,6 +665,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::TransferBoneWeight
 	UDynamicMesh* SourceMesh,
 	UDynamicMesh* TargetMesh,
 	FGeometryScriptTransferBoneWeightsOptions Options,
+	FGeometryScriptMeshSelection InSelection,
 	UGeometryScriptDebug* Debug)
 {
 	using namespace UE::Geometry;
@@ -384,9 +698,13 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::TransferBoneWeight
 		TransferBoneWeights.TransferMethod = static_cast<FTransferBoneWeights::ETransferBoneWeightsMethod>(Options.TransferMethod);
 		TransferBoneWeights.bUseParallel = true;
 
-
 		TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh)
 		{
+			if (!InSelection.IsEmpty())
+			{
+				InSelection.ConvertToMeshIndexArray(EditMesh, TransferBoneWeights.TargetVerticesSubset, EGeometryScriptIndexType::Vertex);
+			}
+			
 			if (!EditMesh.HasAttributes())
 			{
 				EditMesh.EnableAttributes();
@@ -441,9 +759,170 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::TransferBoneWeight
 }
 
 
+static bool
+GetBoneCopyHierarchyAndReindexMeshIfNeeded(
+	TConstArrayView<FName> SourceMeshBoneNames,
+	TConstArrayView<int32> SourceMeshBoneParentIndices,
+	FDynamicMesh3& TargetMesh,
+	TMap<FName, FName>& OutBoneHierarchy,
+	FGeometryScriptCopyBonesFromMeshOptions Options,
+	UGeometryScriptDebug* Debug)
+{
+	// We can only perform this operation if there are source bones present. 
+	check(!SourceMeshBoneNames.IsEmpty());
+	
+	OutBoneHierarchy.Reset();
+
+	// Check across all skin weight attributes which bones are bound to the mesh.
+	if (Options.BonesToCopyFromSource != EBonesToCopyFromSource::AllBones)
+	{
+		// This should have been verified by the caller.
+		check(SourceMeshBoneNames.Num() == SourceMeshBoneParentIndices.Num());
+		
+		if (!TargetMesh.Attributes()->HasBones())
+		{
+			AppendError(Debug, EGeometryScriptErrorType::OperationFailed, LOCTEXT("GetBoneCopyHierarchy_NoTargetBonesDefined", "Target mesh has no bone names defined which is needed when not copying all bones"));
+			return false;
+		}
+
+		// Construct the actual bone hierarchy as a map of bone -> parent from the bone name and bone parent index lists.
+		FName RootBone;
+		
+		for (int32 Index = 0; Index < SourceMeshBoneNames.Num(); Index++)
+		{
+			const int32 BoneParentIndex = SourceMeshBoneParentIndices[Index];
+			if (BoneParentIndex == INDEX_NONE || (BoneParentIndex >= 0 && BoneParentIndex < SourceMeshBoneNames.Num()))
+			{
+				OutBoneHierarchy.Add(SourceMeshBoneNames[Index], BoneParentIndex != INDEX_NONE ? SourceMeshBoneNames[BoneParentIndex] : NAME_None);
+
+				if (BoneParentIndex == INDEX_NONE)
+				{
+					if (!RootBone.IsNone())
+					{
+						AppendError(Debug, EGeometryScriptErrorType::OperationFailed, LOCTEXT("GetBoneCopyHierarchy_MultipleRootBonesFound", "Found multiple root bones on source mesh"));
+						return false;
+					}
+					RootBone = SourceMeshBoneNames[Index];
+				}
+			}
+		}
+
+		// Get the name of all bones that contribute to skin binding on all skin weight profiles.
+		TSet<int32> BoundBoneIndices;
+		for (const TPair<FName, TUniquePtr<FDynamicMeshVertexSkinWeightsAttribute>>& AttribPair : TargetMesh.Attributes()->GetSkinWeightsAttributes())
+		{
+			if (const FDynamicMeshVertexSkinWeightsAttribute* ToAttrib = TargetMesh.Attributes()->GetSkinWeightsAttribute(AttribPair.Key))
+			{
+				BoundBoneIndices.Append(ToAttrib->GetBoundBoneIndices());
+			}
+		}
+
+		const FDynamicMeshBoneNameAttribute* BoneNameTargetAttrib = TargetMesh.Attributes()->GetBoneNames();
+		TSet<FName> BoundBones;
+		for (int32 BoneIndex: BoundBoneIndices)
+		{
+			if (BoneIndex < 0 || BoneIndex >= BoneNameTargetAttrib->Num())
+			{
+				AppendError(Debug, EGeometryScriptErrorType::OperationFailed, LOCTEXT("GetBoneCopyHierarchy_InvalidBoneWeightIndex", "Invalid bone index found on mesh"));
+				return false;
+			}
+
+			const FName BoneName = BoneNameTargetAttrib->GetValue(BoneIndex);
+			if (BoneName.IsNone())
+			{
+				const FText Error = FText::Format(LOCTEXT("GetBoneCopyHierarchy_NoBoneName", "Target bone at index {0} has no name."), FText::AsNumber(BoneIndex));
+				AppendError(Debug, EGeometryScriptErrorType::OperationFailed, Error);
+				return false;
+			}
+			if (!OutBoneHierarchy.Contains(BoneName))
+			{
+				const FText Error = FText::Format(LOCTEXT("GetBoneCopyHierarchy_BoneNotFound", "Target bone '{0}' not found on source mesh."), FText::FromName(BoneName));
+				AppendError(Debug, EGeometryScriptErrorType::OperationFailed, Error);
+				return false;
+			}
+			BoundBones.Add(BoneName);
+		}
+
+		// Go from each bound bone, and add parent bones to root, optionally skipping over unbound bones, if using OnlyBoundAndRoot.
+		TSet<FName> UsedBones;
+		UsedBones.Add(RootBone);
+		
+		for (FName BoneName: BoundBones)
+		{
+			UsedBones.Add(BoneName);
+
+			// Traverse up to the root bone. If OnlyBoundAndRoot is set, then each bone's parent is set to either a bone further up
+			// in the hierarchy that's actually bound, or the root.
+			FName ParentBone = OutBoneHierarchy[BoneName];
+			while (ParentBone != RootBone)
+			{
+				if (Options.BonesToCopyFromSource == EBonesToCopyFromSource::OnlyBoundAndParents)
+				{
+					UsedBones.Add(ParentBone);
+				}
+				else if (Options.BonesToCopyFromSource == EBonesToCopyFromSource::OnlyBoundAndRoot && BoundBones.Contains(ParentBone))
+				{
+					// We found another bound bone, make this our new parent.
+					break;
+				}
+				
+				ParentBone = OutBoneHierarchy[ParentBone];
+			}
+
+			if (Options.BonesToCopyFromSource == EBonesToCopyFromSource::OnlyBoundAndRoot)
+			{
+				OutBoneHierarchy[BoneName] = ParentBone;
+			}
+		}
+
+		// Leave only used bones in the hierarchy.
+		OutBoneHierarchy = OutBoneHierarchy.FilterByPredicate([&UsedBones](const TPair<FName, FName>& Item)
+		{
+			return UsedBones.Contains(Item.Key);
+		});
+	}
+
+	if (Options.ReindexWeights)
+	{
+		if (TargetMesh.Attributes()->HasBones())
+		{
+			TArray<FName> ToBones(SourceMeshBoneNames);
+			if (!OutBoneHierarchy.IsEmpty())
+			{
+				// Remove all bones that are not in the hierarchy.
+				ToBones.RemoveAll([&OutBoneHierarchy](FName BoneName)
+				{
+					return !OutBoneHierarchy.Contains(BoneName);
+				});
+			}
+			
+			for (const TPair<FName, TUniquePtr<FDynamicMeshVertexSkinWeightsAttribute>>& AttribPair : TargetMesh.Attributes()->GetSkinWeightsAttributes())
+			{
+				if (FDynamicMeshVertexSkinWeightsAttribute* ToAttrib = TargetMesh.Attributes()->GetSkinWeightsAttribute(AttribPair.Key))
+				{
+					if (!ToAttrib->ReindexBoneIndicesToSkeleton(TargetMesh.Attributes()->GetBoneNames()->GetAttribValues(), ToBones))
+					{
+						const FText Error = FText::Format(LOCTEXT("GetBoneCopyHierarchy_FailedToReindexWeights", "Failed to reindex bone weights for {0} weights profile"), FText::FromName(AttribPair.Key));
+						AppendError(Debug, EGeometryScriptErrorType::OperationFailed, Error);
+						return false;
+					}
+				}
+			}
+		}
+		else
+		{
+			AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GetBoneCopyHierarchy_TargetMeshHasNoBones", "Bone weight re-indexing was requested but the target mesh has no skeleton data"));
+		}
+	}
+
+	return true;
+}
+	
+
 UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::CopyBonesFromMesh(
 	UDynamicMesh* SourceMesh, 
 	UDynamicMesh* TargetMesh, 
+	FGeometryScriptCopyBonesFromMeshOptions Options,
 	UGeometryScriptDebug* Debug)
 {
 	if (SourceMesh == nullptr)
@@ -478,13 +957,142 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::CopyBonesFromMesh(
 			{
 				EditMesh.EnableAttributes();
 			}
-				
-			EditMesh.Attributes()->CopyBoneAttributes(*ReadMesh.Attributes());
+
+			TConstArrayView<FName> SourceMeshBoneNames = ReadMesh.Attributes()->GetBoneNames()->GetAttribValues();
+			TConstArrayView<int32> SourceMeshParentBoneIndices;
+			
+			// Check across all skin weight attributes which bones are bound to the mesh.
+			if (Options.BonesToCopyFromSource != EBonesToCopyFromSource::AllBones)
+			{
+				// Ensure that all required attributes on the source are defined, that all names and parent indices are valid, and that the bone
+				// hierarchy is consistent.
+				if (!ValidateBoneHierarchy(ReadMesh, Debug))
+				{
+					return;
+				}
+		
+				// Target bone name attribute's existence has already been verified above with a call to HasBones, the source has been verified through
+				// ValidateBoneHierarchy.
+				SourceMeshParentBoneIndices = ReadMesh.Attributes()->GetBoneParentIndices()->GetAttribValues();
+			}
+
+			TMap<FName, FName> BoneHierarchy;
+			if (GetBoneCopyHierarchyAndReindexMeshIfNeeded(SourceMeshBoneNames, SourceMeshParentBoneIndices, EditMesh, BoneHierarchy, Options, Debug))
+			{
+				// If the bone hierarchy wasn't set up, then do a full copy.
+				if (BoneHierarchy.IsEmpty())
+				{
+					EditMesh.Attributes()->CopyBoneAttributes(*ReadMesh.Attributes());
+				}
+				else
+				{
+					// Copy the bone attributes but only copy the ones in the remapping map and update the parent index as well.
+					EditMesh.Attributes()->CopyBoneAttributesWithRemapping(*ReadMesh.Attributes(), BoneHierarchy);
+				}
+			}
+
 		}, EDynamicMeshChangeType::AttributeEdit, EDynamicMeshAttributeChangeFlags::Unknown, false);
 	});
 
 	return TargetMesh;
 }
+
+
+UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::CopyBonesFromSkeleton(
+	USkeleton* SourceSkeleton,
+	UDynamicMesh* TargetMesh,
+	FGeometryScriptCopyBonesFromMeshOptions Options,
+	UGeometryScriptDebug* Debug
+	)
+{
+	if (SourceSkeleton == nullptr)
+	{
+		AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyBonesFromSkeleton_InvalidSourceSkeleton", "CopyBonesFromMesh: SourceSkeleton is Null"));
+		return TargetMesh;
+	}
+
+	if (TargetMesh == nullptr)
+	{
+		AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyBonesFromSkeleton_InvalidTargetMesh", "CopyBonesFromMesh: TargetMesh is Null"));
+		return TargetMesh;
+	}
+
+	TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh)
+	{
+		if (!EditMesh.HasAttributes())
+		{
+			EditMesh.EnableAttributes();
+		}
+
+		TMap<FName, FName> BoneHierarchy;
+
+		const FReferenceSkeleton& RefSkeleton = SourceSkeleton->GetReferenceSkeleton();
+		const int32 NumSourceBones = RefSkeleton.GetRawBoneNum();
+		TArray<FName> SourceSkeletonBoneNames;
+		TArray<int32> SourceSkeletonParentBoneIndices;
+		SourceSkeletonBoneNames.Reserve(NumSourceBones);
+		SourceSkeletonParentBoneIndices.Reserve(NumSourceBones);
+		
+		for (const FMeshBoneInfo& BoneInfo: SourceSkeleton->GetReferenceSkeleton().GetRawRefBoneInfo())
+		{
+			SourceSkeletonBoneNames.Add(BoneInfo.Name);
+			SourceSkeletonParentBoneIndices.Add(BoneInfo.ParentIndex);
+		}
+		
+		if (GetBoneCopyHierarchyAndReindexMeshIfNeeded(SourceSkeletonBoneNames, SourceSkeletonParentBoneIndices, EditMesh, BoneHierarchy, Options, Debug))
+		{
+			EditMesh.Attributes()->EnableBones(BoneHierarchy.IsEmpty() ? NumSourceBones : BoneHierarchy.Num());
+
+			FDynamicMeshBoneNameAttribute* BoneNameAttrib = EditMesh.Attributes()->GetBoneNames();
+			FDynamicMeshBoneParentIndexAttribute* BoneParentIndexAttrib = EditMesh.Attributes()->GetBoneParentIndices();
+			FDynamicMeshBonePoseAttribute* BonePoses = EditMesh.Attributes()->GetBonePoses();
+			
+			const TArray<FTransform>& SourceSkeletonBonePoses = RefSkeleton.GetRawRefBonePose();
+
+			TMap<FName, int32> NameToIndexMap;
+
+			int32 NumTargetBones = 0;
+			for (int32 BoneIndex = 0; BoneIndex < NumSourceBones; BoneIndex++)
+			{
+				const FName BoneName = SourceSkeletonBoneNames[BoneIndex];
+				if (BoneHierarchy.IsEmpty() || BoneHierarchy.Contains(BoneName))
+				{
+					NameToIndexMap.Add(BoneName, NumTargetBones);
+					BoneNameAttrib->SetValue(NumTargetBones, BoneName);
+					BonePoses->SetValue(NumTargetBones, SourceSkeletonBonePoses[BoneIndex]);
+					NumTargetBones++;
+				}
+			}
+
+			// Now that we have all bone names and their new indices, remap the parent indices to them.
+			// The target list should already contain all parents listed in the BoneHierarchy map.
+			if (BoneHierarchy.IsEmpty())
+			{
+				for (int32 BoneIndex = 0; BoneIndex < NumSourceBones; BoneIndex++)
+				{
+					BoneParentIndexAttrib->SetValue(BoneIndex, SourceSkeletonParentBoneIndices[BoneIndex]);
+				}
+			}
+			else
+			{
+				// Add a marker for the root bone, so we don't need to special case it below.
+				NameToIndexMap.Add(NAME_None, INDEX_NONE);
+				
+				for (const TPair<FName, FName>& BoneItem: BoneHierarchy)
+				{
+					const int32 BoneIndex = NameToIndexMap[BoneItem.Key];
+					const int32 BoneParentIndex = NameToIndexMap[BoneItem.Value];
+
+					BoneParentIndexAttrib->SetValue(BoneIndex, BoneParentIndex);
+				}
+			}
+		}
+
+	}, EDynamicMeshChangeType::AttributeEdit, EDynamicMeshAttributeChangeFlags::Unknown, false);
+
+	return TargetMesh;
+}
+
 
 UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::DiscardBonesFromMesh(
 	UDynamicMesh* TargetMesh, 

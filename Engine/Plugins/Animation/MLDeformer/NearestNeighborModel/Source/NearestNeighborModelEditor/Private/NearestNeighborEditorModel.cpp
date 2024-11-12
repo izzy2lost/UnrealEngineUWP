@@ -12,6 +12,7 @@
 #include "Misc/MessageDialog.h"
 #include "MLDeformerAsset.h"
 #include "MLDeformerComponent.h"
+#include "MLDeformerTrainingModel.h"
 #include "MLDeformerEditorStyle.h"
 #include "MLDeformerEditorToolkit.h"
 #include "NearestNeighborGeomCacheSampler.h"
@@ -57,11 +58,18 @@ namespace UE::NearestNeighborModel
 		InitInputInfo(Model->GetInputInfo());
 		VertexMapSelector = MakeUnique<FVertexMapSelector>();
 		VertexMapSelector->Update(Model->GetSkeletalMesh());
-		const UNearestNeighborModel* const NearestNeighborModel = GetCastModel();
+		UNearestNeighborModel* NearestNeighborModel = GetCastModel();
 		if (!NearestNeighborModel)
 		{
 			return;
 		}
+
+		// Create one section on default.
+		if (NearestNeighborModel->GetNumSections() == 0)
+		{
+			CreateDefaultSection();
+		}
+
 		const int32 NumSections = NearestNeighborModel->GetNumSections();
 		if (UNearestNeighborModelVizSettings* const NNViz = GetCastVizSettings())
 		{
@@ -115,6 +123,19 @@ namespace UE::NearestNeighborModel
 		UNearestNeighborModelInputInfo* NearestNeighborInputInfo = static_cast<UNearestNeighborModelInputInfo*>(InputInfo);
 		NearestNeighborInputInfo->InitRefBoneRotations(Model->GetSkeletalMesh());
 	}
+
+	void FNearestNeighborEditorModel::UpdateTrainingDeviceList()
+	{
+		// Update the list of devices we can use to train with.
+		// This is the cpu and list of cuda devices.
+		UNearestNeighborTrainingModel* TrainingModel = UE::MLDeformer::NewDerivedObject<UNearestNeighborTrainingModel>();
+		if (TrainingModel)
+		{
+			TrainingModel->Init(this);
+			TrainingModel->UpdateAvailableDevices();
+			TrainingModel->ConditionalBeginDestroy();
+		}
+	}
 	
 	ETrainingResult FNearestNeighborEditorModel::Train()
 	{
@@ -163,24 +184,17 @@ namespace UE::NearestNeighborModel
 
 	void FNearestNeighborEditorModel::OnPostTraining(ETrainingResult TrainingResult, bool bUsePartiallyTrainedWhenAborted)
 	{
-		if (TrainingResult == ETrainingResult::Aborted && !bUsePartiallyTrainedWhenAborted)
+		if (UNearestNeighborModel* const NearestNeighborModel = GetCastModel())
 		{
-			GetMorphModel()->SetMorphTargetDeltas(MorphTargetDeltasBackup);
-			GetMorphModel()->SetMorphTargetsMinMaxWeights(MorphTargetsMinMaxWeightsBackup);
-		}
-		else if (TrainingResult == ETrainingResult::Success || (TrainingResult == ETrainingResult::Aborted && bUsePartiallyTrainedWhenAborted))
-		{
-			UNearestNeighborModel* const NearestNeighborModel = GetCastModel();
-			if (!NearestNeighborModel)
+			if (TrainingResult == ETrainingResult::Success || (TrainingResult == ETrainingResult::Aborted && bUsePartiallyTrainedWhenAborted))
 			{
-				return;
+				NearestNeighborModel->InvalidateInference();
+				if (NearestNeighborModel->DoesUseFileCache())
+				{
+					NearestNeighborModel->UpdateFileCache();
+				}
 			}
-			NearestNeighborModel->InvalidateInference();
-			if (NearestNeighborModel->DoesUseFileCache())
-			{
-				NearestNeighborModel->UpdateFileCache();
-			}
-			ResetMorphTargets();
+			NearestNeighborModel->UpdateForInference();
 		}
 		FMLDeformerMorphModelEditorModel::OnPostTraining(TrainingResult, bUsePartiallyTrainedWhenAborted);
 	}
@@ -612,7 +626,7 @@ namespace UE::NearestNeighborModel
 			return EOpFlag::Error;
 		}
 		
-		UNearestNeighborTrainingModel *TrainingModel = FHelpers::NewDerivedObject<UNearestNeighborTrainingModel>();
+		UNearestNeighborTrainingModel* TrainingModel = UE::MLDeformer::NewDerivedObject<UNearestNeighborTrainingModel>();
 		if (!TrainingModel)
 		{
 			return EOpFlag::Error;
@@ -741,19 +755,6 @@ namespace UE::NearestNeighborModel
 		return Result;
 	}
 
-	void FNearestNeighborEditorModel::ResetMorphTargets()
-	{
-		const int32 NumLODs = GetMorphModel()->GetNumLODs();
-		for (int32 LOD = 0; LOD < NumLODs; ++LOD)
-		{
-			const TSharedPtr<FExternalMorphSet> MorphSet = GetMorphModel()->GetMorphTargetSet(LOD);
-			if (MorphSet.IsValid())
-			{
-				MorphSet->MorphBuffers = FMorphTargetVertexInfoBuffers();
-			}
-		}
-	}
-
 	void FNearestNeighborEditorModel::UpdateNearestNeighborIds()
 	{
 		const UNearestNeighborModelInstance* ModelInstance = GetTestNearestNeighborModelInstance();
@@ -801,6 +802,39 @@ namespace UE::NearestNeighborModel
 			return Cast<UNearestNeighborModelInstance>(MLDeformerComponent->GetModelInstance());
 		}
 		return nullptr;
+	}
+
+	void FNearestNeighborEditorModel::CreateDefaultSection()
+	{
+		UNearestNeighborModel* NearestNeighborModel = GetCastModel();
+		VertexMapSelector->Update(Model->GetSkeletalMesh());
+		NearestNeighborModel->AddSection(nullptr);
+		FSection* const Section = NearestNeighborModel->OnSectionAdded(0);
+		FString MapString;
+		if (NearestNeighborModel->GetSkeletalMesh())
+		{
+			const TArray<FInt32Range> Ranges = NearestNeighborModel->GetMeshVertRanges(*NearestNeighborModel->GetSkeletalMesh());
+			const int32 MeshIndex = Section->GetMeshIndex(); 
+			if (Ranges.IsValidIndex(MeshIndex))
+			{
+				MapString = FString::Printf(TEXT("%d-%d"), Ranges[MeshIndex].GetLowerBoundValue(), Ranges[MeshIndex].GetUpperBoundValue() - 1);
+			}
+		}
+		Section->SetVertexMapString(MapString);
+		NearestNeighborModel->InvalidateTrainingModelOnly();
+		NearestNeighborModel->UpdateNetworkOutputDim();
+		NearestNeighborModel->InvalidateTraining();
+	}
+
+	void FNearestNeighborEditorModel::CopyBaseSettingsFromModel(const FMLDeformerEditorModel* SourceEditorModel)
+	{
+		FMLDeformerMorphModelEditorModel::CopyBaseSettingsFromModel(SourceEditorModel);
+
+		UNearestNeighborModel* NearestNeighborModel = GetCastModel();
+
+		// Wipe existing sections (as our init might have created one) and create a default new one.
+		NearestNeighborModel->RemoveAllSections();
+		CreateDefaultSection();
 	}
 
 	void FVertexMapSelector::Update(const USkeletalMesh* SkelMesh)

@@ -105,31 +105,39 @@ public:
 		FString ProjectNameWatermarkPrefix;
 		GConfig->GetString(TEXT("LevelEditor"), TEXT("ProjectNameWatermarkPrefix"), /*out*/ ProjectNameWatermarkPrefix, GEditorPerProjectIni);
 
-		FColor BadgeTextColor = FColor(128, 128, 128, 255);
-		GConfig->GetColor(TEXT("LevelEditor"), TEXT("ProjectBadgeTextColor"), /*out*/ BadgeTextColor, GEditorPerProjectIni);
+		FSlateColor BadgeBackgroundColor = FAppStyle::Get().GetSlateColor("Colors.Title");
+		{
+			FColor ConfigColor;
+			if (GConfig->GetColor(
+					TEXT("LevelEditor"), TEXT("ProjectBadgeBackgroundColor"), /*out*/ ConfigColor, GEditorPerProjectIni
+				))
+			{
+				BadgeBackgroundColor = FLinearColor(ConfigColor);
+			}
+		}
+
+		FSlateColor BadgeTextColor = FStyleColors::Foreground;
+		{
+			FColor ConfigColor;
+			if (GConfig->GetColor(TEXT("LevelEditor"), TEXT("ProjectBadgeTextColor"), /*out*/ ConfigColor, GEditorPerProjectIni))
+			{
+				BadgeTextColor = FLinearColor(ConfigColor);
+			}
+		}
 
 		const FString EngineVersionString = FEngineVersion::Current().ToString(FEngineVersion::Current().HasChangelist() ? EVersionComponent::Changelist : EVersionComponent::Patch);
 
-		FFormatNamedArguments Args;
-
-		Args.Add(TEXT("ProjectNameWatermarkPrefix"), FText::FromString(ProjectNameWatermarkPrefix));
-		Args.Add(TEXT("Branch"), FEngineBuildSettings::IsPerforceBuild() ? FText::FromString(FEngineVersion::Current().GetBranch()) : FText::GetEmpty());
-		Args.Add(TEXT("GameName"), FText::FromString(FString(FApp::GetProjectName())));
-		Args.Add(TEXT("EngineVersion"), (GetDefault<UEditorPerProjectUserSettings>()->bDisplayEngineVersionInBadge) ? FText::FromString("(" + EngineVersionString + ")") : FText());
-
-		FText RightContentText;
-		FText RightContentTooltip;
-
 		const EBuildConfiguration BuildConfig = FApp::GetBuildConfiguration();
-		if (BuildConfig != EBuildConfiguration::Shipping && BuildConfig != EBuildConfiguration::Development && BuildConfig != EBuildConfiguration::Unknown)
-		{
-			Args.Add(TEXT("Config"), EBuildConfigurations::ToText(BuildConfig));
-			RightContentText = FText::Format(NSLOCTEXT("UnrealEditor", "TitleBarRightContentAndConfig", "{ProjectNameWatermarkPrefix} {GameName} [{Config}] {Branch} {EngineVersion}"), Args);
-		}
-		else
-		{
-			RightContentText = FText::Format(NSLOCTEXT("UnrealEditor", "TitleBarRightContent", "{ProjectNameWatermarkPrefix} {GameName} {Branch} {EngineVersion}"), Args);
-		}
+		const bool bAppendBuildConfig = (BuildConfig != EBuildConfiguration::Shipping && BuildConfig != EBuildConfiguration::Development && BuildConfig != EBuildConfiguration::Unknown);
+
+		FFormatNamedArguments Args;
+		Args.Add(TEXT("ProjectNameWatermarkPrefix"), FText::FromString(ProjectNameWatermarkPrefix));
+		Args.Add(TEXT("Branch"), FEngineBuildSettings::IsPerforceBuild() ? FText::FromString(TEXT(" ") + FEngineVersion::Current().GetBranch()) : FText::GetEmpty());
+		Args.Add(TEXT("GameName"), FText::FromString(TEXT(" ") + FString(FApp::GetProjectName())));
+		Args.Add(TEXT("EngineVersion"), (GetDefault<UEditorPerProjectUserSettings>()->bDisplayEngineVersionInBadge) ? FText::FromString(TEXT(" (") + EngineVersionString + TEXT(")")) : FText::GetEmpty());
+		Args.Add(TEXT("Config"), bAppendBuildConfig ? FText::Format(NSLOCTEXT("UnrealEditor", "TitleBarConfig", " [{0}]"), EBuildConfigurations::ToText(BuildConfig)) : FText::GetEmpty());
+
+		FText RightContentText = FText::Format(NSLOCTEXT("UnrealEditor", "TitleBarRightContentAndConfig", "{ProjectNameWatermarkPrefix}{GameName}{Config}{Branch}{EngineVersion}"), Args);
 
 		// Create the tooltip showing more detailed information
 		FFormatNamedArguments TooltipArgs;
@@ -140,7 +148,7 @@ public:
 		TooltipArgs.Add(TEXT("BuildDate"), FText::FromString(FApp::GetBuildDate()));
 		TooltipArgs.Add(TEXT("GraphicsRHI"), FText::FromString(FApp::GetGraphicsRHI()));
 
-		RightContentTooltip = FText::Format(NSLOCTEXT("UnrealEditor", "TitleBarRightContentTooltip", "Version: {Version}\nBranch: {Branch}\nBuild Configuration: {BuildConfiguration}\nBuild Date: {BuildDate}\nGraphics RHI: {GraphicsRHI}"), TooltipArgs);
+		FText RightContentTooltip = FText::Format(NSLOCTEXT("UnrealEditor", "TitleBarRightContentTooltip", "Version: {Version}\nBranch: {Branch}\nBuild Configuration: {BuildConfiguration}\nBuild Date: {BuildDate}\nGraphics RHI: {GraphicsRHI}"), TooltipArgs);
 
 		SetToolTipText(RightContentTooltip);
 
@@ -151,16 +159,25 @@ public:
 			.Margin(FAppStyle::Get().GetMargin("SProjectBadge.BadgePadding"))
 			.ColorAndOpacity(BadgeTextColor);
 
+		// clang-format off
 		SBox::Construct(SBox::FArguments()
 			.HAlign(HAlign_Right)
 			.VAlign(VAlign_Top)
 			.Padding(FMargin(0.0f, 0.0f, 2.0f, 0.0f))
 			[
-				SNew(SExtensionPanel)
-				.ExtensionPanelID("LevelEditorProjectNamePlate")
-				.DefaultWidget(DefaultNamePlate)
-				.WindowZoneOverride(EWindowZone::TitleBar)
+				SNew(SBorder)
+				.BorderBackgroundColor(BadgeBackgroundColor)
+				.BorderImage(FAppStyle::GetBrush("SProjectBadge.BadgeShape"))
+				.Padding(FMargin(0))
+				.VAlign(VAlign_Top)
+				[
+					SNew(SExtensionPanel)
+					.ExtensionPanelID("LevelEditorProjectNamePlate")
+					.DefaultWidget(DefaultNamePlate)
+					.WindowZoneOverride(EWindowZone::TitleBar)
+				]
 			]);
+		// clang-format on
 	}
 
 	FVector2D GetSizeLastFrame() const
@@ -657,7 +674,6 @@ void FLevelEditorModule::BindGlobalLevelEditorCommands()
 	ActionList.MapAction( Commands.BrowseDocumentation, FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::BrowseDocumentation ) );
 	ActionList.MapAction( Commands.BrowseViewportControls, FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::BrowseViewportControls ) );
 	ActionList.MapAction( Commands.NewLevel, FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::NewLevel ), FCanExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::NewLevel_CanExecute ) );
-	ActionList.MapAction(Commands.OpenLevel, FExecuteAction::CreateStatic(&FLevelEditorActionCallbacks::OpenLevel), FCanExecuteAction::CreateStatic(&FLevelEditorActionCallbacks::OpenLevel_CanExecute));
 	ActionList.MapAction( Commands.Save, FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::Save ), FCanExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::CanSaveWorld ) );
 	ActionList.MapAction( Commands.SaveAs, FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::SaveCurrentAs ), FCanExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::CanSaveCurrentAs), FGetActionCheckState(), FIsActionButtonVisible::CreateStatic( &FLevelEditorActionCallbacks::CanSaveCurrentAs) );
 	ActionList.MapAction( Commands.SaveAllLevels, FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::SaveAllLevels ), FCanExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::CanSaveUnpartitionedWorld), FGetActionCheckState(), FIsActionButtonVisible::CreateStatic(&FLevelEditorActionCallbacks::CanSaveUnpartitionedWorld) );
@@ -1824,7 +1840,7 @@ void FLevelEditorModule::BindGlobalLevelEditorCommands()
 				}
 
 				const ERHIFeatureLevel::Type FeatureLevel = GetMaxSupportedFeatureLevel(ShaderPlatform);
-				return FPreviewPlatformInfo(FeatureLevel, ShaderPlatform, Item.PlatformName, Item.ShaderFormat, Item.DeviceProfileName, true, Item.PreviewShaderPlatformName);
+				return FPreviewPlatformInfo(FeatureLevel, ShaderPlatform, Item.PlatformName, Item.ShaderFormat, Item.DeviceProfileName, true, Item.PreviewShaderPlatformName, Item.OptionalFriendlyNameOverride);
 			};
 
 			FPreviewPlatformInfo PreviewFeatureLevelInfo = GetPreviewFeatureLevelInfo();
@@ -1834,6 +1850,34 @@ void FLevelEditorModule::BindGlobalLevelEditorCommands()
 				FExecuteAction::CreateStatic(&FLevelEditorActionCallbacks::SetPreviewPlatform, PreviewFeatureLevelInfo),
 				bIsDefaultShaderPlatform ? FCanExecuteAction() : FCanExecuteAction::CreateStatic(&FLevelEditorActionCallbacks::CanExecutePreviewPlatform, PreviewFeatureLevelInfo),
 				FIsActionChecked::CreateStatic(&FLevelEditorActionCallbacks::IsPreviewPlatformChecked, PreviewFeatureLevelInfo));
+
+			FConfigCacheIni* PlatformEngineIni = FConfigCacheIni::ForPlatform(*Item.PlatformName.ToString());
+			FString DeviceProfileSelectionModule;
+			if (PlatformEngineIni && PlatformEngineIni->GetString(TEXT("DeviceProfileManager"), TEXT("PreviewDeviceProfileSelectionModule"), DeviceProfileSelectionModule, GEngineIni))
+			{
+				const TArray<FLevelEditorCommands::PreviewPlatformCommand>* CommandListJson = Commands.PlatformToPreviewJsonPlatformOverrides.Find(Item.PlatformName);
+
+				if (CommandListJson != nullptr)
+				{
+					for (const FLevelEditorCommands::PreviewPlatformCommand& PreviewJsonPlatform : *CommandListJson)
+					{
+						if (PreviewJsonPlatform.bIsGeneratingJsonCommand)
+						{
+							FUIAction Action;
+							Action.ExecuteAction = FExecuteAction::CreateStatic(&FLevelEditorActionCallbacks::GeneratePreviewJson_Clicked, Item.PlatformName.ToString());
+							Action.IsActionVisibleDelegate = FIsActionButtonVisible::CreateStatic(&FLevelEditorActionCallbacks::IsGeneratePreviewJsonVisible, Item.PlatformName);
+							ActionList.MapAction(PreviewJsonPlatform.CommandInfo, Action);
+						}
+						else
+						{
+							FUIAction ActionJsonFile;
+							ActionJsonFile.ExecuteAction = FExecuteAction::CreateStatic(&FLevelEditorActionCallbacks::PreviewJson_Clicked, Item.PlatformName, Item.PreviewShaderPlatformName, PreviewJsonPlatform.FilePath);
+							ActionJsonFile.IsActionVisibleDelegate = FIsActionButtonVisible::CreateStatic(&FLevelEditorActionCallbacks::IsPreviewJsonVisible, Item.PlatformName);
+							ActionList.MapAction(PreviewJsonPlatform.CommandInfo, ActionJsonFile);
+						}
+					}
+				}
+			}
 		}
 	}
 

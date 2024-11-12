@@ -81,7 +81,7 @@ using namespace UE::TextureShareCore;
 //////////////////////////////////////////////////////////////////////////////////////////////
 // FTextureShareResource
 //////////////////////////////////////////////////////////////////////////////////////////////
-void FTextureShareResource::InitDynamicRHI_D3D12(FTexture2DRHIRef& OutTextureRHI)
+void FTextureShareResource::InitDynamicRHI_D3D12(FTextureRHIRef& OutTextureRHI)
 {
 	switch (ResourceDesc.ResourceType)
 	{

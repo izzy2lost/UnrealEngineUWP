@@ -6,15 +6,14 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Widgets/SBoxPanel.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsCommands.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/LoadingProfiler/LoadingProfilerCommands.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#define LOCTEXT_NAMESPACE "SLoadingProfilerToolbar"
+namespace UE::Insights::LoadingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -118,4 +117,4 @@ void SLoadingProfilerToolbar::Construct(const FArguments& InArgs)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#undef LOCTEXT_NAMESPACE
+} // namespace UE::Insights::LoadingProfiler

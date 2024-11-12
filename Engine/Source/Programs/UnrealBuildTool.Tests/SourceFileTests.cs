@@ -20,65 +20,67 @@ namespace UnrealBuildToolTests
 		[TestMethod]
 		public void Run()
 		{
-			List<DirectoryReference> BaseDirectories = new List<DirectoryReference>();
-			BaseDirectories.Add(DirectoryReference.Combine(Unreal.EngineSourceDirectory, "Runtime"));
-			BaseDirectories.Add(DirectoryReference.Combine(Unreal.EngineSourceDirectory, "Developer"));
-			BaseDirectories.Add(DirectoryReference.Combine(Unreal.EngineSourceDirectory, "Editor"));
+			UnrealHelper.InitializePath();
 
-			foreach (FileReference PluginFile in PluginsBase.EnumeratePlugins((FileReference)null))
+			List<DirectoryReference> baseDirectories = new List<DirectoryReference>();
+			baseDirectories.Add(DirectoryReference.Combine(Unreal.EngineSourceDirectory, "Runtime"));
+			baseDirectories.Add(DirectoryReference.Combine(Unreal.EngineSourceDirectory, "Developer"));
+			baseDirectories.Add(DirectoryReference.Combine(Unreal.EngineSourceDirectory, "Editor"));
+
+			foreach (FileReference pluginFile in PluginsBase.EnumeratePlugins((FileReference?)null))
 			{
-				DirectoryReference PluginSourceDir = DirectoryReference.Combine(PluginFile.Directory, "Source");
-				if (DirectoryReference.Exists(PluginSourceDir))
+				DirectoryReference pluginSourceDir = DirectoryReference.Combine(pluginFile.Directory, "Source");
+				if (DirectoryReference.Exists(pluginSourceDir))
 				{
-					BaseDirectories.Add(PluginSourceDir);
+					baseDirectories.Add(pluginSourceDir);
 				}
 			}
 
-			ConcurrentBag<SourceFile> SourceFiles = new ConcurrentBag<SourceFile>();
+			ConcurrentBag<SourceFile> sourceFiles = new ConcurrentBag<SourceFile>();
 			using (GlobalTracer.Instance.BuildSpan("Scanning source files").StartActive())
 			{
-				using (ThreadPoolWorkQueue Queue = new ThreadPoolWorkQueue())
+				using (ThreadPoolWorkQueue queue = new ThreadPoolWorkQueue())
 				{
-					foreach (DirectoryReference BaseDirectory in BaseDirectories)
+					foreach (DirectoryReference baseDirectory in baseDirectories)
 					{
-						Queue.Enqueue(() => ParseSourceFiles(DirectoryItem.GetItemByDirectoryReference(BaseDirectory), SourceFiles, Queue));
+						queue.Enqueue(() => ParseSourceFiles(DirectoryItem.GetItemByDirectoryReference(baseDirectory), sourceFiles, queue));
 					}
 				}
 			}
 
-			FileReference TempDataFile = FileReference.Combine(Unreal.EngineDirectory, "Intermediate", "Temp", "SourceFileTests.bin");
-			DirectoryReference.CreateDirectory(TempDataFile.Directory);
+			FileReference tempDataFile = FileReference.Combine(Unreal.EngineDirectory, "Intermediate", "Temp", "SourceFileTests.bin");
+			DirectoryReference.CreateDirectory(tempDataFile.Directory);
 
 			using (GlobalTracer.Instance.BuildSpan("Writing source file data").StartActive())
 			{
-				using (BinaryArchiveWriter Writer = new BinaryArchiveWriter(TempDataFile))
+				using (BinaryArchiveWriter writer = new BinaryArchiveWriter(tempDataFile))
 				{
-					Writer.WriteList(SourceFiles.ToList(), x => x.Write(Writer));
+					writer.WriteList(sourceFiles.ToList(), x => x.Write(writer));
 				}
 			}
 
-			List<SourceFile> ReadSourceFiles = new List<SourceFile>();
+			List<SourceFile>? readSourceFiles = new List<SourceFile>();
 			using (GlobalTracer.Instance.BuildSpan("Reading source file data").StartActive())
 			{
-				using (BinaryArchiveReader Reader = new BinaryArchiveReader(TempDataFile))
+				using (BinaryArchiveReader reader = new BinaryArchiveReader(tempDataFile))
 				{
-					ReadSourceFiles = Reader.ReadList(() => new SourceFile(Reader));
+					readSourceFiles = reader.ReadList(() => new SourceFile(reader));
 				}
 			}
 		}
 
-		static void ParseSourceFiles(DirectoryItem Directory, ConcurrentBag<SourceFile> SourceFiles, ThreadPoolWorkQueue Queue)
+		static void ParseSourceFiles(DirectoryItem directory, ConcurrentBag<SourceFile> sourceFiles, ThreadPoolWorkQueue queue)
 		{
-			foreach (DirectoryItem SubDirectory in Directory.EnumerateDirectories())
+			foreach (DirectoryItem subDirectory in directory.EnumerateDirectories())
 			{
-				Queue.Enqueue(() => ParseSourceFiles(SubDirectory, SourceFiles, Queue));
+				queue.Enqueue(() => ParseSourceFiles(subDirectory, sourceFiles, queue));
 			}
 
-			foreach (FileItem File in Directory.EnumerateFiles())
+			foreach (FileItem file in directory.EnumerateFiles())
 			{
-				if (File.HasExtension(".h") || File.HasExtension(".cpp"))
+				if (file.HasExtension(".h") || file.HasExtension(".cpp"))
 				{
-					Queue.Enqueue(() => SourceFiles.Add(new SourceFile(File)));
+					queue.Enqueue(() => sourceFiles.Add(new SourceFile(file)));
 				}
 			}
 		}

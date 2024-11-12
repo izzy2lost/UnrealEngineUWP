@@ -165,6 +165,8 @@ public:
 
 	// Check the type of the argument's Var expected to be contained in the Pin's Var
 	bool IsArgScalar() const { return Argument.IsScalar(); }
+	bool IsArgBool() const { return Argument.IsBool(); }
+	bool IsArgString() const { return Argument.IsString(); }
 	bool IsArgColor() const { return Argument.IsColor(); }
 	bool IsArgVector() const { return Argument.IsVector(); }
 	bool IsArgTexture() const { return Argument.IsTexture(); }
@@ -177,6 +179,12 @@ public:
 
 	// Scalar getter only on a scalar argument
 	bool GetValue(float& OutValue) const;
+
+	// bool getter only on a boolean argument
+	bool GetValue(bool& OutValue) const;
+
+	// String getter only on a FString argument
+	bool GetValue(FString& OutValue) const;
 
 	// Color or Vector getter only on a vector or color argument
 	bool GetValue(FLinearColor& OutValue) const;
@@ -203,15 +211,19 @@ public:
 	// Set the self var value from string
 	// Used by UI to assign pin default value
 	// This is the same as the selfvar setter
-	void				SetValue(const FString& InValueStr, bool bIsTweaking = false);
+	void				FromString(const FString& InValueStr, bool bIsTweaking = false);
 
-	// Setters for Scalar, Color, Vector arguments
+	// Setters for Scalar, Color, Vector, bool and String  arguments
+	// These check that the arg is of the correct type
 	bool SetValue(float Value);
 	bool SetValue(double Value) { return SetValue((float)Value); }
 	bool SetValue(uint32 Value) { return SetValue((float)Value); }
 	bool SetValue(int32 Value) { return SetValue((float)Value); }
+	bool SetValue(bool bValue);
+	bool SetValue(FString Value); // FName pin is assigned by the templated version, not FString
 	bool SetValue(const FLinearColor& Value);
 	bool SetValue(const FVector4f& Value);
+
 	bool SetValue(const float* Value, size_t Count);
 	bool SetValue(FTG_Texture&) { return false; } // this is not a possible case
 	bool SetValue(const FTG_TextureDescriptor& Value); 

@@ -36,5 +36,13 @@ public class WebAPIOpenAPI : ModuleRules
 				"WebAPI",
 				"WebAPIEditor"
 			});
+
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[] {
+					"Projects"
+				});
+		}
     }
 }

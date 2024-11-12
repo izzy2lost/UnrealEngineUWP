@@ -127,4 +127,14 @@ int SwappyGL_getSupportedRefreshPeriodsNS(uint64_t *out_refreshrates,
                                                   allocated_entries);
 }
 
+void SwappyGL_resetFramePacing() { SwappyGL::resetFramePacing(); }
+
+void SwappyGL_enableFramePacing(bool enable) {
+    SwappyGL::enableFramePacing(enable);
+}
+
+void SwappyGL_enableBlockingWait(bool enable) {
+    SwappyGL::enableBlockingWait(enable);
+}
+
 }  // extern "C" {

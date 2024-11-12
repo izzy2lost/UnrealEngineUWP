@@ -4,6 +4,7 @@
 
 #include "Components/ActorComponent.h"
 #include "MediaPlayerProxyInterface.h"
+#include "MediaPlateResource.h"
 #include "MediaSource.h"
 #include "MediaTextureTracker.h"
 #include "Misc/EnumClassFlags.h"
@@ -33,6 +34,8 @@ enum class EMediaPlateEventState : uint8
 	Reverse,
 	Forward,
 	Rewind,
+	Next,
+	Previous,
 	MAX
 };
 
@@ -74,7 +77,6 @@ public:
 	virtual void BeginDestroy() override;
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void OnUnregister() override;
-
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif // WITH_EDITOR
@@ -168,6 +170,16 @@ public:
 	UFUNCTION(BlueprintSetter)
 	void SetLoop(bool bInLoop);
 
+	/**
+	 * Get the currently active Media Playlist
+	 */
+	UMediaPlaylist* GetMediaPlaylist() const;
+
+	/**
+	 * Update Media Player Resource. This will also refresh Playlist accordingly.
+	 */
+	void SetMediaPlateResource(const FMediaPlateResource& InMediaPlayerResource);
+
 	/** If set then play when opening the media. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Control")
 	bool bPlayOnOpen = true;
@@ -196,9 +208,15 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Advanced|Other")
 	TArray<TObjectPtr<UStaticMeshComponent>> Letterboxes;
 
-	/** What media playlist to play. */
-	UPROPERTY(BlueprintReadWrite, Category = "MediaPlate")
-	TObjectPtr<UMediaPlaylist> MediaPlaylist;
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.5, "Use MediaPlateResource instead")
+	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use MediaPlateResource instead"))
+	TObjectPtr<UMediaPlaylist> MediaPlaylist_DEPRECATED;
+#endif
+
+	/** Which media source is used to populate the media playlist */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MediaPlate", meta=(AllowPrivateAccess="true"), Setter=SetMediaPlateResource)
+	FMediaPlateResource MediaPlateResource;
 
 	/** The current index of the source in the play list being played. */
 	UPROPERTY(BlueprintReadWrite, Category = "MediaPlate")
@@ -273,12 +291,12 @@ public:
 	 * Call this to set the mip tile calculations mesh mode. (Note: restarts playback to apply changes.)
 	 */
 	void SetVisibleMipsTilesCalculations(EMediaTextureVisibleMipsTiles InVisibleMipsTilesCalculations);
+#endif
 
 	/**
-	* Called whenever a button was pressed locally or on a remote endpoint.
-	*/
+	 * Called whenever a button was pressed locally or on a remote endpoint.
+	 */
 	void SwitchStates(EMediaPlateEventState State);
-#endif
 
 	/**
 	 * Called from the media clock.
@@ -296,7 +314,6 @@ public:
 	virtual bool ProxySetAspectRatio(UMediaPlayer* InMediaPlayer) override;
 	virtual void ProxySetTextureBlend(int32 LayerIndex, int32 TextureIndex, float Blend) override;
 
-#if WITH_EDITOR
 public:
 	/**
 	 * Get the rate to use when we press the forward button.
@@ -307,7 +324,6 @@ public:
 	 * Get the rate to use when we press the reverse button.
 	 */
 	static float GetReverseRate(UMediaPlayer* MediaPlayer);
-#endif
 
 private:
 	/**
@@ -324,7 +340,7 @@ private:
 	 */
 	void PlayOnlyWhenVisibleChanged();
 
-	void RestartPlayer();
+	bool RestartPlayer();
 
 	/**
 	 * If true, then we want the media plate to play.
@@ -547,4 +563,20 @@ private:
 	 * Sets textures in our material according to the layer assignments.
 	 */
 	void UpdateTextureLayers();
+
+#if WITH_EDITORONLY_DATA
+	/**
+	 * If Media Player Resource is not initialized yet (e.g. older assets)
+	 * this function will initialize it with the proper data.
+	 * Logic is the following: if media playlist has more than one entry, then the type will be set to Playlist.
+	 * If playlist has only one entry, then the function will check for that entry Outer.
+	 * If the Outer is this media plate component, then type will be set to External, otherwise to Asset.
+	 */
+	void InitializeMediaPlateResource();
+#endif
+
+	/**
+	 * Can be called after updating MediaPlayerResource, to ensure the Playlist and player state are up to date
+	 */
+	void RefreshMediaPlateResource();
 };

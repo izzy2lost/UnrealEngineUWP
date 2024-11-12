@@ -7,7 +7,11 @@
 #pragma once
 
 #include "VulkanMemory.h"
+#include "VulkanResources.h"
+#include "GPUProfiler.h"
 
+class FVulkanSamplerState;
+class FVulkanDynamicRHI;
 class FVulkanDescriptorSetCache;
 class FVulkanDescriptorPool;
 class FVulkanDescriptorPoolsManager;
@@ -17,16 +21,13 @@ class FVulkanTransientHeapCache;
 class FVulkanDeviceExtension;
 class FVulkanOcclusionQueryPool;
 class FVulkanRenderPassManager;
-
-#if VULKAN_RHI_RAYTRACING
 class FVulkanRayTracingCompactionRequestHandler;
-#endif
 
 // HOTFIX for UE-218250: Disable vulkan debug names to get around crash/performance issues
 #define VULKAN_USE_DEBUG_NAMES 0
 
 #if VULKAN_USE_DEBUG_NAMES
-#define VULKAN_SET_DEBUG_NAME(Device, Type, Handle, Format, ...) Device.VulkanSetObjectName(Type, (uint64)Handle, *FString::Printf(Format, __VA_ARGS__))
+#define VULKAN_SET_DEBUG_NAME(Device, Type, Handle, Format, ...) (Device).VulkanSetObjectName(Type, (uint64)Handle, *FString::Printf(Format, __VA_ARGS__))
 #else
 #define VULKAN_SET_DEBUG_NAME(Device, Type, Handle, Format, ...) do{}while(0)
 #endif
@@ -45,6 +46,7 @@ struct FOptionalVulkanDeviceExtensions
 			uint64 HasEXTFragmentDensityMap : 1;
 			uint64 HasEXTFragmentDensityMap2 : 1;
 			uint64 HasKHRFragmentShadingRate : 1;
+			uint64 HasKHRFragmentShaderBarycentric : 1;
 			uint64 HasEXTFullscreenExclusive : 1;
 			uint64 HasImageAtomicInt64 : 1;
 			uint64 HasAccelerationStructure : 1;
@@ -54,16 +56,19 @@ struct FOptionalVulkanDeviceExtensions
 			uint64 HasEXTCalibratedTimestamps : 1;
 			uint64 HasEXTDescriptorBuffer : 1;
 			uint64 HasEXTDeviceFault : 1;
+			uint64 HasEXTLoadStoreOpNone : 1;
+			uint64 HasEXTMeshShader : 1;
 
 			// Vendor specific
 			uint64 HasAMDBufferMarker : 1;
 			uint64 HasNVDiagnosticCheckpoints : 1;
 			uint64 HasNVDeviceDiagnosticConfig : 1;
-			uint64 HasQcomRenderPassTransform : 1;
+			uint64 HasANDROIDExternalMemoryHardwareBuffer : 1;
 
 			// Promoted to 1.1
 			uint64 HasKHRMultiview : 1;
 			uint64 HasKHR16bitStorage : 1;
+			uint64 HasKHRSamplerYcbcrConversion : 1;
 
 			// Promoted to 1.2
 			uint64 HasKHRRenderPass2 : 1;
@@ -79,6 +84,7 @@ struct FOptionalVulkanDeviceExtensions
 			uint64 HasSeparateDepthStencilLayouts : 1;
 			uint64 HasEXTHostQueryReset : 1;
 			uint64 HasQcomRenderPassShaderResolve : 1;
+			uint64 HasKHRDepthStencilResolve : 1;
 
 			// Promoted to 1.3
 			uint64 HasEXTTextureCompressionASTCHDR : 1;
@@ -101,7 +107,6 @@ struct FOptionalVulkanDeviceExtensions
 		return HasAMDBufferMarker || HasNVDiagnosticCheckpoints;
 	}
 
-#if VULKAN_RHI_RAYTRACING
 	inline bool HasRaytracingExtensions() const
 	{
 		return 
@@ -113,7 +118,6 @@ struct FOptionalVulkanDeviceExtensions
 			HasSPIRV_14 && 
 			HasShaderFloatControls;
 	}
-#endif
 };
 
 // All the features and properties we need to keep around from extension initialization
@@ -127,14 +131,17 @@ struct FOptionalVulkanDeviceExtensionProperties
 	VkPhysicalDeviceDescriptorBufferPropertiesEXT DescriptorBufferProps;
 	VkPhysicalDeviceSubgroupSizeControlPropertiesEXT SubgroupSizeControlProperties;
 
-#if VULKAN_RHI_RAYTRACING
 	VkPhysicalDeviceAccelerationStructurePropertiesKHR AccelerationStructureProps;
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR RayTracingPipelineProps;
-#endif // VULKAN_RHI_RAYTRACING
 
 	VkPhysicalDeviceFragmentShadingRateFeaturesKHR FragmentShadingRateFeatures;
 	VkPhysicalDeviceFragmentDensityMapFeaturesEXT FragmentDensityMapFeatures;
 	VkPhysicalDeviceFragmentDensityMap2FeaturesEXT FragmentDensityMap2Features;
+
+	VkPhysicalDeviceFragmentShaderBarycentricPropertiesKHR FragmentShaderBarycentricProps;
+	VkPhysicalDeviceComputeShaderDerivativesFeaturesNV ComputeShaderDerivativesFeatures;
+
+	VkPhysicalDeviceMeshShaderPropertiesEXT MeshShaderProperties;
 };
 
 class FVulkanPhysicalDeviceFeatures
@@ -160,7 +167,7 @@ private:
 
 namespace VulkanRHI
 {
-	class FDeferredDeletionQueue2 : public FDeviceChild
+	class FDeferredDeletionQueue2 : public VulkanRHI::FDeviceChild
 	{
 
 	public:
@@ -331,12 +338,10 @@ public:
 		return GpuSubgroupProps;
 	}
 
-#if VULKAN_RHI_RAYTRACING
 	FVulkanRayTracingCompactionRequestHandler* GetRayTracingCompactionRequestHandler() { return RayTracingCompactionRequestHandler; }
 
 	void InitializeRayTracing();
 	void CleanUpRayTracing();
-#endif // VULKAN_RHI_RAYTRACING
 
 #if VULKAN_SUPPORTS_VALIDATION_CACHE
 	inline VkValidationCacheEXT GetValidationCache() const
@@ -441,11 +446,9 @@ public:
 		return ShaderFactory;
 	}
 
-	FVulkanCommandListContextImmediate& GetImmediateContext();
-
-	inline FVulkanCommandListContext& GetImmediateComputeContext()
+	FVulkanCommandListContextImmediate& GetImmediateContext()
 	{
-		return *ComputeContext;
+		return *ImmediateContext;
 	}
 
 	void NotifyDeletedImage(VkImage Image, bool bRenderTarget);
@@ -523,9 +526,11 @@ public:
 
 	const TArray<const ANSICHAR*>& GetDeviceExtensions() { return DeviceExtensions; }
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	// Performs a GPU and CPU timestamp at nearly the same time.
 	// This allows aligning GPU and CPU events on the same timeline in profile visualization.
 	FGPUTimingCalibrationTimestamp GetCalibrationTimestamp();
+#endif
 
 private:
 	void MapBufferFormatSupport(FPixelFormatInfo& PixelFormatInfo, EPixelFormat UEFormat, VkFormat VulkanFormat);
@@ -576,9 +581,7 @@ private:
 	VkPhysicalDeviceIDPropertiesKHR GpuIdProps;
 	VkPhysicalDeviceSubgroupProperties GpuSubgroupProps;
 
-#if VULKAN_RHI_RAYTRACING
 	FVulkanRayTracingCompactionRequestHandler* RayTracingCompactionRequestHandler = nullptr;
-#endif // VULKAN_RHI_RAYTRACING
 
 	FVulkanPhysicalDeviceFeatures PhysicalDeviceFeatures;
 

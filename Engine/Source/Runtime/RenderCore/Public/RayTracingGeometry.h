@@ -16,7 +16,7 @@ namespace RayTracing
 	using GeometryGroupHandle = int32;
 }
 
-enum class ERTAccelerationStructureBuildPriority
+enum class ERTAccelerationStructureBuildPriority : uint8
 {
 	Immediate,
 	High,
@@ -31,8 +31,16 @@ class FRayTracingGeometry : public FRenderResource
 public:
 	TResourceArray<uint8> RawData;
 
-	RENDERCORE_API FRayTracingGeometry();
-	RENDERCORE_API virtual ~FRayTracingGeometry();
+	//disable deprecation warnings for default constructors
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	RENDERCORE_API FRayTracingGeometry() = default;
+	RENDERCORE_API virtual ~FRayTracingGeometry() = default;
+
+	FRayTracingGeometry(const FRayTracingGeometry&) = delete;
+	FRayTracingGeometry& operator=(const FRayTracingGeometry&) = delete;
+	FRayTracingGeometry(FRayTracingGeometry&&) = delete;
+	FRayTracingGeometry& operator=(FRayTracingGeometry&&) = delete;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #if RHI_RAYTRACING
 
@@ -46,8 +54,20 @@ public:
 	*/
 	int64 DynamicGeometrySharedBufferGenerationID = NonSharedVertexBuffers;
 
+	// Last frame when geometry was updated (only skinned geometry)
+	uint64 LastUpdatedFrame = 0;	
+
 	FRayTracingGeometryInitializer Initializer;
+
+	UE_DEPRECATED(5.5, "Use GetRHI() instead.")
 	FRayTracingGeometryRHIRef RayTracingGeometryRHI;
+
+	FRHIRayTracingGeometry* GetRHI() const
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return RayTracingGeometryRHI;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
 
 	RayTracing::GeometryGroupHandle GroupHandle = INDEX_NONE;
 
@@ -110,29 +130,18 @@ public:
 		return GeometryState;
 	}
 
-	RENDERCORE_API void InitRHIForStreaming(FRHIRayTracingGeometry* IntermediateGeometry, FRHIResourceUpdateBatcher& Batcher);
-	RENDERCORE_API void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher);
+	RENDERCORE_API void InitRHIForStreaming(FRHIRayTracingGeometry* IntermediateGeometry, FRHIResourceReplaceBatcher& Batcher);
+	RENDERCORE_API void ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher);
 
-	UE_DEPRECATED(5.4, "Use FStaticMeshStreamIn::FIntermediateRayTracingGeometry instead.")
-	RENDERCORE_API void CreateRayTracingGeometryFromCPUData(TResourceArray<uint8>& OfflineData);
-
-	RENDERCORE_API void RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority InBuildPriority);
-
-	UE_DEPRECATED(5.4, "InitRHIForDynamicRayTracing now requires a command list and was renamed to MakeResident().")
-	RENDERCORE_API void InitRHIForDynamicRayTracing();
+	RENDERCORE_API void RequestBuildIfNeeded(FRHICommandListBase& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority);
 
 	RENDERCORE_API void CreateRayTracingGeometry(FRHICommandListBase& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority);
-
-	UE_DEPRECATED(5.4, "CreateRayTracingGeometry now requires a command list.")
-	RENDERCORE_API void CreateRayTracingGeometry(ERTAccelerationStructureBuildPriority InBuildPriority);
 
 	RENDERCORE_API void MakeResident(FRHICommandList& RHICmdList);
 	RENDERCORE_API void Evict();
 	
-	bool HasPendingBuildRequest() const
-	{
-		return RayTracingBuildRequestIndex != INDEX_NONE;
-	}
+	RENDERCORE_API bool HasPendingBuildRequest() const;
+
 	RENDERCORE_API void BoostBuildPriority(float InBoostValue = 0.01f) const;
 
 	// FRenderResource interface
@@ -148,9 +157,9 @@ protected:
 	RENDERCORE_API void RemoveBuildRequest();
 
 	friend class FRayTracingGeometryManager;
+	EGeometryStateFlags GeometryState = EGeometryStateFlags::Invalid;
 	int32 RayTracingBuildRequestIndex = INDEX_NONE;
 	int32 RayTracingGeometryHandle = INDEX_NONE; // Only valid when ray tracing is dynamic
-	EGeometryStateFlags GeometryState = EGeometryStateFlags::Invalid;
 #endif
 };
 

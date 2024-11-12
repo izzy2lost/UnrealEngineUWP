@@ -395,7 +395,7 @@ FGraph ConstructPartialTransposeGraph(
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConvertToGraphTest, "System.Core.Graph.ConvertToGraph", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConvertToGraphTest, "System.Core.Graph.ConvertToGraph", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FConvertToGraphTest::RunTest(const FString& Parameters)
 {
 	using namespace UE::Graph;
@@ -468,7 +468,7 @@ bool FConvertToGraphTest::RunTest(const FString& Parameters)
 	return TestGraph(DestGraph);
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConvertToSingleBufferGraphTest, "System.Core.Graph.ConvertToSingleBufferGraph", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConvertToSingleBufferGraphTest, "System.Core.Graph.ConvertToSingleBufferGraph", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FConvertToSingleBufferGraphTest::RunTest(const FString& Parameters)
 {
 	using namespace UE::Graph;
@@ -512,7 +512,7 @@ bool FConvertToSingleBufferGraphTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCondensationGraphTest_Core, "System.Core.Graph.CondensationGraph", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCondensationGraphTest_Core, "System.Core.Graph.CondensationGraph", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 
 bool FCondensationGraphTest_Core::RunTest(const FString& Parameters)
 {

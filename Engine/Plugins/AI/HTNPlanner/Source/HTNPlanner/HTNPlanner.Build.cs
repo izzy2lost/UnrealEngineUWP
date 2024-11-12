@@ -6,7 +6,9 @@ namespace UnrealBuildTool.Rules
     {
         public HTNPlanner(ReadOnlyTargetRules Target) : base(Target)
         {
-            PublicDependencyModuleNames.AddRange(
+			StaticAnalyzerDisabledCheckers.Add("cplusplus.PlacementNew");
+
+			PublicDependencyModuleNames.AddRange(
                 new string[] {
                         "Core",
                         "CoreUObject",

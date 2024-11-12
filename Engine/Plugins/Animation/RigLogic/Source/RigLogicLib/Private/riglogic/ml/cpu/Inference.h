@@ -2,9 +2,6 @@
 
 #pragma once
 
-// *INDENT-OFF*
-#ifdef RL_BUILD_WITH_ML_EVALUATOR
-
 #include "riglogic/TypeDefs.h"
 #include "riglogic/ml/cpu/NeuralNet.h"
 #include "riglogic/ml/cpu/layers/LeakyReLULayerEvaluator.h"
@@ -111,6 +108,3 @@ struct NeuralNetInference {
 }  // namespace ml
 
 }  // namespace rl4
-
-#endif  // RL_BUILD_WITH_ML_EVALUATOR
-// *INDENT-ON*

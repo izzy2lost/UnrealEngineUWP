@@ -125,7 +125,7 @@ FVertexShaderRHIRef FD3D11DynamicRHI::RHICreateVertexShader(TArrayView<const uin
 	FD3D11VertexShader* Shader = new FD3D11VertexShader;
 
 	FMemoryReaderView Ar( Code, true );
-	Ar << Shader->ShaderResourceTable;
+	Shader->SerializeShaderResourceTable(Ar);
 	int32 Offset = Ar.Tell();
 
 	TArrayView<const uint8> ActualCode = ShaderCode.GetOffsetShaderCode(Offset);
@@ -140,7 +140,7 @@ FVertexShaderRHIRef FD3D11DynamicRHI::RHICreateVertexShader(TArrayView<const uin
 		{
 			ResetVendorExtensions(Direct3DDevice);
 		}
-		UE::RHICore::InitStaticUniformBufferSlots(Shader->StaticSlots, Shader->ShaderResourceTable);
+		UE::RHICore::InitStaticUniformBufferSlots(Shader);
 	}
 	
 	// TEMP
@@ -156,7 +156,7 @@ FGeometryShaderRHIRef FD3D11DynamicRHI::RHICreateGeometryShader(TArrayView<const
 	FD3D11GeometryShader* Shader = new FD3D11GeometryShader;
 
 	FMemoryReaderView Ar( Code, true );
-	Ar << Shader->ShaderResourceTable;
+	Shader->SerializeShaderResourceTable(Ar);
 	int32 Offset = Ar.Tell();
 
 	TArrayView<const uint8> ActualCode = ShaderCode.GetOffsetShaderCode(Offset);
@@ -171,7 +171,7 @@ FGeometryShaderRHIRef FD3D11DynamicRHI::RHICreateGeometryShader(TArrayView<const
 		{
 			ResetVendorExtensions(Direct3DDevice);
 		}
-		UE::RHICore::InitStaticUniformBufferSlots(Shader->StaticSlots, Shader->ShaderResourceTable);
+		UE::RHICore::InitStaticUniformBufferSlots(Shader);
 	}
 
 	return Shader;
@@ -183,7 +183,7 @@ FPixelShaderRHIRef FD3D11DynamicRHI::RHICreatePixelShader(TArrayView<const uint8
 	FD3D11PixelShader* Shader = new FD3D11PixelShader;
 
 	FMemoryReaderView Ar( Code, true );
-	Ar << Shader->ShaderResourceTable;
+	Shader->SerializeShaderResourceTable(Ar);
 	int32 Offset = Ar.Tell();
 
 	TArrayView<const uint8> ActualCode = ShaderCode.GetOffsetShaderCode(Offset);
@@ -198,7 +198,7 @@ FPixelShaderRHIRef FD3D11DynamicRHI::RHICreatePixelShader(TArrayView<const uint8
 		{
 			ResetVendorExtensions(Direct3DDevice);
 		}
-		UE::RHICore::InitStaticUniformBufferSlots(Shader->StaticSlots, Shader->ShaderResourceTable);
+		UE::RHICore::InitStaticUniformBufferSlots(Shader);
 	}
 
 	return Shader;
@@ -210,7 +210,7 @@ FComputeShaderRHIRef FD3D11DynamicRHI::RHICreateComputeShader(TArrayView<const u
 	FD3D11ComputeShader* Shader = new FD3D11ComputeShader;
 
 	FMemoryReaderView Ar( Code, true );
-	Ar << Shader->ShaderResourceTable;
+	Shader->SerializeShaderResourceTable(Ar);
 	int32 Offset = Ar.Tell();
 
 	TArrayView<const uint8> ActualCode = ShaderCode.GetOffsetShaderCode(Offset);
@@ -225,7 +225,7 @@ FComputeShaderRHIRef FD3D11DynamicRHI::RHICreateComputeShader(TArrayView<const u
 		{
 			ResetVendorExtensions(Direct3DDevice);
 		}
-		UE::RHICore::InitStaticUniformBufferSlots(Shader->StaticSlots, Shader->ShaderResourceTable);
+		UE::RHICore::InitStaticUniformBufferSlots(Shader);
 	}
 
 	return Shader;

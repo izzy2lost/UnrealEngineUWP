@@ -1,20 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "D3D12RHIPrivate.h"
 #include "D3D12TransientResourceAllocator.h"
+#include "D3D12RHIPrivate.h"
 #include "D3D12Stats.h"
 #include "ProfilingDebugging/MemoryTrace.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 
-D3D12_RESOURCE_STATES GetInitialResourceState(const D3D12_RESOURCE_DESC& InDesc)
+D3D12_RESOURCE_STATES GetInitialResourceState(const D3D12_RESOURCE_DESC& InDesc, ED3D12QueueType QueueType)
 {
 	// Validate the creation state
 	D3D12_RESOURCE_STATES State = D3D12_RESOURCE_STATE_COMMON;
-	if (EnumHasAnyFlags(InDesc.Flags, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET))
+	if (EnumHasAnyFlags(InDesc.Flags, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) && QueueType == ED3D12QueueType::Direct)
 	{
 		State = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	}
-	else if (EnumHasAnyFlags(InDesc.Flags, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL))
+	else if (EnumHasAnyFlags(InDesc.Flags, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL) && QueueType == ED3D12QueueType::Direct)
 	{
 		State = D3D12_RESOURCE_STATE_DEPTH_WRITE;
 	}
@@ -127,25 +127,27 @@ FD3D12TransientHeap::~FD3D12TransientHeap()
 	}
 }
 
-TUniquePtr<FD3D12TransientHeapCache> FD3D12TransientHeapCache::Create(FD3D12Adapter* ParentAdapter, FRHIGPUMask VisibleNodeMask)
+TUniquePtr<FD3D12TransientHeapCache> FD3D12TransientHeapCache::Create(FD3D12Adapter* ParentAdapter)
 {
 	FRHITransientHeapCache::FInitializer Initializer = FRHITransientHeapCache::FInitializer::CreateDefault();
 
 	// Tier2 hardware is able to mix resource types onto the same heap.
 	Initializer.bSupportsAllHeapFlags = ParentAdapter->GetResourceHeapTier() == D3D12_RESOURCE_HEAP_TIER_2;
 
-	return TUniquePtr<FD3D12TransientHeapCache>(new FD3D12TransientHeapCache(Initializer, ParentAdapter, VisibleNodeMask));
+	return TUniquePtr<FD3D12TransientHeapCache>(new FD3D12TransientHeapCache(Initializer, ParentAdapter));
 }
 
-FD3D12TransientHeapCache::FD3D12TransientHeapCache(const FRHITransientHeapCache::FInitializer& Initializer, FD3D12Adapter* ParentAdapter, FRHIGPUMask InVisibleNodeMask)
+FD3D12TransientHeapCache::FD3D12TransientHeapCache(const FRHITransientHeapCache::FInitializer& Initializer, FD3D12Adapter* ParentAdapter)
 	: FRHITransientHeapCache(Initializer)
 	, FD3D12AdapterChild(ParentAdapter)
-	, VisibleNodeMask(InVisibleNodeMask)
 {}
 
 FRHITransientHeap* FD3D12TransientHeapCache::CreateHeap(const FRHITransientHeap::FInitializer& HeapInitializer)
 {
-	return GetParentAdapter()->CreateLinkedObject<FD3D12TransientHeap>(VisibleNodeMask, [&](FD3D12Device* Device)
+	// If heap is flagged for NNE buffers, make it visible on first GPU only.  Required by DirectML.
+	FRHIGPUMask VisibleNodeMask = HeapInitializer.Flags == ERHITransientHeapFlags::AllowNNEBuffers ? FRHIGPUMask::GPU0() : FRHIGPUMask::All();
+
+	return GetParentAdapter()->CreateLinkedObject<FD3D12TransientHeap>(VisibleNodeMask, [&](FD3D12Device* Device, FD3D12TransientHeap* FirstLinkedObject)
 	{
 		return new FD3D12TransientHeap(HeapInitializer, GetParentAdapter(), Device, VisibleNodeMask);
 	});
@@ -157,7 +159,7 @@ FD3D12TransientResourceHeapAllocator::FD3D12TransientResourceHeapAllocator(FD3D1
 	, AllocationInfoQueryDevice(GetParentAdapter()->GetDevice(0))
 {}
 
-FRHITransientTexture* FD3D12TransientResourceHeapAllocator::CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex)
+FRHITransientTexture* FD3D12TransientResourceHeapAllocator::CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, const FRHITransientAllocationFences& Fences)
 {
 	FD3D12DynamicRHI* DynamicRHI = FD3D12DynamicRHI::GetD3DRHI();
 
@@ -166,14 +168,20 @@ FRHITransientTexture* FD3D12TransientResourceHeapAllocator::CreateTexture(const 
 
 	Info.Alignment = FMath::Max<uint32>(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT, Info.Alignment);
 
-	return CreateTextureInternal(InCreateInfo, InDebugName, InPassIndex, Info.SizeInBytes, Info.Alignment,
+	return CreateTextureInternal(InCreateInfo, InDebugName, Fences, Info.SizeInBytes, Info.Alignment,
 		[&](const FRHITransientHeap::FResourceInitializer& Initializer)
 	{
-		FResourceAllocatorAdapter ResourceAllocatorAdapter(GetParentAdapter(), static_cast<FD3D12TransientHeap&>(Initializer.Heap), Initializer.Allocation, Desc);
+		FD3D12TransientHeap& Heap = static_cast<FD3D12TransientHeap&>(Initializer.Heap);
 
-		FRHITextureCreateDesc CreateDesc(InCreateInfo, ERHIAccess::Discard, InDebugName);
-		FRHITexture* Texture = DynamicRHI->CreateD3D12Texture(CreateDesc, nullptr, &ResourceAllocatorAdapter);
-		return new FRHITransientTexture(Texture, ResourceAllocatorAdapter.GpuVirtualAddress, Initializer.Hash, Info.SizeInBytes, ERHITransientAllocationType::Heap, InCreateInfo);
+		return CreateTransientResource<FRHITransientTexture>([DynamicRHI, Adapter = GetParentAdapter(), &Heap, Allocation = Initializer.Allocation, Desc, InCreateInfo, InDebugName]
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(AllocatePlacedTexture);
+			FResourceAllocatorAdapter ResourceAllocatorAdapter(Adapter, Heap, Allocation, Desc);
+			FRHITextureCreateDesc CreateDesc(InCreateInfo, ERHIAccess::Discard, InDebugName);
+			FRHITexture* Texture = DynamicRHI->CreateD3D12Texture(CreateDesc, nullptr, &ResourceAllocatorAdapter);
+			return FRHITransientResource::FResourceTaskResult{ Texture, ResourceAllocatorAdapter.GpuVirtualAddress };
+
+		}, Initializer.Hash, Info.SizeInBytes, InCreateInfo);
 	});
 }
 
@@ -210,7 +218,7 @@ void FD3D12TransientResourceHeapAllocator::FResourceAllocatorAdapter::AllocateRe
 #endif
 }
 
-FRHITransientBuffer* FD3D12TransientResourceHeapAllocator::CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex)
+FRHITransientBuffer* FD3D12TransientResourceHeapAllocator::CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, const FRHITransientAllocationFences& Fences)
 {
 	D3D12_RESOURCE_DESC Desc;
 	uint32 Alignment;
@@ -220,12 +228,19 @@ FRHITransientBuffer* FD3D12TransientResourceHeapAllocator::CreateBuffer(const FR
 	Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
 	uint64 Size = Align(Desc.Width, Alignment);
 
-	return CreateBufferInternal(InCreateInfo, InDebugName, InPassIndex, Size, Alignment,
+	return CreateBufferInternal(InCreateInfo, InDebugName, Fences, Size, Alignment,
 		[&](const FRHITransientHeap::FResourceInitializer& Initializer)
 	{
-		FResourceAllocatorAdapter ResourceAllocatorAdapter(GetParentAdapter(), static_cast<FD3D12TransientHeap&>(Initializer.Heap), Initializer.Allocation, Desc);
-		FRHIBuffer* Buffer = FD3D12DynamicRHI::GetD3DRHI()->CreateBuffer(InCreateInfo, InDebugName, ERHIAccess::Discard, &ResourceAllocatorAdapter);
-		Buffer->SetTrackedAccess_Unsafe(ERHIAccess::Discard);
-		return new FRHITransientBuffer(Buffer, ResourceAllocatorAdapter.GpuVirtualAddress, Initializer.Hash, Size, ERHITransientAllocationType::Heap, InCreateInfo);
+		FD3D12TransientHeap& Heap = static_cast<FD3D12TransientHeap&>(Initializer.Heap);
+
+		return CreateTransientResource<FRHITransientBuffer>([Adapter = GetParentAdapter(), &Heap, Allocation = Initializer.Allocation, Desc, InCreateInfo, InDebugName]
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(AllocatePlacedBuffer);
+			FResourceAllocatorAdapter ResourceAllocatorAdapter(Adapter, Heap, Allocation, Desc);
+			FRHIBuffer* Buffer = FD3D12DynamicRHI::GetD3DRHI()->CreateBuffer(InCreateInfo, InDebugName, ERHIAccess::Discard, &ResourceAllocatorAdapter);
+			Buffer->SetTrackedAccess_Unsafe(ERHIAccess::Discard);
+			return FRHITransientResource::FResourceTaskResult{ Buffer, ResourceAllocatorAdapter.GpuVirtualAddress };
+
+		}, Initializer.Hash, Size, InCreateInfo);
 	});
 }

@@ -86,11 +86,22 @@ UHudSettings::UHudSettings( const FObjectInitializer& ObjectInitializer )
 /* Static functions
  *****************************************************************************/
 
-FString UGameMapsSettings::GetGameDefaultMap( )
+FString UGameMapsSettings::GetGameDefaultMap(EDefaultMapRequestType RequestType)
 {
-	return IsRunningDedicatedServer()
-		? GetDefault<UGameMapsSettings>()->ServerDefaultMap.GetLongPackageName()
-		: GetDefault<UGameMapsSettings>()->GameDefaultMap.GetLongPackageName();
+	switch (RequestType)
+	{
+		case EDefaultMapRequestType::Client:
+			return GetDefault<UGameMapsSettings>()->GameDefaultMap.GetLongPackageName();
+
+		case EDefaultMapRequestType::Server:
+			return GetDefault<UGameMapsSettings>()->ServerDefaultMap.GetLongPackageName();
+
+		case EDefaultMapRequestType::Default:
+		default:
+			return IsRunningDedicatedServer()
+				? GetDefault<UGameMapsSettings>()->ServerDefaultMap.GetLongPackageName()
+				: GetDefault<UGameMapsSettings>()->GameDefaultMap.GetLongPackageName();
+	};
 }
 
 

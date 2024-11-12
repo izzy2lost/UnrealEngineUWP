@@ -25,7 +25,7 @@
 #endif
 
 #ifndef USE_INSTANCE_CULLING_DATA
-	#define USE_INSTANCE_CULLING_DATA 1
+	#define USE_INSTANCE_CULLING_DATA (!(RAYHITGROUPSHADER || RAYTRACING_DYNAMIC_GEOMETRY_CONVERTER))
 #endif
 
 #ifndef VF_REQUIRES_PER_INSTANCE_CUSTOM_DATA
@@ -62,26 +62,6 @@
 		#endif
 	#endif
 #endif
-
-uint GetDefaultPrimitiveSceneDataFlags()
-{
-	// Should match FPrimitiveUniformShaderParametersBuilder::Default()
-	return
-		PRIMITIVE_SCENE_DATA_FLAG_CAST_SHADOWS |
-		PRIMITIVE_SCENE_DATA_FLAG_HAS_CAST_CONTACT_SHADOW |
-		PRIMITIVE_SCENE_DATA_FLAG_EVALUATE_WORLD_POSITION_OFFSET;
-}
-
-uint GetDefaultPrimitiveVisibilityFlags()
-{
-	// Should match FPrimitiveUniformShaderParametersBuilder::Default()
-	return
-		PRIMITIVE_VISIBILITY_FLAG_VISIBLE_IN_GAME |
-		PRIMITIVE_VISIBILITY_FLAG_VISIBLE_IN_EDITOR |
-		PRIMITIVE_VISIBILITY_FLAG_VISIBLE_IN_REFLECTION_CAPTURES |
-		PRIMITIVE_VISIBILITY_FLAG_VISIBLE_IN_REAL_TIME_SKY_CAPTURES |
-		PRIMITIVE_VISIBILITY_FLAG_VISIBLE_IN_RAY_TRACING;
-}
 
 #define INVALID_INSTANCE_PAYLOAD_OFFSET (0xFFFFFFFFu)
 
@@ -144,6 +124,9 @@ struct FPrimitiveSceneData
 	uint		NaniteRayTracingDataOffset;
 	float		MaxWPOExtent;
 	uint		CustomStencilValueAndMask;
+	float		PixelProgrammableDistanceSquared;
+	float		MaterialDisplacementFadeOutSize;
+	uint2		MeshPaintTextureDescriptor;
 	float4		CustomPrimitiveData[NUM_CUSTOM_PRIMITIVE_DATA]; // TODO: Move to associated array to shrink primitive data and pack cachelines more effectively
 };
 
@@ -217,9 +200,12 @@ FPrimitiveSceneData GetPrimitiveDataFromUniformBuffer()
 	PrimitiveData.MinMaterialDisplacement			= Primitive.MinMaterialDisplacement;
 	PrimitiveData.MaxMaterialDisplacement			= Primitive.MaxMaterialDisplacement;
 	PrimitiveData.CustomStencilValueAndMask			= Primitive.CustomStencilValueAndMask;
+	PrimitiveData.PixelProgrammableDistanceSquared	= Primitive.PixelProgrammableDistanceSquared;
+	PrimitiveData.MaterialDisplacementFadeOutSize	= Primitive.MaterialDisplacementFadeOutSize;
+	PrimitiveData.MeshPaintTextureDescriptor		= Primitive.MeshPaintTextureDescriptor;
 	
 	UNROLL
-	for (int DataIndex = 0; DataIndex < NUM_CUSTOM_PRIMITIVE_DATA; ++DataIndex)
+	for (uint DataIndex = 0; DataIndex < NUM_CUSTOM_PRIMITIVE_DATA; ++DataIndex)
 	{
 		PrimitiveData.CustomPrimitiveData[DataIndex] = Primitive.CustomPrimitiveData[DataIndex];
 	}
@@ -255,6 +241,7 @@ struct FInstanceSceneData
 	uint     LastUpdateSceneFrameNumber;
 	uint     NaniteRuntimeResourceID;
 	uint     NaniteHierarchyOffset;
+	uint     SkinningData;
 	float    RandomID;
 #if ENABLE_PER_INSTANCE_CUSTOM_DATA
 	uint     CustomDataOffset;
@@ -299,6 +286,7 @@ FInstanceSceneData WaveReadLaneAt(FInstanceSceneData In, uint SrcIndex)
 	Result.LastUpdateSceneFrameNumber	= WaveReadLaneAt(In.LastUpdateSceneFrameNumber, SrcIndex);
 	Result.NaniteRuntimeResourceID		= WaveReadLaneAt(In.NaniteRuntimeResourceID, SrcIndex);
 	Result.NaniteHierarchyOffset		= WaveReadLaneAt(In.NaniteHierarchyOffset, SrcIndex);
+	Result.SkinningData					= WaveReadLaneAt(In.SkinningData, SrcIndex);
 	Result.RandomID						= WaveReadLaneAt(In.RandomID, SrcIndex);
 #if ENABLE_PER_INSTANCE_CUSTOM_DATA
 	Result.CustomDataOffset				= WaveReadLaneAt(In.CustomDataOffset, SrcIndex);
@@ -461,14 +449,17 @@ FPrimitiveSceneData GetPrimitiveData(uint PrimitiveId)
 	PrimitiveData.NaniteRayTracingDataOffset			= asuint(LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 31).w);
 	PrimitiveData.MaxWPOExtent							= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).x;
 	PrimitiveData.CustomStencilValueAndMask				= asuint(LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).y);
+	PrimitiveData.PixelProgrammableDistanceSquared		= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).z;
+	PrimitiveData.MaterialDisplacementFadeOutSize		= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).w;
+	PrimitiveData.MeshPaintTextureDescriptor			= asuint(LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 33).xy);
 
 	// NOTE: Please make sure GetPrimitiveDataFromUniformBuffer() gets updated as well when adding new members here
 
 	// TODO: Move to associated array (and editor data) to shrink primitive data and better pack cachelines
 	UNROLL
-	for (int DataIndex = 0; DataIndex < NUM_CUSTOM_PRIMITIVE_DATA; ++DataIndex)
+	for (uint DataIndex = 0; DataIndex < NUM_CUSTOM_PRIMITIVE_DATA; ++DataIndex)
 	{
-		PrimitiveData.CustomPrimitiveData[DataIndex] = LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex,  33 + DataIndex);
+		PrimitiveData.CustomPrimitiveData[DataIndex] = LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex,  34 + DataIndex);
 	}
 	return PrimitiveData;
 #endif
@@ -556,6 +547,7 @@ struct FInstancePayloadDataOffsets
 	uint EditorData;
 	uint LocalBounds;
 	uint DynamicData;
+	uint SkinningData;
 	uint LightShadowUVBias;
 	uint PayloadExtension;
 	uint CustomData;
@@ -575,7 +567,7 @@ uint GPUSceneFrameNumber;
 
 uint GetGPUSceneFrameNumber()
 {
-#if USE_GLOBAL_GPU_SCENE_DATA
+#if USE_GLOBAL_GPU_SCENE_DATA || USE_GLOBAL_GPU_SCENE_DATA_RW
 	return GPUSceneFrameNumber;
 #else
 	return Scene.GPUScene.GPUSceneFrameNumber;
@@ -890,6 +882,7 @@ FInstancePayloadDataOffsets GetInstancePayloadDataOffsets(uint PrimitiveId, uint
 	const bool bHasHierarchyOffset			= (Flags & INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET) != 0u;
 	const bool bHasLocalBounds				= (Flags & INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS) != 0u;
 	const bool bHasDynamicData				= (Flags & INSTANCE_SCENE_DATA_FLAG_HAS_DYNAMIC_DATA) != 0u;
+	const bool bHasSkinningData				= (Flags & INSTANCE_SCENE_DATA_FLAG_HAS_SKINNING_DATA) != 0u;
 	const bool bHasLightShadowUVBias		= (Flags & INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS) != 0u;
 	const bool bHasCustomData				= (Flags & INSTANCE_SCENE_DATA_FLAG_HAS_CUSTOM_DATA) != 0u;
 	const bool bHasPayloadExtension			= (Flags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0u;
@@ -907,6 +900,7 @@ FInstancePayloadDataOffsets GetInstancePayloadDataOffsets(uint PrimitiveId, uint
 	Offsets.EditorData 			= INVALID_INSTANCE_PAYLOAD_OFFSET;
 	Offsets.LocalBounds 		= INVALID_INSTANCE_PAYLOAD_OFFSET;
 	Offsets.DynamicData 		= INVALID_INSTANCE_PAYLOAD_OFFSET;
+	Offsets.SkinningData 		= INVALID_INSTANCE_PAYLOAD_OFFSET;
 	Offsets.LightShadowUVBias 	= INVALID_INSTANCE_PAYLOAD_OFFSET;
 	Offsets.PayloadExtension	= INVALID_INSTANCE_PAYLOAD_OFFSET;
 	Offsets.CustomData			= INVALID_INSTANCE_PAYLOAD_OFFSET;
@@ -916,22 +910,28 @@ FInstancePayloadDataOffsets GetInstancePayloadDataOffsets(uint PrimitiveId, uint
 	{
 		Offsets.HierarchyOffset = CurOffset;
 	}
-	// EditorData -> float0.y
-	if (bHasEditorData)
+	// SkinningData -> float0.y
+	if (bHasSkinningData)
 	{
-		Offsets.EditorData = CurOffset;
+		Offsets.SkinningData = CurOffset;
 	}
 	// LocalBounds -> float0.zw & float1.xyzw
 	if (bHasLocalBounds)
 	{
 		Offsets.LocalBounds = CurOffset;
 	}
-	CurOffset += CondMask(bHasLocalBounds, 2u, CondMask(bHasHierarchyOffset || bHasEditorData, 1u, 0u));
+	CurOffset += CondMask(bHasLocalBounds, 2u, CondMask(bHasHierarchyOffset || bHasSkinningData, 1u, 0u));
 
 	if (bHasDynamicData)
 	{
 		Offsets.DynamicData = CurOffset;
 		CurOffset += InstanceTransformSizeFloat4Count;
+	}
+
+	if (bHasEditorData)
+	{
+		Offsets.EditorData = CurOffset;
+		++CurOffset;
 	}
 
 	if (bHasLightShadowUVBias)
@@ -999,27 +999,6 @@ FInstanceSceneData GetInstanceSceneData(uint InstanceId, uint SOAStride, bool bC
 	InstanceData.ValidInstance = InstanceData.PrimitiveId != INVALID_PRIMITIVE_ID &&
 								 ((InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HIDDEN) == 0u);
 
-	// Payload Data Layout
-	// NOTE: Per-instance local bounds and hierarchy offset are always mutually inclusive, so pack together.
-	// Random ID				<packed inline>
-	// Custom Data Count		<packed inline>
-	// HierarchyOffset			float0.x
-	// LocalBounds Center		float0.yzw
-	// LocalBounds Extent		float1.xyz
-	// __UNUSED					float1.w
-#if PLATFORM_ALLOW_SCENE_DATA_COMPRESSED_TRANSFORMS
-	// Previous Transform[0]	float2.xyzw
-	// Previous Transform[1]	float3.xyzw
-	// LM/SM Scale Bias			float4.xyzw
-	// Custom Data Float4s		float5.xyzw ... floatN.xyzw
-#else
-	// Previous Transform[0]	float2.xyzw
-	// Previous Transform[1]	float3.xyzw
-	// Previous Transform[2]	float4.xyzw
-	// LM/SM Scale Bias			float5.xyzw
-	// Custom Data Float4s		float6.xyzw ... floatN.xyzw
-#endif
-
 	BRANCH
 	if (!bCheckValid || InstanceData.ValidInstance)
 	{
@@ -1037,22 +1016,25 @@ FInstanceSceneData GetInstanceSceneData(uint InstanceId, uint SOAStride, bool bC
 
 		FPrimitiveSceneData PrimitiveData		= GetPrimitiveData(InstanceData.PrimitiveId);
 
-		float3 PositionHigh 									= PrimitiveData.PositionHigh;
+		float3 PositionHigh 					= PrimitiveData.PositionHigh;
 
-#if PLATFORM_ALLOW_SCENE_DATA_COMPRESSED_TRANSFORMS
-		uint4  RotationScale									= asuint(LoadInstanceSceneDataElement(1 * SOAStride + InstanceId));
-		float3 Translation										= LoadInstanceSceneDataElement(2 * SOAStride + InstanceId).xyz;
+	#if PLATFORM_ALLOW_SCENE_DATA_COMPRESSED_TRANSFORMS
+		uint4  RotationScale					= asuint(LoadInstanceSceneDataElement(1 * SOAStride + InstanceId));
+		float3 Translation						= LoadInstanceSceneDataElement(2 * SOAStride + InstanceId).xyz;
 		float3 Scale = 0;
-		float4x4 LocalToRelativeWorld							= DecodeTransform( RotationScale, Translation, Scale );
+		float4x4 LocalToRelativeWorld			= DecodeTransform( RotationScale, Translation, Scale );
 
-		InstanceData.NonUniformScale.xyz						= abs(Scale);
-		InstanceData.InvNonUniformScale							= rcp(InstanceData.NonUniformScale.xyz);
-#else
-		float4x4 LocalToRelativeWorld							= transpose(float4x4(LoadInstanceSceneDataElement(1 * SOAStride + InstanceId),
-																			LoadInstanceSceneDataElement(2 * SOAStride + InstanceId),
-																	                LoadInstanceSceneDataElement(3 * SOAStride + InstanceId),
-																	                float4(0.0f, 0.0f, 0.0f, 1.0f)));
-#endif
+		InstanceData.NonUniformScale.xyz		= abs(Scale);
+		InstanceData.InvNonUniformScale			= rcp(InstanceData.NonUniformScale.xyz);
+	#else
+		float4x4 LocalToRelativeWorld			= transpose(
+													float4x4(
+														LoadInstanceSceneDataElement(1 * SOAStride + InstanceId),
+														LoadInstanceSceneDataElement(2 * SOAStride + InstanceId),
+														LoadInstanceSceneDataElement(3 * SOAStride + InstanceId),
+														float4(0.0f, 0.0f, 0.0f, 1.0f)
+													));
+	#endif
 
 
 		InstanceData.LocalToWorld	= MakeDFMatrix(PositionHigh, LocalToRelativeWorld);
@@ -1070,11 +1052,19 @@ FInstanceSceneData GetInstanceSceneData(uint InstanceId, uint SOAStride, bool bC
 			InstanceData.NaniteHierarchyOffset += HierarchyRootOffset;
 		}
 
+		InstanceData.SkinningData = 0;
+		BRANCH
+		if (Offsets.SkinningData != INVALID_INSTANCE_PAYLOAD_OFFSET)
+		{
+			InstanceData.SkinningData = asuint(LoadInstancePayloadDataElement(Offsets.SkinningData)).y;
+		}
+
 	#if USE_EDITOR_SHADERS
 		BRANCH
 		if (Offsets.EditorData != INVALID_INSTANCE_PAYLOAD_OFFSET)
 		{
-			const uint PackedEditorData = asuint(LoadInstancePayloadDataElement(Offsets.EditorData)).y;
+			const uint PackedEditorData = asuint(LoadInstancePayloadDataElement(Offsets.EditorData)).x;
+			// Note: .yzw are currently unused
 
 			InstanceData.EditorData.bIsSelected    = (PackedEditorData >> 24u) != 0;
 			InstanceData.EditorData.HitProxyPacked =  PackedEditorData & 0x00FFFFFFu;
@@ -1103,10 +1093,13 @@ FInstanceSceneData GetInstanceSceneData(uint InstanceId, uint SOAStride, bool bC
 			float3 PrevScale					= 0;
 			float4x4 PrevLocalToRelativeWorld	= DecodeTransform(PrevRotationScale, PrevTranslation, PrevScale);
 		#else
-			float4x4 PrevLocalToRelativeWorld	= transpose(float4x4(LoadInstancePayloadDataElement(Offsets.DynamicData + 0),
-																 LoadInstancePayloadDataElement(Offsets.DynamicData + 1),
-																 LoadInstancePayloadDataElement(Offsets.DynamicData + 2),
-																 float4(0.0f, 0.0f, 0.0f, 1.0f)));
+			float4x4 PrevLocalToRelativeWorld	= transpose(
+													float4x4(
+														LoadInstancePayloadDataElement(Offsets.DynamicData + 0),
+														LoadInstancePayloadDataElement(Offsets.DynamicData + 1),
+														LoadInstancePayloadDataElement(Offsets.DynamicData + 2),
+														float4(0.0f, 0.0f, 0.0f, 1.0f)
+													));
 		#endif
 
 			InstanceData.PrevLocalToWorld		= MakeDFMatrix(PositionHigh, PrevLocalToRelativeWorld);
@@ -1207,7 +1200,7 @@ FSceneDataIntermediates GetSceneDataIntermediates(uint InstanceIdOffset, uint Dr
 	// GPUCULL_TODO: workaround for the fact that DrawDynamicMeshPassPrivate et al. don't work with GPU-Scene instancing
 	//				 instead they mark the top bit in the primitive ID and disable auto instancing such that there is an 1:1:1
 	//               drawcmd:primitive:instance. Then we can just look up the primitive and fetch the instance data index.
-	// GPUCULL_TODO: Workaround also used for ray tracing interfacing with the VFs, that also supply a DrawInstanceId. 
+	// GPUCULL_TODO: Workaround also used by HairStrandsMaterialCommon.ush
 	// We mark the PrimitiveID with the top bit in dynamic draw passes
 	if ((InstanceIdOffset & VF_TREAT_INSTANCE_ID_OFFSET_AS_PRIMITIVE_ID_FLAG) != 0U)
 	{
@@ -1218,9 +1211,16 @@ FSceneDataIntermediates GetSceneDataIntermediates(uint InstanceIdOffset, uint Dr
 		Intermediates.ViewIndex = 0;
 		Intermediates.CullingFlags = INSTANCE_CULLING_FLAGS_DEFAULT;
 	}
+#if RAYHITGROUPSHADER || RAYTRACING_DYNAMIC_GEOMETRY_CONVERTER
+	else
+	{
+		Intermediates.InstanceId = InstanceIdOffset + DrawInstanceId;
+		Intermediates.ViewIndex = 0;
+		Intermediates.CullingFlags = INSTANCE_CULLING_FLAGS_DEFAULT;
+	}
 // Workaround for Vulkan SPIRV issue when "else" branch is not removed when it should, which leads to higher level code expecting InstanceCulling buffer to be bound.
 // See: https://github.com/KhronosGroup/SPIRV-Tools/issues/4902
-#if USE_INSTANCE_CULLING_DATA
+#elif USE_INSTANCE_CULLING_DATA
 	else
 	{
 		const uint PackedId = InstanceCulling.InstanceIdsBuffer[InstanceIdOffset + DrawInstanceId];

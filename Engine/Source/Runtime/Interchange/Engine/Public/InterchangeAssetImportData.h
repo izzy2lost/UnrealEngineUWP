@@ -26,6 +26,9 @@ public:
 	virtual void Serialize(FArchive& Ar) override;
 	// End UObject interface
 
+#if WITH_EDITOR
+	INTERCHANGEENGINE_API  virtual bool ConvertAssetImportDataToNewOwner(UObject* Owner) override;
+#endif
 
 	/**
 	 * Return the first filename stored in this data. The resulting filename will be absolute (that is, not relative to the asset).
@@ -166,6 +169,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | AssetImportData")
 	INTERCHANGEENGINE_API void SetTranslatorSettings(UInterchangeTranslatorSettings* TranslatorSettings) const;
 
+	/** Won't overwrite an existing backup. Backup has to be cleared before a new one can be stored. */
+	INTERCHANGEENGINE_API void BackupSourceData() const;
+	INTERCHANGEENGINE_API void ClearBackupSourceData() const;
+	INTERCHANGEENGINE_API void ReinstateBackupSourceData();
 
 private:
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use GetNodeContainer/SetNodeContainer instead."))
@@ -189,6 +196,11 @@ private:
 	mutable TArray64<uint8> CachedNodeContainer;
 	mutable TArray<TPair<FString, FString>> CachedPipelines; //Class, Data(serialized JSON) pair
 	mutable TPair<FString, FString> CachedTranslatorSettings;
+
+#if WITH_EDITORONLY_DATA
+	/** Source file data describing the files that were used to import this asset. Temporary, Primary usage is for Re-import cancellations. */
+	mutable FAssetImportInfo SourceDataBackup;
+#endif
 };
 
 /**
@@ -199,14 +211,20 @@ class UInterchangeAssetImportDataConverterBase : public UObject
 {
 	GENERATED_BODY()
 public:
+
+	/* Converter must return which class they can convert to and from UInterchangeAssetImportData. */
+	virtual bool CanConvertClass(const UClass* SourceClass, const UClass* DestinationClass) const { return false; }
+
 	/**
 	 * Convert the asset import data from the one that is in the Object to
 	 * one that supports the target extension (for example, legacy FBX to Interchange or vice-versa)
 	 * The function should return true only if it has converted the asset import data, or false otherwise.
 	 * 
 	 * The system will call all objects that derive from this class until one converts the data.
+	 * 
+	 * @Param Asset - Represent an asset that have a member AssetImportData (StaticMesh, SkeletalMesh, Texture....)
 	 */
-	virtual bool ConvertImportData(UObject* Object, const FString& TargetExtension) const
+	virtual bool ConvertImportData(UObject* Asset, const FString& TargetExtension) const
 	{
 		return false;
 	}
@@ -217,7 +235,7 @@ public:
 	 *
 	 * The system will call all object deriving from this class until one convert the data.
 	 */
-	virtual bool ConvertImportData(const UObject* SourceImportData, UObject** DestinationImportDataClass) const
+	virtual bool ConvertImportData(const UObject* SourceImportData, const UClass* DestinationClass, UObject** DestinationImportData) const
 	{
 		return false;
 	}

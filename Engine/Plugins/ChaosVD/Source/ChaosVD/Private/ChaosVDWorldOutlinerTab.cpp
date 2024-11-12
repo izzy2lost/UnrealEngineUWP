@@ -2,6 +2,8 @@
 
 #include "ChaosVDWorldOutlinerTab.h"
 
+#include "ChaosVDEngine.h"
+#include "ChaosVDPlaybackController.h"
 #include "ChaosVDWorldOutlinerMode.h"
 #include "ChaosVDStyle.h"
 #include "Modules/ModuleManager.h"
@@ -9,11 +11,18 @@
 #include "SceneOutlinerPublicTypes.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Engine/World.h"
+#include "Widgets/SChaosVDMainTab.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
 void FChaosVDWorldOutlinerTab::CreateWorldOutlinerWidget()
 {
+	TWeakPtr<FChaosVDPlaybackController> PlaybackController;
+	if (TSharedPtr<SChaosVDMainTab> MainTabPtr =  OwningTabWidget.Pin())
+	{
+		PlaybackController = MainTabPtr->GetChaosVDEngineInstance()->GetPlaybackController();
+	}
+
 	FSceneOutlinerInitializationOptions InitOptions;
 	InitOptions.bShowTransient = true;
 
@@ -26,14 +35,15 @@ void FChaosVDWorldOutlinerTab::CreateWorldOutlinerWidget()
 	InitOptions.ColumnMap.Add(FSceneOutlinerBuiltInColumnTypes::ActorInfo(), FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 20, FCreateSceneOutlinerColumn(), true, TOptional<float>(), FSceneOutlinerBuiltInColumnTypes::ActorInfo_Localized()));
 	InitOptions.ColumnMap.Add(FChaosVDSceneOutlinerGutter::GetID(), FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 0, FCreateSceneOutlinerColumn::CreateLambda([](ISceneOutliner& InSceneOutliner) { return MakeShareable(new FChaosVDSceneOutlinerGutter(InSceneOutliner)); })));
 		
-	FCreateSceneOutlinerMode ModeFactory = FCreateSceneOutlinerMode::CreateLambda([this](SSceneOutliner* Outliner)
+	FCreateSceneOutlinerMode ModeFactory = FCreateSceneOutlinerMode::CreateLambda([this, PlaybackController](SSceneOutliner* Outliner)
 	{
 		FActorModeParams ModeParams(Outliner);
 		ModeParams.SpecifiedWorldToDisplay = GetChaosVDWorld();
 		ModeParams.bHideEmptyFolders = true;
+		ModeParams.bCanInteractWithSelectableActorsOnly = false;
 
 		// The mode is deleted by the Outliner when it is destroyed 
-		return new FChaosVDWorldOutlinerMode(ModeParams, GetChaosVDScene());
+		return new FChaosVDWorldOutlinerMode(ModeParams, GetChaosVDScene(), PlaybackController);
 	});
 	InitOptions.ModeFactory = ModeFactory;
 	

@@ -133,7 +133,7 @@ public:
 	// API for interacting with category expand/collapse within the view model
 	virtual bool UsesCategoryFilteringForInitialExpansion() const { return false; }
 	virtual bool IsCategoryExpandedByDefault(const FNiagaraParameterPanelCategory& Category) const { return false; };
-	virtual void PreSectionChange(const TArray<FNiagaraParameterPanelCategory>& ExpandedItems) {};
+	virtual void UpdateCategoryExpansionState(const FNiagaraParameterPanelCategory& Category, bool bIsExpanded) {};
 
 protected:
 	FOnRequestRefresh OnRequestRefreshDelegate;
@@ -397,7 +397,7 @@ public:
 	virtual bool IsCategoryExpandedByDefault(const FNiagaraParameterPanelCategory& Category) const override;
 	virtual bool UsesCategoryFilteringForInitialExpansion() const override { return true; }
 
-	virtual void PreSectionChange(const TArray<FNiagaraParameterPanelCategory>& ExpandedItems) override;
+	virtual void UpdateCategoryExpansionState(const FNiagaraParameterPanelCategory& Category, bool bIsExpanded) override;
 protected:
 	virtual void OnINiagaraParameterPanelViewModelSelectionChanged(UNiagaraScriptVariable* InVar) override;
 	virtual bool IncludeViewItemsInSelectParameterItem() const { return true; }

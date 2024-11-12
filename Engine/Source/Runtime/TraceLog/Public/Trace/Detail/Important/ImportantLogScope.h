@@ -4,11 +4,11 @@
 
 #include "Trace/Config.h"
 
-#if UE_TRACE_ENABLED
-
 namespace UE {
 namespace Trace {
 namespace Private {
+	
+#if TRACE_PRIVATE_MINIMAL_ENABLED && TRACE_PRIVATE_ALLOW_IMPORTANTS
 
 ////////////////////////////////////////////////////////////////////////////////
 class FImportantLogScope
@@ -32,8 +32,26 @@ private:
 	int32						AuxCursor;
 };
 
+#else
+
+class FImportantLogScope
+{
+public:
+	template <typename EventType>
+	static FImportantLogScope	Enter() { return FImportantLogScope(); }
+	template <typename EventType>
+	static FImportantLogScope	Enter(uint32 ArrayDataSize) { return FImportantLogScope(); }
+	void						operator += (const FImportantLogScope&) const;
+	const FImportantLogScope&	operator << (bool) const	{ return *this; }
+	constexpr explicit			operator bool () const		{ return true; }
+
+	template <typename FieldMeta, typename Type>
+	struct FFieldSet;
+};
+
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED && TRACE_PRIVATE_ALLOW_IMPORTANTS
+	
 } // namespace Private
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED

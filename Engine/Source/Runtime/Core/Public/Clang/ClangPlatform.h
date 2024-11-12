@@ -8,6 +8,8 @@
 
 // HEADER_UNIT_UNSUPPORTED - Clang not supporting header units
 
+#if defined(__clang__)
+
 #if !defined(__cpp_if_constexpr)
 	#error "Compiler is expected to support if constexpr"
 #endif
@@ -39,3 +41,10 @@
 #define UE_ALLOCATION_FUNCTION_2(SIZE, ALIGN) [[gnu::malloc, gnu::alloc_size(SIZE)]]
 #define UE_ALLOCATION_FUNCTION_X(x, SIZE, ALIGN, FUNC, ...) FUNC
 #define UE_ALLOCATION_FUNCTION(...) UE_ALLOCATION_FUNCTION_X(,##__VA_ARGS__, UE_ALLOCATION_FUNCTION_2(__VA_ARGS__), UE_ALLOCATION_FUNCTION_1(__VA_ARGS__), UE_ALLOCATION_FUNCTION_0(__VA_ARGS__)) 
+
+// Ensure we can use this builtin - seems to be present on Clang 9, GCC 11 and MSVC 19.26,
+#define PLATFORM_COMPILER_SUPPORTS_BUILTIN_BITCAST (__clang_major__ >= 9)
+
+#define FUNCTION_NON_NULL_RETURN_START [[gnu::returns_nonnull]]
+
+#endif//defined(__clang__)

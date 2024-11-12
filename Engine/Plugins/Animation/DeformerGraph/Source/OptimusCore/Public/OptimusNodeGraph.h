@@ -570,6 +570,8 @@ private:
 
 	FString ConstructSubGraphPath(const FString& InSubGraphName) const;
 	static FString ConstructSubGraphPath(const FString& InGraphOwnerPath, const FString& InSubGraphName);
+
+	void PostLoadReplaceAnimAttributeDataInterfaceNodeWithGenericDataInterfaceNode();
 	
 	UPROPERTY(NonTransactional)
 	TArray<TObjectPtr<UOptimusNode>> Nodes;

@@ -13,7 +13,7 @@
 #include "IRemoteControlModule.h"
 #include "RemoteControlDeltaAPITestData.h"
 
-BEGIN_DEFINE_SPEC(FRemoteControlDeltaAPISpec, "Plugins.RemoteControl.DeltaAPI", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FRemoteControlDeltaAPISpec, "Plugins.RemoteControl.DeltaAPI", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 
 URemoteControlDeltaAPITestObject* TestObject;
 

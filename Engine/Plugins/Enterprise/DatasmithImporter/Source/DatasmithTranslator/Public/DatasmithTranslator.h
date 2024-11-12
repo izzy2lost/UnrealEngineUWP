@@ -13,7 +13,7 @@
 
 class FDatasmithSceneSource;
 class IDatasmithScene;
-class IDatasmithClothElement;
+class UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") IDatasmithClothElement;
 class IDatasmithMeshElement;
 class IDatasmithLevelSequenceElement;
 
@@ -104,7 +104,10 @@ public:
 	 * @param OutClothPayload    Actual cloth data from the source
 	 * @returns                  Operation succeed
 	 */
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual bool LoadCloth(const TSharedRef<IDatasmithClothElement> ClothElement, FDatasmithClothElementPayload& OutClothPayload) { return false; }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * Get payload related to the given Element

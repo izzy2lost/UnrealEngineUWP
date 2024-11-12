@@ -28,11 +28,10 @@ class FExrSwizzlePS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FExrSwizzlePS, FGlobalShader);
 
 	/** If the provided buffer is RGBA the shader would work slightly differently to RGB. */
-	class FRgbaSwizzle : SHADER_PERMUTATION_INT("NUM_CHANNELS", 4);
+	class FRgbaSwizzle : SHADER_PERMUTATION_INT("PERMUTATION_CHANNELS", 4);
 	class FRenderTiles : SHADER_PERMUTATION_BOOL("RENDER_TILES");
-	class FCustomExr : SHADER_PERMUTATION_BOOL("CUSTOM_EXR");
 	class FPartialTiles : SHADER_PERMUTATION_BOOL("PARTIAL_TILES");
-	using FPermutationDomain = TShaderPermutationDomain<FRgbaSwizzle, FRenderTiles, FCustomExr, FPartialTiles>;
+	using FPermutationDomain = TShaderPermutationDomain<FRgbaSwizzle, FRenderTiles, FPartialTiles>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_SRV(StructuredBuffer<uint>, UnswizzledBuffer)

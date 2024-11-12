@@ -5,13 +5,41 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization;
+using System.Runtime.CompilerServices;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
 
 namespace UnrealBuildTool
 {
+	/// <summary>
+	/// Controls how the target and SDK are validated in CreateTargetRulesInstance
+	/// </summary>
+	public enum TargetRulesValidationOptions
+	{
+		/// <summary>
+		///  This will perform full target validation (allows the platform to update the target to make sure it's valid), and
+		///  SDK validation (makes sure SDK overrides are not conflicting).
+		///  This is the standard, default mode.
+		/// </summary>
+		ValidateTargetAndSDK,
+
+		/// <summary>
+		/// This will validate the target only (see ValidateTargetAndSDK)
+		/// </summary>
+		ValidateTargetOnly,
+
+		/// <summary>
+		/// This will validate the SDK only (see ValidateTargetAndSDK)
+		/// </summary>
+		ValidateSDKOnly,
+
+		/// <summary>
+		/// This will perform neither of the validations
+		/// </summary>
+		ValidateNothing
+	}
+
 	/// <summary>
 	/// Stores information about a compiled rules assembly and the types it contains
 	/// </summary>
@@ -55,7 +83,6 @@ namespace UnrealBuildTool
 			}
 			return Enumerable.Empty<Type>();
 		}
-
 
 		/// <summary>
 		/// The base directories for this assembly
@@ -154,10 +181,7 @@ namespace UnrealBuildTool
 				RulesAssembly? CurrentParent = Parent;
 				while (CurrentParent != null && CurrentParent.CompiledAssembly != null)
 				{
-					if (ReferencedAssembies == null)
-					{
-						ReferencedAssembies = new List<string>();
-					}
+					ReferencedAssembies ??= new List<string>();
 
 					ReferencedAssembies.Add(CurrentParent.CompiledAssembly.Location);
 					CurrentParent = CurrentParent.Parent;
@@ -281,10 +305,7 @@ namespace UnrealBuildTool
 		/// <param name="ModuleNames">List to receive the module names</param>
 		public void GetAllModuleNames(List<string> ModuleNames)
 		{
-			if (Parent != null)
-			{
-				Parent.GetAllModuleNames(ModuleNames);
-			}
+			Parent?.GetAllModuleNames(ModuleNames);
 			if (CompiledAssembly != null)
 			{
 				ModuleNames.AddRange(CompiledAssembly.GetTypes().Where(x => x.IsClass && x.IsSubclassOf(typeof(ModuleRules)) && ModuleNameToModuleFile.ContainsKey(x.Name)).Select(x => x.Name));
@@ -357,7 +378,7 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				return (Parent == null) ? null : Parent.GetModuleFileName(ModuleName);
+				return Parent?.GetModuleFileName(ModuleName);
 			}
 		}
 
@@ -374,7 +395,7 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				return (Parent == null) ? null : Parent.GetModuleRulesType(ModuleName);
+				return Parent?.GetModuleRulesType(ModuleName);
 			}
 		}
 
@@ -410,7 +431,7 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				return (Parent == null) ? null : Parent.GetTargetFileName(TargetName);
+				return Parent?.GetTargetFileName(TargetName);
 			}
 		}
 
@@ -438,7 +459,7 @@ namespace UnrealBuildTool
 			{
 				if (Parent == null)
 				{
-					throw new CompilationResultException(CompilationResult.RulesError, "Could not find definition for module '{ModuleTypeName}', (referenced via {ReferenceChain})", ModuleTypeName, ReferenceChain);
+					throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Could not find definition for module '{ModuleTypeName}', (referenced via {ReferenceChain})", ModuleTypeName, ReferenceChain);
 				}
 				else
 				{
@@ -461,7 +482,7 @@ namespace UnrealBuildTool
 					// we expect only one platform group to be found in the extensions
 					if (GroupRulesObjectType != null && PlatformRulesObjectType != null)
 					{
-						throw new CompilationResultException(CompilationResult.RulesError, "Found multiple platform group overrides ({GroupRulesName} and {PlatformRulesName}) for module {ModuleName} without a platform specific override. Create a platform override with the class hierarchy as needed.",
+						throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Found multiple platform group overrides ({GroupRulesName} and {PlatformRulesName}) for module {ModuleName} without a platform specific override. Create a platform override with the class hierarchy as needed.",
 							GroupRulesObjectType.Name, PlatformRulesObjectType.Name, ModuleName);
 					}
 					// remember the platform group if we found it, but keep searching to verify there isn't more than one
@@ -482,16 +503,16 @@ namespace UnrealBuildTool
 				if (ModuleFileName.ContainsAnyNames(DisallowedPlatformsAndGroups, Unreal.EngineDirectory) ||
 					(Target.ProjectFile != null && ModuleFileName.ContainsAnyNames(DisallowedPlatformsAndGroups, Target.ProjectFile.Directory)))
 				{
-					throw new CompilationResultException(CompilationResult.RulesError, "Platform module file {ModuleFileName} is not allowed (only platforms '{Platforms}', and their groups, are allowed. This indicates a module reference not being checked with something like IsPlatformAvailableForTarget()).",
+					throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Platform module file {ModuleFileName} is not allowed (only platforms '{Platforms}', and their groups, are allowed. This indicates a module reference not being checked with something like IsPlatformAvailableForTarget()).",
 						ModuleFileName, String.Join(",", Target.OptedInModulePlatforms));
 				}
 			}
 
 			// Figure out the best rules object to use
-			Type? RulesObjectType = PlatformRulesObjectType != null ? PlatformRulesObjectType : BaseRulesObjectType;
+			Type? RulesObjectType = PlatformRulesObjectType ?? BaseRulesObjectType;
 			if (RulesObjectType == null)
 			{
-				throw new CompilationResultException(CompilationResult.RulesError, "Expecting to find a type to be declared in a module rules named '{ModuleTypeName}' in '{AssemblyName}'.  This type must derive from the 'ModuleRules' type defined by UnrealBuildTool.",
+				throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Expecting to find a type to be declared in a module rules named '{ModuleTypeName}' in '{AssemblyName}'.  This type must derive from the 'ModuleRules' type defined by UnrealBuildTool.",
 					ModuleTypeName, CompiledAssembly?.FullName ?? "Unknown Assembly");
 			}
 
@@ -499,7 +520,8 @@ namespace UnrealBuildTool
 			try
 			{
 				// Create an uninitialized ModuleRules object and set some defaults.
-				ModuleRules RulesObject = (ModuleRules)FormatterServices.GetUninitializedObject(RulesObjectType);
+				ModuleRules RulesObject = (ModuleRules)RuntimeHelpers.GetUninitializedObject(RulesObjectType);
+
 				// even if we created a platform-extension version of the module rules, we are pretending to be
 				// the base type, so that no one else needs to manage this
 				RulesObject.Name = ModuleName;
@@ -534,7 +556,7 @@ namespace UnrealBuildTool
 						}
 						if (SubType.BaseType == null)
 						{
-							throw new CompilationResultException(CompilationResult.RulesError, "{TypeName} is not derived from {BaseTypeName}", RulesObjectType.Name, BaseRulesObjectType.Name);
+							throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "{TypeName} is not derived from {BaseTypeName}", RulesObjectType.Name, BaseRulesObjectType.Name);
 						}
 						SubType = SubType.BaseType;
 					}
@@ -544,7 +566,7 @@ namespace UnrealBuildTool
 				ConstructorInfo? Constructor = RulesObjectType.GetConstructor(new Type[] { typeof(ReadOnlyTargetRules) });
 				if (Constructor == null)
 				{
-					throw new CompilationResultException(CompilationResult.RulesError, "No valid constructor found for {ModuleName}.", ModuleName);
+					throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "No valid constructor found for {ModuleName}.", ModuleName);
 				}
 
 				// Add the parent assemblies to the assembly cache so the types in them can be used when the constructor is called
@@ -574,7 +596,7 @@ namespace UnrealBuildTool
 			catch (Exception Ex)
 			{
 				Exception MessageEx = (Ex is TargetInvocationException && Ex.InnerException != null) ? Ex.InnerException : Ex;
-				throw new CompilationResultException(CompilationResult.RulesError, Ex, "Unable to instantiate module '{ModuleName}': {ExceptionMessage}\n(referenced via {ReferenceChain})", ModuleName, MessageEx.ToString(), ReferenceChain);
+				throw new CompilationResultException(CompilationResult.RulesError, Ex, KnownLogEvents.RulesAssembly, "Unable to instantiate module '{ModuleName}': {ExceptionMessage}\n(referenced via {ReferenceChain})", ModuleName, MessageEx.ToString(), ReferenceChain);
 			}
 		}
 
@@ -586,9 +608,9 @@ namespace UnrealBuildTool
 		/// <param name="TargetInfo">Target configuration information to pass to the constructor</param>
 		/// <param name="Logger">Logger for output</param>
 		/// <param name="IsTestTarget">If building a low level tests target</param>
-		/// <param name="bSkipValidation">If validation should be skipped (QueryTargetMode)</param>
+		/// <param name="ValidationOptions">Controls validation of target and SDK</param>
 		/// <returns>Instance of the corresponding TargetRules or null if requested type name does not exist</returns>
-		protected TargetRules? CreateTargetRulesInstance(string TypeName, TargetInfo TargetInfo, ILogger Logger, bool IsTestTarget = false, bool bSkipValidation = false)
+		protected TargetRules? CreateTargetRulesInstance(string TypeName, TargetInfo TargetInfo, ILogger Logger, bool IsTestTarget = false, TargetRulesValidationOptions ValidationOptions = TargetRulesValidationOptions.ValidateTargetAndSDK)
 		{
 			// The build module must define a type named '<TargetName>Target' that derives from our 'TargetRules' type.  
 			Type? BaseRulesType = CompiledAssembly?.GetType(TypeName);
@@ -611,7 +633,7 @@ namespace UnrealBuildTool
 					// we expect only one platform group to be found in the extensions
 					if (GroupRulesObjectType != null && PlatformRulesType != null)
 					{
-						throw new CompilationResultException(CompilationResult.RulesError, "Found multiple platform group overrides ({GroupRulesName} and {PlatformRulesName}) for rules {TypeName} without a platform specific override. Create a platform override with the class hierarchy as needed.",
+						throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Found multiple platform group overrides ({GroupRulesName} and {PlatformRulesName}) for rules {TypeName} without a platform specific override. Create a platform override with the class hierarchy as needed.",
 							GroupRulesObjectType.Name, PlatformRulesType.Name, TypeName);
 					}
 					// remember the platform group if we found it, but keep searching to verify there isn't more than one
@@ -624,7 +646,7 @@ namespace UnrealBuildTool
 			}
 			if (PlatformRulesType != null && !PlatformRulesType.IsSubclassOf(BaseRulesType))
 			{
-				throw new CompilationResultException(CompilationResult.RulesError, "Expecting {PlatformRulesType} to be a specialization of {BaseRulesType}", PlatformRulesType, BaseRulesType);
+				throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Expecting {PlatformRulesType} to be a specialization of {BaseRulesType}", PlatformRulesType, BaseRulesType);
 			}
 
 			// Create an instance of the module's rules object, and set some defaults before calling the constructor.
@@ -632,6 +654,8 @@ namespace UnrealBuildTool
 			FileReference BaseFile = TargetNameToTargetFile[TargetInfo.Name];
 			FileReference PlatformFile = TargetNameToTargetFile.TryGetValue(PlatformRulesName, out FileReference? PlatformTargetFile) ? PlatformTargetFile : BaseFile;
 			TargetRules Rules = TargetRules.Create(RulesType, TargetInfo, BaseFile, PlatformFile, TargetNameToTargetFile.Values, DefaultBuildSettings, Logger);
+			bool bValidateTarget = ValidationOptions == TargetRulesValidationOptions.ValidateTargetAndSDK || ValidationOptions == TargetRulesValidationOptions.ValidateTargetOnly;
+			bool bValidateSDK = ValidationOptions == TargetRulesValidationOptions.ValidateTargetAndSDK || ValidationOptions == TargetRulesValidationOptions.ValidateSDKOnly;
 
 			// Set the default overriddes for the configured target type
 			Rules.SetOverridesForTargetType();
@@ -639,10 +663,10 @@ namespace UnrealBuildTool
 			// Set the final value for the link type in the target rules
 			if (Rules.LinkType == TargetLinkType.Default)
 			{
-				throw new CompilationResultException(CompilationResult.RulesError, "TargetRules.LinkType should be inferred from TargetType");
+				throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "TargetRules.LinkType should be inferred from TargetType");
 			}
 
-			if (!bSkipValidation)
+			if (bValidateTarget)
 			{
 				// Delayed-fixup of TargetBuildEnvironment.UniqueIfNeeded
 				Rules.UpdateBuildEnvironmentIfNeeded(this, arguments: null, Logger);
@@ -650,7 +674,7 @@ namespace UnrealBuildTool
 				// Set the default value for whether to use the shared build environment
 				if (Rules.BuildEnvironment == TargetBuildEnvironment.Unique && Unreal.IsEngineInstalled())
 				{
-					throw new CompilationResultException(CompilationResult.RulesError, "Targets with a unique build environment cannot be built with an installed engine.");
+					throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Targets with a unique build environment cannot be built with an installed engine.");
 				}
 			}
 
@@ -671,6 +695,14 @@ namespace UnrealBuildTool
 			{
 				Rules.DebugInfo = DebugInfoMode.Full;
 				Rules.bOmitPCDebugInfoInDevelopment = false;
+			}
+
+			// If merging modules, force modular and strip exports
+			if (Rules.bMergeModules)
+			{
+				Rules.BuildEnvironment = TargetBuildEnvironment.Unique;
+				Rules.LinkType = TargetLinkType.Modular;
+				Rules.bStripExports = true;
 			}
 
 			// Setup utrace for Shader Compiler Worker
@@ -703,7 +735,7 @@ namespace UnrealBuildTool
 			{
 				Rules.GlobalDefinitions.Add("UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR=1");
 			}
-			
+
 			// Until VNI fully supports the new VM, we need the ability to have both the old and new
 			// available in some rare cases.  If we are using the old VM and the target hasn't overridden
 			// the new VM define, then set the define based on the old VM flag.
@@ -730,18 +762,22 @@ namespace UnrealBuildTool
 			}
 
 			// Allow the platform to finalize the settings
-			if (!bSkipValidation)
+			if (bValidateTarget)
 			{
 				UEBuildPlatform Platform = UEBuildPlatform.GetBuildPlatform(Rules.Platform);
 				Platform.ValidateTarget(Rules);
+			}
 
+			// make sure any SDK overrides are valid
+			if (bValidateSDK)
+			{
 				ValidateSDKs(Rules);
 			}
 
 			// Some platforms may *require* monolithic compilation...
 			if (Rules.LinkType != TargetLinkType.Monolithic && UEBuildPlatform.PlatformRequiresMonolithicBuilds(Rules.Platform, Rules.Configuration))
 			{
-				throw new CompilationResultException(CompilationResult.RulesError, String.Format("{RulesName}: {RulesPlatform} does not support modular builds", Rules.Name, Rules.Platform));
+				throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "{RulesName}: {RulesPlatform} does not support modular builds", Rules.Name, Rules.Platform);
 			}
 
 			if (IsTestTarget)
@@ -774,7 +810,7 @@ namespace UnrealBuildTool
 					// if the target doesn't allow for an override at all, error
 					if (!Rules.AllowsPerProjectSDKVersion())
 					{
-						throw new CompilationResultException(CompilationResult.RulesError, "Target {RulesName} is being built with a overridden {Platform} SDK version to '{SdkVersion}', but this target is not allowed - likely due to a modular build using a Shared BuildEnvironment",
+						throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Target {RulesName} is being built with a overridden {Platform} SDK version to '{SdkVersion}', but this target is not allowed - likely due to a modular build using a Shared BuildEnvironment",
 							Rules.Name, Platform, SDK.GetMainVersion());
 					}
 
@@ -782,13 +818,12 @@ namespace UnrealBuildTool
 					if (Rules.ProjectFile == null || !SDK.ProjectsThatOverrodeSDK.Contains(Rules.ProjectFile))
 					{
 						string OverrideProject = SDK.ProjectsThatOverrodeSDK[0].GetFileNameWithoutAnyExtensions();
-						throw new CompilationResultException(CompilationResult.RulesError, "Target {RulesName} is using default {Platform} SDK version, but another target (probably {OverrideProject}) has overridden the SDK version to '{SdkVersion}'. If this target doesn't care about SDK versions, set 'bAreTargetSDKVersionsRelevantOverride = false' in your Target.cs file",
+						throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Target {RulesName} is using default {Platform} SDK version, but another target (probably {OverrideProject}) has overridden the SDK version to '{SdkVersion}'. If this target doesn't care about SDK versions, set 'bAreTargetSDKVersionsRelevantOverride = false' in your Target.cs file",
 							Rules.Name, Platform, OverrideProject, SDK.GetMainVersion());
 					}
 				}
 			}
 		}
-
 
 		/// <summary>
 		/// Creates a target rules object for the specified target name.
@@ -801,20 +836,17 @@ namespace UnrealBuildTool
 		/// <param name="Arguments">Command line arguments for this target</param>
 		/// <param name="Logger"></param>
 		/// <param name="IsTestTarget">If building a low level test target</param>
-		/// <param name="bSkipValidation">If validation should be skipped (QueryTargetMode)</param>
+		/// <param name="ValidationOptions">Controls validation of target and SDK</param>
 		/// <param name="IntermediateEnvironment">Intermediate environment to use</param>
 		/// <returns>The build target rules for the specified target</returns>
-		public TargetRules CreateTargetRules(string TargetName, UnrealTargetPlatform Platform, UnrealTargetConfiguration Configuration, UnrealArchitectures? Architectures, FileReference? ProjectFile, CommandLineArguments? Arguments, ILogger Logger, bool IsTestTarget = false, bool bSkipValidation = false, UnrealIntermediateEnvironment IntermediateEnvironment = UnrealIntermediateEnvironment.Default)
+		public TargetRules CreateTargetRules(string TargetName, UnrealTargetPlatform Platform, UnrealTargetConfiguration Configuration, UnrealArchitectures? Architectures, FileReference? ProjectFile, CommandLineArguments? Arguments, ILogger Logger, bool IsTestTarget = false, TargetRulesValidationOptions ValidationOptions = TargetRulesValidationOptions.ValidateTargetAndSDK, UnrealIntermediateEnvironment IntermediateEnvironment = UnrealIntermediateEnvironment.Default)
 		{
 			if (IsTestTarget)
 			{
 				TargetName = TargetDescriptor.GetTestedName(TargetName);
 			}
 
-			if (Architectures == null)
-			{
-				Architectures = UnrealArchitectureConfig.ForPlatform(Platform).ActiveArchitectures(ProjectFile, TargetName);
-			}
+			Architectures ??= UnrealArchitectureConfig.ForPlatform(Platform).ActiveArchitectures(ProjectFile, TargetName);
 
 			bool bFoundTargetName = TargetNameToTargetFile.ContainsKey(TargetName);
 			if (bFoundTargetName == false)
@@ -832,12 +864,12 @@ namespace UnrealBuildTool
 						}
 					}
 
-					throw new CompilationResultException(CompilationResult.RulesError, ExceptionMessage,
+					throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, ExceptionMessage,
 						TargetName, CompiledAssembly?.FullName ?? "Unknown Assembly", CompiledAssembly?.Location ?? "Unknown Location");
 				}
 				else
 				{
-					return Parent.CreateTargetRules(TargetName, Platform, Configuration, Architectures, ProjectFile, Arguments, Logger, IsTestTarget, bSkipValidation, IntermediateEnvironment);
+					return Parent.CreateTargetRules(TargetName, Platform, Configuration, Architectures, ProjectFile, Arguments, Logger, IsTestTarget, ValidationOptions, IntermediateEnvironment);
 				}
 			}
 
@@ -845,11 +877,11 @@ namespace UnrealBuildTool
 			string TargetTypeName = TargetName + "Target";
 
 			// The build module must define a type named '<TargetName>Target' that derives from our 'TargetRules' type.  
-			TargetRules? TargetRules = CreateTargetRulesInstance(TargetTypeName, new TargetInfo(TargetName, Platform, Configuration, Architectures, ProjectFile, Arguments, IntermediateEnvironment), Logger, IsTestTarget, bSkipValidation);
+			TargetRules? TargetRules = CreateTargetRulesInstance(TargetTypeName, new TargetInfo(TargetName, Platform, Configuration, Architectures, ProjectFile, Arguments, IntermediateEnvironment), Logger, IsTestTarget, ValidationOptions);
 
 			if (TargetRules == null)
 			{
-				throw new CompilationResultException(CompilationResult.RulesError, "Expecting to find a type to be declared in a target rules named '{TargetTypeName}'.  This type must derive from the 'TargetRules' type defined by UnrealBuildTool.", TargetTypeName);
+				throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Expecting to find a type to be declared in a target rules named '{TargetTypeName}'.  This type must derive from the 'TargetRules' type defined by UnrealBuildTool.", TargetTypeName);
 			}
 
 			return TargetRules;
@@ -871,7 +903,7 @@ namespace UnrealBuildTool
 			foreach (KeyValuePair<string, FileReference> TargetPair in TargetNameToTargetFile)
 			{
 				TargetRules? Rules = CreateTargetRulesInstance(TargetPair.Key + "Target", new TargetInfo(TargetPair.Key, Platform, Configuration, null, ProjectFile, null), Logger);
-				if (Rules != null && Rules.Type == Type)
+				if (Rules != null && Rules.Type == Type && !Rules.bExplicitTargetForType)
 				{
 					Matches.Add(TargetPair.Key);
 				}
@@ -882,7 +914,7 @@ namespace UnrealBuildTool
 			{
 				if (Parent == null)
 				{
-					throw new CompilationResultException(CompilationResult.RulesError, "Unable to find target of type '{Type}' for project '{1}'", Type, ProjectFile?.FullName ?? "NoProject");
+					throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Unable to find target of type '{Type}' for project '{1}'", Type, ProjectFile?.FullName ?? "NoProject");
 				}
 				else
 				{
@@ -910,7 +942,7 @@ namespace UnrealBuildTool
 					}
 				}
 
-				throw new CompilationResultException(CompilationResult.RulesError, "Found multiple targets with TargetType={Type}: {Matches}.\nSpecify a default with a {KeyName} entry in [/Script/BuildSettings.BuildSettings] section of your DefaultEngine.ini", Type, String.Join(", ", Matches), KeyName);
+				throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Found multiple targets with TargetType={Type}: {Matches}.\nSpecify a default with a {KeyName} entry in [/Script/BuildSettings.BuildSettings] section of your DefaultEngine.ini", Type, String.Join(", ", Matches), KeyName);
 			}
 		}
 

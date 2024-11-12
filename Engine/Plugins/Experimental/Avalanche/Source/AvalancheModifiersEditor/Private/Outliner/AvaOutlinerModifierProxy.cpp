@@ -89,8 +89,30 @@ FText FAvaOutlinerModifierProxy::GetIconTooltipText() const
 	return LOCTEXT("Tooltip", "Shows all the Modifiers found in the Root Stack of an Actor");
 }
 
-void FAvaOutlinerModifierProxy::GetProxiedItems(const TSharedRef<IAvaOutlinerItem>& InParent
-	, TArray<FAvaOutlinerItemPtr>& OutChildren, bool bInRecursive)
+bool FAvaOutlinerModifierProxy::CanDelete() const
+{
+	return IsValid(GetModifierStack());
+}
+
+bool FAvaOutlinerModifierProxy::Delete()
+{
+	UActorModifierCoreStack* ModifierStack = GetModifierStack();
+	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
+
+	if (IsValid(ModifierStack) && ModifierSubsystem)
+	{
+		FText FailReason;
+		FActorModifierCoreStackRemoveOp RemoveOp;
+		RemoveOp.FailReason = &FailReason;
+		RemoveOp.bShouldTransact = false;
+
+		return ModifierSubsystem->RemoveModifiers(TSet<UActorModifierCoreBase*>{ModifierStack->GetModifiers()}, RemoveOp);
+	}
+
+	return false;
+}
+
+void FAvaOutlinerModifierProxy::GetProxiedItems(const TSharedRef<IAvaOutlinerItem>& InParent, TArray<FAvaOutlinerItemPtr>& OutChildren, bool bInRecursive)
 {
 	if (const UActorModifierCoreStack* const ModifierStack = GetModifierStack())
 	{
@@ -112,16 +134,18 @@ void FAvaOutlinerModifierProxy::GetProxiedItems(const TSharedRef<IAvaOutlinerIte
 void FAvaOutlinerModifierProxy::BindDelegates()
 {
 	UnbindDelegates();
-	UActorModifierCoreStack::OnModifierAddedDelegate.AddSP(this, &FAvaOutlinerModifierProxy::OnModifierStackUpdated);
-	UActorModifierCoreStack::OnModifierRemovedDelegate.AddSP(this, &FAvaOutlinerModifierProxy::OnModifierStackUpdated);
-	UActorModifierCoreStack::OnModifierMovedDelegate.AddSP(this, &FAvaOutlinerModifierProxy::OnModifierStackUpdated);
+	UActorModifierCoreStack::OnModifierAdded().AddSP(this, &FAvaOutlinerModifierProxy::OnModifierStackUpdated);
+	UActorModifierCoreStack::OnModifierRemoved().AddSP(this, &FAvaOutlinerModifierProxy::OnModifierStackUpdated);
+	UActorModifierCoreStack::OnModifierMoved().AddSP(this, &FAvaOutlinerModifierProxy::OnModifierStackUpdated);
+	UActorModifierCoreStack::OnModifierReplaced().AddSP(this, &FAvaOutlinerModifierProxy::OnModifierStackUpdated);
 }
 
 void FAvaOutlinerModifierProxy::UnbindDelegates()
 {
-	UActorModifierCoreStack::OnModifierAddedDelegate.RemoveAll(this);
-	UActorModifierCoreStack::OnModifierRemovedDelegate.RemoveAll(this);
-	UActorModifierCoreStack::OnModifierMovedDelegate.RemoveAll(this);
+	UActorModifierCoreStack::OnModifierAdded().RemoveAll(this);
+	UActorModifierCoreStack::OnModifierRemoved().RemoveAll(this);
+	UActorModifierCoreStack::OnModifierMoved().RemoveAll(this);
+	UActorModifierCoreStack::OnModifierReplaced().RemoveAll(this);
 }
 
 void FAvaOutlinerModifierProxy::OnModifierStackUpdated(UActorModifierCoreBase* ItemChanged)

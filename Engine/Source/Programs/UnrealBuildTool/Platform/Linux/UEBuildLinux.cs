@@ -24,7 +24,7 @@ namespace UnrealBuildTool
 		{
 			get
 			{
-				if (AppleToolchainArchitectures.ContainsKey(this))
+				if (LinuxToolchainArchitectures.ContainsKey(this))
 				{
 					return LinuxToolchainArchitectures[this];
 				}
@@ -265,11 +265,6 @@ namespace UnrealBuildTool
 				}
 			}
 
-			if (Target.bAllowLTCG && Target.LinkType != TargetLinkType.Monolithic)
-			{
-				throw new BuildException("LTO (LTCG) for modular builds is not supported (lld is not currently used for dynamic libraries).");
-			}
-
 			if (Target.GlobalDefinitions.Contains("USE_NULL_RHI=1"))
 			{
 				Target.bCompileCEF3 = false;
@@ -366,7 +361,7 @@ namespace UnrealBuildTool
 						return new string[] { ".sym", ".debug" };
 					}
 			}
-			return new string[] { };
+			return Array.Empty<string>();
 		}
 
 		/// <summary>
@@ -379,7 +374,7 @@ namespace UnrealBuildTool
 		public override void ModifyModuleRulesForOtherPlatform(string ModuleName, ModuleRules Rules, ReadOnlyTargetRules Target)
 		{
 			// don't do any target platform stuff if SDK is not available
-			if (!UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target, bIgnoreSDKCheck:true))
+			if (!UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target, bIgnoreSDKCheck: true))
 			{
 				return;
 			}
@@ -392,7 +387,11 @@ namespace UnrealBuildTool
 					{
 						if (Target.bBuildDeveloperTools)
 						{
+							Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatformSettings");
+							Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatformControls");
 							Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatform");
+							Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatformSettings");
+							Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatformControls");
 							Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatform");
 						}
 					}
@@ -401,7 +400,11 @@ namespace UnrealBuildTool
 				// allow standalone tools to use targetplatform modules, without needing Engine
 				if (Target.bForceBuildTargetPlatforms && ModuleName == "TargetPlatform")
 				{
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatformSettings");
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatformControls");
 					Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatform");
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatformSettings");
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatformControls");
 					Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatform");
 				}
 			}
@@ -431,7 +434,11 @@ namespace UnrealBuildTool
 			{
 				if (Target.bForceBuildTargetPlatforms)
 				{
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatformSettings");
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatformControls");
 					Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatform");
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatformSettings");
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatformControls");
 					Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatform");
 				}
 
@@ -502,11 +509,11 @@ namespace UnrealBuildTool
 					CompileEnvironment.PGODirectory = Path.Combine(BaseDir.FullName, "Build", Target.Platform.ToString(), "PGO");
 				}
 				CompileEnvironment.PGODirectory = CompileEnvironment.PGODirectory.Replace('\\', '/') + "/";
-				CompileEnvironment.PGOFilenamePrefix = string.Format("{0}-{1}-{2}.profdata", Target.Name, Target.Platform, Target.Configuration);
+				CompileEnvironment.PGOFilenamePrefix = String.Format("{0}-{1}-{2}.profdata", Target.Name, Target.Platform, Target.Configuration);
 
 				// Check if the profdata file exists and disable if not.
 				// If the file exists but has zero length, this is a "soft" disabling. E.g. PGO data has become stale and we want to temporarily compile without PGO - do not complain about it.
-				String PGOFilePath = Path.Combine(CompileEnvironment.PGODirectory, CompileEnvironment.PGOFilenamePrefix);
+				string PGOFilePath = Path.Combine(CompileEnvironment.PGODirectory, CompileEnvironment.PGOFilenamePrefix);
 				FileInfo Info = new FileInfo(PGOFilePath);
 				if (!Info.Exists || Info.Length == 0)
 				{
@@ -578,7 +585,7 @@ namespace UnrealBuildTool
 				case UnrealTargetConfiguration.Debug:
 				default:
 					return true;
-			};
+			}
 		}
 
 		/// <summary>
@@ -663,6 +670,11 @@ namespace UnrealBuildTool
 			if (Target.bUseAutoRTFMCompiler)
 			{
 				Options |= ClangToolChainOptions.UseAutoRTFMCompiler;
+			}
+
+			if (Target.bCompressDebugFile)
+			{
+				Options |= ClangToolChainOptions.CompressDebugFile;
 			}
 
 			if (Target.LinuxPlatform.bTuneDebugInfoForLLDB)

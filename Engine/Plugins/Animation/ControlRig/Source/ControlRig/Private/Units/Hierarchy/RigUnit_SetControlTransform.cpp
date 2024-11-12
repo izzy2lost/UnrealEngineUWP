@@ -355,7 +355,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_SetMultiControlBool)
 	
 	Controller->AddControl(TEXT("Control1"), FRigElementKey(), Settings, FRigControlValue(), FTransform::Identity, FTransform::Identity);
 	Controller->AddControl(TEXT("Control2"), FRigElementKey(), Settings, FRigControlValue(), FTransform::Identity, FTransform::Identity);
-	Unit.ExecuteContext.Hierarchy = Hierarchy;
+	Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 
 	// this unit has an empty entry by default, clear it for testing purpose
 	Unit.Entries.Reset();
@@ -387,7 +387,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_SetMultiControlFloat)
 	
 	Controller->AddControl(TEXT("Control1"), FRigElementKey(), Settings, FRigControlValue(), FTransform::Identity, FTransform::Identity);
 	Controller->AddControl(TEXT("Control2"), FRigElementKey(), Settings, FRigControlValue(), FTransform::Identity, FTransform::Identity);
-	Unit.ExecuteContext.Hierarchy = Hierarchy;
+	Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 
 	// this unit has an empty entry by default, clear it for testing purpose
 	Unit.Entries.Reset();
@@ -447,7 +447,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_SetMultiControlInteger)
 	
 	Controller->AddControl(TEXT("Control1"), FRigElementKey(), Settings, FRigControlValue(), FTransform::Identity, FTransform::Identity);
 	Controller->AddControl(TEXT("Control2"), FRigElementKey(), Settings, FRigControlValue(), FTransform::Identity, FTransform::Identity);
-	Unit.ExecuteContext.Hierarchy = Hierarchy;
+	Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 
 	// this unit has an empty entry by default, clear it for testing purpose
 	Unit.Entries.Reset();
@@ -479,7 +479,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_SetMultiControlVector2D)
 	
 	Controller->AddControl(TEXT("Control1"), FRigElementKey(), Settings, FRigControlValue(), FTransform::Identity, FTransform::Identity);
 	Controller->AddControl(TEXT("Control2"), FRigElementKey(), Settings, FRigControlValue(), FTransform::Identity, FTransform::Identity);
-	Unit.ExecuteContext.Hierarchy = Hierarchy;
+	Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 
 	// this unit has an empty entry by default, clear it for testing purpose
 	Unit.Entries.Reset();
@@ -513,7 +513,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_SetMultiControlRotator)
 	
 	Controller->AddControl(TEXT("Control1"), FRigElementKey(), Settings, FRigControlValue(), FTransform::Identity, FTransform::Identity);
 	Controller->AddControl(TEXT("Control2"), FRigElementKey(), Settings, FRigControlValue(), FTransform::Identity, FTransform::Identity);
-	Unit.ExecuteContext.Hierarchy = Hierarchy;
+	Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 
 	// this unit has an empty entry by default, clear it for testing purpose
 	Unit.Entries.Reset();

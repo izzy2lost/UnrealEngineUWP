@@ -9,6 +9,7 @@
 #include "EditorViewportClient.h"
 #include "IStructureDetailsView.h"
 #include "PropertyEditorModule.h"
+#include "SChaosVDMainTab.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 #include "Modules/ModuleManager.h"
@@ -26,43 +27,52 @@
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
-SChaosVDSceneQueryDataInspector::SChaosVDSceneQueryDataInspector() : CurrentSceneQueryBeingInspectedHandle({nullptr, INDEX_NONE})
+SChaosVDSceneQueryDataInspector::SChaosVDSceneQueryDataInspector() : CurrentSceneQueryBeingInspectedHandle(MakeShared<FChaosVDSolverDataSelectionHandle>())
 {
 	
 }
 
-SChaosVDSceneQueryDataInspector::~SChaosVDSceneQueryDataInspector()
+void SChaosVDSceneQueryDataInspector::RegisterSceneEvents()
+{
+	if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
+	{
+		ScenePtr->OnSceneUpdated().AddRaw(this, &SChaosVDSceneQueryDataInspector::HandleSceneUpdated);
+		if (TSharedPtr<FChaosVDSolverDataSelection> SelectionObject = ScenePtr->GetSolverDataSelectionObject().Pin())
+		{
+			SelectionObject->GetDataSelectionChangedDelegate().AddRaw(this, &SChaosVDSceneQueryDataInspector::SetQueryDataToInspect);
+		}
+	}
+}
+
+void SChaosVDSceneQueryDataInspector::UnregisterSceneEvents()
 {
 	if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
 	{
 		ScenePtr->OnSceneUpdated().RemoveAll(this);
-		
-		if (UChaosVDSceneQueryDataComponent* SQDataComponent = ScenePtr->GetSceneQueryDataContainerComponent())
+
+		if (TSharedPtr<FChaosVDSolverDataSelection> SelectionObject = ScenePtr->GetSolverDataSelectionObject().Pin())
 		{
-			SQDataComponent->GetOnSelectionChangeDelegate().RemoveAll(this);
+			SelectionObject->GetDataSelectionChangedDelegate().RemoveAll(this);
 		}
 	}
 }
 
-void SChaosVDSceneQueryDataInspector::Construct(const FArguments& InArgs, const TWeakPtr<FChaosVDScene>& InScenePtr, const TWeakPtr<FEditorModeTools>& InEditorModeTools)
+SChaosVDSceneQueryDataInspector::~SChaosVDSceneQueryDataInspector()
+{
+	UnregisterSceneEvents();
+}
+
+void SChaosVDSceneQueryDataInspector::Construct(const FArguments& InArgs, const TWeakPtr<FChaosVDScene>& InScenePtr, const TSharedRef<SChaosVDMainTab>& InMainTab)
 {
 	SceneWeakPtr = InScenePtr;
-	EditorModeToolsWeakPtr = InEditorModeTools;
+	EditorModeToolsWeakPtr = InMainTab->GetEditorModeManager().AsWeak();
+	MainTabWeakPtr = InMainTab;
 
-	if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
-	{
-		ScenePtr->OnSceneUpdated().AddRaw(this, &SChaosVDSceneQueryDataInspector::HandleSceneUpdated);
-
-		if (UChaosVDSceneQueryDataComponent* SQDataComponent = ScenePtr->GetSceneQueryDataContainerComponent())
-		{
-			SQDataComponent->GetOnSelectionChangeDelegate().AddRaw(this, &SChaosVDSceneQueryDataInspector::SetQueryDataToInspect);
-		}
-	}
+	RegisterSceneEvents();
 
 	SceneQueryDataDetailsView = CreateDataDetailsView();
 	SceneQueryHitDataDetailsView = CreateDataDetailsView();
 
-	
 	constexpr float NoPadding = 0.0f;
 	constexpr float OuterBoxPadding = 2.0f;
 	constexpr float OuterInnerPadding = 5.0f;
@@ -226,10 +236,13 @@ TSharedRef<SWidget> SChaosVDSceneQueryDataInspector::GenerateVisitStepControls()
 				+SVerticalBox::Slot()
 				[
 					SAssignNew(QueryStepsTimelineWidget, SChaosVDTimelineWidget)
-					.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllManualStepping))
+					.ButtonVisibilityFlags(EChaosVDTimelineElementIDFlags::AllManualStepping)
 					.IsEnabled_Raw(this, &SChaosVDSceneQueryDataInspector::GetSQVisitStepsEnabled)
 					.OnFrameChanged_Raw(this, &SChaosVDSceneQueryDataInspector::HandleQueryStepSelectionUpdated)
-					.MaxFrames(0)	
+					.OnButtonClicked(this, &SChaosVDSceneQueryDataInspector::HandleSQVisitTimelineInput)
+					.MinFrames_Raw(this, &SChaosVDSceneQueryDataInspector::GetCurrentMinSQVisitIndex)
+					.MaxFrames_Raw(this, &SChaosVDSceneQueryDataInspector::GetCurrentMaxSQVisitIndex)
+					.CurrentFrame_Raw(this, &SChaosVDSceneQueryDataInspector::GetCurrentSQVisitIndex)
 				]
 			];
 }
@@ -277,39 +290,40 @@ TSharedRef<SWidget> SChaosVDSceneQueryDataInspector::GenerateQueryTagInfoRow()
 			];
 }
 
-void SChaosVDSceneQueryDataInspector::SetQueryDataToInspect(const FChaosVDSceneQuerySelectionHandle& InQueryDataSelectionHandle)
+void SChaosVDSceneQueryDataInspector::SetQueryDataToInspect(const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InDataSelectionHandle)
 {
 	ClearInspector();
 
-	if (const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataToInspect = InQueryDataSelectionHandle.GetQueryData().Pin())
+	if (!InDataSelectionHandle)
 	{
-		CurrentSceneQueryBeingInspectedHandle = InQueryDataSelectionHandle;
+		return;
+	}
+
+	if (const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataToInspect = InDataSelectionHandle->GetDataAsShared<FChaosVDQueryDataWrapper>())
+	{
+		CurrentSceneQueryBeingInspectedHandle = InDataSelectionHandle.ToSharedRef();
 
 		const TSharedPtr<FStructOnScope> QueryDataView = MakeShared<FStructOnScope>(FChaosVDQueryDataWrapper::StaticStruct(), reinterpret_cast<uint8*>(QueryDataToInspect.Get()));
 		SceneQueryDataDetailsView->SetStructureData(QueryDataView);
 
-		if (QueryDataToInspect->SQVisitData.IsValidIndex(InQueryDataSelectionHandle.GetSQVisitIndex()))
+		if(FChaosVDSceneQuerySelectionContext* SelectionContext = InDataSelectionHandle->GetContextData<FChaosVDSceneQuerySelectionContext>())
 		{
-			const TSharedPtr<FStructOnScope> SQVisitDataDataView = MakeShared<FStructOnScope>(FChaosVDQueryVisitStep::StaticStruct(), reinterpret_cast<uint8*>(&QueryDataToInspect->SQVisitData[InQueryDataSelectionHandle.GetSQVisitIndex()]));
-			SceneQueryHitDataDetailsView->SetStructureData(SQVisitDataDataView);
-			QueryDataToInspect->CurrentVisitIndex = InQueryDataSelectionHandle.GetSQVisitIndex();
-		}
-
-		if (QueryStepsTimelineWidget)
-		{
-			const int32 SQVisitsNum = QueryDataToInspect->SQVisitData.Num();
-			QueryStepsTimelineWidget->UpdateMinMaxValue(0, SQVisitsNum > 0 ? SQVisitsNum -1 : 0);
-			QueryStepsTimelineWidget->SetCurrentTimelineFrame(QueryDataToInspect->CurrentVisitIndex);
+			if (QueryDataToInspect->SQVisitData.IsValidIndex(SelectionContext->SQVisitIndex))
+			{
+				const TSharedPtr<FStructOnScope> SQVisitDataDataView = MakeShared<FStructOnScope>(FChaosVDQueryVisitStep::StaticStruct(), reinterpret_cast<uint8*>(&QueryDataToInspect->SQVisitData[SelectionContext->SQVisitIndex]));
+				SceneQueryHitDataDetailsView->SetStructureData(SQVisitDataDataView);
+				QueryDataToInspect->CurrentVisitIndex = SelectionContext->SQVisitIndex;
+			}
 		}
 
 		if (QueryDataToInspect->SubQueriesIDs.Num() > 0)
 		{
 			TArray<TSharedPtr<FName>> NewSubQueryNameList;
 			NewSubQueryNameList.Reserve(QueryDataToInspect->SubQueriesIDs.Num());
-			Algo::Transform(QueryDataToInspect->SubQueriesIDs, NewSubQueryNameList, [this](int32 QueryID)
+			Algo::Transform(QueryDataToInspect->SubQueriesIDs, NewSubQueryNameList, [this, &QueryDataToInspect](int32 QueryID)
 			{
 				TSharedPtr<FName> NewName = MakeShared<FName>(FString::Format(TEXT("Query ID {0}"), {QueryID}));
-				CurrentSubQueriesByName.Add(NewName, QueryID);
+				CurrentSubQueriesByName.Add(NewName, {QueryID, QueryDataToInspect->WorldSolverID});
 				return NewName;
 			});
 
@@ -336,6 +350,13 @@ void SChaosVDSceneQueryDataInspector::HandleQueryStepSelectionUpdated(int32 NewS
 		return;
 	}
 
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>();
+	if (!QueryDataBeingInspected)
+	{
+		ClearInspector();
+		return;
+	}
+
 	const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
 	if (!ScenePtr)
 	{
@@ -343,28 +364,38 @@ void SChaosVDSceneQueryDataInspector::HandleQueryStepSelectionUpdated(int32 NewS
 		return;
 	}
 
-	UChaosVDSceneQueryDataComponent* SQDataComponent = ScenePtr->GetSceneQueryDataContainerComponent();
+	TSharedPtr<FChaosVDSolverDataSelection> SelectionObject = ScenePtr->GetSolverDataSelectionObject().Pin();
+
+	if (!SelectionObject)
+	{
+		ClearInspector();
+		return;
+	}
+
+	AChaosVDSolverInfoActor* SolverInfoActor = ScenePtr->GetSolverInfoActor(QueryDataBeingInspected->WorldSolverID);
+	UChaosVDSceneQueryDataComponent* SQDataComponent = SolverInfoActor ? SolverInfoActor->GetSceneQueryDataComponent() : nullptr;
 	if (!SQDataComponent)
 	{
 		ClearInspector();
 		return;
 	}
 
-	if (const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin())
+	// If we reach this point no need to clear the inspector, we have valid data. This is can be caused by the timeline widget going over as we no longer restrict th button actions
+	if (!QueryDataBeingInspected->SQVisitData.IsValidIndex(NewStepIndex))
 	{
-		const FChaosVDSceneQuerySelectionHandle NewSelection(CurrentSceneQueryBeingInspectedHandle.GetQueryData(), NewStepIndex);
-		QueryDataBeingInspected->CurrentVisitIndex = NewStepIndex;
-		
-
-		FScopedSQInspectorSilencedSelectionEvents IgnoreSelectionEventsScope(*this);
-		SQDataComponent->SelectQuery(NewSelection);
-
-		SetQueryDataToInspect(NewSelection);
+		UE_LOG(LogChaosVDEditor, VeryVerbose, TEXT("[%s] Attempted to process and invalid SQ Visit index | Input Index [%d] | Available SQ Visit Data Num [%d]"), ANSI_TO_TCHAR(__FUNCTION__), NewStepIndex, QueryDataBeingInspected->SQVisitData.Num())
+		return;
 	}
-	else
-	{
-		SetQueryDataToInspect(FChaosVDSceneQuerySelectionHandle());
-	}
+
+	TSharedPtr<FChaosVDSolverDataSelectionHandle> NewSelection = SelectionObject->MakeSelectionHandle(QueryDataBeingInspected);
+	FChaosVDSceneQuerySelectionContext ContextData;
+	ContextData.SQVisitIndex = NewStepIndex;
+	NewSelection->SetHandleContext(MoveTemp(ContextData));
+
+	QueryDataBeingInspected->CurrentVisitIndex = NewStepIndex;
+
+	FScopedSQInspectorSilencedSelectionEvents IgnoreSelectionEventsScope(*this);
+	SelectionObject->SelectData(NewSelection);
 
 	if (const TSharedPtr<FEditorModeTools> EditorModeToolsPtr = EditorModeToolsWeakPtr.Pin())
 	{
@@ -378,7 +409,7 @@ void SChaosVDSceneQueryDataInspector::HandleQueryStepSelectionUpdated(int32 NewS
 
 FText SChaosVDSceneQueryDataInspector::GetQueryBeingInspectedTag() const
 {
-	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin();
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>();
 	return FText::AsCultureInvariant(QueryDataBeingInspected ? QueryDataBeingInspected->CollisionQueryParams.TraceTag.ToString() : TEXT("None"));
 }
 
@@ -389,7 +420,7 @@ FText SChaosVDSceneQueryDataInspector::GetSelectParticleText() const
 
 FText SChaosVDSceneQueryDataInspector::GetSQVisitsStepsText() const
 {
-	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin();
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>();
 	const int32 AvailableSQVisitDataNum = QueryDataBeingInspected ? QueryDataBeingInspected->SQVisitData.Num() : 0;
 	return FText::Format(FTextFormat(LOCTEXT("SQVisitStepsPlaybackControlsTitle", "Recorded SQ Visits Available {0}")), AvailableSQVisitDataNum);
 }
@@ -402,7 +433,7 @@ FReply SChaosVDSceneQueryDataInspector::SelectParticleForCurrentQueryData() cons
 		return FReply::Handled();
 	}
 
-	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin();
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>();
 
 	if (!QueryDataBeingInspected || !QueryDataBeingInspected->SQVisitData.IsValidIndex(QueryDataBeingInspected->CurrentVisitIndex))
 	{
@@ -411,25 +442,18 @@ FReply SChaosVDSceneQueryDataInspector::SelectParticleForCurrentQueryData() cons
 
 	if (AChaosVDParticleActor* ParticleActor = ScenePtr->GetParticleActor(QueryDataBeingInspected->WorldSolverID, QueryDataBeingInspected->SQVisitData[QueryDataBeingInspected->CurrentVisitIndex].ParticleIndex))
 	{
-		ScenePtr->SetSelectedObject(ParticleActor);
+		const int32 ShapeInstanceIndexToSelect = QueryDataBeingInspected->SQVisitData[QueryDataBeingInspected->CurrentVisitIndex].ShapeIndex;
 
-		// When a particle actor is selected, all their mesh instances are selected, so we need to override that selection here.
-		// TODO: The API for selection is intentionally generic as we use it for more things that particle actors, but maybe we can have a new API method to provide a "context", so in this case
-		// we can tell the system how we want the selection to be visualized
-
-		const TConstArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>> MeshHandles = ParticleActor->GetMeshInstances();
-		for (const TSharedPtr<FChaosVDMeshDataInstanceHandle>& Handle : MeshHandles)
+		// TODO : This will not work properly when the visited shape was a Union within a union
+		// CVD currently doesn't support multi selection, so we can't easily select all mesh instances that represent a union within a union
+		// We need to revisit this when multi selection support is added. Jira for tracking UE-212733
+		const TConstArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>> AvailableMeshInstances = ParticleActor->GetMeshInstances();
+		for (const TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshInstance : AvailableMeshInstances)
 		{
-			if (const TSharedPtr<FChaosVDExtractedGeometryDataHandle> GeometryHandle = Handle->GetGeometryHandle())
+			if (MeshInstance->GetState().ImplicitObjectInfo.ShapeInstanceIndex == ShapeInstanceIndexToSelect)
 			{
-				if (GeometryHandle->GetImplicitObjectIndex() == QueryDataBeingInspected->SQVisitData[QueryDataBeingInspected->CurrentVisitIndex].ShapeIndex)
-				{
-					Handle->SetIsSelected(true);
-				}
-				else
-				{
-					Handle->SetIsSelected(false);
-				}
+				Chaos::VisualDebugger::SelectParticleWithGeometryInstance(ScenePtr.ToSharedRef(), ParticleActor, MeshInstance);
+				break;
 			}
 		}
 		
@@ -446,19 +470,24 @@ FReply SChaosVDSceneQueryDataInspector::SelectParticleForCurrentQueryData() cons
 	return FReply::Handled();
 }
 
-FReply SChaosVDSceneQueryDataInspector::SelectQueryToInspectByID(int32 QueryID)
+FReply SChaosVDSceneQueryDataInspector::SelectQueryToInspectByID(int32 QueryID, int32 SolverID)
 {
 	const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
 	if (!ScenePtr)
 	{
 		return FReply::Handled();
 	}
-
-	if (UChaosVDSceneQueryDataComponent* SQDataComponent = ScenePtr->GetSceneQueryDataContainerComponent())
+	
+	TSharedPtr<FChaosVDSolverDataSelection> SelectionObject = ScenePtr->GetSolverDataSelectionObject().Pin();
+	if (!SelectionObject)
 	{
-		SQDataComponent->SelectQuery(QueryID);
-							
-		SetQueryDataToInspect(SQDataComponent->GetSelectedQueryHandle());
+		return FReply::Handled();
+	}
+
+	AChaosVDSolverInfoActor* SolverInfoActor = ScenePtr->GetSolverInfoActor(SolverID);
+	if (UChaosVDSceneQueryDataComponent* SQDataComponent = SolverInfoActor ? SolverInfoActor->GetSceneQueryDataComponent() : nullptr)
+	{						
+		SelectionObject->SelectData(SelectionObject->MakeSelectionHandle(SQDataComponent->GetQueryByID(QueryID)));
 	}
 	else
 	{
@@ -471,10 +500,10 @@ FReply SChaosVDSceneQueryDataInspector::SelectQueryToInspectByID(int32 QueryID)
 FReply SChaosVDSceneQueryDataInspector::SelectParentQuery()
 {
 	const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
-	const UChaosVDSceneQueryDataComponent* SQDataComponent = ScenePtr ? ScenePtr->GetSceneQueryDataContainerComponent() : nullptr;
-	if (const TSharedPtr<FChaosVDQueryDataWrapper> SelectedQuery = SQDataComponent ? SQDataComponent->GetSelectedQueryHandle().GetQueryData().Pin() : nullptr)
-	{
-		SelectQueryToInspectByID(SelectedQuery->ParentQueryID);
+
+	if (const TSharedPtr<FChaosVDQueryDataWrapper> SelectedQuery = CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>())
+	{		
+		SelectQueryToInspectByID(SelectedQuery->ParentQueryID, SelectedQuery->WorldSolverID);
 	}
 	else
 	{
@@ -484,9 +513,13 @@ FReply SChaosVDSceneQueryDataInspector::SelectParentQuery()
 	return FReply::Handled();
 }
 
-TSharedPtr<IStructureDetailsView> SChaosVDSceneQueryDataInspector::CreateDataDetailsView()
+TSharedPtr<IStructureDetailsView> SChaosVDSceneQueryDataInspector::CreateDataDetailsView() const
 {
-	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	TSharedPtr<SChaosVDMainTab> MainTabPtr = MainTabWeakPtr.Pin();
+	if (!MainTabPtr)
+	{
+		return nullptr;
+	}
 
 	const FStructureDetailsViewArgs StructDetailsViewArgs;
 	FDetailsViewArgs DetailsViewArgs;
@@ -495,7 +528,7 @@ TSharedPtr<IStructureDetailsView> SChaosVDSceneQueryDataInspector::CreateDataDet
 	DetailsViewArgs.bAllowSearch = false;
 	DetailsViewArgs.bShowScrollBar = false;
 
-	return PropertyEditorModule.CreateStructureDetailView(DetailsViewArgs,StructDetailsViewArgs, nullptr);
+	return MainTabPtr->CreateStructureDetailsView(DetailsViewArgs,StructDetailsViewArgs, nullptr);
 }
 
 void SChaosVDSceneQueryDataInspector::HandleSceneUpdated()
@@ -518,9 +551,9 @@ void SChaosVDSceneQueryDataInspector::HandleSubQueryNameSelected(TSharedPtr<FNam
 		return;
 	}
 
-	if (const int32* SelectedQueryID = CurrentSubQueriesByName.Find(Name))
+	if (const FChaosVDSQSubQueryID* SelectedQueryID = CurrentSubQueriesByName.Find(Name))
 	{
-		SelectQueryToInspectByID(*SelectedQueryID);
+		SelectQueryToInspectByID(SelectedQueryID->QueryID, SelectedQueryID->SolverID);
 		return;
 	}
 
@@ -541,11 +574,6 @@ void SChaosVDSceneQueryDataInspector::ClearInspector()
 		SceneQueryHitDataDetailsView->SetStructureData(nullptr);
 	}
 
-	if (QueryStepsTimelineWidget)
-	{
-		QueryStepsTimelineWidget->UpdateMinMaxValue(0,0);
-	}
-
 	if (SubQueryNamePickerWidget)
 	{
 		SubQueryNamePickerWidget->UpdateNameList({});
@@ -553,7 +581,7 @@ void SChaosVDSceneQueryDataInspector::ClearInspector()
 
 	CurrentSubQueriesByName.Empty();
 
-	CurrentSceneQueryBeingInspectedHandle = FChaosVDSceneQuerySelectionHandle(nullptr, INDEX_NONE);
+	CurrentSceneQueryBeingInspectedHandle = MakeShared<FChaosVDSolverDataSelectionHandle>();
 
 	bIsUpToDate = true;
 }
@@ -565,44 +593,44 @@ EVisibility SChaosVDSceneQueryDataInspector::GetOutOfDateWarningVisibility() con
 
 EVisibility SChaosVDSceneQueryDataInspector::GetQueryDetailsSectionVisibility() const
 {
-	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin();
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>();
 	return QueryDataBeingInspected ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 EVisibility SChaosVDSceneQueryDataInspector::GetQueryStepPlaybackControlsVisibility() const
 {
-	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin();
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>();
 	// If the this inspector no longer reflects data represented in the viewport, we can't offer playback so we need to hide the controls
 	return bIsUpToDate && QueryDataBeingInspected ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 EVisibility SChaosVDSceneQueryDataInspector::GetSQVisitDetailsSectionVisibility() const
 {
-	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin();
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>();
 	return QueryDataBeingInspected && QueryDataBeingInspected->SQVisitData.Num() > 0 ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 EVisibility SChaosVDSceneQueryDataInspector::GetNothingSelectedMessageVisibility() const
 {
-	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin();
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>();
 	return QueryDataBeingInspected ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 EVisibility SChaosVDSceneQueryDataInspector::GetSubQuerySelectorVisibility() const
 {
-	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin();
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>();
 	return QueryDataBeingInspected && QueryDataBeingInspected->SubQueriesIDs.Num() > 0 ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 EVisibility SChaosVDSceneQueryDataInspector::GetParentQuerySelectorVisibility() const
 {
-	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin();
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>();
 	return QueryDataBeingInspected && QueryDataBeingInspected->ParentQueryID != INDEX_NONE ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 bool SChaosVDSceneQueryDataInspector::GetSelectParticleHitStateEnable() const
 {
-	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin();
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>();
 	if (QueryDataBeingInspected && QueryDataBeingInspected->SQVisitData.IsValidIndex(QueryDataBeingInspected->CurrentVisitIndex))
 	{
 		return QueryDataBeingInspected->SQVisitData[QueryDataBeingInspected->CurrentVisitIndex].ParticleIndex != INDEX_NONE;
@@ -613,14 +641,61 @@ bool SChaosVDSceneQueryDataInspector::GetSelectParticleHitStateEnable() const
 
 bool SChaosVDSceneQueryDataInspector::GetSQVisitStepsEnabled() const
 {
-	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin();
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>();
 	return QueryDataBeingInspected && QueryDataBeingInspected->SQVisitData.Num() > 0;
 }
 
-TSharedPtr<FChaosVDQueryDataWrapper> SChaosVDSceneQueryDataInspector::GetCurrentDataBeingInspected()
+TSharedPtr<FChaosVDQueryDataWrapper> SChaosVDSceneQueryDataInspector::GetCurrentDataBeingInspected() const
 {
-	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle.GetQueryData().Pin();
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>();
 	return QueryDataBeingInspected;
+}
+
+int32 SChaosVDSceneQueryDataInspector::GetCurrentMinSQVisitIndex() const
+{
+	return 0;
+}
+
+int32 SChaosVDSceneQueryDataInspector::GetCurrentMaxSQVisitIndex() const
+{
+	if (const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = GetCurrentDataBeingInspected())
+	{
+		const int32 SQVisitsNum = QueryDataBeingInspected->SQVisitData.Num();
+		return SQVisitsNum > 0 ? SQVisitsNum -1 : 0;
+	}
+
+	return 0;
+}
+
+int32 SChaosVDSceneQueryDataInspector::GetCurrentSQVisitIndex() const
+{
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = GetCurrentDataBeingInspected();
+	return  QueryDataBeingInspected ? QueryDataBeingInspected->CurrentVisitIndex : 0;
+}
+
+void SChaosVDSceneQueryDataInspector::HandleSQVisitTimelineInput(EChaosVDPlaybackButtonsID InputID)
+{
+	if (const TSharedPtr<FChaosVDQueryDataWrapper> QueryDataBeingInspected = GetCurrentDataBeingInspected())
+	{
+		switch (InputID)
+		{
+		case EChaosVDPlaybackButtonsID::Next:
+			{
+				HandleQueryStepSelectionUpdated(QueryDataBeingInspected->CurrentVisitIndex +1);
+				break;	
+			}
+		case EChaosVDPlaybackButtonsID::Prev:
+			{
+				HandleQueryStepSelectionUpdated(QueryDataBeingInspected->CurrentVisitIndex -1);
+				break;	
+			}
+		case EChaosVDPlaybackButtonsID::Play:
+		case EChaosVDPlaybackButtonsID::Pause:
+		case EChaosVDPlaybackButtonsID::Stop:
+		default:
+			break;
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -2,6 +2,7 @@
 
 #include "TakeRecorderModule.h"
 #include "TakeRecorderSettings.h"
+#include "SequencerUtilities.h"
 #include "TakeRecorderProjectSettingsCustomization.h"
 #include "Modules/ModuleManager.h"
 #include "LevelEditor.h"
@@ -29,6 +30,7 @@
 #include "Widgets/STakeRecorderPanel.h"
 
 #include "ISequencer.h"
+#include "ISequencerModule.h"
 #include "LevelSequence.h"
 #include "LevelSequenceEditorModule.h"
 #include "SequencerSettings.h"
@@ -42,6 +44,19 @@
 #include "SerializedRecorder.h"
 #include "Misc/Attribute.h"
 #include "Textures/SlateIcon.h"
+
+#include "Misc/QualifiedFrameTime.h"
+#include "MovieSceneTakeSection.h"
+#include "MovieSceneTakeTrack.h"
+#include "ISequencer.h"
+#include "LevelSequence.h"
+#include "MovieSceneSequence.h"
+#include "Sections/MovieSceneSubSection.h"
+#include "MovieScene.h"
+
+#include "Algo/RemoveIf.h"
+#include "Engine/Font.h"
+#include "CanvasTypes.h"
 
 #define LOCTEXT_NAMESPACE "TakeRecorderModule"
 
@@ -65,6 +80,143 @@ FName ITakeRecorderDropHandler::ModularFeatureName("ITakeRecorderDropHandler");
 TArray<ITakeRecorderDropHandler*> ITakeRecorderDropHandler::GetDropHandlers()
 {
 	return IModularFeatures::Get().GetModularFeatureImplementations<ITakeRecorderDropHandler>(ModularFeatureName);
+}
+
+namespace UE::TakeRecorder::Private
+{
+    template<typename T>
+    concept CInvocableWithMovieSceneTakeSection = std::is_invocable_v<T, UMovieSceneTakeSection*>;
+
+	/** Render the timecode data with slate and rate to the canvas. Flag invalid TC values with a red color to indicate a problem to the user. */
+	int32 RenderTimecode(FCanvas* Canvas, int32 X, int32 Y, const FTimecode& Timecode, const float& Rate, const FString& SequenceName)
+	{
+		UFont* Font = FPlatformProperties::SupportsWindowedMode() ? GEngine->GetSmallFont() : GEngine->GetMediumFont();
+		const int32 RowHeight = FMath::TruncToInt(Font->GetMaxCharHeight());
+
+		const bool bForceSignDisplay = false;
+		const bool bAlwaysDisplaySubframe = true;
+
+		const FString TimecodeStr = Timecode.ToString(bForceSignDisplay, bAlwaysDisplaySubframe);
+
+		const FString TakeSection = TEXT("Take Section -- ");
+		const FString FPS = TEXT("(00.00)");
+		float CharWidth, CharHeight;
+		Font->GetCharSize(TEXT(' '), CharWidth, CharHeight);
+
+		int32 TakeSectionWidth = Font->GetStringSize(*TakeSection);
+		int32 NewX = X - Font->GetStringSize(*SequenceName) - Font->GetStringSize(*FPS) - TakeSectionWidth - (int32)CharWidth;
+		int32 SectionX = NewX + TakeSectionWidth;
+		FColor Color = Rate > 6000 ? FColor::Red : FColor::Green;
+		float DisplayRate = Rate > 6000 ? 0 : Rate;
+		Canvas->DrawShadowedString(NewX, Y, *TakeSection, Font, FColor::Cyan);
+		Canvas->DrawShadowedString(SectionX, Y, *FString::Printf(TEXT("%s TC: %s (%.2f)"), *SequenceName, *TimecodeStr, DisplayRate), Font, Color);
+		Y += RowHeight;
+		return Y;
+	};
+
+	template <typename CInvocableWithMovieSceneTakeSection>
+	void IterateOverMovieSceneForSections(UMovieScene* MovieScene, CInvocableWithMovieSceneTakeSection&& SectionFunction)
+	{
+		if (!MovieScene)
+		{
+			return;
+		}
+
+		// Lambda to iterate over tracks.  This will either get called via a FMovieSceneBinding or directly froma UMovieScene
+		auto ForEachTrack = [&SectionFunction](const TArray<UMovieSceneTrack*>& Tracks) -> bool
+		{
+			bool bDidRenderSection = false;
+			for (UMovieSceneTrack* Track : Tracks)
+			{
+				for (UMovieSceneSection* Section : Track->GetAllSections())
+				{
+					if (UMovieSceneTakeSection* TakeSection = Cast<UMovieSceneTakeSection>(Section))
+					{
+						SectionFunction(TakeSection);
+						bDidRenderSection = true;
+					}
+					else if (UMovieSceneSubSection* SubSection = Cast<UMovieSceneSubSection>(Section))
+					{
+						if (SubSection->GetSequence())
+						{
+							IterateOverMovieSceneForSections(SubSection->GetSequence()->GetMovieScene(), SectionFunction);
+						}
+					}
+				}
+			}
+			return bDidRenderSection;
+		};
+
+		const TArray<FMovieSceneBinding>& Bindings = MovieScene->GetBindings();
+		bool bDidRenderForMovieScene = false;
+		for (const FMovieSceneBinding& Binding : Bindings)
+		{
+			bDidRenderForMovieScene = ForEachTrack(Binding.GetTracks());
+		}
+
+		// If we didn't render anything with FMovieSceneBinding try the MovieScene object.
+		if (!bDidRenderForMovieScene)
+		{
+			ForEachTrack(MovieScene->GetTracks());
+		}
+	}
+
+	int32 RenderTakeSectionsInSequencer(FCanvas* Canvas, int32 X, int32 Y, TSharedPtr<ISequencer>& InSequencer)
+	{
+		const FFrameRate RootTickRate = InSequencer->GetRootTickResolution();
+		const FFrameTime CurrentTime = InSequencer->GetGlobalTime().ConvertTo(RootTickRate);
+		auto RenderOneTakeSubSection = [CurrentTime, Canvas, X, &Y](UMovieSceneTakeSection* TakeSection) mutable
+		{
+			TOptional<UMovieSceneTakeSection::FSectionData> TakeData = TakeSection->Evaluate(CurrentTime);
+			if (TakeData)
+			{
+				Y = RenderTimecode(Canvas, X, Y, TakeData->Timecode, TakeData->Rate, TakeData->Slate);
+			}
+		};
+
+		const TArray<FMovieSceneSequenceID>& SubSequenceHierarchy = InSequencer->GetSubSequenceHierarchy();
+		if (SubSequenceHierarchy.Num()>0)
+		{
+			UMovieSceneSequence* Sequence = FSequencerUtilities::GetMovieSceneSequence(InSequencer, SubSequenceHierarchy.Last());
+			check(Sequence);
+
+			UMovieScene* MovieScene = Sequence->GetMovieScene();
+			IterateOverMovieSceneForSections(MovieScene, RenderOneTakeSubSection);
+		}
+		return Y;
+	}
+
+	static FOpenSequencerWatcher SequencerWatcher;
+
+	/** For the given sequencer, iterate over all sections and find a take section then evaluate and show timecode, rate, and slate info in the HUD. */
+	int32 RenderTakeSectionTime(UWorld* World, FViewport* Viewport, FCanvas* Canvas, int32 X, int32 Y, const FVector* ViewLocation, const FRotator* ViewRotation)
+	{
+		for (const FOpenSequencerWatcher::FOpenSequencerData& OpenSequencer : SequencerWatcher.OpenSequencers)
+		{
+			if (TSharedPtr<ISequencer> Sequencer = OpenSequencer.WeakSequencer.Pin())
+			{
+				Y = RenderTakeSectionsInSequencer(Canvas, X, Y, Sequencer);
+			}
+		}
+		return Y;
+	}
+
+    void InitStatCommands()
+    {
+		auto StartupComplete = []()
+		{
+			check(GEngine);
+			if (GIsEditor)
+			{
+                const bool bIsRHS = true;
+				GEngine->AddEngineStat(TEXT("STAT_TakeTimecode"), TEXT("STATCAT_Sequencer"),
+									   LOCTEXT("TakeTimecodeDisplay", "Displays current sequencer time value in NDF timecode format."),
+									   UEngine::FEngineStatRender::CreateStatic(&RenderTakeSectionTime), nullptr, bIsRHS);
+			}
+		};
+
+		SequencerWatcher.DoStartup(StartupComplete);
+    }
 }
 
 namespace
@@ -284,6 +436,7 @@ void FTakeRecorderModule::StartupModule()
 		{
 			FCoreDelegates::OnPostEngineInit.AddRaw(this, &FTakeRecorderModule::RegisterMenus);
 		}
+		UE::TakeRecorder::Private::InitStatCommands();
 	}
 
 	if (GEditor)

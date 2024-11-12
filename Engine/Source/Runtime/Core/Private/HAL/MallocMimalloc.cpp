@@ -174,6 +174,43 @@ void FMallocMimalloc::Free( void* Ptr )
 	mi_free(Ptr);
 }
 
+void* FMallocMimalloc::MallocZeroed(SIZE_T Size, uint32 Alignment)
+{
+	void* Result = TryMallocZeroed(Size, Alignment);
+
+	if (Result == nullptr && Size)
+	{
+		OutOfMemory(Size, Alignment);
+	}
+
+	return Result;
+}
+
+void* FMallocMimalloc::TryMallocZeroed(SIZE_T Size, uint32 Alignment)
+{
+#if !UE_BUILD_SHIPPING
+	uint64 LocalMaxSingleAlloc = MaxSingleAlloc.Load(EMemoryOrder::Relaxed);
+	if (LocalMaxSingleAlloc != 0 && Size > LocalMaxSingleAlloc)
+	{
+		return nullptr;
+	}
+#endif
+
+	void* NewPtr = nullptr;
+
+	if (Alignment != DEFAULT_ALIGNMENT)
+	{
+		Alignment = FMath::Max(uint32(Size >= 16 ? 16 : 8), Alignment);
+		NewPtr = mi_zalloc_aligned(Size, Alignment);
+	}
+	else
+	{
+		NewPtr = mi_zalloc_aligned(Size, uint32(Size >= 16 ? 16 : 8));
+	}
+
+	return NewPtr;
+}
+
 bool FMallocMimalloc::GetAllocationSize(void *Original, SIZE_T &SizeOut)
 {
 	SizeOut = mi_malloc_size(Original);

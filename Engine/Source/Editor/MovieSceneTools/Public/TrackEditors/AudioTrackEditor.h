@@ -151,6 +151,7 @@ public:
 	virtual void ResizeSection(ESequencerSectionResizeMode ResizeMode, FFrameNumber ResizeTime) override;
 	virtual void BeginSlipSection() override;
 	virtual void SlipSection(FFrameNumber SlipTime) override;
+	virtual TOptional<FFrameTime> GetSectionTime(FSequencerSectionPainter& InPainter) const override;
 	
 private:
 

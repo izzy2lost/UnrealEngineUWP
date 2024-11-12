@@ -53,10 +53,14 @@ public:
 	/** Returns the UI items currently selected by the user (if any). */
 	virtual TArray<TSharedPtr<FRCLogicModeBase>> GetSelectedLogicItems() override;
 
+	/** Return the behavior currently selected and displaying its ActionPanel */
 	TSharedPtr<FRCBehaviourModel> GetSelectedBehaviourItem()
 	{
 		return SelectedBehaviourItemWeakPtr.Pin();
 	}
+
+	/** Return the list of all behavior currently selected */
+	TArray<TSharedPtr<FRCBehaviourModel>> GetSelectedBehaviourItems() const;
 
 	void RequestRefresh();
 
@@ -64,6 +68,21 @@ public:
 
 	/** Allows Logic panels to add special functionality to the Context Menu based on context */
 	virtual void AddSpecialContextMenuOptions(FMenuBuilder& MenuBuilder) override;
+
+	/** Will set the selection to the first item */
+	void SelectFirstItem();
+
+	/** Set the current selection to the given InBehaviorToSelect list */
+	void SetSelection(TArray<TSharedPtr<FRCBehaviourModel>> InBehaviorToSelect);
+
+	/** Called when a controller value changed */
+	void NotifyControllerValueChanged(TSharedPtr<FRCControllerModel> InController);
+
+	/** Return the controller item for this behavior */
+	TSharedPtr<FRCControllerModel> GetControllerItem() const;
+	
+	/** Set a new controller item to update the behavior view based on the new controller */
+	void SetControllerItem(const TSharedPtr<FRCControllerModel>& InNewControllerItem);
 
 private:
 

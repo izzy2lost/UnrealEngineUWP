@@ -107,7 +107,7 @@ bool FOnlineLeaderboardsEOS::ReadLeaderboards(const TArray<FUniqueNetIdRef>& Pla
 	int32 Index = 0;
 	for (const FColumnMetaData& Column : ReadObject->ColumnMetadata)
 	{
-		FCStringAnsi::Strncpy(Options.PointerArray[Index], TCHAR_TO_UTF8(*Column.ColumnName.ToString()), EOS_OSS_STRING_BUFFER_LENGTH);
+		FCStringAnsi::Strncpy(Options.PointerArray[Index], TCHAR_TO_UTF8(*Column.ColumnName), EOS_OSS_STRING_BUFFER_LENGTH);
 		EOS_Leaderboards_UserScoresQueryStatInfo& StatInfo = Options.StatInfoArray[Index];
 		StatInfo.ApiVersion = 1;
 		UE_EOS_CHECK_API_MISMATCH(EOS_LEADERBOARDS_USERSCORESQUERYSTATINFO_API_LATEST, 1);
@@ -125,7 +125,7 @@ bool FOnlineLeaderboardsEOS::ReadLeaderboards(const TArray<FUniqueNetIdRef>& Pla
 		if (!bWasSuccessful)
 		{
 	
-			UE_LOG_ONLINE_LEADERBOARD(Error, TEXT("EOS_Leaderboards_QueryLeaderboardUserScores() failed with EOS result code (%s)"), ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
+			UE_LOG_ONLINE_LEADERBOARD(Error, TEXT("EOS_Leaderboards_QueryLeaderboardUserScores() failed with EOS result code (%s)"), *LexToString(Data->ResultCode));
 			QueryContext->ReadObject->ReadState = EOnlineAsyncTaskState::Failed;
 			TriggerOnLeaderboardReadCompleteDelegates(false);
 			return;
@@ -156,7 +156,7 @@ bool FOnlineLeaderboardsEOS::ReadLeaderboards(const TArray<FUniqueNetIdRef>& Pla
 			for (const FColumnMetaData& Column : QueryContext->ReadObject->ColumnMetadata)
 			{
 				// Update which stat we are requesting
-				FCStringAnsi::Strncpy(StatName, TCHAR_TO_UTF8(*Column.ColumnName.ToString()), EOS_OSS_STRING_BUFFER_LENGTH);
+				FCStringAnsi::Strncpy(StatName, TCHAR_TO_UTF8(*Column.ColumnName), EOS_OSS_STRING_BUFFER_LENGTH);
 
 				EOS_Leaderboards_LeaderboardUserScore* LeaderboardUserScore = nullptr;
 				EOS_EResult UserCopyResult = EOS_Leaderboards_CopyLeaderboardUserScoreByUserId(EOSSubsystem->LeaderboardsHandle, &UserCopyOptions, &LeaderboardUserScore);
@@ -174,8 +174,7 @@ bool FOnlineLeaderboardsEOS::ReadLeaderboards(const TArray<FUniqueNetIdRef>& Pla
 		}
 
 		// Manually build the ranks by sorting and then assigning rank values
-		FName SortedColumn = QueryContext->ReadObject->SortedColumn;
-		QueryContext->ReadObject->Rows.Sort([SortedColumn](const FOnlineStatsRow& RowA, const FOnlineStatsRow& RowB)
+		QueryContext->ReadObject->Rows.Sort([SortedColumn = QueryContext->ReadObject->SortedColumn](const FOnlineStatsRow& RowA, const FOnlineStatsRow& RowB)
 		{
 			const FVariantData& ValueA = RowA.Columns[SortedColumn];
 			const FVariantData& ValueB = RowB.Columns[SortedColumn];
@@ -255,7 +254,7 @@ bool FOnlineLeaderboardsEOS::ReadLeaderboardsAroundRank(int32 Rank, uint32 Range
 	UE_EOS_CHECK_API_MISMATCH(EOS_LEADERBOARDS_QUERYLEADERBOARDRANKS_API_LATEST, 2);
 	Options.LeaderboardId = LeaderboardId;
 	Options.LocalUserId = EOSSubsystem->UserManager->GetLocalProductUserId(0);
-	FCStringAnsi::Strncpy(LeaderboardId, TCHAR_TO_UTF8(*ReadObject->LeaderboardName.ToString()), EOS_OSS_STRING_BUFFER_LENGTH);
+	FCStringAnsi::Strncpy(LeaderboardId, TCHAR_TO_UTF8(*ReadObject->LeaderboardName), EOS_OSS_STRING_BUFFER_LENGTH);
 
 	FQueryLeaderboardCallback* CallbackObj = new FQueryLeaderboardCallback(FOnlineLeaderboardsEOSWeakPtr(AsShared()));
 	FOnlineLeaderboardReadRef LambdaReadObject = ReadObject;
@@ -264,7 +263,7 @@ bool FOnlineLeaderboardsEOS::ReadLeaderboardsAroundRank(int32 Rank, uint32 Range
 		bool bWasSuccessful = Data->ResultCode == EOS_EResult::EOS_Success;
 		if (!bWasSuccessful)
 		{
-			UE_LOG_ONLINE_LEADERBOARD(Error, TEXT("EOS_Leaderboards_QueryLeaderboardRanks() failed with EOS result code (%s)"), ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
+			UE_LOG_ONLINE_LEADERBOARD(Error, TEXT("EOS_Leaderboards_QueryLeaderboardRanks() failed with EOS result code (%s)"), *LexToString(Data->ResultCode));
 			LambdaReadObject->ReadState = EOnlineAsyncTaskState::Failed;
 			TriggerOnLeaderboardReadCompleteDelegates(false);
 			return;
@@ -354,9 +353,9 @@ bool FOnlineLeaderboardsEOS::WriteLeaderboards(const FName& SessionName, const F
 	TArray<FOnlineStatsUserUpdatedStats> StatsToWrite;
 
 	FOnlineStatsUserUpdatedStats& UpdatedStats = StatsToWrite.Emplace_GetRef(Player.AsShared());
-	for (const TPair<FName, FVariantData>& Stat : WriteObject.Properties)
+	for (const TPair<FString, FVariantData>& Stat : WriteObject.Properties)
 	{
-		UpdatedStats.Stats.Add(Stat.Key.ToString(), FOnlineStatUpdate(Stat.Value, FOnlineStatUpdate::EOnlineStatModificationType::Unknown));
+		UpdatedStats.Stats.Add(Stat.Key, FOnlineStatUpdate(Stat.Value, FOnlineStatUpdate::EOnlineStatModificationType::Unknown));
 	}
 
 	EOSSubsystem->StatsInterfacePtr->UpdateStats(Player.AsShared(), StatsToWrite, FOnlineStatsUpdateStatsComplete());
@@ -400,9 +399,9 @@ bool FOnlineLeaderboardsEOS::HandleLeaderboardsExec(UWorld* InWorld, const TCHAR
 		const EOnlineKeyValuePairDataType::Type DataType = EOnlineKeyValuePairDataType::FromString(DataTypeStr);
 
 		FOnlineLeaderboardReadRef ReadRef = MakeShared<FOnlineLeaderboardRead>();
-		ReadRef->LeaderboardName = FName(*LeaderboardName);
-		ReadRef->SortedColumn = FName(*SortedColumn);
-		ReadRef->ColumnMetadata.Add(FColumnMetaData(FName(*SortedColumn), DataType));
+		ReadRef->LeaderboardName = LeaderboardName;
+		ReadRef->SortedColumn = SortedColumn;
+		ReadRef->ColumnMetadata.Add(FColumnMetaData(SortedColumn, DataType));
 
 		AddOnLeaderboardReadCompleteDelegate_Handle(FOnLeaderboardReadCompleteDelegate::CreateLambda([ReadRef](bool bWasSuccessful)
 			{
@@ -426,9 +425,9 @@ bool FOnlineLeaderboardsEOS::HandleLeaderboardsExec(UWorld* InWorld, const TCHAR
 		const EOnlineKeyValuePairDataType::Type DataType = EOnlineKeyValuePairDataType::FromString(DataTypeStr);
 
 		FOnlineLeaderboardReadRef ReadRef = MakeShared<FOnlineLeaderboardRead>();
-		ReadRef->LeaderboardName = FName(*LeaderboardName);
-		ReadRef->SortedColumn = FName(*SortedColumn);
-		ReadRef->ColumnMetadata.Add(FColumnMetaData(FName(*SortedColumn), DataType));
+		ReadRef->LeaderboardName = LeaderboardName;
+		ReadRef->SortedColumn = SortedColumn;
+		ReadRef->ColumnMetadata.Add(FColumnMetaData(SortedColumn, DataType));
 
 		AddOnLeaderboardReadCompleteDelegate_Handle(FOnLeaderboardReadCompleteDelegate::CreateLambda([ReadRef](bool bWasSuccessful)
 			{
@@ -454,9 +453,9 @@ bool FOnlineLeaderboardsEOS::HandleLeaderboardsExec(UWorld* InWorld, const TCHAR
 		const EOnlineKeyValuePairDataType::Type DataType = EOnlineKeyValuePairDataType::FromString(DataTypeStr);
 
 		FOnlineLeaderboardReadRef ReadRef = MakeShared<FOnlineLeaderboardRead>();
-		ReadRef->LeaderboardName = FName(*LeaderboardName);
-		ReadRef->SortedColumn = FName(*SortedColumn);
-		ReadRef->ColumnMetadata.Add(FColumnMetaData(FName(*SortedColumn), DataType));
+		ReadRef->LeaderboardName = LeaderboardName;
+		ReadRef->SortedColumn = SortedColumn;
+		ReadRef->ColumnMetadata.Add(FColumnMetaData(SortedColumn, DataType));
 
 		AddOnLeaderboardReadCompleteDelegate_Handle(FOnLeaderboardReadCompleteDelegate::CreateLambda([ReadRef](bool bWasSuccessful)
 			{
@@ -484,9 +483,9 @@ bool FOnlineLeaderboardsEOS::HandleLeaderboardsExec(UWorld* InWorld, const TCHAR
 		const EOnlineKeyValuePairDataType::Type DataType = EOnlineKeyValuePairDataType::FromString(DataTypeStr);
 
 		FOnlineLeaderboardReadRef ReadRef = MakeShared<FOnlineLeaderboardRead>();
-		ReadRef->LeaderboardName = FName(*LeaderboardName);
-		ReadRef->SortedColumn = FName(*SortedColumn);
-		ReadRef->ColumnMetadata.Add(FColumnMetaData(FName(*SortedColumn), DataType));
+		ReadRef->LeaderboardName = LeaderboardName;
+		ReadRef->SortedColumn = SortedColumn;
+		ReadRef->ColumnMetadata.Add(FColumnMetaData(SortedColumn, DataType));
 
 		AddOnLeaderboardReadCompleteDelegate_Handle(FOnLeaderboardReadCompleteDelegate::CreateLambda([ReadRef](bool bWasSuccessful)
 			{

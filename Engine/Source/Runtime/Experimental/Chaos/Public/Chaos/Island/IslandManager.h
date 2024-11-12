@@ -6,6 +6,8 @@
 #include "Chaos/Framework/Handles.h"
 #include "Chaos/Island/IslandManagerFwd.h"
 #include "Chaos/ParticleHandleFwd.h"
+#include "Chaos/ParticleHandle.h"
+#include "Chaos/Evolution/IterationSettings.h"
 #include "Chaos/Serializable.h"
 
 namespace Chaos
@@ -50,6 +52,22 @@ namespace Chaos::Private
 
 		// An integer ID for an island (for debug only). @see FPBDIsland::GetIslandId()
 		CHAOS_API int32 GetIslandId() const;
+
+		/**
+		* Get the iterations settings for this group of islands
+		*/
+		FIterationSettings GetIterationSettings() const
+		{
+			return Particle->CastToRigidParticle()->IterationSettings();
+		}
+
+		/**
+		 * Set the iterations settings for this group of islands
+		*/
+		void SetIterationSettings(const FIterationSettings& InIterations)
+		{
+			Particle->CastToRigidParticle()->SetIterationSettings(InIterations);
+		}
 
 	private:
 		friend class FPBDIslandManager;
@@ -289,6 +307,22 @@ namespace Chaos::Private
 		CHAOS_API void Reuse();
 		CHAOS_API void Trash();
 
+		/**
+			* Get the iterations settings for this group of islands
+		*/
+		FIterationSettings GetIterationSettings() const
+		{
+			return Iterations;
+		}
+
+		/**
+		 * Set the iterations settings for this group of islands
+		*/
+		void SetIterationSettings(const FIterationSettings& InIterations)
+		{
+			Iterations = InIterations;
+		}
+
 	private:
 		friend class FPBDIslandManager;
 
@@ -344,6 +378,8 @@ namespace Chaos::Private
 		int32 ResimFrame = INDEX_NONE;
 
 		FFlags Flags;
+
+		FIterationSettings Iterations;
 	};
 
 	/**

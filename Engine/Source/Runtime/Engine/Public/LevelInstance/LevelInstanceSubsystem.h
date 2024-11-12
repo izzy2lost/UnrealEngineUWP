@@ -11,9 +11,12 @@
 #include "WorldPartition/Filter/WorldPartitionActorFilter.h"
 #include "WorldPartition/WorldPartitionHandle.h"
 #include "WorldPartition/WorldPartitionActorContainerID.h"
+#include "LevelInstance/LevelInstancePropertyOverrideAsset.h"
+#include "Streaming/StreamingWorldSubsystemInterface.h"
 
 #if WITH_EDITOR
 #include "EditorLevelUtils.h"
+#include "Internationalization/Text.h"
 #endif
 
 #include "LevelInstanceSubsystem.generated.h"
@@ -22,8 +25,10 @@ class ILevelInstanceInterface;
 class ULevelInstanceEditorObject;
 class ULevelStreamingLevelInstance;
 class ULevelStreamingLevelInstanceEditor;
+class ULevelStreamingLevelInstanceEditorPropertyOverride;
 class UWorldPartitionSubsystem;
 class UBlueprint;
+struct FActorPropertyOverride;
 
 enum class ELevelInstanceBreakFlags : uint8
 {
@@ -46,7 +51,7 @@ ENUM_CLASS_FLAGS(ELevelInstanceBreakFlags);
  * ULevelInstanceSubsystem
  */
 UCLASS(MinimalAPI)
-class ULevelInstanceSubsystem : public UWorldSubsystem
+class ULevelInstanceSubsystem : public UWorldSubsystem, public IStreamingWorldSubsystemInterface
 {
 	GENERATED_BODY()
 
@@ -64,19 +69,21 @@ public:
 	ENGINE_API virtual bool DoesSupportWorldType(EWorldType::Type WorldType) const override;
 	//~ End USubsystem Interface.
 	
-	//~ Begin UWorldSubsystem Interface.
-	ENGINE_API virtual void UpdateStreamingState() override;
-	//~ End UWorldSubsystem Interface.
+	//~Begin IStreamingWorldSubsystemInterface
+	ENGINE_API virtual void OnUpdateStreamingState() override;
+	//~End IStreamingWorldSubsystemInterface
 
 	ENGINE_API ILevelInstanceInterface* GetLevelInstance(const FLevelInstanceID& LevelInstanceID) const;
 	ENGINE_API ILevelInstanceInterface* GetOwningLevelInstance(const ULevel* Level) const;
 	ENGINE_API FLevelInstanceID RegisterLevelInstance(ILevelInstanceInterface* LevelInstance);
+	ENGINE_API static ULevel* GetOwningLevel(const ULevel* Level, bool bFollowChainToNonLevelInstanceOwningLevel = false);
 	ENGINE_API void UnregisterLevelInstance(ILevelInstanceInterface* LevelInstance);
 	ENGINE_API void RequestLoadLevelInstance(ILevelInstanceInterface* LevelInstance, bool bUpdate);
 	ENGINE_API void RequestUnloadLevelInstance(ILevelInstanceInterface* LevelInstance);
 	ENGINE_API bool IsLoaded(const ILevelInstanceInterface* LevelInstance) const;
 	ENGINE_API bool IsLoading(const ILevelInstanceInterface* LevelInstance) const;
 	ENGINE_API void ForEachLevelInstanceAncestors(const AActor* Actor, TFunctionRef<bool(const ILevelInstanceInterface*)> Operation) const;
+	ENGINE_API void ForEachLevelInstanceAncestors(AActor* Actor, TFunctionRef<bool(ILevelInstanceInterface*)> Operation) const;
 	ENGINE_API void ForEachLevelInstanceAncestorsAndSelf(AActor* Actor, TFunctionRef<bool(ILevelInstanceInterface*)> Operation) const;
 	/** Runs a lambda operation along the ancestors that own the LevelInstance. Primarily for capturing inclusive true/false by using lambda captures */
 	ENGINE_API void ForEachLevelInstanceAncestorsAndSelf(const AActor* Actor, TFunctionRef<bool(const ILevelInstanceInterface*)> Operation) const;
@@ -96,7 +103,6 @@ public:
 	ENGINE_API void Tick();
 	ENGINE_API void OnExitEditorMode();
 	ENGINE_API void OnTryExitEditorMode();
-	ENGINE_API bool OnExitEditorModeInternal(bool bForceExit);
 
 	UE_DEPRECATED(5.3, "Use FPackedLevelActorUtils::PackAllLoadedActors")
 	void PackAllLoadedActors() {}
@@ -111,6 +117,7 @@ public:
 	ENGINE_API bool IsEditingLevelInstanceDirty(const ILevelInstanceInterface* LevelInstance) const;
 	bool IsEditingLevelInstance(const ILevelInstanceInterface* LevelInstance) const { return GetLevelInstanceEdit(LevelInstance) != nullptr; }
 	
+	ENGINE_API bool GetLevelInstanceEditorBounds(const ILevelInstanceInterface* LevelInstance, FBox& OutBounds) const;
 	ENGINE_API bool GetLevelInstanceBounds(const ILevelInstanceInterface* LevelInstance, FBox& OutBounds) const;
 	static ENGINE_API bool GetLevelInstanceBoundsFromPackage(const FTransform& InstanceTransform, FName LevelPackage, FBox& OutBounds);
 	
@@ -124,9 +131,11 @@ public:
 	ENGINE_API bool SetCurrent(ILevelInstanceInterface* LevelInstance) const;
 	ENGINE_API bool IsCurrent(const ILevelInstanceInterface* LevelInstance) const;
 	ENGINE_API ILevelInstanceInterface* CreateLevelInstanceFrom(const TArray<AActor*>& ActorsToMove, const FNewLevelInstanceParams& CreationParams);
+	ENGINE_API bool CanCreateLevelInstanceFrom(const TArray<AActor*>& ActorsToMove, FText* OutReason = nullptr);
 	ENGINE_API bool MoveActorsToLevel(const TArray<AActor*>& ActorsToRemove, ULevel* DestinationLevel, TArray<AActor*>* OutActors = nullptr) const;
 	ENGINE_API bool MoveActorsTo(ILevelInstanceInterface* LevelInstance, const TArray<AActor*>& ActorsToMove, TArray<AActor*>* OutActors = nullptr);
 	ENGINE_API bool BreakLevelInstance(ILevelInstanceInterface* LevelInstance, uint32 Levels = 1, TArray<AActor*>* OutMovedActors = nullptr, ELevelInstanceBreakFlags Flags = ELevelInstanceBreakFlags::None);
+	ENGINE_API bool CanBreakLevelInstance(const ILevelInstanceInterface* LevelInstance) const;
 
 	ENGINE_API bool CanMoveActorToLevel(const AActor* Actor, FText* OutReason = nullptr) const;
 	ENGINE_API void OnActorDeleted(AActor* Actor);
@@ -139,9 +148,9 @@ public:
 		
 	ENGINE_API bool HasChildEdit(const ILevelInstanceInterface* LevelInstance) const;
 	ENGINE_API bool HasParentEdit(const ILevelInstanceInterface* LevelInstance) const;
-
-	ENGINE_API TArray<ILevelInstanceInterface*> GetLevelInstances(const FString& WorldAssetPackage);
 	
+	ENGINE_API TArray<ILevelInstanceInterface*> GetLevelInstances(const FString& WorldAssetPackage) const;
+		
 	// Returns the upper chain of level instance actors for the specified level starting with the level instance referencing the level
 	ENGINE_API void ForEachLevelInstanceActorAncestors(const ULevel* Level, TFunctionRef<bool(AActor*)> Operation) const;
 	ENGINE_API TArray<AActor*> GetParentLevelInstanceActors(const ULevel* Level) const;
@@ -164,7 +173,39 @@ public:
 
 	ENGINE_API bool PassLevelInstanceFilter(UWorld* World, const FWorldPartitionHandle& Actor) const;
 
+	ENGINE_API bool IsEditingLevelInstancePropertyOverrides(const ILevelInstanceInterface* LevelInstance) const;
+
+	ENGINE_API bool IsSubSelectionEnabled() const;
+private:
+	friend class FLevelInstanceEditorModule;
+	friend struct FLevelInstanceActorDetailsHelper;
+	friend struct FLevelInstanceEditorModeToolkitHelper;
+	friend struct FLevelInstanceMenuUtils;
+	friend class ILevelInstanceInterface;
+	friend class ULevelInstanceEditorMode;
+	friend class ULevelStreamingLevelInstanceEditor;
+	friend class ULevelStreamingLevelInstanceEditorPropertyOverride;
+	friend class ULevelInstancePropertyOverrideAsset;
+
+	// EditPropertyOverrides
+	ENGINE_API TArray<ILevelInstanceInterface*> GetLevelInstances(const TSoftObjectPtr<ULevelInstancePropertyOverrideAsset>& PropertyOverrideAsset) const;
+	ENGINE_API bool HasParentPropertyOverridesEdit(const ILevelInstanceInterface* LevelInstance) const;
+	ENGINE_API ILevelInstanceInterface* GetEditingPropertyOverridesLevelInstance() const;
+	ENGINE_API bool CanCommitLevelInstancePropertyOverrides(const ILevelInstanceInterface* LevelInstance, bool bDiscardEdits = false, FText* OutReason = nullptr) const;
+	ENGINE_API bool CanEditLevelInstancePropertyOverrides(const ILevelInstanceInterface* LevelInstance, FText* OutReason = nullptr) const;
+	ENGINE_API void EditLevelInstancePropertyOverrides(ILevelInstanceInterface* LevelInstance, AActor* ContextActor);
+	ENGINE_API bool CommitLevelInstancePropertyOverrides(ILevelInstanceInterface* LevelInstance, bool bDiscardEdits = false);
+	ENGINE_API bool CanResetPropertyOverridesForActor(AActor* Actor) const;
+	ENGINE_API void ResetPropertyOverridesForActor(AActor* Actor);
+	ENGINE_API bool CanResetPropertyOverrides(ILevelInstanceInterface* LevelInstance) const;
+	ENGINE_API void ResetPropertyOverrides(ILevelInstanceInterface* LevelInstance);
+
+	ENGINE_API static void RegisterPrimitiveColorHandler();
+	ENGINE_API static void UnregisterPrimitiveColorHandler();
+
+	ENGINE_API bool GetLevelInstanceBoundsInternal(const ILevelInstanceInterface* LevelInstance, bool bIsEditorBounds, FBox& OutBounds) const;
 #endif
+	friend class ULevelStreamingLevelInstance;
 
 private:
 	ENGINE_API void UpdateStreamingStateInternal();
@@ -172,13 +213,10 @@ private:
 	ENGINE_API void LoadLevelInstance(ILevelInstanceInterface* LevelInstance);
 	ENGINE_API void UnloadLevelInstance(const FLevelInstanceID& LevelInstanceID);
 	ENGINE_API void ForEachActorInLevel(ULevel* Level, TFunctionRef<bool(AActor * LevelActor)> Operation) const;
-	ENGINE_API void ForEachLevelInstanceAncestors(AActor* Actor, TFunctionRef<bool(ILevelInstanceInterface*)> Operation) const;
 	ENGINE_API void RegisterLoadedLevelStreamingLevelInstance(ULevelStreamingLevelInstance* LevelStreaming);
 
 #if WITH_EDITOR
 	ENGINE_API ULevelStreamingLevelInstanceEditor* CreateNewStreamingLevelForWorld(UWorld& InWorld, const EditorLevelUtils::FCreateNewStreamingLevelForWorldParams& InParams);
-	
-	ENGINE_API FWorldPartitionActorFilter GetLevelInstanceFilterInternal(const FString& LevelPackage, TSet<FString>& VisitedPackages) const;
 
 	ENGINE_API void ResetLoadersForWorldAssetInternal(const FString& WorldAsset);
 	ENGINE_API void OnAssetsPreDelete(const TArray<UObject*>& Objects);
@@ -187,7 +225,7 @@ private:
 	void OnWorldCleanup(UWorld* InWorld, bool bSessionEnded, bool bCleanupResources);
 
 	ENGINE_API void RegisterLoadedLevelStreamingLevelInstanceEditor(ULevelStreamingLevelInstanceEditor* LevelStreaming);
-
+	
 	ENGINE_API void OnEditChild(const FLevelInstanceID& LevelInstanceID);
 	ENGINE_API void OnCommitChild(const FLevelInstanceID& LevelInstanceID, bool bChildChanged);
 
@@ -206,7 +244,7 @@ private:
 		TObjectPtr<AActor> LevelInstanceActor;
 
 		FLevelInstanceEdit(ULevelStreamingLevelInstanceEditor* InLevelStreaming, ILevelInstanceInterface* InLevelInstance);
-		virtual ~FLevelInstanceEdit();
+		~FLevelInstanceEdit();
 
 		UWorld* GetEditWorld() const;
 		ILevelInstanceInterface* GetLevelInstance() const;
@@ -219,15 +257,49 @@ private:
 		void MarkCommittedChanges();
 	};
 
-	ENGINE_API void ResetEdit(TUniquePtr<FLevelInstanceEdit>& InLevelInstanceEdit);
-	ENGINE_API bool EditLevelInstanceInternal(ILevelInstanceInterface* LevelInstance, TWeakObjectPtr<AActor> ContextActorPtr, const FString& InActorNameToSelect, bool bRecursive);
-	ENGINE_API bool CommitLevelInstanceInternal(TUniquePtr<FLevelInstanceEdit>& InLevelInstanceEdit, bool bDiscardEdits = false, bool bDiscardOnFailure = false, TSet<FName>* DirtyPackages = nullptr);
+	class FPropertyOverrideEdit
+	{
+	public:
+		FPropertyOverrideEdit(ULevelStreamingLevelInstanceEditorPropertyOverride* InLevelStreaming);
+		~FPropertyOverrideEdit();
+
+		ULevelStreamingLevelInstanceEditorPropertyOverride* LevelStreaming;
+		
+		ILevelInstanceInterface* GetLevelInstance() const;
+		bool CanDiscard(FText* OutReason = nullptr) const { return true; }
+		bool IsDirty() const;
+		bool Save(ILevelInstanceInterface* InLevelInstanceOverrideOwner) const;
+	};
+		
+	ENGINE_API FActorContainerID GetLevelInstancePropertyOverridesContext(ILevelInstanceInterface* LevelInstance) const;
+	ENGINE_API bool HasEditableLevelInstancePropertyOverrides(TArray<FLevelInstanceActorPropertyOverride>& InPropertyOverrides) const;
+	ENGINE_API bool GetLevelInstancePropertyOverridesForActor(const AActor* Actor, FActorContainerID PropertyOverrideContext, TArray<FLevelInstanceActorPropertyOverride>& OutPropertyOverrides) const;
 	
+	ENGINE_API ILevelInstanceInterface* GetLevelInstancePropertyOverridesEditOwner(ILevelInstanceInterface* LevelInstance) const;
+	ENGINE_API const ILevelInstanceInterface* GetLevelInstancePropertyOverridesEditOwner(const ILevelInstanceInterface* LevelInstance) const;
+	
+	ENGINE_API bool EditLevelInstanceInternal(ILevelInstanceInterface* LevelInstance, TWeakObjectPtr<AActor> ContextActorPtr, const FString& InActorNameToSelect, bool bRecursive);
+	ENGINE_API bool CommitLevelInstanceInternal(TUniquePtr<FLevelInstanceEdit>& LevelInstanceEdit, bool bDiscardEdits = false, bool bDiscardOnFailure = false, TSet<FName>* DirtyPackages = nullptr);
+	ENGINE_API bool CommitLevelInstancePropertyOverridesInternal(TUniquePtr<FPropertyOverrideEdit>& InPropertyOverrideEdit, bool bDiscardEdits);
+	bool CanEditLevelInstanceCommon(const ILevelInstanceInterface* LevelInstance, FText* OutReason = nullptr) const;
+
+	void OnExitEditorModeInternal(bool bForceExit);
+	bool TryCommitLevelInstanceEdit(bool bForceExit);
+	bool TryCommitLevelInstancePropertyOverrideEdit(bool bForceExit);
+
 	ENGINE_API const FLevelInstanceEdit* GetLevelInstanceEdit(const ILevelInstanceInterface* LevelInstance) const;
 	ENGINE_API bool IsLevelInstanceEditDirty(const FLevelInstanceEdit* LevelInstanceEdit) const;
 	ENGINE_API bool PromptUserForCommit(const FLevelInstanceEdit* InLevelInstanceEdit, bool& bOutDiscard, bool bForceCommit = false) const;
+	ENGINE_API bool PromptUserForCommitPropertyOverrides(const FPropertyOverrideEdit* InPropertyOverrideEdit, bool& bOutDiscard, bool bForceCommit = false) const;
+
+	ENGINE_API const FPropertyOverrideEdit* GetLevelInstancePropertyOverrideEdit(const ILevelInstanceInterface* LevelInstance) const;
+	ENGINE_API void RegisterLoadedLevelStreamingPropertyOverride(ULevelStreamingLevelInstanceEditorPropertyOverride* LevelStreaming);
+	void UpdateLevelInstancesFromPropertyOverrideAsset(const TSoftObjectPtr<ULevelInstancePropertyOverrideAsset>& PreviousAssetPath, ULevelInstancePropertyOverrideAsset* NewAsset);
 
 	void ForEachLevelStreaming(TFunctionRef<bool(ULevelStreaming*)> Operation) const;
+
+	FString GetActorNameToSelectFromContext(const ILevelInstanceInterface* LevelInstance, const AActor* ContextActor, const FString& DefaultName = FString()) const;
+	void SelectActorFromActorName(ILevelInstanceInterface* LevelInstance, const FString& ActorName) const;
 
 	struct FLevelsToRemoveScope
 	{
@@ -245,8 +317,6 @@ private:
 
 private:
 #endif
-	friend ULevelStreamingLevelInstance;
-	friend ULevelStreamingLevelInstanceEditor;
 
 #if WITH_EDITOR
 	bool bIsCreatingLevelInstance;
@@ -255,6 +325,7 @@ private:
 	FLevelInstanceChanged LevelInstanceChangedEvent;
 	FLevelInstancesUpdated LevelInstancesUpdatedEvent;
 
+	static bool bPrimitiveColorHandlerRegistered;
 #endif
 
 	struct FLevelInstance
@@ -273,6 +344,7 @@ private:
 	TUniquePtr<FLevelsToRemoveScope> LevelsToRemoveScope;
 
 	TUniquePtr<FLevelInstanceEdit> LevelInstanceEdit;
+	TUniquePtr<FPropertyOverrideEdit> PropertyOverrideEdit;
 
 	TMap<FLevelInstanceID, int32> ChildEdits;
 

@@ -4,47 +4,103 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
+using UnrealGameSync.Forms;
 
 namespace UnrealGameSync
 {
 	partial class SyncFilter : Form
 	{
-		readonly Dictionary<Guid, WorkspaceSyncCategory> _uniqueIdToCategory;
+		class CheckListItem
+		{
+			public string Name => GetName();
+			public Guid UniqueId { get; set; } = Guid.Empty;
+			public string CategoryName { get; set; } = String.Empty;
+			public bool Locked { get; set; } = false;
+			public string Preset { get; set; } = String.Empty;
+			public bool Enabled { get; set; } = false;
+
+			public override string ToString()
+			{
+				return GetName();
+			}
+
+			private string GetName()
+			{
+				if (String.IsNullOrWhiteSpace(Preset))
+				{
+					return CategoryName;
+				}
+
+				string suffix = Locked ? " - Locked" : String.Empty;
+				return $"{CategoryName} [Preset: {Preset}{suffix}]";
+			}
+		}
+
+		private readonly Dictionary<Guid, WorkspaceSyncCategory> _uniqueIdToCategory;
+		private readonly string _roleName;
+		private readonly IDictionary<string, Preset> _roles;
+		private readonly ConfigSection? _perforceSection;
+		
 		public FilterSettings GlobalFilter;
 		public FilterSettings WorkspaceFilter;
-		readonly ConfigSection? _perforceSection;
-
-		public SyncFilter(Dictionary<Guid, WorkspaceSyncCategory> uniqueIdToCategory, FilterSettings globalFilter, FilterSettings workspaceFilter, ConfigSection? perforceSection)
+		
+		public SyncFilter(
+			Dictionary<Guid, WorkspaceSyncCategory> uniqueIdToCategory,
+			string roleName,
+			IDictionary<string, Preset> roles,
+			FilterSettings globalFilter,
+			FilterSettings workspaceFilter,
+			ConfigSection? perforceSection)
 		{
 			InitializeComponent();
 			Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
 
 			_uniqueIdToCategory = uniqueIdToCategory;
+			_roleName = roleName;
+			_roles = roles;
+			_perforceSection = perforceSection;
+			
 			GlobalFilter = globalFilter;
 			WorkspaceFilter = workspaceFilter;
-			_perforceSection = perforceSection;
 
+			Preset? role = new Preset();
+
+			_roles.TryGetValue(_roleName, out role);
+			
 			Dictionary<Guid, bool> syncCategories = WorkspaceSyncCategory.GetDefault(_uniqueIdToCategory.Values);
 
 			WorkspaceSyncCategory.ApplyDelta(syncCategories, GlobalFilter.GetCategories());
 			GlobalControl.SetView(GlobalFilter.View.ToArray());
-			SetExcludedCategories(GlobalControl.CategoriesCheckList, _uniqueIdToCategory, syncCategories);
+			SetExcludedCategories(GlobalControl.CategoriesCheckList, _uniqueIdToCategory, role, syncCategories);
 			GlobalControl.SyncAllProjects.Checked = GlobalFilter.AllProjects ?? false;
 			GlobalControl.IncludeAllProjectsInSolution.Checked = GlobalFilter.AllProjectsInSln ?? false;
+			GlobalControl.GenerateUprojectSpecificSolution.Checked = GlobalFilter.UprojectSpecificSln ?? false;
 
 			WorkspaceSyncCategory.ApplyDelta(syncCategories, WorkspaceFilter.GetCategories());
 			WorkspaceControl.SetView(WorkspaceFilter.View.ToArray());
-			SetExcludedCategories(WorkspaceControl.CategoriesCheckList, _uniqueIdToCategory, syncCategories);
+			SetExcludedCategories(WorkspaceControl.CategoriesCheckList, _uniqueIdToCategory, role, syncCategories);
 			WorkspaceControl.SyncAllProjects.Checked = WorkspaceFilter.AllProjects ?? GlobalFilter.AllProjects ?? false;
 			WorkspaceControl.IncludeAllProjectsInSolution.Checked = WorkspaceFilter.AllProjectsInSln ?? GlobalFilter.AllProjectsInSln ?? false;
+			WorkspaceControl.GenerateUprojectSpecificSolution.Checked = WorkspaceFilter.UprojectSpecificSln ?? GlobalFilter.UprojectSpecificSln ?? false;
 
 			GlobalControl.CategoriesCheckList.ItemCheck += GlobalControl_CategoriesCheckList_ItemCheck;
 			GlobalControl.SyncAllProjects.CheckStateChanged += GlobalControl_SyncAllProjects_CheckStateChanged;
 			GlobalControl.IncludeAllProjectsInSolution.CheckStateChanged += GlobalControl_IncludeAllProjectsInSolution_CheckStateChanged;
+			GlobalControl.GenerateUprojectSpecificSolution.CheckStateChanged += GlobalControl_GenerateUprojectSpecificSolution_CheckStateChanged;
 		}
 
 		private void GlobalControl_CategoriesCheckList_ItemCheck(object? sender, ItemCheckEventArgs e)
 		{
+			// do not allow changing the value of locked categories
+			if (sender is System.Windows.Forms.CheckedListBox listBox)
+			{
+				if (listBox.Items[e.Index] is CheckListItem item && item.Locked)
+				{
+					e.NewValue = e.CurrentValue;
+					return;
+				}
+			}
+
 			WorkspaceControl.CategoriesCheckList.SetItemCheckState(e.Index, e.NewValue);
 		}
 
@@ -58,20 +114,50 @@ namespace UnrealGameSync
 			WorkspaceControl.IncludeAllProjectsInSolution.Checked = GlobalControl.IncludeAllProjectsInSolution.Checked;
 		}
 
-		private static void SetExcludedCategories(CheckedListBox listBox, Dictionary<Guid, WorkspaceSyncCategory> uniqueIdToFilter, Dictionary<Guid, bool> categoryIdToSetting)
+		private void GlobalControl_GenerateUprojectSpecificSolution_CheckStateChanged(object? sender, EventArgs e)
+		{
+			WorkspaceControl.GenerateUprojectSpecificSolution.Checked = GlobalControl.GenerateUprojectSpecificSolution.Checked;
+		}
+
+		private static void SetExcludedCategories(
+			CheckedListBox listBox, 
+			Dictionary<Guid, WorkspaceSyncCategory> uniqueIdToFilter,
+			Preset? role,
+			Dictionary<Guid, bool> categoryIdToSetting)
 		{
 			listBox.Items.Clear();
+			
 			foreach (WorkspaceSyncCategory filter in uniqueIdToFilter.Values)
 			{
-				if (!filter.Hidden)
+				if (filter.Hidden)
 				{
-					CheckState state = CheckState.Checked;
-					if (!categoryIdToSetting[filter.UniqueId])
-					{
-						state = CheckState.Unchecked;
-					}
-					listBox.Items.Add(filter, state);
+					continue;
 				}
+
+				CheckState state = CheckState.Checked;
+				if (!categoryIdToSetting[filter.UniqueId])
+				{
+					state = CheckState.Unchecked;
+				}
+					
+				CheckListItem item = new CheckListItem()
+				{
+					UniqueId = filter.UniqueId,
+					CategoryName = filter.Name,
+					Locked = false,
+					Preset = String.Empty,
+					Enabled = filter.Enable
+				};
+
+				if (role != null && role.Categories.TryGetValue(filter.UniqueId, out RoleCategory? category))
+				{
+					item.Preset = role.Name;
+					item.Locked = true;
+					item.Enabled = category.Enabled;
+					state = category.Enabled ? CheckState.Checked : CheckState.Unchecked;
+				}
+					
+				listBox.Items.Add(item, state);
 			}
 		}
 
@@ -83,6 +169,7 @@ namespace UnrealGameSync
 			newGlobalFilter.View.AddRange(GlobalControl.GetView());
 			newGlobalFilter.AllProjects = GlobalControl.SyncAllProjects.Checked;
 			newGlobalFilter.AllProjectsInSln = GlobalControl.IncludeAllProjectsInSolution.Checked;
+			newGlobalFilter.UprojectSpecificSln = GlobalControl.GenerateUprojectSpecificSolution.Checked;
 
 			Dictionary<Guid, bool> globalSyncCategories = GetCategorySettings(GlobalControl.CategoriesCheckList, GlobalFilter.GetCategories());
 			newGlobalFilter.SetCategories(WorkspaceSyncCategory.GetDelta(defaultSyncCategories, globalSyncCategories));
@@ -91,6 +178,7 @@ namespace UnrealGameSync
 			newWorkspaceFilter.View.AddRange(WorkspaceControl.GetView());
 			newWorkspaceFilter.AllProjects = (WorkspaceControl.SyncAllProjects.Checked == newGlobalFilter.AllProjects) ? (bool?)null : WorkspaceControl.SyncAllProjects.Checked;
 			newWorkspaceFilter.AllProjectsInSln = (WorkspaceControl.IncludeAllProjectsInSolution.Checked == newGlobalFilter.AllProjectsInSln) ? (bool?)null : WorkspaceControl.IncludeAllProjectsInSolution.Checked;
+			newWorkspaceFilter.UprojectSpecificSln = (WorkspaceControl.GenerateUprojectSpecificSolution.Checked == newGlobalFilter.UprojectSpecificSln) ? (bool?)null : WorkspaceControl.GenerateUprojectSpecificSolution.Checked;
 
 			Dictionary<Guid, bool> workspaceSyncCategories = GetCategorySettings(WorkspaceControl.CategoriesCheckList, WorkspaceFilter.GetCategories());
 			newWorkspaceFilter.SetCategories(WorkspaceSyncCategory.GetDelta(globalSyncCategories, workspaceSyncCategories));
@@ -101,10 +189,13 @@ namespace UnrealGameSync
 			Dictionary<Guid, bool> result = new Dictionary<Guid, bool>();
 			for (int idx = 0; idx < listBox.Items.Count; idx++)
 			{
-				Guid uniqueId = ((WorkspaceSyncCategory)listBox.Items[idx]).UniqueId;
-				if (!result.ContainsKey(uniqueId))
+				if (listBox.Items[idx] is CheckListItem item)
 				{
-					result[uniqueId] = listBox.GetItemCheckState(idx) == CheckState.Checked;
+					Guid uniqueId = item.UniqueId;
+					if (!result.ContainsKey(uniqueId))
+					{
+						result[uniqueId] = listBox.GetItemCheckState(idx) == CheckState.Checked;
+					}	
 				}
 			}
 			foreach (KeyValuePair<Guid, bool> originalSetting in originalSettings)
@@ -144,12 +235,18 @@ namespace UnrealGameSync
 		{
 			GetSettings(out FilterSettings newGlobalFilter, out FilterSettings newWorkspaceFilter);
 
-			string[] filter = UserSettings.GetCombinedSyncFilter(_uniqueIdToCategory, newGlobalFilter, newWorkspaceFilter, _perforceSection);
+			string[] filter = UserSettings.GetCombinedSyncFilter(_uniqueIdToCategory, _roleName, _roles, newGlobalFilter, newWorkspaceFilter, _perforceSection);
 			if (filter.Length == 0)
 			{
 				filter = new string[] { "All files will be synced." };
 			}
-			MessageBox.Show(String.Join("\r\n", filter), "Combined View");
+			
+#pragma warning disable CA2000 // Dispose objects before losing scope
+			CombinedViewsWindow combinedViewsWindow = new CombinedViewsWindow(filter);
+#pragma warning restore CA2000
+
+			combinedViewsWindow.FormBorderStyle = FormBorderStyle.FixedDialog;
+			combinedViewsWindow.ShowDialog();
 		}
 	}
 }

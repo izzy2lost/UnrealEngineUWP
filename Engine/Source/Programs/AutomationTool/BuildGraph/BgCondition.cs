@@ -1,19 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using UnrealBuildBase;
+using EpicGames.Core;
+
+#nullable enable
 
 namespace AutomationTool
 {
 	/// <summary>
 	/// Exception class thrown due to type and syntax errors in condition expressions
 	/// </summary>
-	class BgConditionException : Exception
+	public class BgConditionException : Exception
 	{
 		/// <summary>
 		/// Constructor; formats the exception message with the given String.Format() style parameters.
@@ -24,6 +25,12 @@ namespace AutomationTool
 		{
 		}
 	}
+
+	/// <summary>
+	/// Context for evaluating BuildGraph conditions
+	/// </summary>
+	/// <param name="RootDir">Root directory for resolving paths</param>
+	public record class BgConditionContext(DirectoryReference RootDir);
 
 	/// <summary>
 	/// Class to evaluate condition expressions in build scripts, following this grammar:
@@ -85,46 +92,51 @@ namespace AutomationTool
 		/// Evaluates the given string as a condition. Throws a ConditionException on a type or syntax error.
 		/// </summary>
 		/// <param name="text"></param>
+		/// <param name="context">Context for evaluating the condition</param>
 		/// <returns>The result of evaluating the condition</returns>
-		public static ValueTask<bool> EvaluateAsync(string text)
+		public static ValueTask<bool> EvaluateAsync(string text, BgConditionContext context)
 		{
-			return new BgCondition(text).EvaluateAsync();
+			return new BgCondition(text).EvaluateAsync(context);
 		}
 
 		/// <summary>
 		/// Evaluates the given string as a condition. Throws a ConditionException on a type or syntax error.
 		/// </summary>
+		/// <param name="context">Context for evaluating the condition</param>
 		/// <returns>The result of evaluating the condition</returns>
-		async ValueTask<bool> EvaluateAsync()
+		async ValueTask<bool> EvaluateAsync(BgConditionContext context)
 		{
-			bool bResult = true;
+			bool result = true;
 			if (_tokens.Count > 1)
 			{
 				_idx = 0;
-				string result = await EvaluateOrAsync();
+
+				string value = await EvaluateOrAsync(context);
 				if (_tokens[_idx] != EndToken)
 				{
 					throw new BgConditionException("Garbage after expression: {0}", String.Join("", _tokens.Skip(_idx)));
 				}
-				bResult = CoerceToBool(result);
+				
+				result = CoerceToBool(value);
 			}
-			return bResult;
+			return result;
 		}
 
 		/// <summary>
 		/// Evaluates an "or-expression" production.
 		/// </summary>
+		/// <param name="context">Context for evaluating the expression</param>
 		/// <returns>A scalar representing the result of evaluating the expression.</returns>
-		async ValueTask<string> EvaluateOrAsync()
+		async ValueTask<string> EvaluateOrAsync(BgConditionContext context)
 		{
 			// <Condition> Or <Condition> Or...
-			string result = await EvaluateAndAsync();
-			while (String.Compare(_tokens[_idx], "Or", true) == 0)
+			string result = await EvaluateAndAsync(context);
+			while (String.Equals(_tokens[_idx], "Or", StringComparison.OrdinalIgnoreCase))
 			{
 				// Evaluate this condition. We use a binary OR here, because we want to parse everything rather than short-circuit it.
 				_idx++;
 				string lhs = result;
-				string rhs = await EvaluateAndAsync();
+				string rhs = await EvaluateAndAsync(context);
 				result = (CoerceToBool(lhs) | CoerceToBool(rhs)) ? "true" : "false";
 			}
 			return result;
@@ -133,17 +145,18 @@ namespace AutomationTool
 		/// <summary>
 		/// Evaluates an "and-expression" production.
 		/// </summary>
+		/// <param name="context">Context for evaluating the expression</param>
 		/// <returns>A scalar representing the result of evaluating the expression.</returns>
-		async ValueTask<string> EvaluateAndAsync()
+		async ValueTask<string> EvaluateAndAsync(BgConditionContext context)
 		{
 			// <Condition> And <Condition> And...
-			string result = await EvaluateComparisonAsync();
-			while (String.Compare(_tokens[_idx], "And", true) == 0)
+			string result = await EvaluateComparisonAsync(context);
+			while (String.Equals(_tokens[_idx], "And", StringComparison.OrdinalIgnoreCase))
 			{
 				// Evaluate this condition. We use a binary AND here, because we want to parse everything rather than short-circuit it.
 				_idx++;
 				string lhs = result;
-				string rhs = await EvaluateComparisonAsync();
+				string rhs = await EvaluateComparisonAsync(context);
 				result = (CoerceToBool(lhs) & CoerceToBool(rhs)) ? "true" : "false";
 			}
 			return result;
@@ -152,8 +165,9 @@ namespace AutomationTool
 		/// <summary>
 		/// Evaluates a "comparison" production.
 		/// </summary>
+		/// <param name="context">Context for evaluating the expression</param>
 		/// <returns>The result of evaluating the expression</returns>
-		async ValueTask<string> EvaluateComparisonAsync()
+		async ValueTask<string> EvaluateComparisonAsync(BgConditionContext context)
 		{
 			// scalar
 			// scalar == scalar
@@ -163,29 +177,29 @@ namespace AutomationTool
 			// scalar > scalar
 			// scalar >= scalar
 
-			string result = await EvaluateScalarAsync();
+			string result = await EvaluateScalarAsync(context);
 			if (_tokens[_idx] == "==")
 			{
 				// Compare two scalars for equality
 				_idx++;
 				string lhs = result;
-				string rhs = await EvaluateScalarAsync();
-				result = (String.Compare(lhs, rhs, true) == 0) ? "true" : "false";
+				string rhs = await EvaluateScalarAsync(context);
+				result = String.Equals(lhs, rhs, StringComparison.OrdinalIgnoreCase) ? "true" : "false";
 			}
 			else if (_tokens[_idx] == "!=")
 			{
 				// Compare two scalars for inequality
 				_idx++;
 				string lhs = result;
-				string rhs = await EvaluateScalarAsync();
-				result = (String.Compare(lhs, rhs, true) != 0) ? "true" : "false";
+				string rhs = await EvaluateScalarAsync(context);
+				result = String.Equals(lhs, rhs, StringComparison.OrdinalIgnoreCase) ? "false" : "true";
 			}
 			else if (_tokens[_idx] == "<")
 			{
 				// Compares whether the first integer is less than the second
 				_idx++;
 				int lhs = CoerceToInteger(result);
-				int rhs = CoerceToInteger(await EvaluateScalarAsync());
+				int rhs = CoerceToInteger(await EvaluateScalarAsync(context));
 				result = (lhs < rhs) ? "true" : "false";
 			}
 			else if (_tokens[_idx] == "<=")
@@ -193,7 +207,7 @@ namespace AutomationTool
 				// Compares whether the first integer is less than the second
 				_idx++;
 				int lhs = CoerceToInteger(result);
-				int rhs = CoerceToInteger(await EvaluateScalarAsync());
+				int rhs = CoerceToInteger(await EvaluateScalarAsync(context));
 				result = (lhs <= rhs) ? "true" : "false";
 			}
 			else if (_tokens[_idx] == ">")
@@ -201,7 +215,7 @@ namespace AutomationTool
 				// Compares whether the first integer is less than the second
 				_idx++;
 				int lhs = CoerceToInteger(result);
-				int rhs = CoerceToInteger(await EvaluateScalarAsync());
+				int rhs = CoerceToInteger(await EvaluateScalarAsync(context));
 				result = (lhs > rhs) ? "true" : "false";
 			}
 			else if (_tokens[_idx] == ">=")
@@ -209,7 +223,7 @@ namespace AutomationTool
 				// Compares whether the first integer is less than the second
 				_idx++;
 				int lhs = CoerceToInteger(result);
-				int rhs = CoerceToInteger(await EvaluateScalarAsync());
+				int rhs = CoerceToInteger(await EvaluateScalarAsync(context));
 				result = (lhs >= rhs) ? "true" : "false";
 			}
 			return result;
@@ -266,15 +280,16 @@ namespace AutomationTool
 		/// <summary>
 		/// Evaluates a "scalar" production.
 		/// </summary>
+		/// <param name="context">Context for evaluating the expression</param>
 		/// <returns>The result of evaluating the expression</returns>
-		async ValueTask<string> EvaluateScalarAsync()
+		async ValueTask<string> EvaluateScalarAsync(BgConditionContext context)
 		{
 			string result;
 			if (_tokens[_idx] == "(")
 			{
 				// Subexpression
 				_idx++;
-				result = await EvaluateOrAsync();
+				result = await EvaluateOrAsync(context);
 				if (_tokens[_idx] != ")")
 				{
 					throw new BgConditionException("Expected ')'");
@@ -285,24 +300,24 @@ namespace AutomationTool
 			{
 				// Logical not
 				_idx++;
-				string rhs = await EvaluateScalarAsync();
+				string rhs = await EvaluateScalarAsync(context);
 				result = CoerceToBool(rhs) ? "false" : "true";
 			}
-			else if (String.Compare(_tokens[_idx], "Exists", true) == 0 && _tokens[_idx + 1] == "(")
+			else if (String.Equals(_tokens[_idx], "Exists", StringComparison.OrdinalIgnoreCase) && _tokens[_idx + 1] == "(")
 			{
 				// Check whether file or directory exists. Evaluate the argument as a subexpression.
 				_idx++;
-				string argument = await EvaluateScalarAsync();
-				result = Exists(argument) ? "true" : "false";
+				string argument = await EvaluateScalarAsync(context);
+				result = Exists(argument, context) ? "true" : "false";
 			}
-			else if (String.Compare(_tokens[_idx], "HasTrailingSlash", true) == 0 && _tokens[_idx + 1] == "(")
+			else if (String.Equals(_tokens[_idx], "HasTrailingSlash", StringComparison.OrdinalIgnoreCase) && _tokens[_idx + 1] == "(")
 			{
 				// Check whether the given string ends with a slash
 				_idx++;
-				string argument = await EvaluateScalarAsync();
+				string argument = await EvaluateScalarAsync(context);
 				result = (argument.Length > 0 && (argument[^1] == Path.DirectorySeparatorChar || argument[^1] == Path.AltDirectorySeparatorChar)) ? "true" : "false";
 			}
-			else if (String.Compare(_tokens[_idx], "Contains", true) == 0 && _tokens[_idx + 1] == "(")
+			else if (String.Equals(_tokens[_idx], "Contains", StringComparison.OrdinalIgnoreCase) && _tokens[_idx + 1] == "(")
 			{
 				// Check a string contains a substring. If a separator is supplied the string is first split
 				_idx++;
@@ -315,7 +330,7 @@ namespace AutomationTool
 
 				result = Contains(arguments.ElementAt(0), arguments.ElementAt(1)) ? "true" : "false";
 			}
-			else if (String.Compare(_tokens[_idx], "ContainsItem", true) == 0 && _tokens[_idx + 1] == "(")
+			else if (String.Equals(_tokens[_idx], "ContainsItem", StringComparison.OrdinalIgnoreCase) && _tokens[_idx + 1] == "(")
 			{
 				// Check a string contains a substring. If a separator is supplied the string is first split
 				_idx++;
@@ -353,13 +368,11 @@ namespace AutomationTool
 		/// <summary>
 		/// Determine if a path exists
 		/// </summary>
-		/// <param name="Path"></param>
-		/// <returns></returns>
-		static bool Exists(string Path)
+		static bool Exists(string path, BgConditionContext context)
 		{
 			try
 			{
-				return FileReference.Exists(FileReference.Combine(Unreal.RootDirectory, Path)) || DirectoryReference.Exists(DirectoryReference.Combine(Unreal.RootDirectory, Path));
+				return FileReference.Exists(FileReference.Combine(context.RootDir, path)) || DirectoryReference.Exists(DirectoryReference.Combine(context.RootDir, path));
 			}
 			catch
 			{
@@ -377,7 +390,7 @@ namespace AutomationTool
 		{
 			try
 			{
-				return haystack.IndexOf(needle, StringComparison.CurrentCultureIgnoreCase) >= 0;
+				return haystack.Contains(needle, StringComparison.CurrentCultureIgnoreCase);
 			}
 			catch
 			{
@@ -413,11 +426,11 @@ namespace AutomationTool
 		static bool CoerceToBool(string scalar)
 		{
 			bool result;
-			if (String.Compare(scalar, "true", true) == 0)
+			if (String.Equals(scalar, "true", StringComparison.OrdinalIgnoreCase))
 			{
 				result = true;
 			}
-			else if (String.Compare(scalar, "false", true) == 0)
+			else if (String.Equals(scalar, "false", StringComparison.OrdinalIgnoreCase))
 			{
 				result = false;
 			}
@@ -503,7 +516,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Test cases for conditions.
 		/// </summary>
-		public static async Task TestConditions()
+		public static async Task TestConditionsAsync()
 		{
 			await TestConditionAsync("1 == 2", false);
 			await TestConditionAsync("1 == 1", true);
@@ -530,7 +543,7 @@ namespace AutomationTool
 		/// <param name="expectedResult">The expected result</param>
 		static async Task TestConditionAsync(string condition, bool expectedResult)
 		{
-			bool result = await new BgCondition(condition).EvaluateAsync();
+			bool result = await new BgCondition(condition).EvaluateAsync(new BgConditionContext(DirectoryReference.GetCurrentDirectory()));
 			Console.WriteLine("{0}: {1} = {2}", (result == expectedResult) ? "PASS" : "FAIL", condition, result);
 		}
 	}

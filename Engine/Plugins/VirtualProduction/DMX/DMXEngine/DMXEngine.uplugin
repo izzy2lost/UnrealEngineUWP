@@ -35,6 +35,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "DMXGDTF",
+			"Enabled": true
+		},
+		{
 			"Name": "DMXModularFeatures",
 			"Enabled": true
 		},

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Widgets/SChaosVDTimelineWidget.h"
+#include "SChaosVDTimelineWidget.h"
 
 #include "ChaosVDStyle.h"
 #include "Input/Reply.h"
@@ -15,13 +15,25 @@
 void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 {
 	MaxFrames = InArgs._MaxFrames;
+	MinFrames = InArgs._MinFrames;
+	CurrentFrame = InArgs._CurrentFrame;
 	FrameChangedDelegate = InArgs._OnFrameChanged;
-	FrameLockedDelegate = InArgs._OnFrameLockStateChanged;
 	ButtonClickedDelegate = InArgs._OnButtonClicked;
-	bAutoStopEnabled = InArgs._AutoStopEnabled;
 	ElementVisibilityFlags = InArgs._ButtonVisibilityFlags;
+	ElementEnabledFlags = InArgs._ButtonEnabledFlags;
+	bIsPlaying = InArgs._IsPlaying;
 
-	SetCanTick(false);
+	if (!ElementVisibilityFlags.IsSet())
+	{
+		ElementVisibilityFlags = EChaosVDTimelineElementIDFlags::AllPlayback;
+	}
+	
+	if (!ElementEnabledFlags.IsSet())
+	{
+		ElementEnabledFlags = EChaosVDTimelineElementIDFlags::AllPlayback;
+	}
+
+	SetCanTick(true);
 
 	ChildSlot
 	[
@@ -101,23 +113,6 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 						.ColorAndOpacity( FSlateColor::UseForeground() )
 					]
 				]
-				+SHorizontalBox::Slot()
-				.AutoWidth()
-				[
-					SNew(SButton)
-					.Visibility_Raw(this, &SChaosVDTimelineWidget::GetElementVisibility, EChaosVDTimelineElementIDFlags::Lock)
-					.IsEnabled_Raw(this, &SChaosVDTimelineWidget::GetElementEnabled, EChaosVDTimelineElementIDFlags::Lock)
-					.OnClicked( FOnClicked::CreateRaw(this, &SChaosVDTimelineWidget::ToggleLockState))
-					.ContentPadding( 2.0f )
-					.ForegroundColor( FSlateColor::UseForeground())
-					.IsFocusable( false )
-					[
-						SNew( SImage )
-						.Image_Raw(this, &SChaosVDTimelineWidget::GetLockStateIcon)
-						.DesiredSizeOverride(FVector2D(16.0f,16.0f))
-						.ColorAndOpacity( FSlateColor::UseForeground() )
-					]
-				]
 			]
 			+SHorizontalBox::Slot()
 			.VAlign(VAlign_Center)
@@ -126,13 +121,11 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 			[
 			  SAssignNew(TimelineSlider, SSlider)
 			  .Visibility_Raw(this, &SChaosVDTimelineWidget::GetElementVisibility, EChaosVDTimelineElementIDFlags::Timeline)
-			  //TODO: Enable locking when we have custom images for the slider elements. Currently locking it messes up with the transparency/images
-			  //.Locked_Raw(this, &SChaosVDTimelineWidget::GetElementEnabled, EChaosVDTimelineElementIDFlags::Timeline)
-			  .ToolTipText_Lambda([this]()-> FText{ return FText::AsNumber(CurrentFrame); })
-			  .Value(CurrentFrame)
+			  .ToolTipText_Lambda([this]()-> FText{ return FText::AsNumber(GetCurrentFrame()); })
+			  .Value_Raw(this, &SChaosVDTimelineWidget::GetCurrentFrameAsFloat)
 			  .OnValueChanged_Raw(this, &SChaosVDTimelineWidget::SetCurrentTimelineFrame, EChaosVDSetTimelineFrameFlags::BroadcastChange)
 			  .StepSize(1)
-			  .MaxValue(MaxFrames)
+			  .MaxValue(0)
 			  .MinValue(0)
 			]
 			+SHorizontalBox::Slot()
@@ -143,87 +136,20 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 			[
 				SNew(STextBlock)
 				.ColorAndOpacity(FLinearColor::White)
-				.Text_Lambda([this]()->FText{ return FText::Format(LOCTEXT("FramesCounter","{0} / {1}"), CurrentFrame, MaxFrames);})
+				.Text_Lambda([this]()->FText{ return FText::Format(LOCTEXT("FramesCounter","{0} / {1}"), GetCurrentFrame(), GetCurrentMaxFrames());})
 			]
 	];
 }
 
-void SChaosVDTimelineWidget::UpdateMinMaxValue(float NewMin, float NewMax)
-{
-	if (!TimelineSlider.IsValid())
-	{
-		return;
-	}
-
-	TimelineSlider->SetMinAndMaxValues(NewMin, NewMax);
-
-	MinFrames = NewMin;
-	MaxFrames = NewMax;
-	
-	if (CurrentFrame < NewMin || CurrentFrame > NewMax)
-	{
-		CurrentFrame = NewMin;
-	}
-}
-
-void SChaosVDTimelineWidget::SetTargetFrameTime(float TargetFrameTimeSeconds)
-{
-	if (TargetFrameTimeSeconds > 0)
-	{
-		CurrentPlaybackRate = TargetFrameTimeSeconds; 
-	}
-	else
-	{
-		// Default to 60 FPS
-		CurrentPlaybackRate = 1 / 60.0f;
-	}
-}
-
-void SChaosVDTimelineWidget::ResetTimeline()
-{
-	TimelineSlider->SetValue(MinFrames);
-	CurrentFrame = MinFrames;
-}
-
-void SChaosVDTimelineWidget::SetCurrentTimelineFrame(float FrameNumber, EChaosVDSetTimelineFrameFlags Options)
-{
-	CurrentFrame = static_cast<int32>(FrameNumber);
-
-	if (TimelineSlider.IsValid())
-	{
-		TimelineSlider->SetValue(CurrentFrame);
-		if (EnumHasAnyFlags(Options, EChaosVDSetTimelineFrameFlags::BroadcastChange))
-		{
-			FrameChangedDelegate.ExecuteIfBound(CurrentFrame);
-		}
-	}
-}
-
-void SChaosVDTimelineWidget::SetIsLocked(bool NewIsLocked)
-{
-	bIsLocked = NewIsLocked;
-
-	if (bIsLocked)
-	{
-		ElementEnabledFlags = static_cast<uint16>(EChaosVDTimelineElementIDFlags::Lock);	
-	}
-	else
-	{
-		ElementEnabledFlags = DefaultEnabledElementsFlags;
-	}
-}
-
 FReply SChaosVDTimelineWidget::TogglePlay()
 {
-	if (bIsPlaying)
+	if (IsPlaying())
 	{
 		Pause();
-		ButtonClickedDelegate.ExecuteIfBound(EChaosVDPlaybackButtonsID::Pause);
 	}
 	else
 	{
 		Play();
-		ButtonClickedDelegate.ExecuteIfBound(EChaosVDPlaybackButtonsID::Play);
 	}
 
 	return FReply::Handled();
@@ -231,117 +157,107 @@ FReply SChaosVDTimelineWidget::TogglePlay()
 
 void SChaosVDTimelineWidget::Play()
 {
-	bIsPlaying = true;
-	SetCanTick(true);
+	ButtonClickedDelegate.ExecuteIfBound(EChaosVDPlaybackButtonsID::Play);
 }
 
 FReply SChaosVDTimelineWidget::Stop()
 {
-	CurrentFrame = 0;
-	CurrentPlaybackTime = 0.0f;
-	bIsPlaying = false;
-
-	SetCurrentTimelineFrame(CurrentFrame);
-
-	SetCanTick(false);
-
 	ButtonClickedDelegate.ExecuteIfBound(EChaosVDPlaybackButtonsID::Stop);
 
 	return FReply::Handled();
 }
 
-void SChaosVDTimelineWidget::Pause()
+void SChaosVDTimelineWidget::SetCurrentTimelineFrame(float FrameNumber, EChaosVDSetTimelineFrameFlags Options)
 {
-	bIsPlaying = false;
-	SetCanTick(false);
-}
-
-FReply SChaosVDTimelineWidget::Next()
-{
-	if (CurrentFrame >= MaxFrames)
+	if (TimelineSlider.IsValid())
 	{
-		CurrentFrame = MaxFrames;
-		return FReply::Handled();
+		if (EnumHasAnyFlags(Options, EChaosVDSetTimelineFrameFlags::BroadcastChange))
+		{
+			FrameChangedDelegate.ExecuteIfBound(FrameNumber);
+		}
 	}
-
-	CurrentFrame++;
-	
-	SetCurrentTimelineFrame(CurrentFrame);
-
-	ButtonClickedDelegate.ExecuteIfBound(EChaosVDPlaybackButtonsID::Next);
-
-	return FReply::Handled();
-}
-
-FReply SChaosVDTimelineWidget::Prev()
-{
-	if (CurrentFrame == 0)
-	{
-		return FReply::Handled();
-	}
-
-	CurrentFrame--;
-
-	SetCurrentTimelineFrame(CurrentFrame);
-	
-	ButtonClickedDelegate.ExecuteIfBound(EChaosVDPlaybackButtonsID::Prev);
-
-	return FReply::Handled();
-}
-
-FReply SChaosVDTimelineWidget::ToggleLockState()
-{
-	SetIsLocked(!bIsLocked);
-
-	FrameLockedDelegate.ExecuteIfBound(bIsLocked);
-
-	return FReply::Handled();
-}
-
-const FSlateBrush* SChaosVDTimelineWidget::GetPlayOrPauseIcon() const
-{
-	return bIsPlaying ? FChaosVDStyle::Get().GetBrush("PauseIcon") : FChaosVDStyle::Get().GetBrush("PlayIcon");
-}
-
-const FSlateBrush* SChaosVDTimelineWidget::GetLockStateIcon() const
-{
-	return bIsLocked ? FChaosVDStyle::Get().GetBrush("LockIcon") : FChaosVDStyle::Get().GetBrush("UnlockedIcon");
-}
-
-EVisibility SChaosVDTimelineWidget::GetElementVisibility(EChaosVDTimelineElementIDFlags ElementID) const
-{
-	 return ((static_cast<uint16>(ElementID) & ElementVisibilityFlags) == static_cast<uint16>(ElementID)) ? EVisibility::Visible : EVisibility::Collapsed;
-}
-
-bool SChaosVDTimelineWidget::GetElementEnabled(EChaosVDTimelineElementIDFlags ElementID) const
-{
-	return ((static_cast<uint16>(ElementID) & ElementEnabledFlags) == static_cast<uint16>(ElementID));
 }
 
 void SChaosVDTimelineWidget::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 
-	//TODO: We should move the Ticking logic to advance frames outside of this widget.
-	// The logic to update the visual state is already controlled externally
-	if (bIsPlaying)
+	if (TimelineSlider)
 	{
-		if (CurrentFrame == MaxFrames)
+		const int32 CurrentMinFrames = GetCurrentMinFrames();
+		const int32 CurrentMaxFrames = GetCurrentMaxFrames();
+		if (!FMath::IsNearlyEqual(TimelineSlider->GetMinValue(), CurrentMinFrames) || !FMath::IsNearlyEqual(TimelineSlider->GetMaxValue(), CurrentMaxFrames))
 		{
-			if (bAutoStopEnabled)
-			{
-				Stop();
-			}
-		}
-
-		CurrentPlaybackTime += InDeltaTime;
-
-		while (CurrentPlaybackTime > CurrentPlaybackRate)
-		{
-			CurrentPlaybackTime -= CurrentPlaybackRate;
-			Next();
+			TimelineSlider->SetMinAndMaxValues(CurrentMinFrames, CurrentMaxFrames);
 		}
 	}
+}
+
+void SChaosVDTimelineWidget::Pause()
+{
+	ButtonClickedDelegate.ExecuteIfBound(EChaosVDPlaybackButtonsID::Pause);
+}
+
+FReply SChaosVDTimelineWidget::Next()
+{
+	ButtonClickedDelegate.ExecuteIfBound(EChaosVDPlaybackButtonsID::Next);
+
+	return FReply::Handled();
+}
+
+FReply SChaosVDTimelineWidget::Prev()
+{	
+	ButtonClickedDelegate.ExecuteIfBound(EChaosVDPlaybackButtonsID::Prev);
+
+	return FReply::Handled();
+}
+
+const FSlateBrush* SChaosVDTimelineWidget::GetPlayOrPauseIcon() const
+{
+	return IsPlaying() ? FChaosVDStyle::Get().GetBrush("PauseIcon") : FChaosVDStyle::Get().GetBrush("PlayIcon");
+}
+
+EVisibility SChaosVDTimelineWidget::GetElementVisibility(EChaosVDTimelineElementIDFlags ElementID) const
+{
+	const bool bIsVisible = ElementVisibilityFlags.IsSet() ? EnumHasAnyFlags(ElementVisibilityFlags.Get(), ElementID) : false;
+	return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+bool SChaosVDTimelineWidget::GetElementEnabled(EChaosVDTimelineElementIDFlags ElementID) const
+{
+	if (!ElementEnabledFlags.IsSet())
+	{
+		return false;
+	}
+
+	
+	return EnumHasAnyFlags(ElementEnabledFlags.Get(), ElementID);
+}
+
+bool SChaosVDTimelineWidget::IsPlaying() const
+{
+	return bIsPlaying.IsSet() ? bIsPlaying.Get() : false;
+}
+
+int32 SChaosVDTimelineWidget::GetCurrentFrame() const
+{
+	return CurrentFrame.IsSet() ? CurrentFrame.Get() : INDEX_NONE;
+}
+
+float SChaosVDTimelineWidget::GetCurrentFrameAsFloat() const
+{
+	return static_cast<float>(GetCurrentFrame());
+}
+
+int32 SChaosVDTimelineWidget::GetCurrentMinFrames() const
+{
+	return MinFrames.IsSet() ? MinFrames.Get() : INDEX_NONE;
+}
+
+
+int32 SChaosVDTimelineWidget::GetCurrentMaxFrames() const
+{
+	return MaxFrames.IsSet() ? MaxFrames.Get() : INDEX_NONE;
 }
 
 #undef LOCTEXT_NAMESPACE

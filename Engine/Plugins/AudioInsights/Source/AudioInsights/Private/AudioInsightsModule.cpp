@@ -4,7 +4,6 @@
 #include "AudioInsightsDashboardAssetCommands.h"
 #include "AudioInsightsDashboardFactory.h"
 #include "AudioInsightsLog.h"
-#include "AudioInsightsStyle.h"
 #include "AudioInsightsTraceModule.h"
 #include "Features/IModularFeatures.h"
 #include "Framework/Docking/TabManager.h"
@@ -12,17 +11,12 @@
 #include "Templates/SharedPointer.h"
 #include "TraceServices/ModuleService.h"
 #include "UObject/NameTypes.h"
-#include "Views/AudioBusesDashboardViewFactory.h"
-#include "Views/AudioMetersDashboardViewFactory.h"
-#include "Views/LogDashboardViewFactory.h"
+
+#if !WITH_EDITOR
+#include "AudioInsightsComponent.h"
 #include "Views/MixerSourceDashboardViewFactory.h"
-#include "Views/OutputMeterDashboardViewFactory.h"
-#include "Views/OutputOscilloscopeDashboardViewFactory.h"
-#include "Views/SubmixesDashboardViewFactory.h"
-#include "Views/ViewportDashboardViewFactory.h"
 #include "Views/VirtualLoopDashboardViewFactory.h"
-#include "WorkspaceMenuStructure.h"
-#include "WorkspaceMenuStructureModule.h"
+#endif // !WITH_EDITOR
 
 #define LOCTEXT_NAMESPACE "AudioInsights"
 DEFINE_LOG_CATEGORY(LogAudioInsights);
@@ -32,36 +26,60 @@ namespace UE::Audio::Insights
 {
 	void FAudioInsightsModule::StartupModule()
 	{
-		// Don't run providers in cook commandlet to avoid additional, unnecessary overhead as audio insights is dormant.
-		if (!IsRunningCookCommandlet())
+		// Don't run providers in any commandlet to avoid additional, unnecessary overhead as audio insights is dormant.
+		if (!IsRunningCommandlet())
 		{
-			IModularFeatures::Get().RegisterModularFeature(TraceServices::ModuleFeatureName, &TraceModule);
-
-			RegisterMenus();
+			TraceModule = MakeUnique<FTraceModule>();
+			IModularFeatures::Get().RegisterModularFeature(TraceServices::ModuleFeatureName, TraceModule.Get());
 
 			DashboardFactory = MakeShared<FDashboardFactory>();
-			DashboardFactory->RegisterViewFactory(MakeShared<FViewportDashboardViewFactory>());
-			DashboardFactory->RegisterViewFactory(MakeShared<FLogDashboardViewFactory>());
+			
+			FDashboardAssetCommands::Register();
+
+#if !WITH_EDITOR
+			IModularFeatures::Get().RegisterModularFeature(UE::Insights::Timing::TimingViewExtenderFeatureName, &AudioInsightsTimingViewExtender);
+
 			DashboardFactory->RegisterViewFactory(MakeShared<FMixerSourceDashboardViewFactory>());
 			DashboardFactory->RegisterViewFactory(MakeShared<FVirtualLoopDashboardViewFactory>());
-			DashboardFactory->RegisterViewFactory(MakeShared<FSubmixesDashboardViewFactory>());
-			DashboardFactory->RegisterViewFactory(MakeShared<FAudioBusesDashboardViewFactory>());
-			DashboardFactory->RegisterViewFactory(MakeShared<FAudioMetersDashboardViewFactory>());
-			DashboardFactory->RegisterViewFactory(MakeShared<FOutputMeterDashboardViewFactory>());
-			DashboardFactory->RegisterViewFactory(MakeShared<FOutputOscilloscopeDashboardViewFactory>());
+			
+			AudioInsightsComponent = FAudioInsightsComponent::CreateInstance();
 
-			FDashboardAssetCommands::Register();
+			IUnrealInsightsModule& UnrealInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
+			UnrealInsightsModule.RegisterComponent(AudioInsightsComponent);
+#endif // !WITH_EDITOR
+
+			FCoreDelegates::OnFEngineLoopInitComplete.AddLambda([this]
+			{
+				LLM_SCOPE_BYNAME(TEXT("Insights/AudioInsights"));
+				IUnrealInsightsModule& UnrealInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
+				if (!UnrealInsightsModule.GetStoreClient())
+				{
+					UE_LOG(LogCore, Display, TEXT("AudioInsights module auto-connecting to local trace server..."));
+					UnrealInsightsModule.ConnectToStore(TEXT("127.0.0.1"));
+					UnrealInsightsModule.CreateSessionViewer(false);
+				}
+			});
 		}
 	}
 
 	void FAudioInsightsModule::ShutdownModule()
 	{
-		if (!IsRunningCookCommandlet())
+		if (!IsRunningCommandlet())
 		{
-			DashboardFactory.Reset();
-			IModularFeatures::Get().UnregisterModularFeature(TraceServices::ModuleFeatureName, &TraceModule);
+#if !WITH_EDITOR
+			IUnrealInsightsModule& UnrealInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
+			UnrealInsightsModule.UnregisterComponent(AudioInsightsComponent);
+
+			AudioInsightsComponent.Reset();
+
+			IModularFeatures::Get().UnregisterModularFeature(TraceServices::ModuleFeatureName, &AudioInsightsTimingViewExtender);
+#endif // !WITH_EDITOR
 
 			FDashboardAssetCommands::Unregister();
+
+			DashboardFactory.Reset();
+
+			IModularFeatures::Get().UnregisterModularFeature(TraceServices::ModuleFeatureName, TraceModule.Get());
 		}
 	}
 
@@ -82,7 +100,7 @@ namespace UE::Audio::Insights
 
 	FAudioInsightsModule& FAudioInsightsModule::GetChecked()
 	{
-		return static_cast<FAudioInsightsModule&>(FModuleManager::GetModuleChecked<IAudioInsightsModule>(GetName()));
+		return static_cast<FAudioInsightsModule&>(FModuleManager::GetModuleChecked<IAudioInsightsModule>("AudioInsights"));
 	}
 
 	TSharedRef<FDashboardFactory> FAudioInsightsModule::GetDashboardFactory()
@@ -95,25 +113,15 @@ namespace UE::Audio::Insights
 		return DashboardFactory->AsShared();
 	}
 
-	FTraceModule& FAudioInsightsModule::GetTraceModule()
+	IAudioInsightsTraceModule& FAudioInsightsModule::GetTraceModule()
 	{
-		return TraceModule;
+		return *TraceModule;
 	}
 
 	TSharedRef<SDockTab> FAudioInsightsModule::CreateDashboardTabWidget(const FSpawnTabArgs& Args)
 	{
 		return DashboardFactory->MakeDockTabWidget(Args);
 	}
-
-	void FAudioInsightsModule::RegisterMenus()
-	{
-		const IWorkspaceMenuStructure& MenuStructure = WorkspaceMenu::GetMenuStructure();
-		FGlobalTabmanager::Get()->RegisterNomadTabSpawner("AudioInsights", FOnSpawnTab::CreateRaw(this, &FAudioInsightsModule::CreateDashboardTabWidget))
-			.SetDisplayName(LOCTEXT("OpenDashboard_TabDisplayName", "Audio Insights"))
-			.SetTooltipText(LOCTEXT("OpenDashboard_TabTooltip", "Opens Audio Insights, an extensible suite of tools and visualizers which enable monitoring and debugging audio in the Unreal Engine."))
-			.SetGroup(MenuStructure.GetToolsCategory())
-			.SetIcon(FSlateStyle::Get().CreateIcon("AudioInsights.Icon.Dashboard"));
-	};
 } // namespace UE::Audio::Insights
 #undef LOCTEXT_NAMESPACE // AudioInsights
 

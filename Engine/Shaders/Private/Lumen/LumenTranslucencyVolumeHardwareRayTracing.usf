@@ -29,13 +29,39 @@
 RaytracingAccelerationStructure TLAS;
 
 #if LUMEN_HARDWARE_INLINE_RAYTRACING
-StructuredBuffer<FHitGroupRootConstants> HitGroupData;
-StructuredBuffer<FRayTracingSceneMetadataRecord> RayTracingSceneMetadata;
+	StructuredBuffer<FHitGroupRootConstants> HitGroupData;
+	StructuredBuffer<FRayTracingSceneMetadataRecord> RayTracingSceneMetadata;
 #endif // LUMEN_HARDWARE_INLINE_RAYTRACING
 
 RWTexture3D<float3> RWVolumeTraceRadiance;
 RWTexture3D<float> RWVolumeTraceHitDistance;
 uint MaxTraversalIterations;
+uint MeshSectionVisibilityTest;
+
+// Applying an offset from the depth buffer helps with reducing self intersection with global distance field tracing.
+void ApplyDepthconstraintsToOffset(float3 GridCoordinate, inout float3 LocalFrameJitterOffset)
+{
+	if (GridCenterOffsetFromDepthBuffer >= 0.0)
+	{
+		float4 GridSampleClip	= mul(float4(ComputeCellTranslatedWorldPosition(GridCoordinate, LocalFrameJitterOffset), 1), View.TranslatedWorldToClip);
+		float3 GridSampleScreen	= GridSampleClip.xyz / GridSampleClip.w;
+		float3 GridSampleUVz	= float3(GridSampleScreen.xy * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz, GridSampleScreen.z);
+		float GridSampleSceneDepth = ConvertFromDeviceZ(SceneTexturesStruct.SceneDepthTexture.SampleLevel(SceneTexturesStruct_SceneDepthTextureSampler, GridSampleUVz.xy, 0).r);
+
+		float DepthGridCoordinateWithZOffset = ComputeZSliceFromDepth(GridSampleSceneDepth) - GridCenterOffsetFromDepthBuffer;
+
+		float3 GridCoordinateOffset = float3(GridCoordinate) + LocalFrameJitterOffset;
+		
+		const float DepthToSampleGridOffset = DepthGridCoordinateWithZOffset - GridCoordinateOffset.z;	// <0 if samples is in front of the depth buffer
+		if (DepthToSampleGridOffset < 0.0																// Move the sample forward only if the depth buffer grid coordinate is closer,
+			&& (-DepthToSampleGridOffset < GridCenterOffsetThresholdToAcceptDepthBufferOffset)			// But only if it is less than N slice away (to not bring all the sample behind forward)
+			)
+		{
+			// If the grid sample is further than the grid z for the depth buffer, adjust the offset 
+			LocalFrameJitterOffset.z += DepthToSampleGridOffset;
+		}
+	}
+}
 
 LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenTranslucencyVolumeHardwareRayTracing)
 {
@@ -60,11 +86,13 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenTranslucencyVolumeHardwareRayTracing)
 
 		if (IsFroxelVisible(GridCoordinate))
 		{
-			float3 WorldPosition = ComputeCellWorldPosition(GridCoordinate, FrameJitterOffset.xyz);
+			float3 LocalFrameJitterOffset = FrameJitterOffset.xyz;
+			ApplyDepthconstraintsToOffset(GridCoordinate, LocalFrameJitterOffset);
+			float3 WorldPosition = ComputeCellWorldPosition(GridCoordinate, LocalFrameJitterOffset);
 
 			float2 ProbeUV;
 			float ConeHalfAngle;
-			GetProbeTracingUV(TraceTexelCoord, GetProbeTexelCenter(GridCoordinate), ProbeUV, ConeHalfAngle);
+			GetProbeTracingUV(TraceTexelCoord, GetProbeTexelCenter(GridCoordinate.xy), ProbeUV, ConeHalfAngle);
 
 			float3 WorldConeDirection = EquiAreaSphericalMapping(ProbeUV);
 
@@ -73,7 +101,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenTranslucencyVolumeHardwareRayTracing)
 			FRadianceCacheCoverage Coverage;
 			Coverage.bValid = false;
 
-			#if USE_RADIANCE_CACHE
+			#if PROBE_SOURCE_MODE == PROBE_SOURCE_MODE_RADIANCE_CACHE
 				Coverage = GetRadianceCacheCoverage(WorldPosition, WorldConeDirection, .5f);
 				
 				if (Coverage.bValid)
@@ -92,8 +120,14 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenTranslucencyVolumeHardwareRayTracing)
 			RayCone = PropagateRayCone(RayCone, ConeHalfAngle, 0.0);
 
 			const uint LinearCoord = GridCoordinate.y * TranslucencyGIGridSize.x + GridCoordinate.x;
-			const uint CullingMode = 0;
-			FRayTracedLightingContext Context = CreateRayTracedLightingContext(RayCone, GridCoordinate.xy, LinearCoord, CullingMode, MaxTraversalIterations);
+
+			FRayTracedLightingContext Context = CreateRayTracedLightingContext(
+				RayCone,
+				GridCoordinate.xy,
+				LinearCoord,
+				/*CullingMode*/ RAY_FLAG_NONE, // Disable culling in order to minimize leaking when rays start inside walls
+				MaxTraversalIterations,
+				MeshSectionVisibilityTest != 0);
 
 			#if DIM_LIGHTING_MODE == LIGHTING_FROM_SURFACE_CACHE
 				{
@@ -113,13 +147,13 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenTranslucencyVolumeHardwareRayTracing)
 			{
 				float Transparency = 1.0f;
 
-#if USE_RADIANCE_CACHE
+			#if PROBE_SOURCE_MODE == PROBE_SOURCE_MODE_RADIANCE_CACHE
 				if (Coverage.bValid)
 				{
 					SampleRadianceCacheAndApply(Coverage, WorldPosition, WorldConeDirection, ConeHalfAngle, TraceLightingResult.Radiance, Transparency);
 				}
 				else
-#endif
+			#endif
 				{
 					FConeTraceResult TraceResult;
 					TraceResult.Lighting = TraceLightingResult.Radiance;

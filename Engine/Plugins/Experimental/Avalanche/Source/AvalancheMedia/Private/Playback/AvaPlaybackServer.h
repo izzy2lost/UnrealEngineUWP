@@ -7,6 +7,7 @@
 #include "Playback/IAvaPlaybackServer.h"
 #include "IMessageContext.h"
 #include "MessageEndpoint.h"
+#include "Playable/AvaPlayableSettings.h"
 #include "Playback/AvaPlaybackManager.h"
 #include "Playback/AvaPlaybackMessages.h"
 #include "Templates/SharedPointer.h"
@@ -79,6 +80,8 @@ public:
 	virtual const IAvaBroadcastSettings* GetBroadcastSettings() const override;
 
 	virtual const FAvaInstanceSettings* GetAvaInstanceSettings() const override;
+
+	virtual const FAvaPlayableSettings* GetPlayableSettings() const override;
 	
 	virtual const FAvaPlaybackManager& GetPlaybackManager() const override { check(Manager); return *Manager; }
 	virtual FAvaPlaybackManager& GetPlaybackManager() override { check(Manager); return *Manager; }
@@ -110,6 +113,7 @@ public:
 	void HandleDeviceProviderDataRequest(const FAvaPlaybackDeviceProviderDataRequest& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandleUpdateClientInfo(const FAvaPlaybackUpdateClientInfo& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandleAvaInstanceSettingsUpdate(const FAvaPlaybackInstanceSettingsUpdate& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
+	void HandlePlayableSettingsUpdate(const FAvaPlaybackPlayableSettingsUpdate& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandlePackageEvent(const FAvaPlaybackPackageEvent& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandlePlaybackAssetStatusRequest(const FAvaPlaybackAssetStatusRequest& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandlePlaybackRequest(const FAvaPlaybackRequest& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
@@ -146,7 +150,7 @@ protected:
 	void OnPlaybackInstanceInvalidated(const FAvaPlaybackInstance& InPlaybackInstance);
 	void OnPlaybackInstanceStatusChanged(const FAvaPlaybackInstance& InPlaybackInstance);
 	void OnPlaybackAssetRemoved(const FSoftObjectPath& InAssetPath);
-	void OnPlayableSequenceEvent(UAvaPlayable* InPlayable, const FName& SequenceName, EAvaPlayableSequenceEventType InEventType);
+	void OnPlayableSequenceEvent(UAvaPlayable* InPlayable, FName InSequenceLabel, EAvaPlayableSequenceEventType InEventType);
 	
 	void ApplyAvaMediaSettings();
 
@@ -179,15 +183,15 @@ protected:
 	void SendLogMessage(const TCHAR* V, ELogVerbosity::Type Verbosity, const FName& Category, double Time);
 
 	// Playback Commands
-	void ExecutePendingPlaybackCommands();
+	void ExecutePendingPlaybackCommands(const FDateTime& InUtcNow);
 
 	TSharedPtr<FAvaPlaybackInstance> GetOrLoadPlaybackInstance(const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath);
 	void LoadPlayback(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath);
 	void StartPlayback(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath);
 	void StopPlayback(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath);	
 	void UnloadPlayback(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath);
-	void SetPlaybackUserData(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InUserData);
-	void SendPlaybackUserData(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId);
+	bool SetPlaybackUserData(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InUserData);
+	bool SendPlaybackUserData(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId);
 	void SendPlaybackStatus(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath);
 	
 	void SendPlaybackStatus(const FMessageAddress& InSendTo, const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath, EAvaPlaybackStatus InStatus);
@@ -225,12 +229,19 @@ private:
 
 	struct FPendingPlaybackCommand
 	{
+		FDateTime ReceivedUtc;
+		uint32 ReceivedFrameNumber;
+		int32 Priority;
 		FMessageAddress ReplyTo;
 		FAvaPlaybackCommand Command;
+
+		FPendingPlaybackCommand(const FDateTime& InReceivedUtc, uint32 InReceivedFrameNumber, int32 InPriority, const FMessageAddress& InReplyTo, const FAvaPlaybackCommand& InCommand)
+			: ReceivedUtc(InReceivedUtc), ReceivedFrameNumber(InReceivedFrameNumber), Priority(InPriority), ReplyTo(InReplyTo), Command(InCommand)
+		{}
 	};
 
 	/** Accumulate all the playback commands and execute them all in one batch on the next tick. */
-	TArray<FPendingPlaybackCommand> PendingPlaybackCommands;
+	TArray<TSharedPtr<FPendingPlaybackCommand>> PendingPlaybackCommands;
 
 	/** Keep an map of active instances per id for fast lookup. */
 	TMap<FGuid, TSharedPtr<FAvaPlaybackInstance>> ActivePlaybackInstances;
@@ -291,6 +302,7 @@ private:
 		TMap<FString, FString> UserDataEntries;
 		FClientBroadcastSettings BroadcastSettings;
 		FAvaInstanceSettings AvaInstanceSettings;
+		FAvaPlayableSettings PlayableSettings;
 
 		bool bClientInfoReceived = false;
 	

@@ -218,8 +218,19 @@ void UContentBrowserDataSource::EnumerateItemsMatchingFilter(const FContentBrows
 {
 }
 
+void UContentBrowserDataSource::EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink)
+{
+	// Call older API function if this wasn't overridden
+	EnumerateItemsMatchingFilter(InFilter, [&InSink](FContentBrowserItemData&& Item) { return InSink.ProduceItem(MoveTemp(Item)); });
+}
+
 void UContentBrowserDataSource::EnumerateItemsAtPath(const FName InPath, const EContentBrowserItemTypeFilter InItemTypeFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback)
 {
+}
+
+void UContentBrowserDataSource::EnumerateItemsAtPath(const FName InPath, const EContentBrowserItemTypeFilter InItemTypeFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink)
+{
+	EnumerateItemsAtPath(InPath, InItemTypeFilter, [&InSink](FContentBrowserItemData&& Item) { return InSink.ProduceItem(MoveTemp(Item)); });
 }
 
 bool UContentBrowserDataSource::EnumerateItemsAtPaths(const TArrayView<FContentBrowserItemPath> InPaths, const EContentBrowserItemTypeFilter InItemTypeFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback)
@@ -254,7 +265,7 @@ bool UContentBrowserDataSource::PrioritizeSearchPath(const FName InPath)
 	return false;
 }
 
-bool UContentBrowserDataSource::IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags)
+bool UContentBrowserDataSource::IsFolderVisible(const FName Path, const EContentBrowserIsFolderVisibleFlags Flags, TOptional<FContentBrowserFolderContentsFilter> ContentsFilter)
 {
 	return true;
 }
@@ -489,6 +500,16 @@ bool UContentBrowserDataSource::AppendItemReference(const FContentBrowserItemDat
 	return false;
 }
 
+bool UContentBrowserDataSource::AppendItemObjectPath(const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	return false;
+}
+
+bool UContentBrowserDataSource::AppendItemPackageName(const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	return false;
+}
+
 bool UContentBrowserDataSource::UpdateThumbnail(const FContentBrowserItemData& InItem, FAssetThumbnail& InThumbnail)
 {
 	return false;
@@ -556,7 +577,9 @@ void UContentBrowserDataSource::NotifyItemDataRefreshed()
 {
 	if (DataSink)
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		DataSink->NotifyItemDataRefreshed();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
@@ -564,8 +587,14 @@ FContentBrowserItemData UContentBrowserDataSource::CreateVirtualFolderItem(const
 {
 	const FString FolderItemName = FPackageName::GetShortName(InFolderPath);
 
+	static const FName AllRootPath = "/All";
+
 	FText FolderDisplayNameOverride;
-	if (FolderItemName == TEXT("GameData"))
+	if (InFolderPath == AllRootPath)
+	{
+		FolderDisplayNameOverride = LOCTEXT("AllFolderDisplayName", "All");
+	}
+	else if (FolderItemName == TEXT("GameData"))
 	{
 		FolderDisplayNameOverride = LOCTEXT("GameDataFolderDisplayName", "Game Data");
 	}
@@ -579,7 +608,9 @@ FContentBrowserItemData UContentBrowserDataSource::CreateVirtualFolderItem(const
 		InFolderPath,
 		*FolderItemName,
 		MoveTemp(FolderDisplayNameOverride),
-		nullptr);
+		nullptr,
+		FName() // Virtual folders have no internal path 
+		);
 }
 
 #undef LOCTEXT_NAMESPACE

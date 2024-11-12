@@ -89,9 +89,10 @@ public:
 	/**
 	 * Adds a curve metadata entry with the specified name
 	 * @param	InCurveName			The name of the curve to find
+	 * @param   bInTransact         If true record a new transaction
 	 * @return true if an entry was added, false if an entry already existed
 	 */
-	virtual bool AddCurveMetaData(FName InCurveName) = 0;
+	virtual bool AddCurveMetaData(FName InCurveName, bool bInTransact = true) = 0;
 
 	/**
 	 * Get the curve metadata entry with the specified name
@@ -201,7 +202,7 @@ public:
 	virtual int32 GetNumCurveMetaData() const override { return CurveMetaData.Num(); }
 	virtual const FCurveMetaData* GetCurveMetaData(FName InCurveName) const override;
 	virtual FCurveMetaData* GetCurveMetaData(FName InCurveName) override;
-	virtual bool AddCurveMetaData(FName InCurveName) override;
+	virtual bool AddCurveMetaData(FName InCurveName, bool bInTransact = true) override;
 	virtual void GetCurveMetaDataNames(TArray<FName>& OutNames) const override;
 	virtual void RefreshBoneIndices(USkeleton* InSkeleton) override;
 	virtual uint16 GetVersionNumber() const override; 

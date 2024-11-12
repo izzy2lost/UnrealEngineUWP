@@ -44,6 +44,10 @@
  *
  *	[Saving a existing Blueprint]
  *	  - Create or update the class descriptor.
+ * 
+ *	[Saving a Blueprint Actor]
+ *	  - Prefetch the class descriptor for the Blueprint Actor Class
+ * 
  */
 
 static FAutoConsoleCommand DumpClassDescs(
@@ -82,7 +86,7 @@ static FAutoConsoleCommand DumpClassDescs(
 
 /*
  * We have to deal with some different realities between non-cooked and cooked editor builds: for non-cooked editor builds, UBlueprint are considered assets
- * and will be the opnly thing visible from the asset registry standpoint. On the other hand, for cooked editor builds, UBlueprint are not considered assets
+ * and will be the only thing visible from the asset registry standpoint. On the other hand, for cooked editor builds, UBlueprint are not considered assets
  * while their corresponding UBlueprintGeneratedClass will be. Also, we expect redirectors only in non-cooked editor builds.
  */	
 static FTopLevelAssetPath GetAssetDataClassNameForBlueprint(const FString& InAssetDataClassName)
@@ -444,7 +448,8 @@ void FWorldPartitionClassDescRegistry::PrefetchClassDesc(UClass* InClass)
 		if (!ClassByPath.Contains(ParentClassPath))
 		{
 			// Only prefetch classes that exists on disk
-			if (!ParentClass->GetPackage()->HasAnyPackageFlags(PKG_NewlyCreated))
+			const UPackage* ParentClassPackage = ParentClass->GetPackage();
+			if ((ParentClassPackage != GetTransientPackage()) && !ParentClassPackage->HasAnyPackageFlags(PKG_NewlyCreated))
 			{
 				PrefetchClassDescs({ ParentClassPath });
 			}
@@ -526,6 +531,14 @@ void FWorldPartitionClassDescRegistry::OnObjectPreSave(UObject* InObject, FObjec
 			}
 		}
 	}
+
+	if (InObject->IsA<AActor>())
+	{
+		if (UBlueprintGeneratedClass* BlueprintGeneratedClass = Cast<UBlueprintGeneratedClass>(InObject->GetClass()))
+		{			
+			PrefetchClassDesc(BlueprintGeneratedClass);
+		}
+	}
 }
 
 void FWorldPartitionClassDescRegistry::OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent)
@@ -536,7 +549,7 @@ void FWorldPartitionClassDescRegistry::OnObjectPropertyChanged(UObject* InObject
 		if (UBlueprint* Blueprint = Cast<UBlueprint>(InObject))
 		{
 			// The generated class is invalid in some situations, like renaming a blueprint, etc.
-			if (Blueprint->GeneratedClass && Blueprint->GeneratedClass->IsChildOf<AActor>())
+			if (Blueprint->IsUpToDate() && Blueprint->GeneratedClass && Blueprint->GeneratedClass->IsChildOf<AActor>())
 			{
 				PrefetchClassDesc(Blueprint->GeneratedClass);
 				UpdateClassDescriptor(InObject, true);

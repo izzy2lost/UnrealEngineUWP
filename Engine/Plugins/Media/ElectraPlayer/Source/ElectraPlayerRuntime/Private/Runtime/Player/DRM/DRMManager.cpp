@@ -111,10 +111,10 @@ void FDRMManager::OnHTTPResourceRequestComplete(TSharedPtrTS<FHTTPResourceReques
 		{
 			TArray<uint8> LicenseResponse;
 
-			TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ResponseBuffer = DrmReq->Request->GetResponseBuffer();
+			TSharedPtrTS<FWaitableBuffer> ResponseBuffer = DrmReq->Request->GetResponseBuffer();
 			if (ResponseBuffer.IsValid())
 			{
-				LicenseResponse.Append((const uint8*)ResponseBuffer->Buffer.GetLinearReadData(), ResponseBuffer->Buffer.Num());
+				LicenseResponse.Append((const uint8*)ResponseBuffer->GetLinearReadData(), ResponseBuffer->Num());
 			}
 			const HTTP::FConnectionInfo* ConnInfo = DrmReq->Request->GetConnectionInfo();
 			int32 HttpResponseCode = ConnInfo ? ConnInfo->StatusInfo.HTTPStatus : 500;

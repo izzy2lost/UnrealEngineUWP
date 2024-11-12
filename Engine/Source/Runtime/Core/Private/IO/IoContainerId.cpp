@@ -6,6 +6,8 @@
 #include "Misc/AssertionMacros.h"
 #include "Misc/Char.h"
 #include "Serialization/Archive.h"
+#include "Serialization/CompactBinaryWriter.h"
+#include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/StructuredArchiveSlots.h"
 
 FIoContainerId FIoContainerId::FromName(const FName& Name)
@@ -28,7 +30,29 @@ FArchive& operator<<(FArchive& Ar, FIoContainerId& ContainerId)
 	return Ar;
 }
 
-void operator<<(FStructuredArchiveSlot Slot, FIoContainerId& Value)
+void operator<<(FStructuredArchiveSlot Slot, FIoContainerId& ContainerId)
 {
-	Slot << Value.Id;
+	Slot << ContainerId.Id;
+}
+
+FCbWriter& operator<<(FCbWriter& Writer, const FIoContainerId& ContainerId)
+{
+	Writer << ContainerId.Id;
+	return Writer;
+}
+
+FString LexToString(const FIoContainerId& ContainerId)
+{
+	return FString::Printf(TEXT("%llx"), ContainerId.Id);
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, FIoContainerId& OutContainerId)
+{
+	if (Field.IsInteger())
+	{
+		OutContainerId.Id = Field.AsUInt64();
+		return true;
+	}
+
+	return false;
 }

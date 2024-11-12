@@ -2,18 +2,19 @@
 #include "Views/TableDashboardViewFactory.h"
 
 #include "Algo/Transform.h"
-#include "AudioDeviceManager.h"
-#include "AudioInsightsDashboardAssetCommands.h"
 #include "AudioInsightsTraceProviderBase.h"
 #include "Containers/Array.h"
-#include "DrawDebugHelpers.h"
-#include "Editor.h"
 #include "Framework/Commands/UICommandList.h"
-#include "Sound/SoundCue.h"
-#include "Sound/SoundNodeAttenuation.h"
-#include "Subsystems/AssetEditorSubsystem.h"
 #include "Templates/SharedPointer.h"
 #include "Widgets/SBoxPanel.h"
+
+#if WITH_EDITOR
+#include "AudioDeviceManager.h"
+#include "AudioInsightsDashboardAssetCommands.h"
+#include "Editor.h"
+#include "Editor/EditorEngine.h"
+#include "Subsystems/AssetEditorSubsystem.h"
+#endif // WITH_EDITOR
 
 #define LOCTEXT_NAMESPACE "AudioInsights"
 
@@ -232,28 +233,17 @@ namespace UE::Audio::Insights
 		}
 
 #if WITH_EDITOR
-		const bool bDrawDebug = IsDebugDrawEnabled();
-		if (bDrawDebug)
+		if (IsDebugDrawEnabled())
 		{
-			FAudioDeviceManager* Manager = FAudioDeviceManager::Get();
-			if (!Manager)
+			if (FilteredEntriesListView.IsValid())
 			{
-				return;
-			}
+				TArray<TSharedPtr<IDashboardDataViewEntry>> SelectedItems = FilteredEntriesListView->GetSelectedItems();
 
-			if (!FilteredEntriesListView.IsValid())
-			{
-				return;
-			}
-
-			TArray<TSharedPtr<IDashboardDataViewEntry>> SelectedItems = FilteredEntriesListView->GetSelectedItems();
-			for (const TSharedPtr<IDashboardDataViewEntry>& SelectedEntry : SelectedItems)
-			{
-				if (SelectedEntry.IsValid())
+				if (FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get())
 				{
-					Manager->IterateOverAllDevices([this, &SelectedEntry, InElapsed](::Audio::FDeviceId DeviceId, FAudioDevice* Device)
+					AudioDeviceManager->IterateOverAllDevices([this, &SelectedItems, InElapsed](::Audio::FDeviceId DeviceId, FAudioDevice* Device)
 					{
-						DebugDraw(InElapsed, *SelectedEntry.Get(), DeviceId);
+						DebugDraw(InElapsed, SelectedItems, DeviceId);
 					});
 				}
 			}
@@ -313,6 +303,7 @@ namespace UE::Audio::Insights
 			.ColorAndOpacity(GetRowColor(RowDataPtr))
 			.OnDoubleClicked_Lambda([this, RowDataPtr](const FGeometry& MyGeometry, const FPointerEvent& PointerEvent)
 			{
+#if WITH_EDITOR
 				if (GEditor)
 				{
 					TSharedPtr<IObjectDashboardEntry> ObjectData = StaticCastSharedPtr<IObjectDashboardEntry>(RowDataPtr);
@@ -326,7 +317,7 @@ namespace UE::Audio::Insights
 						}
 					}
 				}
-
+#endif // WITH_EDITOR
 				return FReply::Unhandled();
 			})
 		];
@@ -334,11 +325,13 @@ namespace UE::Audio::Insights
 
 	FReply FTraceObjectTableDashboardViewFactory::OnDataRowKeyInput(const FGeometry& Geometry, const FKeyEvent& KeyEvent) const
 	{
-		if (FilteredEntriesListView.IsValid())
+#if WITH_EDITOR
+		if (GEditor && FilteredEntriesListView.IsValid())
 		{
-			TArray<TSharedPtr<IDashboardDataViewEntry>> SelectedItems = FilteredEntriesListView->GetSelectedItems();
 			if (KeyEvent.GetKey() == EKeys::Enter)
 			{
+				TArray<TSharedPtr<IDashboardDataViewEntry>> SelectedItems = FilteredEntriesListView->GetSelectedItems();
+
 				for (const TSharedPtr<IDashboardDataViewEntry>& SelectedItem : SelectedItems)
 				{
 					if (SelectedItem.IsValid())
@@ -357,6 +350,7 @@ namespace UE::Audio::Insights
 				return FReply::Handled();
 			}
 		}
+#endif // WITH_EDITOR
 		return FReply::Unhandled();
 	}
 
@@ -365,6 +359,7 @@ namespace UE::Audio::Insights
 		if (!DashboardWidget.IsValid())
 		{
 			DashboardWidget = SNew(SVerticalBox)
+#if WITH_EDITOR
 			+ SVerticalBox::Slot()
 			.AutoHeight()
 			.HAlign(HAlign_Fill)
@@ -376,6 +371,7 @@ namespace UE::Audio::Insights
 					MakeAssetMenuBar()
 				]
 			]
+#endif // WITH_EDITOR
 			+ SVerticalBox::Slot()
 			.AutoHeight()
 			.HAlign(HAlign_Fill)
@@ -392,6 +388,7 @@ namespace UE::Audio::Insights
 		return DashboardWidget->AsShared();
 	}
 
+#if WITH_EDITOR
 	TSharedRef<SWidget> FTraceObjectTableDashboardViewFactory::MakeAssetMenuBar() const
 	{
 		const FDashboardAssetCommands& Commands = FDashboardAssetCommands::Get();
@@ -464,129 +461,7 @@ namespace UE::Audio::Insights
 
 		return false;
 	}
-
-	void FSoundAttenuationVisualizer::Draw(float InDeltaTime, const FTransform& InTransform, const UObject& InObject, const UWorld& InWorld) const
-	{
-		if (LastObjectId != InObject.GetUniqueID())
-		{
-			ShapeDetailsMap.Reset();
-			if (const USoundCue* SoundCue = Cast<const USoundCue>(&InObject))
-			{
-				TArray<const USoundNodeAttenuation*> AttenuationNodes;
-				SoundCue->RecursiveFindAttenuation(SoundCue->FirstNode, AttenuationNodes);
-				for (const USoundNodeAttenuation* Node : AttenuationNodes)
-				{
-					if (Node)
-					{
-						if (const FSoundAttenuationSettings* AttenuationSettingsToApply = Node->GetAttenuationSettingsToApply())
-						{
-							AttenuationSettingsToApply->CollectAttenuationShapesForVisualization(ShapeDetailsMap);
-						}
-					}
-				}
-			}
-			else if (const USoundBase* SoundBase = Cast<USoundBase>(&InObject))
-			{
-				if (const FSoundAttenuationSettings* Settings = SoundBase->GetAttenuationSettingsToApply())
-				{
-					Settings->CollectAttenuationShapesForVisualization(ShapeDetailsMap);
-				}
-			}
-			else
-			{
-				return;
-			}
-		}
-		LastObjectId = InObject.GetUniqueID();
-
-		for (const TPair<EAttenuationShape::Type, FBaseAttenuationSettings::AttenuationShapeDetails>& Pair : ShapeDetailsMap)
-		{
-			const FBaseAttenuationSettings::AttenuationShapeDetails& ShapeDetails = Pair.Value;
-			switch (Pair.Key)
-			{
-				case EAttenuationShape::Sphere:
-				{
-					if (ShapeDetails.Falloff > 0.f)
-					{
-						DrawDebugSphere(&InWorld, InTransform.GetTranslation(), ShapeDetails.Extents.X + ShapeDetails.Falloff, 10, Color);
-						DrawDebugSphere(&InWorld, InTransform.GetTranslation(), ShapeDetails.Extents.X, 10, Color);
-					}
-					else
-					{
-						DrawDebugSphere(&InWorld, InTransform.GetTranslation(), ShapeDetails.Extents.X, 10, Color);
-					}
-					break;
-				}
-
-				case EAttenuationShape::Box:
-				{
-					if (ShapeDetails.Falloff > 0.f)
-					{
-						DrawDebugBox(&InWorld, InTransform.GetTranslation(), ShapeDetails.Extents + FVector(ShapeDetails.Falloff), InTransform.GetRotation(), Color);
-						DrawDebugBox(&InWorld, InTransform.GetTranslation(), ShapeDetails.Extents, InTransform.GetRotation(), Color);
-					}
-					else
-					{
-						DrawDebugBox(&InWorld, InTransform.GetTranslation(), ShapeDetails.Extents, InTransform.GetRotation(), Color);
-					}
-					break;
-				}
-
-				case EAttenuationShape::Capsule:
-				{
-					if (ShapeDetails.Falloff > 0.f)
-					{
-						DrawDebugCapsule(&InWorld, InTransform.GetTranslation(), ShapeDetails.Extents.X + ShapeDetails.Falloff, ShapeDetails.Extents.Y + ShapeDetails.Falloff, InTransform.GetRotation(), Color);
-						DrawDebugCapsule(&InWorld, InTransform.GetTranslation(), ShapeDetails.Extents.X, ShapeDetails.Extents.Y, InTransform.GetRotation(), Color);
-					}
-					else
-					{
-						DrawDebugCapsule(&InWorld, InTransform.GetTranslation(), ShapeDetails.Extents.X, ShapeDetails.Extents.Y, InTransform.GetRotation(), Color);
-					}
-					break;
-				}
-
-				case EAttenuationShape::Cone:
-				{
-					const FVector Origin = InTransform.GetTranslation() - (InTransform.GetUnitAxis(EAxis::X) * ShapeDetails.ConeOffset);
-
-					if (ShapeDetails.Falloff > 0.f || ShapeDetails.Extents.Z > 0.f)
-					{
-						const float OuterAngle = FMath::DegreesToRadians(ShapeDetails.Extents.Y + ShapeDetails.Extents.Z);
-						const float InnerAngle = FMath::DegreesToRadians(ShapeDetails.Extents.Y);
-						DrawDebugCone(&InWorld, Origin, InTransform.GetUnitAxis(EAxis::X), ShapeDetails.Extents.X + ShapeDetails.Falloff + ShapeDetails.ConeOffset, OuterAngle, OuterAngle, 10, Color);
-						DrawDebugCone(&InWorld, Origin, InTransform.GetUnitAxis(EAxis::X), ShapeDetails.Extents.X + ShapeDetails.ConeOffset, InnerAngle, InnerAngle, 10, Color);
-					}
-					else
-					{
-						const float Angle = FMath::DegreesToRadians(ShapeDetails.Extents.Y);
-						DrawDebugCone(&InWorld, Origin, InTransform.GetUnitAxis(EAxis::X), ShapeDetails.Extents.X + ShapeDetails.ConeOffset, Angle, Angle, 10, Color);
-					}
-
-					if (!FMath::IsNearlyZero(ShapeDetails.ConeSphereRadius, UE_KINDA_SMALL_NUMBER))
-					{
-						if (ShapeDetails.ConeSphereFalloff > 0.f)
-						{
-
-							DrawDebugSphere(&InWorld, Origin, ShapeDetails.ConeSphereRadius + ShapeDetails.ConeSphereFalloff, 10, Color);
-							DrawDebugSphere(&InWorld, Origin, ShapeDetails.ConeSphereRadius, 10, Color);
-						}
-						else
-						{
-							DrawDebugSphere(&InWorld, Origin, ShapeDetails.ConeSphereRadius, 10, Color);
-						}
-					}
-
-					break;
-				}
-
-				default:
-				{
-					break;
-				}
-			}
-		}
-	}
+#endif // WITH_EDITOR
 } // namespace UE::Audio::Insights
 
 #undef LOCTEXT_NAMESPACE

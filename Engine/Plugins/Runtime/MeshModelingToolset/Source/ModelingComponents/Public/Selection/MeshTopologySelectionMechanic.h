@@ -159,9 +159,18 @@ public:
 	void DisableBehaviors(UInteractiveTool* ParentToolIn);
 
 	/**
-	 * Enable/disable the mechanic without permanently removing behaviors or shutting it down.
+	 * Enable/disable the selection behaviors in the mechanic without permanently removing them or
+	 *  shutting the mechanic down.
+	 * @param bBehaviorsEnabled Determines whether the mechanic selection behaviors are active
+	 * @param bRenderTopology Determines whether the topology is rendered, which is independent
+	 *   of the behaviors being active.
 	 */
-	void SetIsEnabled(bool bOn);
+	void SetIsEnabled(bool bBehaviorsEnabled, bool bRenderTopology = true);
+
+	/**
+	 * Update the location of the mesh after Initialize()
+	 */
+	void SetTransform(const FTransform3d& InTargetTransform);
 
 	/**
 	 * Sets how/when the selection updates are handled.
@@ -218,8 +227,9 @@ public:
 	void NotifyMeshChanged(bool bTopologyModified);
 
 	/**
-	 * Perform a hit test on the topology using the current selection settings. In cases of hitting edges and
-	 * corners, OutHit contains the following:
+	 * Perform a hit test on the topology using the current selection settings. Note that to work properly,
+	 *  the mechanic requires that Render() be called on it, as it needs to cache camera state.
+	 * In cases of hitting edges and corners, OutHit contains the following:
 	 *   OutHit.FaceIndex: edge or corner id in the topology
 	 *   OutHit.ImpactPoint: closest point on the ray to the hit element (Note: not a point on the element!)
 	 *   OutHit.Distance: distance along the ray to ImpactPoint
@@ -274,9 +284,14 @@ public:
 	void InvertSelection();
 	void SelectAll();
 
-	void GrowSelection();
-	void ShrinkSelection();
-	void FloodSelection();
+	UE_DEPRECATED(5.5, "Calling this function on the base class is not supported. It can be called on UPolygonSelectionMechanic.")
+	void GrowSelection() {};
+	UE_DEPRECATED(5.5, "Calling this function on the base class is not supported. It can be called on UPolygonSelectionMechanic.")
+	void ShrinkSelection() {};
+	UE_DEPRECATED(5.5, "Calling this function on the base class is not supported. It can be called on UPolygonSelectionMechanic.")
+	void FloodSelection() {};
+	UE_DEPRECATED(5.5, "Calling this function on the base class is not supported. It can be called on UPolygonSelectionMechanic.")
+	void ConvertSelectionToBorder() {};
 
 	/** 
 	 * @return true if the current selection is non-empty 
@@ -489,6 +504,8 @@ public:
 
 	friend class FMeshTopologySelectionMechanicSelectionChange;
 
+private:
+	bool bRenderTopology = true;
 };
 
 

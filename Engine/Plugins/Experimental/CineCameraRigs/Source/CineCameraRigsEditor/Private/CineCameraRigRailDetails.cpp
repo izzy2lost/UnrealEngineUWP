@@ -128,6 +128,14 @@ void FCineCameraRigRailDetails::CustomizeSplineVisualizationCategory(IDetailLayo
 
 void FCineCameraRigRailDetails::CustomizeAttachmentCategory(IDetailLayoutBuilder& DetailBuilder)
 {
+	TSharedRef<IPropertyHandle> LockOrientationPropertyHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(ACameraRig_Rail, bLockOrientationToRail), ACameraRig_Rail::StaticClass());
+	const TAttribute<bool> RotationEditCondition = TAttribute<bool>::Create([this, LockOrientationPropertyHandle]()
+		{
+			bool bCond = false;
+			LockOrientationPropertyHandle->GetValue(bCond);
+			return bCond;
+		});
+
 	IDetailCategoryBuilder& AttachmentCategory = DetailBuilder.EditCategory("Attachment");
 
 	// Attachment : Location
@@ -166,23 +174,67 @@ void FCineCameraRigRailDetails::CustomizeAttachmentCategory(IDetailLayoutBuilder
 
 	IDetailGroup& RotationGroup = AttachmentCategory.AddGroup(TEXT("Rotation"), LOCTEXT("RotationLabel", "Rotation"));
 	RotationGroup.HeaderRow()
+		.EditCondition(RotationEditCondition, nullptr)
 		.NameContent()
 		[
 			SNew(STextBlock)
 			.Text(LOCTEXT("RotationLabel", "Rotation"))
 			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.ToolTipText_Lambda([LockOrientationPropertyHandle]()
+				{
+					bool LockOrientation;
+					LockOrientationPropertyHandle.Get().GetValue(LockOrientation);
+					if (!LockOrientation)
+					{
+						return FText(LOCTEXT("RotationAttachmentDisabledToolTip", "Disabled because LockOrientationToRail is false"));
+					}
+					return LOCTEXT("RotationAttachmentToolTip", "Determines if camera mount inherits Rotation");
+				})
 		]
 		.ValueContent()
 		[
 			SNew(SCheckBox)
-			.IsChecked(this, &FCineCameraRigRailDetails::IsAttachOptionChecked, RotationPropertyHandles)
+			.IsChecked(this, &FCineCameraRigRailDetails::IsAttachRotationOptionChecked, RotationPropertyHandles)
 			.OnCheckStateChanged(this, &FCineCameraRigRailDetails::OnAttachOptionChanged, RotationPropertyHandles)
 		];
 
 	for (auto& PropertyHandle : RotationPropertyHandles)
 	{
 		DetailBuilder.HideProperty(PropertyHandle);
-		RotationGroup.AddPropertyRow(PropertyHandle);
+		IDetailPropertyRow& RotationAxisRow = RotationGroup.AddPropertyRow(PropertyHandle);
+		RotationAxisRow.EditCondition(RotationEditCondition, nullptr);
+
+		RotationAxisRow.CustomWidget(false)
+			.NameContent()
+			[
+				SNew(STextBlock)
+					.Text(PropertyHandle->GetPropertyDisplayName())
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+					.ToolTipText_Lambda([PropertyHandle, LockOrientationPropertyHandle]()
+						{
+							bool LockOrientation;
+							LockOrientationPropertyHandle.Get().GetValue(LockOrientation);
+							if (!LockOrientation)
+							{
+								return FText(LOCTEXT("RotationAxisAttachmentToolTip", "Disabled because LockOrientationToRail is false"));
+							}
+							return PropertyHandle->GetToolTipText();
+						})
+			]
+			.ValueContent()
+			.MinDesiredWidth(125.0f)
+			[
+				SNew(SCheckBox)
+					.IsChecked_Lambda([PropertyHandle, LockOrientationPropertyHandle]() -> ECheckBoxState
+						{
+							bool IsChecked;
+							PropertyHandle.Get().GetValue(IsChecked);
+							bool LockOrientation;
+							LockOrientationPropertyHandle.Get().GetValue(LockOrientation);
+							return IsChecked && LockOrientation ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+						})
+					.OnCheckStateChanged(this, &FCineCameraRigRailDetails::OnRotationAxisAttachmentChanged, PropertyHandle)
+			];
 	}
 
 	// Attachment : Camera
@@ -289,6 +341,18 @@ ECheckBoxState FCineCameraRigRailDetails::IsAttachOptionChecked(TArray<TSharedRe
 		return ECheckBoxState::Unchecked;
 	}
 	return ECheckBoxState::Undetermined;
+}
+
+ECheckBoxState FCineCameraRigRailDetails::IsAttachRotationOptionChecked(TArray<TSharedRef<IPropertyHandle>> PropertyHandles) const
+{
+	if (ACineCameraRigRail* RigRailActor = RigRailActorPtr.Get())
+	{
+		if (!RigRailActor->bLockOrientationToRail)
+		{
+			return ECheckBoxState::Unchecked;
+		}
+	}
+	return IsAttachOptionChecked(PropertyHandles);
 }
 
 void FCineCameraRigRailDetails::OnAttachOptionChanged(ECheckBoxState NewState, TArray<TSharedRef<IPropertyHandle>> PropertyHandles)
@@ -422,5 +486,18 @@ TOptional<float> FCineCameraRigRailDetails::GetAbsolutePositionSliderMaxValue() 
 		MaxValue = MetaData->AbsolutePosition.Points[NumPoints - 1].OutVal;
 	}
 	return MaxValue;
+}
+
+void FCineCameraRigRailDetails::OnRotationAxisAttachmentChanged(ECheckBoxState NewState, TSharedRef<IPropertyHandle> PropertyHandle)
+{
+	if (NewState == ECheckBoxState::Undetermined)
+	{
+		return;
+	}
+	const bool bValue = (NewState == ECheckBoxState::Checked) ? true : false;
+	if (PropertyHandle->IsValidHandle())
+	{
+		PropertyHandle->SetValue(bValue);
+	}
 }
 #undef LOCTEXT_NAMESPACE

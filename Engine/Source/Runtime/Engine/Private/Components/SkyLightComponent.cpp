@@ -85,8 +85,18 @@ FAutoConsoleVariableRef CVarSkylightIntensityMultiplier(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 	);
 
+static bool FeatureLevelSupportsRealTimeReflectionCapture(FStaticFeatureLevel FeatureLevel)
+{
+	return FeatureLevel > ERHIFeatureLevel::ES3_1;
+}
+
 void OnChangeSkylightRealTimeReflectionCapture(IConsoleVariable* Var)
 {
+	if (!GIsRHIInitialized || !FeatureLevelSupportsRealTimeReflectionCapture(GMaxRHIFeatureLevel))
+	{
+		return;
+	}
+	
 	// r.SkyLight.RealTimeReflectionCapture is set based on the "Effect" quality level (to be supported, or not, on some different platofrms).
 	// When that quality level changes, real-time sky capture can become disabled. In this case, sky light recapture should be scheduled to match the current quality level.
 	for (TObjectIterator<USkyLightComponent> It; It; ++It)
@@ -682,6 +692,7 @@ TStructOnScope<FActorComponentInstanceData> USkyLightComponent::GetComponentInst
 {
 	TStructOnScope<FActorComponentInstanceData> InstanceData = MakeStructOnScope<FActorComponentInstanceData, FPrecomputedSkyLightInstanceData>(this);
 	FPrecomputedSkyLightInstanceData* SkyLightInstanceData = InstanceData.Cast<FPrecomputedSkyLightInstanceData>();
+	SkyLightInstanceData->OriginalLightGuid = OriginalLightGuid;
 	SkyLightInstanceData->LightGuid = LightGuid;
 	SkyLightInstanceData->ProcessedSkyTexture = ProcessedSkyTexture;
 
@@ -697,6 +708,7 @@ void USkyLightComponent::ApplyComponentInstanceData(FPrecomputedSkyLightInstance
 {
 	check(LightMapData);
 
+	OriginalLightGuid = (HasStaticShadowing() ? LightMapData->OriginalLightGuid : FGuid());
 	LightGuid = (HasStaticShadowing() ? LightMapData->LightGuid : FGuid());
 	ProcessedSkyTexture = LightMapData->ProcessedSkyTexture;
 	IrradianceEnvironmentMap = LightMapData->IrradianceEnvironmentMap;
@@ -1104,6 +1116,15 @@ void USkyLightComponent::SetMinOcclusion(float InMinOcclusion)
 	}
 }
 
+void USkyLightComponent::SetRealTimeCapture(bool bInRealTimeCapture)
+{
+	if (AreDynamicDataChangesAllowed()
+		&& bInRealTimeCapture != bRealTimeCapture)
+	{
+		SetRealTimeCaptureEnabled(bInRealTimeCapture);
+	}
+}
+
 bool USkyLightComponent::IsOcclusionSupported() const
 {
 	FSceneInterface* LocalScene = GetScene();
@@ -1121,14 +1142,15 @@ bool USkyLightComponent::IsRealTimeCaptureEnabled() const
 	// We currently disable realtime capture on mobile, OGL requires an additional texture to read SkyIrradianceEnvironmentMap which can break materials already at the texture limit.
 	// See FORT-301037, FORT-302324	
 	// Don't call in PostLoad and SetCaptureIsDirty, because the LocalScene could be null and sky wouldn't be updated on mobile.
-	const bool bIsMobile = LocalScene && LocalScene->GetFeatureLevel() <= ERHIFeatureLevel::ES3_1;
-	return bRealTimeCapture && (Mobility == EComponentMobility::Movable || Mobility == EComponentMobility::Stationary) && GSkylightRealTimeReflectionCapture >0 && !bIsMobile;
+	const bool bFeatureLevelSupport = !LocalScene || FeatureLevelSupportsRealTimeReflectionCapture(LocalScene->GetFeatureLevel());
+	return bRealTimeCapture && (Mobility == EComponentMobility::Movable || Mobility == EComponentMobility::Stationary) && GSkylightRealTimeReflectionCapture >0 && bFeatureLevelSupport;
 }
 
 void USkyLightComponent::SetRealTimeCaptureEnabled(bool bNewRealTimeCaptureEnabled)
 {
 	bRealTimeCapture = bNewRealTimeCaptureEnabled;
 	MarkRenderStateDirty();
+	SetCaptureIsDirty();
 }
 
 void USkyLightComponent::OnVisibilityChanged()

@@ -32,6 +32,7 @@ struct TEXTUREGRAPHENGINE_API FExportMapSettings
 	int32 Height;
 	TextureCompressionSettings Compression;
 	TextureGroup LODGroup;
+	bool bSave;
 
 	DECLARE_DELEGATE_OneParam(OnExportMapDone, FExportMapSettings MapSettings);
 	OnExportMapDone OnDone;
@@ -99,4 +100,7 @@ struct TEXTUREGRAPHENGINE_API TextureExporter
 	static void						ExportAsUAsset(UMixInterface* MixObj, FName AssetName, FString CurrentPath, const FExportSettings& Setting);
 	static AsyncInt					ExportRawAsUAsset(RawBufferPtr RawObj,const FExportMapSettings& Setting, const FString& CompletePath, const FName& TextureName);
 	static bool						IsPackageNameValid(FString Path, FString AssetName);
+	static bool 					IsFileNameValid(FName FileName, FText& Reason);
+	static bool 					IsFolderPathValid(FString FolderPath, FText& Reason);
+	static bool 					IsFilePathValid(const FName InFileName, const FName InFolderPath, FString& OutErrors);
 };

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+from itertools import count
 import logging
 import os
 import threading
@@ -10,7 +11,7 @@ import time
 import re
 import sys
 import json
-from typing import List, Optional, Set, Union
+from typing import Callable, List, Optional, Set, Union
 
 from pathlib import Path
 
@@ -24,12 +25,13 @@ from PySide6.QtWidgets import QWidgetAction, QMenu
 from switchboard import config
 from switchboard import config_osc as osc
 from switchboard import p4_utils
-from switchboard import ugs_utils
 from switchboard import recording
 from switchboard import resources  # noqa
 from switchboard import switchboard_application
 from switchboard import switchboard_utils
 from switchboard import switchboard_widgets as sb_widgets
+from switchboard import ue_plugin_utils
+from switchboard import ugs_utils
 from switchboard.add_config_dialog import AddConfigDialog
 from switchboard.config import CONFIG, DEFAULT_MAP_TEXT, ENABLE_UGS_SUPPORT, SETTINGS, EngineSyncMethod
 from switchboard.device_list_widget import DeviceListWidget, DeviceWidgetHeader
@@ -41,6 +43,7 @@ from switchboard.tools.insights_launcher import InsightsLauncher
 from switchboard.tools.listener_launcher import ListenerLauncher
 from switchboard.tools.sblhelper_launcher import SBLHelperLauncher
 from switchboard.devices.unreal.plugin_unreal import DeviceUnreal
+from switchboard.devices.ndisplay.plugin_ndisplay import DevicenDisplay, PackagingClientConfig
 from switchboard.devices.unreal.redeploy_dialog import RedeployListenerDialog
 from switchboard.util import collect_logs
 
@@ -217,6 +220,7 @@ class ProcessMonitor(QtCore.QObject):
             self._dialog.update_locallistener_menuitem()
             self._dialog.update_localsblhelper_menuitem()
             self._dialog.update_insights_menuitem()
+            self._dialog.update_package_game_menuitem()
 
             time.sleep(1.0)
 
@@ -331,6 +335,9 @@ class SwitchboardDialog(QtCore.QObject):
         # Fill DDC submenu
         self.register_fill_ddc_menuitem()
 
+        # Package game
+        self.register_package_game_menuitem()
+
         # Transport Manager
         #self.transport_queue = recording.TransportQueue(CONFIG.SWITCHBOARD_DIR)
         #self.transport_queue.signal_transport_queue_job_started.connect(self.transport_queue_job_started)
@@ -342,7 +349,7 @@ class SwitchboardDialog(QtCore.QObject):
 
         self.refresh_levels_button = sb_widgets.ControlQPushButton()
         self.refresh_levels_button.setMaximumSize(22, 22)
-        self.refresh_levels_button.setIcon(QtGui.QIcon("icon_refresh.png"))
+        self.refresh_levels_button.setIcon(QtGui.QIcon(':/icons/images/icon_refresh.png'))
         self.refresh_levels_button.setProperty("frameless", True)
         self.refresh_levels_button.setToolTip("Refresh level list")
 
@@ -417,6 +424,7 @@ class SwitchboardDialog(QtCore.QObject):
             lambda: self._set_engine_changelist(self.window.engine_cl_combo_box.currentText()))
         self.window.logger_level_comboBox.currentTextChanged.connect(self.logger_level_comboBox_currentTextChanged)
         self.window.logger_autoscroll_checkbox.stateChanged.connect(self.logger_autoscroll_stateChanged)
+        self.window.clear_log_button.clicked.connect(self.clear_log_button_clicked)
         self.window.logger_wrap_checkbox.stateChanged.connect(self.logger_wrap_stateChanged)
         self.window.record_button.released.connect(self.record_button_released)
         self.window.sync_all_button.clicked.connect(self.sync_all_button_clicked)
@@ -509,6 +517,10 @@ class SwitchboardDialog(QtCore.QObject):
 
         self.script_manager.on_postinit(self)
         self.have_warned_about_muserver = False
+
+        DeviceUnreal.static_signals.ugs_config_updated_signal.connect(
+            lambda _: self.p4_refresh_project_cl()
+        )
 
     def _try_change_address(self):
         new_value = self.window.current_address_value.text()
@@ -604,6 +616,24 @@ class SwitchboardDialog(QtCore.QObject):
         '''
         self.insights_launcher_menuitem.setEnabled(not self.insights_launcher.is_running())
 
+    def update_package_game_menuitem(self):
+        ''' Enables/disables the package game menu depending on whether there are any nDisplay devices or not.
+        For discoverability of the feature, we don't check if they are connected. Otherwise the user might be
+        clueless as to why the option is disabled.
+        '''
+        ndisplay_devices = [device for device in self.device_manager.devices() if isinstance(device, DevicenDisplay)]
+
+        do_enable = len(ndisplay_devices) > 0
+
+        self.action_package_development.setEnabled(do_enable)
+        self.action_package_shipping.setEnabled(do_enable)
+
+        parent = self.action_package_development.parent()
+        while parent is not None and not isinstance(parent, QMenu):
+            parent = parent.parent()
+
+        parent.setEnabled(do_enable)
+
     def on_muserver_start_stop_click(self):
         '''
         Handle the multi-user server button click. If we are running we stop the process. If we are not
@@ -694,7 +724,8 @@ class SwitchboardDialog(QtCore.QObject):
 
     def register_fill_ddc_menuitem(self):
         def fill_ddc(current_level_only):
-            for device in self.device_manager.devices():
+            unrealdevices = [device for device in self.device_manager.devices() if isinstance(device, DeviceUnreal)]
+            for device in unrealdevices:
                 if not device.is_disconnected:
                     device.fill_derived_data_cache(current_level_only)
 
@@ -709,12 +740,79 @@ class SwitchboardDialog(QtCore.QObject):
         all_levels_action = self.register_tools_menu_action("All Levels", ["Fill DDC (Prepare Shaders)"])
         all_levels_action.triggered.connect(fill_ddc_all_levels_action)
 
+    def register_package_game_menuitem(self) -> None:
+        ''' Registers a menu item to package the nDisplay cluster game'''
+
+        def package_nDisplay_game(clientconfig: PackagingClientConfig) -> None:
+            ''' Callback to kick off the packaging process '''
+            ndisplay_devices = [device for device in self.device_manager.devices()
+                                if isinstance(device, DevicenDisplay) and not device.is_disconnected]
+
+            # We need at least 1 device connected
+            if not len(ndisplay_devices):
+                QtWidgets.QMessageBox.information(
+                    self.window,
+                    "Unable to start packaging",
+                    "Please connect to at least one nDisplay node and try again."
+                )
+                return
+
+            # Make sure we won't try to send the package command to the same client multiple times.
+
+            unique_addresses = {device.address for device in ndisplay_devices}
+
+            if len(ndisplay_devices) > len(unique_addresses):
+                QtWidgets.QMessageBox.information(
+                    self.window,
+                    "Unable to start packaging",
+                    "Please only try to package devices with unique addresses."
+                )
+                return
+
+            # Validate all the devices before starting to package
+            for device in ndisplay_devices:
+                try:
+                    device.package_game(clientconfig=clientconfig, dryrun=True)
+                except Exception as e:
+                    QtWidgets.QMessageBox.information(
+                        self.window,
+                        "Unable to start packaging",
+                        f"nDisplay '{device.name}': {str(e)}"
+                    )
+                    return
+
+            # Ok, we should be good to go.
+            for device in ndisplay_devices:
+                device.package_game(clientconfig=clientconfig)
+
+        actionname = "Package nDisplay Game"
+
+        actiontooltip = '\n'.join([
+            "Packages the project in all the nDisplay nodes currently connected to.",
+            f"The archive will reside in the location specified by '{DevicenDisplay.csettings['packaged_game_path'].nice_name}'",
+            "The Engine and Project source must be available on the remote machine."
+            ])
+
+        self.action_package_development = self.register_tools_menu_action(
+            "Development", menunames=[actionname], actiontooltip=actiontooltip
+        )
+        self.action_package_development.triggered.connect(lambda: package_nDisplay_game(PackagingClientConfig.Development))
+
+        self.action_package_shipping = self.register_tools_menu_action(
+            "Shipping", menunames=[actionname], actiontooltip=actiontooltip
+        )
+        self.action_package_shipping.triggered.connect(lambda: package_nDisplay_game(PackagingClientConfig.Shipping))
+
     def add_tools_menu(self):
         ''' Adds tools menu to menu bar and populates built-in items '''
 
         self.tools_menu = self.window.menu_bar.addMenu("&Tools")
 
-    def register_tools_menu_action(self, actionname: str, menunames: List[str] = []) -> QWidgetAction:
+    def register_tools_menu_action(
+            self,
+            actionname: str,
+            menunames: List[str] = [],
+            actiontooltip: str = '') -> QWidgetAction:
         ''' Registers a QWidgetAction with the tools menu
 
         Args:
@@ -754,6 +852,8 @@ class SwitchboardDialog(QtCore.QObject):
         # add the given action
         action = QWidgetAction(current_menu)
         action.setText(actionname)
+        action.setToolTip(actiontooltip)
+        current_menu.setToolTipsVisible(True)
         current_menu.addAction(action)
 
         return action
@@ -790,7 +890,7 @@ class SwitchboardDialog(QtCore.QObject):
 
     def show_device_add_menu(self):
         self.device_add_menu.clear()
-        plugins = sorted(self.device_manager.available_device_plugins(), key=str.lower)
+        plugins = sorted(self.device_manager.available_device_plugins().keys(), key=str.lower)
         for plugin in plugins:
             icons = self.device_manager.plugin_icons(plugin)
             icon = icons["enabled"] if "enabled" in icons.keys() else QtGui.QIcon()
@@ -1145,10 +1245,21 @@ class SwitchboardDialog(QtCore.QObject):
         # TODO: VALIDATE RECORD PATH
         settings_dialog = SettingsDialog(SETTINGS, CONFIG)
 
-        for plugin_name in sorted(self.device_manager.available_device_plugins(), key=str.lower):
+        for plugin_name in sorted(self.device_manager.available_device_plugins().keys(), key=str.lower):
+
             device_instances = self.device_manager.devices_of_type(plugin_name)
-            device_settings = [(device.name, device.device_settings(), device.setting_overrides()) for device in device_instances]
-            settings_dialog.add_section_for_plugin(plugin_name, self.device_manager.plugin_settings(plugin_name), device_settings)
+
+            device_settings = [(device.name, device.device_settings(), device.setting_overrides())
+                               for device in device_instances]
+
+            plugin_cls = self.device_manager.available_device_plugins()[plugin_name]
+
+            settings_dialog.add_section_for_plugin(
+                plugin_name=plugin_name,
+                plugin_cls=plugin_cls,
+                plugin_settings=self.device_manager.plugin_settings(plugin_name),
+                device_settings=device_settings
+            )
 
         settings_dialog.select_all_tab()
 
@@ -1181,6 +1292,10 @@ class SwitchboardDialog(QtCore.QObject):
             return self.osc_server.launch(SETTINGS.ADDRESS.get_value(), CONFIG.OSC_SERVER_PORT.get_value())
         else:
             return True
+
+    def clear_log_button_clicked(self):
+        ''' Called when the "Clear" button of the log window is clicked'''
+        self.window.base_console.clear()
 
     def sync_all_button_clicked(self):
         if not CONFIG.P4_ENABLED.get_value():
@@ -1337,6 +1452,7 @@ class SwitchboardDialog(QtCore.QObject):
         device.device_qt_handler.signal_device_is_recording_device_changed.connect(self.device_is_recording_device_changed, QtCore.Qt.QueuedConnection)
         device.device_qt_handler.signal_device_build_update.connect(self.device_build_update, QtCore.Qt.QueuedConnection)
         device.device_qt_handler.signal_device_sync_update.connect(self.device_sync_update, QtCore.Qt.QueuedConnection)
+        device.device_qt_handler.signal_device_package_update.connect(self.device_package_update, QtCore.Qt.QueuedConnection)
 
         # Add the view
         self.device_list_widget.add_device_widget(device)
@@ -1737,6 +1853,11 @@ class SwitchboardDialog(QtCore.QObject):
         device_widget.update_sync_status(device, progress)
 
     @QtCore.Slot(object)
+    def device_package_update(self, device, step, percent):
+        device_widget = self.device_list_widget.device_widget_by_hash(device.device_hash)
+        device_widget.update_package_status(device, step, percent)
+
+    @QtCore.Slot(object)
     def device_project_changelist_changed(self, device):
         device_widget = self.device_list_widget.device_widget_by_hash(device.device_hash)
         device_widget.update_project_changelist(
@@ -1912,14 +2033,14 @@ class SwitchboardDialog(QtCore.QObject):
             LOGGER.setLevel(logging.INFO)
 
     def logger_autoscroll_stateChanged(self, value):
-        if value == QtCore.Qt.Checked:
+        if QtCore.Qt.CheckState(value) == QtCore.Qt.Checked:
             self.logger_autoscroll = True
             self.logger_scroll_to_end()
         else:
             self.logger_autoscroll = False
 
     def logger_wrap_stateChanged(self, value):
-        if value == QtCore.Qt.Checked:
+        if QtCore.Qt.CheckState(value) == QtCore.Qt.Checked:
             self.window.base_console.setLineWrapMode(QtWidgets.QPlainTextEdit.LineWrapMode.WidgetWidth)
         else:
             self.window.base_console.setLineWrapMode(QtWidgets.QPlainTextEdit.LineWrapMode.NoWrap)
@@ -1934,25 +2055,56 @@ class SwitchboardDialog(QtCore.QObject):
 
         sync_method = CONFIG.ENGINE_SYNC_METHOD.get_value()
 
-        changelists = None
         # If we're syncing 'Precompiled Binaries', then that implies that we should be using UGS:
-        if ENABLE_UGS_SUPPORT:
-            if sync_method == EngineSyncMethod.Sync_PCBs.value or sync_method == EngineSyncMethod.Sync_From_UGS.value:
-                LOGGER.info("Using UnrealGameSync to refresh project changelists.")
-                changelists = ugs_utils.latest_chagelists(Path(CONFIG.UPROJECT_PATH.get_value()), client=CONFIG.SOURCE_CONTROL_WORKSPACE.get_value())
-                if not changelists:
-                    LOGGER.error("UnrealGameSync failed to get the project's latest changelists. Falling back to using p4 commands directly.")
+        use_ugs = ENABLE_UGS_SUPPORT and (sync_method in (EngineSyncMethod.Sync_PCBs.value, EngineSyncMethod.Sync_From_UGS.value))
+
+        # Disable project sync options if not using UGS and there isn't a project p4 path set.
+        if CONFIG.P4_PROJECT_PATH.get_value() or use_ugs:
+            self.window.project_cl_label.setEnabled(True)
+            self.window.project_cl_combo_box.setEnabled(True)
+            self.window.refresh_project_cl_button.setEnabled(True)
+        else:
+            self.window.project_cl_label.setEnabled(False)
+            self.window.project_cl_combo_box.setEnabled(False)
+            self.window.refresh_project_cl_button.setEnabled(False)
+            return
+
+        changelists: Optional[list[int]] = None
+        descriptions: Optional[list[str]] = None
+
+        if use_ugs:
+            LOGGER.info("Using UnrealGameSync to refresh project changelists.")
+            changelists = ugs_utils.latest_chagelists(Path(CONFIG.UPROJECT_PATH.get_value()), client=CONFIG.SOURCE_CONTROL_WORKSPACE.get_value())
+            if not changelists:
+                LOGGER.error("UnrealGameSync failed to get the project's latest changelists. Falling back to using p4 commands directly.")
 
         if not changelists:
+
             LOGGER.info("Refreshing p4 project changelists")
-            working_dir = os.path.dirname(CONFIG.UPROJECT_PATH.get_value())
-            changelists = p4_utils.p4_latest_changelist(CONFIG.P4_PROJECT_PATH.get_value(), working_dir)
+            client = CONFIG.SOURCE_CONTROL_WORKSPACE.get_value()
+            paths = [f'{CONFIG.P4_PROJECT_PATH.get_value()}/...']
+
+            if DeviceUnreal.ugs_config:
+                if addpaths := DeviceUnreal.ugs_config.try_get(
+                    'Perforce', 'AdditionalPathsToSync'
+                ):
+                    paths.extend([f'//{client}{x}' for x in addpaths])
+
+            cl_descs = p4_utils.p4_latest_changelists(paths, client=client)
+            changelists = [str(cl[0]) for cl in cl_descs]
+            descriptions = [cl[1] for cl in cl_descs]
 
         self.window.project_cl_combo_box.clear()
 
         if changelists:
             self.window.project_cl_combo_box.addItems(changelists)
             self.window.project_cl_combo_box.setCurrentIndex(0)
+
+        if descriptions:
+            for (idx, desc) in zip(count(), descriptions):
+                self.window.project_cl_combo_box.setItemData(
+                    idx, desc, QtCore.Qt.ItemDataRole.ToolTipRole)
+
         self.window.project_cl_combo_box.addItem(EMPTY_SYNC_ENTRY)
 
     def p4_refresh_engine_cl(self):
@@ -1970,11 +2122,20 @@ class SwitchboardDialog(QtCore.QObject):
 
             engine_p4_path = CONFIG.P4_ENGINE_PATH.get_value()
             if engine_p4_path:
-                working_dir = os.path.dirname(CONFIG.UPROJECT_PATH.get_value())
-                changelists = p4_utils.p4_latest_changelist(engine_p4_path, working_dir)
+                client = CONFIG.SOURCE_CONTROL_WORKSPACE.get_value()
+                cl_descs = p4_utils.p4_latest_changelists(
+                    engine_p4_path+'/...', client=client)
+                changelists = [str(cl[0]) for cl in cl_descs]
+                descriptions = [cl[1] for cl in cl_descs]
+
                 if changelists:
                     self.window.engine_cl_combo_box.addItems(changelists)
                     self.window.engine_cl_combo_box.setCurrentIndex(0)
+
+                if descriptions:
+                    for (idx, desc) in zip(count(), descriptions):
+                        self.window.engine_cl_combo_box.setItemData(
+                            idx, desc, QtCore.Qt.ItemDataRole.ToolTipRole)
             else:
                 LOGGER.warning('"Build Engine" is enabled in the settings but the engine does not seem to be under perforce control.')
                 LOGGER.warning("Please check your perforce settings.")
@@ -2014,29 +2175,29 @@ class SwitchboardDialog(QtCore.QObject):
         if self.level != current_level:
             CONFIG.save()
 
-    def filter_empty_abiguated_path(path, file_name):
-        path = path.removesuffix(file_name)
-        if path == "/":
-            return f"{file_name}"
-        else:
-            return f"{file_name} ({path})"
-
-    def generate_short_map_path(path: str, file_name: str) -> str:
-        path = path.replace("/Game", "", 1)
-        return SwitchboardDialog.filter_empty_abiguated_path(path, file_name)
-
-    def generate_disambiguated_names(path_list, shortening_function):
-        name_counts = {}
+    @classmethod
+    def disambiguated_base_names(
+        cls,
+        path_list: list[str],
+        disambiguating_function: Callable[[str], str],
+    ) -> tuple[list[str], dict[str, str]]:
+        '''
+        By default, shorten each path in `path_list` to its basename.
+        If a given basename appears more than once, `disambiguating_function`
+        is called to generate an alternative label (e.g. "A (/Other/Path/)").
+        '''
+        name_counts: dict[str, int] = {}
         for path in path_list:
             file_name = os.path.basename(path)
             name_counts[file_name] = name_counts.get(file_name, 0) + 1
 
-        # Show only level name if unique and show path behind to disambiguate duplicates
-        short_name_list = []
-        short_name_to_path = {}
+        # If unique, reduce to basename. Otherwise, append path to end
+        short_name_list: list[str] = []
+        short_name_to_path: dict[str, str] = {}
         for path in path_list:
             file_name = os.path.basename(path)
-            short_name = file_name if name_counts[file_name] == 1 else shortening_function(path, file_name)
+            short_name = (file_name if name_counts[file_name] == 1
+                          else disambiguating_function(path))
             short_name_list.append(short_name)
             short_name_to_path[short_name] = path
 
@@ -2047,9 +2208,16 @@ class SwitchboardDialog(QtCore.QObject):
             return -1 if path_a.lower() < path_b.lower() \
                 else 1 if path_a.lower() > path_b.lower() else 0
 
-        short_name_list, short_name_to_path = SwitchboardDialog.generate_disambiguated_names(
-            level_path_list,
-            SwitchboardDialog.generate_short_map_path)
+        def disambiguate_level_path(path: str) -> str:
+            file_name = os.path.basename(path)
+            path = path.removesuffix(file_name)
+            if path == "/":
+                return f"{file_name}"
+            else:
+                return f"{file_name} ({path})"
+
+        short_name_list, short_name_to_path = SwitchboardDialog.disambiguated_base_names(
+            level_path_list, disambiguate_level_path)
 
         from functools import cmp_to_key
         short_name_list = sorted(short_name_list, key=cmp_to_key(compare_file_names))

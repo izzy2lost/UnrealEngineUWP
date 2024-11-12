@@ -9,23 +9,29 @@
 #include "Framework/Commands/UIAction.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#if OUTPUTLOG_HAS_TARGET_PLATFORMS
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
+#endif
 #include "PlatformInfo.h"
 #include "OutputLogModule.h"
 #include "OutputLogStyle.h"
 #include "SSimpleComboButton.h"
 
+#if OUTPUTLOG_HAS_TARGET_PLATFORMS
 static bool IsSupportedPlatform(ITargetPlatform* Platform)
 {
 	check(Platform);
 	return Platform->SupportsFeature( ETargetPlatformFeatures::DeviceOutputLog );
 }
+#endif
 
 
 void SDeviceOutputLog::Construct( const FArguments& InArgs )
 {
+#if OUTPUTLOG_HAS_TARGET_PLATFORMS
 	bAutoSelectDevice = InArgs._AutoSelectDevice;
+#endif
 
 	MessagesTextMarshaller = FOutputLogTextLayoutMarshaller::Create(TArray<TSharedPtr<FOutputLogMessage>>(), &Filter);
 
@@ -48,6 +54,7 @@ void SDeviceOutputLog::Construct( const FArguments& InArgs )
 			[
 				MessagesTextBox.ToSharedRef()
 			]
+#if OUTPUTLOG_HAS_TARGET_PLATFORMS
 			// The console input box
 			+SVerticalBox::Slot()
 			.AutoHeight()
@@ -99,11 +106,13 @@ void SDeviceOutputLog::Construct( const FArguments& InArgs )
 					.SuggestionListPlacement( MenuPlacement_AboveAnchor )
 				]
 			]
+#endif
 	];
 
 	bIsUserScrolled = false;
 	RequestForceScroll();
 	
+#if OUTPUTLOG_HAS_TARGET_PLATFORMS
 	ITargetPlatformControls::OnDeviceDiscovered().AddRaw(this, &SDeviceOutputLog::HandleTargetPlatformDeviceDiscovered);
 	ITargetPlatformControls::OnDeviceLost().AddRaw(this, &SDeviceOutputLog::HandleTargetPlatformDeviceLost);
 		
@@ -124,20 +133,24 @@ void SDeviceOutputLog::Construct( const FArguments& InArgs )
 			}
 		}
 	}
+#endif
 }
 
 SDeviceOutputLog::~SDeviceOutputLog()
 {
+#if OUTPUTLOG_HAS_TARGET_PLATFORMS
 	ITargetPlatformControls::OnDeviceDiscovered().RemoveAll(this);
 	ITargetPlatformControls::OnDeviceLost().RemoveAll(this);
 
 	// Clearing the pointer manually to ensure that when the pointed device output object is destroyed
 	// SDeviceOutputLog is still in a valid state in case CurrentDeviceOutputPtr wanted to dereference it.
 	CurrentDeviceOutputPtr.Reset();
+#endif
 }
 
 void SDeviceOutputLog::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
+#if OUTPUTLOG_HAS_TARGET_PLATFORMS
 	// If auto-select is enabled request connecting to the default device and select it
 	if (!CurrentDevicePtr.IsValid() && bAutoSelectDevice)
 	{
@@ -164,6 +177,7 @@ void SDeviceOutputLog::Tick(const FGeometry& AllottedGeometry, const double InCu
 			CurrentDeviceOutputPtr = PinnedPtr->CreateDeviceOutputRouter(this);
 		}
 	}
+#endif
 
 	FScopeLock ScopeLock(&BufferedLinesSynch);
 	if (BufferedLines.Num() > 0)
@@ -191,6 +205,7 @@ bool SDeviceOutputLog::CanBeUsedOnAnyThread() const
 
 void SDeviceOutputLog::ExecuteConsoleCommand(const FString& ExecCommand)
 {
+#if OUTPUTLOG_HAS_TARGET_PLATFORMS
 	if (CurrentDevicePtr.IsValid())
 	{
 		ITargetDevicePtr PinnedPtr = CurrentDevicePtr->DeviceWeakPtr.Pin();
@@ -199,8 +214,10 @@ void SDeviceOutputLog::ExecuteConsoleCommand(const FString& ExecCommand)
 			PinnedPtr->ExecuteConsoleCommand(ExecCommand);
 		}
 	}
+#endif
 }
 
+#if OUTPUTLOG_HAS_TARGET_PLATFORMS
 void SDeviceOutputLog::HandleTargetPlatformDeviceLost(ITargetDeviceRef LostDevice)
 {
 	FTargetDeviceId LostDeviceId = LostDevice->GetId();
@@ -403,3 +420,4 @@ FText SDeviceOutputLog::GetSelectedTargetDeviceText() const
 {
 	return GetTargetDeviceText(CurrentDevicePtr);
 }
+#endif

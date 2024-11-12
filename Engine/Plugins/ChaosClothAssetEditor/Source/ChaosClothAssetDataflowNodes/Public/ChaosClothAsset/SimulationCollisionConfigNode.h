@@ -14,25 +14,25 @@ struct FChaosClothAssetSimulationCollisionConfigNode : public FChaosClothAssetSi
 
 public:
 	/** The added thickness of collision shapes. */
-	UPROPERTY(EditAnywhere, Category = "Collision Properties", DisplayName = "Collision Thickness", Meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000"))
+	UPROPERTY(EditAnywhere, Category = "Collision Properties", DisplayName = "Collision Thickness", Meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000", InteractorName = "CollisionThickness"))
 	FChaosClothAssetImportedFloatValue CollisionThicknessImported = {UE::Chaos::ClothAsset::FDefaultFabric::CollisionThickness};
 
 	/** Friction coefficient for cloth - collider interaction. */
-	UPROPERTY(EditAnywhere, Category = "Collision Properties", DisplayName = "Friction Coefficient", Meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "10"))
+	UPROPERTY(EditAnywhere, Category = "Collision Properties", DisplayName = "Friction Coefficient", Meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "10", InteractorName = "FrictionCoefficient"))
 	FChaosClothAssetImportedFloatValue FrictionCoefficientImported = {UE::Chaos::ClothAsset::FDefaultFabric::Friction};
 
 	/** Stiffness for proximity repulsion forces (Force-based solver only). Units = kg cm/ s^2 (same as XPBD springs)*/
-	UPROPERTY(EditAnywhere, Category = "Proximity Force Properties", Meta = (UIMin = "0", UIMax = "10000", ClampMin = "0", ClampMax = "10000000"))
+	UPROPERTY(EditAnywhere, Category = "Proximity Force Properties", Meta = (UIMin = "0", UIMax = "10000", ClampMin = "0", ClampMax = "10000000", InteractorName = "ProximityStiffness"))
 	float ProximityStiffness = 100.f;
 
 	/**
 	 * Use continuous collision detection (CCD) to prevent any missed collisions between fast moving particles and colliders.
 	 * This has a negative effect on performance compared to when resolving collision without using CCD.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Collision Properties")
+	UPROPERTY(EditAnywhere, Category = "Collision Properties", Meta = (InteractorName = "UseCCD"))
 	bool bUseCCD = false;
 
-	FChaosClothAssetSimulationCollisionConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSimulationCollisionConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 	virtual void Serialize(FArchive& Ar) override;
 
@@ -41,11 +41,12 @@ private:
 
 	// Deprecated properties
 #if WITH_EDITORONLY_DATA
-
+	static constexpr float CollisionThicknessDeprecatedDefault = 1.0f;
 	UPROPERTY()
-	float CollisionThickness_DEPRECATED = UE::Chaos::ClothAsset::FDefaultFabric::CollisionThickness;
+	float CollisionThickness_DEPRECATED = CollisionThicknessDeprecatedDefault;
 
+	static constexpr float FrictionCoefficientDeprecatedDefault = 0.8f;
 	UPROPERTY()
-	float FrictionCoefficient_DEPRECATED  = UE::Chaos::ClothAsset::FDefaultFabric::Friction;
+	float FrictionCoefficient_DEPRECATED  = FrictionCoefficientDeprecatedDefault;
 #endif
 };

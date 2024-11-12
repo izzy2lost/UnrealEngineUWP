@@ -34,19 +34,19 @@ struct FMovieSceneSequenceTickInterval
 public:
 
 	/** Defines the rate at which the sequence should update, in seconds */
-	UPROPERTY(EditAnywhere, Category="Playback", meta=(DisplayName="Tick Interval", Units=s))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Playback", meta=(DisplayName="Tick Interval", Units=s))
 	float TickIntervalSeconds = 0.f;
 
 	/** Defines an approximate budget for evaluation of this sequence (and any other sequences with the same tick interval) */
-	UPROPERTY(EditAnywhere, Category="Playback", meta=(DisplayName="Evaluation Budget", ForceUnits=us))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Playback", meta=(DisplayName="Evaluation Budget", ForceUnits=us))
 	float EvaluationBudgetMicroseconds = 0.f;
 
 	/** When true, the sequence will continue to tick and progress even when the world is paused */
-	UPROPERTY(EditAnywhere, Category="Playback")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Playback")
 	bool bTickWhenPaused = false;
 
 	/** When true, allow the sequence to be grouped with other sequences based on Sequencer.TickIntervalGroupingResolutionMs. Otherwise the interval will be used precisely. */
-	UPROPERTY(EditAnywhere, Category="Playback")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Playback")
 	bool bAllowRounding = true;
 
 public:

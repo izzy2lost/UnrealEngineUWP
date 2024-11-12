@@ -64,6 +64,13 @@ void FSimulcamEditorViewportClient::Draw(FViewport* Viewport, FCanvas* Canvas)
 		TileItem.BatchedElementParameters = BatchedElementParameters;
 		Canvas->DrawItem(TileItem);
 	}
+
+	// If the user is current doing a marquee select, draw the marquee selection box
+	if (bIsMarqueeSelecting)
+	{
+		FCanvasBoxItem BoxItem(SelectionStartCanvas, SelectionBoxSize);
+		Canvas->DrawItem(BoxItem);
+	}
 }
 
 void FSimulcamEditorViewportClient::MouseMove(FViewport* Viewport, int32 X, int32 Y)
@@ -121,39 +128,49 @@ bool FSimulcamEditorViewportClient::InputKey(const FInputKeyEventArgs& InEventAr
 			return false;
 		}
 
+		const bool bIsCtrlDown = FSlateApplication::Get().GetPlatformApplication()->GetModifierKeys().IsControlDown();
+		const bool bIsAltDown = FSlateApplication::Get().GetPlatformApplication()->GetModifierKeys().IsAltDown();
+
+		const FVector2D LocalMouse = FVector2D(InEventArgs.Viewport->GetMouseX(), InEventArgs.Viewport->GetMouseY());
+		MousePosition.X = FMath::Floor(LocalMouse.X);
+		MousePosition.Y = FMath::Floor(LocalMouse.Y);
+
 		if (InEventArgs.Key == EKeys::LeftMouseButton || InEventArgs.Key == EKeys::MiddleMouseButton || InEventArgs.Key == EKeys::RightMouseButton)
 		{
 			const FGeometry& MyGeometry = SimulcamEditorViewportWeakPtr.Pin()->GetTickSpaceGeometry();
-			const FVector2D LocalMouse = FVector2D(InEventArgs.Viewport->GetMouseX(), InEventArgs.Viewport->GetMouseY());
 			// check if we are under the viewport, otherwise the capture system will blindly trigger the PointerEvent
 			if (LocalMouse.ComponentwiseAllGreaterOrEqual(FVector2D(0, 0)) &&
 				LocalMouse.ComponentwiseAllLessThan(MyGeometry.GetAbsoluteSize()))
 			{
-				if (UTexture* Texture = SimulcamViewportWeakPtr.Pin()->GetTexture())
+				// create fake geometry and mouseposition
+				const FVector2D FakeMousePosition = GetTexturePosition();
+				const FIntPoint TextureSize = GetTextureSize();
+
+				// check for meaningful position
+				if (FakeMousePosition.X >= 0 && FakeMousePosition.Y >= 0 && FakeMousePosition.X < TextureSize.X && FakeMousePosition.Y < TextureSize.Y)
 				{
-					if (Texture->GetResource())
+					if (bIsCtrlDown && bIsAltDown && !bIsMarqueeSelecting)
 					{
-						uint32 TextureWidth = Texture->GetResource()->GetSizeX();
-						uint32 TextureHeight = Texture->GetResource()->GetSizeY();
+						// The user is initiating a marquee select
+						bIsMarqueeSelecting = true;
+						SelectionStartCanvas = LocalMouse;
+						SelectionStartTexture = FakeMousePosition;
+						SelectionBoxSize = FVector2D(0);
+					}
+					else 
+					{
+						// The user is performing some other mouse click event
+						const FGeometry FakeGeometry = FGeometry::MakeRoot(FVector2D(TextureSize), FSlateLayoutTransform());
+						FPointerEvent PointerEvent(
+							FSlateApplicationBase::CursorPointerIndex,
+							FakeMousePosition,
+							FakeMousePosition,
+							TSet<FKey>(),
+							InEventArgs.Key,
+							0,
+							FSlateApplication::Get().GetPlatformApplication()->GetModifierKeys());
 
-						// create fake geometry and mouseposition
-						const FVector2D FakeMousePosition = GetTexturePosition();
-
-						// check for meaningful position
-						if (FakeMousePosition.X >= 0 && FakeMousePosition.Y >= 0 && FakeMousePosition.X < TextureWidth && FakeMousePosition.Y < TextureHeight)
-						{
-							const FGeometry FakeGeometry = FGeometry::MakeRoot(FVector2D(TextureWidth, TextureHeight), FSlateLayoutTransform());
-							FPointerEvent PointerEvent(
-								FSlateApplicationBase::CursorPointerIndex,
-								FakeMousePosition,
-								FakeMousePosition,
-								TSet<FKey>(),
-								InEventArgs.Key,
-								0,
-								FSlateApplication::Get().GetPlatformApplication()->GetModifierKeys());
-
-							SimulcamEditorViewportWeakPtr.Pin()->OnViewportClicked(FakeGeometry, PointerEvent);
-						}
+						SimulcamEditorViewportWeakPtr.Pin()->OnViewportClicked(FakeGeometry, PointerEvent);
 					}
 				}
 			}
@@ -161,8 +178,6 @@ bool FSimulcamEditorViewportClient::InputKey(const FInputKeyEventArgs& InEventAr
 
 		if (bWithZoom)
 		{
-			const bool bIsCtrlDown = FSlateApplication::Get().GetPlatformApplication()->GetModifierKeys().IsControlDown();
-
 			if (InEventArgs.Key == EKeys::MouseScrollUp || (InEventArgs.Key == EKeys::Add && bIsCtrlDown))
 			{
 				ZoomOnPoint(InEventArgs.Viewport, MousePosition, [this] {SimulcamEditorViewportWeakPtr.Pin()->ZoomIn(); });
@@ -194,6 +209,26 @@ bool FSimulcamEditorViewportClient::InputKey(const FInputKeyEventArgs& InEventAr
 	}
 	else if (InEventArgs.Event == IE_Released)
 	{
+		if (bIsMarqueeSelecting)
+		{
+			// The user has finished the marquee select
+			bIsMarqueeSelecting = false;
+
+			// Calculate where the selection ended in texture coordinates based on the latest selection box size
+			const double CurrentZoom = SimulcamEditorViewportWeakPtr.Pin()->GetCustomZoomLevel();
+			FVector2D SelectionEndTexture = (SelectionStartTexture + (SelectionBoxSize / CurrentZoom));
+
+			// Clamp end position to the texture size
+			const FIntPoint TextureSize = GetTextureSize();
+			SelectionEndTexture.X = FMath::Clamp(SelectionEndTexture.X, 0, TextureSize.X);
+			SelectionEndTexture.Y = FMath::Clamp(SelectionEndTexture.Y, 0, TextureSize.Y);
+
+			const FVector2D TopLeftPoint = FIntPoint(FMath::Min(SelectionStartTexture.X, SelectionEndTexture.X), FMath::Min(SelectionStartTexture.Y, SelectionEndTexture.Y));
+			const FVector2D BottomRightPoint = FIntPoint(FMath::Max(SelectionStartTexture.X, SelectionEndTexture.X), FMath::Max(SelectionStartTexture.Y, SelectionEndTexture.Y));
+
+			SimulcamViewportWeakPtr.Pin()->OnMarqueeSelect(TopLeftPoint, BottomRightPoint);
+		}
+
 		return SimulcamViewportWeakPtr.Pin()->OnViewportInputKey(InEventArgs.Key, InEventArgs.Event);
 	}
 	else if (InEventArgs.Event == IE_Repeat)
@@ -298,10 +333,31 @@ bool FSimulcamEditorViewportClient::InputAxis(FViewport* Viewport, FInputDeviceI
 				CurrentTexturePosition.X = FMath::Clamp(CurrentTexturePosition.X, Viewport->GetSizeXY().X - TextureSize.X, 0.0f);
 			}
 		}
+
+		// Update the marquee selection box size based on the current mouse position
+		if (bIsMarqueeSelecting)
+		{
+			FVector2D LocalMouse = FVector2D(Viewport->GetMouseX(), Viewport->GetMouseY());
+			SelectionBoxSize = LocalMouse - SelectionStartCanvas;
+			ClampSelectionBoxSizeToTextureSize();
+		}
+
 		return true;
 	}
 
 	return false;
+}
+
+void FSimulcamEditorViewportClient::ClampSelectionBoxSizeToTextureSize()
+{
+	const FIntPoint TextureSize = GetTextureSize();
+	const double CurrentZoom = SimulcamEditorViewportWeakPtr.Pin()->GetCustomZoomLevel();
+
+	const FVector2D MinBoxSize = (FVector2D(0.0f, 0.0f) - SelectionStartTexture) * CurrentZoom;
+	const FVector2D MaxBoxSize = (FVector2D(TextureSize) - SelectionStartTexture) * CurrentZoom;
+
+	SelectionBoxSize.X = FMath::Clamp(SelectionBoxSize.X, MinBoxSize.X, MaxBoxSize.X);
+	SelectionBoxSize.Y = FMath::Clamp(SelectionBoxSize.Y, MinBoxSize.Y, MaxBoxSize.Y);
 }
 
 bool FSimulcamEditorViewportClient::ShouldUseMousePanning(FViewport* Viewport) const
@@ -392,4 +448,20 @@ FVector2D FSimulcamEditorViewportClient::GetTexturePosition() const
 {
 	const double CurrentZoom = SimulcamEditorViewportWeakPtr.Pin()->GetCustomZoomLevel();
 	return FVector2D((MousePosition.X - CurrentTexturePosition.X) / CurrentZoom, (MousePosition.Y - CurrentTexturePosition.Y) / CurrentZoom);
+}
+
+FIntPoint FSimulcamEditorViewportClient::GetTextureSize() const 
+{
+	FIntPoint TextureSize = FIntPoint(1);
+
+	if (UTexture* Texture = SimulcamViewportWeakPtr.Pin()->GetTexture())
+	{
+		if (Texture->GetResource())
+		{
+			TextureSize.X = Texture->GetResource()->GetSizeX();
+			TextureSize.Y = Texture->GetResource()->GetSizeY();
+		}
+	}
+
+	return TextureSize;
 }

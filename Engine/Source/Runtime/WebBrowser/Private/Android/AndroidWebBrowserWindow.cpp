@@ -23,9 +23,10 @@ namespace {
 
 }
 
-FAndroidWebBrowserWindow::FAndroidWebBrowserWindow(FString InUrl, TOptional<FString> InContentsToLoad, bool InShowErrorMessage, bool InThumbMouseButtonNavigation, bool InUseTransparency, bool bInJSBindingToLoweringEnabled)
+FAndroidWebBrowserWindow::FAndroidWebBrowserWindow(FString InUrl, TOptional<FString> InContentsToLoad, bool InShowErrorMessage, bool InThumbMouseButtonNavigation, bool InUseTransparency, bool bInJSBindingToLoweringEnabled, const FString& InUserAgentApplication)
 	: CurrentUrl(MoveTemp(InUrl))
 	, ContentsToLoad(MoveTemp(InContentsToLoad))
+	, UserAgentApplication(InUserAgentApplication)
 	, bUseTransparency(InUseTransparency)
 	, DocumentState(EWebBrowserDocumentState::NoDocument)
 	, ErrorCode(0)
@@ -75,6 +76,7 @@ TSharedRef<SWidget> FAndroidWebBrowserWindow::CreateWidget()
 		SNew(SAndroidWebBrowserWidget)
 		.UseTransparency(bUseTransparency)
 		.InitialURL(CurrentUrl)
+		.UserAgentApplication(UserAgentApplication)
 		.WebBrowserWindow(SharedThis(this));
 
 	BrowserWidget = BrowserWidgetRef;

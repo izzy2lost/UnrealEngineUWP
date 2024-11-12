@@ -21,6 +21,7 @@
 #include "SPositiveActionButton.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateTypes.h"
+#include "Textures/SlateIcon.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SScaleBox.h"
@@ -162,7 +163,8 @@ struct FClientTreeViewSubjectItem : public FClientTreeViewItem
 	{
 		if (const TSharedPtr<ILiveLinkHubClientsModel> ClientsModelPtr = ClientsModel.Pin())
 		{
-			return ClientsModelPtr->IsSubjectEnabled(ClientId, LiveLinkSubjectKey);
+			FLiveLinkClient& LiveLinkClient = static_cast<FLiveLinkClient&>(IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName));
+			return ClientsModelPtr->IsSubjectEnabled(ClientId, LiveLinkClient.GetRebroadcastName(LiveLinkSubjectKey));
 		}
 		return false;
 	}
@@ -181,7 +183,8 @@ struct FClientTreeViewSubjectItem : public FClientTreeViewItem
 	{
 		if (const TSharedPtr<ILiveLinkHubClientsModel> ClientsModelPtr = ClientsModel.Pin())
 		{
-			ClientsModelPtr->SetSubjectEnabled(ClientId, LiveLinkSubjectKey, bInEnabled);
+			FLiveLinkClient& LiveLinkClient = static_cast<FLiveLinkClient&>(IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName));
+			ClientsModelPtr->SetSubjectEnabled(ClientId, LiveLinkClient.GetRebroadcastName(LiveLinkSubjectKey), bInEnabled);
 		}
 	}
 
@@ -357,7 +360,6 @@ public:
 						[
 							SAssignNew(DiscoveredClientsListView, SListView<TSharedPtr<FLiveLinkHubClientId>>)
 							.ListItemsSource(&DiscoveredClients)
-							.ItemHeight(20.0f)
 							.OnSelectionChanged(this, &SLiveLinkHubClientsView::OnDiscoveredClientPicked)
 							.OnGenerateRow(this, &SLiveLinkHubClientsView::OnGenerateDiscoveredClientsRow)
 						]
@@ -365,11 +367,10 @@ public:
 				]
 			]
 			+ SVerticalBox::Slot()
-			.AutoHeight()
+			.VAlign(VAlign_Fill)
 			[
 				SAssignNew(TreeView, STreeView<FClientTreeItemPtr>)
 				.TreeItemsSource(&Clients)
-				.ItemHeight(20.0f)
 				.OnSelectionChanged(this, &SLiveLinkHubClientsView::OnSelectionChanged)
 				.OnGenerateRow(this, &SLiveLinkHubClientsView::OnGenerateClientRow)
 				.OnContextMenuOpening(this, &SLiveLinkHubClientsView::OnContextMenuOpening)
@@ -386,7 +387,7 @@ public:
 					.FillWidth(0.25f)
 					+ SHeaderRow::Column(EnabledIconColumnId)
 					.ManualWidth(20.f)
-					.DefaultLabel(LOCTEXT("EnabledIconEmpty", ""))
+					.DefaultLabel(FText())
 				)
 			]
 		];
@@ -476,7 +477,7 @@ private:
 		FMenuBuilder MenuBuilder( CloseAfterSelection, nullptr);
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("Remove", "Remove selected client"),
-			LOCTEXT("RemoveClientTooltip", "Stop transmitting LiveLink data to this client."),
+			LOCTEXT("RemoveClientTooltip", "Stop transmitting Live Link data to this client."),
 			FSlateIcon("LiveLinkStyle", "LiveLinkClient.Common.RemoveSource"),
 			FUIAction(
 				FExecuteAction::CreateRaw(this, &SLiveLinkHubClientsView::RemoveSelectedClient),
@@ -486,7 +487,7 @@ private:
 
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("RemoveAll", "Remove all clients"),
-			LOCTEXT("RemoveAllClientTooltip", "Stop transmitting LiveLink data to all discovered clients."),
+			LOCTEXT("RemoveAllClientTooltip", "Stop transmitting Live Link data to all discovered clients."),
 			FSlateIcon("LiveLinkStyle", "LiveLinkClient.Common.RemoveSource"),
 			FUIAction(
 				FExecuteAction::CreateRaw(this, &SLiveLinkHubClientsView::RemoveAllClients),

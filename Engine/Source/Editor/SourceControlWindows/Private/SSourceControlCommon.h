@@ -103,6 +103,9 @@ struct IFileViewTreeItem : public IChangelistTreeItem
 	/** The values displayed in the 'Type' column. */
 	virtual const FString& GetType() const { return DefaultStrValue; }
 
+	/** The values displayed in the 'Type Name' column. */
+	virtual const FString& GetTypeName() const { return DefaultStrValue; }
+
 	/** The values displayed in the 'User' column. */
 	virtual const FString& GetCheckedOutBy() const { return DefaultStrValue; }
 
@@ -225,6 +228,7 @@ struct FFileTreeItem : public IFileViewTreeItem
 	virtual const FString& GetName() const override { return AssetNameStr; }
 	virtual const FString& GetPath() const override { return AssetPathStr; }
 	virtual const FString& GetType() const override { return AssetTypeStr; }
+	virtual const FString& GetTypeName() const override { return AssetTypeNameStr; }
 	virtual const FString& GetFullPathname() const override { return FileState->GetFilename(); }
 	virtual const FString& GetCheckedOutBy() const override;
 
@@ -242,6 +246,9 @@ struct FFileTreeItem : public IFileViewTreeItem
 
 	/** Returns the asset type of the item */
 	FText GetAssetType() const { return AssetType; }
+
+	/** Returns the asset type name of the item */
+	FText GetAssetTypeName() const { return AssetTypeName; }
 
 	/** Returns the asset type color of the item */
 	FSlateColor GetAssetTypeColor() const { return FSlateColor(AssetTypeColor); }
@@ -309,6 +316,10 @@ private:
 	FText AssetType;
 	FString AssetTypeStr;
 
+	/** Cached asset type name to display */
+	FText AssetTypeName;
+	FString AssetTypeNameStr;
+
 	/** Cached asset type related color to display */
 	FColor AssetTypeColor;
 
@@ -370,6 +381,8 @@ private:
 	FString AssetPathStr;
 	FText AssetType;
 	FString AssetTypeStr;
+	FText AssetTypeName;
+	FString AssetTypeNameStr;
 	FColor AssetTypeColor;
 };
 

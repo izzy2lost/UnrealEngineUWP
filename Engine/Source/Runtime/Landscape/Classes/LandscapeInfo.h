@@ -25,6 +25,7 @@ class ULandscapeLayerInfoObject;
 class ULevel;
 class UMaterialInstanceConstant;
 struct FLandscapeEditorLayerSettings;
+struct FLandscapeTargetLayerSettings;
 class ULandscapeSplinesComponent;
 class ULandscapeSplineControlPoint;
 class ULandscapeSplineSegment;
@@ -76,7 +77,7 @@ struct FLandscapeInfoLayerSettings
 	TObjectPtr<UMaterialInstanceConstant> ThumbnailMIC;
 
 	UPROPERTY()
-	TObjectPtr<ALandscapeProxy> Owner;
+	TWeakObjectPtr<ALandscapeProxy> Owner;
 
 	UPROPERTY(transient)
 	int32 DebugColorChannel;
@@ -99,22 +100,18 @@ struct FLandscapeInfoLayerSettings
 
 	LANDSCAPE_API FLandscapeInfoLayerSettings(ULandscapeLayerInfoObject* InLayerInfo, ALandscapeProxy* InProxy);
 
-	FLandscapeInfoLayerSettings(FName InPlaceholderLayerName, ALandscapeProxy* InProxy)
-		: LayerInfoObj(nullptr)
-		, LayerName(InPlaceholderLayerName)
-#if WITH_EDITORONLY_DATA
-		, ThumbnailMIC(nullptr)
-		, Owner(InProxy)
-		, DebugColorChannel(0)
-		, bValid(false)
-#endif
-	{
-	}
+	LANDSCAPE_API FLandscapeInfoLayerSettings(FName InPlaceholderLayerName, ALandscapeProxy* InProxy);
 
 	LANDSCAPE_API FName GetLayerName() const;
 
 #if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS	
+	UE_DEPRECATED(5.5, "This property has been deprecated, please use the GetTargetLayerSettings instead")
 	LANDSCAPE_API FLandscapeEditorLayerSettings& GetEditorSettings() const;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
+	LANDSCAPE_API const FLandscapeTargetLayerSettings& GetTargetLayerSettings() const;
+
 #endif
 };
 
@@ -138,10 +135,14 @@ class ULandscapeInfo : public UObject
 	UPROPERTY()
 	int32 ComponentNumSubsections;
 	
-	UPROPERTY()
-	FVector DrawScale;
-	
 #if WITH_EDITORONLY_DATA
+	/** True when the draw scale has been set by the landscape Actor (false if default or set by a streaming proxy) */
+	UPROPERTY()
+	bool bDrawScaleSetByActor = false;
+
+	UPROPERTY()
+	FVector DrawScale = FVector(100.0);
+
 	UPROPERTY()
 	TArray<FLandscapeInfoLayerSettings> Layers;
 
@@ -160,9 +161,6 @@ public:
 	    only for use by the "add component" tool. Todo - move into the tool? */
 	TMap<FIntPoint, FLandscapeAddCollision> XYtoAddCollisionMap;
 #endif // WITH_EDITORONLY_DATA
-
-	UE_DEPRECATED(5.1, "This property has been deprecated, please use the StreamingProxies property instead")
-	TArray<TObjectPtr<ALandscapeStreamingProxy>> Proxies;
 
 	UPROPERTY()
 	TArray<TWeakObjectPtr<ALandscapeStreamingProxy>> StreamingProxies;
@@ -239,14 +237,20 @@ public:
 	LANDSCAPE_API void UpdateAllAddCollisions();
 	LANDSCAPE_API void UpdateAddCollision(FIntPoint LandscapeKey);
 
-	LANDSCAPE_API FLandscapeEditorLayerSettings& GetLayerEditorSettings(ULandscapeLayerInfoObject* LayerInfo) const;
-	LANDSCAPE_API void CreateLayerEditorSettingsFor(ULandscapeLayerInfoObject* LayerInfo);
+	UE_DEPRECATED(5.5, "This property has been deprecated, please use the GetTargetLayerSettings(ULandscapeLayerInfoObject* LayerInfo) instead")
+	LANDSCAPE_API FLandscapeTargetLayerSettings& GetLayerEditorSettings(ULandscapeLayerInfoObject* LayerInfo) const;
+	
+	LANDSCAPE_API const FLandscapeTargetLayerSettings& GetTargetLayerSettings(ULandscapeLayerInfoObject* LayerInfo) const;
+
+	UE_DEPRECATED(5.5, "This property has been deprecated, please use the CreateTargetLayerSettingsFor instead")
+	LANDSCAPE_API void CreateLayerEditorSettingsFor(ULandscapeLayerInfoObject* LayerInfo) {}
+	
+	LANDSCAPE_API void CreateTargetLayerSettingsFor(ULandscapeLayerInfoObject* LayerInfo);
 
 	LANDSCAPE_API ULandscapeLayerInfoObject* GetLayerInfoByName(FName LayerName, ALandscapeProxy* Owner = nullptr) const;
 	LANDSCAPE_API int32 GetLayerInfoIndex(FName LayerName, ALandscapeProxy* Owner = nullptr) const;
 	LANDSCAPE_API int32 GetLayerInfoIndex(ULandscapeLayerInfoObject* LayerInfo, ALandscapeProxy* Owner = nullptr) const;
 	LANDSCAPE_API bool UpdateLayerInfoMap(ALandscapeProxy* Proxy = nullptr, bool bInvalidate = false);
-
 
 	LANDSCAPE_API bool CanDeleteLandscape(FText& OutReason) const;
 
@@ -257,14 +261,12 @@ public:
 	 */
 	LANDSCAPE_API ALandscapeProxy* GetLandscapeProxyForLevel(ULevel* Level) const;
 
-	UE_DEPRECATED(5.3, "Use ULandscapeSubsystem::GetDirtyOnlyInMode() instead")
-	static bool IsDirtyOnlyInModeEnabled() { return false; }
-
 	LANDSCAPE_API bool GetDirtyOnlyInMode() const;
 
 	LANDSCAPE_API void OnModifiedPackageSaved(UPackage* InPackage);
 	LANDSCAPE_API int32 GetModifiedPackageCount() const;
 	LANDSCAPE_API TArray<UPackage*> GetModifiedPackages() const;
+	LANDSCAPE_API bool IsPackageModified(UPackage* InPackage) const;
 	LANDSCAPE_API void MarkModifiedPackagesAsDirty();
 
 	/** Landscapes are a bit special in that they contain derived data within their source data, which can be updated on-the-fly depending on many external factors (e.g. a procedural edit layer can invalidate some 
@@ -328,9 +330,6 @@ public:
 
 	LANDSCAPE_API void RemoveXYOffsets();
 
-	UE_DEPRECATED(5.3, "Texture Baking is officially deprecated now and nothing updates it anymore")
-	void PostponeTextureBaking() {}
-
 	/** Will tell if the landscape actor can have some content related to the layer system */
 	LANDSCAPE_API bool CanHaveLayersContent() const;
 
@@ -377,17 +376,6 @@ public:
 	void Initialize(UWorld* InWorld, const FGuid& InLandscapeGuid);
 
 	/**
-	 * Runs the given function on the root landscape actor and all streaming proxies
-	 * Most easily used with a lambda as follows:
-	 * ForAllLandscapeProxies([](ALandscapeProxy* Proxy)
-	 * {
-	 *     // Code
-	 * });
-	 */
-	UE_DEPRECATED(5.3, "This function has been deprecated, please use the ForEachLandscapeProxy property instead")
-	LANDSCAPE_API void ForAllLandscapeProxies(TFunctionRef<void(ALandscapeProxy*)> Fn) const;
-
-	/**
 	 * Runs the given function on the root landscape actor and all streaming proxies, with the posibility of early exit
 	 * Most easily used with a lambda as follows:
 	 * ForEachLandscapeProxy([](ALandscapeProxy* Proxy) -> bool
@@ -400,9 +388,9 @@ public:
 	void UpdateNanite(const ITargetPlatform* InTargetPlatform);
 
 	/** Associates passed actor with this info object
- *  @param	Proxy		Landscape actor to register
- *  @param  bMapCheck	Whether to warn about landscape errors
- */
+	 *  @param	Proxy		Landscape actor to register
+	 *  @param  bMapCheck	Whether to warn about landscape errors
+	 */
 	LANDSCAPE_API void RegisterActor(ALandscapeProxy* Proxy, bool bMapCheck = false, bool bUpdateAllAddCollisions = true);
 
 	/** Deassociates passed actor with this info object*/
@@ -434,6 +422,9 @@ public:
 	 * 
 	 * @return true if at least one overlapped component
 	 */
+	// TODO [jonathan.bard] : There should be multiple versions of this. 
+	//  1. This currently performs AABB to AABB checks and is therefore not optimal (but faster than OOBB to OOBB could ever be, which is why we might need 2 versions) :
+	//  2. Returning a TMap<> is a bit overkill, since the component key can be retrieved trivially from the component
 	LANDSCAPE_API bool GetOverlappedComponents(const FTransform& InAreaWorldTransform, const FBox2D& InAreaExtents, TMap<FIntPoint, ULandscapeComponent*>& OutOverlappedComponents, FIntRect& OutComponentIndicesBoundingRect);
 
 #if WITH_EDITOR
@@ -460,7 +451,10 @@ private:
 	bool ApplySplinesInternal(bool bOnlySelected, TScriptInterface<ILandscapeSplineInterface> SplineOwner, TSet<TObjectPtr<ULandscapeComponent>>* OutModifiedComponents, bool bMarkPackageDirty, int32 LandscapeMinX, int32 LandscapeMinY, int32 LandscapeMaxX, int32 LandscapeMaxY, TFunctionRef<TSharedPtr<FModulateAlpha>(ULandscapeLayerInfoObject*)> GetOrCreateModulate);
 	void MoveSegment(ULandscapeSplineSegment* InSegment, TScriptInterface<ILandscapeSplineInterface> From, TScriptInterface<ILandscapeSplineInterface> To);
 	void MoveControlPoint(ULandscapeSplineControlPoint* InControlPoint, TScriptInterface<ILandscapeSplineInterface> From, TScriptInterface<ILandscapeSplineInterface> To);
-	bool UpdateLayerInfoMapInternal(ALandscapeProxy* Proxy, bool bInvalidate);
+	bool UpdateLayerInfoMapInternal(ALandscapeProxy* Proxy);
 	bool TryAddToModifiedPackages(UPackage* InPackage, const ALandscape* InLandscapeOverride = nullptr);
 #endif
+
+private:
+	void RegisterLandscapeActorWithProxyInternal(ALandscapeProxy* Proxy, bool bMapCheck);
 };

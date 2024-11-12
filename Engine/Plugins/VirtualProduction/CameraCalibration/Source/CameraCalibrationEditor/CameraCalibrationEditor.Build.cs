@@ -18,6 +18,7 @@ namespace UnrealBuildTool.Rules
 					"CinematicCamera",
 					"Composure",
 					"ComposureLayersEditor",
+					"ContentBrowserData",
 					"Core",
 					"CoreUObject",
 	                "CurveEditor",

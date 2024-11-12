@@ -40,7 +40,7 @@ ALyraPlayerState::ALyraPlayerState(const FObjectInitializer& ObjectInitializer)
 	CombatSet = CreateDefaultSubobject<ULyraCombatSet>(TEXT("CombatSet"));
 
 	// AbilitySystemComponent needs to be updated at a high frequency.
-	NetUpdateFrequency = 100.0f;
+	SetNetUpdateFrequency(100.0f);
 
 	MyTeamID = FGenericTeamId::NoTeam;
 	MySquadID = INDEX_NONE;

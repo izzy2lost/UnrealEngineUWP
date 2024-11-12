@@ -8,6 +8,7 @@
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/HLOD/HLODStats.h"
+#include "WorldPartition/HLOD/HLODBuilder.h"
 
 #if WITH_EDITOR
 #include "UObject/ObjectSaveContext.h"
@@ -44,6 +45,9 @@ public:
 	ENGINE_API void SetSourceActors(UWorldPartitionHLODSourceActors* InSourceActors);
 	ENGINE_API UWorldPartitionHLODSourceActors* GetSourceActors();
 	ENGINE_API const UWorldPartitionHLODSourceActors* GetSourceActors() const;
+
+	ENGINE_API void SetInputStats(const FHLODBuildInputStats& InInputStats);
+	ENGINE_API const FHLODBuildInputStats& GetInputStats() const;
 
 	void SetRequireWarmup(bool InRequireWarmup) { bRequireWarmup = InRequireWarmup; }
 
@@ -89,7 +93,7 @@ protected:
 	virtual bool IsRuntimeOnly() const override { return true; }
 #if WITH_EDITOR
 	ENGINE_API virtual TUniquePtr<class FWorldPartitionActorDesc> CreateClassActorDesc() const override;
-	ENGINE_API virtual FBox GetStreamingBounds() const override;
+	ENGINE_API virtual void GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const override;
 
 	virtual bool ShouldImport(FStringView ActorPropString, bool IsMovingLevel) override { return false; }
 	virtual bool IsLockLocation() const override { return true; }
@@ -105,6 +109,9 @@ private:
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	TObjectPtr<UWorldPartitionHLODSourceActors> SourceActors;
+
+	UPROPERTY()
+	FHLODBuildInputStats InputStats;
 
 	UPROPERTY()
 	FBox HLODBounds;

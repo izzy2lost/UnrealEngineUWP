@@ -568,7 +568,7 @@ namespace FComputeShaderUtils
 			ParametersMetadata,
 			Parameters,
 			PassFlags,
-			[ParametersMetadata, Parameters, ComputeShader, GroupCount](FRHIComputeCommandList& RHICmdList)
+			[ParametersMetadata, Parameters, ComputeShader, GroupCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, ParametersMetadata, *Parameters, GroupCount);
 		});
@@ -598,7 +598,7 @@ namespace FComputeShaderUtils
 			ParametersMetadata,
 			Parameters,
 			PassFlags,
-			[ParametersMetadata, Parameters, ComputeShader, GroupCountCallback = MoveTemp(GroupCountCallback)](FRHIComputeCommandList& RHICmdList)
+			[ParametersMetadata, Parameters, ComputeShader, GroupCountCallback = MoveTemp(GroupCountCallback)](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
 				const FIntVector GroupCount = GroupCountCallback();
 				if (GroupCount.X > 0 && GroupCount.Y > 0 && GroupCount.Z > 0)
@@ -668,8 +668,8 @@ namespace FComputeShaderUtils
 			Forward<FRDGEventName>(PassName),
 			Parameters,
 			PassFlags,
-			[Parameters, ComputeShader, IndirectArgsBuffer, IndirectArgsOffset, DispatchLateParamCallback = MoveTemp(DispatchLateParamCallback)](FRHIComputeCommandList& RHICmdList)
-		{			
+			[Parameters, ComputeShader, IndirectArgsBuffer, IndirectArgsOffset, DispatchLateParamCallback = MoveTemp(DispatchLateParamCallback)](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
+		{
 			// Marks the indirect draw parameter as used by the pass manually, given it can't be bound directly by any of the shader,
 			// meaning SetShaderParameters() won't be able to do it.
 			IndirectArgsBuffer->MarkResourceAsUsed();
@@ -966,7 +966,7 @@ FORCEINLINE FRDGBufferRef CreateStructuredBuffer_Impl(
 }
 
 /** Same as the previous function but where the type of the array is automatically inferred, so we can do : 
- *  TArray<FSomeType> Array;
+ *  TArray<FSomeType>& Array = GraphBuilder.AllocArray<...>();
  *  CreateStructuredBuffer(..., [&]() -> auto&{ return Array; });
  */
 template <typename GetArrayRefCallback, typename Type = TInvokeResult_T<GetArrayRefCallback>>
@@ -990,6 +990,107 @@ FORCEINLINE FRDGBufferRef CreateStructuredBuffer(
 		return CreateStructuredBuffer(GraphBuilder, Name, InitialData.GetTypeSize(), 1, &DummyElement, InitialData.GetTypeSize(), ERDGInitialDataFlags::NoCopy);
 	}
 	return CreateStructuredBuffer(GraphBuilder, Name, InitialData.GetTypeSize(), InitialData.Num(), InitialData.GetData(), InitialData.GetTotalSize(), ERDGInitialDataFlags::NoCopy);
+}
+
+/** Creates a byte address buffer with initial data by creating an upload pass. */
+RENDERCORE_API FRDGBufferRef CreateByteAddressBuffer(
+	FRDGBuilder& GraphBuilder,
+	const TCHAR* Name,
+	uint32 NumBytes,
+	const void* InitialData,
+	uint64 InitialDataSize,
+	ERDGInitialDataFlags InitialDataFlags = ERDGInitialDataFlags::None);
+
+/** A variant where NumElements, InitialData, and InitialDataSize are supplied through callbacks. This allows creating a buffer with
+ *  information unknown at creation time. Though, data must be ready before the most recent RDG pass that references the buffer
+ *  is executed. For byte address buffers, NumElements must be Size / 4.
+ */
+RENDERCORE_API FRDGBufferRef CreateByteAddressBuffer(
+	FRDGBuilder& GraphBuilder,
+	const TCHAR* Name,
+	FRDGBufferNumElementsCallback&& NumElementsCallback,
+	FRDGBufferInitialDataCallback&& InitialDataCallback,
+	FRDGBufferInitialDataSizeCallback&& InitialDataSizeCallback);
+
+/**
+ * Helper to create a byte address buffer with initial data from a TArray with move semantics, this can be cheaper as it guarantees the lifetimes of the data & permits copy-free upload.
+ */
+template <typename ElementType, typename AllocatorType>
+FORCEINLINE FRDGBufferRef CreateByteAddressBuffer(
+	FRDGBuilder& GraphBuilder,
+	const TCHAR* Name,
+	TArray<ElementType, AllocatorType>&& InitialData)
+{
+	static const uint32 DummyElement = 0;
+	if (InitialData.Num() == 0)
+	{
+		return CreateByteAddressBuffer(GraphBuilder, Name, 4, &DummyElement, 4, ERDGInitialDataFlags::NoCopy);
+	}
+
+	// Create a move-initialized copy of the TArray with RDG lifetime & move the data there.
+	TArray<ElementType, AllocatorType>& UploadData = *GraphBuilder.AllocObject<TArray<ElementType, AllocatorType> >(MoveTemp(InitialData));
+	return CreateByteAddressBuffer(GraphBuilder, Name, UploadData.Num() * UploadData.GetTypeSize(), UploadData.GetData(), UploadData.Num() * UploadData.GetTypeSize(), ERDGInitialDataFlags::NoCopy);
+}
+
+/**
+ * Helper to create a byte address buffer with initial data from a TConstArrayView.
+ */
+template <typename ElementType>
+FORCEINLINE FRDGBufferRef CreateByteAddressBuffer(
+	FRDGBuilder& GraphBuilder,
+	const TCHAR* Name,
+	TConstArrayView<ElementType> InitialData,
+	ERDGInitialDataFlags InitialDataFlags = ERDGInitialDataFlags::None)
+{
+	static const ElementType DummyElement = ElementType();
+	if (InitialData.Num() == 0)
+	{
+		return CreateByteAddressBuffer(GraphBuilder, Name, InitialData.GetTypeSize(), &DummyElement, InitialData.GetTypeSize(), ERDGInitialDataFlags::NoCopy);
+	}
+	return CreateByteAddressBuffer(GraphBuilder, Name, InitialData.Num() * InitialData.GetTypeSize(), InitialData.GetData(), InitialData.Num() * InitialData.GetTypeSize(), InitialDataFlags);
+}
+
+/** A variant where the TArray is supplied through callbacks. This allows creating a buffer with
+ *  information unknown at creation time. Though, data must be ready before the most recent RDG pass that references the buffer
+ *  is executed.
+ */
+template <typename ArrayType>
+FORCEINLINE FRDGBufferRef CreateByteAddressBuffer_Impl(
+	FRDGBuilder& GraphBuilder,
+	const TCHAR* Name,
+	TRDGBufferArrayCallback<ArrayType>&& ArrayCallback)
+{
+	return CreateByteAddressBuffer(GraphBuilder, Name,
+		/*NumElementsCallback = */[ArrayCallback]() { const auto& Array = ArrayCallback(); return Array.Num() * Array.GetTypeSize() / 4; },
+		/*InitialDataCallback = */[ArrayCallback]() { return ArrayCallback().GetData(); },
+		/*InitialDataSizeCallback = */[ArrayCallback]() { const auto& Array = ArrayCallback(); return Array.Num() * Array.GetTypeSize(); });
+}
+
+/** Same as the previous function but where the type of the array is automatically inferred, so we can do : 
+ *  TArray<FSomeType> Array = GraphBuilder.AllocArray<...>();
+ *  CreateByteAddressBuffer(..., [&]() -> auto&{ return Array; });
+ */
+template <typename GetArrayRefCallback, typename Type = TInvokeResult_T<GetArrayRefCallback>>
+FORCEINLINE FRDGBufferRef CreateByteAddressBuffer(
+	FRDGBuilder& GraphBuilder,
+	const TCHAR* Name,
+	GetArrayRefCallback&& ArrayCallback)
+{
+	return CreateByteAddressBuffer_Impl<Type>(GraphBuilder, Name, MoveTemp(ArrayCallback));
+}
+
+template <typename ElementType>
+FORCEINLINE FRDGBufferRef CreateByteAddressBuffer(
+	FRDGBuilder& GraphBuilder,
+	const TCHAR* Name,
+	const FRDGUploadData<ElementType>& InitialData)
+{
+	static const uint32 DummyElement = 0;
+	if (InitialData.Num() == 0)
+	{
+		return CreateByteAddressBuffer(GraphBuilder, Name, 4, &DummyElement, 4, ERDGInitialDataFlags::NoCopy);
+	}
+	return CreateByteAddressBuffer(GraphBuilder, Name, InitialData.Num() * InitialData.GetTypeSize(), InitialData.GetData(), InitialData.GetTotalSize(), ERDGInitialDataFlags::NoCopy);
 }
 
 RENDERCORE_API FRDGBufferRef CreateUploadBuffer(
@@ -1028,10 +1129,10 @@ FORCEINLINE FRDGBufferRef CreateUploadBuffer(
 	TConstArrayView<ElementType> InitialData,
 	ERDGInitialDataFlags InitialDataFlags = ERDGInitialDataFlags::None)
 {
-	static const ElementType DummyElement = ElementType();
+	static const uint32 DummyElement = 0;
 	if (InitialData.Num() == 0)
 	{
-		return CreateUploadBuffer(GraphBuilder, Name, sizeof(ElementType), 1, &DummyElement, sizeof(ElementType), ERDGInitialDataFlags::NoCopy);
+		return CreateUploadBuffer(GraphBuilder, Name, 4, 1, &DummyElement, 4, ERDGInitialDataFlags::NoCopy);
 	}
 	return CreateUploadBuffer(GraphBuilder, Name, sizeof(ElementType), InitialData.Num(), InitialData.GetData(), sizeof(ElementType) * InitialData.Num(), InitialDataFlags);
 }
@@ -1094,10 +1195,7 @@ FORCEINLINE void AddPassIfDebug(FRDGBuilder& GraphBuilder, FRDGEventName&& Name,
 
 FORCEINLINE void AddDispatchToRHIThreadPass(FRDGBuilder& GraphBuilder)
 {
-	AddPass(GraphBuilder, RDG_EVENT_NAME("DispatchToRHI"), [](FRHICommandListImmediate& RHICmdList)
-	{
-		RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
-	});
+	GraphBuilder.AddDispatchHint();
 }
 
 BEGIN_SHADER_PARAMETER_STRUCT(FReadbackTextureParameters, )
@@ -1248,25 +1346,6 @@ inline const TRefCountPtr<FRDGPooledBuffer>& ConvertToExternalAccessBuffer(
 	ExternalAccessQueue.Add(Buffer, Access, Pipelines);
 	return GraphBuilder.ConvertToExternalBuffer(Buffer);
 }
-
-/** Scope used to wait for outstanding tasks when the scope destructor is called. Used for command list recording tasks. */
-class FRDGWaitForTasksScope
-{
-public:
-	FRDGWaitForTasksScope(FRDGBuilder& InGraphBuilder, bool InbCondition = true)
-		: GraphBuilder(InGraphBuilder)
-		, bCondition(InbCondition)
-	{}
-
-	RENDERCORE_API ~FRDGWaitForTasksScope();
-
-private:
-	FRDGBuilder& GraphBuilder;
-	bool bCondition;
-};
-
-#define RDG_WAIT_FOR_TASKS_CONDITIONAL(GraphBuilder, bCondition) FRDGWaitForTasksScope PREPROCESSOR_JOIN(RDGWaitForTasksScope, __LINE__){ GraphBuilder, bCondition }
-#define RDG_WAIT_FOR_TASKS(GraphBuilder) RDG_WAIT_FOR_TASKS_CONDITIONAL(GraphBuilder, true)
 
 // Allocates an RDG pooled buffer instance. Attempts to reuse allocation if Out has a value. Returns true a new instance was allocated, or false if the existing allocation was reused.
 RENDERCORE_API bool AllocatePooledBuffer(

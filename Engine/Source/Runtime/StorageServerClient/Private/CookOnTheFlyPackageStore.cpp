@@ -167,8 +167,8 @@ void FCookOnTheFlyPackageStoreBackend::AddPackages(TArray<FPackageStoreEntryReso
 				FailedName = FName(TEXT("<Unknown>"));
 			}
 
-			UE_LOG(LogCookOnTheFly, Warning, TEXT("0x%llX [Failed]. Failed to cook package %s."),
-				FailedPackageId.ValueForDebugging(), *FailedName.ToString());
+			UE_LOG(LogCookOnTheFly, Warning, TEXT("0x%s [Failed]. Failed to cook package %s."),
+				*LexToString(FailedPackageId), *FailedName.ToString());
 		}
 		EntryInfo.Status = EPackageStoreEntryStatus::Missing;
 		PackageStats.Failed++;
@@ -187,8 +187,8 @@ void FCookOnTheFlyPackageStoreBackend::AddPackages(TArray<FPackageStoreEntryReso
 		PackageEntries[EntryInfo.EntryIndex] = MoveTemp(Entry);
 		PackageStats.Cooked++;
 
-		UE_LOG(LogCookOnTheFly, Verbose, TEXT("0x%llX '%s' [OK] (Cooked/Failed='%d/%d')"),
-			PackageId.ValueForDebugging(), *PackageEntries[EntryInfo.EntryIndex].PackageName.ToString(), PackageStats.Cooked.Load(), PackageStats.Failed.Load());
+		UE_LOG(LogCookOnTheFly, Verbose, TEXT("0x%s '%s' [OK] (Cooked/Failed='%d/%d')"),
+			*LexToString(PackageId), *PackageEntries[EntryInfo.EntryIndex].PackageName.ToString(), PackageStats.Cooked.Load(), PackageStats.Failed.Load());
 	}
 }
 
@@ -246,7 +246,7 @@ void FCookOnTheFlyPackageStoreBackend::CheckActivity()
 				const FEntryInfo& EntryInfo = KeyValue.Value;
 				if (EntryInfo.Status == EPackageStoreEntryStatus::Pending)
 				{
-					UE_LOG(LogCookOnTheFly, Log, TEXT("0x%llX"), KeyValue.Key.ValueForDebugging());
+					UE_LOG(LogCookOnTheFly, Log, TEXT("0x%s"), *LexToString(KeyValue.Key));
 				}
 			}
 		}

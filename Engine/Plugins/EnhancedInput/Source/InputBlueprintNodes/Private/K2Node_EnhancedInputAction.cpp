@@ -21,6 +21,8 @@
 #include "Modules/ModuleManager.h"
 #include "Styling/AppStyle.h"
 #include "EnhancedInputEditorSettings.h"
+#include "WidgetBlueprint.h"
+#include "Blueprint/UserWidget.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(K2Node_EnhancedInputAction)
 
@@ -331,6 +333,16 @@ void UK2Node_EnhancedInputAction::ExpandNode(FKismetCompilerContext& CompilerCon
 		InputActionEvent->AllocateDefaultPins();
 		return InputActionEvent;
 	};
+
+	// Widget blueprints require the bAutomaticallyRegisterInputOnConstruction to be set to true in order to receive callbacks
+	if (GetBlueprint()->IsA<UWidgetBlueprint>())
+	{
+		CompilerContext.AddPostCDOCompiledStep([](const UObject::FPostCDOCompiledContext& Context, UObject* NewCDO)
+		{
+			UUserWidget* Widget = CastChecked<UUserWidget>(NewCDO);
+			Widget->bAutomaticallyRegisterInputOnConstruction = true;
+		});	
+	}
 
 	// Create temporary variables to copy ActionValue and ElapsedSeconds into
 	UK2Node_TemporaryVariable* ActionValueVar = CompilerContext.SpawnIntermediateNode<UK2Node_TemporaryVariable>(this, SourceGraph);

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "WmfMediaCommon.h"
 #include "IWmfMediaCodec.h"
 
 template <class T>

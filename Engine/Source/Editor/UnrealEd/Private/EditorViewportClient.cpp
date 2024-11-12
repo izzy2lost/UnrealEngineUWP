@@ -21,6 +21,7 @@
 #include "Settings/LevelEditorMiscSettings.h"
 #include "Engine/DebugDisplayProperty.h"
 #include "Engine/RendererSettings.h"
+#include "MeshEdges.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/BillboardComponent.h"
 #include "Audio/AudioDebug.h"
@@ -259,7 +260,8 @@ FViewportCameraTransform::FViewportCameraTransform()
 
 void FViewportCameraTransform::SetLocation( const FVector& Position )
 {
-	ViewLocation = Position;
+	FVector ClampedPosition = Position.BoundToCube(WORLD_MAX);
+	ViewLocation = ClampedPosition;
 	DesiredLocation = ViewLocation;
 }
 
@@ -401,7 +403,7 @@ FEditorViewportClient::FEditorViewportClient(FEditorModeTools* InModeTools, FPre
 	, CameraSpeedScalar(1.0f)
 	, ImmersiveDelegate()
 	, VisibilityDelegate()
-	, Viewport(NULL)
+	, Viewport(nullptr)
 	, ViewportType(LVT_Perspective)
 	, ViewState()
 	, StereoViewStates()
@@ -556,7 +558,7 @@ FEditorViewportClient::~FEditorViewportClient()
 
 	if(Viewport)
 	{
-		UE_LOG(LogEditorViewport, Fatal, TEXT("Viewport != NULL in FEditorViewportClient destructor."));
+		UE_LOG(LogEditorViewport, Fatal, TEXT("Viewport != nullptr in FEditorViewportClient destructor."));
 	}
 
 	if(GEditor)
@@ -796,45 +798,50 @@ void FEditorViewportClient::ToggleOrbitCamera( bool bEnableOrbitCamera )
 
 void FEditorViewportClient::FocusViewportOnBox( const FBox& BoundingBox, bool bInstant /* = false */ )
 {
+	if (!Viewport)
+	{
+		return;
+	}
+
 	const FVector Position = BoundingBox.GetCenter();
 	float Radius = FMath::Max<FVector::FReal>(BoundingBox.GetExtent().Size(), 10.f);
 
 	float AspectToUse = AspectRatio;
-	FIntPoint ViewportSize = Viewport->GetSizeXY();
-	if(!bUseControllingActorViewInfo && ViewportSize.X > 0 && ViewportSize.Y > 0)
+	const FIntPoint ViewportSize = Viewport->GetSizeXY();
+	if (!bUseControllingActorViewInfo && ViewportSize.X > 0 && ViewportSize.Y > 0)
 	{
 		AspectToUse = Viewport->GetDesiredAspectRatio();
 	}
 
 	CameraController->ResetVelocity();
 
-	const bool bEnable=false;
+	const bool bEnable = false;
 	ToggleOrbitCamera(bEnable);
 
 	{
 		FViewportCameraTransform& ViewTransform = GetViewTransform();
 
-		if(!IsOrtho())
+		if (!IsOrtho())
 		{
-		   /**
-			* We need to make sure we are fitting the sphere into the viewport completely, so if the height of the viewport is less
-			* than the width of the viewport, we scale the radius by the aspect ratio in order to compensate for the fact that we have
-			* less visible vertically than horizontally.
-			*/
-			if( AspectToUse > 1.0f )
+			/**
+				* We need to make sure we are fitting the sphere into the viewport completely, so if the height of the viewport is less
+				* than the width of the viewport, we scale the radius by the aspect ratio in order to compensate for the fact that we have
+				* less visible vertically than horizontally.
+				*/
+			if (AspectToUse > 1.0f)
 			{
 				Radius *= AspectToUse;
 			}
 
 			/**
-			 * Now that we have a adjusted radius, we are taking half of the viewport's FOV,
-			 * converting it to radians, and then figuring out the camera's distance from the center
-			 * of the bounding sphere using some simple trig.  Once we have the distance, we back up
-			 * along the camera's forward vector from the center of the sphere, and set our new view location.
-			 */
+				* Now that we have a adjusted radius, we are taking half of the viewport's FOV,
+				* converting it to radians, and then figuring out the camera's distance from the center
+				* of the bounding sphere using some simple trig.  Once we have the distance, we back up
+				* along the camera's forward vector from the center of the sphere, and set our new view location.
+				*/
 
-			const float HalfFOVRadians = FMath::DegreesToRadians( ViewFOV / 2.0f);
-			const float DistanceFromSphere = Radius / FMath::Tan( HalfFOVRadians );
+			const float HalfFOVRadians = FMath::DegreesToRadians(ViewFOV / 2.0f);
+			const float DistanceFromSphere = Radius / FMath::Tan(HalfFOVRadians);
 			FVector CameraOffsetVector = ViewTransform.GetRotation().Vector() * -DistanceFromSphere;
 
 			ViewTransform.SetLookAt(Position);
@@ -847,19 +854,23 @@ void FEditorViewportClient::FocusViewportOnBox( const FBox& BoundingBox, bool bI
 			//SetViewLocation( Position );
 			ViewTransform.TransitionToLocation(Position, EditorViewportWidget, bInstant);
 
-			if( !(Viewport->KeyState(EKeys::LeftControl) || Viewport->KeyState(EKeys::RightControl)) )
+			if (!(Viewport->KeyState(EKeys::LeftControl) || Viewport->KeyState(EKeys::RightControl)))
 			{
 				/**
 				* We also need to zoom out till the entire volume is in view.  The following block of code first finds the minimum dimension
 				* size of the viewport.  It then calculates backwards from what the view size should be (The radius of the bounding volume),
 				* to find the new OrthoZoom value for the viewport. The 15.0f is a fudge factor.
 				*/
-				float NewOrthoZoom;
-				uint32 MinAxisSize = (AspectToUse > 1.0f) ? Viewport->GetSizeXY().Y : Viewport->GetSizeXY().X;
-				float Zoom = Radius / (MinAxisSize / 2.0f);
+				float NewOrthoZoom = DEFAULT_ORTHOZOOM;
+				
+				if (ViewportSize.X > 0 && ViewportSize.Y > 0)
+				{
+					uint32 MinAxisSize = (AspectToUse > 1.0f) ? ViewportSize.Y : ViewportSize.X;
+					float Zoom = Radius / (MinAxisSize / 2.0f);
+					NewOrthoZoom = Zoom * (ViewportSize.X * 15.0f);
+				}
 
-				NewOrthoZoom = Zoom * (Viewport->GetSizeXY().X*15.0f);
-				NewOrthoZoom = FMath::Clamp<float>( NewOrthoZoom, GetMinimumOrthoZoom(), MAX_ORTHOZOOM );
+				NewOrthoZoom = FMath::Clamp<float>(NewOrthoZoom, GetMinimumOrthoZoom(), MAX_ORTHOZOOM);
 				ViewTransform.SetOrthoZoom(NewOrthoZoom);
 			}
 		}
@@ -1052,11 +1063,12 @@ FSceneView* FEditorViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily, c
 		    {
 			    const float MinZ = GetNearClipPlane();
 			    const float MaxZ = MinZ;
-			    // Avoid zero ViewFOV's which cause divide by zero's in projection matrix
-			    const float MatrixFOV = FMath::Max(0.001f, ModifiedViewFOV) * (float)PI / 360.0f;
 
 			    if (bConstrainAspectRatio)
 			    {
+					// Avoid zero ViewFOV's which cause divide by zero's in projection matrix
+					const float MatrixFOV = FMath::Max(0.001f, ModifiedViewFOV) * (float)PI / 360.0f;
+
 				    if ((bool)ERHIZBuffer::IsInverted)
 				    {
 					    ViewInitOptions.ProjectionMatrix = FReversedZPerspectiveMatrix(
@@ -1085,7 +1097,9 @@ FSceneView* FEditorViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily, c
 				    float XAxisMultiplier;
 				    float YAxisMultiplier;
 
-				    if (((ViewportSize.X > ViewportSize.Y) && (AspectRatioAxisConstraint == AspectRatio_MajorAxisFOV)) || (AspectRatioAxisConstraint == AspectRatio_MaintainXFOV))
+					const bool bMaintainXFOV = (((ViewportSize.X > ViewportSize.Y) && (AspectRatioAxisConstraint == AspectRatio_MajorAxisFOV)) || (AspectRatioAxisConstraint == AspectRatio_MaintainXFOV));
+
+				    if (bMaintainXFOV)
 				    {
 					    //if the viewport is wider than it is tall
 					    XAxisMultiplier = 1.0f;
@@ -1097,6 +1111,20 @@ FSceneView* FEditorViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily, c
 					    XAxisMultiplier = ViewportSize.Y / (float)ViewportSize.X;
 					    YAxisMultiplier = 1.0f;
 				    }
+
+					// Here we do something similar to FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle
+					// TODO: unify both codebases
+					float MatrixFOV;
+					if (!bMaintainXFOV && AspectRatio != 0.f) // TODO: read CVarUseLegacyMaintainYFOV
+					{
+						const float HalfXFOV = FMath::DegreesToRadians(FMath::Max(0.001f, ModifiedViewFOV) / 2.f);
+						const float HalfYFOV = FMath::Atan(FMath::Tan(HalfXFOV) / AspectRatio);
+						MatrixFOV = HalfYFOV;
+					}
+					else
+					{
+						MatrixFOV = FMath::Max(0.001f, ModifiedViewFOV) * (float)UE_PI / 360.0f;
+					}
 
 				    if ((bool)ERHIZBuffer::IsInverted)
 				    {
@@ -1272,6 +1300,9 @@ FSceneView* FEditorViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily, c
 	{
 		ViewInitOptions.bUseFieldOfViewForLOD = ControllingActorViewInfo.bUseFieldOfViewForLOD;
 		ViewInitOptions.FOV = ControllingActorViewInfo.FOV;
+		ViewInitOptions.FirstPersonParams = FFirstPersonParameters(ControllingActorViewInfo.CalculateFirstPersonFOVCorrectionFactor(), ControllingActorViewInfo.FirstPersonScale, ControllingActorViewInfo.bUseFirstPersonParameters);
+		ViewInitOptions.OverscanResolutionFraction = ControllingActorViewInfo.OverscanResolutionFraction;
+		ViewInitOptions.CropFraction = ControllingActorViewInfo.CropFraction;
 	}
 
 	ViewInitOptions.OverrideFarClippingPlaneDistance = FarPlane;
@@ -1457,7 +1488,7 @@ void FEditorViewportClient::Tick(float DeltaTime)
 			FQuat PlayerOrientation = GetViewRotation().Quaternion();
 			FVector PlayerLocation = GetViewLocation();
 				XRCamera->UseImplicitHMDPosition(false);
-				XRCamera->UpdatePlayerCamera(PlayerOrientation, PlayerLocation);
+				XRCamera->UpdatePlayerCamera(PlayerOrientation, PlayerLocation, DeltaTime);
 			}
 		}
 	}
@@ -1792,7 +1823,7 @@ bool FEditorViewportClient::IsActiveViewportType(ELevelViewportType InViewportTy
 void FEditorViewportClient::UpdateCameraMovement( float DeltaTime )
 {
 	// We only want to move perspective cameras around like this
-	if( Viewport != NULL && IsPerspective() && !ShouldOrbitCamera() )
+	if( Viewport != nullptr && IsPerspective() && !ShouldOrbitCamera() )
 	{
 		const bool bEnable = false;
 		ToggleOrbitCamera(bEnable);
@@ -2791,6 +2822,23 @@ FText FEditorViewportClient::GetCurrentVirtualShadowMapVisualizationModeDisplayN
 	return GetVirtualShadowMapVisualizationData().GetModeDisplayName(CurrentVirtualShadowMapVisualizationMode);
 }
 
+void FEditorViewportClient::ChangeActorColorationVisualizationMode(FName InName)
+{
+	SetViewMode(VMI_VisualizeActorColoration);
+	FActorPrimitiveColorHandler::Get().SetActivePrimitiveColorHandler(InName, GWorld);
+}
+
+bool FEditorViewportClient::IsActorColorationVisualizationModeSelected(FName InName) const
+{
+	return IsViewModeEnabled(VMI_VisualizeActorColoration) && FActorPrimitiveColorHandler::Get().GetActivePrimitiveColorHandler() == InName;
+}
+
+FText FEditorViewportClient::GetCurrentActorColorationVisualizationModeDisplayName() const
+{
+	checkf(IsViewModeEnabled(VMI_VisualizeActorColoration), TEXT("In order to call GetCurrentActorColorationVisualizationModeDisplayName(), first you must set ViewMode to VMI_VisualizeActorColoration."));
+	return FActorPrimitiveColorHandler::Get().GetActivePrimitiveColorHandlerDisplayName();
+}
+
 void FEditorViewportClient::ChangeSubstrateVisualizationMode(FName InName)
 {
 	SetViewMode(VMI_VisualizeSubstrate);
@@ -2870,6 +2918,7 @@ bool FEditorViewportClient::SupportsPreviewResolutionFraction() const
 	{
 	case VMI_BrushWireframe:
 	case VMI_Wireframe:
+	case VMI_Lit_Wireframe:
 	case VMI_LightComplexity:
 	case VMI_LightmapDensity:
 	case VMI_LitLightmapDensity:
@@ -2887,7 +2936,11 @@ bool FEditorViewportClient::SupportsPreviewResolutionFraction() const
 	}
 
 	// Don't do preview screen percentage in certain cases.
-	if (EngineShowFlags.VisualizeBuffer || EngineShowFlags.VisualizeNanite || EngineShowFlags.VisualizeVirtualShadowMap || IsVisualizeCalibrationMaterialEnabled())
+	if (EngineShowFlags.VisualizeBuffer 
+		|| EngineShowFlags.MeshEdges
+		|| EngineShowFlags.VisualizeNanite 
+		|| EngineShowFlags.VisualizeVirtualShadowMap 
+		|| IsVisualizeCalibrationMaterialEnabled())
 	{
 		return false;
 	}
@@ -3730,8 +3783,8 @@ void FEditorViewportClient::OnOrthoZoom( const struct FInputEventState& InputSta
 	const float OldUnitsPerPixel = GetOrthoUnitsPerPixel(Viewport);
 
 	//update zoom based on input
-	SetOrthoZoom( GetOrthoZoom() + (GetOrthoZoom() / CAMERA_ZOOM_DAMPEN) * Delta );
-	SetOrthoZoom( FMath::Clamp<float>( GetOrthoZoom(), GetMinimumOrthoZoom(), MAX_ORTHOZOOM ) );
+	const float Zoom = GetOrthoZoom() + (GetOrthoZoom() / CAMERA_ZOOM_DAMPEN) * Delta;
+	SetOrthoZoom( FMath::Clamp<float>( Zoom, GetMinimumOrthoZoom(), MAX_ORTHOZOOM ) );
 
 	if (bCenterZoomAroundCursor)
 	{
@@ -4061,15 +4114,14 @@ void FEditorViewportClient::SetupViewForRendering(FSceneViewFamily& ViewFamily, 
 	View.CurrentGroomVisualizationMode = CurrentGroomVisualizationMode;
 	View.CurrentVirtualShadowMapVisualizationMode = CurrentVirtualShadowMapVisualizationMode;
 	View.CurrentGPUSkinCacheVisualizationMode = CurrentGPUSkinCacheVisualizationMode;
-#if RHI_RAYTRACING
 	View.CurrentRayTracingDebugVisualizationMode = CurrentRayTracingDebugVisualizationMode;
-#endif
 
+	// assign wireframe opacity to the view
+	GetMeshEdgesViewSettings(View).Opacity = WireframeOpacity;
+	
 	//Look if the pixel inspector tool is on
-	View.bUsePixelInspector = false;
 	FPixelInspectorModule& PixelInspectorModule = FModuleManager::LoadModuleChecked<FPixelInspectorModule>(TEXT("PixelInspectorModule"));
 	bool IsInspectorActive = PixelInspectorModule.IsPixelInspectorEnable();
-	View.bUsePixelInspector = IsInspectorActive;
 	FIntPoint InspectViewportPos = FIntPoint(-1, -1);
 	if (IsInspectorActive)
 	{
@@ -4092,6 +4144,7 @@ void FEditorViewportClient::SetupViewForRendering(FSceneViewFamily& ViewFamily, 
 			PixelInspectorModule.SetCoordinatePosition(InspectViewportPos, false);
 		}
 	}
+	View.bUsePixelInspector = IsInspectorActive;
 
 	if (IsInspectorActive)
 	{
@@ -4287,6 +4340,9 @@ void FEditorViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 		// Clear the background to black if the aspect ratio is constrained, as the scene view won't write to all pixels.
 		Canvas->Clear(FLinearColor::Black);
 	}
+
+	ViewFamily.bSplitScreenDebugAllowed = true;
+	ViewFamily.bIsMainViewFamily = !ViewFamily.EngineShowFlags.Wireframe;			// Prefer non-wireframe views as "main" view family
 
 	// Draw the 3D scene
 	GetRendererModule().BeginRenderingViewFamily(Canvas,&ViewFamily);
@@ -5078,7 +5134,7 @@ bool FEditorViewportClient::ShouldOrbitCamera() const
 /** Returns true if perspective flight camera input mode is currently active in this viewport */
 bool FEditorViewportClient::IsFlightCameraInputModeActive() const
 {
-	if( (Viewport != NULL) && IsPerspective() )
+	if( (Viewport != nullptr ) && IsPerspective() )
 	{
 		if( CameraController != NULL )
 		{
@@ -5147,7 +5203,7 @@ bool FEditorViewportClient::IsVisible() const
 void FEditorViewportClient::GetViewportDimensions( FIntPoint& OutOrigin, FIntPoint& Outize )
 {
 	OutOrigin = FIntPoint(0,0);
-	if ( Viewport != NULL )
+	if ( Viewport != nullptr )
 	{
 		Outize.X = Viewport->GetSizeXY().X;
 		Outize.Y = Viewport->GetSizeXY().Y;
@@ -5384,8 +5440,8 @@ void FEditorViewportClient::MoveViewportCamera(const FVector& InDrag, const FRot
 
 			if( ( LeftMouseButtonDown || bIsUsingTrackpad ) && RightMouseButtonDown )
 			{
-				SetOrthoZoom( GetOrthoZoom() + (GetOrthoZoom() / CAMERA_ZOOM_DAMPEN) * InDrag.Z );
-				SetOrthoZoom( FMath::Clamp<float>( GetOrthoZoom(), GetMinimumOrthoZoom(), MAX_ORTHOZOOM ) );
+				const float Zoom = GetOrthoZoom() + (GetOrthoZoom() / CAMERA_ZOOM_DAMPEN) * InDrag.Z;
+				SetOrthoZoom( FMath::Clamp<float>( Zoom, GetMinimumOrthoZoom(), MAX_ORTHOZOOM ) );
 			}
 			else
 			{
@@ -6094,11 +6150,13 @@ bool RequestSaveScreenshot(bool bWriteAlpha, TArray<FColorType>& Bitmap, FIntPoi
 	FHighResScreenshotConfig& HighResScreenshotConfig = GetHighResScreenshotConfig();
 	bool bIsScreenshotSaved = false;
 	bool bSuppressWritingToFile = false;
+#if UE_SCREENSHOT_TRACE_ENABLED
 	if (SHOULD_TRACE_SCREENSHOT())
 	{
 		bSuppressWritingToFile = FTraceScreenshot::ShouldSuppressWritingToFile();
 		FTraceScreenshot::TraceScreenshot(BitmapSize.X, BitmapSize.Y, Bitmap, FScreenshotRequest::GetFilename());
 	}
+#endif
 
 	if (!bSuppressWritingToFile)
 	{
@@ -6219,7 +6277,9 @@ bool FEditorViewportClient::ProcessScreenShots(FViewport* InViewport)
 
 		// Done with the request
 		FScreenshotRequest::Reset();
+#if UE_SCREENSHOT_TRACE_ENABLED
 		FTraceScreenshot::Reset();
+#endif
 		FScreenshotRequest::OnScreenshotRequestProcessed().Broadcast();
 
 		// Re-enable screen messages - if we are NOT capturing a movie

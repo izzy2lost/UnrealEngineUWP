@@ -25,8 +25,6 @@ UPCGPointMatchAndSetSettings::UPCGPointMatchAndSetSettings(const FObjectInitiali
 	{
 		MatchAndSetInstance = ObjectInitializer.CreateDefaultSubobject<UPCGMatchAndSetWeighted>(this, TEXT("DefaultMatchAndSet"));
 	}
-
-	bUseSeed = MatchAndSetInstance && MatchAndSetInstance->UsesRandomProcess();
 }
 
 #if WITH_EDITOR
@@ -49,6 +47,11 @@ void UPCGPointMatchAndSetSettings::ApplyDeprecation(UPCGNode* InOutNode)
 	Super::ApplyDeprecation(InOutNode);
 }
 #endif // WITH_EDITOR
+
+bool UPCGPointMatchAndSetSettings::UseSeed() const
+{
+	return MatchAndSetInstance && MatchAndSetInstance->UsesRandomProcess();
+}
 
 TArray<FPCGPinProperties> UPCGPointMatchAndSetSettings::InputPinProperties() const
 {
@@ -81,7 +84,6 @@ void UPCGPointMatchAndSetSettings::PostLoad()
 	{
 		const EObjectFlags Flags = GetMaskedFlags(RF_PropagateToSubObjects) | RF_Transactional;
 		MatchAndSetInstance->SetFlags(Flags);
-		bUseSeed = MatchAndSetInstance->UsesRandomProcess();
 	}
 
 #if WITH_EDITOR
@@ -157,11 +159,13 @@ void UPCGPointMatchAndSetSettings::RefreshMatchAndSet()
 {
 	if (MatchAndSetType)
 	{
+		ensure(IsInGameThread());
+
 		// Forget previous instance
 		if (MatchAndSetInstance)
 		{
 #if WITH_EDITOR
-			MatchAndSetInstance->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+			MatchAndSetInstance->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 #endif
 			MatchAndSetInstance->MarkAsGarbage();
 			MatchAndSetInstance = nullptr;
@@ -176,8 +180,6 @@ void UPCGPointMatchAndSetSettings::RefreshMatchAndSet()
 	{
 		MatchAndSetInstance = nullptr;
 	}
-
-	bUseSeed = MatchAndSetInstance && MatchAndSetInstance->UsesRandomProcess();
 }
 
 bool FPCGPointMatchAndSetElement::ExecuteInternal(FPCGContext* Context) const
@@ -217,7 +219,7 @@ bool FPCGPointMatchAndSetElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
-		UPCGPointData* OutPointData = NewObject<UPCGPointData>();
+		UPCGPointData* OutPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		Output.Data = OutPointData;
 
 		OutPointData->InitializeFromData(InPointData);

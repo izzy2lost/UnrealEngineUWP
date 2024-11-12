@@ -64,6 +64,7 @@ public:
 	FString ExceptionString;
 
 	TArray<FString> CallStackString;
+	TArray<FString> PortableCallStackString;
 };
 
 /** 

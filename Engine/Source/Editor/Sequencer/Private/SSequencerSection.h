@@ -9,6 +9,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Rendering/RenderingCommon.h"
 
+#include "ISequencerSection.h"
 #include "EventHandlers/ISignedObjectEventHandler.h"
 #include "MVVM/ViewModels/SectionModel.h"
 #include "MVVM/Extensions/ITrackLaneExtension.h"
@@ -29,7 +30,7 @@ class FSectionModel;
 class FTrackAreaViewModel;
 struct ITrackAreaHotspot;
 
-class SSequencerSection : public SCompoundWidget, public ITrackLaneWidget, public UE::MovieScene::ISignedObjectEventHandler
+class SSequencerSection : public SCompoundWidget, public ITrackLaneWidget, public UE::Sequencer::ISectionView, public UE::MovieScene::ISignedObjectEventHandler
 {
 public:
 	SLATE_BEGIN_ARGS( SSequencerSection )
@@ -98,6 +99,9 @@ private:
 
 	/*~ ISignedObjectEventHandler interface */
 	virtual void OnModifiedIndirectly(UMovieSceneSignedObject* Object) override;
+
+	/*~ ISectionView interface */
+	virtual TSharedRef<FTimeToPixel> GetTimeToPixel() const override;
 
 	/**
 	 * Paint the easing handles for this section
@@ -182,6 +186,8 @@ private:
 	TSharedPtr<SCompoundTrackLaneView> ChildLaneWidgets;
 	/** The track lane that this widget is on */
 	TWeakPtr<STrackLane> WeakOwningTrackLane;
+	/** Shared time to local pixel space for this section */
+	TSharedPtr<FTimeToPixel> TimeToPixel;
 	/** Cached parent geometry to pass down to any section interfaces that need it during tick */
 	FGeometry ParentGeometry;
 	/** The end time for a throbbing animation for selected sections */

@@ -6,6 +6,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
 #include "MotionWarpingComponent.h"
+#include "MotionWarpingAdapter.h"
 #include "DrawDebugHelpers.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RootMotionModifier)
@@ -93,16 +94,32 @@ UMotionWarpingComponent* URootMotionModifier::GetOwnerComponent() const
 	return Cast<UMotionWarpingComponent>(GetOuter());
 }
 
-ACharacter* URootMotionModifier::GetCharacterOwner() const
+UMotionWarpingBaseAdapter* URootMotionModifier::GetOwnerAdapter() const
 {
 	UMotionWarpingComponent* OwnerComp = GetOwnerComponent();
-	return OwnerComp ? OwnerComp->GetCharacterOwner() : nullptr;
+	return OwnerComp ? OwnerComp->GetOwnerAdapter() : nullptr;
+}
+
+AActor* URootMotionModifier::GetActorOwner() const
+{
+	if (UMotionWarpingBaseAdapter* OwnerAdapter = GetOwnerAdapter())
+	{
+		return OwnerAdapter->GetActor();
+	}
+
+	return nullptr;
+}
+
+ACharacter* URootMotionModifier::GetCharacterOwner() const
+{
+	return Cast<ACharacter>(GetActorOwner());
 }
 
 void URootMotionModifier::Update(const FMotionWarpingUpdateContext& Context)
 {
-	const ACharacter* CharacterOwner = GetCharacterOwner();
-	if (CharacterOwner == nullptr)
+	const AActor* ActorOwner = GetActorOwner();
+
+	if (ActorOwner == nullptr)
 	{
 		return;
 	}
@@ -111,7 +128,7 @@ void URootMotionModifier::Update(const FMotionWarpingUpdateContext& Context)
 	if (!Context.Animation.IsValid() || Context.Animation.Get() != Animation)
 	{
 		UE_LOG(LogMotionWarping, Verbose, TEXT("MotionWarping: Marking RootMotionModifier for removal. Reason: Animation is not valid. Char: %s Current Animation: %s. Window: Animation: %s [%f %f] [%f %f]"),
-			*GetNameSafe(CharacterOwner), *GetNameSafe(Context.Animation.Get()), *GetNameSafe(Animation.Get()), StartTime, EndTime, PreviousPosition, CurrentPosition);
+			*GetNameSafe(ActorOwner), *GetNameSafe(Context.Animation.Get()), *GetNameSafe(Animation.Get()), StartTime, EndTime, PreviousPosition, CurrentPosition);
 
 		SetState(ERootMotionModifierState::MarkedForRemoval);
 		return;
@@ -126,7 +143,7 @@ void URootMotionModifier::Update(const FMotionWarpingUpdateContext& Context)
 	if (PreviousPosition >= EndTime)
 	{
 		UE_LOG(LogMotionWarping, Verbose, TEXT("MotionWarping: Marking RootMotionModifier for removal. Reason: Window has ended. Char: %s Animation: %s [%f %f] [%f %f]"),
-			*GetNameSafe(CharacterOwner), *GetNameSafe(Animation.Get()), StartTime, EndTime, PreviousPosition, CurrentPosition);
+			*GetNameSafe(ActorOwner), *GetNameSafe(Animation.Get()), StartTime, EndTime, PreviousPosition, CurrentPosition);
 
 		SetState(ERootMotionModifierState::MarkedForRemoval);
 		return;
@@ -184,15 +201,18 @@ void URootMotionModifier::OnStateChanged(ERootMotionModifierState LastState)
 	{
 		if (LastState != ERootMotionModifierState::Active && State == ERootMotionModifierState::Active)
 		{
-			const ACharacter* CharacterOwner = OwnerComp->GetCharacterOwner();
-			check(CharacterOwner);
+			const UMotionWarpingBaseAdapter* OwnerAdapter = GetOwnerAdapter();
+
+			checkf(OwnerAdapter, TEXT("Root motion modifiers expect an owner and adapter"));
+
+			const FVector CurrentLocation = OwnerAdapter->GetVisualRootLocation();
+			const FQuat CurrentRotation = OwnerAdapter->GetActor()->GetActorQuat();
 			
 			ActualStartTime = PreviousPosition;
 
-			const float CapsuleHalfHeight = CharacterOwner->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-			const FQuat CurrentRotation = CharacterOwner->GetActorQuat();
-			const FVector CurrentLocation = (CharacterOwner->GetActorLocation() - CurrentRotation.GetUpVector() * CapsuleHalfHeight);
 			StartTransform = FTransform(CurrentRotation, CurrentLocation);
+
+			TotalRootMotionWithinWindow = UMotionWarpingUtilities::ExtractRootMotionFromAnimation(Animation.Get(), StartTime, EndTime);
 
 			OnActivateDelegate.ExecuteIfBound(OwnerComp, this);
 		}
@@ -241,15 +261,15 @@ void URootMotionModifier_Warp::Update(const FMotionWarpingUpdateContext& Context
 		{
 			if (!CachedOffsetFromWarpPoint.IsSet())
 			{
-				if (const ACharacter* CharacterOwner = GetCharacterOwner())
+				if (const UMotionWarpingBaseAdapter* OwnerAdapter = GetOwnerAdapter())
 				{
 					if (WarpPointAnimProvider == EWarpPointAnimProvider::Static)
 					{
-						CachedOffsetFromWarpPoint = UMotionWarpingUtilities::CalculateRootTransformRelativeToWarpPointAtTime(*CharacterOwner, GetAnimation(), EndTime, WarpPointAnimTransform);
+						CachedOffsetFromWarpPoint = UMotionWarpingUtilities::CalculateRootTransformRelativeToWarpPointAtTime(*OwnerAdapter, GetAnimation(), EndTime, WarpPointAnimTransform);
 					}
 					else if (WarpPointAnimProvider == EWarpPointAnimProvider::Bone)
 					{
-						CachedOffsetFromWarpPoint = UMotionWarpingUtilities::CalculateRootTransformRelativeToWarpPointAtTime(*CharacterOwner, GetAnimation(), EndTime, WarpPointAnimBoneName);
+						CachedOffsetFromWarpPoint = UMotionWarpingUtilities::CalculateRootTransformRelativeToWarpPointAtTime(*OwnerAdapter, GetAnimation(), EndTime, WarpPointAnimBoneName);
 					}
 				}
 			}
@@ -269,13 +289,12 @@ void URootMotionModifier_Warp::Update(const FMotionWarpingUpdateContext& Context
 
 void URootMotionModifier_Warp::OnTargetTransformChanged()
 {
-	if (const ACharacter* CharacterOwner = GetCharacterOwner())
+ 	if (const UMotionWarpingBaseAdapter* WarpingAdapter = GetOwnerAdapter())
 	{
 		ActualStartTime = PreviousPosition;
 
-		const float CapsuleHalfHeight = CharacterOwner->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-		const FQuat CurrentRotation = CharacterOwner->GetActorQuat();
-		const FVector CurrentLocation = (CharacterOwner->GetActorLocation() - CurrentRotation.GetUpVector() * CapsuleHalfHeight);
+		const FQuat CurrentRotation = WarpingAdapter->GetActor()->GetActorQuat();
+		const FVector CurrentLocation = WarpingAdapter->GetVisualRootLocation();
 		StartTransform = FTransform(CurrentRotation, CurrentLocation);
 	}
 }
@@ -288,10 +307,10 @@ FQuat URootMotionModifier_Warp::GetTargetRotation() const
 	}
 	else if (RotationType == EMotionWarpRotationType::Facing)
 	{
-		if (const ACharacter* CharacterOwner = GetCharacterOwner())
+		if (const AActor* ActorOwner = GetActorOwner())
 		{
-			const FTransform& CharacterTransform = CharacterOwner->GetActorTransform();
-			const FVector ToSyncPoint = (CachedTargetTransform.GetLocation() - CharacterTransform.GetLocation()).GetSafeNormal2D();
+			const FTransform& ActorTransform = ActorOwner->GetActorTransform();
+			const FVector ToSyncPoint = (CachedTargetTransform.GetLocation() - ActorTransform.GetLocation()).GetSafeNormal2D();
 			return FRotationMatrix::MakeFromXZ(ToSyncPoint, FVector::UpVector).ToQuat();
 		}
 	}
@@ -301,15 +320,21 @@ FQuat URootMotionModifier_Warp::GetTargetRotation() const
 
 FQuat URootMotionModifier_Warp::WarpRotation(const FTransform& RootMotionDelta, const FTransform& RootMotionTotal, float DeltaSeconds)
 {
-	const ACharacter* CharacterOwner = GetCharacterOwner();
-	if (CharacterOwner == nullptr)
+	FQuat CurrentRotation;
+	FQuat TargetRotation;
+
+	if (const UMotionWarpingBaseAdapter* WarpingAdapter = GetOwnerAdapter())
 	{
+		CurrentRotation = WarpingAdapter->GetActor()->GetActorQuat() * WarpingAdapter->GetBaseVisualRotationOffset();
+		TargetRotation = CurrentRotation.Inverse() * (GetTargetRotation() * WarpingAdapter->GetBaseVisualRotationOffset());
+	}
+	else
+	{
+		// No owner, no warping possible
 		return FQuat::Identity;
 	}
 
 	const FQuat TotalRootMotionRotation = RootMotionTotal.GetRotation();
-	const FQuat CurrentRotation = CharacterOwner->GetActorQuat() * CharacterOwner->GetBaseRotationOffset();
-	const FQuat TargetRotation = CurrentRotation.Inverse() * (GetTargetRotation() * CharacterOwner->GetBaseRotationOffset());
 	const float TimeRemaining = (EndTime - PreviousPosition) * WarpRotationTimeMultiplier;
 	const float Alpha = FMath::Clamp(DeltaSeconds / TimeRemaining, 0.f, 1.f);
 	FQuat TargetRotThisFrame = FQuat::Slerp(TotalRootMotionRotation, TargetRotation, Alpha);
@@ -340,23 +365,33 @@ FQuat URootMotionModifier_Warp::WarpRotation(const FTransform& RootMotionDelta, 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 void URootMotionModifier_Warp::PrintLog(const FString& Name, const FTransform& OriginalRootMotion, const FTransform& WarpedRootMotion) const
 {
-	if (const ACharacter* CharacterOwner = GetCharacterOwner())
+	const AActor* ActorOwner = nullptr;
+
+	FVector CurrentLocation;
+	USkeletalMeshComponent* SkelMesh = nullptr;
+
+	if (const UMotionWarpingBaseAdapter* WarpingAdapter = GetOwnerAdapter())
 	{
-		const float CapsuleHalfHeight = CharacterOwner->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-		const FVector CurrentLocation = (CharacterOwner->GetActorLocation() - FVector(0.f, 0.f, CapsuleHalfHeight));
+		ActorOwner = WarpingAdapter->GetActor();
+		SkelMesh = WarpingAdapter->GetMesh();
+		CurrentLocation = WarpingAdapter->GetVisualRootLocation();
+	}
+
+	if (ActorOwner && SkelMesh)
+	{
 		const FVector CurrentToTarget = (GetTargetLocation() - CurrentLocation).GetSafeNormal2D();
-		const FVector FutureLocation = CurrentLocation + (CharacterOwner->GetMesh()->ConvertLocalRootMotionToWorld(WarpedRootMotion)).GetTranslation();
-		const FRotator CurrentRotation = CharacterOwner->GetActorRotation();
-		const FRotator FutureRotation = (WarpedRootMotion.GetRotation() * CharacterOwner->GetActorQuat()).Rotator();
-		const float Dot = FVector::DotProduct(CharacterOwner->GetActorForwardVector(), CurrentToTarget);
+		const FVector FutureLocation = CurrentLocation + (SkelMesh->ConvertLocalRootMotionToWorld(WarpedRootMotion)).GetTranslation();
+		const FRotator CurrentRotation = ActorOwner->GetActorRotation();
+		const FRotator FutureRotation = (WarpedRootMotion.GetRotation() * ActorOwner->GetActorQuat()).Rotator();
+		const float Dot = FVector::DotProduct(ActorOwner->GetActorForwardVector(), CurrentToTarget);
 		const float CurrentDist2D = FVector::Dist2D(GetTargetLocation(), CurrentLocation);
 		const float FutureDist2D = FVector::Dist2D(GetTargetLocation(), FutureLocation);
-		const float DeltaSeconds = CharacterOwner->GetWorld()->GetDeltaSeconds();
+		const float DeltaSeconds = ActorOwner->GetWorld()->GetDeltaSeconds();
 		const float Speed = WarpedRootMotion.GetTranslation().Size() / DeltaSeconds;
 		const float EndTimeOffset = CurrentPosition - EndTime;
 
 		UE_LOG(LogMotionWarping, Log, TEXT("%s NetMode: %d Char: %s Anim: %s Win: [%f %f][%f %f] DT: %f WT: %f ETOffset: %f Dist2D: %f Z: %f FDist2D: %f FZ: %f Dot: %f Delta: %s (%f) FDelta: %s (%f) Speed: %f Loc: %s FLoc: %s Rot: %s FRot: %s"),
-			*Name, (int32)CharacterOwner->GetWorld()->GetNetMode(), *GetNameSafe(CharacterOwner), *GetNameSafe(Animation.Get()), StartTime, EndTime, PreviousPosition, CurrentPosition, DeltaSeconds, CharacterOwner->GetWorld()->GetTimeSeconds(), EndTimeOffset,
+			*Name, (int32)ActorOwner->GetWorld()->GetNetMode(), *GetNameSafe(ActorOwner), *GetNameSafe(Animation.Get()), StartTime, EndTime, PreviousPosition, CurrentPosition, DeltaSeconds, ActorOwner->GetWorld()->GetTimeSeconds(), EndTimeOffset,
 			CurrentDist2D, (GetTargetLocation().Z - CurrentLocation.Z), FutureDist2D, (GetTargetLocation().Z - FutureLocation.Z), Dot,
 			*OriginalRootMotion.GetTranslation().ToString(), OriginalRootMotion.GetTranslation().Size(), *WarpedRootMotion.GetTranslation().ToString(), WarpedRootMotion.GetTranslation().Size(), Speed,
 			*CurrentLocation.ToString(), *FutureLocation.ToString(), *CurrentRotation.ToCompactString(), *FutureRotation.ToCompactString());
@@ -374,7 +409,13 @@ UDEPRECATED_RootMotionModifier_SimpleWarp::UDEPRECATED_RootMotionModifier_Simple
 
 FTransform UDEPRECATED_RootMotionModifier_SimpleWarp::ProcessRootMotion(const FTransform& InRootMotion, float DeltaSeconds)
 {
-	const ACharacter* CharacterOwner = GetCharacterOwner();
+	const ACharacter* CharacterOwner = nullptr;
+
+	if (const UMotionWarpingBaseAdapter* Adapter = GetOwnerAdapter())
+	{
+		CharacterOwner = Cast<ACharacter>(Adapter->GetActor());
+	}
+
 	if (CharacterOwner == nullptr)
 	{
 		return InRootMotion;

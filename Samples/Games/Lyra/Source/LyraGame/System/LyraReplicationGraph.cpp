@@ -270,11 +270,11 @@ void ULyraReplicationGraph::InitClassReplicationInfo(FClassReplicationInfo& Info
 	AActor* CDO = Class->GetDefaultObject<AActor>();
 	if (Spatialize)
 	{
-		Info.SetCullDistanceSquared(CDO->NetCullDistanceSquared);
+		Info.SetCullDistanceSquared(CDO->GetNetCullDistanceSquared());
 		UE_LOG(LogLyraRepGraph, Log, TEXT("Setting cull distance for %s to %f (%f)"), *Class->GetName(), Info.GetCullDistanceSquared(), Info.GetCullDistance());
 	}
 
-	Info.ReplicationPeriodFrame = GetReplicationPeriodFrameForFrequency(CDO->NetUpdateFrequency);
+	Info.ReplicationPeriodFrame = GetReplicationPeriodFrameForFrequency(CDO->GetNetUpdateFrequency());
 
 	UClass* NativeClass = Class;
 	while (!NativeClass->IsNative() && NativeClass->GetSuperClass() && NativeClass->GetSuperClass() != AActor::StaticClass())
@@ -282,7 +282,7 @@ void ULyraReplicationGraph::InitClassReplicationInfo(FClassReplicationInfo& Info
 		NativeClass = NativeClass->GetSuperClass();
 	}
 
-	UE_LOG(LogLyraRepGraph, Log, TEXT("Setting replication period for %s (%s) to %d frames (%.2f)"), *Class->GetName(), *NativeClass->GetName(), Info.ReplicationPeriodFrame, CDO->NetUpdateFrequency);
+	UE_LOG(LogLyraRepGraph, Log, TEXT("Setting replication period for %s (%s) to %d frames (%.2f)"), *Class->GetName(), *NativeClass->GetName(), Info.ReplicationPeriodFrame, CDO->GetNetUpdateFrequency());
 }
 
 bool ULyraReplicationGraph::ConditionalInitClassReplicationInfo(UClass* ReplicatedClass, FClassReplicationInfo& ClassInfo)
@@ -423,7 +423,7 @@ void ULyraReplicationGraph::InitGlobalActorClassSettings()
 	CharacterClassRepInfo.DistancePriorityScale = 1.f;
 	CharacterClassRepInfo.StarvationPriorityScale = 1.f;
 	CharacterClassRepInfo.ActorChannelFrameTimeout = 4;
-	CharacterClassRepInfo.SetCullDistanceSquared(ALyraCharacter::StaticClass()->GetDefaultObject<ALyraCharacter>()->NetCullDistanceSquared);
+	CharacterClassRepInfo.SetCullDistanceSquared(ALyraCharacter::StaticClass()->GetDefaultObject<ALyraCharacter>()->GetNetCullDistanceSquared());
 
 	SetClassInfo(ACharacter::StaticClass(), CharacterClassRepInfo);
 
@@ -784,8 +784,6 @@ void ULyraReplicationGraphNode_AlwaysRelevant_ForConnection::GatherActorListsFor
 
 	CleanupCachedRelevantActors(PastRelevantActorMap);
 
-	Params.OutGatheredReplicationLists.AddReplicationActorList(ReplicationActorList);
-
 	// Always relevant streaming level actors.
 	FPerConnectionActorInfoMap& ConnectionActorInfoMap = Params.ConnectionManager.ActorInfoMap;
 	
@@ -800,7 +798,7 @@ void ULyraReplicationGraphNode_AlwaysRelevant_ForConnection::GatherActorListsFor
 		{
 			// No always relevant lists for that level
 			UE_CLOG(Lyra::RepGraph::DisplayClientLevelStreaming > 0, LogLyraRepGraph, Display, TEXT("CLIENTSTREAMING Removing %s from AlwaysRelevantStreamingLevelActors because FActorRepListRefView is null. %s "), *StreamingLevel.ToString(),  *Params.ConnectionManager.GetName());
-			AlwaysRelevantStreamingLevelsNeedingReplication.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+			AlwaysRelevantStreamingLevelsNeedingReplication.RemoveAtSwap(Idx, EAllowShrinking::No);
 			continue;
 		}
 
@@ -822,7 +820,7 @@ void ULyraReplicationGraphNode_AlwaysRelevant_ForConnection::GatherActorListsFor
 			if (bAllDormant)
 			{
 				UE_CLOG(Lyra::RepGraph::DisplayClientLevelStreaming > 0, LogLyraRepGraph, Display, TEXT("CLIENTSTREAMING All AlwaysRelevant Actors Dormant on StreamingLevel %s for %s. Removing list."), *StreamingLevel.ToString(), *Params.ConnectionManager.GetName());
-				AlwaysRelevantStreamingLevelsNeedingReplication.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				AlwaysRelevantStreamingLevelsNeedingReplication.RemoveAtSwap(Idx, EAllowShrinking::No);
 			}
 			else
 			{
@@ -843,6 +841,8 @@ void ULyraReplicationGraphNode_AlwaysRelevant_ForConnection::GatherActorListsFor
 		ReplicationActorList.ConditionalAdd(GameplayDebugger);
 	}
 #endif
+
+	Params.OutGatheredReplicationLists.AddReplicationActorList(ReplicationActorList);
 }
 
 void ULyraReplicationGraphNode_AlwaysRelevant_ForConnection::OnClientLevelVisibilityAdd(FName LevelName, UWorld* StreamingWorld)

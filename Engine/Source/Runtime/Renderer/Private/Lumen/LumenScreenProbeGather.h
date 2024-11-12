@@ -36,8 +36,10 @@ namespace LumenScreenProbeGather
 	extern bool UseImportanceSampling(const FViewInfo& View);
 	extern bool UseProbeSpatialFilter();
 	extern bool UseProbeTemporalFilter();
-	extern bool UseRadianceCache(const FViewInfo& View);
+	extern bool UseRadianceCache();
+	bool UseRejectBasedOnNormal();
 	EScreenProbeIrradianceFormat GetScreenProbeIrradianceFormat(const FEngineShowFlags& ShowFlags);
+	bool UseHitLighting(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
 
 	// Must match LumenScreenProbeCommon.ush
 	constexpr uint32 IrradianceProbeRes = 6;
@@ -49,6 +51,7 @@ enum class EScreenProbeIndirectArgs
 {
 	GroupPerProbe,
 	ThreadPerProbe,
+	TraceCompaction,
 	ThreadPerTrace,
 	ThreadPerGather,
 	ThreadPerGatherWithBorder,
@@ -91,6 +94,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FScreenProbeParameters, )
 	SHADER_PARAMETER(uint32, MaxNumAdaptiveProbes)
 	SHADER_PARAMETER(int32, FixedJitterIndex)
 	SHADER_PARAMETER(uint32, ScreenProbeRayDirectionFrameIndex)
+	SHADER_PARAMETER(uint32, bSupportsHairScreenTraces)
+	SHADER_PARAMETER(FVector3f, TargetFormatQuantizationError)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, NumAdaptiveScreenProbes)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, AdaptiveScreenProbeData)
@@ -133,8 +138,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FScreenProbeGatherParameters, )
 END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FCompactedTraceParameters, )
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedTraceTexelAllocator)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedTraceTexelData)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, CompactedTraceTexelAllocator)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, CompactedTraceTexelData)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedLightSampleTraceTexelData)
 	RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
 END_SHADER_PARAMETER_STRUCT()

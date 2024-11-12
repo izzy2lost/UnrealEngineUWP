@@ -350,7 +350,7 @@ struct FLocalizationCompilationSettings
 	UPROPERTY(config, EditAnywhere, Category="Source")
 	bool SkipSourceCheck;
 
-	/* Should we validate that format patterns are valid for the culture being compiled (eg, detect invalid plural rules or broken syntax). */
+	/* Should we validate that format patterns are valid for the language being compiled (eg, detect invalid plural rules or broken syntax). */
 	UPROPERTY(config, EditAnywhere, Category="Validation")
 	bool ValidateFormatPatterns;
 
@@ -370,15 +370,15 @@ struct FLocalizationImportDialogueSettings
 	{
 	}
 
-	/** Path to the folder to import the audio from. This folder is expected to contain culture sub-folders, which in turn contain the raw WAV files to import. */
+	/** Path to the folder to import the audio from. This folder is expected to contain language sub-folders, which in turn contain the raw WAV files to import. */
 	UPROPERTY(config, EditAnywhere, Category="Dialogue")
 	FDirectoryPath RawAudioPath;
 
-	/** Folder in which to create the generated sound waves. This is relative to the root of the L10N culture folder (or the root content folder if importing native dialogue as source dialogue). */
+	/** Folder in which to create the generated sound waves. This is relative to the root of the L10N language folder (or the root content folder if importing native dialogue as source dialogue). */
 	UPROPERTY(config, EditAnywhere, Category="Dialogue")
 	FString ImportedDialogueFolder;
 
-	/** Should the dialogue for the native culture be imported as if it were source audio? If false, the native culture dialogue will be imported as localized data for the native culture. */
+	/** Should the dialogue for the native language be imported as if it were source audio? If false, the native language dialogue will be imported as localized data for the native language. */
 	UPROPERTY(config, EditAnywhere, Category="Dialogue")
 	bool bImportNativeAsSource;
 };
@@ -400,11 +400,11 @@ struct FCultureStatistics
 	}
 
 
-	/* The ISO name for this culture. */
-	UPROPERTY(config, EditAnywhere, Category = "Culture")
+	/* The ISO name for this language. */
+	UPROPERTY(config, EditAnywhere, Category = "Language", DisplayName="Language")
 	FString CultureName;
 
-	/* The estimated number of words that have been localized for this culture. */
+	/* The estimated number of words that have been localized for this language. */
 	UPROPERTY(Transient, EditAnywhere, Category = "Statistics")
 	uint32 WordCount;
 };
@@ -485,12 +485,12 @@ struct FLocalizationTargetSettings
 	UPROPERTY(config, EditAnywhere, Category = "Import Dialogue", meta=(ShowOnlyInnerProperties))
 	FLocalizationImportDialogueSettings ImportDialogueSettings;
 
-	/* The index of the native culture among the supported cultures. */
-	UPROPERTY(config, EditAnywhere, Category = "Cultures")
+	/* The index of the native language among the supported languages. */
+	UPROPERTY(config, EditAnywhere, Category = "Languages")
 	int32 NativeCultureIndex;
 
-	/* Cultures for which the source text is being localized for.*/
-	UPROPERTY(config, EditAnywhere, Category = "Cultures")
+	/* Language for which the source text is being localized for.*/
+	UPROPERTY(config, EditAnywhere, Category = "Languages")
 	TArray<FCultureStatistics> SupportedCulturesStatistics;
 };
 

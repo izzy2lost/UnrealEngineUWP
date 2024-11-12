@@ -6,6 +6,7 @@
 #include "Misc/Attribute.h"
 #include "LandscapeEditorDetailCustomization_Base.h"
 #include "LandscapeEdMode.h"
+#include "LandscapeEditLayer.h"
 #include "Layout/Visibility.h"
 #include "Layout/Margin.h"
 #include "Styling/SlateColor.h"
@@ -42,7 +43,7 @@ public:
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 
 protected:
-	static bool ShoudShowLayersErrorMessageTip();
+	static bool ShouldShowLayersErrorMessageTip();
 	static FText GetLayersErrorMessageText();
 };
 
@@ -76,30 +77,48 @@ protected:
 	bool IsLayerSelected(int32 LayerIndex) const;
 	void OnLayerSelectionChanged(int32 LayerIndex);
 	TSharedPtr<SWidget> OnLayerContextMenuOpening(int32 InLayerIndex);
+
+	FText GetNumLayersText() const;
+
+	bool CanCreateLayer(FText& OutReason) const;
 	void CreateLayer();
-	void ClearPaintLayer(int32 InLayerIndex, ULandscapeLayerInfoObject* InLayerInfo);
-	void ClearLayer(int32 InLayerIndex, ELandscapeClearMode InClearMode);
+
+	const FSlateBrush* GetEditLayerIconBrush(int32 InLayerIndex) const;
+
+	bool CanClearTargetLayerOnLayer(int32 InLayerIndex, ULandscapeLayerInfoObject* InLayerInfo, FText& OutReason) const;
+	void ClearTargetLayerOnLayer(int32 InLayerIndex, ULandscapeLayerInfoObject* InLayerInfo);
+	bool CanClearLayer(int32 InLayerIndex, FText& OutReason) const;
+	bool CanClearTargetLayersOnLayer(int32 InLayerIndex, ELandscapeClearMode InClearMode, FText& OutReason) const;
+	void ClearTargetLayersOnLayer(int32 InLayerIndex, ELandscapeClearMode InClearMode);
+
+	bool CanRenameLayerTo(const FText& NewText, FText& OutErrorMessage, int32 InLayerIndex);
+	bool CanRenameLayer(int32 InLayerIndex, FText& OutReason) const;
 	void RenameLayer(int32 InLayerIndex);
+
+	bool CanDeleteLayer(int32 InLayerIndex, FText& OutReason) const;
 	void DeleteLayer(int32 InLayerIndex);
+
 	bool CanCollapseLayer(int32 InLayerIndex, FText& OutReason) const;
 	void CollapseLayer(int32 InLayerIndex);
+
+	bool CanExecuteCustomLayerAction(int32 InLayerIndex, const ULandscapeEditLayerBase::FEditLayerAction& InCustomLayerAction, FText& OutReason) const;
+	void ExecuteCustomLayerAction(int32 InLayerIndex, const ULandscapeEditLayerBase::FEditLayerAction& InCustomLayerAction);
+
 	void ShowOnlySelectedLayer(int32 InLayerIndex);
 	void ShowAllLayers();
-	bool CanRenameLayerTo(const FText& NewText, FText& OutErrorMessage, int32 InLayerIndex);
-	void OnBeginNameTextEdit();
-	void OnEndNameTextEdit();
 	void SetLayerName(const FText& InText, ETextCommit::Type InCommitType, int32 InLayerIndex);
 	FText GetLayerText(int32 InLayerIndex) const;
 	FSlateColor GetLayerTextColor(int32 InLayerIndex) const;
-	void SetLandscapeSplinesReservedLayer(int32 InLayerIndex);
 	FText GetLayerDisplayName(int32 InLayerIndex) const;
-	bool IsLayerEditionEnabled(int32 InLayerIndex) const;
 	EVisibility GetLayerAlphaVisibility(int32 InLayerIndex) const;
-	void ForceUpdateSplines();
+	TSharedPtr<IToolTip> GetEditLayerTypeTooltip(int32 InLayerIndex) const;
+	TSubclassOf<ULandscapeEditLayerBase> PickEditLayerClass() const;
 
 	TOptional<float> GetLayerAlpha(int32 InLayerIndex) const;
+	bool CanSetLayerAlpha(int32 InLayerIndex, FText& OutReason) const;
 	void SetLayerAlpha(float InAlpha, int32 InLayerIndex, bool bCommit);
 	
+	bool CanToggleVisibility(int32 InLayerIndex, FText& OutReason) const;
 	FReply OnToggleVisibility(int32 InLayerIndex);
 	const FSlateBrush* GetVisibilityBrushForLayer(int32 InLayerIndex) const;
 	
@@ -108,7 +127,7 @@ protected:
 
 	void FillAddBrushMenu(FMenuBuilder& MenuBuilder, TArray<ALandscapeBlueprintBrushBase*> Brushes);
 	void AddBrushToCurrentLayer(ALandscapeBlueprintBrushBase* Brush);
-	void FillClearPaintLayerMenu(FMenuBuilder& MenuBuilder, int32 InLayerIndex, TArray<ULandscapeLayerInfoObject*> InUsedLayerInfos);
+	void FillClearTargetLayerMenu(FMenuBuilder& MenuBuilder, int32 InLayerIndex, TArray<ULandscapeLayerInfoObject*> InUsedLayerInfos);
 	void FillClearLayerMenu(FMenuBuilder& MenuBuilder, int32 InLayerIndex);
 
 private:
@@ -116,7 +135,6 @@ private:
 	/** Widgets for displaying and editing the layer name */
 	TArray< TSharedPtr< SInlineEditableTextBlock > > InlineTextBlocks;
 
-	int32 CurrentEditingInlineTextBlock;
 	int32 CurrentSlider;
 };
 

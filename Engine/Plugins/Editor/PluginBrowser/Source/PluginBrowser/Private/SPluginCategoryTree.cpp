@@ -3,6 +3,7 @@
 #include "SPluginCategoryTree.h"
 #include "Framework/Views/TableViewMetadata.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/ConfigCacheIni.h"
 #include "SPluginCategory.h"
 #include "SPluginBrowser.h"
 #include "Widgets/Views/STreeView.h"
@@ -20,6 +21,7 @@ void SPluginCategoryTree::Construct( const FArguments& Args, const TSharedRef< S
 	// Create the root categories
 	AllCategory = MakeShareable(new FPluginCategory(NULL, TEXT("All"), LOCTEXT("AllCategoryName", "All Plugins")));
 	BuiltInCategory = MakeShareable(new FPluginCategory(NULL, TEXT("Built-In"), LOCTEXT("BuiltInCategoryName", "Built-In")));
+	ExternalCategory = MakeShareable(new FPluginCategory(NULL, TEXT("External"), LOCTEXT("ExternalCategoryName", "External")));
 	InstalledCategory = MakeShareable(new FPluginCategory(NULL, TEXT("Installed"), LOCTEXT("InstalledCategoryName", "Installed")));
 	ProjectCategory = MakeShareable(new FPluginCategory(NULL, TEXT("Project"), LOCTEXT("ProjectCategoryName", "Project")));
 	ModCategory = MakeShareable(new FPluginCategory(NULL, TEXT("Mods"), LOCTEXT("ModsCategoryName", "Mods")));
@@ -112,6 +114,10 @@ void SPluginCategoryTree::RebuildAndFilterCategoryTree()
 		if (Plugin->GetType() == EPluginType::Mod)
 		{
 			RootCategory = ModCategory;
+		}
+		else if (Plugin->GetType() == EPluginType::External)
+		{
+			RootCategory = ExternalCategory;
 		}
 		else if(Plugin->GetDescriptor().bInstalled)
 		{
@@ -217,6 +223,10 @@ void SPluginCategoryTree::RebuildAndFilterCategoryTree()
 	{
 		RootCategories.Add(InstalledCategory);
 	}
+	if (ExternalCategory->SubCategories.Num() > 0 || ExternalCategory->Plugins.Num() > 0)
+	{
+		RootCategories.Add(ExternalCategory);
+	}
 	if(BuiltInCategory->SubCategories.Num() > 0 || BuiltInCategory->Plugins.Num() > 0)
 	{
 		RootCategories.Add(BuiltInCategory);
@@ -224,6 +234,20 @@ void SPluginCategoryTree::RebuildAndFilterCategoryTree()
 	if (RootCategories.Num() > 0)
 	{
 		RootCategories.Insert(AllCategory, 0);
+	}
+
+	// Optionally hide some categories
+	{
+		TArray<FString> HiddenCategoryNames;
+		GConfig->GetArray(TEXT("EditorSettings"), TEXT("HidePluginCategoriesFromBrowser"), HiddenCategoryNames, GEditorIni);
+
+		for (TArray<TSharedPtr<FPluginCategory>>::TIterator CategoryIter = RootCategories.CreateIterator(); CategoryIter; ++CategoryIter)
+		{
+			if (HiddenCategoryNames.Contains((*CategoryIter)->Name))
+			{
+				CategoryIter.RemoveCurrent();
+			}
+		}
 	}
 
 	// Sort every single category alphabetically

@@ -137,6 +137,24 @@ namespace Interchange
 					}
 				}
 
+				namespace Rotator
+				{
+					const FName Name = TEXT("Rotator");
+
+					namespace Attributes
+					{
+						const FName CenterX = TEXT("CenterX");
+						const FName CenterY = TEXT("CenterY");
+						const FName Speed = TEXT("Speed");
+					}
+
+					namespace Inputs
+					{
+						const FName Coordinate = TEXT("Coordinate");
+						const FName Time = TEXT("Time");
+					}
+				}
+
 				namespace Swizzle
 				{
 					const FName Name = TEXT("MaterialXSwizzle");
@@ -323,6 +341,7 @@ namespace Interchange
 				const FName BxDF = TEXT("BxDF"); // input/output of BSDF or BRDF or BXDF or BTDF data
 				const FName Refraction = TEXT("Refraction"); // input/output of BSDF or BRDF or BXDF or BTDF data
 				const FName Anisotropy = TEXT("Anisotropy"); // Type: float
+				const FName Displacement = TEXT("Displacement"); // Type: float
 			}
 		}
 
@@ -450,6 +469,7 @@ namespace Interchange
 			namespace Parameters
 			{
 				const FName TransmissionColor = TEXT("TransmissionColor"); // Type: vector3
+				const FName SurfaceCoverage = TEXT("SurfaceCoverage"); // Type: float
 			}
 		}
 
@@ -606,6 +626,17 @@ namespace Interchange
 				const FName Displacement = TEXT("displacement");
 				const FName Occlusion = TEXT("occlusion");
 			}
+
+			// These outputs are only used for Substrate
+			namespace SubstrateMaterial
+			{
+				namespace Outputs
+				{
+					const FName FrontMaterial = TEXT("Substrate UsdPreviewSurface");
+					const FName Displacement = TEXT("Displacement");
+					const FName Occlusion = TEXT("Occlusion");
+				}
+			}
 		}
 
 		namespace Unlit
@@ -622,8 +653,9 @@ namespace Interchange
 			{
 				const FName FrontMaterial = TEXT("Front Material");
 				const FName OpacityMask = TEXT("Opacity Mask");
-			}
-			
+				const FName Displacement = TEXT("Displacement");
+				const FName Occlusion = TEXT("Occlusion");
+			}			
 		}
 	}
 }

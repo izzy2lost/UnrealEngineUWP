@@ -83,11 +83,17 @@ enum class EMovieRenderShotState : uint8
 	* a whole frame.
 	*/
 	Rendering = 3,
+	/** 
+	* The shot is cooling down. Engine ticks are passing and frames are being rendered, but
+	* not saved to disk. This is needed because temporal-based denoisers need to look at the
+	* future (which would be after a shot) to finish the current frames of the shot.
+	*/
+	CoolingDown = 4,
 	/*
 	* The shot has produced all frames it will produce. No more evaluation should be
 	* done for this shot once it reaches this state.
 	*/
-	Finished = 4
+	Finished = 5
 };
 
 USTRUCT(BlueprintType)
@@ -129,6 +135,30 @@ public:
 	// multiple cameras within a single pass.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Pipeline")
 	FString CameraName;
+};
+
+/**
+ * Represents a console variable override that can be enabled/disabled.
+ */
+USTRUCT(BlueprintType)
+struct MOVIERENDERPIPELINECORE_API FMoviePipelineConsoleVariableEntry
+{
+	GENERATED_BODY()
+	
+	FMoviePipelineConsoleVariableEntry(const FString& InName, const float InValue, const bool bInIsEnabled = true);
+	FMoviePipelineConsoleVariableEntry();
+
+	/* The name of the console variable. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
+	FString Name;
+
+	/* The value of the console variable. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
+	float Value;
+
+	/* Enable state. If disabled, this cvar entry will be ignored when resolving the final value of the cvar. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
+	bool bIsEnabled;
 };
 
 namespace MoviePipeline
@@ -310,6 +340,7 @@ namespace MoviePipeline
 			, bOriginalShotSectionIsLocked(false)
 			, bOriginalCameraCutIsActive(false)
 			, bOriginalShotSectionIsActive(false)
+			, OriginalSequenceFlags(EMovieSceneSequenceFlags::None)
 			, EvaluationType(EMovieSceneEvaluationType::WithSubFrames)
 			, NodeID(MovieSceneSequenceID::Invalid)
 		{
@@ -334,6 +365,7 @@ namespace MoviePipeline
 
 		bool bOriginalCameraCutIsActive;
 		bool bOriginalShotSectionIsActive;
+		EMovieSceneSequenceFlags OriginalSequenceFlags;
 
 		/** An array of sections that we should expand, as well as their original range for restoration later. */
 		TArray<TTuple<UMovieSceneSection*, TRange<FFrameNumber>>> AdditionalSectionsToExpand;
@@ -413,6 +445,12 @@ namespace MoviePipeline
 			return !(*this == InRHS);
 		}
 	};
+
+	struct FClothSimSettingsCache
+	{
+		int32 NumSubSteps;
+		float DynamicSubstepDeltaTime;
+	};
 }
 
 USTRUCT(BlueprintType)
@@ -485,6 +523,7 @@ public:
 		, State(EMovieRenderShotState::Uninitialized)
 		, bHasEvaluatedMotionBlurFrame(false)
 		, NumEngineWarmUpFramesRemaining(0)
+		, NumEngineCoolDownFramesRemaining(0)
 		, VersionNumber(0)
 	{
 	}
@@ -551,6 +590,10 @@ public:
 
 	/** How many engine warm up frames are left to process for this shot. May be zero. */
 	int32 NumEngineWarmUpFramesRemaining;
+
+	/** How many cool down frames for this shot. May be zero.*/
+	int32 NumEngineCoolDownFramesRemaining;
+
 
 	/** What version number should this shot use when resolving format arguments. This is the highest version number found across all branches. */
 	int32 VersionNumber;
@@ -964,6 +1007,9 @@ public:
 	/** Use overscan percentage to extend render region beyond the set resolution.  */
 	float OverscanPercentage;
 
+	/** Whether to override the camera's overscan value when rendering */
+	bool bOverrideCameraOverscan;
+	
 	/** 
 	* The gamma space to apply accumulation in. During accumulation, pow(x,AccumulationGamma) is applied
 	* and pow(x,1/AccumulationGamma) is applied after accumulation is finished. 1.0 means no change."
@@ -1183,7 +1229,17 @@ public:
 
 namespace MoviePipeline
 {
-	struct MOVIERENDERPIPELINECORE_API IMoviePipelineOverlappedAccumulator : public TSharedFromThis<IMoviePipelineOverlappedAccumulator>
+	/** The interface that all accumulators should derive from. */
+	struct MOVIERENDERPIPELINECORE_API IMoviePipelineAccumulator
+	{
+	};
+
+	/** The interface that all accumulation args should derive from. */
+	struct MOVIERENDERPIPELINECORE_API IMoviePipelineAccumulationArgs
+	{
+	};
+	
+	struct MOVIERENDERPIPELINECORE_API IMoviePipelineOverlappedAccumulator : IMoviePipelineAccumulator, TSharedFromThis<IMoviePipelineOverlappedAccumulator>
 	{
 	};
 

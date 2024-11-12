@@ -5,8 +5,8 @@
 #include "ToolBuilderUtil.h"
 
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
-#include "TargetInterfaces/MeshDescriptionProvider.h"
-#include "TargetInterfaces/MeshDescriptionCommitter.h"
+#include "TargetInterfaces/DynamicMeshProvider.h"
+#include "TargetInterfaces/DynamicMeshCommitter.h"
 #include "TargetInterfaces/MaterialProvider.h"
 #include "ToolTargetManager.h"
 
@@ -21,8 +21,8 @@ const FToolTargetTypeRequirements& UMeshSurfacePointMeshEditingToolBuilder::GetT
 {
 	static FToolTargetTypeRequirements TypeRequirements({
 		UMaterialProvider::StaticClass(),
-		UMeshDescriptionProvider::StaticClass(),
-		UMeshDescriptionCommitter::StaticClass(),
+		UDynamicMeshProvider::StaticClass(),
+		UDynamicMeshCommitter::StaticClass(),
 		UPrimitiveComponentBackedTarget::StaticClass()
 		});
 	return TypeRequirements;

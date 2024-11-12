@@ -137,11 +137,11 @@ void FStringNetSerializerBase::Dequantize(FNetSerializationContext& Context, con
 			OutLength += 1U;
 		}
 
-		Target = FString(int32(OutLength - 1U), TempString.GetData());
+		Target = FString::ConstructFromPtrSize(TempString.GetData(), int32(OutLength - 1U));
 	}
 	else
 	{
-		Target = FString((Source.ElementCount > 0U ? Source.ElementCount - 1U : 0U), static_cast<ANSICHAR*>(Source.ElementStorage));
+		Target = FString::ConstructFromPtrSize(static_cast<ANSICHAR*>(Source.ElementStorage), (Source.ElementCount > 0U ? Source.ElementCount - 1U : 0U));
 	}
 }
 

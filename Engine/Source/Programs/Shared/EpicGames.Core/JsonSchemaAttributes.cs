@@ -81,6 +81,14 @@ namespace EpicGames.Core
 	}
 
 	/// <summary>
+	/// Attribute allowing any possible value in a json schema
+	/// </summary>
+	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Property)]
+	public sealed class JsonSchemaAnyAttribute : JsonSchemaTypeAttribute
+	{
+	}
+
+	/// <summary>
 	/// Attribute setting properties for a type to be serialized as a string
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Property)]

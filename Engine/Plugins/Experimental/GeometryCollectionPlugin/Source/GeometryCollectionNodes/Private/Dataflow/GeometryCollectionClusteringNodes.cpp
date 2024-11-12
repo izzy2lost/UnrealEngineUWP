@@ -3,6 +3,7 @@
 #include "Dataflow/GeometryCollectionClusteringNodes.h"
 #include "Dataflow/DataflowCore.h"
 
+#include "ChaosLog.h"
 #include "Engine/StaticMesh.h"
 #include "GeometryCollection/GeometryCollectionObject.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
@@ -32,7 +33,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionClusteringNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	void GeometryCollectionClusteringNodes()
@@ -54,7 +55,7 @@ namespace Dataflow
 }
 
 
-void FAutoClusterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FAutoClusterDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -63,6 +64,9 @@ void FAutoClusterDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 
 		if (TUniquePtr<FGeometryCollection> GeomCollection = TUniquePtr<FGeometryCollection>(InCollection.NewCopy<FGeometryCollection>()))
 		{
+			Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(*GeomCollection);
+			HierarchyFacade.GenerateLevelAttribute();
+
 			EClusterSizeMethodEnum InClusterSizeMethod = ClusterSizeMethod;
 			int32 InClusterSites = GetValue<int32>(Context, &ClusterSites);
 			float InClusterFraction = GetValue<float>(Context, &ClusterFraction);
@@ -78,30 +82,38 @@ void FAutoClusterDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 			bool bInPreferConvexity = GetValue(Context, &bPreferConvexity);
 			float InConcavityTolerance = GetValue(Context, &ConcavityTolerance);
 
-			TArray<int32> SelectedBones;
-			InTransformSelection.AsArray(SelectedBones);
+			// only cluster if the selection matches 
+			if (InTransformSelection.Num() == GeomCollection->NumElements(FTransformCollection::TransformGroup))
+			{
+				TArray<int32> SelectedBones;
+				InTransformSelection.AsArray(SelectedBones);
 
-			FFractureEngineClustering::AutoCluster(*GeomCollection,
-				SelectedBones,
-				(EFractureEngineClusterSizeMethod)InClusterSizeMethod,
-				InClusterSites,
-				InClusterFraction,
-				InSiteSize,
-				InAutoCluster,
-				InAvoidIsolated, 
-				InEnforceSiteParameters,
-				InGridX, InGridY, InGridZ, InMinimumClusterSize, InKMeansIterations, 
-				bInPreferConvexity, InConcavityTolerance);
 
+				FFractureEngineClustering::AutoCluster(*GeomCollection,
+					SelectedBones,
+					(EFractureEngineClusterSizeMethod)InClusterSizeMethod,
+					InClusterSites,
+					InClusterFraction,
+					InSiteSize,
+					InAutoCluster,
+					InAvoidIsolated,
+					InEnforceSiteParameters,
+					InGridX, InGridY, InGridZ, InMinimumClusterSize, InKMeansIterations,
+					bInPreferConvexity, InConcavityTolerance);
+			}
+			else
+			{
+				UE_LOG(LogChaos, Warning, TEXT("Dataflow: AutoCluster Node input selection size does not match the collection size, skipping clustering"));
+			}
 			SetValue<const FManagedArrayCollection&>(Context, *GeomCollection, &Collection);
 		}
 	}
 }
 
 
-void FClusterFlattenDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FClusterFlattenDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
-	if (Out->IsA(&Collection) && IsConnected(&Collection))
+	if (Out->IsA(&Collection))
 	{
 		const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
 		if (InCollection.NumElements(FGeometryCollection::TransformAttribute) > 0)
@@ -139,39 +151,50 @@ void FClusterFlattenDataflowNode::Evaluate(Dataflow::FContext& Context, const FD
 				SetValue(Context, (const FManagedArrayCollection&)(*GeomCollection), &Collection);
 			}
 		}
-	}
-}
-
-
-void FClusterUnclusterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
-{
-	if (Out->IsA<FManagedArrayCollection>(&Collection))
-	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		const FDataflowTransformSelection& InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
-		if (TUniquePtr<FGeometryCollection> GeomCollection = TUniquePtr<FGeometryCollection>(InCollection.NewCopy<FGeometryCollection>()))
+		else
 		{
-			Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(*GeomCollection);
-			HierarchyFacade.GenerateLevelAttribute();
-
-			TArray<int32> Selection = InTransformSelection.AsArray();
-			GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(*GeomCollection);
-			SelectionFacade.ConvertSelectionToClusterNodes(Selection, false);
-			SelectionFacade.RemoveRootNodes(Selection);
-			if (!Selection.IsEmpty())
-			{
-				FGeometryCollectionClusteringUtility::CollapseHierarchyOneLevel(GeomCollection.Get(), Selection);
-				FGeometryCollectionClusteringUtility::RemoveDanglingClusters(GeomCollection.Get());
-
-				HierarchyFacade.GenerateLevelAttribute();
-			}
-			SetValue<const FManagedArrayCollection&>(Context, *GeomCollection, &Collection);
+			SetValue(Context, InCollection, &Collection);
 		}
 	}
 }
 
 
-void FClusterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FClusterUnclusterDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA<FManagedArrayCollection>(&Collection))
+	{
+		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+		if (InCollection.NumElements(FGeometryCollection::TransformAttribute) > 0)
+		{
+			const FDataflowTransformSelection& InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
+			if (TUniquePtr<FGeometryCollection> GeomCollection = TUniquePtr<FGeometryCollection>(InCollection.NewCopy<FGeometryCollection>()))
+			{
+				Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(*GeomCollection);
+				HierarchyFacade.GenerateLevelAttribute();
+
+				TArray<int32> Selection = InTransformSelection.AsArray();
+				GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(*GeomCollection);
+				SelectionFacade.ConvertSelectionToClusterNodes(Selection, false);
+				SelectionFacade.RemoveRootNodes(Selection);
+				if (!Selection.IsEmpty())
+				{
+					FGeometryCollectionClusteringUtility::CollapseHierarchyOneLevel(GeomCollection.Get(), Selection);
+					FGeometryCollectionClusteringUtility::RemoveDanglingClusters(GeomCollection.Get());
+
+					HierarchyFacade.GenerateLevelAttribute();
+				}
+				SetValue<const FManagedArrayCollection&>(Context, *GeomCollection, &Collection);
+			}
+		}
+		else
+		{
+			SetValue(Context, InCollection, &Collection);
+		}
+	}
+}
+
+
+void FClusterDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection))
 	{
@@ -186,7 +209,7 @@ void FClusterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflow
 	}
 }
 
-void FClusterMergeToNeighborsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FClusterMergeToNeighborsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection))
 	{
@@ -199,6 +222,9 @@ void FClusterMergeToNeighborsDataflowNode::Evaluate(Dataflow::FContext& Context,
 		}
 		if (TUniquePtr<FGeometryCollection> GeomCollection = TUniquePtr<FGeometryCollection>(InCollection.NewCopy<FGeometryCollection>()))
 		{
+			Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(*GeomCollection);
+			HierarchyFacade.GenerateLevelAttribute();
+
 			double InMinVolumeCubeRoot = (double)GetValue(Context, &MinVolumeCubeRoot);
 			double InMinVolume = InMinVolumeCubeRoot * InMinVolumeCubeRoot * InMinVolumeCubeRoot;
 			bool bInOnlyToConnected = GetValue(Context, &bOnlyToConnected);
@@ -230,7 +256,7 @@ void FClusterMergeToNeighborsDataflowNode::Evaluate(Dataflow::FContext& Context,
 	}
 }
 
-void FClusterMergeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FClusterMergeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection))
 	{
@@ -238,6 +264,9 @@ void FClusterMergeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDat
 		const FDataflowTransformSelection& InTransformSelection = GetValue(Context, &TransformSelection);
 		if (TUniquePtr<FGeometryCollection> GeomCollection = TUniquePtr<FGeometryCollection>(InCollection.NewCopy<FGeometryCollection>()))
 		{
+			Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(*GeomCollection);
+			HierarchyFacade.GenerateLevelAttribute();
+
 			TArray<int32> Selection = InTransformSelection.AsArray();
 			FFractureEngineClustering::MergeSelectedClusters(*GeomCollection, Selection);
 			SetValue(Context, (const FManagedArrayCollection&)(*GeomCollection), &Collection);
@@ -245,7 +274,7 @@ void FClusterMergeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDat
 	}
 }
 
-void FClusterIsolatedRootsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FClusterIsolatedRootsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection))
 	{
@@ -265,7 +294,7 @@ void FClusterIsolatedRootsDataflowNode::Evaluate(Dataflow::FContext& Context, co
 	}
 }
 
-void FClusterMagnetDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FClusterMagnetDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection))
 	{

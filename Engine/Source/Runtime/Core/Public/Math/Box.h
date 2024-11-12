@@ -49,6 +49,11 @@ public:
 	/**
 	 * Default constructor.
 	 * Creates a new box with uninitialized extents and marks it as invalid.
+	 *
+	 * NOTE: This default constructor is unlike TVector, TMatrix etc. in that it
+	 *       actually initializes the instance.  Ideally it should be = default;
+	 *       in the same way, but this would break backwards compatibility.  It
+	 *       might be possible if the questionable IsValid field ever gets removed.
 	 */
 	constexpr TBox()
 #if ENABLE_UNINITIALIZED_BOX_DIAGNOSTIC
@@ -153,8 +158,11 @@ public:
 	explicit TBox(const TArray<TVector<T>>& Points) : TBox<T>(&Points[0], Points.Num()) {};
 
 	// Conversion from other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
-	explicit TBox(const TBox<FArg>& From) : TBox<T>(TVector<T>(From.Min), TVector<T>(From.Max)) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
+	explicit TBox(const TBox<FArg>& From)
+		: TBox<T>(TVector<T>(From.Min), TVector<T>(From.Max))
+	{
+	}
 
 public:
 

@@ -201,7 +201,6 @@ void SPListEditorPanel::Construct( const FArguments& InArgs )
 				[
 					// Add a ListView for plist members
 					SAssignNew(InternalTree, STreeView<TSharedPtr<IPListNode> >)
-					.ItemHeight(28)
 					.TreeItemsSource(&PListNodes)
 					.SelectionMode(ESelectionMode::Multi)
 					.OnContextMenuOpening(this, &SPListEditorPanel::OnContextMenuOpen)

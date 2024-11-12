@@ -97,6 +97,8 @@
 #include "Constraints/TransformConstraintChannelInterface.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "AssetRegistry/IAssetRegistry.h"
+#include "SequencerUtilities.h"
+#include "Bindings/MovieSceneSpawnableActorBinding.h"
 
 #define LOCTEXT_NAMESPACE "ControlRigEditorModule"
 
@@ -782,6 +784,27 @@ void FControlRigEditorModule::GetPinContextMenuActions(IRigVMClientHost* RigVMCl
 	GetDirectManipulationMenuActions(RigVMClientHost, ModelPin->GetNode(), ModelPin, Menu);
 }
 
+bool FControlRigEditorModule::AssetsPublicFunctionsAllowed(const FAssetData& InAssetData) const
+{
+	// Looking for public functions in cooked assets only happens in UEFN
+	// Make sure we allow only ControlRig/ControlRigSpline/ControlRigModules functions
+	// (to avoid adding actions for internal rigs public functions)
+	const FString AssetClassPath = InAssetData.AssetClassPath.ToString();
+	if (AssetClassPath.Contains(TEXT("ControlRigBlueprintGeneratedClass"))
+		|| AssetClassPath.Contains(TEXT("RigVMBlueprintGeneratedClass")))
+	{
+		const FString PathString = InAssetData.PackagePath.ToString();
+		if (!PathString.StartsWith(TEXT("/ControlRig/"))
+			&& !PathString.StartsWith(TEXT("/ControlRigSpline/"))
+			&& !PathString.StartsWith(TEXT("/ControlRigModules/")))
+		{
+			return false;
+		}
+	}
+	
+	return IControlRigEditorModule::AssetsPublicFunctionsAllowed(InAssetData);
+}
+
 void FControlRigEditorModule::GetDirectManipulationMenuActions(IRigVMClientHost* RigVMClientHost, URigVMNode* InNode, URigVMPin* ModelPin, UToolMenu* Menu) const
 {
     // Add direct manipulation context menu entries
@@ -1140,11 +1163,9 @@ void FControlRigEditorModule::BakeToControlRig(UClass* ControlRigClass, UAnimSeq
 		ILevelSequenceEditorToolkit* LevelSequenceEditor = static_cast<ILevelSequenceEditorToolkit*>(AssetEditor);
 		TWeakPtr<ISequencer> WeakSequencer = LevelSequenceEditor ? LevelSequenceEditor->GetSequencer() : nullptr;
 
-
-
 		if (WeakSequencer.IsValid())
 		{
-
+			TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
 			ASkeletalMeshActor* MeshActor = World->SpawnActor<ASkeletalMeshActor>(ASkeletalMeshActor::StaticClass(), FTransform::Identity);
 			MeshActor->SetActorLabel(AnimSequence->GetName());
 
@@ -1159,18 +1180,18 @@ void FControlRigEditorModule::BakeToControlRig(UClass* ControlRigClass, UAnimSeq
 			MeshActor->RegisterAllComponents();
 			TArray<TWeakObjectPtr<AActor> > ActorsToAdd;
 			ActorsToAdd.Add(MeshActor);
-			TArray<FGuid> ActorTracks = WeakSequencer.Pin()->AddActors(ActorsToAdd, false);
+			TArray<FGuid> ActorTracks = SequencerPtr->AddActors(ActorsToAdd, false);
 			FGuid ActorTrackGuid = ActorTracks[0];
 
 			// By default, convert this to a spawnable and delete the existing actor. If for some reason, 
 			// the spawnable couldn't be generated, use the existing actor as a possessable (this could 
 			// eventually be an option)
-			TArray<FGuid> SpawnableGuids = WeakSequencer.Pin()->ConvertToSpawnable(ActorTrackGuid);
-			if (SpawnableGuids.Num())
-			{	
-				ActorTrackGuid = SpawnableGuids[0];
 
-				UObject* SpawnedMesh = WeakSequencer.Pin()->FindSpawnedObjectOrTemplate(ActorTrackGuid);
+			if (FMovieScenePossessable* Possessable = FSequencerUtilities::ConvertToCustomBinding(SequencerPtr.ToSharedRef(), ActorTrackGuid, UMovieSceneSpawnableActorBinding::StaticClass(), 0))
+			{ 
+				ActorTrackGuid = Possessable->GetGuid();
+
+				UObject* SpawnedMesh = SequencerPtr->FindSpawnedObjectOrTemplate(ActorTrackGuid);
 
 				if (SpawnedMesh)
 				{
@@ -1186,7 +1207,7 @@ void FControlRigEditorModule::BakeToControlRig(UClass* ControlRigClass, UAnimSeq
 
 			//Delete binding from default animating rig
 			//if we have skel mesh component binding we can just delete that
-			FGuid CompGuid = WeakSequencer.Pin()->FindObjectId(*(MeshActor->GetSkeletalMeshComponent()), WeakSequencer.Pin()->GetFocusedTemplateID());
+			FGuid CompGuid = SequencerPtr->FindObjectId(*(MeshActor->GetSkeletalMeshComponent()), SequencerPtr->GetFocusedTemplateID());
 			if (CompGuid.IsValid())
 			{
 				if (!MovieScene->RemovePossessable(CompGuid))
@@ -1218,7 +1239,7 @@ void FControlRigEditorModule::BakeToControlRig(UClass* ControlRigClass, UAnimSeq
 				ControlRig->Initialize();
 				ControlRig->Evaluate_AnyThread();
 
-				WeakSequencer.Pin()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+				SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
 
 				Track->Modify();
 				UMovieSceneSection* NewSection = Track->CreateControlRigSection(0, ControlRig, true);
@@ -1226,61 +1247,69 @@ void FControlRigEditorModule::BakeToControlRig(UClass* ControlRigClass, UAnimSeq
 				Track->SetTrackName(FName(*ObjectName));
 				Track->SetDisplayName(FText::FromString(ObjectName));
 				UMovieSceneControlRigParameterSection* ParamSection = Cast<UMovieSceneControlRigParameterSection>(NewSection);
-			
-				FBakeToControlDelegate BakeCallback = FBakeToControlDelegate::CreateLambda([this, WeakSequencer, LevelSequence, 
+				FBakeToControlDelegate BakeCallback = FBakeToControlDelegate::CreateLambda([this, LevelSequence,
 					AnimSequence, MovieScene, ControlRig, ParamSection,ActorTrackGuid, SkelMeshComp]
-				(bool bKeyReduce, float KeyReduceTolerance, bool bResetControls)
+				(bool bKeyReduce, float KeyReduceTolerance, FFrameRate BakeFrameRate, bool bResetControls)
 				{
-					if (ParamSection)
+					IAssetEditorInstance* AssetEditor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(LevelSequence, false);
+					ILevelSequenceEditorToolkit* LevelSequenceEditor = static_cast<ILevelSequenceEditorToolkit*>(AssetEditor);
+					TWeakPtr<ISequencer> WeakSequencer = LevelSequenceEditor ? LevelSequenceEditor->GetSequencer() : nullptr;
+					if (WeakSequencer.IsValid())
 					{
-						EMovieSceneKeyInterpolation DefaultInterpolation = WeakSequencer.Pin()->GetKeyInterpolation();
-						ParamSection->LoadAnimSequenceIntoThisSection(AnimSequence, MovieScene, SkelMeshComp, bKeyReduce,
-							KeyReduceTolerance, bResetControls, FFrameNumber(0), DefaultInterpolation);
-					}
-					WeakSequencer.Pin()->EmptySelection();
-					WeakSequencer.Pin()->SelectSection(ParamSection);
-					WeakSequencer.Pin()->ThrobSectionSelection();
-					WeakSequencer.Pin()->ObjectImplicitlyAdded(ControlRig);
-					WeakSequencer.Pin()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
-					FControlRigEditMode* ControlRigEditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName));
-					if (!ControlRigEditMode)
-					{
-						GLevelEditorModeTools().ActivateMode(FControlRigEditMode::ModeName);
-						ControlRigEditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName));
-					}
-					if (ControlRigEditMode)
-					{
-						ControlRigEditMode->AddControlRigObject(ControlRig, WeakSequencer.Pin());
-					}
-
-					//create soft links to each other
-					if (IInterface_AssetUserData* AssetUserDataInterface = Cast< IInterface_AssetUserData >(LevelSequence))
-					{
-						ULevelSequenceAnimSequenceLink* LevelAnimLink = NewObject<ULevelSequenceAnimSequenceLink>(LevelSequence, NAME_None, RF_Public | RF_Transactional);
-						FLevelSequenceAnimSequenceLinkItem LevelAnimLinkItem;
-						LevelAnimLinkItem.SkelTrackGuid = ActorTrackGuid;
-						LevelAnimLinkItem.PathToAnimSequence = FSoftObjectPath(AnimSequence);
-						LevelAnimLinkItem.bExportMorphTargets = true; 
-						LevelAnimLinkItem.bExportAttributeCurves = true;
-						LevelAnimLinkItem.Interpolation = EAnimInterpolationType::Linear;
-						LevelAnimLinkItem.CurveInterpolation = ERichCurveInterpMode::RCIM_Linear;
-						LevelAnimLinkItem.bExportMaterialCurves = true;
-						LevelAnimLinkItem.bExportTransforms = true;
-						LevelAnimLinkItem.bRecordInWorldSpace = false;
-						LevelAnimLinkItem.bEvaluateAllSkeletalMeshComponents = true;
-						LevelAnimLink->AnimSequenceLinks.Add(LevelAnimLinkItem);
-						AssetUserDataInterface->AddAssetUserData(LevelAnimLink);
-					}
-					if (IInterface_AssetUserData* AnimAssetUserData = Cast< IInterface_AssetUserData >(AnimSequence))
-					{
-						UAnimSequenceLevelSequenceLink* AnimLevelLink = AnimAssetUserData->GetAssetUserData< UAnimSequenceLevelSequenceLink >();
-						if (!AnimLevelLink)
+						TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
+						if (ParamSection)
 						{
-							AnimLevelLink = NewObject<UAnimSequenceLevelSequenceLink>(AnimSequence, NAME_None, RF_Public | RF_Transactional);
-							AnimAssetUserData->AddAssetUserData(AnimLevelLink);
+							FSmartReduceParams SmartReduce;
+							SmartReduce.TolerancePercentage = KeyReduceTolerance;
+							SmartReduce.SampleRate = BakeFrameRate;
+							FControlRigParameterTrackEditor::LoadAnimationIntoSection(SequencerPtr, AnimSequence, SkelMeshComp, FFrameNumber(0),
+								bKeyReduce, SmartReduce, bResetControls, ParamSection);
 						}
-						AnimLevelLink->SetLevelSequence(LevelSequence);
-						AnimLevelLink->SkelTrackGuid = ActorTrackGuid;
+						SequencerPtr->EmptySelection();
+						SequencerPtr->SelectSection(ParamSection);
+						SequencerPtr->ThrobSectionSelection();
+						SequencerPtr->ObjectImplicitlyAdded(ControlRig);
+						SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
+						FControlRigEditMode* ControlRigEditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName));
+						if (!ControlRigEditMode)
+						{
+							GLevelEditorModeTools().ActivateMode(FControlRigEditMode::ModeName);
+							ControlRigEditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName));
+						}
+						if (ControlRigEditMode)
+						{
+							ControlRigEditMode->AddControlRigObject(ControlRig, SequencerPtr);
+						}
+
+						//create soft links to each other
+						if (IInterface_AssetUserData* AssetUserDataInterface = Cast< IInterface_AssetUserData >(LevelSequence))
+						{
+							ULevelSequenceAnimSequenceLink* LevelAnimLink = NewObject<ULevelSequenceAnimSequenceLink>(LevelSequence, NAME_None, RF_Public | RF_Transactional);
+							FLevelSequenceAnimSequenceLinkItem LevelAnimLinkItem;
+							LevelAnimLinkItem.SkelTrackGuid = ActorTrackGuid;
+							LevelAnimLinkItem.PathToAnimSequence = FSoftObjectPath(AnimSequence);
+							LevelAnimLinkItem.bExportMorphTargets = true;
+							LevelAnimLinkItem.bExportAttributeCurves = true;
+							LevelAnimLinkItem.Interpolation = EAnimInterpolationType::Linear;
+							LevelAnimLinkItem.CurveInterpolation = ERichCurveInterpMode::RCIM_Linear;
+							LevelAnimLinkItem.bExportMaterialCurves = true;
+							LevelAnimLinkItem.bExportTransforms = true;
+							LevelAnimLinkItem.bRecordInWorldSpace = false;
+							LevelAnimLinkItem.bEvaluateAllSkeletalMeshComponents = true;
+							LevelAnimLink->AnimSequenceLinks.Add(LevelAnimLinkItem);
+							AssetUserDataInterface->AddAssetUserData(LevelAnimLink);
+						}
+						if (IInterface_AssetUserData* AnimAssetUserData = Cast< IInterface_AssetUserData >(AnimSequence))
+						{
+							UAnimSequenceLevelSequenceLink* AnimLevelLink = AnimAssetUserData->GetAssetUserData< UAnimSequenceLevelSequenceLink >();
+							if (!AnimLevelLink)
+							{
+								AnimLevelLink = NewObject<UAnimSequenceLevelSequenceLink>(AnimSequence, NAME_None, RF_Public | RF_Transactional);
+								AnimAssetUserData->AddAssetUserData(AnimLevelLink);
+							}
+							AnimLevelLink->SetLevelSequence(LevelSequence);
+							AnimLevelLink->SkelTrackGuid = ActorTrackGuid;
+						}
 					}
 				});
 

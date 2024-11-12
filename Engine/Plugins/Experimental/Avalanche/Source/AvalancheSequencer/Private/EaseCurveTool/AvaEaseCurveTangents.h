@@ -4,6 +4,8 @@
 
 #include "Curves/RichCurve.h"
 #include "Channels/MovieSceneDoubleChannel.h"
+#include "Channels/MovieSceneFloatChannel.h"
+#include "Math/UnrealMathUtility.h"
 #include "AvaEaseCurveTangents.generated.h"
 
 class FString;
@@ -23,6 +25,10 @@ public:
 	static FNumberFormattingOptions DefaultNumberFormattingOptions();
 
 	static FAvaEaseCurveTangents Average(const TArray<FAvaEaseCurveTangents>& InTangentArray);
+
+	static bool IsEaseCurveKey(const FRichCurveKey& InKey);
+	static bool IsEaseCurveKey(const FMovieSceneDoubleValue& InValue);
+	static bool IsEaseCurveKey(const FMovieSceneFloatValue& InValue);
 
 	FAvaEaseCurveTangents() {}
 	FAvaEaseCurveTangents(const double InStart, const double InStartWeight, const double InEnd, const double InEndWeight)
@@ -45,6 +51,14 @@ public:
 		: Start(InStartMovieSceneDoubleValue.Tangent.LeaveTangent), StartWeight(InStartMovieSceneDoubleValue.Tangent.LeaveTangentWeight)
 		, End(InEndMovieSceneDoubleValue.Tangent.ArriveTangent), EndWeight(InEndMovieSceneDoubleValue.Tangent.ArriveTangentWeight)
 	{}
+	FAvaEaseCurveTangents(const FMovieSceneFloatValue& InMovieSceneFloatValue)
+		: Start(InMovieSceneFloatValue.Tangent.LeaveTangent), StartWeight(InMovieSceneFloatValue.Tangent.LeaveTangentWeight)
+		, End(InMovieSceneFloatValue.Tangent.ArriveTangent), EndWeight(InMovieSceneFloatValue.Tangent.ArriveTangentWeight)
+	{}
+	FAvaEaseCurveTangents(const FMovieSceneFloatValue& InStartMovieSceneFloatValue, const FMovieSceneFloatValue& InEndMovieSceneFloatValue)
+		: Start(InStartMovieSceneFloatValue.Tangent.LeaveTangent), StartWeight(InStartMovieSceneFloatValue.Tangent.LeaveTangentWeight)
+		, End(InEndMovieSceneFloatValue.Tangent.ArriveTangent), EndWeight(InEndMovieSceneFloatValue.Tangent.ArriveTangentWeight)
+	{}
 	/** Constructor from string consisting of cubic bezier points. Ex. "0.45, 0.34, 0.0, 1.00" */
 	explicit FAvaEaseCurveTangents(const FString& InTangentsString);
 
@@ -56,6 +70,8 @@ public:
 	{
 		return !(*this == InRhs);
 	}
+
+	bool IsNearlyEqual(const FAvaEaseCurveTangents& InOther, const double InErrorTolerance = UE_DOUBLE_SMALL_NUMBER) const;
 
 	FText ToDisplayText() const;
 	FString ToDisplayString() const;

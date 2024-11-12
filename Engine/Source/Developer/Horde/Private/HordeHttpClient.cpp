@@ -18,6 +18,24 @@ FHordeHttpClient::~FHordeHttpClient()
 {
 }
 
+bool FHordeHttpClient::Login(bool bUnattended, FFeedbackContext* Warn)
+{
+	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::TryGet();
+	if (DesktopPlatform != nullptr)
+	{
+		FString NewToken;
+		FDateTime ExpiresAt;
+		bool bWasInteractive = false;
+
+		if (DesktopPlatform->GetHordeAccessToken(ServerUrl, bUnattended, Warn, NewToken, ExpiresAt, bWasInteractive))
+		{
+			Token = NewToken;
+			return true;
+		}
+	}
+	return false;
+}
+
 bool FHordeHttpClient::LoginWithOidc(const TCHAR* Profile, bool bUnattended, FFeedbackContext* Warn)
 {
 	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::TryGet();

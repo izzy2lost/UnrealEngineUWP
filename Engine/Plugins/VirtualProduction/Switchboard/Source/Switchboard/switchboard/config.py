@@ -1,19 +1,19 @@
 # Copyright Epic Games, Inc. All Rights Reserved.
 
 import collections
+from enum import Enum
 import fnmatch
 import io
 import json
 import os
 import pathlib
 import shutil
+from pathlib import Path, PurePosixPath
 import socket
 import sys
 import threading
 import time
 from typing import Any, Callable, Optional, Tuple, Type, Union
-from enum import Enum
-from pathlib import Path
 
 from PySide6 import QtCore
 from PySide6 import QtGui
@@ -23,8 +23,9 @@ from switchboard import switchboard_widgets as sb_widgets
 from switchboard.switchboard_logging import LOGGER
 from switchboard.switchboard_widgets import (
     DropDownMenuComboBox, NonScrollableComboBox)
-from switchboard import ue_plugin_utils, ugs_utils
+from switchboard import ugs_utils
 from switchboard.sbcache import SBCache, Map
+from switchboard.ue_plugin_utils import UnrealPlugin, UnrealPluginManager
 
 ROOT_CONFIGS_PATH = pathlib.Path(__file__).parent.with_name('configs')
 CONFIG_SUFFIX = '.json'
@@ -120,21 +121,26 @@ class Setting(QtCore.QObject):
         show_ui: bool = True,
         allow_reset: bool = True,
         migrate_data: Optional[Callable[[Any], None]] = None,
+        category: str = 'Misc'
     ):
         '''
         Create a new Setting object.
 
         Args:
-            attr_name: Internal name.
-            nice_name: Display name.
-            value    : The initial value of this Setting.
-            tool_tip : Tooltip to show in the UI for this Setting.
-            show_ui  : Whether to show this Setting in the Settings UI.
+            attr_name   : Internal name.
+            nice_name   : Display name.
+            value       : The initial value of this Setting.
+            tool_tip    : Tooltip to show in the UI for this Setting.
+            show_ui     : Whether to show this Setting in the Settings UI.
+            allow_reset : Allows showing a reset button when the value differs from the default.
+            migrate_data: Optional function to migrate data already stored when value structure changes.
+            category    : Used for UI grouping with other properties.
         '''
         super().__init__()
 
         self.attr_name = attr_name
         self.nice_name = nice_name
+        self.category = category
 
         value = self._filter_value(value)
         self._original_value = self._value = value
@@ -357,26 +363,33 @@ class Setting(QtCore.QObject):
                 setting_label.setToolTip(self.tool_tip)
 
             form_layout.addRow(
-                setting_label,                
+                setting_label,
                 self._decorate_with_reset_widget(override_device_name, top_level_widget)
             )
 
         return top_level_widget
 
     def _register_on_setting_changed(self, top_level_widget: QtWidgets.QWidget, override_device_name: str):
-        on_setting_changed_lambda = lambda old_value, new_value, override_device_name=override_device_name: \
+
+        def on_setting_changed(old_value, new_value, override_device_name=override_device_name):
             self._on_setting_changed(new_value, override_device_name=override_device_name)
-        self.signal_setting_changed.connect(
-            on_setting_changed_lambda
-        )
+
+        self.signal_setting_changed.connect(on_setting_changed)
 
         # Clear the widget when it is destroyed to avoid dangling references
-        top_level_widget.destroyed.connect(lambda destroyed_object=None:
-            self._on_widget_destroyed(on_setting_changed_lambda, override_device_name)
-        )
+
+        def handle_widget_destroyed(destroyed_object=None):
+            self._on_widget_destroyed(on_setting_changed, override_device_name)
+
+        top_level_widget.destroyed.connect(handle_widget_destroyed)
 
     def _on_widget_destroyed(self, on_setting_changed_lambda, override_device_name: str):
-        self.signal_setting_changed.disconnect(on_setting_changed_lambda)
+        try:
+            self.signal_setting_changed.disconnect(on_setting_changed_lambda)
+        except Exception as exc:
+            LOGGER.warning('Failed to disconnect on_setting_changed_lambda',
+                           exc_info=exc)
+
         self.set_widget(widget=None, override_device_name=override_device_name)
 
     def _decorate_with_reset_widget(self, override_device_name: str, setting_editor_widget: QtWidgets.QWidget):
@@ -526,29 +539,17 @@ class IntSetting(Setting):
 
     def __init__(
         self,
-        attr_name: str,
-        nice_name: str,
-        value: str,
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True,
-        allow_reset: bool = True,
-        migrate_data: Optional[Callable[[Any], None]] = None,
-        is_read_only: bool = False
+        *args,
+        is_read_only: bool = False,
+        **kwargs
     ):
         '''
         Create a new IntSetting object.
 
         Args:
-            attr_name       : Internal name.
-            nice_name       : Display name.
-            value           : The initial value of this Setting.
-            tool_tip        : Tooltip to show in the UI for this Setting.
-            show_ui         : Whether to show this Setting in the Settings UI.
             is_read_only    : Whether to make entry field editable or not.
         '''
-        super().__init__(
-            attr_name, nice_name, value,
-            tool_tip=tool_tip, show_ui=show_ui, allow_reset=allow_reset, migrate_data=migrate_data)
+        super().__init__(*args, **kwargs)
 
         self.is_read_only = is_read_only
 
@@ -597,31 +598,19 @@ class StringSetting(Setting):
 
     def __init__(
         self,
-        attr_name: str,
-        nice_name: str,
-        value: str,
+        *args,
         placeholder_text: str = '',
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True,
-        allow_reset: bool = True,
-        migrate_data: Optional[Callable[[Any], None]] = None,
-        is_read_only: bool = False
+        is_read_only: bool = False,
+        **kwargs
     ):
         '''
         Create a new StringSetting object.
 
         Args:
-            attr_name       : Internal name.
-            nice_name       : Display name.
-            value           : The initial value of this Setting.
             placeholder_text: Placeholder for this Setting's value in the UI.
-            tool_tip        : Tooltip to show in the UI for this Setting.
-            show_ui         : Whether to show this Setting in the Settings UI.
             is_read_only    : Whether to make entry field editable or not.
         '''
-        super().__init__(
-            attr_name, nice_name, value,
-            tool_tip=tool_tip, show_ui=show_ui, allow_reset=allow_reset, migrate_data=migrate_data)
+        super().__init__(*args, **kwargs)
 
         self.placeholder_text = placeholder_text
         self.is_read_only = is_read_only
@@ -685,6 +674,16 @@ class FileSystemPathSetting(StringSetting):
             'class directly. A derived class (e.g. DirectoryPathSetting or '
             'FilePathSetting) must be used instead.')
 
+    def _getStartPath(self) -> str:
+        ''' Returns a reasonable start path for the file dialog'''
+
+        start_path = str(pathlib.Path.home())
+
+        if (SETTINGS.LAST_BROWSED_PATH and os.path.exists(SETTINGS.LAST_BROWSED_PATH)):
+            start_path = SETTINGS.LAST_BROWSED_PATH
+
+        return start_path
+
     def _create_widgets(
             self, override_device_name: Optional[str] = None) \
             -> QtWidgets.QHBoxLayout:
@@ -699,10 +698,7 @@ class FileSystemPathSetting(StringSetting):
         edit_layout.addWidget(browse_btn)
 
         def on_browse_clicked():
-            start_path = str(pathlib.Path.home())
-            if (SETTINGS.LAST_BROWSED_PATH and
-                    os.path.exists(SETTINGS.LAST_BROWSED_PATH)):
-                start_path = SETTINGS.LAST_BROWSED_PATH
+            start_path = self._getStartPath()
 
             fs_path = self._getFileSystemPath(
                 parent=browse_btn, start_path=start_path)
@@ -742,37 +738,39 @@ class FilePathSetting(FileSystemPathSetting):
 
     def __init__(
         self,
-        attr_name: str,
-        nice_name: str,
-        value: str,
-        placeholder_text: str = '',
+        *args,
         file_path_filter: str = '',
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True
+        **kwargs
     ):
         '''
         Create a new FilePathSetting object.
 
         Args:
-            attr_name       : Internal name.
-            nice_name       : Display name.
-            value           : The initial value of this Setting.
-            placeholder_text: Placeholder for this Setting's value in the UI.
             file_path_filter: Filter to use in the file browser.
-            tool_tip        : Tooltip to show in the UI for this Setting.
-            show_ui         : Whether to show this Setting in the Settings UI.
         '''
-        super().__init__(
-            attr_name, nice_name, value, placeholder_text=placeholder_text,
-            tool_tip=tool_tip, show_ui=show_ui)
+        super().__init__(*args, **kwargs)
 
         self.file_path_filter = file_path_filter
 
+    def _getStartPath(self) -> str:
+        ''' Override from base class'''
+
+        current_path = self.get_value()
+
+        if os.path.exists(current_path):
+            return current_path
+
+        return super()._getStartPath()
+
     def _getFileSystemPath(
             self, parent: Optional[QtWidgets.QWidget] = None,
-            start_path: str = '') -> str:
+            start_path: str = ''
+            ) -> str:
+        ''' Override from base class'''
+
         file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
             parent=parent, dir=start_path, filter=self.file_path_filter)
+
         return file_path
 
 
@@ -784,23 +782,15 @@ class PerforcePathSetting(StringSetting):
 
     def __init__(
         self,
-        attr_name: str,
-        nice_name: str,
-        value: str,
+        *args,
         placeholder_text: str = '',
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True,
-        allow_reset: bool = True,
-        migrate_data: Optional[Callable[[Any], None]] = None,
         is_read_only: bool = False,
+        **kwargs
     ):
         # Trim matching file paths to the parent directory (e.g. ['.uproject'])
         self.truncate_files_with_extensions: list[str] = []
 
-        super().__init__(
-            attr_name, nice_name, value, placeholder_text=placeholder_text,
-            tool_tip=tool_tip, show_ui=show_ui, allow_reset=allow_reset,
-            migrate_data=migrate_data, is_read_only=is_read_only)
+        super().__init__(*args, placeholder_text=placeholder_text, is_read_only=is_read_only, **kwargs)
 
     def _filter_value(self, value: Optional[str]) -> str:
         '''
@@ -829,30 +819,17 @@ class OptionSetting(Setting):
 
     def __init__(
         self,
-        attr_name: str,
-        nice_name: str,
-        value,
+        *args,
         possible_values: Optional[list] = None,
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True,
-        allow_reset: bool = True,
-        migrate_data: Optional[Callable[[Any], None]] = None,
+        **kwargs
     ):
         '''
         Create a new OptionSetting object.
 
         Args:
-            attr_name      : Internal name.
-            nice_name      : Display name.
-            value          : The initial value of this Setting.
             possible_values: Possible values for this Setting.
-            tool_tip       : Tooltip to show in the UI for this Setting.
-            show_ui        : Whether to show this Setting in the Settings UI.
         '''
-        super().__init__(
-            attr_name, nice_name, value,
-            tool_tip=tool_tip, show_ui=show_ui, allow_reset=allow_reset,
-            migrate_data=migrate_data)
+        super().__init__(*args, **kwargs)
 
         self.possible_values = possible_values or []
 
@@ -1020,27 +997,16 @@ class ListSetting(Setting):
 
     def __init__(
         self,
-        attr_name: str,
-        nice_name: str,
-        value: list = [],
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True,
-        allow_reset: bool = True,
-        migrate_data: Optional[Callable[[Any], None]] = None
+        *args,
+        **kwargs
     ):
         '''
         Create a new ListSetting object.
 
         Args:
-            attr_name      : Internal name.
-            nice_name      : Display name.
-            value          : The initial value of this Setting.
-            tool_tip       : Tooltip to show in the UI for this Setting.
-            show_ui        : Whether to show this Setting in the Settings UI.
+            value : list
         '''
-        super().__init__(
-            attr_name, nice_name, value,
-            tool_tip=tool_tip, show_ui=show_ui, allow_reset=allow_reset, migrate_data=migrate_data)
+        super().__init__(*args, **kwargs)
 
         self.array_count_labels = {}
         self.element_layouts = {}
@@ -1229,30 +1195,6 @@ class StringListSetting(ListSetting):
     '''
     An array setting where the elements are strings
     '''
-    def __init__(
-        self,
-        attr_name: str,
-        nice_name: str,
-        value: list[str] = [],
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True,
-        allow_reset: bool = True,
-        migrate_data: Optional[Callable[[Any], None]] = None
-    ):
-        '''
-        Create a new ArraySetting object.
-
-        Args:
-            attr_name      : Internal name.
-            nice_name      : Display name.
-            value          : The initial value of this Setting.
-            tool_tip       : Tooltip to show in the UI for this Setting.
-            show_ui        : Whether to show this Setting in the Settings UI.
-        '''
-        super().__init__(
-            attr_name, nice_name, value,
-            tool_tip=tool_tip, show_ui=show_ui, allow_reset=allow_reset, migrate_data=migrate_data)
-        pass
 
     def create_element(self, override_device_name: str, index: int) -> Tuple[QtWidgets.QWidget, object]:
         line_edit = QtWidgets.QLineEdit()
@@ -1604,7 +1546,7 @@ class LoggingSetting(Setting):
     def _filter_value(
             self,
             value: Optional[dict[str, Optional[str]]]
-    )-> collections.OrderedDict:
+    ) -> collections.OrderedDict:
         '''
         Filter function to modify the incoming value before updating or
         overriding the setting.
@@ -1635,37 +1577,26 @@ class LoggingSetting(Setting):
 
     def __init__(
         self,
-        attr_name: str,
-        nice_name: str,
-        value: dict[str, Optional[str]],
+        *args,
         categories: Optional[list[str]] = None,
         verbosity_levels: Optional[list[str]] = None,
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True,
-        allow_reset: bool = True,
-        migrate_data: Optional[Callable[[Any], None]] = None
+        **kwargs
     ):
         '''
         Create a new LoggingSetting object.
 
         Args:
-            attr_name       : Internal name.
-            nice_name       : Display name.
-            value           : The initial value of this Setting.
+            value           : dict[str, Optional[str]]
             categories      : The initial list of logging categories.
             verbosity_levels: The possible settings for verbosity level of
                               each category.
-            tool_tip        : Tooltip to show in the UI for this Setting.
-            show_ui         : Whether to show this Setting in the Settings UI.
         '''
 
         # Set the categories before calling the base class init since they
         # will be used when filtering the value.
         self._categories = categories or []
 
-        super().__init__(
-            attr_name, nice_name, value,
-            tool_tip=tool_tip, show_ui=show_ui, allow_reset=allow_reset, migrate_data=migrate_data)
+        super().__init__(*args, **kwargs)
 
         self._verbosity_levels = (
             verbosity_levels or self.DEFAULT_VERBOSITY_LEVELS)
@@ -1828,25 +1759,14 @@ class LoggingSetting(Setting):
 
 
 class AddressSetting(OptionSetting):
-    def __init__(
-        self,
-        attr_name,
-        nice_name,
-        value,
-        tool_tip=None,
-        show_ui=True,
-        allow_reset=True,
-        migrate_data=None
-    ):
+
+    def __init__(self, *args, **kwargs):
+
         super().__init__(
-            attr_name=attr_name,
-            nice_name=nice_name,
-            value=value,
+            *args,
             possible_values=list(self.generate_possible_addresses()),
-            tool_tip=tool_tip,
-            show_ui=show_ui,
-            allow_reset=allow_reset,
-            migrate_data=migrate_data)
+            **kwargs
+        )
 
     def _create_widgets(
         self, override_device_name: Optional[str] = None
@@ -2076,7 +1996,7 @@ class Config(object):
         ''' Restores saving_allowed flag from the stack
         '''
         self.saving_allowed = self.saving_allowed_fifo.pop()
-        
+
     def init(self, file_path: Union[str, pathlib.Path]):
         self.init_with_file_path(file_path)
 
@@ -2088,8 +2008,8 @@ class Config(object):
                 # Read the json config file
                 with open(self.file_path, 'r') as f:
                     LOGGER.debug(f'Loading Config {self.file_path}')
-                    data = json.load(f)                    
-                        
+                    data = json.load(f)
+
             except (ConfigPathError, FileNotFoundError) as e:
                 LOGGER.error(f'Config: {e}')
                 self.file_path = None
@@ -2105,6 +2025,7 @@ class Config(object):
         self.init_switchboard_settings(data)
         self.init_sblhelper_settings(data)
         self.init_project_settings(data)
+        self.init_plugin_tracking()
         self.init_unreal_insights(data)
         self.init_muserver(data)
 
@@ -2126,10 +2047,32 @@ class Config(object):
         self.SWITCHBOARD_DIR = os.path.abspath(
             os.path.join(os.path.dirname(os.path.abspath(__file__)), '../'))
 
-        # MISC SETTINGS
         self.CURRENT_LEVEL = data.get('current_level', DEFAULT_MAP_TEXT)
 
-        # Devices
+        self.init_devices(data)
+
+    def _backup_corrupted_config(self, original_file_path: str):
+        directory_name = os.path.dirname(original_file_path)
+        original_file_name = os.path.basename(original_file_path)
+        new_file_name = original_file_name.replace(".", "_corrupted_backup.")
+
+        LOGGER.error(f'{original_file_name} has invalid JSON format. Creating default...')
+        answer = QtWidgets.QMessageBox.question(
+            None,
+            'Invalid project settings',
+            f'Config file { original_file_name } is invalid JSON and will be replaced by a new default JSON config.'
+            f'\n\nDo you want to save a backup named { new_file_name }?',
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
+        )
+        if answer == QtWidgets.QMessageBox.Yes:
+            new_file_path = os.path.join(directory_name, new_file_name)
+            if os.path.exists(new_file_path):
+                os.remove(new_file_path)
+            shutil.copy(original_file_path, new_file_path)
+
+    def init_devices(self, data={}):
+        ''' '''
+
         self._device_data_from_config = {}
         self._plugin_data_from_config = {}
         self._device_settings = {}
@@ -2158,77 +2101,74 @@ class Config(object):
                     self._device_data_from_config.setdefault(
                         device_type, []).append(device_data)
 
-    def _backup_corrupted_config(self, original_file_path: str):
-        directory_name = os.path.dirname(original_file_path)
-        original_file_name = os.path.basename(original_file_path)
-        new_file_name = original_file_name.replace(".", "_corrupted_backup.")
+    def init_plugin_tracking(self):
+        ''' Initializes the plugin manager '''
 
-        LOGGER.error(f'{original_file_name} has invalid JSON format. Creating default...')
-        answer = QtWidgets.QMessageBox.question(
-            None,
-            'Invalid project settings',
-            f'Config file { original_file_name } is invalid JSON and will be replaced by a new default JSON config.'
-            f'\n\nDo you want to save a backup named { new_file_name }?',
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
-        )
-        if answer == QtWidgets.QMessageBox.Yes:
-            new_file_path = os.path.join(directory_name, new_file_name)
-            if os.path.exists(new_file_path):
-                os.remove(new_file_path)
-            shutil.copy(original_file_path, new_file_path)
+        engine_dir = self.ENGINE_DIR.get_value()
+        uproj_path = self.UPROJECT_PATH.get_value()
+
+        self.ue_plugin_mgr = UnrealPluginManager()
+        self.ue_plugin_mgr.set_engine_dir(Path(engine_dir) if engine_dir else None)
+        self.ue_plugin_mgr.set_uproject_path(Path(uproj_path) if uproj_path else None)
+
+        self.ENGINE_DIR.signal_setting_changed.connect(
+            lambda _, new: self.ue_plugin_mgr.set_engine_dir(Path(new)))
+
+        self.UPROJECT_PATH.signal_setting_changed.connect(
+            lambda _, new: self.ue_plugin_mgr.set_uproject_path(Path(new)))
 
     def init_new_config(self, file_path: Union[str, pathlib.Path], uproject, engine_dir, p4_settings):
-        ''' 
-        Initialize new configuration
-        '''
+        ''' Initialize new configuration '''
 
+        # Assign self.file_path before the basic_project_settings line because it requires it to be updated.
         self.file_path = get_absolute_config_path(file_path)
+
+        basic_project_settings = {
+                "project_name": self.file_path.stem,
+                "uproject": uproject,
+                "engine_dir": engine_dir,
+            }
+
         self.init_switchboard_settings()
         self.init_sblhelper_settings()
-        self.init_project_settings(
-            { 
-                "project_name": self.file_path.stem, 
-                "uproject": uproject, 
-                "engine_dir": engine_dir,
-            } | p4_settings)
+        self.init_project_settings(basic_project_settings | p4_settings)
+        self.init_plugin_tracking()
         self.init_unreal_insights()
         self.init_muserver()
 
         self.CURRENT_LEVEL = DEFAULT_MAP_TEXT
 
-        self._device_data_from_config = {}
-        self._plugin_data_from_config = {}
-        self._plugin_settings = {}
-        self._device_settings = {}
+        self.init_plugin_tracking()
+        self.init_devices()
 
         LOGGER.info(f"Creating new config saved in {self.file_path}")
         self.save()
 
         SETTINGS.CONFIG = self.file_path
         SETTINGS.save()
-        
+
     def init_switchboard_settings(self, data={}):
         self.switchboard_settings = {
             "listener_exe": StringSetting(
-                attr_name = "listener_exe",
-                nice_name = "Listener Executable Name",
-                value = data.get('listener_exe', 'SwitchboardListener')
+                attr_name="listener_exe",
+                nice_name="Listener Executable Name",
+                value=data.get('listener_exe', 'SwitchboardListener')
             )
         }
-        
+
         self.LISTENER_EXE = self.switchboard_settings["listener_exe"]
 
     def init_sblhelper_settings(self, data={}):
         self.sblhelper_settings = {
             "sblhelper_exe": StringSetting(
-                attr_name = "sblhelper_exe",
-                nice_name = "Gpu Clocker Executable Name",
-                value = data.get('sblhelper_exe', 'SwitchboardListenerHelper'),
-                tool_tip = "Name of the executable that SwitchboardListener can communicate with to lock Gpu clocks.",
-                show_ui = True if sys.platform in ('win32','linux') else False, # # Gpu Clocker is available in select platforms
+                attr_name="sblhelper_exe",
+                nice_name="Gpu Clocker Executable Name",
+                value=data.get('sblhelper_exe', 'SwitchboardListenerHelper'),
+                tool_tip="Name of the executable that SwitchboardListener can communicate with to lock Gpu clocks.",
+                show_ui=True if sys.platform in ('win32', 'linux') else False  # Gpu Clocker is available in select platforms
             )
         }
-        
+
         self.SBLHELPER_EXE = self.sblhelper_settings["sblhelper_exe"]
 
     def init_project_settings(self, data={}):
@@ -2236,38 +2176,44 @@ class Config(object):
             "project_name": StringSetting(
                 "project_name",
                 "Project Name",
-                data.get('project_name', 'Default')
+                data.get('project_name', 'Default'),
+                category="General Settings",
             ),
             "uproject": FilePathSetting(
                 "uproject", "uProject Path",
                 data.get('uproject', ''),
-                tool_tip="Path to uProject"
+                tool_tip="Path to uProject",
+                category="General Settings",
             ),
             "engine_dir": DirectoryPathSetting(
                 "engine_dir",
                 "Engine Directory",
                 data.get('engine_dir', ''),
-                tool_tip="Path to UE 'Engine' directory"
+                tool_tip="Path to UE 'Engine' directory",
+                category="General Settings",
             ),
             'engine_sync_method': OptionSetting(
                 "engine_sync_method",
                 "Engine Sync Method",
                 EngineSyncMethod.Use_Existing.value,
                 possible_values=[p.value for p in EngineSyncMethod],
+                category="Source Control Settings",
             ),
             "maps_path": StringSetting(
                 "maps_path",
                 "Map Path",
                 data.get('maps_path', ''),
                 placeholder_text="Maps",
-                tool_tip="Relative path from Content folder that contains maps to launch into."
+                tool_tip="Relative path from Content folder that contains maps to launch into.",
+                category="General Settings",
             ),
             "maps_filter": StringSetting(
                 "maps_filter",
                 "Map Filter",
                 data.get('maps_filter', '*.umap'),
                 placeholder_text="*.umap",
-                tool_tip="Walk every file in the Map Path and run a fnmatch to filter the file names"
+                tool_tip="Walk every file in the Map Path and run a fnmatch to filter the file names",
+                category="General Settings",
             ),
             'maps_plugin_filters': StringListSetting(
                 "maps_plugin_filters",
@@ -2278,7 +2224,8 @@ class Config(object):
                     "Plugins whose name matches any of these filters will "
                     "also be searched for maps."),
                 show_ui=False,
-                migrate_data=migrate_comma_separated_string_to_list
+                migrate_data=migrate_comma_separated_string_to_list,
+                category="General Settings",
             ),
             'content_plugin_filters': StringListSetting(
                 "content_plugin_filters",
@@ -2290,12 +2237,14 @@ class Config(object):
                 tool_tip=(
                     "Plugins that match any of these filters will also be "
                     "searched when populating fields in Switchboard (e.g. "
-                    "levels, nDisplay configs, etc.). Each value can be "
-                    "either just a plugin name identifying a project plugin, "
-                    "or a relative or absolute path to a plugin directory. "
-                    "Relative paths should be relative to the directory "
-                    "containing the .uproject file."),
-                migrate_data=migrate_comma_separated_string_to_list
+                    "levels, nDisplay configs, etc.).\n"
+                    "\n"
+                    "Each value can be either a plugin name, or a relative or "
+                    "absolute path to a plugin directory. Relative paths "
+                    "should be relative to the directory containing the "
+                    ".uproject file."),
+                migrate_data=migrate_comma_separated_string_to_list,
+                category="General Settings",
             ),
         }
 
@@ -2340,24 +2289,28 @@ class Config(object):
                 "p4_enabled",
                 "Perforce Enabled",
                 data.get("p4_enabled", False),
-                tool_tip="Toggle Perforce support for the entire application"
+                tool_tip="Toggle Perforce support for the entire application",
+                category="Source Control Settings",
             ),
             "source_control_workspace": StringSetting(
                 "source_control_workspace", "Workspace Name",
                 data.get("source_control_workspace"),
-                tool_tip="SourceControl Workspace/Branch"
+                tool_tip="SourceControl Workspace/Branch",
+                category="Source Control Settings",
             ),
             "p4_sync_path": PerforcePathSetting(
                 "p4_sync_path",
                 "Perforce Project Path",
                 data.get("p4_sync_path", ''),
-                placeholder_text="//UE/Project"
+                placeholder_text="//UE/Project",
+                category="Source Control Settings",
             ),
             "p4_engine_path": PerforcePathSetting(
                 "p4_engine_path",
                 "Perforce Engine Path",
                 data.get("p4_engine_path", ''),
-                placeholder_text="//UE/Project/Engine"
+                placeholder_text="//UE/Project/Engine",
+                category="Source Control Settings",
             )
         }
 
@@ -2706,11 +2659,6 @@ class Config(object):
         del self._device_settings[(device_type, device_name)]
         self.save()
 
-    def shrink_path(self, path):
-        path_name = path.replace(self.get_project_dir(), '', 1)
-        path_name = path_name.replace(os.sep, '/')
-        return path_name
-
     def get_project_dir(self) -> str:
         '''
         Get the root directory of the project.
@@ -2725,47 +2673,48 @@ class Config(object):
         '''
         return os.path.join(self.get_project_dir(), 'Content')
 
-    def get_unreal_content_plugins(
-            self) -> list[ue_plugin_utils.UnrealPlugin]:
+    def get_unreal_content_plugins(self) -> list[UnrealPlugin]:
         '''
         Get a list of Unreal Engine plugins that match the current
         Switchboard config's content plugin filter settings.
 
-        By default, Switchboard does not search inside plugins for assets when
-        populating UI fields such as the level or nDisplay config dropdown
-        menus. Plugins in which to search for content can be selectively
-        added though using the "Content Plugin Filters" setting, which
-        stores a list of glob-style patterns.
+        By default, Switchboard searches inside project plugins as well as
+        AdditionalPluginDirectories plugins for assets when populating UI
+        fields such as the level or nDisplay config dropdown menus.
+
+        Engine/other plugins in which to search for content can be selectively
+        added though using the "Content Plugin Filters" setting.
         '''
-        filter_patterns = self.CONTENT_PLUGIN_FILTERS.get_value()
-        unreal_plugins = ue_plugin_utils.UnrealPlugin.from_path_filters(
-            self.get_project_dir(), filter_patterns)
+
+        # Pop known plugin names from the config array, treat the rest as globs
+        unreal_plugins: list[UnrealPlugin] = []
+        filter_patterns: list[str] = []
+
+        # Enabled project plugins are always enumerated for content
+        unreal_plugins.extend(self.ue_plugin_mgr.enabled_project_plugins)
+
+        for pattern in self.CONTENT_PLUGIN_FILTERS.get_value():
+            if plugin := self.ue_plugin_mgr.get_plugin_by_name(pattern):
+                unreal_plugins.append(plugin)
+            else:
+                filter_patterns.append(pattern)
+
+        if filter_patterns:
+            unreal_plugins.extend(UnrealPlugin.from_path_filters(
+                self.UPROJECT_PATH.get_value(), filter_patterns))
+
         return unreal_plugins
 
     def resolve_content_path(
-            self,
-            file_path: str,
-            unreal_content_plugin: ue_plugin_utils.UnrealPlugin = None) -> str:
+        self,
+        file_path: Union[Path, str]
+    ) -> Optional[PurePosixPath]:
         '''
         Resolve a file path on the file system to the corresponding content
         path in UE.
-
-        If an unreal_content_plugin is provided, the file is assumed to live
-        inside that plugin and its content path will have the appropriate
-        plugin name-based prefix. Otherwise, the file is assumed to live
-        inside the project's content folder.
         '''
-        if unreal_content_plugin:
-            content_dir = str(unreal_content_plugin.plugin_content_path)
-            ue_path_prefix = str(unreal_content_plugin.mounted_path)
-        else:
-            content_dir = self.get_project_content_dir()
-            ue_path_prefix = '/Game'
 
-        path_name = file_path.replace(content_dir, ue_path_prefix, 1)
-        path_name = self.shrink_path(path_name)
-
-        return path_name
+        return self.ue_plugin_mgr.file_to_content_path(file_path)
 
     def find_levels(self) -> list[str]:
 
@@ -2824,7 +2773,9 @@ class Config(object):
         # (unreal_plugin, directory_path). This allows us to differentiate
         # between maps in the project (unreal_plugin is None in that case) and
         # maps in a plugin.
-        search_paths = [(None, project_maps_path)]
+        search_paths: list[tuple[Optional[UnrealPlugin], Path]] = [
+            (None, Path(project_maps_path))
+        ]
 
         for unreal_content_plugin in self.get_unreal_content_plugins():
             search_paths.append(
@@ -2868,14 +2819,12 @@ class Config(object):
                 if not fnmatch.fnmatch(umap.name, maps_filter):
                     continue
 
-                mapgamepath = Path(self.resolve_content_path(
-                    umap.path,
-                    unreal_content_plugin=unreal_content_plugin))
-
-                mapgamepath = (mapgamepath.parent / mapgamepath.stem).as_posix()
-
-                if mapgamepath not in levels:
-                    levels.append(mapgamepath)
+                if mapgamepath := self.resolve_content_path(umap.path):
+                    mapgamepath = mapgamepath.with_suffix('')
+                    if mapgamepath not in levels:
+                        levels.append(str(mapgamepath))
+                else:
+                    LOGGER.warning(f"No game path for {umap.path}")
 
         levels.sort()
 

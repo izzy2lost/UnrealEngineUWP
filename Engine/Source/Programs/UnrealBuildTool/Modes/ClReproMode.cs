@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.IO;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -73,7 +73,7 @@ namespace UnrealBuildTool.Modes
 
 			if (!String.IsNullOrEmpty(depends.Data.PCH))
 			{
-				logger.LogError("PCH repro not currently supported, please use -NoPCH when compiling", inputDepFile);
+				logger.LogError("PCH repro not currently supported, please use -NoPCH when compiling ({Dep})", inputDepFile);
 				return Task.FromResult(1);
 			}
 

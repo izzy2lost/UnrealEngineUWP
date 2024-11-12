@@ -43,6 +43,7 @@ public:
 	IPersonaEditorModeManager* GetPersonaEditorModeManager() const;
 	virtual bool GetCameraTarget(FSphere& OutTarget) const override;
 	virtual void GetOnScreenDebugInfo(TArray<FText>& OutDebugText) const override;
+	virtual void SetFocusInViewport();
 private:
 	IPersonaEditorModeManager* ModeManager = nullptr;
 	static UPersonaEditorModeManagerContext* CreateFor(IPersonaEditorModeManager* InModeManager)

@@ -30,6 +30,7 @@ struct FAnimNode_CustomProperty : public FAnimNode_Base
 public:
 
 	ENGINE_API FAnimNode_CustomProperty();
+	ENGINE_API FAnimNode_CustomProperty(const FAnimNode_CustomProperty&);
 	ENGINE_API ~FAnimNode_CustomProperty();
 
 	/* Set Target Instance */

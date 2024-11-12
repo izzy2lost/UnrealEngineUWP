@@ -20,5 +20,9 @@ public:
 	/** Whether to show "outdated assets" by default in the camera animation track's asset picker. */
 	UPROPERTY(config)
 	bool bShowOutdatedAssetsInCameraAnimationTrackEditor = false;
+
+	/** Whether to set the viewport position as the initial value for additive camera sections. */
+	UPROPERTY(config)
+	bool bCameraInitiallyAdditiveToViewport = true;
 };
 

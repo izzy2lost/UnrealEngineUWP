@@ -74,6 +74,9 @@ private:
 	/** Called when ports changed */
 	void OnPortsChanged();
 
+	/** Called when port buffers were cleared */
+	void OnPortBuffersCleared();
+
 	/** Called when the clear ui values button was clicked */
 	FReply OnClearButtonClicked();
 

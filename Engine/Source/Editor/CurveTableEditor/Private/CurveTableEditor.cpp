@@ -249,19 +249,18 @@ class FCurveTableEditorItem : public ICurveEditorTreeItem,  public TSharedFromTh
 	{
 		if (InFilter->GetType() == ECurveEditorTreeFilterType::Text)
 		{
+			FString DisplayNameAsString = DisplayName.ToString();
+
 			const FCurveEditorTreeTextFilter* Filter = static_cast<const FCurveEditorTreeTextFilter*>(InFilter);
 			for (const FCurveEditorTreeTextFilterTerm& Term : Filter->GetTerms())
 			{
-				for(const FCurveEditorTreeTextFilterToken& Token : Term.ChildToParentTokens)
+				if (!Term.Match(DisplayNameAsString).IsTotalMatch())
 				{
-					if(Token.Match(*DisplayName.ToString()))
-					{
-						return true;
-					}
+					return false;
 				}
 			}
 
-			return false;
+			return true;
 		}
 
 		return false;
@@ -389,6 +388,11 @@ void FCurveTableEditor::UnregisterTabSpawners(const TSharedRef<class FTabManager
 FCurveTableEditor::~FCurveTableEditor()
 {
 	FReimportManager::Instance()->OnPostReimport().RemoveAll(this);
+	
+	if (UCurveTable* CurveTable = GetCurveTable())
+	{
+		CurveTable->OnCurveTableChanged().RemoveAll(this);
+	}
 }
 
 
@@ -403,7 +407,12 @@ void FCurveTableEditor::InitCurveTableEditor( const EToolkitMode::Type Mode, con
 	ExtendToolbar();
 	RegenerateMenusAndToolbars();
 
-	FReimportManager::Instance()->OnPostReimport().AddSP(this, &FCurveTableEditor::OnPostReimport);
+	FReimportManager::Instance()->OnPostReimport().AddSP(this, &FCurveTableEditor::OnPostReimport);	
+	
+	if (Table)
+	{
+		Table->OnCurveTableChanged().AddSP(this, &FCurveTableEditor::RefreshTableRows);
+	}
 
 	GEditor->RegisterForUndo(this);
 }

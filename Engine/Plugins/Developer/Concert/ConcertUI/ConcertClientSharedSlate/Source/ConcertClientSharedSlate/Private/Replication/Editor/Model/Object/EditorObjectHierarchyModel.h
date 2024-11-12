@@ -23,11 +23,11 @@ namespace UE::ConcertClientSharedSlate
 
 		//~ Begin IObjectHierarchy Interface
 		virtual void ForEachDirectChild(
-			const FSoftObjectPath& Parent,
-			TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, ConcertSharedSlate::EChildRelationship Relationship)> Callback,
+			const TSoftObjectPtr<>& Parent,
+			TFunctionRef<EBreakBehavior(const TSoftObjectPtr<>& Object, ConcertSharedSlate::EChildRelationship Relationship)> Callback,
 			ConcertSharedSlate::EChildRelationshipFlags InclusionFlags
 			) const override;
-		virtual TOptional<FParentInfo> GetParentInfo(const FSoftObjectPath& ChildObject) const override;
+		virtual TOptional<FParentInfo> GetParentInfo(const TSoftObjectPtr<const UObject>& ChildObject) const override;
 		//~ End IObjectHierarchy Interface
 	};
 }

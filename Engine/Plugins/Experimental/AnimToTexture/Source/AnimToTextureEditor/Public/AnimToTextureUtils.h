@@ -209,6 +209,13 @@ FORCEINLINE_DEBUGGABLE bool AnimToTexture_Private::WriteToTexture(
 {
 	check(Texture);
 
+	// TODO FIX ME: this is the wrong way to build a UTexture
+	// instead fill out an FImage
+	// and use Texture.Source.Init() from FImage
+	// there is no reason to be touching the PlatformData or BulkData
+	
+	Texture->PreEditChange(nullptr);
+
 	// ------------------------------------------------------------------------
 	// Get Texture Platform
 	FTexturePlatformData* PlatformData = Texture->GetPlatformData();
@@ -264,8 +271,7 @@ FORCEINLINE_DEBUGGABLE bool AnimToTexture_Private::WriteToTexture(
 	Texture->MipGenSettings = TextureMipGenSettings::TMGS_NoMipmaps;
 
 	// Update and Mark to Save.
-	Texture->UpdateResource();
-	Texture->MarkPackageDirty();
+	Texture->PostEditChange();
 
 	return true;
 }

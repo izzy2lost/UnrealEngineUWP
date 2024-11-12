@@ -8,6 +8,7 @@
 #include "riglogic/controls/ControlsInputInstance.h"
 #include "riglogic/joints/JointsOutputInstance.h"
 #include "riglogic/ml/MachineLearnedBehaviorOutputInstance.h"
+#include "riglogic/rbf/RBFBehaviorOutputInstance.h"
 #include "riglogic/riglogic/RigInstance.h"
 #include "riglogic/riglogic/RigMetrics.h"
 
@@ -45,16 +46,20 @@ class RigInstanceImpl : public RigInstance {
         float getNeuralNetworkMask(std::uint16_t neuralNetIndex) const override;
         void setNeuralNetworkMask(std::uint16_t neuralNetIndex, float value) override;
 
+        std::uint16_t getRBFControlCount() const override;
+        float getRBFControl(std::uint16_t index) const override;
+        ConstArrayView<float> getRBFControlValues() const override;
+
         std::uint16_t getLOD() const override;
         void setLOD(std::uint16_t level) override;
 
-        ConstArrayView<float> getRawJointOutputs() const override;
-        TransformationArrayView getJointOutputs() const override;
+        ConstArrayView<float> getJointOutputs() const override;
         ConstArrayView<float> getBlendShapeOutputs() const override;
         ConstArrayView<float> getAnimatedMapOutputs() const override;
 
         ControlsInputInstance* getControlsInputInstance();
         MachineLearnedBehaviorOutputInstance* getMachineLearnedBehaviorOutputInstance();
+        RBFBehaviorOutputInstance* getRBFBehaviorOutputInstance();
         JointsOutputInstance* getJointsOutputInstance();
         BlendShapesOutputInstance* getBlendShapesOutputInstance();
         AnimatedMapsOutputInstance* getAnimatedMapOutputInstance();
@@ -70,10 +75,12 @@ class RigInstanceImpl : public RigInstance {
         std::uint16_t rawControlCount;
         std::uint16_t psdControlCount;
         std::uint16_t mlControlCount;
+        std::uint16_t rbfControlCount;
         std::uint16_t neuralNetworkCount;
 
         ControlsInputInstance::Pointer controlsInstance;
         MachineLearnedBehaviorOutputInstance::Pointer machineLearnedBehaviorInstance;
+        RBFBehaviorOutputInstance::Pointer rbfBehaviorInstance;
         JointsOutputInstance::Pointer jointsInstance;
         BlendShapesOutputInstance::Pointer blendShapesInstance;
         AnimatedMapsOutputInstance::Pointer animatedMapsInstance;

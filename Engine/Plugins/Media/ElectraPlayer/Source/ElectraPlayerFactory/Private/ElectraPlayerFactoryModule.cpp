@@ -13,8 +13,12 @@
 #include "Misc/Paths.h"
 #include "Misc/Guid.h"
 
-#ifdef UE_PLATFORM_ELECTRAPLAYER
+#ifndef UE_PLATFORM_ELECTRAPLAYER
+#define UE_PLATFORM_ELECTRAPLAYER 0
+#endif
+#if UE_PLATFORM_ELECTRAPLAYER
 #include "IElectraPlayerPluginModule.h"
+#include "Utilities/URLParser.h"
 #endif
 
 DEFINE_LOG_CATEGORY(LogElectraPlayerFactory);
@@ -36,36 +40,64 @@ public:
 
 	bool CanPlayUrl(const FString& Url, const IMediaOptions* Options, TArray<FText>* OutWarnings, TArray<FText>* OutErrors) const override
 	{
-		FString Scheme;
-		FString Location;
+		return GetPlayabilityConfidenceScore(Url, Options, OutWarnings, OutErrors) > 0 ? true : false;
+	}
 
-		// check scheme
-		if (!Url.Split(TEXT("://"), &Scheme, &Location, ESearchCase::CaseSensitive))
+	int32 GetPlayabilityConfidenceScore(const FString& Url, const IMediaOptions* Options, TArray<FText>* OutWarnings, TArray<FText>* OutErrors) const override
+	{
+#if UE_PLATFORM_ELECTRAPLAYER
+		// Split the URL apart.
+		Electra::FURL_RFC3986 UrlParser;
+		if (!UrlParser.Parse(Url))
+		{
+			if (OutErrors != nullptr)
+			{
+				OutErrors->Add(FText::Format(LOCTEXT("MalformedURI", "The URI '{0}' could not be parsed"), FText::FromString(Url)));
+			}
+		}
+		// Check scheme
+		FString Scheme = UrlParser.GetScheme();
+		if (Scheme.IsEmpty())
 		{
 			if (OutErrors != nullptr)
 			{
 				OutErrors->Add(LOCTEXT("NoSchemeFound", "No URI scheme found"));
 			}
-
-			return false;
+			return 0;
 		}
-
 		if (!SupportedUriSchemes.Contains(Scheme))
 		{
 			if (OutErrors != nullptr)
 			{
 				OutErrors->Add(FText::Format(LOCTEXT("SchemeNotSupported", "The URI scheme '{0}' is not supported"), FText::FromString(Scheme)));
 			}
-
-			return false;
+			return 0;
 		}
 
-		return true;
+		// Check for known extensions
+		TArray<FString> PathComponents;
+		UrlParser.GetPathComponents(PathComponents);
+		FString LowerCaseExtension = FPaths::GetExtension(PathComponents.Last().ToLower());
+		// If the extension is known, we are confident that we can play this.
+		// At this point there is no information provided on the codecs used in the media,
+		// so we cannot check for this.
+		if (SupportedFileExtensions.Contains(LowerCaseExtension))
+		{
+			return 100;
+		}
+		// For http URLs, if there is no extension then we can't be sure. Return a lower confidence.
+		// If the scheme is file:// then we can actually demand there to be an extension, so if it is missing, too bad.
+		else if (LowerCaseExtension.IsEmpty() && (Scheme.Equals(TEXT("https")) || Scheme.Equals(TEXT("http"))))
+		{
+			return 20;
+		}
+#endif
+		return 0;
 	}
 
 	TSharedPtr<IMediaPlayer, ESPMode::ThreadSafe> CreatePlayer(IMediaEventSink& EventSink) override
 	{
-#ifdef UE_PLATFORM_ELECTRAPLAYER
+#if UE_PLATFORM_ELECTRAPLAYER
 		auto PlayerModule = FModuleManager::LoadModulePtr<IElectraPlayerPluginModule>("ElectraPlayerPlugin");
 		return (PlayerModule != nullptr) ? PlayerModule->CreatePlayer(EventSink) : nullptr;
 #else
@@ -114,7 +146,7 @@ public:
 	void StartupModule() override
 	{
 		// supported platforms
-#ifdef UE_PLATFORM_ELECTRAPLAYER
+#if UE_PLATFORM_ELECTRAPLAYER
 		MediaModule = FModuleManager::GetModulePtr<IMediaModule>("Media");
 		check(MediaModule);
 
@@ -133,12 +165,26 @@ public:
 		AddSupportedPlatform(FGuid(0x115de4fe, 0x241b465b, 0x970a872f, 0x3167492a));
 		AddSupportedPlatform(FGuid(0xc0b45a33, 0x9de340c7, 0xbce24c47, 0x15c3babf));
         AddSupportedPlatform(FGuid(0xa478294f, 0xbd0d4ec0, 0x8830b6d4, 0xd219c1a4));
-#endif
+		AddSupportedPlatform(FGuid(0xae496f22, 0x95534328, 0xbd035b4c, 0x919dc51a));
 
 		// supported schemes
 		SupportedUriSchemes.Add(TEXT("http"));
 		SupportedUriSchemes.Add(TEXT("https"));
 		SupportedUriSchemes.Add(TEXT("file"));
+
+		// supported file extensions
+		SupportedFileExtensions.Add(TEXT("mp4"));
+		SupportedFileExtensions.Add(TEXT("m4v"));
+		SupportedFileExtensions.Add(TEXT("m4a"));
+		SupportedFileExtensions.Add(TEXT("mov"));
+		SupportedFileExtensions.Add(TEXT("mpd"));
+		SupportedFileExtensions.Add(TEXT("m3u8"));
+		SupportedFileExtensions.Add(TEXT("mkv"));
+		SupportedFileExtensions.Add(TEXT("mka"));
+		SupportedFileExtensions.Add(TEXT("webm"));
+		SupportedFileExtensions.Add(TEXT("mp3"));
+		SupportedFileExtensions.Add(TEXT("mpa"));
+#endif
 
 		// register player factory
 		MediaModule->RegisterPlayerFactory(*this);

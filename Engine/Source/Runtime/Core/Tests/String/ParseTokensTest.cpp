@@ -127,8 +127,12 @@ TEST_CASE("Core::String::ParseTokens", "[Core][String][Smoke]")
 			{TEXTVIEW("A\u2022B,C"),      {TEXT(','), TEXT('\u2022')},      {TEXT("A"), TEXT("B"), TEXT("C")},                      KeepEmpty},
 			{TEXTVIEW("A\u2022B\u0085C"), {TEXT('\u0085'), TEXT('\u2022')}, {TEXT("A"), TEXT("B"), TEXT("C")},                      KeepEmpty},
 
-			{TEXTVIEW("ABC"), {TEXT('b')}, {TEXT("ABC")}, SkipEmpty},
+			{TEXTVIEW("ABC"), {TEXT('b')}, {TEXT("ABC")},          SkipEmpty},
+			{TEXTVIEW("ABC"), {TEXT('B')}, {TEXT("A"), TEXT("C")}, SkipEmpty},
 			{TEXTVIEW("ABC"), {TEXT('b')}, {TEXT("A"), TEXT("C")}, SkipEmpty | IgnoreCase},
+			{TEXTVIEW("abc"), {TEXT('B')}, {TEXT("abc")},          SkipEmpty},
+			{TEXTVIEW("abc"), {TEXT('b')}, {TEXT("a"), TEXT("c")}, SkipEmpty},
+			{TEXTVIEW("abc"), {TEXT('B')}, {TEXT("a"), TEXT("c")}, SkipEmpty | IgnoreCase},
 
 			{TEXTVIEW("AbCdaBcD"), {TEXT('B'), TEXT('d')}, {TEXT("AbC"), TEXT("A"), TEXT("cD")},         SkipEmpty},
 			{TEXTVIEW("AbCdaBcD"), {TEXT('B'), TEXT('d')}, {TEXT("A"), TEXT("C"), TEXT("a"), TEXT("c")}, SkipEmpty | IgnoreCase},

@@ -1753,69 +1753,62 @@ bool FParticleRibbonEmitterInstance::Spawn_Source(float DeltaTime)
 
 				if ((NextSpawnedParticle != NULL) && (NextNextSpawnedParticle != NULL))
 				{
-					FVector NewTangent;
-					if (NextNextSpawnedParticle != NULL)
+					// Calculate the new tangent from the previous and next position...
+					// LastSourcePosition will be that position of the first particle that will be spawned this frame
+					FVector PositionDelta = (CurrentSourcePosition[TrailIdx] - PositionOffsetThisTick - NextNextSpawnedParticle->Location);
+					float TimeDelta = ElapsedTime - NextNextSpawnedTrailData->SpawnTime;
+
+					FVector NewTangent = FVector::ZeroVector;
+					if (TimeDelta > UE_SMALL_NUMBER)
 					{
-						// Calculate the new tangent from the previous and next position...
-						// LastSourcePosition will be that position of the first particle that will be spawned this frame
-						FVector PositionDelta = (CurrentSourcePosition[TrailIdx] - PositionOffsetThisTick - NextNextSpawnedParticle->Location);
-						float TimeDelta = ElapsedTime - NextNextSpawnedTrailData->SpawnTime;
+						NewTangent = PositionDelta / TimeDelta;
+					}
+
+					// Calculate new tangents for all the interpolated particles between NextNext and Next
+					if (NextSpawnedTrailData->SpawnedTessellationPoints > 0)
+					{
+						FBaseParticle* CurrentParticle = NULL;
+						FRibbonTypeDataPayload* CurrentTrailData = NULL;
 						
-						if (TimeDelta > UE_SMALL_NUMBER)
 						{
-							NewTangent = PositionDelta / TimeDelta;
+							int32 Prev = TRAIL_EMITTER_GET_PREV(NextNextSpawnedTrailData->Flags);
+							check(Prev != TRAIL_EMITTER_NULL_PREV);
+							DECLARE_PARTICLE_PTR(PrevParticle, ParticleData + ParticleStride * Prev);
+							CurrentParticle = PrevParticle;
+							CurrentTrailData = ((FRibbonTypeDataPayload*)((uint8*)CurrentParticle + TypeDataOffset));
 						}
-						else
+						
+						// Fix up the next ones...
+						float Diff = NextSpawnedTrailData->SpawnTime - NextNextSpawnedTrailData->SpawnTime;
+						FVector CurrUp = FVector(0.0f, 0.0f, 1.0f);
+						float InvCount = 1.0f / NextSpawnedTrailData->SpawnedTessellationPoints;
+						// Spawn the given number of particles, interpolating between the current and last position/tangent
+						//@todo. Recalculate the number of interpolated spawn particles???
+						for (int32 SpawnIdx = 0; SpawnIdx < NextSpawnedTrailData->SpawnedTessellationPoints; SpawnIdx++)
 						{
-							NewTangent = FVector::ZeroVector;
-						}
+							float TimeStep = InvCount * (SpawnIdx + 1);
+							FVector CurrPosition = FMath::CubicInterp<FVector>(
+								NextNextSpawnedParticle->Location, (FVector)NextNextSpawnedTrailData->Tangent,
+								NextSpawnedParticle->Location, NewTangent * Diff, 
+								TimeStep);
+							FVector CurrTangent = FMath::CubicInterpDerivative<FVector>(
+								NextNextSpawnedParticle->Location, (FVector)NextNextSpawnedTrailData->Tangent,
+								NextSpawnedParticle->Location, NewTangent * Diff,
+								TimeStep);
 
-						// Calculate new tangents for all the interpolated particles between NextNext and Next
-						if (NextSpawnedTrailData->SpawnedTessellationPoints > 0)
-						{
-							FBaseParticle* CurrentParticle = NULL;
-							FRibbonTypeDataPayload* CurrentTrailData = NULL;
-							
+							// Trail specific...
+							CurrentParticle->OldLocation = CurrentParticle->Location;
+							CurrentParticle->Location = CurrPosition;
+							CurrentTrailData->Tangent = FVector3f(CurrTangent * InvCount);
+
+							// Get the next particle in the trail (previous)
+							if ((SpawnIdx + 1) < NextSpawnedTrailData->SpawnedTessellationPoints)
 							{
-								int32 Prev = TRAIL_EMITTER_GET_PREV(NextNextSpawnedTrailData->Flags);
+								int32 Prev = TRAIL_EMITTER_GET_PREV(CurrentTrailData->Flags);
 								check(Prev != TRAIL_EMITTER_NULL_PREV);
-								DECLARE_PARTICLE_PTR(PrevParticle, ParticleData + ParticleStride * Prev);
-								CurrentParticle = PrevParticle;
+								DECLARE_PARTICLE_PTR(PrevParticleInTrail, ParticleData + ParticleStride * Prev);
+								CurrentParticle = PrevParticleInTrail;
 								CurrentTrailData = ((FRibbonTypeDataPayload*)((uint8*)CurrentParticle + TypeDataOffset));
-							}
-							
-							// Fix up the next ones...
-							float Diff = NextSpawnedTrailData->SpawnTime - NextNextSpawnedTrailData->SpawnTime;
-							FVector CurrUp = FVector(0.0f, 0.0f, 1.0f);
-							float InvCount = 1.0f / NextSpawnedTrailData->SpawnedTessellationPoints;
-							// Spawn the given number of particles, interpolating between the current and last position/tangent
-							//@todo. Recalculate the number of interpolated spawn particles???
-							for (int32 SpawnIdx = 0; SpawnIdx < NextSpawnedTrailData->SpawnedTessellationPoints; SpawnIdx++)
-							{
-								float TimeStep = InvCount * (SpawnIdx + 1);
-								FVector CurrPosition = FMath::CubicInterp<FVector>(
-									NextNextSpawnedParticle->Location, (FVector)NextNextSpawnedTrailData->Tangent,
-									NextSpawnedParticle->Location, NewTangent * Diff, 
-									TimeStep);
-								FVector CurrTangent = FMath::CubicInterpDerivative<FVector>(
-									NextNextSpawnedParticle->Location, (FVector)NextNextSpawnedTrailData->Tangent,
-									NextSpawnedParticle->Location, NewTangent * Diff,
-									TimeStep);
-
-								// Trail specific...
-								CurrentParticle->OldLocation = CurrentParticle->Location;
-								CurrentParticle->Location = CurrPosition;
-								CurrentTrailData->Tangent = FVector3f(CurrTangent * InvCount);
-
-								// Get the next particle in the trail (previous)
-								if ((SpawnIdx + 1) < NextSpawnedTrailData->SpawnedTessellationPoints)
-								{
-									int32 Prev = TRAIL_EMITTER_GET_PREV(CurrentTrailData->Flags);
-									check(Prev != TRAIL_EMITTER_NULL_PREV);
-									DECLARE_PARTICLE_PTR(PrevParticleInTrail, ParticleData + ParticleStride * Prev);
-									CurrentParticle = PrevParticleInTrail;
-									CurrentTrailData = ((FRibbonTypeDataPayload*)((uint8*)CurrentParticle + TypeDataOffset));
-								}
 							}
 						}
 					}

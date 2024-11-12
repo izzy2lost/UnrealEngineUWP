@@ -62,7 +62,7 @@ a:focus, a:hover {
 	margin: .1em;
 }
 
-#fixed-footer div#fteButtons {
+#fixed-footer div#buttons {
 	align-self: flex-start;
 }
 
@@ -224,7 +224,6 @@ input[type="radio"] {
 }
 
 .flow-graph {
-	padding: 5px;
 	font-family: sans-serif;
 	font-size: 10pt;
 	text-align: center;
@@ -250,7 +249,7 @@ input[type="radio"] {
 	background-color: gainsboro;
 	border-radius: 4px;
 
-	box-shadow: 5px 5px 3px lightgray;
+	/*box-shadow: 5px 5px 3px lightgray;*/
 	position: relative;
 }
 

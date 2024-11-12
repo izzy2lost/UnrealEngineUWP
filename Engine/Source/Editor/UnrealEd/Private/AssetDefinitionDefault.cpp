@@ -2,17 +2,110 @@
 
 #include "AssetDefinitionDefault.h"
 
+#include "AssetDefinitionAssetInfo.h"
 #include "AssetToolsModule.h"
+#include "IAssetStatusInfoProvider.h"
 #include "EditorFramework/AssetImportData.h"
 #include "EditorFramework/ThumbnailInfo.h"
+#include "ISourceControlModule.h"
+#include "ISourceControlProvider.h"
 #include "Settings/EditorLoadingSavingSettings.h"
 #include "Toolkits/SimpleAssetEditor.h"
 
 #define LOCTEXT_NAMESPACE "AssetDefinitionDefault"
 
+#if UE_CONTENTBROWSER_NEW_STYLE
+namespace UE::AssetDefinitionDefault::Status
+{
+	EVisibility GetDirtyStatusVisibility(const TSharedPtr<IAssetStatusInfoProvider> InAssetStatusInfoProvider)
+	{
+		EVisibility DirtyStatusVisibility = EVisibility::Collapsed;
+		if (!InAssetStatusInfoProvider.IsValid())
+		{
+			return DirtyStatusVisibility;
+		}
+
+		if (const UPackage* Package = InAssetStatusInfoProvider->FindPackage())
+		{
+			DirtyStatusVisibility = Package->IsDirty() ? EVisibility::Visible : EVisibility::Collapsed;
+		}
+		return DirtyStatusVisibility;
+	}
+
+	const FSlateBrush* GetSourceControlStatusBrush(const TSharedPtr<IAssetStatusInfoProvider> InAssetStatusInfoProvider)
+	{
+		const FSlateBrush* SourceControlBrush = FAppStyle::GetNoBrush();
+		if (!InAssetStatusInfoProvider.IsValid())
+		{
+			return SourceControlBrush;
+		}
+
+		if (ISourceControlModule::Get().IsEnabled() && ISourceControlModule::Get().GetProvider().IsAvailable())
+		{
+			const FString FileName = InAssetStatusInfoProvider->TryGetFilename();
+			if (FSourceControlStatePtr SourceControlState = ISourceControlModule::Get().GetProvider().GetState(FileName, EStateCacheUsage::Use))
+			{
+				FSlateIcon SCCIcon = SourceControlState->GetIcon();
+				if (SCCIcon.IsSet())
+				{
+					SourceControlBrush = SCCIcon.GetIcon();
+				}
+			}
+		}
+		return SourceControlBrush;
+	}
+
+	EVisibility GetSourceControlStatusVisibility(const TSharedPtr<IAssetStatusInfoProvider> InAssetStatusInfoProvider)
+	{
+		EVisibility SourceControlStatusVisibility = EVisibility::Collapsed;
+		if (!InAssetStatusInfoProvider.IsValid())
+		{
+			return SourceControlStatusVisibility;
+		}
+
+		if (ISourceControlModule::Get().IsEnabled() && ISourceControlModule::Get().GetProvider().IsAvailable())
+		{
+			const FString FileName = InAssetStatusInfoProvider->TryGetFilename();
+			if (FSourceControlStatePtr SourceControlState = ISourceControlModule::Get().GetProvider().GetState(FileName, EStateCacheUsage::Use))
+			{
+				FSlateIcon SCCIcon = SourceControlState->GetIcon();
+				if (SCCIcon.IsSet())
+				{
+					SourceControlStatusVisibility = EVisibility::Visible;
+				}
+			}
+		}
+		return SourceControlStatusVisibility;
+	}
+
+	FText GetSourceControlStatusDescription(const TSharedPtr<IAssetStatusInfoProvider> InAssetStatusInfoProvider)
+	{
+		FText SourceControlDescription = FText::GetEmpty();
+		if (!InAssetStatusInfoProvider.IsValid())
+		{
+			return SourceControlDescription;
+		}
+
+		if (ISourceControlModule::Get().IsEnabled() && ISourceControlModule::Get().GetProvider().IsAvailable())
+		{
+			const FString FileName = InAssetStatusInfoProvider->TryGetFilename();
+			if (FSourceControlStatePtr SourceControlState = ISourceControlModule::Get().GetProvider().GetState(FileName, EStateCacheUsage::Use))
+			{
+				TOptional<FText> StatusText = SourceControlState->GetStatusText();
+				if (StatusText.IsSet())
+				{
+					SourceControlDescription = StatusText.GetValue();
+				}
+			}
+		}
+		return SourceControlDescription;
+	}
+}
+#endif
+
 EAssetCommandResult UAssetDefinitionDefault::OpenAssets(const FAssetOpenArgs& OpenArgs) const
 {
-	if (OpenArgs.OpenMethod == EAssetOpenMethod::Edit)
+	if (GetAssetOpenSupport(FAssetOpenSupportArgs(OpenArgs.OpenMethod)).IsSupported)
 	{
 		FSimpleAssetEditor::CreateEditor(EToolkitMode::Standalone, OpenArgs.ToolkitHost, OpenArgs.LoadObjects<UObject>());
 		return EAssetCommandResult::Handled;
@@ -39,6 +132,25 @@ EAssetCommandResult UAssetDefinitionDefault::PerformAssetDiff(const FAssetDiffAr
 
 	return EAssetCommandResult::Handled;
 }
+
+#if UE_CONTENTBROWSER_NEW_STYLE
+void UAssetDefinitionDefault::GetAssetStatusInfo(const TSharedPtr<IAssetStatusInfoProvider>& InAssetStatusInfoProvider, TArray<FAssetDisplayInfo>& OutStatusInfo) const
+{
+	FAssetDisplayInfo DirtyStatus;
+	DirtyStatus.StatusIcon = FAppStyle::GetBrush("ContentBrowser.ContentDirty");
+	DirtyStatus.Priority = FAssetStatusPriority(EStatusSeverity::Info, 1);
+	DirtyStatus.StatusDescription = LOCTEXT("DirtyAssetTooltip", "Asset has unsaved changes");
+	DirtyStatus.IsVisible = TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&UE::AssetDefinitionDefault::Status::GetDirtyStatusVisibility, InAssetStatusInfoProvider));
+	OutStatusInfo.Add(DirtyStatus);
+
+	FAssetDisplayInfo SCCStatus;
+	SCCStatus.Priority = FAssetStatusPriority(EStatusSeverity::Info, 0);
+	SCCStatus.StatusIcon = TAttribute<const FSlateBrush*>::Create(TAttribute<const FSlateBrush*>::FGetter::CreateStatic(&UE::AssetDefinitionDefault::Status::GetSourceControlStatusBrush, InAssetStatusInfoProvider));
+	SCCStatus.IsVisible = TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&UE::AssetDefinitionDefault::Status::GetSourceControlStatusVisibility, InAssetStatusInfoProvider));
+	SCCStatus.StatusDescription = TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateStatic(&UE::AssetDefinitionDefault::Status::GetSourceControlStatusDescription, InAssetStatusInfoProvider));
+	OutStatusInfo.Add(SCCStatus);
+}
+#endif
 
 namespace UE::Editor
 {

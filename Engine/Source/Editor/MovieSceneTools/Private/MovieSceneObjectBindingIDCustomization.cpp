@@ -30,6 +30,9 @@
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
+#include "PropertyCustomizationHelpers.h"
+#include "EditorClassUtils.h"
+
 
 struct FGeometry;
 
@@ -45,7 +48,12 @@ void FMovieSceneObjectBindingIDCustomization::BindTo(TSharedRef<ISequencer> Oute
 			FOnGetPropertyTypeCustomizationInstance BindingIDCustomizationFactory = FOnGetPropertyTypeCustomizationInstance::CreateLambda(
 				[WeakSequencer]
 				{
-					return MakeShared<FMovieSceneObjectBindingIDCustomization>(WeakSequencer.Pin()->GetFocusedTemplateID(), WeakSequencer);
+					if (TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
+					{
+						return MakeShared<FMovieSceneObjectBindingIDCustomization>(Sequencer->GetFocusedTemplateID(), Sequencer);
+					}
+
+					return MakeShared<FMovieSceneObjectBindingIDCustomization>();
 				}
 			);
 
@@ -60,6 +68,19 @@ void FMovieSceneObjectBindingIDCustomization::CustomizeHeader(TSharedRef<IProper
 	using namespace UE::Sequencer;
 
 	StructProperty = PropertyHandle;
+	StructProperty->SetOnPropertyResetToDefault(
+		FSimpleDelegate::CreateSP(this, &FMovieSceneObjectBindingIDCustomization::OnResetToDefault));
+
+	const FString& MetaClassName = PropertyHandle->GetMetaData("MetaClass");
+	const FString& MustImplementName = PropertyHandle->GetMetaData("MustImplement");
+
+	AllowedClassFilters = PropertyCustomizationHelpers::GetClassesFromMetadataString(PropertyHandle->GetMetaData("AllowedClasses"));
+	DisallowedClassFilters = PropertyCustomizationHelpers::GetClassesFromMetadataString(PropertyHandle->GetMetaData("DisallowedClasses"));
+
+	ClassPropertyMetaClass = !MetaClassName.IsEmpty()
+		? FEditorClassUtils::GetClassFromString(MetaClassName)
+		: UObject::StaticClass();
+	InterfaceThatMustBeImplemented = FEditorClassUtils::GetClassFromString(MustImplementName);
 
 	Initialize();
 
@@ -92,6 +113,7 @@ void FMovieSceneObjectBindingIDCustomization::CustomizeHeader(TSharedRef<IProper
 			.OnIsRecognized_Static(IsAcceptable)
 			[
 				SNew(SComboButton)
+				.IsEnabled_Lambda([this]() { return StructProperty->IsEditable(); })
 				.ToolTipText(this, &FMovieSceneObjectBindingIDCustomization::GetToolTipText)
 				.OnGetMenuContent(this, &FMovieSceneObjectBindingIDCustomization::GetPickerMenu)
 				.ContentPadding(FMargin(4.0, 2.0))
@@ -206,6 +228,11 @@ void FMovieSceneObjectBindingIDCustomization::SetCurrentValue(const FMovieSceneO
 	
 	StructProperty->NotifyPostChange(EPropertyChangeType::ValueSet);
 	StructProperty->NotifyFinishedChangingProperties();
+}
+
+void FMovieSceneObjectBindingIDCustomization::OnResetToDefault()
+{
+	StructProperty->RequestRebuildChildren();
 }
 
 #undef LOCTEXT_NAMESPACE

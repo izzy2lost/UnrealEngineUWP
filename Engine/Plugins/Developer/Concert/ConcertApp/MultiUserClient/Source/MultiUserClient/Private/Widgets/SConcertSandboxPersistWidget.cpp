@@ -138,7 +138,6 @@ void SConcertSandboxPersistWidget::Construct(const FArguments& InArgs)
 				SNew(SBorder)
 				[
 					SAssignNew(ListView, SListView<TSharedPtr<FConcertPersistItem>>)
-					.ItemHeight(20)
 					.ListItemsSource(&ListViewItems)
 					.OnGenerateRow(this, &SConcertSandboxPersistWidget::OnGenerateRowForList)
 					.HeaderRow
@@ -184,7 +183,7 @@ void SConcertSandboxPersistWidget::Construct(const FArguments& InArgs)
 			.Padding(5)
 			[
 				SNew(SWrapBox)
-				.UseAllottedWidth(true)
+				.UseAllottedSize(true)
 				+SWrapBox::Slot()
 				.Padding(0.0f, 0.0f, 16.0f, 0.0f)
 				[

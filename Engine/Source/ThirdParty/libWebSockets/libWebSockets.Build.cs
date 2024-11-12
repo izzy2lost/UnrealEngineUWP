@@ -77,8 +77,18 @@ public class libWebSockets : ModuleRules
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
+			string PlatformSubdir = Target.Platform.ToString();
+			if (Target.Architecture == UnrealArch.Arm64)
+			{
+				// BuildForUE puts the arm64 in <Platform>/<Arch>
+				PlatformSubdir = Path.Combine(PlatformSubdir, "arm64");
+			}
+			else
+			{
+				PlatformSubdir = Path.Combine(PlatformSubdir, "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			}
 			PublicSystemIncludePaths.Add(IncludeDirectory);
-			PublicAdditionalLibraries.Add(Path.Combine(WebSocketsPackagePath, "lib", Target.Platform.ToString(), "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), ConfigName, "websockets_static.lib"));
+			PublicAdditionalLibraries.Add(Path.Combine(WebSocketsPackagePath, "lib", PlatformSubdir, ConfigName, "websockets_static.lib"));
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Android)
 		{

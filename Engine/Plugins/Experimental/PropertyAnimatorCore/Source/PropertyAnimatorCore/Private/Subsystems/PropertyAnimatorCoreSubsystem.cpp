@@ -1,7 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
+
 #include "Animators/PropertyAnimatorCoreBase.h"
+#include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Components/PropertyAnimatorCoreComponent.h"
 #include "Engine/Engine.h"
 #include "GameFramework/Actor.h"
@@ -42,6 +45,21 @@ void UPropertyAnimatorCoreSubsystem::Initialize(FSubsystemCollectionBase& Collec
 	{
 		return InOwner->FindFunction(TEXT("SetActorHiddenInGame"));
 	});
+
+	// Register alias for Rotator properties
+
+	const FString PropertyType = TEXT("Rotator.double.");
+	RegisterPropertyAlias(PropertyType + GET_MEMBER_NAME_STRING_CHECKED(FRotator, Roll), TEXT("X"));
+	RegisterPropertyAlias(PropertyType + GET_MEMBER_NAME_STRING_CHECKED(FRotator, Pitch), TEXT("Y"));
+	RegisterPropertyAlias(PropertyType + GET_MEMBER_NAME_STRING_CHECKED(FRotator, Yaw), TEXT("Z"));
+
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+	AssetRegistry.OnFilesLoaded().AddUObject(this, &UPropertyAnimatorCoreSubsystem::OnAssetRegistryFilesLoaded);
+	AssetRegistry.OnAssetAdded().AddUObject(this, &UPropertyAnimatorCoreSubsystem::OnAssetRegistryAssetAdded);
+	AssetRegistry.OnAssetRemoved().AddUObject(this, &UPropertyAnimatorCoreSubsystem::OnAssetRegistryAssetRemoved);
+	AssetRegistry.OnAssetUpdated().AddUObject(this, &UPropertyAnimatorCoreSubsystem::OnAssetRegistryAssetUpdated);
 }
 
 void UPropertyAnimatorCoreSubsystem::Deinitialize()
@@ -52,6 +70,15 @@ void UPropertyAnimatorCoreSubsystem::Deinitialize()
 	ResolversWeak.Empty();
 	PresetsWeak.Empty();
 	SetterResolvers.Empty();
+
+	if (const FAssetRegistryModule* AssetRegistryModule = FModuleManager::GetModulePtr<FAssetRegistryModule>("AssetRegistry"))
+	{
+		IAssetRegistry& AssetRegistry = AssetRegistryModule->Get();
+		AssetRegistry.OnFilesLoaded().RemoveAll(this);
+		AssetRegistry.OnAssetAdded().RemoveAll(this);
+		AssetRegistry.OnAssetRemoved().RemoveAll(this);
+		AssetRegistry.OnAssetUpdated().RemoveAll(this);
+	}
 
 	Super::Deinitialize();
 }
@@ -66,44 +93,47 @@ UPropertyAnimatorCoreSubsystem* UPropertyAnimatorCoreSubsystem::Get()
 	return nullptr;
 }
 
-bool UPropertyAnimatorCoreSubsystem::RegisterAnimatorClass(const UClass* InPropertyControllerClass)
+bool UPropertyAnimatorCoreSubsystem::RegisterAnimatorClass(const UClass* InAnimatorClass)
 {
-	if (!IsValid(InPropertyControllerClass))
+	if (!IsValid(InAnimatorClass))
 	{
 		return false;
 	}
 
-	if (!InPropertyControllerClass->IsChildOf(UPropertyAnimatorCoreBase::StaticClass())
-		|| InPropertyControllerClass->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists))
+	if (!InAnimatorClass->IsChildOf(UPropertyAnimatorCoreBase::StaticClass())
+		|| InAnimatorClass->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists))
 	{
 		return false;
 	}
 
-	if (IsAnimatorClassRegistered(InPropertyControllerClass))
+	if (IsAnimatorClassRegistered(InAnimatorClass))
 	{
 		return false;
 	}
 
-	if (UPropertyAnimatorCoreBase* CDO = InPropertyControllerClass->GetDefaultObject<UPropertyAnimatorCoreBase>())
+	if (UPropertyAnimatorCoreBase* CDO = InAnimatorClass->GetDefaultObject<UPropertyAnimatorCoreBase>())
 	{
-		AnimatorsWeak.Add(CDO);
+		if (!CDO->GetAnimatorOriginalName().IsNone())
+		{
+			AnimatorsWeak.Add(CDO);
 
-		return true;
+			return true;
+		}
 	}
 
 	return false;
 }
 
-bool UPropertyAnimatorCoreSubsystem::UnregisterAnimatorClass(const UClass* InPropertyControllerClass)
+bool UPropertyAnimatorCoreSubsystem::UnregisterAnimatorClass(const UClass* InAnimatorClass)
 {
-	if (!IsValid(InPropertyControllerClass))
+	if (!IsValid(InAnimatorClass))
 	{
 		return false;
 	}
 
 	for (TSet<TWeakObjectPtr<UPropertyAnimatorCoreBase>>::TIterator It(AnimatorsWeak); It; ++It)
 	{
-		if ((*It)->GetClass() == InPropertyControllerClass)
+		if ((*It)->GetClass() == InAnimatorClass)
 		{
 			It.RemoveCurrent();
 			return true;
@@ -113,16 +143,16 @@ bool UPropertyAnimatorCoreSubsystem::UnregisterAnimatorClass(const UClass* InPro
 	return false;
 }
 
-bool UPropertyAnimatorCoreSubsystem::IsAnimatorClassRegistered(const UClass* InPropertyControllerClass) const
+bool UPropertyAnimatorCoreSubsystem::IsAnimatorClassRegistered(const UClass* InAnimatorClass) const
 {
-	if (!IsValid(InPropertyControllerClass))
+	if (!IsValid(InAnimatorClass))
 	{
 		return false;
 	}
 
-	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& Controller : AnimatorsWeak)
+	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& Animator : AnimatorsWeak)
 	{
-		if (Controller->GetClass() == InPropertyControllerClass)
+		if (Animator->GetClass() == InAnimatorClass)
 		{
 			return true;
 		}
@@ -159,22 +189,26 @@ bool UPropertyAnimatorCoreSubsystem::IsPropertySupported(const FPropertyAnimator
 		return false;
 	}
 
-	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& Controller : AnimatorsWeak)
+	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& AnimatorWeak : AnimatorsWeak)
 	{
+		const UPropertyAnimatorCoreBase* Animator = AnimatorWeak.Get();
+
+		if (!Animator)
+		{
+			continue;
+		}
+
 		if (bInCheckNestedProperties)
 		{
 			TSet<FPropertyAnimatorCoreData> OutProperties;
-			if (Controller->GetPropertiesSupported(InPropertyData, OutProperties))
+			if (Animator->GetPropertiesSupported(InPropertyData, OutProperties))
 			{
 				return true;
 			}
 		}
-		else
+		else if (Animator->HasPropertySupport(InPropertyData))
 		{
-			if (Controller->IsPropertySupported(InPropertyData))
-			{
-				return true;
-			}
+			return true;
 		}
 	}
 
@@ -183,9 +217,9 @@ bool UPropertyAnimatorCoreSubsystem::IsPropertySupported(const FPropertyAnimator
 
 TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::GetPropertyLinkedAnimators(const FPropertyAnimatorCoreData& InPropertyData) const
 {
-	TSet<UPropertyAnimatorCoreBase*> ExistingControllers = GetExistingAnimators(InPropertyData);
+	TSet<UPropertyAnimatorCoreBase*> ExistingAnimators = GetExistingAnimators(InPropertyData);
 
-	for (TSet<UPropertyAnimatorCoreBase*>::TIterator It(ExistingControllers); It; ++It)
+	for (TSet<UPropertyAnimatorCoreBase*>::TIterator It(ExistingAnimators); It; ++It)
 	{
 		if (!(*It)->IsPropertyLinked(InPropertyData))
 		{
@@ -193,69 +227,69 @@ TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::GetPropertyLink
 		}
 	}
 
-	return ExistingControllers;
+	return ExistingAnimators;
 }
 
 TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::GetExistingAnimators(const FPropertyAnimatorCoreData& InPropertyData) const
 {
-	TSet<UPropertyAnimatorCoreBase*> ExistingPropertyControllers;
+	TSet<UPropertyAnimatorCoreBase*> ExistingAnimators;
 
 	if (!InPropertyData.IsResolved())
 	{
-		return ExistingPropertyControllers;
+		return ExistingAnimators;
 	}
 
 	const AActor* Actor = InPropertyData.GetOwningActor();
 
-	for (UPropertyAnimatorCoreBase* Controller : GetExistingAnimators(Actor))
+	for (UPropertyAnimatorCoreBase* Animator : GetExistingAnimators(Actor))
 	{
 		TSet<FPropertyAnimatorCoreData> OutProperties;
-		if (Controller->GetPropertiesSupported(InPropertyData, OutProperties))
+		if (Animator->GetPropertiesSupported(InPropertyData, OutProperties, /** SearchDepth */3))
 		{
-			ExistingPropertyControllers.Add(Controller);
+			ExistingAnimators.Add(Animator);
 		}
 	}
 
-	return ExistingPropertyControllers;
+	return ExistingAnimators;
 }
 
 TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::GetExistingAnimators(const AActor* InActor) const
 {
-	TSet<UPropertyAnimatorCoreBase*> ExistingPropertyControllers;
+	TSet<UPropertyAnimatorCoreBase*> ExistingAnimators;
 
 	if (!IsValid(InActor))
 	{
-		return ExistingPropertyControllers;
+		return ExistingAnimators;
 	}
 
 	if (const UPropertyAnimatorCoreComponent* PropertyComponent = InActor->FindComponentByClass<UPropertyAnimatorCoreComponent>())
 	{
-		PropertyComponent->ForEachAnimator([&ExistingPropertyControllers](UPropertyAnimatorCoreBase* InController)->bool
+		PropertyComponent->ForEachAnimator([&ExistingAnimators](UPropertyAnimatorCoreBase* InAnimator)->bool
 		{
-			ExistingPropertyControllers.Add(InController);
+			ExistingAnimators.Add(InAnimator);
 			return true;
 		});
 	}
 
-	return ExistingPropertyControllers;
+	return ExistingAnimators;
 }
 
 TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::GetAvailableAnimators(const FPropertyAnimatorCoreData* InPropertyData) const
 {
-	TSet<UPropertyAnimatorCoreBase*> AvailablePropertyControllers;
+	TSet<UPropertyAnimatorCoreBase*> AvailableAnimators;
 
 	if (InPropertyData && !InPropertyData->IsResolved())
 	{
-		return AvailablePropertyControllers;
+		return AvailableAnimators;
 	}
 
-	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& Controller : AnimatorsWeak)
+	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& Animator : AnimatorsWeak)
 	{
 		bool bIsPropertySupported = true;
 		if (InPropertyData)
 		{
 			TSet<FPropertyAnimatorCoreData> OutProperties;
-			if (!Controller->GetPropertiesSupported(*InPropertyData, OutProperties))
+			if (!Animator->GetPropertiesSupported(*InPropertyData, OutProperties, /** SearchDepth */3))
 			{
 				bIsPropertySupported = false;
 			}
@@ -263,23 +297,23 @@ TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::GetAvailableAni
 
 		if (bIsPropertySupported)
 		{
-			AvailablePropertyControllers.Add(Controller.Get());
+			AvailableAnimators.Add(Animator.Get());
 		}
 	}
 
-	return AvailablePropertyControllers;
+	return AvailableAnimators;
 }
 
 TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::GetAvailableAnimators() const
 {
-	TSet<UPropertyAnimatorCoreBase*> AvailablePropertyControllers;
+	TSet<UPropertyAnimatorCoreBase*> AvailableAnimators;
 
-	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& Controller : AnimatorsWeak)
+	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& Animator : AnimatorsWeak)
 	{
-		AvailablePropertyControllers.Add(Controller.Get());
+		AvailableAnimators.Add(Animator.Get());
 	}
 
-	return AvailablePropertyControllers;
+	return AvailableAnimators;
 }
 
 UPropertyAnimatorCoreBase* UPropertyAnimatorCoreSubsystem::CreateAnimator(AActor* InActor, const UClass* InAnimatorClass, UPropertyAnimatorCorePresetBase* InPreset, bool bInTransact) const
@@ -327,8 +361,10 @@ TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::CreateAnimators
 	if (FEngineAnalytics::IsAvailable())
 	{
 		TArray<FAnalyticsEventAttribute> Attributes;
-		Attributes.Emplace(TEXT("Class"), InAnimatorClass->GetName());
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.PropertyAnimator.CreateAnimator"), Attributes);
+		Attributes.Reserve(2);
+		Attributes.Emplace(TEXT("Action"), TEXT("Created"));
+		Attributes.Emplace(TEXT("Class"), GetNameSafe(InAnimatorClass));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.PropertyAnimator.Animator"), Attributes);
 	}
 #endif
 
@@ -367,11 +403,53 @@ TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::CreateAnimators
 		}
 
 		NewAnimators.Add(NewActorAnimator);
-
-		UPropertyAnimatorCoreBase::OnAnimatorCreatedDelegate.Broadcast(NewActorAnimator);
 	}
 
 	return NewAnimators;
+}
+
+TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::CloneAnimators(const TSet<UPropertyAnimatorCoreBase*>& InAnimators, AActor* InTargetActor, bool bInTransact) const
+{
+	TSet<UPropertyAnimatorCoreBase*> CopyAnimators;
+
+	if (!IsValid(InTargetActor))
+	{
+		return CopyAnimators;
+	}
+
+#if WITH_EDITOR
+	const FText TransactionText = LOCTEXT("CloneAnimators", "Cloning {0} animator(s) on actor %s");
+	const FText AnimatorCount = FText::FromString(FString::FromInt(InAnimators.Num()));
+	const FText ActorName = FText::FromString(InTargetActor->GetActorNameOrLabel());
+
+	FScopedTransaction Transaction(FText::Format(TransactionText, AnimatorCount, ActorName), bInTransact);
+#endif
+
+	UPropertyAnimatorCoreComponent* Component = UPropertyAnimatorCoreComponent::FindOrAdd(InTargetActor);
+	if (!Component)
+	{
+		return CopyAnimators;
+	}
+
+#if WITH_EDITOR
+	Component->Modify();
+#endif
+
+	CopyAnimators.Reserve(InAnimators.Num());
+
+	for (UPropertyAnimatorCoreBase* Animator : InAnimators)
+	{
+		if (UPropertyAnimatorCoreBase* CopyAnimator = Component->CloneAnimator(Animator))
+		{
+#if WITH_EDITOR
+			CopyAnimator->Modify();
+#endif
+
+			CopyAnimators.Add(CopyAnimator);
+		}
+	}
+
+	return CopyAnimators;
 }
 
 bool UPropertyAnimatorCoreSubsystem::RemoveAnimator(UPropertyAnimatorCoreBase* InAnimator, bool bInTransact) const
@@ -379,7 +457,7 @@ bool UPropertyAnimatorCoreSubsystem::RemoveAnimator(UPropertyAnimatorCoreBase* I
 	return RemoveAnimators({InAnimator}, bInTransact);
 }
 
-bool UPropertyAnimatorCoreSubsystem::RemoveAnimators(const TSet<UPropertyAnimatorCoreBase*> InAnimators, bool bInTransact) const
+bool UPropertyAnimatorCoreSubsystem::RemoveAnimators(const TSet<UPropertyAnimatorCoreBase*>& InAnimators, bool bInTransact) const
 {
 	if (InAnimators.IsEmpty())
 	{
@@ -417,17 +495,49 @@ bool UPropertyAnimatorCoreSubsystem::RemoveAnimators(const TSet<UPropertyAnimato
 		Animator->Modify();
 #endif
 
-		const bool bAnimatorRemoved = Component->RemoveAnimator(Animator);
-
-		if (bAnimatorRemoved)
-		{
-			UPropertyAnimatorCoreBase::OnAnimatorRemovedDelegate.Broadcast(Animator);
-		}
-
-		bResult &= bAnimatorRemoved;
+		bResult &= Component->RemoveAnimator(Animator);
 	}
 
 	return bResult;
+}
+
+bool UPropertyAnimatorCoreSubsystem::RemoveAnimatorComponents(const TSet<UPropertyAnimatorCoreComponent*>& InComponents, bool bInTransact) const
+{
+	if (InComponents.IsEmpty())
+	{
+		return false;
+	}
+
+#if WITH_EDITOR
+	const FText TransactionText = LOCTEXT("RemoveAnimatorComponent", "Removing {0} animator component(s)");
+	const FText ComponentCount = FText::FromString(FString::FromInt(InComponents.Num()));
+
+	FScopedTransaction Transaction(FText::Format(TransactionText, ComponentCount), bInTransact);
+#endif
+
+	for (UPropertyAnimatorCoreComponent* Component : InComponents)
+	{
+		if (!IsValid(Component))
+		{
+			continue;
+		}
+
+		AActor* OwningActor = Component->GetOwner();
+
+		if (!IsValid(OwningActor))
+		{
+			continue;
+		}
+
+#if WITH_EDITOR
+		OwningActor->Modify();
+		Component->Modify();
+#endif
+
+		Component->DestroyComponent(/** PromoteChildren */false);
+	}
+
+	return true;
 }
 
 bool UPropertyAnimatorCoreSubsystem::ApplyAnimatorPreset(UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePresetBase* InPreset, bool bInTransact)
@@ -529,7 +639,7 @@ bool UPropertyAnimatorCoreSubsystem::LinkAnimatorProperties(UPropertyAnimatorCor
 		bool bResult = false;
 		for (const FPropertyAnimatorCoreData& PropertyData : InProperties)
 		{
-			bResult |= InAnimator->LinkProperty(PropertyData);
+			bResult |= (InAnimator->LinkProperty(PropertyData) != nullptr);
 		}
 
 		return bResult;
@@ -703,6 +813,36 @@ bool UPropertyAnimatorCoreSubsystem::UnregisterResolverClass(const UClass* InRes
 	return false;
 }
 
+UPropertyAnimatorCoreResolver* UPropertyAnimatorCoreSubsystem::FindResolverByName(FName InResolverName)
+{
+	for (const TWeakObjectPtr<UPropertyAnimatorCoreResolver>& ResolverWeakPair : ResolversWeak)
+	{
+		UPropertyAnimatorCoreResolver* Resolver = ResolverWeakPair.Get();
+
+		if (Resolver && Resolver->GetResolverName().IsEqual(InResolverName))
+		{
+			return Resolver;
+		}
+	}
+
+	return nullptr;
+}
+
+UPropertyAnimatorCoreResolver* UPropertyAnimatorCoreSubsystem::FindResolverByClass(const UClass* InResolverClass)
+{
+	for (const TWeakObjectPtr<UPropertyAnimatorCoreResolver>& ResolverWeakPair : ResolversWeak)
+	{
+		UPropertyAnimatorCoreResolver* Resolver = ResolverWeakPair.Get();
+
+		if (Resolver && Resolver->GetClass() == InResolverClass)
+		{
+			return Resolver;
+		}
+	}
+
+	return nullptr;
+}
+
 bool UPropertyAnimatorCoreSubsystem::IsResolverClassRegistered(const UClass* InResolverClass) const
 {
 	for (const TWeakObjectPtr<UPropertyAnimatorCoreResolver>& ResolverWeakPair : ResolversWeak)
@@ -819,6 +959,26 @@ TArray<FName> UPropertyAnimatorCoreSubsystem::GetTimeSourceNames() const
 	return TimeSourceNames;
 }
 
+TArray<UPropertyAnimatorCoreTimeSourceBase*> UPropertyAnimatorCoreSubsystem::GetTimeSources() const
+{
+	TArray<UPropertyAnimatorCoreTimeSourceBase*> TimeSources;
+
+	Algo::TransformIf(
+		TimeSourcesWeak
+		, TimeSources
+		, [](const TWeakObjectPtr<UPropertyAnimatorCoreTimeSourceBase>& InTimeSourceWeak)
+		{
+			return InTimeSourceWeak.IsValid();
+		}
+		, [](const TWeakObjectPtr<UPropertyAnimatorCoreTimeSourceBase>& InTimeSourceWeak)
+		{
+			return InTimeSourceWeak.Get();
+		}
+	);
+
+	return TimeSources;
+}
+
 UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreSubsystem::GetTimeSource(FName InTimeSourceName) const
 {
 	if (InTimeSourceName.IsNone())
@@ -840,9 +1000,9 @@ UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreSubsystem::GetTimeSour
 	return nullptr;
 }
 
-UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreSubsystem::CreateNewTimeSource(FName InTimeSourceName, UPropertyAnimatorCoreBase* InAnimator)
+UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreSubsystem::CreateNewTimeSource(FName InTimeSourceName, UObject* InOwner)
 {
-	if (!IsValid(InAnimator) || InTimeSourceName.IsNone())
+	if (!IsValid(InOwner) || InTimeSourceName.IsNone())
 	{
 		return nullptr;
 	}
@@ -856,8 +1016,8 @@ UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreSubsystem::CreateNewTi
 
 	// Here unique name needs to be provided
 	const UClass* TimeSourceClass = TimeSource->GetClass();
-	const FName UniqueObjectName = MakeUniqueObjectName(InAnimator, TimeSourceClass, InTimeSourceName);
-	return NewObject<UPropertyAnimatorCoreTimeSourceBase>(InAnimator, TimeSourceClass, UniqueObjectName);
+	const FName UniqueObjectName = MakeUniqueObjectName(InOwner, TimeSourceClass, InTimeSourceName);
+	return NewObject<UPropertyAnimatorCoreTimeSourceBase>(InOwner, TimeSourceClass, UniqueObjectName);
 }
 
 bool UPropertyAnimatorCoreSubsystem::RegisterPresetClass(const UClass* InPresetClass)
@@ -880,7 +1040,11 @@ bool UPropertyAnimatorCoreSubsystem::RegisterPresetClass(const UClass* InPresetC
 
 	if (UPropertyAnimatorCorePresetBase* CDO = InPresetClass->GetDefaultObject<UPropertyAnimatorCorePresetBase>())
 	{
-		PresetsWeak.Add(CDO);
+		if (CDO->LoadPreset())
+		{
+			PresetsWeak.Add(CDO);
+			CDO->OnPresetRegistered();
+		}
 
 		return true;
 	}
@@ -925,7 +1089,28 @@ bool UPropertyAnimatorCoreSubsystem::IsPresetClassRegistered(const UClass* InPre
 	return false;
 }
 
-TSet<UPropertyAnimatorCorePresetBase*> UPropertyAnimatorCoreSubsystem::GetSupportedPresets(const AActor* InActor, const UPropertyAnimatorCoreBase* InAnimator) const
+TSet<UPropertyAnimatorCorePresetBase*> UPropertyAnimatorCoreSubsystem::GetAvailablePresets(TSubclassOf<UPropertyAnimatorCorePresetBase> InPresetClass) const
+{
+	TSet<UPropertyAnimatorCorePresetBase*> AvailablePresets;
+	AvailablePresets.Reserve(PresetsWeak.Num());
+
+	Algo::TransformIf(
+		PresetsWeak
+		, AvailablePresets
+		, [&InPresetClass](const TWeakObjectPtr<UPropertyAnimatorCorePresetBase>& InPresetWeak)
+		{
+			return InPresetWeak.IsValid() && InPresetWeak->IsA(InPresetClass);
+		}
+		, [](const TWeakObjectPtr<UPropertyAnimatorCorePresetBase>& InPresetWeak)
+		{
+			return InPresetWeak.Get();
+		}
+	);
+
+	return AvailablePresets;
+}
+
+TSet<UPropertyAnimatorCorePresetBase*> UPropertyAnimatorCoreSubsystem::GetSupportedPresets(const AActor* InActor, const UPropertyAnimatorCoreBase* InAnimator, TSubclassOf<UPropertyAnimatorCorePresetBase> InPresetClass) const
 {
 	TSet<UPropertyAnimatorCorePresetBase*> SupportedPresets;
 
@@ -933,7 +1118,7 @@ TSet<UPropertyAnimatorCorePresetBase*> UPropertyAnimatorCoreSubsystem::GetSuppor
 	{
 		UPropertyAnimatorCorePresetBase* Preset = PresetWeak.Get();
 
-		if (!Preset)
+		if (!Preset || !Preset->IsA(InPresetClass))
 		{
 			continue;
 		}
@@ -947,27 +1132,6 @@ TSet<UPropertyAnimatorCorePresetBase*> UPropertyAnimatorCoreSubsystem::GetSuppor
 	}
 
 	return SupportedPresets;
-}
-
-TSet<UPropertyAnimatorCorePresetBase*> UPropertyAnimatorCoreSubsystem::GetAvailablePresets() const
-{
-	TSet<UPropertyAnimatorCorePresetBase*> AvailablePresets;
-	AvailablePresets.Reserve(PresetsWeak.Num());
-
-	Algo::TransformIf(
-		PresetsWeak
-		, AvailablePresets
-		, [](const TWeakObjectPtr<UPropertyAnimatorCorePresetBase>& InPresetWeak)
-		{
-			return InPresetWeak.IsValid();
-		}
-		, [](const TWeakObjectPtr<UPropertyAnimatorCorePresetBase>& InPresetWeak)
-		{
-			return InPresetWeak.Get();
-		}
-	);
-
-	return AvailablePresets;
 }
 
 bool UPropertyAnimatorCoreSubsystem::RegisterConverterClass(const UClass* InConverterClass)
@@ -1070,6 +1234,38 @@ TSet<UPropertyAnimatorCoreConverterBase*> UPropertyAnimatorCoreSubsystem::GetSup
 	}
 
 	return SupportedConverters;
+}
+
+bool UPropertyAnimatorCoreSubsystem::RegisterPropertyAlias(const FString& InPropertyIdentifier, const FString& InAliasPropertyName)
+{
+	if (InPropertyIdentifier.IsEmpty() || InAliasPropertyName.IsEmpty())
+	{
+		return false;
+	}
+
+	PropertyAliases.Add(InPropertyIdentifier, InAliasPropertyName);
+
+	return true;
+}
+
+bool UPropertyAnimatorCoreSubsystem::UnregisterPropertyAlias(const FString& InPropertyIdentifier)
+{
+	return PropertyAliases.Remove(InPropertyIdentifier) > 0;
+}
+
+FString UPropertyAnimatorCoreSubsystem::FindPropertyAlias(const FString& InPropertyIdentifier) const
+{
+	FString Alias;
+
+	if (!InPropertyIdentifier.IsEmpty())
+	{
+		if (const FString* const AliasPtr = PropertyAliases.Find(InPropertyIdentifier))
+		{
+			Alias = *AliasPtr;
+		}
+	}
+
+	return Alias;
 }
 
 void UPropertyAnimatorCoreSubsystem::SetActorAnimatorsEnabled(const TSet<AActor*>& InActors, bool bInEnabled, bool bInTransact)
@@ -1223,6 +1419,79 @@ void UPropertyAnimatorCoreSubsystem::RegisterAnimatorClasses()
 		RegisterTimeSourceClass(Class);
 		RegisterPresetClass(Class);
 		RegisterConverterClass(Class);
+	}
+}
+
+void UPropertyAnimatorCoreSubsystem::OnAssetRegistryFilesLoaded()
+{
+	bFilesLoaded = true;
+
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+	TArray<FAssetData> Assets;
+	AssetRegistryModule.Get().GetAssetsByClass(UPropertyAnimatorCorePresetBase::StaticClass()->GetClassPathName(), Assets, /** Subclass */true);
+
+	for (const FAssetData& Asset : Assets)
+	{
+		RegisterPresetAsset(Asset);
+	}
+}
+
+void UPropertyAnimatorCoreSubsystem::OnAssetRegistryAssetAdded(const FAssetData& InAssetData)
+{
+	if (bFilesLoaded)
+	{
+		RegisterPresetAsset(InAssetData);
+	}
+}
+
+void UPropertyAnimatorCoreSubsystem::OnAssetRegistryAssetRemoved(const FAssetData& InAssetData)
+{
+	UnregisterPresetAsset(InAssetData);
+}
+
+void UPropertyAnimatorCoreSubsystem::OnAssetRegistryAssetUpdated(const FAssetData& InAssetData)
+{
+	UnregisterPresetAsset(InAssetData);
+	RegisterPresetAsset(InAssetData);
+}
+
+void UPropertyAnimatorCoreSubsystem::RegisterPresetAsset(const FAssetData& InAssetData)
+{
+	if (const UClass* Class = InAssetData.GetClass(EResolveClass::Yes))
+	{
+		if (!Class->IsChildOf<UPropertyAnimatorCorePresetBase>())
+		{
+			return;
+		}
+
+		if (UPropertyAnimatorCorePresetBase* Preset = Cast<UPropertyAnimatorCorePresetBase>(InAssetData.GetAsset()))
+		{
+			if (Preset->LoadPreset())
+			{
+				PresetsWeak.Add(Preset);
+				Preset->OnPresetRegistered();
+			}
+		}
+	}
+}
+
+void UPropertyAnimatorCoreSubsystem::UnregisterPresetAsset(const FAssetData& InAssetData)
+{
+	if (const UClass* Class = InAssetData.GetClass(EResolveClass::Yes))
+	{
+		if (!Class->IsChildOf<UPropertyAnimatorCorePresetBase>())
+		{
+			return;
+		}
+
+		if (UPropertyAnimatorCorePresetBase* Preset = Cast<UPropertyAnimatorCorePresetBase>(InAssetData.GetAsset()))
+		{
+			if (PresetsWeak.Remove(Preset) > 0)
+			{
+				Preset->OnPresetUnregistered();
+			}
+		}
 	}
 }
 

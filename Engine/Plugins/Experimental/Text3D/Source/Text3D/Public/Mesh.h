@@ -38,3 +38,14 @@ enum class EText3DGroupType : uint8
 };
 
 using TText3DMeshList = TArray<FText3DMesh, TFixedAllocator<static_cast<int32>(EText3DGroupType::TypeCount)>>;
+
+namespace UE::Text3D::Materials
+{
+	static const TArray<FName> SlotNames =
+	{
+		TEXT("Front"),
+		TEXT("Bevel"),
+		TEXT("Extrude"),
+		TEXT("Back")
+	};
+}

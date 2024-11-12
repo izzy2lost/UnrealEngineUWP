@@ -32,6 +32,19 @@ public:
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 
 private:
+	/** Computes a hash value using the djb2 algorithm.
+	 * @return the hash value of the Identifier
+	 */
+	uint32 Hash() const;
+	
+	/** Computes the avatar's background color based on the Identifier
+	 * Calls the Hash() function above to calculate an HSV color which is
+	 * transformed into an FColor that ultimately represents the user's avatar color.
+	 * 
+	 * @return the RGB representation of the Identifier
+	 */
+	FColor ComputeBackgroundColor() const;
+
 	/** The Identifier of the avatar */
 	FString Identifier;
 

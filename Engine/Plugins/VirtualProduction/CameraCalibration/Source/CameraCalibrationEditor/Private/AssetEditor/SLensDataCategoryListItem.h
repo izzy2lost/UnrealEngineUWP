@@ -21,19 +21,20 @@ class FLensDataListItem;
 class FLensDataCategoryItem : public TSharedFromThis<FLensDataCategoryItem>
 {
 public:
-	FLensDataCategoryItem(ULensFile* InLensFile, TWeakPtr<FLensDataCategoryItem> Parent, ELensDataCategory InCategory, FName InLabel);
+	FLensDataCategoryItem(ULensFile* InLensFile, TWeakPtr<FLensDataCategoryItem> Parent, ELensDataCategory InCategory, int32 InParameterIndex, FName InLabel);
 	virtual ~FLensDataCategoryItem() = default;
 
 	/** Makes the widget for its associated row */
 	TSharedRef<ITableRow> MakeTreeRowWidget(const TSharedRef<STableViewBase>& InOwnerTable);
-
-	virtual int32 GetParameterIndex() const { return INDEX_NONE; }
-
+	
 public:
 
 	/** Category this item is associated with */
 	ELensDataCategory Category;
 
+	/** Used to identify which parameter this represents */
+	int32 ParameterIndex = INDEX_NONE;
+	
 	/** Label of this category */
 	FName Label;
 
@@ -67,111 +68,3 @@ private:
 	/** WeakPtr to source data item */
 	TWeakPtr<FLensDataCategoryItem> WeakItem;
 };
-
-/**
- * Distortion parameters category
- */
-class FDistortionParametersCategoryItem : public FLensDataCategoryItem
-{
-public:
-	FDistortionParametersCategoryItem(ULensFile* LensFile, TWeakPtr<FLensDataCategoryItem> Parent, ELensDataCategory InCategory, FName InLabel, int32 InParameterIndex)
-		: FLensDataCategoryItem(LensFile, Parent, InCategory, InLabel)
-		, ParameterIndex(InParameterIndex)
-	{}
-
-	//~ Begin FLensDataCategoryItem interface
-	virtual int32 GetParameterIndex() const override { return ParameterIndex; }
-	//~ End FLensDataCategoryItem interface
-
-public:
-
-	/** Used to identify which distortion parameter this represents */
-	int32 ParameterIndex = 0;
-};
-
-/**
- * Focal length parameters
- */
-class FFocalLengthCategoryItem : public FLensDataCategoryItem
-{
-public:
-	FFocalLengthCategoryItem(ULensFile* LensFile, TWeakPtr<FLensDataCategoryItem> Parent, ELensDataCategory InCategory, FName InLabel, int32 InParameterIndex)
-		: FLensDataCategoryItem(LensFile, Parent, InCategory, InLabel)
-		, ParameterIndex(InParameterIndex)
-	{
-		check(InParameterIndex >= 0 && InParameterIndex < 2);
-	}
-
-	//~ Begin FLensDataCategoryItem interface
-	virtual int32 GetParameterIndex() const { return ParameterIndex; }
-	//~ End FLensDataCategoryItem interface
-
-public:
-
-	/**
-	 * Used to identify which image center parameter this represents
-	 * 0: Fx
-	 * 1: Fy
-	 */
-	int32 ParameterIndex = 0;
-};
-
-/**
- * Image Center parameters
- */
-class FImageCenterCategoryItem : public FLensDataCategoryItem
-{
-public:
-	FImageCenterCategoryItem(ULensFile* LensFile, TWeakPtr<FLensDataCategoryItem> Parent, ELensDataCategory InCategory, FName InLabel, int32 InParameterIndex)
-		: FLensDataCategoryItem(LensFile, Parent, InCategory, InLabel)
-		, ParameterIndex(InParameterIndex)
-	{
-		check(InParameterIndex >= 0 && InParameterIndex < 2);
-	}
-
-	//~ Begin FLensDataCategoryItem interface
-	virtual int32 GetParameterIndex() const { return ParameterIndex; }
-	//~ End FLensDataCategoryItem interface
-
-public:
-
-	/** 
-	 * Used to identify which image center parameter this represents 
-	 * 0: Cx
-	 * 1: Cy
-	 */
-	int32 ParameterIndex = 0;
-};
-
-
-/**
- * Nodal Offset parameters
- */
-class FNodalOffsetCategoryItem : public FLensDataCategoryItem
-{
-public:
-	FNodalOffsetCategoryItem(ULensFile* LensFile, TWeakPtr<FLensDataCategoryItem> Parent, ELensDataCategory InCategory, FName InLabel, int32 InParameterIndex, EAxis::Type InAxis)
-		: FLensDataCategoryItem(LensFile, Parent, InCategory, InLabel)
-		, ParameterIndex(InParameterIndex)
-		, Axis(InAxis)
-	{
-		check(InParameterIndex >= 0 && InParameterIndex < 2);
-	}
-
-	//~ Begin FLensDataCategoryItem interface
-	virtual int32 GetParameterIndex() const { return ParameterIndex; }
-	//~ End FLensDataCategoryItem interface
-
-public:
-
-	/**
-	 * Used to identify which image center parameter this represents
-	 * 0: Location
-	 * 1: Rotation
-	 */
-	int32 ParameterIndex = 0;
-
-	/** Axis for the given parameter */
-	EAxis::Type Axis;
-};
-

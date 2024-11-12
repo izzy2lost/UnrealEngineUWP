@@ -282,7 +282,11 @@ bool UMovieJobVariableAssignmentContainer::GenerateVariableOverride(const UMovie
 	NewProperty.Name = FName(InGraphVariable->GetMemberName());
 	NewProperty.ID = FGuid::NewGuid();
 #if WITH_EDITOR
-	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData("VariableGUID", InGraphVariable->GetGuid().ToString()));
+	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData(VariableGuidMetaDataKey, InGraphVariable->GetGuid().ToString()));
+	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData(ToolTipMetaDataKey, InGraphVariable->Description));
+	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData(CategoryMetaDataKey, InGraphVariable->GetCategory()));
+	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData(EnableCategoriesMetaDataKey, FString()));
+	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData(DisplayNameMetaDataKey, InGraphVariable->GetMemberName()));	// Display the raw variable name, not the "friendly" name
 #endif
 
 	// Track a separate EditCondition property that can enable/disable the above property. Since the variable can be
@@ -291,7 +295,7 @@ bool UMovieJobVariableAssignmentContainer::GenerateVariableOverride(const UMovie
 	FPropertyBagPropertyDesc NewPropertyEditCondition = FPropertyBagPropertyDesc(FName(EditCondPropName), EPropertyBagPropertyType::Bool);
 	NewPropertyEditCondition.ID = FGuid::NewGuid();
 #if WITH_EDITOR
-	NewPropertyEditCondition.MetaData.Add(FPropertyBagPropertyDescMetaData("VariableGUID", InGraphVariable->GetGuid().ToString()));
+	NewPropertyEditCondition.MetaData.Add(FPropertyBagPropertyDescMetaData(VariableGuidMetaDataKey, InGraphVariable->GetGuid().ToString()));
 #endif
 
 #if WITH_EDITOR
@@ -312,7 +316,7 @@ void UMovieJobVariableAssignmentContainer::UpdateGraphVariableOverrides()
 	{
 		const FPropertyBagPropertyDescMetaData* Meta = Desc.MetaData.FindByPredicate([](const FPropertyBagPropertyDescMetaData& MetaData)
 		{
-			return MetaData.Key == "VariableGUID";
+			return MetaData.Key == VariableGuidMetaDataKey;
 		});
 		
 		if (Meta)
@@ -413,12 +417,38 @@ void UMovieJobVariableAssignmentContainer::UpdateGraphVariableOverrides()
 				bNeedsToRegenerate = true;
 				Desc.ContainerTypes = { static_cast<EPropertyBagContainerType>(Variable->GetValueContainerType()) };
 			}
+
+			// Check the ToolTip metadata
+			FPropertyBagPropertyDescMetaData* ToolTipMetaDataEntry =
+				Desc.MetaData.FindByPredicate([](const FPropertyBagPropertyDescMetaData& InMetaDataEntry)
+				{
+					return InMetaDataEntry.Key == ToolTipMetaDataKey;
+				});
+			if (ToolTipMetaDataEntry && (ToolTipMetaDataEntry->Value != Variable->Description))
+			{
+				bNeedsToRegenerate = true;
+				ToolTipMetaDataEntry->Value = Variable->Description;
+			}
+
+			// Check the Category metadata
+			FPropertyBagPropertyDescMetaData* CategoryMetaDataEntry =
+				Desc.MetaData.FindByPredicate([](const FPropertyBagPropertyDescMetaData& InMetaDataEntry)
+				{
+					return InMetaDataEntry.Key == CategoryMetaDataKey;
+				});
+			if (CategoryMetaDataEntry && (CategoryMetaDataEntry->Value != FName(Variable->GetCategory())))
+			{
+				bNeedsToRegenerate = true;
+				CategoryMetaDataEntry->Value = Variable->GetCategory();
+			}
 		}
 	}
 
 	// Third, ensure that each variable has a corresponding property in the bag. If not, generate one and flag that the
-	// bag needs to be regenerated.
-	for (const UMovieGraphVariable* Variable : GraphVariables)
+	// bag needs to be regenerated. Any new job variables will get a default value assigned to them that matches the default
+	// for the associated graph variable.
+	TMap<UMovieGraphVariable*, FName> VariablesThatNeedDefaultAssigned;
+	for (UMovieGraphVariable* Variable : GraphVariables)
 	{
 		bool bFoundMatchingDesc = false;
 		
@@ -441,14 +471,47 @@ void UMovieJobVariableAssignmentContainer::UpdateGraphVariableOverrides()
 				ModifiedDescs.Add(NewPropertyDesc);
 				ModifiedDescs.Add(EditConditionPropertyDesc);
 				bNeedsToRegenerate = true;
+
+				// Mark this variable as needing a default assigned (property descs do not contain the property value)
+				VariablesThatNeedDefaultAssigned.Add({Variable, NewPropertyDesc.Name});
 			}
 		}
+	}
+
+	// Fourth, make sure that the variables are in the correct order. They should reflect the exact order that they're defined within the graph.
+	TArray<FGuid> OriginalOrder;
+	Algo::Transform(ModifiedDescs, OriginalOrder, [&GetVariableGuidFromDesc](const FPropertyBagPropertyDesc& Desc) { return GetVariableGuidFromDesc(Desc); });
+	Algo::SortBy(ModifiedDescs, [&GraphVariables, &GetVariableGuidFromDesc](const FPropertyBagPropertyDesc& Desc)
+	{
+		// Sort the descs by the order of variable GUIDs within the graph
+		return GraphVariables.IndexOfByPredicate([&Desc, &GetVariableGuidFromDesc](const UMovieGraphVariable* Variable)
+		{
+			return Variable->GetGuid() == GetVariableGuidFromDesc(Desc);
+		});
+	});
+	TArray<FGuid> ChangedOrder;
+	Algo::Transform(ModifiedDescs, ChangedOrder, [&GetVariableGuidFromDesc](const FPropertyBagPropertyDesc& Desc) { return GetVariableGuidFromDesc(Desc); });
+
+	if (OriginalOrder != ChangedOrder)
+	{
+		bNeedsToRegenerate = true;
 	}
 
 	if (bNeedsToRegenerate)
 	{
 		const UPropertyBag* NewBagStruct = UPropertyBag::GetOrCreateFromDescs(ModifiedDescs);
 		Value.MigrateToNewBagStruct(NewBagStruct);
+
+		// Also update the default for newly-added job variables to match the associated graph variables
+		for (const TPair<UMovieGraphVariable*, FName>& VariableNeedingDefault : VariablesThatNeedDefaultAssigned)
+		{
+			UMovieGraphVariable* GraphVariable = VariableNeedingDefault.Key;
+			const FName VariableName = VariableNeedingDefault.Value;
+			
+			// Not ideal that this is being set by string, but it's the most universal method of setting all variable types and we don't need
+			// to special-case for each variable type
+			Value.SetValueSerializedString(VariableName, GraphVariable->GetValueSerializedString());
+		}
 	}
 }
 #endif

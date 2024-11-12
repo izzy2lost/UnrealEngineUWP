@@ -99,56 +99,54 @@ enum class EMetalBufferFormat : uint8
 	Max						=54
 };
 
+enum class EMetalBindingsFlags : uint8
+{
+	PixelDiscard = 1 << 0,
+	UseMetalShaderConverter = 1 << 1,
+};
+
 struct FMetalShaderBindings
 {
-	TArray<TArray<CrossCompiler::FPackedArrayInfo>>	PackedUniformBuffers;
 	TArray<CrossCompiler::FPackedArrayInfo>			PackedGlobalArrays;
-	FShaderResourceTable							ShaderResourceTable;
 	TMap<uint8, TArray<uint8>>						ArgumentBufferMasks;
 	CrossCompiler::FShaderBindingInOutMask			InOutMask;
     FString                                         IRConverterReflectionJSON;
-    uint32                                          RSNumCBVs;
-    uint32                                          OutputSizeVS;
-    uint32                                          MaxInputPrimitivesPerMeshThreadgroupGS;
+    uint32                                          RSNumCBVs = 0;
+    uint32                                          OutputSizeVS = 0;
+    uint32                                          MaxInputPrimitivesPerMeshThreadgroupGS = 0;
 
-	uint32 	ConstantBuffers;
-	uint32  ArgumentBuffers;
-	uint8	NumSamplers;
-	uint8	NumUniformBuffers;
-	uint8	NumUAVs;
-	bool	bDiscards;
-
-	FMetalShaderBindings() :
-        RSNumCBVs(0),
-        OutputSizeVS(0),
-        MaxInputPrimitivesPerMeshThreadgroupGS(0),
-		ConstantBuffers(0),
-		ArgumentBuffers(0),
-		NumSamplers(0),
-		NumUniformBuffers(0),
-		NumUAVs(0),
-		bDiscards(false)
-	{
-	}
+	uint32 	ConstantBuffers = 0;
+	uint32  ArgumentBuffers = 0;
+	uint8	NumSamplers = 0;
+	uint8	NumUniformBuffers = 0;
+	uint8	NumUAVs = 0;
+	EMetalBindingsFlags	Flags{};
+	
+	inline FArchive& Serialize(FArchive& Ar, FShaderResourceTable& SRT);
 };
 
-inline FArchive& operator<<(FArchive& Ar, FMetalShaderBindings& Bindings)
+inline FArchive& FMetalShaderBindings::Serialize(FArchive& Ar, FShaderResourceTable& SRT)
 {
-	Ar << Bindings.PackedUniformBuffers;
-	Ar << Bindings.PackedGlobalArrays;
-	Ar << Bindings.ShaderResourceTable;
-	Ar << Bindings.ArgumentBufferMasks;
-	Ar << Bindings.ConstantBuffers;
-	Ar << Bindings.ArgumentBuffers;
-	Ar << Bindings.InOutMask;
-	Ar << Bindings.NumSamplers;
-	Ar << Bindings.NumUniformBuffers;
-	Ar << Bindings.NumUAVs;
-	Ar << Bindings.bDiscards;
-    Ar << Bindings.IRConverterReflectionJSON;
-    Ar << Bindings.RSNumCBVs;
-    Ar << Bindings.OutputSizeVS;
-    Ar << Bindings.MaxInputPrimitivesPerMeshThreadgroupGS;
+	Ar << PackedGlobalArrays;
+	Ar << SRT;
+	Ar << ConstantBuffers;
+	Ar << InOutMask;
+	Ar << ArgumentBuffers;
+	if (ArgumentBuffers)
+	{
+		Ar << ArgumentBufferMasks;
+	}
+	Ar << NumSamplers;
+	Ar << NumUniformBuffers;
+	Ar << NumUAVs;
+	Ar << Flags;
+	if (EnumHasAnyFlags(Flags, EMetalBindingsFlags::UseMetalShaderConverter))
+	{
+		Ar << IRConverterReflectionJSON;
+		Ar << RSNumCBVs;
+		Ar << OutputSizeVS;
+		Ar << MaxInputPrimitivesPerMeshThreadgroupGS;
+	}
 	return Ar;
 }
 
@@ -230,76 +228,56 @@ struct FMetalAttribute
 struct FMetalCodeHeader
 {
 	FMetalShaderBindings Bindings;
-	TArray<CrossCompiler::FUniformBufferCopyInfo> UniformBuffersCopyInfo;
 
-	uint64 CompilerBuild;
-	uint32 CompilerVersion;
 	uint32 SourceLen;
 	uint32 SourceCRC;
+	uint32 Version;
 	uint32 NumThreadsX;
 	uint32 NumThreadsY;
 	uint32 NumThreadsZ;
 	uint32 CompileFlags;
-	uint8 Frequency;
-	uint32 Version;
-	int8 SideTable;
-	bool bDeviceFunctionConstants;
 	FMetalRayTracingHeader RayTracing;
-
+	uint8 Frequency;
+	int8 SideTable;
+	uint8 bDeviceFunctionConstants;
+	
 	FMetalCodeHeader()
-	: CompilerBuild(0)
-	, CompilerVersion(0)
-	, SourceLen(0)
+	: SourceLen(0)
 	, SourceCRC(0)
+	, Version(0)
 	, NumThreadsX(0)
 	, NumThreadsY(0)
 	, NumThreadsZ(0)
 	, CompileFlags(0)
 	, Frequency(0)
-	, Version(0)
 	, SideTable(-1)
-	, bDeviceFunctionConstants(false)
+	, bDeviceFunctionConstants(0)
 	{
 	}
+
+	inline FArchive& Serialize(FArchive& Ar, FShaderResourceTable& SRT);
 };
 
-inline FArchive& operator<<(FArchive& Ar, FMetalCodeHeader& Header)
-{
-	Ar << Header.Bindings;
 
-	int32 NumInfos = Header.UniformBuffersCopyInfo.Num();
-	Ar << NumInfos;
-	if (Ar.IsSaving())
-	{
-		for (int32 Index = 0; Index < NumInfos; ++Index)
-		{
-			Ar << Header.UniformBuffersCopyInfo[Index];
-		}
-	}
-	else if (Ar.IsLoading())
-	{
-		Header.UniformBuffersCopyInfo.Empty(NumInfos);
-		for (int32 Index = 0; Index < NumInfos; ++Index)
-		{
-			CrossCompiler::FUniformBufferCopyInfo Info;
-			Ar << Info;
-			Header.UniformBuffersCopyInfo.Add(Info);
-		}
-	}
+inline FArchive& FMetalCodeHeader::Serialize(FArchive& Ar, FShaderResourceTable& SRT)
+{
+	Bindings.Serialize(Ar, SRT);
 	
-	Ar << Header.CompilerBuild;
-	Ar << Header.CompilerVersion;
-	Ar << Header.SourceLen;
-	Ar << Header.SourceCRC;
-	Ar << Header.NumThreadsX;
-	Ar << Header.NumThreadsY;
-	Ar << Header.NumThreadsZ;
-	Ar << Header.CompileFlags;
-	Ar << Header.Frequency;
-	Ar << Header.Version;
-	Ar << Header.SideTable;
-	Ar << Header.bDeviceFunctionConstants;
-	Ar << Header.RayTracing;
+	Ar << SourceLen;
+	Ar << SourceCRC;
+	Ar << Version;
+	Ar << Frequency;
+	if (Frequency == SF_Compute || IsRayTracingShaderFrequency((EShaderFrequency)Frequency))
+	{
+		Ar << NumThreadsX;
+		Ar << NumThreadsY;
+		Ar << NumThreadsZ;
+		Ar << RayTracing;
+	}
+	Ar << CompileFlags;
+	Ar << SideTable;
+	Ar << bDeviceFunctionConstants;
+	
     return Ar;
 }
 

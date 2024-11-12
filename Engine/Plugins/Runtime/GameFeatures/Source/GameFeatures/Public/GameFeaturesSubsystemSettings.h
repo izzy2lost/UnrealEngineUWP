@@ -39,10 +39,6 @@ public:
 	UE_DEPRECATED(5.0, "Use IsValidGameFeaturePlugin() instead")
 	FString BuiltInGameFeaturePluginsFolder;
 
-private:
-	// Cached list of all GameFeature plugin directories (including extension versions)
-	mutable TArray<FString> BuiltInGameFeaturePluginsFolders;
-
 public:
 	// Returns true if the specified (fully qualified) path is a game feature plugin
 	bool IsValidGameFeaturePlugin(const FString& PluginDescriptorFilename) const;

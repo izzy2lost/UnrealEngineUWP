@@ -8,6 +8,8 @@ namespace UnrealBuildTool.Rules
 	{
 		public StateTreeTestSuite(ReadOnlyTargetRules Target) : base(Target)
 		{
+			UnsafeTypeCastWarningLevel = WarningLevel.Warning;
+
 			PublicIncludePaths.AddRange(
 				new string[] {
 				}
@@ -22,7 +24,6 @@ namespace UnrealBuildTool.Rules
 					"StateTreeModule",
 					"StateTreeEditorModule",
 					"AITestSuite",
-					"StructUtils",
 					"GameplayTags",
 				}
 			);

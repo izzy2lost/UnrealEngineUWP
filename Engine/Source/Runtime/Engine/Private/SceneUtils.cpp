@@ -49,16 +49,16 @@ bool IsMobilePropagateAlphaEnabled(EShaderPlatform Platform)
 	return IsMobilePlatform(Platform) && (FPlatformMisc::GetMobilePropagateAlphaSetting() > 0);
 }
 
-ENGINE_API EMobileHDRMode GetMobileHDRMode()
+ENGINE_API bool IsMobileTonemapSubpassEnabled(EShaderPlatform Platform, bool bMultiViewRendering)
 {
-	EMobileHDRMode HDRMode = EMobileHDRMode::EnabledFloat16;
+	static auto* MobileTonemapSubpassPathCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.TonemapSubpass"));
+	return ((MobileTonemapSubpassPathCvar && (MobileTonemapSubpassPathCvar->GetValueOnAnyThread() == 1)) || bMultiViewRendering) && IsMobileHDR() && !IsMobileDeferredShadingEnabled(Platform);
+}
 
-	if (!IsMobileHDR())
-	{
-		HDRMode = EMobileHDRMode::Disabled;
-	}
-	
-	return HDRMode;
+ENGINE_API bool IsMobileTonemapSubpassEnabledInline(EShaderPlatform Platform, bool bMultiViewRendering, uint32 NumMSAASamples)
+{
+	// As of UE 5.4 only vulkan supports inline (single pass) tonemap
+	return IsMobileTonemapSubpassEnabled(Platform, bMultiViewRendering) && IsVulkanPlatform(Platform) && (GRHISupportsMSAAShaderResolve || NumMSAASamples <= 1u);
 }
 
 ENGINE_API bool IsMobileColorsRGB()
@@ -208,14 +208,12 @@ ENGINE_API uint32 GetDefaultMSAACount(const FStaticFeatureLevel InFeatureLevel, 
 			if (InFeatureLevel == ERHIFeatureLevel::ES3_1)
 			{
 				bool bMobilePixelProjectedReflection = IsUsingMobilePixelProjectedReflection(ShaderPlatform);
-				
-				bool bIsFullDepthPrepassEnabled = MobileUsesFullDepthPrepass(ShaderPlatform);
 
-				bRendererSupportMSAA = bRHISupportsMSAA && !bMobilePixelProjectedReflection && !bIsFullDepthPrepassEnabled;
+				bRendererSupportMSAA = bRHISupportsMSAA && !bMobilePixelProjectedReflection;
 
 				if (!bRendererSupportMSAA)
 				{
-					FailedReason = FString::Printf(TEXT("RHISupportsMSAA %d, MobilePixelProjectedReflection %d, MobileFullDepthPrepass %d"), bRHISupportsMSAA ? 1 : 0, bMobilePixelProjectedReflection ? 1 : 0, bIsFullDepthPrepassEnabled ? 1 : 0);
+					FailedReason = FString::Printf(TEXT("RHISupportsMSAA %d, MobilePixelProjectedReflection %d"), bRHISupportsMSAA ? 1 : 0, bMobilePixelProjectedReflection ? 1 : 0);
 				}
 			}
 			else

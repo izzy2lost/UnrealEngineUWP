@@ -138,16 +138,6 @@ public:
 	FVelocityAndPressureField& GetVelocityAndPressureField(const uint32 GroupId = 0) { check(GroupId < TArrayCollection::Size()); return MGroupVelocityAndPressureFields[GroupId]; }
 	const FVelocityAndPressureField& GetVelocityAndPressureField(const uint32 GroupId = 0) const { check(GroupId < TArrayCollection::Size()); return MGroupVelocityAndPressureFields[GroupId]; }
 
-	UE_DEPRECATED(5.1, "Chaos::Softs::FVelocityField has been renamed FVelocityAndPressureField to match its new behavior.")
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		FVelocityField& GetVelocityField(const uint32 GroupId = 0) { return GetVelocityAndPressureField(GroupId); }
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		UE_DEPRECATED(5.1, "Chaos::Softs::FVelocityField has been renamed FVelocityAndPressureField to match its new behavior.")
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		const FVelocityField& GetVelocityField(const uint32 GroupId = 0) const { return GetVelocityAndPressureField(GroupId); }
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-
 	int32 GetNewtonIterations() const { return MNumNewtonIterations; }
 	void SetNewtonIterations(const int32 Iterations) { MNumNewtonIterations = Iterations; }
 

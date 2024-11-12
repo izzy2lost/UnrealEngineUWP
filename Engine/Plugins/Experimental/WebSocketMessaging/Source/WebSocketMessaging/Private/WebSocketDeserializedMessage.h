@@ -18,7 +18,7 @@ public:
 
 	virtual ~FWebSocketDeserializedMessage() override;
 
-	virtual bool ParseJson(const FString& Json);
+	bool ParseJson(const FString& InJson, FString& OutParseError);
 
 	virtual TSharedPtr<IMessageAttachment, ESPMode::ThreadSafe> GetAttachment() const override
 	{

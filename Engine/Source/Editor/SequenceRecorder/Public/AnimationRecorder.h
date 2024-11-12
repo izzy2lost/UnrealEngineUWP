@@ -48,6 +48,20 @@ struct FTimecodeBoneMethod
 	FName BoneName;
 };
 
+struct SEQUENCERECORDER_API FProcessRecordedTimeParams
+{
+	FString HoursName;
+	FString MinutesName;
+	FString SecondsName;
+	FString FramesName;
+	FString SubFramesName;
+
+	// Optionally support writing the Timecode Rate into time data.
+	TOptional<FString> RateName;
+
+	FString SlateName;
+	FString Slate;
+};
 //////////////////////////////////////////////////////////////////////////
 // FAnimationRecorder
 
@@ -142,7 +156,11 @@ public:
 
 	const FTransform& GetInitialRootTransform() const { return InitialRootTransform; }
 
+	UE_DEPRECATED(5.5, "Use the ProcessRecordedTimes method that takes a FProcessRecordedTimeParams struct.")
 	void ProcessRecordedTimes(UAnimSequence* AnimSequence, USkeletalMeshComponent* SkeletalMeshComponent, const FString& HoursName, const FString& MinutesName, const FString& SecondsName, const FString& FramesName, const FString& SubFramesName, const FString& SlateName, const FString& Slate, const FTimecodeBoneMethod& TimecodeBoneMethod);
+
+	/** Process any time data captured and apply it to the bones on the given SkeletalMeshComponent. */
+	void ProcessRecordedTimes(UAnimSequence* AnimSequence, USkeletalMeshComponent* SkeletalMeshComponent, const FTimecodeBoneMethod& TimecodeBoneMethod, const FProcessRecordedTimeParams& TimecodeInfo);
 
 	/** If true, it will record root to include LocalToWorld */
 	uint8 bRecordLocalToWorld :1;
@@ -207,7 +225,12 @@ public:
 	bool BeginRecording();
 	void Update(float DeltaTime);
 	void FinishRecording(bool bShowMessage = true);
+
+	UE_DEPRECATED(5.5, "Use the ProcessRecordedTimes method that takes a FProcessRecordedTimeParams struct.")
 	void ProcessRecordedTimes(UAnimSequence* AnimSequence, USkeletalMeshComponent* SkeletalMeshComponent, const FString& HoursName, const FString& MinutesName, const FString& SecondsName, const FString& FramesName, const FString& SubFramesName, const FString& SlateName, const FString& Slate, const FTimecodeBoneMethod& TimecodeBoneMethod);
+
+	/** Process any time data captured and apply it to the bones on the given SkeletalMeshComponent. */
+	void ProcessRecordedTimes(UAnimSequence* AnimSequence, USkeletalMeshComponent* SkeletalMeshComponent, const FTimecodeBoneMethod& TimecodeBoneMethod, const FProcessRecordedTimeParams& TimecodeInfo);
 
 private:
 	void InitInternal(USkeletalMeshComponent* InComponent, const FAnimationRecordingSettings& Settings, FAnimationSerializer *InAnimationSerializer = nullptr);

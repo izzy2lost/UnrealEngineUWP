@@ -85,18 +85,17 @@ struct FCompareBoneIndexType
 		GenerateRawLODData(SkeletalMeshComponent, SkeletalMesh, LOD0Index, LODRenderData, RequiredBones_LOD0, ComponentSpaceGenerationLODData[LOD0Index].RequiredBones);
 
 		// Now calculate the LODs > 1
-
 		constexpr int32 StartLOD = 1;
 		GenerateLODData(SkeletalMeshComponent, SkeletalMesh, StartLOD, NumLODs, LODRenderData, RequiredBones_LOD0, GenerationLODData, ComponentSpaceGenerationLODData);
+
+		// Add missing bones to parent LODs for skeletal meshes that arrive with malformed LOD setups
+		FixLODRequiredBones(NumLODs, SkeletalMesh, GenerationLODData, ComponentSpaceGenerationLODData);
 
 		// Check if the sockets are set to always animate, else the component space requires separated data (different bone indexes)
 		bool bCanGenerateSingleBonesList = CheckSkeletalAllMeshSocketsAlwaysAnimate(SkeletalMesh);
 
 		if (bCanGenerateSingleBonesList)
 		{
-			bCanGenerateSingleBonesList &= CheckExcludedBones(NumLODs, GenerationLODData, SkeletalMesh);
-			//bCanGenerateSingleBonesList &= CheckExcludedBones(NumLODs, ComponentSpaceGenerationLODData, SkeletalMesh); // Commented : right now we only support skeletal meshes with all the sockets set to always animate
-
 			TArray<FBoneIndexType> LODBoneIndexToMeshBoneIndexMap;
 			TArray<FBoneIndexType> ComponentSpaceOrderedBoneList;
 
@@ -126,12 +125,13 @@ struct FCompareBoneIndexType
 				const FSkeletonToMeshLinkup& LinkupTable = const_cast<USkeleton*>(Skeleton)->FindOrAddMeshLinkupData(SkeletalMesh);
 
 				// Generate a Skeleton to LOD look up table
+				const int32 NumMeshBones = LinkupTable.SkeletonToMeshTable.Num();
 				const int32 NumOrderedBones = LODBoneIndexToMeshBoneIndexMap.Num();
 
 				TArray<FBoneIndexType> SkeletonBoneIndexToLODBoneIndexMap;
 				TArray<FBoneIndexType> LODBoneIndexToSkeletonBoneIndexMap;
-				SkeletonBoneIndexToLODBoneIndexMap.SetNumZeroed(NumOrderedBones);
-				LODBoneIndexToSkeletonBoneIndexMap.SetNumZeroed(NumOrderedBones);
+				SkeletonBoneIndexToLODBoneIndexMap.Init(INDEX_NONE, NumMeshBones);
+				LODBoneIndexToSkeletonBoneIndexMap.Init(INDEX_NONE, NumOrderedBones);
 
 				for (int32 LODBoneIndex = 0; LODBoneIndex < NumOrderedBones; ++LODBoneIndex)
 				{
@@ -146,13 +146,41 @@ struct FCompareBoneIndexType
 					LODBoneIndexToSkeletonBoneIndexMap[LODBoneIndex] = static_cast<FBoneIndexType>(SkeletonBoneIndex.GetInt());
 				}
 
-				OutAnimationReferencePose.Initialize(SkeletalMesh->GetRefSkeleton(), { LODBoneIndexToMeshBoneIndexMap }, { LODBoneIndexToSkeletonBoneIndexMap }, { SkeletonBoneIndexToLODBoneIndexMap }, LODNumBones, bCanGenerateSingleBonesList);
+				TArray<FBoneIndexType> MeshBoneIndexToLODBoneIndex;
+				MeshBoneIndexToLODBoneIndex.Init(INDEX_NONE, NumMeshBones);
+
+				for (int32 LODBoneIndex = 0; LODBoneIndex < NumOrderedBones; ++LODBoneIndex)
+				{
+					const int32 MeshBoneIndex = LODBoneIndexToMeshBoneIndexMap[LODBoneIndex];
+					MeshBoneIndexToLODBoneIndex[MeshBoneIndex] = LODBoneIndex;
+				}
+
+				const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetRefSkeleton();
+
+				TArray<FBoneIndexType> LODBoneIndexToParentLODBoneIndexMap;
+				LODBoneIndexToParentLODBoneIndexMap.Init(INDEX_NONE, NumOrderedBones);
+
+				for (int32 LODBoneIndex = 0; LODBoneIndex < NumOrderedBones; ++LODBoneIndex)
+				{
+					const int32 MeshBoneIndex = LODBoneIndexToMeshBoneIndexMap[LODBoneIndex];
+					const int32 ParentMeshBoneIndex = RefSkeleton.GetParentIndex(MeshBoneIndex);
+					const int32 ParentLODBoneIndex = ParentMeshBoneIndex != INDEX_NONE ? MeshBoneIndexToLODBoneIndex[ParentMeshBoneIndex] : INDEX_NONE;
+
+					LODBoneIndexToParentLODBoneIndexMap[LODBoneIndex] = ParentLODBoneIndex;
+				}
+
+				OutAnimationReferencePose.Initialize(
+					RefSkeleton,
+					{ LODBoneIndexToParentLODBoneIndexMap },
+					{ LODBoneIndexToMeshBoneIndexMap },
+					{ LODBoneIndexToSkeletonBoneIndexMap },
+					{ SkeletonBoneIndexToLODBoneIndexMap },
+					LODNumBones,
+					bCanGenerateSingleBonesList);
 
 				ReferencePoseGenerated = true;
 			}
 		}
-		// TODO : Decide if we only allow skeletal meshes that allow for single bone list generation
-		//        Or create an alternative
 	}
 
 	return ReferencePoseGenerated;
@@ -193,7 +221,7 @@ struct FCompareBoneIndexType
 		}
 
 
-			// Get socket bones set to animate and bones required to fill the component space base transforms
+		// Get socket bones set to animate and bones required to fill the component space base transforms
 		TArray<FBoneIndexType> NeededBonesForFillComponentSpaceTransforms;
 		USkeletalMeshComponent::GetSocketRequiredBones(SkeletalMesh, OutRequiredBones, NeededBonesForFillComponentSpaceTransforms);
 
@@ -254,13 +282,82 @@ struct FCompareBoneIndexType
 	DifferenceBoneIndexArrays(RequiredBones_ParentLOD, RequiredBones, ExcludedBonesFromPrevLOD);
 }
 
+static FString GetBoneNameSafe(const USkeletalMesh* SkeletalMesh, const uint32 BoneIndex)
+{
+	FString BoneName;
+
+	if (const USkeleton* Skeleton = SkeletalMesh->GetSkeleton())
+	{
+		if (Skeleton->GetReferenceSkeleton().IsValidIndex(BoneIndex))
+		{
+			BoneName = Skeleton->GetReferenceSkeleton().GetBoneName(BoneIndex).ToString();
+		}
+	}
+
+	return BoneName;
+};
+
+void FGenerationTools::FixLODRequiredBones(const int32 NumLODs
+	, const USkeletalMesh* SkeletalMesh
+	, TArray<FGenerationLODData>& GenerationLODData
+	, TArray<FGenerationLODData>& GenerationComponentSpaceLODData)
+{
+	for (int32 LODIndex = NumLODs - 1; LODIndex > 0; --LODIndex)
+	{
+		FGenerationLODData& LODData = GenerationLODData[LODIndex];
+		FGenerationLODData& PrevLODData = GenerationLODData[LODIndex - 1];
+
+
+		TArray<FBoneIndexType> MissingBones;
+		MissingBones.Reserve(LODData.RequiredBones.Num());
+
+		// Check if all required bones by the current LOD are part of the parent LOD as well.
+		// If a bone is present at a lower LOD while missing from the parent LOD, we will automatically add it to the parent LOD.
+		for (TArray<FBoneIndexType>::TConstIterator ReqBoneIt(LODData.RequiredBones); ReqBoneIt; ++ReqBoneIt)
+		{
+			if (!PrevLODData.RequiredBones.Contains(*ReqBoneIt))
+			{
+				MissingBones.Add(*ReqBoneIt);
+
+				UE_LOG(LogAnimGenerationTools, Warning, TEXT("SkeletalMesh LOD %d does not contain bone [%s] required by LOD %d. Please update the skeletal mesh asset [%s] or its corresponding LOD settings asset.")
+					, LODIndex - 1
+					, *GetBoneNameSafe(SkeletalMesh, *ReqBoneIt)
+					, LODIndex
+					, *SkeletalMesh->GetPathName());
+			}
+		}
+
+		if (MissingBones.Num() > 0) // Update the arrays and keep bones sorted
+		{
+			FGenerationLODData& ComponentSpacePrevLODData = GenerationLODData[LODIndex - 1];
+
+			USkeletalMeshComponent::MergeInBoneIndexArrays(PrevLODData.RequiredBones, MissingBones);
+			USkeletalMeshComponent::MergeInBoneIndexArrays(ComponentSpacePrevLODData.RequiredBones, MissingBones);
+
+			if (LODIndex > 1) // No need to remove excluded bones at LOD 1, as parent is LOD 0 and has none excluded
+			{
+				const int32 NumElem = MissingBones.Num();
+				for (int32 i = NumElem - 1; i >= 0; --i)
+				{
+					const FBoneIndexType& BoneIndex = MissingBones[i];
+
+					PrevLODData.ExcludedBones.Remove(BoneIndex);
+					PrevLODData.ExcludedBonesFromPrevLOD.Remove(BoneIndex);
+					ComponentSpacePrevLODData.ExcludedBones.Remove(BoneIndex);
+					ComponentSpacePrevLODData.ExcludedBonesFromPrevLOD.Remove(BoneIndex);
+				}
+			}
+		}
+	}
+}
+
 /*static*/ bool FGenerationTools::CheckExcludedBones(const int32 NumLODs
 	, const TArray<FGenerationLODData>& GenerationLODData
 	, const USkeletalMesh* SkeletalMesh)
 {
 	bool bCanGenerateSingleBonesList = true;
 
-	for (int32 LODIndex = NumLODs - 1; LODIndex > 1; --LODIndex)
+	for (int32 LODIndex = NumLODs - 1; LODIndex >= 1; --LODIndex)
 	{
 		const FGenerationLODData& LODData = GenerationLODData[LODIndex];
 		const FGenerationLODData& PrevLODData = GenerationLODData[LODIndex - 1];
@@ -278,7 +375,7 @@ struct FCompareBoneIndexType
 			if (LODData.ExcludedBones.Contains(*LODExcludedBonesIt) == false)
 			{
 				bCanGenerateSingleBonesList = false;
-				UE_LOG(LogAnimGenerationTools, Warning, TEXT("SkeletalMesh %s canonical ordered bone set can not be stored in LOD order. LOD %d does not contain all the bones of LOD %d"), *SkeletalMesh->GetPathName(), LODIndex, LODIndex - 1);
+				UE_LOG(LogAnimGenerationTools, Warning, TEXT("SkeletalMesh %s canonical ordered bone set can not be stored in LOD order. LOD %d does not contain all the bones of LOD %d, like e.g. '%s'."), *SkeletalMesh->GetPathName(), LODIndex, LODIndex - 1, *GetBoneNameSafe(SkeletalMesh, *LODExcludedBonesIt));
 				break;
 			}
 		}
@@ -499,37 +596,116 @@ struct FCompareBoneIndexType
 	}
 }
 
+void FGenerationTools::RemapAttributes(
+	const FLODPose& LODPose,
+	const UE::Anim::FHeapAttributeContainer& InAttributes,
+	UE::Anim::FMeshAttributeContainer& OutAttributes)
+{
+	const TArrayView<const FBoneIndexType> LODBoneIndexToMeshBoneIndexMap = LODPose.GetLODBoneIndexToMeshBoneIndexMap();
+
+	for (const TWeakObjectPtr<UScriptStruct> WeakScriptStruct : InAttributes.GetUniqueTypes())
+	{
+		const UScriptStruct* ScriptStruct = WeakScriptStruct.Get();
+		const int32 TypeIndex = InAttributes.FindTypeIndex(ScriptStruct);
+		if (TypeIndex != INDEX_NONE)
+		{
+			const TArray<UE::Anim::TWrappedAttribute<FDefaultAllocator>, FDefaultAllocator>& SourceValues = InAttributes.GetValues(TypeIndex);
+			const TArray<UE::Anim::FAttributeId, FDefaultAllocator>& AttributeIds = InAttributes.GetKeys(TypeIndex);
+
+			// Try and remap all the source attributes to their respective new bone indices
+			for (int32 EntryIndex = 0; EntryIndex < AttributeIds.Num(); ++EntryIndex)
+			{
+				const UE::Anim::FAttributeId& AttributeId = AttributeIds[EntryIndex];
+
+				const int32 LODBoneIndex = AttributeId.GetIndex();
+				const int32 MeshBoneIndex = LODBoneIndexToMeshBoneIndexMap[LODBoneIndex];
+
+				const UE::Anim::FAttributeId NewInfo(AttributeId.GetName(), MeshBoneIndex, AttributeId.GetNamespace());
+				uint8* NewAttribute = OutAttributes.FindOrAdd(ScriptStruct, NewInfo);
+				ScriptStruct->CopyScriptStruct(NewAttribute, SourceValues[EntryIndex].GetPtr<void>());
+			}
+		}
+	}
+}
+
+void FGenerationTools::RemapAttributes(
+	const FLODPose& LODPose,
+	const UE::Anim::FHeapAttributeContainer& InAttributes,
+	FPoseContext& OutPose)
+{
+	const TArrayView<const FBoneIndexType> LODBoneIndexToMeshBoneIndexMap = LODPose.GetLODBoneIndexToMeshBoneIndexMap();
+	const FBoneContainer& BoneContainer = OutPose.Pose.GetBoneContainer();
+
+	for (const TWeakObjectPtr<UScriptStruct> WeakScriptStruct : InAttributes.GetUniqueTypes())
+	{
+		const UScriptStruct* ScriptStruct = WeakScriptStruct.Get();
+		const int32 TypeIndex = InAttributes.FindTypeIndex(ScriptStruct);
+		if (TypeIndex != INDEX_NONE)
+		{
+			const TArray<UE::Anim::TWrappedAttribute<FDefaultAllocator>, FDefaultAllocator>& SourceValues = InAttributes.GetValues(TypeIndex);
+			const TArray<UE::Anim::FAttributeId, FDefaultAllocator>& AttributeIds = InAttributes.GetKeys(TypeIndex);
+
+			// Try and remap all the source attributes to their respective new bone indices
+			for (int32 EntryIndex = 0; EntryIndex < AttributeIds.Num(); ++EntryIndex)
+			{
+				const UE::Anim::FAttributeId& AttributeId = AttributeIds[EntryIndex];
+
+				const int32 LODBoneIndex = AttributeId.GetIndex();
+				const FMeshPoseBoneIndex MeshBoneIndex(LODBoneIndexToMeshBoneIndexMap[LODBoneIndex]);
+
+				// Remap our skeletal mesh bone index into the skeleton bone index we output for
+				const FSkeletonPoseBoneIndex SkeletonBoneIndex = BoneContainer.GetSkeletonPoseIndexFromMeshPoseIndex(MeshBoneIndex);
+				ensure(SkeletonBoneIndex.IsValid());	// We expect the skeletal mesh bone to map to a valid skeleton bone
+
+				// Remap our skeleton bone index into the compact pose bone index we output for
+				const FCompactPoseBoneIndex CompactBoneIndex = BoneContainer.GetCompactPoseIndexFromSkeletonPoseIndex(SkeletonBoneIndex);
+
+				if (ensure(CompactBoneIndex.IsValid()))	// We expect the skeleton bone to map to a valid compact pose bone
+				{
+					const UE::Anim::FAttributeId NewInfo(AttributeId.GetName(), CompactBoneIndex);
+					uint8* NewAttribute = OutPose.CustomAttributes.FindOrAdd(ScriptStruct, NewInfo);
+					ScriptStruct->CopyScriptStruct(NewAttribute, SourceValues[EntryIndex].GetPtr<void>());
+				}
+				else
+				{
+					// This bone is part of the LOD but isn't part of the required bones
+				}
+			}
+		}
+	}
+}
+
 void FGenerationTools::ConvertLocalSpaceToComponentSpace(
-												 TConstArrayView<FBoneIndexType> InParentIndices,
+												 TConstArrayView<FBoneIndexType> InMeshBoneIndexToParentMeshBoneIndexMap,
 												 TConstArrayView<FTransform> InBoneSpaceTransforms,
-												 TConstArrayView<FBoneIndexType> InRequiredBoneIndices, 
+												 TConstArrayView<FBoneIndexType> InLODBoneIndexToMeshBoneIndexMap,
 												 TArrayView<FTransform> OutComponentSpaceTransforms)
 {
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_ConvertLocalSpaceToComponentSpace);
 
-	const int32 NumBones = InParentIndices.Num();
-	checkf(NumBones == InBoneSpaceTransforms.Num(), TEXT("Buffer mismatch: %d:%d"), NumBones, InBoneSpaceTransforms.Num());
-	checkf(NumBones == OutComponentSpaceTransforms.Num(), TEXT("Buffer mismatch: %d:%d"), NumBones, OutComponentSpaceTransforms.Num());
+	checkf(InMeshBoneIndexToParentMeshBoneIndexMap.Num() == InBoneSpaceTransforms.Num(), TEXT("Buffer mismatch: %d:%d"), InMeshBoneIndexToParentMeshBoneIndexMap.Num(), InBoneSpaceTransforms.Num());
+	checkf(InMeshBoneIndexToParentMeshBoneIndexMap.Num() == OutComponentSpaceTransforms.Num(), TEXT("Buffer mismatch: %d:%d"), InMeshBoneIndexToParentMeshBoneIndexMap.Num(), OutComponentSpaceTransforms.Num());
 
-	const FBoneIndexType* RESTRICT RequiredBoneIndicesData = InRequiredBoneIndices.GetData();
-	const FBoneIndexType* RESTRICT ParentIndicesData = InParentIndices.GetData();
+	const FBoneIndexType* RESTRICT LODBoneIndexToMeshBoneIndexMapPtr = InLODBoneIndexToMeshBoneIndexMap.GetData();
+	const FBoneIndexType* RESTRICT MeshBoneIndexToParentMeshBoneIndexMapPtr = InMeshBoneIndexToParentMeshBoneIndexMap.GetData();
 	const FTransform* RESTRICT LocalTransformsData = InBoneSpaceTransforms.GetData();
 	FTransform* RESTRICT ComponentSpaceData = OutComponentSpaceTransforms.GetData();
 
 	// First bone (if we have one) is always root bone, and it doesn't have a parent.
 	{
-		check(InRequiredBoneIndices.Num() == 0 || InRequiredBoneIndices[0] == 0);
+		check(InLODBoneIndexToMeshBoneIndexMap.Num() == 0 || InLODBoneIndexToMeshBoneIndexMap[0] == 0);
 		OutComponentSpaceTransforms[0] = InBoneSpaceTransforms[0];
 	}
 
-	const int32 NumRequiredBones = InRequiredBoneIndices.Num();
-	for (int32 RequiredBoneIndex = 1; RequiredBoneIndex < NumRequiredBones; ++RequiredBoneIndex)
+	const int32 NumLODBones = InLODBoneIndexToMeshBoneIndexMap.Num();
+	for (int32 LODBoneIndex = 1; LODBoneIndex < NumLODBones; ++LODBoneIndex)
 	{
-		const FBoneIndexType* BoneIndex = RequiredBoneIndicesData + RequiredBoneIndex;
-		FTransform* RESTRICT ComponentSpaceTransform = ComponentSpaceData + *BoneIndex;
-		const FBoneIndexType* RESTRICT ParentIndex = ParentIndicesData + *BoneIndex;
-		const FTransform* RESTRICT ParentComponentSpaceTransform = ComponentSpaceData + *ParentIndex;
-		const FTransform* RESTRICT LocalSpaceTransform = LocalTransformsData + *BoneIndex;
+		const FBoneIndexType MeshBoneIndex = LODBoneIndexToMeshBoneIndexMapPtr[LODBoneIndex];
+		const FBoneIndexType ParentMeshBoneIndex = MeshBoneIndexToParentMeshBoneIndexMapPtr[MeshBoneIndex];
+
+		FTransform* RESTRICT ComponentSpaceTransform = ComponentSpaceData + MeshBoneIndex;
+		const FTransform* RESTRICT ParentComponentSpaceTransform = ComponentSpaceData + ParentMeshBoneIndex;
+		const FTransform* RESTRICT LocalSpaceTransform = LocalTransformsData + MeshBoneIndex;
 
 		FTransform::Multiply(ComponentSpaceTransform, LocalSpaceTransform, ParentComponentSpaceTransform);
 

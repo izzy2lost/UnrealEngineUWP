@@ -36,17 +36,56 @@ void SPropertyEditorText::Construct( const FArguments& InArgs, const TSharedRef<
 	static const FName NAME_MultiLine = "MultiLine";
 	static const FName NAME_PasswordField = "PasswordField";
 	static const FName NAME_AllowedCharacters = "AllowedCharacters";
+	static const FName NAME_PropertyValidator = "PropertyValidator";
 
-	bIsMultiLine = InPropertyEditor->GetPropertyHandle()->GetBoolMetaData(NAME_MultiLine);
+	TSharedRef<IPropertyHandle> PropertyHandle(InPropertyEditor->GetPropertyHandle());
+	bIsMultiLine = PropertyHandle->GetBoolMetaData(NAME_MultiLine);
 
-	MaxLength = InPropertyEditor->GetPropertyHandle()->GetIntMetaData(NAME_MaxLength);
+	MaxLength = PropertyHandle->GetIntMetaData(NAME_MaxLength);
 	if (InPropertyEditor->PropertyIsA(FNameProperty::StaticClass()))
 	{
 		MaxLength = MaxLength <= 0 ? NAME_SIZE - 1 : FMath::Min(MaxLength, NAME_SIZE - 1);
 	}
 
-	const bool bIsPassword = InPropertyEditor->GetPropertyHandle()->GetBoolMetaData(NAME_PasswordField);
-	AllowedCharacters.InitializeFromString(InPropertyEditor->GetPropertyHandle()->GetMetaData(NAME_AllowedCharacters));
+	const bool bIsPassword = PropertyHandle->GetBoolMetaData(NAME_PasswordField);
+	AllowedCharacters.InitializeFromString(PropertyHandle->GetMetaData(NAME_AllowedCharacters));
+
+	if (PropertyHandle->HasMetaData(NAME_PropertyValidator))
+	{
+		const FString PropertyValidatorFunctionName = PropertyHandle->GetMetaData(NAME_PropertyValidator);
+		const UClass* OuterBaseClass = PropertyHandle->GetOuterBaseClass();
+		if (!PropertyValidatorFunctionName.IsEmpty() && OuterBaseClass)
+		{
+			static TSet<FString> LoggedWarnings;
+			
+			UObject* ValidatorObject = OuterBaseClass->GetDefaultObject<UObject>();
+			const UFunction* PropertyValidatorFunction = ValidatorObject->FindFunction(*PropertyValidatorFunctionName);
+			if (PropertyValidatorFunction)
+			{
+				if (PropertyValidatorFunction->FunctionFlags & FUNC_Static)
+				{
+					PropertyValidatorFunc = FPropertyValidatorFunc::CreateUFunction(ValidatorObject, PropertyValidatorFunction->GetFName());
+				}
+				else
+				{
+					const FString WarningId = OuterBaseClass->GetName() + TEXT(":") + *PropertyHandle->GetProperty()->GetName() + TEXT(":Static");
+				
+					UE_CLOG(!LoggedWarnings.Contains(WarningId), LogPropertyNode, Warning, TEXT("PropertyValidator ufunction '%s' on %s%s::%s must be a static function."),
+						*PropertyValidatorFunctionName, OuterBaseClass->GetPrefixCPP(), *OuterBaseClass->GetName(), *PropertyHandle->GetProperty()->GetName());
+					LoggedWarnings.Add(WarningId);
+				}
+			}
+			else
+			{
+				// Let the developer know that the function is missing.
+				const FString WarningId = OuterBaseClass->GetName() + TEXT(":") + *PropertyHandle->GetProperty()->GetName() + TEXT(":Missing");
+				
+				UE_CLOG(!LoggedWarnings.Contains(WarningId), LogPropertyNode, Warning, TEXT("PropertyValidator ufunction '%s' on %s%s::%s not found."),
+					*PropertyValidatorFunctionName, OuterBaseClass->GetPrefixCPP(), *OuterBaseClass->GetName(), *PropertyHandle->GetProperty()->GetName());
+				LoggedWarnings.Add(WarningId);
+			}
+		}
+	}
 
 	TSharedPtr<SHorizontalBox> HorizontalBox;
 	if(bIsMultiLine)
@@ -151,7 +190,37 @@ void SPropertyEditorText::OnTextCommitted( const FText& NewText, ETextCommit::Ty
 	if( (PropertyHandle->GetValueAsFormattedText( CurrentText ) != FPropertyAccess::MultipleValues || NewText.ToString() != FPropertyEditor::MultipleValuesDisplayName)
 		&& !NewText.ToString().Equals(CurrentText.ToString(), ESearchCase::CaseSensitive))
 	{
-		PropertyHandle->SetValueFromFormattedString( NewText.ToString() );
+		if (CastField<FTextProperty>(PropertyHandle->GetProperty()))
+		{
+			PropertyHandle->NotifyPreChange();
+
+			// We should preserve the localizable state of the existing text values when applying a new source string
+			PropertyHandle->EnumerateRawData([&NewText](void* RawData, const int32 /*DataIndex*/, const int32 /*NumDatas*/)
+			{
+				FText* TextData = static_cast<FText*>(RawData);
+				if (NewText.IsEmpty())
+				{
+					*TextData = NewText;
+				}
+				else if (TextData->IsCultureInvariant())
+				{
+					*TextData = FText::AsCultureInvariant(NewText.ToString());
+				}
+				else
+				{
+					// TODO: This could attempt to use stable keys, however FText properties should really be edited via STextPropertyEditableTextBox
+					*TextData = FText::ChangeKey(TEXT(""), FGuid::NewGuid().ToString(), NewText);
+				}
+				return true;
+			});
+
+			PropertyHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
+			PropertyHandle->NotifyFinishedChangingProperties();
+		}
+		else
+		{
+			PropertyHandle->SetValueFromFormattedString(NewText.ToString());
+		}
 	}
 }
 
@@ -180,6 +249,16 @@ bool SPropertyEditorText::OnVerifyTextChanged(const FText& Text, FText& OutError
 				InvalidCharactersString.AppendChar(Char);
 			}
 			OutError = FText::Format(LOCTEXT("PropertyTextCharactersNotAllowedError", "The value may not contain the following characters: {0}"), FText::FromString(InvalidCharactersString));
+			return false;
+		}
+	}
+
+	if (PropertyValidatorFunc.IsBound())
+	{
+		FText Result = PropertyValidatorFunc.Execute(TextString); 
+		if (!Result.IsEmpty())
+		{
+			OutError = Result;
 			return false;
 		}
 	}

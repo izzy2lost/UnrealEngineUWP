@@ -6,6 +6,9 @@
 
 #pragma once
 #include "RHIShaderPlatform.h"
+#include "DataDrivenShaderPlatformInfo.h"
+#include "ShaderPlatformCachedIniValue.h"
+
 
 struct FReadOnlyCVARCache
 {
@@ -21,9 +24,17 @@ struct FReadOnlyCVARCache
 		#endif	
 	}
 
-	static inline bool EnablePointLightShadows()
+	static inline bool EnablePointLightShadows(const FStaticShaderPlatform Platform)
 	{
-		return bEnablePointLightShadows;
+		if (!IsMobilePlatform(Platform))
+		{
+			return bEnablePointLightShadows;
+		}
+		else
+		{
+			static FShaderPlatformCachedIniValue<bool> MobileMovablePointLightShadowsIniValue(TEXT("r.Mobile.EnableMovablePointLightsShadows"));
+			return MobileMovablePointLightShadowsIniValue.Get(Platform) && FReadOnlyCVARCache::MobileSupportsGPUScene();
+		}
 	}
 	
 	static inline bool EnableStationarySkylight()
@@ -62,11 +73,6 @@ struct FReadOnlyCVARCache
 		#endif
 	}
 
-	static inline bool MobileAllowMovableDirectionalLights()
-	{
-		return bMobileAllowMovableDirectionalLights;
-	}
-
 	static inline bool MobileAllowDistanceFieldShadows()
 	{
 		return bMobileAllowDistanceFieldShadows;
@@ -82,14 +88,9 @@ struct FReadOnlyCVARCache
 		return bMobileEnableMovableLightCSMShaderCulling;
 	}
 	
-	static inline int32 MobileSkyLightPermutation()
+	static inline int32 MobileForwardDecalLighting()
 	{
-		return MobileSkyLightPermutationValue;
-	}
-
-	static inline bool MobileEnableNoPrecomputedLightingCSMShader()
-	{
-		return bMobileEnableNoPrecomputedLightingCSMShader;
+		return MobileForwardDecalLightingValue;
 	}
 
 	static inline int32 MobileEarlyZPass(EShaderPlatform Platform)
@@ -109,6 +110,17 @@ struct FReadOnlyCVARCache
 			return PROJECT_CVAR_MOBILE_FORWARD_LOCALLIGHTS;
 		#else
 			return MobileForwardLocalLightsValue;
+		#endif
+	}
+
+	static inline int32 MobileForwardParticleLights(EShaderPlatform Platform)
+	{
+		#if WITH_EDITOR
+				return MobileForwardParticleLightsIniValue(Platform);
+		#elif defined PROJECT_CVAR_MOBILE_FORWARD_PARTICLELIGHTS
+				return PROJECT_CVAR_MOBILE_FORWARD_PARTICLELIGHTS;
+		#else
+				return bMobileForwardParticleLights;
 		#endif
 	}
 	
@@ -143,21 +155,21 @@ private:
 
 	// Mobile specific
 	RENDERCORE_API static bool bMobileHDR;
-	RENDERCORE_API static bool bMobileAllowMovableDirectionalLights;
 	RENDERCORE_API static bool bMobileAllowDistanceFieldShadows;
 	RENDERCORE_API static bool bMobileEnableStaticAndCSMShadowReceivers;
 	RENDERCORE_API static bool bMobileEnableMovableLightCSMShaderCulling;
 	RENDERCORE_API static bool bMobileSupportsGPUScene;
-	RENDERCORE_API static int32 MobileSkyLightPermutationValue;
 	RENDERCORE_API static int32 MobileEarlyZPassValue;
 	RENDERCORE_API static int32 MobileForwardLocalLightsValue;
-	RENDERCORE_API static bool bMobileEnableNoPrecomputedLightingCSMShader;
+	RENDERCORE_API static bool bMobileForwardParticleLights;
+	RENDERCORE_API static int32 MobileForwardDecalLightingValue;
 	RENDERCORE_API static bool bMobileDeferredShadingValue;
 	RENDERCORE_API static bool bMobileEnableMovableSpotlightsShadowValue;
 
 private:
 	RENDERCORE_API static int32 MobileEarlyZPassIniValue(EShaderPlatform Platform);
 	RENDERCORE_API static int32 MobileForwardLocalLightsIniValue(EShaderPlatform Platform);
+	RENDERCORE_API static bool MobileForwardParticleLightsIniValue(EShaderPlatform Platform);
 	RENDERCORE_API static bool MobileDeferredShadingIniValue(EShaderPlatform Platform);
 	RENDERCORE_API static bool MobileEnableMovableSpotlightsShadowIniValue(EShaderPlatform Platform);
 };

@@ -24,6 +24,7 @@
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Input/SButton.h"
 #include "DetailLayoutBuilder.h"
+#include "SPositiveActionButton.h"
 
 // Ick.
 #include "GraphActionNode.h"
@@ -151,34 +152,12 @@ void SOptimusEditorGraphExplorer::RegisterCommands()
 
 void SOptimusEditorGraphExplorer::CreateWidgets()
 {
-	TSharedPtr<SWidget> AddNewMenu = SNew(SComboButton)
-		.ComboButtonStyle(FAppStyle::Get(), "ToolbarComboButton")
-		.ButtonStyle(FAppStyle::Get(), "FlatButton.Success")
-		.ForegroundColor(FLinearColor::White)
+	TSharedPtr<SWidget> AddNewMenu = SNew(SPositiveActionButton)
 		.ToolTipText(LOCTEXT("AddNewToolTip", "Add a new item."))
 		.OnGetMenuContent(this, &SOptimusEditorGraphExplorer::CreateAddNewMenuWidget)
-		.HasDownArrow(true)
-		.ContentPadding(FMargin(1, 0, 2, 0))
 		.IsEnabled(this, &SOptimusEditorGraphExplorer::IsEditingMode)
-		.ButtonContent()
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.Padding(FMargin(0, 1))
-			[
-				SNew(SImage)
-				.Image(FAppStyle::GetBrush("Plus"))
-			]
-			+ SHorizontalBox::Slot()
-			.VAlign(VAlign_Center)
-			.AutoWidth()
-			.Padding(FMargin(2, 0, 2, 0))
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("AddNew", "Add New"))
-			]
-		];
+		.Icon(FAppStyle::GetBrush("Plus"))
+		.Text(LOCTEXT("AddNew", "Add"));
 
 	FMenuBuilder ViewOptions(true, nullptr);
 
@@ -249,10 +228,11 @@ void SOptimusEditorGraphExplorer::CreateWidgets()
 	                .Padding(2, 0, 0, 0)
 	                [
 						SNew(SComboButton)
+		                .ButtonStyle(FAppStyle::Get(), "SimpleButton")
 	                    .ComboButtonStyle(FAppStyle::Get(), "ToolbarComboButton")
 	                    .ForegroundColor(FSlateColor::UseForeground())
-	                    .HasDownArrow(true)
-	                    .ContentPadding(FMargin(1, 0))
+	                    .HasDownArrow(false)
+	                    .ContentPadding(0)
 	                    .AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ViewOptions")))
 	                    .MenuContent()
 	                    [
@@ -260,8 +240,9 @@ void SOptimusEditorGraphExplorer::CreateWidgets()
 						]
 	                    .ButtonContent()
 	                    [
-							SNew(SImage)
-	                        .Image(FAppStyle::GetBrush("GenericViewButton"))
+	                    	SNew(SImage)
+							.Image(FAppStyle::GetBrush("Icons.Settings"))
+							.ColorAndOpacity(FSlateColor::UseForeground())
 						]
 					]
 				]
@@ -565,10 +546,7 @@ bool SOptimusEditorGraphExplorer::CanRequestRenameOnActionNode(TWeakPtr<FGraphAc
 	{
 		if (SelectedNode->IsActionNode())
 		{
-			if (ensure(!SelectedNode->Actions.IsEmpty()))
-			{
-				return CanRenameAction(SelectedNode->Actions[0]);
-			}
+			return CanRenameAction(SelectedNode->Action);
 		}
 	}
 
@@ -715,9 +693,9 @@ TSharedRef<SWidget> SOptimusEditorGraphExplorer::OnGetSectionWidget(TSharedRef<S
 	{
 		return SNew(SComboButton)
 			.ComboButtonStyle(FAppStyle::Get(), "ToolbarComboButton")
-			.ButtonStyle(FAppStyle::Get(), "RoundButton")
+			.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+			.ContentPadding(FMargin(1, 0))
 		    .ForegroundColor(FAppStyle::GetSlateColor("DefaultForeground"))
-		    .ContentPadding(FMargin(2, 0))
 			.OnGetMenuContent_Lambda([AddMenuWidget]() { return AddMenuWidget.ToSharedRef(); })
 			.IsEnabled(this, &SOptimusEditorGraphExplorer::CanAddNewElementToSection, InSectionID)
 			.HasDownArrow(false)
@@ -726,23 +704,25 @@ TSharedRef<SWidget> SOptimusEditorGraphExplorer::OnGetSectionWidget(TSharedRef<S
 			.ButtonContent()
 			[
 				SNew(SImage)
-				.Image(FAppStyle::GetBrush("Plus"))
+				.Image(FAppStyle::GetBrush(TEXT("Icons.PlusCircle")))
+				.ColorAndOpacity(FSlateColor::UseForeground())
 				.ToolTipText(AddNewTooltipText)
 			];
 	}
 	else if (AddCommand.IsValid())
 	{
 		return SNew(SButton)
-		    .ButtonStyle(FAppStyle::Get(), "RoundButton")
+		    .ButtonStyle(FAppStyle::Get(), "SimpleButton")
+			.ContentPadding(FMargin(1, 0))
 		    .ForegroundColor(FAppStyle::GetSlateColor("DefaultForeground"))
-		    .ContentPadding(FMargin(2, 0))
 		    .OnClicked(this, &SOptimusEditorGraphExplorer::OnAddButtonClickedOnSection, InSectionID)
 		    .IsEnabled(this, &SOptimusEditorGraphExplorer::CanAddNewElementToSection, InSectionID)
 		    .HAlign(HAlign_Center)
 		    .VAlign(VAlign_Center)
 		    [
 				SNew(SImage)
-				.Image(FAppStyle::GetBrush("Plus"))
+		    	.Image(FAppStyle::GetBrush(TEXT("Icons.PlusCircle")))
+		    	.ColorAndOpacity(FSlateColor::UseForeground())
 		        .ToolTipText(AddNewTooltipText)
 			];
 	}

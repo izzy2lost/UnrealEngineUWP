@@ -132,7 +132,7 @@ namespace UnrealBuildTool
 			return true;
 		}
 
-		private void AppendCleanedPathToList(StringBuilder EngineFiles, StringBuilder ProjectFiles, String SourceFileRelativeToRoot, String FullName, String GameProjectPath, String UnrealRootPath, String GameRootPath)
+		private void AppendCleanedPathToList(StringBuilder EngineFiles, StringBuilder ProjectFiles, string SourceFileRelativeToRoot, string FullName, string GameProjectPath, string UnrealRootPath, string GameRootPath)
 		{
 			if (!SourceFileRelativeToRoot.StartsWith("..") && !Path.IsPathRooted(SourceFileRelativeToRoot))
 			{
@@ -654,7 +654,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		protected bool bIncludeTVOSTargets = false;
 
-		protected override void ConfigureProjectFileGeneration(String[] Arguments, ref bool IncludeAllPlatforms, ILogger Logger)
+		protected override void ConfigureProjectFileGeneration(string[] Arguments, ref bool IncludeAllPlatforms, ILogger Logger)
 		{
 			base.ConfigureProjectFileGeneration(Arguments, ref IncludeAllPlatforms, Logger);
 			// Check for minimal build targets to speed up cmake processing

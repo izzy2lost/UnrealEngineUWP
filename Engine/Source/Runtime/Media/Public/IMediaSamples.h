@@ -116,10 +116,14 @@ public:
 		// override in child classes, if supported
 	}
 
+	/** Sets the number of samples to be stored in sample container. */
+	virtual void SetSampleBufferSize(int32 BufferSize) {};
+
 	enum class EFetchBestSampleResult
 	{
 		Ok = 0,
 		NoSample,
+		PurgedToEmpty,
 		NotSupported,
 	};
 	virtual EFetchBestSampleResult FetchBestVideoSampleForTimeRange(const TRange<FMediaTimeStamp>& TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample, bool bReverse, bool bConsistentResult)
@@ -127,7 +131,10 @@ public:
 		return EFetchBestSampleResult::NotSupported;
 	}
 
-	virtual bool PeekVideoSampleTime(FMediaTimeStamp & TimeStamp) = 0;
+	virtual bool PeekVideoSampleTime(FMediaTimeStamp& TimeStamp) = 0;
+
+	virtual bool PeekVideoSampleTimeRanges(TArray<TRange<FMediaTimeStamp>>& TimeRange) { return false; }
+	virtual bool PeekAudioSampleTimeRanges(TArray<TRange<FMediaTimeStamp>>& TimeRange) { return false; }
 
 	virtual bool DiscardVideoSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) { return false; }
 	virtual bool DiscardAudioSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) { return false; }

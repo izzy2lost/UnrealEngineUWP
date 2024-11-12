@@ -73,6 +73,7 @@ registerIcons({
       "Dot": IconContents.DOT,
       "Pin": IconContents.PIN,
       "Unpin": IconContents.UNPIN,
+      "Search": IconContents.SEARCH,
       "SearchTemplate": IconContents.SEARCH_TEMPLATE,
       "History": IconContents.HISTORY,
       "Import": IconContents.IMPORT,
@@ -104,7 +105,8 @@ registerIcons({
       "Play": IconContents.PLAY,
       "Maximize" : IconContents.MAXIMIZE,
       "Star": IconContents.STAR,
-      "Clean" : IconContents.CLEAN
+      "Clean": IconContents.CLEAN,
+      "Info" : IconContents.INFO_SIGN
    }
 });
 
@@ -423,17 +425,14 @@ export const getHordeStyling = () => {
                paddingTop: 0,
             },
             ".ms-TextField-fieldGroup,.ms-TextField-field,.ms-TextField-field::placeholder": {
-               height: "29px",
                fontSize: "12px",
                fontFamily: "Horde Open Sans Regular",
             },
             ".ms-Dropdown-title,.ms-Dropdown-titleIsPlaceHolder": {
                fontSize: "12px",
-               height: "29px"
             },
             ".ms-ComboBox": {
                fontSize: "12px",
-               height: "29px",
             },
             ".ms-Checkbox": {
                marginTop: 0,

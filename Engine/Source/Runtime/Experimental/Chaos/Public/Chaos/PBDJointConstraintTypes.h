@@ -189,10 +189,12 @@ namespace Chaos
 		FVec3 AngularDriveMaxTorque;
 
 		FReal LinearBreakForce;
+		FReal LinearViolationCallbackThreshold;
 		FReal LinearPlasticityLimit;
 		EPlasticityType LinearPlasticityType;
 		FReal LinearPlasticityInitialDistanceSquared;
 		FReal AngularBreakTorque;
+		FReal AngularViolationCallbackThreshold;
 		FReal AngularPlasticityLimit;
 
 		FReal ContactTransferScale;
@@ -222,6 +224,9 @@ namespace Chaos
 
 		// Whether to use the linear or non-linear joint solver
 		bool bUseLinearSolver;
+
+		// Whether use vectorization in single precision, only available on the linear solver
+		bool bUseSimd;
 
 		// Whether the joints need to be sorted (only required for RBAN - the world solver uses the constraint graph for ordering)
 		bool bSortEnabled;

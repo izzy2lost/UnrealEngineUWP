@@ -2,14 +2,13 @@
 
 #pragma once
 
+#include "MeshMerge/MeshMergingSettings.h"
 #include "WorldPartition/HLOD/HLODBuilder.h"
-#include "Engine/MeshMerging.h"
-
 #include "HLODBuilderMeshMerge.generated.h"
 
-class UMaterialInterface;
 
 class UMaterial;
+class UMaterialInterface;
 
 
 UCLASS(Blueprintable)
@@ -41,3 +40,8 @@ public:
 	virtual TSubclassOf<UHLODBuilderSettings> GetSettingsClass() const override;
 	virtual TArray<UActorComponent*> Build(const FHLODBuildContext& InHLODBuildContext, const TArray<UActorComponent*>& InSourceComponents) const override;
 };
+
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Engine/MeshMerging.h"
+#endif

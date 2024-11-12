@@ -117,7 +117,7 @@ void AddSubstrateOpaqueRoughRefractionPasses(
 			RDG_EVENT_NAME("Substrate::OpaqueRoughRefraction(Blur,Horizontal)"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&View, TileVertexShader, PixelShader, PassParameters, SubstrateTileType, PrimitiveType](FRHICommandList& RHICmdList)
+			[&View, TileVertexShader, PixelShader, PassParameters, SubstrateTileType, PrimitiveType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FGraphicsPipelineStateInitializer GraphicsPSOInit;
 				RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -174,7 +174,7 @@ void AddSubstrateOpaqueRoughRefractionPasses(
 			RDG_EVENT_NAME("Substrate::OpaqueRoughRefraction(Blur,Vertical)"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&View, TileVertexShader, PixelShader, PassParameters, SubstrateTileType, PrimitiveType](FRHICommandList& RHICmdList)
+			[&View, TileVertexShader, PixelShader, PassParameters, SubstrateTileType, PrimitiveType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FGraphicsPipelineStateInitializer GraphicsPSOInit;
 				RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -232,7 +232,7 @@ void AddSubstrateOpaqueRoughRefractionPasses(
 			RDG_EVENT_NAME("Substrate::OpaqueRoughRefraction(SSS)"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&View, TileVertexShader, PixelShader, PassParameters, SubstrateTileType, PrimitiveType](FRHICommandList& RHICmdList)
+			[&View, TileVertexShader, PixelShader, PassParameters, SubstrateTileType, PrimitiveType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FGraphicsPipelineStateInitializer GraphicsPSOInit;
 				RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);

@@ -337,18 +337,12 @@ class FAsyncTaskBase
 	**/
 	void SyncCompletion(bool bIsLatencySensitive)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FAsyncTask::SyncCompletion);
-
 		FPlatformMisc::MemoryBarrier();
 		if (QueuedPool)
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(FAsyncTask::SyncCompletion);
 			FScopeCycleCounter Scope(StatId);
 			DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FAsyncTask::SyncCompletion"), STAT_FAsyncTask_SyncCompletion, STATGROUP_ThreadPoolAsyncTasks);
-
-			if (LowLevelTasks::FScheduler::Get().IsWorkerThread() && !bIsLatencySensitive)
-			{
-				LowLevelTasks::BusyWaitUntil([this]() { return IsWorkDone(); });
-			}
 
 			check(DoneEvent); // if it is not done yet, we must have an event
 			DoneEvent->Wait();

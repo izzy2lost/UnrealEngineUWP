@@ -195,6 +195,7 @@ void FSkeletalMeshModelingToolsEditorModeToolkit::RegisterPalettes()
 
 	const TArray<TSharedPtr<FUICommandInfo>> ModelingMeshCommands({
 		Commands.BeginPolyEditTool,
+		Commands.BeginTriEditTool,
 		Commands.BeginPolyDeformTool,
 		Commands.BeginHoleFillTool,
 		Commands.BeginPolygonCutTool,

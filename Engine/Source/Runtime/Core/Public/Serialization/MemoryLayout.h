@@ -11,11 +11,13 @@
 #include "Templates/EnableIf.h"
 #include "Templates/IsAbstract.h"
 #include "Templates/IsPolymorphic.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Templates/Models.h"
 #include "Templates/UnrealTemplate.h"
 
+class FCbFieldView;
+class FCbWriter;
 class FHashedName;
+class FShaderKeyGenerator;
 class FSHA1;
 class FMemoryImageWriter;
 class FMemoryUnfreezeContent;
@@ -855,4 +857,27 @@ struct FPlatformTypeLayoutParameters
 	 * even if binary layouts happen to be compatible.
 	 */
 	CORE_API void AppendKeyString(FString& KeyString) const;
+	CORE_API void Append(FShaderKeyGenerator& KeyGen) const;
+
+private:
+	// Hidden friend for FShaderKeyGenerator Append function
+	friend inline void Append(FShaderKeyGenerator& KeyGen, const FPlatformTypeLayoutParameters& Value)
+	{
+		Value.Append(KeyGen);
+	}
+#if WITH_EDITOR
+	// Compact binary API with hidden friend operator<<
+	CORE_API void Save(FCbWriter& Writer) const;
+	bool TryLoad(FCbFieldView Field);
+	friend inline FCbWriter& operator<<(FCbWriter& Writer, const FPlatformTypeLayoutParameters& Value)
+	{
+		Value.Save(Writer);
+		return Writer;
+	}
+	friend CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FPlatformTypeLayoutParameters& OutValue);
+#endif
 };
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
+#endif

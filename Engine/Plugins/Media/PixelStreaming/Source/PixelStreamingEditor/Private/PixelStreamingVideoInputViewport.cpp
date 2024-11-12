@@ -124,7 +124,7 @@ void FPixelStreamingVideoInputViewport::OnWindowRendered(SWindow& InWindow, void
 void FPixelStreamingVideoInputViewport::OnPIEViewportRendered(FViewport* InViewport)
 {
 	// If gameclient viewport is rendered and it is not PIE we are not interested
-	if (!IsPIESessionRunning())
+	if (!IsPIESessionRunning() || !InViewport || !InViewport->IsPlayInEditorViewport())
 	{
 		return;
 	}

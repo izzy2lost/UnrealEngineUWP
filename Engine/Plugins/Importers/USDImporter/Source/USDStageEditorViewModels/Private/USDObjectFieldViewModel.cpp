@@ -159,6 +159,23 @@ void FUsdObjectFieldsViewModel::SetFieldValue(const FString& FieldName, const Us
 		return;
 	}
 
+	// Avoid a reentry here because of this sequence of events:
+	//  - The user changes one of the prim property input boxes and presses Enter, calling e.g. OnSpinboxValueCommitted;
+	//  - We set the new value directly on the prim in the stage (within this function), triggering a USD stage change;
+	//  - USD sends a change notice;
+	//  - We respond to the notice on AUsdStageActor::OnUsdObjectsChanged;
+	//  - The body of that function uses a FScopedSlowTask to show a progress bar;
+	//  - The progress bar being displayed steals focus from the input box;
+	//  - The input box losing focus automatically triggers OnSpinboxValueCommitted again!
+	//  - We set the new value directly on the prim in the stage, again. Even though it's the same value, we get a new notice!
+	//  - etc.
+	static bool bIsReentrant = false;
+	if (bIsReentrant)
+	{
+		return;
+	}
+	TGuardValue<bool> ReentrantGuard(bIsReentrant, true);
+
 	// Transact here as setting this attribute may trigger USD events that affect assets/components
 	FScopedTransaction Transaction(FText::Format(
 		LOCTEXT("SetFieldValue", "Set value for field '{0}' of prim '{1}'"),
@@ -419,7 +436,7 @@ void FUsdObjectFieldsViewModel::Refresh(const UE::FUsdStageWeak& InUsdStage, con
 				// Just show arrays as readonly strings for now
 				if (VtValue.IsArrayValued())
 				{
-					FString Stringified = FString::Printf(TEXT("%d elements: "), VtValue.GetArraySize());
+					FString Stringified = FString::Printf(TEXT("%zu elements: "), VtValue.GetArraySize());
 
 					// This array it's too large to even stringify fast enough, so for now just show the element count
 					if (VtValue.GetArraySize() > 5000)
@@ -503,7 +520,7 @@ void FUsdObjectFieldsViewModel::Refresh(const UE::FUsdStageWeak& InUsdStage, con
 					}
 					else if (Targets.size() > 1)
 					{
-						FString CombinedTargets = FString::Printf(TEXT("%d elements: ["));
+						FString CombinedTargets = FString::Printf(TEXT("%d elements: ["), static_cast<int32>(Targets.size()));
 						for (const pxr::SdfPath& Target : Targets)
 						{
 							CombinedTargets += UsdToUnreal::ConvertPath(Target) + TEXT(", ");

@@ -160,7 +160,7 @@ namespace UE::Interchange::Private
 		if(NamedVertexAttributes.Num() > 0)
 		{
 			FSkeletalMeshAttributes MeshAttributes(MeshDescription);
-			MeshAttributes.Register();
+			MeshAttributes.Register(true);
 			TVertexAttributesRef<FVector3f> VertexPositions = MeshAttributes.GetVertexPositions();
 
 			TMap<FString, FName> ValidAttributes;
@@ -636,12 +636,12 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 		Message->Text = LOCTEXT("MissingSmoothGroup", "No smoothing group information was found for this mesh '{MeshName}' in the FBX file. Please make sure to enable the 'Export Smoothing Groups' option in the FBX Exporter before exporting the file.");
 	}
 
-	for (int32 i = 0; i < LayerSmoothingCount; i++)
+	for (int32 SmoothingLayerIndex = 0; SmoothingLayerIndex < LayerSmoothingCount; SmoothingLayerIndex++)
 	{
-		FbxLayerElementSmoothing const* SmoothingInfo = Mesh->GetLayer(0)->GetSmoothing();
-		if (SmoothingInfo && SmoothingInfo->GetMappingMode() != FbxLayerElement::eByPolygon)
+		FbxLayerElementSmoothing const* SmoothingInfoTmp = Mesh->GetLayer(SmoothingLayerIndex)->GetSmoothing();
+		if (SmoothingInfoTmp && SmoothingInfoTmp->GetMappingMode() != FbxLayerElement::eByPolygon)
 		{
-			SDKGeometryConverter->ComputePolygonSmoothingFromEdgeSmoothing(Mesh, i);
+			SDKGeometryConverter->ComputePolygonSmoothingFromEdgeSmoothing(Mesh, SmoothingLayerIndex);
 		}
 	}
 
@@ -682,7 +682,15 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 		if (SmoothingInfo->GetMappingMode() == FbxLayerElement::eByPolygon)
 		{
 			//Convert the base layer to edge smoothing
-			SDKGeometryConverter->ComputeEdgeSmoothingFromPolygonSmoothing(Mesh, 0);
+			for (int32 SmoothingLayerIndex = 0; SmoothingLayerIndex < LayerSmoothingCount; SmoothingLayerIndex++)
+			{
+				FbxLayerElementSmoothing const* SmoothingInfoTmp = Mesh->GetLayer(SmoothingLayerIndex)->GetSmoothing();
+				if (SmoothingInfoTmp && SmoothingInfoTmp->GetMappingMode() != FbxLayerElement::eByEdge)
+				{
+					SDKGeometryConverter->ComputeEdgeSmoothingFromPolygonSmoothing(Mesh, SmoothingLayerIndex);
+				}
+			}
+			
 			BaseLayer = Mesh->GetLayer(0);
 			SmoothingInfo = BaseLayer->GetSmoothing();
 		}
@@ -989,6 +997,7 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 			TArray<FVertexID> CornerVerticesIDs;
 			TArray<FVector3f, TInlineAllocator<3>> P;
 
+			bool bUnsupportedSmoothingGroupErrorDisplayed = false;
 			bool bCorruptedMsgDone = false;
 			//Polygons
 			for (int32 PolygonIndex = 0; PolygonIndex < PolygonCount; PolygonIndex++)
@@ -1264,24 +1273,21 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 
 						if (!EdgeHardnesses[MatchEdgeId])
 						{
-							if (bSmoothingAvailable && SmoothingInfo)
+							if (bSmoothingAvailable && SmoothingInfo && SmoothingMappingMode == FbxLayerElement::eByEdge)
 							{
-								if (SmoothingMappingMode == FbxLayerElement::eByEdge)
-								{
-									int32 lSmoothingIndex = (SmoothingReferenceMode == FbxLayerElement::eDirect) ? EdgeIndex : SmoothingInfo->GetIndexArray().GetAt(EdgeIndex);
-									//Set the hard edges
-									int32 SmoothingFlag = SmoothingInfo->GetDirectArray().GetAt(lSmoothingIndex);
-									EdgeHardnesses[MatchEdgeId] = (SmoothingFlag == 0);
-								}
-								else
-								{
-									EdgeHardnesses[MatchEdgeId] = false;
-									//TODO add an error log
-									//AddTokenizedErrorMessage(FTokenizedMessage::Create(EMessageSeverity::Warning, FText::Format(LOCTEXT("Error_UnsupportedSmoothingGroup", "Unsupported Smoothing group mapping mode on mesh  '{0}'"), FText::FromString(Mesh->GetName()))), FFbxErrors::Generic_Mesh_UnsupportingSmoothingGroup);
-								}
+								int32 lSmoothingIndex = (SmoothingReferenceMode == FbxLayerElement::eDirect) ? EdgeIndex : SmoothingInfo->GetIndexArray().GetAt(EdgeIndex);
+								//Set the hard edges
+								int32 SmoothingFlag = SmoothingInfo->GetDirectArray().GetAt(lSmoothingIndex);
+								EdgeHardnesses[MatchEdgeId] = (SmoothingFlag == 0);
 							}
 							else
 							{
+								if (!bUnsupportedSmoothingGroupErrorDisplayed && SmoothingMappingMode != FbxLayerElement::eByEdge)
+								{
+									bUnsupportedSmoothingGroupErrorDisplayed = true;
+									UInterchangeResultMeshError_Generic* Message = AddMessage<UInterchangeResultMeshError_Generic>(Mesh);
+									Message->Text = LOCTEXT("Error_UnsupportedSmoothingGroup", "Unsupported Smoothing group mapping mode on mesh '{MeshName}'.");
+								}
 								//When there is no smoothing group we set all edge to: hard (faceted mesh) for static mesh and smooth for skinned and rigid
 								EdgeHardnesses[MatchEdgeId] = MeshType == EMeshType::Static ? !bStaticMeshUseSmoothEdgesIfSmoothingInformationIsMissing : false;
 							}
@@ -1728,6 +1734,16 @@ void FFbxMesh::AddAllMeshes(FbxScene* SDKScene, FbxGeometryConverter* SDKGeometr
 		}
 		for (FbxMesh* ToTriangulateMesh : ToTriangulateMeshes)
 		{
+			// Must do this before triangulating the mesh due to an FBX bug in Triangulate. Edge hardnees triangulation give wrong edge hardness so we compute them to smooth group during the triangulation.
+			int32 LayerSmoothingCount = ToTriangulateMesh->GetLayerCount(FbxLayerElement::eSmoothing);
+			for (int32 SmoothingLayerIndex = 0; SmoothingLayerIndex < LayerSmoothingCount; SmoothingLayerIndex++)
+			{
+				FbxLayerElementSmoothing const* SmoothingInfoTmp = ToTriangulateMesh->GetLayer(SmoothingLayerIndex)->GetSmoothing();
+				if (SmoothingInfoTmp && SmoothingInfoTmp->GetMappingMode() != FbxLayerElement::eByPolygon)
+				{
+					SDKGeometryConverter->ComputePolygonSmoothingFromEdgeSmoothing(ToTriangulateMesh, SmoothingLayerIndex);
+				}
+			}
 			const bool bReplace = true;
 			SDKGeometryConverter->Triangulate(ToTriangulateMesh, bReplace);
 		}
@@ -1766,6 +1782,9 @@ void FFbxMesh::AddAllMeshes(FbxScene* SDKScene, FbxGeometryConverter* SDKGeometr
 		}
 
 		MeshNode = CreateMeshNode(NodeContainer, MeshName, MeshUniqueID);
+
+		ProcessCustomAttributes(Parser, Mesh, MeshNode);
+
 		if (Geometry->GetDeformerCount(FbxDeformer::eSkin) > 0)
 		{
 			if (ExtractSkinnedMeshNodeJoints(SDKScene, NodeContainer, Mesh, MeshNode))
@@ -1867,6 +1886,17 @@ void FFbxMesh::AddAllMeshes(FbxScene* SDKScene, FbxGeometryConverter* SDKGeometr
 					FString MorphTargetAttributeName = Parser.GetFbxHelper()->GetMeshName(Shape);
 					FString MorphTargetUniqueID = Parser.GetFbxHelper()->GetMeshUniqueID(Shape);
 					const UInterchangeMeshNode* ExistingMorphTargetNode = Cast<const UInterchangeMeshNode>(NodeContainer.GetNode(MorphTargetUniqueID));
+					if (ExistingMorphTargetNode)
+					{
+						int32 UniqueId = 1;
+						FString NameClash = "_ncl_";
+						while (ExistingMorphTargetNode)
+						{
+							MorphTargetUniqueID = Parser.GetFbxHelper()->GetMeshUniqueID(Shape) + NameClash + FString::FromInt(UniqueId++);
+							ExistingMorphTargetNode = Cast<const UInterchangeMeshNode>(NodeContainer.GetNode(MorphTargetUniqueID));
+						}
+					}
+
 					if (!ExistingMorphTargetNode)
 					{
 						UInterchangeMeshNode* MorphTargetNode = CreateMeshNode(NodeContainer, MorphTargetAttributeName, MorphTargetUniqueID);
@@ -1961,8 +1991,9 @@ void FFbxMesh::AddAllMeshes(FbxScene* SDKScene, FbxGeometryConverter* SDKGeometr
 	} // for GeometryCount
 }
 
-bool FFbxMesh::GetGlobalJointBindPoseTransform(FbxScene* SDKScene, FbxNode* Joint, FbxAMatrix& GlobalBindPoseJointMatrix)
+bool FFbxMesh::GetGlobalJointBindPoseTransform(FFbxParser* Parser, FbxScene* SDKScene, FbxNode* Joint, FbxAMatrix& GlobalBindPoseJointMatrix, TMap<FString, FMatrix>& MeshIdToGlobalBindPoseReferenceMap, bool& bBadBindPoseMessageDisplay)
 {
+	FbxManager* SDKManager = SDKScene->GetFbxManager();
 	//First look for Cluster and then look in the bind pose if no cluster was found
 
 	//Search all skeletalmesh(FbxGeometry with valid deformer) using this joint and see if there is a valid FbxCluster
@@ -1970,11 +2001,13 @@ bool FFbxMesh::GetGlobalJointBindPoseTransform(FbxScene* SDKScene, FbxNode* Join
 	const int32 GeometryCount = SDKScene->GetGeometryCount();
 	for (int32 GeometryIndex = 0; GeometryIndex < GeometryCount; ++GeometryIndex)
 	{
-		const FbxGeometry* Geometry = SDKScene->GetGeometry(GeometryIndex);
+		FbxGeometry* Geometry = SDKScene->GetGeometry(GeometryIndex);
 		if (!ensure(Geometry))
 		{
 			continue;
 		}
+		FString MeshUniqueID = Parser->GetFbxHelper()->GetMeshUniqueID(Geometry);
+
 		const int32 GeometryDeformerCount = Geometry->GetDeformerCount(FbxDeformer::eSkin);
 		for (int32 GeometryDeformerIndex = 0; GeometryDeformerIndex < GeometryDeformerCount; ++GeometryDeformerIndex)
 		{
@@ -1996,11 +2029,25 @@ bool FFbxMesh::GetGlobalJointBindPoseTransform(FbxScene* SDKScene, FbxNode* Join
 				}
 				if (Joint == Cluster->GetLink())
 				{
+					uint64 ClusterId = Cluster->GetUniqueID();
+					uint64 MeshId = Geometry->GetUniqueID();
+
 					Cluster->GetTransformLinkMatrix(GlobalBindPoseJointMatrix);
-					return true;
+
+					FbxAMatrix GlobalBindPoseReferenceMatrix;
+					Cluster->GetTransformMatrix(GlobalBindPoseReferenceMatrix);
+					
+					MeshIdToGlobalBindPoseReferenceMap.Add(MeshUniqueID, FFbxConvert::ConvertMatrix<FMatrix>(GlobalBindPoseReferenceMatrix));
+
+					//Presumes only 1 cluster per geometry that matches criteria:
+					break;
 				}
 			}
 		}
+	}
+	if (MeshIdToGlobalBindPoseReferenceMap.Num() > 0)
+	{
+		return true;
 	}
 
 	auto AcquireBindPoseMatrix = [](FbxPose* CurrentPose, FbxAMatrix& GlobalBindPoseJointMatrix, FbxNode* Joint)
@@ -2018,80 +2065,106 @@ bool FFbxMesh::GetGlobalJointBindPoseTransform(FbxScene* SDKScene, FbxNode* Join
 		return false;
 	};
 
-	const int32 PoseCount = SDKScene->GetPoseCount();
-	for (int32 PoseIndex = 0; PoseIndex < PoseCount; PoseIndex++)
-	{
-		FbxPose* CurrentPose = SDKScene->GetPose(PoseIndex);
-
-		// current pose is bind pose, 
-		if (CurrentPose && CurrentPose->IsBindPose())
+	auto RetrievePoseFromBindPose = [&]()
 		{
-			FString PoseName = CurrentPose->GetName();
-			// all error report status
-			FbxStatus Status;
-
-			FbxArray<FbxNode*> pMissingAncestors, pMissingDeformers, pMissingDeformersAncestors, pWrongMatrices;
-
-			if (CurrentPose->IsValidBindPoseVerbose(Joint, pMissingAncestors, pMissingDeformers, pMissingDeformersAncestors, pWrongMatrices, 0.0001, &Status))
+			const int32 PoseCount = SDKScene->GetPoseCount();
+			for (int32 PoseIndex = 0; PoseIndex < PoseCount; PoseIndex++)
 			{
-				if (AcquireBindPoseMatrix(CurrentPose, GlobalBindPoseJointMatrix, Joint))
-				{
-					return true;
-				}
-			}
-			else
-			{
-				// first try to fix up
-				// add missing ancestors
-				for (int i = 0; i < pMissingAncestors.GetCount(); i++)
-				{
-					FbxAMatrix mat = pMissingAncestors.GetAt(i)->EvaluateGlobalTransform(FBXSDK_TIME_ZERO);
-					CurrentPose->Add(pMissingAncestors.GetAt(i), mat);
-				}
+				FbxPose* CurrentPose = SDKScene->GetPose(PoseIndex);
 
-				pMissingAncestors.Clear();
-				pMissingDeformers.Clear();
-				pMissingDeformersAncestors.Clear();
-				pWrongMatrices.Clear();
-
-				// check it again
-				if (CurrentPose->IsValidBindPose(Joint))
+				// current pose is bind pose, 
+				if (CurrentPose && CurrentPose->IsBindPose())
 				{
-					if (AcquireBindPoseMatrix(CurrentPose, GlobalBindPoseJointMatrix, Joint))
-					{
-						return true;
-					}
-				}
-				else
-				{
-					// first try to find parent who is null group and see if you can try test it again
-					FbxNode* ParentNode = Joint->GetParent();
-					while (ParentNode)
-					{
-						FbxNodeAttribute* Attr = ParentNode->GetNodeAttribute();
-						if (Attr && Attr->GetAttributeType() == FbxNodeAttribute::eNull)
-						{
-							// found it 
-							break;
-						}
+					FString PoseName = CurrentPose->GetName();
+					// all error report status
+					FbxStatus Status;
 
-						// find next parent
-						ParentNode = ParentNode->GetParent();
-					}
+					FbxArray<FbxNode*> pMissingAncestors, pMissingDeformers, pMissingDeformersAncestors, pWrongMatrices;
 
-					if (ParentNode && CurrentPose->IsValidBindPose(ParentNode))
+					if (CurrentPose->IsValidBindPoseVerbose(Joint, pMissingAncestors, pMissingDeformers, pMissingDeformersAncestors, pWrongMatrices, 0.0001, &Status))
 					{
 						if (AcquireBindPoseMatrix(CurrentPose, GlobalBindPoseJointMatrix, Joint))
 						{
 							return true;
 						}
 					}
+					else
+					{
+						// first try to fix up
+						// add missing ancestors
+						for (int i = 0; i < pMissingAncestors.GetCount(); i++)
+						{
+							FbxAMatrix mat = pMissingAncestors.GetAt(i)->EvaluateGlobalTransform(FBXSDK_TIME_ZERO);
+							CurrentPose->Add(pMissingAncestors.GetAt(i), mat);
+						}
+
+						pMissingAncestors.Clear();
+						pMissingDeformers.Clear();
+						pMissingDeformersAncestors.Clear();
+						pWrongMatrices.Clear();
+
+						// check it again
+						if (CurrentPose->IsValidBindPose(Joint))
+						{
+							if (AcquireBindPoseMatrix(CurrentPose, GlobalBindPoseJointMatrix, Joint))
+							{
+								return true;
+							}
+						}
+						else
+						{
+							// first try to find parent who is null group and see if you can try test it again
+							FbxNode* ParentNode = Joint->GetParent();
+							while (ParentNode)
+							{
+								FbxNodeAttribute* Attr = ParentNode->GetNodeAttribute();
+								if (Attr && Attr->GetAttributeType() == FbxNodeAttribute::eNull)
+								{
+									// found it 
+									break;
+								}
+
+								// find next parent
+								ParentNode = ParentNode->GetParent();
+							}
+
+							if (ParentNode && CurrentPose->IsValidBindPose(ParentNode))
+							{
+								if (AcquireBindPoseMatrix(CurrentPose, GlobalBindPoseJointMatrix, Joint))
+								{
+									return true;
+								}
+							}
+						}
+					}
 				}
 			}
-		}
-	}
 
-	return false;
+			return false;
+		};
+
+	bool bRerieveBindPoseResult = RetrievePoseFromBindPose();
+	// get bind pose
+	if (!bRerieveBindPoseResult)
+	{
+		// if failed, delete bind pose, and retry.
+		const int32 PoseCount = SDKScene->GetPoseCount();
+		for (int32 PoseIndex = PoseCount - 1; PoseIndex >= 0; --PoseIndex)
+		{
+			FbxPose* CurrentPose = SDKScene->GetPose(PoseIndex);
+
+			// current pose is bind pose, 
+			if (CurrentPose && CurrentPose->IsBindPose())
+			{
+				SDKScene->RemovePose(PoseIndex);
+				CurrentPose->Destroy();
+			}
+		}
+
+		SDKManager->CreateMissingBindPoses(SDKScene);
+		bRerieveBindPoseResult = RetrievePoseFromBindPose();
+	}
+	return bRerieveBindPoseResult;
 }
 
 bool FFbxMesh::ExtractSkinnedMeshNodeJoints(FbxScene* SDKScene, UInterchangeBaseNodeContainer& NodeContainer, FbxMesh* Mesh, UInterchangeMeshNode* MeshNode)

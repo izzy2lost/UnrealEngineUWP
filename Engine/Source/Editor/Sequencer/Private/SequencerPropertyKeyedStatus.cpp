@@ -58,7 +58,7 @@ FName FSequencerPropertyKeyedStatusHandler::FPropertyParameters::FindTrackProper
 {
 	if (PropertyPath.GetNumProperties() > 0)
 	{
-		FStructProperty* StructProperty = CastField<FStructProperty>(PropertyPath.GetLeafMostProperty().Property.Get());
+		const FStructProperty* StructProperty = CastField<FStructProperty>(PropertyPath.GetLeafMostProperty().Property.Get());
 		if (StructProperty && StructProperty->Struct)
 		{
 			return StructProperty->Struct->GetFName();

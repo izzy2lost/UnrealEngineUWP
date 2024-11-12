@@ -5,7 +5,6 @@
 #include "riglogic/TypeDefs.h"
 #include "riglogic/joints/JointsEvaluator.h"
 #include "riglogic/joints/JointsOutputInstance.h"
-#include "riglogic/transformation/Transformation.h"
 
 #include <cstdint>
 
@@ -45,8 +44,7 @@ class Joints {
         }
 
         std::uint16_t getJointGroupCount() const;
-        ConstArrayView<float> getRawNeutralValues() const;
-        TransformationArrayView getNeutralValues() const;
+        ConstArrayView<float> getNeutralValues() const;
         ConstArrayView<std::uint16_t> getVariableAttributeIndices(std::uint16_t lod) const;
 
     private:

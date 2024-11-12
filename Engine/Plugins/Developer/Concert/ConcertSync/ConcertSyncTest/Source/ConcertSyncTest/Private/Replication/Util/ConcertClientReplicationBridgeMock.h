@@ -4,6 +4,7 @@
 
 #include "Algo/AnyOf.h"
 #include "Replication/IConcertClientReplicationBridge.h"
+#include "UObject/SoftObjectPath.h"
 
 namespace UE::ConcertSyncTests::Replication
 {
@@ -21,6 +22,11 @@ namespace UE::ConcertSyncTests::Replication
 		{
 			AvailableObjects.Add(&Object);
 			OnObjectDiscoveredDelegate.Broadcast(Object);
+		}
+		void HideObject(UObject& Object)
+		{
+			AvailableObjects.Remove(&Object);
+			OnObjectRemovedDelegate.Broadcast(&Object);
 		}
 		
 		virtual void PushTrackedObjects(TArrayView<const FSoftObjectPath> InTrackedObjects) override

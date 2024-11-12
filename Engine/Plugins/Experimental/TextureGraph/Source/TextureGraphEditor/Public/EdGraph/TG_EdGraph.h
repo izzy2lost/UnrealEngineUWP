@@ -60,6 +60,7 @@ public:
 	 */
 	void OnNodeCreateThumbnail(UTG_Node* Node, const FTG_EvaluationContext* EvaluationContext);
 	
+
 	UPROPERTY()
 	TObjectPtr<UTextureGraph> TextureGraph = nullptr;
 	
@@ -78,9 +79,8 @@ private:
 	void OnNodePostEvaluation(UTG_Node* InNode, const FTG_EvaluationContext* Context);
 
 	void GraphChanged(UTG_Graph* InGraph, UTG_Node* InNode, bool Tweaking);
-
-
 	TMap<FTG_Id, TiledBlobPtr> PinThumbBlobMap;
+
 public:
-	//void UpdateParams();
+	void FixDuplicatedNodesPinConnections(TSet<UEdGraphNode*>& PastedNodes);
 };

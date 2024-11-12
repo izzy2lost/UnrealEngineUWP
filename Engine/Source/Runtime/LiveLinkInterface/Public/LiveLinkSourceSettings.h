@@ -17,6 +17,21 @@
 
 #include "LiveLinkSourceSettings.generated.h"
 
+/**
+ * Utility class that allows specifying default values for Source settings.
+ */
+UCLASS(config=Engine, defaultconfig)
+class ULiveLinkDefaultSourceSettings : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	/** Default number of frames that should be buffered by a LiveLink source. */
+	UPROPERTY(config)
+	int32 DefaultSourceFrameBufferSize = 10;
+};
+
+
 class FArchive;
 class FProperty;
 class ULiveLinkSourceFactory;
@@ -117,8 +132,8 @@ struct FLiveLinkSourceBufferManagementSettings
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	int32 LatestOffset = 0;
 
-	/** Maximum number of frame to keep in memory. */
-	UPROPERTY(EditAnywhere, Category = "Settings", meta=(ClampMin=1))
+	/** Maximum number of frames to keep in memory. */
+	UPROPERTY(EditAnywhere, Category = "Settings", meta=(ClampMin=1, DisplayName="Buffer Size (Frames)"))
 	int32 MaxNumberOfFrameToBuffered = 10;
 
 	/** When cleaning the buffer keep at least one frame, even if the frame doesn't matches the other options. */
@@ -148,6 +163,8 @@ class ULiveLinkSourceSettings : public UObject
 public:
 	GENERATED_BODY()
 
+	LIVELINKINTERFACE_API ULiveLinkSourceSettings();
+
 	/**
 	 * The the subject how to create the frame snapshot.
 	 * @note A client may evaluate manually the subject in a different mode by using EvaluateFrameAtWorldTime or EvaluateFrameAtSceneTime.
@@ -164,8 +181,17 @@ public:
 	FString ConnectionString;
 
 	/** Factory used to create the source. */
-	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = "Settings")
+	UPROPERTY()
 	TSubclassOf<ULiveLinkSourceFactory> Factory;
+
+	/** 
+	 * Which subject should be used as a synchronization source for this source.
+	 * If this is set, this source's subjects will only be rebroadcast when the parent subject receives data.
+	 * Additionally this source's subjects' timecode will match the parent's subject received timecode.
+	 * This can be useful for synchronizing a higher frequency source to a lower frequency one.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayName="Sync Subject"))
+	FLiveLinkSubjectName ParentSubject;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()

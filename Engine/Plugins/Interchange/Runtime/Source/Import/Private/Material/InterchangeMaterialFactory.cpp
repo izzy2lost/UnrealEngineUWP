@@ -81,19 +81,14 @@ namespace UE::Interchange::MaterialFactory::Internal
 
 	int32 GetInputIndex(UMaterialExpression& MaterialExpression, const FString& InputName)
 	{
-		int32 ExpressionInputIndex = 0;
-
-		for (const FExpressionInput* ExpressionInput : MaterialExpression.GetInputsView())
+		for (FExpressionInputIterator It{ &MaterialExpression }; It; ++It)
 		{
 			// MaterialFuncCall appends the type to the input name when calling GetInputName
 			// and the InputName in FExpressionInput is optional so we'll check both here to be safe
-			if (MaterialExpression.GetInputName(ExpressionInputIndex) == *InputName ||
-				(ExpressionInput && ExpressionInput->InputName == *InputName))
+			if (MaterialExpression.GetInputName(It.Index) == *InputName || It->InputName == *InputName)
 			{
-				return ExpressionInputIndex;
+				return It.Index;
 			}
-
-			++ExpressionInputIndex;
 		}
 
 		return INDEX_NONE;
@@ -884,31 +879,27 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFactory::BeginIm
 	{
 		if (UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(Material))
 		{
-			const EReimportStrategyFlags ReimportStrategyFlags = MaterialFactoryNode->GetReimportStrategyFlags();
+			EReimportStrategyFlags ReimportStrategyFlags = MaterialFactoryNode->GetReimportStrategyFlags();
 			bool bApplyPipelineProperties = !Arguments.ReimportObject || ReimportStrategyFlags != EReimportStrategyFlags::ApplyNoProperties;
 
 #if WITH_EDITORONLY_DATA
 			// For the time being, reimport policies are only enforced on UMaterialInstanceConstant
 			if (Arguments.ReimportObject && MaterialInstance->IsA<UMaterialInstanceConstant>())
 			{
-
-				if (ReimportStrategyFlags == EReimportStrategyFlags::ApplyEditorChangedProperties)
+				if(UInterchangeAssetImportData* AssetImportData = Cast<UInterchangeAssetImportData>(MaterialInstance->AssetImportData))
 				{
-					if (UInterchangeAssetImportData* AssetImportData = Cast<UInterchangeAssetImportData>(MaterialInstance->AssetImportData))
-					{
-						UInterchangeMaterialInstanceFactoryNode* PreviousNode = Cast<UInterchangeMaterialInstanceFactoryNode>(AssetImportData->GetStoredFactoryNode(AssetImportData->NodeUniqueID));
+					UInterchangeMaterialInstanceFactoryNode* PreviousNode = Cast<UInterchangeMaterialInstanceFactoryNode>(AssetImportData->GetStoredFactoryNode(AssetImportData->NodeUniqueID));
 
-						if (PreviousNode)
+					if(PreviousNode)
+					{
+						FString PreviousParentPath;
+						FString ParentPath;
+						if(PreviousNode->GetCustomParent(PreviousParentPath) && MaterialInstanceFactoryNode->GetCustomParent(ParentPath))
 						{
-							FString PreviousParentPath;
-							FString ParentPath;
-							if (PreviousNode->GetCustomParent(PreviousParentPath) && MaterialInstanceFactoryNode->GetCustomParent(ParentPath))
+							if(ParentPath == PreviousParentPath)
 							{
-								if (ParentPath == PreviousParentPath)
-								{
-									SetupReimportedMaterialInstance(*MaterialInstance, *Arguments.NodeContainer, *MaterialInstanceFactoryNode, *PreviousNode);
-									bApplyPipelineProperties = false;
-								}
+								SetupReimportedMaterialInstance(*MaterialInstance, *Arguments.NodeContainer, *MaterialInstanceFactoryNode, *PreviousNode);
+								bApplyPipelineProperties = false;
 							}
 						}
 					}
@@ -946,7 +937,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFactory::BeginIm
 	else if (const UInterchangeDecalMaterialFactoryNode* DecalMaterialFactoryNode = Cast<UInterchangeDecalMaterialFactoryNode>(MaterialFactoryNode))
 	{
 #if WITH_EDITOR
-		const FSoftObjectPath DecalMaterialParent(TEXT("/Interchange/Materials/DecalMaterial.DecalMaterial"));
+		const FSoftObjectPath DecalMaterialParent(TEXT("/InterchangeAssets/Materials/DecalMaterial.DecalMaterial"));
 		const FName DiffuseTextureParameterName(TEXT("DecalTexture"));
 		const FName NormalTextureParameterName(TEXT("NormalTexture"));
 		if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(Material))
@@ -1174,6 +1165,35 @@ bool UInterchangeMaterialFactory::SetSourceFilename(const UObject* Object, const
 	return false;
 }
 
+void UInterchangeMaterialFactory::BackupSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(Object))
+	{
+		UE::Interchange::FFactoryCommon::BackupSourceData(MaterialInterface->AssetImportData.Get());
+	}
+#endif
+}
+
+void UInterchangeMaterialFactory::ReinstateSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(Object))
+	{
+		UE::Interchange::FFactoryCommon::ReinstateSourceData(MaterialInterface->AssetImportData.Get());
+	}
+#endif
+}
+void UInterchangeMaterialFactory::ClearBackupSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(Object))
+	{
+		UE::Interchange::FFactoryCommon::ClearBackupSourceData(MaterialInterface->AssetImportData.Get());
+	}
+#endif
+}
+
 #if WITH_EDITOR
 void UInterchangeMaterialFactory::SetupMaterial(UMaterial* Material, const FImportAssetObjectParams& Arguments, const UInterchangeBaseMaterialFactoryNode* BaseMaterialFactoryNode)
 {
@@ -1234,6 +1254,51 @@ void UInterchangeMaterialFactory::SetupMaterial(UMaterial* Material, const FImpo
 					if(FExpressionInput* OpacityMaskInput = Material->GetExpressionInputForProperty(MP_OpacityMask))
 					{
 						OpacityMaskExpression->ConnectExpression(OpacityMaskInput, GetOutputIndex(*OpacityMaskExpression, OutputName));
+					}
+				}
+			}
+		}
+
+		// Displacement
+		if(UInterchangeShaderPortsAPI::HasInput(MaterialFactoryNode, SubstrateMaterial::Parameters::Displacement))
+		{
+			FString ExpressionNodeUid;
+			FString OutputName;
+
+			UInterchangeShaderPortsAPI::GetInputConnection(MaterialFactoryNode, SubstrateMaterial::Parameters::Displacement.ToString(), ExpressionNodeUid, OutputName);
+
+			const UInterchangeMaterialExpressionFactoryNode* Displacement = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(ExpressionNodeUid));
+
+			if(Displacement)
+			{
+				if(UMaterialExpression* DisplacementExpression = Builder.CreateExpressionsForNode(*Displacement))
+				{
+					if(FExpressionInput* DisplacementInput = Material->GetExpressionInputForProperty(MP_Displacement))
+					{
+						DisplacementExpression->ConnectExpression(DisplacementInput, GetOutputIndex(*DisplacementExpression, OutputName));
+						Material->bEnableTessellation = true;
+					}
+				}
+			}
+		}
+
+		// Occlusion
+		if(UInterchangeShaderPortsAPI::HasInput(MaterialFactoryNode, SubstrateMaterial::Parameters::Occlusion))
+		{
+			FString ExpressionNodeUid;
+			FString OutputName;
+
+			UInterchangeShaderPortsAPI::GetInputConnection(MaterialFactoryNode, SubstrateMaterial::Parameters::Occlusion.ToString(), ExpressionNodeUid, OutputName);
+
+			const UInterchangeMaterialExpressionFactoryNode* Occlusion = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(ExpressionNodeUid));
+
+			if(Occlusion)
+			{
+				if(UMaterialExpression* OcclusionExpression = Builder.CreateExpressionsForNode(*Occlusion))
+				{
+					if(FExpressionInput* OcclusionInput = Material->GetExpressionInputForProperty(MP_AmbientOcclusion))
+					{
+						OcclusionExpression->ConnectExpression(OcclusionInput, GetOutputIndex(*OcclusionExpression, OutputName));
 					}
 				}
 			}
@@ -1612,20 +1677,38 @@ void UInterchangeMaterialFactory::SetupMaterial(UMaterial* Material, const FImpo
 
 	// Thin Translucent
 	{
-		FString TransmissionColorUid;
-		FString OutputName;
+		FString TransmissionColorUid, SurfaceCoverageUid;
+		FString TransmissionColorOutputName, SurfaceCoverageOutputName;
 
-		if (MaterialFactoryNode->GetTransmissionColorConnection(TransmissionColorUid, OutputName))
+		const bool bHasTransmissionColor = MaterialFactoryNode->GetTransmissionColorConnection(TransmissionColorUid, TransmissionColorOutputName);
+		const bool bHasSurfaceCoverage = MaterialFactoryNode->GetSurfaceCoverageConnection(SurfaceCoverageUid, SurfaceCoverageOutputName);
+		if(bHasTransmissionColor || bHasSurfaceCoverage)
 		{
 			const UInterchangeMaterialExpressionFactoryNode* TransmissionColorNode = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(TransmissionColorUid));
+			const UInterchangeMaterialExpressionFactoryNode* SurfaceCoverageNode = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(SurfaceCoverageUid));
 
-			if (TransmissionColorNode)
+			UMaterialExpression* ThinTranslucentMaterialOutput = nullptr;
+
+			if(TransmissionColorNode)
 			{
-				if (UMaterialExpression* TransmissionColorExpression = Builder.CreateExpressionsForNode(*TransmissionColorNode))
+				if(UMaterialExpression* TransmissionColorExpression = Builder.CreateExpressionsForNode(*TransmissionColorNode))
 				{
-					UMaterialExpression* ThinTranslucentMaterialOutput = CreateMaterialExpression(Material, nullptr, UMaterialExpressionThinTranslucentMaterialOutput::StaticClass());
-					
-					TransmissionColorExpression->ConnectExpression(ThinTranslucentMaterialOutput->GetInput(0), GetOutputIndex(*TransmissionColorExpression, OutputName));
+					ThinTranslucentMaterialOutput = CreateMaterialExpression(Material, nullptr, UMaterialExpressionThinTranslucentMaterialOutput::StaticClass());
+
+					TransmissionColorExpression->ConnectExpression(ThinTranslucentMaterialOutput->GetInput(0), GetOutputIndex(*TransmissionColorExpression, TransmissionColorOutputName));
+				}
+			}
+
+			if(SurfaceCoverageNode)
+			{
+				if(UMaterialExpression* SurfaceCoverageExpression = Builder.CreateExpressionsForNode(*SurfaceCoverageNode))
+				{
+					if(!ThinTranslucentMaterialOutput)
+					{
+						ThinTranslucentMaterialOutput = CreateMaterialExpression(Material, nullptr, UMaterialExpressionThinTranslucentMaterialOutput::StaticClass());
+					}
+
+					SurfaceCoverageExpression->ConnectExpression(ThinTranslucentMaterialOutput->GetInput(1), GetOutputIndex(*SurfaceCoverageExpression, SurfaceCoverageOutputName));
 				}
 			}
 		}
@@ -1669,6 +1752,29 @@ void UInterchangeMaterialFactory::SetupMaterial(UMaterial* Material, const FImpo
 					if (FExpressionInput* ClothInput = Material->GetExpressionInputForProperty(MP_CustomData0))
 					{
 						ClothExpression->ConnectExpression(ClothInput, GetOutputIndex(*ClothExpression, OutputName));
+					}
+				}
+			}
+		}
+	}
+
+	// Displacement
+	{
+		FString DisplacementUid;
+		FString OutputName;
+
+		if(MaterialFactoryNode->GetDisplacementConnection(DisplacementUid, OutputName))
+		{
+			const UInterchangeMaterialExpressionFactoryNode* DisplacementNode = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(DisplacementUid));
+
+			if(DisplacementNode)
+			{
+				if(UMaterialExpression* DisplacementExpression = Builder.CreateExpressionsForNode(*DisplacementNode))
+				{
+					if(FExpressionInput* DisplacementInput = Material->GetExpressionInputForProperty(MP_Displacement))
+					{
+						DisplacementExpression->ConnectExpression(DisplacementInput, GetOutputIndex(*DisplacementExpression, OutputName));
+						Material->bEnableTessellation = true;
 					}
 				}
 			}
@@ -1780,7 +1886,7 @@ void UInterchangeMaterialFactory::SetupReimportedMaterialInstance(UMaterialInsta
 		const FString AttributKey = bIsAParameter ? UInterchangeShaderPortsAPI::MakeInputParameterKey(InputName) : UInterchangeShaderPortsAPI::MakeInputValueKey(InputName);
 
 		FGuid Uid;
-		switch (UInterchangeShaderPortsAPI::GetInputType(&FactoryNode, InputName))
+		switch (UInterchangeShaderPortsAPI::GetInputType(&FactoryNode, InputName, bIsAParameter))
 		{
 #if WITH_EDITORONLY_DATA
 		case UE::Interchange::EAttributeTypes::Bool:

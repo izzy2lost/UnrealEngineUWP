@@ -8,17 +8,18 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ClothEditorContextObject)
 
-void UClothEditorContextObject::Init(TWeakPtr<SDataflowGraphEditor> InDataflowGraphEditor,UE::Chaos::ClothAsset::EClothPatternVertexType InConstructionViewMode, TWeakPtr<FManagedArrayCollection> InSelectedClothCollection, TWeakPtr<FManagedArrayCollection> InSelectedInputClothCollection)
+void UClothEditorContextObject::Init(TWeakPtr<SDataflowGraphEditor> InDataflowGraphEditor, TWeakPtr<UE::Dataflow::FEngineContext> InDataflowContext, UE::Chaos::ClothAsset::EClothPatternVertexType InConstructionViewMode, TWeakPtr<FManagedArrayCollection> InSelectedClothCollection, bool bInUsingInputCollection)
 {
 	DataflowGraphEditor = InDataflowGraphEditor;
+	DataflowContext = InDataflowContext;
 	ConstructionViewMode = InConstructionViewMode;
 	SelectedClothCollection = InSelectedClothCollection;
-	SelectedInputClothCollection = InSelectedInputClothCollection;
+	bUsingInputCollection = bInUsingInputCollection;
 }
 
-void UClothEditorContextObject::SetClothCollection(UE::Chaos::ClothAsset::EClothPatternVertexType ViewMode, TWeakPtr<FManagedArrayCollection> ClothCollection, TWeakPtr<FManagedArrayCollection> InputClothCollection)
+void UClothEditorContextObject::SetClothCollection(UE::Chaos::ClothAsset::EClothPatternVertexType ViewMode, TWeakPtr<FManagedArrayCollection> ClothCollection, bool bInUsingInputCollection)
 {
 	ConstructionViewMode = ViewMode;
 	SelectedClothCollection = ClothCollection;
-	SelectedInputClothCollection = InputClothCollection;
+	bUsingInputCollection = bInUsingInputCollection;
 }

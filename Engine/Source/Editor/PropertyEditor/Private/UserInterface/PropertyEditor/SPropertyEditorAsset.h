@@ -26,6 +26,7 @@ class SBorder;
 class SComboButton;
 class UFactory;
 class FDetailWidgetRow;
+struct FAssetButtonActionExtension;
 
 /**
  * A widget used to edit Asset-type properties (UObject-derived properties).
@@ -83,6 +84,8 @@ public:
 		SLATE_ARGUMENT(TArray<FAssetData>, OwnerAssetDataArray)
 		SLATE_EVENT(FOnShouldFilterActor, OnShouldFilterActor)
 		SLATE_ARGUMENT(TOptional<FDetailWidgetRow*>, InWidgetRow)
+		/** When this is true, the drop target will only get recognized when entering while drag & dropping. */
+		SLATE_ATTRIBUTE(bool, bOnlyRecognizeOnDragEnter)
 
 	SLATE_END_ARGS()
 
@@ -108,12 +111,21 @@ public:
 private:
 	struct FObjectOrAssetData
 	{
-		UObject* Object;
+		enum class EAssetDataOptions
+		{
+			None,
+			// Will not populate AssetRegistry Tags for an AssetData
+			SkipAssetRegistryTagsGathering
+		};
+		
+		UObject* Object = nullptr;
 		FSoftObjectPath ObjectPath;
 		FAssetData AssetData;
-		UObject* EditorPathOwner;
+		UObject* EditorPathOwner = nullptr;
+		
+		FObjectOrAssetData() = default;
 
-		FObjectOrAssetData(UObject* InObject = nullptr, UObject* EditorPathOwner = nullptr);
+		FObjectOrAssetData(UObject* InObject, UObject* EditorPathOwner, EAssetDataOptions AssetDataOptions);
 
 		FObjectOrAssetData( const FSoftObjectPath& InObjectPath )
 			: Object(nullptr)
@@ -211,7 +223,7 @@ private:
 	 * Get the value referenced by this widget.
 	 * @returns the referenced object
 	 */
-	FPropertyAccess::Result GetValue( FObjectOrAssetData& OutValue ) const;
+	FPropertyAccess::Result GetValue( FObjectOrAssetData& OutValue, FObjectOrAssetData::EAssetDataOptions GetValueOptions ) const;
 
 	/** 
 	 * Get the UClass we will display in the UI.
@@ -357,6 +369,11 @@ private:
 	/** @return Returns true if the asset is excluded for this property*/
 	bool IsAssetFiltered(const FAssetData& InAssetData);
 
+	/**
+	 *Generates custom Asset Picker Buttons using the provided AssetActionButtonExtensions data.
+	 */
+	void GenerateCustomAssetPickerButtons(const FAssetData& InAssetData, const TArray<FAssetButtonActionExtension>& InExtensions);
+
 private:
 
 	/** Main combobutton */
@@ -367,6 +384,9 @@ private:
 
 	/** The property editor, if any */
 	TSharedPtr<FPropertyEditor> PropertyEditor;
+
+	/** Optional Custom Asset Picker Buttons*/
+	TSharedPtr<SHorizontalBox> CustomAssetPickerButtonBox;
 
 	/** Path to the object being edited instead of accessing the value directly with a property handle */
 	TAttribute<FString> ObjectPath;
@@ -436,4 +456,7 @@ private:
 	 * The system will test first the PropertyHandle follow by the PropertyEditor and if nothing this array of assets
 	 */
 	TArray<FAssetData> OwnerAssetDataArray;
+
+	/*Whether to show the 'Use Selected' item*/
+	bool bDisplayUseSelected;
 };

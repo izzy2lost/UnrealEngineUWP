@@ -2,6 +2,7 @@
 
 #if WITH_EDITOR
 
+#include "Interfaces/IPluginManager.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -9,13 +10,12 @@
 #include "V2/WebAPISwaggerConverter.h"
 #include "V2/WebAPISwaggerSchema.h"
 #include "WebAPIDefinition.h"
-#include "WebAPIMessageLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
 BEGIN_DEFINE_SPEC(FWebAPISwaggerSpec,
 	TEXT("Plugins.WebAPI.Swagger"),
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	TSharedPtr<UE::WebAPI::OpenAPI::V2::FSwagger> InputDefinition;
 	TStrongObjectPtr<UWebAPIDefinition> OutputDefinition;
@@ -23,9 +23,11 @@ BEGIN_DEFINE_SPEC(FWebAPISwaggerSpec,
 
 	FString GetSampleFile(const FString& InName) const
 	{
-		FString FilePath = FPaths::Combine(FPaths::EnginePluginsDir(),
-			TEXT("Web"),
-			TEXT("WebAPI"), TEXT("Source"), TEXT("WebAPIOpenAPI"),
+		TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
+		check(Plugin.IsValid());
+
+		FString FilePath = FPaths::Combine(Plugin->GetBaseDir(),
+			TEXT("Source"), TEXT("WebAPIOpenAPI"),
 			TEXT("Private"), TEXT("Tests"), TEXT("Samples"), TEXT("V2"), InName + TEXT(".json"));
 		ensure(FPaths::FileExists(FilePath));
 		return FilePath;

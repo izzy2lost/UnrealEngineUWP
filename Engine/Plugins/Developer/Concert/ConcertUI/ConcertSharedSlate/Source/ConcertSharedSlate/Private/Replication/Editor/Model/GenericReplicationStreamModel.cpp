@@ -3,6 +3,7 @@
 #include "GenericReplicationStreamModel.h"
 
 #include "ConcertLogGlobal.h"
+#include "SharedReplicationStreamModelGetters.h"
 #include "Replication/PropertyChainUtils.h"
 #include "Replication/Data/ObjectReplicationMap.h"
 #include "Replication/Editor/Model/Extension/IStreamExtender.h"
@@ -16,14 +17,16 @@ namespace UE::ConcertSharedSlate
 	namespace Private
 	{
 		/** @return Whether any property was added */
-		static bool AddParentProperties(const UStruct& Class, const FConcertPropertyChain& PropertyToAdd, TArray<FConcertPropertyChain>& ReplicatedProperties)
+		static bool AddParentProperties(const UStruct& Class, const FConcertPropertyChain& PropertyToAdd, TSet<FConcertPropertyChain>& ReplicatedProperties)
 		{
 			bool bAddedAtLeastOne = false;
 			ConcertSyncCore::PropertyChain::ForEachReplicatableConcertProperty(Class, [&bAddedAtLeastOne, &ReplicatedProperties, &PropertyToAdd](FConcertPropertyChain&& Property)
 				{
 					if (Property.IsParentOf(PropertyToAdd))
 					{
-						bAddedAtLeastOne |= ReplicatedProperties.AddUnique(Property) != INDEX_NONE;
+						bool bWasAlreadyInSet = false;
+						ReplicatedProperties.Add(Property, &bWasAlreadyInSet);
+						bAddedAtLeastOne |= !bWasAlreadyInSet;
 					}
 					return EBreakBehavior::Continue;
 				});
@@ -74,79 +77,32 @@ namespace UE::ConcertSharedSlate
 
 	FSoftClassPath FGenericReplicationStreamModel::GetObjectClass(const FSoftObjectPath& Object) const
 	{
-		const FConcertObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
-		if (!ensure(ReplicationMap))
-		{
-			return {};
-		}
-		
-		const FConcertReplicatedObjectInfo* AssignedProperties = ReplicationMap->ReplicatedObjects.Find(Object);
-		return AssignedProperties
-			? AssignedProperties->ClassPath
-			: FSoftClassPath{};
+		return SharedStreamGetters::GetObjectClass(ReplicationMapAttribute.Get(), Object);
 	}
 
 	bool FGenericReplicationStreamModel::ContainsObjects(const TSet<FSoftObjectPath>& Objects) const
 	{
-		const FConcertObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
-		return ensure(ReplicationMap)
-			&& Algo::AllOf(Objects, [this, ReplicationMap](const FSoftObjectPath& ObjectPath){ return ReplicationMap->ReplicatedObjects.Contains(ObjectPath); });
+		return SharedStreamGetters::ContainsObjects(ReplicationMapAttribute.Get(), Objects);
 	}
 
 	bool FGenericReplicationStreamModel::ContainsProperties(const FSoftObjectPath& Object, const TSet<FConcertPropertyChain>& Properties) const
 	{
-		const FConcertObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
-		if (!ensure(ReplicationMap))
-		{
-			return false;
-		}
-
-		const FConcertReplicatedObjectInfo* ObjectInfo = ReplicationMap->ReplicatedObjects.Find(Object);
-		return ObjectInfo
-			&& Algo::AllOf(Properties, [ObjectInfo](const FConcertPropertyChain& Property){ return ObjectInfo->PropertySelection.ReplicatedProperties.Contains(Property); });
+		return SharedStreamGetters::ContainsProperties(ReplicationMapAttribute.Get(), Object, Properties);
 	}
 
 	bool FGenericReplicationStreamModel::ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const
 	{
-		const FConcertObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
-		if (!ensure(ReplicationMap))
-		{
-			return false;
-		}
-
-		for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& ObjectMap: ReplicationMap->ReplicatedObjects)
-		{
-			if (Delegate(ObjectMap.Key) == EBreakBehavior::Break)
-			{
-				return true;
-			}
-		}
-
-		return !ReplicationMap->ReplicatedObjects.IsEmpty();
+		return SharedStreamGetters::ForEachReplicatedObject(ReplicationMapAttribute.Get(), Delegate);
 	}
 
 	bool FGenericReplicationStreamModel::ForEachProperty(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Parent)> Delegate) const
 	{
-		const FConcertObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
-		if (!ensure(ReplicationMap))
-		{
-			return false;
-		}
+		return SharedStreamGetters::ForEachProperty(ReplicationMapAttribute.Get(), Object, Delegate);
+	}
 
-		const FConcertReplicatedObjectInfo* AssignedProperties = ReplicationMap->ReplicatedObjects.Find(Object);
-		if (!AssignedProperties)
-		{
-			return false;
-		}
-
-		for (const FConcertPropertyChain& ReplicatedPropertyInfo : AssignedProperties->PropertySelection.ReplicatedProperties)
-		{
-			if (Delegate(ReplicatedPropertyInfo) == EBreakBehavior::Break)
-			{
-				return true;
-			}
-		}
-		return !AssignedProperties->PropertySelection.ReplicatedProperties.IsEmpty();
+	uint32 FGenericReplicationStreamModel::GetNumProperties(const FSoftObjectPath& Object) const
+	{
+		return SharedStreamGetters::GetNumProperties(ReplicationMapAttribute.Get(), Object);
 	}
 
 	void FGenericReplicationStreamModel::AddObjects(TConstArrayView<UObject*> Objects)
@@ -236,11 +192,14 @@ namespace UE::ConcertSharedSlate
 		}
 
 		bool bAddedAtLeastOne = false;
-		TArray<FConcertPropertyChain>& ReplicatedProperties = AssignedProperties->PropertySelection.ReplicatedProperties;
+		TSet<FConcertPropertyChain>& ReplicatedProperties = AssignedProperties->PropertySelection.ReplicatedProperties;
 		ReplicatedProperties.Reserve(ReplicatedProperties.Num() + Properties.Num());
 		for (const FConcertPropertyChain& AddedProperty : Properties)
 		{
-			bAddedAtLeastOne |= ReplicatedProperties.AddUnique(AddedProperty) != INDEX_NONE;
+			bool bWasAlreadyInSet = false;
+			ReplicatedProperties.Add(AddedProperty, &bWasAlreadyInSet);
+			
+			bAddedAtLeastOne |= !bWasAlreadyInSet;
 			// Parent properties must also be added
 			// Not exactly efficient to iterate through the hierarchy for every removed item but it should be fine... Properties.Num() == 1 is the most common case
 			bAddedAtLeastOne |= Private::AddParentProperties(*Class, AddedProperty, ReplicatedProperties);
@@ -342,7 +301,7 @@ namespace UE::ConcertSharedSlate
 
 				if (!ObjectInfo.PropertySelection.ReplicatedProperties.Contains(PropertyChain))
 				{
-					TArray<FConcertPropertyChain>& Properties = ObjectInfo.PropertySelection.ReplicatedProperties;
+					TSet<FConcertPropertyChain>& Properties = ObjectInfo.PropertySelection.ReplicatedProperties;
 					Private::AddParentProperties(*ObjectClass, PropertyChain, Properties);
 					Properties.Emplace(MoveTemp(PropertyChain));
 				}

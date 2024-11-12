@@ -2,32 +2,21 @@
 
 #pragma once
 
-#include "Components/SphereComponent.h"
+#include "Components/SceneComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
-#include "NiagaraDataInterfaceArrayInt.h"
 #include "CEClonerEffectorShared.generated.h"
 
+class AActor;
+class ADynamicMeshActor;
+class AStaticMeshActor;
+class UCEClonerComponent;
+class UClass;
 class UNiagaraDataChannelReader;
 class UNiagaraDataChannelWriter;
-class AActor;
 class UDynamicMesh;
 class UNiagaraSystem;
 class USplineComponent;
-
-/** Enumerate the different layouts available to dispose cloner instances */
-UENUM(BlueprintType)
-enum class ECEClonerLayout : uint8
-{
-	Grid,
-	Line,
-	Circle,
-	Cylinder,
-	Sphere,
-	Honeycomb,
-	SampleMesh,
-	SampleSpline
-};
 
 /** Enumerate the axis available to use */
 UENUM(BlueprintType)
@@ -152,7 +141,11 @@ enum class ECEClonerEffectorType : uint8
 	/** Clones inside the box extent will be affected by the effector */
 	Box,
 	/** All clones will be affected by the effector with the same max weight */
-	Unbound
+	Unbound,
+	/** All clones within the angle range will be affected */
+	Radial,
+	/** All clones inside the torus radius will be affected by the effector */
+	Torus
 };
 
 /** Enumerates the effector mode available */
@@ -163,8 +156,28 @@ enum class ECEClonerEffectorMode : uint8
 	Default,
 	/** Rotates clones towards a target actor */
 	Target,
-	/** Randomly applies curl noise across the field zone */
-	NoiseField
+	/** Randomly applies noise across the field zone */
+	NoiseField,
+	/** Pushes clones apart based on a strength and direction */
+	Push,
+	/** Accumulate transform on clones based on their index */
+	Step
+};
+
+/** Enumerates the effector push direction available */
+UENUM(BlueprintType)
+enum class ECEClonerEffectorPushDirection : uint8
+{
+	/** Push based on the clone forward vector */
+	Forward,
+	/** Push based on the clone right vector */
+	Right,
+	/** Push based on the cloner up vector */
+	Up,
+	/** Push based on the clone position relative to the effector */
+	Effector,
+	/** Push based on a random unit vector based on the cloner seed */
+	Random
 };
 
 UENUM()
@@ -225,6 +238,41 @@ enum class ECEClonerSpawnBehaviorMode : uint8
 	Instant,
 	/** Spawns at a specific rate per second during the spawn loop duration */
 	Rate,
+};
+
+/** Enumerates all modes for how clones radius are calculed */
+UENUM()
+enum class ECEClonerCollisionRadiusMode : uint8
+{
+	/** Input collision radius manually */
+	Manual,
+	/** Collision radius will be calculated automatically based on the min extent value, mesh scale included */
+	MinExtent,
+	/** Collision radius will be calculated automatically based on the max extent value, mesh scale included */
+	MaxExtent,
+	/** Collision radius will be calculated automatically based on the extent length, mesh scale included */
+	ExtentLength
+};
+
+/** Enumerates all conversion possible for cloner simulation */
+enum class ECEClonerMeshConversion : uint8
+{
+	StaticMesh,
+	StaticMeshes,
+	DynamicMesh,
+	DynamicMeshes,
+	InstancedStaticMesh
+};
+
+/** Enumerates all states for extension/layout */
+enum class ECEClonerSystemStatus : uint8
+{
+	/** Nothing to do */
+	UpToDate = 0,
+	/** Parameters needs an update */
+	ParametersDirty = 1 << 0,
+	/** Simulation needs an update */
+	SimulationDirty = 1 << 1
 };
 
 USTRUCT()
@@ -302,17 +350,25 @@ struct FCEClonerAttachmentTree
 	UPROPERTY()
 	ECEClonerAttachmentStatus Status = ECEClonerAttachmentStatus::Updated;
 
+	/** Attachment items that are dirty and need an update */
+	UPROPERTY()
+	TSet<TWeakObjectPtr<AActor>> DirtyItemAttachments;
+
 	void Reset()
 	{
 		ItemAttachmentMap.Empty();
 		RootActors.Empty();
 		MergedBakedMeshes.Empty();
+		DirtyItemAttachments.Empty();
 		Status = ECEClonerAttachmentStatus::Updated;
 	}
 };
 
+USTRUCT()
 struct FCEClonerEffectorChannelData
 {
+	GENERATED_BODY()
+
 	friend class UCEEffectorSubsystem;
 
 	/** General */
@@ -330,6 +386,7 @@ struct FCEClonerEffectorChannelData
 	static constexpr const TCHAR* ScaleName = TEXT("Scale");
 	static constexpr const TCHAR* FrequencyName = TEXT("Frequency");
 	static constexpr const TCHAR* PanName = TEXT("Pan");
+	static constexpr const TCHAR* ColorName = TEXT("Color");
 
 	/** Forces */
 	static constexpr const TCHAR* OrientationForceRateName = TEXT("OrientationForceRate");
@@ -342,6 +399,9 @@ struct FCEClonerEffectorChannelData
 	static constexpr const TCHAR* AttractionForceStrengthName = TEXT("AttractionForceStrength");
 	static constexpr const TCHAR* AttractionForceFalloffName = TEXT("AttractionForceFalloff");
 	static constexpr const TCHAR* GravityForceAccelerationName = TEXT("GravityForceAcceleration");
+	static constexpr const TCHAR* DragForceLinearName = TEXT("DragForceLinear");
+	static constexpr const TCHAR* DragForceRotationalName = TEXT("DragForceRotational");
+	static constexpr const TCHAR* VectorNoiseForceAmountName = TEXT("VectorNoiseForceAmount");
 
 	int32 GetIdentifier() const
 	{
@@ -356,13 +416,14 @@ struct FCEClonerEffectorChannelData
 	FVector InnerExtent = FVector::ZeroVector;
 	FVector OuterExtent = FVector::ZeroVector;
 	FVector LocationDelta = FVector::ZeroVector;
-	FQuat RotationDelta = FQuat::Identity;
+	FVector RotationDelta = FVector::ZeroVector;
 	FVector ScaleDelta = FVector::OneVector;
 	FVector Location = FVector::ZeroVector;
 	FQuat Rotation = FQuat::Identity;
 	FVector Scale = FVector::OneVector;
 	float Frequency = 1.f;
 	FVector Pan = FVector::ZeroVector;
+	FLinearColor Color = FLinearColor::Transparent;
 
 	/** Forces parameters */
 	float OrientationForceRate = 0.f;
@@ -375,75 +436,17 @@ struct FCEClonerEffectorChannelData
 	float AttractionForceStrength = 0.f;
 	float AttractionForceFalloff = 0.f;
 	FVector GravityForceAcceleration = FVector::ZeroVector;
+	float DragForceLinear = 0.f;
+	float DragForceRotational = 0.f;
+	float VectorNoiseForceAmount = 0.f;
 
 protected:
-	/** Cache effector identifier to detect a change and update cloners DI */
+	/** Cached effector identifier to detect a change and update cloners DI */
+	UPROPERTY(VisibleInstanceOnly, Category="Effector", meta=(NoResetToDefault))
 	int32 Identifier = INDEX_NONE;
 
 	void Write(UNiagaraDataChannelWriter* InWriter) const;
 	void Read(const UNiagaraDataChannelReader* InReader);
-};
-
-USTRUCT()
-struct FCEClonerEffectorDataInterfaces
-{
-	friend class UCEClonerLayoutBase;
-
-	GENERATED_BODY()
-
-	static inline const FName IndexName = TEXT("EffectorIndexArray");
-
-	explicit FCEClonerEffectorDataInterfaces(const UNiagaraSystem* InSystem);
-	FCEClonerEffectorDataInterfaces() = default;
-
-	void Clear() const;
-	void CopyTo(FCEClonerEffectorDataInterfaces& InOther) const;
-	void Resize(int32 InSize) const;
-	void Remove(int32 InIndex) const;
-	bool IsValid() const;
-	int32 Num() const;
-
-	UNiagaraDataInterfaceArrayInt32* GetIndexArray() const;
-
-protected:
-	UPROPERTY()
-	TMap<FName, TObjectPtr<UNiagaraDataInterface>> DataInterfaces;
-};
-
-USTRUCT(BlueprintType)
-struct CLONEREFFECTOR_API FCEClonerSampleMeshOptions
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	int32 Count = 3 * 3 * 3;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	ECEClonerMeshAsset Asset = ECEClonerMeshAsset::StaticMesh;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	ECEClonerMeshSampleData SampleData = ECEClonerMeshSampleData::Vertices;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	TWeakObjectPtr<AActor> SampleActor = nullptr;
-
-	UPROPERTY()
-	TWeakObjectPtr<USceneComponent> SceneComponent = nullptr;
-};
-
-USTRUCT(BlueprintType)
-struct CLONEREFFECTOR_API FCEClonerSampleSplineOptions
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	int32 Count = 3 * 3;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	TWeakObjectPtr<AActor> SplineActor = nullptr;
-
-	UPROPERTY()
-	TWeakObjectPtr<USplineComponent> SplineComponent = nullptr;
 };
 
 USTRUCT(BlueprintType)
@@ -494,173 +497,69 @@ struct CLONEREFFECTOR_API FCEClonerGridConstraintTexture
 	float Threshold = 0.f;
 };
 
-USTRUCT(BlueprintType)
-struct CLONEREFFECTOR_API FCEClonerGridLayoutOptions
+#if WITH_EDITOR
+struct FCEExtensionSection
 {
-	GENERATED_BODY()
+	FCEExtensionSection()
+	{}
 
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	FIntVector Count = FIntVector(3, 3, 3);
+	explicit FCEExtensionSection(FName InSectionName, int32 InSectionOrder)
+		: SectionName(InSectionName)
+		, SectionOrder(InSectionOrder)
+	{}
 
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	FVector Spacing = FVector(400.f, 400.f, 400.f);
+	/** Used for editor details UI */
+	FName SectionName = NAME_None;
 
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	ECEClonerGridConstraint Constraint = ECEClonerGridConstraint::None;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner", meta=(EditCondition="Constraint != ECEClonerGridConstraint::None", EditConditionHides))
-	bool bInvertConstraint = false;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner", meta=(EditCondition="Constraint == ECEClonerGridConstraint::Sphere", EditConditionHides))
-	FCEClonerGridConstraintSphere SphereConstraint;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner", meta=(EditCondition="Constraint == ECEClonerGridConstraint::Cylinder", EditConditionHides))
-	FCEClonerGridConstraintCylinder CylinderConstraint;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner", meta=(EditCondition="Constraint == ECEClonerGridConstraint::Texture", EditConditionHides))
-	FCEClonerGridConstraintTexture TextureConstraint;
+	/** Used to reorder categories in editor UI */
+	int32 SectionOrder = 0;
 };
-
-USTRUCT(BlueprintType)
-struct CLONEREFFECTOR_API FCEClonerLineLayoutOptions
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	int32 Count = 3 * 3;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	float Spacing = 400.f;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	ECEClonerAxis Axis = ECEClonerAxis::Y;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner", meta=(ClampMin="0", ClampMax="1", EditCondition="Axis == ECEClonerAxis::Custom", EditConditionHides))
-	FVector Direction = FVector::YAxisVector;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	FRotator Rotation = FRotator(0.f);
-};
-
-USTRUCT(BlueprintType)
-struct CLONEREFFECTOR_API FCEClonerCircleLayoutOptions
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	int32 Count = 3 * 3;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	float Radius = 400.f;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	float AngleStart = 0.f;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	float AngleRatio = 1.f;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	bool bOrientMesh = false;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	ECEClonerPlane Plane = ECEClonerPlane::XY;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner", meta=(EditCondition="Plane == ECEClonerPlane::Custom", EditConditionHides))
-	FRotator Rotation = FRotator(0.f, 0.f, 0.f);
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner", meta=(ClampMin="0", AllowPreserveRatio, Delta="0.01"))
-	FVector Scale = FVector(1.f, 1.f, 1.f);
-};
-
-USTRUCT(BlueprintType)
-struct CLONEREFFECTOR_API FCEClonerCylinderLayoutOptions
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	int32 BaseCount = 3 * 3;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	int32 HeightCount = 3;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	float Height = 400.f;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	float Radius = 400.f;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	float AngleStart = 0.f;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	float AngleRatio = 1.f;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	bool bOrientMesh = false;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	ECEClonerPlane Plane = ECEClonerPlane::XY;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner", meta=(EditCondition="Plane == ECEClonerPlane::Custom", EditConditionHides))
-	FRotator Rotation = FRotator(0.f, 0.f, 0.f);
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner", meta=(ClampMin="0", AllowPreserveRatio, Delta="0.01"))
-	FVector Scale = FVector(1.f, 1.f, 1.f);
-};
-
-USTRUCT(BlueprintType)
-struct CLONEREFFECTOR_API FCEClonerSphereLayoutOptions
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	int32 Count = 3 * 3 * 3;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	float Radius = 400.f;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner", meta=(ClampMin="0", ClampMax="1"))
-	float Ratio = 1.f;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	bool bOrientMesh = false;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	FRotator Rotation = FRotator(0.f, 0.f, 0.f);
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner", meta=(ClampMin="0", AllowPreserveRatio, Delta="0.01"))
-	FVector Scale = FVector(1.f, 1.f, 1.f);
-};
-
-USTRUCT(BlueprintType)
-struct CLONEREFFECTOR_API FCEClonerHoneycombLayoutOptions
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	ECEClonerPlane Plane = ECEClonerPlane::XY;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	int32 WidthCount = 3;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	int32 HeightCount = 3;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	float WidthOffset = 0.f;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	float HeightOffset = 0.5f;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	float WidthSpacing = 400.f;
-
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Cloner")
-	float HeightSpacing = 400.f;
-};
+#endif
 
 namespace UE::ClonerEffector
 {
-	void SetBillboardComponentSprite(const AActor* InActor, const FString& InTexturePath);
-	void SetBillboardComponentVisibility(const AActor* InActor, bool bInVisibility);
+#if WITH_EDITOR
+	namespace EditorSection
+	{
+		/** Retrieves section metadata from class */
+		FCEExtensionSection GetExtensionSectionFromClass(UClass* InClass);
+	}
+#endif
+
+	namespace Conversion
+	{
+		/** Convert a cloner to a single merged static mesh actor */
+		AStaticMeshActor* ConvertClonerToStaticMesh(UCEClonerComponent* InCloner);
+
+		/** Convert a cloner to a single merged dynamic mesh actor */
+		ADynamicMeshActor* ConvertClonerToDynamicMesh(UCEClonerComponent* InCloner);
+
+		/** Convert a cloner to multiple static mesh actors */
+		TArray<AStaticMeshActor*> ConvertClonerToStaticMeshes(UCEClonerComponent* InCloner);
+
+		/** Convert a cloner to multiple dynamic mesh actors */
+		TArray<ADynamicMeshActor*> ConvertClonerToDynamicMeshes(UCEClonerComponent* InCloner);
+
+		/** Convert a cloner to multiple instanced static mesh actors */
+		TArray<AActor*> ConvertClonerToInstancedStaticMeshes(UCEClonerComponent* InCloner);
+
+		/** Creates the root component for an actor */
+		UActorComponent* CreateRootComponent(AActor* InActor, TSubclassOf<USceneComponent> InComponentClass, const FTransform& InWorldTransform);
+
+#if WITH_EDITOR
+		/** Pick assets location */
+		bool PickAssetPath(const FString& InDefaultPath, FString& OutPickedPath);
+
+		/** Create a specific asset in a package */
+		UObject* CreateAssetPackage(TSubclassOf<UObject> InAssetClass, const FString& InAssetPath);
+
+		template<typename InClass
+			UE_REQUIRES(TIsDerivedFrom<InClass, UObject>::Value)>
+		InClass* CreateAssetPackage(const FString& InAssetPath)
+		{
+			return Cast<InClass>(CreateAssetPackage(InClass::StaticClass(), InAssetPath));
+		}
+#endif
+
+	}
 }

@@ -4,7 +4,10 @@
 #include "Rendering/RenderingCommon.h"
 #include "Rendering/DrawElements.h"
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 SLATE_IMPLEMENT_WIDGET(SColorGradingWheel)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 void SColorGradingWheel::PrivateRegisterAttributes(FSlateAttributeInitializer& AttributeInitializer)
 {
 	SLATE_ADD_MEMBER_ATTRIBUTE_DEFINITION_WITH_NAME(AttributeInitializer, "SelectedColor", SelectedColorAttribute, EInvalidateWidgetReason::Paint);
@@ -19,6 +22,8 @@ SColorGradingWheel::SColorGradingWheel()
 	, Union_IsAttributeSet(0)
 {
 }
+
+SColorGradingWheel::~SColorGradingWheel() = default;
 
 /* SColorGradingWheel methods
  *****************************************************************************/

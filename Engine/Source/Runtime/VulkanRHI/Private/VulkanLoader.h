@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "VulkanPlatform.h"
 #include "VulkanThirdParty.h"
 
 // List all instance Vulkan entry points used by Unreal that need to be loaded manually
@@ -10,9 +11,11 @@
 	EnumMacro(PFN_vkEnumeratePhysicalDevices, vkEnumeratePhysicalDevices) \
 	EnumMacro(PFN_vkGetPhysicalDeviceFeatures, vkGetPhysicalDeviceFeatures) \
 	EnumMacro(PFN_vkGetPhysicalDeviceFormatProperties, vkGetPhysicalDeviceFormatProperties) \
+	EnumMacro(PFN_vkGetPhysicalDeviceFormatProperties2, vkGetPhysicalDeviceFormatProperties2) \
 	EnumMacro(PFN_vkGetPhysicalDeviceImageFormatProperties, vkGetPhysicalDeviceImageFormatProperties) \
 	EnumMacro(PFN_vkGetPhysicalDeviceProperties, vkGetPhysicalDeviceProperties) \
 	EnumMacro(PFN_vkGetPhysicalDeviceQueueFamilyProperties, vkGetPhysicalDeviceQueueFamilyProperties) \
+	EnumMacro(PFN_vkGetPhysicalDeviceQueueFamilyProperties2, vkGetPhysicalDeviceQueueFamilyProperties2) \
 	EnumMacro(PFN_vkGetPhysicalDeviceMemoryProperties, vkGetPhysicalDeviceMemoryProperties) \
 	EnumMacro(PFN_vkGetPhysicalDeviceProperties2, vkGetPhysicalDeviceProperties2) \
 	EnumMacro(PFN_vkGetPhysicalDeviceFeatures2, vkGetPhysicalDeviceFeatures2) \
@@ -150,7 +153,9 @@
 	EnumMacro(PFN_vkDestroySwapchainKHR, vkDestroySwapchainKHR) \
 	EnumMacro(PFN_vkGetSwapchainImagesKHR, vkGetSwapchainImagesKHR) \
 	EnumMacro(PFN_vkAcquireNextImageKHR, vkAcquireNextImageKHR) \
-	EnumMacro(PFN_vkQueuePresentKHR, vkQueuePresentKHR)
+	EnumMacro(PFN_vkQueuePresentKHR, vkQueuePresentKHR) \
+	EnumMacro(PFN_vkCreateSamplerYcbcrConversion, vkCreateSamplerYcbcrConversion) \
+	EnumMacro(PFN_vkDestroySamplerYcbcrConversion, vkDestroySamplerYcbcrConversion)
 
 // List all surface Vulkan entry points used by Unreal that need to be loaded manually
 #define ENUM_VK_ENTRYPOINTS_SURFACE_INSTANCE(EnumMacro) \
@@ -219,9 +224,12 @@
 	EnumMacro(PFN_vkDeferredOperationJoinKHR, vkDeferredOperationJoinKHR) \
 	EnumMacro(PFN_vkGetDeferredOperationMaxConcurrencyKHR, vkGetDeferredOperationMaxConcurrencyKHR) \
 	EnumMacro(PFN_vkGetDeferredOperationResultKHR, vkGetDeferredOperationResultKHR) \
-    EnumMacro(PFN_vkCmdWriteBufferMarkerAMD, vkCmdWriteBufferMarkerAMD) \
-    EnumMacro(PFN_vkCmdSetCheckpointNV, vkCmdSetCheckpointNV) \
-    EnumMacro(PFN_vkGetQueueCheckpointDataNV, vkGetQueueCheckpointDataNV) \
+	EnumMacro(PFN_vkCmdDrawMeshTasksEXT, vkCmdDrawMeshTasksEXT) \
+	EnumMacro(PFN_vkCmdDrawMeshTasksIndirectCountEXT, vkCmdDrawMeshTasksIndirectCountEXT) \
+	EnumMacro(PFN_vkCmdDrawMeshTasksIndirectEXT, vkCmdDrawMeshTasksIndirectEXT) \
+	EnumMacro(PFN_vkCmdWriteBufferMarkerAMD, vkCmdWriteBufferMarkerAMD) \
+	EnumMacro(PFN_vkCmdSetCheckpointNV, vkCmdSetCheckpointNV) \
+	EnumMacro(PFN_vkGetQueueCheckpointDataNV, vkGetQueueCheckpointDataNV) \
 	EnumMacro(PFN_vkGetPhysicalDeviceFragmentShadingRatesKHR, vkGetPhysicalDeviceFragmentShadingRatesKHR) \
 	EnumMacro(PFN_vkGetDeviceFaultInfoEXT, vkGetDeviceFaultInfoEXT)
 

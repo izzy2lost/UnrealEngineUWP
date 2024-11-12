@@ -21,7 +21,6 @@ class FLinkerLoad;
 class FProperty;
 class FUObjectThreadContext;
 class UObject;
-struct FUObjectSerializeContext;
 
 /** Structure that holds stats from comparing two packages */
 struct FArchiveDiffStats
@@ -272,8 +271,6 @@ public:
 	COREUOBJECT_API virtual ~FArchiveStackTraceWriter() override;
 
 	COREUOBJECT_API FORCENOINLINE virtual void Serialize(void* Data, int64 Length) override; // FORCENOINLINE so it can be counted during StackTrace
-	COREUOBJECT_API virtual void SetSerializeContext(FUObjectSerializeContext* Context) override;
-	COREUOBJECT_API virtual FUObjectSerializeContext* GetSerializeContext() override;
 	
 #if WITH_EDITOR
 	virtual void PushDebugDataString(const FName& DebugData) override
@@ -350,7 +347,6 @@ public:
 private:
 	FArchiveCallstacks& Callstacks;
 	const FArchiveDiffMap* DiffMap;
-	TRefCountPtr<FUObjectSerializeContext> SerializeContext;
 #if WITH_EDITOR
 	TArray<FName> DebugDataStack;
 #endif
@@ -380,8 +376,6 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 		const TCHAR* Filename = nullptr);
 
 	COREUOBJECT_API FORCENOINLINE virtual void Serialize(void* Memory, int64 Length) override; // FORCENOINLINE so it can be counted during StackTrace
-	COREUOBJECT_API virtual void SetSerializeContext(FUObjectSerializeContext* Context) override;
-	COREUOBJECT_API virtual FUObjectSerializeContext* GetSerializeContext() override;
 
 private:
 	FArchiveStackTraceWriter StackTraceWriter;
@@ -417,8 +411,6 @@ public:
 	}
 
 	COREUOBJECT_API FORCENOINLINE virtual void Serialize(void* Memory, int64 Length) override; // FORCENOINLINE so it can be counted during StackTrace
-	COREUOBJECT_API virtual void SetSerializeContext(FUObjectSerializeContext* Context) override;
-	COREUOBJECT_API virtual FUObjectSerializeContext* GetSerializeContext() override;
 
 	/** Compares this archive with the given bytes from disk or FPackageData. Dumps all differences to log. */
 	COREUOBJECT_API void CompareWith(const TCHAR* InFilename, const int64 TotalHeaderSize, const TCHAR* CallstackCutoffText,

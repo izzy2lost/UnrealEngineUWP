@@ -8,6 +8,7 @@
 #include "VT/RuntimeVirtualTextureEnum.h"
 #include "RuntimeVirtualTexture.generated.h"
 
+enum EShaderPlatform : uint16;
 namespace UE { namespace Shader	{ enum class EValueType : uint8; } }
 
 /** Runtime virtual texture UObject */
@@ -16,6 +17,8 @@ class URuntimeVirtualTexture : public UObject
 {
 	GENERATED_UCLASS_BODY()
 	ENGINE_API ~URuntimeVirtualTexture();
+
+	friend class FRuntimeVirtualTextureDetailsCustomization;
 
 protected:
 	/** 
@@ -60,7 +63,7 @@ protected:
 	bool bPrivateSpace = true;
 
 	/** Enable sparse adaptive page tables. This supports larger tile counts but adds an indirection cost when sampling the virtual texture. It is recommended only when very large virtual resolutions are necessary. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Layout, meta = (DisplayName = "Enable adaptive page table"))
+	UPROPERTY(EditAnywhere, Category = Layout, meta = (DisplayName = "Enable adaptive page table"))
 	bool bAdaptive = false;
 
 	/** Enable continuous update of the virtual texture pages. This round-robin updates already mapped pages and can help fix pages that are mapped before dependent textures are fully streamed in.  */
@@ -86,7 +89,7 @@ protected:
 public:
 	/** Get the material set that this virtual texture stores. */
 	ERuntimeVirtualTextureMaterialType GetMaterialType() const { return MaterialType; }
-
+	
 	/** Public getter for virtual texture tile count */
 	UFUNCTION(BlueprintGetter)
 	int32 GetTileCount() const { return GetClampedTileCount(TileCount, bAdaptive); }
@@ -204,4 +207,8 @@ namespace RuntimeVirtualTexture
 		IVirtualTexture* InProducer,
 		IVirtualTexture* InStreamingProducer,
 		int32 InTransitionLevel);
+
+	/** Get if the material type is supported. Individual material types can be disabled in project settings to reduce shader permutations. */
+	ENGINE_API bool IsMaterialTypeSupported(ERuntimeVirtualTextureMaterialType MaterialType);
+	ENGINE_API bool IsMaterialTypeSupported(ERuntimeVirtualTextureMaterialType MaterialType, EShaderPlatform InPlatform);
 }

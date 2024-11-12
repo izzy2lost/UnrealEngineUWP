@@ -1,25 +1,25 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Misc/AutomationTest.h"
-#include "WebAPIDefinition.h"
-
 #if WITH_EDITOR
 
 #include "Dom/WebAPIEnum.h"
-#include "Dom/WebAPIParameter.h"
 #include "Dom/WebAPIOperation.h"
-#include "Misc/AutomationTest.h"
+#include "Dom/WebAPIParameter.h"
 #include "Dom/WebAPIService.h"
+#include "Interfaces/IPluginManager.h"
+#include "Misc/AutomationTest.h"
+#include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
 #include "V3/WebAPIOpenAPIConverter.h"
+#include "WebAPIDefinition.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
 BEGIN_DEFINE_SPEC(FWebAPIOpenAPI3Spec,
 				"Plugins.WebAPI.OpenAPI3",
-				EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+				EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	TSharedPtr<UE::WebAPI::OpenAPI::V3::FOpenAPIObject> InputDefinition;
 	TStrongObjectPtr<UWebAPIDefinition> OutputDefinition;
@@ -129,9 +129,11 @@ BEGIN_DEFINE_SPEC(FWebAPIOpenAPI3Spec,
 
 	FString GetSampleFile(const FString& InName) const
 	{
-		FString FilePath = FPaths::Combine(FPaths::EnginePluginsDir(),
-			TEXT("Web"),
-			TEXT("WebAPI"), TEXT("Source"), TEXT("WebAPIOpenAPI"),
+		TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
+		check(Plugin.IsValid());
+
+		FString FilePath = FPaths::Combine(Plugin->GetBaseDir(),
+			TEXT("Source"), TEXT("WebAPIOpenAPI"),
 			TEXT("Private"), TEXT("Tests"), TEXT("Samples"), TEXT("V3"), InName + TEXT(".json"));
 		ensure(FPaths::FileExists(FilePath));
 		return FilePath;
@@ -146,10 +148,20 @@ BEGIN_DEFINE_SPEC(FWebAPIOpenAPI3Spec,
 	{
 		FString FileContents;
 		FFileHelper::LoadFileToString(FileContents, *InFile);
-	
+
 		TSharedPtr<FJsonObject> JsonObject;
-		FJsonSerializer::Deserialize(TJsonReaderFactory<TCHAR>::Create(FileContents), JsonObject);
-		return JsonObject;
+		if (FJsonSerializer::Deserialize(TJsonReaderFactory<TCHAR>::Create(FileContents), JsonObject))
+		{
+			return JsonObject;
+		}
+	
+		TArray<TSharedPtr<FJsonValue>> JsonValues;
+		if (FJsonSerializer::Deserialize(TJsonReaderFactory<TCHAR>::Create(FileContents), JsonValues))
+		{
+			return JsonValues.IsEmpty() ? nullptr : JsonValues[0]->AsObject();
+		}
+
+		return nullptr;
 	}
 
 	TSharedPtr<FJsonValueArray> LoadJsonArray(const FString& InFile) const

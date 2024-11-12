@@ -187,7 +187,7 @@ void FStructuredArchive::SetScope(UE::StructuredArchive::Private::FSlotPosition 
 			}
 
 			// Remove the element from the stack
-			CurrentScope.RemoveAt(CurrentDepth, 1, EAllowShrinking::No);
+			CurrentScope.RemoveAt(CurrentDepth, EAllowShrinking::No);
 
 			// Leave the slot containing it
 			LeaveSlot();

@@ -647,7 +647,7 @@ FPyConversionResult PythonizeEnumEntry(const int64 Val, const UEnum* EnumType, P
 		}
 	}
 
-	PYCONVERSION_RETURN(FPyConversionResult::Failure(), TEXT("PythonizeEnumEntry"), *FString::Printf(TEXT("Cannot pythonize '%d' (int64) as '%s'"), Val, *PyUtil::GetFriendlyTypename(PyEnumType)));
+	PYCONVERSION_RETURN(FPyConversionResult::Failure(), TEXT("PythonizeEnumEntry"), *FString::Printf(TEXT("Cannot pythonize '%" INT64_FMT "' (int64) as '%s'"), Val, *PyUtil::GetFriendlyTypename(PyEnumType)));
 }
 
 PyObject* PythonizeEnumEntry(const int64 Val, const UEnum* EnumType, const ESetErrorState SetErrorState)
@@ -657,7 +657,7 @@ PyObject* PythonizeEnumEntry(const int64 Val, const UEnum* EnumType, const ESetE
 	return Obj;
 }
 
-FPyConversionResult NativizeProperty(PyObject* PyObj, const FProperty* Prop, void* ValueAddr, const FPropertyAccessChangeNotify* InChangeNotify, const ESetErrorState SetErrorState)
+FPyConversionResult NativizeProperty(PyObject* PyObj, const FProperty* Prop, void* ValueAddr, const TConstArrayView<void*>& InArchetypeInstValueAddrs, const FPropertyAccessChangeNotify* InChangeNotify, const ESetErrorState SetErrorState)
 {
 #define PYCONVERSION_PROPERTY_RETURN(RESULT) \
 	PYCONVERSION_RETURN(RESULT, TEXT("NativizeProperty"), *FString::Printf(TEXT("Cannot nativize '%s' as '%s' (%s)"), *PyUtil::GetFriendlyTypename(PyObj), *Prop->GetName(), *Prop->GetClass()->GetName()))
@@ -672,7 +672,11 @@ FPyConversionResult NativizeProperty(PyObject* PyObj, const FProperty* Prop, voi
 				const int32 ArrSize = FMath::Min(Prop->ArrayDim, PyFixedArray->ArrayProp->ArrayDim);
 				for (int32 ArrIndex = 0; ArrIndex < ArrSize; ++ArrIndex)
 				{
-					Prop->CopySingleValue(static_cast<uint8*>(ValueAddr) + (Prop->ElementSize * ArrIndex), FPyWrapperFixedArray::GetItemPtr(PyFixedArray, ArrIndex));
+					for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)
+					{
+						Prop->CopySingleValue(static_cast<uint8*>(ArchInstValueAddr) + (Prop->GetElementSize() * ArrIndex), FPyWrapperFixedArray::GetItemPtr(PyFixedArray, ArrIndex));
+					}
+					Prop->CopySingleValue(static_cast<uint8*>(ValueAddr) + (Prop->GetElementSize() * ArrIndex), FPyWrapperFixedArray::GetItemPtr(PyFixedArray, ArrIndex));
 				}
 			});
 			return FPyConversionResult::Success();
@@ -681,7 +685,7 @@ FPyConversionResult NativizeProperty(PyObject* PyObj, const FProperty* Prop, voi
 		PYCONVERSION_PROPERTY_RETURN(FPyConversionResult::Failure());
 	}
 
-	return NativizeProperty_Direct(PyObj, Prop, ValueAddr, InChangeNotify, SetErrorState);
+	return NativizeProperty_Direct(PyObj, Prop, ValueAddr, InArchetypeInstValueAddrs, InChangeNotify, SetErrorState);
 
 #undef PYCONVERSION_PROPERTY_RETURN
 }
@@ -697,7 +701,7 @@ FPyConversionResult PythonizeProperty(const FProperty* Prop, const void* ValueAd
 	return PythonizeProperty_Direct(Prop, ValueAddr, OutPyObj, ConversionMethod, OwnerPyObj, SetErrorState);
 }
 
-FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Prop, void* ValueAddr, const FPropertyAccessChangeNotify* InChangeNotify, const ESetErrorState SetErrorState)
+FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Prop, void* ValueAddr, const TConstArrayView<void*>& InArchetypeInstValueAddrs, const FPropertyAccessChangeNotify* InChangeNotify, const ESetErrorState SetErrorState)
 {
 #define PYCONVERSION_PROPERTY_RETURN(RESULT) \
 	PYCONVERSION_RETURN(RESULT, TEXT("NativizeProperty"), *FString::Printf(TEXT("Cannot nativize '%s' as '%s' (%s)"), *PyUtil::GetFriendlyTypename(PyObj), *Prop->GetName(), *Prop->GetClass()->GetName()))
@@ -713,6 +717,10 @@ FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Pr
 			EmitPropertyChangeNotifications(InChangeNotify,							\
 				OldValue == NewValue, [&]()											\
 			{																		\
+				for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)			\
+				{																	\
+					CastProp->SetPropertyValue(ArchInstValueAddr, NewValue);		\
+				}																	\
 				CastProp->SetPropertyValue(ValueAddr, NewValue);					\
 			});																		\
 		}																			\
@@ -730,6 +738,11 @@ FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Pr
 			EmitPropertyChangeNotifications(InChangeNotify,							\
 				CastProp->Identical(ValuePtr, &NewValue, PPF_None), [&]()			\
 			{																		\
+				for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)			\
+				{																	\
+					auto* ArchInstValuePtr = static_cast<PROPTYPE::TCppType*>(ArchInstValueAddr);	\
+					*ArchInstValuePtr = NewValue;									\
+				}																	\
 				*ValuePtr = MoveTemp(NewValue);										\
 			});																		\
 		}																			\
@@ -780,6 +793,11 @@ FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Pr
 			auto* ValuePtr = static_cast<uint8*>(ValueAddr);
 			EmitPropertyChangeNotifications(InChangeNotify, *ValuePtr == NewValue, [&]()
 			{
+				for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)
+				{
+					auto* InstValuePtr = static_cast<uint8*>(ArchInstValueAddr);
+					*InstValuePtr = NewValue;
+				}
 				*ValuePtr = NewValue;
 			});
 		}
@@ -807,6 +825,10 @@ FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Pr
 				const int64 OldValue = EnumInternalProp->GetSignedIntPropertyValue(ValueAddr);
 				EmitPropertyChangeNotifications(InChangeNotify, OldValue == NewValue, [&]()
 				{
+					for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)
+					{
+						EnumInternalProp->SetIntPropertyValue(ArchInstValueAddr, NewValue);
+					}
 					EnumInternalProp->SetIntPropertyValue(ValueAddr, NewValue);
 				});
 			}
@@ -824,6 +846,10 @@ FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Pr
 			UObject* OldValue = CastProp->GetObjectPropertyValue(ValueAddr);
 			EmitPropertyChangeNotifications(InChangeNotify, OldValue == NewValue, [&]()
 			{
+				for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)
+				{
+					CastProp->SetPropertyValue(ArchInstValueAddr, NewValue);
+				}
 				CastProp->SetObjectPropertyValue(ValueAddr, NewValue);
 			});
 		}
@@ -839,6 +865,10 @@ FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Pr
 			UObject* OldValue = CastProp->GetObjectPropertyValue(ValueAddr);
 			EmitPropertyChangeNotifications(InChangeNotify, OldValue == NewValue, [&]()
 			{
+				for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)
+				{
+					CastProp->SetObjectPropertyValue(ArchInstValueAddr, NewValue);
+				}
 				CastProp->SetObjectPropertyValue(ValueAddr, NewValue);
 			});
 		}
@@ -854,6 +884,10 @@ FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Pr
 			UObject* OldValue = CastProp->GetObjectPropertyValue(ValueAddr);
 			EmitPropertyChangeNotifications(InChangeNotify, OldValue == NewValue, [&]()
 			{
+				for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)
+				{
+					CastProp->SetObjectPropertyValue(ArchInstValueAddr, NewValue);
+				}
 				CastProp->SetObjectPropertyValue(ValueAddr, NewValue);
 			});
 		}
@@ -869,7 +903,12 @@ FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Pr
 			UObject* OldValue = CastProp->GetPropertyValue(ValueAddr).GetObject();
 			EmitPropertyChangeNotifications(InChangeNotify, OldValue == NewValue, [&]()
 			{
-				CastProp->SetPropertyValue(ValueAddr, FScriptInterface(NewValue, NewValue ? NewValue->GetInterfaceAddress(CastProp->InterfaceClass) : nullptr));
+				const FScriptInterface ScriptInterface = FScriptInterface(NewValue, NewValue ? NewValue->GetInterfaceAddress(CastProp->InterfaceClass) : nullptr);
+				for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)
+				{
+					CastProp->SetPropertyValue(ArchInstValueAddr, ScriptInterface);
+				}
+				CastProp->SetPropertyValue(ValueAddr, ScriptInterface);
 			});
 		}
 		PYCONVERSION_PROPERTY_RETURN(Result);
@@ -884,6 +923,10 @@ FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Pr
 		{
 			EmitPropertyChangeNotifications(InChangeNotify, CastProp->Identical(ValueAddr, PyStruct->StructInstance, PPF_None), [&]()
 			{
+				for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)
+				{
+					CastProp->Struct->CopyScriptStruct(ArchInstValueAddr, PyStruct->StructInstance);
+				}
 				CastProp->Struct->CopyScriptStruct(ValueAddr, PyStruct->StructInstance);
 			});
 		}
@@ -907,6 +950,10 @@ FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Pr
 		{
 			EmitPropertyChangeNotifications(InChangeNotify, CastProp->Identical(ValueAddr, PyDelegate->DelegateInstance, PPF_None), [&]()
 			{
+				for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)
+				{
+					CastProp->SetPropertyValue(ArchInstValueAddr, *PyDelegate->DelegateInstance);
+				}
 				CastProp->SetPropertyValue(ValueAddr, *PyDelegate->DelegateInstance);
 			});
 		}
@@ -922,6 +969,10 @@ FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Pr
 		{
 			EmitPropertyChangeNotifications(InChangeNotify, CastProp->Identical(ValueAddr, PyDelegate->DelegateInstance, PPF_None), [&]()
 			{
+				for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)
+				{
+					CastProp->SetMulticastDelegate(ArchInstValueAddr, *PyDelegate->DelegateInstance);
+				}
 				CastProp->SetMulticastDelegate(ValueAddr, *PyDelegate->DelegateInstance);
 			});
 		}
@@ -936,6 +987,10 @@ FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Pr
 		{
 			EmitPropertyChangeNotifications(InChangeNotify, CastProp->Identical(ValueAddr, PyArray->ArrayInstance, PPF_None), [&]()
 			{
+				for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)
+				{
+					CastProp->CopySingleValue(ArchInstValueAddr, PyArray->ArrayInstance);
+				}
 				CastProp->CopySingleValue(ValueAddr, PyArray->ArrayInstance);
 			});
 		}
@@ -950,6 +1005,10 @@ FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Pr
 		{
 			EmitPropertyChangeNotifications(InChangeNotify, CastProp->Identical(ValueAddr, PySet->SetInstance, PPF_None), [&]()
 			{
+				for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)
+				{
+					CastProp->CopySingleValue(ArchInstValueAddr, PySet->SetInstance);
+				}
 				CastProp->CopySingleValue(ValueAddr, PySet->SetInstance);
 			});
 		}
@@ -964,6 +1023,10 @@ FPyConversionResult NativizeProperty_Direct(PyObject* PyObj, const FProperty* Pr
 		{
 			EmitPropertyChangeNotifications(InChangeNotify, CastProp->Identical(ValueAddr, PyMap->MapInstance, PPF_None), [&]()
 			{
+				for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)
+				{
+					CastProp->CopySingleValue(ArchInstValueAddr, PyMap->MapInstance);
+				}
 				CastProp->CopySingleValue(ValueAddr, PyMap->MapInstance);
 			});
 		}
@@ -1113,10 +1176,17 @@ FPyConversionResult PythonizeProperty_Direct(const FProperty* Prop, const void* 
 #undef PYCONVERSION_PROPERTY_RETURN
 }
 
-FPyConversionResult NativizeProperty_InContainer(PyObject* PyObj, const FProperty* Prop, void* BaseAddr, const int32 ArrayIndex, const FPropertyAccessChangeNotify* InChangeNotify, const ESetErrorState SetErrorState)
+FPyConversionResult NativizeProperty_InContainer(PyObject* PyObj, const FProperty* Prop, void* BaseAddr, const int32 ArrayIndex, const TConstArrayView<void*>& InArchetypeInstBaseAddrs, const FPropertyAccessChangeNotify* InChangeNotify, const ESetErrorState SetErrorState)
 {
+	TArray<void*> ArchetypeInstValueAddrs;
+	ArchetypeInstValueAddrs.Reserve(InArchetypeInstBaseAddrs.Num());
+	for (void* ContainerAddr : InArchetypeInstBaseAddrs)
+	{
+		ArchetypeInstValueAddrs.Add(Prop->ContainerPtrToValuePtr<void>(ContainerAddr, ArrayIndex));
+	}
+
 	check(ArrayIndex < Prop->ArrayDim);
-	return NativizeProperty(PyObj, Prop, Prop->ContainerPtrToValuePtr<void>(BaseAddr, ArrayIndex), InChangeNotify, SetErrorState);
+	return NativizeProperty(PyObj, Prop, Prop->ContainerPtrToValuePtr<void>(BaseAddr, ArrayIndex), ArchetypeInstValueAddrs, InChangeNotify, SetErrorState);
 }
 
 FPyConversionResult PythonizeProperty_InContainer(const FProperty* Prop, const void* BaseAddr, const int32 ArrayIndex, PyObject*& OutPyObj, const EPyConversionMethod ConversionMethod, PyObject* OwnerPyObj, const ESetErrorState SetErrorState)

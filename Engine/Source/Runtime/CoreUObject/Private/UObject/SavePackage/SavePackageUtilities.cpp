@@ -7,9 +7,11 @@
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/CookTagList.h"
 #include "Blueprint/BlueprintSupport.h"
+#include "Cooker/CookDependency.h"
 #include "CoreMinimal.h"
 #include "HAL/FileManager.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "Logging/StructuredLog.h"
 #include "Misc/AssetRegistryInterface.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
@@ -18,6 +20,7 @@
 #include "Misc/ScopeExit.h"
 #include "Misc/ScopedSlowTask.h"
 #include "SaveContext.h"
+#include "Serialization/ArchiveSavePackageDataBuffer.h"
 #include "Serialization/BulkData.h"
 #include "Serialization/EditorBulkData.h"
 #include "Serialization/CompactBinarySerialization.h"
@@ -30,6 +33,7 @@
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/Class.h"
 #include "UObject/GCScopeLock.h"
+#include "UObject/ImportExportCollector.h"
 #include "UObject/Linker.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/LinkerSave.h"
@@ -314,16 +318,28 @@ EObjectMark GetExcludedObjectMarksForTargetPlatform(const class ITargetPlatform*
 }
 
 /**
- * Find most likely culprit that caused the objects in the passed in array to be considered for saving.
+ * Find the most likely culprit that caused the objects in the passed in array to be considered illegal for saving.
  *
- * @param	BadObjects	array of objects that are considered "bad" (e.g. non- RF_Public, in different map package, ...)
- * @return	UObject that is considered the most likely culprit causing them to be referenced or NULL
+ * @param	BadObjects				Array of objects that are considered "bad" (e.g. non- RF_Public, in different map package, ...)
+ * @param	OutMostLikelyCulprit	UObject that is considered the most likely culprit causing the "bad" objects to be referenced or NULL
+ * @param	OutReferencer			UObject referencing the most likely culprit
+ * @param	OutReferencerProperty	Property (belonging to referencer) storing the offending reference
+ * @param	OutIsCulpritArchetype	Is the most likely culprit an archetype object
+ * @param	InOptionalSaveContext	Optional save context
  */
-void FindMostLikelyCulprit(const TArray<UObject*>& BadObjects, UObject*& MostLikelyCulprit, FString& OutReferencer, FSaveContext* InOptionalSaveContext)
+void FindMostLikelyCulprit(const TArray<UObject*>& BadObjects, 
+						   UObject*& OutMostLikelyCulprit, UObject*& OutReferencer, const FProperty*& OutReferencerProperty, bool& OutIsCulpritArchetype,
+						   FSaveContext* InOptionalSaveContext)
 {
 	UObject* ArchetypeCulprit = nullptr;
 	UObject* ReferencedCulprit = nullptr;
-	const FProperty* ReferencedCulpritReferencer = nullptr;
+	const FProperty* CulpritReferencerProperty = nullptr;
+	UObject* CulpritReferencer = nullptr;
+
+	OutMostLikelyCulprit = nullptr;
+	OutReferencer = nullptr;
+	OutReferencerProperty = nullptr;
+	OutIsCulpritArchetype = false;
 
 	auto IsObjectIncluded = [InOptionalSaveContext](UObject* InObject)
 	{
@@ -385,12 +401,14 @@ void FindMostLikelyCulprit(const TArray<UObject*>& BadObjects, UObject*& MostLik
 							continue;
 						}
 
+						CulpritReferencer = RefObj;
+
 						UE_LOG(LogSavePackage, Warning, TEXT("\t%s (%i refs)"), *RefObj->GetFullName(), Refs.ExternalReferences[i].TotalReferences);
 						for (int32 j = 0; j < Refs.ExternalReferences[i].ReferencingProperties.Num(); j++)
 						{
 							const FProperty* Prop = Refs.ExternalReferences[i].ReferencingProperties[j];
 							UE_LOG(LogSavePackage, Warning, TEXT("\t\t%i) %s"), j, *Prop->GetFullName());
-							ReferencedCulpritReferencer = Prop;
+							CulpritReferencerProperty = Prop;
 						}
 
 						// Later ReferencedCulprits are higher priority than earlier culprits. TODO: Not sure if this is an intentional behavior or if they choice was arbitrary.
@@ -404,30 +422,24 @@ void FindMostLikelyCulprit(const TArray<UObject*>& BadObjects, UObject*& MostLik
 	if (ArchetypeCulprit)
 	{
 		// ArchetypeCulprits are the most likely to be the problem; they are definitely a problem
-		MostLikelyCulprit = ArchetypeCulprit;
-		OutReferencer = TEXT("Referenced because it is an archetype object");
+		OutMostLikelyCulprit = ArchetypeCulprit;
+		OutIsCulpritArchetype = true;
 	}
 	else
 	{
-		MostLikelyCulprit = ReferencedCulprit; // Might be null, in which case we didn't find one
-		if (ReferencedCulpritReferencer)
-		{
-			OutReferencer = *ReferencedCulpritReferencer->GetName();
-		}
-		else
-		{
-			OutReferencer = TEXT("Unknown property");
-		}
+		OutMostLikelyCulprit = ReferencedCulprit; // Might be null, in which case we didn't find one
+		OutReferencer = CulpritReferencer;
+		OutReferencerProperty = CulpritReferencerProperty;
 	}
 
-	if (MostLikelyCulprit == nullptr)
+	if (OutMostLikelyCulprit == nullptr)
 	{
 		// Make sure we report something
 		for (UObject* BadObject : BadObjects)
 		{
 			if (BadObject)
 			{
-				MostLikelyCulprit = BadObject;
+				OutMostLikelyCulprit = BadObject;
 				break;
 			}
 		}
@@ -610,10 +622,10 @@ void GetCDOSubobjects(UObject* CDO, TArray<UObject*>& Subobjects)
 		}
 	}
 }
-	
-bool IsStrippedEditorOnlyObject(const UObject* InObject, EEditorOnlyObjectFlags Flags)
+
+#if WITH_EDITORONLY_DATA
+bool CanStripEditorOnlyImportsAndExports()
 {
-#if WITH_EDITOR
 	// Configurable via ini setting
 	static struct FCanStripEditorOnlyExportsAndImports
 	{
@@ -624,17 +636,10 @@ bool IsStrippedEditorOnlyObject(const UObject* InObject, EEditorOnlyObjectFlags 
 			GConfig->GetBool(TEXT("Core.System"), TEXT("CanStripEditorOnlyExportsAndImports"), bCanStripEditorOnlyObjects, GEngineIni);
 		}
 		FORCEINLINE operator bool() const { return bCanStripEditorOnlyObjects; }
-	} CanStripEditorOnlyExportsAndImports;
-	if (!CanStripEditorOnlyExportsAndImports)
-	{
-		return false;
-	}
-	
-	return IsEditorOnlyObjectInternal(InObject, Flags);
-#else
-	return true;
-#endif
+	} CanStripEditorOnlyExportsAndImportsData;
+	return CanStripEditorOnlyExportsAndImportsData;
 }
+#endif
 
 bool IsUpdatingLoadedPath(bool bIsCooking, const FPackagePath& TargetPackagePath, uint32 SaveFlags)
 {
@@ -689,6 +694,7 @@ void CallPreSaveRoot(UObject* Object, FObjectSaveContextData& ObjectSaveContext)
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 
 	ObjectSaveContext.bCleanupRequired = false;
+	ObjectSaveContext.Object = Object;
 	Object->PreSaveRoot(FObjectPreSaveRootContext(ObjectSaveContext));
 	ObjectSaveContext.bCleanupRequired |= bLegacyNeedsCleanup;
 }
@@ -700,6 +706,7 @@ void CallPostSaveRoot(UObject* Object, FObjectSaveContextData& ObjectSaveContext
 	Object->PostSaveRoot(bNeedsCleanup);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 
+	ObjectSaveContext.Object = Object;
 	ObjectSaveContext.bCleanupRequired = bNeedsCleanup;
 	Object->PostSaveRoot(FObjectPostSaveRootContext(ObjectSaveContext));
 }
@@ -746,6 +753,12 @@ FAddResaveOnDemandPackage OnAddResaveOnDemandPackage;
 
 } // end namespace UE::SavePackageUtilities
 
+// Constructor/Destructor defined here in cpp rather than header so we can 
+// avoid needing the definition of FCookDependency in the header; it is needed
+// for construct/destruct of TArray<FCookDependency>.
+FObjectSaveContextData::FObjectSaveContextData() = default;
+FObjectSaveContextData::~FObjectSaveContextData() = default;
+
 FObjectSaveContextData::FObjectSaveContextData(UPackage* Package, const ITargetPlatform* InTargetPlatform, const TCHAR* InTargetFilename, uint32 InSaveFlags)
 {
 	Set(Package, InTargetPlatform, InTargetFilename, InSaveFlags);
@@ -755,6 +768,134 @@ FObjectSaveContextData::FObjectSaveContextData(UPackage* Package, const ITargetP
 {
 	Set(Package, InTargetPlatform, TargetPath, InSaveFlags);
 }
+
+#if WITH_EDITOR
+namespace UE::SavePackageUtilities
+{
+
+void HarvestCookRuntimeDependencies(FObjectSaveContextData& Data, UObject* HarvestReferencesFrom)
+{
+	if (!HarvestReferencesFrom)
+	{
+		return;
+	}
+	if (!Data.TargetPlatform)
+	{
+		return;
+	}
+
+	UPackage* PackageBeingSaved = nullptr; // We don't have a pointer for this, so set it to null
+	// Don't store the input Data on the ArchiveSavePackageData; we just want to harvest the serialized
+	// FSoftObjectPaths, not allow direct writes to its cookdependencies or other data. We only set
+	// ArchiveSavePackageData to provide access to the CookContext.
+	FArchiveCookContext CookContext(PackageBeingSaved, Data.CookType, Data.CookingDLC, Data.TargetPlatform);
+	FArchiveSavePackageDataBuffer SavePackageData(CookContext);
+
+	FImportExportCollector Collector(HarvestReferencesFrom->GetPackage());
+	Collector.SetSavePackageData(&SavePackageData);
+	Collector.SerializeObjectAndReferencedExports(HarvestReferencesFrom);
+	for (const TPair<FName, ESoftObjectPathCollectType>& Pair : Collector.GetImportedPackages())
+	{
+		if (Pair.Value != ESoftObjectPathCollectType::AlwaysCollect)
+		{
+			continue;
+		}
+		FName PackageName = Pair.Key;
+		if (FPackageName::IsScriptPackage(WriteToString<256>(PackageName)))
+		{
+			// Ignore native imports; we don't need to mark them for cooking
+			continue;
+		}
+		FSoftObjectPath PackageSoftPath(PackageName, NAME_None, FString());
+		Data.CookRuntimeDependencies.Add(MoveTemp(PackageSoftPath));
+	}
+}
+
+} // namespace UE::SavePackageUtilities
+
+void FObjectPreSaveContext::AddCookBuildDependency(UE::Cook::FCookDependency BuildDependency)
+{
+	Data.CookBuildDependencies.Add(MoveTemp(BuildDependency));
+}
+void FObjectPreSaveContext::AddCookRuntimeDependency(FSoftObjectPath RuntimeDependency)
+{
+	Data.CookRuntimeDependencies.Add(MoveTemp(RuntimeDependency));
+}
+void FObjectPreSaveContext::HarvestCookRuntimeDependencies(UObject* HarvestReferencesFrom)
+{
+	UE::SavePackageUtilities::HarvestCookRuntimeDependencies(Data, HarvestReferencesFrom);
+}
+
+bool FObjectPreSaveContext::IsDeterminismDebug() const
+{
+	return Data.bDeterminismDebug;
+}
+
+void FObjectPreSaveContext::RegisterDeterminismHelper(
+	const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper)
+{
+	if (Data.PackageWriter)
+	{
+		Data.PackageWriter->RegisterDeterminismHelper(Data.Object, DeterminismHelper);
+	}
+}
+
+void FObjectSavePackageSerializeContext::AddCookBuildDependency(UE::Cook::FCookDependency BuildDependency)
+{
+	if (GetPhase() != EObjectSaveContextPhase::Harvest)
+	{
+		UE_LOG(LogSavePackage, Error,
+			TEXT("AddCookBuildDependency called when GetPhase() != EObjectSaveContextPhase::Harvest. This is invalid and will be ignored."));
+		FDebug::DumpStackTraceToLog(ELogVerbosity::Warning);
+		return;
+	}
+	Data.CookBuildDependencies.Add(MoveTemp(BuildDependency));
+}
+void FObjectSavePackageSerializeContext::AddCookRuntimeDependency(FSoftObjectPath RuntimeDependency)
+{
+	if (GetPhase() != EObjectSaveContextPhase::Harvest)
+	{
+		UE_LOG(LogSavePackage, Error,
+			TEXT("AddCookRuntimeDependency called when GetPhase() != EObjectSaveContextPhase::Harvest. This is invalid and will be ignored."));
+		FDebug::DumpStackTraceToLog(ELogVerbosity::Warning);
+		return;
+	}
+	Data.CookRuntimeDependencies.Add(MoveTemp(RuntimeDependency));
+}
+void FObjectSavePackageSerializeContext::HarvestCookRuntimeDependencies(UObject* HarvestReferencesFrom)
+{
+	if (GetPhase() != EObjectSaveContextPhase::Harvest)
+	{
+		UE_LOG(LogSavePackage, Error,
+			TEXT("HarvestCookRuntimeDependencies called when GetPhase() != EObjectSaveContextPhase::Harvest. This is invalid and will be ignored."));
+		FDebug::DumpStackTraceToLog(ELogVerbosity::Warning);
+		return;
+	}
+	UE::SavePackageUtilities::HarvestCookRuntimeDependencies(Data, HarvestReferencesFrom);
+}
+
+bool FObjectSavePackageSerializeContext::IsDeterminismDebug() const
+{
+	return Data.bDeterminismDebug;
+}
+
+void FObjectSavePackageSerializeContext::RegisterDeterminismHelper(
+	const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper)
+{
+	if (GetPhase() != EObjectSaveContextPhase::Harvest)
+	{
+		UE_LOG(LogSavePackage, Error,
+			TEXT("RegisterDeterminismHelper called when GetPhase() != EObjectSaveContextPhase::Harvest. This is invalid and will be ignored."));
+		FDebug::DumpStackTraceToLog(ELogVerbosity::Warning);
+		return;
+	}
+	if (Data.PackageWriter)
+	{
+		Data.PackageWriter->RegisterDeterminismHelper(Data.Object, DeterminismHelper);
+	}
+}
+
+#endif
 
 void FObjectSaveContextData::Set(UPackage* Package, const ITargetPlatform* InTargetPlatform, const TCHAR* InTargetFilename, uint32 InSaveFlags)
 {
@@ -776,6 +917,7 @@ void FObjectSaveContextData::Set(UPackage* Package, const ITargetPlatform* InTar
 	bUpdatingLoadedPath = UE::SavePackageUtilities::IsUpdatingLoadedPath(InTargetPlatform != nullptr, TargetPath, InSaveFlags);
 }
 
+#if WITH_EDITORONLY_DATA
 bool IsEditorOnlyObject(const UObject* InObject, bool bCheckRecursive)
 {
 	using namespace UE::SavePackageUtilities;
@@ -795,11 +937,25 @@ bool IsEditorOnlyObject(const UObject* InObject, bool bCheckRecursive, bool bChe
 	return IsEditorOnlyObjectInternal(InObject, Flags);
 }
 
+bool IsEditorOnlyObject(const UObject* InObject, bool bCheckRecursive,
+	TFunctionRef<UE::SavePackageUtilities::EEditorOnlyObjectResult(const UObject*)> LookupInCache,
+	TFunctionRef<void(const UObject*, bool)> AddToCache)
+{
+	using namespace UE::SavePackageUtilities;
+	EEditorOnlyObjectFlags Flags = EEditorOnlyObjectFlags::None;
+	Flags |= bCheckRecursive ? EEditorOnlyObjectFlags::CheckRecursive : EEditorOnlyObjectFlags::None;
+	return IsEditorOnlyObjectInternal(InObject, Flags, LookupInCache, AddToCache);
+}
+
 namespace UE::SavePackageUtilities
 {
 
-bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags Flags)
+bool IsEditorOnlyObjectWithoutWritingCache(const UObject* InObject, EEditorOnlyObjectFlags Flags,
+	TFunctionRef<EEditorOnlyObjectResult(const UObject*)> LookupInCache,
+	TFunctionRef<void(const UObject*, bool)> AddToCache)
 {
+	check(InObject);
+
 	bool bCheckRecursive = EnumHasAnyFlags(Flags, EEditorOnlyObjectFlags::CheckRecursive);
 	bool bIgnoreEditorOnlyClass = EnumHasAnyFlags(Flags, EEditorOnlyObjectFlags::ApplyHasNonEditorOnlyReferences) &&
 		InObject->HasNonEditorOnlyReferences();
@@ -808,7 +964,6 @@ bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags 
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("IsEditorOnlyObject"), STAT_IsEditorOnlyObject, STATGROUP_LoadTime);
-	check(InObject);
 
 	// CDOs must be included if their class and archetype and outer are included.
 	// Ignore their value of IsEditorOnly
@@ -829,7 +984,8 @@ bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags 
 	{
 		if (InObject->HasAnyFlags(RF_ClassDefaultObject))
 		{
-			// The default package is not editor-only, and it is part of a cycle that would cause infinite recursion: DefaultPackage -> GetOuter() -> Package:/Script/CoreUObject -> GetArchetype() -> DefaultPackage
+			// The default package is not editor-only, and it is part of a cycle that would cause infinite recursion:
+			// DefaultPackage -> GetOuter() -> Package:/Script/CoreUObject -> GetArchetype() -> DefaultPackage
 			return false;
 		}
 		Package = static_cast<const UPackage*>(InObject);
@@ -854,7 +1010,7 @@ bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags 
 		UObject* Outer = InObject->GetOuter();
 		if (Outer && Outer != Package)
 		{
-			if (IsEditorOnlyObjectInternal(Outer, Flags))
+			if (IsEditorOnlyObjectInternal(Outer, Flags, LookupInCache, AddToCache))
 			{
 				return true;
 			}
@@ -865,20 +1021,20 @@ bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags 
 			if (InStruct)
 			{
 				const UStruct* SuperStruct = InStruct->GetSuperStruct();
-				if (SuperStruct && IsEditorOnlyObjectInternal(SuperStruct, Flags))
+				if (SuperStruct && IsEditorOnlyObjectInternal(SuperStruct, Flags, LookupInCache, AddToCache))
 				{
 					return true;
 				}
 			}
 			else
 			{
-				if (IsEditorOnlyObjectInternal(InObject->GetClass(), Flags))
+				if (IsEditorOnlyObjectInternal(InObject->GetClass(), Flags, LookupInCache, AddToCache))
 				{
 					return true;
 				}
 
 				UObject* Archetype = InObject->GetArchetype();
-				if (Archetype && IsEditorOnlyObjectInternal(Archetype, Flags))
+				if (Archetype && IsEditorOnlyObjectInternal(Archetype, Flags, LookupInCache, AddToCache))
 				{
 					return true;
 				}
@@ -888,7 +1044,36 @@ bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags 
 	return false;
 }
 
+bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags Flags)
+{
+	return IsEditorOnlyObjectInternal(InObject, Flags,
+		[](const UObject* Object)
+		{
+			return EEditorOnlyObjectResult::Uninitialized;
+		},
+		[](const UObject* Object, bool bEditorOnly)
+		{
+		});
+}
+
+bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags Flags,
+	TFunctionRef<EEditorOnlyObjectResult(const UObject*)> LookupInCache,
+	TFunctionRef<void(const UObject*, bool)> AddToCache)
+{
+	EEditorOnlyObjectResult Result = LookupInCache(InObject);
+	if (Result != EEditorOnlyObjectResult::Uninitialized)
+	{
+		return Result == EEditorOnlyObjectResult::EditorOnly;
+	}
+
+	bool bResult = IsEditorOnlyObjectWithoutWritingCache(InObject, Flags, LookupInCache, AddToCache);
+	AddToCache(InObject, bResult);
+	return bResult;
+}
+
 } // namespace UE::SavePackageUtilities
+
+#endif // WITH_EDITORONLY_DATA
 
 void FObjectImportSortHelper::SortImports(FLinkerSave* Linker)
 {
@@ -1224,7 +1409,7 @@ FName FEDLCookChecker::FEDLNodeData::GetPackageName(const FEDLCookChecker& Owner
 void FEDLCookChecker::FEDLNodeData::Merge(FEDLCookChecker::FEDLNodeData&& Other)
 {
 	check(ObjectEvent == Other.ObjectEvent);
-	bIsExport = bIsExport | Other.bIsExport;
+	bIsExport = bIsExport || Other.bIsExport;
 
 	ImportingPackagesSorted.Append(Other.ImportingPackagesSorted);
 	Algo::Sort(ImportingPackagesSorted, FNameFastLess());
@@ -1484,7 +1669,7 @@ FEDLCookChecker FEDLCookChecker::AccumulateAndClear()
 	return Accumulator;
 }
 
-void FEDLCookChecker::Verify(const UE::SavePackageUtilities::FEDLMessageCallback& MessageCallback,
+void FEDLCookChecker::Verify(const UE::SavePackageUtilities::FEDLLogRecordCallback& MessageCallback,
 	bool bFullReferencesExpected)
 {
 	check(!GIsSavingPackage);
@@ -1542,14 +1727,33 @@ void FEDLCookChecker::Verify(const UE::SavePackageUtilities::FEDLMessageCallback
 
 				for (FName PackageName : NodeData.ImportingPackagesSorted)
 				{
-					TStringBuilder<512> Message;
-					Message << TEXTVIEW("Content is missing from cook. Source package referenced an object in target package but ");
-					Message << ReasonExportIsMissing << TEXT(".\n");
-					Message << TEXT("\tSource package: ") << PackageName << TEXT("\n");
-					Message << TEXT("\tTarget package: ") << NodeDataOfExportPackage->Name << TEXT("\n");
-					Message << TEXT("\tReferenced object: ");
-					NodeData.AppendPathName(Accumulator, Message);
-					MessageCallback(MissingContentSeverity, Message);
+					UE::FLogRecord Record;
+#if !NO_LOGGING
+					Record.SetCategory(LogSavePackage.GetCategoryName());
+#endif
+					Record.SetVerbosity(MissingContentSeverity);
+					Record.SetTime(UE::FLogTime::Now());
+					Record.SetFormat(TEXT("Content is missing from cook. Source package referenced an object in target package but {Reason}.")
+						TEXT("\n\tSource package: {Source}")
+						TEXT("\n\tTarget package: {Target}")
+						TEXT("\n\tReferenced object: {ReferencedObject}"));
+					{
+						FCbWriter Writer;
+						Writer.BeginObject();
+						Writer << "Reason" << ReasonExportIsMissing;
+						Writer << "Source" << WriteToUtf8String<256>(PackageName);
+						Writer << "Target" << WriteToUtf8String<256>(NodeDataOfExportPackage->Name);
+						{
+							TStringBuilder<256> ReferencedObjectStr;
+							NodeData.AppendPathName(Accumulator, ReferencedObjectStr);
+							Writer << "ReferencedObject" << ReferencedObjectStr;
+						}
+						Writer.EndObject();
+						Record.SetFields(Writer.Save().AsObject());
+					}
+					Record.SetFile(__FILE__);
+					Record.SetLine(__LINE__);
+					MessageCallback(MoveTemp(Record));
 				}
 			}
 		}
@@ -1753,16 +1957,26 @@ void StartSavingEDLCookInfoForVerification()
 
 void VerifyEDLCookInfo(bool bFullReferencesExpected)
 {
-	VerifyEDLCookInfo([](ELogVerbosity::Type Verbosity, FStringView Message)
+	VerifyEDLCookInfo([](UE::FLogRecord&& Record)
 		{
 #if !NO_LOGGING
-			FMsg::Logf(__FILE__, __LINE__, LogSavePackage.GetCategoryName(), Verbosity, TEXT("%.*s"),
-				Message.Len(), Message.GetData());
+			DispatchDynamicLogRecord(Record);
 #endif
 		}, bFullReferencesExpected);
 }
 
 void VerifyEDLCookInfo(const UE::SavePackageUtilities::FEDLMessageCallback& MessageCallback,
+	bool bFullReferencesExpected)
+{
+	VerifyEDLCookInfo([&MessageCallback](FLogRecord&& Record)
+		{
+			TStringBuilder<256> Message;
+			Record.FormatMessageTo(Message);
+			MessageCallback(Record.GetVerbosity(), Message.ToView());
+		}, bFullReferencesExpected);
+}
+
+void VerifyEDLCookInfo(const UE::SavePackageUtilities::FEDLLogRecordCallback& MessageCallback,
 	bool bFullReferencesExpected)
 {
 	LLM_SCOPE_BYTAG(EDLCookChecker);
@@ -1848,19 +2062,24 @@ FScopedSavingFlag::~FScopedSavingFlag()
 }
 
 FCanSkipEditorReferencedPackagesWhenCooking::FCanSkipEditorReferencedPackagesWhenCooking()
-	: bCanSkipEditorReferencedPackagesWhenCooking(UE::SavePackageUtilities::CanSkipEditorReferencedPackagesWhenCooking())
 {
+	//UE_DEPRECATED(5.5, TEXT("No longer used; skiponlyeditoronly is used instead and tracks editoronly references via savepackage results."))
+	static bool bWarned = false;
+	if (!bWarned)
+	{
+		bWarned = true;
+		bool bResult = true;
+		GConfig->GetBool(TEXT("Core.System"), TEXT("CanSkipEditorReferencedPackagesWhenCooking"), bResult, GEngineIni);
+		if (bResult)
+		{
+			UE_LOG(LogSavePackage, Warning,
+				TEXT("Engine.ini:[Core.System]:CanSkipEditorReferencedPackagesWhenCooking is deprecated; it is replaced by Editor.ini:[CookSettings]:SkipOnlyEditorOnly. Remove this setting from your inis."));
+		}
+	}
 }
 
 namespace UE::SavePackageUtilities
 {
-
-bool CanSkipEditorReferencedPackagesWhenCooking()
-{
-	bool bResult = true;
-	GConfig->GetBool(TEXT("Core.System"), TEXT("CanSkipEditorReferencedPackagesWhenCooking"), bResult, GEngineIni);
-	return bResult;
-}
 
 /**
  * Static: Saves thumbnail data for the specified package outer and linker
@@ -2184,12 +2403,29 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, bool bIsCooking, c
 	}
 }
 
-// See the corresponding ReadPackageDataMain and ReadPackageDataDependencies defined in PackageReader.cpp in AssetRegistry module
 void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContext* CookContext, const UPackage* Package,
 	FLinkerSave* Linker, const TSet<TObjectPtr<UObject>>& ImportsUsedInGame, const TSet<FName>& SoftPackagesUsedInGame,
 	TArray<FAssetData>* OutAssetDatas, bool bProceduralSave)
 {
-	bProceduralSave = bProceduralSave | (CookContext != nullptr);
+	FWritePackageDataArgs Args;
+	Args.ParentRecord = &ParentRecord;
+	Args.Package = Package;
+	Args.Linker = Linker;
+	Args.ImportsUsedInGame = &ImportsUsedInGame;
+	Args.SoftPackagesUsedInGame = &SoftPackagesUsedInGame;
+	Args.bProceduralSave = bProceduralSave;
+	Args.CookContext = CookContext;
+	Args.OutAssetDatas = OutAssetDatas;
+	TArray<FName> PackageBuildDependencies;
+	Args.PackageBuildDependencies = &PackageBuildDependencies;
+	WritePackageData(Args);
+}
+
+// See the corresponding ReadPackageDataMain and ReadPackageDataDependencies defined in PackageReader.cpp in AssetRegistry module
+void WritePackageData(FWritePackageDataArgs& Args)
+{
+	Args.bProceduralSave = Args.bProceduralSave || (Args.CookContext != nullptr);
+	FLinkerSave* Linker = Args.Linker;
 	IAssetRegistryInterface* AssetRegistry = IAssetRegistryInterface::GetPtr();
 
 	// To avoid large patch sizes, we have frozen cooked package format at the format before VER_UE4_ASSETREGISTRY_DEPENDENCYFLAGS
@@ -2198,22 +2434,22 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContex
 	bool bPreDependencyFormat = false;
 	bool bWriteAssetsToPackage = true;
 	// Editor saves do a full update, but procedural saves (including cook) do not
-	bool bFullUpdate = !bProceduralSave;
+	bool bFullUpdate = !Args.bProceduralSave;
 	FCookTagList* CookTagList = nullptr;
-	if (CookContext)
+	if (Args.CookContext)
 	{
 		bPreDependencyFormat = true;
 		bWriteAssetsToPackage = false;
-		CookTagList = CookContext->GetCookTagList();
+		CookTagList = Args.CookContext->GetCookTagList();
 	}	
 
 	// WritePackageData is currently only called if not bTextFormat; we rely on that to save offsets
-	FArchive& BinaryArchive = ParentRecord.GetUnderlyingArchive();
+	FArchive& BinaryArchive = Args.ParentRecord->GetUnderlyingArchive();
 	check(!BinaryArchive.IsTextFormat());
 
 	// Store the asset registry offset in the file and enter a record for the asset registry data
 	Linker->Summary.AssetRegistryDataOffset = (int32)BinaryArchive.Tell();
-	FStructuredArchiveRecord AssetRegistryRecord = ParentRecord.EnterField(TEXT("AssetRegistry")).EnterRecord();
+	FStructuredArchiveRecord AssetRegistryRecord = Args.ParentRecord->EnterField(TEXT("AssetRegistry")).EnterRecord();
 
 	// Offset to Dependencies
 	int64 OffsetToAssetRegistryDependencyDataOffset = INDEX_NONE;
@@ -2233,10 +2469,10 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContex
 		if (Export.Object && Export.Object->IsAsset())
 		{
 #if WITH_EDITOR
-			if (CookContext)
+			if (Args.CookContext)
 			{
 				TArray<UObject*> AdditionalObjects;
-				Export.Object->GetAdditionalAssetDataObjectsForCook(*CookContext, AdditionalObjects);
+				Export.Object->GetAdditionalAssetDataObjectsForCook(*Args.CookContext, AdditionalObjects);
 				for (UObject* Object : AdditionalObjects)
 				{
 					if (Object->IsAsset())
@@ -2252,24 +2488,24 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContex
 
 	int32 ObjectCountInPackage = bWriteAssetsToPackage ? AssetObjects.Num() : 0;
 	FStructuredArchive::FArray AssetArray = AssetRegistryRecord.EnterArray(TEXT("TagMap"), ObjectCountInPackage);
-	FString PackageName = Package->GetName();
+	FString PackageName = Args.Package->GetName();
 
 	for (int32 ObjectIdx = 0; ObjectIdx < AssetObjects.Num(); ++ObjectIdx)
 	{
 		const UObject* Object = AssetObjects[ObjectIdx];
 
 		// Exclude the package name in the object path, we just need to know the path relative to the package we are saving
-		FString ObjectPath = Object->GetPathName(Package);
+		FString ObjectPath = Object->GetPathName(Args.Package);
 		FString ObjectClassName = Object->GetClass()->GetPathName();
 
 		FAssetRegistryTagsContextData TagsContextData(Object, EAssetRegistryTagsCaller::SavePackage);
-		TagsContextData.bProceduralSave = bProceduralSave;
+		TagsContextData.bProceduralSave = Args.bProceduralSave;
 		TagsContextData.TargetPlatform = nullptr;
-		if (CookContext)
+		if (Args.CookContext)
 		{
-			TagsContextData.TargetPlatform = CookContext->GetTargetPlatform();
-			TagsContextData.CookType = CookContext->GetCookType();
-			TagsContextData.CookingDLC = CookContext->GetCookingDLC();
+			TagsContextData.TargetPlatform = Args.CookContext->GetTargetPlatform();
+			TagsContextData.CookType = Args.CookContext->GetCookType();
+			TagsContextData.CookingDLC = Args.CookContext->GetCookingDLC();
 			TagsContextData.bWantsCookTags = TagsContextData.CookType == UE::Cook::ECookType::ByTheBook;
 		}
 		TagsContextData.bFullUpdateRequested = bFullUpdate;
@@ -2325,7 +2561,7 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContex
 			}
 		}
 
-		if (OutAssetDatas)
+		if (Args.OutAssetDatas)
 		{
 			FAssetDataTagMap TagsAndValues;
 			for (TPair<FName, UObject::FAssetRegistryTag>& TagPair : TagsContextData.Tags)
@@ -2349,8 +2585,8 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContex
 				ObjectPath = PackageName + TEXT(".") + ObjectPath;
 			}
 
-			OutAssetDatas->Emplace(PackageName, ObjectPath, FTopLevelAssetPath(ObjectClassName),
-				MoveTemp(TagsAndValues), Package->GetChunkIDs(), Package->GetPackageFlags());
+			Args.OutAssetDatas->Emplace(PackageName, ObjectPath, FTopLevelAssetPath(ObjectClassName),
+				MoveTemp(TagsAndValues), Args.Package->GetChunkIDs(), Args.Package->GetPackageFlags());
 		}
 	}
 	if (bPreDependencyFormat)
@@ -2366,7 +2602,7 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContex
 		BinaryArchive << AssetRegistryDependencyDataOffset;
 		BinaryArchive.Seek(AssetRegistryDependencyDataOffset);
 	}
-	FStructuredArchiveRecord DependencyDataRecord = ParentRecord.EnterField(TEXT("AssetRegistryDependencyData")).EnterRecord();
+	FStructuredArchiveRecord DependencyDataRecord = Args.ParentRecord->EnterField(TEXT("AssetRegistryDependencyData")).EnterRecord();
 
 	// Convert the IsUsedInGame sets into a bitarray with a value per import/softpackagereference
 	TBitArray<> ImportUsedInGameBits;
@@ -2374,17 +2610,32 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContex
 	ImportUsedInGameBits.Reserve(Linker->ImportMap.Num());
 	for (int32 ImportIndex = 0; ImportIndex < Linker->ImportMap.Num(); ++ImportIndex)
 	{
-		ImportUsedInGameBits.Add(ImportsUsedInGame.Contains(Linker->ImportMap[ImportIndex].XObject));
+		ImportUsedInGameBits.Add(Args.ImportsUsedInGame->Contains(Linker->ImportMap[ImportIndex].XObject));
 	}
 	SoftPackageUsedInGameBits.Reserve(Linker->SoftPackageReferenceList.Num());
 	for (int32 SoftPackageIndex = 0; SoftPackageIndex < Linker->SoftPackageReferenceList.Num(); ++SoftPackageIndex)
 	{
-		SoftPackageUsedInGameBits.Add(SoftPackagesUsedInGame.Contains(Linker->SoftPackageReferenceList[SoftPackageIndex]));
+		SoftPackageUsedInGameBits.Add(Args.SoftPackagesUsedInGame->Contains(
+			Linker->SoftPackageReferenceList[SoftPackageIndex]));
 	}
 
 	// Serialize the Dependency section
 	DependencyDataRecord << SA_VALUE(TEXT("ImportUsedInGame"), ImportUsedInGameBits);
 	DependencyDataRecord << SA_VALUE(TEXT("SoftPackageUsedInGame"), SoftPackageUsedInGameBits);
+
+	// Currently the only type of ExtraPackageDependencies we have are the collected build dependencies,
+	// which have both the Build and PropagateManage flags. Store them as pairs of { PackageName, EExtraDepencyFlags }
+	// even though we only have one possible value for EExtraDepencyFlags, so that we can extend the types of dependencies
+	// later without needing to change EUnrealEngineObjectUE5Version.
+	TArray<TPair<FName, uint32>> ExtraPackageDependencies;
+	ExtraPackageDependencies.Reserve(Args.PackageBuildDependencies->Num());
+	constexpr EExtraDependencyFlags BuildAndPropagate =
+		EExtraDependencyFlags::Build | EExtraDependencyFlags::PropagateManage;
+	for (FName ExtraPackageName : *Args.PackageBuildDependencies)
+	{
+		ExtraPackageDependencies.Add({ ExtraPackageName, static_cast<uint32>(BuildAndPropagate) });
+	}
+	DependencyDataRecord << SA_VALUE(TEXT("ExtraPackageDependencies"), ExtraPackageDependencies);
 }
 
 }

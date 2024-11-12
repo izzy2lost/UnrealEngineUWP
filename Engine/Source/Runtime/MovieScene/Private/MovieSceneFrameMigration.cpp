@@ -3,6 +3,7 @@
 #include "MovieSceneFrameMigration.h"
 #include "UObject/PropertyPortFlags.h"
 #include "MovieSceneFwd.h"
+#include "Misc/FrameRate.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneFrameMigration)
 

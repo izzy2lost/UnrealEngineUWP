@@ -32,6 +32,7 @@ void ClearUnusedGraphResourcesImpl(
 
 		if (Type == UBMT_RDG_TEXTURE ||
 			Type == UBMT_RDG_TEXTURE_SRV ||
+			Type == UBMT_RDG_TEXTURE_NON_PIXEL_SRV ||
 			Type == UBMT_RDG_TEXTURE_UAV ||
 			Type == UBMT_RDG_BUFFER_SRV ||
 			Type == UBMT_RDG_BUFFER_UAV)
@@ -116,6 +117,7 @@ void ClearUnusedGraphResourcesImpl(
 
 		if (Type == UBMT_RDG_TEXTURE ||
 			Type == UBMT_RDG_TEXTURE_SRV ||
+			Type == UBMT_RDG_TEXTURE_NON_PIXEL_SRV ||
 			Type == UBMT_RDG_TEXTURE_UAV ||
 			Type == UBMT_RDG_BUFFER_SRV ||
 			Type == UBMT_RDG_BUFFER_UAV)
@@ -277,7 +279,7 @@ void AddCopyTexturePass(
 		RDG_EVENT_NAME("CopyTexture(%s -> %s)", InputTexture->Name, OutputTexture->Name),
 		Parameters,
 		ERDGPassFlags::Copy,
-		[InputTexture, OutputTexture, CopyInfo](FRHICommandList& RHICmdList)
+		[InputTexture, OutputTexture, CopyInfo](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		RHICmdList.CopyTexture(InputTexture->GetRHI(), OutputTexture->GetRHI(), CopyInfo);
 	});
@@ -378,7 +380,7 @@ void AddCopyBufferPass(FRDGBuilder& GraphBuilder, FRDGBufferRef DstBuffer, uint6
 		RDG_EVENT_NAME("CopyBuffer(%s Size=%ubytes)", SrcBuffer->Name, SrcBuffer->Desc.GetSize()),
 		Parameters,
 		ERDGPassFlags::Copy,
-		[&Parameters, SrcBuffer, DstBuffer, SrcOffset, DstOffset, NumBytes](FRHICommandList& RHICmdList)
+		[&Parameters, SrcBuffer, DstBuffer, SrcOffset, DstOffset, NumBytes](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.CopyBufferRegion(DstBuffer->GetRHI(), DstOffset, SrcBuffer->GetRHI(), SrcOffset, NumBytes);
 		});
@@ -409,7 +411,7 @@ void AddClearUAVPass(FRDGBuilder& GraphBuilder, FRDGBufferUAVRef BufferUAV, uint
 		RDG_EVENT_NAME("ClearBuffer(%s Size=%ubytes)", BufferUAV->GetParent()->Name, BufferUAV->GetParent()->Desc.GetSize()),
 		Parameters,
 		ComputePassFlags,
-		[&Parameters, BufferUAV, Value](FRHIComputeCommandList& RHICmdList)
+		[&Parameters, BufferUAV, Value](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			RHICmdList.ClearUAVUint(BufferUAV->GetRHI(), FUintVector4(Value, Value, Value, Value));
 			BufferUAV->MarkResourceAsUsed();
@@ -425,7 +427,7 @@ void AddClearUAVFloatPass(FRDGBuilder& GraphBuilder, FRDGBufferUAVRef BufferUAV,
 		RDG_EVENT_NAME("ClearBuffer(%s Size=%ubytes)", BufferUAV->GetParent()->Name, BufferUAV->GetParent()->Desc.GetSize()),
 		Parameters,
 		ComputePassFlags,
-		[&Parameters, BufferUAV, Value](FRHIComputeCommandList& RHICmdList)
+		[&Parameters, BufferUAV, Value](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			RHICmdList.ClearUAVFloat(BufferUAV->GetRHI(), FVector4f(Value, Value, Value, Value));
 			BufferUAV->MarkResourceAsUsed();
@@ -453,7 +455,7 @@ void AddClearUAVPass(FRDGBuilder& GraphBuilder, FRDGTextureUAVRef TextureUAV, co
 			int32(TextureUAV->Desc.MipLevel)),
 		Parameters,
 		ComputePassFlags,
-		[&Parameters, TextureUAV, ClearValues](FRHIComputeCommandList& RHICmdList)
+		[&Parameters, TextureUAV, ClearValues](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			const FRDGTextureDesc& LocalTextureDesc = TextureUAV->GetParent()->Desc;
 
@@ -477,7 +479,7 @@ void AddClearUAVPass(FRDGBuilder& GraphBuilder, FRDGTextureUAVRef TextureUAV, co
 		RDG_EVENT_NAME("ClearTextureFloat(%s) %dx%d", TextureUAV->GetParent()->Name, TextureDesc.Extent.X, TextureDesc.Extent.Y),
 		Parameters,
 		ComputePassFlags,
-		[&Parameters, TextureUAV, ClearValues](FRHIComputeCommandList& RHICmdList)
+		[&Parameters, TextureUAV, ClearValues](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			const FRDGTextureDesc& LocalTextureDesc = TextureUAV->GetParent()->Desc;
 
@@ -599,6 +601,8 @@ void AddClearUAVPass(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLe
 	auto* ShaderMap = GetGlobalShaderMap(FeatureLevel);
 	auto PixelShader = ShaderMap->GetShader<FClearUAVRectsPS>();
 
+	const ERDGPassFlags AdditionalRenderPassFlags = (PassParameters->RenderTargets.GetActiveCount() == 0) ? ERDGPassFlags::SkipRenderPass : ERDGPassFlags::None;
+
 	FPixelShaderUtils::AddRasterizeToRectsPass<FClearUAVRectsPS>(GraphBuilder,
 		ShaderMap,
 		RDG_EVENT_NAME("ClearTextureRects(%s %s %dx%d Mip=%d)",
@@ -618,8 +622,7 @@ void AddClearUAVPass(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLe
 		/*TextureSize*/ TextureSize,
 		/*RectUVBufferSRV*/ nullptr,
 		/*DownsampleFactor*/ 1,
-		/*bSkipRenderPass*/ (PassParameters->RenderTargets.GetActiveCount()==0)
-		);
+		AdditionalRenderPassFlags);
 }
 
 void AddClearRenderTargetPass(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture)
@@ -679,7 +682,7 @@ void AddClearRenderTargetPass(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture,
 					RDG_EVENT_NAME("ClearRenderTarget(%s, slice %d, mip %d) %dx%d ClearAction", Texture->Name, CurrentSliceIndex, CurrentMipIndex, Texture->Desc.Extent.X, Texture->Desc.Extent.Y),
 					Parameters,
 					ERDGPassFlags::Raster,
-					[](FRHICommandList& RHICmdList) {});
+					[](FRDGAsyncTask, FRHICommandList& RHICmdList) {});
 			}
 		}
 	}
@@ -710,7 +713,7 @@ void AddClearRenderTargetPass(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture,
 						RDG_EVENT_NAME("ClearRenderTarget(%s, slice %d, mip %d) [(%d, %d), (%d, %d)] ClearQuad", Texture->Name, CurrentSliceIndex, CurrentMipIndex, CurrentViewport.Min.X, CurrentViewport.Min.Y, CurrentViewport.Max.X, CurrentViewport.Max.Y),
 						Parameters,
 						ERDGPassFlags::Raster,
-						[Parameters, ClearColor, CurrentViewport](FRHICommandList& RHICmdList)
+						[Parameters, ClearColor, CurrentViewport](FRDGAsyncTask, FRHICommandList& RHICmdList)
 					{
 						RHICmdList.SetViewport((float)CurrentViewport.Min.X, (float)CurrentViewport.Min.Y, 0.0f, (float)CurrentViewport.Max.X, (float)CurrentViewport.Max.Y, 1.0f);
 						DrawClearQuad(RHICmdList, ClearColor);
@@ -769,7 +772,7 @@ void AddClearDepthStencilPass(
 		RDG_EVENT_NAME("ClearDepthStencil(%s) %dx%d", Texture->Name, Texture->Desc.Extent.X, Texture->Desc.Extent.Y),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[Parameters, bClearDepth, Depth, bClearStencil, Stencil](FRHICommandList& RHICmdList)
+		[Parameters, bClearDepth, Depth, bClearStencil, Stencil](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		DrawClearQuad(RHICmdList, false, FLinearColor(), bClearDepth, Depth, bClearStencil, Stencil);
 	});
@@ -779,14 +782,14 @@ void AddClearDepthStencilPass(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture,
 {
 	auto* PassParameters = GraphBuilder.AllocParameters<FRenderTargetParameters>();
 	PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(Texture, DepthLoadAction, StencilLoadAction, FExclusiveDepthStencil::DepthWrite_StencilWrite);
-	GraphBuilder.AddPass(RDG_EVENT_NAME("ClearDepthStencil (%s)", Texture->Name), PassParameters, ERDGPassFlags::Raster, [](FRHICommandList&) {});
+	GraphBuilder.AddPass(RDG_EVENT_NAME("ClearDepthStencil (%s)", Texture->Name), PassParameters, ERDGPassFlags::Raster, [](FRDGAsyncTask, FRHICommandList&) {});
 }
 
 void AddClearStencilPass(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture)
 {
 	auto* PassParameters = GraphBuilder.AllocParameters<FRenderTargetParameters>();
 	PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(Texture, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::EClear, FExclusiveDepthStencil::DepthRead_StencilWrite);
-	GraphBuilder.AddPass(RDG_EVENT_NAME("ClearStencil (%s)", Texture->Name), PassParameters, ERDGPassFlags::Raster, [](FRHICommandList&) {});
+	GraphBuilder.AddPass(RDG_EVENT_NAME("ClearStencil (%s)", Texture->Name), PassParameters, ERDGPassFlags::Raster, [](FRDGAsyncTask, FRHICommandList&) {});
 }
 
 void AddResummarizeHTilePass(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture)
@@ -797,9 +800,9 @@ void AddResummarizeHTilePass(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture)
 		FDepthStencilBinding(Texture, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthWrite_StencilWrite) :
 		FDepthStencilBinding(Texture, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ENoAction, FExclusiveDepthStencil::DepthWrite_StencilNop);
 	GraphBuilder.AddPass(RDG_EVENT_NAME("ResummarizeHTile (%s)", Texture->Name), PassParameters, ERDGPassFlags::Raster,
-		[Texture](FRHICommandList& RHICmdList)
+		[Texture](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
-		RHICmdList.ResummarizeHTile(static_cast<FRHITexture2D*>(Texture->GetRHI()));
+		RHICmdList.ResummarizeHTile(static_cast<FRHITexture*>(Texture->GetRHI()));
 	});
 }
 
@@ -816,7 +819,7 @@ void AddEnqueueCopyPass(FRDGBuilder& GraphBuilder, FRHIGPUTextureReadback* Readb
 		RDG_EVENT_NAME("EnqueueCopy(%s)", SourceTexture->Name),
 		PassParameters,
 		ERDGPassFlags::Readback,
-		[Readback, SourceTexture, Rect](FRHICommandList& RHICmdList)
+		[Readback, SourceTexture, Rect](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		Readback->EnqueueCopy(RHICmdList, SourceTexture->GetRHI(), Rect);
 	});
@@ -835,7 +838,7 @@ void AddEnqueueCopyPass(FRDGBuilder& GraphBuilder, FRHIGPUBufferReadback* Readba
 		RDG_EVENT_NAME("EnqueueCopy(%s)", SourceBuffer->Name),
 		PassParameters,
 		ERDGPassFlags::Readback,
-		[Readback, SourceBuffer, NumBytes](FRHICommandList& RHICmdList)
+		[Readback, SourceBuffer, NumBytes](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		Readback->EnqueueCopy(RHICmdList, SourceBuffer->GetRHI(), NumBytes);
 	});
@@ -910,6 +913,31 @@ FRDGBufferRef CreateStructuredBuffer(
 	return Buffer;
 }
 
+FRDGBufferRef CreateByteAddressBuffer(
+	FRDGBuilder& GraphBuilder,
+	const TCHAR* Name,
+	uint32 NumBytes,
+	const void* InitialData,
+	uint64 InitialDataSize,
+	ERDGInitialDataFlags InitialDataFlags)
+{
+	FRDGBufferRef Buffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateByteAddressDesc(NumBytes), Name);
+	GraphBuilder.QueueBufferUpload(Buffer, InitialData, InitialDataSize, InitialDataFlags);
+	return Buffer;
+}
+
+FRDGBufferRef CreateByteAddressBuffer(
+	FRDGBuilder& GraphBuilder,
+	const TCHAR* Name,
+	FRDGBufferNumElementsCallback&& NumElementsCallback,
+	FRDGBufferInitialDataCallback&& InitialDataCallback,
+	FRDGBufferInitialDataSizeCallback&& InitialDataSizeCallback)
+{
+	FRDGBufferRef Buffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateByteAddressDesc(4), Name, MoveTemp(NumElementsCallback));
+	GraphBuilder.QueueBufferUpload(Buffer, MoveTemp(InitialDataCallback), MoveTemp(InitialDataSizeCallback));
+	return Buffer;
+}
+
 FRDGBufferRef CreateUploadBuffer(
 	FRDGBuilder& GraphBuilder,
 	const TCHAR* Name,
@@ -941,27 +969,6 @@ FRDGBufferRef CreateVertexBuffer(
 	FRDGBufferRef Buffer = GraphBuilder.CreateBuffer(Desc, Name);
 	GraphBuilder.QueueBufferUpload(Buffer, InitialData, InitialDataSize, InitialDataFlags);
 	return Buffer;
-}
-
-FRDGWaitForTasksScope::~FRDGWaitForTasksScope()
-{
-	if (bCondition)
-	{
-		AddPass(GraphBuilder, RDG_EVENT_NAME("WaitForTasks"), [](FRHICommandListImmediate& RHICmdList)
-		{
-			if (IsRunningRHIInSeparateThread())
-			{
-				QUICK_SCOPE_CYCLE_COUNTER(STAT_FRDGWaitForTasksScope_WaitAsync);
-				RHICmdList.ImmediateFlush(EImmediateFlushType::WaitForOutstandingTasksOnly);
-			}
-			else
-			{
-				QUICK_SCOPE_CYCLE_COUNTER(STAT_FRDGWaitForTasksScope_Flush);
-				CSV_SCOPED_TIMING_STAT(RHITFlushes, FRDGWaitForTasksDtor);
-				RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-			}
-		});
-	}
 }
 
 void FRDGExternalAccessQueue::Submit(FRDGBuilder& GraphBuilder)

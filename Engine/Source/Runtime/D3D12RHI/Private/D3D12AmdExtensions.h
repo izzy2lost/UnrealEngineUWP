@@ -3,6 +3,8 @@
 #pragma once
 
 #if WITH_AMD_AGS
+	#include "D3D12ThirdParty.h"
+
 	#include "Microsoft/AllowMicrosoftPlatformTypes.h"
 	THIRD_PARTY_INCLUDES_START
 		#include <amd_ags.h>

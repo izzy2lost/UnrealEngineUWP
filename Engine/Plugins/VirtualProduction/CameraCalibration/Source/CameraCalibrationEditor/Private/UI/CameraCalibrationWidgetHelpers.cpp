@@ -9,6 +9,7 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SWidget.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "CameraCalibrationWidgetHelpers"
@@ -109,6 +110,65 @@ void FCameraCalibrationWidgetHelpers::DisplayTextureInWindowAlmostFullScreen(UTe
 			));
 		}
 	}
+}
+
+bool FCameraCalibrationWidgetHelpers::ShowMergeFocusWarning(bool& bOutReplaceExistingZoomPoints)
+{
+	bool bReplaceExistingZoomPoints = false;
+	TSharedRef<SCustomDialog> Dialog = SNew(SCustomDialog)
+		.Title(FText(LOCTEXT("FocusMergeWarningTitle", "Merge existing focus point?")))
+		.ContentAreaPadding(16.0)
+		.Content()
+		[
+			SNew(SVerticalBox)
+					
+			+SVerticalBox::Slot()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("FocusMergeWarningLabel", "A focus point already exists with that value. Would you like to merge this point with that point?"))
+			]
+
+			+SVerticalBox::Slot()
+			.Padding(0.0, 4.0, 0.0, 0.0)
+			[
+				SNew(SCheckBox)
+				.ToolTipText(LOCTEXT("ReplaceExistingToolTip", "When checked, any existing zoom points in the destination focus will be replaced with those in the source focus"))
+				.IsChecked_Lambda([&bReplaceExistingZoomPoints]() { return bReplaceExistingZoomPoints ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+				.OnCheckStateChanged_Lambda([&bReplaceExistingZoomPoints](ECheckBoxState CheckBoxState) { bReplaceExistingZoomPoints = CheckBoxState == ECheckBoxState::Checked; })
+				.Padding(FMargin(4.0, 0.0))
+				[
+					SNew(STextBlock).Text(LOCTEXT("ReplaceExistingLabel", "Replace existing zoom points?"))
+				]
+			]
+		]
+		.Buttons({
+			SCustomDialog::FButton(LOCTEXT("MergeButtonLabel", "Merge")),
+			SCustomDialog::FButton(LOCTEXT("CancelButtonLabel", "Cancel")) }
+		);
+
+	// Dialog result corresponds to the button that was pressed (e.g. 0 means first button, 1 second, -1 no buttons were pressed)
+	const int32 DialogResult = Dialog->ShowModal();
+	bOutReplaceExistingZoomPoints = bReplaceExistingZoomPoints;
+	return DialogResult == 0;
+}
+
+bool FCameraCalibrationWidgetHelpers::ShowReplaceZoomWarning()
+{
+	TSharedRef<SCustomDialog> Dialog = SNew(SCustomDialog)
+		.Title(FText(LOCTEXT("ZoomReplaceWarningTitle", "Replace existing zoom point?")))
+		.Content()
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("ZoomReplaceWarningLabel", "A point with that zoom value already exists, would you like to replace it with this point?"))
+		]
+		.Buttons({
+			SCustomDialog::FButton(LOCTEXT("ReplaceButtonLabel", "Replace")),
+			SCustomDialog::FButton(LOCTEXT("CancelButtonLabel", "Cancel")) }
+		);
+
+	// Dialog result corresponds to the button that was pressed (e.g. 0 means first button, 1 second, -1 no buttons were pressed)
+	const int32 DialogResult = Dialog->ShowModal();
+	return DialogResult == 0;
 }
 
 #undef LOCTEXT_NAMESPACE

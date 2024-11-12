@@ -37,6 +37,7 @@ class UObject;
 struct FFrameNumber;
 struct FMovieSceneSequenceHierarchy;
 struct IMovieSceneSequenceTemplateStore;
+class UMovieSceneCondition;
 
 
 /**
@@ -126,8 +127,14 @@ struct FMovieSceneEvaluationFieldEntityMetaData
 			A.Flags == B.Flags && 
 			A.bEvaluateInSequencePreRoll == B.bEvaluateInSequencePreRoll && 
 			A.bEvaluateInSequencePostRoll == B.bEvaluateInSequencePostRoll &&
-			A.OverrideBoundPropertyPath == B.OverrideBoundPropertyPath;
+			A.OverrideBoundPropertyPath == B.OverrideBoundPropertyPath &&
+			A.Condition == B.Condition;
 	}
+
+	/* Optional condition that the entity can provide to be checked at runtime before import. If the condition fails, the entity will not be imported. 
+	*/
+	UPROPERTY()
+	TSoftObjectPtr<const UMovieSceneCondition> Condition;
 
 	/** Opt-in - when this value is set, the entity should use this property path instead of the one defined on its generating section */
 	UPROPERTY()

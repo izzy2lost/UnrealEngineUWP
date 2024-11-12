@@ -177,13 +177,17 @@ namespace UE::DMX::Private
 
 		float Value = 0.f;
 		const EDMXControlConsoleEditorValueType ValueType = ControlConsoleEditorData->GetValueType();
-		if (ValueType == EDMXControlConsoleEditorValueType::Byte)
+		if (ValueType == EDMXControlConsoleEditorValueType::DMX)
 		{
 			Value = ElementControllerModel->GetRelativeValue();
 			if (ElementControllerModel->HasUniformDataType())
 			{
 				return FText::FromString(FString::FromInt(Value));
 			}
+		}
+		else if (ValueType == EDMXControlConsoleEditorValueType::Physical)
+		{
+			Value = ElementControllerModel->GetPhysicalValue();
 		}
 		else
 		{
@@ -279,7 +283,7 @@ namespace UE::DMX::Private
 
 	void SDMXControlConsoleEditorSpinBoxController::OnValueCommitted(float NewValue, ETextCommit::Type CommitType)
 	{
-		const UDMXControlConsoleElementController* ElementController = ElementControllerModel.IsValid() ? ElementControllerModel->GetElementController() : nullptr;
+		UDMXControlConsoleElementController* ElementController = ElementControllerModel.IsValid() ? ElementControllerModel->GetElementController() : nullptr;
 		if (!ensureMsgf(ElementController, TEXT("Invalid element controller, cannot set element controller value correctly.")))
 		{
 			return;
@@ -322,7 +326,12 @@ namespace UE::DMX::Private
 		}
 
 		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
-		const TArray<TWeakObjectPtr<UObject>> SelectedElementControllers = SelectionHandler->GetSelectedElementControllers();
+		TArray<TWeakObjectPtr<UObject>> SelectedElementControllers = SelectionHandler->GetSelectedElementControllers();
+		if (SelectedElementControllers.IsEmpty())
+		{
+			SelectedElementControllers.Add(ElementController);
+		}
+
 		for (const TWeakObjectPtr<UObject>& SelectedElementControllerObject : SelectedElementControllers)
 		{
 			UDMXControlConsoleElementController* SelectedElementController = Cast<UDMXControlConsoleElementController>(SelectedElementControllerObject);

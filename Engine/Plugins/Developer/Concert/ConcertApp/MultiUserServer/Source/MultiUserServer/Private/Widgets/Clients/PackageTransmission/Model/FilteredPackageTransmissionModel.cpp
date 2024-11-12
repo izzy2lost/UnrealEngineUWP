@@ -5,9 +5,9 @@
 
 namespace UE::MultiUserServer
 {
-	FFilteredPackageTransmissionModel::FFilteredPackageTransmissionModel(TSharedRef<IPackageTransmissionEntrySource> RealSource, TSharedRef<IFilter<const FPackageTransmissionEntry&>> Filter)
-		: RealSource(MoveTemp(RealSource))
-		, Filter(MoveTemp(Filter))
+	FFilteredPackageTransmissionModel::FFilteredPackageTransmissionModel(TSharedRef<IPackageTransmissionEntrySource> InRealSource, TSharedRef<IFilter<const FPackageTransmissionEntry&>> InFilter)
+		: RealSource(MoveTemp(InRealSource))
+		, Filter(MoveTemp(InFilter))
 	{
 		RealSource->OnPackageEntriesAdded().AddRaw(this, &FFilteredPackageTransmissionModel::OnSourceEntriesAdded);
 		RealSource->OnPackageEntriesModified().AddRaw(this, &FFilteredPackageTransmissionModel::OnSourceEntriesModified);

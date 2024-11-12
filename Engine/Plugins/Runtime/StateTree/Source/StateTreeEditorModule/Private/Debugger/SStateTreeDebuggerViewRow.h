@@ -2,9 +2,10 @@
 
 #pragma once
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "Debugger/StateTreeTraceTypes.h"
+#include "StateTree.h"
 #include "Templates/SharedPointer.h"
 #include "TraceServices/Model/Frames.h"
 #include "Widgets/Views/SListView.h"
@@ -39,7 +40,7 @@ public:
 				   const TSharedPtr<FStateTreeDebuggerEventTreeElement>& InElement);
 
 private:
-	TSharedPtr<SWidget> GenerateEventWidget() const;
+	TSharedPtr<SWidget> CreateImageForEvent() const;
 	const FTextBlockStyle& GetEventTextStyle() const;
 	FText GetEventDescription() const;
 	FText GetEventTooltip() const;
@@ -47,4 +48,4 @@ private:
 	TSharedPtr<FStateTreeDebuggerEventTreeElement> Item;
 };
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

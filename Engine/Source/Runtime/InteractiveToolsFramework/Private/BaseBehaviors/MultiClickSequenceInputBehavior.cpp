@@ -127,7 +127,7 @@ bool UMultiClickSequenceInputBehavior::WantsHoverEvents()
 
 FInputCaptureRequest UMultiClickSequenceInputBehavior::WantsHoverCapture(const FInputDeviceState& InputState)
 {
-	return Target != nullptr ? FInputCaptureRequest::Begin(this, EInputCaptureSide::Any) : FInputCaptureRequest::Ignore();
+	return (Target != nullptr) && ((HoverModifierCheckFunc == nullptr || HoverModifierCheckFunc(InputState))) ? FInputCaptureRequest::Begin(this, EInputCaptureSide::Any) : FInputCaptureRequest::Ignore();
 }
 
 FInputCaptureUpdate UMultiClickSequenceInputBehavior::BeginHoverCapture(const FInputDeviceState& InputState, EInputCaptureSide eSide) 

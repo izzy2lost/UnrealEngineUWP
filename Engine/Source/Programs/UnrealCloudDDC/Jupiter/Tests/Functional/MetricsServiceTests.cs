@@ -6,17 +6,17 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using EpicGames.Horde.Storage;
+using EpicGames.Serialization;
 using Jupiter.Implementation;
-using Microsoft.AspNetCore.TestHost;
+using Jupiter.Implementation.Blob;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Serilog;
 using Serilog.Core;
-using EpicGames.Horde.Storage;
-using EpicGames.Serialization;
-using Jupiter.Implementation.Blob;
 
 namespace Jupiter.FunctionalTests.Metrics
 {
@@ -43,7 +43,7 @@ namespace Jupiter.FunctionalTests.Metrics
 			return "Mongo";
 		}
 	}
-	
+
 	public abstract class MetricsServiceTests : IDisposable
 	{
 		private HttpClient? _httpClient;
@@ -111,7 +111,7 @@ namespace Jupiter.FunctionalTests.Metrics
 			Assert.IsNotNull(refService);
 			(BlobId ob0_hash, CbObject ob0_cb) = GetCBWithAttachment(object0id);
 			await refService.PutAsync(TestNamespace, Bucket0, object0Name, ob0_hash, ob0_cb);
-		   
+
 			(BlobId ob1_hash, CbObject ob1_cb) = GetCBWithAttachment(object1id);
 			await refService.PutAsync(TestNamespace, Bucket1, object1Name, ob1_hash, ob1_cb);
 
@@ -178,7 +178,7 @@ namespace Jupiter.FunctionalTests.Metrics
 		{
 			IReferencesStore referenceStore = (IReferencesStore)_server!.Services.GetService(typeof(IReferencesStore))!;
 
-			IAsyncEnumerable<BucketId> buckets = referenceStore.GetBuckets(TestNamespace);
+			IAsyncEnumerable<BucketId> buckets = referenceStore.GetBucketsAsync(TestNamespace);
 			List<BucketId> _ = await buckets.ToListAsync();
 		}
 

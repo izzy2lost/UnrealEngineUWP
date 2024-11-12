@@ -9,6 +9,7 @@
 #include "RHIImmutableSamplerState.h"
 #include "Async/Mutex.h"
 #include "Tasks/Task.h"
+#include "Engine/BlendableInterface.h"
 
 enum class EMaterialParameterType : uint8;
 
@@ -27,6 +28,7 @@ class USubsurfaceProfile;
 class USpecularProfile;
 class UNeuralProfile;
 class UTexture;
+class UTextureCollection;
 
 struct FMaterialParameterValue;
 struct FMaterialRenderContext;
@@ -142,7 +144,7 @@ public:
 	ENGINE_API void InvalidateUniformExpressionCache(bool bRecreateUniformBuffer);
 
 	ENGINE_API void UpdateUniformExpressionCacheIfNeeded(ERHIFeatureLevel::Type InFeatureLevel) const;
-	ENGINE_API void UpdateUniformExpressionCacheIfNeeded(FRHICommandListBase& RHICmdList, ERHIFeatureLevel::Type InFeatureLevel) const;
+	ENGINE_API const FMaterial* UpdateUniformExpressionCacheIfNeeded(FRHICommandListBase& RHICmdList, ERHIFeatureLevel::Type InFeatureLevel) const;
 
 	/** Returns the FMaterial, without using a fallback if the FMaterial doesn't have a valid shader map. Can return NULL. */
 	virtual const FMaterial* GetMaterialNoFallback(ERHIFeatureLevel::Type InFeatureLevel) const = 0;
@@ -170,7 +172,13 @@ public:
 	ENGINE_API bool GetTextureValue(const FHashedMaterialParameterInfo& ParameterInfo, const UTexture** OutValue, const FMaterialRenderContext& Context) const;
 	ENGINE_API bool GetTextureValue(const FHashedMaterialParameterInfo& ParameterInfo, const URuntimeVirtualTexture** OutValue, const FMaterialRenderContext& Context) const;
 	ENGINE_API bool GetTextureValue(const FHashedMaterialParameterInfo& ParameterInfo, const USparseVolumeTexture** OutValue, const FMaterialRenderContext& Context) const;
+	ENGINE_API bool GetTextureCollectionValue(const FHashedMaterialParameterInfo& ParameterInfo, const UTextureCollection** OutValue, const FMaterialRenderContext& Context) const;
 	virtual bool GetParameterValue(EMaterialParameterType Type, const FHashedMaterialParameterInfo& ParameterInfo, FMaterialParameterValue& OutValue, const FMaterialRenderContext& Context) const = 0;
+	virtual bool GetUserSceneTextureOverride(FName& InOutValue) const { return false; }
+	ENGINE_API FName GetUserSceneTextureOutput(const FMaterial* Base) const;
+	ENGINE_API virtual EBlendableLocation GetBlendableLocation(const FMaterial* Base) const;
+	ENGINE_API virtual int32 GetBlendablePriority(const FMaterial* Base) const;
+
 
 	bool IsDeleted() const
 	{
@@ -205,9 +213,15 @@ public:
 	}
 #endif
 
-	// Subsurface profiles
+	// Subsurface profile.
+	// When Substrate is enabled, this is ONLY used as an override for Subsurface Profile on material instance (override all Subsurface Profiles at once for now)
 	void SetSubsurfaceProfileRT(const USubsurfaceProfile* Ptr) { SubsurfaceProfileRT = Ptr; }
 	const USubsurfaceProfile* GetSubsurfaceProfileRT() const { return SubsurfaceProfileRT; }
+
+	// Subsurface profiles
+	void AddSubsurfaceProfileRT(const USubsurfaceProfile* Ptr) { SubsurfaceProfilesRT.Add(Ptr); }
+	const USubsurfaceProfile* GetSubsurfaceProfileRT(uint32 Index) const { check(Index<uint32(SubsurfaceProfilesRT.Num())); return SubsurfaceProfilesRT[Index]; }
+	const uint32 NumSubsurfaceProfileRT() const { return SubsurfaceProfilesRT.Num(); }
 
 	// Specular profiles
 	void AddSpecularProfileRT(const USpecularProfile* Ptr) { SpecularProfilesRT.Add(Ptr); }
@@ -235,7 +249,8 @@ private:
 	virtual void FinishCacheUniformExpressions() const {}
 
 	/** 0 if not set, game thread pointer, do not dereference, only for comparison */
-	const USubsurfaceProfile* SubsurfaceProfileRT;
+	const USubsurfaceProfile* SubsurfaceProfileRT;	// Overrides all SubsurfaceProfilesRT when set, used when set from material instance to respect the legacy workflow
+	TArray<const USubsurfaceProfile*> SubsurfaceProfilesRT;
 	TArray<const USpecularProfile*> SpecularProfilesRT;
 	const UNeuralProfile* NeuralProfileRT;
 	FString MaterialName;

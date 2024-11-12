@@ -37,39 +37,14 @@ void UMovieSceneGenericBoundObjectInstantiator::OnRun(FSystemTaskPrerequisites& 
 
 	UnlinkStaleObjectBindings(Components->GenericObjectBinding);
 
-	struct FGenericBoundObjectBatch : FObjectFactoryBatch
-	{
-		virtual EResolveError ResolveObjects(FInstanceRegistry* InstanceRegistry, FInstanceHandle InstanceHandle, int32 InEntityIndex, const FGuid& ObjectBinding) override
-		{
-			EResolveError Error = EResolveError::UnresolvedBinding;
-
-			FSequenceInstance& SequenceInstance = InstanceRegistry->MutateInstance(InstanceHandle);
-			for (TWeakObjectPtr<> WeakObject : SequenceInstance.GetPlayer()->FindBoundObjects(ObjectBinding, SequenceInstance.GetSequenceID()))
-			{
-				if (UObject* Object = WeakObject.Get())
-				{
-					if (!ensureMsgf(!FBuiltInComponentTypes::IsBoundObjectGarbage(Object), TEXT("Attempting to bind an object that is garbage or unreachable")))
-					{
-						continue;
-					}
-
-					// Make a child entity for this resolved binding
-					Add(InEntityIndex, Object);
-					Error = EResolveError::None;
-				}
-			}
-
-			return Error;
-		}
-	};
-
-	TBoundObjectTask<FGenericBoundObjectBatch> BoundObjectTask(Linker);
+	FBoundObjectTask BoundObjectTask(Linker);
 
 	// Gather all newly instanced entities with an object binding ID
 	FEntityTaskBuilder()
 	.ReadEntityIDs()
 	.Read(Components->InstanceHandle)
 	.Read(Components->GenericObjectBinding)
+	.ReadOptional(Components->BoundObjectResolver)
 	.FilterAny({ Components->Tags.NeedsLink, Components->Tags.HasUnresolvedBinding })
 	.FilterNone({ Components->Tags.NeedsUnlink })
 	.RunInline_PerAllocation(&Linker->EntityManager, BoundObjectTask);

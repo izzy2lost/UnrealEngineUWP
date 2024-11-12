@@ -2,22 +2,18 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorFloatBase.h"
+#include "Animators/PropertyAnimatorNumericBase.h"
 #include "PropertyAnimatorBounce.generated.h"
 
 /**
  * Applies an additive bounce movement with various options on supported float properties
  */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorBounce : public UPropertyAnimatorFloatBase
+class UPropertyAnimatorBounce : public UPropertyAnimatorNumericBase
 {
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* DefaultControllerName = TEXT("Bounce");
-
-	UPropertyAnimatorBounce();
-
 	PROPERTYANIMATOR_API void SetInvertEffect(bool bInvert);
 	bool GetInvertEffect() const
 	{
@@ -28,7 +24,8 @@ protected:
 	virtual void OnInvertEffect() {}
 
 	//~ Begin UPropertyAnimatorFloatBase
-	virtual float Evaluate(double InTimeElapsed, const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorFloatContext* InOptions) const override;
+	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
+	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const override;
 	//~ End UPropertyAnimatorFloatBase
 
 	/** Invert the effect result */

@@ -28,7 +28,7 @@ static AnimatedMapsOutputInstance::Factory createAnimatedMapsOutputInstanceFacto
 
 AnimatedMaps::Pointer AnimatedMapsFactory::create(const Configuration& config, const RigMetrics& metrics,
                                                   MemoryResource* memRes) {
-    if (!config.loadAnimatedMaps) {
+    if (!config.loadAnimatedMaps || (metrics.animatedMapCount == 0u)) {
         return UniqueInstance<AnimatedMapsNull, AnimatedMaps>::with(memRes).create();
     }
     auto instanceFactory = createAnimatedMapsOutputInstanceFactory(config, metrics.animatedMapCount);
@@ -39,7 +39,7 @@ AnimatedMaps::Pointer AnimatedMapsFactory::create(const Configuration& config, c
 AnimatedMaps::Pointer AnimatedMapsFactory::create(const Configuration& config,
                                                   const dna::BehaviorReader* reader,
                                                   MemoryResource* memRes) {
-    if (!config.loadAnimatedMaps) {
+    if (!config.loadAnimatedMaps || (reader->getAnimatedMapCount() == 0u)) {
         return UniqueInstance<AnimatedMapsNull, AnimatedMaps>::with(memRes).create();
     }
 

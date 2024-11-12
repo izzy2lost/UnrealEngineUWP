@@ -34,20 +34,36 @@ struct FBaseRewindHistory
 	/** Create a polymorphic copy of the history */
 	virtual TUniquePtr<FBaseRewindHistory> Clone() const = 0;
 
+	/** Initialize history */
+	virtual void Initialize() { }
+
 	/** Set the package map for serialization */
 	FORCEINLINE virtual void SetPackageMap(class UPackageMap* InPackageMap) {}
 
 	/** Check if the history buffer contains an entry for the given frame*/
 	FORCEINLINE virtual bool HasValidData(const int32 ValidFrame) const { return false; }
 	UE_DEPRECATED(5.4, "Deprecated, use HasValidData() instead")
-	FORCEINLINE virtual bool HasValidDatas(const int32 ValidFrame) const { return HasValidData(ValidFrame);
-	}
+	FORCEINLINE virtual bool HasValidDatas(const int32 ValidFrame) const { return HasValidData(ValidFrame);	}
+
+	/** Find how many entries are valid in frame range
+	* @param StartFrame = Included
+	* @param EndFrame = Included
+	* @param bIncludeUnimportant = If to include unimportant data entries
+	* @param bIncludeImportant = If to include important data entries */
+	FORCEINLINE virtual int32 CountValidData(const uint32 StartFrame, const uint32 EndFrame, const bool bIncludeUnimportant = true, const bool bIncludeImportant = false) { return 0; }
+
+	/** Mark frame important or unimportant
+	* @param Frame = use INDEX_NONE to set importance on all entries */
+	FORCEINLINE virtual void SetImportant(const bool bImportant, const int32 Frame = INDEX_NONE) {}
 
 	/** Extract data from the history buffer at a given time */
 	FORCEINLINE virtual bool ExtractData(const int32 ExtractFrame, const bool bResetSolver, void* HistoryData, const bool bExactFrame = false) { return true; }
 	UE_DEPRECATED(5.4, "Deprecated, use ExtractData() instead")
 	FORCEINLINE virtual bool ExtractDatas(const int32 ExtractFrame, const bool bResetSolver, void* HistoryDatas, const bool bExactFrame = false) { return ExtractData(ExtractFrame, bResetSolver, HistoryDatas, bExactFrame); }
 	
+	/** Call ApplyData on each frame data within range */
+	FORCEINLINE virtual void ApplyDataRange(const int32 FromFrame, const int32 ToFrame, void* ActorComponent, const bool bOnlyImportant = false) {}
+
 	/** Iterate over and merge data */
 	FORCEINLINE virtual void MergeData(const int32 FromFrame, void* ToData) {}
 
@@ -55,17 +71,28 @@ struct FBaseRewindHistory
 	FORCEINLINE virtual bool RecordData(const int32 RecordFrame, const void* HistoryData) { return true; }
 	UE_DEPRECATED(5.4, "Deprecated, use RecordData() instead")
 	FORCEINLINE virtual bool RecordDatas(const int32 RecordFrame, const void* HistoryDatas) { return RecordData(RecordFrame, HistoryDatas); }
+	
+	/** Copy all data from local history into into @param OutHistory
+	* @param bIncludeUnimportant = If to copy unimportant data entries
+	* @param bIncludeImportant = If to copy important data entries */
+	virtual bool CopyAllData(Chaos::FBaseRewindHistory& OutHistory, bool bIncludeUnimportant = true, bool bIncludeImportant = false) { return false; }
 
-	/** Create a polymorphic copy of only a range of frames, applying the frame offset to the copies */
+	/** Copy data from local history into @param OutHistory
+	* @param StartFrame = Included
+	* @param EndFrame = Included 
+	* @param bIncludeUnimportant = If to copy unimportant data entries
+	* @param bIncludeImportant = If to copy important data entries */
+	virtual bool CopyData(Chaos::FBaseRewindHistory& OutHistory, const uint32 StartFrame, const uint32 EndFrame, bool bIncludeUnimportant = true, bool bIncludeImportant = false) { return false; }
+
+	/** Create a polymorphic copy of only a range of frames, applying the frame offset to the copies
+	* @param StartFrame = Included
+	* @param EndFrame = Excluded */
 	virtual TUniquePtr<FBaseRewindHistory> CopyFramesWithOffset(const uint32 StartFrame, const uint32 EndFrame, const int32 FrameOffset) = 0;
 
 	/** Copy new data (received from the network) into this history, returns frame to resimulate from if @param CompareDataForRewind is set to true and compared data differ enough */
-	virtual int32 ReceiveNewData(FBaseRewindHistory& NewData, const int32 FrameOffset, bool CompareDataForRewind = false) { return INDEX_NONE; }
+	virtual int32 ReceiveNewData(FBaseRewindHistory& NewData, const int32 FrameOffset, const bool CompareDataForRewind = false, const bool bImportant = false) { return INDEX_NONE; }
 	UE_DEPRECATED(5.4, "Deprecated, use ReceiveNewData() instead")
 	virtual void ReceiveNewDatas(FBaseRewindHistory& NewDatas, const int32 FrameOffset) { ReceiveNewData(NewDatas, FrameOffset); }
-
-	/** Compares new received data with local predicted data and returns true if they differ enough to trigger a resimulation  */
-	FORCEINLINE virtual bool TriggerRewindFromNewData(void* NewData) { return false; }
 
 	/** Serialize the data to or from a network archive */
 	virtual void NetSerialize(FArchive& Ar, UPackageMap* PackageMap) {}
@@ -73,7 +100,10 @@ struct FBaseRewindHistory
 	/** Validate data in history buffer received from clients on the server */
 	virtual void ValidateDataInHistory(const void* ActorComponent) {}
 
-	/** Debug the data from the array of uint8 that will be transferred from client to server */
+	/** Print custom string along with values for each entry in history */
+	FORCEINLINE virtual void DebugData(const FString& DebugText) { }
+
+	/** Get arrays of frame values for each entry in the history */
 	FORCEINLINE virtual void DebugData(const Chaos::FBaseRewindHistory& NewData, TArray<int32>& LocalFrames, TArray<int32>& ServerFrames, TArray<int32>& InputFrames) { }
 	UE_DEPRECATED(5.4, "Deprecated, use DebugData() instead")
 	FORCEINLINE virtual void DebugDatas(const Chaos::FBaseRewindHistory& NewDatas, TArray<int32>& LocalFrames, TArray<int32>& ServerFrames, TArray<int32>& InputFrames) { DebugData(NewDatas, LocalFrames, ServerFrames, InputFrames); }
@@ -83,6 +113,24 @@ struct FBaseRewindHistory
 
 	/** Legacy interface to apply inputs */
 	FORCEINLINE virtual bool ApplyInputs(const int32 ApplyFrame, const bool bResetSolver) { return false; }
+
+	/** Return the most up to date frame entry in history, returns INDEX_NONE if no frame was found */
+	virtual const int32 GetLatestFrame() const { return INDEX_NONE; }
+
+	/** Return the least up to date frame entry in history, returns INT_MAX if no frame was found */
+	virtual const int32 GetEarliestFrame() const { return INT_MAX; }
+
+	/** Return the max size of the history */
+	virtual const int32 GetHistorySize() const { return 0; }
+
+	/** Return if history has valid data */
+	virtual const bool HasDataInHistory() const { return false; }
+
+	/** Resize the history */
+	virtual void ResizeDataHistory(const int32 FrameCount, const EAllowShrinking AllowShrinking = EAllowShrinking::Yes) {}
+
+	/** Perform a fast reset, marking the data history as reset but not clearing the data or resetting collections */
+	virtual void ResetFast() {}
 };
 
 /** Templated data history holding a data buffer */
@@ -90,11 +138,27 @@ template<typename DataType>
 struct TDataRewindHistory : public FBaseRewindHistory
 {
 	FORCEINLINE TDataRewindHistory(const int32 FrameCount, const bool bIsHistoryLocal) :
-		bIsLocalHistory(bIsHistoryLocal), DataHistory(), CurrentFrame(0), CurrentIndex(0), NumFrames(FrameCount)
+		bIsLocalHistory(bIsHistoryLocal), DataHistory(), LatestFrame(INDEX_NONE), CurrentFrame(0), CurrentIndex(0), NumFrames(FrameCount)
+	{
+		DataHistory.SetNum(NumFrames);
+	}
+
+	FORCEINLINE TDataRewindHistory(const int32 FrameCount) :
+		DataHistory(), LatestFrame(INDEX_NONE), CurrentFrame(0), CurrentIndex(0), NumFrames(FrameCount)
 	{
 		DataHistory.SetNum(NumFrames);
 	}
 	FORCEINLINE virtual ~TDataRewindHistory() {}
+
+	/** Initialize history */
+	virtual void Initialize()
+	{
+		// Iterate over current data to find latest frame
+		for (int32 FrameIndex = 0; FrameIndex < NumFrames; ++FrameIndex)
+		{
+			LatestFrame = FMath::Max(LatestFrame, DataHistory[FrameIndex].LocalFrame);
+		}
+	}
 
 protected:
 
@@ -105,7 +169,7 @@ protected:
 		for (int32 FrameIndex = 0; FrameIndex < NumFrames; ++FrameIndex)
 		{
 			const int32 ValidFrame = bMinData ? FMath::Max(0, DataFrame - FrameIndex) : DataFrame + FrameIndex;
-			const int32 ValidIndex = ValidFrame % NumFrames;
+			const int32 ValidIndex = GetFrameIndex(ValidFrame);
 
 			if (DataHistory[ValidIndex].LocalFrame == ValidFrame)
 			{
@@ -123,66 +187,82 @@ public :
 	/** Check if the history buffer contains an entry for the given frame*/
 	FORCEINLINE virtual bool HasValidData(const int32 ValidFrame) const override
 	{
-		const int32 LocalFrame = ValidFrame % NumFrames;
-		return ValidFrame == DataHistory[LocalFrame].LocalFrame;
+		const int32 ValidIndex = GetFrameIndex(ValidFrame);
+		return ValidFrame == DataHistory[ValidIndex].LocalFrame;
 	}
 
 	/** Extract states at a given time */
 	FORCEINLINE virtual bool ExtractData(const int32 ExtractFrame, const bool bResetSolver, void* HistoryData, const bool bExactFrame = false) override
 	{
-		const int32 LocalFrame = ExtractFrame % NumFrames;
-		if (ExtractFrame == DataHistory[LocalFrame].LocalFrame)
+		// Early out if we are trying to extract data later than latest frame but the latest data is more than the whole buffer size old, don't extrapolate that far.
+		if (ExtractFrame - NumFrames > GetLatestFrame())
+		{
+			return false;
+		}
+
+		const int32 ExtractIndex = GetFrameIndex(ExtractFrame);
+		if (ExtractFrame == DataHistory[ExtractIndex].LocalFrame)
 		{
 			CurrentFrame = ExtractFrame;
-			CurrentIndex = LocalFrame;
-
-#if DEBUG_NETWORK_PHYSICS
-			UE_LOG(LogTemp, Log, TEXT("		Found matching data into history at frame %d"), ExtractFrame);
-#endif
+			CurrentIndex = ExtractIndex;
 			*static_cast<DataType*>(HistoryData) = DataHistory[CurrentIndex];
 			return true;
 		}
 		else if(!bExactFrame)
 		{
+#if DEBUG_NETWORK_PHYSICS
 			if (bResetSolver)
 			{
 				UE_LOG(LogChaos, Warning, TEXT("		Unable to extract data at frame %d while rewinding the simulation"), ExtractFrame);
 			}
+#endif
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to ClosestData() in UE 5.6 and remove deprecation pragma
-			const int32 MinFrame = ClosestDatas(ExtractFrame, true);
-			const int32 MaxFrame = ClosestDatas(ExtractFrame, false);
+			const int32 MinFrameIndex = ClosestDatas(ExtractFrame, true);
+			const int32 MaxFrameIndex = ClosestDatas(ExtractFrame, false);
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-			if (MinFrame != INDEX_NONE && MaxFrame != INDEX_NONE)
+			if (MinFrameIndex != INDEX_NONE && MaxFrameIndex != INDEX_NONE)
 			{
+				DataType& ExtractedData = *static_cast<DataType*>(HistoryData);
+				ExtractedData = DataHistory[MinFrameIndex];
+
 				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				// TODO: Change to InterpolateData() in UE 5.6 and remove deprecation pragma
-				static_cast<DataType*>(HistoryData)->InterpolateDatas(
-					DataHistory[MinFrame], DataHistory[MaxFrame]); 
+				ExtractedData.InterpolateDatas(
+					DataHistory[MinFrameIndex], DataHistory[MaxFrameIndex]);
 				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-				const int32 DeltaFrame = FMath::Abs(ExtractFrame - DataHistory[MinFrame].LocalFrame);
+				const int32 DeltaFrame = FMath::Abs(ExtractFrame - DataHistory[MinFrameIndex].LocalFrame);
 
-				static_cast<DataType*>(HistoryData)->LocalFrame = ExtractFrame;
-				static_cast<DataType*>(HistoryData)->ServerFrame = DataHistory[MinFrame].ServerFrame + DeltaFrame;
-				static_cast<DataType*>(HistoryData)->InputFrame = DataHistory[MinFrame].InputFrame + DeltaFrame;
-				return true;
+				ExtractedData.LocalFrame = ExtractFrame;
+				ExtractedData.ServerFrame = DataHistory[MinFrameIndex].ServerFrame + DeltaFrame;
+				ExtractedData.InputFrame = INDEX_NONE; // Clear InputFrame since this history entry is now altered and doesn't correspond to the source entry with the same InputFrame
+
 #if DEBUG_NETWORK_PHYSICS
-				UE_LOG(LogTemp, Log, TEXT("		Smoothing data between frame %d and %d - > [%d %d]"), DataHistory[MinFrame].LocalFrame, DataHistory[MaxFrame].LocalFrame, static_cast<DataType*>(HistoryData)->InputFrame, static_cast<DataType*>(HistoryData)->ServerFrame);
+				UE_LOG(LogChaos, Log, TEXT("		Interpolating data between frame %d and %d - > [%d %d]"), DataHistory[MinFrameIndex].LocalFrame, DataHistory[MaxFrameIndex].LocalFrame, static_cast<DataType*>(HistoryData)->InputFrame, static_cast<DataType*>(HistoryData)->ServerFrame);
 #endif
+				return true;
 			}
-			else if (MinFrame != INDEX_NONE)
+			else if (MinFrameIndex != INDEX_NONE)
 			{
-				*static_cast<DataType*>(HistoryData) = DataHistory[MinFrame];
-				return true;
+				DataType& ExtractedData = *static_cast<DataType*>(HistoryData);
+				ExtractedData = DataHistory[MinFrameIndex];
+
+				const int32 DeltaFrame = FMath::Abs(ExtractFrame - DataHistory[MinFrameIndex].LocalFrame);
+
+				// Don't update LocalFrame here so that it can be used to check how many frames ahead of the last entry we are currently
+				ExtractedData.ServerFrame = DataHistory[MinFrameIndex].ServerFrame + DeltaFrame;
+				ExtractedData.InputFrame = INDEX_NONE; // Clear InputFrame since this history entry is now altered and doesn't correspond to the source entry with the same InputFrame
+
 #if DEBUG_NETWORK_PHYSICS
-				UE_LOG(LogTemp, Log, TEXT("		Setting data to frame %d"), DataHistory[MinFrame].LocalFrame);
+				UE_LOG(LogChaos, Log, TEXT("		Setting data to frame %d"), DataHistory[MinFrameIndex].LocalFrame);
 #endif
+				return true;
 			}
 			else
 			{
 #if DEBUG_NETWORK_PHYSICS
-				UE_LOG(LogTemp, Log, TEXT("		Failed to find data bounds : Min = %d | Max = %d"), MinFrame, MaxFrame);
+				UE_LOG(LogChaos, Log, TEXT("		Failed to find data bounds : Min = %d | Max = %d"), MinFrameIndex, MaxFrameIndex);
 #endif
 				return false;
 			}
@@ -195,31 +275,21 @@ public :
 		const int32 ToFrame = static_cast<DataType*>(ToData)->LocalFrame;
 		for (; FromFrame < ToFrame; FromFrame++)
 		{
-			const int32 LocalFrame = FromFrame % NumFrames;
-			if (FromFrame == DataHistory[LocalFrame].LocalFrame)
+			const int32 FromIndex = GetFrameIndex(FromFrame);
+			if (FromFrame == DataHistory[FromIndex].LocalFrame)
 			{
-				static_cast<DataType*>(ToData)->MergeData(DataHistory[LocalFrame]);
+				static_cast<DataType*>(ToData)->MergeData(DataHistory[FromIndex]);
+				static_cast<DataType*>(ToData)->InputFrame = INDEX_NONE; // Clear InputFrame since this history entry is now altered and doesn't correspond to the source entry with the same InputFrame
 			}
 		}
-	}
-
-	FORCEINLINE virtual bool TriggerRewindFromNewData(void* NewData) override
-	{
-		if (EvalData(static_cast<DataType*>(NewData)->LocalFrame))
-		{
-			return !static_cast<DataType*>(NewData)->CompareData(DataHistory[CurrentIndex]);
-		}
-
-		return false;
 	}
 
 	/** Load the data from the buffer at a specific frame */
 	FORCEINLINE bool LoadData(const int32 LoadFrame)
 	{
-		const int32 LocalFrame = LoadFrame % NumFrames;
-		DataHistory[LocalFrame].LocalFrame = LoadFrame;
+		const int32 LoadIndex = GetFrameIndex(LoadFrame);
 		CurrentFrame = LoadFrame;
-		CurrentIndex = LocalFrame;
+		CurrentIndex = LoadIndex;
 		return true;
 	}
 	UE_DEPRECATED(5.4, "Deprecated, use LoadData() instead")
@@ -228,11 +298,11 @@ public :
 	/** Eval the data from the buffer at a specific frame */
 	FORCEINLINE bool EvalData(const int32 EvalFrame)
 	{
-		const int32 LocalFrame = EvalFrame % NumFrames;
-		if (EvalFrame == DataHistory[LocalFrame].LocalFrame)
+		const int32 EvalIndex = GetFrameIndex(EvalFrame);
+		if (EvalFrame == DataHistory[EvalIndex].LocalFrame)
 		{
 			CurrentFrame = EvalFrame;
-			CurrentIndex = LocalFrame;
+			CurrentIndex = EvalIndex;
 			return true;
 		}
 		return false;
@@ -247,6 +317,8 @@ public :
 		LoadDatas(RecordFrame);
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		DataHistory[CurrentIndex] = *static_cast<const DataType*>(HistoryData);
+
+		LatestFrame = FMath::Max(LatestFrame, DataHistory[CurrentIndex].LocalFrame);
 		return true;
 	}
 
@@ -263,10 +335,10 @@ public :
 	FORCEINLINE uint32 NumValidData(const uint32 StartFrame, const uint32 EndFrame) const
 	{
 		uint32 NumData = 0;
-		for (uint32 FrameIndex = StartFrame; FrameIndex < EndFrame; ++FrameIndex)
+		for (uint32 ValidFrame = StartFrame; ValidFrame < EndFrame; ++ValidFrame)
 		{
-			const int32 LocalFrame = FrameIndex % NumFrames;
-			if (FrameIndex == DataHistory[LocalFrame].LocalFrame)
+			const int32 ValidIndex = GetFrameIndex(ValidFrame);
+			if (ValidFrame == DataHistory[ValidIndex].LocalFrame)
 			{
 				++NumData;
 			}
@@ -280,13 +352,72 @@ public :
 	UE_DEPRECATED(5.4, "Deprecated, use GetDataHistory() instead")
 	TArray<DataType>& GetDatasArray() { return GetDataHistory(); }
 
+	/** Return the most up to date frame entry in history */
+	virtual const int32 GetLatestFrame() const override
+	{
+		return LatestFrame;
+	}
+
+	/** Return the least up to date frame entry in history */
+	virtual const int32 GetEarliestFrame() const override
+	{
+		int32 EarliestFrame = INT_MAX;
+		
+		for (int32 FrameIndex = 0; FrameIndex < NumFrames; ++FrameIndex)
+		{
+			if (DataHistory[FrameIndex].LocalFrame > INDEX_NONE)
+			{
+				EarliestFrame = FMath::Min(EarliestFrame, DataHistory[FrameIndex].LocalFrame);
+			}
+		}
+
+		return EarliestFrame;
+	}
+
+	/** Return the max size of the history */
+	virtual const int32 GetHistorySize() const
+	{
+		return NumFrames;
+	}
+
+	virtual const bool HasDataInHistory() const
+	{
+		return LatestFrame > INDEX_NONE;
+	}
+
+	/** Resize the history */
+	FORCEINLINE void ResizeDataHistory(const int32 FrameCount, const EAllowShrinking AllowShrinking = EAllowShrinking::Yes) override
+	{
+		if (FrameCount > 0 && NumFrames != FrameCount)
+		{
+			NumFrames = FrameCount;
+			DataHistory.SetNum(NumFrames, AllowShrinking);
+			CurrentIndex = GetFrameIndex(CurrentFrame);
+		}
+	}
+
+	FORCEINLINE const uint32 GetFrameIndex(const int32 Frame) const
+	{
+		return FMath::Abs(Frame % NumFrames);
+	}
+
+	FORCEINLINE virtual void ResetFast()
+	{
+		LatestFrame = INDEX_NONE;
+		CurrentFrame = 0;
+		CurrentIndex = 0;
+	}
+
 protected : 
 
 	/** Check if the history is on the local/remote client*/
 	bool bIsLocalHistory;
 
-	/**  Data buffer holding the history */
+	/** Data buffer holding the history */
 	TArray<DataType> DataHistory;
+
+	/** The most up to date frame entry in history */
+	int32 LatestFrame;
 
 	/** Current frame that is being loaded/recorded */
 	int32 CurrentFrame;
@@ -1373,24 +1504,25 @@ class FPBDRigidsSolver;
 class FRewindData
 {
 public:
-	FRewindData(FPBDRigidsSolver* InSolver, int32 NumFrames, bool InResimOptimization, int32 InCurrentFrame)
-	: Managers(NumFrames+1)	//give 1 extra for saving at head
-	, Solver(InSolver)
-	, CurFrame(InCurrentFrame)
-	, LatestFrame(InCurrentFrame)
-	, FramesSaved(0)
-	, DataIdxOffset(0)
-	, bNeedsSave(false)
-	, bResimOptimization(InResimOptimization)
-	{
-	}
+	FRewindData(FPBDRigidsSolver* InSolver, int32 NumFrames, bool InRewindDataOptimization, int32 InCurrentFrame);
+	FRewindData(FPBDRigidsSolver* InSolver, int32 NumFrames, int32 InCurrentFrame);
 
-	void Init(FPBDRigidsSolver* InSolver, int32 NumFrames, bool InResimOptimization, int32 InCurrentFrame)
+	void Init(FPBDRigidsSolver* InSolver, int32 NumFrames, bool InRewindDataOptimization, int32 InCurrentFrame)
 	{
 		Solver = InSolver;
 		CurFrame = InCurrentFrame;
 		LatestFrame = InCurrentFrame;
-		bResimOptimization = InResimOptimization;
+		bRewindDataOptimization = InRewindDataOptimization;
+		LatestTargetFrame = 0;
+		Managers = TCircularBuffer<FFrameManagerInfo>(NumFrames + 1);
+	}
+
+	void Init(FPBDRigidsSolver* InSolver, int32 NumFrames, int32 InCurrentFrame)
+	{
+		Solver = InSolver;
+		CurFrame = InCurrentFrame;
+		LatestFrame = InCurrentFrame;
+		LatestTargetFrame = 0;
 		Managers = TCircularBuffer<FFrameManagerInfo>(NumFrames + 1);
 	}
 
@@ -1462,11 +1594,13 @@ public:
 
 	IResimCacheBase* GetCurrentStepResimCache() const
 	{
-		const bool PhysicsPredictionEnabled = FPhysicsSolverBase::IsNetworkPhysicsPredictionEnabled();
-		return PhysicsPredictionEnabled && bResimOptimization ? Managers[CurFrame].ExternalResimCache.Get() : nullptr;
+		return Managers[CurFrame].ExternalResimCache.Get();
 	}
 
 	void CHAOS_API DumpHistory_Internal(const int32 FramePrintOffset, const FString& Filename = FString(TEXT("Dump")));
+
+	/** Check if a resim cache based on IResimCacheBase (FEvolutionResimCache by default) is being used. Read FPhysicsSolverBase.SetUseCollisionResimCache() for more info. */
+	bool GetUseCollisionResimCache() const;
 
 	template <typename CreateCache>
 	void AdvanceFrame(FReal DeltaTime, const CreateCache& CreateCacheFunc)
@@ -1476,7 +1610,7 @@ public:
 		Managers[CurFrame].FrameCreatedFor = CurFrame;
 		TUniquePtr<IResimCacheBase>& ResimCache = Managers[CurFrame].ExternalResimCache;
 
-		if (bResimOptimization)
+		if (GetUseCollisionResimCache())
 		{
 			if (IsResim())
 			{
@@ -1533,7 +1667,7 @@ public:
 	/** Add input history to the rewind data for future use while resimulating */
 	void AddInputHistory(const TSharedPtr<FBaseRewindHistory>& InputHistory)
 	{
-		InputHistories.Add(InputHistory.ToWeakPtr());
+		InputHistories.AddUnique(InputHistory.ToWeakPtr());
 	}
 	UE_DEPRECATED(5.4, "Deprecated, use AddInputHistory() instead")
 	void AddInputsHistory(const TSharedPtr<FBaseRewindHistory>& InputsHistory) { AddInputHistory(InputsHistory); }
@@ -1549,7 +1683,7 @@ public:
 	/** Add state history to the rewind data for future use while rewinding */
 	void AddStateHistory(const TSharedPtr<FBaseRewindHistory>& StateHistory)
 	{
-		StateHistories.Add(StateHistory.ToWeakPtr());
+		StateHistories.AddUnique(StateHistory.ToWeakPtr());
 	}
 	UE_DEPRECATED(5.4, "Deprecated, use AddStateHistory() instead")
 	void AddStatesHistory(const TSharedPtr<FBaseRewindHistory>& StatesHistory) { AddStateHistory(StatesHistory); }
@@ -1585,6 +1719,18 @@ public:
 
 	/** Get the latest frame resim has been blocked from rewinding past */
 	int32 GetBlockedResimFrame() { return BlockResimFrame; }
+
+	/** Set if RewindData optimizations should be enabled or not. 
+	* Effect: Only alter the minimum required properties during a resim for particles not marked for FullResim */
+	void SetRewindDataOptimization(bool InRewindDataOptimization) { bRewindDataOptimization = InRewindDataOptimization; }
+
+	/** Check if we have received targets already for the last frame simulated,
+	* if so compare those with the result of the simulation and if they desync return the frame value to request a rewind for to correct the desync
+	* NOTE: This only happens when the client has desynced and is behind the server, so we receive server states for frames not yet simulated */
+	const int32 CHAOS_API CompareTargetsToLastFrame();
+
+	static bool CHAOS_API CheckVectorThreshold(FVec3 A, FVec3 B, float Threshold);
+	static bool CHAOS_API CheckQuaternionThreshold(FQuat A, FQuat B, float ThresholdDegrees);
 
 private:
 	friend class FPBDRigidsSolver;
@@ -1741,12 +1887,14 @@ private:
 		return TObjState(State, Handle, PropertiesPool, { Frame, Phase });
 	}
 
+	/** Apply the cached history state for the given frame cached particles and joints */
 	bool RewindToFrame(int32 RewindFrame);
-	
-
 
 	/** Apply targets positions and velocities while resimulating */
 	void ApplyTargets(const int32 Frame, const bool bResetSimulation);
+
+	/** Apply resim data for objects not simulating during resimlation */
+	void StepNonResimParticles(const int32 Frame);
 
 	template <typename TDirtyInfo>
 	static void DesyncObject(TDirtyInfo& Info, const FFrameAndPhase FrameAndPhase)
@@ -1771,8 +1919,9 @@ private:
 	int32 FramesSaved;
 	int32 DataIdxOffset;
 	bool bNeedsSave;	//Indicates that some data is pointing at head and requires saving before a rewind
-	bool bResimOptimization;
+	bool bRewindDataOptimization;
 	int32 ResimFrame = INDEX_NONE;
+	int32 LatestTargetFrame;
 
 	// Used to block rewinding past a physics change we currently don't handle
 	int32 BlockResimFrame = INDEX_NONE;

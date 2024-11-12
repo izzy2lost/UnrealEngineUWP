@@ -192,6 +192,9 @@ public:
 	/** Gets the World the Outliner is working with */
 	virtual UWorld* GetWorld() const = 0;
 
+	/** Returns true if the given actor is a default actor of the given world that will be hidden from the outliner. */
+	virtual bool IsDefaultWorldActorToHide(const UWorld* const InWorld, const AActor* const InActor) const = 0;
+
 protected:
 	virtual const FAvaOutlinerItemProxyRegistry& GetItemProxyRegistry() const = 0;
 };

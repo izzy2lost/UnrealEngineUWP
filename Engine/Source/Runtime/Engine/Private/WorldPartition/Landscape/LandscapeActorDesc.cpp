@@ -12,17 +12,22 @@ void FLandscapeActorDesc::Init(const AActor* InActor)
 {
 	FPartitionActorDesc::Init(InActor);
 
-	const ALandscapeProxy* LandscapeProxy = CastChecked<ALandscapeProxy>(InActor);
-	check(LandscapeProxy);
-	SetGridIndices(LandscapeProxy->LandscapeSectionOffset.X, LandscapeProxy->LandscapeSectionOffset.Y, 0);
-
 	if (!bIsDefaultActorDesc)
 	{
+		const ALandscapeProxy* LandscapeProxy = CastChecked<ALandscapeProxy>(InActor);
+		check(LandscapeProxy);
+
+		SetGridIndices(LandscapeProxy->LandscapeSectionOffset.X, LandscapeProxy->LandscapeSectionOffset.Y, 0);
+
 		const ALandscape* LandscapeActor = LandscapeProxy->GetLandscapeActor();
 		if (LandscapeActor)
 		{
 			LandscapeActorGuid = LandscapeActor->GetActorGuid();
 		}
+
+		// FLandscapeActorDesc derives from FPartitionActorDesc but doesn't use the cell bounds as the parent class was designed for.
+		// @todo_ow: make FLandscapeActorDesc derives from FWorldPartitionActorDesc instead?
+		InActor->GetStreamingBounds(RuntimeBounds, EditorBounds);
 	}
 }
 
@@ -46,24 +51,6 @@ void FLandscapeActorDesc::Serialize(FArchive& Ar)
 		}
 	}
 }
-
-FBox FLandscapeActorDesc::GetEditorBounds() const
-{
-	// We need to skip super class since we aren't using grid indices as it should be (it's in Landscape space).
-	return FWorldPartitionActorDesc::GetEditorBounds();
-}
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void FLandscapeActorDesc::OnUnloadingInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const
-{
-	if (ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(InActorDescInstance->GetActor()))
-	{
-		LandscapeProxy->ActorDescReferences.Empty();
-	}
-
-	FPartitionActorDesc::OnUnloadingInstance(InActorDescInstance);
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool FLandscapeActorDesc::Equals(const FWorldPartitionActorDesc* Other) const
 {

@@ -184,7 +184,7 @@ void FPolyglotTextData::CacheText(FText* OutFailureReason)
 	if (IsValid(OutFailureReason))
 	{
 		FTextLocalizationManager::Get().RegisterPolyglotTextData(*this);
-		if (!FText::FindText(Namespace, Key, CachedText, &NativeString))
+		if (!FText::FindTextInLiveTable_Advanced(Namespace, Key, CachedText, &NativeString))
 		{
 			ClearCache();
 		}

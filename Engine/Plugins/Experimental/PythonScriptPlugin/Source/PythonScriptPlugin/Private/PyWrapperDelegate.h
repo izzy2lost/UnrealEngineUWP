@@ -115,8 +115,8 @@ struct TPyWrapperDelegateMetaData : public FPyWrapperBaseMetaData
 		return GetPythonCallableForDelegateClass(Py_TYPE(Instance));
 	}
 
-	/** Add object references from the given Python object to the given collector */
-	virtual void AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector) override
+	/** Add object references from this type meta-data to the given collector */
+	virtual void AddTypeReferencedObjects(FReferenceCollector& Collector) override
 	{
 		Collector.AddReferencedObject(DelegateSignature.Func);
 		Collector.AddReferencedObject(PythonCallableForDelegateClass);
@@ -172,7 +172,7 @@ struct FPyWrapperDelegateMetaData : public TPyWrapperDelegateMetaData<FPyWrapper
 	PY_METADATA_METHODS(FPyWrapperDelegateMetaData, FGuid(0xCB3D0485, 0x8A3A443E, 0xBEE336F4, 0x82888A81))
 
 	/** Add object references from the given Python object to the given collector */
-	virtual void AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector) override;
+	virtual void AddInstanceReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector) override;
 };
 
 /** Type for all Unreal exposed multicast delegate instances */
@@ -212,7 +212,7 @@ struct FPyWrapperMulticastDelegateMetaData : public TPyWrapperDelegateMetaData<F
 	PY_METADATA_METHODS(FPyWrapperMulticastDelegateMetaData, FGuid(0x448FB4DA, 0x38DC4386, 0xBCAFF448, 0x29C0F3A4))
 
 	/** Add object references from the given Python object to the given collector */
-	virtual void AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector) override;
+	virtual void AddInstanceReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector) override;
 };
 
 typedef TPyPtr<FPyWrapperDelegate> FPyWrapperDelegatePtr;

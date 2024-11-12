@@ -364,6 +364,8 @@ int32 UCookGlobalShadersCommandlet::Main(const FString& Params)
 		CookGlobalShaders();
 	}
 
+	GShaderCompilingManager->PrintStats();
+
 	UE_LOG(LogCookGlobalShaders, Log, TEXT("Complete"));
 
 	DeviceHelper = nullptr;

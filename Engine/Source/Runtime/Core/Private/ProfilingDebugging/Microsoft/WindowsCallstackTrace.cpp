@@ -50,6 +50,16 @@ static bool GModulesAreInitialized = false;
 	#endif
 #endif
 
+// stacktrace tracking using clang intrinsic __builtin_frame_address(0) doesn't work correctly on all windows platforms
+#if !defined(PLATFORM_USE_CALLSTACK_ADDRESS_POINTER)
+	#if defined(__clang__)
+		#define PLATFORM_USE_CALLSTACK_ADDRESS_POINTER 0
+	#else
+		#define PLATFORM_USE_CALLSTACK_ADDRESS_POINTER 1
+	#endif
+#endif
+
+
 #if UE_CALLSTACK_TRACE_USE_UNWIND_TABLES
 
 /*
@@ -741,7 +751,8 @@ public:
 	FBacktracer(FMalloc* InMalloc);
 	~FBacktracer();
 	static FBacktracer*	Get();
-	uint32 GetBacktraceId(void* AddressOfReturnAddress);
+	inline uint32 GetBacktraceId(void* AddressOfReturnAddress);
+	uint32 GetBacktraceId(uint64 ReturnAddress);
 	void AddModule(UPTRINT Base, const TCHAR* Name) {}
 	void RemoveModule(UPTRINT Base) {}
 
@@ -774,10 +785,16 @@ FBacktracer* FBacktracer::Get()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-uint32 FBacktracer::GetBacktraceId(void* AddressOfReturnAddress) 
+uint32 FBacktracer::GetBacktraceId(void* AddressOfReturnAddress)
+{
+	const uint64 ReturnAddress = *(uint64*)AddressOfReturnAddress;
+	return GetBacktraceId(ReturnAddress);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint32 FBacktracer::GetBacktraceId(uint64 ReturnAddress)
 {
 #if !UE_BUILD_SHIPPING
-	const uint64 ReturnAddress = *(uint64*)AddressOfReturnAddress;
 	uint64 StackFrames[256];
 	int32 NumStackFrames = FPlatformStackWalk::CaptureStackBackTrace(StackFrames, UE_ARRAY_COUNT(StackFrames));
 	if (NumStackFrames > 0)
@@ -866,10 +883,19 @@ void CallstackTrace_InitializeInternal()
 ////////////////////////////////////////////////////////////////////////////////
 uint32 CallstackTrace_GetCurrentId()
 {
-	void* AddressOfReturnAddress = PLATFORM_RETURN_ADDRESS_FOR_CALLSTACKTRACING();
+	if (!UE_TRACE_CHANNELEXPR_IS_ENABLED(CallstackChannel))
+	{
+		return 0;
+	}
+
+	void* StackAddress = PLATFORM_RETURN_ADDRESS_FOR_CALLSTACKTRACING();
 	if (FBacktracer* Instance = FBacktracer::Get())
 	{
-		return Instance->GetBacktraceId(AddressOfReturnAddress);
+#if PLATFORM_USE_CALLSTACK_ADDRESS_POINTER
+		return Instance->GetBacktraceId(StackAddress);
+#else
+		return Instance->GetBacktraceId((uint64)StackAddress);
+#endif
 	}
 
 	return 0;

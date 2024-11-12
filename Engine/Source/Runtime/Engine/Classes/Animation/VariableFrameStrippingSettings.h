@@ -2,7 +2,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "VariableFrameStrippingSettings.generated.h"
 
 #if WITH_EDITORONLY_DATA

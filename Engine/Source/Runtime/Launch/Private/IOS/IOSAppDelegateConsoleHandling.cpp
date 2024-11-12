@@ -6,6 +6,10 @@
 
 extern bool GShowSplashScreen;
 
+#if !UE_BUILD_SHIPPING
+extern bool GDebugConsoleOpen;
+#endif
+
 @implementation IOSAppDelegate (ConsoleHandling)
 
 #if !UE_BUILD_SHIPPING && !PLATFORM_TVOS
@@ -18,7 +22,9 @@ extern bool GShowSplashScreen;
 	{
 		return;
 	}
-	
+
+	GDebugConsoleOpen = true;
+
 	// start at the end of the list for history
 	self.ConsoleHistoryValuesIndex = [self.ConsoleHistoryValues count];
 
@@ -42,6 +48,7 @@ extern bool GShowSplashScreen;
 										[self HandleConsoleCommand:AlertTextField.text];
 
 										self.ConsoleAlertController = nil;
+										GDebugConsoleOpen = false;
 									}
 		];
 		UIAlertAction* cancelAction = [UIAlertAction
@@ -52,6 +59,7 @@ extern bool GShowSplashScreen;
 											self.AlertResponse = 0;
 											[self.ConsoleAlertController dismissViewControllerAnimated : YES completion : nil];
 											self.ConsoleAlertController = nil;
+											GDebugConsoleOpen = false;
 										}
 		];
 

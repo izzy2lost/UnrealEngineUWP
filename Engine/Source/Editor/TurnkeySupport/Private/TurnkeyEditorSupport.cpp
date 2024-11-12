@@ -11,6 +11,8 @@
 #if WITH_EDITOR
 #include "UnrealEdMisc.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
 #include "Editor/UnrealEdEngine.h"
 #include "UnrealEdGlobals.h"
 #include "PlatformInfo.h"
@@ -259,6 +261,18 @@ void FTurnkeyEditorSupport::ShowRestartToast()
 #if WITH_EDITOR
 	// show restart dialog
 	FModuleManager::GetModuleChecked<ISettingsEditorModule>("SettingsEditor").OnApplicationRestartRequired();
+#endif
+}
+
+void FTurnkeyEditorSupport::ShowRebuildToast()
+{
+#if WITH_EDITOR
+	// show a dialog asking for the editor to be rebuilt
+	// @todo: if the source code is available should display a 'rebuild now' button
+	FNotificationInfo* Info = new FNotificationInfo( LOCTEXT("Turnkey_RebuildRequired", "The editor must be rebuilt to include support for the new platform") );
+	Info->ExpireDuration = 8.0f;
+	Info->Image = FAppStyle::GetBrush("Icons.InfoWithColor");
+	FSlateNotificationManager::Get().QueueNotification(Info);
 #endif
 }
 

@@ -5,8 +5,8 @@
 #include "Templates/SharedPointer.h"
 
 namespace TraceServices { class IAnalysisSession; }
-namespace Insights { class ITimingViewSession; }
-namespace Insights { enum class ETimeChangedFlags : int32; }
+namespace UE::Insights::Timing { class ITimingViewSession; }
+namespace UE::Insights::Timing { enum class ETimeChangedFlags : int32; }
 namespace UE { namespace SlateInsights { class FSlateFrameGraphTrack; } }
 namespace UE { namespace SlateInsights { class FSlateWidgetUpdateStepsTimingTrack; } }
 class FMenuBuilder;
@@ -22,9 +22,9 @@ class FSlateTimingViewSession
 public:
 	FSlateTimingViewSession();
 
-	void OnBeginSession(Insights::ITimingViewSession& InTimingViewSession);
-	void OnEndSession(Insights::ITimingViewSession& InTimingViewSession);
-	void Tick(Insights::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession);
+	void OnBeginSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession);
+	void OnEndSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession);
+	void Tick(UE::Insights::Timing::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession);
 	void ExtendFilterMenu(FMenuBuilder& InMenuBuilder);
 
 	/** Get the last cached analysis session */
@@ -49,7 +49,7 @@ public:
 	void OpenSlateFrameTab() const;
 
 	/** The timing view for the session */
-	Insights::ITimingViewSession* GetTimingView() const
+	UE::Insights::Timing::ITimingViewSession* GetTimingView() const
 	{
 		return TimingViewSession;
 	}
@@ -59,7 +59,7 @@ private:
 	const TraceServices::IAnalysisSession* AnalysisSession;
 
 	// Cached timing view session, set in OnBeginSession/OnEndSession
-	Insights::ITimingViewSession* TimingViewSession;
+	UE::Insights::Timing::ITimingViewSession* TimingViewSession;
 
 	// All the tracks we manage
 	TSharedPtr<FSlateFrameGraphTrack> SlateFrameGraphTrack;

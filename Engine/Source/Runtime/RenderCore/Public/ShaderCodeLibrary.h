@@ -41,6 +41,7 @@ class UObject;
 #if WITH_EDITOR
 class FCbFieldView;
 class FCbWriter;
+class ICookArtifactReader;
 #endif
 
 struct FShaderCodeLibraryPipeline
@@ -195,6 +196,8 @@ struct FShaderCodeLibrary
 
 	static RENDERCORE_API bool IsEnabled();
 
+	static RENDERCORE_API bool AreShaderMapsPreloadedAtLoadTime();
+
 	/**
 	 * Makes a number of ChunkIDs known to the library.
 	 * 
@@ -266,7 +269,7 @@ class ITargetPlatform;
 struct FShaderLibraryCooker
 {
 	// Initialize the library cooker
-	static RENDERCORE_API void InitForCooking(bool bNativeFormat);
+	static RENDERCORE_API void InitForCooking(bool bNativeFormat, ICookArtifactReader* CookArtifactReader);
 	// Shutdown the library cooker
 	static RENDERCORE_API void Shutdown();
 

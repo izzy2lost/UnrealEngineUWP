@@ -14,7 +14,7 @@
 #include "EdGraphUtilities.h"
 #include "EditorCategoryUtils.h"
 #include "Engine/Blueprint.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "EngineLogs.h"
 #include "Internationalization/Internationalization.h"
 #include "K2Node_StructOperation.h"
@@ -253,7 +253,7 @@ FText UK2Node_BreakStruct::GetNodeTitle(ENodeTitleType::Type TitleType) const
 	else if (CachedNodeTitle.IsOutOfDate(this))
 	{
 		FFormatNamedArguments Args;
-		Args.Add(TEXT("StructName"), FText::FromString(StructType->GetName()));
+		Args.Add(TEXT("StructName"), StructType->GetDisplayNameText());
 
 		// FText::Format() is slow, so we cache this to save on performance
 		CachedNodeTitle.SetCachedText(FText::Format(LOCTEXT("BreakNodeTitle", "Break {StructName}"), Args), this);
@@ -272,7 +272,7 @@ FText UK2Node_BreakStruct::GetTooltipText() const
 		// FText::Format() is slow, so we cache this to save on performance
 		CachedTooltip.SetCachedText(FText::Format(
 			LOCTEXT("BreakStruct_Tooltip", "Adds a node that breaks a '{0}' into its member fields"),
-			FText::FromName(StructType->GetFName())
+			StructType->GetDisplayNameText()
 		), this);
 	}
 	return CachedTooltip;

@@ -1,6 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #define SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE 0
+#define SUBSTRATE_SSS_MATERIAL_OVERRIDE 0
+#define SUBSTRATE_SSS_TRANSMISSION 0				// Disable for now, as the SSS profile texture need to be bound
+#define SUBSTRATE_COMPLEXSPECIALPATH 1				// Allow to read data from complex special path
+#define SUBSTRATE_INLINE_SHADING 0
 
 #include "/Engine/Shared/RayTracingDebugTypes.h"
 #include "/Engine/Shared/RayTracingTypes.h"
@@ -9,7 +13,9 @@
 #include "../ColorMap.ush"
 #include "../Hash.ush"
 #include "../Visualization.ush"
+#include "../ShaderPrint.ush"
 #include "../Substrate/Substrate.ush"
+#include "../Substrate/SubstrateVisualizeCommon.ush"
 
 #include "RayTracingDebugUtils.ush"
 #include "RayTracingLightCullingCommon.ush"
@@ -54,7 +60,7 @@ float4 RoughnessDebugColor(float InRoughness)
 	return float4(pow(InRoughness, 2.2f).xxx, 0.0f);
 }
 
-float4 DebugRayTracingMaterial(FRayDesc Ray, bool bIsFarField)
+float4 DebugRayTracingMaterial(uint2 PixelCoord, FRayDesc Ray, bool bIsFarField, inout bool bWriteOuput)
 {
 	FRayCone RayCone = (FRayCone)0;
 	RayCone.SpreadAngle = View.EyeToPixelSpreadAngle;
@@ -106,19 +112,40 @@ float4 DebugRayTracingMaterial(FRayDesc Ray, bool bIsFarField)
 		case RAY_TRACING_DEBUG_VIZ_INDIRECT_IRRADIANCE:		return float4(Payload.IndirectIrradiance, 0.0f);
 		case RAY_TRACING_DEBUG_VIZ_WORLD_POSITION:			return float4(Payload.TranslatedWorldPos, 0.0f);
 		case RAY_TRACING_DEBUG_VIZ_HITKIND:					return Payload.IsFrontFace() ? float4(0.0, 1.0, 0.0, 0.0f) : float4(1.0, 0.0, 0.0, 0.0f);
+
+		#if !VULKAN_PROFILE_SM6
+		// :todo-jn:  disabled until SPIRV codegen issue can be found (breaks all other debug modes when enabled). See UE-218212.
 		case RAY_TRACING_DEBUG_VIZ_LIGHT_GRID_COUNT:	    return float4(FCulledLightList::Create(Payload.TranslatedWorldPos).Visualize(1) * abs(dot(Payload.WorldNormal, Ray.Direction)), 0.0f);
+		#endif
+
 		#if PLATFORM_SUPPORTS_SHADER_TIMESTAMP
 		case RAY_TRACING_DEBUG_VIZ_PERFORMANCE:				return float4(ColorMapInferno(float(TimeEnd - TimeBegin) * TimingScale), 0.0f);
 		#endif // PLATFORM_SUPPORTS_SHADER_TIMESTAMP
 		}
 
-		// 2. Material depends view mode
+		// 2. Material dependent view mode
 	#if SUBSTRATE_ENABLED
 		FSubstrateAddressing SubstrateAddressing   = GetSubstratePixelDataByteOffset(0, 0, 0);
 		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Payload.SubstrateData, SubstrateAddressing, Payload.SubstrateData);
 
 		BRANCH
-		if (SubstratePixelHeader.ClosureCount > 0)
+		if (VisualizationMode == RAY_TRACING_DEBUG_VIZ_SUBSTRATE_DATA)
+		{
+			uint2 CursorPixelCoord = GetCursorPos() * View.ViewResolutionFraction;
+			FShaderPrintContext Ctx = InitShaderPrintContext(all(CursorPixelCoord == PixelCoord), uint2(50, 50));
+			if (Ctx.bIsActive)
+			{
+				//const FSubstrateBSDF BSDF = UnpackSubstrateBSDFIn(Payload.SubstrateData, SubstrateAddressing, SubstratePixelHeader); // Take the parameter of the first BSDF
+				const float3 TranslatedWorldPosition = Ray.Origin + Payload.HitT * Ray.Direction;
+				const float3 V = -normalize(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin);
+				const uint ClosureIndex = 0;
+				SubstratePrintMaterialProperties(Ctx, PixelCoord, TranslatedWorldPosition, V, ClosureIndex, Payload.SubstrateData);
+				bWriteOuput = false;
+				return 0; // No scene color writing
+			}
+
+		}
+		else if (SubstratePixelHeader.ClosureCount > 0)
 		{
 			const FSubstrateBSDF BSDF = UnpackSubstrateBSDFIn(Payload.SubstrateData, SubstrateAddressing, SubstratePixelHeader); // Take the parameter of the first BSDF
 			const float3x3 TangentBasis = SubstrateGetBSDFSharedBasis(SubstratePixelHeader, BSDF, SubstrateAddressing);
@@ -210,9 +237,12 @@ float4 DebugRayTracingInstance(FRayDesc Ray, out float OutDepth)
 		case RAY_TRACING_DEBUG_VIZ_TRIANGLE_HITCOUNT:
 			Result.rgb = ColorMapTurbo(Payload.TriangleHitCountPerRay / TriangleHitCountMaxThreshold);
 			break;
+		#if !VULKAN_PROFILE_SM6
+		// :todo-jn:  disabled until SPIRV codegen issue can be found (breaks all other debug modes when enabled). See UE-218215.
 		case RAY_TRACING_DEBUG_VIZ_HITCOUNT_PER_INSTANCE:
-			Result.rgb = ColorMapTurbo(RayTracingDebugHitStatsUniformBuffer.HitStatsOutput[Payload.ScenePrimitiveIndex].Count / (float)TriangleHitCountPerInstanceMaxThreshold);
+			Result.rgb = ColorMapTurbo(RayTracingDebugHitStatsUniformBuffer.HitStatsOutput[Payload.InstanceIndex].Count / (float)TriangleHitCountPerInstanceMaxThreshold);
 			break;
+		#endif
 		case RAY_TRACING_DEBUG_VIZ_INSTANCE_OVERLAP:
 			Result.rgb = 1.0; // We only use fake lighting as instance heatmap is blended in
 			break;
@@ -220,13 +250,13 @@ float4 DebugRayTracingInstance(FRayDesc Ray, out float OutDepth)
 			Result.rgb = TriangleColor;
 			break;
 		case RAY_TRACING_DEBUG_VIZ_DYNAMIC_INSTANCES:
-			Result.rgb = InstancesDebugData[Payload.GeometryInstanceIndex].Flags ? float3(0.25f, 0.50f, 0.25f) : float3(0.50f, 0.25f, 0.25f);
+			Result.rgb = InstancesDebugData[Payload.InstanceIndex].Flags ? float3(0.25f, 0.50f, 0.25f) : float3(0.50f, 0.25f, 0.25f);
 			break;
 		case RAY_TRACING_DEBUG_VIZ_PROXY_TYPE:
-			Result.rgb = IntToColor(InstancesDebugData[Payload.GeometryInstanceIndex].ProxyHash);
+			Result.rgb = IntToColor(InstancesDebugData[Payload.InstanceIndex].ProxyHash);
 			break;
 		}
-	
+
 		if (VisualizationMode == RAY_TRACING_DEBUG_VIZ_PICKER)
 		{
 			const float ColorScale = 0.1f;
@@ -267,6 +297,10 @@ float4 DebugRayTracingInstance(FRayDesc Ray, out float OutDepth)
 		OutDepth = ClipPosition.z / ClipPosition.w;
 		Result.a = 0.0;
 	}
+	else
+	{
+		OutDepth = 0.0;
+	}
 
 	return Result;
 }
@@ -289,6 +323,8 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingDebugMainRGS)
 	float OutDepth = 1.0f;
 #endif
 
+	bool bWriteColorOuput = true;
+	bool bWriteDepthOutput = VisualizationMode == RAY_TRACING_DEBUG_VIZ_INSTANCE_OVERLAP;
 #if USE_DEBUG_CHS
 	{
 		Result = DebugRayTracingInstance(Ray, OutDepth);
@@ -296,14 +332,14 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingDebugMainRGS)
 #else // USE_DEBUG_CHS
 	{
 		bool bIsFarField = false;
-		Result = DebugRayTracingMaterial(Ray, bIsFarField);
+		Result = DebugRayTracingMaterial(PixelCoord, Ray, bIsFarField, bWriteColorOuput);
 		
 		const bool bNearFieldMiss = Result.w < 0.0;
 		if (VisualizationMode == RAY_TRACING_DEBUG_VIZ_FAR_FIELD && bNearFieldMiss)
 		{
 			bIsFarField = true;
 			const float4 FarFieldTint = float4(1.0f, 0.5f, 0.5f, 1.0f);
-			Result = DebugRayTracingMaterial(Ray, bIsFarField) * FarFieldTint;
+			Result = DebugRayTracingMaterial(PixelCoord, Ray, bIsFarField, bWriteColorOuput) * FarFieldTint;
 		}
 	}
 #endif // USE_DEBUG_CHS
@@ -323,10 +359,13 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingDebugMainRGS)
 		}
 	}
 	
-	Output[PixelCoord] = Result;
+	if (bWriteColorOuput)
+	{
+		Output[PixelCoord] = Result;
+	}
 
-	if (VisualizationMode == RAY_TRACING_DEBUG_VIZ_INSTANCE_OVERLAP)
+	if (bWriteDepthOutput)
 	{
 		OutputDepth[PixelCoord] = OutDepth;
-	}	
+	}
 }

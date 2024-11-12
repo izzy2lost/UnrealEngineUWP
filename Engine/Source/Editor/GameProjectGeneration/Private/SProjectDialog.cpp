@@ -691,6 +691,7 @@ TSharedRef<SWidget> SProjectDialog::MakeTemplateProjectView()
 			.AutoWidth()
 			[
 				SNew(SVerticalBox)
+				.Clipping(EWidgetClipping::ClipToBounds)
 				// Preview image
 				+ SVerticalBox::Slot()
 				.AutoHeight()
@@ -1095,33 +1096,7 @@ TSharedRef<SWidget> SProjectDialog::MakeProjectOptionsWidget()
 			.AutoWrapText(true)
 			.DecoratorStyleSet(&FAppStyle::Get());
 	}
-#endif 
-
-	if (!HiddenSettings.Contains(ETemplateSetting::Raytracing))
-	{
-		ProjectOptionsBox->AddSlot()
-			.Padding(0.0f, 8.0f, 0.0f, 0.0f)
-			.AutoHeight()
-			[
-				SNew(SHorizontalBox)
-				.ToolTipText(LOCTEXT("ProjectDialog_RaytracingDescription", "Choose if real-time raytracing should be supported in the new project."))
-				+ SHorizontalBox::Slot()
-				.Padding(0.0f, 0.0f, 8.0f, 0.0f)
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Right)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("RayTracing", "Raytracing"))
-				]
-				+ SHorizontalBox::Slot()
-				.VAlign(VAlign_Center)
-				[
-					SNew(SCheckBox)
-					.IsChecked(this, &SProjectDialog::OnGetRaytracingEnabledCheckState)
-					.OnCheckStateChanged(this, &SProjectDialog::OnSetRaytracingEnabled)
-				]
-			];
-	}
+#endif
 
 	return ProjectOptionsWidget;
 }
@@ -1252,11 +1227,6 @@ FReply SProjectDialog::OnCancel() const
 	Window->RequestDestroyWindow();
 
 	return FReply::Handled();
-}
-
-void SProjectDialog::OnSetRaytracingEnabled(ECheckBoxState NewState)
-{
-	bEnableRaytracing = NewState == ECheckBoxState::Checked;
 }
 
 void SProjectDialog::OnSetBlueprintOrCppIndex(int32 Index)
@@ -1684,11 +1654,6 @@ FProjectInformation SProjectDialog::CreateProjectInfo() const
 		if (!HiddenSettings.Contains(ETemplateSetting::XR))
 		{
 			ProjectInfo.bEnableXR = bEnableXR;
-		}
-
-		if (!HiddenSettings.Contains(ETemplateSetting::Raytracing))
-		{
-			ProjectInfo.bEnableRaytracing = bEnableRaytracing;
 		}
 	}
 

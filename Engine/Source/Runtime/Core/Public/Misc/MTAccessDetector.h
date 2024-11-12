@@ -15,6 +15,7 @@
 #include "HAL/PreprocessorHelpers.h"
 #include "HAL/PlatformStackWalk.h"
 #include "Misc/Build.h"
+#include "AutoRTFM/AutoRTFM.h"
 #include <atomic>
 
 
@@ -364,7 +365,7 @@ private:
 	{
 		const SIZE_T StackTraceSize = 65536;
 		ANSICHAR StackTrace[StackTraceSize] = { 0 };
-		FPlatformStackWalk::StackWalkAndDump(StackTrace, StackTraceSize, 0);
+		UE_AUTORTFM_OPEN{ FPlatformStackWalk::StackWalkAndDump(StackTrace, StackTraceSize, 0); };
 		return ANSI_TO_TCHAR(StackTrace);
 	}
 
@@ -383,7 +384,7 @@ private:
 
 		const SIZE_T StackTraceSize = 65536;
 		ANSICHAR StackTrace[StackTraceSize] = { 0 };
-		FPlatformStackWalk::ThreadStackWalkAndDump(StackTrace, StackTraceSize, 0, ThreadId);
+		UE_AUTORTFM_OPEN{ FPlatformStackWalk::ThreadStackWalkAndDump(StackTrace, StackTraceSize, 0, ThreadId); };
 		return ANSI_TO_TCHAR(StackTrace);
 	}
 
@@ -448,7 +449,7 @@ private:
 		uint32 ReaderNum = --GetReadersTls()[ReaderIndex].Num;
 		if (ReaderNum == 0)
 		{
-			GetReadersTls().RemoveAtSwap(ReaderIndex, 1, EAllowShrinking::No);
+			GetReadersTls().RemoveAtSwap(ReaderIndex, EAllowShrinking::No);
 		}
 	}
 	///////////////////////////////////////////////

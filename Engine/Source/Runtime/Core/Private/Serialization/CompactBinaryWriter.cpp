@@ -2,6 +2,8 @@
 
 #include "Serialization/CompactBinaryWriter.h"
 
+#include "Containers/AnsiString.h"
+#include "Containers/Utf8String.h"
 #include "HAL/PlatformString.h"
 #include "HAL/UnrealMemory.h"
 #include "IO/IoHash.h"
@@ -623,6 +625,24 @@ FCbWriter& FCbWriter::operator<<(const FDateTime Value)
 FCbWriter& FCbWriter::operator<<(const FTimespan Value)
 {
 	AddTimeSpan(Value);
+	return *this;
+}
+
+FCbWriter& FCbWriter::operator<<(const FString& Value)
+{
+	*this << FStringView(Value);
+	return *this;
+}
+
+FCbWriter& FCbWriter::operator<<(const FAnsiString& Value)
+{
+	*this << FAnsiStringView(Value);
+	return *this;
+}
+
+FCbWriter& FCbWriter::operator<<(const FUtf8String& Value)
+{
+	*this << FUtf8StringView(Value);
 	return *this;
 }
 

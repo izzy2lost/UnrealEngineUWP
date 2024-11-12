@@ -54,10 +54,6 @@ protected:
 	UPROPERTY(EditAnywhere, Category = Appearance)
 	TArray<TSubclassOf<URichTextBlockDecorator>> DecoratorClasses;
 
-	/** True to specify the default text style for this rich text inline, overriding any default provided in the style set table */
-	UPROPERTY(EditAnywhere, Category = Appearance)
-	bool bOverrideDefaultStyle = false;
-
 	UE_DEPRECATED(5.2, "Direct access to TextOverflowPolicy is deprecated. Please use the getter or setter.")
 	/** Text style to apply by default to text in this block */
 	UPROPERTY(EditAnywhere, Category = Appearance, BlueprintSetter = "SetDefaultTextStyle", Setter = "SetDefaultTextStyle", Getter, meta = (EditCondition = bOverrideDefaultStyle))
@@ -67,6 +63,10 @@ protected:
 	/** The minimum desired size for the text */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, BlueprintSetter = "SetMinDesiredWidth", Getter, Setter, Category = Appearance)
 	float MinDesiredWidth;
+	
+	/** True to specify the default text style for this rich text inline, overriding any default provided in the style set table */
+	UPROPERTY(EditAnywhere, Category = Appearance)
+	bool bOverrideDefaultStyle = false;
 
 	UE_DEPRECATED(5.2, "Direct access to TextTransformPolicy is deprecated. Please use the getter or setter.")
 	/** The text transformation policy to apply to this text block */
@@ -200,7 +200,7 @@ public:
 	 * Warning: This will wipe any binding created for the Text property!
 	 * @param InText The text to assign to the widget
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Widget")
+	UFUNCTION(BlueprintCallable, Category = "Widget", meta = (AutoCreateRefTerm = "InText"))
 	UMG_API virtual void SetText(const FText& InText);
 
 	UFUNCTION(BlueprintCallable, Category = "Widget")

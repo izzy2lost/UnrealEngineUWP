@@ -16,7 +16,7 @@ void EncodeLumenDiffuseLighting(FTwoBandSHVectorRGB SH, out float4 Vector0, out 
 	Vector0 = float4(SH.R.V.x, SH.G.V.x, SH.B.V.x, 0);
 
 	// Encode luminance normalized directional coefficients
-	float3 LuminanceWeights = float3(.3, .59, .11);
+	float3 LuminanceWeights = LuminanceFactors();
 
 	float3 Coefficient0 = float3(SH.R.V.y, SH.G.V.y, SH.B.V.y);
 	float3 Coefficient1 = float3(SH.R.V.z, SH.G.V.z, SH.B.V.z);

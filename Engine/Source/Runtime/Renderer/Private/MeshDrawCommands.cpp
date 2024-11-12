@@ -13,6 +13,9 @@ MeshDrawCommandSetup.cpp: Mesh draw command setup.
 #include "StaticMeshBatch.h"
 #include "SceneDefinitions.h"
 #include "MeshDrawCommandStats.h"
+#if WITH_ODSC
+#include "ODSC/ODSCManager.h"
+#endif
 
 TGlobalResource<FPrimitiveIdVertexBufferPool> GPrimitiveIdVertexBufferPool;
 
@@ -617,6 +620,9 @@ void GenerateDynamicMeshDrawCommands(
 			{
 				const FMeshBatchAndRelevance& MeshAndRelevance = DynamicMeshElements[MeshIndex];
 				const uint64 BatchElementMask = ~0ull;
+#if WITH_ODSC
+				FODSCPrimitiveSceneInfoScope ODSCPrimitiveSceneInfoScope(MeshAndRelevance.PrimitiveSceneProxy ? MeshAndRelevance.PrimitiveSceneProxy->GetPrimitiveSceneInfo() : nullptr);
+#endif
 
 				PassMeshProcessor->AddMeshBatch(*MeshAndRelevance.Mesh, BatchElementMask, MeshAndRelevance.PrimitiveSceneProxy);
 			}
@@ -636,6 +642,10 @@ void GenerateDynamicMeshDrawCommands(
 			const FStaticMeshBatch* StaticMeshBatch = DynamicMeshCommandBuildRequests[MeshIndex];
 			const uint64 DefaultBatchElementMask = ~0ul;
 			const int32 StartCommandIndex = VisibleCommands.Num();
+
+#if WITH_ODSC
+			FODSCPrimitiveSceneInfoScope ODSCPrimitiveSceneInfoScope(StaticMeshBatch->PrimitiveSceneInfo);
+#endif
 
 			if (StaticMeshBatch->bViewDependentArguments)
 			{
@@ -878,6 +888,10 @@ void CollectMeshDrawCommandPassStats(
 	check(VisibleMeshDrawCommands.Num() == InstanceCullingContext.MeshDrawCommandInfos.Num());
 		
 	PassStats->DrawData.SetNum(VisibleMeshDrawCommands.Num(), EAllowShrinking::No);
+
+	// See the InterlockedAdd on DrawIndirectArgsBufferOut in InstanceCullBuildInstanceIdBufferCS
+	int32 InstanceCountMultiplier = (InstanceCullingContext.InstanceCullingMode == EInstanceCullingMode::Stereo) ? 2 : InstanceCullingContext.ViewIds.Num();
+
 	for (int32 DrawCommandIndex = 0; DrawCommandIndex < VisibleMeshDrawCommands.Num(); ++DrawCommandIndex)
 	{
 		const FVisibleMeshDrawCommand& RESTRICT VisibleMeshDrawCommand = VisibleMeshDrawCommands[DrawCommandIndex];
@@ -930,6 +944,8 @@ void CollectMeshDrawCommandPassStats(
 			{
 				DrawData.TotalInstanceCount = MeshDrawCommand->NumInstances;
 			}
+
+			DrawData.TotalInstanceCount *= InstanceCountMultiplier;
 
 			// By default mark all invisible
 			DrawData.VisibleInstanceCount = 0;
@@ -1397,6 +1413,7 @@ void FParallelMeshDrawCommandPass::DispatchPassSetup(
 		case EMeshPass::TranslucencyAfterDOF: TaskContext.TranslucencyPass			= ETranslucencyPass::TPT_TranslucencyAfterDOF; break;
 		case EMeshPass::TranslucencyAfterDOFModulate: TaskContext.TranslucencyPass	= ETranslucencyPass::TPT_TranslucencyAfterDOFModulate; break;
 		case EMeshPass::TranslucencyAfterMotionBlur: TaskContext.TranslucencyPass	= ETranslucencyPass::TPT_TranslucencyAfterMotionBlur; break;
+		case EMeshPass::TranslucencyHoldout: TaskContext.TranslucencyPass			= ETranslucencyPass::TPT_TranslucencyHoldout; break;
 		case EMeshPass::TranslucencyAll: TaskContext.TranslucencyPass				= ETranslucencyPass::TPT_AllTranslucency; break;
 	}
 
@@ -1582,21 +1599,25 @@ public:
 		checkSlow(RHICmdList.IsInsideRenderPass());
 
 		// check for the multithreaded shader creation has been moved to FShaderCodeArchive::CreateShader() 
+		{
+			SCOPED_DRAW_EVENTF(RHICmdList, ParallelDraw, TEXT("ParallelDraw (Index: %d, Num: %d)"), TaskIndex, TaskNum);
 
-		// Recompute draw range.
-		const int32 DrawNum = VisibleMeshDrawCommands.Num();
-		const int32 NumDrawsPerTask = TaskIndex < DrawNum ? FMath::DivideAndRoundUp(DrawNum, TaskNum) : 0;
-		const int32 StartIndex = TaskIndex * NumDrawsPerTask;
-		const int32 NumDraws = FMath::Min(NumDrawsPerTask, DrawNum - StartIndex);
+			// Recompute draw range.
+			const int32 DrawNum = VisibleMeshDrawCommands.Num();
+			const int32 NumDrawsPerTask = TaskIndex < DrawNum ? FMath::DivideAndRoundUp(DrawNum, TaskNum) : 0;
+			const int32 StartIndex = TaskIndex * NumDrawsPerTask;
+			const int32 NumDraws = FMath::Min(NumDrawsPerTask, DrawNum - StartIndex);
 
-		InstanceCullingContext.SubmitDrawCommands(
-			VisibleMeshDrawCommands,
-			GraphicsMinimalPipelineStateSet,
-			OverrideArgs,
-			StartIndex,
-			NumDraws,
-			InstanceFactor,
-			RHICmdList);
+			InstanceCullingContext.SubmitDrawCommands(
+				VisibleMeshDrawCommands,
+				GraphicsMinimalPipelineStateSet,
+				OverrideArgs,
+				StartIndex,
+				NumDraws,
+				InstanceFactor,
+				RHICmdList);
+		}
+
 		RHICmdList.EndRenderPass();
 		RHICmdList.FinishRecording();
 	}
@@ -1637,6 +1658,8 @@ void FParallelMeshDrawCommandPass::WaitForSetupTask() const
 	WaitForMeshPassSetupTask();
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 void FParallelMeshDrawCommandPass::DispatchDraw(FParallelCommandListSet* ParallelCommandListSet, FRHICommandList& RHICmdList, const FInstanceCullingDrawParams* InstanceCullingDrawParams) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ParallelMdcDispatchDraw);
@@ -1645,14 +1668,14 @@ void FParallelMeshDrawCommandPass::DispatchDraw(FParallelCommandListSet* Paralle
 		return;
 	}
 
-	FMeshDrawCommandOverrideArgs OverrideArgs; 
-	if (InstanceCullingDrawParams)
-	{
-		OverrideArgs = GetMeshDrawCommandOverrideArgs(*InstanceCullingDrawParams);
-	}
-
 	if (ParallelCommandListSet)
 	{
+		FMeshDrawCommandOverrideArgs OverrideArgs; 
+		if (InstanceCullingDrawParams)
+		{
+			OverrideArgs = GetMeshDrawCommandOverrideArgs(*InstanceCullingDrawParams);
+		}
+
 		const ENamedThreads::Type RenderThread = ENamedThreads::GetRenderThread();
 
 		FGraphEventArray Prereqs;
@@ -1679,43 +1702,116 @@ void FParallelMeshDrawCommandPass::DispatchDraw(FParallelCommandListSet* Paralle
 
 			FRHICommandList* CmdList = ParallelCommandListSet->NewParallelCommandList();
 
-			FGraphEventRef AnyThreadCompletionEvent = TGraphTask<FDrawVisibleMeshCommandsAnyThreadTask>::CreateTask(&Prereqs, RenderThread)
+			TGraphTask<FDrawVisibleMeshCommandsAnyThreadTask>::CreateTask(&Prereqs, RenderThread)
 				.ConstructAndDispatchWhenReady(*CmdList, TaskContext.InstanceCullingContext, TaskContext.MeshDrawCommands, TaskContext.MinimalPipelineStatePassSet,
 					OverrideArgs,
 					TaskContext.InstanceFactor,
 					TaskIndex, NumTasks);
 
-			ParallelCommandListSet->AddParallelCommandList(CmdList, AnyThreadCompletionEvent, NumDraws);
+			ParallelCommandListSet->AddParallelCommandList(CmdList);
 		}
 	}
 	else
 	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_MeshPassDrawImmediate);
-
-		WaitForMeshPassSetupTask();
-
-		if (TaskContext.bUseGPUScene)
-		{
-			if (TaskContext.MeshDrawCommands.Num() > 0)
-			{
-				TaskContext.InstanceCullingContext.SubmitDrawCommands(
-					TaskContext.MeshDrawCommands,
-					TaskContext.MinimalPipelineStatePassSet,
-					OverrideArgs,
-					0,
-					TaskContext.MeshDrawCommands.Num(),
-					TaskContext.InstanceFactor,
-					RHICmdList);
-			}
-		}
-		else
-		{
-			FMeshDrawCommandSceneArgs SceneArgs;
-			SubmitMeshDrawCommandsRange(TaskContext.MeshDrawCommands, TaskContext.MinimalPipelineStatePassSet, SceneArgs, 0, TaskContext.bDynamicInstancing, 0, TaskContext.MeshDrawCommands.Num(), TaskContext.InstanceFactor, RHICmdList);
-		}
+		Draw(RHICmdList, InstanceCullingDrawParams);
 	}
 }
 
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+void FParallelMeshDrawCommandPass::Draw(FRHICommandList& RHICmdList, const FInstanceCullingDrawParams* InstanceCullingDrawParams) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(ParallelMdcDispatchDraw);
+	if (MaxNumDraws <= 0)
+	{
+		return;
+	}
+
+	FMeshDrawCommandOverrideArgs OverrideArgs; 
+	if (InstanceCullingDrawParams)
+	{
+		OverrideArgs = GetMeshDrawCommandOverrideArgs(*InstanceCullingDrawParams);
+	}
+
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_MeshPassDrawImmediate);
+
+	WaitForMeshPassSetupTask();
+
+	if (TaskContext.bUseGPUScene)
+	{
+		if (TaskContext.MeshDrawCommands.Num() > 0)
+		{
+			TaskContext.InstanceCullingContext.SubmitDrawCommands(
+				TaskContext.MeshDrawCommands,
+				TaskContext.MinimalPipelineStatePassSet,
+				OverrideArgs,
+				0,
+				TaskContext.MeshDrawCommands.Num(),
+				TaskContext.InstanceFactor,
+				RHICmdList);
+		}
+	}
+	else
+	{
+		FMeshDrawCommandSceneArgs SceneArgs;
+		SubmitMeshDrawCommandsRange(TaskContext.MeshDrawCommands, TaskContext.MinimalPipelineStatePassSet, SceneArgs, 0, TaskContext.bDynamicInstancing, 0, TaskContext.MeshDrawCommands.Num(), TaskContext.InstanceFactor, RHICmdList);
+	}
+}
+
+void FParallelMeshDrawCommandPass::Dispatch(FRDGDispatchPassBuilder& DispatchPassBuilder, const FInstanceCullingDrawParams* InstanceCullingDrawParams, float ViewportScale) const
+{
+	Dispatch(DispatchPassBuilder, InstanceCullingDrawParams, [View = TaskContext.View, ViewportScale] (FRHICommandList& RHICmdList)
+	{
+		FSceneRenderer::SetStereoViewport(RHICmdList, *View, ViewportScale);
+	});
+}
+
+void FParallelMeshDrawCommandPass::Dispatch(FRDGDispatchPassBuilder& DispatchPassBuilder, const FInstanceCullingDrawParams* InstanceCullingDrawParams, TFunctionRef<void(FRHICommandList&)> SetupCommandListFunction) const
+{
+	extern TAutoConsoleVariable<int32> CVarRHICmdMinDrawsPerParallelCmdList;
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(ParallelMdcDispatchDraw);
+	if (MaxNumDraws <= 0)
+	{
+		return;
+	}
+
+	check(TaskContext.View);
+
+	FMeshDrawCommandOverrideArgs OverrideArgs; 
+	if (InstanceCullingDrawParams)
+	{
+		OverrideArgs = GetMeshDrawCommandOverrideArgs(*InstanceCullingDrawParams);
+	}
+
+	FGraphEventArray Prereqs;
+	if (TaskEventRef.IsValid())
+	{
+		Prereqs.Add(TaskEventRef);
+	}
+
+	// Distribute work evenly to the available task graph workers based on NumEstimatedDraws.
+	// Every task will then adjust it's working range based on FVisibleMeshDrawCommandProcessTask results.
+	const int32 NumThreads = FMath::Min<int32>(FTaskGraphInterface::Get().GetNumWorkerThreads(), CVarRHICmdWidth.GetValueOnRenderThread());
+	const int32 NumTasks = FMath::Min<int32>(NumThreads, FMath::DivideAndRoundUp(MaxNumDraws, CVarRHICmdMinDrawsPerParallelCmdList.GetValueOnRenderThread()));
+	const int32 NumDrawsPerTask = FMath::DivideAndRoundUp(MaxNumDraws, NumTasks);
+
+	for (int32 TaskIndex = 0; TaskIndex < NumTasks; TaskIndex++)
+	{
+		const int32 StartIndex = TaskIndex * NumDrawsPerTask;
+		const int32 NumDraws = FMath::Min(NumDrawsPerTask, MaxNumDraws - StartIndex);
+		checkSlow(NumDraws > 0);
+
+		FRHICommandList* RHICmdList = DispatchPassBuilder.CreateCommandList();
+		SetupCommandListFunction(*RHICmdList);
+
+		TGraphTask<FDrawVisibleMeshCommandsAnyThreadTask>::CreateTask(&Prereqs)
+			.ConstructAndDispatchWhenReady(*RHICmdList, TaskContext.InstanceCullingContext, TaskContext.MeshDrawCommands, TaskContext.MinimalPipelineStatePassSet,
+				OverrideArgs,
+				TaskContext.InstanceFactor,
+				TaskIndex, NumTasks);
+	}
+}
 
 void FParallelMeshDrawCommandPass::DumpInstancingStats() const
 {

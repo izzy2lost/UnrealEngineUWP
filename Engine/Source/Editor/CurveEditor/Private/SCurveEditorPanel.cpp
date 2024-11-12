@@ -123,7 +123,8 @@ struct FCurveEditorPanelViewTracker
 };
 
 SCurveEditorPanel::SCurveEditorPanel()
-	: bNeedsRefresh(true)
+	: PendingFocus(FPendingWidgetFocus::MakeNoTextEdit())
+	, bNeedsRefresh(true)
 	, CachedActiveCurvesSerialNumber(-1)
 {
 	EditObjects = MakeUnique<FCurveEditorEditObjectContainer>();
@@ -313,6 +314,8 @@ void SCurveEditorPanel::Construct(const FArguments& InArgs, TSharedRef<FCurveEdi
 
 	UpdateEditBox();
 
+	UpdateAxisSnapping();
+
 	// Initializes our Curve Views on the next Tick
 	SetViewMode(ECurveEditorViewID::Absolute);
 }
@@ -460,9 +463,9 @@ void SCurveEditorPanel::BindCommands()
 
 	// Axis Snapping
 	{
-		FUIAction SetSnappingNoneAction(FExecuteAction::CreateSP(this, &SCurveEditorPanel::SetAxisSnapping, EAxisList::Type::None));
-		FUIAction SetSnappingHorizontalAction(FExecuteAction::CreateSP(this, &SCurveEditorPanel::SetAxisSnapping, EAxisList::Type::X));
-		FUIAction SetSnappingVerticalAction(FExecuteAction::CreateSP(this, &SCurveEditorPanel::SetAxisSnapping, EAxisList::Type::Y));
+		FUIAction SetSnappingNoneAction(FExecuteAction::CreateSP(this, &SCurveEditorPanel::SetAxisSnapping, ECurveEditorSnapAxis::CESA_None));
+		FUIAction SetSnappingHorizontalAction(FExecuteAction::CreateSP(this, &SCurveEditorPanel::SetAxisSnapping, ECurveEditorSnapAxis::CESA_X));
+		FUIAction SetSnappingVerticalAction(FExecuteAction::CreateSP(this, &SCurveEditorPanel::SetAxisSnapping, ECurveEditorSnapAxis::CESA_Y));
 
 		CommandList->MapAction(FCurveEditorCommands::Get().SetAxisSnappingNone, SetSnappingNoneAction);
 		CommandList->MapAction(FCurveEditorCommands::Get().SetAxisSnappingHorizontal, SetSnappingHorizontalAction);
@@ -482,10 +485,16 @@ bool SCurveEditorPanel::CompareViewMode(const ECurveEditorViewID InViewMode) con
 	return DefaultViewID == InViewMode;
 }
 
-void SCurveEditorPanel::SetAxisSnapping(EAxisList::Type InAxis)
+void SCurveEditorPanel::SetAxisSnapping(ECurveEditorSnapAxis InAxis)
+{
+	CurveEditor->GetSettings()->SetSnapAxis(InAxis);
+	UpdateAxisSnapping();
+}
+
+void SCurveEditorPanel::UpdateAxisSnapping()
 {
 	FCurveEditorAxisSnap Snap = CurveEditor->GetAxisSnap();
-	Snap.RestrictedAxisList = InAxis;
+	Snap.RestrictedAxisList = CurveEditor->GetSettings()->GetSnapAxis();
 	CurveEditor->SetAxisSnap(Snap);
 }
 
@@ -997,6 +1006,23 @@ FReply SCurveEditorPanel::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent
 	return FReply::Unhandled();
 }
 
+void SCurveEditorPanel::OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	SCompoundWidget::OnMouseEnter(MyGeometry, MouseEvent);
+	PendingFocus.SetPendingFocusIfNeeded(AsWeak());
+}
+
+void SCurveEditorPanel::OnMouseLeave(const FPointerEvent& MouseEvent)
+{
+	SCompoundWidget::OnMouseLeave(MouseEvent);
+	PendingFocus.ResetPendingFocus();
+}
+
+void SCurveEditorPanel::EnablePendingFocusOnHovering(const bool InEnabled)
+{
+	PendingFocus.Enable(InEnabled);
+}
+
 TSharedRef<SWidget> SCurveEditorPanel::MakeCurveEditorCurveViewOptionsMenu()
 {
 	// This builds the dropdown menu when looking at the Curve View Options combobox.
@@ -1264,11 +1290,11 @@ TSharedPtr<FExtender> SCurveEditorPanel::GetToolbarExtender()
 				AxisSnappingModeIcon.Bind(TAttribute<FSlateIcon>::FGetter::CreateLambda([InEditorPanel] {
 					switch (InEditorPanel->GetCurveEditor()->GetAxisSnap().RestrictedAxisList)
 					{
-					case EAxisList::Type::X:
+					case ECurveEditorSnapAxis::CESA_X:
 						return FCurveEditorCommands::Get().SetAxisSnappingHorizontal->GetIcon();
-					case EAxisList::Type::Y:
+					case ECurveEditorSnapAxis::CESA_Y:
 						return FCurveEditorCommands::Get().SetAxisSnappingVertical->GetIcon();
-					default: // EKeyGroupMode::None
+					default: // ECurveEditorSnapAxis::CESA_None
 						return FCurveEditorCommands::Get().SetAxisSnappingNone->GetIcon();
 					}
 				}));

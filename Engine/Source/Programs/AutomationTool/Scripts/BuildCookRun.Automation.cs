@@ -62,6 +62,12 @@ public class BuildCookRun : BuildCommand, IProjectParamsHelpers
 			Params.DirectoriesToCook = new ParamList<string>(DirectoriesToCook.Split('+'));
 		}
 
+		var ProjectProgramOverride = ParseParamValue("projectprogramoverride");
+		if (!String.IsNullOrEmpty(ProjectProgramOverride))
+		{
+			Params.RawProgramProjectOverride = ParseProjectString(ProjectProgramOverride);
+		}
+
 		var DDCGraph = ParseParamValue("ddc");
 		if (!String.IsNullOrEmpty(DDCGraph))
 		{
@@ -85,6 +91,18 @@ public class BuildCookRun : BuildCommand, IProjectParamsHelpers
 		if (!String.IsNullOrEmpty(ReferenceContainerGlobalFileName))
 		{
 			Params.ReferenceContainerGlobalFileName = ReferenceContainerGlobalFileName;
+		}
+
+		var ReferenceContainerAdditionalPath = ParseParamValue("ReferenceContainerAdditionalPath");
+		if (!String.IsNullOrEmpty(ReferenceContainerAdditionalPath))
+		{
+			Params.ReferenceContainerAdditionalPath = ReferenceContainerAdditionalPath;
+		}
+
+		var ReferenceContainerChangesCSVFileName = ParseParamValue("ReferenceContainerChangesCSVFileName");
+		if (!String.IsNullOrEmpty(ReferenceContainerChangesCSVFileName))
+		{
+			Params.ReferenceContainerChangesCSVFileName = ReferenceContainerChangesCSVFileName;
 		}
 
 		var ReferenceContainerCryptoKeys = ParseParamValue("ReferenceContainerCryptoKeys");

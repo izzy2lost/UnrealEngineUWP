@@ -13,7 +13,7 @@
 IMPLEMENT_FIELD(FBoolProperty)
 
 FBoolProperty::FBoolProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-: FProperty(InOwner, InName, InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 	, FieldSize(0)
 	, ByteOffset(0)
 	, ByteMask(1)
@@ -22,20 +22,8 @@ FBoolProperty::FBoolProperty(FFieldVariant InOwner, const FName& InName, EObject
 	SetBoolSize(1, false, 1);
 }
 
-FBoolProperty::FBoolProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, int32 InOffset, EPropertyFlags InFlags, uint32 InBitMask, uint32 InElementSize, bool bIsNativeBool)
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	: FProperty(InOwner, InName, InObjectFlags, InOffset, InFlags | CPF_HasGetValueTypeHash)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	, FieldSize(0)
-	, ByteOffset(0)
-	, ByteMask(1)
-	, FieldMask(1)
-{
-	SetBoolSize(InElementSize, bIsNativeBool, InBitMask);
-}
-
 FBoolProperty::FBoolProperty(FFieldVariant InOwner, const UECodeGen_Private::FBoolPropertyParams& Prop)
-	: FProperty(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithoutOffset&)Prop, CPF_HasGetValueTypeHash)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithoutOffset&)Prop, CPF_HasGetValueTypeHash)
 	, FieldSize(0)
 	, ByteOffset(0)
 	, ByteMask(1)
@@ -76,7 +64,7 @@ FBoolProperty::FBoolProperty(FFieldVariant InOwner, const UECodeGen_Private::FBo
 
 #if WITH_EDITORONLY_DATA
 FBoolProperty::FBoolProperty(UField* InField)
-	: FProperty(InField)
+	: Super(InField)
 {
 	UBoolProperty* SourceProperty = CastChecked<UBoolProperty>(InField);
 	FieldSize = SourceProperty->FieldSize;
@@ -108,8 +96,8 @@ void FBoolProperty::SetBoolSize( const uint32 InSize, const bool bIsNativeBool, 
 		PropertyFlags |= CPF_NoDestructor;
 	}
 	uint32 TestBitmask = InBitMask ? InBitMask : 1;
-	ElementSize = InSize;
-	FieldSize = (uint8)ElementSize;
+	SetElementSize(InSize);
+	FieldSize = (uint8)GetElementSize();
 	ByteOffset = 0;
 	if (bIsNativeBool)
 	{		
@@ -122,8 +110,8 @@ void FBoolProperty::SetBoolSize( const uint32 InSize, const bool bIsNativeBool, 
 		for (ByteOffset = 0; ByteOffset < InSize && ((ByteMask = *((uint8*)&TestBitmask + ByteOffset)) == 0); ByteOffset++);
 		FieldMask = ByteMask;
 	}
-	check((int32)FieldSize == ElementSize);
-	check(ElementSize != 0);
+	check((int32)FieldSize == GetElementSize());
+	check(GetElementSize() != 0);
 	check(FieldMask != 0);
 	check(ByteMask != 0);
 }
@@ -131,7 +119,7 @@ void FBoolProperty::SetBoolSize( const uint32 InSize, const bool bIsNativeBool, 
 int32 FBoolProperty::GetMinAlignment() const
 {
 	int32 Alignment = 0;
-	switch(ElementSize)
+	switch(GetElementSize())
 	{
 	case sizeof(uint8):
 		Alignment = alignof(uint8); break;
@@ -142,14 +130,14 @@ int32 FBoolProperty::GetMinAlignment() const
 	case sizeof(uint64):
 		Alignment = alignof(uint64); break;
 	default:
-		UE_LOG(LogProperty, Fatal, TEXT("Unsupported FBoolProperty %s size %d."), *GetName(), (int32)ElementSize);
+		UE_LOG(LogProperty, Fatal, TEXT("Unsupported FBoolProperty %s size %d."), *GetName(), (int32)GetElementSize());
 	}
 	return Alignment;
 }
 void FBoolProperty::LinkInternal(FArchive& Ar)
 {
 	check(FieldSize != 0);
-	ElementSize = FieldSize;
+	SetElementSize(FieldSize);
 	if (IsNativeBool())
 	{
 		PropertyFlags |= (CPF_IsPlainOldData | CPF_NoDestructor | CPF_ZeroConstructor);
@@ -171,7 +159,7 @@ void FBoolProperty::Serialize( FArchive& Ar )
 	Ar << FieldMask;
 
 	// Serialize additional flags which will help to identify this FBoolProperty type and size.
-	uint8 BoolSize = (uint8)ElementSize;
+	uint8 BoolSize = (uint8)GetElementSize();
 	Ar << BoolSize;
 	uint8 NativeBool = false;
 	if( Ar.IsLoading())
@@ -199,7 +187,7 @@ FString FBoolProperty::GetCPPType( FString* ExtendedTypeText/*=NULL*/, uint32 CP
 	else
 	{
 		// Bitfields
-		switch(ElementSize)
+		switch(GetElementSize())
 		{
 		case sizeof(uint64):
 			return TEXT("uint64");
@@ -210,7 +198,7 @@ FString FBoolProperty::GetCPPType( FString* ExtendedTypeText/*=NULL*/, uint32 CP
 		case sizeof(uint8):
 			return TEXT("uint8");
 		default:
-			UE_LOG(LogProperty, Fatal, TEXT("Unsupported FBoolProperty %s size %d."), *GetName(), ElementSize);
+			UE_LOG(LogProperty, Fatal, TEXT("Unsupported FBoolProperty %s size %d."), *GetName(), GetElementSize());
 			break;
 		}
 	}
@@ -231,7 +219,7 @@ FString FBoolProperty::GetCPPMacroType( FString& ExtendedTypeText ) const
 	}
 	else
 	{
-		switch(ElementSize)
+		switch(GetElementSize())
 		{
 		case sizeof(uint64):
 			return TEXT("UBOOL64");
@@ -242,7 +230,7 @@ FString FBoolProperty::GetCPPMacroType( FString& ExtendedTypeText ) const
 		case sizeof(uint8):
 			return TEXT("UBOOL8");
 		default:
-			UE_LOG(LogProperty, Fatal, TEXT("Unsupported FBoolProperty %s size %d."), *GetName(), ElementSize);
+			UE_LOG(LogProperty, Fatal, TEXT("Unsupported FBoolProperty %s size %d."), *GetName(), GetElementSize());
 			break;
 		}
 	}
@@ -434,8 +422,8 @@ void FBoolProperty::CopyValuesInternal( void* Dest, void const* Src, int32 Count
 	check(FieldSize != 0 && !IsNativeBool());
 	for (int32 Index = 0; Index < Count; Index++)
 	{
-		uint8* DestByteValue = (uint8*)Dest + Index * ElementSize + ByteOffset;
-		uint8* SrcByteValue = (uint8*)Src + Index * ElementSize + ByteOffset;
+		uint8* DestByteValue = (uint8*)Dest + Index * GetElementSize() + ByteOffset;
+		uint8* SrcByteValue = (uint8*)Src + Index * GetElementSize() + ByteOffset;
 		*DestByteValue = (*DestByteValue & ~FieldMask) | (*SrcByteValue & FieldMask);
 	}
 }

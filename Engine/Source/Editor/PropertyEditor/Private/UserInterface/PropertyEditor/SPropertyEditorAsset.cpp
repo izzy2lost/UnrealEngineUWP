@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UserInterface/PropertyEditor/SPropertyEditorAsset.h"
+#include "AssetDefinitionRegistry.h"
+#include "AssetDefinition.h"
 #include "Engine/Texture.h"
 #include "Engine/SkeletalMesh.h"
 #include "Components/StaticMeshComponent.h"
@@ -12,6 +14,7 @@
 #include "UObject/UObjectIterator.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SButton.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Particles/ParticleSystem.h"
 #include "UserInterface/PropertyEditor/SPropertyEditorAsset.h"
@@ -298,6 +301,45 @@ bool SPropertyEditorAsset::IsAssetFiltered(const FAssetData& InAssetData)
 	return false;
 }
 
+void SPropertyEditorAsset::GenerateCustomAssetPickerButtons(const FAssetData& InAssetData, const TArray<FAssetButtonActionExtension>& InExtensions)
+{
+	if (!CustomAssetPickerButtonBox.IsValid())
+	{
+		return;
+	}
+
+	CustomAssetPickerButtonBox->ClearChildren();
+
+	for (FAssetButtonActionExtension Extension : InExtensions)
+	{
+		CustomAssetPickerButtonBox->AddSlot()
+			.Padding(2.0f, 0.0f)
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			[
+				SNew(SBox)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					.WidthOverride(22.0f)
+					.HeightOverride(22.0f)
+					.IsEnabled(true)
+					.ToolTipText(Extension.PickTooltipAttribute)
+					[
+						SNew(SButton)
+							.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+							.OnClicked_Lambda([Extension]()-> FReply { return Extension.OnClicked.Execute(); })
+							.ContentPadding(0.0f)
+							.IsFocusable(false)
+							[
+								SNew(SImage)
+									.Image(Extension.PickBrushAttribute)
+									.ColorAndOpacity(FSlateColor::UseForeground())
+							]
+					]
+			];
+	}
+}
+
 // Awful hack to deal with UClass::FindCommonBase taking an array of non-const classes...
 static TArray<UClass*> ConstCastClassArray(TArray<const UClass*>& Classes)
 {
@@ -319,6 +361,7 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 	OnSetObject = InArgs._OnSetObject;
 	OnShouldFilterActor = InArgs._OnShouldFilterActor;
 	ObjectPath = InArgs._ObjectPath;
+	bDisplayUseSelected = InArgs._DisplayUseSelected;
 
 	// Override this as we stole the value to use as OnIsEnabled for the inner widgets
 	SetEnabled(true);
@@ -438,6 +481,7 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 	ChildSlot
 	[
 		SNew( SAssetDropTarget )
+		.bOnlyRecognizeOnDragEnter(InArgs._bOnlyRecognizeOnDragEnter)
 		.OnAreAssetsAcceptableForDropWithReason( this, &SPropertyEditorAsset::OnAssetDraggedOver )
 		.OnAssetsDropped( this, &SPropertyEditorAsset::OnAssetDropped )
 		[
@@ -541,7 +585,7 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 	if (ShouldDisplayThumbnail(InArgs, ObjectClass))
 	{
 		FObjectOrAssetData Value; 
-		GetValue( Value );
+		GetValue( Value, FObjectOrAssetData::EAssetDataOptions::None );
 
 		AssetThumbnail = MakeShareable( new FAssetThumbnail( Value.AssetData, InArgs._ThumbnailSize.X, InArgs._ThumbnailSize.Y, InArgs._ThumbnailPool ) );
 
@@ -549,8 +593,16 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 		TSharedPtr<IAssetTypeActions> AssetTypeActions;
 		if (ObjectClass != nullptr)
 		{
+			const UClass* EffectiveClass = ObjectClass;
+			if (EffectiveClass->GetPathName() != Value.AssetData.AssetClassPath.ToString())
+			{
+				if (UClass* AssetDataClass = FindObject<UClass>(Value.AssetData.AssetClassPath); AssetDataClass && AssetDataClass->IsChildOf(EffectiveClass))
+				{
+					EffectiveClass = AssetDataClass;
+				}
+			}
 			FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
-			AssetTypeActions = AssetToolsModule.Get().GetAssetTypeActionsForClass(ObjectClass).Pin();
+			AssetTypeActions = AssetToolsModule.Get().GetAssetTypeActionsForClass(EffectiveClass).Pin();
 
 			if (AssetTypeActions.IsValid())
 			{
@@ -666,7 +718,7 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 		];
 	}
 
-	if( InArgs._DisplayUseSelected )
+	if( bDisplayUseSelected )
 	{
 		ButtonBox->AddSlot()
 		.VAlign(VAlign_Center)
@@ -708,6 +760,26 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 			ActorPicker
 		];
 	}
+		
+	FObjectOrAssetData Value;
+	GetValue(Value, FObjectOrAssetData::EAssetDataOptions::SkipAssetRegistryTagsGathering);
+
+	if (const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForAsset(Value.AssetData))
+	{
+		TArray<FAssetButtonActionExtension> AssetButtonActionExtension;
+		AssetDefinition->GetAssetActionButtonExtensions(Value.AssetData, AssetButtonActionExtension);
+
+		if (!AssetButtonActionExtension.IsEmpty())
+		{
+			CustomAssetPickerButtonBox = SNew(SHorizontalBox);
+			ButtonBox->AddSlot()
+			[
+				CustomAssetPickerButtonBox.ToSharedRef()
+			];
+
+			GenerateCustomAssetPickerButtons(Value.AssetData, AssetButtonActionExtension);
+		}
+	}	
 
 	NumButtons = ButtonBox->NumSlots();
 	
@@ -755,7 +827,7 @@ SPropertyEditorAsset::EActorReferenceState SPropertyEditorAsset::GetActorReferen
 	if (bIsActor)
 	{
 		FObjectOrAssetData Value;
-		GetValue(Value);
+		GetValue(Value, FObjectOrAssetData::EAssetDataOptions::SkipAssetRegistryTagsGathering );
 
 		if (Value.Object != nullptr)
 		{
@@ -805,7 +877,7 @@ void SPropertyEditorAsset::Tick( const FGeometry& AllottedGeometry, const double
 	{
 		// Ensure the thumbnail is up to date
 		FObjectOrAssetData Value;
-		GetValue( Value );
+		GetValue( Value, FObjectOrAssetData::EAssetDataOptions::SkipAssetRegistryTagsGathering );
 
 		// If the thumbnail is not the same as the object value set the thumbnail to the new value
 		if( !(AssetThumbnail->GetAssetData() == Value.AssetData) )
@@ -844,7 +916,7 @@ bool SPropertyEditorAsset::Supports(const FProperty* NodeProperty)
 TSharedRef<SWidget> SPropertyEditorAsset::OnGetMenuContent()
 {
 	FObjectOrAssetData Value;
-	GetValue(Value);
+	GetValue(Value, FObjectOrAssetData::EAssetDataOptions::None);
 
 	if (bIsActor)
 	{
@@ -854,7 +926,8 @@ TSharedRef<SWidget> SPropertyEditorAsset::OnGetMenuContent()
 																	 FOnShouldFilterActor::CreateSP( this, &SPropertyEditorAsset::IsFilteredActor ),
 																	 FOnActorSelected::CreateSP( this, &SPropertyEditorAsset::OnActorSelected),
 																	 FSimpleDelegate::CreateSP( this, &SPropertyEditorAsset::CloseComboButton ),
-																	 FSimpleDelegate::CreateSP( this, &SPropertyEditorAsset::OnUse ) );
+																	 FSimpleDelegate::CreateSP( this, &SPropertyEditorAsset::OnUse), 
+																	 bDisplayUseSelected);
 	}
 	else
 	{
@@ -912,7 +985,7 @@ void SPropertyEditorAsset::CloseComboButton()
 FText SPropertyEditorAsset::OnGetAssetName() const
 {
 	FObjectOrAssetData Value; 
-	FPropertyAccess::Result Result = GetValue( Value );
+	FPropertyAccess::Result Result = GetValue( Value, FObjectOrAssetData::EAssetDataOptions::SkipAssetRegistryTagsGathering );
 
 	FText Name = LOCTEXT("None", "None");
 	if( Result == FPropertyAccess::Success )
@@ -971,7 +1044,7 @@ FText SPropertyEditorAsset::OnGetAssetClassName() const
 FText SPropertyEditorAsset::OnGetToolTip() const
 {
 	FObjectOrAssetData Value; 
-	FPropertyAccess::Result Result = GetValue( Value );
+	FPropertyAccess::Result Result = GetValue( Value, FObjectOrAssetData::EAssetDataOptions::SkipAssetRegistryTagsGathering );
 
 	FText ToolTipText = FText::GetEmpty();
 
@@ -1039,6 +1112,13 @@ void SPropertyEditorAsset::SetValue( const FAssetData& AssetData )
 			if (PropertyEditor.IsValid())
 			{
 				PropertyEditor->GetPropertyHandle()->SetValue(AssetData);
+
+				if (const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForAsset(AssetData))
+				{
+					TArray<FAssetButtonActionExtension> AssetButtonActionExtension;
+					AssetDefinition->GetAssetActionButtonExtensions(AssetData, AssetButtonActionExtension);
+					GenerateCustomAssetPickerButtons(AssetData, AssetButtonActionExtension);
+				}
 			}
 
 			OnSetObject.ExecuteIfBound(AssetData);
@@ -1052,7 +1132,7 @@ void SPropertyEditorAsset::SetValue( const FAssetData& AssetData )
 	}
 }
 
-FPropertyAccess::Result SPropertyEditorAsset::GetValue( FObjectOrAssetData& OutValue ) const
+FPropertyAccess::Result SPropertyEditorAsset::GetValue( FObjectOrAssetData& OutValue, FObjectOrAssetData::EAssetDataOptions AssetDataOptions ) const
 {
 	// Potentially accessing the value while garbage collecting or saving the package could trigger a crash.
 	// so we fail to get the value when that is occurring.
@@ -1115,7 +1195,7 @@ FPropertyAccess::Result SPropertyEditorAsset::GetValue( FObjectOrAssetData& OutV
 		}
 #endif
 
-		OutValue = FObjectOrAssetData( Object, EditorPathOwner );
+		OutValue = FObjectOrAssetData( Object, EditorPathOwner, AssetDataOptions );
 	}
 	else
 	{
@@ -1145,8 +1225,8 @@ FPropertyAccess::Result SPropertyEditorAsset::GetValue( FObjectOrAssetData& OutV
 				UE_LOG(LogPropertyNode, Fatal, TEXT("Property \"%s\" (%s) contains invalid data."), *Property->GetName(), *Property->GetCPPType());
 			}
 #endif
-
-			OutValue = FObjectOrAssetData(Object);
+			UObject* const InEditorPathOwner = nullptr;
+			OutValue = FObjectOrAssetData( Object, InEditorPathOwner, AssetDataOptions);
 		}
 		else
 		{
@@ -1206,7 +1286,7 @@ FPropertyAccess::Result SPropertyEditorAsset::GetValue( FObjectOrAssetData& OutV
 const UClass* SPropertyEditorAsset::GetDisplayedClass() const
 {
 	FObjectOrAssetData Value;
-	GetValue( Value );
+	GetValue( Value, FObjectOrAssetData::EAssetDataOptions::SkipAssetRegistryTagsGathering );
 	if(Value.Object != nullptr)
 	{
 		return Value.Object->GetClass();
@@ -1222,7 +1302,7 @@ void SPropertyEditorAsset::OnAssetSelected( const struct FAssetData& AssetData )
 	SetValue(AssetData);
 }
 
-SPropertyEditorAsset::FObjectOrAssetData::FObjectOrAssetData(UObject* InObject, UObject* InEditorPathOwner)
+SPropertyEditorAsset::FObjectOrAssetData::FObjectOrAssetData(UObject* InObject, UObject* InEditorPathOwner, EAssetDataOptions AssetDataOptions)
 	: Object(InObject)
 {
 	if (AActor* Actor = Cast<AActor>(InObject))
@@ -1231,7 +1311,12 @@ SPropertyEditorAsset::FObjectOrAssetData::FObjectOrAssetData(UObject* InObject, 
 	}
 	else if(InObject != nullptr)
 	{
-		AssetData = FAssetData(InObject);
+		FAssetData::ECreationFlags CreationFlags =
+			(AssetDataOptions == EAssetDataOptions::SkipAssetRegistryTagsGathering)
+			? FAssetData::ECreationFlags::SkipAssetRegistryTagsGathering
+			: FAssetData::ECreationFlags::None;
+		
+		AssetData = FAssetData(InObject, CreationFlags);
 		ObjectPath = InObject;
 	}
 }
@@ -1260,7 +1345,7 @@ void SPropertyEditorAsset::OnGetAllowedClasses(TArray<const UClass*>& AllowedCla
 void SPropertyEditorAsset::OnOpenAssetEditor()
 {
 	FObjectOrAssetData Value;
-	GetValue( Value );
+	GetValue( Value, FObjectOrAssetData::EAssetDataOptions::SkipAssetRegistryTagsGathering );
 
 	UObject* ObjectToEdit = Value.AssetData.GetAsset();
 	if( ObjectToEdit )
@@ -1296,7 +1381,7 @@ void SPropertyEditorAsset::OnOpenAssetEditor()
 void SPropertyEditorAsset::OnBrowse()
 {
 	FObjectOrAssetData Value;
-	GetValue( Value );
+	GetValue( Value, FObjectOrAssetData::EAssetDataOptions::None );
 
 	if (bIsActor)
 	{
@@ -1315,7 +1400,7 @@ void SPropertyEditorAsset::OnBrowse()
 						if (const FWorldPartitionActorDescInstance* ActorDescInstance = World->GetWorldPartition()->GetActorDescInstanceByPath(Value.ObjectPath))
 						{
 							World->GetWorldPartition()->PinActors({ ActorDescInstance->GetGuid() });
-							GetValue(Value);
+							GetValue(Value, FObjectOrAssetData::EAssetDataOptions::None);
 						}
 					}
 				}
@@ -1342,7 +1427,7 @@ void SPropertyEditorAsset::OnBrowse()
 FText SPropertyEditorAsset::GetOnBrowseToolTip() const
 {
 	FObjectOrAssetData Value;
-	GetValue( Value );
+	GetValue( Value, FObjectOrAssetData::EAssetDataOptions::SkipAssetRegistryTagsGathering );
 
 	if (Value.Object)
 	{
@@ -1438,7 +1523,7 @@ FSlateColor SPropertyEditorAsset::GetAssetClassColor()
 bool SPropertyEditorAsset::OnAssetDraggedOver( TArrayView<FAssetData> InAssets, FText& OutReason ) const
 {
 	UObject* AssetObject = InAssets[0].GetAsset();
-	if (CanEdit() && (AssetObject != nullptr) && AssetObject->IsA(ObjectClass))
+	if (CanEdit() && (AssetObject != nullptr) && (AssetObject->IsA(ObjectClass) || AssetObject->GetClass()->ImplementsInterface(ObjectClass)))
 	{
 		FAssetData AssetData(InAssets[0]);
 		// Check against custom asset filter
@@ -1467,7 +1552,7 @@ void SPropertyEditorAsset::OnAssetDropped( const FDragDropEvent&, TArrayView<FAs
 void SPropertyEditorAsset::OnCopy()
 {
 	FObjectOrAssetData Value;
-	GetValue( Value );
+	GetValue( Value, FObjectOrAssetData::EAssetDataOptions::SkipAssetRegistryTagsGathering );
 
 	if( Value.AssetData.IsValid() )
 	{
@@ -1628,30 +1713,10 @@ bool SPropertyEditorAsset::CanSetBasedOnAssetReferenceFilter( const FAssetData& 
 {
 	if (GEditor && InAssetData.IsValid())
 	{
-		TSharedPtr<IPropertyHandle> PropertyHandleToUse = GetMostSpecificPropertyHandle();
 		FAssetReferenceFilterContext AssetReferenceFilterContext;
-		if (PropertyHandleToUse.IsValid())
-		{
-			TArray<UObject*> ReferencingObjects;
-			PropertyHandleToUse->GetOuterObjects(ReferencingObjects);
-			for (UObject* ReferencingObject : ReferencingObjects)
-			{
-				AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(ReferencingObject));
-			}
-		}
+		AssetReferenceFilterContext.AddReferencingAssets(OwnerAssetDataArray);
+		AssetReferenceFilterContext.AddReferencingAssetsFromPropertyHandle(GetMostSpecificPropertyHandle());
 		
-		if(OwnerAssetDataArray.Num() > 0)
-		{
-			for (const FAssetData& AssetData : OwnerAssetDataArray)
-			{
-				if (AssetData.IsValid())
-				{
-					//Use add unique in case the PropertyHandle as already add the referencing asset
-					AssetReferenceFilterContext.ReferencingAssets.AddUnique(AssetData);
-				}
-			}
-		}
-
 		TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
 		if (AssetReferenceFilter.IsValid() && !AssetReferenceFilter->PassesFilter(InAssetData, OutOptionalFailureReason))
 		{

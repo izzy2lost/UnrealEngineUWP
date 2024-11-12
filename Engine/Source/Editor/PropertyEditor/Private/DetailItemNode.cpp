@@ -14,12 +14,15 @@
 #include "SDetailSingleItemRow.h"
 #include "UObject/PropertyOptional.h"
 
+static const FName NAME_IsLooseMetadata = TEXT("IsLoose");
+
 FDetailItemNode::FDetailItemNode(const FDetailLayoutCustomization& InCustomization, TSharedRef<FDetailCategoryImpl> InParentCategory, TAttribute<bool> InIsParentEnabled, TSharedPtr<IDetailGroup> InParentGroup)
 	: Customization( InCustomization )
 	, ParentCategory( InParentCategory )
 	, ParentGroup(InParentGroup)
 	, IsParentEnabled( InIsParentEnabled )
 	, CachedItemVisibility( EVisibility::Visible )
+	, bForceHidden( false )
 	, bShouldBeVisibleDueToFiltering( false )
 	, bShouldBeVisibleDueToChildFiltering( false )
 	, bTickable( false )
@@ -43,7 +46,10 @@ void FDetailItemNode::Initialize()
 	{
 		// The node needs to be ticked because it has widgets that can dynamically come and go
 		bTickable = true;
-		ParentCategory.Pin()->AddTickableNode( *this );
+		if (const TSharedPtr<FDetailCategoryImpl> ParentCategoryPtr = ParentCategory.Pin())
+		{
+			ParentCategoryPtr->AddTickableNode(*this);
+		}
 	}
 
 	if( Customization.HasPropertyNode() )
@@ -121,9 +127,9 @@ TSharedPtr<IPropertyHandle> FDetailItemNode::CreatePropertyHandle() const
 
 void FDetailItemNode::GetFilterStrings(TArray<FString>& OutFilterStrings) const
 {
-	if (Customization.HasCustomWidget())
+	if (!Customization.GetFilterTextString().IsEmpty())
 	{
-		OutFilterStrings.Add(Customization.GetWidgetRow().FilterTextString.ToString());
+		OutFilterStrings.Add(Customization.GetFilterTextString().ToString());
 	}
 
 	if (Customization.HasPropertyNode())
@@ -523,7 +529,7 @@ bool FDetailItemNode::ShouldBeExpanded() const
 ENodeVisibility FDetailItemNode::GetVisibility() const
 {
 	ENodeVisibility Visibility = CachedItemVisibility == EVisibility::Collapsed ? ENodeVisibility::ForcedHidden : ENodeVisibility::Visible;
-	if(Customization.IsHidden())
+	if(Customization.IsHidden() || bForceHidden)
 	{
 		Visibility = ENodeVisibility::ForcedHidden;
 	}
@@ -652,6 +658,47 @@ static bool PassesAllFilters( FDetailItemNode* ItemNode, const FDetailLayoutCust
 
 			return FString();
 		}
+
+		static FString GetPropertyNodeKeyFilterString(const FDetailLayoutCustomization& InCustomization, TSharedPtr<FPropertyNode> PropertyNode)
+		{
+			if (PropertyNode.IsValid())
+			{
+				// Is it a container (array, map, set?) - if so, ignore it, we don't care about these, only their inner nodes.
+				if (CastField<FArrayProperty>(PropertyNode->GetProperty()) || CastField<FMapProperty>(PropertyNode->GetProperty()) || CastField<FSetProperty>(PropertyNode->GetProperty()) || CastField<FOptionalProperty>(PropertyNode->GetProperty()))
+				{
+					return FString();
+				}
+
+				// Need to know if parent is a Map though...
+				const FProperty* Property = PropertyNode->GetProperty();
+				FPropertyNode* Parent = PropertyNode->GetParentNode();
+				if (Parent && Property)
+				{
+					const FMapProperty* OuterMapProp = Property->GetOwner<FMapProperty>();
+					if (OuterMapProp)
+					{
+						const FProperty* KeyProperty = OuterMapProp->GetKeyProperty();
+
+						uint8* MapValueAddress = nullptr;
+						FPropertyAccess::Result Result = Parent->GetSingleReadAddress(MapValueAddress);
+						if (Result != FPropertyAccess::Success)
+						{
+							return FString();
+						}
+						FScriptMapHelper MapHelper(OuterMapProp, MapValueAddress);
+						FScriptMapHelper::FIterator Iterator = MapHelper.CreateIterator(PropertyNode->GetArrayIndex());
+						const uint8* PairPtr = MapHelper.GetKeyPtr(Iterator);
+					
+						FString OutString;
+					
+						KeyProperty->ExportText_Direct(OutString, PairPtr, PairPtr, nullptr, PPF_SimpleObjectText);
+						return OutString;
+					}
+				}
+			}
+			return FString();
+		}
+		
 	};
 	
 	auto IsCustomResetToDefaultVisible = [ItemNode, &InCustomization]()
@@ -661,6 +708,8 @@ static bool PassesAllFilters( FDetailItemNode* ItemNode, const FDetailLayoutCust
 	};
 
 	bool bPassesAllFilters = true;
+	
+	TSharedPtr<FPropertyNode> PropertyNodePin = InCustomization.GetPropertyNode();
 
 	if( InFilter.FilterStrings.Num() > 0 || 
 		InFilter.bShowOnlyModified == true || 
@@ -669,11 +718,12 @@ static bool PassesAllFilters( FDetailItemNode* ItemNode, const FDetailLayoutCust
 		InFilter.bShowOnlyAnimated == true)
 	{
 		const bool bSearchFilterIsEmpty = InFilter.FilterStrings.Num() == 0;
-
-		TSharedPtr<FPropertyNode> PropertyNodePin = InCustomization.GetPropertyNode();
 		
 		const bool bPassesCategoryFilter = !bSearchFilterIsEmpty && InFilter.bShowAllChildrenIfCategoryMatches ? Local::StringPassesFilter(InFilter, InCategoryName) : false;
 		const bool bPassesValueFilter = !bSearchFilterIsEmpty && Local::StringPassesFilter(InFilter, Local::GetPropertyNodeValueFilterString(InCustomization, PropertyNodePin));
+
+		const FString KeyValue = Local::GetPropertyNodeKeyFilterString(InCustomization, PropertyNodePin);
+		const bool bPassesKeyFilter = !bSearchFilterIsEmpty && Local::StringPassesFilter(InFilter, KeyValue);
 
 		bPassesAllFilters = false;
 		if( PropertyNodePin.IsValid() && !PropertyNodePin->AsCategoryNode())
@@ -682,7 +732,8 @@ static bool PassesAllFilters( FDetailItemNode* ItemNode, const FDetailLayoutCust
 			const bool bIsSeenDueToFiltering = PropertyNodePin->HasNodeFlags(EPropertyNodeFlags::IsSeenDueToFiltering) != 0;
 			const bool bIsParentSeenDueToFiltering = PropertyNodePin->HasNodeFlags(EPropertyNodeFlags::IsParentSeenDueToFiltering) != 0;
 
-			const bool bPassesSearchFilter = bPassesCategoryFilter || bPassesValueFilter || bSearchFilterIsEmpty || ( bIsNotBeingFiltered || bIsSeenDueToFiltering || bIsParentSeenDueToFiltering );
+			const bool bPassesTextFilter = bPassesCategoryFilter || bPassesValueFilter || bPassesKeyFilter || Local::StringPassesFilter(InFilter, InCustomization.GetFilterTextString().ToString());
+			const bool bPassesSearchFilter = bPassesTextFilter || bSearchFilterIsEmpty || ( bIsNotBeingFiltered || bIsSeenDueToFiltering || bIsParentSeenDueToFiltering );
 
 			bool bPassesModifiedFilter = true;
 			if (bPassesSearchFilter && InFilter.bShowOnlyModified)
@@ -958,6 +1009,29 @@ void FDetailItemNode::FilterNode(const FDetailFilter& InFilter)
 		bShouldBeVisibleDueToFiltering = PassesAllFilters(this, Customization, InFilter, ParentGroup.Pin()->GetGroupName().ToString());
 	}
 
+	// set bForceHidden if this node is loose and loose properties are hidden
+	if( TSharedPtr<FPropertyNode> PropertyNodePin = Customization.GetPropertyNode())
+	{
+		if (LIKELY(!InFilter.bShowLooseProperties))
+		{
+			if (FProperty* Property = PropertyNodePin->GetProperty())
+			{
+				if (Property->GetBoolMetaData(NAME_IsLooseMetadata))
+				{
+					bForceHidden = true;
+				}
+			}
+		}
+		if (!bForceHidden && InFilter.ShouldForceHideProperty.IsBound())
+		{
+			if (InFilter.ShouldForceHideProperty.Execute(PropertyNodePin.ToSharedRef()))
+			{
+				bForceHidden = true;
+			}
+		}
+	}
+
+
 	bShouldBeVisibleDueToChildFiltering = false;
 
 	// Filter each child
@@ -970,7 +1044,10 @@ void FDetailItemNode::FilterNode(const FDetailFilter& InFilter)
 		// filtered incorrectly because they have no means of discovering if their parents were filtered.
 		if ( bShouldBeVisibleDueToFiltering )
 		{
-			Child->FilterNode(FDetailFilter());
+			FDetailFilter ChildFilter;
+			ChildFilter.bShowLooseProperties = InFilter.bShowLooseProperties; // bShowLooseProperties is inherited from parent regardless
+			ChildFilter.ShouldForceHideProperty = InFilter.ShouldForceHideProperty; // ShouldForceHideProperty is inherited from parent regardless
+			Child->FilterNode(ChildFilter);
 
 			// The child should be visible, but maybe something else has it hidden, check if it's
 			// visible just for safety reasons.

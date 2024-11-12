@@ -16,6 +16,7 @@ public class WorldPartitionEditor : ModuleRules
 				"EditorWidgets",
 				"Engine",
 				"InputCore",
+				"LevelEditor",
 				"Slate",
 				"SlateCore",
 				"UnrealEd",

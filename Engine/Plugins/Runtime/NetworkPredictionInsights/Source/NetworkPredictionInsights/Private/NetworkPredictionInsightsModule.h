@@ -13,9 +13,6 @@ namespace UE
 {
 namespace Trace 
 {
-#if WITH_TRACE_STORE
-	class FStoreService;
-#endif
 	class FStoreClient;
 }
 }
@@ -35,9 +32,6 @@ private:
 	FTSTicker::FDelegateHandle TickerHandle;
 	FDelegateHandle StoreServiceHandle;
 
-#if WITH_TRACE_STORE
-	TSharedPtr<UE::Trace::FStoreService> StoreService;
-#endif
 	//TWeakPtr<FTabManager> WeakTimingProfilerTabManager;
 
 	static const FName InsightsTabName;	

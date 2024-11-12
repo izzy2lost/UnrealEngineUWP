@@ -32,7 +32,7 @@ namespace UnrealBuildTool.Rules
 					"VertexDeltaModel",
 					"PropertyEditor",
 					"NNE",
-					"NNERuntimeRDG",
+					"NNERuntimeORT",
 					"ToolWidgets",
 					"ComputeFramework"
 				}

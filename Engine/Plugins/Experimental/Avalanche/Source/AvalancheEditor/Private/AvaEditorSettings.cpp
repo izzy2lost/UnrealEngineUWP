@@ -59,11 +59,4 @@ void UAvaEditorSettings::PostInitProperties()
 	}
 }
 
-void UAvaEditorSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-
-	OnChanged.Broadcast(this, PropertyChangedEvent.GetPropertyName());
-}
-
 #undef LOCTEXT_NAMESPACE

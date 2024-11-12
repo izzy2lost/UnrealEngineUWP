@@ -26,7 +26,6 @@ namespace UE::StateTree::Editor
 
 		virtual bool CanCreateClass(UClass* InObjectClass, bool& bOmitSubObjs) const override
 		{
-			UE_LOG(LogTemp, Error, TEXT("*** CanCreateClass: %s"), *GetNameSafe(InObjectClass));
 			return InObjectClass->IsChildOf(UStateTreeState::StaticClass())
 				|| InObjectClass->IsChildOf(UStateTreeClipboardBindings::StaticClass());
 		}
@@ -49,7 +48,7 @@ namespace UE::StateTree::Editor
 	};
 
 
-	void CollectBindingsRecursive(UStateTreeEditorData* TreeData, UStateTreeState* State, TArray<FStateTreePropertyPathBinding>& AllBindings)
+	void CollectBindingsCopiesRecursive(UStateTreeEditorData* TreeData, UStateTreeState* State, TArray<FStateTreePropertyPathBinding>& AllBindings)
 	{
 		if (!State)
 		{
@@ -58,15 +57,15 @@ namespace UE::StateTree::Editor
 		
 		TreeData->VisitStateNodes(*State, [TreeData, &AllBindings](const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)
 		{
-			TArray<FStateTreePropertyPathBinding> NodeBindings;
+			TArray<const FStateTreePropertyPathBinding*> NodeBindings;
 			TreeData->GetPropertyEditorBindings()->GetPropertyBindingsFor(Desc.ID, NodeBindings);
-			AllBindings.Append(NodeBindings);
+			Algo::Transform(NodeBindings, AllBindings, [](const FStateTreePropertyPathBinding* BindingPtr) { return *BindingPtr; });
 			return EStateTreeVisitor::Continue;				
 		});
 
 		for (UStateTreeState* ChildState : State->Children)
 		{
-			CollectBindingsRecursive(TreeData, ChildState, AllBindings);
+			CollectBindingsCopiesRecursive(TreeData, ChildState, AllBindings);
 		}
 	}
 
@@ -91,7 +90,7 @@ namespace UE::StateTree::Editor
 			UObject* ThisOuter = State->GetOuter();
 			UExporter::ExportToOutputDevice(&Context, State, nullptr, Archive, TEXT("copy"), 0, PPF_ExportsNotFullyQualified | PPF_Copy | PPF_Delimited, false, ThisOuter);
 
-			CollectBindingsRecursive(TreeData, State, ClipboardBindings->Bindings);
+			CollectBindingsCopiesRecursive(TreeData, State, ClipboardBindings->Bindings);
 		}
 
 		UExporter::ExportToOutputDevice(&Context, ClipboardBindings, nullptr, Archive, TEXT("copy"), 0, PPF_ExportsNotFullyQualified | PPF_Copy | PPF_Delimited, false);
@@ -157,6 +156,7 @@ namespace UE::StateTree::Editor
 		FixNodesAfterDuplication(TArrayView<FStateTreeEditorNode>(&State->SingleTask, 1), IDsMap, Links);
 		FixNodesAfterDuplication(State->Tasks, IDsMap, Links);
 		FixNodesAfterDuplication(State->EnterConditions, IDsMap, Links);
+		FixNodesAfterDuplication(State->Considerations, IDsMap, Links);
 
 		for (FStateTreeTransition& Transition : State->Transitions)
 		{
@@ -233,9 +233,9 @@ namespace UE::StateTree::Editor
 
 FStateTreeViewModel::FStateTreeViewModel()
 	: TreeDataWeak(nullptr)
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	, Debugger(MakeShareable(new FStateTreeDebugger))
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 {
 }
 
@@ -254,14 +254,14 @@ void FStateTreeViewModel::Init(UStateTreeEditorData* InTreeData)
 
 	UE::StateTree::Delegates::OnIdentifierChanged.AddSP(this, &FStateTreeViewModel::HandleIdentifierChanged);
 	
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	UE::StateTree::Delegates::OnBreakpointsChanged.AddSP(this, &FStateTreeViewModel::HandleBreakpointsChanged);
 	UE::StateTree::Delegates::OnPostCompile.AddSP(this, &FStateTreeViewModel::HandlePostCompile);
 
 	Debugger->SetAsset(GetStateTree());
 	BindToDebuggerDelegates();
 	RefreshDebuggerBreakpoints();
-#endif // WITH_STATETREE_DEBUGGER	
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 }
 
 const UStateTree* FStateTreeViewModel::GetStateTree() const
@@ -274,6 +274,29 @@ const UStateTree* FStateTreeViewModel::GetStateTree() const
 	return nullptr;
 }
 
+const UStateTreeEditorData* FStateTreeViewModel::GetStateTreeEditorData() const
+{
+	return TreeDataWeak.Get();
+}
+
+const UStateTreeState* FStateTreeViewModel::GetStateByID(const FGuid StateID) const
+{
+	if (const UStateTreeEditorData* TreeData = TreeDataWeak.Get())
+	{
+		return const_cast<UStateTreeState*>(TreeData->GetStateByID(StateID));
+	}
+	return nullptr;
+}
+
+UStateTreeState* FStateTreeViewModel::GetMutableStateByID(const FGuid StateID) const
+{
+	if (UStateTreeEditorData* TreeData = TreeDataWeak.Get())
+	{
+		return TreeData->GetMutableStateByID(StateID);
+	}
+	return nullptr;
+}
+
 void FStateTreeViewModel::HandleIdentifierChanged(const UStateTree& StateTree) const
 {
 	if (GetStateTree() == &StateTree)
@@ -282,7 +305,186 @@ void FStateTreeViewModel::HandleIdentifierChanged(const UStateTree& StateTree) c
 	}
 }
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
+bool FStateTreeViewModel::CanAddStateBreakpoint(const EStateTreeBreakpointType Type) const
+{
+	const UStateTreeEditorData* EditorData = TreeDataWeak.Get();
+	if (!ensure(EditorData != nullptr))
+	{
+		return false;
+	}
+
+	for (const TWeakObjectPtr<UStateTreeState>& WeakState : SelectedStates)
+	{
+		if (const UStateTreeState* State = WeakState.Get())
+		{
+			if (EditorData->HasBreakpoint(State->ID, Type) == false)
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+bool FStateTreeViewModel::CanRemoveStateBreakpoint(const EStateTreeBreakpointType Type) const
+{
+	const UStateTreeEditorData* EditorData = TreeDataWeak.Get();
+	if (!ensure(EditorData != nullptr))
+	{
+		return false;
+	}
+
+	for (const TWeakObjectPtr<UStateTreeState>& WeakState : SelectedStates)
+	{
+		if (const UStateTreeState* State = WeakState.Get())
+		{
+			if (EditorData->HasBreakpoint(State->ID, Type))
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+
+ECheckBoxState FStateTreeViewModel::GetStateBreakpointCheckState(const EStateTreeBreakpointType Type) const
+{
+	const bool bCanAdd = CanAddStateBreakpoint(Type);
+	const bool bCanRemove = CanRemoveStateBreakpoint(Type);
+	if (bCanAdd && bCanRemove)
+	{
+		return ECheckBoxState::Undetermined;
+	}
+
+	if (bCanRemove)
+	{
+		return ECheckBoxState::Checked;
+	}
+
+	if (bCanAdd)
+	{
+		return ECheckBoxState::Unchecked;
+	}
+
+	// Should not happen since action is not visible in this case
+	return ECheckBoxState::Undetermined;
+}
+
+void FStateTreeViewModel::HandleEnableStateBreakpoint(EStateTreeBreakpointType Type)
+{
+	TArray<UStateTreeState*> ValidatedSelectedStates;
+	GetSelectedStates(ValidatedSelectedStates);
+	if (ValidatedSelectedStates.IsEmpty())
+	{
+		return;
+	}
+
+	UStateTreeEditorData* EditorData = TreeDataWeak.Get();
+	if (!ensure(EditorData != nullptr))
+	{
+		return;
+	}
+
+	TBitArray<> HasBreakpoint;
+	HasBreakpoint.Reserve(ValidatedSelectedStates.Num());
+	for (const UStateTreeState* SelectedState : ValidatedSelectedStates)
+	{
+		HasBreakpoint.Add(SelectedState != nullptr && EditorData->HasBreakpoint(SelectedState->ID, Type));
+	}
+
+	check(HasBreakpoint.Num() == ValidatedSelectedStates.Num());
+
+	// Process CanAdd first so in case of undetermined state (mixed selection) we add by default. 
+	if (CanAddStateBreakpoint(Type))
+	{
+		const FScopedTransaction Transaction(LOCTEXT("AddStateBreakpoint", "Add State Breakpoint(s)"));
+		EditorData->Modify();
+		for (int Index = 0; Index < ValidatedSelectedStates.Num(); ++Index)
+		{
+			const UStateTreeState* SelectedState = ValidatedSelectedStates[Index];
+			if (HasBreakpoint[Index] == false && SelectedState != nullptr)
+			{
+				EditorData->AddBreakpoint(SelectedState->ID, Type);	
+			}
+		}
+	}
+	else if (CanRemoveStateBreakpoint(Type))
+	{
+		const FScopedTransaction Transaction(LOCTEXT("RemoveStateBreakpoint", "Remove State Breakpoint(s)"));
+		EditorData->Modify();
+		for (int Index = 0; Index < ValidatedSelectedStates.Num(); ++Index)
+		{
+			const UStateTreeState* SelectedState = ValidatedSelectedStates[Index];
+			if (HasBreakpoint[Index] && SelectedState != nullptr)
+			{
+				EditorData->RemoveBreakpoint(SelectedState->ID, Type);	
+			}
+		}
+	}
+}
+
+UStateTreeState* FStateTreeViewModel::FindStateAssociatedToBreakpoint(FStateTreeDebuggerBreakpoint Breakpoint) const
+{
+	UStateTreeEditorData* EditorData = TreeDataWeak.Get();
+	if (EditorData == nullptr)
+	{
+		return nullptr;
+	}
+	const UStateTree* StateTree = GetStateTree();
+	if (StateTree == nullptr)
+	{
+		return nullptr;
+	}
+
+	UStateTreeState* StateTreeState = nullptr;
+
+	if (const FStateTreeStateHandle* StateHandle = Breakpoint.ElementIdentifier.TryGet<FStateTreeStateHandle>())
+	{
+		const FGuid StateId = StateTree->GetStateIdFromHandle(*StateHandle);
+		StateTreeState = EditorData->GetMutableStateByID(StateId);
+	}
+	else if (const FStateTreeDebuggerBreakpoint::FStateTreeTaskIndex* TaskIndex = Breakpoint.ElementIdentifier.TryGet<FStateTreeDebuggerBreakpoint::FStateTreeTaskIndex>())
+	{
+		const FGuid TaskId = StateTree->GetNodeIdFromIndex(TaskIndex->Index);
+
+		EditorData->VisitHierarchy([&TaskId, &StateTreeState](UStateTreeState& State, UStateTreeState* /*ParentState*/)
+			{
+				for (const FStateTreeEditorNode& EditorNode : State.Tasks)
+				{
+					if (EditorNode.ID == TaskId)
+					{
+						StateTreeState = &State;
+						return EStateTreeVisitor::Break;
+					}
+				}
+				return EStateTreeVisitor::Continue;
+			});
+	}
+	else if (const FStateTreeDebuggerBreakpoint::FStateTreeTransitionIndex* TransitionIndex = Breakpoint.ElementIdentifier.TryGet<FStateTreeDebuggerBreakpoint::FStateTreeTransitionIndex>())
+	{
+		const FGuid TransitionId = StateTree->GetTransitionIdFromIndex(TransitionIndex->Index);
+
+		EditorData->VisitHierarchy([&TransitionId, &StateTreeState](UStateTreeState& State, UStateTreeState* /*ParentState*/)
+			{
+				for (const FStateTreeTransition& StateTransition : State.Transitions)
+				{
+					if (StateTransition.ID == TransitionId)
+					{
+						StateTreeState = &State;
+						return EStateTreeVisitor::Break;
+					}
+				}
+				return EStateTreeVisitor::Continue;
+			});
+	}
+
+	return StateTreeState;
+}
+
 void FStateTreeViewModel::HandleBreakpointsChanged(const UStateTree& StateTree)
 {
 	if (GetStateTree() == &StateTree)
@@ -337,7 +539,7 @@ void FStateTreeViewModel::RefreshDebuggerBreakpoints()
 	}
 }
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 
 void FStateTreeViewModel::NotifyAssetChangedExternally() const
 {
@@ -472,6 +674,12 @@ void FStateTreeViewModel::GetSelectedStates(TArray<TWeakObjectPtr<UStateTreeStat
 bool FStateTreeViewModel::HasSelection() const
 {
 	return SelectedStates.Num() > 0;
+}
+
+void FStateTreeViewModel::BringNodeToFocus(UStateTreeState* State, const FGuid NodeID)
+{
+	SetSelection(State);
+	OnBringNodeToFocus.Broadcast(State, NodeID);
 }
 
 void FStateTreeViewModel::GetPersistentExpandedStates(TSet<TWeakObjectPtr<UStateTreeState>>& OutExpandedStates)
@@ -772,25 +980,31 @@ void FStateTreeViewModel::PasteStatesAsChildrenFromText(const FString& TextToImp
 	// Copy property bindings for the duplicated states.
 	if (Factory.ClipboardBindings)
 	{
+		for (FStateTreePropertyPathBinding& Binding : Factory.ClipboardBindings->Bindings)
+		{
+			if (Binding.GetPropertyFunctionNode().IsValid())
+			{
+				UE::StateTree::Editor::FixNodesAfterDuplication(TArrayView<FStateTreeEditorNode>(Binding.GetMutablePropertyFunctionNode().GetPtr<FStateTreeEditorNode>(), 1), IDsMap, Links);
+			}
+		}
+
 		for (const TPair<FGuid, FGuid>& Entry : IDsMap)
 		{
 			const FGuid OldTargetID = Entry.Key;
 			const FGuid NewTargetID = Entry.Value;
 			
-			for (const FStateTreePropertyPathBinding& Binding : Factory.ClipboardBindings->Bindings)
+			for (FStateTreePropertyPathBinding& Binding : Factory.ClipboardBindings->Bindings)
 			{
 				if (Binding.GetTargetPath().GetStructID() == OldTargetID)
 				{
-					FStateTreePropertyPath TargetPath(Binding.GetTargetPath());
-					TargetPath.SetStructID(NewTargetID);
-					
-					FStateTreePropertyPath SourcePath(Binding.GetSourcePath());
+					Binding.GetMutableTargetPath().SetStructID(NewTargetID);
+
 					if (const FGuid* NewSourceID = IDsMap.Find(Binding.GetSourcePath().GetStructID()))
 					{
-						SourcePath.SetStructID(*NewSourceID);
+						Binding.GetMutableSourcePath().SetStructID(*NewSourceID);
 					}
 					
-					TreeData->GetPropertyEditorBindings()->AddPropertyBinding(SourcePath, TargetPath);
+					TreeData->GetPropertyEditorBindings()->AddPropertyBinding(MoveTemp(Binding));
 				}
 			}
 		}
@@ -952,10 +1166,7 @@ void FStateTreeViewModel::MoveSelectedStates(UStateTreeState* TargetState, const
 			if (UStateTreeState* State = States[i])
 			{
 				State->Modify();
-				if (State->Parent)
-				{
-					AffectedParents.Add(State->Parent);
-				}
+				AffectedParents.Add(State->Parent);
 			}
 		}
 
@@ -1047,7 +1258,7 @@ void FStateTreeViewModel::MoveSelectedStates(UStateTreeState* TargetState, const
 
 void FStateTreeViewModel::BindToDebuggerDelegates()
 {
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	Debugger->OnActiveStatesChanged.BindSPLambda(this, [this](const FStateTreeTraceActiveStates& NewActiveStates)
 	{
 		if (const UStateTree* OuterStateTree = GetStateTree())
@@ -1066,16 +1277,16 @@ void FStateTreeViewModel::BindToDebuggerDelegates()
 			}
 		}
 	});
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 }
 
 bool FStateTreeViewModel::IsStateActiveInDebugger(const UStateTreeState& State) const
 {
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	return ActiveStates.Contains(State.ID);
 #else
 	return false;
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 }
 
 #undef LOCTEXT_NAMESPACE

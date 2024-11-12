@@ -15,20 +15,20 @@ namespace UE
 namespace RenderGraphInsights
 {
 
-void FRenderGraphTimingViewSession::OnBeginSession(Insights::ITimingViewSession& InTimingViewSession)
+void FRenderGraphTimingViewSession::OnBeginSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession)
 {
 	TimingViewSession = &InTimingViewSession;
 
 	Track.Reset();
 }
 
-void FRenderGraphTimingViewSession::OnEndSession(Insights::ITimingViewSession& InTimingViewSession)
+void FRenderGraphTimingViewSession::OnEndSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession)
 {
 	Track.Reset();
 	TimingViewSession = nullptr;
 }
 
-void FRenderGraphTimingViewSession::Tick(Insights::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession)
+void FRenderGraphTimingViewSession::Tick(UE::Insights::Timing::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession)
 {
 	AnalysisSession = &InAnalysisSession;
 

@@ -621,6 +621,8 @@ TArray<AActor*> UClusterUnionComponent::GetActors()
 
 void UClusterUnionComponent::SetIsAnchored(bool bIsAnchored)
 {
+	// deprecated - should not be called anymore
+	ensure(false);
 	if (!PhysicsProxy)
 	{
 		return;
@@ -694,6 +696,9 @@ void UClusterUnionComponent::OnCreatePhysicsState()
 	{
 		return;
 	}
+
+	const FPhysicsPredictionSettings& PhysicsPredictionSettings = UPhysicsSettings::Get()->PhysicsPrediction;
+	bPhysicsPredictionEnabled = PhysicsPredictionSettings.bEnablePhysicsPrediction;
 
 	// TODO: Expose these parameters via the component.
 	Chaos::FClusterCreationParameters Parameters{ 0.3f, 100, false, false };
@@ -1332,8 +1337,15 @@ void UClusterUnionComponent::OnRep_RigidState()
 		return;
 	}
 
-	PhysicsProxy->SetIsAnchored_External(ReplicatedRigidState.bIsAnchored);
-	SetRigidState(static_cast<Chaos::EObjectStateType>(ReplicatedRigidState.ObjectState));
+	Chaos::EObjectStateType ObjectState = static_cast<Chaos::EObjectStateType>(ReplicatedRigidState.ObjectState);
+
+	// If Physics Prediction is enabled, only update to and from Kinematic state (sleeping/dynamic switching will be handled via the enabled EPhysicsReplicationMode)
+	if (!bPhysicsPredictionEnabled 
+		|| PhysicsProxy->GetObjectState_External() == Chaos::EObjectStateType::Kinematic
+		|| ObjectState == Chaos::EObjectStateType::Kinematic)
+	{
+		SetRigidState(ObjectState);
+	}
 }
 
 void UClusterUnionComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -1384,6 +1396,8 @@ void UClusterUnionComponent::SetRigidState(Chaos::EObjectStateType ObjectState)
 	if (PhysicsProxy)
 	{
 		PhysicsProxy->SetObjectState_External(ObjectState);
+		const bool bIsDynamic = (ObjectState == Chaos::EObjectStateType::Dynamic || ObjectState == Chaos::EObjectStateType::Sleeping);
+		PhysicsProxy->SetIsAnchored_External(!bIsDynamic);
 	}
 }
 
@@ -1701,8 +1715,8 @@ void UClusterUnionComponent::VisitAllCurrentActors(const TFunction<bool(AActor*)
 void UClusterUnionComponent::VisitAllCurrentChildComponentsForCollision(ECollisionChannel TraceChannel, const struct FCollisionQueryParams& Params, const struct FCollisionResponseParams& ResponseParams, const struct FCollisionObjectQueryParams& ObjectParams, const TFunction<bool(UPrimitiveComponent*)>& Lambda) const
 {
 	TSet<uint32> IgnoredActors;
-	IgnoredActors.Reserve(Params.GetIgnoredActors().Num());
-	for (uint32 Id : Params.GetIgnoredActors())
+	IgnoredActors.Reserve(Params.GetIgnoredSourceObjects().Num());
+	for (uint32 Id : Params.GetIgnoredSourceObjects())
 	{
 		IgnoredActors.Add(Id);
 	}

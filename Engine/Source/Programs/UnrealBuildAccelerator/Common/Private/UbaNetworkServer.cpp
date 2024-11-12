@@ -7,6 +7,11 @@
 
 namespace uba
 {
+	void NetworkServerCreateInfo::Apply(Config& config)
+	{
+	}
+
+
 	struct NetworkServer::WorkerContext
 	{
 		WorkerContext(NetworkServer& s) : server(s), workAvailable(false)
@@ -89,7 +94,7 @@ namespace uba
 	class NetworkServer::Connection
 	{
 	public:
-		Connection(NetworkServer& server, NetworkBackend& backend, void* backendConnection, const sockaddr& remoteSockAddr, CryptoKey cryptoKey, u32 id)
+		Connection(NetworkServer& server, NetworkBackend& backend, void* backendConnection, const sockaddr& remoteSockAddr, bool requiresCrypto, CryptoKey cryptoKey, u32 id)
 		:	m_server(server)
 		,	m_backend(backend)
 		,	m_remoteSockAddr(remoteSockAddr)
@@ -117,8 +122,11 @@ namespace uba
 
 			m_backend.SetRecvTimeout(m_backendConnection, m_server.m_receiveTimeoutMs);
 
-			if (m_cryptoKey)
+			if (requiresCrypto)
+			{
+				m_backend.SetAllowLessThanBodySize(m_backendConnection, true);
 				m_backend.SetRecvCallbacks(m_backendConnection, this, 0, ReceiveHandshakeHeader, ReceiveHandshakeBody, TC("ReceiveHandshake"));
+			}
 			else
 				m_backend.SetRecvCallbacks(m_backendConnection, this, 4, ReceiveVersion, nullptr, TC("ReceiveVersion"));
 		}
@@ -182,12 +190,53 @@ namespace uba
 			u8* handshakeData = bodyData;
 			auto g = MakeGuard([handshakeData]() { delete[] handshakeData; });
 
-			if (!Crypto::Decrypt(conn.m_server.m_logger, conn.m_cryptoKey, handshakeData, sizeof(EncryptionHandshakeString)))
-				return false;
+			auto& logger = conn.m_server.m_logger;
 
-			if (memcmp(handshakeData, EncryptionHandshakeString, sizeof(EncryptionHandshakeString)) != 0)
-				return conn.m_server.m_logger.Error(TC("Crypto mismatch..."));
+			if (bodySize != sizeof(EncryptionHandshakeString))
+				return logger.Error(TC("Crypto mismatch..."));
 
+			auto TestHandshake = [&](CryptoKey key)
+			{
+				u8 temp[sizeof(EncryptionHandshakeString)];
+				memcpy(temp, handshakeData, sizeof(temp));
+				if (!Crypto::Decrypt(logger, key, temp, sizeof(EncryptionHandshakeString)))
+					return false;
+				return memcmp(temp, EncryptionHandshakeString, sizeof(EncryptionHandshakeString)) == 0;
+			};
+
+			if (conn.m_cryptoKey != InvalidCryptoKey)
+			{
+				if (!TestHandshake(conn.m_cryptoKey))
+					return logger.Error(TC("Crypto mismatch..."));
+			}
+			else
+			{
+				SCOPED_WRITE_LOCK(conn.m_server.m_cryptoKeysLock, lock);
+				auto& keys = conn.m_server.m_cryptoKeys;
+				u64 time = GetTime();
+				for (auto it=keys.begin(); it!=keys.end();)
+				{
+					auto& entry = *it;
+					if (entry.expirationTime < time)
+					{
+						it = keys.erase(it);
+						continue;
+					}
+					++it;
+
+					CryptoKey key = Crypto::DuplicateKey(logger, entry.key);
+					auto keyGuard = MakeGuard([&]() { Crypto::DestroyKey(key); });
+					if (!TestHandshake(key))
+						continue;
+					keyGuard.Cancel();
+					conn.m_cryptoKey = key;
+					break;
+				}
+				if (conn.m_cryptoKey == InvalidCryptoKey)
+					return logger.Error(TC("Crypto mismatch..."));
+			}
+
+			conn.m_backend.SetAllowLessThanBodySize(conn.m_backendConnection, false);
 			conn.m_backend.SetRecvCallbacks(conn.m_backendConnection, &conn, 4, ReceiveVersion, nullptr, TC("ReceiveVersion"));
 
 			return true;
@@ -250,10 +299,10 @@ namespace uba
 			{
 				if (server.m_onConnectionFunction)
 					server.m_onConnectionFunction(clientUid, clientId);
-				server.m_logger.Detail(TC("Client %s connected on connection %s"), GuidToString(clientUid).str, GuidToString(connectionUid).str);
+				server.m_logger.Detail(TC("Client %u (%s) connected on connection %s"), clientId, GuidToString(clientUid).str, GuidToString(connectionUid).str);
 			}
 			else
-				server.m_logger.Detail(TC("Client %s additional connection %s connected"), GuidToString(clientUid).str, GuidToString(connectionUid).str);
+				server.m_logger.Detail(TC("Client %u (%s) additional connection %s connected"), clientId, GuidToString(clientUid).str, GuidToString(connectionUid).str);
 
 
 			return true;
@@ -346,7 +395,7 @@ namespace uba
 				SCOPED_READ_LOCK(m_server.m_onDisconnectFunctionsLock, l);
 				for (auto& entry : m_server.m_onDisconnectFunctions)
 					entry.function(m_client->uid, m_client->id);
-				m_server.m_logger.Detail(TC("Client %s disconnected"), GuidToString(m_client->uid).str);
+				m_server.m_logger.Detail(TC("Client %u (%s) disconnected"), m_client->id, GuidToString(m_client->uid).str);
 			}
 			m_disconnected = true;
 		}
@@ -596,27 +645,15 @@ namespace uba
 	{
 		UBA_ASSERT(m_connections.empty());
 		FlushWorkers();
+		for (auto& entry : m_cryptoKeys)
+			Crypto::DestroyKey(entry.key);
 	}
 
-	bool NetworkServer::StartListen(NetworkBackend& backend, u16 port, const tchar* ip, const u8* cryptoKey128)
+	bool NetworkServer::StartListen(NetworkBackend& backend, u16 port, const tchar* ip, bool requiresCrypto)
 	{
-		if (cryptoKey128)
-		{
-			m_listenCrypto = Crypto::CreateKey(m_logger, cryptoKey128);
-			if (!m_listenCrypto)
-				return false;
-		}
-
-		return backend.StartListen(m_logger, port, ip, [&](void* connection, const sockaddr& remoteSockAddr)
+		return backend.StartListen(m_logger, port, ip, [this, &backend, requiresCrypto](void* connection, const sockaddr& remoteSockAddr)
 			{
-				CryptoKey cryptoKey = InvalidCryptoKey;
-				if (m_listenCrypto)
-				{
-					cryptoKey = Crypto::DuplicateKey(m_logger, m_listenCrypto);
-					if (!cryptoKey)
-						return false;
-				}
-				return AddConnection(backend, connection, remoteSockAddr, cryptoKey);
+				return AddConnection(backend, connection, remoteSockAddr, requiresCrypto, InvalidCryptoKey);
 			});
 	}
 	
@@ -643,9 +680,9 @@ namespace uba
 			for (auto& c : m_connections)
 			{
 				success = c.Stop() && success;
-				m_sendTimer.Add(c.m_sendTimer);
-				m_encryptTimer.Add(c.m_encryptTimer);
-				m_decryptTimer.Add(c.m_decryptTimer);
+				m_sendTimer += c.m_sendTimer;
+				m_encryptTimer += c.m_encryptTimer;
+				m_decryptTimer += c.m_decryptTimer;
 			}
 			lock.Leave();
 
@@ -661,6 +698,18 @@ namespace uba
 
 		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		m_connections.clear();
+
+		m_workersEnabled = true;
+	}
+
+	bool NetworkServer::RegisterCryptoKey(const u8* cryptoKey128, u64 expirationTime)
+	{
+		CryptoKey key = Crypto::CreateKey(m_logger, cryptoKey128);
+		if (key == InvalidCryptoKey)
+			return false;
+		SCOPED_WRITE_LOCK(m_cryptoKeysLock, lock);
+		m_cryptoKeys.push_back(CryptoEntry{key, expirationTime});
+		return true;
 	}
 
 	bool NetworkServer::AddClient(NetworkBackend& backend, const tchar* ip, u16 port, const u8* cryptoKey128)
@@ -693,7 +742,7 @@ namespace uba
 				// TODO: Should this retry?
 				success = backend.Connect(m_logger, ip2.c_str(), [this, &backend, cryptoKey](void* connection, const sockaddr& remoteSocketAddr, bool* timedOut)
 					{
-						return AddConnection(backend, connection, remoteSocketAddr, cryptoKey);
+						return AddConnection(backend, connection, remoteSocketAddr, cryptoKey != InvalidCryptoKey, cryptoKey);
 					}, port, nullptr);
 				if (!success)
 					Crypto::DestroyKey(cryptoKey);
@@ -710,8 +759,9 @@ namespace uba
 		if (!m_maxActiveConnections)
 			return;
 
+		m_maxCreatedWorkerCount = Max(m_createdWorkerCount, m_maxCreatedWorkerCount);
 		StringBuffer<> workers;
-		workers.Appendf(TC("%u/%u"), m_createdWorkerCount, m_maxWorkerCount);
+		workers.Appendf(TC("%u/%u"), m_maxCreatedWorkerCount, m_maxWorkerCount);
 
 		logger.Info(TC("  ----- Uba server stats summary ------"));
 		logger.Info(TC("  MaxActiveConnections           %6u"), m_maxActiveConnections);
@@ -779,14 +829,23 @@ namespace uba
 		}
 	}
 
-	void NetworkServer::AddWork(const Function<void()>& work, u32 count, const tchar* desc)
+	void NetworkServer::AddWork(const Function<void()>& work, u32 count, const tchar* desc, bool highPriority)
 	{
 		SCOPED_WRITE_LOCK(m_additionalWorkLock, lock);
 		for (u32 i = 0; i != count; ++i)
 		{
-			m_additionalWork.push_back({ work });
-			if (m_workTracker)
-				m_additionalWork.back().desc = desc;
+			if (highPriority)
+			{
+				m_additionalWork.push_front({ work });
+				if (m_workTracker)
+					m_additionalWork.front().desc = desc;
+			}
+			else
+			{
+				m_additionalWork.push_back({ work });
+				if (m_workTracker)
+					m_additionalWork.back().desc = desc;
+			}
 		}
 		lock.Leave();
 
@@ -804,9 +863,21 @@ namespace uba
 		}
 	}
 
+	void NetworkServer::DoWork(u32 count)
+	{
+		while (count--)
+			if (!DoAdditionalWork())
+				return;
+	}
+
 	u32 NetworkServer::GetWorkerCount()
 	{
 		return m_maxWorkerCount;
+	}
+
+	MutableLogger& NetworkServer::GetLogger()
+	{
+		return m_logger;
 	}
 
 	u64 NetworkServer::GetTotalSentBytes()
@@ -853,8 +924,11 @@ namespace uba
 			if (m_createdWorkerCount != m_maxWorkerCount)
 				return false;
 			lock2.Leave();
+
 			auto worker = t_worker;
-			UBA_ASSERT(worker);
+			if (!worker)
+				return false;
+
 			auto oldContext = worker->m_context;
 			WorkerContext context(*this);
 			worker->m_context = &context;
@@ -1043,6 +1117,8 @@ namespace uba
 			delete temp;
 		}
 		m_firstAvailableWorker = nullptr;
+		m_maxCreatedWorkerCount = Max(m_createdWorkerCount, m_maxCreatedWorkerCount);
+		m_createdWorkerCount = 0;
 	}
 
 	void NetworkServer::RemoveDisconnectedConnections()
@@ -1055,7 +1131,7 @@ namespace uba
 				++it;
 				continue;
 			}
-			m_sendTimer.Add(con.m_sendTimer);
+			m_sendTimer += con.m_sendTimer;
 			it = m_connections.erase(it);
 		}
 	}
@@ -1095,7 +1171,7 @@ namespace uba
 										if (cryptoKey == InvalidCryptoKey)
 											return false;
 									}
-									return AddConnection(conn.m_backend, connection, remoteSocketAddr, cryptoKey);
+									return AddConnection(conn.m_backend, connection, remoteSocketAddr, cryptoKey != InvalidCryptoKey, cryptoKey);
 								}, nullptr);
 							return 0;
 						});
@@ -1111,7 +1187,7 @@ namespace uba
 		return false;
 	}
 
-	bool NetworkServer::AddConnection(NetworkBackend& backend, void* backendConnection, const sockaddr& remoteSocketAddr, CryptoKey cryptoKey)
+	bool NetworkServer::AddConnection(NetworkBackend& backend, void* backendConnection, const sockaddr& remoteSocketAddr, bool requiresCrypto, CryptoKey cryptoKey)
 	{
 		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 
@@ -1125,7 +1201,7 @@ namespace uba
 			return false;
 		}
 
-		m_connections.emplace_back(*this, backend, backendConnection, remoteSocketAddr, cryptoKey, m_connectionIdCounter++);
+		m_connections.emplace_back(*this, backend, backendConnection, remoteSocketAddr, requiresCrypto, cryptoKey, m_connectionIdCounter++);
 		m_maxActiveConnections = Max(m_maxActiveConnections, u32(m_connections.size()));
 		return true;
 	}

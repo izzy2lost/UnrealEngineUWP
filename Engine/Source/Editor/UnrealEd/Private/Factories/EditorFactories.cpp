@@ -137,7 +137,6 @@
 #include "Exporters/TextureExporterBMP.h"
 #include "Exporters/TextureExporterHDR.h"
 #include "Exporters/RenderTargetExporterHDR.h"
-#include "Exporters/TextureExporterPCX.h"
 #include "Exporters/TextureExporterTGA.h"
 #include "Exporters/TextureExporterPNG.h"
 #include "Exporters/TextureExporterEXR.h"
@@ -182,7 +181,7 @@
 #include "Engine/TextureRenderTargetVolume.h"
 #include "GameFramework/TouchInterface.h"
 #include "Engine/UserDefinedEnum.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Internationalization/StringTable.h"
 #include "Editor.h"
 #include "Materials/MaterialExpressionTextureSample.h"
@@ -275,6 +274,7 @@
 #include "DesktopPlatformModule.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "TextureImportSettings.h"
+#include "TextureImportUserSettings.h"
 #include "AssetImportTask.h"
 #include "ObjectTools.h"
 
@@ -289,6 +289,12 @@
 DEFINE_LOG_CATEGORY(LogEditorFactories);
 
 #define LOCTEXT_NAMESPACE "EditorFactories"
+
+static TAutoConsoleVariable<int32> CVarAutomaticallySetMaterialUsageInEditorDefault(
+	TEXT("r.Material.DefaultAutoMaterialUsage"),
+	1,
+	TEXT("Whether new Materials should automatically set usage flags in the Editor."),
+	ECVF_RenderThreadSafe);
 
 /*------------------------------------------------------------------------------
 	Shared - used by multiple factories
@@ -498,6 +504,8 @@ UMaterialFactoryNew::UMaterialFactoryNew(const FObjectInitializer& ObjectInitial
 UObject* UMaterialFactoryNew::FactoryCreateNew(UClass* Class,UObject* InParent,FName Name,EObjectFlags Flags,UObject* Context,FFeedbackContext* Warn)
 {
 	UMaterial* NewMaterial = NewObject<UMaterial>(InParent, Class, Name, Flags);
+
+	NewMaterial->bAutomaticallySetUsageInEditor = CVarAutomaticallySetMaterialUsageInEditorDefault.GetValueOnAnyThread() != 0;
 
 	if ( InitialTexture != nullptr )
 	{
@@ -742,10 +750,10 @@ UObject* ULevelFactory::FactoryCreateText
 				Buffer += FCString::Strlen(TEXT("Name="));
 				Buffer += MapName.Len();
 				// Check to make sure that there are no naming conflicts
-				if( RootMapPackage->Rename(*MapName, nullptr, REN_Test | REN_ForceNoResetLoaders) )
+				if( RootMapPackage->Rename(*MapName, nullptr, REN_Test) )
 				{
 					// Rename it!
-					RootMapPackage->Rename(*MapName, nullptr, REN_ForceNoResetLoaders);
+					RootMapPackage->Rename(*MapName, nullptr);
 				}
 				else
 				{
@@ -922,8 +930,8 @@ UObject* ULevelFactory::FactoryCreateText
 
 				FString ExternalDataLayerAssetPathStr;
 				FParse::Value(Str, TEXT("ExternalDataLayerAsset="), ExternalDataLayerAssetPathStr);
-				UExternalDataLayerAsset* ExternalDataLayerAsset = Cast<UExternalDataLayerAsset>(FSoftObjectPath(ExternalDataLayerAssetPathStr).TryLoad());
-				FScopedActorEditorContextSetExternalDataLayerAsset EDLScope(ExternalDataLayerAsset);
+				const UExternalDataLayerAsset* ExternalDataLayerAsset = Cast<UExternalDataLayerAsset>(FSoftObjectPath(ExternalDataLayerAssetPathStr).TryLoad());
+				FScopedOverrideSpawningLevelMountPointObject ScopeOverrideLevelMountPoint(ExternalDataLayerAsset);
 
 				// If we're pasting from a class that belongs to a map we need to duplicate the class and use that instead
 				if (FBlueprintEditorUtils::IsAnonymousBlueprintClass(TempClass))
@@ -1007,10 +1015,17 @@ UObject* ULevelFactory::FactoryCreateText
 									bGrouped = true;
 									FParse::Value(Str, TEXT("GroupFolder="), GroupFolder);
 								}
-								FString ActorFolderPath;
-								if (FParse::Value(Str, TEXT("ActorFolderPath="), ActorFolderPath))
+
+								// Don't overwrite if its already been set during actor creation
+								// (i.e. by UActorEditorContextSubsystem::ApplyContext).
+								// It mirrors the behavior of the task "Importing Actors" below.
+								if (NewActor->GetFolder().IsNone())
 								{
-									NewActor->SetFolderPath(*ActorFolderPath);
+									FString ActorFolderPath;
+									if (FParse::Value(Str, TEXT("ActorFolderPath="), ActorFolderPath))
+									{
+										NewActor->SetFolderPath(*ActorFolderPath);
+									}
 								}
 
 								uint32 CopyPasteId;
@@ -1634,7 +1649,7 @@ UObject* UPolysFactory::FactoryCreateText
 	FFeedbackContext*	Warn
 )
 {
-	FVector3f PointPool[4096];
+	FVector3f PointPool[4096] = {};
 	int32 NumPoints = 0;
 
 	GEditor->GetEditorSubsystem<UImportSubsystem>()->BroadcastAssetPreImport(this, Class, InParent, Name, Type);
@@ -2390,40 +2405,6 @@ UObject* UTextureRenderTargetVolumeFactoryNew::FactoryCreateNew(UClass* Class, U
 
 // .PCX file header.
 #pragma pack(push,1)
-class FPCXFileHeader
-{
-public:
-	uint8	Manufacturer;		// Always 10.
-	uint8	Version;			// PCX file version.
-	uint8	Encoding;			// 1=run-length, 0=none.
-	uint8	BitsPerPixel;		// 1,2,4, or 8.
-	uint16	XMin;				// Dimensions of the image.
-	uint16	YMin;				// Dimensions of the image.
-	uint16	XMax;				// Dimensions of the image.
-	uint16	YMax;				// Dimensions of the image.
-	uint16	XDotsPerInch;		// Horizontal printer resolution.
-	uint16	YDotsPerInch;		// Vertical printer resolution.
-	uint8	OldColorMap[48];	// Old colormap info data.
-	uint8	Reserved1;			// Must be 0.
-	uint8	NumPlanes;			// Number of color planes (1, 3, 4, etc).
-	uint16	BytesPerLine;		// Number of bytes per scanline.
-	uint16	PaletteType;		// How to interpret palette: 1=color, 2=gray.
-	uint16	HScreenSize;		// Horizontal monitor size.
-	uint16	VScreenSize;		// Vertical monitor size.
-	uint8	Reserved2[54];		// Must be 0.
-	friend FArchive& operator<<( FArchive& Ar, FPCXFileHeader& H )
-	{
-		Ar << H.Manufacturer << H.Version << H.Encoding << H.BitsPerPixel;
-		Ar << H.XMin << H.YMin << H.XMax << H.YMax << H.XDotsPerInch << H.YDotsPerInch;
-		for( int32 i=0; i<UE_ARRAY_COUNT(H.OldColorMap); i++ )
-			Ar << H.OldColorMap[i];
-		Ar << H.Reserved1 << H.NumPlanes;
-		Ar << H.BytesPerLine << H.PaletteType << H.HScreenSize << H.VScreenSize;
-		for( int32 i=0; i<UE_ARRAY_COUNT(H.Reserved2); i++ )
-			Ar << H.Reserved2[i];
-		return Ar;
-	}
-};
 
 struct FTGAFileFooter
 {
@@ -2869,39 +2850,6 @@ void FImportImage::Init2DWithParams(int32 InSizeX, int32 InSizeY, ETextureSource
 	SRGB = InSRGB;
 }
 
-void FImportImage::Init2DWithOneMip(int32 InSizeX, int32 InSizeY, ETextureSourceFormat InFormat, const void* InData)
-{
-	SizeX = InSizeX;
-	SizeY = InSizeY;
-	NumMips = 1;
-	Format = InFormat;
-	RawData.AddUninitialized((int64)SizeX * SizeY * FTextureSource::GetBytesPerPixel(Format));
-	if (InData)
-	{
-		FMemory::Memcpy(RawData.GetData(), InData, RawData.Num());
-	}
-}
-
-void FImportImage::Init2DWithMips(int32 InSizeX, int32 InSizeY, int32 InNumMips, ETextureSourceFormat InFormat, const void* InData)
-{
-	SizeX = InSizeX;
-	SizeY = InSizeY;
-	NumMips = InNumMips;
-	Format = InFormat;
-
-	int64 TotalSize = 0;
-	for (int32 MipIndex = 0; MipIndex < InNumMips; ++MipIndex)
-	{
-		TotalSize += GetMipSize(MipIndex);
-	}
-	RawData.AddUninitialized(TotalSize);
-
-	if (InData)
-	{
-		FMemory::Memcpy(RawData.GetData(), InData, RawData.Num());
-	}
-}
-
 int64 FImportImage::GetMipSize(int32 InMipIndex) const
 {
 	check(InMipIndex >= 0);
@@ -3026,7 +2974,7 @@ bool UTextureFactory::ImportImage(const uint8* Buffer, int64 Length, FFeedbackCo
 
 			if ( ImageFormat == EImageFormat::PNG )
 			{
-				ETextureImportPNGInfill PNGInfill = GetDefault<UTextureImportSettings>()->GetPNGInfillMapDefault();
+				ETextureImportPNGInfill PNGInfill = UE::TextureUtilitiesCommon::GetPNGInfillSetting();
 
 				if (PNGInfill != ETextureImportPNGInfill::Never)
 				{
@@ -3084,122 +3032,6 @@ bool UTextureFactory::ImportImage(const uint8* Buffer, int64 Length, FFeedbackCo
 
 
 	//
-	// PCX
-	//
-	const FPCXFileHeader*    PCX = (FPCXFileHeader *)Buffer;
-	if (Length >= sizeof(FPCXFileHeader) && PCX->Manufacturer == 10)
-	{
-		int32 NewU = PCX->XMax + 1 - PCX->XMin;
-		int32 NewV = PCX->YMax + 1 - PCX->YMin;
-
-		// Check the resolution of the imported texture to ensure validity
-		if (!IsImportResolutionValid(NewU, NewV, bAllowNonPowerOfTwo, Warn))
-		{
-			return false;
-		}
-		else if (PCX->NumPlanes == 1 && PCX->BitsPerPixel == 8)
-		{
-
-			// Set texture properties.
-			OutImage.Init2DWithOneMip(
-				NewU,
-				NewV,
-				TSF_BGRA8
-			);
-			FColor* DestPtr = (FColor*)OutImage.RawData.GetData();
-
-			// Import the palette.
-			uint8* PCXPalette = (uint8 *)(Buffer + Length - 256 * 3);
-			TArray<FColor>	Palette;
-			for (uint32 i = 0; i < 256; i++)
-			{
-				Palette.Add(FColor(PCXPalette[i * 3 + 0], PCXPalette[i * 3 + 1], PCXPalette[i * 3 + 2], i == 0 ? 0 : 255));
-			}
-
-			// Import it.
-			FColor* DestEnd = DestPtr + NewU * NewV;
-			Buffer += 128;
-			while (DestPtr < DestEnd)
-			{
-				uint8 Color = *Buffer++;
-				if ((Color & 0xc0) == 0xc0)
-				{
-					uint32 RunLength = Color & 0x3f;
-					Color = *Buffer++;
-
-					for (uint32 Index = 0; Index < RunLength; Index++)
-					{
-						*DestPtr++ = Palette[Color];
-					}
-				}
-				else *DestPtr++ = Palette[Color];
-			}
-		}
-		else if (PCX->NumPlanes == 3 && PCX->BitsPerPixel == 8)
-		{
-			// Set texture properties.
-			OutImage.Init2DWithOneMip(
-				NewU,
-				NewV,
-				TSF_BGRA8
-			);
-
-			uint8* Dest = OutImage.RawData.GetData();
-
-			// Doing a memset to make sure the alpha channel is set to 0xff since we only have 3 color planes.
-			FMemory::Memset(Dest, 0xff, NewU * NewV * FTextureSource::GetBytesPerPixel(OutImage.Format));
-
-			// Copy upside-down scanlines.
-			Buffer += 128;
-			int32 CountU = FMath::Min<int32>(PCX->BytesPerLine, NewU);
-			for (int32 i = 0; i < NewV; i++)
-			{
-				// We need to decode image one line per time building RGB image color plane by color plane.
-				int32 RunLength, Overflow = 0;
-				uint8 Color = 0;
-				for (int32 ColorPlane = 2; ColorPlane >= 0; ColorPlane--)
-				{
-					for (int32 j = 0; j < CountU; j++)
-					{
-						if (!Overflow)
-						{
-							Color = *Buffer++;
-							if ((Color & 0xc0) == 0xc0)
-							{
-								RunLength = FMath::Min((Color & 0x3f), CountU - j);
-								Overflow = (Color & 0x3f) - RunLength;
-								Color = *Buffer++;
-							}
-							else
-								RunLength = 1;
-						}
-						else
-						{
-							RunLength = FMath::Min(Overflow, CountU - j);
-							Overflow = Overflow - RunLength;
-						}
-
-						//checkf(((i*NewU + RunLength) * 4 + ColorPlane) < (Texture->Source.CalcMipSize(0)),
-						//	TEXT("RLE going off the end of buffer"));
-						for (int32 k = j; k < j + RunLength; k++)
-						{
-							Dest[(i*NewU + k) * 4 + ColorPlane] = Color;
-						}
-						j += RunLength - 1;
-					}
-				}
-			}
-		}
-		else
-		{
-			Warn->Logf(ELogVerbosity::Error, TEXT("PCX uses an unsupported format (%i/%i)"), PCX->NumPlanes, PCX->BitsPerPixel);
-			return false;
-		}
-
-		return true;
-	}
-
-	//
 	// PSD File
 	//
 	FPSDFileHeader			 psdhdr;
@@ -3238,12 +3070,20 @@ bool UTextureFactory::ImportImage(const uint8* Buffer, int64 Length, FFeedbackCo
 		}
 
 		// The psd is supported. Load it up.        
-		OutImage.Init2DWithOneMip(
+		bool bSRGB = true;
+		OutImage.Init2DWithParams(
 			psdhdr.Width,
 			psdhdr.Height,
-			TextureFormat
+			TextureFormat,
+			bSRGB
 		);
+		
+		OutImage.RawData.SetNumUninitialized((int64)psdhdr.Width * psdhdr.Height * FTextureSource::GetBytesPerPixel(TextureFormat));
+
 		uint8* Dst = (uint8*)OutImage.RawData.GetData();
+
+		// @todo : dangerous : psd_ReadData doesn't take Dst end, may overrun
+		//	-> just delete the PSD reader from here entirely, it should be in ImageWrapper instead
 
 		if (!psd_ReadData(Dst, Buffer, psdhdr))
 		{
@@ -3914,7 +3754,7 @@ UObject* UTextureFactory::FactoryCreateBinary
 							}
 							else
 							{
-								verify(InParent->Rename(*PackageUDIMName, nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders));
+								verify(InParent->Rename(*PackageUDIMName, nullptr, REN_DontCreateRedirectors));
 							}
 						}
 					}
@@ -4202,59 +4042,40 @@ UObject* UTextureFactory::FactoryCreateBinary
 			}
 		}
 	}
-			
-	static const auto CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures"));
-	check(CVarVirtualTexturesEnabled);
-	
-	// If the texture is larger than a certain threshold make it VT.
-	// Note that previously for re-imports we still checked size and potentially changed the VT status.
-	// But that was unintuitive for many users so now for re-imports we will end up ignoring this and respecting the existing setting below.
-
-	static const auto CVarVirtualTexturesAutoImportEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VT.EnableAutoImport"));
-	check(CVarVirtualTexturesAutoImportEnabled);
-
-	if (CVarVirtualTexturesEnabled->GetValueOnAnyThread() && CVarVirtualTexturesAutoImportEnabled->GetValueOnAnyThread())
+				
+	if ( UE::TextureUtilitiesCommon::ShouldTextureBeVirtualByAutoImportSize(Texture) )
 	{
-		const int64 VirtualTextureAutoEnableThreshold = GetDefault<UTextureImportSettings>()->AutoVTSize;
-		const int64 VirtualTextureAutoEnableThresholdPixels = VirtualTextureAutoEnableThreshold * VirtualTextureAutoEnableThreshold;
-
-		// We do this in pixels so a 8192 x 128 texture won't get VT enabled 
-		// We use the Source size instead of simple Texture2D->GetSizeX() as this uses the size of the platform data
-		// however for a new texture platform data may not be generated yet, and for an reimport of a texture this is the size of the
-		// old texture. 
-		// Using source size gives one small caveat. It looks at the size before mipmap power of two padding adjustment.
-		// Textures with more than 1 block (UDIM textures) must be imported as VT
-		if (Texture->Source.GetNumBlocks() > 1 ||
-			( (int64) Texture->Source.GetSizeX() * Texture->Source.GetSizeY() ) >= VirtualTextureAutoEnableThresholdPixels ||
-			Texture->Source.GetSizeX() > UTexture::GetMaximumDimensionOfNonVT() ||
-			Texture->Source.GetSizeY() > UTexture::GetMaximumDimensionOfNonVT() )
+		// only UTexture2D can be VT
+		if ( Texture->GetTextureClass() == ETextureClass::TwoD )
 		{
-			// only UTexture2D can be VT
-			if ( Texture->GetTextureClass() == ETextureClass::TwoD )
-			{
-				Texture->VirtualTextureStreaming = true;
-			}
-			else
-			{
-				UE_LOG(LogEditorFactories, Warning, TEXT("Texture is too large for non-VT (%d x %d) but is not a UTexture2D."),
-					Texture->Source.GetSizeX() , Texture->Source.GetSizeY());
-			}
+			Texture->VirtualTextureStreaming = true;
 		}
-	}
-
-	// if Texture is too large and should be VT but VT is not enabled, warn about that	
-	if ( ! CVarVirtualTexturesEnabled->GetValueOnAnyThread() )
-	{
-		int32 MaxDimension = FMath::Max( Texture->Source.GetSizeX() , Texture->Source.GetSizeY() );
-		bool bLargeTextureMustBeVT = MaxDimension > UTexture::GetMaximumDimensionOfNonVT();
-		if ( bLargeTextureMustBeVT )
+		else
 		{
-			UE_LOG(LogEditorFactories, Warning, TEXT("Texture is too large for non-VT (%d x %d) but VT is not enabled in this project."),
+			UE_LOG(LogEditorFactories, Warning, TEXT("Texture [%s] is too large for non-VT (%d x %d) but is not a UTexture2D."),
+				*Texture->GetName(),
 				Texture->Source.GetSizeX() , Texture->Source.GetSizeY());
 		}
-		else if ( Texture->Source.GetNumBlocks() > 1 )
+	}
+	else
+	{
+		static const auto CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures"));
+		check(CVarVirtualTexturesEnabled);
+
+		// if Texture is too large and should be VT but VT is not enabled, warn about that	
+		if ( ! CVarVirtualTexturesEnabled->GetValueOnAnyThread() )
 		{
-			UE_LOG(LogEditorFactories, Warning, TEXT("Texture has blocks which requires VT but VT is not enabled in this project."));
+			int32 MaxDimension = FMath::Max( Texture->Source.GetSizeX() , Texture->Source.GetSizeY() );
+			bool bLargeTextureMustBeVT = MaxDimension > UTexture::GetMaximumDimensionOfNonVT();
+			if ( bLargeTextureMustBeVT )
+			{
+				UE_LOG(LogEditorFactories, Warning, TEXT("Texture is too large for non-VT (%d x %d) but VT is not enabled in this project."),
+					Texture->Source.GetSizeX() , Texture->Source.GetSizeY());
+			}
+			else if ( Texture->Source.GetNumBlocks() > 1 )
+			{
+				UE_LOG(LogEditorFactories, Warning, TEXT("Texture has blocks which requires VT but VT is not enabled in this project."));
+			}
 		}
 	}
 
@@ -4521,67 +4342,19 @@ void UTextureFactory::ApplyAutoImportSettings(UTexture* Texture)
 
 bool UTextureFactory::IsImportResolutionValid(int64 Width, int64 Height, bool bAllowNonPowerOfTwo, FFeedbackContext* Warn)
 {
-	// code dupe to:
-	//UE::Interchange::FImportImageHelper::IsImportResolutionValid
-
-	static const auto CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures")); check(CVarVirtualTexturesEnabled);
-
-	// Get the non-VT size limit :
-	int64 MaximumSupportedResolutionNonVT = (int64)UTexture::GetMaximumDimensionOfNonVT();
+	FText ErrorMessage;
 	
-	// limit on current rendering RHI : == GetMax2DTextureDimension()
-	const int64 CurrentRHIMaxResolution = int64(1)<<(GMaxTextureMipCount-1);
-
-	// MaximumSupportedResolutionNonVT is only a popup/warning , not a hard limit
-	MaximumSupportedResolutionNonVT = FMath::Min(MaximumSupportedResolutionNonVT,CurrentRHIMaxResolution);
-
-	// No zero-size textures :
-	if (Width == 0 || Height == 0 )
+	if ( UE::TextureUtilitiesCommon::IsImportResolutionValid(Width,Height,bAllowNonPowerOfTwo,&ErrorMessage) )
 	{
-		Warn->Log(ELogVerbosity::Error, NSLOCTEXT("UnrealEd", "Warning_TextureSizeZero", "Texture has zero width or height").ToString());
-
-		return false;
+		return true;
 	}
 
-	// Dimensions must fit in signed int32
-	//  could be negative here if it was over 2G and int32 was used earlier
-	if ( ! FImageCoreUtils::IsImageImportPossible(Width,Height) )
+	if ( ! ErrorMessage.IsEmpty() )
 	{
-		Warn->Log(ELogVerbosity::Error, NSLOCTEXT("UnrealEd", "Warning_TextureSizeTooLargeOrInvalid", "Texture is has an invalid resolution.").ToString());
-
-		return false;
-	}
-		
-	if ( Width > MaximumSupportedResolutionNonVT || Height > MaximumSupportedResolutionNonVT )
-	{
-
-		// we're larger than MaximumSupportedResolution
-		// so this texture can still work, but only as VT
-		// prompt about this :
-
-		// check if VT is allowed & show extra message if not :
-
-		check(CVarVirtualTexturesEnabled != nullptr );
-		const FText VTMessage = CVarVirtualTexturesEnabled->GetValueOnAnyThread() ? FText() :
-			NSLOCTEXT("UnrealEd","Warning_LargeTextureVTDisabled", "\nWarning: Virtual Textures are disabled in this project.");
-
-		if ( EAppReturnType::Yes != FMessageDialog::Open( EAppMsgType::YesNo, EAppReturnType::Yes, FText::Format(
-				NSLOCTEXT("UnrealEd", "Warning_LargeTextureImport", "Attempting to import {0} x {1} texture, proceed?\nLargest supported non-VT texture size: {2} x {3}{4}"),
-				FText::AsNumber(Width), FText::AsNumber(Height), FText::AsNumber(MaximumSupportedResolutionNonVT), FText::AsNumber(MaximumSupportedResolutionNonVT), VTMessage) ) )
-		{
-			return false;
-		}
+		Warn->Log(ELogVerbosity::Error, ErrorMessage.ToString());
 	}
 
-	const bool bIsPowerOfTwo = FMath::IsPowerOfTwo( Width ) && FMath::IsPowerOfTwo( Height );
-	// Check if the texture dimensions are powers of two
-	if ( !bAllowNonPowerOfTwo && !bIsPowerOfTwo )
-	{
-		Warn->Log(ELogVerbosity::Error, *NSLOCTEXT("UnrealEd", "Warning_TextureNotAPowerOfTwo", "Cannot import texture with non-power of two dimensions").ToString() );
-		return false;
-	}
-	
-	return true;
+	return false;
 }
 
 IImportSettingsParser* UTextureFactory::GetImportSettingsParser()
@@ -4596,96 +4369,6 @@ void UTextureFactory::ParseFromJson(TSharedRef<class FJsonObject> ImportSettings
 
 	// Try to apply any import time options now 
 	FJsonObjectConverter::JsonObjectToUStruct(ImportSettingsJson, GetClass(), this, 0, CPF_InstancedReference);
-}
-
-/*------------------------------------------------------------------------------
-	UTextureExporterPCX implementation.
-	UTextureExporterPCX does not use TextureExporterGeneric because there's no PCX ImageWrapper
-		therefore does not support UDIM and other niceties like TextureExporterGeneric
-------------------------------------------------------------------------------*/
-UTextureExporterPCX::UTextureExporterPCX(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
-{
-	SupportedClass = UTexture2D::StaticClass();
-	PreferredFormatIndex = 0;
-	FormatExtension.Add(TEXT("PCX"));
-	FormatDescription.Add(TEXT("PCX File"));
-}
-
-bool UTextureExporterPCX::SupportsObject(UObject* Object) const
-{
-	bool bSupportsObject = false;
-	if (Super::SupportsObject(Object))
-	{
-		UTexture2D* Texture = Cast<UTexture2D>(Object);
-
-		if (Texture)
-		{
-			bSupportsObject = Texture->Source.GetFormat() == TSF_BGRA8;
-			
-			if (Texture->Source.GetNumBlocks() > 1 )
-			{
-				// does not support UDIM
-				bSupportsObject = false;
-			}		
-		}
-	}
-	return bSupportsObject;
-}
-
-bool UTextureExporterPCX::ExportBinary( UObject* Object, const TCHAR* Type, FArchive& Ar, FFeedbackContext* Warn, int32 FileIndex, uint32 PortFlags )
-{
-	UTexture2D* Texture = CastChecked<UTexture2D>( Object );
-
-	if( !Texture->Source.IsValid() || Texture->Source.GetFormat() != TSF_BGRA8 )
-	{
-		return false;
-	}
-
-	uint16 SizeX = IntCastChecked<uint16>(Texture->Source.GetSizeX());
-	uint16 SizeY = IntCastChecked<uint16>(Texture->Source.GetSizeY());
-	TArray64<uint8> RawData;
-	verify( Texture->Source.GetMipData(RawData, 0) );
-
-	// Set all PCX file header properties.
-	FPCXFileHeader PCX;
-	FMemory::Memzero( &PCX, sizeof(PCX) );
-	PCX.Manufacturer	= 10;
-	PCX.Version			= 05;
-	PCX.Encoding		= 1;
-	PCX.BitsPerPixel	= 8;
-	PCX.XMin			= 0;
-	PCX.YMin			= 0;
-	PCX.XMax			= SizeX-1;
-	PCX.YMax			= SizeY-1;
-	PCX.XDotsPerInch	= SizeX;
-	PCX.YDotsPerInch	= SizeY;
-	PCX.BytesPerLine	= SizeX;
-	PCX.PaletteType		= 0;
-	PCX.HScreenSize		= 0;
-	PCX.VScreenSize		= 0;
-
-	// Copy all RLE bytes.
-	uint8 RleCode=0xc1;
-
-	PCX.NumPlanes = 3;
-	Ar << PCX;
-	for( int32 Line=0; Line<SizeY; Line++ )
-	{
-		for( int32 ColorPlane = 2; ColorPlane >= 0; ColorPlane-- )
-		{
-			uint8* ScreenPtr = RawData.GetData() + (Line * SizeX * 4) + ColorPlane;
-			for( int32 Row=0; Row<SizeX; Row++ )
-			{
-				if( (*ScreenPtr&0xc0)==0xc0 )
-					Ar << RleCode;
-				Ar << *ScreenPtr;
-				ScreenPtr += 4;
-			}
-		}
-	}
-
-	return true;
 }
 
 
@@ -5737,8 +5420,10 @@ void FCustomizableTextObjectFactory::ProcessBuffer(UObject* InParent, EObjectFla
 		const FString& PropText = PropMap.FindChecked(CreatedObject);
 
 		// Import the properties and give the derived factory a shot at it
-		ImportObjectProperties((uint8*)CreatedObject, *PropText, CreatedObject->GetClass(), CreatedObject, CreatedObject, WarningContext, 0, 0, &InstanceGraph);
-		ProcessConstructedObject(CreatedObject);
+		if (ImportObjectProperties((uint8*)CreatedObject, *PropText, CreatedObject->GetClass(), CreatedObject, CreatedObject, WarningContext, 0, 0, &InstanceGraph))
+		{
+			ProcessConstructedObject(CreatedObject);
+		}
 	}
 	PostProcessConstructedObjects();
 }
@@ -6120,7 +5805,7 @@ EReimportResult::Type UReimportFbxStaticMeshFactory::Reimport( UObject* Obj )
 	}
 	//Prevent any UI for automation, unattended and commandlet
 	const bool IsUnattended = IsAutomatedImport() || FApp::IsUnattended() || IsRunningCommandlet() || GIsRunningUnattendedScript;
-	const bool ShowImportDialogAtReimport = GetDefault<UEditorPerProjectUserSettings>()->bShowImportDialogAtReimport && !IsUnattended;
+	const bool ShowImportDialogAtReimport = (GetDefault<UEditorPerProjectUserSettings>()->bShowImportDialogAtReimport || bForceShowDialog) && !IsUnattended;
 
 	if (ImportData == nullptr)
 	{
@@ -6499,7 +6184,7 @@ EReimportResult::Type UReimportFbxSkeletalMeshFactory::Reimport( UObject* Obj, i
 	bool bSuccess = false;
 	//Prevent any UI for automation, unattended and commandlet
 	const bool IsUnattended = IsAutomatedImport() || FApp::IsUnattended() || IsRunningCommandlet() || GIsRunningUnattendedScript;
-	const bool ShowImportDialogAtReimport = GetDefault<UEditorPerProjectUserSettings>()->bShowImportDialogAtReimport && !IsUnattended;
+	const bool ShowImportDialogAtReimport = (GetDefault<UEditorPerProjectUserSettings>()->bShowImportDialogAtReimport || bForceShowDialog) && !IsUnattended;
 
 	if (ImportData == nullptr)
 	{
@@ -6982,7 +6667,7 @@ EReimportResult::Type UReimportFbxAnimSequenceFactory::Reimport( UObject* Obj )
 	}
 
 	bool bOutImportAll = false;
-	if ( UEditorEngine::ReimportFbxAnimation(Skeleton, AnimSequence, ImportData, *Filename, bOutImportAll, bShowOption && !IsAutomatedImport(), OverrideImportUI) )
+	if ( UEditorEngine::ReimportFbxAnimation(Skeleton, AnimSequence, ImportData, *Filename, bOutImportAll, (bShowOption || bForceShowDialog) && !IsAutomatedImport(), OverrideImportUI) )
 	{
 		if (bOutImportAll)
 		{
@@ -8003,6 +7688,9 @@ UObject* USubsurfaceProfileFactory::FactoryCreateNew(UClass* InClass, UObject* I
 	// loaded from files to be automatically converted to MFP.
 	Object->Settings.bEnableMeanFreePath = true;
 
+	// Assign a GUID to the asset
+	Object->Guid = FGuid::NewGuid();
+
 	return Object;
 }
 
@@ -8349,4 +8037,3 @@ UTexture2D* UUDIMTextureFunctionLibrary::MakeUDIMVirtualTextureFromTexture2Ds(FS
 }
 
 #undef LOCTEXT_NAMESPACE
-

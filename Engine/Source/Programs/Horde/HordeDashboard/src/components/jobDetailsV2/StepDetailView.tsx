@@ -5,11 +5,10 @@ import { observer } from "mobx-react-lite";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import backend from "../../backend";
-import { GetArtifactResponseV2 } from "../../backend/Api";
+import { GetArtifactResponse } from "../../backend/Api";
 import { getHordeStyling } from "../../styles/Styles";
 import { HistoryModal } from "../HistoryModal";
 import { useQuery } from "../JobDetailCommon";
-import { JobDetailArtifactsV2 } from "./JobDetailArtifactsV2";
 import { BisectionPanel } from "./JobDetailBisection";
 import { HealthPanel } from "./JobDetailHealthV2";
 import { PreflightPanel } from "./JobDetailPreflight";
@@ -47,11 +46,6 @@ class StepDetailDataView extends JobDataView {
       }
 
       if (!this.details?.jobData) {
-         return;
-      }
-
-      if (!this.details.jobData.useArtifactsV2) {
-         this.artifacts = [];
          return;
       }
 
@@ -98,7 +92,7 @@ class StepDetailDataView extends JobDataView {
       super.clear();
    }
 
-   artifacts?: GetArtifactResponseV2[];
+   artifacts?: GetArtifactResponse[];
 
    stepId?: string;
 
@@ -162,9 +156,6 @@ const StepDetailViewInner: React.FC<{ jobDetails: JobDetailsV2, stepId: string }
       </Stack>
       {<Stack>
          <StepHistoryPanel jobDetails={jobDetails} stepId={stepId} />
-      </Stack>}
-      {<Stack>
-         <JobDetailArtifactsV2 jobDetails={jobDetails} stepId={stepId} />
       </Stack>}
       {!!step && <Stack>
          <TimelinePanel jobDetails={jobDetails} stepId={stepId} />

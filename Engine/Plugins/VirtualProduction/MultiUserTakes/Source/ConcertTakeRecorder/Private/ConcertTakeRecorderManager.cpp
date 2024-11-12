@@ -9,11 +9,14 @@
 #include "Engine/Engine.h"
 #include "IConcertClientTransactionBridge.h"
 #include "IConcertClientPackageBridge.h"
+#include "IConcertClientSequencerManager.h"
 #include "IConcertClient.h"
 #include "IConcertSyncClient.h"
 #include "IConcertSyncClientModule.h"
 #include "ConcertSyncArchives.h"
 #include "ConcertTakeRecorderStyle.h"
+
+#include "MultiUserTakesFunctionLibrary.h"
 
 #include "ITakeRecorderModule.h"
 #include "Misc/Guid.h"
@@ -49,6 +52,9 @@ static FAutoConsoleVariableRef  CVarEnableTakeSync(TEXT("Concert.EnableTakeRecor
 
 static int32 bConcertUseTakePresetPathForRecord = 0;
 static FAutoConsoleVariableRef  CVarEnableTakePresetPathSync(TEXT("Concert.UseTakePresetPath"), bConcertUseTakePresetPathForRecord, TEXT("Use Take Presets for Take Recording."));
+
+static int32 bEnableSkipHotReloadHint = 0;
+static FAutoConsoleVariableRef  CVarEnableHotReloadHint(TEXT("Concert.TakeRecorderSkipHotReloadHint"), bEnableSkipHotReloadHint, TEXT("Should we indicate to the clients that hot reload can be skipped for assets generated via take recorder."));
 
 #define LOCTEXT_NAMESPACE "ConcertTakeRecorder"
 
@@ -233,7 +239,6 @@ void FConcertTakeRecorderManager::RegisterExtensions()
 
 	Module.GetToolbarExtensionGenerators().AddRaw(this, &FConcertTakeRecorderManager::CreateExtensionWidget);
 	Module.GetRecordButtonExtensionGenerators().AddRaw(this, &FConcertTakeRecorderManager::CreateRecordButtonOverlay);
-	Module.GetRecordErrorCheckGenerator().AddRaw(this, &FConcertTakeRecorderManager::ReportRecordingError);
 	Module.GetCanReviewLastRecordedLevelSequenceDelegate().BindRaw(this, &FConcertTakeRecorderManager::CanReviewLastRecordedSequence);
 
 	if (GIsEditor)
@@ -243,11 +248,12 @@ void FConcertTakeRecorderManager::RegisterExtensions()
 			IConcertClientTransactionBridge* TransactionBridge = ConcertSyncClient->GetTransactionBridge();
 			check(TransactionBridge != nullptr);
 
-			TransactionBridge->RegisterTransactionFilter(TEXT("ConcertTakes"), FTransactionFilterDelegate::CreateRaw(this, &FConcertTakeRecorderManager::ShouldObjectBeTransacted));
+			TransactionBridge->RegisterTransactionFilter(TEXT("ConcertTakes"), FOnFilterTransactionDelegate::CreateRaw(this, &FConcertTakeRecorderManager::ShouldObjectBeTransacted));
 
 			IConcertClientPackageBridge* PackageBridge = ConcertSyncClient->GetPackageBridge();
 			check(PackageBridge);
 			PackageBridge->RegisterPackageFilter(TEXT("ConcertTakes"), FPackageFilterDelegate::CreateRaw(this, &FConcertTakeRecorderManager::ShouldPackageBeFiltered));
+			PackageBridge->RegisterPackageHotReloadHint(TEXT("ConcertTakes"), FPackageHotReloadHintDelegate::CreateRaw(this, &FConcertTakeRecorderManager::CanSkipHotReload));
 		}
 
 		FPropertyEditorModule& PropertyEditorModule = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
@@ -304,6 +310,7 @@ void FConcertTakeRecorderManager::UnregisterExtensions()
 			IConcertClientPackageBridge* PackageBridge = ConcertSyncClient->GetPackageBridge();
 			check(PackageBridge != nullptr);
 			PackageBridge->UnregisterPackageFilter(TEXT("ConcertTakes"));
+			PackageBridge->UnregisterPackageHotReloadHint(TEXT("ConcertTakes"));
 		}
 	}
 }
@@ -322,8 +329,7 @@ bool FConcertTakeRecorderManager::ShouldIconBeVisible() const
 	UTakePreset* TakePreset = TakeRecorderModule.GetPendingTake();
 	UConcertTakeSynchronization const* TakeSync = GetDefault<UConcertTakeSynchronization>();
 
-	if (WeakSession.IsValid() && TakePreset && !bIsRecording && TakeSync->bSyncTakeRecordingTransactions
-		&& IsTakeSyncEnabled() && CanAnyRecord())
+	if (WeakSession.IsValid() && TakePreset && !bIsRecording && TakeSync->bSyncTakeRecordingTransactions && IsTakeSyncEnabled())
 	{
 		ULevelSequence* LevelSequence = TakePreset->GetLevelSequence();
 		if (LevelSequence)
@@ -426,6 +432,12 @@ void FConcertTakeRecorderManager::OnTakeRecorderInitialized(UTakeRecorder* TakeR
 	{
 		if (TSharedPtr<IConcertClientSession> Session = WeakSession.Pin())
 		{
+			if (!CanAnyRecord())
+			{
+				// If no-one can record then force the local client to have recording so that we can continue.
+				UMultiUserTakesFunctionLibrary::SetRecordOnClientLocal(true);
+			}
+
 			LastLevelSequence = nullptr;
 
 			ITakeRecorderModule& TakeRecorderModule = FModuleManager::LoadModuleChecked<ITakeRecorderModule>("TakeRecorder");
@@ -448,6 +460,13 @@ void FConcertTakeRecorderManager::OnTakeRecorderInitialized(UTakeRecorder* TakeR
 				if (!CanRecord())
 				{
 					TakeRecorder->SetDisableSaveTick(true);
+				}
+				else
+				{
+					if (TSharedPtr<IConcertSyncClient> ConcertSyncClient = IConcertSyncClientModule::Get().GetClient(TEXT("MultiUser")))
+					{
+						ConcertSyncClient->GetSequencerManager()->SuspendSequencerPacing();
+					}
 				}
 				FConcertTakeInitializedEvent TakeInitializedEvent;
 				TakeInitializedEvent.TakeName = TakeRecorder->GetName();
@@ -480,6 +499,11 @@ void FConcertTakeRecorderManager::OnRecordingFinished(UTakeRecorder* TakeRecorde
 
 			if (CanRecord())
 			{
+				if (TSharedPtr<IConcertSyncClient> ConcertSyncClient = IConcertSyncClientModule::Get().GetClient(TEXT("MultiUser")))
+				{
+					ConcertSyncClient->GetSequencerManager()->ResumeSequencerPacing();
+				}
+
 				LastLevelSequence = TakeRecorder->GetSequence();
 				check(LastLevelSequence);
 				FConcertRecordingNamedLevelSequenceEvent NamedSequence{LastLevelSequence->GetPathName()};
@@ -531,6 +555,7 @@ void FConcertTakeRecorderManager::OnTakeInitializedEvent(const FConcertSessionCo
 {
 	if (IsTakeSyncEnabled() && CanRecord())
 	{
+		TakeRecorderState.LastStoppedTake = "";
 		TakeRecorderState.LastStartedTake = InEvent.TakeName;
 
 		ITakeRecorderModule& TakeRecorderModule = FModuleManager::LoadModuleChecked<ITakeRecorderModule>("TakeRecorder");
@@ -781,18 +806,9 @@ void FConcertTakeRecorderManager::OnSessionConnectionChanged(IConcertClientSessi
 	}
 }
 
-void FConcertTakeRecorderManager::ReportRecordingError(FText &OutputError)
-{
-	if(WeakSession.IsValid() && IsTakeSyncEnabled() && !CanAnyRecord())
-	{
-		OutputError = LOCTEXT("ErrorWidget_NoRecorder", "No clients are available to record.");
-	}
-}
-
 bool FConcertTakeRecorderManager::CanAnyRecord() const
 {
 	UConcertSessionRecordSettings const* RecordSettings = GetDefault<UConcertSessionRecordSettings>();
-
 	bool bCanRecord = CanRecord();
 	for( const FConcertClientRecordSetting&  Remote : RecordSettings->RemoteSettings )
 	{
@@ -969,17 +985,27 @@ EPackageFilterResult FConcertTakeRecorderManager::ShouldPackageBeFiltered(const 
 	return EPackageFilterResult::UseDefault;
 }
 
-ETransactionFilterResult FConcertTakeRecorderManager::ShouldObjectBeTransacted(UObject* InObject, UPackage* InPackage)
+bool FConcertTakeRecorderManager::CanSkipHotReload(const FConcertPackageInfo& InPackageInfo)
+{
+	if (IsTakeSyncEnabled() && WeakSession.IsValid() && CanRecord() && bEnableSkipHotReloadHint > 0)
+	{
+		FTakeRecorderProjectParameters Project = GetDefault<UTakeRecorderProjectSettings>()->Settings;
+		FString FullName = InPackageInfo.PackageName.ToString();
+		return FullName.Contains(Project.RootTakeSaveDir.Path);
+	}
+	return false;
+}
+
+ETransactionFilterResult FConcertTakeRecorderManager::ShouldObjectBeTransacted(const FConcertTransactionFilterArgs& FilterArgs)
 {
 	UConcertSessionRecordSettings const* RecordSettings = GetDefault<UConcertSessionRecordSettings>();
 
-	ITakeRecorderModule& TakeRecorderModule = FModuleManager::LoadModuleChecked<ITakeRecorderModule>("TakeRecorder");
 	UTakePreset* TakePreset = Preset;
 	if (WeakSession.IsValid()
-		&& InPackage
 		&& TakePreset
 		&& RecordSettings->LocalSettings.bTransactSources
-		&& TakePreset->GetOutermost()->GetFName() == InPackage->GetFName())
+		&& FilterArgs.Package
+		&& TakePreset->GetOutermost()->GetFName() == FilterArgs.Package->GetFName())
 	{
 		return ETransactionFilterResult::IncludeObject;
 	}
@@ -987,8 +1013,8 @@ ETransactionFilterResult FConcertTakeRecorderManager::ShouldObjectBeTransacted(U
 	UConcertTakeSynchronization const* TakeSync	= GetDefault<UConcertTakeSynchronization>();
 	if (WeakSession.IsValid()
 		&& TakeSync->bTransactTakeMetadata
-		&& InObject
-		&& InObject->IsA<UTakeMetaData>())
+		&& FilterArgs.ObjectToFilter
+		&& FilterArgs.ObjectToFilter->IsA<UTakeMetaData>())
 	{
 		return ETransactionFilterResult::IncludeObject;
 	}

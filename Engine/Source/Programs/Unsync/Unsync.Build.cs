@@ -19,7 +19,6 @@ public class Unsync : ModuleRules
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			PrivateDefinitions.Add("UNSYNC_PLATFORM_WINDOWS=1");
-			PrivateDefinitions.Add("UNSYNC_USE_CONCRT=1");
 			PrivateDefinitions.Add("UNSYNC_PLATFORM_UNIX=0");
 			PrivateDefinitions.Add("NOMINMAX=1");
 			PrivateDefinitions.Add("WIN32_LEAN_AND_MEAN=1");
@@ -31,8 +30,12 @@ public class Unsync : ModuleRules
 		else if (Target.Platform == UnrealTargetPlatform.Mac || Target.Platform == UnrealTargetPlatform.Linux)
 		{
 			PrivateDefinitions.Add("UNSYNC_PLATFORM_WINDOWS=0");
-			PrivateDefinitions.Add("UNSYNC_USE_CONCRT=0");
 			PrivateDefinitions.Add("UNSYNC_PLATFORM_UNIX=1");
+		}
+
+		if (Target.Platform == UnrealTargetPlatform.Linux)
+		{
+			PublicSystemLibraries.Add("dl");
 		}
 
 		PrivateDependencyModuleNames.Add("BLAKE3");

@@ -27,7 +27,7 @@
 
 #define LOCTEXT_NAMESPACE "SRCBehaviourPanel"
 
-TSharedRef<SBox> SRCBehaviourPanel::CreateNoneSelectedWidget()
+TSharedRef<SBox> SRCBehaviourPanel::GetNoneSelectedWidget()
 {
 	return SNew(SBox)
 		.Padding(10.f)
@@ -48,9 +48,8 @@ void SRCBehaviourPanel::Construct(const FArguments& InArgs, const TSharedRef<SRe
 
 	RCPanelStyle = &FRemoteControlPanelStyle::Get()->GetWidgetStyle<FRCPanelStyle>("RemoteControlPanel.MinorPanel");
 
-	WrappedBoxWidget = SNew(SBox);
 	UpdateWrappedWidget();
-	
+
 	ChildSlot
 		.Padding(RCPanelStyle->PanelPadding)
 		[
@@ -59,61 +58,58 @@ void SRCBehaviourPanel::Construct(const FArguments& InArgs, const TSharedRef<SRe
 
 	// Register delegates
 	InPanel->OnControllerSelectionChanged.AddSP(this, &SRCBehaviourPanel::OnControllerSelectionChanged);
+	InPanel->OnControllerValueChangedDelegate.AddSP(this, &SRCBehaviourPanel::OnControllerValueChanged);
 }
 
-void SRCBehaviourPanel::OnControllerSelectionChanged(TSharedPtr<FRCControllerModel> InControllerItem)
+void SRCBehaviourPanel::OnControllerSelectionChanged(TSharedPtr<FRCControllerModel> InControllerItem, ESelectInfo::Type InSelectInfo)
 {
 	SelectedControllerItemWeakPtr = InControllerItem;
+
+	// Cache the selection here since UpdateWrappedWidget will recreate the BehaviorList
+	bool bShouldRestoreSelection = false;
+	TArray<TSharedPtr<FRCBehaviourModel>> CurrentSelectedItems;
+	if (BehaviourPanelList.IsValid() && InSelectInfo == ESelectInfo::Direct)
+	{
+		CurrentSelectedItems = BehaviourPanelList->GetSelectedBehaviourItems();
+		bShouldRestoreSelection = true;
+	}
+
 	UpdateWrappedWidget(InControllerItem);
+
+	if (BehaviourPanelList.IsValid())
+	{
+		if (bShouldRestoreSelection)
+		{
+			BehaviourPanelList->SetSelection(CurrentSelectedItems);
+		}
+		else if (InSelectInfo != ESelectInfo::Direct)
+		{
+			BehaviourPanelList->SelectFirstItem();
+		}
+	}
 }
 
-void SRCBehaviourPanel::UpdateWrappedWidget(TSharedPtr<FRCControllerModel> InControllerItem)
+void SRCBehaviourPanel::OnControllerValueChanged(TSharedPtr<FRCControllerModel> InController)
 {
-	TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel();
+	BehaviourPanelList->NotifyControllerValueChanged(InController);
+}
 
-	if (InControllerItem.IsValid() && RemoteControlPanel.IsValid())
+void SRCBehaviourPanel::UpdateWrappedWidget(const TSharedPtr<FRCControllerModel>& InControllerItem)
+{
+	// Create panel widgets if invalid
+	if (!AreBehaviorPanelWidgetsValid())
 	{
-		// Behaviour Dock Panel
-		TSharedPtr<SRCMinorPanel> BehaviourDockPanel = SNew(SRCMinorPanel)
-			.HeaderLabel(LOCTEXT("BehavioursLabel", "Behavior"))
-			.EnableFooter(false)
-			[
-				SAssignNew(BehaviourPanelList, SRCBehaviourPanelList, SharedThis(this), InControllerItem, RemoteControlPanel.ToSharedRef())
-			];
+		CreateBehaviorPanelWidgets();
+	}
 
-		// Add New Behaviour Button
-		const TSharedRef<SWidget> AddNewBehaviourButton = SNew(SComboButton)
-			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("Add Behavior")))
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			.ButtonStyle(&RCPanelStyle->FlatButtonStyle)
-			.ForegroundColor(FSlateColor::UseForeground())
-			.CollapseMenuOnParentFocus(true)
-			.HasDownArrow(false)
-			.ContentPadding(FMargin(4.f, 2.f))
-			.ButtonContent()
-			[
-				SNew(SBox)
-				.WidthOverride(RCPanelStyle->IconSize.X)
-				.HeightOverride(RCPanelStyle->IconSize.Y)
-				[
-					SNew(SImage)
-					.ColorAndOpacity(FSlateColor::UseForeground())
-					.Image(FAppStyle::GetBrush("Icons.PlusCircle"))
-				]
-			]
-			.MenuContent()
-			[
-				GetBehaviourMenuContentWidget()
-			];
-
-		BehaviourDockPanel->AddHeaderToolbarItem(EToolbar::Left, AddNewBehaviourButton);
-
-		WrappedBoxWidget->SetContent(BehaviourDockPanel.ToSharedRef());
+	if (InControllerItem.IsValid() && BehaviourPanelList->GetControllerItem() != InControllerItem)
+	{
+		BehaviourPanelList->SetControllerItem(InControllerItem);
+		AddNewBehaviorComboButton->SetMenuContent(GetBehaviourMenuContentWidget());
 	}
 	else
 	{
-		WrappedBoxWidget->SetContent(CreateNoneSelectedWidget());
+		BehaviourPanelList->SetControllerItem(nullptr);
 	}
 }
 
@@ -223,6 +219,90 @@ FReply SRCBehaviourPanel::OnClickEmptyButton()
 	return FReply::Handled();
 }
 
+void SRCBehaviourPanel::CreateBehaviorPanelWidgets()
+{
+	const TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel();
+
+	// Behavior list
+	if (!BehaviourPanelList.IsValid())
+	{
+		BehaviourPanelList = SNew(SRCBehaviourPanelList, SharedThis(this), nullptr, RemoteControlPanel.ToSharedRef());
+	}
+
+	// Behavior Dock Panel
+	if (!BehaviourDockPanel.IsValid())
+	{
+		BehaviourDockPanel = SNew(SRCMinorPanel)
+			.HeaderLabel(LOCTEXT("BehavioursLabel", "Behavior"))
+			.EnableFooter(false)
+			[
+				BehaviourPanelList.ToSharedRef()
+			];
+	}
+
+	// Add New Behaviour Button
+	if (!AddNewBehaviorComboButton.IsValid())
+	{
+		AddNewBehaviorComboButton = SNew(SComboButton)
+			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("Add Behavior")))
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.ButtonStyle(&RCPanelStyle->FlatButtonStyle)
+			.ForegroundColor(FSlateColor::UseForeground())
+			.CollapseMenuOnParentFocus(true)
+			.HasDownArrow(false)
+			.ContentPadding(FMargin(4.f, 2.f))
+			.ButtonContent()
+			[
+				SNew(SBox)
+				.WidthOverride(RCPanelStyle->IconSize.X)
+				.HeightOverride(RCPanelStyle->IconSize.Y)
+				[
+					SNew(SImage)
+					.ColorAndOpacity(FSlateColor::UseForeground())
+					.Image(FAppStyle::GetBrush("Icons.PlusCircle"))
+				]
+			]
+			.MenuContent()
+			[
+				GetBehaviourMenuContentWidget()
+			];
+
+		BehaviourDockPanel->ClearHeaderToolbarItems();
+		BehaviourDockPanel->AddHeaderToolbarItem(EToolbar::Left, AddNewBehaviorComboButton.ToSharedRef());
+	}
+
+	// Wrapped Box
+	if (!WrappedBoxWidget.IsValid())
+	{
+		WrappedBoxWidget = SNew(SBox)
+		[
+			SNew(SWidgetSwitcher)
+			.WidgetIndex_Lambda([this] () { return BehaviourPanelList->GetControllerItem().IsValid()? 0 : 1; })
+
+			// Index 0 is for valid behavior
+			+ SWidgetSwitcher::Slot()
+			[
+				BehaviourDockPanel.ToSharedRef()
+			]
+
+			// Index 1 is for invalid behavior
+			+ SWidgetSwitcher::Slot()
+			[
+				GetNoneSelectedWidget()
+			]
+		];
+	}
+}
+
+bool SRCBehaviourPanel::AreBehaviorPanelWidgetsValid() const
+{
+	return WrappedBoxWidget.IsValid() &&
+			BehaviourPanelList.IsValid() &&
+			BehaviourDockPanel.IsValid() &&
+			AddNewBehaviorComboButton.IsValid();
+}
+
 bool SRCBehaviourPanel::IsListFocused() const
 {
 	return BehaviourPanelList.IsValid() && BehaviourPanelList->IsListFocused();
@@ -230,7 +310,10 @@ bool SRCBehaviourPanel::IsListFocused() const
 
 void SRCBehaviourPanel::DeleteSelectedPanelItems()
 {
-	BehaviourPanelList->DeleteSelectedPanelItems();
+	if (BehaviourPanelList.IsValid())
+	{
+		BehaviourPanelList->DeleteSelectedPanelItems();
+	}
 }
 
 void SRCBehaviourPanel::DuplicateBehaviour(URCBehaviour* InBehaviour)
@@ -239,7 +322,10 @@ void SRCBehaviourPanel::DuplicateBehaviour(URCBehaviour* InBehaviour)
 	{
 		URCBehaviour* NewBehaviour = URCController::DuplicateBehaviour(Controller, InBehaviour);
 
-		BehaviourPanelList->AddNewLogicItem(NewBehaviour);
+		if (BehaviourPanelList.IsValid())
+		{
+			BehaviourPanelList->AddNewLogicItem(NewBehaviour);
+		}
 	}
 }
 

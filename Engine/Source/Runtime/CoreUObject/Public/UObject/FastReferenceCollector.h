@@ -73,6 +73,11 @@ public:
 namespace UE::GC
 {
 
+#if !WITH_VERSE_BPVM || defined(__INTELLISENSE__)
+// Avoid name lookup into UE::Verse, sometimes pulled into the TU before this header.
+namespace Verse = ::Verse;
+#endif
+
 struct FStructArrayBlock;
 
 static constexpr uint32 ObjectLookahead = 16;
@@ -579,10 +584,24 @@ FORCEINLINE_DEBUGGABLE void VisitDynamicallyTypedValue(DispatcherType& Dispatche
 	}
 }
 
+#if WITH_EDITORONLY_DATA
+COREUOBJECT_API bool& CalledSuperARO();
+#endif
+
 template<class DispatcherType>
 FORCEINLINE_DEBUGGABLE void CallARO(DispatcherType& Dispatcher, UObject* Instance, FMemberWord Word)
 {
+#if WITH_EDITORONLY_DATA
+	bool& bCalledSuperARO = CalledSuperARO();
+	TGuardValue<bool> CalledSuperAROScope(bCalledSuperARO, false);
 	Word.ObjectARO(Instance, Dispatcher.Collector);
+	if (!bCalledSuperARO)
+	{
+		UE_LOG(LogGarbage, Warning, TEXT("Class %s or a super class did not call Super::AddReferencedObjects"), *Instance->GetClass()->GetName());
+	}
+#else
+	Word.ObjectARO(Instance, Dispatcher.Collector);
+#endif
 }
 
 template<class DispatcherType>
@@ -699,6 +718,18 @@ void VisitNestedStructMembers(DispatcherType& Dispatcher, FSchemaView Schema, ui
 
 //////////////////////////////////////////////////////////////////////////
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+// Some helper templates to detect if the ProcessorType supports HasHandleTokenStreamVerseCellReference
+template <typename T, typename = void>
+struct HasHandleTokenStreamVerseCellReference : std::false_type {};
+
+template <typename T>
+using HandleTokenStreamVerseCellReference_t = decltype(std::declval<T>().HandleTokenStreamVerseCellReference(std::declval<FWorkerContext&>(), std::declval<UObject*>(), std::declval<Verse::VCell*>(), std::declval<FMemberId>(), std::declval<EOrigin>()));
+
+template <typename T>
+struct HasHandleTokenStreamVerseCellReference <T, std::void_t<HandleTokenStreamVerseCellReference_t<T>>> : std::true_type {};
+#endif
+
 /** Forwards references directly to ProcessorType::HandleTokenStreamObjectReference(), unlike TBatchDispatcher */
 template<class ProcessorType>
 struct TDirectDispatcher
@@ -750,29 +781,24 @@ struct TDirectDispatcher
 	}
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	// Some helper templates to detect if the ProcessorType supports HasHandleTokenStreamVerseCellReference
-	template <typename T, typename = void>
-	struct HasHandleTokenStreamVerseCellReference : std::false_type {};
-
-	template <typename T>
-	using HandleTokenStreamVerseCellReference_t = decltype(std::declval<T>().HandleTokenStreamVerseCellReference(std::declval<FWorkerContext&>(), std::declval<UObject*>(), std::declval<Verse::VCell*>(), std::declval<FMemberId>(), std::declval<EOrigin>()));
-
-	template <typename T>
-	struct HasHandleTokenStreamVerseCellReference <T, std::void_t<HandleTokenStreamVerseCellReference_t<T>>> : std::true_type {};
+	FORCEINLINE_DEBUGGABLE void HandleVerseCellDirectly(UObject* ReferencingObject, Verse::VCell* Cell, FMemberId MemberId, EOrigin Origin) const
+	{
+		if constexpr (HasHandleTokenStreamVerseCellReference<ProcessorType>::value)
+		{
+			Processor.HandleTokenStreamVerseCellReference(Context, ReferencingObject, Cell, MemberId, Origin);
+		}
+		Context.Stats.AddVerseCells(1);
+	}
 
 	FORCEINLINE_DEBUGGABLE void HandleVerseValueDirectly(UObject* ReferencingObject, Verse::VValue Value, FMemberId MemberId, EOrigin Origin) const
 	{
 		if (Verse::VCell* Cell = Value.ExtractCell())
 		{
-			if constexpr (HasHandleTokenStreamVerseCellReference<ProcessorType>::value)
-			{
-				Processor.HandleTokenStreamVerseCellReference(Context, ReferencingObject, Cell, MemberId, Origin);
-			}
-			Context.Stats.AddVerseCells(1);
+			HandleVerseCellDirectly(ReferencingObject, Cell, MemberId, Origin);
 		}
-		else if (Value.IsUObject())
+		else if (UObject* Object = Value.ExtractUObject())
 		{
-			HandleImmutableReference(Value.AsUObject(), MemberId, Origin);
+			HandleImmutableReference(Object, MemberId, Origin);
 		}
 	}
 
@@ -1023,6 +1049,20 @@ public:
 			Processor.HandleTokenStreamObjectReference(Context, const_cast<UObject*>(ReferencingObject), Object, EMemberlessId::Collector, EOrigin::Other, false);
 		}
 	}
+
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	virtual void HandleVCellReference(Verse::VCell* Cell, const UObject* ReferencingObject, const FProperty* ReferencingProperty) override
+	{
+		if (!ReferencingObject)
+		{
+			ReferencingObject = Context.GetReferencingObject();
+		}
+		if constexpr (HasHandleTokenStreamVerseCellReference<ProcessorType>::value)
+		{
+			Processor.HandleTokenStreamVerseCellReference(Context, const_cast<UObject*>(ReferencingObject), Cell, EMemberlessId::Collector, EOrigin::Other);
+		}
+	}
+#endif
 
 	virtual bool IsIgnoringArchetypeRef() const override { return false;}
 	virtual bool IsIgnoringTransient() const override {	return false; }

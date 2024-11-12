@@ -44,6 +44,8 @@ public:
 	uint64 GetUserValue() const override
 	{ return UserValue; }
 
+	EOutputType GetOutputType() const
+	{ return EOutputType::Output; }
 	int32 GetWidth() const override
 	{ return Width - Crop.Left - Crop.Right; }
 	int32 GetHeight() const override
@@ -362,11 +364,11 @@ void IElectraVideoDecoderH265_Apple::PlatformGetSupportedConfigurations(TArray<F
 		// What is really supported isn't quite clear so allow for UHD.
 
 		// Main
-		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 1, 0, 153, 60, 4096, 2304, 0));
-		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 1, 0, 153, 0, 0, 0, (3840 / 8) * (2160 / 8) * 60));
+		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 1, 0, 153, 120, 4096, 2304, 0));
+		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 1, 0, 153, 0, 0, 0, (3840 / 8) * (2160 / 8) * 120));
 		// Main10
-		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 2, 0, 153, 60, 4096, 2304, 0));
-		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 2, 0, 153, 0, 0, 0, (3840 / 8) * (2160 / 8) * 60));
+		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 2, 0, 153, 120, 4096, 2304, 0));
+		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 2, 0, 153, 0, 0, 0, (3840 / 8) * (2160 / 8) * 120));
 
 		IElectraVideoDecoderH265_Apple_Platform::bDecoderConfigurationsDirty = false;
 	}
@@ -822,7 +824,7 @@ bool FElectraVideoDecoderH265_Apple::InternalDecoderCreate(const TMap<FString, F
 
 	// Choice of: kCVPixelBufferOpenGLCompatibilityKey (all)  kCVPixelBufferOpenGLESCompatibilityKey (iOS only)   kCVPixelBufferMetalCompatibilityKey (all)
 	CFDictionarySetValue(OutputImageFormat, kCVPixelBufferMetalCompatibilityKey, kCFBooleanTrue);
-#if PLATFORM_IOS || PLATFORM_TVOS
+#if UE_PLATFORM_IOS_ONLY || PLATFORM_TVOS
 	CFDictionarySetValue(OutputImageFormat, kCVPixelBufferOpenGLESCompatibilityKey, kCFBooleanFalse);
 #endif
 

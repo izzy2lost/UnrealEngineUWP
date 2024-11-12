@@ -14,6 +14,7 @@ namespace UE::Sequencer
 {
 	class FCategoryModel;
 	class FChannelModel;
+	class FSectionModel;
 }
 
 /**
@@ -36,14 +37,14 @@ public:
 	 * Sets the section as a key area itself
 	 * @param Channel		The channel that is to be assigned as the top level channel for this section
 	 */
-	virtual void SetTopLevelChannel( const FMovieSceneChannelHandle& Channel, TFunction<TSharedPtr<UE::Sequencer::FChannelModel>(FName, const FMovieSceneChannelHandle&)> OptionalFactory ) = 0;
+	virtual void SetTopLevelChannel( const FMovieSceneChannelHandle& Channel, TFunction<TSharedPtr<UE::Sequencer::FChannelModel>(FName, const UE::Sequencer::FSectionModel&, const FMovieSceneChannelHandle&)> OptionalFactory ) = 0;
 
 	/**
 	 * Adds a channel onto the layout. If a category is pushed, the key area will appear as a child of the current category
 	 *
 	 * @param Channel		A handle to the channel to be added to the layout
 	 */
-	virtual void AddChannel( const FMovieSceneChannelHandle& Channel, TFunction<TSharedPtr<UE::Sequencer::FChannelModel>(FName, const FMovieSceneChannelHandle&)> OptionalFactory ) = 0;
+	virtual void AddChannel( const FMovieSceneChannelHandle& Channel, TFunction<TSharedPtr<UE::Sequencer::FChannelModel>(FName, const UE::Sequencer::FSectionModel&, const FMovieSceneChannelHandle&)> OptionalFactory ) = 0;
 
 	/**
 	 * Pops a category off the stack

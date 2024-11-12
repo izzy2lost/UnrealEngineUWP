@@ -26,9 +26,9 @@ THIRD_PARTY_INCLUDES_END
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimBoneCompressionCodec_ACLDatabase)
 
-void FACLDatabaseCompressedAnimData::SerializeCompressedData(FArchive& Ar)
+void FACLDatabaseCompressedAnimData::SerializeCompressedData(UObject* DataOwner, FArchive& Ar)
 {
-	ICompressedAnimData::SerializeCompressedData(Ar);
+	FACLCompressedAnimDataBase::SerializeCompressedData(DataOwner, Ar);
 
 	Ar << SequenceNameHash;
 
@@ -181,7 +181,6 @@ void UAnimBoneCompressionCodec_ACLDatabase::GetCompressionSettings(const class I
 	OutSettings.keyframe_stripping.strip_trivial = false;
 }
 
-// @third party code - Epic Games Begin
 void UAnimBoneCompressionCodec_ACLDatabase::PopulateDDCKey(const UE::Anim::Compression::FAnimDDCKeyArgs& KeyArgs, FArchive& Ar)
 {
 	Super::PopulateDDCKey(KeyArgs, Ar);
@@ -256,10 +255,10 @@ void UAnimBoneCompressionCodec_ACLDatabase::DecompressPose(FAnimSequenceDecompre
 {
 	const FACLDatabaseCompressedAnimData& AnimData = static_cast<const FACLDatabaseCompressedAnimData&>(DecompContext.CompressedAnimData);
 
-	acl::decompression_context<UE4DefaultDBDecompressionSettings> ACLContext;
+	acl::decompression_context<UEDefaultDBDecompressionSettings> ACLContext;
 
 #if WITH_EDITORONLY_DATA
-	acl::database_context<UE4DefaultDatabaseSettings>* DatabaseContext = DatabaseAsset != nullptr ? &DatabaseAsset->DatabaseContext : nullptr;
+	acl::database_context<UEDefaultDatabaseSettings>* DatabaseContext = DatabaseAsset != nullptr ? &DatabaseAsset->DatabaseContext : nullptr;
 	if (DatabaseContext != nullptr && DatabaseContext->is_initialized())
 	{
 		// We are previewing, use the database and the anim sequence data contained within it
@@ -312,10 +311,10 @@ void UAnimBoneCompressionCodec_ACLDatabase::DecompressBone(FAnimSequenceDecompre
 {
 	const FACLDatabaseCompressedAnimData& AnimData = static_cast<const FACLDatabaseCompressedAnimData&>(DecompContext.CompressedAnimData);
 
-	acl::decompression_context<UE4DefaultDBDecompressionSettings> ACLContext;
+	acl::decompression_context<UEDefaultDBDecompressionSettings> ACLContext;
 
 #if WITH_EDITORONLY_DATA
-	acl::database_context<UE4DefaultDatabaseSettings>* DatabaseContext = DatabaseAsset != nullptr ? &DatabaseAsset->DatabaseContext : nullptr;
+	acl::database_context<UEDefaultDatabaseSettings>* DatabaseContext = DatabaseAsset != nullptr ? &DatabaseAsset->DatabaseContext : nullptr;
 	if (DatabaseContext != nullptr && DatabaseContext->is_initialized())
 	{
 		// We are previewing, use the database and the anim sequence data contained within it

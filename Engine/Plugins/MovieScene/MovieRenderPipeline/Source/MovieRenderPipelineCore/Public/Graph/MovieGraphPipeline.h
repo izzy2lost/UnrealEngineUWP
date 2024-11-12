@@ -110,6 +110,9 @@ public:
 	
 	/** Gets the Output Merger for this Movie Pipeline which is responsible for gathering all of the data coming in for a given output frame, before making it available to the MovieGraphPipeline. */
 	TSharedPtr<UE::MovieGraph::IMovieGraphOutputMerger> GetOutputMerger() const { return OutputMerger; }
+
+	/** Gets cached data for cloth simulations, needed to save/restore cloth sub-stepping. */
+	TMap<TWeakObjectPtr<UObject>, TArray<MoviePipeline::FClothSimSettingsCache>> GetClothSimCache() const { return ClothSimCache; }
 	
 	/** Writing images to disk is an async process. When you start writing, declare a future with the filename you will eventually write to, and complete the future once it is on disk. */
 	void AddOutputFuture(TFuture<bool>&& InOutputFuture, const UE::MovieGraph::FMovieGraphOutputFutureData& InData);
@@ -175,11 +178,11 @@ protected:
 	 * Helps duplicate graph configs. Prevents re-duplications, duplicates sub-graphs (updates subgraph nodes accordingly), and potentially more.
 	 * Returns the duplicated graph.
 	 */
-	UMovieGraphConfig* DuplicateConfigRecursive(UMovieGraphConfig* InGraphToDuplicate, TMap<UMovieGraphConfig*, UMovieGraphConfig*>& OutDuplicatedGraphs);
+	UMovieGraphConfig* DuplicateConfigRecursive(UMovieGraphConfig* InGraphToDuplicate, TMap<TObjectPtr<UMovieGraphConfig>, TObjectPtr<UMovieGraphConfig>>& OutDuplicatedGraphs);
 
 	/** Helps update variable assignments on the provided job to use duplicated graphs (reflected in the original-to-duplicate graph mapping). */
 	template<typename JobType>
-	void UpdateVariableAssignmentsHelper(JobType* InTargetJob, TMap<UMovieGraphConfig*, UMovieGraphConfig*>& InOriginalToDuplicateGraphMap);
+	void UpdateVariableAssignmentsHelper(JobType* InTargetJob, TMap<TObjectPtr<UMovieGraphConfig>, TObjectPtr<UMovieGraphConfig>>& InOriginalToDuplicateGraphMap);
 
 	// Update our data source to isolate the shot we're currently working on, so that expanded shots don't interfere with each other.
 	virtual void SetSoloShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
@@ -201,6 +204,10 @@ protected:
 	virtual EMovieRenderPipelineState GetPipelineStateImpl() const override { return PipelineState; }
 	virtual bool IsPostShotCallbackNeeded() const override;
 	// ~UMoviePipelineBase Interface
+	
+	// UObject Interface
+	virtual void BeginDestroy() override;
+	// ~UObject Interface
 
 protected:
 	/** Time step instances for each shot, where the index into the array corresponds to the shot index. */
@@ -248,7 +255,7 @@ protected:
 	TObjectPtr<UMoviePipelineExecutorJob> CurrentJob;
 
 	/**
-	* This is the duplicated job, parented to the Transient package. The shots inside
+	* This is the duplicated job, parented to the pipeline. The shots inside
 	* have been duplicated as well, and their graph configurations duplicated. Graph
 	* configurations are assets and scripting may want to modify them, or it may want
 	* to modify the variables in a job, so we have to duplicate both to allow a cleanly
@@ -256,6 +263,13 @@ protected:
 	*/
 	UPROPERTY(Transient)
 	TObjectPtr<UMoviePipelineExecutorJob> CurrentJobDuplicate;
+
+	/**
+	 * Contains all duplicated graphs (for scripting purposes). Maps the original graph (key) to the duplicated graph (value).
+	 * Duplicated graphs are part of the transient package.
+	 */
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<UMovieGraphConfig>, TObjectPtr<UMovieGraphConfig>> DuplicatedGraphs;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMoviePipelineExecutorShot>> ActiveShotList;
@@ -268,7 +282,7 @@ protected:
 
 
 	UPROPERTY(Transient)
-	TArray<UMovieGraphScriptBase*> CurrentScriptInstances;
+	TArray<TObjectPtr<UMovieGraphScriptBase>> CurrentScriptInstances;
 
 	/**
 	* An array of Node CDOs that we sent data through to write data to disk.
@@ -304,9 +318,6 @@ protected:
 	/** This gathers all of the produced data for an output frame (which may come in async, many frames later) before passing them onto the Output Containers. */
 	TSharedPtr<UE::MovieGraph::IMovieGraphOutputMerger> OutputMerger;
 
-	/** A debug image sequence writer in the event they want to dump every sample generated on its own. */
-	IImageWriteQueue* Debug_ImageWriteQueue;
-
 	/** 
 	* An array of Output Futures for files that have started writing to disk, but have not finished. 
 	* Each frame we take each future that finishes writing to disk and push it into the GeneratedOutputData array.
@@ -331,6 +342,12 @@ protected:
 	/** The previous custom timestep the engine was using, if any. */
 	UPROPERTY(Transient)
 	TObjectPtr<UEngineCustomTimeStep> PrevCustomEngineTimeStep;
+
+	/** Simulation settings cache per cloth interactor object. Needs one per LOD, hence the array. */
+	TMap<TWeakObjectPtr<UObject>, TArray<MoviePipeline::FClothSimSettingsCache>> ClothSimCache;
+	
+	/** Whether an insights capture was started when the pipeline was initialized. */
+	bool bDidStartInsightsCapture;
 	
 public:
 	static FString DefaultPreviewWidgetAsset;

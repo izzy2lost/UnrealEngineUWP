@@ -1,13 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-// *INDENT-OFF*
-#ifdef RL_BUILD_WITH_ML_EVALUATOR
-
 #include "rltests/ml/cpu/FixturesBlock4.h"
 
 #include "riglogic/TypeDefs.h"
-#include "riglogic/joints/bpcm/BPCMOutputInstance.h"
-#include "riglogic/joints/bpcm/Evaluator.h"
+#include "riglogic/joints/cpu/CPUJointsOutputInstance.h"
+#include "riglogic/joints/cpu/bpcm/BPCMJointsEvaluator.h"
 #include "riglogic/types/Extent.h"
 
 namespace rltests {
@@ -978,7 +975,7 @@ const Vector<AlignedMatrix<std::uint16_t> > mlbNetBiasesHalfFloat = {
     }
 };
 
-const LODSpec lods = {
+const LODSpec<std::uint32_t> lods = {
     {  // NetIndices
         {  // LOD-0
             0u, 1u, 2u, 3u
@@ -1103,6 +1100,3 @@ CanonicalReader::~CanonicalReader() = default;
 }  // namespace ml
 
 }  // namespace rltests
-
-#endif  // RL_BUILD_WITH_ML_EVALUATOR
-// *INDENT-ON*

@@ -106,7 +106,7 @@ const FString& IGameInputDeviceProcessor::GetHardwareDeviceIdentifierName(const 
 	return ID_XboxOne;
 }
 
-void IGameInputDeviceProcessor::OnControllerAnalog(const FGameInputEventParams& Params, const FName& GamePadKey, float NewAxisValueNormalized, float OldAxisValueNormalized, float DeadZone)
+void IGameInputDeviceProcessor::OnControllerAnalog(const FGameInputEventParams& Params, const FName& GamePadKey, float NewAxisValueNormalized, float OldAxisValueNormalized, float DeadZone, const bool bSetDeviceScope /*= true*/)
 {
 	if (OldAxisValueNormalized != NewAxisValueNormalized || FMath::Abs(NewAxisValueNormalized) > DeadZone)
 	{		
@@ -121,8 +121,15 @@ void IGameInputDeviceProcessor::OnControllerAnalog(const FGameInputEventParams& 
 		// to create a new slate user based on the index if it doesn't already exist
 		if (Params.PlatformUserId.IsValid() && Params.InputDeviceId.IsValid())
 		{
-			FInputDeviceScope InputScope(nullptr, UE::GameInput::InputClassName, IPlatformInputDeviceMapper::Get().GetUserIndexForPlatformUser(Params.PlatformUserId), GetHardwareDeviceIdentifierName(Params));
-			Params.MessageHandler->OnControllerAnalog(GamePadKey, Params.PlatformUserId, Params.InputDeviceId, NewAxisValueNormalized);
+			if (bSetDeviceScope)
+			{
+				FInputDeviceScope InputScope(nullptr, UE::GameInput::InputClassName, IPlatformInputDeviceMapper::Get().GetUserIndexForPlatformUser(Params.PlatformUserId), GetHardwareDeviceIdentifierName(Params));
+				Params.MessageHandler->OnControllerAnalog(GamePadKey, Params.PlatformUserId, Params.InputDeviceId, NewAxisValueNormalized);
+			}
+			else
+			{
+				Params.MessageHandler->OnControllerAnalog(GamePadKey, Params.PlatformUserId, Params.InputDeviceId, NewAxisValueNormalized);
+			}
 		}		
 	}
 }
@@ -906,6 +913,11 @@ bool FGameInputControllerDeviceProcessor::ProcessControllerAxisState(const FGame
 				{
 					UE_LOG(LogGameInput, VeryVerbose, TEXT("[ProcessControllerAxisState] (Device %s) Invalid key name configured for controller axis '%d': %.3f"), *UE::GameInput::LexToString(Params.Device), i, CurrentValue);
 				}
+			}
+			else
+			{
+				// TODO: Here is where could send a "Generic USB Axis X" key here which could allow for us to support many more devices via a key rebind screen
+				UE_LOG(LogGameInput, VeryVerbose, TEXT("[ProcessControllerAxisState] (Device %s) Controller axis '%d' has value: %.3f"), *UE::GameInput::LexToString(Params.Device), i, CurrentValue);
 			}
 		}		
 		// You are receiving analog values from an axis that you might not know about, log it here
@@ -1694,7 +1706,13 @@ bool FGameInputRawDeviceProcessor::ProcessRawInputValueAsAanalog(const FGameInpu
 		return false;
 	}
 
-	OnControllerAnalog(Params, AxisData->KeyName, CurrentValueFloat, PreviousValueFloat, UE::GameInput::GamepadLeftStickDeadzone);
+	OnControllerAnalog(
+		Params, 
+		AxisData->KeyName, 
+		CurrentValueFloat, 
+		PreviousValueFloat, 
+		UE::GameInput::GamepadLeftStickDeadzone, 
+		/* bShouldSetDeviceScope = */!AxisData->bIgnoreAnalogInputDeviceScopeForThisRawReport);
 
 	// We had a reading as long as it is non-zero
 	return CurrentValueFloat != 0.0f;
@@ -1956,6 +1974,300 @@ bool FGameInputRacingWheelProcessor::ProcessWheelButtonState(const FGameInputEve
 GameInputKind FGameInputRacingWheelProcessor::GetSupportedReadingKind() const
 {
 	return GameInputKindRacingWheel;
+}
+
+//////////////////////////////////////////////////
+// Arcade Sticks
+
+namespace UE::GameInput
+{
+	/** A map of uint32 GameInput button bitmask flags to the associated Unreal Engine FKey name. */
+	static const TMap<uint32, FGamepadKeyNames::Type>& GetArcadeStickButtonMap()
+	{
+		static const TMap<uint32, FGamepadKeyNames::Type> GamepadButtonMap
+		{
+			// Generic gamepad buttons
+			{ static_cast<uint32>(GameInputArcadeStickButtons::GameInputArcadeStickNone), FGamepadKeyNames::Invalid},
+			{ static_cast<uint32>(GameInputArcadeStickButtons::GameInputArcadeStickMenu), FGamepadKeyNames::SpecialRight },
+			{ static_cast<uint32>(GameInputArcadeStickButtons::GameInputArcadeStickView), FGamepadKeyNames::SpecialLeft },
+			{ static_cast<uint32>(GameInputArcadeStickButtons::GameInputArcadeStickUp), FGamepadKeyNames::DPadUp },
+			{ static_cast<uint32>(GameInputArcadeStickButtons::GameInputArcadeStickDown), FGamepadKeyNames::DPadDown },
+			{ static_cast<uint32>(GameInputArcadeStickButtons::GameInputArcadeStickLeft), FGamepadKeyNames::DPadLeft },
+			{ static_cast<uint32>(GameInputArcadeStickButtons::GameInputArcadeStickRight), FGamepadKeyNames::DPadRight },
+
+			// Unique to arcade sticks
+			{ static_cast<uint32>(GameInputArcadeStickButtons::GameInputArcadeStickAction1), FGameInputKeys::ArcadeStick_Action1.GetFName() },
+			{ static_cast<uint32>(GameInputArcadeStickButtons::GameInputArcadeStickAction2), FGameInputKeys::ArcadeStick_Action2.GetFName() },
+			{ static_cast<uint32>(GameInputArcadeStickButtons::GameInputArcadeStickAction3), FGameInputKeys::ArcadeStick_Action3.GetFName() },
+			{ static_cast<uint32>(GameInputArcadeStickButtons::GameInputArcadeStickAction4), FGameInputKeys::ArcadeStick_Action4.GetFName() },
+			{ static_cast<uint32>(GameInputArcadeStickButtons::GameInputArcadeStickAction5), FGameInputKeys::ArcadeStick_Action5.GetFName() },
+			{ static_cast<uint32>(GameInputArcadeStickButtons::GameInputArcadeStickAction6), FGameInputKeys::ArcadeStick_Action6.GetFName() },
+			{ static_cast<uint32>(GameInputArcadeStickButtons::GameInputArcadeStickSpecial1), FGameInputKeys::ArcadeStick_Special1.GetFName() },
+			{ static_cast<uint32>(GameInputArcadeStickButtons::GameInputArcadeStickSpecial2), FGameInputKeys::ArcadeStick_Special2.GetFName() }
+		};
+		return GamepadButtonMap;
+	}
+};
+
+
+FGameInputArcadeStickProcessor::FGameInputArcadeStickProcessor()
+	: IGameInputDeviceProcessor()
+{
+	FMemory::Memset(PreviousState, 0);
+	FMemory::Memset(RepeatTime, 0);
+}
+
+bool FGameInputArcadeStickProcessor::ProcessInput(const FGameInputEventParams& Params)
+{
+	bool bRes = false;
+
+	// Can't do anything for an invalid platform user or no reading.
+	if (!Params.PlatformUserId.IsValid() || !Params.Reading)
+	{
+		return bRes;
+	}
+
+	GameInputArcadeStickState StickState;
+	if (!Params.Reading->GetArcadeStickState(&StickState))
+	{
+		return bRes;
+	}
+
+	const uint32 CurrentButtonHeldMask = static_cast<uint32>(StickState.buttons);
+	uint32 LastButtonHeldMask = static_cast<uint32>(PreviousState.buttons);
+
+	EvaluateButtonStates(
+		Params,
+		CurrentButtonHeldMask,
+		OUT LastButtonHeldMask,
+		RepeatTime,
+		UE::GameInput::GetArcadeStickButtonMap(),
+		MaxSupportedButtons);
+
+	// Keep track of the button state so that we can compare it next time it is processed
+	PreviousState = StickState;
+
+	return true;
+}
+
+void FGameInputArcadeStickProcessor::ClearState(const FGameInputEventParams& Params)
+{	
+	// Can't do anything for an invalid platform user
+	if (!Params.PlatformUserId.IsValid())
+	{
+		return;
+	}
+
+	// Evaluate the buttons as if none have been pressed (i.e. the button mask is 0)
+	const uint32 CurrentButtonHeldMask = 0x00;
+	uint32 LastButtonHeldMask = static_cast<uint32>(PreviousState.buttons);
+
+	EvaluateButtonStates(
+		Params,
+		CurrentButtonHeldMask,
+		OUT LastButtonHeldMask,
+		RepeatTime,
+		UE::GameInput::GetArcadeStickButtonMap(),
+		MaxSupportedButtons);
+
+	// Zero out the repeat and previous states
+	FMemory::Memset(PreviousState, 0);
+	FMemory::Memset(RepeatTime, 0);
+}
+
+GameInputKind FGameInputArcadeStickProcessor::GetSupportedReadingKind() const
+{
+	return GameInputKindArcadeStick;
+}
+
+//////////////////////////////////////////////////////////////////////
+// FGameInputFlightStickProcessor
+
+namespace UE::GameInput
+{
+	/** A map of uint32 GameInput button bitmask flags to the associated Unreal Engine FKey name. */
+	static const TMap<uint32, FGamepadKeyNames::Type>& GetFlightStickButtonMap()
+	{
+		static const TMap<uint32, FGamepadKeyNames::Type> GamepadButtonMap
+		{
+			// Generic gamepad buttons
+			{ static_cast<uint32>(GameInputFlightStickButtons::GameInputFlightStickNone), FGamepadKeyNames::Invalid},
+			{ static_cast<uint32>(GameInputFlightStickButtons::GameInputFlightStickMenu), FGamepadKeyNames::Invalid},
+			{ static_cast<uint32>(GameInputFlightStickButtons::GameInputFlightStickView), FGamepadKeyNames::Invalid},
+			{ static_cast<uint32>(GameInputFlightStickButtons::GameInputFlightStickFirePrimary), FGamepadKeyNames::Invalid},
+			{ static_cast<uint32>(GameInputFlightStickButtons::GameInputFlightStickFireSecondary), FGamepadKeyNames::Invalid},
+		};
+		return GamepadButtonMap;
+	}
+	
+	static bool HasDifferentFlightStickAnalogs(const GameInputFlightStickState& CurrentState, const GameInputFlightStickState& PreviousState)
+	{
+		// If anything differs from the previous reading, then it has different inputs
+		return 
+			CurrentState.pitch != PreviousState.pitch ||
+			CurrentState.roll != PreviousState.roll ||
+			CurrentState.throttle != PreviousState.throttle ||
+			CurrentState.yaw != PreviousState.yaw;
+	}
+
+	inline bool IsEmptyFlightStickReading(const GameInputFlightStickState& State, const UGameInputPlatformSettings& PlatformSettings)
+	{
+		return
+			State.buttons == 0 &&
+			State.hatSwitch == 0 &&	
+			FMath::Abs(State.pitch) <= PlatformSettings.FlightStickPitchDeadzone &&
+			FMath::Abs(State.roll) <= PlatformSettings.FlightStickRollDeadzone &&
+			FMath::Abs(State.throttle) <= PlatformSettings.FlightStickThrottleDeadzone &&
+			FMath::Abs(State.yaw) <= PlatformSettings.FlightStickYawDeadzone; 
+	};
+}
+
+FGameInputFlightStickProcessor::FGameInputFlightStickProcessor()
+	: IGameInputDeviceProcessor()
+{
+	FMemory::Memset(PreviousState, 0);
+	FMemory::Memset(RepeatTime, 0);
+	
+	SwitchRepeatTimes.AddDefaulted(static_cast<uint32>(GameInputSwitchUpLeft) + 1);
+}
+
+bool FGameInputFlightStickProcessor::ProcessInput(const FGameInputEventParams& Params)
+{
+	bool bRes = false;
+	
+	// Can't do anything for an invalid platform user
+	if (!Params.PlatformUserId.IsValid() || !Params.Reading)
+	{
+		return bRes;
+	}
+
+	GameInputFlightStickState FlightStickState = {};
+	if (!Params.Reading->GetFlightStickState(&FlightStickState))
+	{
+		return bRes;
+	}
+
+	// We only want to process the buttons here, as it might get called multiple times per frame.
+	bRes |= ProcessFlightStickButtons(Params, FlightStickState);
+	
+	++NumReadingsProcessedThisFrame;
+	
+	return bRes;
+}
+
+bool FGameInputFlightStickProcessor::PostProcessInput(const FGameInputEventParams& Params)
+{
+	bool bRes = false;
+	
+	// Check if we have already processed buttons this frame. If we haven't we want to do it
+	const bool bHasProcessedAnyButtonsThisFrame = NumReadingsProcessedThisFrame > 0;	
+	NumReadingsProcessedThisFrame = 0;
+	
+	// Can't do anything for an invalid platform user
+	if (!Params.PlatformUserId.IsValid() || !Params.PreviousReading)
+	{
+		return bRes;
+	}
+
+	GameInputFlightStickState FlightStickState = {};
+	if (!Params.PreviousReading->GetFlightStickState(&FlightStickState))
+	{
+		return bRes;
+	}
+	
+	if (!bHasProcessedAnyButtonsThisFrame)
+	{
+		bRes |= ProcessFlightStickButtons(Params, FlightStickState);
+	}
+	
+	bRes |= ProcessFlightStickAnalog(Params, FlightStickState);
+	
+	return bRes;
+}
+
+void FGameInputFlightStickProcessor::ClearState(const FGameInputEventParams& Params)
+{
+	// Can't do anything for an invalid platform user
+	if (!Params.PlatformUserId.IsValid())
+	{
+		return;
+	}
+	
+	// Process input as if nothing is down (zero values for everything)
+	GameInputFlightStickState ZeroState = {};
+	ProcessFlightStickAnalog(Params, ZeroState);
+	ProcessFlightStickButtons(Params, ZeroState);
+	
+	// Zero out the repeat and previous states info to zero
+	FMemory::Memset(PreviousState, 0);
+	FMemory::Memset(RepeatTime, 0);
+}
+
+GameInputKind FGameInputFlightStickProcessor::GetSupportedReadingKind() const
+{
+	return GameInputKindFlightStick;
+}
+
+bool FGameInputFlightStickProcessor::ProcessFlightStickButtons(const FGameInputEventParams& Params, GameInputFlightStickState& State)
+{
+	const UGameInputPlatformSettings* PlatformSettings = UGameInputPlatformSettings::Get();
+
+	const bool bIsEmptyReading = UE::GameInput::IsEmptyFlightStickReading(State, *PlatformSettings);
+	const bool bWasEmptyReading = UE::GameInput::IsEmptyFlightStickReading(PreviousState, *PlatformSettings);
+	const bool bHasDifferentAnalogInput = UE::GameInput::HasDifferentFlightStickAnalogs(State, PreviousState);
+	
+	if (bIsEmptyReading && bWasEmptyReading && !bHasDifferentAnalogInput && PreviousState.buttons == 0)
+	{
+		return false;
+	}
+	
+	const uint32 CurrentButtonHeldMask = static_cast<uint32>(State.buttons);
+	uint32 LastButtonHeldMask = static_cast<uint32>(PreviousState.buttons);
+
+	EvaluateButtonStates(
+		Params,
+		CurrentButtonHeldMask,
+		OUT LastButtonHeldMask,
+		RepeatTime,
+		UE::GameInput::GetFlightStickButtonMap(),
+		MaxSupportedButtons);
+
+	// Update the previous state here
+	PreviousState.buttons = State.buttons;
+
+	// Update the hat switch
+	EvaluateSwitchState(Params, State.hatSwitch, PreviousState.hatSwitch, SwitchRepeatTimes);
+	
+	return true;
+}
+
+bool FGameInputFlightStickProcessor::ProcessFlightStickAnalog(const FGameInputEventParams& Params, GameInputFlightStickState& State)
+{
+
+	
+	const UGameInputPlatformSettings* Settings = UGameInputPlatformSettings::Get();
+	check(Settings);
+	
+	// If the analog values haven't changed, don't bother sending any events for them
+	const bool bIsEmptyReading = UE::GameInput::IsEmptyFlightStickReading(State, *Settings);
+	const bool bWasEmptyReading = UE::GameInput::IsEmptyFlightStickReading(PreviousState, *Settings);
+	const bool bHasDifferentAnalogInput = UE::GameInput::HasDifferentFlightStickAnalogs(State, PreviousState);
+	if (bIsEmptyReading && bWasEmptyReading && !bHasDifferentAnalogInput)
+	{
+		return false;
+	}
+	
+	OnControllerAnalog(Params, FGameInputKeys::FlightStick_Pitch.GetFName(), State.pitch, PreviousState.pitch, Settings->FlightStickPitchDeadzone);
+	OnControllerAnalog(Params, FGameInputKeys::FlightStick_Roll.GetFName(), State.roll, PreviousState.roll, Settings->FlightStickRollDeadzone);
+	OnControllerAnalog(Params, FGameInputKeys::FlightStick_Throttle.GetFName(), State.throttle, PreviousState.throttle, Settings->FlightStickThrottleDeadzone);
+	OnControllerAnalog(Params, FGameInputKeys::FlightStick_Yaw.GetFName(), State.yaw, PreviousState.yaw, Settings->FlightStickYawDeadzone);
+
+	PreviousState.pitch = State.pitch;
+	PreviousState.roll = State.roll;
+	PreviousState.throttle = State.throttle;
+	PreviousState.yaw = State.yaw;
+	
+	return true;
 }
 
 #endif	// GAME_INPUT_SUPPORT

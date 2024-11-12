@@ -20,6 +20,7 @@ class UViewportInteractor;
 class FViewport;
 class FPrimitiveDrawInterface;
 class FSceneView;
+class UInteractiveTool;
 
 struct FStaticMeshComponentLODInfo;
 struct FPerComponentVertexColorData;
@@ -27,8 +28,9 @@ struct FPerComponentVertexColorData;
 UENUM()
 enum class EMeshPaintActiveMode : uint8
 {
-	Color UMETA(DisplayName = "Color"),
-	Weights UMETA(DisplayName = "Weights"),
+	VertexColor UMETA(DisplayName = "VertexColor"),
+	VertexWeights UMETA(DisplayName = "VertexWeights"),
+	TextureColor UMETA(DisplayName = "TextureColor"),
 	Texture UMETA(DisplayName = "Texture"),
 };
 
@@ -38,7 +40,7 @@ class MESHPAINTEDITORMODE_API UMeshPaintModeSubsystem : public UEditorSubsystem
 {
 public:
 	/** Forces the Viewport Client to render using the given Viewport Color ViewMode */
-	void SetViewportColorMode(EMeshPaintActiveMode ActiveMode, EMeshPaintDataColorViewMode ColorViewMode, FEditorViewportClient* ViewportClient);
+	void SetViewportColorMode(EMeshPaintActiveMode ActiveMode, EMeshPaintDataColorViewMode ColorViewMode, FEditorViewportClient* ViewportClient, UInteractiveTool const* ActiveTool);
 
 	/** Sets whether or not the level viewport should be real time rendered move or viewport as parameter? */
 	void SetRealtimeViewport(bool bRealtime);
@@ -49,6 +51,12 @@ public:
 
 	/** Imports vertex colors from a Texture to the specified Skeletal Mesh according to user-set options */
 	void ImportVertexColorsToSkeletalMesh(USkeletalMesh* SkeletalMesh, const UImportVertexColorOptions* Options, UTexture2D* Texture);
+
+	/** Helper function to import Vertex Colors from a the MeshPaintTexture on the mesh component */
+	void ImportVertexColorsFromMeshPaintTexture(UMeshComponent* MeshComponent);
+
+	/** Helper function to import the MeshPaintTexture on the mesh component from the vertex colors */
+	void ImportMeshPaintTextureFromVertexColors(UMeshComponent* MeshComponent);
 
 	struct FPaintRay
 	{
@@ -74,10 +82,11 @@ public:
 	void PasteVertexColors(const TArray<UStaticMeshComponent*>& StaticMeshComponents, TArray<FPerComponentVertexColorData>& CopiedColorsByComponent);
 	bool CanPasteInstanceVertexColors(const TArray<UStaticMeshComponent*>& StaticMeshComponents, const TArray<FPerComponentVertexColorData>& CopiedColorsByComponent);
 	void RemovePerLODColors(const TArray<UMeshComponent*>& PaintableComponents);
+	
+	bool CanFixTextureColors(const TArray<UMeshComponent*>& Components);
+	void FixTextureColors(const TArray<UMeshComponent*>& Components);
 
-	void SwapVertexColors();
-	void SaveModifiedTextures();
-	bool CanSaveModifiedTextures();
+	void SwapColors();
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

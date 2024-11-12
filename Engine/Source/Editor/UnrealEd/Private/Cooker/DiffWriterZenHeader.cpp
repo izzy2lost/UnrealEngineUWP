@@ -80,7 +80,7 @@ FStringView FDiffWriterZenHeader::GetObjectIndexPathName(FPackageObjectIndex Pac
 		}
 		else
 		{
-			*PathName = TEXT("<UnknownScriptImport>");
+			*PathName = FString::Printf(TEXT("<UnknownScriptImport:%" UINT64_FMT ">"), PackageObjectIndex.Value());
 		}
 	}
 	else if (PackageObjectIndex.IsPackageImport())
@@ -278,6 +278,158 @@ FString FDiffWriterZenHeader::ConvertItemToText(const FZenHeaderIndexIntoExportM
 		(int32)Export.FilterFlags);
 }
 
+bool FDiffWriterZenHeader::IsExportBundlesIdentical(FDiffWriterZenHeader& DestContext)
+{
+	int32 NumBundles = PackageHeader.ExportBundleEntries.Num();
+	if (NumBundles != DestContext.PackageHeader.ExportBundleEntries.Num())
+	{
+		return false;
+	}
+
+	for (int32 BundleIndex = 0; BundleIndex < NumBundles; ++BundleIndex)
+	{
+		if (!IsExportBundleIdentical(DestContext, BundleIndex))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool FDiffWriterZenHeader::IsExportBundleIdentical(FDiffWriterZenHeader& DestContext, int32 Index)
+{
+	if (!PackageHeader.ExportBundleEntries.IsValidIndex(Index) ||
+		!DestContext.PackageHeader.ExportBundleEntries.IsValidIndex(Index))
+	{
+		return false;
+	}
+	const FExportBundleEntry& Src = PackageHeader.ExportBundleEntries[Index];
+	const FExportBundleEntry& Dest = DestContext.PackageHeader.ExportBundleEntries[Index];
+	return Src.LocalExportIndex == Dest.LocalExportIndex
+		&& Src.CommandType == Dest.CommandType;
+}
+
+FString FDiffWriterZenHeader::ConvertExportBundleToText(int32 Index)
+{
+	if (!PackageHeader.ExportBundleEntries.IsValidIndex(Index))
+	{
+		return TEXT("<InvalidIndex>");
+	}
+	const FExportBundleEntry& Entry = PackageHeader.ExportBundleEntries[Index];
+	return FString::Printf(TEXT("[%d,%d]"), Entry.LocalExportIndex, Entry.CommandType);
+}
+
+bool FDiffWriterZenHeader::IsDependencyBundlesIdentical(FDiffWriterZenHeader& DestContext)
+{
+	int32 NumBundles = PackageHeader.DependencyBundleHeaders.Num();
+	if (NumBundles != DestContext.PackageHeader.DependencyBundleHeaders.Num())
+	{
+		return false;
+	}
+
+	for (int32 BundleIndex = 0; BundleIndex < NumBundles; ++BundleIndex)
+	{
+		if (!IsDependencyBundleIdentical(DestContext, BundleIndex))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool FDiffWriterZenHeader::IsDependencyBundleIdentical(FDiffWriterZenHeader& DestContext, int32 Index)
+{
+	if (!PackageHeader.DependencyBundleHeaders.IsValidIndex(Index) ||
+		!DestContext.PackageHeader.DependencyBundleHeaders.IsValidIndex(Index))
+	{
+		return false;
+	}
+	const FDependencyBundleHeader& SrcHeader = PackageHeader.DependencyBundleHeaders[Index];
+	const FDependencyBundleHeader& DestHeader = DestContext.PackageHeader.DependencyBundleHeaders[Index];
+	if (SrcHeader.FirstEntryIndex == -1)
+	{
+		return DestHeader.FirstEntryIndex == -1;
+	}
+	if (DestHeader.FirstEntryIndex == -1)
+	{
+		return false;
+	}
+	TArrayView<const FDependencyBundleEntry> SrcEntries = PackageHeader.DependencyBundleEntries;
+	TArrayView<const FDependencyBundleEntry> DestEntries = DestContext.PackageHeader.DependencyBundleEntries;
+	int32 SrcIndex = SrcHeader.FirstEntryIndex;
+	int32 DestIndex = DestHeader.FirstEntryIndex;
+	for (uint32 FromType = 0; FromType < (uint32)FExportBundleEntry::ExportCommandType_Count; ++FromType)
+	{
+		for (uint32 ToType = 0; ToType < (uint32)FExportBundleEntry::ExportCommandType_Count; ++ToType)
+		{
+			int32 EntryCount = SrcHeader.EntryCount[FromType][ToType];
+			if (EntryCount != DestHeader.EntryCount[FromType][ToType])
+			{
+				return false;
+			}
+			for (int32 IndexWithinEntry = 0; IndexWithinEntry < EntryCount; ++IndexWithinEntry)
+			{
+				if (SrcIndex >= SrcEntries.Num() || DestIndex >= DestEntries.Num())
+				{
+					return false;
+				}
+				if (SrcEntries[SrcIndex].LocalImportOrExportIndex != DestEntries[SrcIndex].LocalImportOrExportIndex)
+				{
+					return false;
+				}
+				++SrcIndex;
+				++DestIndex;
+			}
+		}
+	}
+	return true;
+}
+
+FString FDiffWriterZenHeader::ConvertDependencyBundleToText(int32 Index)
+{
+	if (!PackageHeader.DependencyBundleEntries.IsValidIndex(Index))
+	{
+		return TEXT("<InvalidIndex>");
+	}
+	TStringBuilder<256> Result;
+
+	const FDependencyBundleHeader& BundleHeader = PackageHeader.DependencyBundleHeaders[Index];
+	TArrayView<const FDependencyBundleEntry> Entries = PackageHeader.DependencyBundleEntries;
+	int32 EntryIndex = BundleHeader.FirstEntryIndex;
+	for (uint32 FromType = 0; FromType < (uint32)FExportBundleEntry::ExportCommandType_Count; ++FromType)
+	{
+		for (uint32 ToType = 0; ToType < (uint32)FExportBundleEntry::ExportCommandType_Count; ++ToType)
+		{
+			Result << TEXT("[");
+			int32 CountWithinEntry = BundleHeader.EntryCount[FromType][ToType];
+			if (Entries.IsValidIndex(EntryIndex) && CountWithinEntry > 0)
+			{
+				for (int32 IndexWithinEntry = 0; IndexWithinEntry < CountWithinEntry; ++IndexWithinEntry)
+				{
+					if (Entries.IsValidIndex(EntryIndex))
+					{
+						FPackageIndex PackageIndex = Entries[EntryIndex].LocalImportOrExportIndex;
+						if (PackageIndex.IsExport())
+						{
+							Result << TEXT("Export[") << PackageIndex.ToExport() << TEXT("]");
+						}
+						else
+						{
+							Result << TEXT("Import[") << PackageIndex.ToImport() << TEXT("]");
+						}
+						Result << ",";
+						++EntryIndex;
+					}
+				}
+				Result.RemoveSuffix(1);
+			}
+			Result << TEXT("],");
+		}
+	}
+	Result.RemoveSuffix(1);
+	return FString(Result);
+}
+
 void FDiffWriterZenHeader::LogMessage(ELogVerbosity::Type Verbosity, FStringView Message)
 {
 	MessageCallback(Verbosity, Message);
@@ -426,7 +578,7 @@ FStringView FZenPackageExportsForDiff::GetExportPackageRelativePath(uint64 Publi
 	FString& ExportPath = ExportPaths.FindOrAdd(PublicExportHash);
 	if (ExportPath.IsEmpty())
 	{
-		ExportPath = FString::Printf(TEXT("<UnknownExport.%u>"), PublicExportHash);
+		ExportPath = FString::Printf(TEXT("<UnknownExport.%" UINT64_FMT ">"), PublicExportHash);
 	}
 	return ExportPath;
 }

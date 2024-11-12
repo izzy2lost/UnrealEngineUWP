@@ -49,7 +49,7 @@ protected:
 	 *
 	 * @return true if the attribute was successfully added.
 	 */
-	bool AddAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode);
+	bool AddAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode, int32 OutputIndex = 0);
 
 	/**
 	 * Add an attribute to a shader node from the given MaterialX input if that input has either a value or an interface name.
@@ -60,7 +60,7 @@ protected:
 	 *
 	 * @return true if the attribute was successfully added.
 	 */
-	bool AddAttributeFromValueOrInterface(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode);
+	bool AddAttributeFromValueOrInterface(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode, int32 OutputIndex = 0);
 
 	/**
 	 * Add a bool attribute to a shader node only if its value taken from the input is not equal to its default value. Return false if the attribute does not exist or if we cannot add it
@@ -96,7 +96,7 @@ protected:
 	 *
 	 * @return true if the attribute was successfully added.
 	 */
-	bool AddLinearColorAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode, const FLinearColor& DefaultValue = FLinearColor{std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()});
+	bool AddLinearColorAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode, const FLinearColor& DefaultValue = FLinearColor{std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()}, int32 OutputIndex = 0);
 
 	/**
 	 * Add an FLinearColor attribute to a shader node only if its value taken from the input is not equal to its default value. Return false if the attribute does not exist or if we cannot add it.
@@ -108,7 +108,7 @@ protected:
 	 *
 	 * @return true if the attribute was successfully added.
 	 */
-	bool AddVectorAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode, const FVector4f& DefaultValue = FVector4f{ std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max() });
+	bool AddVectorAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode, const FVector4f& DefaultValue = FVector4f{ std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max() }, int32 OutputIndex = 0);
 
 	/**
 	 * Connect an output either from a node name or a node graph from a MaterialX input to the shader node.
@@ -118,11 +118,11 @@ protected:
 	 * @param InputShaderName - The name of the input of the shader node to connect to
 	 * @param DefaultValue - The default value of the MaterialX input
 	 * @param bIsTangentSpaceInput - Set the tangent space along the path of an input
+	 * @param bUseDefaultValue - Usually we want to avoid creating default values on direct inputs of shaders (StandardSurface, OpenPBR), but some shaders (UsdPreviewSurface) we need to decide that at run-time
 	 */
 	template<typename T>
 	bool ConnectNodeOutputToInput(const char* InputName, UInterchangeShaderNode* ShaderNode, const FString& InputShaderName, T DefaultValue, bool bIsTangentSpaceInput = false)
 	{
-		MaterialX::DocumentPtr Document = SurfaceShaderNode->getDocument();
 		MaterialX::InputPtr Input = GetInput(SurfaceShaderNode, InputName);
 
 		TGuardValue<bool>InputTypeBeingProcessedGuard(bTangentSpaceInput, bIsTangentSpaceInput);
@@ -135,7 +135,8 @@ protected:
 			if(!bIsConnected)
 			{
 				// only handle float, linear color and vector here, for other types, the child should handle them as it is most likely not an input but a parameter to set in Interchange
-				if constexpr(std::is_same_v<decltype(DefaultValue), float>)
+				// handle integers as scalars
+				if constexpr(std::is_same_v<decltype(DefaultValue), float> || std::is_same_v<decltype(DefaultValue), int32>)
 				{
 					bIsConnected = AddFloatAttribute(Input, InputShaderName, ShaderNode, DefaultValue);
 				}
@@ -144,8 +145,12 @@ protected:
 					bIsConnected = AddLinearColorAttribute(Input, InputShaderName, ShaderNode, DefaultValue);
 				}
 				else if constexpr(std::is_same_v<decltype(DefaultValue), FVector4f> || std::is_same_v<decltype(DefaultValue), FVector3f> || std::is_same_v<decltype(DefaultValue), FVector2f>)
-				{					
+				{
 					bIsConnected = AddVectorAttribute(Input, InputShaderName, ShaderNode, DefaultValue);
+				}
+				if constexpr(std::is_same_v<decltype(DefaultValue), bool>)
+				{
+					bIsConnected = AddBooleanAttribute(Input, InputShaderName, ShaderNode);
 				}
 			}
 		}
@@ -215,6 +220,9 @@ protected:
 	/** <transformvector> */
 	void ConnectTransformVectorInputToOutput(const FConnectNode& Connect);
 
+	/** <rotate2d> */
+	void ConnectRotate2DInputToOutput(const FConnectNode& Connect);
+
 	/** <rotate3d> */
 	void ConnectRotate3DInputToOutput(const FConnectNode& Connect);
 
@@ -275,28 +283,33 @@ protected:
 	/** <swizzle> */
 	void ConnectSwizzleInputToOutput(const FConnectNode& Connect);
 
+	/** <normalmap> */
+	void ConnectNormalMapInputToOutput(const FConnectNode& Connect);
+
 	/** End Connect MaterialX nodes*/
 
 	/**
 	 * Create a ComponentMask shader node.
 	 *
 	 * @param RGBA - The mask component. For example: 0b1011 -> Only RBA are toggled
+	 * @param Element - The element that we take the whole hierarchy from to ensure the uniqueness of the name
 	 * @param NodeName - the name of the shader node.
 	 * @param OutputName - the name of the output of the MaterialX node. The default name is 'out' as stated by the standard library.
 	 * @return The ComponentMask node.
 	 */
-	UInterchangeShaderNode* CreateMaskShaderNode(uint8 RGBA, const FString& NodeName, const FString& OutputName = TEXT("out"));
+	UInterchangeShaderNode* CreateMaskShaderNode(uint8 RGBA, MaterialX::ElementPtr Element, const FString& NodeName, const FString& OutputName = TEXT("out"));
 
 	/**
 	 * Helper function to create an InterchangeShaderNode.
 	 *
+	 * @param Element - The element that we take the whole hierarchy from to ensure the uniqueness of the name
 	 * @param NodeName - The name of the shader node.
 	 * @param ShaderType - The type of shader node we want to create.
 	 * @param OutputName - The output name of the MaterialX node. The default name is 'out' as stated by the standard library.
 	 *
 	 * @return The shader node that was created.
 	 */
-	UInterchangeShaderNode* CreateShaderNode(const FString& NodeName, const FString& ShaderType, const FString& OutputName = TEXT("out"));
+	UInterchangeShaderNode* CreateShaderNode(MaterialX::ElementPtr Element, const FString& NodeName, const FString& ShaderType, const FString& OutputName = TEXT("out"));
 
 	/**
 	 * Helper function to create an InterchangeFunctionCallShaderNode.
@@ -307,7 +320,7 @@ protected:
 	 *
 	 * @return The shader node that was created.
 	 */
-	UInterchangeFunctionCallShaderNode* CreateFunctionCallShaderNode(const FString& NodeName, const FString& FunctionPath, const FString& OutputName = TEXT("out"));
+	UInterchangeFunctionCallShaderNode* CreateFunctionCallShaderNode(MaterialX::ElementPtr Element, const FString& NodeName, const FString& FunctionPath, const FString& OutputName = TEXT("out"));
 	UInterchangeFunctionCallShaderNode* CreateFunctionCallShaderNode(const FString& NodeName, uint8 EnumType, uint8 EnumValue, const FString& OutputName = TEXT("out"));
 
 	/**
@@ -326,9 +339,9 @@ protected:
 		//A node image should have an input file otherwise the user should check its default value
 		if(Node)
 		{
-			if(MaterialX::InputPtr InputFile = Node->getInput("file"); InputFile && InputFile->hasValue())
+			if(MaterialX::InputPtr InputFile = Node->getInput("file"); InputFile && (InputFile->hasValue() || InputFile->hasInterfaceName()))
 			{
-				FString Filepath{ InputFile->getValueString().c_str() };
+				FString Filepath{ InputFile->hasValue() ? InputFile->getValueString().c_str() : InputFile->getInterfaceInput()->getValueString().c_str()};
 				const FString FilePrefix = GetFilePrefix(InputFile);
 				Filepath = FPaths::Combine(FilePrefix, Filepath);
 				const FString Filename = FPaths::GetCleanFilename(Filepath);
@@ -439,6 +452,14 @@ protected:
 	 */
 	FString GetAttributeParentName(MaterialX::NodePtr Node) const;
 
+	/**
+	 * Ensure that we put in the node container the unique name, 2 nodes in a same file may have the same name as long as their parent's name is different, we just traverse the whole hierarchy to have a unique name
+	 * 
+	 * @param Element - An Element that may be an Input a node or a nodegraph
+	 * @return The unique name of the Element taking the whole hierarchy into account
+	 */
+	FString GetUniqueName(MaterialX::ElementPtr Element) const;
+
 	virtual void RegisterConnectNodeOutputToInputDelegates();
 
 	/**
@@ -455,6 +476,16 @@ protected:
 	 * @param NewName - the new name of the input.
 	 */
 	void SetAttributeNewName(MaterialX::InputPtr Input, const char* NewName) const;
+
+	/**
+	 * This function should be called first by the Translate method of derived class, SurfaceShaderNode should initialized first by the derived class
+	 * 
+	 * @param ShaderType - the type of ShaderGraphNode to create
+	 * @return The shader node created, usually a function call shader node
+	 */
+	UInterchangeShaderNode* Translate(EInterchangeMaterialXShaders ShaderType);
+
+	virtual void Translate(MaterialX::NodePtr ShaderNode) override = 0;
 
 private:
 	

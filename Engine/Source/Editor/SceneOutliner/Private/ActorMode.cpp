@@ -19,6 +19,7 @@
 #include "EditorFolderUtils.h"
 #include "EditorLevelUtils.h"
 #include "EditorModeManager.h"
+#include "Engine/GameViewportClient.h"
 #include "WorldTreeItem.h"
 #include "LevelInstance/LevelInstanceInterface.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
@@ -30,6 +31,7 @@
 #include "Modules/ModuleManager.h"
 #include "ScopedTransaction.h"
 #include "SSocketChooser.h"
+#include "UnrealClient.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogActorMode, Log, All);
 
@@ -43,6 +45,7 @@ static FAutoConsoleVariableRef CVarAutoRepresentingWorldNetMode(
 
 using FActorFilter = TSceneOutlinerPredicateFilter<FActorTreeItem>;
 using FFolderFilter = TSceneOutlinerPredicateFilter<FFolderTreeItem>;
+using FComponentFilter = TSceneOutlinerPredicateFilter<FComponentTreeItem>;
 
 namespace SceneOutliner
 {
@@ -120,11 +123,20 @@ FActorMode::FActorMode(const FActorModeParams& Params)
 	, bHideUnloadedActors(Params.bHideUnloadedActors)
 	, bHideEmptyFolders(Params.bHideEmptyFolders)
 	, bCanInteractWithSelectableActorsOnly(Params.bCanInteractWithSelectableActorsOnly)
+	, bShouldUpdateContentWhileInPIEFocused(Params.bShouldUpdateContentWhileInPIEFocused)
+	, bSearchComponentsByActorName(Params.bSearchComponentsByActorName)
 {
 	SceneOutliner->AddFilter(MakeShared<FActorFilter>(FActorTreeItem::FFilterPredicate::CreateLambda([this](const AActor* Actor)
 	{
 		return IsActorDisplayable(Actor);
 	}), FSceneOutlinerFilter::EDefaultBehaviour::Pass));
+
+	// Don't show components if the owner actor is not displayable
+	SceneOutliner->AddFilter(MakeShared<FComponentFilter>(FComponentTreeItem::FFilterPredicate::CreateLambda([this](const UActorComponent* ActorComponent)
+	{
+		return ActorComponent && IsActorDisplayable(ActorComponent->GetOwner());
+	}), FSceneOutlinerFilter::EDefaultBehaviour::Pass));
+
 
 	auto FolderPassesFilter = [this](const FFolder& InFolder, bool bInCheckHideLevelInstanceFlag)
 	{
@@ -169,6 +181,7 @@ TUniquePtr<ISceneOutlinerHierarchy> FActorMode::CreateHierarchy()
 	ActorHierarchy->SetShowingLevelInstances(!bHideLevelInstanceHierarchy);
 	ActorHierarchy->SetShowingUnloadedActors(!bHideUnloadedActors);
 	ActorHierarchy->SetShowingEmptyFolders(!bHideEmptyFolders);
+	ActorHierarchy->SetSearchComponentsByActorName(bSearchComponentsByActorName);
 
 	return ActorHierarchy;
 }
@@ -418,6 +431,18 @@ bool FActorMode::CanInteract(const ISceneOutlinerTreeItem& Item) const
 	return true;
 }
 
+bool FActorMode::CanPopulate() const
+{
+	if (!bShouldUpdateContentWhileInPIEFocused)
+	{
+		if (UGameViewportClient* GameViewport = RepresentingWorld->GetGameViewport())
+		{
+			return !GameViewport->Viewport || !GameViewport->Viewport->HasFocus();
+		}
+	}
+	return true;
+}
+
 bool FActorMode::IsActorLevelDisplayable(ULevel* InLevel)
 {
 	// Don't show level tree item for the persistent level
@@ -588,6 +613,16 @@ FSceneOutlinerDragValidationInfo FActorMode::ValidateDrop(const ISceneOutlinerTr
 		const FText ActorLabel = FText::FromString(ActorTarget->GetActorLabel());
 		if (bDraggedOntoAttachmentParent)
 		{
+			for (const auto& DragActorPtr : DragActors)
+			{
+				AActor* DragActor = DragActorPtr.Get();
+				if (!DragActor->EditorCanDetachFrom(DragActor->GetSceneOutlinerParent(), AttachErrorMsg))
+				{
+					// Cannot detach from parent into root
+					return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::IncompatibleGeneric, AttachErrorMsg); 
+				}
+			}
+
 			if (DragActors.Num() == 1)
 			{
 				return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::CompatibleDetach, ActorLabel);
@@ -759,6 +794,14 @@ FSceneOutlinerDragValidationInfo FActorMode::ValidateDrop(const ISceneOutlinerTr
 
 					return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::IncompatibleGeneric, Text);
 				}
+				else if (Actor->GetSceneOutlinerParent())
+				{
+					FText DetachErrorMsg;
+					if (!Actor->EditorCanDetachFrom(Actor->GetSceneOutlinerParent(), DetachErrorMsg))
+					{
+						return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::IncompatibleGeneric, DetachErrorMsg);
+					}
+				}
 			}
 		}
 
@@ -922,26 +965,26 @@ void FActorMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const FSceneOutliner
 			}
 			else
 			{
-				auto PerformAttachment = [](FName SocketName, TWeakObjectPtr<AActor> Parent, const TArray<TWeakObjectPtr<AActor>> NewAttachments)
+				auto PerformAttachment = [this](FName SocketName, TWeakObjectPtr<AActor> Parent, const TArray<TWeakObjectPtr<AActor>> NewAttachments)
 				{
 					AActor* ParentActor = Parent.Get();
 					if (ParentActor)
 					{
+						TArray<TWeakObjectPtr<AActor>> AttachedActors;
 						// modify parent and child
 						const FScopedTransaction Transaction(LOCTEXT("UndoAction_PerformAttachment", "Attach actors"));
 
 						// Attach each child
-						bool bAttached = false;
 						for (auto& Child : NewAttachments)
 						{
 							AActor* ChildActor = Child.Get();
 							if (GEditor->CanParentActors(ParentActor, ChildActor))
 							{
 								GEditor->ParentActors(ParentActor, ChildActor, SocketName);
-
-								ChildActor->SetFolderPath_Recursively(ParentActor->GetFolderPath());
+								AttachedActors.Add(ChildActor);
 							}
 						}
+						OnActorsAttached(ParentActor, AttachedActors);
 					}
 				};
 

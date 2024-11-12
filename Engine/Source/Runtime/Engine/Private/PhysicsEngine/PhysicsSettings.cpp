@@ -39,6 +39,17 @@ void UPhysicsSettings::PostInitProperties()
 	LoadSurfaceType();
 #endif
 
+	if (PhysicsPrediction.bEnablePhysicsResimulation_DEPRECATED)
+	{
+		PhysicsPrediction.bEnablePhysicsHistoryCapture = true;
+	}
+
+	if (PhysicsPrediction.ResimulationErrorThreshold_DEPRECATED > 0.0f)
+	{
+		PhysicsPrediction.ResimulationSettings.bEnableResimulationErrorPositionThreshold = true;
+		PhysicsPrediction.ResimulationSettings.ResimulationErrorPositionThreshold = PhysicsPrediction.ResimulationErrorThreshold_DEPRECATED;
+	}
+
 	if (LockedAxis_DEPRECATED == static_cast<ESettingsLockedAxis::Type>(-1))
 	{
 		LockedAxis_DEPRECATED = ESettingsLockedAxis::Invalid;

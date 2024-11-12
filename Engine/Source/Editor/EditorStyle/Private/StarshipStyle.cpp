@@ -27,7 +27,6 @@ FName FStarshipEditorStyle::StyleSetName = TEXT("EditorStyle");
 void FStarshipEditorStyle::Initialize()
 {
 	LLM_SCOPE_BYNAME(TEXT("FStarshipEditorStyle"));
-	Settings = NULL;
 
 	// The core style must be initialized before the editor style
 	FSlateApplication::InitializeCoreStyle();
@@ -38,7 +37,7 @@ void FStarshipEditorStyle::Initialize()
 	USlateThemeManager::Get().ApplyTheme(USlateThemeManager::Get().GetCurrentTheme().Id);
 	//UStyleColorTable::Get().SaveCurrentThemeAs(UStyleColorTable::Get().GetCurrentTheme().Filename);
 #endif
-	StyleInstance = Create(Settings);
+	StyleInstance = Create();
 	SetStyle(StyleInstance.ToSharedRef());
 }
 
@@ -58,7 +57,6 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
  *****************************************************************************/
 
 TSharedPtr< FStarshipEditorStyle::FStyle > FStarshipEditorStyle::StyleInstance = NULL;
-TWeakObjectPtr< UEditorStyleSettings > FStarshipEditorStyle::Settings = NULL;
 
 void FStarshipEditorStyle::FStyle::SetColor(const TSharedRef< FLinearColor >& Source, const FLinearColor& Value)
 {
@@ -80,7 +78,7 @@ bool FStarshipEditorStyle::FStyle::IncludeEditorSpecificStyles()
 /* FStarshipEditorStyle interface
  *****************************************************************************/
 
-FStarshipEditorStyle::FStyle::FStyle( const TWeakObjectPtr< UEditorStyleSettings >& InSettings )
+FStarshipEditorStyle::FStyle::FStyle()
 	: FSlateStyleSet(FStarshipEditorStyle::StyleSetName)
 
 	// Note, these sizes are in Slate Units.
@@ -118,18 +116,21 @@ FStarshipEditorStyle::FStyle::FStyle( const TWeakObjectPtr< UEditorStyleSettings
 	, HighlightColor( HighlightColor_LinearRef )
 	, WindowHighlightColor(WindowHighlightColor_LinearRef)
 	, InheritedFromBlueprintTextColor(FLinearColor(0.25f, 0.5f, 1.0f))
-
-	, Settings( InSettings )
 {
 }
 
 FStarshipEditorStyle::FStyle::~FStyle()
 {
 #if WITH_EDITOR
-	if (Settings.IsValid())
+	// GetMutableDefault is invalid during shutdown as the object system is unloaded before FStarshipEditorStyle
+	if(UObjectInitialized() && !IsEngineExitRequested())
 	{
-		Settings->OnSettingChanged().Remove(SettingChangedHandler);
+		if (UEditorStyleSettings* Settings = GetMutableDefault<UEditorStyleSettings>())
+		{
+			Settings->OnSettingChanged().Remove(SettingChangedHandler);
+		}
 	}
+	
 #endif
 
 }
@@ -141,7 +142,7 @@ void FStarshipEditorStyle::FStyle::SettingsChanged(FName PropertyName)
 
 void FStarshipEditorStyle::FStyle::SyncSettings()
 {
-	if (Settings.IsValid())
+	if (UEditorStyleSettings* Settings = GetMutableDefault<UEditorStyleSettings>())
 	{
 		// The subdued selection color is derived from the selection color
 		auto SubduedSelectionColor = Settings->GetSubduedSelectionColor();
@@ -258,7 +259,7 @@ void FStarshipEditorStyle::FStyle::Initialize()
 	SyncSettings();
 
 #if WITH_EDITOR
-	if (Settings.IsValid())
+	if (UEditorStyleSettings* Settings = GetMutableDefault<UEditorStyleSettings>())
 	{
 		SettingChangedHandler = Settings->OnSettingChanged().AddRaw(this, &FStarshipEditorStyle::FStyle::SettingsChanged);
 	}
@@ -457,6 +458,7 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		Set("Icons.HollowHeart", new IMAGE_BRUSH_SVG("Starship/Common/HollowHeart", Icon16x16));
 		Set("Icons.Heart", new IMAGE_BRUSH_SVG("Starship/Common/Heart", Icon16x16));
 		Set("Icons.RecentAssets", new IMAGE_BRUSH_SVG("Starship/Common/RecentAssets", Icon16x16));
+		Set("Icons.Scalability", new IMAGE_BRUSH_SVG("Starship/Common/Scalability_16", Icon20x20));
 
 		Set("Icons.Toolbar.Play", new IMAGE_BRUSH_SVG("Starship/Common/play", Icon20x20));
 		Set("Icons.Toolbar.Pause", new IMAGE_BRUSH_SVG("Starship/MainToolbar/pause", Icon20x20));
@@ -465,6 +467,14 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		Set("Icons.Toolbar.Details", new IMAGE_BRUSH_SVG("Starship/Common/Details", Icon16x16));
 		Set("Icons.Toolbar.Import", new CORE_IMAGE_BRUSH_SVG("Starship/Common/import_20", Icon20x20));
 		Set("Icons.Toolbar.Export", new CORE_IMAGE_BRUSH_SVG("Starship/Common/export_20", Icon20x20));
+
+		Set("Icons.Alert.Solid", new IMAGE_BRUSH_SVG("Starship/Common/AlertTriangleSolid", Icon16x16, FStyleColors::Foreground));
+		Set("Icons.Alert.Badge", new IMAGE_BRUSH_SVG("Starship/Common/AlertTriangleBadge", Icon16x16, FStyleColors::Foreground));
+		Set("Icons.Alert.Background", new IMAGE_BRUSH_SVG("Starship/Common/AlertTriangleBackground", Icon16x16, FStyleColors::Hover2));
+		Set("Icons.Error.Solid", new IMAGE_BRUSH_SVG("Starship/Common/AlertTriangleSolid", Icon16x16, FStyleColors::Error));
+		Set("Icons.Error.Background", new IMAGE_BRUSH_SVG("Starship/Common/AlertTriangleBackground", Icon16x16, FStyleColors::Error));
+		Set("Icons.Warning.Solid", new IMAGE_BRUSH_SVG("Starship/Common/AlertTriangleSolid", Icon16x16, FStyleColors::Warning));
+		Set("Icons.Warning.Background", new IMAGE_BRUSH_SVG("Starship/Common/AlertTriangleBackground", Icon16x16, FStyleColors::Warning));
 	}
 
 	// Theme Icons
@@ -477,6 +487,11 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 	{
 		Set("Icons.PromoteElements", new IMAGE_BRUSH_SVG("Starship/Common/convert", Icon20x20));
 		Set("Icons.DemoteElements", new IMAGE_BRUSH_SVG("Starship/Common/convert", Icon20x20));
+	}
+
+	// Reference Viewer Icons
+	{
+		Set("ReferenceViewer.IndirectReference", new IMAGE_BRUSH_SVG("Starship/ReferenceViewer/IndirectRef", Icon16x16));
 	}
 
 	Set("UnrealDefaultThumbnail", new IMAGE_BRUSH("Starship/Common/Unreal_DefaultThumbnail", FVector2D(256, 256)));
@@ -768,6 +783,7 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		Set( "MaterialList.DragDropBorder", new BOX_BRUSH( "Old/Window/ViewportDebugBorder", 0.8f ) );
 		Set( "MaterialList.HyperlinkStyle", FTextBlockStyle(NormalText) .SetFont( DEFAULT_FONT( "Regular", 8 ) ) );
 		Set( "MaterialList.HyperlinkStyle.ShadowOffset", FVector2D::ZeroVector );
+		Set( "Icons.NaniteBrowseContent", new IMAGE_BRUSH_SVG("Starship/Common/NaniteBrowseContent", Icon16x16));
 	}
 
 	// Dialogue Wave Details
@@ -893,6 +909,7 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		Set( "MessageLog.Docs", new IMAGE_BRUSH( "Icons/icon_Docs_16x", Icon16x16) );
 		Set( "MessageLog.Tutorial", new IMAGE_BRUSH( "Icons/icon_Blueprint_Enum_16x", Icon16x16 ) );
 		Set( "MessageLog.Url", new IMAGE_BRUSH( "Icons/icon_world_16x", Icon16x16 ) );
+		Set( "MessageLog.Fix", new IMAGE_BRUSH_SVG( "Starship/Common/wrench", Icon16x16 ) );
 
 		Set( "MessageLog.TabIcon", new IMAGE_BRUSH_SVG( "Starship/Common/MessageLog", Icon16x16 ) );
 		Set( "MessageLog.ListBorder", new BOX_BRUSH( "/Docking/AppTabContentArea", FMargin(4/16.0f) ) );
@@ -933,7 +950,6 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		Set("CollisionAnalyzer.TabIcon", new IMAGE_BRUSH_SVG("Starship/Common/Collision", Icon16x16));
 		Set("ObjectBrowser.TabIcon", new IMAGE_BRUSH_SVG( "Starship/Common/ObjectsBrowser", Icon16x16 ) );
 		Set("PixelInspector.TabIcon", new IMAGE_BRUSH_SVG( "Starship/Common/PixelInspector", Icon16x16 ) );
-		Set("StylusInputDebug.TabIcon", new IMAGE_BRUSH_SVG( "Starship/Common/StylusInputBug", Icon16x16 ) );
 	}
 
 	{
@@ -957,23 +973,9 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 			.SetShadowColorAndOpacity(FLinearColor(0.0f, 0.0f, 0.0f, 0.9f)));
 	}
 
-	// Session Console tab
-	{
-		Set( "SessionConsole.SessionCopy", new IMAGE_BRUSH( "Icons/icon_file_open_40x", Icon40x40 ) );
-		Set( "SessionConsole.SessionCopy.Small", new IMAGE_BRUSH( "Icons/icon_file_open_16px", Icon20x20 ) );
-		Set( "SessionConsole.Clear", new IMAGE_BRUSH( "Icons/icon_file_new_40x", Icon40x40 ) );
-		Set( "SessionConsole.Clear.Small", new IMAGE_BRUSH( "Icons/icon_file_new_16px", Icon20x20 ) );
-		Set( "SessionConsole.SessionSave", new IMAGE_BRUSH( "Icons/icon_file_savelevels_40x", Icon40x40 ) );
-		Set( "SessionConsole.SessionSave.Small", new IMAGE_BRUSH( "Icons/icon_file_savelevels_16px", Icon20x20 ) );
-	}
-
 	// Session Frontend Window
 	{
-		Set("SessionFrontEnd.TabIcon", new CORE_IMAGE_BRUSH_SVG( "Starship/Common/SessionFrontend", Icon16x16 ) );
-		Set("SessionFrontEnd.Tabs.Tools", new CORE_IMAGE_BRUSH( "/Icons/icon_tab_Tools_16x", Icon16x16 ) );
-		Set("SessionFrontEnd.Tabs.Console", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Console", Icon16x16));
-		Set("SessionFrontEnd.Tabs.Automation", new CORE_IMAGE_BRUSH_SVG("Starship/Common/AutomationTools", Icon16x16));
-		Set("SessionFrontEnd.Tabs.ScreenComparison", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Monitor", Icon16x16));
+		Set("SessionFrontEnd.Tabs.Tools", new CORE_IMAGE_BRUSH("/Icons/icon_tab_Tools_16x", Icon16x16));
 	}
 
 	// Undo History Window
@@ -1108,6 +1110,15 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		Set("DerivedData.RemoteCache.Unavailable", new IMAGE_BRUSH_SVG("Starship/DerivedData/DD_RemoteCache_Unavailable", Icon16x16));
 	}
 
+	// Editor Performance Data
+	{
+		Set("EditorPerformance.Settings", new IMAGE_BRUSH_SVG("Starship/DerivedData/DD_Cache_Settings", Icon16x16));
+		Set("EditorPerformance.Notification.Warning", new IMAGE_BRUSH_SVG("Starship/DerivedData/DD_RemoteCache_Warning", Icon16x16, EStyleColor::Warning));
+		Set("EditorPerformance.Notification.Good", new IMAGE_BRUSH_SVG("Starship/DerivedData/DD_RemoteCache_Idle", Icon16x16, EStyleColor::Success));
+		Set("EditorPerformance.Report.Panel", new IMAGE_BRUSH_SVG("Starship/DerivedData/DD_Cache_Statistics", Icon16x16));
+		Set("EditorPerformance.Report.Warning", new CORE_IMAGE_BRUSH_SVG("Starship/Common/alert-triangle", Icon16x16, EStyleColor::Warning));
+	}
+
 	// Scene Outliner
 	{
 		// Override icons
@@ -1209,6 +1220,8 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		Set( "AssetEditor.ReadOnlyBorder", new FSlateRoundedBoxBrush(FStyleColors::Foreground, 10.0f));
 		Set("AssetEditor.ReadOnlyOpenable", new IMAGE_BRUSH_SVG("Starship/AssetEditors/LockEye", Icon16x16));
 
+		Set("AssetEditor.PreviewSceneSettings",
+			new IMAGE_BRUSH_SVG("Starship/AssetEditors/PreviewSceneSettings_16", Icon16x16));
 	}
 		
 	// Asset Thumbnail
@@ -1224,7 +1237,17 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		Set( "AssetThumbnail.HintShadowOffset", FVector2D(1,1) );
 		Set( "AssetThumbnail.HintShadowColorAndOpacity", FLinearColor(0, 0, 0, 0.5) );
 		Set( "AssetThumbnail.HintBackground", new BOX_BRUSH( "Common/TableViewHeader", FMargin(8.0f/32.0f) ) );
-	
+		Set( "AssetThumbnail.AssetTileViewWhiteChipBorder", new IMAGE_BRUSH_SVG("Starship/ContentBrowser/CornerChipOuter_18", FVector2D(18, 18)));
+		Set( "AssetThumbnail.AssetTileViewWhiteChip", new IMAGE_BRUSH_SVG("Starship/ContentBrowser/CornerChipInner_18", FVector2D(18, 18)));
+		Set( "AssetThumbnail.AssetBorder", new FSlateRoundedBoxBrush(FStyleColors::Transparent, FVector4(4.0f, 2.0f, 4.0f, 4.0f), FStyleColors::Secondary, 2.f));
+		FLinearColor OverlayColorAssetStatusOverlay = FStyleColors::Panel.GetSpecifiedColor();
+		OverlayColorAssetStatusOverlay.A = 0.75f;
+		Set("AssetThumbnail.AssetThumbnailStatusBar", new FSlateRoundedBoxBrush(OverlayColorAssetStatusOverlay, 2.f));
+		FLinearColor OverlayColorAssetThumbnailOverlay = FStyleColors::Panel.GetSpecifiedColor();
+		OverlayColorAssetThumbnailOverlay.A = 0.75f;
+		Set("AssetThumbnail.AssetThumbnailBar", new FSlateRoundedBoxBrush(OverlayColorAssetThumbnailOverlay, 4.f));
+		Set("AssetThumbnail.ToolTip.CommandBorder", new FSlateRoundedBoxBrush(FStyleColors::Transparent, 4.f, FStyleColors::White, 1.f));
+		Set("AssetThumbnail.Tooltip.Border", new FSlateRoundedBoxBrush(FStyleColors::Secondary, 0.f, COLOR("#484848FF"), 2.f));
 	}
 
 	// Open any asset dialog
@@ -1722,6 +1745,7 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		FVerticalToolBarStyle.SetIconPadding(FMargin(8.0f, 8.0f));
 		FVerticalToolBarStyle.SetIconPaddingWithVisibleLabel(FMargin(8.0f, 8.0f, 8.0f, 2.0f));
  
+		FVerticalToolBarStyle.SetExpandBrush(CORE_IMAGE_BRUSH_SVG("Starship/Common/ellipsis-horizontal-narrow", FVector2D(16, 16)));
 		FCheckBoxStyle CheckBoxStyle = FCheckBoxStyle(FVerticalToolBarStyle.ToggleButton)
 			.SetCheckedImage(FSlateRoundedBoxBrush(FStyleColors::Primary, 4.f, FLinearColor(0, 0, 0, .8), 0.5))
 			.SetCheckedHoveredImage(FSlateRoundedBoxBrush(FStyleColors::PrimaryHover, 4.f, FLinearColor(0, 0, 0, .8), 0.5))
@@ -1739,6 +1763,28 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		FVerticalToolBarStyle.SetButtonPadding(FMargin(0.0f, 4.0f, 0.0f, 0.f));
 		FVerticalToolBarStyle.SetToggleButtonStyle(CheckBoxStyle);
 		Set("FVerticalToolBar", FVerticalToolBarStyle);
+	}
+
+	{
+		// FCategoryDrivenContentBuilder vertical toolbar style
+		FToolBarStyle CategoryDrivenContentBuilderToolBarStyle =  GetWidgetStyle<FToolBarStyle>("FVerticalToolBar");
+		CategoryDrivenContentBuilderToolBarStyle.SetIconPadding( FMargin(0, 9, 0, 4 ) );
+		CategoryDrivenContentBuilderToolBarStyle.SetBackgroundPadding( FMargin( 4 ) );
+		CategoryDrivenContentBuilderToolBarStyle.SetIconPaddingWithVisibleLabel( FMargin(0, 9, 0, 0 ) );
+		CategoryDrivenContentBuilderToolBarStyle.SetLabelPadding( FMargin(4, 5, 4, 9) );
+		CategoryDrivenContentBuilderToolBarStyle.SetButtonContentMaxWidth( 56.0f );
+		FTextBlockStyle LabelTextStyle = FTextBlockStyle(NormalText)
+		                                 .SetOverflowPolicy(ETextOverflowPolicy::Ellipsis)
+		                                 .SetFont(DEFAULT_FONT("roboto", FCoreStyle::SmallTextSize));
+		CategoryDrivenContentBuilderToolBarStyle.SetLabelStyle( LabelTextStyle );
+		CategoryDrivenContentBuilderToolBarStyle.SetButtonPadding( FMargin( 0, 2, 0, 2 ));
+		CategoryDrivenContentBuilderToolBarStyle.SetShowLabels( true );
+		Set("CategoryDrivenContentBuilderToolbarWithLabels", CategoryDrivenContentBuilderToolBarStyle);
+
+		CategoryDrivenContentBuilderToolBarStyle.SetIconPadding( FMargin(8, 8, 8, 8 ) );
+		CategoryDrivenContentBuilderToolBarStyle.SetShowLabels( false );
+		CategoryDrivenContentBuilderToolBarStyle.SetButtonContentMaxWidth( 36.0f );
+		Set("CategoryDrivenContentBuilderToolbarWithoutLabels", CategoryDrivenContentBuilderToolBarStyle);
 	}
 	
 	// Vertical ToolPalette 
@@ -2011,11 +2057,25 @@ void FStarshipEditorStyle::FStyle::SetupWorldPartitionStyles()
 	Set("WorldPartition.ShowHLODActors", new IMAGE_BRUSH_SVG("Starship/Common/HierarchicalLOD", Icon16x16));
 	Set("WorldPartition.ShowGrid", new IMAGE_BRUSH_SVG("Starship/EditorViewport/grid", Icon16x16));
 	Set("WorldPartition.ShowMiniMap", new IMAGE_BRUSH_SVG("Starship/AssetIcons/Texture2D_16", Icon16x16)); 
-	Set("WorldPartition.ShowCoords", new IMAGE_BRUSH_SVG("WorldPartition/Coordinate_20", Icon16x16));
+	Set("WorldPartition.ShowCoords", new IMAGE_BRUSH_SVG("WorldPartition/Coordinate_16", Icon16x16));
+	Set("WorldPartition.ShowMouseCoords", new IMAGE_BRUSH_SVG("WorldPartition/MouseCoordinates_16", Icon16x16));
 
 	Set("WorldPartition.FocusSelection", new IMAGE_BRUSH_SVG("WorldPartition/FramingSelection_20", Icon16x16));
 	Set("WorldPartition.FocusLoadedRegions", new IMAGE_BRUSH_SVG("WorldPartition/FrameRegions_20", Icon16x16));
 	Set("WorldPartition.FocusWorld", new IMAGE_BRUSH_SVG("WorldPartition/FrameWorld_20", Icon16x16));
+
+	// Level Instance
+	Set("LevelInstance.ColumnOverrideHereEditable", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideHere", Icon16x16, FStyleColors::AccentBlue));
+	Set("LevelInstance.ColumnOverrideHere", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideHere", Icon16x16, FStyleColors::AccentGray));
+
+	Set("LevelInstance.ColumnOverrideContainerHereEditable", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideContainerHere", Icon16x16, FStyleColors::AccentBlue));
+	Set("LevelInstance.ColumnOverrideContainerHere", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideContainerHere", Icon16x16, FStyleColors::AccentGray));
+
+	Set("LevelInstance.ColumnOverrideContainerInsideEditable", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideContainerInside", Icon16x16, FStyleColors::AccentBlue));
+	Set("LevelInstance.ColumnOverrideContainerInside", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideContainerInside", Icon16x16, FStyleColors::AccentGray));
+
+	Set("LevelInstance.ColumnOverrideContainerEditable", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideContainer", Icon16x16, FStyleColors::AccentBlue));
+	Set("LevelInstance.ColumnOverrideContainer", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideContainer", Icon16x16, FStyleColors::AccentGray));
 }
 
 void FStarshipEditorStyle::FStyle::SetupSequencerStyles()
@@ -2095,13 +2155,9 @@ void FStarshipEditorStyle::FStyle::SetupSequencerStyles()
 		Set("Sequencer.KeyBar.Dashed", new BORDER_BRUSH(TEXT("Sequencer/Keys/KeyBar_Dashed"), FMargin(0.f, 4.f, 0.f, 0.f)));
 		Set("Sequencer.KeyBar.Solid", new BORDER_BRUSH(TEXT("Sequencer/Keys/KeyBar_Solid"), FMargin(0.f, 4.f, 0.f, 0.f)));
 
-		Set("Sequencer.Timeline.ScrubHandleDown", new BOX_BRUSH("Sequencer/ScrubHandleDown", FMargin(6.f / 13.f, 5 / 12.f, 6 / 13.f, 8 / 12.f)));
-		Set("Sequencer.Timeline.ScrubHandleUp", new BOX_BRUSH("Sequencer/ScrubHandleUp", FMargin(6.f / 13.f, 8 / 12.f, 6 / 13.f, 5 / 12.f)));
+		Set("Sequencer.Timeline.ScrubHandle", new IMAGE_BRUSH_SVG("Starship/Sequencer/ScrubHandle", FVector2f(14.f, 32.f)));
 		Set("Sequencer.Timeline.ScrubFill", new BOX_BRUSH("Sequencer/ScrubFill", FMargin(2.f / 4.f, 0.f)));
-		Set("Sequencer.Timeline.FrameBlockScrubHandleDown", new BOX_BRUSH("Sequencer/ScrubHandleDown", FMargin(6.f / 13.f, 5 / 12.f, 6 / 13.f, 8 / 12.f)));
-		Set("Sequencer.Timeline.FrameBlockScrubHandleUp", new BOX_BRUSH("Sequencer/ScrubHandleUp", FMargin(6.f / 13.f, 8 / 12.f, 6 / 13.f, 5 / 12.f)));
-		Set("Sequencer.Timeline.VanillaScrubHandleDown", new BOX_BRUSH("Sequencer/ScrubHandleDown_Clamped", FMargin(6.f / 13.f, 3.f / 12.f, 6.f / 13.f, 7.f / 12.f)));
-		Set("Sequencer.Timeline.VanillaScrubHandleUp", new BOX_BRUSH("Sequencer/ScrubHandleUp_Clamped", FMargin(6.f / 13.f, 8 / 12.f, 6 / 13.f, 5 / 12.f)));
+		Set("Sequencer.Timeline.FrameBlockScrubHandle", new BOX_BRUSH("Sequencer/ScrubHandleDown", FMargin(6.f / 13.f, 5 / 12.f, 6 / 13.f, 8 / 12.f)));
 		Set("Sequencer.Timeline.ScrubHandleWhole", new BOX_BRUSH("Sequencer/ScrubHandleWhole", FMargin(6.f / 13.f, 10 / 24.f, 6 / 13.f, 10 / 24.f)));
 		Set("Sequencer.Timeline.RangeHandleLeft", new BOX_BRUSH("Sequencer/GenericGripLeft", FMargin(5.f / 16.f)));
 		Set("Sequencer.Timeline.RangeHandleRight", new BOX_BRUSH("Sequencer/GenericGripRight", FMargin(5.f / 16.f)));
@@ -2130,6 +2186,11 @@ void FStarshipEditorStyle::FStyle::SetupSequencerStyles()
 			.SetHovered(IMAGE_BRUSH("/Docking/CloseApp_Hovered", Icon16x16)));
 
 		Set("Sequencer.NotificationImage_AddedPlayMovieSceneEvent", new IMAGE_BRUSH("Old/Checkbox_checked", Icon16x16));
+
+		Set("Sequencer.Timeline.ScrubHandleDown", new BOX_BRUSH("Sequencer/ScrubHandleDown", FMargin(6.f / 13.f, 5 / 12.f, 6 / 13.f, 8 / 12.f)));
+		Set("Sequencer.Timeline.ScrubHandleUp", new BOX_BRUSH("Sequencer/ScrubHandleUp", FMargin(6.f / 13.f, 8 / 12.f, 6 / 13.f, 5 / 12.f)));
+		Set("Sequencer.Timeline.VanillaScrubHandleDown", new BOX_BRUSH("Sequencer/ScrubHandleDown_Clamped", FMargin(6.f / 13.f, 3.f / 12.f, 6.f / 13.f, 7.f / 12.f)));
+		Set("Sequencer.Timeline.VanillaScrubHandleUp", new BOX_BRUSH("Sequencer/ScrubHandleUp_Clamped", FMargin(6.f / 13.f, 8 / 12.f, 6 / 13.f, 5 / 12.f)));
 
 		Set("Sequencer.RestoreAnimatedState", new IMAGE_BRUSH("Sequencer/Main_Icons/Icon_Sequencer_RestoreAnimatedState_24x", Icon48x48));
 		Set("Sequencer.GenericGripLeft", new BOX_BRUSH("Sequencer/GenericGripLeft", FMargin(5.f / 16.f)));
@@ -2194,6 +2255,8 @@ void FStarshipEditorStyle::FStyle::SetupSequencerStyles()
 		Set("Sequencer.AnimationOutliner.RegularFont", DEFAULT_FONT("Regular", 9));
 		Set("Sequencer.AnimationOutliner.ItalicFont", DEFAULT_FONT("Italic", 10));
 
+		Set("Sequencer.Outliner.Indicators.TimeWarp", new IMAGE_BRUSH_SVG("Starship/Sequencer/TimeWarp_12", Icon12x12));
+
 		Set("Sequencer.ShotFilter", new IMAGE_BRUSH("Sequencer/FilteredArea", FVector2D(74, 74), FLinearColor::White, ESlateBrushTileType::Both));
 		Set("Sequencer.KeyMark", new IMAGE_BRUSH("Sequencer/KeyMark", FVector2D(3, 21), FLinearColor::White, ESlateBrushTileType::NoTile));
 		Set("Sequencer.ToggleAutoKeyEnabled", new IMAGE_BRUSH_SVG("Starship/Sequencer/AutoKey", Icon20x20));
@@ -2218,6 +2281,7 @@ void FStarshipEditorStyle::FStyle::SetupSequencerStyles()
 		Set("Sequencer.TrackHoverHighlight_Top", new IMAGE_BRUSH(TEXT("Sequencer/TrackHoverHighlight_Top"), FVector2D(4, 4)));
 		Set("Sequencer.TrackHoverHighlight_Bottom", new IMAGE_BRUSH(TEXT("Sequencer/TrackHoverHighlight_Bottom"), FVector2D(4, 4)));
 		Set("Sequencer.SpawnableIconOverlay", new IMAGE_BRUSH(TEXT("Sequencer/SpawnableIconOverlay"), FVector2D(13, 13)));
+		Set("Sequencer.ReplaceableIconOverlay", new IMAGE_BRUSH(TEXT("Sequencer/ReplaceableIconOverlay"), FVector2D(13, 13)));
 		Set("Sequencer.MultipleIconOverlay", new IMAGE_BRUSH(TEXT("Sequencer/MultipleIconOverlay"), FVector2D(13, 13)));
 		Set("Sequencer.DynamicBindingIconOverlay", new IMAGE_BRUSH(TEXT("Sequencer/DynamicBindingIconOverlay"), Icon16x16));
 		Set("Sequencer.SpawnableDynamicBindingIconOverlay", new IMAGE_BRUSH(TEXT("Sequencer/SpawnableDynamicBindingIconOverlay"), Icon16x16));
@@ -2238,6 +2302,7 @@ void FStarshipEditorStyle::FStyle::SetupSequencerStyles()
 		Set("Sequencer.Tracks.CameraCut", new IMAGE_BRUSH_SVG("Starship/Sequencer/CameraCutTrack", Icon16x16));
 		Set("Sequencer.Tracks.CinematicShot", new IMAGE_BRUSH_SVG("Starship/Sequencer/ShotTrack", Icon16x16));
 		Set("Sequencer.Tracks.Slomo", new IMAGE_BRUSH_SVG("Starship/Sequencer/SlomoTrack", Icon16x16));
+		Set("Sequencer.Tracks.TimeWarp", new IMAGE_BRUSH_SVG("Starship/Sequencer/TimeWarp_16", Icon16x16));
 		Set("Sequencer.Tracks.Sub", new IMAGE_BRUSH_SVG("Starship/Sequencer/SubTrack", Icon16x16));
 		Set("Sequencer.Tracks.LevelVisibility", new IMAGE_BRUSH_SVG("Starship/Sequencer/LevelVisibilityTrack", Icon16x16));
 		Set("Sequencer.Tracks.DataLayer", new IMAGE_BRUSH_SVG("Starship/Common/DataLayers", Icon16x16));
@@ -2326,7 +2391,12 @@ void FStarshipEditorStyle::FStyle::SetupSequencerStyles()
 		Set("EMovieSceneBlendType::Absolute", new IMAGE_BRUSH("Sequencer/EMovieSceneBlendType_Absolute", FVector2D(32, 16)));
 		Set("EMovieSceneBlendType::Relative", new IMAGE_BRUSH("Sequencer/EMovieSceneBlendType_Relative", FVector2D(32, 16)));
 		Set("EMovieSceneBlendType::Additive", new IMAGE_BRUSH("Sequencer/EMovieSceneBlendType_Additive", FVector2D(32, 16)));
+		Set("EMovieSceneBlendType::Override", new IMAGE_BRUSH_SVG("Sequencer/EMovieSceneBlendType_Override", FVector2D(32, 16)));
 		Set("EMovieSceneBlendType::AdditiveFromBase", new IMAGE_BRUSH("Sequencer/EMovieSceneBlendType_AdditiveFromBase", FVector2D(32, 16)));
+
+		Set("Sequencer.TrackIsolate", new IMAGE_BRUSH_SVG("Sequencer/TrackIsolate", Icon16x16));
+		Set("Sequencer.TrackHide", new IMAGE_BRUSH_SVG("Sequencer/TrackHide", Icon16x16));
+		Set("Sequencer.TrackShow", new IMAGE_BRUSH_SVG("Sequencer/TrackShow", Icon16x16));
 	}
 
 
@@ -2359,11 +2429,95 @@ void FStarshipEditorStyle::FStyle::SetupSequencerStyles()
 		Set("Sequencer.Column.Unpinned", new IMAGE_BRUSH_SVG("Sequencer/Column_Widgets/SequencerUnpinned", Icon14x14));
 		Set("Sequencer.Column.CheckBoxIndeterminate", new CORE_IMAGE_BRUSH_SVG("Starship/CoreWidgets/CheckBox/CheckBoxIndeterminate_14", Icon14x14));
 		Set("Sequencer.Column.OutlinerColumnBox", new FSlateRoundedBoxBrush(FStyleColors::Header, 2.0f));
+		Set("Sequencer.Indicator.Condition", new IMAGE_BRUSH_SVG("Sequencer/Column_Widgets/SequencerCondition", Icon12x12));
+		Set("Sequencer.Indicator.TimeWarp", new IMAGE_BRUSH_SVG("Sequencer/Column_Widgets/SequencerTimeWarp", Icon12x12));
 	}
 }
 
 void FStarshipEditorStyle::FStyle::SetupViewportStyles()
 {
+	// New viewport toolbar.
+	{
+
+		FLinearColor ToolbarHoveredColor = FStyleColors::Dropdown.GetSpecifiedColor();
+		ToolbarHoveredColor.A = 1;
+		const FSlateRoundedBoxBrush HoveredButtonBrush(ToolbarHoveredColor, 5.f, ToolbarHoveredColor, 1.0);
+
+		FLinearColor ToolbarPressedColor = FStyleColors::Recessed.GetSpecifiedColor();
+		ToolbarPressedColor.A = .50f;
+		const FSlateRoundedBoxBrush PressedButtonBrush(ToolbarPressedColor, 5.f, ToolbarPressedColor, 1.0);
+
+		FButtonStyle ButtonStyle;
+		{
+			FLinearColor ToolbarBackgroundColor = FStyleColors::Dropdown.GetSpecifiedColor();
+			ToolbarBackgroundColor.A = .90f;
+			const FSlateRoundedBoxBrush BackgroundBrush(ToolbarBackgroundColor, 5.f, ToolbarBackgroundColor, 1.0);
+
+			ButtonStyle.SetNormal(BackgroundBrush)
+				.SetHovered(HoveredButtonBrush)
+				.SetPressed(PressedButtonBrush)
+				.SetNormalForeground(FStyleColors::ForegroundHeader)
+				.SetHoveredForeground(FStyleColors::ForegroundHover)
+				.SetPressedForeground(FStyleColors::ForegroundHover)
+				.SetDisabledForeground(FStyleColors::Foreground)
+				.SetNormalPadding(FMargin(4.0f))
+				.SetPressedPadding(FMargin(4.0f));
+		}
+
+		FToolBarStyle ToolBarStyle = FStarshipCoreStyle::GetCoreStyle().GetWidgetStyle<FToolBarStyle>("SlimToolBar");
+		{
+			FCheckBoxStyle ToggleButtonStyle = ToolBarStyle.ToggleButton;
+			{
+				const FSlateRoundedBoxBrush TransparentBrush(FLinearColor(0, 0, 0, 0), 0, FLinearColor(0, 0, 0, 0), 0);
+
+				ToggleButtonStyle.SetCheckedImage(TransparentBrush)
+					.SetCheckedHoveredImage(HoveredButtonBrush)
+					.SetCheckedPressedImage(PressedButtonBrush)
+					.SetUncheckedPressedImage(PressedButtonBrush)
+					.SetCheckedForegroundColor(FStyleColors::AccentBlue)
+					.SetCheckedHoveredForegroundColor(FStyleColors::AccentBlue)
+					.SetCheckedPressedForegroundColor(FStyleColors::AccentBlue)
+					.SetPressedForegroundColor(FStyleColors::AccentBlue)
+					.SetPadding(FMargin(4.0f));
+			}
+
+			FSlateBrush SeparatorBrush;
+			SeparatorBrush.DrawAs = ESlateBrushDrawType::Box;
+			SeparatorBrush.TintColor = FStyleColors::Dropdown;
+
+			ToolBarStyle.SetIconSize(Icon16x16)
+				.SetButtonStyle(ButtonStyle)
+				.SetToggleButtonStyle(ToggleButtonStyle)
+				.SetButtonPadding(FMargin(0))
+				.SetComboButtonPadding(FMargin(6.0f, 0, 2.0f, 0))
+				.SetSeparatorBrush(SeparatorBrush)
+				.SetSeparatorThickness(1.0f)
+				.SetSeparatorPadding(FMargin(4.0f, 0));
+
+			Set("ViewportToolbar", ToolBarStyle);
+		}
+
+		// Special styling for top-level raised buttons.
+		{
+			FButtonStyle ButtonStyleRaised = ButtonStyle;
+			{
+				FLinearColor BackgroundColorRaised = FStyleColors::Dropdown.GetSpecifiedColor();
+				BackgroundColorRaised.A = .0f;
+				const FSlateRoundedBoxBrush BackgroundBrushRaised(BackgroundColorRaised, 5.f, BackgroundColorRaised, 1.0);
+
+				ButtonStyleRaised.SetNormal(BackgroundBrushRaised).SetNormalForeground(FStyleColors::Foreground);
+			}
+
+			FToolBarStyle NewViewportToolbarTopLevelRaisedStyle = ToolBarStyle;
+			{
+				NewViewportToolbarTopLevelRaisedStyle.SetButtonStyle(ButtonStyleRaised).SetComboButtonPadding(FMargin(2.0f, 0));
+
+				Set("ViewportToolbar.Raised", NewViewportToolbarTopLevelRaisedStyle);
+			}
+		}
+	}
+
+	// Old viewport toolbar.
 	{
 		FToolBarStyle ViewportToolbarStyle = FStarshipCoreStyle::GetCoreStyle().GetWidgetStyle<FToolBarStyle>("SlimToolBar");
 
@@ -2732,7 +2886,6 @@ void FStarshipEditorStyle::FStyle::SetupGeneralIcons()
 	Set("AssetEditor.CompileStatus.Overlay.Warning", new IMAGE_BRUSH_SVG("Starship/Blueprints/CompileStatus_Warning_Badge", Icon20x20, FStyleColors::Warning));
 	Set("AssetEditor.CompileStatus.Overlay.Good", new IMAGE_BRUSH_SVG("Starship/Blueprints/CompileStatus_Good_Badge", Icon20x20, FStyleColors::AccentGreen));
 	Set("AssetEditor.CompileStatus.Overlay.Error", new IMAGE_BRUSH_SVG("Starship/Blueprints/CompileStatus_Fail_Badge", Icon20x20, FStyleColors::Error));
-
 	
 	Set("Debug", new IMAGE_BRUSH_SVG( "Starship/Common/Debug", Icon16x16 ) );
 	Set("Modules", new IMAGE_BRUSH_SVG( "Starship/Common/Modules", Icon16x16 ) );
@@ -2800,7 +2953,7 @@ void FStarshipEditorStyle::FStyle::SetupTutorialStyles()
 	// Documentation defaults
 	const FTextBlockStyle DocumentationText = FTextBlockStyle(NormalText)
 		.SetColorAndOpacity( FLinearColor::Black )
-		.SetFont(DEFAULT_FONT( "Regular", 11 ));
+		.SetFont(DEFAULT_FONT( "Regular", 10 ));
 	Set("Documentation.Text", FTextBlockStyle(DocumentationText));
 
 	const FTextBlockStyle DocumentationHyperlinkText = FTextBlockStyle(DocumentationText)
@@ -2833,6 +2986,8 @@ void FStarshipEditorStyle::FStyle::SetupTutorialStyles()
 		Set("Documentation.NumberedContent",  FTextBlockStyle(DocumentationText));
 		Set( "Documentation.BoldContent", FTextBlockStyle(DocumentationText)
 			.SetTypefaceFontName(TEXT("Bold")));
+		Set("Documentation.ItalicContent", FTextBlockStyle(DocumentationText)
+			.SetTypefaceFontName(TEXT("Italic")));
 
 		Set("Documentation.Header1", FTextBlockStyle(DocumentationHeaderText)
 			.SetFontSize(32));
@@ -3327,9 +3482,9 @@ void FStarshipEditorStyle::FStyle::SetupGraphEditorStyles()
 		Set( "Graph.ReadOnlyBorder", new BOX_BRUSH( "/Graph/Graph_readonly_border", FMargin(18.0f / 64.0f) ) );
 
 		Set( "Graph.Panel.SolidBackground", new IMAGE_BRUSH( "/Graph/GraphPanel_SolidBackground", FVector2D(16, 16), FLinearColor::White, ESlateBrushTileType::Both) );
-		Set( "Graph.Panel.GridLineColor",   FLinearColor(0.035f, 0.035f, 0.035f) );
-		Set( "Graph.Panel.GridRuleColor",   FLinearColor(0.008f, 0.008f, 0.008f) );
-		Set( "Graph.Panel.GridCenterColor", FLinearColor(0.000f, 0.000f, 0.000f) );
+		Set( "Graph.Panel.GridLineColor",   FLinearColor(0.024f, 0.024, 0.024f) );
+		Set( "Graph.Panel.GridRuleColor",   FLinearColor(0.010f, 0.010f, 0.010f) );
+		Set( "Graph.Panel.GridCenterColor", FLinearColor(0.005f, 0.005f, 0.005f) );
 		
 		Set( "Graph.Panel.GridRulePeriod", 8.0f ); // should be a strictly positive integral value
 
@@ -3590,6 +3745,7 @@ void FStarshipEditorStyle::FStyle::SetupGraphEditorStyles()
 			Set( "ClassIcon.BlackboardKeyType_Object", new FSlateRoundedBoxBrush( FLinearColor(0.0f, 0.4f, 0.910000f, 1.0f), 2.5f, FVector2D(16.f, 5.f) ) );
 			Set( "ClassIcon.BlackboardKeyType_Rotator", new FSlateRoundedBoxBrush( FLinearColor(0.353393f, 0.454175f, 1.0f, 1.0f), 2.5f, FVector2D(16.f, 5.f) ) );
 			Set( "ClassIcon.BlackboardKeyType_String", new FSlateRoundedBoxBrush( FLinearColor(1.0f, 0.0f, 0.660537f, 1.0f), 2.5f, FVector2D(16.f, 5.f) ) );
+			Set( "ClassIcon.BlackboardKeyType_Struct", new FSlateRoundedBoxBrush( FLinearColor(0.f, 0.349019f, 0.796070f, 1.0f), 2.5f, FVector2D(16.f, 5.f)));
 			Set( "ClassIcon.BlackboardKeyType_Vector", new FSlateRoundedBoxBrush( FLinearColor(1.0f, 0.591255f, 0.016512f, 1.0f), 2.5f, FVector2D(16.f, 5.f) ) );
 
 			Set( "BTEditor.Common.NewBlackboard", new IMAGE_BRUSH_SVG( "Starship/BehaviorTree/Blackboard_20", Icon20x20));
@@ -3811,6 +3967,8 @@ void FStarshipEditorStyle::FStyle::SetupGraphEditorStyles()
 
 		Set( "Graph.Latent.LatentIcon", new IMAGE_BRUSH("/Graph/LatentIcon", FVector2D(32,32) ) );
 		Set( "Graph.Message.MessageIcon", new IMAGE_BRUSH("/Graph/MessageIcon", FVector2D(32,32) ) );
+		Set( "Graph.Function.FunctionParameterIcon", new IMAGE_BRUSH_SVG("/Starship/GraphEditors/FunctionInputParameter", FVector2D(20.0f, 20.0f) ) );
+		Set( "Graph.Function.FunctionLocalVariableIcon", new IMAGE_BRUSH_SVG("/Starship/GraphEditors/FunctionLocalVariable", FVector2D(20.0f, 20.0f) ) );
 
 		Set( "Graph.ExecPin.Connected", new IMAGE_BRUSH( "Old/Graph/ExecPin_Connected", Icon12x16 ) );
 		Set( "Graph.ExecPin.Disconnected", new IMAGE_BRUSH( "Old/Graph/ExecPin_Disconnected", Icon12x16 ) );
@@ -4191,11 +4349,14 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 		Set( "EditorViewport.TranslateMode", new IMAGE_BRUSH_SVG( "Starship/EditorViewport/translate", Icon16x16 ) );
 		Set( "EditorViewport.RotateMode", new IMAGE_BRUSH_SVG("Starship/EditorViewport/rotate", Icon16x16 ) );
 		Set( "EditorViewport.ScaleMode", new IMAGE_BRUSH_SVG( "Starship/EditorViewport/scale", Icon16x16 ) );
+		Set("EditorViewport.Speed", new IMAGE_BRUSH_SVG("Starship/EditorViewport/speed", Icon16x16));
 
 		Set( "EditorViewport.TranslateRotateMode", new IMAGE_BRUSH_SVG("Starship/EditorViewport/TranslateRotate3D", Icon16x16 ) );
 		Set( "EditorViewport.TranslateRotate2DMode", new IMAGE_BRUSH_SVG("Starship/EditorViewport/TranslateRotate2D", Icon16x16 ) );
 
 		Set( "EditorViewport.ToggleRealTime", new IMAGE_BRUSH_SVG("Starship/Common/Realtime", Icon16x16));
+		Set("EditorViewport.ToggleRealTimeWarning",
+			new IMAGE_BRUSH_SVG("Starship/Common/Realtime", Icon16x16, FStyleColors::Warning));
 
 		Set( "EditorViewport.LocationGridSnap", new IMAGE_BRUSH_SVG("Starship/EditorViewport/grid", Icon16x16));
 		Set( "EditorViewport.RotationGridSnap", new IMAGE_BRUSH_SVG("Starship/EditorViewport/angle", Icon16x16));
@@ -4207,12 +4368,15 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 		Set("EditorViewport.ToggleSurfaceSnapping", new IMAGE_BRUSH_SVG("Starship/EditorViewport/surface-snap", Icon16x16));
 
 		Set( "EditorViewport.RelativeCoordinateSystem_World", new IMAGE_BRUSH_SVG( "Starship/EditorViewport/globe", Icon16x16 ) );
+		Set("EditorViewport.RelativeCoordinateSystem_Local",
+			new IMAGE_BRUSH_SVG("Starship/Common/transform-local", Icon16x16));
 
 		Set( "EditorViewport.CamSpeedSetting", new IMAGE_BRUSH_SVG( "Starship/EditorViewport/camera", Icon16x16) );
 		
 		Set( "EditorViewport.LitMode",            	  new IMAGE_BRUSH_SVG("Starship/Common/LitCube", Icon16x16 ) );
 		Set( "EditorViewport.UnlitMode",          	  new IMAGE_BRUSH_SVG("Starship/Common/UnlitCube", Icon16x16 ) );
 		Set( "EditorViewport.WireframeMode",      	  new IMAGE_BRUSH_SVG("Starship/Common/BrushWireframe", Icon16x16 ) );
+		Set( "EditorViewport.LitWireframeMode",       new IMAGE_BRUSH_SVG("Starship/Common/BrushWireframe", Icon16x16) );
 		Set( "EditorViewport.DetailLightingMode", 	  new IMAGE_BRUSH_SVG("Starship/Common/DetailLighting", Icon16x16 ) );
 		Set( "EditorViewport.LightingOnlyMode",   	  new IMAGE_BRUSH_SVG("Starship/Common/LightBulb", Icon16x16 ) );
 		
@@ -4237,6 +4401,7 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 		Set( "EditorViewport.HLODColorationMode", new IMAGE_BRUSH("Icons/icon_ViewMode_LODColoration_16px", Icon16x16));	
 		Set( "EditorViewport.GroupLODColorationMode", new IMAGE_BRUSH_SVG("Starship/Common/LODColorization", Icon16x16) );
 		Set( "EditorViewport.VisualizeGPUSkinCacheMode", new IMAGE_BRUSH_SVG("Starship/Common/SkeletalMesh", Icon16x16));
+		Set( "EditorViewport.LWCComplexityMode", new IMAGE_BRUSH( "Icons/icon_ViewMode_Shadercomplexity_16px", Icon16x16 ) );
 
 		Set( "EditorViewport.VisualizeGBufferMode",   new IMAGE_BRUSH_SVG("Starship/Common/BufferVisualization", Icon16x16) );
 
@@ -4250,6 +4415,7 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 		Set( "EditorViewport.VisualizeSubstrateMode", new IMAGE_BRUSH_SVG("Starship/Common/BufferVisualization", Icon16x16 ) );
 		Set( "EditorViewport.VisualizeGroomMode",     new IMAGE_BRUSH_SVG("Starship/Common/BufferVisualization", Icon16x16 ) );
 		Set( "EditorViewport.VisualizeVirtualShadowMapMode", new IMAGE_BRUSH_SVG("Starship/Common/BufferVisualization", Icon16x16 ) );
+		Set( "EditorViewport.VisualizeActorColorationMode", new IMAGE_BRUSH("Icons/icon_ViewMode_LODColoration_16px", Icon16x16));
 		Set( "EditorViewport.CollisionPawn",          new IMAGE_BRUSH_SVG("Starship/Common/PlayerCollision", Icon16x16 ) );
 		Set( "EditorViewport.CollisionVisibility",    new IMAGE_BRUSH_SVG("Starship/Common/VisibilityCollision", Icon16x16 ) );
 		
@@ -4320,7 +4486,7 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 
 #if WITH_EDITOR
 		Set( "LevelEditor.NewLevel",      new IMAGE_BRUSH_SVG( "Starship/Common/LevelNew", Icon16x16 ) );
-		Set( "LevelEditor.OpenLevel",     new IMAGE_BRUSH_SVG( "Starship/Common/LevelOpen", Icon16x16 ) );
+		Set( "SystemWideCommands.OpenLevel",     new IMAGE_BRUSH_SVG( "Starship/Common/LevelOpen", Icon16x16 ) );
 		Set( "LevelEditor.Save",          new IMAGE_BRUSH_SVG( "Starship/Common/SaveCurrent", Icon16x16 ) );
 		Set( "LevelEditor.SaveAs",        new IMAGE_BRUSH_SVG( "Starship/Common/SaveCurrentAs", Icon16x16 ) );
 		Set( "LevelEditor.SaveAllLevels", new IMAGE_BRUSH_SVG( "Starship/Common/LevelSaveAll", Icon16x16 ) );
@@ -4457,6 +4623,7 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 
 		Set( "PlacementBrowser.Asset.Background", new FSlateRoundedBoxBrush(FStyleColors::Recessed, 6.f));
 		Set( "PlacementBrowser.Asset.LabelBack", new BOX_BRUSH("Starship/PlacementBrowser/LabelBack_18x", 6.f/18.f, FStyleColors::Dropdown));
+		Set( "PlacementBrowser.Asset.ThumbnailBackground", new FSlateRoundedBoxBrush(FStyleColors::Dropdown, 6 ));
 
 		FLinearColor DimBackground = FLinearColor( FColor( 64, 64, 64 ) );
 		FLinearColor DimBackgroundHover = FLinearColor( FColor( 50, 50, 50 ) );
@@ -4480,9 +4647,7 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 
 		Set( "PlacementBrowser.Asset.Name", FTextBlockStyle( NormalText )
 			.SetFont( DEFAULT_FONT( "Regular", 10 ) )
-			.SetColorAndOpacity( FLinearColor( 1.0f, 1.0f, 1.0f, 0.9f ) )
-			.SetShadowOffset( FVector2D( 1, 1 ) )
-			.SetShadowColorAndOpacity( FLinearColor( 0, 0, 0, 0.9f ) ) );
+			.SetColorAndOpacity( FLinearColor( 1.0f, 1.0f, 1.0f, 0.9f ) ) );
 
 		Set( "PlacementBrowser.Asset.Type", FTextBlockStyle( NormalText )
 			.SetFont( DEFAULT_FONT( "Regular", 8 ) )
@@ -4549,15 +4714,15 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 			.SetLastControlStyle(PlacementSegmentedBox)
 		);
 
-		Set("PlacementBrowser.Icons.Recent",        new CORE_IMAGE_BRUSH_SVG("Starship/Common/Recent",    Icon16x16));
-		Set("PlacementBrowser.Icons.Basic",         new IMAGE_BRUSH_SVG("Starship/Common/Basic",          Icon16x16));
-		Set("PlacementBrowser.Icons.Lights",        new IMAGE_BRUSH_SVG("Starship/Common/LightBulb",      Icon16x16));
-		Set("PlacementBrowser.Icons.Cinematics",    new IMAGE_BRUSH_SVG("Starship/Common/Cinematics",     Icon16x16));
-		Set("PlacementBrowser.Icons.VisualEffects", new IMAGE_BRUSH_SVG("Starship/Common/VisualEffects",  Icon16x16));
-		Set("PlacementBrowser.Icons.BSP",           new IMAGE_BRUSH_SVG("Starship/Common/Geometry",       Icon16x16));
-		Set("PlacementBrowser.Icons.Volumes",       new IMAGE_BRUSH_SVG("Starship/Common/Volumes",        Icon16x16));
-		Set("PlacementBrowser.Icons.All",           new IMAGE_BRUSH_SVG("Starship/Common/AllClasses",     Icon16x16));
-		Set("PlacementBrowser.Icons.Testing",       new CORE_IMAGE_BRUSH_SVG("Starship/Common/Test",           Icon16x16));
+		Set("PlacementBrowser.Icons.Recent",        new CORE_IMAGE_BRUSH_SVG("Starship/Common/Recent",    Icon20x20));
+		Set("PlacementBrowser.Icons.Basic",         new IMAGE_BRUSH_SVG("Starship/Common/Basic",          Icon20x20));
+		Set("PlacementBrowser.Icons.Lights",        new IMAGE_BRUSH_SVG("Starship/Common/LightBulb",      Icon20x20));
+		Set("PlacementBrowser.Icons.Cinematics",    new IMAGE_BRUSH_SVG("Starship/Common/Cinematics",     Icon20x20));
+		Set("PlacementBrowser.Icons.VisualEffects", new IMAGE_BRUSH_SVG("Starship/Common/VisualEffects",  Icon20x20));
+		Set("PlacementBrowser.Icons.BSP",           new IMAGE_BRUSH_SVG("Starship/Common/Geometry",       Icon20x20));
+		Set("PlacementBrowser.Icons.Volumes",       new IMAGE_BRUSH_SVG("Starship/Common/Volumes",        Icon20x20));
+		Set("PlacementBrowser.Icons.All",           new IMAGE_BRUSH_SVG("Starship/Common/AllClasses",     Icon20x20));
+		Set("PlacementBrowser.Icons.Testing",       new CORE_IMAGE_BRUSH_SVG("Starship/Common/Test",           Icon20x20));
 
 		Set( "ContentPalette.ShowAllPlaceables", new IMAGE_BRUSH( "Icons/icon_Placement_FilterAll_20px", Icon20x20 ) );
 		Set( "ContentPalette.ShowAllPlaceables.Small", new IMAGE_BRUSH( "Icons/icon_Placement_FilterAll_20px", Icon20x20 ) );
@@ -4711,6 +4876,8 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 		Set( "ShowFlagsMenu.StaticMeshes", new IMAGE_BRUSH_SVG( "Starship/Common/StaticMesh", Icon16x16 ) );
 		Set( "ShowFlagsMenu.Translucency", new IMAGE_BRUSH_SVG( "Starship/Common/Transparency", Icon16x16 ) );
 		Set( "ShowFlagsMenu.WidgetComponents", new IMAGE_BRUSH_SVG( "Starship/Common/WidgetComponents", Icon16x16 ) );
+		Set( "ShowFlagsMenu.Cameras", new IMAGE_BRUSH_SVG( "Starship/AssetIcons/Camera_16", Icon16x16 ) );
+		Set( "ShowFlagsMenu.Hair", new IMAGE_BRUSH( "Common/icon_ShowHair_16x", Icon16x16 ) );
 
 		Set("ShowFlagsMenu.SubMenu.PostProcessing", new IMAGE_BRUSH_SVG("Starship/Common/PostProcessing", Icon16x16));
 		Set("ShowFlagsMenu.SubMenu.LightTypes", new IMAGE_BRUSH_SVG("Starship/Common/LightTypes", Icon16x16));
@@ -4789,54 +4956,65 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 
 	// Mesh Paint
 	{
-		Set("MeshPaint.FindInCB",       new IMAGE_BRUSH("/Icons/icon_toolbar_genericfinder_40px", Icon20x20) );
-		Set("MeshPaint.Swap",           new IMAGE_BRUSH("/Icons/icon_MeshPaint_Swap_16x", Icon12x12));
-
-		Set("MeshPaint.Fill",           new IMAGE_BRUSH("/Icons/GeneralTools/PaintBucket_40x", Icon20x20) );
-		Set("MeshPaint.Fill.Small",     new IMAGE_BRUSH("/Icons/GeneralTools/PaintBucket_40x", Icon20x20) );
-		Set("MeshPaint.Propagate",      new IMAGE_BRUSH("/Icons/Paint/Paint_Propagate_40x", Icon20x20) );
-		Set("MeshPaint.Propagate.Small",new IMAGE_BRUSH("/Icons/Paint/Paint_Propagate_40x", Icon20x20) );
-		Set("MeshPaint.Import",         new IMAGE_BRUSH("/Icons/GeneralTools/Import_40x", Icon20x20) );
-		Set("MeshPaint.Import.Small",   new IMAGE_BRUSH("/Icons/GeneralTools/Import_40x", Icon20x20) );
-		Set("MeshPaint.Save",           new IMAGE_BRUSH("/Icons/GeneralTools/Save_40x", Icon20x20) );
-		Set("MeshPaint.Save.Small",     new IMAGE_BRUSH("/Icons/GeneralTools/Save_40x", Icon20x20) );
-		Set("MeshPaint.Fix",            new IMAGE_BRUSH("/Icons/GeneralTools/Fix_40x", Icon20x20) );
-		Set("MeshPaint.Fix.Small",      new IMAGE_BRUSH("/Icons/GeneralTools/Fix_40x", Icon20x20) );
-		Set("MeshPaint.Remove",         new IMAGE_BRUSH("/Icons/GeneralTools/Delete_40x", Icon20x20));
-		Set("MeshPaint.Remove.Small",   new IMAGE_BRUSH("/Icons/GeneralTools/Delete_40x", Icon20x20));
-		Set("MeshPaint.Copy",           new IMAGE_BRUSH("/Icons/GeneralTools/Copy_40x", Icon20x20));
-		Set("MeshPaint.Copy.Small",     new IMAGE_BRUSH("/Icons/GeneralTools/Copy_40x", Icon20x20));
-		Set("MeshPaint.Paste",          new IMAGE_BRUSH("/Icons/GeneralTools/Paste_40x", Icon20x20));
-		Set("MeshPaint.Paste.Small",    new IMAGE_BRUSH("/Icons/GeneralTools/Paste_40x", Icon20x20));
-		Set("MeshPaint.PropagateTexturePaint",             new IMAGE_BRUSH("/Icons/Paint/Paint_PropagateTexture_40x", Icon20x20));
-		Set("MeshPaint.PropagateTexturePaint.Small",       new IMAGE_BRUSH("/Icons/Paint/Paint_PropagateTexture_40x", Icon20x20));
-		Set("MeshPaint.SaveTexturePaint",                  new IMAGE_BRUSH("/Icons/GeneralTools/Save_40x", Icon20x20));
-		Set("MeshPaint.SaveTexturePaint.Small",            new IMAGE_BRUSH("/Icons/GeneralTools/Save_40x", Icon20x20));
-		Set("MeshPaint.PropagateVertexColorsToLODs",       new IMAGE_BRUSH("Icons/Paint/Paint_AllLODs_40x", Icon20x20));
-		Set("MeshPaint.PropagateVertexColorsToLODs.Small", new IMAGE_BRUSH("Icons/Paint/Paint_AllLODs_40x", Icon20x20));
-		Set("MeshPaint.TexturePaint",       new IMAGE_BRUSH("Icons/GeneralTools/Paint_40x", Icon20x20));
-		Set("MeshPaint.TexturePaint.Small", new IMAGE_BRUSH("Icons/GeneralTools/Paint_40x", Icon20x20));
-		Set("MeshPaint.ColorPaint",         new IMAGE_BRUSH("Icons/GeneralTools/Paint_40x", Icon20x20));
-		Set("MeshPaint.ColorPaint.Small",   new IMAGE_BRUSH("Icons/GeneralTools/Paint_40x", Icon20x20));
-		Set("MeshPaint.WeightPaint",        new IMAGE_BRUSH("Icons/GeneralTools/Paint_40x", Icon20x20));
-		Set("MeshPaint.WeightPaint.Small",  new IMAGE_BRUSH("Icons/GeneralTools/Paint_40x", Icon20x20));
-		Set("MeshPaint.VertexSelect",             new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Select_40x"), Icon20x20));
-		Set("MeshPaint.VertexSelect.Small",       new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Select_40x"), Icon20x20));
-		Set("MeshPaint.TextureSelect",            new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Select_40x"), Icon20x20));
-		Set("MeshPaint.TextureSelect.Small",      new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Select_40x"), Icon20x20));
-		Set("MeshPaint.PreviousTexture",          new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Previous_40x"), Icon20x20));
-		Set("MeshPaint.PreviousTexture.Small",    new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Previous_40x"), Icon20x20));
-		Set("MeshPaint.NextTexture",              new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Next_40x"), Icon20x20));
-		Set("MeshPaint.NextTexture.Small",        new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Next_40x"), Icon20x20));
-		Set("MeshPaint.CycleToPreviousLOD",       new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Previous_40x"), Icon20x20));
-		Set("MeshPaint.CycleToPreviousLOD.Small", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Previous_40x"), Icon20x20));
-		Set("MeshPaint.CycleToNextLOD",           new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Next_40x"), Icon20x20));
-		Set("MeshPaint.CycleToNextLOD.Small",     new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Next_40x"), Icon20x20));
-		Set("MeshPaint.SwitchForeAndBackgroundColor",       new IMAGE_BRUSH("Icons/Paint/Paint_SwapColors_40x", Icon20x20));
-		Set("MeshPaint.SwitchForeAndBackgroundColor.Small", new IMAGE_BRUSH("Icons/Paint/Paint_SwapColors_40x", Icon20x20));
-		Set("MeshPaint.Brush",			new IMAGE_BRUSH_SVG("Starship/Common/Paintbrush", Icon20x20));
-		Set("MeshPaint.TextureFill", new IMAGE_BRUSH("/Icons/GeneralTools/PaintBucket_40x", Icon20x20));
-		Set("MeshPaint.TextureFill.Small", new IMAGE_BRUSH("/Icons/GeneralTools/PaintBucket_40x", Icon20x20));
+		Set("MeshPaint.SelectVertex", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Select_40x"), Icon20x20));
+		Set("MeshPaint.SelectVertex.Small", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Select_40x"), Icon20x20));
+		Set("MeshPaint.SelectTextureColor", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Select_40x"), Icon20x20));
+		Set("MeshPaint.SelectTextureColor.Small", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Select_40x"), Icon20x20));
+		Set("MeshPaint.SelectTextureAsset", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Select_40x"), Icon20x20));
+		Set("MeshPaint.SelectTextureAsset.Small", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Select_40x"), Icon20x20));
+		Set("MeshPaint.PaintVertexColor", new IMAGE_BRUSH("Icons/GeneralTools/Paint_40x", Icon20x20));
+		Set("MeshPaint.PaintVertexColor.Small", new IMAGE_BRUSH("Icons/GeneralTools/Paint_40x", Icon20x20));
+		Set("MeshPaint.PaintVertexWeight", new IMAGE_BRUSH("Icons/GeneralTools/Paint_40x", Icon20x20));
+		Set("MeshPaint.PaintVertexWeight.Small", new IMAGE_BRUSH("Icons/GeneralTools/Paint_40x", Icon20x20));
+		Set("MeshPaint.PaintTextureColor", new IMAGE_BRUSH("Icons/GeneralTools/Paint_40x", Icon20x20));
+		Set("MeshPaint.PaintTextureColor.Small", new IMAGE_BRUSH("Icons/GeneralTools/Paint_40x", Icon20x20));
+		Set("MeshPaint.PaintTextureAsset", new IMAGE_BRUSH("Icons/GeneralTools/Paint_40x", Icon20x20));
+		Set("MeshPaint.PaintTextureAsset.Small", new IMAGE_BRUSH("Icons/GeneralTools/Paint_40x", Icon20x20));
+		Set("MeshPaint.SwapColor", new IMAGE_BRUSH("Icons/Paint/Paint_SwapColors_40x", Icon20x20));
+		Set("MeshPaint.SwapColor.Small", new IMAGE_BRUSH("Icons/Paint/Paint_SwapColors_40x", Icon20x20));
+		Set("MeshPaint.FillVertex", new IMAGE_BRUSH("/Icons/GeneralTools/PaintBucket_40x", Icon20x20));
+		Set("MeshPaint.FillVertex.Small", new IMAGE_BRUSH("/Icons/GeneralTools/PaintBucket_40x", Icon20x20));
+		Set("MeshPaint.FillTexture", new IMAGE_BRUSH("/Icons/GeneralTools/PaintBucket_40x", Icon20x20));
+		Set("MeshPaint.FillTexture.Small", new IMAGE_BRUSH("/Icons/GeneralTools/PaintBucket_40x", Icon20x20));
+		Set("MeshPaint.PropagateMesh", new IMAGE_BRUSH("/Icons/Paint/Paint_Propagate_40x", Icon20x20));
+		Set("MeshPaint.PropagateMesh.Small", new IMAGE_BRUSH("/Icons/Paint/Paint_Propagate_40x", Icon20x20));
+		Set("MeshPaint.PropagateLODs", new IMAGE_BRUSH("Icons/Paint/Paint_AllLODs_40x", Icon20x20));
+		Set("MeshPaint.PropagateLODs.Small", new IMAGE_BRUSH("Icons/Paint/Paint_AllLODs_40x", Icon20x20));
+		Set("MeshPaint.SaveVertex", new IMAGE_BRUSH("/Icons/GeneralTools/Save_40x", Icon20x20));
+		Set("MeshPaint.SaveVertex.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Save_40x", Icon20x20));
+		Set("MeshPaint.SaveTexture", new IMAGE_BRUSH("/Icons/GeneralTools/Save_40x", Icon20x20));
+		Set("MeshPaint.SaveTexture.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Save_40x", Icon20x20));
+		Set("MeshPaint.Add", new IMAGE_BRUSH("/Icons/icon_add_40x", Icon20x20));
+		Set("MeshPaint.Add.Small", new IMAGE_BRUSH("/Icons/icon_add_40x", Icon20x20));
+		Set("MeshPaint.RemoveVertex", new IMAGE_BRUSH("/Icons/GeneralTools/Delete_40x", Icon20x20));
+		Set("MeshPaint.RemoveVertex.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Delete_40x", Icon20x20));
+		Set("MeshPaint.RemoveTexture", new IMAGE_BRUSH("/Icons/GeneralTools/Delete_40x", Icon20x20));
+		Set("MeshPaint.RemoveTexture.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Delete_40x", Icon20x20));
+		Set("MeshPaint.Copy", new IMAGE_BRUSH("/Icons/GeneralTools/Copy_40x", Icon20x20));
+		Set("MeshPaint.Copy.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Copy_40x", Icon20x20));
+		Set("MeshPaint.Paste", new IMAGE_BRUSH("/Icons/GeneralTools/Paste_40x", Icon20x20));
+		Set("MeshPaint.Paste.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Paste_40x", Icon20x20));
+		Set("MeshPaint.Import", new IMAGE_BRUSH("/Icons/GeneralTools/Import_40x", Icon20x20));
+		Set("MeshPaint.Import.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Import_40x", Icon20x20));
+		Set("MeshPaint.GetTextureColors", new IMAGE_BRUSH("/Icons/GeneralTools/Import_40x", Icon20x20));
+		Set("MeshPaint.GetTextureColors.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Import_40x", Icon20x20));
+		Set("MeshPaint.GetVertexColors", new IMAGE_BRUSH("/Icons/GeneralTools/Import_40x", Icon20x20));
+		Set("MeshPaint.GetVertexColors.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Import_40x", Icon20x20));
+		Set("MeshPaint.FixVertex", new IMAGE_BRUSH("/Icons/GeneralTools/Fix_40x", Icon20x20));
+		Set("MeshPaint.FixVertex.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Fix_40x", Icon20x20));
+		Set("MeshPaint.FixTexture", new IMAGE_BRUSH("/Icons/GeneralTools/Fix_40x", Icon20x20));
+		Set("MeshPaint.FixTexture.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Fix_40x", Icon20x20));
+		Set("MeshPaint.PreviousLOD", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Previous_40x"), Icon20x20));
+		Set("MeshPaint.PreviousLOD.Small", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Previous_40x"), Icon20x20));
+		Set("MeshPaint.NextLOD", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Next_40x"), Icon20x20));
+		Set("MeshPaint.NextLOD.Small", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Next_40x"), Icon20x20));
+		Set("MeshPaint.PreviousTexture", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Previous_40x"), Icon20x20));
+		Set("MeshPaint.PreviousTexture.Small", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Previous_40x"), Icon20x20));
+		Set("MeshPaint.NextTexture", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Next_40x"), Icon20x20));
+		Set("MeshPaint.NextTexture.Small", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Next_40x"), Icon20x20));
+		Set("MeshPaint.Brush", new IMAGE_BRUSH_SVG("Starship/Common/Paintbrush", Icon20x20));
+		Set("MeshPaint.FindInCB", new IMAGE_BRUSH("/Icons/icon_toolbar_genericfinder_40px", Icon20x20));
+		Set("MeshPaint.Swap", new IMAGE_BRUSH("/Icons/icon_MeshPaint_Swap_16x", Icon12x12));
 	}
 
 	// Scalability (Performance Warning)
@@ -4957,6 +5135,7 @@ void FStarshipEditorStyle::FStyle::SetupPersonaStyle()
 		Set("Persona.Tabs.SkeletonCurves", new IMAGE_BRUSH(TEXT("Icons/icon_Persona_Skeleton_Curves_16x"), Icon16x16));
 		Set("Persona.Tabs.AnimAssetDetails", new IMAGE_BRUSH(TEXT("Icons/icon_Persona_Anim_Asset_Details_16x"), Icon16x16));
 		Set("Persona.Tabs.ControlRigMappingWindow", new IMAGE_BRUSH(TEXT("Icons/icon_Persona_Skeleton_Tree_16x"), Icon16x16));
+		Set("Persona.Tabs.FindReplace", new IMAGE_BRUSH_SVG(TEXT("Starship/Persona/FindReplace_16"), Icon16x16));
 
 		// AssetFamilyIcons
 		Set("Persona.AssetClass.Skeleton", new IMAGE_BRUSH_SVG("Starship/Persona/Skeleton", Icon20x20));
@@ -4964,6 +5143,10 @@ void FStarshipEditorStyle::FStyle::SetupPersonaStyle()
 		Set("Persona.AssetClass.SkeletalMesh", new IMAGE_BRUSH_SVG("Starship/Persona/SkeletalMesh", Icon20x20));
 		Set("Persona.AssetClass.Blueprint", new IMAGE_BRUSH_SVG( "Starship/MainToolbar/blueprints", Icon20x20) );
 		Set("Persona.AssetClass.Physics", new IMAGE_BRUSH_SVG("Starship/Persona/Physics", Icon20x20));
+
+		// Find/replace tab
+		Set("Persona.FindReplace.MatchCase", new IMAGE_BRUSH_SVG("Starship/Persona/MatchCase_20", Icon20x20));
+		Set("Persona.FindReplace.MatchWholeWord", new IMAGE_BRUSH_SVG("Starship/Persona/MatchWord_20", Icon20x20));
 	}
 
 	// Skeleton editor
@@ -5013,6 +5196,7 @@ void FStarshipEditorStyle::FStyle::SetupPersonaStyle()
 		Set("AnimationEditor.ApplyCompression", new IMAGE_BRUSH_SVG("Starship/Common/Compress", Icon20x20));
 		Set("AnimationEditor.ExportToFBX", new CORE_IMAGE_BRUSH_SVG("Starship/Common/export_20", Icon20x20));
 		Set("AnimationEditor.ReimportAnimation", new CORE_IMAGE_BRUSH_SVG("Starship/Common/import", Icon20x20));
+		Set("AnimationEditor.ReimportAnimationWithDialog", new CORE_IMAGE_BRUSH_SVG("Starship/Common/import", Icon20x20));
 		Set("AnimationEditor.CreateAsset", new IMAGE_BRUSH_SVG("Starship/Persona/PersonaCreateAsset", Icon20x20));
 		Set("AnimationEditor.SetKey", new CORE_IMAGE_BRUSH_SVG("Starship/Common/plus", Icon20x20));
 		Set("AnimationEditor.ApplyAnimation", new IMAGE_BRUSH_SVG("Starship/Common/Apply", Icon20x20));
@@ -5038,6 +5222,7 @@ void FStarshipEditorStyle::FStyle::SetupPersonaStyle()
 	// Skeletal mesh editor
 	{
 		Set("SkeletalMeshEditor.ReimportMesh", new CORE_IMAGE_BRUSH_SVG("Starship/Common/import", Icon20x20));
+		Set("SkeletalMeshEditor.ReimportWithDialog", new CORE_IMAGE_BRUSH_SVG("Starship/Common/import", Icon20x20));
 		Set("SkeletalMeshEditor.ImportLODs", new CORE_IMAGE_BRUSH_SVG("Starship/Common/import", Icon20x20));
 
 		Set("SkeletalMeshEditor.MeshSectionSelection", new IMAGE_BRUSH_SVG("Starship/Persona/SectionSelection", Icon20x20));
@@ -5439,6 +5624,7 @@ void FStarshipEditorStyle::FStyle::SetupPersonaStyle()
 		Set("PlayWorld.Simulate", new IMAGE_BRUSH_SVG("Starship/MainToolbar/simulate", Icon20x20));
 		Set( "PlayWorld.RepeatLastPlay", new IMAGE_BRUSH_SVG("Starship/Common/play", Icon20x20));
 		Set( "PlayWorld.PlayInViewport", new IMAGE_BRUSH_SVG("Starship/Common/play", Icon20x20));
+		Set("PlayWorld.PlaySimulate", new IMAGE_BRUSH_SVG("Starship/MainToolbar/PlaySimulate_20", Icon20x20));
 
 		Set( "PlayWorld.PlayInEditorFloating", new IMAGE_BRUSH_SVG("Starship/MainToolbar/PlayNewEditorWindow", Icon20x20));
 		Set( "PlayWorld.PlayInVR", new IMAGE_BRUSH_SVG("Starship/MainToolbar/PlayVRPreview", Icon20x20));
@@ -5465,6 +5651,7 @@ void FStarshipEditorStyle::FStyle::SetupPersonaStyle()
 		Set("PlayWorld.LateJoinSession.Small", new IMAGE_BRUSH_SVG("Starship/MainToolbar/simulate", Icon20x20));
 
 		Set( "PlayWorld.PossessPlayer", new IMAGE_BRUSH_SVG("Starship/AssetIcons/PlayerController_16", Icon20x20));
+		Set("PlayWorld.PlayPossess", new IMAGE_BRUSH_SVG("Starship/MainToolbar/PlayPossess_20", Icon20x20));
 		Set( "PlayWorld.EjectFromPlayer", new IMAGE_BRUSH_SVG("Starship/MainToolbar/eject", Icon40x40));
 
 		Set( "PlayWorld.ShowCurrentStatement", new IMAGE_BRUSH_SVG( "Starship/MainToolbar/DebugFindNode", Icon40x40 ) );
@@ -5990,6 +6177,9 @@ void FStarshipEditorStyle::FStyle::SetupClassIconsAndThumbnails()
 			{TEXT("Interface")},
 			{TEXT("KillZVolume")},
 			{TEXT("Landscape")},
+			{TEXT("LandscapeEditLayer")},
+			{TEXT("LandscapeEditLayerBase")},
+			{TEXT("LandscapeEditLayerSplines")},
 			{TEXT("LevelBounds")},
 			{TEXT("LevelInstance")},
 			{TEXT("LevelInstancePivot")},
@@ -6047,6 +6237,7 @@ void FStarshipEditorStyle::FStyle::SetupClassIconsAndThumbnails()
 			{TEXT("SceneCapture2D")},
 			{TEXT("SceneCaptureCube")},
 			{TEXT("SceneComponent")},
+			{TEXT("SkeletalMesh")},
 			{TEXT("SkeletalMeshActor")},
 			{TEXT("Skeleton")},
 			{TEXT("SkyAtmosphere")},
@@ -6093,6 +6284,7 @@ void FStarshipEditorStyle::FStyle::SetupClassIconsAndThumbnails()
 			{TEXT("WidgetBlueprintGeneratedClass")},
 			{TEXT("WindDirectionalSource")},
 			{TEXT("World")},
+			{TEXT("WorldDataLayers")},
 		};
 	
 		// SVG Asset icons
@@ -6173,6 +6365,7 @@ void FStarshipEditorStyle::FStyle::SetupContentBrowserStyle()
 
 		// Tile view
 		Set( "ContentBrowser.AssetTileViewNameFont", DEFAULT_FONT("Regular", 9));
+		Set( "ContentBrowser.AssetTileViewClassNameFont", DEFAULT_FONT("Regular", 7));
 		Set( "ContentBrowser.AssetTileViewNameFontSmall", DEFAULT_FONT( "VeryLight", 8 ) );
 		Set( "ContentBrowser.AssetTileViewNameFontVerySmall", DEFAULT_FONT( "VeryLight", 7 ) );
 		Set( "ContentBrowser.AssetTileViewNameFontDirty", FStyleFonts::Get().SmallBold);
@@ -6291,6 +6484,7 @@ void FStarshipEditorStyle::FStyle::SetupContentBrowserStyle()
 		// Asset Context Menu
 		Set( "ContentBrowser.AssetActions", new CORE_IMAGE_BRUSH( "Icons/icon_tab_Tools_16x", Icon16x16 ) );
 		Set( "ContentBrowser.AssetActions.Edit", new IMAGE_BRUSH( "Icons/Edit/icon_Edit_16x", Icon16x16 ) );
+		Set( "ContentBrowser.AssetActions.OpenReadOnly", new IMAGE_BRUSH_SVG( "Starship/ContentBrowser/OpenReadOnly_16", Icon16x16 ) );
 		Set( "ContentBrowser.AssetActions.Delete", new IMAGE_BRUSH( "Icons/icon_delete_16px", Icon16x16, FLinearColor( 0.4f, 0.5f, 0.7f, 1.0f ) ) );
 		//Set( "ContentBrowser.AssetActions.Delete", new IMAGE_BRUSH( "Icons/Edit/icon_Edit_Delete_16x", Icon16x16) );
 		Set( "ContentBrowser.AssetActions.Rename", new IMAGE_BRUSH( "Icons/Icon_Asset_Rename_16x", Icon16x16) );
@@ -6308,6 +6502,9 @@ void FStarshipEditorStyle::FStyle::SetupContentBrowserStyle()
 		Set( "ContentBrowser.AssetActions.VolumeTexture", new IMAGE_BRUSH_SVG("Starship/AssetActions/volume-texture", Icon16x16));
 		Set( "ContentBrowser.AssetActions.RemoveVertexColors", new IMAGE_BRUSH_SVG("Starship/AssetActions/remove-vertex-colors", Icon16x16));
 
+		// ContentBrowser Commands Icons
+		Set( "ContentBrowser.AssetViewCopyObjectPath", new IMAGE_BRUSH_SVG("../../Slate/Starship/Common/Copy", Icon16x16) );
+		Set( "ContentBrowser.AssetViewCopyPackageName", new IMAGE_BRUSH_SVG("../../Slate/Starship/Common/Copy", Icon16x16) );
 
 		Set( "MediaAsset.AssetActions.Play.Small", new IMAGE_BRUSH( "Icons/icon_SCueEd_PlayCue_16x", Icon16x16 ) );
 		Set( "MediaAsset.AssetActions.Stop.Small", new IMAGE_BRUSH( "Icons/icon_SCueEd_Stop_16x", Icon16x16 ) );
@@ -6324,7 +6521,9 @@ void FStarshipEditorStyle::FStyle::SetupContentBrowserStyle()
 		// Misc
 		/** Should be moved, shared */ Set( "ContentBrowser.ThumbnailShadow", new BOX_BRUSH( "ContentBrowser/ThumbnailShadow" , FMargin( 4.0f / 64.0f ) ) );
 
-
+		// Playback Action
+		Set( "ContentBrowser.AssetAction.PlayIcon", new IMAGE_BRUSH_SVG("Starship/ContentBrowser/PlayIcon", Icon16x16));
+		Set( "ContentBrowser.AssetAction.StopIcon", new IMAGE_BRUSH_SVG("Starship/ContentBrowser/StopIcon", Icon16x16));
 
 		Set( "ContentBrowser.ColumnViewAssetIcon", new IMAGE_BRUSH( "Icons/doc_16x", Icon16x16 ) );
 
@@ -6333,6 +6532,7 @@ void FStarshipEditorStyle::FStyle::SetupContentBrowserStyle()
 
 		Set("ContentBrowser.ListViewFolderIcon", new IMAGE_BRUSH_SVG("Starship/ContentBrowser/folder", FVector2D(64, 64)));
 		Set("ContentBrowser.ListViewVirtualFolderIcon", new IMAGE_BRUSH_SVG("Starship/ContentBrowser/FolderLargeVirtual", FVector2D(64, 64)));
+		Set("ContentBrowser.ListViewVirtualFolderShadow", new IMAGE_BRUSH("Starship/ContentBrowser/FolderLargeVirtualShadow", FVector2D(256, 256)));
 		Set("ContentBrowser.ListViewDeveloperFolderIcon", new IMAGE_BRUSH_SVG("Starship/ContentBrowser/FolderLargeDeveloper", FVector2D(64, 64)));
 		Set("ContentBrowser.ListViewCodeFolderIcon", new IMAGE_BRUSH_SVG("Starship/ContentBrowser/FolderLargeCode", FVector2D(64, 64)));
 		Set("ContentBrowser.ListViewPluginFolderIcon", new IMAGE_BRUSH_SVG("Starship/ContentBrowser/FolderLargePlugin", FVector2D(64, 64)));
@@ -6346,7 +6546,22 @@ void FStarshipEditorStyle::FStyle::SetupContentBrowserStyle()
 		Set("ContentBrowser.AssetTileItem.NameAreaSelectedBackground", new FSlateRoundedBoxBrush(FStyleColors::Primary, FVector4(0.0f, 0.0f, 4.0f, 4.0f)));
 		Set("ContentBrowser.AssetTileItem.NameAreaSelectedHoverBackground", new FSlateRoundedBoxBrush(FStyleColors::PrimaryHover, FVector4(0.0f, 0.0f, 4.0f, 4.0f)));
 
+		// Asset Thumbnail Border
+		Set("ContentBrowser.AssetTileItem.AssetBorderHoverBackground", new FSlateRoundedBoxBrush(FStyleColors::Transparent, FVector4(4.0f, 2.0f, 4.0f, 4.0f), FStyleColors::Hover, 2.f));
+		Set("ContentBrowser.AssetTileItem.AssetBorderSelectedBackground", new FSlateRoundedBoxBrush(FStyleColors::Transparent, FVector4(4.0f, 2.0f, 4.0f, 4.0f), FStyleColors::Primary, 2.f));
+		Set("ContentBrowser.AssetTileItem.AssetBorderSelectedHoverBackground", new FSlateRoundedBoxBrush(FStyleColors::Transparent, FVector4(4.0f, 2.0f, 4.0f, 4.0f), FStyleColors::PrimaryHover, 2.f));
+
+		// Tile Item Border
+		Set("ContentBrowser.AssetTileItem.AssetContent", new FSlateRoundedBoxBrush(FStyleColors::Secondary, FVector4(4.0f, 2.0f, 4.0f, 4.0f)));
+		Set("ContentBrowser.AssetTileItem.AssetContentHoverBackground", new FSlateRoundedBoxBrush(FStyleColors::Hover, FVector4(4.0f, 2.0f, 4.0f, 4.0f)));
+		Set("ContentBrowser.AssetTileItem.AssetContentSelectedBackground", new FSlateRoundedBoxBrush(FStyleColors::Primary, FVector4(4.0f, 2.0f, 4.0f, 4.0f)));
+		Set("ContentBrowser.AssetTileItem.AssetContentSelectedHoverBackground", new FSlateRoundedBoxBrush(FStyleColors::PrimaryHover, FVector4(4.0f, 2.0f, 4.0f, 4.0f)));
+
 		{
+			FLinearColor OverlayColor = FStyleColors::Panel.GetSpecifiedColor();
+            OverlayColor.A = 0.75f;
+            Set("ContentBrowser.AssetTileItem.AssetThumbnailOverlayBorder", new FSlateRoundedBoxBrush(OverlayColor, 4.f));
+
 			FLinearColor TransparentPrimary = FStyleColors::Primary.GetSpecifiedColor();
 			TransparentPrimary.A = 0.0;
 			Set("ContentBrowser.AssetTileItem.SelectedBorder", new FSlateRoundedBoxBrush(TransparentPrimary, 4.0f, FStyleColors::Primary, 1.0f));
@@ -6546,6 +6761,8 @@ void FStarshipEditorStyle::FStyle::SetupLandscapeEditorStyle()
 		Set("LandscapeEditor.TargetList.DropZone.Above", new BOX_BRUSH("Common/VerticalBoxDropZoneIndicator_Above", FMargin(10.0f / 16.0f, 10.0f / 16.0f, 0, 0), SelectionColor_Subdued));
 		Set("LandscapeEditor.TargetList.DropZone.Below", new BOX_BRUSH("Common/VerticalBoxDropZoneIndicator_Below", FMargin(10.0f / 16.0f, 0, 0, 10.0f / 16.0f), SelectionColor_Subdued));
 
+		Set("LandscapeEditor.Layer.Sync", new IMAGE_BRUSH_SVG("Icons/icon_Landscape_Layers_From_Material_16x", Icon16x16));
+		
 		Set("LandscapeEditor.SpinBox", FSpinBoxStyle(GetWidgetStyle<FSpinBoxStyle>("SpinBox"))
 			.SetTextPadding(FMargin(0))
 			.SetBackgroundBrush(FSlateNoResource())
@@ -6825,6 +7042,7 @@ void FStarshipEditorStyle::FStyle::SetupToolkitStyles()
 		Set("StaticMeshEditor.SetShowVertexColor", new IMAGE_BRUSH_SVG( "Starship/Common/SetShowVertexColors", Icon16x16));
 		Set("StaticMeshEditor.SetRealtimePreview", new IMAGE_BRUSH_SVG("Starship/Common/Realtime", Icon16x16));
 		Set("StaticMeshEditor.ReimportMesh", new IMAGE_BRUSH_SVG("Starship/StaticMeshEditor/ReimportMesh", Icon20x20));
+		Set("StaticMeshEditor.ReimportMeshWithDialog", new IMAGE_BRUSH_SVG("Starship/StaticMeshEditor/ReimportMesh", Icon20x20));
 		Set("StaticMeshEditor.SetShowBounds", new IMAGE_BRUSH_SVG("Starship/Common/SetShowBounds", Icon16x16));
 		Set("StaticMeshEditor.SetDrawUVs", new IMAGE_BRUSH_SVG("Starship/Common/SetDrawUVs", Icon20x20));
 		Set("StaticMeshEditor.SetShowCollision", new IMAGE_BRUSH_SVG("Starship/Common/Collision", Icon20x20));

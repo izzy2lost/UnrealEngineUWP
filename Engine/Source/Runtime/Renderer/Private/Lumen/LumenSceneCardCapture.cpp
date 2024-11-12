@@ -13,6 +13,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "RenderUtils.h"
+#include "MeshPassUtils.h"
 
 static TAutoConsoleVariable<float> GLumenSceneSurfaceCacheMeshTargetScreenSize(
 	TEXT("r.LumenScene.SurfaceCache.MeshTargetScreenSize"),
@@ -58,6 +59,12 @@ protected:
 
 	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 	{
+		// Everything supporting Nanite through the FLumenCardCS. Need to allow Landscape here, as Lumen doesn't support Nanite Landscape yet.
+		if (Parameters.VertexFactoryType->SupportsNaniteRendering() && !Parameters.VertexFactoryType->SupportsLandscape())
+		{
+			return false;
+		}
+
 		return ShouldCompileLumenMeshCardShaders(Parameters.MaterialParameters.MaterialDomain, Parameters.MaterialParameters.BlendMode, Parameters.VertexFactoryType, Parameters.Platform);
 	}
 
@@ -70,7 +77,6 @@ protected:
 
 IMPLEMENT_MATERIAL_SHADER_TYPE(, FLumenCardVS, TEXT("/Engine/Private/Lumen/LumenCardVertexShader.usf"), TEXT("Main"), SF_Vertex);
 
-template<bool bMultiViewCapture>
 class FLumenCardPS : public FMeshMaterialShader
 {
 	DECLARE_SHADER_TYPE(FLumenCardPS, MeshMaterial);
@@ -78,7 +84,8 @@ class FLumenCardPS : public FMeshMaterialShader
 public:
 	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 	{
-		if (Parameters.VertexFactoryType->SupportsNaniteRendering() != bMultiViewCapture)
+		// Everything supporting Nanite through the FLumenCardCS. Need to allow Landscape here, as Lumen doesn't support Nanite Landscape yet.
+		if (Parameters.VertexFactoryType->SupportsNaniteRendering() && !Parameters.VertexFactoryType->SupportsLandscape())
 		{
 			return false;
 		}
@@ -96,7 +103,6 @@ public:
 	{
 		FMeshMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 
-		OutEnvironment.SetDefine(TEXT("LUMEN_MULTI_VIEW_CAPTURE"), bMultiViewCapture);
 		OutEnvironment.SetDefine(TEXT("SUBSTRATE_INLINE_SHADING"), 1);
 		// Use fully simplified material for less complex shaders when multiple slabs are used.
 		OutEnvironment.SetDefine(TEXT("SUBSTRATE_USE_FULLYSIMPLIFIED_MATERIAL"), 1);
@@ -106,8 +112,9 @@ public:
 	}
 };
 
-IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, FLumenCardPS<false>, TEXT("/Engine/Private/Lumen/LumenCardPixelShader.usf"), TEXT("Main"), SF_Pixel);
-IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, FLumenCardPS<true>, TEXT("/Engine/Private/Lumen/LumenCardPixelShader.usf"), TEXT("Main"), SF_Pixel);
+IMPLEMENT_MATERIAL_SHADER_TYPE(, FLumenCardPS, TEXT("/Engine/Private/Lumen/LumenCardPixelShader.usf"), TEXT("Main"), SF_Pixel);
+
+IMPLEMENT_UNIFORM_BUFFER_STRUCT_EX(FLumenCardOutputs, "LumenCardOutputs", FShaderParametersMetadata::EUsageFlags::ManuallyBoundByPass);
 
 class FLumenCardCS : public FMeshMaterialShader
 {
@@ -116,8 +123,6 @@ class FLumenCardCS : public FMeshMaterialShader
 public:
 	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 	{
-		return false; // TODO: Work in progress
-#if 0
 		if (!Parameters.VertexFactoryType->SupportsNaniteRendering())
 		{
 			return false;
@@ -130,17 +135,13 @@ public:
 
 		return IsOpaqueOrMaskedBlendMode(Parameters.MaterialParameters.BlendMode)
 			&& ShouldCompileLumenMeshCardShaders(Parameters.MaterialParameters.MaterialDomain, Parameters.MaterialParameters.BlendMode, Parameters.VertexFactoryType, Parameters.Platform);
-#endif
 	}
 
 	FLumenCardCS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
 	: FMeshMaterialShader(Initializer)
 	{
 		PassDataParam.Bind(Initializer.ParameterMap, TEXT("PassData"));
-
-		Target0.Bind(Initializer.ParameterMap, TEXT("OutTarget0"), SPF_Mandatory);
-		Target1.Bind(Initializer.ParameterMap, TEXT("OutTarget1"), SPF_Mandatory);
-		Target2.Bind(Initializer.ParameterMap, TEXT("OutTarget2"), SPF_Mandatory);
+		LumenCardOutputsParam.Bind(Initializer.ParameterMap, TEXT("LumenCardOutputs"), SPF_Mandatory);
 	}
 
 	FLumenCardCS() = default;
@@ -149,37 +150,30 @@ public:
 	{
 		FMeshMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 
-		OutEnvironment.SetDefine(TEXT("LUMEN_MULTI_VIEW_CAPTURE"), 1);
 		OutEnvironment.SetDefine(TEXT("SUBSTRATE_INLINE_SHADING"), 1);
 
 		// Use fully simplified material for less complex shaders when multiple slabs are used.
 		OutEnvironment.SetDefine(TEXT("SUBSTRATE_USE_FULLYSIMPLIFIED_MATERIAL"), 1);
 
+		// Card should not be able to sample from the scene textures, this is needed for translucent materials card capture which can request the sampling of SceneTextures.
+		OutEnvironment.SetDefine(TEXT("SCENE_TEXTURES_DISABLED"), 1);
+
 		// Force shader model 6.0+
 		OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
 		OutEnvironment.CompilerFlags.Add(CFLAG_HLSL2021);
+		OutEnvironment.CompilerFlags.Add(CFLAG_RootConstants);
+		OutEnvironment.CompilerFlags.Add(CFLAG_CheckForDerivativeOps);
 	}
 
-	inline void SetPassParameters(
-		FRHIBatchedShaderParameters& BatchedParameters,
-		const FUintVector4& PassData,
-		FRHIUnorderedAccessView* Target0UAV,
-		FRHIUnorderedAccessView* Target1UAV,
-		FRHIUnorderedAccessView* Target2UAV
-	)
+	void SetPassParameters(FRHIBatchedShaderParameters& BatchedParameters, const FUintVector4& PassData, FRHIUniformBuffer* Outputs)
 	{
 		SetShaderValue(BatchedParameters, PassDataParam, PassData);
-
-		SetUAVParameter(BatchedParameters, Target0, Target0UAV);
-		SetUAVParameter(BatchedParameters, Target1, Target1UAV);
-		SetUAVParameter(BatchedParameters, Target2, Target2UAV);
+		SetUniformBufferParameter(BatchedParameters, LumenCardOutputsParam, Outputs);
 	}
 
 private:
 	LAYOUT_FIELD(FShaderParameter, PassDataParam);
-	LAYOUT_FIELD(FShaderResourceParameter, Target0);
-	LAYOUT_FIELD(FShaderResourceParameter, Target1);
-	LAYOUT_FIELD(FShaderResourceParameter, Target2);
+	LAYOUT_FIELD(FShaderUniformBufferParameter, LumenCardOutputsParam);
 };
 
 IMPLEMENT_MATERIAL_SHADER_TYPE(, FLumenCardCS, TEXT("/Engine/Private/Lumen/LumenCardComputeShader.usf"), TEXT("Main"), SF_Compute);
@@ -192,6 +186,72 @@ struct FNaniteLumenCardData
 namespace Nanite
 {
 
+void CollectLumenCardPSOInitializers(
+	const FSceneTexturesConfig& SceneTexturesConfig,
+	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
+	const FMaterial& Material,
+	const FPSOPrecacheParams& PreCacheParams,
+	ERHIFeatureLevel::Type FeatureLevel,
+	EShaderPlatform ShaderPlatform,
+	int32 PSOCollectorIndex,
+	TArray<FPSOPrecacheData>& PSOInitializers)
+{	
+	FMaterialShaderTypes ShaderTypes;
+	ShaderTypes.AddShaderType<FLumenCardCS>();
+
+	FMaterialShaders Shaders;
+	if (!Material.TryGetShaders(ShaderTypes, VertexFactoryData.VertexFactoryType, Shaders))
+	{
+		return;
+	}
+
+	TShaderRef<FLumenCardCS> LumenCardComputeShader;
+	if (!Shaders.TryGetComputeShader(LumenCardComputeShader))
+	{
+		return;
+	}
+
+	FPSOPrecacheData ComputePSOPrecacheData;
+	ComputePSOPrecacheData.Type = FPSOPrecacheData::EType::Compute;
+	ComputePSOPrecacheData.SetComputeShader(LumenCardComputeShader);
+#if PSO_PRECACHING_VALIDATE
+	ComputePSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
+	ComputePSOPrecacheData.VertexFactoryType = VertexFactoryData.VertexFactoryType;
+	if (PSOCollectorStats::IsFullPrecachingValidationEnabled())
+	{
+		ComputePSOPrecacheData.bDefaultMaterial = Material.IsDefaultMaterial();
+		ConditionalBreakOnPSOPrecacheShader(ComputePSOPrecacheData.ComputeShader);
+	}
+#endif // PSO_PRECACHING_VALIDATE
+	PSOInitializers.Add(MoveTemp(ComputePSOPrecacheData));
+}
+
+void RecordLumenCardParameters(
+	FRHIBatchedShaderParameters& ShaderParameters,
+	FNaniteShadingCommand& ShadingCommand,
+	TUniformBufferRef<FLumenCardOutputs> Outputs
+)
+{
+	FRHIComputeShader* ComputeShaderRHI = ShadingCommand.Pipeline->ComputeShader;
+	const bool bNoDerivativeOps = !!ShadingCommand.Pipeline->bNoDerivativeOps;
+
+	ShadingCommand.PassData.X = ShadingCommand.ShadingBin; // Active Shading Bin
+	ShadingCommand.PassData.Y = bNoDerivativeOps ? 0 /* Pixel Binning */ : 1 /* Quad Binning */;
+	ShadingCommand.PassData.Z = uint32(ENaniteMeshPass::LumenCardCapture);
+	ShadingCommand.PassData.W = 0; // Unused
+
+	ShadingCommand.Pipeline->ShaderBindings->SetParameters(ShaderParameters);
+
+	if (ComputeShaderRHI)
+	{
+		ShadingCommand.Pipeline->LumenCardData->TypedShader->SetPassParameters(
+			ShaderParameters,
+			ShadingCommand.PassData,
+			Outputs.GetReference()
+		);
+	}
+}
+
 bool LoadLumenCardPipeline(
 	const FScene& Scene,
 	FSceneProxyBase* SceneProxy,
@@ -199,13 +259,9 @@ bool LoadLumenCardPipeline(
 	FNaniteShadingPipeline& ShadingPipeline
 )
 {
-	// TODO: WIP
-#if 1
-	return true;
-#else
 	const ERHIFeatureLevel::Type FeatureLevel = Scene.GetFeatureLevel();
 
-	FNaniteVertexFactory* NaniteVertexFactory = Nanite::GVertexFactoryResource.GetVertexFactory2();
+	FNaniteVertexFactory* NaniteVertexFactory = Nanite::GVertexFactoryResource.GetVertexFactory();
 	FVertexFactoryType* NaniteVertexFactoryType = NaniteVertexFactory->GetType();
 
 	const FMaterialRenderProxy* MaterialProxy = Section.ShadingMaterialProxy;
@@ -274,7 +330,6 @@ bool LoadLumenCardPipeline(
 	}
 
 	return bLoaded;
-#endif // TODO
 }
 
 } // Nanite
@@ -295,11 +350,11 @@ bool GetLumenCardShaders(
 	const FMaterial& Material,
 	const FVertexFactoryType* VertexFactoryType,
 	TShaderRef<FLumenCardVS>& VertexShader,
-	TShaderRef<FLumenCardPS<false>>& PixelShader)
+	TShaderRef<FLumenCardPS>& PixelShader)
 {
 	FMaterialShaderTypes ShaderTypes;
 	ShaderTypes.AddShaderType<FLumenCardVS>();
-	ShaderTypes.AddShaderType<FLumenCardPS<false>>();
+	ShaderTypes.AddShaderType<FLumenCardPS>();
 
 	FMaterialShaders Shaders;
 	if (!Material.TryGetShaders(ShaderTypes, VertexFactoryType, Shaders))
@@ -339,11 +394,8 @@ void FLumenCardMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch,
 					if (ShouldCompileLumenMeshCardShaders(Material.GetMaterialDomain(), Material.GetBlendMode(), VertexFactory->GetType(), Platform))
 					{
 						FVertexFactoryType* VertexFactoryType = VertexFactory->GetType();
-						constexpr bool bMultiViewCapture = false;
 
-						TMeshProcessorShaders<
-							FLumenCardVS,
-							FLumenCardPS<bMultiViewCapture>> PassShaders;
+						TMeshProcessorShaders<FLumenCardVS, FLumenCardPS> PassShaders;
 
 						if (!GetLumenCardShaders(
 							Material,
@@ -388,7 +440,7 @@ void FLumenCardMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch,
 	}
 }
 
-void SetupCardCaptureRenderTargetsInfo(FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo)
+void SetupCardCaptureRenderTargetsInfo(FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo, EShaderPlatform ShaderPlatform)
 {
 	RenderTargetsInfo.NumSamples = 1;
 	RenderTargetsInfo.RenderTargetsEnabled = 3;
@@ -405,6 +457,14 @@ void SetupCardCaptureRenderTargetsInfo(FGraphicsPipelineRenderTargetsInfo& Rende
 	RenderTargetsInfo.RenderTargetFormats[2] = PF_FloatR11G11B10;
 	RenderTargetsInfo.RenderTargetFlags[2] = TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_NoFastClear;
 
+	if (DoesPlatformSupportNanite(ShaderPlatform, true))
+	{
+		for (uint32 TargetIndex = 0; TargetIndex < RenderTargetsInfo.RenderTargetsEnabled; ++TargetIndex)
+		{
+			RenderTargetsInfo.RenderTargetFlags[TargetIndex] |= TexCreate_UAV;
+		}
+	}
+
 	// Setup depth stencil state
 	RenderTargetsInfo.DepthStencilTargetFormat = PF_DepthStencil;
 	RenderTargetsInfo.DepthStencilTargetFlag = TexCreate_ShaderResource | TexCreate_DepthStencilTargetable | TexCreate_NoFastClear;
@@ -420,11 +480,16 @@ void SetupCardCaptureRenderTargetsInfo(FGraphicsPipelineRenderTargetsInfo& Rende
 	RenderTargetsInfo.StencilTargetStoreAction = RenderTargetsInfo.DepthStencilAccess.IsUsingStencil() ? StoreAction : ERenderTargetStoreAction::ENoAction;
 }
 
-void LumenScene::AllocateCardCaptureAtlas(FRDGBuilder& GraphBuilder, FIntPoint CardCaptureAtlasSize, FCardCaptureAtlas& CardCaptureAtlas)
+void LumenScene::AllocateCardCaptureAtlas(
+	FRDGBuilder& GraphBuilder,
+	FIntPoint CardCaptureAtlasSize,
+	FCardCaptureAtlas& CardCaptureAtlas,
+	EShaderPlatform ShaderPlatform
+)
 {
 	// Collect info from SetupCardCaptureRenderTargetsInfo
 	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
-	SetupCardCaptureRenderTargetsInfo(RenderTargetsInfo);
+	SetupCardCaptureRenderTargetsInfo(RenderTargetsInfo, ShaderPlatform);
 	check(RenderTargetsInfo.RenderTargetsEnabled == 3);
 
 	CardCaptureAtlas.Size = CardCaptureAtlasSize;
@@ -481,11 +546,7 @@ void FLumenCardMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig&
 
 	if (ShouldCompileLumenMeshCardShaders(Material.GetMaterialDomain(), Material.GetBlendMode(), VertexFactoryData.VertexFactoryType, Platform))
 	{
-		constexpr bool bMultiViewCapture = false;
-
-		TMeshProcessorShaders<
-			FLumenCardVS,
-			FLumenCardPS<bMultiViewCapture>> PassShaders;
+		TMeshProcessorShaders<FLumenCardVS, FLumenCardPS> PassShaders;
 
 		if (!GetLumenCardShaders(
 			Material,
@@ -497,7 +558,7 @@ void FLumenCardMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig&
 		}
 
 		FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
-		SetupCardCaptureRenderTargetsInfo(RenderTargetsInfo);
+		SetupCardCaptureRenderTargetsInfo(RenderTargetsInfo, Platform);
 
 		AddGraphicsPipelineStateInitializer(
 			VertexFactoryData,
@@ -534,203 +595,6 @@ FMeshPassProcessor* CreateLumenCardCapturePassProcessor(ERHIFeatureLevel::Type F
 }
 
 REGISTER_MESHPASSPROCESSOR_AND_PSOCOLLECTOR(LumenCardCapturePass, CreateLumenCardCapturePassProcessor, EShadingPath::Deferred, EMeshPass::LumenCardCapture, EMeshPassFlags::CachedMeshCommands);
-
-class FLumenCardNaniteMeshProcessor : public FMeshPassProcessor
-{
-public:
-
-	FLumenCardNaniteMeshProcessor(const FScene* Scene, ERHIFeatureLevel::Type FeatureLevel, const FSceneView* InViewIfDynamicMeshCommand, const FMeshPassProcessorRenderState& InPassDrawRenderState, FMeshPassDrawListContext* InDrawListContext);
-
-	virtual void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId = -1) override final;
-	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) override final;
-
-	FMeshPassProcessorRenderState PassDrawRenderState;
-
-private:
-	bool TryAddMeshBatch(
-		const FMeshBatch& RESTRICT MeshBatch,
-		uint64 BatchElementMask,
-		const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy,
-		int32 StaticMeshId,
-		const FMaterialRenderProxy& MaterialRenderProxy,
-		const FMaterial& Material);
-};
-
-FLumenCardNaniteMeshProcessor::FLumenCardNaniteMeshProcessor(
-	const FScene* InScene,
-	ERHIFeatureLevel::Type FeatureLevel,
-	const FSceneView* InViewIfDynamicMeshCommand,
-	const FMeshPassProcessorRenderState& InDrawRenderState,
-	FMeshPassDrawListContext* InDrawListContext
-) :
-	FMeshPassProcessor(EMeshPass::LumenCardNanite, InScene, FeatureLevel, InViewIfDynamicMeshCommand, InDrawListContext),
-	PassDrawRenderState(InDrawRenderState)
-{
-}
-
-using FLumenCardNanitePassShaders = TMeshProcessorShaders<FNaniteMultiViewMaterialVS, FLumenCardPS<true>>;
-
-void FLumenCardNaniteMeshProcessor::AddMeshBatch(
-	const FMeshBatch& RESTRICT MeshBatch,
-	uint64 BatchElementMask,
-	const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy,
-	int32 StaticMeshId /*= -1 */
-)
-{
-	LLM_SCOPE_BYTAG(Lumen);
-
-	checkf(LumenScene::HasPrimitiveNaniteMeshBatches(PrimitiveSceneProxy) && DoesPlatformSupportLumenGI(GetFeatureLevelShaderPlatform(FeatureLevel)),
-		TEXT("Logic in BuildNaniteMaterialBins() should not have allowed an unqualifying mesh batch to be added"));
-
-	const FMaterialRenderProxy* MaterialRenderProxy = MeshBatch.MaterialRenderProxy;
-	while (MaterialRenderProxy)
-	{
-		const FMaterial* Material = MaterialRenderProxy->GetMaterialNoFallback(FeatureLevel);
-		if (Material)
-		{
-			if (TryAddMeshBatch(MeshBatch, BatchElementMask, PrimitiveSceneProxy, StaticMeshId, *MaterialRenderProxy, *Material))
-			{
-				break;
-			}
-		}
-
-		MaterialRenderProxy = MaterialRenderProxy->GetFallback(FeatureLevel);
-	}
-}
-
-bool FLumenCardNaniteMeshProcessor::TryAddMeshBatch(
-	const FMeshBatch& RESTRICT MeshBatch,
-	uint64 BatchElementMask,
-	const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy,
-	int32 StaticMeshId,
-	const FMaterialRenderProxy& MaterialRenderProxy,
-	const FMaterial& Material)
-{
-	check(Nanite::IsSupportedBlendMode(Material));
-	check(Nanite::IsSupportedMaterialDomain(Material.GetMaterialDomain()));
-
-	TShaderMapRef<FNaniteMultiViewMaterialVS> VertexShader(GetGlobalShaderMap(FeatureLevel));
-
-	FLumenCardNanitePassShaders PassShaders;
-	PassShaders.VertexShader = VertexShader;
-
-	const FVertexFactory* VertexFactory = MeshBatch.VertexFactory;
-	FVertexFactoryType* VertexFactoryType = VertexFactory->GetType();
-	constexpr bool bMultiViewCapture = true;
-
-	FMaterialShaderTypes ShaderTypes;
-	ShaderTypes.AddShaderType<FLumenCardPS<bMultiViewCapture>>();
-
-	FMaterialShaders Shaders;
-	if (!Material.TryGetShaders(ShaderTypes, VertexFactoryType, Shaders))
-	{
-		return false;
-	}
-
-	Shaders.TryGetPixelShader(PassShaders.PixelShader);
-
-	FMeshMaterialShaderElementData ShaderElementData;
-	ShaderElementData.InitializeMeshMaterialData(ViewIfDynamicMeshCommand, PrimitiveSceneProxy, MeshBatch, StaticMeshId, false);
-
-	BuildMeshDrawCommands(
-		MeshBatch,
-		BatchElementMask,
-		PrimitiveSceneProxy,
-		MaterialRenderProxy,
-		Material,
-		PassDrawRenderState,
-		PassShaders,
-		FM_Solid,
-		CM_None,
-		FMeshDrawCommandSortKey::Default,
-		EMeshPassFeatures::Default,
-		ShaderElementData
-	);
-
-	return true;
-}
-
-void FLumenCardNaniteMeshProcessor::CollectPSOInitializers(
-	const FSceneTexturesConfig& SceneTexturesConfig,
-	const FMaterial& Material, 
-	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
-	const FPSOPrecacheParams& PreCacheParams,
-	TArray<FPSOPrecacheData>& PSOInitializers)
-{
-	EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
-
-	// Make sure Nanite rendering is supported.
-	if (!UseNanite(ShaderPlatform) || !SupportsNaniteRendering(VertexFactoryData.VertexFactoryType, Material, FeatureLevel))
-	{
-		return;
-	}
-
-	if (!Nanite::IsSupportedBlendMode(Material) || Material.GetMaterialDomain() ||
-		!Lumen::ShouldPrecachePSOs(ShaderPlatform))
-	{
-		return;
-	}
-
-	// Nanite passes always use the forced fixed vertex element and not custom default vertex declaration even if it's provided
-	FPSOPrecacheVertexFactoryData NaniteVertexFactoryData = VertexFactoryData;
-	NaniteVertexFactoryData.CustomDefaultVertexDeclaration = nullptr;
-
-	const ERasterizerFillMode MeshFillMode = FM_Solid;
-	const ERasterizerCullMode MeshCullMode = CM_None;
-
-	TShaderMapRef<FNaniteMultiViewMaterialVS> VertexShader(GetGlobalShaderMap(FeatureLevel));
-
-	FLumenCardNanitePassShaders PassShaders;
-	PassShaders.VertexShader = VertexShader;
-
-	constexpr bool bMultiViewCapture = true;
-
-	FMaterialShaderTypes ShaderTypes;
-	ShaderTypes.AddShaderType<FLumenCardPS<bMultiViewCapture>>();
-
-	FMaterialShaders Shaders;
-	if (!Material.TryGetShaders(ShaderTypes, NaniteVertexFactoryData.VertexFactoryType, Shaders))
-	{
-		return;
-	}
-
-	Shaders.TryGetPixelShader(PassShaders.PixelShader);
-
-	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
-	SetupCardCaptureRenderTargetsInfo(RenderTargetsInfo);
-
-	AddGraphicsPipelineStateInitializer(
-		NaniteVertexFactoryData,
-		Material,
-		PassDrawRenderState,
-		RenderTargetsInfo,
-		PassShaders,
-		MeshFillMode,
-		MeshCullMode,
-		(EPrimitiveType)PreCacheParams.PrimitiveType,
-		EMeshPassFeatures::Default,
-		true /*bRequired*/,
-		PSOInitializers);
-}
-
-FMeshPassProcessor* CreateLumenCardNaniteMeshProcessor(
-	ERHIFeatureLevel::Type FeatureLevel,
-	const FScene* Scene,
-	const FSceneView* InViewIfDynamicMeshCommand,
-	FMeshPassDrawListContext* InDrawListContext)
-{
-	LLM_SCOPE_BYTAG(Lumen);
-
-	FMeshPassProcessorRenderState PassState;
-	PassState.SetDepthStencilState(TStaticDepthStencilState<false, CF_Equal, true, CF_Equal>::GetRHI());
-	PassState.SetDepthStencilAccess(FExclusiveDepthStencil::DepthRead_StencilRead);
-	PassState.SetStencilRef(STENCIL_SANDBOX_MASK);
-	PassState.SetBlendState(TStaticBlendState<>::GetRHI());
-
-	return new FLumenCardNaniteMeshProcessor(Scene, FeatureLevel, InViewIfDynamicMeshCommand, PassState, InDrawListContext);
-}
-
-REGISTER_MESHPASSPROCESSOR_AND_PSOCOLLECTOR(LumenCardNanitePass, CreateLumenCardNaniteMeshProcessor, EShadingPath::Deferred, EMeshPass::LumenCardNanite, EMeshPassFlags::None);
 
 FCardPageRenderData::FCardPageRenderData(
 	const FViewInfo& InMainView,
@@ -874,9 +738,9 @@ void LumenScene::AddCardCaptureDraws(
 					}
 				}
 
-				for (const FNaniteCommandInfo& CommandInfo : PrimitiveSceneInfo->NaniteCommandInfos[NaniteMeshPass])
+				for (const FNaniteShadingBin& ShadingBin : PrimitiveSceneInfo->NaniteShadingBins[ENaniteMeshPass::LumenCardCapture])
 				{
-					CardPageRenderData.NaniteCommandInfos.Add(CommandInfo);
+					CardPageRenderData.NaniteShadingBins.Add(ShadingBin);
 				}
 			}
 			else

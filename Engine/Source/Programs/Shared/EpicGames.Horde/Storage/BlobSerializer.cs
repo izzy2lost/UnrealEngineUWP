@@ -199,10 +199,8 @@ namespace EpicGames.Horde.Storage
 		public static BlobSerializerOptions Create(HordeApiVersion version)
 		{
 			BlobSerializerOptions options = new BlobSerializerOptions();
-			if (version < HordeApiVersion.AddLengthsToInteriorNodes)
-			{
-				options.Converters.Add(new InteriorChunkedDataNodeConverter(2));
-			}
+			options.Converters.Add(new InteriorChunkedDataNodeConverter(version));
+			options.Converters.Add(new DirectoryNodeConverter(version));
 			return options;
 		}
 	}
@@ -219,9 +217,9 @@ namespace EpicGames.Horde.Storage
 		/// <param name="handle">Handle to the blob to deserialize</param>
 		/// <param name="options">Options to control serialization</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async ValueTask<T> ReadBlobAsync<T>(this IBlobHandle handle, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
+		public static async ValueTask<T> ReadBlobAsync<T>(this IBlobRef handle, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
 		{
-			BlobData data = await handle.ReadBlobDataAsync(cancellationToken);
+			using BlobData data = await handle.ReadBlobDataAsync(cancellationToken);
 			return BlobSerializer.Deserialize<T>(data, options);
 		}
 
@@ -233,7 +231,19 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public static async ValueTask<T> ReadBlobAsync<T>(this IBlobRef<T> handle, CancellationToken cancellationToken = default)
 		{
-			BlobData data = await handle.ReadBlobDataAsync(cancellationToken);
+			using BlobData data = await handle.ReadBlobDataAsync(cancellationToken);
+			return BlobSerializer.Deserialize<T>(data, handle.SerializerOptions);
+		}
+
+		/// <summary>
+		/// Deserialize an object
+		/// </summary>
+		/// <typeparam name="T">Return type for the deserialized object</typeparam>
+		/// <param name="handle">Handle to the blob to deserialize</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public static async ValueTask<T> ReadBlobAsync<T>(this IHashedBlobRef<T> handle, CancellationToken cancellationToken = default)
+		{
+			using BlobData data = await handle.ReadBlobDataAsync(cancellationToken);
 			return BlobSerializer.Deserialize<T>(data, handle.SerializerOptions);
 		}
 
@@ -244,7 +254,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="value">The object to serialize</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the serialized blob</returns>
-		public static async ValueTask<IBlobRef<T>> WriteBlobAsync<T>(this IBlobWriter writer, T value, CancellationToken cancellationToken = default)
+		public static async ValueTask<IHashedBlobRef<T>> WriteBlobAsync<T>(this IBlobWriter writer, T value, CancellationToken cancellationToken = default)
 		{
 			BlobType blobType = BlobSerializer.Serialize<T>(writer, value, writer.Options);
 			return await writer.CompleteAsync<T>(blobType, cancellationToken);
@@ -259,14 +269,14 @@ namespace EpicGames.Horde.Storage
 		/// <param name="options">Options to control serialization</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Node for the given ref, or null if it does not exist</returns>
-		public static async Task<IBlobRef<TNode>?> TryReadRefAsync<TNode>(this IStorageClient store, RefName name, DateTime cacheTime = default, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default) where TNode : class
+		public static async Task<IHashedBlobRef<TNode>?> TryReadRefAsync<TNode>(this IStorageNamespace store, RefName name, DateTime cacheTime = default, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default) where TNode : class
 		{
-			IBlobRef? refTarget = await store.TryReadRefAsync(name, cacheTime, cancellationToken);
+			IHashedBlobRef? refTarget = await store.TryReadRefAsync(name, cacheTime, cancellationToken);
 			if (refTarget == null)
 			{
 				return null;
 			}
-			return BlobRef.Create<TNode>(refTarget.Hash, refTarget, options ?? BlobSerializerOptions.Default);
+			return HashedBlobRef.Create<TNode>(refTarget.Hash, refTarget, options ?? BlobSerializerOptions.Default);
 		}
 
 		/// <summary>
@@ -278,9 +288,9 @@ namespace EpicGames.Horde.Storage
 		/// <param name="options">Options to control serialization</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The blob instance</returns>
-		public static async Task<IBlobRef<TNode>> ReadRefAsync<TNode>(this IStorageClient store, RefName name, DateTime cacheTime = default, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default) where TNode : class
+		public static async Task<IHashedBlobRef<TNode>> ReadRefAsync<TNode>(this IStorageNamespace store, RefName name, DateTime cacheTime = default, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default) where TNode : class
 		{
-			IBlobRef<TNode>? refValue = await store.TryReadRefAsync<TNode>(name, cacheTime, options, cancellationToken);
+			IHashedBlobRef<TNode>? refValue = await store.TryReadRefAsync<TNode>(name, cacheTime, options, cancellationToken);
 			if (refValue == null)
 			{
 				throw new RefNameNotFoundException(name);
@@ -297,9 +307,9 @@ namespace EpicGames.Horde.Storage
 		/// <param name="options">Options to control serialization</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Node for the given ref, or null if it does not exist</returns>
-		public static async Task<TNode?> TryReadRefTargetAsync<TNode>(this IStorageClient store, RefName name, DateTime cacheTime = default, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default) where TNode : class
+		public static async Task<TNode?> TryReadRefTargetAsync<TNode>(this IStorageNamespace store, RefName name, DateTime cacheTime = default, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default) where TNode : class
 		{
-			IBlobRef<TNode>? refTarget = await store.TryReadRefAsync<TNode>(name, cacheTime, options, cancellationToken);
+			IHashedBlobRef<TNode>? refTarget = await store.TryReadRefAsync<TNode>(name, cacheTime, options, cancellationToken);
 			if (refTarget == null)
 			{
 				return null;
@@ -316,9 +326,9 @@ namespace EpicGames.Horde.Storage
 		/// <param name="options">Options to control serialization</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The blob instance</returns>
-		public static async Task<TNode> ReadRefTargetAsync<TNode>(this IStorageClient store, RefName name, DateTime cacheTime = default, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default) where TNode : class
+		public static async Task<TNode> ReadRefTargetAsync<TNode>(this IStorageNamespace store, RefName name, DateTime cacheTime = default, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default) where TNode : class
 		{
-			IBlobRef<TNode> blobRef = await ReadRefAsync<TNode>(store, name, cacheTime, options, cancellationToken);
+			IHashedBlobRef<TNode> blobRef = await ReadRefAsync<TNode>(store, name, cacheTime, options, cancellationToken);
 			return await blobRef.ReadBlobAsync(cancellationToken);
 		}
 	}

@@ -5,18 +5,25 @@
 #include "ChaosWeightMapTarget.h"
 #include "ClothingAsset.h"
 #include "ClothingSimulation.h"
+#include "Engine/SkeletalMesh.h"
 
 namespace Chaos
 {
 	FClothingSimulationSkeletalMesh::FClothingSimulationSkeletalMesh(const UClothingAssetCommon* InAsset, const USkeletalMeshComponent* InSkeletalMeshComponent)
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		: FClothingSimulationMesh(InSkeletalMeshComponent->GetOwner() ?
-				FString::Format(TEXT("{0}|{1}"), { InSkeletalMeshComponent->GetOwner()->GetName(), InSkeletalMeshComponent->GetName() }) :
+				FString::Format(TEXT("{0}|{1}"), { InSkeletalMeshComponent->GetOwner()->GetActorNameOrLabel(), InSkeletalMeshComponent->GetName() }) :
 				InSkeletalMeshComponent->GetName())
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, Asset(InAsset)
 		, SkeletalMeshComponent(InSkeletalMeshComponent)
 	{
+#if CHAOS_DEBUG_DRAW
+		const FReferenceSkeleton* const ReferenceSkeleton = &CastChecked<USkeletalMesh>(Asset->GetOuter())->GetRefSkeleton();
+		const int32 ReferenceBoneIndex = GetReferenceBoneIndex();
+		if (ReferenceSkeleton && ReferenceBoneIndex >= 0 && ReferenceBoneIndex < ReferenceSkeleton->GetNum())
+		{
+			ReferenceBoneName = ReferenceSkeleton->GetBoneName(ReferenceBoneIndex);
+		}
+#endif
 	}
 
 	int32 FClothingSimulationSkeletalMesh::GetNumLODs() const
@@ -70,7 +77,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			const FClothLODDataCommon& ClothLODData = Asset->LodData[LODIndex];
 			const FClothPhysicalMeshData& ClothPhysicalMeshData = ClothLODData.PhysicalMeshData;
-			return ClothPhysicalMeshData.Vertices;
+			return TConstArrayView<FVector3f>(ClothPhysicalMeshData.Vertices);
 		}
 		return TConstArrayView<FVector3f>();
 	}
@@ -86,7 +93,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			const FClothLODDataCommon& ClothLODData = Asset->LodData[LODIndex];
 			const FClothPhysicalMeshData& ClothPhysicalMeshData = ClothLODData.PhysicalMeshData;
-			return ClothPhysicalMeshData.Normals;
+			return TConstArrayView<FVector3f>(ClothPhysicalMeshData.Normals);
 		}
 		return TConstArrayView<FVector3f>();
 	}

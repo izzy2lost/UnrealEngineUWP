@@ -111,6 +111,11 @@ public:
 		return bSrgb;
 	}
 
+	virtual bool ShouldApplyColorConversion() const override
+	{
+		return false;
+	}
+
 public:
 
 #if WITH_ENGINE

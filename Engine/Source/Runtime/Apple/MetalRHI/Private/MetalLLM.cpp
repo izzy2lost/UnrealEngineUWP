@@ -1,7 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetalLLM.h"
+#include "MetalCommandQueue.h"
 #include "MetalProfiler.h"
+#include "MetalResources.h"
+#include "MetalDevice.h"
 #include "RenderUtils.h"
 #include "HAL/LowLevelMemStats.h"
 
@@ -143,12 +146,12 @@ static EPixelFormat MetalToRHIPixelFormat(MTL::PixelFormat Format)
 	return PF_MAX;
 }
 
-void MetalLLM::LogAllocTexture(MTL::Device* Device, MTL::TextureDescriptor* Desc, MTL::Texture* Texture)
+void MetalLLM::LogAllocTexture(FMetalDevice& Device, MTL::TextureDescriptor* Desc, MTL::Texture* Texture)
 {
 	MTL::SizeAndAlign SizeAlign;
-	if (FMetalCommandQueue::SupportsFeature(EMetalFeaturesGPUCaptureManager))
+	if (Device.SupportsFeature(EMetalFeaturesGPUCaptureManager))
 	{
-		SizeAlign = Device->heapTextureSizeAndAlign(Desc);
+		SizeAlign = Device.GetDevice()->heapTextureSizeAndAlign(Desc);
 	}
 	
 	void* Ptr = (void*)Texture;
@@ -207,21 +210,25 @@ void MetalLLM::LogAllocTexture(MTL::Device* Device, MTL::TextureDescriptor* Desc
 	}
 }
 
-void MetalLLM::LogAllocBuffer(MTL::Device* Device, FMetalBufferPtr Buffer)
+void MetalLLM::LogAllocBuffer(FMetalBuffer* Buffer)
 {
-	void* Ptr = (void*)Buffer.Get();
+	void* Ptr = (void*)Buffer;
 	uint64 Size = Buffer->GetLength();
 	
 	INC_MEMORY_STAT_BY(STAT_MetalBufferMemory, Size);
 	INC_DWORD_STAT(STAT_MetalBufferCount);
 	
 	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Ptr, Size, ELLMTag::Untagged, ELLMAllocType::System));
-    Buffer->MarkAllocated();
 }
 
-void MetalLLM::LogAllocBufferNative(MTL::Device* Device, MTLBufferPtr Buffer)
+void MetalLLM::LogAllocBuffer(FMetalBufferPtr Buffer)
 {
-    void* Ptr = (void*)Buffer.get();
+	LogAllocBuffer(Buffer.Get());
+}
+
+void MetalLLM::LogAllocBufferNative(MTL::Buffer* Buffer)
+{
+    void* Ptr = (void*)Buffer;
     uint64 Size = Buffer->length();
     
     INC_MEMORY_STAT_BY(STAT_MetalBufferMemory, Size);
@@ -232,7 +239,7 @@ void MetalLLM::LogAllocBufferNative(MTL::Device* Device, MTLBufferPtr Buffer)
     {
         LLM_SCOPED_PAUSE_TRACKING(ELLMAllocType::System);
         
-        objc_setAssociatedObject((__bridge id<MTLBuffer>)Buffer.get(), (void*)&MetalLLM::LogAllocBufferNative,
+        objc_setAssociatedObject((__bridge id<MTLBuffer>)Buffer, (void*)&MetalLLM::LogAllocBufferNative,
         [[[FMetalDeallocHandler alloc] initWithBlock:^{
             LLM_PLATFORM_SCOPE_METAL(ELLMTagMetal::Buffers);
             
@@ -245,7 +252,7 @@ void MetalLLM::LogAllocBufferNative(MTL::Device* Device, MTLBufferPtr Buffer)
     }
 }
 
-void MetalLLM::LogAllocHeap(MTL::Device* Device, MTL::Heap* Heap)
+void MetalLLM::LogAllocHeap(MTL::Heap* Heap)
 {
 	void* Ptr = (void*)Heap;
 	uint64 Size = Heap->size();

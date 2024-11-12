@@ -17,6 +17,15 @@ DEFINE_LOG_CATEGORY( LogReplicationGraph );
 DECLARE_LLM_MEMORY_STAT(TEXT("NetRepGraph"), STAT_NetRepGraphLLM, STATGROUP_LLMFULL);
 LLM_DEFINE_TAG(NetRepGraph, NAME_None, TEXT("Networking"), GET_STATFNAME(STAT_NetRepGraphLLM), GET_STATFNAME(STAT_NetworkingSummaryLLM));
 
+#if WITH_SERVER_CODE && UE_ACTOR_REPLIST_TYPE_EXTRA_SAFETY
+
+static FAutoConsoleVariableRef CVar_NetRepGraphUseWeakPointers(
+	TEXT("Net.RepGraph.UseWeakPointers"),
+	UE::Net::RepGraph::bUseWeakPointers,
+	TEXT("Uses weak pointers in RepGraph, validating them on access to detect dangling pointers without crashing."));
+
+#endif
+
 // --------------------------------------------------------------------------------------------------------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------------
 // Actor List Allocator
@@ -610,6 +619,30 @@ void FActorRepListStatCollector::VisitExplicitStreamingLevelList(FName ListOwner
 	StreamingLevelStats.NumBytes += ListBytes;
 	StreamingLevelStats.MaxListSize = FMath::Max(StreamingLevelStats.MaxListSize, ListSize);
 }
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+const TArray<FActorRepListConstView>& FGatheredReplicationActorLists::GetLists(EActorRepListTypeFlags ListFlags) const
+{
+	// Synthesize an array of views of actors for backwards compatibility.
+	// All actors appear in a single FActorRepListConstView.
+	static FActorRepListRefView ActorListView;
+	ActorListView.Reset();
+
+	const TArrayView<const FActorRepListType> Actors = ViewActors(ListFlags);
+	ActorListView.Reserve(Actors.Num());
+	for (const FActorRepListType& Actor : Actors)
+	{
+		ActorListView.Add(Actor);
+	}
+
+	static TArray<FActorRepListConstView> ArrayOfViewsOfActors;
+	ArrayOfViewsOfActors.Reset();
+	ArrayOfViewsOfActors.Reserve(1);
+	ArrayOfViewsOfActors.Add(FActorRepListConstView(ActorListView));
+
+	return ArrayOfViewsOfActors;
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FLevelBasedActorList::AddNetworkActor(AActor* NetActor)
 {

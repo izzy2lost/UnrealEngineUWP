@@ -38,7 +38,7 @@ public:
 		FString ResolvedSandboxPath = InNonSandboxPath + TEXT("/");
 		checkf(ResolvedSandboxPath.StartsWith(InRootNonSandboxPath), TEXT("Path '%s' was not under the root '%s'!"), *InNonSandboxPath, *InRootNonSandboxPath);
 		ResolvedSandboxPath.ReplaceInline(*InRootNonSandboxPath, *InRootSandboxPath);
-		ResolvedSandboxPath.RemoveAt(ResolvedSandboxPath.Len() - 1, 1, EAllowShrinking::No);
+		ResolvedSandboxPath.RemoveAt(ResolvedSandboxPath.Len() - 1, EAllowShrinking::No);
 		return FConcertSandboxPlatformFilePath(MoveTemp(InNonSandboxPath), MoveTemp(ResolvedSandboxPath));
 	}
 
@@ -55,7 +55,7 @@ public:
 		FString ResolvedNonSandboxPath = InSandboxPath + TEXT("/");
 		checkf(ResolvedNonSandboxPath.StartsWith(InRootSandboxPath), TEXT("Path '%s' was not under the root '%s'!"), *InRootSandboxPath, *InRootSandboxPath);
 		ResolvedNonSandboxPath.ReplaceInline(*InRootSandboxPath, *InRootNonSandboxPath);
-		ResolvedNonSandboxPath.RemoveAt(ResolvedNonSandboxPath.Len() - 1, 1, EAllowShrinking::No);
+		ResolvedNonSandboxPath.RemoveAt(ResolvedNonSandboxPath.Len() - 1, EAllowShrinking::No);
 		return FConcertSandboxPlatformFilePath(MoveTemp(ResolvedNonSandboxPath), MoveTemp(InSandboxPath));
 	}
 

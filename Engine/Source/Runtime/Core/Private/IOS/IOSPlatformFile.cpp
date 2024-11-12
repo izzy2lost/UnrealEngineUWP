@@ -5,19 +5,21 @@
 #include "Containers/StringConv.h"
 #include "HAL/PlatformTime.h"
 #include "Templates/Function.h"
+#include "HAL/CriticalSection.h"
 #include "HAL/PlatformProcess.h"
 #include "Misc/Parse.h"
 #include "Misc/CoreMisc.h"
 #include "Misc/CommandLine.h"
 #include "Misc/App.h"
 #include "Misc/Paths.h"
+#include "Misc/ScopeLock.h"
 
 #include "Async/MappedFileHandle.h"
 #include <sys/mman.h>
 
-//#if PLATFORM_IOS
-//#include "IPlatformFileSandboxWrapper.h"
-//#endif
+#if PLATFORM_USE_PLATFORM_FILE_MANAGED_STORAGE_WRAPPER
+#include "HAL/IPlatformFileManagedStorageWrapper.h"
+#endif //PLATFORM_USE_PLATFORM_FILE_MANAGED_STORAGE_WRAPPER
 
 // make an FTimeSpan object that represents the "epoch" for time_t (from a stat struct)
 const FDateTime IOSEpoch(1970, 1, 1);
@@ -184,6 +186,43 @@ public:
         }
 	}
 
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+	{
+		if (BytesToRead < 0 || Offset < 0)
+		{
+			return false;
+		}
+
+		if (BytesToRead == 0)
+		{
+			return true;
+		}
+
+#if MANAGE_FILE_HANDLES_IOS
+		if (IsManaged())
+		{
+			ActivateSlot();
+		}
+#endif //MANAGE_FILE_HANDLES_IOS
+
+		do
+		{
+			size_t BytesToRead32 = static_cast<size_t>(FMath::Min<int64>(READWRITE_SIZE, BytesToRead));
+			ssize_t BytesRead = pread(FileHandle, Destination, BytesToRead, Offset);
+
+			if (BytesRead != BytesToRead32)
+			{
+				return false;
+			}
+
+			Offset += BytesRead;
+			BytesToRead -= BytesToRead32;
+
+		} while (BytesToRead > 0);
+
+		return true;
+	}
+
 	virtual bool Seek( int64 NewPosition ) override
 	{
 		check(NewPosition >= 0);
@@ -279,19 +318,26 @@ public:
         }
 	}
 
-	virtual bool Write( const uint8* Source, int64 BytesToWrite ) override
+	virtual bool Write(const uint8* Source, int64 BytesToWrite) override
 	{
-		while (BytesToWrite)
+		while (BytesToWrite > 0)
 		{
-			check(BytesToWrite >= 0);
-			int64 ThisSize = FMath::Min<int64>(READWRITE_SIZE, BytesToWrite);
-			check(Source);
-			if (write(FileHandle, Source, ThisSize) != ThisSize)
+			const int64 ThisSize = FMath::Min<int64>(READWRITE_SIZE, BytesToWrite);
+			const int64 Written = write(FileHandle, Source, ThisSize);
+			if (Written <= 0)
 			{
-				return false;
+				if (errno == EINTR)
+				{
+					continue;
+				}
+				else
+				{
+					return false;
+				}
 			}
-			Source += ThisSize;
-			BytesToWrite -= ThisSize;
+			check(Written <= ThisSize);
+			Source += Written;
+			BytesToWrite -= Written;
 		}
 		return true;
 	}
@@ -308,6 +354,9 @@ private:
 
     void ActivateSlot()
     {
+		static FCriticalSection LockHandles;
+		FScopeLock Lock(&LockHandles);
+
         if( IsManaged() )
         {
             if( ManagedFiles[HandleSlot].ID != FileID )
@@ -596,7 +645,10 @@ int64 FIOSPlatformFile::FileSize(const TCHAR* Filename)
 		if(stat(TCHAR_TO_UTF8(*ConvertToIOSPath(NormalizedFilename, true, false)), &FileInfo) == -1)
 		{
 			// if not in the private write path, check the public write path
-			stat(TCHAR_TO_UTF8(*ConvertToIOSPath(NormalizedFilename, true, true)), &FileInfo);
+			if(stat(TCHAR_TO_UTF8(*ConvertToIOSPath(NormalizedFilename, true, true)), &FileInfo) == -1)
+			{
+				return -1;
+			}
 		}
 	}
 
@@ -715,7 +767,6 @@ FDateTime FIOSPlatformFile::GetTimeStamp(const TCHAR* Filename)
 	// convert _stat time to FDateTime
 	FTimespan TimeSinceEpoch(0, 0, FileInfo.st_mtime);
 	return IOSEpoch + TimeSinceEpoch;
-
 }
 
 void FIOSPlatformFile::SetTimeStamp(const TCHAR* Filename, const FDateTime DateTime)
@@ -836,13 +887,13 @@ IFileHandle* FIOSPlatformFile::OpenWrite(const TCHAR* Filename, bool bAppend, bo
 	FString IOSFilename = ConvertToIOSPath(NormalizeFilename(Filename), true, bCreatePublicFiles);
 	int32 Handle = open(TCHAR_TO_UTF8(*IOSFilename), Flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
 
-	if (!bAppend)
-	{
-		ftruncate(Handle, 0);
-	}
-
 	if (Handle != -1)
 	{
+		if (!bAppend)
+		{
+			ftruncate(Handle, 0);
+		}
+
 		FIOSFileHandle* FileHandleIOS = new FIOSFileHandle(Handle, IOSFilename, false);
 		if (bAppend)
 		{
@@ -884,7 +935,10 @@ IMappedFileHandle* FIOSPlatformFile::OpenMapped(const TCHAR* Filename)
 			struct stat FileInfo;
 			FileInfo.st_size = -1;
 			// check the read path
-			fstat(Handle, &FileInfo);
+			if(fstat(Handle, &FileInfo) == -1)
+			{
+				return NULL;
+			}
 			uint64 FileSize = FileInfo.st_size;
 
 			return new FIOSMappedFileHandle(Handle, FileSize, FinalPath);
@@ -1047,6 +1101,13 @@ FString FIOSPlatformFile::ConvertToIOSPath(const FString& Filename, bool bForWri
 	if (Result.Contains(TEXT("/OnDemandResources/")) || Result.StartsWith(TEXT("/var/")))
 	{
 		return Result;
+	}
+
+	if (Result.StartsWith(TEXT("~/")))
+	{
+		static FString ReadPathBase = FString([[NSBundle mainBundle]bundlePath] );
+		Result.ReplaceInline(TEXT("~"), TEXT(""));
+		return ReadPathBase + Result;
 	}
 	
 	FPaths::MakePlatformFilename(Result);

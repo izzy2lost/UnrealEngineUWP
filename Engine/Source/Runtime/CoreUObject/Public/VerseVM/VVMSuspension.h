@@ -14,12 +14,14 @@ namespace Verse
 struct FOp;
 struct VFailureContext;
 struct VProcedure;
+struct VTask;
 
 struct VSuspension : VCell
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 
 	TWriteBarrier<VFailureContext> FailureContext;
+	TWriteBarrier<VTask> Task;
 	TWriteBarrier<VSuspension> Next;
 
 	VSuspension& Tail()
@@ -33,9 +35,10 @@ struct VSuspension : VCell
 	}
 
 protected:
-	VSuspension(FAllocationContext Context, VEmergentType* EmergentType, VFailureContext& FailureContext)
+	VSuspension(FAllocationContext Context, VEmergentType* EmergentType, VFailureContext* FailureContext, VTask* Task)
 		: VCell(Context, EmergentType)
 		, FailureContext(Context, FailureContext)
+		, Task(Context, Task)
 	{
 	}
 };
@@ -46,10 +49,10 @@ struct VBytecodeSuspension : public VSuspension
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 	template <typename Captures>
-	static VBytecodeSuspension& New(FAllocationContext Context, VFailureContext& FailureContext, VProcedure& Procedure, FOp* PC, const Captures& TheCaptures)
+	static VBytecodeSuspension& New(FAllocationContext Context, VFailureContext& FailureContext, VTask& Task, VProcedure& Procedure, FOp* PC, const Captures& TheCaptures)
 	{
 		static_assert(std::is_same_v<Captures, std::decay_t<Captures>>);
-		return *new (Context.AllocateFastCell(CapturesOffset<Captures>() + sizeof(Captures))) VBytecodeSuspension(Context, FailureContext, Procedure, PC, TheCaptures);
+		return *new (Context.AllocateFastCell(CapturesOffset<Captures>() + sizeof(Captures))) VBytecodeSuspension(Context, FailureContext, Task, Procedure, PC, TheCaptures);
 	}
 
 	TWriteBarrier<VProcedure> Procedure;
@@ -73,8 +76,8 @@ private:
 	}
 
 	template <typename Captures>
-	VBytecodeSuspension(FAllocationContext Context, VFailureContext& FailureContext, VProcedure& Procedure, FOp* PC, const Captures& TheCaptures)
-		: VSuspension(Context, &GlobalTrivialEmergentType.Get(Context), FailureContext)
+	VBytecodeSuspension(FAllocationContext Context, VFailureContext& FailureContext, VTask& Task, VProcedure& Procedure, FOp* PC, const Captures& TheCaptures)
+		: VSuspension(Context, &GlobalTrivialEmergentType.Get(Context), &FailureContext, &Task)
 		, Procedure(Context, &Procedure)
 		, PC(PC)
 	{
@@ -102,9 +105,9 @@ struct VLambdaSuspension : public VSuspension
 	CallbackType Callback;
 
 	template <typename... Args>
-	static VLambdaSuspension& New(FAllocationContext Context, VFailureContext& FailureContext, CallbackType Callback, Args&&... TheArgs)
+	static VLambdaSuspension& New(FAllocationContext Context, VFailureContext& FailureContext, VTask& Task, CallbackType Callback, Args&&... TheArgs)
 	{
-		return *new (Context.AllocateFastCell(AllocationSize(sizeof...(Args)))) VLambdaSuspension(Context, FailureContext, Callback, std::forward<Args>(TheArgs)...);
+		return *new (Context.AllocateFastCell(AllocationSize(sizeof...(Args)))) VLambdaSuspension(Context, FailureContext, Task, Callback, std::forward<Args>(TheArgs)...);
 	}
 
 private:
@@ -119,8 +122,8 @@ private:
 	}
 
 	template <typename... ArgsType>
-	VLambdaSuspension(FAllocationContext Context, VFailureContext& FailureContext, CallbackType Callback, ArgsType&&... TheArgs)
-		: VSuspension(Context, &GlobalTrivialEmergentType.Get(Context), FailureContext)
+	VLambdaSuspension(FAllocationContext Context, VFailureContext& FailureContext, VTask& Task, CallbackType Callback, ArgsType&&... TheArgs)
+		: VSuspension(Context, &GlobalTrivialEmergentType.Get(Context), &FailureContext, &Task)
 		, NumValues(sizeof...(ArgsType))
 		, Callback(Callback)
 	{

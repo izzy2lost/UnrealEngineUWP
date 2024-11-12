@@ -108,7 +108,7 @@ TFuture<void> UWebAPIDefinitionFactory::PostImportWebAPI(UWebAPIDefinition* InDe
 		{
 			// check if either built-in type, or Model property is set
 			return InGeneratedType->bIsBuiltinType
-			|| !InGeneratedType->Model.IsNull()
+			|| InGeneratedType->GetModel()
 			|| InGeneratedType->SchemaType != EWebAPISchemaType::Model;
 		});
 

@@ -4,9 +4,12 @@
 
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
+#include "Misc/IntrusiveUnsetOptionalState.h"
 #include "Misc/OptionalFwd.h"
+#include "Templates/Requires.h"
 #include "Templates/UnrealTypeTraits.h"
 
+#include <gsl/pointers>
 #include <type_traits>
 
 class FArchive;
@@ -47,14 +50,23 @@ public:
 	}
 
 	/**
+	 * Converts from gsl::not_null
+	 */
+	template <typename OtherType, typename = std::enable_if_t<std::is_convertible<OtherType, ObjectType*>::value>>
+	FORCEINLINE TNonNullPtr(const gsl::not_null<OtherType>& Other)
+		: Object(Other.get())
+	{
+	}
+
+	/**
 	 * Constructs a non-null pointer from another non-null pointer
 	 */
 	template <
-		typename OtherObjectType,
-		decltype(ImplicitConv<ObjectType*>((OtherObjectType*)nullptr))* = nullptr
+		typename OtherObjectType
+		UE_REQUIRES(std::is_convertible_v<OtherObjectType*, ObjectType*>)
 	>
 	FORCEINLINE TNonNullPtr(const TNonNullPtr<OtherObjectType>& Other)
-		: Object(Other.Object)
+		: Object(Other.Get())
 	{
 	}
 
@@ -82,14 +94,77 @@ public:
 	 * Assignment operator taking another TNonNullPtr
 	 */
 	template <
-		typename OtherObjectType,
-		decltype(ImplicitConv<ObjectType*>((OtherObjectType*)nullptr))* = nullptr
+		typename OtherObjectType
+		UE_REQUIRES(std::is_convertible_v<OtherObjectType*, ObjectType*>)
 	>
 	FORCEINLINE TNonNullPtr& operator=(const TNonNullPtr<OtherObjectType>& Other)
 	{
-		Object = Other.Object;
+		Object = Other.Get();
 		return *this;
 	}
+
+
+	/**
+	 * Assignment operator taking a gsl::not_null
+	 */
+	template <typename OtherType, typename = std::enable_if_t<std::is_convertible<OtherType, ObjectType*>::value>>
+	FORCEINLINE TNonNullPtr& operator=(const gsl::not_null<OtherType>& Other)
+	{
+		Object = Other.Get();
+		return *this;
+	}
+
+	/**
+	 * Comparison, will also handle default constructed state
+	 */
+	FORCEINLINE bool operator==(const TNonNullPtr& Other) const
+	{
+		return Object == Other.Object;
+	}
+#if !PLATFORM_COMPILER_HAS_GENERATED_COMPARISON_OPERATORS
+	FORCEINLINE bool operator!=(const TNonNullPtr& Other) const
+	{
+		return Object != Other.Object;
+	}
+#endif
+
+	/**
+	 * Comparison with a raw pointer
+	 */
+	template <
+		typename OtherObjectType
+		UE_REQUIRES(UE_REQUIRES_EXPR(std::declval<ObjectType*>() == std::declval<OtherObjectType*>()))
+	>
+	FORCEINLINE bool operator==(OtherObjectType* Other) const
+	{
+		return Object == Other;
+	}
+	template <
+		typename OtherObjectType
+		UE_REQUIRES(UE_REQUIRES_EXPR(std::declval<OtherObjectType*>() == std::declval<ObjectType*>()))
+	>
+	FORCEINLINE friend bool operator==(OtherObjectType* Lhs, const TNonNullPtr& Rhs)
+	{
+		return Lhs == Rhs.Object;
+	}
+#if !PLATFORM_COMPILER_HAS_GENERATED_COMPARISON_OPERATORS
+	template <
+		typename OtherObjectType
+		UE_REQUIRES(UE_REQUIRES_EXPR(std::declval<ObjectType*>() == std::declval<OtherObjectType*>()))
+	>
+	FORCEINLINE bool operator!=(OtherObjectType* Other) const
+	{
+		return Object != Other;
+	}
+	template <
+		typename OtherObjectType
+		UE_REQUIRES(UE_REQUIRES_EXPR(std::declval<OtherObjectType*>() == std::declval<ObjectType*>()))
+	>
+	FORCEINLINE friend bool operator!=(OtherObjectType* Lhs, const TNonNullPtr& Rhs)
+	{
+		return Lhs != Rhs.Object;
+	}
+#endif
 
 	/**
 	 * Returns the internal pointer
@@ -98,6 +173,15 @@ public:
 	{
 		ensureMsgf(Object, TEXT("Tried to access null pointer!"));
 		return Object;
+	}
+	
+	/**
+	 * Converts to a gsl::not_null
+	 */
+	FORCEINLINE operator gsl::not_null<ObjectType*>() const
+	{
+		ensureMsgf(Object, TEXT("Tried to access null pointer!"));
+		return gsl::make_not_null<ObjectType*>(Object);
 	}
 
 	/**
@@ -136,90 +220,41 @@ public:
 	{
 		return Object != nullptr;
 	}
+	
+	/**
+	 * Use IsInitialized if needed
+	 */
+	explicit operator bool() const = delete;
+
+	////////////////////////////////////////////////////
+	// Start - intrusive TOptional<TNonNullPtr> state //
+	////////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TNonNullPtr;
+	FORCEINLINE explicit TNonNullPtr(FIntrusiveUnsetOptionalState)
+		: Object(nullptr)
+	{
+	}
+	FORCEINLINE bool operator==(FIntrusiveUnsetOptionalState) const
+	{
+		return Object == nullptr;
+	}
+	//////////////////////////////////////////////////
+	// End - intrusive TOptional<TNonNullPtr> state //
+	//////////////////////////////////////////////////
 
 private:
 
 	/** The object we're holding a reference to. */
 	ObjectType* Object;
-
 };
 
-
-/**
- * Specialization of TOptional for TNonNullPtr value types
- */
-template<typename OptionalType>
-struct TOptional<TNonNullPtr<OptionalType>>
+/** Convenience function to turn an `TOptional<TNonNullPtr<T>>` back into a nullable T* */
+template<typename ObjectType>
+inline ObjectType* GetRawPointerOrNull(const TOptional<TNonNullPtr<ObjectType>>& Optional)
 {
-public:
-	/** Construct an OptionaType with a valid value. */
-	TOptional(const TNonNullPtr<OptionalType>& InPointer)
-		: Pointer(InPointer)
-	{
-	}
-
-	/** Construct an OptionalType with no value; i.e. unset */
-	TOptional()
-		: Pointer(nullptr)
-	{
-	}
-
-	/** Construct an OptionalType with an invalid value. */
-	TOptional(FNullOpt)
-		: TOptional()
-	{
-	}
-
-	TOptional& operator=(OptionalType* InPointer)
-	{
-		Pointer = InPointer;
-		return *this;
-	}
-
-	void Reset()
-	{
-		Pointer = nullptr;
-	}
-
-	OptionalType* Emplace(OptionalType* InPointer)
-	{
-		Pointer = InPointer;
-		return InPointer;
-	}
-
-	bool operator==(const TOptional& rhs) const
-	{
-		return Pointer == rhs.Pointer;
-	}
-
-	bool operator!=(const TOptional& rhs) const
-	{
-		return Pointer != rhs.Pointer;
-	}
-
-	friend FArchive& operator<<(FArchive& Ar, TOptional& Optional)
-	{
-		Ar << Optional.Pointer;
-		return Ar;
-	}
-
-	/** @return true when the value is meaningful; false if calling GetValue() is undefined. */
-	bool IsSet() const { return Pointer != nullptr; }
-	FORCEINLINE explicit operator bool() const { return Pointer != nullptr; }
-
-	/** @return The optional value; undefined when IsSet() returns false. */
-	OptionalType* GetValue() const { checkf(IsSet(), TEXT("It is an error to call GetValue() on an unset TOptional. Please either check IsSet() or use Get(DefaultValue) instead.")); return Pointer; }
-
-	OptionalType* operator->() const { return Pointer; }
-
-	OptionalType& operator*() const { return *Pointer; }
-
-	/** @return The optional value when set; DefaultValue otherwise. */
-	OptionalType* Get(OptionalType* DefaultPointer) const { return IsSet() ? Pointer : DefaultPointer; }
-
-private:
-	OptionalType* Pointer;
-};
+	return Optional.IsSet() ? Optional->Get() : nullptr;
+}
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Templates/EnableIf.h"

@@ -23,6 +23,9 @@ public class MovieRenderPipelineCore : ModuleRules
 				"DeveloperSettings",
 				"ClothingSystemRuntimeInterface",
 				"Slate",
+				"OpenColorIOWrapper",
+				"ImageCore",
+				"ChaosClothAssetEngine",
 			}
 		);
 
@@ -36,7 +39,6 @@ public class MovieRenderPipelineCore : ModuleRules
 				"ImageWriteQueue", // For debug tile writing
 				"OpenColorIO",
 				"CinematicCamera",
-				"StructUtils"
 			}
 		);
 
@@ -46,9 +48,16 @@ public class MovieRenderPipelineCore : ModuleRules
 		        new string[]
 		        {
 			        "ClassViewer",
+			        "ContentBrowserData",
+			        "DataLayerEditor",
+			        "EditorWidgets",
+			        "Layers",
 			        "SceneOutliner",
 			        "UnrealEd",
-		        });
+					"SettingsEditor",
+					"Slate",
+					"SlateCore",
+				});
 	        
 			PublicDependencyModuleNames.Add("MovieSceneTools");
         }

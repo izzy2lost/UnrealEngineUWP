@@ -65,6 +65,12 @@ TAutoConsoleVariable<int32> FAndroidPlatformRHIFramePacer::CVarDisableOpenGLGPUS
 	TEXT("When true, android OpenGL will not prevent the GPU from running more than one frame behind. This will allow higher performance on some devices but increase input latency."),
 	ECVF_RenderThreadSafe);
 
+TAutoConsoleVariable<int32> FAndroidPlatformRHIFramePacer::CVarSwappyGPUFrameTimeFence(
+	TEXT("r.Android.SwappyGPUFrameTimeFence"),
+	200,
+	TEXT("Android Swappy GPU Frame Time Fence in milliseconds. Defaulted to 200 ms"),
+	ECVF_Default);
+
 IAndroidFramePacer* FAndroidPlatformRHIFramePacer::FramePacer = nullptr;
 int32 FAndroidPlatformRHIFramePacer::InternalFramePace = 0;
 

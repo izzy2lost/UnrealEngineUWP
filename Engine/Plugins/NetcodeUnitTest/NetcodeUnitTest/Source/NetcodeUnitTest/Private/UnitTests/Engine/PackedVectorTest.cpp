@@ -122,7 +122,7 @@ bool UPackedVectorTest::ExecuteFloatTest(TMap<FString, bool>& TestResults)
 
 			const float ScalarValue = Test.TestValues[ValueIt];
 			const FVector3f WriteValue(ScalarValue);
-			FVector3f ReadValue;
+			FVector3f ReadValue = FVector3f::ZeroVector;
 
 			const bool bOverflowOrNan = !Test.Writer(WriteValue, Writer);
 			bool LocalSuccess = !Writer.GetError();
@@ -230,7 +230,7 @@ bool UPackedVectorTest::ExecuteDoubleTest(TMap<FString, bool>& TestResults)
 
 			const double ScalarValue = Test.TestValues[ValueIt];
 			const FVector3d WriteValue(ScalarValue);
-			FVector3d ReadValue;
+			FVector3d ReadValue = FVector3d::ZeroVector;
 
 			const bool bOverflowOrNan = !Test.Writer(WriteValue, Writer);
 			bool LocalSuccess = !Writer.GetError();
@@ -321,7 +321,7 @@ bool UPackedVectorTest::ExecuteWriteDoubleReadFloatTest(TMap<FString, bool>& Tes
 
 			const double ScalarValue = Test.TestValues[ValueIt];
 			const FVector3d WriteValue(ScalarValue);
-			FVector3f ReadValue;
+			FVector3f ReadValue = FVector3f::ZeroVector;
 
 			const bool bOverflowOrNan = !Test.Writer(WriteValue, Writer);
 			bool LocalSuccess = !Writer.GetError();

@@ -10,6 +10,7 @@
 #include "PCGModule.h"
 #include "PCGSubsystem.h"
 #include "PCGWorldActor.h"
+#include "Grid/PCGGridDescriptor.h"
 #include "Grid/PCGPartitionActor.h"
 #include "Helpers/PCGActorHelpers.h"
 #include "Helpers/PCGHelpers.h"
@@ -25,7 +26,7 @@
 
 namespace PCGRuntimeGenSchedulerConstants
 {
-	const FString PooledPartitionActorName = TEXT("PCGRuntimeGenPartitionActor_POOLED");
+	const FString PooledPartitionActorName = TEXT("PCGRuntimePartitionGridActor_POOLED");
 }
 
 namespace PCGRuntimeGenSchedulerHelpers
@@ -54,6 +55,34 @@ namespace PCGRuntimeGenSchedulerHelpers
 		TEXT("pcg.RuntimeGeneration.BasePoolSize"),
 		100,
 		TEXT("Defines the base PartitionActor pool size for the RuntimeGeneration system. Cannot be less than 1."));
+
+	static FAutoConsoleCommand CommandFlushActorPool(
+		TEXT("pcg.RuntimeGeneration.FlushActorPool"),
+		TEXT("Flushes all pooled actors and regenerates all components."),
+		FConsoleCommandDelegate::CreateLambda([]()
+		{
+			if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+			{
+				PCGSubsystem->GetRuntimeGenScheduler()->FlushAllGeneratedActors();
+			}
+		}));
+
+	static TAutoConsoleVariable<bool> CVarHideActorsFromOutliner(
+		TEXT("pcg.RuntimeGeneration.HideActorsFromOutliner"),
+		true,
+		TEXT("Hides partition actors from Scene Outliner."),
+		FConsoleVariableDelegate::CreateLambda([](IConsoleVariable*)
+		{
+			if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+			{
+				PCGSubsystem->GetRuntimeGenScheduler()->FlushAllGeneratedActors();
+			}
+		}));
+}
+
+FPCGGridDescriptor FPCGRuntimeGenScheduler::FGridGenerationKey::GetGridDescriptor() const
+{
+	return FPCGGridDescriptor().SetGridSize(GetGridSize()).SetIsRuntime(true).SetIs2DGrid(GetOriginalComponent()->Use2DGrid());
 }
 
 FPCGRuntimeGenScheduler::FPCGRuntimeGenScheduler(UWorld* InWorld, FPCGActorAndComponentMapping* InActorAndComponentMapping)
@@ -161,13 +190,10 @@ bool FPCGRuntimeGenScheduler::ShouldTick()
 	// same behaviour as other things).
 	if (!World->IsGameWorld())
 	{
-		bool bAnyVisible = false;
-		for (FEditorViewportClient* EditorViewportClient : GEditor->GetAllViewportClients())
-		{
-			bAnyVisible |= EditorViewportClient->IsVisible();
-		}
+		FViewport* Viewport = GEditor ? GEditor->GetActiveViewport() : nullptr;
+		FEditorViewportClient* ViewportClient = Viewport ? static_cast<FEditorViewportClient*>(Viewport->GetClient()) : nullptr;
 
-		if (!bAnyVisible)
+		if (!ViewportClient || !ViewportClient->IsVisible())
 		{
 			return false;
 		}
@@ -247,7 +273,7 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGRuntimeGenScheduler::CollectLocalComponents);
 
-		if (!ensure(OriginalComponent) || !OriginalComponent->GetGraph())
+		if (!ensure(OriginalComponent) || !OriginalComponent->GetGraph() || !OriginalComponent->bActivated)
 		{
 			continue;
 		}
@@ -279,9 +305,10 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 
 				const FVector GenSourcePosition = GenSourcePositionOptional.GetValue();
 				const FBox OriginalComponentBounds = OriginalComponent->GetGridBounds();
+				const bool bIs2DGrid = OriginalComponent->Use2DGrid();
 
 				FVector ModifiedGenSourcePosition = GenSourcePosition;
-				if (InPCGWorldActor->bUse2DGrid)
+				if (bIs2DGrid)
 				{
 					ModifiedGenSourcePosition.Z = OriginalComponentBounds.Min.Z;
 				}
@@ -300,7 +327,8 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 					FGridGenerationKey Key(PCGHiGenGrid::UnboundedGridSize(), FIntVector(0), OriginalComponent);
 					if (!GeneratedComponents.Contains(Key))
 					{
-						AddComponentToGenerate(Key, GenSource, Policy, OriginalComponentBounds, InPCGWorldActor->bUse2DGrid);
+						check(Key.GetGridDescriptor().Is2DGrid() == bIs2DGrid);
+						AddComponentToGenerate(Key, GenSource, Policy, OriginalComponentBounds, bIs2DGrid);
 					}
 				}
 
@@ -310,16 +338,16 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 				{
 					ensure(PCGHiGenGrid::IsValidGridSize(GridSize));
 
-					const FIntVector GenSourceGridPosition = UPCGActorHelpers::GetCellCoord(GenSourcePosition, GridSize, InPCGWorldActor->bUse2DGrid);
+					const FIntVector GenSourceGridPosition = UPCGActorHelpers::GetCellCoord(GenSourcePosition, GridSize, bIs2DGrid);
 					const double GenerationRadius = OriginalComponent->GetGenerationRadiusFromGrid(PCGHiGenGrid::GridSizeToGrid(GridSize));
 					const int32 GridRadius = FMath::CeilToInt32(GenerationRadius / GridSize); // Radius discretized to # of grid cells.
-					const int32 VerticalGridRadius = InPCGWorldActor->bUse2DGrid ? 0 : GridRadius; // Flatten the vertical grid radius in the 2D case.
+					const int32 VerticalGridRadius = bIs2DGrid ? 0 : GridRadius; // Flatten the vertical grid radius in the 2D case.
 
 					const double HalfGridSize = GridSize / 2.0f;
 					FVector HalfExtent(HalfGridSize, HalfGridSize, HalfGridSize);
 
 					FBox ModifiedBounds = OriginalComponent->GetGridBounds();
-					if (InPCGWorldActor->bUse2DGrid)
+					if (bIs2DGrid)
 					{
 						FVector MinBounds = ModifiedBounds.Min;
 						FVector MaxBounds = ModifiedBounds.Max;
@@ -358,7 +386,7 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 									continue;
 								}
 
-								if (InPCGWorldActor->bUse2DGrid)
+								if (Key.GetGridDescriptor().Is2DGrid())
 								{
 									ModifiedGenSourcePosition.Z = IntersectedBounds.Min.Z;
 								}
@@ -368,7 +396,7 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 								const double LocalDistanceSquared = CellBounds.ComputeSquaredDistanceToPoint(ModifiedGenSourcePosition);
 								if (LocalDistanceSquared <= GenerationRadius * GenerationRadius)
 								{
-									AddComponentToGenerate(Key, GenSource, Policy, IntersectedBounds, InPCGWorldActor->bUse2DGrid);
+									AddComponentToGenerate(Key, GenSource, Policy, IntersectedBounds, Key.GetGridDescriptor().Is2DGrid());
 								}
 							}
 						}
@@ -383,7 +411,7 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGRuntimeGenScheduler::CollectNonPartitionedComponents);
 
-		if (!ensure(OriginalComponent) || !OriginalComponent->GetGraph())
+		if (!ensure(OriginalComponent) || !OriginalComponent->GetGraph() || !OriginalComponent->bActivated)
 		{
 			continue;
 		}
@@ -414,7 +442,7 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 				const FBox OriginalComponentBounds = OriginalComponent->GetGridBounds();
 
 				FVector ModifiedGenSourcePosition = GenSourcePosition;
-				if (InPCGWorldActor->bUse2DGrid)
+				if (OriginalComponent->Use2DGrid())
 				{
 					ModifiedGenSourcePosition.Z = OriginalComponentBounds.Min.Z;
 				}
@@ -448,16 +476,21 @@ void FPCGRuntimeGenScheduler::TickCleanup(const TSet<IPCGGenSourceBase*>& InGenS
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGRuntimeGenScheduler::SelectComponentsToCleanup);
 
-		const uint32 GridSize = GenerationKey.GetGridSize();
+		const FPCGGridDescriptor GridDescriptor = GenerationKey.GetGridDescriptor();
+		const EPCGHiGenGrid Grid = GridDescriptor.GetHiGenGrid();
 		const FIntVector& GridCoords = GenerationKey.GetGridCoords();
 		UPCGComponent* OriginalComponent = GenerationKey.GetOriginalComponent();
 		check(OriginalComponent);
 
-		const EPCGHiGenGrid Grid = PCGHiGenGrid::GridSizeToGrid(GridSize);
-
 		// If the Grid is unbounded, we have a non-partitioned or unbounded component.
 		if (Grid == EPCGHiGenGrid::Unbounded)
 		{
+			if (!OriginalComponent->bActivated)
+			{
+				ComponentsToClean.Add({ GenerationKey, OriginalComponent });
+				continue;
+			}
+
 			const FBox Bounds = OriginalComponent->GetGridBounds();
 
 			double MinSquaredDistanceToGenSource = UE_DOUBLE_BIG_NUMBER;
@@ -477,7 +510,7 @@ void FPCGRuntimeGenScheduler::TickCleanup(const TSet<IPCGGenSourceBase*>& InGenS
 				FVector GenSourcePosition = GenSourcePositionOptional.GetValue();
 
 				// Only consider 2D distance when using a 2D grid.
-				if (InPCGWorldActor->bUse2DGrid)
+				if (GridDescriptor.Is2DGrid())
 				{
 					GenSourcePosition.Z = Bounds.Min.Z;
 				}
@@ -494,9 +527,9 @@ void FPCGRuntimeGenScheduler::TickCleanup(const TSet<IPCGGenSourceBase*>& InGenS
 		// Otherwise, we have a local component.
 		else
 		{
-			UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(GridSize, GridCoords, OriginalComponent, /*bRuntimeGenerated=*/true);
+			UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(GridDescriptor, GridCoords, OriginalComponent);
 			APCGPartitionActor* PartitionActor = LocalComponent ? Cast<APCGPartitionActor>(LocalComponent->GetOwner()) : nullptr;
-			if (!PartitionActor)
+			if (!PartitionActor || !OriginalComponent->bActivated)
 			{
 				// Attempt to clean even in failure case to avoid leaking resources.
 				ComponentsToClean.Add({ GenerationKey, LocalComponent });
@@ -522,7 +555,7 @@ void FPCGRuntimeGenScheduler::TickCleanup(const TSet<IPCGGenSourceBase*>& InGenS
 				FVector GenSourcePosition = GenSourcePositionOptional.GetValue();
 
 				// Only consider 2D distance when using a 2D grid.
-				if (InPCGWorldActor->bUse2DGrid)
+				if (GridDescriptor.Is2DGrid())
 				{
 					GenSourcePosition.Z = GridBounds.Min.Z;
 				}
@@ -555,12 +588,12 @@ void FPCGRuntimeGenScheduler::TickScheduleGeneration(TMap<FGridGenerationKey, do
 		const FGridGenerationKey& Key = GenerateEntry.Key;
 		const double Priority = GenerateEntry.Value;
 
-		const uint32 GridSize = GenerateEntry.Key.GetGridSize();
+		const FPCGGridDescriptor GridDescriptor = Key.GetGridDescriptor();
+		const EPCGHiGenGrid Grid = GridDescriptor.GetHiGenGrid();
+
 		const FIntVector GridCoords = GenerateEntry.Key.GetGridCoords();
 		UPCGComponent* OriginalComponent = GenerateEntry.Key.GetOriginalComponent();
 		check(OriginalComponent);
-
-		const EPCGHiGenGrid Grid = PCGHiGenGrid::GridSizeToGrid(GridSize);
 
 		// If the Grid is unbounded, we have a non-partitioned or unbounded component.
 		if (Grid == EPCGHiGenGrid::Unbounded)
@@ -580,7 +613,7 @@ void FPCGRuntimeGenScheduler::TickScheduleGeneration(TMap<FGridGenerationKey, do
 		else
 		{
 			// Grab local component and PA if they exist already.
-			UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(GridSize, GridCoords, OriginalComponent, /*bRuntimeGenerated=*/true);
+			UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(GridDescriptor, GridCoords, OriginalComponent);
 			TObjectPtr<APCGPartitionActor> PartitionActor = LocalComponent ? Cast<APCGPartitionActor>(LocalComponent->GetOwner()) : nullptr;
 
 			if (!LocalComponent || !ensure(PartitionActor))
@@ -589,12 +622,12 @@ void FPCGRuntimeGenScheduler::TickScheduleGeneration(TMap<FGridGenerationKey, do
 				if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnablePooling.GetValueOnAnyThread())
 				{
 					// Get RuntimeGenPA from pool.
-					PartitionActor = GetPartitionActorFromPool(GridSize, GridCoords);
+					PartitionActor = GetPartitionActorFromPool(GridDescriptor, GridCoords);
 
 					if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnableDebugging.GetValueOnAnyThread())
 					{
 						UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] UNPOOL PARTITION ACTOR: '%s' (priority %lf, %d remaining out of %d)"),
-							*APCGPartitionActor::GetPCGPartitionActorName(GridSize, GridCoords, /*bRuntimeGenerated=*/true),
+							*APCGPartitionActor::GetPCGPartitionActorName(GridDescriptor, GridCoords),
 							Priority,
 							PartitionActorPool.Num(),
 							PartitionActorPoolSize);
@@ -605,12 +638,16 @@ void FPCGRuntimeGenScheduler::TickScheduleGeneration(TMap<FGridGenerationKey, do
 					if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnableDebugging.GetValueOnAnyThread())
 					{
 						UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] CREATE PARTITION ACTOR: '%s' (priority %lf)"),
-							*APCGPartitionActor::GetPCGPartitionActorName(GridSize, GridCoords, /*bRuntimeGenerated=*/true),
+							*APCGPartitionActor::GetPCGPartitionActorName(GridDescriptor, GridCoords),
 							Priority);
 					}
 
 					// Find or Create RuntimeGenPA.
-					PartitionActor = Subsystem->FindOrCreatePCGPartitionActor(FGuid(), GridSize, GridCoords, /*bRuntimeGenerated=*/true);
+					PartitionActor = Subsystem->FindOrCreatePCGPartitionActor(
+						GridDescriptor,
+						GridCoords,
+						/*bCanCreateActor=*/true,
+						PCGRuntimeGenSchedulerHelpers::CVarHideActorsFromOutliner.GetValueOnAnyThread());
 				}
 
 				if (!ensure(PartitionActor))
@@ -620,12 +657,12 @@ void FPCGRuntimeGenScheduler::TickScheduleGeneration(TMap<FGridGenerationKey, do
 
 				// Update component mapping for this PA (add local component).
 				{
-					FWriteScopeLock WriteLock(ActorAndComponentMapping->ComponentToRuntimeGenPartitionActorsMapLock);
-					TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = ActorAndComponentMapping->ComponentToRuntimeGenPartitionActorsMap.Find(OriginalComponent);
+					FWriteScopeLock WriteLock(ActorAndComponentMapping->ComponentToPartitionActorsMapLock);
+					TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = ActorAndComponentMapping->ComponentToPartitionActorsMap.Find(OriginalComponent);
 
 					if (!PartitionActorsPtr)
 					{
-						PartitionActorsPtr = &ActorAndComponentMapping->ComponentToRuntimeGenPartitionActorsMap.Emplace(OriginalComponent);
+						PartitionActorsPtr = &ActorAndComponentMapping->ComponentToPartitionActorsMap.Emplace(OriginalComponent);
 					}
 
 					// Log this original component before setting up the PA, so that we early out from RefreshComponent if it gets called
@@ -680,6 +717,13 @@ void FPCGRuntimeGenScheduler::TickScheduleGeneration(TMap<FGridGenerationKey, do
 
 void FPCGRuntimeGenScheduler::TickCVars(const APCGWorldActor* InPCGWorldActor)
 {
+	if (bActorFlushRequested && Subsystem && Subsystem->GetPCGWorldActor())
+	{
+		CleanupLocalComponents(Subsystem->GetPCGWorldActor());
+		ResetPartitionActorPoolToSize(PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationBasePoolSize.GetValueOnAnyThread());
+	}
+	bActorFlushRequested = false;
+
 	// If pooling has been disabled since last frame, we should destroy the pool.
 	const bool bPoolingEnabled = PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnablePooling.GetValueOnAnyThread();
 
@@ -715,8 +759,6 @@ void FPCGRuntimeGenScheduler::OnOriginalComponentRegistered(UPCGComponent* InOri
 		return;
 	}
 
-	CreateGridGuidsForComponent(InOriginalComponent);
-
 	// When an original/non-partitioned component is registered, we need to dirty the state.
 	bAnyRuntimeGenComponentsExistDirty = true;
 }
@@ -745,13 +787,14 @@ void FPCGRuntimeGenScheduler::OnOriginalComponentUnregistered(UPCGComponent* InO
 
 	for (FGridGenerationKey GenerationKey : KeysToCleanup)
 	{
-		const uint32 GridSize = GenerationKey.GetGridSize();
-		const bool bIsOriginalComponent = GridSize == PCGHiGenGrid::UnboundedGridSize();
+		const FPCGGridDescriptor GridDescriptor = GenerationKey.GetGridDescriptor();
+		const bool bIsOriginalComponent = GridDescriptor.GetGridSize() == PCGHiGenGrid::UnboundedGridSize();
 
 		// Get the generated component for this key (might be a local component).
-		UPCGComponent* ComponentToCleanup = bIsOriginalComponent ? InOriginalComponent : ActorAndComponentMapping->GetLocalComponent(GridSize, GenerationKey.GetGridCoords(), InOriginalComponent, /*bRuntimeGenerated=*/true);
+		UPCGComponent* ComponentToCleanup = bIsOriginalComponent ? InOriginalComponent : ActorAndComponentMapping->GetLocalComponent(GridDescriptor, GenerationKey.GetGridCoords(), InOriginalComponent);
 
-		if (ensure(ComponentToCleanup))
+		// It is possible for a PartitionActor's LocalComponent to have been cleaned up by the APCGPartitionActor::EndPlay call depending on the order in which actors get called
+		if (ComponentToCleanup)
 		{
 			CleanupComponent(GenerationKey, ComponentToCleanup);
 		}
@@ -771,17 +814,16 @@ void FPCGRuntimeGenScheduler::CleanupLocalComponents(const APCGWorldActor* InPCG
 	// Find all generated local components.
 	for (FGridGenerationKey GenerationKey : GeneratedComponents)
 	{
-		const uint32 GridSize = GenerationKey.GetGridSize();
+		const FPCGGridDescriptor GridDescriptor = GenerationKey.GetGridDescriptor();
+		const EPCGHiGenGrid Grid = GridDescriptor.GetHiGenGrid();
 		const FIntVector& GridCoords = GenerationKey.GetGridCoords();
 		UPCGComponent* OriginalComponent = GenerationKey.GetOriginalComponent();
 		check(OriginalComponent);
 
-		const EPCGHiGenGrid Grid = PCGHiGenGrid::GridSizeToGrid(GridSize);
-
 		// Only operate on LocalComponents.
 		if (Grid != EPCGHiGenGrid::Unbounded)
 		{
-			UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(GridSize, GridCoords, OriginalComponent, /*bRuntimeGenerated=*/true);
+			UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(GridDescriptor, GridCoords, OriginalComponent);
 			ComponentsToClean.Add({ GenerationKey, LocalComponent });
 		}
 	}
@@ -798,22 +840,23 @@ void FPCGRuntimeGenScheduler::CleanupComponent(const FGridGenerationKey& Generat
 
 	check(ActorAndComponentMapping);
 
-	const uint32 GridSize = GenerationKey.GetGridSize();
+	const FPCGGridDescriptor GridDescriptor = GenerationKey.GetGridDescriptor();
+	const EPCGHiGenGrid Grid = GridDescriptor.GetHiGenGrid();
+
 	const FIntVector GridCoords = GenerationKey.GetGridCoords();
 
 	APCGPartitionActor* PartitionActor = nullptr;
 
 	if (!GeneratedComponent)
 	{
-		UE_LOG(LogPCG, Warning, TEXT("Runtime generated component could not be recovered on grid %d at (%d, %d, %d). It has been lost or destroyed."), GridSize, GridCoords.X, GridCoords.Y, GridCoords.Z);
+		UE_LOG(LogPCG, Warning, TEXT("Runtime generated component could not be recovered on grid %d at (%d, %d, %d). It has been lost or destroyed."), GridDescriptor.GetGridSize(), GridCoords.X, GridCoords.Y, GridCoords.Z);
 
 		// If the GeneratedComponent has been lost for some reason, get the PA directly from the ActorAndComponentMapping.
-		PartitionActor = ActorAndComponentMapping->GetPartitionActor(GridSize, GridCoords, /*bRuntimeGenerated=*/true);
+		PartitionActor = ActorAndComponentMapping->GetPartitionActor(GridDescriptor, GridCoords);
 	}
 	else // If the GeneratedComponent does exist, we can clean it up!.
 	{
 		PartitionActor = Cast<APCGPartitionActor>(GeneratedComponent->GetOwner());
-		const EPCGHiGenGrid Grid = PCGHiGenGrid::GridSizeToGrid(GridSize);
 
 		// If the Grid is unbounded, we have a non-partitioned or unbounded component.
 		if (Grid == EPCGHiGenGrid::Unbounded)
@@ -840,8 +883,8 @@ void FPCGRuntimeGenScheduler::CleanupComponent(const FGridGenerationKey& Generat
 
 			// Remove component mapping.
 			{
-				FWriteScopeLock WriteLock(ActorAndComponentMapping->ComponentToRuntimeGenPartitionActorsMapLock);
-				TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = ActorAndComponentMapping->ComponentToRuntimeGenPartitionActorsMap.Find(OriginalComponent);
+				FWriteScopeLock WriteLock(ActorAndComponentMapping->ComponentToPartitionActorsMapLock);
+				TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = ActorAndComponentMapping->ComponentToPartitionActorsMap.Find(OriginalComponent);
 
 				if (PartitionActorsPtr)
 				{
@@ -849,7 +892,7 @@ void FPCGRuntimeGenScheduler::CleanupComponent(const FGridGenerationKey& Generat
 
 					if (PartitionActorsPtr->IsEmpty())
 					{
-						ActorAndComponentMapping->ComponentToRuntimeGenPartitionActorsMap.Remove(OriginalComponent);
+						ActorAndComponentMapping->ComponentToPartitionActorsMap.Remove(OriginalComponent);
 					}
 				}
 			}
@@ -869,7 +912,7 @@ void FPCGRuntimeGenScheduler::CleanupComponent(const FGridGenerationKey& Generat
 			}
 
 #if WITH_EDITOR
-			PartitionActor->Rename(nullptr, PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders);
+			PartitionActor->Rename(nullptr, PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty);
 			PartitionActor->SetActorLabel(*PCGRuntimeGenSchedulerConstants::PooledPartitionActorName);
 #endif
 			PartitionActorPool.Push(PartitionActor);
@@ -882,7 +925,7 @@ void FPCGRuntimeGenScheduler::CleanupComponent(const FGridGenerationKey& Generat
 			}
 
 #if WITH_EDITOR
-			PartitionActor->Rename(nullptr, PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders);
+			PartitionActor->Rename(nullptr, PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty);
 #endif
 			World->DestroyActor(PartitionActor);
 		}
@@ -901,19 +944,23 @@ void FPCGRuntimeGenScheduler::CleanupDelayedRefreshComponents()
 	// If it is not, it would be leaked instead of refreshed, so we should force a full cleanup.
 	for (const FGridGenerationKey& GenerationKey : GeneratedComponentsToRemove)
 	{
-		const uint32 GridSize = GenerationKey.GetGridSize();
-		const EPCGHiGenGrid Grid = PCGHiGenGrid::GridSizeToGrid(GridSize);
+		const FPCGGridDescriptor GridDescriptor = GenerationKey.GetGridDescriptor();
+		const EPCGHiGenGrid Grid = GridDescriptor.GetHiGenGrid();
+		UPCGComponent* OriginalComponent = GenerationKey.GetOriginalComponent();
+		const FIntVector& GridCoords = GenerationKey.GetGridCoords();
 
 		// The unbounded grid level will always lie inside the original component, so we can skip it.
 		if (Grid == EPCGHiGenGrid::Unbounded)
 		{
+			if (OriginalComponent && !OriginalComponent->bActivated)
+			{
+				CleanupComponent(GenerationKey, OriginalComponent);
+			}
+
 			continue;
 		}
 
-		const UPCGComponent* OriginalComponent = GenerationKey.GetOriginalComponent();
-		const FIntVector& GridCoords = GenerationKey.GetGridCoords();
-
-		UPCGComponent* LocalComponent = OriginalComponent ? ActorAndComponentMapping->GetLocalComponent(GridSize, GridCoords, OriginalComponent, /*bRuntimeGenerated=*/true) : nullptr;
+		UPCGComponent* LocalComponent = OriginalComponent ? ActorAndComponentMapping->GetLocalComponent(GridDescriptor, GridCoords, OriginalComponent) : nullptr;
 		APCGPartitionActor* PartitionActor = LocalComponent ? Cast<APCGPartitionActor>(LocalComponent->GetOwner()) : nullptr;
 
 		if (LocalComponent && PartitionActor)
@@ -921,7 +968,7 @@ void FPCGRuntimeGenScheduler::CleanupDelayedRefreshComponents()
 			const FBox OriginalBounds = OriginalComponent->GetGridBounds();
 			const FBox LocalBounds = PartitionActor->GetFixedBounds();
 
-			if (!OriginalBounds.Intersect(LocalBounds))
+			if (!OriginalBounds.Intersect(LocalBounds) || !OriginalComponent->bActivated)
 			{
 				CleanupComponent(GenerationKey, LocalComponent);
 			}
@@ -989,19 +1036,20 @@ void FPCGRuntimeGenScheduler::RefreshComponent(UPCGComponent* InComponent, bool 
 			{
 				if (Key.GetOriginalComponent() == InComponent && !GeneratedComponentsToRemove.Contains(Key))
 				{
+					const FPCGGridDescriptor GridDescriptor = Key.GetGridDescriptor();
+					
 					// TODO - clean up local immediate will have a flag in the future to clean up the local components on its own, so this call to CleanupLocalImmediate will not be required
 					UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(
-						Key.GetGridSize(),
+						GridDescriptor,
 						Key.GetGridCoords(),
-						OriginalComponent,
-						/*bRuntimeGenerated=*/true);
+						OriginalComponent);
 
 					if (bLoggingEnabled && LocalComponent && LocalComponent->GetOwner())
 					{
 						UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] SHALLOW REFRESH LOCAL COMPONENT: '%s'"), *LocalComponent->GetOwner()->GetActorNameOrLabel());
 					}
 
-					if (ensure(LocalComponent))
+					if (LocalComponent)
 					{
 						LocalComponent->CleanupLocalImmediate(/*bRemoveComponents=*/false);
 					}
@@ -1062,8 +1110,8 @@ void FPCGRuntimeGenScheduler::RefreshComponent(UPCGComponent* InComponent, bool 
 			// Gather all generated components which originated from this original component.
 			for (FGridGenerationKey GenerationKey : GenerationKeys)
 			{
-				const uint32 GridSize = GenerationKey.GetGridSize();
-				const EPCGHiGenGrid Grid = PCGHiGenGrid::GridSizeToGrid(GridSize);
+				const FPCGGridDescriptor GridDescriptor = GenerationKey.GetGridDescriptor();
+				const EPCGHiGenGrid Grid = GridDescriptor.GetHiGenGrid();
 
 				// If the Grid is unbounded, we have a non-partitioned or unbounded component.
 				if (Grid == EPCGHiGenGrid::Unbounded)
@@ -1082,7 +1130,7 @@ void FPCGRuntimeGenScheduler::RefreshComponent(UPCGComponent* InComponent, bool 
 				{
 					const FIntVector GridCoords = GenerationKey.GetGridCoords();
 
-					if (UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(GridSize, GridCoords, OriginalComponent, /*bRuntimeGenerated=*/true))
+					if (UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(GridDescriptor, GridCoords, OriginalComponent))
 					{
 						RefreshLocalComponent(LocalComponent);
 					}
@@ -1103,7 +1151,7 @@ void FPCGRuntimeGenScheduler::RefreshComponent(UPCGComponent* InComponent, bool 
 	}
 }
 
-APCGPartitionActor* FPCGRuntimeGenScheduler::GetPartitionActorFromPool(uint32 GridSize, const FIntVector& GridCoords)
+APCGPartitionActor* FPCGRuntimeGenScheduler::GetPartitionActorFromPool(const FPCGGridDescriptor& GridDescriptor, const FIntVector& GridCoords)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGRuntimeGenScheduler::GetPartitionActorFromPool);
 
@@ -1116,7 +1164,7 @@ APCGPartitionActor* FPCGRuntimeGenScheduler::GetPartitionActorFromPool(uint32 Gr
 	}
 
 	// Attempt to find an existing RuntimeGen PA.
-	if (APCGPartitionActor* ExistingActor = ActorAndComponentMapping->GetPartitionActor(GridSize, GridCoords, /*bRuntimeGenerated=*/true))
+	if (APCGPartitionActor* ExistingActor = ActorAndComponentMapping->GetPartitionActor(GridDescriptor, GridCoords))
 	{
 		return ExistingActor;
 	}
@@ -1140,13 +1188,13 @@ APCGPartitionActor* FPCGRuntimeGenScheduler::GetPartitionActorFromPool(uint32 Gr
 	APCGPartitionActor* PartitionActor = PartitionActorPool.Pop();
 
 #if WITH_EDITOR
-	const FName ActorName = *APCGPartitionActor::GetPCGPartitionActorName(GridSize, GridCoords, /*bRuntimeGenerated=*/true);
+	const FName ActorName = *APCGPartitionActor::GetPCGPartitionActorName(GridDescriptor, GridCoords);
 
-	PartitionActor->Rename(*ActorName.ToString(), PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders);
+	PartitionActor->Rename(*ActorName.ToString(), PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty);
 	PartitionActor->SetActorLabel(ActorName.ToString());
 #endif
 
-	const FVector CellCenter(FVector(GridCoords.X + 0.5, GridCoords.Y + 0.5, GridCoords.Z + 0.5) * GridSize);
+	const FVector CellCenter(FVector(GridCoords.X + 0.5, GridCoords.Y + 0.5, GridCoords.Z + 0.5) * GridDescriptor.GetGridSize());
 	if (!PartitionActor->Teleport(CellCenter))
 	{
 		UE_LOG(LogPCG, Error, TEXT("[RUNTIMEGEN] Could not set the location of RuntimeGen partition actor '%s'."), *PartitionActor->GetActorNameOrLabel());
@@ -1157,7 +1205,7 @@ APCGPartitionActor* FPCGRuntimeGenScheduler::GetPartitionActorFromPool(uint32 Gr
 #endif
 
 	// Empty GUID, RuntimeGen PAs don't need one.
-	PartitionActor->PostCreation(FGuid(), GridSize);
+	PartitionActor->PostCreation(GridDescriptor);
 
 	return PartitionActor;
 }
@@ -1172,7 +1220,11 @@ void FPCGRuntimeGenScheduler::AddPartitionActorPoolCount(int32 Count)
 #if WITH_EDITOR
 	SpawnParams.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
 	SpawnParams.Name = *PCGRuntimeGenSchedulerConstants::PooledPartitionActorName;
+
+	// Always hide pooled actors from outliner. Note that outliner tree view updates can incur significant costs in Slate code.
+	SpawnParams.bHideFromSceneOutliner = PCGRuntimeGenSchedulerHelpers::CVarHideActorsFromOutliner.GetValueOnAnyThread();
 #endif
+
 	SpawnParams.ObjectFlags |= RF_Transient;
 	SpawnParams.ObjectFlags &= ~RF_Transactional;
 
@@ -1195,7 +1247,7 @@ void FPCGRuntimeGenScheduler::ResetPartitionActorPoolToSize(uint32 NewPoolSize)
 	for (APCGPartitionActor* PartitionActor : PartitionActorPool)
 	{
 #if WITH_EDITOR
-		PartitionActor->Rename(nullptr, PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders);
+		PartitionActor->Rename(nullptr, PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty);
 #endif
 		World->DestroyActor(PartitionActor);
 	}
@@ -1203,19 +1255,4 @@ void FPCGRuntimeGenScheduler::ResetPartitionActorPoolToSize(uint32 NewPoolSize)
 	PartitionActorPool.Empty();
 	PartitionActorPoolSize = 0;
 	AddPartitionActorPoolCount(NewPoolSize);
-}
-
-void FPCGRuntimeGenScheduler::CreateGridGuidsForComponent(UPCGComponent* InComponent)
-{
-	if (InComponent && InComponent->IsPartitioned() && InComponent->IsManagedByRuntimeGenSystem())
-	{
-		if (APCGWorldActor* PCGWorldActor = PCGHelpers::GetPCGWorldActor(World))
-		{
-			bool bHasUnbounded;
-			PCGHiGenGrid::FSizeArray GridSizes;
-			ensure(PCGHelpers::GetGenerationGridSizes(InComponent->GetGraph(), PCGWorldActor, GridSizes, bHasUnbounded));
-
-			PCGWorldActor->CreateGridGuidsIfNecessary(GridSizes, /*bAreGridsSerialized=*/false);
-		}
-	}
 }

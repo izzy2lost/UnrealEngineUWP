@@ -28,31 +28,20 @@ void SAvaTagPicker::Construct(const FArguments& InArgs, const TSharedRef<IProper
 
 	TagCustomizer = InTagCustomizer;
 
-	TagCollectionPropertyHandle = InTagCustomizer->GetTagCollectionHandle(InStructPropertyHandle);
-	check(TagCollectionPropertyHandle.IsValid());
+	TSharedRef<SVerticalBox> ContentVerticalBox = SNew(SVerticalBox);
 
-	const FToolBarStyle& SlimToolbarStyle = FAppStyle::Get().GetWidgetStyle<FToolBarStyle>("SlimToolBar");
-
-	// Selection Mode set to single, yet preventing Items to be selected via OnIsSelectableOrNavigable, so that hover cue appears
-	TagListView = SNew(SListView<TSharedPtr<FAvaTagHandle>>)
-		.ListViewStyle(&FAppStyle::Get().GetWidgetStyle<FTableViewStyle>("SimpleListView"))
-		.OnGenerateRow(this, &SAvaTagPicker::CreateTagTableRow)
-		.SelectionMode(ESelectionMode::Single)
-		.ListItemsSource(&TagOptions)
-		.ItemHeight(24.0f)
-		.IsFocusable(false)
-		.HandleGamepadEvents(false)
-		.HandleSpacebarSelection(false)
-		.HandleDirectionalNavigation(false);
-
-	ChildSlot
-	[
-		SNew(SHorizontalBox)
+	TSharedRef<SHorizontalBox> WrapperHorizontalBox = SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
-		.FillWidth(1.f)
-		[
-			SNew(SVerticalBox)
-			+ SVerticalBox::Slot()
+        .FillWidth(1.f)
+        [
+        	ContentVerticalBox
+        ];
+
+	TagCollectionPropertyHandle = InTagCustomizer->GetTagCollectionHandle(InStructPropertyHandle);
+
+	if (TagCollectionPropertyHandle.IsValid())
+	{
+		ContentVerticalBox->AddSlot()
 			.AutoHeight()
 			.Padding(0)
 			.HAlign(HAlign_Left)
@@ -60,49 +49,63 @@ void SAvaTagPicker::Construct(const FArguments& InArgs, const TSharedRef<IProper
 			[
 				SAssignNew(TagCollectionPicker, SAvaTagCollectionPicker, TagCollectionPropertyHandle.ToSharedRef())
 				.OnTagCollectionChanged(this, &SAvaTagPicker::OnTagCollectionChanged)
-			]
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0)
-			.HAlign(HAlign_Fill)
+			];
+
+		WrapperHorizontalBox->AddSlot()
+			.AutoWidth()
+			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
 			[
-				SAssignNew(TagComboButton, SComboButton)
-				.HasDownArrow(true)
-				.ContentPadding(FMargin(0, -1))
-				.OnMenuOpenChanged(this, &SAvaTagPicker::OnTagMenuOpenChanged)
-				.MenuContent()
+				SAssignNew(TagCollectionOptions, SMenuAnchor)
+				.Content()
 				[
-					TagListView.ToSharedRef()
+					SNew(SButton)
+					.OnClicked(this, &SAvaTagPicker::OpenContextMenu)
+					.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+					.ToolTipText(LOCTEXT("TagCollectionOptionsToolTip", "Tag Collection Options"))
+					.ContentPadding(FMargin(4, 6))
+					[
+						SNew(SImage)
+						.Image(&FAppStyle::Get().GetWidgetStyle<FToolBarStyle>("SlimToolBar").SettingsComboButton.DownArrowImage)
+						.ColorAndOpacity(FSlateColor::UseForeground())
+					]
 				]
-				.ButtonContent()
-				[
-					SNew(STextBlock)
-					.Text(this, &SAvaTagPicker::GetValueDisplayText)
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-				]
-			]
-		]
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.HAlign(HAlign_Center)
+			];
+	}
+
+	ContentVerticalBox->AddSlot()
+		.AutoHeight()
+		.Padding(0)
+		.HAlign(HAlign_Fill)
 		.VAlign(VAlign_Center)
 		[
-			SAssignNew(TagCollectionOptions, SMenuAnchor)
-			.Content()
+			SAssignNew(TagComboButton, SComboButton)
+			.HasDownArrow(true)
+			.ContentPadding(FMargin(0, -1))
+			.OnMenuOpenChanged(this, &SAvaTagPicker::OnTagMenuOpenChanged)
+			.MenuContent()
 			[
-				SNew(SButton)
-				.OnClicked(this, &SAvaTagPicker::OpenContextMenu)
-				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-				.ToolTipText(LOCTEXT("TagCollectionOptionsToolTip", "Tag Collection Options"))
-				.ContentPadding(FMargin(4, 6))
-				[
-					SNew(SImage)
-					.Image(&SlimToolbarStyle.SettingsComboButton.DownArrowImage)
-					.ColorAndOpacity(FSlateColor::UseForeground())
-				]
+				SAssignNew(TagListView, SListView<TSharedPtr<FAvaTagHandle>>)
+				.ListViewStyle(&FAppStyle::Get().GetWidgetStyle<FTableViewStyle>("SimpleListView"))
+				.OnGenerateRow(this, &SAvaTagPicker::CreateTagTableRow)
+				.SelectionMode(ESelectionMode::Single) // Selection Mode set to single, yet preventing Items to be selected via OnIsSelectableOrNavigable, so that hover cue appears
+				.ListItemsSource(&TagOptions)
+				.IsFocusable(false)
+				.HandleGamepadEvents(false)
+				.HandleSpacebarSelection(false)
+				.HandleDirectionalNavigation(false)
 			]
-		]
+			.ButtonContent()
+			[
+				SNew(STextBlock)
+				.Text(this, &SAvaTagPicker::GetValueDisplayText)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+			]
+		];
+
+	ChildSlot
+	[
+		WrapperHorizontalBox
 	];
 }
 
@@ -111,7 +114,12 @@ void SAvaTagPicker::Tick(const FGeometry& InGeometry, const double InCurrentTime
 	if (bRequestOpenTagCollectionPicker)
 	{
 		TagComboButton->SetIsOpen(false);
-		TagCollectionPicker->SetIsOpen(true);
+
+		if (TagCollectionPicker.IsValid())
+		{
+			TagCollectionPicker->SetIsOpen(true);
+		}
+
 		bRequestOpenTagCollectionPicker = false;
 	}
 }
@@ -127,8 +135,11 @@ FReply SAvaTagPicker::OnMouseButtonUp(const FGeometry& InGeometry, const FPointe
 
 FReply SAvaTagPicker::OpenContextMenu()
 {
-	if (!TagCollectionOptions->IsOpen())
+	if (TagCollectionOptions.IsValid() && !TagCollectionOptions->IsOpen())
 	{
+		// If TagCollectionOptions is valid, the TagCollectionHandle should also be
+		ensure(TagCollectionPropertyHandle.IsValid());
+
 		TagCollectionOptions->SetMenuContent(FAvaTagCollectionPickerContextMenu::Get().GenerateContextMenuWidget(TagCollectionPropertyHandle));
 		TagCollectionOptions->SetIsOpen(true);
 	}
@@ -175,7 +186,7 @@ void SAvaTagPicker::RefreshTagOptions()
 	// Get or Load. Loading is ok at this point because this we're refreshing the tags the Tag Collection has to offer (i.e. we're peeking inside of it)
 	if (const UAvaTagCollection* TagCollection = GetOrLoadTagCollection())
 	{
-		TArray<FAvaTagId> TagIds = TagCollection->GetTagIds();
+		TArray<FAvaTagId> TagIds = TagCollection->GetTagIds(TagCustomizer->AllowAliasTags());
 
 		// Add default (none) TagId as an option, if there's no multiple choice
 		if (!TagCustomizer->AllowMultipleTags())
@@ -300,7 +311,7 @@ FText SAvaTagPicker::GetValueDisplayText() const
 		{
 			if (!InStructRawData)
 			{
-				return true;	
+				return true;
 			}
 			FName CurrentValueName = TagCustomizer->GetDisplayValueName(InStructRawData);
 			if (InDataIndex == 0)

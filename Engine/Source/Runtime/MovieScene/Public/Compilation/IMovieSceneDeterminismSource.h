@@ -5,6 +5,7 @@
 #include "UObject/Interface.h"
 #include "Containers/Array.h"
 #include "Misc/FrameTime.h"
+#include "Compilation/MovieSceneDeterminismFence.h"
 #include "IMovieSceneDeterminismSource.generated.h"
 
 /** Determinism data that is generated on compile of a UMovieSceneSequence */
@@ -18,7 +19,7 @@ struct FMovieSceneDeterminismData
 	 * Duplicates are allowed during compilation, but will be removed in the final compiled data.
 	 */
 	UPROPERTY()
-	TArray<FFrameTime> Fences;
+	TArray<FMovieSceneDeterminismFence> Fences;
 
 	/** True if this sequence should include a fence on the lower bound of any sub sequence's that include it */
 	UPROPERTY()

@@ -10,7 +10,7 @@ namespace EpicGames.UHT.Types
 {
 
 	/// <summary>
-	/// FStrProperty
+	/// FVValueProperty
 	/// </summary>
 	[UnrealHeaderTool]
 	[UhtEngineClass(Name = "VerseValueProperty", IsProperty = true)]

@@ -126,6 +126,9 @@ struct FNiagaraOutlinerSystemInstanceData
 	UPROPERTY(VisibleAnywhere, Category = "Gpu")
 	uint32 bRequiresRayTracingScene : 1;
 
+	UPROPERTY(VisibleAnywhere, Category = "Gpu")
+	uint32 bRequiresCurrentFrameNDC : 1;
+
 	FNiagaraOutlinerSystemInstanceData()
 		: bPendingKill(false)
 		, bUsingCullProxy(false)
@@ -137,6 +140,7 @@ struct FNiagaraOutlinerSystemInstanceData
 		, bRequiresEarlyViewData(false)
 		, bRequiresViewUniformBuffer(false)
 		, bRequiresRayTracingScene(false)
+		, bRequiresCurrentFrameNDC(false)
 	{}
 };
 
@@ -456,80 +460,79 @@ struct FNiagaraDebugHUDSettingsData
 #endif
 
 	/** Primary control for all HUD features. */
-	UPROPERTY(EditAnywhere, Category = "Debug General", meta = (DisplayName = "Debug HUD Enabled"))
+	UPROPERTY()
 	bool bHudEnabled = true;
 
 	/** Primary control for HUD rendering. */
-	UPROPERTY(EditAnywhere, Category = "Debug General", meta = (DisplayName = "Debug HUD Rendering Enabled"))
+	UPROPERTY()
 	bool bHudRenderingEnabled = true;
 
-	/**
-	When enabled all Niagara systems that pass the filter will have the simulation data buffers validation.
-	i.e. we will look for NaN or other invalidate data  inside it
-	Note: This will have an impact on performance.
-	*/
-	UPROPERTY(EditAnywhere, Category = "Debug Validation")
-	bool bValidateSystemSimulationDataBuffers = false;
-
-	/**
-	When enabled all Niagara systems that pass the filter will have the particle data buffers validation.
-	i.e. we will look for NaN or other invalidate data  inside it
-	Note: This will have an impact on performance.
-	*/
-	UPROPERTY(EditAnywhere, Category = "Debug Validation")
-	bool bValidateParticleDataBuffers = false;
-
-	/**
-	When enabled all validation errors will be sent to the log as warnings.
-	This can be useful to try and narrow down the exact source of an invalid value in the data buffers as often
-	they will cascade from the first frame where one is generated into other attributes in the subsequent frames.
-	*/
-	UPROPERTY(EditAnywhere, Category = "Debug Validation")
-	bool bValidationLogErrors = false;
-
-	/**
-	When > 0 this is the maximum number of attributes we will display that contain a NaN,
-	there could be more but the display will be truncated to this amount.  This is to reduce generating long strings.
-	*/
-	UPROPERTY(EditAnywhere, Category = "Debug Validation")
-	int32 ValidationAttributeDisplayTruncate = 3;
+	/** Primary control for validation settings. */
+	UPROPERTY()
+	bool bValidationEnabled = false;
 
 	/** When enabled the overview display will be enabled. */
-	UPROPERTY(EditAnywhere, Category = "Debug Overview", meta = (DisplayName = "Debug Overview Enabled"))
+	UPROPERTY()
 	bool bOverviewEnabled = false;
-
-	/** When enabled the overview display will include cascade FX. */
-	UPROPERTY(EditAnywhere, Category = "Debug Overview")
-	bool bIncludeCascade = true;
 
 	UPROPERTY(EditAnywhere, Category = "Debug Overview", meta = (DisplayName = "Debug Overview Mode"))
 	ENiagaraDebugHUDOverviewMode OverviewMode = ENiagaraDebugHUDOverviewMode::Overview;
 
+	// How to sort the displayed list of systems
 	UPROPERTY(EditAnywhere, Category = "Debug Overview", meta = (DisplayName = "Debug Overview Sort Mode"))
 	ENiagaraDebugHUDDOverviewSort OverviewSortMode = ENiagaraDebugHUDDOverviewSort::Name;
 
-	/** Overview display font to use. */
-	UPROPERTY(EditAnywhere, Category = "Debug Overview", meta = (DisplayName = "Debug Overview Font", EditCondition = "bOverviewEnabled"))
-	ENiagaraDebugHudFont OverviewFont = ENiagaraDebugHudFont::Normal;
+	/** When enabled the overview display will include cascade FX. */
+	UPROPERTY(EditAnywhere, Category = "Debug Overview", AdvancedDisplay)
+	bool bIncludeCascade = true;
 
-	/** Overview display location. */
-	UPROPERTY(EditAnywhere, Category = "Debug Overview", meta = (DisplayName = "Debug Overview Text Location", EditCondition = "bOverviewEnabled"))
-	FVector2D OverviewLocation = FVector2D(30.0f, 150.0f);
-
-	/** Overview display font to use. */
-	UPROPERTY(EditAnywhere, Category = "Debug Overview", meta = (EditCondition = "bOverviewEnabled && OverviewMode == ENiagaraDebugHUDOverviewMode::Overview"))
+	UPROPERTY(EditAnywhere, Category = "Debug Overview")
 	bool bShowRegisteredComponents = false;
 	
 	/** When enabled the overview will only show the filter system information. */
-	UPROPERTY(EditAnywhere, Category = "Debug Overview", meta = (EditCondition = "bOverviewEnabled"))
-	bool bOverviewShowFilteredSystemOnly = false;
+	UPROPERTY()
+	bool bOverviewShowFilteredSystemOnly = true;
+
+	UPROPERTY(EditAnywhere, Category = "Debug Overview", AdvancedDisplay)
+	bool bShowGlobalBudgetInfo = false;
+	
+	/**
+	If enabled, then only systems matching the filters will be considered by the debug hud
+	*/
+	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (DisplayName = "Filter Displayed Systems"))
+	bool bSystemFilterEnabled = false;
+
+	/**
+	Wildcard filter for the systems to show more detailed information about.
+	For example,. "NS_*" would match all systems starting with NS_.
+	*/
+	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (DisplayName = "System Name Filter", EditCondition = "bSystemFilterEnabled"))
+	FString SystemFilter;
+	
+
+	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (InlineEditConditionToggle))
+	bool bEmitterFilterEnabled = false;
+
+	/**
+	Wildcard filter used to match emitters when generating particle attribute view.
+	For example,. "Fluid*" would match all emitters starting with Fluid and only particle attributes for those would be visible.
+	Requires a valid SystemFilter to be set.
+	*/
+	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (DisplayName = "Emitter Name Filter",EditCondition = "bEmitterFilterEnabled"))
+	FString EmitterFilter;
+	
+
+	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (InlineEditConditionToggle))
+	bool bActorFilterEnabled = false;
 
 	/**
 	Wildcard filter which is compared against the Components Actor name to narrow down the detailed information.
 	For example, "*Water*" would match all actors that contain the string "water".
+	Requires a valid SystemFilter to be set.
 	*/
-	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (EditCondition = "bActorFilterEnabled"))
+	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (DisplayName = "Actor Name Filter", EditCondition = "bActorFilterEnabled"))
 	FString ActorFilter;
+	
 
 	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (InlineEditConditionToggle))
 	bool bComponentFilterEnabled = false;
@@ -537,36 +540,46 @@ struct FNiagaraDebugHUDSettingsData
 	/**
 	Wildcard filter for the components to show more detailed information about.
 	For example, "*MyComp*" would match all components that contain MyComp.
+	Requires a valid SystemFilter to be set.
 	*/
-	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (EditCondition = "bComponentFilterEnabled"))
+	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (DisplayName = "Component Name Filter", EditCondition = "bComponentFilterEnabled"))
 	FString ComponentFilter;
 
-	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (InlineEditConditionToggle))
-	bool bSystemFilterEnabled = false;
+	
+	/**
+	When enabled all Niagara systems that pass the filter will have the simulation data buffers validation.
+	i.e. we will look for NaN or other invalidate data  inside it
+	Note: This will have an impact on performance.
+	*/
+	UPROPERTY(EditAnywhere, Category = "Debug Validation", meta=(EditCondition = bValidationEnabled, EditConditionHides))
+	bool bValidateSystemSimulationDataBuffers = true;
 
 	/**
-	Wildcard filter for the systems to show more detailed information about.
-	For example,. "NS_*" would match all systems starting with NS_.
+	When enabled all Niagara systems that pass the filter will have the particle data buffers validation.
+	i.e. we will look for NaN or other invalidate data  inside it
+	Note: This will have an impact on performance.
 	*/
-	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (EditCondition = "bSystemFilterEnabled"))
-	FString SystemFilter;
-
-	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (InlineEditConditionToggle))
-	bool bEmitterFilterEnabled = false;
+	UPROPERTY(EditAnywhere, Category = "Debug Validation", meta=(EditCondition = bValidationEnabled, EditConditionHides))
+	bool bValidateParticleDataBuffers = true;
 
 	/**
-	Wildcard filter used to match emitters when generating particle attribute view.
-	For example,. "Fluid*" would match all emtiters starting with Fluid and only particle attributes for those would be visible.
+	When enabled all validation errors will be sent to the log as warnings.
+	This can be useful to try and narrow down the exact source of an invalid value in the data buffers as often
+	they will cascade from the first frame where one is generated into other attributes in the subsequent frames.
 	*/
-	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (EditCondition = "bEmitterFilterEnabled"))
-	FString EmitterFilter;
+	UPROPERTY(EditAnywhere, Category = "Debug Validation", meta=(EditCondition = bValidationEnabled, EditConditionHides))
+	bool bValidationLogErrors = false;
 
-	UPROPERTY(EditAnywhere, Category = "Debug Filter", meta = (InlineEditConditionToggle))
-	bool bActorFilterEnabled = false;
+	/**
+	When > 0 this is the maximum number of attributes we will display that contain a NaN,
+	there could be more but the display will be truncated to this amount.  This is to reduce generating long strings.
+	*/
+	UPROPERTY(EditAnywhere, Category = "Debug Validation", meta=(EditCondition = bValidationEnabled, EditConditionHides))
+	int32 ValidationAttributeDisplayTruncate = 3;
 
 	/** When enabled system debug information will be displayed in world. */
 	UPROPERTY(EditAnywhere, Category = "Debug System")
-	ENiagaraDebugHudVerbosity SystemDebugVerbosity = ENiagaraDebugHudVerbosity::Basic;
+	ENiagaraDebugHudVerbosity SystemDebugVerbosity = ENiagaraDebugHudVerbosity::None;
 
 	/** When enabled we show information about emitter / particle counts. */
 	UPROPERTY(EditAnywhere, Category = "Debug System", meta = (EditCondition = "SystemDebugVerbosity != ENiagaraDebugHudVerbosity::None"))
@@ -576,36 +589,27 @@ struct FNiagaraDebugHUDSettingsData
 	UPROPERTY(EditAnywhere, Category = "Debug System", meta = (EditCondition = "SystemDebugVerbosity != ENiagaraDebugHudVerbosity::None"))
 	ENiagaraDebugHudVerbosity DataInterfaceVerbosity = ENiagaraDebugHudVerbosity::None;
 
-	/** When enabled will show the system bounds for all filtered systems. */
-	UPROPERTY(EditAnywhere, Category = "Debug System")
-	bool bSystemShowBounds = false;
-
-	/** When bounds display is enabled allows you to draw a solid box if alpha is > 0. */
-	UPROPERTY(EditAnywhere, Category = "Debug System", meta = (EditCondition = "bSystemShowBounds"))
-	float SystemBoundsSolidBoxAlpha = 0.0f;
+	/**
+	List of attributes to show about the system, each entry uses wildcard matching.
+	For example, "System.*" would match all system attributes.
+	*/
+	UPROPERTY(EditAnywhere, Category = "Debug System", meta = (EditCondition = "SystemDebugVerbosity != ENiagaraDebugHudVerbosity::None", DisplayName="System Attributes"))
+	TArray<FNiagaraDebugHUDVariable> SystemVariables;
 
 	/** When disabled in world rendering will show systems deactivated by scalability. */
 	UPROPERTY(EditAnywhere, Category = "Debug System", meta = (EditCondition = "SystemDebugVerbosity != ENiagaraDebugHudVerbosity::None"))
 	bool bSystemShowActiveOnlyInWorld = true;
 
-	/** Should we display the system attributes. */
-	UPROPERTY(EditAnywhere, Category = "Debug System", meta = (EditCondition = "SystemDebugVerbosity != ENiagaraDebugHudVerbosity::None", DisplayName="Show System Attributes"))
-	bool bShowSystemVariables = true;
-
-	/**
-	List of attributes to show about the system, each entry uses wildcard matching.
-	For example, "System.*" would match all system attributes.
-	*/
-	UPROPERTY(EditAnywhere, Category = "Debug System", meta = (EditCondition = "SystemDebugVerbosity != ENiagaraDebugHudVerbosity::None && bShowSystemVariables", DisplayName="System Attributes"))
-	TArray<FNiagaraDebugHUDVariable> SystemVariables;
-
-	/** Sets display text options for system information. */
-	UPROPERTY(EditAnywhere, Category = "Debug System", meta=(EditCondition="SystemDebugVerbosity != ENiagaraDebugHudVerbosity::None"))
-	FNiagaraDebugHudTextOptions SystemTextOptions;
-
 	/** When enabled will show particle attributes from the list. */
 	UPROPERTY(EditAnywhere, Category = "Debug Particles", meta = (DisplayName="Show Particle Attributes"))
-	bool bShowParticleVariables = true;
+	bool bShowParticleVariables = false;
+
+	/**
+	List of attributes to show per particle, each entry uses wildcard matching.
+	For example, "*Position" would match all attributes that end in Position.
+	*/
+	UPROPERTY(EditAnywhere, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables", DisplayName="Particle Attributes"))
+	TArray<FNiagaraDebugHUDVariable> ParticlesVariables;
 
 	/**
 	When enabled GPU particle data will be copied from the GPU to the CPU.
@@ -623,44 +627,17 @@ struct FNiagaraDebugHUDSettingsData
 	bool bShowParticleIndex = false;
 
 	/**
-	List of attributes to show per particle, each entry uses wildcard matching.
-	For example, "*Position" would match all attributes that end in Position.
-	*/
-	UPROPERTY(EditAnywhere, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables", DisplayName="Particle Attributes"))
-	TArray<FNiagaraDebugHUDVariable> ParticlesVariables;
-
-	/** Sets display text options for particle information. */
-	UPROPERTY(EditAnywhere, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables"))
-	FNiagaraDebugHudTextOptions ParticleTextOptions;
-
-	/**
 	When enabled particle attributes will display with the system information
-	rather than in world at the particle location.
+	rather than in world at the particle location. Only enabled if system is set up to display information as well.
 	*/
-	UPROPERTY(EditAnywhere, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables", DisplayName="Show Particles Attributes With System"))
+	UPROPERTY(EditAnywhere, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables && SystemDebugVerbosity != ENiagaraDebugHudVerbosity::None", DisplayName="Display With System Attributes"))
 	bool bShowParticlesVariablesWithSystem = false;
 
-	UPROPERTY(EditAnywhere, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables", DisplayName = "Show Particle Attributes Vertical"))
+	UPROPERTY(EditAnywhere, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables", DisplayName = "Stack Attributes Vertical"))
 	bool bShowParticleVariablesVertical = false;
 
 	UPROPERTY(EditAnywhere, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables"))
 	bool bUseMaxParticlesToDisplay = true;
-
-	/** When enabled we use the clip planes to narrow down which particles to display */
-	UPROPERTY(EditAnywhere, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables"))
-	bool bUseParticleDisplayClip = false;
-
-	/** Clipping planes used to display particle attributes. */
-	UPROPERTY(EditAnywhere, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables", UIMin = "0", ClampMin = "0"))
-	FVector2D ParticleDisplayClip = FVector2D(0.0f, 10000.0f);
-
-	/** When enabled we use a radius from the display center to avoid showing too many particle attributes. */
-	UPROPERTY(EditAnywhere, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables"))
-	bool bUseParticleDisplayCenterRadius = false;
-
-	/** Radius from screen center where 0 is center to 1.0 is edge to avoid display too many particle attributes. */
-	UPROPERTY(EditAnywhere, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables", UIMin = "0", ClampMin = "0"))
-	float ParticleDisplayCenterRadius = 1.0f;
 
 	/**
 	When enabled, the maximum number of particles to show information about.
@@ -669,96 +646,137 @@ struct FNiagaraDebugHUDSettingsData
 	UPROPERTY(EditAnywhere, Category = "Debug Particles", meta = (EditCondition = "bUseMaxParticlesToDisplay && bShowParticleVariables", UIMin="1", ClampMin="1"))
 	int32 MaxParticlesToDisplay = 32;
 
+	/** When enabled we use the clip planes to narrow down which particles to display */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables"))
+	bool bUseParticleDisplayClip = false;
+
+	/** Clipping planes used to display particle attributes. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables", UIMin = "0", ClampMin = "0"))
+	FVector2D ParticleDisplayClip = FVector2D(0.0f, 10000.0f);
+
+	/** When enabled we use a radius from the display center to avoid showing too many particle attributes. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables"))
+	bool bUseParticleDisplayCenterRadius = false;
+
+	/** Radius from screen center where 0 is center to 1.0 is edge to avoid display too many particle attributes. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Debug Particles", meta = (EditCondition = "bShowParticleVariables", UIMin = "0", ClampMin = "0"))
+	float ParticleDisplayCenterRadius = 1.0f;
+
 	/** How many frames to capture in between updates to the max and average perf report values. */
-	UPROPERTY(EditAnywhere, Category = "Perf Overview")
+	UPROPERTY(EditAnywhere, Category = "Performance")
 	int32 PerfReportFrames = 60;
 
-	UPROPERTY(EditAnywhere, Category = "Perf Overview")
+	UPROPERTY(EditAnywhere, Category = "Performance")
 	ENiagaraDebugHUDPerfSampleMode PerfSampleMode = ENiagaraDebugHUDPerfSampleMode::FrameTotal;
 
-	UPROPERTY(EditAnywhere, Category = "Perf Overview")
+	UPROPERTY(EditAnywhere, Category = "Performance")
 	ENiagaraDebugHUDPerfUnits PerfUnits = ENiagaraDebugHUDPerfUnits::Microseconds;
 
+	// Adds a column that displays only the GT cost to the perf overview. Only enabled when performance overview mode is active.
+	UPROPERTY(EditAnywhere, Category = "Performance", meta = (DisplayName = "Show separate GT perf column", EditCondition = "OverviewMode == ENiagaraDebugHUDOverviewMode::Performance"))
+	bool bShowPerfColumGameThreadOnly = false;
+
 	/** Time range of the Y Axis of the perf graph */
-	UPROPERTY(EditAnywhere, Category = "Perf Overview")
+	UPROPERTY(EditAnywhere, Category = "Performance Graph", meta = (EditCondition = "OverviewMode == ENiagaraDebugHUDOverviewMode::PerformanceGraph", EditConditionHides))
 	ENiagaraDebugHUDPerfGraphMode PerfGraphMode = ENiagaraDebugHUDPerfGraphMode::GameThread;
 
 	/** How many frames of history to display in the perf graphs. */
-	UPROPERTY(EditAnywhere, Category = "Perf Overview")
+	UPROPERTY(EditAnywhere, Category = "Performance Graph", meta = (EditCondition = "OverviewMode == ENiagaraDebugHUDOverviewMode::PerformanceGraph", EditConditionHides))
 	int32 PerfHistoryFrames = 600;
 
 	/** Use the specified user range when enabled, otherwise we will auto detect the range to use. */
-	UPROPERTY(EditAnywhere, Category = "Perf Overview", meta = (InlineEditConditionToggle))
+	UPROPERTY(EditAnywhere, Category = "Performance Graph", meta = (DisplayName = "Fixed Y Axis Range", EditCondition = "OverviewMode == ENiagaraDebugHUDOverviewMode::PerformanceGraph", EditConditionHides))
 	bool bUsePerfGraphTimeRange = false;
 
 	/** Time range of the Y Axis of the perf graph */
-	UPROPERTY(EditAnywhere, Category = "Perf Overview", meta = (EditCondition = "bUsePerfGraphTimeRange"))
+	UPROPERTY(EditAnywhere, Category = "Performance Graph", meta = (DisplayName = "Y Axis Time Range", EditCondition = "OverviewMode == ENiagaraDebugHUDOverviewMode::PerformanceGraph", EditConditionHides))
 	float PerfGraphTimeRange = 500.0f;
 
 	/** Pixel size of the perf graph. */
-	UPROPERTY(EditAnywhere, Category = "Perf Overview")
+	UPROPERTY(EditAnywhere, Category = "Performance Graph", meta = (EditCondition = "OverviewMode == ENiagaraDebugHUDOverviewMode::PerformanceGraph", EditConditionHides))
 	FVector2D PerfGraphSize = FVector2D(500,500);
 
-	UPROPERTY(EditAnywhere, Category = "Perf Overview")
+	UPROPERTY(EditAnywhere, Category = "Performance Graph", meta = (EditCondition = "OverviewMode == ENiagaraDebugHUDOverviewMode::PerformanceGraph", EditConditionHides))
 	FLinearColor PerfGraphAxisColor = FLinearColor::White;
 
-	// True if perf graphs should be smoothed.
-	UPROPERTY(EditAnywhere, Category = "Perf Overview", meta = (InlineEditConditionToggle))
-	bool bEnableSmoothing = true;
-
 	//Number of samples to use either size of a value when smoothing perf graphs.
-	UPROPERTY(EditAnywhere, Category = "Perf Overview", meta = (EditCondition = "bEnableSmoothing"))
+	UPROPERTY(EditAnywhere, Category = "Performance Graph", meta = (EditCondition = "OverviewMode == ENiagaraDebugHUDOverviewMode::PerformanceGraph", EditConditionHides))
 	int32 SmoothingWidth = 4;
 
+	/** Overview display font to use. */
+	UPROPERTY(EditAnywhere, Category = "Style", meta = (DisplayName = "Debug Overview Font", EditCondition = "bOverviewEnabled"))
+	ENiagaraDebugHudFont OverviewFont = ENiagaraDebugHudFont::Normal;
+
+	/** Overview display location. */
+	UPROPERTY(EditAnywhere, Category = "Style", meta = (DisplayName = "Debug Overview Text Location", EditCondition = "bOverviewEnabled"))
+	FVector2D OverviewLocation = FVector2D(30.0f, 150.0f);
+
+	/** Sets display text options for system information. */
+	UPROPERTY(EditAnywhere, Category = "Style", meta=(EditCondition="SystemDebugVerbosity != ENiagaraDebugHudVerbosity::None"))
+	FNiagaraDebugHudTextOptions SystemTextOptions;
+
+	/** Sets display text options for particle information. */
+	UPROPERTY(EditAnywhere, Category = "Style", meta = (EditCondition = "bShowParticleVariables"))
+	FNiagaraDebugHudTextOptions ParticleTextOptions;
+
+	UPROPERTY()
+	bool bDrawBoundsEnabled = false;
+
+	UPROPERTY()
+	bool bDrawBoundsWireframe = true;
+
+	UPROPERTY()
+	float DrawBoundsAlpha = 1.0f;
+
 	// Default background color used generally for panels
-	UPROPERTY(EditAnywhere, Category = "Colors")
+	UPROPERTY(EditAnywhere, Category = "Style")
 	FLinearColor DefaultBackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.5f);
 
 	// Overview heading text color
-	UPROPERTY(EditAnywhere, Category = "Colors")
+	UPROPERTY(EditAnywhere, Category = "Style")
 	FLinearColor OverviewHeadingColor = FLinearColor::Green;
 
 	// Overview detail text color
-	UPROPERTY(EditAnywhere, Category = "Colors")
+	UPROPERTY(EditAnywhere, Category = "Style")
 	FLinearColor OverviewDetailColor = FLinearColor::White;
 
 	// Overview detail highlight text color
-	UPROPERTY(EditAnywhere, Category = "Colors")
+	UPROPERTY(EditAnywhere, Category = "Style")
 	FLinearColor OverviewDetailHighlightColor = FLinearColor::Yellow;
 
 	// In world text if an error is detected
-	UPROPERTY(EditAnywhere, Category = "Colors")
+	UPROPERTY(EditAnywhere, Category = "Style")
 	FLinearColor InWorldErrorTextColor = FLinearColor(1.0f, 0.4f, 0.3f, 1.0f);
 	// In world text color
-	UPROPERTY(EditAnywhere, Category = "Colors")
+	UPROPERTY(EditAnywhere, Category = "Style")
 	FLinearColor InWorldTextColor = FLinearColor::White;
 
 	// Message display text color
-	UPROPERTY(EditAnywhere, Category = "Colors")
+	UPROPERTY(EditAnywhere, Category = "Style")
 	FLinearColor MessageInfoTextColor = FLinearColor::White;
 
 	// Message display warning text color
-	UPROPERTY(EditAnywhere, Category = "Colors")
+	UPROPERTY(EditAnywhere, Category = "Style")
 	FLinearColor MessageWarningTextColor = FLinearColor(0.9f, 0.7f, 0.0f, 1.0f);
 
 	// Message display error text color
-	UPROPERTY(EditAnywhere, Category = "Colors")
+	UPROPERTY(EditAnywhere, Category = "Style")
 	FLinearColor MessageErrorTextColor = FLinearColor(1.0f, 0.4f, 0.3f, 1.0f);
 	
 	/** Opacity of the system color background tile in overview table rows. */
-	UPROPERTY(EditAnywhere, Category = "Colors")
+	UPROPERTY(EditAnywhere, Category = "Style")
 	float SystemColorTableOpacity = 0.2f;
 
 	/** Additional seed value for random system colors. Useful if current colors of systems are too similar. */
-	UPROPERTY(EditAnywhere, Category = "Colors")
+	UPROPERTY(EditAnywhere, Category = "Style")
 	uint32 SystemColorSeed = 0;
 
 	/** Minimum HSV values for the random colors generated for each System. */
-	UPROPERTY(EditAnywhere, Category = "Colors")
+	UPROPERTY(EditAnywhere, Category = "Style")
 	FVector SystemColorHSVMin = FVector(0, 200, 200);
 
 	/** Maximum HSV values for the random colors generated for each System. */
-	UPROPERTY(EditAnywhere, Category = "Colors")
+	UPROPERTY(EditAnywhere, Category = "Style")
 	FVector SystemColorHSVMax = FVector(255, 255, 255);
 
 	UPROPERTY()
@@ -775,9 +793,6 @@ struct FNiagaraDebugHUDSettingsData
 
 	UPROPERTY()
 	float LoopTime = 1.0f;
-
-	UPROPERTY(EditAnywhere, Category = "Performance")
-	bool bShowGlobalBudgetInfo = false;
 };
 
 /** Message passed from debugger to client when it needs updated simple client info. */
@@ -893,6 +908,7 @@ enum class ENiagaraDebugMessageType : uint8
 	Warning,
 	Error
 };
+
 struct FNiagaraDebugMessage
 {
 	ENiagaraDebugMessageType Type;

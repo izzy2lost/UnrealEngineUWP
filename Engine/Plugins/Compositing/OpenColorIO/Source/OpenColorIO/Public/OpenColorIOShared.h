@@ -213,7 +213,9 @@ public:
 #endif // WITH_EDITOR
 
 	/** Builds a list of the shaders in a shader map. */
-	OPENCOLORIO_API  void GetShaderList(TMap<FShaderId, TShaderRef<FShader>>& OutShaders) const;
+	OPENCOLORIO_API void GetShaderList(TMap<FShaderId, TShaderRef<FShader>>& OutShaders) const;
+	OPENCOLORIO_API virtual void GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const override;
+	OPENCOLORIO_API virtual void GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const override;
 
 	/** Registers a OpenColorIO shader map in the global map so it can be used by OpenColorIO ColorTransform. */
 	void Register(EShaderPlatform InShaderPlatform);
@@ -227,16 +229,12 @@ public:
 #endif // WITH_EDITOR
 
 	/** Serializes the shader map. */
-	bool Serialize(FArchive& Ar, bool bInlineShaderResources = true);
+	bool Serialize(FArchive& Ar);
 
 #if WITH_EDITOR
 	/** Saves this shader map to the derived data cache. */
 	void SaveToDerivedDataCache();
 #endif // WITH_EDITOR
-
-	/** Registers all shaders that have been loaded in Serialize */
-	//virtual void RegisterSerializedShaders(bool bCooked) override;
-	//virtual void DiscardSerializedShaders() override;
 
 	// Accessors.
 	const FOpenColorIOShaderMapId& GetShaderMapId() const	{ return GetContent()->ShaderMapId; }

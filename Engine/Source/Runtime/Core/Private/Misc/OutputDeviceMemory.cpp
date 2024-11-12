@@ -5,12 +5,16 @@
 =============================================================================*/
 
 #include "Misc/OutputDeviceMemory.h"
-#include "HAL/PlatformTime.h"
-#include "HAL/PlatformOutputDevices.h"
+
+#include "CoreGlobals.h"
 #include "HAL/FileManager.h"
-#include "Misc/ScopeLock.h"
+#include "HAL/PlatformOutputDevices.h"
+#include "HAL/PlatformTime.h"
+#include "Misc/CommandLine.h"
 #include "Misc/OutputDeviceFile.h"
 #include "Misc/OutputDeviceHelper.h"
+#include "Misc/ScopeLock.h"
+#include "Misc/Parse.h"
 
 #define DUMP_LOG_ON_EXIT (!NO_LOGGING && PLATFORM_DESKTOP && (!UE_BUILD_SHIPPING || USE_LOGGING_IN_SHIPPING))
 
@@ -36,6 +40,8 @@ FOutputDeviceMemory::FOutputDeviceMemory(int32 InPreserveSize /*= 256 * 1024*/, 
 	}
 }
 
+FOutputDeviceMemory::~FOutputDeviceMemory() = default;
+
 void FOutputDeviceMemory::TearDown() 
 {
 	if (!bSuppressEventTag)
@@ -44,13 +50,17 @@ void FOutputDeviceMemory::TearDown()
 	}
 	// Dump on exit
 #if DUMP_LOG_ON_EXIT
-	const FString LogFileName = FPlatformOutputDevices::GetAbsoluteLogFilename();
-	FArchive* LogFile = IFileManager::Get().CreateFileWriter(*LogFileName, FILEWRITE_AllowRead);
-	if (LogFile)
+	const bool bDumpLogOnCrashOnly = FParse::Param(FCommandLine::Get(), TEXT("DumpLogOnExitCrashOnly"));
+	if (GIsCriticalError || !bDumpLogOnCrashOnly)
 	{
-		Dump(*LogFile);
-		LogFile->Flush();
-		delete LogFile;
+		const FString LogFileName = FPlatformOutputDevices::GetAbsoluteLogFilename();
+		FArchive* LogFile = IFileManager::Get().CreateFileWriter(*LogFileName, FILEWRITE_AllowRead);
+		if (LogFile)
+		{
+			Dump(*LogFile);
+			LogFile->Flush();
+			delete LogFile;
+		}
 	}
 #endif // DUMP_LOG_ON_EXIT
 }

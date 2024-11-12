@@ -24,7 +24,12 @@
 #include "WorldTreeItemTypes.h"
 #include "LevelFolders.h"
 #include "ScopedTransaction.h"
+#include "Templates/UnrealTemplate.h"
 #include "Editor.h"
+#include "WorldBrowserConfig.h"
+#include "WorldBrowserStyle.h"
+#include "WorldHierarchyColumns.h"
+#include "RevisionControlStyle/RevisionControlStyle.h"
 
 #define LOCTEXT_NAMESPACE "WorldBrowser"
 
@@ -98,93 +103,7 @@ void SWorldHierarchyImpl::Construct(const FArguments& InArgs)
 		SearchBoxLevelFilter->OnChanged().AddSP(this, &SWorldHierarchyImpl::FullRefresh);
 	}
 	SearchBoxHierarchyFilter->OnChanged().AddSP(this, &SWorldHierarchyImpl::FullRefresh);
-
-	HeaderRowWidget =
-		SNew( SHeaderRow )
-		.Visibility(EVisibility::Collapsed)
-
-		/** Level visibility column */
-		+ SHeaderRow::Column(HierarchyColumns::ColumnID_Visibility)
-		.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
-		.FixedWidth(24.0f)
-		.HeaderContent()
-		[
-			SNew(STextBlock)
-			.ToolTipText(NSLOCTEXT("WorldBrowser", "Visibility", "Visibility"))
-		]
-
-		/** LevelName label column */
-		+ SHeaderRow::Column( HierarchyColumns::ColumnID_LevelLabel )
-			.FillWidth( 0.45f )
-			.HeaderContent()
-			[
-				SNew(STextBlock)
-					.ToolTipText(LOCTEXT("Column_LevelNameLabel", "Level"))
-					
-			]
-
-		/** Lighting Scenario column */
-		+ SHeaderRow::Column(HierarchyColumns::ColumnID_LightingScenario)
-			.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
-			.FixedWidth( 24.0f )
-			.HeaderContent()
-			[
-				SNew(STextBlock)
-					.ToolTipText(NSLOCTEXT("WorldBrowser", "Lighting Scenario", "Lighting Scenario"))
-			]
 	
-
-		/** Level lock column */
-		+SHeaderRow::Column(HierarchyColumns::ColumnID_Lock)
-			.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
-			.FixedWidth( 24.0f )
-			.HeaderContent()
-			[
-				SNew(STextBlock)
-					.ToolTipText(NSLOCTEXT("WorldBrowser", "Lock", "Lock"))
-			]
-	
-		/** Level kismet column */
-		+ SHeaderRow::Column(HierarchyColumns::ColumnID_Kismet)
-			.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
-			.FixedWidth( 24.0f )
-			.HeaderContent()
-			[
-				SNew(STextBlock)
-					.ToolTipText(NSLOCTEXT("WorldBrowser", "Blueprint", "Open the level blueprint for this Level"))
-			]
-
-		/** Level SCC status column */
-		+ SHeaderRow::Column(HierarchyColumns::ColumnID_SCCStatus)
-			.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
-			.FixedWidth( 24.0f )
-			.HeaderContent()
-			[
-				SNew(STextBlock)
-					.ToolTipText(NSLOCTEXT("WorldBrowser", "SCCStatus", "Status in Revision Control"))
-			]
-
-		/** Level save column */
-		+ SHeaderRow::Column(HierarchyColumns::ColumnID_Save)
-			.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
-			.FixedWidth( 24.0f )
-			.HeaderContent()
-			[
-				SNew(STextBlock)
-					.ToolTipText(NSLOCTEXT("WorldBrowser", "Save", "Save this Level"))
-			]
-
-		/** Level color column */
-		+ SHeaderRow::Column(HierarchyColumns::ColumnID_Color)
-			.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
-			.FixedWidth(24.0f)
-			.HeaderContent()
-			[
-				SNew(STextBlock)
-				.ToolTipText(NSLOCTEXT("WorldBrowser", "Color", "Color used for visualization of Level"))
-			];
-
-
 	FOnContextMenuOpening ContextMenuEvent;
 	if (!bFoldersOnlyMode)
 	{
@@ -271,7 +190,7 @@ void SWorldHierarchyImpl::Construct(const FArguments& InArgs)
 				.OnMouseButtonDoubleClick(this, &SWorldHierarchyImpl::OnTreeViewMouseButtonDoubleClick)
 				.OnContextMenuOpening(ContextMenuEvent)
 				.OnItemScrolledIntoView(this, &SWorldHierarchyImpl::OnTreeItemScrolledIntoView)
-				.HeaderRow(HeaderRowWidget.ToSharedRef())
+				.HeaderRow(CreateHeaderRow())
 			]
 		]
 
@@ -365,6 +284,188 @@ void SWorldHierarchyImpl::OnWorldSaved(UWorld* World, FObjectPostSaveContext Obj
 void SWorldHierarchyImpl::RefreshView()
 {
 	bNeedsRefresh = true;
+}
+
+TSharedRef<SHeaderRow> SWorldHierarchyImpl::CreateHeaderRow()
+{
+	using namespace UE::WorldHierarchy;
+	constexpr float IconWidth = 24.f;
+
+	TSharedRef<SHeaderRow> HeaderRow = SAssignNew(HeaderRowWidget, SHeaderRow)
+		.CanSelectGeneratedColumn(true) // Lets the user choose which columns should be shown
+		.OnHiddenColumnsListChanged(this, &SWorldHierarchyImpl::SaveColumnVisibilitiesIntoConfig)
+
+		/** Level visibility column */
+		+ SHeaderRow::Column(HierarchyColumns::ColumnID_EditorVisibility)
+		.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
+		.DefaultLabel(LOCTEXT("Column.Visibility.DefaultLabel", "Visibility"))
+		.FixedWidth(IconWidth)
+		.HeaderContent()
+		[
+			SNew(SImage)
+			.Image(FAppStyle::Get().GetBrush("Level.VisibleIcon16x"))
+			.ColorAndOpacity(FSlateColor::UseForeground())
+			.ToolTipText(LOCTEXT("Column.Visibility.Tooltip", "Toggles the editor visibility"))
+		]
+
+		/** Level game visibility column */
+		+ SHeaderRow::Column(HierarchyColumns::ColumnID_GameVisibility)
+		.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
+		.DefaultLabel(LOCTEXT("Column.GameVisibility.DefaultLabel", "Game Visibility"))
+		.FixedWidth(IconWidth)
+		.HeaderContent()
+		[
+			SNew(SImage)
+			.Image(WorldBrowser::FWorldBrowserStyle::Get().GetBrush( "WorldBrowser.VisibleInGame" ))
+			.ColorAndOpacity(FSlateColor::UseForeground())
+			.ToolTipText(LOCTEXT("Column.GameVisibility.Tooltip", "Toggles the visibility in games"))
+		]
+
+		/** LevelName label column */
+		+ SHeaderRow::Column( HierarchyColumns::ColumnID_LevelLabel )
+		.FillWidth(1.f)
+		.DefaultLabel(LOCTEXT("Column.Level.DefaultLabel", "Level"))
+		.ShouldGenerateWidget(true) // This column cannot be toggled off by the user
+		.HeaderContent()
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("Column.Level.Label", "Level"))
+			.ToolTipText(LOCTEXT("Column.Level.Tooltip", "Level"))
+		]
+
+		/** Lighting Scenario column */
+		+ SHeaderRow::Column(HierarchyColumns::ColumnID_LightingScenario)
+		.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
+		.DefaultLabel(LOCTEXT("Column.LightingScenario.DefaultLabel", "Lighting Scenario"))
+		.FixedWidth(IconWidth)
+		.HeaderContent()
+		[
+			SNew(SImage)
+			.Image(FAppStyle::Get().GetBrush("Level.LightingScenarioIconSolid16x"))
+			.ColorAndOpacity(FSlateColor::UseForeground())
+			.ToolTipText(LOCTEXT("Column.LightingScenario.Tooltip", "Lighting Scenario"))
+		]
+
+		/** Level lock column */
+		+SHeaderRow::Column(HierarchyColumns::ColumnID_Lock)
+		.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
+		.DefaultLabel(LOCTEXT("Column.LevelLock.DefaultLabel", "Lock"))
+		.FixedWidth(IconWidth)
+		.HeaderContent()
+		[
+			SNew(SImage)
+			.Image(FAppStyle::Get().GetBrush("Icons.Lock"))
+			.ColorAndOpacity(FSlateColor::UseForeground())
+			.ToolTipText(LOCTEXT("Column.LevelLock.Tooltip", "Lock"))
+		]
+	
+		/** Level kismet column */
+		+ SHeaderRow::Column(HierarchyColumns::ColumnID_Kismet)
+		.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
+		.DefaultLabel(LOCTEXT("Column.Kismet.DefaultLabel", "Open Blueprint"))
+		.FixedWidth(IconWidth)
+		.HeaderContent()
+		[
+			SNew(SImage)
+			.ColorAndOpacity(FSlateColor::UseForeground())
+			.Image(FAppStyle::Get().GetBrush("Icons.Blueprints"))
+			.ToolTipText(LOCTEXT("Column.Kismet.Tooltip", "Open the level blueprint for this Level"))
+		]
+
+		/** Level SCC status column */
+		+ SHeaderRow::Column(HierarchyColumns::ColumnID_SCCStatus)
+		.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
+		.DefaultLabel(LOCTEXT("Column.SCC.DefaultLabel", "Revision Control"))
+		.FixedWidth(IconWidth)
+		.HeaderContent()
+		[
+			SNew(SImage)
+			.ColorAndOpacity(FSlateColor::UseForeground())
+			.Image(FRevisionControlStyleManager::Get().GetBrush("RevisionControl.Icon"))
+			.ToolTipText(LOCTEXT("Column.SCC.Tooltip", "Status in Revision Control"))
+		]
+
+		/** Level save column */
+		+ SHeaderRow::Column(HierarchyColumns::ColumnID_Save)
+		.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
+		.DefaultLabel(LOCTEXT("Column.Save.DefaultLabel", "Save"))
+		.FixedWidth(IconWidth)
+		.HeaderContent()
+		[
+			SNew(SImage)
+			.ColorAndOpacity(FSlateColor::UseForeground())
+			.Image(FAppStyle::Get().GetBrush("Icons.SaveModified"))
+			.ToolTipText(LOCTEXT("Column.Save.Tooltip", "Save this Level"))
+		]
+
+		/** Level color column */
+		+ SHeaderRow::Column(HierarchyColumns::ColumnID_Color)
+		.Visibility(bFoldersOnlyMode ? EVisibility::Collapsed : EVisibility::Visible)
+		.DefaultLabel(LOCTEXT("Column.Color.DefaultLabel", "Color"))
+		.FixedWidth(IconWidth)
+		.HeaderContent()
+		[
+			SNew(SImage)
+			.ColorAndOpacity(FSlateColor(FColor::White))
+			.Image(FAppStyle::Get().GetBrush("Level.ColorIcon"))
+			.ToolTipText(LOCTEXT("Column.Color.Tooltip", "Color used for visualization of Level"))
+		];
+	
+	UWorldBrowserConfig::Initialize();
+	UWorldBrowserConfig* Config = UWorldBrowserConfig::Get();
+	for (const TPair<FName, bool>& VisibilityPair : Config->ColumnConfig.ColumnVisibilities)
+	{
+		const FName ColumnId = VisibilityPair.Key;
+		if (!IsRequiredColumn(ColumnId))
+		{
+			SetColumnVisible(ColumnId, VisibilityPair.Value);
+		}
+	}
+	
+	return HeaderRow;
+}
+
+void SWorldHierarchyImpl::SaveColumnVisibilitiesIntoConfig()
+{
+	if (bIsProgrammaticallyChangingColumnVisibility)
+	{
+		return;
+	}
+	
+	UWorldBrowserConfig::Initialize();
+	UWorldBrowserConfig* Config = UWorldBrowserConfig::Get();
+
+	TMap<FName, bool>& Visibilities = Config->ColumnConfig.ColumnVisibilities;
+	Visibilities.Empty();
+	for (const SHeaderRow::FColumn& Column : HeaderRowWidget->GetColumns())
+	{
+		const FName ColumnId = Column.ColumnId;
+		if (!IsRequiredColumn(ColumnId))
+		{
+			Visibilities.Add(ColumnId, IsColumnVisible(ColumnId));
+		}
+	}
+	
+	Config->SaveEditorConfig();
+}
+
+bool SWorldHierarchyImpl::IsRequiredColumn(FName ColumnId)
+{
+	return ColumnId == UE::WorldHierarchy::HierarchyColumns::ColumnID_LevelLabel;
+}
+
+bool SWorldHierarchyImpl::IsKnownColumn(FName ColumnId)
+{
+	using namespace UE::WorldHierarchy;
+	return ColumnId == HierarchyColumns::ColumnID_EditorVisibility
+		|| ColumnId == HierarchyColumns::ColumnID_GameVisibility
+		|| ColumnId == HierarchyColumns::ColumnID_LevelLabel
+		|| ColumnId == HierarchyColumns::ColumnID_LightingScenario
+		|| ColumnId == HierarchyColumns::ColumnID_Lock
+		|| ColumnId == HierarchyColumns::ColumnID_SCCStatus
+		|| ColumnId == HierarchyColumns::ColumnID_Save
+		|| ColumnId == HierarchyColumns::ColumnID_Color
+		|| ColumnId == HierarchyColumns::ColumnID_Kismet;
 }
 
 TSharedRef<ITableRow> SWorldHierarchyImpl::GenerateTreeRow(WorldHierarchy::FWorldTreeItemPtr Item, const TSharedRef<STableViewBase>& OwnerTable)
@@ -474,7 +575,11 @@ TSharedPtr<SWidget> SWorldHierarchyImpl::ConstructLevelContextMenu() const
 
 		Menu->AddDynamicSection("HierarchyDynamicSection", FNewToolMenuDelegateLegacy::CreateLambda([this](FMenuBuilder& MenuBuilder, UToolMenu* Menu)
 		{
-			WorldModel->BuildHierarchyMenu(MenuBuilder);
+			const bool bIsGameVisibilityColumnVisible = IsColumnVisible(UE::WorldHierarchy::HierarchyColumns::ColumnID_GameVisibility);
+			WorldModel->BuildHierarchyMenu(
+				MenuBuilder,
+				bIsGameVisibilityColumnVisible ? EBuildHierarchyMenuFlags::ShowGameVisibility : EBuildHierarchyMenuFlags::None
+				);
 		}));
 
 		// Generate the "Move To" and "Select" submenus based on the current selection
@@ -689,6 +794,38 @@ void SWorldHierarchyImpl::AddDroppedLevelsToFolder(const TArray<FAssetData>& Wor
 		}
 
 		RefreshView();
+	}
+}
+
+bool SWorldHierarchyImpl::IsColumnVisible(FName ColumnId) const
+{
+	return HeaderRowWidget->IsColumnVisible(ColumnId);
+}
+
+void SWorldHierarchyImpl::SetColumnVisible(FName ColumnId, bool bVisible)
+{
+	if (IsKnownColumn(ColumnId))
+	{
+		TGuardValue Guard(bIsProgrammaticallyChangingColumnVisibility, true);
+		HeaderRowWidget->SetShowGeneratedColumn(ColumnId, bVisible);
+	}
+}
+
+bool SWorldHierarchyImpl::IsVisibleInConfig(FName ColumnId)
+{
+	UWorldBrowserConfig::Initialize();
+	UWorldBrowserConfig* Config = UWorldBrowserConfig::Get();
+	const bool* bIsVisible = Config->ColumnConfig.ColumnVisibilities.Find(ColumnId);
+	return IsRequiredColumn(ColumnId) || !bIsVisible || *bIsVisible;
+}
+
+void SWorldHierarchyImpl::SetWillBeVisibleInConfigTransient(FName ColumnId, bool bIsVisible)
+{
+	if (!IsRequiredColumn(ColumnId) && IsKnownColumn(ColumnId))
+	{
+		UWorldBrowserConfig::Initialize();
+		UWorldBrowserConfig* Config = UWorldBrowserConfig::Get();
+		Config->ColumnConfig.ColumnVisibilities.Add(ColumnId, bIsVisible);
 	}
 }
 

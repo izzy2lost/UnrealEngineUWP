@@ -32,6 +32,14 @@ namespace Chaos
 			TEXT("Gating a risky bug fix.")
 		);
 
+		// @tmp: To be removed
+		bool bFixPartialDestruction = true;
+		FAutoConsoleVariableRef CVarChaosFixPartialDestruction(
+			TEXT("p.Chaos.ClusterUnion.FixPartialDestruction"),
+			bFixPartialDestruction,
+			TEXT("Fix the partial destruction.")
+		);
+
 		FRigidTransform3 GetParticleRigidFrameInClusterUnion(FPBDRigidParticleHandle* Child, const FRigidTransform3& ClusterWorldTM)
 		{
 			FRigidTransform3 Frame = FRigidTransform3::Identity;
@@ -156,47 +164,13 @@ namespace Chaos
 						{
 							FPBDRigidParticleHandle* OtherParticle = ClusterUnion.ChildParticles[RootObjectIndex];
 							Clustering.CreateNodeConnection(Particle, OtherParticle);
-							
-							if (FClusterUnionParticleProperties* Properties = ClusterUnion.ChildProperties.Find(Particle))
-							{
-								Properties->bEdgesAreGenerated = false;
-								if (FClusterUnionParticleProperties* OtherProperties = ClusterUnion.ChildProperties.Find(OtherParticle))
-								{
-									OtherProperties->bEdgesAreGenerated = false;
-								}
-
-								if (bChaosClusterUnionGenerateInterclusterEdges && Particle && OtherParticle)
-								{
-									// Only generate intercluster edges for main particles. Auxiliary particles that are just bits and pieces of geometry collections
-									// shouldn't also generate intercluster edges.
-									if (!Properties || !Properties->bIsAuxiliaryParticle)
-									{
-										const TArray<FPBDRigidParticleHandle*>& ParticleChildren = Clustering.GetChildrenMap().FindRef(Particle->CastToClustered());
-										const TArray<FPBDRigidParticleHandle*>& OtherChildren = Clustering.GetChildrenMap().FindRef(OtherParticle->CastToClustered());
-
-										TSet<FPBDRigidParticleHandle*> FromSet{ ParticleChildren };
-										TSet<FPBDRigidParticleHandle*> ToSet{ OtherChildren };
-
-										TArray<FPBDRigidParticleHandle*> AllParticles;
-										AllParticles.Reserve(FromSet.Num() + ToSet.Num());
-										AllParticles.Append(ParticleChildren);
-										AllParticles.Append(OtherChildren);
-
-										FClusterCreationParameters Parameters{ 0.3f, 100, false, false };
-										Parameters.ConnectionMethod = FClusterCreationParameters::EConnectionMethod::BoundsOverlapFilteredDelaunayTriangulation;
-										Parameters.ConnectionGraphBoundsFilteringMargin = 1.0;
-
-										Clustering.GenerateConnectionGraph(AllParticles, Parameters, &FromSet, &ToSet);
-									}
-								}
-							}
 						}
 					}
 				);
 			}
 		}
 
-		void RemoveClusterUnionEdges(FRigidClustering& Clustering, FPBDRigidParticleHandle* ParticleHandle)
+		void RemoveClusterUnionEdges(FRigidClustering& Clustering, FClusterUnion& ClusterUnion, FPBDRigidParticleHandle* ParticleHandle)
 		{
 			if (!ParticleHandle)
 			{
@@ -204,6 +178,11 @@ namespace Chaos
 			}
 
 			Clustering.RemoveNodeConnections(ParticleHandle);
+
+			if (FClusterUnionParticleProperties* Properties = ClusterUnion.ChildProperties.Find(ParticleHandle))
+			{
+				Properties->bEdgesAreGenerated = false;
+			}
 
 			if (bChaosClusterUnionGenerateInterclusterEdges)
 			{
@@ -238,7 +217,7 @@ namespace Chaos
 		{
 			for (FPBDRigidParticleHandle* ChildParticle : ClusterUnion.ChildParticles)
 			{
-				RemoveClusterUnionEdges(Clustering, ChildParticle);
+				RemoveClusterUnionEdges(Clustering, ClusterUnion, ChildParticle);
 				AddParticleToConnectionGraph(Clustering, ClusterUnion, ChildParticle);
 			}
 		}
@@ -658,6 +637,9 @@ namespace Chaos
 		// Cluster uses MACD is any children require MACD (or it is already enabled on this cluster)
 		bool bIsMACD = Cluster->InternalCluster->MACDEnabled();
 
+		Private::FIterationSettings SolverIterationSettings = Cluster->InternalCluster->IterationSettings();
+
+
 		// Use the minimum sleep multiplier of all member particles
 		FRealSingle MinSleepThresholdMultiplier = TNumericLimits<FRealSingle>::Max();
 
@@ -681,6 +663,8 @@ namespace Chaos
 			bIsOneWayInteraction &= Particle->OneWayInteraction();
 			bIsMACD |= Particle->MACDEnabled();
 			MinSleepThresholdMultiplier = FMath::Min(MinSleepThresholdMultiplier, Particle->SleepThresholdMultiplier());
+
+			SolverIterationSettings = Private::FIterationSettings::Merge(SolverIterationSettings, Particle->IterationSettings());
 
 			if (!Cluster->ChildProperties.Contains(Particle))
 			{
@@ -753,6 +737,7 @@ namespace Chaos
 
 		Cluster->InternalCluster->SetOneWayInteraction(bIsOneWayInteraction);
 		Cluster->InternalCluster->SetMACDEnabled(bIsMACD);
+		Cluster->InternalCluster->SetIterationSettings(SolverIterationSettings);
 
 		if (MinSleepThresholdMultiplier != TNumericLimits<FRealSingle>::Max())
 		{
@@ -1042,6 +1027,100 @@ namespace Chaos
 		AddParticleToConnectionGraph(MClustering, ClusterUnion, Particle);
 	}
 
+	DECLARE_CYCLE_STAT(TEXT("FClusterUnionManager::GenerateInterclusterEdgesForParticle"), STAT_GenerateInterclusterEdgesForParticle, STATGROUP_Chaos);
+	void FClusterUnionManager::GenerateInterclusterEdgesForParticle(FClusterUnion& ClusterUnion, FPBDRigidParticleHandle* Particle)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_GenerateInterclusterEdgesForParticle);
+		if (!Particle)
+		{
+			return;
+		}
+
+		// Just a safety check really to make sure the particle is actually in the cluster union.
+		FClusterUnionParticleProperties* Properties = ClusterUnion.ChildProperties.Find(Particle);
+		if (!Properties || Properties->bEdgesAreGenerated)
+		{
+			return;
+		}
+
+		auto PrepareParticleForInterclusterEdges = [](FPBDRigidParticleHandle& Particle)
+		{
+			IPhysicsProxyBase* Proxy = Particle.PhysicsProxy();
+			if (!Proxy)
+			{
+				return;
+			}
+
+			if (Proxy->GetType() == FGeometryCollectionPhysicsProxy::ConcreteType())
+			{
+				FGeometryCollectionPhysicsProxy* GCProxy = static_cast<FGeometryCollectionPhysicsProxy*>(Proxy);
+				check(GCProxy != nullptr);
+				GCProxy->CreateChildrenGeometry_Internal();
+			}
+		};
+
+		PrepareParticleForInterclusterEdges(*Particle);
+
+		FPBDRigidClusteredParticleHandle* ClusteredParticle = Particle->CastToClustered();
+		if (!ClusteredParticle)
+		{
+			return;
+		}
+
+		const TArray<Chaos::FConnectivityEdge>& Edges = ClusteredParticle->ConnectivityEdges();
+		for (const Chaos::FConnectivityEdge& Edge : Edges)
+		{
+			if (Edge.Sibling != nullptr)
+			{
+				PrepareParticleForInterclusterEdges(*Edge.Sibling);
+				GenerateInterclusterEdgesBetweenParticles(ClusterUnion, Particle, Edge.Sibling);
+			}
+		}
+
+		Properties->bEdgesAreGenerated = true;
+	}
+
+	DECLARE_CYCLE_STAT(TEXT("FClusterUnionManager::GenerateInterclusterEdgesBetweenParticles"), STAT_GenerateInterclusterEdgesBetweenParticles, STATGROUP_Chaos);
+	void FClusterUnionManager::GenerateInterclusterEdgesBetweenParticles(FClusterUnion& ClusterUnion, FPBDRigidParticleHandle* Particle, FPBDRigidParticleHandle* OtherParticle)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_GenerateInterclusterEdgesBetweenParticles);
+		if (!Particle || !OtherParticle)
+		{
+			return;
+		}
+
+		FClusterUnionParticleProperties* Properties = ClusterUnion.ChildProperties.Find(Particle);
+		if (!Properties)
+		{
+			return;
+		}
+
+		if (bChaosClusterUnionGenerateInterclusterEdges && Particle && OtherParticle)
+		{
+			// Only generate intercluster edges for main particles. Auxiliary particles that are just bits and pieces of geometry collections
+			// shouldn't also generate intercluster edges.
+			if (bFixPartialDestruction || !Properties || !Properties->bIsAuxiliaryParticle)
+			{
+				const TArray<FPBDRigidParticleHandle*>& ParticleChildren = MClustering.GetChildrenMap().FindRef(Particle->CastToClustered());
+				const TArray<FPBDRigidParticleHandle*>& OtherChildren = MClustering.GetChildrenMap().FindRef(OtherParticle->CastToClustered());
+
+				TSet<FPBDRigidParticleHandle*> FromSet{ ParticleChildren };
+				TSet<FPBDRigidParticleHandle*> ToSet{ OtherChildren };
+
+				TArray<FPBDRigidParticleHandle*> AllParticles;
+				AllParticles.Reserve(FromSet.Num() + ToSet.Num());
+				AllParticles.Append(ParticleChildren);
+				AllParticles.Append(OtherChildren);
+
+				FClusterCreationParameters Parameters{ 0.3f, 100, false, false };
+				Parameters.ConnectionMethod = FClusterCreationParameters::EConnectionMethod::BoundsOverlapFilteredDelaunayTriangulation;
+				Parameters.ConnectionGraphBoundsFilteringMargin = 1.0;
+
+				MClustering.GenerateConnectionGraph(AllParticles, Parameters, &FromSet, &ToSet);
+			}
+		}
+	}
+
 	DECLARE_CYCLE_STAT(TEXT("FClusterUnionManager::FlushIncrementalConnectivityGraphOperations"), STAT_FlushIncrementalConnectivityGraphOperations, STATGROUP_Chaos);
 	void FClusterUnionManager::FlushIncrementalConnectivityGraphOperations(FClusterUnion& ClusterUnion)
 	{
@@ -1054,7 +1133,7 @@ namespace Chaos
 			}
 			else if (Op.Value == EClusterUnionConnectivityOperation::Remove)
 			{
-				RemoveClusterUnionEdges(MClustering, Op.Key);
+				RemoveClusterUnionEdges(MClustering, ClusterUnion, Op.Key);
 			}
 		}
 
@@ -1340,7 +1419,7 @@ namespace Chaos
 		bool bMadeChanges = false;
 		for (FPBDRigidParticleHandle* Particle : Particles)
 		{
-			if (!ensure(Particle))
+			if (!Particle)
 			{
 				return;
 			}

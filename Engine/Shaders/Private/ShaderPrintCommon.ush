@@ -185,6 +185,15 @@ FFontColor InitFontColor(float InX, float InY, float InZ)	{ FFontColor Out; Out.
 FFontColor InitFontColor(float3 In)							{ FFontColor Out; Out.Color = In; return Out; }
 FFontColor GetDefaultFontColor()							{ FFontColor Out; Out.Color = float3(1,1,1); return Out; }
 
+FFontColor Select(bool Condition, FFontColor A, FFontColor B)
+{
+	if (Condition)
+	{
+		return A;
+	}
+	return B; 
+}
+
 // Predefined colors
 #define FontWhite		InitFontColor(1, 1, 1)
 #define FontGrey		InitFontColor(0.5, 0.5, 0.5)
@@ -204,6 +213,7 @@ FFontColor GetDefaultFontColor()							{ FFontColor Out; Out.Color = float3(1,1,
 #define FontLightRed	InitFontColor(0.75f, 0.50f, 0.50f)
 #define FontLightGreen	InitFontColor(0.50f, 0.75f, 0.50f)
 #define FontLightBlue	InitFontColor(0.50f, 0.50f, 0.75f)
+#define FontLightYellow	InitFontColor(0.75f, 0.75f, 0.50f)
 #define FontDarkRed		InitFontColor(0.50f, 0.25f, 0.25f)
 #define FontDarkGreen	InitFontColor(0.25f, 0.50f, 0.25f)
 #define FontDarkBlue	InitFontColor(0.25f, 0.25f, 0.50f)
@@ -335,6 +345,7 @@ struct FShaderPrintConfig
 	uint MaxStateCount;
 	uint MaxLineCount;
 	uint MaxTriangleCount;
+	bool bIsDrawLocked;
 };
 
 struct FShaderPrintBuffers
@@ -350,6 +361,8 @@ struct FShaderPrintContext
 	float2 Pos;
 
 	FShaderPrintConfig Config;
+
+	bool IsDrawLocked() { return Config.bIsDrawLocked; }
 
 #if !SHADER_PRINT_USE_GLOBAL_RESOURCE
 	FShaderPrintBuffers Buffers;
@@ -1320,46 +1333,57 @@ void AddLineTriangle   (FShaderPrintContext Ctx, float3 P0, float3 P1, float3 P2
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // OBB
 
-void AddOBBTWS(FShaderPrintContext Ctx, float3 Min, float3 Max, float4 Color, float4x4 Transform)
+void AddOBBTWS(FShaderPrintContext Ctx, float3 Min, float3 Max, float4 Color, float4x4 Transform, bool bHomogeneousDivide = false)
 {
 	if (Ctx.bIsActive) 
 	{
 		uint Offset = 0;
 		if (AllocateLineElement(Ctx, 12, Offset))
 		{
-			float3 P0 = mul(float4(Min.x, Min.y, Min.z, 1.0f), Transform).xyz;
-			float3 P1 = mul(float4(Max.x, Min.y, Min.z, 1.0f), Transform).xyz;
-			float3 P2 = mul(float4(Max.x, Max.y, Min.z, 1.0f), Transform).xyz;
-			float3 P3 = mul(float4(Min.x, Max.y, Min.z, 1.0f), Transform).xyz;
-			float3 P4 = mul(float4(Min.x, Min.y, Max.z, 1.0f), Transform).xyz;
-			float3 P5 = mul(float4(Max.x, Min.y, Max.z, 1.0f), Transform).xyz;
-			float3 P6 = mul(float4(Max.x, Max.y, Max.z, 1.0f), Transform).xyz;
-			float3 P7 = mul(float4(Min.x, Max.y, Max.z, 1.0f), Transform).xyz;
+			float4 P0 = mul(float4(Min.x, Min.y, Min.z, 1.0f), Transform);
+			float4 P1 = mul(float4(Max.x, Min.y, Min.z, 1.0f), Transform);
+			float4 P2 = mul(float4(Max.x, Max.y, Min.z, 1.0f), Transform);
+			float4 P3 = mul(float4(Min.x, Max.y, Min.z, 1.0f), Transform);
+			float4 P4 = mul(float4(Min.x, Min.y, Max.z, 1.0f), Transform);
+			float4 P5 = mul(float4(Max.x, Min.y, Max.z, 1.0f), Transform);
+			float4 P6 = mul(float4(Max.x, Max.y, Max.z, 1.0f), Transform);
+			float4 P7 = mul(float4(Min.x, Max.y, Max.z, 1.0f), Transform);
 
+			if (bHomogeneousDivide)
+			{
+				P0.xyz /= P0.w;
+				P1.xyz /= P1.w;
+				P2.xyz /= P2.w;
+				P3.xyz /= P3.w;
+				P4.xyz /= P4.w;
+				P5.xyz /= P5.w;
+				P6.xyz /= P6.w;
+				P7.xyz /= P7.w;
+			}
 			FLineElement Element;
 			Element.bIsScreenSpace = false;
 			Element.Color0 = Element.Color1 = Color;
 
-			Element.Pos0 = P0; Element.Pos1 = P1; AddLineElement(Ctx, Element, Offset + 0);
-			Element.Pos0 = P1; Element.Pos1 = P2; AddLineElement(Ctx, Element, Offset + 1);
-			Element.Pos0 = P2; Element.Pos1 = P3; AddLineElement(Ctx, Element, Offset + 2);
-			Element.Pos0 = P3; Element.Pos1 = P0; AddLineElement(Ctx, Element, Offset + 3);
+			Element.Pos0 = P0.xyz; Element.Pos1 = P1.xyz; AddLineElement(Ctx, Element, Offset + 0);
+			Element.Pos0 = P1.xyz; Element.Pos1 = P2.xyz; AddLineElement(Ctx, Element, Offset + 1);
+			Element.Pos0 = P2.xyz; Element.Pos1 = P3.xyz; AddLineElement(Ctx, Element, Offset + 2);
+			Element.Pos0 = P3.xyz; Element.Pos1 = P0.xyz; AddLineElement(Ctx, Element, Offset + 3);
 
-			Element.Pos0 = P4; Element.Pos1 = P5; AddLineElement(Ctx, Element, Offset + 4);
-			Element.Pos0 = P5; Element.Pos1 = P6; AddLineElement(Ctx, Element, Offset + 5);
-			Element.Pos0 = P6; Element.Pos1 = P7; AddLineElement(Ctx, Element, Offset + 6);
-			Element.Pos0 = P7; Element.Pos1 = P4; AddLineElement(Ctx, Element, Offset + 7);
+			Element.Pos0 = P4.xyz; Element.Pos1 = P5.xyz; AddLineElement(Ctx, Element, Offset + 4);
+			Element.Pos0 = P5.xyz; Element.Pos1 = P6.xyz; AddLineElement(Ctx, Element, Offset + 5);
+			Element.Pos0 = P6.xyz; Element.Pos1 = P7.xyz; AddLineElement(Ctx, Element, Offset + 6);
+			Element.Pos0 = P7.xyz; Element.Pos1 = P4.xyz; AddLineElement(Ctx, Element, Offset + 7);
 
-			Element.Pos0 = P0; Element.Pos1 = P4; AddLineElement(Ctx, Element, Offset + 8);
-			Element.Pos0 = P1; Element.Pos1 = P5; AddLineElement(Ctx, Element, Offset + 9);
-			Element.Pos0 = P2; Element.Pos1 = P6; AddLineElement(Ctx, Element, Offset + 10);
-			Element.Pos0 = P3; Element.Pos1 = P7; AddLineElement(Ctx, Element, Offset + 11);
+			Element.Pos0 = P0.xyz; Element.Pos1 = P4.xyz; AddLineElement(Ctx, Element, Offset + 8);
+			Element.Pos0 = P1.xyz; Element.Pos1 = P5.xyz; AddLineElement(Ctx, Element, Offset + 9);
+			Element.Pos0 = P2.xyz; Element.Pos1 = P6.xyz; AddLineElement(Ctx, Element, Offset + 10);
+			Element.Pos0 = P3.xyz; Element.Pos1 = P7.xyz; AddLineElement(Ctx, Element, Offset + 11);
 		}
 	}
 }
 
-void AddOBBWS (FShaderPrintContext Ctx, float3 Min, float3 Max, float4 Color, float4x4 Transform)	{ Transform[3].xyz += Ctx.Config.TranslatedWorldOffset; AddOBBTWS(Ctx, Min, Max, Color, Transform); }
-void AddOBB   (FShaderPrintContext Ctx, float3 Min, float3 Max, float4 Color, float4x4 Transform)	{ Transform[3].xyz += Ctx.Config.TranslatedWorldOffset; AddOBBTWS(Ctx, Min, Max, Color, Transform); }
+void AddOBBWS (FShaderPrintContext Ctx, float3 Min, float3 Max, float4 Color, float4x4 Transform, bool bHomogeneousDivide = false)	{ Transform[3].xyz += Ctx.Config.TranslatedWorldOffset; AddOBBTWS(Ctx, Min, Max, Color, Transform, bHomogeneousDivide); }
+void AddOBB   (FShaderPrintContext Ctx, float3 Min, float3 Max, float4 Color, float4x4 Transform, bool bHomogeneousDivide = false)	{ Transform[3].xyz += Ctx.Config.TranslatedWorldOffset; AddOBBTWS(Ctx, Min, Max, Color, Transform, bHomogeneousDivide); }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Strings
@@ -1449,3 +1473,9 @@ uint2 GetShaderPrintCurrentPixelCoord()
 {
 	return ShaderPrintCurrentPixelCoord;
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// Helper functions
+
+// Print a value onto a single line
+#define PrintLine(Ctx, Value) Print(Ctx, TEXT(#Value), FontWhite); Print(Ctx, TEXT(" : "), FontWhite); Print(Ctx, Value, FontYellow); Newline(Ctx);

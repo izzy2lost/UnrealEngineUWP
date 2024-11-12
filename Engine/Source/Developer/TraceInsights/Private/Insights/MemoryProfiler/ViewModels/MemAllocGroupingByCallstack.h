@@ -2,21 +2,17 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-// Insights
-#include "Insights/Table/ViewModels/BaseTreeNode.h"
-#include "Insights/Table/ViewModels/TreeNodeGrouping.h"
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/BaseTreeNode.h"
+#include "InsightsCore/Table/ViewModels/TreeNodeGrouping.h"
 
-namespace TraceServices
+namespace TraceServices { struct FStackFrame; }
+namespace UE::Insights { class IAsyncOperationProgress; }
+
+namespace UE::Insights::MemoryProfiler
 {
-	struct FStackFrame;
-}
-
-namespace Insights
-{
-
-class IAsyncOperationProgress;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -38,6 +34,7 @@ public:
 
 	virtual const FText GetTooltipText() const override;
 	virtual const FSlateBrush* GetIcon() const override;
+	virtual FLinearColor GetIconColor() const override;
 	virtual FLinearColor GetColor() const override;
 
 	/**
@@ -90,6 +87,7 @@ private:
 	FCallstackGroup* CreateGroup(TArray<FCallstackGroup*>& InOutAllCallstackGroup, FCallstackGroup* InParentGroup, const FName InGroupName, TWeakPtr<FTable> InParentTable, const TraceServices::FStackFrame* InFrame) const;
 
 	FTableTreeNode* CreateUnsetGroup(TWeakPtr<FTable> ParentTable, FTableTreeNode& Parent) const;
+	FTableTreeNode* CreateNoCallstackGroup(TWeakPtr<FTable> ParentTable, FTableTreeNode& Parent) const;
 	FTableTreeNode* CreateEmptyCallstackGroup(TWeakPtr<FTable> ParentTable, FTableTreeNode& Parent) const;
 
 private:
@@ -101,4 +99,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler

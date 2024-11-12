@@ -21,8 +21,6 @@ public:
 
 	MOVIESCENE_API UMovieSceneBindingLifetimeSystem(const FObjectInitializer& ObjInit);
 
-	MOVIESCENE_API static FMovieSceneAnimTypeID GetAnimTypeID();
-
 private:
 
 	MOVIESCENE_API virtual void OnRun(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents) override;

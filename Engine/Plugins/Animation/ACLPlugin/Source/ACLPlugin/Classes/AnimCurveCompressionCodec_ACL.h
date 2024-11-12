@@ -36,6 +36,7 @@ class UAnimCurveCompressionCodec_ACL : public UAnimCurveCompressionCodec
 #endif
 
 	// UAnimCurveCompressionCodec implementation
+	virtual bool ValidateCompressedData(UObject* DataOwner, const FCompressedAnimSequence& AnimSeq) const override;
 	virtual void DecompressCurves(const FCompressedAnimSequence& AnimSeq, FBlendedCurve& Curves, float CurrentTime) const override;
 	virtual float DecompressCurve(const FCompressedAnimSequence& AnimSeq, FName CurveName, float CurrentTime) const override;
 };

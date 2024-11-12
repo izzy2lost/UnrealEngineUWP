@@ -181,7 +181,6 @@ TSharedPtr<SWidget> SFbxMaterialConflictWindow::ConstructMaterialComparison()
 					[
 						//Show the Comparison of the meshes
 						SNew(SListView< TSharedPtr<FMaterialConflictData> >)
-						.ItemHeight(64)
 						.ListItemsSource(&ConflictMaterialListItem)
 						.OnGenerateRow(this, &SFbxMaterialConflictWindow::OnGenerateRowForCompareMaterialList)
 						.HeaderRow

@@ -258,6 +258,33 @@ void SChaosClothAssetEditorRestSpaceViewport::BindCommands()
 				return false;
 			}));
 
+	CommandList->MapAction(
+		CommandInfos.ToggleConstructionViewSurfaceNormals,
+		FExecuteAction::CreateLambda([this]()
+			{
+				if (UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+				{
+					ClothEdMode->ToggleConstructionViewSurfaceNormals();
+				}
+			}),
+		FCanExecuteAction::CreateLambda([this]()
+			{
+				if (const UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+				{
+					return ClothEdMode->CanSetConstructionViewSurfaceNormalsActive();
+				}
+				return false;
+			}),
+		FIsActionChecked::CreateLambda([this]()
+			{
+				if (const UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+				{
+					return ClothEdMode->IsConstructionViewSurfaceNormalsActive();
+				}
+				return false;
+			}));
+
+
 }
 
 TSharedPtr<SWidget> SChaosClothAssetEditorRestSpaceViewport::MakeViewportToolbar()

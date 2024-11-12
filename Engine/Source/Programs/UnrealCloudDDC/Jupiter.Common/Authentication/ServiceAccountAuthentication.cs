@@ -1,8 +1,5 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -10,6 +7,9 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 
@@ -39,7 +39,7 @@ namespace Jupiter
 		{
 			_options = options;
 		}
-		
+
 		protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
 		{
 			if (!Context.Request.Headers.TryGetValue(HeaderNames.Authorization, out StringValues headerValue))
@@ -62,9 +62,9 @@ namespace Jupiter
 			{
 				return AuthenticateResult.NoResult();
 			}
-			
+
 			await Task.CompletedTask;
-			
+
 			string token = header.Replace(Prefix, "", StringComparison.Ordinal).Trim();
 			ServiceAccountAuthOptions.ServiceAccounts? serviceAccount = _options.CurrentValue.Accounts.FirstOrDefault(account => account.Token == token);
 			if (serviceAccount == null)

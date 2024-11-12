@@ -22,7 +22,6 @@ namespace UnrealBuildTool.Rules
 					"MassSpawner",
 					"MassMovement",
 					"MassNavigation",
-					"StructUtils",
 					"ZoneGraph",
 					"ZoneGraphAnnotations",
 					"DeveloperSettings",

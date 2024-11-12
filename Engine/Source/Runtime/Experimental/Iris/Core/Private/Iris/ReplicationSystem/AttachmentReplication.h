@@ -123,6 +123,9 @@ public:
 	// Whether all queued reliable attachments have been sent and acked
 	bool IsAllReliableSentAndAcked(ENetObjectAttachmentType Type, uint32 ObjectIndex) const;
 
+	// Whether all queued reliable attachments have been sent and acked for all types and objects
+	bool AreAllObjectsReliableSentAndAcked() const;
+
 	// Whether more reliable attachments can be sent now. It's possible to queue up as many attachments as you see fit, but if the queue is full it can take a while before more attachments will be replicated.
 	bool CanSendMoreReliableAttachments(ENetObjectAttachmentType Type, uint32 ObjectIndex) const;
 

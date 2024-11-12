@@ -2,40 +2,43 @@
 
 #pragma once
 
+#include "PropertyAssignmentViewFactory.h"
 #include "Editor/View/Column/IObjectTreeColumn.h"
-#include "Editor/View/Column/IPropertyTreeColumn.h"
 #include "Editor/View/Column/ReplicationColumnInfo.h"
 #include "Editor/View/Column/SelectionViewerColumns.h"
 #include "Replication/Editor/View/Column/ReplicationColumnsUtils.h"
-#include "ReplicationWidgetDelegates.h"
+#include "Replication/Utils/ReplicationWidgetDelegates.h"
 
 #include "Delegates/Delegate.h"
 #include "Misc/Attribute.h"
+#include "Types/SlateEnums.h"
 #include "Templates/SharedPointer.h"
 
 class UObject;
-class SWidget;
 
 struct FConcertStreamObjectAutoBindingRules;
 struct FConcertObjectReplicationMap;
 
 namespace UE::ConcertSharedSlate
 {
-	class FReplicatedPropertyData;
-	
 	class IEditableMultiReplicationStreamModel;
 	class IEditableReplicationStreamModel;
 	class IMultiReplicationStreamEditor;
 	class IObjectNameModel;
 	class IObjectSelectionSourceModel;
+	class IPropertyAssignmentView;
 	class IPropertyTreeView;
 	class IReplicationStreamModel;
 	class IReplicationStreamEditor;
 	class IReplicationStreamViewer;
-	class IReplicationSubobjectView;
 	class IStreamExtender;
 	class IObjectHierarchyModel;
-	class IPropertySelectionSourceModel;
+	class IPropertySourceProcessor;
+
+	/** Creates a stream model that will only read from ReplicationMapAttribute. */
+	CONCERTSHAREDSLATE_API TSharedRef<IReplicationStreamModel> CreateReadOnlyStreamModel(
+		TAttribute<const FConcertObjectReplicationMap*> ReplicationMapAttribute
+		);
 	
 	/**
 	 * Creates a model that can be passed to CreateEditor.
@@ -49,54 +52,12 @@ namespace UE::ConcertSharedSlate
 		TAttribute<FConcertObjectReplicationMap*> ReplicationMapAttribute,
 		TSharedPtr<IStreamExtender> Extender = nullptr
 		);
-
-	enum class EFilterResult : uint8
-	{
-		/** Include the object into list of displayed objects */
-		PassesFilter,
-		/** Exclude the object from list of displayed objects */
-		DoesNotPassFilter
-	};
-	DECLARE_DELEGATE_RetVal_OneParam(EFilterResult, FFilterPropertyData, const FReplicatedPropertyData&);
-	
-	struct FCreatePropertyTreeViewParams
-	{
-		/** Optional. Additional property columns you want added. */
-		TArray<FPropertyColumnEntry> PropertyColumns
-		{
-			ReplicationColumns::Property::LabelColumn(),
-			ReplicationColumns::Property::TypeColumn()
-		};
-
-		/** Optional filter function. Return true to al */
-		FFilterPropertyData FilterItem;
-		
-		/** Optional initial primary sort mode for object rows */
-		FColumnSortInfo PrimaryPropertySort { ReplicationColumns::Property::LabelColumnId, EColumnSortMode::Ascending };
-		/** Optional initial secondary sort mode for object rows */
-		FColumnSortInfo SecondaryPropertySort { ReplicationColumns::Property::LabelColumnId, EColumnSortMode::Ascending };
-		
-		/** Optional widget to add to the left of the property list search bar. */
-		TAlwaysValidWidget LeftOfPropertySearchBar;
-		/** Optional widget to add to the right of the property list search bar. */
-		TAlwaysValidWidget RightOfPropertySearchBar;
-		/** Optional widget to add between the search bar and the table view (e.g. a SBasicFilterBar). */
-		TAlwaysValidWidget RowBelowSearchBar;
-		/** Optional, alternate content to show instead of the tree view when there are no rows. */
-		TAlwaysValidWidget NoItemsContent;
-	};
-	
-	/**
-	 * Creates a tree view that uses a search box for filtering items.
-	 * You can customize this tree view by adding custom widgets and columns into the property view.
-	 */
-	CONCERTSHAREDSLATE_API TSharedRef<IPropertyTreeView> CreateSearchablePropertyTreeView(FCreatePropertyTreeViewParams Params = {});
 	
 	/** Params for creating a IReplicationStreamViewer. */
 	struct FCreateViewerParams
 	{
-		/** Required. Displays the properties in a tree view. You can pass in e.g. custom UI with advanced filtering. */
-		TSharedRef<IPropertyTreeView> PropertyTreeView = CreateSearchablePropertyTreeView();
+		/** Required. In the lower half of the editor, this view presents the properties associated with the object that is currently selected in the upper part of the view. */
+		TSharedRef<IPropertyAssignmentView> PropertyAssignmentView = CreatePerObjectAssignmentView();
 		
 		/**
 		 * Optional. Determines the objects displayed as children to the top-level objects in the top section.
@@ -123,9 +84,23 @@ namespace UE::ConcertSharedSlate
 		TAlwaysValidWidget LeftOfObjectSearchBar;
 		/** Optional widget to add to the right of the object list search bar. */
 		TAlwaysValidWidget RightOfObjectSearchBar;
-	};
+		
+		/**
+		 * Optional. Whether a given object should be displayed. 
+		 *
+		 * This is useful e.g. for hiding objects that are not in the local editor's opened world (for that purpuse couple this delegate with @see FHideObjectsNotInWorldLogic).
+		 * If the list of displayed objects changes, call IReplicationStreamViewer::Refresh.
+		 * 
+		 * If this returns false on an object, none of its children will be shown either
+		 * Child objects are determined using ObjectHierarchy.
+		 */
+		FShouldDisplayObject ShouldDisplayObjectDelegate;
 
-	// TODO DP 5.5: Create factory function that uses FCreateViewerParams and creates an IReplicationStreamViewer
+		/** Optional. Delegate executed to create a widget that overlays an object row. */
+		FMakeObjectRowOverlayWidget MakeObjectRowOverlayWidgetDelegate;
+		/** Optional. If MakeRowOverlayWidgetDelegate is specified, this controls how the widget is aligned in the column. */
+		EHorizontalAlignment OverlayWidgetAlignment = HAlign_Right;
+	};
 
 	/** Params for creating an IReplicationStreamEditor */
 	struct FCreateEditorParams
@@ -145,12 +120,17 @@ namespace UE::ConcertSharedSlate
 		 * Required. Determines the properties that are displayed in the property list. 
 		 * @note The view will keep a strong reference to this.
 		 */
-		TSharedRef<IPropertySelectionSourceModel> PropertySource;
+		TSharedRef<IPropertySourceProcessor> PropertySource;
 		
 		/** Optional. Determines whether all UI for changing the model should be disabled. */
 		TAttribute<bool> IsEditingEnabled;
 		/** Optional. Whenever IsEditingEnabled returns true, this tooltip is displayed for relevant, disabled UI. */
 		TAttribute<FText> EditingDisabledToolTipText;
+
+		/** Called just before the passed objects are added to the stream model. Called in response to the user selecting these objects from the combo button. */
+		FSelectObjectsFromComboButton OnPreAddSelectedObjectsDelegate;
+		/** Called just after the passed objects have been added to the stream model. Called in response to the user selecting these objects from the combo button. */
+		FSelectObjectsFromComboButton OnPostAddSelectedObjectsDelegate;
 	};
 
 	/**
@@ -181,9 +161,9 @@ namespace UE::ConcertSharedSlate
 		/**
 		 * This model consolidates all objects in all streams.
 		 * 
-		 * When an object is added
-		 * - to one of the streams,
-		 * - via the "add" button,
+		 * When an object is added (i.e. IEditableReplicationStreamModel::OnObjectsChanged broadcasts), e.g. when
+		 * - to an object is added to one of the managed streams (e.g. stream is remotely changed),
+		 * - via the "Add" button,
 		 * it is added here, too. 
 		 * This is needed for the internal operation of the multi view.
 		 *
@@ -203,10 +183,15 @@ namespace UE::ConcertSharedSlate
 		 * Determines the properties that can be added to the property list.
 		 * @note The view will keep a strong reference to this.
 		 */
-		TSharedRef<IPropertySelectionSourceModel> PropertySource;
+		TSharedRef<IPropertySourceProcessor> PropertySource;
 
-		/** Optional. If set, the Add Actor button should automatically assign the added object to stream returned */
+		/** Optional. If set, the Add button should automatically assign the added object to stream returned by this callback. */
 		FGetAutoAssignTarget GetAutoAssignToStreamDelegate;
+		
+		/** Called just before the passed objects are added to the stream model. Called in response to the user selecting these objects from the combo button. */
+		FSelectObjectsFromComboButton OnPreAddSelectedObjectsDelegate;
+		/** Called just after the passed objects have been added to the stream model. Called in response to the user selecting these objects from the combo button. */
+		FSelectObjectsFromComboButton OnPostAddSelectedObjectsDelegate;
 	};
 
 	/**

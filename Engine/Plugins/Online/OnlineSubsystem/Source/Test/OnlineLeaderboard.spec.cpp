@@ -4,7 +4,7 @@
 #include "Interfaces/OnlineLeaderboardInterface.h"
 #include "Utils/OnlineTestCommon.h"
 
-BEGIN_DEFINE_SPEC(FOnlineLeaderboardSpec, "OnlineLeaderboardInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FOnlineLeaderboardSpec, "OnlineLeaderboardInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 
 IOnlineSubsystem* OnlineSubsystem;
 
@@ -386,17 +386,18 @@ void FOnlineLeaderboardSpec::Define()
 					{
 						UE_LOG_ONLINE_LEADERBOARD(Error, TEXT("OSS Automation: Test not yet implemented"));
 
-						FString TestAccountIdString = CommonUtils.GetSubsystemTestAccountUniqueId(SubsystemType);
+						const FString TestAccountIdString = CommonUtils.GetSubsystemTestAccountUniqueId(SubsystemType);
+						const FString TestStatString = TEXT("TestStat");
 						FUniqueNetIdPtr TestAccountId = OnlineIdentity->CreateUniquePlayerId(TestAccountIdString);
 
 						FOnlineLeaderboardWrite LeaderboardWriteObject;
-						LeaderboardWriteObject.LeaderboardNames.Add(FName(TEXT("TestLeaderboard")));
-						LeaderboardWriteObject.RatedStat = "TestStat";
+						LeaderboardWriteObject.LeaderboardNames.Add(FString(TEXT("TestLeaderboard")));
+						LeaderboardWriteObject.RatedStat = TestStatString;
 						LeaderboardWriteObject.DisplayFormat = ELeaderboardFormat::Number;
 						LeaderboardWriteObject.SortMethod = ELeaderboardSort::Descending;
 						LeaderboardWriteObject.UpdateMethod = ELeaderboardUpdateMethod::KeepBest;
 
-						LeaderboardWriteObject.SetIntStat("TestStat", 50);
+						LeaderboardWriteObject.SetIntStat(TestStatString, 50);
 
 						bool bCallStarted = OnlineLeaderboards->WriteLeaderboards(TEXT("TestSessionName"), *TestAccountId, LeaderboardWriteObject);
 						
@@ -409,17 +410,18 @@ void FOnlineLeaderboardSpec::Define()
 					{
 						UE_LOG_ONLINE_LEADERBOARD(Error, TEXT("OSS Automation: Test not yet implemented"));
 
-						FString TestAccountIdString = CommonUtils.GetSubsystemTestAccountUniqueId(SubsystemType);
+						const FString TestAccountIdString = CommonUtils.GetSubsystemTestAccountUniqueId(SubsystemType);
+						const FString TestStatString = TEXT("TestStat");
 						FUniqueNetIdPtr TestAccountId = OnlineIdentity->CreateUniquePlayerId(TestAccountIdString);
 
 						FOnlineLeaderboardWrite LeaderboardWriteObject;
-						LeaderboardWriteObject.LeaderboardNames.Add(FName(TEXT("TestLeaderboard")));
-						LeaderboardWriteObject.RatedStat = "TestStat";
+						LeaderboardWriteObject.LeaderboardNames.Add(FString(TEXT("TestLeaderboard")));
+						LeaderboardWriteObject.RatedStat = TestStatString;
 						LeaderboardWriteObject.DisplayFormat = ELeaderboardFormat::Number;
 						LeaderboardWriteObject.SortMethod = ELeaderboardSort::Descending;
 						LeaderboardWriteObject.UpdateMethod = ELeaderboardUpdateMethod::KeepBest;
 
-						LeaderboardWriteObject.SetIntStat("TestStat", 50);
+						LeaderboardWriteObject.SetIntStat(TestStatString, 50);
 
 						OnlineLeaderboards->WriteLeaderboards(TEXT(""), *TestAccountId, LeaderboardWriteObject);
 
@@ -430,16 +432,17 @@ void FOnlineLeaderboardSpec::Define()
 					{
 						UE_LOG_ONLINE_LEADERBOARD(Error, TEXT("OSS Automation: Test not yet implemented"));
 
+						const FString TestStatString = TEXT("TestStat");
 						FUniqueNetIdPtr TestAccountId = OnlineIdentity->CreateUniquePlayerId(TEXT("0123456789"));
 
 						FOnlineLeaderboardWrite LeaderboardWriteObject;
-						LeaderboardWriteObject.LeaderboardNames.Add(FName(TEXT("TestLeaderboard")));
-						LeaderboardWriteObject.RatedStat = "TestStat";
+						LeaderboardWriteObject.LeaderboardNames.Add(FString(TEXT("TestLeaderboard")));
+						LeaderboardWriteObject.RatedStat = TestStatString;
 						LeaderboardWriteObject.DisplayFormat = ELeaderboardFormat::Number;
 						LeaderboardWriteObject.SortMethod = ELeaderboardSort::Descending;
 						LeaderboardWriteObject.UpdateMethod = ELeaderboardUpdateMethod::KeepBest;
 
-						LeaderboardWriteObject.SetIntStat("TestStat", 50);
+						LeaderboardWriteObject.SetIntStat(TestStatString, 50);
 
 						OnlineLeaderboards->WriteLeaderboards(TEXT("TestSessionName"), *TestAccountId, LeaderboardWriteObject);
 
@@ -473,17 +476,18 @@ void FOnlineLeaderboardSpec::Define()
 					{
 						UE_LOG_ONLINE_LEADERBOARD(Error, TEXT("OSS Automation: Test not yet implemented"));
 
-						FString TestAccountIdString = CommonUtils.GetSubsystemTestAccountUniqueId(SubsystemType);
+						const FString TestAccountIdString = CommonUtils.GetSubsystemTestAccountUniqueId(SubsystemType);
+						const FString TestStatString = TEXT("TestStat");
 						FUniqueNetIdPtr TestAccountId = OnlineIdentity->CreateUniquePlayerId(TestAccountIdString);
 
 						FOnlineLeaderboardWrite LeaderboardWriteObject;
-						LeaderboardWriteObject.LeaderboardNames.Add(FName(TEXT("TestLeaderboard")));
-						LeaderboardWriteObject.RatedStat = "TestStat";
+						LeaderboardWriteObject.LeaderboardNames.Add(FString(TEXT("TestLeaderboard")));
+						LeaderboardWriteObject.RatedStat = TestStatString;
 						LeaderboardWriteObject.DisplayFormat = ELeaderboardFormat::Number;
 						LeaderboardWriteObject.SortMethod = ELeaderboardSort::Descending;
 						LeaderboardWriteObject.UpdateMethod = ELeaderboardUpdateMethod::KeepBest;
 
-						LeaderboardWriteObject.SetIntStat("TestStat", 50);
+						LeaderboardWriteObject.SetIntStat(TestStatString, 50);
 
 						OnlineLeaderboards->WriteLeaderboards(TEXT("TestSessionName"), *TestAccountId, LeaderboardWriteObject);
 

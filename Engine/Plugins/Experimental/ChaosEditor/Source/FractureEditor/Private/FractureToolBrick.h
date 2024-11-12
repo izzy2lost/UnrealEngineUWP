@@ -98,6 +98,12 @@ public:
 
 	void GenerateBrickTransforms(const FBox& Bounds);
 
+	virtual void ConfigureCutterSettings() override
+	{
+		CutterSettings->bGroupFractureToggleEnabled = true;
+		CutterSettings->bNoisePreviewToggleEnabled = false; // TODO: support noise preview for bricks
+	}
+
 protected:
 	virtual void ClearVisualizations() override
 	{

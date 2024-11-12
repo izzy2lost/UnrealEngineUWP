@@ -134,7 +134,7 @@ void FHierarchicalModelListRefresher::Pop()
 FTrackModelLayoutBuilder::FTrackModelLayoutBuilder(TSharedPtr<FViewModel> InSharedTreeRoot)
 	: Root(InSharedTreeRoot)
 	, OutlinerList(InSharedTreeRoot, InSharedTreeRoot->GetChildList(EViewModelListType::Outliner))
-	, SequencerSection(nullptr)
+	, Section(nullptr)
 {
 }
 
@@ -144,6 +144,10 @@ FTrackModelLayoutBuilder::~FTrackModelLayoutBuilder()
 	for (TSharedPtr<ICompoundOutlinerExtension> CompoundItem : Root->GetDescendantsOfType<ICompoundOutlinerExtension>())
 	{
 		CompoundItem->RecomputeSizing();
+	}
+	for (TSharedPtr<FChannelGroupOutlinerModel> OutlinerChannelGroup : Root->GetDescendantsOfType<FChannelGroupOutlinerModel>())
+	{
+		OutlinerChannelGroup->OnUpdated();
 	}
 }
 
@@ -156,17 +160,17 @@ void FTrackModelLayoutBuilder::RefreshLayout(TSharedPtr<FSectionModel> InSection
 
 	// Start off with the track area list adding to the top-level-channel list
 	TrackAreaList = FHierarchicalModelListRefresher(InSection, InSection->GetChildList(FTrackModel::GetTopLevelChannelType()));
-	SequencerSection = InSection->GetSectionInterface();
+	Section = InSection;
 
-	SequencerSection->GenerateSectionLayout(*this);
+	Section->GetSectionInterface()->GenerateSectionLayout(*this);
 
-	SequencerSection = nullptr;
+	Section = nullptr;
 	TrackAreaList = FHierarchicalModelListRefresher();
 }
 
 void FTrackModelLayoutBuilder::PushCategory(FName CategoryName, const FText& DisplayLabel, FGetMovieSceneTooltipText GetGroupTooltipTextDelegate, TFunction<TSharedPtr<FCategoryModel>(FName, const FText&)> OptionalFactory)
 {
-	check(TrackAreaList.IsValid() && SequencerSection);
+	check(TrackAreaList.IsValid() && Section);
 
 	auto CategoryNamePredicate = [CategoryName](const auto& InModel){ return InModel.GetCategoryName() == CategoryName; };
 
@@ -210,13 +214,13 @@ void FTrackModelLayoutBuilder::PushCategory(FName CategoryName, const FText& Dis
 
 void FTrackModelLayoutBuilder::PopCategory()
 {
-	check(TrackAreaList.IsValid() && SequencerSection);
+	check(TrackAreaList.IsValid() && Section);
 
 	TrackAreaList.Pop();
 	OutlinerList.Pop();
 }
 
-void FTrackModelLayoutBuilder::SetTopLevelChannel(const FMovieSceneChannelHandle& Channel, TFunction<TSharedPtr<UE::Sequencer::FChannelModel>(FName, const FMovieSceneChannelHandle&)> OptionalFactory)
+void FTrackModelLayoutBuilder::SetTopLevelChannel(const FMovieSceneChannelHandle& Channel, TFunction<TSharedPtr<UE::Sequencer::FChannelModel>(FName, const FSectionModel&, const FMovieSceneChannelHandle&)> OptionalFactory)
 {
 	ensureAlwaysMsgf(
 			OutlinerList.GetCurrentParent() == Root,
@@ -232,9 +236,9 @@ void FTrackModelLayoutBuilder::SetTopLevelChannel(const FMovieSceneChannelHandle
 	OutlinerList.Pop();
 }
 
-void FTrackModelLayoutBuilder::AddChannel(const FMovieSceneChannelHandle& Channel, TFunction<TSharedPtr<UE::Sequencer::FChannelModel>(FName, const FMovieSceneChannelHandle&)> OptionalFactory)
+void FTrackModelLayoutBuilder::AddChannel(const FMovieSceneChannelHandle& Channel, TFunction<TSharedPtr<UE::Sequencer::FChannelModel>(FName, const FSectionModel&, const FMovieSceneChannelHandle&)> OptionalFactory)
 {
-	check(TrackAreaList.IsValid() && SequencerSection);
+	check(TrackAreaList.IsValid() && Section);
 
 	// Since we always start off adding to the top level channel, point the track area list at the generic child list now
 	if (TrackAreaList.GetCurrentType() == FTrackModel::GetTopLevelChannelType())
@@ -246,9 +250,9 @@ void FTrackModelLayoutBuilder::AddChannel(const FMovieSceneChannelHandle& Channe
 	AddChannel(Channel, false, OptionalFactory);
 }
 
-void FTrackModelLayoutBuilder::AddChannel(const FMovieSceneChannelHandle& Channel, bool bIsTopLevel, TFunction<TSharedPtr<UE::Sequencer::FChannelModel>(FName, const FMovieSceneChannelHandle&)> OptionalFactory)
+void FTrackModelLayoutBuilder::AddChannel(const FMovieSceneChannelHandle& Channel, bool bIsTopLevel, TFunction<TSharedPtr<UE::Sequencer::FChannelModel>(FName, const FSectionModel&, const FMovieSceneChannelHandle&)> OptionalFactory)
 {
-	check(TrackAreaList.IsValid() && SequencerSection);
+	check(TrackAreaList.IsValid() && Section);
 
 	// @todo: this is all pretty crusty - we're currently linear-searching for both the child node, and the IKeyArea within that node
 	// Performance is generally acceptible however since we are dealing with small numbers of children, but this may need to be revisited.
@@ -307,12 +311,12 @@ void FTrackModelLayoutBuilder::AddChannel(const FMovieSceneChannelHandle& Channe
 		{
 			if (OptionalFactory)
 			{
-				TrackAreaModel = OptionalFactory(ChannelName, Channel);
+				TrackAreaModel = OptionalFactory(ChannelName, *Section, Channel);
 			}
 
 			if (!TrackAreaModel)
 			{
-				TrackAreaModel = MakeShared<FChannelModel>(ChannelName, SequencerSection, Channel);
+				TrackAreaModel = MakeShared<FChannelModel>(ChannelName, Section->GetSectionInterface(), Channel);
 			}
 		}
 
@@ -325,7 +329,7 @@ void FTrackModelLayoutBuilder::AddChannel(const FMovieSceneChannelHandle& Channe
 		{
 			TrackAreaModel->SetLinkedOutlinerItem(OutlinerModel.ImplicitCastChecked());
 		}
-		TrackAreaModel->Initialize(SequencerSection, Channel);
+		TrackAreaModel->Initialize(Section->GetSectionInterface(), Channel);
 
 		TrackAreaList.Link(TrackAreaModel);
 	}

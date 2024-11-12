@@ -69,8 +69,10 @@ void UGroundTruthData::SaveObject(UObject* GroundTruth)
 		SourceControlProvider.Execute(ISourceControlOperation::Create<FCheckOut>(), GroundTruthPackage);
 	}
 
-	ObjectData = GroundTruth;
-	GroundTruth->Rename(nullptr, this);
+	// There is an edge case for Actors where calling `Rename` will transfer ownership from the level to the GroundTruthData and will remove the Actor from the current level
+	// To avoid any issues this process causes, we want to duplicate our object with a transient package before performing the rename which will change the ownership from the transient package to the GroundTruthData
+	ObjectData = DuplicateObject(GroundTruth, nullptr);
+	ObjectData->Rename(nullptr, this, REN_SkipComponentRegWork);
 	MarkPackageDirty();
 
 	FSavePackageArgs SaveArgs;

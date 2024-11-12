@@ -7,6 +7,7 @@
 #include "InstancedActorsRepresentationSubsystem.h"
 #include "InstancedActorsSettingsTypes.h"
 #include "InstancedActorsTypes.h"
+#include "InstancedActorsVisualizationProcessor.h"
 #include "MassEntityTemplateRegistry.h"
 #include "MassCommonFragments.h"
 #include "MassActorSubsystem.h"
@@ -24,6 +25,8 @@ UInstancedActorsVisualizationTrait::UInstancedActorsVisualizationTrait(const FOb
 	bAllowServerSideVisualization = true;
 	RepresentationSubsystemClass = UInstancedActorsRepresentationSubsystem::StaticClass();
 
+	// Avoids registering the Static Mesh Descriptor during BuildTemplate, as it's already added
+	// during UInstancedActorsManagers InitializeModifySpawn flow.
 	bRegisterStaticMeshDesc = false;
 }
 
@@ -33,8 +36,8 @@ void UInstancedActorsVisualizationTrait::InitializeFromInstanceData(UInstancedAc
 
 	HighResTemplateActor = InstanceData->ActorClass;
 
-	const bool bIsDedicatedServer = InInstanceData.GetManagerChecked().IsNetMode(NM_DedicatedServer);
-	if (!bIsDedicatedServer)
+	const bool bIsClient = InInstanceData.GetManagerChecked().IsNetMode(NM_Client);
+	if (bIsClient)
 	{
 		// Don't attempt to spawn actors natively on clients. Instead, rely on bForceActorRepresentationForExternalActors to 
 		// switch to Actor representation once replicated actors are set explicitly in UInstancedActorsData::SetReplicatedActor 
@@ -54,7 +57,7 @@ void UInstancedActorsVisualizationTrait::InitializeFromInstanceData(UInstancedAc
 		ensure(InstanceData->GetDefaultVisualizationChecked().ISMComponents.IsEmpty());
 		Params.LODRepresentation[EMassLOD::Low] = EMassRepresentationType::None;
 
-		if (!bIsDedicatedServer)
+		if (bIsClient)
 		{
 			// Don't attempt to switch to ISMC representation on clients for no mesh classes (which would otherwise crash)
 			// Let the server spawn these actors and replicate them to clients.
@@ -76,9 +79,12 @@ void UInstancedActorsVisualizationTrait::InitializeFromInstanceData(UInstancedAc
 
 void UInstancedActorsVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
-	check(InstanceData.IsValid());
+	check(InstanceData.IsValid() || BuildContext.IsInspectingData());
 
 	Super::BuildTemplate(BuildContext, World);
+
+	// we need IAs to be processed by a dedicated visualization processor, configured a bit differently than the default one.
+	BuildContext.RemoveTag<FMassVisualizationProcessorTag>();
 
 	FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(World);
 
@@ -87,8 +93,7 @@ void UInstancedActorsVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildC
 
 	FInstancedActorsDataSharedFragment ManagerSharedFragment;
 	ManagerSharedFragment.InstanceData = InstanceData;
-	const uint32 SubsystemHash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(ManagerSharedFragment));
-	FSharedStruct SubsystemFragment = EntityManager.GetOrCreateSharedFragmentByHash<FInstancedActorsDataSharedFragment>(SubsystemHash, ManagerSharedFragment);
+	FSharedStruct SubsystemFragment = EntityManager.GetOrCreateSharedFragment<FInstancedActorsDataSharedFragment>(ManagerSharedFragment);
 
 	FInstancedActorsDataSharedFragment* AsShared = SubsystemFragment.GetPtr<FInstancedActorsDataSharedFragment>();
 	if (ensure(AsShared))
@@ -105,7 +110,10 @@ void UInstancedActorsVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildC
 		// InstanceData while preserving the "runtime" value, which will mess up newly spawned entities.
 		AsShared->BulkLOD = EInstancedActorsBulkLOD::MAX;
 
-		InstanceData->SetSharedInstancedActorDataStruct(SubsystemFragment);
+		if (BuildContext.IsInspectingData() == false)
+		{
+			InstanceData->SetSharedInstancedActorDataStruct(SubsystemFragment);
+		}
 	}
 	// not adding SubsystemFragment do BuildContext on purpose, we temporarily use shared fragments to store IAD information.
 	// To be moved to InstancedActorSubsystem in the future
@@ -116,17 +124,23 @@ void UInstancedActorsVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildC
 	FInstancedActorsFragment& InstancedActorFragment = BuildContext.AddFragment_GetRef<FInstancedActorsFragment>();
 	InstancedActorFragment.InstanceData = InstanceData;
 
-	// @todo Implement version of AddVisualDescWithISMComponent that supports multiple ISMCs and use that here
-	if (ensure(InstanceData.IsValid()))
+	if (BuildContext.IsInspectingData() == false)
 	{
-		FMassRepresentationFragment& RepresentationFragment = BuildContext.GetFragmentChecked<FMassRepresentationFragment>();
-		RepresentationFragment.StaticMeshDescHandle = InstanceData->GetDefaultVisualizationChecked().MassStaticMeshDescHandle;
-
-		if (RepresentationFragment.LowResTemplateActorIndex == INDEX_NONE)
+		// @todo Implement version of AddVisualDescWithISMComponent that supports multiple ISMCs and use that here
+		if (ensure(InstanceData.IsValid()))
 		{
-			// if there's no "low res actor" we reuse the high-res one, otherwise we risk the visualization actor getting 
-			// removed when switching from EMassLOD::High down to EMassLOD::Medium
-			RepresentationFragment.LowResTemplateActorIndex = RepresentationFragment.HighResTemplateActorIndex;
+			FMassRepresentationFragment* RepresentationFragment = BuildContext.GetFragment<FMassRepresentationFragment>();
+			if (ensureMsgf(RepresentationFragment, TEXT("Configuration error, we always expect to have a FMassRepresentationFragment instance at this point")))
+			{
+				RepresentationFragment->StaticMeshDescHandle = InstanceData->GetDefaultVisualizationChecked().MassStaticMeshDescHandle;
+
+				if (RepresentationFragment->LowResTemplateActorIndex == INDEX_NONE)
+				{
+					// if there's no "low res actor" we reuse the high-res one, otherwise we risk the visualization actor getting 
+					// removed when switching from EMassLOD::High down to EMassLOD::Medium
+					RepresentationFragment->LowResTemplateActorIndex = RepresentationFragment->HighResTemplateActorIndex;
+				}
+			}
 		}
 	}
 }

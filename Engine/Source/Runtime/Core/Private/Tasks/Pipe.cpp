@@ -30,62 +30,61 @@ namespace UE::Tasks
 		return LastTask_Local; // transfer the reference to the caller that must release it
 	}
 
-	bool FPipe::TryClearTask(Private::FTaskBase& Task)
+	void FPipe::ClearTask(Private::FTaskBase& Task)
 	{
 		Private::FTaskBase* Task_Local = &Task;
 		// try clearing the task if it's still pipe's "last task". if succeeded, release the ref accounted for pipe's last task. otherwise whoever replaced it
 		// as the last task will do this
-		if (LastTask.compare_exchange_strong(Task_Local, nullptr, std::memory_order_acquire, std::memory_order_relaxed))
+
+		// important to have a barrier even in case of failure so that whenever a pipe task finished, we have a barrier protecting any produced data
+		// so that it can be passed across threads on the same pipe without synchronization.
+		if (LastTask.compare_exchange_strong(Task_Local, nullptr, std::memory_order_acq_rel, std::memory_order_acquire))
 		{
 			Task.Release(); // it was still pipe's last task. now that we cleared it, release the reference
+		}
+
+		if (TaskCount.fetch_sub(1, std::memory_order_relaxed) == 1)
+		{
+			EmptyEvent.Notify();
+		}
+	}
+
+	bool FPipe::WaitUntilEmpty(FTimespan InTimeout/* = FTimespan::MaxValue()*/)
+	{
+		if (TaskCount.load(std::memory_order_relaxed) == 0)
+		{
 			return true;
 		}
 
+		TRACE_CPUPROFILER_EVENT_SCOPE(FPipe::WaitUntilEmpty);
+
+		UE::FTimeout Timeout(InTimeout);
+		while (true)
+		{
+			if (TaskCount.load(std::memory_order_relaxed) == 0)
+			{
+				return true;
+			}
+
+			if (Timeout.IsExpired())
+			{
+				return false;
+			}
+
+			UE::FEventCountToken Token = EmptyEvent.PrepareWait();
+
+			if (TaskCount.load(std::memory_order_relaxed) == 0)
+			{
+				return true;
+			}
+
+			if (!EmptyEvent.WaitFor(Token, UE::FMonotonicTimeSpan::FromMilliseconds(Timeout.GetRemainingRoundedUpMilliseconds())))
+			{
+				break;
+			}
+		}
+
 		return false;
-	}
-
-	bool FPipe::WaitUntilEmpty(FTimespan Timeout/* = FTimespan::MaxValue()*/)
-	{
-		struct FPlaceholderTask final : Private::FTaskBase
-		{
-			FPlaceholderTask()
-				// InitRefCount: one for the initial local ref, and one for the internal reference
-				: Private::FTaskBase(/*InitRefCount =*/ 2)
-			{
-				Init(
-					TEXT("Pipe::WaitUntilEmpty() placeholder"),
-					ETaskPriority::Normal, // doesn't matter
-					EExtendedTaskPriority::TaskEvent, // no need for scheduling or execution for this dummy task
-					ETaskFlags::None
-				);
-			}
-
-			virtual void ExecuteTask() override final
-			{
-				checkNoEntry(); // the method won't be called because the task was initialized with `EExtendedTaskPriority::TaskEvent`
-			}
-		};
-
-		bool bRes = true;
-
-		TRefCountPtr<FPlaceholderTask> PlaceholderTask{ new FPlaceholderTask, /*bAddRef =*/ false }; // the initial ref was already accounted for
-		Private::FTaskBase* LastTask_Local = PushIntoPipe(*PlaceholderTask);
-		if (LastTask_Local)
-		{
-			LastTask_Local->Release(); // release pipe's ref to the last task
-			// when the placeholder replaced "the last task" in the pipe, it became its subsequent, so the last task will "complete" it
-			bRes = PlaceholderTask->Wait(FTimeout{ Timeout });
-		}
-		else
-		{
-			// there was no "last task" in the pipe, so we have to launch the placeholder to complete it to not assert on its destruction
-			PlaceholderTask->TryLaunch(/*TaskSize =*/ 0);
-			checkSlow(PlaceholderTask->IsCompleted());
-		}
-
-		verifyf(TryClearTask(*PlaceholderTask), TEXT("More tasks were launched (concurrently) in the pipe after `WaitUntilEmpty()` was called"));
-		
-		return bRes;
 	}
 
 	// Maintains pipe callstack. Due to busy waiting tasks from multiple pipes can be executed nested.

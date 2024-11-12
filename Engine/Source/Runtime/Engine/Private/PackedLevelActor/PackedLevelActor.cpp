@@ -22,6 +22,7 @@ APackedLevelActor::APackedLevelActor()
 #if WITH_EDITORONLY_DATA
 	// Packed Level Instances don't support level streaming or sub actors
 	DesiredRuntimeBehavior = ELevelInstanceRuntimeBehavior::None;
+	bIsEditorOnlyActor = false;
 #endif
 }
 
@@ -274,6 +275,10 @@ void APackedLevelActor::OnCommit(bool bChanged)
 
 bool APackedLevelActor::IsHiddenEd() const
 {
+	if (UWorld* World = GetWorld(); World && World->IsGameWorld())
+	{
+		return Super::IsHiddenEd();
+	}
 	return Super::IsHiddenEd() || IsEditing() || HasChildEdit() || ShouldLoadForPacking();
 }
 

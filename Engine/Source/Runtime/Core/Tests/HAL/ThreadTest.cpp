@@ -12,6 +12,7 @@
 #include "HAL/ThreadSafeCounter.h"
 #include "HAL/ThreadSingleton.h"
 #include "HAL/Event.h"
+#include "HAL/PlatformProcess.h"
 #include "Containers/Queue.h"
 #include "Containers/StringConv.h"
 

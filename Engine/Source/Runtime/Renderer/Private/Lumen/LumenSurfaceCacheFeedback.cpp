@@ -361,7 +361,7 @@ void FLumenSurfaceCacheFeedback::SubmitFeedbackBuffer(
 	FRHIGPUBufferReadback* ReadbackBuffer = ReadbackBuffers[ReadbackBuffersWriteIndex];
 
 	AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("Readback"), CompactedFeedbackBuffer,
-		[ReadbackBuffer, CompactedFeedbackBuffer](FRHICommandList& RHICmdList)
+		[ReadbackBuffer, CompactedFeedbackBuffer](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			ReadbackBuffer->EnqueueCopy(RHICmdList, CompactedFeedbackBuffer->GetRHI(), 0u);
 		});
@@ -562,5 +562,18 @@ void FDeferredShadingSceneRenderer::FinishGatheringLumenSurfaceCacheFeedback(FRD
 		GraphBuilder.QueueTextureExtraction(FrameTemporaries.IndirectLightingAtlas, &LumenSceneData.IndirectLightingAtlas);
 		GraphBuilder.QueueTextureExtraction(FrameTemporaries.RadiosityNumFramesAccumulatedAtlas, &LumenSceneData.RadiosityNumFramesAccumulatedAtlas);
 		GraphBuilder.QueueTextureExtraction(FrameTemporaries.FinalLightingAtlas, &LumenSceneData.FinalLightingAtlas);
+		GraphBuilder.QueueBufferExtraction(FrameTemporaries.TileShadowDownsampleFactorAtlas, &LumenSceneData.TileShadowDownsampleFactorAtlas);
+
+		if (FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas && FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas->HasBeenProduced())
+		{
+			GraphBuilder.QueueTextureExtraction(FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas, &LumenSceneData.DiffuseLightingAndSecondMomentHistoryAtlas);
+		}
+
+		if (FrameTemporaries.NumFramesAccumulatedHistoryAtlas && FrameTemporaries.NumFramesAccumulatedHistoryAtlas->HasBeenProduced())
+		{
+			GraphBuilder.QueueTextureExtraction(FrameTemporaries.NumFramesAccumulatedHistoryAtlas, &LumenSceneData.NumFramesAccumulatedHistoryAtlas);
+		}
 	}
+
+	QueueExtractStochasticLighting(GraphBuilder, FrameTemporaries);
 }

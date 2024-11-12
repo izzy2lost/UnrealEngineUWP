@@ -630,10 +630,9 @@ private:
 
 		void Apply(USkeletalMeshComponent* InComponent)
 		{
-				InComponent->SetAnimClass(AnimClass);
 				InComponent->SetAnimInstanceClass(AnimInstanceClass);
 				InComponent->PrimaryComponentTick.bCanEverTick = bCanEverTick;
-			}
+		}
 	};
 
 	UControlRig* SetupControlRigIfRequired();

@@ -10,6 +10,7 @@
 class FResetToDefaultOverride;
 class ICustomDetailsView;
 class SWidget;
+enum class EDetailNodeType;
 
 class ICustomDetailsViewItem : public TSharedFromThis<ICustomDetailsViewItem>
 {
@@ -37,6 +38,11 @@ public:
 	virtual void SetParent(TSharedPtr<ICustomDetailsViewItem> InParent) = 0;
 
 	virtual const TArray<TSharedPtr<ICustomDetailsViewItem>>& GetChildren() const = 0;
+
+	virtual TOptional<EDetailNodeType> GetNodeType() const = 0;
+
+	/** Adds this node as a child. */
+	virtual void AddAsChild(const TSharedRef<ICustomDetailsViewItem>& InParentItem, TArray<TSharedPtr<ICustomDetailsViewItem>>& OutChildren) = 0;
 
 	/**
 	 * Instantiates a Widget for the Given Item
@@ -72,4 +78,16 @@ public:
 
 	/** Checks to see if widget is visible */
 	virtual bool IsWidgetVisible() const = 0;
+
+	/** Overrides the created value widget's maximum width. */
+	virtual void SetValueWidgetWidthOverride(TOptional<float> InWidth) = 0;
+
+	/** Overrides the created widget's enabled status. */
+	virtual void SetEnabledOverride(TAttribute<bool> InOverride) = 0;
+
+protected:
+	/** Adds the children of this node. */
+	virtual void GatherChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem,
+		const UE::CustomDetailsView::FTreeExtensionType& InTreeExtensions, ECustomDetailsTreeInsertPosition InPosition,
+		TArray<TSharedPtr<ICustomDetailsViewItem>>& OutChildren) = 0;
 };

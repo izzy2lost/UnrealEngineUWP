@@ -47,7 +47,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// The version of the compiler being used
 		/// </summary>
-		public string ToolChainVersion { get; }
+		public string ToolChainVersion { get; set; }
 
 		/// <summary>
 		/// Source file to compile
@@ -176,6 +176,11 @@ namespace UnrealBuildTool
 		/// </summary>
 		public List<FileItem> DeleteItems { get; } = new List<FileItem>();
 
+		/// <summary>
+		/// Root paths for this action (generally engine root project root, toolchain root, sdk root)
+		/// </summary>
+		public List<DirectoryItem> RootPaths { get; } = new List<DirectoryItem>();
+
 		/// <inheritdoc/>
 		public bool bCanExecuteRemotely { get; set; }
 
@@ -196,11 +201,15 @@ namespace UnrealBuildTool
 
 		/// <inheritdoc/>
 		public double Weight { get; set; } = 1.0;
+
+		/// <inheritdoc/>
+		public bool bShouldOutputLog { get; set; } = true;
 		#endregion
 
 		#region Implementation of IAction
 
 		IEnumerable<FileItem> IExternalAction.DeleteItems => DeleteItems;
+		IEnumerable<DirectoryItem> IExternalAction.RootPaths => RootPaths;
 		public DirectoryReference WorkingDirectory => Unreal.EngineSourceDirectory;
 		string IExternalAction.CommandDescription
 		{
@@ -383,6 +392,7 @@ namespace UnrealBuildTool
 			AdditionalPrerequisiteItems = new List<FileItem>(InAction.AdditionalPrerequisiteItems);
 			AdditionalProducedItems = new List<FileItem>(InAction.AdditionalProducedItems);
 			DeleteItems = new List<FileItem>(InAction.DeleteItems);
+			RootPaths = new List<DirectoryItem>(InAction.RootPaths);
 		}
 
 		/// <summary>
@@ -426,6 +436,7 @@ namespace UnrealBuildTool
 			AdditionalPrerequisiteItems = Reader.ReadList(() => Reader.ReadFileItem())!;
 			AdditionalProducedItems = Reader.ReadList(() => Reader.ReadFileItem())!;
 			DeleteItems = Reader.ReadList(() => Reader.ReadFileItem())!;
+			RootPaths = Reader.ReadList(() => Reader.ReadDirectoryItem())!;
 		}
 
 		/// <inheritdoc/>
@@ -466,6 +477,7 @@ namespace UnrealBuildTool
 			Writer.WriteList(AdditionalPrerequisiteItems, Item => Writer.WriteFileItem(Item));
 			Writer.WriteList(AdditionalProducedItems, Item => Writer.WriteFileItem(Item));
 			Writer.WriteList(DeleteItems, Item => Writer.WriteFileItem(Item));
+			Writer.WriteList(RootPaths, Item => Writer.WriteDirectoryItem(Item));
 		}
 
 		/// <summary>
@@ -478,6 +490,7 @@ namespace UnrealBuildTool
 			if (ResponseFile != null)
 			{
 				Graph.CreateIntermediateTextFile(ResponseFile, GetCompilerArguments(Logger));
+				Arguments.Clear();
 			}
 		}
 
@@ -576,7 +589,7 @@ namespace UnrealBuildTool
 				{
 					ResponseFileString = ResponseFile.FullName;
 				}
-				return String.Format("@{0}", Utils.MakePathSafeToUseWithCommandLine(ResponseFileString));
+				return String.Format("@{0} {1}", Utils.MakePathSafeToUseWithCommandLine(ResponseFileString), String.Join(" ", Arguments));
 			}
 		}
 

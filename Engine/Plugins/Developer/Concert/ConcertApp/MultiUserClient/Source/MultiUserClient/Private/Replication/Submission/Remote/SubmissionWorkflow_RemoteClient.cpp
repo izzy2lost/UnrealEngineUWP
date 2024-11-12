@@ -5,11 +5,11 @@
 #include "ConcertLogGlobal.h"
 #include "IConcertSession.h"
 #include "RemoteSubmissionMessages.h"
+#include "Replication/Client/ClientUtils.h"
+#include "Replication/Misc/Util/StreamRequestUtils.h"
 #include "Replication/Submission/SingleClientSubmissionOperation.h"
-#include "Replication/Util/StreamRequestUtils.h"
-#include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FSubmissionWorkflow_RemoteClient::FSubmissionWorkflow_RemoteClient(
 		TSharedRef<IConcertClientSession> InConcertSession,

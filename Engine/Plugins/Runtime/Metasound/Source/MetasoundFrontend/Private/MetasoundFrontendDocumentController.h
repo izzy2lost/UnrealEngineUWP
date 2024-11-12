@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "MetasoundFrontendDocumentBuilder.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundFrontendController.h"
 #include "MetasoundFrontendDocument.h"
 
@@ -20,15 +22,28 @@ namespace Metasound
 			 */
 			FDocumentController(FDocumentAccessPtr InDocumentPtr);
 
+			static FDocumentHandle CreateDocumentHandle(FDocumentAccessPtr InDocument)
+			{
+				// Unit test builds may not load the builder registry (i.e. via the engine module).  Creating and
+				// manipulating documents via controllers/handles must be supported for backward compat in this context,
+				// so registry is not required to exist.
+				if (IDocumentBuilderRegistry* Registry = IDocumentBuilderRegistry::Get())
+				{
+					const FMetasoundFrontendClassName& ClassName = InDocument.Get()->RootGraph.Metadata.GetClassName();
+					Registry->ReloadBuilder(ClassName);
+				}
+				return MakeShared<FDocumentController>(InDocument);
+			}
+
 			/** Create a FDocumentController.
 			 *
 			 * @param InDocument - Document to be manipulated.
 			 *
 			 * @return A document handle. 
 			 */
-			static FDocumentHandle CreateDocumentHandle(FDocumentAccessPtr InDocument)
+			static FConstDocumentHandle CreateDocumentHandle(FConstDocumentAccessPtr InDocument)
 			{
-				return MakeShared<FDocumentController>(InDocument);
+				return MakeShared<const FDocumentController>(ConstCastAccessPtr<FDocumentAccessPtr>(InDocument));
 			}
 
 			virtual ~FDocumentController() = default;

@@ -3,7 +3,7 @@
 #include "Factories/StormSyncArchiveFactory.h"
 #include "Misc/AutomationTest.h"
 
-BEGIN_DEFINE_SPEC(FStormSyncArchiveFactorySpec, "StormSync.StormSyncEditor.StormSyncArchiveFactory", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FStormSyncArchiveFactorySpec, "StormSync.StormSyncEditor.StormSyncArchiveFactory", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	UStormSyncArchiveFactory* Factory;
 

@@ -12,7 +12,7 @@
 
 DEFINE_LOG_CATEGORY(LogAvaBroadcastRenderTargetMedia);
 
-void UAvaBroadcastRenderTargetMediaCapture::OnRHIResourceCaptured_RenderingThread(const FCaptureBaseData& InBaseData, TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, FTextureRHIRef InTexture)
+void UAvaBroadcastRenderTargetMediaCapture::OnRHIResourceCaptured_RenderingThread(FRHICommandListImmediate& RHICmdList, const FCaptureBaseData& InBaseData, TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, FTextureRHIRef InTexture)
 {
 	FScopeLock ScopeLock(&RenderTargetCriticalSection);
 
@@ -25,8 +25,6 @@ void UAvaBroadcastRenderTargetMediaCapture::OnRHIResourceCaptured_RenderingThrea
 
 	if (RenderTargetRHIRef.IsValid())
 	{
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-
 		// Note: we possibly don't want to undo this for RGB8_SRGB texture. Need to test.
 		constexpr bool bSRGBToLinear = true;
 
@@ -66,7 +64,7 @@ bool UAvaBroadcastRenderTargetMediaCapture::InitializeCapture()
 bool UAvaBroadcastRenderTargetMediaCapture::PostInitializeCaptureViewport(TSharedPtr<FSceneViewport>& InSceneViewport)
 {
 	bool bSuccess = false;
-	const FTexture2DRHIRef& BackBuffer = InSceneViewport->GetRenderTargetTexture();
+	const FTextureRHIRef& BackBuffer = InSceneViewport->GetRenderTargetTexture();
 	if (BackBuffer.IsValid())
 	{
 		const FRHITextureDesc& Desc = BackBuffer->GetDesc();

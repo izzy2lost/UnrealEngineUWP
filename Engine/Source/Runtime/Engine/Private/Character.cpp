@@ -32,6 +32,25 @@ FName ACharacter::MeshComponentName(TEXT("CharacterMesh0"));
 FName ACharacter::CharacterMovementComponentName(TEXT("CharMoveComp"));
 FName ACharacter::CapsuleComponentName(TEXT("CollisionCylinder"));
 
+
+// CVars
+namespace CharacterCVars
+{
+	// Allows characters to include acceleration in the data replicated to sim proxies
+	int32 EnableCharacterAccelerationReplication = 0;
+	static FAutoConsoleVariableRef CVarEnableCharacterAccelerationReplication(
+		TEXT("p.EnableCharacterAccelerationReplication"),
+		EnableCharacterAccelerationReplication,
+		TEXT("Whether to author acceleration data with character movement replication to sim proxies."));
+
+	static int32 UseLegacyDoJump = 1;
+	static FAutoConsoleVariableRef CVarUseLegacyDoJump(
+		TEXT("p.UseLegacyDoJump"),
+		UseLegacyDoJump,
+		TEXT("Should CheckJumpInput call the legacy DoJump or the new DoJump. Default is true while we are still deprecating the old DoJump"),
+		ECVF_Default);
+}
+
 ACharacter::ACharacter(const FObjectInitializer& ObjectInitializer)
 : Super(ObjectInitializer)
 {
@@ -1119,7 +1138,7 @@ void ACharacter::CheckJumpInput(float DeltaTime)
 				JumpCurrentCount++;
 			}
 
-			const bool bDidJump = CanJump() && CharacterMovement->DoJump(bClientUpdating);
+			const bool bDidJump = CanJump() && (CharacterCVars::UseLegacyDoJump)? CharacterMovement->DoJump(bClientUpdating) : CharacterMovement->DoJump(bClientUpdating, DeltaTime);
 			if (bDidJump)
 			{
 				// Transition from not (actively) jumping to jumping.
@@ -1206,7 +1225,7 @@ void ACharacter::OnRep_ReplicatedBasedMovement()
 	}
 
 	CharacterMovement->bNetworkUpdateReceived = true;
-	TGuardValue<bool> bInBaseReplicationGuard(bInBaseReplication, true);
+	FGuardValue_Bitfield(bInBaseReplication, true);
 
 	const bool bBaseChanged = (BasedMovement.MovementBase != ReplicatedBasedMovement.MovementBase || BasedMovement.BoneName != ReplicatedBasedMovement.BoneName);
 	if (bBaseChanged)
@@ -1250,6 +1269,26 @@ void ACharacter::OnRep_ReplicatedBasedMovement()
 		CharacterMovement->bNetworkSmoothingComplete = false;
 		CharacterMovement->SmoothCorrection(OldLocation, OldRotation, NewLocation, NewRotation.Quaternion());
 		OnUpdateSimulatedPosition(OldLocation, OldRotation);
+	}
+}
+
+void ACharacter::GatherCurrentMovement()
+{
+	Super::GatherCurrentMovement();
+
+	if (IsReplicatingMovement())
+	{
+		FRepMovement& MutableRepMovement = GetReplicatedMovement_Mutable();
+
+		if (ShouldReplicateAcceleration()) 
+		{
+			MutableRepMovement.bRepAcceleration = true;
+			MutableRepMovement.Acceleration = CharacterMovement->GetCurrentAcceleration();
+		}
+		else
+		{
+			MutableRepMovement.bRepAcceleration = false;
+		}
 	}
 }
 

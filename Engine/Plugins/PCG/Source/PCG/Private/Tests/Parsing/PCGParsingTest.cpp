@@ -33,6 +33,14 @@ bool FPCGParsingTest_Basic::RunTest(const FString& Parameters)
 		UTEST_TRUE("Singular non-range index is correct", Results.ContainsIndex(4));
 	}
 
+	// Final index
+	{
+		const PCGIndexing::FPCGIndexCollection Results = PCGParsingTestPrivate::ParseAndRetrieveIndices("-1", ArraySize);
+		UTEST_EQUAL("Single final index has 1 index", Results.GetTotalIndexCount(), 1);
+		UTEST_EQUAL("Single final index has 1 range", Results.GetTotalRangeCount(), 1);
+		UTEST_TRUE("Single final index is correct", Results.ContainsIndex(ArraySize - 1));
+	}
+
 	// Simple negative index
 	{
 		const PCGIndexing::FPCGIndexCollection Results = PCGParsingTestPrivate::ParseAndRetrieveIndices("-4", ArraySize);
@@ -47,6 +55,14 @@ bool FPCGParsingTest_Basic::RunTest(const FString& Parameters)
 		UTEST_EQUAL("Multiple index has 2 index", Results.GetTotalIndexCount(), 2);
 		UTEST_EQUAL("Multiple index has 2 ranges", Results.GetTotalRangeCount(), 2);
 		UTEST_TRUE("Multiple index (first) is correct", Results.ContainsIndex(4) && Results.ContainsIndex(ArraySize - 4));
+	}
+
+	// Repeated index
+	{
+		const PCGIndexing::FPCGIndexCollection Results = PCGParsingTestPrivate::ParseAndRetrieveIndices("2:2", ArraySize);
+		UTEST_EQUAL("Repeated index has 1 index", Results.GetTotalIndexCount(), 1);
+		UTEST_EQUAL("Repeated index has 1 range", Results.GetTotalRangeCount(), 1);
+		UTEST_TRUE("Repeated index is correct", Results.ContainsIndex(2));
 	}
 
 	// More complex use case
@@ -119,8 +135,8 @@ bool FPCGParsingTest_Ranges::RunTest(const FString& Parameters)
 	// ------------
 
 	Results = PCGParsingTestPrivate::ParseAndRetrieveIndices("0:1", ArraySize);
-	UTEST_EQUAL("Repeated single index results in a single range", Results.GetTotalRangeCount(), 1);
-	UTEST_EQUAL("Repeated single index results in a single index", Results.GetTotalIndexCount(), 1);
+	UTEST_EQUAL("Sequential single index results in a single range", Results.GetTotalRangeCount(), 1);
+	UTEST_EQUAL("Sequential single index results in a single index", Results.GetTotalIndexCount(), 1);
 	UTEST_TRUE("Included indices verified", CheckSplitTestArray(1));
 
 	Results = PCGParsingTestPrivate::ParseAndRetrieveIndices("0:10", ArraySize);
@@ -265,7 +281,13 @@ bool FPCGParsingTest_Robustness::RunTest(const FString& Parameters)
 	Results = PCGParsingTestPrivate::ParseAndRetrieveIndices("5:2", ArraySize);
 	UTEST_EQUAL("Inverted range has no result", Results.GetTotalIndexCount(), 0);
 
+	Results = PCGParsingTestPrivate::ParseAndRetrieveIndices(FString::FromInt(ArraySize), ArraySize);
+	UTEST_EQUAL("Selected array max size", Results.GetTotalIndexCount(), 0);
+
 	Results = PCGParsingTestPrivate::ParseAndRetrieveIndices(FString::FromInt(ArraySize + 1), ArraySize);
+	UTEST_EQUAL("Index outside the bounds of the array", Results.GetTotalIndexCount(), 0);
+
+	Results = PCGParsingTestPrivate::ParseAndRetrieveIndices(FString::FromInt(-1 * (ArraySize + 1)), ArraySize);
 	UTEST_EQUAL("Index outside the bounds of the array", Results.GetTotalIndexCount(), 0);
 
 	Results = PCGParsingTestPrivate::ParseAndRetrieveIndices("65465465498475309485730495873409587654684986146162342348438", std::numeric_limits<int32>::max());

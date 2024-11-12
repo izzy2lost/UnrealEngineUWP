@@ -19,6 +19,7 @@ namespace UE
 	{
 		struct INTERCHANGEFACTORYNODES_API FStaticMeshNodeStaticData : public FBaseNodeStaticData
 		{
+			static const FAttributeKey& GetLODScreenSizeBaseKey();
 			static const FAttributeKey& GetSocketUidsBaseKey();
 		};
 	} // namespace Interchange
@@ -59,6 +60,26 @@ public:
 #endif //WITH_EDITOR
 
 public:
+	/** Get whether the static mesh factory should auto compute LOD Screen Sizes. Return false if the attribute was not set. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMesh")
+	bool GetCustomAutoComputeLODScreenSizes(bool& AttributeValue) const;
+
+	/** Set whether the static mesh factory should auto compute LOD Screen Sizes. Return false if the attribute was not set. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMesh")
+	bool SetCustomAutoComputeLODScreenSizes(const bool& AttributeValue);
+
+	/** Returns the number of LOD Screen Sizes the static mesh has.*/
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMesh")
+	int32 GetLODScreenSizeCount() const;
+
+	/** Returns All the LOD Screen Sizes set for the static mesh.*/
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMesh")
+	void GetLODScreenSizes(TArray<float>& OutLODScreenSizes) const;
+
+	/** Sets the LOD Screen Sizes for the static mesh.*/
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMesh")
+	bool SetLODScreenSizes(const TArray<float>& InLODScreenSizes);
+
 	/** Get whether the static mesh factory should set the Nanite build setting. Return false if the attribute was not set. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMesh")
 	bool GetCustomBuildNanite(bool& AttributeValue) const;
@@ -209,7 +230,10 @@ private:
 	const UE::Interchange::FAttributeKey Macro_CustomDistanceFieldReplacementMeshKey = UE::Interchange::FAttributeKey(TEXT("DistanceFieldReplacementMesh"));
 	const UE::Interchange::FAttributeKey Macro_CustomMaxLumenMeshCardsKey = UE::Interchange::FAttributeKey(TEXT("MaxLumenMeshCards"));
 	const UE::Interchange::FAttributeKey Macro_CustomBuildNaniteKey = UE::Interchange::FAttributeKey(TEXT("BuildNanite"));
+	const UE::Interchange::FAttributeKey Macro_CustomAutoComputeLODScreenSizesKey = UE::Interchange::FAttributeKey(TEXT("AutoComputeLODScreenSizes"));
 
+
+	UE::Interchange::TArrayAttributeHelper<float> LODScreenSizes;
 	UE::Interchange::TArrayAttributeHelper<FString> SocketUids;
 
 protected:

@@ -182,11 +182,6 @@ FDynamicMesh3 UDataflowComponentReadOnlyToolTarget::GetDynamicMesh()
 	return DynamicMesh;
 }
 
-FDynamicMesh3 UDataflowComponentReadOnlyToolTarget::GetDynamicMesh(bool bRequestTangents)
-{
-	return GetDynamicMesh();
-}
-
 //
 // UDataflowComponentToolTarget
 //

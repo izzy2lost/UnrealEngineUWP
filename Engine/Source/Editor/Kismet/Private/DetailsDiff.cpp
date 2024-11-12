@@ -154,10 +154,11 @@ TSharedRef<IDetailsView> FDetailsDiff::CreateDetailsView(const UObject* InObject
 	DetailsView->SetIsPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled::CreateStatic([]{return false; }));
 	if (InObject && InObject->IsA<UBlueprint>())
 	{
+		TWeakObjectPtr<UBlueprint> ForCapture = const_cast<UBlueprint*>(Cast<UBlueprint>(InObject));
 		// create a custom property layout so that sections like interfaces will be included in the diff view
 		const FOnGetDetailCustomizationInstance LayoutOptionDetails = FOnGetDetailCustomizationInstance::CreateStatic(
 			&FBlueprintGlobalOptionsDetails::MakeInstanceForDiff,
-			const_cast<UBlueprint *>(Cast<UBlueprint>(InObject))
+			ForCapture
 		);
 		DetailsView->RegisterInstancedCustomPropertyLayout(UBlueprint::StaticClass(), LayoutOptionDetails);
 	}
@@ -269,7 +270,7 @@ void FDetailsDiff::DiffAgainst(const FDetailsDiff& Newer, TArray< FSingleObjectD
 
 		TArray<FPropertySoftPath> DifferingSubProperties;
 
-		if (!DiffUtils::Identical(OldProperty, NewProperty, OldPackage, NewPackage, CommonProperty, DifferingSubProperties))
+		if (!DiffUtils::Identical(OldProperty, NewProperty, OldPackage, NewPackage, DiffUtils::FDiffParameters(CommonProperty), DifferingSubProperties))
 		{
 			for (const FPropertySoftPath& DifferingSubProperty : DifferingSubProperties)
 			{

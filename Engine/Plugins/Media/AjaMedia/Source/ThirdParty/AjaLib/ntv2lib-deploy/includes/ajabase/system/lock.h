@@ -2,15 +2,15 @@
 /**
 	@file		lock.h
 	@brief		Declares the AJALock class.
-	@copyright	(C) 2009-2021 AJA Video Systems, Inc.  All rights reserved.
+	@copyright	(C) 2009-2022 AJA Video Systems, Inc.  All rights reserved.
 **/
 
 #ifndef AJA_LOCK_H
 #define AJA_LOCK_H
 
 #include "ajabase/common/public.h"
-
-#if defined(AJA_USE_CPLUSPLUS11)
+#include <assert.h>
+#if defined(AJA_USE_CPLUSPLUS11) && !defined(AJA_BAREMETAL)
 	#include <mutex>
 	#include <string>
 	using std::recursive_timed_mutex;
@@ -66,15 +66,18 @@ public:
 	 */
 	virtual inline bool IsValid(void) const
 		{
-			#if defined(AJA_USE_CPLUSPLUS11)
+			#if defined(AJA_USE_CPLUSPLUS11) && !defined(AJA_BAREMETAL)
 				return mpMutex != nullptr;
 			#else
 				return mpImpl != NULL;
 			#endif
 		}
 
+	AJALock (const AJALock & inLock);
+	virtual AJALock &	operator = (const AJALock & inLock);
+
 private:
-#if defined(AJA_USE_CPLUSPLUS11)
+#if defined(AJA_USE_CPLUSPLUS11) && !defined(AJA_BAREMETAL)
 	recursive_timed_mutex* mpMutex={nullptr};
 	string name;
 #else

@@ -9,34 +9,86 @@ DWORD Local_GetLongPathNameW(LPCWSTR lpszShortPath, LPWSTR lpszLongPath, DWORD c
 	if (findIt != g_longPathNameCache.end())
 	{
 		const wchar_t* longPath = findIt->second;
-		u64 len = wcslen(longPath);
-		UBA_ASSERT(cchBuffer > len);
+		u32 len = u32(wcslen(longPath));
+		if (len == 0)
+		{
+			SetLastError(ERROR_FILE_NOT_FOUND);
+			return 0;
+		}
+		SetLastError(ERROR_SUCCESS);
+		if (cchBuffer <= len)
+			return len + 1;
+
 		memcpy(lpszLongPath, longPath, (len + 1) * 2);
-		return u32(len);
+		return len + 1;
+	}
+
+	wchar_t* newLongPath = nullptr;
+	DWORD res = 0;
+
+	if (g_runningRemote)
+	{
+		u32 errorCode = 0;
+		StringBuffer<> longName;
+		{
+			TimerScope ts(g_stats.longPathName);
+			SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+			BinaryWriter writer;
+			writer.WriteByte(MessageType_GetLongPathName);
+			writer.WriteString(lpszShortPath);
+			writer.Flush();
+			BinaryReader reader;
+			errorCode = reader.ReadU32();
+			reader.ReadString(longName);
+		}
+
+		newLongPath = g_memoryBlock.Strdup(longName.data);
+
+		if (longName.count == 0)
+		{
+			// Error
+		}
+		if (cchBuffer > longName.count)
+		{
+			memcpy(lpszLongPath, longName.data, (longName.count+1)*sizeof(wchar_t));
+			res = longName.count;
+		}
+		else
+		{
+			res = longName.count + 1;
+		}
+
+		SetLastError(errorCode);
+
+		DEBUG_LOG_DETOURED(L"GetLongPathNameW", L"%ls", lpszShortPath);
+	}
+	else
+	{
+		DEBUG_LOG_TRUE(L"GetLongPathNameW", L"(Detour disabled under this call to handle ~) (%ls)", lpszShortPath);
+
+		SuppressDetourScope _;
+		res = True_GetLongPathNameW(lpszShortPath, lpszLongPath, cchBuffer);
+		if (res == 0)
+			return res;
+		newLongPath = g_memoryBlock.Strdup(lpszLongPath);
 	}
 
 	wchar_t* newShortPath = g_memoryBlock.Strdup(lpszShortPath);
-	DEBUG_LOG_TRUE(L"GetLongPathNameW", L"(Detour disabled under this call to handle ~) (%ls)", lpszShortPath);
-
-	SuppressDetourScope _;
-	DWORD res = True_GetLongPathNameW(lpszShortPath, lpszLongPath, cchBuffer);
-	if (res == 0)
-		return res;
-	g_longPathNameCache.insert({ newShortPath, g_memoryBlock.Strdup(lpszLongPath) });
+	g_longPathNameCache.insert({ newShortPath, newLongPath });
 	return res;
 }
 
 LPWSTR Detoured_GetCommandLineW()
 {
 	DETOURED_CALL(GetCommandLineW);
-	if (!g_runningRemote)
+	if (!g_virtualCommandLineW)
 	{
 		LPWSTR str = True_GetCommandLineW();
 		DEBUG_LOG_TRUE(L"GetCommandLineW", L"");// str);
 		return str;
 	}
-	DEBUG_LOG_DETOURED(L"GetCommandLineW", L"");// g_virtualCommandLine);
-	return g_virtualCommandLine;
+	DEBUG_LOG_DETOURED(L"GetCommandLineW", L"");
+	return g_virtualCommandLineW;
 }
 
 DWORD Detoured_GetCurrentDirectoryW(DWORD nBufferLength, LPWSTR lpBuffer)
@@ -46,7 +98,7 @@ DWORD Detoured_GetCurrentDirectoryW(DWORD nBufferLength, LPWSTR lpBuffer)
 	SetLastError(ERROR_SUCCESS);
 	if (lpBuffer == nullptr || nBufferLength < length + 1)
 	{
-		DEBUG_LOG_DETOURED(L"GetCurrentDirectoryW", L"(buffer too small: %u)", nBufferLength);
+		DEBUG_LOG_DETOURED(L"GetCurrentDirectoryW", L"(buffer too small: %u) -> %llu", nBufferLength, length + 1);
 		return DWORD(length + 1);
 	}
 	memcpy(lpBuffer, g_virtualWorkingDir.data, length * 2);
@@ -101,7 +153,6 @@ BOOL Detoured_SetCurrentDirectoryW(LPCWSTR lpPathName)
 	DEBUG_LOG_TRUE(L"SetCurrentDirectoryW", L"%ls", lpPathName);
 	return True_SetCurrentDirectoryW(lpPathName);
 }
-
 
 BOOL Detoured_DuplicateHandle(HANDLE hSourceProcessHandle, HANDLE hSourceHandle, HANDLE hTargetProcessHandle, LPHANDLE lpTargetHandle, DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwOptions)
 {
@@ -181,6 +232,7 @@ BOOL Detoured_CreateDirectoryW(LPCWSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecur
 		return res;
 	}
 
+	u32 directoryTableSize;
 	BOOL res;
 	u32 errorCode = 0;
 	StringKey pathNameKey = ToStringKeyLower(pathName);
@@ -196,7 +248,10 @@ BOOL Detoured_CreateDirectoryW(LPCWSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecur
 		BinaryReader reader;
 		res = reader.ReadBool();
 		errorCode = reader.ReadU32();
+		directoryTableSize = reader.ReadU32();
 	}
+
+	g_directoryTable.ParseDirectoryTable(directoryTableSize);
 
 	SetLastError(errorCode);
 	DEBUG_LOG_DETOURED(L"CreateDirectoryW", L"%ls -> %ls (%u)", lpPathName, ToString(res), errorCode);
@@ -209,19 +264,38 @@ BOOL Detoured_RemoveDirectoryW(LPCWSTR lpPathName)
 
 	StringBuffer<> pathName;
 	FixPath(pathName, lpPathName);
-	BOOL res;
-	if (!g_runningRemote || pathName.StartsWith(g_systemTemp.data))
+
+	if (pathName.StartsWith(g_systemTemp.data))
 	{
 		SuppressCreateFileDetourScope s; // TODO: Revisit this.. will not work remotely
-		res = True_RemoveDirectoryW(lpPathName);
+		BOOL res = True_RemoveDirectoryW(lpPathName);
+		DEBUG_LOG_TRUE(L"RemoveDirectoryW", L"%ls -> %ls", lpPathName, ToString(res));
+		return res;
 	}
-	else
-	{
-		UBA_ASSERTF(!g_runningRemote, L"RemoveDirectory is not implemented for remote (removing %s)", lpPathName);
-		res = false;
-	}
-	DEBUG_LOG_TRUE(L"RemoveDirectoryW", L"%ls -> %ls", lpPathName, ToString(res));
 
+	u32 directoryTableSize;
+	BOOL res;
+	u32 errorCode = 0;
+	StringKey pathNameKey = ToStringKeyLower(pathName);
+
+	{
+		TimerScope ts(g_stats.deleteFile);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+		BinaryWriter writer;
+		writer.WriteByte(MessageType_RemoveDirectory);
+		writer.WriteStringKey(pathNameKey);
+		writer.WriteString(pathName);
+		writer.Flush();
+		BinaryReader reader;
+		res = reader.ReadBool();
+		errorCode = reader.ReadU32();
+		directoryTableSize = reader.ReadU32();
+	}
+
+	g_directoryTable.ParseDirectoryTable(directoryTableSize);
+
+	SetLastError(errorCode);
+	DEBUG_LOG_DETOURED(L"RemoveDirectoryW", L"%ls -> %ls (%u)", lpPathName, ToString(res), errorCode);
 	return res;
 }
 
@@ -290,7 +364,7 @@ BOOL Detoured_ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead
 	{
 		auto& dh = asDetouredHandle(hFile);
 
-		if (dh.type == HandleType_Std) // HACK HACK
+		if (dh.type == HandleType_StdIn) // HACK HACK
 		{
 			UBA_ASSERTF(false, L"Trying to read input from stdin while application is running in a way console can not be accessed");
 			memcpy(lpBuffer, "Y\r\n", 3);
@@ -326,6 +400,7 @@ BOOL Detoured_ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead
 		trueHandle = dh.trueHandle;
 	}
 
+	TimerScope ts(g_kernelStats.readFile);
 	BOOL res = True_ReadFile(trueHandle, lpBuffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped);
 	DEBUG_LOG_TRUE(L"ReadFile", L"%llu %u/%u (%ls) -> %ls", uintptr_t(hFile), lpNumberOfBytesRead ? *lpNumberOfBytesRead : ~0u, nNumberOfBytesToRead, HandleToName(hFile), ToString(res));
 	return res;
@@ -335,7 +410,7 @@ BOOL Detoured_ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead
 BOOL Detoured_WriteConsoleA(HANDLE hConsoleOutput, const VOID* lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved)
 {
 	DETOURED_CALL(WriteConsoleA);
-	//DEBUG_LOG_TRUE_AND_DETOURED(L"WriteConsoleA (%hs)", (char*)lpBuffer);
+	//DEBUG_LOG_DETOURED(L"WriteConsoleA", L"(%hs)", (char*)lpBuffer); // Too much spam
 	Shared_WriteConsole((const char*)lpBuffer, nNumberOfCharsToWrite, false);
 	if (lpNumberOfCharsWritten)
 		*lpNumberOfCharsWritten = nNumberOfCharsToWrite;
@@ -345,7 +420,7 @@ BOOL Detoured_WriteConsoleA(HANDLE hConsoleOutput, const VOID* lpBuffer, DWORD n
 BOOL Detoured_WriteConsoleW(HANDLE hConsoleOutput, const VOID* lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved)
 {
 	DETOURED_CALL(WriteConsoleW);
-	//DEBUG_LOG_DETOURED(L"WriteConsoleW"", L""); // Too much spam
+	//DEBUG_LOG_DETOURED(L"WriteConsoleW", L"(%s)", (const wchar_t*)lpBuffer); // Too much spam
 	Shared_WriteConsole((const wchar_t*)lpBuffer, nNumberOfCharsToWrite, false);
 	if (lpNumberOfCharsWritten)
 		*lpNumberOfCharsWritten = nNumberOfCharsToWrite;
@@ -450,12 +525,15 @@ BOOL Detoured_GetVolumeInformationW(LPCWSTR lpRootPathName, LPWSTR lpVolumeNameB
 	DETOURED_CALL(GetVolumeInformationW);
 	if (g_runningRemote)
 	{
-		UBA_ASSERT(!lpVolumeNameBuffer);
-		UBA_ASSERT(!lpVolumeSerialNumber);
+		if (lpVolumeSerialNumber)
+			*lpVolumeSerialNumber = lpRootPathName[0]; // Let's see if this works, LOL
+
+		//UBA_ASSERT(!lpVolumeNameBuffer);
 		UBA_ASSERT(!lpMaximumComponentLength);
 		UBA_ASSERT(!lpFileSystemFlags);
 
-		wcscpy_s(lpFileSystemNameBuffer, nFileSystemNameSize, L"NTFS"); // TODO: Not everyone has NTFS?
+		if (nFileSystemNameSize)
+			wcscpy_s(lpFileSystemNameBuffer, nFileSystemNameSize, L"NTFS"); // TODO: Not everyone has NTFS?
 		SetLastError(ERROR_SUCCESS);
 		DEBUG_LOG_DETOURED(L"GetVolumeInformationW", L"%ls", lpRootPathName);
 		return true;
@@ -521,7 +599,7 @@ DWORD Detoured_GetSecurityInfo(HANDLE handle, SE_OBJECT_TYPE ObjectType, SECURIT
 
 void WriteStdFile(LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite, bool isError)
 {
-	if (!g_echoOn)
+	if (!g_echoOn || g_suppressLogging)
 		return;
 
 	SCOPED_WRITE_LOCK(g_stdFileLock, lock);
@@ -557,13 +635,18 @@ BOOL Detoured_WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWr
 		auto& dh = asDetouredHandle(hFile);
 		auto& fo = *dh.fileObject;
 
-		if (dh.type == HandleType_Std)
+		if (dh.type >= HandleType_StdErr)
 		{
-			WriteStdFile(lpBuffer, nNumberOfBytesToWrite, hFile == g_stdHandle[0]);
+			if (dh.type != HandleType_StdIn)
+			{
+				//DEBUG_LOG_DETOURED(L"WriteStdFile1", L"%llu", uintptr_t(hFile));
+				WriteStdFile(lpBuffer, nNumberOfBytesToWrite, dh.type == HandleType_StdErr);
+			}
 			*lpNumberOfBytesWritten = nNumberOfBytesToWrite;
 			SetLastError(ERROR_SUCCESS);
 			return true;
 		}
+
 		auto& fi = *fo.fileInfo;
 		if (MemoryFile* mf = fi.memoryFile)
 		{
@@ -585,11 +668,16 @@ BOOL Detoured_WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWr
 	}
 	else if (hFile == g_stdHandle[1] || hFile == g_stdHandle[0])
 	{
+		//DEBUG_LOG_DETOURED(L"WriteStdFile2", L"%llu", uintptr_t(hFile));
 		WriteStdFile(lpBuffer, nNumberOfBytesToWrite, hFile == g_stdHandle[0]);
+		*lpNumberOfBytesWritten = nNumberOfBytesToWrite;
 		SetLastError(ERROR_SUCCESS);
 		return true;
+		//if (GetFileType(trueHandle) != FILE_TYPE_CHAR )
+		//return True_WriteFile(trueHandle, lpBuffer, nNumberOfBytesToWrite, lpNumberOfBytesWritten, lpOverlapped);
 	}
 
+	TimerScope ts(g_kernelStats.writeFile);
 	BOOL res = True_WriteFile(trueHandle, lpBuffer, nNumberOfBytesToWrite, lpNumberOfBytesWritten, lpOverlapped);
 	DEBUG_LOG_TRUE(L"WriteFile", L"%llu (%ls) -> %ls", uintptr_t(hFile), HandleToName(hFile), ToString(res));
 	return res;
@@ -603,6 +691,8 @@ BOOL Detoured_WriteFileEx(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesTo
 	UBA_ASSERT(isDetouredHandle(hFile));
 	DetouredHandle& h = asDetouredHandle(hFile);
 	UBA_ASSERT(h.trueHandle != INVALID_HANDLE_VALUE);
+
+	TimerScope ts(g_kernelStats.writeFile);
 	return True_WriteFileEx(h.trueHandle, lpBuffer, nNumberOfBytesToWrite, lpOverlapped, lpCompletionRoutine);
 }
 
@@ -747,7 +837,7 @@ DWORD Detoured_SetFilePointerEx(HANDLE hFile, LARGE_INTEGER liDistanceToMove, PL
 	if (isDetouredHandle(hFile))
 	{
 		DetouredHandle& dh = asDetouredHandle(hFile);
-		if (dh.type == HandleType_Std)
+		if (dh.type >= HandleType_StdErr)
 		{
 			if (lpNewFilePointer)
 				*lpNewFilePointer = ToLargeInteger(0);
@@ -801,7 +891,7 @@ BOOL Detoured_SetEndOfFile(HANDLE hFile)
 			DEBUG_LOG_DETOURED(L"SetEndOfFile (MEMORY)", L"%llu (%ls) -> Success", uintptr_t(hFile), HandleToName(hFile));
 			mf->writtenSize = dh.pos;
 			mf->isReported = false;
-			mf->EnsureCommited(dh, mf->writtenSize);
+			mf->EnsureCommitted(dh, mf->writtenSize);
 			SetLastError(ERROR_SUCCESS);
 			return true;
 		}
@@ -869,15 +959,18 @@ DWORD Detoured_GetFileType(HANDLE hFile)
 	{
 		DetouredHandle& dh = asDetouredHandle(hFile);
 		SetLastError(ERROR_SUCCESS);
-		if (dh.type == HandleType_Std)
+		if (dh.type >= HandleType_StdErr)
+		{
+			DEBUG_LOG_DETOURED(L"GetFileType", L"%llu (%ls) -> FILE_TYPE_CHAR", uintptr_t(hFile), HandleToName(hFile));
 			return FILE_TYPE_CHAR;
-		UBA_ASSERT(dh.type == HandleType_File);
-		DEBUG_LOG_DETOURED(L"GetFileType", L"%llu (%ls) -> %u", uintptr_t(hFile), HandleToName(hFile), FILE_TYPE_DISK);
+		}
+		UBA_ASSERTF(dh.type == HandleType_File, L"HandleType: %u", dh.type);
+		DEBUG_LOG_DETOURED(L"GetFileType", L"%llu (%ls) -> FILE_TYPE_DISK", uintptr_t(hFile), HandleToName(hFile));
 		return FILE_TYPE_DISK;
 	}
 	if (isListDirectoryHandle(hFile))
 	{
-		DEBUG_LOG_DETOURED(L"GetFileType", L"%llu (%ls) -> %u", uintptr_t(hFile), HandleToName(hFile), FILE_TYPE_DISK);
+		DEBUG_LOG_DETOURED(L"GetFileType", L"%llu (%ls) -> FILE_TYPE_DISK", uintptr_t(hFile), HandleToName(hFile));
 		SetLastError(ERROR_SUCCESS);
 		return FILE_TYPE_DISK;
 	}
@@ -901,6 +994,7 @@ BOOL Shared_GetFileAttributesExW(LPCWSTR lpFileName, GET_FILEEX_INFO_LEVELS fInf
 	if (!CanDetour(fixedFileName))
 	{
 		DEBUG_LOG_TRUE(L"GetFileAttributesExW", L"(%ls)", lpFileName);
+		TimerScope ts(g_kernelStats.getFileInfo);
 		return True_GetFileAttributesExW(lpFileName, fInfoLevelId, lpFileInformation);
 	}
 
@@ -910,6 +1004,7 @@ BOOL Shared_GetFileAttributesExW(LPCWSTR lpFileName, GET_FILEEX_INFO_LEVELS fInf
 	if (!attr.useCache)
 	{
 		DEBUG_LOG_TRUE(L"GetFileAttributesExW", L"(%ls)", lpFileName);
+		TimerScope ts(g_kernelStats.getFileInfo);
 		return True_GetFileAttributesExW(realName, fInfoLevelId, lpFileInformation);
 	}
 
@@ -928,10 +1023,11 @@ BOOL Detoured_GetFileAttributesExW(LPCWSTR lpFileName, GET_FILEEX_INFO_LEVELS fI
 	{
 		UBA_ASSERT(!g_runningRemote);
 		DEBUG_LOG_TRUE(L"GetFileAttributesExW", L"(%ls)", lpFileName);
+		TimerScope ts(g_kernelStats.getFileInfo);
 		return True_GetFileAttributesExW(lpFileName, fInfoLevelId, lpFileInformation);
 	}
 
-	StringBuffer<> fixedName;
+	StringBuffer<MaxPath> fixedName;
 	FixPath(fixedName, lpFileName);
 
 	if (!g_rules->CanExist(fixedName.data))
@@ -948,12 +1044,13 @@ DWORD Detoured_GetFileAttributesW(LPCWSTR lpFileName)
 	DETOURED_CALL(GetFileAttributesW);
 	if (t_disallowDetour != 0 || Equals(lpFileName, L"nul"))
 	{
+		TimerScope ts(g_kernelStats.getFileInfo);
 		DWORD res = True_GetFileAttributesW(lpFileName);
 		DEBUG_LOG_TRUE(L"GetFileAttributesW", L"(NODETOUR) (%ls) -> %u", lpFileName, res);
 		return res;
 	}
 
-	StringBuffer<> fixedPath;
+	StringBuffer<MaxPath> fixedPath;
 	if (!FixPath(fixedPath, lpFileName))
 		return INVALID_FILE_ATTRIBUTES;
 
@@ -967,13 +1064,14 @@ DWORD Detoured_GetFileAttributesW(LPCWSTR lpFileName)
 BOOL Detoured_SetFileAttributesW(LPCWSTR lpFileName, DWORD dwFileAttributes)
 {
 	DETOURED_CALL(SetFileAttributesW);
-	if (KeepInMemory(lpFileName, u32(wcslen(lpFileName))))
+	if (KeepInMemory(StringView(lpFileName, u32(wcslen(lpFileName)))))
 	{
 		DEBUG_LOG_DETOURED(L"SetFileAttributesW", L"(%ls) %u", lpFileName, dwFileAttributes);
 		SetLastError(ERROR_SUCCESS);
 		return true;
 	}
 	DEBUG_LOG_TRUE(L"SetFileAttributesW", L"(%ls) %u", lpFileName, dwFileAttributes);
+	TimerScope ts(g_kernelStats.setFileInfo);
 	return True_SetFileAttributesW(lpFileName, dwFileAttributes);
 }
 
@@ -981,18 +1079,26 @@ DWORD Detoured_GetLongPathNameW(LPCWSTR lpszShortPath, LPWSTR lpszLongPath, DWOR
 {
 	DETOURED_CALL(GetLongPathNameW);
 
-	if (wcsncmp(lpszShortPath, L"\\\\?\\", 4) == 0)
-		lpszShortPath += 4;
+	if (!lpszShortPath)
+		return Local_GetLongPathNameW(lpszShortPath, lpszLongPath, cchBuffer);
+
+	const wchar_t* path = lpszShortPath;
+	if (wcsncmp(path, L"\\\\?\\", 4) == 0)
+		path += 4;
+
+	bool foundQuestionMark = false;
+	for (const wchar_t* i = path, *e = i + 4; *i && i!=e; ++i)
+		foundQuestionMark |= *i == '?';
 
 	// TODO: Add support for ~ and "\\?\"
-	if (!wcschr(lpszShortPath, '?'))
+	if (!foundQuestionMark)
 	{
 		StringBuffer<> fixedName;
-		FixPath(fixedName, lpszShortPath);
+		FixPath(fixedName, path);
 
-		DEBUG_LOG_DETOURED(L"GetLongPathNameW", L"(%ls)", lpszShortPath);
+		DEBUG_LOG_DETOURED(L"GetLongPathNameW", L"(%ls)", path);
 		WIN32_FILE_ATTRIBUTE_DATA data;
-		bool success = Shared_GetFileAttributesExW(fixedName.data, GetFileExInfoStandard, &data, lpszShortPath);
+		bool success = Shared_GetFileAttributesExW(fixedName.data, GetFileExInfoStandard, &data, path);
 
 		DWORD res = 0;
 		if (success)
@@ -1004,12 +1110,12 @@ DWORD Detoured_GetLongPathNameW(LPCWSTR lpszShortPath, LPWSTR lpszLongPath, DWOR
 #if UBA_DEBUG_VALIDATE
 		if (g_validateFileAccess)
 		{
-			if (!wcschr(lpszShortPath, '~') && !wcschr(lpszShortPath, '?'))
+			if (!wcschr(path, '~') && !wcschr(path, '?'))
 			{
 				wchar_t temp[MaxPath];
 				UBA_ASSERT(cchBuffer <= sizeof_array(temp));
 				SuppressDetourScope _;
-				DWORD res2 = True_GetLongPathNameW(lpszShortPath, temp, cchBuffer); (void)res2;
+				DWORD res2 = True_GetLongPathNameW(path, temp, cchBuffer); (void)res2;
 				UBA_ASSERT(res == res2);
 			}
 		}
@@ -1026,24 +1132,18 @@ DWORD Detoured_GetLongPathNameW(LPCWSTR lpszShortPath, LPWSTR lpszLongPath, DWOR
 DWORD Detoured_GetFullPathNameW(LPCWSTR lpFileName, DWORD nBufferLength, LPWSTR lpBuffer, LPWSTR* lpFilePart)
 {
 	DETOURED_CALL(GetFullPathNameW);
-	if (g_runningRemote)
-	{
-		StringBuffer<> temp;
-		FixPath(temp, lpFileName);
-		u64 requiredSize = temp.count + 1;
-		if (nBufferLength < requiredSize)
-			return DWORD(requiredSize);
-		memcpy(lpBuffer, temp.data, requiredSize * 2);
-		if (lpFilePart)
-			*lpFilePart = wcsrchr(lpBuffer, '\\') + 1;
-		auto res = DWORD(temp.count);
-		DEBUG_LOG_DETOURED(L"GetFullPathNameW", L"%ls -> %u", temp.data, res);
-		SetLastError(ERROR_SUCCESS);
-		return res;
-	}
 
-	auto res = True_GetFullPathNameW(lpFileName, nBufferLength, lpBuffer, lpFilePart);
-	DEBUG_LOG_TRUE(L"GetFullPathNameW", L"%ls -> %u", lpFileName, res);
+	StringBuffer<> temp;
+	FixPath(temp, lpFileName);
+	u64 requiredSize = temp.count + 1;
+	if (nBufferLength < requiredSize)
+		return DWORD(requiredSize);
+	memcpy(lpBuffer, temp.data, requiredSize * 2);
+	if (lpFilePart)
+		*lpFilePart = wcsrchr(lpBuffer, '\\') + 1;
+	auto res = DWORD(temp.count);
+	DEBUG_LOG_DETOURED(L"GetFullPathNameW", L"%ls TO %ls -> %u", lpFileName, temp.data, res);
+	SetLastError(ERROR_SUCCESS);
 	return res;
 }
 
@@ -1190,7 +1290,7 @@ BOOL Detoured_CopyFileExW(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, LPP
 		SuppressCreateFileDetourScope cfs;
 		res = True_CopyFileExW(newFromName.data, newToName.data, lpProgressRoutine, lpData, pbCancel, dwCopyFlags);
 	}
-	DEBUG_LOG_TRUE(L"CopyFileExW", L"%ls to %ls  (%ls to %ls) -> %ls", lpExistingFileName, lpNewFileName, newFromName.data, newToName.data, ToString(res));
+	DEBUG_LOG_TRUE(L"CopyFileExW", L"%ls to %ls flags: %u (%ls to %ls) -> %ls", lpExistingFileName, lpNewFileName, dwCopyFlags, newFromName.data, newToName.data, ToString(res));
 
 	// We need to report the new file that has been added (and we must do it _after_ it has been copied
 	if (!closeId)
@@ -1274,11 +1374,17 @@ BOOL Detoured_DeleteFileW(LPCWSTR lpFileName)
 		return True_DeleteFileW(original);
 	}
 
-	if (KeepInMemory(fixedNameLower.data, fixedNameLower.count))
+	if (KeepInMemory(fixedNameLower))
 	{
 		DEBUG_LOG_DETOURED(L"DeleteFileW", L"(INMEMORY) (%ls) -> Success", lpFileName);
 		SetLastError(ERROR_SUCCESS);
 		return TRUE;
+	}
+
+	if (fixedName.StartsWith(g_systemTemp.data))
+	{
+		DEBUG_LOG_TRUE(L"DeleteFileW", L"(%ls)", original);
+		return True_DeleteFileW(original);
 	}
 
 	StringKey fileNameKey = ToStringKey(fixedNameLower);
@@ -1303,7 +1409,7 @@ BOOL Detoured_DeleteFileW(LPCWSTR lpFileName)
 		pcs.Leave();
 		DEBUG_LOG_PIPE(L"DeleteFile", L"%ls", lpFileName);
 	}
-	DEBUG_LOG_DETOURED(L"DeleteFileW", L"(%ls) -> %ls", lpFileName, ToString(result));
+	DEBUG_LOG_DETOURED(L"DeleteFileW", L"(%ls) -> %ls (%u)", lpFileName, ToString(result), errorCode);
 
 	g_directoryTable.ParseDirectoryTable(directoryTableSize);
 	g_mappedFileTable.SetDeleted(fileNameKey, lpFileName, true);
@@ -1314,12 +1420,16 @@ BOOL Detoured_DeleteFileW(LPCWSTR lpFileName)
 bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dwFlags)
 {
 	DETOURED_CALL(MoveFileExW);
+
 	StringBuffer<> source;
 	FixPath(source, lpExistingFileName);
 
+	StringBuffer<> dest;
+	FixPath(dest, lpNewFileName);
+
 	StringKey sourceKey = ToStringKeyLower(source);
 
-	if (KeepInMemory(source.data, source.count))
+	if (KeepInMemory(source))
 	{
 		SCOPED_WRITE_LOCK(g_mappedFileTable.m_lookupLock, lock);
 		auto it = g_mappedFileTable.m_lookup.find(sourceKey);
@@ -1327,10 +1437,7 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 		FileInfo& sourceInfo = it->second;
 		lock.Leave();
 
-		StringBuffer<> dest;
-		FixPath(dest, lpNewFileName);
-
-		if (IsOutputFile(dest.data, dest.count, GENERIC_WRITE))
+		if (IsOutputFile(dest, true))
 		{
 			sourceInfo.deleted = true;
 			UBA_ASSERT(!sourceInfo.memoryFile->isLocalOnly);
@@ -1341,7 +1448,7 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 			lock2.Leave();
 			FileInfo& destInfo = insres.first->second;
 			UBA_ASSERT(!insres.second); // This is here just to get a chance to investigate this scenario.. might work
-			UBA_ASSERTF(!destInfo.trueFileMapHandle && (!destInfo.memoryFile || g_rules->IsThrowAway(dest.data, dest.count)), TC("Moving file %s to %s that is an output file that is not a memory file is not supported"), source.data, lpNewFileName);
+			UBA_ASSERTF(!destInfo.trueFileMapHandle && (!destInfo.memoryFile || g_rules->IsThrowAway(dest, g_runningRemote)), TC("Moving file %s to %s that is an output file that is not a memory file is not supported"), source.data, lpNewFileName);
 			destInfo.memoryFile = sourceInfo.memoryFile;
 			sourceInfo.memoryFile = nullptr;
 			DEBUG_LOG_DETOURED(L"MoveFileExW", L"(memfile->memfile) %ls to %ls -> Success", lpExistingFileName, lpNewFileName);
@@ -1349,7 +1456,7 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 			return true;
 		}
 
-		UBA_ASSERT(!KeepInMemory(dest.data, dest.count));
+		UBA_ASSERT(!KeepInMemory(dest));
 
 		DEBUG_LOG_DETOURED(L"MoveFileExW", L"(memfile->file) %ls to %ls", lpExistingFileName, lpNewFileName);
 
@@ -1367,8 +1474,6 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 		return written == toWrite;
 	}
 
-	StringBuffer<> dest;
-	FixPath(dest, lpNewFileName);
 	StringKey destKey = ToStringKeyLower(dest);
 
 	u32 directoryTableSize;
@@ -1393,7 +1498,7 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 		DEBUG_LOG_PIPE(L"MoveFile", L"%ls to %ls", lpExistingFileName, lpNewFileName);
 	}
 
-	DEBUG_LOG_DETOURED(L"MoveFileExW", L"(PIPE) (%ls to %ls) -> %ls", lpExistingFileName, lpNewFileName, ToString(result));
+	DEBUG_LOG_DETOURED(L"MoveFileExW", L"(PIPE) (%ls to %ls) -> %ls (%u)", lpExistingFileName, lpNewFileName, ToString(result), errorCode);
 
 	g_directoryTable.ParseDirectoryTable(directoryTableSize);
 	g_mappedFileTable.SetDeleted(sourceKey, source.data, true);
@@ -1490,16 +1595,14 @@ __forceinline HANDLE Shared_FindFirstFileExW(LPCWSTR lpFileName, FINDEX_INFO_LEV
 
 	StringBuffer<> lowerName;
 	FixPath(lowerName, lpFileName);
-	lowerName.MakeLower();
-	const wchar_t* buf = lowerName.data;
 
-	if (wcsncmp(buf, L"\\\\?\\", 4) == 0)
-		buf += 4;
-
-	if (wcsncmp(buf, g_systemTemp.data, g_systemTemp.count) == 0 || wcsncmp(buf, g_systemRoot.data, g_systemRoot.count) == 0)
+	if (lowerName.StartsWith(g_systemTemp.data) || lowerName.StartsWith(g_systemRoot.data))
 		return Local_FindFirstFileExW(lpFileName, fInfoLevelId, lpFindFileData, fSearchOp, lpSearchFilter, dwAdditionalFlags, funcName);
 
-	wchar_t* fileName = const_cast<wchar_t*>(buf); // Not beautiful but We know this is a different buffer.
+	lowerName.MakeLower();
+	wchar_t* buf = lowerName.data;
+
+	wchar_t* fileName = lowerName.data;
 	wchar_t* lastBackslash = wcsrchr(fileName, '\\');
 	if (lastBackslash)
 		fileName = lastBackslash + 1;
@@ -1555,6 +1658,9 @@ __forceinline HANDLE Shared_FindFirstFileExW(LPCWSTR lpFileName, FINDEX_INFO_LEV
 
 	if (!exists)
 	{
+		if (g_systemTemp.StartsWith(lowerName.data)) // TODO: This is a big hack. We should make sure the uba system temp folder is virtualized and is always some root path that never can collide with the host file system
+			return Local_FindFirstFileExW(lpFileName, fInfoLevelId, lpFindFileData, fSearchOp, lpSearchFilter, dwAdditionalFlags, funcName);
+
 		DEBUG_LOG_DETOURED(funcName, L"(%ls) -> NotFound", lpFileName);
 		SetLastError(ERROR_FILE_NOT_FOUND);
 		return INVALID_HANDLE_VALUE;
@@ -1570,7 +1676,7 @@ __forceinline HANDLE Shared_FindFirstFileExW(LPCWSTR lpFileName, FINDEX_INFO_LEV
 
 
 
-	auto listHandle = new ListDirectoryHandle{ hash.key, insres.first->second };
+	auto listHandle = new ListDirectoryHandle{ hash.key, dir };
 
 	if (!*fileName)
 		listHandle->it = -2;
@@ -1595,8 +1701,10 @@ __forceinline HANDLE Shared_FindFirstFileExW(LPCWSTR lpFileName, FINDEX_INFO_LEV
 	{
 		if (!Shared_GetNextFile(data, *listHandle))
 		{
-			DEBUG_LOG_DETOURED(funcName, L"(%ls) -> NotFound", lpFileName);
 			delete listHandle;
+			if (g_systemTemp.StartsWith(lowerName.data)) // TODO: This is a big hack. We should make sure the uba system temp folder is virtualized and is always some root path that never can collide with the host file system
+				return Local_FindFirstFileExW(lpFileName, fInfoLevelId, lpFindFileData, fSearchOp, lpSearchFilter, dwAdditionalFlags, funcName);
+			DEBUG_LOG_DETOURED(funcName, L"(%ls) -> NotFound(2)", lpFileName);
 			return INVALID_HANDLE_VALUE;
 		}
 		if (listHandle->wildcard.empty() || PathMatchSpecW(data.cFileName, listHandle->wildcard.c_str()))
@@ -1798,12 +1906,20 @@ BOOL Detoured_GetFileInformationByHandleEx(HANDLE hFile, FILE_INFO_BY_HANDLE_CLA
 			return FALSE;
 			*/
 		}
+		else if (fileInformationClass == FileAttributeTagInfo)
+		{
+			auto& data = *(FILE_ATTRIBUTE_TAG_INFO*)lpFileInformation;
+			data.FileAttributes = entryInfo.attributes;
+			data.ReparseTag = 0;
+			return TRUE;
+		}
 		else
 		{
 			UBA_ASSERTF(trueHandle != INVALID_HANDLE_VALUE, L"GetFileInformationByHandleEx with class %u not Implemented (%ls)", fileInformationClass, HandleToName(hFile));
 		}
 	}
 	DEBUG_LOG_TRUE(L"GetFileInformationByHandleEx", L"(%ls)", HandleToName(hFile));
+	TimerScope ts(g_kernelStats.getFileInfo);
 	return True_GetFileInformationByHandleEx(trueHandle, fileInformationClass, lpFileInformation, dwBufferSize); /// calls GetFileInformationByHandleEx
 }
 
@@ -1877,7 +1993,7 @@ BOOL Detoured_GetFileInformationByHandle(HANDLE hFile, LPBY_HANDLE_FILE_INFORMAT
 
 		if (MemoryFile* mf = fi.memoryFile)
 		{
-			DEBUG_LOG_DETOURED(L"GetFileInformationByHandle", L"(memoryfile) %llu (%ls) -> Success", uintptr_t(hFile), HandleToName(hFile));
+			DEBUG_LOG_DETOURED(L"GetFileInformationByHandle", L"(memoryfile) %llu (%ls) -> Success (Size: %llu)", uintptr_t(hFile), HandleToName(hFile), mf->writtenSize);
 			lpFileInformation->dwFileAttributes = FILE_ATTRIBUTE_NORMAL;
 			(u64&)lpFileInformation->ftCreationTime = mf->fileTime;
 			(u64&)lpFileInformation->ftLastAccessTime = mf->fileTime;
@@ -1887,7 +2003,7 @@ BOOL Detoured_GetFileInformationByHandle(HANDLE hFile, LPBY_HANDLE_FILE_INFORMAT
 			lpFileInformation->nFileIndexHigh = li.HighPart;
 			lpFileInformation->nFileIndexLow = li.LowPart;
 			lpFileInformation->nNumberOfLinks = 1;//~u32(0); // TODO
-			li = ToLargeInteger(fi.memoryFile->writtenSize);
+			li = ToLargeInteger(mf->writtenSize);
 			lpFileInformation->nFileSizeHigh = li.HighPart;
 			lpFileInformation->nFileSizeLow = li.LowPart;
 			return TRUE;
@@ -1955,6 +2071,7 @@ BOOL Detoured_GetFileInformationByHandle(HANDLE hFile, LPBY_HANDLE_FILE_INFORMAT
 		trueHandle = dh.trueHandle;
 	}
 
+	TimerScope ts(g_kernelStats.getFileInfo);
 	auto res = True_GetFileInformationByHandle(trueHandle, lpFileInformation); // Calls NtQueryInformationFile
 	DEBUG_LOG_TRUE(L"GetFileInformationByHandle", L"%llu (%ls) -> %u", uintptr_t(hFile), HandleToName(hFile), res);
 	return res;
@@ -2005,13 +2122,13 @@ BOOL Detoured_SetFileInformationByHandle(HANDLE hFile, FILE_INFO_BY_HANDLE_CLASS
 			return true;
 
 		DEBUG_LOG_TRUE(L"SetFileInformationByHandle", L"%llu (FileDispositionInfo)", uintptr_t(hFile));
+		return True_SetFileInformationByHandle(hFile, FileInformationClass, lpFileInformation, dwBufferSize); // In here to be tabbed in log
 	}
 	else
 	{
 		DEBUG_LOG_TRUE(L"SetFileInformationByHandle", L"%llu (%u)", uintptr_t(hFile), FileInformationClass);
+		return True_SetFileInformationByHandle(hFile, FileInformationClass, lpFileInformation, dwBufferSize); // In here to be tabbed in log
 	}
-
-	return True_SetFileInformationByHandle(hFile, FileInformationClass, lpFileInformation, dwBufferSize);
 }
 
 HANDLE Detoured_CreateFileMappingW(HANDLE hFile, LPSECURITY_ATTRIBUTES lpFileMappingAttributes, DWORD flProtect, DWORD dwMaximumSizeHigh, DWORD dwMaximumSizeLow, LPCWSTR lpName)
@@ -2038,7 +2155,7 @@ HANDLE Detoured_CreateFileMappingW(HANDLE hFile, LPSECURITY_ATTRIBUTES lpFileMap
 				li.LowPart = dwMaximumSizeLow;
 				if (!(flProtect & MEM_RESERVE) && li.QuadPart)
 				{
-					mf->EnsureCommited(*mdh, li.QuadPart);
+					mf->EnsureCommitted(*mdh, li.QuadPart);
 					if (!mf->writtenSize && (flProtect & PAGE_READWRITE)) // TODO: Maybe we should always set writtenSize?
 						mf->writtenSize = li.QuadPart;
 				}
@@ -2053,6 +2170,7 @@ HANDLE Detoured_CreateFileMappingW(HANDLE hFile, LPSECURITY_ATTRIBUTES lpFileMap
 		trueHandle = dh.trueHandle;
 	}
 
+	TimerScope ts(g_kernelStats.createFileMapping);
 	HANDLE mappingHandle = True_CreateFileMappingW(trueHandle, lpFileMappingAttributes, flProtect, dwMaximumSizeHigh, dwMaximumSizeLow, lpName);
 	if (!mappingHandle)
 	{
@@ -2149,6 +2267,7 @@ LPVOID Detoured_MapViewOfFileEx(HANDLE hFileMappingObject, DWORD dwDesiredAccess
 					u32 counter = 0;
 					do
 					{
+						TimerScope ts(g_kernelStats.mapViewOfFile);
 						res = (u8*)True_MapViewOfFileEx(trueMappingObject, dwDesiredAccess, ToHigh(offset), ToLow(offset), dwNumberOfBytesToMap, lpBaseAddress);
 						if (res)
 							break;
@@ -2185,6 +2304,8 @@ LPVOID Detoured_MapViewOfFileEx(HANDLE hFileMappingObject, DWORD dwDesiredAccess
 		UBA_ASSERT(dh.trueHandle != INVALID_HANDLE_VALUE);
 		trueMappingObject = dh.trueHandle;
 	}
+
+	TimerScope ts(g_kernelStats.mapViewOfFile);
 	void* res = True_MapViewOfFileEx(trueMappingObject, dwDesiredAccess, dwFileOffsetHigh, dwFileOffsetLow, dwNumberOfBytesToMap, lpBaseAddress);
 	DEBUG_LOG_TRUE(L"MapViewOfFileEx", L"%llu (size %llu) (%ls) -> 0x%llx", uintptr_t(hFileMappingObject), dwNumberOfBytesToMap, HandleToName(hFileMappingObject), uintptr_t(res));
 
@@ -2240,12 +2361,16 @@ DWORD Detoured_GetFinalPathNameByHandleW(HANDLE hFile, LPTSTR lpszFilePath, DWOR
 		UBA_ASSERT(fo && fo->fileInfo->originalName);
 		const wchar_t* fileName = fo->fileInfo->originalName;
 
-		if (dwFlags == 0)
+		if (dwFlags == 0 || dwFlags == 2)
 		{
 			if (!fo->newName.empty())
 				fileName = fo->newName.c_str();
 			StringBuffer<> buffer;
-			FixPath2(fileName, g_virtualWorkingDir.data, g_virtualWorkingDir.count, buffer.data, buffer.capacity, &buffer.count);
+
+			if (dwFlags == 2)
+				buffer.Append(L"\\??\\");
+
+			FixPath(fileName, g_virtualWorkingDir.data, g_virtualWorkingDir.count, buffer);
 
 			if (cchFilePath <= buffer.count)
 			{
@@ -2257,6 +2382,8 @@ DWORD Detoured_GetFinalPathNameByHandleW(HANDLE hFile, LPTSTR lpszFilePath, DWOR
 			// Unfortunately casing can be wrong here.. and we need to fix that. Let's use the directory table for that
 			// Note, this really only matters when building linux target from windows.. then there is path validation that errors if this is not properly fixed
 			StringBuffer<> buffer2;
+			if (dwFlags == 2)
+				buffer2.Append(L"\\??\\");
 			g_directoryTable.GetFinalPath(buffer2, fileName);
 			UBA_ASSERT(buffer2.count == buffer.count);
 
@@ -2310,11 +2437,12 @@ HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DW
 	std::vector<Import, GrowingAllocator<Import>> importedModules(&g_memoryBlock);
 	{
 		SuppressCreateFileDetourScope cfs;
-		if (!FindImports(lpLibFileName, [&](const wchar_t* import, bool isKnown)
+		StringBuffer<256> error;
+		if (!FindImports(lpLibFileName, [&](const wchar_t* import, bool isKnown, const char* const* importLoaderPaths)
 			{
 				if (!GetModuleHandleW(import))
 					importedModules.emplace_back(import, isKnown);
-			}))
+			}, error))
 		{
 			UBA_ASSERTF(false, L"Failed to find imports for binary %ls (%ls)", lpLibFileName, originalName);
 		}
@@ -2324,9 +2452,12 @@ HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DW
 		if (importedModule.isKnown && !g_isRunningWine)
 			continue;
 
-		HMODULE checkModule = GetModuleHandleW(importedModule.name);
-		if (checkModule)
-			continue;
+		{
+			SuppressCreateFileDetourScope cfs;
+			HMODULE checkModule = GetModuleHandleW(importedModule.name); // This function ends up in NtCreateFile when running in wine
+			if (checkModule)
+				continue;
+		}
 
 		if (importedModule.isKnown) // We need to catch dbghelp.dll and imagehlp.dll
 		{
@@ -2370,8 +2501,7 @@ HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DW
 			SCOPED_WRITE_LOCK(g_loadedModulesLock, lock);
 			g_loadedModules[res] = originalName;
 		}
-		if (g_isRunningWine)
-			OnModuleLoaded(res, lpLibFileName);
+		OnModuleLoaded(res, lpLibFileName);
 	}
 	return res;
 }
@@ -2509,10 +2639,12 @@ BOOL Detoured_GetConsoleMode(HANDLE hConsoleHandle, LPDWORD lpMode)
 BOOL Detoured_SetConsoleMode(HANDLE hConsoleHandle, DWORD mode)
 {
 	DETOURED_CALL(SetConsoleMode);
-	DEBUG_LOG_DETOURED(L"SetConsoleMode", L"(%u)", mode);
+	DEBUG_LOG_DETOURED(L"SetConsoleMode", L"%llu (%u)", u64(hConsoleHandle), mode);
 
-	g_echoOn = (mode & ~503) != 0; // TODO: This might be wrong. Trying to figure out how echo off in batch files work in terms of win32 calls
+	if (hConsoleHandle == g_stdHandle[1])
 	{
+		g_echoOn = (mode & ~503) != 0; // TODO: This might be wrong. Trying to figure out how echo off in batch files work in terms of win32 calls
+
 		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_EchoOn);
@@ -2533,16 +2665,19 @@ BOOL Detoured_GetConsoleTitleW(LPTSTR lpConsoleTitle, DWORD nSize)
 BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LPSECURITY_ATTRIBUTES lpProcessAttributes, LPSECURITY_ATTRIBUTES lpThreadAttributes, BOOL bInheritHandles,
 	DWORD dwCreationFlags, LPVOID lpEnvironment, LPCWSTR lpCurrentDirectory, LPSTARTUPINFOW lpStartupInfo, LPPROCESS_INFORMATION lpProcessInformation)
 {
-	DETOURED_CALL(CreateProcessW);
-	DEBUG_LOG_DETOURED(L"CreateProcessW", L"%ls %ls %u %u %llu", lpApplicationName, lpCommandLine ? lpCommandLine : L"", dwCreationFlags, lpStartupInfo->dwFlags, u64(lpStartupInfo->hStdInput));
+	const tchar* originalCmd = lpCommandLine ? lpCommandLine : TC("");
 
-	if ((!lpApplicationName || !*lpApplicationName) && (!lpCommandLine || !*lpCommandLine))
+	DETOURED_CALL(CreateProcessW);
+	DEBUG_LOG_DETOURED(L"CreateProcessW", L"%ls %ls CreationFlags: 0x%x StartupFlags: 0x%u Stdin: %llu WorkDir: %s", lpApplicationName, originalCmd, dwCreationFlags, lpStartupInfo->dwFlags, u64(lpStartupInfo->hStdInput), (lpCurrentDirectory ? lpCurrentDirectory : L""));
+
+	if ((!lpApplicationName || !*lpApplicationName) && !*originalCmd)
 	{
 		SetLastError(ERROR_FILE_NOT_FOUND);
 		return FALSE;
 	}
 
-	if (lpCommandLine && (Contains(lpCommandLine, L"winedbg") || Contains(lpCommandLine, L"werfault.exe") || Contains(lpCommandLine, L"vsjitdebugger.exe") || Contains(lpCommandLine, L"crashpad_handler.exe")))
+	// Debug binaries started when process crash... we don't want to detour these.
+	if (Contains(originalCmd, L"winedbg") || Contains(originalCmd, L"werfault.exe") || Contains(originalCmd, L"vsjitdebugger.exe") || Contains(originalCmd, L"crashpad_handler.exe"))
 	{
 		if (g_runningRemote)
 		{
@@ -2558,6 +2693,24 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 		}
 	}
 
+	bool isChild = true;
+	// We don't care about tracking mspdbsrv or vctip.. they are services just spawned by this process
+	if (Contains(originalCmd, L"mspdbsrv.exe") || Contains(originalCmd, L"vctip.exe") || Contains(originalCmd, L"git.exe"))
+	{
+		if (!g_runningRemote)
+		{
+			SuppressDetourScope _;
+			return True_CreateProcessW(lpApplicationName, lpCommandLine, lpProcessAttributes, lpThreadAttributes, bInheritHandles, dwCreationFlags, lpEnvironment, lpCurrentDirectory, lpStartupInfo, lpProcessInformation);
+		}
+		isChild = false;
+	}
+
+	StringBuffer<> application;
+	if (lpApplicationName)
+		FixPath(application, lpApplicationName);
+
+	bool startSuspended = (dwCreationFlags & CREATE_SUSPENDED) != 0;
+
 	TString commandLine;
 	TString currentDir;
 	u32 processId = 0;
@@ -2567,13 +2720,17 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_CreateProcess);
-		writer.WriteString(lpApplicationName ? lpApplicationName : L"");
-		writer.WriteString(lpCommandLine ? lpCommandLine : L"");
+		writer.WriteString(application.data);
+		writer.WriteString(originalCmd);
 		writer.WriteString(lpCurrentDirectory ? lpCurrentDirectory : g_virtualWorkingDir.data);
+		writer.WriteBool(startSuspended);
+		writer.WriteBool(isChild);
 		writer.Flush();
 		BinaryReader reader;
 		processId = reader.ReadU32();
-		UBA_ASSERT(processId > 0);
+		UBA_ASSERTF(processId > 0, L"Failed to create process %s", originalCmd);
+		if (!processId)
+			return FALSE;
 
 		reader.Skip(sizeof(u32)); // Rules index
 
@@ -2583,14 +2740,35 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 
 		currentDir = reader.ReadString();
 		commandLine = reader.ReadString();
-		DEBUG_LOG_PIPE(L"CreateProcess", L"%ls %ls", lpApplicationName, lpCommandLine ? lpCommandLine : L"");
+		DEBUG_LOG_PIPE(L"CreateProcess", L"%ls %ls", application.data, originalCmd);
 	}
 
 	LPCSTR dlls[] = { dll };
 
-	UBA_ASSERT(!isDetouredHandle(lpStartupInfo->hStdOutput));
-	UBA_ASSERT(!isDetouredHandle(lpStartupInfo->hStdInput));
-	UBA_ASSERT(!isDetouredHandle(lpStartupInfo->hStdError));
+	if (isDetouredHandle(lpStartupInfo->hStdError))
+	{
+		DetouredHandle& dh = asDetouredHandle(lpStartupInfo->hStdError);
+		if (dh.type == HandleType_StdErr)
+			lpStartupInfo->hStdError = g_isDetachedProcess ? 0 : True_GetStdHandle(STD_ERROR_HANDLE);
+		else
+			UBA_ASSERTF(false, L"hStdError is detoured (%s)", lpApplicationName);
+	}
+	if (isDetouredHandle(lpStartupInfo->hStdOutput))
+	{
+		DetouredHandle& dh = asDetouredHandle(lpStartupInfo->hStdOutput);
+		if (dh.type == HandleType_StdOut)
+			lpStartupInfo->hStdOutput = g_isDetachedProcess ? 0 : True_GetStdHandle(STD_OUTPUT_HANDLE);
+		else
+			UBA_ASSERTF(false, L"hStdOutput is detoured (%s)", lpApplicationName);
+	}
+	if (isDetouredHandle(lpStartupInfo->hStdInput))
+	{
+		DetouredHandle& dh = asDetouredHandle(lpStartupInfo->hStdInput);
+		if (dh.type == HandleType_StdIn)
+			lpStartupInfo->hStdInput = g_isDetachedProcess ? 0 : True_GetStdHandle(STD_INPUT_HANDLE);
+		else
+			UBA_ASSERTF(false, L"hStdInput is detoured (%s)", lpApplicationName);
+	}
 
 	lpStartupInfo->dwFlags |= STARTF_USESHOWWINDOW;
 	lpStartupInfo->wShowWindow = SW_HIDE;
@@ -2600,7 +2778,6 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 	else
 		dwCreationFlags |= CREATE_NO_WINDOW;
 
-	UBA_ASSERT((dwCreationFlags & CREATE_SUSPENDED) == 0);
 	dwCreationFlags |= CREATE_SUSPENDED;
 	BOOL res = true;
 	u32 lastError = ERROR_SUCCESS;
@@ -2627,8 +2804,8 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 		continue;
 	}
 	--t_disallowDetour;
-	UBA_ASSERTF(res, L"Failed to spawn process %ls (Error code: %u)", commandLine.c_str(), lastError);
 
+	if (isChild)
 	{
 		TimerScope ts(g_stats.createProcess);
 		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
@@ -2641,8 +2818,10 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 		writer.WriteU32(lpProcessInformation->dwProcessId);
 		writer.WriteU64(u64(lpProcessInformation->hThread));
 		writer.Flush();
-		DEBUG_LOG_PIPE(L"StartProcess", L"%ls %ls", lpApplicationName, lpCommandLine ? lpCommandLine : L"");
+		DEBUG_LOG_PIPE(L"StartProcess", L"%ls %ls", lpApplicationName, originalCmd);
 	}
+
+	UBA_ASSERTF(res, L"Failed to spawn process %ls (Error code: %u)", commandLine.c_str(), lastError);
 
 	HANDLE trueHandle = lpProcessInformation->hProcess;
 
@@ -2655,8 +2834,41 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 	detouredHandle->trueHandle = trueHandle;
 	lpProcessInformation->hProcess = makeDetouredHandle(detouredHandle);
 
-	DEBUG_LOG_DETOURED(L"CreateProcessW", L"%llu", u64(lpProcessInformation->hProcess));
+	DEBUG_LOG_DETOURED(L"CreateProcessW", L"%llu (0x%llx)", lpProcessInformation->hProcess, trueHandle);
 	return TRUE;
+}
+
+BOOL Detoured_CreateProcessA(LPCSTR lpApplicationName, LPSTR lpCommandLine, LPSECURITY_ATTRIBUTES lpProcessAttributes, LPSECURITY_ATTRIBUTES lpThreadAttributes, BOOL bInheritHandles,
+	DWORD dwCreationFlags, LPVOID lpEnvironment, LPCSTR lpCurrentDirectory, LPSTARTUPINFOA lpStartupInfo, LPPROCESS_INFORMATION lpProcessInformation)
+{
+	wchar_t* lpApplicationNameW = nullptr;
+	TString lpApplicationNameTemp;
+	if (lpApplicationName)
+	{
+		lpApplicationNameTemp = TString(lpApplicationName, lpApplicationName + strlen(lpApplicationName));
+		lpApplicationNameW = lpApplicationNameTemp.data();
+	}
+	wchar_t* lpCommandLineW = nullptr;
+	TString lpCommandLineTemp;
+	if (lpCommandLine)
+	{
+		lpCommandLineTemp = TString(lpCommandLine, lpCommandLine + strlen(lpCommandLine));
+		lpCommandLineW = lpCommandLineTemp.data();
+	}
+	wchar_t* lpCurrentDirectoryW = nullptr;
+	TString lpCurrentDirectoryTemp;
+	if (lpCurrentDirectory)
+	{
+		lpCurrentDirectoryTemp = TString(lpCurrentDirectory, lpCurrentDirectory + strlen(lpCurrentDirectory));
+		lpCurrentDirectoryW = lpCurrentDirectoryTemp.data();
+	}
+
+	UBA_ASSERT(!lpStartupInfo->lpReserved);
+	UBA_ASSERT(!lpStartupInfo->lpDesktop);
+	UBA_ASSERT(!lpStartupInfo->lpTitle);
+
+	STARTUPINFOW lpStartupInfoW = *(LPSTARTUPINFOW)lpStartupInfo;
+	return Detoured_CreateProcessW(lpApplicationNameW, lpCommandLineW, lpProcessAttributes, lpThreadAttributes, bInheritHandles, dwCreationFlags, lpEnvironment, lpCurrentDirectoryW, &lpStartupInfoW, lpProcessInformation);
 }
 
 void Detoured_ExitProcess(UINT uExitCode)
@@ -2698,10 +2910,16 @@ BOOL Detoured_TerminateProcess(HANDLE hProcess, UINT uExitCode)
 BOOL Detoured_GetExitCodeProcess(HANDLE hProcess, LPDWORD lpExitCode)
 {
 	DETOURED_CALL(GetExitCodeProcess);
+	HANDLE trueHandle = hProcess;
 	if (isDetouredHandle(hProcess))
-		hProcess = asDetouredHandle(hProcess).trueHandle;
-	BOOL res = True_GetExitCodeProcess(hProcess, lpExitCode);
-	DEBUG_LOG_DETOURED(L"GetExitCodeProcess", L"%llu Exit code: %u -> %ls", uintptr_t(hProcess), *lpExitCode, ToString(res));
+		trueHandle = asDetouredHandle(hProcess).trueHandle;
+	BOOL res = True_GetExitCodeProcess(trueHandle, lpExitCode);
+
+	DEBUG_LOG_DETOURED(L"GetExitCodeProcess", L"%llu Exit code: %u -> %ls", uintptr_t(trueHandle), *lpExitCode, ToString(res));
+
+	if (res != STILL_ACTIVE)
+		Rpc_UpdateTables();
+
 	return res;
 }
 
@@ -2736,14 +2954,15 @@ DWORD Detoured_WaitForSingleObjectEx(HANDLE hHandle, DWORD dwMilliseconds, BOOL 
 {
 	DETOURED_CALL(WaitForSingleObjectEx);
 	bool isProcess = false;
+	HANDLE trueHandle = hHandle;
 	if (isDetouredHandle(hHandle))
 	{
 		DetouredHandle& dh = asDetouredHandle(hHandle);
-		hHandle = asDetouredHandle(hHandle).trueHandle;
+		trueHandle = asDetouredHandle(hHandle).trueHandle;
 		isProcess = dh.type == HandleType_Process;
 	}
 
-	auto res = True_WaitForSingleObjectEx(hHandle, dwMilliseconds, bAlertable);
+	auto res = True_WaitForSingleObjectEx(trueHandle, dwMilliseconds, bAlertable);
 
 	if (res != WAIT_OBJECT_0 || !isProcess)
 		return res;
@@ -2753,8 +2972,8 @@ DWORD Detoured_WaitForSingleObjectEx(HANDLE hHandle, DWORD dwMilliseconds, BOOL 
 	{
 		auto lastError = GetLastError();
 		DWORD exitCode;
-		True_GetExitCodeProcess(hHandle, &exitCode);
-		DEBUG_LOG_DETOURED(L"WaitForSingleObjectEx", L"for process %llu. Exit code: %u", uintptr_t(hHandle), exitCode);
+		True_GetExitCodeProcess(trueHandle, &exitCode);
+		DEBUG_LOG_DETOURED(L"WaitForSingleObjectEx", L"for process %llu (0x%llx). Exit code: %u", hHandle, trueHandle, exitCode);
 		SetLastError(lastError);
 	}
 #endif
@@ -2907,10 +3126,17 @@ DWORD Detoured_GetFileAttributesA(LPCSTR lpFileName)
 BOOL Detoured_GetFileAttributesExA(LPCSTR lpFileName, GET_FILEEX_INFO_LEVELS fInfoLevelId, LPVOID lpFileInformation)
 {
 	DETOURED_CALL(GetFileAttributesExA);
-	DEBUG_LOG_TRUE(L"GetFileAttributesExA", L"");
-	UBA_ASSERT(!g_runningRemote);
+	DEBUG_LOG_TRUE(L"GetFileAttributesExA", L""); // Calls ExW on both windows and wine
 	return True_GetFileAttributesExA(lpFileName, fInfoLevelId, lpFileInformation);
 }
+
+HMODULE Detoured_LoadLibraryW(LPCWSTR lpLibFileName)
+{
+	DETOURED_CALL(LoadLibraryW);
+	DEBUG_LOG_TRUE(L"LoadLibraryW", L"(%ls)", lpLibFileName);
+	return True_LoadLibraryW(lpLibFileName);
+}
+
 
 DWORD Shared_GetModuleFileNameA(HMODULE hModule, const wchar_t* moduleName, u32 moduleNameLen, LPSTR lpFilename, DWORD nSize)
 {
@@ -3033,14 +3259,6 @@ LPTOP_LEVEL_EXCEPTION_FILTER Detoured_SetUnhandledExceptionFilter(LPTOP_LEVEL_EX
 	return True_SetUnhandledExceptionFilter(lpTopLevelExceptionFilter);
 }
 
-BOOL Detoured_CreateProcessA(LPCSTR lpApplicationName, LPSTR lpCommandLine, LPSECURITY_ATTRIBUTES lpProcessAttributes, LPSECURITY_ATTRIBUTES lpThreadAttributes, BOOL bInheritHandles,
-	DWORD dwCreationFlags, LPVOID lpEnvironment, LPCSTR lpCurrentDirectory, LPSTARTUPINFOA lpStartupInfo, LPPROCESS_INFORMATION lpProcessInformation)
-{
-	DETOURED_CALL(CreateProcessA);
-	DEBUG_LOG_TRUE(L"CreateProcessA", L"(%hs)", lpCommandLine ? lpCommandLine : "");
-	return True_CreateProcessA(lpApplicationName, lpCommandLine, lpProcessAttributes, lpThreadAttributes, bInheritHandles, dwCreationFlags, lpEnvironment, lpCurrentDirectory, lpStartupInfo, lpProcessInformation);
-}
-
 BOOL Detoured_FlushInstructionCache(HANDLE hProcess, LPCVOID lpBaseAddress, SIZE_T dwSize)
 {
 	DETOURED_CALL(FlushInstructionCache);
@@ -3090,6 +3308,7 @@ BOOL Detoured_ReadFileEx(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRe
 	DEBUG_LOG_TRUE(L"ReadFileEx", L"%llu (%ls)", uintptr_t(hFile), HandleToName(hFile));
 	UBA_ASSERT(!isDetouredHandle(hFile));
 	UBA_ASSERT(!isListDirectoryHandle(hFile));
+	TimerScope ts(g_kernelStats.readFile);
 	return True_ReadFileEx(hFile, lpBuffer, nNumberOfBytesToRead, lpOverlapped, lpCompletionRoutine);
 }
 
@@ -3152,6 +3371,12 @@ BOOL Detoured_DeleteFileA(LPCSTR lpFileName)
 	return True_DeleteFileA(lpFileName);
 }
 
+BOOL Detoured_SetCurrentDirectoryA(LPCSTR lpPathName)
+{
+	DETOURED_CALL(SetCurrentDirectoryA);
+	DEBUG_LOG_TRUE(L"SetCurrentDirectoryA", L"%hs", lpPathName);
+	return True_SetCurrentDirectoryA(lpPathName);
+}
 BOOLEAN Detoured_CreateSymbolicLinkW(LPCWSTR lpSymlinkFileName, LPCWSTR lpTargetFileName, DWORD dwFlags)
 {
 	UBA_ASSERT(!g_runningRemote);
@@ -3198,12 +3423,14 @@ LPWCH Detoured_GetEnvironmentStringsW()
 	DEBUG_LOG_TRUE(L"GetEnvironmentStringsW", L"");
 	auto res = True_GetEnvironmentStringsW();
 
+	#if 0 // Enable to print out environment variables in the log
 	auto it = res;
 	while (*it)
 	{
 		DEBUG_LOG(L"		VAR: %ls", it);
 		it += wcslen(it) + 1;
 	}
+	#endif
 
 	return res;
 }
@@ -3218,7 +3445,7 @@ DWORD Detoured_ExpandEnvironmentStringsW(LPCWSTR lpSrc, LPWSTR lpDst, DWORD nSiz
 UINT Detoured_GetTempFileNameW(LPCWSTR lpPathName, LPCWSTR lpPrefixString, UINT uUnique, LPTSTR lpTempFileName)
 {
 	DETOURED_CALL(GetTempFileNameW);
-	DEBUG_LOG_TRUE(L"GetTempFileNameW", L"");
+	DEBUG_LOG_TRUE(L"GetTempFileNameW", L"%s %s", lpPathName, lpPrefixString);
 	return True_GetTempFileNameW(lpPathName, lpPrefixString, uUnique, lpTempFileName);
 }
 
@@ -3336,12 +3563,27 @@ BOOL Detoured_CreatePipe(PHANDLE hReadPipe, PHANDLE hWritePipe, LPSECURITY_ATTRI
 	return True_CreatePipe(hReadPipe, hWritePipe, lpPipeAttributes, nSize);
 }
 
+
+BOOL Detoured_SetHandleInformation(HANDLE hObject, DWORD dwMask, DWORD dwFlags)
+{
+	DETOURED_CALL(SetHandleInformation);
+	DEBUG_LOG_TRUE(L"SetHandleInformation", L"%llu", uintptr_t(hObject));
+	return True_SetHandleInformation(hObject, dwMask, dwFlags); // Calls NtQueryObject and NtSetInformationObject internally
+}
+
 HANDLE Detoured_CreateNamedPipeW(LPCWSTR lpName, DWORD dwOpenMode, DWORD dwPipeMode, DWORD nMaxInstances, DWORD nOutBufferSize, DWORD nInBufferSize, DWORD nDefaultTimeOut, LPSECURITY_ATTRIBUTES lpSecurityAttributes)
 {
 	DETOURED_CALL(CreateNamedPipeW);
 	HANDLE h = True_CreateNamedPipeW(lpName, dwOpenMode, dwPipeMode, nMaxInstances, nOutBufferSize, nInBufferSize, nDefaultTimeOut, lpSecurityAttributes);
 	DEBUG_LOG_TRUE(L"CreateNamedPipeW", L"%ls -> %llu", lpName, u64(h));
 	return h;
+}
+
+BOOL Detoured_CallNamedPipeW(LPCWSTR lpNamedPipeName, LPVOID lpInBuffer, DWORD nInBufferSize, LPVOID lpOutBuffer, DWORD nOutBufferSize, LPDWORD lpBytesRead, DWORD nTimeOut)
+{
+	DETOURED_CALL(CreateNamedPipeW);
+	DEBUG_LOG_TRUE(L"CallNamedPipeW", L"%ls %u %u", lpNamedPipeName, nInBufferSize, nOutBufferSize);
+	return True_CallNamedPipeW(lpNamedPipeName, lpInBuffer, nInBufferSize, lpOutBuffer, nOutBufferSize, lpBytesRead, nTimeOut);
 }
 
 BOOL Detoured_PeekNamedPipe(HANDLE hNamedPipe, LPVOID lpBuffer, DWORD nBufferSize, LPDWORD lpBytesRead, LPDWORD lpTotalBytesAvail, LPDWORD lpBytesLeftThisMessage)
@@ -3437,6 +3679,19 @@ BOOL Detoured_IsProcessorFeaturePresent(DWORD ProcessorFeature)
 //	UBA_ASSERT(!isDetouredHandle(hFile));
 //	return True_CreateFileMappingNumaW(hFile, lpFileMappingAttributes, flProtect, dwMaximumSizeHigh, dwMaximumSizeLow, lpName, nndPreferred);
 //}
+
+LPSTR Detoured_GetCommandLineA()
+{
+	DETOURED_CALL(GetCommandLineA);
+	if (!g_virtualCommandLineA)
+	{
+		auto str = True_GetCommandLineA();
+		DEBUG_LOG_TRUE(L"GetCommandLineA", L"");// str);
+		return str;
+	}
+	DEBUG_LOG_DETOURED(L"GetCommandLineA", L"");
+	return g_virtualCommandLineA;
+}
 
 BOOL Detoured_FreeLibrary(HMODULE hModule)
 {
@@ -3650,7 +3905,7 @@ BOOL Detoured_PathIsDirectoryEmptyW(LPCWSTR pszPath)
 
 HRESULT Detoured_SHCreateStreamOnFileW(LPCWSTR pszFile, DWORD grfMode, IStream** ppstm)
 {
-	UBA_ASSERTF(!g_runningRemote, L"%ls", pszFile);
+	//UBA_ASSERTF(!g_runningRemote, L"%ls", pszFile);
 	return True_SHCreateStreamOnFileW(pszFile, grfMode, ppstm);
 }
 

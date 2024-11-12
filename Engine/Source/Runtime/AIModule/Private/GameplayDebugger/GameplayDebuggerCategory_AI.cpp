@@ -114,15 +114,16 @@ void FGameplayDebuggerCategory_AI::FRepDataPath::Serialize(FArchive& Ar)
 static FString DescribeTaskHelper(const UGameplayTask& TaskOb)
 {
 	const UObject* OwnerOb = Cast<const UObject>(TaskOb.GetTaskOwner());
+#if ENABLE_VISUAL_LOG
+	FString StateName = *TaskOb.GetTaskStateName();
+#else
+	const TCHAR* StateName = TEXT("UnknownTaskStateName");
+#endif
 	return FString::Printf(TEXT("\n  {white}%s%s {%s}%s:%d {white}Owner:{yellow}%s {white}Res:{yellow}%s"),
 		*TaskOb.GetName(),
 		TaskOb.GetInstanceName() != NAME_None ? *FString::Printf(TEXT(" {yellow}[%s]"), *TaskOb.GetInstanceName().ToString()) : TEXT(""),
 		TaskOb.IsActive() ? TEXT("green") : TEXT("orange"),
-#if ENABLE_VISUAL_LOG 
-		*TaskOb.GetTaskStateName(),
-#else
-		TEXT("UnknownTaskStateName"),
-#endif
+		ToCStr(StateName),
 		TaskOb.GetPriority(),
 		*GetNameSafe(OwnerOb),
 		TaskOb.GetRequiredResources().IsEmpty() ? TEXT("None") : *TaskOb.GetRequiredResources().GetDebugDescription());

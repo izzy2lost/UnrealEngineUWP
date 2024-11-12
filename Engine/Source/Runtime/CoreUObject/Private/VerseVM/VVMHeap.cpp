@@ -66,7 +66,7 @@ bool FHeap::bIsGCReadyForExternalMarking;
 bool FHeap::bIsGCMarkingExternallySignaled;
 bool FHeap::bIsGCTerminationWaitingForExternalSignal;
 bool FHeap::bIsGCTerminatingExternally;
-bool FHeap::bIsTerminated;
+bool FHeap::bIsTerminated = true;
 bool FHeap::bIsInitialized;
 double FHeap::TotalTimeSpentCollecting;
 double FHeap::TimeOfPreMarking;
@@ -112,6 +112,10 @@ void FHeap::Initialize()
 
 		CollectorThread = new FThread(TEXT("Verse GC Thread"), CollectorThreadMain, 0, TPri_Normal, FThreadAffinity(), FThread::Forkable);
 
+		// Create the main thread context, regardless of whether we are about to enable or disable FrankenGC.
+		FIOContext Context = FIOContext::CreateForManualStackScanning();
+		Context.AcquireAccessForManualStackScanning();
+
 		// Fetch the FrankenGC mode directly
 		check(GConfig);
 		bool bEnableFrankenGC = true;
@@ -129,6 +133,16 @@ void FHeap::Initialize()
 
 		// Enable/Disable franken GC before cells are created.
 		UE::GC::EnableFrankenGCMode(bEnableFrankenGC);
+	}
+}
+
+void FHeap::Deinitialize()
+{
+	if (bIsInitialized)
+	{
+		FRunningContext RunningContext = FRunningContextPromise{};
+		FIOContext Context = RunningContext.RelinquishAccessForManualStackScanning();
+		Context.ReleaseForManualStackScanning();
 	}
 }
 
@@ -266,16 +280,19 @@ void FHeap::BeginCollection(FIOContext Context)
 	V_DIE_IF(bIsGCTerminationWaitingForExternalSignal);
 	V_DIE_UNLESS(WeakBarrierState == EWeakBarrierState::Inactive);
 
-	if (bIsExternallyControlled && !IsWithoutThreadingDuringCollection())
 	{
 		TUniqueLock Lock(Mutex);
-		if (bIsExternallyControlled)
+		if (!IsWithoutThreadingDuringCollection())
 		{
-			while (!bIsGCMarkingExternallySignaled && bIsExternallyControlled)
+			while (bIsExternallyControlled && !bIsGCMarkingExternallySignaled)
 			{
 				ConditionVariable.Wait(Mutex);
 			}
 		}
+
+		// We have either decided to run a cycle without external control, or received an external signal.
+		// Any outstanding calls to EnableExternalControl must now wait until after termination.
+		bIsTerminated = false;
 	}
 
 	// Make sure mark bits are locked (i.e. committed and prevented from being decommitted by the libpas scavenger) before we tell folks to start using them.
@@ -285,7 +302,6 @@ void FHeap::BeginCollection(FIOContext Context)
 		TUniqueLock Lock(Mutex);
 		bIsMarking = true;
 		bIsCollecting = true;
-		bIsTerminated = false;
 	}
 
 	Context.SoftHandshake([](FHandshakeContext) {});
@@ -733,13 +749,10 @@ FCollectionCycleRequest FHeap::RequestCollectionCycle(uint64 DesiredRequestCompl
 
 void FHeap::LiveBytesTriggerCallback()
 {
-	if (!bIsExternallyControlled)
-	{
-		UE_LOG(LogVerseGC, Verbose, TEXT("Trigger callback called with live bytes %zu, trigger %zu"),
-			verse_heap_live_bytes,
-			verse_heap_live_bytes_trigger_threshold);
-		StartCollectingIfNotCollecting();
-	}
+	UE_LOG(LogVerseGC, Verbose, TEXT("Trigger callback called with live bytes %zu, trigger %zu"),
+		verse_heap_live_bytes,
+		verse_heap_live_bytes_trigger_threshold);
+	StartCollectingIfNotCollecting();
 }
 
 void FHeap::CensusCallback(void* Object, void* Arg)
@@ -756,14 +769,17 @@ void FHeap::DestructorCallback(void* Object, void* Arg)
 
 void FHeap::EnableExternalControl(FIOContext Context)
 {
+	// We are about to wait on the GC thread, but it may request a stack scan at the same time.
+	// Under manual stack scanning, we are unable to respond to such a request while waiting,
+	// which would cause a deadlock. A manually empty stack lets the GC thread handle the request
+	// on its own, and proceed to wake us up.
+	V_DIE_UNLESS(!Context.UsesManualStackScanning() || Context.IsInManuallyEmptyStack());
+
 	using namespace UE;
 	TUniqueLock Lock(Mutex);
 	V_DIE_IF(bIsExternallyControlled);
 	NormalizeWithoutThreadingAtCollectionStart();
-	// Spin on the cycle version to allow for calls to IsGCStartPendingExternalSignal to
-	// provide reliable results after enabling.  Spinning on bIsMarking results in a small
-	// window of time where bIsMarking goes false prior to the cycle count updating.
-	while (RequestedCycleVersion > CompletedCycleVersion)
+	while (!bIsTerminated)
 	{
 		ConditionVariable.Wait(Mutex);
 	}

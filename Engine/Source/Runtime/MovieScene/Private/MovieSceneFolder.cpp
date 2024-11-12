@@ -233,10 +233,10 @@ void UMovieSceneFolder::PostLoad()
 			const FGuid& ChildBinding = ChildObjectBindings[ChildObjectBindingIndex];
 			if (!OwningScene->FindBinding(ChildBinding))
 			{
+				UE_LOG(LogMovieScene, Warning, TEXT("Folder (%s) in Sequence (%s) contained a reference to an Object Binding (%s) that no longer exists in the sequence, removing."), *GetFolderName().ToString(), *OwningScene->GetPathName(), *ChildBinding.ToString());
+
 				ChildObjectBindings.RemoveAt(ChildObjectBindingIndex);
 				ChildObjectBindingIndex--;
-
-				UE_LOG(LogMovieScene, Warning, TEXT("Folder (%s) in Sequence (%s) contained a reference to an Object Binding (%s) that no longer exists in the sequence, removing."), *GetFolderName().ToString(), *OwningScene->GetPathName(), *ChildBinding.ToString());
 			}
 		}
 

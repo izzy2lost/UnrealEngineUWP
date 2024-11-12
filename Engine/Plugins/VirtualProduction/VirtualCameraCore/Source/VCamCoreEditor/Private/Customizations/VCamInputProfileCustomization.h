@@ -14,7 +14,7 @@ class FDetailWidgetRow;
 class IPropertyHandle;
 class SWidget;
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	class FVCamInputProfileCustomization : public IPropertyTypeCustomization
 	{

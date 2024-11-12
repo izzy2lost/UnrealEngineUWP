@@ -6,7 +6,7 @@
 
 class UUserWidget;
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	class FVCamChildWidgetReferenceCustomization : public FChildWidgetReferenceCustomization
 	{

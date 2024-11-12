@@ -13,17 +13,10 @@
 #include "Engine/EngineBaseTypes.h"
 #include "UObject/SoftObjectPath.h"
 #include "Engine/World.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Misc/BufferedOutputDevice.h"
-#endif
 #include "Misc/FrameRate.h"
 #include "Subsystems/SubsystemCollection.h"
 #include "Subsystems/EngineSubsystem.h"
 #include "RHIDefinitions.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHI.h"
-#include "AudioDeviceManager.h"
-#endif
 #include "Templates/PimplPtr.h"
 #include "Templates/UniqueObj.h"
 #include "Containers/Ticker.h"
@@ -1064,6 +1057,14 @@ public:
 	UPROPERTY(globalconfig)
 	FString VertexColorViewModeMaterialName_BlueOnly;
 
+	/** Material for visualizing mesh paint texture colors on meshes in the scene */
+	UPROPERTY()
+	TObjectPtr<class UMaterial> TextureColorViewModeMaterial;
+
+	/** Path of the material for visualizing mesh paint texture colors on meshes in the scene */
+	UPROPERTY(globalconfig)
+	FString TextureColorViewModeMaterialName;
+
 #if WITH_EDITORONLY_DATA
 	/** Material used to render bone weights on skeletal meshes */
 	UPROPERTY()
@@ -1356,11 +1357,62 @@ public:
 	/** Path of the tiled blue-noise texture */
 	UPROPERTY(globalconfig)
 	FSoftObjectPath BlueNoiseVec2TextureName;
-	
+
+	/** Texture used for GGX LTC integration (Amplitude Texture) */
+	UPROPERTY()
+	TObjectPtr<class UTexture2D> GGXLTCAmpTexture;
+	/** Path of the texture used for GGX LTC integration (Amplitude Texture) */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath GGXLTCAmpTextureName;
+
+	/** Texture used for GGX LTC integration (Matrix Texture) */
+	UPROPERTY()
+	TObjectPtr<class UTexture2D> GGXLTCMatTexture;
+	/** Path of the texture used for GGX LTC integration (Matrix Texture) */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath GGXLTCMatTextureName;
+
+	/** Texture used for Sheen LTC integration (Matrix Texture) */
+	UPROPERTY()
+	TObjectPtr<class UTexture2D> SheenLTCTexture;	
+	/** Path of the texture used for Sheen LTC integration (Matrix Texture) */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath SheenLTCTextureName;
+
+	/** Texture used for specular reflection energy conservation */
+	UPROPERTY()
+	TObjectPtr<class UTexture2D> GGXReflectionEnergyTexture;
+	/** Path of the texture used for specular reflection energy conservation */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath GGXReflectionEnergyTextureName;
+
+	/** Texture used for specular transmission energy conservation */
+	UPROPERTY()
+	TObjectPtr<class UTexture2D> GGXTransmissionEnergyTexture;
+	/** Path of the texture used for specular transmission energy conservation */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath GGXTransmissionEnergyTextureName;
+		
+	/** Texture used for sheen energy conservation */
+	UPROPERTY()
+	TObjectPtr<class UTexture2D> SheenEnergyTexture;
+	/** Path of the texture used for sheen energy conservation */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath SheenLegacyEnergyTextureName;		
+	/** Path of the texture used for sheen energy conservation */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath SheenEnergyTextureName;
+		
+	/** Texture used for rough diffuse energy conservation */
+	UPROPERTY()
+	TObjectPtr<class UTexture2D> DiffuseEnergyTexture;
+	/** Path of the texture used for rough diffuse energy conservation */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath DiffuseEnergyTextureName;
+
 	/** Stable glint BSDF texture */
 	UPROPERTY()
 	TObjectPtr<class UTexture2DArray> GlintTexture;
-	
 	/** Stable glint BSDF texture with more variety to cover slope space and avoid circular artifact */
 	UPROPERTY()
 	TObjectPtr<class UTexture2DArray> GlintTexture2;
@@ -1613,6 +1665,9 @@ public:
 
 	UPROPERTY(config, EditAnywhere, Category = PerQualityLevelProperty, AdvancedDisplay)
 	bool UseSkeletalMeshMinLODPerQualityLevels;
+
+	UPROPERTY(config, EditAnywhere, Category = PerQualityLevelProperty, AdvancedDisplay)
+	bool UseClothAssetMinLODPerQualityLevels;
 
 	UPROPERTY(config, EditAnywhere, Category = PerQualityLevelProperty, AdvancedDisplay)
 	bool UseGrassVarityPerQualityLevels;
@@ -1934,6 +1989,12 @@ public:
 
 	/** Conditionally load this texture for a platform. Always loaded in Editor */
 	ENGINE_API void ConditionallyLoadPreIntegratedSkinBRDFTexture();
+
+	/** Delay loading the LTC texture until it is needed by the renderer. */
+	ENGINE_API void LoadLTCTextures();
+
+	/** Delay loading the energy shading texture until it is needed by the renderer. */
+	ENGINE_API void LoadEnergyTextures();
 
 	/** Delay loading the glint texture until it is needed by the renderer.
 	* This texture is not going to be streamed to be available right away.
@@ -2287,7 +2348,6 @@ public:
 	ENGINE_API bool HandleFreezeAllCommand( const TCHAR* Cmd, FOutputDevice& Ar, UWorld* InWorld );			// Smedis
 
 	ENGINE_API bool HandleToggleRenderingThreadCommand( const TCHAR* Cmd, FOutputDevice& Ar );	
-	ENGINE_API bool HandleToggleAsyncComputeCommand( const TCHAR* Cmd, FOutputDevice& Ar );
 	ENGINE_API bool HandleRecompileShadersCommand( const TCHAR* Cmd, FOutputDevice& Ar );
 	ENGINE_API bool HandleRecompileGlobalShadersCommand( const TCHAR* Cmd, FOutputDevice& Ar );
 	ENGINE_API bool HandleDumpShaderStatsCommand( const TCHAR* Cmd, FOutputDevice& Ar );
@@ -2311,6 +2371,7 @@ public:
 	ENGINE_API bool HandleListParticleSystemsCommand( const TCHAR* Cmd, FOutputDevice& Ar );
 	ENGINE_API bool HandleListSpawnedActorsCommand( const TCHAR* Cmd, FOutputDevice& Ar, UWorld* InWorld );
 	ENGINE_API bool HandleLogoutStatLevelsCommand( const TCHAR* Cmd, FOutputDevice& Ar, UWorld* InWorld );
+	ENGINE_API virtual void WriteMemReportMetadata( FOutputDevice& Ar, UWorld* InWorld );
 	ENGINE_API bool HandleMemReportCommand( const TCHAR* Cmd, FOutputDevice& Ar, UWorld* InWorld );
 	ENGINE_API bool HandleMemReportDeferredCommand( const TCHAR* Cmd, FOutputDevice& Ar, UWorld* InWorld );
 	ENGINE_API bool HandleSkeletalMeshReportCommand(const TCHAR* Cmd, FOutputDevice& Ar, UWorld* InWorld);
@@ -2725,13 +2786,17 @@ protected:
 	  */
 	 static ENGINE_API void SendWorldEndOfFrameUpdates();
 
-	 /**
-	  * Allows derived classes to force garbage collection based on various factors (low on available UObject slots / other resources)
-	  */
-	 virtual EGarbageCollectionType ShouldForceGarbageCollection()
-	 {
-		 return EGarbageCollectionType::None;
-	 }
+	/**
+	 * Allows derived classes to force garbage collection based on various factors (low on available UObject slots / other resources)
+	 */
+	ENGINE_API virtual EGarbageCollectionType ShouldForceGarbageCollection();
+
+	/**
+	 * Allows derived classes to set per-frame GC budget depending on various factors.
+	 * Default implementation uses gc.IncrementalGCTimePerFrame and gc.LowMemory.IncrementalGCTimePerFrame
+	 * depending on current memory usage and value of gc.LowMemory.MemoryThresholdMB
+	 */
+	ENGINE_API virtual float GetIncrementalGCTimePerFrame();
 
 public:
 	/** @return the GIsEditor flag setting */
@@ -2750,15 +2815,11 @@ public:
 	/** @return the currently active audio device */
 	ENGINE_API FAudioDeviceHandle GetActiveAudioDevice();
 
-	/** @return whether we currently have more than one local player */
-	UE_DEPRECATED(5.0, "IsSplitScreen was only ever checking if there are more than one local player. Use HasMultipleLocalPlayers instead.")
-	ENGINE_API virtual bool IsSplitScreen(UWorld *InWorld);
-
 	/** @returns whether there are currently multiple local players in the given world */
 	ENGINE_API virtual bool HasMultipleLocalPlayers(UWorld* InWorld);
 
 	/** @return whether we're currently running with stereoscopic 3D enabled for the specified viewport (or globally, if viewport is nullptr) */
-	ENGINE_API bool IsStereoscopic3D(FViewport* InViewport = nullptr);
+	ENGINE_API bool IsStereoscopic3D(const FViewport* InViewport = nullptr) const;
 
 	/**
 	 * Adds a world location as a secondary view location for purposes of texture streaming.
@@ -2968,6 +3029,7 @@ public:
 	 *	If this function returns true, the DynamicSourceLevels collection will be duplicated for the given map.
 	 *	This is necessary to do outside of the editor when we don't have the original editor world, and it's 
 	 *	not safe to copy the dynamic levels once they've been fully initialized, so we pre-duplicate them when the original levels are first created.
+	 *	If you implement this, enable s.World.CreateStaticLevelCollection to stop it from duplicating static streaming levels.
 	 */
 	virtual bool Experimental_ShouldPreDuplicateMap(const FName MapName) const { return false; }
 
@@ -3099,6 +3161,18 @@ public:
 	/** A list of Iris NetDriverConfigs */
 	UPROPERTY(Config, transient)
 	TArray<FIrisNetDriverConfig> IrisNetDriverConfigs;
+
+	/** 
+	 * Returns the Iris config for the corresponding NetDriver 
+	 * Priority order for the IrisNetDriverConfigs are:
+	 *		1. NetDriverName exact match
+	 *		2. NetDriverName wildcard match
+	 *		3. NetDriverDefinition match
+	 */
+	ENGINE_API const FIrisNetDriverConfig* GetIrisNetDriverConfig(FName InNetDriverDefinition, FName InNetDriverName) const;
+
+	/** Returns true if the netdriver will run with Iris enable. */
+	ENGINE_API bool WillNetDriverUseIris(const FWorldContext& Context, FName InNetDriverDefinition, FName InNetDriverName) const;
 	
 	/** A configurable list of actors that are automatically spawned upon server startup (just prior to InitGame) */
 	UPROPERTY(config)
@@ -3616,9 +3690,33 @@ public:
 	 * Get all Engine Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
 	 */
 	template <typename TSubsystemClass>
+	UE_DEPRECATED(5.4, "This function is unsafe for re-entrancy and has been deprecated. Use ForEachEngineSubsystem or GetEngineSubsystemArrayCopy instead")
 	const TArray<TSubsystemClass*>& GetEngineSubsystemArray() const
 	{
 		return EngineSubsystemCollection.GetSubsystemArray<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
+
+	/**
+	 * Get all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 *
+	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of UGameInstance
+	 */
+	template <typename TSubsystemClass>
+	TArray<TSubsystemClass*> GetEngineSubsystemArrayCopy() const
+	{
+		return EngineSubsystemCollection.GetSubsystemArrayCopy<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
+
+	/**
+	 * Performs an operation on all all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 */
+	template <typename TSubsystemClass>
+	void ForEachEngineSubsystem(TFunctionRef<void(TSubsystemClass*)> Operation) const
+	{
+		static_assert(TIsDerivedFrom<TSubsystemClass, UEngineSubsystem>::IsDerived, "TSubsystemClass must be derived from UEngineSubsystem");
+		return EngineSubsystemCollection.ForEachSubsystem([Operation=MoveTemp(Operation)](UEngineSubsystem* Subsystem){
+			Operation(CastChecked<TSubsystemClass>(Subsystem));
+		}, TSubsystemClass::StaticClass());
 	}
 
 private:
@@ -3793,6 +3891,7 @@ private:
 	ENGINE_API bool ToggleStatUnit(UWorld* World, FCommonViewportClient* ViewportClient, const TCHAR* Stream = nullptr);
 #if !UE_BUILD_SHIPPING
 	ENGINE_API bool PostStatSoundModulatorHelp(UWorld* World, FCommonViewportClient* ViewportClient, const TCHAR* Stream = nullptr);
+	ENGINE_API bool ToggleStatUnitCriticalPath(UWorld* World, FCommonViewportClient* ViewportClient, const TCHAR* Stream = nullptr);
 	ENGINE_API bool ToggleStatUnitMax(UWorld* World, FCommonViewportClient* ViewportClient, const TCHAR* Stream = nullptr);
 	ENGINE_API bool ToggleStatUnitGraph(UWorld* World, FCommonViewportClient* ViewportClient, const TCHAR* Stream = nullptr);
 	ENGINE_API bool ToggleStatUnitTime(UWorld* World, FCommonViewportClient* ViewportClient, const TCHAR* Stream = nullptr);

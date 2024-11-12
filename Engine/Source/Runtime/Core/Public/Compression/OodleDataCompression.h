@@ -104,7 +104,8 @@ enum class ECompressionLevel : int8
 	Optimal1 = 5,
 	Optimal2 = 6,
 	Optimal3 = 7,
-	Optimal4 = 8, // if another added update CompressionLevelNameMap
+	Optimal4 = 8,
+	Optimal5 = 9, // if another added update CompressionLevelNameMap
 };
 
 // If the input is invalid, returns false, and doesn't touch output.

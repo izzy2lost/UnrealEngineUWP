@@ -17,6 +17,7 @@ public class NiagaraEditor : ModuleRules
 				"ApplicationCore",
                 "InputCore",
 				"RenderCore",
+				"Json",
 				"Slate", 
 				"SlateCore",
 				"SlateNullRenderer",
@@ -32,7 +33,6 @@ public class NiagaraEditor : ModuleRules
                 "ShaderFormatVectorVM",
                 "TargetPlatform",
                 "DesktopPlatform",
-                "AppFramework",
 				"MovieSceneTools",
                 "MovieSceneTracks",
                 "AdvancedPreviewScene",
@@ -85,6 +85,7 @@ public class NiagaraEditor : ModuleRules
                 "Niagara",
 				"EditorFramework",
                 "UnrealEd",
+                "AppFramework",
             }
         );
 

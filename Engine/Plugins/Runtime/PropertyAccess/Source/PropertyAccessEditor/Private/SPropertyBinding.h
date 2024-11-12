@@ -46,11 +46,22 @@ protected:
 		UFunction* Function;
 	};
 
+	struct FBindingContextStructCategory
+	{
+		FText Name;
+		TArray<FBindingContextStructCategory> SubCategories;
+		TArray<int32> BindingContextStructIndices;
+	};
+
+
 	TSharedRef<SWidget> OnGenerateDelegateMenu();
 	void FillPropertyMenu(FMenuBuilder& MenuBuilder, UStruct* InOwnerStruct, TArray<TSharedPtr<FBindingChainElement>> InBindingChain);
+	void FillCategoryMenu(FMenuBuilder& MenuBuilder, const FBindingContextStructCategory* Category);
 
+	const FSlateBrush* GetLinkIcon() const;
 	const FSlateBrush* GetCurrentBindingImage() const;
 	FText GetCurrentBindingText() const;
+	FSlateColor GetCurrentBindingTextColor() const;
 	FText GetCurrentBindingToolTipText() const;
 	FSlateColor GetCurrentBindingColor() const;
 
@@ -66,14 +77,20 @@ protected:
 
 	EVisibility GetGotoBindingVisibility() const;
 
+	FReply HandleGotoBindingClicked();
+
 	// Helper function to call the OnCanAcceptProperty* delegates, handles conversion of binding chain to TConstArrayView<FBindingChainElement> as expected by the delegate.
 	bool CanAcceptPropertyOrChildren(FProperty* InProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> InBindingChain) const;
-
-	FReply HandleGotoBindingClicked();
+	
+	// Helper function to call the OnCanBindProperty* delegates, handles conversion of binding chain to TConstArrayView<FBindingChainElement> as expected by the delegate.
+	bool CanBindProperty(FProperty* InProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> InBindingChain) const;
 
 	virtual FReply OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 
+	bool HasAnyBindings() const;
+
 private:
+
 	bool IsClassDenied(UClass* OwnerClass) const;
 	bool IsFieldFromDeniedClass(FFieldVariant Field) const;
 	bool HasBindableProperties(UStruct* InStruct, TArray<TSharedPtr<FBindingChainElement>>& BindingChain) const;
@@ -89,8 +106,16 @@ private:
 	template <typename Predicate>
 	void ForEachBindableFunction(UClass* FromClass, Predicate Pred) const;
 
+	void AddCategoryToMenu(FMenuBuilder& MenuBuilder, const FBindingContextStructCategory& Category);
+	void BuildContextStructCategoryRecursive(TConstArrayView<FString> CategoryNames, TArray<FBindingContextStructCategory>& ParentSubCategories, int32 ContextStructIndex);
+	bool HasCategorySomethingToDisplayRecursive(const FBindingContextStructCategory& Category) const;
+
+	TSharedRef<SWidget> MakeContextStructWidget(const FBindingContextStruct& ContextStruct) const;
+
 	UBlueprint* Blueprint = nullptr;
 	TArray<FBindingContextStruct> BindingContextStructs;
+	// Top level sections of the binding ContextStructs
+	TArray<FBindingContextStructCategory> BindingContextStructSections;
 	FPropertyBindingWidgetArgs Args;
 	FName PropertyName;
 };

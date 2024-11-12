@@ -457,7 +457,7 @@ void FPixelStreamingSignallingConnection::OnBinaryMessage(const uint8* Data, int
 {
 	FUTF8ToTCHAR Convert((const ANSICHAR*)Data, Length);
 	const TCHAR* PayloadChars = Convert.Get();
-	FString Msg = FString(Convert.Length(), PayloadChars);
+	FString Msg = FString::ConstructFromPtrSize(PayloadChars, Convert.Length());
 	OnMessage(Msg);
 }
 

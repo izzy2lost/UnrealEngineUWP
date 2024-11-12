@@ -6,6 +6,8 @@ namespace UnrealBuildTool.Rules
 	{
 		public SmartObjectsEditorModule(ReadOnlyTargetRules Target) : base(Target)
 		{
+			UnsafeTypeCastWarningLevel = WarningLevel.Warning;
+
 			PublicIncludePaths.AddRange(
 			new string[] {
 			}
@@ -20,7 +22,6 @@ namespace UnrealBuildTool.Rules
 				"GameplayTags",
 				"SmartObjectsModule",
 				"SourceControl",
-				"StructUtils",
 				"UnrealEd",
 				"WorldConditions",
 			}
@@ -41,6 +42,7 @@ namespace UnrealBuildTool.Rules
 				"SlateCore",
 				"StructUtilsEditor",
 				"ToolWidgets",
+				"ToolMenus"
 			}
 			);
 		}

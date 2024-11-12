@@ -7,13 +7,16 @@
 #include "HAL/FileManagerGeneric.h"
 #include "Misc/Paths.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define LOCTEXT_NAMESPACE "FInsightsCommands"
+#define LOCTEXT_NAMESPACE "UE::Insights::FInsightsCommands"
+
+namespace UE::Insights
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FInsightsCommands
@@ -180,5 +183,7 @@ bool FInsightsActionManager::OpenSettings_CanExecute() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights
 
 #undef LOCTEXT_NAMESPACE

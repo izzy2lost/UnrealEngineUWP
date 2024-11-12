@@ -1,10 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HttpThread.h"
-#include "IHttpThreadedRequest.h"
+#include "GenericPlatform/HttpRequestCommon.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/RunnableThread.h"
+#include "HAL/IConsoleManager.h"
 #include "HttpManager.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CommandLine.h"
@@ -14,6 +15,43 @@
 #include "Http.h"
 #include "PlatformHttp.h"
 #include "Stats/Stats.h"
+#include "Templates/UnrealTemplate.h"
+
+TAutoConsoleVariable<int32> CVarHttpMaxConcurrentRequests(
+	TEXT("http.MaxConcurrentRequests"),
+	UE_HTTP_DEFAULT_MAX_CONCURRENT_REQUESTS,
+	TEXT("The max number of http requests to run in parallel"),
+	ECVF_SaveForNextBoot
+);
+
+// Thread priority cvar (settable at runtime)
+// We declare these explicitly rather than just casting the cvar in case the enum changes in future
+const int32 GHttpThreadPriorities[] =
+{
+	EThreadPriority::TPri_Lowest,
+	EThreadPriority::TPri_BelowNormal,
+	EThreadPriority::TPri_SlightlyBelowNormal,
+	EThreadPriority::TPri_Normal,
+	EThreadPriority::TPri_AboveNormal
+};
+
+const TCHAR* GHttpThreadPriortyNames[] =
+{
+	TEXT("TPri_Lowest"),
+	TEXT("TPri_BelowNormal"),
+	TEXT("TPri_SlightlyBelowNormal"),
+	TEXT("TPri_Normal"),
+	TEXT("TPri_AboveNormal")
+};
+
+// Warning: Due to a bug with http module console variables, this cvar is not settable via the console (or via -execcmds). It needs to be set via ini (or via -dpcvars on startup). Hotfixing is supported
+static int32 GHttpThreadPriorityIndex = 3; // EThreadPriority::TPri_Normal
+FAutoConsoleVariableRef CVarHttpThreadPriority(
+	TEXT("http.ThreadPriority"), 
+	GHttpThreadPriorityIndex, 
+	TEXT("Thread priority of the Http Manager thread: 0=Lowest, 1=BelowNormal, 2=SlightlyBelowNormal, 3=Normal, 4=AboveNormal\n")
+	TEXT("Note that this is switchable at runtime"),
+	ECVF_Default);
 
 DECLARE_STATS_GROUP(TEXT("HTTP Thread"), STATGROUP_HTTPThread, STATCAT_Advanced);
 DECLARE_CYCLE_STAT(TEXT("Process"), STAT_HTTPThread_Process, STATGROUP_HTTPThread);
@@ -45,10 +83,13 @@ private:
 // FHttpThread
 
 FHttpThreadBase::FHttpThreadBase()
-	:	Thread(nullptr)
-	,	bIsSingleThread(false)
-	,	bIsStopped(true)
+	: Thread(nullptr)
+	, bIsSingleThread(false)
+	, bIsStopped(true)
+	, CurrentThreadPriority(EThreadPriority::TPri_Num)
+	, MaxConcurrentRequests(CVarHttpMaxConcurrentRequests.GetValueOnAnyThread())
 {
+	UE_LOG(LogInit, Log, TEXT("Creating http thread with maximum %d concurrent requests"), MaxConcurrentRequests);
 }
 
 FHttpThreadBase::~FHttpThreadBase()
@@ -62,10 +103,13 @@ void FHttpThreadBase::StartThread()
 
 	const bool bDisableForkedHTTPThread = FParse::Param(FCommandLine::Get(), TEXT("DisableForkedHTTPThread"));
 
+	// Get the requested thread priority from the cvar
+	CurrentThreadPriority = (EThreadPriority)GHttpThreadPriorities[FMath::Clamp(GHttpThreadPriorityIndex, 0, UE_ARRAY_COUNT(GHttpThreadPriorities)-1)];
+
 	if (FForkProcessHelper::IsForkedMultithreadInstance() && bDisableForkedHTTPThread == false)
 	{
 		// We only create forkable threads on the forked instance since the HTTPManager cannot safely transition from fake to real seamlessly
-		Thread = FForkProcessHelper::CreateForkableThread(this, TEXT("HttpManagerThread"), 128 * 1024, TPri_Normal);
+		Thread = FForkProcessHelper::CreateForkableThread(this, TEXT("HttpManagerThread"), 128 * 1024, CurrentThreadPriority);
 	}
 	else
 	{
@@ -75,10 +119,25 @@ void FHttpThreadBase::StartThread()
 			bIsSingleThread = true;
 		}
 
-		Thread = FRunnableThread::Create(this, TEXT("HttpManagerThread"), 128 * 1024, TPri_Normal);
+		Thread = FRunnableThread::Create(this, TEXT("HttpManagerThread"), 128 * 1024, CurrentThreadPriority);
 	}
 
 	bIsStopped = false;
+}
+
+void FHttpThreadBase::UpdateThreadPriorityIfNeeded()
+{
+	if ( !bIsSingleThread && ensure(!IsInGameThread()))
+	{
+		int32 ThreadPriorityIndex = FMath::Clamp(GHttpThreadPriorityIndex, 0, UE_ARRAY_COUNT(GHttpThreadPriorities) - 1);
+		EThreadPriority DesiredThreadPriority = (EThreadPriority)GHttpThreadPriorities[ThreadPriorityIndex];
+		if (DesiredThreadPriority != CurrentThreadPriority)
+		{
+			UE_LOG(LogHttp, Display, TEXT("Updating HTTP thread priority to %s"), GHttpThreadPriortyNames[ThreadPriorityIndex]);
+			FPlatformProcess::SetThreadPriority(DesiredThreadPriority);
+			CurrentThreadPriority = DesiredThreadPriority;
+		}
+	}
 }
 
 void FHttpThreadBase::StopThread()
@@ -94,24 +153,26 @@ void FHttpThreadBase::StopThread()
 	bIsSingleThread = true;
 }
 
-void FHttpThreadBase::AddRequest(IHttpThreadedRequest* Request)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void FHttpThreadBase::AddRequest(FHttpRequestCommon* Request)
 {
 	NewThreadedRequests.Enqueue(Request);
 }
 
-void FHttpThreadBase::CancelRequest(IHttpThreadedRequest* Request)
+void FHttpThreadBase::CancelRequest(FHttpRequestCommon* Request)
 {
 	CancelledThreadedRequests.Enqueue(Request);
 }
 
-void FHttpThreadBase::GetCompletedRequests(TArray<IHttpThreadedRequest*>& OutCompletedRequests)
+void FHttpThreadBase::GetCompletedRequests(TArray<FHttpRequestCommon*>& OutCompletedRequests)
 {
-	IHttpThreadedRequest* Request = nullptr;
+	FHttpRequestCommon* Request = nullptr;
 	while (CompletedThreadedRequests.Dequeue(Request))
 	{
 		OutCompletedRequests.Add(Request);
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool FHttpThreadBase::Init()
 {
@@ -140,44 +201,21 @@ bool FHttpThreadBase::NeedsSingleThreadTick() const
 
 void FHttpThreadBase::UpdateConfigs()
 {
-	int32 LocalRunningThreadedRequestLimit = -1;
-	const bool bFoundLocalRunningThreadedRequestLimit =
-	(
-#if WITH_EDITOR
-		GConfig->GetInt(TEXT("HTTP.HttpThread"), TEXT("RunningThreadedRequestLimitEditor"), LocalRunningThreadedRequestLimit, GEditorIni) ||
-#endif
-		GConfig->GetInt(TEXT("HTTP.HttpThread"), TEXT("RunningThreadedRequestLimit"), LocalRunningThreadedRequestLimit, GEngineIni)
-	);
-	if (bFoundLocalRunningThreadedRequestLimit)
-	{
-		if (LocalRunningThreadedRequestLimit < 1)
-		{
-			UE_LOG(LogHttp, Warning, TEXT("RunningThreadedRequestLimit must be configured as a number greater than 0. The configured value is %d. Ignored. The current value is still %d"), LocalRunningThreadedRequestLimit, RunningThreadedRequestLimit.load());
-		}
-		else
-		{
-			RunningThreadedRequestLimit = LocalRunningThreadedRequestLimit;
-		}
-	}
 }
 
 void FHttpThreadBase::HttpThreadTick(float DeltaSeconds)
 {
 }
 
-bool FHttpThreadBase::StartThreadedRequest(IHttpThreadedRequest* Request)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+bool FHttpThreadBase::StartThreadedRequest(FHttpRequestCommon* Request)
 {
 	return Request->StartThreadedRequest();
 }
 
-void FHttpThreadBase::CompleteThreadedRequest(IHttpThreadedRequest* Request)
+void FHttpThreadBase::CompleteThreadedRequest(FHttpRequestCommon* Request)
 {
 	// empty
-}
-
-int32 FHttpThreadBase::GetRunningThreadedRequestLimit() const
-{
-	return RunningThreadedRequestLimit.load();
 }
 
 void FHttpThreadBase::Stop()
@@ -190,11 +228,11 @@ void FHttpThreadBase::Exit()
 	// empty
 }
 
-void FHttpThreadBase::ConsumeCanceledRequestsAndNewRequests(TArray<IHttpThreadedRequest*>& RequestsToCancel, TArray<IHttpThreadedRequest*>& RequestsToComplete)
+void FHttpThreadBase::ConsumeCanceledRequestsAndNewRequests(TArray<FHttpRequestCommon*>& RequestsToCancel, TArray<FHttpRequestCommon*>& RequestsToComplete)
 {
 	// cache all cancelled and new requests
 	{
-		IHttpThreadedRequest* Request = nullptr;
+		FHttpRequestCommon* Request = nullptr;
 
 		RequestsToCancel.Reset();
 		while (CancelledThreadedRequests.Dequeue(Request))
@@ -204,12 +242,13 @@ void FHttpThreadBase::ConsumeCanceledRequestsAndNewRequests(TArray<IHttpThreaded
 
 		while (NewThreadedRequests.Dequeue(Request))
 		{
+			Request->StartWaitingInQueue();
 			RateLimitedThreadedRequests.Add(Request);
 		}
 	}
 
 	// Cancel any pending cancel requests
-	for (IHttpThreadedRequest* Request : RequestsToCancel)
+	for (FHttpRequestCommon* Request : RequestsToCancel)
 	{
 		if (RunningThreadedRequests.Remove(Request) > 0)
 		{
@@ -221,39 +260,53 @@ void FHttpThreadBase::ConsumeCanceledRequestsAndNewRequests(TArray<IHttpThreaded
 		}
 		else
 		{
-			UE_LOG(LogHttp, Warning, TEXT("Unable to find request (%p) in HttpThread"), Request);
+			// Don't make this a warning as these events can happen frequently when HTTP request timeouts are expected to happen
+			UE_LOG(LogHttp, Log, TEXT("Unable to find request (%p) in HttpThread"), Request);
 		}
 	}
 }
 
-void FHttpThreadBase::StartRequestsWaitingInQueue(TArray<IHttpThreadedRequest*>& RequestsToComplete)
+void FHttpThreadBase::StartRequestsWaitingInQueue(TArray<FHttpRequestCommon*>& RequestsToComplete)
 {
+	FHttpManager& HttpManager = FHttpModule::Get().GetHttpManager();
+
 	// We'll start rate limited requests until we hit the limit
 	// Tick new requests separately from existing RunningThreadedRequests so they get a chance 
 	// to send unaffected by possibly large ElapsedTime above
 	int32 RunningThreadedRequestsCounter = RunningThreadedRequests.Num();
-	const int32 LocalRunningThreadedRequestLimit = GetRunningThreadedRequestLimit();
-	if (RunningThreadedRequestsCounter < LocalRunningThreadedRequestLimit)
+
+#if !UE_HTTP_SUPPORT_TO_INCREASE_MAX_REQUESTS_AT_RUNTIME
+	// This will enable shrinking but not growing the max concurrent requests at runtime, on platform where http memory pool was pre-allocated when boot
+	if (CVarHttpMaxConcurrentRequests.GetValueOnAnyThread() < MaxConcurrentRequests)
+#endif
 	{
-		while(RunningThreadedRequestsCounter < LocalRunningThreadedRequestLimit && RateLimitedThreadedRequests.Num())
+		MaxConcurrentRequests = CVarHttpMaxConcurrentRequests.GetValueOnAnyThread();
+	}
+
+	if (RunningThreadedRequestsCounter < MaxConcurrentRequests)
+	{
+		while(RunningThreadedRequestsCounter < MaxConcurrentRequests && !RateLimitedThreadedRequests.IsEmpty())
 		{
 			SCOPE_CYCLE_COUNTER(STAT_HTTPThread_StartThreadedRequest);
 
-			IHttpThreadedRequest* ReadyThreadedRequest = RateLimitedThreadedRequests[0];
+			FHttpRequestCommon* ReadyThreadedRequest = RateLimitedThreadedRequests[0];
 			RateLimitedThreadedRequests.RemoveAt(0);
+
+			float DurationInQueue = FPlatformTime::Seconds() - ReadyThreadedRequest->GetTimeStartedWaitingInQueue();
+			UE_CLOG(DurationInQueue > 10.0f, LogHttp, Warning, TEXT("Request (%p) waited in queue for %.2fs before starting"), ReadyThreadedRequest, DurationInQueue);
+			float StartImmediately = 0.01f;
+			if (DurationInQueue > StartImmediately)
+			{
+				HttpManager.RecordMaxTimeToWaitInQueue(DurationInQueue);
+			}
 
 			if (StartThreadedRequest(ReadyThreadedRequest))
 			{
 				RunningThreadedRequestsCounter++;
 				RunningThreadedRequests.Add(ReadyThreadedRequest);
 				ReadyThreadedRequest->TickThreadedRequest(0.0f);
-				UE_LOG(LogHttp, Verbose, TEXT("Started running threaded request (%p). Running threaded requests (%d) Rate limited threaded requests (%d)"), ReadyThreadedRequest, RunningThreadedRequests.Num(), RateLimitedThreadedRequests.Num());
-#if WITH_SERVER_CODE
-				if (RunningThreadedRequestsCounter == LocalRunningThreadedRequestLimit)
-				{
-					UE_LOG(LogHttp, Warning, TEXT("Reached threaded request limit (%d)"), RunningThreadedRequestsCounter);
-				}
-#endif // WITH_SERVER_CODE
+				UE_LOG(LogHttp, Verbose, TEXT("Started http request in thread (%p). Waited in queue for (%.2fs) Running threaded requests (%d) Rate limited threaded requests (%d)"), 
+					ReadyThreadedRequest, DurationInQueue, RunningThreadedRequests.Num(), RateLimitedThreadedRequests.Num());
 			}
 			else
 			{
@@ -262,13 +315,14 @@ void FHttpThreadBase::StartRequestsWaitingInQueue(TArray<IHttpThreadedRequest*>&
 		}
 	}
 
+	HttpManager.RecordStatRequestsInFlight(RunningThreadedRequestsCounter);
 	if (!RateLimitedThreadedRequests.IsEmpty())
 	{
-		FHttpModule::Get().GetHttpManager().RecordStatRequestsInQueue(RateLimitedThreadedRequests.Num());
+		HttpManager.RecordStatRequestsInQueue(RateLimitedThreadedRequests.Num());
 	}
 }
 
-void FHttpThreadBase::MoveCompletingRequestsToCompletedRequests(TArray<IHttpThreadedRequest*>& RequestsToComplete)
+void FHttpThreadBase::MoveCompletingRequestsToCompletedRequests(TArray<FHttpRequestCommon*>& RequestsToComplete)
 {
 	const double AppTime = FPlatformTime::Seconds();
 	const double ElapsedTime = AppTime - LastTime;
@@ -276,7 +330,7 @@ void FHttpThreadBase::MoveCompletingRequestsToCompletedRequests(TArray<IHttpThre
 
 	// Tick any running requests
 	// as long as they properly finish in HttpThreadTick below they are unaffected by a possibly large ElapsedTime above
-	for (IHttpThreadedRequest* Request : RunningThreadedRequests)
+	for (FHttpRequestCommon* Request : RunningThreadedRequests)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_HTTPThread_TickThreadedRequest);
 
@@ -296,7 +350,7 @@ void FHttpThreadBase::MoveCompletingRequestsToCompletedRequests(TArray<IHttpThre
 	{
 		SCOPE_CYCLE_COUNTER(STAT_HTTPThread_IsThreadedRequestComplete);
 
-		IHttpThreadedRequest* Request = RunningThreadedRequests[Index];
+		FHttpRequestCommon* Request = RunningThreadedRequests[Index];
 
 		if (Request->IsThreadedRequestComplete())
 		{
@@ -308,11 +362,11 @@ void FHttpThreadBase::MoveCompletingRequestsToCompletedRequests(TArray<IHttpThre
 	}
 }
 
-void FHttpThreadBase::FinishRequestsFromHttpThreadWithCallbacks(TArray<IHttpThreadedRequest*>& RequestsToComplete)
+void FHttpThreadBase::FinishRequestsFromHttpThreadWithCallbacks(TArray<FHttpRequestCommon*>& RequestsToComplete)
 {
 	if (RequestsToComplete.Num() > 0)
 	{
-		for (IHttpThreadedRequest* Request : RequestsToComplete)
+		for (FHttpRequestCommon* Request : RequestsToComplete)
 		{
 			SCOPE_CYCLE_COUNTER(STAT_HTTPThread_CompleteThreadedRequest);
 
@@ -330,9 +384,11 @@ void FHttpThreadBase::FinishRequestsFromHttpThreadWithCallbacks(TArray<IHttpThre
 	}
 }
 
-void FHttpThreadBase::Process(TArray<IHttpThreadedRequest*>& RequestsToCancel, TArray<IHttpThreadedRequest*>& RequestsToComplete)
+void FHttpThreadBase::Process(TArray<FHttpRequestCommon*>& RequestsToCancel, TArray<FHttpRequestCommon*>& RequestsToComplete)
 {
 	SCOPE_CYCLE_COUNTER(STAT_HTTPThread_Process);
+
+	UpdateThreadPriorityIfNeeded();
 
 	ConsumeCanceledRequestsAndNewRequests(RequestsToCancel, RequestsToComplete);
 
@@ -369,17 +425,17 @@ void FLegacyHttpThread::StopThread()
 	FHttpThreadBase::StopThread();
 }
 
-void FLegacyHttpThread::AddRequest(IHttpThreadedRequest* Request)
+void FLegacyHttpThread::AddRequest(FHttpRequestCommon* Request)
 {
 	FHttpThreadBase::AddRequest(Request);
 }
 
-void FLegacyHttpThread::CancelRequest(IHttpThreadedRequest* Request)
+void FLegacyHttpThread::CancelRequest(FHttpRequestCommon* Request)
 {
 	FHttpThreadBase::CancelRequest(Request);
 }
 
-void FLegacyHttpThread::GetCompletedRequests(TArray<IHttpThreadedRequest*>& OutCompletedRequests)
+void FLegacyHttpThread::GetCompletedRequests(TArray<FHttpRequestCommon*>& OutCompletedRequests)
 {
 	FHttpThreadBase::GetCompletedRequests(OutCompletedRequests);
 }
@@ -390,11 +446,12 @@ void FLegacyHttpThread::Tick()
 
 	if (ensure(NeedsSingleThreadTick()))
 	{
-		TArray<IHttpThreadedRequest*> RequestsToCancel;
-		TArray<IHttpThreadedRequest*> RequestsToComplete;
+		TArray<FHttpRequestCommon*> RequestsToCancel;
+		TArray<FHttpRequestCommon*> RequestsToComplete;
 		Process(RequestsToCancel, RequestsToComplete);
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 TSharedPtr<IHttpTaskTimerHandle> FLegacyHttpThread::AddHttpThreadTask(TFunction<void()>&& Task, float InDelay)
 {
@@ -430,9 +487,11 @@ bool FLegacyHttpThread::Init()
 UE_DISABLE_OPTIMIZATION_SHIP
 uint32 FLegacyHttpThread::Run()
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// Arrays declared outside of loop to re-use memory
-	TArray<IHttpThreadedRequest*> RequestsToCancel;
-	TArray<IHttpThreadedRequest*> RequestsToComplete;
+	TArray<FHttpRequestCommon*> RequestsToCancel;
+	TArray<FHttpRequestCommon*> RequestsToComplete;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	while (!ExitRequest.GetValue())
 	{
 		if (ensureMsgf(!NeedsSingleThreadTick(), TEXT("HTTP Thread was set to singlethread mode while it was running autonomously!")))

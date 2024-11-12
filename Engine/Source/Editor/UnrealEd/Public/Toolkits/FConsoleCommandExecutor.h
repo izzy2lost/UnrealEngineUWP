@@ -18,7 +18,7 @@ public:
 	UNREALED_API virtual FText GetDisplayName() const override;
 	UNREALED_API virtual FText GetDescription() const override;
 	UNREALED_API virtual FText GetHintText() const override;
-	UNREALED_API virtual void GetAutoCompleteSuggestions(const TCHAR* Input, TArray<FString>& Out) override;
+	UNREALED_API virtual void GetSuggestedCompletions(const TCHAR* Input, TArray<FConsoleSuggestion>& Out) override;
 	UNREALED_API virtual void GetExecHistory(TArray<FString>& Out) override;
 	UNREALED_API virtual bool Exec(const TCHAR* Input) override;
 	UNREALED_API virtual bool AllowHotKeyClose() const override;

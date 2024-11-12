@@ -7,7 +7,11 @@
 #include "PCGGraph.h"
 #include "PCGSubsystem.h"
 #include "Data/PCGPointData.h"
-#include "Elements/PCGDebugElement.h"
+#include "Graph/PCGGraphCache.h"
+
+#if WITH_EDITOR
+#include "PCGDataVisualization.h"
+#endif
 
 #include "HAL/IConsoleManager.h"
 #include "Utils/PCGExtraCapture.h"
@@ -19,6 +23,11 @@ static TAutoConsoleVariable<bool> CVarPCGValidatePointMetadata(
 	true,
 	TEXT("Controls whether we validate that the metadata entry keys on the output point data are consistent"));
 
+static TAutoConsoleVariable<bool> CVarPCGAllowPerDataCaching(
+	TEXT("pcg.AllowPerDataCaching"),
+	false,
+	TEXT("Controls whether we test & split down inputs to check caching per input on primary loop nodes."));
+
 #if WITH_EDITOR
 #define PCG_ELEMENT_EXECUTION_BREAKPOINT() \
 	if (Context && Context->GetInputSettingsInterface() && Context->GetInputSettingsInterface()->bBreakDebugger) \
@@ -29,9 +38,116 @@ static TAutoConsoleVariable<bool> CVarPCGValidatePointMetadata(
 #define PCG_ELEMENT_EXECUTION_BREAKPOINT()
 #endif
 
+namespace PCGElementHelpers
+{
+	bool SplitDataPerPrimaryPin(const UPCGSettings* Settings, const FPCGDataCollection& Collection, EPCGElementExecutionLoopMode Mode, TArray<FPCGDataCollection>& OutPrimaryCollections, FPCGDataCollection& OutCommonCollection)
+	{
+		check(Settings);
+		OutPrimaryCollections.Reset();
+		OutCommonCollection.TaggedData.Reset();
+
+		TArray<FPCGPinProperties> RequiredPins = Settings->AllInputPinProperties().FilterByPredicate([](const FPCGPinProperties& Props) { return Props.IsRequiredPin(); });
+
+		// Early out
+		if (Mode == EPCGElementExecutionLoopMode::SinglePrimaryPin && RequiredPins.Num() != 1)
+		{
+			return false;
+		}
+
+		TArray<FName> RequiredPinLabels;
+		Algo::Transform(RequiredPins, RequiredPinLabels, [](const FPCGPinProperties& Props) { return Props.Label; });
+
+		TArray<FPCGDataCollection> DataPerRequiredPin;
+		DataPerRequiredPin.SetNum(RequiredPinLabels.Num());
+
+		for (int32 DataIndex = 0; DataIndex < Collection.TaggedData.Num(); ++DataIndex)
+		{
+			const FPCGTaggedData& TaggedData = Collection.TaggedData[DataIndex];
+			int32 RequiredPinIndex = RequiredPinLabels.IndexOfByKey(TaggedData.Pin);
+
+			if (RequiredPinIndex == INDEX_NONE)
+			{
+				OutCommonCollection.TaggedData.Add(TaggedData);
+			}
+			else
+			{
+				DataPerRequiredPin[RequiredPinIndex].TaggedData.Add(TaggedData);
+			}
+		}
+
+		if (DataPerRequiredPin.IsEmpty())
+		{
+			return true;
+		}
+
+		// Broadcast to final primary collections
+		if (Mode == EPCGElementExecutionLoopMode::SinglePrimaryPin)
+		{
+			check(DataPerRequiredPin.Num() == 1);
+			OutPrimaryCollections.Reserve(DataPerRequiredPin[0].TaggedData.Num());
+
+			for(int32 DataIndex = 0; DataIndex < DataPerRequiredPin[0].TaggedData.Num(); ++DataIndex)
+			{
+				FPCGDataCollection& OutPrimaryCollection = OutPrimaryCollections.Emplace_GetRef();
+				OutPrimaryCollection.TaggedData.Add(DataPerRequiredPin[0].TaggedData[DataIndex]);
+			}
+		}
+		else if (Mode == EPCGElementExecutionLoopMode::MatchingPrimaryPins)
+		{
+			const int32 NumberOfData = DataPerRequiredPin[0].TaggedData.Num();
+
+			// Validate matching number of entries
+			for (int32 RequiredPinIndex = 1; RequiredPinIndex < DataPerRequiredPin.Num(); ++RequiredPinIndex)
+			{
+				if (DataPerRequiredPin[RequiredPinIndex].TaggedData.Num() != NumberOfData)
+				{
+					return false;
+				}
+			}
+
+			OutPrimaryCollections.SetNum(NumberOfData);
+
+			for (int32 DataIndex = 0; DataIndex < NumberOfData; ++DataIndex)
+			{
+				for (int32 RequiredPinIndex = 0; RequiredPinIndex < DataPerRequiredPin.Num(); ++RequiredPinIndex)
+				{
+					OutPrimaryCollections[DataIndex].TaggedData.Add(DataPerRequiredPin[RequiredPinIndex].TaggedData[DataIndex]);
+				}
+			}
+		}
+		/*else if (Mode == EPCGElementExecutionLoopMode::CartesianPins)
+		{
+			int32 NumberOfCollections = 1;
+			for (int32 RequiredPinIndex = 0; RequiredPinIndex < DataPerRequiredPin.Num(); ++RequiredPinIndex)
+			{
+				NumberOfCollections *= DataPerRequiredPin[RequiredPinIndex].TaggedData.Num();
+			}
+
+			OutPrimaryCollections.SetNum(NumberOfCollections);
+
+			for (int32 RequiredPinIndex = 0; RequiredPinIndex < DataPerRequiredPin.Num(); ++RequiredPinIndex)
+			{
+				const FPCGDataCollection& PinData = DataPerRequiredPin[RequiredPinIndex];
+
+				for (int32 OutCollectionIndex = 0; OutCollectionIndex < OutPrimaryCollections.Num(); ++OutCollectionIndex)
+				{
+					OutPrimaryCollections[OutCollectionIndex].TaggedData.Add(PinData.TaggedData[OutCollectionIndex % PinData.TaggedData.Num()]);
+				}
+			}
+		}*/
+		else
+		{
+			// Invalid mode
+			return false;
+		}
+
+		return true;
+	}
+}
+
 bool IPCGElement::Execute(FPCGContext* Context) const
 {
-	check(Context && Context->AsyncState.NumAvailableTasks > 0 && Context->CurrentPhase < EPCGExecutionPhase::Done);
+	check(Context && Context->AsyncState.NumAvailableTasks != 0 && Context->CurrentPhase < EPCGExecutionPhase::Done);
 	check(Context->AsyncState.bIsRunningOnMainThread || !CanExecuteOnlyOnMainThread(Context));
 
 	while (Context->CurrentPhase != EPCGExecutionPhase::Done)
@@ -47,9 +163,6 @@ bool IPCGElement::Execute(FPCGContext* Context) const
 				PCG_ELEMENT_EXECUTION_BREAKPOINT();
 
 				PreExecute(Context);
-
-				// Will override the settings if there is any override.
-				Context->OverrideSettings();
 
 				break;
 			}
@@ -115,6 +228,7 @@ bool IPCGElement::Execute(FPCGContext* Context) const
 
 void IPCGElement::PreExecute(FPCGContext* Context) const
 {
+	check(Context);
 	// Check for early outs (task cancelled + node disabled)
 	// Early out to stop execution
 	if (Context->InputData.bCancelExecution || (!Context->SourceComponent.IsExplicitlyNull() && !Context->SourceComponent.IsValid()))
@@ -133,9 +247,8 @@ void IPCGElement::PreExecute(FPCGContext* Context) const
 	Context->CurrentPhase = EPCGExecutionPhase::PrepareData;
 
 	const UPCGSettingsInterface* SettingsInterface = Context->GetInputSettingsInterface();
-	const UPCGSettings* Settings = SettingsInterface ? SettingsInterface->GetSettings() : nullptr;
 
-	if (!SettingsInterface || !Settings)
+	if (!SettingsInterface)
 	{
 		return;
 	}
@@ -145,7 +258,102 @@ void IPCGElement::PreExecute(FPCGContext* Context) const
 		//Pass-through - no execution
 		DisabledPassThroughData(Context);
 		Context->CurrentPhase = EPCGExecutionPhase::PostExecute;
+		return;
 	}
+
+	// Will override the settings if there is any override.
+	Context->OverrideSettings();
+
+	const UPCGSettings* Settings = Context->GetInputSettings<UPCGSettings>();
+
+	// If we were supposed to execute on GPU and end up here, then GPU compilation failed. Run validation in noisy mode
+	// to generate runtime errors/graph errors, then pass through.
+	if (Settings && Settings->ShouldExecuteOnGPU())
+	{
+		Settings->IsKernelValid(Context, /*bQuiet=*/false);
+		DisabledPassThroughData(Context);
+		Context->CurrentPhase = EPCGExecutionPhase::PostExecute;
+		return;
+	}
+
+	if (CVarPCGAllowPerDataCaching.GetValueOnAnyThread())
+	{
+		// Default implementation when the entries in a primary loop can be processed independently, e.g. they can appear in the cache separately
+		// Implementation note: this supposes that the current node has only ONE required pin, and not multiple.
+		// For more complex cases (such as multiple required pins, whether cartesian or matching), the implementation should use common code instead to streamline this process -
+		// both when getting the results from the cache but also when writing them
+		if (ExecutionLoopMode(Settings) != EPCGElementExecutionLoopMode::NotALoop && IsCacheableInstance(Settings))
+		{
+			PreExecutePrimaryLoopElement(Context, Settings);
+		}
+	}
+}
+
+void IPCGElement::PreExecutePrimaryLoopElement(FPCGContext* Context, const UPCGSettings* Settings) const
+{
+	check(Context);
+
+	UPCGSubsystem* Subsystem = Context->SourceComponent.Get() ? Context->SourceComponent->GetSubsystem() : nullptr;
+	if (!Subsystem || !Settings)
+	{
+		return;
+	}
+
+	// Mark inputs in the order they're presented so we can appropriately find the relation from output to input after the execution
+	// TODO: this is not sufficient to do a proper mapping from output to input when we have a cartesian loop
+	for (int32 DataIndex = 0; DataIndex < Context->InputData.TaggedData.Num(); ++DataIndex)
+	{
+		Context->InputData.TaggedData[DataIndex].OriginalIndex = DataIndex;
+	}
+
+	TArray<FPCGDataCollection> PrimaryDataCollections;
+	FPCGDataCollection OtherData;
+	if (!PCGElementHelpers::SplitDataPerPrimaryPin(Settings, Context->InputData, ExecutionLoopMode(Settings), PrimaryDataCollections, OtherData))
+	{
+		return;
+	}
+
+	// Implementation note: if there is a single primary data collection, then there's no point checking in the cache again, since that has already been done.
+	if (PrimaryDataCollections.Num() <= 1)
+	{
+		return;
+	}
+
+	const bool bShouldComputeFullOutputDataCrc = ShouldComputeFullOutputDataCrc(Context);
+
+	// Check against the cache if subcollections of one data from the primary data collection + the other data is found already in the cache.
+	// If so, we can remove the matching input data - note that this is somewhat trivial in the single pin & matching pin cases, but in general is not going to work for cartesian cases.
+	for (int32 PrimaryDataIndex = PrimaryDataCollections.Num() - 1; PrimaryDataIndex >= 0; --PrimaryDataIndex)
+	{
+		const FPCGDataCollection& PrimaryDataCollection = PrimaryDataCollections[PrimaryDataIndex];
+		FPCGDataCollection SubCollection = PrimaryDataCollection;
+		SubCollection.TaggedData.Append(OtherData.TaggedData);
+
+		SubCollection.ComputeCrcs(bShouldComputeFullOutputDataCrc);
+
+		FPCGGetFromCacheParams CacheParams = { .Node = Context->Node, .Element = this, .Component = Context->SourceComponent.Get() };
+		GetDependenciesCrc(SubCollection, Settings, Context->SourceComponent.Get(), CacheParams.Crc);
+
+		FPCGDataCollection SubCollectionOutput;
+		if(Subsystem->GetCache()->GetFromCache(CacheParams, SubCollectionOutput))
+		{
+			// Found a match in the cache, add it to the output, and remove the matching inputs.
+			// Note that in the input part we'll take only the data present in the PrimaryDataCollection here, as we will reintroduce only those then.
+			// IMPLEMENTATION NOTE: the order is important here; if we can't guarantee the hint index, then we should just do a remove!
+			TPair<FPCGDataCollection, FPCGDataCollection>& InputToOutputResults = Context->CachedInputToOutputInternalResults.Emplace_GetRef();
+			InputToOutputResults.Key = PrimaryDataCollection;
+			InputToOutputResults.Value = SubCollectionOutput;
+
+			for (int32 SubDataIndex = PrimaryDataCollection.TaggedData.Num() - 1; SubDataIndex >= 0; --SubDataIndex)
+			{
+				Context->InputData.TaggedData.RemoveAt(PrimaryDataCollection.TaggedData[SubDataIndex].OriginalIndex);
+			}
+		}
+	}
+
+	//
+	// TODO : if there are no inputs left, then we could skip the execute phase
+	// 
 }
 
 bool IPCGElement::PrepareDataInternal(FPCGContext* Context) const
@@ -155,12 +363,22 @@ bool IPCGElement::PrepareDataInternal(FPCGContext* Context) const
 
 void IPCGElement::PostExecute(FPCGContext* Context) const
 {
+	// Allow sub class to do some processing here
+	PostExecuteInternal(Context);
+
 	// Cleanup and validate output
 	CleanupAndValidateOutput(Context);
-
-	const UPCGSettingsInterface* SettingsInterface = Context->GetInputSettingsInterface();
-	const UPCGSettings* Settings = SettingsInterface ? SettingsInterface->GetSettings() : nullptr;
 	
+	const UPCGSettings* Settings = Context->GetInputSettings<UPCGSettings>();
+
+	if (CVarPCGAllowPerDataCaching.GetValueOnAnyThread())
+	{
+		if (!Context->OutputData.bCancelExecution && ExecutionLoopMode(Settings) != EPCGElementExecutionLoopMode::NotALoop && IsCacheableInstance(Settings))
+		{
+			PostExecutePrimaryLoopElement(Context, Settings);
+		}
+	}
+
 	// Output data Crc
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(IPCGElement::PostExecute::CRC);
@@ -175,6 +393,62 @@ void IPCGElement::PostExecute(FPCGContext* Context) const
 	}
 
 #if WITH_EDITOR
+	const bool bHasErrorsOrWarnings = Context->Node && Context->HasVisualLogs();
+#else
+	const bool bHasErrorsOrWarnings = false;
+#endif
+
+	// Store result in cache
+	// TODO - There is a potential mismatch here between using the Settings (incl. overrides) and the input settings interface (pre-overrides), as done in the graph executor.
+	// TODO - The dependencies CRC here should always be valid except in the indirection case, which we should normalize to allow caching (tested here, otherwise it can ensure in the graph cache)
+	if (!Context->OutputData.bCancelExecution && !bHasErrorsOrWarnings && Context->DependenciesCrc.IsValid() && IsCacheableInstance(Settings))
+	{
+		UPCGSubsystem* Subsystem = Context->SourceComponent.Get() ? Context->SourceComponent->GetSubsystem() : nullptr;
+		if (Subsystem)
+		{
+			FPCGStoreInCacheParams Params = { .Element = this, .Crc = Context->DependenciesCrc };
+			Subsystem->GetCache()->StoreInCache(Params, Context->OutputData);
+		}
+	}
+
+	// Analyze if the output data is used multiple times, if the element requires it.
+	if (ShouldVerifyIfOutputsAreUsedMultipleTimes(Settings))
+	{
+		for (FPCGTaggedData& OutputData : Context->OutputData.TaggedData)
+		{
+			// Enforce that pinless data is always used multiple times, or if the debug mode is enabled.
+			if (OutputData.bPinlessData || (Settings && Settings->CanBeDebugged() && Settings->bDebug))
+			{
+				OutputData.bIsUsedMultipleTimes = true;
+				continue;
+			}
+			
+			// For data that are marked to be used multiple times, they are potentially not used multiple times if they are not passthrough
+			// (hence if they are not in the input). So set them back to false in that case. It will be set to true again by the executor
+			// if it is actually used in multiple places.
+			auto PassthroughPredicate = [&OutputData](const FPCGTaggedData& InputData) { return InputData.Data == OutputData.Data; };
+			if (OutputData.bIsUsedMultipleTimes && !Context->InputData.TaggedData.ContainsByPredicate(PassthroughPredicate))
+			{
+#if !UE_BUILD_SHIPPING
+				OutputData.OriginatingNode = Context->Node;
+#endif //!UE_BUILD_SHIPPING
+				OutputData.bIsUsedMultipleTimes = false;
+			}
+			
+			// We also need to verify that the data is not used in other outputs.
+			auto SameDataDifferentTaggedData = [&OutputData](const FPCGTaggedData& OtherOutputData)
+			{
+				return (&OtherOutputData != &OutputData) && (OtherOutputData.Data == OutputData.Data);
+			};
+			
+			if (!OutputData.bIsUsedMultipleTimes && Context->OutputData.TaggedData.ContainsByPredicate(SameDataDifferentTaggedData))
+			{
+				OutputData.bIsUsedMultipleTimes = true;
+			}
+		}
+	}
+	
+#if WITH_EDITOR
 	// Register the element to the component indicating the element has run and can have dynamic tracked keys.
 	if (Settings && Settings->CanDynamicallyTrackKeys() && Context->SourceComponent.IsValid())
 	{
@@ -183,6 +457,98 @@ void IPCGElement::PostExecute(FPCGContext* Context) const
 #endif // WITH_EDITOR
 
 	Context->CurrentPhase = EPCGExecutionPhase::Done;
+}
+
+void IPCGElement::PostExecutePrimaryLoopElement(FPCGContext* Context, const UPCGSettings* Settings) const
+{
+	check(Context);
+
+	// In the case of primary pin-loops, write back individual results to the cache, and reinsert the cached results in the output as needed.
+	UPCGSubsystem* Subsystem = Context->SourceComponent.Get() ? Context->SourceComponent->GetSubsystem() : nullptr;
+
+	if (!Subsystem || !Settings)
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	const bool bHasErrorsOrWarnings = Context->Node && Context->HasVisualLogs();
+#else
+	const bool bHasErrorsOrWarnings = false;
+#endif
+
+	// Store individual results in the cache; here we will try to match the remaining hint indices from the input data with the ones given at the output.
+	TArray<FPCGDataCollection> PrimaryDataCollections;
+	FPCGDataCollection OtherData;
+	if (!Context->OutputData.bCancelExecution && !bHasErrorsOrWarnings && PCGElementHelpers::SplitDataPerPrimaryPin(Settings, Context->InputData, ExecutionLoopMode(Settings), PrimaryDataCollections, OtherData))
+	{
+		const bool bShouldComputeFullOutputDataCrc = ShouldComputeFullOutputDataCrc(Context);
+
+		for (const FPCGDataCollection& PrimaryDataCollection : PrimaryDataCollections)
+		{
+			if (PrimaryDataCollection.TaggedData.IsEmpty() || PrimaryDataCollection.TaggedData[0].OriginalIndex == INDEX_NONE)
+			{
+				continue;
+			}
+
+			FPCGDataCollection SubCollectionOutput;
+			for (int32 DataIndex = 0; DataIndex < Context->OutputData.TaggedData.Num(); ++DataIndex)
+			{
+				const FPCGTaggedData& TaggedData = Context->OutputData.TaggedData[DataIndex];
+				if (TaggedData.OriginalIndex == PrimaryDataCollection.TaggedData[0].OriginalIndex)
+				{
+					SubCollectionOutput.TaggedData.Add(Context->OutputData.TaggedData[DataIndex]);
+				}
+			}
+
+			FPCGDataCollection SubCollection = PrimaryDataCollection;
+			SubCollection.ComputeCrcs(bShouldComputeFullOutputDataCrc);
+
+			FPCGCrc DependenciesCrc;
+			GetDependenciesCrc(SubCollection, Settings, Context->SourceComponent.Get(), DependenciesCrc);
+
+			SubCollectionOutput.ComputeCrcs(bShouldComputeFullOutputDataCrc);
+
+			FPCGStoreInCacheParams Params = { .Element = this, .Crc = DependenciesCrc };
+			Subsystem->GetCache()->StoreInCache(Params, SubCollectionOutput);
+		}
+	}
+
+	// Put back cached results and set aside input (needed for inspection) if any
+	if (!Context->CachedInputToOutputInternalResults.IsEmpty())
+	{
+		// Push cached results back to the final output data, from the last to the first, at the right place.
+		for (int CachedCollectionIndex = Context->CachedInputToOutputInternalResults.Num() - 1; CachedCollectionIndex >= 0; --CachedCollectionIndex)
+		{
+			const FPCGDataCollection& CachedInputData = Context->CachedInputToOutputInternalResults[CachedCollectionIndex].Key;
+			int32 CacheInputOriginalIndex = (CachedInputData.TaggedData.IsEmpty() ? INDEX_NONE : CachedInputData.TaggedData[0].OriginalIndex);
+			int32 InsertInputIndex = CacheInputOriginalIndex != INDEX_NONE ? Context->InputData.TaggedData.IndexOfByPredicate([CacheInputOriginalIndex](const FPCGTaggedData& TaggedData) { return TaggedData.OriginalIndex > CacheInputOriginalIndex; }) : INDEX_NONE;
+
+			if (InsertInputIndex != INDEX_NONE)
+			{
+				Context->InputData.TaggedData.Insert(CachedInputData.TaggedData, InsertInputIndex);
+			}
+			else
+			{
+				Context->InputData.TaggedData.Append(CachedInputData.TaggedData);
+			}
+
+			const FPCGDataCollection& CachedOutputData = Context->CachedInputToOutputInternalResults[CachedCollectionIndex].Value;
+
+			// This assumes we have hinted properly on the output data; we'll look at the hinted value on the first data THEN insert before the next hint value
+			int32 CacheOutputOriginalIndex = (CachedOutputData.TaggedData.IsEmpty() ? INDEX_NONE : CachedOutputData.TaggedData[0].OriginalIndex);
+			int32 InsertOutputIndex = CacheOutputOriginalIndex != INDEX_NONE ? Context->OutputData.TaggedData.IndexOfByPredicate([CacheOutputOriginalIndex](const FPCGTaggedData& TaggedData) { return TaggedData.OriginalIndex > CacheOutputOriginalIndex; }) : INDEX_NONE;
+
+			if (InsertOutputIndex != INDEX_NONE)
+			{
+				Context->OutputData.TaggedData.Insert(CachedOutputData.TaggedData, InsertOutputIndex);
+			}
+			else
+			{
+				Context->OutputData.TaggedData.Append(CachedOutputData.TaggedData);
+			}
+		}
+	}
 }
 
 void IPCGElement::Abort(FPCGContext* Context) const
@@ -342,7 +708,25 @@ void IPCGElement::DebugDisplay(FPCGContext* Context) const
 	Context->InputData = ElementOutputs;
 	Context->OutputData = FPCGDataCollection();
 
-	PCGDebugElement::ExecuteDebugDisplay(Context);
+	// In the case of a node with multiple output pins, we will select only the inputs from the first non-empty pin.
+	const UPCGPin* FirstOutPin = Context->Node ? Context->Node->GetFirstConnectedOutputPin() : nullptr;
+
+	const FPCGDataVisualizationRegistry& DataVisRegistry = FPCGModule::GetConstPCGDataVisualizationRegistry();
+	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputs();
+
+	for (const FPCGTaggedData& Input : Inputs)
+	{
+		// Skip output if we're filtering on the first pin or the the data is null.
+		if (!Input.Data || (FirstOutPin && FirstOutPin->Properties.Label != Input.Pin))
+		{
+			continue;
+		}
+
+		if (const IPCGDataVisualization* DataVis = DataVisRegistry.GetDataVisualization(Input.Data->GetClass()))
+		{
+			DataVis->ExecuteDebugDisplay(Context, SettingsInterface, Input.Data, Context->GetTargetActor(nullptr));
+		}
+	}
 
 	Context->InputData = ElementInputs;
 	Context->OutputData = ElementOutputs;
@@ -499,6 +883,39 @@ void IPCGElement::GetDependenciesCrc(const FPCGDataCollection& InInput, const UP
 	}
 
 	OutCrc = Crc;
+}
+
+EPCGCachingStatus IPCGElement::RetrieveResultsFromCache(IPCGGraphCache* Cache, const UPCGNode* Node, const FPCGDataCollection& Input, UPCGComponent* Component, FPCGDataCollection& Output, FPCGCrc* OutCrc) const
+{
+	if (!Cache)
+	{
+		return EPCGCachingStatus::NotInCache;
+	}
+
+	const UPCGSettingsInterface* SettingsInterface = Input.GetSettingsInterface(Node ? Node->GetSettingsInterface() : nullptr);
+	const UPCGSettings* Settings = SettingsInterface ? SettingsInterface->GetSettings() : nullptr;
+	const bool bCacheable = IsCacheableInstance(SettingsInterface);
+
+	FPCGGetFromCacheParams Params = { .Node = Node, .Element = this, .Component = Component };
+
+	if (Settings && bCacheable)
+	{
+		GetDependenciesCrc(Input, Settings, Component, Params.Crc);
+
+		if (OutCrc)
+		{
+			*OutCrc = Params.Crc;
+		}
+	}
+
+	if(Params.Crc.IsValid() && Cache->GetFromCache(Params, Output))
+	{
+		return EPCGCachingStatus::Cached;
+	}
+	else
+	{
+		return EPCGCachingStatus::NotInCache;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

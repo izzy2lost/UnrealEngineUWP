@@ -30,7 +30,8 @@ public class EditorTraceUtilities : ModuleRules
 				"SlateCore",
 				"ToolMenus",
 				"TraceAnalysis",
-				"TraceInsights",
+				"TraceInsightsFrontend",
+				"TraceTools",
 				"TraceLog",
 				"UATHelper",
 			}

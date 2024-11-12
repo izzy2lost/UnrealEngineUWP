@@ -2,15 +2,16 @@
 
 #pragma once
 
-#include "CoreTypes.h"
-#include "Misc/AssertionMacros.h"
-#include "Templates/UnrealTypeTraits.h"
-#include "Containers/ContainerAllocationPolicies.h"
 #include "Containers/Array.h"
+#include "Containers/ContainerAllocationPolicies.h"
 #include "Containers/UnrealString.h"
-#include "UObject/NameTypes.h"
-#include "Templates/SharedPointer.h"
+#include "CoreTypes.h"
 #include "Delegates/DelegateAccessHandler.h"
+#include "Misc/AssertionMacros.h"
+#include "Templates/SharedPointer.h"
+#include "Templates/TypeHash.h"
+#include "Templates/UnrealTypeTraits.h"
+#include "UObject/NameTypes.h"
 
 namespace UE::Core::Private
 {
@@ -447,7 +448,7 @@ public:
 		ObjectPtr->ProcessEvent(Function, Parameters);
 	}
 
-	friend uint32 GetTypeHash(const TScriptDelegate& Delegate)
+	[[nodiscard]] friend uint32 GetTypeHash(const TScriptDelegate& Delegate)
 	{
 		FReadAccessScope ReadScope = Delegate.GetReadAccessScope();
 
@@ -835,35 +836,35 @@ public:
 	}
 
 	/** Multi-cast delegate serialization */
-	friend FArchive& operator<<( FArchive& Ar, TMulticastScriptDelegate& D )
+	friend FArchive& operator<<(FArchive& Ar, TMulticastScriptDelegate& D)
 	{
-		// Special case to avoid taking a lock on empty script delegate.
-		// This is required for avoiding asserts on EmptyDelegate serialization.
-		if (Ar.IsSaving() && D.InvocationList.Num() == 0)
+		// Note that !IsSaving is not the same as IsLoading. See, e.g., FArchiveReplaceObjectRef
+		if (!Ar.IsSaving())
 		{
-			FReadAccessScope ReadScope = D.GetReadAccessScope();
-
+			FWriteAccessScope WriteScope = D.GetWriteAccessScope();
 			Ar << D.InvocationList;
+			// After loading the delegate, clean up the list to make sure there are no bad object references
+			if (Ar.IsLoading())
+			{
+				D.CompactInvocationList();
+			}
 		}
 		else
 		{
-			FWriteAccessScope WriteScope = D.GetWriteAccessScope();
-
-			if( Ar.IsSaving() )
+			FReadAccessScope ReadScope = D.GetReadAccessScope();
+			// When saving the delegate, clean up the list to make sure there are no bad object references
+			// Don't do this in place because we don't want to require a write lock
+			typedef TArray<UnicastDelegateType, TInlineAllocator<4>> FInlineInvocationList;
+			FInlineInvocationList CompactedList;
+			for (const UnicastDelegateType& Delegate : D.InvocationList)
 			{
-				// When saving the delegate, clean up the list to make sure there are no bad object references
-				D.CompactInvocationList();
+				if (!Delegate.IsCompactable())
+				{
+					CompactedList.Add(Delegate);
+				}
 			}
-
-			Ar << D.InvocationList;
-
-			if( Ar.IsLoading() )
-			{
-				// After loading the delegate, clean up the list to make sure there are no bad object references
-				D.CompactInvocationList();
-			}
+			Ar << CompactedList;
 		}
-
 		return Ar;
 	}
 
@@ -891,36 +892,41 @@ public:
 	/**
 	 * Executes a multi-cast delegate by calling all functions on objects bound to the delegate.  Always
 	 * safe to call, even if when no objects are bound, or if objects have expired.  In general, you should
-	 * never call this function directly.  Instead, call Broadcast() on a derived class.
+	 * never call this function directly.  Instead, call Broadcast() on a derived class. Note that this function
+	 * is not truly const because it will clean up any compactable entries in the invocation list.
 	 *
 	 * @param	Params				Parameter structure
 	 */
 	template <class UObjectTemplate>
 	void ProcessMulticastDelegate(void* Parameters) const
 	{
-		// the `const` on the method is a lie
-		FWriteAccessScope WriteScope = const_cast<TMulticastScriptDelegate*>(this)->GetWriteAccessScope();
-
-		if( InvocationList.Num() > 0 )
 		{
-			// Create a copy of the invocation list, just in case the list is modified by one of the callbacks during the broadcast
-			typedef TArray< UnicastDelegateType, TInlineAllocator< 4 > > FInlineInvocationList;
-			FInlineInvocationList InvocationListCopy = FInlineInvocationList(InvocationList);
-	
-			// Invoke each bound function
-			for( typename FInlineInvocationList::TConstIterator FunctionIt( InvocationListCopy ); FunctionIt; ++FunctionIt )
+			FReadAccessScope ReadScope = const_cast<TMulticastScriptDelegate*>(this)->GetReadAccessScope();
+
+			if( InvocationList.Num() > 0 )
 			{
-				if( FunctionIt->IsBound() )
+				// Create a copy of the invocation list, just in case the list is modified by one of the callbacks during the broadcast
+				typedef TArray< UnicastDelegateType, TInlineAllocator< 4 > > FInlineInvocationList;
+				FInlineInvocationList InvocationListCopy = FInlineInvocationList(InvocationList);
+		
+				// Invoke each bound function
+				for( typename FInlineInvocationList::TConstIterator FunctionIt( InvocationListCopy ); FunctionIt; ++FunctionIt )
 				{
-					// Invoke this delegate!
-					FunctionIt->template ProcessDelegate<UObjectTemplate>(Parameters);
-				}
-				else if ( FunctionIt->IsCompactable() )
-				{
-					// Function couldn't be executed, so remove it.  Note that because the original list could have been modified by one of the callbacks, we have to search for the function to remove here.
-					RemoveInternal( *FunctionIt );
+					if( FunctionIt->IsBound() )
+					{
+						// Invoke this delegate!
+						FunctionIt->template ProcessDelegate<UObjectTemplate>(Parameters);
+					}
 				}
 			}
+		}
+
+		{
+			FWriteAccessScope WriteScope = const_cast<TMulticastScriptDelegate*>(this)->GetWriteAccessScope();
+			// Removes need to occur under a separate write scope because we don't want to hold a write lock during execution
+			// We want to take the least restrictive lock (guard, really) possible in order to permit the callbacks to
+			// inspect the multicast delegate itself (e.g., when using the serialization system to inspect/explore data or find references)
+			CompactInvocationList();
 		}
 	}
 
@@ -1044,7 +1050,7 @@ protected:
 
 		if (FoundDelegate != INDEX_NONE)
 		{
-			InvocationList.RemoveAtSwap(FoundDelegate, 1, EAllowShrinking::No);
+			InvocationList.RemoveAtSwap(FoundDelegate, EAllowShrinking::No);
 		}
 	}
 

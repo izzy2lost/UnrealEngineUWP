@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-import { DefaultButton, IconButton, Modal, PrimaryButton, Stack, Text } from '@fluentui/react';
+import { DefaultButton, ITextField, IconButton, Modal, PrimaryButton, Stack, Text, TextField } from '@fluentui/react';
 import React from 'react';
 import backend from '../../backend';
 import { GetJobResponse } from '../../backend/Api';
@@ -8,6 +8,8 @@ import { getHordeStyling } from '../../styles/Styles';
 
 
 export const AbortJobModal: React.FC<{ jobDetails?: JobDetailsV2; jobDataIn?: GetJobResponse; stepId?: string, show: boolean; onClose: () => void }> = ({ jobDetails, jobDataIn, stepId, show, onClose }) => {
+
+   const reasonRef = React.useRef<ITextField>(null);
 
    const { hordeClasses } = getHordeStyling();
 
@@ -29,8 +31,10 @@ export const AbortJobModal: React.FC<{ jobDetails?: JobDetailsV2; jobDataIn?: Ge
 
    const onAbort = async () => {
 
+      const reason = reasonRef.current?.value?.trim();
+
       if (!stepId) {
-         await backend.updateJob(jobData.id, { aborted: true }).then((response) => {
+         await backend.updateJob(jobData.id, { aborted: true, cancellationReason: reason ? reason : undefined }).then((response) => {
             console.log("Job canceled", response);
          }).catch((reason) => {
             // @todo: error ui
@@ -47,7 +51,7 @@ export const AbortJobModal: React.FC<{ jobDetails?: JobDetailsV2; jobDataIn?: Ge
             return;
          }
 
-         await backend.updateJobStep(jobData.id, batch.id, stepId, { abortRequested: true }).then((response) => {
+         await backend.updateJobStep(jobData.id, batch.id, stepId, { abortRequested: true, cancellationReason: reason ? reason : undefined }).then((response) => {
             console.log("Job step canceled", response);
          }).catch((reason) => {
             // @todo: error ui
@@ -60,7 +64,7 @@ export const AbortJobModal: React.FC<{ jobDetails?: JobDetailsV2; jobDataIn?: Ge
 
    };
 
-   const height = 140;
+   const height = 300;
 
    return <Modal isOpen={show} className={hordeClasses.modal} styles={{ main: { padding: 8, width: 540, height: height, minHeight: height } }} onDismiss={() => { if (show) close() }}>
       <Stack horizontal styles={{ root: { padding: 8 } }}>
@@ -77,6 +81,9 @@ export const AbortJobModal: React.FC<{ jobDetails?: JobDetailsV2; jobDataIn?: Ge
       </Stack>
 
       <Stack styles={{ root: { padding: 8 } }}>
+         <Stack style={{ paddingBottom: 24 }}>
+            <TextField style={{height: 120}} componentRef={reasonRef} label="Cancellation Reason" multiline resizable={false} />
+         </Stack>
          <Stack horizontal tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 12, paddingLeft: 8, paddingBottom: 8 } }}>
             <Stack grow />
             <PrimaryButton text={(jobDetails && stepId) ? "Cancel Step" : "Cancel Job"} disabled={false} onClick={() => { onAbort(); }} />

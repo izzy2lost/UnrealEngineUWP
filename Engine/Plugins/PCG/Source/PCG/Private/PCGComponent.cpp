@@ -8,24 +8,17 @@
 #include "PCGGraph.h"
 #include "PCGInputOutputSettings.h"
 #include "PCGManagedResource.h"
-#include "PCGParamData.h"
 #include "PCGPin.h"
+#include "PCGSubgraph.h"
 #include "PCGSubsystem.h"
-#include "Data/PCGCollisionShapeData.h"
-#include "Data/PCGDifferenceData.h"
 #include "Data/PCGIntersectionData.h"
 #include "Data/PCGLandscapeData.h"
-#include "Data/PCGLandscapeSplineData.h"
-#include "Data/PCGPointData.h"
-#include "Data/PCGPrimitiveData.h"
-#include "Data/PCGProjectionData.h"
 #include "Data/PCGSpatialData.h"
-#include "Data/PCGSplineData.h"
 #include "Data/PCGUnionData.h"
-#include "Data/PCGVolumeData.h"
 #include "Graph/PCGStackContext.h"
 #include "Grid/PCGPartitionActor.h"
 #include "Helpers/PCGActorHelpers.h"
+#include "Helpers/PCGBlueprintHelpers.h"
 #include "Helpers/PCGHelpers.h"
 #include "RuntimeGen/GenSources/PCGGenSourceBase.h"
 #include "RuntimeGen/SchedulingPolicies/PCGSchedulingPolicyBase.h"
@@ -34,20 +27,14 @@
 #include "Utils/PCGGraphExecutionLogging.h"
 
 #include "CoreGlobals.h"
-#include "LandscapeComponent.h"
 #include "LandscapeProxy.h"
-#include "Algo/AllOf.h"
 #include "Algo/AnyOf.h"
 #include "Algo/Transform.h"
-#include "Components/BillboardComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
-#include "Components/ShapeComponent.h"
-#include "Components/SplineComponent.h"
-#include "Components/SplineMeshComponent.h"
+#include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/Engine.h"
-#include "GameFramework/Volume.h"
+#include "Engine/Level.h"
 #include "Kismet/GameplayStatics.h"
-#include "LandscapeSplinesComponent.h"
 #include "UObject/Package.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGComponent)
@@ -56,6 +43,7 @@
 #include "Editor.h"
 #include "EditorActorFolders.h"
 #include "ScopedTransaction.h"
+#include "Editor/EditorEngine.h"
 #include "Editor/Transactor.h"
 #endif
 
@@ -63,16 +51,6 @@
 
 namespace PCGComponent
 {
-	static TAutoConsoleVariable<bool> CVarGlobalDisableRefresh(
-		TEXT("pcg.GlobalDisableRefresh"),
-		false,
-		TEXT("Disable refresh for all PCG Components."));
-
-	static TAutoConsoleVariable<bool> CVarConstructionScriptFix(
-		TEXT("pcg.ConstructionScriptFix"),
-		true,
-		TEXT("This CVar will be removed in future releases, it allows disabling this fix if regressions are found."));
-
 	template <typename DelegateType>
 	static void BroadcastDynamicDelegate(const DelegateType& Delegate, UPCGComponent* PCGComponent)
 	{
@@ -114,6 +92,13 @@ void UPCGComponent::SetIsPartitioned(bool bIsNowPartitioned)
 	{
 		return;
 	}
+	
+	// Allow BP class to set the flag. BP class won't have an owner. They won't get registered anyway.
+	if (!GetOwner())
+	{
+		bIsComponentPartitioned = bIsNowPartitioned;
+		return;
+	}
 
 	bool bDoActorMapping = bGenerated || PCGHelpers::IsRuntimeOrPIE();
 
@@ -132,6 +117,55 @@ void UPCGComponent::SetIsPartitioned(bool bIsNowPartitioned)
 	{
 		bIsComponentPartitioned = false;
 	}
+}
+
+bool UPCGComponent::Use2DGrid() const
+{
+	if (UPCGGraph* PCGGraph = GetGraph())
+	{
+		return PCGGraph->Use2DGrid();
+	}
+
+	return GetDefault<UPCGGraph>()->Use2DGrid();
+}
+
+FPCGGridDescriptor UPCGComponent::GetGridDescriptor(uint32 GridSize) const
+{
+	return GetGridDescriptorInternal(GridSize, /*bRuntimeHashUpdate=*/false);
+}
+
+FPCGGridDescriptor UPCGComponent::GetGridDescriptorInternal(uint32 GridSize, bool bRuntimeHashUpdate) const
+{
+	// Return owner descriptor in case of Partition Actors
+	if (APCGPartitionActor* PartitionActorOwner = Cast<APCGPartitionActor>(GetOwner()))
+	{
+		const FPCGGridDescriptor GridDescriptor = PartitionActorOwner->GetGridDescriptor();
+		// If this is a local component, we only serve grid descriptors of the same grid size.
+		check(GridSize == GridDescriptor.GetGridSize());
+
+		return GridDescriptor;
+	}
+
+	FPCGGridDescriptor PCGGridDescriptor = FPCGGridDescriptor()
+		.SetGridSize(GridSize)
+		.SetIs2DGrid(Use2DGrid())
+		.SetIsRuntime(IsManagedByRuntimeGenSystem());
+
+#if WITH_EDITORONLY_DATA
+	// Only return the RuntimeGridDescriptorHash for PIE Worlds and not when we are updating the Runtime Hash
+	if (GetWorld() && GetWorld()->IsPlayInEditor() && !bRuntimeHashUpdate)
+	{
+		PCGGridDescriptor.SetRuntimeHash(RuntimeGridDescriptorHash);
+	}
+	else
+	{
+		PCGGridDescriptor.SetDataLayerAssets(GetOwner()->GetDataLayerAssets());
+	}
+#else
+	PCGGridDescriptor.SetRuntimeHash(RuntimeGridDescriptorHash);
+#endif
+
+	return PCGGridDescriptor;
 }
 
 void UPCGComponent::SetGraph_Implementation(UPCGGraphInterface* InGraph)
@@ -164,10 +198,90 @@ void UPCGComponent::AddToManagedResources(UPCGManagedResource* InResource)
 
 	if (InResource)
 	{
+		if(!ensure(InResource->GetOuter() == this))
+		{
+			UPCGBlueprintHelpers::ThrowBlueprintException(LOCTEXT("ResourceNotOutered", "Managed resources need to be outered to their PCG component."));
+		}
+
 		FScopeLock ResourcesLock(&GeneratedResourcesLock);
 		check(!GeneratedResourcesInaccessible);
 		GeneratedResources.Add(InResource);
 	}
+}
+
+void UPCGComponent::AddComponentsToManagedResources(const TArray<UActorComponent*>& InComponents)
+{
+	if (InComponents.IsEmpty())
+	{
+		return;
+	}
+
+	for (UActorComponent* Component : InComponents)
+	{
+		if (Component && !Component->ComponentHasTag(PCGHelpers::DefaultPCGTag))
+		{
+			Component->Modify();
+			Component->ComponentTags.Add(PCGHelpers::DefaultPCGTag);
+		}
+	}
+
+	FScopeLock ResourcesLock(&GeneratedResourcesLock);
+	check(!GeneratedResourcesInaccessible);
+
+	UPCGManagedComponentDefaultList* DefaultList = nullptr;
+	for (const TObjectPtr<UPCGManagedResource>& ManagedResource : GeneratedResources)
+	{
+		if (UPCGManagedComponentDefaultList* ExistingList = Cast<UPCGManagedComponentDefaultList>(ManagedResource))
+		{
+			DefaultList = ExistingList;
+			break;
+		}
+	}
+
+	if (!DefaultList)
+	{
+		DefaultList = NewObject<UPCGManagedComponentDefaultList>(this);
+
+		PCGGeneratedResourcesLogging::LogAddToManagedResources(this, DefaultList);
+		GeneratedResources.Add(DefaultList);
+	}
+
+	check(DefaultList);
+	// Implementation note: we call the AddGeneratedComponentsFromBP method to make sure that if this is done from BP, the construction method is properly updated
+
+	TArray<TSoftObjectPtr<UActorComponent>> Components;
+	Algo::Transform(InComponents, Components, [](UActorComponent* Component) { return TSoftObjectPtr<UActorComponent>(Component); });
+
+	DefaultList->AddGeneratedComponentsFromBP(Components);
+}
+
+void UPCGComponent::AddActorsToManagedResources(const TArray<AActor*>& InActors)
+{
+	TSet<TSoftObjectPtr<AActor>> ValidActors;
+
+	for (AActor* Actor : InActors)
+	{
+		if (Actor)
+		{
+			if (!Actor->Tags.Contains(PCGHelpers::DefaultPCGActorTag))
+			{
+				Actor->Modify();
+				Actor->Tags.Add(PCGHelpers::DefaultPCGActorTag);
+			}
+
+			ValidActors.Add(Actor);
+		}
+	}
+
+	if (ValidActors.IsEmpty())
+	{
+		return;
+	}
+
+	UPCGManagedActors* ManagedResource = NewObject<UPCGManagedActors>(this);
+	ManagedResource->GeneratedActors = ValidActors;
+
+	AddToManagedResources(ManagedResource);
 }
 
 void UPCGComponent::ForEachManagedResource(TFunctionRef<void(UPCGManagedResource*)> Func)
@@ -209,6 +323,12 @@ bool UPCGComponent::ShouldGenerate(bool bForce, EPCGComponentGenerationTrigger R
 		return true;
 	}
 #endif
+
+	// Always generate if procedural ISMs are being used, because the instance data is not persistent, and is currently lost regularly when the GPU Scene is flushed.
+	if (bProceduralInstancesInUse)
+	{
+		return true;
+	}
 
 	// A request is invalid only if it was requested "GenerateOnLoad", but it is "GenerateOnDemand"
 	// Meaning that all "GenerateOnDemand" requests are always valid, and "GenerateOnLoad" request is only valid if we want a "GenerateOnLoad" trigger.
@@ -298,10 +418,6 @@ void UPCGComponent::Generate()
 		return;
 	}
 
-#if WITH_EDITOR
-	FScopedTransaction Transaction(LOCTEXT("PCGGenerate", "Execute generation on PCG component"));
-#endif
-
 	GenerateLocal(/*bForce=*/false);
 }
 
@@ -330,6 +446,11 @@ FPCGTaskId UPCGComponent::GenerateLocalGetTaskId(EPCGComponentGenerationTrigger 
 	return GenerateInternal(bForce, Grid, RequestedGenerationTrigger, {});
 }
 
+FPCGTaskId UPCGComponent::GenerateLocalGetTaskId(EPCGComponentGenerationTrigger RequestedGenerationTrigger, bool bForce, EPCGHiGenGrid Grid, const TArray<FPCGTaskId>& Dependencies)
+{
+	return GenerateInternal(bForce, Grid, RequestedGenerationTrigger, Dependencies);
+}
+
 FPCGTaskId UPCGComponent::GenerateInternal(bool bForce, EPCGHiGenGrid Grid, EPCGComponentGenerationTrigger RequestedGenerationTrigger, const TArray<FPCGTaskId>& Dependencies)
 {
 	if (IsGenerating() || !GetSubsystem() || !ShouldGenerate(bForce, RequestedGenerationTrigger))
@@ -339,11 +460,18 @@ FPCGTaskId UPCGComponent::GenerateInternal(bool bForce, EPCGHiGenGrid Grid, EPCG
 
 	Modify(!IsInPreviewMode());
 
+	// Clear prior to generation.
+	bProceduralInstancesInUse = false;
+
 	CurrentGenerationTask = GetSubsystem()->ScheduleComponent(this, Grid, bForce, Dependencies);
 
 	if (CurrentGenerationTask != InvalidPCGTaskId)
 	{
 #if WITH_EDITOR
+		// Notify Subsystem first
+		GetSubsystem()->OnPCGGraphStartGenerating(this);
+		
+		// Notify Delegate next
 		OnPCGGraphStartGeneratingDelegate.Broadcast(this);
 #endif // WITH_EDITOR
 
@@ -371,6 +499,15 @@ FPCGTaskId UPCGComponent::CreateGenerateTask(bool bForce, const TArray<FPCGTaskI
 	// Keep track of all the dependencies
 	TArray<FPCGTaskId> AdditionalDependencies;
 	const TArray<FPCGTaskId>* AllDependencies = &Dependencies;
+
+#if WITH_EDITOR
+	// If PCG is currently paused, we don't want to do immediate cleanup here otherwise it looks wrong and can't be cancelled.
+	// In this case, we'll "pre-queue" a cleanup before so it behaves as-if we had done this exactly.
+	if (bGenerated && PCGSystemSwitches::CVarPausePCGExecution.GetValueOnAnyThread())
+	{
+		CleanupInternal(/*bRemoveComponents=*/false, Dependencies);
+	}
+#endif
 
 	if (IsCleaningUp())
 	{
@@ -419,6 +556,9 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 	if (bInGenerated)
 	{
 		bGenerated = true;
+#if WITH_EDITOR
+		bWasGeneratedThisSession = true;
+#endif
 
 		CurrentGenerationTask = InvalidPCGTaskId;
 
@@ -428,25 +568,67 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 		if (Context)
 		{
 			// TODO: should we filter based on supported serialized types here?
-			// TOOD: should reouter the contained data to this component
-			// .. and also remove it from the rootset information in the graph executor
-			//GeneratedGraphOutput = Context->InputData;
 			for (const FPCGTaggedData& TaggedData : Context->InputData.TaggedData)
 			{
 				if (ensure(TaggedData.Data))
 				{
-					// TODO: outering the first layer might not be sufficient here - might need to expose
-					// some methods in the data to traverse all the data to outer everything for serialization
-					if (UPCGData* DuplicatedData = TaggedData.Data->DuplicateData())
+					// Visit the generated data; if the outer is the transient package or this component for all data, then
+					// we don't need to duplicate the data and can change the outer & flatten the data without any additional copies.
+					// Caveat: since that data could be in the cache currently, we shouldn't reouter it to a component that's not in the persistent level, otherwise when the
+					// sublevel is unloaded, it could leak references.
+#if WITH_EDITOR
+					bool bDataCanBeStolen = GetOwner() && GetOwner()->GetWorld() && (GetOwner()->GetLevel() == GetOwner()->GetWorld()->PersistentLevel);
+#else
+					bool bDataCanBeStolen = true;
+#endif
+
+					if (bDataCanBeStolen)
 					{
-						FPCGTaggedData& DuplicatedTaggedData = GeneratedGraphOutput.TaggedData.Add_GetRef(TaggedData);
-						DuplicatedTaggedData.Data = DuplicatedData;
-
-						// NOTE: Flatten before outering to this, as doing the flatten afterwards can dirty this package.
-						DuplicatedData->Flatten();
-
-						DuplicatedData->Rename(nullptr, this, IsInPreviewMode() ? REN_DoNotDirty : REN_None);
+						TaggedData.Data->VisitDataNetwork([this, &bDataCanBeStolen](const UPCGData* InData)
+						{
+							if (InData && InData->GetOuter() != GetTransientPackage() && InData->GetOuter() != this)
+							{
+								bDataCanBeStolen = false;
+							}
+						});
 					}
+
+					FPCGTaggedData OutputTaggedData = TaggedData;
+
+					if (!bDataCanBeStolen)
+					{
+						if (UPCGData* DuplicatedData = TaggedData.Data->DuplicateData(Context))
+						{
+							OutputTaggedData.Data = DuplicatedData;
+						}
+						else
+						{
+							// Duplication failed, don't keep that data
+							UE_LOG(LogPCG, Warning, TEXT("Failed data duplication in the PostProcessGraph - will be missing from the generated output data."));
+							continue;
+						}
+					}
+
+					// Flatten data
+					OutputTaggedData.Data->VisitDataNetwork([](const UPCGData* InData)
+					{
+						if (InData)
+						{
+							const_cast<UPCGData*>(InData)->Flatten();
+						}
+					});
+
+					// Reouter data
+					OutputTaggedData.Data->VisitDataNetwork([this](const UPCGData* InData)
+					{
+						if (InData)
+						{
+							const_cast<UPCGData*>(InData)->Rename(nullptr, this, IsInPreviewMode() ? REN_DoNotDirty : REN_None);
+						}
+					});
+
+					// Finally add to the generated output collection
+					GeneratedGraphOutput.TaggedData.Add(OutputTaggedData);
 				}
 			}
 
@@ -462,8 +644,13 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 		bForceGenerateOnBPAddedToWorld = false;
 
 		bDirtyGenerated = false;
-		OnPCGGraphGeneratedDelegate.Broadcast(this);
 
+		// Notify Subsystem first
+		GetSubsystem()->OnPCGGraphGenerated(this);
+
+		// Notify Delegate next
+		OnPCGGraphGeneratedDelegate.Broadcast(this);
+		
 		UpdateDynamicTracking();
 #endif // WITH_EDITOR
 
@@ -483,7 +670,7 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 #if WITH_EDITOR
 	const bool bHasGeneratedOutputAfter = GeneratedGraphOutput.TaggedData.Num() > 0;
 
-	if (bHasGeneratedOutputAfter || bHadGeneratedOutputBefore)
+	if (IsValid(this) && (bHasGeneratedOutputAfter || bHadGeneratedOutputBefore))
 	{
 		FProperty* GeneratedOutputProperty = FindFProperty<FProperty>(UPCGComponent::StaticClass(), GET_MEMBER_NAME_CHECKED(UPCGComponent, GeneratedGraphOutput));
 		check(GeneratedOutputProperty);
@@ -494,7 +681,7 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 	StopGenerationInProgress();
 
 	UPCGSubsystem* Subsystem = GetSubsystem();
-	Subsystem->OnComponentGenerationCompleteOrCancelled.Broadcast(Subsystem);
+	Subsystem->OnPCGComponentGenerationDone.Broadcast(Subsystem, IsValid(this) ? this : nullptr, EPCGGenerationStatus::Completed);
 #endif
 }
 
@@ -560,6 +747,13 @@ void UPCGComponent::PostCleanupGraph()
 	GeneratedGraphOutput.Reset();
 
 #if WITH_EDITOR
+	// Notify Subsystem first
+	if (UPCGSubsystem* Subsystem = GetSubsystem())
+	{
+		Subsystem->OnPCGGraphCleaned(this);
+	}
+
+	// Notify Delegate next
 	OnPCGGraphCleanedDelegate.Broadcast(this);
 	bDirtyGenerated = false;
 
@@ -575,7 +769,7 @@ void UPCGComponent::PostCleanupGraph()
 	PCGComponent::BroadcastDynamicDelegate(OnPCGGraphCleanedExternal, this);
 }
 
-void UPCGComponent::OnProcessGraphAborted(bool bQuiet)
+void UPCGComponent::OnProcessGraphAborted(bool bQuiet, bool bCleanupUnusedResources)
 {
 	if (!bQuiet)
 	{
@@ -587,7 +781,10 @@ void UPCGComponent::OnProcessGraphAborted(bool bQuiet)
 	ResetIgnoredChangeOrigins(/*bLogIfAnyPresent=*/false);
 #endif
 
-	CleanupUnusedManagedResources();
+	if (bCleanupUnusedResources)
+	{
+		CleanupUnusedManagedResources();
+	}
 
 	CurrentGenerationTask = InvalidPCGTaskId;
 	CurrentCleanupTask = InvalidPCGTaskId; // this is needed to support cancellation
@@ -599,10 +796,14 @@ void UPCGComponent::OnProcessGraphAborted(bool bQuiet)
 
 	StopGenerationInProgress();
 
+	// Notify Subsystem first
+	UPCGSubsystem* Subsystem = GetSubsystem();
+	Subsystem->OnPCGGraphCancelled(this);
+
+	// Notify Delegate next
 	OnPCGGraphCancelledDelegate.Broadcast(this);
 
-	UPCGSubsystem* Subsystem = GetSubsystem();
-	Subsystem->OnComponentGenerationCompleteOrCancelled.Broadcast(Subsystem);
+	Subsystem->OnPCGComponentGenerationDone.Broadcast(Subsystem, this, EPCGGenerationStatus::Aborted);
 #endif
 
 	PCGComponent::BroadcastDynamicDelegate(OnPCGGraphCancelledExternal, this);
@@ -633,9 +834,120 @@ void UPCGComponent::Cleanup_Implementation(bool bRemoveComponents, bool bSave)
 	CleanupLocal(bRemoveComponents);
 }
 
+void UPCGComponent::PurgeUnlinkedResources(const AActor* InActor)
+{
+	const AActor* ThisActor = InActor;
+	if (!ThisActor)
+	{
+		return;
+	}
+
+	TSet<TSoftObjectPtr<AActor>> ActorsToDelete;
+
+	TArray<AActor*>AttachedActors;
+	TArray<UActorComponent*> ActorComponentList;
+
+	ThisActor->GetAttachedActors(AttachedActors);
+
+	for (AActor* Actor : AttachedActors)
+	{
+		if (Actor && Actor->ActorHasTag(PCGHelpers::DefaultPCGActorTag))
+		{
+			ActorsToDelete.Add(Actor);
+		}
+	};
+
+	// Cleanup any actor components with tag and not managed by any other components
+	ThisActor->ForEachComponent(/*bIncludeFromChildActors=*/true, [&ActorComponentList](UActorComponent* ActorComponent)
+	{
+		if (ActorComponent && ActorComponent->ComponentHasTag(PCGHelpers::DefaultPCGTag))
+		{
+			ActorComponentList.Add(ActorComponent);
+		}
+	});
+	
+	ThisActor->ForEachComponent<UPCGComponent>(/*bIncludeFromChildActors=*/true, [&ActorComponentList, &ActorsToDelete](UPCGComponent* Component)
+	{
+		for (UPCGManagedResource* ManagedResource : Component->GeneratedResources)
+		{
+			if (UPCGManagedComponent* ManagedComponent = Cast<UPCGManagedComponent>(ManagedResource))
+			{
+				ActorComponentList.RemoveSwap(ManagedComponent->GeneratedComponent.Get());
+			}
+			else if (UPCGManagedActors* ManagedActors = Cast<UPCGManagedActors>(ManagedResource))
+			{
+				for (const TSoftObjectPtr<AActor>& GeneratedActor : ManagedActors->GeneratedActors)
+				{
+					ActorsToDelete.Remove(GeneratedActor);
+				}
+			}
+		}
+	});
+
+	for (UActorComponent* ActorComponent : ActorComponentList)
+	{
+		ActorComponent->DestroyComponent();
+	}
+
+	if (UWorld* World = InActor->GetWorld())
+	{
+		UPCGActorHelpers::DeleteActors(World, ActorsToDelete.Array());
+	}
+}
+
+void UPCGComponent::CleanupLocalDeleteAllGeneratedObjects(const TArray<FPCGTaskId>& Dependencies)
+{
+	UPCGSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return;
+	}
+	
+	TArray<FPCGTaskId> TaskIds;
+	
+	auto SchedulePurge = [this, Subsystem, &TaskIds, &Dependencies](UPCGComponent* Component)
+	{
+		FPCGTaskId TaskId;
+		TWeakObjectPtr<UPCGComponent> ScheduledComponent(Component);
+
+		TaskId = Subsystem->ScheduleGeneric([this, ScheduledComponent]()
+			{
+				if (UPCGComponent* Component = ScheduledComponent.Get())
+				{
+					if (IsValid(Component))
+					{
+						Component->PurgeUnlinkedResources(this->GetOwner());
+					}
+				}
+
+				return true;
+			},
+			this, Dependencies);
+
+		if (TaskId != InvalidPCGTaskId)
+		{
+			TaskIds.Add(TaskId);
+		}
+	};
+	
+	SchedulePurge(this);
+
+	if (IsPartitioned())
+	{
+		Subsystem->ForAllRegisteredLocalComponents(this, SchedulePurge);
+	}
+
+	CleanupLocal(/*bRemoveComponents=*/true, /*bSave=*/true, TaskIds);
+}
+
 void UPCGComponent::CleanupLocal(bool bRemoveComponents, bool bSave)
 {
-	CleanupInternal(bRemoveComponents, {});
+	CleanupLocal(bRemoveComponents, bSave, {});
+}
+
+void UPCGComponent::CleanupLocal(bool bRemoveComponents, bool bSave, const TArray<FPCGTaskId>& Dependencies)
+{
+	CleanupInternal(bRemoveComponents, Dependencies);
 }
 
 FPCGTaskId UPCGComponent::CleanupInternal(bool bRemoveComponents, const TArray<FPCGTaskId>& Dependencies)
@@ -673,7 +985,7 @@ void UPCGComponent::NotifyPropertiesChangedFromBlueprint()
 #endif
 }
 
-AActor* UPCGComponent::ClearPCGLink(UClass* TemplateActor)
+AActor* UPCGComponent::ClearPCGLink(UClass* TemplateActorClass)
 {
 	if (!bGenerated || !GetOwner() || !GetWorld())
 	{
@@ -687,9 +999,25 @@ AActor* UPCGComponent::ClearPCGLink(UClass* TemplateActor)
 	}
 
 	UWorld* World = GetWorld();
+	
+	FActorSpawnParameters ActorSpawnParams;
+	UClass* SpawnClass = TemplateActorClass ? TemplateActorClass : AActor::StaticClass();
+	const FString DefaultName(TEXT("PCGStamp"));
+	ActorSpawnParams.Name = *DefaultName;
+	ActorSpawnParams.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
+	ActorSpawnParams.OverrideLevel = GetOwner()->GetLevel();
+
+	UPCGActorHelpers::FSpawnDefaultActorParams SpawnDefaultActorParams(World, SpawnClass, GetOwner()->GetTransform(), ActorSpawnParams);
+
+#if WITH_EDITOR
+	SpawnDefaultActorParams.DataLayerInstances = GetOwner()->GetDataLayerInstances();
+#endif
 
 	// First create a new actor that will be the new owner of all the resources
-	AActor* NewActor = UPCGActorHelpers::SpawnDefaultActor(World, GetOwner()->GetLevel(), TemplateActor ? TemplateActor : AActor::StaticClass(), TEXT("PCGStamp"), GetOwner()->GetTransform());
+	AActor* NewActor = UPCGActorHelpers::SpawnDefaultActor(SpawnDefaultActorParams);
+#if WITH_EDITOR
+	FActorLabelUtilities::SetActorLabelUnique(NewActor, DefaultName);
+#endif
 
 	// Then move all resources linked to this component to this actor
 	bool bHasMovedResources = MoveResourcesToNewActor(NewActor, /*bCreateChild=*/false);
@@ -805,7 +1133,7 @@ double UPCGComponent::GetGenerationRadiusFromGrid(EPCGHiGenGrid Grid) const
 	const UPCGGraph* Graph = GetGraph();
 	if (ensure(Graph))
 	{
-		return Graph->GenerationRadii.GetGenerationRadiusFromGrid(Grid);
+		return Graph->GetGridGenerationRadiusFromGrid(Grid);
 	}
 
 	return 0;
@@ -821,7 +1149,7 @@ double UPCGComponent::GetCleanupRadiusFromGrid(EPCGHiGenGrid Grid) const
 	const UPCGGraph* Graph = GetGraph();
 	if (ensure(Graph))
 	{
-		return Graph->GenerationRadii.GetCleanupRadiusFromGrid(Grid);
+		return Graph->GetGridCleanupRadiusFromGrid(Grid);
 	}
 
 	return 0;
@@ -851,7 +1179,22 @@ bool UPCGComponent::MoveResourcesToNewActor(AActor* InNewActor, bool bCreateChil
 
 	if (bCreateChild)
 	{
-		NewActor = UPCGActorHelpers::SpawnDefaultActor(GetWorld(), GetOwner()->GetLevel(), NewActor->GetClass(), TEXT("PCGStampChild"), Owner->GetTransform());
+		FActorSpawnParameters ActorSpawnParams;
+		const FString DefaultName(TEXT("PCGStampChild"));
+		ActorSpawnParams.Name = *DefaultName;
+		ActorSpawnParams.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
+		ActorSpawnParams.OverrideLevel = Owner->GetLevel();
+
+		UPCGActorHelpers::FSpawnDefaultActorParams SpawnDefaultActorParams(GetWorld(), NewActor->GetClass(), Owner->GetTransform(), ActorSpawnParams);
+
+#if WITH_EDITOR
+		SpawnDefaultActorParams.DataLayerInstances = Owner->GetDataLayerInstances();
+#endif
+
+		NewActor = UPCGActorHelpers::SpawnDefaultActor(SpawnDefaultActorParams);
+#if WITH_EDITOR
+		FActorLabelUtilities::SetActorLabelUnique(NewActor, DefaultName);
+#endif
 		NewActor->AttachToActor(InNewActor, FAttachmentTransformRules::KeepWorldTransform);
 		check(NewActor);
 	}
@@ -935,7 +1278,7 @@ void UPCGComponent::CleanupLocalImmediate(bool bRemoveComponents, bool bCleanupL
 					}
 					else
 					{
-						Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+						Resource->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 					}
 #endif
 				}
@@ -1043,7 +1386,7 @@ FPCGTaskId UPCGComponent::CreateCleanupTask(bool bRemoveComponents, const TArray
 						}
 						else
 						{
-							Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+							Resource->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 						}
 #endif
 					}
@@ -1062,9 +1405,27 @@ FPCGTaskId UPCGComponent::CreateCleanupTask(bool bRemoveComponents, const TArray
 			}
 		}
 
+		TSet<FName> DeletedActorFolders;
+
 		if (UWorld* World = WorldPtr.Get())
 		{
-			UPCGActorHelpers::DeleteActors(World, Context->ActorsToDelete.Array());
+			const TArray<TSoftObjectPtr<AActor>> ActorsToDelete = Context->ActorsToDelete.Array();
+
+#if WITH_EDITOR
+			for (const TSoftObjectPtr<AActor>& Actor : ActorsToDelete)
+			{
+				if (Actor.IsValid())
+				{
+					FName ActorFolderPath = Actor->GetFolderPath();
+					if (ActorFolderPath != NAME_None)
+					{
+						DeletedActorFolders.Add(ActorFolderPath);
+					}
+				}
+			}
+#endif
+
+			UPCGActorHelpers::DeleteActors(World, ActorsToDelete);
 		}
 
 		if (UPCGComponent* ThisComponent = ThisComponentWeakPtr.Get())
@@ -1072,21 +1433,16 @@ FPCGTaskId UPCGComponent::CreateCleanupTask(bool bRemoveComponents, const TArray
 #if WITH_EDITOR
 			if (UWorld* ThisWorld = ThisComponent->GetWorld(); ThisWorld && GEditor) // FActorFolders require the editor
 			{
-				// Look for a nested generated results subfolder and remove it if it exists
-				FString FolderPath;
-				PCGHelpers::GetGeneratedActorsFolderPath(ThisComponent->GetOwner(), FolderPath);
-
-				if (!FolderPath.IsEmpty())
+				for (FName FolderPath : DeletedActorFolders)
 				{
-					FFolder GeneratedFolder(FFolder::GetWorldRootFolder(ThisWorld).GetRootObject(), *FolderPath);
-
+					FFolder GeneratedFolder(FFolder::GetWorldRootFolder(ThisWorld).GetRootObject(), FolderPath);
 					const bool bFolderExists = GeneratedFolder.IsValid() && FActorFolders::Get().ContainsFolder(*ThisWorld, GeneratedFolder);
 					bool bFoundActors = false;
 
 					if (bFolderExists)
 					{
-						TArray<FName> Paths = { *FolderPath };
-						FActorFolders::ForEachActorInFolders(*ThisWorld, Paths, [&bFoundActors](AActor* InActor)
+						TSet<FName> Folders{ GeneratedFolder.GetPath() };
+						FActorFolders::ForEachActorInFolders(*ThisWorld, Folders, [&bFoundActors](AActor* InActor)
 						{
 							if (InActor)
 							{
@@ -1166,7 +1522,7 @@ void UPCGComponent::CleanupUnusedManagedResources()
 					}
 					else
 					{
-						Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+						Resource->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 					}
 #endif
 				}
@@ -1200,24 +1556,13 @@ void UPCGComponent::BeginPlay()
 		GetSubsystem()->RegisterOrUpdatePCGComponent(this);
 	}
 
-	if(bActivated && !bGenerated && GenerationTrigger == EPCGComponentGenerationTrigger::GenerateOnLoad)
+	// Procedural instances are never persisted so always require generation.
+	const bool bAlreadyGenerated = bGenerated & !bProceduralInstancesInUse;
+
+	if (bActivated && !bAlreadyGenerated && GenerationTrigger == EPCGComponentGenerationTrigger::GenerateOnLoad)
 	{
-		if (IsPartitioned())
-		{
-			// If we are partitioned, the responsibility of the generation is to the partition actors.
-			// but we still need to know that we are currently generated (even if the state is held by the partition actors)
-			// TODO: Will be cleaner when we have dynamic association.
-			const FBox NewBounds = GetGridBounds();
-			if (NewBounds.IsValid)
-			{
-				PostProcessGraph(NewBounds, true, nullptr);
-			}
-		}
-		else
-		{
-			GenerateInternal(/*bForce=*/false, EPCGHiGenGrid::Uninitialized, EPCGComponentGenerationTrigger::GenerateOnLoad, {});
-			bRuntimeGenerated = true;
-		}
+		GenerateInternal(/*bForce=*/false, EPCGHiGenGrid::Uninitialized, EPCGComponentGenerationTrigger::GenerateOnLoad, {});
+		bRuntimeGenerated = true;
 	}
 }
 
@@ -1243,6 +1588,8 @@ void UPCGComponent::OnUnregister()
 		{
 			Subsystem->CancelGeneration(this);
 		}
+
+		Subsystem->OnPCGComponentUnregistered.Broadcast(IsValid(this) ? this : nullptr);
 	}
 #endif // WITH_EDITOR
 
@@ -1278,7 +1625,7 @@ void UPCGComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 			Subsystem->UnregisterPCGComponent(this);
 		}
 
-		if (IsCreatedByConstructionScript() && PCGComponent::CVarConstructionScriptFix.GetValueOnAnyThread())
+		if (IsCreatedByConstructionScript())
 		{
 			Subsystem->SetConstructionScriptSourceComponent(this);
 		}
@@ -1298,6 +1645,12 @@ void UPCGComponent::Serialize(FArchive& Ar)
 		GeneratedResourcesCopy = GeneratedResources;
 		GeneratedResources = LoadedPreviewResources;
 	}
+
+	// When duplicating for PIE, we need to Update the RuntimeGridDescriptorHash before duplication for unsaved changes
+	if (Ar.IsSaving() && (Ar.GetPortFlags() & PPF_DuplicateForPIE))
+	{
+		UpdateRuntimeGridDescriptorHash();
+	}
 #endif // WITH_EDITOR
 
 	Ar.UsingCustomVersion(FPCGCustomVersion::GUID);
@@ -1305,7 +1658,7 @@ void UPCGComponent::Serialize(FArchive& Ar)
 	Super::Serialize(Ar);
 
 #if WITH_EDITORONLY_DATA
-	if (!Ar.IsCooking())
+	if (!Ar.IsCooking() && !Ar.IsLoadingFromCookedPackage())
 	{
 		int32 DataVersion = FPCGCustomVersion::LatestVersion;
 		if (Ar.IsLoading())
@@ -1341,6 +1694,12 @@ void UPCGComponent::PostLoad()
 #if WITH_EDITOR
 	// Force dirty to be false on load. We should never refresh on load.
 	bDirtyGenerated = false;
+
+	// We can never be generated if we have no graph
+	if (!GetGraph())
+	{
+		bGenerated = false;
+	}
 
 	// If we have both default value (bIsComponentPartitioned = false and bIsPartitioned = true)
 	// we will follow the value of bIsPartitioned.
@@ -1415,11 +1774,11 @@ void UPCGComponent::PostLoad()
 	{
 		CurrentEditingMode = EPCGEditorDirtyMode::Preview;
 		MarkResourcesAsTransientOnLoad();
-		bDirtyGenerated = true;
+		bDirtyGenerated = PCGSystemSwitches::CVarDirtyLoadAsPreviewOnLoad.GetValueOnAnyThread();
 	}
 #endif
 
-	if (!SchedulingPolicy || IsManagedByRuntimeGenSystem())
+	if (!IsValid(SchedulingPolicy))
 	{
 		RefreshSchedulingPolicy();
 	}
@@ -1708,9 +2067,18 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 			SetIsPartitioned(bIsNowPartitioned);
 
 			// And finally, re-generate if we were generated and activated
+			// Delay to next frame so that the Component unregister doesn't cancel this 
+			//  - Only affects non BP PCG Components because those get invalidated / handled by ConstructionScript
 			if (bWasGenerated && bActivated)
 			{
-				GenerateLocal(/*bForce=*/false);
+				if (UPCGSubsystem* Subsystem = GetSubsystem())
+				{
+					Subsystem->ScheduleGeneric([this]()
+					{
+						GenerateLocal(/*bForce=*/false);
+						return true;
+					}, this, {});
+				}
 			}
 		}
 	}
@@ -1787,6 +2155,27 @@ void UPCGComponent::PostEditImport()
 	Super::PostEditImport();
 
 	SetupCallbacksOnCreation();
+}
+
+void UPCGComponent::PreSave(FObjectPreSaveContext ObjectSaveContext)
+{
+	Super::PreSave(ObjectSaveContext);
+
+	// Update RuntimeGridDescriptorHash on Save (Actor might have changed DataLayers and we need to update)
+	if (!ObjectSaveContext.IsCooking())
+	{
+		UpdateRuntimeGridDescriptorHash();
+	}
+}
+
+void UPCGComponent::UpdateRuntimeGridDescriptorHash()
+{
+	// No need to maintain RuntimeGridDescriptorHash for PCGComponents owned by Partition Actors
+	if (!IsTemplate() && GetOwner() && !GetOwner()->IsA<APCGPartitionActor>())
+	{
+		FPCGGridDescriptor GridDescriptor = GetGridDescriptorInternal(0, /*bRuntimeHashUpdate=*/true);
+		RuntimeGridDescriptorHash = GridDescriptor.GetRuntimeHash();
+	}
 }
 
 void UPCGComponent::PreEditUndo()
@@ -1930,7 +2319,7 @@ void UPCGComponent::DirtyGenerated(EPCGComponentDirtyFlag DirtyFlag, const bool 
 		CachedInputData = nullptr;
 		CachedPCGData = nullptr;
 	}
-	
+
 	if (!!(DirtyFlag & EPCGComponentDirtyFlag::Landscape))
 	{
 		CachedLandscapeData = nullptr;
@@ -1952,7 +2341,7 @@ void UPCGComponent::DirtyGenerated(EPCGComponentDirtyFlag DirtyFlag, const bool 
 	{
 		CachedPCGData = nullptr;
 	}
-
+	
 	// For partitioned graph, we must forward the call to the partition actor, if we need to
 	// TODO: Don't forward for None for now, as it could break some stuff
 	if (bActivated && IsPartitioned() && bDispatchToLocalComponents)
@@ -1997,26 +2386,25 @@ void UPCGComponent::DisableInspection()
 	}
 };
 
-void UPCGComponent::NotifyNodeExecuted(const UPCGNode* InNode, const FPCGStack* InStack, bool bNodeUsedCache)
+void UPCGComponent::NotifyNodeExecuted(const UPCGNode* InNode, const FPCGStack* InStack, const PCGUtils::FCallTime* InTimer, bool bNodeUsedCache)
 {
 	if (!ensure(InStack && InNode))
 	{
 		return;
 	}
 
-	FPCGStack Stack = *InStack;
-
 	// Reset timer information if taken from cache to provide good info in the profiling window
-	if (bNodeUsedCache)
+	PCGUtils::FCallTime Timer;
+	if (InTimer && !bNodeUsedCache)
 	{
-		Stack.Timer = PCGUtils::FCallTime();
+		Timer = *InTimer;
 	}
 
 	FWriteScopeLock Lock(NodeToStacksInWhichNodeExecutedLock);
-	NodeToStacksInWhichNodeExecuted.FindOrAdd(InNode).Add(MoveTemp(Stack));
+	NodeToStacksInWhichNodeExecuted.FindOrAdd(InNode).Add(UPCGComponent::NodeExecutedNotificationData(*InStack, MoveTemp(Timer)));
 }
 
-TMap<TObjectKey<const UPCGNode>, TSet<FPCGStack>> UPCGComponent::GetExecutedNodeStacks() const
+TMap<TObjectKey<const UPCGNode>, TSet<UPCGComponent::NodeExecutedNotificationData>> UPCGComponent::GetExecutedNodeStacks() const
 {
 	FReadScopeLock Lock(NodeToStacksInWhichNodeExecutedLock);
 	return NodeToStacksInWhichNodeExecuted;
@@ -2052,12 +2440,14 @@ void UPCGComponent::NotifyNodeDynamicInactivePins(const UPCGNode* InNode, const 
 bool UPCGComponent::WasNodeExecuted(const UPCGNode* InNode, const FPCGStack& Stack) const
 {
 	FReadScopeLock Lock(NodeToStacksInWhichNodeExecutedLock);
-	const TSet<FPCGStack>* FoundStacks = NodeToStacksInWhichNodeExecuted.Find(InNode);
+	const TSet<UPCGComponent::NodeExecutedNotificationData>* FoundNotifications = NodeToStacksInWhichNodeExecuted.Find(InNode);
 
-	return FoundStacks && FoundStacks->Contains(Stack);
+	// Since the operator== & hash functions don't rely on the timer, we can just build a stub from the stack.
+	UPCGComponent::NodeExecutedNotificationData NotificationStub(Stack, PCGUtils::FCallTime());
+	return FoundNotifications && FoundNotifications->Contains(NotificationStub);
 }
 
-void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode* InNode, const FPCGDataCollection& InInputData, const FPCGDataCollection& InOutputData, bool bUsedCache)
+void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode* InNode, const PCGUtils::FCallTime* InTimer, const FPCGDataCollection& InInputData, const FPCGDataCollection& InOutputData, bool bUsedCache)
 {
 	if (!InNode || !ensure(InStack))
 	{
@@ -2065,7 +2455,7 @@ void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode
 	}
 
 	// Notify component that this task executed. Useful for editor visualization.
-	NotifyNodeExecuted(InNode, InStack, bUsedCache);
+	NotifyNodeExecuted(InNode, InStack, InTimer, bUsedCache);
 
 	if (!InOutputData.TaggedData.IsEmpty())
 	{
@@ -2085,7 +2475,7 @@ void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode
 
 	if (IsInspecting())
 	{
-		auto StorePinInspectionData = [InStack, InNode](const TArray<TObjectPtr<UPCGPin>>& InPins, const FPCGDataCollection& InData, TMap<FPCGStack, FPCGDataCollection>& InOutInspectionCache)
+		auto StorePinInspectionDataFromNode = [](const FPCGStack* InStack, const TArray<TObjectPtr<UPCGPin>>& InPins, const FPCGDataCollection& InData, TMap<FPCGStack, FPCGDataCollection>& InOutInspectionCache)
 		{
 			for (const UPCGPin* Pin : InPins)
 			{
@@ -2093,8 +2483,6 @@ void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode
 
 				// Append the Node and Pin to the current Stack to uniquely identify each DataCollection
 				TArray<FPCGStackFrame>& StackFrames = Stack.GetStackFramesMutable();
-				StackFrames.Reserve(StackFrames.Num() + 2);
-				StackFrames.Emplace(InNode);
 				StackFrames.Emplace(Pin);
 
 				FPCGDataCollection PinDataCollection;
@@ -2103,12 +2491,48 @@ void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode
 				// Implementation note: since static subgraphs actually are visited twice and the second time the input doesn't match the input pins, we don't clear the data.
 				if (!PinDataCollection.TaggedData.IsEmpty())
 				{
-					InOutInspectionCache.Add(Stack, PinDataCollection);
+					if (FPCGDataCollection* CollectionInCache = InOutInspectionCache.Find(Stack))
+					{
+						CollectionInCache->TaggedData.Append(PinDataCollection.TaggedData);
+					}
+					else
+					{
+						InOutInspectionCache.Add(Stack, PinDataCollection);
+					}
 				}
 			}
 		};
 
+		auto StorePinInspectionData = [InStack, InNode, &StorePinInspectionDataFromNode](const TArray<TObjectPtr<UPCGPin>>& InPins, const FPCGDataCollection& InData, TMap<FPCGStack, FPCGDataCollection>& InOutInspectionCache)
+		{
+			FPCGStack Stack = *InStack;
+
+			// Append the Node (here) and Pin (in call) to the current Stack to uniquely identify each DataCollection
+			TArray<FPCGStackFrame>& StackFrames = Stack.GetStackFramesMutable();
+			StackFrames.Reserve(StackFrames.Num() + 2);
+			StackFrames.Emplace(InNode);
+
+			StorePinInspectionDataFromNode(&Stack, InPins, InData, InOutInspectionCache);
+		};
+
 		FWriteScopeLock Lock(InspectionCacheLock);
+
+		// Special case: if we have a static (embedded) subgraph, then the actual data inputs (not params) of the subgraph will be on the input node.
+		// Considering we don't allow inspection on input pins of the input node, then we can move that data up the chain.
+		if (InNode->GetSettings()->IsA<UPCGGraphInputOutputSettings>() && InStack->GetStackFrames().Num() > 2)
+		{
+			// We're expecting the last frame to be the graph
+			// Then, if the graph was statically dispatched, it will be the subgraph node.
+			// In the case of a dynamic subgraph or loop, it will be the loop index instead.
+			FPCGStack StackToSubgraphNode = *InStack;
+			TArray<FPCGStackFrame>& StackFrames = StackToSubgraphNode.GetStackFramesMutable();
+			StackFrames.Pop();
+
+			if (StackFrames.Last().Object.IsValid() && StackFrames.Last().Object->IsA<UPCGSubgraphNode>())
+			{
+				StorePinInspectionDataFromNode(&StackToSubgraphNode, Cast<const UPCGSubgraphNode>(StackFrames.Last().Object.Get())->GetInputPins(), InInputData, InspectionCache);
+			}
+		}
 
 		StorePinInspectionData(InNode->GetInputPins(), InInputData, InspectionCache);
 		StorePinInspectionData(InNode->GetOutputPins(), InOutputData, InspectionCache);
@@ -2192,7 +2616,7 @@ void UPCGComponent::Refresh(EPCGChangeType ChangeType, bool bCancelExistingRefre
 	}
 
 	// If refresh is disabled, just exit
-	if (PCGComponent::CVarGlobalDisableRefresh.GetValueOnAnyThread() || IsRunningCommandlet())
+	if (PCGSystemSwitches::CVarGlobalDisableRefresh.GetValueOnAnyThread() || IsRunningCommandlet())
 	{
 		return;
 	}
@@ -2214,14 +2638,16 @@ void UPCGComponent::Refresh(EPCGChangeType ChangeType, bool bCancelExistingRefre
 			CurrentRefreshTask = InvalidPCGTaskId;
 		}
 
+		const bool bScheduleRefresh = CurrentRefreshTask == InvalidPCGTaskId && CurrentCleanupTask == InvalidPCGTaskId;
+
 		if (bNeedToCancelCurrentTasks)
 		{
-			Subsystem->CancelGeneration(this);
+			Subsystem->CancelGeneration(this, /*bCleanupManagedResources=*/!bScheduleRefresh);
 		}
 
 		// Calling a new refresh here might not be sufficient; if the current component was generating but was not previously generated,
 		// then the bGenerated flag will be false, which will prevent a subsequent update here
-		if (CurrentRefreshTask == InvalidPCGTaskId && CurrentCleanupTask == InvalidPCGTaskId)
+		if (bScheduleRefresh)
 		{
 			CurrentRefreshTask = Subsystem->ScheduleRefresh(this, bGenerationWasInProgress);
 		}
@@ -2329,7 +2755,7 @@ void UPCGComponent::OnRefresh(bool bForceRefresh)
 	// Only redo the mapping if we are generated
 	UPCGSubsystem* Subsystem = GetSubsystem();
 	const bool bWasGenerated = bGenerated;
-	const bool bWasGeneratedOrGenerating = bWasGenerated || bForceRefresh;
+	const bool bWasGeneratedOrGenerating = bWasGenerated || bForceRefresh || IsGenerating();
 
 	// If we are partitioned but we have resources, we need to force a cleanup
 	if (IsPartitioned() && !GeneratedResources.IsEmpty())
@@ -2364,97 +2790,159 @@ void UPCGComponent::OnRefresh(bool bForceRefresh)
 }
 #endif // WITH_EDITOR
 
-UPCGData* UPCGComponent::GetPCGData()
+// The Actor Data Cache is a double buffered cache
+// - When executing a graph we assign a CurrentGenerationTask to the Component.
+// - When calling GetActorPCGData(), we will first try and find the Data inside the Execution Cache using the CurrentGenerationTask id
+// - This guarantees that once that execution cache is primed, we will always return the same Data for the whole execution
+// - If the Execution Cache doesn't contain the Data, we will first check the Component local cache to see if it is still valid (Can get invalidated by UPCGComponent::DirtyGenerated call or in some case if the landscape cache is dirty)
+// - If the local Component Cache is valid, we will store the data in the Execution Cache for the following calls and return the data
+// - If the local Component Cache isn't valid, we will create the cache Data, store the data in the Execution Cache and in the Component local cache
+// - If CurrentGenerationTask is InvalidTaskId then only the Local Component Cache will be used
+//
+// This applies to GetActorPCGData/GetLandscapePCGData/GetLandscapeHeightData/GetInputPCGData/GetPCGData
+UPCGData* UPCGComponent::GetPCGData() const
 {
-	if (!CachedPCGData)
+	UPCGData* Data = nullptr;
+	if (UPCGSubsystem* PCGSubsystem = GetSubsystem())
 	{
-		CachedPCGData = CreatePCGData();
-
-		if (GetSubsystem() && GetSubsystem()->IsGraphCacheDebuggingEnabled())
+		Data = PCGSubsystem->GetPCGData(CurrentGenerationTask);
+		if (!Data)
 		{
-			UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedPCGData"), *GetOwner()->GetName());
+			Data = CachedPCGData ? CachedPCGData.Get() : CreatePCGData();
+			CachedPCGData = Data;
+
+			PCGSubsystem->SetPCGData(CurrentGenerationTask, Data);
+			if (PCGSubsystem->IsGraphCacheDebuggingEnabled() && CurrentGenerationTask != InvalidPCGTaskId)
+			{
+				UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedPCGData"), *GetOwner()->GetName());
+			}
 		}
 	}
 
-	return CachedPCGData;
+	return Data;
 }
 
-UPCGData* UPCGComponent::GetInputPCGData()
+UPCGData* UPCGComponent::GetInputPCGData() const
 {
-	if (!CachedInputData)
+	UPCGData* Data = nullptr;
+	if (UPCGSubsystem* PCGSubsystem = GetSubsystem())
 	{
-		CachedInputData = CreateInputPCGData();
-
-		if (GetSubsystem() && GetSubsystem()->IsGraphCacheDebuggingEnabled())
+		Data = PCGSubsystem->GetInputPCGData(CurrentGenerationTask);
+		if (!Data)
 		{
-			UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedInputData"), *GetOwner()->GetName());
+			Data = CachedInputData ? CachedInputData.Get() : CreateInputPCGData();
+			CachedInputData = Data;
+
+			PCGSubsystem->SetInputPCGData(CurrentGenerationTask, Data);
+			if (PCGSubsystem->IsGraphCacheDebuggingEnabled() && CurrentGenerationTask != InvalidPCGTaskId)
+			{
+				UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedInputData"), *GetOwner()->GetName());
+			}
 		}
 	}
 
-	return CachedInputData;
+	return Data;
 }
 
-UPCGData* UPCGComponent::GetActorPCGData()
+UPCGData* UPCGComponent::GetActorPCGData() const
 {
-	// Actor PCG Data can be a Landscape data too
-	if (!CachedActorData || IsLandscapeCachedDataDirty(CachedActorData))
+	UPCGData* Data = nullptr;
+	if (UPCGSubsystem* PCGSubsystem = GetSubsystem())
 	{
-		CachedActorData = CreateActorPCGData();
-
-		if (GetSubsystem() && GetSubsystem()->IsGraphCacheDebuggingEnabled())
+		Data = PCGSubsystem->GetActorPCGData(CurrentGenerationTask);
+		if (!Data)
 		{
-			UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedActorData"), *GetOwner()->GetName());
+			PCG_EXECUTION_CACHE_VALIDATION_CHECK(this);
+			Data = CachedActorData && !IsLandscapeCachedDataDirty(CachedActorData) ? CachedActorData.Get() : CreateActorPCGData();
+			CachedActorData = Data;
+
+			PCGSubsystem->SetActorPCGData(CurrentGenerationTask, Data);
+			if (PCGSubsystem->IsGraphCacheDebuggingEnabled() && CurrentGenerationTask != InvalidPCGTaskId)
+			{
+				UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedActorData"), *GetOwner()->GetName());
+			}
 		}
 	}
 
-	return CachedActorData;
+	return Data;
 }
 
-UPCGData* UPCGComponent::GetLandscapePCGData()
+UPCGData* UPCGComponent::GetLandscapePCGData() const
 {
-	if (!CachedLandscapeData || IsLandscapeCachedDataDirty(CachedLandscapeData))
+	UPCGData* Data = nullptr;
+	if (UPCGSubsystem* PCGSubsystem = GetSubsystem())
 	{
-		CachedLandscapeData = CreateLandscapePCGData(/*bHeightOnly=*/false);
-
-		if (GetSubsystem() && GetSubsystem()->IsGraphCacheDebuggingEnabled())
+		Data = PCGSubsystem->GetLandscapePCGData(CurrentGenerationTask);
+		if (!Data)
 		{
-			UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedLandscapeData"), *GetOwner()->GetName());
+			Data = CachedLandscapeData && !IsLandscapeCachedDataDirty(CachedLandscapeData) ? CachedLandscapeData.Get() : CreateLandscapePCGData(/*bHeightOnly=*/false);
+			CachedLandscapeData = Data;
+
+			PCGSubsystem->SetLandscapePCGData(CurrentGenerationTask, Data);
+			if (PCGSubsystem->IsGraphCacheDebuggingEnabled() && CurrentGenerationTask != InvalidPCGTaskId)
+			{
+				UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedLandscapeData"), *GetOwner()->GetName());
+			}
 		}
 	}
 
-	return CachedLandscapeData;
+	return Data;
 }
 
-UPCGData* UPCGComponent::GetLandscapeHeightPCGData()
+UPCGData* UPCGComponent::GetLandscapeHeightPCGData() const
 {
-	if (!CachedLandscapeHeightData || IsLandscapeCachedDataDirty(CachedLandscapeHeightData))
+	UPCGData* Data = nullptr;
+	if (UPCGSubsystem* PCGSubsystem = GetSubsystem())
 	{
-		CachedLandscapeHeightData = CreateLandscapePCGData(/*bHeightOnly=*/true);
-
-		if (GetSubsystem() && GetSubsystem()->IsGraphCacheDebuggingEnabled())
+		Data = PCGSubsystem->GetLandscapeHeightPCGData(CurrentGenerationTask);
+		if (!Data)
 		{
-			UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedLandscapeHeightData"), *GetOwner()->GetName());
+			Data = CachedLandscapeHeightData && !IsLandscapeCachedDataDirty(CachedLandscapeHeightData) ? CachedLandscapeHeightData.Get() : CreateLandscapePCGData(/*bHeightOnly=*/true);
+			CachedLandscapeHeightData = Data;
+
+			PCGSubsystem->SetLandscapeHeightPCGData(CurrentGenerationTask, Data);
+			if (PCGSubsystem->IsGraphCacheDebuggingEnabled() && CurrentGenerationTask != InvalidPCGTaskId)
+			{
+				UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedLandscapeHeightData"), *GetOwner()->GetName());
+			}
 		}
 	}
 
-	return CachedLandscapeHeightData;
+	return Data;
 }
 
-UPCGData* UPCGComponent::GetOriginalActorPCGData()
+UPCGData* UPCGComponent::GetOriginalActorPCGData() const
 {
-	if (APCGPartitionActor* PartitionActor = Cast<APCGPartitionActor>(GetOwner()))
-	{
-		if (UPCGComponent* OriginalComponent = PartitionActor->GetOriginalComponent(this))
-		{
-			return OriginalComponent->GetActorPCGData();
-		}
-	}
-	else
+	APCGPartitionActor* PartitionActor = Cast<APCGPartitionActor>(GetOwner());
+	if (!PartitionActor)
 	{
 		return GetActorPCGData();
 	}
 
-	return nullptr;
+	UPCGData* Data = nullptr;
+	if (UPCGSubsystem* PCGSubsystem = GetSubsystem())
+	{
+		Data = PCGSubsystem->GetOriginalActorPCGData(CurrentGenerationTask);
+		if (!Data)
+		{
+			if (UPCGComponent* OriginalComponent = PartitionActor->GetOriginalComponent(this))
+			{
+				Data = OriginalComponent->GetActorPCGData();
+				if (!Data)
+				{
+					PCG_EXECUTION_CACHE_VALIDATION_CHECK(this);
+					Data = OriginalComponent->CreateActorPCGData();
+				}
+				PCGSubsystem->SetOriginalActorPCGData(CurrentGenerationTask, Data);
+				if (PCGSubsystem->IsGraphCacheDebuggingEnabled() && CurrentGenerationTask != InvalidPCGTaskId)
+				{
+					UE_LOG(LogPCG, Log, TEXT("         [%s] CACHE REFRESH CachedOriginalActorData"), *GetOwner()->GetName());
+				}
+			}
+		}
+	}
+
+	return Data;
 }
 
 UPCGComponent* UPCGComponent::GetOriginalComponent()
@@ -2468,12 +2956,12 @@ UPCGComponent* UPCGComponent::GetOriginalComponent()
 	return ensure(PartitionActor) ? PartitionActor->GetOriginalComponent(this) : this;
 }
 
-UPCGData* UPCGComponent::CreateActorPCGData()
+UPCGData* UPCGComponent::CreateActorPCGData() const
 {
 	return CreateActorPCGData(GetOwner(), bParseActorComponents);
 }
 
-UPCGData* UPCGComponent::CreateActorPCGData(AActor* Actor, bool bParseActor)
+UPCGData* UPCGComponent::CreateActorPCGData(AActor* Actor, bool bParseActor) const
 {
 	return CreateActorPCGData(Actor, this, bParseActor);
 }
@@ -2505,231 +2993,15 @@ FPCGDataCollection UPCGComponent::CreateActorPCGDataCollection(AActor* Actor, co
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::CreateActorPCGData);
 
-	if (bOutOptionalSanitizedTagAttributeName)
-	{
-		*bOutOptionalSanitizedTagAttributeName = false;
-	}
+	FPCGGetDataFunctionRegistryParams Params;
+	Params.SourceComponent = Component;
+	Params.bParseActor = bParseActor;
+	Params.DataTypeFilter = InDataFilter;
 
-	FPCGDataCollection Collection;
+	FPCGGetDataFunctionRegistryOutput Output;
+	FPCGModule::ConstGetDataFunctionRegistry().GetDataFromActor(/*Context=*/nullptr, Params, Actor, Output);
 
-	if (!Actor)
-	{
-		return Collection;
-	}
-
-	auto NameTagsToStringTags = [](const FName& InName) { return InName.ToString(); };
-	TSet<FString> ActorTags;
-	Algo::Transform(Actor->Tags, ActorTags, NameTagsToStringTags);
-
-	// Fill in collection based on the data on the given actor.
-	// Some actor types we will forego full parsing to build strictly on the actor existence, such as partition actors, volumes and landscape
-	// TODO: add factory for extensibility
-	// TODO: review the !bParseActor cases - it might make sense to have just a point for a partition actor, even if we preintersect it.
-	APCGPartitionActor* PartitionActor = (!!(InDataFilter & EPCGDataType::Spatial) || !!(InDataFilter & EPCGDataType::Volume)) ? Cast<APCGPartitionActor>(Actor) : nullptr;
-	ALandscapeProxy* LandscapeActor = !!(InDataFilter & EPCGDataType::Landscape) ? Cast<ALandscapeProxy>(Actor) : nullptr;
-	AVolume* VolumeActor = !!(InDataFilter & EPCGDataType::Volume) ? Cast<AVolume>(Actor) : nullptr;
-	if (!bParseActor && !!(InDataFilter & EPCGDataType::Point))
-	{
-		UPCGPointData* Data = NewObject<UPCGPointData>();
-		Data->InitializeFromActor(Actor, bOutOptionalSanitizedTagAttributeName);
-
-		FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-		TaggedData.Data = Data;
-		TaggedData.Tags = ActorTags;
-	}
-	else if (PartitionActor)
-	{
-		check(!Component || Component->GetOwner() == Actor); // Invalid processing otherwise because of the this usage
-
-		UPCGVolumeData* VolumeData = NewObject<UPCGVolumeData>();
-		UPCGSpatialData* Result = VolumeData;
-		if (InDataFilter == EPCGDataType::Volume)
-		{
-			VolumeData->Initialize(PCGHelpers::GetGridBounds(Actor, Component));
-		}
-		else
-		{
-			VolumeData->Initialize(PartitionActor->GetFixedBounds());
-
-			UPCGComponent* OriginalComponent = Component ? PartitionActor->GetOriginalComponent(Component) : nullptr;
-			// Important note: we do NOT call the collection version here, as we want to have a union if that's the case
-			const UPCGSpatialData* OriginalComponentSpatialData = OriginalComponent ? Cast<const UPCGSpatialData>(OriginalComponent->GetActorPCGData()) : nullptr;
-
-			if (OriginalComponentSpatialData)
-			{
-				Result = Result->IntersectWith(OriginalComponentSpatialData);
-			}
-		}
-
-		FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-		TaggedData.Data = Result;
-		// No need to keep partition actor tags, though we might want to push PCG grid GUID at some point
-	}
-	else if (LandscapeActor)
-	{
-		UPCGLandscapeData* Data = NewObject<UPCGLandscapeData>();
-		const UPCGGraph* PCGGraph = Component ? Component->GetGraph() : nullptr;
-
-		FPCGLandscapeDataProps LandscapeDataProps;
-		LandscapeDataProps.bGetHeightOnly = false;
-		LandscapeDataProps.bGetLayerWeights = (!PCGGraph || PCGGraph->bLandscapeUsesMetadata);
-
-		Data->Initialize({ LandscapeActor }, PCGHelpers::GetGridBounds(Actor, Component), LandscapeDataProps);
-
-		FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-		TaggedData.Data = Data;
-		TaggedData.Tags = ActorTags;
-	}
-	else if (VolumeActor)
-	{
-		UPCGVolumeData* Data = NewObject<UPCGVolumeData>();
-		Data->Initialize(VolumeActor);
-
-		FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-		TaggedData.Data = Data;
-		TaggedData.Tags = ActorTags;
-	}
-	else // Prepare data on a component basis
-	{
-		using PrimitiveComponentArray = TInlineComponentArray<UPrimitiveComponent*, 4>;
-		PrimitiveComponentArray Primitives;
-
-		auto RemoveDuplicatesFromPrimitives = [&Primitives](const auto& InComponents)
-		{
-			Primitives.RemoveAll([&InComponents](UPrimitiveComponent* Component)
-			{
-				return InComponents.Contains(Component);
-			});
-		};
-
-		auto RemovePCGGeneratedEntries = [](auto& InComponents)
-		{
-			for (int32 Index = InComponents.Num() - 1; Index >= 0; --Index)
-			{
-				if (InComponents[Index]->ComponentTags.Contains(PCGHelpers::DefaultPCGTag))
-				{
-					InComponents.RemoveAtSwap(Index);
-				}
-			}
-		};
-
-		auto RemoveSplineMeshComponents = [](PrimitiveComponentArray& InComponents)
-		{
-			for (int32 Index = InComponents.Num() - 1; Index >= 0; --Index)
-			{
-				if (InComponents[Index]->IsA<USplineMeshComponent>())
-				{
-					InComponents.RemoveAtSwap(Index);
-				}
-			}
-		};
-
-		Actor->GetComponents(Primitives);
-		RemovePCGGeneratedEntries(Primitives);
-
-		TInlineComponentArray<ULandscapeSplinesComponent*, 4> LandscapeSplines;
-		Actor->GetComponents(LandscapeSplines);
-		RemovePCGGeneratedEntries(LandscapeSplines);
-		RemoveDuplicatesFromPrimitives(LandscapeSplines);
-
-		TInlineComponentArray<USplineComponent*, 4> Splines;
-		Actor->GetComponents(Splines);
-		RemovePCGGeneratedEntries(Splines);
-		RemoveDuplicatesFromPrimitives(Splines);
-
-		// If we have a better representation than the spline mesh components, we shouldn't create them
-		if (!LandscapeSplines.IsEmpty() || !Splines.IsEmpty())
-		{
-			RemoveSplineMeshComponents(Primitives);
-		}
-
-		TInlineComponentArray<UShapeComponent*, 4> Shapes;
-		Actor->GetComponents(Shapes);
-		RemovePCGGeneratedEntries(Shapes);
-		RemoveDuplicatesFromPrimitives(Shapes);
-
-		if (!!(InDataFilter & EPCGDataType::Spline))
-		{
-			for (ULandscapeSplinesComponent* SplineComponent : LandscapeSplines)
-			{
-				UPCGLandscapeSplineData* SplineData = NewObject<UPCGLandscapeSplineData>();
-				SplineData->Initialize(SplineComponent);
-
-				FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-				TaggedData.Data = SplineData;
-				Algo::Transform(SplineComponent->ComponentTags, TaggedData.Tags, NameTagsToStringTags);
-				TaggedData.Tags.Append(ActorTags);
-			}
-
-			for (USplineComponent* SplineComponent : Splines)
-			{
-				UPCGSplineData* SplineData = NewObject<UPCGSplineData>();
-				SplineData->Initialize(SplineComponent);
-
-				FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-				TaggedData.Data = SplineData;
-				Algo::Transform(SplineComponent->ComponentTags, TaggedData.Tags, NameTagsToStringTags);
-				TaggedData.Tags.Append(ActorTags);
-			}
-		}
-
-		if (!!(InDataFilter & EPCGDataType::Primitive))
-		{
-			for (UShapeComponent* ShapeComponent : Shapes)
-			{
-				UPCGSpatialData* Data = nullptr;
-				if (UPCGCollisionShapeData::IsSupported(ShapeComponent))
-				{
-					UPCGCollisionShapeData* ShapeData = NewObject<UPCGCollisionShapeData>();
-					ShapeData->Initialize(ShapeComponent);
-
-					Data = ShapeData;
-				}
-				else
-				{
-					UPCGPrimitiveData* ShapeData = NewObject<UPCGPrimitiveData>();
-					ShapeData->Initialize(ShapeComponent);
-
-					Data = ShapeData;
-				}
-
-				FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-				TaggedData.Data = Data;
-				Algo::Transform(ShapeComponent->ComponentTags, TaggedData.Tags, NameTagsToStringTags);
-				TaggedData.Tags.Append(ActorTags);
-			}
-
-			for (UPrimitiveComponent* PrimitiveComponent : Primitives)
-			{
-				// Exception: skip the billboard component
-				if (Cast<UBillboardComponent>(PrimitiveComponent))
-				{
-					continue;
-				}
-
-				UPCGPrimitiveData* PrimitiveData = NewObject<UPCGPrimitiveData>();
-				PrimitiveData->Initialize(PrimitiveComponent);
-
-				FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-				TaggedData.Data = PrimitiveData;
-				Algo::Transform(PrimitiveComponent->ComponentTags, TaggedData.Tags, NameTagsToStringTags);
-				TaggedData.Tags.Append(ActorTags);
-			}
-		}
-	}
-
-	// Finally, if it's not a special actor and there are not parsed components, then return a single point at the actor position
-	if (Collection.TaggedData.IsEmpty() && !!(InDataFilter & EPCGDataType::Point))
-	{
-		UPCGPointData* Data = NewObject<UPCGPointData>();
-		Data->InitializeFromActor(Actor, bOutOptionalSanitizedTagAttributeName);
-
-		FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-		TaggedData.Data = Data;
-		TaggedData.Tags = ActorTags;
-	}
-
-	return Collection;
+	return Output.Collection;
 }
 
 void UPCGComponent::RefreshSchedulingPolicy()
@@ -2738,7 +3010,10 @@ void UPCGComponent::RefreshSchedulingPolicy()
 	if (IsValid(SchedulingPolicy) && SchedulingPolicy->GetOuter() == this)
 	{
 #if WITH_EDITOR
-		SchedulingPolicy->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+        // We are renaming to a new outer on an object that may still be loading. Since we are destroying this object
+        // pass REN_AllowPackageLinkerMismatch to allow the linker to remain on the object so we don't have to force a load 
+        // to complete before the rename 
+		SchedulingPolicy->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_AllowPackageLinkerMismatch);
 #endif
 		SchedulingPolicy->MarkAsGarbage();
 	}
@@ -2757,13 +3032,13 @@ void UPCGComponent::RefreshSchedulingPolicy()
 	}
 }
 
-UPCGData* UPCGComponent::CreatePCGData()
+UPCGData* UPCGComponent::CreatePCGData() const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::CreatePCGData);
 	return GetInputPCGData();
 }
 
-UPCGData* UPCGComponent::CreateLandscapePCGData(bool bHeightOnly)
+UPCGData* UPCGComponent::CreateLandscapePCGData(bool bHeightOnly) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::CreateLandscapePCGData);
 	AActor* Actor = GetOwner();
@@ -2827,7 +3102,7 @@ UPCGData* UPCGComponent::CreateLandscapePCGData(bool bHeightOnly)
 	return LandscapeData;
 }
 
-UPCGData* UPCGComponent::CreateInputPCGData()
+UPCGData* UPCGComponent::CreateInputPCGData() const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::CreateInputPCGData);
 	AActor* Actor = GetOwner();
@@ -2868,11 +3143,11 @@ UPCGData* UPCGComponent::CreateInputPCGData()
 		// so intersections (such as volume X partition actor) get picked up properly
 		if (ActorSpatialData->GetDimension() >= 3)
 		{
-			return LandscapeData->IntersectWith(ActorSpatialData);
+			return LandscapeData->IntersectWith(nullptr, ActorSpatialData);
 		}
 		else
 		{
-			return ActorSpatialData->ProjectOn(LandscapeData);
+			return ActorSpatialData->ProjectOn(nullptr, LandscapeData);
 		}
 	}
 	else
@@ -3157,6 +3432,11 @@ void UPCGComponent::StopIgnoringChangeOriginDuringGeneration(UObject* InChangeOr
 
 bool UPCGComponent::IsIgnoringChangeOrigin(UObject* InChangeOrigin)
 {
+	if ((bIgnoreLandscapeTracking || (GetGraph() && GetGraph()->bIgnoreLandscapeTracking)) && Cast<ALandscapeProxy>(InChangeOrigin))
+	{
+		return true;
+	}
+
 	FReadScopeLock Lock(IgnoredChangeOriginsLock);
 	const int32* Counter = IgnoredChangeOriginsToCounters.Find(InChangeOrigin);
 	return Counter && ensure(*Counter > 0);
@@ -3349,6 +3629,24 @@ bool UPCGComponent::GetStackContext(FPCGStackContext& OutStackContext) const
 
 	return false;
 }
+
+TArray<TSoftObjectPtr<AActor>> UPCGComponent::GetManagedActorPaths(AActor* InActor)
+{
+	TSet<TSoftObjectPtr<AActor>> ManagedActorPaths;
+	InActor->ForEachComponent<UPCGComponent>(/*bIncludeFromChildActors=*/true, [&ManagedActorPaths](UPCGComponent* Component)
+	{
+		for (UPCGManagedResource* ManagedResource : Component->GeneratedResources)
+		{
+			if (UPCGManagedActors* ManagedActors = Cast<UPCGManagedActors>(ManagedResource))
+			{
+				ManagedActorPaths.Append(ManagedActors->GeneratedActors);
+			}
+		}
+	});
+
+	return ManagedActorPaths.Array();
+}
+
 #endif // WITH_EDITOR
 
 FPCGComponentInstanceData::FPCGComponentInstanceData(const UPCGComponent* InSourceComponent)
@@ -3399,7 +3697,7 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 			{
 				if (TaggedData.Data)
 				{
-					const_cast<UPCGData*>(TaggedData.Data.Get())->Rename(nullptr, PCGComponent, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+					const_cast<UPCGData*>(TaggedData.Data.Get())->Rename(nullptr, PCGComponent, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 				}
 			}
 
@@ -3463,6 +3761,18 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 			PCGComponent->OnPCGGraphCancelledExternal = ConstructionSourceComponent->OnPCGGraphCancelledExternal;
 			PCGComponent->OnPCGGraphGeneratedExternal = ConstructionSourceComponent->OnPCGGraphGeneratedExternal;
 			PCGComponent->OnPCGGraphCleanedExternal = ConstructionSourceComponent->OnPCGGraphCleanedExternal;
+
+			// But if the owner has changed and BP had dynamic delegates, we need to restore them.
+			if (AActor* Owner = PCGComponent->GetOwner())
+			{
+				if (Owner != ConstructionSourceComponent->GetOwner())
+				{
+					UBlueprintGeneratedClass::BindDynamicDelegates(Owner->GetClass(), Owner);
+				}
+			}
+
+			PCGComponent->bWasGeneratedThisSession = ConstructionSourceComponent->bWasGeneratedThisSession;
+			PCGComponent->InspectionCounter = ConstructionSourceComponent->InspectionCounter;
 #endif
 		}
 

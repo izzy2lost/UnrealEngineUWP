@@ -43,7 +43,7 @@ AInfo::AInfo(const FObjectInitializer& ObjectInitializer /*= FObjectInitializer:
 	PrimaryActorTick.bCanEverTick = false;
 	bAllowTickBeforeBeginPlay = true;
 	bReplicates = false;
-	NetUpdateFrequency = 10.0f;
+	SetNetUpdateFrequency(10.0f);
 	SetHidden(true);
 	SetReplicatingMovement(false);
 	SetCanBeDamaged(false);

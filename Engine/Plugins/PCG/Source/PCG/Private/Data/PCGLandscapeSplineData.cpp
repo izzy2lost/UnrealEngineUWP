@@ -2,6 +2,7 @@
 
 #include "Data/PCGLandscapeSplineData.h"
 
+#include "PCGContext.h"
 #include "Data/PCGPolyLineData.h"
 #include "Data/PCGPointData.h"
 #include "Elements/PCGSplineSampler.h"
@@ -78,7 +79,14 @@ FVector::FReal UPCGLandscapeSplineData::GetSegmentLength(int SegmentIndex) const
 
 FTransform UPCGLandscapeSplineData::GetTransformAtDistance(int SegmentIndex, FVector::FReal Distance, bool bWorldSpace, FBox* OutBounds) const
 {
-	check(Spline.IsValid() && Spline->GetSegments().IsValidIndex(SegmentIndex));
+	check(Spline.IsValid());
+
+	if (GetNumSegments() == 0)
+	{
+		return GetTransform();
+	}
+
+	check(Spline->GetSegments().IsValidIndex(SegmentIndex));
 
 	const ULandscapeSplineSegment* Segment = Spline->GetSegments()[SegmentIndex];
 	check(Segment);
@@ -122,7 +130,14 @@ FTransform UPCGLandscapeSplineData::GetTransformAtDistance(int SegmentIndex, FVe
 
 FVector::FReal UPCGLandscapeSplineData::GetCurvatureAtDistance(int SegmentIndex, FVector::FReal Distance) const
 {
-	check(Spline.IsValid() && Spline->GetSegments().IsValidIndex(SegmentIndex));
+	check(Spline.IsValid());
+
+	if (GetNumSegments() == 0)
+	{
+		return 0.0;
+	}
+
+	check(Spline->GetSegments().IsValidIndex(SegmentIndex));
 
 	const ULandscapeSplineSegment* Segment = Spline->GetSegments()[SegmentIndex];
 	check(Segment);
@@ -211,20 +226,38 @@ void UPCGLandscapeSplineData::GetTangentsAtSegmentStart(int SegmentIndex, FVecto
 
 FVector::FReal UPCGLandscapeSplineData::GetDistanceAtSegmentStart(int SegmentIndex) const
 {
-	// Allow SegmentIndex == NumSegments, which indicates we want the distance to the final control point, which is like saying "Start of the Nth segment".
-	check(Spline.IsValid() && SegmentIndex >= 0 && SegmentIndex <= Spline->GetSegments().Num());
+	FVector::FReal Distance = 0.0;
 
-	const TArray<TObjectPtr<ULandscapeSplineSegment>>& Segments = Spline->GetSegments();
-	int32 ReparamIndex = 0;
-
-	for (int32 Index = 0; Index < SegmentIndex; ++Index)
+	// Implementation note: It would be cheaper to loop over segments instead of ReparamPoints, but that is not robust since
+	// InterpPoints on the segments may not be 1:1 with the ReparamPoints. This can happen for poorly formed Landscape Splines where
+	// the adjacent control points are identical points.
+	for (int32 ReparamIndex = 0; ReparamIndex < ReparamTable.Points.Num(); ++ReparamIndex)
 	{
-		// NumPoints - 1 to avoid double-counting the control points, which overlap at the start + end of each segment.
-		ReparamIndex += ensure(Segments[Index]) ? Segments[Index]->GetPoints().Num() - 1 : 0;
+		const FVector::FReal CurrentDistance = ReparamTable.Points[ReparamIndex].InVal;
+
+		if (ReparamTable.Points[ReparamIndex].OutVal > SegmentIndex)
+		{
+			break;
+		}
+
+		Distance = CurrentDistance;
 	}
 
-	check(ReparamTable.Points.IsValidIndex(ReparamIndex));
-	return ReparamTable.Points[ReparamIndex].InVal;
+	return Distance;
+}
+
+FVector UPCGLandscapeSplineData::GetLocationAtAlpha(float Alpha) const
+{
+	const float InputKey = GetInputKeyAtAlpha(Alpha);
+	const int SegmentIndex = FMath::TruncToInt(InputKey);
+	return GetLocationAtDistance(SegmentIndex, FMath::Frac(Alpha) * GetSegmentLength(SegmentIndex));
+}
+
+FTransform UPCGLandscapeSplineData::GetTransformAtAlpha(float Alpha) const
+{
+	const float InputKey = GetInputKeyAtAlpha(Alpha);
+	const int SegmentIndex = FMath::TruncToInt(InputKey);
+	return GetTransformAtDistance(SegmentIndex, FMath::Frac(Alpha) * GetSegmentLength(SegmentIndex));
 }
 
 const UPCGPointData* UPCGLandscapeSplineData::CreatePointData(FPCGContext* Context) const
@@ -232,7 +265,7 @@ const UPCGPointData* UPCGLandscapeSplineData::CreatePointData(FPCGContext* Conte
 	check(Spline.IsValid());
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGLandscapeSplineData::CreatePointData);
 
-	UPCGPointData* Data = NewObject<UPCGPointData>();
+	UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	Data->InitializeFromData(this);
 	TArray<FPCGPoint>& Points = Data->GetMutablePoints();
 
@@ -240,7 +273,7 @@ const UPCGPointData* UPCGLandscapeSplineData::CreatePointData(FPCGContext* Conte
 	SamplerParams.Mode = EPCGSplineSamplingMode::Distance;
 	SamplerParams.Dimension = EPCGSplineSamplingDimension::OnHorizontal;
 
-	PCGSplineSamplerHelpers::SampleLineData(/*LineData=*/this, /*InBoundingShapeData=*/nullptr, /*InProjectionTarget=*/nullptr, /*InProjectionParams=*/{}, SamplerParams, Data);
+	PCGSplineSamplerHelpers::SampleLineData(Context, /*LineData=*/this, /*InBoundingShapeData=*/nullptr, /*InProjectionTarget=*/nullptr, /*InProjectionParams=*/{}, SamplerParams, Data);
 
 	UE_LOG(LogPCG, Verbose, TEXT("Landscape spline %s generated %d points"), *Spline->GetFName().ToString(), Points.Num());
 
@@ -329,9 +362,9 @@ bool UPCGLandscapeSplineData::SamplePoint(const FTransform& InTransform, const F
 	return OutPoint.Density > 0;
 }
 
-UPCGSpatialData* UPCGLandscapeSplineData::CopyInternal() const
+UPCGSpatialData* UPCGLandscapeSplineData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGLandscapeSplineData* NewLandscapeSplineData = NewObject<UPCGLandscapeSplineData>();
+	UPCGLandscapeSplineData* NewLandscapeSplineData = FPCGContext::NewObject_AnyThread<UPCGLandscapeSplineData>(Context);
 
 	NewLandscapeSplineData->Spline = Spline;
 	NewLandscapeSplineData->ReparamTable = ReparamTable;
@@ -365,7 +398,16 @@ void UPCGLandscapeSplineData::UpdateReparamTable()
 		{
 			const FLandscapeSplineInterpPoint& Start = InterpPoints[PointIndex - 1];
 			const FLandscapeSplineInterpPoint& End = InterpPoints[PointIndex];
-			AccumulatedDistance += FVector::Distance(Start.Center, End.Center);
+			const FVector::FReal Distance = FVector::Distance(Start.Center, End.Center);
+
+			// Skip points that overlap the previous point. We should not have duplicate distance entries in the ReparamTable.
+			// Note: This means InterpPoints are not 1:1 with ReparamTable entries.
+			if (FMath::IsNearlyZero(Distance, /*ErrorTolerance=*/UE_KINDA_SMALL_NUMBER))
+			{
+				continue;
+			}
+
+			AccumulatedDistance += Distance;
 
 			const float Param = PointIndex / (NumPoints - 1.0f);
 			ReparamTable.Points.Emplace(AccumulatedDistance, SegmentIndex + Param, /*ArriveTangent=*/0.0f, /*LeaveTangent=*/0.0f, CIM_Linear);

@@ -14,86 +14,205 @@ Shader code common to all instances and functions of Niagara Data Channel DI.
 //TOOD: Add support for N multiple buffers
 //TODO: Add support for bindless buffers on platforms that support it.
 
-void NiagaraDataChannelRead_float(Buffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out float OutValue)
+void NiagaraDataChannelRead_Float(Buffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out float OutValue)
 {
-	OutValue = InBuffer[RegisterIdx * Stride + ParticleIdx];
-	++RegisterIdx;
+	if(RegisterIdx != -1)
+	{
+		OutValue = InBuffer[RegisterIdx * Stride + ParticleIdx];
+		++RegisterIdx;
+	}
+	else
+	{
+		OutValue = 0.0;
+	}
 }
 
-void NiagaraDataChannelRead_float2(Buffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out float2 OutValue)
+void NiagaraDataChannelRead_Float(Buffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out float2 OutValue)
 {
-	NiagaraDataChannelRead_float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
-	NiagaraDataChannelRead_float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
+	NiagaraDataChannelRead_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
+	NiagaraDataChannelRead_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
 }
 
-void NiagaraDataChannelRead_float3(Buffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out float3 OutValue)
+void NiagaraDataChannelRead_Float(Buffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out float3 OutValue)
 {
-	NiagaraDataChannelRead_float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
-	NiagaraDataChannelRead_float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
-	NiagaraDataChannelRead_float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.z);
+	NiagaraDataChannelRead_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
+	NiagaraDataChannelRead_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
+	NiagaraDataChannelRead_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.z);
 }
 
-void NiagaraDataChannelRead_float4(Buffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out float4 OutValue)
+void NiagaraDataChannelRead_Float(Buffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out float4 OutValue)
 {
-	NiagaraDataChannelRead_float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
-	NiagaraDataChannelRead_float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
-	NiagaraDataChannelRead_float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.z);
-	NiagaraDataChannelRead_float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.w);
+	NiagaraDataChannelRead_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
+	NiagaraDataChannelRead_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
+	NiagaraDataChannelRead_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.z);
+	NiagaraDataChannelRead_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.w);
 }
 
-void NiagaraDataChannelRead_int(Buffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out int OutValue)
+void NiagaraDataChannelRead_Int32(Buffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out int OutValue)
 {
-	OutValue = InBuffer[RegisterIdx * Stride + ParticleIdx];
-	++RegisterIdx;
+	if(RegisterIdx != -1)
+	{
+		OutValue = InBuffer[RegisterIdx * Stride + ParticleIdx];
+		++RegisterIdx;
+	}
+	else
+	{
+		OutValue = 0;
+	}
 }
 
-void NiagaraDataChannelRead_int2(Buffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out int2 OutValue)
+void NiagaraDataChannelRead_Int32(Buffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out int2 OutValue)
 {
-	NiagaraDataChannelRead_int(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
-	NiagaraDataChannelRead_int(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
+	NiagaraDataChannelRead_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
+	NiagaraDataChannelRead_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
 }
 
-void NiagaraDataChannelRead_int3(Buffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out int3 OutValue)
+void NiagaraDataChannelRead_Int32(Buffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out int3 OutValue)
 {
-	NiagaraDataChannelRead_int(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
-	NiagaraDataChannelRead_int(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
-	NiagaraDataChannelRead_int(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.z);
+	NiagaraDataChannelRead_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
+	NiagaraDataChannelRead_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
+	NiagaraDataChannelRead_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.z);
 }
 
-void NiagaraDataChannelRead_int4(Buffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out int4 OutValue)
+void NiagaraDataChannelRead_Int32(Buffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out int4 OutValue)
 {
-	NiagaraDataChannelRead_int(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
-	NiagaraDataChannelRead_int(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
-	NiagaraDataChannelRead_int(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.z);
-	NiagaraDataChannelRead_int(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.w);
+	NiagaraDataChannelRead_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
+	NiagaraDataChannelRead_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
+	NiagaraDataChannelRead_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.z);
+	NiagaraDataChannelRead_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.w);
 }
 
-void NiagaraDataChannelRead_half(Buffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out half OutValue)
+/*
+//TODO: Half Support | 
+void NiagaraDataChannelRead_Half(Buffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out half OutValue)
 {
-	OutValue = InBuffer[RegisterIdx * Stride + ParticleIdx];
-	++RegisterIdx;
+	if(RegisterIdx != -1)
+	{
+		OutValue = InBuffer[RegisterIdx * Stride + ParticleIdx];
+		++RegisterIdx;
+	}
+	else
+	{
+		OutValue = 0.0;
+	}
 }
 
-void NiagaraDataChannelRead_half2(Buffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out half2 OutValue)
+void NiagaraDataChannelRead_Half(Buffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out half2 OutValue)
 {
-	NiagaraDataChannelRead_half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
-	NiagaraDataChannelRead_half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
+	NiagaraDataChannelRead_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
+	NiagaraDataChannelRead_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
 }
 
-void NiagaraDataChannelRead_half3(Buffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out half3 OutValue)
+void NiagaraDataChannelRead_Half(Buffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out half3 OutValue)
 {
-	NiagaraDataChannelRead_half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
-	NiagaraDataChannelRead_half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
-	NiagaraDataChannelRead_half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.z);
+	NiagaraDataChannelRead_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
+	NiagaraDataChannelRead_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
+	NiagaraDataChannelRead_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.z);
 }
 
-void NiagaraDataChannelRead_half4(Buffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out half4 OutValue)
+void NiagaraDataChannelRead_Half(Buffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out half4 OutValue)
 {
-	NiagaraDataChannelRead_half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
-	NiagaraDataChannelRead_half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
-	NiagaraDataChannelRead_half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.z);
-	NiagaraDataChannelRead_half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.w);
+	NiagaraDataChannelRead_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.x);
+	NiagaraDataChannelRead_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.y);
+	NiagaraDataChannelRead_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.z);
+	NiagaraDataChannelRead_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, OutValue.w);
 }
+*/
+
+// Write accessors 
+
+void NiagaraDataChannelWrite_Float(RWBuffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, float InValue)
+{
+	if(RegisterIdx != -1)
+	{
+		InBuffer[RegisterIdx * Stride + ParticleIdx] = InValue;
+		++RegisterIdx;
+	}
+}
+
+void NiagaraDataChannelWrite_Float(RWBuffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, float2 InValue)
+{
+	NiagaraDataChannelWrite_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.x);
+	NiagaraDataChannelWrite_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.y);
+}
+
+void NiagaraDataChannelWrite_Float(RWBuffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, float3 InValue)
+{
+	NiagaraDataChannelWrite_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.x);
+	NiagaraDataChannelWrite_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.y);
+	NiagaraDataChannelWrite_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.z);
+}
+
+void NiagaraDataChannelWrite_Float(RWBuffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, float4 InValue)
+{
+	NiagaraDataChannelWrite_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.x);
+	NiagaraDataChannelWrite_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.y);
+	NiagaraDataChannelWrite_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.z);
+	NiagaraDataChannelWrite_Float(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.w);
+}
+
+void NiagaraDataChannelWrite_Int32(RWBuffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, int InValue)
+{
+	if(RegisterIdx != -1)
+	{
+		InBuffer[RegisterIdx * Stride + ParticleIdx] = InValue;
+		++RegisterIdx;
+	}
+}
+
+void NiagaraDataChannelWrite_Int32(RWBuffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, int2 InValue)
+{
+	NiagaraDataChannelWrite_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.x);
+	NiagaraDataChannelWrite_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.y);
+}
+
+void NiagaraDataChannelWrite_Int32(RWBuffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, int3 InValue)
+{
+	NiagaraDataChannelWrite_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.x);
+	NiagaraDataChannelWrite_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.y);
+	NiagaraDataChannelWrite_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.z);
+}
+
+void NiagaraDataChannelWrite_Int32(RWBuffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, int4 InValue)
+{
+	NiagaraDataChannelWrite_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.x);
+	NiagaraDataChannelWrite_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.y);
+	NiagaraDataChannelWrite_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.z);
+	NiagaraDataChannelWrite_Int32(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.w);
+}
+
+/*
+//TODO: Half Support | 
+void NiagaraDataChannelWrite_Half(RWBuffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, half InValue)
+{
+	if(RegisterIdx != -1)
+	{
+		InBuffer[RegisterIdx * Stride + ParticleIdx] = InValue;
+		++RegisterIdx;
+	}
+}
+
+void NiagaraDataChannelWrite_Half(RWBuffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, half2 InValue)
+{
+	NiagaraDataChannelWrite_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.x);
+	NiagaraDataChannelWrite_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.y);
+}
+
+void NiagaraDataChannelWrite_Half(RWBuffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, half3 InValue)
+{
+	NiagaraDataChannelWrite_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.x);
+	NiagaraDataChannelWrite_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.y);
+	NiagaraDataChannelWrite_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.z);
+}
+
+void NiagaraDataChannelWrite_Half(RWBuffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, half4 InValue)
+{
+	NiagaraDataChannelWrite_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.x);
+	NiagaraDataChannelWrite_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.y);
+	NiagaraDataChannelWrite_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.z);
+	NiagaraDataChannelWrite_Half(InBuffer, Stride, RegisterIdx, ParticleIdx, InValue.w);
+}
+*/
 
 //TODO: More base type accessors.
 

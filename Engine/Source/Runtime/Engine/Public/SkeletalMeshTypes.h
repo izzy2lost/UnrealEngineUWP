@@ -3,9 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "PrimitiveSceneProxy.h"
-#endif
 #include "Materials/MaterialInterface.h"
 #include "ComponentReregisterContext.h"
 #include "SkeletalMeshLegacyCustomVersions.h"
@@ -17,7 +14,6 @@ class FPrimitiveDrawInterface;
 class FRawStaticIndexBuffer16or32Interface;
 class UMorphTarget;
 class UPrimitiveComponent;
-class USkeletalMesh;
 class USkinnedMeshComponent;
 class USkeletalMesh;
 class FSkeletalMeshRenderData;

@@ -19,13 +19,72 @@
 #if WITH_EDITOR
 #include "FileHelpers.h"
 #include "AssetToolsModule.h"
+#include "AssetViewUtils.h"
 #endif
-#include <Misc/PackageName.h> 
+#include <Misc/PackageName.h>
+#include "Misc/FileHelper.h"
 #include "TextureCompiler.h"
+
 DEFINE_LOG_CATEGORY(ExportLogs);
 bool TextureExporter::IsPackageNameValid(FString Path, FString AssetName)
 {
 	return FPackageName::TryConvertLongPackageNameToFilename(Path, AssetName);
+}
+
+bool TextureExporter::IsFileNameValid(FName FileName, FText& Reason)
+{
+	FileName.IsValidObjectName(Reason);
+	FFileHelper::IsFilenameValidForSaving(FileName.ToString(), Reason);
+
+	return Reason.IsEmpty();
+}
+
+bool TextureExporter::IsFolderPathValid(FString FolderPath, FText& Reason)
+{
+	FName::IsValidXName(FolderPath, INVALID_OBJECTPATH_CHARACTERS INVALID_LONGPACKAGE_CHARACTERS, &Reason);
+	
+	if (!Reason.IsEmpty())
+	{
+		Reason = FText::FromString(Reason.ToString().Replace(TEXT("Name"), TEXT("Path")));
+	}
+
+	FPaths::ValidatePath(FolderPath, &Reason);
+	return Reason.IsEmpty();
+}
+
+bool TextureExporter::IsFilePathValid(const FName InFileName, const FName InFolderPath, FString& OutErrors)
+{
+	FText FileNameError;
+	IsFileNameValid(InFileName, FileNameError);
+		
+	if(!FileNameError.IsEmpty())
+	{
+		FString Message = "Invalid file name. " + FileNameError.ToString();
+		OutErrors += Message;
+	}
+		
+	FText FullPathError;
+	const FString AssetName = FString::Printf(TEXT("/%s.%s"), *InFileName.ToString(), *InFileName.ToString());
+	const FString FullPath = FPaths::Combine(InFolderPath.ToString(), AssetName);
+
+#if WITH_EDITOR
+	if(!AssetViewUtils::IsValidObjectPathForCreate(FullPath, FullPathError, true))
+	{
+		FString Message = "Invalid file path. " + FullPathError.ToString();
+		OutErrors += Message;
+	}
+#endif
+	
+	FText PathValidError;
+	IsFolderPathValid(InFolderPath.ToString(), PathValidError);
+		
+	if(!PathValidError.IsEmpty())
+	{
+		FString Message = "Invalid folder path Error: " + PathValidError.ToString();
+		OutErrors += Message;
+	}
+
+	return OutErrors.IsEmpty();
 }
 AsyncBool TextureExporter::ExportAllMapsAsUAsset(UMixInterface* MixObj, const FString& OutputFolder, const FExportSettings& ExportSettings)
 {
@@ -187,8 +246,18 @@ AsyncInt TextureExporter::ExportRawAsUAsset(RawBufferPtr RawObj,const FExportMap
 		FAssetRegistryModule::AssetCreated(NewTexture);
 		Package->FullyLoad();
 		FTextureCompilingManager::Get().FinishCompilation({NewTexture});
-		bool success = UEditorLoadingAndSavingUtils::SavePackages({ Package }, false);
-		Promise.set_value(success);
+		
+		bool Success = true;
+		if (Setting.bSave)
+		{
+			Success = UEditorLoadingAndSavingUtils::SavePackages({ Package }, false);
+		}
+		else
+		{
+			Package->SetDirtyFlag(true);
+		}
+
+		Promise.set_value(Success);
 #else
 		Promise.set_value(-1);
 #endif

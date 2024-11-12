@@ -43,7 +43,7 @@ namespace EGameplayAbilityInstancingPolicy
 	enum Type : int
 	{
 		// This ability is never instanced. Anything that executes the ability is operating on the CDO.
-		NonInstanced,
+		NonInstanced UE_DEPRECATED_FORGAME(5.5, "Use InstancedPerActor as the default to avoid confusing corner cases"),
 
 		// Each actor gets their own instance of this ability. State can be saved, replication is possible.
 		InstancedPerActor,
@@ -243,7 +243,7 @@ struct GAMEPLAYABILITIES_API FGameplayEventData
 	}
 	
 	/** Tag of the event that triggered this */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = GameplayAbilityTriggerPayload)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = GameplayAbilityTriggerPayload, meta=(GameplayTagFilter="GameplayEventTagsCategory"))
 	FGameplayTag EventTag;
 
 	/** The instigator of the event */

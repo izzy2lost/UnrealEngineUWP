@@ -32,9 +32,9 @@ struct FInjectedInput
 	FInputActionValue RawValue;
 
 	UPROPERTY(Transient)
-	TArray<UInputTrigger*> Triggers;
+	TArray<TObjectPtr<UInputTrigger>> Triggers;
 	UPROPERTY(Transient)
-	TArray<UInputModifier*> Modifiers;
+	TArray<TObjectPtr<UInputModifier>> Modifiers;
 };
 
 USTRUCT()
@@ -113,6 +113,11 @@ protected:
 	/** This player's version of the Action Mappings */
 	const TArray<FEnhancedActionKeyMapping>& GetEnhancedActionMappings() const { return EnhancedActionMappings; }
 
+	/**
+	* Notifies that the given Input Actions are no longer mapped to any keys, and should have their state reset.
+	*/
+	void NotifyInputActionsUnmapped(const TSet<const UInputAction*>& RemovedInputActions);
+
 	/** Array of data that represents what keys should be consumed if an enhanced input action is in a specific triggered state */
 	UPROPERTY()
 	TMap<TObjectPtr<const UInputAction>, FKeyConsumptionOptions> KeyConsumptionData;
@@ -133,7 +138,16 @@ private:
 	FInputActionValue ApplyModifiers(const TArray<UInputModifier*>& Modifiers, FInputActionValue RawValue, float DeltaTime) const;						// Pre-modified (raw) value
 	ETriggerEventInternal GetTriggerStateChangeEvent(ETriggerState LastTriggerState, ETriggerState NewTriggerState) const;
 	ETriggerEvent ConvertInternalTriggerEvent(ETriggerEventInternal Event) const;	// Collapse a detailed internal trigger event into a friendly representation
-	void ProcessActionMappingEvent(TObjectPtr<const UInputAction> Action, float DeltaTime, bool bGamePaused, FInputActionValue RawValue, EKeyEvent KeyEvent, const TArray<UInputModifier*>& Modifiers, const TArray<UInputTrigger*>& Triggers);
+
+	void ProcessActionMappingEvent(
+		TObjectPtr<const UInputAction> Action,
+		float DeltaTime,
+		bool bGamePaused,
+		FInputActionValue RawValue,
+		EKeyEvent KeyEvent,
+		const TArray<UInputModifier*>& Modifiers,
+		const TArray<UInputTrigger*>& Triggers,
+		const bool bHasAlwaysTickTrigger = false);
 
 	FInputActionInstance& FindOrAddActionEventData(TObjectPtr<const UInputAction> Action) const;
 
@@ -162,6 +176,9 @@ private:
 
 	/** Actions that have been triggered this tick and have a delegate that may be fired */
 	TSet<TObjectPtr<const UInputAction>> TriggeredActionsThisTick;
+
+	/** A set of input actions that have been removed from the player's input mappings in a previous rebuild of the key mappings. */
+	TSet<TObjectPtr<const UInputAction>> ActionsThatHaveBeenRemovedFromMappings;
 
 	/**
 	 * A map of Keys to the amount they were depressed this frame. This is reset with each call to ProcessInputStack

@@ -6,7 +6,6 @@
 #include "NiagaraStackItemFooter.generated.h"
 
 class UNiagaraNodeFunctionCall;
-class UNiagaraStackFunctionInputCollection;
 class UNiagaraStackModuleItemOutputCollection;
 class UNiagaraNode;
 

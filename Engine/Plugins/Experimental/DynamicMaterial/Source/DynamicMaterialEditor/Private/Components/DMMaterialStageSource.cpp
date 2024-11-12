@@ -1,38 +1,34 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/DMMaterialStageSource.h"
-#include "AssetRegistry/AssetRegistryModule.h"
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "DynamicMaterialEditorModule.h"
-#include "DynamicMaterialModule.h"
-#include "Factories/MaterialFactoryNew.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
 #include "MaterialValueType.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
-#include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectIterator.h"
 
 TArray<TStrongObjectPtr<UClass>> UDMMaterialStageSource::SourceClasses = TArray<TStrongObjectPtr<UClass>>();
 
-UDMMaterialStageSource::UDMMaterialStageSource()
-{
-	PreviewMaterial = nullptr;
-}
-
 UDMMaterialStage* UDMMaterialStageSource::GetStage() const
 {
 	return Cast<UDMMaterialStage>(GetOuterSafe());
 }
 
-void UDMMaterialStageSource::Update(EDMUpdateType InUpdateType)
+void UDMMaterialStageSource::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (!IsComponentValid())
 	{
 		return;
@@ -43,7 +39,7 @@ void UDMMaterialStageSource::Update(EDMUpdateType InUpdateType)
 		return;
 	}
 
-	if (InUpdateType == EDMUpdateType::Structure)
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
 		MarkComponentDirty();
 	}
@@ -51,9 +47,9 @@ void UDMMaterialStageSource::Update(EDMUpdateType InUpdateType)
 	UDMMaterialStage* Stage = GetStage();
 	check(Stage);
 
-	Stage->Update(InUpdateType);
+	Stage->Update(InSource, InUpdateType);
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 }
 
 void UDMMaterialStageSource::OnComponentAdded()
@@ -65,10 +61,7 @@ void UDMMaterialStageSource::OnComponentAdded()
 
 	Super::OnComponentAdded();
 
-	if (FDMUpdateGuard::CanUpdate())
-	{
-		Update(EDMUpdateType::Structure);
-	}
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageSource::GetMaskAlphaBlendNode(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterialExpression*& OutExpression, int32& OutOutputIndex, int32& OutOutputChannel) const
@@ -99,7 +92,7 @@ void UDMMaterialStageSource::GenerateClassList()
 			continue;
 		}
 
-		if (MSEClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists))
+		if (MSEClass->HasAnyClassFlags(UE::DynamicMaterial::InvalidClassFlags))
 		{
 			continue;
 		}
@@ -108,102 +101,11 @@ void UDMMaterialStageSource::GenerateClassList()
 	}
 }
 
-UMaterial* UDMMaterialStageSource::GetPreviewMaterial()
-{
-	if (!PreviewMaterial)
-	{
-		CreatePreviewMaterial();
-
-		if (PreviewMaterial)
-		{
-			MarkComponentDirty();
-		}
-	}
-
-	return PreviewMaterial;
-}
-
-void UDMMaterialStageSource::UpdateOntoPreviewMaterial(UMaterial* ExternalPreviewMaterial)
+void UDMMaterialStageSource::GeneratePreviewMaterial(UMaterial* InPreviewMaterial)
 {
 	if (!IsComponentValid())
 	{
 		return;
-	}
-
-	if (!ExternalPreviewMaterial)
-	{
-		return;
-	}
-
-	UpdatePreviewMaterial(ExternalPreviewMaterial);
-}
-
-void UDMMaterialStageSource::CreatePreviewMaterial()
-{
-	if (!IsComponentValid())
-	{
-		return;
-	}
-
-	if (FDynamicMaterialModule::IsMaterialExportEnabled() == false)
-	{
-		UMaterialFactoryNew* MaterialFactory = NewObject<UMaterialFactoryNew>();
-		check(MaterialFactory);
-
-		PreviewMaterial = Cast<UMaterial>(MaterialFactory->FactoryCreateNew(
-			UMaterial::StaticClass(),
-			GetTransientPackage(),
-			NAME_None,
-			RF_Transient,
-			nullptr,
-			GWarn
-		));
-
-		PreviewMaterial->bIsPreviewMaterial = true;
-	}
-	else
-	{
-		FString MaterialBaseName = GetName() + "-" + FGuid::NewGuid().ToString();
-		const FString FullName = "/Game/DynamicMaterials/" + MaterialBaseName;
-		UPackage* Package = CreatePackage(*FullName);
-
-		UMaterialFactoryNew* MaterialFactory = NewObject<UMaterialFactoryNew>();
-		check(MaterialFactory);
-
-		PreviewMaterial = Cast<UMaterial>(MaterialFactory->FactoryCreateNew(
-			UMaterial::StaticClass(),
-			Package,
-			*MaterialBaseName,
-			RF_Standalone | RF_Public,
-			nullptr,
-			GWarn
-		));
-
-		FAssetRegistryModule::AssetCreated(PreviewMaterial);
-		Package->FullyLoad();
-	}
-}
-
-void UDMMaterialStageSource::UpdatePreviewMaterial(UMaterial* InPreviewMaterial)
-{
-	if (!IsComponentValid())
-	{
-		return;
-	}
-
-	if (!InPreviewMaterial)
-	{
-		if (!PreviewMaterial)
-		{
-			CreatePreviewMaterial();
-		}
-
-		InPreviewMaterial = PreviewMaterial;
-
-		if (!PreviewMaterial)
-		{
-			return;
-		}
 	}
 
 	UE_LOG(LogDynamicMaterialEditor, Display, TEXT("Building Material Designer Source Preview (%s)..."), *GetName());
@@ -221,7 +123,7 @@ void UDMMaterialStageSource::UpdatePreviewMaterial(UMaterial* InPreviewMaterial)
 	check(ModelEditorOnlyData);
 
 	TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(InPreviewMaterial);
-	BuildState->SetPreviewMaterial();
+	BuildState->SetPreviewObject(this);
 
 	GenerateExpressions(BuildState);
 	UMaterialExpression* StageSourceExpression = BuildState->GetLastStageSourceExpression(this);
@@ -234,7 +136,7 @@ int32 UDMMaterialStageSource::GetInnateMaskOutput(int32 OutputIndex, int32 Outpu
 	return INDEX_NONE;
 }
 
-bool UDMMaterialStageSource::UpdateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, 
+bool UDMMaterialStageSource::GenerateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, 
 	UMaterialExpression*& OutMaterialExpression, int32& OutputIndex)
 {
 	check(InStage);
@@ -249,11 +151,8 @@ bool UDMMaterialStageSource::UpdateStagePreviewMaterial(UDMMaterialStage* InStag
 	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
 	check(ModelEditorOnlyData);
 
-	UDMMaterialProperty* PropertyObj = ModelEditorOnlyData->GetMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
-	check(PropertyObj);
-
 	TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(InPreviewMaterial);
-	BuildState->SetPreviewMaterial();
+	BuildState->SetPreviewObject(InStage);
 
 	UDMMaterialStageSource* PreviewSource = InStage->GetSource();
 
@@ -281,9 +180,7 @@ bool UDMMaterialStageSource::UpdateStagePreviewMaterial(UDMMaterialStage* InStag
 
 	int32 BestMatch = INDEX_NONE;
 	int32 OutputCount = 0;
-	const int32 FloatsForPropertyType = bIsMaskStage
-		? 1
-		: UDMValueDefinitionLibrary::GetValueDefinition(PropertyObj->GetInputConnectorType()).GetFloatCount();
+	const int32 FloatsForPropertyType = bIsMaskStage ? 1 : 3;
 
 	for (int32 OutputIdx = 0; OutputIdx < LastExpression->GetOutputs().Num(); ++OutputIdx)
 	{
@@ -337,12 +234,6 @@ bool UDMMaterialStageSource::UpdateStagePreviewMaterial(UDMMaterialStage* InStag
 
 void UDMMaterialStageSource::NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, class FEditPropertyChain* InPropertyThatChanged)
 {
-	if (!IsComponentValid())
-	{
-		return;
-	}
-
-	Update(EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageSource::PostEditUndo()
@@ -355,28 +246,10 @@ void UDMMaterialStageSource::PostEditUndo()
 	}
 
 	MarkComponentDirty();
-	Update(EDMUpdateType::Structure);
-}
-
-void UDMMaterialStageSource::DoClean()
-{
-	if (IsComponentValid())
-	{
-		// Stage Source preview images are currently disabled.
-		//UpdatePreviewMaterial();
-	}
-
-	Super::DoClean();
+	Update(this, EDMUpdateType::Structure);
 }
 
 UDMMaterialComponent* UDMMaterialStageSource::GetParentComponent() const
 {
 	return GetStage();
-}
-
-void UDMMaterialStageSource::PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent)
-{
-	Super::PostEditorDuplicate(InMaterialModel, InParent);
-
-	PreviewMaterial = nullptr;
 }

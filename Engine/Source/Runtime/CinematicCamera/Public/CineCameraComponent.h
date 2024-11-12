@@ -107,6 +107,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Cine Camera")
 	CINEMATICCAMERA_API float GetVerticalFieldOfView() const;
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Cine Camera")
+	CINEMATICCAMERA_API float GetHorizontalProjectionOffset() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Cine Camera")
+	CINEMATICCAMERA_API float GetVerticalProjectionOffset() const;
+	
 	/** Returns the filmback name of the camera with the current settings. */
 	UFUNCTION(BlueprintCallable, Category = "Cine Camera")
 	CINEMATICCAMERA_API FString GetFilmbackPresetName() const;
@@ -252,7 +258,9 @@ private:
 	void SetLensPresetByNameInternal(const FString& InPresetName);
 	void SetFilmbackPresetByNameInternal(const FString& InPresetName, FCameraFilmbackSettings& InOutFilmbackSettings);
 	void SetCropPresetByNameInternal(const FString& InPresetName);
-
+	float GetHorizontalFieldOfViewInternal(bool bIncludeOverscan = true) const;
+	float GetVerticalFieldOfViewInternal(bool bIncludeOverscan) const;
+	
 #if WITH_EDITORONLY_DATA
 	void CreateDebugFocusPlane();
 	void DestroyDebugFocusPlane();

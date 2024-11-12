@@ -15,22 +15,6 @@
 
 #define LOCTEXT_NAMESPACE "VirtualTexture"
 
-static TAutoConsoleVariable<int32> CVarVTStreamingMips(
-	TEXT("r.VT.RVT.StreamingMips"),
-	1,
-	TEXT("Enable streaming mips for RVT"),
-	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
-	{
-		FGlobalComponentRecreateRenderStateContext Context;
-	}),
-	ECVF_Default);
-
-static TAutoConsoleVariable<int32> CVarDirtyPagesKeptMappedFrames(
-	TEXT("r.VT.RVT.DirtyPagesKeptMappedFrames"),
-	8,
-	TEXT("When invalidating RVT pages, we keep them mapped if they gave feedback in the last N frames."),
-	ECVF_RenderThreadSafe);
-
 int32 FRuntimeVirtualTextureSceneProxy::ProducerIdGenerator = 1;
 
 FRuntimeVirtualTextureSceneProxy::FRuntimeVirtualTextureSceneProxy(URuntimeVirtualTextureComponent* InComponent)
@@ -62,35 +46,18 @@ FRuntimeVirtualTextureSceneProxy::FRuntimeVirtualTextureSceneProxy(URuntimeVirtu
 			// The producer description is calculated using the transform to determine the aspect ratio
 			FVTProducerDescription ProducerDesc;
 			VirtualTexture->GetProducerDescription(ProducerDesc, InitSettings, Transform);
-			VirtualTextureSize = FIntPoint(ProducerDesc.BlockWidthInTiles * ProducerDesc.TileSize, ProducerDesc.BlockHeightInTiles * ProducerDesc.TileSize);
-			// We only need to dirty flush up to the producer description MaxLevel which accounts for the RemoveLowMips
-			MaxDirtyLevel = ProducerDesc.MaxLevel;
 
 			const ERuntimeVirtualTextureMaterialType MaterialType = VirtualTexture->GetMaterialType();
 			const bool bClearTextures = VirtualTexture->GetClearTextures();
+
+			// Get streaming texture if it is valid.
+			UVirtualTexture2D* StreamingTexture = nullptr;
+
 			FSceneInterface* SceneInterface = InComponent->GetScene();
 			const EShadingPath ShadingPath = SceneInterface ? SceneInterface->GetShadingPath() : EShadingPath::Deferred;
-
-			// The producer object created here will be passed into the virtual texture system which will take ownership.
-			IVirtualTexture* Producer = new FRuntimeVirtualTextureProducer(ProducerDesc, ProducerId, MaterialType, bClearTextures, SceneInterface, Transform, Bounds);
-		
-			// Create a producer for the streaming low mips. 
-			// This is bound with the main producer so that one allocated VT can use both runtime or streaming producers dependent on mip level.
 			if (InComponent->IsStreamingLowMips(ShadingPath))
 			{
-				if (CVarVTStreamingMips.GetValueOnAnyThread() == 0)
-				{
-#if !UE_BUILD_SHIPPING
-					// Notify that streaming texture is turned off.
-					OnScreenWarningDelegateHandle = FRendererOnScreenNotification::Get().AddLambda([](FCoreDelegates::FSeverityMessageMap& OutMessages)
-					{
-						OutMessages.Add(
-							FCoreDelegates::EOnScreenMessageSeverity::Warning,
-							LOCTEXT("SVTDisabled", "Runtime Virtual Texture streaming mips disabled."));
-					});
-#endif
-				}
-				else if (InComponent->IsStreamingTextureInvalid(ShadingPath))
+				if (InComponent->IsStreamingTextureInvalid(ShadingPath))
 				{
 #if !UE_BUILD_SHIPPING
 					// Notify that streaming texture is invalid since this can cause performance regression.
@@ -105,22 +72,55 @@ FRuntimeVirtualTextureSceneProxy::FRuntimeVirtualTextureSceneProxy(URuntimeVirtu
 				}
 				else
 				{
-					UVirtualTexture2D* StreamingTexture = InComponent->GetStreamingTexture()->GetVirtualTexture(ShadingPath);
-
-					FVTProducerDescription StreamingProducerDesc;
-					IVirtualTexture* StreamingProducer = RuntimeVirtualTexture::CreateStreamingTextureProducer(StreamingTexture, ProducerDesc, StreamingProducerDesc);
-
-					const int32 NumLevels = (int32)FMath::CeilLogTwo(FMath::Max(ProducerDesc.BlockWidthInTiles, ProducerDesc.BlockHeightInTiles));
-					const int32 NumStreamingLevels = (int32)FMath::CeilLogTwo(FMath::Max(StreamingProducerDesc.BlockWidthInTiles, StreamingProducerDesc.BlockHeightInTiles));
-					ensure(NumLevels >= NumStreamingLevels);
-					const int32 TransitionLevel = NumLevels - NumStreamingLevels;
-
-					Producer = RuntimeVirtualTexture::BindStreamingTextureProducer(Producer, StreamingProducer, TransitionLevel);
-
-					// Any dirty flushes don't need to flush the streaming mips (they only change with a build step).
-					MaxDirtyLevel = TransitionLevel - 1;
+					StreamingTexture = InComponent->GetStreamingTexture()->GetVirtualTexture(ShadingPath);
 				}
 			}
+
+			// The producer object created here will be passed into the virtual texture system which will take ownership.
+			IVirtualTexture* Producer = nullptr;
+
+			// Create a producer for the streaming low mips. 
+			// This is bound with the main producer so that one allocated VT can use both runtime or streaming producers dependent on mip level.
+			if (StreamingTexture == nullptr)
+			{
+				// Create the runtime virtual texture producer.
+				Producer = new FRuntimeVirtualTextureProducer(ProducerDesc, ProducerId, MaterialType, bClearTextures, SceneInterface, Transform, Bounds);
+
+				// We only need to dirty flush up to the producer description MaxLevel which accounts for the RemoveLowMips
+				MaxDirtyLevel = ProducerDesc.MaxLevel;
+			}
+			else
+			{
+				// Create the streaming virtual texture producer.
+				FVTProducerDescription StreamingProducerDesc;
+				IVirtualTexture* StreamingProducer = RuntimeVirtualTexture::CreateStreamingTextureProducer(StreamingTexture, ProducerDesc, StreamingProducerDesc);
+
+				if (InComponent->IsStreamingLowMipsOnly())
+				{
+					// Clamp the the runtime virtual texture producer dimensions to the streaming virtual texture dimensions.
+					// This will force to only using streaming pages.
+					ProducerDesc.BlockWidthInTiles = StreamingProducerDesc.BlockWidthInTiles;
+					ProducerDesc.BlockHeightInTiles = StreamingProducerDesc.BlockHeightInTiles;
+					ProducerDesc.MaxLevel = StreamingProducerDesc.MaxLevel;
+				}
+
+				// Create the runtime virtual texture producer.
+				Producer = new FRuntimeVirtualTextureProducer(ProducerDesc, ProducerId, MaterialType, bClearTextures, SceneInterface, Transform, Bounds);
+
+				// Bind the runtime virtual texture producer to the streaming producer.
+				const int32 NumLevels = (int32)FMath::CeilLogTwo(FMath::Max(ProducerDesc.BlockWidthInTiles, ProducerDesc.BlockHeightInTiles));
+				const int32 NumStreamingLevels = (int32)FMath::CeilLogTwo(FMath::Max(StreamingProducerDesc.BlockWidthInTiles, StreamingProducerDesc.BlockHeightInTiles));
+				ensure(NumLevels >= NumStreamingLevels);
+				const int32 TransitionLevel = NumLevels - NumStreamingLevels;
+
+				Producer = RuntimeVirtualTexture::BindStreamingTextureProducer(Producer, StreamingProducer, TransitionLevel);
+				
+				// Any dirty flushes don't need to flush the streaming mips (they only change with a build step).
+				MaxDirtyLevel = TransitionLevel - 1;
+			}
+
+			// Store effective virtual texture size used when calculating dirty regions.
+			VirtualTextureSize = FIntPoint(ProducerDesc.BlockWidthInTiles * ProducerDesc.TileSize, ProducerDesc.BlockHeightInTiles * ProducerDesc.TileSize);
 
 			// The Initialize() call will allocate the virtual texture by spawning work on the render thread.
 			VirtualTexture->Initialize(Producer, ProducerDesc, Transform, Bounds);
@@ -205,7 +205,7 @@ void FRuntimeVirtualTextureSceneProxy::FlushDirtyPages()
 		{
 			// Keeping visible pages mapped reduces update flicker due to the latency in the unmap/feedback/map sequence.
 			// But it potentially creates more page update work since more pages may get updated.
-			const uint32 MaxAgeToKeepMapped = CVarDirtyPagesKeptMappedFrames.GetValueOnRenderThread();
+			const uint32 MaxAgeToKeepMapped = VirtualTextureScalability::GetKeepDirtyPageMappedFrameThreshold();
 
 			//todo[vt]: 
 			// Profile to work out best heuristic for when we should use the CombinedDirtyRect

@@ -270,7 +270,7 @@ bool FWaveformEditor::RegisterToolbar()
 
 		FToolMenuEntry PlayEntry = FToolMenuEntry::InitToolBarButton(
 			Commands.PlaySoundWave,
-			LOCTEXT("WaveformEditorPlayButton", ""),
+			FText(),
 			LOCTEXT("WaveformEditorPlayButtonTooltip", "Plays this SoundWave"),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlayWorld.PlayInViewport")
 		);
@@ -279,7 +279,7 @@ bool FWaveformEditor::RegisterToolbar()
 		
 		FToolMenuEntry PauseEntry = FToolMenuEntry::InitToolBarButton(
 			Commands.PauseSoundWave,
-			LOCTEXT("WaveformEditorPauseButton", ""),
+			FText(),
 			LOCTEXT("WaveformEditorPauseButtonTooltip", "Pauses this SoundWave"),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlayWorld.PausePlaySession.Small")
 		);
@@ -288,7 +288,7 @@ bool FWaveformEditor::RegisterToolbar()
 
 		FToolMenuEntry StopEntry = FToolMenuEntry::InitToolBarButton(
 			Commands.StopSoundWave,
-			LOCTEXT("WaveformEditorStopButton", ""),
+			FText(),
 			LOCTEXT("WaveformEditorStopButtonTooltip", "Stops this SoundWave"),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlayWorld.StopPlaySession.Small")
 		);
@@ -305,14 +305,14 @@ bool FWaveformEditor::RegisterToolbar()
 
 		FToolMenuEntry ZoomInEntry = FToolMenuEntry::InitToolBarButton(
 			Commands.ZoomIn,
-			LOCTEXT("WaveformEditorZoomIn", ""),
+			FText(),
 			LOCTEXT("WaveformEditorZoomInButtonTooltip", "Zooms into the soundwave"),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Plus")
 		);
 
 		FToolMenuEntry ZoomOutEntry = FToolMenuEntry::InitToolBarButton(
 			Commands.ZoomOut,
-			LOCTEXT("WaveformEditorZoomOut", ""),
+			FText(),
 			LOCTEXT("WaveformEditorZoomOutButtonTooltip", "Zooms out the soundwave"),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Minus")
 		);
@@ -332,7 +332,7 @@ bool FWaveformEditor::RegisterToolbar()
 			{
 				FToolMenuEntry ExportEntry = FToolMenuEntry::InitToolBarButton(
 					Commands.ExportWaveform,
-					LOCTEXT("WaveformEditorRender", ""),
+					FText(),
 					TAttribute< FText >::CreateRaw(Context->WaveformEditor.Pin().Get(), &FWaveformEditor::GetExportButtonToolTip),
 					FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.ExportAll")
 				);
@@ -369,7 +369,7 @@ bool FWaveformEditor::RegisterToolbar()
 			{
 				FToolMenuEntry ReimportEntry = FToolMenuEntry::InitToolBarButton(
 					Commands.ReimportAsset,
-					LOCTEXT("WaveformEditorReimport", ""),
+					FText(),
 					TAttribute< FText >::CreateRaw(Context->WaveformEditor.Pin().Get(), &FWaveformEditor::GetReimportButtonToolTip),
 					FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Import"));
 

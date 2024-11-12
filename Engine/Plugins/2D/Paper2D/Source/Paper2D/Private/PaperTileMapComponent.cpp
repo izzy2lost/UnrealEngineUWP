@@ -142,7 +142,7 @@ void UPaperTileMapComponent::PostLoad()
 		// Convert the layers
 		for (UPaperTileLayer* Layer : TileMap->TileLayers)
 		{
-			Layer->Rename(nullptr, TileMap, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+			Layer->Rename(nullptr, TileMap, REN_DontCreateRedirectors);
 			Layer->ConvertToTileSetPerCell();
 		}
 

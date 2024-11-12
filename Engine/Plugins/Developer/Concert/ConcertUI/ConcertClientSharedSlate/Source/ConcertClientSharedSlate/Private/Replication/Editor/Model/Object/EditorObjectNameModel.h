@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Replication/ObjectNameUtils.h"
 #include "Replication/Editor/Model/Object/IObjectNameModel.h"
 
 namespace UE::ConcertClientSharedSlate
@@ -10,9 +11,9 @@ namespace UE::ConcertClientSharedSlate
 	class FEditorObjectNameModel : public ConcertSharedSlate::IObjectNameModel
 	{
 	public:
-
+		
 		//~ Begin IObjectNameModel Interface
-		virtual FText GetObjectDisplayName(const FSoftObjectPath& ObjectPath) const override;
+		virtual FText GetObjectDisplayName(const TSoftObjectPtr<>& ObjectPath) const override { return ConcertClientSharedSlate::GetObjectDisplayName(ObjectPath); }
 		//~ End IObjectNameModel Interface
 	};
 }

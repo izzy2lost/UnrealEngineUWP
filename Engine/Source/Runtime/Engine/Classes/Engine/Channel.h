@@ -42,8 +42,14 @@ enum class EChannelCreateFlags : uint32
 	None			= (1 << 0),
 	OpenedLocally	= (1 << 1)
 };
-
 ENUM_CLASS_FLAGS(EChannelCreateFlags);
+
+enum class EChannelGetAdditionalRequiredBunchesFlags : uint32
+{
+	None				= 0U,
+	SkipNetGUIDExports	= 1U
+};
+ENUM_CLASS_FLAGS(EChannelGetAdditionalRequiredBunchesFlags);
 
 // The channel index to use for voice
 #define VOICE_CHANNEL_INDEX 1
@@ -95,6 +101,9 @@ public:
 	/** Initialize this channel for the given connection and index. */
 	ENGINE_API virtual void Init(UNetConnection* InConnection, int32 InChIndex, EChannelCreateFlags CreateFlags);
 
+    /** Reinitialize the channel with the existing NetConnection */
+	ENGINE_API virtual void ReInit() {}
+
 	/** Set the closing flag. */
 	ENGINE_API virtual void SetClosingFlag();
 
@@ -134,9 +143,13 @@ public:
 	 * The bunch is sure not to be discarded.
 	 */
 	ENGINE_API void ReceivedRawBunch( FInBunch & Bunch, bool & bOutSkipAck );
-	
+
 	/** Append any export bunches */
-	ENGINE_API virtual void AppendExportBunches( TArray< FOutBunch* >& OutExportBunches );
+	UE_DEPRECATED(5.5, "Use GetAdditionalRequiredBunches")
+	ENGINE_API virtual void AppendExportBunches(TArray< FOutBunch* >& OutExportBunches);
+
+	/** Returns any additional bunches (such as exports) needed by the passed-in OutgoingBunch */
+	ENGINE_API virtual TArray<FOutBunch*> GetAdditionalRequiredBunches(const FOutBunch& OutgoingBunch, EChannelGetAdditionalRequiredBunchesFlags Flags = EChannelGetAdditionalRequiredBunchesFlags::None);
 
 	/** Append any "must be mapped" guids to front of bunch. These are guids that the client will wait on before processing this bunch. */
 	ENGINE_API virtual void AppendMustBeMappedGuids( FOutBunch* Bunch );
@@ -164,6 +177,9 @@ public:
 
 	/* Notification that this channel has been placed in a channel pool and needs to reset to its original state so it can be used again like a new channel */
 	ENGINE_API virtual void AddedToChannelPool();
+
+	/** Returns true if this channel has flushed and acknowledged pending reliable data during a graceful close (when net.EnableGracefulClose is true) */
+	ENGINE_API virtual bool HasAcknowledgedAllReliableData() const;
 
 protected:
 

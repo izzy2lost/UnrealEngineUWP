@@ -3,6 +3,7 @@
 #include "TextSerializer.h"
 
 #include "HAL/UnrealMemory.h"
+#include "Math/NumericLimits.h"
 #include "Misc/CString.h"
 
 namespace UE
@@ -22,6 +23,65 @@ FTextSerializer::FTextSerializer()
 
 FTextSerializer::~FTextSerializer()
 {
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FTextSerializer::WriteValueInt64Auto(int64 Value)
+{
+	constexpr int64 MinInt64Hex = -99'999'999;
+	constexpr int64 MaxInt64Hex = 999'999'999;
+
+	if (Value < MinInt64Hex)
+	{
+		if (Value == MIN_int64)
+		{
+			Append("MIN_int64");
+		}
+		else
+		{
+			AppendChar('-');
+			WriteValueHex64(uint64(-Value));
+		}
+	}
+	else if (Value > MaxInt64Hex)
+	{
+		if (Value == MAX_int64)
+		{
+			Append("MAX_int64");
+		}
+		else
+		{
+			WriteValueHex64(uint64(Value));
+		}
+	}
+	else
+	{
+		WriteValueInt64(Value);
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FTextSerializer::WriteValueUInt64Auto(uint64 Value)
+{
+	constexpr uint64 MaxUInt64Hex = 999'999'999;
+
+	if (Value > MaxUInt64Hex)
+	{
+		if (Value == MAX_uint64)
+		{
+			Append("MAX_uint64");
+		}
+		else
+		{
+			WriteValueHex64(Value);
+		}
+	}
+	else
+	{
+		WriteValueUInt64(Value);
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -380,6 +380,18 @@ namespace BuildPatchServices
 			return true;
 		}
 
+		void SyncInternalManifestStructures()
+		{
+			// Normal manifests have some lookup structures we need to be fixed up in order for
+			// things to work.
+			for (const TPair<FString, FFileManifest>& FileManifest : FileManifests)
+			{
+				FileManifestList.FileList.Add(FileManifest.Value);
+			}
+
+			InitLookups();
+		}
+
 	public:
 		uint64 AppId;
 		FString AppName;

@@ -661,7 +661,7 @@ namespace
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainersSmokeTest, "System.Core.Containers.Smoke", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainersSmokeTest, "System.Core.Containers.Smoke", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FContainersSmokeTest::RunTest( const FString& Parameters )
 {
 	RunContainerTests<TMap<int32, FContainerTestValueType>, int32>();
@@ -671,7 +671,7 @@ bool FContainersSmokeTest::RunTest( const FString& Parameters )
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainersFullTest, "System.Core.Containers.Full", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainersFullTest, "System.Core.Containers.Full", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FContainersFullTest::RunTest(const FString& Parameters)
 {
 	RunContainerTests<TMap<int32, FContainerTestValueType>, int32>();
@@ -712,7 +712,7 @@ bool FContainersFullTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainerPerformanceTest, "System.Core.Containers.Performance", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainerPerformanceTest, "System.Core.Containers.Performance", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FContainerPerformanceTest::RunTest(const FString& Parameters)
 {
 	RunPerformanceTest<TMap<int32, FString>, int32>(TEXT("TMap int32"), 1, 1000000);
@@ -810,7 +810,7 @@ namespace
 	}
 
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainersTSetTest, "System.Core.Containers.TSet", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainersTSetTest, "System.Core.Containers.TSet", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FContainersTSetTest::RunTest(const FString& Parameters)
 {
 	enum class EArgType
@@ -930,10 +930,192 @@ bool FContainersTSetTest::RunTest(const FString& Parameters)
 		}
 	}
 
+	// FindArbitraryElement
+	{
+		{
+			TSet<FString> Set;
+			FString* Found = Set.FindArbitraryElement();
+			TestNull(TEXT("FindArbitraryElement returns null on an empty set"), Found);
+		}
+
+		{
+			constexpr int32 ElementsToAdd = 100;
+			constexpr int32 IndexToKeep = 67;
+
+			TSet<FString> Set;
+			for (int32 I = 0; I != ElementsToAdd; ++I)
+			{
+				Set.Add(LexToString(I));
+			}
+			for (int32 I = 0; I != ElementsToAdd; ++I)
+			{
+				if (I != IndexToKeep)
+				{
+					Set.Remove(LexToString(I));
+				}
+			}
+
+			FString* Found = Set.FindArbitraryElement();
+			if (Found)
+			{
+				TestNotNull(TEXT("FindArbitraryElement finds a value on a highly sparse set"), Found);
+				TestEqual(TEXT("FindArbitraryElement finds the correct value on a highly sparse set"), *Found, LexToString(IndexToKeep));
+			}
+
+			Found = nullptr;
+			Set.Remove(LexToString(IndexToKeep));
+
+			FString* Found2 = Set.FindArbitraryElement();
+			TestNull(TEXT("FindArbitraryElement returns null on an emptied set"), Found2);
+		}
+	}
 
 	return !HasAnyErrors();
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainersTMapTest, "System.Core.Containers.TMap", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+bool FContainersTMapTest::RunTest(const FString& Parameters)
+{
+	// FindArbitraryElement
+	{
+		{
+			TMap<int32, FString> Map;
+			TPair<int32, FString>* Found = Map.FindArbitraryElement();
+			TestNull(TEXT("FindArbitraryElement returns null on an empty map"), Found);
+		}
+
+		{
+			constexpr int32 ElementsToAdd = 100;
+			constexpr int32 IndexToKeep = 23;
+
+			TMap<int32, FString> Map;
+			for (int32 I = 0; I != ElementsToAdd; ++I)
+			{
+				Map.Add(I, LexToString(I));
+			}
+			for (int32 I = 0; I != ElementsToAdd; ++I)
+			{
+				if (I != IndexToKeep)
+				{
+					Map.Remove(I);
+				}
+			}
+
+			TPair<int32, FString>* Found = Map.FindArbitraryElement();
+
+			TestNotNull(TEXT("FindArbitraryElement finds a value on a highly sparse map"), Found);
+			if (Found)
+			{
+				TestEqual(TEXT("FindArbitraryElement finds the correct key on a highly sparse map"), Found->Key, IndexToKeep);
+				TestEqual(TEXT("FindArbitraryElement finds the correct value on a highly sparse map"), Found->Value, LexToString(IndexToKeep));
+			}
+
+			Found = nullptr;
+			Map.Remove(IndexToKeep);
+
+			TPair<int32, FString>* Found2 = Map.FindArbitraryElement();
+			TestNull(TEXT("FindArbitraryElement returns null on an emptied map"), Found2);
+		}
+	}
+
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainersTSortedMapTest, "System.Core.Containers.TSortedMap", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+bool FContainersTSortedMapTest::RunTest(const FString& Parameters)
+{
+	// FindArbitraryElement
+	{
+		{
+			TSortedMap<int32, FString> Map;
+			TPair<int32, FString>* Found = Map.FindArbitraryElement();
+			TestNull(TEXT("FindArbitraryElement returns null on an empty map"), Found);
+		}
+
+		{
+			constexpr int32 ElementsToAdd = 100;
+			constexpr int32 IndexToKeep = 23;
+
+			TSortedMap<int32, FString> Map;
+			for (int32 I = 0; I != ElementsToAdd; ++I)
+			{
+				Map.Add(I, LexToString(I));
+			}
+			for (int32 I = 0; I != ElementsToAdd; ++I)
+			{
+				if (I != IndexToKeep)
+				{
+					Map.Remove(I);
+				}
+			}
+
+			TPair<int32, FString>* Found = Map.FindArbitraryElement();
+
+			TestNotNull(TEXT("FindArbitraryElement finds a value on a highly sparse map"), Found);
+			if (Found)
+			{
+				TestEqual(TEXT("FindArbitraryElement finds the correct key on a highly sparse map"), Found->Key, IndexToKeep);
+				TestEqual(TEXT("FindArbitraryElement finds the correct value on a highly sparse map"), Found->Value, LexToString(IndexToKeep));
+			}
+
+			Found = nullptr;
+			Map.Remove(IndexToKeep);
+
+			TPair<int32, FString>* Found2 = Map.FindArbitraryElement();
+			TestNull(TEXT("FindArbitraryElement returns null on an emptied map"), Found2);
+		}
+	}
+
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainersTArrayTest, "System.Core.Containers.TArray", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+bool FContainersTArrayTest::RunTest(const FString& Parameters)
+{
+	// Move semantics
+	{
+		// Move array to another array of the same type
+		{
+			TArray<int32> From = { 1, 2, 3, 4, 5 };
+			TArray<int32> To = MoveTemp(From);
+			TestTrue(TEXT("Move constructing an array relocates the elements"), From.IsEmpty() && To == TArray<int32>{ 1, 2, 3, 4, 5 });
+		}
+
+		// Move array to another array of bitwise-compatible type
+		{
+			// We can transfer memory between arrays of signed and unsigned
+			TArray<int32> From = { 1, 2, 3, 4, 5 };
+			TArray<uint32> To(MoveTemp(From));
+			TestTrue(TEXT("Move constructing an array relocates the elements with bitwise compatible elements"), From.IsEmpty() && To == TArray<uint32>{ 1, 2, 3, 4, 5 });
+		}
+
+		// Move array to another array of bitwise-incompatible type
+		{
+			// We can't transfer memory, but we can copy
+			TArray<int32> From = { 1, 2, 3, 4, 5 };
+			TArray<int64> To(MoveTemp(From));
+			TestTrue(TEXT("Move constructing an array does not relocate the elements with bitwise incompatible elements"), From == TArray<int32>{ 1, 2, 3, 4, 5 } && To == TArray<int64>{ 1, 2, 3, 4, 5 });
+		}
+
+		// Move array of unqualified type to an array of qualified type
+		{
+			// We can transfer memory from an array of non-const to an array of const
+			TArray<int32> From = { 1, 2, 3, 4, 5 };
+			TArray<const int32> To(MoveTemp(From));
+			TestTrue(TEXT("Move constructing an array when adding const relocates the elements"), From.IsEmpty() && To == TArray<const int32>{ 1, 2, 3, 4, 5 });
+		}
+
+		// Move array of qualified type to an array of unqualified type
+		{
+			// We can't transfer memory from an array of const to an array of non-const, because that would be const-incorrect
+			TArray<const int32> From = { 1, 2, 3, 4, 5 };
+			TArray<int32> To(MoveTemp(From));
+			TestTrue(TEXT("Move constructing an array when removing conts copies the elements"), From == TArray<const int32>{ 1, 2, 3, 4, 5 } && To == TArray<int32>{ 1, 2, 3, 4, 5 });
+		}
+	}
+
+	return !HasAnyErrors();
+}
 
 namespace ArrayViewTests
 {

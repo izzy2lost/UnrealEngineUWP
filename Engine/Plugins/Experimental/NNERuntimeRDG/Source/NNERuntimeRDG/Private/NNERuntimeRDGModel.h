@@ -24,6 +24,7 @@ namespace UE::NNERuntimeRDG::Private
 		virtual EEnqueueRDGStatus EnqueueRDG(FRDGBuilder& RDGBuilder, TConstArrayView<NNE::FTensorBindingRDG> InInputBindings, TConstArrayView<NNE::FTensorBindingRDG> InOutputBindings) override;
 		
 	protected:
+		static FRDGBufferDesc CreateRDGBufferDescForTensorRDG(const FTensorRDG& Tensor);
 		bool LoadModel(TConstArrayView<uint8> ModelData, FNNERuntimeFormat& Format, int32 GuidAndVersionSize);
 		int32 SetTensors(FRDGBuilder& GraphBuilder, FTensorRDGArray& InTensorRDGs, TConstArrayView<NNE::FTensorBindingRDG> InBindings);
 
@@ -41,6 +42,7 @@ namespace UE::NNERuntimeRDG::Private
 		TArray<int32>				WeightTensorIndices;
 		TArray<int32>				InputTensorIndices;
 		TArray<int32>				OutputTensorIndices;
+		TArray<int32>				EmptyTensorIndices;
 
 		//Tensor indices by operator
 		TArray<TArray<uint32>>		OperatorInputTensorIndices;
@@ -50,6 +52,7 @@ namespace UE::NNERuntimeRDG::Private
 		FTensorRDGRefMap			AllTensorRDGRefs;
 		FTensorRDGArray				InputTensorRDGs;
 		FTensorRDGArray				OutputTensorRDGs;
+		FTensorRDGArray				EmptyTensorRDGs;
 		FTensorRDGArray				IntermediateTensorRDGs;
 		FTensorRDGArray				WeightTensorRDGs;
 	};

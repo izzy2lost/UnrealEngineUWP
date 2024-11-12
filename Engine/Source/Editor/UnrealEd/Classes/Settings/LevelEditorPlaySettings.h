@@ -425,8 +425,19 @@ private:
 	* The usefullness of this will vary by XR platform.  
 	* The PIE instances may get special -HMDSimulator behavior from an XR plugin, they may successfully make connections to the HMD hardware, their attempt to connect to hardware may be rejected by the runtime.
 	*/
-	UPROPERTY(config, EditAnywhere, Category = "Multiplayer Options", meta = (EditCondition = "!RunUnderOneProcess"))
-	bool bOneHeadsetEachProcess;
+	UE_DEPRECATED(5.5, "Deprecated. Use bHMDForPrimaryProcessOnly instead")
+	UPROPERTY(config)
+	bool bOneHeadsetEachProcess_DEPRECATED;
+
+	/** 
+	* When running multiple player windows in multiple processes, this option determines how HMD(s)/Simulator(s) is/are attached to processes.
+	* 
+	* If checked (default), there is only one HMD/Simulator and it is only attached to the primary process.
+	* 
+	* If unchecked, there could be multiple HMDs/Simulators if HMD/XRSimulator supports it, and each process could have its own attached HMD or XRSimulator, or all processes could share the same HMD by switching the HMD to the active process dynamically.
+	*/
+	UPROPERTY(config, EditAnywhere, Category = "Multiplayer Options", meta = (DisplayName = "HMD For Primary Process Only", EditCondition = "!RunUnderOneProcess"))
+	bool bHMDForPrimaryProcessOnly;
 
 private:
 	UNREALED_API void PushDebugDrawingSettings();
@@ -521,7 +532,15 @@ public:
 		}
 	}
 
-	bool IsOneHeadsetEachProcess() const { return bOneHeadsetEachProcess; }
+	UE_DEPRECATED(5.5, "Deprecated. Use IsHMDForPrimaryProcessOnly function instead")
+	bool IsOneHeadsetEachProcess() const
+	{ 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return bOneHeadsetEachProcess_DEPRECATED;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	bool IsHMDForPrimaryProcessOnly() const { return bHMDForPrimaryProcessOnly; }
 
 public:
 

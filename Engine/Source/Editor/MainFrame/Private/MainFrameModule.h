@@ -303,4 +303,7 @@ private:
 
 	// Instantiation of the object responsible for spawning the editor's project dialog on startup
 	FProjectDialogProvider ProjectDialogProvider;
+
+	// Set to true if we are in the middle of recreating the default layout because a previous load attempt failed
+	bool bIsReCreatingDefaultLayoutAsFallback = false;
 };

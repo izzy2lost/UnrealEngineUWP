@@ -211,12 +211,13 @@ void UXRCreativeVREditorMode::SetHeadTransform(const FTransform& HeadToWorld)
 }
 
 
+// Does not call the base class implementation, because we call UOpenXRInputFunctionLibrary::BeginXRSession
+// instead of GEngine->StereoRenderingDevice->EnableStereo(true).
 void UXRCreativeVREditorMode::EnableStereo()
 {
-	if (TSharedPtr<SLevelViewport> Viewport = GetVrLevelViewport())
+	if (TSharedPtr<SLevelViewport> Viewport = GetVrLevelViewport(); ensure(Viewport))
 	{
-		Viewport->EnableStereoRendering(true);
-		Viewport->SetRenderDirectlyToWindow(true);
+		StereoViewportSetup(Viewport.ToSharedRef());
 	}
 	
 	TSet<UInputMappingContext*> Contexts;
@@ -255,14 +256,15 @@ void UXRCreativeVREditorMode::EnableStereo()
 }
 
 
+// Does not call the base class implementation, because we call UOpenXRInputFunctionLibrary::EndXRSession
+// instead of GEngine->StereoRenderingDevice->EnableStereo(false).
 void UXRCreativeVREditorMode::DisableStereo()
 {
 	UOpenXRInputFunctionLibrary::EndXRSession();
 
-	if (TSharedPtr<SLevelViewport> VREditorLevelViewport = GetVrLevelViewport())
+	if (TSharedPtr<SLevelViewport> Viewport = GetVrLevelViewport(); ensure(Viewport))
 	{
-		VREditorLevelViewport->EnableStereoRendering(false);
-		VREditorLevelViewport->SetRenderDirectlyToWindow(false);
+		StereoViewportShutdown(Viewport.ToSharedRef());
 	}
 }
 
@@ -286,9 +288,9 @@ bool UXRCreativeVREditorMode::ValidateSettings()
 	IConsoleManager& ConsoleMgr = IConsoleManager::Get();
 	if (IConsoleVariable* PropagateAlpha = ConsoleMgr.FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha")))
 	{
-		if (PropagateAlpha->GetInt() != 0)
+		if (PropagateAlpha->GetBool())
 		{
-			InvalidSettingNotification(LOCTEXT("InvalidCvarPropagateAlpha", "r.PostProcessing.PropagateAlpha must be set to 0 (and requires an engine restart)"));
+			InvalidSettingNotification(LOCTEXT("InvalidCvarPropagateAlpha", "r.PostProcessing.PropagateAlpha must be disabled (and requires an engine restart)"));
 			bSettingsValid = false;
 		}
 	}

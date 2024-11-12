@@ -8,6 +8,8 @@
 #include "DisplayClusterConfigurationTypes_MediaSync.h"
 #include "DisplayClusterConfigurationTypes_Tile.h"
 
+#include "Render/Viewport/Containers/DisplayClusterViewport_TileSettings.h"
+
 #include "MediaPlayer.h"
 #include "MediaSource.h"
 #include "MediaTexture.h"
@@ -70,7 +72,7 @@ struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaNodeBack
 
 public:
 	/** Enable/disable media */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Enable Media"))
 	bool bEnable = false;
 
 	/** Media outputs to use */
@@ -96,7 +98,7 @@ struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaViewport
 
 public:
 	/** Enable/disable media */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta=(DisplayName="Enable Media"))
 	bool bEnable = false;
 
 	/** Media source to use */
@@ -261,7 +263,7 @@ struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaICVFX
 
 public:
 	/** Enable/disable media */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Enable Media"))
 	bool bEnable = false;
 
 	/** Media frame split type */
@@ -300,11 +302,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media Output Groups"))
 	TArray<FDisplayClusterConfigurationMediaTiledOutputGroup> TiledMediaOutputGroups;
 
-	/** Force late OCIO pass */
-	UPROPERTY()
+	/** Allows the receviers to apply their own OCIO transformations (per node OCIO override). Requires the media to support FloatRGBA.*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Receivers Apply OCIO"))
 	bool bLateOCIOPass = false;
 
 public:
+	/** Returns true if these media settings can be used for tiling. */
+	bool ShouldMediaICVFXSplitIntoTiles() const;
+
+	/** Returns additional tile settings for the cluster node. */
+	EDisplayClusterViewportTileFlags GetMediaICVFXTileFlags(const FString& NodeId) const;
 
 	/** Returns true if any media source of specified split-type is bound */
 	bool HasAnyMediaInputAssigned(const FString& NodeId, EDisplayClusterConfigurationMediaSplitType SplitType) const;

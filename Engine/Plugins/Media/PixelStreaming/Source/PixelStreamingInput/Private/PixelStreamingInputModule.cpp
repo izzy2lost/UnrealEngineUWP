@@ -125,6 +125,11 @@ namespace UE::PixelStreamingInput
 																													EType::Float, EType::Float, EType::Float, EType::Float,
 																													EType::Float, EType::Float, EType::Float, EType::Float,
 																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													// HMD 4x4 Transform
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													EType::Float, EType::Float, EType::Float, EType::Float,
+																													EType::Float, EType::Float, EType::Float, EType::Float,
 																												}));
 
 		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("XRHMDTransform", FPixelStreamingInputMessage(110, {	// 4x4 Transform
@@ -143,17 +148,19 @@ namespace UE::PixelStreamingInput
 																														EType::Uint8 
 																														}));
 
-		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("XRButtonPressed", FPixelStreamingInputMessage(112,// Handedness,   ButtonIdx,      IsRepeat
+		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("XRButtonPressed", FPixelStreamingInputMessage(112,// Handedness,  ButtonIdx,    IsRepeat,     PressedAmount
+																												{ EType::Uint8, EType::Uint8, EType::Uint8, EType::Double }));
+		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("XRButtonTouched", FPixelStreamingInputMessage(113,// Handedness,  ButtonIdx,    IsRepeat
 																												{ EType::Uint8, EType::Uint8, EType::Uint8 }));
-		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("XRButtonTouched", FPixelStreamingInputMessage(113,// Handedness,   ButtonIdx,      IsRepeat
-																												{ EType::Uint8, EType::Uint8, EType::Uint8 }));
-		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("XRButtonReleased", FPixelStreamingInputMessage(114,// Handedness,   ButtonIdx,     IsRepeat
+		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("XRButtonReleased", FPixelStreamingInputMessage(114,// Handedness, ButtonIdx,    IsRepeat
 																												{ EType::Uint8, EType::Uint8, EType::Uint8 }));
 
 		// clang-format on
 		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("XRAnalog", FPixelStreamingInputMessage(115, { EType::Uint8, EType::Uint8, EType::Double }));
 
 		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("XRSystem", FPixelStreamingInputMessage(116, { EType::Uint8 }));
+		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("XRButtonTouchReleased", FPixelStreamingInputMessage(117,// Handedness,  ButtonIdx,    IsRepeat
+																												{ EType::Uint8, EType::Uint8, EType::Uint8 }));
 
 		// Old EToPlayerMsg commands
 		FPixelStreamingInputProtocol::FromStreamerProtocol.Add("QualityControlOwnership", FPixelStreamingInputMessage(0));

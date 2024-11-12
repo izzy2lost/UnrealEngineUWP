@@ -6,7 +6,7 @@
 #include "StormSyncDrivesSettings.h"
 #include "StormSyncDrivesUtils.h"
 
-BEGIN_DEFINE_SPEC(FStormSyncDrivesUtilsSpec, "StormSync.StormSyncDrives", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FStormSyncDrivesUtilsSpec, "StormSync.StormSyncDrives", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	/** Helper to assert a duplicate error log */
 	void AssertErrorLog(const int32 InErrorIndex, const int32 InTestCaseIndex, const FStormSyncMountPointConfig& InTestCase, const TArray<FText>& InValidationErrors)

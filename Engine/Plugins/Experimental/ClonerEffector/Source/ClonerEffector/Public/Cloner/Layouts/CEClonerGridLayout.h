@@ -77,49 +77,51 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Cloner|Layout|Grid")
-	CLONEREFFECTOR_API void SetConstraint(ECEClonerGridConstraint InConstraint);
+	CLONEREFFECTOR_API void SetTwistFactor(float InFactor);
 
 	UFUNCTION(BlueprintPure, Category="Cloner|Layout|Grid")
+	float GetTwistFactor() const
+	{
+		return TwistFactor;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Cloner|Layout|Grid")
+	CLONEREFFECTOR_API void SetTwistAxis(ECEClonerAxis InAxis);
+
+	UFUNCTION(BlueprintPure, Category="Cloner|Layout|Grid")
+	ECEClonerAxis GetTwistAxis() const
+	{
+		return TwistAxis;
+	}
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 	ECEClonerGridConstraint GetConstraint() const
 	{
 		return Constraint;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner|Layout|Grid")
-	CLONEREFFECTOR_API void SetInvertConstraint(bool bInInvertConstraint);
-
-	UFUNCTION(BlueprintPure, Category="Cloner|Layout|Grid")
 	bool GetInvertConstraint() const
 	{
 		return bInvertConstraint;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner|Layout|Grid")
-	CLONEREFFECTOR_API void SetSphereConstraint(const FCEClonerGridConstraintSphere& InConstraint);
-
-	UFUNCTION(BlueprintPure, Category="Cloner|Layout|Grid")
 	const FCEClonerGridConstraintSphere& GetSphereConstraint() const
 	{
 		return SphereConstraint;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner|Layout|Grid")
-	CLONEREFFECTOR_API void SetCylinderConstraint(const FCEClonerGridConstraintCylinder& InConstraint);
-
-	UFUNCTION(BlueprintPure, Category="Cloner|Layout|Grid")
 	const FCEClonerGridConstraintCylinder& GetCylinderConstraint() const
 	{
 		return CylinderConstraint;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner|Layout|Grid")
-	CLONEREFFECTOR_API void SetTextureConstraint(const FCEClonerGridConstraintTexture& InConstraint);
-
-	UFUNCTION(BlueprintPure, Category="Cloner|Layout|Grid")
 	const FCEClonerGridConstraintTexture& GetTextureConstraint() const
 	{
 		return TextureConstraint;
 	}
+
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 protected:
 	//~ Begin UObject
@@ -132,40 +134,51 @@ protected:
 	virtual void OnLayoutParametersChanged(UCEClonerComponent* InComponent) override;
 	//~ End UCEClonerLayoutBase
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetCountX", Getter="GetCountX", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	int32 CountX = 3;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetCountY", Getter="GetCountY", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	int32 CountY = 3;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetCountZ", Getter="GetCountZ", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	int32 CountZ = 3;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSpacingX", Getter="GetSpacingX", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	float SpacingX = 105.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSpacingY", Getter="GetSpacingY", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	float SpacingY = 105.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSpacingZ", Getter="GetSpacingZ", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	float SpacingZ = 105.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetConstraint", Getter="GetConstraint", Category="Layout")
-	ECEClonerGridConstraint Constraint = ECEClonerGridConstraint::None;
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout", meta=(UIMin="0", UIMax="100"))
+	float TwistFactor = 0.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetInvertConstraint", Getter="GetInvertConstraint", Category="Layout", meta=(EditCondition="Constraint != ECEClonerGridConstraint::None", EditConditionHides))
-	bool bInvertConstraint = false;
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSphereConstraint", Getter="GetSphereConstraint", Category="Layout", meta=(EditCondition="Constraint == ECEClonerGridConstraint::Sphere", EditConditionHides))
-	FCEClonerGridConstraintSphere SphereConstraint;
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetCylinderConstraint", Getter="GetCylinderConstraint", Category="Layout", meta=(EditCondition="Constraint == ECEClonerGridConstraint::Cylinder", EditConditionHides))
-	FCEClonerGridConstraintCylinder CylinderConstraint;
-
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetTextureConstraint", Getter="GetTextureConstraint", Category="Layout", meta=(EditCondition="Constraint == ECEClonerGridConstraint::Texture", EditConditionHides))
-	FCEClonerGridConstraintTexture TextureConstraint;
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout", meta=(InvalidEnumValues="Custom"))
+	ECEClonerAxis TwistAxis = ECEClonerAxis::Y;
 
 private:
+	UE_DEPRECATED(5.5, "Moved to constraint extension")
+	UPROPERTY()
+	ECEClonerGridConstraint Constraint = ECEClonerGridConstraint::None;
+
+	UE_DEPRECATED(5.5, "Moved to constraint extension")
+	UPROPERTY()
+	bool bInvertConstraint = false;
+
+	UE_DEPRECATED(5.5, "Moved to constraint extension")
+	UPROPERTY()
+	FCEClonerGridConstraintSphere SphereConstraint;
+
+	UE_DEPRECATED(5.5, "Moved to constraint extension")
+	UPROPERTY()
+	FCEClonerGridConstraintCylinder CylinderConstraint;
+
+	UE_DEPRECATED(5.5, "Moved to constraint extension")
+	UPROPERTY()
+	FCEClonerGridConstraintTexture TextureConstraint;
+
 #if WITH_EDITOR
 	/** Used for PECP */
 	static const TCEPropertyChangeDispatcher<UCEClonerGridLayout> PropertyChangeDispatcher;

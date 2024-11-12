@@ -27,6 +27,11 @@ class FGeometryCollectionEngineConversion
 {
 public:
 
+	struct FSkeletalMeshToCollectionConversionParameters
+	{
+		bool bParentAllBonesUnderNewRoot = true;
+	};
+
 	/**
 	 * Appends materials to a GeometryCollectionComponent.
 	 * @param Materials : Materials fetched from the StaticMeshComponent used to configure this geometry
@@ -115,7 +120,7 @@ public:
 	*  @param SkeletalMeshTransform : Mesh transform.
 	*  @param GeometryCollection    : Collection to append the mesh into.
 	*/
-	static GEOMETRYCOLLECTIONENGINE_API bool AppendSkeletalMesh(const USkeletalMesh* SkeletalMesh, int32 MaterialStartIndex, const FTransform& SkeletalMeshTransform, FManagedArrayCollection* InCollection, bool bReindexMaterials = true);
+	static GEOMETRYCOLLECTIONENGINE_API bool AppendSkeletalMesh(const USkeletalMesh* SkeletalMesh, int32 MaterialStartIndex, const FTransform& SkeletalMeshTransform, FManagedArrayCollection* InCollection, bool bReindexMaterials = true, bool bImportTransformOnly = false);
 
 	/**
 	*  Appends a skeleton mesh to a GeometryCollection.
@@ -174,6 +179,7 @@ public:
 	*  @param MaterialsInOut  : array of materials to append to
 	*/
 	static GEOMETRYCOLLECTIONENGINE_API void AppendGeometryCollectionSource(const FGeometryCollectionSource& GeometryCollectionSource, FGeometryCollection& GeometryCollectionInOut, TArray<UMaterial*>& MaterialsInOut, bool ReindexMaterials = true);
+	static GEOMETRYCOLLECTIONENGINE_API void AppendGeometryCollectionSource(const FGeometryCollectionSource& GeometryCollectionSource, FGeometryCollection& GeometryCollectionInOut, TArray<UMaterialInterface*>& MaterialInstancesInOut, bool ReindexMaterials = true);
 
 	/**
 	*  Converts a StaticMesh to a GeometryCollection
@@ -185,4 +191,47 @@ public:
 	*  @param bSplitComponents : Split the components
 	*/
 	static GEOMETRYCOLLECTIONENGINE_API void ConvertStaticMeshToGeometryCollection(const TObjectPtr<UStaticMesh> StaticMesh, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSetInternalFromMaterialIndex = true, bool bSplitComponents = false);
+	static GEOMETRYCOLLECTIONENGINE_API void ConvertStaticMeshToGeometryCollection(const TObjectPtr<UStaticMesh> StaticMesh, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterialInterface>>& OutMaterialInstances, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSetInternalFromMaterialIndex = true, bool bSplitComponents = false);
+	static GEOMETRYCOLLECTIONENGINE_API void ConvertStaticMeshToGeometryCollection(const TObjectPtr<UStaticMesh> StaticMesh, const FTransform& MeshTransform, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterialInterface>>& OutMaterialInstances, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSetInternalFromMaterialIndex = true, bool bSplitComponents = false);
+
+	/**
+	*  Converts a UGeometryCollection asset to an FManagedArrayCollection, and arrays of materials and instanced meshes
+	*  @param GeometryCollection : UGeometryCollection input to convert
+	*  @param OutCollection : FGeometryCollection output
+	*  @param OutMaterials : Materials from the UGeometryCollection
+	*  @param OutInstancedMeshes : InstancedMeshes
+	*/	
+	static GEOMETRYCOLLECTIONENGINE_API void ConvertGeometryCollectionToGeometryCollection(const TObjectPtr<UGeometryCollection> InGeometryCollectionAssetPtr, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes);
+	static GEOMETRYCOLLECTIONENGINE_API void ConvertGeometryCollectionToGeometryCollection(const TObjectPtr<UGeometryCollection> InGeometryCollectionAssetPtr, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterialInterface>>& OutMaterialInstances, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes);
+
+	/**
+	*  Converts an actor to an FManagedArrayCollection, and arrays of materials and instanced meshes
+	*  @param Actor : actor input to convert
+	*  @param OutCollection : FGeometryCollection output
+	*  @param OutMaterials : Materials from the UGeometryCollection
+	*  @param OutInstancedMeshes : InstancedMeshes
+	*  @param bSplitComponents : Split the components
+	*/
+	static GEOMETRYCOLLECTIONENGINE_API void ConvertActorToGeometryCollection(const AActor* Actor, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, const FSkeletalMeshToCollectionConversionParameters& ConversionParameters, bool bSplitComponents = false);
+	static GEOMETRYCOLLECTIONENGINE_API void ConvertActorToGeometryCollection(const AActor* Actor, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterialInterface>>& OutMaterialInstances, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, const FSkeletalMeshToCollectionConversionParameters& ConversionParameters, bool bSplitComponents = false);
+
+	/**
+	*  Converts an FManagedArrayCollection to a USkeleton
+	*  @param InManagedArrayCollection : Collection that supports transform hierarchy
+	*  @param OutSkeleton : USkeleton to populate
+	*  @param OutIndexRemap : Remapping from Collection transforms to skeletal transforms.
+	*/
+	static GEOMETRYCOLLECTIONENGINE_API void ConvertCollectionToSkeleton(const FManagedArrayCollection& InCollection, USkeleton* OutSkeleton, TArray<int32>& OutIndexRemap);
+
+	/** utility function to convert an array of material instances to an array of material */
+	static GEOMETRYCOLLECTIONENGINE_API void GetMaterialsFromInstances(const TArray<TObjectPtr<UMaterialInterface>>& MaterialInstances, TArray<TObjectPtr<UMaterial>>& OutMaterials);
+private:
+	/**
+	*  Appends a GeometryCollectionSource to a GeometryCollection ignoring the materials
+	*  this is meant to be used by the AppendGeometryCollectionSource variants
+	*  @param GeometryCollectionSource : geometry collection source object ( from UGeometryCollection collection asset )
+	*  @param GeometryCollectionInOut : GeometryCollection to append to
+	*  @return true if the source was added successfully ( valid object )
+	*/
+	static GEOMETRYCOLLECTIONENGINE_API bool AppendGeometryCollectionSourceNoMaterial(const FGeometryCollectionSource& GeometryCollectionSource, FGeometryCollection& GeometryCollectionInOut, int32 StartMaterialIndex, bool ReindexMaterials = true);
 };

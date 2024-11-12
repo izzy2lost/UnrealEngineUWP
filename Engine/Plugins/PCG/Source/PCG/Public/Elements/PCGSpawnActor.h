@@ -51,7 +51,7 @@ public:
 	TArray<FName> PostSpawnFunctionNames;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	EPCGSpawnActorOption Option = EPCGSpawnActorOption::CollapseActors;
+	EPCGSpawnActorOption Option = EPCGSpawnActorOption::CollapseActors; // Note that this is no longer the default value for new nodes, it is now EPCGSpawnActorOption::NoMerging.
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Option==EPCGSpawnActorOption::NoMerging", EditConditionHides))
 	bool bForceDisableActorParsing = true;
@@ -83,6 +83,10 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bSpawnByAttribute"))
 	FName SpawnAttribute = NAME_None;
+
+	/** Adds a warning to the node on repeated spawning with identical conditions (ie. same actor at same spawn location, etc). */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Advanced")
+	bool bWarnOnIdenticalSpawn = true;
 
 protected:
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Settings, meta = (OnlyPlaceable, DisallowCreateNew))

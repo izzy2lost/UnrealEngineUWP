@@ -355,4 +355,5 @@ static const FName AspectH(TEXT("aspect_h"));
 static const FName FPSNumerator(TEXT("fps_num"));
 static const FName FPSDenominator(TEXT("fps_denom"));
 static const FName PixelDataScale(TEXT("pix_datascale"));
+static const FName Timecode(TEXT("timecode"));
 }

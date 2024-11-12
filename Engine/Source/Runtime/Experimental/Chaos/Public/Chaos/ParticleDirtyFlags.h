@@ -20,6 +20,7 @@
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "Framework/PhysicsProxyBase.h"
+#include "Chaos/Evolution/IterationSettings.h"
 #include "PBDJointConstraintTypes.h"
 #include "PBDSuspensionConstraintTypes.h"
 
@@ -51,8 +52,6 @@ struct FParticleID
 		return GlobalID == Other.GlobalID && LocalID == Other.LocalID;
 	}
 };
-
-using FKinematicTarget = TKinematicTarget<FReal, 3>;
 
 enum class EResimType: uint8;
 enum class ESleepType: uint8;
@@ -535,6 +534,8 @@ public:
 
 	bool GravityEnabled() const { return MControlFlags.GetGravityEnabled(); }
 	void SetGravityEnabled(bool bInGravity){ MControlFlags.SetGravityEnabled(bInGravity); }
+	int32 GravityGroupIndex() const { return MControlFlags.GetGravityGroupIndex(); }
+	void SetGravityGroupIndex(int32 InIndex) { MControlFlags.SetGravityGroupIndex(InIndex); }
 
 	bool UpdateKinematicFromSimulation() const { return MControlFlags.GetUpdateKinematicFromSimulation(); }
 	void SetUpdateKinematicFromSimulation(bool bUpdateKinematicFromSimulation) { MControlFlags.SetUpdateKinematicFromSimulation(bUpdateKinematicFromSimulation); }
@@ -544,6 +545,12 @@ public:
 
 	bool MACDEnabled() const { return MControlFlags.GetMACDEnabled(); }
 	void SetMACDEnabled(bool bInCCDEnabled) { MControlFlags.SetMACDEnabled(bInCCDEnabled); }
+
+	void SetPositionSolverIterationCount(const int32 PositionSolverIterationCountIn) { MIterationSettings.SetNumPositionIterations(PositionSolverIterationCountIn); }
+	void SetVelocitySolverIterationCount(const int32 VelocitySolverIterationCountIn) { MIterationSettings.SetNumVelocityIterations(VelocitySolverIterationCountIn); }
+	void SetProjectionSolverIterationCount(const int32 ProjectionSolverIterationCountIn) { MIterationSettings.SetNumProjectionIterations(ProjectionSolverIterationCountIn); }
+	Private::FIterationSettings IterationSettings() const { return MIterationSettings; }
+	void SetIterationSettings(const Private::FIterationSettings& SolverIterationSettings) { MIterationSettings = SolverIterationSettings; }
 
 	bool Disabled() const { return bDisabled; }
 	void SetDisabled(bool bInDisabled) { bDisabled = bInDisabled; }
@@ -586,6 +593,8 @@ private:
 
 	uint32 MCollisionConstraintFlag = 0;
 	FRigidParticleControlFlags MControlFlags;
+
+	Chaos::Private::FIterationSettings MIterationSettings;
 
 	bool bDisabled;
 };

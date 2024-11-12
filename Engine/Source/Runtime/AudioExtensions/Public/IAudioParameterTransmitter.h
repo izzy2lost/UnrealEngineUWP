@@ -92,7 +92,7 @@ namespace Audio
 	{
 	public:
 		AUDIOEXTENSIONS_API FParameterTransmitterBase(TArray<FAudioParameter>&& InDefaultParams);
-		virtual ~FParameterTransmitterBase() = default;
+		AUDIOEXTENSIONS_API virtual ~FParameterTransmitterBase();
 
 		AUDIOEXTENSIONS_API virtual bool GetParameter(FName InName, FAudioParameter& OutParam) const override;
 		AUDIOEXTENSIONS_API virtual void ResetParameters() override;

@@ -3,6 +3,7 @@
 #include "LandscapeTextureBackedRenderTarget.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
+#include "LandscapeDataAccess.h"
 #include "LandscapePatchUtil.h" // CopyTextureOnRenderThread
 #include "LandscapePatchLogging.h" 
 #include "RenderGraphBuilder.h"
@@ -19,6 +20,7 @@ namespace LandscapeTextureBackedRenderTargetLocals
 	UTexture2D* CreateTexture(UObject* Parent)
 	{
 		UTexture2D* Texture = Parent ? NewObject<UTexture2D>(Parent) : NewObject<UTexture2D>();
+		Texture->SetFlags(RF_Transactional);
 		Texture->SRGB = false;
 		Texture->MipGenSettings = TMGS_NoMipmaps;
 		Texture->AddressX = TA_Clamp;
@@ -31,6 +33,23 @@ namespace LandscapeTextureBackedRenderTargetLocals
 		Texture->Source.UseHashAsGuid();
 
 		return Texture;
+	}
+
+	// Copied from CameraCalibrationUtilsPrivate.cpp
+	void ClearTexture(UTexture2D* Texture, FColor ClearColor)
+	{
+		if (Texture)
+		{
+			TArray<FColor> Pixels;
+			Pixels.Init(ClearColor, Texture->GetSizeX() * Texture->GetSizeY());
+
+			void* TextureData = Texture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
+
+			FMemory::Memcpy(TextureData, Pixels.GetData(), Pixels.Num() * sizeof(FColor));
+
+			Texture->GetPlatformData()->Mips[0].BulkData.Unlock();
+			Texture->UpdateResource();
+		}
 	}
 #endif // WITH_EDITOR
 }
@@ -51,16 +70,24 @@ void ULandscapeTextureBackedRenderTargetBase::PostLoad()
 {
 	Super::PostLoad();
 
+	SetFlags(RF_Transactional);
+	if (IsValid(InternalTexture))
+	{
+		InternalTexture->SetFlags(RF_Transactional);
+	}
+
 	if (!bUseInternalTextureOnly && IsValid(InternalTexture))
 	{
 		InternalTexture->ConditionalPostLoad();
 
-		RenderTarget = NewObject<UTextureRenderTarget2D>(this);
-		RenderTarget->RenderTargetFormat = GetRenderTargetFormat();
-		RenderTarget->InitAutoFormat(SizeX, SizeY);
-		RenderTarget->UpdateResourceImmediate(false);
+		ReinitializeRenderTarget(/*bClear*/ false);
 
 		CopyBackFromInternalTexture();
+	}
+
+	if (IsValid(RenderTarget))
+	{
+		RenderTarget->SetFlags(RF_Transactional);
 	}
 }
 
@@ -93,10 +120,19 @@ void ULandscapeTextureBackedRenderTargetBase::PostEditImport()
 
 	if (!bUseInternalTextureOnly && IsValid(InternalTexture))
 	{
-		RenderTarget = NewObject<UTextureRenderTarget2D>(this);
-		RenderTarget->RenderTargetFormat = GetRenderTargetFormat();
-		RenderTarget->InitAutoFormat(SizeX, SizeY);
-		RenderTarget->UpdateResourceImmediate(false);
+		ReinitializeRenderTarget(/*bClear*/ false);
+
+		CopyBackFromInternalTexture();
+	}
+}
+
+void ULandscapeTextureBackedRenderTargetBase::PostEditUndo()
+{
+	Super::PostEditUndo();
+
+	if (!bUseInternalTextureOnly && IsValid(InternalTexture))
+	{
+		ReinitializeRenderTarget(/*bClear*/ false);
 
 		CopyBackFromInternalTexture();
 	}
@@ -130,10 +166,7 @@ void ULandscapeTextureBackedRenderTargetBase::SetUseInternalTextureOnly(bool bUs
 
 		if (IsValid(InternalTexture)) // if initialized
 		{
-			RenderTarget = NewObject<UTextureRenderTarget2D>(this);
-			RenderTarget->RenderTargetFormat = GetRenderTargetFormat();
-			RenderTarget->InitAutoFormat(SizeX, SizeY);
-			RenderTarget->UpdateResourceImmediate(false);
+			ReinitializeRenderTarget(/*bClear*/ !bCopyExisting);
 
 			if (bCopyExisting)
 			{
@@ -189,14 +222,7 @@ void ULandscapeTextureBackedRenderTargetBase::Initialize()
 	}
 	else
 	{
-		if (!IsValid(RenderTarget))
-		{
-			RenderTarget = NewObject<UTextureRenderTarget2D>(this);
-		}
-
-		RenderTarget->RenderTargetFormat = GetRenderTargetFormat();
-		RenderTarget->InitAutoFormat(SizeX, SizeY);
-		RenderTarget->UpdateResourceImmediate();
+		ReinitializeRenderTarget(/*bClear*/ true);
 	}
 #endif // WITH_EDITOR
 }
@@ -241,6 +267,20 @@ ETextureRenderTargetFormat ULandscapeWeightTextureBackedRenderTarget::GetRenderT
 ETextureSourceFormat ULandscapeWeightTextureBackedRenderTarget::GetInternalTextureFormat()
 {
 	return bUseAlphaChannel ? ETextureSourceFormat::TSF_BGRA8 : ETextureSourceFormat::TSF_G8;
+}
+
+void ULandscapeWeightTextureBackedRenderTarget::Initialize()
+{
+#if WITH_EDITOR
+	using namespace LandscapeTextureBackedRenderTargetLocals;
+
+	Super::Initialize();
+
+	if (bUseInternalTextureOnly && ensure(InternalTexture))
+	{
+		ClearTexture(InternalTexture, FColor::White);
+	}
+#endif // WITH_EDITOR
 }
 
 void ULandscapeWeightTextureBackedRenderTarget::CopyToInternalTexture()
@@ -312,6 +352,7 @@ void ULandscapeWeightTextureBackedRenderTarget::CopyBackFromInternalTexture()
 	{
 		Modify();
 		RenderTarget = NewObject<UTextureRenderTarget2D>(this);
+		RenderTarget->SetFlags(RF_Transactional);
 		bCreatedNewRenderTarget = true;
 	}
 
@@ -358,6 +399,21 @@ void ULandscapeHeightTextureBackedRenderTarget::SetFormat(ETextureRenderTargetFo
 		RenderTarget->RenderTargetFormat = GetRenderTargetFormat();
 		RenderTarget->InitAutoFormat(SizeX, SizeY);
 		RenderTarget->UpdateResourceImmediate();
+	}
+#endif // WITH_EDITOR
+}
+
+void ULandscapeHeightTextureBackedRenderTarget::Initialize()
+{
+#if WITH_EDITOR
+	using namespace LandscapeTextureBackedRenderTargetLocals;
+	Super::Initialize();
+
+	const FColor LandscapeNativeMidHeightColor = LandscapeDataAccess::PackHeight(LandscapeDataAccess::MidValue);
+
+	if (bUseInternalTextureOnly && ensure(InternalTexture))
+	{
+		ClearTexture(InternalTexture, LandscapeNativeMidHeightColor);
 	}
 #endif // WITH_EDITOR
 }
@@ -464,6 +520,7 @@ void ULandscapeHeightTextureBackedRenderTarget::CopyBackFromInternalTexture()
 	{
 		Modify();
 		RenderTarget = NewObject<UTextureRenderTarget2D>(this);
+		RenderTarget->SetFlags(RF_Transactional);
 		bCreatedNewRenderTarget = true;
 	}
 
@@ -524,4 +581,21 @@ bool ULandscapeTextureBackedRenderTargetBase::IsCopyingBackAndForthAllowed()
 		// scripts. However if we do have a world, it should be the normal editor one.
 		&& (!World || (IsValid(World) && World->WorldType == EWorldType::Editor))
 		&& FApp::CanEverRender();
+}
+
+void ULandscapeTextureBackedRenderTargetBase::ReinitializeRenderTarget(bool bClear)
+{
+	if (!IsValid(RenderTarget))
+	{
+		Modify();
+		RenderTarget = NewObject<UTextureRenderTarget2D>(this);
+		RenderTarget->SetFlags(RF_Transactional);
+	}
+	else
+	{
+		RenderTarget->Modify();
+	}
+	RenderTarget->RenderTargetFormat = GetRenderTargetFormat();
+	RenderTarget->InitAutoFormat(SizeX, SizeY);
+	RenderTarget->UpdateResourceImmediate(bClear);
 }

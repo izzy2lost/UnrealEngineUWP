@@ -36,6 +36,15 @@ FInstanceRegistry::FInstanceRegistry(UMovieSceneEntitySystemLinker* InLinker)
 
 FInstanceRegistry::~FInstanceRegistry()
 {
+	// Remove all sub-instances from the array so that they release their ref-count on their shared playback state.
+	// This prevents the root instances from triggering an assert about it.
+	for (auto It = Instances.CreateIterator(); It; ++It)
+	{
+		if (!It->IsRootSequence())
+		{
+			It.RemoveCurrent();
+		}
+	}
 }
 
 FInstanceHandle FInstanceRegistry::FindRelatedInstanceHandle(FInstanceHandle InstanceHandle, FMovieSceneSequenceID SequenceID) const
@@ -60,7 +69,6 @@ FInstanceHandle FInstanceRegistry::FindRelatedInstanceHandle(FInstanceHandle Ins
 FRootInstanceHandle FInstanceRegistry::AllocateRootInstance(
 		UMovieSceneSequence& InRootSequence,
 		UObject* InPlaybackContext,
-		TSharedPtr<FMovieSceneEntitySystemRunner> InRunner,
 		UMovieSceneCompiledDataManager* InCompiledDataManager)
 {
 	check(Instances.Num() < 65535);
@@ -70,11 +78,6 @@ FRootInstanceHandle FInstanceRegistry::AllocateRootInstance(
 	FSparseArrayAllocationInfo NewAllocation = Instances.AddUninitialized();
 	FRootInstanceHandle InstanceHandle { (uint16)NewAllocation.Index, InstanceSerial };
 
-	if (!InRunner)
-	{
-		FMovieSceneEntitySystemRunner* ActiveRunner = Linker->GetActiveRunner();
-		InRunner = ActiveRunner ? ActiveRunner->AsShared() : TSharedPtr<FMovieSceneEntitySystemRunner>();
-	}
 	if (!InCompiledDataManager)
 	{
 		InCompiledDataManager = UMovieSceneCompiledDataManager::GetPrecompiledData();
@@ -83,7 +86,7 @@ FRootInstanceHandle FInstanceRegistry::AllocateRootInstance(
 	FSharedPlaybackStateCreateParams PlaybackStateCreateParams;
 	PlaybackStateCreateParams.PlaybackContext = InPlaybackContext;
 	PlaybackStateCreateParams.RootInstanceHandle = InstanceHandle;
-	PlaybackStateCreateParams.Runner = InRunner;
+	PlaybackStateCreateParams.Linker = Linker;
 	PlaybackStateCreateParams.CompiledDataManager = InCompiledDataManager;
 
 	TSharedRef<FSharedPlaybackState> NewPlaybackState = MakeShared<FSharedPlaybackState>(InRootSequence, PlaybackStateCreateParams);
@@ -150,16 +153,28 @@ void FInstanceRegistry::CleanupLinkerEntities(const TSet<FMovieSceneEntityID>& E
 	}
 }
 
-FScopedVolatilityManagerSuppression::FScopedVolatilityManagerSuppression(FInstanceRegistry* InInstanceRegistry, FRootInstanceHandle InRootInstanceHandle)
-	: InstanceRegistry(InInstanceRegistry)
-	, RootInstanceHandle(InRootInstanceHandle)
+FScopedVolatilityManagerSuppression::FScopedVolatilityManagerSuppression(TSharedPtr<FSharedPlaybackState> PlaybackState)
+	: WeakPlaybackState(PlaybackState)
 {
+	ensure(PlaybackState.IsValid());
+
+	FRootInstanceHandle RootInstanceHandle = PlaybackState->GetRootInstanceHandle();
+	FInstanceRegistry* InstanceRegistry = PlaybackState->GetLinker()->GetInstanceRegistry();
+
 	FSequenceInstance& Instance = InstanceRegistry->MutateInstance(RootInstanceHandle);
 	PreviousVolatilityManager = MoveTemp(Instance.VolatilityManager);
 }
 
 FScopedVolatilityManagerSuppression::~FScopedVolatilityManagerSuppression()
 {
+	if (!WeakPlaybackState.IsValid())
+	{
+		return;
+	}
+
+	FRootInstanceHandle RootInstanceHandle = WeakPlaybackState.Pin()->GetRootInstanceHandle();
+	FInstanceRegistry* InstanceRegistry = WeakPlaybackState.Pin()->GetLinker()->GetInstanceRegistry();
+
 	FSequenceInstance& Instance = InstanceRegistry->MutateInstance(RootInstanceHandle);
 	Instance.VolatilityManager = MoveTemp(PreviousVolatilityManager);
 	Instance.ConditionalRecompile();

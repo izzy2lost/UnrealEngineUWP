@@ -41,9 +41,11 @@ public:
 	
 	template <class ContainerType = UActorDescContainer>
 	ContainerType* RegisterContainer(const typename UActorDescContainer::FInitializeParams& InitParams) { return ContainerManager.RegisterContainer<ContainerType>(InitParams); }
+	UActorDescContainer* GetActorDescContainer(const FString& InContainerName) { return ContainerManager.GetActorDescContainer(InContainerName); }
+	const UActorDescContainer* GetActorDescContainer(const FString& InContainerName) const { return ContainerManager.GetActorDescContainer(InContainerName); }
 	void RegisterContainer(UActorDescContainer* Container) { ContainerManager.RegisterContainer(Container); }
 	void UnregisterContainer(UActorDescContainer* Container) { ContainerManager.UnregisterContainer(Container); }
-	FBox GetContainerBounds(const FString& ContainerName) const { return ContainerManager.GetContainerBounds(ContainerName); }
+	FBox GetContainerBounds(const FString& ContainerName, bool bIsEditorBounds = false) const { return ContainerManager.GetContainerBounds(ContainerName, bIsEditorBounds); }
 	void UpdateContainerBounds(const FString& ContainerName) { ContainerManager.UpdateContainerBounds(ContainerName); }
 	void SetContainerPackage(UActorDescContainer* Container, FName ContainerPackageName) { ContainerManager.SetContainerPackage(Container, ContainerPackageName); }
 	void NotifyContainerUpdated(FName ContainerPackage)
@@ -87,6 +89,7 @@ private:
 				: Container(nullptr)
 				, RefCount(0)
 				, Bounds(ForceInit)
+				, EditorBounds(ForceInit)
 			{}
 
 			void AddReferencedObjects(FReferenceCollector& Collector);
@@ -95,6 +98,7 @@ private:
 			TObjectPtr<UActorDescContainer> Container;
 			uint32 RefCount;
 			FBox Bounds;
+			FBox EditorBounds;
 		};
 
 		void AddReferencedObjects(FReferenceCollector& Collector);
@@ -112,7 +116,7 @@ private:
 			{
 				ActorDescContainer = NewObject<UActorDescContainer>(Owner, ContainerType::StaticClass(), NAME_None, RF_Transient);
 				RegisteredContainer->Container = ActorDescContainer;
-								
+							
 				// This will potentially invalidate RegisteredContainer due to RegisteredContainers reallocation
 				ActorDescContainer->Initialize(InitParams);
 
@@ -129,10 +133,21 @@ private:
 			FRegisteredContainer& RegisteredContainer = RegisteredContainers.FindChecked(Container->GetContainerName());
 			RegisteredContainer.RefCount++;
 		}
+
+		UActorDescContainer* GetActorDescContainer(const FString& InContainerName)
+		{ 
+			FRegisteredContainer* RegisteredContainer = RegisteredContainers.Find(InContainerName);
+			return RegisteredContainer ? RegisteredContainer->Container : nullptr;
+		}
+
+		const UActorDescContainer* GetActorDescContainer(const FString& InContainerName) const 
+		{
+			return const_cast<FContainerManager*>(this)->GetActorDescContainer(InContainerName);
+		}
 				
 		void UnregisterContainer(UActorDescContainer* Container);
 
-		FBox GetContainerBounds(const FString& ContainerName) const;
+		FBox GetContainerBounds(const FString& ContainerName, bool bIsEditorBounds = false) const;
 		void UpdateContainerBounds(const FString& ContainerName);
 		void UpdateContainerBoundsFromPackage(FName ContainerPackage);
 

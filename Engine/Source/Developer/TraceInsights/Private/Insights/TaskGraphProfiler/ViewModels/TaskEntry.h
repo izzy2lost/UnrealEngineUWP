@@ -2,12 +2,13 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
 #include "Async/TaskTrace.h"
-#include "CoreMinimal.h"
 
-#include "TraceServices/Model/TasksProfiler.h"
+namespace TraceServices { struct FTaskInfo; }
 
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -88,4 +89,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler

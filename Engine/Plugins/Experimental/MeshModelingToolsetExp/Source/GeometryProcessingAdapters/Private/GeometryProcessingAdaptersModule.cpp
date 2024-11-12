@@ -28,7 +28,7 @@ void FGeometryProcessingAdaptersModule::StartupModule()
 	}
 
 	MeshAutoUV = MakeShared<FMeshAutoUVImpl>();
-	if (CombineMeshInstances.IsValid())
+	if (MeshAutoUV.IsValid())
 	{
 		IModularFeatures::Get().RegisterModularFeature(IGeometryProcessing_MeshAutoUV::GetModularFeatureName(), MeshAutoUV.Get());
 	}

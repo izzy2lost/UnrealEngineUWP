@@ -8,6 +8,9 @@
 #include "Network/Protocol/IDisplayClusterProtocolGenericBarrier.h"
 #include "Cluster/IDisplayClusterGenericBarriersClient.h"
 
+class FDisplayClusterGenericBarrierService;
+struct FDisplayClusterBarrierPreSyncEndDelegateData;
+
 
 /**
  * Generic barriers TCP client
@@ -57,11 +60,15 @@ public:
 	virtual EDisplayClusterCommResult SyncOnBarrierWithData(const FString& BarrierId, const FString& UniqueThreadMarker, const TArray<uint8>& RequestData, TArray<uint8>& OutResponseData, EBarrierControlResult& Result) override;
 
 private:
+
+	/** Provides easy access to the GB service */
+	FDisplayClusterGenericBarrierService* GetGenericBarrierService() const;
+
 	/** Setup/release sync delegate for a specific barrier */
 	bool ConfigureBarrierSyncDelegate(const FString& BarrierId, bool bSetup);
 
 	/** Callback on barrier sync phase end */
-	void OnPreBarrierSyncEnd(const FString& BarrierId, const TMap<FString, TArray<uint8>>& RequestData, TMap<FString, TArray<uint8>>& ResponseData);
+	void OnBarrierSync(FDisplayClusterBarrierPreSyncEndDelegateData& SyncData);
 
 private:
 	// Holds synchronization delegates for the barriers operated by this client

@@ -9,6 +9,9 @@
 #include "LightFunctionCommon.ush"
 #include "DynamicLightingCommon.ush"
 
+// Used to trigger shader recompiles, guid should be regenerated on merge conflicts
+#pragma message("UESHADERMETADATA_VERSION 02A826D0-F3F6-4726-A187-762FFB6D17CA")
+
 // used like this: mul(float4(SvPosition.xyz, 1), SvPositionToLight);
 float4x4 SvPositionToLight;
 

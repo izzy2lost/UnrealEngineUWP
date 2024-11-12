@@ -39,6 +39,24 @@ struct RIGVM_API FRigVMObjectVersion
 		// Removing unused tooltip property from frunction header
 		VMRemoveTooltipFromFunctionHeader,
 
+		// Removing library node FSoftObjectPath from FRigVMGraphFunctionIdentifier
+		RemoveLibraryNodeReferenceFromFunctionIdentifier,
+
+		// Adding variant struct to function identifier
+		AddVariantToFunctionIdentifier,
+
+		// Adding variant to every RigVM asset
+		AddVariantToRigVMAssets,
+
+		// Storing user interface layout within function header
+		FunctionHeaderStoresLayout,
+
+		// Storing user interface relevant pin index in category
+		FunctionHeaderLayoutStoresPinIndexInCategory,
+
+		// Storing user interface relevant category expansion
+		FunctionHeaderLayoutStoresCategoryExpansion,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

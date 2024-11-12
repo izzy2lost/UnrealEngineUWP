@@ -1,18 +1,33 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaStorageClient.h"
+#include "UbaConfig.h"
 #include "UbaDirectoryIterator.h"
 #include "UbaFileAccessor.h"
 #include "UbaNetworkClient.h"
 #include "UbaNetworkMessage.h"
 #include "UbaNetworkBackendTcp.h"
+#include "UbaStorageUtils.h"
 
 namespace uba
 {
+	void StorageClientCreateInfo::Apply(Config& config)
+	{
+		StorageCreateInfo::Apply(config);
+
+		const ConfigTable* tablePtr = config.GetTable(TC("Storage"));
+		if (!tablePtr)
+			return;
+		const ConfigTable& table = *tablePtr;
+		table.GetValueAsBool(sendCompressed, TC("SendCompressed"));
+		table.GetValueAsBool(allowProxy, TC("AllowProxy"));
+	}
+
 	StorageClient::StorageClient(const StorageClientCreateInfo& info)
 	:	StorageImpl(info, TC("UbaStorageClient"))
 	,	m_client(info.client)
 	,	m_sendCompressed(info.sendCompressed)
+	,	m_allowProxy(info.allowProxy)
 	,	m_zone(info.zone)
 	,	m_getProxyBackendCallback(info.getProxyBackendCallback)
 	,	m_getProxyBackendUserData(info.getProxyBackendUserData)
@@ -56,6 +71,9 @@ namespace uba
 					return;
 
 				m_storageServerUid = reader.ReadGuid();
+				m_casCompressor = reader.ReadByte();
+				m_casCompressionLevel = reader.ReadByte();
+
 			});
 
 		m_client.RegisterOnDisconnected([this]() { m_logger.isMuted = true; });
@@ -82,7 +100,7 @@ namespace uba
 			m_proxyClient->client.Disconnect();
 	}
 
-	bool StorageClient::PopulateCasFromDirs(const DirVector& directories, u32 workerCount)
+	bool StorageClient::PopulateCasFromDirs(const DirVector& directories, u32 workerCount, const Function<bool()>& shouldExit)
 	{
 		if (directories.empty())
 			return true;
@@ -96,7 +114,7 @@ namespace uba
 		ReaderWriterLock seenIdsLock;
 
 		for (auto& dir : directories)
-			success = PopulateCasFromDirsRecursive(dir.c_str(), workManager, seenIds, seenIdsLock) && success;
+			success = PopulateCasFromDirsRecursive(dir.c_str(), workManager, seenIds, seenIdsLock, shouldExit) && success;
 		workManager.FlushWork();
 
 		if (u32 fileCount = u32(m_localStorageFiles.size()))
@@ -201,6 +219,7 @@ namespace uba
 			if (casEntry->verified && casEntry->exists)
 				return true;
 
+			casEntry->dropped = false;  // In case this comes from a retry where previous cas was dropped
 			casEntry->verified = true;
 		}
 
@@ -213,8 +232,8 @@ namespace uba
 		casFile.Append(CasKeyString(casKey).str);
 		#endif
 
-		u8* slot = PopBufferSlot();
-		auto slotGuard = MakeGuard([&](){ PushBufferSlot(slot); });
+		u8* slot = m_bufferSlots.Pop();
+		auto slotGuard = MakeGuard([&](){ m_bufferSlots.Push(slot); });
 
 		MappedView mappedView;
 		auto mvg = MakeGuard([&]() { if (mappingBuffer) mappingBuffer->UnmapView(mappedView, hint); });
@@ -242,7 +261,7 @@ namespace uba
 			ProxyClient* proxy = nullptr;
 
 			bool wantsProxy = false;
-			if (allowProxy)
+			if (allowProxy && m_allowProxy)
 			{
 				SCOPED_WRITE_LOCK(m_proxyClientLock, proxyLock);
 				if (m_proxyClient)
@@ -295,7 +314,7 @@ namespace uba
 				{
 					if (proxy)
 						continue;
-					return m_logger.Error(TC("Failed to send fetch begin message for cas %s (%s)"), casFile.data, hint);
+					return m_logger.Error(TC("Failed to send fetch begin message for cas %s (%s). Error: %u"), casFile.data, hint, msg.GetError());
 				}
 				sizeOfFirstMessage = u32(reader.GetLeft());
 				fetchId = reader.ReadU16();
@@ -328,7 +347,6 @@ namespace uba
 					{
 						reader.ReadString(proxyHost);
 						proxyPort = reader.ReadU16();
-						// TODO: Check if self, then use loopback.. this could be received before local proxy is started due to network ordering
 					}
 
 					SCOPED_WRITE_LOCK(m_proxyClientLock, proxyLock2);
@@ -484,7 +502,7 @@ namespace uba
 					}
 					else
 					{
-						memcpy(writePos, readBuffer, responseSize);
+						MapMemoryCopy(writePos, readBuffer, responseSize);
 						writePos += responseSize;
 					}
 
@@ -540,8 +558,10 @@ namespace uba
 
 							if (isFirstInBlock)
 							{
-								if (readPosition - readBuffer < sizeof(u32) * 2)
+								if ((readPosition - readBuffer) + responseSize < sizeof(u32) * 2)
+								{
 									return m_logger.Error(TC("Received less than minimum amount of data. Most likely corrupt cas file %s (Available: %u UncompressedSize: %llu LeftUncompressed: %llu)"), casFile.data, u32(readPosition - readBuffer), actualSize, leftUncompressed);
+								}
 								isFirstInBlock = false;
 								u32* blockSize = (u32*)readBuffer;
 								compressedSize = blockSize[0];
@@ -598,12 +618,12 @@ namespace uba
 
 							if (!mappingBuffer)
 							{
-								if (!destinationFile.Write(decompressBuffer, uncompressedSize))
+								if (!destinationFile.Write(decompressBuffer, uncompressedSize, actualSize - leftUncompressed))
 									return false;
 							}
 							else
 							{
-								memcpy(writePos, decompressBuffer, uncompressedSize);
+								MapMemoryCopy(writePos, decompressBuffer, uncompressedSize);
 								writePos += uncompressedSize;
 							}
 
@@ -618,7 +638,12 @@ namespace uba
 						memmove(readBuffer, readPosition - overflow, overflow);
 						readPosition = readBuffer + overflow;
 						if (overflow)
-							responseSize = 0;
+						{
+							if (overflow < sizeof(u32) * 2) // Must always have the compressed and uncompressed size to be able to move on with logic above
+								sendSegmentMessage = true;
+							else
+								responseSize = 0;
+						}
 					} while (leftUncompressed);
 
 					if (tryAgain)
@@ -668,7 +693,7 @@ namespace uba
 		return true;
 	}
 
-	bool StorageClient::StoreCasFile(CasKey& out, const tchar* fileName, const CasKey& casKeyOverride, bool deferCreation)
+	bool StorageClient::StoreCasFile(CasKey& out, const tchar* fileName, const CasKey& casKeyOverride, bool deferCreation, bool fileIsCompressed)
 	{
 		UBA_ASSERTF(false, TC("This StoreCasFile function should not be used on the client side"));
 		return true;
@@ -802,227 +827,17 @@ namespace uba
 			m_proxyClient->client.PrintSummary(logger);
 	}
 
-	bool StorageClient::SendBatchMessages(Logger& logger, NetworkClient& client, u16 fetchId, u8* slot, u64 capacity, u64 left, u32 messageMaxSize, u32& readIndex, u32& responseSize)
-	{
-		responseSize = 0;
-
-		struct Entry
-		{
-			Entry(u8* slot, u32 i, u32 messageMaxSize) : reader(slot + i * messageMaxSize, 0, SendMaxSize), done(true) {}
-			NetworkMessage message;
-			BinaryReader reader;
-			Event done;
-		};
-
-		u64 sendCountCapacity = capacity / messageMaxSize;
-		u64 sendCount = left/messageMaxSize;
-
-		if (sendCount > sendCountCapacity)
-			sendCount = sendCountCapacity;
-		else if (sendCount < sendCountCapacity && (left - sendCount * messageMaxSize) > 0)
-			++sendCount;
-
-
-		u64 entriesMem[sizeof(Entry) * 8];
-		UBA_ASSERT(sizeof(Entry)*sendCount <= sizeof(entriesMem));
-
-		Entry* entries = (Entry*)entriesMem;
-
-		bool success = true;
-		u32 inFlightCount = u32(sendCount);
-		for (u32 i=0; i!=sendCount; ++i)
-		{
-			auto& entry = *new (entries + i) Entry(slot, i, messageMaxSize);
-			StackBinaryWriter<32> writer;
-			entry.message.Init(client, ServiceId, StorageMessageType_FetchSegment, writer);
-			writer.WriteU16(fetchId);
-			writer.WriteU32(readIndex + i + 1);
-			if (entry.message.SendAsync(entry.reader, [](bool error, void* userData) { ((Event*)userData)->Set(); }, &entry.done))
-				continue;
-			entry.~Entry();
-			inFlightCount = i;
-			success = false;
-			break;
-		}
-
-		for (u32 i=0; i!=inFlightCount; ++i)
-		{
-			Entry& entry = entries[i];
-			if (!entry.done.IsSet(5*60*1000))
-				logger.Error(TC("SendBatchMessages timed out getting async message response"));
-			if (!entry.message.ProcessAsyncResults(entry.reader))
-				success = false;
-			else
-				responseSize += u32(entry.reader.GetLeft());
-		}
-
-		for (u32 i=0; i!=inFlightCount; ++i)
-			entries[i].~Entry();
-
-		readIndex += u32(sendCount);
-		return success;
-	}
-	
 	bool StorageClient::SendFile(const CasKey& casKey, const tchar* fileName, u8* sourceMem, u64 sourceSize, const tchar* hint)
 	{
-		UBA_ASSERT(casKey != CasKeyZero);
-
-		NetworkClient& client = m_client; // Don't use proxy
-
-		StorageStats& stats = Stats();
-		TimerScope ts(stats.sendCas);
-
-		u64 firstMessageOverHead = (sizeof(CasKey) + sizeof(u64)*2 + GetStringWriteSize(hint));
-
-		u64 messageHeader = client.GetMessageHeaderSize();
-		u64 messageHeaderMaxSize = messageHeader + firstMessageOverHead;
-
-		MemoryBlock memoryBlock(sourceSize + messageHeaderMaxSize + 1024);
-		{
-			u8* uncompressedData = sourceMem;
-			u8* compressBufferStart = memoryBlock.memory + messageHeaderMaxSize;
-			u8* compressBuffer = compressBufferStart;
-			u64 totalWritten = messageHeaderMaxSize; // Make sure there is room for msg header in the memory since we are using it to send
-			u64 left = sourceSize;
-
-			compressBuffer += 8;
-			totalWritten += 8;
-			memoryBlock.Allocate(totalWritten, 1, hint);
-
-			u64 diff = u64(OodleLZ_GetCompressedBufferSizeNeeded(m_sendCasCompressor, BufferSlotHalfSize)) - BufferSlotHalfSize;
-			u64 maxUncompressedBlock = BufferSlotHalfSize - diff - totalWritten - 8; // 8 bytes block header
-
-			OodleLZ_CompressOptions oodleOptions = *OodleLZ_CompressOptions_GetDefault();
-			while (left)
-			{
-				u32 uncompressedBlockSize = (u32)Min(left, maxUncompressedBlock);
-
-				u64 reserveSize = totalWritten + uncompressedBlockSize + diff + 8;
-				if (reserveSize > memoryBlock.mappedSize)
-				{
-					u64 toAllocate = reserveSize - memoryBlock.writtenSize;
-					memoryBlock.Allocate(toAllocate, 1, hint);
-				}
-
-				u8* destBuf = compressBuffer;
-				u32 compressedBlockSize;
-				{
-					TimerScope cts(stats.compressSend);
-					compressedBlockSize = (u32)OodleLZ_Compress(m_sendCasCompressor, uncompressedData, (int)uncompressedBlockSize, destBuf + 8, m_sendCasCompressionLevel, &oodleOptions);
-					if (compressedBlockSize == OODLELZ_FAILED)
-						return m_logger.Error(TC("Failed to compress %u bytes at %llu for %s (%s) (%s) (uncompressed size: %llu)"), uncompressedBlockSize, totalWritten, fileName, CasKeyString(casKey).str, hint, sourceSize);
-				}
-
-				*(u32*)destBuf =  u32(compressedBlockSize);
-				*(u32*)(destBuf+4) =  u32(uncompressedBlockSize);
-
-				u32 writeBytes = u32(compressedBlockSize) + 8;
-
-				totalWritten += writeBytes;
-				memoryBlock.writtenSize = totalWritten;
-
-				left -= uncompressedBlockSize;
-				uncompressedData += uncompressedBlockSize;
-				compressBuffer += writeBytes;
-			}
-
-			*(u64*)compressBufferStart = sourceSize;
-		}
-
-
-		u8* readData = memoryBlock.memory + messageHeaderMaxSize;
-		u64 fileSize = memoryBlock.writtenSize - messageHeaderMaxSize;
-
-		u16 storeId = 0;
-		bool isFirst = true;
-		bool sendEnd = false;
-		u64 sendLeft = fileSize;
-		u64 sendPos = 0;
-
-		bool hasSendOneAtTheTimeLock = false;
-		auto lockGuard = MakeGuard([&]() { if (hasSendOneAtTheTimeLock) m_sendOneAtTheTimeLock.LeaveWrite(); });
-
-		while (sendLeft)
-		{
-			u64 writerStartOffset = messageHeader + (isFirst ? firstMessageOverHead : (sizeof(u16) + sizeof(u64)));
-			BinaryWriter writer(readData + sendPos - writerStartOffset, 0, client.GetMessageMaxSize());
-			NetworkMessage msg(client, ServiceId, isFirst ? StorageMessageType_StoreBegin : StorageMessageType_StoreSegment, writer);
-			if (isFirst)
-			{
-				writer.WriteCasKey(casKey);
-				writer.WriteU64(fileSize);
-				writer.WriteU64(sourceSize);
-				writer.WriteString(hint);
-			}
-			else
-			{
-				UBA_ASSERT(storeId != 0);
-				writer.WriteU16(storeId);
-				writer.WriteU64(sendPos);
-			}
-
-			u64 capacityLeft = writer.GetCapacityLeft();
-			u64 toWrite = Min(sendLeft, capacityLeft);
-			writer.AllocWrite(toWrite);
-
-			sendLeft -= toWrite;
-			sendPos += toWrite;
-
-			bool isDone = sendLeft == 0;
-
-			if (isFirst && !isDone)
-			{
-				m_sendOneAtTheTimeLock.EnterWrite();
-				hasSendOneAtTheTimeLock = true;
-			}
-
-			if (isFirst) // First message must always be acknowledged (provide a reader) to make sure there is an entry on server that can be waited on.
-			{
-				StackBinaryReader<128> reader;
-				if (!msg.Send(reader))
-					return false;
-				storeId = reader.ReadU16();
-				sendEnd = reader.ReadBool();
-				if (isDone)
-					break;
-
-				if (!storeId) // Zero means error
-					return m_logger.Error(TC("Server failed to start storing file %s (%s)"), CasKeyString(casKey).str, hint);
-
-				if (storeId == u16(~0)) // File already exists on server
-				{
-					m_logger.Info(TC("Server already has file %s (%s)"), CasKeyString(casKey).str, hint);
-					return true;
-				}
-
-				isFirst = false;
-			}
-			else
-			{
-				if (!msg.Send())
-					return false;
-				if (isDone)
-					break;
-			}
-		}
-
-		if (sendEnd)
-		{
-			StackBinaryWriter<128> writer;
-			NetworkMessage msg(client, ServiceId, StorageMessageType_StoreEnd, writer);
-			writer.WriteCasKey(casKey);
-			if (!msg.Send())
-				return false;
-		}
-
-		stats.sendCasBytesRaw += sourceSize;
-		stats.sendCasBytesComp += fileSize;
-
-		return true;
+		FileSender sender { m_logger, m_client, m_bufferSlots, Stats(), m_sendOneAtTheTimeLock, m_casCompressor, m_casCompressionLevel };
+		return sender.SendFileCompressed(casKey, fileName, sourceMem, sourceSize, hint);
 	}
 
-	bool StorageClient::PopulateCasFromDirsRecursive(const tchar* dir, WorkManager& workManager, UnorderedSet<u64>& seenIds, ReaderWriterLock& seenIdsLock)
+	bool StorageClient::PopulateCasFromDirsRecursive(const tchar* dir, WorkManager& workManager, UnorderedSet<u64>& seenIds, ReaderWriterLock& seenIdsLock, const Function<bool()>& shouldExit)
 	{
+		if (shouldExit && shouldExit())
+			return true;
+
 		StringBuffer<> fullPath;
 		fullPath.Append(dir).EnsureEndsWithSlash();
 		u32 dirLen = fullPath.count;
@@ -1035,18 +850,45 @@ namespace uba
 					if (!seenIds.insert(e.id).second)
 						return;
 					lock.Leave();
-					PopulateCasFromDirsRecursive(fullPath.data, workManager, seenIds, seenIdsLock);
+					workManager.AddWork([&, filePath = TString(fullPath.data)]()
+						{
+							PopulateCasFromDirsRecursive(filePath.c_str(), workManager, seenIds, seenIdsLock, shouldExit);
+						}, 1, TC(""));
 					return;
 				}
 
-				workManager.AddWork([&, filePath = TString(fullPath.data), name = TString(e.name)]()
+				StringBuffer<> forKey;
+				FixPath(fullPath.data, nullptr, 0, forKey);
+				if (CaseInsensitiveFs)
+					forKey.MakeLower();
+				StringKey fileNameKey = ToStringKey(forKey);
+				FileEntry& fileEntry = GetOrCreateFileEntry(fileNameKey);
+				fileEntry.lock.EnterWrite();
+				if (e.size == fileEntry.size && e.lastWritten == fileEntry.lastWritten)
+				{
+					fileEntry.verified = true;
+					fileEntry.casKey = AsCompressed(fileEntry.casKey, false); // TODO: Remove this when machines have flushed their db
+					fileEntry.lock.LeaveWrite();
+
+					SCOPED_WRITE_LOCK(m_localStorageFilesLock, lookupLock);
+					auto insres = m_localStorageFiles.try_emplace(fileEntry.casKey);
+					LocalFile& localFile = insres.first->second;
+					if (insres.second)
 					{
-						FileInformation info;
-						if (!GetFileInformation(info, m_logger, filePath.c_str()))
-						{
-							m_logger.Error(TC("Failed to get information for file %s"), filePath.c_str());
+						localFile.casEntry.size = e.size;
+						localFile.casEntry.verified = true;
+						localFile.casEntry.exists = true;
+						localFile.fileName = fullPath.data;
+					}
+					return;
+				}
+
+				workManager.AddWork([&, fe = &fileEntry, lw = e.lastWritten, s = e.size, filePath = TString(fullPath.data)]()
+					{
+						auto feLockLeave = MakeGuard([fe]() { fe->lock.LeaveWrite(); });
+
+						if (shouldExit && shouldExit())
 							return;
-						}
 
 						CasKey casKey;
 						if (!CalculateCasKey(casKey, filePath.c_str()))
@@ -1054,16 +896,22 @@ namespace uba
 							m_logger.Error(TC("Failed to calculate cas key for %s"), filePath.c_str());
 							return;
 						}
+						fe->size = s;
+						fe->lastWritten = lw;
+						fe->casKey = AsCompressed(casKey, false);
+						fe->verified = true;
+						feLockLeave.Execute();
 
 						SCOPED_WRITE_LOCK(m_localStorageFilesLock, lookupLock);
-						auto insres = m_localStorageFiles.try_emplace(AsCompressed(casKey, false));
-						if (!insres.second)
-							return;
+						auto insres = m_localStorageFiles.try_emplace(fe->casKey);
 						LocalFile& localFile = insres.first->second;
-						lookupLock.Leave();
-
-						localFile.casEntry.size = info.size;
-						localFile.fileName = filePath;
+						if (insres.second)
+						{
+							localFile.casEntry.size = s;
+							localFile.casEntry.verified = true;
+							localFile.casEntry.exists = true;
+							localFile.fileName = filePath;
+						}
 
 					}, 1, TC(""));
 			});

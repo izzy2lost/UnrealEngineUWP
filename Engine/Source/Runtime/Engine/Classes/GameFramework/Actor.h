@@ -7,20 +7,13 @@
 #include "UObject/UObjectBaseUtility.h"
 #include "UObject/Object.h"
 #include "InputCoreTypes.h"
+#include "Templates/Requires.h"
 #include "Templates/SubclassOf.h"
 #include "Engine/EngineTypes.h"
 #include "Engine/EngineBaseTypes.h"
 #include "PropertyPairsMap.h"
 #include "Components/ChildActorComponent.h"
 #include "RenderCommandFence.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/Level.h"
-#include "Engine/HitResult.h"
-#include "UObject/CoreNet.h"
-#if WITH_EDITOR
-#include "WorldPartition/DataLayer/ActorDataLayer.h"
-#endif
-#endif
 #include "Net/Core/Misc/NetSubObjectRegistry.h"
 #include "Engine/ReplicatedState.h"
 
@@ -52,7 +45,7 @@ class UDataLayerInstance;
 class AWorldDataLayers;
 class IWorldPartitionCell;
 #if UE_WITH_IRIS
-struct FActorBeginReplicationParams;
+struct FActorReplicationParams;
 #endif // UE_WITH_IRIS
 class UActorFolder;
 struct FActorDataLayer;
@@ -65,7 +58,9 @@ namespace UE::Net
 
 // By default, debug and development builds (even cooked) will keep actor labels. Manually define this if you want to make a local build
 // that keep actor labels for Test or Shipping builds.
+#ifndef ACTOR_HAS_LABELS
 #define ACTOR_HAS_LABELS (UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT || WITH_PROFILEGPU)
+#endif
 
 /** Chooses a method for actors to update overlap state (objects it is touching) on initialization, currently only used during level streaming. */
 UENUM(BlueprintType)
@@ -92,6 +87,30 @@ enum class ESpawnActorScaleMethod : uint8
 	SelectDefaultAtRuntime					UMETA(Hidden),
 };
 
+/** Determines in what type of LevelInstance the actor is in, if any. */
+UENUM()
+enum class ELevelInstanceType : uint8
+{
+	None,
+	LevelInstance,
+	LevelInstanceEdit,
+	LevelInstancePropertyOverride
+};
+
+UENUM()
+enum class ELevelInstanceFlags : uint8
+{
+	None = 0,
+	/** Actor is inside an Level Instance editing hierarchy (used to show post process effect) */
+	IsInEditHierarchy = 1,
+	/** Actor has property overrides applied */
+	HasPropertyOverrides = 2,
+	/** Actor has property overrides from a top level editable level instance */
+	HasEditablePropertyOverrides = 4 
+};
+
+ENUM_CLASS_FLAGS(ELevelInstanceFlags)
+
 #if WITH_EDITORONLY_DATA
 /** Enum defining how actor will be placed in the partition */
 UENUM()
@@ -106,6 +125,20 @@ enum class UE_DEPRECATED(5.0, "EActorGridPlacement is deprecated.") EActorGridPl
 	None UMETA(Hidden)
 };
 #endif
+
+/** Helper struct that allows UPrimitiveComponent and FPrimitiveSceneInfo write to the Actor's LastRenderTime member */
+struct FActorLastRenderTime
+{
+	float LastRenderTime;
+	std::atomic_int32_t NumAlwaysVisibleComponents = 0;
+
+private:
+	static void Set(AActor* InActor, float LastRenderTime);
+	static FActorLastRenderTime* GetPtr(AActor* InActor);
+
+	friend class UPrimitiveComponent;
+	friend struct FPrimitiveSceneInfoAdapter;
+};
 
 ENGINE_API DECLARE_LOG_CATEGORY_EXTERN(LogActor, Log, Warning);
 
@@ -151,6 +184,12 @@ class TInlineComponentArray : public TArray<T, TInlineAllocator<NumElements>>
 public:
 	TInlineComponentArray() : Super() { }
 	TInlineComponentArray(const AActor* Actor, bool bIncludeFromChildActors = false);
+};
+
+template<class T, uint32 NumElements>
+struct TIsContiguousContainer<TInlineComponentArray<T, NumElements>>
+{
+	enum { Value = true };
 };
 
 /**
@@ -275,19 +314,17 @@ private:
 	uint8 bForceNetAddressable:1;
 
 #if WITH_EDITORONLY_DATA
-	/** Whether this actor belongs to a level instance which is currently being edited. */
-	UPROPERTY(Transient)
-	uint8 bIsInEditLevelInstance:1;
+	/** Whether this actor belongs to a level instance or not and what type of level instance. */
+	UPROPERTY(Transient, NonTransactional)
+	ELevelInstanceType LevelInstanceType;
 
-	/** Whether this actor belongs to a level instance in a level instance hierarchy currently being edited. Itself or its parent level instances. */
-	UPROPERTY(Transient)
-	uint8 bIsInEditLevelInstanceHierarchy:1;
-
-	/** Whether this actor belongs to a level instance  */
-	UPROPERTY(Transient)
-	uint8 bIsInLevelInstance:1;
+	/** Flags related to level instances for this actor. */
+	UPROPERTY(Transient, NonTransactional)
+	ELevelInstanceFlags LevelInstanceFlags;
 
 	friend struct FSetActorIsInLevelInstance;
+	friend struct FAddActorLevelInstanceFlags;
+	friend struct FRemoveActorLevelInstanceFlags;
 
 public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = LevelInstance, meta = (Tooltip = "If checked, this Actor will only get loaded in a main world (persistent level), it will not be loaded through Level Instances."))
@@ -319,25 +356,49 @@ public:
 	UE_DEPRECATED(5.4, "Call IsInEditLevelInstanceHierarchy/IsInEditLevelInstance instead.")
 	virtual bool IsInEditingLevelInstance() const
 	{
-		return bIsInEditLevelInstance;
+		return IsInEditLevelInstance();
+	}
+
+	/** If true, the actor belongs to a level instance which is currently in an edit mode: edit or property override edit */
+	bool IsInAnyEditLevelInstance() const
+	{
+		return IsInEditLevelInstance() || IsInPropertyOverrideLevelInstance();
 	}
 
 	/** If true, the actor belongs to a level instance which is currently being edited */
 	bool IsInEditLevelInstance() const
 	{
-		return bIsInEditLevelInstance;
+		return LevelInstanceType == ELevelInstanceType::LevelInstanceEdit;
+	}
+
+	/** If true, the actor belongs to a level instance which is currently in property override edit */
+	bool IsInPropertyOverrideLevelInstance() const
+	{
+		return LevelInstanceType == ELevelInstanceType::LevelInstancePropertyOverride;
 	}
 
 	/** If true, the actor belongs to a level instance which is currently being edited or a parent level instance being edited. */
 	bool IsInEditLevelInstanceHierarchy() const
 	{
-		return bIsInEditLevelInstanceHierarchy;
+		return EnumHasAnyFlags(LevelInstanceFlags, ELevelInstanceFlags::IsInEditHierarchy);
+	}
+
+	/** If true, this actor or one of its components has property overrides applied. */
+	bool HasLevelInstancePropertyOverrides() const
+	{
+		return EnumHasAnyFlags(LevelInstanceFlags, ELevelInstanceFlags::HasPropertyOverrides);
+	}
+
+	/** If true, this actor or one of its components has property overrides applied from an editable level instance (level instance is in a non readonly level) */
+	bool HasEditableLevelLevelInstancePropertyOverrides() const
+	{
+		return EnumHasAnyFlags(LevelInstanceFlags, ELevelInstanceFlags::HasEditablePropertyOverrides);
 	}
 
 	/** If true, the actor belongs to a level instance. */
 	bool IsInLevelInstance() const
 	{
-		return bIsInLevelInstance;
+		return LevelInstanceType != ELevelInstanceType::None;
 	}
 #endif
 
@@ -434,7 +495,6 @@ public:
 	uint8 bIsEditorOnlyActor:1;
 
 	/** Indicates the actor was pulled through a seamless travel.  */
-	UPROPERTY()
 	uint8 bActorSeamlessTraveled:1;
 
 	/**
@@ -758,20 +818,23 @@ public:
 	UPROPERTY(DuplicateTransient)
 	TObjectPtr<class UInputComponent> InputComponent;
 
-	/** Square of the max distance from the client's viewpoint that this actor is relevant and will be replicated. */
-	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category=Replication)
-	float NetCullDistanceSquared;   
-
 	/** Internal - used by UNetDriver */
 	UPROPERTY(Transient)
 	int32 NetTag;
 
+	/** Square of the max distance from the client's viewpoint that this actor is relevant and will be replicated. */
+	UE_DEPRECATED(5.5, "Public access to NetCullDistanceSquared has been deprecated. Use SetNetCullDistanceSquared() and GetNetCullDistanceSquared() instead.")
+	UPROPERTY(Category=Replication, EditDefaultsOnly, BlueprintReadWrite, meta=(AllowPrivateAccess=true), BlueprintGetter=GetNetCullDistanceSquared, BlueprintSetter=SetNetCullDistanceSquared)
+	float NetCullDistanceSquared;   
+
 	/** How often (per second) this actor will be considered for replication, used to determine NetUpdateTime */
-	UPROPERTY(Category=Replication, EditDefaultsOnly, BlueprintReadWrite)
+	UE_DEPRECATED(5.5, "Public access to NetUpdateFrequency has been deprecated. Use SetNetUpdateFrequency() and GetNetUpdateFrequency() instead.")
+	UPROPERTY(Category=Replication, EditDefaultsOnly, BlueprintReadWrite, meta=(AllowPrivateAccess=true), BlueprintGetter=GetNetUpdateFrequency, BlueprintSetter=SetNetUpdateFrequency)
 	float NetUpdateFrequency;
 
 	/** Used to determine what rate to throttle down to when replicated properties are changing infrequently */
-	UPROPERTY(Category=Replication, EditDefaultsOnly, BlueprintReadWrite)
+	UE_DEPRECATED(5.5, "Public access MinNetUpdateFrequency has been deprecated. Use SetMinNetUpdateFrequency() and GetMinNetUpdateFrequency() instead.")
+	UPROPERTY(Category=Replication, EditDefaultsOnly, BlueprintReadWrite, meta=(AllowPrivateAccess=true), BlueprintGetter=GetMinNetUpdateFrequency, BlueprintSetter=SetMinNetUpdateFrequency)
 	float MinNetUpdateFrequency;
 
 	/** Priority for this actor when checking for replication in a low bandwidth or saturated situation, higher priority means it is more likely to replicate */
@@ -806,7 +869,7 @@ private:
 	 * from the render thread, which is up to a frame behind the game thread, so you should allow this time to
 	 * be at least a frame behind the game thread's world time before you consider the actor non-visible.
 	 */
-	float LastRenderTime;
+	FActorLastRenderTime LastRenderTime;
 
 	friend struct FActorLastRenderTime;
 
@@ -967,12 +1030,14 @@ protected:
 	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = DataLayers)
 	TArray<FActorDataLayer> DataLayers;
 
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = DataLayers)
+	// There is currently an issue where if we allow property override of DataLayerAssets and it contains Private datalayers
+	// then it will always serialize a diff since those are outered to the instanced level and will get remapped differently between the Override instance and Archetype instance we are comparing against
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = DataLayers, meta=(DisableLevelInstancePropertyOverride))
 	TArray<TSoftObjectPtr<UDataLayerAsset>> DataLayerAssets;
 
 	TArray<TSoftObjectPtr<UDataLayerAsset>> PreEditChangeDataLayers;
 
-	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = DataLayers, TextExportTransient, NonTransactional)
+	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = DataLayers, TextExportTransient)
 	TObjectPtr<const UExternalDataLayerAsset> ExternalDataLayerAsset;
 
 public:
@@ -1034,7 +1099,7 @@ public:
 	inline const FGuid& GetContentBundleGuid() const { return ContentBundleGuid; }
 
 	/** Returns true if actor location should be locked. */
-	virtual bool IsLockLocation() const { return bLockLocation; }
+	ENGINE_API virtual bool IsLockLocation() const;
 
 	/** Set the bLockLocation flag */
 	void SetLockLocation(bool bInLockLocation) { bLockLocation = bInLockLocation; }
@@ -1064,6 +1129,12 @@ public:
 	 * Creates an uninitialized actor descriptor from a specific class.
 	 */
 	static ENGINE_API TUniquePtr<class FWorldPartitionActorDesc> StaticCreateClassActorDesc(const TSubclassOf<AActor>& ActorClass);
+
+	/** Called when this actor gets added to the level in the editor by world partition loading. */
+	ENGINE_API virtual void OnLoadedActorAddedToLevel() {}
+
+	/** Called when this actor gets removed from the level in the editor by world partition unloading. */
+	ENGINE_API virtual void OnLoadedActorRemovedFromLevel() {}
 #endif // WITH_EDITOR
 
 private:
@@ -1081,15 +1152,24 @@ private:
 #endif
 
 public:
-	const FString GetActorNameOrLabel() const
+	FString GetActorNameOrLabel() const
 	{
-#if WITH_EDITORONLY_DATA || (!WITH_EDITOR && ACTOR_HAS_LABELS)
+#if WITH_EDITORONLY_DATA || ACTOR_HAS_LABELS
 		if (!ActorLabel.IsEmpty())
 		{
 			return ActorLabel;
 		}
 #endif
 		return GetName();
+	}
+
+	FStringView GetActorLabelView() const
+	{
+#if WITH_EDITORONLY_DATA || ACTOR_HAS_LABELS
+		return ActorLabel;
+#else
+		return FStringView();
+#endif
 	}
 
 #if WITH_EDITORONLY_DATA
@@ -2110,7 +2190,7 @@ public:
 	 * @param OverlappingActors		[out] Returned list of overlapping actors
 	 * @param ClassFilter			[optional] If set, only returns actors of this class or subclasses
 	 */
-	UFUNCTION(BlueprintCallable, Category="Collision", meta=(UnsafeDuringActorConstruction="true"))
+	UFUNCTION(BlueprintCallable, Category="Collision", meta=(UnsafeDuringActorConstruction="true", DeterminesOutputType="ClassFilter",  DynamicOutputParam="OverlappingActors"))
 	ENGINE_API void GetOverlappingActors(TArray<AActor*>& OverlappingActors, TSubclassOf<AActor> ClassFilter=nullptr) const;
 
 	/** 
@@ -2267,6 +2347,9 @@ public:
 	/** When selected can this actor be deleted? */
 	ENGINE_API virtual bool CanDeleteSelectedActor(FText& OutReason) const;
 
+	/** When selected can this actor be replaced */
+	ENGINE_API virtual bool CanReplaceSelectedActor(FText& OutReason) const;
+
 	/** Does this actor supports external packaging? */
 	ENGINE_API virtual bool SupportsExternalPackaging() const;
 #endif
@@ -2287,7 +2370,7 @@ public:
 	//~ End UObject Interface
 
 #if WITH_EDITOR
-	virtual bool CanEditChangeComponent(const UActorComponent* Component, const FProperty* InProperty) const { return true; }
+	ENGINE_API virtual bool CanEditChangeComponent(const UActorComponent* Component, const FProperty* InProperty) const;
 #endif
 
 	//~=============================================================================
@@ -2366,14 +2449,17 @@ public:
 	}
 
 	/**
-	 * Returns the location and the bounding box of all components that make up this Actor.
+	 * Returns the bounding boxes of all components that make up this Actor for loading at runtime and editor.
 	 *
 	 * This function differs from GetActorBounds because it will return a valid origin and an empty extent if this actor
 	 * doesn't have primitive components.
 	 *
 	 * @see GetActorBounds()
 	 */
-	ENGINE_API virtual FBox GetStreamingBounds() const;
+	ENGINE_API virtual void GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const;
+
+	UE_DEPRECATED(5.5, "Use the override that takes both Runtime and Editor boxes")
+	ENGINE_API FBox GetStreamingBounds() const;
 #endif
 
 
@@ -2512,6 +2598,9 @@ public:
 
 	/** Returns true if this actor is allowed to be attached from the given actor */
 	ENGINE_API virtual bool EditorCanAttachFrom(const AActor* InChild, FText& OutReason) const;
+
+	/** Returns true if this actor is allowed to be detached from the given actor */
+	ENGINE_API virtual bool EditorCanDetachFrom(const AActor* InParent, FText& OutReason) const { return true; }
 
 	/** Returns the actor attachement parent that should be used in editor */
 	ENGINE_API virtual AActor* GetSceneOutlinerParent() const;
@@ -3012,7 +3101,7 @@ public:
 	ENGINE_API virtual AActor* GetRootSelectionParent() const;
 
 	/** Returns true if actor can be selected as a sub selection of its root selection parent */
-	ENGINE_API virtual bool SupportsSubRootSelection() const { return false; }
+	ENGINE_API virtual bool SupportsSubRootSelection() const;
 
 	/** Returns if actor or selection parent is selected */
 	ENGINE_API bool IsActorOrSelectionParentSelected() const;
@@ -3299,7 +3388,7 @@ protected:
 	 * Helper to BeginReplication passing on additional parameters to the ReplicationSystem, typically called from code overriding normal BeginReplication()
 	 * @param Params Additional parameters we want to pass on
 	 */
-	ENGINE_API void BeginReplication(const FActorBeginReplicationParams& Params);
+	ENGINE_API void BeginReplication(const FActorReplicationParams& Params);
 #endif // UE_WITH_IRIS
 
 	/**
@@ -3624,15 +3713,22 @@ public:
 	}
 
 	/** Templatized version of FindComponentByInterface that handles casting for you */
-	template<class T>
+	template<class T UE_REQUIRES(TPointerIsConvertibleFromTo<T, UInterface>::Value)>
+	UE_DEPRECATED(5.5, "This version incorrectly casts to the UInterface type used for reflection. Use FindComponentByInterface<IMyInterface>() instead")
 	T* FindComponentByInterface() const
 	{
-		static_assert(TPointerIsConvertibleFromTo<T, const UInterface>::Value, "'T' template parameter to FindComponentByInterface must be derived from UInterface");
-
 		return (T*)FindComponentByInterface(T::StaticClass());
 	}
 
+	/** Templatized version of FindComponentByInterface that handles casting for you */
+	template<class T UE_REQUIRES(TIsIInterface<T>::Value)>
+	T* FindComponentByInterface() const
+	{
+		return Cast<T>(FindComponentByInterface(T::UClassType::StaticClass()));
+	}
+
 private:
+
 	/**
 	 * Internal helper function to call a compile-time lambda on all components of a given type
 	 * Use template parameter bClassIsActorComponent to avoid doing unnecessary IsA checks when the ComponentClass is exactly UActorComponent
@@ -4386,6 +4482,42 @@ public:
 	ENGINE_API void SetReplicatedMovement(const FRepMovement& InReplicatedMovement);
 
 	/**
+	 * Set the frequency at which this object will be considered for replication.
+	 */
+	UFUNCTION(BlueprintSetter)
+	ENGINE_API void SetNetUpdateFrequency(float Frequency);
+
+	/** 
+	 * Get the current frequency at which this object will be considered for replication.
+	 */
+	UFUNCTION(BlueprintGetter)
+	ENGINE_API float GetNetUpdateFrequency() const;
+
+	/**
+	 * Set the frequency to throttle down to when replicated properties are changing infrequently. 
+	 */
+	UFUNCTION(BlueprintSetter)
+	ENGINE_API void SetMinNetUpdateFrequency(float MinFrequency);
+
+	/**
+	 * Get the frequency to throttle down to when replicated properties are changing infrequently. 
+	 */
+	UFUNCTION(BlueprintGetter)
+	ENGINE_API float GetMinNetUpdateFrequency() const;
+
+	/** 
+	 * Set the square of the max distance from the client's viewpoint that this actor is relevant and will be replicated.
+	 */
+	UFUNCTION(BlueprintSetter)
+	ENGINE_API void SetNetCullDistanceSquared(float DistanceSq);
+
+	/** 
+	 * Get the square of the max distance from the client's viewpoint that this actor is relevant and will be replicated.
+	 */
+	UFUNCTION(BlueprintGetter)
+	ENGINE_API float GetNetCullDistanceSquared() const;
+
+	/**
 	 * Gets the property name for Instigator.
 	 * This exists so subclasses don't need to have direct access to the Instigator property so it
 	 * can be made private later.
@@ -4426,23 +4558,16 @@ private:
 	friend UWorld;
 };
 
-/** Helper struct that allows UPrimitiveComponent and FPrimitiveSceneInfo write to the Actor's LastRenderTime member */
-struct FActorLastRenderTime
+
+inline void FActorLastRenderTime::Set(AActor* InActor, float LastRenderTime)
 {
-private:
-	static void Set(AActor* InActor, float LastRenderTime)
-	{
-		InActor->LastRenderTime = LastRenderTime;
-	}
+	InActor->LastRenderTime.LastRenderTime = LastRenderTime;
+}
 
-	static float* GetPtr(AActor* InActor)
-	{
-		return (InActor ? &InActor->LastRenderTime : nullptr);
-	}
-
-	friend class UPrimitiveComponent;
-	friend struct FPrimitiveSceneInfoAdapter;
-};
+inline FActorLastRenderTime* FActorLastRenderTime::GetPtr(AActor* InActor)
+{
+	return (InActor ? &InActor->LastRenderTime : nullptr);
+}
 
 #if WITH_EDITOR
 struct FSetActorHiddenInSceneOutliner
@@ -4457,6 +4582,7 @@ private:
 	friend class FFoliageHelper;
 	friend class ULevelInstanceSubsystem;
 	friend class UExternalDataLayerInstance;
+	friend class FModelingToolsSetActorHiddenInSceneOutliner;
 };
 
 struct FSetActorGuid
@@ -4522,40 +4648,70 @@ private:
 		InActor->ContentBundleGuid = InContentBundleGuid;
 	}
 	friend class FContentBundleEditor;
+	friend class FExternalDataLayerHelper;
 	friend class UGameFeatureActionConvertContentBundleWorldPartitionBuilder;
 };
 
 struct FAssignActorDataLayer
 {
 private:
-	static bool AddDataLayerAsset(AActor* InActor, const UDataLayerAsset* InDataLayerAsset);
-	static bool RemoveDataLayerAsset(AActor* InActor, const UDataLayerAsset* InDataLayerAsset);
+	ENGINE_API static bool AddDataLayerAsset(AActor* InActor, const UDataLayerAsset* InDataLayerAsset);
+	ENGINE_API static bool RemoveDataLayerAsset(AActor* InActor, const UDataLayerAsset* InDataLayerAsset);
 
+	friend class UEngine;
+	friend class FContentBundleEditor;
 	friend class UDataLayerInstanceWithAsset;
 	friend class UDataLayerInstancePrivate;
 	friend class UExternalDataLayerInstance;
 	friend class ULevelInstanceSubsystem;
+	friend class FExternalDataLayerHelper;
 };
 
 struct FSetActorIsInLevelInstance
 {
 private:
-	FSetActorIsInLevelInstance(AActor* InActor, bool bIsEditing = false)
+	FSetActorIsInLevelInstance(AActor* InActor, ELevelInstanceType InLevelInstanceType)
 	{
-		InActor->bIsInLevelInstance = true;
-		InActor->bIsInEditLevelInstance = bIsEditing;
+		InActor->LevelInstanceType = InLevelInstanceType;
 	}
 
 	friend class ULevelStreamingLevelInstance;
 	friend class ULevelStreamingLevelInstanceEditor;
+	friend class ULevelStreamingLevelInstanceEditorPropertyOverride;
+};
+
+struct FAddActorLevelInstanceFlags
+{
+private:
+	FAddActorLevelInstanceFlags(AActor* InActor, ELevelInstanceFlags InFlagsToAdd)
+	{
+		EnumAddFlags(InActor->LevelInstanceFlags, InFlagsToAdd);
+	}
+
+	friend class ULevelStreamingLevelInstance;
+	friend class ULevelStreamingLevelInstanceEditor;
+	friend class ULevelStreamingLevelInstanceEditorPropertyOverride;
+};
+
+struct FRemoveActorLevelInstanceFlags
+{
+private:
+	FRemoveActorLevelInstanceFlags(AActor* InActor, ELevelInstanceFlags InFlagsToRemove)
+	{
+		EnumRemoveFlags(InActor->LevelInstanceFlags, InFlagsToRemove);
+	}
+
+	friend class ULevelStreamingLevelInstance;
+	friend class ULevelStreamingLevelInstanceEditor;
+	friend class ULevelStreamingLevelInstanceEditorPropertyOverride;
 };
 #endif
 
-/** Helper function for executing tick functions based on the normal conditions previous found in UActorComponent::ConditionalTick */
+/** Helper function for executing component tick functions using the same conditions as FActorTickFunction */
 template <typename ExecuteTickLambda>
 void FActorComponentTickFunction::ExecuteTickHelper(UActorComponent* Target, bool bTickInEditor, float DeltaTime, ELevelTick TickType, const ExecuteTickLambda& ExecuteTickFunc)
 {
-	if (Target && IsValidChecked(Target) && !Target->IsUnreachable())
+	if (IsValid(Target))
 	{
 		FScopeCycleCounterUObject ComponentScope(Target);
 		FScopeCycleCounterUObject AdditionalScope(Target->AdditionalStatObject());
@@ -4563,11 +4719,8 @@ void FActorComponentTickFunction::ExecuteTickHelper(UActorComponent* Target, boo
 		if (Target->bRegistered)
 		{
 			AActor* MyOwner = Target->GetOwner();
-			//@optimization, I imagine this is all unnecessary in a shipping game with no editor
-			if (TickType != LEVELTICK_ViewportsOnly ||
-				(bTickInEditor && TickType == LEVELTICK_ViewportsOnly) ||
-				(MyOwner && MyOwner->ShouldTickIfViewportsOnly())
-				)
+			if (TickType != LEVELTICK_ViewportsOnly || bTickInEditor ||
+				(MyOwner && MyOwner->ShouldTickIfViewportsOnly()))
 			{
 				const float TimeDilation = (MyOwner ? MyOwner->CustomTimeDilation : 1.f);
 				ExecuteTickFunc(DeltaTime * TimeDilation);
@@ -4757,7 +4910,3 @@ DEFINE_ACTORDESC_TYPE(AActor, FWorldPartitionActorDesc);
 	void SetActorRelativeRotation(FRotator NewRelativeRotation, bool bSweep=false, FHitResult* OutSweepHitResult=nullptr, ETeleportType Teleport = ETeleportType::None) { Super::SetActorRelativeRotation(NewRelativeRotation, bSweep, OutSweepHitResult, Teleport); } \
 	void SetActorRelativeRotation(const FQuat& NewRelativeRotation, bool bSweep=false, FHitResult* OutSweepHitResult=nullptr, ETeleportType Teleport = ETeleportType::None) { Super::SetActorRelativeRotation(NewRelativeRotation, bSweep, OutSweepHitResult, Teleport); } \
 	void SetActorRelativeTransform(const FTransform& NewRelativeTransform, bool bSweep=false, FHitResult* OutSweepHitResult=nullptr, ETeleportType Teleport = ETeleportType::None) { Super::SetActorRelativeTransform(NewRelativeTransform, bSweep, OutSweepHitResult, Teleport); }
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

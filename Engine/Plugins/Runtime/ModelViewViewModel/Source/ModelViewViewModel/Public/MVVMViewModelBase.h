@@ -3,6 +3,7 @@
 #pragma once
 
 
+#include "Algo/Compare.h"
 #include "FieldNotificationDeclaration.h" // IWYU pragma: keep
 #include "IFieldNotificationClassDescriptor.h"
 #include "ViewModel/MVVMFieldNotificationDelegates.h"
@@ -90,6 +91,21 @@ protected:
 	bool SetPropertyValue(FText& Value, const FText& NewValue, UE::FieldNotification::FFieldId FieldId)
 	{
 		if (Value.IdenticalTo(NewValue))
+		{
+			return false;
+		}
+
+		Value = NewValue;
+		BroadcastFieldValueChanged(FieldId);
+		return true;
+	}
+
+	bool SetPropertyValue(TArray<FText>& Value, const TArray<FText>& NewValue, UE::FieldNotification::FFieldId FieldId)
+	{
+		if (Algo::Compare(Value, NewValue, [](const FText& LHS, const FText& RHS)
+			{
+				return LHS.IdenticalTo(RHS);
+			}))
 		{
 			return false;
 		}

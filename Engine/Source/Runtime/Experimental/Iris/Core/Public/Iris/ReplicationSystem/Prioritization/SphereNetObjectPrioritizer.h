@@ -10,7 +10,7 @@
 
 class FMemStackBase;
 
-UCLASS(transient, config=Engine)
+UCLASS(transient, config=Engine, MinimalAPI)
 class USphereNetObjectPrioritizerConfig : public UNetObjectPrioritizerConfig
 {
 	GENERATED_BODY()
@@ -43,6 +43,7 @@ class USphereNetObjectPrioritizer : public ULocationBasedNetObjectPrioritizer
 protected:
 	// UNetObjectPrioritizer interface
 	IRISCORE_API virtual void Init(FNetObjectPrioritizerInitParams& Params) override;
+	IRISCORE_API virtual void Deinit() override;
 	IRISCORE_API virtual void Prioritize(FNetObjectPrioritizationParams&) override;
 
 protected:

@@ -17,134 +17,7 @@
 #include "ImageWriteQueue.h"
 #include "Misc/Paths.h"
 #include "Async/TaskGraphInterfaces.h"
-
-#if WITH_OCIO
-#include "ImageCore.h" // For GetImageView()
-#include "OpenColorIOConfiguration.h"
-#include "OpenColorIOColorTransform.h"
-#include "OpenColorIOWrapper.h"
-#endif // WITH_OCIO
-
-namespace UE::MovieGraph::Private
-{	
-#if WITH_OCIO
-	struct FOpenColorIOPixelPreProcessor
-	{
-		FOpenColorIOPixelPreProcessor(FOpenColorIOWrapperProcessor&& InProcessor)
-			: Processor(InProcessor)
-		{ }
-
-		void operator()(FImagePixelData* PixelData)
-		{
-			check(PixelData);
-			Processor.TransformImage(PixelData->GetImageView());
-		}
-
-		FOpenColorIOWrapperProcessor Processor;
-	};
-
-	/**
-	 * Convenience function to resolve an OpenColorIO context with supported tokens.
-	 *
-	 * @return The resolved key/value context.
-	*/
-	TMap<FString, FString> ResolveOpenColorIOContext(
-		const TMap<FString, FString>& InContext,
-		const FMovieGraphRenderDataIdentifier& InRenderId,
-		const UMovieGraphPipeline* InPipeline,
-		TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig,
-		const FMovieGraphTraversalContext& InTraversalContext
-	)
-	{
-		TMap<FString, FString> OutContext;
-		OutContext.Reserve(InContext.Num());
-
-		FMovieGraphFilenameResolveParams Params = FMovieGraphFilenameResolveParams::MakeResolveParams(InRenderId, InPipeline, InEvaluatedConfig, InTraversalContext);
-
-		for (const TPair<FString, FString>& Pair : InContext)
-		{
-			FMovieGraphResolveArgs FormatArgs;
-			UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(Pair.Value, Params, FormatArgs);
-
-			FStringFormatNamedArguments NamedArgs;
-			for (const TPair<FString, FString>& Argument : FormatArgs.FilenameArguments)
-			{
-				NamedArgs.Add(Argument.Key, Argument.Value);
-			}
-
-			const FString& ResolvedValue = OutContext.Add(Pair.Key, FString::Format(*Pair.Value, NamedArgs));
-			UE_LOG(LogMovieRenderPipeline, VeryVerbose, TEXT("OCIO Context Key/Value: %s / %s"), *Pair.Key, *ResolvedValue);
-		}
-
-		return OutContext;
-	}
-
-	/**
-	 * Convenience function to create an OpenColorIO CPU processor based on the specified conversion settings.
-	 * We use the OpenColorIO processor wrapper directly to avoid concurrency issues with the uobjects lifetime.
-	 *
-	 * @return The pixel preprocessor if successful, nullptr otherwise.
-	*/
-	static FPixelPreProcessor CreateOpenColorIOPixelPreProcessor(const FOpenColorIOColorConversionSettings& InConversionSettings, const TMap<FString, FString>& InContext)
-	{
-		const TObjectPtr<UOpenColorIOConfiguration>& ConfigurationSource = InConversionSettings.ConfigurationSource;
-		if (IsValid(ConfigurationSource))
-		{
-			const FOpenColorIOWrapperConfig* ConfigWrapper = ConfigurationSource->GetOrCreateConfigWrapper();
-			TObjectPtr<const UOpenColorIOColorTransform> ColorTransform = ConfigurationSource->FindTransform(InConversionSettings);
-			if (IsValid(ColorTransform))
-			{
-				FOpenColorIOWrapperProcessor Processor;
-				EOpenColorIOViewTransformDirection CurrentDisplayViewDirection;
-
-				if (ColorTransform->GetDisplayViewDirection(CurrentDisplayViewDirection))
-				{
-					Processor = FOpenColorIOWrapperProcessor(
-							ConfigWrapper,
-							ColorTransform->SourceColorSpace,
-							ColorTransform->Display,
-							ColorTransform->View,
-							static_cast<bool>(CurrentDisplayViewDirection),
-							InContext
-						);
-				}
-				else
-				{
-					Processor = FOpenColorIOWrapperProcessor(
-							ConfigWrapper,
-							ColorTransform->SourceColorSpace,
-							ColorTransform->DestinationColorSpace,
-							InContext
-						);
-				}
-
-				if (Processor.IsValid())
-				{
-					return FOpenColorIOPixelPreProcessor(MoveTemp(Processor));
-				}
-			}
-		}
-
-		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Invalid configuration source or conversion settings, bypassing OpenColorIO transform."));
-
-		return {};
-	}
-
-	/* Utility function to warn the user in case they forgot to check "Disable Tone Curve", which in turn controls the render's scene capture source. */
-	void ValidateDisableTonecurve(const UE::MovieGraph::FMovieGraphSampleState& InPayload)
-	{
-		if (InPayload.SceneCaptureSource != ESceneCaptureSource::SCS_FinalColorHDR)
-		{
-			UE_CALL_ONCE([]
-				{
-					UE_LOG(LogMovieRenderPipeline, Warning, TEXT(
-						"The OCIO transform did not receive scene-referred linear colors, which most standard workflows expect."
-						"You may wish to disable the tonecurve on your renderer node(s)."));
-				});
-		}
-	}
-#endif // WITH_OCIO
-} //end namespace UE::MovieGraph::Private
+#include "Graph/MovieGraphOCIOHelper.h"
 
 UMovieGraphImageSequenceOutputNode::UMovieGraphImageSequenceOutputNode()
 {
@@ -160,44 +33,6 @@ bool UMovieGraphImageSequenceOutputNode::IsFinishedWritingToDiskImpl() const
 {
 	// Wait until the finalization fence is reached meaning we've written everything to disk.
 	return Super::IsFinishedWritingToDiskImpl() && (!FinalizeFence.IsValid() || FinalizeFence.WaitFor(0));
-}
-
-TArray<TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>> UMovieGraphImageSequenceOutputNode::GetCompositedPasses(
-	UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData) const
-{
-	// Gather the passes that need to be composited
-	TArray<TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>> CompositedPasses;
-
-	for (TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& RenderData : InRawFrameData->ImageOutputData)
-	{
-		UE::MovieGraph::FMovieGraphSampleState* Payload = RenderData.Value->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
-		check(Payload);
-		if (!Payload->bCompositeOnOtherRenders)
-		{
-			continue;
-		}
-
-		TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>> CompositePass;
-		CompositePass.Key = RenderData.Key;
-		CompositePass.Value = RenderData.Value->CopyImageData();
-		CompositedPasses.Add(MoveTemp(CompositePass));
-	}
-
-	// Sort composited passes if multiple were found. Passes with a higher sort order go to the end of the array so they
-	// get composited on top of passes with a lower sort order.
-	CompositedPasses.Sort([](
-		const TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& PassA,
-		const TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& PassB)
-	{
-		const UE::MovieGraph::FMovieGraphSampleState* PayloadA = PassA.Value->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
-		const UE::MovieGraph::FMovieGraphSampleState* PayloadB = PassB.Value->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
-		check(PayloadA);
-		check(PayloadB);
-
-		return PayloadA->CompositingSortOrder < PayloadB->CompositingSortOrder;
-	});
-
-	return CompositedPasses;
 }
 
 FString UMovieGraphImageSequenceOutputNode::CreateFileName(
@@ -226,39 +61,8 @@ FString UMovieGraphImageSequenceOutputNode::CreateFileName(
 	// Generate one string that puts the directory combined with the filename format.
 	FString FileNameFormatString = OutputSettingNode->OutputDirectory.Path / InParentNode->FileNameFormat;
 
-	// ToDo: This is overly protective and could be relaxed later, for instance
-	// if different file write nodes have chosen a separate filepath entirely.
-	UE::MovieGraph::FMovieGraphRenderDataValidationInfo ValidationInfo = InRawFrameData->GetValidationInfo(InRenderData.Key);
-
-	// Since there can only be one layer per branch, we restrain layer/branch validation to multi-branch graphs.
-	if (ValidationInfo.BranchCount > 1)
-	{
-		// We can run into the scenario where the users have given layers the same name, so layer_name token won't help differentiate.
-		// To resolve this, we look to see if there's multiple branches with the same layer name, and if so we force the branch name into the token too.
-		if (ValidationInfo.LayerCount < ValidationInfo.BranchCount)
-		{
-			UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{branch_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
-		}
-		else
-		{
-			// Otherwise, we separate each branch by its unique layer name.
-			UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{layer_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
-		}
-	}
-
-	// We only add the renderer name token if multiple (non-composited) renderers are present on the active branch (eg, in the case of optional PPMs).
-	if (ValidationInfo.ActiveBranchRendererCount > 1)
-	{
-		UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{renderer_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
-	}
-
-	// We only add the subresource token if a (non-composited) renderer on the active branch is producing more than one subresource (eg, in the case of optional PPMs).
-	if (ValidationInfo.ActiveRendererSubresourceCount > 1)
-	{
-		UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{renderer_sub_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
-	}
-
-	// ToDo: Add {camera_name} validation once relevant
+	// Insert tokens like {layer_name} as appropriate to make sure outputs don't clash with each other.
+	DisambiguateFilename(FileNameFormatString, InRawFrameData, InParentNode->GetFName(), InRenderData);
 
 	// Previous method is preserved for output frame number validation.
 	constexpr bool bIncludeRenderPass = false;
@@ -357,39 +161,10 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		
 		bool bQuantizationEncodeSRGB = true;
 #if WITH_OCIO
-		if (ParentNode->OCIOConfiguration.bIsEnabled && Payload->bAllowOCIO)
+		if (FMovieGraphOCIOHelper::GenerateOcioPixelPreProcessor(Payload, InPipeline, InRawFrameData->EvaluatedConfig.Get(), OCIOConfiguration, OCIOContext, TileImageTask->PixelPreProcessors))
 		{
-			UE::MovieGraph::Private::ValidateDisableTonecurve(*Payload);
-
-			TMap<FString, FString> ResolvedOCIOContext;
-
-			const TObjectPtr<UOpenColorIOConfiguration>& ConfigurationAsset = ParentNode->OCIOConfiguration.ColorConfiguration.ConfigurationSource;
-			if (IsValid(ConfigurationAsset))
-			{
-				ResolvedOCIOContext = ConfigurationAsset->Context;
-			}
-
-			ResolvedOCIOContext.Append(ParentNode->OCIOContext);
-
-			ResolvedOCIOContext = UE::MovieGraph::Private::ResolveOpenColorIOContext(
-				ResolvedOCIOContext,
-				RenderData.Key,
-				InPipeline,
-				InRawFrameData->EvaluatedConfig.Get(),
-				Payload->TraversalContext
-			);
-
-			FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(
-				ParentNode->OCIOConfiguration.ColorConfiguration,
-				ResolvedOCIOContext
-			);
-			if (OCIOPixelPreProcessor)
-			{
-				TileImageTask->PixelPreProcessors.Emplace(MoveTemp(OCIOPixelPreProcessor));
-				
-				// We assume that any encoding on the output transform should be done by OCIO
-				bQuantizationEncodeSRGB = false;
-			}
+			// We assume that any encoding on the output transform should be done by OCIO
+			bQuantizationEncodeSRGB = false;
 		}
 #endif // WITH_OCIO
 
@@ -404,6 +179,12 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		// Perform compositing if any composited passes were found earlier
 		for (TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& CompositedPass : CompositedPasses)
 		{
+			// This pass may not allow other passes to be composited on it
+			if (!Payload->bAllowsCompositing)
+			{
+				continue;
+			}
+			
 			// This composited pass will only composite on top of renders w/ the same branch and camera
 			if (!CompositedPass.Key.IsBranchAndCameraEqual(RenderData.Key))
 			{
@@ -484,19 +265,9 @@ void UMovieGraphImageSequenceOutputNode_EXR::UpdateTaskPerLayer(
 
 	bool bEnabledOCIO = false;
 #if WITH_OCIO
-	if (InParentNode->OCIOConfiguration.bIsEnabled && Payload->bAllowOCIO)
+	if (FMovieGraphOCIOHelper::GenerateOcioPixelPreProcessorWithContext(Payload, InParentNode->OCIOConfiguration, InResolvedOCIOContext, InOutImageTask.PixelPreprocessors.FindOrAdd(InLayerIndex)))
 	{
-		UE::MovieGraph::Private::ValidateDisableTonecurve(*Payload);
-
-		FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(
-			InParentNode->OCIOConfiguration.ColorConfiguration,
-			InResolvedOCIOContext
-		);
-		if (OCIOPixelPreProcessor)
-		{
-			InOutImageTask.PixelPreprocessors.FindOrAdd(InLayerIndex).Emplace(MoveTemp(OCIOPixelPreProcessor));
-			bEnabledOCIO = true;
-		}
+		bEnabledOCIO = true;
 	}
 #endif // WITH_OCIO
 
@@ -590,7 +361,7 @@ void UMovieGraphImageSequenceOutputNode_EXR::OnReceiveImageDataImpl(UMovieGraphP
 
 		TMap<FString, FString> ResolvedOCIOContext = {};
 #if WITH_OCIO
-		ResolvedOCIOContext = UE::MovieGraph::Private::ResolveOpenColorIOContext(
+		ResolvedOCIOContext = FMovieGraphOCIOHelper::ResolveOpenColorIOContext(
 			ParentNode->OCIOContext,
 			RenderData.Key,
 			InPipeline,
@@ -604,6 +375,12 @@ void UMovieGraphImageSequenceOutputNode_EXR::OnReceiveImageDataImpl(UMovieGraphP
 		// Perform compositing if any composited passes were found earlier
 		for (TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& CompositedPass : CompositedPasses)
 		{
+			// This pass may not allow other passes to be composited on it
+			if (!Payload->bAllowsCompositing)
+			{
+				continue;
+			}
+			
 			// This composited pass will only composite on top of renders w/ the same branch and camera
 			if (CompositedPass.Key.IsBranchAndCameraEqual(RenderData.Key))
 			{
@@ -661,9 +438,12 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::OnReceiveImageDataImpl(UM
 			const UE::MovieGraph::FMovieGraphSampleState* Payload = ImageData->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
 			ShotIndex = Payload->TraversalContext.ShotIndex;
 
-			FString LayerName = {};
+			// The first layer doesn't get an explicit name. However, subsequent layers may have an explicit name specified for them. Normally layer
+			// names are procedurally generated though (below).
+			FString LayerName = (LayerIndex != 0) ? Payload->LayerNameOverride : FString();
 
-			if (LayerIndex != 0)
+			// Generate a procedural layer name if an explicit name wasn't specified.
+			if ((LayerIndex != 0) && LayerName.IsEmpty())
 			{
 				// If there is more than one layer, then we will prefix the layer. The first layer is not prefixed (and gets inserted as RGBA)
 				// as most programs that handle EXRs expect the main image data to be in an unnamed layer. We only postfix with cameraname
@@ -725,7 +505,7 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::OnReceiveImageDataImpl(UM
 
 			TMap<FString, FString> ResolvedOCIOContext = {};
 #if WITH_OCIO
-			ResolvedOCIOContext = UE::MovieGraph::Private::ResolveOpenColorIOContext(
+			ResolvedOCIOContext = FMovieGraphOCIOHelper::ResolveOpenColorIOContext(
 				ParentNode->OCIOContext,
 				RenderID,
 				InPipeline,
@@ -753,6 +533,32 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::GetFilenameToRenderIDMapp
 	TMap<FString, TArray<FMovieGraphRenderDataIdentifier>>& OutFilenameToRenderIDs,
 	TMap<FString, FMovieGraphResolveArgs>& OutFilenameToResolveArgs) const
 {
+	// Merge one layer's resolve args (InNewResolveArgs) into an existing set of resolve args (InExistingResolveArgs).
+	auto MergeResolveArgs = [](FMovieGraphResolveArgs& InNewResolveArgs, FMovieGraphResolveArgs& InExistingResolveArgs)
+	{
+		// Covert the filename arguments to FormatNamedArguments once; this is needed by FString::Format() in the loop
+		FStringFormatNamedArguments NamedArguments;
+		for (const TPair<FString, FString>& FilenameArgument : InNewResolveArgs.FilenameArguments)
+		{
+			NamedArguments.Add(FilenameArgument.Key, FilenameArgument.Value);
+		}
+
+		for (TPair<FString, FString>& MetadataPair : InNewResolveArgs.FileMetadata)
+		{
+			// The metadata key and/or value may contain filename format {tokens}; resolve any of them BEFORE merging in with existing metadata. This
+			// is important because the metadata may contain a {token} that, once resolved, prevents a collision with an existing key.
+			MetadataPair.Key = FString::Format(*MetadataPair.Key, NamedArguments);
+			MetadataPair.Value = FString::Format(*MetadataPair.Value, NamedArguments);
+
+			// Merge in the resolved metadata into the existing metadata
+			InExistingResolveArgs.FileMetadata.Add(MetadataPair.Key, MetadataPair.Value);
+		}
+
+		// The filename arguments are not needed after merging + resolving; however, the last set of arguments is passed along anyway if they are needed.
+		// They aren't merged though, because they differ too much between layers to make merging of any practical usefulness (eg, {layer_name}).
+		InExistingResolveArgs.FilenameArguments = InNewResolveArgs.FilenameArguments;
+	};
+	
 	TMap<FString, TArray<FIntPoint>> FilenameToResolutions;
 
 	// First, generate filename -> renderID mapping, and filename -> resolution mapping.
@@ -771,7 +577,7 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::GetFilenameToRenderIDMapp
 	{
 		constexpr int32 ResolutionIndex = 0;
 		FMovieGraphResolveArgs ResolveArgs;
-		const FString PreliminaryFileName = ResolveOutputFilename(InParentNode, InPipeline, ResolutionIndex, InRawFrameData, RenderPassData.Key.RootBranchName, ResolveArgs);
+		const FString PreliminaryFileName = ResolveOutputFilename(InParentNode, InPipeline, ResolutionIndex, InRawFrameData, RenderPassData.Key, ResolveArgs);
 		
 		TArray<FMovieGraphRenderDataIdentifier>& RenderIDs = OutFilenameToRenderIDs.FindOrAdd(PreliminaryFileName);
 		RenderIDs.Add(RenderPassData.Key);
@@ -779,7 +585,7 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::GetFilenameToRenderIDMapp
 		TArray<FIntPoint>& Resolutions = FilenameToResolutions.FindOrAdd(PreliminaryFileName);
 		Resolutions.AddUnique(RenderPassData.Value->GetSize());
 
-		OutFilenameToResolveArgs.Add(PreliminaryFileName, ResolveArgs);
+		MergeResolveArgs(ResolveArgs, OutFilenameToResolveArgs.FindOrAdd(PreliminaryFileName));
 	}
 
 	// Second, re-generate filenames if any render passes of differing resolutions map to the same file.
@@ -805,12 +611,12 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::GetFilenameToRenderIDMapp
 			// Re-resolve the filename, this time using the resolution index to generate a filename that will only contain
 			// passes with this particular resolution
 			FMovieGraphResolveArgs ResolveArgs;
-			const FString FinalFilename = ResolveOutputFilename(InParentNode, InPipeline, ResolutionIndex, InRawFrameData, RenderID.RootBranchName, ResolveArgs);
+			const FString FinalFilename = ResolveOutputFilename(InParentNode, InPipeline, ResolutionIndex, InRawFrameData, RenderID, ResolveArgs);
 
 			TArray<FMovieGraphRenderDataIdentifier>& RenderIDs = OutFilenameToRenderIDs.FindOrAdd(FinalFilename);
 			RenderIDs.Add(RenderID);
 
-			OutFilenameToResolveArgs.Add(FinalFilename, ResolveArgs);
+			MergeResolveArgs(ResolveArgs, OutFilenameToResolveArgs.FindOrAdd(FinalFilename));
 		}
 	}
 }
@@ -819,12 +625,12 @@ FString UMovieGraphImageSequenceOutputNode_MultiLayerEXR::ResolveOutputFilename(
 	const UMovieGraphImageSequenceOutputNode_MultiLayerEXR* InParentNode,
 	const UMovieGraphPipeline* InPipeline,
 	const int32 ResolutionIndex, const UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData,
-	const FName& InBranchName, FMovieGraphResolveArgs& OutResolveArgs) const
+	const FMovieGraphRenderDataIdentifier& InRenderDataIdentifier, FMovieGraphResolveArgs& OutResolveArgs) const
 {
 	const TCHAR* Extension = TEXT("exr");
 
 	constexpr bool bIncludeCDOs = true;
-	const UMovieGraphGlobalOutputSettingNode* OutputSettings = InRawFrameData->EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(InBranchName, bIncludeCDOs);
+	const UMovieGraphGlobalOutputSettingNode* OutputSettings = InRawFrameData->EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(InRenderDataIdentifier.RootBranchName, bIncludeCDOs);
 	if (!ensure(OutputSettings))
 	{
 		return FString();
@@ -861,13 +667,13 @@ FString UMovieGraphImageSequenceOutputNode_MultiLayerEXR::ResolveOutputFilename(
 		FormatOverrides.Add(TEXT("ExtraTag"), FString::Printf(TEXT("_Add(%d)"), ResolutionIndex));
 	}
 
-	// Since a multi-layer EXR can store renders from multiple cameras, renderers, etc, the render data identifier isn't
-	// very useful. However, we still need to provide the branch name -- this is important for resolving the correct output path.
-	FMovieGraphRenderDataIdentifier TempRenderDataIdentifier;
-	TempRenderDataIdentifier.RootBranchName = InBranchName;
-
-	FMovieGraphFilenameResolveParams Params = FMovieGraphFilenameResolveParams::MakeResolveParams(
-		TempRenderDataIdentifier, InPipeline, InRawFrameData->EvaluatedConfig.Get(), InRawFrameData->TraversalContext, FormatOverrides);
+	// The layer's render data identifier is used here in the resolve. Usually this is not a problem. However, the user may include some tokens, like
+	// {layer_name}, that come from the identifier, which will prevent all layers from being placed in the same multi-layer EXR (because now the path
+	// isn't resolving to the path that other layers are resolving to). We have to assume that the user is doing this intentionally, even though it's
+	// a bit strange. Including the full identifier here is important so all custom metadata is resolved correctly (see
+	// UMovieGraphSetMetadataAttributesNode) when ResolveFilenameFormatArguments() is called.
+	const FMovieGraphFilenameResolveParams Params = FMovieGraphFilenameResolveParams::MakeResolveParams(
+		InRenderDataIdentifier, InPipeline, InRawFrameData->EvaluatedConfig.Get(), InRawFrameData->TraversalContext, FormatOverrides);
 	
 	const FString FilePathFormatString = OutputSettings->OutputDirectory.Path / FileNameFormatString;
 

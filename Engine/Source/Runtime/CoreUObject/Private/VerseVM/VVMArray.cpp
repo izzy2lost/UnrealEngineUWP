@@ -5,8 +5,8 @@
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMArrayBaseInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
+#include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
-#include "VerseVM/VVMMarkStackVisitor.h"
 
 namespace Verse
 {
@@ -16,25 +16,39 @@ TGlobalTrivialEmergentTypePtr<&VTypeArray::StaticCppClassInfo> VTypeArray::Globa
 
 DEFINE_DERIVED_VCPPCLASSINFO(VArray);
 DEFINE_TRIVIAL_VISIT_REFERENCES(VArray);
-TGlobalTrivialEmergentTypePtr<&VArray::StaticCppClassInfo> VArray::GlobalTrivialEmergentType;
 
-void VArray::SerializeImpl(VArray*& This, FAllocationContext Context, FAbstractVisitor& Visitor)
+VArray& VArray::Concat(FRunningContext Context, VArrayBase& Lhs, VArrayBase& Rhs)
 {
-	if (Visitor.IsLoading())
+	EArrayType NewArrayType = DetermineCombinedType(Lhs.GetArrayType(), Rhs.GetArrayType());
+	VArray& NewArray = VArray::New(Context, Lhs.Num() + Rhs.Num(), NewArrayType);
+	if (NewArrayType != EArrayType::VValue)
 	{
-		uint64 ScratchNumValues = 0;
-		Visitor.BeginArray(TEXT("Values"), ScratchNumValues);
-		This = &VArray::New(Context, (uint32)ScratchNumValues);
-		Visitor.Visit(This->GetData(), This->GetData() + This->Num());
-		Visitor.EndArray();
+		FMemory::Memcpy(NewArray.GetData(), Lhs.GetData(), Lhs.ByteLength());
+		switch (NewArrayType)
+		{
+			case EArrayType::Int32:
+				FMemory::Memcpy(NewArray.GetData<int32>() + Lhs.Num(), Rhs.GetData(), Rhs.ByteLength());
+				break;
+			case EArrayType::Char8:
+				FMemory::Memcpy(NewArray.GetData<UTF8CHAR>() + Lhs.Num(), Rhs.GetData(), Rhs.ByteLength());
+				break;
+			case EArrayType::Char32:
+				FMemory::Memcpy(NewArray.GetData<UTF32CHAR>() + Lhs.Num(), Rhs.GetData(), Rhs.ByteLength());
+				break;
+		}
+		return NewArray;
 	}
-	else
+
+	uint32 Index = 0;
+	for (int I = 0; I < Lhs.Num(); ++I)
 	{
-		uint64 ScratchNumValues = This->Num();
-		Visitor.BeginArray(TEXT("Values"), ScratchNumValues);
-		Visitor.Visit(This->GetData(), This->GetData() + This->Num());
-		Visitor.EndArray();
+		NewArray.SetVValue(Context, Index++, Lhs.GetValue(I));
 	}
+	for (int J = 0; J < Rhs.Num(); ++J)
+	{
+		NewArray.SetVValue(Context, Index++, Rhs.GetValue(J));
+	}
+	return NewArray;
 }
 
 } // namespace Verse

@@ -2,29 +2,33 @@
 
 #include "Widgets/SChaosVDSolverPlaybackControls.h"
 
-#include "ChaosVDEditorSettings.h"
-#include "ChaosVDModule.h"
 #include "ChaosVDPlaybackController.h"
 #include "ChaosVDScene.h"
-#include "Widgets/ChaosVDPlaybackControlsHelper.h"
+#include "ChaosVDStyle.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SChaosVDPlaybackViewport.h"
-#include "Widgets/SChaosVDTimelineWidget.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
-void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, int32 InSolverID, const TWeakPtr<FChaosVDPlaybackController>& InPlaybackController)
+void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, const TSharedRef<const FChaosVDTrackInfo>& InSolverTrackInfo, const TWeakPtr<FChaosVDPlaybackController>& InPlaybackController)
 {
-	SolverID = InSolverID;
+	SolverTrackInfoRef = InSolverTrackInfo;
 
 	static const FName NAME_VisibleNotHoveredBrush = TEXT("Level.VisibleIcon16x");
 	static const FName NAME_NotVisibleNotHoveredBrush = TEXT("Level.NotVisibleIcon16x");
+	static const FName NAME_TrackSyncEnabledBrush = TEXT("LinkedIcon");
+	static const FName NAME_TrackSyncDisabledBrush = TEXT("UnLinkedIcon");
 
 	SolverVisibleIconBrush = FAppStyle::Get().GetBrush(NAME_VisibleNotHoveredBrush);
 	SolverHiddenIconBrush = FAppStyle::Get().GetBrush(NAME_NotVisibleNotHoveredBrush);
+
+	SolverTrackSyncEnabledBrush = FChaosVDStyle::Get().GetBrush(NAME_TrackSyncEnabledBrush);
+	SolverTrackSyncDisabledBrush = FChaosVDStyle::Get().GetBrush(NAME_TrackSyncDisabledBrush);
+	
+	ResimBadgeButtonStyle = FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Menu.Button");
 
 	ChildSlot
 	[
@@ -49,10 +53,14 @@ void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, int32 I
 				.FillWidth(0.9f)
 				[
 					SAssignNew(FramesTimelineWidget, SChaosVDTimelineWidget)
-					.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllPlayback))
+					.IsEnabled_Raw(this, &SChaosVDSolverPlaybackControls::CanPlayback)
+					.ButtonVisibilityFlags(EChaosVDTimelineElementIDFlags::AllPlayback)
+					.IsPlaying_Raw(this, &SChaosVDSolverPlaybackControls::IsPlaying)
+					.MinFrames_Raw(this, &SChaosVDSolverPlaybackControls::GetMinFrames)
+					.MaxFrames_Raw(this, &SChaosVDSolverPlaybackControls::GetMaxFrames)
+					.CurrentFrame_Raw(this, &SChaosVDSolverPlaybackControls::GetCurrentFrame)
 					.OnFrameChanged_Raw(this, &SChaosVDSolverPlaybackControls::OnFrameSelectionUpdated)
-					.OnButtonClicked_Raw(this, &SChaosVDSolverPlaybackControls::HandlePlaybackButtonClicked)
-					.MaxFrames(0)
+					.OnButtonClicked_Raw(this, &SChaosVDSolverPlaybackControls::HandleFramePlaybackButtonClicked)
 				]
 				+SHorizontalBox::Slot()
 				.Padding(6.0f,0.0f)
@@ -69,7 +77,7 @@ void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, int32 I
 						[
 							SNew(STextBlock)
 							.Justification(ETextJustify::Center)
-							.Text_Lambda([this]()->FText{ return bIsReSimFrame ? LOCTEXT("PlaybackViewportWidgetPhysicsFramesResimLabel", "ReSim" ) : LOCTEXT("PlaybackViewportWidgetPhysicsFramesNormalLabel", "Normal" );})
+							.Text_Lambda([this]()->FText{ return SolverTrackInfoRef->bIsReSimulated ? LOCTEXT("PlaybackViewportWidgetPhysicsFramesResimLabel", "ReSim" ) : LOCTEXT("PlaybackViewportWidgetPhysicsFramesNormalLabel", "Normal" );})
 						]
 					]
 				]
@@ -85,7 +93,7 @@ void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, int32 I
 			[
 				SNew(STextBlock)
 				.Justification(ETextJustify::Center)
-				.Text_Lambda([this]()->FText{ return FText::Format(LOCTEXT("PlaybackViewportWidgetStepsLabel","Solver Stage: {0}"), FText::AsCultureInvariant(CurrentStepName));})
+				.Text_Lambda([this]()->FText{ return FText::Format(LOCTEXT("PlaybackViewportWidgetStepsLabel","Solver Stage: {0}"), FText::FromStringView(GetCurrentSolverStageName()));})
 			]
 			+SVerticalBox::Slot()
 			[
@@ -94,60 +102,72 @@ void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, int32 I
 				.FillWidth(0.9f)
 				[
 					SAssignNew(StepsTimelineWidget, SChaosVDTimelineWidget)
-					.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllManualStepping))
-					.OnFrameLockStateChanged_Raw(this, &SChaosVDSolverPlaybackControls::HandleLockStateChanged)
-					.OnFrameChanged_Raw(this, &SChaosVDSolverPlaybackControls::OnStepSelectionUpdated)
-					.MaxFrames(0)
+					.IsEnabled_Raw(this, &SChaosVDSolverPlaybackControls::CanPlayback)
+					.ButtonVisibilityFlags(EChaosVDTimelineElementIDFlags::AllManualStepping)
+					.OnFrameChanged_Raw(this, &SChaosVDSolverPlaybackControls::OnSolverStageSelectionUpdated)
+					.MaxFrames_Raw(this, &SChaosVDSolverPlaybackControls::GetMaxSolverStage)
+					.MinFrames_Raw(this, &SChaosVDSolverPlaybackControls::GetMinSolverStage)
+					.CurrentFrame_Raw(this, &SChaosVDSolverPlaybackControls::GetCurrentSolverStage)
+					.OnButtonClicked_Raw(this, &SChaosVDSolverPlaybackControls::HandleSolverStagePlaybackButtonClicked)
 				]
 				+SHorizontalBox::Slot()
 				.AutoWidth()
 				[
 					CreateVisibilityWidget().ToSharedRef()
 				]
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					CreateSyncLinkWidget().ToSharedRef()
+				]
 			]
 		]
 	];
 
 	RegisterNewController(InPlaybackController);
-
-	if (const TSharedPtr<FChaosVDPlaybackController> CurrentPlaybackControllerPtr = InPlaybackController.Pin())
-	{
-		if (const FChaosVDTrackInfo* SolverTrackInfo = CurrentPlaybackControllerPtr->GetTrackInfo(EChaosVDTrackType::Solver, SolverID))
-		{
-			HandleControllerTrackFrameUpdated(InPlaybackController, SolverTrackInfo, InvalidGuid);
-		}
-	}
 }
 
 SChaosVDSolverPlaybackControls::~SChaosVDSolverPlaybackControls()
 {
 	if (const TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
-	{
-		// TODO: Doing this here to try to keep this change small enough for a 5.4.1 hotfix release
-		// This should be handled by the playback controller, but currently we are not doing any tracking of what solver tracks are being unloaded/loaded there
-		// This can be done as part of UE-192940 , which is a task to remove a similar dependency in the UI for the playback logic
-		if (FChaosVDTrackInfo* SolverTrackInfo = PlaybackControllerPtr->GetMutableTrackInfo(EChaosVDTrackType::Solver, SolverID))
+	{	
+		if (TSharedPtr<FChaosVDScene> Scene = PlaybackControllerPtr->GetControllerScene().Pin())
 		{
-			SolverTrackInfo->CurrentFrame = 0;
+			Scene->OnSolverVisibilityUpdated().RemoveAll(this);
 		}
-
-		PlaybackControllerPtr->ReleaseExclusivePlaybackControls(*this);
 	}
 }
 
-void SChaosVDSolverPlaybackControls::ConditionallyLockPlaybackControl(const TSharedRef<FChaosVDPlaybackController>& InControllerSharedRef)
+bool SChaosVDSolverPlaybackControls::CanPlayback() const
 {
-	const FGuid CurrentPlaybackInstigatorID = InControllerSharedRef->GetPlaybackInstigatorWithExclusiveControlsID();
-	const bool bUserCanControlPlayback = CurrentPlaybackInstigatorID == InvalidGuid || CurrentPlaybackInstigatorID == GetInstigatorID();
+	bool bCanControlPlayback = false;
 
-	// On Live Sessions, only the Game Frames timeline controls are allowed for now
-	FramesTimelineWidget->SetIsLocked(InControllerSharedRef->IsPlayingLiveSession() || !bUserCanControlPlayback);
-	StepsTimelineWidget->SetIsLocked(InControllerSharedRef->IsPlayingLiveSession() || !bUserCanControlPlayback);
+	if (const TSharedPtr<FChaosVDPlaybackController> CurrentPlaybackControllerPtr = PlaybackController.Pin())
+	{
+
+		bCanControlPlayback = !CurrentPlaybackControllerPtr->IsPlayingLiveSession();
+
+		// When it is not a live session, the Game Frames timeline follows the same rule as other timelines. The controls are locked unless we are who started a Play action
+		if (bCanControlPlayback)
+		{
+			bool bIsCompatibleSyncMode = CurrentPlaybackControllerPtr->GetTimelineSyncMode() == EChaosVDSyncTimelinesMode::NetworkTick ? SolverTrackInfoRef->bHasNetworkSyncData : true;
+
+			if(!bIsCompatibleSyncMode)
+			{
+				return false;
+			}
+
+			TSharedPtr<FChaosVDTrackInfo> CurrentTrackBeingPlayed = CurrentPlaybackControllerPtr->GetCurrentPlayingTrackInfo();
+			bCanControlPlayback = !CurrentTrackBeingPlayed || (CurrentTrackBeingPlayed && CurrentTrackBeingPlayed->TrackType == EChaosVDTrackType::Solver && CurrentTrackBeingPlayed->TrackID == SolverTrackInfoRef->TrackID);
+		}
+	}
+
+	return bCanControlPlayback;
 }
 
 void SChaosVDSolverPlaybackControls::HandleSolverVisibilityChanged(int32 InSolverID, bool bNewVisibility)
 {
-	if (SolverID != InSolverID)
+	if (SolverTrackInfoRef->TrackID != InSolverID)
 	{
 		return;
 	}
@@ -159,9 +179,19 @@ FReply SChaosVDSolverPlaybackControls::ToggleSolverVisibility() const
 {
 	if (const TSharedPtr<FChaosVDPlaybackController> CurrentPlaybackControllerPtr = PlaybackController.Pin())
 	{
-		CurrentPlaybackControllerPtr->UpdateTrackVisibility(EChaosVDTrackType::Solver, SolverID, !bIsVisible);
+		CurrentPlaybackControllerPtr->UpdateTrackVisibility(EChaosVDTrackType::Solver, SolverTrackInfoRef->TrackID, !bIsVisible);
 	}
 
+	return FReply::Handled();
+}
+
+FReply SChaosVDSolverPlaybackControls::ToggleSolverSyncLink() const
+{
+	if (const TSharedPtr<FChaosVDPlaybackController> CurrentPlaybackControllerPtr = PlaybackController.Pin())
+	{
+		CurrentPlaybackControllerPtr->ToggleTrackSyncEnabled(SolverTrackInfoRef);
+	}
+	
 	return FReply::Handled();
 }
 
@@ -170,125 +200,49 @@ const FSlateBrush* SChaosVDSolverPlaybackControls::GetBrushForCurrentVisibility(
 	return bIsVisible ? SolverVisibleIconBrush : SolverHiddenIconBrush;
 }
 
-void SChaosVDSolverPlaybackControls::HandlePlaybackControllerDataUpdated(TWeakPtr<FChaosVDPlaybackController> InController)
+const FSlateBrush* SChaosVDSolverPlaybackControls::GetBrushForCurrentLinkState() const
 {
-	if (PlaybackController != InController)
+	return SolverTrackInfoRef->bTrackSyncEnabled ? SolverTrackSyncEnabledBrush : SolverTrackSyncDisabledBrush;
+}
+
+FStringView SChaosVDSolverPlaybackControls::GetCurrentSolverStageName() const
+{
+	static TCHAR const* UnknownStepName = TEXT("Unknown");
+
+	if (SolverTrackInfoRef->CurrentStageNames.IsValidIndex(SolverTrackInfoRef->CurrentStage))
 	{
-		RegisterNewController(InController);
+		return SolverTrackInfoRef->CurrentStageNames[SolverTrackInfoRef->CurrentStage];
 	}
 
-	const TSharedPtr<FChaosVDPlaybackController> ControllerSharedPtr = PlaybackController.Pin();
-	if (ControllerSharedPtr.IsValid() && ControllerSharedPtr->IsRecordingLoaded())
-	{	
-		const int32 AvailableFrames = ControllerSharedPtr->GetTrackFramesNumber(EChaosVDTrackType::Solver, SolverID);
+	return UnknownStepName;
+}
 
-		int32 AvailableSteps = INDEX_NONE;
-		if (const FChaosVDStepsContainer* StepData = ControllerSharedPtr->GetTrackStepsDataAtFrame_AssumesLocked(EChaosVDTrackType::Solver, SolverID, ControllerSharedPtr->GetTrackCurrentFrame(EChaosVDTrackType::Solver, SolverID)))
-		{
-			AvailableSteps = StepData->Num() > 0 ? StepData->Num() : INDEX_NONE;
-			CurrentStepName =  StepData->Num() > 0 ? (*StepData)[0].StepName : TEXT("NONE");
-		}
-
-		// Max is inclusive and we use this to request as the index on the recorded frames/steps arrays so we need to -1 to the available frames/steps
-		FramesTimelineWidget->UpdateMinMaxValue(0, AvailableFrames != INDEX_NONE ? AvailableFrames -1 : 0);
-
-		//TODO: This will show steps 0/0 if only one step is recorded, we need to add a way to override that functionality
-		// or just set the slider to start from 1 and handle the offset later 
-		StepsTimelineWidget->UpdateMinMaxValue(0,AvailableSteps != INDEX_NONE ? AvailableSteps -1 : 0);
-
-		ConditionallyLockPlaybackControl(ControllerSharedPtr.ToSharedRef());
-	}
-	else
+void SChaosVDSolverPlaybackControls::HandleFramePlaybackButtonClicked(EChaosVDPlaybackButtonsID ButtonID)
+{
+	if (const TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
 	{
-		FramesTimelineWidget->UpdateMinMaxValue(0, 0);
-		FramesTimelineWidget->ResetTimeline();
-		StepsTimelineWidget->UpdateMinMaxValue(0,0);
-		StepsTimelineWidget->ResetTimeline();
+		PlaybackControllerPtr->HandleFramePlaybackControlInput(ButtonID, SolverTrackInfoRef, GetInstigatorID());
 	}
 }
 
-void SChaosVDSolverPlaybackControls::UpdateStepsWidgetForFrame(const FChaosVDPlaybackController& InCurrentPlaybackController, int32 FrameNumber, int32 StepNumber, EChaosVDStepsWidgetUpdateFlags OptionsFlags)
+void SChaosVDSolverPlaybackControls::HandleSolverStagePlaybackButtonClicked(EChaosVDPlaybackButtonsID ButtonID)
 {
-	if (const FChaosVDStepsContainer* StepsData = InCurrentPlaybackController.GetTrackStepsDataAtFrame_AssumesLocked(EChaosVDTrackType::Solver, SolverID, FrameNumber))
+	if (const TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
 	{
-		constexpr TCHAR const* UnknownStepName = TEXT("Unknown");
-
-		if (StepsData->Num() > 0 && StepNumber < StepsData->Num())
-		{
-			const FChaosVDStepData& StepData = (*StepsData)[StepNumber];
-
-			if (EnumHasAnyFlags(OptionsFlags, EChaosVDStepsWidgetUpdateFlags::UpdateText))
-			{
-				CurrentStepName = StepData.StepName;
-			}
-
-			if (EnumHasAnyFlags(OptionsFlags, EChaosVDStepsWidgetUpdateFlags::SetTimelineStep))
-			{
-				int32 AvailableSteps = StepsData->Num() > 0 ? StepsData->Num() : INDEX_NONE;
-				StepsTimelineWidget->UpdateMinMaxValue(0,AvailableSteps != INDEX_NONE ? AvailableSteps -1 : 0);
-
-				// On Frame updates, always use Step 0
-				StepsTimelineWidget->SetCurrentTimelineFrame(StepNumber, EChaosVDSetTimelineFrameFlags::None);
-			}
-		}
-		else
-		{
-			StepsTimelineWidget->UpdateMinMaxValue(0,0);
-			CurrentStepName = UnknownStepName;
-		}
+		PlaybackControllerPtr->HandleFrameStagePlaybackControlInput(ButtonID, SolverTrackInfoRef, GetInstigatorID());
 	}
-}
-
-void SChaosVDSolverPlaybackControls::HandleControllerTrackFrameUpdated(TWeakPtr<FChaosVDPlaybackController> InController, const FChaosVDTrackInfo* UpdatedTrackInfo, FGuid InstigatorGuid)
-{
-	if (const TSharedPtr<FChaosVDPlaybackController> CurrentPlaybackControllerPtr = InController.Pin())
-	{
-		if (const FChaosVDTrackInfo* SolverTrackInfo = CurrentPlaybackControllerPtr->GetTrackInfo(EChaosVDTrackType::Solver, SolverID))
-		{
-			if (InstigatorGuid != GetInstigatorID())
-			{
-				// No Need to manually update the widget state if the widget it-self instigated the update 
-				FramesTimelineWidget->SetCurrentTimelineFrame(SolverTrackInfo->CurrentFrame, EChaosVDSetTimelineFrameFlags::None);
-				UpdateStepsWidgetForFrame(*CurrentPlaybackControllerPtr.Get(), SolverTrackInfo->CurrentFrame, SolverTrackInfo->CurrentStep);
-			}
-
-			bIsReSimFrame = SolverTrackInfo->bIsReSimulated;
-
-			FramesTimelineWidget->SetTargetFrameTime(CurrentPlaybackControllerPtr->GetFrameTimeForTrack(EChaosVDTrackType::Solver, SolverID, *SolverTrackInfo));
-		}
-	}
-}
-
-void SChaosVDSolverPlaybackControls::HandleLockStateChanged(bool NewIsLocked)
-{
-	if (const TSharedPtr<FChaosVDPlaybackController> CurrentPlaybackControllerPtr = PlaybackController.Pin())
-	{
-		if (NewIsLocked)
-		{
-			CurrentPlaybackControllerPtr->LockTrackInCurrentStep(EChaosVDTrackType::Solver, SolverID);
-		}
-		else
-		{
-			CurrentPlaybackControllerPtr->UnlockTrackStep(EChaosVDTrackType::Solver, SolverID);
-		}
-	}
-}
-
-void SChaosVDSolverPlaybackControls::HandlePlaybackButtonClicked(EChaosVDPlaybackButtonsID ButtonID)
-{
-	Chaos::VisualDebugger::HandleUserPlaybackInputControl(ButtonID, *this, PlaybackController);
 }
 
 const FSlateBrush* SChaosVDSolverPlaybackControls::GetFrameTypeBadgeBrush() const
 {
-	const FButtonStyle& ButtonStyle = FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Menu.Button");
-	return bIsReSimFrame ? &ButtonStyle.Pressed : FCoreStyle::Get().GetBrush("Border");
+	return SolverTrackInfoRef->bIsReSimulated ? &ResimBadgeButtonStyle.Pressed : FCoreStyle::Get().GetBrush("Border");
 }
 
 TSharedPtr<SWidget> SChaosVDSolverPlaybackControls::CreateVisibilityWidget()
 {
 	return SNew(SButton)
 			.OnClicked_Raw(this, &SChaosVDSolverPlaybackControls::ToggleSolverVisibility)
+			.ToolTipText_Raw(this, &SChaosVDSolverPlaybackControls::GetVisibilityButtonToolTipText)
 			[
 				SNew(SImage)
 				.Image_Raw(this,&SChaosVDSolverPlaybackControls::GetBrushForCurrentVisibility)
@@ -297,33 +251,80 @@ TSharedPtr<SWidget> SChaosVDSolverPlaybackControls::CreateVisibilityWidget()
 			];	
 }
 
+TSharedPtr<SWidget> SChaosVDSolverPlaybackControls::CreateSyncLinkWidget()
+{
+	return SNew(SButton)
+		.OnClicked_Raw(this, &SChaosVDSolverPlaybackControls::ToggleSolverSyncLink)
+		.ToolTipText_Raw(this, &SChaosVDSolverPlaybackControls::GetSyncLinkTipText)
+		[
+			SNew(SImage)
+			.Image_Raw(this,&SChaosVDSolverPlaybackControls::GetBrushForCurrentLinkState)
+			.DesiredSizeOverride(FVector2D(16.0f,16.0f))
+			.ColorAndOpacity(FSlateColor::UseForeground())
+		];	
+}
+
+FText SChaosVDSolverPlaybackControls::GetVisibilityButtonToolTipText() const
+{
+	return bIsVisible ? LOCTEXT("HideVisibilityButtonToolTipText", "Click to hide all the visualization data corresponding to this solver track") : LOCTEXT("ShowVisibilityButtonToolTipText", "Click to show all the visualization data corresponding to this solver track");
+}
+
+FText SChaosVDSolverPlaybackControls::GetSyncLinkTipText() const
+{
+	return SolverTrackInfoRef->bTrackSyncEnabled ? LOCTEXT("DisableSyncLinkToolTipText", "Click to disable track syncing so this timeline can be player independently") : LOCTEXT("EnableSyncLinkToolTipText", "Click to eanble track syncing so this will be played in sync with other tracks");
+}
+
+bool SChaosVDSolverPlaybackControls::IsPlaying() const
+{
+	return SolverTrackInfoRef->bIsPlaying;
+}
+
+int32 SChaosVDSolverPlaybackControls::GetCurrentFrame() const
+{
+	return SolverTrackInfoRef->CurrentFrame;
+}
+
+int32 SChaosVDSolverPlaybackControls::GetMinFrames() const
+{
+	return 0;
+}
+
+int32 SChaosVDSolverPlaybackControls::GetMaxFrames() const
+{
+	return SolverTrackInfoRef->MaxFrames - 1;
+}
+
+int32 SChaosVDSolverPlaybackControls::GetCurrentSolverStage() const
+{
+	return SolverTrackInfoRef->CurrentStage;
+}
+
+int32 SChaosVDSolverPlaybackControls::GetMinSolverStage() const
+{
+	return 0;
+}
+
+int32 SChaosVDSolverPlaybackControls::GetMaxSolverStage() const
+{
+	return SolverTrackInfoRef->CurrentStageNames.Num() -1;
+}
+
 void SChaosVDSolverPlaybackControls::OnFrameSelectionUpdated(int32 NewFrameIndex)
 {
 	if (const TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
 	{
-		const int32 LastStepNumber = PlaybackControllerPtr->GetTrackLastStepAtFrame(EChaosVDTrackType::Solver, SolverID, NewFrameIndex);
-		const int32 CurrentStep = PlaybackControllerPtr->GetTrackCurrentStep(EChaosVDTrackType::Solver, SolverID);
-
-		// If the steps control is unlocked, each time we go to a new frame we should start at step 0.
-		const int32 StepNumber = StepsTimelineWidget->IsUnlocked() ? LastStepNumber : CurrentStep;
-
-		UpdateStepsWidgetForFrame(*PlaybackControllerPtr.Get(), NewFrameIndex, StepNumber);
-
-		PlaybackControllerPtr->GoToTrackFrame(GetInstigatorID(), EChaosVDTrackType::Solver, SolverID, NewFrameIndex, StepNumber);
+		// By default we always playback frames at the last recorded stage as that represents the end of frame state
+		constexpr int32 LastStepNumber = INDEX_NONE;
+		PlaybackControllerPtr->GoToTrackFrameAndSync(GetInstigatorID(), EChaosVDTrackType::Solver, SolverTrackInfoRef->TrackID, NewFrameIndex, LastStepNumber);
 	}
 }
 
-void SChaosVDSolverPlaybackControls::OnStepSelectionUpdated(int32 NewStepIndex)
+void SChaosVDSolverPlaybackControls::OnSolverStageSelectionUpdated(int32 NewStepIndex)
 {
 	if (const TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
 	{
 		// On Steps updates. Always use the current Frame
-		int32 CurrentFrame = PlaybackControllerPtr->GetTrackCurrentFrame(EChaosVDTrackType::Solver, SolverID);
-
-		// Only Update the text as if we are here it means manually set the step number already
-		UpdateStepsWidgetForFrame(*PlaybackControllerPtr.Get(), CurrentFrame, NewStepIndex, EChaosVDStepsWidgetUpdateFlags::UpdateText);
-
-		PlaybackControllerPtr->GoToTrackFrame(GetInstigatorID(), EChaosVDTrackType::Solver, SolverID, CurrentFrame, NewStepIndex);
+		PlaybackControllerPtr->GoToTrackFrame(GetInstigatorID(), EChaosVDTrackType::Solver, SolverTrackInfoRef->TrackID, SolverTrackInfoRef->CurrentFrame, NewStepIndex);
 	}
 }
 

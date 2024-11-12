@@ -27,6 +27,7 @@ public:
 	UMovieGraphCoreTimeStep();
 
 	// UMovieGraphTimeStepBase Interface
+	virtual void Shutdown() override;
 	virtual void TickProducingFrames() override;
 	virtual FMovieGraphTimeStepData GetCalculatedTimeData() const override { return CurrentTimeStepData; }
 	virtual bool IsExpansionForTSRequired(const TObjectPtr<UMovieGraphEvaluatedConfig>& InConfig) const override;
@@ -55,6 +56,7 @@ protected:
 	virtual bool IsFirstTemporalSample() const;
 	virtual void ResetForEndOfOutputFrame();
 	virtual float GetBlendedMotionBlurAmount();
+	virtual int32 GetTemporalSampleCountFromConfig(UMovieGraphEvaluatedConfig* InConfig) const;
 
 protected:
 	/** This is the output data needed by the rest of MRQ to produce a frame. */

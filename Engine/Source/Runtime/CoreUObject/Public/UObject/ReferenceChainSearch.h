@@ -286,8 +286,12 @@ public:
 	};
 
 	/** Constructs a new search engine and finds references to the specified object */
-	COREUOBJECT_API explicit FReferenceChainSearch(UObject* InObjectToFindReferencesTo, EReferenceChainSearchMode Mode = EReferenceChainSearchMode::PrintResults);
-	COREUOBJECT_API explicit FReferenceChainSearch(TConstArrayView<UObject*> InObjectsToFindReferencesTo, EReferenceChainSearchMode Mode = EReferenceChainSearchMode::PrintResults);
+	COREUOBJECT_API explicit FReferenceChainSearch(UObject* InObjectToFindReferencesTo,
+		EReferenceChainSearchMode Mode = EReferenceChainSearchMode::PrintResults,
+		ELogVerbosity::Type InVerbosityForPrint = ELogVerbosity::Log);
+	COREUOBJECT_API explicit FReferenceChainSearch(TConstArrayView<UObject*> InObjectsToFindReferencesTo,
+		EReferenceChainSearchMode Mode = EReferenceChainSearchMode::PrintResults,
+		ELogVerbosity::Type InVerbosityForPrint = ELogVerbosity::Log);
 
 	/** Constructs a new search engine but does not find references to any objects until one of the PerformSearch*() functions is called */
 	COREUOBJECT_API explicit FReferenceChainSearch(EReferenceChainSearchMode Mode);
@@ -306,7 +310,8 @@ public:
 	 * @param bDumpAllChains - if set to false, the output will be trimmed to the first 100 reference chains
 	 * @returns The number of results printed.
 	 */
-	COREUOBJECT_API int32 PrintResults(bool bDumpAllChains = false, UObject* TargetObject=nullptr) const;
+	COREUOBJECT_API int32 PrintResults(bool bDumpAllChains = false, UObject* TargetObject = nullptr, ELogVerbosity::Type VerbosityForPrint = ELogVerbosity::Log) const;
+	COREUOBJECT_API void SetVerbosityForPrint(ELogVerbosity::Type Verbosity);
 
 	/**
 	 * Dumps results to log
@@ -314,7 +319,7 @@ public:
 	 * @param bDumpAllChains - if set to false, the output will be trimmed to the first 100 reference chains
 	 * @returns The number of results printed.
 	 */
-	COREUOBJECT_API int32 PrintResults(TFunctionRef<bool(FCallbackParams& Params)> ReferenceCallback, bool bDumpAllChains = false, UObject* TargetObject = nullptr) const;
+	COREUOBJECT_API int32 PrintResults(TFunctionRef<bool(FCallbackParams& Params)> ReferenceCallback, bool bDumpAllChains = false, UObject* TargetObject = nullptr, ELogVerbosity::Type VerbosityForPrint = ELogVerbosity::Log) const;
 
 	/** Returns a string with a short report explaining the root path, will contain newlines */
 	COREUOBJECT_API FString GetRootPath(UObject* TargetObject = nullptr) const;
@@ -356,6 +361,8 @@ private:
 	/** Maps UObject pointers to object info structs */
 	TMap<const UObject*, FGCObjectInfo*> ObjectToInfoMap;
 
+	ELogVerbosity::Type VerbosityForPrint = ELogVerbosity::Log;
+
 	/** Frees memory */
 	void Cleanup();
 
@@ -380,5 +387,5 @@ private:
 
 	/** Dumps a reference chain to log */
 	static void DumpChain(FReferenceChainSearch::FReferenceChain* Chain, TFunctionRef<bool(FCallbackParams& Params)> ReferenceCallback,
-		TMap<uint64, FString>& CallstackCache, FOutputDevice& Out);
+		TMap<uint64, FString>& CallstackCache, FOutputDevice& Out, ELogVerbosity::Type InVerbosityForPrint);
 };

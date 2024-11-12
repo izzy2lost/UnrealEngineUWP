@@ -54,6 +54,7 @@ private:
 	FText GetClassName() const;
 	void HandleClassChanged();
 	void HandleCreationTypeChanged();
+	void HandleCreateSetterFunctionChanged();
 	TSharedRef<SWidget> HandleClassGetMenuContent();
 	void HandleClassCancelMenu();
 	void HandleClassCommitted(const UClass* SelectedClass);
@@ -69,6 +70,10 @@ private:
 	TSharedPtr<IPropertyHandle> PropertyPathHandle;
 	TSharedPtr<IPropertyHandle> CreationTypeHandle;
 	TSharedPtr<IPropertyHandle> ViewModelNameHandle;
+	TSharedPtr<IPropertyHandle> OptionalHandle;
+	TSharedPtr<IPropertyHandle> CreateSetterFunctionHandle;
+	TSharedPtr<IPropertyHandle> ForceExecuteBindingsOnSetSourceHandle;
+	TSharedPtr<IPropertyHandle> ResolverHandle;
 	TArray<EMVVMBlueprintViewModelContextCreationType> AllowedCreationTypes;
 };
 

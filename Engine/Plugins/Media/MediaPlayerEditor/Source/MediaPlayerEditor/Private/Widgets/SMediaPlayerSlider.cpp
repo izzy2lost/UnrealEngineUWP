@@ -6,9 +6,16 @@
 #include "Widgets/Input/SSlider.h"
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-void SMediaPlayerSlider::Construct(const FArguments& InArgs, UMediaPlayer* InMediaPlayer)
+void SMediaPlayerSlider::Construct(const FArguments& InArgs, const TArrayView<TWeakObjectPtr<UMediaPlayer>> InMediaPlayers)
 {
-	MediaPlayerWeak = InMediaPlayer;
+	MediaPlayerEntries.Reserve(InMediaPlayers.Num());
+	for (const TWeakObjectPtr<UMediaPlayer>& MediaPlayerWeak : InMediaPlayers)
+	{
+		if (MediaPlayerWeak.IsValid())
+		{
+			MediaPlayerEntries.Emplace(MediaPlayerWeak);
+		}
+	}
 
 	ChildSlot
 	[
@@ -28,67 +35,97 @@ END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 bool SMediaPlayerSlider::DoesMediaPlayerSupportSeeking() const
 {
-	if (const UMediaPlayer* MediaPlayer = MediaPlayerWeak.Get())
+	// Return true if at least one player supports seek.
+	for (const FMediaPlayerEntry& Entry : MediaPlayerEntries)
 	{
-		return MediaPlayer->SupportsSeeking();
+		if (const UMediaPlayer* MediaPlayer = Entry.MediaPlayerWeak.Get())
+		{
+			if (MediaPlayer->SupportsSeeking())
+			{
+				return true;
+			}
+		}
 	}
-
 	return false;
 }
 
 void SMediaPlayerSlider::OnScrubBegin()
 {
-	if (UMediaPlayer* MediaPlayer = MediaPlayerWeak.Get())
+	for (FMediaPlayerEntry& Entry : MediaPlayerEntries)
 	{
-		ScrubValue = static_cast<float>(FTimespan::Ratio(MediaPlayer->GetDisplayTime(), MediaPlayer->GetDuration()));
-
-		if (MediaPlayer->SupportsScrubbing())
+		if (UMediaPlayer* MediaPlayer = Entry.MediaPlayerWeak.Get())
 		{
-			PreScrubRate = MediaPlayer->GetRate();
-			MediaPlayer->SetRate(0.0f);
+			Entry.ScrubValue = static_cast<float>(FTimespan::Ratio(MediaPlayer->GetDisplayTime(), MediaPlayer->GetDuration()));
+			Entry.LastScrubValue = Entry.ScrubValue;
+
+			if (MediaPlayer->SupportsScrubbing())
+			{
+				Entry.PreScrubRate = MediaPlayer->GetRate();
+				MediaPlayer->SetRate(0.0f);
+			}
 		}
 	}
 }
 
 void SMediaPlayerSlider::OnScrubEnd()
 {
-	if (UMediaPlayer* MediaPlayer = MediaPlayerWeak.Get())
+	for (FMediaPlayerEntry& Entry : MediaPlayerEntries)
 	{
-		if (MediaPlayer->SupportsScrubbing())
+		if (UMediaPlayer* MediaPlayer = Entry.MediaPlayerWeak.Get())
 		{
-			MediaPlayer->SetRate(PreScrubRate);
-		}
+			// Set playback position to scrub value when drag ends
+			if (Entry.LastScrubValue != Entry.ScrubValue && MediaPlayer->SupportsSeeking())
+			{
+				MediaPlayer->Seek(MediaPlayer->GetDuration() * Entry.ScrubValue);
+			}
 
-		// Set playback position to scrub value when drag ends
-		MediaPlayer->Seek(MediaPlayer->GetDuration() * ScrubValue);
+			if (MediaPlayer->SupportsScrubbing())
+			{
+				MediaPlayer->SetRate(Entry.PreScrubRate);
+			}
+		}
 	}
 }
 
 void SMediaPlayerSlider::Seek(float InPlaybackPosition)
 {
-	if (UMediaPlayer* MediaPlayer = MediaPlayerWeak.Get())
+	for (FMediaPlayerEntry& Entry : MediaPlayerEntries)
 	{
-		ScrubValue = InPlaybackPosition;
-
-		if (!ScrubberSlider->HasMouseCapture() || MediaPlayer->SupportsScrubbing())
+		if (UMediaPlayer* MediaPlayer = Entry.MediaPlayerWeak.Get())
 		{
-			MediaPlayer->Seek(MediaPlayer->GetDuration() * InPlaybackPosition);
+			Entry.ScrubValue = InPlaybackPosition;
+
+			if (!ScrubberSlider->HasMouseCapture() || MediaPlayer->SupportsScrubbing())
+			{
+				MediaPlayer->Seek(MediaPlayer->GetDuration() * InPlaybackPosition);
+				Entry.LastScrubValue = Entry.ScrubValue;
+			}
 		}
 	}
 }
 
 float SMediaPlayerSlider::GetPlaybackPosition() const
 {
-	if (const UMediaPlayer* MediaPlayer = MediaPlayerWeak.Get())
+	// All scrub positions should match, so search for the first valid player. 
+	// Give priority to players with a video track.
+	const FMediaPlayerEntry* PlayerEntry = FindValidPlayerEntryForTrackType(EMediaPlayerTrack::Video);
+	if (!PlayerEntry)
+	{
+		// Fallback to audio track second (not all players support it).
+		PlayerEntry = FindValidPlayerEntryForTrackType(EMediaPlayerTrack::Audio);
+	}
+
+	if (PlayerEntry)
 	{
 		if (ScrubberSlider->HasMouseCapture())
 		{
-			return ScrubValue;
+			return PlayerEntry->ScrubValue;
 		}
 
-		return (MediaPlayer->GetDuration() > FTimespan::Zero())
-			? static_cast<float>(FTimespan::Ratio(MediaPlayer->GetDisplayTime(), MediaPlayer->GetDuration()))
-			: 0.0f;
+		if (const UMediaPlayer* MediaPlayer = PlayerEntry->MediaPlayerWeak.Get())
+		{
+			return static_cast<float>(FTimespan::Ratio(MediaPlayer->GetDisplayTime(), MediaPlayer->GetDuration()));
+		}
 	}
 
 	return 0.0f;
@@ -96,14 +133,20 @@ float SMediaPlayerSlider::GetPlaybackPosition() const
 
 EVisibility SMediaPlayerSlider::GetScrubberVisibility() const
 {
-	if (const UMediaPlayer* MediaPlayer = MediaPlayerWeak.Get())
+	bool bIsActive = false;
+	for (const FMediaPlayerEntry& Entry : MediaPlayerEntries)
 	{
-		return (MediaPlayer->SupportsScrubbing() || MediaPlayer->SupportsSeeking())
-															? EVisibility::Visible
-															: VisibilityWhenInactive;
+		if (const UMediaPlayer* MediaPlayer = Entry.MediaPlayerWeak.Get())
+		{
+			bIsActive = (MediaPlayer->SupportsScrubbing() || MediaPlayer->SupportsSeeking());
+			if (bIsActive)
+			{
+				break; // If any player is active, consider widget active.
+			}
+		}
 	}
 
-	return VisibilityWhenInactive;
+	return bIsActive ? EVisibility::Visible : VisibilityWhenInactive;
 }
 
 void SMediaPlayerSlider::SetSliderHandleColor(const FSlateColor& InSliderColor)
@@ -125,4 +168,20 @@ void SMediaPlayerSlider::SetSliderBarColor(const FSlateColor& InSliderColor)
 void SMediaPlayerSlider::SetVisibleWhenInactive(EVisibility InVisibility)
 {
 	VisibilityWhenInactive = InVisibility;
+}
+
+/** Find a valid player entry for the given track type. */
+const SMediaPlayerSlider::FMediaPlayerEntry* SMediaPlayerSlider::FindValidPlayerEntryForTrackType(EMediaPlayerTrack InTrackType) const
+{
+	for (const FMediaPlayerEntry& Entry : MediaPlayerEntries)
+	{
+		if (const UMediaPlayer* MediaPlayer = Entry.MediaPlayerWeak.Get())
+		{
+			if (MediaPlayer->GetNumTracks(InTrackType) > 0 && MediaPlayer->GetDuration() > FTimespan::Zero())
+			{
+				return &Entry;
+			}
+		}
+	}
+	return nullptr;
 }

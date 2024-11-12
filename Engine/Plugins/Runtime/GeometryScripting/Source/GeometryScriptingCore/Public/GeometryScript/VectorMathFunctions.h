@@ -47,6 +47,29 @@ public:
 	VectorNormalizeInPlace(UPARAM(ref) FGeometryScriptVectorList& VectorList, FVector SetOnFailure = FVector::ZeroVector);
 
 	/**
+	 * Transform each vector in VectorList, and store in VectorList.
+	 * @param bAsPosition Whether to treat input as positions or vectors (if vectors, will ignore the Transform's translation part)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Math|VectorMath", meta=(ScriptMethod))
+	static void 
+	VectorTransformInPlace(UPARAM(ref) FGeometryScriptVectorList& VectorList, FTransform Transform, bool bAsPosition = true);
+
+	/**
+	 * Inverse transform each vector in VectorList, and store in VectorList.
+	 * @param bAsPosition Whether to treat input as positions or vectors (if vectors, will ignore the Transform's translation part)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Math|VectorMath", meta=(ScriptMethod))
+	static void 
+	VectorInverseTransformInPlace(UPARAM(ref) FGeometryScriptVectorList& VectorList, FTransform Transform, bool bAsPosition = true);
+
+	/**
+	 * Project each vector in VectorList to the given Plane, and store in VectorList.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Math|VectorMath", meta=(ScriptMethod))
+	static void 
+	VectorPlaneProjectInPlace(UPARAM(ref) FGeometryScriptVectorList& VectorList, FPlane Plane);
+
+	/**
 	 * Compute (ConstantA * A) + (ConstantB * B) for each pair of vectors in VectorListA and VectorListB and return in new VectorList.
 	 * By default (constants = 1) this just adds the two vectors. Set ConstantB = -1 to subtract B from A. 
 	 * Can also be used to Linear Interpolate, by setting ConstantB = (1-ConstantA)

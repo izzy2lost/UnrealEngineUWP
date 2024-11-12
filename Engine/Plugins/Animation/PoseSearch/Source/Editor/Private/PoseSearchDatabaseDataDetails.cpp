@@ -318,11 +318,14 @@ public:
 											{
 												if (*GetNameSafe(PreviewActor.GetActor()) == ColumnName)
 												{
-													const FSearchIndexAsset& IndexAsset = PoseSearchDatabase->GetSearchIndex().Assets[PreviewActor.GetIndexAssetIndex()];
+													const TConstArrayView<FSearchIndexAsset> Assets = PoseSearchDatabase->GetSearchIndex().Assets;
 													const int32 AssetIdx = PreviewActor.GetIndexAssetIndex();
-													FString AssetIdxString;
-													AssetIdxString.AppendInt(IndexAsset.GetSourceAssetIdx());
-													return FText::FromString(AssetIdxString);
+													if (Assets.IsValidIndex(AssetIdx))
+													{
+														FString AssetIdxString;
+														AssetIdxString.AppendInt(Assets[AssetIdx].GetSourceAssetIdx());
+														return FText::FromString(AssetIdxString);
+													}
 												}
 											}
 										}

@@ -29,6 +29,8 @@ public:
 		, FrameRate(0, 0)
 		, TemporalSampleIndex(0)
 		, TemporalSampleCount(0)
+		, SpatialSampleIndex(0)
+		, SpatialSampleCount(0)
 		, bIsFirstTemporalSampleForFrame(false)
 		, bIsLastTemporalSampleForFrame(false)
 		, bDiscardOutput(false)
@@ -78,6 +80,14 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	int32 TemporalSampleCount;
 
+	/** Index out of SpatialSampleCount that we're on. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	int32 SpatialSampleIndex;
+
+	/** The maximum number of Spatial Samples this frame is expected to be able to process. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	int32 SpatialSampleCount;
+
 	/** 
 	* Should be set to true for the first sample of each output frame. Used to determine
 	* if various systems need to reset or gather data for a new frame. Can be true at
@@ -119,7 +129,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig;
 
-	/** The current timecode at the root (sequence) level. */
+	/** The current timecode at the root (sequence) level. Note that this is adjusted according to the timecode settings on the Global Output Settings node. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	FTimecode RootTimeCode;
 
@@ -130,7 +140,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	FFrameNumber RootFrameNumber;
 
-	/** The current timecode at the shot level. */
+	/** The current timecode at the shot level. Note that this is adjusted according to the timecode settings on the Global Output Settings node. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	FTimecode ShotTimeCode;
 

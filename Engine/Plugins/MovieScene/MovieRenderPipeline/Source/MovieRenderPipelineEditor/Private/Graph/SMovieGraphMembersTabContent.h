@@ -44,6 +44,9 @@ public:
 	/** Handler for when an action in the action menu is dragged. */
 	FReply OnActionDragged(const TArray<TSharedPtr<FEdGraphSchemaAction>>& InActions, const FPointerEvent& MouseEvent);
 
+	/** Handler for when a category in the action menu is dragged. */
+	FReply OnCategoryDragged(const FText& InCategory, const FPointerEvent& MouseEvent);
+
 	/** Creates the widget for an action within the action menu. */
 	TSharedRef<SWidget> CreateActionWidget(FCreateWidgetForActionData* CreateWidgetForActionData) const;
 
@@ -55,6 +58,12 @@ public:
 
 	/** Determines if all selected member(s) can be deleted. */
 	bool CanDeleteSelectedMembers() const;
+
+	/** Duplicates the member(s) which are currently selected in the UI. */
+	void DuplicateSelectedMembers();
+
+	/** Determines if at least one selected member can be duplicated. */
+	bool CanDuplicateSelectedMembers() const;
 
 	//~ Begin FSelfRegisteringEditorUndoClient Interface
 	virtual void PostUndo(bool bSuccess) override;
@@ -121,6 +130,8 @@ public:
 		TSharedPtr<FEdGraphSchemaAction> InAction, UMovieGraphVariable* InVariable);
 
 	virtual void HoverTargetChanged() override;
+	virtual FReply DroppedOnAction(TSharedRef<FEdGraphSchemaAction> Action) override;
+	virtual FReply DroppedOnCategory(FText Category) override;
 	virtual FReply DroppedOnPanel(
 		const TSharedRef<SWidget>& InPanel, FVector2D InScreenPosition, FVector2D InGraphPosition, UEdGraph& InGraph) override;
 
@@ -131,4 +142,23 @@ protected:
 private:
 	/** The variable member that the drag-and-drop is associated with. */
 	TWeakObjectPtr<UMovieGraphVariable> WeakVariable;
+};
+
+/* Drag-and-drop action which handles variable categories. */
+class FMovieGraphDragAction_Category : public FGraphSchemaActionDragDropAction
+{
+public:
+	DRAG_DROP_OPERATOR_TYPE(FMovieGraphDragAction_Category, FGraphSchemaActionDragDropAction)
+
+	static TSharedRef<FMovieGraphDragAction_Category> New(const FText& InCategory, UMovieGraphConfig* InGraph);
+
+	virtual void HoverTargetChanged() override;
+	virtual FReply DroppedOnCategory(FText Category) override;
+
+public:
+	/** The category that is being dragged. */
+	FText DraggedCategory;
+
+	/** The graph associated with the drag/drop action. */
+	UMovieGraphConfig* GraphConfig = nullptr;
 };

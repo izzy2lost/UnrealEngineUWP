@@ -4,6 +4,7 @@
 
 #include "dna/DNA.h"
 #include "dna/TypeDefs.h"
+#include "dna/filters/JointFilter.h"
 #include "dna/filters/Remap.h"
 #include "dna/types/Limits.h"
 #include "dna/utils/Extd.h"
@@ -212,8 +213,7 @@ void FilteredBinaryInputArchive::process(RawJoints& dest) {
 
         dest.jointGroups.push_back(std::move(jointGroup));
     }
-    const auto uncompressedJointCount = static_cast<std::uint16_t>(JointFilter::maxRemappedIndex() + 1u);
-    dest.rowCount = static_cast<std::uint16_t>(uncompressedJointCount * jointAttributeCount);
+    dest.rowCount = static_cast<std::uint16_t>(JointFilter::filteredJointCount() * jointAttributeCount);
 }
 
 void FilteredBinaryInputArchive::process(RawBlendShapeChannels& dest) {
@@ -422,7 +422,7 @@ void FilteredBinaryInputArchive::process(RawMachineLearnedBehavior& dest) {
 void FilteredBinaryInputArchive::process(DNA& dest) {
     BaseArchive::process(dest);
     // Don't run control-based post-load filtering for delta DNA files
-    if (!loadedControls.empty()) {
+    if ((dest.layers.unknownPolicy == UnknownLayerPolicy::Ignore) && (!loadedControls.empty())) {
         removeUnreferencedBlendShapes(dest);
     }
 }
@@ -435,7 +435,7 @@ void FilteredBinaryInputArchive::removeUnreferencedBlendShapes(DNA& dest) {
     for (std::size_t iPlusOne = bsc.inputIndices.size(); iPlusOne > 0ul; --iPlusOne) {
         const auto i = iPlusOne - 1ul;
         const auto controlIndex = bsc.inputIndices[i];
-        if (!loadedControls[controlIndex]) {
+        if ((controlIndex > loadedControls.size()) || (!loadedControls[controlIndex])) {
             unreferencedChannels.push_back(bsc.outputIndices[i]);
             // Remove behavior data
             removeByIndex(bsc.inputIndices, i);
@@ -450,8 +450,8 @@ void FilteredBinaryInputArchive::removeUnreferencedBlendShapes(DNA& dest) {
 
     // Remove channel from definition
     dest.definition.lodBlendShapeMapping.filterIndices([&unreferencedChannels](std::uint16_t index) {
-        return !extd::contains(unreferencedChannels, index);
-    });
+            return !extd::contains(unreferencedChannels, index);
+        });
 
     BlendShapeFilter::configure(static_cast<std::uint16_t>(dest.definition.blendShapeChannelNames.size()),
                                 dest.definition.lodBlendShapeMapping.getCombinedDistinctIndices(memRes));
@@ -466,6 +466,101 @@ void FilteredBinaryInputArchive::removeUnreferencedBlendShapes(DNA& dest) {
     for (auto& mesh : dest.geometry.meshes) {
         BlendShapeFilter::apply(mesh);
     }
+}
+
+void FilteredBinaryInputArchive::process(RawRBFBehavior& dest) {
+    if (malformed) {
+        return;
+    }
+
+    if (!contains(layerBitmask, DataLayerBitmask::RBFBehavior)) {
+        return;
+    }
+
+    process(dest.lodSolverMapping);
+    if (!lodConstraint.hasImpactOn(unconstrainedLODCount)) {
+        process(dest.solvers);
+        process(dest.poses);
+        return;
+    }
+
+    // Perform filtered load only if a different maxLOD is set
+    const auto solverCount = static_cast<std::uint16_t>(processSize());
+    dest.lodSolverMapping.discardLODs(lodConstraint);
+
+    const auto passingIndices = dest.lodSolverMapping.getCombinedDistinctIndices(memRes);
+    UnorderedMap<std::uint16_t, std::uint16_t> remappedIndices{memRes};
+    remap(solverCount, passingIndices, remappedIndices);
+    dest.lodSolverMapping.mapIndices([&remappedIndices](std::uint16_t value) {
+            return remappedIndices.at(value);
+        });
+
+    dest.solvers.reserve(passingIndices.size());
+    for (std::uint16_t i = {}; i < solverCount; ++i) {
+        // Check if the solver indices filtered for the current maxLOD permit loading
+        // this solver
+        if (extd::contains(passingIndices, i)) {
+            RawRBFSolver solver{memRes};
+            process(solver);
+            dest.solvers.push_back(std::move(solver));
+        } else {
+            // Jump over solver
+            decltype(RawRBFSolver::size) solverSize{};
+            decltype(RawRBFSolver::baseMarker) solverBase{};
+            decltype(RawRBFSolver::sizeMarker) solverSizeMarker{solverSize, solverBase};
+            process(solverSize);
+            process(solverBase);
+            process(solverSizeMarker);
+        }
+    }
+    process(dest.poses);
+}
+
+void FilteredBinaryInputArchive::process(RawRBFBehaviorExt& dest) {
+    if (malformed) {
+        return;
+    }
+
+    if (contains(layerBitmask, DataLayerBitmask::RBFBehavior)) {
+        process(dest.poseControlNames);
+        process(dest.poses);
+        loadedControls.resize(loadedControls.size() + dest.poseControlNames.size(), true);
+    } else {
+        const auto poseControlCount = processSize();
+        loadedControls.resize(loadedControls.size() + poseControlCount, false);
+    }
+}
+
+void FilteredBinaryInputArchive::process(RawJointBehaviorMetadata& dest) {
+    if (malformed) {
+        return;
+    }
+    if (!contains(layerBitmask, DataLayerBitmask::JointBehaviorMetadata)) {
+        return;
+    }
+
+    BaseArchive::process(dest);
+    // No filtering is done, unless LOD constraint may have some effect
+    if (!lodConstraint.hasImpactOn(unconstrainedLODCount)) {
+        return;
+    }
+    JointFilter::apply(dest);
+}
+
+void FilteredBinaryInputArchive::process(RawTwistSwingBehavior& dest) {
+    if (malformed) {
+        return;
+    }
+    if (!contains(layerBitmask, DataLayerBitmask::TwistSwingBehavior)) {
+        return;
+    }
+
+    BaseArchive::process(dest);
+    // No filtering is done, unless LOD constraint may have some effect
+    if (!lodConstraint.hasImpactOn(unconstrainedLODCount)) {
+        return;
+    }
+    JointFilter::apply(dest);
 }
 
 }  // namespace dna

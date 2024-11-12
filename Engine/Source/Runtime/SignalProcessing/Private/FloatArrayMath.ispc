@@ -72,6 +72,29 @@ export void ArrayMeanSquared(const uniform float DataPtr[],
 	OutMean = reduce_add(Sum) / (uniform float)Num;
 }
 
+export void ArrayMax(const uniform float InFloatBuffer1[],
+	const uniform float InFloatBuffer2[],
+	uniform float OutputBuffer[], 
+	const uniform int Num)
+{
+	foreach(i = 0 ... Num)
+	{
+		OutputBuffer[i] = max(InFloatBuffer1[i], InFloatBuffer2[i]);
+	}
+}
+
+export uniform float ArrayMaxAbsValue(const uniform float DataPtr[], const uniform int Num)
+{
+	float Max = 0.f;
+
+	foreach(i = 0 ... Num)
+	{
+		Max = max(abs(DataPtr[i]), Max);
+	}
+
+	return reduce_max(Max);
+}
+
 export uniform float ArrayGetMagnitude(const uniform float Buffer[], const uniform int NumSamples)
 {
 	varying float Sum = 0.0f;
@@ -239,6 +262,20 @@ export void ArrayMinMaxNormalize(const uniform float InDataPtr[],
 	}
 }
 
+export void ArrayMultiply(const uniform float InFloatBuffer[],
+						  const uniform float BufferToMultiply[],
+						  uniform float OutDataPtr[],
+						  const uniform int NumSamples)
+{
+	foreach(i = 0 ... NumSamples)
+	{
+		const varying float Input = InFloatBuffer[i];
+		const varying float Output = BufferToMultiply[i];
+
+		OutDataPtr[i] = Input * Output;
+	}
+}
+
 export void ArrayMultiplyInPlace(const uniform float InFloatBuffer[],
 									uniform float BufferToMultiply[],
 									const uniform int NumSamples)
@@ -288,6 +325,36 @@ export void ArrayComplexMultiplyInPlace(const uniform float InData1[],
 		uniform float Imag = (InData1[i] * InData2[i + 1]) + (InData1[i + 1] * InData2[i]);
 		InData2[i] = Real;
 		InData2[i + 1] = Imag;
+	}
+}
+
+export void ArrayComplexMultiplyAdd(const uniform float InA[],
+	const uniform float InB[],
+	uniform float Out[],
+	const uniform int Num)
+{
+#if TARGET_WIDTH == 4
+	static const varying float RealSignFlip = { -1.f, 1.f, -1.f, 1.f };
+#elif TARGET_WIDTH == 8
+	static const varying float RealSignFlip = { -1.f, 1.f, -1.f, 1.f, -1.f, 1.f, -1.f, 1.f };
+#elif TARGET_WIDTH == 16
+	static const varying float RealSignFlip = { -1.f, 1.f, -1.f, 1.f, -1.f, 1.f, -1.f, 1.f, -1.f, 1.f, -1.f, 1.f, -1.f, 1.f, -1.f, 1.f };
+#endif
+
+	foreach(i = 0 ... Num)
+	{
+		const varying float VectorData1 = InA[i];
+		const varying float VectorData2 = InB[i];
+
+		const varying float VectorData1Real = VectorSwizzle(VectorData1, 0, 0, 2, 2);
+		const varying float VectorData1Imag = VectorSwizzle(VectorData1, 1, 1, 3, 3);
+		const varying float VectorData2Swizzle = VectorSwizzle(VectorData2, 1, 0, 3, 2);
+
+		varying float Result = VectorData1Imag * VectorData2Swizzle;
+		Result = Result * RealSignFlip;
+		Result = (VectorData1Real * VectorData2) + Result;
+
+		Out[i] += Result;
 	}
 }
 
@@ -678,4 +745,97 @@ export void TransformArrayRow(const uniform float OffsetInData[],
 	}
 
 	OutArray[RowIndex] += reduce_add(RowSum);
+}
+
+export void ArrayFloatToPcm16(const uniform float InBuffer[],
+	uniform int16 OutBuffer[],
+	const uniform int Num)
+{
+	const float MaxSignedShortFloat = (float)0x7FFF;
+
+	foreach(i = 0 ... Num)
+	{
+		OutBuffer[i] = (int16)(InBuffer[i] * MaxSignedShortFloat);
+	}
+}
+
+export void ArrayPcm16ToFloat(const uniform int16 InBuffer[],
+	uniform float OutBuffer[],
+	const uniform int Num)
+{
+	const float InvMaxSignedShortFloat = 1.f / ((float)0x7FFF);
+
+	foreach(i = 0 ... Num)
+	{
+		OutBuffer[i] = ((float)InBuffer[i]) * InvMaxSignedShortFloat;
+	}
+}
+
+export void ArrayAPFLongDelayProcess(const uniform float InSamples[],
+	const uniform float InDelaySamples[],
+	const uniform int InNum,
+	uniform float OutSamples[],
+	uniform float OutDelaySamples[],
+	const uniform float Gain)
+{
+	foreach(i = 0 ... InNum)
+	{
+		OutDelaySamples[i] = (InDelaySamples[i] * Gain) + InSamples[i];
+		OutSamples[i] = (OutDelaySamples[i] * (-Gain)) + InDelaySamples[i];
+	}
+}
+
+export void ArrayLerpFractionalDelay(const uniform float InSamples[],
+	const uniform float InDelays[],
+	const uniform float DelayData[],
+	const uniform int IntegerDelays[],
+	const uniform int InNum,
+	uniform float OutSamples[],
+	const uniform float MaxDelay)
+{
+	foreach(i = 0 ... InNum)
+	{
+		float VFractionalDelays = InDelays[i];
+		VFractionalDelays = max(VFractionalDelays, 0.f);
+		VFractionalDelays = min(VFractionalDelays, MaxDelay);
+
+		float VFloorDelays = floor(VFractionalDelays);
+
+		float VUpperCoefficients = VFractionalDelays - VFloorDelays;
+		float VLowerCoefficients = 1.f - VUpperCoefficients;
+
+		int VIntegerDelays = (int)VFloorDelays;
+		const int VIntegerDelayOffset = IntegerDelays[i];
+		VIntegerDelays = VIntegerDelayOffset - VIntegerDelays;
+
+		#pragma ignore warning(perf)
+		float VLowerSamples = DelayData[VIntegerDelays + 1];
+		#pragma ignore warning(perf)
+		float VUpperSamples = DelayData[VIntegerDelays];
+
+		OutSamples[i] = (VLowerSamples * VLowerCoefficients) + (VUpperSamples * VUpperCoefficients);
+	}
+}
+
+export void ArrayScaledComplexConjugate(const uniform float InValues[],
+	const uniform int Num,
+	uniform float OutValues[],
+	const uniform float Scale)
+{
+	float SignFlip = -Scale;
+
+#if TARGET_WIDTH == 4
+	bool Mask = { true, false, true, false };
+#elif TARGET_WIDTH == 8
+	bool Mask = { true, false, true, false, true, false, true, false };
+#elif TARGET_WIDTH == 16
+	bool Mask = { true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false };
+#endif
+
+	SignFlip = select(Mask, Scale, SignFlip);
+
+	foreach(i = 0 ... Num)
+	{
+		OutValues[i] = InValues[i] * SignFlip;
+	}
 }

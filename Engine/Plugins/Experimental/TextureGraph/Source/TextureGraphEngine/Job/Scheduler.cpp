@@ -171,25 +171,25 @@ void Scheduler::Update(float dt)
 				if (PreviousBatch && !PreviousBatch->WasGeneratedFromIdleService())
 					TimeSinceIdle = Util::Time();
 
-				UE_LOG(LogBatch, Log, TEXT("Scheduler, Batch fully queued: %llu. Triggering Observer::BatchJobsDone ..."), PreviousBatch ? PreviousBatch->GetBatchId() : -1);
+				UE_LOG(LogBatch, Verbose, TEXT("Scheduler, Batch fully queued: %llu. Triggering Observer::BatchJobsDone ..."), PreviousBatch ? PreviousBatch->GetBatchId() : -1);
 
 				ObserverSource->BatchJobsDone(PreviousBatch);
 
-				UE_LOG(LogBatch, Log, TEXT("Scheduler Observer::BatchJobsDone finished for Batch: %llu"), PreviousBatch ? PreviousBatch->GetBatchId() : -1);
+				/// Mark the current batch as done
+				PreviousBatch->GetCycle()->GetDetails().BroadcastOnDone();
+
+				UE_LOG(LogBatch, Verbose, TEXT("Scheduler Observer::BatchJobsDone finished for Batch: %llu"), PreviousBatch ? PreviousBatch->GetBatchId() : -1);
 			})
 			.then([this]()
 				{
 					if (PreviousBatch && !PreviousBatch->WasGeneratedFromIdleService())
 						TimeSinceIdle = Util::Time();
 
-					UE_LOG(LogBatch, Log, TEXT("Scheduler triggering Observer::BatchDone for Batch: %llu ..."), PreviousBatch ? PreviousBatch->GetBatchId() : -1);
+					UE_LOG(LogBatch, Verbose, TEXT("Scheduler triggering Observer::BatchDone for Batch: %llu ..."), PreviousBatch ? PreviousBatch->GetBatchId() : -1);
 
 					ObserverSource->BatchDone(CurrentBatch);
 
-					/// Mark the current batch as done
-					CurrentBatch->GetCycle()->GetDetails().BroadcastOnDone();
-
-					UE_LOG(LogBatch, Log, TEXT("Scheduler Observer::BatchDone finished for Batch: %llu"), PreviousBatch ? PreviousBatch->GetBatchId() : -1);
+					UE_LOG(LogBatch, Verbose, TEXT("Scheduler Observer::BatchDone finished for Batch: %llu"), PreviousBatch ? PreviousBatch->GetBatchId() : -1);
 				});
 	}
 	else
@@ -263,7 +263,7 @@ void Scheduler::UpdateIdle()
 			return;
 	}
 
-	UE_LOG(LogIdle_Svc, Verbose, TEXT("Scheduler::UpdateIdle"));
+	UE_LOG(LogIdle_Svc, VeryVerbose, TEXT("Scheduler::UpdateIdle"));
 
 	if (TextureGraphEngine::IsDestroying())
 		return;
@@ -335,7 +335,7 @@ void Scheduler::AddBatch(JobBatchPtr Batch)
 	}
 
 	check(Batch->GetFrameId())
-		UE_LOG(LogBatch, Log, TEXT("Adding Batch: %llu [FrameId: %llu, Num batches: %llu]"), Batch->GetBatchId(), Batch->GetFrameId(), Batches.size());
+		UE_LOG(LogBatch, Verbose, TEXT("Adding Batch: %llu [FrameId: %llu, Num batches: %llu]"), Batch->GetBatchId(), Batch->GetFrameId(), Batches.size());
 
 	Batches.push_back(Batch);
 	ObserverSource->BatchAdded(Batch); // notify observer

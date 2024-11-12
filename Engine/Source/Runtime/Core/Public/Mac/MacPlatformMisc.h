@@ -52,10 +52,7 @@ struct CORE_API FMacPlatformMisc : public FApplePlatformMisc
 	 *
 	 * @return	Returns the shader format to be used by that platform
 	 */
-	FORCEINLINE static const TCHAR* GetNullRHIShaderFormat() 
-	{ 
-		return TEXT("SF_METAL_SM5"); 
-	}
+	static CORE_API const TCHAR* GetNullRHIShaderFormat();
 
 	/**
 	 * Uses cpuid instruction to get the vendor string

@@ -25,9 +25,6 @@ class ULandscapeTextureBackedRenderTargetBase : public UObject
 
 public:
 
-	UPROPERTY()
-	TObjectPtr<UTextureRenderTarget2D> PostLoadRT = nullptr;
-
 	virtual UTextureRenderTarget2D* GetRenderTarget() { return RenderTarget; }
 	virtual UTexture2D* GetInternalTexture() { return InternalTexture; }
 
@@ -50,6 +47,7 @@ public:
 	virtual void PreDuplicate(FObjectDuplicationParameters& DupParams) override;
 	virtual void ExportCustomProperties(FOutputDevice& Out, uint32 Indent) override;
 	virtual void PostEditImport() override;
+	virtual void PostEditUndo() override;
 #endif // WITH_EDITOR
 
 protected:
@@ -59,6 +57,8 @@ protected:
 
 	virtual ETextureSourceFormat GetInternalTextureFormat() PURE_VIRTUAL(ULandscapeTextureBackedRenderTargetBase::GetInternalTextureFormat, return ETextureSourceFormat::TSF_G8;);
 	virtual ETextureRenderTargetFormat GetRenderTargetFormat() PURE_VIRTUAL(ULandscapeTextureBackedRenderTargetBase::GetRenderTargetFormat, return ETextureRenderTargetFormat::RTF_R8;);
+
+	void ReinitializeRenderTarget(bool bClear);
 
 	UPROPERTY(VisibleAnywhere, Category = InternalData)
 	TObjectPtr<UTexture2D> InternalTexture = nullptr;
@@ -85,6 +85,7 @@ public:
 
 	virtual void SetUseAlphaChannel(bool bUseAlphaChannelIn);
 
+	virtual void Initialize() override;
 	virtual void CopyToInternalTexture() override;
 	virtual void CopyBackFromInternalTexture() override;
 protected:
@@ -104,6 +105,7 @@ public:
 
 	virtual void SetFormat(ETextureRenderTargetFormat FormatToUse);
 
+	virtual void Initialize() override;
 	virtual void CopyToInternalTexture() override;
 	virtual void CopyBackFromInternalTexture() override;
 

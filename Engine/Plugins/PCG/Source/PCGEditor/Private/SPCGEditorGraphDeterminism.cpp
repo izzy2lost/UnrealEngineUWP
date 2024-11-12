@@ -17,7 +17,7 @@ namespace
 	const FName NAME_DataTypesTested(TEXT("DataTypesTested_ColumnID"));
 	const FName NAME_AdditionalDetails(TEXT("AdditionalDetails_ColumnID"));
 
-	const FText TEXT_Index(LOCTEXT("Index_Label", ""));
+	const FText TEXT_Index;
 	const FText TEXT_NodeTitle(LOCTEXT("NodeTitle_Label", "Title"));
 	const FText TEXT_NodeName(LOCTEXT("NodeName_Label", "Name"));
 	const FText TEXT_Seed(LOCTEXT("Seed_Label", "Seed"));
@@ -33,13 +33,11 @@ namespace
 	constexpr float SmallManualWidth = 25.f;
 	constexpr float MediumManualWidth = 80.f;
 	constexpr float LargeManualWidth = 160.f;
-	constexpr float ListViewRowHeight = 36.f;
 }
 
 void SPCGEditorGraphDeterminismRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, const FPCGNodeTestResultPtr& Item, int32 ItemIndex)
 {
 	CurrentItem = Item;
-	CurrentIndex = ItemIndex;
 	SMultiColumnTableRow<FPCGNodeTestResultPtr>::Construct(SMultiColumnTableRow::FArguments(), InOwnerTableView);
 }
 
@@ -59,7 +57,7 @@ TSharedRef<SWidget> SPCGEditorGraphDeterminismRow::GenerateWidgetForColumn(const
 	// Permanent columns
 	if (ColumnId == NAME_Index)
 	{
-		return ReturnColorCodedResultBlock(FText::FromString(FString::FromInt(CurrentIndex)));
+		return ReturnColorCodedResultBlock(FText::FromString(FString::FromInt(CurrentItem->Index)));
 	}
 	else if (ColumnId == NAME_NodeTitle)
 	{
@@ -124,10 +122,11 @@ void SPCGEditorGraphDeterminismListView::Construct(const FArguments& InArgs, TWe
 	PCGEditorPtr = InPCGEditor;
 
 	GeneratedHeaderRow = SNew(SHeaderRow);
+	SortMode = EColumnSortMode::None;
+	SortingColumn = NAME_None;
 
 	SAssignNew(ListView, SListView<FPCGNodeTestResultPtr>)
 		.ListItemsSource(&ListViewItems)
-		.ItemHeight(ListViewRowHeight)
 		.OnGenerateRow(this, &SPCGEditorGraphDeterminismListView::OnGenerateRow)
 		.HeaderRow(GeneratedHeaderRow);
 
@@ -168,6 +167,8 @@ void SPCGEditorGraphDeterminismListView::AddColumn(const FTestColumnInfo& Column
 	}
 	Arguments.HAlignHeader(ColumnInfo.HAlign);
 	Arguments.HAlignCell(ColumnInfo.HAlign);
+	Arguments.SortMode(this, &SPCGEditorGraphDeterminismListView::GetColumnSortMode, ColumnInfo.ColumnID);
+	Arguments.OnSort(this, &SPCGEditorGraphDeterminismListView::OnSortColumnHeader);
 	GeneratedHeaderRow->AddColumn(Arguments);
 }
 
@@ -201,6 +202,74 @@ void SPCGEditorGraphDeterminismListView::ClearColumns()
 TSharedRef<ITableRow> SPCGEditorGraphDeterminismListView::OnGenerateRow(const FPCGNodeTestResultPtr Item, const TSharedRef<STableViewBase>& OwnerTable) const
 {
 	return SNew(SPCGEditorGraphDeterminismRow, OwnerTable, Item, ++ItemIndexCounter);
+}
+
+void SPCGEditorGraphDeterminismListView::OnSortColumnHeader(const EColumnSortPriority::Type SortPriority, const FName& ColumnId, const EColumnSortMode::Type NewSortMode)
+{
+	if (SortingColumn == ColumnId)
+	{
+		// Circling
+		SortMode = static_cast<EColumnSortMode::Type>((SortMode + 1) % 3);
+	}
+	else
+	{
+		SortingColumn = ColumnId;
+		SortMode = NewSortMode;
+	}
+
+	if (SortingColumn != NAME_None && SortMode != EColumnSortMode::None)
+	{
+		Algo::Sort(ListViewItems, [this, ColumnId](const FPCGNodeTestResultPtr& A, const FPCGNodeTestResultPtr& B)
+		{
+			bool bIsLess = false;
+			if (SortingColumn == NAME_Index)
+			{
+				bIsLess = A->Index < B->Index;
+			}
+			else if (SortingColumn == NAME_NodeTitle)
+			{
+				bIsLess = A->TestResultTitle.ToString() < B->TestResultTitle.ToString();
+			}
+			else if (SortingColumn == NAME_NodeName)
+			{
+				bIsLess = A->TestResultName < B->TestResultName;
+			}
+			else if (SortingColumn == NAME_Seed)
+			{
+				bIsLess = A->Seed < B->Seed;
+			}
+			else if (SortingColumn == NAME_DataTypesTested)
+			{
+				bIsLess = A->DataTypesTested < B->DataTypesTested;
+			}
+			else if (SortingColumn == NAME_AdditionalDetails)
+			{
+				bIsLess = (A->AdditionalDetails.IsEmpty() && !B->AdditionalDetails.IsEmpty()) ||
+					(!A->AdditionalDetails.IsEmpty() && !B->AdditionalDetails.IsEmpty() && A->AdditionalDetails[0] < B->AdditionalDetails[0]);
+			}
+			else
+			{
+				const EDeterminismLevel* DeterminismLevelA = A->TestResults.Find(ColumnId);
+				const EDeterminismLevel* DeterminismLevelB = B->TestResults.Find(ColumnId);
+				bIsLess = (DeterminismLevelA && !DeterminismLevelB) ||
+					(DeterminismLevelA && DeterminismLevelB && *DeterminismLevelA < *DeterminismLevelB);
+			}
+
+			return SortMode == EColumnSortMode::Ascending ? bIsLess : !bIsLess;
+		});
+	}
+
+	RefreshItems();
+}
+
+EColumnSortMode::Type SPCGEditorGraphDeterminismListView::GetColumnSortMode(const FName ColumnId) const
+{
+	if (SortingColumn != ColumnId)
+	{
+		return EColumnSortMode::None;
+	}
+
+	return SortMode;
 }
 
 #undef LOCTEXT_NAMESPACE

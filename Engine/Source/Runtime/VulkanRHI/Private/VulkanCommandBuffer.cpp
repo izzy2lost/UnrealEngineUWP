@@ -4,9 +4,11 @@
 	VulkanCommandBuffer.cpp: Vulkan device RHI implementation.
 =============================================================================*/
 
-#include "VulkanRHIPrivate.h"
+#include "VulkanCommandBuffer.h"
 #include "VulkanContext.h"
 #include "VulkanDescriptorSets.h"
+#include "VulkanMemory.h"
+#include "VulkanRayTracing.h"
 
 static int32 GUseSingleQueue = 0;
 static FAutoConsoleVariableRef CVarVulkanUseSingleQueue(
@@ -65,7 +67,9 @@ FVulkanCmdBuffer::FVulkanCmdBuffer(FVulkanDevice* InDevice, FVulkanCommandBuffer
 	, FenceSignaledCounter(0)
 	, SubmittedFenceCounter(0)
 	, CommandBufferPool(InCommandBufferPool)
+#if (RHI_NEW_GPU_PROFILER == 0)
 	, Timing(nullptr)
+#endif
 	, LastValidTiming(0)
 	, LayoutManager(InDevice->SupportsParallelRendering() && !GVulkanAutoCorrectUnknownLayouts,
 		&InCommandBufferPool->GetMgr().GetCommandListContext()->GetQueue()->GetLayoutManager())
@@ -123,12 +127,14 @@ FVulkanCmdBuffer::~FVulkanCmdBuffer()
 		FreeMemory();
 	}
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	if (Timing)
 	{
 		Timing->Release();
 		delete Timing;
 		Timing = nullptr;
 	}
+#endif
 }
 
 void FVulkanCmdBuffer::FreeMemory()
@@ -191,19 +197,6 @@ void FVulkanCmdBuffer::BeginRenderPass(const FVulkanRenderTargetLayout& Layout, 
 	Info.clearValueCount = Layout.GetNumUsedClearValues();
 	Info.pClearValues = AttachmentClearValues;
 
-#if VULKAN_SUPPORTS_QCOM_RENDERPASS_TRANSFORM
-	VkRenderPassTransformBeginInfoQCOM RPTransformBeginInfoQCOM;
-	VkSurfaceTransformFlagBitsKHR QCOMTransform = Layout.GetQCOMRenderPassTransform();
-
-	if (QCOMTransform != VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
-	{
-		ZeroVulkanStruct(RPTransformBeginInfoQCOM, (VkStructureType)VK_STRUCTURE_TYPE_RENDER_PASS_TRANSFORM_BEGIN_INFO_QCOM);
-
-		RPTransformBeginInfoQCOM.transform = QCOMTransform;
-		Info.pNext = &RPTransformBeginInfoQCOM;
-	}
-#endif
-
 	if (Device->GetOptionalExtensions().HasKHRRenderPass2)
 	{
 		VkSubpassBeginInfo SubpassInfo;
@@ -241,6 +234,7 @@ void FVulkanCmdBuffer::End()
 {
 	checkf(IsOutsideRenderPass(), TEXT("Can't End as we're inside a render pass! CmdBuffer 0x%p State=%d"), CommandBufferHandle, (int32)State);
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	if (GVulkanProfileCmdBuffers || GVulkanUseCmdBufferTimingForGPUTime)
 	{
 		if (Timing)
@@ -249,6 +243,7 @@ void FVulkanCmdBuffer::End()
 			LastValidTiming = FenceSignaledCounter;
 		}
 	}
+#endif
 
 	for (PendingQuery& Query : PendingTimestampQueries)
 	{
@@ -274,6 +269,7 @@ void FVulkanCmdBuffer::End()
 
 inline void FVulkanCmdBuffer::InitializeTimings(FVulkanCommandListContext* InContext)
 {
+#if (RHI_NEW_GPU_PROFILER == 0)
 	if ((GVulkanProfileCmdBuffers || GVulkanUseCmdBufferTimingForGPUTime) && !Timing)
 	{
 		if (InContext)
@@ -286,6 +282,7 @@ inline void FVulkanCmdBuffer::InitializeTimings(FVulkanCommandListContext* InCon
 			Timing->Initialize(PoolSize);
 		}
 	}
+#endif
 }
 
 void FVulkanCmdBuffer::AddWaitSemaphore(VkPipelineStageFlags InWaitFlags, TArrayView<VulkanRHI::FSemaphore*> InWaitSemaphores)
@@ -326,10 +323,12 @@ void FVulkanCmdBuffer::Begin()
 	if (GVulkanProfileCmdBuffers || GVulkanUseCmdBufferTimingForGPUTime)
 	{
 		InitializeTimings(CommandBufferPool->GetMgr().GetCommandListContext());
+#if (RHI_NEW_GPU_PROFILER == 0)
 		if (Timing)
 		{
 			Timing->StartTiming(this);
 		}
+#endif
 	}
 	check(!CurrentDescriptorPoolSetContainer);
 
@@ -564,7 +563,7 @@ void FVulkanCommandBufferManager::SubmitUploadCmdBuffer(uint32 NumSignalSemaphor
 		{
 			// Add semaphores associated with the recent active cmdbuf(s), if any. That will prevent
 			// the overlap, delaying execution of this cmdbuf until the graphics one(s) is complete.
-			for (FSemaphore* WaitForThis : RenderingCompletedSemaphores)
+			for (VulkanRHI::FSemaphore* WaitForThis : RenderingCompletedSemaphores)
 			{
 				UploadCmdBuffer->AddWaitSemaphore(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, WaitForThis);
 			}
@@ -630,7 +629,7 @@ void FVulkanCommandBufferManager::SubmitActiveCmdBuffer(TArrayView<VulkanRHI::FS
 
 			// Add semaphores associated with the recent upload cmdbuf(s), if any. That will prevent
 			// the overlap, delaying execution of this cmdbuf until upload one(s) are complete.
-			for (FSemaphore* UploadCompleteSema : UploadCompletedSemaphores)
+			for (VulkanRHI::FSemaphore* UploadCompleteSema : UploadCompletedSemaphores)
 			{
 				ActiveCmdBuffer->AddWaitSemaphore(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, UploadCompleteSema);
 			}
@@ -773,6 +772,7 @@ void FVulkanCommandBufferManager::PrepareForNewActiveCommandBuffer()
 	ActiveCmdBuffer->Begin();
 }
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 uint32 FVulkanCommandBufferManager::CalculateGPUTime()
 {
 	uint32 Time = 0;
@@ -786,6 +786,7 @@ uint32 FVulkanCommandBufferManager::CalculateGPUTime()
 	}
 	return Time;
 }
+#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 FVulkanCmdBuffer* FVulkanCommandBufferManager::GetUploadCmdBuffer()
 {
@@ -865,19 +866,25 @@ void FVulkanCommandBufferPool::FreeUnusedCmdBuffers(FVulkanQueue* InQueue, bool 
 	InQueue->GetLastSubmittedInfo(LastSubmittedCmdBuffer, LastSubmittedFenceCounter);
 
 	// Deferred deletion queue caches pointers to cmdbuffers
-	FDeferredDeletionQueue2& DeferredDeletionQueue = Device->GetDeferredDeletionQueue();
+	VulkanRHI::FDeferredDeletionQueue2& DeferredDeletionQueue = Device->GetDeferredDeletionQueue();
 
 	for (int32 Index = CmdBuffers.Num() - 1; Index >= 0; --Index)
 	{
 		FVulkanCmdBuffer* CmdBuffer = CmdBuffers[Index];
 		if (CmdBuffer != LastSubmittedCmdBuffer &&
 			(CmdBuffer->State == FVulkanCmdBuffer::EState::ReadyForBegin || CmdBuffer->State == FVulkanCmdBuffer::EState::NeedReset) &&
-			(CurrentTime - CmdBuffer->SubmittedTime) > CMD_BUFFER_TIME_TO_WAIT_BEFORE_DELETING)
+			((CurrentTime - CmdBuffer->SubmittedTime) > CMD_BUFFER_TIME_TO_WAIT_BEFORE_DELETING))
 		{
+			// Skip command buffer that contain unresolved compaction queries
+			if (Device->GetRayTracingCompactionRequestHandler() && Device->GetRayTracingCompactionRequestHandler()->IsUsingCmdBuffer(CmdBuffer))
+			{
+				continue;
+			}
+
 			DeferredDeletionQueue.OnCmdBufferDeleted(CmdBuffer);
 
 			CmdBuffer->FreeMemory();
-			CmdBuffers.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			CmdBuffers.RemoveAtSwap(Index, EAllowShrinking::No);
 			FreeCmdBuffers.Add(CmdBuffer);
 		}
 	}

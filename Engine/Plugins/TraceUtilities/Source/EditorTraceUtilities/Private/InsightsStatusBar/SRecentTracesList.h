@@ -5,8 +5,11 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/SListView.h"
 
-struct FTraceFileInfo;
 class FLiveSessionTracker;
+
+namespace UE::EditorTraceUtilities
+{
+struct FTraceFileInfo;
 
 /**
  *  A widget that shows an entry in the recent traces submenu.
@@ -29,3 +32,5 @@ private:
 	FString TraceName;
 	TSharedPtr<FLiveSessionTracker> LiveSessionTracker;
 };
+}
+

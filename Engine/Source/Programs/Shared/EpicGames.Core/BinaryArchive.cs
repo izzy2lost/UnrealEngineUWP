@@ -307,11 +307,8 @@ namespace EpicGames.Core
 				}
 
 				// Find the type constructor
-				ConstructorInfo? constructorInfo = type.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, Array.Empty<Type>(), null);
-				if (constructorInfo == null)
-				{
-					throw new NotImplementedException($"Type '{type.Name}' does not have a parameterless constructor");
-				}
+				ConstructorInfo? constructorInfo = type.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, Array.Empty<Type>(), null)
+					?? throw new NotImplementedException($"Type '{type.Name}' does not have a parameterless constructor");
 
 				// Create the methods
 				DynamicMethod writerMethod = new DynamicMethod($"BinaryArchiveWriter_Dynamic_{type.Name}", typeof(void), new[] { typeof(BinaryArchiveWriter), type });

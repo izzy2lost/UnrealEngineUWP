@@ -833,6 +833,15 @@ void FArrayPropertyNetSerializer::AdjustArraySize(FNetSerializationContext& Cont
 	// If element count is within the allocated capacity we just change the number of elements
 	else
 	{
+		// Zero out data just to be sure, to always give new elements the same initial state.
+		if (NewElementCount > Array.ElementCount)
+		{
+			const FReplicationStateDescriptor* ElementStateDescriptor = Config->StateDescriptor;
+			const SIZE_T ElementSize = ElementStateDescriptor->InternalSize;
+			void* ElementsToZeroOut = (void*)(NetSerializerValuePointer(Array.ElementStorage) + (Array.ElementCount * ElementSize));
+
+			FMemory::Memzero(ElementsToZeroOut, ElementSize * (NewElementCount - Array.ElementCount));
+		}
 		Array.ElementCount = NewElementCount;
 	}
 }

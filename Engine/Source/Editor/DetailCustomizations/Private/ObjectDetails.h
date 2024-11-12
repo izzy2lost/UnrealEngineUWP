@@ -30,8 +30,7 @@ private:
 	// Creates a button strip in each category that contains reflected functions marked as CallInEditor
 	void AddCallInEditorMethods(IDetailLayoutBuilder& DetailBuilder);
 
-	// Executes the specified method on the selected objects
-	FReply OnExecuteCallInEditorFunction(TWeakObjectPtr<UFunction> WeakFunctionPtr);
+	TArray<TWeakObjectPtr<UObject>> GetFunctionCallExecutionContext(TWeakObjectPtr<UFunction> InWeakFunction) const;
 
 private:
 	// The list of selected objects, used when invoking a CallInEditor method

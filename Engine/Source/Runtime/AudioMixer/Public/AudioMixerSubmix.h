@@ -274,6 +274,9 @@ namespace Audio
 		// Adds an envelope follower delegate
 		AUDIOMIXER_API void AddEnvelopeFollowerDelegate(const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP);
 
+		// Removes an existing envelope follower delegate
+		AUDIOMIXER_API void RemoveEnvelopeFollowerDelegate(const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP);
+
 		// Initializes a new FFT analyzer for this submix and immediately begins feeding audio to it.
 		AUDIOMIXER_API void StartSpectrumAnalysis(const FSoundSpectrumAnalyzerSettings& InSettings);
 
@@ -585,9 +588,9 @@ namespace Audio
 		// Submix command queue to shuffle commands from audio thread to audio render thread.
 		TQueue<TFunction<void()>> CommandQueue;
 
-		// List of submix buffer listeners.
-		TArray<TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe>> BufferListeners;
+		// List of submix buffer listeners. (mutable for pruning stale weak references)
 
+		mutable TArray<TWeakPtr<ISubmixBufferListener>> BufferListenerPtrs;
 		// Critical section used for modifying and interacting with buffer listeners
 		mutable FCriticalSection BufferListenerCriticalSection;
 
@@ -680,6 +683,10 @@ namespace Audio
 
 	private:
 		AUDIOMIXER_API void SendAudioToRegisteredAudioBuses(FAlignedFloatBuffer& OutAudioBuffer);
+
+		void UnregisterBufferListenerInternal(UPTRINT ListenerBufferPtr);
+
+		void PruneSubmixBufferListeners();
 
 		// Registered audio buses
 		TMap<Audio::FAudioBusKey, Audio::FPatchInput> AudioBuses;

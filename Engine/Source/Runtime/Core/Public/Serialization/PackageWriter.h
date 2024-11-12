@@ -13,6 +13,7 @@
 #include "Misc/EnumClassFlags.h"
 #include "Misc/SecureHash.h"
 #include "Serialization/CompactBinary.h"
+#include "Templates/RefCounting.h"
 #include "Templates/UniquePtr.h"
 
 class FAssetRegistryState;
@@ -22,6 +23,7 @@ class FLargeMemoryWriter;
 class ICookedPackageWriter;
 class IPackageStoreWriter;
 class UObject;
+namespace UE::Cook { class IDeterminismHelper; }
 struct FPackageStoreEntryResource;
 struct FSavePackageArgs;
 struct FSavePackageResultStruct;
@@ -48,8 +50,17 @@ public:
 		 */
 		bool bDeclareRegionForEachAdditionalFile = false;
 
-		/** Applicable only to -diffonly saves; suppresses output and breakpoints for diffs in the header. */
+		/**
+		 * Applicable only to cook saves, and only to -diffonly saves; suppresses output and breakpoints for diffs
+		 * in the header.
+		 */
 		bool bIgnoreHeaderDiffs = false;
+
+		/**
+		 * Applicable only to cook saves: True if the SavePackage call should write extra debug data for debugging
+		 * cook determinism or incremental cook issues.
+		 */
+		bool bDeterminismDebug = false;
 	};
 
 	/** Return capabilities/settings this PackageWriter has/requires 
@@ -196,6 +207,15 @@ public:
 	/** Returns an archive to be used when serializing exports. */
 	COREUOBJECT_API virtual TUniquePtr<FLargeMemoryWriter> CreateLinkerExportsArchive(FName PackageName, UObject* Asset, uint16 MultiOutputIndex);
 
+	/**
+	 * Overridden by PackageWriters that handle bDeterminismDebug=true. A system will call this function to register
+	 * their callback class for adding determinism diagnostics for the given object to the package save.
+	 */
+	virtual void RegisterDeterminismHelper(UObject* SourceObject,
+		const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper)
+	{
+	}
+
 	/** Report whether PreSave was already called by the PackageWriter before the current UPackage::Save call. */
 	virtual bool IsPreSaveCompleted() const
 	{
@@ -247,6 +267,16 @@ public:
 
 		/** If true, the cooker will assume no packages are written and will skip writing non-package data. */
 		bool bReadOnly = false;
+
+		/**
+		 * If true, the PackageWriter can override which packages are iteratively skipped in
+		 * UpdatePackageModificationStatus, and the cooker will therefore avoid assumptions about what is
+		 * iteratively skipped
+		 */
+		bool bOverridesPackageModificationStatus = false;
+
+		/** If true, this writer can save and load extra data for each package across cooks. */
+		bool bOplogAttachments = false;
 
 		/** What header format is produced as output by this writer. */
 		EPackageHeaderFormat HeaderFormat = EPackageHeaderFormat::PackageFileSummary;
@@ -369,6 +399,8 @@ public:
 	};
 	// Helper callback type for Writers that need to send the message on to UCookOnTheFlyServer
 	using FBeginCacheCallback = TUniqueFunction<EPackageWriterResult(FBeginCacheForCookedPlatformDataInfo& Info)>;
+	using FRegisterDeterminismHelperCallback = TUniqueFunction<void(UObject* SourceObject,
+		const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper)>;
 
 	virtual EPackageWriterResult BeginCacheForCookedPlatformData(FBeginCacheForCookedPlatformDataInfo& Info)
 	{

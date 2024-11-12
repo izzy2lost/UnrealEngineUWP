@@ -16,7 +16,7 @@
 UE_DISABLE_OPTIMIZATION
 #endif
 
-struct CHAOSVEHICLES_API FWheeledVehicleDebugParams
+struct FWheeledVehicleDebugParams
 {
 	bool ShowWheelCollisionNormal = false;
 	bool ShowSuspensionRaycasts = false;
@@ -47,7 +47,7 @@ struct CHAOSVEHICLES_API FWheeledVehicleDebugParams
  * Advance through pages using p.Vehicles.NextDebugPage | p.Vehicles.PrevDebugPage which can be hooked
  * up to the keyboard or a controller in blueprint using execCommand
  */
-enum CHAOSVEHICLES_API EDebugPages : uint8
+enum EDebugPages : uint8
 {
 	BasicPage = 0,
 	PerformancePage,

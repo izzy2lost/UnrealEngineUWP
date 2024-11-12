@@ -5,6 +5,9 @@
 #include "CoreMinimal.h"
 #include "ReferencePose.h"
 #include "LODPose.h"
+#include "Animation/AnimCurveTypes.h"
+#include "Animation/AttributesRuntime.h"
+
 #include "AnimNext_LODPose.generated.h"
 
 USTRUCT(BlueprintType, meta = (DisplayName = "ReferencePose"))
@@ -27,16 +30,13 @@ struct FAnimNextGraphLODPose
 {
 	GENERATED_BODY()
 
-	FAnimNextGraphLODPose() = default;
-
-	explicit FAnimNextGraphLODPose(const UE::AnimNext::FLODPoseHeap& InLODPose)
-		: LODPose(InLODPose)
-	{
-	}
-	explicit FAnimNextGraphLODPose(UE::AnimNext::FLODPoseHeap&& InLODPose)
-		: LODPose(MoveTemp(InLODPose))
-	{
-	}
-
+	// Joint transforms
 	UE::AnimNext::FLODPoseHeap LODPose;
+
+	// Float curves
+	FBlendedHeapCurve Curves;
+
+	// Attributes
+	// Note that attribute bone indices are LOD bone indices matching the LOD pose
+	UE::Anim::FHeapAttributeContainer Attributes;
 };

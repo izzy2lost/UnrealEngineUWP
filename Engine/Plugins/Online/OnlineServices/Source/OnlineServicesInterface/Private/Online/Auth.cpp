@@ -49,9 +49,9 @@ namespace AccountAttributeData
 const FSchemaAttributeId DisplayName = TEXT("DisplayName");
 }
 
-const TCHAR* LexToString(ELoginStatus Status)
+const TCHAR* LexToString(ELoginStatus Value)
 {
-	switch (Status)
+	switch (Value)
 	{
 	case ELoginStatus::UsingLocalProfile:	return TEXT("UsingLocalProfile");
 	case ELoginStatus::LoggedIn:			return TEXT("LoggedIn");
@@ -61,34 +61,28 @@ const TCHAR* LexToString(ELoginStatus Status)
 	}
 }
 
-void LexFromString(ELoginStatus& OutStatus, const TCHAR* InStr)
+bool LexTryParseString(ELoginStatus& OutValue, const TCHAR* InStr)
 {
-	if (FCString::Stricmp(InStr, TEXT("LoggedIn")) == 0)
+#define ENUM_CASE_FROM_STRING(Enum) if (FCString::Stricmp(InStr, TEXT(#Enum)) == 0) { OutValue = ELoginStatus::Enum; return true; }
+	ENUM_CASE_FROM_STRING(LoggedIn);
+	ENUM_CASE_FROM_STRING(UsingLocalProfile);
+	ENUM_CASE_FROM_STRING(LoggedInReducedFunctionality);
+	ENUM_CASE_FROM_STRING(NotLoggedIn);
+#undef ENUM_CASE_FROM_STRING
+	return false;
+}
+
+void LexFromString(ELoginStatus& OutValue, const TCHAR* InStr)
+{
+	if (!ensureAlwaysMsgf(LexTryParseString(OutValue, InStr), TEXT("Unable to parse ELoginStatus value: %s"), InStr))
 	{
-		OutStatus = ELoginStatus::LoggedIn;
-	}
-	else if (FCString::Stricmp(InStr, TEXT("UsingLocalProfile")) == 0)
-	{
-		OutStatus = ELoginStatus::UsingLocalProfile;
-	}
-	else if (FCString::Stricmp(InStr, TEXT("LoggedInReducedFunctionality")) == 0)
-	{
-		OutStatus = ELoginStatus::LoggedInReducedFunctionality;
-	}
-	else if (FCString::Stricmp(InStr, TEXT("NotLoggedIn")) == 0)
-	{
-		OutStatus = ELoginStatus::NotLoggedIn;
-	}
-	else
-	{
-		checkNoEntry();
-		OutStatus = ELoginStatus::NotLoggedIn;
+		OutValue = ELoginStatus::NotLoggedIn;
 	}
 }
 
-const TCHAR* LexToString(ERemoteAuthTicketAudience Audience)
+const TCHAR* LexToString(ERemoteAuthTicketAudience Value)
 {
-	switch (Audience)
+	switch (Value)
 	{
 	case ERemoteAuthTicketAudience::DedicatedServer:	return TEXT("DedicatedServer");
 	default:											checkNoEntry(); // Intentional fallthrough
@@ -96,26 +90,26 @@ const TCHAR* LexToString(ERemoteAuthTicketAudience Audience)
 	}
 }
 
-void LexFromString(ERemoteAuthTicketAudience& OutAudience, const TCHAR* InStr)
+bool LexTryParseString(ERemoteAuthTicketAudience& OutValue, const TCHAR* InStr)
 {
-	if (FCString::Stricmp(InStr, TEXT("Peer")) == 0)
+#define ENUM_CASE_FROM_STRING(Enum) if (FCString::Stricmp(InStr, TEXT(#Enum)) == 0) { OutValue = ERemoteAuthTicketAudience::Enum; return true; }
+	ENUM_CASE_FROM_STRING(Peer);
+	ENUM_CASE_FROM_STRING(DedicatedServer);
+#undef ENUM_CASE_FROM_STRING
+	return false;
+}
+
+void LexFromString(ERemoteAuthTicketAudience& OutValue, const TCHAR* InStr)
+{
+	if (!ensureAlwaysMsgf(LexTryParseString(OutValue, InStr), TEXT("Unable to parse EExternalAuthTokenMethod value: %s"), InStr))
 	{
-		OutAudience = ERemoteAuthTicketAudience::Peer;
-	}
-	else if (FCString::Stricmp(InStr, TEXT("DedicatedServer")) == 0)
-	{
-		OutAudience = ERemoteAuthTicketAudience::DedicatedServer;
-	}
-	else
-	{
-		checkNoEntry();
-		OutAudience = ERemoteAuthTicketAudience::Peer;
+		OutValue = ERemoteAuthTicketAudience::Peer;
 	}
 }
 
-const TCHAR* LexToString(EExternalAuthTokenMethod Method)
+const TCHAR* LexToString(EExternalAuthTokenMethod Value)
 {
-	switch (Method)
+	switch (Value)
 	{
 	case EExternalAuthTokenMethod::Primary:		return TEXT("Primary");
 	default:									checkNoEntry(); // Intentional fallthrough
@@ -123,20 +117,20 @@ const TCHAR* LexToString(EExternalAuthTokenMethod Method)
 	}
 }
 
-void LexFromString(EExternalAuthTokenMethod& OutMethod, const TCHAR* InStr)
+bool LexTryParseString(EExternalAuthTokenMethod& OutValue, const TCHAR* InStr)
 {
-	if (FCString::Stricmp(InStr, TEXT("Primary")) == 0)
+#define ENUM_CASE_FROM_STRING(Enum) if (FCString::Stricmp(InStr, TEXT(#Enum)) == 0) { OutValue = EExternalAuthTokenMethod::Enum; return true; }
+	ENUM_CASE_FROM_STRING(Primary);
+	ENUM_CASE_FROM_STRING(Secondary);
+#undef ENUM_CASE_FROM_STRING
+	return false;
+}
+
+void LexFromString(EExternalAuthTokenMethod& OutValue, const TCHAR* InStr)
+{
+	if (!ensureAlwaysMsgf(LexTryParseString(OutValue, InStr), TEXT("Unable to parse EExternalAuthTokenMethod value: %s"), InStr))
 	{
-		OutMethod = EExternalAuthTokenMethod::Primary;
-	}
-	else if (FCString::Stricmp(InStr, TEXT("Secondary")) == 0)
-	{
-		OutMethod = EExternalAuthTokenMethod::Secondary;
-	}
-	else
-	{
-		checkNoEntry();
-		OutMethod = EExternalAuthTokenMethod::Primary;
+		OutValue = EExternalAuthTokenMethod::Primary;
 	}
 }
 

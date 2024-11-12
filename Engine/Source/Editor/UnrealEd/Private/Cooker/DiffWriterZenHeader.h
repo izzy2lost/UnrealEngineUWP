@@ -71,6 +71,14 @@ public:
 		const FZenHeaderIndexIntoExportMap& DestExport);
 	FString ConvertItemToText(const FZenHeaderIndexIntoExportMap& Id);
 
+	bool IsExportBundlesIdentical(FDiffWriterZenHeader& DestContext);
+	bool IsExportBundleIdentical(FDiffWriterZenHeader& DestContext, int32 Index);
+	FString ConvertExportBundleToText(int32 Index);
+
+	bool IsDependencyBundlesIdentical(FDiffWriterZenHeader& DestContext);
+	bool IsDependencyBundleIdentical(FDiffWriterZenHeader& DestContext, int32 Index);
+	FString ConvertDependencyBundleToText(int32 Index);
+
 	void LogMessage(ELogVerbosity::Type Verbosity, FStringView Message);
 
 private:

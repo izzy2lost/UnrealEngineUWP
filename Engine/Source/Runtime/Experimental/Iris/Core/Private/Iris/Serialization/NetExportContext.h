@@ -6,7 +6,7 @@
 #include "Containers/Array.h"
 #include "Containers/Set.h"
 #include "Iris/ReplicationSystem/NetRefHandle.h"
-#include "Iris/ReplicationSystem/NetToken.h"
+#include "Net/Core/NetToken/NetToken.h"
 #include "Iris/Serialization/NetSerializationContext.h"
 #include "Iris/Core/NetObjectReference.h"
 
@@ -19,6 +19,7 @@ public:
 	typedef TArray<FNetRefHandle, TInlineAllocator<32>> FExportsArray;
 	typedef TArray<FNetToken, TInlineAllocator<32>> FNetTokenExportsArray;
 	typedef TArray<FNetObjectReference, TInlineAllocator<32>> FPendingExportArray;
+	typedef TArray<FNetToken, TInlineAllocator<32>> FNetTokenPendingExportArray;
 
 	struct FAcknowledgedExports
 	{
@@ -33,12 +34,16 @@ public:
 			HandlesExportedInCurrentBatch.Empty();
 			NetTokensExportedInCurrentBatch.Empty();
 			ReferencesPendingExportInCurrentBatch.Empty();
+			NetTokensPendingExportInCurrentBatch.Empty();
 		}
+
+		bool HasPendingExports() const { return (ReferencesPendingExportInCurrentBatch.Num() > 0) || (NetTokensPendingExportInCurrentBatch.Num() > 0); }
 
 		// Exports in the current batch
 		FExportsArray HandlesExportedInCurrentBatch;
 		FNetTokenExportsArray NetTokensExportedInCurrentBatch;
 		FPendingExportArray ReferencesPendingExportInCurrentBatch;
+		FNetTokenPendingExportArray NetTokensPendingExportInCurrentBatch;
 	};
 
 public:
@@ -57,14 +62,24 @@ public:
 	// Add a Handle to the current export batch
 	void AddExported(FNetToken Token);
 
-	// Add a reference to the current pending exports list.
+	// Add a reference to the current pending exports arr.
 	void AddPendingExport(const FNetObjectReference& Ref);
+
+	// Add a NetToken to the current pending export array
+	void AddPendingExport(FNetToken Token);
+
+	// Add NetTokens to the current pending export array
+	void AddPendingExports(TArrayView<const FNetToken> NetTokens);
 
 	// Returns true if the Reference is in PendingExports array
 	bool IsPendingExport(const FNetObjectReference& Ref) const;
 
-	// Clear the list of reference pending exports
-	void ClearPendingExports() { BatchExports.ReferencesPendingExportInCurrentBatch.Empty(); }
+	// Clear the list of pending exports
+	void ClearPendingExports()
+	{ 
+		BatchExports.ReferencesPendingExportInCurrentBatch.Empty(); 
+		BatchExports.NetTokensPendingExportInCurrentBatch.Empty();
+	}
 
 	// Get current batch exports
 	const FNetExportContext::FBatchExports& GetBatchExports() const { return BatchExports; }
@@ -93,6 +108,7 @@ private:
 	int32 StartNumNetHandleExports;
 	int32 StartNumNetTokenExports;
 	int32 StartNumPendingExports;
+	int32 StartNumNetTokensPendingExports;
 };
 
 inline FNetExportRollbackScope::FNetExportRollbackScope(FNetSerializationContext& InContext)
@@ -103,6 +119,7 @@ inline FNetExportRollbackScope::FNetExportRollbackScope(FNetSerializationContext
 	StartNumNetHandleExports = ExportContext ? ExportContext->BatchExports.HandlesExportedInCurrentBatch.Num() : 0;
 	StartNumNetTokenExports = ExportContext ? ExportContext->BatchExports.NetTokensExportedInCurrentBatch.Num() : 0;
 	StartNumPendingExports = ExportContext ? ExportContext->BatchExports.ReferencesPendingExportInCurrentBatch.Num() : 0;
+	StartNumNetTokensPendingExports = ExportContext ? ExportContext->BatchExports.NetTokensPendingExportInCurrentBatch.Num() : 0;
 }
 
 inline void FNetExportRollbackScope::Rollback()
@@ -111,6 +128,7 @@ inline void FNetExportRollbackScope::Rollback()
 	{ 
 		ExportContext->BatchExports.HandlesExportedInCurrentBatch.SetNum(StartNumNetHandleExports);
 		ExportContext->BatchExports.NetTokensExportedInCurrentBatch.SetNum(StartNumNetTokenExports);
+		ExportContext->BatchExports.NetTokensPendingExportInCurrentBatch.SetNum(StartNumNetTokensPendingExports);
 		ExportContext->BatchExports.ReferencesPendingExportInCurrentBatch.SetNum(StartNumPendingExports);
 	}
 }
@@ -153,6 +171,19 @@ inline void FNetExportContext::AddExported(FNetToken Token)
 inline void FNetExportContext::AddPendingExport(const FNetObjectReference& Ref)
 {
 	BatchExports.ReferencesPendingExportInCurrentBatch.AddUnique(Ref);
+}
+
+inline void FNetExportContext::AddPendingExport(FNetToken NetToken)
+{
+	BatchExports.NetTokensPendingExportInCurrentBatch.AddUnique(NetToken);
+}
+
+inline void FNetExportContext::AddPendingExports(TArrayView<const FNetToken> NetTokens)
+{
+	for (const FNetToken& NetToken : NetTokens)
+	{
+		AddPendingExport(NetToken);
+	}
 }
 
 inline bool FNetExportContext::IsPendingExport(const FNetObjectReference& Ref) const

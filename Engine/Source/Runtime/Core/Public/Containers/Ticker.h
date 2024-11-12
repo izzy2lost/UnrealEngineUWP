@@ -53,7 +53,7 @@ public:
 	* @param InDelay Delay until next fire; 0 means "next frame"
 	* @param Function Function to execute. Should return true to fire after another InDelay time
 	*/
-	CORE_API FDelegateHandle AddTicker(const TCHAR * InName, float InDelay, TFunction<bool(float)> Function);
+	CORE_API FDelegateHandle AddTicker(const TCHAR* InName, float InDelay, TUniqueFunction<bool(float)>&& InFunction);
 
 	/**
 	 * Removes a previously added ticker delegate.
@@ -93,8 +93,8 @@ private:
 		double FireTime;
 		/** Delay that this delegate was scheduled with. Kept here so that if the delegate returns true, we will reschedule it. **/
 		float DelayTime;
-		/** Delegate to fire **/
-		FTickerDelegate Delegate;
+		/** Function to fire **/
+		TUniqueFunction<bool(float)> Function;
 
 		static constexpr uint64 DefaultState = 0;
 		static constexpr uint64 RemovedState = 1;
@@ -111,6 +111,8 @@ private:
 		CORE_API FElement();
 		/** This is the ctor that the code will generally use. */
 		CORE_API FElement(double InFireTime, float InDelayTime, const FTickerDelegate& InDelegate);
+		/** This is the ctor that the code will generally use. */
+		CORE_API FElement(double InFireTime, float InDelayTime, TUniqueFunction<bool(float)>&& InFunction);
 
 		/** Fire the delegate if it is fireable **/
 		CORE_API bool Fire(float DeltaTime);
@@ -123,7 +125,7 @@ private:
 	TMpscQueue<FElementPtr> AddedElements;
 
 	/** Current time of the ticker **/
-	double CurrentTime{ 0.0 };
+	std::atomic<double> CurrentTime{ 0.0 };
 	/** Future delegates to fire **/
 	TArray<FElementPtr> Elements;
 };

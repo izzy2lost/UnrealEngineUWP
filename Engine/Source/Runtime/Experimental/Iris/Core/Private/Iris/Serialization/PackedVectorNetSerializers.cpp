@@ -6,6 +6,7 @@
 #include "Iris/Serialization/NetBitStreamWriter.h"
 #include "Iris/Core/BitTwiddling.h"
 #include "Math/Vector.h"
+#include "Logging/LogMacros.h"
 
 namespace UE::Net::Private
 {
@@ -242,9 +243,8 @@ void FPackedVectorNetSerializerBase::Deserialize(uint32 ScaleBitCount, FNetSeria
 			memcpy(&Vector, &TempValue.X, 3U*sizeof(double)); //-V512
 			if (Vector.ContainsNaN())
 			{
-				// While we could detect this at send time it's very likely that a NaN or infinite value
-				// indicates something is very wrong with the simulation and that clients are
-				// better off being disconnected so they can join another game.
+				// While we detect and zero out nan data at quantize time if we get bad data here it
+				// indicates serialization issues and client should disconnect.
 				Context.SetError(GNetError_InvalidValue);
 				return;
 			}
@@ -260,9 +260,8 @@ void FPackedVectorNetSerializerBase::Deserialize(uint32 ScaleBitCount, FNetSeria
 			memcpy(&Vector, &Components, sizeof(Components));
 			if (Vector.ContainsNaN())
 			{
-				// While we could detect this at send time it's very likely that a NaN or infinite value
-				// indicates something is very wrong with the simulation and that clients are
-				// better off being disconnected so they can join another game.
+				// While we detect and zero out nan data at quantize time if we get bad data here it
+				// indicates serialization issues and client should disconnect.
 				Context.SetError(GNetError_InvalidValue);
 				return;
 			}
@@ -521,9 +520,8 @@ void FPackedVectorNetSerializerBase::DeserializeDelta(uint32 ScaleBitCount, FNet
 			memcpy(&Vector, &TempValue.X, 3U*sizeof(double)); //-V512
 			if (Vector.ContainsNaN())
 			{
-				// While we could detect this at send time it's very likely that a NaN or infinite value
-				// indicates something is very wrong with the simulation and that clients are
-				// better off being disconnected so they can join another game.
+				// While we detect and zero out nan data at quantize time if we get bad data here it
+				// indicates serialization issues and client should disconnect.
 				Context.SetError(GNetError_InvalidValue);
 				return;
 			}
@@ -562,9 +560,8 @@ void FPackedVectorNetSerializerBase::DeserializeDelta(uint32 ScaleBitCount, FNet
 			memcpy(&Vector, &Components, sizeof(Components));
 			if (Vector.ContainsNaN())
 			{
-				// While we could detect this at send time it's very likely that a NaN or infinite value
-				// indicates something is very wrong with the simulation and that clients are
-				// better off being disconnected so they can join another game.
+				// While we detect and zero out nan data at quantize time if we get bad data here it
+				// indicates serialization issues and client should disconnect.
 				Context.SetError(GNetError_InvalidValue);
 				return;
 			}
@@ -596,6 +593,19 @@ void FPackedVectorNetSerializerBase::Quantize(uint32 ScaleBitCount, FNetSerializ
 
 	const SourceType& Source = *reinterpret_cast<const SourceType*>(Args.Source);
 	QuantizedType& Target = *reinterpret_cast<QuantizedType*>(Args.Target);
+
+	if (Source.ContainsNaN())
+	{
+		logOrEnsureNanError(TEXT("%s"), TEXT("PackedVectorNetSerializeBase::Quantize Value isn't finite. Clearing for safety."));		
+
+		constexpr uint32 ComponentBitCountForZeroValue = 1U;
+
+		QuantizedType TempValue = {};
+		TempValue.ComponentBitCountAndExtraInfo = IsScaledValueMask | ComponentBitCountForZeroValue;
+		Target = TempValue;
+
+		return;
+	}
 
 	const ScalarType Scale = ScalarType(IntType(1) << ScaleBitCount);
 	

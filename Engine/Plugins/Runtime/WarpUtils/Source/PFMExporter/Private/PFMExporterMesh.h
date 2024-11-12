@@ -27,14 +27,14 @@ public:
 		return FIntRect(FIntPoint(0, 0), FIntPoint(DimWidth, DimHeight));
 	}
 
-	inline FTexture2DRHIRef GetTargetableTexture() const
+	inline FTextureRHIRef GetTargetableTexture() const
 	{
 		return RenderTargetTexture;
 	}
 
 private:
-	FTexture2DRHIRef RenderTargetTexture;
-	FTexture2DRHIRef ShaderResourceTexture;
+	FTextureRHIRef RenderTargetTexture;
+	FTextureRHIRef ShaderResourceTexture;
 };
 
 

@@ -2,7 +2,7 @@
 #pragma once
 
 #ifdef CADKERNEL_DEV
-#include "CADKernel/Core/Types.h"
+#include "Core/Types.h"
 #else
 #include "CoreMinimal.h"
 #endif
@@ -60,6 +60,7 @@ public:
 	}
 
 	bool InitializeKernel(const TCHAR* = TEXT(""));
+	const TCHAR* GetVersion();
 
 private:
 

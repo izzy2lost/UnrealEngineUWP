@@ -101,7 +101,7 @@ namespace GitDependencies
 			NormalizeArguments(DefaultArgsList);
 
 			// Parse the parameters
-			int NumThreads = ParseIntParameter(ArgsList, DefaultArgsList, "-threads=", 4);
+			int NumThreads = ParseIntParameter(ArgsList, DefaultArgsList, "-threads=", Math.Max(4, (int)(Environment.ProcessorCount * .25)));
 			int MaxRetries = ParseIntParameter(ArgsList, DefaultArgsList, "-max-retries=", 4);
 			bool bDryRun = ParseSwitch(ArgsList, "-dry-run");
 			bool bHelp = ParseSwitch(ArgsList, "-help");

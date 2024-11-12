@@ -6,6 +6,7 @@
 #include "Engine/World.h"
 #include "NavigationSystem.h"
 #include "Engine/Engine.h"
+#include "Distance/DistSegment2AxisAlignedBox2.h"
 #include "DrawDebugHelpers.h"
 #include "Misc/ConfigCacheIni.h"
 #include "EngineUtils.h"
@@ -22,6 +23,8 @@
 #include "WorldPartition/NavigationData/NavigationDataChunkActor.h"
 #include "Math/Color.h"
 #include "NavigationDataHandler.h"
+#include "BaseGeneratedNavLinksProxy.h"
+#include "Misc/TransactionallySafeScopeLock.h"
 
 #if WITH_EDITOR
 #include "EditorSupportDelegates.h"
@@ -421,69 +424,6 @@ namespace FNavMeshConfig
 
 #endif // WITH_RECAST
 
-// Deprecated
-FRecastNavMeshGenerationProperties::FRecastNavMeshGenerationProperties()
-{
-	TilePoolSize = 1024;
-	TileSizeUU = 988.f;
-	CellSize = 19;
-	CellHeight = 10;
-	AgentRadius = 34.f;
-	AgentHeight = 144.f;
-	AgentMaxSlope = 44.f;
-	AgentMaxStepHeight = 35.f;
-	MinRegionArea = 0.f;
-	MergeRegionSize = 400.f;
-	MaxSimplificationError = 1.3f;	// from RecastDemo
-	TileNumberHardLimit = 1 << 20;
-	RegionPartitioning = ERecastPartitioning::Watershed;
-	LayerPartitioning = ERecastPartitioning::Watershed;
-	RegionChunkSplits = 2;
-	LayerChunkSplits = 2;
-	bSortNavigationAreasByCost = true;
-	bPerformVoxelFiltering = true;
-	bMarkLowHeightAreas = false;
-	bUseExtraTopCellWhenMarkingAreas = true;
-	bFilterLowSpanSequences = false;
-	bFilterLowSpanFromTileCache = false;
-	bFixedTilePoolSize = false;
-	bIsWorldPartitioned = false;
-}
-
-#if WITH_RECAST
-
-// Deprecated
-FRecastNavMeshGenerationProperties::FRecastNavMeshGenerationProperties(const ARecastNavMesh& RecastNavMesh)
-{
-	TilePoolSize = RecastNavMesh.TilePoolSize;
-	TileSizeUU = RecastNavMesh.TileSizeUU;
-	
-	CellSize = RecastNavMesh.GetCellSize(ENavigationDataResolution::Default);
-	CellHeight = RecastNavMesh.GetCellHeight(ENavigationDataResolution::Default);
-	AgentRadius = RecastNavMesh.AgentRadius;
-	AgentHeight = RecastNavMesh.AgentHeight;
-	AgentMaxSlope = RecastNavMesh.AgentMaxSlope;
-	AgentMaxStepHeight = RecastNavMesh.GetAgentMaxStepHeight(ENavigationDataResolution::Default); //FRecastNavMeshGenerationProperties is getting deprecated 
-	MinRegionArea = RecastNavMesh.MinRegionArea;
-	MergeRegionSize = RecastNavMesh.MergeRegionSize;
-	MaxSimplificationError = RecastNavMesh.MaxSimplificationError;
-	TileNumberHardLimit = RecastNavMesh.TileNumberHardLimit;
-	RegionPartitioning = RecastNavMesh.RegionPartitioning;
-	LayerPartitioning = RecastNavMesh.LayerPartitioning;
-	RegionChunkSplits = RecastNavMesh.RegionChunkSplits;
-	LayerChunkSplits = RecastNavMesh.LayerChunkSplits;
-	bSortNavigationAreasByCost = RecastNavMesh.bSortNavigationAreasByCost;
-	bPerformVoxelFiltering = RecastNavMesh.bPerformVoxelFiltering;
-	bMarkLowHeightAreas = RecastNavMesh.bMarkLowHeightAreas;
-	bUseExtraTopCellWhenMarkingAreas = RecastNavMesh.bUseExtraTopCellWhenMarkingAreas;
-	bFilterLowSpanSequences = RecastNavMesh.bFilterLowSpanSequences;
-	bFilterLowSpanFromTileCache = RecastNavMesh.bFilterLowSpanFromTileCache;
-	bFixedTilePoolSize = RecastNavMesh.bFixedTilePoolSize;
-	bIsWorldPartitioned = RecastNavMesh.bIsWorldPartitioned;
-}
-
-#endif // WITH_RECAST
-
 FRecastNavMeshTileGenerationDebug::FRecastNavMeshTileGenerationDebug()
 {
 	bEnabled = false;
@@ -497,6 +437,7 @@ FRecastNavMeshTileGenerationDebug::FRecastNavMeshTileGenerationDebug()
 	bHeightfieldBounds = false;
 	bCompactHeightfield = false;
 	bCompactHeightfieldEroded = false;
+	bHeightFieldLayers = false;
 	bCompactHeightfieldRegions = false;
 	bCompactHeightfieldDistances = false;
 	bTileCacheLayerAreas = false;
@@ -505,6 +446,8 @@ FRecastNavMeshTileGenerationDebug::FRecastNavMeshTileGenerationDebug()
 	bTileCacheContours = false;
 	bTileCachePolyMesh = false;
 	bTileCacheDetailMesh = false;
+	LinkGenerationDebugFlags = 0;
+	LinkGenerationSelectedEdge = -1;
 }
 
 #if WITH_RECAST
@@ -528,6 +471,7 @@ ARecastNavMesh::ARecastNavMesh(const FObjectInitializer& ObjectInitializer)
 	, DefaultMaxHierarchicalSearchNodes(RECAST_MAX_SEARCH_NODES)
 	, bSortNavigationAreasByCost(true)
 	, bIsWorldPartitioned(false)
+	, bGenerateNavLinks(false)
 	, bPerformVoxelFiltering(true)	
 	, bMarkLowHeightAreas(false)
 	, bUseExtraTopCellWhenMarkingAreas(true)
@@ -569,7 +513,7 @@ ARecastNavMesh::ARecastNavMesh(const FObjectInitializer& ObjectInitializer)
 		TestPathImplementation = TestPath;
 		TestHierarchicalPathImplementation = TestHierarchicalPath;
 
-		RaycastImplementation = NavMeshRaycast;
+		RaycastImplementationWithAdditionalResults = NavMeshRaycast;
 
 		RecastNavMeshImpl = new FPImplRecastNavMesh(this);
 	
@@ -648,6 +592,7 @@ void ARecastNavMesh::LoadBeforeGeneratorRebuild()
 void ARecastNavMesh::CleanUp()
 {
 	Super::CleanUp();
+	bHasNoTileData = false;
 	if (NavDataGenerator.IsValid())
 	{
 		NavDataGenerator->CancelBuild();
@@ -675,6 +620,7 @@ void ARecastNavMesh::PostLoad()
 		}
 	}
 
+#if WITH_EDITORONLY_DATA
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// If needed, initialize from deprecated value.
 	if (NavMeshVersion < NAVMESHVER_TILE_RESOLUTIONS)
@@ -703,7 +649,8 @@ void ARecastNavMesh::PostLoad()
 		}
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	
+#endif // WITH_EDITORONLY_DATA
+
 	for (uint8 Index = 0; Index < (uint8)ENavigationDataResolution::MAX; Index++)
 	{
 		UE_CLOG(TileSizeUU < GetCellSize((ENavigationDataResolution)Index), LogNavigation, Error, TEXT("%s: TileSizeUU (%f) being less than CellSize (%f) is an invalid case and will cause navmesh generation issues.")
@@ -749,6 +696,61 @@ void ARecastNavMesh::CheckToDiscardSubLevelNavData(const UNavigationSystemBase& 
 	}
 }
 
+void ARecastNavMesh::RegisterGeneratedLinksProxy()
+{
+	if (!NavLinkJumpDownConfig.bLinkProxyRegistered && NavLinkJumpDownConfig.LinkProxy)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+			if (NavSys)
+			{
+				UE_LOG(LogNavLink, Log, TEXT("RegisterLinkProxy id: %llu ptr: 0x%p"), NavLinkJumpDownConfig.LinkProxyId.GetId(), NavLinkJumpDownConfig.LinkProxy.Get());
+
+				NavSys->RegisterCustomLink(*NavLinkJumpDownConfig.LinkProxy);
+				NavLinkJumpDownConfig.bLinkProxyRegistered = true;
+			}
+		}
+	}
+}
+
+void ARecastNavMesh::UnregisterGeneratedLinksProxy()
+{
+	if (NavLinkJumpDownConfig.bLinkProxyRegistered && NavLinkJumpDownConfig.LinkProxy)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+			if (NavSys)
+			{
+				UE_LOG(LogNavLink, Log, TEXT("UnregisterLinkProxy id: %llu ptr: 0x%p"), NavLinkJumpDownConfig.LinkProxyId.GetId(), NavLinkJumpDownConfig.LinkProxy.Get());
+
+				NavSys->UnregisterCustomLink(*NavLinkJumpDownConfig.LinkProxy);
+				NavLinkJumpDownConfig.bLinkProxyRegistered = false;
+			}
+		}
+	}
+}
+
+void ARecastNavMesh::CreateAndRegisterJumpDownLinksProxy(const FNavLinkId LinkProxyId /*= FNavLinkId::GenerateUniqueId()*/)
+{
+	if (!ensureMsgf(NavLinkJumpDownConfig.LinkProxy == nullptr, TEXT("LinkProxy is expected to have been cleanup before creating a new one. A new proxy was not created.")))
+	{
+		return;
+	}
+	
+	UBaseGeneratedNavLinksProxy* LinkProxy = NewObject<UBaseGeneratedNavLinksProxy>(this, NavLinkJumpDownConfig.LinkProxyClass);
+	if (LinkProxy)
+	{
+		NavLinkJumpDownConfig.LinkProxyId = LinkProxyId;
+		LinkProxy->UpdateLinkId(NavLinkJumpDownConfig.LinkProxyId);
+		LinkProxy->SetOwner(this);
+		NavLinkJumpDownConfig.LinkProxy = LinkProxy;
+
+		RegisterGeneratedLinksProxy();
+	}
+}
+
 void ARecastNavMesh::PostRegisterAllComponents()
 {
 	Super::PostRegisterAllComponents();
@@ -757,6 +759,22 @@ void ARecastNavMesh::PostRegisterAllComponents()
 	{
 		ApplyWorldOffset(GetActorLocation(), /*unused*/false);
 	}
+
+	// Create and register link proxy if enabled.
+	if (NavLinkJumpDownConfig.bEnabled && NavLinkJumpDownConfig.LinkProxyClass.Get() != nullptr)
+	{
+		// If it's the first time, LinkProxyId will have the default invalid value so we need to generate an Id.
+		const FNavLinkId Id = NavLinkJumpDownConfig.LinkProxyId.IsValid() ? NavLinkJumpDownConfig.LinkProxyId :  FNavLinkId::GenerateUniqueId(); 
+		CreateAndRegisterJumpDownLinksProxy(Id);
+	}
+}
+
+void ARecastNavMesh::PostUnregisterAllComponents()
+{
+	Super::PostUnregisterAllComponents();
+
+	UnregisterGeneratedLinksProxy();
+	NavLinkJumpDownConfig.LinkProxy = nullptr;
 }
 
 void ARecastNavMesh::PostInitProperties()
@@ -995,7 +1013,8 @@ void ARecastNavMesh::SortAreasForGenerator(TArray<FRecastAreaNavModifierElement>
 			const bool bIsBReplacing = (B.GetAreaClassToReplace() != NULL);
 			if (bIsAReplacing != bIsBReplacing)
 			{
-				return bIsAReplacing;
+				// We want the "Replace" modifiers last because we want them to replace any NavArea from the "Apply" modifiers.
+				return !bIsAReplacing;
 			}
 
 			if (A.Cost != B.Cost)
@@ -1197,6 +1216,10 @@ void ARecastNavMesh::SetConfig(const FNavDataConfig& Src)
 {
 	// Step 1: set NavDataConfig
 	NavDataConfig = Src;
+
+	// Set the NavAgentProperties that are being used to configure navmmesh
+	SetNavAgentProperties(Src);
+
 	if (!Src.HasStepHeightOverride())
 	{
 		// If there is no override, use the navmesh value.
@@ -1256,20 +1279,76 @@ FBox ARecastNavMesh::GetNavMeshBounds() const
 	return Bounds;
 }
 
+// Deprecated
 FBox ARecastNavMesh::GetNavMeshTileBounds(int32 TileIndex) const
 {
-	FBox Bounds(ForceInit);
-	if (RecastNavMeshImpl)
+	if (RecastNavMeshImpl && (TileIndex != INDEX_NONE))
 	{
-		Bounds = RecastNavMeshImpl->GetNavMeshTileBounds(TileIndex);
+		TArray<FNavTileRef> TileRefs;
+		FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, { static_cast<uint32>(TileIndex) }, TileRefs);
+		return GetNavMeshTileBounds(TileRefs[0]);
+	}
+
+	return FBox(ForceInit);
+}
+
+FBox ARecastNavMesh::GetNavMeshTileBounds(FNavTileRef TileRef) const
+{
+	FBox Bounds(ForceInit);
+
+	if (HasValidNavmesh() && TileRef.IsValid())
+	{
+		// workaround for privacy issue in the recast API
+		dtNavMesh const* const ConstRecastNavMesh = RecastNavMeshImpl->DetourNavMesh;
+
+		dtMeshTile const* const Tile = ConstRecastNavMesh->getTileByRef(static_cast<dtTileRef>(TileRef));
+		if (Tile)
+		{
+			dtMeshHeader const* const Header = Tile->header;
+			if (Header)
+			{
+				Bounds = Recast2UnrealBox(Header->bmin, Header->bmax);
+			}
+		}
 	}
 
 	return Bounds;
 }
 
+// Deprecated
 bool ARecastNavMesh::GetNavMeshTileXY(int32 TileIndex, int32& OutX, int32& OutY, int32& OutLayer) const
 {
-	return RecastNavMeshImpl && RecastNavMeshImpl->GetNavMeshTileXY(TileIndex, OutX, OutY, OutLayer);
+	if (RecastNavMeshImpl && (TileIndex != INDEX_NONE))
+	{
+		TArray<FNavTileRef> TileRefs;
+		FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, { static_cast<uint32>(TileIndex) }, TileRefs);
+		return GetNavMeshTileXY(TileRefs[0], OutX, OutY, OutLayer);
+	}
+	return false;
+}
+
+bool ARecastNavMesh::GetNavMeshTileXY(FNavTileRef TileRef, int32& OutX, int32& OutY, int32& OutLayer) const
+{
+	if (HasValidNavmesh() && TileRef.IsValid())
+	{
+		// workaround for privacy issue in the recast API
+		dtNavMesh const* const ConstRecastNavMesh = RecastNavMeshImpl->DetourNavMesh;
+
+		dtMeshTile const* const Tile = ConstRecastNavMesh->getTileByRef(static_cast<dtTileRef>(TileRef));
+		if (Tile)
+		{
+			dtMeshHeader const* const Header = Tile->header;
+			if (Header)
+			{
+				OutX = Header->x;
+				OutY = Header->y;
+				OutLayer = Header->layer;
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 bool ARecastNavMesh::GetNavMeshTileXY(const FVector& Point, int32& OutX, int32& OutY) const
@@ -1277,13 +1356,26 @@ bool ARecastNavMesh::GetNavMeshTileXY(const FVector& Point, int32& OutX, int32& 
 	return RecastNavMeshImpl && RecastNavMeshImpl->GetNavMeshTileXY(Point, OutX, OutY);
 }
 
+// Deprecated
 bool ARecastNavMesh::GetNavmeshTileResolution(int32 TileIndex, ENavigationDataResolution& OutResolution) const
+{
+	if (RecastNavMeshImpl && (TileIndex != INDEX_NONE))
+	{
+		TArray<FNavTileRef> TileRefs;
+		FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, { static_cast<uint32>(TileIndex) }, TileRefs);
+		return GetNavmeshTileResolution(TileRefs[0], OutResolution);
+	}
+
+	return false;
+}
+
+bool ARecastNavMesh::GetNavmeshTileResolution(FNavTileRef TileRef, ENavigationDataResolution& OutResolution) const
 {
 	if (RecastNavMeshImpl)
 	{
 		if (const dtNavMesh* const RecastNavMesh = RecastNavMeshImpl->DetourNavMesh)
 		{
-			if (const dtMeshTile* const Tile = RecastNavMesh->getTile(TileIndex))
+			if (const dtMeshTile* const Tile = RecastNavMesh->getTileByRef(static_cast<dtTileRef>(TileRef)))
 			{
 				if (const dtMeshHeader* const Header = Tile->header)
 				{
@@ -1311,17 +1403,115 @@ bool ARecastNavMesh::CheckTileIndicesInValidRange(const FVector& Point, bool& bO
 	return bValidMesh;
 }
 
+// Deprecated
 void ARecastNavMesh::GetNavMeshTilesAt(int32 TileX, int32 TileY, TArray<int32>& Indices) const
 {
 	if (RecastNavMeshImpl)
 	{
-		RecastNavMeshImpl->GetNavMeshTilesAt(TileX, TileY, Indices);
+		TArray<FNavTileRef> Refs;
+		GetNavMeshTilesAt(TileX, TileY, Refs);
+
+		TArray<uint32> UnsignedIndices;
+		FNavTileRef::DeprecatedGetTileIdsFromNavTileRefs(RecastNavMeshImpl, Refs, UnsignedIndices);
+
+		Indices.Append(UnsignedIndices);
 	}
 }
 
+void ARecastNavMesh::GetNavMeshTilesAt(int32 TileX, int32 TileY, TArray<FNavTileRef>& OutRefs) const
+{	
+	if (HasValidNavmesh())
+	{
+		// workaround for privacy issue in the recast API
+		dtNavMesh const* const ConstRecastNavMesh = RecastNavMeshImpl->DetourNavMesh;
+
+		const int32 MaxTiles = ConstRecastNavMesh->getTileCountAt(TileX, TileY);
+		TArray<const dtMeshTile*> Tiles;
+		Tiles.AddZeroed(MaxTiles);
+
+		const int32 NumTiles = ConstRecastNavMesh->getTilesAt(TileX, TileY, Tiles.GetData(), MaxTiles);
+		for (int32 i = 0; i < NumTiles; i++)
+		{
+			dtTileRef TileRef = ConstRecastNavMesh->getTileRef(Tiles[i]);
+			if (TileRef)
+			{
+				OutRefs.Add(FNavTileRef(TileRef));
+			}
+		}
+	}
+}
+
+void ARecastNavMesh::GetAllNavMeshTiles(TArray<FNavTileRef>& OutRefs) const
+{
+	if (HasValidNavmesh())
+	{
+		// workaround for privacy issue in the recast API
+		const dtNavMesh* const ConstDetourNavMesh = RecastNavMeshImpl->DetourNavMesh;
+
+		const int32 TileCount = ConstDetourNavMesh->getMaxTiles();
+
+		OutRefs.Reserve(OutRefs.Num() + TileCount);
+		for (int32 TileIndex = 0; TileIndex < TileCount; ++TileIndex)
+		{
+			if (const dtMeshTile* const Tile = ConstDetourNavMesh->getTile(TileIndex))
+			{
+				if (const dtTileRef TileRef = ConstDetourNavMesh->getTileRef(Tile))
+				{
+					OutRefs.Add(FNavTileRef(TileRef));
+				}
+			}
+		}
+	}
+}
+
+// Deprecated
 bool ARecastNavMesh::GetPolysInTile(int32 TileIndex, TArray<FNavPoly>& Polys) const
 {
-	return RecastNavMeshImpl && RecastNavMeshImpl->GetPolysInTile(TileIndex, Polys);
+	if (RecastNavMeshImpl && (TileIndex != INDEX_NONE))
+	{
+		TArray<FNavTileRef> TileRefs;
+		FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, { static_cast<uint32>(TileIndex) }, TileRefs);
+		return GetPolysInTile(TileRefs[0], Polys);
+	}
+
+	return false;
+}
+
+bool ARecastNavMesh::GetPolysInTile(FNavTileRef TileRef, TArray<FNavPoly>& Polys) const
+{
+	if (HasValidNavmesh() && TileRef.IsValid())
+	{
+		// workaround for privacy issue in the recast API
+		const dtNavMesh* const ConstDetourNavMesh = RecastNavMeshImpl->DetourNavMesh;
+
+		const dtMeshTile* Tile = ConstDetourNavMesh->getTileByRef(static_cast<dtTileRef>(TileRef));
+		const int32 MaxPolys = Tile && Tile->header ? Tile->header->offMeshBase : 0;
+		if (MaxPolys > 0)
+		{
+			// only ground type polys
+			int32 BaseIdx = Polys.Num();
+			Polys.AddZeroed(MaxPolys);
+
+			dtPoly* Poly = Tile->polys;
+			for (int32 i = 0; i < MaxPolys; i++, Poly++)
+			{
+				FVector PolyCenter(0);
+				for (int k = 0; k < Poly->vertCount; ++k)
+				{
+					PolyCenter += Recast2UnrealPoint(&Tile->verts[Poly->verts[k] * 3]);
+				}
+				PolyCenter /= Poly->vertCount;
+
+				FNavPoly& OutPoly = Polys[BaseIdx + i];
+				OutPoly.Ref = ConstDetourNavMesh->encodePolyId(Tile->salt, ConstDetourNavMesh->getTileIndex(Tile), i);
+				OutPoly.Center = PolyCenter;
+			}
+		}
+
+		return (MaxPolys > 0);
+	}
+
+	return false;
 }
 
 bool ARecastNavMesh::GetNavLinksInTile(const int32 TileIndex, TArray<FNavPoly>& Polys, const bool bIncludeLinksFromNeighborTiles) const
@@ -1611,7 +1801,7 @@ bool ARecastNavMesh::GetRandomPointInNavigableRadius(const FVector& Origin, floa
 				break;
 			}
 
-			Polys.RemoveAtSwap(RandomIndex, 1, EAllowShrinking::No);
+			Polys.RemoveAtSwap(RandomIndex, EAllowShrinking::No);
 		}
 	}
 
@@ -1909,7 +2099,8 @@ void ARecastNavMesh::BatchProjectPoints(TArray<FNavigationProjectionWork>& Workl
 bool ARecastNavMesh::GetPolysInBox(const FBox& Box, TArray<FNavPoly>& Polys, FSharedConstNavQueryFilter Filter, const UObject* InOwner) const
 {
 	// sanity check
-	if (RecastNavMeshImpl->GetRecastMesh() == NULL)
+	const dtNavMesh* NavMesh = GetRecastMesh();
+	if (NavMesh == nullptr)
 	{
 		return false;
 	}
@@ -1944,7 +2135,7 @@ bool ARecastNavMesh::GetPolysInBox(const FBox& Box, TArray<FNavPoly>& Polys, FSh
 			{
 				dtPoly const* Poly;
 				dtMeshTile const* Tile;
-				dtStatus Status = RecastNavMeshImpl->GetRecastMesh()->getTileAndPolyByRef(HitPolys[i], &Tile, &Poly);
+				dtStatus Status = NavMesh->getTileAndPolyByRef(HitPolys[i], &Tile, &Poly);
 				if (dtStatusSucceed(Status))
 				{
 					FVector PolyCenter(0);
@@ -1969,6 +2160,11 @@ bool ARecastNavMesh::GetPolysInBox(const FBox& Box, TArray<FNavPoly>& Polys, FSh
 
 bool ARecastNavMesh::FindEdges(const NavNodeRef CenterNodeRef, const FVector Center, const FVector::FReal Radius, const FSharedConstNavQueryFilter Filter, TArray<FNavigationWallEdge>& OutEdges) const
 {
+	if (HasValidNavmesh() == false)
+	{
+		return false;
+	}
+	
 	const FNavigationQueryFilter& FilterToUse = GetRightFilterRef(Filter);
 	INITIALIZE_NAVQUERY(NavQuery, FilterToUse.GetMaxSearchNodes());
 	const dtQueryFilter* QueryFilter = static_cast<const FRecastQueryFilter*>(FilterToUse.GetImplementation())->GetAsDetourQueryFilter();
@@ -1999,6 +2195,40 @@ bool ARecastNavMesh::FindEdges(const NavNodeRef CenterNodeRef, const FVector Cen
 		}
 
 		return true;
+	}
+
+	return false;
+}
+
+bool ARecastNavMesh::GetEdgesInTile(FNavTileRef TileRef, TArray<FNavigationWallEdge>& OutEdges) const
+{
+	if (HasValidNavmesh())
+	{
+		const dtNavMesh* const DetourNavMesh = RecastNavMeshImpl->GetRecastMesh();
+		if (const dtMeshTile* const Tile = DetourNavMesh->getTileByRef(static_cast<dtTileRef>(TileRef)))
+		{
+			const bool bGatherInternalEdges = false;
+			TArray<FVector> UNUSED_InternalEdgeVerts;
+
+			const bool bGatherExternalEdges = true;
+			TArray<FVector> ExternalEdgeVerts;
+			// Guessing that each detail tri in the tile has one external edge
+			ExternalEdgeVerts.Reserve(Tile->header->detailTriCount);
+
+			RecastNavMeshImpl->GetTilePolyEdges(*Tile, bGatherInternalEdges, bGatherExternalEdges, UNUSED_InternalEdgeVerts, ExternalEdgeVerts);
+
+			const int32 ExternalEdgeVertCount = ExternalEdgeVerts.Num();
+			if (ExternalEdgeVertCount > 0)
+			{
+				OutEdges.Reset(ExternalEdgeVertCount / 2);
+				for (int32 ExternalEdgeVertIndex = 0; ExternalEdgeVertIndex < ExternalEdgeVertCount; ExternalEdgeVertIndex += 2)
+				{
+					FNavigationWallEdge& Edge = OutEdges.AddDefaulted_GetRef();
+					Edge.Start = ExternalEdgeVerts[ExternalEdgeVertIndex];
+					Edge.End = ExternalEdgeVerts[ExternalEdgeVertIndex + 1];
+				}
+			}
+		}
 	}
 
 	return false;
@@ -2200,6 +2430,11 @@ bool ARecastNavMesh::GetRandomPointInPoly(NavNodeRef PolyID, FVector& OutPoint) 
 	return RecastNavMeshImpl && RecastNavMeshImpl->GetRandomPointInPoly(PolyID, OutPoint);
 }
 
+FVector::FReal ARecastNavMesh::GetPolySurfaceArea(NavNodeRef PolyID) const
+{
+	return RecastNavMeshImpl ? RecastNavMeshImpl->GetPolySurfaceArea(PolyID) : 0;
+}
+
 uint32 ARecastNavMesh::GetPolyAreaID(NavNodeRef PolyID) const
 {
 	uint32 AreaID = RECAST_DEFAULT_AREA;
@@ -2380,6 +2615,17 @@ bool ARecastNavMesh::GetPolyEdges(NavNodeRef PolyID, TArray<FNavigationPortalEdg
 	return bFound;
 }
 
+bool ARecastNavMesh::GetPolyWallSegments(NavNodeRef PolyID, FSharedConstNavQueryFilter Filter, const UObject* QueryOwner, TArray<FNavigationPortalEdge>& OutNeighbors) const
+{
+	bool bFound = false;
+	if (RecastNavMeshImpl)
+	{
+		bFound = RecastNavMeshImpl->GetPolyWallSegments(PolyID, GetRightFilterRef(Filter), QueryOwner, OutNeighbors);
+	}
+
+	return bFound;
+}
+
 bool ARecastNavMesh::GetClosestPointOnPoly(NavNodeRef PolyID, const FVector& TestPt, FVector& PointOnPoly) const
 {
 	return RecastNavMeshImpl && RecastNavMeshImpl->GetClosestPointOnPoly(PolyID, TestPt, PointOnPoly);
@@ -2414,16 +2660,27 @@ bool ARecastNavMesh::GetPolysWithinPathingDistance(FVector const& StartLoc, cons
 }
 
 // Deprecated
-void ARecastNavMesh::GetDebugGeometry(FRecastDebugGeometry& OutGeometry, int32 TileIndex) const
-{
-	GetDebugGeometryForTile(OutGeometry, TileIndex);
-}
-
 bool ARecastNavMesh::GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, int32 TileIndex) const
 {
 	if (RecastNavMeshImpl)
 	{
-		return RecastNavMeshImpl->GetDebugGeometryForTile(OutGeometry, TileIndex);
+		FNavTileRef TileRef;
+		if (TileIndex != INDEX_NONE)
+		{
+			TArray<FNavTileRef> TileRefs;
+			FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, { static_cast<uint32>(TileIndex) }, TileRefs);
+			TileRef = TileRefs[0];
+		}
+		return GetDebugGeometryForTile(OutGeometry, TileRef);
+	}
+	return true;
+}
+
+bool ARecastNavMesh::GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, FNavTileRef TileRef) const
+{
+	if (RecastNavMeshImpl)
+	{
+		return RecastNavMeshImpl->GetDebugGeometryForTile(OutGeometry, TileRef);
 	}
 	return true;
 }
@@ -2499,25 +2756,9 @@ void ARecastNavMesh::DrawDebugPathCorridor(NavNodeRef const* PathPolys, int32 Nu
 #endif // ENABLE_DRAW_DEBUG
 }
 
-// Deprecated
-void ARecastNavMesh::OnNavMeshTilesUpdated(const TArray<uint32>& ChangedTiles)
-{
-	TArray<FNavTileRef> ChangedTileRefs;
-	FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, ChangedTiles, ChangedTileRefs);
-	OnNavMeshTilesUpdated(ChangedTileRefs);
-}
-
 void ARecastNavMesh::OnNavMeshTilesUpdated(const TArray<FNavTileRef>& ChangedTiles)
 {
 	InvalidateAffectedPaths(ChangedTiles);
-}
-
-// Deprecated
-void ARecastNavMesh::InvalidateAffectedPaths(const TArray<uint32>& ChangedTiles)
-{
-	TArray<FNavTileRef> ChangedTileRefs;
-	FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, ChangedTiles, ChangedTileRefs);
-	InvalidateAffectedPaths(ChangedTileRefs);
 }
 
 void ARecastNavMesh::InvalidateAffectedPaths(const TArray<FNavTileRef>& ChangedTiles)
@@ -2541,7 +2782,7 @@ void ARecastNavMesh::InvalidateAffectedPaths(const TArray<FNavTileRef>& ChangedT
 	// before starting async queries task but protecting ActivePaths will make
 	// the system safer in case of future timing changes.
 	{
-		FScopeLock PathLock(&ActivePathsLock);
+		FTransactionallySafeScopeLock PathLock(&ActivePathsLock);
 
 		for (int32 PathIndex = PathsCount - 1; PathIndex >= 0; --PathIndex)
 		{
@@ -2549,7 +2790,7 @@ void ARecastNavMesh::InvalidateAffectedPaths(const TArray<FNavTileRef>& ChangedT
 			FNavPathSharedPtr SharedPath = WeakPathPtr->Pin();
 			if (WeakPathPtr->IsValid() == false)
 			{
-				ActivePaths.RemoveAtSwap(PathIndex, 1, EAllowShrinking::No);
+				ActivePaths.RemoveAtSwap(PathIndex, EAllowShrinking::No);
 			}
 			else
 			{
@@ -2572,7 +2813,7 @@ void ARecastNavMesh::InvalidateAffectedPaths(const TArray<FNavTileRef>& ChangedT
 					if (ChangedTiles.Contains(NavTileRef))
 					{
 						SharedPath->Invalidate();
-						ActivePaths.RemoveAtSwap(PathIndex, 1, EAllowShrinking::No);
+						ActivePaths.RemoveAtSwap(PathIndex, EAllowShrinking::No);
 						break;
 					}
 				}
@@ -2642,7 +2883,7 @@ void ARecastNavMesh::OnNavMeshGenerationFinished()
 				if (SupportsStreaming())
 				{
 					// We use navigation volumes that belongs to this streaming level to find tiles we want to save
-					TArray<int32> LevelTiles;
+					TArray<FNavTileRef> LevelTiles;
 					TArray<FBox> LevelNavBounds = GetNavigableBoundsInLevel(Level);
 					RecastNavMeshImpl->GetNavMeshTilesIn(LevelNavBounds, LevelTiles);
 
@@ -2778,17 +3019,17 @@ void ARecastNavMesh::FillNavigationDataChunkActor(const FBox& QueryBounds, ANavi
 	UE_LOG(LogNavigation, Verbose, TEXT("%s Bounds pos: (%s)  size: (%s)."), ANSI_TO_TCHAR(__FUNCTION__), *QueryBounds.GetCenter().ToString(), *QueryBounds.GetSize().ToString());
 
 	const TArray<FBox> Boxes({ QueryBounds });
-	TArray<int32> TileIndices;
-	RecastNavMeshImpl->GetNavMeshTilesIn(Boxes, TileIndices);
-	if (!TileIndices.IsEmpty())
+	TArray<FNavTileRef> TileRefs;
+	RecastNavMeshImpl->GetNavMeshTilesIn(Boxes, TileRefs);
+	if (!TileRefs.IsEmpty())
 	{
 		// Add a data chunk for this navmesh
 		URecastNavMeshDataChunk* DataChunk = NewObject<URecastNavMeshDataChunk>(&DataChunkActor);
 		DataChunk->NavigationDataName = GetFName();
 		DataChunkActor.GetMutableNavDataChunk().Add(DataChunk);
 
-		DataChunk->GetTiles(RecastNavMeshImpl, TileIndices, SupportsRuntimeGeneration() ? EGatherTilesCopyMode::CopyDataAndCacheData : EGatherTilesCopyMode::CopyData);
-		DataChunk->GetTilesBounds(*RecastNavMeshImpl, TileIndices, OutTilesBounds);
+		DataChunk->GetTiles(RecastNavMeshImpl, TileRefs, SupportsRuntimeGeneration() ? EGatherTilesCopyMode::CopyDataAndCacheData : EGatherTilesCopyMode::CopyData);
+		DataChunk->GetTilesBounds(*RecastNavMeshImpl, TileRefs, OutTilesBounds);
 	}
 }
 
@@ -2823,7 +3064,14 @@ void ARecastNavMesh::OnStreamingNavDataAdded(ANavigationDataChunkActor& InActor)
 				{
 					UE_VLOG_BOX(this, LogNavigation, Verbose, NavElement.Bounds.GetBox(), FColor::Orange, TEXT(""));
 
-					NavSys->AddDirtyArea(NavElement.Bounds.GetBox(), ENavigationDirtyFlag::All, [&NavElement] { return NavElement.Data->SourceObject.Get(); }, "Streaming data added");
+					NavSys->AddDirtyArea(
+						NavElement.Bounds.GetBox(),
+						ENavigationDirtyFlag::All,
+						[SourceElement = NavElement.Data->SourceElement]
+						{
+							return SourceElement;
+						},
+						"Streaming data added");
 				}
 			}
 		}
@@ -2903,6 +3151,11 @@ void ARecastNavMesh::DetachNavMeshDataChunk(URecastNavMeshDataChunk& NavDataChun
 
 bool ARecastNavMesh::AdjustLocationWithFilter(const FVector& StartLoc, FVector& OutAdjustedLocation, const FNavigationQueryFilter& Filter, const UObject* QueryOwner) const
 {
+	if (HasValidNavmesh() == false)
+	{
+		return false;
+	}
+
 	INITIALIZE_NAVQUERY(NavQuery, Filter.GetMaxSearchNodes());
 
 	const FVector NavExtent = GetModifiedQueryExtent(GetDefaultQueryExtent());
@@ -2938,10 +3191,14 @@ FPathFindingResult ARecastNavMesh::FindPath(const FNavAgentProperties& AgentProp
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Pathfinding);
 
 	const ANavigationData* Self = Query.NavData.Get();
+	if (Self == nullptr)
+	{
+		return ENavigationQueryResult::Error;
+	}
+	
 	check(Cast<const ARecastNavMesh>(Self));
-
 	const ARecastNavMesh* RecastNavMesh = (const ARecastNavMesh*)Self;
-	if (Self == NULL || RecastNavMesh->RecastNavMeshImpl == NULL)
+	if (RecastNavMesh->RecastNavMeshImpl == nullptr)
 	{
 		return ENavigationQueryResult::Error;
 	}
@@ -3090,7 +3347,12 @@ bool ARecastNavMesh::NavMeshRaycast(const ANavigationData* Self, const FVector& 
 	return Result.HasHit();
 }
 
-bool ARecastNavMesh::NavMeshRaycast(const ANavigationData* Self, NavNodeRef RayStartNode, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FSharedConstNavQueryFilter QueryFilter, const UObject* QueryOwner)
+bool ARecastNavMesh::NavMeshRaycast(const ANavigationData* Self, NavNodeRef RayStartNode, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier)
+{
+	return NavMeshRaycast(Self, RayStartNode, RayStart, RayEnd, HitLocation, nullptr, QueryFilter, Querier);
+}
+
+bool ARecastNavMesh::NavMeshRaycast(const ANavigationData* Self, NavNodeRef RayStartNode, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FNavigationRaycastAdditionalResults* AdditionalResults, FSharedConstNavQueryFilter QueryFilter, const UObject* QueryOwner)
 {
 	check(Cast<const ARecastNavMesh>(Self));
 
@@ -3098,6 +3360,10 @@ bool ARecastNavMesh::NavMeshRaycast(const ANavigationData* Self, NavNodeRef RayS
 	if (Self == NULL || RecastNavMesh->RecastNavMeshImpl == NULL)
 	{
 		HitLocation = RayStart;
+		if (AdditionalResults)
+		{
+			AdditionalResults->bIsRayEndInCorridor = false;
+		}
 		return true;
 	}
 
@@ -3105,6 +3371,10 @@ bool ARecastNavMesh::NavMeshRaycast(const ANavigationData* Self, NavNodeRef RayS
 	RecastNavMesh->RecastNavMeshImpl->Raycast(RayStart, RayEnd, RecastNavMesh->GetRightFilterRef(QueryFilter), QueryOwner, Result, RayStartNode);
 
 	HitLocation = Result.HasHit() ? (RayStart + (RayEnd - RayStart) * Result.HitTime) : RayEnd;
+	if (AdditionalResults)
+	{
+		AdditionalResults->bIsRayEndInCorridor = Result.bIsRaycastEndInCorridor;
+	}
 	return Result.HasHit();
 }
 
@@ -3148,10 +3418,17 @@ void ARecastNavMesh::BatchRaycast(TArray<FNavigationRaycastWork>& Workload, FSha
 				, QueryFilter, &RaycastResult.HitTime, RecastHitNormal
 				, RaycastResult.CorridorPolys, &RaycastResult.CorridorPolysCount, RaycastResult.GetMaxCorridorSize());
 
-			if (dtStatusSucceed(RaycastStatus) && RaycastResult.HasHit())
+			if (dtStatusSucceed(RaycastStatus))
 			{
-				WorkItem.bDidHit = true;
-				WorkItem.HitLocation = FNavLocation(WorkItem.RayStart + (WorkItem.RayEnd - WorkItem.RayStart) * RaycastResult.HitTime, RaycastResult.GetLastNodeRef());
+				if (RaycastResult.HasHit())
+				{
+					WorkItem.bDidHit = true;
+					WorkItem.HitLocation = FNavLocation(WorkItem.RayStart + (WorkItem.RayEnd - WorkItem.RayStart) * RaycastResult.HitTime, RaycastResult.GetLastNodeRef());
+				}
+				else
+				{
+					WorkItem.bIsRayEndInCorridor = RaycastResult.bIsRaycastEndInCorridor;
+				}
 			}
 		}
 	}
@@ -3159,15 +3436,10 @@ void ARecastNavMesh::BatchRaycast(TArray<FNavigationRaycastWork>& Workload, FSha
 
 bool ARecastNavMesh::IsSegmentOnNavmesh(const FVector& SegmentStart, const FVector& SegmentEnd, FSharedConstNavQueryFilter Filter, const UObject* QueryOwner) const
 {
-	if (RecastNavMeshImpl == NULL)
-	{
-		return false;
-	}
-	
+	FVector HitLocation;
 	FRaycastResult Result;
-	RecastNavMeshImpl->Raycast(SegmentStart, SegmentEnd, GetRightFilterRef(Filter), QueryOwner, Result);
-
-	return Result.bIsRaycastEndInCorridor && !Result.HasHit();
+	const bool bDidHit = NavMeshRaycast(this, SegmentStart, SegmentEnd, HitLocation, Filter, QueryOwner, Result);
+	return Result.bIsRaycastEndInCorridor && !bDidHit;
 }
 
 bool ARecastNavMesh::FindStraightPath(const FVector& StartLoc, const FVector& EndLoc, const TArray<NavNodeRef>& PathCorridor, TArray<FNavPathPoint>& PathPoints, TArray<FNavLinkId>* CustomLinks) const
@@ -3212,9 +3484,25 @@ void ARecastNavMesh::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pro
 	
 	if (PropertyChangedChainEvent.Property != NULL)
 	{
-		const FName CategoryName = FObjectEditorUtils::GetCategoryFName(PropertyChangedChainEvent.Property);
+		FName CategoryName = FObjectEditorUtils::GetCategoryFName(PropertyChangedChainEvent.Property);
+
+		// If any, get the category of the parent node. 
+		FProperty* MemberProperty = nullptr;
+
+		const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode = PropertyChangedChainEvent.PropertyChain.GetActiveMemberNode();
+		if (PropertyNode)
+		{
+			MemberProperty = PropertyNode->GetValue();
+			if (MemberProperty)
+			{
+				CategoryName = FObjectEditorUtils::GetCategoryFName(MemberProperty);
+			}
+		}
+		
 		if (CategoryName == NAME_Generation)
 		{
+			static const FName NAME_NavLinkJumpDownConfig = GET_MEMBER_NAME_CHECKED(ARecastNavMesh, NavLinkJumpDownConfig);
+			
 			const FName PropName = PropertyChangedChainEvent.Property->GetFName();
 			bool bRebuild = false;
 			
@@ -3238,26 +3526,20 @@ void ARecastNavMesh::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pro
 						if (Index != ChangedIndex)
 						{
 							float& ResolutionCellSize = NavMeshResolutionParams[Index].CellSize;
-							const float ResolutionCellCount = FMath::TruncToFloat(TileSizeUU / ResolutionCellSize);
-							ResolutionCellSize = UE::NavMesh::Private::GetClampedCellSize(TileSizeUU / ResolutionCellCount);
+							const int32 ResolutionCellCount = FMath::RoundToInt(TileSizeUU / ResolutionCellSize);
+							ResolutionCellSize = UE::NavMesh::Private::GetClampedCellSize(TileSizeUU / (float)ResolutionCellCount);
 						}
 					}
-
-					PRAGMA_DISABLE_DEPRECATION_WARNINGS
-					// Update the deprecated CellSize to fit the default resolution CellSize
-					CellSize = NavMeshResolutionParams[(uint8)ENavigationDataResolution::Default].CellSize;
-					PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 					bRebuild = true;
 				}
 			}
 			else if (PropName == GET_MEMBER_NAME_CHECKED(FNavMeshResolutionParam, CellHeight))
 			{
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				// Update the deprecated CellHeight to fit the default resolution CellHeight
-				CellHeight = NavMeshResolutionParams[(uint8)ENavigationDataResolution::Default].CellHeight;
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
+				bRebuild = true;
+			}
+			else if (MemberProperty && (MemberProperty->GetFName() == NAME_NavLinkJumpDownConfig))
+			{
 				bRebuild = true;
 			}
 
@@ -3314,13 +3596,10 @@ void ARecastNavMesh::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 				// Match cell sizes to tile size.
 				for (uint8 Index = 0; Index < (uint8)ENavigationDataResolution::MAX; Index++)
 				{
-					SetCellSize((ENavigationDataResolution)Index, TileSizeUU / FMath::TruncToFloat(TileSizeUU / GetCellSize((ENavigationDataResolution)Index)));	
+					const int32 CellCount = FMath::RoundToInt(TileSizeUU / GetCellSize((ENavigationDataResolution)Index));
+					const float NewCellSize = UE::NavMesh::Private::GetClampedCellSize(TileSizeUU / (float)CellCount);
+					SetCellSize((ENavigationDataResolution)Index, NewCellSize);
 				}
-
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				// Set deprecated CellSize
-				CellSize = GetCellSize(ENavigationDataResolution::Default);
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 				// update config
 				FillConfig(NavDataConfig);
@@ -3362,11 +3641,23 @@ void ARecastNavMesh::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 	}
 }
 
+void ARecastNavMesh::PostEditUndo()
+{
+	// ANavigationData will register again this navdata in Super::PostEditUndo(). 
+    // Since it was removed, we need to recreate it's RecastNavMeshImpl.
+	if (RecastNavMeshImpl == nullptr)
+	{
+		RecastNavMeshImpl = new FPImplRecastNavMesh(this);
+	}
+	
+	Super::PostEditUndo();
+}
+
 #endif // WITH_EDITOR
 
 bool ARecastNavMesh::NeedsRebuild() const
 {
-	bool bLooksLikeNeeded = !RecastNavMeshImpl || RecastNavMeshImpl->GetRecastMesh() == 0;
+	bool bLooksLikeNeeded = !RecastNavMeshImpl || RecastNavMeshImpl->GetRecastMesh() == 0 || bHasNoTileData;
 	if (NavDataGenerator.IsValid())
 	{
 		return bLooksLikeNeeded || NavDataGenerator->GetNumRemaningBuildTasks() > 0;
@@ -3403,6 +3694,20 @@ bool ARecastNavMesh::IsUsingActiveTilesGeneration(const UNavigationSystemV1& Nav
 	return SupportsRuntimeGeneration() && (NavSys.IsActiveTilesGenerationEnabled() || bIsWorldPartitioned);
 }
 
+void ARecastNavMesh::PostLoadPreRebuild()
+{
+	// If any, unregister previous generated links proxy.
+	UnregisterGeneratedLinksProxy();
+	NavLinkJumpDownConfig.LinkProxy = nullptr;
+
+	// Register new one if needed.
+	if (NavLinkJumpDownConfig.bEnabled && NavLinkJumpDownConfig.LinkProxyClass.Get() != nullptr)
+	{
+		// Since this is on rebuild, create a new proxy id.
+		CreateAndRegisterJumpDownLinksProxy();
+	}
+}
+
 void ARecastNavMesh::ConditionalConstructGenerator()
 {	
 	if (NavDataGenerator.IsValid())
@@ -3430,41 +3735,6 @@ void ARecastNavMesh::ConditionalConstructGenerator()
 		}
 	}
 }
-
-// Deprecated
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void ARecastNavMesh::UpdateGenerationProperties(const FRecastNavMeshGenerationProperties& GenerationProps)
-{
-	TilePoolSize = GenerationProps.TilePoolSize;
-	TileSizeUU = GenerationProps.TileSizeUU;
-
-	CellSize = GenerationProps.CellSize;
-	CellHeight = GenerationProps.CellHeight;
-
-	AgentRadius = GenerationProps.AgentRadius;
-	AgentHeight = GenerationProps.AgentHeight;
-	AgentMaxSlope = GenerationProps.AgentMaxSlope;
-
-	AgentMaxStepHeight = GenerationProps.AgentMaxStepHeight;
-
-	MinRegionArea = GenerationProps.MinRegionArea;
-	MergeRegionSize = GenerationProps.MergeRegionSize;
-	MaxSimplificationError = GenerationProps.MaxSimplificationError;
-	TileNumberHardLimit = GenerationProps.TileNumberHardLimit;
-	RegionPartitioning = GenerationProps.RegionPartitioning;
-	LayerPartitioning = GenerationProps.LayerPartitioning;
-	RegionChunkSplits = GenerationProps.RegionChunkSplits;
-	LayerChunkSplits = GenerationProps.LayerChunkSplits;
-	bSortNavigationAreasByCost = GenerationProps.bSortNavigationAreasByCost;
-	bPerformVoxelFiltering = GenerationProps.bPerformVoxelFiltering;
-	bMarkLowHeightAreas = GenerationProps.bMarkLowHeightAreas;
-	bUseExtraTopCellWhenMarkingAreas = GenerationProps.bUseExtraTopCellWhenMarkingAreas;
-	bFilterLowSpanSequences = GenerationProps.bFilterLowSpanSequences;
-	bFilterLowSpanFromTileCache = GenerationProps.bFilterLowSpanFromTileCache;
-	bFixedTilePoolSize = GenerationProps.bFixedTilePoolSize;
-	bIsWorldPartitioned = GenerationProps.bIsWorldPartitioned;
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool ARecastNavMesh::IsVoxelCacheEnabled()
 {
@@ -3502,6 +3772,22 @@ bool ARecastNavMesh::HasValidNavmesh() const
 }
 
 #if WITH_RECAST
+bool ARecastNavMesh::HasCompleteDataInTile(const int32 TileX, const int32 TileY) const
+{
+	check(RecastNavMeshImpl && RecastNavMeshImpl->DetourNavMesh);
+	const int32 NumTiles = RecastNavMeshImpl->DetourNavMesh->getTileCountAt(TileX, TileY);
+	if (NumTiles <= 0)
+	{
+		const bool bHasFailsafeData = bStoreEmptyTileLayers && RecastNavMeshImpl->HasTileCacheLayers(TileX, TileY);
+		if (!bHasFailsafeData)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 bool ARecastNavMesh::HasCompleteDataInRadius(const FVector& TestLocation, FVector::FReal TestRadius) const
 {
 	if (HasValidNavmesh() == false)
@@ -3528,18 +3814,61 @@ bool ARecastNavMesh::HasCompleteDataInRadius(const FVector& TestLocation, FVecto
 	{
 		for (int32 TileY = MinTileY; TileY <= MaxTileY; TileY++)
 		{
-			const FVector RcTileCenter(RcNavOrigin.X + ((TileX + 0.5f) * NavTileSize), RcTestLocation.Y, RcNavOrigin.Z + ((TileY + 0.5f) * NavTileSize));
+			const FVector RcTileCenter(
+				RcNavOrigin.X + ((static_cast<FVector::FReal>(TileX) + 0.5) * NavTileSize),
+				RcTestLocation.Y,
+				RcNavOrigin.Z + ((static_cast<FVector::FReal>(TileY) + 0.5) * NavTileSize));
+
 			const bool bInside = FMath::SphereAABBIntersection(RcTestLocation, RadiusSq, FBox::BuildAABB(RcTileCenter, RcTileExtent2D));
 			if (bInside)
 			{
-				const int32 NumTiles = NavMesh->getTileCountAt(TileX, TileY);
-				if (NumTiles <= 0)
+				if (!HasCompleteDataInTile(TileX, TileY))
 				{
-					const bool bHasFailsafeData = bStoreEmptyTileLayers && RecastNavMeshImpl->HasTileCacheLayers(TileX, TileY);
-					if (!bHasFailsafeData)
-					{
-						return false;
-					}
+					return false;
+				}
+			}
+		}
+	}
+
+	return true;
+}
+
+bool ARecastNavMesh::HasCompleteDataAroundSegment(const FVector& StartLocation, const FVector& EndLocation, FVector::FReal TestRadius) const
+{
+	if (HasValidNavmesh() == false)
+	{
+		return false;
+	}
+
+	const dtNavMeshParams* NavParams = RecastNavMeshImpl->DetourNavMesh->getParams();
+	const float NavTileSize = GetTileSizeUU();
+	const FVector RcNavOrigin(NavParams->orig[0], NavParams->orig[1], NavParams->orig[2]);
+
+	FBox CapsuleBox(ForceInit);
+	CapsuleBox += StartLocation;
+	CapsuleBox += EndLocation;
+	CapsuleBox = CapsuleBox.ExpandBy(FVector(TestRadius, TestRadius, 0));
+	const FRcTileBox TileBox(CapsuleBox, RcNavOrigin, NavTileSize);
+
+	const FVector RcStartLocation = Unreal2RecastPoint(StartLocation);
+	const FVector RcEndLocation = Unreal2RecastPoint(EndLocation);
+	const UE::Geometry::TSegment2<FVector::FReal> Segment (FVector2D(RcStartLocation.X, RcStartLocation.Z), FVector2D(RcEndLocation.X, RcEndLocation.Z));
+	const FVector::FReal TestRadiusSquared = FMath::Square(TestRadius);
+
+	for (int32 TileX = TileBox.XMin; TileX <= TileBox.XMax; TileX++)
+	{
+		for (int32 TileY = TileBox.YMin; TileY <= TileBox.YMax; TileY++)
+		{
+			const FVector2D RcTileMin(RcNavOrigin.X + (static_cast<float>(TileX) * NavTileSize), RcNavOrigin.Z + (static_cast<float>(TileY) * NavTileSize));
+			const FBox2D RcTileAABB = FBox2D(RcTileMin, RcTileMin + FVector2D(NavTileSize, NavTileSize));
+
+			UE::Geometry::TDistSegment2AxisAlignedBox2<FVector::FReal> SegmentTileDist(Segment, RcTileAABB);
+			const FVector::FReal DistanceSquared = SegmentTileDist.GetSquared();
+			if (DistanceSquared <= TestRadiusSquared)
+			{
+				if (!HasCompleteDataInTile(TileX, TileY))
+				{
+					return false;
 				}
 			}
 		}
@@ -3571,9 +3900,13 @@ void ARecastNavMesh::UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& Invo
 	const FRecastBuildConfig& Config = MyGenerator->GetConfig();
 	const FVector NavmeshOrigin = Recast2UnrealPoint(NavParams->orig);
 	const FVector::FReal TileDim = Config.GetTileSizeUU();
+	if (!ensureMsgf(TileDim > 0, TEXT("TileSize can't be 0. Check the navmesh configuration.")))
+	{
+		return;
+	}
 
 	TSet<FIntPoint>& OldActiveSet = UpdateActiveTilesWorkingMem.OldActiveSet;
-	TArray<FNavMeshDirtyTileElement>& TilesInMinDistance = UpdateActiveTilesWorkingMem.TilesInMinDistance;
+	TMap<FIntPoint, FNavMeshDirtyTileElement>& TilesInMinDistance = UpdateActiveTilesWorkingMem.TilesInMinDistanceMap;
 	TSet<FIntPoint>& TilesInMaxDistance = UpdateActiveTilesWorkingMem.TilesInMaxDistance;
 	TArray<FIntPoint>& TileToAppend = UpdateActiveTilesWorkingMem.TileToAppend;
 	
@@ -3587,8 +3920,8 @@ void ARecastNavMesh::UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& Invo
 		TilesInMaxDistance.Reset();
 		TileToAppend.Reset();
 
-		const int32 ShrinkThreshold = 1.2*ActiveTilesCount;
-		if (TilesInMinDistance.Max() > ShrinkThreshold)
+		const int32 ShrinkThreshold = static_cast<int32>(1.2 * ActiveTilesCount);
+		if (TilesInMinDistance.GetMaxIndex() > ShrinkThreshold)
 		{
 			TilesInMinDistance.Shrink();
 		}
@@ -3621,10 +3954,19 @@ void ARecastNavMesh::UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& Invo
 			const  FVector::FReal TileCenterDistanceToRemoveSq = FMath::Square(TileDim * UE_SQRT_2 / 2 + Invoker.RadiusMax);
 			const  FVector::FReal TileCenterDistanceToAddSq = FMath::Square(TileDim * UE_SQRT_2 / 2 + Invoker.RadiusMin);
 
-			const int32 MinTileX = IntCastChecked<int32>(FMath::FloorToInt((InvokerRelativeLocation.X - Invoker.RadiusMax) / TileDim));
-			const int32 MaxTileX = IntCastChecked<int32>(FMath::CeilToInt((InvokerRelativeLocation.X + Invoker.RadiusMax) / TileDim));
-			const int32 MinTileY = IntCastChecked<int32>(FMath::FloorToInt((InvokerRelativeLocation.Y - Invoker.RadiusMax) / TileDim));
-			const int32 MaxTileY = IntCastChecked<int32>(FMath::CeilToInt((InvokerRelativeLocation.Y + Invoker.RadiusMax) / TileDim));
+			const int64 MinX = FMath::FloorToInt((InvokerRelativeLocation.X - Invoker.RadiusMax) / TileDim);
+			const int64 MaxX = FMath::CeilToInt((InvokerRelativeLocation.X + Invoker.RadiusMax) / TileDim);
+			const int64 MinY = FMath::FloorToInt((InvokerRelativeLocation.Y - Invoker.RadiusMax) / TileDim);
+			const int64 MaxY = FMath::CeilToInt((InvokerRelativeLocation.Y + Invoker.RadiusMax) / TileDim);
+			ensureMsgf(IntFitsIn<int32>(MinX), TEXT("MinX %lld is out of tile coordinate range. Location: %f, Radius %f, TileSize: %f"), MinX, InvokerRelativeLocation.X, Invoker.RadiusMax, TileDim);
+			ensureMsgf(IntFitsIn<int32>(MaxX), TEXT("MaxX %lld is out of tile coordinate range. Location: %f, Radius %f, TileSize: %f"), MaxX, InvokerRelativeLocation.X, Invoker.RadiusMax, TileDim);
+			ensureMsgf(IntFitsIn<int32>(MinY), TEXT("MinY %lld is out of tile coordinate range. Location: %f, Radius %f, TileSize: %f"), MinY, InvokerRelativeLocation.Y, Invoker.RadiusMax, TileDim);
+			ensureMsgf(IntFitsIn<int32>(MaxY), TEXT("MaxY %lld is out of tile coordinate range. Location: %f, Radius %f, TileSize: %f"), MaxY, InvokerRelativeLocation.Y, Invoker.RadiusMax, TileDim);
+			
+			const int32 MinTileX = static_cast<int32>(FMath::Clamp(MinX, TNumericLimits<int32>::Min(), TNumericLimits<int32>::Max()));
+			const int32 MaxTileX = static_cast<int32>(FMath::Clamp(MaxX, TNumericLimits<int32>::Min(), TNumericLimits<int32>::Max()));
+			const int32 MinTileY = static_cast<int32>(FMath::Clamp(MinY, TNumericLimits<int32>::Min(), TNumericLimits<int32>::Max()));
+			const int32 MaxTileY = static_cast<int32>(FMath::Clamp(MaxY, TNumericLimits<int32>::Min(), TNumericLimits<int32>::Max()));
 
 			for (int32 X = MinTileX; X <= MaxTileX; ++X)
 			{
@@ -3638,7 +3980,7 @@ void ARecastNavMesh::UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& Invo
 						if (DistanceSq < TileCenterDistanceToAddSq)
 						{
 							// Add unique tile 
-							FNavMeshDirtyTileElement* FoundTile = TilesInMinDistance.FindByPredicate([X, Y](const FNavMeshDirtyTileElement& Tile){ return Tile.Coordinates == FIntPoint(X, Y);});
+							FNavMeshDirtyTileElement* FoundTile = TilesInMinDistance.Find(FIntPoint(X, Y));
 							if (FoundTile)
 							{
 								// Update the priority if already existing
@@ -3646,7 +3988,7 @@ void ARecastNavMesh::UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& Invo
 							}
 							else
 							{
-								TilesInMinDistance.Add(FNavMeshDirtyTileElement{FIntPoint(X,Y), DistanceSq, Invoker.Priority});
+								TilesInMinDistance.Add(FIntPoint(X, Y), FNavMeshDirtyTileElement{FIntPoint(X,Y), DistanceSq, Invoker.Priority});
 								TileToAppend.Add(FIntPoint(X,Y));
 							}
 						}
@@ -3681,9 +4023,10 @@ void ARecastNavMesh::UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& Invo
 	// Find tiles to update
 	TArray<FNavMeshDirtyTileElement> TilesToUpdate;
 	TilesToUpdate.Reserve(ActiveTiles.Num());
-	for (const FNavMeshDirtyTileElement& Tile : TilesInMinDistance)
+	for (const TTuple<FIntPoint, FNavMeshDirtyTileElement>& Pair : TilesInMinDistance)
 	{
 		// Check if it's a new tile (not in the active set)
+		const FNavMeshDirtyTileElement& Tile = Pair.Value;
 		if (!OldActiveSet.Contains(Tile.Coordinates))
 		{
 			TilesToUpdate.Add(Tile);
@@ -3719,18 +4062,6 @@ void ARecastNavMesh::RemoveTiles(const TArray<FIntPoint>& Tiles)
 			MyGenerator->RemoveTiles(Tiles);
 		}
 	}
-}
-
-// Deprecated
-void ARecastNavMesh::RebuildTile(const TArray<FIntPoint>& Tiles)
-{
-	TArray<FNavMeshDirtyTileElement> ActiveTiles;
-	ActiveTiles.Reserve(Tiles.Num());
-	for (const FIntPoint& Point : Tiles)
-	{
-		ActiveTiles.Add(FNavMeshDirtyTileElement{Point, TNumericLimits<FVector::FReal>::Max(), ENavigationInvokerPriority::Default});
-	}
-	RebuildTile(ActiveTiles);
 }
 
 void ARecastNavMesh::RebuildTile(const TArray<FNavMeshDirtyTileElement>& Tiles)

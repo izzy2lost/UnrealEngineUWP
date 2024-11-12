@@ -10,7 +10,10 @@
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedObjectStorage.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedStorageID.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedStorageID.inl"
+#include "Systems/MovieSceneHierarchicalBiasSystem.h"
 #include "MovieSceneTracksComponentTypes.h"
+#include "EntitySystem/MovieSceneEntityGroupingSystem.h"
+#include "Systems/MovieScenePropertyInstantiator.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneVisibilitySystem)
 
@@ -151,7 +154,10 @@ UMovieSceneVisibilitySystem::UMovieSceneVisibilitySystem(const FObjectInitialize
 	if (HasAnyFlags(RF_ClassDefaultObject))
 	{
 		DefineComponentConsumer(GetClass(), FBuiltInComponentTypes::Get()->BoundObject);
+		DefineComponentConsumer(GetClass(), FBuiltInComponentTypes::Get()->Tags.Ignored);
 	}
+
+	DefineImplicitPrerequisite(UMovieSceneCachePreAnimatedStateSystem::StaticClass(), GetClass());
 }
 
 void UMovieSceneVisibilitySystem::OnLink()
@@ -181,6 +187,7 @@ void UMovieSceneVisibilitySystem::OnRun(FSystemTaskPrerequisites& InPrerequisite
 	.Read(BuiltInComponents->BoundObject)
 	.Read(BuiltInComponents->BoolResult)
 	.FilterAll({ BuiltInComponents->Tags.NeedsLink, TrackComponents->Tags.Visibility })
+	.FilterNone({BuiltInComponents->Tags.Ignored})
 	.RunInline_PerAllocation(&Linker->EntityManager, Task);
 }
 

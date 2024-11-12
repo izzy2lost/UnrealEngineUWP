@@ -39,6 +39,10 @@ public:
 	/** Whether to convert the scene from FBX unit to UE unit (centimeter). */
 	UPROPERTY(EditAnywhere, Category = "Fbx Translator")
 	bool bConvertSceneUnit = true;
+
+	/** Whether to keep the name space from FBX name. */
+	UPROPERTY(EditAnywhere, Category = "Fbx Translator")
+	bool bKeepFbxNamespace = false;
 };
 
 UCLASS(BlueprintType)
@@ -93,22 +97,29 @@ public:
 	 * @param PayloadKey - The key to retrieve the a particular payload contain into the specified source data.
 	 * @return a PayloadData containing the imported data. The TOptional will not be set if there is an error.
 	 */
-	virtual TFuture<TOptional<UE::Interchange::FMeshPayloadData>> GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const override;
+	virtual TOptional<UE::Interchange::FMeshPayloadData> GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const override;
 
 	///* IInterchangeMeshPayloadInterface End */
 
 	//////////////////////////////////////////////////////////////////////////
 	/* IInterchangeAnimationPayloadInterface Begin */
-	virtual TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> GetAnimationPayloadData(const FInterchangeAnimationPayLoadKey& PayLoadKey, const double BakeFrequency = 0, const double RangeStartSecond = 0, const double RangeStopSecond = 0) const override;
+	
+	virtual bool PreferGroupingBoneAnimationQueriesTogether() const override
+	{
+		return true;
+	}
+
+	virtual TArray<UE::Interchange::FAnimationPayloadData> GetAnimationPayloadData(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries) const override;
+	
 	/* IInterchangeAnimationPayloadInterface End */
 private:
-	FString CreateLoadFbxFileCommand(const FString& FbxFilePath, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit) const;
+	FString CreateLoadFbxFileCommand(const FString& FbxFilePath, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit, const bool bKeepFbxNamespace) const;
 
 	FString CreateFetchMeshPayloadFbxCommand(const FString& FbxPayloadKey, const FTransform& MeshGlobalTransform) const;
 
 	FString CreateFetchPayloadFbxCommand(const FString& FbxPayloadKey) const;
 
-	FString CreateFetchAnimationBakeTransformPayloadFbxCommand(const FString& FbxPayloadKey, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime) const;
+	FString CreateFetchAnimationBakeTransformPayloadFbxCommand(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries) const;
 	
 	//Dispatcher is mutable since it is create during the Translate operation
 	//We do not want to allocate the dispatcher and start the InterchangeWorker process
@@ -116,6 +127,7 @@ private:
 	//never translate a source.
 	mutable TUniquePtr<UE::Interchange::FInterchangeDispatcher> Dispatcher;
 
+	UPROPERTY(Transient, DuplicateTransient)
 	mutable TObjectPtr<UInterchangeFbxTranslatorSettings> CacheFbxTranslatorSettings = nullptr;
 
 	//If true this translator will use the dispatcher (InterchangeWorker program) to translate and return payloads.

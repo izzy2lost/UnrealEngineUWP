@@ -108,7 +108,8 @@ FLightHit CapsuleLight_TraceLight(FRayDesc Ray, int LightId)
 		float3 LightDirection = TranslatedLightPosition - Ray.Origin;
 		float LightDistanceSquared = dot(LightDirection, LightDirection);
 #if CAPSULE_SOLIDANGLE_SAMPLING
-		float Pdf = 1.0 / GetCapsuleBoundsSolidAngle(CapsuleGetSphericalBounds(LightDirection, Axis, LightRadius, SourceLength));
+		FCapsuleSphericalBounds Bounds = CapsuleGetSphericalBounds(LightDirection, Axis, LightRadius, SourceLength);
+		float Pdf = 1.0 / GetCapsuleBoundsInversePdf(Ray.Direction, Bounds);
 #else
 		float3 Normal = CapsuleNormal(Ray.Origin + t * Ray.Direction, TranslatedLightPosition, Axis * SourceLength);
 
@@ -150,12 +151,12 @@ FLightSample CapsuleLight_SampleLight(
 	float3 LightRadiance = LightPower / (PI * (CapsArea + BodyArea));
 
 	float3 LightDirection = GetTranslatedPosition(LightId) - TranslatedWorldPos;
-	FCapsuleSphericalBounds CapsuleBounds = CapsuleGetSphericalBounds(LightDirection, Axis, Radius, SourceLength);
+	FCapsuleSphericalBounds Bounds = CapsuleGetSphericalBounds(LightDirection, Axis, Radius, SourceLength);
 
-	float4 Result = SampleCapsuleBounds(CapsuleBounds, RandSample);
+	float4 Result = SampleCapsuleBounds(Bounds, RandSample);
 
 	float3 L = Result.xyz;
-	float SolidAngle = Result.w;
+	float InvPdf = Result.w;
 		
 	// check direction to account for rays that hit the bounding shape but not the capsule
 #if 1
@@ -167,7 +168,7 @@ FLightSample CapsuleLight_SampleLight(
 #endif
 	if (Distance > 0)
 	{
-		return CreateLightSample(LightRadiance * SolidAngle, 1.0 / SolidAngle, L, Distance);
+		return CreateLightSample(LightRadiance * InvPdf, rcp(InvPdf), L, Distance);
 	}
 	// didn't pass the acceptance test -- reject this sample
 	return NullLightSample();

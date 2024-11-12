@@ -154,9 +154,14 @@ class USubsurfaceProfile : public UObject
 	UPROPERTY(Category = USubsurfaceProfile, EditAnywhere, meta = (ShowOnlyInnerProperties))
 	struct FSubsurfaceProfileStruct Settings;
 
+	UPROPERTY()
+	FGuid Guid;
+
 	//~ Begin UObject Interface
 	virtual void BeginDestroy();
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent);
+	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode);
+	virtual void Serialize(FArchive& Ar) override;
 
 	// Upgrade parameters from Separable to Burley.
 	virtual void PostLoad();
@@ -266,6 +271,36 @@ static const int32 SUBSURFACE_KERNEL_SIZE = 3;
 extern ENGINE_API TGlobalResource<FSubsurfaceProfileTexture> GSubsurfaceProfileTextureObject;
 
 // Initializes or updates the contents of the subsurface profile texture.
+UE_DEPRECATED(5.5, "Please, use the name space SubsurfaceProfile::")
+ENGINE_API void UpdateSubsurfaceProfileTexture(class FRDGBuilder& GraphBuilder, EShaderPlatform ShaderPlatform);
+
+// Returns the subsurface profile texture if it exists, or null.
+UE_DEPRECATED(5.5, "Please, use the name space SubsurfaceProfile::")
+ENGINE_API FRHITexture* GetSubsurfaceProfileTexture();
+
+// Returns the subsurface profile texture if it exists, or black.
+UE_DEPRECATED(5.5, "Please, use the name space SubsurfaceProfile::")
+ENGINE_API FRHITexture* GetSubsurfaceProfileTextureWithFallback();
+
+// Returns the Preintegrated texture if it exists, or black.
+UE_DEPRECATED(5.5, "Please, use the name space SubsurfaceProfile::")
+ENGINE_API FRHITexture* GetSSProfilesPreIntegratedTextureWithFallback();
+
+// Returns the subsurface profile ID shader parameter name
+UE_DEPRECATED(5.5, "Please, use the name space SubsurfaceProfile::")
+ENGINE_API FName GetSubsurfaceProfileParameterName();
+
+// Returns the subsurface profile ID for a given Sub-surface Profile object
+UE_DEPRECATED(5.5, "Please, use the name space SubsurfaceProfile::")
+ENGINE_API float GetSubsurfaceProfileId(const USubsurfaceProfile* In);
+
+// Returns the shader parameter name for a Subsurface profile.
+UE_DEPRECATED(5.5, "Please, use the name space SubsurfaceProfile::")
+ENGINE_API FName CreateSubsurfaceProfileParameterName(const USubsurfaceProfile* InProfile);
+
+namespace SubsurfaceProfile
+{
+// Initializes or updates the contents of the subsurface profile texture.
 ENGINE_API void UpdateSubsurfaceProfileTexture(class FRDGBuilder& GraphBuilder, EShaderPlatform ShaderPlatform);
 
 // Returns the subsurface profile texture if it exists, or null.
@@ -282,3 +317,7 @@ ENGINE_API FName GetSubsurfaceProfileParameterName();
 
 // Returns the subsurface profile ID for a given Sub-surface Profile object
 ENGINE_API float GetSubsurfaceProfileId(const USubsurfaceProfile* In);
+
+// Returns the shader parameter name for a Subsurface profile.
+ENGINE_API FName CreateSubsurfaceProfileParameterName(const USubsurfaceProfile* InProfile);
+};

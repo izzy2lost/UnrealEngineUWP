@@ -106,8 +106,11 @@ cti::continuable<bool> TextureHelper::InitSolidTexture(TiledBlobPtr* BlobObj, FL
 void TextureHelper::InitStockTextures()
 {
 #if WITH_EDITOR
+	// No need to run during command-let execution
 	if (!GEditor)
+	{
 		return;
+	}
 
 	check(IsInGameThread());
 
@@ -115,7 +118,9 @@ void TextureHelper::InitStockTextures()
 
 	/// If we've already go the stuff, then we don't need to worry about it
 	if (GBlack)
+	{
 		return;
+	}
 
 	TextureType Type = TextureHelper::TextureContentToTextureType(TextureContent::Albedo);
 	TexDescriptor AlbedoDesc(TextureSet::GDesc[(int32)Type]);
@@ -353,6 +358,7 @@ ETextureRenderTargetFormat TextureHelper::GetRenderTargetFormatFromPixelFormat(E
 		return ETextureRenderTargetFormat::RTF_RGB10A2; 
 	case PF_R32G32B32F:
 		return ETextureRenderTargetFormat::RTF_RGBA32f;
+	case PF_A16B16G16R16:
 	case PF_FloatRGBA:
 		return ETextureRenderTargetFormat::RTF_RGBA16f;
 	default:
@@ -763,44 +769,50 @@ TextureType TextureHelper::TextureStringToType(const FString& TypeString)
 RawBufferPtr TextureHelper::RawFromRT(UTextureRenderTarget2D* RenderTarget, const BufferDescriptor& Desc)
 {
 	//check(IsInRenderingThread()); //Can be from any thread
-	return RawFromResource(FTexture2DRHIRef(((FTexture2DResource*)RenderTarget->GetResource())->GetTexture2DRHI()), Desc);
+	return RawFromResource(FTextureRHIRef(((FTexture2DResource*)RenderTarget->GetResource())->GetTexture2DRHI()), Desc);
 }
 
 RawBufferPtr TextureHelper::RawFromTexture(UTexture2D* Texture, const BufferDescriptor& Desc)
 {
 	check(IsInRenderingThread());
 
+	uint8* RawData = nullptr;
+	size_t DataSize = 0;
+
 	//For editor we are using the source texture until we support the compressed Formats
 #if WITH_EDITOR
-	check(Texture->Source.IsValid());
-	uint8* RawData = nullptr;
-	// Possibly the data was stored in TextureSource rather than PlatformData
-	// The difference is the source data (residing in Utexture) is editor only and can be saved to disk
-	// This is mostly used for thumbnail, where thumbnail data can exist across sessions (e.g UAsset)
-	// platform data, as the name suggests, is used during cook to convert to platform specific texture. 
-	// This is legal because we might not be cooking our data.
-
-	TArray64<uint8> MipDataSrc;
-	Texture->Source.GetMipData(MipDataSrc, 0);
-	size_t DataSize = MipDataSrc.Num();
-	RawData = new uint8[DataSize];
-
-	FMemory::Memcpy(RawData, MipDataSrc.GetData(), DataSize);
-#else
-	const uint8* MipData = static_cast<uint8*>(Texture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_ONLY));
-	size_t DataSize = Texture->GetPlatformData()->Mips[0].BulkData.GetBulkDataSize();
-	uint8* RawData = nullptr;
-	if (DataSize != 0)
+	if (Texture->Source.IsValid())
 	{
-		size_t DescSize = Desc.Size();
-		check(DataSize == DescSize);
-		RawData = new uint8[DataSize];
+		// Possibly the data was stored in TextureSource rather than PlatformData
+		// The difference is the source data (residing in Utexture) is editor only and can be saved to disk
+		// This is mostly used for thumbnail, where thumbnail data can exist across sessions (e.g UAsset)
+		// platform data, as the name suggests, is used during cook to convert to platform specific texture. 
+		// This is legal because we might not be cooking our data.
 
-		// Bulk data was already allocated for the correct size when we called CreateTransient above
-		FMemory::Memcpy(RawData, MipData, DataSize);
-		Texture->GetPlatformData()->Mips[0].BulkData.Unlock();
+		TArray64<uint8> MipDataSrc;
+		Texture->Source.GetMipData(MipDataSrc, 0);
+		DataSize = MipDataSrc.Num();
+		RawData = new uint8[DataSize];
+		FMemory::Memcpy(RawData, MipDataSrc.GetData(), DataSize);
 	}
 #endif
+
+	if (!RawData)
+	{
+		const uint8* MipData = static_cast<uint8*>(Texture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_ONLY));
+		DataSize = Texture->GetPlatformData()->Mips[0].BulkData.GetBulkDataSize();
+
+		if (DataSize != 0)
+		{
+			size_t DescSize = Desc.Size();
+			check(DataSize == DescSize);
+			RawData = new uint8[DataSize];
+
+			// Bulk data was already allocated for the correct size when we called CreateTransient above
+			FMemory::Memcpy(RawData, MipData, DataSize);
+			Texture->GetPlatformData()->Mips[0].BulkData.Unlock();
+		}
+	}
 	
 	return std::make_shared<RawBuffer>(RawData, DataSize, Desc);
 }
@@ -818,9 +830,9 @@ size_t TextureHelper::RoundUpTo(size_t Size, size_t DesiredRounding)
 	return RoundedSize;
 }
 
-RawBufferPtr TextureHelper::RawFromResource(const FTexture2DRHIRef& ResourceRHI, const BufferDescriptor& Desc)
+RawBufferPtr TextureHelper::RawFromResource(const FTextureRHIRef& ResourceRHI, const BufferDescriptor& Desc)
 {
-	check(IsInRenderingThread()); 
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
 	try
 	{
@@ -836,13 +848,16 @@ RawBufferPtr TextureHelper::RawFromResource(const FTexture2DRHIRef& ResourceRHI,
 		const uint32 BytesPerPixel = BitsPerPixel / 8;
 
 		const TUniquePtr<FRHIGPUTextureReadback> TextureReadback = MakeUnique<FRHIGPUTextureReadback>(TEXT("RawFromResourceTextureReadback"));
+		RHICmdList.FlushResources();
+		RHICmdList.ImmediateFlush(EImmediateFlushType::WaitForOutstandingTasksOnly);
 
-		FRHICommandListImmediate& RHI = FRHICommandListExecutor::GetImmediateCommandList();
-		RHI.FlushResources();
-		RHI.ImmediateFlush(EImmediateFlushType::WaitForOutstandingTasksOnly);
+		RHICmdList.Transition(FRHITransitionInfo(ResourceRHI, ERHIAccess::Unknown, ERHIAccess::CopySrc));
 
-		TextureReadback->EnqueueCopy(RHI, ResourceRHI);
-		RHI.BlockUntilGPUIdle();
+		TextureReadback->EnqueueCopy(RHICmdList, ResourceRHI);
+
+		RHICmdList.Transition(FRHITransitionInfo(ResourceRHI, ERHIAccess::CopySrc, ERHIAccess::SRVMask));
+
+		RHICmdList.BlockUntilGPUIdle();
 
 		//check(TextureReadback->IsReady());
 		{
@@ -898,18 +913,18 @@ RawBufferPtr TextureHelper::RawFromResource(const FTexture2DRHIRef& ResourceRHI,
 void TextureHelper::RawFromRT_Tiled(UTextureRenderTarget2D* RenderTarget, const BufferDescriptor& Desc, size_t TileSizeX, size_t TileSizeY, RawBufferPtrTiles& Tiles)
 {
 	check(IsInRenderingThread());
-	FTexture2DRHIRef ResourceRHI = ((FTextureRenderTarget2DResource*)RenderTarget->GetResource())->GetTextureRHI();
+	FTextureRHIRef ResourceRHI = ((FTextureRenderTarget2DResource*)RenderTarget->GetResource())->GetTextureRHI();
 	return RawFromResource_Tiled(ResourceRHI, Desc, TileSizeX, TileSizeY, Tiles);
 }
 
 void TextureHelper::RawFromTexture_Tiled(UTexture2D* Texture, const BufferDescriptor& Desc, size_t TileSizeX, size_t TileSizeY, RawBufferPtrTiles& Tiles)
 {
 	check(IsInRenderingThread());
-	FTexture2DRHIRef ResourceRHI = ((FTexture2DResource*)Texture->GetResource())->GetTexture2DRHI();
+	FTextureRHIRef ResourceRHI = ((FTexture2DResource*)Texture->GetResource())->GetTexture2DRHI();
 	return RawFromResource_Tiled(ResourceRHI, Desc, TileSizeX, TileSizeY, Tiles);
 }
 
-void TextureHelper::RawFromResource_Tiled(FTexture2DRHIRef ResourceRHI, const BufferDescriptor& Desc, size_t TileSizeX, size_t TileSizeY, RawBufferPtrTiles& Tiles)
+void TextureHelper::RawFromResource_Tiled(FTextureRHIRef ResourceRHI, const BufferDescriptor& Desc, size_t TileSizeX, size_t TileSizeY, RawBufferPtrTiles& Tiles)
 {
 	/// If any of the dimensions are less than the tile size requested then we don't tile at all
 	if (Desc.Width < TileSizeX && Desc.Height < TileSizeY)
@@ -1441,23 +1456,15 @@ bool TextureHelper::CanSupportTexture(UTexture* Tex)
 	return CanSupport;
 }
 
-bool TextureHelper::CanSplitToTiles(UTexture* Texture, int TilesX, int TilesY)
+bool TextureHelper::CanSplitToTiles(int Width, int Height, int TilesX, int TilesY)
 {
 	bool bSplitToTiles = true;
 
-#if WITH_EDITOR
-	check(Texture->Source.IsValid());
-	int Width = Texture->Source.GetSizeX();
-	int Height = Texture->Source.GetSizeY();
-#else
-	int Width = Texture->GetSurfaceWidth();
-	int Height = Texture->GetSurfaceHeight();
-#endif
 	bool bSingleTile = (TilesX == 1 && TilesY == 1);
 	//Height and width both must be big enough to support tiling
 	bool bSizeNotBigEnough = (Width <= TilesX || Height <= TilesY);
-	
-	if(bSingleTile || bSizeNotBigEnough)
+
+	if (bSingleTile || bSizeNotBigEnough)
 	{
 		bSplitToTiles = false;
 	}
@@ -1470,8 +1477,12 @@ bool TextureHelper::GetPixelFormatFromTextureSourceFormat(ETextureSourceFormat S
 	switch (SourceFormat)
 	{
 	// Currently supported formats : 
-	case ETextureSourceFormat::TSF_RGBA32F:
 	case ETextureSourceFormat::TSF_RGBA16F:
+		OutPixelFormat = PF_FloatRGBA;
+		OutNumChannels = 4;
+		break;
+
+	case ETextureSourceFormat::TSF_RGBA32F:
 	case ETextureSourceFormat::TSF_RGBA16:
 	case ETextureSourceFormat::TSF_BGRA8:
 	case ETextureSourceFormat::TSF_BGRE8:

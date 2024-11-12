@@ -3,7 +3,7 @@
 #include "MetasoundGraphAlgo.h"
 #include "MetasoundGraphAlgoPrivate.h"
 
-#include "DSP/DirectedGraphAlgo.h"
+#include "Graph/DirectedGraphUtils.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "Containers/Set.h"
@@ -21,7 +21,7 @@ namespace Metasound
 	class FDirectedGraphAlgoAdapter
 	{
 		using FNodePair = TTuple<const INode*, const INode*>;
-		using FDirectedEdge = Audio::FDirectedEdge;
+		using FDirectedEdge = UE::MathCore::Graph::FDirectedEdge;
 
 		// The TLazyObject holds the object and a flag to denote whether the 
 		// object has been initialized.
@@ -186,11 +186,11 @@ namespace Metasound
 			}
 
 			// Get in the form of a directed tree
-			const Audio::FDirectedTree& GetTree() const
+			const UE::MathCore::Graph::FDirectedTree& GetTree() const
 			{
 				if (!Lazy.Tree.bIsInitialized)
 				{
-					Audio::FDirectedGraphAlgo::BuildDirectedTree(GetUniqueEdges(), *Lazy.Tree);
+					UE::MathCore::Graph::BuildDirectedTree(GetUniqueEdges(), *Lazy.Tree);
 					Lazy.Tree.bIsInitialized = true;
 				}
 
@@ -198,11 +198,11 @@ namespace Metasound
 			}
 
 			// Get in the form of a transpose directed tree
-			const Audio::FDirectedTree& GetTransposeTree() const
+			const UE::MathCore::Graph::FDirectedTree& GetTransposeTree() const
 			{
 				if (!Lazy.TransposeTree.bIsInitialized)
 				{
-					Audio::FDirectedGraphAlgo::BuildTransposeDirectedTree(GetUniqueEdges(), *Lazy.TransposeTree);
+					UE::MathCore::Graph::BuildTransposeDirectedTree(GetUniqueEdges(), *Lazy.TransposeTree);
 					Lazy.TransposeTree.bIsInitialized = true;
 				}
 
@@ -214,9 +214,9 @@ namespace Metasound
 			struct FLazyCache
 			{
 				TLazyObject<TArray<int32>> UniqueVertices;
-				TLazyObject<TArray<Audio::FDirectedEdge>> UniqueEdges;
-				TLazyObject<Audio::FDirectedTree> Tree;
-				TLazyObject<Audio::FDirectedTree> TransposeTree;
+				TLazyObject<TArray<UE::MathCore::Graph::FDirectedEdge>> UniqueEdges;
+				TLazyObject<UE::MathCore::Graph::FDirectedTree> Tree;
+				TLazyObject<UE::MathCore::Graph::FDirectedTree> TransposeTree;
 			};
 
 			TSet<FDirectedEdge> EdgeSet;
@@ -321,7 +321,7 @@ namespace Metasound
 			TArray<int32> VertexOrder;
 
 			// Call algo implementation
-			bool bResult = Audio::FDirectedGraphAlgo::DepthFirstTopologicalSort(InAdapter.GetUniqueVertices(), InAdapter.GetUniqueEdges(), VertexOrder);
+			bool bResult = UE::MathCore::Graph::DepthFirstTopologicalSort(InAdapter.GetUniqueVertices(), InAdapter.GetUniqueEdges(), VertexOrder);
 
 			if (!bResult)
 			{
@@ -351,7 +351,7 @@ namespace Metasound
 			TArray<int32> VertexOrder;
 
 			// Call algo implementation
-			bool bResult = Audio::FDirectedGraphAlgo::KahnTopologicalSort(InAdapter.GetUniqueVertices(), InAdapter.GetUniqueEdges(), VertexOrder);
+			bool bResult = UE::MathCore::Graph::KahnTopologicalSort(InAdapter.GetUniqueVertices(), InAdapter.GetUniqueEdges(), VertexOrder);
 
 			if (!bResult)
 			{
@@ -376,14 +376,14 @@ namespace Metasound
 
 		bool TarjanStronglyConnectedComponents(const FDirectedGraphAlgoAdapter& InAdapter, TArray<FStronglyConnectedComponent>& OutComponents, bool bExcludeSingleVertex)
 		{
-			TArray<Audio::FStronglyConnectedComponent> StronglyConnectedComponents;
+			TArray<UE::MathCore::Graph::FStronglyConnectedComponent> StronglyConnectedComponents;
 
 			// Run tarjan on metasound derived graph edges 
-			if (Audio::FDirectedGraphAlgo::TarjanStronglyConnectedComponents(InAdapter.GetEdgeSet(), StronglyConnectedComponents, bExcludeSingleVertex))
+			if (UE::MathCore::Graph::TarjanStronglyConnectedComponents(InAdapter.GetEdgeSet(), StronglyConnectedComponents, bExcludeSingleVertex))
 			{
 				// If strongly connected components are found, they must be converted
 				// back into metasound types. 
-				for (const Audio::FStronglyConnectedComponent& Component : StronglyConnectedComponents)
+				for (const UE::MathCore::Graph::FStronglyConnectedComponent& Component : StronglyConnectedComponents)
 				{
 					FStronglyConnectedComponent& MetasoundGraphComponent = OutComponents.AddDefaulted_GetRef();
 
@@ -392,7 +392,7 @@ namespace Metasound
 						MetasoundGraphComponent.Nodes.Add(InAdapter.GetNode(Vertex));
 					}
 
-					for (const Audio::FDirectedEdge& Edge : Component.Edges)
+					for (const UE::MathCore::Graph::FDirectedEdge& Edge : Component.Edges)
 					{
 						TArray<FDataEdge> MetasoundComponentEdges;
 
@@ -421,7 +421,7 @@ namespace Metasound
 
 			for (int32 Vertex : InAdapter.GetUniqueInputVertices())
 			{
-				Audio::FDirectedGraphAlgo::DepthFirstTraversal(Vertex, InAdapter.GetTree(), [&](int32 InVertexBeingVisited) -> bool 
+				UE::MathCore::Graph::DepthFirstNodeTraversal(Vertex, InAdapter.GetTree(), [&](int32 InVertexBeingVisited) -> bool
 					{
 						bool bIsAlreadyInSet = false;
 						VisitedVertices.Add(InVertexBeingVisited, &bIsAlreadyInSet);
@@ -445,7 +445,7 @@ namespace Metasound
 
 			for (int32 Vertex : InAdapter.GetUniqueOutputVertices())
 			{ 
-				Audio::FDirectedGraphAlgo::DepthFirstTraversal(Vertex, InAdapter.GetTransposeTree(), [&](int32 InVertexBeingVisited) -> bool 
+				UE::MathCore::Graph::DepthFirstNodeTraversal(Vertex, InAdapter.GetTransposeTree(), [&](int32 InVertexBeingVisited) -> bool
 					{
 						bool bIsAlreadyInSet = false;
 						VisitedVertices.Add(InVertexBeingVisited, &bIsAlreadyInSet);

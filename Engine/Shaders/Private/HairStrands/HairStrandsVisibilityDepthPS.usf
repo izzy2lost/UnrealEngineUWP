@@ -41,7 +41,7 @@ FHairSampleData ExtractSampleData(uint3 PixelCoord)
 		const FHairSample Sample = UnpackHairSample(HairSampleData[SampleIndex]);
 		Out.DeviceZ = max(Out.DeviceZ, Sample.Depth); // Inverse-Z
 		Out.LightChannelMask |= Sample.LightChannelMask;
-		Out.CastContactShadow |= HasHairFlags(Sample.Flags, HAIR_FLAGS_CAST_CONTACT_SHADOW);
+		Out.CastContactShadow = Out.CastContactShadow || HasHairFlags(Sample.Flags, HAIR_FLAGS_CAST_CONTACT_SHADOW);
 	}
 	return Out;
 }
@@ -49,7 +49,7 @@ FHairSampleData ExtractSampleData(uint3 PixelCoord)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Gbuffer patching (+ LightChannel mask)
 #if SUBSTRATE_ENABLED
-#define OUTPUT_FORMAT uint
+#define OUTPUT_FORMAT uint 
 #else
 #define OUTPUT_FORMAT float4
 #endif
@@ -84,8 +84,10 @@ void MainPS(
 	Output0 = 0; // MaterialData
 	Output1 = 0; // TopLayerData
 
-	// Force PerObjectData contact shadow to respect hair settings, in order to have correct screen cast later
 	FSubstratePixelHeader DummyHeader = InitialiseSubstratePixelHeader();
+	// Set the material mode to hair for GBuffer/Material inspection
+	DummyHeader.SetMaterialMode(HEADER_MATERIALMODE_HAIR);
+	// Force PerObjectData contact shadow to respect hair settings, in order to have correct screen cast later
 	DummyHeader.SetCastContactShadow(SampleData.CastContactShadow ? 1 : 0);
 	Output0 = DummyHeader.State;
 

@@ -87,28 +87,6 @@ static TAutoConsoleVariable<bool> CVarAllowPSOPrecaching(
 	TEXT("false: GL RHI will disable precaching (even if r.PSOPrecaching=1). "),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
-void OnQueryCreation( FOpenGLRenderQuery* Query )
-{
-	check(PrivateOpenGLDevicePtr);
-	PrivateOpenGLDevicePtr->RegisterQuery( Query );
-}
-
-void OnQueryDeletion( FOpenGLRenderQuery* Query )
-{
-	if(PrivateOpenGLDevicePtr)
-	{
-		PrivateOpenGLDevicePtr->UnregisterQuery( Query );
-	}
-}
-
-void OnQueryInvalidation( void )
-{
-	if(PrivateOpenGLDevicePtr)
-	{
-		PrivateOpenGLDevicePtr->InvalidateQueries();
-	}
-}
-
 void OnProgramDeletion( GLint ProgramResource )
 {
 	check(PrivateOpenGLDevicePtr);
@@ -177,96 +155,67 @@ bool IsUniformBufferBound( GLuint Buffer )
 
 extern void BeginFrame_UniformBufferPoolCleanup();
 extern void BeginFrame_VertexBufferCleanup();
-extern void BeginFrame_QueryBatchCleanup();
-extern void OpenGL_PollAllFences();
 
-
-FOpenGLContextState& FOpenGLDynamicRHI::GetContextStateForCurrentContext(bool bAssertIfInvalid)
+EOpenGLCurrentContext FOpenGLDynamicRHI::GetCurrentContext()
 {
-	// most common case
-	if (BeginSceneContextType == CONTEXT_Rendering)
-	{
-		return RenderingContextState;
-	}
-	
-	int32 ContextType = (int32)PlatformOpenGLCurrentContext(PlatformDevice);
-	if (bAssertIfInvalid)
-	{
-			check(ContextType >= 0);
-	}
-	else if (ContextType < 0)
-	{
-		return InvalidContextState;
-	}
+	return PlatformOpenGLCurrentContext(FOpenGLDynamicRHI::Get().PlatformDevice);
+}
 
-	if (ContextType == CONTEXT_Rendering)
+FOpenGLContextState& FOpenGLDynamicRHI::GetContextStateForCurrentContext()
+{
+	if (!CachedContextState)
 	{
-		return RenderingContextState;
+		int32 ContextType = (int32)PlatformOpenGLCurrentContext(PlatformDevice);
+		checkf(ContextType >= 0, TEXT("Invalid GL context on current thread."));
+
+		if (ContextType == CONTEXT_Rendering)
+		{
+			CachedContextState = &RenderingContextState;
+		}
+		else
+		{
+			CachedContextState = &SharedContextState;
+		}
 	}
 	else
 	{
-		return SharedContextState;
+	#if DO_CHECK
+		switch ((int32)PlatformOpenGLCurrentContext(PlatformDevice))
+		{
+		default:
+		case CONTEXT_Other:
+		case CONTEXT_Invalid:
+			checkf(false, TEXT("Invalid GL context on current thread."));
+			break;
+
+		case CONTEXT_Rendering: check(CachedContextState == &RenderingContextState); break;
+		case CONTEXT_Shared   : check(CachedContextState == &SharedContextState   ); break;
+		}
+	#endif // DO_CHECK
 	}
+
+	return *CachedContextState;
 }
 
-void FOpenGLDynamicRHI::RHIBeginFrame()
+void FOpenGLDynamicRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 {
-	GPUProfilingData.BeginFrame(this);
-
-#if PLATFORM_ANDROID //adding #if since not sure if this is required for any other platform.
-	PendingState.DepthStencil = 0 ;
+#if (RHI_NEW_GPU_PROFILER == 0)
+	GPUProfilingData->EndFrame();
 #endif
 
-	OpenGL_PollAllFences();
-}
-
-extern void OpenGLCommands_OnEndFrame();
-
-void FOpenGLDynamicRHI::RHIEndFrame()
-{
-	GPUProfilingData.EndFrame();
-
-	OpenGL_PollAllFences();
-
+	extern void OpenGLCommands_OnEndFrame();
 	OpenGLCommands_OnEndFrame();
-}
 
-void FOpenGLDynamicRHI::RHIPerFrameRHIFlushComplete()
-{
+#if PLATFORM_ANDROID //adding #if since not sure if this is required for any other platform.
+	PendingState.DepthStencil = 0;
+#endif
+
 	BeginFrame_UniformBufferPoolCleanup();
 	BeginFrame_VertexBufferCleanup();
-	BeginFrame_QueryBatchCleanup();
 
-	OpenGL_PollAllFences();
-
-	FMemory::Memset(PendingState.BoundUniformBuffers, 0, sizeof(PendingState.BoundUniformBuffers));
-	FMemory::Memset(PendingState.BoundUniformBuffersDynamicOffset, 0u, sizeof(PendingState.BoundUniformBuffersDynamicOffset));
-}
-
-
-void FOpenGLDynamicRHI::RHIBeginScene()
-{
-	// Increment the frame counter. INDEX_NONE is a special value meaning "uninitialized", so if
-	// we hit it just wrap around to zero.
-	SceneFrameCounter++;
-	if (SceneFrameCounter == INDEX_NONE)
-	{
-		SceneFrameCounter++;
-	}
-
-	static auto* ResourceTableCachingCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("rhi.ResourceTableCaching"));
-	if (ResourceTableCachingCvar == NULL || ResourceTableCachingCvar->GetValueOnAnyThread() == 1)
-	{
-		ResourceTableFrameCounter = SceneFrameCounter;
-	}
-
-	BeginSceneContextType = (int32)PlatformOpenGLCurrentContext(PlatformDevice);
-}
-
-void FOpenGLDynamicRHI::RHIEndScene()
-{
-	ResourceTableFrameCounter = INDEX_NONE;
-	BeginSceneContextType = CONTEXT_Other;
+#if (RHI_NEW_GPU_PROFILER == 0)
+	GPUProfilingData->BeginFrame();
+#endif
 }
 
 #if PLATFORM_ANDROID
@@ -888,6 +837,8 @@ static void InitRHICapabilitiesForGL()
 	GMaxRHIFeatureLevel = ERHIFeatureLevel::ES3_1;
 	GMaxRHIShaderPlatform = FOpenGL::GetShaderPlatform();
 
+	GRHIMaximumInFlightQueries = 4000;
+
 	// Log all supported extensions.
 #if PLATFORM_WINDOWS
 	bool bWindowsSwapControlExtensionPresent = false;
@@ -1177,6 +1128,7 @@ static void InitRHICapabilitiesForGL()
 	SetupTextureFormat( PF_R16G16B16A16_SNORM,	FOpenGLTextureFormat( GL_RGBA16,				GL_RGBA16,				GL_RGBA,			GL_SHORT,						false,			false));
 	
 	SetupTextureFormat( PF_R16G16_UINT,			FOpenGLTextureFormat( GL_RG16UI,				GL_RG16UI,				GL_RG_INTEGER,		GL_UNSIGNED_SHORT,				false,			false));
+	SetupTextureFormat( PF_R16G16_SINT,			FOpenGLTextureFormat( GL_RG16I,					GL_RG16I,				GL_RG_INTEGER,		GL_SHORT,						false,			false));
 	SetupTextureFormat( PF_R8,					FOpenGLTextureFormat( GL_R8,					GL_R8,					GL_RED,				GL_UNSIGNED_BYTE,				false,			false));
 
 	SetupTextureFormat( PF_R5G6B5_UNORM,        FOpenGLTextureFormat( GL_RGB565,                GL_RGB565,              GL_RGB,             GL_UNSIGNED_SHORT_5_6_5,        false,          false));
@@ -1286,12 +1238,7 @@ static void InitRHICapabilitiesForGL()
 	// @TODO revisit this with newer drivers
 	GRHINeedsUnatlasedCSMDepthsWorkaround = true;
 
-	static const auto CVarPSOPrecaching = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PSOPrecaching"));
-	if (CVarPSOPrecaching && CVarPSOPrecaching->GetInt() != 0 && CVarAllowPSOPrecaching.GetValueOnAnyThread())
-	{
-		GRHISupportsPSOPrecaching = true;
-	}
-	
+	GRHISupportsPSOPrecaching = CVarAllowPSOPrecaching.GetValueOnAnyThread();
 	GRHISupportsPipelineFileCache = !GRHISupportsPSOPrecaching || CVarEnablePSOFileCacheWhenPrecachingActive.GetValueOnAnyThread();
 
 	GRHIGlobals.NeedsShaderUnbinds = true;
@@ -1305,13 +1252,6 @@ FDynamicRHI* FOpenGLDynamicRHIModule::CreateRHI(ERHIFeatureLevel::Type InRequest
 
 
 FOpenGLDynamicRHI::FOpenGLDynamicRHI()
-:	SceneFrameCounter(0)
-,	ResourceTableFrameCounter(INDEX_NONE)
-,	bRevertToSharedContextAfterDrawingViewport(false)
-,	bIsRenderingContextAcquired(false)
-,   BeginSceneContextType(CONTEXT_Other)
-,	PlatformDevice(NULL)
-,	GPUProfilingData(this)
 {
 	check(Singleton == nullptr);
 	Singleton = this;
@@ -1407,6 +1347,10 @@ FOpenGLDynamicRHI::FOpenGLDynamicRHI()
 
 	PrivateOpenGLDevicePtr = this;
 	GlobalUniformBuffers.AddZeroed(FUniformBufferStaticSlotRegistry::Get().GetSlotCount());
+
+#if RHI_NEW_GPU_PROFILER == 0
+	GPUProfilingData.Emplace();
+#endif
 }
 
 extern void DestroyShadersAndPrograms();
@@ -1501,8 +1445,6 @@ void FOpenGLDynamicRHI::Init()
 
 	FHardwareInfo::RegisterHardwareInfo( NAME_RHI, TEXT( "OpenGL" ) );
 
-	GRHICommandList.GetImmediateCommandList().InitializeImmediateContexts();
-
 	FRenderResource::InitPreRHIResources();
 	GIsRHIInitialized = true;
 }
@@ -1512,6 +1454,8 @@ void FOpenGLDynamicRHI::Shutdown()
 	check(IsInGameThread() && IsInRenderingThread()); // require that the render thread has been shut down
 
 	Cleanup();
+
+	FOpenGLRenderQuery::Cleanup();
 
 	DestroyShadersAndPrograms();
 	PlatformDestroyOpenGLDevice(PlatformDevice);
@@ -1528,7 +1472,9 @@ void FOpenGLDynamicRHI::Cleanup()
 		// Reset the RHI initialized flag.
 		GIsRHIInitialized = false;
 
-		GPUProfilingData.Cleanup();
+#if (RHI_NEW_GPU_PROFILER == 0)
+		GPUProfilingData->Cleanup();
+#endif
 
 		// Ask all initialized FRenderResources to release their RHI resources.
 		FRenderResource::ReleaseRHIForAllResources();
@@ -1567,42 +1513,19 @@ void FOpenGLDynamicRHI::RHIAcquireThreadOwnership()
 {
 	check(!bRevertToSharedContextAfterDrawingViewport);	// if this is true, then main thread is rendering using our context right now.
 	PlatformRenderingContextSetup(PlatformDevice);
-	PlatformRebindResources(PlatformDevice);
+	CachedContextState = nullptr;
+
 	bIsRenderingContextAcquired = true;
 	VERIFY_GL(RHIAcquireThreadOwnership);
-	{
-		FScopeLock lock(&CustomPresentSection);
-		if (CustomPresent)
-		{
-			CustomPresent->OnAcquireThreadOwnership();
-		}
-	}
 }
 
 void FOpenGLDynamicRHI::RHIReleaseThreadOwnership()
 {
-	{
-		FScopeLock lock(&CustomPresentSection);
-		if (CustomPresent)
-		{
-			CustomPresent->OnReleaseThreadOwnership();
-		}
-	}
 	VERIFY_GL(RHIReleaseThreadOwnership);
 	bIsRenderingContextAcquired = false;
+
 	PlatformNULLContextSetup();
-}
-
-void FOpenGLDynamicRHI::RegisterQuery( FOpenGLRenderQuery* Query )
-{
-	FScopeLock Lock(&QueriesListCriticalSection);
-	Queries.Add(Query);
-}
-
-void FOpenGLDynamicRHI::UnregisterQuery( FOpenGLRenderQuery* Query )
-{
-	FScopeLock Lock(&QueriesListCriticalSection);
-	Queries.RemoveSingleSwap(Query);
+	CachedContextState = nullptr;
 }
 
 void* FOpenGLDynamicRHI::RHIGetNativeDevice()
@@ -1613,23 +1536,6 @@ void* FOpenGLDynamicRHI::RHIGetNativeDevice()
 void* FOpenGLDynamicRHI::RHIGetNativeInstance()
 {
 	return nullptr;
-}
-
-void FOpenGLDynamicRHI::InvalidateQueries( void )
-{
-	{
-		FScopeLock Lock(&QueriesListCriticalSection);
-		PendingState.RunningOcclusionQuery = 0;
-		for( int32 Index = 0; Index < Queries.Num(); ++Index )
-		{
-			Queries[Index]->bInvalidResource = true;
-		}
-	}
-}
-
-void* FOpenGLDynamicRHI::GetOpenGLCurrentContextHandle()
-{
-	return PlatformOpenGLCurrentContextHandle(PlatformDevice);
 }
 
 void FOpenGLDynamicRHI::SetCustomPresent(FRHICustomPresent* InCustomPresent)

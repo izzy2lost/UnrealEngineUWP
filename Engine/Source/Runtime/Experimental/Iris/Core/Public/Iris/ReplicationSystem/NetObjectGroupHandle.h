@@ -21,7 +21,12 @@ namespace UE::Net
 class FNetObjectGroupHandle
 {
 public:
-	typedef uint16 FGroupIndexType;
+	typedef uint32 FGroupIndexType;
+
+	enum { GroupIndexBits = 24U };
+	enum { EpochBits = 8U };
+	enum { EpochMask = (1U << EpochBits) - 1U };
+	enum { MaxGroupIndexCount = 1U << GroupIndexBits };
 
 	/** Reserved group indices */
 	enum : FGroupIndexType
@@ -36,11 +41,15 @@ public:
 
 	FNetObjectGroupHandle() : Value(0u) {}
 
+	// $IRIS TODO: IsValid could be considered a shortcut to Group->IsValidGroup but it's abolutely not the same thing. Rename this to IsInitialized() to remove the confusion.
 	/** Returns true if the handle is valid, note this does not mean that the group is valid */
 	inline bool IsValid() const { return Value != 0u; }
 
-	/** Returns the GroupIndex of the group assosciated with the handle */
+	/** Returns the GroupIndex of the group associated with the handle */
 	inline FGroupIndexType GetGroupIndex() const { return FGroupIndexType(Index); }
+
+	/** Returns the unique id for this group */
+	uint32 GetUniqueId() const { return UniqueId; }
 
 	/** Returns true if the provided GroupIndex is a reserved NetObjectsGroupIndex */
 	static bool IsReservedNetObjectGroupIndex(FGroupIndexType GroupIndex) { return GroupIndex >= NotReplicatedNetObjectGroupIndex && GroupIndex <= NetGroupReplayNetObjectGroupIndex; }
@@ -57,7 +66,7 @@ public:
 	/** Special group, SubObjects assigned to this group will replicate if replay netconditions is met  */
 	bool IsNetGroupReplayNetObjectGroup() const { return Index == NetGroupReplayNetObjectGroupIndex; }
 
-	uint32 GetRawValue() const
+	uint64 GetRawValue() const
 	{
 		return Value;
 	}
@@ -65,7 +74,7 @@ public:
 private:
 	friend UE::Net::Private::FNetObjectGroups;
 
-	FNetObjectGroupHandle(FGroupIndexType IndexIn, FGroupIndexType EpochIn)
+	FNetObjectGroupHandle(FGroupIndexType IndexIn, FGroupIndexType EpochIn, uint32 InUniqueId)
 	{ 
 		if (IndexIn == InvalidNetObjectGroupIndex)
 		{
@@ -73,18 +82,20 @@ private:
 		}
 		else
 		{
-			Index = IndexIn;
-			Epoch = EpochIn;
+			Index = (uint32)IndexIn;
+			Epoch = (uint32)EpochIn;
+			UniqueId = InUniqueId;
 		}
 	}
 
 	union 
 	{
-		uint32 Value;
+		uint64 Value;
 		struct
 		{
-			FGroupIndexType Index;
-			FGroupIndexType Epoch;
+			uint32 Index : GroupIndexBits;
+			uint32 Epoch : EpochBits;
+			uint32 UniqueId;
 		};
 	};
 
@@ -92,10 +103,10 @@ private:
 	friend inline bool operator!=(const FNetObjectGroupHandle& Lhs, const FNetObjectGroupHandle& Rhs) { return Lhs.Value != Rhs.Value; }
 };
 
-static_assert(sizeof(FNetObjectGroupHandle) == sizeof(uint32), "Bad packing");
+static_assert(sizeof(FNetObjectGroupHandle) == sizeof(uint64), "FNetObjectGroupHandle must be of size 64bits.");
 
 FORCEINLINE uint32 GetTypeHash(const FNetObjectGroupHandle Handle)
 {
-	return ::GetTypeHash(Handle.GetGroupIndex());
+	return ::GetTypeHash(Handle.GetRawValue());
 }
 }

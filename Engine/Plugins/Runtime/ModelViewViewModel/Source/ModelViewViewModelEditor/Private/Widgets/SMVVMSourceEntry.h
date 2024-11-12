@@ -23,6 +23,7 @@ public:
 		}
 		SLATE_STYLE_ARGUMENT(FTextBlockStyle, TextStyle)
 		SLATE_ARGUMENT(UE::MVVM::FBindingSource, BindingContext)
+		SLATE_ARGUMENT_DEFAULT(FText, ToolTipDescription) { FText::GetEmpty() };
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& Args);
@@ -31,6 +32,7 @@ public:
 private:
 	TSharedPtr<STextBlock> Label;
 	TSharedPtr<SImage> Image;
+	FText ToolTipDescription;
 };
 
 } // namespace UE::MVVM

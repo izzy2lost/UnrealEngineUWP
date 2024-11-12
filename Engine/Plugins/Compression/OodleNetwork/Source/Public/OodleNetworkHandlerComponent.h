@@ -5,6 +5,7 @@
 // @todo #JohnB: Separate module-based header code, from other class implementations, so that you can setup the PCH.h file correctly
 
 #include "Net/Core/Analytics/NetAnalytics.h"
+#include "UObject/CoreNet.h"
 #include "PacketHandler.h"
 #include "OodleNetworkArchives.h"
 #include "OodleNetworkFaultHandler.h"
@@ -184,7 +185,7 @@ public:
 	 */
 	FORCEINLINE void CheckForUpdate()
 	{
-		float DeltaTime = FPlatformTime::Seconds() - LastStatsUpdate;
+		float DeltaTime = static_cast<float>(FPlatformTime::Seconds() - LastStatsUpdate);
 
 		if (DeltaTime > 1.f)
 		{

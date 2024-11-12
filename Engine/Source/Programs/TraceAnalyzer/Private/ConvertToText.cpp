@@ -22,9 +22,6 @@ namespace TraceAnalyzer
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-constexpr int64 MinInt64Hex = -999'999;
-constexpr int64 MaxInt64Hex = 999'999'999;
-
 // See \Engine\Source\Runtime\TraceLog\Public\Trace\Detail\Protocols\Protocol6.h
 enum class EEventFlags : uint8
 {
@@ -450,7 +447,7 @@ void FConvertToTextAnalyzer::RegisterCallbacksForKnownEvents()
 			auto NameTChar = StringCast<TCHAR>(Name.GetData(), Name.Num());
 			FStringView NameView(NameTChar.Get(), NameTChar.Length());
 			FString NameStr(NameView.GetData(), NameView.Len());
-			Serializer.WriteString("#Name", TCHAR_TO_UTF8(*NameStr));
+			Serializer.WriteAttributeString("#Name", TCHAR_TO_UTF8(*NameStr));
 		};
 
 	KnownEvents[(int)EKnownEvent::CpuProfiler_EventSpec].Callback =
@@ -480,11 +477,11 @@ void FConvertToTextAnalyzer::RegisterCallbacksForKnownEvents()
 				}
 				if (TimerName)
 				{
-					Serializer.WriteString("@Name", TCHAR_TO_UTF8(TimerName));
+					Serializer.WriteAttributeString("@Name", TCHAR_TO_UTF8(TimerName));
 				}
 				else
 				{
-					Serializer.WriteString("@Name", "<invalid>");
+					Serializer.WriteAttributeString("@Name", "<invalid>");
 				}
 			}
 
@@ -499,14 +496,18 @@ void FConvertToTextAnalyzer::RegisterCallbacksForKnownEvents()
 			TArrayView<const uint8> Out = EventData.GetArrayView<uint8>("Data");
 			if (Out.GetData() != nullptr)
 			{
+				Serializer.BeginAttribute();
 				Serializer.WriteKey("#Data");
 				ConvertToTextEventBatch(Context, Serializer, Out.GetData(), Out.Num());
+				Serializer.EndAttribute();
 			}
 			else
 			{
 				check(EventData.GetAttachment() != nullptr);
+				Serializer.BeginAttribute();
 				Serializer.WriteKey("Attached");
 				ConvertToTextEventBatch(Context, Serializer, EventData.GetAttachment(), EventData.GetAttachmentSize());
+				Serializer.EndAttribute();
 			}
 		};
 
@@ -517,8 +518,10 @@ void FConvertToTextAnalyzer::RegisterCallbacksForKnownEvents()
 			TArrayView<const uint8> Out = Context.EventData.GetArrayView<uint8>("Data");
 			if (Out.GetData() != nullptr)
 			{
+				Serializer.BeginAttribute();
 				Serializer.WriteKey("#Data");
 				ConvertToTextEventBatchV2(Context, Serializer, Out.GetData(), Out.Num());
+				Serializer.EndAttribute();
 			}
 		};
 
@@ -541,8 +544,7 @@ void FConvertToTextAnalyzer::RegisterCallbacksForKnownEvents()
 	//	{
 	//		uint64 Cycle = Context.EventData.GetValue<uint64>("Cycle");
 	//		double Time = Context.EventTime.AsSeconds(Cycle);
-	//		Serializer.NextEventField();
-	//		Serializer.WriteFloat("#Time", Time);
+	//		Serializer.WriteAttributeFloat("#Time", Time);
 	//	};
 }
 
@@ -559,7 +561,7 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 			if (TypeInfo.GetFieldIndex("Name") < 0)
 			{
 				const ANSICHAR* ChannelName = reinterpret_cast<const ANSICHAR*>(EventData.GetAttachment());
-				Serializer.WriteString("@ChannelName", ChannelName);
+				Serializer.WriteAttributeString("@ChannelName", ChannelName);
 			}
 		};
 
@@ -571,7 +573,7 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 			if (TypeInfo.GetFieldIndex("Name") < 0)
 			{
 				const ANSICHAR* ThreadName = reinterpret_cast<const ANSICHAR*>(EventData.GetAttachment());
-				Serializer.WriteString("@Name", ThreadName);
+				Serializer.WriteAttributeString("@Name", ThreadName);
 			}
 		};
 
@@ -583,17 +585,13 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 			const uint8 CommandLineOffset = EventData.GetValue<uint8>("CommandLineOffset");
 
 			const ANSICHAR* Platform = reinterpret_cast<const ANSICHAR*>(EventData.GetAttachment());
-			Serializer.WriteString("@Platform", Platform, AppNameOffset);
-
-			Serializer.NextEventField();
+			Serializer.WriteAttributeString("@Platform", Platform, AppNameOffset);
 
 			const ANSICHAR* AppName = reinterpret_cast<const ANSICHAR*>(EventData.GetAttachment() + AppNameOffset);
-			Serializer.WriteString("@AppName", AppName, CommandLineOffset - AppNameOffset);
-
-			Serializer.NextEventField();
+			Serializer.WriteAttributeString("@AppName", AppName, CommandLineOffset - AppNameOffset);
 
 			const ANSICHAR* CommandLine = reinterpret_cast<const ANSICHAR*>(EventData.GetAttachment() + CommandLineOffset);
-			Serializer.WriteString("@CommandLine", CommandLine, EventData.GetAttachmentSize() - CommandLineOffset);
+			Serializer.WriteAttributeString("@CommandLine", CommandLine, EventData.GetAttachmentSize() - CommandLineOffset);
 		};
 
 	KnownEvents[(int)EKnownEvent::Diagnostics_Session2].AttachmentCallback =
@@ -607,7 +605,7 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 		{
 			const FEventData& EventData = Context.EventData;
 			const TCHAR* ThreadName = reinterpret_cast<const TCHAR*>(EventData.GetAttachment());
-			Serializer.WriteString("@Name", TCHAR_TO_UTF8(ThreadName));
+			Serializer.WriteAttributeString("@Name", TCHAR_TO_UTF8(ThreadName));
 		};
 
 	KnownEvents[(int)EKnownEvent::Misc_BeginGameFrame].AttachmentCallback =
@@ -619,7 +617,7 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 			const FEventData& EventData = Context.EventData;
 			const uint8* BufferPtr = EventData.GetAttachment();
 			uint64 CycleDiff = Decode7bit(BufferPtr);
-			Serializer.WriteInteger("@CycleDiff", CycleDiff);
+			Serializer.WriteAttributeInteger("@CycleDiff", CycleDiff);
 		};
 
 	KnownEvents[(int)EKnownEvent::Trace_ThreadGroupBegin].AttachmentCallback =
@@ -632,7 +630,7 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 			if (TypeInfo.GetFieldIndex("Name") < 0)
 			{
 				const ANSICHAR* GroupName = reinterpret_cast<const ANSICHAR*>(EventData.GetAttachment());
-				Serializer.WriteString("@GroupName", GroupName);
+				Serializer.WriteAttributeString("@GroupName", GroupName);
 			}
 		};
 
@@ -645,12 +643,10 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 			if (TypeInfo.GetFieldIndex("FileName") < 0)
 			{
 				const ANSICHAR* File = reinterpret_cast<const ANSICHAR*>(EventData.GetAttachment());
-				Serializer.WriteString("@File", File);
-
-				Serializer.NextEventField();
+				Serializer.WriteAttributeString("@File", File);
 
 				const TCHAR* FormatString = reinterpret_cast<const TCHAR*>(EventData.GetAttachment() + strlen(File) + 1);
-				Serializer.WriteString("@FormatString", TCHAR_TO_UTF8(FormatString));
+				Serializer.WriteAttributeString("@FormatString", TCHAR_TO_UTF8(FormatString));
 			}
 		};
 
@@ -662,7 +658,7 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 			if (TypeInfo.GetFieldIndex("Name") < 0)
 			{
 				const TCHAR* CategoryName = reinterpret_cast<const TCHAR*>(EventData.GetAttachment());
-				Serializer.WriteString("@CategoryName", TCHAR_TO_UTF8(CategoryName));
+				Serializer.WriteAttributeString("@CategoryName", TCHAR_TO_UTF8(CategoryName));
 			}
 		};
 
@@ -671,7 +667,7 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 		{
 			const FEventData& EventData = Context.EventData;
 			const TCHAR* ClassName = reinterpret_cast<const TCHAR*>(EventData.GetAttachment());
-			Serializer.WriteString("@File", TCHAR_TO_UTF8(ClassName));
+			Serializer.WriteAttributeString("@File", TCHAR_TO_UTF8(ClassName));
 		};
 
 	KnownEvents[(int)EKnownEvent::LoadTime_ClassInfo].AttachmentCallback =
@@ -682,7 +678,7 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 			if (TypeInfo.GetFieldIndex("Name") < 0)
 			{
 				const TCHAR* ClassName = reinterpret_cast<const TCHAR*>(EventData.GetAttachment());
-				Serializer.WriteString("@ClassName", TCHAR_TO_UTF8(ClassName));
+				Serializer.WriteAttributeString("@ClassName", TCHAR_TO_UTF8(ClassName));
 			}
 		};
 
@@ -691,7 +687,7 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 		{
 			const FEventData& EventData = Context.EventData;
 			const TCHAR* ClassName = reinterpret_cast<const TCHAR*>(EventData.GetAttachment());
-			Serializer.WriteString("@PackageName", TCHAR_TO_UTF8(ClassName));
+			Serializer.WriteAttributeString("@PackageName", TCHAR_TO_UTF8(ClassName));
 		};
 
 	KnownEvents[(int)EKnownEvent::CpuProfiler_EventSpec].AttachmentCallback =
@@ -721,11 +717,11 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 				}
 				if (TimerName)
 				{
-					Serializer.WriteString("@Name", TCHAR_TO_UTF8(TimerName));
+					Serializer.WriteAttributeString("@Name", TCHAR_TO_UTF8(TimerName));
 				}
 				else
 				{
-					Serializer.WriteString("@Name", "<invalid>");
+					Serializer.WriteAttributeString("@Name", "<invalid>");
 				}
 			}
 
@@ -738,8 +734,10 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 		{
 			const FEventData& EventData = Context.EventData;
 			check(EventData.GetAttachment() != nullptr);
+			Serializer.BeginAttribute();
 			Serializer.WriteKey("Attached");
 			ConvertToTextEventBatch(Context, Serializer, EventData.GetAttachment(), EventData.GetAttachmentSize());
+			Serializer.EndAttribute();
 		};
 
 	KnownEvents[(int)EKnownEvent::Stats_Spec].AttachmentCallback =
@@ -750,12 +748,10 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 			if (TypeInfo.GetFieldIndex("Name") < 0)
 			{
 				const ANSICHAR* Name = reinterpret_cast<const ANSICHAR*>(EventData.GetAttachment());
-				Serializer.WriteString("@Name", Name);
-
-				Serializer.NextEventField();
+				Serializer.WriteAttributeString("@Name", Name);
 
 				const TCHAR* Description = reinterpret_cast<const TCHAR*>(EventData.GetAttachment() + strlen(Name) + 1);
-				Serializer.WriteString("@Description", TCHAR_TO_UTF8(Description));
+				Serializer.WriteAttributeString("@Description", TCHAR_TO_UTF8(Description));
 			}
 		};
 
@@ -767,7 +763,7 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 			if (TypeInfo.GetFieldIndex("Name") < 0)
 			{
 				const TCHAR* Name = reinterpret_cast<const TCHAR*>(EventData.GetAttachment());
-				Serializer.WriteString("@Name", TCHAR_TO_UTF8(Name));
+				Serializer.WriteAttributeString("@Name", TCHAR_TO_UTF8(Name));
 			}
 		};
 
@@ -779,7 +775,7 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 			if (TypeInfo.GetFieldIndex("Name") < 0)
 			{
 				const TCHAR* Name = reinterpret_cast<const TCHAR*>(EventData.GetAttachment());
-				Serializer.WriteString("@Name", TCHAR_TO_UTF8(Name));
+				Serializer.WriteAttributeString("@Name", TCHAR_TO_UTF8(Name));
 			}
 		};
 
@@ -791,7 +787,7 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 			if (TypeInfo.GetFieldIndex("Name") < 0)
 			{
 				const ANSICHAR* Name = reinterpret_cast<const ANSICHAR*>(EventData.GetAttachment());
-				Serializer.WriteString("@Name", Name);
+				Serializer.WriteAttributeString("@Name", Name);
 			}
 		};
 
@@ -803,7 +799,7 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 			if (TypeInfo.GetFieldIndex("Name") < 0)
 			{
 				const TCHAR* Name = reinterpret_cast<const TCHAR*>(EventData.GetAttachment());
-				Serializer.WriteString("@Name", TCHAR_TO_UTF8(Name));
+				Serializer.WriteAttributeString("@Name", TCHAR_TO_UTF8(Name));
 			}
 		};
 
@@ -813,9 +809,8 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 			const FEventData& EventData = Context.EventData;
 			const TCHAR* Key = reinterpret_cast<const TCHAR*>(EventData.GetAttachment());
 			const TCHAR* Value = reinterpret_cast<const TCHAR*>(EventData.GetAttachment() + EventData.GetValue<uint16>("ValueOffset"));
-			Serializer.WriteString("@Key", TCHAR_TO_UTF8(Key));
-			Serializer.NextEventField();
-			Serializer.WriteString("@Value", TCHAR_TO_UTF8(Value));
+			Serializer.WriteAttributeString("@Key", TCHAR_TO_UTF8(Key));
+			Serializer.WriteAttributeString("@Value", TCHAR_TO_UTF8(Value));
 		};
 
 	KnownEvents[(int)EKnownEvent::CsvProfiler_BeginCapture].AttachmentCallback =
@@ -823,7 +818,7 @@ void FConvertToTextAnalyzer::RegisterAttachmentCallbacksForKnownEvents()
 		{
 			const FEventData& EventData = Context.EventData;
 			const TCHAR* Filename = reinterpret_cast<const TCHAR*>(EventData.GetAttachment());
-			Serializer.WriteString("@Filename", TCHAR_TO_UTF8(Filename));
+			Serializer.WriteAttributeString("@Filename", TCHAR_TO_UTF8(Filename));
 		};
 }
 
@@ -987,18 +982,15 @@ bool FConvertToTextAnalyzer::OnNewEvent(uint16 RouteId, const FEventTypeInfo& Ty
 	{
 		Serializer.BeginNewEventHeader();
 
-		Serializer.WriteInteger("Id", TypeInfo.GetId());
+		Serializer.WriteAttributeInteger("Id", TypeInfo.GetId());
 
-		Serializer.NextEventField();
-		Serializer.WriteString("LoggerName", TypeInfo.GetLoggerName());
+		Serializer.WriteAttributeString("LoggerName", TypeInfo.GetLoggerName());
 
-		Serializer.NextEventField();
-		Serializer.WriteString("Name", TypeInfo.GetName());
+		Serializer.WriteAttributeString("Name", TypeInfo.GetName());
 
-		Serializer.NextEventField();
+		Serializer.BeginAttribute();
 		Serializer.WriteKey("Flags");
 		Serializer.Append("\"");
-
 		const uint8 EventFlags = TypeInfo.GetFlags();
 		if ((EventFlags & (uint8)EEventFlags::Definition) != 0)
 		{
@@ -1021,6 +1013,7 @@ bool FConvertToTextAnalyzer::OnNewEvent(uint16 RouteId, const FEventTypeInfo& Ty
 			Serializer.Append("Sync");
 		}
 		Serializer.Append("\"");
+		Serializer.EndAttribute();
 
 		Serializer.EndNewEventHeader();
 	}
@@ -1032,17 +1025,15 @@ bool FConvertToTextAnalyzer::OnNewEvent(uint16 RouteId, const FEventTypeInfo& Ty
 		Serializer.BeginField();
 
 		const FEventFieldInfo& FieldInfo = *(TypeInfo.GetFieldInfo(FieldIndex));
-		Serializer.WriteString("Name", FieldInfo.GetName());
+		Serializer.WriteAttributeString("Name", FieldInfo.GetName());
 
-		Serializer.NextEventField();
 		/** Offset from the start of the event to this field's data. */
-		Serializer.WriteInteger("Offset", FieldInfo.GetOffset());
+		Serializer.WriteAttributeInteger("Offset", FieldInfo.GetOffset());
 
-		Serializer.NextEventField();
 		/** The size of the field's data in bytes. */
-		Serializer.WriteInteger("Size", FieldInfo.GetSize());
+		Serializer.WriteAttributeInteger("Size", FieldInfo.GetSize());
 
-		Serializer.NextEventField();
+		Serializer.BeginAttribute();
 		/** What type of field is this? */
 		Serializer.WriteKey("Type");
 		switch (FieldInfo.GetType())
@@ -1072,13 +1063,13 @@ bool FConvertToTextAnalyzer::OnNewEvent(uint16 RouteId, const FEventTypeInfo& Ty
 			Serializer.Append("Reference64");
 			break;
 		default:
-			Serializer.WriteValueInteger(static_cast<int64>(FieldInfo.GetType()));
+			Serializer.WriteValueUInt32(static_cast<uint32>(FieldInfo.GetType()));
 			break;
 		}
+		Serializer.EndAttribute();
 
-		Serializer.NextEventField();
 		/** Is this field an array-type field? */
-		Serializer.WriteBool("IsArray", FieldInfo.IsArray());
+		Serializer.WriteAttributeBool("IsArray", FieldInfo.IsArray());
 
 		Serializer.EndField();
 	}
@@ -1209,11 +1200,7 @@ bool FConvertToTextAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEven
 
 	if (RouteId == 1)
 	{
-		if (Serializer.IsWriteEventHeaderEnabled())
-		{
-			Serializer.AppendChar(' ');
-		}
-
+		Serializer.BeginAttribute();
 		if (Style == EStyle::EnterScope)
 		{
 			Serializer.Append("!EnterScope");
@@ -1232,32 +1219,16 @@ bool FConvertToTextAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEven
 		{
 			Serializer.Appendf("!%u", (uint32)Style);
 		}
-
-		if (!Serializer.IsWriteEventHeaderEnabled() && (FieldCount > 0 || bHasAttachment))
-		{
-			Serializer.AppendChar(' ');
-		}
+		Serializer.EndAttribute();
 	}
 
 	Serializer.WriteEventName(TypeInfo.GetLoggerName(), TypeInfo.GetName());
 
 	//////////////////////////////////////////////////
 
-	if (FieldCount > 0 || bHasAttachment)
-	{
-		Serializer.BeginEventFields();
-	}
-
-	//////////////////////////////////////////////////
-
 	for (uint32 FieldIndex = 0; FieldIndex < FieldCount; ++FieldIndex)
 	{
 		const FEventFieldInfo& FieldInfo = *(TypeInfo.GetFieldInfo(FieldIndex));
-
-		if (FieldIndex != 0)
-		{
-			Serializer.NextEventField();
-		}
 
 		if (FieldInfo.IsArray())
 		{
@@ -1271,21 +1242,74 @@ bool FConvertToTextAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEven
 			}
 		}
 
+		Serializer.BeginAttribute();
 		Serializer.WriteKey(FieldInfo.GetName());
-
 		if (FieldInfo.IsArray())
 		{
 			switch (FieldInfo.GetType())
 			{
 				case FEventFieldInfo::EType::Integer: // int64
 				{
-					if (!FieldInfo.IsSigned())
+#if 0
+					// Probe element size...
+					uint8 ElementSize = 0;
 					{
-						// Write array as 0x[00 01 ... FF]
+						const TArrayReader<uint8>& Reader8 = EventData.GetArray<uint8>(FieldInfo.GetName());
+						if (Reader8.GetData())
+						{
+							ElementSize = 1;
+						}
+						else
+						{
+							const TArrayReader<uint16>& Reader16 = EventData.GetArray<uint16>(FieldInfo.GetName());
+							if (Reader16.GetData())
+							{
+								ElementSize = 2;
+							}
+							else
+							{
+								const TArrayReader<uint32>& Reader32 = EventData.GetArray<uint32>(FieldInfo.GetName());
+								if (Reader16.GetData())
+								{
+									ElementSize = 4;
+								}
+								else
+								{
+									ElementSize = 8;
+								}
+							}
+						}
+					}
+#endif
+
+					if (FieldInfo.IsSigned())
+					{
+						Serializer.BeginArray();
+						const TArrayReader<int64>& Reader = EventData.GetArray<int64>(FieldInfo.GetName());
+						const uint32 ArrayCount = Reader.Num();
+						const uint32 ActualCount = FMath::Min(ArrayCount, 8u);
+						for (uint32 ArrayIndex = 0; ArrayIndex < ActualCount; ++ArrayIndex)
+						{
+							if (ArrayIndex != 0)
+							{
+								Serializer.NextArrayElement();
+							}
+							const int64 Value = Reader[ArrayIndex];
+							Serializer.WriteValueInt64Auto(Value);
+						}
+						if (ActualCount != ArrayCount)
+						{
+							Serializer.Appendf(" ... | %u elements", ArrayCount);
+						}
+						Serializer.EndArray();
+					}
+					else // unsigned
+					{
 						const TArrayReader<uint8>& Reader8 = EventData.GetArray<uint8>(FieldInfo.GetName());
 						const uint8* Data8 = Reader8.GetData();
 						if (Data8)
 						{
+							// Write array as 0x[00 01 ... FF]
 							Serializer.Append("0x");
 							Serializer.BeginArray();
 							const uint32 ArrayCount = Reader8.Num();
@@ -1308,33 +1332,26 @@ bool FConvertToTextAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEven
 							Serializer.EndArray();
 							break;
 						}
-					}
 
-					Serializer.BeginArray();
-					const TArrayReader<int64>& Reader = EventData.GetArray<int64>(FieldInfo.GetName());
-					const uint32 ArrayCount = Reader.Num();
-					const uint32 ActualCount = FMath::Min(ArrayCount, 4u);
-					for (uint32 ArrayIndex = 0; ArrayIndex < ActualCount; ++ArrayIndex)
-					{
-						if (ArrayIndex != 0)
+						Serializer.BeginArray();
+						const TArrayReader<uint64>& Reader = EventData.GetArray<uint64>(FieldInfo.GetName());
+						const uint32 ArrayCount = Reader.Num();
+						const uint32 ActualCount = FMath::Min(ArrayCount, 8u);
+						for (uint32 ArrayIndex = 0; ArrayIndex < ActualCount; ++ArrayIndex)
 						{
-							Serializer.NextArrayElement();
+							if (ArrayIndex != 0)
+							{
+								Serializer.NextArrayElement();
+							}
+							const uint64 Value = Reader[ArrayIndex];
+							Serializer.WriteValueUInt64Auto(Value);
 						}
-						const int64 Value = Reader[ArrayIndex];
-						if (Value < MinInt64Hex || Value > MaxInt64Hex)
+						if (ActualCount != ArrayCount)
 						{
-							Serializer.WriteValueIntegerHex(Value);
+							Serializer.Appendf(" ... | %u elements", ArrayCount);
 						}
-						else
-						{
-							Serializer.WriteValueInteger(Value);
-						}
+						Serializer.EndArray();
 					}
-					if (ActualCount != ArrayCount)
-					{
-						Serializer.Appendf(" ... | %u elements", ArrayCount);
-					}
-					Serializer.EndArray();
 					break;
 				}
 
@@ -1390,22 +1407,37 @@ bool FConvertToTextAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEven
 			{
 				case FEventFieldInfo::EType::Integer:
 				{
-					const int64 Value = EventData.GetValue<int64>(FieldInfo.GetName());
-					if (strcmp(FieldInfo.GetName(), "Cycle") == 0)
+					if (FieldInfo.IsSigned())
 					{
-						Serializer.WriteValueInteger(uint64(Value));
-						Serializer.AppendChar('(');
-						double Time = Context.EventTime.AsSeconds(uint64(Value));
-						Serializer.WriteValueTime(Time);
-						Serializer.AppendChar(')');
+						const int64 Value = EventData.GetValue<int64>(FieldInfo.GetName());
+						if (strcmp(FieldInfo.GetName(), "Cycle") == 0)
+						{
+							Serializer.WriteValueUInt64(uint64(Value));
+							Serializer.AppendChar('(');
+							double Time = Context.EventTime.AsSeconds(uint64(Value));
+							Serializer.WriteValueTime(Time);
+							Serializer.AppendChar(')');
+						}
+						else
+						{
+							Serializer.WriteValueInt64Auto(Value);
+						}
 					}
-					else if (Value < MinInt64Hex || Value > MaxInt64Hex)
+					else // unsigned
 					{
-						Serializer.WriteValueIntegerHex(Value);
-					}
-					else
-					{
-						Serializer.WriteValueInteger(Value);
+						const uint64 Value = EventData.GetValue<uint64>(FieldInfo.GetName());
+						if (strcmp(FieldInfo.GetName(), "Cycle") == 0)
+						{
+							Serializer.WriteValueUInt64(Value);
+							Serializer.AppendChar('(');
+							double Time = Context.EventTime.AsSeconds(Value);
+							Serializer.WriteValueTime(Time);
+							Serializer.AppendChar(')');
+						}
+						else
+						{
+							Serializer.WriteValueUInt64Auto(Value);
+						}
 					}
 					break;
 				}
@@ -1456,8 +1488,7 @@ bool FConvertToTextAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEven
 				}
 			}
 		}
-
-		//Serializer.NextArrayElement();
+		Serializer.EndAttribute();
 	}
 
 	//////////////////////////////////////////////////
@@ -1474,21 +1505,23 @@ bool FConvertToTextAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEven
 
 	if (bHasAttachment)
 	{
-		Serializer.NextEventField();
-
 		if (Event.AttachmentCallback)
 		{
 			Event.AttachmentCallback(Context, Serializer);
 		}
 		else
 		{
-			Serializer.WriteBinary("Attached", EventData.GetAttachment(), AttachmentSize);
+			Serializer.WriteAttributeBinary("Attached", EventData.GetAttachment(), AttachmentSize);
 		}
 	}
 
 	if (bEmitSizeStats)
 	{
-		Serializer.Appendf("\n\t\t> SIZE Fix=%u Aux=%u Att=%u Raw=%u Total=%u", FixedSize, AuxSize, AttachmentSize, RawSize, TotalEventSize);
+		Serializer.AppendChar('\n');
+		Serializer.BeginAttributeSet();
+		Serializer.BeginAttribute();
+		Serializer.Appendf("> SIZE Fix=%u Aux=%u Att=%u Raw=%u Total=%u", FixedSize, AuxSize, AttachmentSize, RawSize, TotalEventSize);
+		Serializer.EndAttribute();
 	}
 
 	//////////////////////////////////////////////////
@@ -1523,7 +1556,7 @@ void FConvertToTextAnalyzer::ConvertToTextEventBatch(const FOnEventContext& Cont
 	{
 		if (!bFirstElement)
 		{
-			Serializer.NextEventField();
+			Serializer.AppendChar(' ');
 		}
 		else
 		{
@@ -1562,7 +1595,8 @@ void FConvertToTextAnalyzer::ConvertToTextEventBatch(const FOnEventContext& Cont
 			//Serializer.WriteInteger("B", ActualCycle);
 			if (bIsAbsoluteTimestamp)
 			{
-				Serializer.WriteInteger("*B", Cycle);
+				Serializer.Append("*B=");
+				Serializer.WriteValueInt64(Cycle);
 				Serializer.AppendChar('(');
 				double Time = Context.EventTime.AsSeconds(Cycle);
 				Serializer.WriteValueTime(Time);
@@ -1570,11 +1604,12 @@ void FConvertToTextAnalyzer::ConvertToTextEventBatch(const FOnEventContext& Cont
 			}
 			else
 			{
-				Serializer.WriteInteger("B", Cycle);
+				Serializer.Append("B=");
+				Serializer.WriteValueInt64(Cycle);
 			}
 
-			Serializer.NextEventField();
-			Serializer.WriteInteger(bIsUnknownSpecId ? "?id" : "id", SpecId);
+			Serializer.Append(bIsUnknownSpecId ? " ?id=" : " id=");
+			Serializer.WriteValueInt64(SpecId);
 		}
 		else
 		{
@@ -1583,7 +1618,8 @@ void FConvertToTextAnalyzer::ConvertToTextEventBatch(const FOnEventContext& Cont
 			//Serializer.WriteInteger("E", ActualCycle);
 			if (bIsAbsoluteTimestamp)
 			{
-				Serializer.WriteInteger("*E", Cycle);
+				Serializer.Append("*E=");
+				Serializer.WriteValueInt64(Cycle);
 				Serializer.AppendChar('(');
 				double Time = Context.EventTime.AsSeconds(Cycle);
 				Serializer.WriteValueTime(Time);
@@ -1591,7 +1627,8 @@ void FConvertToTextAnalyzer::ConvertToTextEventBatch(const FOnEventContext& Cont
 			}
 			else
 			{
-				Serializer.WriteInteger("E", Cycle);
+				Serializer.Append("E=");
+				Serializer.WriteValueInt64(Cycle);
 			}
 		}
 	}
@@ -1630,7 +1667,7 @@ void FConvertToTextAnalyzer::ConvertToTextEventBatchV2(const FOnEventContext& Co
 	{
 		if (!bFirstElement)
 		{
-			Serializer.NextEventField();
+			Serializer.AppendChar(' ');
 		}
 		else
 		{
@@ -1647,20 +1684,22 @@ void FConvertToTextAnalyzer::ConvertToTextEventBatchV2(const FOnEventContext& Co
 		{
 			if (DecodedCycle & 1ull) // Restore
 			{
-				Serializer.WriteInteger("coR", Cycle);
+				Serializer.Append("coR=");
+				Serializer.WriteValueInt64(Cycle);
 				uint64 CoroutineId = Decode7bit(BufferPtr);
-				Serializer.NextEventField();
-				Serializer.WriteInteger("coId", CoroutineId);
+				Serializer.Append(" coId=");
+				Serializer.WriteValueInt64(CoroutineId);
 				uint32 TimerScopeDepth = Decode7bit(BufferPtr);
-				Serializer.NextEventField();
-				Serializer.WriteInteger("coDepth", TimerScopeDepth);
+				Serializer.Append(" coDepth=");
+				Serializer.WriteValueInt64(TimerScopeDepth);
 			}
 			else // Save
 			{
-				Serializer.WriteInteger("coS", Cycle);
+				Serializer.Append("coS=");
+				Serializer.WriteValueInt64(Cycle);
 				uint32 TimerScopeDepth = Decode7bit(BufferPtr);
-				Serializer.NextEventField();
-				Serializer.WriteInteger("coDepth", TimerScopeDepth);
+				Serializer.Append(" coDepth=");
+				Serializer.WriteValueInt64(TimerScopeDepth);
 			}
 		}
 		else // normal CPU events
@@ -1685,7 +1724,8 @@ void FConvertToTextAnalyzer::ConvertToTextEventBatchV2(const FOnEventContext& Co
 				//Serializer.WriteInteger("B", ActualCycle);
 				if (bIsAbsoluteTimestamp)
 				{
-					Serializer.WriteInteger("*B", Cycle);
+					Serializer.Append("*B=");
+					Serializer.WriteValueInt64(Cycle);
 					Serializer.AppendChar('(');
 					double Time = Context.EventTime.AsSeconds(Cycle);
 					Serializer.WriteValueTime(Time);
@@ -1693,11 +1733,12 @@ void FConvertToTextAnalyzer::ConvertToTextEventBatchV2(const FOnEventContext& Co
 				}
 				else
 				{
-					Serializer.WriteInteger("B", Cycle);
+					Serializer.Append("B=");
+					Serializer.WriteValueInt64(Cycle);
 				}
 
-				Serializer.NextEventField();
-				Serializer.WriteInteger(bIsUnknownSpecId ? "?id" : "id", SpecId);
+				Serializer.Append(bIsUnknownSpecId ? " ?id=" : " id=");
+				Serializer.WriteValueInt64(SpecId);
 			}
 			else
 			{
@@ -1706,7 +1747,8 @@ void FConvertToTextAnalyzer::ConvertToTextEventBatchV2(const FOnEventContext& Co
 				//Serializer.WriteInteger("E", ActualCycle);
 				if (bIsAbsoluteTimestamp)
 				{
-					Serializer.WriteInteger("*E", Cycle);
+					Serializer.Append("*E=");
+					Serializer.WriteValueInt64(Cycle);
 					Serializer.AppendChar('(');
 					double Time = Context.EventTime.AsSeconds(Cycle);
 					Serializer.WriteValueTime(Time);
@@ -1714,7 +1756,8 @@ void FConvertToTextAnalyzer::ConvertToTextEventBatchV2(const FOnEventContext& Co
 				}
 				else
 				{
-					Serializer.WriteInteger("E", Cycle);
+					Serializer.Append("E=");
+					Serializer.WriteValueInt64(Cycle);
 				}
 			}
 		}

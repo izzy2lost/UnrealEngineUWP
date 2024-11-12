@@ -227,9 +227,11 @@ bool FOnlineSubsystemEOS::PlatformCreate()
 	// Make the cache directory be in the user's writable area
 	FString CacheDir;
 	
-	if (FPlatformMisc::IsCacheStorageAvailable())
+	const FString CacheDirBase = EOSSDKManager->GetCacheDirBase();
+
+	if (!CacheDirBase.IsEmpty())
 	{
-		CacheDir = EOSSDKManager->GetCacheDirBase() / ArtifactSettings.ArtifactName / EOSSettings.CacheDir;
+		CacheDir = CacheDirBase / ArtifactSettings.ArtifactName / EOSSettings.CacheDir;
 	}
 	const auto CacheDirUtf8 = StringCast<UTF8CHAR>(*CacheDir);
 	PlatformOptions.CacheDirectory = CacheDir.IsEmpty() ? nullptr : (const char*)CacheDirUtf8.Get();
@@ -255,26 +257,18 @@ bool FOnlineSubsystemEOS::PlatformCreate()
 
 bool FOnlineSubsystemEOS::Init()
 {
-	// Determine if we are the default and if we're the platform OSS
-	FString DefaultOSS;
-	GConfig->GetString(TEXT("OnlineSubsystem"), TEXT("DefaultPlatformService"), DefaultOSS, GEngineIni);
-	FString PlatformOSS;
-	GConfig->GetString(TEXT("OnlineSubsystem"), TEXT("NativePlatformService"), PlatformOSS, GEngineIni);
-	bIsDefaultOSS = DefaultOSS == TEXT("EOS");
-	bIsPlatformOSS = PlatformOSS == TEXT("EOS");
-	bWasLaunchedByEGS = FParse::Param(FCommandLine::Get(), TEXT("EpicPortal"));
-
-	bool bUnused;
-	if (GConfig->GetBool(TEXT("/Script/OnlineSubsystemEOS.EOSSettings"), TEXT("bShouldEnforceBeingLaunchedByEGS"), bUnused, GEngineIni))
+	bool bShouldEnforceBeingLaunchedByEGS = false;
+	GConfig->GetBool(TEXT("/Script/OnlineSubsystemEOS.EOSSettings"), TEXT("bShouldEnforceBeingLaunchedByEGS"), bShouldEnforceBeingLaunchedByEGS, GEngineIni);
+	if (bShouldEnforceBeingLaunchedByEGS)
 	{
-		UE_LOG_ONLINE(Error, TEXT("%hs: Support for bShouldEnforceBeingLaunchedByEGS has been removed, please delete this config entry and instead set bUseLauncherChecks=true in your .Target.cs file(s)"));
+		UE_LOG_ONLINE(Error, TEXT("FOnlineSubsystemEOS: Support for bShouldEnforceBeingLaunchedByEGS has been removed, please delete this config entry and instead set bUseLauncherChecks=true in your .Target.cs file(s)"));
 		return false;
 	}
 
 	EOSSDKManager = IEOSSDKManager::Get();
 	if (!EOSSDKManager)
 	{
-		UE_LOG_ONLINE(Error, TEXT("FOnlineSubsystemEOS::Init() failed to get EOSSDKManager interface"));
+		UE_LOG_ONLINE(Error, TEXT("FOnlineSubsystemEOS: failed to get EOSSDKManager interface"));
 		return false;
 	}
 
@@ -356,16 +350,11 @@ bool FOnlineSubsystemEOS::Init()
 		UE_LOG_ONLINE(Error, TEXT("FOnlineSubsystemEOS: failed to init EOS platform, couldn't get achievements handle"));
 		return false;
 	}
-	// Disable ecom if not part of EGS
-	if (bWasLaunchedByEGS)
+	EcomHandle = EOS_Platform_GetEcomInterface(*EOSPlatformHandle);
+	if (EcomHandle == nullptr)
 	{
-		EcomHandle = EOS_Platform_GetEcomInterface(*EOSPlatformHandle);
-		if (EcomHandle == nullptr)
-		{
-			UE_LOG_ONLINE(Error, TEXT("FOnlineSubsystemEOS: failed to init EOS platform, couldn't get ecom handle"));
-			return false;
-		}
-		StoreInterfacePtr = MakeShareable(new FOnlineStoreEOS(this));
+		UE_LOG_ONLINE(Error, TEXT("FOnlineSubsystemEOS: failed to init EOS platform, couldn't get ecom handle"));
+		return false;
 	}
 
 	// We set the product id
@@ -426,6 +415,7 @@ bool FOnlineSubsystemEOS::Init()
 	StatsInterfacePtr = MakeShareable(new FOnlineStatsEOS(this));
 	LeaderboardsInterfacePtr = MakeShareable(new FOnlineLeaderboardsEOS(this));
 	AchievementsInterfacePtr = MakeShareable(new FOnlineAchievementsEOS(this));
+	StoreInterfacePtr = MakeShareable(new FOnlineStoreEOS(this));
 
 	// We initialized ok so we can tick
 	StartTicker();
@@ -440,7 +430,12 @@ bool FOnlineSubsystemEOS::Shutdown()
 	// EOS-22677 workaround: Make sure tick is called at least once before shutting down.
 	if (EOSPlatformHandle)
 	{
-		EOS_Platform_Tick(*EOSPlatformHandle);
+		// The EOSShared module may have been shut down at this point, in which case
+		// the handle has been released and we can't use it.
+		if (FModuleManager::Get().IsModuleLoaded("EOSShared"))
+		{
+			EOS_Platform_Tick(*EOSPlatformHandle);
+		}
 	}
 
 	StopTicker();
@@ -508,6 +503,10 @@ bool FOnlineSubsystemEOS::Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice&
 	else if (LeaderboardsInterfacePtr != nullptr && FParse::Command(&Cmd, TEXT("LEADERBOARDS"))) /* ONLINE (EOS if using EOSPlus) LEADERBOARDS ... */
 	{
 		bWasHandled = LeaderboardsInterfacePtr->HandleLeaderboardsExec(InWorld, Cmd, Ar);
+	}
+	else if (SessionInterfacePtr != nullptr && FParse::Command(&Cmd, TEXT("SESSION"))) /* ONLINE (EOS if using EOSPlus) SESSION ... */
+	{
+		bWasHandled = SessionInterfacePtr->HandleSessionExec(InWorld, Cmd, Ar);
 	}
 	else if (TitleFileInterfacePtr != nullptr && FParse::Command(&Cmd, TEXT("TITLEFILE"))) /* ONLINE (EOS if using EOSPlus) TITLEFILE ... */
 	{
@@ -590,9 +589,6 @@ FOnlineSubsystemEOS::FOnlineSubsystemEOS(FName InInstanceName) :
 	, StoreInterfacePtr(nullptr)
 	, TitleFileInterfacePtr(nullptr)
 	, UserCloudInterfacePtr(nullptr)
-	, bWasLaunchedByEGS(false)
-	, bIsDefaultOSS(false)
-	, bIsPlatformOSS(false)
 {
 	StopTicker();
 }

@@ -5,8 +5,10 @@
 #include "Containers/StringView.h"
 #include "Templates/Function.h"
 
+class AActor;
 class FAssetRegistryTagsContext;
 class UExternalDataLayerAsset;
+class UExternalDataLayerInstance;
 struct FExternalDataLayerUID;
 struct FAssetData;
 
@@ -15,9 +17,6 @@ class FExternalDataLayerHelper
 public:
 	/** Returns the external streaming object package name */
 	static FString GetExternalStreamingObjectPackageName(const UExternalDataLayerAsset* InExternalDataLayerAsset);
-
-	/** Returns the external streaming object name */
-	static FString GetExternalStreamingObjectName(const UExternalDataLayerAsset* InExternalDataLayerAsset);
 
 	/** Return true if succeeds building the external data layer root path (OutExternalDataLayerRootPath) using the provided mount point and EDL UID.
 	 * Format is /{MountPoint}/{ExternalDataLayerFolder}/{EDL_UID}
@@ -48,10 +47,37 @@ public:
 
 	/** Iterates through all possible External Data Layer Level Package Paths using Asset Registry. */
 	ENGINE_API static void ForEachExternalDataLayerLevelPackagePath(const FString& InLevelPackageName, TFunctionRef<void(const FString&)> Func);
+
+	/* Returns the external actor package relative path for an actor package of an actor using External Data Layers.
+	 * InExternalDataLayerExternalActorPackagePath format is : /{MountPoint}/{ExternalActorFolder}/{ExternalDataLayerFolder}/{EDL_UID}/{ExternalActorPackagePath}
+	 * return format is : /{ExternalActorPackagePath}, empty otherwise
+	 */
+	ENGINE_API static FStringView GetRelativeExternalActorPackagePath(FStringView InExternalDataLayerExternalActorPackagePath);
 #endif
 
 private:
 
+#if WITH_EDITOR
+	ENGINE_API static const UExternalDataLayerAsset* GetExternalDataLayerAssetFromObject(const UObject* InContextObject);
+
+	/** 
+	 * Validates that all actors can change their External Data Layer to the new provided value (supports passing null) 
+	 * Returns false if any actor fails and fills OutFailureReason with the reason (if non-null). 
+	 */
+	ENGINE_API static bool CanMoveActorsToExternalDataLayer(const TArray<AActor*>& InActors, const UExternalDataLayerInstance* InExternalDataLayerInstance, FText* OutFailureReason = nullptr);
+
+	/** 
+	 * Changes all actors External Data Layer to the new provided value (supports passing null)
+	 * Returns false if any actor fails and fills OutFailureReason with the reason (if non-null). 
+	 */
+	ENGINE_API static bool MoveActorsToExternalDataLayer(const TArray<AActor*>& InActors, const UExternalDataLayerInstance* InExternalDataLayerInstance, FText* OutFailureReason = nullptr);
+
+	friend class FDataLayerEditorModule;
+	friend class UDataLayerEditorSubsystem;
+	friend class UExternalDataLayerEngineSubsystem;
+	friend class UContentBundleEditingSubmodule;
+	friend class UGameFeatureActionConvertContentBundleWorldPartitionBuilder;
+#endif
 	static constexpr FStringView GetExternalDataLayerFolder() { return ExternalDataLayerFolder; }
 	static constexpr FStringView ExternalDataLayerFolder = TEXTVIEW("/EDL/");
 };

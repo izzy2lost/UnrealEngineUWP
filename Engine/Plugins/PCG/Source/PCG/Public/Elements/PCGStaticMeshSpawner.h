@@ -20,25 +20,34 @@ struct FPCGStaticMeshSpawnerContext;
 
 class UStaticMesh;
 
-UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural), meta = (PrioritizeCategories = "Settings"))
-class UPCGStaticMeshSpawnerSettings : public UPCGSettings
+UCLASS(BlueprintType, ClassGroup = (Procedural), meta = (PrioritizeCategories = "Settings"))
+class PCG_API UPCGStaticMeshSpawnerSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
 public:
 	UPCGStaticMeshSpawnerSettings(const FObjectInitializer &ObjectInitializer);
 
-#if WITH_EDITOR
 	// ~Begin UPCGSettings interface
+	virtual bool IsKernelValid(FPCGContext* InContext = nullptr, bool bQuiet = true) const;
+	virtual FString GetCookedKernelSource(const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable) const override;
+	virtual void GetKernelAttributeKeys(TArray<FPCGKernelAttributeKey>& OutKeys) const override;
+	virtual void AddStaticCreatedStrings(TArray<FString>& InOutStringTable) const override;
+	virtual int ComputeKernelThreadCount(const UPCGDataBinding* Binding) const override;
+	virtual bool ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding, FPCGDataCollectionDesc& OutDesc) const override;
+#if WITH_EDITOR
+	virtual void CreateAdditionalInputDataInterfaces(FPCGGPUCompilationContext& InOutContext, UObject* InObjectOuter, TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const override;
+	virtual void CreateAdditionalOutputDataInterfaces(FPCGGPUCompilationContext& InOutContext, UObject* InObjectOuter, TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const override;
+	virtual bool DisplayExecuteOnGPUSetting() const override { return true; }
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("StaticMeshSpawner")); }
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spawner; }
 	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
 #endif
-	
+	virtual bool UseSeed() const override { return true; }
 
 protected:
-	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return Super::DefaultPointInputPinProperties(); }
+	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override { return Super::DefaultPointOutputPinProperties(); }
 	virtual FPCGElementPtr CreateElement() const override;
 	// ~End UPCGSettings interface
@@ -53,10 +62,10 @@ public:
 #endif
 
 	UFUNCTION(BlueprintCallable, Category = Settings)
-	PCG_API void SetMeshSelectorType(TSubclassOf<UPCGMeshSelectorBase> InMeshSelectorType);
+	void SetMeshSelectorType(TSubclassOf<UPCGMeshSelectorBase> InMeshSelectorType);
 
 	UFUNCTION(BlueprintCallable, Category = Settings)
-	PCG_API void SetInstancePackerType(TSubclassOf<UPCGInstanceDataPackerBase> InInstancePackerType);
+	void SetInstancePackerType(TSubclassOf<UPCGInstanceDataPackerBase> InInstancePackerType);
 
 public:
 	/** Defines the method of mesh selection per input data */
@@ -66,7 +75,14 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Instanced, Category = MeshSelector)
 	TObjectPtr<UPCGMeshSelectorBase> MeshSelectorParameters;
 
-	/** Defines the method of custom data packing for spawned (H)ISMCs */
+	/** Allows PCG to make some changes on the descriptors as situation arises (using ISM instead of HISM for nanite meshes, etc.) */
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = MeshSelector)
+	bool bAllowDescriptorChanges = true;
+
+	/**
+	 * Defines the method of custom data packing for spawned (H)ISMCs. Note, Rotators are treated as 3 floats, while Quaternions are
+	 * treated as 4 floats. You can see an attribute's type in the 'Attribute List View' window, and use an 'Attribute Cast' node to cast to the desired type.
+	 */
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = InstanceDataPacker)
 	TSubclassOf<UPCGInstanceDataPackerBase> InstanceDataPackerType;
 
@@ -102,12 +118,19 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Advanced")
 	bool bSilenceOverrideAttributeNotFoundErrors = false;
 
+	/** Adds a warning to the node on repeated spawning with identical conditions (ie. same mesh descriptor at same spawn location, etc). */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Advanced")
+	bool bWarnOnIdenticalSpawn = true;
+
 protected:
 	void RefreshMeshSelector();
 	void RefreshInstancePacker();
+
+private:
+	static TCHAR const* TemplateFilePath;
 };
 
-class FPCGStaticMeshSpawnerElement : public IPCGElement
+class PCG_API FPCGStaticMeshSpawnerElement : public IPCGElement
 {
 public:
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override;
@@ -118,5 +141,5 @@ protected:
 	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 	virtual void AbortInternal(FPCGContext* Context) const override;
-	void SpawnStaticMeshInstances(FPCGStaticMeshSpawnerContext* Context, const FPCGMeshInstanceList& InstanceList, AActor* TargetActor, const FPCGPackedCustomData& PackedCustomData) const;
+	void SpawnStaticMeshInstances(FPCGStaticMeshSpawnerContext* Context, const FPCGMeshInstanceList& InstanceList, AActor* TargetActor, const FPCGPackedCustomData* InPackedCustomData) const;
 };

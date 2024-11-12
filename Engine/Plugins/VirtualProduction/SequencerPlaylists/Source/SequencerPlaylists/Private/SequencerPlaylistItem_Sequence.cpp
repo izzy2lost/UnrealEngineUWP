@@ -46,24 +46,6 @@ namespace UE::Private::SequencerPlaylistItem_Sequence
 
 		return nullptr;
 	}
-
-
-	TPair<TOptional<FFrameTime>, FMovieSceneWarpCounter>
-	GetInnerTimeAndWarp(FQualifiedFrameTime QualifiedTime, UMovieSceneSubSection* SubSection)
-	{
-		check(SubSection);
-
-		TPair<TOptional<FFrameTime>, FMovieSceneWarpCounter> Result;
-
-		if (IsTimeWithinSection(QualifiedTime, SubSection))
-		{
-			FFrameTime InnerTime;
-			SubSection->OuterToInnerTransform().TransformTime(QualifiedTime.Time, InnerTime, Result.Get<1>());
-			Result.Get<0>() = InnerTime;
-		}
-
-		return MoveTemp(Result);
-	}
 }
 
 
@@ -290,7 +272,7 @@ bool FSequencerPlaylistItemPlayer_Sequence::InternalPlay(
 
 	if (PlayParams.Direction == ESequencerPlaylistPlaybackDirection::Reverse)
 	{
-		WorkingSubSection->Parameters.TimeScale *= -1.0f;
+		WorkingSubSection->Parameters.TimeScale.ScaleBy(-1.0f);
 		WorkingSubSection->Parameters.StartFrameOffset =
 			SequencePlayRange.Size<FFrameNumber>() - WorkingSubSection->Parameters.StartFrameOffset;
 	}
@@ -336,12 +318,9 @@ bool FSequencerPlaylistItemPlayer_Sequence::InternalPause(USequencerPlaylistItem
 
 			const FQualifiedFrameTime GlobalTime = Sequencer->GetGlobalTime();
 			UMovieSceneSubSection* CurrentPlayingSection = IsTimeWithinAnySection(GlobalTime, ItemState.WeakPlaySections);
-			if (CurrentPlayingSection)
+			if (CurrentPlayingSection && IsTimeWithinSection(GlobalTime, CurrentPlayingSection))
 			{
-				TPair<TOptional<FFrameTime>, FMovieSceneWarpCounter> InnerTimeAndWarp =
-					GetInnerTimeAndWarp(GlobalTime, CurrentPlayingSection);
-
-				HoldParams.StartFrameOffset_SceneTicks = InnerTimeAndWarp.Get<0>().GetValue();
+				HoldParams.StartFrameOffset_SceneTicks = CurrentPlayingSection->OuterToInnerTransform().TransformTime(GlobalTime.Time);
 			}
 
 			bSequenceWasModified |= Stop(Item);
@@ -634,10 +613,10 @@ bool FSequencerPlaylistItemPlayer_Sequence::EndSection(UMovieSceneSection* Secti
 		{
 			if (SubSection->Parameters.bCanLoop)
 			{
-				// Calc whether we've looped; if not, set bCanLoop back to false.
-				TPair<TOptional<FFrameTime>, FMovieSceneWarpCounter> InnerTimeAndWarp =
-					GetInnerTimeAndWarp(GlobalTime, SubSection);
-				if (InnerTimeAndWarp.Get<1>().LastWarpCount() == 0)
+				FMovieSceneSubSequenceData SubData(*SubSection);
+
+				TOptional<FFrameTime> FirstLoopEndTime = SubData.OuterToInnerTransform.Inverse().TryTransformTime(SubData.PlayRange.Value.GetUpperBoundValue());
+				if (FirstLoopEndTime && GlobalTime.Time <= FirstLoopEndTime.GetValue())
 				{
 					SubSection->Parameters.bCanLoop = false;
 				}

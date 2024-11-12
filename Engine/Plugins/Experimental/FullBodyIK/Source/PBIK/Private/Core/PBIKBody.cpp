@@ -119,14 +119,14 @@ FRigidBody* FRigidBody::GetParentBody() const
 	return nullptr;
 }
 
-bool FRigidBody::IsAllowedToRotate() const
+bool FRigidBody::IsFullyLocked() const
 {
-	return !bIsLockedBySubSolve && InvMass > SMALL_NUMBER;
+	return bIsLockedBySubSolve || InvMass <= SMALL_NUMBER;
 }
 
 void FRigidBody::ApplyPushToRotateBody(const FVector& Push, const FVector& Offset)
 {
-	if (!IsAllowedToRotate())
+	if (IsFullyLocked())
 	{
 		return; // rotation of this body is disabled
 	}
@@ -139,12 +139,17 @@ void FRigidBody::ApplyPushToRotateBody(const FVector& Push, const FVector& Offse
 
 void FRigidBody::ApplyPositionDelta(const FVector& DeltaP)
 {
+	if (IsFullyLocked())
+	{
+		return; // translation of this body is disabled
+	}
+	
 	Position += DeltaP * (1.0f - J.PositionStiffness) * SolverSettings->OverRelaxation;
 }
 
 void FRigidBody::ApplyRotationDelta(const FQuat& DeltaQ)
 {
-	if (!IsAllowedToRotate())
+	if (IsFullyLocked())
 	{
 		return; // rotation of this body is disabled
 	}

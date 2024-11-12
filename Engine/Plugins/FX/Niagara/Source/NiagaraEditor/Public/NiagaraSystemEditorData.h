@@ -2,9 +2,11 @@
 
 #pragma once
 
+#include "Misc/FrameRate.h"
 #include "NiagaraEditorDataBase.h"
 #include "NiagaraEditorData.h"
 #include "ViewModels/HierarchyEditor/NiagaraHierarchyViewModelBase.h"
+
 #include "NiagaraSystemEditorData.generated.h"
 
 class UNiagaraStackEditorData;
@@ -97,6 +99,14 @@ public:
 
 	NIAGARAEDITOR_API void SetPlaybackRange(TRange<float> InPlaybackRange);
 
+	FFrameRate GetPlaybackFrameRate() const { return PlaybackFrameRate; }
+
+	void SetPlaybackFrameRate(const FFrameRate InPlaybackFrameRate);
+
+	bool GetLockPlaybackFrameRate() const { return bLockPlaybackFrameRate; }
+
+	void SetLockPlaybackFrameRate(bool bInLockPlaybackFrameRate);
+
 	NIAGARAEDITOR_API UEdGraph* GetSystemOverviewGraph() const;
 
 	NIAGARAEDITOR_API const FNiagaraGraphViewSettings& GetSystemOverviewGraphViewSettings() const;
@@ -145,6 +155,12 @@ private:
 
 	UPROPERTY()
 	float PlaybackRangeMax;
+
+	UPROPERTY()
+	FFrameRate PlaybackFrameRate = FFrameRate(60, 1);
+
+	UPROPERTY()
+	bool bLockPlaybackFrameRate = true;
 
 	/** Graph presenting overview of the current system and its emitters. */
 	UPROPERTY()

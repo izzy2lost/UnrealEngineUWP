@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGMatMul.h"
+
 #include "NNEHlslShadersGemmCS.h"
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
@@ -32,17 +34,17 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (InputA.Rank() < 2)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Matmul first input should be at least of rank 2"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Matmul: First input should be at least of rank 2"));
 				return -1;
 			}
 			if (InputB.Rank() < 2)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Matmul second input should be at least of rank 2"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Matmul: Second input should be at least of rank 2"));
 				return -1;
 			}
 			if (InputA.GetData()[InputA.Rank() - 1] != InputB.GetData()[InputB.Rank() - 2])
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Matmul first input last dimension should be equal to second input last dimension"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Matmul: First input last dimension should be equal to second input last dimension"));
 				return -1;
 			}
 
@@ -82,12 +84,12 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (InputA.GetShape().Rank() < 2)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Matmul first input should be at least of rank 2"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Matmul: First input should be at least of rank 2"));
 				return false;
 			}
 			if (InputB.GetShape().Rank() < 2)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Matmul second input should be at least of rank 2"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Matmul: Second input should be at least of rank 2"));
 				return false;
 			}
 
@@ -126,7 +128,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			FIntVector ThreadGroupCount = TGemmCS::GetGroupCount(*Parameters, Algorithm, NumStackDimensions);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.MatMul");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorMatMul, "NNE.Operator.Hlsl.MatMul");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorMatMul);
 
 			FComputeShaderUtils::AddPass(

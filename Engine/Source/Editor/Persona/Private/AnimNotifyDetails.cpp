@@ -12,8 +12,159 @@
 #include "Animation/AnimMontage.h"
 #include "Animation/EditorNotifyObject.h"
 #include "AssetSearchBoxUtilPersona.h"
+#include "IDetailGroup.h"
+#include "ObjectEditorUtils.h"
 #include "Widgets/Input/STextComboBox.h"
 #include "Animation/AnimNotifies/AnimNotifyState.h"
+
+namespace UE::AnimNotifyDetails::Private
+{
+	constexpr TCHAR CategoryDelimiter = TEXT('|');
+	constexpr FStringView AnimNotifyCategory = TEXTVIEW("AnimNotify");
+	static const FName AnimNotifyCategoryName = FName(AnimNotifyCategory.Len(), AnimNotifyCategory.GetData());
+	static const FName AdvancedCategoryName = TEXT("Advanced");
+	
+	/**
+	 * Splits a category name into its parent and leaf category names. Returns a pair of (Parent, Leaf) category names.
+	 * If there is no parent category, then the parent name will be empty
+	 */
+	static TPair<FName, FName> SplitCategory(const FName CategoryName)
+	{
+		const FString CategoryString = CategoryName.ToString();
+		const FStringView CategoryView = CategoryString;
+
+		int32 DelimiterLocation = 0;
+		if (CategoryString.FindLastChar(CategoryDelimiter, DelimiterLocation))
+		{
+			const FStringView ParentCategoryView = CategoryView.Left(DelimiterLocation);
+			const FStringView LeafCategoryView = CategoryView.RightChop(DelimiterLocation + 1);
+			const FName ParentCategoryName = FName(ParentCategoryView.Len(), ParentCategoryView.GetData());
+			const FName LeafCategoryName = FName(LeafCategoryView.Len(), LeafCategoryView.GetData());
+			
+			return MakeTuple(ParentCategoryName, LeafCategoryName);
+		}
+		
+		return MakeTuple(NAME_None, CategoryName);
+	}
+
+	/**
+	 * Strips the leading "Anim Notify" category from the category name, if there is any.
+	 * 
+	 * Helps as a number of anim notifies were authored with the "Anim Notify" category but did not previously display
+	 * it correctly. This prevents such notifies from showing an extra category level
+	 */
+	static FName StripAnimNotifyPrefix(const FName CategoryName)
+	{
+		if (CategoryName.IsNone())
+		{
+			return CategoryName;
+		}
+
+		const FString CategoryString = CategoryName.ToString();
+		const FStringView CategoryView = CategoryString;
+
+		int32 DelimiterLocation = 0;
+		if (CategoryString.StartsWith(AnimNotifyCategory))
+		{
+			FStringView StrippedCategoryView = CategoryView.RightChop(AnimNotifyCategory.Len() + 1);
+			if (!StrippedCategoryView.IsEmpty() && StrippedCategoryView[0] == CategoryDelimiter)
+			{
+				StrippedCategoryView = StrippedCategoryView.RightChop(1);
+			}
+
+			if (StrippedCategoryView.IsEmpty())
+			{
+				return NAME_None;
+			}
+
+			return FName(StrippedCategoryView.Len(), StrippedCategoryView.GetData());
+		}
+
+		return CategoryName;
+	}
+
+	/**
+	 * Adds a series of subgroups for the specified category name, with a new subgroup for each category separated by
+	 * a |. Appends the category to the subgroup map to avoid creating categories multiple times
+	 */
+	static IDetailGroup& FindOrAddSubgroup(IDetailCategoryBuilder& Category, const FName CategoryName,
+		TMap<FName, IDetailGroup*>& SubgroupMap)
+	{
+		if (IDetailGroup** ExistingGroup = SubgroupMap.Find(CategoryName))
+		{
+			check(*ExistingGroup);
+			return **ExistingGroup;
+		}
+		
+		const TPair<FName, FName> SplitCategoryName = SplitCategory(CategoryName);
+		const FName ParentCategoryName = SplitCategoryName.Key;
+		const FName LeafCategoryName = SplitCategoryName.Value;
+		const FText DisplayName = FObjectEditorUtils::GetCategoryText(LeafCategoryName);
+
+		IDetailGroup* Subgroup = nullptr;
+
+		if (ParentCategoryName.IsNone())
+		{
+			Subgroup = &Category.AddGroup(LeafCategoryName, DisplayName);
+		}
+		else
+		{
+			IDetailGroup& ParentGroup = FindOrAddSubgroup(Category, ParentCategoryName, SubgroupMap);
+			Subgroup = &ParentGroup.AddGroup(LeafCategoryName, DisplayName);
+		}
+		check(Subgroup);
+
+		SubgroupMap.Add(CategoryName, Subgroup);
+		return *Subgroup;
+	}
+	
+	/**
+	 * Adds subgroups for the specified property, but not the property itself
+	 */
+	static void AddSubgroupForProperty(IDetailCategoryBuilder& Category, const FProperty* Property,
+		TMap<FName, IDetailGroup*>& SubgroupMap)
+	{
+		if (Property)
+		{
+			const FName CategoryName = StripAnimNotifyPrefix(FObjectEditorUtils::GetCategoryFName(Property));
+			if (!CategoryName.IsNone())
+			{
+				FindOrAddSubgroup(Category, CategoryName, SubgroupMap);
+			}
+		}
+	}
+
+	/**
+	 * Adds a subcategory to the specified category with the "Advanced" name. Uses a subgroup map and advanced subgroup
+	 * map to avoid creating duplicate categories
+	 */
+	static IDetailGroup& FindOrAddAdvancedCategory(FName CategoryName, TMap<FName, IDetailGroup*>& SubgroupMap,
+		TMap<FName, IDetailGroup*>& AdvancedSubgroupMap)
+	{
+		if (IDetailGroup** ExistingAdvancedGroup = AdvancedSubgroupMap.Find(CategoryName))
+		{
+			check(*ExistingAdvancedGroup);
+			return **ExistingAdvancedGroup;
+		}
+		else
+		{
+			IDetailGroup** PropertyGroup = SubgroupMap.Find(CategoryName);
+			check(PropertyGroup);
+			check(*PropertyGroup);
+
+			static FText AdvancedCategoryText;
+			if (AdvancedCategoryText.IsEmpty())
+			{
+				AdvancedCategoryText = FObjectEditorUtils::GetCategoryText(AdvancedCategoryName);
+			}
+
+			IDetailGroup& NewAdvancedGroup = (*PropertyGroup)->AddGroup(AdvancedCategoryName, AdvancedCategoryText);
+
+			AdvancedSubgroupMap.Add(CategoryName, &NewAdvancedGroup);
+			return NewAdvancedGroup;
+		}
+	}
+}
 
 TSharedRef<IDetailCustomization> FAnimNotifyDetails::MakeInstance()
 {
@@ -46,7 +197,8 @@ void FAnimNotifyDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
 	// Don't want to edit the notify name here.
 	DetailBuilder.HideProperty(TEXT("Event.NotifyName"));
 
-	IDetailCategoryBuilder& AnimNotifyCategory = DetailBuilder.EditCategory(TEXT("AnimNotify"), FText::GetEmpty(), ECategoryPriority::TypeSpecific);
+	IDetailCategoryBuilder& AnimNotifyCategory = DetailBuilder.EditCategory(
+		UE::AnimNotifyDetails::Private::AnimNotifyCategoryName, FText::GetEmpty(), ECategoryPriority::TypeSpecific);
 
 	// Check existence of notify, get rid of the property if not set
 	if(!NotifyPtr)
@@ -93,6 +245,11 @@ void FAnimNotifyDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
 		HideLinkProperties(DetailBuilder, EventHandle);
 	}
 
+	TMap<FName, IDetailGroup*> SubgroupMap;
+	TMap<FName, IDetailGroup*> AdvancedSubgroupMap;
+	TArray<TSharedPtr<IPropertyHandle>> PropertyHandles;
+	TArray<TSharedPtr<IPropertyHandle>> AdvancedPropertyHandles;
+
 	// Customizations do not run for instanced properties, so we have to resolve the properties and then
 	// customize them here instead.
 	if(NotifyPropHandle->IsValidHandle())
@@ -116,10 +273,68 @@ void FAnimNotifyDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
 				{
 					if(!CustomizeProperty(AnimNotifyCategory, NotifyPtr, NotifyProperty))
 					{
-						AnimNotifyCategory.AddProperty(NotifyProperty);
+						// Add our subgroups first, so we can make sure they are sorted before the normal properties
+						UE::AnimNotifyDetails::Private::AddSubgroupForProperty(AnimNotifyCategory, Prop, SubgroupMap);
+
+						if (Prop->HasAnyPropertyFlags(CPF_AdvancedDisplay))
+						{
+							AdvancedPropertyHandles.Add(NotifyProperty);
+						}
+						else
+						{
+							PropertyHandles.Add(NotifyProperty);
+						}
 					}
 				}
 			}
+		}
+	}
+
+	for (TSharedPtr<IPropertyHandle> PropertyHandle : PropertyHandles)
+	{
+		check(PropertyHandle);
+		FProperty* Property = PropertyHandle->GetProperty();
+		check(Property);
+		
+		const FName PropertyGroupName =
+			UE::AnimNotifyDetails::Private::StripAnimNotifyPrefix(FObjectEditorUtils::GetCategoryFName(Property));
+
+		if (!PropertyGroupName.IsNone())
+		{
+			IDetailGroup** PropertyGroup = SubgroupMap.Find(PropertyGroupName);
+			check(PropertyGroup);
+			check(*PropertyGroup);
+
+			(*PropertyGroup)->AddPropertyRow(PropertyHandle.ToSharedRef());
+		}
+		else
+		{
+			AnimNotifyCategory.AddProperty(PropertyHandle);
+		}
+	}
+
+	// Iterate over all of the advanced properties last so we can their advanced categories as needed, to sort after the
+	// normal properties
+	for (TSharedPtr<IPropertyHandle> PropertyHandle : AdvancedPropertyHandles)
+	{
+		check(PropertyHandle);
+		FProperty* Property = PropertyHandle->GetProperty();
+		check(Property);
+
+		const FName PropertyGroupName = 
+			UE::AnimNotifyDetails::Private::StripAnimNotifyPrefix(FObjectEditorUtils::GetCategoryFName(Property));
+
+		if (!PropertyGroupName.IsNone())
+		{
+			IDetailGroup& AdvancedCategory = UE::AnimNotifyDetails::Private::FindOrAddAdvancedCategory(
+				PropertyGroupName, SubgroupMap, AdvancedSubgroupMap);
+			AdvancedCategory.AddPropertyRow(PropertyHandle.ToSharedRef());
+		}
+		else
+		{
+			// If we're just adding the property to the top level category, then AddProperty will automatically handle
+			// setting whether it's advanced or not
+			AnimNotifyCategory.AddProperty(PropertyHandle);
 		}
 	}
 

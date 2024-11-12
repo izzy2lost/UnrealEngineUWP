@@ -4,8 +4,8 @@
 
 #include "SAuthorityRejectedNotification.h"
 #include "SStreamRejectedNotification.h"
-#include "Replication/Client/RemoteReplicationClient.h"
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/RemoteClient.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Submission/Data/AuthoritySubmission.h"
 #include "Replication/Submission/Data/StreamSubmission.h"
 
@@ -14,9 +14,9 @@
 #include "Stats/Stats2.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
-	FSubmissionNotifier::FSubmissionNotifier(FReplicationClientManager& InReplicationClientManager)
+	FSubmissionNotifier::FSubmissionNotifier(FOnlineClientManager& InReplicationClientManager)
 		: ReplicationClientManager(InReplicationClientManager)
 	{
 		ReplicationClientManager.OnPostRemoteClientAdded().AddRaw(this, &FSubmissionNotifier::OnPostRemoteClientAdded);
@@ -34,7 +34,7 @@ namespace UE::MultiUserClient
 		ReplicationClientManager.OnPreRemoteClientRemoved().RemoveAll(this);
 		
 		UnregisterClient(ReplicationClientManager.GetLocalClient());
-		for (const TNonNullPtr<FRemoteReplicationClient>& RemoteClient : ReplicationClientManager.GetRemoteClients())
+		for (const TNonNullPtr<FRemoteClient>& RemoteClient : ReplicationClientManager.GetRemoteClients())
 		{
 			UnregisterClient(*RemoteClient);
 		}
@@ -51,18 +51,18 @@ namespace UE::MultiUserClient
 		RETURN_QUICK_DECLARE_CYCLE_STAT(FSubmissionNotifier, STATGROUP_Tickables);
 	}
 
-	void FSubmissionNotifier::OnPostRemoteClientAdded(FRemoteReplicationClient& RemoteReplicationClient)
+	void FSubmissionNotifier::OnPostRemoteClientAdded(FRemoteClient& RemoteReplicationClient)
 	{
 		RegisterClient(RemoteReplicationClient);
 	}
 
-	void FSubmissionNotifier::RegisterClient(FReplicationClient& Client)
+	void FSubmissionNotifier::RegisterClient(FOnlineClient& Client)
 	{
 		Client.GetSubmissionWorkflow().OnStreamRequestCompleted_AnyThread().AddRaw(this, &FSubmissionNotifier::OnStreamRequestCompleted_AnyThread);
 		Client.GetSubmissionWorkflow().OnAuthorityRequestCompleted_AnyThread().AddRaw(this, &FSubmissionNotifier::OnAuthorityRequestCompleted_AnyThread);
 	}
 
-	void FSubmissionNotifier::UnregisterClient(FReplicationClient& Client)
+	void FSubmissionNotifier::UnregisterClient(FOnlineClient& Client)
 	{
 		Client.GetSubmissionWorkflow().OnStreamRequestCompleted_AnyThread().RemoveAll(this);
 		Client.GetSubmissionWorkflow().OnAuthorityRequestCompleted_AnyThread().RemoveAll(this);

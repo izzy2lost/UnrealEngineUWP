@@ -3,6 +3,8 @@
 
 #include "DisplayClusterConfigurationTypes.h"
 #include "Engine/Blueprint.h"
+#include "UObject/AssetRegistryTagsContext.h"
+
 #include "DisplayClusterBlueprint.generated.h"
 
 class USCS_Node;
@@ -33,6 +35,7 @@ public:
 	//~ Begin UObject Interface
 	virtual void PreSave(FObjectPreSaveContext SaveContext) override;
 	virtual void PostLoad() override;
+	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	//~ End UObject Interface
 
 	class UDisplayClusterBlueprintGeneratedClass* GetGeneratedClass() const;
@@ -58,10 +61,17 @@ public:
 	//** Updates the ConfigExport property. Called when saving the asset.
 	void UpdateConfigExportProperty();
 
+	//** Updates the Summary property. Called when saving the asset.
+	void UpdateSummaryProperty();
+
 public:
-	// Holds the last saved config export. In the AssetRegistry to allow parsing without loading.
-	UPROPERTY(AssetRegistrySearchable)
+	// Holds the last saved config export. Added to the AssetRegistry to allow parsing without loading.
+	UPROPERTY()
 	FString ConfigExport;
+
+	// Cache of the summary of this asset. Will be used as asset registry tag and show up in the asset tooltip.
+	UPROPERTY(AssetRegistrySearchable)
+	FString Summary;
 
 private:
 

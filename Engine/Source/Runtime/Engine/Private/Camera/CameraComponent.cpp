@@ -19,6 +19,7 @@
 #include "IXRTrackingSystem.h"
 #include "IXRCamera.h"
 #include "Math/UnitConversion.h"
+#include "StaticMeshSceneProxy.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "UObject/UnrealType.h"
@@ -26,6 +27,33 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CameraComponent)
 
 #define LOCTEXT_NAMESPACE "CameraComponent"
+
+FPrimitiveSceneProxy* UCameraProxyMeshComponent::CreateSceneProxy()
+{
+	class FCameraProxyMeshProxy : public FStaticMeshSceneProxy
+	{
+	public:
+		FCameraProxyMeshProxy(UCameraProxyMeshComponent* Component)
+			: FStaticMeshSceneProxy(Component, false)
+		{
+		}
+
+		virtual FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override
+		{
+			if (View->Family->EngineShowFlags.Cameras)
+			{
+				return FStaticMeshSceneProxy::GetViewRelevance(View);
+			}
+
+			FPrimitiveViewRelevance Result;
+			Result.bDrawRelevance = false;
+
+			return Result;
+		}
+	};
+
+	return new FCameraProxyMeshProxy(this);
+}
 
 //////////////////////////////////////////////////////////////////////////
 // UCameraComponent
@@ -45,6 +73,8 @@ UCameraComponent::UCameraComponent(const FObjectInitializer& ObjectInitializer)
 #endif
 
 	FieldOfView = 90.0f;
+	FirstPersonFieldOfView = 90.0f;
+	FirstPersonScale = 1.0f;
 	AspectRatio = 1.777778f;
 	OrthoWidth = DEFAULT_ORTHOWIDTH;
 	bAutoCalculateOrthoPlanes = true;
@@ -55,11 +85,14 @@ UCameraComponent::UCameraComponent(const FObjectInitializer& ObjectInitializer)
 	OrthoFarClipPlane = DEFAULT_ORTHOFARPLANE;
 	bConstrainAspectRatio = false;
 	bOverrideAspectRatioAxisConstraint = false;
+	Overscan = 0.0f;
 	bUseFieldOfViewForLOD = true;
 	PostProcessBlendWeight = 1.0f;
 	bUsePawnControlRotation = false;
 	bAutoActivate = true;
 	bLockToHmd = true;
+	bEnableFirstPersonFieldOfView = false;
+	bEnableFirstPersonScale = false;
 
 #if WITH_EDITORONLY_DATA
 	bTickInEditor = true;
@@ -129,9 +162,10 @@ void UCameraComponent::OnRegister()
 	{
 		if (ProxyMeshComponent == nullptr)
 		{
-			ProxyMeshComponent = NewObject<UStaticMeshComponent>(MyOwner, NAME_None, RF_Transactional | RF_TextExportTransient);
+			ProxyMeshComponent = NewObject<UCameraProxyMeshComponent>(MyOwner, NAME_None, RF_Transactional | RF_TextExportTransient);
 			ProxyMeshComponent->SetupAttachment(this);
 			ProxyMeshComponent->SetIsVisualizationComponent(true);
+			ProxyMeshComponent->SetCanEverAffectNavigation(false);
 			ProxyMeshComponent->SetStaticMesh(CameraMesh);
 			ProxyMeshComponent->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 			ProxyMeshComponent->bHiddenInGame = bCameraMeshHiddenInGame;
@@ -347,7 +381,7 @@ bool UCameraComponent::IsXRHeadTrackedCamera() const
 	return false;
 }
 
-void UCameraComponent::HandleXRCamera()
+void UCameraComponent::HandleXRCamera(float DeltaTime)
 {
 	IXRTrackingSystem* XRSystem = GEngine->XRSystem.Get();
 	auto XRCamera = XRSystem->GetXRCamera();
@@ -365,7 +399,7 @@ void UCameraComponent::HandleXRCamera()
 	{
 		FQuat Orientation;
 		FVector Position;
-		if (XRCamera->UpdatePlayerCamera(Orientation, Position))
+		if (XRCamera->UpdatePlayerCamera(Orientation, Position, DeltaTime))
 		{
 			SetRelativeTransform(FTransform(Orientation, Position));
 		}
@@ -382,7 +416,7 @@ void UCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& DesiredV
 {
 	if (IsXRHeadTrackedCamera())
 	{
-		HandleXRCamera();
+		HandleXRCamera(DeltaTime);
 	}
 
 	if (bUsePawnControlRotation)
@@ -426,6 +460,11 @@ void UCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& DesiredV
 	DesiredView.AutoPlaneShift = AutoPlaneShift;
 	DesiredView.bUpdateOrthoPlanes = bUpdateOrthoPlanes;
 	DesiredView.bUseCameraHeightAsViewTarget = bUseCameraHeightAsViewTarget;
+	DesiredView.FirstPersonFOV = bEnableFirstPersonFieldOfView ? FirstPersonFieldOfView : DesiredView.FOV;
+	DesiredView.FirstPersonScale = bEnableFirstPersonScale ? FirstPersonScale : 1.0f;
+	DesiredView.bUseFirstPersonParameters = bEnableFirstPersonFieldOfView || bEnableFirstPersonScale;
+	
+	DesiredView.ApplyOverscan(Overscan, bScaleResolutionWithOverscan, bCropOverscan);
 	
 	if (bAutoCalculateOrthoPlanes)
 	{

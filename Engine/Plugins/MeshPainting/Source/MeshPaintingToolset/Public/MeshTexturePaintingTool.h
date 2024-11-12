@@ -3,33 +3,43 @@
 #pragma once
 
 #include "BaseTools/BaseBrushTool.h"
-#include "MeshPaintHelpers.h"
-#include "MeshPaintInteractions.h"
+#include "BaseMeshPaintingToolProperties.h"
 #include "MeshPaintingToolsetTypes.h"
-#include "MeshVertexPaintingTool.h"
-#include "Misc/ITransaction.h"
-
+#include "MeshPaintInteractions.h"
 #include "MeshTexturePaintingTool.generated.h"
 
-class UMeshToolManager;
-enum class EToolShutdownType : uint8;
-struct FTexturePaintMeshSectionInfo;
-
-
-struct FToolBuilderState;
-struct FPaintTexture2DData;
-class UTexture2D;
-class UTextureRenderTarget2D;
-struct FTextureTargetListInfo;
 enum class EMeshPaintModeAction : uint8;
-class IMeshPaintComponentAdapter;
+enum class EToolShutdownType : uint8;
 class FScopedTransaction;
+class IMeshPaintComponentAdapter;
+class UMeshToolManager;
+class UTexture2D;
+struct FPaintRayResults;
+struct FPaintTexture2DData;
+struct FTexturePaintMeshSectionInfo;
+struct FToolBuilderState;
+
 
 /**
- *
+ * Builder for the texture color mesh paint tool.
  */
 UCLASS()
-class MESHPAINTINGTOOLSET_API UMeshTexturePaintingToolBuilder : public UInteractiveToolBuilder
+class MESHPAINTINGTOOLSET_API UMeshTextureColorPaintingToolBuilder : public UInteractiveToolBuilder
+{
+	GENERATED_BODY()
+
+public:
+	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
+	virtual UInteractiveTool* BuildTool(const FToolBuilderState& SceneState) const override;
+
+	TWeakObjectPtr<UMeshToolManager> SharedMeshToolData;
+};
+
+/**
+ * Builder for the texture asset mesh paint tool.
+ */
+UCLASS()
+class MESHPAINTINGTOOLSET_API UMeshTextureAssetPaintingToolBuilder : public UInteractiveToolBuilder
 {
 	GENERATED_BODY()
 
@@ -41,49 +51,18 @@ public:
 };
 
 
+/**
+ * Base class for mesh texture paint properties.
+ */
 UCLASS()
-class MESHPAINTINGTOOLSET_API UMeshTexturePaintingToolProperties : public UBrushBaseProperties
+class MESHPAINTINGTOOLSET_API UMeshTexturePaintingToolProperties : public UMeshPaintingToolProperties
 {
 	GENERATED_BODY()
 
 public:
-	UMeshTexturePaintingToolProperties();
-
-	/** Color used for Applying Texture Color Painting */
-	UPROPERTY(EditAnywhere, Category = TexturePainting)
-	FLinearColor PaintColor;
-
-	/** Color used for Erasing Texture Color Painting */
-	UPROPERTY(EditAnywhere, Category = TexturePainting)
-	FLinearColor EraseColor;
-
-	/** Whether or not to apply Texture Color Painting to the Red Channel */
-	UPROPERTY(EditAnywhere, Category = TexturePainting, meta = (DisplayName = "Red"))
-	bool bWriteRed;
-
-	/** Whether or not to apply Texture Color Painting to the Green Channel */
-	UPROPERTY(EditAnywhere, Category = TexturePainting, meta = (DisplayName = "Green"))
-	bool bWriteGreen;
-
-	/** Whether or not to apply Texture Color Painting to the Blue Channel */
-	UPROPERTY(EditAnywhere, Category = TexturePainting, meta = (DisplayName = "Blue"))
-	bool bWriteBlue;
-
-	/** Whether or not to apply Texture Color Painting to the Alpha Channel */
-	UPROPERTY(EditAnywhere, Category = TexturePainting, meta = (DisplayName = "Alpha"))
-	bool bWriteAlpha;
-
-	/** UV channel which should be used for paint textures */
-	UPROPERTY(EditAnywhere, Category = TexturePainting, meta = (TransientToolProperty))
-	int32 UVChannel;
-
 	/** Seam painting flag, True if we should enable dilation to allow the painting of texture seams */
 	UPROPERTY(EditAnywhere, Category = TexturePainting)
-	bool bEnableSeamPainting;
-
-	/** Texture to which Painting should be Applied */
-	UPROPERTY(EditAnywhere, Category = TexturePainting, meta = (DisplayThumbnail = "true", TransientToolProperty))
-	TObjectPtr<UTexture2D> PaintTexture;
+	bool bEnableSeamPainting = false;
 
 	/** Optional Texture Brush to which Painting should use */
 	UPROPERTY(EditAnywhere, Category = TexturePainting, meta = (DisplayThumbnail = "true", TransientToolProperty))
@@ -97,18 +76,60 @@ public:
 	UPROPERTY(EditAnywhere, Category = TexturePainting, meta = (TransientToolProperty))
 	bool bRotateBrushTowardsDirection = false;
 
-	/** Enables "Flow" painting where paint is continually applied from the brush every tick */
-	UPROPERTY(EditAnywhere, Category = Brush, meta = (DisplayName = "Enable Brush Flow"))
-	bool bEnableFlow;
+	/** Whether or not to apply Texture Color Painting to the Red Channel */
+	UPROPERTY(EditAnywhere, Category = ColorPainting, meta = (DisplayName = "Red"))
+	bool bWriteRed = true;
 
-	/** Whether back-facing triangles should be ignored */
-	UPROPERTY(EditAnywhere, Category = Brush, meta = (DisplayName = "Ignore Back-Facing"))
-	bool bOnlyFrontFacingTriangles;
+	/** Whether or not to apply Texture Color Painting to the Green Channel */
+	UPROPERTY(EditAnywhere, Category = ColorPainting, meta = (DisplayName = "Green"))
+	bool bWriteGreen = true;
+
+	/** Whether or not to apply Texture Color Painting to the Blue Channel */
+	UPROPERTY(EditAnywhere, Category = ColorPainting, meta = (DisplayName = "Blue"))
+	bool bWriteBlue = true;
+
+	/** Whether or not to apply Texture Color Painting to the Alpha Channel */
+	UPROPERTY(EditAnywhere, Category = ColorPainting, meta = (DisplayName = "Alpha"))
+	bool bWriteAlpha = false;
+};
+
+/**
+ * Class for texture color paint properties.
+ */
+UCLASS()
+class MESHPAINTINGTOOLSET_API UMeshTextureColorPaintingToolProperties : public UMeshTexturePaintingToolProperties
+{
+	GENERATED_BODY()
+
+public:
+	/** Whether to copy all texture color painting to vertex colors. */
+	UPROPERTY(EditAnywhere, Category = ColorPainting)
+	bool bPropagateToVertexColor = false;
+};
+
+/**
+ * Class for texture asset paint properties.
+ */
+UCLASS()
+class MESHPAINTINGTOOLSET_API UMeshTextureAssetPaintingToolProperties : public UMeshTexturePaintingToolProperties
+{
+	GENERATED_BODY()
+
+public:
+	/** UV channel which should be used for painting textures. */
+	UPROPERTY(EditAnywhere, Category = TexturePainting, meta = (TransientToolProperty))
+	int32 UVChannel = 0;
+
+	/** Texture to which painting should be applied. */
+	UPROPERTY(EditAnywhere, Category = TexturePainting, meta = (DisplayThumbnail = "true", TransientToolProperty))
+	TObjectPtr<UTexture2D> PaintTexture;
 };
 
 
-
-UCLASS()
+/**
+ * Base class for mesh texture painting tool.
+ */
+UCLASS(Abstract)
 class MESHPAINTINGTOOLSET_API UMeshTexturePaintingTool : public UBaseBrushTool, public IMeshPaintSelectionInterface
 {
 	GENERATED_BODY()
@@ -116,13 +137,23 @@ class MESHPAINTINGTOOLSET_API UMeshTexturePaintingTool : public UBaseBrushTool, 
 public:
 	UMeshTexturePaintingTool();
 
+	DECLARE_DELEGATE_OneParam(FOnPaintingFinishedDelegate, UMeshComponent*);
+	FOnPaintingFinishedDelegate& OnPaintingFinished() { return OnPaintingFinishedDelegate; }
+
+	void FloodCurrentPaintTexture();
+
+	virtual void GetModifiedTexturesToSave(TArray<UObject*>& OutTexturesToSave) const {}
+	virtual int32 GetSelectedUVChannel(UMeshComponent const* InMeshComponent) const { return 0; }
+
+protected:
+	// Begin UInteractiveTool Interface.
 	virtual void Setup() override;
 	virtual void Shutdown(EToolShutdownType ShutdownType) override;
 	virtual void Render(IToolsContextRenderAPI* RenderAPI) override;
 	virtual void OnTick(float DeltaTime) override;
 	virtual bool HasCancel() const override { return false; }
-	virtual bool HasAccept() const override;
-	virtual bool CanAccept() const override;
+	virtual bool HasAccept() const override { return false; }
+	virtual bool CanAccept() const override { return false; }
 	virtual FInputRayHit CanBeginClickDragSequence(const FInputDeviceRay& PressPos) override;
 	virtual void OnUpdateModifierState(int ModifierID, bool bIsOn) override;
 	virtual void OnBeginDrag(const FRay& Ray) override;
@@ -131,130 +162,155 @@ public:
 	virtual	bool HitTest(const FRay& Ray, FHitResult& OutHit) override;
 	virtual void OnPropertyModified(UObject* PropertySet, FProperty* Property) override;
 	virtual double EstimateMaximumTargetDimension() override;
-	virtual bool IsPainting() const
-	{
-		return bArePainting;
-	}
+	// End UInteractiveTool Interface.
 
-
-	FSimpleDelegate& OnPaintingFinished()
-	{
-		return OnPaintingFinishedDelegate;
-	}
-	void CycleTextures(int32 Direction);
-
-	void CommitAllPaintedTextures();
-	void ClearAllTextureOverrides();
-	/** Returns the number of texture that require a commit. */
-	int32 GetNumberOfPendingPaintChanges() const;
-
-	void FloodCurrentPaintTexture();
-	bool ShouldFilterTextureAsset(const FAssetData& AssetData) const;
-	void PaintTextureChanged(const FAssetData& AssetData);
-	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
-	virtual bool AllowsMultiselect() const override
-	{
-		return false;
-	}
-
-protected:
-	virtual void SetAdditionalPaintParameters(FMeshPaintParameters& InPaintParameters) {};
-	virtual void FinishPainting();
-	void UpdateResult();
-	double CalculateTargetEdgeLength(int TargetTriCount);
-	bool Paint(const FVector& InRayOrigin, const FVector& InRayDirection);
-	bool Paint(const TArrayView<TPair<FVector, FVector>>& Rays);
-	virtual void CacheSelectionData();
-	void CacheTexturePaintData();
 	FPaintTexture2DData* GetPaintTargetData(const UTexture2D* InTexture);
 	FPaintTexture2DData* AddPaintTargetData(UTexture2D* InTexture);
-	void GatherTextureTriangles(IMeshPaintComponentAdapter* Adapter, int32 TriangleIndex, const int32 VertexIndices[3], TArray<FTexturePaintTriangleInfo>* TriangleInfo, TArray<FTexturePaintMeshSectionInfo>* SectionInfos, int32 UVChannelIndex);
+	
+	void SetAllTextureOverrides();
+	void ClearAllTextureOverrides();
+
+	virtual UTexture2D* GetSelectedPaintTexture(UMeshComponent const* InMeshComponent) const { return nullptr; }
+	virtual void CacheTexturePaintData() {}
+	virtual bool CanPaintTextureToComponent(UTexture* InTexture, UMeshComponent const* InMeshComponent) const { return false; }
+
+private:
+	void CacheSelectionData();
+	void AddTextureOverrideToComponent(FPaintTexture2DData& TextureData, UMeshComponent* MeshComponent, const IMeshPaintComponentAdapter* MeshPaintAdapter = nullptr);
+	double CalculateTargetEdgeLength(int TargetTriCount);
 	void StartPaintingTexture(UMeshComponent* InMeshComponent, const IMeshPaintComponentAdapter& GeometryInfo);
-	void PaintTexture(FMeshPaintParameters& InParams, TArray<FTexturePaintTriangleInfo>& InInfluencedTriangles, const IMeshPaintComponentAdapter& GeometryInfo, FMeshPaintParameters* LastParams = nullptr);
+	void UpdateResult();
+	void GatherTextureTriangles(IMeshPaintComponentAdapter* Adapter, int32 TriangleIndex, const int32 VertexIndices[3], TArray<FTexturePaintTriangleInfo>* TriangleInfo, TArray<FTexturePaintMeshSectionInfo>* SectionInfos, int32 UVChannelIndex);
+	bool Paint(const FVector& InRayOrigin, const FVector& InRayDirection);
+	bool Paint(const TArrayView<TPair<FVector, FVector>>& Rays);
+	void PaintTexture(FMeshPaintParameters& InParams, int32 UVChannel, TArray<FTexturePaintTriangleInfo>& InInfluencedTriangles, const IMeshPaintComponentAdapter& GeometryInfo, FMeshPaintParameters* LastParams = nullptr);
+	bool PaintInternal(const TArrayView<TPair<FVector, FVector>>& Rays, EMeshPaintModeAction PaintAction, float PaintStrength);
 	void FinishPaintingTexture();
-	void OnTransactionStateChanged(const FTransactionContext& InTransactionContext, const ETransactionStateEventType InTransactionState);
+	void FinishPainting();
 
 protected:
-	double InitialMeshArea;
-	bool bResultValid;
-	bool bStampPending;
-	bool bInDrag;
-	FRay PendingStampRay;
-	FRay PendingClickRay;
-	FVector2D PendingClickScreenPosition;
-	bool bCachedClickRay;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UMeshPaintSelectionMechanic> SelectionMechanic;
-
-private:
-	bool PaintInternal(const TArrayView<TPair<FVector, FVector>>& Rays, EMeshPaintModeAction PaintAction, float PaintStrength);
-
-	void AddTextureOverrideToComponent(FPaintTexture2DData& TextureData, UMeshComponent* MeshComponent, const IMeshPaintComponentAdapter* MeshPaintAdapter = nullptr);
-
-private:
-	UPROPERTY(Transient)
-	TObjectPtr<UMeshTexturePaintingToolProperties> TextureProperties;
-
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<const UTexture>> Textures;
-
-	TArray<FPaintRayResults> LastPaintRayResults;
-	bool bRequestPaintBucketFill = false;
-
-	/** Flag for whether or not we are currently painting */
-	bool bArePainting;
-	bool bDoRestoreRenTargets;
-	/** Time kept since the user has started painting */
-	float TimeSinceStartedPainting;
-	/** Overall time value kept for drawing effects */
-	float Time;
-	FHitResult LastBestHitResult;
-	FSimpleDelegate OnPaintingFinishedDelegate;
-	/** Texture paint state */
-/** Textures eligible for painting retrieved from the current selection */
+	/** Textures eligible for painting retrieved from the current selection */
 	TArray<FPaintableTexture> PaintableTextures;
-	/** Cached / stored instance texture paint settings for selected components */
-	TMap<UMeshComponent*, FInstanceTexturePaintSettings> ComponentToTexturePaintSettingsMap;
-
-	/** Temporary render target used to draw incremental paint to */
-	UPROPERTY(Transient)
-	TObjectPtr<UTextureRenderTarget2D> BrushRenderTargetTexture;
-
-	/** Temporary render target used to store a mask of the affected paint region, updated every time we add incremental texture paint */
-	UPROPERTY(Transient)
-	TObjectPtr<UTextureRenderTarget2D> BrushMaskRenderTargetTexture;
-
-	/** Temporary render target used to store generated mask for texture seams, we create this by projecting object triangles into texture space using the selected UV channel */
-	UPROPERTY(Transient)
-	TObjectPtr<UTextureRenderTarget2D> SeamMaskRenderTargetTexture;
 
 	/** Stores data associated with our paint target textures */
 	UPROPERTY(Transient)
 	TMap<TObjectPtr<UTexture2D>, FPaintTexture2DData> PaintTargetData;
 
-	/** Store the component overrides active for each paint target textures
-	 * Note this is not transactional because we use it as cache of the current state of the scene that we can clean/update after each transaction.
-	 */
-	UPROPERTY(Transient, NonTransactional)
-	TMap<TObjectPtr<UTexture2D>, FPaintComponentOverride> PaintComponentsOverride;
-
-	/** Texture paint: Will hold a list of texture items that we can paint on */
-	TArray<FTextureTargetListInfo> TexturePaintTargetList;
-
-	/** Texture paint: The mesh components that we're currently painting */
+private:
 	UPROPERTY(Transient)
-	TObjectPtr<UMeshComponent> TexturePaintingCurrentMeshComponent;
+	TObjectPtr<UMeshPaintSelectionMechanic> SelectionMechanic;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMeshTexturePaintingToolProperties> TextureProperties;
 
 	/** The original texture that we're painting */
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> PaintingTexture2D;
 
-	/** True if we need to generate a texture seam mask used for texture dilation */
-	bool bGenerateSeamMask;
+	/** The mesh component that we're currently painting on */
+	UPROPERTY(Transient)
+	TObjectPtr<UMeshComponent> TexturePaintingCurrentMeshComponent;
 
 	/** Hold the transaction while we are painting */
 	TUniquePtr<FScopedTransaction> PaintingTransaction;
+
+	double InitialMeshArea = 0;
+	bool bArePainting = false;
+	bool bResultValid = false;
+	bool bStampPending = false;
+	bool bInDrag = false;
+	bool bRequestPaintBucketFill = false;
+
+	bool bCachedClickRay = false;
+	FRay PendingStampRay;
+	FRay PendingClickRay;
+	FVector2D PendingClickScreenPosition;
+	
+	TArray<FPaintRayResults> LastPaintRayResults;
+	FHitResult LastBestHitResult;
+
+	FOnPaintingFinishedDelegate OnPaintingFinishedDelegate;
+};
+
+/**
+ * Class for texture color painting tool.
+ * This paints to special textures stored on the mesh components.
+ * Behavior should be similar to vertex painting (per instance painting stored on components).
+ * But painting texture colors instead of vertex colors is a better fit for very dense mesh types such as used by nanite.
+ */
+UCLASS()
+class MESHPAINTINGTOOLSET_API UMeshTextureColorPaintingTool : public UMeshTexturePaintingTool
+{
+	GENERATED_BODY()
+
+public:
+	UMeshTextureColorPaintingTool();
+
+protected:
+	// Begin UInteractiveTool Interface.
+	virtual void Setup() override;
+	// End UInteractiveTool Interface.
+
+	// Begin UMeshTexturePaintingTool Interface.
+	virtual bool AllowsMultiselect() const override { return true; }
+	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
+	virtual UTexture2D* GetSelectedPaintTexture(UMeshComponent const* InMeshComponent) const override;
+	virtual int32 GetSelectedUVChannel(UMeshComponent const* InMeshComponent) const override;
+	virtual void GetModifiedTexturesToSave(TArray<UObject*>& OutTexturesToSave) const override;
+	virtual void CacheTexturePaintData() override;
+	virtual bool CanPaintTextureToComponent(UTexture* InTexture, UMeshComponent const* InMeshComponent) const override;
+	// End UMeshTexturePaintingTool Interface.
+
+private:
+	UPROPERTY(Transient)
+	TObjectPtr<UMeshTextureColorPaintingToolProperties> ColorProperties;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture> MeshPaintDummyTexture;
+};
+
+/**
+ * Class for texture asset painting tool.
+ * This paints to texture assets directly from the mesh.
+ * The texture asset to paint is selected from the ones referenced in the mesh component's materials.
+ */
+UCLASS()
+class MESHPAINTINGTOOLSET_API UMeshTextureAssetPaintingTool : public UMeshTexturePaintingTool
+{
+	GENERATED_BODY()
+
+public:
+	UMeshTextureAssetPaintingTool();
+	
+	/** Change selected texture to previous or next available. */
+	void CycleTextures(int32 Direction);
+
+	/** Get the selected paint texture, and return the modified overriden texture if currently painting. */
+	UTexture* GetSelectedPaintTextureWithOverride() const;
+
+	/** Returns true if asset shouldn't be shown in UI because it is not in our paintable texture array. */
+	bool ShouldFilterTextureAsset(const FAssetData& AssetData) const;
+
+	virtual int32 GetSelectedUVChannel(UMeshComponent const* InMeshComponent) const override;
+
+protected:
+	// Begin UInteractiveTool Interface.
+	virtual void Setup() override;
+	// End UInteractiveTool Interface.
+
+	// Begin UMeshTexturePaintingTool Interface.
+	virtual bool AllowsMultiselect() const override { return false; }
+	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
+	virtual void OnPropertyModified(UObject* PropertySet, FProperty* Property) override;
+	virtual UTexture2D* GetSelectedPaintTexture(UMeshComponent const* InMeshComponent) const override;
+	virtual void GetModifiedTexturesToSave(TArray<UObject*>& OutTexturesToSave) const override;
+	virtual void CacheTexturePaintData() override;
+	virtual bool CanPaintTextureToComponent(UTexture* InTexture, UMeshComponent const* InMeshComponent) const override;
+	// End UMeshTexturePaintingTool Interface.
+
+private:
+	UPROPERTY(Transient)
+	TObjectPtr<UMeshTextureAssetPaintingToolProperties> AssetProperties;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

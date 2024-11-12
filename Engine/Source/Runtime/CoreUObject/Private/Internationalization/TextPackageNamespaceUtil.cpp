@@ -45,20 +45,7 @@ FString FindOrAddPackageNamespace(UPackage* InPackage, const bool bCanAdd)
 				FString& PackageLocalizationNamespaceValue = PackageMetaData->RootMetaDataMap.FindOrAdd(PackageLocalizationNamespaceKey);
 				if (PackageLocalizationNamespaceValue.IsEmpty())
 				{
-					// Make a determinstic new guid that will vary based on the package
-					FBlake3 Builder;
-					FString PackagePath = InPackage->GetName();
-					FGuid NonUniqueGuid = InPackage->GetPersistentGuid(); // Can be the same for duplicated packages
-					Builder.Update(&NonUniqueGuid, sizeof(FGuid));
-					Builder.Update(*PackagePath, PackagePath.Len() * sizeof(**PackagePath));
-					FBlake3Hash Hash = Builder.Finalize();
-					// We use the first 16 bytes of the FIoHash to create the guid, there is
-					// no specific reason why these were chosen, we could take any pattern or combination
-					// of bytes.
-					uint32* HashBytes = (uint32*)Hash.GetBytes();
-					FGuid NewGuid(HashBytes[0], HashBytes[1], HashBytes[2], HashBytes[3]);
-
-					PackageLocalizationNamespaceValue = NewGuid.ToString();
+					PackageLocalizationNamespaceValue = TextNamespaceUtil::GenerateDeterministicPackageNamespace(InPackage);
 				}
 				return PackageLocalizationNamespaceValue;
 			}
@@ -172,6 +159,26 @@ FText TextNamespaceUtil::CopyTextToPackage(const FText& InText, UObject* InObjec
 #endif	// USE_STABLE_LOCALIZATION_KEYS
 }
 
+#if WITH_EDITORONLY_DATA
+FString TextNamespaceUtil::GenerateDeterministicPackageNamespace(const UPackage* InPackage)
+{
+	// Make a deterministic new guid that will vary based on the package
+	FBlake3 Builder;
+	FString PackagePath = InPackage->GetName();
+	FGuid NonUniqueGuid = InPackage->GetPersistentGuid(); // Can be the same for duplicated packages
+	Builder.Update(&NonUniqueGuid, sizeof(FGuid));
+	Builder.Update(*PackagePath, PackagePath.Len() * sizeof(**PackagePath));
+	FBlake3Hash Hash = Builder.Finalize();
+	// We use the first 16 bytes of the FIoHash to create the guid, there is
+	// no specific reason why these were chosen, we could take any pattern or combination
+	// of bytes.
+	uint32* HashBytes = (uint32*)Hash.GetBytes();
+	FGuid NewGuid(HashBytes[0], HashBytes[1], HashBytes[2], HashBytes[3]);
+
+	return NewGuid.ToString();
+}
+#endif // WITH_EDITORONLY_DATA
+
 FString TextNamespaceUtil::GenerateRandomTextKey()
 {
 	return FGuid::NewGuid().ToString();
@@ -266,14 +273,19 @@ bool TextNamespaceUtil::EditTextProperty(UObject* InTextOwner, const FTextProper
 		return false;
 	}
 
+	return EditTextProperty_Direct(InTextOwner->GetPackage(), InTextProperty->GetPropertyValuePtr_InContainer(InTextOwner), InTextProperty, InEditAction, InEditValue, InTextKeyGenerator, bApplyPackageNamespace);
+}
+
+bool TextNamespaceUtil::EditTextProperty_Direct(UPackage* InPackage, void* InTextValue, const FTextProperty* InTextProperty, const ETextEditAction InEditAction, const FString& InEditValue, TFunctionRef<FString()> InTextKeyGenerator, const bool bApplyPackageNamespace)
+{
 	if (InEditAction == ETextEditAction::SourceString && InEditValue.IsEmpty())
 	{
 		// Empty source strings always produce an empty text
-		InTextProperty->SetPropertyValue_InContainer(InTextOwner, FText());
+		InTextProperty->SetPropertyValue(InTextValue, FText());
 		return true;
 	}
 
-	const FText CurrentTextValue = InTextProperty->GetPropertyValue_InContainer(InTextOwner);
+	const FText CurrentTextValue = InTextProperty->GetPropertyValue(InTextValue);
 	const FTextId CurrentTextId = FTextInspector::GetTextId(CurrentTextValue);
 	const FString* CurrentSourceString = FTextInspector::GetSourceString(CurrentTextValue);
 	const bool bIsCurrentTextLocalized = !CurrentTextValue.IsCultureInvariant() && !CurrentTextValue.IsFromStringTable();
@@ -284,7 +296,7 @@ bool TextNamespaceUtil::EditTextProperty(UObject* InTextOwner, const FTextProper
 		switch (InEditAction)
 		{
 		case ETextEditAction::Namespace:
-			if (const FString CurrentTextNamespace = StripPackageNamespace(CurrentTextId.GetNamespace().GetChars());
+			if (const FString CurrentTextNamespace = StripPackageNamespace(CurrentTextId.GetNamespace().ToString());
 				CurrentTextNamespace.Equals(InEditValue, ESearchCase::CaseSensitive))
 			{
 				return true;
@@ -292,7 +304,7 @@ bool TextNamespaceUtil::EditTextProperty(UObject* InTextOwner, const FTextProper
 			break;
 
 		case ETextEditAction::Key:
-			if (FCString::Strcmp(CurrentTextId.GetKey().GetChars(), *InEditValue) == 0)
+			if (CurrentTextId.GetKey().ToString().Equals(InEditValue, ESearchCase::CaseSensitive))
 			{
 				return true;
 			}
@@ -311,14 +323,14 @@ bool TextNamespaceUtil::EditTextProperty(UObject* InTextOwner, const FTextProper
 		}
 	}
 
-	const FString ProposedNamespace = (InEditAction == ETextEditAction::Namespace ? InEditValue : CurrentTextId.GetNamespace().GetChars());
-	const FString ProposedKey = (InEditAction == ETextEditAction::Key ? InEditValue : CurrentTextId.GetKey().GetChars());
-	const FString SourceString = (InEditAction == ETextEditAction::SourceString ? InEditValue : CurrentSourceString ? *CurrentSourceString : FString());
+	const FString ProposedNamespace = (InEditAction == ETextEditAction::Namespace ? InEditValue : CurrentTextId.GetNamespace().ToString());
+	const FString ProposedKey = (InEditAction == ETextEditAction::Key ? InEditValue : CurrentTextId.GetKey().ToString());
+	FString SourceString = (InEditAction == ETextEditAction::SourceString ? InEditValue : CurrentSourceString ? *CurrentSourceString : FString());
 
 	FString StableNamespace;
 	FString StableKey;
-	GetTextIdForEdit(InTextOwner->GetPackage(), InEditAction, SourceString, ProposedNamespace, ProposedKey, StableNamespace, StableKey, InTextKeyGenerator, bApplyPackageNamespace);
+	GetTextIdForEdit(InPackage, InEditAction, SourceString, ProposedNamespace, ProposedKey, StableNamespace, StableKey, InTextKeyGenerator, bApplyPackageNamespace);
 
-	InTextProperty->SetPropertyValue_InContainer(InTextOwner, FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*SourceString, *StableNamespace, *StableKey));
+	InTextProperty->SetPropertyValue(InTextValue, FText::AsLocalizable_Advanced(StableNamespace, StableKey, MoveTemp(SourceString)));
 	return true;
 }

@@ -74,8 +74,7 @@ UParticleSystemComponent* FPSCPool::Acquire(UWorld* World, UParticleSystem* Temp
 		{
 			// Rename the PSC to move it into the current PersistentLevel - it may have been spawned in one
 			// level but is now needed in another level.
-			// Use the REN_ForceNoResetLoaders flag to prevent the rename from potentially calling FlushAsyncLoading.
-			RetElem.PSC->Rename(nullptr, World, REN_ForceNoResetLoaders);
+			RetElem.PSC->Rename(nullptr, World);
 		}
 	}
 	else
@@ -185,7 +184,7 @@ void FPSCPool::KillUnusedComponents(float KillTime, UParticleSystem* Template)
 				PSC->DestroyComponent();
 			}
 
-			FreeElements.RemoveAtSwap(i, 1, EAllowShrinking::No);
+			FreeElements.RemoveAtSwap(i, EAllowShrinking::No);
 		}
 		else
 		{

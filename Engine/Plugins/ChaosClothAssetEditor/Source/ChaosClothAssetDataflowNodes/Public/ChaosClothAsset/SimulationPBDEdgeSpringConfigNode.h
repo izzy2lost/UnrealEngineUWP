@@ -7,7 +7,7 @@
 #include "SimulationPBDEdgeSpringConfigNode.generated.h"
 
 /** Edge spring constraint property configuration node. */
-USTRUCT(Meta = (DataflowCloth))
+USTRUCT(Meta = (DataflowCloth, Deprecated = "5.4"))
 struct FChaosClothAssetSimulationPBDEdgeSpringConfigNode : public FChaosClothAssetSimulationBaseConfigNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -24,9 +24,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "PBDEdgeSpring Properties", Meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "1"))
 	FChaosClothAssetWeightedValue EdgeSpringStiffness = { true, 1.f, 1.f, TEXT("EdgeSpringStiffness") };
 
-	FChaosClothAssetSimulationPBDEdgeSpringConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSimulationPBDEdgeSpringConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
-	virtual bool IsDeprecated() override { return true; }
 };

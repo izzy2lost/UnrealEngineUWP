@@ -16,6 +16,8 @@
 #include "Styling/AppStyle.h"
 #include "EngineUtils.h"
 #include "Camera/CameraComponent.h"
+#include "MovieSceneBindingReferences.h"
+#include "Bindings/MovieSceneSpawnableActorBinding.h"
 
 
 #define LOCTEXT_NAMESPACE "FCameraCutSection"
@@ -157,10 +159,9 @@ AActor* FCameraCutSection::GetCameraForFrame(FFrameNumber Time) const
 			return CameraComponent->GetOwner();
 		}
 
-		FMovieSceneSpawnable* Spawnable = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->FindSpawnable(CameraCutSection->GetCameraBindingID().GetGuid());
-		if (Spawnable)
+		if (AActor* ActorTemplate = Cast<AActor>(MovieSceneHelpers::GetObjectTemplate(Sequencer->GetFocusedMovieSceneSequence(), CameraCutSection->GetCameraBindingID().GetGuid(), Sequencer->GetSharedPlaybackState())))
 		{
-			return Cast<AActor>(Spawnable->GetObjectTemplate());
+			return ActorTemplate;
 		}
 	}
 

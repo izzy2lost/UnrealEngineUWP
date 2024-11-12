@@ -77,7 +77,7 @@ struct FMovieSceneSequencePlaybackSettings
 	FMovieSceneSequenceLoopCount LoopCount;
 
 	/** Overridable tick interval for this sequence to update at. When not overridden, the owning actor or component's tick interval will be used */
-	UPROPERTY(EditAnywhere, Category="Playback", meta=(ShowOnlyInnerProperties, Units=s, EditCondition="!bInheritTickIntervalFromOwner"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Playback", meta=(Units=s, EditCondition="!bInheritTickIntervalFromOwner"))
 	FMovieSceneSequenceTickInterval TickInterval;
 
 	/** The rate at which to playback the animation */

@@ -6,7 +6,8 @@
 #include "Serialization/ArchiveSerializedPropertyChain.h"
 #include "UObject/PropertyOptional.h"
 #include "Misc/ScopeExit.h"
-#include "Serialization/StructuredArchiveNameHelpers.h"
+#include "UObject/UObjectArchetypeHelper.h"
+#include "UObject/UObjectThreadContext.h"
 
 /*
  *************************************************************************************
@@ -27,6 +28,12 @@ EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenProper
 	checkf(bUseOverridableSerialization, TEXT("Nobody should use this method if it is not setup to use overridable serialization"));
 
 	const FArchiveSerializedPropertyChain* CurrentPropertyChain = Ar.GetSerializedPropertyChain();
+	const FProperty* CurrentProperty = Property ? Property : (CurrentPropertyChain ? CurrentPropertyChain->GetPropertyFromStack(0) : nullptr);
+	if (CurrentProperty && CurrentProperty->HasAnyPropertyFlags(CPF_ExperimentalNeverOverriden))
+	{
+		return EOverriddenPropertyOperation::None;
+	}
+
 	const EOverriddenPropertyOperation OverriddenOperation = OverriddenProperties ? OverriddenProperties->GetOverriddenPropertyOperation(CurrentPropertyChain, Property) : EOverriddenPropertyOperation::None;
 	if (OverriddenOperation != EOverriddenPropertyOperation::None)
 	{
@@ -34,7 +41,7 @@ EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenProper
 	}
 
 	// It does not mean that if we have no record of an overriden operation that a subobject might have one, need to traverse all possible subobjects. 
-	if (const FProperty* CurrentProperty = Property ? Property : (CurrentPropertyChain ? CurrentPropertyChain->GetPropertyFromStack(0) : nullptr) )
+	if (CurrentProperty)
 	{
 		if (CurrentProperty->HasAnyPropertyFlags(CPF_ExperimentalAlwaysOverriden))
 		{
@@ -85,6 +92,93 @@ FEnableOverridableSerializationScope::~FEnableOverridableSerializationScope()
 	}
 }
 
+FOverriddenPropertyNodeID::FOverriddenPropertyNodeID(const FProperty* Property)
+	: Object(nullptr)
+{
+	if (Property)
+	{
+		// append typename to the end of the property ID
+		UE::FPropertyTypeNameBuilder TypeNameBuilder;
+#if WITH_EDITORONLY_DATA
+		{
+			// use property impersonation for SaveTypeName so that keys don't change when classes die
+			FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+            TGuardValue<bool> ScopedImpersonateProperties(SerializeContext->bImpersonateProperties, true);
+            Property->SaveTypeName(TypeNameBuilder);
+		}
+#endif
+		UE::FPropertyTypeName TypeName = TypeNameBuilder.Build();
+		TStringBuilder<256> StringBuilder;
+		StringBuilder << Property->GetFName();
+		StringBuilder << " - ";
+		StringBuilder << TypeName;
+		Path = FName(StringBuilder.ToView());
+	}
+}
+
+FOverriddenPropertyNodeID FOverriddenPropertyNodeID::RootNodeId()
+{
+	FOverriddenPropertyNodeID Result;
+	Result.Path = FName(TEXT("root"));
+	return Result;
+}
+
+FOverriddenPropertyNodeID FOverriddenPropertyNodeID::FromMapKey(const FProperty* KeyProperty, const void* KeyData)
+{
+	if (const FObjectPropertyBase* KeyObjectProperty = CastField<FObjectPropertyBase>(KeyProperty))
+	{
+		if (const UObject* Object = KeyObjectProperty->GetObjectPropertyValue(KeyData))
+		{
+			return FOverriddenPropertyNodeID(*Object);
+		}
+	}
+	else
+	{
+		FString KeyString;
+		KeyProperty->ExportTextItem_Direct(KeyString, KeyData, /*DefaultValue*/nullptr, /*Parent*/nullptr, PPF_None);
+		FOverriddenPropertyNodeID Result;
+		Result.Path = FName(KeyString);
+		return Result;
+	}
+		
+	checkf(false, TEXT("This case is not handled"))
+	return FOverriddenPropertyNodeID();
+}
+
+int32 FOverriddenPropertyNodeID::ToMapInternalIndex(FScriptMapHelper& MapHelper) const
+{
+	// Special case for object we didn't use the pointer to create the key
+	if (const FObjectPropertyBase* KeyObjectProperty = CastField<FObjectPropertyBase>(MapHelper.KeyProp))
+	{
+		for (FScriptMapHelper::FIterator It(MapHelper); It; ++It) 
+		{
+			if (UObject* CurrentObject = KeyObjectProperty->GetObjectPropertyValue(MapHelper.GetKeyPtr(It)))
+			{
+				if ((*this) == FOverriddenPropertyNodeID(*CurrentObject))
+				{
+					return It.GetInternalIndex();
+				}
+			}
+		}
+	}
+	else
+	{
+		// Default case, just import the text as key value for comparison
+		void* TempKeyValueStorage = FMemory_Alloca(MapHelper.MapLayout.SetLayout.Size);
+		MapHelper.KeyProp->InitializeValue(TempKeyValueStorage);
+
+		FString KeyToFind(ToString());
+		MapHelper.KeyProp->ImportText_Direct(*KeyToFind, TempKeyValueStorage, nullptr, PPF_None);
+
+		const int32 InternalIndex = MapHelper.FindMapPairIndexFromHash(TempKeyValueStorage);
+
+		MapHelper.KeyProp->DestroyValue(TempKeyValueStorage);
+
+		return InternalIndex;
+	}
+	return INDEX_NONE;
+}
+
 //----------------------------------------------------------------------//
 // FOverriddenPropertyNodeID
 //----------------------------------------------------------------------//
@@ -110,7 +204,7 @@ FOverriddenPropertyNode& FOverriddenPropertySet::FindOrAddNode(FOverriddenProper
 	FOverriddenPropertyNodeID& SubNodeID = ParentNode.SubPropertyNodeKeys.FindOrAdd(NodeID, FOverriddenPropertyNodeID());
 	if (SubNodeID.IsValid())
 	{
-		FOverriddenPropertyNode* FoundNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(SubNodeID), SubNodeID);
+		FOverriddenPropertyNode* FoundNode = OverriddenPropertyNodes.Find(SubNodeID);
 		checkf(FoundNode, TEXT("Expecting a node"));
 		return *FoundNode;
 	}
@@ -132,64 +226,63 @@ FOverriddenPropertyNode& FOverriddenPropertySet::FindOrAddNode(FOverriddenProper
 	return OverriddenPropertyNodes.Get(NewID);
 }
 
-EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperation(const FOverriddenPropertyNode& ParentPropertyNode, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedOperation, const void* Data) const
+EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperation(const FOverriddenPropertyNode& ParentPropertyNode, FPropertyVisitorPath::Iterator PropertyIterator, bool* bOutInheritedOperation, const void* Data) const
 {
 	FOverridableManager& OverridableManager = FOverridableManager::Get();
 
 	const void* SubValuePtr = Data;
-	const FEditPropertyChain::TDoubleLinkedListNode* PropertyIterator = PropertyNode;
 	const FOverriddenPropertyNode* OverriddenPropertyNode = &ParentPropertyNode;
 	int32 ArrayIndex = INDEX_NONE;
 	while (PropertyIterator && (!OverriddenPropertyNode || OverriddenPropertyNode->Operation != EOverriddenPropertyOperation::Replace))
 	{
 		ArrayIndex = INDEX_NONE;
 
-		const FProperty* CurrentProperty = PropertyIterator->GetValue();
+		const FProperty* CurrentProperty = PropertyIterator->Property;
 		SubValuePtr = CurrentProperty->ContainerPtrToValuePtr<void>(SubValuePtr, 0); //@todo support static arrays
 
 		const FOverriddenPropertyNode* CurrentOverriddenPropertyNode = nullptr;
 		if (OverriddenPropertyNode)
 		{
-			const FName CurrentPropID = CurrentProperty->GetFName();
-			if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentPropID))
+			if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentProperty))
 			{
-				CurrentOverriddenPropertyNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(*CurrentPropKey), *CurrentPropKey);
+				CurrentOverriddenPropertyNode = OverriddenPropertyNodes.Find(*CurrentPropKey);
 				checkf(CurrentOverriddenPropertyNode, TEXT("Expecting a node"));
 			}
 		}
 
-
-		// Special handling for for instanced subobjects 
-		if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(CurrentProperty))
+		FPropertyVisitorPath::Iterator NextPropertyIterator = PropertyIterator+1;
+		// Special handling for instanced subobjects 
+		if (const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(CurrentProperty))
 		{
-			if (PropertyIterator->GetNextNode())
+			if (NextPropertyIterator)
 			{
 				// Forward any sub queries to the subobject
 				if (UObject* SubObject = ObjectProperty->GetObjectPropertyValue(SubValuePtr))
 				{
 					// This should not be needed in the property grid, as it should already been called on the subobject.
-					return OverridableManager.GetOverriddenPropertyOperation(*SubObject, PropertyEvent, PropertyIterator->GetNextNode(), bOutInheritedOperation);
+					return OverridableManager.GetOverriddenPropertyOperation(*SubObject, NextPropertyIterator, bOutInheritedOperation);
 				}
 			}
 		}
 		// Special handling for array of instanced subobjects 
 		else if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(CurrentProperty))
 		{
-			ArrayIndex = PropertyEvent.GetArrayIndex(CurrentProperty->GetName());
+			ArrayIndex = PropertyIterator->Index;
+			checkf(ArrayIndex == INDEX_NONE || PropertyIterator->PropertyInfo == EPropertyVisitorInfoType::ContainerIndex, TEXT("Expecting a container index"));
 
 			// Only special case is instanced subobjects, otherwise we fallback to full array override
 			checkf(ArrayProperty->Inner, TEXT("Expecting an inner type for Arrays"));
-			if (const FObjectProperty* InnerObjectProperty = ArrayProperty->Inner->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectProperty>(ArrayProperty->Inner) : nullptr)
+			if (const FObjectPropertyBase* InnerObjectProperty = ArrayProperty->Inner->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectPropertyBase>(ArrayProperty->Inner) : nullptr)
 			{
 				FScriptArrayHelper ArrayHelper(ArrayProperty, SubValuePtr);
 				if(ArrayHelper.IsValidIndex(ArrayIndex))
 				{
 					if (UObject* SubObject = InnerObjectProperty->GetObjectPropertyValue(ArrayHelper.GetElementPtr(ArrayIndex)))
 					{
-						if (PropertyIterator->GetNextNode())
+						if (NextPropertyIterator)
 						{
 							// Forward any sub queries to the subobject
-							return OverridableManager.GetOverriddenPropertyOperation(*SubObject, PropertyEvent, PropertyIterator->GetNextNode(), bOutInheritedOperation);
+							return OverridableManager.GetOverriddenPropertyOperation(*SubObject, NextPropertyIterator, bOutInheritedOperation);
 						}
 						else if(CurrentOverriddenPropertyNode)
 						{
@@ -197,7 +290,7 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 							const FOverriddenPropertyNodeID  SubObjectID(*SubObject);
 							if (const FOverriddenPropertyNodeID* CurrentPropKey = CurrentOverriddenPropertyNode->SubPropertyNodeKeys.Find(SubObjectID))
 							{
-								const FOverriddenPropertyNode* SubObjectOverriddenPropertyNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(*CurrentPropKey), *CurrentPropKey);
+								const FOverriddenPropertyNode* SubObjectOverriddenPropertyNode = OverriddenPropertyNodes.Find(*CurrentPropKey);
 								checkf(SubObjectOverriddenPropertyNode, TEXT("Expecting a node"));
 								if (bOutInheritedOperation)
 								{
@@ -213,7 +306,8 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 		// Special handling for maps and values of instance subobjects
 		else if (const FMapProperty* MapProperty = CastField<FMapProperty>(CurrentProperty))
 		{
-			ArrayIndex = PropertyEvent.GetArrayIndex(CurrentProperty->GetName());
+			ArrayIndex = PropertyIterator->Index;
+			checkf(ArrayIndex == INDEX_NONE || PropertyIterator->PropertyInfo == EPropertyVisitorInfoType::ContainerIndex, TEXT("Expecting a container index"));
 
 			checkf(MapProperty->ValueProp, TEXT("Expecting a value type for Maps"));
 			FScriptMapHelper MapHelper(MapProperty, SubValuePtr);
@@ -221,14 +315,14 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 			const int32 InternalMapIndex = ArrayIndex != INDEX_NONE ? MapHelper.FindInternalIndex(ArrayIndex) : INDEX_NONE;
 			if(MapHelper.IsValidIndex(InternalMapIndex))
 			{
-				if (PropertyIterator->GetNextNode())
+				if (NextPropertyIterator)
 				{
 					// Forward any sub queries to the subobject
-					if (const FObjectProperty* ValueInstancedObjectProperty = MapProperty->ValueProp->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectProperty>(MapProperty->ValueProp) : nullptr)
+					if (const FObjectPropertyBase* ValueInstancedObjectProperty = MapProperty->ValueProp->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectPropertyBase>(MapProperty->ValueProp) : nullptr)
 					{
 						if (UObject* ValueSubObject = ValueInstancedObjectProperty->GetObjectPropertyValue(MapHelper.GetValuePtr(InternalMapIndex)))
 						{
-							return OverridableManager.GetOverriddenPropertyOperation(*ValueSubObject, PropertyEvent, PropertyIterator->GetNextNode(), bOutInheritedOperation);
+							return OverridableManager.GetOverriddenPropertyOperation(*ValueSubObject, NextPropertyIterator, bOutInheritedOperation);
 						}
 					}
 				}
@@ -236,23 +330,11 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 				{
 					// Caller wants to know about any override state on the reference of the map pair itself
 					checkf(MapProperty->KeyProp, TEXT("Expecting a key type for Maps"));
-					FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(MapProperty->KeyProp);
-
-					FOverriddenPropertyNodeID OverriddenKeyID;
-					if (const UObject* OverriddenKeyObject = KeyObjectProperty ? KeyObjectProperty->GetObjectPropertyValue(MapHelper.GetKeyPtr(InternalMapIndex)) : nullptr)
-					{
-						OverriddenKeyID = FOverriddenPropertyNodeID(*OverriddenKeyObject);
-					}
-					else
-					{
-						FString OverriddenKey;
-						MapProperty->KeyProp->ExportTextItem_Direct(OverriddenKey, MapHelper.GetKeyPtr(InternalMapIndex), nullptr, nullptr, PPF_None);
-						OverriddenKeyID = FName(OverriddenKey);
-					}
+					FOverriddenPropertyNodeID OverriddenKeyID = FOverriddenPropertyNodeID::FromMapKey(MapProperty->KeyProp, MapHelper.GetKeyPtr(InternalMapIndex));
 
 					if (const FOverriddenPropertyNodeID* CurrentPropKey = CurrentOverriddenPropertyNode->SubPropertyNodeKeys.Find(OverriddenKeyID))
 					{
-						const FOverriddenPropertyNode* SubObjectOverriddenPropertyNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(*CurrentPropKey), *CurrentPropKey);
+						const FOverriddenPropertyNode* SubObjectOverriddenPropertyNode = OverriddenPropertyNodes.Find(*CurrentPropKey);
 						checkf(SubObjectOverriddenPropertyNode, TEXT("Expecting a node"));
 						if (bOutInheritedOperation)
 						{
@@ -265,51 +347,53 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 		}
 
 		OverriddenPropertyNode = CurrentOverriddenPropertyNode;
-		PropertyIterator = PropertyIterator->GetNextNode();
+		++PropertyIterator;
 	}
 
 	if (bOutInheritedOperation)
 	{
-		*bOutInheritedOperation = PropertyIterator != nullptr || ArrayIndex != INDEX_NONE;
+		*bOutInheritedOperation = PropertyIterator || ArrayIndex != INDEX_NONE;
 	}
 	return OverriddenPropertyNode ? OverriddenPropertyNode->Operation : EOverriddenPropertyOperation::None;
 }
 
-bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& ParentPropertyNode, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data)
+bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& ParentPropertyNode, FPropertyVisitorPath::Iterator PropertyIterator, const void* Data)
 {
 	FOverridableManager& OverridableManager = FOverridableManager::Get();
 
 	bool bClearedOverrides = false;
 	const void* SubValuePtr = Data;
-	const FEditPropertyChain::TDoubleLinkedListNode* PropertyIterator = PropertyNode;
 	FOverriddenPropertyNode* OverriddenPropertyNode = &ParentPropertyNode;
 	int32 ArrayIndex = INDEX_NONE;
-	while (PropertyIterator && OverriddenPropertyNode && OverriddenPropertyNode->Operation != EOverriddenPropertyOperation::Replace)
+	TArray<FOverriddenPropertyNodeID> PropertyNodeIDPath;
+	PropertyNodeIDPath.Push(OverriddenPropertyNode->NodeID);
+	while (PropertyIterator && (!OverriddenPropertyNode || OverriddenPropertyNode->Operation != EOverriddenPropertyOperation::Replace))
 	{
 		ArrayIndex = INDEX_NONE;
 
-		const FProperty* CurrentProperty = PropertyIterator->GetValue();
+		const FProperty* CurrentProperty = PropertyIterator->Property;
 		SubValuePtr = CurrentProperty->ContainerPtrToValuePtr<void>(SubValuePtr, 0); //@todo support static arrays
 
 		FOverriddenPropertyNode* CurrentOverriddenPropertyNode = nullptr;
 		if (OverriddenPropertyNode)
 		{
-			const FName CurrentPropID = CurrentProperty->GetFName();
-			if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentPropID))
+			if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentProperty))
 			{
-				CurrentOverriddenPropertyNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(*CurrentPropKey), *CurrentPropKey);
+				CurrentOverriddenPropertyNode = OverriddenPropertyNodes.Find(*CurrentPropKey);
 				checkf(CurrentOverriddenPropertyNode, TEXT("Expecting a node"));
+				PropertyNodeIDPath.Push(CurrentOverriddenPropertyNode->NodeID);
 			}
 		}
 
-		// Special handling for for instanced subobjects 
-		if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(CurrentProperty))
+		// Special handling for instanced subobjects 
+		FPropertyVisitorPath::Iterator NextPropertyIterator = PropertyIterator+1;
+		if (const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(CurrentProperty))
 		{
 			if (UObject* SubObject = ObjectProperty->GetObjectPropertyValue(SubValuePtr))
 			{
-				if (PropertyIterator->GetNextNode())
+				if (NextPropertyIterator)
 				{
-					return OverridableManager.ClearOverriddenProperty(*SubObject, PropertyEvent, PropertyIterator->GetNextNode());
+					return OverridableManager.ClearOverriddenProperty(*SubObject, NextPropertyIterator);
 				}
 				else
 				{
@@ -321,10 +405,11 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& Pa
 		// Special handling for array of instanced subobjects 
 		else if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(CurrentProperty))
 		{
-			ArrayIndex = PropertyEvent.GetArrayIndex(CurrentProperty->GetName());
+			ArrayIndex = PropertyIterator->Index;
+			checkf(ArrayIndex == INDEX_NONE || PropertyIterator->PropertyInfo == EPropertyVisitorInfoType::ContainerIndex, TEXT("Expecting a container index"));
 
 			// Only special case is instanced subobjects, otherwise we fallback to full array override
-			if (FObjectProperty* InnerObjectProperty = CastField<FObjectProperty>(ArrayProperty->Inner))
+			if (FObjectPropertyBase* InnerObjectProperty = CastField<FObjectPropertyBase>(ArrayProperty->Inner))
 			{
 				if (InnerObjectProperty->HasAnyPropertyFlags(CPF_PersistentInstance))
 				{
@@ -347,9 +432,9 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& Pa
 					{
 						if (UObject* SubObject = InnerObjectProperty->GetObjectPropertyValue(ArrayHelper.GetElementPtr(ArrayIndex)))
 						{
-							if (PropertyIterator->GetNextNode())
+							if (NextPropertyIterator)
 							{
-								return OverridableManager.ClearOverriddenProperty(*SubObject, PropertyEvent, PropertyIterator->GetNextNode());
+								return OverridableManager.ClearOverriddenProperty(*SubObject, NextPropertyIterator);
 							}
 							else if(CurrentOverriddenPropertyNode)
 							{
@@ -357,7 +442,7 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& Pa
 								FOverriddenPropertyNodeID CurrentPropKey;
 								if (CurrentOverriddenPropertyNode->SubPropertyNodeKeys.RemoveAndCopyValue(SubObjectID, CurrentPropKey))
 								{
-									verifyf(OverriddenPropertyNodes.RemoveByHash(GetTypeHash(CurrentPropKey), CurrentPropKey), TEXT("Expecting a node to be removed"));
+									verifyf(OverriddenPropertyNodes.Remove(CurrentPropKey), TEXT("Expecting a node to be removed"));
 									OverridableManager.ClearInstancedSubObjectOverrides(*Owner, *SubObject);
 									return true;
 								}
@@ -370,23 +455,24 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& Pa
 		// Special handling for maps and values of instance subobjects 
 		else if (const FMapProperty* MapProperty = CastField<FMapProperty>(CurrentProperty))
 		{
-			ArrayIndex = PropertyEvent.GetArrayIndex(CurrentProperty->GetName());
+			ArrayIndex = PropertyIterator->Index;
+			checkf(ArrayIndex == INDEX_NONE || PropertyIterator->PropertyInfo == EPropertyVisitorInfoType::ContainerIndex, TEXT("Expecting a container index"));
 
 			FScriptMapHelper MapHelper(MapProperty, SubValuePtr);
 
 			const int32 InternalMapIndex = ArrayIndex != INDEX_NONE ? MapHelper.FindInternalIndex(ArrayIndex) : INDEX_NONE;
-			const FObjectProperty* ValueInstancedObjectProperty = MapProperty->ValueProp->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectProperty>(MapProperty->ValueProp) : nullptr;
+			const FObjectPropertyBase* ValueInstancedObjectProperty = MapProperty->ValueProp->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectPropertyBase>(MapProperty->ValueProp) : nullptr;
 
 			// If there is a next node, it is probably because the map value is holding a instanced subobject and the user is changing value on it.
 			// So forward the call to the instanced subobject
-			if (PropertyIterator->GetNextNode())
+			if (NextPropertyIterator)
 			{
 				if(MapHelper.IsValidIndex(InternalMapIndex))
 				{
 					checkf(MapProperty->ValueProp, TEXT("Expecting a value type for Maps"));
 					if (UObject* ValueSubObject = ValueInstancedObjectProperty ? ValueInstancedObjectProperty->GetObjectPropertyValue(MapHelper.GetValuePtr(InternalMapIndex)) : nullptr)
 					{
-						return OverridableManager.ClearOverriddenProperty(*ValueSubObject, PropertyEvent, PropertyIterator->GetNextNode());
+						return OverridableManager.ClearOverriddenProperty(*ValueSubObject, NextPropertyIterator);
 					}
 				}
 			}
@@ -410,25 +496,12 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& Pa
 			else if (MapHelper.IsValidIndex(InternalMapIndex) && CurrentOverriddenPropertyNode)
 			{
 				checkf(MapProperty->KeyProp, TEXT("Expecting a key type for Maps"));
-				FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(MapProperty->KeyProp);
-
-				// Calculate the node from the key
-				FOverriddenPropertyNodeID OverriddenKeyID;
-				if (const UObject* OverriddenKeyObject = KeyObjectProperty ? KeyObjectProperty->GetObjectPropertyValue(MapHelper.GetKeyPtr(InternalMapIndex)) : nullptr)
-				{
-					OverriddenKeyID = FOverriddenPropertyNodeID(*OverriddenKeyObject);
-				}
-				else
-				{
-					FString OverriddenKey;
-					MapProperty->KeyProp->ExportTextItem_Direct(OverriddenKey, MapHelper.GetKeyPtr(InternalMapIndex), nullptr, nullptr, PPF_None);
-					OverriddenKeyID = FName(OverriddenKey);
-				}
+				FOverriddenPropertyNodeID OverriddenKeyID = FOverriddenPropertyNodeID::FromMapKey(MapProperty->KeyProp, MapHelper.GetKeyPtr(InternalMapIndex));
 
 				FOverriddenPropertyNodeID CurrentPropKey;
 				if (CurrentOverriddenPropertyNode->SubPropertyNodeKeys.RemoveAndCopyValue(OverriddenKeyID, CurrentPropKey))
 				{
-					verifyf(OverriddenPropertyNodes.RemoveByHash(GetTypeHash(CurrentPropKey), CurrentPropKey), TEXT("Expecting a node to be removed"));
+					verifyf(OverriddenPropertyNodes.Remove(CurrentPropKey), TEXT("Expecting a node to be removed"));
 
 					if (UObject* ValueSubObject = ValueInstancedObjectProperty ? ValueInstancedObjectProperty->GetObjectPropertyValue(MapHelper.GetValuePtr(InternalMapIndex)) : nullptr)
 					{
@@ -442,11 +515,42 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& Pa
 		}
 
 		OverriddenPropertyNode = CurrentOverriddenPropertyNode;
-		PropertyIterator = PropertyIterator->GetNextNode();
+		++PropertyIterator;
 	}
 
-	if (PropertyIterator != nullptr || OverriddenPropertyNode == nullptr)
+	auto CleanupClearedNodes = [this, &PropertyNodeIDPath]()
 	{
+		// Need to cleanup up the chain of property nodes if they endup empty
+		FOverriddenPropertyNodeID ChildPropertyNodeID;
+		while (FOverriddenPropertyNode* CurrentPropertyNode = !PropertyNodeIDPath.IsEmpty() ? OverriddenPropertyNodes.Find(PropertyNodeIDPath.Top()) : nullptr)
+		{
+			PropertyNodeIDPath.Pop();
+			if (CurrentPropertyNode->SubPropertyNodeKeys.Num() > 1)
+			{
+				// Now need to remove the child from this node
+				if (ChildPropertyNodeID.IsValid())
+				{
+					const FOverriddenPropertyNodeID* NodeToRemove = CurrentPropertyNode->SubPropertyNodeKeys.FindKey(ChildPropertyNodeID);
+					checkf(NodeToRemove, TEXT("Expecting a node"));
+					CurrentPropertyNode->SubPropertyNodeKeys.Remove(*NodeToRemove);
+
+					verifyf(OverriddenPropertyNodes.Remove(ChildPropertyNodeID), TEXT("Expecting the node to be removed"));
+				}
+				break;
+			}
+
+			RemoveOverriddenSubProperties(*CurrentPropertyNode);
+			ChildPropertyNodeID = CurrentPropertyNode->NodeID;
+		}
+	};
+
+	if (PropertyIterator || OverriddenPropertyNode == nullptr)
+	{
+		if (bClearedOverrides)
+		{
+			CleanupClearedNodes();
+		}
+
 		return bClearedOverrides;
 	}
 
@@ -455,28 +559,27 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& Pa
 		return false;
 	}
 
-	RemoveOverriddenSubProperties(*OverriddenPropertyNode);
-	OverriddenPropertyNode->Operation = EOverriddenPropertyOperation::None;
+	CleanupClearedNodes();
 	return true;
 }
 
-void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* ParentPropertyNode, const EPropertyNotificationType Notification, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data)
+void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* ParentPropertyNode, const EPropertyNotificationType Notification, FPropertyVisitorPath::Iterator PropertyIterator, const EPropertyChangeType::Type ChangeType, const void* Data, bool& bNeedsCleanup)
 {
 	checkf(IsValid(Owner), TEXT("Expecting a valid overridable owner"));
 
 	FOverridableManager& OverridableManager = FOverridableManager::Get();
-	if (!PropertyNode)
+	if (!PropertyIterator)
 	{
 		if (ParentPropertyNode && Notification == EPropertyNotificationType::PostEdit)
 		{
-			// Replacing this entire property
-			ParentPropertyNode->Operation = EOverriddenPropertyOperation::Replace;
-
 			// Sub-property overrides are not needed from now on, so clear them
 			RemoveOverriddenSubProperties(*ParentPropertyNode);
 
+			// Replacing this entire property
+			ParentPropertyNode->Operation = EOverriddenPropertyOperation::Replace;
+
 			// If we are overriding the root node, need to propagate the overrides to all instanced sub object
-			const FOverriddenPropertyNode* RootNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(RootNodeID), RootNodeID);
+			const FOverriddenPropertyNode* RootNode = OverriddenPropertyNodes.Find(RootNodeID);
 			checkf(RootNode, TEXT("Expecting to always have a "));
 			if (RootNode == ParentPropertyNode)
 			{
@@ -486,29 +589,47 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 		return;
 	}
 
-	const FProperty* Property = PropertyNode->GetValue();
+	const FProperty* Property = PropertyIterator->Property;
 	checkf(Property, TEXT("Expecting a valid property"));
 
-	const FOverriddenPropertyNodeID PropID(Property->GetFName());
 	const void* SubValuePtr = Property->ContainerPtrToValuePtr<void>(Data, 0); //@todo support static arrays
 
 	FOverriddenPropertyNode* SubPropertyNode = nullptr;
 	if (ParentPropertyNode)
 	{
-		FOverriddenPropertyNode& SubPropertyNodeRef = FindOrAddNode(*ParentPropertyNode, PropID);
+		FOverriddenPropertyNode& SubPropertyNodeRef = FindOrAddNode(*ParentPropertyNode, Property);
 		SubPropertyNode = SubPropertyNodeRef.Operation != EOverriddenPropertyOperation::Replace ? &SubPropertyNodeRef : nullptr;
 	}
 
+	ON_SCOPE_EXIT
+	{
+		if (bNeedsCleanup && ParentPropertyNode && SubPropertyNode && SubPropertyNode->SubPropertyNodeKeys.IsEmpty())
+		{
+			FOverriddenPropertyNodeID RemovedNodeID;
+			if (ParentPropertyNode->SubPropertyNodeKeys.RemoveAndCopyValue(Property, RemovedNodeID))
+			{
+				verifyf(OverriddenPropertyNodes.Remove(RemovedNodeID), TEXT("Expecting the node to be removed"));
+			}
+			if (ParentPropertyNode->Operation == EOverriddenPropertyOperation::Modified && ParentPropertyNode->SubPropertyNodeKeys.IsEmpty())
+			{
+				ParentPropertyNode->Operation = EOverriddenPropertyOperation::None;
+			}
+		}
+	};
+
+	FPropertyVisitorPath::Iterator NextPropertyIterator = PropertyIterator+1;
 	if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
 	{
 		// Only special case is instanced subobjects, otherwise we fallback to full array override
-		if (FObjectProperty* InnerObjectProperty = CastField<FObjectProperty>(ArrayProperty->Inner))
+		if (FObjectPropertyBase* InnerObjectProperty = CastField<FObjectPropertyBase>(ArrayProperty->Inner))
 		{
 			if (InnerObjectProperty->HasAnyPropertyFlags(CPF_PersistentInstance))
 			{
 				FScriptArrayHelper ArrayHelper(ArrayProperty, SubValuePtr);
-				int32 ArrayIndex = PropertyEvent.GetArrayIndex(Property->GetName());
-				if (!PropertyNode->GetNextNode())
+				int32 ArrayIndex = PropertyIterator->Index;
+				checkf(ArrayIndex == INDEX_NONE || PropertyIterator->PropertyInfo == EPropertyVisitorInfoType::ContainerIndex, TEXT("Expecting a container index"));
+
+				if (!NextPropertyIterator)
 				{
 					checkf(ArrayProperty->Inner, TEXT("Expecting an inner type for Arrays"));
 
@@ -566,7 +687,12 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 								if(RemovedSubObjectArchetype && !RemovedSubObjectArchetype->HasAnyFlags(RF_ClassDefaultObject))
 								{
 									const FOverriddenPropertyNodeID RemovedSubObjectID(*RemovedSubObjectArchetype);
-									SubPropertyNode->SubPropertyNodeKeys.Remove(RemovedSubObjectID);
+									FOverriddenPropertyNodeID RemovedNodeID;
+									if (SubPropertyNode->SubPropertyNodeKeys.RemoveAndCopyValue(RemovedSubObjectID, RemovedNodeID))
+									{
+										verifyf(OverriddenPropertyNodes.Remove(RemovedNodeID), TEXT("Expecting the node to be removed"));
+										bNeedsCleanup = true;
+									}
 								}
 							}
 						}
@@ -586,22 +712,25 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 								if (RemovedSubObjectNode.Operation == EOverriddenPropertyOperation::Add)
 								{
 									// An add then a remove becomes no opt
-									SubPropertyNode->SubPropertyNodeKeys.Remove(RemovedSubObjectID);
+									FOverriddenPropertyNodeID RemovedNodeID;
+									if (SubPropertyNode->SubPropertyNodeKeys.RemoveAndCopyValue(RemovedSubObjectID, RemovedNodeID))
+									{
+										verifyf(OverriddenPropertyNodes.Remove(RemovedNodeID), TEXT("Expecting the node to be removed"));
+										bNeedsCleanup = true;
+									}
 								}
 								else
 								{
 									RemovedSubObjectNode.Operation = EOverriddenPropertyOperation::Remove;
 								}
 							}
-
-							OverridableManager.ClearInstancedSubObjectOverrides(*Owner, *RemovedSubObject);
 						}
 					};
 
 					// Only arrays flagged overridable logic can record deltas, for now just override entire array
 					if (!ArrayProperty->HasAnyPropertyFlags(CPF_ExperimentalOverridableLogic))
 					{
-						if(PropertyEvent.ChangeType == EPropertyChangeType::Unspecified && ArrayIndex == INDEX_NONE)
+						if(ChangeType == EPropertyChangeType::Unspecified && ArrayIndex == INDEX_NONE)
 						{
 							// Overriding all entry in the array + override instanced sub obejects
 							ArrayReplace();
@@ -614,7 +743,7 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 						return;
 					}
 
-					switch(PropertyEvent.ChangeType)
+					switch(ChangeType)
 					{
 					case EPropertyChangeType::ValueSet:
 						checkf(ArrayIndex != INDEX_NONE, TEXT("ValueSet change type should have associated indexes"));
@@ -666,13 +795,13 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 						}
 					}
 				}
-				else if (Notification == EPropertyNotificationType::PostEdit)
+				// Can only forward to subobject if we have a valid index
+				else if (ArrayHelper.IsValidIndex(ArrayIndex))
 				{
-					checkf(ArrayHelper.IsValidIndex(ArrayIndex), TEXT("Any sub operation is expected to have a valid index"));
 					if (UObject* SubObject = InnerObjectProperty->GetObjectPropertyValue(ArrayHelper.GetElementPtr(ArrayIndex)))
 					{
 						// This should not be needed in the property grid, as it should already been called on the subobject itself.
-						OverridableManager.NotifyPropertyChange(Notification, *SubObject, PropertyEvent, PropertyNode->GetNextNode());
+						OverridableManager.NotifyPropertyChange(Notification, *SubObject, NextPropertyIterator, ChangeType);
 						return;
 					}
 				}
@@ -688,18 +817,20 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 	{
 		// Special handling of instanced subobjects
 		checkf(MapProperty->KeyProp, TEXT("Expecting a key type for Maps"));
-		FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(MapProperty->KeyProp);
+		FObjectPropertyBase* KeyObjectProperty = CastField<FObjectPropertyBase>(MapProperty->KeyProp);
 
 		// SubObjects
 		checkf(!KeyObjectProperty || !MapProperty->KeyProp->HasAnyPropertyFlags(CPF_PersistentInstance) || CastField<FClassProperty>(MapProperty->KeyProp), TEXT("Keys as a instanced subobject is not supported yet"));
 
 		checkf(MapProperty->ValueProp, TEXT("Expecting a value type for Maps"));
-		FObjectProperty* ValueInstancedObjectProperty = MapProperty->ValueProp->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectProperty>(MapProperty->ValueProp) : nullptr;
+		FObjectPropertyBase* ValueInstancedObjectProperty = MapProperty->ValueProp->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectPropertyBase>(MapProperty->ValueProp) : nullptr;
 
 		FScriptMapHelper MapHelper(MapProperty, SubValuePtr);
-		int32 LogicalMapIndex = PropertyEvent.GetArrayIndex(Property->GetName());
+		int32 LogicalMapIndex = PropertyIterator->Index;
+		checkf(LogicalMapIndex == INDEX_NONE || PropertyIterator->PropertyInfo == EPropertyVisitorInfoType::ContainerIndex, TEXT("Expecting a container index type"));
+
 		int32 InternalMapIndex = LogicalMapIndex != INDEX_NONE ? MapHelper.FindInternalIndex(LogicalMapIndex) : INDEX_NONE;
-		if (!PropertyNode->GetNextNode())
+		if (!NextPropertyIterator)
 		{
 			static const FProperty* SavedProp = nullptr;
 			static uint8* SavedPreEditMap = nullptr;
@@ -757,17 +888,7 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 				{
 					if(SubPropertyNode)
 					{
-						FOverriddenPropertyNodeID OverriddenKeyID;
-						if (const UObject* OverriddenKeyObject = KeyObjectProperty ? KeyObjectProperty->GetObjectPropertyValue(MapHelper.GetKeyPtr(It.GetInternalIndex())) : nullptr)
-						{
-							OverriddenKeyID = FOverriddenPropertyNodeID(*OverriddenKeyObject);
-						}
-						else
-						{
-							FString OverriddenKey;
-							MapProperty->KeyProp->ExportTextItem_Direct(OverriddenKey, MapHelper.GetKeyPtr(It.GetInternalIndex()), nullptr, nullptr, PPF_None);
-							OverriddenKeyID = FName(OverriddenKey);
-						}
+						FOverriddenPropertyNodeID OverriddenKeyID = FOverriddenPropertyNodeID::FromMapKey(MapProperty->KeyProp, MapHelper.GetKeyPtr(It.GetInternalIndex()));
 						FOverriddenPropertyNode& OverriddenKeyNode = FindOrAddNode(*SubPropertyNode, OverriddenKeyID);
 						OverriddenKeyNode.Operation = EOverriddenPropertyOperation::Replace;
 					}
@@ -790,18 +911,7 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 
 				if(SubPropertyNode)
 				{
-					FOverriddenPropertyNodeID AddedKeyID;
-					if (const UObject* AddedKeyObject = KeyObjectProperty ? KeyObjectProperty->GetObjectPropertyValue(MapHelper.GetKeyPtr(InternalMapIndex)) : nullptr)
-					{
-						AddedKeyID = FOverriddenPropertyNodeID(*AddedKeyObject);
-					}
-					else
-					{
-						FString AddedKey;
-						MapProperty->KeyProp->ExportTextItem_Direct(AddedKey, MapHelper.GetKeyPtr(InternalMapIndex), nullptr, nullptr, PPF_None);
-						AddedKeyID = FName(AddedKey);
-					}
-
+					FOverriddenPropertyNodeID AddedKeyID = FOverriddenPropertyNodeID::FromMapKey(MapProperty->KeyProp, MapHelper.GetKeyPtr(InternalMapIndex));
 					FOverriddenPropertyNode& AddedKeyNode = FindOrAddNode(*SubPropertyNode, AddedKeyID);
 					AddedKeyNode.Operation = EOverriddenPropertyOperation::Add;
 				}
@@ -813,44 +923,29 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 
 				if(SubPropertyNode)
 				{
-					FOverriddenPropertyNodeID RemovedKeyID;
-					if (const UObject* RemovedKeyObject = KeyObjectProperty ? KeyObjectProperty->GetObjectPropertyValue(PreEditMapHelper.GetKeyPtr(InternalPreEditMapIndex)) : nullptr)
-					{
-						RemovedKeyID = FOverriddenPropertyNodeID(*RemovedKeyObject);
-					}
-					else
-					{
-						FString RemovedKey;
-						MapProperty->KeyProp->ExportTextItem_Direct(RemovedKey, PreEditMapHelper.GetKeyPtr(InternalPreEditMapIndex), nullptr, nullptr, PPF_None);
-						RemovedKeyID = FName(RemovedKey);
-					}
+					FOverriddenPropertyNodeID RemovedKeyID = FOverriddenPropertyNodeID::FromMapKey(MapProperty->KeyProp, PreEditMapHelper.GetKeyPtr(InternalPreEditMapIndex));
 					FOverriddenPropertyNode& RemovedKeyNode = FindOrAddNode(*SubPropertyNode, RemovedKeyID);
 					if (RemovedKeyNode.Operation == EOverriddenPropertyOperation::Add)
 					{
 						// @Todo support remove/add/remove
-						SubPropertyNode->SubPropertyNodeKeys.Remove(RemovedKeyID);
+						FOverriddenPropertyNodeID RemovedNodeID;
+						if (SubPropertyNode->SubPropertyNodeKeys.RemoveAndCopyValue(RemovedKeyID, RemovedNodeID))
+						{
+							verifyf(OverriddenPropertyNodes.Remove(RemovedNodeID), TEXT("Expecting the node to be removed"));
+							bNeedsCleanup = true;
+						}
 					}
 					else
 					{
 						RemovedKeyNode.Operation = EOverriddenPropertyOperation::Remove;
 					}
 				}
-
-				// @todo support instanced object as a key in maps
-				//if (UObject* RemovedKeySubObject = KeyInstancedObjectProperty ? KeyInstancedObjectProperty->GetObjectPropertyValue(PreEditMapHelper.GetKeyPtr(InternalPreEditMapIndex)) : nullptr)
-				//{
-				//	OverridableManager.ClearInstancedSubObjectOverrides(*Owner, *RemovedKeySubObject);
-				//}
-				if (UObject* RemovedValueSubObject = ValueInstancedObjectProperty ? ValueInstancedObjectProperty->GetObjectPropertyValue(PreEditMapHelper.GetValuePtr(InternalPreEditMapIndex)) : nullptr)
-				{
-					OverridableManager.ClearInstancedSubObjectOverrides(*Owner, *RemovedValueSubObject);
-				}
 			};
 
 			// Only maps flagged overridable logic can be handled here
 			if (!MapProperty->HasAnyPropertyFlags(CPF_ExperimentalOverridableLogic))
 			{
-				if (PropertyEvent.ChangeType == EPropertyChangeType::Unspecified && InternalMapIndex == INDEX_NONE)
+				if (ChangeType == EPropertyChangeType::Unspecified && InternalMapIndex == INDEX_NONE)
 				{
 					// Overriding all entry in the array + override instanced sub obejects
 					MapReplace();
@@ -863,7 +958,7 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 				return;
 			}
 
-			switch (PropertyEvent.ChangeType)
+			switch (ChangeType)
 			{
 			case EPropertyChangeType::ValueSet:
 				checkf(LogicalMapIndex != INDEX_NONE, TEXT("ValueSet change type should have associated indexes"));
@@ -915,29 +1010,28 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 				}
 			}
 		}
-		else if (Notification == EPropertyNotificationType::PostEdit)
+		// Can only forward to subobject if we have a valid index
+		else if (MapHelper.IsValidIndex(InternalMapIndex))
 		{
-			checkf(MapHelper.IsValidIndex(InternalMapIndex), TEXT("Any sub operation is expected to not have a valid index"));
-
 			// @todo support instanced object as a key in maps
 			//if (UObject* SubObject = KeyInstancedObjectProperty ? KeyInstancedObjectProperty->GetObjectPropertyValue(MapHelper.GetValuePtr(InternalMapIndex)) : nullptr)
 			//{
 			//	// This should not be needed in the property grid, as it should already been called on the subobject.
-			//	OverridableManager.NotifyPropertyChange(Notification, *SubObject, PropertyEvent, PropertyNode->GetNextNode());
+			//	OverridableManager.NotifyPropertyChange(Notification, *SubObject, NextPropertyIterator, ChangeType);
 			//	return;
 			//}
 
 			if (UObject* SubObject = ValueInstancedObjectProperty ? ValueInstancedObjectProperty->GetObjectPropertyValue(MapHelper.GetValuePtr(InternalMapIndex)) : nullptr)
 			{
 				// This should not be needed in the property grid, as it should already been called on the subobject.
-				OverridableManager.NotifyPropertyChange(Notification, *SubObject, PropertyEvent, PropertyNode->GetNextNode());
+				OverridableManager.NotifyPropertyChange(Notification, *SubObject, NextPropertyIterator, ChangeType);
 				return;
 			}
 		}
 	}
 	else if (Property->IsA<FStructProperty>())
 	{
-		if (!PropertyNode->GetNextNode())
+		if (!NextPropertyIterator)
 		{
 			if (Notification == EPropertyNotificationType::PostEdit && SubPropertyNode)
 			{
@@ -946,13 +1040,13 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 		}
 		else
 		{
-			NotifyPropertyChange(SubPropertyNode, Notification, PropertyEvent, PropertyNode->GetNextNode(), SubValuePtr);
+			NotifyPropertyChange(SubPropertyNode, Notification, NextPropertyIterator, ChangeType, SubValuePtr, bNeedsCleanup);
 		}
 		return;
 	}
-	else if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
+	else if (const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Property))
 	{
-		if (!PropertyNode->GetNextNode())
+		if (!NextPropertyIterator)
 		{
 			if (Notification == EPropertyNotificationType::PostEdit && SubPropertyNode)
 			{
@@ -962,13 +1056,13 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 		else if (UObject* SubObject = ObjectProperty->GetObjectPropertyValue(SubValuePtr))
 		{
 			// This should not be needed in the property grid, as it should already been called on the subobject.
-			OverridableManager.NotifyPropertyChange(Notification, *SubObject, PropertyEvent, PropertyNode->GetNextNode());
+			OverridableManager.NotifyPropertyChange(Notification, *SubObject, NextPropertyIterator, ChangeType);
 		}
 		return;
 	}
 	else if (const FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(Property))
 	{
-		if (!PropertyNode->GetNextNode())
+		if (!NextPropertyIterator)
 		{
 			if (Notification == EPropertyNotificationType::PostEdit && SubPropertyNode)
 			{
@@ -977,12 +1071,12 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 		}
 		else if (OptionalProperty->IsSet(Data))
 		{
-			NotifyPropertyChange(SubPropertyNode, Notification, PropertyEvent, PropertyNode->GetNextNode(), OptionalProperty->GetValuePointerForRead(SubValuePtr));
+			NotifyPropertyChange(SubPropertyNode, Notification, NextPropertyIterator, ChangeType, OptionalProperty->GetValuePointerForRead(SubValuePtr), bNeedsCleanup);
 		}
 		return;
 	}
 
-	UE_CLOG(PropertyNode->GetNextNode(), LogOverridableObject, Warning, TEXT("Unsupported property type(%s), fallback to overriding entire property"), *Property->GetName());
+	UE_CLOG(NextPropertyIterator, LogOverridableObject, Warning, TEXT("Unsupported property type(%s), fallback to overriding entire property"), *Property->GetName());
 	if (Notification == EPropertyNotificationType::PostEdit)
 	{
 		if (SubPropertyNode)
@@ -997,47 +1091,50 @@ void FOverriddenPropertySet::RemoveOverriddenSubProperties(FOverriddenPropertyNo
 {
 	for (const auto& Pair : PropertyNode.SubPropertyNodeKeys)
 	{
-		FOverriddenPropertyNode* RemovedPropertyNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(Pair.Value), Pair.Value);
+		FOverriddenPropertyNode* RemovedPropertyNode = OverriddenPropertyNodes.Find(Pair.Value);
 		checkf(RemovedPropertyNode, TEXT("Expecting a node"));
 		RemoveOverriddenSubProperties(*RemovedPropertyNode);
-		OverriddenPropertyNodes.RemoveByHash(GetTypeHash(Pair.Value), Pair.Value);
+		verifyf(OverriddenPropertyNodes.Remove(Pair.Value), TEXT("Expecting the node to be removed"));
 	}
+	PropertyNode.Operation = EOverriddenPropertyOperation::None;
 	PropertyNode.SubPropertyNodeKeys.Empty();
 }
 
-EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperation(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedOperation /*= nullptr*/) const
+EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperation(FPropertyVisitorPath::Iterator PropertyIterator, bool* bOutInheritedOperation /*= nullptr*/) const
 {
-	if (const FOverriddenPropertyNode* RootNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(RootNodeID), RootNodeID))
+	if (const FOverriddenPropertyNode* RootNode = OverriddenPropertyNodes.Find(RootNodeID))
 	{
-		return GetOverriddenPropertyOperation(*RootNode, PropertyEvent, PropertyNode, bOutInheritedOperation, Owner);
+		return GetOverriddenPropertyOperation(*RootNode, PropertyIterator, bOutInheritedOperation, Owner);
 	}
 	return EOverriddenPropertyOperation::None;
 }
 
-bool FOverriddenPropertySet::ClearOverriddenProperty(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode)
+bool FOverriddenPropertySet::ClearOverriddenProperty(FPropertyVisitorPath::Iterator PropertyIterator)
 {
-	if (FOverriddenPropertyNode* RootNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(RootNodeID), RootNodeID))
+	if (FOverriddenPropertyNode* RootNode = OverriddenPropertyNodes.Find(RootNodeID))
 	{
-		return ClearOverriddenProperty(*RootNode, PropertyEvent, PropertyNode, Owner);
+		return ClearOverriddenProperty(*RootNode, PropertyIterator, Owner);
 	}
-	return false;
+	return true;
 }
 
-void FOverriddenPropertySet::OverrideProperty(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data)
+void FOverriddenPropertySet::OverrideProperty(FPropertyVisitorPath::Iterator PropertyIterator, const void* Data)
 {
-	FOverriddenPropertyNode& RootPropertyNode = OverriddenPropertyNodes.FindOrAddByHash(GetTypeHash(RootNodeID), RootNodeID);
-	NotifyPropertyChange(&RootPropertyNode, EPropertyNotificationType::PreEdit, FPropertyChangedEvent(nullptr), PropertyNode, Data);
-	NotifyPropertyChange(&RootPropertyNode, EPropertyNotificationType::PostEdit, PropertyEvent, PropertyNode, Data);
+	FOverriddenPropertyNode& RootPropertyNode = OverriddenPropertyNodes.FindOrAdd(RootNodeID);
+	bool bNeedsCleanup = false;
+	NotifyPropertyChange(&RootPropertyNode, EPropertyNotificationType::PreEdit, PropertyIterator, EPropertyChangeType::Unspecified, Data, bNeedsCleanup);
+	NotifyPropertyChange(&RootPropertyNode, EPropertyNotificationType::PostEdit, PropertyIterator, EPropertyChangeType::Unspecified, Data, bNeedsCleanup);
 }
 
-void FOverriddenPropertySet::NotifyPropertyChange(const EPropertyNotificationType Notification, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data)
+void FOverriddenPropertySet::NotifyPropertyChange(const EPropertyNotificationType Notification, FPropertyVisitorPath::Iterator PropertyIterator, const EPropertyChangeType::Type ChangeType, const void* Data)
 {
-	NotifyPropertyChange(&OverriddenPropertyNodes.FindOrAddByHash(GetTypeHash(RootNodeID), RootNodeID), Notification, PropertyEvent, PropertyNode, Data);
+	bool bNeedsCleanup = false;
+	NotifyPropertyChange(&OverriddenPropertyNodes.FindOrAdd(RootNodeID), Notification, PropertyIterator, ChangeType, Data, bNeedsCleanup);
 }
 
 EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperation(const FArchiveSerializedPropertyChain* CurrentPropertyChain, FProperty* Property) const
 {
-	if (const FOverriddenPropertyNode* RootNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(RootNodeID), RootNodeID))
+	if (const FOverriddenPropertyNode* RootNode = OverriddenPropertyNodes.Find(RootNodeID))
 	{
 		return GetOverriddenPropertyOperation(*RootNode, CurrentPropertyChain, Property);
 	}
@@ -1046,12 +1143,12 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 
 FOverriddenPropertyNode* FOverriddenPropertySet::SetOverriddenPropertyOperation(EOverriddenPropertyOperation Operation, const FArchiveSerializedPropertyChain* CurrentPropertyChain, FProperty* Property)
 {
-	return SetOverriddenPropertyOperation(Operation, OverriddenPropertyNodes.FindOrAddByHash(GetTypeHash(RootNodeID), RootNodeID), CurrentPropertyChain, Property);
+	return SetOverriddenPropertyOperation(Operation, OverriddenPropertyNodes.FindOrAdd(RootNodeID), CurrentPropertyChain, Property);
 }
 
 const FOverriddenPropertyNode* FOverriddenPropertySet::GetOverriddenPropertyNode(const FArchiveSerializedPropertyChain* CurrentPropertyChain) const
 {
-	if (const FOverriddenPropertyNode* RootNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(RootNodeID), RootNodeID))
+	if (const FOverriddenPropertyNode* RootNode = OverriddenPropertyNodes.Find(RootNodeID))
 	{
 		return GetOverriddenPropertyNode(*RootNode, CurrentPropertyChain);
 	}
@@ -1080,10 +1177,9 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 	while (PropertyIterator && OverriddenPropertyNode && OverriddenPropertyNode->Operation != EOverriddenPropertyOperation::Replace)
 	{
 		const FProperty* CurrentProperty = (*PropertyIterator);
-		const FName CurrentPropID = CurrentProperty->GetFName();
-		if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentPropID))
+		if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentProperty))
 		{
-			OverriddenPropertyNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(*CurrentPropKey), *CurrentPropKey);
+			OverriddenPropertyNode = OverriddenPropertyNodes.Find(*CurrentPropKey);
 			checkf(OverriddenPropertyNode, TEXT("Expecting a node"));
 		}
 		else
@@ -1119,8 +1215,7 @@ FOverriddenPropertyNode* FOverriddenPropertySet::SetOverriddenPropertyOperation(
 	while (PropertyIterator && OverriddenPropertyNode->Operation != EOverriddenPropertyOperation::Replace)
 	{
 		const FProperty* CurrentProperty = (*PropertyIterator);
-		const FName CurrentPropID = CurrentProperty->GetFName();
-		OverriddenPropertyNode = &FindOrAddNode(*OverriddenPropertyNode, CurrentPropID);
+		OverriddenPropertyNode = &FindOrAddNode(*OverriddenPropertyNode, CurrentProperty);
 		++PropertyIterator;
 	}
 
@@ -1136,7 +1231,7 @@ FOverriddenPropertyNode* FOverriddenPropertySet::SetOverriddenPropertyOperation(
 
 EOverriddenPropertyOperation FOverriddenPropertySet::GetSubPropertyOperation(FOverriddenPropertyNodeID NodeID) const
 {
-	const FOverriddenPropertyNode* OverriddenPropertyNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(NodeID), NodeID);
+	const FOverriddenPropertyNode* OverriddenPropertyNode = OverriddenPropertyNodes.Find(NodeID);
 	return OverriddenPropertyNode ? OverriddenPropertyNode->Operation : EOverriddenPropertyOperation::None;
 }
 
@@ -1168,6 +1263,15 @@ void FOverriddenPropertySet::Reset()
 
 void FOverriddenPropertySet::HandleObjectsReInstantiated(const TMap<UObject*, UObject*>& Map)
 {
+#if WITH_EDITOR
+	// When their is a cached archetype, it is an indicator this object is about to be replaced
+	// So no need to replace any ptr, otherwise we might not be able to reconstitute the right information
+	if (FEditorCacheArchetypeManager::Get().GetCachedArchetype(Owner))
+	{
+		return;
+	}
+#endif // WITH_EDITOR
+
 	for (FOverriddenPropertyNode& Node : OverriddenPropertyNodes)
 	{
 		Node.NodeID.HandleObjectsReInstantiated(Map);
@@ -1191,10 +1295,9 @@ const FOverriddenPropertyNode* FOverriddenPropertySet::GetOverriddenPropertyNode
 	while (PropertyIterator && OverriddenPropertyNode)
 	{
 		const FProperty* CurrentProperty = (*PropertyIterator);
-		const FName CurrentPropID = CurrentProperty->GetFName();
-		if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentPropID))
+		if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentProperty))
 		{
-			OverriddenPropertyNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(*CurrentPropKey), *CurrentPropKey);
+			OverriddenPropertyNode = OverriddenPropertyNodes.Find(*CurrentPropKey);
 			checkf(OverriddenPropertyNode, TEXT("Expecting a node"));
 		}
 		else

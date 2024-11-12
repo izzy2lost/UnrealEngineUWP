@@ -23,10 +23,9 @@
 // Utils function & structs
 struct FTransmittanceSettings
 {
-	int2	 DeepShadowResolution;
-	int2	 DeepShadowOffset;
+	int2	 AtlasResolution;
 	float4x4 TranslatedWorldToLightTransform;
-	float4 AtlasScaleBias;
+	float4   AtlasScaleBias;
 	float3   LightDirection; // Direction from world position to the light
 	float3   TranslatedLightPosition;
 	bool	 bIsDirectional;
@@ -72,12 +71,10 @@ float3 GetTranslatedWorldPosition(float2 UV, float SceneDepth)
 
 #if SHADER_TRANSMITTANCE_DEEPSHADOW
 
+StructuredBuffer<uint> DeepShadow_AtlasSlotIndexBuffer;
 StructuredBuffer<FDeepShadowViewInfo> DeepShadow_ViewInfoBuffer;
-uint				DeepShadow_bIsGPUDriven;
 
-uint2				DeepShadow_Resolution;
-float4x4			DeepShadow_CPUTranslatedWorldToLightTransforms[MAX_HAIR_MACROGROUP_COUNT];
-//float3				LightDirection;
+uint2				DeepShadow_AtlasResolution;
 uint				LightChannelMask;
 float4				ShadowChannelMask;
 float4				TranslatedLightPosition_LightDirection;
@@ -88,7 +85,6 @@ float				DeepShadow_KernelAperture;
 float4				DeepShadow_LayerDepths;
 uint				DeepShadow_KernelType;
 uint				DeepShadow_DebugMode;
-int4				DeepShadow_AtlasSlotOffsets_AtlasSlotIndex[MAX_HAIR_MACROGROUP_COUNT];
 Texture2D<float>	DeepShadow_FrontDepthTexture;
 Texture2D<float4>	DeepShadow_DomTexture;
 
@@ -131,7 +127,7 @@ FHairTransmittanceMask ComputeTransmittance(
 			float HairCount = 0;
 			if (Settings.TransmittanceKernelType == 3)
 			{
-				HairCount = SampleDOM_PCSS(LightSpacePosition.xyz, Settings.DeepShadowResolution, DepthBias, InLayerDepths, FrontDepthTexture, DomTexture, Settings.TransmittanceKernelApertureInDegree, Settings.Random.xy);
+				HairCount = SampleDOM_PCSS(LightSpacePosition.xyz, Settings.AtlasResolution, DepthBias, InLayerDepths, FrontDepthTexture, DomTexture, Settings.TransmittanceKernelApertureInDegree, Settings.Random.xy);
 			}
 			else if (Settings.TransmittanceKernelType == 2)
 			{
@@ -184,27 +180,17 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 		}
 
 		const uint MacroGroupIndex = clamp(Sample.MacroGroupId, 0, MAX_HAIR_MACROGROUP_COUNT - 1);
-		const int3 SlotOffset_SlotIndex = DeepShadow_AtlasSlotOffsets_AtlasSlotIndex[MacroGroupIndex].xyz;
-		float4x4 TranslatedWorldToLightTransform = 0;
-		float4 AtlasScaleBias = float4(1.0f, 1.0f, 0.0f, 0.0f);
-		if (DeepShadow_bIsGPUDriven > 0)
-		{
-			FDeepShadowViewInfo ShadowViewInfo = DeepShadow_ViewInfoBuffer[SlotOffset_SlotIndex.z];
-			TranslatedWorldToLightTransform = ShadowViewInfo.TranslatedWorldToClip;
-			AtlasScaleBias = ShadowViewInfo.AtlasScaleBias * float4(DeepShadow_Resolution, DeepShadow_Resolution);
-		}	
-		else
-		{
-			TranslatedWorldToLightTransform = DeepShadow_CPUTranslatedWorldToLightTransforms[MacroGroupIndex];
-			AtlasScaleBias = float4(DeepShadow_Resolution, SlotOffset_SlotIndex.xy);
-		}
+		const uint AtlasSlotIndex = DeepShadow_AtlasSlotIndexBuffer[MacroGroupIndex];
+
+		const FDeepShadowViewInfo ShadowViewInfo = DeepShadow_ViewInfoBuffer[AtlasSlotIndex];
+		const float4x4 TranslatedWorldToLightTransform = ShadowViewInfo.TranslatedWorldToClip;
+		const float4 AtlasScaleBias = ShadowViewInfo.AtlasScaleBias * float4(DeepShadow_AtlasResolution, DeepShadow_AtlasResolution);
 		
 		const float SceneDepth = ConvertFromDeviceZ(Sample.Depth);
 		const float3 TranslatedWorldPosition = GetTranslatedWorldPosition(UV, SceneDepth);
 
 		FTransmittanceSettings Settings;
-		Settings.DeepShadowOffset = SlotOffset_SlotIndex.xy;
-		Settings.DeepShadowResolution = DeepShadow_Resolution;
+		Settings.AtlasResolution = DeepShadow_AtlasResolution;
 		Settings.TranslatedWorldToLightTransform = TranslatedWorldToLightTransform;
 		Settings.AtlasScaleBias = AtlasScaleBias;
 		Settings.bIsDirectional = IsLightDirectional(TranslatedLightPosition_LightDirection);
@@ -394,8 +380,8 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 
 	// Use VSM light grid index remapping to ensure we compute transmittance value only for shadowed light
 	// The logic to compute light index needs to be identical as in DeferredLightPixelShader.usf / ClusteredDeferredShadingPixelShader.usf
-	const FCulledLightsGridData CulledLightGridData = VirtualShadowMapGetLightsGrid(LocalPixelPos, SceneDepth);
-	const uint LightCount = min(GetPackedShadowMaskMaxLightCount(), CulledLightGridData.NumLights);
+	const FCulledLightsGridHeader CulledLightGridHeader = VirtualShadowMapGetLightsGrid(LocalPixelPos, SceneDepth);
+	const uint LightCount = min(GetPackedShadowMaskMaxLightCount(), CulledLightGridHeader.NumLights);
 
 	LOOP
 	for (uint LightIndex = 0; LightIndex < LightCount; ++LightIndex)
@@ -403,7 +389,7 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 		const uint OutputIndex = SampleIndex + MaxVisibilityNodeCount * LightIndex;
 
 		// The Virtual Shadow Remap stores directional lights first
-		const FLocalLightData LightData 	 = VirtualShadowMapGetLocalLightData(CulledLightGridData, LightIndex);
+		const FLocalLightData LightData 	 = VirtualShadowMapGetLocalLightData(CulledLightGridHeader, LightIndex);
 		const float3 TranslatedLightPosition = LightData.LightPositionAndInvRadius.xyz; // LightPositionAndInvRadius is already in translated world space
 
 		// Early out when the shadow mask bits are zero

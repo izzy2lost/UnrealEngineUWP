@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "HAL/Platform.h"
+
 namespace Chaos
 {
-	enum class EDamageEvaluationModel
+	enum class EDamageEvaluationModel: uint8
 	{
 		/** 
 		* particles internal strains are set from user defined damage thresholds 

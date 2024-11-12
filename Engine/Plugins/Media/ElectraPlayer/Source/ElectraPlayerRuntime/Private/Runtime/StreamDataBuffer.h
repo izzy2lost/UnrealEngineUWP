@@ -67,9 +67,10 @@ namespace Electra
 		void Reset()
 		{
 			FScopeLock Lock(&AccessLock);
-			WritePos = ReadPos = 0;
+			WritePos = 0;
 			bEOD = false;
 			bWasAborted = false;
+			bHasErrored = false;
 			// Do not modify the "waiter" members. When waiting for data to arrive it needs to continue
 			// doing so even when we are resetting the buffer.
 				//WaitingForSize = 0;
@@ -83,11 +84,11 @@ namespace Electra
 			return DataSize;
 		}
 
-		// Returns the number of bytes in the buffer (amount that can be popped)
+		// Returns the number of bytes in the buffer
 		int64 Num() const
 		{
 			FScopeLock Lock(&AccessLock);
-			return WritePos - ReadPos;
+			return WritePos;
 		}
 
 		// Returns the number of free bytes in the buffer (amount that can be pushed)
@@ -200,23 +201,20 @@ namespace Electra
 			SizeAvailableSignal.Signal();
 		}
 
-		// "Pops" data from the buffer to a destination. At most the specified number of bytes are popped, or fewer if not as many are available.
-		int64 PopData(uint8* OutData, int64 MaxElementsWanted)
+		void RemoveFromBeginning(int64 InNumBytesToRemove)
 		{
 			FScopeLock Lock(&AccessLock);
-			int64 size = Num();
-
-			if (MaxElementsWanted > size)
+			check(ExternalBuffer == nullptr);
+			check(InNumBytesToRemove >= 0);
+			check(InNumBytesToRemove <= (int64)WritePos);
+			const int64 InNow = WritePos;
+			check(InNow - InNumBytesToRemove >= 0);
+			if (InNumBytesToRemove > 0)
 			{
-				MaxElementsWanted = size;
+				uint8 *Base = GetBufferBase();
+				FMemory::Memmove(Base, Base + InNumBytesToRemove, InNow - InNumBytesToRemove);
+				WritePos -= (uint64)InNumBytesToRemove;
 			}
-			// Copy out or skip over?
-			if (OutData)
-			{
-				CopyData(OutData, GetBufferBase() + ReadPos, MaxElementsWanted);
-			}
-			ReadPos += MaxElementsWanted;
-			return MaxElementsWanted;
 		}
 
 		void Lock()
@@ -229,20 +227,32 @@ namespace Electra
 			AccessLock.Unlock();
 		}
 
+		// For use with an external FScopeLock
+		FCriticalSection* GetLock()
+		{
+			return &AccessLock;
+		}
+
 		int64 GetLinearReadSize() const
 		{
 			FScopeLock Lock(&AccessLock);
-			return WritePos - ReadPos;
+			return WritePos;
+		}
+
+		void SetLinearReadSize(int64 InNewSize)
+		{
+			FScopeLock Lock(&AccessLock);
+			WritePos = InNewSize;
 		}
 
 		// Must control Lock()/Unlock() externally!
 		const uint8* GetLinearReadData() const
 		{
-			return GetBufferBase() ? GetBufferBase() + ReadPos : nullptr;
+			return GetBufferBase() ? GetBufferBase() : nullptr;
 		}
 		uint8* GetLinearReadData()
 		{
-			return GetBufferBase() ? GetBufferBase() + ReadPos : nullptr;
+			return GetBufferBase() ? GetBufferBase() : nullptr;
 		}
 
 		uint8* GetLinearWriteData(int64 InNumBytesToAppend)
@@ -298,6 +308,16 @@ namespace Electra
 			return bWasAborted;
 		}
 
+		void SetHasErrored()
+		{
+			bHasErrored = true;
+		}
+
+		bool HasErrored() const
+		{
+			return bHasErrored;
+		}
+
 	protected:
 		uint8* GetBufferBase() const
 		{
@@ -317,7 +337,6 @@ namespace Electra
 				Buffer = MakeShared<TArray<uint8>, ESPMode::ThreadSafe>();
 				Buffer->AddUninitialized(InSize);
 				WritePos = 0;
-				ReadPos = 0;
 			}
 			return true;
 		}
@@ -327,7 +346,6 @@ namespace Electra
 			Buffer.Reset();
 			DataSize = 0;
 			WritePos = 0;
-			ReadPos = 0;
 			ExternalBuffer = nullptr;
 		}
 
@@ -358,18 +376,16 @@ namespace Electra
 		uint64 DataSize = 0;
 		// Offset into buffer where to add new data
 		uint64 WritePos = 0;
-		// Offset into buffer from where to read the next data.
-		uint64 ReadPos = 0;
 		// Amount of data necessary to be present for `SizeAvailableSignal` to get set.
 		uint64 WaitingForSize = 0;
 		// If set a buffer is provided externally to read into directly.
 		uint8* ExternalBuffer = nullptr;
 		// Flag indicating that no additional data will be added to the buffer.
-		volatile bool bEOD = false;	
+		volatile bool bEOD = false;
 		// Flag indicating that reading into the buffer has been aborted.
 		volatile bool bWasAborted = false;
+		// Flag indicating that filling the buffer from the source has encountered an error.
+		volatile bool bHasErrored = false;
 	};
 
 } // namespace Electra
-
-

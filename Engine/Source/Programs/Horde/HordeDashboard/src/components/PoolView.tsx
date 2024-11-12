@@ -126,7 +126,7 @@ class PoolHandler extends PollBase {
                   minCreateTime: minCreateTime,
                   count: 250
                }
-               return backend.getJobs(query, false);
+               return backend.getJobs(query);
 
             }).filter(r => !!r);
 
@@ -151,7 +151,7 @@ class PoolHandler extends PollBase {
 
          if (streamJobIds.size) {
 
-            const streamJobs = await backend.getJobs({ id: Array.from(streamJobIds), filter: "id,name,batches,change,createTime,streamId,preflightChange,graphHash" }, true);
+            const streamJobs = await backend.getJobs({ id: Array.from(streamJobIds), filter: "id,name,batches,change,createTime,streamId,preflightChange" });
 
             streamJobs.forEach(job => {
 
@@ -165,15 +165,8 @@ class PoolHandler extends PollBase {
                      return;
                   }
 
-                  const groups = job.graphRef?.groups;
 
-                  if (!groups || !groups[b.groupIdx]) {
-                     return;
-                  }
-
-                  const group = groups[b.groupIdx];
-
-                  const agentType = group?.agentType;
+                  const agentType = b?.agentType;
 
                   const stream = projectStore.streamById(job.streamId);
 
@@ -216,10 +209,10 @@ class PoolHandler extends PollBase {
 
             const query: JobQuery = {
                id: jobIds,
-               filter: "id,name,batches,change,createTime,streamId,preflightChange,graphHash",
+               filter: "id,name,batches,change,createTime,streamId,preflightChange",
             }
 
-            const jobs = await backend.getJobs(query, true);
+            const jobs = await backend.getJobs(query);
 
             jobs.forEach(job => {
 
@@ -386,7 +379,7 @@ const StepPanel: React.FC<{ stepState: StepState }> = ({ stepState }) => {
          step = handler.pendingSteps.get(agent.id);
       }
 
-      if (!job || !job.graphRef?.groups || !step) {
+      if (!job || !step) {
          return null;
       }
 
@@ -394,9 +387,6 @@ const StepPanel: React.FC<{ stepState: StepState }> = ({ stepState }) => {
       if (!batch) {
          return null;
       }
-      const group = job.graphRef.groups[batch.groupIdx];
-      const node = group.nodes[step.nodeIdx];
-
       if (column.name === "Time Active") {
          if (stepState === StepState.Pending) {
             return null;
@@ -433,7 +423,7 @@ const StepPanel: React.FC<{ stepState: StepState }> = ({ stepState }) => {
          if (jobName.indexOf("- Kicked By") !== -1) {
             jobName = jobName.split("- Kicked By")[0];
          }
-         let stepName = `${jobName} - ${node.name}`;
+         let stepName = `${jobName} - ${step.name}`;
          const stepUrl = `/job/${job.id}?step=${step.id}`;
 
          const stream = projectStore.streamById(job.streamId);
@@ -533,9 +523,10 @@ const BatchPanel: React.FC = () => {
    let columns: IColumn[] = [];
 
    columns = [
-      { key: 'column1', name: 'Job', minWidth: 800, maxWidth: 800 },
+      { key: 'column1', name: 'Job', minWidth: 700, maxWidth: 700 },
       { key: 'column2', name: 'Job Created', minWidth: 200, maxWidth: 200 },
       { key: 'column3', name: 'Status', minWidth: 200, maxWidth: 200 },
+      { key: 'column4', name: 'WaitTime', minWidth: 100, maxWidth: 100 },
    ];
 
    const batchItems: BatchItem[] = batches.map(b => {
@@ -564,8 +555,26 @@ const BatchPanel: React.FC = () => {
             statusText = `Waiting for agent`;
          }
 
-         return <Text>{statusText}</Text>
+         return <Stack horizontalAlign="end"><Text>{statusText}</Text></Stack>
       }
+
+      if (column.name === "WaitTime") {
+
+         let statusText = "";
+
+         if (batch.state === JobStepBatchState.Ready) {            
+            if (batch.readyTime) {
+               statusText += `${getElapsedString(moment(batch.readyTime), moment(Date.now()), false)}`;
+            }
+         }
+
+         if (!statusText) {
+            return null;
+         }
+
+         return <Stack style={{ paddingRight: 32 }} horizontalAlign="end"><Text>{statusText}</Text></Stack>
+      }
+
 
       if (column.name === "Job Created") {
 
@@ -581,9 +590,7 @@ const BatchPanel: React.FC = () => {
          let step: GetStepResponse | undefined;
          if (batch.steps.length) {
             step = batch.steps[0];
-            const group = job.graphRef!.groups![batch.groupIdx];
-            const node = group.nodes[step.nodeIdx];
-            jobName += ` - ${node.name}`;
+            jobName += ` - ${step.name}`;
             if (stream) {
                jobName = `${stream.fullname ?? stream.id} - ` + jobName;
             }

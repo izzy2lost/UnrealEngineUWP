@@ -17,6 +17,7 @@
 #include "MaterialEditor/MaterialEditorPreviewParameters.h"
 #include "MaterialEditor/MaterialEditorMeshComponent.h"
 #include "MaterialEditorModule.h"
+#include "MaterialCachedData.h"
 #include "Materials/MaterialInstance.h"
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialFunctionInstance.h"
@@ -35,6 +36,7 @@
 #include "MaterialEditingLibrary.h"
 #include "MaterialPropertyHelpers.h"
 #include "MaterialStatsCommon.h"
+#include "MaterialDomain.h"
 
 /**
  * Class for rendering the material on the preview mesh in the Material Editor
@@ -89,7 +91,8 @@ public:
 			}
 
 			// we only need local vertex factory for the preview static mesh
-			if (VertexFactoryType != FindVertexFactoryType(FName(TEXT("FLocalVertexFactory"), FNAME_Find)))
+			if (VertexFactoryType != FindVertexFactoryType(FName(TEXT("FLocalVertexFactory"), FNAME_Find)) &&
+				VertexFactoryType != FindVertexFactoryType(FName(TEXT("FNaniteVertexFactory"), FNAME_Find)))
 			{
 				//cache for gpu skinned vertex factory if the material allows it
 				//this way we can have a preview skeletal mesh
@@ -151,6 +154,10 @@ public:
 				bShaderTypeMatches = true;
 			}
 			else if (FCString::Stristr(ShaderType->GetName(), TEXT("BasePassPSFNoLightMapPolicy")))
+			{
+				bShaderTypeMatches = true;
+			}
+			else if (FCString::Stristr(ShaderType->GetName(), TEXT("TBasePassCSFNoLightMapPolicy")))
 			{
 				bShaderTypeMatches = true;
 			}
@@ -250,6 +257,35 @@ void UMaterialEditorPreviewParameters::PostEditChangeProperty(FPropertyChangedEv
 		FProperty* PropertyThatChanged = PropertyChangedEvent.Property;
 		if (OriginalFunction == nullptr)
 		{
+			bool bLayersParameterChanged = false;
+			// If a material layers parameter changed we need to update it on the source instance
+			// immediately so parameters contained within the new functions can be collected
+			for (FEditorParameterGroup& Group : ParameterGroups)
+			{
+				for (UDEditorParameterValue* Parameter : Group.Parameters)
+				{
+					if (UDEditorMaterialLayersParameterValue* LayersParam = Cast<UDEditorMaterialLayersParameterValue>(Parameter))
+					{
+						UMaterialExpressionMaterialAttributeLayers* LayersNode = nullptr;
+						for(UMaterialExpression* Expression : PreviewMaterial->GetExpressions())
+						{
+							if(Expression->IsA<UMaterialExpressionMaterialAttributeLayers>())
+							{
+								LayersNode = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression);
+								LayersNode->DefaultLayers = LayersParam->ParameterValue;
+								bLayersParameterChanged = true;
+								break;
+							}
+						}
+					}
+				}
+			}
+
+			if (bLayersParameterChanged)
+			{
+				RegenerateArrays();
+			}
+			
 			CopyToSourceInstance();
 			PreviewMaterial->PostEditChangeProperty(PropertyChangedEvent);
 		}
@@ -389,6 +425,7 @@ void UMaterialEditorPreviewParameters::RegenerateArrays()
 			break;
 		}
 	}
+
 	if (ParameterDefaultGroups.Num() > 0)
 	{
 		ParameterGroups.Append(ParameterDefaultGroups);
@@ -396,11 +433,17 @@ void UMaterialEditorPreviewParameters::RegenerateArrays()
 
 }
 
-void UMaterialEditorPreviewParameters::CopyToSourceInstance()
+TObjectPtr<UMaterialInterface> UMaterialEditorPreviewParameters::GetMaterialInterface()
+{
+	return Cast<UMaterialInterface>(PreviewMaterial);
+}
+
+void UMaterialEditorPreviewParameters::CopyToSourceInstance(const bool bForceStaticPermutationUpdate/* = false*/)
 {
 	if (PreviewMaterial->IsTemplate(RF_ClassDefaultObject) == false && OriginalMaterial != nullptr)
 	{
 		OriginalMaterial->MarkPackageDirty();
+
 		// Scalar Parameters
 		for (int32 GroupIdx = 0; GroupIdx < ParameterGroups.Num(); GroupIdx++)
 		{
@@ -414,6 +457,19 @@ void UMaterialEditorPreviewParameters::CopyToSourceInstance()
 					if (Parameter->GetValue(EditorValue))
 					{
 						PreviewMaterial->SetParameterValueEditorOnly(Parameter->ParameterInfo.Name, EditorValue);
+					}
+					else if (UDEditorMaterialLayersParameterValue* LayersParameter = Cast<UDEditorMaterialLayersParameterValue>(Parameter))
+					{
+						// find material expression material attribute layer and update it's default/param layers
+						for(UMaterialExpression* Expression : PreviewMaterial->GetExpressions())
+						{
+							if(Expression->IsA<UMaterialExpressionMaterialAttributeLayers>())
+							{
+								UMaterialExpressionMaterialAttributeLayers* LayersNode = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression);
+								LayersNode->DefaultLayers = LayersParameter->ParameterValue;
+								break;
+							}
+						}
 					}
 				}
 			}
@@ -501,6 +557,8 @@ void UMaterialEditorInstanceConstant::PostEditChangeProperty(FPropertyChangedEve
 
 				// Fully update static parameters before recreating render state for all components
 				SetSourceInstance(SourceInstance);
+				
+				ClearInvalidParameterOverrides();
 			}
 		}
 		else if (!bIsFunctionPreviewMaterial)
@@ -577,10 +635,22 @@ void  UMaterialEditorInstanceConstant::AssignParameterToGroup(UDEditorParameterV
 	CurrentGroup.Parameters.Add(ParameterValue);
 }
 
+TObjectPtr<UMaterialInterface> UMaterialEditorInstanceConstant::GetMaterialInterface()
+{
+	return Cast<UMaterialInterface>(SourceInstance);
+}
+
+TObjectPtr<UMaterialInterface> UMaterialEditorInstanceConstant::GetParentMaterialInterface()
+{
+	return SourceInstance ? SourceInstance->Parent : nullptr;
+}
+
 void UMaterialEditorInstanceConstant::RegenerateArrays()
 {
 	VisibleExpressions.Empty();
 	ParameterGroups.Empty();
+	PostProcessOverrides.bIsOverrideable = false;
+	PostProcessOverrides.UserSceneTextureInputs.Empty();
 
 	if (Parent)
 	{	
@@ -610,6 +680,31 @@ void UMaterialEditorInstanceConstant::RegenerateArrays()
 			{
 				UDEditorParameterValue* Parameter = UDEditorParameterValue::Create(this, ParameterType, It.Key, It.Value);
 				AssignParameterToGroup(Parameter, It.Value.Group);
+			}
+		}
+
+		if (ParentMaterial->MaterialDomain == MD_PostProcess && ParentMaterial->BlendableLocation != BL_ReplacingTonemapper)
+		{
+			PostProcessOverrides.bIsOverrideable = true;
+
+			UMaterialInterfaceEditorOnlyData* ParentMaterialEditorData = ParentMaterial->GetEditorOnlyData();
+			if (ParentMaterialEditorData && ParentMaterialEditorData->CachedExpressionData.IsValid())
+			{
+				const FMaterialCachedExpressionEditorOnlyData* ParentMaterialExpressionData = ParentMaterialEditorData->CachedExpressionData.Get();
+				for (FName UserSceneTextureInput : ParentMaterialExpressionData->UserSceneTextureInputs)
+				{
+					FName OverrideFound = NAME_None;
+					for (const FUserSceneTextureOverride& Override : SourceInstance->UserSceneTextureOverrides)
+					{
+						if (Override.Key == UserSceneTextureInput)
+						{
+							OverrideFound = Override.Value;
+							break;
+						}
+					}
+
+					PostProcessOverrides.UserSceneTextureInputs.Add({ UserSceneTextureInput, OverrideFound });
+				}
 			}
 		}
 
@@ -719,6 +814,7 @@ void UMaterialEditorInstanceConstant::CleanParameterStack(int32 Index, EMaterial
 	ParameterGroups = CleanedGroups;
 	CopyToSourceInstance(true);
 }
+
 void UMaterialEditorInstanceConstant::ResetOverrides(int32 Index, EMaterialParameterAssociation MaterialType)
 {
 	check(GIsEditor);
@@ -747,6 +843,43 @@ void UMaterialEditorInstanceConstant::ResetOverrides(int32 Index, EMaterialParam
 	CopyToSourceInstance(true);
 
 }
+
+void UMaterialEditorInstanceConstant::ClearInvalidParameterOverrides()
+{
+	const FMaterialCachedExpressionData* CachedExpressionData = Parent ? &Parent->GetCachedExpressionData() : nullptr;
+
+	// Look for all Atlas Scalar parameters in each parameter group, then if a parameter has
+	// an override, disable it unless the atlas texture matches that originally set in the parent Material. 
+	for (int32 GroupIdx = 0; GroupIdx < ParameterGroups.Num(); GroupIdx++)
+	{
+		FEditorParameterGroup& Group = ParameterGroups[GroupIdx];
+		for (int32 ParameterIdx = 0; ParameterIdx < Group.Parameters.Num(); ParameterIdx++)
+		{
+			UDEditorParameterValue* Parameter = Group.Parameters[ParameterIdx];
+			if (UDEditorScalarParameterValue* ScalarParameter = Cast<UDEditorScalarParameterValue>(Parameter))
+			{
+				// Ignore parameters without override.
+				if (!Parameter->bOverride)
+				{
+					continue;
+				}
+
+				// Get parent's parameter atlas texture. If identical to the one the editor parameter is using,
+				// we can keep the override on (as the selected atlas curve will still make sense).
+				FMaterialParameterMetadata Value;
+				if (CachedExpressionData && CachedExpressionData->GetParameterValue(EMaterialParameterType::Scalar, ScalarParameter->ParameterInfo, Value)
+					&& Value.ScalarAtlas == ScalarParameter->AtlasData.Atlas)
+				{
+					continue;
+				}
+
+				// The atlas texture of the newly bound material are different. Disable the override.
+				Parameter->bOverride = false;
+			}
+		}
+	}
+}
+
 #endif
 
 void UMaterialEditorInstanceConstant::CopyToSourceInstance(const bool bForceStaticPermutationUpdate)
@@ -808,6 +941,41 @@ void UMaterialEditorInstanceConstant::CopyToSourceInstance(const bool bForceStat
 		FMaterialParameterInfo RefractionInfo(TEXT("RefractionDepthBias"));
 		SourceInstance->SetScalarParameterValueEditorOnly(RefractionInfo, RefractionDepthBias);
 
+		// Copy UserSceneTextureOverrides
+		SourceInstance->UserSceneTextureOverrides.Empty();
+		for (FEditorUserSceneTextureOverride& Override : PostProcessOverrides.UserSceneTextureInputs)
+		{
+			if (Override.Value != NAME_None && Override.Value != Override.Key)
+			{
+				SourceInstance->UserSceneTextureOverrides.Add({ Override.Key, Override.Value });
+			}
+		}
+		if (PostProcessOverrides.UserSceneTextureOutput != NAME_None)
+		{
+			// UserSceneTextureOutput override uses key of NAME_None
+			SourceInstance->UserSceneTextureOverrides.Add({ NAME_None, PostProcessOverrides.UserSceneTextureOutput });
+		}
+
+		// Copy other post process overrides (BlendableLocation / BlendablePriority) -- BL_ReplacingTonemapper is disallowed on overrides
+		SourceInstance->bOverrideBlendableLocation = PostProcessOverrides.bOverrideBlendableLocation && PostProcessOverrides.BlendableLocationOverride != BL_ReplacingTonemapper;
+		SourceInstance->bOverrideBlendablePriority = PostProcessOverrides.bOverrideBlendablePriority;
+		if (SourceInstance->bOverrideBlendableLocation)
+		{
+			SourceInstance->BlendableLocationOverride = PostProcessOverrides.BlendableLocationOverride;
+		}
+		else
+		{
+			SourceInstance->BlendableLocationOverride = Parent ? Parent->GetMaterial()->BlendableLocation : TEnumAsByte<EBlendableLocation>(BL_SceneColorAfterTonemapping);
+		}
+		if (SourceInstance->bOverrideBlendablePriority)
+		{
+			SourceInstance->BlendablePriorityOverride = PostProcessOverrides.BlendablePriorityOverride;
+		}
+		else
+		{
+			SourceInstance->BlendablePriorityOverride = Parent ? Parent->GetMaterial()->BlendablePriority : 0;
+		}
+
 		SourceInstance->bOverrideSubsurfaceProfile = bOverrideSubsurfaceProfile;
 		SourceInstance->SubsurfaceProfile = SubsurfaceProfile;
 
@@ -836,6 +1004,7 @@ void UMaterialEditorInstanceConstant::ApplySourceFunctionChanges()
 		SourceFunction->VectorParameterValues = SourceInstance->VectorParameterValues;
 		SourceFunction->DoubleVectorParameterValues = SourceInstance->DoubleVectorParameterValues;
 		SourceFunction->TextureParameterValues = SourceInstance->TextureParameterValues;
+		SourceFunction->TextureCollectionParameterValues = SourceInstance->TextureCollectionParameterValues;
 		SourceFunction->RuntimeVirtualTextureParameterValues = SourceInstance->RuntimeVirtualTextureParameterValues;
 		SourceFunction->SparseVolumeTextureParameterValues = SourceInstance->SparseVolumeTextureParameterValues;
 		SourceFunction->FontParameterValues = SourceInstance->FontParameterValues;
@@ -964,6 +1133,14 @@ void UMaterialEditorInstanceConstant::CopyBasePropertiesFromParent()
 	{
 		BasePropertyOverrides.DisplacementScaling = SourceInstance->GetDisplacementScaling();
 	}
+	if (!BasePropertyOverrides.bOverride_bEnableDisplacementFade)
+	{
+		BasePropertyOverrides.bEnableDisplacementFade = SourceInstance->IsDisplacementFadeEnabled();
+	}
+	if (!BasePropertyOverrides.bOverride_DisplacementFadeRange)
+	{
+		BasePropertyOverrides.DisplacementFadeRange = SourceInstance->GetDisplacementFadeRange();
+	}
 	if (!BasePropertyOverrides.bOverride_MaxWorldPositionOffsetDisplacement)
 	{
 		BasePropertyOverrides.MaxWorldPositionOffsetDisplacement = SourceInstance->GetMaxWorldPositionOffsetDisplacement();
@@ -987,6 +1164,38 @@ void UMaterialEditorInstanceConstant::CopyBasePropertiesFromParent()
 	bOverrideSubsurfaceProfile = SourceInstance->bOverrideSubsurfaceProfile;
 	// Copy the subsurface profile. GetSubsurfaceProfile_Internal() will return either the overridden profile or one from a parent
 	SubsurfaceProfile = SourceInstance->GetSubsurfaceProfile_Internal();
+
+	// Post process blendable location and priority overrides
+	PostProcessOverrides.bOverrideBlendableLocation = SourceInstance->bOverrideBlendableLocation;
+	if (SourceInstance->bOverrideBlendableLocation)
+	{
+		PostProcessOverrides.BlendableLocationOverride = SourceInstance->BlendableLocationOverride;
+	}
+	else
+	{
+		PostProcessOverrides.BlendableLocationOverride = Parent ? Parent->GetMaterial()->BlendableLocation : TEnumAsByte<EBlendableLocation>(BL_SceneColorAfterTonemapping);
+	}
+
+	PostProcessOverrides.bOverrideBlendablePriority = SourceInstance->bOverrideBlendablePriority;
+	if (SourceInstance->bOverrideBlendablePriority)
+	{
+		PostProcessOverrides.BlendablePriorityOverride = SourceInstance->BlendablePriorityOverride;
+	}
+	else
+	{
+		PostProcessOverrides.BlendablePriorityOverride = Parent ? Parent->GetMaterial()->BlendablePriority : 0;
+	}
+
+	// UserSceneTextureOutput override uses Key == NAME_None.  UserSceneTextureInputs are initialized in RegenerateArrays, as those are affected
+	// by graph reachability.
+	for (const FUserSceneTextureOverride& Override : SourceInstance->UserSceneTextureOverrides)
+	{
+		if (Override.Key == NAME_None)
+		{
+			PostProcessOverrides.UserSceneTextureOutput = Override.Value;
+			break;
+		}
+	}
 }
 
 #if WITH_EDITOR

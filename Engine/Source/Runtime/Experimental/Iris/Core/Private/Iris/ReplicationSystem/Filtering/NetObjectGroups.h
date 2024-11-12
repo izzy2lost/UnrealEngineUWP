@@ -4,6 +4,7 @@
 
 #include "CoreTypes.h"
 #include "Containers/Array.h"
+#include "Containers/ArrayView.h"
 #include "Containers/Map.h"
 #include "Containers/SparseArray.h"
 #include "UObject/NameTypes.h"
@@ -26,9 +27,8 @@ namespace UE::Net::Private
 enum class ENetObjectGroupTraits : uint32
 {
 	None                 = 0x0000,
-	IsFindableByName     = 0x0001,
-	IsExclusionFiltering = 0x0002,
-	IsInclusionFiltering = 0x0004,
+	IsExclusionFiltering = 0x0001,
+	IsInclusionFiltering = 0x0002,
 };
 ENUM_CLASS_FLAGS(ENetObjectGroupTraits);
 
@@ -37,14 +37,15 @@ struct FNetObjectGroup
 	// Group members can only be replicated objects that have internal indices
 	TArray<FInternalNetRefIndex> Members;
 	FName GroupName;
+	uint32 GroupId = 0U;
 	ENetObjectGroupTraits Traits = ENetObjectGroupTraits::None;
 };
 
 struct FNetObjectGroupInitParams
 {
 	FNetRefHandleManager* NetRefHandleManager = nullptr;
-	uint32 MaxObjectCount = 0;
-	uint32 MaxGroupCount = 0;
+	uint32 MaxInternalNetRefIndex = 0U;
+	uint32 MaxGroupCount = 0U;
 };
 
 class FNetObjectGroups
@@ -57,20 +58,24 @@ public:
 
 	void Init(const FNetObjectGroupInitParams& Params);
 
-	//$IRIS TODO: Groups should have a mandatory unique name. Otherwise it's impossible to debug issues with groups.
-	FNetObjectGroupHandle CreateGroup();
+	FNetObjectGroupHandle CreateGroup(FName GroupName);
 	void DestroyGroup(FNetObjectGroupHandle GroupHandle);
+
 	void ClearGroup(FNetObjectGroupHandle GroupHandle);
+
+	FNetObjectGroupHandle FindGroupHandle(FName GroupName) const;
 	
 	const FNetObjectGroup* GetGroup(FNetObjectGroupHandle GroupHandle) const;
 	FNetObjectGroup* GetGroup(FNetObjectGroupHandle GroupHandle);
 	
-	FNetObjectGroupHandle MakeNetObjectGroupHandle(FNetObjectGroupHandle::FGroupIndexType GroupIndex) const { return FNetObjectGroupHandle(GroupIndex, CurrentEpoch); }
-	const FNetObjectGroup* GetGroupByIndex(FNetObjectGroupHandle::FGroupIndexType GroupIndex) const;
-	FNetObjectGroup* GetGroupByIndex(FNetObjectGroupHandle::FGroupIndexType GroupIndex);
+	const FNetObjectGroup* GetGroupFromIndex(FNetObjectGroupHandle::FGroupIndexType GroupIndex) const;
+	FNetObjectGroup* GetGroupFromIndex(FNetObjectGroupHandle::FGroupIndexType GroupIndex);
 
-	void SetGroupName(FNetObjectGroupHandle GroupHandle, FName GroupName);
-	FName GetGroupName(FNetObjectGroupHandle GroupHandle) const;
+	FNetObjectGroupHandle GetHandleFromGroup(const FNetObjectGroup* InGroup) const;
+	FNetObjectGroupHandle GetHandleFromIndex(FNetObjectGroupHandle::FGroupIndexType GroupIndex) const;
+
+	inline FName GetGroupName(FNetObjectGroupHandle GroupHandle) const;
+	inline FString GetGroupNameString(FNetObjectGroupHandle GroupHandle) const;
 
 	bool IsValidGroup(FNetObjectGroupHandle GroupHandle) const;
 
@@ -99,33 +104,38 @@ public:
 	/** Does the group have the inclusion filter trait */
 	bool IsInclusionFilterGroup(FNetObjectGroupHandle GroupHandle) const;
 
-	/** Get the array of all groups that the NetObject is a member of */
-	const FNetObjectGroupHandle* GetGroupMemberships(FInternalNetRefIndex InternalIndex, uint32& GroupCount) const;
+	/** Get a reference to the indexes of all groups that the NetObject is a member of */
+	const TArrayView<const FNetObjectGroupHandle::FGroupIndexType> GetGroupIndexesOfNetObject(FInternalNetRefIndex InternalIndex) const;
 
-	/** Create and manage named groups, only groups created as a named group will be findable by name */
-	FNetObjectGroupHandle CreateNamedGroup(FName GroupName);
-
-	/** Lookup NetObjectGroupHandle for a named group */
-	FNetObjectGroupHandle GetNamedGroupHandle(FName GroupName);
-
-	/** Destroy Named group */
-	void DestroyNamedGroup(FName GroupName);
+	/** Get a list of all group handles the NetObject is a member of */
+	void GetGroupHandlesOfNetObject(FInternalNetRefIndex InternalIndex, TArray<FNetObjectGroupHandle>& OutHandles) const;
 
 	/** Returns a list of all objects currently part of a group with the filter trait */
-	const FNetBitArrayView GetGroupFilteredOutObjects() const
-	{
-		return MakeNetBitArrayView(GroupFilteredOutObjects);
-	}
+	const FNetBitArrayView GetGroupFilteredOutObjects() const { return MakeNetBitArrayView(GroupFilteredOutObjects); }
+
+	/** Called when the maximum InternalNetRefIndex increased and we need to realloc our lists */
+	void OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex);
 
 private:
 	struct FNetObjectGroupMembership
 	{
+	private:
 		enum { NumInlinedGroupHandles = 2 };
-		TArray<FNetObjectGroupHandle, TInlineAllocator<NumInlinedGroupHandles>> Groups;
+		/** The indexes of the groups the netobject is a member of. */
+		TArray<FNetObjectGroupHandle::FGroupIndexType, TInlineAllocator<NumInlinedGroupHandles>> GroupIndexes;
+
+	public:
+
+		bool ContainsMembership(FNetObjectGroupHandle InGroupHandle) const	{ return GroupIndexes.Contains(InGroupHandle.GetGroupIndex()); }
+		void AddMembership(FNetObjectGroupHandle InGroupHandle)		{ GroupIndexes.Add(InGroupHandle.GetGroupIndex()); }
+		void RemoveMembership(FNetObjectGroupHandle InGroupHandle)	{ GroupIndexes.RemoveSingleSwap(InGroupHandle.GetGroupIndex()); }
+		void ResetMemberships()										{ GroupIndexes.Reset(); }
+		int32 NumMemberships() const								{ return GroupIndexes.Num(); }
+
+		const TArrayView<const FNetObjectGroupHandle::FGroupIndexType> GetGroupIndexes() const { return MakeArrayView(GroupIndexes.GetData(), GroupIndexes.Num()); }
 	};
 
 	static bool AddGroupMembership(FNetObjectGroupMembership& Target, FNetObjectGroupHandle Group);
-	static void RemoveGroupMembership(FNetObjectGroupMembership& Target, FNetObjectGroupHandle Group);
 	static void ResetGroupMembership(FNetObjectGroupMembership& Target);
 	static bool IsMemberOf(const FNetObjectGroupMembership& Target, FNetObjectGroupHandle Group);
 
@@ -134,6 +144,8 @@ private:
 	bool IsInclusionFilterGroup(const FNetObjectGroup& Group) const;
 
 	bool IsInAnyFilterGroup(const FNetObjectGroupMembership& GroupMembership) const;
+
+	const FNetObjectGroupHandle::FGroupIndexType GetIndexFromGroup(const FNetObjectGroup* InGroup) const;
 
 private:
 
@@ -144,21 +156,27 @@ private:
 
 	// Track what groups each internal handle is a member of, we can tighten this up a bit if needed
 	TArray<FNetObjectGroupMembership> GroupMemberships;
+	
+	// Maximum number of groups that can be exist at once
 	uint32 MaxGroupCount = 0U;
+
+	// Index to use for groups with auto-generated names
+	int32 AutogeneratedGroupNameId = 0;
 
 	// List of objects that are members of a group with a filter trait
 	FNetBitArray GroupFilteredOutObjects;
 
-	TMap<FName, FNetObjectGroupHandle> NamedGroups;
-
+	// Identifies the ReplicationSystem the group handles were created by
 	FNetObjectGroupHandle::FGroupIndexType CurrentEpoch = 0U;
 
-	inline static FNetObjectGroupHandle::FGroupIndexType NextEpoch = 1U;
+	// Unique Id assigned to each group handle
+	uint32 NextGroupUniqueId = 1U;
 };
 
 inline bool FNetObjectGroups::IsValidGroup(FNetObjectGroupHandle GroupHandle) const
 {
-	return GroupHandle.IsValid() && GroupHandle.Epoch == CurrentEpoch && Groups.IsValidIndex(GroupHandle.GetGroupIndex());
+	const bool bGroupIndexExists = GroupHandle.IsValid() && GroupHandle.Epoch == CurrentEpoch && Groups.IsValidIndex(GroupHandle.Index);
+	return bGroupIndexExists && Groups[GroupHandle.Index].GroupId == GroupHandle.UniqueId;
 }
 
 inline bool FNetObjectGroups::IsFilterGroup(const FNetObjectGroup& Group) const
@@ -174,6 +192,47 @@ inline bool FNetObjectGroups::IsExclusionFilterGroup(const FNetObjectGroup& Grou
 inline bool FNetObjectGroups::IsInclusionFilterGroup(const FNetObjectGroup& Group) const
 {
 	return EnumHasAnyFlags(Group.Traits, ENetObjectGroupTraits::IsInclusionFiltering);
+}
+
+inline FNetObjectGroupHandle FNetObjectGroups::FindGroupHandle(FName InGroupName) const
+{
+	for (const FNetObjectGroup& Group : Groups)
+	{
+		if (Group.GroupName == InGroupName)
+		{
+			const int32 Index = GetIndexFromGroup(&Group);
+			return FNetObjectGroupHandle((FNetObjectGroupHandle::FGroupIndexType)Index, CurrentEpoch, Group.GroupId);
+		}
+	}
+
+	return FNetObjectGroupHandle();
+}
+
+inline FNetObjectGroupHandle FNetObjectGroups::GetHandleFromIndex(FNetObjectGroupHandle::FGroupIndexType GroupIndex) const
+{
+	const FNetObjectGroup* Group = GetGroupFromIndex(GroupIndex);
+	return Group ? FNetObjectGroupHandle(GroupIndex, CurrentEpoch, Group->GroupId) : FNetObjectGroupHandle();
+}
+
+inline const FNetObjectGroupHandle::FGroupIndexType FNetObjectGroups::GetIndexFromGroup(const FNetObjectGroup* InGroup) const
+{
+	check(InGroup);
+	return (FNetObjectGroupHandle::FGroupIndexType)Groups.PointerToIndex(InGroup);
+}
+
+inline FName FNetObjectGroups::GetGroupName(FNetObjectGroupHandle GroupHandle) const
+{
+	if (const FNetObjectGroup* Group = GetGroup(GroupHandle))
+	{
+		return Group->GroupName;
+	}
+
+	return FName();
+}
+
+inline FString FNetObjectGroups::GetGroupNameString(FNetObjectGroupHandle GroupHandle) const
+{
+	return GetGroupName(GroupHandle).ToString();
 }
 
 } // end namespace UE::Net::Private

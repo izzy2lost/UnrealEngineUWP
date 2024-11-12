@@ -118,7 +118,7 @@ bool FOpenXRHMDModule::PreInit()
 			{
 				WCHAR DeviceGuid[XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS];
 				GetAudioOutputDeviceGuidOculus(Instance, DeviceGuid);
-				OculusAudioOutputDevice = FString(XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS, DeviceGuid);
+				OculusAudioOutputDevice = FString::ConstructFromPtrSize(DeviceGuid, XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS);
 			}
 		}
 		if (!CVarRetainPreInitInstance.GetValueOnAnyThread())
@@ -415,12 +415,12 @@ bool FOpenXRHMDModule::InitRenderBridge()
 PFN_xrGetInstanceProcAddr FOpenXRHMDModule::GetDefaultLoader()
 {
 #if PLATFORM_WINDOWS
-#if !PLATFORM_CPU_X86_FAMILY && !defined(_M_ARM64EC)
-#error Windows platform does not currently support this CPU family. A OpenXR loader binary for this CPU family is needed.
-#endif
-
 #if PLATFORM_64BITS
+#if PLATFORM_CPU_ARM_FAMILY
+	FString BinariesPath = FPaths::EngineDir() / FString(TEXT("Binaries/ThirdParty/OpenXR/WinArm64"));
+#else
 	FString BinariesPath = FPaths::EngineDir() / FString(TEXT("Binaries/ThirdParty/OpenXR/win64"));
+#endif
 #else
 	FString BinariesPath = FPaths::EngineDir() / FString(TEXT("Binaries/ThirdParty/OpenXR/win32"));
 #endif

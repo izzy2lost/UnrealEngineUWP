@@ -46,7 +46,7 @@ namespace UnrealGameSync
 		{
 			foreach (ListViewItem? item in FileList.Items)
 			{
-				_filesToDelete[(string)item!.Tag] = item.Checked;
+				_filesToDelete[(string)item!.Tag!] = item.Checked;
 			}
 		}
 	}

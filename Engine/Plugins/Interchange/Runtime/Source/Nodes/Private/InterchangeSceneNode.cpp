@@ -47,10 +47,28 @@ namespace UE
 			return SlotMaterialDependenciesString;
 		}
 
+		const FString& FSceneNodeStaticData::GetMeshToGlobalBindPoseReferencesString()
+		{
+			static FString MeshToGlobalBindPoseReferncesString(TEXT("__MeshToGlobalBindPoseReferences__"));
+			return MeshToGlobalBindPoseReferncesString;
+		}
+
 		const FString& FSceneNodeStaticData::GetMorphTargetCurveWeightsKey()
 		{
 			static FString MorphTargetCurvesKey(TEXT("__MorphTargetCurveWeights__Key"));
 			return MorphTargetCurvesKey;
+		}
+
+		const FString& FSceneNodeStaticData::GetLayerNamesKey()
+		{
+			static FString LayerNamesKey(TEXT("__LayerNames__Key"));
+			return LayerNamesKey;
+		}
+
+		const FString& FSceneNodeStaticData::GetTagsKey()
+		{
+			static FString TagsKey(TEXT("__Tags__Key"));
+			return TagsKey;
 		}
 	}//ns Interchange
 }//ns UE
@@ -58,8 +76,11 @@ namespace UE
 UInterchangeSceneNode::UInterchangeSceneNode()
 {
 	NodeSpecializeTypes.Initialize(Attributes, UE::Interchange::FSceneNodeStaticData::GetNodeSpecializeTypeBaseKey().ToString());
+	MeshToGlobalBindPoseReferences.Initialize(Attributes.ToSharedRef(), UE::Interchange::FSceneNodeStaticData::GetMeshToGlobalBindPoseReferencesString());
 	SlotMaterialDependencies.Initialize(Attributes.ToSharedRef(), UE::Interchange::FSceneNodeStaticData::GetSlotMaterialDependenciesString());
 	MorphTargetCurveWeights.Initialize(Attributes.ToSharedRef(), UE::Interchange::FSceneNodeStaticData::GetMorphTargetCurveWeightsKey());
+	LayerNames.Initialize(Attributes, UE::Interchange::FSceneNodeStaticData::GetLayerNamesKey());
+	Tags.Initialize(Attributes, UE::Interchange::FSceneNodeStaticData::GetTagsKey());
 }
 
 /**
@@ -258,6 +279,16 @@ bool UInterchangeSceneNode::SetCustomGeometricTransform(const FTransform& Attrib
 	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(GeometricTransform, FTransform);
 }
 
+bool UInterchangeSceneNode::GetCustomPivotNodeTransform(FTransform& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(PivotNodeTransform, FTransform);
+}
+
+bool UInterchangeSceneNode::SetCustomPivotNodeTransform(const FTransform& AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(PivotNodeTransform, FTransform);
+}
+
 bool UInterchangeSceneNode::GetCustomAssetInstanceUid(FString& AttributeValue) const
 {
 	IMPLEMENT_NODE_ATTRIBUTE_GETTER(AssetInstanceUid, FString);
@@ -406,4 +437,57 @@ bool UInterchangeSceneNode::SetCustomAnimationAssetUidToPlay(const FString& Attr
 bool UInterchangeSceneNode::GetCustomAnimationAssetUidToPlay(FString& AttributeValue) const
 {
 	IMPLEMENT_NODE_ATTRIBUTE_GETTER(AnimationAssetUidToPlay, FString);
+}
+
+bool UInterchangeSceneNode::GetGlobalBindPoseReferenceForMeshUID(const FString& MeshUID, FMatrix& GlobalBindPoseReference) const
+{
+	return MeshToGlobalBindPoseReferences.GetValue(MeshUID, GlobalBindPoseReference);
+}
+
+void UInterchangeSceneNode::SetGlobalBindPoseReferenceForMeshUIDs(const TMap<FString, FMatrix>& GlobalBindPoseReferenceForMeshUIDs)
+{
+	for (const TPair<FString, FMatrix>& Entry: GlobalBindPoseReferenceForMeshUIDs)
+	{
+		MeshToGlobalBindPoseReferences.SetKeyValue(Entry.Key, Entry.Value);
+	}
+}
+
+bool UInterchangeSceneNode::SetCustomHasBindPose(const bool& AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(HasBindPose, bool);
+}
+
+bool UInterchangeSceneNode::GetCustomHasBindPose(bool& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(HasBindPose, bool);
+}
+
+void UInterchangeSceneNode::GetLayerNames(TArray<FString>& OutLayerNames) const
+{
+	LayerNames.GetItems(OutLayerNames);
+}
+
+bool UInterchangeSceneNode::AddLayerName(const FString& LayerName)
+{
+	return LayerNames.AddItem(LayerName);
+}
+
+bool UInterchangeSceneNode::RemoveLayerName(const FString& LayerName)
+{
+	return LayerNames.RemoveItem(LayerName);
+}
+
+void UInterchangeSceneNode::GetTags(TArray<FString>& OutTags) const
+{
+	Tags.GetItems(OutTags);
+}
+
+bool UInterchangeSceneNode::AddTag(const FString& Tag)
+{
+	return Tags.AddItem(Tag);
+}
+
+bool UInterchangeSceneNode::RemoveTag(const FString& Tag)
+{
+	return Tags.RemoveItem(Tag);
 }

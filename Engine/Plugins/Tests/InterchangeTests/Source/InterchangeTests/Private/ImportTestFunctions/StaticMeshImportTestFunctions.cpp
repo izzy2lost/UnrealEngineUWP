@@ -726,7 +726,7 @@ FInterchangeTestFunctionResult UStaticMeshImportTestFunctions::CheckSocketName(U
 	int32 SocketCount = Mesh->Sockets.Num();
 	if (SocketIndex >= SocketCount)
 	{
-		Result.AddError(FString::Printf(TEXT("The imported mesh doesn't contain %s sockets."), SocketIndex));
+		Result.AddError(FString::Printf(TEXT("The imported mesh doesn't contain %d sockets."), SocketIndex));
 	}
 
 	FString SocketName = Mesh->Sockets[SocketIndex]->SocketName.ToString();
@@ -746,7 +746,7 @@ FInterchangeTestFunctionResult UStaticMeshImportTestFunctions::CheckSocketLocati
 	int32 SocketCount = Mesh->Sockets.Num();
 	if (SocketIndex >= SocketCount)
 	{
-		Result.AddError(FString::Printf(TEXT("The imported mesh doesn't contain %s sockets."), SocketIndex));
+		Result.AddError(FString::Printf(TEXT("The imported mesh doesn't contain %d sockets."), SocketIndex));
 	}
 
 	FVector SocketLocation = Mesh->Sockets[SocketIndex]->RelativeLocation;

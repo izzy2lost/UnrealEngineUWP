@@ -14,6 +14,7 @@
 #include "Operations/PolyEditingEdgeUtil.h"
 #include "Operations/PolyEditingUVUtil.h"
 #include "Algo/Count.h"
+#include "Algo/RemoveIf.h"
 #include "Distance/DistLine3Line3.h"
 #include "Operations/UniformTessellate.h"
 #include "DynamicSubmesh3.h"
@@ -128,14 +129,251 @@ void FMeshBevel::InitializeFromGroupTopologyEdges(const FDynamicMesh3& Mesh, con
 	BuildVertexSets(Mesh);
 }
 
+void FMeshBevel::InitializeFromTriangleEdges(const FDynamicMesh3& Mesh, TConstArrayView<int32> TriangleEdges, TFunctionRef<bool(int32)> IsCornerVertex)
+{
+	ResultInfo = FGeometryResult(EGeometryResultType::InProgress);
+
+	// VID to TriangleEdges Index map, used for walking chains/loops
+	TMultiMap<int32, int32> V2EIdx;
+	TArray<uint8> EdgeUsed;
+	EdgeUsed.SetNumZeroed(TriangleEdges.Num());
+	TSet<int32> AllEdgeVIDs;
+
+	for (int32 Idx = 0; Idx < TriangleEdges.Num(); ++Idx)
+	{
+		int32 EID = TriangleEdges[Idx];
+		if (Mesh.IsBoundaryEdge(EID))
+		{
+			// bevel doesn't support boundary edges; mark them as processed without adding them to the bevel data
+			EdgeUsed[Idx] = 1;
+			continue;
+		}
+		FIndex2i VIDs = Mesh.GetEdgeV(EID);
+		V2EIdx.Add(VIDs.A, Idx);
+		V2EIdx.Add(VIDs.B, Idx);
+		AllEdgeVIDs.Add(VIDs.A);
+		AllEdgeVIDs.Add(VIDs.B);
+	}
+
+	// edge chains, stored as [VID,EID] pairs and a EndChain or EndLoop as the EID at the end of each continguous chain or loop respectively
+	constexpr int32 EndChain = -1, EndLoop = -2;
+	TArray<TPair<int32,int32>> Chains;
+
+	auto ProcessEdgeIdx = [&EdgeUsed, &TriangleEdges, &Mesh, &IsCornerVertex, &V2EIdx, &Chains, EndChain, EndLoop](int32 VID, int32 EdgeIdx)
+	{
+		EdgeUsed[EdgeIdx] = 1;
+		int32 WalkEID = TriangleEdges[EdgeIdx];
+		Chains.Emplace(VID, WalkEID);
+		int32 StartVID = VID;
+		int32 WalkVID = VID;
+		int32 MaxIters = TriangleEdges.Num() + 2; // safety to prevent infinite loop
+		while (--MaxIters > 0)
+		{
+			FIndex2i EdgeV = Mesh.GetEdgeV(WalkEID);
+			// step WalkVID to next vertex
+			WalkVID = EdgeV[1 - EdgeV.IndexOf(WalkVID)];
+			// detect loops
+			if (WalkVID == StartVID)
+			{
+				Chains.Emplace(WalkVID, EndLoop);
+				break;
+			}
+			// stop chains at specified corner vertices
+			if (IsCornerVertex(WalkVID))
+			{
+				Chains.Emplace(WalkVID, EndChain);
+				break;
+			}
+			// non-loop case, look for a next edge
+			int32 WalkEIdx = -1;
+			int32 ECount = 0;
+			for (TMultiMap<int32, int32>::TConstKeyIterator It = V2EIdx.CreateConstKeyIterator(WalkVID); It; ++It)
+			{
+				ECount++;
+				if (EdgeUsed[It.Value()] != 0)
+				{
+					continue;
+				}
+				WalkEIdx = It.Value();
+			}
+			// if next vertex had valence != 2, it's the end of this chain
+			if (ECount != 2)
+			{
+				Chains.Emplace(WalkVID, EndChain);
+				break;
+			}
+			// walk to the next edge and mark it as processed
+			EdgeUsed[WalkEIdx] = 1;
+			WalkEID = TriangleEdges[WalkEIdx];
+			Chains.Emplace(WalkVID, WalkEID);
+		}
+		check(MaxIters > 0);
+	};
+
+	// Process all loops and chains that have at least one vertex on multiple selected edges
+	for (int32 VID : AllEdgeVIDs)
+	{
+		int32 NumEdges = V2EIdx.Num(VID);
+		if (IsCornerVertex(VID) || NumEdges != 2)
+		{
+			for (TMultiMap<int32, int32>::TConstKeyIterator It = V2EIdx.CreateConstKeyIterator(VID); It; ++It)
+			{
+				if (!EdgeUsed[It.Value()])
+				{
+					ProcessEdgeIdx(VID, It.Value());
+				}
+			}
+		}
+	}
+
+	// Process remaining (isolated) loops where all vertices had only two adjacent selected edges
+	for (int32 Idx = 0; Idx < EdgeUsed.Num(); ++Idx)
+	{
+		if (!EdgeUsed[Idx])
+		{
+			ProcessEdgeIdx(Mesh.GetEdgeV(TriangleEdges[Idx]).A, Idx);
+		}
+	}
+
+	// Add the edge chains and loops to the bevel data structures
+	TArray<int32> EdgeLoop, VertexLoop;
+	for (int32 ChainIdx = 0, ChainLen = 0; ChainIdx < Chains.Num(); ChainIdx += ChainLen + 1)
+	{
+		for (ChainLen = 0; ChainLen + ChainIdx < Chains.Num() && Chains[ChainIdx + ChainLen].Value >= 0; ++ChainLen)
+		{}
+		check(ChainLen > 0 && ChainIdx + ChainLen < Chains.Num());
+		
+		bool bIsLoop = Chains[ChainIdx + ChainLen].Value == EndLoop;
+		if (bIsLoop)
+		{
+			EdgeLoop.Reset(ChainLen);
+			VertexLoop.Reset(ChainLen);
+			for (int32 Idx = ChainIdx; Idx < ChainIdx + ChainLen; ++Idx)
+			{
+				EdgeLoop.Add(Chains[Idx].Value);
+				VertexLoop.Add(Chains[Idx].Key);
+			}
+			// Note: Could initialize the bevel edge loop data directly rather than going via FEdgeLoop and avoid some copying
+			FEdgeLoop NewLoop;
+			NewLoop.Initialize(&Mesh, VertexLoop, EdgeLoop);
+			AddBevelEdgeLoop(Mesh, NewLoop);
+		}
+		else
+		{
+			FIndex2i CornerVIDs(Chains[ChainIdx].Key, Chains[ChainIdx + ChainLen].Key);
+
+			FBevelEdge Edge;
+			int32 NewBevelEdgeIndex = Edges.Num();
+
+			for (int32 ci = 0; ci < 2; ++ci)
+			{
+				int32 VertexID = CornerVIDs[ci];
+				Edge.bEndpointBoundaryFlag[ci] = Mesh.IsBoundaryVertex(VertexID);
+				int32 IncomingEdgeID = (ci == 0) ? Chains[ChainIdx].Value : Chains[ChainIdx + ChainLen - 1].Value;
+
+				int32 BevelVertexIndex = -1;
+				FBevelVertex* VertInfo = GetBevelVertexFromVertexID(VertexID, &BevelVertexIndex);
+				if (VertInfo == nullptr)
+				{
+					FBevelVertex NewVertex;
+					PRAGMA_DISABLE_DEPRECATION_WARNINGS
+					NewVertex.CornerID = INDEX_NONE;
+					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+					NewVertex.VertexID = VertexID;
+					BevelVertexIndex = Vertices.Num();
+					Vertices.Add(NewVertex);
+					VertexIDToIndexMap.Add(VertexID, BevelVertexIndex);
+					VertInfo = &Vertices[BevelVertexIndex];
+				}
+				VertInfo->IncomingBevelMeshEdges.Add(IncomingEdgeID);
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				VertInfo->IncomingBevelTopoEdges.Add(INDEX_NONE);
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				VertInfo->IncomingBevelEdgeIndices.Add(NewBevelEdgeIndex);
+				Edge.BevelVertices[ci] = BevelVertexIndex;
+			}
+
+			Edge.MeshEdges.Reset(ChainLen);
+			for (int32 Idx = ChainIdx; Idx < ChainIdx + ChainLen; ++Idx)
+			{
+				Edge.MeshEdges.Add(Chains[Idx].Value);
+			}
+			Edge.MeshVertices.Reset(ChainLen + 1);
+			for (int32 Idx = ChainIdx; Idx < ChainIdx + ChainLen + 1; ++Idx)
+			{
+				Edge.MeshVertices.Add(Chains[Idx].Key);
+			}
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			Edge.GroupEdgeID = INDEX_NONE;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+			Edge.MeshEdgeTris.Reserve(Edge.MeshEdges.Num());
+			for (int32 eid : Edge.MeshEdges)
+			{
+				Edge.MeshEdgeTris.Add(Mesh.GetEdgeT(eid));
+			}
+
+			Edge.InitialPositions.Reserve(Edge.MeshVertices.Num());
+			for (int32 vid : Edge.MeshVertices)
+			{
+				Edge.InitialPositions.Add(Mesh.GetVertex(vid));
+			}
+
+			Edge.EdgeIndex = NewBevelEdgeIndex;
+			Edges.Add(MoveTemp(Edge));
+		}
+
+		if (ResultInfo.CheckAndSetCancelled(Progress))
+		{
+			return;
+		}
+	}
+
+	// precompute topological information necessary to apply bevel to vertices/edges/loops
+	BuildVertexSets(Mesh);
+}
+
 
 bool FMeshBevel::InitializeFromGroupTopologyFaces(const FDynamicMesh3& Mesh, const FGroupTopology& Topology, const TArray<int32>& GroupFaces)
 {
-	FGroupTopologySelection Selection;
-	Selection.SelectedGroupIDs.Append(GroupFaces);
-	TArray<int32> Triangles;
-	Topology.GetSelectedTriangles(Selection, Triangles);
-	return InitializeFromTriangleSet(Mesh, Triangles);
+	TSet<int32> GroupSelection;
+	GroupSelection.Append(GroupFaces);
+	bool bFoundAnythingToBevel = false;
+	for (int32 GroupID : GroupFaces)
+	{
+		const FGroupTopology::FGroup* Group = Topology.FindGroupByID(GroupID);
+		for (const FGroupTopology::FGroupBoundary& Boundary : Group->Boundaries)
+		{
+			for (int32 GroupEdgeID : Boundary.GroupEdges)
+			{
+				const FGroupTopology::FGroupEdge& GroupEdge = Topology.Edges[GroupEdgeID];
+				int32 OtherGroupID = GroupEdge.OtherGroupID(GroupID);
+				// Do not bevel edges where both sides are selected, or boundary edges
+				if (OtherGroupID == IndexConstants::InvalidID || GroupSelection.Contains(OtherGroupID))
+				{
+					continue;
+				}
+				if (Topology.IsIsolatedLoop(GroupEdgeID))
+				{
+					FEdgeLoop NewLoop;
+					NewLoop.InitializeFromEdges(&Mesh, Topology.Edges[GroupEdgeID].Span.Edges);
+					AddBevelEdgeLoop(Mesh, NewLoop);
+					bFoundAnythingToBevel = true;
+				}
+				else
+				{
+					AddBevelGroupEdge(Mesh, Topology, GroupEdgeID);
+					bFoundAnythingToBevel = true;
+				}
+			}
+		}
+	}
+	if (bFoundAnythingToBevel)
+	{
+		// precompute topological information necessary to apply bevel to vertices/edges/loops
+		BuildVertexSets(Mesh);
+	}
+	return bFoundAnythingToBevel;
 }
 
 bool FMeshBevel::InitializeFromTriangleSet(const FDynamicMesh3& Mesh, const TArray<int32>& Triangles)
@@ -174,10 +412,171 @@ bool FMeshBevel::InitializeFromTriangleSet(const FDynamicMesh3& Mesh, const TArr
 	return true;
 }
 
+void FMeshBevel::FixBowties(FDynamicMesh3& Mesh, FDynamicMeshChangeTracker* ChangeTracker)
+{
+	TMultiMap<int32, int32> SplitMeshVIDs; // map from original VID to new VIDs for any bowtie vertices that were split
+	auto SplitBowtie = [this, &Mesh, &SplitMeshVIDs, &ChangeTracker](int32 VID, int32 EID) -> int32
+	{
+		FIndex2i EdgeV = Mesh.GetEdgeV(EID);
+		int32 SubIdx = EdgeV.IndexOf(VID);
+		check(SubIdx != INDEX_NONE);
+		int32 OtherVID = EdgeV[1 - SubIdx];
 
+		if (ChangeTracker)
+		{
+			ChangeTracker->SaveVertexOneRingTriangles(VID, true);
+		}
+		FDynamicMeshEditor Edit(&Mesh);
+		FDynamicMeshEditResult EditResult;
+		Edit.SplitBowties(VID, EditResult);
+		FIndex2i UpdatedEdgeV = Mesh.GetEdgeV(EID);
+		int32 OtherVIDSubIdx = UpdatedEdgeV.IndexOf(OtherVID);
+		check(OtherVIDSubIdx != INDEX_NONE);
+		int32 NewVID = UpdatedEdgeV[1 - OtherVIDSubIdx];
+		
+		for (int32 AddedVID : EditResult.NewVertices)
+		{
+			SplitMeshVIDs.Add(VID, AddedVID);
+		}
+		return NewVID;
+	};
+
+	auto RemapVertexID = [this, &Mesh, &SplitMeshVIDs, &SplitBowtie](int32 OrigVID, int32 EID, int32& RemapVID) -> bool
+	{
+		bool bWasBowtie = SplitMeshVIDs.Contains(OrigVID);
+		RemapVID = OrigVID;
+		if (bWasBowtie)
+		{
+			FIndex2i EdgeV = Mesh.GetEdgeV(EID);
+			if (!EdgeV.Contains(OrigVID))
+			{
+				for (auto KeyIter = SplitMeshVIDs.CreateConstKeyIterator(OrigVID); KeyIter; ++KeyIter)
+				{
+					int32 NewVID = KeyIter.Value();
+					if (EdgeV.Contains(NewVID))
+					{
+						RemapVID = NewVID;
+						return true;
+					}
+				}
+				// the edge should always include one of the vertices that the bowtie was split in to
+				checkSlow(false);
+			}
+			return true;
+		}
+		else if (Mesh.IsBowtieVertex(OrigVID))
+		{
+			 RemapVID = SplitBowtie(OrigVID, EID);
+			 return true;
+		}
+		return false;
+	};
+
+	for (FBevelLoop& Loop : Loops)
+	{
+		checkSlow(Loop.MeshVertices.Num() == Loop.MeshEdges.Num());
+		for (int32 VertPathIdx = 0; VertPathIdx < Loop.MeshVertices.Num(); ++VertPathIdx)
+		{
+			int32 OrigVID = Loop.MeshVertices[VertPathIdx];
+			int32 EdgePathIdx = VertPathIdx;
+			int32 EID = Loop.MeshEdges[EdgePathIdx];
+			int32 RemapVID = OrigVID;
+			if (RemapVertexID(OrigVID, EID, RemapVID))
+			{
+				Loop.MeshVertices[VertPathIdx] = RemapVID;
+			}
+		}
+	}
+
+	int32 OrigNumVertices = Vertices.Num();
+	TSet<int32> BevelVerticesToRelink;
+	TMap<int32, int32> MeshVIDToBevelVertexIdx;
+	for (FBevelEdge& Edge : Edges)
+	{
+		checkSlow(Edge.MeshVertices.Num() == Edge.MeshEdges.Num() + 1);
+		for (int32 VertPathIdx = 0; VertPathIdx < Edge.MeshVertices.Num(); ++VertPathIdx)
+		{
+			int32 OrigVID = Edge.MeshVertices[VertPathIdx];
+			int32 EdgePathIdx = FMath::Min(VertPathIdx, Edge.MeshEdges.Num() - 1);
+			int32 EID = Edge.MeshEdges[EdgePathIdx];
+			int32 RemapVID = OrigVID;
+			if (RemapVertexID(OrigVID, EID, RemapVID))
+			{
+				Edge.MeshVertices[VertPathIdx] = RemapVID;
+
+				// if we're at an endpoint of the bevel edge, also update the bevel vertex, and make the edge point to the updated bevel vertex
+				if (VertPathIdx == 0 || VertPathIdx + 1 == Edge.MeshVertices.Num())
+				{
+					int32 BevelVertexSubIdx = VertPathIdx == 0 ? 0 : 1;
+					int32 BevelVertexIdx = Edge.BevelVertices[BevelVertexSubIdx];
+					VertexIDToIndexMap.Remove(OrigVID);
+					bool bWasAlreadyRelinked;
+					BevelVerticesToRelink.Add(BevelVertexIdx, &bWasAlreadyRelinked);
+
+					// after splitting bowties, recompute whether the split vertex is still a boundary vertex
+					Edge.bEndpointBoundaryFlag[BevelVertexSubIdx] = Mesh.IsBoundaryVertex(RemapVID);
+
+					if (!bWasAlreadyRelinked)
+					{
+						// First time encountering this bevel vertex; just remap it to the split vertex on the current edge
+						Vertices[BevelVertexIdx].VertexID = RemapVID;
+						MeshVIDToBevelVertexIdx.Add(RemapVID, BevelVertexIdx);
+					}
+					else
+					{
+						// We've encountered this bevel vertex before; use a previously-found mapping, or copy the vertex to create a new one
+						int32* FoundBevelVert = MeshVIDToBevelVertexIdx.Find(RemapVID);
+						int32 NewBevelVertIdx = INDEX_NONE;
+						if (FoundBevelVert)
+						{
+							NewBevelVertIdx = *FoundBevelVert;
+						}
+						else
+						{
+							// Add a copy of the existing bevel vertex
+							NewBevelVertIdx = Vertices.Add(FBevelVertex(Vertices[BevelVertexIdx]));
+							Vertices[NewBevelVertIdx].VertexID = RemapVID;
+							BevelVerticesToRelink.Add(NewBevelVertIdx);
+							MeshVIDToBevelVertexIdx.Add(RemapVID, NewBevelVertIdx);
+						}
+						Edge.BevelVertices[BevelVertexSubIdx] = NewBevelVertIdx;
+					}
+				}
+			}
+		}
+	}
+
+	// Fix up edge and triangle references on any relinked bevel vertices
+	for (int32 BevelVertexIdx : BevelVerticesToRelink)
+	{
+		FBevelVertex& Vertex = Vertices[BevelVertexIdx];
+		VertexIDToIndexMap.Add(Vertices[BevelVertexIdx].VertexID, BevelVertexIdx);
+		Vertex.VertexType = EBevelVertexType::Unknown; // reset type to unknown; will be set by InitVertexSet below
+		Vertex.IncomingBevelEdgeIndices.SetNum(
+			Algo::RemoveIf(Vertex.IncomingBevelEdgeIndices, [this, BevelVertexIdx](int32 BevelEdgeIdx)
+			{
+				return !Edges[BevelEdgeIdx].BevelVertices.Contains(BevelVertexIdx);
+			}));
+		int32 MeshVertexID = Vertex.VertexID;
+		Vertex.IncomingBevelMeshEdges.SetNum(
+			Algo::RemoveIf(Vertex.IncomingBevelMeshEdges, [this, MeshVertexID, &Mesh](int32 EdgeID)
+			{
+				return !Mesh.GetEdgeV(EdgeID).Contains(MeshVertexID);
+			}));
+		InitVertexSet(Mesh, Vertices[BevelVertexIdx]);
+	}
+
+	for (int32 BevelVertexIdx : BevelVerticesToRelink)
+	{
+		FBevelVertex& Vertex = Vertices[BevelVertexIdx];
+		FinalizeTerminatorVertex(Mesh, Vertex);
+	}
+}
 
 bool FMeshBevel::Apply(FDynamicMesh3& Mesh, FDynamicMeshChangeTracker* ChangeTracker)
 {
+	FixBowties(Mesh, ChangeTracker);
+
 	// disconnect along bevel graph edges/vertices and save necessary info
 	UnlinkEdges(Mesh, ChangeTracker);
 	if (ResultInfo.CheckAndSetCancelled(Progress))
@@ -310,7 +709,9 @@ void FMeshBevel::AddBevelGroupEdge(const FDynamicMesh3& Mesh, const FGroupTopolo
 		if (VertInfo == nullptr)
 		{
 			FBevelVertex NewVertex;
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			NewVertex.CornerID = CornerID;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			NewVertex.VertexID = VertexID;
 			BevelVertexIndex = Vertices.Num();
 			Vertices.Add(NewVertex);
@@ -318,15 +719,19 @@ void FMeshBevel::AddBevelGroupEdge(const FDynamicMesh3& Mesh, const FGroupTopolo
 			VertInfo = &Vertices[BevelVertexIndex];
 		}
 		VertInfo->IncomingBevelMeshEdges.Add(IncomingEdgeID);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		VertInfo->IncomingBevelTopoEdges.Add(GroupEdgeID);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		VertInfo->IncomingBevelEdgeIndices.Add(NewBevelEdgeIndex);
 		Edge.BevelVertices[ci] = BevelVertexIndex;
 	}
 
 	Edge.MeshEdges.Append(MeshEdgeList);
 	Edge.MeshVertices.Append(Topology.Edges[GroupEdgeID].Span.Vertices);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Edge.GroupEdgeID = GroupEdgeID;
 	Edge.GroupIDs = Topology.Edges[GroupEdgeID].Groups;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	Edge.MeshEdgeTris.Reserve(Edge.MeshEdges.Num());
 	for (int32 eid : Edge.MeshEdges)
@@ -376,51 +781,82 @@ void FMeshBevel::AddBevelEdgeLoop(const FDynamicMesh3& Mesh, const FEdgeLoop& Me
 }
 
 
+void FMeshBevel::InitVertexSet(const FDynamicMesh3& Mesh, FMeshBevel::FBevelVertex& Vertex)
+{
+	// get sorted list of triangles around the vertex
+	TArray<int> GroupLengths;
+	TArray<bool> bGroupIsLoop;
+	EMeshResult Result = Mesh.GetVtxContiguousTriangles(Vertex.VertexID, Vertex.SortedTriangles, GroupLengths, bGroupIsLoop);
+	if (Result != EMeshResult::Ok || GroupLengths.Num() != 1 || Vertex.SortedTriangles.Num() < 2)
+	{
+		Vertex.VertexType = EBevelVertexType::Unknown;
+		return;
+	}
 
+	// GetVtxContiguousTriangles does not return triangles sorted in a consistent direction. This check will
+	// reverse the ordering such that it is consistently walking counter-clockwise around the vertex (I think...)
+	FIndex3i Tri0 = Mesh.GetTriangle(Vertex.SortedTriangles[0]).GetCycled(Vertex.VertexID);
+	FIndex3i Tri1 = Mesh.GetTriangle(Vertex.SortedTriangles[1]).GetCycled(Vertex.VertexID);
+	if (Tri0.C == Tri1.B)
+	{
+		Algo::Reverse(Vertex.SortedTriangles);
+	}
+
+	if (Mesh.IsBoundaryVertex(Vertex.VertexID))
+	{
+		Vertex.VertexType = EBevelVertexType::BoundaryVertex;
+		// TODO: we should have a BuildBoundaryVertex function here that correctly populates the 
+		// Wedges for the boundary vertex. The currently BuildJunctionVertex will not be able to do
+		// this because it assumes it can just walk forward from any edge
+		return;
+	}
+
+
+	MESH_BEVEL_DEBUG_CHECK(Vertex.IncomingBevelMeshEdges.Num() != 0);		// shouldn't ever happen
+	if (Vertex.IncomingBevelMeshEdges.Num() == 1)
+	{
+		BuildTerminatorVertex(Vertex, Mesh);
+	}
+	else
+	{
+		BuildJunctionVertex(Vertex, Mesh);
+	}
+}
+
+void FMeshBevel::FinalizeTerminatorVertex(const FDynamicMesh3& Mesh, FBevelVertex& Vertex)
+{
+	if (Vertex.VertexType == EBevelVertexType::TerminatorVertex)
+	{
+		int32 OtherVertexID = Vertex.TerminatorInfo.B;
+		int32* OtherBevelVtxIdx = VertexIDToIndexMap.Find(OtherVertexID);
+		if (OtherBevelVtxIdx != nullptr)
+		{
+			// does other vertex have to be a terminator? or can this also happen w/ a junction?
+			FBevelVertex& OtherVertex = Vertices[*OtherBevelVtxIdx];
+			if (OtherVertex.VertexType == EBevelVertexType::TerminatorVertex)
+			{
+				// want to skip this if the ring-split edge is already a bevel edge
+				int32 MeshEdgeID = Mesh.FindEdge(Vertex.VertexID, OtherVertex.VertexID);
+				MESH_BEVEL_DEBUG_CHECK(MeshEdgeID >= 0);
+				if (Mesh.IsEdge(MeshEdgeID) &&
+					Vertex.TerminatorInfo.A == MeshEdgeID &&
+					OtherVertex.TerminatorInfo.A == MeshEdgeID &&		// do we need the other vertex to use the same edge here?  (is this actually a hard constraint on that edge that we should be enforcing??)
+					Vertex.IncomingBevelMeshEdges.Contains(MeshEdgeID) == false)
+				{
+					Vertex.ConnectedBevelVertex = *OtherBevelVtxIdx;
+				}
+			}
+
+		}
+	}
+}
 
 void FMeshBevel::BuildVertexSets(const FDynamicMesh3& Mesh)
 {
 	// can be parallel
 	for (FBevelVertex& Vertex : Vertices)
 	{
-		// get sorted list of triangles around the vertex
-		TArray<int> GroupLengths;
-		TArray<bool> bGroupIsLoop;
-		EMeshResult Result = Mesh.GetVtxContiguousTriangles(Vertex.VertexID, Vertex.SortedTriangles, GroupLengths, bGroupIsLoop);
-		if ( Result != EMeshResult::Ok || GroupLengths.Num() != 1 || Vertex.SortedTriangles.Num() < 2)
-		{
-			Vertex.VertexType = EBevelVertexType::Unknown;
-			continue;
-		}
-
-		// GetVtxContiguousTriangles does not return triangles sorted in a consistent direction. This check will
-		// reverse the ordering such that it is consistently walking counter-clockwise around the vertex (I think...)
-		FIndex3i Tri0 = Mesh.GetTriangle(Vertex.SortedTriangles[0]).GetCycled(Vertex.VertexID);
-		FIndex3i Tri1 = Mesh.GetTriangle(Vertex.SortedTriangles[1]).GetCycled(Vertex.VertexID);
-		if (Tri0.C == Tri1.B)
-		{
-			Algo::Reverse(Vertex.SortedTriangles);
-		}
-
-		if (Mesh.IsBoundaryVertex(Vertex.VertexID))
-		{
-			Vertex.VertexType = EBevelVertexType::BoundaryVertex;
-			// TODO: we should have a BuildBoundaryVertex function here that correctly populates the 
-			// Wedges for the boundary vertex. The currently BuildJunctionVertex will not be able to do
-			// this because it assumes it can just walk forward from any edge
-			continue;
-		}
-
-
-		MESH_BEVEL_DEBUG_CHECK(Vertex.IncomingBevelMeshEdges.Num() != 0);		// shouldn't ever happen
-		if (Vertex.IncomingBevelMeshEdges.Num() == 1)
-		{
-			BuildTerminatorVertex(Vertex, Mesh);
-		}
-		else
-		{
-			BuildJunctionVertex(Vertex, Mesh);
-		}
+		InitVertexSet(Mesh, Vertex);
 
 		if (ResultInfo.CheckAndSetCancelled(Progress))
 		{
@@ -434,30 +870,7 @@ void FMeshBevel::BuildVertexSets(const FDynamicMesh3& Mesh)
 	// to detect this case here /before/ we split the mesh up into disconnected parts...
 	for (FBevelVertex& Vertex : Vertices)
 	{
-		if (Vertex.VertexType == EBevelVertexType::TerminatorVertex)
-		{
-			int32 OtherVertexID = Vertex.TerminatorInfo.B;
-			int32* OtherBevelVtxIdx = VertexIDToIndexMap.Find(OtherVertexID);
-			if (OtherBevelVtxIdx != nullptr)
-			{
-				// does other vertex have to be a terminator? or can this also happen w/ a junction?
-				FBevelVertex& OtherVertex = Vertices[*OtherBevelVtxIdx];
-				if (OtherVertex.VertexType == EBevelVertexType::TerminatorVertex)
-				{
-					// want to skip this if the ring-split edge is already a bevel edge
-					int32 MeshEdgeID = Mesh.FindEdge(Vertex.VertexID, OtherVertex.VertexID);
-					MESH_BEVEL_DEBUG_CHECK(MeshEdgeID >= 0);
-					if (Mesh.IsEdge(MeshEdgeID) && 
-						Vertex.TerminatorInfo.A == MeshEdgeID &&
-						OtherVertex.TerminatorInfo.A == MeshEdgeID &&		// do we need the other vertex to use the same edge here?  (is this actually a hard constraint on that edge that we should be enforcing??)
-						Vertex.IncomingBevelMeshEdges.Contains(MeshEdgeID) == false )
-					{
-						Vertex.ConnectedBevelVertex = *OtherBevelVtxIdx;
-					}
-				}
-
-			}
-		}
+		FinalizeTerminatorVertex(Mesh, Vertex);
 	}
 
 }
@@ -2072,6 +2485,12 @@ void FMeshBevel::AppendJunctionVertexPolygon_Multi(FDynamicMesh3& Mesh, FBevelVe
 				bFound = true;
 			};
 
+			if (Span.StripQuadPatch.VertexSpans.IsEmpty())
+			{
+				// The no-vertex-span case can happen for cases where the smooth bevel has failed and fallen back to non-smooth bevel
+				continue;
+			}
+			
 			// try start and end columns, and handle case where vertex ordering might be reversed  (should this be possible, because of consistent mesh winding??)
 			Span.StripQuadPatch.GetVertexColumn(0, BevelEdgeQuadStripEndVertices);
 			if (BevelEdgeQuadStripEndVertices[0] == A && BevelEdgeQuadStripEndVertices.Last() == B)

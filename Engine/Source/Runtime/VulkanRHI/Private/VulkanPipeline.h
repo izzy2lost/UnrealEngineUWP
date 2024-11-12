@@ -40,17 +40,12 @@ inline uint64 GetShaderKeyForGfxStage(const FBoundShaderStateInput& BSI, ShaderS
 		return GetShaderKey<FVulkanVertexShader>(BSI.VertexShaderRHI);
 	case ShaderStage::Pixel:
 		return GetShaderKey<FVulkanPixelShader>(BSI.PixelShaderRHI);
-#if VULKAN_SUPPORTS_GEOMETRY_SHADERS
 	case ShaderStage::Geometry:
 		return GetShaderKey<FVulkanGeometryShader>(BSI.GetGeometryShader());
-#endif
-#if RHI_RAYTRACING
-	case ShaderStage::RayGen:
-	case ShaderStage::RayHitGroup:
-	case ShaderStage::RayMiss:
-	case ShaderStage::RayCallable:
-		return 0; // VKRT todo
-#endif
+	case ShaderStage::Mesh:
+		return GetShaderKey<FVulkanMeshShader>(BSI.GetMeshShader());
+	case ShaderStage::Task:
+		return GetShaderKey<FVulkanTaskShader>(BSI.GetAmplificationShader());
 	default:
 		check(0);
 	}
@@ -59,15 +54,15 @@ inline uint64 GetShaderKeyForGfxStage(const FBoundShaderStateInput& BSI, ShaderS
 }
 
 
-void GetVulkanShaders(const FBoundShaderStateInput& BSI, FVulkanShader* OutShaders[ShaderStage::NumStages]);
-void GetVulkanShaders(FVulkanDevice* Device, const FVulkanRHIGraphicsPipelineState& GfxPipelineState, FVulkanShader* OutShaders[ShaderStage::NumStages]);
+void GetVulkanGfxShaders(const FBoundShaderStateInput& BSI, FVulkanShader* OutShaders[ShaderStage::NumGraphicsStages]);
+void GetVulkanGfxShaders(FVulkanDevice* Device, const FVulkanRHIGraphicsPipelineState& GfxPipelineState, FVulkanShader* OutShaders[ShaderStage::NumGraphicsStages]);
 
 
 
 struct FVulkanShaderHashes
 {
 	uint32 Hash;
-	FSHAHash Stages[ShaderStage::NumStages];
+	FSHAHash Stages[ShaderStage::MaxNumStages];
 
 	FVulkanShaderHashes();
 	FVulkanShaderHashes(const FGraphicsPipelineStateInitializer& PSOInitializer);
@@ -84,7 +79,7 @@ struct FVulkanShaderHashes
 
 	friend inline bool operator == (const FVulkanShaderHashes& A, const FVulkanShaderHashes& B)
 	{
-		for (int32 Index = 0; Index < ShaderStage::NumStages; ++Index)
+		for (int32 Index = 0; Index < ShaderStage::MaxNumStages; ++Index)
 		{
 			if (A.Stages[Index] != B.Stages[Index])
 			{
@@ -274,7 +269,7 @@ struct FGfxPipelineDesc
 	FDepthStencil DepthStencil;
 
 #if VULKAN_USE_SHADERKEYS
-	uint64 ShaderKeys[ShaderStage::NumStages];
+	uint64 ShaderKeys[ShaderStage::NumGraphicsStages];
 	uint64 ShaderKeyShared;
 #else
 	FVulkanShaderHashes ShaderHashes;
@@ -364,6 +359,7 @@ struct FGfxPipelineDesc
 		uint8 NumColorAttachments;
 		uint8 bHasDepthStencil;
 		uint8 bHasResolveAttachments;
+		uint8 bHasDepthStencilResolve;
 		uint8 bHasFragmentDensityAttachment;
 		uint8 NumUsedClearValues;
 		uint32 RenderPassCompatibleHash;
@@ -385,6 +381,7 @@ struct FGfxPipelineDesc
 				NumColorAttachments == In.NumColorAttachments &&
 				bHasDepthStencil == In.bHasDepthStencil &&
 				bHasResolveAttachments == In.bHasResolveAttachments &&
+				bHasDepthStencilResolve == In.bHasDepthStencilResolve &&
 				bHasFragmentDensityAttachment == In.bHasFragmentDensityAttachment &&
 				NumUsedClearValues == In.NumUsedClearValues &&
 				RenderPassCompatibleHash == In.RenderPassCompatibleHash &&
@@ -521,10 +518,9 @@ private:
 	FGraphicsPipelineStateRHIRef RHICreateGraphicsPipelineState(const FGraphicsPipelineStateInitializer& Initializer);
 	FVulkanComputePipeline* RHICreateComputePipelineState(FRHIComputeShader* ComputeShaderRHI);
 	void NotifyDeletedGraphicsPSO(FRHIGraphicsPipelineState* PSO);
-	bool CreateGfxPipelineFromEntry(FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumStages], bool bPrecompile);
+	bool CreateGfxPipelineFromEntry(FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumGraphicsStages], FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType);
 
-	VkResult CreateVKPipeline(FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumStages], const VkGraphicsPipelineCreateInfo& PipelineInfo, bool bIsPrecompileJob);
-	static FString ShaderHashesToString(FVulkanShader* Shaders[ShaderStage::NumStages]);
+	VkResult CreateVKPipeline(FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumGraphicsStages], const VkGraphicsPipelineCreateInfo& PipelineInfo, FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType);
 
 	FVulkanLayout* FindOrAddLayout(const FVulkanDescriptorSetsLayoutInfo& DescriptorSetLayoutInfo, bool bGfxLayout);
 	FVulkanComputePipeline* CreateComputePipelineFromShader(FVulkanComputeShader* Shader);
@@ -674,39 +670,29 @@ protected:
 class FVulkanComputePipeline : public FVulkanPipeline, public FRHIComputePipelineState
 {
 public:
-	FVulkanComputePipeline(FVulkanDevice* InDevice);
+	FVulkanComputePipeline(FVulkanDevice* InDevice, FVulkanComputeShader* InShader);
 	virtual ~FVulkanComputePipeline();
 
 	inline const FVulkanShaderHeader& GetShaderCodeHeader() const
 	{
-		return ComputeShader->GetCodeHeader();
+		return ResourceCast(GetComputeShader())->GetCodeHeader();
 	}
 
-	inline const FVulkanComputeShader* GetShader() const
+	inline const FVulkanLayout& GetLayout() const
 	{
-		return ComputeShader;
+		return *Layout;
 	}
 
 	inline void Bind(VkCommandBuffer CmdBuffer)
 	{
 		VulkanRHI::vkCmdBindPipeline(CmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, Pipeline);
 	}
-
-	inline const FVulkanComputeLayout& GetComputeLayout() const
-	{
-		return *(FVulkanComputeLayout*)Layout;
-	}
-
-protected:
-	FVulkanComputeShader*	ComputeShader;
-
-	friend class FVulkanPipelineStateCacheManager;
 };
 
 class FVulkanRHIGraphicsPipelineState : public FRHIGraphicsPipelineState
 {
 public:
-	FVulkanRHIGraphicsPipelineState(FVulkanDevice* Device, const FGraphicsPipelineStateInitializer& PSOInitializer, FGfxPipelineDesc& Desc, FVulkanPSOKey* Key);
+	FVulkanRHIGraphicsPipelineState(FVulkanDevice* Device, const FGraphicsPipelineStateInitializer& PSOInitializer, const FGfxPipelineDesc& Desc, FVulkanPSOKey* Key);
 	~FVulkanRHIGraphicsPipelineState();
 
 	inline const FVulkanVertexInputStateInfo& GetVertexInputState() const
@@ -717,11 +703,6 @@ public:
 	inline const FVulkanLayout& GetLayout() const
 	{
 		return *Layout;
-	}
-
-	inline const FVulkanGfxLayout& GetGfxLayout() const
-	{
-		return *(FVulkanGfxLayout*)&GetLayout();
 	}
 
 	inline void Bind(VkCommandBuffer CmdBuffer)
@@ -735,7 +716,7 @@ public:
 		return ShaderKeys[Stage];
 	}
 
-	inline const FVulkanShader* GetShader(EShaderFrequency Frequency) const
+	inline const FVulkanShader* GetVulkanShader(EShaderFrequency Frequency) const
 	{
 		ShaderStage::EStage Stage = ShaderStage::GetStageForFrequency(Frequency);
 		return VulkanShaders[Stage];
@@ -746,8 +727,25 @@ public:
 		return VulkanPipeline;
 	}
 
+	FRHIGraphicsShader* GetShader(EShaderFrequency Frequency) const override
+	{
+		switch (Frequency)
+		{
+		case SF_Vertex: return static_cast<FVulkanVertexShader*>(VulkanShaders[ShaderStage::Vertex]);
+		case SF_Pixel: return static_cast<FVulkanPixelShader*>(VulkanShaders[ShaderStage::Pixel]);
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+		case SF_Mesh: return static_cast<FVulkanGeometryShader*>(VulkanShaders[ShaderStage::Mesh]);
+		case SF_Amplification: return static_cast<FVulkanGeometryShader*>(VulkanShaders[ShaderStage::Task]);
+#endif
+#if VULKAN_SUPPORTS_GEOMETRY_SHADERS
+		case SF_Geometry: return static_cast<FVulkanGeometryShader*>(VulkanShaders[ShaderStage::Geometry]);
+#endif
+		default: return nullptr;
+		}
+	}
+
 	void DeleteVkPipeline(bool bImmediate);
-	void GetOrCreateShaderModules(TRefCountPtr<FVulkanShaderModule>(&ShaderModulesOUT)[ShaderStage::NumStages], FVulkanShader* const* Shaders);
+	void GetOrCreateShaderModules(TRefCountPtr<FVulkanShaderModule>(&ShaderModulesOUT)[ShaderStage::NumGraphicsStages], FVulkanShader* const* Shaders);
 	FVulkanShader::FSpirvCode GetPatchedSpirvCode(FVulkanShader* Shader);
 	void PurgeShaderModules(FVulkanShader*const* Shaders);
 
@@ -755,7 +753,7 @@ public:
 	bool								bHasInputAttachments = false;
 	bool								bIsRegistered;
 
-	uint64								ShaderKeys[ShaderStage::NumStages];
+	uint64								ShaderKeys[ShaderStage::NumGraphicsStages];
 	TEnumAsByte<EPrimitiveType>			PrimitiveType;
 
 
@@ -763,8 +761,8 @@ public:
 	FVulkanVertexInputStateInfo VertexInputState;
 	FVulkanLayout* Layout;
 	FVulkanDevice* Device;
-	FGfxPipelineDesc Desc;
-	FVulkanShader* VulkanShaders[ShaderStage::NumStages];
+	const FGfxPipelineDesc Desc;
+	FVulkanShader* VulkanShaders[ShaderStage::NumGraphicsStages];
 	const FVulkanRenderPass* RenderPass;
 
 

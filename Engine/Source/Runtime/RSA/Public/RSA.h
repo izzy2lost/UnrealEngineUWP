@@ -46,7 +46,7 @@ struct FRSA
 	static RSA_API int32 DecryptPublic(const TArrayView<const uint8> InSource, TArray<uint8>& OutDestination, const FRSAKeyHandle InKey);
 
 	/**
-	 * Encrypt the supplied byte data using the given private key
+	 * Decrypt the supplied byte data using the given private key
 	 */
 	static RSA_API int32 DecryptPrivate(const TArrayView<const uint8> InSource, TArray<uint8>& OutDestination, const FRSAKeyHandle InKey);
 };

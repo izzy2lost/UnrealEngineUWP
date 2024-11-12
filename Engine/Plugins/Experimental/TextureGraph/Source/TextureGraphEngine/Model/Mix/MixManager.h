@@ -41,6 +41,7 @@ class TEXTUREGRAPHENGINE_API MixManager
 private:
 	std::atomic_bool				bIsSuspended = false;			/// Whether the mix manager is suspended or not
 	MixPriorityQueue				Queue;							/// Mix queue
+	std::vector<UMixInterface*>		MixesToFlush;						/// The mixes to flush
 	
 public:
 									MixManager();
@@ -52,6 +53,7 @@ public:
 	void							Exit();
 
 	void							InvalidateMix(UMixInterface* MixObj, const FInvalidationDetails &Details, int32 Priority = (int32)E_Priority::kNormal);
+	void							FlushMix(UMixInterface* MixObj);
 	
 	//////////////////////////////////////////////////////////////////////////
 	/// Inline functions

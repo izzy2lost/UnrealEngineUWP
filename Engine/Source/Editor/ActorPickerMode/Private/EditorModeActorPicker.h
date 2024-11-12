@@ -62,4 +62,17 @@ public:
 	FOnActorSelected OnActorSelected;
 	FOnGetAllowedClasses OnGetAllowedClasses;
 	FOnShouldFilterActor OnShouldFilterActor;
+
+private:
+
+	/** Enable/Disable viewport widget. */
+
+	enum class WidgetVisibilityState : uint8
+	{
+		StoreAndHide,
+		Restore
+	};
+
+	void UpdateWidgetVisibility(const WidgetVisibilityState InState, FEditorViewportClient* InViewportClient = nullptr);
+	TFunction<void()> WidgetVisibilityFunction = TFunction<void()>();
 };

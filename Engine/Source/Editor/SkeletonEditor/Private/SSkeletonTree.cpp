@@ -343,6 +343,12 @@ void SSkeletonTree::BindCommands()
 		FCanExecuteAction(),
 		FIsActionChecked::CreateLambda([]() { return GetDefault<UPersonaOptions>()->bHideParentsWhenFiltering; }));
 
+	CommandList.MapAction(
+		MenuActions.ShowBoneIndex,
+		FExecuteAction::CreateLambda([this]() { GetMutableDefault<UPersonaOptions>()->bShowBoneIndexes = !GetDefault<UPersonaOptions>()->bShowBoneIndexes; }),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateLambda([]() { return GetDefault<UPersonaOptions>()->bShowBoneIndexes; }));
+	
 	// Bone Filter commands
 	CommandList.BeginGroup(TEXT("BoneFilterGroup"));
 
@@ -662,7 +668,6 @@ void SSkeletonTree::CreateTreeColumns()
 		.OnItemScrolledIntoView(this, &SSkeletonTree::OnItemScrolledIntoView)
 		.OnMouseButtonDoubleClick(this, &SSkeletonTree::OnTreeDoubleClick)
 		.OnSetExpansionRecursive(this, &SSkeletonTree::SetTreeItemExpansionRecursive)
-		.ItemHeight(24)
 		.HighlightParentNodesForSelection(true)
 		.HeaderRow
 		(
@@ -1969,6 +1974,7 @@ void SSkeletonTree::RegisterFilterMenu()
 		OptionsSection.AddMenuEntry(Actions.FilteringFlattensHierarchy);
 		OptionsSection.AddMenuEntry(Actions.HideParentsWhenFiltering);
 		OptionsSection.AddMenuEntry(Actions.ShowDebugVisualization);
+		OptionsSection.AddMenuEntry(Actions.ShowBoneIndex);
 	}
 
 	{

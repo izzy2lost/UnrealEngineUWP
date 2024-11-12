@@ -191,7 +191,7 @@ bool FLevelModel::IsLoading() const
 	return (LevelCollectionModel.IsSimulating() ? SimulationStatus.bLoading : bLoadingLevel);
 }
 
-bool FLevelModel::IsVisible() const
+bool FLevelModel::IsVisibleInEditor() const
 {
 	if (LevelCollectionModel.IsSimulating())
 	{
@@ -213,6 +213,24 @@ bool FLevelModel::IsVisible() const
 		}
 		return false;
 	}
+}
+
+bool FLevelModel::IsVisibleInGame() const
+{
+	ULevel* Level = GetLevelObject();
+	if (!Level)
+	{
+		return false;
+	}
+
+	// Unreal does not allow the persistent level to be invisible in game.
+	if (Level->IsPersistentLevel())
+	{
+		return true;
+	}
+	
+	ULevelStreaming* StreamingLevel = FLevelUtils::FindStreamingLevel(Level);
+	return StreamingLevel && StreamingLevel->GetShouldBeVisibleFlag();
 }
 
 bool FLevelModel::IsLocked() const
@@ -261,14 +279,14 @@ void FLevelModel::LoadLevel()
 
 }
 
-void FLevelModel::SetVisible(bool bVisible)
+void FLevelModel::SetVisibleInEditor(bool bVisible)
 {
 	TArray<FLevelModel*> LevelModels({ this });
 	TArray<bool> bAreVisible({ bVisible });
-	FLevelModel::SetVisible(LevelModels, bAreVisible);
+	FLevelModel::SetVisibleInEditor(LevelModels, bAreVisible);
 }
 
-void FLevelModel::SetVisible(TArray<FLevelModel*>& LevelModels, const TArray<bool>& bAreVisible)
+void FLevelModel::SetVisibleInEditor(TArray<FLevelModel*>& LevelModels, const TArray<bool>& bAreVisible)
 {
 	// Don't create unnecessary transactions
 	if (LevelModels.Num() == 0 || LevelModels.Num() != bAreVisible.Num())
@@ -283,7 +301,7 @@ void FLevelModel::SetVisible(TArray<FLevelModel*>& LevelModels, const TArray<boo
 	{
 		FLevelModel* LevelModel = LevelModels[LevelModelIdx];
 		// If visibility does not change, omit it
-		if (LevelModel->IsVisible() == bAreVisible[LevelModelIdx])
+		if (LevelModel->IsVisibleInEditor() == bAreVisible[LevelModelIdx])
 		{
 			continue;
 		}
@@ -315,6 +333,31 @@ void FLevelModel::SetVisible(TArray<FLevelModel*>& LevelModels, const TArray<boo
 				Level->GetOutermost()->SetDirtyFlag(false);
 			}
 		}
+	}
+}
+
+void FLevelModel::SetVisibleInGame(TArray<FLevelModel*>& LevelModels, const TArray<bool>& bAreVisible)
+{
+	FScopedTransaction Transaction(LOCTEXT("ToggleGameVisibility", "Toggle Game Visibility"));
+	bool bMadeChange = false;
+	
+	for (int32 i = 0; i < LevelModels.Num(); ++i)
+	{
+		ULevel* Level = LevelModels[i]->GetLevelObject();
+		ULevelStreaming* LevelStreaming = FLevelUtils::FindStreamingLevel(Level);
+		const bool bShouldBeVisible = bAreVisible[i];
+		if (LevelStreaming && LevelStreaming->GetShouldBeVisibleFlag() != bShouldBeVisible)
+		{
+			bMadeChange = true;
+			Level->Modify();
+			LevelStreaming->Modify();
+			LevelStreaming->SetShouldBeVisible(bShouldBeVisible);
+		}
+	}
+
+	if (!bMadeChange)
+	{
+		Transaction.Cancel();
 	}
 }
 
@@ -426,7 +469,7 @@ void FLevelModel::MakeLevelCurrent()
 		}
 							
 		// Force the current level to be visible.
-		LevelCollectionModel.ShowLevels({ AsShared() });
+		LevelCollectionModel.ShowLevelsInEditor({ AsShared() });
 	}
 	else
 	{

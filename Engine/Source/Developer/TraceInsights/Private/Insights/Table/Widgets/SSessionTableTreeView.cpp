@@ -2,12 +2,12 @@
 
 #include "SSessionTableTreeView.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsManager.h"
 
-#define LOCTEXT_NAMESPACE "Insights::SSessionTableTreeView"
+#define LOCTEXT_NAMESPACE "UE::Insights::SSessionTableTreeView"
 
-namespace Insights
+namespace UE::Insights
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -29,7 +29,7 @@ SSessionTableTreeView::~SSessionTableTreeView()
 
 void SSessionTableTreeView::ConstructWidget(TSharedPtr<FTable> InTablePtr)
 {
-	STableTreeView::ConstructWidget(InTablePtr);
+	UE::Insights::STableTreeView::ConstructWidget(InTablePtr);
 
 	// Register ourselves with the Insights manager.
 	FInsightsManager::Get()->GetSessionChangedEvent().AddSP(this, &SSessionTableTreeView::InsightsManager_OnSessionChanged);
@@ -59,6 +59,6 @@ void SSessionTableTreeView::InsightsManager_OnSessionChanged()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights
 
 #undef LOCTEXT_NAMESPACE

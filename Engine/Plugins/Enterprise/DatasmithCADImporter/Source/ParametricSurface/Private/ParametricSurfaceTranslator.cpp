@@ -2,13 +2,21 @@
 
 #include "ParametricSurfaceTranslator.h"
 
-#include "ParametricSurfaceData.h"
+#include "DatasmithParametricSurfaceData.h"
 #include "ParametricSurfaceModule.h"
+
+#include "CADOptions.h"
 
 #include "DatasmithImportOptions.h"
 #include "IDatasmithSceneElements.h"
 
 #include "Misc/FileHelper.h"
+
+FParametricSurfaceTranslator::FParametricSurfaceTranslator()
+{
+	// Initialize bUseCADKernel with current value of CVar ds.CADTranslator.DisableCADKernelTessellation
+	CommonTessellationOptions.bUseCADKernel = !CADLibrary::FImportParameters::bGDisableCADKernelTessellation;
+}
 
 void FParametricSurfaceTranslator::GetSceneImportOptions(TArray<TObjectPtr<UDatasmithOptionsBase>>& Options)
 {
@@ -32,6 +40,7 @@ void FParametricSurfaceTranslator::SetSceneImportOptions(const TArray<TObjectPtr
 		if (UDatasmithCommonTessellationOptions* TessellationOptionsObject = Cast<UDatasmithCommonTessellationOptions>(OptionPtr))
 		{
 			CommonTessellationOptions = TessellationOptionsObject->Options;
+			TessellationOptionsObject->SaveConfig(CPF_Config);
 		}
 	}
 }
@@ -40,7 +49,7 @@ bool ParametricSurfaceUtils::AddSurfaceData(const TCHAR* MeshFilePath, const CAD
 {
 	if (MeshFilePath && IFileManager::Get().FileExists(MeshFilePath))
 	{
-		UParametricSurfaceData* ParametricSurfaceData = FParametricSurfaceModule::CreateParametricSurface();
+		UDatasmithParametricSurfaceData* ParametricSurfaceData = FParametricSurfaceModule::CreateParametricSurface();
 
 		if (!ParametricSurfaceData || !ParametricSurfaceData->SetFile(MeshFilePath))
 		{
@@ -52,12 +61,6 @@ bool ParametricSurfaceUtils::AddSurfaceData(const TCHAR* MeshFilePath, const CAD
 		ParametricSurfaceData->SetLastTessellationOptions(InCommonTessellationOptions);
 
 		OutMeshPayload.AdditionalData.Add(ParametricSurfaceData);
-
-		// Remove the file because it is temporary since caching is disabled.
-		if (!CADLibrary::FImportParameters::bGEnableCADCache)
-		{
-			IFileManager::Get().Delete(MeshFilePath);
-		}
 
 		return true;
 	}

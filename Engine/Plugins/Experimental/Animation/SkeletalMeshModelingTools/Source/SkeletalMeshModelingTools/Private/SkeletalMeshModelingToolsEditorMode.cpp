@@ -58,6 +58,7 @@
 #include "SkeletalMesh/SkeletonEditingTool.h"
 #include "SkeletalMesh/SkinWeightsBindingTool.h"
 #include "SkeletalMesh/SkinWeightsPaintTool.h"
+#include "ToolTargets/SkeletalMeshToolTarget.h"
 
 #define LOCTEXT_NAMESPACE "SkeletalMeshModelingToolsEditorMode"
 
@@ -185,9 +186,17 @@ void USkeletalMeshModelingToolsEditorMode::Enter()
 {
 	UEdMode::Enter();
 
+	UEditorInteractiveToolsContext* EditorInteractiveToolsContext = GetInteractiveToolsContext(EToolsContextScope::Editor);
+	bDeactivateOnPIEStartStateToRestore = EditorInteractiveToolsContext->GetDeactivateToolsOnPIEStart();
+	EditorInteractiveToolsContext->SetDeactivateToolsOnPIEStart(false);
+
 	UEditorInteractiveToolsContext* InteractiveToolsContext = GetInteractiveToolsContext();
-	
-	InteractiveToolsContext->TargetManager->AddTargetFactory(NewObject<USkeletalMeshComponentToolTargetFactory>(InteractiveToolsContext->TargetManager));
+
+	if (TObjectPtr<UToolTargetManager> ToolTargetManager = InteractiveToolsContext->TargetManager)
+	{
+		ToolTargetManager->AddTargetFactory( NewObject<USkeletalMeshComponentToolTargetFactory>(ToolTargetManager) );
+		ToolTargetManager->AddTargetFactory( NewObject<USkeletalMeshReadOnlyToolTargetFactory>(ToolTargetManager) );
+	}
 
 #if ENABLE_STYLUS_SUPPORT
 	StylusStateTracker = MakeUnique<FStylusStateTracker>();
@@ -200,6 +209,9 @@ void USkeletalMeshModelingToolsEditorMode::Enter()
 	const FModelingToolsManagerCommands& ToolManagerCommands = FModelingToolsManagerCommands::Get();
 
 	RegisterTool(ToolManagerCommands.BeginPolyEditTool, TEXT("BeginPolyEditTool"), NewObject<UEditMeshPolygonsToolBuilder>());
+	UEditMeshPolygonsToolBuilder* TriEditBuilder = NewObject<UEditMeshPolygonsToolBuilder>();
+	TriEditBuilder->bTriangleMode = true;
+	RegisterTool(ToolManagerCommands.BeginTriEditTool, TEXT("BeginTriEditTool"), TriEditBuilder);
 	RegisterTool(ToolManagerCommands.BeginPolyDeformTool, TEXT("BeginPolyDeformTool"), NewObject<UDeformMeshPolygonsToolBuilder>());
 	RegisterTool(ToolManagerCommands.BeginHoleFillTool, TEXT("BeginHoleFillTool"), NewObject<UHoleFillToolBuilder>());
 	RegisterTool(ToolManagerCommands.BeginPolygonCutTool, TEXT("BeginPolyCutTool"), NewObject<UPolygonOnMeshToolBuilder>());
@@ -243,8 +255,14 @@ void USkeletalMeshModelingToolsEditorMode::Enter()
 
 	// Skeleton Editing
 	RegisterTool(ToolManagerCommands.BeginSkeletonEditingTool, TEXT("BeginSkeletonEditingTool"), NewObject<USkeletonEditingToolBuilder>());
-	
+
+	// highlights skin weights tool by default
 	GetInteractiveToolsContext()->ToolManager->SelectActiveToolType(EToolSide::Left, TEXT("BeginSkinWeightsPaintTool"));
+
+	// record switching behavior to restore on exit
+	ToolSwitchModeToRestoreOnExit = GetInteractiveToolsContext()->ToolManager->GetToolSwitchMode();
+	// default to NOT applying changes to skeletal meshes when switching between tools without accepting
+	GetInteractiveToolsContext()->ToolManager->SetToolSwitchMode(EToolManagerToolSwitchMode::CancelIfAble);
 }
 
 UDebugSkelMeshComponent* USkeletalMeshModelingToolsEditorMode::GetSkelMeshComponent() const
@@ -264,6 +282,12 @@ void USkeletalMeshModelingToolsEditorMode::Exit()
 	UE::TransformGizmoUtil::DeregisterTransformGizmoContextObject(InteractiveToolsContext);
 	UE::SkeletalMeshGizmoUtils::UnregisterTransformGizmoContextObject(InteractiveToolsContext);
 	UE::SkeletalMeshEditorUtils::UnregisterEditorContextObject(InteractiveToolsContext);
+	
+	UEditorInteractiveToolsContext* EditorInteractiveToolsContext = GetInteractiveToolsContext(EToolsContextScope::Editor);
+	EditorInteractiveToolsContext->SetDeactivateToolsOnPIEStart(bDeactivateOnPIEStartStateToRestore);
+
+	// restore previous tool switching behavior
+	GetInteractiveToolsContext()->ToolManager->SetToolSwitchMode(ToolSwitchModeToRestoreOnExit);
 	
 #if ENABLE_STYLUS_SUPPORT
 	StylusStateTracker = nullptr;
@@ -393,6 +417,13 @@ void USkeletalMeshModelingToolsEditorMode::OnToolEnded(UInteractiveToolManager* 
 	{
 		Owner->ActivateMode(FPersonaEditModes::SkeletonSelection);
 	}
+}
+
+bool USkeletalMeshModelingToolsEditorMode::ShouldToolStartBeAllowed(const FString& ToolIdentifier) const
+{
+	// in the base mode, this returns false if the level editor is in PIE or simulated
+	// we allow all skeletal mesh editing tools to be started while running in PIE / simulate
+	return true;
 }
 
 void USkeletalMeshModelingToolsEditorMode::SetEditorBinding(const TWeakPtr<ISkeletalMeshEditor>& InSkeletalMeshEditor)

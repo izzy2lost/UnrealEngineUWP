@@ -256,7 +256,7 @@ bool FLocalizationTargetDescriptor::ShouldLoadLocalizationTarget() const
 		return WITH_EDITOR;
 
 	case ELocalizationTargetDescriptorLoadingPolicy::Game:
-		return FApp::IsGame();
+		return FApp::IsGame() || FTextLocalizationManager::Get().ShouldForceLoadGameLocalization();
 
 	case ELocalizationTargetDescriptorLoadingPolicy::PropertyNames:
 #if WITH_EDITOR

@@ -51,7 +51,7 @@ namespace Metasound
 				check(Args.GetTabId() == Names::GraphCanvas);
 
 				TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
-					.Label(LOCTEXT("MetasoundGraphCanvasTitle", "Viewport"));
+					.Label(LOCTEXT("MetasoundGraphCanvasTitle", "MetaSound Graph"));
 
 				if (GraphEditor.IsValid())
 				{

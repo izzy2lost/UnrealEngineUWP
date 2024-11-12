@@ -72,7 +72,57 @@ public:
 };
 
 /*
-* Describes a filter for a test group with exclude option.
+ * Describes a tag-based filter for tests
+ */
+USTRUCT()
+struct FAutomatedTestTagFilter
+{
+	GENERATED_BODY()
+
+public:
+
+	/**
+	 * @param InContains - String of concatenated tags and boolean operators
+	 * 
+	 * @see FTextFilterExpressionEvaluator
+	 */
+	FAutomatedTestTagFilter(const FString& InContains)
+	{
+		FString FilterString = InContains.TrimStartAndEnd();
+		if (FilterString.IsEmpty())
+		{
+			TagFilter = nullptr;
+		}
+		else
+		{
+			TagFilter = MakeShared<FTextFilterExpressionEvaluator>(ETextFilterExpressionEvaluatorMode::BasicString);
+			TagFilter->SetFilterText(FText::FromString(FilterString));
+		}
+	}
+
+	virtual ~FAutomatedTestTagFilter() {}
+
+	FAutomatedTestTagFilter() : FAutomatedTestTagFilter(TEXT("")) {}
+
+	virtual bool PassesFilter(const TSharedPtr< IAutomationReport >& InReport) const
+	{
+		if (TagFilter)
+		{
+			return TagFilter->TestTextFilter(FBasicStringFilterExpressionContext(InReport->GetTags()));
+		}
+		else // disabled filter, reject nothing
+		{
+			return true;
+		}
+	}
+
+private:
+	TSharedPtr<FTextFilterExpressionEvaluator> TagFilter;
+};
+
+
+/*
+* Describes a filter for a test group with exclude and tag options.
 */
 USTRUCT()
 struct FAutomatedTestFilter : public FAutomatedTestFilterBase
@@ -92,6 +142,10 @@ public:
 	UPROPERTY(Config)
 		TArray<FAutomatedTestFilterBase> Exclude;
 
+	/** List of tag filters specific to this group */
+	UPROPERTY(Config)
+		TArray<FAutomatedTestTagFilter> Tags;
+
 	virtual bool PassesFilter(const TSharedPtr< IAutomationReport >& InReport) const override
 	{
 		bool bMeetsMatch = Super::PassesFilter(InReport);
@@ -106,6 +160,19 @@ public:
 					return false;
 				}
 			}
+		}
+
+		// Intersect with tag filters
+		if (bMeetsMatch && !Tags.IsEmpty())
+		{
+			for (const FAutomatedTestTagFilter& Filter : Tags)
+			{
+				if (Filter.PassesFilter(InReport))
+				{
+					return true;
+				}
+			}
+			bMeetsMatch = false; // failed to match any tag filter
 		}
 
 		return bMeetsMatch;
@@ -168,6 +235,14 @@ public:
 	/** Whether to automatically expand Automation Tests tree subgroups that have single non-leaf item as a child (default=true) */
 	UPROPERTY(Config)
 	bool bAutoExpandSingleItemSubgroups;
+
+	/** Whether to Sort tests by failure type in json/html report */
+	UPROPERTY()
+	bool bSortTestsByFailure;
+
+	/** Whether to prune log events from test report on success */
+	UPROPERTY()
+	bool bPruneLogsOnSuccess;
 
 private:
 	/** Whether to treat log warnings as test errors (default=true) */

@@ -110,14 +110,6 @@ UNiagaraDataChannelHandler_Islands::UNiagaraDataChannelHandler_Islands(FObjectIn
 {
 }
 
-void UNiagaraDataChannelHandler_Islands::BeginDestroy()
-{
-	Super::BeginDestroy();
-	ActiveIslands.Empty();
-	FreeIslands.Empty();
-	IslandPool.Empty();
-}
-
 void UNiagaraDataChannelHandler_Islands::Init(const UNiagaraDataChannel* InChannel)
 {
 	Super::Init(InChannel);
@@ -135,6 +127,15 @@ void UNiagaraDataChannelHandler_Islands::Init(const UNiagaraDataChannel* InChann
 			FreeIslands.Emplace(i);
 		}
 	}
+}
+
+void UNiagaraDataChannelHandler_Islands::Cleanup()
+{
+	ActiveIslands.Empty();
+	FreeIslands.Empty();
+	IslandPool.Empty();
+
+	Super::Cleanup();
 }
 
 void UNiagaraDataChannelHandler_Islands::BeginFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld)
@@ -255,7 +256,6 @@ FNDCIsland* UNiagaraDataChannelHandler_Islands::FindOrCreateIsland(const FNiagar
 		for (int32 i : ActiveIslands)
 		{
 			FNDCIsland& Island = IslandPool[i];
-			FBoxSphereBounds GrowthBounds;
 			if (Island.TryGrow(Location, PerElementExtents, MaxExtents))
 			{
 				IslandToUse = &Island;
@@ -398,7 +398,7 @@ void FNDCIsland::OnAcquired(FVector Location)
 
 void FNDCIsland::OnReleased()
 {
-	Data->Reset();
+	Data = nullptr;
 	for (UNiagaraComponent* Comp : NiagaraSystems)
 	{
 		Comp->ReleaseToPool();

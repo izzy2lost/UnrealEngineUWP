@@ -149,17 +149,26 @@ public:
 	/** Draw a debug view of the input aruco markers on top of the input texture */
 	static bool DrawArucoMarkers(const TArray<FArucoMarker>& Markers, UTexture2D* DebugTexture);
 
-	/** Identify a checkerboard pattern in the input image that with the given checkerboard dimensions (columns x rows), and output the 2D coordinates of the intersections between each checkerboard square */
+	/** Identify a checkerboard pattern in the input image with the given checkerboard dimensions (columns x rows), and output the 2D coordinates of the intersections between each checkerboard square */
 	static bool IdentifyCheckerboard(TArray<FColor>& Image, FIntPoint ImageSize, FIntPoint CheckerboardDimensions, TArray<FVector2f>& OutCorners);
+
+	/** Identify a checkerboard pattern in a region of interest of the input image with the given checkerboard dimensions (columns x rows), and output the 2D coordinates of the intersections between each checkerboard square */
+	static bool IdentifyCheckerboard(TArray<FColor>& Image, FIntPoint ImageSize, FIntRect RegionOfInterest, FIntPoint CheckerboardDimensions, TArray<FVector2f>& OutCorners);
 
 	/** Draw a debug view of the input checkerboard corners on top of the input texture */
 	static bool DrawCheckerboardCorners(const TArray<FVector2f>& Corners, FIntPoint CheckerboardDimensions, UTexture2D* DebugTexture);
+
+	/** Draw a debug view of the input checkerboard corners on top of the input texture */
+	static bool DrawCheckerboardCorners(const TArray<FVector2D>& Corners, FIntPoint CheckerboardDimensions, UTexture2D* DebugTexture);
 
 	/** Compute the camera pose that minimizes the reprojection error of the input object points and image points */
 	static bool SolvePnP(const TArray<FVector>& ObjectPoints, const TArray<FVector2f>& ImagePoints, const FVector2D& FocalLength, const FVector2D& ImageCenter, const TArray<float>& DistortionParameters, FTransform& OutCameraPose);
 
 	/** Project the input object points to the 2D image plane defined by the input camera intrinsics and camera pose */
 	static bool ProjectPoints(const TArray<FVector>& ObjectPoints, const FVector2D& FocalLength, const FVector2D& ImageCenter, const TArray<float>& DistortionParameters, const FTransform& CameraPose, TArray<FVector2f>& OutImagePoints);
+
+	/** Project the input object points to the 2D image plane defined by the input camera intrinsics and camera pose */
+	static bool ProjectPoints(const TArray<FVector>& ObjectPoints, const FVector2D& FocalLength, const FVector2D& ImageCenter, const TArray<float>& DistortionParameters, const FTransform& CameraPose, TArray<FVector2D>& OutImagePoints);
 
 	/** Find a 3D fit line that passes through the input points, as well as a point on that line */
 	static bool FitLine3D(const TArray<FVector>& InPoints, FVector& OutLine, FVector& OutPointOnLine);

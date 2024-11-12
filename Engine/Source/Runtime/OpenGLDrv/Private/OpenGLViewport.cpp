@@ -82,8 +82,6 @@ FViewportRHIRef FOpenGLDynamicRHI::RHICreateViewport(void* WindowHandle,uint32 S
 {
 	check(IsInGameThread());
 
-//	SCOPED_SUSPEND_RENDERING_THREAD(true);
-
 	// Use a default pixel format if none was specified	
 	PreferredPixelFormat = RHIPreferredPixelFormatHint(PreferredPixelFormat);
 
@@ -94,8 +92,6 @@ void FOpenGLDynamicRHI::RHIResizeViewport(FRHIViewport* ViewportRHI,uint32 SizeX
 {
 	FOpenGLViewport* Viewport = ResourceCast(ViewportRHI);
 	check( IsInGameThread() );
-
-//	SCOPED_SUSPEND_RENDERING_THREAD(true);
 
 	Viewport->Resize(SizeX,SizeY,bIsFullscreen);
 }
@@ -133,6 +129,7 @@ void FOpenGLDynamicRHI::RHIBeginDrawingViewport(FRHIViewport* ViewportRHI, FRHIT
 
 		bRevertToSharedContextAfterDrawingViewport = true;
 		PlatformRenderingContextSetup(PlatformDevice);
+		CachedContextState = nullptr;
 	}
 
 	// Set the render target and viewport.
@@ -175,7 +172,7 @@ void FOpenGLDynamicRHI::RHIEndDrawingViewport(FRHIViewport* ViewportRHI,bool bPr
 			glDisable(GL_SCISSOR_TEST);
 		}
 
-		bool bNeedFinishFrame = PlatformBlitToViewport(PlatformDevice,
+		bool bNeedFinishFrame = PlatformBlitToViewport(*this, PlatformDevice,
 			*Viewport, 
 			BackBuffer->GetSizeX(),
 			BackBuffer->GetSizeY(),
@@ -218,6 +215,8 @@ void FOpenGLDynamicRHI::RHIEndDrawingViewport(FRHIViewport* ViewportRHI,bool bPr
 		if (bRevertToSharedContextAfterDrawingViewport)
 		{
 			PlatformSharedContextSetup(PlatformDevice);
+			CachedContextState = nullptr;
+
 			bRevertToSharedContextAfterDrawingViewport = false;
 		}
 	}
@@ -228,7 +227,7 @@ void FOpenGLDynamicRHI::RHIEndDrawingViewport(FRHIViewport* ViewportRHI,bool bPr
 }
 
 
-FTexture2DRHIRef FOpenGLDynamicRHI::RHIGetViewportBackBuffer(FRHIViewport* ViewportRHI)
+FTextureRHIRef FOpenGLDynamicRHI::RHIGetViewportBackBuffer(FRHIViewport* ViewportRHI)
 {
 	FOpenGLViewport* Viewport = ResourceCast(ViewportRHI);
 	return Viewport->GetBackBuffer();
@@ -269,7 +268,7 @@ FOpenGLViewport::FOpenGLViewport(FOpenGLDynamicRHI* InOpenGLRHI,void* InWindowHa
 
 	ENQUEUE_RENDER_COMMAND(CreateFrameSyncEvent)([this](FRHICommandListImmediate& RHICmdList)
 	{
-		RunOnGLRenderContextThread([this]()
+		RHICmdList.EnqueueLambda([this](FRHICommandListImmediate&)
 		{
 			FrameSyncEvent = MakeUnique<FOpenGLEventQuery>();
 		});
@@ -278,7 +277,7 @@ FOpenGLViewport::FOpenGLViewport(FOpenGLDynamicRHI* InOpenGLRHI,void* InWindowHa
 
 FOpenGLViewport::~FOpenGLViewport()
 {
-	check(IsInRenderingThread() || IsInRHIThread());
+	VERIFY_GL_SCOPE();
 
 	if (bIsFullscreen)
 	{
@@ -289,11 +288,8 @@ FOpenGLViewport::~FOpenGLViewport()
 	BackBuffer.SafeRelease();
 	check(!IsValidRef(BackBuffer));
 
-	RunOnGLRenderContextThread([&]()
-	{
-		FrameSyncEvent = nullptr;
-		PlatformDestroyOpenGLContext(OpenGLRHI->PlatformDevice, OpenGLContext);
-	}, true);
+	FrameSyncEvent = nullptr;
+	PlatformDestroyOpenGLContext(OpenGLRHI->PlatformDevice, OpenGLContext);
 
 	OpenGLContext = NULL;
 	OpenGLRHI->Viewports.Remove(this);

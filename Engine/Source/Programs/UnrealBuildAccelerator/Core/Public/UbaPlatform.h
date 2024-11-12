@@ -47,7 +47,6 @@
 	#endif
 
 	#define ANALYSIS_NORETURN // __attribute__((analyzer_noreturn))
-    #define ERROR_SUCCESS 0
 #endif
 
 #define UBA_EXPERIMENTAL 0
@@ -72,6 +71,7 @@ namespace uba
 
 	void WriteAssertInfo(class StringBufferBase& out, const tchar* text, const char* file, u32 line, const char* expr, u32 skipCallstack);
 	ANALYSIS_NORETURN void UbaAssert(const tchar* text, const char* file, u32 line, const char* expr, u32 terminateCode);
+	ANALYSIS_NORETURN void FatalError(u32 code, const tchar* format, ...);
 	using CustomAssertHandler = void(const tchar* text);
 	void SetCustomAssertHandler(CustomAssertHandler* handler);
 	bool CreateGuid(Guid& out);
@@ -96,6 +96,7 @@ namespace uba
 	ProcHandle GetCurrentProcessHandle();
 
 	u32 GetEnvironmentVariableW(const tchar* name, tchar* buffer, u32 nSize);
+	bool SetEnvironmentVariableW(const tchar* name, const tchar* value);
 	u32 ExpandEnvironmentStringsW(const tchar* lpSrc, tchar* lpDst, u32 nSize);
 	u32 GetLogicalProcessorCount();
 	u32 GetProcessorGroupCount();
@@ -107,7 +108,7 @@ namespace uba
 	inline constexpr bool CaseInsensitiveFs = true;
 	inline constexpr tchar PathSeparator = '\\';
 	inline constexpr tchar NonPathSeparator = '/';
-	inline constexpr u32 MaxPath = 512;
+	inline constexpr u32 MaxPath = 1024;
 	inline DWORD ToLow(u64 v) { LARGE_INTEGER li; li.QuadPart = (LONGLONG)v; return li.LowPart; }
 	inline LONG ToHigh(u64 v) { LARGE_INTEGER li; li.QuadPart = (LONGLONG)v; return li.HighPart; }
 	inline LARGE_INTEGER ToLargeInteger(u64 v) { LARGE_INTEGER li; li.QuadPart = (LONGLONG)v; return li; }
@@ -122,10 +123,11 @@ namespace uba
 	#define TStrcpy_s wcscpy_s
 	#define TStrcat_s wcscat_s
 	#define TStrdup _wcsdup
+	#define UBA_NOINLINE __declspec(noinline)
 #else
 	inline constexpr tchar PathSeparator = '/';
 	inline constexpr tchar NonPathSeparator = '\\';
-	inline constexpr u32 MaxPath = 512;
+	inline constexpr u32 MaxPath = 1024;
 	#define TStrlen(s) u32(strlen(s))
 	#define TStrchr(a, b) strchr(a, b)
 	#define TStrrchr(a, b) strrchr(a, b)
@@ -145,6 +147,9 @@ namespace uba
 	#define st_mtimespec st_mtim
 	#else
 	inline constexpr bool CaseInsensitiveFs = true;
-#endif
+	#endif
+	#define UBA_NOINLINE
+    #define ERROR_SUCCESS 0
+	#define DUPLICATE_SAME_ACCESS 0
 #endif // PLATFORM_WINDOWS
 }

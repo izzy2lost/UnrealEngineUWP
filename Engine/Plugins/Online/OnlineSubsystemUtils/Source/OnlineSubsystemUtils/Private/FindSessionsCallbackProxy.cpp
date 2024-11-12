@@ -19,11 +19,12 @@ UFindSessionsCallbackProxy::UFindSessionsCallbackProxy(const FObjectInitializer&
 {
 }
 
-UFindSessionsCallbackProxy* UFindSessionsCallbackProxy::FindSessions(UObject* WorldContextObject, class APlayerController* PlayerController, int MaxResults, bool bUseLAN)
+UFindSessionsCallbackProxy* UFindSessionsCallbackProxy::FindSessions(UObject* WorldContextObject, class APlayerController* PlayerController, int MaxResults, bool bUseLAN, bool bUseLobbies)
 {
 	UFindSessionsCallbackProxy* Proxy = NewObject<UFindSessionsCallbackProxy>();
 	Proxy->PlayerControllerWeakPtr = PlayerController;
 	Proxy->bUseLAN = bUseLAN;
+	Proxy->bUseLobbies = bUseLobbies;
 	Proxy->MaxResults = MaxResults;
 	Proxy->WorldContextObject = WorldContextObject;
 	return Proxy;
@@ -44,7 +45,10 @@ void UFindSessionsCallbackProxy::Activate()
 			SearchObject = MakeShareable(new FOnlineSessionSearch);
 			SearchObject->MaxSearchResults = MaxResults;
 			SearchObject->bIsLanQuery = bUseLAN;
-			SearchObject->QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals);
+			if (bUseLobbies)
+			{
+				SearchObject->QuerySettings.Set(SEARCH_LOBBIES, true, EOnlineComparisonOp::Equals);
+			}
 
 			Sessions->FindSessions(*Helper.UserID, SearchObject.ToSharedRef());
 

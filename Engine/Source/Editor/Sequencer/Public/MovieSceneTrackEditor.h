@@ -164,44 +164,6 @@ public:
 		return Result;
 	}
 
-	template<typename TrackClass> struct
-	UE_DEPRECATED(5.2, "FFindOrCreateMasterTrackResult is deprecated. Please use FFindOrCreateRootTrackResult instead")
-	FFindOrCreateMasterTrackResult
-	{
-		FFindOrCreateMasterTrackResult() : Track(nullptr), bWasCreated(false) {}
-
-		TrackClass* Track;
-		bool bWasCreated;
-	};
-
-	/**
-	 * Find or add a track of the specified type in the focused movie scene.
-	 *
-	 * @param TrackClass The class of the track to find or add.
-	 * @return The track results.
-	 */
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS // Suppress compiler warning on return of deprecated function
-	template<typename TrackClass>
-	UE_DEPRECATED(5.2, "FindOrCreateMasterTrack is deprecated. Please use FindOrCreateRootTrack instead")
-	FFindOrCreateMasterTrackResult<TrackClass> FindOrCreateMasterTrack()
-	{
-		FFindOrCreateMasterTrackResult<TrackClass> Result;
-		bool bTrackExisted;
-
-		UMovieScene* MovieScene = GetSequencer()->GetFocusedMovieSceneSequence()->GetMovieScene();
-		Result.Track = MovieScene->FindTrack<TrackClass>();
-		bTrackExisted = Result.Track != nullptr;
-
-		if (Result.Track == nullptr)
-		{
-			Result.Track = MovieScene->AddTrack<TrackClass>();
-		}
-
-		Result.bWasCreated = bTrackExisted == false && Result.Track != nullptr;
-		return Result;
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	/** @return The sequencer bound to this handler */
 	const TSharedPtr<ISequencer> GetSequencer() const;
 
@@ -219,7 +181,8 @@ public:
 	virtual void BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, const TArray<FGuid>& ObjectBindings, const UClass* ObjectClass) override;
 	virtual TSharedPtr<SWidget> BuildOutlinerEditWidget(const FGuid& ObjectBinding, UMovieSceneTrack* Track, const FBuildEditWidgetParams& Params) override;
 	virtual TSharedPtr<SWidget> BuildOutlinerColumnWidget(const FBuildColumnWidgetParams& Params, const FName& ColumnName) override;
-	virtual void BuildTrackContextMenu( FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track ) override;
+	virtual void BuildTrackContextMenu(FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track) override;
+	virtual void BuildTrackSidebarMenu(FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track) override;
 	virtual bool HandleAssetAdded(UObject* Asset, const FGuid& TargetObjectGuid) override;
 	virtual bool OnAllowDrop(const FDragDropEvent& DragDropEvent, FSequencerDragDropParams& DragDropParams) override;
 	virtual FReply OnDrop(const FDragDropEvent& DragDropEvent, const FSequencerDragDropParams& DragDropParams) override;

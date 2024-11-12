@@ -366,7 +366,7 @@ void* FPyWrapperFixedArray::GetItemPtr(FPyWrapperFixedArray* InSelf, Py_ssize_t 
 
 	// This doesn't use ContainerPtrToValuePtr as the ArrayInstance has already been adjusted to 
 	// point to the first element in the array and we just need to adjust it for the element size
-	return static_cast<uint8*>(InSelf->ArrayInstance) + (InSelf->ArrayProp->ElementSize * InIndex);
+	return static_cast<uint8*>(InSelf->ArrayInstance) + (InSelf->ArrayProp->GetElementSize() * InIndex);
 }
 
 Py_ssize_t FPyWrapperFixedArray::Len(FPyWrapperFixedArray* InSelf)
@@ -395,7 +395,7 @@ PyObject* FPyWrapperFixedArray::GetItem(FPyWrapperFixedArray* InSelf, Py_ssize_t
 	PyObject* PyItemObj = nullptr;
 	if (!PyConversion::PythonizeProperty_Direct(InSelf->ArrayProp, GetItemPtr(InSelf, ResolvedIndex), PyItemObj))
 	{
-		PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Failed to convert property '%s' (%s) at index %d"), *InSelf->ArrayProp->GetName(), *InSelf->ArrayProp->GetClass()->GetName(), ResolvedIndex));
+		PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Failed to convert property '%s' (%s) at index %zd"), *InSelf->ArrayProp->GetName(), *InSelf->ArrayProp->GetClass()->GetName(), ResolvedIndex));
 		return nullptr;
 	}
 	return PyItemObj;
@@ -417,7 +417,7 @@ int FPyWrapperFixedArray::SetItem(FPyWrapperFixedArray* InSelf, Py_ssize_t InInd
 
 	if (!PyConversion::NativizeProperty_Direct(InValue, InSelf->ArrayProp, GetItemPtr(InSelf, ResolvedIndex)))
 	{
-		PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Failed to convert property '%s' (%s) at index %d"), *InSelf->ArrayProp->GetName(), *InSelf->ArrayProp->GetClass()->GetName(), ResolvedIndex));
+		PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Failed to convert property '%s' (%s) at index %zd"), *InSelf->ArrayProp->GetName(), *InSelf->ArrayProp->GetClass()->GetName(), ResolvedIndex));
 		return -1;
 	}
 
@@ -910,7 +910,7 @@ PyTypeObject InitializePyWrapperFixedArrayIteratorType()
 PyTypeObject PyWrapperFixedArrayType = InitializePyWrapperFixedArrayType();
 PyTypeObject PyWrapperFixedArrayIteratorType = InitializePyWrapperFixedArrayIteratorType();
 
-void FPyWrapperFixedArrayMetaData::AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
+void FPyWrapperFixedArrayMetaData::AddInstanceReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
 {
 	FPyWrapperFixedArray* Self = static_cast<FPyWrapperFixedArray*>(Instance);
 	if (Self->ArrayProp && Self->ArrayInstance && !Self->OwnerContext.HasOwner())

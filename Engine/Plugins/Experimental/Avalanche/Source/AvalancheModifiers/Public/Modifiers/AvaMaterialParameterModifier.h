@@ -14,13 +14,13 @@ struct FAvaMaterialParameterMap
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MaterialParameter")
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="MaterialParameter")
 	TMap<FName, float> ScalarParameters;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MaterialParameter")
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="MaterialParameter")
 	TMap<FName, FLinearColor> VectorParameters;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MaterialParameter")
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="MaterialParameter")
 	TMap<FName, TObjectPtr<UTexture>> TextureParameters;
 
 	/** Matches the input parameter key map and removes all unused keys, does not touch current values */
@@ -42,13 +42,19 @@ class UAvaMaterialParameterModifier : public UAvaArrangeBaseModifier
 public:
 	UAvaMaterialParameterModifier();
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|MaterialParameter")
 	AVALANCHEMODIFIERS_API void SetMaterialParameters(const FAvaMaterialParameterMap& InParameterMap);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|MaterialParameter")
 	const FAvaMaterialParameterMap& GetMaterialParameters() const
 	{
 		return MaterialParameters;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|MaterialParameter")
 	AVALANCHEMODIFIERS_API void SetUpdateChildren(bool bInUpdateChildren);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|MaterialParameter")
 	bool GetUpdateChildren() const
 	{
 		return bUpdateChildren;
@@ -99,9 +105,8 @@ protected:
 	/** Retrieves all Material Designer Instance from a primitive component */
 	TSet<UMaterialInstanceDynamic*> GetComponentDynamicMaterials(const UPrimitiveComponent* InComponent) const;
 
-	/** Which parameters should we set on the Material Designer Instance,
-	 * use EditCondition="bShowMaterialParameters && bShowMaterialParameters" otherwise edit inline boolean appear in details when it should not */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetMaterialParameters", Getter="GetMaterialParameters", Category="MaterialParameter", meta=(EditCondition="bShowMaterialParameters && bShowMaterialParameters", EditConditionHides, AllowPrivateAccess="true"))
+	/** Which parameters should we set on the Material Designer Instance */
+	UPROPERTY(EditInstanceOnly, Setter="SetMaterialParameters", Getter="GetMaterialParameters", Category="MaterialParameter", meta=(HideEditConditionToggle, EditCondition="bShowMaterialParameters", EditConditionHides, AllowPrivateAccess="true"))
 	FAvaMaterialParameterMap MaterialParameters;
 
 	/** Used to restore Material Designer Instance parameters to their original state */
@@ -113,7 +118,7 @@ protected:
 	TSubclassOf<UMaterialInstanceDynamic> MaterialClass;
 
 	/** Will also look into attached children actors */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetUpdateChildren", Getter="GetUpdateChildren", Category="MaterialParameter", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetUpdateChildren", Getter="GetUpdateChildren", Category="MaterialParameter", meta=(AllowPrivateAccess="true"))
 	bool bUpdateChildren = true;
 
 #if WITH_EDITORONLY_DATA

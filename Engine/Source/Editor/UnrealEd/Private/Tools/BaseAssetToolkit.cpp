@@ -115,6 +115,15 @@ TSharedRef<SDockTab>  FBaseAssetToolkit::SpawnTab_Details(const FSpawnTabArgs& A
 	return DetailsTab.ToSharedRef();
 }
 
+TSharedRef<IDetailsView> FBaseAssetToolkit::CreateDetailsView()
+{
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	FDetailsViewArgs DetailsViewArgs;
+	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+	DetailsViewArgs.bHideSelectionTip = true;
+	return PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+}
+
 void FBaseAssetToolkit::RegisterToolbar()
 {
 }
@@ -148,11 +157,8 @@ void FBaseAssetToolkit::CreateWidgets()
 	ViewportTabContent = MakeShareable(new FEditorViewportTabContent());
 	LayoutExtender = MakeShared<FLayoutExtender>();
 
-	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	FDetailsViewArgs DetailsViewArgs;
-	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
-	DetailsViewArgs.bHideSelectionTip = true;
-	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+	DetailsView = CreateDetailsView();
+	check(DetailsView.IsValid());
 }
 
 void FBaseAssetToolkit::SetEditingObject(class UObject* InObject)

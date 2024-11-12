@@ -44,7 +44,11 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 	}
 	
 	ENGINE_API FStaticMeshSceneProxyDesc(const UStaticMeshComponent*);
-	void InitializeFrom(const UStaticMeshComponent*);
+
+	ENGINE_API void InitializeFromStaticMeshComponent(const UStaticMeshComponent*);
+
+	UE_DEPRECATED(5.5, "Use InitializeFromStaticMeshComponent instead.")
+	void InitializeFrom(const UStaticMeshComponent* InComponent) { InitializeFromStaticMeshComponent(InComponent); }
 
 	UStaticMesh* StaticMesh = nullptr;
 	TArrayView<TObjectPtr<UMaterialInterface>>	OverrideMaterials;
@@ -53,6 +57,7 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 	int32 ForcedLodModel = 0;
 	int32 MinLOD = 0;
 	int32 WorldPositionOffsetDisableDistance = 0;
+	float NanitePixelProgrammableDistance = 0.0f;
 	
 	uint32 bReverseCulling : 1 = false;	
 #if STATICMESH_ENABLE_DEBUG_RENDERING
@@ -97,6 +102,9 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 	TArrayView<struct FStaticMeshComponentLODInfo> LODData;
 	FMaterialRelevance MaterialRelevance;
 		
+	UTexture* MeshPaintTexture = nullptr;
+	int32 MeshPaintTextureCoordinateIndex = 0;
+
 	UStaticMesh* GetStaticMesh() const { return StaticMesh; }
 
 	UBodySetup* BodySetup = nullptr;
@@ -129,7 +137,7 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 	UMaterialInterface* GetOverlayMaterial() const { return OverlayMaterial; }
 	float GetOverlayMaterialMaxDrawDistance() const { return OverlayMaterialMaxDrawDistance; }
 
-	UMaterialInterface* GetMaterial(int32 MaterialIndex, bool bDoingNaniteMaterialAudit = false ) const  
+	UMaterialInterface* GetMaterial(int32 MaterialIndex, bool bDoingNaniteMaterialAudit = false, bool bIgnoreNaniteOverrideMaterials = false) const
 	{ 
 		UMaterialInterface* OutMaterial = nullptr;
 
@@ -145,7 +153,7 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 		}
 
 		// If we have a nanite override, use that		
-		if (OutMaterial != nullptr && UseNaniteOverrideMaterials(bDoingNaniteMaterialAudit))
+		if (OutMaterial != nullptr && !bIgnoreNaniteOverrideMaterials && UseNaniteOverrideMaterials(bDoingNaniteMaterialAudit))
 		{
 			UMaterialInterface* NaniteOverride = OutMaterial->GetNaniteOverride();
 			OutMaterial = NaniteOverride != nullptr ? NaniteOverride : OutMaterial;
@@ -165,6 +173,7 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 	ENGINE_API FMaterialRelevance GetMaterialRelevance(ERHIFeatureLevel::Type InFeatureLevel) const ;
 	int32 GetStaticLightMapResolution() const { return StaticLightMapResolution; }
 	
+	FTextureResource* GetMeshPaintTextureResource() const;
 
 	void SetCollisionResponseToChannels(const FCollisionResponseContainer& InContainer) 
 	{ 

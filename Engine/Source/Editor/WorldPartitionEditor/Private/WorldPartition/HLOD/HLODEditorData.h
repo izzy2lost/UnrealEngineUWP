@@ -3,6 +3,7 @@
 #pragma once
 
 #include "WorldPartition/HLOD/HLODLoaderAdapter.h"
+#include "ExternalDirtyActorsTracker.h"
 
 class UWorldPartition;
 class UActorDescContainerInstance;
@@ -51,4 +52,14 @@ private:
 	TMap<UActorDescContainerInstance*, FContainerInstanceHLODActorData> PerContainerInstanceHLODActorDataMap;
 	TUniquePtr<FLoaderAdapterHLOD> HLODActorsLoader;
 	int32 LastStateUpdate;
+
+	struct FExternalDirtyActorTrackerGuid
+	{
+		using Type = FGuid;
+		using OwnerType = FWorldPartitionHLODEditorData;
+		static FGuid Store(FWorldPartitionHLODEditorData* InOwner, AActor* InActor) { return InActor->GetActorGuid(); }
+	};
+
+	using FExternalDirtyActorsTracker = TExternalDirtyActorsTracker<FExternalDirtyActorTrackerGuid>;
+	TUniquePtr<FExternalDirtyActorsTracker> ExternalDirtyActorsTracker;
 };

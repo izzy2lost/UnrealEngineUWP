@@ -3,7 +3,8 @@
 #include "MovieSceneLiveLinkCameraControllerSection.h"
 
 #include "CineCameraComponent.h"
-#include "IMovieScenePlayer.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
+#include "Evaluation/MovieSceneEvaluationState.h"
 #include "LiveLinkCameraController.h"
 #include "LiveLinkComponentController.h"
 #include "Roles/LiveLinkCameraRole.h"
@@ -12,14 +13,15 @@ void UMovieSceneLiveLinkCameraControllerSection::Initialize(ULiveLinkControllerB
 {
 }
 
-void UMovieSceneLiveLinkCameraControllerSection::Update(IMovieScenePlayer* Player, const UE::MovieScene::FEvaluationHookParams& Params) const
+void UMovieSceneLiveLinkCameraControllerSection::Update(TSharedRef<FSharedPlaybackState> SharedPlaybackState, const UE::MovieScene::FEvaluationHookParams& Params) const
 {
 	if (!CachedLensFile || !bApplyNodalOffsetFromCachedLensFile)
 	{
 		return;
 	}
 
-	for (TWeakObjectPtr<>& BoundObject : Player->FindBoundObjects(Params.ObjectBindingID, Params.SequenceID))
+	TArrayView<TWeakObjectPtr<>> BoundObjects = SharedPlaybackState->FindBoundObjects(Params.ObjectBindingID, Params.SequenceID);
+	for (TWeakObjectPtr<>& BoundObject : BoundObjects)
 	{
 		if (ULiveLinkComponentController* LiveLinkComponent = Cast<ULiveLinkComponentController>(BoundObject.Get()))
 		{

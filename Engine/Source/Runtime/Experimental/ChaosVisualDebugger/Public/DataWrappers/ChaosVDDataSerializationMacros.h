@@ -25,3 +25,21 @@
 		}\
 	}
 #endif
+
+#ifndef CVD_IMPLEMENT_SERIALIZER
+		#define CVD_IMPLEMENT_SERIALIZER(Type) \
+		inline FArchive& operator<<(FArchive& Ar, Type& Data) \
+		{\
+			Data.Serialize(Ar); \
+			return Ar; \
+		} \
+		template<>\
+		struct TStructOpsTypeTraits<Type> : public TStructOpsTypeTraitsBase2<Type> \
+		{\
+			enum\
+			{\
+				WithSerializer = true,\
+			};\
+		};\
+
+#endif

@@ -1,8 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using EpicGames.ProjectStore;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -11,6 +8,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Xml;
+using EpicGames.Core;
+using EpicGames.ProjectStore;
+using Microsoft.Extensions.Logging;
 
 namespace AutomationTool.Tasks
 {
@@ -24,82 +24,80 @@ namespace AutomationTool.Tasks
 		/// The type of destination to import from to (cloud, file...)
 		/// </summary>
 		[TaskParameter]
-		public string ImportType;
+		public string ImportType { get; set; }
 
 		/// <summary>
 		/// comma separated full path to the oplog dir to import into the local zen server
 		/// Files="Path1,Path2"
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// The project from which to import for
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference Project;
+		public FileReference Project { get; set; }
 
 		/// <summary>
 		/// The name of the newly created Zen Project we will be importing into
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string ProjectName;
-
+		public string ProjectName { get; set; }
 
 		/// <summary>
 		/// The target platform to import the snapshot for
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Platform;
+		public string Platform { get; set; }
 
 		/// <summary>
 		/// Root dir for the UE project. Used to derive the Enging folder and the Project folder
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string RootDir;
+		public string RootDir { get; set; }
 
 		/// <summary>
 		/// The name of the imported oplog
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string OplogName;
+		public string OplogName { get; set; }
 
 		/// <summary>
 		/// The host URL for the zen server we are importing from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string HostName = "localhost";
+		public string HostName { get; set; } = "localhost";
 
 		/// <summary>
 		/// The host port for the zen server we are importing from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string HostPort = "8558";
-		
+		public string HostPort { get; set; } = "8558";
 
 		/// <summary>
 		/// The cloud URL to import from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string CloudURL;
+		public string CloudURL { get; set; }
 
 		/// <summary>
 		/// what namespace to use when importing from cloud
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Namespace;
+		public string Namespace { get; set; }
 
 		/// <summary>
 		/// what bucket to use when importing from cloud
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Bucket;
+		public string Bucket { get; set; }
 
 		/// <summary>
 		/// What key to use when importing from cloud
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Key;
+		public string Key { get; set; }
 	}
 
 	/// <summary>
@@ -108,173 +106,170 @@ namespace AutomationTool.Tasks
 	[TaskElement("ZenImportOplog", typeof(ZenImportOplogTaskParameters))]
 	public class ZenImportOplogTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for the task
-		/// </summary>
-		ZenImportOplogTaskParameters Parameters;
+		readonly ZenImportOplogTaskParameters _parameters;
 
-		FileReference ProjectFile;
+		FileReference _projectFile;
 
 		/// <summary>
 		/// Constructor.
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public ZenImportOplogTask(ZenImportOplogTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public ZenImportOplogTask(ZenImportOplogTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			SnapshotStorageType ImportMethod = SnapshotStorageType.Invalid;
-			if (!string.IsNullOrEmpty(Parameters.ImportType))
+			SnapshotStorageType importMethod = SnapshotStorageType.Invalid;
+			if (!string.IsNullOrEmpty(_parameters.ImportType))
 			{
-				ImportMethod = (SnapshotStorageType)Enum.Parse(typeof(SnapshotStorageType), Parameters.ImportType);
+				importMethod = (SnapshotStorageType)Enum.Parse(typeof(SnapshotStorageType), _parameters.ImportType);
 			}
 
-			ProjectFile = Parameters.Project;
-			if (!FileReference.Exists(ProjectFile))
+			_projectFile = _parameters.Project;
+			if (!FileReference.Exists(_projectFile))
 			{
-				throw new AutomationException("Missing project file - {0}", ProjectFile.FullName);
+				throw new AutomationException("Missing project file - {0}", _projectFile.FullName);
 			}
 
-			ZenExportSnapshotTask.ZenLaunch(ProjectFile);
+			ZenExportSnapshotTask.ZenLaunch(_projectFile);
 
 			// Get the Zen executable path
-			FileReference ZenExe = ZenExportSnapshotTask.ZenExeFileReference();
+			FileReference zenExe = ZenExportSnapshotTask.ZenExeFileReference();
 			{
-				if (String.IsNullOrEmpty(Parameters.RootDir))
+				if (String.IsNullOrEmpty(_parameters.RootDir))
 				{
 					throw new AutomationException("RootDir was not specified");
 				}
-				if (String.IsNullOrEmpty(Parameters.ProjectName))
+				if (String.IsNullOrEmpty(_parameters.ProjectName))
 				{
 					throw new AutomationException("ProjectName was not specified");
 				}
-				
-				// Create a new project to import everything into.
-				string RootDir = Parameters.RootDir;
-				string EngineDir = System.IO.Path.Combine(Parameters.RootDir, "Engine");
-				string ProjectDir = System.IO.Path.Combine(Parameters.RootDir, ProjectFile.GetFileNameWithoutAnyExtensions());
-				string HostURLArg = string.Format("--hosturl http://{0}:{1}", Parameters.HostName, Parameters.HostPort);
-				StringBuilder OplogProjectCreateCommandline = new StringBuilder();
-				OplogProjectCreateCommandline.AppendFormat("project-create -p {0} --rootdir {1} --enginedir {2} --projectdir {3} --projectfile {4} {5}",
-					Parameters.ProjectName,
-					RootDir,
-					EngineDir,
-					ProjectDir,
-					ProjectFile.FullName,
-					HostURLArg);
 
-				Logger.LogInformation("Running '{Arg0} {Arg1}'", CommandUtils.MakePathSafeToUseWithCommandLine(ZenExe.FullName), OplogProjectCreateCommandline.ToString());
-				CommandUtils.RunAndLog(CommandUtils.CmdEnv, ZenExe.FullName, OplogProjectCreateCommandline.ToString(), Options: CommandUtils.ERunOptions.Default);
+				// Create a new project to import everything into.
+				string rootDir = _parameters.RootDir;
+				string engineDir = System.IO.Path.Combine(_parameters.RootDir, "Engine");
+				string projectDir = System.IO.Path.Combine(_parameters.RootDir, _projectFile.GetFileNameWithoutAnyExtensions());
+				string hostUrlArg = string.Format("--hosturl http://{0}:{1}", _parameters.HostName, _parameters.HostPort);
+				StringBuilder oplogProjectCreateCommandline = new StringBuilder();
+				oplogProjectCreateCommandline.AppendFormat("project-create -p {0} --rootdir {1} --enginedir {2} --projectdir {3} --projectfile {4} {5}",
+					_parameters.ProjectName,
+					rootDir,
+					engineDir,
+					projectDir,
+					_projectFile.FullName,
+					hostUrlArg);
+
+				Logger.LogInformation("Running '{Arg0} {Arg1}'", CommandUtils.MakePathSafeToUseWithCommandLine(zenExe.FullName), oplogProjectCreateCommandline.ToString());
+				CommandUtils.RunAndLog(CommandUtils.CmdEnv, zenExe.FullName, oplogProjectCreateCommandline.ToString(), Options: CommandUtils.ERunOptions.Default);
 			}
 
-			switch (ImportMethod)
+			switch (importMethod)
 			{
 				case SnapshotStorageType.File:
-					ImportFromFile(ZenExe);
+					ImportFromFile(zenExe);
 					break;
 				case SnapshotStorageType.Cloud:
-					ImportFromCloud(ZenExe);
+					ImportFromCloud(zenExe);
 					break;
 				default:
-					throw new AutomationException("Unknown/invalid/unimplemented import type - {0}", Parameters.ImportType);
+					throw new AutomationException("Unknown/invalid/unimplemented import type - {0}", _parameters.ImportType);
 			}
 
 			WriteProjectStoreFile();
 			return Task.CompletedTask;
 		}
 
-		private void ImportFromFile(FileReference ZenExe)
+		private void ImportFromFile(FileReference zenExe)
 		{
-			if (String.IsNullOrEmpty(Parameters.OplogName))
+			if (String.IsNullOrEmpty(_parameters.OplogName))
 			{
 				throw new AutomationException("OplogName was not specified");
 			}
 
-			foreach (string FileToImport in Parameters.Files.Split(','))
+			foreach (string fileToImport in _parameters.Files.Split(','))
 			{
-				if (DirectoryReference.Exists(new DirectoryReference(FileToImport)))
+				if (DirectoryReference.Exists(new DirectoryReference(fileToImport)))
 				{
-					StringBuilder OplogImportCommandline = new StringBuilder();
-					OplogImportCommandline.AppendFormat("oplog-import --file {0} --oplog {1} -p {2}", FileToImport, Parameters.OplogName, Parameters.ProjectName);
+					StringBuilder oplogImportCommandline = new StringBuilder();
+					oplogImportCommandline.AppendFormat("oplog-import --file {0} --oplog {1} -p {2}", fileToImport, _parameters.OplogName, _parameters.ProjectName);
 
-					Logger.LogInformation("Running '{Arg0} {Arg1}'", CommandUtils.MakePathSafeToUseWithCommandLine(ZenExe.FullName), OplogImportCommandline.ToString());
-					CommandUtils.RunAndLog(CommandUtils.CmdEnv, ZenExe.FullName, OplogImportCommandline.ToString(), Options: CommandUtils.ERunOptions.Default);
+					Logger.LogInformation("Running '{Arg0} {Arg1}'", CommandUtils.MakePathSafeToUseWithCommandLine(zenExe.FullName), oplogImportCommandline.ToString());
+					CommandUtils.RunAndLog(CommandUtils.CmdEnv, zenExe.FullName, oplogImportCommandline.ToString(), Options: CommandUtils.ERunOptions.Default);
 				}
 			}
 		}
 
 		private void WriteProjectStoreFile()
 		{
-			DirectoryReference PlatformCookedDirectory = DirectoryReference.Combine(ProjectFile.Directory, "Saved", "Cooked", Parameters.Platform);
-			if (!DirectoryReference.Exists(PlatformCookedDirectory))
+			DirectoryReference platformCookedDirectory = DirectoryReference.Combine(_projectFile.Directory, "Saved", "Cooked", _parameters.Platform);
+			if (!DirectoryReference.Exists(platformCookedDirectory))
 			{
-				DirectoryReference.CreateDirectory(PlatformCookedDirectory);
+				DirectoryReference.CreateDirectory(platformCookedDirectory);
 			}
-			ProjectStoreData ProjectStore = new ProjectStoreData();
-			ProjectStore.ZenServer = new ZenServerStoreData
+			ProjectStoreData projectStore = new ProjectStoreData();
+			projectStore.ZenServer = new ZenServerStoreData
 			{
-				ProjectId = Parameters.ProjectName,
-				OplogId = Parameters.OplogName
+				ProjectId = _parameters.ProjectName,
+				OplogId = _parameters.OplogName
 			};
 
-			JsonSerializerOptions SerializerOptions = new JsonSerializerOptions
+			JsonSerializerOptions serializerOptions = new JsonSerializerOptions
 			{
 				AllowTrailingCommas = true,
 				ReadCommentHandling = JsonCommentHandling.Skip,
 				PropertyNameCaseInsensitive = true
 			};
-			SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+			serializerOptions.Converters.Add(new JsonStringEnumConverter());
 
-			FileReference ProjectStoreFile = FileReference.Combine(PlatformCookedDirectory, "ue.projectstore");
-			File.WriteAllText(ProjectStoreFile.FullName, JsonSerializer.Serialize(ProjectStore, SerializerOptions), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+			FileReference projectStoreFile = FileReference.Combine(platformCookedDirectory, "ue.projectstore");
+			File.WriteAllText(projectStoreFile.FullName, JsonSerializer.Serialize(projectStore, serializerOptions), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 		}
 
-		private void ImportFromCloud(FileReference ZenExe)
+		private void ImportFromCloud(FileReference zenExe)
 		{
-			if (string.IsNullOrEmpty(Parameters.CloudURL))
+			if (string.IsNullOrEmpty(_parameters.CloudURL))
 			{
 				throw new AutomationException("Missing destination cloud host");
 			}
-			if (string.IsNullOrEmpty(Parameters.Namespace))
+			if (string.IsNullOrEmpty(_parameters.Namespace))
 			{
 				throw new AutomationException("Missing destination cloud namespace");
 			}
-			if (string.IsNullOrEmpty(Parameters.Key))
+			if (string.IsNullOrEmpty(_parameters.Key))
 			{
 				throw new AutomationException("Missing destination cloud storage key");
 			}
 
-			string BucketName = Parameters.Bucket;
-			string ProjectNameAsBucketName = ProjectFile.GetFileNameWithoutAnyExtensions().ToLowerInvariant();
-			if (string.IsNullOrEmpty(BucketName))
+			string bucketName = _parameters.Bucket;
+			string projectNameAsBucketName = _projectFile.GetFileNameWithoutAnyExtensions().ToLowerInvariant();
+			if (string.IsNullOrEmpty(bucketName))
 			{
-				BucketName = ProjectNameAsBucketName;
+				bucketName = projectNameAsBucketName;
 			}
 
-			string HostURLArg = string.Format("--hosturl http://{0}:{1}", Parameters.HostName, Parameters.HostPort);
-			StringBuilder OplogImportCommandline = new StringBuilder();
-			OplogImportCommandline.AppendFormat("oplog-import {0} --cloud {1} --namespace {2} --bucket {3}", HostURLArg, Parameters.CloudURL, Parameters.Namespace, BucketName);
-			OplogImportCommandline.AppendFormat(" {0}", Parameters.Key);
+			string hostUrlArg = string.Format("--hosturl http://{0}:{1}", _parameters.HostName, _parameters.HostPort);
+			StringBuilder oplogImportCommandline = new StringBuilder();
+			oplogImportCommandline.AppendFormat("oplog-import {0} --cloud {1} --namespace {2} --bucket {3}", hostUrlArg, _parameters.CloudURL, _parameters.Namespace, bucketName);
+			oplogImportCommandline.AppendFormat(" {0}", _parameters.Key);
 
-			Logger.LogInformation("Running '{Arg0} {Arg1}'", CommandUtils.MakePathSafeToUseWithCommandLine(ZenExe.FullName), OplogImportCommandline.ToString());
-			CommandUtils.RunAndLog(CommandUtils.CmdEnv, ZenExe.FullName, OplogImportCommandline.ToString(), Options: CommandUtils.ERunOptions.Default);
+			Logger.LogInformation("Running '{Arg0} {Arg1}'", CommandUtils.MakePathSafeToUseWithCommandLine(zenExe.FullName), oplogImportCommandline.ToString());
+			CommandUtils.RunAndLog(CommandUtils.CmdEnv, zenExe.FullName, oplogImportCommandline.ToString(), Options: CommandUtils.ERunOptions.Default);
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>

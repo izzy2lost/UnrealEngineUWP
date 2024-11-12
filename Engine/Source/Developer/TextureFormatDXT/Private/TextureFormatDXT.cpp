@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
+#include "Containers/SharedString.h"
 #include "Misc/ScopeLock.h"
 #include "Containers/IndirectArray.h"
 #include "Stats/Stats.h"
@@ -16,7 +16,6 @@
 #include "Async/ParallelFor.h"
 #include "TextureBuildFunction.h"
 #include "DerivedDataBuildFunctionFactory.h"
-#include "DerivedDataSharedString.h"
 #include "Misc/Paths.h"
 
 THIRD_PARTY_INCLUDES_START
@@ -27,9 +26,9 @@ DEFINE_LOG_CATEGORY_STATIC(LogTextureFormatDXT, Log, All);
 
 class FDXTTextureBuildFunction final : public FTextureBuildFunction
 {
-	const UE::DerivedData::FUtf8SharedString& GetName() const final
+	const UE::FUtf8SharedString& GetName() const final
 	{
-		static const UE::DerivedData::FUtf8SharedString Name(UTF8TEXTVIEW("DXTTexture"));
+		static const UE::FUtf8SharedString Name(UTF8TEXTVIEW("DXTTexture"));
 		return Name;
 	}
 
@@ -553,7 +552,7 @@ public:
 			// old behavior :
 			//OutCompressedImage.SizeX = FMath::Max(Image.SizeX, 4);
 			//OutCompressedImage.SizeY = FMath::Max(Image.SizeY, 4);
-			OutCompressedImage.SizeZ = (BuildSettings.bVolume || BuildSettings.bTextureArray) ? Image.NumSlices : 1;
+			OutCompressedImage.NumSlicesWithDepth = Image.NumSlices;
 			OutCompressedImage.PixelFormat = CompressedPixelFormat;
 		}
 		return bCompressionSucceeded;

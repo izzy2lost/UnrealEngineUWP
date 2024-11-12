@@ -78,7 +78,7 @@ UBlueprint* FPackedLevelActorBuilder::CreatePackedLevelActorBlueprintWithDialog(
 
 	if (!SaveObjectPath.IsEmpty())
 	{
-		TSoftObjectPtr<UBlueprint> ExistingBPAsset(SaveObjectPath);
+		TSoftObjectPtr<UBlueprint> ExistingBPAsset = TSoftObjectPtr<UBlueprint>(FSoftObjectPath(SaveObjectPath));
 
 		if (UBlueprint* BP = ExistingBPAsset.LoadSynchronous())
 		{
@@ -432,7 +432,7 @@ bool FPackedLevelActorBuilder::CreateOrUpdateBlueprintFromPacked(APackedLevelAct
 		const bool bCompile = false;
 
 		FString AssetPath = PackagePath + AssetName + "." + AssetName;
-		BP = CreatePackedLevelActorBlueprintWithDialog(TSoftObjectPtr<UBlueprint>(AssetPath), InActor->GetWorldAsset(), bCompile);
+		BP = CreatePackedLevelActorBlueprintWithDialog(TSoftObjectPtr<UBlueprint>(FSoftObjectPath(AssetPath)), InActor->GetWorldAsset(), bCompile);
 	}
 
 	if (!BP || !BP->SimpleConstructionScript)

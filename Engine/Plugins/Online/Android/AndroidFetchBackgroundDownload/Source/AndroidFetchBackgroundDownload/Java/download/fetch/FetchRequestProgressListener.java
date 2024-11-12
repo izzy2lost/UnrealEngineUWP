@@ -39,6 +39,11 @@ final class FetchRequestProgressListener implements FetchListener
 	{
 		Owner.OnDownloadQueued(download);
 	}
+
+	public void BroadcastDownloadStarted(@NonNull Download download)
+	{
+		Owner.OnDownloadStarted(download);
+	}
 	
 	public void BroadcastProgress(@NonNull Download download, boolean indeterminate)
 	{
@@ -90,6 +95,7 @@ final class FetchRequestProgressListener implements FetchListener
 	{
 		//Make sure to broadcast a change in pause state, because if we previously thought we were paused we aren't anymore!
 		Log.verbose("onStarted");
+		BroadcastDownloadStarted(download);
 		BroadcastChangePauseState(download, false);
 	}
 	

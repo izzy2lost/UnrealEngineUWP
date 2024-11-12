@@ -28,10 +28,6 @@
 			"Enabled": true
 		},
 		{
-			"Name": "MassEntity",
-			"Enabled": true
-		},
-		{
 			"Name": "MassGameplay",
 			"Enabled": true
 		},
@@ -41,10 +37,6 @@
 		},
 		{
 			"Name": "StateTree",
-			"Enabled": true
-		},
-		{
-			"Name": "StructUtils",
 			"Enabled": true
 		}
 	]

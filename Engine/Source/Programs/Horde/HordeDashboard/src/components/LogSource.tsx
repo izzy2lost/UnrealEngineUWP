@@ -3,11 +3,12 @@
 import { action, makeObservable, observable } from "mobx";
 import moment, { Moment } from 'moment-timezone';
 import backend from '../backend';
-import { AgentData, BatchData, EventSeverity, GetArtifactResponseV2, GetLogEventResponse, GetLogFileResponse, IssueData, LeaseData, LogData, NodeData, StepData, StreamData } from "../backend/Api";
+import { AgentData, BatchData, EventSeverity, GetArtifactResponse, GetJobsTabResponse, GetLogEventResponse, GetLogFileResponse, IssueData, LeaseData, LogData, StepData, StreamData } from "../backend/Api";
 import { getBatchSummaryMarkdown, getStepSummaryMarkdown, JobDetails } from "../backend/JobDetails";
 import { getLeaseElapsed, getStepPercent } from '../base/utilities/timeUtils';
 import { BreadcrumbItem } from './Breadcrumbs';
 import { LogItem } from './LogRender';
+import { AgentTelemetryHandler } from "./agents/AgentTelemetrySparkline";
 
 const stripNewlines = /(\r\n|\n|\r)/gm;
 
@@ -54,6 +55,10 @@ export abstract class LogSource {
    }
 
    get percentComplete(): number | undefined {
+      return undefined;
+   }
+
+   get agentTelemetry(): AgentTelemetryHandler | undefined {
       return undefined;
    }
 
@@ -243,6 +248,7 @@ export abstract class LogSource {
    @action
    setActive(active: boolean) {
       this.active = active;
+      this.agentTelemetry?.setActive(active);
    }
 
    @action
@@ -285,13 +291,13 @@ export abstract class LogSource {
       return new Promise<LogSource>(async (resolve, reject) => {
 
          let data: GetLogFileResponse | undefined;
-         
+
          try {
             data = await backend.getLogData(logId);
          } catch (reason) {
             reject(reason)
             return;
-         }         
+         }
 
          const value = Number(`0x${data.jobId}`);
 
@@ -311,8 +317,11 @@ export abstract class LogSource {
          }
 
          let line: number | undefined;
-         if (query.get("lineindex")) {
-            line = parseInt(query.get("lineindex")!);
+
+         if (query.get("lineIndex")) {
+            line = parseInt(query.get("lineIndex")!);
+         } else if (query.get("lineindex")) {
+            line = parseInt(query.get("lineindex")!) + 1;
          }
 
          source.startLine = line;
@@ -373,6 +382,7 @@ export class JobLogSource extends LogSource {
    clear() {
       super.clear();
       this.jobDetails.clear();
+      this.agentTelemetry?.stop()
    }
 
    get errors(): GetLogEventResponse[] {
@@ -386,7 +396,6 @@ export class JobLogSource extends LogSource {
    get events(): GetLogEventResponse[] {
       return this.jobDetails.events;
    }
-
 
    get issues(): IssueData[] {
       return this.jobDetails.issues;
@@ -411,11 +420,15 @@ export class JobLogSource extends LogSource {
 
    get percentComplete(): number | undefined {
 
-      if (this.step && this.node) {
+      if (this.step) {
          return getStepPercent(this.step);
       }
 
       return undefined;
+   }
+
+   get agentTelemetry(): AgentTelemetryHandler | undefined {
+      return this._agentTelemety;
    }
 
    getAgentId(): string {
@@ -432,7 +445,7 @@ export class JobLogSource extends LogSource {
    private async updateArtifacts() {
       const details = this.jobDetails;
 
-      if (!details.jobdata?.useArtifactsV2 || this.artifactsV2 !== undefined || !this.logData?.id || details.getLogActive(this.logData.id)) {
+      if (this.artifactsV2 !== undefined || !this.logData?.id || details.getLogActive(this.logData.id)) {
          return;
       }
 
@@ -498,16 +511,15 @@ export class JobLogSource extends LogSource {
 
       this.agentId = this.batch?.agentId ?? details.batchByStepId(this.step?.id!)?.agentId;
 
-      this.node = undefined;
-
       if (this.step) {
-         this.node = details.nodeByStepId(this.step.id);
          this.jobName = details.getStepName(this.step.id) ?? "Unknown Step Node";
       }
 
       if (this.batch) {
          this.jobName = `Batch-${this.batch.id}`;
       }
+
+      this.agentTelemetry?.set(this.agentId ?? "", new Date(this.startTime as any), this.step?.finishTime ? new Date(this.step.finishTime) : undefined);
 
    }
 
@@ -534,7 +546,6 @@ export class JobLogSource extends LogSource {
 
       const data = this.jobDetails.jobdata!;
 
-
       if (!this.stream) {
          return [];
       }
@@ -544,6 +555,16 @@ export class JobLogSource extends LogSource {
          projectName = "UE4";
       }
 
+      const tab = this.stream.tabs?.find((tab) => {
+         const jtab = tab as GetJobsTabResponse;
+         return !!jtab.templates?.find(t => t === data?.templateId);
+      });
+
+      let streamLink = `/stream/${this.stream.id}`;
+      if (tab) {
+         streamLink += `?tab=${tab.title}`;
+      }
+
       const crumbItems: BreadcrumbItem[] = [
          {
             text: projectName ?? "Unknown Project",
@@ -551,7 +572,7 @@ export class JobLogSource extends LogSource {
          },
          {
             text: this.stream.name,
-            link: `/stream/${this.stream.id}`
+            link: streamLink
          },
          {
             text: `${data?.name ?? ""} - ${this.clText}`,
@@ -588,9 +609,10 @@ export class JobLogSource extends LogSource {
    agentId?: string;
    batch?: BatchData;
    step?: StepData;
-   node?: NodeData;
 
-   artifactsV2?: GetArtifactResponseV2[];
+   artifactsV2?: GetArtifactResponse[];
+
+   _agentTelemety: AgentTelemetryHandler = new AgentTelemetryHandler();
 
    jobDetails: JobDetails = new JobDetails(undefined, undefined, undefined, true);
 }
@@ -632,7 +654,15 @@ class LeaseLogSource extends LogSource {
 
                this.lease = values[0];
 
-               this.agent = await backend.getAgent(this.lease.agentId!);
+               try {
+                  this.agent = await backend.getAgent(this.lease.agentId!);
+               } catch (reason) {
+                  this.agent = {
+                     id: "missing-agent",
+                     name: "Missing Agent"
+                  } as any;
+               }
+
 
                this.leaseUpdated();
                this.initComplete();

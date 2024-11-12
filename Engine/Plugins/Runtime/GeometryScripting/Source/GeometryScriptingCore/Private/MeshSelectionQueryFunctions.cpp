@@ -42,7 +42,16 @@ UDynamicMesh* UGeometryScriptLibrary_MeshSelectionQueryFunctions::GetMeshSelecti
 				Bounds.Contain(ReadMesh.GetVertex(VertexID));
 			});
 		}
-		else
+		else if (Selection.GetSelectionType() == EGeometryScriptMeshSelectionType::Edges)
+		{
+			Selection.ProcessByEdgeID(ReadMesh, [&Bounds, &ReadMesh](int32 EdgeID)
+			{
+				FIndex2i EdgeV = ReadMesh.GetEdgeV(EdgeID);
+				Bounds.Contain(ReadMesh.GetVertex(EdgeV.A));
+				Bounds.Contain(ReadMesh.GetVertex(EdgeV.B));
+			});
+		}
+		else // EGeometryScriptMeshSelectionType::Triangles or EGeometryScriptMeshSelectionType::Polygroups
 		{
 			Selection.ProcessByTriangleID(ReadMesh, [&](int32 TriangleID) {
 				Bounds.Contain(ReadMesh.GetTriBounds(TriangleID));
@@ -93,7 +102,8 @@ UDynamicMesh* UGeometryScriptLibrary_MeshSelectionQueryFunctions::GetMeshSelecti
 		// TODO: if #Triangles == Mesh.TriangleCount, use MeshBoundaryLoops
 
 		FMeshRegionBoundaryLoops Loops(&ReadMesh, Triangles, false);
-		bFoundErrors = Loops.Compute();
+		// Compute returns false if errors occurred
+		bFoundErrors = !Loops.Compute();
 		NumLoops = Loops.Num();
 		IndexLoops.Reserve(NumLoops);
 		PathLoops.Reserve(NumLoops);

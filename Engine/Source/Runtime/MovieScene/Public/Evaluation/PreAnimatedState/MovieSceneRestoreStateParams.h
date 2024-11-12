@@ -42,7 +42,7 @@ struct FRestoreStateParams
 	 * 2 completely different sequences animated the same object at the same time.
 	 * May be null in test harnesses
 	 */
-	MOVIESCENE_API TSharedPtr<const FSharedPlaybackState> GetTerminalPlaybackState() const;
+	MOVIESCENE_API TSharedPtr<FSharedPlaybackState> GetTerminalPlaybackState() const;
 };
 
 

@@ -37,7 +37,6 @@ namespace UE::MultiUserServer
 		FName TabId;
 		TSharedRef<FTabManager> OwningTabManager;
 		TSharedRef<FPackageTransmissionModel> TransmissionModel;
-		TSharedRef<FEndpointToUserNameCache> EndpointToUserNameCache;
 		
 		FCanScrollToLog CanScrollToLogDelegate;
 		FScrollToLog ScrollToLogDelegate;

@@ -39,7 +39,9 @@ public:
 
 	ENGINE_API void UpdateEditorInstanceActor();
 	ENGINE_API void OnEdit();
+	ENGINE_API void OnEditOverrides();
 	ENGINE_API void OnCommit();
+	ENGINE_API void OnCommitOverrides();
 
 	const FWorldPartitionActorFilter& GetFilter() const { return IsEditFilter() ? EditFilter : Filter; }
 	ENGINE_API void SetFilter(const FWorldPartitionActorFilter& InFilter, bool bNotify = true);
@@ -57,7 +59,7 @@ private:
 #endif
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Category = Filter, meta=(LevelInstanceFilter))
+	UPROPERTY(EditAnywhere, Category = Filter, meta=(LevelInstanceFilter, DisableLevelInstancePropertyOverride))
 	FWorldPartitionActorFilter Filter;
 
 	UPROPERTY(EditAnywhere, Transient, Category = Filter, meta=(LevelInstanceEditFilter))

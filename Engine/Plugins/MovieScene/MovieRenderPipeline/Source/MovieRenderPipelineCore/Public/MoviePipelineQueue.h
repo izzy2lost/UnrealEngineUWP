@@ -3,7 +3,6 @@
 
 #include "UObject/Object.h"
 #include "MovieRenderPipelineDataTypes.h"
-#include "LevelSequence.h"
 #include "MovieJobVariableAssignmentContainer.h"
 #include "MoviePipelinePrimaryConfig.h"
 #include "MoviePipelineShotConfig.h"
@@ -257,6 +256,12 @@ public:
 
 	/** Called when the graph preset assigned to the shot changes. */
 	FOnMoviePipelineShotGraphPresetChanged OnShotGraphPresetChanged;
+
+	/**
+	 * (Optional) Console variable overrides which are applied after cvars set via nodes. Only applies to graph-based configs.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Console Variable Overrides", meta = (DisplayName = "Console Variables", EditCondition="IsUsingGraphConfiguration()", EditConditionHides))
+	TArray<FMoviePipelineConsoleVariableEntry> ConsoleVariableOverrides;
 
 public:
 	/** Transient information used by the active Movie Pipeline working on this shot. */
@@ -593,6 +598,12 @@ public:
 	/** Called when the graph preset assigned to the job changes. */
 	FOnMoviePipelineJobGraphPresetChanged OnJobGraphPresetChanged;
 
+	/**
+	 * (Optional) Console variable overrides which are applied after cvars set via nodes. Only applies to graph-based configs.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Console Variable Overrides", meta = (DisplayName = "Console Variables", EditCondition="IsUsingGraphConfiguration()", EditConditionHides))
+	TArray<FMoviePipelineConsoleVariableEntry> ConsoleVariableOverrides;
+
 private:
 	UPROPERTY(Transient)
 	FString StatusMessage;
@@ -696,9 +707,10 @@ public:
 
 	/** 
 	* Replace the contents of this queue with a copy of the contents from another queue. 
+	* Returns a pointer to this queue if the copy was successful, else nullptr.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline|Queue")
-	void CopyFrom(UMoviePipelineQueue* InQueue);
+	UMoviePipelineQueue* CopyFrom(UMoviePipelineQueue* InQueue);
 	
 	/* Set the index of the given job */
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline|Queue")

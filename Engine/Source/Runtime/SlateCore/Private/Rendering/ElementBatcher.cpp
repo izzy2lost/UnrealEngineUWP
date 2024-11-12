@@ -27,7 +27,6 @@ DEFINE_STAT(STAT_SlateElements_Box);
 DEFINE_STAT(STAT_SlateElements_Border);
 DEFINE_STAT(STAT_SlateElements_Text);
 DEFINE_STAT(STAT_SlateElements_ShapedText);
-DEFINE_STAT(STAT_SlateElements_ShapedTextSdf);
 DEFINE_STAT(STAT_SlateElements_Line);
 DEFINE_STAT(STAT_SlateElements_Other);
 DEFINE_STAT(STAT_SlateInvalidation_RecachedElements);
@@ -51,24 +50,6 @@ FSlateElementBatch::FSlateElementBatch(TWeakPtr<ICustomSlateElement, ESPMode::Th
 	, VertexArrayIndex(INDEX_NONE)
 	, IndexArrayIndex(INDEX_NONE)
 {
-}
-
-void FSlateElementBatch::SaveClippingState(const TArray<FSlateClippingState>& PrecachedClipStates)
-{
-	/*// Do cached first
-	if (BatchKey.ClipStateHandle.GetCachedClipState().IsSet())
-	{
-		const TSharedPtr<FSlateClippingState>& CachedState = BatchKey.ClipStateHandle.GetCachedClipState().GetValue();
-		if (CachedState.IsValid())
-		{
-			ClippingState = *CachedState;
-		}
-	}
-	else if (PrecachedClipStates.IsValidIndex(BatchKey.ClipStateHandle.GetPrecachedClipIndex()))
-	{
-		// Store the clipping state so we can use it later for rendering.
-		ClippingState = PrecachedClipStates[BatchKey.ClipStateHandle.GetPrecachedClipIndex()];
-	}*/
 }
 
 FSlateBatchData::FSlateBatchData()
@@ -107,36 +88,6 @@ bool FSlateBatchData::IsStencilClippingRequired() const
 FSlateRenderBatch& FSlateBatchData::AddRenderBatch(int32 InLayer, const FShaderParams& InShaderParams, const FSlateShaderResource* InResource, ESlateDrawPrimitive InPrimitiveType, ESlateShader InShaderType, ESlateDrawEffect InDrawEffects, ESlateBatchDrawFlag InDrawFlags, int8 SceneIndex)
 {
 	return RenderBatches.Emplace_GetRef(InLayer, InShaderParams, InResource, InPrimitiveType, InShaderType, InDrawEffects, InDrawFlags, SceneIndex, &UncachedSourceBatchVertices, &UncachedSourceBatchIndices, UncachedSourceBatchVertices.Num(), UncachedSourceBatchIndices.Num());
-}
-
-void FSlateBatchData::AddCachedBatches(const TSparseArray<FSlateRenderBatch>& InCachedBatches)
-{
-	RenderBatches.Reserve(RenderBatches.Num() + InCachedBatches.Num());
-
-	for (const FSlateRenderBatch& CachedBatch : InCachedBatches)
-	{
-		RenderBatches.Add(CachedBatch);
-	}
-}
-
-void FSlateBatchData::AddCachedBatchesToBatchData(FSlateBatchData* BatchDataSDR, FSlateBatchData* BatchDataHDR, const TSparseArray<FSlateRenderBatch>& InCachedBatches)
-{
-	TArray<FSlateRenderBatch>& RenderBatchesSDR = BatchDataSDR->RenderBatches;
-	TArray<FSlateRenderBatch>& RenderBatchesHDR = BatchDataHDR->RenderBatches;
-
-	RenderBatchesSDR.Reserve(RenderBatchesSDR.Num() + InCachedBatches.Num());
-	RenderBatchesHDR.Reserve(RenderBatchesHDR.Num() + InCachedBatches.Num());
-	for (const FSlateRenderBatch& CachedBatch : InCachedBatches)
-	{
-		if (EnumHasAnyFlags(CachedBatch.GetDrawFlags(), ESlateBatchDrawFlag::HDR))
-		{
-			RenderBatchesHDR.Add(CachedBatch);
-		}
-		else
-		{
-			RenderBatchesSDR.Add(CachedBatch);
-		}
-	}
 }
 
 void FSlateBatchData::FillBuffersFromNewBatch(FSlateRenderBatch& Batch, FSlateVertexArray& FinalVertices, FSlateIndexArray& FinalIndices)
@@ -189,7 +140,7 @@ void FSlateBatchData::CombineBatches(FSlateRenderBatch& FirstBatch, FSlateRender
 
 void FSlateBatchData::MergeRenderBatches()
 {
-	SCOPE_CYCLE_COUNTER(STAT_SlateRTCreateBatches);
+	SCOPED_NAMED_EVENT_TEXT("Slate::MergeRenderBatches", FColor::Magenta);
 
 	if(RenderBatches.Num())
 	{
@@ -215,7 +166,6 @@ void FSlateBatchData::MergeRenderBatches()
 				}
 			);
 		}
-
 
 		NumBatches = 0;
 		NumLayers = 0;
@@ -289,6 +239,9 @@ void FSlateBatchData::MergeRenderBatches()
 #endif
 			PrevBatch = &CurBatch;
 		}
+
+		MaxNumFinalVertices = FMath::Max(MaxNumFinalVertices, FinalVertexData.Num());
+		MaxNumFinalIndices = FMath::Max(MaxNumFinalVertices, FinalIndexData.Num());
 	}
 }
 
@@ -325,7 +278,6 @@ void FSlateElementBatcher::AddElements(FSlateWindowElementList& WindowElementLis
 	ElementStat_Borders = 0;
 	ElementStat_Text = 0;
 	ElementStat_ShapedText = 0;
-	ElementStat_ShapedTextSdf = 0;
 	ElementStat_Line = 0;
 	ElementStat_RecachedElements = 0;
 #endif
@@ -358,6 +310,8 @@ void FSlateElementBatcher::AddElements(FSlateWindowElementList& WindowElementLis
 		}
 	}
 
+	WindowElementList.StartMergeRenderBatches();
+
 	// Done with the element list
 	BatchData = nullptr;
 	BatchDataHDR = nullptr;
@@ -369,7 +323,6 @@ void FSlateElementBatcher::AddElements(FSlateWindowElementList& WindowElementLis
 		ElementStat_Borders +
 		ElementStat_Text +
 		ElementStat_ShapedText +
-		ElementStat_ShapedTextSdf +
 		ElementStat_Line +
 		ElementStat_Other;
 
@@ -378,7 +331,6 @@ void FSlateElementBatcher::AddElements(FSlateWindowElementList& WindowElementLis
 	INC_DWORD_STAT_BY(STAT_SlateElements_Border, ElementStat_Borders);
 	INC_DWORD_STAT_BY(STAT_SlateElements_Text, ElementStat_Text);
 	INC_DWORD_STAT_BY(STAT_SlateElements_ShapedText, ElementStat_ShapedText);
-	INC_DWORD_STAT_BY(STAT_SlateElements_ShapedTextSdf, ElementStat_ShapedTextSdf);
 	INC_DWORD_STAT_BY(STAT_SlateElements_Line, ElementStat_Line);
 	INC_DWORD_STAT_BY(STAT_SlateElements_Other, ElementStat_Other);
 	INC_DWORD_STAT_BY(STAT_SlateInvalidation_RecachedElements, ElementStat_RecachedElements);
@@ -432,8 +384,7 @@ void FSlateElementBatcher::AddElementsInternal(const FSlateDrawElementMap& DrawE
 		// ElementStat_ShapedText/Sdf incremented in AddShapedTextElement
 		for (const FSlateShapedTextElement& DrawElement : ShapedTextElements)
 		{
-			bool bSdfFont = DrawElement.GetShapedGlyphSequence() && DrawElement.GetShapedGlyphSequence()->IsSdfFont();
-			DrawElement.IsPixelSnapped() && !bSdfFont ? AddShapedTextElement<ESlateVertexRounding::Enabled>(DrawElement) : AddShapedTextElement<ESlateVertexRounding::Disabled>(DrawElement);
+			DrawElement.IsPixelSnapped() ? AddShapedTextElement<ESlateVertexRounding::Enabled>(DrawElement) : AddShapedTextElement<ESlateVertexRounding::Disabled>(DrawElement);
 		}
 	}
 
@@ -567,21 +518,36 @@ void FSlateElementBatcher::AddCachedElements(FSlateCachedElementData& CachedElem
 	}
 	CachedElementData.ListsWithNewData.Empty();
 
+	// Add the existing and new cached batches.
 	const TSparseArray<FSlateRenderBatch>& CachedBatches = CachedElementData.GetCachedBatches();
-	if (!CachedBatches.IsEmpty())
+	TArray<FSlateRenderBatch>& RenderBatchesSDR = BatchData->RenderBatches;
+	TArray<FSlateRenderBatch>& RenderBatchesHDR = BatchDataHDR->RenderBatches;
+
+	ESlatePostRT CachedPostBuffers = ESlatePostRT::None;
+	auto AddBatch = [&](const FSlateRenderBatch& CachedBatch)
 	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_UpdateUsedSlatePostBuffers);
-		for (const FSlateRenderBatch& CachedBatch : CachedElementData.GetCachedBatches())
+		if (EnumHasAnyFlags(CachedBatch.GetDrawFlags(), ESlateBatchDrawFlag::HDR))
 		{
-			if (const FSlateShaderResource* ShaderResource = CachedBatch.GetShaderResource())
-			{
-				UsedSlatePostBuffers |= ShaderResource->GetUsedSlatePostBuffers();
-			}
+			RenderBatchesHDR.Add(CachedBatch);
 		}
+		else
+		{
+			RenderBatchesSDR.Add(CachedBatch);
+		}
+		
+		CachedPostBuffers |= CachedBatch.CachedUsedPostBuffers;
+	};
+
+	RenderBatchesSDR.Reserve(RenderBatchesSDR.Num() + CachedBatches.Num());
+	RenderBatchesHDR.Reserve(RenderBatchesHDR.Num() + CachedBatches.Num());
+
+	for (const FSlateRenderBatch& CachedBatch : CachedBatches)
+	{
+		AddBatch(CachedBatch);
 	}
 
-	// Add the existing and new cached batches.
-	FSlateBatchData::AddCachedBatchesToBatchData(BatchData, BatchDataHDR, CachedElementData.GetCachedBatches());
+	UsedSlatePostBuffers |= CachedPostBuffers;
+
 	CachedElementData.CleanupUnusedClipStates();
 
 #if SLATE_CSV_TRACKER
@@ -777,7 +743,7 @@ void FSlateElementBatcher::AddBoxElements(const FSlateDrawElementArray<ElementTy
 		// Add Shader Parameters for extra RoundedBox parameters
 		ESlateShader ShaderType = ESlateShader::Default;
 		FShaderParams ShaderParams;
-		FColor SecondaryColor;
+		FColor SecondaryColor = FColor::Black;
 		if constexpr (std::is_same<ElementType, FSlateRoundedBoxElement>::value)
 		{
 			ShaderType = ESlateShader::RoundedBox;
@@ -1266,17 +1232,6 @@ void FSlateElementBatcher::AddTextElement(const FSlateTextElement& DrawElement)
 	FSlateFontCache& FontCache = *RenderingPolicy->GetFontCache();
 	FSlateShaderResourceManager& ResourceManager = *RenderingPolicy->GetResourceManager();
 
-	const UObject* BaseFontMaterial = DrawElement.GetFontInfo().FontMaterial;
-	const UObject* OutlineFontMaterial = OutlineSettings.OutlineMaterial;
-
-#if SLATE_CHECK_UOBJECT_RENDER_RESOURCES
-	SlateElementBatcher::CheckUObject(DrawElement, BaseFontMaterial);
-	SlateElementBatcher::CheckUObject(DrawElement, OutlineFontMaterial);
-#endif
-
-	bool bOutlineFont = OutlineSettings.OutlineSize > 0;
-	const int32 OutlineSize = OutlineSettings.OutlineSize;
-
 	auto BuildFontGeometry = [&](const FFontOutlineSettings& InOutlineSettings, const FColor& InTint, const UObject* FontMaterial, int32 InLayer, float InOutlineHorizontalOffset)
 	{
 		FCharacterList& CharacterList = FontCache.GetCharacterList(DrawElement.GetFontInfo(), FontScale, InOutlineSettings);
@@ -1376,7 +1331,9 @@ void FSlateElementBatcher::AddTextElement(const FSlateTextElement& DrawElement)
 							ShaderType = ESlateShader::ColorFont;
 							break;
 						case ESlateFontAtlasContentType::Msdf:
-							check(IsSlateSdfTextFeatureEnabled());
+							// SDF / MSDF not supported here because we don't have SDF attributes available
+							checkNoEntry();
+							// Still use SDF shader to prevent raw MSDF texture from showing
 							ShaderType = !bEnableOutline || InOutlineSettings.bMiteredCorners ? ESlateShader::MsdfFont : ESlateShader::SdfFont;
 							break;
 						default:
@@ -1508,10 +1465,19 @@ void FSlateElementBatcher::AddTextElement(const FSlateTextElement& DrawElement)
 		}
 	};
 
+	const UObject* BaseFontMaterial = DrawElement.GetFontInfo().FontMaterial;
+	const UObject* OutlineFontMaterial = OutlineSettings.OutlineMaterial;
+
+#if SLATE_CHECK_UOBJECT_RENDER_RESOURCES
+	SlateElementBatcher::CheckUObject(DrawElement, BaseFontMaterial);
+	SlateElementBatcher::CheckUObject(DrawElement, OutlineFontMaterial);
+#endif
+
+	const bool bOutlineFont = OutlineSettings.OutlineSize > 0;
 	if (bOutlineFont)
 	{
 		//The fill area was measured without an outline so it must be shifted by the scaled outline size
-		const float HorizontalOffset = FMath::RoundToFloat((float)OutlineSize * FontScale);
+		const float HorizontalOffset = FMath::RoundToFloat((float)OutlineSettings.OutlineSize * FontScale);
 
 		// Build geometry for the outline
 		BuildFontGeometry(OutlineSettings, PackVertexColor(OutlineSettings.OutlineColor), OutlineFontMaterial, Layer, HorizontalOffset);
@@ -1567,7 +1533,6 @@ void FSlateElementBatcher::AddShapedTextElement( const FSlateShapedTextElement& 
 	checkSlow(ShapedGlyphSequence);
 
 	const FFontOutlineSettings& OutlineSettings = ShapedGlyphSequence->GetFontOutlineSettings();
-	const bool bSdfFont = ShapedGlyphSequence->IsSdfFont();
 
 	ensure(ShapedGlyphSequence->GetGlyphsToRender().Num() > 0);
 
@@ -1607,13 +1572,7 @@ void FSlateElementBatcher::AddShapedTextElement( const FSlateShapedTextElement& 
 	const FSlateRenderTransform RenderTransform = Concatenate(Inverse(FontScale), DrawElement.GetRenderTransform());
 	BuildContext.RenderTransform = &RenderTransform;
 
-	const UObject* BaseFontMaterial = ShapedGlyphSequence->GetFontMaterial();
-	const UObject* OutlineFontMaterial = OutlineSettings.OutlineMaterial;
-
-	bool bOutlineFont = OutlineSettings.OutlineSize > 0;
-	const int32 OutlineSize = OutlineSettings.OutlineSize;
-
-	auto BuildFontGeometry = [&](const FFontOutlineSettings& InOutlineSettings, const FColor& InTint, const UObject* FontMaterial, int32 InLayer, float InHorizontalOffset)
+	auto BuildFontGeometry = [&](const FFontOutlineSettings& InOutlineSettings, const FColor& InTint, const UObject* FontMaterial, int32 InLayer, float InHorizontalOffset, int32 MaxGlyphCountToRender = -1) -> int32
 	{
 		FVector2f TopLeft(0, 0);
 
@@ -1621,7 +1580,6 @@ void FSlateElementBatcher::AddShapedTextElement( const FSlateShapedTextElement& 
 		float PosY = TopLeft.Y;
 
 		BuildContext.FontMaterial = FontMaterial;
-		BuildContext.OutlineFontMaterial = OutlineFontMaterial;
 	
 		BuildContext.OutlineSettings = &InOutlineSettings;
 		BuildContext.StartLineX = PosX;
@@ -1629,13 +1587,13 @@ void FSlateElementBatcher::AddShapedTextElement( const FSlateShapedTextElement& 
 		BuildContext.LayerId = InLayer;
 		BuildContext.FontTint = InTint;
 
-		BuildContext.bEnableOutline = InOutlineSettings.OutlineSize > 0;
-
 		// Optimize by culling
 		// Todo: this doesn't work with cached clipping
 		BuildContext.bEnableCulling = false;
 		BuildContext.bForceEllipsis = DrawElement.OverflowArgs.bIsLastVisibleBlock && DrawElement.OverflowArgs.bIsNextBlockClipped;
 		BuildContext.OverflowDirection = DrawElement.OverflowArgs.OverflowDirection;
+		BuildContext.OverflowPolicy = DrawElement.OverflowArgs.OverflowPolicy;
+		BuildContext.MaxGlyphCountToRender = MaxGlyphCountToRender;
 
 		if (ShapedGlyphSequence->GetGlyphsToRender().Num() > 200 || (OverflowGlyphSequence && BuildContext.OverflowDirection != ETextOverflowDirection::NoOverflow))
 		{
@@ -1655,7 +1613,8 @@ void FSlateElementBatcher::AddShapedTextElement( const FSlateShapedTextElement& 
 				// In checks below, ignore floating-point differences caused by transforming and untransforming the clip rect
 				const bool NeedLeftEllipsis = FMath::FloorToInt(BuildContext.LocalClipBoundingBoxLeft) > 0 && BuildContext.OverflowDirection == ETextOverflowDirection::RightToLeft;
 				const bool NeedRightEllipsis = ShapedGlyphSequence->GetMeasuredWidth() > FMath::CeilToInt(BuildContext.LocalClipBoundingBoxRight) && BuildContext.OverflowDirection == ETextOverflowDirection::LeftToRight;
-				if (!NeedLeftEllipsis && !NeedRightEllipsis && !DrawElement.OverflowArgs.bIsNextBlockClipped)
+				const bool NeedMiddleEllipsis = BuildContext.OverflowPolicy == ETextOverflowPolicy::MiddleEllipsis && (FMath::FloorToInt(BuildContext.LocalClipBoundingBoxLeft) > 0 || ShapedGlyphSequence->GetMeasuredWidth() > FMath::CeilToInt(BuildContext.LocalClipBoundingBoxRight));
+				if (!NeedLeftEllipsis && !NeedRightEllipsis && !NeedMiddleEllipsis && !DrawElement.OverflowArgs.bIsNextBlockClipped)
 				{
 					BuildContext.OverflowDirection = ETextOverflowDirection::NoOverflow;
 				}
@@ -1671,20 +1630,25 @@ void FSlateElementBatcher::AddShapedTextElement( const FSlateShapedTextElement& 
 			}
 		}
 
-		BuildShapedTextSequence<Rounding>(BuildContext);
+		return BuildShapedTextSequence<Rounding>(BuildContext);
 	};
 
-	STAT((bSdfFont ? ElementStat_ShapedTextSdf : ElementStat_ShapedText)++);
+	STAT(ElementStat_ShapedText++);
 
+	const UObject* BaseFontMaterial = ShapedGlyphSequence->GetFontMaterial();
+	const bool bOutlineFont = OutlineSettings.OutlineSize > 0;
 	if (bOutlineFont)
 	{
-		//The fill area was measured without an outline so it must be shifted by the scaled outline size
-		const float HorizontalOffset = FMath::RoundToFloat((float)OutlineSize * FontScale);
+		//The fill area was measured without an outline so it must be shifted by the scaled outline size.
+		//The bounding box of the text is bigger than a standard one, due to the outline (we add the scaled outline size * 2), 
+		//so the horizontal offset ensure that the outline won't bleed outside of the box and will be correctly positioned inside the box.
+		const float HorizontalOffset = FMath::RoundToFloat((float)OutlineSettings.OutlineSize * FontScale);
+		const UObject* OutlineFontMaterial = OutlineSettings.OutlineMaterial;
 
 		// Build geometry for the outline
-		BuildFontGeometry(OutlineSettings, PackVertexColor(DrawElement.GetOutlineTint()), OutlineFontMaterial, Layer, HorizontalOffset);
+		const int32 GlyphsRendered = BuildFontGeometry(OutlineSettings, PackVertexColor(DrawElement.GetOutlineTint()), OutlineFontMaterial, Layer, HorizontalOffset);
 		// Build geometry for the base font which is always rendered on top of the outline 
-		BuildFontGeometry(FFontOutlineSettings::NoOutline, BaseTint, BaseFontMaterial, Layer+1, HorizontalOffset);
+		BuildFontGeometry(FFontOutlineSettings::NoOutline, BaseTint, BaseFontMaterial, Layer+1, HorizontalOffset, GlyphsRendered);
 	}
 	else
 	{
@@ -2169,14 +2133,20 @@ struct FLineBuilder
 	 * @param FilterRadius		Antialiasing filter radius in screenspace pixels.
 	 * @param AngleCosineLimit	Miter Angle Limit after being passed through AngleCosine.
 	 */
-	FLineBuilder(FSlateRenderBatch& InRenderBatch, const FSlateRenderTransform& InRenderTransform, float ElementScale, float HalfThickness, float FilterRadius, float MiterAngleLimit) :
+	FLineBuilder(FSlateRenderBatch& InRenderBatch, const FSlateRenderTransform& InRenderTransform, float ElementScale, float HalfThickness, float FilterRadius, float MiterAngleLimit, float InDashLength, float InDashOffset) :
 		RenderBatch(InRenderBatch),
 		RenderTransform(InRenderTransform),
 		LocalHalfThickness((HalfThickness + FilterRadius) / ElementScale),
 		LocalFilterRadius(FilterRadius / ElementScale),
 		LocalCapLength((FilterRadius / ElementScale) * 2.0f),
-		AngleCosineLimit(FMath::DegreesToRadians((180.0f - MiterAngleLimit) * 0.5f))
+		AngleCosineLimit(FMath::DegreesToRadians((180.0f - MiterAngleLimit) * 0.5f)),
+		DashLength(InDashLength),
+		DashOffset(InDashOffset)
 	{
+		if (DashLength < 1.f)
+		{
+			DashLength = SolidLineDashLength;
+		}
 	}
 
 	/**
@@ -2184,6 +2154,8 @@ struct FLineBuilder
 	 */
 	void NumElements(const TArray<FVector2f>& Points, uint32& OutNumVertex, uint32& OutNumIndex)
 	{
+		const bool bIsDashed = DashLength != SolidLineDashLength;
+
 		FVector2f Position = Points[0];
 		FVector2f NextPosition = Points[1];
 
@@ -2221,7 +2193,7 @@ struct FLineBuilder
 				DirDotMiterNormal >= AngleCosineLimit &&
 				(MinSegmentLength * 0.5f * DirDotMiterNormal) >= FMath::Abs(DistanceToMiterLine))
 			{
-				OutNumVertex += 2;
+				OutNumVertex += bIsDashed ? 4 : 2;
 				OutNumIndex += 6;
 			}
 			else
@@ -2246,8 +2218,10 @@ struct FLineBuilder
 	 * edge is kept parallel to the opposite side. Not doing so would result in the
 	 * UVs shearing apart at the diagonal where the two triangles meet.
 	 */
-	void BuildLineGeometry(const TArray<FVector2f>& Points, const TArray<FColor>& PackedColors, const FColor& PackedTint, ESlateVertexRounding Rounding) const
+	void BuildLineGeometry(const TArray<FVector2f>& Points, const TArray<FColor>& PackedColors, const FColor& PackedTint, ESlateVertexRounding Rounding)
 	{
+		const bool bIsDashed = DashLength != SolidLineDashLength;
+
 		FColor PointColor = PackedColors.Num() ? PackedColors[0] : PackedTint;
 		FVector2f Position = Points[0];
 		FVector2f NextPosition = Points[1];
@@ -2257,8 +2231,15 @@ struct FLineBuilder
 		(NextPosition - Position).ToDirectionAndLength(Direction, Length);
 		FVector2f Up = GetRotated90(Direction) * LocalHalfThickness;
 
+		// Start the position along the line with the user-provided dash offset.
+		//    This allows users to 'anchor' the dashes in screen space based on some external virtual position
+		PositionAlongLine = DashOffset;
+
 		// Build the start cap at the first point
 		MakeStartCap(Position, Direction, Length, Up, PointColor, Rounding);
+
+		// Increase the position for the next point
+		PositionAlongLine += Length;
 
 		// @TODO: Since the vertex - index relationship is not homogenous whenever 
 		// a miter angle break occurs we cannot pre-allocate indicies here
@@ -2269,6 +2250,7 @@ struct FLineBuilder
 		for (int32 Point = 1; Point < LastPointIndex; ++Point)
 		{
 			const FVector2f LastDirection = Direction;
+			const FVector2f LastPosition = Position;
 			const FVector2f LastUp = Up;
 			const float LastLength = Length;
 
@@ -2298,9 +2280,16 @@ struct FLineBuilder
 				const float ParallelDistance = DistanceToMiterLine / DirDotMiterNormal;
 				const FVector2f MiterUp = Up - (Direction * ParallelDistance);
 
-				RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + MiterUp), FVector2f(1.0f, 0.0f), PointColor, {}, Rounding));
-				RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position - MiterUp), FVector2f(-1.0f, 0.0f), PointColor, {}, Rounding));
+				const float MiterOffset = FVector2f::DotProduct(Direction, MiterUp);
+				RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + MiterUp), FVector2f(1.0f, 0.0f), FVector2f(PositionAlongLine-MiterOffset, DashLength), PointColor, {}, Rounding));
+				RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position - MiterUp), FVector2f(-1.0f, 0.0f), FVector2f(PositionAlongLine+MiterOffset, DashLength), PointColor, {}, Rounding));
 				AddQuadIndices(RenderBatch);
+
+				if (bIsDashed)
+				{
+					RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + MiterUp), FVector2f(1.0f, 0.0f), FVector2f(PositionAlongLine+MiterOffset, DashLength), PointColor, {}, Rounding));
+					RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position - MiterUp), FVector2f(-1.0f, 0.0f), FVector2f(PositionAlongLine-MiterOffset, DashLength), PointColor, {}, Rounding));
+				}
 			}
 			else
 			{
@@ -2308,6 +2297,8 @@ struct FLineBuilder
 				MakeEndCap(Position, LastDirection, LastLength, LastUp, PointColor, Rounding);
 				MakeStartCap(Position, Direction, Length, Up, PointColor, Rounding);
 			}
+
+			PositionAlongLine += Length;
 		}
 
 		// Build the last point's incoming segment and end cap
@@ -2386,13 +2377,14 @@ private:
 			// Center the cap over Position if possible, but never place
 			// vertices on the far side of this segment's midpoint
 			const float InwardDistance = FMath::Min(LocalFilterRadius, SegmentLength * 0.5f);
+			const float OutwardDistance = (InwardDistance - LocalCapLength);
 			const FVector2f CapInward = Direction * InwardDistance;
-			const FVector2f CapOutward = Direction * (InwardDistance - LocalCapLength);
+			const FVector2f CapOutward = Direction * OutwardDistance;
 
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward + Up), FVector2f(1.0f, -1.0f), Color, {}, Rounding));
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward - Up), FVector2f(-1.0f, -1.0f), Color, {}, Rounding));
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward + Up), FVector2f(1.0f, 0.0f), Color, {}, Rounding));
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward - Up), FVector2f(-1.0f, 0.0f), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward + Up), FVector2f(1.0f, -1.0f), FVector2f(PositionAlongLine + OutwardDistance, DashLength), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward - Up), FVector2f(-1.0f, -1.0f), FVector2f(PositionAlongLine + OutwardDistance, DashLength), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward + Up), FVector2f(1.0f, 0.0f), FVector2f(PositionAlongLine + InwardDistance, DashLength), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward - Up), FVector2f(-1.0f, 0.0f), FVector2f(PositionAlongLine + InwardDistance, DashLength), Color, {}, Rounding));
 			AddQuadIndices(RenderBatch);
 		}
 	}
@@ -2416,15 +2408,16 @@ private:
 			// Center the cap over Position if possible, but never place
 			// vertices on the far side of this segment's midpoint
 			const float InwardDistance = FMath::Min(LocalFilterRadius, SegmentLength * 0.5f);
+			const float OutwardDistance = (InwardDistance - LocalCapLength);
 			const FVector2f CapInward = Direction * -InwardDistance;
-			const FVector2f CapOutward = Direction * (LocalCapLength - InwardDistance);
+			const FVector2f CapOutward = Direction * OutwardDistance;
 
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward + Up), FVector2f(1.0f, 0.0f), Color, {}, Rounding));
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward - Up), FVector2f(-1.0f, 0.0f), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward + Up), FVector2f(1.0f, 0.0f), FVector2f(PositionAlongLine - InwardDistance, DashLength), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward - Up), FVector2f(-1.0f, 0.0f), FVector2f(PositionAlongLine - InwardDistance, DashLength), Color, {}, Rounding));
 			AddQuadIndices(RenderBatch);
 
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward + Up), FVector2f(1.0f, 1.0f), Color, {}, Rounding));
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward - Up), FVector2f(-1.0f, 1.0f), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward + Up), FVector2f(1.0f, 1.0f), FVector2f(PositionAlongLine + OutwardDistance, DashLength), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward - Up), FVector2f(-1.0f, 1.0f), FVector2f(PositionAlongLine + OutwardDistance, DashLength), Color, {}, Rounding));
 			AddQuadIndices(RenderBatch);
 		}
 	}
@@ -2450,6 +2443,10 @@ private:
 		return GetRotated90(InboundSegmentDir);
 	}
 
+	// A dashlength of -10 forces results in a computation of 1.f for the entire line in the pixel shader
+	// by feeding it an 'inside-out' trangle wave that modulates between +10 and +30
+	static constexpr float SolidLineDashLength = -10.f;
+
 	FSlateRenderBatch& RenderBatch;
 	const FSlateRenderTransform& RenderTransform;
 
@@ -2457,6 +2454,9 @@ private:
 	const float LocalFilterRadius;
 	const float LocalCapLength;
 	const float AngleCosineLimit;
+	float DashLength = SolidLineDashLength; // Default to no dash
+	float DashOffset = 0.f;
+	float PositionAlongLine = 0.f;
 };
 
 
@@ -2505,7 +2505,9 @@ void FSlateElementBatcher::AddLineElements( const FSlateDrawElementArray<FSlateL
 				DrawElement.GetScale(),
 				HalfThickness,
 				FilterRadius,
-				MiterAngleLimit);
+				MiterAngleLimit,
+				DrawElement.DashLength,
+				DrawElement.DashOffset);
 
 			LineBuilder.BuildLineGeometry(Points, PackedColors, PackedTint, Rounding);
 		}
@@ -2643,7 +2645,9 @@ void FSlateElementBatcher::AddLineElements( const FSlateDrawElementArray<FSlateL
 					DrawElement.GetScale(),
 					HalfThickness,
 					FilterRadius,
-					MiterAngleLimit);
+					MiterAngleLimit,
+					DrawElement.DashLength,
+					DrawElement.DashOffset);
 
 				LineBuilder.NumElements(Points, NumVertexes, NumIndices);
 			}
@@ -2995,10 +2999,13 @@ void FSlateElementBatcher::AddCustomElement( const FSlateCustomDrawerElement& Dr
 {
 	const int32 Layer = DrawElement.GetLayer();
 
-	FSlateRenderBatch& RenderBatch = CreateRenderBatch(Layer, FShaderParams(), nullptr, ESlateDrawPrimitive::None, ESlateShader::Default, ESlateDrawEffect::None, ESlateBatchDrawFlag::None, DrawElement);
-	RenderBatch.CustomDrawer = DrawElement.CustomDrawer.Pin().Get();
-	RenderBatch.bIsMergable = false;
-	RenderBatch.CustomDrawer->PostCustomElementAdded(*this);
+	if (TSharedPtr<ICustomSlateElement> CustomDrawerPinned = DrawElement.CustomDrawer.Pin())
+	{
+		FSlateRenderBatch& RenderBatch = CreateRenderBatch(Layer, FShaderParams(), nullptr, ESlateDrawPrimitive::None, ESlateShader::Default, ESlateDrawEffect::None, ESlateBatchDrawFlag::None, DrawElement);
+		RenderBatch.CustomDrawer = CustomDrawerPinned.Get();
+		RenderBatch.bIsMergable = false;
+		RenderBatch.CustomDrawer->PostCustomElementAdded(*this);
+	}
 }
 
 void FSlateElementBatcher::AddCustomVerts(const FSlateCustomVertsElement& DrawElement)
@@ -3026,50 +3033,6 @@ void FSlateElementBatcher::AddCustomVerts(const FSlateCustomVertsElement& DrawEl
 		RenderBatch.AddIndices(DrawElement.Indices);
 
 	}
-	/*FElementBatchMap& LayerToElementBatches = CurrentDrawLayer->GetElementBatchMap();
-
-	const FSlateCustomVertsPayload& InPayload = DrawElement.GetDataPayload<FSlateCustomVertsPayload>();
-	uint32 Layer = DrawElement.GetAbsoluteLayer();
-
-	if (InPayload.Vertices.Num() >0)
-	{
-		// See if the layer already exists.
-		TUniqueObj<FElementBatchArray>* ElementBatches = LayerToElementBatches.Find(Layer);
-		if (!ElementBatches)
-		{
-			// The layer doesn't exist so make it now
-			ElementBatches = &LayerToElementBatches.Add( Layer );
-		}
-		check(ElementBatches);
-
-		FSlateElementBatch NewBatch(
-			InPayload.ResourceProxy != nullptr ? InPayload.ResourceProxy->Resource : nullptr,
-			FShaderParams(),
-			ESlateShader::Custom,
-			ESlateDrawPrimitive::TriangleList,
-			DrawElement.GetDrawEffects(),
-			DrawElement.GetBatchFlags(),
-			DrawElement,
-			InPayload.NumInstances,
-			InPayload.InstanceOffset,
-			InPayload.InstanceData
-		);
-
-		NewBatch.SaveClippingState(*PrecachedClippingStates);
-
-		int32 Index = (*ElementBatches)->Add(NewBatch);
-		FSlateElementBatch* ElementBatch = &(**ElementBatches)[Index];
-
-		BatchData->AssignVertexArrayToBatch(*ElementBatch);
-		BatchData->AssignIndexArrayToBatch(*ElementBatch);
-
-		FSlateVertexArray& BatchVertices = BatchData->GetBatchVertexList(*ElementBatch);
-		FSlateIndexArray& BatchIndices = BatchData->GetBatchIndexList(*ElementBatch);
-
-		// Vertex Buffer since  it is already in slate format it is a straight copy
-		BatchVertices = InPayload.Vertices;
-		BatchIndices = InPayload.Indices;
-	}*/
 }
 
 void FSlateElementBatcher::AddPostProcessPass(const FSlatePostProcessElement& DrawElement, FVector2f WindowSize)
@@ -3131,7 +3094,8 @@ FSlateRenderBatch& FSlateElementBatcher::CreateRenderBatch(
 
 	if (InResource)
 	{
-		UsedSlatePostBuffers |= InResource->GetUsedSlatePostBuffers();
+		NewBatch.CachedUsedPostBuffers = InResource->GetUsedSlatePostBuffers();
+		UsedSlatePostBuffers |= NewBatch.CachedUsedPostBuffers;
 	}
 
 	return NewBatch;
@@ -3156,7 +3120,8 @@ FSlateRenderBatch& FSlateElementBatcher::CreateRenderBatch(
 
 	if (InResource)
 	{
-		UsedSlatePostBuffers |= InResource->GetUsedSlatePostBuffers();
+		NewBatch.CachedUsedPostBuffers = InResource->GetUsedSlatePostBuffers();
+		UsedSlatePostBuffers |= NewBatch.CachedUsedPostBuffers;
 	}
 
 	return NewBatch;
@@ -3181,8 +3146,125 @@ const FSlateClippingState* FSlateElementBatcher::ResolveClippingState(const FSla
 	return nullptr;
 }
 
+void FSlateElementBatcher::CalculateMiddleEllipsisSkipIndexAndOffset(const FShapedTextBuildContext& InContext, ETextOverflowDirection InOverflowDirection, FMiddleEllipsisOverflowData& OutMiddleEllipsisData)
+{
+	const FShapedGlyphSequence* GlyphSequenceToRender = InContext.ShapedGlyphSequence;
+	const TArray<FShapedGlyphEntry>& GlyphsToRender = GlyphSequenceToRender->GetGlyphsToRender();
+	const int32 NumGlyphs = GlyphsToRender.Num();
+
+	float OverflowGlyphSequenceWidth = InContext.OverflowGlyphSequence ? InContext.OverflowGlyphSequence->GetMeasuredWidth() : 0.f;
+	float OverflowWidth = (GlyphSequenceToRender->GetMeasuredWidth() + OverflowGlyphSequenceWidth) - (InContext.LocalClipBoundingBoxRight - InContext.LocalClipBoundingBoxLeft);
+	int32 MiddleUp = GlyphsToRender.Num() >> 1;
+	int32 MiddleDown = MiddleUp;
+
+	while (OverflowWidth > 0.f && (MiddleDown >= 0 || MiddleUp < GlyphsToRender.Num()))
+	{
+		if (MiddleUp == MiddleDown)
+		{
+			OverflowWidth -= GlyphsToRender[MiddleUp].XAdvance;
+			OutMiddleEllipsisData.SkipIndexStart = OutMiddleEllipsisData.SkipIndexEnd = MiddleUp;
+			MiddleUp++;
+			MiddleDown--;
+		}
+		else
+		{
+			if (GlyphsToRender.IsValidIndex(MiddleDown))
+			{
+				OverflowWidth -= GlyphsToRender[MiddleDown].XAdvance;
+				OutMiddleEllipsisData.SkipIndexStart = MiddleDown;
+			}
+
+			if (OverflowWidth <= 0)
+			{
+				break;
+			}
+
+			if (GlyphsToRender.IsValidIndex(MiddleUp))
+			{
+				OverflowWidth -= GlyphsToRender[MiddleUp].XAdvance;
+				OutMiddleEllipsisData.SkipIndexEnd = MiddleUp;
+			}
+			MiddleUp++;
+			MiddleDown--;
+		}
+	}
+
+	// if the OverflowDirection is RightToLeft we need to calculate the offset of all clipped Character/Whitespaces to add to the LineX of the visible characters to align them correctly
+	if (InOverflowDirection == ETextOverflowDirection::RightToLeft && OutMiddleEllipsisData.SkipIndexStart != INDEX_NONE && OutMiddleEllipsisData.SkipIndexEnd != INDEX_NONE)
+	{
+		int32 ClippedIndexWidth = 0;
+		for (int32 GlyphToSkipIndex = OutMiddleEllipsisData.SkipIndexStart; GlyphToSkipIndex <= OutMiddleEllipsisData.SkipIndexEnd; ++GlyphToSkipIndex)
+		{
+			const FShapedGlyphEntry& GlyphToSkip = GlyphsToRender[GlyphToSkipIndex];
+			ClippedIndexWidth += GlyphToSkip.XAdvance;
+		}
+
+		// Get the previous and the next index of the skipped ones
+		int32 PreviousSkippedIndex = OutMiddleEllipsisData.SkipIndexStart - 1;
+		int32 NextSkippedIndex = OutMiddleEllipsisData.SkipIndexEnd + 1;
+
+		// True if the first clipped index is not less than 0 and the previous index are whitespaces/Non-visible Glyphs
+		bool bHaveWhiteSpaceBeforeAndIsValidIndex = GlyphsToRender.IsValidIndex(PreviousSkippedIndex);
+		// True if the last clipped index is not the last index of the GlyphsToRender and the next index(s) are whitespaces/Non-visible Glyphs
+		bool bHaveWhiteSpaceAfterAndIsValidIndex = GlyphsToRender.IsValidIndex(NextSkippedIndex);
+
+		// Calculate the X offset to add to each character to align them correctly at the right
+		while (bHaveWhiteSpaceBeforeAndIsValidIndex || bHaveWhiteSpaceAfterAndIsValidIndex)
+		{
+			if (bHaveWhiteSpaceBeforeAndIsValidIndex)
+			{
+				if (!GlyphsToRender[PreviousSkippedIndex].bIsVisible)
+				{
+					ClippedIndexWidth += GlyphsToRender[PreviousSkippedIndex].XAdvance;
+				}
+				else
+				{
+					bHaveWhiteSpaceBeforeAndIsValidIndex = false;
+				}
+				PreviousSkippedIndex--;
+				bHaveWhiteSpaceBeforeAndIsValidIndex &= GlyphsToRender.IsValidIndex(PreviousSkippedIndex);
+			}
+
+			if (bHaveWhiteSpaceAfterAndIsValidIndex)
+			{
+				if (!GlyphsToRender[NextSkippedIndex].bIsVisible)
+				{
+					ClippedIndexWidth += GlyphsToRender[NextSkippedIndex].XAdvance;
+				}
+				else
+				{
+					bHaveWhiteSpaceAfterAndIsValidIndex = false;
+				}
+				NextSkippedIndex++;
+				bHaveWhiteSpaceAfterAndIsValidIndex &= GlyphsToRender.IsValidIndex(NextSkippedIndex);
+			}
+		}
+
+		// BoundingBoxRight Edge - (GlyphSequence Width - ClippedGlyphs + EllipsisWidth)
+		const float FinalRightToLeftClippedOffset = InContext.LocalClipBoundingBoxRight - (GlyphSequenceToRender->GetMeasuredWidth() - ClippedIndexWidth + OverflowGlyphSequenceWidth);
+
+		// Start at the Offset needed to align the text to the right for the MiddleEllipsis
+		OutMiddleEllipsisData.LineX += FinalRightToLeftClippedOffset;
+	}
+
+	int32 SkippedIndexNum = OutMiddleEllipsisData.SkipIndexEnd - OutMiddleEllipsisData.SkipIndexStart + 1;
+
+	// If we are skipping all the Glyphs or all but 1, assign already the ellipsis X and Y since it may happen that the left side is all clipped, and they are not calculated correctly
+	if (SkippedIndexNum == NumGlyphs || SkippedIndexNum == NumGlyphs - 1)
+	{
+		OutMiddleEllipsisData.EllipsisLineX = OutMiddleEllipsisData.LineX;
+		OutMiddleEllipsisData.EllipsisLineY = OutMiddleEllipsisData.LineY;
+	}
+
+	// If the only visible Glyph is on the right of the ellipsis add the Ellipsis Width to the LineX to not paint the Glyph on top of the ellipsis
+	if (OutMiddleEllipsisData.SkipIndexStart == 0 && OutMiddleEllipsisData.SkipIndexEnd + 1 == NumGlyphs - 1)
+	{
+		OutMiddleEllipsisData.LineX += OverflowGlyphSequenceWidth;
+	}
+}
+
 template<ESlateVertexRounding Rounding>
-void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext& Context)
+int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext& Context)
 {
 	const FShapedGlyphSequence* GlyphSequenceToRender = Context.ShapedGlyphSequence;
 
@@ -3205,15 +3287,18 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 	FColor Tint = FColor::White;
 
 	ETextOverflowDirection OverflowDirection = Context.OverflowDirection;
+	ETextOverflowPolicy OverflowPolicy = Context.OverflowPolicy;
 
 	float EllipsisLineX = 0;
 	float EllipsisLineY = 0;
 	bool bNeedEllipsis = false;
 	bool bNeedSpaceForEllipsis = false;
-	bool bIsSdfFont = GlyphSequenceToRender->IsSdfFont();
-	bool bRequiresManualSkewing = bIsSdfFont && !FMath::IsNearlyEqual(GlyphSequenceToRender->GetFontSkew(), 0.f);
+	const bool bNonZeroSkew = !FMath::IsNearlyEqual(GlyphSequenceToRender->GetFontSkew(), 0.f);
+	bool bPrevSdfGlyph = false;
+	float SdfEmSpread = 0;
 	float SdfPixelSpread = 0;
 	float SdfBias = 0;
+	const bool bMaterialIsStencil = GlyphSequenceToRender->IsMaterialStencil();
 	// For left to right overflow direction - Sum of total whitespace we're currently advancing through. Once a non-whitespace glyph is detected this will return to 0
 	// For right to left this value is unused. We just skip all leading whitespace
 	float PreviousWhitespaceAdvance = 0;
@@ -3222,14 +3307,50 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 	const int32 MaxPreAllocatedGlyphIndicies = 4096 + 1024;
 	const bool bUseStaticIndicies = GlyphSequenceToRender->GetGlyphsToRender().Num() < MaxPreAllocatedGlyphIndicies;
 
+	const bool bOutlineFont = Context.OutlineSettings->OutlineSize > 0;
 	const int32 NumGlyphs = GlyphSequenceToRender->GetGlyphsToRender().Num();
 	const TArray<FShapedGlyphEntry>& GlyphsToRender = GlyphSequenceToRender->GetGlyphsToRender();
+	int32 GlyphsRendered = 0;
+
+	// Middle ellipsis Section
+	const bool bWillBeClipped = GlyphSequenceToRender->GetMeasuredWidth() > (Context.LocalClipBoundingBoxRight - Context.LocalClipBoundingBoxLeft) && OverflowDirection != ETextOverflowDirection::NoOverflow;
+	int32 SkipIndexStart = INDEX_NONE;
+	int32 SkipIndexEnd = INDEX_NONE;
+
+	// True by default, will be checked only after the middle skip and will become false as soon as we find a Visible character after the ellipsis, used to skip whitespaces after the ellipsis
+	bool bIsWhitespaceAfterMiddleSkip = true;
+
+	// Calculate the Glyph Indexes to skip to fit the ellipsis and add eventually the offset to the LineX to align the text correctly for the RightToLeft direction
+	if (OverflowPolicy == ETextOverflowPolicy::MiddleEllipsis && bWillBeClipped)
+	{
+		FMiddleEllipsisOverflowData OutMiddleEllipsisData;
+		OutMiddleEllipsisData.LineX = LineX;
+		OutMiddleEllipsisData.LineY = LineY;
+
+		CalculateMiddleEllipsisSkipIndexAndOffset(Context, OverflowDirection, OutMiddleEllipsisData);
+
+		// Assign the new data
+		SkipIndexStart = OutMiddleEllipsisData.SkipIndexStart;
+		SkipIndexEnd = OutMiddleEllipsisData.SkipIndexEnd;
+		LineX = OutMiddleEllipsisData.LineX;
+		LineY = OutMiddleEllipsisData.LineY;
+		EllipsisLineX = OutMiddleEllipsisData.EllipsisLineX;
+		EllipsisLineY = OutMiddleEllipsisData.EllipsisLineY;
+	}
+
 	for (int32 GlyphIndex = 0; GlyphIndex < NumGlyphs; ++GlyphIndex)
 	{
+		// Skip the index if its in between the Glyph to skip
+		if (GlyphIndex >= SkipIndexStart && GlyphIndex <= SkipIndexEnd)
+		{
+			continue;
+		}
+
 		const FShapedGlyphEntry& GlyphToRender = GlyphsToRender[GlyphIndex];
 
 		const float BitmapRenderScale = GlyphToRender.GetBitmapRenderScale();
 		const float InvBitmapRenderScale = 1.0f / BitmapRenderScale;
+		const bool bIsSdfGlyph = GlyphToRender.FontFaceData->RasterizationMode != EFontRasterizationMode::Bitmap;
 
 		float X = 0;
 		float SizeX = 0;
@@ -3241,9 +3362,7 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 		float SizeV = 0;
 
 		bool bIsVisible = GlyphToRender.bIsVisible;
-
 		bool bCanRenderGlyph = bIsVisible;
-		const bool bOutlineFont = Context.OutlineSettings->OutlineSize > 0;
 
 		FVector2f SpriteSize(0.f, 0.f);
 		FVector2f SpriteOffset(0.f, 0.f);
@@ -3254,14 +3373,13 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 		{
 			// Get Sizing and atlas info
 			int8 NextAtlasDataTextureIndex = -1;
+			float NextSdfEmSpread = 0;
 			float NextSdfPixelSpread = 0;
 			float NextSdfBias = 0;
-			const bool bIsSdfGlyph = bIsSdfFont && GlyphToRender.FontFaceData && GlyphToRender.FontFaceData->bSupportsSdf;
 
 			if (bIsSdfGlyph)
 			{
-				const FFontSdfSettings& FontSdfSettings = GlyphSequenceToRender->GetFontSdfSettings();
-				const FSdfGlyphFontAtlasData SdfGlyphAtlasData = Context.FontCache->GetSdfGlyphFontAtlasData(GlyphToRender, *Context.OutlineSettings, FontSdfSettings);
+				const FSdfGlyphFontAtlasData SdfGlyphAtlasData = Context.FontCache->GetSdfGlyphFontAtlasData(GlyphToRender, *Context.OutlineSettings);
 				bCanRenderGlyph = (SdfGlyphAtlasData.Valid && SdfGlyphAtlasData.bSupportsSdf);
 				if (bCanRenderGlyph)
 				{
@@ -3280,7 +3398,8 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 					// SdfGlyphAtlasData.Metrics values assume this operation, so QuadMeshSize already accounts for this
 					SpriteSize = FVector2f(SdfGlyphAtlasData.USize-1, SdfGlyphAtlasData.VSize-1);
 					SpriteOffset = FVector2f(SdfGlyphAtlasData.StartU+.5f, SdfGlyphAtlasData.StartV+.5f);
-					NextSdfPixelSpread = (SdfGlyphAtlasData.EmInnerSpread+SdfGlyphAtlasData.EmOuterSpread)*static_cast<float>(FontSdfSettings.GetClampedPpem());
+					NextSdfEmSpread = SdfGlyphAtlasData.EmInnerSpread + SdfGlyphAtlasData.EmOuterSpread;
+					NextSdfPixelSpread = NextSdfEmSpread * float(GlyphToRender.FontFaceData->SdfPpem);
 					// Value representing zero distance
 					NextSdfBias = (SdfGlyphAtlasData.EmOuterSpread-EmOutlineSize)/(SdfGlyphAtlasData.EmInnerSpread+SdfGlyphAtlasData.EmOuterSpread);
 				}
@@ -3288,7 +3407,7 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 			else
 			{
 				const FShapedGlyphFontAtlasData GlyphAtlasData = Context.FontCache->GetShapedGlyphFontAtlasData(GlyphToRender, *Context.OutlineSettings);
-				bCanRenderGlyph = (GlyphAtlasData.Valid && (!Context.bEnableOutline || GlyphAtlasData.SupportsOutline));
+				bCanRenderGlyph = (GlyphAtlasData.Valid && (!bOutlineFont || GlyphAtlasData.SupportsOutline));
 				if (bCanRenderGlyph)
 				{
 					NextAtlasDataTextureIndex = GlyphAtlasData.TextureIndex;
@@ -3300,6 +3419,12 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 
 			if (bCanRenderGlyph)
 			{
+				// If we can render a glyph after the middle skip it means that there are no more whitespaces to skip
+				if (GlyphIndex > SkipIndexEnd)
+				{
+					bIsWhitespaceAfterMiddleSkip = false;
+				}
+
 				// Note PosX,PosY is the upper left corner of the bounding box representing the string.  This computes the Y position of the baseline where text will sit
 				X = LineX + QuadMeshOffsets.X + (float)GlyphToRender.XOffset;
 				Y = LineY - QuadMeshOffsets.Y + (float)GlyphToRender.YOffset + ((Context.MaxHeight + Context.TextBaseline) * InvBitmapRenderScale);
@@ -3318,8 +3443,9 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 					}
 				}
 
+				// Initiate new render batch for first glyph and whenever texture / shader / shader parameters change between previous and current glyph
 				check(NextAtlasDataTextureIndex >= 0);
-				if (FontAtlasTexture == nullptr || NextAtlasDataTextureIndex != FontTextureIndex || (bIsSdfGlyph && (NextSdfPixelSpread != SdfPixelSpread || NextSdfBias != SdfBias)))
+				if (FontAtlasTexture == nullptr || NextAtlasDataTextureIndex != FontTextureIndex || bIsSdfGlyph != bPrevSdfGlyph || (bIsSdfGlyph && (NextSdfEmSpread != SdfEmSpread || NextSdfPixelSpread != SdfPixelSpread || NextSdfBias != SdfBias)))
 				{
 					// Font has a new texture for this glyph or shader parameters changed. Refresh the batch we use and the index we are currently using
 					FontTextureIndex = NextAtlasDataTextureIndex;
@@ -3338,18 +3464,19 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 
 					const ESlateFontAtlasContentType ContentType = SlateFontTexture->GetContentType();
 					Tint = ContentType == ESlateFontAtlasContentType::Color ? FColor::White : Context.FontTint;
-					check(bIsSdfGlyph == (ContentType == ESlateFontAtlasContentType::Msdf));
 
 					ESlateShader ShaderType = ESlateShader::Default;
 					switch (ContentType)
 					{
 						case ESlateFontAtlasContentType::Alpha:
-							ShaderType = ESlateShader::GrayscaleFont;
+							ShaderType = bIsSdfGlyph ? ESlateShader::SdfFont : ESlateShader::GrayscaleFont;
 							break;
 						case ESlateFontAtlasContentType::Color:
+							check(!bIsSdfGlyph);
 							ShaderType = ESlateShader::ColorFont;
 							break;
 						case ESlateFontAtlasContentType::Msdf:
+							check(bIsSdfGlyph);
 							ShaderType = !bOutlineFont || Context.OutlineSettings->bMiteredCorners ? ESlateShader::MsdfFont : ESlateShader::SdfFont;
 							break;
 						default:
@@ -3363,6 +3490,7 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 					FShaderParams ShaderParams;
 					if (bIsSdfGlyph)
 					{
+						SdfEmSpread = NextSdfEmSpread;
 						SdfPixelSpread = NextSdfPixelSpread;
 						SdfBias = NextSdfBias;
 						// Note - it would be much better to pass the SDF shader params as per-vertex attributes instead to avoid having to switch batches too often
@@ -3372,9 +3500,18 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 							.5f*InvTextureSizeY*SdfPixelSpread,
 							// Signed distance sample bias, the color value (between 0 to 1) representing zero distance
 							SdfBias,
-							// The last parameter needs to be 0 for alpha texture single-channel SDF, 1 for BGRA/RGBA MTSDF
-							1.f
+							// Signed distance spread in em
+							SdfEmSpread
+						), FVector4f(
+							// This parameter needs to be 0 for alpha texture single-channel SDF, 1 for BGRA/RGBA MTSDF
+							ContentType == ESlateFontAtlasContentType::Msdf ? 1.f : 0.f,
+							bMaterialIsStencil ? 1.f : 0.f,
+							0.f, 0.f
 						));
+					}
+					else
+					{
+						ShaderParams = FShaderParams::MakePixelShaderParams(FVector4f(), FVector4f(0.f, bMaterialIsStencil ? 1.f : 0.f, 0.f, 0.f));
 					}
 
 					RenderBatch = &CreateRenderBatch(Context.LayerId,
@@ -3421,6 +3558,7 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 					{
 						RenderBatch->ReserveIndices(GlyphsLeft * 6);
 					}
+					bPrevSdfGlyph = bIsSdfGlyph;
 				}
 				U = SpriteOffset.X * InvTextureSizeX;
 				V = SpriteOffset.Y * InvTextureSizeY;
@@ -3439,7 +3577,15 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 		// Overflow Detection
 		// First figure out the size of the glyph. If the glyph contains multiple characters we have to measure all of them and if clipped, omit them all. This is common in complex languages with lots of diacritics
 		float OverflowTestWidth = SizeX;
-		if (OverflowDirection != ETextOverflowDirection::NoOverflow && (GlyphToRender.NumGraphemeClustersInGlyph > 1 || GlyphToRender.NumCharactersInGlyph > 1))
+		bool bMiddleEllipsisIsNextGlyphFirstSkipped = false;
+		int32 NextGlyphIndex = GlyphIndex + 1;
+		if (OverflowPolicy == ETextOverflowPolicy::MiddleEllipsis && bWillBeClipped && (NextGlyphIndex >= SkipIndexStart && NextGlyphIndex <= SkipIndexEnd))
+		{
+			bMiddleEllipsisIsNextGlyphFirstSkipped = true;
+			EllipsisLineX = LineX + GlyphToRender.XAdvance;
+			EllipsisLineY = LineY;
+		}
+		else if (OverflowDirection != ETextOverflowDirection::NoOverflow && (GlyphToRender.NumGraphemeClustersInGlyph > 1 || GlyphToRender.NumCharactersInGlyph > 1))
 		{
 			const int32 StartIndex = GlyphIndex;
 			int32 EndIndex = GlyphIndex;
@@ -3459,64 +3605,78 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 		// Left to right overflow - If the current pen position + the ellipsis cannot fit, we have reached the end of the possible area for drawing this text. 
 		if (OverflowDirection == ETextOverflowDirection::LeftToRight)
 		{
-			// If we are on the last glyph don't bother checking if the ellipsis can fit. If the last glyph can fit there is no need for ellipsis
-			float OverflowSequenceNeededSize = GlyphIndex < NumGlyphs - 1 ? Context.OverflowGlyphSequence->GetMeasuredWidth() : 0;
-			if(X + OverflowTestWidth + OverflowSequenceNeededSize >= Context.LocalClipBoundingBoxRight)
+			// MiddleEllipsis is handled in a different way above
+			if (OverflowPolicy != ETextOverflowPolicy::MiddleEllipsis)
 			{
-				bNeedEllipsis = true;
-				// We subtract out any whitespace advance. This avoids the ellipsis from ever floating out in the middle of a block of whitespace.
-				// e.g without this something like "The quick brown		fox jumps over the lazy dog" could be clipped to "The quick brown	..." but we want it to be "The quick brown..."
-				EllipsisLineX = LineX - PreviousWhitespaceAdvance;
-				EllipsisLineY = LineY;
-				// No characters to render after the ellipsis on the right side
-				break;
+				// If we are on the last glyph don't bother checking if the ellipsis can fit. If the last glyph can fit there is no need for ellipsis
+				float OverflowSequenceNeededSize = GlyphIndex < NumGlyphs - 1 ? Context.OverflowGlyphSequence->GetMeasuredWidth() : 0;
+				if(X + OverflowTestWidth + OverflowSequenceNeededSize >= Context.LocalClipBoundingBoxRight || (Context.MaxGlyphCountToRender >= 0 && GlyphIndex >= Context.MaxGlyphCountToRender))
+				{
+					bNeedEllipsis = true;
+					// We subtract out any whitespace advance. This avoids the ellipsis from ever floating out in the middle of a block of whitespace.
+					// e.g without this something like "The quick brown		fox jumps over the lazy dog" could be clipped to "The quick brown	..." but we want it to be "The quick brown..."
+					EllipsisLineX = LineX - PreviousWhitespaceAdvance;
+					EllipsisLineY = LineY;
+					// No characters to render after the ellipsis on the right side
+					break;
+				}
+				GlyphsRendered++;
 			}
 		}
-		else if(OverflowDirection == ETextOverflowDirection::RightToLeft)
+		else if (OverflowDirection == ETextOverflowDirection::RightToLeft)
 		{
-			bool bClipped = false;
-			// Right to left overflow
-			if (X < Context.LocalClipBoundingBoxLeft)
+			// MiddleEllipsis is handled in a different way above
+			if (OverflowPolicy != ETextOverflowPolicy::MiddleEllipsis)
 			{
-				// This glyph is in the clipped region or is not visible so just advance. It cannot be shown
-				bClipped = true;
-				bNeedSpaceForEllipsis = true;
-			}
-			if (bNeedSpaceForEllipsis || !GlyphToRender.bIsVisible)
-			{
-				bClipped = true;
-
-				// Can the ellipsis fit in the free spot by skipping the previous glyph(s)
-				const float EllipsisWidth = Context.OverflowGlyphSequence->GetMeasuredWidth();
-				const float AvailableX = X + SizeX - Context.LocalClipBoundingBoxLeft;
-				if (AvailableX >= EllipsisWidth)
+				bool bClipped = false;
+				// Right to left overflow
+				if (X < Context.LocalClipBoundingBoxLeft || (Context.MaxGlyphCountToRender >= 0 && GlyphIndex < (NumGlyphs - Context.MaxGlyphCountToRender)))
 				{
-					// The available area can fit the ellipsis. Mark that we need an ellipsis and stop checking for overflow. The rest of the text can be built normally
-					bNeedSpaceForEllipsis = false;
+					// This glyph is in the clipped region or is not visible so just advance. It cannot be shown
+					bClipped = true;
+					bNeedSpaceForEllipsis = true;
 				}
+				if (bNeedSpaceForEllipsis || !GlyphToRender.bIsVisible)
+				{
+					bClipped = true;
 
-				//Always try to put the ellipsis, wether it fits or not: it's better to have an ellipsis a bit clipped than no feedback at all.
+					// Can the ellipsis fit in the free spot by skipping the previous glyph(s)
+					const float EllipsisWidth = Context.OverflowGlyphSequence->GetMeasuredWidth();
+					const float AvailableX = X + GlyphToRender.XAdvance - Context.LocalClipBoundingBoxLeft;
+					if (AvailableX >= EllipsisWidth)
+					{
+						// The available area can fit the ellipsis. Mark that we need an ellipsis and stop checking for overflow. The rest of the text can be built normally
+						bNeedSpaceForEllipsis = false;
+					}
+
+					//Always try to put the ellipsis, whether it fits or not: it's better to have an ellipsis a bit clipped than no feedback at all.
 					bNeedEllipsis = true;
-					EllipsisLineX = (LineX + SizeX - EllipsisWidth);
+					EllipsisLineX = (LineX + GlyphToRender.XAdvance - EllipsisWidth);
 					EllipsisLineY = LineY;
 				}
 				else
 				{
 					OverflowDirection = ETextOverflowDirection::NoOverflow;
+					GlyphsRendered++;
 				}
 
-			// If we just clipped a glyph omit all characters in said glyph. Otherwise floating diacritics would be visible above the ellipsis. This is common in complex languages.
-			if (bClipped && GlyphToRender.NumCharactersInGlyph > 1)
-			{
-				GlyphIndex += GlyphToRender.NumCharactersInGlyph - 1;
-				LineX += GlyphToRender.XAdvance;
-				continue;
-			}
+				// If we just clipped a glyph omit all characters in said glyph. Otherwise floating diacritics would be visible above the ellipsis. This is common in complex languages.
+				if (bClipped && GlyphToRender.NumCharactersInGlyph > 1)
+				{
+					GlyphIndex += GlyphToRender.NumCharactersInGlyph - 1;
+					LineX += GlyphToRender.XAdvance;
+					continue;
+				}
 
-			bCanRenderGlyph = !bClipped;
+				bCanRenderGlyph = !bClipped;
+			}
+		}
+		else
+		{
+			GlyphsRendered++;
 		}
 
-		if(bCanRenderGlyph && RenderBatch)
+		if (bCanRenderGlyph && RenderBatch)
 		{
 			FVector2f UpperLeft(X, Y);
 			FVector2f UpperRight(X + SizeX, Y);
@@ -3540,7 +3700,7 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 				VtMax = FMath::Lerp(0.0f, 1.0f, LowerLeft.Y / Context.MaxHeight);
 			}
 
-			if (bRequiresManualSkewing)
+			if (bNonZeroSkew && bIsSdfGlyph)
 			{
 				FTransform2f ShearTransform(FShear2f(GlyphSequenceToRender->GetFontSkew(), 0.f));
 				FVector2f DeltaTopLeft(0, QuadMeshOffsets.Y);
@@ -3551,10 +3711,21 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 				LowerLeft.X += DeltaBottomLeft.X;	LowerRight.X += DeltaBottomLeft.X;
 			}
 			// Add four vertices to the list of verts to be added to the vertex buffer
-			RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(UpperLeft), FVector4f(U, V, Ut, Vt), FVector2f(0.0f, 0.0f), Tint));
-			RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(UpperRight), FVector4f(U + SizeU, V, UtMax, Vt), FVector2f(1.0f, 0.0f), Tint));
-			RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(LowerLeft), FVector4f(U, V + SizeV, Ut, VtMax), FVector2f(0.0f, 1.0f), Tint));
-			RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(LowerRight), FVector4f(U + SizeU, V + SizeV, UtMax, VtMax), FVector2f(1.0f, 1.0f), Tint));
+			if (bIsSdfGlyph)
+			{
+				// Vertex rounding has no benefit for distance field rendering but makes positioning worse, so disable it
+				RenderBatch->AddVertex(FSlateVertex::Make<ESlateVertexRounding::Disabled>(RenderTransform, FVector2f(UpperLeft), FVector4f(U, V, Ut, Vt), FVector2f(0.0f, 0.0f), Tint));
+				RenderBatch->AddVertex(FSlateVertex::Make<ESlateVertexRounding::Disabled>(RenderTransform, FVector2f(UpperRight), FVector4f(U + SizeU, V, UtMax, Vt), FVector2f(1.0f, 0.0f), Tint));
+				RenderBatch->AddVertex(FSlateVertex::Make<ESlateVertexRounding::Disabled>(RenderTransform, FVector2f(LowerLeft), FVector4f(U, V + SizeV, Ut, VtMax), FVector2f(0.0f, 1.0f), Tint));
+				RenderBatch->AddVertex(FSlateVertex::Make<ESlateVertexRounding::Disabled>(RenderTransform, FVector2f(LowerRight), FVector4f(U + SizeU, V + SizeV, UtMax, VtMax), FVector2f(1.0f, 1.0f), Tint));
+			}
+			else
+			{
+				RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(UpperLeft), FVector4f(U, V, Ut, Vt), FVector2f(0.0f, 0.0f), Tint));
+				RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(UpperRight), FVector4f(U + SizeU, V, UtMax, Vt), FVector2f(1.0f, 0.0f), Tint));
+				RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(LowerLeft), FVector4f(U, V + SizeV, Ut, VtMax), FVector2f(0.0f, 1.0f), Tint));
+				RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(LowerRight), FVector4f(U + SizeU, V + SizeV, UtMax, VtMax), FVector2f(1.0f, 1.0f), Tint));
+			}
 
 			if (bUseStaticIndicies)
 			{
@@ -3577,17 +3748,42 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 		{
 			// How much whitespace we are currently walking through
 			PreviousWhitespaceAdvance += GlyphToRender.XAdvance;
+
+			if (OverflowPolicy == ETextOverflowPolicy::MiddleEllipsis && bMiddleEllipsisIsNextGlyphFirstSkipped)
+			{
+				EllipsisLineX -= PreviousWhitespaceAdvance;
+				LineX -= PreviousWhitespaceAdvance;
+			}
 		}
 
-		LineX += GlyphToRender.XAdvance;
+		if (OverflowPolicy == ETextOverflowPolicy::MiddleEllipsis)
+		{
+			// If the next Glyph is clipped add to the LineX the width of the Ellipsis
+			if (bMiddleEllipsisIsNextGlyphFirstSkipped)
+			{
+				LineX += Context.OverflowGlyphSequence->GetMeasuredWidth();
+			}
+
+			// If after the MiddleEllipsis there are still non-visible Glyphs, do not add their XAdvance to the LineX
+			LineX += (GlyphIndex > SkipIndexEnd && bIsWhitespaceAfterMiddleSkip) ? 0 : GlyphToRender.XAdvance;
+		}
+		else
+		{
+			LineX += GlyphToRender.XAdvance;
+		}
+
 		LineY += GlyphToRender.YAdvance;
 	}
 
 	if (!bNeedEllipsis && Context.bForceEllipsis)
 	{
 		bNeedEllipsis = true;
-		EllipsisLineX = LineX;
+		EllipsisLineX = LineX - PreviousWhitespaceAdvance; //It's ok to always substract whitespace advance (LTR or RTL overflow direction), as the value will always be 0 for RTL overflow direction.
 		EllipsisLineY = LineY;
+	}
+	else if (OverflowPolicy == ETextOverflowPolicy::MiddleEllipsis)
+	{
+		bNeedEllipsis = bWillBeClipped;
 	}
 
 	if (bNeedEllipsis)
@@ -3599,11 +3795,14 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 		EllipsisContext.OverflowGlyphSequence = nullptr;
 		EllipsisContext.bEnableCulling = false;
 		EllipsisContext.OverflowDirection = ETextOverflowDirection::NoOverflow;
+		EllipsisContext.OverflowPolicy = ETextOverflowPolicy::Clip;
 		EllipsisContext.StartLineX = EllipsisLineX;
 		EllipsisContext.StartLineY = EllipsisLineY;
 
 		BuildShapedTextSequence<Rounding>(EllipsisContext);
 	}
+
+	return GlyphsRendered;
 }
 
 void FSlateElementBatcher::ResetBatches()
@@ -3615,4 +3814,3 @@ void FSlateElementBatcher::ResetBatches()
 	SkipDefaultUpdatePostBuffers = ESlatePostRT::None;
 	NumPostProcessPasses = 0;
 }
-

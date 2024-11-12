@@ -43,10 +43,10 @@ private:
 	bool ImplGetTargetViewports(TArray<TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>>& OutTargets, EDisplayClusterViewportICVFXFlags& OutMergedICVFXFlags);
 
 	/** Create a LightCard viewport for the  BaseViewport. */
-	bool CreateLightcardViewport(FDisplayClusterViewport& BaseViewport);
+	bool CreateLightcardViewport(FDisplayClusterViewport& BaseViewport, const bool bOverInFrustum);
 
 	/** Create an UVLightCard viewport for the BaseViewport. */
-	bool CreateUVLightcardViewport(FDisplayClusterViewport& BaseViewport);
+	bool CreateUVLightcardViewport(FDisplayClusterViewport& BaseViewport, const bool bOverInFrustum);
 
 	/** Update a visibility for the ICVFX viewports and cameras. */
 	void ImplUpdateVisibility();

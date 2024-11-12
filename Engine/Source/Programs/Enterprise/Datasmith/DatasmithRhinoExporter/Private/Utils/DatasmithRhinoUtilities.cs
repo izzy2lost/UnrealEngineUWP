@@ -130,14 +130,14 @@ namespace DatasmithRhino.Utils
 
 			string FullPath = RhinoTexture.FileReference.FullPath;
 			string FilePath;
-			if (FullPath.Length != 0)
+			if (!string.IsNullOrEmpty(FullPath))
 			{
 				FilePath = FullPath;
 			}
 			else
 			{
 				string RelativePath = RhinoTexture.FileReference.RelativePath;
-				if (RelativePath.Length == 0)
+				if (string.IsNullOrEmpty(RelativePath))
 				{
 					//No valid path found, skip the texture.
 					return;

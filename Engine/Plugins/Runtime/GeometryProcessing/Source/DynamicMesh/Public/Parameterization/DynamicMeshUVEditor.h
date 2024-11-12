@@ -180,6 +180,16 @@ public:
 	bool SetTriangleUVsFromFreeBoundaryConformal(const TArray<int32>& Triangles, bool bUseExistingUVTopology, FUVEditResult* Result = nullptr);
 
 	/**
+	 * Create new UV island for given Triangles, and set UVs for that island using Discrete Natural Conformal Map (equivalent to Least-Squares Conformal Map).
+	 * Using this overload implies that we're re-solving for existing UV set rather than constructing per-vertex UVs from triangle set,
+	 * since pinned elements rely on existing values.
+	 * @param Triangles list of triangles
+	 * @param PinnedElementIDs Elements for which to use unmodified UV values.
+	 * @warning computes a single parameterization, so input triangle set must be connected, however this is not verified internally
+	 */
+	bool SetTriangleUVsFromFreeBoundaryConformal(const TArray<int32>& Triangles, const TSet<int32>& PinnedElementIDs, FUVEditResult* Result = nullptr);
+
+	/**
 	 * Create new UV island for given Triangles, and set UVs for that island using Spectral Conformal Map.
 	 * @param Triangles list of triangles
 	 * @param bUseExistingUVTopology if true, re-solve for existing UV set, rather than constructing per-vertex UVs from triangle set. Allows for solving w/ partial seams, interior cuts, etc. 
@@ -187,6 +197,12 @@ public:
 	 * @warning computes a single parameterization, so input triangle set must be connected, however this is not verified internally
 	 */
 	bool SetTriangleUVsFromFreeBoundarySpectralConformal(const TArray<int32>& Triangles, bool bUseExistingUVTopology, bool bPreserveIrregularity, FUVEditResult* Result = nullptr);
+
+	/**
+	 * Initializes any uninitialized triangles in the set to per-vertex (0,0) UVs. Doesn't clear or modify any existing 
+	 *  UVs, and only operates on the given set.
+	 */
+	void MakeSureUVsAreSet(const TSet<int32>& Triangles, FUVEditResult* Result = nullptr, TSet<int32>* ChangedTrianglesOut = nullptr);
 
 	/** 
 	 * Merge existing UV topology with a set of edges, removing seams at edges if they exist within the UV topology.
@@ -208,6 +224,21 @@ public:
 	 * @return true on success
 	 */
 	bool CreateSeamsAtEdges(const TSet<int32>& EidsToMakeIntoSeams, FUVEditResult* Result = nullptr);
+
+	/**
+	 * Takes the currently selected triangles and makes a separate UV island out of them, i.e. any interior seams
+	 *  are removed, and seams are added around the boundary of the selection. If the selection is not connected
+	 *  in the mesh, islands will be created for each connected component of selected triangles. If some of the 
+	 *  selected triangles have unset UVs, they will be initialized to per-vertex zero UVs for the purposes of
+	 *  creating an island.
+	 * 
+	 * @param TidsToMakeIntoIsland Triangles in the mesh
+	 * @param Result if non-null, list of new UV elements created for new seams, or to initialize UVs.
+	 * @param ChangedTrianglesOut Optional output of triangles that had their UVs changed. Currently this is a conservative
+	 *   superset, so some might not have actually changed. Not cleared before use.
+	 * @return true on success
+	 */
+	bool MakeIsland(const TSet<int32>& TidsToMakeIntoIsland, FUVEditResult* Result = nullptr, TSet<int32>* ChangedTrianglesOut = nullptr);
 
 	/**
 	 * Set UVs by box projection. Triangles will be grouped to "best" box face
@@ -288,10 +319,22 @@ public:
 
 private: 
 
+	struct FSetUVsFromConformalOptions
+	{
+		bool bUseExistingUVTopology = false;
+		bool bUseSpectral = false; 
+		bool bPreserveIrregularity = false;
+		// currently only used if bUseSpectral is false
+		const TSet<int32>* PinnedElementIDs = nullptr;
+	};
 	/**
 	 * Helper method to solve either the Least Squares Conformal Map or the Spectral Conformal Map problems.
 	 */
-	bool SetTriangleUVsFromConformal(const TArray<int32>& Triangles, bool bUseExistingUVTopology, bool bUseSpectral, bool bPreserveIrregularity, FUVEditResult* Result);
+	bool SetTriangleUVsFromConformal(const TArray<int32>& Triangles, const FSetUVsFromConformalOptions& Options, FUVEditResult* Result);
+
+	// Helper to split bowties on element IDs
+	void SplitBowtiesOnUVElements(TArray<int32>& UVElementIDs, bool bAddNewElementsToInputArray = true);
+	
 };
 
 

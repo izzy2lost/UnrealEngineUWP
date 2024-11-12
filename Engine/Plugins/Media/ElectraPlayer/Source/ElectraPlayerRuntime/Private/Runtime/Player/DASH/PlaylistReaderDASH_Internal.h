@@ -764,6 +764,9 @@ public:
 			}
 		}
 
+		void UpdateRunningMetaData(const FString& InKindOfValue, const FVariant& InNewValue) override
+		{ }
+
 	private:
 		friend class FManifestDASHInternal;
 		TArray<TSharedPtrTS<FAdaptationSet>> AdaptationSets;
@@ -901,7 +904,7 @@ public:
 	FTimeValue GetDesiredLiveLatency() const;
 
 	FTimeValue GetMPDValidityEndTime() const;
-	FTimeValue GetLastPeriodEndTime() const;
+	FTimeValue GetLastPeriodEndTime(bool bForTimeline) const;
 	FTimeValue GetMinimumUpdatePeriod() const;
 	bool AreUpdatesExpected() const;
 	bool IsStaticType() const;

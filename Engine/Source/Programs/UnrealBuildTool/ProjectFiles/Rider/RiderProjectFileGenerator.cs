@@ -325,7 +325,7 @@ namespace UnrealBuildTool
 					ProjectFile.IsForeignProject =
 						CheckProjectFile != null && !NativeProjects.IsNativeProject(CheckProjectFile, Logger);
 					ProjectFile.IsGeneratedProject = true;
-					ProjectFile.IsStubProject = UnrealBuildTool.IsProjectInstalled();
+					ProjectFile.IsStubProject = Unreal.IsProjectInstalled();
 					if (TargetRulesObject.bBuildInSolutionByDefault.HasValue)
 					{
 						ProjectFile.ShouldBuildByDefaultForSolutionTargets =
@@ -430,7 +430,7 @@ namespace UnrealBuildTool
 		}
 
 		public override bool GenerateProjectFiles(PlatformProjectGeneratorCollection PlatformProjectGenerators,
-			String[] arguments, bool bCacheDataForEditor, ILogger Logger)
+			string[] arguments, bool bCacheDataForEditor, ILogger Logger)
 		{
 			ConfigureProjectFileGeneration();
 

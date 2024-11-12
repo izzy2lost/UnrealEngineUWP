@@ -9,7 +9,6 @@
 #include "Misc/Paths.h"
 #include "Internationalization/Culture.h"
 #include "Internationalization/CustomCultureImplementation.h"
-#include "Internationalization/TextCache.h"
 
 #if UE_ENABLE_ICU
 #include "Internationalization/ICUInternationalization.h"
@@ -33,11 +32,6 @@ bool FInternationalization::IsAvailable()
 void FInternationalization::TearDown()
 {
 	TLazySingleton<FInternationalization>::TearDown();
-}
-
-FText FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(const TCHAR* InTextLiteral, const TCHAR* InNamespace, const TCHAR* InKey)
-{
-	return FTextCache::Get().FindOrCache(InTextLiteral, InNamespace, InKey);
 }
 
 bool FInternationalization::SetCurrentCulture(const FString& InCultureName)

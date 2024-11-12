@@ -432,7 +432,7 @@ void SAtlasVisualizer::OnMouseLeave(const FPointerEvent& MouseEvent)
 FReply SAtlasVisualizer::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 #if WITH_ATLAS_DEBUGGING
-	if (!MouseEvent.GetCursorDelta().IsNearlyZero() && !HasMouseCapture())
+	if (!MouseEvent.GetCursorDelta().IsNearlyZero() && !HasMouseCapture() && !MouseEvent.IsMouseButtonDown(EKeys::RightMouseButton))
 	{
 		FVector2D LocalPos = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()) / ScrollPanel->GetZoomLevel();
 
@@ -461,10 +461,13 @@ void SAtlasVisualizer::RebuildToolTip(const FAtlasSlotInfo& Info)
 
 		TArray<FName> Resources = FSlateStyleRegistry::GetSylesUsingBrush(Info.TextureName);
 
-		Builder.AppendLine(LOCTEXT("AtlasDebuggingToolTipTitle", "\nUsed by:"));
-		for (FName Name : Resources)
+		if (!Resources.IsEmpty())
 		{
-			Builder.AppendLine(Name);
+			Builder.AppendLine(LOCTEXT("AtlasDebuggingToolTipTitle", "\nUsed by:"));
+			for (FName Name : Resources)
+			{
+				Builder.AppendLine(Name);
+			}
 		}
 
 		SetToolTipText(Builder.ToText());

@@ -6,6 +6,7 @@
 
 #include "UObject/GarbageCollectionVerification.h"
 #include "UObject/GarbageCollection.h"
+#include "UObject/GarbageCollectionInternalFlags.h"
 #include "HAL/ThreadSafeBool.h"
 #include "Misc/TimeGuard.h"
 #include "HAL/IConsoleManager.h"
@@ -386,6 +387,8 @@ void VerifyClustersAssumptions()
 
 void VerifyObjectFlags()
 {
+	using namespace UE::GC::Private;
+
 	int32 MaxNumberOfObjects = GUObjectArray.GetObjectArrayNum();
 	int32 NumThreads = FMath::Max(1, FTaskGraphInterface::Get().GetNumWorkerThreads());
 	int32 NumberOfObjectsPerThread = (MaxNumberOfObjects / NumThreads) + 1;
@@ -415,7 +418,7 @@ void VerifyObjectFlags()
 					++NumErrors;
 				}
 
-				if (!ObjectItem.HasAnyFlags(UE::GC::GReachableObjectFlag) && !GUObjectArray.IsDisregardForGC(Object))
+				if (!FGCFlags::IsReachable_ForGC(&ObjectItem) && !GUObjectArray.IsDisregardForGC(Object))
 				{
 					UE_LOG(LogGarbage, Warning, TEXT("Object %s%s is NOT marked as Reachable at the beginning of GC"),
 						*FReferenceChainSearch::GetObjectFlags(FGCObjectInfo(Object)),
@@ -424,7 +427,7 @@ void VerifyObjectFlags()
 					++NumErrors;
 				}
 
-				if (ObjectItem.HasAnyFlags(UE::GC::GUnreachableObjectFlag| UE::GC::GMaybeUnreachableObjectFlag))
+				if (FGCFlags::IsMaybeUnreachable_ForGC(&ObjectItem) || ObjectItem.IsUnreachable())
 				{
 					UE_LOG(LogGarbage, Warning, TEXT("Object %s%s is marked with at least one of the unreachable flags at the beginning of GC"),
 						*FReferenceChainSearch::GetObjectFlags(FGCObjectInfo(Object)),
@@ -456,10 +459,12 @@ public:
 
 	FORCEINLINE_DEBUGGABLE void HandleTokenStreamObjectReference(FGCArrayStruct& ObjectsToSerializeStruct, UObject* ReferencingObject, UObject*& Object, FMemberId MemberId, EOrigin Origin, bool bAllowReferenceElimination)
 	{
+		using namespace UE::GC::Private;
+
 		if (Object)
 		{
 			FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(Object);
-			if (ObjectItem->HasAnyFlags(UE::GC::GMaybeUnreachableObjectFlag | UE::GC::GUnreachableObjectFlag))
+			if (ObjectItem->HasAnyFlags(FGCFlags::GetMaybeUnreachableFlagValue_ForGC() | EInternalObjectFlags::Unreachable))
 			{
 				if (ReferencingObject)
 				{
@@ -510,6 +515,8 @@ public:
 
 void VerifyNoUnreachableObjects(int32 NumUnreachable)
 {
+	using namespace UE::GC::Private;
+
 	const double StartTime = FPlatformTime::Seconds();
 	const int32 MaxNumberOfReachableObjects = GUObjectArray.GetObjectArrayNum();
 	const int32 NumThreads = GetNumCollectReferenceWorkers();
@@ -532,16 +539,16 @@ void VerifyNoUnreachableObjects(int32 NumUnreachable)
 			if (ObjectItem.Object)
 			{
 				UObject* Object = static_cast<UObject*>(ObjectItem.Object);
-				if (!ObjectItem.HasAnyFlags(UE::GC::GUnreachableObjectFlag))
+				if (!ObjectItem.HasAnyFlags(EInternalObjectFlags::Unreachable))
 				{
-					if (ObjectItem.HasAnyFlags(UE::GC::GMaybeUnreachableObjectFlag))
+					if (FGCFlags::IsMaybeUnreachable_ForGC(&ObjectItem))
 					{
 						UE_LOG(LogGarbage, Warning, TEXT("Object %s%s is still marked as MaybeUnreachable after Reachability Analysis is complete."), 
 							*FReferenceChainSearch::GetObjectFlags(FGCObjectInfo(Object)),
 							*Object->GetFullName());
 						NumErrors++;
 					}
-					if (!ObjectItem.HasAnyFlags(UE::GC::GReachableObjectFlag) && !GUObjectArray.IsDisregardForGC(Object))
+					if (!FGCFlags::IsReachable_ForGC(&ObjectItem) && !GUObjectArray.IsDisregardForGC(Object))
 					{
 						UE_LOG(LogGarbage, Warning, TEXT("Object %s%s is NOT marked as Unreachable and NOT marked as Reachable."),
 							*FReferenceChainSearch::GetObjectFlags(FGCObjectInfo(Object)),
@@ -554,14 +561,7 @@ void VerifyNoUnreachableObjects(int32 NumUnreachable)
 				{
 					ThisThreadUnrachableObjectsNum++;
 
-					if (ObjectItem.HasAnyFlags(UE::GC::GMaybeUnreachableObjectFlag))
-					{
-						UE_LOG(LogGarbage, Warning, TEXT("Object %s%s is still marked as MaybeUnreachable after Reachability Analysis is complete."),
-							*FReferenceChainSearch::GetObjectFlags(FGCObjectInfo(Object)),
-							*Object->GetFullName());
-						NumErrors++;
-					}
-					if (ObjectItem.HasAnyFlags(UE::GC::GReachableObjectFlag))
+					if (FGCFlags::IsReachable_ForGC(&ObjectItem))
 					{
 						UE_LOG(LogGarbage, Warning, TEXT("Object %s%s is still marked as Reachable."),
 							*FReferenceChainSearch::GetObjectFlags(FGCObjectInfo(Object)),

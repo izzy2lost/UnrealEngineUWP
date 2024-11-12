@@ -10,6 +10,7 @@
 
 #include "HAL/LowLevelMemTracker.h"
 #include "VulkanCommon.h"
+#include "VulkanPlatform.h"
 
 struct VkAllocationCallbacks;
 
@@ -187,10 +188,6 @@ struct VkAllocationCallbacks;
 	#define VULKAN_SUPPORTS_DRIVER_PROPERTIES					1
 #endif
 
-#ifndef VULKAN_SUPPORTS_QCOM_RENDERPASS_TRANSFORM
-	#define VULKAN_SUPPORTS_QCOM_RENDERPASS_TRANSFORM			0
-#endif
-
 #ifndef VULKAN_SUPPORTS_QCOM_RENDERPASS_SHADER_RESOLVE
 	#ifdef VK_QCOM_render_pass_shader_resolve
 		#define VULKAN_SUPPORTS_QCOM_RENDERPASS_SHADER_RESOLVE	1
@@ -213,6 +210,10 @@ struct VkAllocationCallbacks;
 #else
 #define VULKAN_SUPPORTS_TEXTURE_COMPRESSION_ASTC_HDR			0
 #endif
+#endif
+
+#ifndef VULKAN_SUPPORTS_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER
+	#define VULKAN_SUPPORTS_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER	1
 #endif
 
 #ifndef VULKAN_SUPPORTS_RENDERPASS2
@@ -264,12 +265,6 @@ VULKANRHI_API DECLARE_LOG_CATEGORY_EXTERN(LogVulkanRHI, Log, All);
 #ifndef VULKAN_SUPPORTS_TRANSIENT_RESOURCE_ALLOCATOR
 	#define VULKAN_SUPPORTS_TRANSIENT_RESOURCE_ALLOCATOR		1
 #endif
-
-
-#if !defined(NV_AFTERMATH)
-	#define NV_AFTERMATH 0
-#endif
-
 
 #ifndef VK_TYPE_TO_STRING
 #	define VK_TYPE_TO_STRING(Type, Value) *FString::Printf(TEXT("%u"), (uint32)Value)

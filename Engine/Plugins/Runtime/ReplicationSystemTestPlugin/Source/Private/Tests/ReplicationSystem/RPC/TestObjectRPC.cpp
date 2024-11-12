@@ -2,11 +2,14 @@
 
 #include "RPCTestFixture.h"
 #include "ReplicatedTestObjectWithRPC.h"
+#include "Containers/BitArray.h"
 #include "Iris/Serialization/NetBitStreamReader.h"
 #include "Iris/Serialization/NetBitStreamWriter.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
-
+#include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
+#include "Tests/EnsureScope.h"
+#include "Tests/CheckScope.h"
 
 namespace UE::Net::Private
 {
@@ -69,6 +72,11 @@ namespace UE::Net::Private
 
 		// Call an RPC client->server
 		ClientObject->ServerRPCWithParam(IntParam);
+
+		// Call an RPC client->server with hidden virtual base
+		FReplicatedStructWithHiddenVirtualBase TestRpc;
+		TestRpc.TestString = TEXT("TestString");
+		ClientObject->ServerRPCWithParamWithHiddenVirtualBase(TestRpc);
 
 		// Send and deliver client packet
 		Client->UpdateAndSend(Server);
@@ -369,6 +377,102 @@ namespace UE::Net::Private
 
 		// Send and deliver packet
 		Server->UpdateAndSend({Client});
+	}
+
+	// This test is written to verify a bug with owner filtering and late join. There will be an ensure if this test isn't working.
+	UE_NET_TEST_FIXTURE(FRPCTestFixture, TestSubObjectMulticastRPCIsNotReplicatedToNonOwningConnection)
+	{
+		constexpr SIZE_T OwningClientIndex = 0;
+		constexpr SIZE_T NonOwningClientIndex = 1;
+
+		// Add a client
+		FReplicationSystemTestClient* ClientArray[2] = {};
+		ClientArray[OwningClientIndex] = CreateClient();
+
+		// Spawn owner filtered object with on server
+		UTestReplicatedObjectWithRPC* ServerRootObject = Server->CreateObject<UTestReplicatedObjectWithRPC>();
+		ServerRootObject->Init(Server->GetReplicationSystem());
+
+		const FNetRefHandle ServerRootObjectHandle = ServerRootObject->NetRefHandle;
+		
+		// Turn on owner filter
+		Server->ReplicationSystem->SetFilter(ServerRootObjectHandle, ToOwnerFilterHandle);
+		Server->ReplicationSystem->SetOwningNetConnection(ServerRootObjectHandle, ClientArray[OwningClientIndex]->ConnectionIdOnServer);
+
+		UTestReplicatedObjectWithRPC* ServerSubObject = Server->CreateSubObject<UTestReplicatedObjectWithRPC>(ServerRootObjectHandle);
+		ServerSubObject->Init(Server->GetReplicationSystem());
+		ServerSubObject->SetRootObject(ServerRootObject);
+
+		// Send and deliver packet
+		Server->UpdateAndSend({ClientArray[OwningClientIndex]});
+
+		// Late join with second client
+		ClientArray[NonOwningClientIndex] = CreateClient();
+
+		// Call a multicast RPC server->client on the subobject
+		ServerSubObject->NetMulticast_MultiCastRPC();
+
+		// Send and deliver packet
+		{
+			FEnsureScope EnsureScope;
+			FCheckScope CheckScope;
+
+			Server->UpdateAndSend(ClientArray);
+
+			// No ensures or checks should trigger
+			UE_NET_ASSERT_EQ(EnsureScope.GetCount(), 0);
+			UE_NET_ASSERT_EQ(CheckScope.GetCount(), 0);
+		}
+	}
+
+	// This test is written to verify a bug with connection filtering and late join. There will be an ensure if this test isn't working.
+	UE_NET_TEST_FIXTURE(FRPCTestFixture, TestSubObjectMulticastRPCIsNotReplicatedToFilteredOutConnection)
+	{
+		constexpr SIZE_T OwningClientIndex = 0;
+		constexpr SIZE_T NonOwningClientIndex = 1;
+
+		// Add a client
+		FReplicationSystemTestClient* ClientArray[2] = {};
+		ClientArray[OwningClientIndex] = CreateClient();
+
+		// Spawn connection filtered object with on server
+		UTestReplicatedObjectWithRPC* ServerRootObject = Server->CreateObject<UTestReplicatedObjectWithRPC>();
+		ServerRootObject->Init(Server->GetReplicationSystem());
+
+		const FNetRefHandle ServerRootObjectHandle = ServerRootObject->NetRefHandle;
+		
+		// Set connection filter
+		{
+			TBitArray<> AllowedConnections;
+			AllowedConnections.Add(false, ClientArray[OwningClientIndex]->ConnectionIdOnServer + 1);
+			AllowedConnections[ClientArray[OwningClientIndex]->ConnectionIdOnServer] = true;
+			Server->ReplicationSystem->SetConnectionFilter(ServerRootObjectHandle, AllowedConnections, ENetFilterStatus::Allow);
+		}
+	
+		UTestReplicatedObjectWithRPC* ServerSubObject = Server->CreateSubObject<UTestReplicatedObjectWithRPC>(ServerRootObjectHandle);
+		ServerSubObject->Init(Server->GetReplicationSystem());
+		ServerSubObject->SetRootObject(ServerRootObject);
+
+		// Send and deliver packet
+		Server->UpdateAndSend({ClientArray[OwningClientIndex]});
+
+		// Late join with second client
+		ClientArray[NonOwningClientIndex] = CreateClient();
+
+		// Call a multicast RPC server->client on the subobject
+		ServerSubObject->NetMulticast_MultiCastRPC();
+
+		// Send and deliver packet
+		{
+			FEnsureScope EnsureScope;
+			FCheckScope CheckScope;
+
+			Server->UpdateAndSend(ClientArray);
+
+			// No ensures or checks should trigger
+			UE_NET_ASSERT_EQ(EnsureScope.GetCount(), 0);
+			UE_NET_ASSERT_EQ(CheckScope.GetCount(), 0);
+		}
 	}
 
 }

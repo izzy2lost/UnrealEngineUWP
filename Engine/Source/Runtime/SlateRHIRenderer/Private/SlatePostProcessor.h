@@ -2,61 +2,84 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "RHI.h"
 #include "Layout/SlateRect.h"
+#include "Layout/Clipping.h"
+#include "ScreenPass.h"
 
-class FSlatePostProcessResource;
-class IRendererModule;
-struct IPooledRenderTarget;
-
-enum class EPostProcessDestination : uint8
+struct FSlateClippingOp
 {
-	// Output postprocess to the default UI render target
-	UITarget,
-	// Output postprocess to the provided destination texture
-	DestTexture
+	union
+	{
+		struct
+		{
+			FSlateRect Rect;
+		} Data_Scissor;
+
+		struct
+		{
+			TConstArrayView<FSlateClippingZone> Zones;
+		} Data_Stencil;
+	};
+
+	FVector2f Offset;
+	EClippingMethod Method;
+	uint8 MaskingId;
+
+	static inline FSlateClippingOp* Scissor(FRDGBuilder& GraphBuilder, FVector2f Offset, FSlateRect Rect)
+	{
+		FSlateClippingOp* Op = GraphBuilder.AllocPOD<FSlateClippingOp>();
+		Op->Data_Scissor.Rect = Rect;
+		Op->Offset = Offset;
+		Op->Method = EClippingMethod::Scissor;
+		Op->MaskingId = 0;
+		return Op;
+	}
+
+	static inline FSlateClippingOp* Stencil(FRDGBuilder& GraphBuilder, FVector2f Offset, TConstArrayView<FSlateClippingZone> Zones, int32 MaskingId)
+	{
+		FSlateClippingOp* Op = GraphBuilder.AllocPOD<FSlateClippingOp>();
+		Op->Data_Stencil.Zones = Zones;
+		Op->Offset = Offset;
+		Op->Method = EClippingMethod::Stencil;
+		Op->MaskingId = MaskingId;
+		return Op;
+	}
 };
 
-struct FPostProcessRectParams
+bool GetSlateClippingPipelineState(const FSlateClippingOp* ClippingStateOp, FRHIDepthStencilState*& OutDepthStencilState, uint8& OutStencilRef);
+
+void SetSlateClipping(FRHICommandList& RHICmdList, const FSlateClippingOp* ClippingStateOp, FIntRect ViewportRect);
+
+struct FSlatePostProcessBlurPassInputs
 {
-	FTextureRHIRef SourceTexture;
-	FTextureRHIRef DestTexture; // Only used when 'PostProcessDest' is 'DestTexture'
-	FSlateRect SourceRect;
-	FSlateRect DestRect;
-	FVector4f CornerRadius;
-	FIntPoint SourceTextureSize;
-	TFunction<void(FRHICommandListImmediate&, FGraphicsPipelineStateInitializer&, FRHIRenderPassInfo&)> RestoreStateFunc;
-	TRefCountPtr<IPooledRenderTarget> UITarget; // not using FTextureRHIRef because we want to be able to use FRenderTargetWriteMask::Decode
-	uint32 StencilRef{};
-	EDisplayColorGamut HDRDisplayColorGamut;
-	EPostProcessDestination PostProcessDest = EPostProcessDestination::UITarget;
+	// An optional in/out separately composited UI texture that is composited with the input and then the output rect is reset to transparent.
+	FRDGTexture* SDRCompositeUITexture = nullptr;
+	FRDGTexture* InputTexture = nullptr;
+	FRDGTexture* OutputTexture = nullptr;
+	ERenderTargetLoadAction OutputLoadAction = ERenderTargetLoadAction::ELoad;
+
+	// An optional set of inputs for when a blur is performed as part of a slate render batch.
+	const FSlateClippingOp* ClippingOp = nullptr;
+	const FDepthStencilBinding* ClippingStencilBinding = nullptr;
+	FIntRect ClippingElementsViewRect;
+
+	FIntRect InputRect;
+	FIntRect OutputRect;
+	uint32 KernelSize = 0;
+	float  Strength = 0.0f;
+	uint32 DownsampleAmount = 0;
+	FVector4f CornerRadius = FVector4f::Zero();
 };
 
-struct FBlurRectParams
+extern ETextureCreateFlags GetSlateTransientRenderTargetFlags();
+extern ETextureCreateFlags GetSlateTransientDepthStencilFlags();
+
+void AddSlatePostProcessBlurPass(FRDGBuilder& GraphBuilder, const FSlatePostProcessBlurPassInputs& Inputs);
+
+struct FSlatePostProcessColorDeficiencyPassInputs
 {
-	int32 KernelSize;
-	int32 DownsampleAmount;
-	float Strength;
+	FScreenPassTexture InputTexture;
+	FScreenPassTexture OutputTexture;
 };
 
-class FSlatePostProcessor
-{
-public:
-	FSlatePostProcessor();
-	~FSlatePostProcessor();
-
-	void BlurRect(FRHICommandListImmediate& RHICmdList, IRendererModule& RendererModule, const FBlurRectParams& Params, const FPostProcessRectParams& RectParams);
-	
-	void ColorDeficiency(FRHICommandListImmediate& RHICmdList, IRendererModule& RendererModule, const FPostProcessRectParams& RectParams);
-	
-	void ReleaseRenderTargets();
-	void TickPostProcessResources();
-
-private:
-	void DownsampleRect(FRHICommandListImmediate& RHICmdList, IRendererModule& RendererModule, const FPostProcessRectParams& Params, const FIntPoint& DownsampleSize, FSlatePostProcessResource* IntermediateTargets);
-	void UpsampleRect(FRHICommandListImmediate& RHICmdList, IRendererModule& RendererModule, const FPostProcessRectParams& Params, const FIntPoint& DownsampleSize, FSamplerStateRHIRef& Sampler, FSlatePostProcessResource* IntermediateTargets);
-	int32 ComputeBlurWeights(int32 KernelSize, float StdDev, TArray<FVector4f>& OutWeightsAndOffsets);
-private:
-	TArray<FSlatePostProcessResource*> IntermediateTargetsArray;
-};
+void AddSlatePostProcessColorDeficiencyPass(FRDGBuilder& GraphBuilder, const FSlatePostProcessColorDeficiencyPassInputs& Inputs);

@@ -930,7 +930,7 @@ namespace
 	// Gets a color weighted by its brightness
 	FVector MelangeGetLayerColor(cineware::BaseList2D* MelangeObject, cineware::Int32 ColorAttributeID, cineware::Int32 BrightnessAttributeID)
 	{
-		FVector Result;
+		FVector Result = FVector::ZeroVector;
 		if (MelangeObject)
 		{
 			float Brightness = MelangeGetFloat(MelangeObject, BrightnessAttributeID);
@@ -943,7 +943,7 @@ namespace
 	// In here instead of utils because it depends on the document color profile
 	FVector MelangeGetColor(cineware::BaseList2D* MelangeObject, cineware::Int32 MelangeDescId)
 	{
-		FVector Result;
+		FVector Result = FVector::ZeroVector;
 		if (MelangeObject)
 		{
 			Result = ToLinearColor(MelangeGetVector(MelangeObject, MelangeDescId));

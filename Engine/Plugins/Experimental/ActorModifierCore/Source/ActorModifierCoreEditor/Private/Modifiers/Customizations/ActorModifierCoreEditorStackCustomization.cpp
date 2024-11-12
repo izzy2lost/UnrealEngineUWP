@@ -2,11 +2,15 @@
 
 #include "Modifiers/Customizations/ActorModifierCoreEditorStackCustomization.h"
 
+#include "ActorModifierCoreEditorStyle.h"
+#include "Contexts/OperatorStackEditorMenuContext.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "IDetailTreeNode.h"
 #include "IPropertyRowGenerator.h"
+#include "Items/OperatorStackEditorGroupItem.h"
+#include "Items/OperatorStackEditorObjectItem.h"
 #include "JsonObjectConverter.h"
 #include "Modifiers/ActorModifierCoreBase.h"
 #include "Modifiers/ActorModifierCoreComponent.h"
@@ -16,15 +20,12 @@
 #include "Styling/SlateIconFinder.h"
 #include "Subsystems/ActorModifierCoreEditorSubsystem.h"
 #include "Subsystems/ActorModifierCoreSubsystem.h"
-#include "ActorModifierCoreEditorStyle.h"
-#include "Contexts/OperatorStackEditorMenuContext.h"
-#include "Items/OperatorStackEditorObjectItem.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Widgets/Views/STableRow.h"
 
 #define LOCTEXT_NAMESPACE "ActorModifierCoreEditorStackCustomization"
 
-DEFINE_LOG_CATEGORY_STATIC(LogActorModifierCoreEditorPropertiesWrapper, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogActorModifierCoreEditorStackCustomization, Log, All);
 
 UActorModifierCoreEditorStackCustomization::UActorModifierCoreEditorStackCustomization()
 	: UOperatorStackEditorStackCustomization(
@@ -37,43 +38,109 @@ UActorModifierCoreEditorStackCustomization::UActorModifierCoreEditorStackCustomi
 	RegisterCustomizationFor(UActorModifierCoreBase::StaticClass());
 }
 
-bool UActorModifierCoreEditorStackCustomization::TransformContextItem(const FOperatorStackEditorItemPtr& InItem, TArray<FOperatorStackEditorItemPtr>& OutTransformedItems) const
+bool UActorModifierCoreEditorStackCustomization::GetRootItem(const FOperatorStackEditorContext& InContext, FOperatorStackEditorItemPtr& OutRootItem) const
 {
-	// If we have an actor then display stack
-	if (InItem->IsA<AActor>())
-	{
-		const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
+	TArray<FOperatorStackEditorItemPtr> RootItems;
 
-		if (UActorModifierCoreStack* Stack = ModifierSubsystem->GetActorModifierStack(InItem->Get<AActor>()))
+	// Gather all modifiers stack as root items
+	for (const FOperatorStackEditorItemPtr& Item : InContext.GetItems())
+	{
+		if (!Item.IsValid())
 		{
-			OutTransformedItems.Add(MakeShared<FOperatorStackEditorObjectItem>(Stack));
-
-			return true;
-		}
-	}
-	// If we have a modifier component then display stack
-	else if (InItem->IsA<UActorModifierCoreComponent>())
-	{
-		const UActorModifierCoreComponent* ModifierComponent = InItem->Get<UActorModifierCoreComponent>();
-
-		OutTransformedItems.Add(MakeShared<FOperatorStackEditorObjectItem>(ModifierComponent->GetModifierStack()));
-
-		return true;
-	}
-	// If we have a stack then display modifiers inside
-	else if (InItem->IsA<UActorModifierCoreStack>())
-	{
-		const UActorModifierCoreStack* ModifierStack = InItem->Get<UActorModifierCoreStack>();
-
-		for (UActorModifierCoreBase* Modifier : ModifierStack->GetModifiers())
-		{
-			OutTransformedItems.Add(MakeShared<FOperatorStackEditorObjectItem>(Modifier));
+			continue;
 		}
 
-		return true;
+		if (Item->IsA<AActor>())
+		{
+			const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
+
+			for (const AActor* Actor : Item->GetAsArray<AActor>())
+			{
+				if (UActorModifierCoreStack* Stack = ModifierSubsystem->GetActorModifierStack(Actor))
+				{
+					RootItems.Add(MakeShared<FOperatorStackEditorObjectItem>(Stack));
+				}
+			}
+		}
+		else if (Item->IsA<UActorModifierCoreComponent>())
+		{
+			for (const UActorModifierCoreComponent* Component : Item->GetAsArray<UActorModifierCoreComponent>())
+			{
+				RootItems.Add(MakeShared<FOperatorStackEditorObjectItem>(Component->GetModifierStack()));
+			}
+		}
+		else if (Item->IsA<UActorModifierCoreStack>())
+		{
+			for (UActorModifierCoreStack* ModifierStack : Item->GetAsArray<UActorModifierCoreStack>())
+			{
+				RootItems.Add(MakeShared<FOperatorStackEditorObjectItem>(ModifierStack));
+			}
+		}
+		else if (Item->IsA<UActorModifierCoreBase>())
+		{
+			for (const UActorModifierCoreBase* Modifier : Item->GetAsArray<UActorModifierCoreBase>())
+			{
+				RootItems.Add(MakeShared<FOperatorStackEditorObjectItem>(Modifier->GetRootModifierStack()));
+			}
+		}
 	}
 
-	return Super::TransformContextItem(InItem, OutTransformedItems);
+	OutRootItem = MakeShared<FOperatorStackEditorGroupItem>(RootItems, FOperatorStackEditorItemType(UActorModifierCoreStack::StaticClass(), EOperatorStackEditorItemType::Object));
+
+	return Super::GetRootItem(InContext, OutRootItem);
+}
+
+bool UActorModifierCoreEditorStackCustomization::GetChildrenItem(const FOperatorStackEditorItemPtr& InItem, TArray<FOperatorStackEditorItemPtr>& OutChildrenItems) const
+{
+	if (InItem->IsA<UActorModifierCoreStack>())
+	{
+		if (InItem->GetValueCount() > 1)
+		{
+			TMap<UClass*, int32> ClassToIndex;
+			TArray<TArray<FOperatorStackEditorItemPtr>> Modifiers;
+
+			for (const UActorModifierCoreStack* ModifierStack : InItem->GetAsArray<UActorModifierCoreStack>())
+			{
+				for (UActorModifierCoreBase* Modifier : ModifierStack->GetModifiers())
+				{
+					if (!IsValid(Modifier))
+					{
+						continue;
+					}
+
+					if (const int32* Index = ClassToIndex.Find(Modifier->GetClass()))
+					{
+						Modifiers[*Index].Add(MakeShared<FOperatorStackEditorObjectItem>(Modifier));
+					}
+					else
+					{
+						TArray<FOperatorStackEditorItemPtr> ModifierGroup;
+						ModifierGroup.Add(MakeShared<FOperatorStackEditorObjectItem>(Modifier));
+						int32 GroupIndex = Modifiers.Add(ModifierGroup);
+						ClassToIndex.Add(Modifier->GetClass(), GroupIndex);
+					}
+				}
+			}
+
+			for (int32 Index = 0; Index < Modifiers.Num(); Index++)
+			{
+				const UClass* const* ModifierClass = ClassToIndex.FindKey(Index);
+				OutChildrenItems.Add(MakeShared<FOperatorStackEditorGroupItem>(Modifiers[Index], FOperatorStackEditorItemType(*ModifierClass, EOperatorStackEditorItemType::Object)));
+			}
+		}
+		else
+		{
+			for (UActorModifierCoreBase* Modifier : InItem->Get<UActorModifierCoreStack>(0)->GetModifiers())
+			{
+				if (IsValid(Modifier))
+				{
+					OutChildrenItems.Add(MakeShared<FOperatorStackEditorObjectItem>(Modifier));
+				}
+			}
+		}
+	}
+
+	return Super::GetChildrenItem(InItem, OutChildrenItems);
 }
 
 void UActorModifierCoreEditorStackCustomization::CustomizeStackHeader(const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorHeaderBuilder& InHeaderBuilder)
@@ -93,7 +160,7 @@ void UActorModifierCoreEditorStackCustomization::CustomizeStackHeader(const FOpe
 		{
 			if (Item.IsValid() && Item->IsA<UActorModifierCoreBase>())
 			{
-				const UActorModifierCoreBase* Modifier = Item->Get<UActorModifierCoreBase>();
+				const UActorModifierCoreBase* Modifier = Item->Get<UActorModifierCoreBase>(0);
 
 				if (Modifier && !Modifier->IsModifierStack())
 				{
@@ -106,7 +173,7 @@ void UActorModifierCoreEditorStackCustomization::CustomizeStackHeader(const FOpe
 			.SetToolMenu(
 				AddModifierMenuName
 				, LOCTEXT("AddModifiersMenu", "Add Modifiers")
-				, FAppStyle::GetBrush(TEXT("Icons.PlusCircle"))
+				, FAppStyle::GetBrush("Icons.Plus")
 			)
 			.SetSearchAllowed(true)
 			.SetSearchPinnedKeywords(PinnedKeywords);
@@ -122,14 +189,10 @@ void UActorModifierCoreEditorStackCustomization::CustomizeItemHeader(const FOper
 	// Customize stack and modifier header
 	if (InItem->IsA<UActorModifierCoreBase>())
 	{
-		UActorModifierCoreBase* Modifier = InItem->Get<UActorModifierCoreBase>();
-
 		FBoolProperty* ModifierEnableProperty = FindFProperty<FBoolProperty>(UActorModifierCoreBase::StaticClass(), GET_MEMBER_NAME_CHECKED(UActorModifierCoreBase, bModifierEnabled));
 
-		const bool bIsStack = Modifier->IsModifierStack();
-
 		// Commands for item on key events
-		const TSharedPtr<FUICommandList> Commands = CreateModifierCommands(Modifier);
+		const TSharedPtr<FUICommandList> Commands = CreateModifierCommands(InItem);
 
 		// Action menu available in header in slim toolbar
 		static const FName HeaderModifierMenuName = TEXT("HeaderModifierMenu");
@@ -148,6 +211,8 @@ void UActorModifierCoreEditorStackCustomization::CustomizeItemHeader(const FOper
 		}
 
 		// Item keyword for search
+		UActorModifierCoreBase* Modifier = InItem->Get<UActorModifierCoreBase>(0);
+
 		const TSet<FString> SearchKeywords
 		{
 			Modifier->GetModifierName().ToString(),
@@ -156,30 +221,34 @@ void UActorModifierCoreEditorStackCustomization::CustomizeItemHeader(const FOper
 
 		FSlateIcon ModifierIcon = FSlateIconFinder::FindIconForClass(UActorModifierCoreBase::StaticClass());
 		FLinearColor ModifierColor = FLinearColor::Transparent;
+		FText ModifierTooltip = FText::GetEmpty();
 
-		ModifierSubsystem->ProcessModifierMetadata(Modifier->GetModifierName(), [&ModifierIcon, &ModifierColor](const FActorModifierCoreMetadata& InMetadata)
+		ModifierSubsystem->ProcessModifierMetadata(Modifier->GetModifierName(), [&ModifierIcon, &ModifierColor, &ModifierTooltip](const FActorModifierCoreMetadata& InMetadata)
 		{
 			ModifierIcon = InMetadata.GetIcon();
 			ModifierColor = InMetadata.GetColor();
+			ModifierTooltip = InMetadata.GetDescription();
 			return true;
 		});
 
-		FString HeaderLabel = Modifier->GetModifierName().ToString();
-
-		// Add actor name next to stack label when we customize multiple items
-		if (bIsStack && InItemTree.GetRootItems().Num() > 1)
-		{
-			if (const AActor* ModifiedActor = Modifier->GetModifiedActor())
-			{
-				HeaderLabel += + TEXT(" (") + ModifiedActor->GetActorNameOrLabel() + TEXT(")");
-			}
-		}
+		const bool bIsStack = InItem->IsA<UActorModifierCoreStack>();
 
 		/** Show last execution error messages if failed execution */
 		TAttribute<EOperatorStackEditorMessageType> MessageType = EOperatorStackEditorMessageType::None;
 		TAttribute<FText> MessageText = FText::GetEmpty();
+		FString HeaderLabel = bIsStack ? TEXT("Modifiers") : Modifier->GetModifierName().ToString();
 
-		if (!bIsStack)
+		if (InItem->GetValueCount() > 1)
+		{
+			HeaderLabel += TEXT(" (") + FString::FromInt(InItem->GetValueCount()) + TEXT(")");
+
+			if (bIsStack)
+			{
+				MessageType = EOperatorStackEditorMessageType::Info;
+				MessageText = LOCTEXT("MultiModifierView", "You are viewing multiple items");
+			}
+		}
+		else if (!bIsStack)
 		{
 			TWeakObjectPtr<UActorModifierCoreBase> ModifierWeak(Modifier);
 
@@ -228,6 +297,7 @@ void UActorModifierCoreEditorStackCustomization::CustomizeItemHeader(const FOper
 			.SetExpandable(!bIsStack)
 			.SetIcon(ModifierIcon.GetIcon())
 			.SetLabel(FText::FromString(HeaderLabel))
+			.SetTooltip(ModifierTooltip)
 			.SetBorderColor(ModifierColor)
 			.SetProperty(ModifierEnableProperty)
 			.SetCommandList(Commands)
@@ -261,9 +331,9 @@ void UActorModifierCoreEditorStackCustomization::CustomizeItemBody(const FOperat
 void UActorModifierCoreEditorStackCustomization::CustomizeItemFooter(const FOperatorStackEditorItemPtr& InItem, const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorFooterBuilder& InFooterBuilder)
 {
 	// Customize stack and modifier footer
-	if (InItem->IsA<UActorModifierCoreBase>())
+	if (InItemTree.GetRootItem()->GetValueCount() == 1 && InItem->IsA<UActorModifierCoreBase>())
 	{
-		const UActorModifierCoreBase* Modifier = InItem->Get<UActorModifierCoreBase>();
+		const UActorModifierCoreBase* Modifier = InItem->Get<UActorModifierCoreBase>(0);
 		const TSharedPtr<FActorModifierCoreProfiler> Profiler = Modifier->GetProfiler();
 		UActorModifierCoreEditorSubsystem* ExtensionSubsystem = UActorModifierCoreEditorSubsystem::Get();
 
@@ -281,7 +351,7 @@ void UActorModifierCoreEditorStackCustomization::CustomizeItemFooter(const FOper
 
 bool UActorModifierCoreEditorStackCustomization::OnIsItemDraggable(const FOperatorStackEditorItemPtr& InDragItem)
 {
-	if (InDragItem->IsA<UActorModifierCoreBase>())
+	if (InDragItem->IsA<UActorModifierCoreBase>() && InDragItem->GetValueCount() == 1)
 	{
 		const bool bIsStack = InDragItem->IsA<UActorModifierCoreStack>();
 		return !bIsStack;
@@ -292,22 +362,23 @@ bool UActorModifierCoreEditorStackCustomization::OnIsItemDraggable(const FOperat
 
 TOptional<EItemDropZone> UActorModifierCoreEditorStackCustomization::OnItemCanAcceptDrop(const TArray<FOperatorStackEditorItemPtr>& InDraggedItems, const FOperatorStackEditorItemPtr& InDropZoneItem, EItemDropZone InZone)
 {
-	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
+	if (!InDropZoneItem->IsA<UActorModifierCoreBase>()
+		|| InDropZoneItem->GetValueCount() != 1)
+	{
+		return Super::OnItemCanAcceptDrop(InDraggedItems, InDropZoneItem, InZone);
+	}
 
 	TSet<UActorModifierCoreBase*> DraggedModifiers;
 	for (const FOperatorStackEditorItemPtr& Item : InDraggedItems)
 	{
-		if (!Item.IsValid())
+		if (!Item.IsValid()
+			|| !Item->IsA<UActorModifierCoreBase>()
+			|| Item->GetValueCount() != 1)
 		{
 			continue;
 		}
 
-		if (!Item->IsA<UActorModifierCoreBase>())
-		{
-			continue;
-		}
-
-		if (UActorModifierCoreBase* Modifier = Item->Get<UActorModifierCoreBase>())
+		if (UActorModifierCoreBase* Modifier = Item->Get<UActorModifierCoreBase>(0))
 		{
 			if (!Modifier->IsModifierStack())
 			{
@@ -316,20 +387,21 @@ TOptional<EItemDropZone> UActorModifierCoreEditorStackCustomization::OnItemCanAc
 		}
 	}
 
-	if (InDropZoneItem->IsA<UActorModifierCoreBase>())
+	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
+	UActorModifierCoreBase* DropModifier = InDropZoneItem->Get<UActorModifierCoreBase>(0);
+
+	if (IsValid(ModifierSubsystem) && IsValid(DropModifier->GetModifiedActor()))
 	{
-		UActorModifierCoreBase* DropModifier = InDropZoneItem->Get<UActorModifierCoreBase>();
-
 		TArray<UActorModifierCoreBase*> MoveModifiers;
-		TArray<UActorModifierCoreBase*> CloneModifiers;
+        TArray<UActorModifierCoreBase*> CloneModifiers;
+        const EActorModifierCoreStackPosition Position = InZone == EItemDropZone::AboveItem ? EActorModifierCoreStackPosition::Before : EActorModifierCoreStackPosition::After;
 
-		const EActorModifierCoreStackPosition Position = InZone == EItemDropZone::AboveItem ? EActorModifierCoreStackPosition::Before : EActorModifierCoreStackPosition::After;
-		ModifierSubsystem->GetSortedModifiers(DraggedModifiers, DropModifier->GetModifiedActor(), DropModifier, Position, MoveModifiers, CloneModifiers);
+        ModifierSubsystem->GetSortedModifiers(DraggedModifiers, DropModifier->GetModifiedActor(), DropModifier, Position, MoveModifiers, CloneModifiers);
 
-		if (!MoveModifiers.IsEmpty())
-		{
-			return InZone;
-		}
+        if (!MoveModifiers.IsEmpty())
+        {
+        	return InZone;
+        }
 	}
 
 	return Super::OnItemCanAcceptDrop(InDraggedItems, InDropZoneItem, InZone);
@@ -337,70 +409,65 @@ TOptional<EItemDropZone> UActorModifierCoreEditorStackCustomization::OnItemCanAc
 
 void UActorModifierCoreEditorStackCustomization::OnDropItem(const TArray<FOperatorStackEditorItemPtr>& InDraggedItems, const FOperatorStackEditorItemPtr& InDropZoneItem, EItemDropZone InZone)
 {
-	const UActorModifierCoreSubsystem* const ModifierSubsystem = UActorModifierCoreSubsystem::Get();
+	if (!InDropZoneItem->IsA<UActorModifierCoreBase>()
+		|| InDropZoneItem->GetValueCount() != 1)
+	{
+		return;
+	}
 
-	TSet<UActorModifierCoreBase*> Modifiers;
+	TSet<UActorModifierCoreBase*> DraggedModifiers;
 	for (const FOperatorStackEditorItemPtr& Item : InDraggedItems)
 	{
-		if (!Item.IsValid())
+		if (!Item.IsValid()
+			|| !Item->IsA<UActorModifierCoreBase>()
+			|| Item->GetValueCount() != 1)
 		{
 			continue;
 		}
 
-		if (!Item->IsA<UActorModifierCoreBase>())
-		{
-			continue;
-		}
-
-		if (UActorModifierCoreBase* Modifier = Item->Get<UActorModifierCoreBase>())
+		if (UActorModifierCoreBase* Modifier = Item->Get<UActorModifierCoreBase>(0))
 		{
 			if (!Modifier->IsModifierStack())
 			{
-				Modifiers.Add(Modifier);
+				DraggedModifiers.Add(Modifier);
 			}
 		}
 	}
 
-	if (InDropZoneItem->IsA<UActorModifierCoreBase>())
+	const UActorModifierCoreSubsystem* const ModifierSubsystem = UActorModifierCoreSubsystem::Get();
+	UActorModifierCoreBase* DropModifier = InDropZoneItem->Get<UActorModifierCoreBase>(0);
+
+	if (!IsValid(ModifierSubsystem) || !IsValid(DropModifier->GetModifiedActor()))
 	{
-		UActorModifierCoreBase* DropModifier = InDropZoneItem->Get<UActorModifierCoreBase>();
+		return;
+	}
 
-		UActorModifierCoreStack* const TargetStack = DropModifier->GetModifierStack();
+	TArray<UActorModifierCoreBase*> MoveModifiers;
+	TArray<UActorModifierCoreBase*> CloneModifiers;
+	const EActorModifierCoreStackPosition Position = InZone == EItemDropZone::AboveItem ? EActorModifierCoreStackPosition::Before : EActorModifierCoreStackPosition::After;
 
-		if (!IsValid(ModifierSubsystem) || !IsValid(TargetStack))
-		{
-			return;
-		}
+	ModifierSubsystem->GetSortedModifiers(DraggedModifiers, DropModifier->GetModifiedActor(), DropModifier, Position, MoveModifiers, CloneModifiers);
 
-		AActor* const TargetActor = TargetStack->GetModifiedActor();
+	if (MoveModifiers.IsEmpty())
+	{
+		return;
+	}
 
-		TArray<UActorModifierCoreBase*> MoveModifiers;
-		TArray<UActorModifierCoreBase*> CloneModifiers;
+	FText FailReason;
+	FActorModifierCoreStackMoveOp MoveOp;
+	MoveOp.bShouldTransact = true;
+	MoveOp.FailReason = &FailReason;
+	MoveOp.MovePosition = Position;
+	MoveOp.MovePositionContext = DropModifier;
 
-		const EActorModifierCoreStackPosition Position = InZone == EItemDropZone::AboveItem ? EActorModifierCoreStackPosition::Before : EActorModifierCoreStackPosition::After;
-		ModifierSubsystem->GetSortedModifiers(Modifiers, TargetActor, DropModifier, Position, MoveModifiers, CloneModifiers);
+	ModifierSubsystem->MoveModifiers(MoveModifiers, DropModifier->GetModifierStack(), MoveOp);
 
-		if (MoveModifiers.IsEmpty())
-		{
-			return;
-		}
-
-		FText FailReason;
-		FActorModifierCoreStackMoveOp MoveOp;
-		MoveOp.bShouldTransact = true;
-		MoveOp.FailReason = &FailReason;
-		MoveOp.MovePosition = Position;
-		MoveOp.MovePositionContext = DropModifier;
-
-		ModifierSubsystem->MoveModifiers(MoveModifiers, TargetStack, MoveOp);
-
-		if (!FailReason.IsEmpty())
-		{
-			FNotificationInfo NotificationInfo(FailReason);
-			NotificationInfo.ExpireDuration = 3.f;
-			NotificationInfo.bFireAndForget = true;
-			FSlateNotificationManager::Get().AddNotification(NotificationInfo);
-		}
+	if (!FailReason.IsEmpty())
+	{
+		FNotificationInfo NotificationInfo(FailReason);
+		NotificationInfo.ExpireDuration = 3.f;
+		NotificationInfo.bFireAndForget = true;
+		FSlateNotificationManager::Get().AddNotification(NotificationInfo);
 	}
 
 	Super::OnDropItem(InDraggedItems, InDropZoneItem, InZone);
@@ -436,7 +503,10 @@ void UActorModifierCoreEditorStackCustomization::FillStackHeaderMenu(UToolMenu* 
 	{
 		if (ContextItem->IsA<UObject>())
 		{
-			ContextObjects.Add(ContextItem->Get<UObject>());
+			for (UObject* ContextObject : ContextItem->GetAsArray<UObject>())
+			{
+				ContextObjects.Add(ContextObject);
+			}
 		}
 	}
 
@@ -465,21 +535,15 @@ void UActorModifierCoreEditorStackCustomization::FillItemHeaderActionMenu(UToolM
 		return;
 	}
 
-	UActorModifierCoreBase* Modifier = ItemContext->Get<UActorModifierCoreBase>();
-	if (!IsValid(Modifier))
-	{
-		return;
-	}
-
 	// Add profiling stat toggle entry
-	if (UActorModifierCoreStack* ModifierStack = Cast<UActorModifierCoreStack>(Modifier))
+	if (ItemContext->IsA<UActorModifierCoreStack>())
 	{
 		const FToolMenuEntry EnableProfilingModifierAction = FToolMenuEntry::InitToolBarButton(
 			TEXT("EnableProfilingModifierMenuEntry")
 			, FUIAction(
-				FExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::ToggleModifierProfilingAction, ModifierStack)
+				FExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::ToggleModifierProfilingAction, ItemContext)
 				, FCanExecuteAction()
-				, FIsActionChecked::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::IsModifierProfiling, ModifierStack))
+				, FIsActionChecked::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::IsModifierProfiling, ItemContext))
 			, FText::GetEmpty()
 			, FText::GetEmpty()
 			, FSlateIcon(FActorModifierCoreEditorStyle::Get().GetStyleSetName(), "Profiling")
@@ -492,7 +556,10 @@ void UActorModifierCoreEditorStackCustomization::FillItemHeaderActionMenu(UToolM
 	// Add remove modifier entry
 	const FToolMenuEntry RemoveModifierAction = FToolMenuEntry::InitToolBarButton(
 		TEXT("RemoveModifierMenuEntry")
-		, FExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::RemoveModifierAction, Modifier)
+		, FUIAction(
+			FExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::RemoveModifierAction, ItemContext)
+			, FCanExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::CanRemoveModifier, ItemContext)
+		  )
 		, FText::GetEmpty()
 		, FText::GetEmpty()
 		, FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Delete")
@@ -520,13 +587,7 @@ void UActorModifierCoreEditorStackCustomization::FillItemContextActionMenu(UTool
 		return;
 	}
 
-	UActorModifierCoreBase* Modifier = ItemContext->Get<UActorModifierCoreBase>();
-	if (!IsValid(Modifier))
-	{
-		return;
-	}
-
-	if (UActorModifierCoreStack* ModifierStack = Cast<UActorModifierCoreStack>(Modifier))
+	if (ItemContext->IsA<UActorModifierCoreStack>())
 	{
 		const FToolMenuEntry EnableProfilingModifierAction = FToolMenuEntry::InitMenuEntry(
 			TEXT("EnableProfilingModifierMenuEntry")
@@ -534,9 +595,9 @@ void UActorModifierCoreEditorStackCustomization::FillItemContextActionMenu(UTool
 			, FText::GetEmpty()
 			, FSlateIcon(FActorModifierCoreEditorStyle::Get().GetStyleSetName(), "Profiling")
 			, FUIAction(
-				FExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::ToggleModifierProfilingAction, ModifierStack)
+				FExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::ToggleModifierProfilingAction, ItemContext)
 				, FCanExecuteAction()
-				, FIsActionChecked::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::IsModifierProfiling, ModifierStack))
+				, FIsActionChecked::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::IsModifierProfiling, ItemContext))
 			, EUserInterfaceActionType::ToggleButton);
 
 		InToolMenu->AddMenuEntry(EnableProfilingModifierAction.Name, EnableProfilingModifierAction);
@@ -570,9 +631,9 @@ void UActorModifierCoreEditorStackCustomization::FillItemContextActionMenu(UTool
 	}
 }
 
-bool UActorModifierCoreEditorStackCustomization::CanRemoveModifier(UActorModifierCoreBase* InModifier) const
+bool UActorModifierCoreEditorStackCustomization::CanRemoveModifier(FOperatorStackEditorItemPtr InItem) const
 {
-	if (!IsValid(InModifier) || !IsValid(InModifier->GetModifiedActor()))
+	if (!InItem.IsValid() || !InItem->HasValue())
 	{
 		return false;
 	}
@@ -580,9 +641,9 @@ bool UActorModifierCoreEditorStackCustomization::CanRemoveModifier(UActorModifie
 	return true;
 }
 
-void UActorModifierCoreEditorStackCustomization::RemoveModifierAction(UActorModifierCoreBase* InModifier) const
+void UActorModifierCoreEditorStackCustomization::RemoveModifierAction(FOperatorStackEditorItemPtr InItem) const
 {
-	if (!CanRemoveModifier(InModifier))
+	if (!CanRemoveModifier(InItem))
 	{
 		return;
 	}
@@ -594,19 +655,19 @@ void UActorModifierCoreEditorStackCustomization::RemoveModifierAction(UActorModi
 		return;
 	}
 
-	if (InModifier->IsModifierStack())
+	if (InItem->IsA<UActorModifierCoreStack>())
 	{
-		TSet<AActor*> Actors
-		{
-			InModifier->GetModifiedActor()
-		};
+		const TSet<UActorModifierCoreStack*> ModifierStacks(InItem->GetAsArray<UActorModifierCoreStack>());
 
-		ModifierSubsystem->RemoveActorsModifiers(Actors, true);
+		if (!ModifierSubsystem->RemoveModifierStacks(ModifierStacks, /** Transact */true))
+		{
+			UE_LOG(LogActorModifierCoreEditorStackCustomization, Warning, TEXT("Could not remove modifier stacks from actors"))
+		}
 	}
 	else
 	{
 		TSet<UActorModifierCoreBase*> Modifiers;
-		Modifiers.Add(InModifier);
+		Modifiers.Append(InItem->GetAsArray<UActorModifierCoreBase>());
 
 		FText OutFailReason;
 		FActorModifierCoreStackRemoveOp RemoveOp;
@@ -623,9 +684,9 @@ void UActorModifierCoreEditorStackCustomization::RemoveModifierAction(UActorModi
 	}
 }
 
-bool UActorModifierCoreEditorStackCustomization::CanCopyModifier(UActorModifierCoreBase* InModifier) const
+bool UActorModifierCoreEditorStackCustomization::CanCopyModifier(FOperatorStackEditorItemPtr InItem) const
 {
-	if (!IsValid(InModifier) || InModifier->IsModifierStack())
+	if (!InItem.IsValid() || !InItem->HasValue() || InItem->GetValueCount() != 1)
 	{
 		return false;
 	}
@@ -633,40 +694,41 @@ bool UActorModifierCoreEditorStackCustomization::CanCopyModifier(UActorModifierC
 	return true;
 }
 
-void UActorModifierCoreEditorStackCustomization::CopyModifierAction(UActorModifierCoreBase* InModifier) const
+void UActorModifierCoreEditorStackCustomization::CopyModifierAction(FOperatorStackEditorItemPtr InItem) const
 {
-	if (!CanCopyModifier(InModifier))
+	if (!CanCopyModifier(InItem))
 	{
 		return;
 	}
 
-	TMap<FName, FString> ModifierPropertiesHandlesMap;
-	const bool bSuccess = CreatePropertiesHandlesMapFromModifier(InModifier, ModifierPropertiesHandlesMap);
-
-	if (!bSuccess)
+	// Should only contain one modifier since we only allow action for one
+	TArray<TSharedPtr<FJsonValue>> JsonModifiers;
+	for (UActorModifierCoreBase* Modifier : InItem->GetAsArray<UActorModifierCoreBase>())
 	{
-		return;
+		TMap<FName, FString> ModifierPropertiesHandlesMap;
+		if (!CreatePropertiesHandlesMapFromModifier(Modifier, ModifierPropertiesHandlesMap))
+		{
+			continue;
+		}
+
+		FActorModifierCoreEditorPropertiesWrapper ModifierPropertiesWrapper;
+		ModifierPropertiesWrapper.ModifierName = Modifier->GetModifierName();
+		ModifierPropertiesWrapper.PropertiesHandlesAsStringMap = ModifierPropertiesHandlesMap;
+
+		TSharedRef<FJsonObject> PropertiesJsonObject = MakeShared<FJsonObject>();
+		FJsonObjectConverter::UStructToJsonObject(FActorModifierCoreEditorPropertiesWrapper::StaticStruct(), &ModifierPropertiesWrapper, PropertiesJsonObject, 0 /* CheckFlags */, 0 /* SkipFlags */);
+		JsonModifiers.Add(MakeShared<FJsonValueObject>(PropertiesJsonObject));
 	}
 
 	FString SerializedString;
-
-	const TSharedRef<FJsonObject> RootJsonObject = MakeShared<FJsonObject>();
-
-	FActorModifierCoreEditorPropertiesWrapper ModifierPropertiesWrapper;
-	ModifierPropertiesWrapper.ModifierName = InModifier->GetModifierName();
-	ModifierPropertiesWrapper.PropertiesHandlesAsStringMap = ModifierPropertiesHandlesMap;
-
-	TSharedRef<FJsonObject> PropertiesJsonObject = MakeShared<FJsonObject>();
-	FJsonObjectConverter::UStructToJsonObject(FActorModifierCoreEditorPropertiesWrapper::StaticStruct(), &ModifierPropertiesWrapper, PropertiesJsonObject, 0 /* CheckFlags */, 0 /* SkipFlags */);
-	const TSharedPtr<FJsonValue> PropertiesJsonValue = MakeShared<FJsonValueObject>(PropertiesJsonObject);
-
-	RootJsonObject->SetField(PropertiesWrapperEntry, PropertiesJsonValue);
-
 	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&SerializedString);
+	if (!FJsonSerializer::Serialize(JsonModifiers, Writer))
+	{
+		UE_LOG(LogActorModifierCoreEditorStackCustomization, Warning, TEXT("Unable to serialize the selected modifier(s) into Json format"));
+		return;
+	}
 
-	FJsonSerializer::Serialize(RootJsonObject, Writer);
-
-	// Add Prefix to quickly identify whether current clipboard is from Tag Collection Properties or not
+	// Add prefix to quickly identify whether current clipboard is from modifiers or not
 	SerializedString = *FString::Printf(TEXT("%s%s")
 		, *PropertiesWrapperPrefix
 		, *SerializedString);
@@ -674,97 +736,141 @@ void UActorModifierCoreEditorStackCustomization::CopyModifierAction(UActorModifi
 	FPlatformApplicationMisc::ClipboardCopy(*SerializedString);
 }
 
-bool UActorModifierCoreEditorStackCustomization::CanPasteModifier(UActorModifierCoreBase* InModifier) const
+bool UActorModifierCoreEditorStackCustomization::CanPasteModifier(FOperatorStackEditorItemPtr InItem) const
 {
-	if (!IsValid(InModifier))
+	if (!InItem.IsValid() || !InItem->HasValue() || InItem->GetValueCount() != 1)
 	{
 		return false;
 	}
 
 	FString ClipboardContent;
 	FPlatformApplicationMisc::ClipboardPaste(ClipboardContent);
+
 	return ClipboardContent.StartsWith(PropertiesWrapperPrefix);
 }
 
-void UActorModifierCoreEditorStackCustomization::PasteModifierAction(UActorModifierCoreBase* InModifier) const
+void UActorModifierCoreEditorStackCustomization::PasteModifierAction(FOperatorStackEditorItemPtr InItem) const
 {
-	if (!CanPasteModifier(InModifier))
+	if (!CanPasteModifier(InItem))
 	{
 		return;
 	}
 
-	if (const UActorModifierCoreStack* ModifierStack = Cast<UActorModifierCoreStack>(InModifier))
+	// We only allow usage of this action when one item is selected but we could support multi selection later
+	TArray<FActorModifierCoreEditorPropertiesWrapper> ModifierPropertiesWrapper;
+	if (!GetModifierPropertiesWrapperFromClipboard(ModifierPropertiesWrapper))
 	{
-		TSet<AActor*> Actors { InModifier->GetModifiedActor() };
-		if (!AddModifierFromClipboard(Actors))
+		return;
+	}
+
+	const FName ModifierName = ModifierPropertiesWrapper[0].ModifierName;
+	TArray<UActorModifierCoreBase*> TargetModifiers;
+
+	if (InItem->IsA<UActorModifierCoreStack>())
+	{
+		TSet<AActor*> Actors;
+		for (const UActorModifierCoreStack* ModifierStack : InItem->GetAsArray<UActorModifierCoreStack>())
+		{
+			Actors.Add(ModifierStack->GetModifiedActor());
+		}
+
+		if (!AddModifierFromClipboard(Actors, ModifierName, TargetModifiers))
 		{
 			return;
 		}
-		InModifier = ModifierStack->GetLastModifier();
+	}
+	else
+	{
+		TargetModifiers = InItem->GetAsArray<UActorModifierCoreBase>();
 	}
 
-	FActorModifierCoreEditorPropertiesWrapper ModifierPropertiesWrapper;
-	if (GetModifierPropertiesWrapperFromClipboard(ModifierPropertiesWrapper))
+	if (TargetModifiers.Num() != ModifierPropertiesWrapper.Num())
 	{
-		if (ModifierPropertiesWrapper.ModifierName == InModifier->GetModifierName())
-		{
-			FScopedTransaction Transaction(LOCTEXT("PasteModifierProperties", "Paste Modifier Properties"));
-			InModifier->Modify();
+		UE_LOG(LogActorModifierCoreEditorStackCustomization, Warning, TEXT("Unable to set properties from %s modifier due to target modifiers (%i) and modifiers properties (%i) count mismatch"), *ModifierName.ToString(), TargetModifiers.Num(), ModifierPropertiesWrapper.Num());
+		return;
+	}
 
-			UpdateModifierFromPropertiesHandlesMap(InModifier, ModifierPropertiesWrapper.PropertiesHandlesAsStringMap);
+	FScopedTransaction Transaction(LOCTEXT("PasteModifierProperties", "Paste Modifier Properties"));
+
+	for (int32 Index = 0; Index < TargetModifiers.Num(); Index++)
+	{
+		UActorModifierCoreBase* TargetModifier = TargetModifiers[Index];
+
+		if (!IsValid(TargetModifier))
+		{
+			continue;
+		}
+
+		const FActorModifierCoreEditorPropertiesWrapper ModifierProperties = ModifierPropertiesWrapper[Index];
+
+		if (ModifierName == TargetModifier->GetModifierName())
+		{
+			TargetModifier->Modify();
+			UpdateModifierFromPropertiesHandlesMap(TargetModifier, ModifierProperties.PropertiesHandlesAsStringMap);
 		}
 		else
 		{
-			const FString SourceModifierName = ModifierPropertiesWrapper.ModifierName.ToString();
-			const FString DestinationModifierName = InModifier->GetModifierName().ToString();
+			const FString SourceModifierName = ModifierProperties.ModifierName.ToString();
+			const FString DestinationModifierName = TargetModifier->GetModifierName().ToString();
 
-			UE_LOG(LogActorModifierCoreEditorPropertiesWrapper, Warning, TEXT("Unable to copy properties from %s modifier to %s modifier"), *SourceModifierName, *DestinationModifierName);
+			UE_LOG(LogActorModifierCoreEditorStackCustomization, Warning, TEXT("Unable to copy properties from %s modifier to %s modifier"), *SourceModifierName, *DestinationModifierName);
 		}
 	}
 }
 
-bool UActorModifierCoreEditorStackCustomization::IsModifierProfiling(UActorModifierCoreStack* InStack) const
+bool UActorModifierCoreEditorStackCustomization::IsModifierProfiling(FOperatorStackEditorItemPtr InItem) const
 {
-	if (!IsValid(InStack) || !IsValid(InStack->GetModifiedActor()))
+	if (!InItem.IsValid() || !InItem->HasValue())
 	{
 		return false;
 	}
 
-	return InStack->IsModifierProfiling();
+	for (const UActorModifierCoreStack* ModifierStack : InItem->GetAsArray<UActorModifierCoreStack>())
+	{
+		if (!ModifierStack->IsModifierProfiling())
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
-void UActorModifierCoreEditorStackCustomization::ToggleModifierProfilingAction(UActorModifierCoreStack* InStack) const
+void UActorModifierCoreEditorStackCustomization::ToggleModifierProfilingAction(FOperatorStackEditorItemPtr InItem) const
 {
-	if (!IsValid(InStack) || !IsValid(InStack->GetModifiedActor()))
+	if (!InItem.IsValid() || !InItem->HasValue())
 	{
 		return;
 	}
 
-	InStack->SetModifierProfiling(!InStack->IsModifierProfiling());
+	for (UActorModifierCoreStack* ModifierStack : InItem->GetAsArray<UActorModifierCoreStack>())
+	{
+		ModifierStack->SetModifierProfiling(!ModifierStack->IsModifierProfiling());
+	}
 }
 
-TSharedRef<FUICommandList> UActorModifierCoreEditorStackCustomization::CreateModifierCommands(UActorModifierCoreBase* InModifier)
+TSharedRef<FUICommandList> UActorModifierCoreEditorStackCustomization::CreateModifierCommands(FOperatorStackEditorItemPtr InItem)
 {
 	TSharedRef<FUICommandList> Commands = MakeShared<FUICommandList>();
 
 	Commands->MapAction(FGenericCommands::Get().Copy
 		, FUIAction(
-			FExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::CopyModifierAction, InModifier),
-			FCanExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::CanCopyModifier, InModifier)
+			FExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::CopyModifierAction, InItem),
+			FCanExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::CanCopyModifier, InItem)
 		)
 	);
 
 	Commands->MapAction(FGenericCommands::Get().Paste
 		, FUIAction(
-			FExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::PasteModifierAction, InModifier),
-			FCanExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::CanPasteModifier, InModifier)
+			FExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::PasteModifierAction, InItem),
+			FCanExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::CanPasteModifier, InItem)
 		)
 	);
 
 	Commands->MapAction(FGenericCommands::Get().Delete
 		, FUIAction(
-			FExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::RemoveModifierAction, InModifier),
-			FCanExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::CanRemoveModifier, InModifier)
+			FExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::RemoveModifierAction, InItem),
+			FCanExecuteAction::CreateUObject(this, &UActorModifierCoreEditorStackCustomization::CanRemoveModifier, InItem)
 		)
 	);
 
@@ -814,43 +920,41 @@ bool UActorModifierCoreEditorStackCustomization::CreatePropertiesHandlesMapFromM
 	return true;
 }
 
-bool UActorModifierCoreEditorStackCustomization::GetModifierPropertiesWrapperFromClipboard(FActorModifierCoreEditorPropertiesWrapper& OutPropertiesWrapper) const
+bool UActorModifierCoreEditorStackCustomization::GetModifierPropertiesWrapperFromClipboard(TArray<FActorModifierCoreEditorPropertiesWrapper>& OutModifierProperties) const
 {
 	FString ClipboardContent;
 	FPlatformApplicationMisc::ClipboardPaste(ClipboardContent);
 
+	if (!ClipboardContent.StartsWith(PropertiesWrapperPrefix))
+	{
+		return false;
+	}
+
 	// remove prefix, this is not part of the modifier properties json data
 	ClipboardContent.RightChopInline(PropertiesWrapperPrefix.Len());
 
-	TSharedPtr<FJsonObject> RootJsonObject;
+	TArray<TSharedPtr<FJsonValue>> JsonModifiers;
 	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ClipboardContent);
 
-	if (!FJsonSerializer::Deserialize(Reader, RootJsonObject))
+	if (!FJsonSerializer::Deserialize(Reader, JsonModifiers))
 	{
-		UE_LOG(LogActorModifierCoreEditorPropertiesWrapper, Warning, TEXT("Unable to serialize the pasted text into Json format"));
+		UE_LOG(LogActorModifierCoreEditorStackCustomization, Warning, TEXT("Unable to deserialize the clipboard text into Json format"));
 		return false;
 	}
 
-	const TSharedPtr<FJsonValue> PropertiesJsonValue = RootJsonObject->TryGetField(PropertiesWrapperEntry);
-
-	if (!PropertiesJsonValue.IsValid())
+	if (JsonModifiers.IsEmpty())
 	{
-		UE_LOG(LogActorModifierCoreEditorPropertiesWrapper, Warning, TEXT("Missing %s entry field in pasted text"), *PropertiesWrapperEntry);
+		UE_LOG(LogActorModifierCoreEditorStackCustomization, Warning, TEXT("No Json modifiers data available to paste"));
 		return false;
 	}
 
-	if (PropertiesJsonValue->Type != EJson::Object)
+	if (!FJsonObjectConverter::JsonArrayToUStruct(JsonModifiers, &OutModifierProperties))
 	{
-		UE_LOG(LogActorModifierCoreEditorPropertiesWrapper, Warning, TEXT("Invalid Modifier Properties Json Value. Not an object"));
+		UE_LOG(LogActorModifierCoreEditorStackCustomization, Warning, TEXT("Invalid Json modifiers properties found"));
 		return false;
 	}
 
-	const TSharedPtr<FJsonObject>& PropertiesJsonObject = PropertiesJsonValue->AsObject();
-	check(PropertiesJsonObject.IsValid());
-
-	const bool bStructSuccess = FJsonObjectConverter::JsonObjectToUStruct(PropertiesJsonObject.ToSharedRef(), FActorModifierCoreEditorPropertiesWrapper::StaticStruct(), &OutPropertiesWrapper, 0 /* CheckFlags */, 0 /* SkipFlags */);
-
-	return bStructSuccess;
+	return !OutModifierProperties.IsEmpty();
 }
 
 bool UActorModifierCoreEditorStackCustomization::UpdateModifierFromPropertiesHandlesMap(UActorModifierCoreBase* InModifier, const TMap<FName, FString>& InModifierPropertiesHandlesMap) const
@@ -896,7 +1000,7 @@ bool UActorModifierCoreEditorStackCustomization::UpdateModifierFromPropertiesHan
 	return true;
 }
 
-bool UActorModifierCoreEditorStackCustomization::AddModifierFromClipboard(TSet<AActor*>& InActors) const
+bool UActorModifierCoreEditorStackCustomization::AddModifierFromClipboard(const TSet<AActor*>& InActors, FName InModifierName, TArray<UActorModifierCoreBase*>& OutNewModifiers) const
 {
 	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 	if (!IsValid(ModifierSubsystem))
@@ -904,31 +1008,25 @@ bool UActorModifierCoreEditorStackCustomization::AddModifierFromClipboard(TSet<A
 		return false;
 	}
 
-	FActorModifierCoreEditorPropertiesWrapper ModifierPropertiesWrapper;
-	if (GetModifierPropertiesWrapperFromClipboard(ModifierPropertiesWrapper))
+	FText OutFailReason;
+	FActorModifierCoreStackInsertOp AddOp;
+	AddOp.bShouldTransact = true;
+	AddOp.FailReason = &OutFailReason;
+	AddOp.NewModifierName = InModifierName;
+
+	OutNewModifiers = ModifierSubsystem->AddActorsModifiers(InActors, AddOp);
+
+	if (!OutFailReason.IsEmpty())
 	{
-		const FName ModifierName = ModifierPropertiesWrapper.ModifierName;
+		FNotificationInfo NotificationInfo(OutFailReason);
+		NotificationInfo.ExpireDuration = 3.0f;
+		NotificationInfo.bFireAndForget = true;
+		FSlateNotificationManager::Get().AddNotification(NotificationInfo);
 
-		FText OutFailReason;
-		FActorModifierCoreStackInsertOp AddOp;
-		AddOp.bShouldTransact = true;
-		AddOp.FailReason = &OutFailReason;
-		AddOp.NewModifierName = ModifierName;
-
-		ModifierSubsystem->AddActorsModifiers(InActors, AddOp);
-
-		if (!OutFailReason.IsEmpty())
-		{
-			FNotificationInfo NotificationInfo(OutFailReason);
-			NotificationInfo.ExpireDuration = 3.0f;
-			NotificationInfo.bFireAndForget = true;
-			FSlateNotificationManager::Get().AddNotification(NotificationInfo);
-		}
-
-		return true;
+		return false;
 	}
 
-	return false;
+	return !OutNewModifiers.IsEmpty();
 }
 
 #undef LOCTEXT_NAMESPACE

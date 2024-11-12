@@ -4,8 +4,7 @@
 #include "../SHCommon.ush"
 #include "LumenRadianceCacheCommon.ush"
 
-float3 ProbeCoordToWorldCenterBias;
-float ProbeCoordToWorldCenterScale;
+float4 ClipmapCornerTWSAndCellSizeForVisualization;
 
 float VisualizeProbeRadiusScale;
 uint ProbeClipmapIndex;
@@ -14,8 +13,19 @@ struct FVisualizeRadianceCacheVSToPS
 {
 	nointerpolation float3 ProbeCoord : TEXCOORD0;
 	nointerpolation float4 CellSphere : TEXCOORD1;
-	float3 PositionWS : TEXCOORD2;
+	float3 PositionTWS : TEXCOORD2;
 };
+
+float3 GetProbeTranslatedWorldPositionForVisualization(uint3 ProbeCoord, uint ProbeIndex)
+{
+	const float3 ClipmapCornerTWS = ClipmapCornerTWSAndCellSizeForVisualization.xyz;
+	const float CellSize = ClipmapCornerTWSAndCellSizeForVisualization.w;
+
+	const float3 CornerTranslatedWorldPosition = ClipmapCornerTWS;
+
+	const float3 CornerToProbe = ((ProbeCoord + 0.5f) * CellSize);
+	return CornerTranslatedWorldPosition + CornerToProbe + ProbeWorldOffset[ProbeIndex].xyz;
+}
 
 void VisualizeRadianceCacheVS(
 	uint VertexId : SV_VertexID,
@@ -24,7 +34,7 @@ void VisualizeRadianceCacheVS(
 	out float4 OutPosition : SV_POSITION
 )
 {
-	float VisualizeRadius = VisualizeProbeRadiusScale / GetWorldPositionToRadianceProbeCoordScale(ProbeClipmapIndex);
+	float VisualizeRadius = VisualizeProbeRadiusScale * GetRadianceProbeClipmapCellSize(ProbeClipmapIndex);
 
 	float3 LocalPosition;
 	LocalPosition.x = VertexId & 0x1 ? 1.0f : -1.0f;
@@ -39,13 +49,13 @@ void VisualizeRadianceCacheVS(
 
 	uint ProbeIndex = GetProbeIndexFromIndirectionTexture(ProbeCoord, ProbeClipmapIndex);
 
-	float3 ProbeWorldCenter = ProbeCoord * ProbeCoordToWorldCenterScale + ProbeCoordToWorldCenterBias + ProbeWorldOffset[ProbeIndex].xyz;
+	float3 ProbeTranslatedWorldCenter = GetProbeTranslatedWorldPositionForVisualization(ProbeCoord, ProbeIndex);
 
-	Output.CellSphere.xyz = ProbeWorldCenter;
+	Output.CellSphere.xyz = ProbeTranslatedWorldCenter;
 	Output.CellSphere.w = VisualizeRadius;
-	Output.PositionWS = LocalPosition + ProbeWorldCenter;
+	Output.PositionTWS = LocalPosition + ProbeTranslatedWorldCenter;
 	Output.ProbeCoord = ProbeCoord;
-	OutPosition = mul(float4(Output.PositionWS, 1.0f), DFHackToFloat(PrimaryView.WorldToClip));
+	OutPosition = mul(float4(Output.PositionTWS, 1.0f), PrimaryView.TranslatedWorldToClip);
 
 	if (ProbeIndex == INVALID_PROBE_INDEX)
 	{
@@ -58,9 +68,9 @@ void VisualizeRadianceCachePS(
 	out float4 OutColor : SV_Target0
 )
 {
-	float3 RayDirection = normalize(Input.PositionWS - DFHackToFloat(PrimaryView.WorldViewOrigin));
-	float2 SphereIntersections = RayIntersectSphere(DFHackToFloat(PrimaryView.WorldViewOrigin), RayDirection, Input.CellSphere);
-	float3 IntersectionPosition = DFHackToFloat(PrimaryView.WorldViewOrigin) + SphereIntersections.x * RayDirection;
+	float3 RayDirection = Input.PositionTWS;
+	float2 SphereIntersections = RayIntersectSphere(0, RayDirection, Input.CellSphere);
+	float3 IntersectionPosition = SphereIntersections.x * RayDirection;
 	clip(SphereIntersections.x);
 
 	float3 SphereNormal = normalize(IntersectionPosition - Input.CellSphere.xyz);

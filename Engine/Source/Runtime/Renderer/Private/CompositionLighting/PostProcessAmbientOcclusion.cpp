@@ -179,9 +179,9 @@ int32 FSSAOHelper::GetAmbientOcclusionShaderLevel(const FSceneView& View)
 		(QualityPercent > 5.0f);
 }
 
-bool FSSAOHelper::IsAmbientOcclusionCompute(const FSceneView& View)
+bool FSSAOHelper::IsAmbientOcclusionCompute(const ERHIFeatureLevel::Type FeatureLevel)
 {
-	return View.GetFeatureLevel() >= ERHIFeatureLevel::SM5 && CVarAmbientOcclusionCompute.GetValueOnRenderThread() >= 1;
+	return FeatureLevel >= ERHIFeatureLevel::SM5 && CVarAmbientOcclusionCompute.GetValueOnAnyThread() >= 1;
 }
 
 int32 FSSAOHelper::GetNumAmbientOcclusionLevels()
@@ -211,7 +211,7 @@ bool FSSAOHelper::IsAmbientOcclusionAsyncCompute(const FViewInfo& View, uint32 A
 {
 	// if AsyncCompute is feasible
 	// only single level is allowed.  more levels end up reading from gbuffer normals atm which is not allowed.
-	if(IsAmbientOcclusionCompute(View) && (AOPassCount == 1))
+	if(IsAmbientOcclusionCompute(View.GetFeatureLevel()) && (AOPassCount == 1))
 	{
 		int32 ComputeCVar = CVarAmbientOcclusionCompute.GetValueOnRenderThread();
 
@@ -242,7 +242,7 @@ uint32 FSSAOHelper::ComputeAmbientOcclusionPassCount(const FViewInfo& View)
 	{
 		int32 CVarLevel = GetNumAmbientOcclusionLevels();
 
-		if (IsAmbientOcclusionCompute(View) || IsForwardShadingEnabled(View.GetShaderPlatform()))
+		if (IsAmbientOcclusionCompute(View.GetFeatureLevel()) || IsForwardShadingEnabled(View.GetShaderPlatform()))
 		{	
 			if (CVarLevel<0)
 			{
@@ -308,14 +308,19 @@ EGTAOType FSSAOHelper::GetGTAOPassType(const FViewInfo& View, uint32 Levels)
 	return EGTAOType::EOff;
 }
 
-FRDGTextureDesc GetScreenSpaceAOTextureDesc(FIntPoint Extent)
+FRDGTextureDesc GetScreenSpaceAOTextureDesc(ERHIFeatureLevel::Type FeatureLevel, FIntPoint Extent)
 {
-	return FRDGTextureDesc(FRDGTextureDesc::Create2D(Extent, PF_G8, FClearValueBinding::White, TexCreate_UAV | TexCreate_RenderTargetable | TexCreate_ShaderResource | GFastVRamConfig.ScreenSpaceAO));
+	ETextureCreateFlags TextureCreateFlags = TexCreate_UAV | TexCreate_RenderTargetable | TexCreate_ShaderResource | GFastVRamConfig.ScreenSpaceAO;
+	if (FSSAOHelper::IsAmbientOcclusionCompute(FeatureLevel))
+	{
+		TextureCreateFlags |= TexCreate_NoFastClear;
+	}
+	return FRDGTextureDesc(FRDGTextureDesc::Create2D(Extent, PF_G8, FClearValueBinding::White, TextureCreateFlags));
 }
 
-FRDGTextureRef CreateScreenSpaceAOTexture(FRDGBuilder& GraphBuilder, FIntPoint Extent)
+FRDGTextureRef CreateScreenSpaceAOTexture(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, FIntPoint Extent)
 {	
-	return GraphBuilder.CreateTexture(GetScreenSpaceAOTextureDesc(Extent), TEXT("ScreenSpaceAO"));
+	return GraphBuilder.CreateTexture(GetScreenSpaceAOTextureDesc(FeatureLevel, Extent), TEXT("ScreenSpaceAO"));
 }
 
 FRDGTextureRef GetScreenSpaceAOFallback(const FRDGSystemTextures& SystemTextures)
@@ -533,6 +538,7 @@ FScreenPassTexture AddAmbientOcclusionSetupPass(
 	const FSSAOCommonParameters& CommonParameters,
 	FScreenPassTexture Input)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SSAOSetup, "ScreenSpace AO Setup");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SSAOSetup);
 
 	const FScreenPassTextureViewport InputViewport(Input);
@@ -552,6 +558,7 @@ FScreenPassTexture AddAmbientOcclusionSetupPass(
 		Output.Texture = GraphBuilder.CreateTexture(OutputDesc, TEXT("AmbientOcclusionSetup"));
 		Output.ViewRect = OutputViewport.Rect;
 		Output.LoadAction = ERenderTargetLoadAction::ENoAction;
+		Output.UpdateVisualizeTextureExtent();
 	}
 
 	const FFinalPostProcessSettings& Settings = View.FinalPostProcessSettings;
@@ -622,6 +629,7 @@ void AddAmbientOcclusionSmoothPass(
 	FScreenPassTexture Input,
 	FScreenPassRenderTarget Output)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SSAOSmooth, "SSAO smooth");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SSAOSmooth);
 
 	const FScreenPassTextureViewport InputViewport(Input);
@@ -789,6 +797,7 @@ void AddAmbientOcclusionPass(
 	ESSAOType AOType,
 	bool bAOSetupAsInput)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SSAO, "ScreenSpace AO");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SSAO);
 
 	// No setup texture falls back to a depth scene texture fetch.
@@ -902,7 +911,7 @@ void AddAmbientOcclusionPass(
 				RDG_EVENT_NAME("DepthBounds ClearQuad(%s)", Output.Texture->Name),
 				ClearParameters,
 				ERDGPassFlags::Raster,
-			[OutputViewport, DepthFar](FRHICommandList& RHICmdList)
+			[OutputViewport, DepthFar](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				// We must clear all pixels that won't be touched by AO shader.
 				FClearQuadCallbacks Callbacks;
@@ -956,7 +965,7 @@ void AddAmbientOcclusionPass(
 			MoveTemp(EventName),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&View, OutputViewport, InputViewport, VertexShader, PixelShader, PassParameters, bDepthBoundsTestEnabled, DepthFar] (FRHICommandList& RHICmdList)
+			[&View, OutputViewport, InputViewport, VertexShader, PixelShader, PassParameters, bDepthBoundsTestEnabled, DepthFar] (FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			const FIntRect InputRect = InputViewport.Rect;
 			const FIntPoint InputSize = InputViewport.Extent;
@@ -1117,6 +1126,7 @@ FGTAOHorizonSearchOutputs AddGTAOHorizonSearchIntegratePass(
 	FScreenPassTexture SceneDepth,
 	FScreenPassTexture HZBInput)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, GTAO_HorizonSearchIntegrate, "GTAO HorizonSearch And Integrate");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, GTAO_HorizonSearchIntegrate);
 
 	const FScreenPassTextureViewport SceneViewport(SceneDepth);
@@ -1136,7 +1146,7 @@ FGTAOHorizonSearchOutputs AddGTAOHorizonSearchIntegratePass(
 		Output.Texture = GraphBuilder.CreateTexture(OutputDesc, TEXT("GTAOCombined"));
 		Output.ViewRect = OutputViewport.Rect;
 		Output.LoadAction = ERenderTargetLoadAction::ENoAction;
-
+		Output.UpdateVisualizeTextureExtent();
 	}
 
 	const bool bUseNormals = CVarGTAOUseNormals.GetValueOnRenderThread() >= 1;
@@ -1211,6 +1221,7 @@ FScreenPassTexture AddGTAOInnerIntegratePass(
 	FScreenPassTexture SceneDepth,
 	FScreenPassTexture HorizonsTexture)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, GTAO_InnerIntegrate, "GTAO InnerIntegrate");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, GTAO_InnerIntegrate);
 
 	const FScreenPassTextureViewport InputViewport(SceneDepth);
@@ -1230,6 +1241,7 @@ FScreenPassTexture AddGTAOInnerIntegratePass(
 		Output.Texture = GraphBuilder.CreateTexture(OutputDesc, TEXT("GTAOInnerIntegrate"));
 		Output.ViewRect = OutputViewport.Rect;
 		Output.LoadAction = ERenderTargetLoadAction::ENoAction;
+		Output.UpdateVisualizeTextureExtent();
 	}
 
 	FGTAOInnerIntegratePS::FParameters* PassParameters = GraphBuilder.AllocParameters<FGTAOInnerIntegratePS::FParameters>();
@@ -1307,6 +1319,7 @@ FGTAOHorizonSearchOutputs AddGTAOHorizonSearchPass(
 	FScreenPassTexture HZBInput,
 	FScreenPassRenderTarget HorizonOutput)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, GTAO_HorizonSearch, "GTAO HorizonSearch");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, GTAO_HorizonSearch);
 
 	const FScreenPassTextureViewport SceneViewport(SceneDepth);
@@ -1401,6 +1414,7 @@ FGTAOTemporalOutputs AddGTAOTemporalPass(
 	FScreenPassTexture HistoryColor,
 	FScreenPassTextureViewport HistoryViewport)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, GTAO_TemporalFilter, "GTAO Temportal Filter");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, GTAO_TemporalFilter);
 
 	const FScreenPassTextureViewport InputViewport(Input);
@@ -1420,6 +1434,7 @@ FGTAOTemporalOutputs AddGTAOTemporalPass(
 		OutputAO.Texture = GraphBuilder.CreateTexture(OutputDesc, TEXT("GTAOTemporalOutput"));
 		OutputAO.ViewRect = OutputViewport.Rect;
 		OutputAO.LoadAction = ERenderTargetLoadAction::ENoAction;
+		OutputAO.UpdateVisualizeTextureExtent();
 	}
 
 	const FVector2f HistoryTextureSize = FVector2f(HistoryColor.Texture->Desc.Extent);
@@ -1525,6 +1540,7 @@ FScreenPassTexture AddGTAOSpatialFilter(
 	FScreenPassTexture InputDepth,
 	FScreenPassRenderTarget SuggestedOutput)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, GTAO_SpatialFilter, "GTAO Spatial Filter");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, GTAO_SpatialFilter);
 
 	const FScreenPassTextureViewport InputViewport(Input);
@@ -1544,6 +1560,7 @@ FScreenPassTexture AddGTAOSpatialFilter(
 		Output.Texture = GraphBuilder.CreateTexture(OutputDesc, TEXT("GTAOFilter"));
 		Output.ViewRect = OutputViewport.Rect;
 		Output.LoadAction = ERenderTargetLoadAction::ENoAction;
+		Output.UpdateVisualizeTextureExtent();
 	}
 
 	FGTAOSpatialFilterCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FGTAOSpatialFilterCS::FParameters>();
@@ -1632,6 +1649,7 @@ FScreenPassTexture AddGTAOUpsamplePass(
 	FScreenPassTexture SceneDepth,
 	FScreenPassRenderTarget Output)
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, GTAO_Upsample, "GTAO Upsample");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, GTAO_Upsample);
 
 	const FScreenPassTextureViewport InputViewport(Input);

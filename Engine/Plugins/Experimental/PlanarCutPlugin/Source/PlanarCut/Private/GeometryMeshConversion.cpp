@@ -1611,8 +1611,8 @@ FCellMeshes::FCellMeshes(int32 NumUVLayersIn, const FDynamicMesh3& SingleCutter,
 		MeshTransforms::ApplyTransform(CellMeshes[0].AugMesh, FTransformSRT3d(Transform.GetValue()), true);
 	}
 
-	// Mesh should already be augmented
-	if (!ensure(AugmentedDynamicMesh::IsAugmented(CellMeshes[0].AugMesh)))
+	// Augment mesh if needed
+	if (!AugmentedDynamicMesh::IsAugmented(CellMeshes[0].AugMesh))
 	{
 		AugmentedDynamicMesh::Augment(CellMeshes[0].AugMesh, NumUVLayers);
 	}
@@ -2685,6 +2685,7 @@ int32 FDynamicMeshCollection::CutWithMultiplePlanes(
 	const TArrayView<const FPlane>& Planes,
 	double Grout,
 	double CollisionSampleSpacing,
+	bool bSplitIslands,
 	int32 RandomSeed,
 	FGeometryCollection* Collection,
 	FInternalSurfaceMaterials& InternalSurfaceMaterials,
@@ -2746,7 +2747,7 @@ int32 FDynamicMeshCollection::CutWithMultiplePlanes(
 		TArray<TPair<int32, int32>> CellConnectivity;
 		CellConnectivity.Add(TPair<int32, int32>(0, -1));
 
-		return CutWithCellMeshes(InternalSurfaceMaterials, CellConnectivity, GroutCells, Collection, bSetDefaultInternalMaterialsFromCollection, CollisionSampleSpacing);
+		return CutWithCellMeshes(InternalSurfaceMaterials, CellConnectivity, GroutCells, bSplitIslands, Collection, bSetDefaultInternalMaterialsFromCollection, CollisionSampleSpacing);
 	}
 
 	TArray<TUniquePtr<FMeshData>> ToCut;
@@ -2836,7 +2837,7 @@ int32 FDynamicMeshCollection::CutWithMultiplePlanes(
 				TArray<FDynamicMesh3> SplitMeshes;
 				for (int UnsplitIdx = 0; UnsplitIdx < 2; UnsplitIdx++)
 				{
-					if (SplitIslands(ToCut[ResultIndices[UnsplitIdx]]->AugMesh, SplitMeshes))
+					if (bSplitIslands && SplitIslands(ToCut[ResultIndices[UnsplitIdx]]->AugMesh, SplitMeshes))
 					{
 						ToCut[ResultIndices[UnsplitIdx]]->SetMesh(SplitMeshes[0]);
 						for (int32 Idx = 1; Idx < SplitMeshes.Num(); Idx++)
@@ -2984,7 +2985,7 @@ int32 FDynamicMeshCollection::SplitAllIslands(FGeometryCollection* Collection, d
 
 
 
-int32 FDynamicMeshCollection::CutWithCellMeshes(const FInternalSurfaceMaterials& InternalSurfaceMaterials, const TArray<TPair<int32, int32>>& CellConnectivity, FCellMeshes& CellMeshes, FGeometryCollection* Collection, bool bSetDefaultInternalMaterialsFromCollection, double CollisionSampleSpacing)
+int32 FDynamicMeshCollection::CutWithCellMeshes(const FInternalSurfaceMaterials& InternalSurfaceMaterials, const TArray<TPair<int32, int32>>& CellConnectivity, FCellMeshes& CellMeshes, bool bSplitIslands, FGeometryCollection* Collection, bool bSetDefaultInternalMaterialsFromCollection, double CollisionSampleSpacing)
 {
 	// TODO: should we do these cuts in parallel, and the appends sequentially below?
 	int32 FirstIdx = -1;
@@ -3065,7 +3066,7 @@ int32 FDynamicMeshCollection::CutWithCellMeshes(const FInternalSurfaceMaterials&
 					}
 					int32 CreatedGeometryIdx = -1;
 					TArray<FDynamicMesh3> Islands;
-					if (SplitIslands(AugBoolResult, Islands))
+					if (bSplitIslands && SplitIslands(AugBoolResult, Islands))
 					{
 						for (int32 i = 0; i < Islands.Num(); i++)
 						{
@@ -3183,22 +3184,19 @@ bool FDynamicMeshCollection::IsNeighboring(
 }
 
 // Split mesh into connected components, including implicit connections by co-located vertices
-bool FDynamicMeshCollection::SplitIslands(FDynamicMesh3& Source, TArray<FDynamicMesh3>& SeparatedMeshes)
+bool FDynamicMeshCollection::SplitIslands(FDynamicMesh3& Source, TArray<FDynamicMesh3>& SeparatedMeshes, double SnapDistance)
 {
-	double SnapDistance = 1e-03;
 	TPointHashGrid3d<int> VertHash(SnapDistance * 10, -1);
 	FDisjointSet VertComponents(Source.MaxVertexID());
 	// Add Source vertices to hash & disjoint sets
-	TArray<int> Neighbors;
 	for (int VID : Source.VertexIndicesItr())
 	{
 		FVector3d Pt = Source.GetVertex(VID);
-		Neighbors.Reset();
-		VertHash.FindPointsInBall(Pt, SnapDistance, [&Source, Pt](int OtherVID) {return DistanceSquared(Pt, Source.GetVertex(OtherVID)); }, Neighbors);
-		for (int NbrVID : Neighbors)
-		{
-			VertComponents.UnionSequential(VID, NbrVID);
-		}
+		VertHash.EnumeratePointsInBall(Pt, SnapDistance, [&Source, Pt](int OtherVID) {return DistanceSquared(Pt, Source.GetVertex(OtherVID)); }, [&](int32 NbrVID, double DSq) -> bool
+			{
+				VertComponents.UnionSequential(VID, NbrVID);
+				return true;
+			});
 		VertHash.InsertPointUnsafe(VID, Pt);
 	}
 	for (FIndex3i Tri : Source.TrianglesItr())
@@ -3235,8 +3233,8 @@ bool FDynamicMeshCollection::SplitIslands(FDynamicMesh3& Source, TArray<FDynamic
 		{
 			if (!KeepMeshes[Idx])
 			{
-				SeparatedMeshes.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
-				KeepMeshes.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				SeparatedMeshes.RemoveAtSwap(Idx, EAllowShrinking::No);
+				KeepMeshes.RemoveAtSwap(Idx, EAllowShrinking::No);
 				Idx--;
 			}
 		}

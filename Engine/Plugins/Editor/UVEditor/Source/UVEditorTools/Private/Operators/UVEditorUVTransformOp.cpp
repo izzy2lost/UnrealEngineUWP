@@ -69,7 +69,6 @@ void FUVEditorUVTransformBaseOp::RebuildBoundingBoxes()
 
 	ParallelFor(NumComponents, [&](int32 k)
 		{
-			FVector3d VertexPos[3];
 			PerComponentBoundingBoxes[k] = FAxisAlignedBox2d::Empty();
 			const TArray<int>& Vertices = (*UVComponents)[k].Indices;
 			for (int32 Vid : Vertices)
@@ -268,7 +267,7 @@ void FUVEditorUVTransformBaseOp::CalculateResult(FProgressCancel* Progress)
 
 FVector2f FUVEditorUVTransformOp::GetPivotFromMode(int32 ElementID, EUVEditorPivotTypeBackend Mode)
 {
-	FVector2f Pivot;
+	FVector2f Pivot = FVector2f::ZeroVector;
 	const int32* Component;
 
 	switch (Mode)

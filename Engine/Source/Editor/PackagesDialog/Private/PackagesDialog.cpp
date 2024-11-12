@@ -11,6 +11,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "IAssetTools.h"
 #include "AssetToolsModule.h"
+#include "Framework/Docking/TabManager.h"
 
 IMPLEMENT_MODULE( FPackagesDialogModule, PackagesDialog );
 
@@ -102,6 +103,15 @@ EDialogReturnType FPackagesDialogModule::ShowPackagesDialog(OUT TSet<FString>& I
 	if( WidgetToFocusOn.IsValid() )
 	{
 		EditorPackagesDialogWindowRef->SetWidgetToFocusOnActivate( WidgetToFocusOn );
+	}
+
+	/** If the editor is not in the foreground, draw attention to it so users know a dialog requires their interaction */
+	if (TSharedPtr<SWindow> RootWindow = FGlobalTabmanager::Get()->GetRootWindow())
+	{
+		if (RootWindow->GetNativeWindow() && !RootWindow->GetNativeWindow()->IsForegroundWindow())
+		{
+			RootWindow->DrawAttention(FWindowDrawAttentionParameters());
+		}
 	}
 
 	/** Show the package dialog window as a modal window */

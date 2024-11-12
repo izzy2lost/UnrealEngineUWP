@@ -132,6 +132,7 @@ UPCGSpawnActorSettings::UPCGSpawnActorSettings(const FObjectInitializer& ObjectI
 {
 	if (PCGHelpers::IsNewObjectAndNotDefault(this))
 	{
+		Option = EPCGSpawnActorOption::NoMerging;
 		AttachOptions = EPCGAttachOptions::InFolder;
 	}
 }
@@ -365,7 +366,7 @@ void UPCGSpawnActorSettings::RefreshTemplateActor()
 				Options.bNotifyObjectReplacement = true;
 				UEngine::CopyPropertiesForUnrelatedObjects(TemplateActor, NewTemplateActor, Options);
 
-				TemplateActor->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+				TemplateActor->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 
 				TMap<UObject*, UObject*> OldToNew;
 				OldToNew.Emplace(TemplateActor, NewTemplateActor);
@@ -380,7 +381,7 @@ void UPCGSpawnActorSettings::RefreshTemplateActor()
 			TemplateActor->Modify();
 
 			// Outer to this object
-			TemplateActor->Rename(nullptr, this, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+			TemplateActor->Rename(nullptr, this, REN_DoNotDirty | REN_DontCreateRedirectors);
 		}
 	}
 	else
@@ -471,10 +472,10 @@ bool FPCGSpawnActorElement::SpawnAndPrepareSubgraphs(FPCGSubgraphContext* Contex
 
 				for (UPCGManagedISMComponent* MISMC : MISMCs)
 				{
-					if (!MISMC->IsMarkedUnused())
+					if (!MISMC->IsMarkedUnused() && Settings->bWarnOnIdenticalSpawn)
 					{
-						// TODO: Add Context back in with toggles. Revisit if the stack is added to the managed components at creation
-						PCGLog::LogWarningOnGraph(LOCTEXT("IdenticalISMCSpawn", "Identical ISM Component spawn occurred. It may be beneficial to re-check graph logic for identical spawn conditions (same actor at same location, etc) or repeated nodes."), nullptr);
+						// TODO: Revisit if the stack is added to the managed components at creation
+						PCGLog::LogWarningOnGraph(LOCTEXT("IdenticalISMCSpawn", "Identical ISM Component spawn occurred. It may be beneficial to re-check graph logic for identical spawn conditions (same actor at same location, etc) or repeated nodes."), Context);
 					}
 
 					MISMC->MarkAsReused();
@@ -586,6 +587,8 @@ bool FPCGSpawnActorElement::SpawnAndPrepareSubgraphs(FPCGSubgraphContext* Contex
 							FPCGDataCollection SubgraphInputData;
 							SubgraphInputData.TaggedData.Add(PartialInput);
 
+							Context->AddToReferencedObjects(SubgraphInputData);
+
 							// Prepare the invocation stack - which is the stack up to this node, and then this node, then a loop index
 							FPCGStack InvocationStack = ensure(Context->Stack) ? *Context->Stack : FPCGStack();
 
@@ -635,15 +638,21 @@ bool FPCGSpawnActorElement::SpawnAndPrepareSubgraphs(FPCGSubgraphContext* Contex
 		Context->bIsPaused = true;
 
 		Subsystem->ScheduleGeneric(
-			[Context]() // Normal execution: Wake up the current task
+			[ContextHandle = Context->GetOrCreateHandle()]() // Normal execution: Wake up the current task
 			{
-				Context->bIsPaused = false;
+				if (FPCGSubgraphContext* ContextPtr = FPCGContext::GetContextFromHandle<FPCGSubgraphContext>(ContextHandle))
+				{
+					ContextPtr->bIsPaused = false;
+				}
 				return true;
 			}, 
-			[Context]() // On Abort: Wake up & cancel
+			[ContextHandle = Context->GetOrCreateHandle()]() // On Abort: Wake up & cancel
 			{
-				Context->bIsPaused = false;
-				Context->OutputData.bCancelExecution = true;
+				if (FPCGSubgraphContext* ContextPtr = FPCGContext::GetContextFromHandle<FPCGSubgraphContext>(ContextHandle))
+				{
+					ContextPtr->bIsPaused = false;
+					ContextPtr->OutputData.bCancelExecution = true;
+				}
 			},
 			Context->SourceComponent.Get(), 
 			Context->SubgraphTaskIds);
@@ -670,11 +679,11 @@ void FPCGSpawnActorElement::CollapseIntoTargetActor(FPCGSubgraphContext* Context
 	const UPCGSpawnActorSettings* Settings = Context->GetInputSettings<UPCGSpawnActorSettings>();
 	check(Settings);
 
-	TMap<FPCGISMCBuilderParameters, TArray<FTransform>> MeshDescriptorTransforms;
+	TMap<FPCGISMComponentBuilderParams, TArray<FTransform>> MeshDescriptorTransforms;
 
 	AActor::ForEachComponentOfActorClassDefault<UStaticMeshComponent>(TemplateActorClass, [&MeshDescriptorTransforms](const UStaticMeshComponent* StaticMeshComponent)
 	{
-		FPCGISMCBuilderParameters Params;
+		FPCGISMComponentBuilderParams Params;
 		Params.Descriptor.InitFrom(StaticMeshComponent);
 		// TODO: No custom data float support?
 
@@ -702,11 +711,11 @@ void FPCGSpawnActorElement::CollapseIntoTargetActor(FPCGSubgraphContext* Context
 		return true;
 	});
 
-	for (const TPair<FPCGISMCBuilderParameters, TArray<FTransform>>& ISMCBuilderTransforms : MeshDescriptorTransforms)
+	for (const TPair<FPCGISMComponentBuilderParams, TArray<FTransform>>& ISMCBuilderTransforms : MeshDescriptorTransforms)
 	{
-		const FPCGISMCBuilderParameters& ISMCParams = ISMCBuilderTransforms.Key;
+		const FPCGISMComponentBuilderParams& ISMCParams = ISMCBuilderTransforms.Key;
 
-		UPCGManagedISMComponent* MISMC = UPCGActorHelpers::GetOrCreateManagedISMC(TargetActor, Context->SourceComponent.Get(), Settings->UID, ISMCParams);
+		UPCGManagedISMComponent* MISMC = UPCGActorHelpers::GetOrCreateManagedISMC(TargetActor, Context->SourceComponent.Get(), Settings->GetStableUID(), ISMCParams);
 		if (!MISMC)
 		{
 			continue;
@@ -744,6 +753,7 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSpawnActorElement::ExecuteInternal::SpawnActors);
 	check(Context && TargetActor && PointData);
+	check(IsInGameThread());
 
 	const TArray<FPCGPoint>& Points = PointData->GetPoints();
 	if (Points.IsEmpty())
@@ -805,6 +815,13 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 		SpawnParams.ObjectFlags |= RF_Transient;
 	}
 
+	UPCGActorHelpers::FSpawnDefaultActorParams SpawnDefaultActorParams(TargetActor->GetWorld(), InTemplateActorClass, FTransform::Identity, SpawnParams);
+	SpawnDefaultActorParams.bForceStaticMobility = false; // Always respect the actor's mobility
+
+#if WITH_EDITOR
+	SpawnDefaultActorParams.DataLayerInstances = TargetActor->GetDataLayerInstances();
+#endif
+
 	const bool bForceCallGenerate = (Settings->GenerationTrigger == EPCGSpawnActorGenerationTrigger::ForceGenerate);
 #if WITH_EDITOR
 	const bool bOnLoadCallGenerate = (Settings->GenerationTrigger == EPCGSpawnActorGenerationTrigger::Default);
@@ -850,11 +867,10 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 		for (UPCGManagedActors* ManagedActors : ReusedManagedActorsResources)
 		{
 			check(ManagedActors);
-
-			if (!ManagedActors->IsMarkedUnused())
+			if (!ManagedActors->IsMarkedUnused() && Settings->bWarnOnIdenticalSpawn)
 			{
-				// TODO: Add Context back in with toggles. Revisit if the stack is added to the managed actors at creation
-				PCGLog::LogWarningOnGraph(LOCTEXT("IdenticalActorSpawn", "Identical actor spawn occurred. It may be beneficial to re-check graph logic for identical spawn conditions (same actor at same location, etc) or repeated nodes."), nullptr);
+				// TODO: Revisit if the stack is added to the managed actors at creation
+				PCGLog::LogWarningOnGraph(LOCTEXT("IdenticalActorSpawn", "Identical actor spawn occurred. It may be beneficial to re-check graph logic for identical spawn conditions (same actor at same location, etc) or repeated nodes."), Context);
 			}
 
 			ManagedActors->MarkAsReused();
@@ -883,7 +899,7 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 		// If generated actors are not directly attached, place them in a subfolder for tidiness.
 		FString GeneratedActorsFolderPath;
 #if WITH_EDITOR
-		PCGHelpers::GetGeneratedActorsFolderPath(TargetActor, GeneratedActorsFolderPath);
+		PCGHelpers::GetGeneratedActorsFolderPath(TargetActor, Context, Settings->AttachOptions, GeneratedActorsFolderPath);
 #endif
 
 		const UFunction* FunctionPrototypeWithNoParams = UPCGFunctionPrototypes::GetPrototypeWithNoParams();
@@ -903,7 +919,8 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 
 			bAllActorOverridesSucceeded &= ActorOverrides.Apply(i);
 
-			AActor* GeneratedActor = TargetActor->GetWorld()->SpawnActor(InTemplateActorClass, &Point.Transform, SpawnParams);
+			SpawnDefaultActorParams.Transform = Point.Transform;
+			AActor* GeneratedActor = UPCGActorHelpers::SpawnDefaultActor(SpawnDefaultActorParams);
 
 			if (!GeneratedActor)
 			{
@@ -914,7 +931,7 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 			// HACK: until UE-62747 is fixed, we have to force set the scale after spawning the actor
 			GeneratedActor->SetActorRelativeScale3D(Point.Transform.GetScale3D());
 			GeneratedActor->Tags.Append(NewActorTags);
-			PCGHelpers::AttachToParent(GeneratedActor, TargetActor, Settings->AttachOptions, GeneratedActorsFolderPath);
+			PCGHelpers::AttachToParent(GeneratedActor, TargetActor, Settings->AttachOptions, Context, GeneratedActorsFolderPath);
 
 			for (UFunction* PostSpawnFunction : PostSpawnFunctions)
 			{

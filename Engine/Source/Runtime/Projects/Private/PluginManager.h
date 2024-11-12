@@ -43,10 +43,10 @@ public:
 	bool bIsMounted : 1;
 
 	/**
-	 * True if an explicitly loaded plugin has also mounted its localization data.
+	 * >0 if an explicitly loaded plugin has also mounted its localization data.
 	 * @note Unused for non-explicitly loaded plugins.
 	 */
-	bool bIsExplicitlyLoadedLocalizationDataMounted : 1;
+	uint8 ExplicitlyLoadedLocalizationDataMountedRefCount = 0;
 
 	/**
 	 * FPlugin constructor
@@ -111,6 +111,16 @@ public:
 		Descriptor.VersePath = MoveTemp(InVersePath);
 	}
 
+	virtual TOptional<uint32> GetVerseVersion() const override
+	{
+		return Descriptor.VerseVersion;
+	}
+
+	virtual void SetVerseVersion(TOptional<uint32> InVerseVersion) override
+	{
+		Descriptor.VerseVersion = InVerseVersion;
+	}
+
 	virtual EPluginType GetType() const override
 	{
 		return Type;
@@ -149,8 +159,12 @@ public:
 	virtual void GetLocalizationPathsForEnabledPlugins( TArray<FString>& OutLocResPaths ) override;
 	virtual void SetRegisterMountPointDelegate( const FRegisterMountPointDelegate& Delegate ) override;
 	virtual void SetUnRegisterMountPointDelegate( const FRegisterMountPointDelegate& Delegate ) override;
-	virtual void SetUpdatePackageLocalizationCacheDelegate( const FUpdatePackageLocalizationCacheDelegate& Delegate ) override;
 	virtual bool AreRequiredPluginsAvailable() override;
+	virtual FGetExplanationForUnavailablePackageWithPluginInfoDelegate& GetExplanationForUnavailablePackageWithPluginInfoDelegate() override;
+
+	virtual void SuppressPluginUnloadGC() override;
+	virtual void ResumePluginUnloadGC() override;
+
 #if !IS_MONOLITHIC
 	virtual bool CheckModuleCompatibility(TArray<FString>& OutIncompatibleModules, TArray<FString>& OutIncompatibleEngineModules) override;
 #endif
@@ -172,6 +186,13 @@ public:
 	virtual TSharedPtr<IPlugin> FindEnabledPluginFromPath(const FString& PluginPath) override;
 	virtual TSharedPtr<IPlugin> FindEnabledPluginFromDescriptor(const FPluginReferenceDescriptor& PluginDesc) override;
 
+	virtual bool CanEnablePluginInCurrentTarget(const FStringView Name) override;
+	virtual bool CanEnablePluginInCurrentTarget(const ANSICHAR* Name) override
+	{
+		FString NameString(Name);
+		return CanEnablePluginInCurrentTarget(FStringView(NameString));
+	}
+
 	virtual void FindPluginsUnderDirectory(const FString& Directory, TArray<FString>& OutPluginFilePaths) override;
 
 	virtual TArray<TSharedRef<IPlugin>> GetEnabledPlugins() override;
@@ -186,7 +207,9 @@ public:
 #endif //WITH_EDITOR
 
 	virtual bool AddPluginSearchPath(const FString& ExtraDiscoveryPath, bool bRefresh = true) override;
-	const TSet<FString>& GetAdditionalPluginSearchPaths() const override;
+	virtual bool RemovePluginSearchPath(const FString& PathToRemove, bool bRefresh = true) override;
+	virtual const TSet<FString>& GetAdditionalPluginSearchPaths() const override;
+	virtual void GetExternalPluginSources(TSet<FExternalPluginPath>& OutPluginSources) const override;
 	virtual TArray<TSharedRef<IPlugin>> GetPluginsWithPakFile() const override;
 	virtual FNewPluginMountedEvent& OnNewPluginCreated() override;
 	virtual FNewPluginMountedEvent& OnNewPluginMounted() override;
@@ -213,6 +236,8 @@ public:
 	virtual void SetBinariesRootDirectories(const FString& EngineBinariesRootDir, const FString& ProjectBinariesRootDir) override;
 	virtual void SetPreloadBinaries() override;
 	virtual bool GetPreloadBinaries() override;
+
+	void GetExplanationForUnavailablePackage(const FName& UnavailablePackageName, FStringBuilderBase& InOutExplanation) override;
 
 private:
 	using FDiscoveredPluginMap = TMap<FString, TArray<TSharedRef<FPlugin>>>;
@@ -309,6 +334,9 @@ private:
 	/** Plugins that need to be configured to see if they should be enabled */
 	TSet<FString> PluginsToConfigure;
 
+	/** Set of plugins enabled for the current target. Plugins in list might not be currently enabled. */
+	TSet<FString> PluginsEnabledForTarget;
+
 #if WITH_EDITOR
 	/** Names of built-in plugins */
 	TSet<FString> BuiltInPluginNames;
@@ -326,10 +354,6 @@ private:
 	    content path unmounting functionality from Core. */
 	FRegisterMountPointDelegate UnRegisterMountPointDelegate;
 
-	/** Delegate for updating the package localization cache.  Bound by FPackageLocalizationManager code in 
-		CoreUObject, so that we can access localization cache functionality from Core. */
-	FUpdatePackageLocalizationCacheDelegate UpdatePackageLocalizationCacheDelegate;
-
 	/** Set if all the required plugins are available */
 	bool bHaveAllRequiredPlugins = false;
 
@@ -339,6 +363,9 @@ private:
 	bool bPreloadedBinaries = false;
 
 	/** List of additional directory paths to search for plugins within */
+	TSet<FExternalPluginPath> ExternalPluginSources;
+
+	/** Projection of ExternalPluginSources paths only; maintained for backward compatibility */
 	TSet<FString> PluginDiscoveryPaths;
 
 	/** Callback for notifications that a new plugin was mounted */

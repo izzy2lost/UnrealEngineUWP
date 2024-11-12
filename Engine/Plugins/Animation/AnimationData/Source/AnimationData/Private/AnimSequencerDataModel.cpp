@@ -1280,7 +1280,7 @@ void UAnimationSequencerDataModel::GeneratePoseData(UControlRig* ControlRig, FAn
 					}
 					else
 					{
-						IAnimationDataController::ReportObjectWarningf(this, LOCTEXT("TransformCurveBoneNotFound", "Failed to find BoneIndex for transform curve %s"), FText::FromName(CurveName));
+						IAnimationDataController::ReportObjectWarningf(this, LOCTEXT("TransformCurveBoneNotFound", "Failed to find BoneIndex for transform curve {0}"), FText::FromName(CurveName));
 					}
 				}
 			}
@@ -1643,7 +1643,9 @@ void UAnimationSequencerDataModel::IterateBoneKeys(const FName& BoneName, TFunct
 
 
 		const int32 NumberOfKeysToIterate = MaxNumberOfKeys;
-		FVector3f PreviousPos, PreviousScale, PreviousRot;
+		FVector3f PreviousPos = FVector3f::ZeroVector;
+		FVector3f PreviousScale = FVector3f::ZeroVector;
+		FVector3f PreviousRot = FVector3f::ZeroVector;
 		FQuat4f PreviousQuat;
 
 		for (int32 KeyIndex = 0; KeyIndex < NumberOfKeysToIterate; ++KeyIndex)

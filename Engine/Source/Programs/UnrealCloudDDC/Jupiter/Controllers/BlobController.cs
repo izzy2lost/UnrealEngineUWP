@@ -12,16 +12,16 @@ using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
-using Jupiter.Implementation;
 using Jupiter.Common.Implementation;
+using Jupiter.Implementation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Jupiter.Controllers
 {
-	using IDiagnosticContext = Serilog.IDiagnosticContext;
 	using BlobNotFoundException = Jupiter.Implementation.BlobNotFoundException;
+	using IDiagnosticContext = Serilog.IDiagnosticContext;
 
 	[ApiController]
 	[Route("api/v1/s", Order = 1)]
@@ -52,7 +52,7 @@ namespace Jupiter.Controllers
 			[FromQuery] List<string>? storageLayers = null,
 			[FromQuery] bool allowOndemandReplication = true)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -74,14 +74,14 @@ namespace Jupiter.Controllers
 			}
 			catch (BlobNotFoundException e)
 			{
-				return NotFound(new ValidationProblemDetails { Title = $"Blob {e.Blob} not found"});
+				return NotFound(new ValidationProblemDetails { Title = $"Blob {e.Blob} not found" });
 			}
 			catch (AuthorizationException e)
 			{
 				return e.Result;
 			}
 		}
-		
+
 		[HttpHead("{ns}/{id}")]
 		[ProducesDefaultResponseType]
 		public async Task<IActionResult> HeadAsync(
@@ -89,7 +89,7 @@ namespace Jupiter.Controllers
 			[Required] BlobId id,
 			[FromQuery] List<string>? storageLayers = null)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -98,7 +98,7 @@ namespace Jupiter.Controllers
 
 			if (!exists)
 			{
-				return NotFound(new ValidationProblemDetails { Title = $"Blob {id} not found"});
+				return NotFound(new ValidationProblemDetails { Title = $"Blob {id} not found" });
 			}
 
 			return Ok();
@@ -108,9 +108,9 @@ namespace Jupiter.Controllers
 		[ProducesDefaultResponseType]
 		public async Task<IActionResult> ExistsMultipleAsync(
 			[Required] NamespaceId ns,
-			[Required] [FromQuery] List<BlobId> id)
+			[Required][FromQuery] List<BlobId> id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -127,7 +127,7 @@ namespace Jupiter.Controllers
 			});
 			await Task.WhenAll(tasks);
 
-			return Ok(new HeadMultipleResponse { Needs = missingBlobs.ToArray()});
+			return Ok(new HeadMultipleResponse { Needs = missingBlobs.ToArray() });
 		}
 
 		[HttpPost("{ns}/exist")]
@@ -136,7 +136,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[FromBody] BlobId[] bodyIds)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -153,14 +153,14 @@ namespace Jupiter.Controllers
 			});
 			await Task.WhenAll(tasks);
 
-			return Ok(new HeadMultipleResponse { Needs = missingBlobs.ToArray()});
+			return Ok(new HeadMultipleResponse { Needs = missingBlobs.ToArray() });
 		}
 
 		private async Task<BlobContents> GetImplAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false, bool allowOndemandReplication = true)
 		{
 			try
 			{
-				return await _storage.GetObjectAsync(ns, blob, storageLayers, supportsRedirectUri, allowOndemandReplication);
+				return await _storage.GetObjectAsync(ns, blob, storageLayers, supportsRedirectUri, allowOndemandReplication, bucketHint: null);
 			}
 			catch (BlobNotFoundException)
 			{
@@ -180,7 +180,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (result != null)
 			{
 				return result;
@@ -190,22 +190,15 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				Uri? uri = await _storage.MaybePutObjectWithRedirectAsync(ns, id);
+				Uri? uri = await _storage.MaybePutObjectWithRedirectAsync(ns, id, bucketHint: null, HttpContext.RequestAborted);
 				if (uri != null)
 				{
-					return Ok(new
-					{
-						Identifier = id.ToString(),
-						RedirectUri = uri,
-					});
+					return Ok(new BlobUploadResponse(id.ToString(), uri));
 				}
-				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
+				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 
-				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id);
-				return Ok(new
-				{
-					Identifier = identifier.ToString()
-				});
+				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, bucketHint: null, HttpContext.RequestAborted);
+				return Ok(new BlobUploadResponse(identifier.ToString()));
 			}
 			catch (ResourceHasToManyRequestsException)
 			{
@@ -223,7 +216,7 @@ namespace Jupiter.Controllers
 		public async Task<IActionResult> PostAsync(
 			[Required] NamespaceId ns)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (result != null)
 			{
 				return result;
@@ -232,13 +225,13 @@ namespace Jupiter.Controllers
 			_diagnosticContext.Set("Content-Length", Request.ContentLength ?? -1);
 			try
 			{
-				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
+				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 
 				await using Stream stream = payload.GetStream();
 
-				BlobId id = await BlobId.FromStreamAsync(stream);
-				await _storage.PutObjectKnownHashAsync(ns, payload, id);
-				
+				BlobId id = await BlobId.FromStreamAsync(stream, HttpContext.RequestAborted);
+				await _storage.PutObjectKnownHashAsync(ns, payload, id, bucketHint:null, HttpContext.RequestAborted);
+
 				return Ok(new
 				{
 					Identifier = id.ToString()
@@ -255,7 +248,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.DeleteObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.DeleteObject });
 			if (result != null)
 			{
 				return result;
@@ -266,25 +259,24 @@ namespace Jupiter.Controllers
 			return NoContent();
 		}
 
-		
 		[HttpDelete("{ns}")]
 		public async Task<IActionResult> DeleteNamespaceAsync(
 			[Required] NamespaceId ns)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.DeleteNamespace });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.DeleteNamespace });
 			if (result != null)
 			{
 				return result;
 			}
 
-			await  _storage.DeleteNamespaceAsync(ns);
+			await _storage.DeleteNamespaceAsync(ns, HttpContext.RequestAborted);
 
 			return NoContent();
 		}
 
 		private async Task DeleteImplAsync(NamespaceId ns, BlobId id)
 		{
-			await _storage.DeleteObjectAsync(ns, id);
+			await _storage.DeleteObjectAsync(ns, id, HttpContext.RequestAborted);
 		}
 
 		// ReSharper disable UnusedAutoPropertyAccessor.Global
@@ -339,7 +331,7 @@ namespace Jupiter.Controllers
 
 			if (batch?.Operations == null)
 			{
-				throw new ();
+				throw new();
 			}
 
 			Task<object?>[] tasks = new Task<object?>[batch.Operations.Length];
@@ -377,7 +369,7 @@ namespace Jupiter.Controllers
 							blobContents.Stream.CopyTo(ms);
 							ms.Seek(0, SeekOrigin.Begin);
 							string str = Convert.ToBase64String(ms.ToArray());
-							return (object?) str;
+							return (object?)str;
 						}, null, TaskScheduler.Current);
 						break;
 					case BatchOp.Operation.HEAD:
@@ -387,7 +379,7 @@ namespace Jupiter.Controllers
 						}
 
 						tasks[index] = _storage.ExistsAsync(op.Namespace.Value, op.Id)
-							.ContinueWith((t,_) => t.Result ? (object?) null : op.Id, null, TaskScheduler.Current);
+							.ContinueWith((t, _) => t.Result ? (object?)null : op.Id, null, TaskScheduler.Current);
 						break;
 					case BatchOp.Operation.PUT:
 						{
@@ -402,7 +394,7 @@ namespace Jupiter.Controllers
 							}
 
 							using MemoryBufferedPayload payload = new MemoryBufferedPayload(op.Content);
-							tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id).ContinueWith((t, _) => (object?) t.Result, null, TaskScheduler.Current);
+							tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id, bucketHint: null, HttpContext.RequestAborted).ContinueWith((t, _) => (object?)t.Result, null, TaskScheduler.Current);
 							break;
 						}
 					case BatchOp.Operation.DELETE:
@@ -411,7 +403,7 @@ namespace Jupiter.Controllers
 							return BadRequest();
 						}
 
-						tasks[index] = DeleteImplAsync(op.Namespace.Value, op.Id).ContinueWith((t, _) => (object?) null, null, TaskScheduler.Current);
+						tasks[index] = DeleteImplAsync(op.Namespace.Value, op.Id).ContinueWith((t, _) => (object?)null, null, TaskScheduler.Current);
 						break;
 					default:
 						throw new NotImplementedException($"{op.Op} is not a support op type");
@@ -424,6 +416,23 @@ namespace Jupiter.Controllers
 
 			return Ok(results);
 		}
+	}
+
+	public class BlobUploadResponse
+	{
+		public BlobUploadResponse(string identifier)
+		{
+			Identifier = identifier;
+		}
+
+		public BlobUploadResponse(string identifier, Uri redirectUri)
+		{
+			Identifier = identifier;
+			RedirectUri = redirectUri;
+		}
+
+		public string Identifier { get; set; }
+		public Uri? RedirectUri { get; set; }
 	}
 
 	public class HeadMultipleResponse

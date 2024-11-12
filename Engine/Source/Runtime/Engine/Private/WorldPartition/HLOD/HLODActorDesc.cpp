@@ -19,7 +19,6 @@
 #include "WorldPartition/WorldPartitionActorDescInstance.h"
 
 FHLODActorDesc::FHLODActorDesc()
-	: EditorBounds(ForceInit)
 {}
 
 int64 FHLODActorDesc::GetStat(FName InStatName) const
@@ -161,11 +160,10 @@ void FHLODActorDesc::Serialize(FArchive& Ar)
 		
 		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::WorldPartitionHLODActorDescSerializeEditorBounds)
 		{
-			Ar << EditorBounds;
-		}
-		else
-		{
-			EditorBounds = GetRuntimeBounds();
+			if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WorldPartitionActorDescSerializeEditorBounds)
+			{
+				Ar << EditorBounds;
+			}
 		}
 	}
 }

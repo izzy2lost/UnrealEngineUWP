@@ -9,8 +9,21 @@
 #include "UbaProtocol.h"
 #include "UbaStorage.h"
 
+#if PLATFORM_WINDOWS
+#include <winerror.h>
+#endif
+
 namespace uba
 {
+	struct SessionClient::ModuleInfo
+	{
+		ModuleInfo(const tchar* n, const CasKey& c, u32 a) : name(n), casKey(c), attributes(a), done(true) {}
+		TString name;
+		CasKey casKey;
+		u32 attributes;
+		Event done;
+	};
+
 	SessionClient::SessionClient(const SessionClientCreateInfo& info)
 	: Session(info, TC("UbaSessionClient"), true, &info.client)
 	,	m_client(info.client)
@@ -18,6 +31,7 @@ namespace uba
 	,	m_terminationTime(~0ull)
 	,	m_waitToSendEvent(false)
 	,	m_loop(true)
+	,	m_allowSpawn(true)
 	{
 		m_maxProcessCount = info.maxProcessCount;
 		m_dedicated = info.dedicated;
@@ -30,6 +44,8 @@ namespace uba
 		m_memWaitLoadPercent = info.memWaitLoadPercent;
 		m_memKillLoadPercent = info.memKillLoadPercent;
 		m_processFinished = info.processFinished;
+
+		m_processIdCounter = ~0u / 2; // We set this value to a very high value.. because it will be used by child processes and we don't want id from server and child process id to collide
 
 		if (m_name.IsEmpty())
 		{
@@ -75,8 +91,8 @@ namespace uba
 
 	void SessionClient::Stop()
 	{
-		CancelAllProcessesAndWait();
 		m_loop = false;
+		CancelAllProcessesAndWait();
 		m_waitToSendEvent.Set();
 		m_loopThread.Wait();
 	}
@@ -101,6 +117,11 @@ namespace uba
 	void SessionClient::SetMaxProcessCount(u32 count)
 	{
 		m_maxProcessCount = count;
+	}
+
+	void SessionClient::SetAllowSpawn(bool allow)
+	{
+		m_allowSpawn = allow;
 	}
 
 	u64 SessionClient::GetBestPing()
@@ -164,18 +185,19 @@ namespace uba
 				return false;
 
 			rec.key = reader.ReadCasKey();
-			rec.serverTime = reader.ReadU64();
+			if (rec.key != CasKeyZero)
+				rec.serverTime = reader.ReadU64();
 		}
 		out = rec.key;
 		return true;
 	}
 
-	bool SessionClient::EnsureBinaryFile(StringBufferBase& out, StringBufferBase& outVirtual, u32 processId, const StringBufferBase& fileName, const StringKey& fileNameKey, const tchar* applicationDir)
+	bool SessionClient::EnsureBinaryFile(StringBufferBase& out, StringBufferBase& outVirtual, u32 processId, const StringBufferBase& fileName, const StringKey& fileNameKey, const tchar* applicationDir, const u8* loaderPaths, u32 loaderPathsSize)
 	{
 		CasKey casKey;
 		u32 fileAttributes = DefaultAttributes(); // TODO: This is wrong.. need to retrieve from server if this is executable or not
 
-		bool isAbsolute = IsWindows ? (fileName.count > 1 && fileName[1] == ':') : (fileName.count > 0 && fileName[0] == '/');
+		bool isAbsolute = IsAbsolutePath(fileName.data);
 		if (isAbsolute)
 		{
 			UBA_ASSERT(fileNameKey != StringKeyZero);
@@ -195,6 +217,8 @@ namespace uba
 			writer.WriteString(fileName);
 			writer.WriteStringKey(fileNameKey);
 			writer.WriteString(applicationDir);
+			if (loaderPathsSize)
+				writer.WriteBytes(loaderPaths, loaderPathsSize);
 
 			StackBinaryReader<1024> reader;
 			if (!msg.Send(reader, Stats().getBinaryMsg))
@@ -227,21 +251,93 @@ namespace uba
 		return WriteBinFile(out, destFile.data, newKey, keyStr, fileAttributes);
 	}
 
-	bool SessionClient::PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir)
+	bool SessionClient::PrepareProcess(ProcessStartInfoHolder& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir)
 	{
-		outRealApplication.Clear();
 		outRealWorkingDir = m_processWorkingDir.data;
-		return EnsureApplicationEnvironment(outRealApplication, 0, startInfo.application);
-	}
+		if (StartsWith(startInfo.application, TC("ubacopy")))
+			return true;
+		outRealApplication.Clear();
 
-	struct SessionClient::ModuleInfo
-	{
-		ModuleInfo(const tchar* n, const CasKey& c, u32 a) : name(n), casKey(c), attributes(a), done(true) {}
-		TString name;
-		CasKey casKey;
-		u32 attributes;
-		Event done;
-	};
+		const tchar* application = startInfo.application;
+		UBA_ASSERT(application && *application);
+		bool isAbsolute = IsAbsolutePath(startInfo.application);
+
+		SCOPED_WRITE_LOCK(m_handledApplicationEnvironmentsLock, environmentslock);
+		auto insres = m_handledApplicationEnvironments.try_emplace(application);
+		environmentslock.Leave();
+
+		ApplicationEnvironment& appEnv = insres.first->second;
+		SCOPED_WRITE_LOCK(appEnv.lock, lock);
+
+		if (!appEnv.realApplication.empty())
+		{
+			outRealApplication.Append(appEnv.realApplication);
+			if (!isAbsolute)
+			{
+				startInfo.applicationStr = appEnv.virtualApplication;
+				startInfo.application = startInfo.applicationStr.c_str();
+			}
+			return true;
+		}
+
+		List<ModuleInfo> modules;
+		if (!ReadModules(modules, 0, application))
+			return false;
+
+		StringBuffer<MaxPath> applicationDir;
+		applicationDir.AppendDir(application);
+		KeyToString keyStr(ToStringKeyLower(applicationDir));
+
+		Atomic<bool> success = true;
+		Atomic<u32> handledCount;
+
+		for (auto& m : modules)
+		{
+			m_client.AddWork([&handledCount, &m, this, &success, &keyStr]()
+				{
+					++handledCount;
+					auto g = MakeGuard([&]() { m.done.Set(); });
+					CasKey newCasKey;
+					bool storeUncompressed = true;
+					u64 fileSize;
+					const tchar* moduleName = m.name.c_str();
+					if (!RetrieveCasFile(newCasKey, fileSize, m.casKey, moduleName, storeUncompressed))
+					{
+						m_logger.Error(TC("Casfile not found for %s (%s)"), moduleName, CasKeyString(m.casKey).str);
+						success = false;
+						return;
+					}
+					if (const tchar* lastSeparator = TStrrchr(moduleName, PathSeparator))
+						moduleName = lastSeparator + 1;
+					StringBuffer<MaxPath> temp;
+					if (!WriteBinFile(temp, moduleName, newCasKey, keyStr, m.attributes))
+						success = false;
+				}, 1, TC("EnsureApp"));
+		}
+
+		while (handledCount < modules.size())
+			m_client.DoWork();
+
+		// Wait for all to be done
+		for (auto& m : modules)
+			if (!m.done.IsSet(10 * 60 * 1000)) // 10 minutes is a very long time
+				return m_logger.Error(TC("Timed out while waiting for application cas files to be downloaded"));
+
+		if (!success)
+			return false;
+		
+		outRealApplication.Append(m_sessionBinDir).Append(keyStr).Append(PathSeparator).AppendFileName(application);
+		appEnv.realApplication = outRealApplication.data;
+
+		if (!isAbsolute)
+		{
+			appEnv.virtualApplication = modules.front().name;
+			startInfo.applicationStr = appEnv.virtualApplication;
+			startInfo.application = startInfo.applicationStr.c_str();
+		}
+
+		return true;
+	}
 
 	bool SessionClient::ReadModules(List<ModuleInfo>& outModules, u32 processId, const tchar* application)
 	{
@@ -275,74 +371,13 @@ namespace uba
 			{
 				StringBuffer<> localSystemModule;
 				localSystemModule.Append(m_systemPath).Append(moduleFile.data + serverSystemPathLen);
-				if (FileExists(m_logger, localSystemModule.data))
+				if (FileExists(m_logger, localSystemModule.data) && !localSystemModule.EndsWith(TC(".exe")))
 					continue;
 				moduleFile.Clear().Append(localSystemModule);
 			}
 			outModules.emplace_back(moduleFile.data, casKey, fileAttributes);
 		}
 
-		return true;
-	}
-
-	bool SessionClient::EnsureApplicationEnvironment(StringBufferBase& out, u32 processId, const tchar* application)
-	{
-		StringBuffer<MaxPath> applicationDir;
-		applicationDir.AppendDir(application);
-		KeyToString keyStr(ToStringKeyLower(applicationDir));
-
-		UBA_ASSERT(application && *application);
-		SCOPED_WRITE_LOCK(m_handledApplicationEnvironmentsLock, lock);
-		auto insres = m_handledApplicationEnvironments.insert(application);
-		if (insres.second)
-		{
-			auto failGuard = MakeGuard([&]() { m_handledApplicationEnvironments.erase(insres.first); });
-
-			List<ModuleInfo> modules;
-
-			if (!ReadModules(modules, processId, application))
-				return false;
-
-			Atomic<bool> success = true;
-			Atomic<u32> handledCount;
-			for (auto& m : modules)
-			{
-				m_client.AddWork([&handledCount, &m, this, &success, &keyStr]()
-					{
-						++handledCount;
-						auto g = MakeGuard([&]() { m.done.Set(); });
-						CasKey newCasKey;
-						bool storeUncompressed = true;
-						u64 fileSize;
-						const tchar* moduleName = m.name.c_str();
-						if (!RetrieveCasFile(newCasKey, fileSize, m.casKey, moduleName, storeUncompressed))
-						{
-							m_logger.Error(TC("Casfile not found for %s (%s)"), moduleName, CasKeyString(m.casKey).str);
-							success = false;
-							return;
-						}
-						if (const tchar* lastSeparator = TStrrchr(moduleName, PathSeparator))
-							moduleName = lastSeparator + 1;
-						StringBuffer<MaxPath> temp;
-						if (!WriteBinFile(temp, moduleName, newCasKey, keyStr, m.attributes))
-							success = false;
-					}, 1, TC("EnsureApp"));
-			}
-
-			while (handledCount < modules.size())
-				m_client.DoWork();
-
-			// Wait for all to be done
-			for (auto& m : modules)
-				if (!m.done.IsSet(10 * 60 * 1000)) // 10 minutes is a very long time
-					return m_logger.Error(TC("Timed out while waiting for application cas files to be downloaded"));
-
-			if (!success)
-				return false;
-
-			failGuard.Cancel();
-		}
-		out.Append(m_sessionBinDir).Append(keyStr).Append(PathSeparator).AppendFileName(application);
 		return true;
 	}
 
@@ -412,110 +447,138 @@ namespace uba
 			return true;
 		}
 
-		StringBuffer<> newName;
-		bool isDir = casKey == CasKeyIsDirectory;
-		u64 fileSize = InvalidValue;
-		CasKey newCasKey;
+		// Code for doing retry if failing to decompress casfile. We've seen cases of corrupt cas files on clients
+		bool shouldRetry = true;
+		FileMappingEntry* retryEntry = nullptr;
+		auto retryEntryGuard = MakeGuard([&]() { if (retryEntry) retryEntry->lock.LeaveWrite(); });
 
-		u32 memoryMapAlignment = 0;
-		if (m_allowMemoryMaps)
+		while (true)
 		{
-			memoryMapAlignment = GetMemoryMapAlignment(fileName.data, fileName.count);
-			if (!memoryMapAlignment && !m_useStorage)
-				memoryMapAlignment = 64 * 1024;
-		}
+			StringBuffer<> newName;
+			bool isDir = casKey == CasKeyIsDirectory;
+			u64 fileSize = InvalidValue;
+			CasKey newCasKey;
 
-		if (isDir)
-		{
-			newName.Append(TC("$d"));
-		}
-		else if (casKey != CasKeyZero)
-		{
-			if (m_useStorage || memoryMapAlignment == 0)
+			u32 memoryMapAlignment = 0;
+			if (m_allowMemoryMaps)
 			{
-				bool storeUncompressed = memoryMapAlignment == 0;
-				bool allowProxy = GetApplicationRules()[msg.process.m_rulesIndex].rules->AllowStorageProxy(fileName);
-				if (!RetrieveCasFile(newCasKey, fileSize, casKey, fileName.data, storeUncompressed, allowProxy))
-					return m_logger.Error(TC("Error retrieving cas entry %s (%s)"), CasKeyString(casKey).str, fileName.data);
-
-				#if !UBA_USE_SPARSEFILE
-				if (!m_storage.GetCasFileName(newName, newCasKey))
-					return false;
-				#else
-				if (!memoryMapAlignment)
-					memoryMapAlignment = 4096;
-				MemoryMap map;
-				if (!CreateMemoryMapFromView(map, fileNameKey, fileName.data, newCasKey, memoryMapAlignment))
-					return false;
-				newName.Append(map.name);
-				fileSize = map.size;
-				#endif
+				memoryMapAlignment = GetMemoryMapAlignment(fileName);
+				if (!memoryMapAlignment && !m_useStorage)
+					memoryMapAlignment = 64 * 1024;
 			}
-			else
+
+			if (isDir)
 			{
-				StorageStats& stats = m_storage.Stats();
-				TimerScope ts(stats.ensureCas);
-
-				SCOPED_WRITE_LOCK(m_fileMappingTableLookupLock, lookupLock);
-				auto insres = m_fileMappingTableLookup.try_emplace(fileNameKey);
-				FileMappingEntry& entry = insres.first->second;
-				lookupLock.Leave();
-
-				SCOPED_WRITE_LOCK(entry.lock, entryCs);
-				ts.Leave();
-
-				if (entry.handled)
+				newName.Append(TC("$d"));
+			}
+			else if (casKey != CasKeyZero)
+			{
+				if (m_useStorage || memoryMapAlignment == 0)
 				{
-					if (!entry.success)
-						return false;
-				}
-				else
-				{
-					TimerScope s(m_stats.storageRetrieve);
-					casKey = AsCompressed(casKey, false);
-					entry.handled = true;
-					Storage::RetrieveResult result;
-					bool allowProxy = GetApplicationRules()[msg.process.m_rulesIndex].rules->AllowStorageProxy(fileName);
-					if (!m_storage.RetrieveCasFile(result, casKey, fileName.data, &m_fileMappingBuffer, memoryMapAlignment, allowProxy))
+					bool storeUncompressed = memoryMapAlignment == 0;
+					bool allowProxy = msg.process.m_startInfo.rules->AllowStorageProxy(fileName);
+					if (!RetrieveCasFile(newCasKey, fileSize, casKey, fileName.data, storeUncompressed, allowProxy))
 						return m_logger.Error(TC("Error retrieving cas entry %s (%s)"), CasKeyString(casKey).str, fileName.data);
-					entry.success = true;
-					entry.size = result.size;
-					entry.mapping = result.view.handle;
-					entry.mappingOffset = result.view.offset;
+
+					#if !UBA_USE_SPARSEFILE
+					if (!m_storage.GetCasFileName(newName, newCasKey))
+						return false;
+					#else
+					if (!memoryMapAlignment)
+						memoryMapAlignment = 4096;
+					MemoryMap map;
+					if (!CreateMemoryMapFromView(map, fileNameKey, fileName.data, newCasKey, memoryMapAlignment))
+						return false;
+					newName.Append(map.name);
+					fileSize = map.size;
+					#endif
 				}
-
-				fileSize = entry.size;
-				if (entry.mapping.IsValid())
-					Storage::GetMappingString(newName, entry.mapping, entry.mappingOffset);
 				else
-					newName.Append(entry.isDir ? TC("$d") : TC("$f"));
+				{
+					StorageStats& stats = m_storage.Stats();
+					TimerScope ts(stats.ensureCas);
+
+					SCOPED_WRITE_LOCK(m_fileMappingTableLookupLock, lookupLock);
+					auto insres = m_fileMappingTableLookup.try_emplace(fileNameKey);
+					FileMappingEntry& entry = insres.first->second;
+					lookupLock.Leave();
+
+					SCOPED_WRITE_LOCK(entry.lock, entryCs);
+					ts.Leave();
+
+					if (entry.handled)
+					{
+						if (!entry.success)
+							return false;
+					}
+					else
+					{
+						TimerScope s(m_stats.storageRetrieve);
+						casKey = AsCompressed(casKey, false);
+						entry.handled = true;
+						Storage::RetrieveResult result;
+						bool allowProxy = msg.process.m_startInfo.rules->AllowStorageProxy(fileName);
+						if (!m_storage.RetrieveCasFile(result, casKey, fileName.data, &m_fileMappingBuffer, memoryMapAlignment, allowProxy))
+							return m_logger.Error(TC("Error retrieving cas entry %s (%s)"), CasKeyString(casKey).str, fileName.data);
+						entry.success = true;
+						entry.size = result.size;
+						entry.mapping = result.view.handle;
+						entry.mappingOffset = result.view.offset;
+					}
+
+					fileSize = entry.size;
+					if (entry.mapping.IsValid())
+						Storage::GetMappingString(newName, entry.mapping, entry.mappingOffset);
+					else
+						newName.Append(entry.isDir ? TC("$d") : TC("$f"));
+				}
 			}
-		}
 
-		UBA_ASSERTF(!newName.IsEmpty(), TC("No casfile available for %s using %s"), fileName.data, CasKeyString(casKey).str);
+			UBA_ASSERTF(!newName.IsEmpty(), TC("No casfile available for %s using %s"), fileName.data, CasKeyString(casKey).str);
 
-		if (newName[0] != '^')
-		{
-			if (!isDir && memoryMapAlignment)
+			if (newName[0] != '^')
 			{
-				MemoryMap map;
-				if (!CreateMemoryMapFromFile(map, fileNameKey, newName.data, IsCompressed(newCasKey), memoryMapAlignment))
-					return false;
+				if (!isDir && memoryMapAlignment)
+				{
+					if (retryEntry)
+						retryEntryGuard.Execute();
 
-				fileSize = map.size;
-				newName.Clear().Append(map.name);
+					MemoryMap map;
+					if (!CreateMemoryMapFromFile(map, fileNameKey, newName.data, IsCompressed(newCasKey), memoryMapAlignment))
+					{
+						if (!shouldRetry)
+							return false;
+						shouldRetry = false;
+
+						// We need to take a lock around the file map entry since there might be another thread also wanting to map this
+						{
+							SCOPED_WRITE_LOCK(m_fileMappingTableLookupLock, lookupLock);
+							retryEntry = &m_fileMappingTableLookup.try_emplace(fileNameKey).first->second;
+							lookupLock.Leave();
+							retryEntry->lock.EnterWrite();
+							retryEntry->handled = false;
+						}
+
+						if (!m_storage.ReportBadCasFile(newCasKey))
+							return false;
+
+						continue;
+					}
+					fileSize = map.size;
+					newName.Clear().Append(map.name);
+				}
+				else if (!IsRarelyRead(msg.process, fileName))
+				{
+					AddFileMapping(fileNameKey, fileName.data, newName.data, fileSize);
+				}
 			}
-			else if (!IsRarelyRead(msg.process, fileName))
-			{
-				AddFileMapping(fileNameKey, fileName.data, newName.data, fileSize);
-			}
+
+			out.directoryTableSize = GetDirectoryTableSize();
+			out.mappedFileTableSize = GetFileMappingSize();
+			out.fileName.Append(newName);
+			out.size = fileSize;
+			return true;
 		}
-
-		out.directoryTableSize = GetDirectoryTableSize();
-		out.mappedFileTableSize = GetFileMappingSize();
-		out.fileName.Append(newName);
-		out.size = fileSize;
-		return true;
 	}
 
 	bool SessionClient::SendFiles(ProcessImpl& process, Timer& sendFiles)
@@ -528,7 +591,7 @@ namespace uba
 			if (!pair.second.mappingHandle.IsValid())
 				m_logger.Warning(TC("%s is not using file mapping"), pair.first.c_str());
 #endif
-			bool keepMappingInMemory = IsWindows && !IsRarelyReadAfterWritten(process, pair.first.c_str(), pair.first.size());
+			bool keepMappingInMemory = IsWindows && !IsRarelyReadAfterWritten(process, pair.first);
 			if (!SendFile(pair.second, pair.first.c_str(), process.GetId(), keepMappingInMemory))
 				return false;
 		}
@@ -562,7 +625,7 @@ namespace uba
 				return m_logger.Error(TC("Failed to send file %s to server"), source.name.c_str());
 		}
 		if (!reader.ReadBool())
-			return m_logger.Error(TC("Server failed to receive file %s"), source.name.c_str());
+			return m_logger.Error(TC("Server failed to receive file %s (%s)"), source.name.c_str(), destination);
 		return true;
 	}
 
@@ -615,11 +678,8 @@ namespace uba
 		out.result = reader.ReadBool();
 		out.errorCode = reader.ReadU32();
 		if (out.result)
-		{
-			reader.Reset();
-			if (!SendUpdateDirectoryTable(reader))
+			if (!SendUpdateDirectoryTable(reader.Reset()))
 				return false;
-		}
 		out.directoryTableSize = GetDirectoryTableSize();
 		return true;
 	}
@@ -646,11 +706,8 @@ namespace uba
 			out.closeId = ~0u;
 			out.errorCode = reader.ReadU32();
 			if (!out.errorCode)
-			{
-				reader.Reset();
-				if (!SendUpdateDirectoryTable(reader))
+				if (!SendUpdateDirectoryTable(reader.Reset()))
 					return false;
-			}
 			out.directoryTableSize = GetDirectoryTableSize();
 			return true;
 		}
@@ -675,18 +732,24 @@ namespace uba
 	{
 		const tchar* fromName = msg.fromName.data;
 		const tchar* toName = msg.toName.data;
+		auto& process = msg.process;
 
 		{
-			SCOPED_WRITE_LOCK(msg.process.m_writtenFilesLock, lock);
-			auto& writtenFiles = msg.process.m_writtenFiles;
+			SCOPED_WRITE_LOCK(process.m_writtenFilesLock, lock);
+			auto& writtenFiles = process.m_writtenFiles;
 			auto findIt = writtenFiles.find(fromName);
 			if (findIt != writtenFiles.end())
 			{
 				auto insres = writtenFiles.try_emplace(toName);
-				UBA_ASSERTF(insres.second, TC("Moving written file to other written file."));
+				UBA_ASSERTF(insres.second, TC("Moving written file %s to other written file %s. (%s)"), fromName, toName, process.m_startInfo.description);
 				insres.first->second = findIt->second;
-				insres.first->second.owner = &msg.process;
+				insres.first->second.key = msg.toKey;
+				insres.first->second.owner = &process;
 				writtenFiles.erase(findIt);
+			}
+			else
+			{
+				// TODO: Need to tell server 
 			}
 		}
 
@@ -697,7 +760,7 @@ namespace uba
 			if (findIt != m_outputFiles.end())
 			{
 				auto insres = m_outputFiles.try_emplace(toName);
-				UBA_ASSERTF(insres.second, TC("Failed to add move destination file %s as output file because it is already added."), toName);
+				UBA_ASSERTF(insres.second, TC("Failed to add move destination file %s as output file because it is already added. (Moved from %s)"), toName, fromName);
 				insres.first->second = findIt->second;
 				m_outputFiles.erase(findIt);
 				sendMove = false;
@@ -710,6 +773,8 @@ namespace uba
 			out.errorCode = ERROR_SUCCESS;
 			return true;
 		}
+
+		// TODO: This should be done by server?
 
 		out.result = uba::MoveFileExW(fromName, toName, 0);
 		out.errorCode = GetLastError();
@@ -749,11 +814,36 @@ namespace uba
 		StackBinaryWriter<1024> writer;
 		NetworkMessage networkMsg(m_client, ServiceId, SessionMessageType_CreateDirectory, writer);
 		writer.WriteString(msg.name);
-		StackBinaryReader<1024> reader;
+		StackBinaryReader<SendMaxSize> reader;
 		if (!networkMsg.Send(reader, Stats().createDirMsg))
 			return false;
 		out.result = reader.ReadBool();
 		out.errorCode = reader.ReadU32();
+
+		if (out.result)
+			if (!SendUpdateDirectoryTable(reader.Reset()))
+				return false;
+
+		out.directoryTableSize = GetDirectoryTableSize();
+		return true;
+	}
+
+	bool SessionClient::RemoveDirectory(RemoveDirectoryResponse& out, const RemoveDirectoryMessage& msg)
+	{
+		StackBinaryWriter<1024> writer;
+		NetworkMessage networkMsg(m_client, ServiceId, SessionMessageType_RemoveDirectory, writer);
+		writer.WriteString(msg.name);
+		StackBinaryReader<SendMaxSize> reader;
+		if (!networkMsg.Send(reader, Stats().deleteFileMsg)) // Wrong message
+			return false;
+		out.result = reader.ReadBool();
+		out.errorCode = reader.ReadU32();
+
+		if (out.result)
+			if (!SendUpdateDirectoryTable(reader.Reset()))
+				return false;
+
+		out.directoryTableSize = GetDirectoryTableSize();
 		return true;
 	}
 
@@ -776,8 +866,9 @@ namespace uba
 		}
 		rec.handled = true;
 
-		auto& dir = msg.process.m_virtualApplicationDir;
-		if (!EnsureBinaryFile(out.fileName, out.virtualFileName, msg.process.m_id, msg.fileName, msg.fileNameKey, dir.c_str()))
+		StringBuffer<> dir;
+		dir.AppendDir(msg.process.m_startInfo.application);
+		if (!EnsureBinaryFile(out.fileName, out.virtualFileName, msg.process.m_id, msg.fileName, msg.fileNameKey, dir.data, msg.loaderPaths, msg.loaderPathsSize))
 			return false;
 
 		StringKey fileNameKey = msg.fileNameKey;
@@ -787,6 +878,19 @@ namespace uba
 		rec.name = out.fileName.data;
 		rec.virtualName = out.virtualFileName.data;
 		out.mappedFileTableSize = AddFileMapping(fileNameKey, msg.fileName.data, out.fileName.data);
+		return true;
+	}
+
+	bool SessionClient::GetLongPathName(GetLongPathNameResponse& out, const GetLongPathNameMessage& msg)
+	{
+		StackBinaryWriter<1024> writer;
+		NetworkMessage networkMsg(m_client, ServiceId, SessionMessageType_GetLongPathName, writer);
+		writer.WriteString(msg.fileName);
+		StackBinaryReader<1024> reader;
+		if (!networkMsg.Send(reader, Stats().getLongNameMsg))
+			return false;
+		out.errorCode = reader.ReadU32();
+		reader.ReadString(out.fileName);
 		return true;
 	}
 
@@ -833,8 +937,9 @@ namespace uba
 		u32 readPos = 0;
 		ActiveUpdateDirectoryEntry* prev = nullptr;
 		ActiveUpdateDirectoryEntry* next = nullptr;
+		bool success = true;
 
-		static bool Wait(SessionClient& client, ActiveUpdateDirectoryEntry*& first, ScopedWriteLock& lock, u32 readPos)
+		static bool Wait(SessionClient& client, ActiveUpdateDirectoryEntry*& first, ScopedWriteLock& lock, u32 readPos, const tchar* hint)
 		{
 			ActiveUpdateDirectoryEntry item;
 			item.next = first;
@@ -843,20 +948,25 @@ namespace uba
 			item.readPos = readPos;
 			first = &item;
 			item.done.Create(true);
+
 			lock.Leave();
-			while (!item.done.IsSet(10000))
-			{
-				client.m_logger.Error(TC("Timed out waiting for update directory message"));
-				return false;
-			}
+			bool res = item.done.IsSet(5*60*1000);
 			lock.Enter();
+
 			if (item.prev)
 				item.prev->next = item.next;
 			else
 				first = item.next;
 			if (item.next)
 				item.next->prev = item.prev;
-			return true;
+
+			if (res)
+				return item.success;
+
+			u32 activeCount = 0;
+			for (auto i = first; i; i = i->next)
+				++activeCount;
+			return client.m_logger.Error(TC("Timed out after 5 minutes waiting for update directory message to reach read position %u  (%u active in %s wait)"), readPos, activeCount, hint);
 		}
 
 		static void UpdateReadPosMatching(ActiveUpdateDirectoryEntry*& first, u32 readPos)
@@ -870,11 +980,20 @@ namespace uba
 			}
 		}
 
-		static void UpdateReadPosLess(ActiveUpdateDirectoryEntry*& first, u32 readPos)
+		static void UpdateReadPosLessOrEqual(ActiveUpdateDirectoryEntry*& first, u32 readPos)
 		{
 			for (auto i = first; i; i = i->next)
 				if (i->readPos <= readPos)
 					i->done.Set();
+		}
+
+		static void UpdateError(ActiveUpdateDirectoryEntry*& first)
+		{
+			for (auto i = first; i; i = i->next)
+			{
+				i->success = false;
+				i->done.Set();
+			}
 		}
 	};
 
@@ -882,20 +1001,19 @@ namespace uba
 	{
 		auto& dirTable = m_directoryTable;
 
-		bool isFirst = true;
+		auto updateMemorySizeAndSignal = [&]
+			{
+				SCOPED_WRITE_LOCK(dirTable.m_memoryLock, lock);
+				dirTable.m_memorySize = m_directoryTableMemPos;
+				lock.Leave();
+				ActiveUpdateDirectoryEntry::UpdateReadPosLessOrEqual(m_firstEmptyWait, m_directoryTableMemPos);
+				return true;
+			};
+
+		u32 lastWriteEnd = ~0u;
+
 		while (true)
 		{
-			if (!isFirst)
-			{
-				reader.Reset();
-
-				StackBinaryWriter<1024> writer;
-				NetworkMessage msg(m_client, ServiceId, SessionMessageType_GetDirectoriesFromServer, writer);
-				writer.WriteU32(m_sessionId);
-				if (!msg.Send(reader, Stats().getDirsMsg))
-					return false;
-			}
-
 			u32 readPos = reader.ReadU32();
 
 			u8* pos = dirTable.m_memory + readPos;
@@ -903,39 +1021,58 @@ namespace uba
 
 			SCOPED_WRITE_LOCK(m_directoryTableLock, lock);
 
+			if (m_directoryTableError)
+				return false;
+
 			if (toRead == 0)
 			{
+				// We wrote to lastWriteEnd and now we got an empty message where readPos is the same..
+				// This means that it was a good cut-off and we can increase m_memorySize
+				// If m_directoryTableMemPos is different it means that we have another thread going on that will update things a little bit later.
+				if (lastWriteEnd == readPos && lastWriteEnd == m_directoryTableMemPos)
+					return updateMemorySizeAndSignal();
+
 				// We might share this position with others
-				if (readPos > dirTable.m_memorySize)
-					if (!ActiveUpdateDirectoryEntry::Wait(*this, m_firstEmptyWait, lock, readPos))
+				if (dirTable.m_memorySize < readPos)
+					if (!ActiveUpdateDirectoryEntry::Wait(*this, m_firstEmptyWait, lock, readPos, TC("empty")))
 						return false;
 				return true;
 			}
 
 			reader.ReadBytes(pos, toRead);
 
+			// Wait until all data before readPos has been read
 			if (readPos != m_directoryTableMemPos)
-				if (!ActiveUpdateDirectoryEntry::Wait(*this, m_firstReadWait, lock, readPos))
+				if (!ActiveUpdateDirectoryEntry::Wait(*this, m_firstReadWait, lock, readPos, TC("read")))
 					return false;
 
 			m_directoryTableMemPos += toRead;
 			
+			// Find potential waiter waiting for this exact size and wake it up
 			ActiveUpdateDirectoryEntry::UpdateReadPosMatching(m_firstReadWait, m_directoryTableMemPos);
 
-			if (reader.GetPosition() < m_client.GetMessageMaxSize() - m_client.GetMessageReceiveHeaderSize())
-			{
-				//dirTable.ParseDirectoryTable(m_directoryTableMemPos); // This is not needed.. we never read from the directory table in the client session
-				{
-					SCOPED_WRITE_LOCK(dirTable.m_memoryLock, lock2);
-					dirTable.m_memorySize = m_directoryTableMemPos;
-				}
-				ActiveUpdateDirectoryEntry::UpdateReadPosLess(m_firstEmptyWait, m_directoryTableMemPos);
-				break;
-			}
-			isFirst = false;
-		}
 
-		return true;
+			// If there is space left in the message it means that we caught up with the directory table server side..
+			// And we will stop asking for more data.
+			// Note, we can only set m_memorySize when getting messages that reads less than capacity since we don't know if we reached a good position in the directory table
+			if (reader.GetPosition() < m_client.GetMessageMaxSize() - m_client.GetMessageReceiveHeaderSize())
+				return updateMemorySizeAndSignal();
+
+			lastWriteEnd = m_directoryTableMemPos;
+
+			StackBinaryWriter<1024> writer;
+			NetworkMessage msg(m_client, ServiceId, SessionMessageType_GetDirectoriesFromServer, writer);
+			writer.WriteU32(m_sessionId);
+
+			if (msg.Send(reader.Reset(), Stats().getDirsMsg))
+				continue;
+
+			// Let's signal waiters to exit faster since we will not get out of this situation (most likely a disconnect)
+			m_directoryTableError = true;
+			ActiveUpdateDirectoryEntry::UpdateError(m_firstReadWait);
+			ActiveUpdateDirectoryEntry::UpdateError(m_firstEmptyWait);
+			return false;
+		}
 	}
 
 	bool SessionClient::UpdateNameToHashTableFromServer(StackBinaryReader<SendMaxSize>& reader)
@@ -958,9 +1095,7 @@ namespace uba
 				NetworkMessage msg(m_client, ServiceId, SessionMessageType_GetNameToHashFromServer, writer);
 				writer.WriteU32(serverTableSize);
 				writer.WriteU32(localTableSize);
-
-				reader.Reset();
-				if (!msg.Send(reader, Stats().getHashesMsg))
+				if (!msg.Send(reader.Reset(), Stats().getHashesMsg))
 					return false;
 			}
 			serverTime = reader.ReadU64();
@@ -1077,6 +1212,7 @@ namespace uba
 
 		m_sessionId = reader.ReadU32();
 		m_uiLanguage = reader.ReadU32();
+		m_storeObjFilesCompressed = reader.ReadBool();
 		m_detailedTrace = reader.ReadBool();
 		m_shouldSendLogToServer = reader.ReadBool();
 		m_shouldSendTraceToServer = reader.ReadBool();
@@ -1112,7 +1248,6 @@ namespace uba
 		}
 
 		#if PLATFORM_WINDOWS
-		AddEnvironmentVariableNoLock(TC("Path"), TC("c:\\noenvironment"));
 		AddEnvironmentVariableNoLock(TC("TEMP"), m_tempPath.data);
 		AddEnvironmentVariableNoLock(TC("TMP"), m_tempPath.data);
 		#else
@@ -1192,14 +1327,9 @@ namespace uba
 		}
 
 		if (!out.empty())
-		{
 			if (neededDirectoryTableSize > GetDirectoryTableSize())
-			{
-				reader.Reset();
-				if (!SendUpdateDirectoryTable(reader))
+				if (!SendUpdateDirectoryTable(reader.Reset()))
 					return false;
-			}
-		}
 
 		// Always nice to update name-to-hash table since it can reduce number of messages while building.
 		u32 hashTableMemSize;
@@ -1208,11 +1338,8 @@ namespace uba
 			hashTableMemSize = u32(m_nameToHashTableMem.writtenSize);
 		}
 		if (neededHashTableSize > hashTableMemSize)
-		{
-			reader.Reset();
-			if (!SendUpdateNameToHashTable(reader))
+			if (!SendUpdateNameToHashTable(reader.Reset()))
 				return false;
-		}
 
 		return true;
 	}
@@ -1228,13 +1355,65 @@ namespace uba
 			return;
 	}
 
+	bool SessionClient::SendProcessInputs(ProcessImpl& process)
+	{
+		auto inputs = process.GetTrackedInputs();
+		u32 left = u32(inputs.size());
+		u32 capacityToAdd = left;
+		u8* readPos = inputs.data();
+		while (left)
+		{
+			StackBinaryWriter<SendMaxSize> writer;
+			NetworkMessage msg(m_client, ServiceId, SessionMessageType_ProcessInputs, writer);
+			writer.Write7BitEncoded(process.m_id);
+			writer.Write7BitEncoded(capacityToAdd);
+			capacityToAdd = 0;
+			u32 toWrite = Min(left, u32(writer.GetCapacityLeft()));
+			writer.WriteBytes(readPos, toWrite);
+			StackBinaryReader<32> reader;
+			if (!msg.Send(reader))
+				return false;
+			readPos += toWrite;
+			left -= toWrite;
+		}
+		return true;
+	}
+
+	bool SessionClient::SendProcessFinished(ProcessImpl& process, u32 exitCode)
+	{
+		StackBinaryWriter<SendMaxSize> writer;
+		NetworkMessage msg(m_client, ServiceId, SessionMessageType_ProcessFinished, writer);
+		writer.WriteU32(process.m_id);
+		writer.WriteU32(exitCode);
+		writer.WriteU32(CountLogLines(process));
+		WriteLogLines(writer, process);
+
+		// This is normally set after callback so we need to calculate it here
+		auto& exitTime = process.m_processStats.exitTime;
+		auto oldExitTime = exitTime.load();
+		if (exitTime)
+			exitTime = GetTime() - exitTime;
+
+		// Must be written last
+		process.m_processStats.Write(writer);
+		process.m_sessionStats.Write(writer);
+		process.m_storageStats.Write(writer);
+		process.m_kernelStats.Write(writer);
+
+		exitTime = oldExitTime;
+
+		StackBinaryReader<16> reader;
+		if (!msg.Send(reader, m_stats.procFinishedMsg) && m_loop)
+			return m_logger.Error(TC("Failed to send ProcessFinished message!"));
+		return true;
+	}
+
 	bool SessionClient::SendUpdateDirectoryTable(StackBinaryReader<SendMaxSize>& reader)
 	{
 		UBA_ASSERT(reader.GetPosition() == 0);
 		StackBinaryWriter<32> writer;
 		NetworkMessage msg(m_client, ServiceId, SessionMessageType_GetDirectoriesFromServer, writer);
 		writer.WriteU32(m_sessionId);
-		writer.WriteU32(~u32(0));
 		if (!msg.Send(reader, Stats().getDirsMsg))
 			return false;
 		return UpdateDirectoryTableFromServer(reader);
@@ -1298,7 +1477,7 @@ namespace uba
 				PrintSummary(logger);
 				m_storage.PrintSummary(logger);
 				m_client.PrintSummary(logger);
-				SystemStats::GetGlobal().Print(logger, true);
+				KernelStats::GetGlobal().Print(logger, true);
 				if (extraInfo)
 					extraInfo(logger);
 			});
@@ -1320,9 +1499,11 @@ namespace uba
 		dest.Append(TC("<log>")).Append(logFile);
 		f.key = ToStringKeyLower(dest);
 		SendFile(f, dest.data, pi.GetId(), false);
+		for (auto& child : pi.m_childProcesses)
+			SendLogFileToServer(*(ProcessImpl*)child.m_process);
 	}
 
-	void SessionClient::GetLogFileName(StringBufferBase& out, const tchar* logFile, const tchar* arguments)
+	void SessionClient::GetLogFileName(StringBufferBase& out, const tchar* logFile, const tchar* arguments, u32 processId)
 	{
 		out.Append(m_sessionLogDir.data);
 		if (logFile && *logFile)
@@ -1333,7 +1514,7 @@ namespace uba
 		}
 		else
 		{
-			GetNameFromArguments(out, arguments, true);
+			GenerateNameForProcess(out, arguments, processId);
 			out.Append(TC(".log"));
 		}
 	}
@@ -1392,7 +1573,7 @@ namespace uba
 				m_logger.Info(TC("%s. Will stop scheduling processes and send failing processes back for retry"), m_terminationReason.load());
 			}
 
-			if (!activeProcesses.empty())
+			if (!activeProcesses.empty() || !m_allowSpawn)
 			{
 				idleStartTime = GetTime();
 				processRequestCount = 0;
@@ -1426,6 +1607,8 @@ namespace uba
 					if (rec.isKilled || rec.isDone)
 						continue;
 					SCOPED_WRITE_LOCK(rec.lock, lock);
+					if (rec.isDone)
+						continue;
 					rec.handle.Cancel(true);
 					rec.isKilled = true;
 					SendReturnProcess(rec.handle.GetId(), TC("Running out of memory"));
@@ -1436,7 +1619,7 @@ namespace uba
 				lastWaitTime = GetTime();
 			}
 
-			bool canSpawn = TimeToMs(GetTime() - lastWaitTime) > waitTimeToSpawnAfterKillMs;
+			bool canSpawn = TimeToMs(GetTime() - lastWaitTime) > waitTimeToSpawnAfterKillMs && m_allowSpawn;
 			if (!canSpawn)
 				waitTimeoutMs = 500;
 
@@ -1495,38 +1678,29 @@ namespace uba
 					waitTimeoutMs = 200;
 				}
 
-				for (InternalProcessStartInfo& info : startInfos)
+				for (InternalProcessStartInfo& startInfo : startInfos)
 				{
-					auto& startInfo = info.startInfo;
 					startInfo.uiLanguage = int(m_uiLanguage);
 					startInfo.priorityClass = m_defaultPriorityClass;
 					startInfo.useCustomAllocator = !m_disableCustomAllocator;
 					startInfo.outputStatsThresholdMs = m_outputStatsThresholdMs != 0 ? m_outputStatsThresholdMs : startInfo.outputStatsThresholdMs;
+					startInfo.rules = GetRules(startInfo);
 
 					StringBuffer<> logFile;
 					if (m_logToFile)
 					{
-						GetLogFileName(logFile, startInfo.logFile, startInfo.arguments);
+						GetLogFileName(logFile, startInfo.logFile, startInfo.arguments, startInfo.processId);
 						startInfo.logFile = logFile.data;
-					}
-
-					StringBuffer<> realApplication;
-					if (!EnsureApplicationEnvironment(realApplication, info.processId, startInfo.application))
-					{
-						m_logger.Error(TC("Failed to ensure application environment for %s"), startInfo.application);
-						SendReturnProcess(info.processId, TC("Failed to ensure application environment"));
-						m_loop = false;
-						break;
 					}
 
 					void* env = GetProcessEnvironmentVariables();
 
-					auto process = new ProcessImpl(*this, info.processId, nullptr);
+					auto process = new ProcessImpl(*this, startInfo.processId, nullptr);
 
 					activeProcesses.emplace_back(process);
 					ProcessRec* rec = &activeProcesses.back();
 
-					rec->weight = info.weight;
+					rec->weight = startInfo.weight;
 
 					{
 						SCOPED_WRITE_LOCK(activeWeightLock, lock);
@@ -1576,7 +1750,7 @@ namespace uba
 						if (session.m_killRandomIndex != ~0u && session.m_killRandomCounter++ == session.m_killRandomIndex)
 						{
 							session.m_loop = false;
-							session.m_logger.Info(TC("Killed random process (%s)"), process.m_description.c_str());
+							session.m_logger.Info(TC("Killed random process (%s)"), process.m_startInfo.GetDescription());
 							return;
 						}
 
@@ -1588,6 +1762,13 @@ namespace uba
 							{
 								if (session.m_loop)
 									session.SendReturnProcess(rec->handle.GetId(), session.m_terminationReason);
+								return;
+							}
+
+							if (process.HasFailedMessage()) // If there are failure caused by failed messages we send back for retry
+							{
+								if (session.m_loop)
+									session.SendReturnProcess(rec->handle.GetId(), TC("Failed message"));
 								return;
 							}
 						}
@@ -1616,22 +1797,10 @@ namespace uba
 							return;
 						}
 
-						StackBinaryWriter<SendMaxSize> writer;
-						NetworkMessage msg(session.m_client, ServiceId, SessionMessageType_ProcessFinished, writer);
-						writer.WriteU32(process.m_id);
-						writer.WriteU32(exitCode);
-						writer.WriteU32(session.CountLogLines(process));
-						session.WriteLogLines(writer, process);
+						if (startInfo.trackInputs)
+							session.SendProcessInputs(process);
 
-						// Must be written last
-						process.m_processStats.Write(writer);
-						process.m_sessionStats.Write(writer);
-						process.m_storageStats.Write(writer);
-						process.m_systemStats.Write(writer);
-
-						StackBinaryReader<16> reader;
-						if (!msg.Send(reader, session.m_stats.procFinishedMsg) && session.m_loop)
-							session.m_logger.Error(TC("Failed to send ProcessFinished message!"));
+						session.SendProcessFinished(process, exitCode);
 
 						// TODO: These should be removed and instead added in TraceReader (so it will update over time)
 						session.m_stats.stats.Add(process.m_sessionStats);
@@ -1641,7 +1810,7 @@ namespace uba
 							session.m_processFinished(&process);
 					};
 
-					process->Start(startInfo, realApplication.data, m_processWorkingDir.data, true, env, true, true);
+					process->Start(startInfo, true, env, true, true);
 				}
 
 				RemoveInactiveProcesses();
@@ -1658,7 +1827,25 @@ namespace uba
 			RemoveInactiveProcesses();
 
 			if (activeProcesses.empty() && !m_remoteExecutionEnabled)
+			{
+				// There can be processes that are done (isDone is true) but are still in m_processes list (since they are removed from that after). give them some time
+				u64 counter = 300;
+				while (true)
+				{
+					if (!counter--)
+					{
+						m_logger.Warning(TC("Took a long time for processes to be removed after being finished"));
+						break;
+					}
+
+					SCOPED_READ_LOCK(m_processesLock, processesLock);
+					if (m_processes.empty())
+						break;
+					processesLock.Leave();
+					Sleep(10);
+				}
 				break;
+			}
 		}
 
 		CancelAllProcessesAndWait(); // If we got the exit from server there is no point sending anything more back.. cancel everything
@@ -1693,7 +1880,7 @@ namespace uba
 					PrintSummary(logger);
 					m_storage.PrintSummary(logger);
 					m_client.PrintSummary(logger);
-					SystemStats::GetGlobal().Print(logger, true);
+					KernelStats::GetGlobal().Print(logger, true);
 				});
 			m_trace.SessionSummary(0, writer.GetData(), writer.GetPosition());
 
@@ -1782,36 +1969,19 @@ namespace uba
 			if (m_processFinished)
 				m_processFinished(&process);
 
-			pi.m_exitCode = ~0u;
-			pi.m_processStats = {};
-			pi.m_sessionStats = {};
-			pi.m_storageStats = {};
-			pi.m_systemStats = {};
-
 			outNextProcess.arguments = reader.ReadString();
 			outNextProcess.workingDir = reader.ReadString();
 			outNextProcess.description = reader.ReadString();
 			outNextProcess.logFile = reader.ReadString();
-
 			if (m_logToFile)
 			{
 				StringBuffer<512> logFile;
-				GetLogFileName(logFile, outNextProcess.logFile.c_str(), outNextProcess.arguments.c_str());
+				GetLogFileName(logFile, outNextProcess.logFile.c_str(), outNextProcess.arguments.c_str(), process.GetId());
 				outNextProcess.logFile = logFile.data;
 			}
-
-			// TODO: Probably need to fill up with more stuff.. this is fine for current usecase
-			pi.m_arguments = outNextProcess.arguments;
-			pi.m_description = outNextProcess.description;
-			pi.m_logFile = outNextProcess.logFile;
-
-			pi.m_startInfo.arguments = pi.m_arguments.c_str();
-			pi.m_startInfo.description = pi.m_description.c_str();
-			pi.m_startInfo.logFile = pi.m_logFile.c_str();
 		}
 
-		reader.Reset();
-		return SendUpdateDirectoryTable(reader);
+		return SendUpdateDirectoryTable(reader.Reset());
 	}
 
 	bool SessionClient::CustomMessage(Process& process, BinaryReader& reader, BinaryWriter& writer)
@@ -1833,18 +2003,64 @@ namespace uba
 		return true;
 	}
 
+	bool SessionClient::SHGetKnownFolderPath(Process& process, BinaryReader& reader, BinaryWriter& writer)
+	{
+#if PLATFORM_WINDOWS
+		StackBinaryWriter<SendMaxSize> msgWriter;
+		NetworkMessage msg(m_client, ServiceId, SessionMessageType_SHGetKnownFolderPath, msgWriter);
+		msgWriter.WriteBytes(reader.GetPositionData(), reader.GetLeft());
+		BinaryReader msgReader(writer.GetData(), 0);
+		if (!msg.Send(msgReader, m_stats.customMsg))
+		{
+			writer.WriteU32(u32(E_FAIL));
+			return false;
+		}
+		writer.AllocWrite(msgReader.GetPosition());
+#endif
+		return true;
+	}
+
+	bool SessionClient::HostRun(BinaryReader& reader, BinaryWriter& writer)
+	{
+		const void* data = reader.GetPositionData();
+		u64 size = reader.GetLeft();
+
+		CasKey key = ToCasKey(CasKeyHasher().Update(data, size), false);
+
+		SCOPED_WRITE_LOCK(m_hostRunCacheLock, l);
+		auto insres = m_hostRunCache.try_emplace(key);
+		auto& buffer = insres.first->second;
+		if (!insres.second)
+		{
+			writer.WriteBytes(buffer.data(), buffer.size());
+			return true;
+		}
+
+		StackBinaryWriter<SendMaxSize> msgWriter;
+		NetworkMessage msg(m_client, ServiceId, SessionMessageType_HostRun, msgWriter);
+		msgWriter.WriteBytes(data, size);
+		BinaryReader msgReader(writer.GetData(), 0);
+		if (!msg.Send(msgReader, m_stats.customMsg))
+			return false;
+		writer.AllocWrite(msgReader.GetLeft());
+
+		buffer.resize(msgReader.GetLeft());
+		memcpy(buffer.data(), msgReader.GetPositionData(), buffer.size());
+		return true;
+	}
+
 	bool SessionClient::FlushWrittenFiles(ProcessImpl& process)
 	{
 		SCOPED_WRITE_LOCK(process.m_writtenFilesLock, lock);
-		if (!SendFiles(process, process.m_processStats.sendFiles))
-			return false;
+		bool success = SendFiles(process, process.m_processStats.sendFiles);
 		{
 			SCOPED_WRITE_LOCK(m_outputFilesLock, lock2);
 			for (auto& kv : process.m_writtenFiles)
 				m_outputFiles.erase(kv.first);
 		}
 		process.m_writtenFiles.clear();
-		return true;
+
+		return success;
 	}
 
 	bool SessionClient::UpdateEnvironment(ProcessImpl& process, const tchar* reason, bool resetStats)
@@ -1860,18 +2076,171 @@ namespace uba
 			process.m_processStats.Write(writer);
 			process.m_sessionStats.Write(writer);
 			process.m_storageStats.Write(writer);
-			process.m_systemStats.Write(writer);
+			process.m_kernelStats.Write(writer);
 
 			process.m_processStats = {};
 			process.m_sessionStats = {};
 			process.m_storageStats = {};
-			process.m_systemStats = {};
+			process.m_kernelStats = {};
 
 			if (!msg.Send(reader, m_stats.customMsg))
 				return false;
 			reader.Reset();
 		}
 		return SendUpdateDirectoryTable(reader);
+	}
+
+	bool SessionClient::LogLine(ProcessImpl& process, const tchar* line, LogEntryType logType)
+	{
+		// Remove this once we have figured out a bug that seems to exist for remote execution
+		// Update: Bug has been found for macos... for windows we believe the bug is related to uninformed shutdown and having multiple tcp connections..
+		// ... one tcp connection is disconnected, causing file not found while another connection manages to send "process finished"
+#if 0 // PLATFORM_WINDOWS
+
+		auto rules = process.m_startInfo.rules;
+		if (!rules)
+			return true;
+
+		const tchar* errorPos = nullptr;
+		if (rules->index == 1)
+		{
+			if (!Contains(line, TC("C1083"), false, &errorPos))
+				return true;
+		}
+		else
+		{
+			if (!Contains(line, TC("' file not found")))
+				return true;
+			if (!Contains(line, TC("fatal error: '"), false, &errorPos))
+				return true;
+		}
+
+		const tchar* fileBegin = TStrchr(errorPos, '\'');
+		if (!fileBegin)
+			return true;
+		++fileBegin;
+		const tchar* fileEnd = TStrchr(fileBegin, '\'');
+		if (!fileEnd)
+			return true;
+
+		MemoryBlock memoryBlock;
+		DirectoryTable dirTable(&memoryBlock);
+		{
+			SCOPED_WRITE_LOCK(m_directoryTable.m_memoryLock, lock2);
+			m_directoryTable.m_memorySize = m_directoryTableMemPos;
+			dirTable.Init(m_directoryTable.m_memory, 0, m_directoryTable.m_memorySize);
+		}
+
+		StringBuffer<> errorPath;
+		errorPath.Append(fileBegin, fileEnd - fileBegin).Replace('/', PathSeparator);
+
+		{
+			StackBinaryWriter<1024> writer;
+			NetworkMessage msg(m_client, ServiceId, SessionMessageType_DebugFileNotFoundError, writer);
+			writer.WriteString(errorPath);
+			writer.WriteString(process.m_startInfo.workingDir);
+			msg.Send();
+		}
+
+		StringView searchString = errorPath;
+		if (searchString.data[0] == '.' && searchString.data[1] == '.')
+		{
+			searchString.data += 3;
+			searchString.count -= 3;
+		}
+
+		u32 foundCount = 0;
+		dirTable.TraverseAllFilesNoLock([&](const DirectoryTable::EntryInformation& info, const StringBufferBase& path, u32 dirOffset)
+			{
+				if (!path.EndsWith(searchString.data))
+					return;
+				if (path[path.count - searchString.count - 1] != PathSeparator)
+					return;
+
+				auto ToString = [](bool b) { return b ? TC("true") : TC("false"); };
+
+				++foundCount;
+				StringBuffer<> logStr;
+				logStr.Appendf(TC("File %s found in directory table at offset %u of %u while searching for matches for %s (File size %llu attr %u)"), path.data, dirOffset, dirTable.m_memorySize, searchString.data, info.size, info.attributes);
+				process.LogLine(false, logStr.data, logType);
+
+				StringKey fileNameKey = ToStringKey(path);
+				SCOPED_READ_LOCK(m_fileMappingTableLookupLock, mlock);
+				auto findIt = m_fileMappingTableLookup.find(fileNameKey);
+				if (findIt != m_fileMappingTableLookup.end())
+				{
+					auto& entry = findIt->second;
+					SCOPED_READ_LOCK(entry.lock, entryCs);
+					logStr.Clear().Appendf(TC("File %s found in mapping table table."), path.data);
+					if (entry.handled)
+					{
+						StringBuffer<128> mappingName;
+						if (entry.mapping.IsValid())
+							Storage::GetMappingString(mappingName, entry.mapping, entry.mappingOffset);
+						else
+							mappingName.Append(TC("Not valid"));
+						logStr.Appendf(TC(" Success: %s Size: %u IsDir: %s Mapping name: %s Mapping offset: %u"), ToString(entry.success), entry.size, ToString(entry.isDir), mappingName.data, entry.mappingOffset);
+					}
+					else
+					{
+						logStr.Appendf(TC(" Entry not handled"));
+					}
+				}
+				else
+					logStr.Clear().Appendf(TC("File %s not found in mapping table table."), path.data);
+				process.LogLine(false, logStr.data, logType);
+
+				CasKey key;
+				if (GetCasKeyForFile(key, process.m_id, path, fileNameKey))
+				{
+					logStr.Clear().Appendf(TC("File %s caskey is %s."), path.data, CasKeyString(key).str);
+
+					StringBuffer<512> casKeyFile;
+					if (m_storage.GetCasFileName(casKeyFile, key))
+					{
+						logStr.Appendf(TC(" CasKeyFile: %s"), casKeyFile.data);
+						u64 size = 0;
+						u32 attributes = 0;
+						bool exists = FileExists(m_logger, casKeyFile.data, &size, &attributes);
+						logStr.Appendf(TC(" Exists: %s"), ToString(exists));
+						if (exists)
+						{
+							logStr.Appendf(TC(" Size: %llu Attr: %u"), size, attributes);
+
+							FileHandle fileHandle = uba::CreateFileW(casKeyFile.data, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, DefaultAttributes());
+							if (fileHandle == InvalidFileHandle)
+							{
+								logStr.Appendf(TC(" Failed to open file %s (%s)"), casKeyFile.data, LastErrorToText().data);
+							}
+							else
+							{
+								logStr.Appendf(TC(" CreateFile for read successful"));
+								uba::CloseFile(casKeyFile.data, fileHandle);
+							}
+						}
+					}
+					else
+						logStr.Appendf(TC(" Failed to get cas filename for cas key"));
+				}
+				else
+					logStr.Clear().Appendf(TC("File %s caskey not found"), path.data);
+				process.LogLine(false, logStr.data, logType);
+			});
+
+		if (!foundCount)
+		{
+			StringBuffer<> logStr;
+			logStr.Appendf(TC("No matching entry found in directory table while searching for matches for %s. DirTable size: %u"), searchString.data, GetDirectoryTableSize());
+			process.LogLine(false, logStr.data, logType);
+			if (errorPath.StartsWith(TC("..\\Intermediate")))
+			{
+				auto workDir = process.m_startInfo.workingDir;
+				StringBuffer<> fullPath;
+				FixPath(errorPath.data, workDir, TStrlen(workDir), fullPath);
+			}
+		}
+#endif
+		return true;
 	}
 
 	void SessionClient::TraceSessionUpdate()

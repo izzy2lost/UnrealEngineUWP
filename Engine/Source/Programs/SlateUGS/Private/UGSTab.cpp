@@ -212,8 +212,8 @@ TArray<FString> UGSTab::GetAllStreamNames() const
 	const TSharedRef<UGSCore::FModalTaskResult> TaskResult = ExecuteModalTask(
 		FSlateApplication::Get().GetActiveModalWindow(),
 		MakeShared<UGSCore::FFindStreamsTask>(PerforceClient.ToSharedRef(), MakeShared<FLineWriter>(), Result, TEXT("//*/*")),
-		LOCTEXT("OpeningProjectTitle", "Finding Streams"),
-		LOCTEXT("OpeningProjectCaption", "Finding streams, please wait..."));
+		LOCTEXT("FindingStreamsTitle", "Finding Streams"),
+		LOCTEXT("FindingStreamsCaption", "Finding streams, please wait..."));
 	
 	if (TaskResult->Failed())
 	{
@@ -406,8 +406,8 @@ void UGSTab::OnCreateWorkspace(const FString& WorkspaceName, const FString& Stre
 	const TSharedRef<UGSCore::FModalTaskResult> TaskResult = ExecuteModalTask(
 		FSlateApplication::Get().GetActiveModalWindow(),
 		MakeShared<UGSCore::FCreateClientTask>(PerforceClient.ToSharedRef(), MakeShared<FLineWriter>(), ClientRecord, Stream),
-		LOCTEXT("OpeningProjectTitle", "Creating Project"),
-		LOCTEXT("OpeningProjectCaption", "Creating project, please wait..."));
+		LOCTEXT("CreatingProjectTitle", "Creating Project"),
+		LOCTEXT("CreatingProjectCaption", "Creating project, please wait..."));
 }
 
 void UGSTab::QueueMessageForMainThread(TFunction<void()> Function)

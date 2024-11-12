@@ -236,7 +236,7 @@ namespace UE::LevelSnapshots::Private::Tests
 		{
 			UActorComponent* Component = Cast<UActorComponent>(MainWorldObject.GetObject());
 			TOptional<TNonNullPtr<AActor>> SnapshotActor = Snapshot->GetDeserializedActor(Component->GetOwner());
-			return SnapshotActor ? Cast<ASnapshotTestActor>(SnapshotActor.GetValue())->TestComponent : nullptr;
+			return SnapshotActor ? Cast<ASnapshotTestActor>(SnapshotActor->Get())->TestComponent : nullptr;
 		}
 	};
 	
@@ -248,7 +248,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	 * - If an AssetUserData object is transient and we're taking a snapshot, the object is removed before and added back after taking the snapshot.
 	 * - If an AssetUserData object is transient and we're diffing the world, the object is removed before and added back after diffing the snapshot.
 	 */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAssetUserDataTests, "VirtualProduction.LevelSnapshots.Snapshot.Other.AssetUserData", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAssetUserDataTests, "VirtualProduction.LevelSnapshots.Snapshot.Other.AssetUserData", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FAssetUserDataTests::RunTest(const FString& Parameters)
 	{
 		FAssetUserDataTestCase_InComponent ComponentTest(TEXT("ComponentTest"), *this);

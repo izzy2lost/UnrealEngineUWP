@@ -29,7 +29,8 @@ struct FBuildTargetParams
 
 	enum class ESourceType {
 		File,
-		Patch
+		Patch,
+		Server,
 	};
 
 	ESourceType SourceType = ESourceType::File;

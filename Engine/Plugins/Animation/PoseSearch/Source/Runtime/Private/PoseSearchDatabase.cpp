@@ -6,14 +6,13 @@
 #include "Animation/AnimSequence.h"
 #include "Animation/BlendSpace.h"
 #include "Animation/BlendSpace1D.h"
-#include "InstancedStruct.h"
+#include "PoseSearch/MultiAnimAsset.h"
 #include "PoseSearch/PoseSearchAnimNotifies.h"
 #include "PoseSearch/PoseSearchContext.h"
 #include "PoseSearch/PoseSearchDefines.h"
 #include "PoseSearch/PoseSearchDerivedData.h"
 #include "PoseSearch/PoseSearchFeatureChannel.h"
 #include "PoseSearch/PoseSearchHistory.h"
-#include "PoseSearch/PoseSearchMultiSequence.h"
 #include "PoseSearch/PoseSearchSchema.h"
 #include "Serialization/ArchiveCountMem.h"
 #include "UObject/ObjectSaveContext.h"
@@ -40,140 +39,6 @@ namespace UE::PoseSearch
 static TAutoConsoleVariable<bool> CVarMotionMatchCompareAgainstBruteForce(TEXT("a.MotionMatch.CompareAgainstBruteForce"), false, TEXT("Compare optimized search against brute force search"));
 static TAutoConsoleVariable<bool> CVarMotionMatchValidateKNNSearch(TEXT("a.MotionMatch.ValidateKNNSearch"), false, TEXT("Validate KNN search"));
 #endif
-
-typedef TArray<int32, TInlineAllocator<256, TMemStackAllocator<>>> FSelectableAssetIdx;
-static void PopulateSelectableAssetIdx(FSelectableAssetIdx& SelectableAssetIdx, TConstArrayView<const UObject*> AssetsToConsider, const UPoseSearchDatabase* Database)
-{
-	check(Database);
-	SelectableAssetIdx.Reset();
-	if (!AssetsToConsider.IsEmpty())
-	{
-		const FSearchIndex& SearchIndex = Database->GetSearchIndex();
-
-		for (int32 AssetIndex = 0; AssetIndex < SearchIndex.Assets.Num(); ++AssetIndex)
-		{
-			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(SearchIndex.Assets[AssetIndex]))
-			{
-				if (AssetsToConsider.Contains(DatabaseAnimationAssetBase->GetAnimationAsset()))
-				{
-					SelectableAssetIdx.Add(AssetIndex);
-				}
-			}
-		}
-	}
-}
-
-typedef TArray<int32, TInlineAllocator<256, TMemStackAllocator<>>> FNonSelectableIdx;
-static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearchContext& SearchContext, const UPoseSearchDatabase* Database
-#if UE_POSE_SEARCH_TRACE_ENABLED
-	, TConstArrayView<float> QueryValues
-#endif //UE_POSE_SEARCH_TRACE_ENABLED
-)
-{
-	check(Database);
-	const FSearchIndex& SearchIndex = Database->GetSearchIndex();
-
-	NonSelectableIdx.Reset();
-	if (SearchContext.IsCurrentResultFromDatabase(Database))
-	{
-		if (const FSearchIndexAsset* CurrentIndexAsset = SearchContext.GetCurrentResult().GetSearchIndexAsset(true))
-		{
-			if (CurrentIndexAsset->IsDisableReselection())
-			{
-				// excluding all the poses with CurrentIndexAsset->GetSourceAssetIdx()
-				// @todo: optimize this code!
-				for (const FSearchIndexAsset& SearchIndexAsset : SearchIndex.Assets)
-				{
-					if (SearchIndexAsset.GetSourceAssetIdx() == CurrentIndexAsset->GetSourceAssetIdx())
-					{
-						const int32 FirstPoseIdx = SearchIndexAsset.GetFirstPoseIdx();
-						const int32 LastPoseIdx = FirstPoseIdx + SearchIndexAsset.GetNumPoses();
-						for (int32 PoseIdx = FirstPoseIdx; PoseIdx < LastPoseIdx; ++PoseIdx)
-						{
-							// no need to AddUnique since there's no overlapping between pose indexes in the FSearchIndexAsset(s)
-							NonSelectableIdx.Add(PoseIdx);
-
-#if UE_POSE_SEARCH_TRACE_ENABLED
-							const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
-							const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-							SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime, PoseCost);
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
-						}
-					}
-				}
-			}
-			else if (!FMath::IsNearlyEqual(SearchContext.GetPoseJumpThresholdTime().Min, SearchContext.GetPoseJumpThresholdTime().Max))
-			{
-				const int32 CurrentResultPoseIdx = SearchContext.GetCurrentResult().PoseIdx;
-				const int32 UnboundMinPoseIdx = CurrentResultPoseIdx + FMath::FloorToInt(SearchContext.GetPoseJumpThresholdTime().Min * Database->Schema->SampleRate);
-				const int32 UnboundMaxPoseIdx = CurrentResultPoseIdx + FMath::CeilToInt(SearchContext.GetPoseJumpThresholdTime().Max * Database->Schema->SampleRate);
-				const int32 CurrentIndexAssetFirstPoseIdx = CurrentIndexAsset->GetFirstPoseIdx();
-				const int32 CurrentIndexAssetNumPoses = CurrentIndexAsset->GetNumPoses();
-				const bool bIsLooping = CurrentIndexAsset->IsLooping();
-
-				if (bIsLooping)
-				{
-					for (int32 UnboundPoseIdx = UnboundMinPoseIdx; UnboundPoseIdx < UnboundMaxPoseIdx; ++UnboundPoseIdx)
-					{
-						const int32 Modulo = (UnboundPoseIdx - CurrentIndexAssetFirstPoseIdx) % CurrentIndexAssetNumPoses;
-						const int32 CurrentIndexAssetFirstPoseIdxPlusModulo = CurrentIndexAssetFirstPoseIdx + Modulo;
-						const int32 PoseIdx = Modulo >= 0 ? CurrentIndexAssetFirstPoseIdxPlusModulo : CurrentIndexAssetFirstPoseIdxPlusModulo + CurrentIndexAssetNumPoses;
-
-						NonSelectableIdx.AddUnique(PoseIdx);
-
-#if UE_POSE_SEARCH_TRACE_ENABLED
-						const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
-						const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-						SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime, PoseCost);
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
-					}
-				}
-				else
-				{
-					const int32 MinPoseIdx = FMath::Max(CurrentIndexAssetFirstPoseIdx, UnboundMinPoseIdx);
-					const int32 MaxPoseIdx = FMath::Min(CurrentIndexAssetFirstPoseIdx + CurrentIndexAssetNumPoses, UnboundMaxPoseIdx);
-
-					for (int32 PoseIdx = MinPoseIdx; PoseIdx < MaxPoseIdx; ++PoseIdx)
-					{
-						NonSelectableIdx.AddUnique(PoseIdx);
-
-#if UE_POSE_SEARCH_TRACE_ENABLED
-						const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
-						const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-						SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime, PoseCost);
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
-					}
-				}
-			}
-		}
-	}
-
-	if (SearchContext.GetPoseIndicesHistory())
-	{
-		const FObjectKey DatabaseKey(Database);
-		for (auto It = SearchContext.GetPoseIndicesHistory()->IndexToTime.CreateConstIterator(); It; ++It)
-		{
-			const FHistoricalPoseIndex& HistoricalPoseIndex = It.Key();
-			if (HistoricalPoseIndex.DatabaseKey == DatabaseKey)
-			{
-				NonSelectableIdx.AddUnique(HistoricalPoseIndex.PoseIndex);
-
-#if UE_POSE_SEARCH_TRACE_ENABLED
-				check(HistoricalPoseIndex.PoseIndex >= 0);
-
-				// if we're editing the database and removing assets it's possible that the PoseIndicesHistory contains invalid pose indexes
-				if (HistoricalPoseIndex.PoseIndex < SearchIndex.GetNumPoses())
-				{
-					const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(HistoricalPoseIndex.PoseIndex, 0.f, SearchIndex.GetPoseValuesSafe(HistoricalPoseIndex.PoseIndex), QueryValues);
-					SearchContext.Track(Database, HistoricalPoseIndex.PoseIndex, EPoseCandidateFlags::DiscardedBy_PoseReselectHistory, PoseCost);
-				}
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
-			}
-		}
-	}
-
-	NonSelectableIdx.Sort();
-}
 
 struct FSearchFilters
 {
@@ -305,6 +170,43 @@ private:
 	TArray<const IPoseSearchFilter*, TInlineAllocator<64, TMemStackAllocator<>>> Filters;
 };
 
+template<bool bReconstructPoseValues, bool bAlignedAndPadded>
+static inline void EvaluatePoseKernel(UE::PoseSearch::FSearchResult& Result, const UE::PoseSearch::FSearchIndex& SearchIndex, TConstArrayView<float> QueryValues, TArrayView<float> ReconstructedPoseValuesBuffer,
+	int32 PoseIdx, const UE::PoseSearch::FSearchFilters& SearchFilters, UE::PoseSearch::FSearchContext& SearchContext, const UPoseSearchDatabase* Database, bool bUpdateBestCandidates, int32 ResultIndex = -1)
+{
+	using namespace UE::PoseSearch;
+
+	const TConstArrayView<float> PoseValues = bReconstructPoseValues ? SearchIndex.GetReconstructedPoseValues(PoseIdx, ReconstructedPoseValuesBuffer) : SearchIndex.GetPoseValues(PoseIdx);
+
+	if (SearchFilters.AreFiltersValid(SearchIndex, PoseValues, QueryValues, PoseIdx
+#if UE_POSE_SEARCH_TRACE_ENABLED
+		, SearchContext, Database
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+	))
+	{
+		const FPoseSearchCost PoseCost = bAlignedAndPadded ? SearchIndex.CompareAlignedPoses(PoseIdx, 0.f, PoseValues, QueryValues) : SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
+		if (PoseCost < Result.PoseCost)
+		{
+			Result.PoseCost = PoseCost;
+			Result.PoseIdx = PoseIdx;
+
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			if (bUpdateBestCandidates)
+			{
+				Result.BestPosePos = ResultIndex;
+			}
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+		}
+
+#if UE_POSE_SEARCH_TRACE_ENABLED
+		if (bUpdateBestCandidates)
+		{
+			SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::Valid_Pose, PoseCost);
+		}
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+	}
+}
+
 } // namespace UE::PoseSearch
 
 //////////////////////////////////////////////////////////////////////////
@@ -330,7 +232,46 @@ int32 FPoseSearchDatabaseAnimationAssetBase::GetFrameAtTime(float Time) const
 	}
 	return 0.f;
 }
+
+bool FPoseSearchDatabaseAnimationAssetBase::IsSkeletonCompatible(TObjectPtr<const UPoseSearchSchema> InSchema) const
+{
+	if (InSchema)
+	{
+		TArray<FPoseSearchRoledSkeleton> RoledSkeletons = InSchema->GetRoledSkeletons();
+
+		if (GetAnimationAsset())
+		{
+			const int32 NumRoles = GetNumRoles();
+			for (int RoleIdx = 0; RoleIdx < NumRoles; ++RoleIdx)
+			{
+				UE::PoseSearch::FRole Role = GetRole(RoleIdx);
+				FAssetData AssetData = IAssetRegistry::Get()->GetAssetByObjectPath(FSoftObjectPath(GetAnimationAssetForRole(Role)));
+		
+				for (const FPoseSearchRoledSkeleton& RoledSkeleton : RoledSkeletons)
+				{
+					if (RoledSkeleton.Role == Role)
+					{
+						// Match skeleton
+						if (RoledSkeleton.Skeleton->IsCompatibleForEditor(AssetData))
+						{
+							return true;
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	return false;
+}
 #endif // WITH_EDITOR
+
+#if WITH_EDITORONLY_DATA
+const FString FPoseSearchDatabaseAnimationAssetBase::GetName() const
+{
+	return GetNameSafe(GetAnimationAsset());
+}
+#endif //WITH_EDITORONLY_DATA
 
 UAnimationAsset* FPoseSearchDatabaseAnimationAssetBase::GetAnimationAssetForRole(const UE::PoseSearch::FRole& Role) const
 {
@@ -338,7 +279,7 @@ UAnimationAsset* FPoseSearchDatabaseAnimationAssetBase::GetAnimationAssetForRole
 	return CastChecked<UAnimationAsset>(GetAnimationAsset());
 }
 
-const FTransform& FPoseSearchDatabaseAnimationAssetBase::GetRootTransformOriginForRole(const UE::PoseSearch::FRole& Role) const
+FTransform FPoseSearchDatabaseAnimationAssetBase::GetRootTransformOriginForRole(const UE::PoseSearch::FRole& Role) const
 {
 	check(GetNumRoles() == 1);
 	return FTransform::Identity;
@@ -351,13 +292,17 @@ int64 FPoseSearchDatabaseAnimationAssetBase::GetEditorMemSize() const
 	return EditorMemCount.GetNum();
 }
 
-FFloatInterval FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(const UAnimSequenceBase* SequenceBase, const FFloatInterval& RequestedSamplingRange)
+FFloatInterval FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange() const
 {
-	const bool bSampleAll = (RequestedSamplingRange.Min == 0.0f) && (RequestedSamplingRange.Max == 0.0f);
-	const float SequencePlayLength = SequenceBase->GetPlayLength();
+	return GetEffectiveSamplingRange(GetPlayLength(), GetSamplingRange());
+}
+
+FFloatInterval FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(float PlayLength, const FFloatInterval& SamplingRange)
+{
+	const bool bSampleAll = (SamplingRange.Min == 0.0f) && (SamplingRange.Max == 0.0f);
 	FFloatInterval Range;
-	Range.Min = bSampleAll ? 0.0f : RequestedSamplingRange.Min;
-	Range.Max = bSampleAll ? SequencePlayLength : FMath::Min(SequencePlayLength, RequestedSamplingRange.Max);
+	Range.Min = bSampleAll ? 0.0f : SamplingRange.Min;
+	Range.Max = bSampleAll ? PlayLength : FMath::Min(PlayLength, SamplingRange.Max);
 
 	if (Range.Min > Range.Max)
 	{
@@ -365,7 +310,7 @@ FFloatInterval FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(
 		
 		Range.Min = Range.Max;
 	}
-	
+
 	return Range;
 }
 #endif // WITH_EDITORONLY_DATA
@@ -389,11 +334,6 @@ bool FPoseSearchDatabaseSequence::IsLooping() const
 		Sequence->bLoop &&
 		SamplingRange.Min == 0.f &&
 		SamplingRange.Max == 0.f;
-}
-
-const FString FPoseSearchDatabaseSequence::GetName() const
-{
-	return Sequence ? Sequence->GetName() : FString();
 }
 
 bool FPoseSearchDatabaseSequence::IsRootMotionEnabled() const
@@ -426,11 +366,6 @@ UClass* FPoseSearchDatabaseBlendSpace::GetAnimationAssetStaticClass() const
 bool FPoseSearchDatabaseBlendSpace::IsLooping() const
 {
 	return BlendSpace && BlendSpace->bLoop;
-}
-
-const FString FPoseSearchDatabaseBlendSpace::GetName() const
-{
-	return BlendSpace ? BlendSpace->GetName() : FString();
 }
 
 bool FPoseSearchDatabaseBlendSpace::IsRootMotionEnabled() const
@@ -542,11 +477,6 @@ bool FPoseSearchDatabaseAnimComposite::IsLooping() const
 		SamplingRange.Max == 0.f;
 }
 
-const FString FPoseSearchDatabaseAnimComposite::GetName() const
-{
-	return AnimComposite ? AnimComposite->GetName() : FString();
-}
-
 bool FPoseSearchDatabaseAnimComposite::IsRootMotionEnabled() const
 {
 	return AnimComposite ? AnimComposite->HasRootMotion() : false;
@@ -574,11 +504,6 @@ bool FPoseSearchDatabaseAnimMontage::IsLooping() const
 		SamplingRange.Max == 0.f;
 }
 
-const FString FPoseSearchDatabaseAnimMontage::GetName() const
-{
-	return AnimMontage ? AnimMontage->GetName() : FString();
-}
-
 bool FPoseSearchDatabaseAnimMontage::IsRootMotionEnabled() const
 {
 	return AnimMontage ? AnimMontage->HasRootMotion() : false;
@@ -586,80 +511,126 @@ bool FPoseSearchDatabaseAnimMontage::IsRootMotionEnabled() const
 #endif // WITH_EDITORONLY_DATA
 
 //////////////////////////////////////////////////////////////////////////
-// FPoseSearchDatabaseMultiSequence
-UObject* FPoseSearchDatabaseMultiSequence::GetAnimationAsset() const
+// FPoseSearchDatabaseMultiAnimAsset
+UObject* FPoseSearchDatabaseMultiAnimAsset::GetAnimationAsset() const
 {
-	return MultiSequence.Get();
+	return MultiAnimAsset.Get();
 }
 
-float FPoseSearchDatabaseMultiSequence::GetPlayLength() const
+float FPoseSearchDatabaseMultiAnimAsset::GetPlayLength() const
 {
-	return MultiSequence ? MultiSequence->GetPlayLength() : 0.f;
+	return MultiAnimAsset ? MultiAnimAsset->GetPlayLength() : 0.f;
 }
 
 #if WITH_EDITOR
-int32 FPoseSearchDatabaseMultiSequence::GetFrameAtTime(float Time) const
+int32 FPoseSearchDatabaseMultiAnimAsset::GetFrameAtTime(float Time) const
 {
-	return MultiSequence ? MultiSequence->GetFrameAtTime(Time) : 0;
+	return MultiAnimAsset ? MultiAnimAsset->GetFrameAtTime(Time) : 0;
 }
 #endif // WITH_EDITOR
 
-int32 FPoseSearchDatabaseMultiSequence::GetNumRoles() const
+int32 FPoseSearchDatabaseMultiAnimAsset::GetNumRoles() const
 {
-	return MultiSequence ? MultiSequence->GetNumRoles() : 0;
+	return MultiAnimAsset ? MultiAnimAsset->GetNumRoles() : 0;
 }
 
-UE::PoseSearch::FRole FPoseSearchDatabaseMultiSequence::GetRole(int32 RoleIndex) const
+UE::PoseSearch::FRole FPoseSearchDatabaseMultiAnimAsset::GetRole(int32 RoleIndex) const
 {
-	return MultiSequence ? MultiSequence->GetRole(RoleIndex) : UE::PoseSearch::DefaultRole;
+	return MultiAnimAsset ? MultiAnimAsset->GetRole(RoleIndex) : UE::PoseSearch::DefaultRole;
 }
 
-UAnimationAsset* FPoseSearchDatabaseMultiSequence::GetAnimationAssetForRole(const UE::PoseSearch::FRole& Role) const
+UAnimationAsset* FPoseSearchDatabaseMultiAnimAsset::GetAnimationAssetForRole(const UE::PoseSearch::FRole& Role) const
 {
-	return MultiSequence ? MultiSequence->GetSequence(Role) : nullptr;
+	return MultiAnimAsset ? MultiAnimAsset->GetAnimationAsset(Role) : nullptr;
 }
 
-const FTransform& FPoseSearchDatabaseMultiSequence::GetRootTransformOriginForRole(const UE::PoseSearch::FRole& Role) const
+FTransform FPoseSearchDatabaseMultiAnimAsset::GetRootTransformOriginForRole(const UE::PoseSearch::FRole& Role) const
 {
-	return MultiSequence ? MultiSequence->GetOrigin(Role) : FTransform::Identity;
+	return MultiAnimAsset ? MultiAnimAsset->GetOrigin(Role) : FTransform::Identity;
 }
 
 #if WITH_EDITORONLY_DATA
-UClass* FPoseSearchDatabaseMultiSequence::GetAnimationAssetStaticClass() const
+UClass* FPoseSearchDatabaseMultiAnimAsset::GetAnimationAssetStaticClass() const
 {
-	return UPoseSearchMultiSequence::StaticClass();
+	return UMultiAnimAsset::StaticClass();
 }
 
-bool FPoseSearchDatabaseMultiSequence::IsLooping() const
+bool FPoseSearchDatabaseMultiAnimAsset::IsLooping() const
 {
-	return MultiSequence &&
-		MultiSequence->IsLooping() &&
+	return MultiAnimAsset &&
+		MultiAnimAsset->IsLooping() &&
 		SamplingRange.Min == 0.f &&
 		SamplingRange.Max == 0.f;
 }
 
-const FString FPoseSearchDatabaseMultiSequence::GetName() const
+bool FPoseSearchDatabaseMultiAnimAsset::IsRootMotionEnabled() const
 {
-	return MultiSequence ? MultiSequence->GetName() : FString();
-}
-
-bool FPoseSearchDatabaseMultiSequence::IsRootMotionEnabled() const
-{
-	return MultiSequence ? MultiSequence->HasRootMotion() : false;
+	return MultiAnimAsset ? MultiAnimAsset->HasRootMotion() : false;
 }
 #endif // WITH_EDITORONLY_DATA
 
 //////////////////////////////////////////////////////////////////////////
 // UPoseSearchDatabase
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 UPoseSearchDatabase::~UPoseSearchDatabase()
 {
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void UPoseSearchDatabase::SetSearchIndex(const UE::PoseSearch::FSearchIndex& SearchIndex)
 {
 	check(IsInGameThread());
 	SearchIndexPrivate = SearchIndex;
+
+	UpdateCachedProperties();
 }
+
+void UPoseSearchDatabase::UpdateCachedProperties()
+{
+	using namespace UE::PoseSearch;
+
+	CachedAssetMap.Reset();
+	for (int32 AssetIdx = 0; AssetIdx != SearchIndexPrivate.Assets.Num(); ++AssetIdx)
+	{
+		const FSearchIndexAsset& SearchIndexAsset = SearchIndexPrivate.Assets[AssetIdx];
+
+		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SearchIndexAsset))
+		{
+			CachedAssetMap.FindOrAdd(DatabaseAnimationAssetBase->GetAnimationAsset()).Add(AssetIdx);
+		}
+	}
+
+	for (TPair<TWeakObjectPtr<UObject>, TArray<int32>>& CachedAssetMapPair : CachedAssetMap)
+	{
+		CachedAssetMapPair.Value.Sort();
+	}
+}
+
+TConstArrayView<int32> UPoseSearchDatabase::GetAssetIndexesForSourceAsset(const UObject* SourceAsset) const
+{
+	using namespace UE::PoseSearch;
+
+	if (const TArray<int32>* IndexesForSourceAsset = CachedAssetMap.Find(SourceAsset))
+	{
+#if DO_CHECK
+		// validating the consistency of IndexesForSourceAsset retrieved from SourceAsset
+		const UE::PoseSearch::FSearchIndex& SearchIndex = GetSearchIndex();
+		for (int32 AssetIndex : *IndexesForSourceAsset)
+		{
+			const FSearchIndexAsset& SearchIndexAsset = SearchIndex.Assets[AssetIndex];
+			const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SearchIndexAsset);
+	
+			// if those checks fail the calling code hasn't been protected by FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex
+			check(DatabaseAnimationAssetBase);
+			check(DatabaseAnimationAssetBase->GetAnimationAsset() == SourceAsset);
+		}
+#endif // DO_CHECK
+
+		return *IndexesForSourceAsset;
+	}
+	return TConstArrayView<int32>();
+}
+
 
 const UE::PoseSearch::FSearchIndex& UPoseSearchDatabase::GetSearchIndex() const
 {
@@ -675,64 +646,55 @@ int32 UPoseSearchDatabase::GetPoseIndexFromTime(float Time, const UE::PoseSearch
 
 void UPoseSearchDatabase::AddAnimationAsset(FInstancedStruct AnimationAsset)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	AnimationAssets.Add(AnimationAsset);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void UPoseSearchDatabase::RemoveAnimationAssetAt(int32 AnimationAssetIndex)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	AnimationAssets.RemoveAt(AnimationAssetIndex);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+const TArray<FInstancedStruct>& UPoseSearchDatabase::GetAnimationAssets() const
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return AnimationAssets;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 const FInstancedStruct& UPoseSearchDatabase::GetAnimationAssetStruct(int32 AnimationAssetIndex) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	check(AnimationAssets.IsValidIndex(AnimationAssetIndex));
 	return AnimationAssets[AnimationAssetIndex];
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 const FInstancedStruct& UPoseSearchDatabase::GetAnimationAssetStruct(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const
 {
-	return GetAnimationAssetStruct(SearchIndexAsset.GetSourceAssetIdx());
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	check(AnimationAssets.IsValidIndex(SearchIndexAsset.GetSourceAssetIdx()));
+	return AnimationAssets[SearchIndexAsset.GetSourceAssetIdx()];
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 FInstancedStruct& UPoseSearchDatabase::GetMutableAnimationAssetStruct(int32 AnimationAssetIndex)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	check(AnimationAssets.IsValidIndex(AnimationAssetIndex));
 	return AnimationAssets[AnimationAssetIndex];
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 FInstancedStruct& UPoseSearchDatabase::GetMutableAnimationAssetStruct(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset)
 {
-	return GetMutableAnimationAssetStruct(SearchIndexAsset.GetSourceAssetIdx());
-}
-
-const FPoseSearchDatabaseAnimationAssetBase* UPoseSearchDatabase::GetAnimationAssetBase(int32 AnimationAssetIndex) const
-{
-	if (AnimationAssets.IsValidIndex(AnimationAssetIndex))
-	{
-		return AnimationAssets[AnimationAssetIndex].GetPtr<FPoseSearchDatabaseAnimationAssetBase>();
-	}
-
-	return nullptr;
-}
-
-const FPoseSearchDatabaseAnimationAssetBase* UPoseSearchDatabase::GetAnimationAssetBase(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const
-{
-	return GetAnimationAssetBase(SearchIndexAsset.GetSourceAssetIdx());
-}
-
-FPoseSearchDatabaseAnimationAssetBase* UPoseSearchDatabase::GetMutableAnimationAssetBase(int32 AnimationAssetIndex)
-{
-	if (AnimationAssets.IsValidIndex(AnimationAssetIndex))
-	{
-		return AnimationAssets[AnimationAssetIndex].GetMutablePtr<FPoseSearchDatabaseAnimationAssetBase>();
-	}
-
-	return nullptr;
-}
-
-FPoseSearchDatabaseAnimationAssetBase* UPoseSearchDatabase::GetMutableAnimationAssetBase(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset)
-{
-	return GetMutableAnimationAssetBase(SearchIndexAsset.GetSourceAssetIdx());
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	check(AnimationAssets.IsValidIndex(SearchIndexAsset.GetSourceAssetIdx()));
+	return AnimationAssets[SearchIndexAsset.GetSourceAssetIdx()];
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 #if WITH_EDITOR
@@ -744,12 +706,12 @@ int32 UPoseSearchDatabase::GetNumberOfPrincipalComponents() const
 
 bool UPoseSearchDatabase::GetSkipSearchIfPossible() const
 {
-#if WITH_EDITOR && ENABLE_ANIM_DEBUG
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
 	if (UE::PoseSearch::CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
 	{
 		return false;
 	}
-#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
 	return true;
 }
 
@@ -757,6 +719,34 @@ void UPoseSearchDatabase::PostLoad()
 {
 #if WITH_EDITOR
 	using namespace UE::PoseSearch;
+
+	bool bRequiresSynchronization = false;
+
+	for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < GetNumAnimationAssets(); ++AnimationAssetIndex)
+	{
+		if (FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = GetMutableDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AnimationAssetIndex))
+		{
+			if (AnimationAssetBase->bSynchronizeWithExternalDependency_DEPRECATED)
+			{
+				Modify();
+				bRequiresSynchronization = true;
+				break;
+			}
+		}
+	}
+	
+	if (bRequiresSynchronization)
+	{
+		SynchronizeWithExternalDependencies();
+
+		for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < GetNumAnimationAssets(); ++AnimationAssetIndex)
+		{
+			if (FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = GetMutableDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AnimationAssetIndex))
+			{
+				AnimationAssetBase->bSynchronizeWithExternalDependency_DEPRECATED = false;
+			}
+		}
+	}
 
 	ERequestAsyncBuildFlag Flag = ERequestAsyncBuildFlag::NewRequest;
 #if WITH_ENGINE
@@ -771,6 +761,32 @@ void UPoseSearchDatabase::PostLoad()
 #endif
 
 	Super::PostLoad();
+}
+
+bool UPoseSearchDatabase::Contains(const UObject* Object) const
+{
+	return !GetAssetIndexesForSourceAsset(Object).IsEmpty();
+}
+
+int32 UPoseSearchDatabase::GetNumAnimationAssets() const
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return AnimationAssets.Num();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+UObject* UPoseSearchDatabase::GetAnimationAsset(int32 Index) const
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (AnimationAssets.IsValidIndex(Index))
+	{
+		if (const FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAssets[Index].GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+		{
+			return AnimationAssetBase->GetAnimationAsset();
+		}
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	return nullptr;
 }
 
 #if WITH_EDITOR
@@ -824,14 +840,16 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 
 	// collecting all the database AnimationAsset(s) that don't require synchronization
 	TArray<bool> DisableReselection;
-	DisableReselection.Reserve(AnimationAssets.Num());
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	DisableReselection.Reserve(GetNumAnimationAssets());
+
 	for (FInstancedStruct& AnimationAsset : AnimationAssets)
 	{
 		FPoseSearchDatabaseAnimationAssetBase& AnimationAssetBase = AnimationAsset.GetMutable<FPoseSearchDatabaseAnimationAssetBase>();
 		DisableReselection.Add(AnimationAssetBase.bDisableReselection);
 		AnimationAssetBase.bDisableReselection = false;
 
-		const bool bRequiresSynchronization = AnimationAssetBase.bSynchronizeWithExternalDependency && SequencesBase.Contains(AnimationAssetBase.GetAnimationAsset());
+		const bool bRequiresSynchronization = AnimationAssetBase.IsSynchronizedWithExternalDependency() && SequencesBase.Contains(AnimationAssetBase.GetAnimationAsset());
 		if (!bRequiresSynchronization)
 		{
 			NewAnimationAssets.Add(AnimationAsset);
@@ -864,7 +882,7 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 							FPoseSearchDatabaseSequence DatabaseSequence;
 							DatabaseSequence.Sequence = Sequence;
 							DatabaseSequence.SamplingRange = GetSamplingRange(NotifyEvent, SequenceBase);
-							DatabaseSequence.bSynchronizeWithExternalDependency = true;
+							DatabaseSequence.BranchInId = PoseSearchBranchIn->GetBranchInId();
 							NewAnimationAssets.Add(FInstancedStruct::Make(DatabaseSequence));
 						}
 						else if (UAnimComposite* AnimComposite = Cast<UAnimComposite>(SequenceBase))
@@ -872,7 +890,7 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 							FPoseSearchDatabaseAnimComposite DatabaseAnimComposite;
 							DatabaseAnimComposite.AnimComposite = AnimComposite;
 							DatabaseAnimComposite.SamplingRange = GetSamplingRange(NotifyEvent, SequenceBase);
-							DatabaseAnimComposite.bSynchronizeWithExternalDependency = true;
+							DatabaseAnimComposite.BranchInId = PoseSearchBranchIn->GetBranchInId();
 							NewAnimationAssets.Add(FInstancedStruct::Make(DatabaseAnimComposite));
 						}
 						else if (UAnimMontage* AnimMontage = Cast<UAnimMontage>(SequenceBase))
@@ -880,7 +898,7 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 							FPoseSearchDatabaseAnimMontage DatabaseAnimMontage;
 							DatabaseAnimMontage.AnimMontage = AnimMontage;
 							DatabaseAnimMontage.SamplingRange = GetSamplingRange(NotifyEvent, SequenceBase);
-							DatabaseAnimMontage.bSynchronizeWithExternalDependency = true;
+							DatabaseAnimMontage.BranchInId = PoseSearchBranchIn->GetBranchInId();
 							NewAnimationAssets.Add(FInstancedStruct::Make(DatabaseAnimMontage));
 						}
 					}
@@ -891,7 +909,7 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 
 	// updating AnimationAssets from NewAnimationAssets preserving the original sorting
 	bool bModified = false;
-	for (int32 AnimationAssetIndex = AnimationAssets.Num() - 1; AnimationAssetIndex >= 0; --AnimationAssetIndex)
+	for (int32 AnimationAssetIndex = GetNumAnimationAssets() - 1; AnimationAssetIndex >= 0; --AnimationAssetIndex)
 	{
 		const int32 FoundIndex = NewAnimationAssets.Find(AnimationAssets[AnimationAssetIndex]);
 		if (FoundIndex >= 0)
@@ -914,26 +932,13 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 		bModified = true;
 	}
 
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	if (bModified)
 	{
 		Modify();
 		NotifySynchronizeWithExternalDependencies();
 	}
-}
-
-bool UPoseSearchDatabase::Contains(const UObject* Object) const
-{
-	for (const FInstancedStruct& AnimationAsset : AnimationAssets)
-	{
-		if (const FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAsset.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
-		{
-			if (AnimationAssetBase->GetAnimationAsset() == Object)
-			{
-				return true;
-			}
-		}
-	}
-	return false;
 }
 
 void UPoseSearchDatabase::BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform)
@@ -954,6 +959,7 @@ bool UPoseSearchDatabase::IsCachedCookedPlatformDataLoaded(const ITargetPlatform
 #if WITH_EDITOR && ENABLE_ANIM_DEBUG
 void UPoseSearchDatabase::TestSynchronizeWithExternalDependencies()
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TArray<FInstancedStruct> AnimationAssetsCopy = AnimationAssets;
 	SynchronizeWithExternalDependencies();
 
@@ -962,6 +968,7 @@ void UPoseSearchDatabase::TestSynchronizeWithExternalDependencies()
 		UE_LOG(LogPoseSearch, Error, TEXT("TestSynchronizeWithExternalDependencies failed"));
 		AnimationAssets = AnimationAssetsCopy;
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 #endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
 
@@ -997,6 +1004,8 @@ void UPoseSearchDatabase::Serialize(FArchive& Ar)
 		if (Ar.IsLoading() || Ar.IsCooking())
 		{
 			Ar << SearchIndexPrivate;
+
+			UpdateCachedProperties();
 		}
 	}
 }
@@ -1012,7 +1021,7 @@ float UPoseSearchDatabase::GetNormalizedAssetTime(int32 PoseIdx) const
 {
 	check(Schema);
 	const UE::PoseSearch::FSearchIndexAsset& Asset = GetSearchIndex().GetAssetForPose(PoseIdx);
-	const bool bIsBlendSpace = AnimationAssets[Asset.GetSourceAssetIdx()].GetPtr<FPoseSearchDatabaseBlendSpace>() != nullptr;
+	const bool bIsBlendSpace = GetDatabaseAnimationAsset<FPoseSearchDatabaseBlendSpace>(Asset.GetSourceAssetIdx()) != nullptr;
 
 	// sequences or anim composites
 	float AssetTime = Asset.GetTimeFromPoseIndex(PoseIdx, Schema->SampleRate);
@@ -1021,9 +1030,9 @@ float UPoseSearchDatabase::GetNormalizedAssetTime(int32 PoseIdx) const
 	{
 		// For BlendSpaces the AssetTime is in the range [0, 1] while the Sampling Range
 		// is in real time (seconds). We should be using but FAnimationAssetSampler::GetPlayLength(...) to normalize precisely,
-		// but Asset.GetNumPoses() - 1 is a good enough estimator
-		AssetTime = AssetTime * Schema->SampleRate / float(Asset.GetNumPoses() - 1);
-		check(AssetTime >= 0.f && AssetTime <= 1.f);
+		// but Asset.GetNumPoses() - 1 is a good enough estimator. FMath::Min(1, ...) is there to clamp numerical errors
+		AssetTime = FMath::Min(1.f, AssetTime * Schema->SampleRate / float(Asset.GetNumPoses() - 1));
+		check(AssetTime >= 0.f);
 	}
 
 	return AssetTime;
@@ -1043,50 +1052,44 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::Search(UE::PoseSearch::FSearc
 	}
 #endif // WITH_EDITOR
 
-	if (PoseSearchMode == EPoseSearchMode::BruteForce
-#if WITH_EDITOR && ENABLE_ANIM_DEBUG
-		|| CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread()
-#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
-		)
+	switch (PoseSearchMode)
 	{
-		Result = SearchBruteForce(SearchContext);
-	}
-
-#if WITH_EDITOR && ENABLE_ANIM_DEBUG
-	const FPoseSearchCost BruteForcePoseCost = Result.BruteForcePoseCost;
-	const int32 BruteForcePoseIdx = Result.PoseIdx;
-#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
-
-	if (PoseSearchMode == EPoseSearchMode::VPTree)
-	{
-		Result = SearchVPTree(SearchContext);
-
-#if WITH_EDITOR && ENABLE_ANIM_DEBUG
-		Result.BruteForcePoseCost = BruteForcePoseCost;
-		if (Result.PoseIdx != BruteForcePoseIdx && CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
+	case EPoseSearchMode::BruteForce:
 		{
-			UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchDatabase::Search - VPTree search PoseIdx %d differs from BruteForce search PoseIdx %d"), Result.PoseIdx, BruteForcePoseIdx);
-		}
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
-	}
-	else if (PoseSearchMode == EPoseSearchMode::PCAKDTree)
-	{
-		Result = SearchPCAKDTree(SearchContext);
+			Result = SearchBruteForce(SearchContext);
 
-#if WITH_EDITOR && ENABLE_ANIM_DEBUG
-		Result.BruteForcePoseCost = BruteForcePoseCost;
-		if (CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
-		{
-			const float BruteForceTotalCost = Result.BruteForcePoseCost.GetTotalCost();
-			const float PCAKDTreeTotalCost = Result.PoseCost.GetTotalCost();
-			check(BruteForceTotalCost <= PCAKDTreeTotalCost);
-
-			if (!FMath::IsNearlyEqual(BruteForceTotalCost, PCAKDTreeTotalCost))
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			if (CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
 			{
-				UE_LOG(LogPoseSearch, Warning, TEXT("UPoseSearchDatabase::Search - PCAKDTree cost comparison %f (PCAKDTreeTotalCost %f, BruteForceTotalCost %f)"), PCAKDTreeTotalCost - BruteForceTotalCost, PCAKDTreeTotalCost, BruteForceTotalCost);
+				Result.BruteForcePoseCost = Result.PoseCost;
 			}
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			break;
 		}
-#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
+	case EPoseSearchMode::VPTree:
+		{
+			Result = SearchVPTree(SearchContext);
+
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			if (CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
+			{
+				Result.BruteForcePoseCost = SearchBruteForce(SearchContext).PoseCost;
+			}
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			break;
+		}
+	case EPoseSearchMode::PCAKDTree:
+		{
+			Result = SearchPCAKDTree(SearchContext);
+
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			if (CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
+			{
+				Result.BruteForcePoseCost = SearchBruteForce(SearchContext).PoseCost;
+			}
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			break;
+		}
 	}
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
@@ -1097,40 +1100,141 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::Search(UE::PoseSearch::FSearc
 	return Result;
 }
 
-template<bool bReconstructPoseValues, bool bAlignedAndPadded>
-static inline void EvaluatePoseKernel(UE::PoseSearch::FSearchResult& Result, const UE::PoseSearch::FSearchIndex& SearchIndex, TConstArrayView<float> QueryValues, TArrayView<float> ReconstructedPoseValuesBuffer,
-	int32 PoseIdx, const UE::PoseSearch::FSearchFilters& SearchFilters, UE::PoseSearch::FSearchContext& SearchContext, const UPoseSearchDatabase* Database, bool bUpdateBestCandidates, int32 ResultIndex = -1)
+void UPoseSearchDatabase::PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, UE::PoseSearch::FSearchContext& SearchContext
+#if UE_POSE_SEARCH_TRACE_ENABLED
+	, TConstArrayView<float> QueryValues
+#endif //UE_POSE_SEARCH_TRACE_ENABLED
+) const
 {
 	using namespace UE::PoseSearch;
 
-	const TConstArrayView<float> PoseValues = bReconstructPoseValues ? SearchIndex.GetReconstructedPoseValues(PoseIdx, ReconstructedPoseValuesBuffer) : SearchIndex.GetPoseValues(PoseIdx);
+	const FSearchIndex& SearchIndex = GetSearchIndex();
 
-	if (SearchFilters.AreFiltersValid(SearchIndex, PoseValues, QueryValues, PoseIdx
-#if UE_POSE_SEARCH_TRACE_ENABLED
-		, SearchContext, Database
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
-	))
+	NonSelectableIdx.Reset();
+	if (SearchContext.IsCurrentResultFromDatabase(this))
 	{
-		const FPoseSearchCost PoseCost = bAlignedAndPadded ? SearchIndex.CompareAlignedPoses(PoseIdx, 0.f, PoseValues, QueryValues) : SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-		if (PoseCost < Result.PoseCost)
+		if (const FSearchIndexAsset* CurrentIndexAsset = SearchContext.GetCurrentResult().GetSearchIndexAsset(true))
 		{
-			Result.PoseCost = PoseCost;
-			Result.PoseIdx = PoseIdx;
-
-#if UE_POSE_SEARCH_TRACE_ENABLED
-			if (bUpdateBestCandidates)
+			if (CurrentIndexAsset->IsDisableReselection())
 			{
-				Result.BestPosePos = ResultIndex;
-			}
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
-		}
+				// excluding all the poses with CurrentIndexAsset->GetSourceAssetIdx()
+				const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(CurrentIndexAsset->GetSourceAssetIdx());
+				check(DatabaseAnimationAssetBase);
+
+				for (int32 AssetIndex : GetAssetIndexesForSourceAsset(DatabaseAnimationAssetBase->GetAnimationAsset()))
+				{
+					const FSearchIndexAsset& SearchIndexAsset = SearchIndex.Assets[AssetIndex];
+					const int32 FirstPoseIdx = SearchIndexAsset.GetFirstPoseIdx();
+					const int32 LastPoseIdx = FirstPoseIdx + SearchIndexAsset.GetNumPoses();
+					for (int32 PoseIdx = FirstPoseIdx; PoseIdx < LastPoseIdx; ++PoseIdx)
+					{
+						// no need to AddUnique since there's no overlapping between pose indexes in the FSearchIndexAsset(s)
+						NonSelectableIdx.Add(PoseIdx);
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
-		if (bUpdateBestCandidates)
-		{
-			SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::Valid_Pose, PoseCost);
-		}
+						const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
+						const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
+						SearchContext.Track(this, PoseIdx, EPoseCandidateFlags::DiscardedBy_AssetReselection, PoseCost);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
+					}
+				}
+			}
+			else if (!FMath::IsNearlyEqual(SearchContext.GetPoseJumpThresholdTime().Min, SearchContext.GetPoseJumpThresholdTime().Max))
+			{
+				const int32 CurrentResultPoseIdx = SearchContext.GetCurrentResult().PoseIdx;
+				const int32 UnboundMinPoseIdx = CurrentResultPoseIdx + FMath::FloorToInt(SearchContext.GetPoseJumpThresholdTime().Min * Schema->SampleRate);
+				const int32 UnboundMaxPoseIdx = CurrentResultPoseIdx + FMath::CeilToInt(SearchContext.GetPoseJumpThresholdTime().Max * Schema->SampleRate);
+				const int32 CurrentIndexAssetFirstPoseIdx = CurrentIndexAsset->GetFirstPoseIdx();
+				const int32 CurrentIndexAssetNumPoses = CurrentIndexAsset->GetNumPoses();
+				const bool bIsLooping = CurrentIndexAsset->IsLooping();
+
+				if (bIsLooping)
+				{
+					for (int32 UnboundPoseIdx = UnboundMinPoseIdx; UnboundPoseIdx < UnboundMaxPoseIdx; ++UnboundPoseIdx)
+					{
+						const int32 Modulo = (UnboundPoseIdx - CurrentIndexAssetFirstPoseIdx) % CurrentIndexAssetNumPoses;
+						const int32 CurrentIndexAssetFirstPoseIdxPlusModulo = CurrentIndexAssetFirstPoseIdx + Modulo;
+						const int32 PoseIdx = Modulo >= 0 ? CurrentIndexAssetFirstPoseIdxPlusModulo : CurrentIndexAssetFirstPoseIdxPlusModulo + CurrentIndexAssetNumPoses;
+
+						NonSelectableIdx.AddUnique(PoseIdx);
+
+#if UE_POSE_SEARCH_TRACE_ENABLED
+						const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
+						const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
+						SearchContext.Track(this, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime, PoseCost);
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+					}
+				}
+				else
+				{
+					const int32 MinPoseIdx = FMath::Max(CurrentIndexAssetFirstPoseIdx, UnboundMinPoseIdx);
+					const int32 MaxPoseIdx = FMath::Min(CurrentIndexAssetFirstPoseIdx + CurrentIndexAssetNumPoses, UnboundMaxPoseIdx);
+
+					for (int32 PoseIdx = MinPoseIdx; PoseIdx < MaxPoseIdx; ++PoseIdx)
+					{
+						NonSelectableIdx.AddUnique(PoseIdx);
+
+#if UE_POSE_SEARCH_TRACE_ENABLED
+						const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
+						const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
+						SearchContext.Track(this, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime, PoseCost);
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+					}
+				}
+			}
+		}
+	}
+
+	if (SearchContext.GetPoseIndicesHistory())
+	{
+		const FObjectKey DatabaseKey(this);
+		for (auto It = SearchContext.GetPoseIndicesHistory()->IndexToTime.CreateConstIterator(); It; ++It)
+		{
+			const FHistoricalPoseIndex& HistoricalPoseIndex = It.Key();
+			if (HistoricalPoseIndex.DatabaseKey == DatabaseKey)
+			{
+				NonSelectableIdx.AddUnique(HistoricalPoseIndex.PoseIndex);
+
+#if UE_POSE_SEARCH_TRACE_ENABLED
+				check(HistoricalPoseIndex.PoseIndex >= 0);
+
+				// if we're editing the database and removing assets it's possible that the PoseIndicesHistory contains invalid pose indexes
+				if (HistoricalPoseIndex.PoseIndex < SearchIndex.GetNumPoses())
+				{
+					const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(HistoricalPoseIndex.PoseIndex, 0.f, SearchIndex.GetPoseValuesSafe(HistoricalPoseIndex.PoseIndex), QueryValues);
+					SearchContext.Track(this, HistoricalPoseIndex.PoseIndex, EPoseCandidateFlags::DiscardedBy_PoseReselectHistory, PoseCost);
+				}
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+			}
+		}
+	}
+
+	NonSelectableIdx.Sort();
+}
+
+void UPoseSearchDatabase::PopulateSelectableAssetIdx(FSelectableAssetIdx& SelectableAssetIdx, TConstArrayView<const UObject*> AssetsToConsider) const
+{
+	SelectableAssetIdx.Reset();
+	if (!AssetsToConsider.IsEmpty())
+	{
+		for (const UObject* AssetToConsider : AssetsToConsider)
+		{
+			SelectableAssetIdx.Append(GetAssetIndexesForSourceAsset(AssetToConsider));
+		}
+
+		if (!SelectableAssetIdx.IsEmpty())
+		{
+			if (SelectableAssetIdx.Num() != GetSearchIndex().Assets.Num())
+			{
+				SelectableAssetIdx.Sort();
+			}
+			else
+			{
+				// SelectableAssetIdx contains ALL the Database->GetSearchIndex().Assets. 
+				// We reset SelectableAssetIdx since it has the same meaning, and it'll perform better
+				SelectableAssetIdx.Reset();
+			}
+		}
 	}
 }
 
@@ -1157,24 +1261,36 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchContinuingPose(UE::Pose
 	const FSearchIndex& SearchIndex = GetSearchIndex();
 	const int32 PoseIdx = SearchContext.GetCurrentResult().PoseIdx;
 	const FSearchIndexAsset& SearchIndexAsset = SearchIndex.GetAssetForPose(PoseIdx);
-	const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = GetAnimationAssetStruct(SearchIndexAsset).GetPtr<FPoseSearchDatabaseAnimationAssetBase>();
+	const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SearchIndexAsset);
 	check(DatabaseAnimationAssetBase);
-	const UAnimationAsset* AnimationAsset = CastChecked<UAnimationAsset>(DatabaseAnimationAssetBase->GetAnimationAsset());
-	
-	// sampler used only to extract the notify states. RootTransformOrigin can be set as Identity, since will not be relevant
-	const FAnimationAssetSampler SequenceBaseSampler(AnimationAsset, FTransform::Identity, SearchIndexAsset.GetBlendParameters());
-	const float SampleTime = GetRealAssetTime(PoseIdx);
 
 	float UpdatedContinuingPoseCostBias = ContinuingPoseCostBias;
-	SequenceBaseSampler.ExtractPoseSearchNotifyStates(SampleTime, [&UpdatedContinuingPoseCostBias](const UAnimNotifyState_PoseSearchBase* PoseSearchNotify)
+	const float SampleTime = GetRealAssetTime(PoseIdx);
+	for (int32 RoleIndex = 0; RoleIndex < DatabaseAnimationAssetBase->GetNumRoles(); ++RoleIndex)
+	{
+		if (const UAnimationAsset* AnimationAsset = DatabaseAnimationAssetBase->GetAnimationAssetForRole(DatabaseAnimationAssetBase->GetRole(RoleIndex)))
 		{
-			if (const UAnimNotifyState_PoseSearchOverrideContinuingPoseCostBias* ContinuingPoseCostBiasNotify = Cast<const UAnimNotifyState_PoseSearchOverrideContinuingPoseCostBias>(PoseSearchNotify))
+			// sampler used only to extract the notify states. RootTransformOrigin can be set as Identity, since will not be relevant
+			const FAnimationAssetSampler SequenceBaseSampler(AnimationAsset, FTransform::Identity, SearchIndexAsset.GetBlendParameters());
+
+			bool bDone = false;
+			SequenceBaseSampler.ExtractPoseSearchNotifyStates(SampleTime, [&UpdatedContinuingPoseCostBias, &bDone](const UAnimNotifyState_PoseSearchBase* PoseSearchNotify)
+				{
+					if (const UAnimNotifyState_PoseSearchOverrideContinuingPoseCostBias* ContinuingPoseCostBiasNotify = Cast<const UAnimNotifyState_PoseSearchOverrideContinuingPoseCostBias>(PoseSearchNotify))
+					{
+						UpdatedContinuingPoseCostBias = ContinuingPoseCostBiasNotify->CostAddend;
+						bDone = true;
+						return false;
+					}
+					return true;
+				});
+
+			if (bDone)
 			{
-				UpdatedContinuingPoseCostBias = ContinuingPoseCostBiasNotify->CostAddend;
-				return false;
+				break;
 			}
-			return true;
-		});
+		}
+	}
 
 	// since any PoseCost calculated here is at least SearchIndex.MinCostAddend + UpdatedContinuingPoseCostBias,
 	// there's no point in performing the search if CurrentBestTotalCost is already better than that
@@ -1207,6 +1323,13 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchContinuingPose(UE::Pose
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 	}
 
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+	if (CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
+	{
+		Result.BruteForcePoseCost = Result.PoseCost;
+	}
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+
 	return Result;
 }
 
@@ -1237,10 +1360,10 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema);
 
 		FSelectableAssetIdx SelectableAssetIdx;
-		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAssetsToConsider(), this);
+		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAssetsToConsider());
 
 		FNonSelectableIdx NonSelectableIdx;
-		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this
+		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext
 #if UE_POSE_SEARCH_TRACE_ENABLED
 			, QueryValues
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
@@ -1381,7 +1504,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 		// calling just for reporting non selectable poses
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema);
 		FNonSelectableIdx NonSelectableIdx;
-		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this, QueryValues);
+		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, QueryValues);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 	}
 
@@ -1412,11 +1535,11 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchVPTree(UE::PoseSearch::
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema);
 
 		FSelectableAssetIdx SelectableAssetIdx;
-		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAssetsToConsider(), this);
+		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAssetsToConsider());
 
 		// @todo: implement filtering within the VPTree as KDTree does
 		FNonSelectableIdx NonSelectableIdx;
-		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this
+		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext
 #if UE_POSE_SEARCH_TRACE_ENABLED
 			, QueryValues
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
@@ -1468,7 +1591,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchVPTree(UE::PoseSearch::
 		// calling just for reporting non selectable poses
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema);
 		FNonSelectableIdx NonSelectableIdx;
-		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this, QueryValues);
+		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, QueryValues);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 	}
 
@@ -1499,10 +1622,10 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchBruteForce(UE::PoseSear
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema);
 
 		FSelectableAssetIdx SelectableAssetIdx;
-		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAssetsToConsider(), this);
+		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAssetsToConsider());
 
 		FNonSelectableIdx NonSelectableIdx;
-		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this
+		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext
 #if UE_POSE_SEARCH_TRACE_ENABLED
 			, QueryValues
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
@@ -1601,7 +1724,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchBruteForce(UE::PoseSear
 		// calling just for reporting non selectable poses
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema);
 		FNonSelectableIdx NonSelectableIdx;
-		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this, QueryValues);
+		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, QueryValues);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 	}
 
@@ -1611,10 +1734,6 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchBruteForce(UE::PoseSear
 		Result.AssetTime = GetNormalizedAssetTime(Result.PoseIdx);
 		Result.Database = this;
 	}
-
-#if UE_POSE_SEARCH_TRACE_ENABLED
-	Result.BruteForcePoseCost = Result.PoseCost; 
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
 
 	return Result;
 }

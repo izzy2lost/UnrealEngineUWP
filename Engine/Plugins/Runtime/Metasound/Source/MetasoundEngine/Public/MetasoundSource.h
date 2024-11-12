@@ -23,7 +23,12 @@
 
 
 // Forward Declarations
+#if WITH_EDITOR
+class FDataValidationContext;
+#endif // WITH_EDITOR
 class UMetaSoundSettings;
+
+struct FMetaSoundFrontendDocumentBuilder;
 struct FMetaSoundQualitySettings;
 
 namespace Audio
@@ -33,10 +38,18 @@ namespace Audio
 
 namespace Metasound
 {
-	struct FMetaSoundEngineAssetHelper;
 	struct FMetasoundGeneratorInitParams;
-
 	class FMetasoundGenerator;
+
+	namespace DynamicGraph
+	{
+		class FDynamicOperatorTransactor;
+	} // namespace DynamicGraph
+
+	namespace Engine
+	{
+		struct FAssetHelper;
+	} // namespace Engine;
 
 	namespace Frontend
 	{
@@ -49,10 +62,6 @@ namespace Metasound
 		using FCookedQualitySettings = FMetaSoundQualitySettings;
 	} // namespace SourcePrivate
 
-	namespace DynamicGraph
-	{
-		class FDynamicOperatorTransactor;
-	} // namespace DynamicGraph
 } // namespace Metasound
 
 
@@ -62,13 +71,16 @@ DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnGeneratorInstanceDestroyed, uint64, T
 /**
  * This Metasound type can be played as an audio source.
  */
-UCLASS(hidecategories = object, BlueprintType, config = Metasound, defaultconfig)
+UCLASS(hidecategories = object, BlueprintType, meta = (DisplayName = "MetaSound Source"))
 class METASOUNDENGINE_API UMetaSoundSource : public USoundWaveProcedural, public FMetasoundAssetBase, public IMetaSoundDocumentInterface
 {
 	GENERATED_BODY()
 
-	friend struct Metasound::FMetaSoundEngineAssetHelper;
+	friend struct Metasound::Engine::FAssetHelper;
 	friend class UMetaSoundSourceBuilder;
+	
+	//Forward declare
+	class FAudioParameterCollector;
 
 	// FRuntimeInput represents an input to a MetaSound which can be manipulated.
 	struct FRuntimeInput
@@ -105,8 +117,11 @@ protected:
 	TSet<FSoftObjectPath> ReferenceAssetClassCache;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY()
+	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage = "Use EditorGraph instead as it is now transient and generated via the FrontendDocument dynamically."))
 	TObjectPtr<UMetasoundEditorGraphBase> Graph;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMetasoundEditorGraphBase> EditorGraph;
 #endif // WITH_EDITORONLY_DATA
 
 public:
@@ -117,9 +132,8 @@ public:
 	EMetaSoundOutputAudioFormat OutputFormat;
 
 #if WITH_EDITORONLY_DATA
-
-	// The Quality this Metasound will use. These are defined in the MetaSounds project settings.
-	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, meta = (GetOptions="MetasoundEngine.MetaSoundQualityHelper.GetQualityList"), Category = "Metasound")
+	// The QualitySetting MetaSound will use, as defined in 'MetaSound' Settings.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AssetRegistrySearchable, meta = (GetOptions="MetasoundEngine.MetaSoundSettings.GetQualityNames"), Category = "Metasound")
 	FName QualitySetting;
 
 	// This a editor only look up for the Quality Setting above. Preventing orphaning of the original name.
@@ -133,9 +147,8 @@ public:
 	// Override the SampleRate for this Sound (overrides Quality). NOTE: A Zero value will have no effect and use either the Quality setting (if set), or the Device Rate
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, AdvancedDisplay, Category = Metasound, meta = (UIMin = 0, UIMax = 96000, DisplayName = "Override Sample Rate (in Hz)"))
 	FPerPlatformInt SampleRateOverride = 0;
-	
 #endif //WITH_EDITOR_DATA
-	
+
 	UPROPERTY(AssetRegistrySearchable)
 	FGuid AssetClassID;
 
@@ -171,17 +184,16 @@ public:
 	// Returns the graph associated with this Metasound. Graph is required to be referenced on
 	// Metasound UObject for editor serialization purposes.
 	// @return Editor graph associated with UMetaSoundSource.
-	virtual UEdGraph* GetGraph() override;
-	virtual const UEdGraph* GetGraph() const override;
-	virtual UEdGraph& GetGraphChecked() override;
-	virtual const UEdGraph& GetGraphChecked() const override;
+	virtual UEdGraph* GetGraph() const override;
+	virtual UEdGraph& GetGraphChecked() const override;
+	virtual void MigrateEditorGraph(FMetaSoundFrontendDocumentBuilder& OutBuilder) override;
 
 	// Sets the graph associated with this Metasound. Graph is required to be referenced on
 	// Metasound UObject for editor serialization purposes.
 	// @param Editor graph associated with UMetaSoundSource.
 	virtual void SetGraph(UEdGraph* InGraph) override
 	{
-		Graph = CastChecked<UMetasoundEditorGraphBase>(InGraph);
+		EditorGraph = CastChecked<UMetasoundEditorGraphBase>(InGraph);
 	}
 #endif // #if WITH_EDITORONLY_DATA
 
@@ -203,19 +215,19 @@ public:
 		return false;
 	}
 
+	virtual void PreDuplicate(FObjectDuplicationParameters& DupParams) override;
 	virtual void PostDuplicate(EDuplicateMode::Type InDuplicateMode) override;
-
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InEvent) override;
-
 	virtual bool CanEditChange(const FProperty* InProperty) const override;
+
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
 
 private:
 	void PostEditChangeOutputFormat();
 	void PostEditChangeQualitySettings();
-public:
-
 #endif // WITH_EDITOR
 
+public:
 	virtual const TSet<FString>& GetReferencedAssetClassKeys() const override
 	{
 		return ReferencedAssetClassKeys;
@@ -231,7 +243,7 @@ public:
 
 	void PostLoadQualitySettings();
 
-	virtual bool ConformObjectDataToInterfaces() override;
+	virtual bool ConformObjectToDocument() override;
 
 	virtual FTopLevelAssetPath GetAssetPathChecked() const override;
 
@@ -247,7 +259,7 @@ public:
 	virtual void InitParameters(TArray<FAudioParameter>& ParametersToInit, FName InFeatureName) override;
 
 	virtual void InitResources() override;
-	virtual void RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions = Metasound::Frontend::FMetaSoundAssetRegistrationOptions()) override;
+	virtual void UpdateAndRegisterForExecution(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions = Metasound::Frontend::FMetaSoundAssetRegistrationOptions()) override;
 
 	virtual bool IsPlayable() const override;
 	virtual float GetDuration() const override;
@@ -268,12 +280,14 @@ public:
 	Metasound::FOperatorSettings GetOperatorSettings(Metasound::FSampleRate InDeviceSampleRate) const;
 
 	virtual const FMetasoundFrontendDocument& GetConstDocument() const override;
+	virtual bool IsActivelyBuilding() const override;
+
+	virtual const UClass& GetBaseMetaSoundUClass() const final override;
+	virtual const UClass& GetBuilderUClass() const final override;
 
 protected:
 	Metasound::Frontend::FDocumentAccessPtr GetDocumentAccessPtr() override;
 	Metasound::Frontend::FConstDocumentAccessPtr GetDocumentConstAccessPtr() const override;
-
-	virtual const UClass& GetBaseMetaSoundUClass() const final override;
 
 	/** Gets all the default parameters for this Asset.  */
 	virtual bool GetAllDefaultParameters(TArray<FAudioParameter>& OutParameters) const override;
@@ -288,7 +302,6 @@ private:
 		return RootMetasoundDocument;
 	}
 
-	virtual bool IsBuilderActive() const override;
 	virtual void OnBeginActiveBuilder() override;
 	virtual void OnFinishActiveBuilder() override;
 
@@ -301,9 +314,20 @@ public:
 	Metasound::FMetasoundEnvironment CreateEnvironment(const FSoundGeneratorInitParams& InParams) const;
 	const TArray<Metasound::FVertexName>& GetOutputAudioChannelOrder() const;
 
+	/** Find the Source related to this Preset.
+	 * 
+	 * If this MetaSound is a preset and preset graph inflation is enabled, this
+	 * will traverse the MetaSound Preset hierarchy until a UMetaSoundSource is 
+	 * found which is either 
+	 *  	- Not a preset
+	 * 		AND/OR
+	 *  	- Has modified constructor pin overrides.
+	 */
+	const UMetaSoundSource& FindFirstNoninflatableSource(Metasound::FMetasoundEnvironment& InOutEnvironment, TFunctionRef<void(const UMetaSoundSource&)> OnTraversal) const;
+
 private:
-	TSharedPtr<const Metasound::IGraph> TryGetMetaSoundPresetBaseGraph() const;
-	void MergePresetOverridesAndSuppliedDefaults(const TArray<FAudioParameter>& InSuppliedDefaults, TArray<FAudioParameter>& OutMerged);
+	const UMetaSoundSource& FindFirstNoninflatableSourceInternal(TArray<FGuid>& OutHierarchy, TFunctionRef<void(const UMetaSoundSource&)> OnTraversal) const;
+	TSharedPtr<const Metasound::IGraph> FindFirstNoninflatableGraph(UMetaSoundSource::FAudioParameterCollector& InOutParameterCollector, Metasound::FMetasoundEnvironment& InOutEnvironment) const;
 	
 	Metasound::FMetasoundEnvironment CreateEnvironment() const;
 	Metasound::FMetasoundEnvironment CreateEnvironment(const Audio::FParameterTransmitterInitParams& InParams) const;
@@ -328,7 +352,7 @@ private:
 	 * Note: Disabling the dynamic generator will sever the communication between any active generators
 	 * even if the dynamic generator is re-enabled during the lifetime of the active generators
 	 */
-	TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> SetDynamicGeneratorEnabled(const FTopLevelAssetPath& InAssetPath, bool bInIsEnabled);
+	TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> SetDynamicGeneratorEnabled(bool bInIsEnabled);
 
 	/** Get dynamic transactor
 	 *
@@ -351,7 +375,7 @@ private:
 
 	// Quality settings. 
 	bool GetQualitySettings(const FName InPlatformName, Metasound::SourcePrivate::FCookedQualitySettings& OutQualitySettings) const;
-	void ResolveQualitySettings(const UMetaSoundSettings* Settings);	
+	void ResolveQualitySettings(const UMetaSoundSettings* Settings);
 	void SerializeCookedQualitySettings(const FName PlatformName, FArchive& Ar);
 	TPimplPtr<Metasound::SourcePrivate::FCookedQualitySettings> CookedQualitySettings;
 };

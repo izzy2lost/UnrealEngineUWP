@@ -113,37 +113,11 @@ public:
 		, AreaSpringStiffnessIndex(PropertyCollection)
 	{}
 
-	UE_DEPRECATED(5.3, "Use weight map constructor instead.")
-	FPBDAreaSpringConstraints(
-		const FSolverParticles& Particles,
-		int32 InParticleOffset,
-		int32 InParticleCount,
-		const TArray<TVec3<int32>>& InConstraints,
-		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
-		const FCollectionPropertyConstFacade& PropertyCollection,
-		bool bTrimKinematicConstraints)
-		: FPBDAxialSpringConstraints(
-			Particles,
-			InParticleOffset,
-			InParticleCount,
-			InConstraints,
-			StiffnessMultipliers,
-			FSolverVec2(GetWeightedFloatAreaSpringStiffness(PropertyCollection, 1.f)),
-			bTrimKinematicConstraints)
-		, AreaSpringStiffnessIndex(PropertyCollection)
-	{}
-
 	virtual ~FPBDAreaSpringConstraints() override = default;
 
 	CHAOS_API void SetProperties(
 		const FCollectionPropertyConstFacade& PropertyCollection,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps);
-
-	UE_DEPRECATED(5.3, "Use SetProperties(const FCollectionPropertyConstFacade&, const TMap<FString, TConstArrayView<FRealSingle>>&, FSolverReal) instead.")
-	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection)
-	{
-		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>());
-	}
 
 private:
 	using FPBDAxialSpringConstraints::Constraints;

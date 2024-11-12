@@ -50,7 +50,8 @@ namespace RemoteControlPropertyUtilities
 	{
 		if(Property.IsValid())
 		{
-			return Property.Get();
+			// API is not const-correct
+			return const_cast<FProperty*>(Property.Get());
 		}
 
 #if WITH_EDITOR
@@ -227,7 +228,7 @@ namespace RemoteControlPropertyUtilities
 		const int32 SrcSize = InSrc.Size();
 
 		// The stored data size doesn't match, so cast
-		if(OutDst.GetProperty()->ElementSize != SrcSize)
+		if(OutDst.GetProperty()->GetElementSize() != SrcSize)
 		{
 			if(const FNumericProperty* DstProperty = OutDst.GetProperty<FNumericProperty>())
 			{
@@ -362,7 +363,7 @@ namespace RemoteControlPropertyUtilities
 		return true;
 	}
 
-	static FProperty* FindSetterArgument(UFunction* SetterFunction, FProperty* PropertyToModify)
+	static FProperty* FindSetterArgument(UFunction* SetterFunction, const FProperty* PropertyToModify)
 	{
 		FProperty* SetterArgument = nullptr;
 
@@ -389,7 +390,7 @@ namespace RemoteControlPropertyUtilities
 	}
 
 	/** LightComponent derived components use a lot of property setters, without specifying BlueprintSetter, so handle here.  */
-	static FName FindLightSetterFunctionInternal(FProperty* Property, UClass* OwnerClass)
+	static FName FindLightSetterFunctionInternal(const FProperty* Property, UClass* OwnerClass)
 	{
 		static const FName LightAffectDynamicIndirectLightingPropertyName = TEXT("bAffectDynamicIndirectLighting");
 		static const FName LightAffectTranslucentLightingPropertyName = TEXT("bAffectTranslucentLighting");
@@ -412,6 +413,7 @@ namespace RemoteControlPropertyUtilities
 		static const FName LightShadowBiasPropertyName = TEXT("ShadowBias");
 		static const FName LightShadowSlopeBiasPropertyName = TEXT("ShadowSlopeBias");
 		static const FName LightSpecularScalePropertyName = TEXT("SpecularScale");
+		static const FName LightDiffuseScalePropertyName = TEXT("DiffuseScale");
 		static const FName LightTemperaturePropertyName = TEXT("Temperature");
 		static const FName LightTransmissionPropertyName = TEXT("Transmission");
 		static const FName LightUseIESBrightnessPropertyName = TEXT("bUseIESBrightness");
@@ -446,6 +448,7 @@ namespace RemoteControlPropertyUtilities
 			{ LightShadowBiasPropertyName, TEXT("SetShadowBias") },	
 			{ LightShadowSlopeBiasPropertyName, TEXT("SetShadowSlopeBias") },
 			{ LightSpecularScalePropertyName, TEXT("SetSpecularScale") },
+			{ LightDiffuseScalePropertyName, TEXT("SetDiffuseScale") },
 			{ LightTemperaturePropertyName, TEXT("SetTemperature") },
 			{ LightTransmissionPropertyName, TEXT("SetTransmission") },
 			{ LightUseIESBrightnessPropertyName, TEXT("SetUseIESBrightness") },
@@ -461,7 +464,7 @@ namespace RemoteControlPropertyUtilities
 		return NAME_None;	
 	}
 
-	static UFunction* FindSetterFunctionInternal(FProperty* Property, UClass* OwnerClass)
+	static UFunction* FindSetterFunctionInternal(const FProperty* Property, UClass* OwnerClass)
 	{
 		// Check if the property setter is already cached.
 		const TWeakObjectPtr<UFunction> SetterPtr = CachedSetterFunctions.FindRef(Property);
@@ -547,7 +550,7 @@ namespace RemoteControlPropertyUtilities
 		return SetterFunction;
 	}
 
-	static UFunction* FindSetterFunction(FProperty* Property, UClass* OwnerClass)
+	static UFunction* FindSetterFunction(const FProperty* Property, UClass* OwnerClass)
 	{
 		// UStruct properties cannot have setters.
 		if (!ensure(Property) || !Property->GetOwnerClass())
@@ -578,6 +581,7 @@ namespace RemoteControlPropertyUtilities
 
 		return true;
 	}
+#endif
 
 	template <>
 	inline bool Serialize<FProperty>(const FRCPropertyVariant& InSrc, FRCPropertyVariant& OutDst)
@@ -587,5 +591,4 @@ namespace RemoteControlPropertyUtilities
 
 		return true;
 	}
-#endif
 }

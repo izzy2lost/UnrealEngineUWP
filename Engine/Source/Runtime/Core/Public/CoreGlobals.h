@@ -166,7 +166,7 @@ extern CORE_API bool GIsGCingAfterBlueprintCompile;
 extern CORE_API bool GIsReconstructingBlueprintInstances;
 
 /** True if actors and objects are being re-instanced. */
-extern CORE_API bool GIsReinstancing;
+extern CORE_API std::atomic<bool> GIsReinstancing;
 
 /** Helper function to flush resource streaming. */
 extern CORE_API void(*GFlushStreamingFunc)(void);
@@ -479,8 +479,24 @@ extern CORE_API void (*SuspendTextureStreamingRenderTasks)();
 /** Resume texture updates caused by completed async IOs. */
 extern CORE_API void (*ResumeTextureStreamingRenderTasks)();
 
+class UE_DEPRECATED(5.5, "This will be removed.") FIsEditorLoadingPackage
+{
+public:
+	CORE_API FIsEditorLoadingPackage& operator= (bool InValue);
+	CORE_API operator bool() const;
+};
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 /** Whether the editor is currently loading a package or not */
-extern CORE_API bool GIsEditorLoadingPackage;
+UE_DEPRECATED(5.5, "Use UE::GetIsEditorLoadingPackage() and UE::SetIsEditorLoadingPackage() instead.")
+extern CORE_API FIsEditorLoadingPackage GIsEditorLoadingPackage;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+namespace UE
+{
+	CORE_API bool GetIsEditorLoadingPackage();
+	CORE_API void SetIsEditorLoadingPackage(bool InValue);
+}
 
 /** Whether the cooker is currently loading a package or not */
 extern CORE_API bool GIsCookerLoadingPackage;
@@ -488,14 +504,24 @@ extern CORE_API bool GIsCookerLoadingPackage;
 /** Whether GWorld points to the play in editor world */
 extern CORE_API bool GIsPlayInEditorWorld;
 
-class FPlayInEditorID
+class UE_DEPRECATED(5.5, "This will be removed.") FPlayInEditorID
 {
 public:
 	CORE_API FPlayInEditorID& operator= (int32 InOther);
 	CORE_API operator int32() const;
 };
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 /** In the editor, this is set to the specific world context PIEInstance that is being currently processed */
+UE_DEPRECATED(5.5, "Use UE::GetPlayInEditorID() and UE::SetPlayInEditorID() instead.")
 extern CORE_API FPlayInEditorID GPlayInEditorID;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+namespace UE
+{
+	CORE_API int32 GetPlayInEditorID();
+	CORE_API void  SetPlayInEditorID(int32 InPlayInEditorID);
+}
 
 /** Whether or not PIE was attempting to play from PlayerStart */
 UE_DEPRECATED(4.25, "This variable is no longer set. Use !GEditor->GetPlayInEditorSessionInfo()->OriginalRequestParams.HasPlayWorldPlacement() instead.")
@@ -558,9 +584,6 @@ extern CORE_API uint32 GSlateLoadingThreadId;
 
 /** Has GGameThreadId been set yet? */
 extern CORE_API bool GIsGameThreadIdInitialized;
-
-/** Whether we want the rendering thread to be suspended, used e.g. for tracing. */
-extern CORE_API bool GShouldSuspendRenderingThread;
 
 /** Determines what kind of trace should occur, NAME_None for none. */
 extern CORE_API FLazyName GCurrentTraceName;
@@ -626,10 +649,11 @@ enum class ETaskTag : int32
 	ERenderingThread			= 1 << 4,
 	ERhiThread					= 1 << 5,
 	EAsyncLoadingThread			= 1 << 6,
+	EEventThread				= 1 << 7,
 
-	ENamedThreadBits			= (EAsyncLoadingThread << 1) - 1,
-	EParallelThread				= 1 << 8, //This can be used when multipe threads or jobs are involved (usually a parallel for) It will avoid the check for uniqieness of the named thread tag.
-	EWorkerThread				= 1 << 7 | EParallelThread,
+	ENamedThreadBits			= (EEventThread << 1) - 1,
+	EParallelThread				= 1 << 30, //This can be used when multiple threads or jobs are involved (usually a parallel for) It will avoid the check for uniqueness of the named thread tag.
+	EWorkerThread				= 1 << 29 | EParallelThread,
 	EParallelRenderingThread	= ERenderingThread | EParallelThread,
 	EParallelGameThread			= EGameThread | EParallelThread,
 	EParallelRhiThread			= ERhiThread | EParallelThread,
@@ -744,25 +768,18 @@ extern CORE_API bool (*IsInAsyncLoadingThread)();
 UE_DEPRECATED(4.26, "Please use `GIsThreadedRendering` or `IsInActualRenderingThread()`")
 extern CORE_API FRunnableThread* GRenderingThread;
 
-/** Whether the rendering thread is suspended (not even processing the tickables) */
-extern CORE_API TAtomic<int32> GIsRenderingThreadSuspended;
-
 /** @return True if RHI thread is running */
 extern CORE_API bool IsRHIThreadRunning();
 
 /** @return True if called from the RHI thread, or if called from ANY thread during single threaded rendering */
 extern CORE_API bool IsInRHIThread();
 
-/** @return True if called from any parallel RHI thread, or if called from ANY thread during single threaded rendering */
+/** @return True if called from a thread tagged as an RHI task. */
 extern CORE_API bool IsInParallelRHIThread();
 
-/** Thread used for RHI */
-UE_DEPRECATED(4.26, "Please use `IsRHIThreadRunning()`")
-extern CORE_API FRunnableThread* GRHIThread_InternalUseOnly;
-
-/** Thread ID of the the thread we are executing RHI commands on. This could either be a constant dedicated thread or changing every task if we run the rhi thread on tasks. */
-UE_DEPRECATED(4.26, "Please use `IsRHIThreadRunning()` or `IsInRHIThread()`")
-extern CORE_API uint32 GRHIThreadId;
+extern CORE_API bool GIsRunningRHIInSeparateThread_InternalUseOnly;
+extern CORE_API bool GIsRunningRHIInDedicatedThread_InternalUseOnly;
+extern CORE_API bool GIsRunningRHIInTaskThread_InternalUseOnly;
 
 /** Boot loading timers */
 #if !UE_BUILD_SHIPPING
@@ -808,8 +825,14 @@ namespace UE::CoreUObject::Private
 	/** Array to help visualize object handles in the debugger */
 	struct FObjectHandlePackageDebugData;
 }
+namespace UE::Core { struct FVisualizerDebuggingState; }
 extern CORE_API UE::CoreUObject::Private::FStoredObjectPathDebug* GCoreComplexObjectPathDebug;
 extern CORE_API UE::CoreUObject::Private::FObjectHandlePackageDebugData* GCoreObjectHandlePackageDebug;
+extern CORE_API UE::Core::FVisualizerDebuggingState* GCoreDebuggingState;
 
 /** @return True if running cook-on-the-fly. */
 bool CORE_API IsRunningCookOnTheFly();
+
+namespace UE {
+	bool CORE_API IsUsingZenPakFileStreaming();
+}

@@ -9,12 +9,13 @@
 #include "PCGModule.h"
 #include "PCGNode.h"
 #include "PCGPin.h"
-#include "PCGSubsystem.h"
 #include "PCGSubgraph.h"
+#include "PCGSubsystem.h"
 #include "Elements/PCGHiGenGridSize.h"
 #include "Elements/PCGUserParameterGet.h"
 #include "Elements/ControlFlow/PCGQualityBranch.h"
 #include "Elements/ControlFlow/PCGQualitySelect.h"
+#include "Graph/PCGGraphCompilationData.h"
 #include "Graph/PCGGraphCompiler.h"
 #include "Graph/PCGGraphExecutor.h"
 
@@ -133,6 +134,42 @@ EPropertyBagResult UPCGGraphInterface::SetGraphParameter(const FName PropertyNam
 	return Result;
 }
 
+bool UPCGGraphInterface::UpdateArrayGraphParameter(const FName PropertyName, TFunctionRef<bool(FPropertyBagArrayRef& PropertyBagArrayRef)> Callback)
+{
+	FInstancedPropertyBag* UserParameters = GetMutableUserParametersStruct();
+	check(UserParameters);
+
+	TValueOrError<FPropertyBagArrayRef, EPropertyBagResult> Result = UserParameters->GetMutableArrayRef(PropertyName);
+
+	if (!Result.HasError() && Result.HasValue() && Callback(Result.GetValue()))
+	{
+		OnGraphParametersChanged(EPCGGraphParameterEvent::ValueModifiedLocally, PropertyName);
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool UPCGGraphInterface::UpdateSetGraphParameter(const FName PropertyName, TFunctionRef<bool(FPropertyBagSetRef& PropertyBagSetRef)> Callback)
+{
+	FInstancedPropertyBag* UserParameters = GetMutableUserParametersStruct();
+	check(UserParameters);
+
+	TValueOrError<FPropertyBagSetRef, EPropertyBagResult> Result = UserParameters->GetMutableSetRef(PropertyName);
+
+	if (!Result.HasError() && Result.HasValue() && Callback(Result.GetValue()))
+	{
+		OnGraphParametersChanged(EPCGGraphParameterEvent::ValueModifiedLocally, PropertyName);
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
 bool UPCGGraphInterface::IsInstance() const
 {
 	return this != GetGraph();
@@ -223,7 +260,8 @@ EPCGChangeType UPCGGraphInterface::GetChangeTypeForGraphParameterChange(EPCGGrap
 	}
 
 	// Finally if anything change on a property that has an impact for the graph, look for GetUserParameters nodes for this property, to only refresh if the property is used.
-	for (const UPCGNode* Node : Graph->GetNodes())
+	// TODO: add tracking for user parameters from subgraphs
+	/*for (const UPCGNode* Node : Graph->GetNodes())
 	{
 		if (!Node)
 		{
@@ -240,7 +278,8 @@ EPCGChangeType UPCGGraphInterface::GetChangeTypeForGraphParameterChange(EPCGGrap
 	}
 
 	// At this point, we didn't find any node that use our property, so no refresh needed.
-	return EPCGChangeType::Cosmetic;
+	return EPCGChangeType::Cosmetic;*/
+	return EPCGChangeType::Settings;
 }
 
 /****************************
@@ -393,7 +432,7 @@ void UPCGGraph::PostLoad()
 	{
 		FixInvalidEdges();
 	}
-#endif
+#endif // WITH_EDITOR
 }
 
 bool UPCGGraph::IsEditorOnly() const
@@ -481,6 +520,89 @@ UPCGNode* UPCGGraph::FindNodeWithSettings(const UPCGSettingsInterface* InSetting
 }
 
 #if WITH_EDITOR
+void UPCGGraph::PreSave(FObjectPreSaveContext ObjectSaveContext)
+{
+	Super::PreSave(ObjectSaveContext);
+
+	if (ObjectSaveContext.IsCooking())
+	{
+		FPCGGraphCompiler GraphCompiler(/*bIsCooking=*/true);
+
+		// Compile graph for all grid sizes in preparation for cooking.
+		if (IsHierarchicalGenerationEnabled())
+		{
+			bool bHasUnbounded = true;
+			PCGHiGenGrid::FSizeArray GridSizes;
+			GetGridSizes(GridSizes, bHasUnbounded);
+
+			for (uint32 GridSize : GridSizes)
+			{
+				FPCGStackContext StackContext;
+				GraphCompiler.GetCompiledTasks(this, GridSize, StackContext);
+			}
+
+			if (bHasUnbounded)
+			{
+				FPCGStackContext StackContext;
+				GraphCompiler.GetCompiledTasks(this, PCGHiGenGrid::UnboundedGridSize(), StackContext);
+			}
+		}
+
+		// Always cook unitialized grid tasks which are used if component is not partitioned.
+		{
+			FPCGStackContext StackContext;
+			GraphCompiler.GetCompiledTasks(this, PCGHiGenGrid::UninitializedGridSize(), StackContext);
+		}
+
+		// Move compiled results into cooked results.
+		FPCGGraphCompilerCache& Cache = GraphCompiler.GetCache();
+		TMap<uint32, TArray<FPCGGraphTask>>* CompiledTasks = Cache.TopGraphToTaskMap.Find(this);
+		TMap<uint32, FPCGStackContext>* CompiledStackContexts = Cache.TopGraphToStackContextMap.Find(this);
+		TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>* CompiledComputeGraphs = Cache.TopGraphToComputeGraphMap.Find(this);
+
+		CookedCompilationData = NewObject<UPCGGraphCompilationData>(this);
+
+		if (ensure(CompiledTasks))
+		{
+			CookedCompilationData->Tasks.Reserve(CompiledTasks->Num());
+
+			for (TPair<uint32, TArray<FPCGGraphTask>>& Pair : *CompiledTasks)
+			{
+				for (FPCGGraphTask& GraphTask : Pair.Value)
+				{
+					GraphTask.PrepareForCook();
+				}
+
+				CookedCompilationData->Tasks.Emplace(Pair.Key, FPCGGraphTasks(std::move(Pair.Value)));
+			}
+		}
+
+		if (ensure(CompiledStackContexts))
+		{
+			CookedCompilationData->StackContexts.Reserve(CompiledStackContexts->Num());
+
+			for (TPair<uint32, FPCGStackContext>& Pair : *CompiledStackContexts)
+			{
+				CookedCompilationData->StackContexts.Emplace(Pair.Key, std::move(Pair.Value));
+			}
+		}
+
+		// Note: We don't have an ensure on the CompiledComputeGraphs like the other compiled data since graphs that do not
+		// produce compute graphs will never create an entry in this mapping.
+		if (CompiledComputeGraphs)
+		{
+			CookedCompilationData->ComputeGraphs.Reserve(CompiledComputeGraphs->Num());
+
+			for (TPair<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>& Pair : *CompiledComputeGraphs)
+			{
+				CookedCompilationData->ComputeGraphs.Emplace(Pair.Key, FPCGComputeGraphs(std::move(Pair.Value)));
+			}
+		}
+	}
+}
+#endif
+
+#if WITH_EDITOR
 void UPCGGraph::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass)
 {
 	Super::DeclareConstructClasses(OutConstructClasses, SpecificSubclass);
@@ -528,7 +650,7 @@ void UPCGGraph::AddReferencedObjects(UObject* InThis, FReferenceCollector& Colle
 uint32 UPCGGraph::GetDefaultGridSize() const
 {
 	ensure(IsHierarchicalGenerationEnabled());
-	return PCGHiGenGrid::IsValidGrid(HiGenGridSize) ? PCGHiGenGrid::GridToGridSize(HiGenGridSize) : PCGHiGenGrid::UnboundedGridSize();
+	return PCGHiGenGrid::IsValidGrid(HiGenGridSize) ? (PCGHiGenGrid::GridToGridSize(HiGenGridSize) * (1 << HiGenExponential)) : PCGHiGenGrid::UnboundedGridSize();
 }
 
 UPCGNode* UPCGGraph::AddNodeOfType(TSubclassOf<class UPCGSettings> InSettingsClass, UPCGSettings*& OutDefaultNodeSettings)
@@ -544,7 +666,7 @@ UPCGNode* UPCGGraph::AddNodeOfType(TSubclassOf<class UPCGSettings> InSettingsCla
 
 	if (Node)
 	{
-		Settings->Rename(nullptr, Node, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		Settings->Rename(nullptr, Node, REN_DontCreateRedirectors);
 	}
 
 	OutDefaultNodeSettings = Settings;
@@ -570,7 +692,7 @@ UPCGNode* UPCGGraph::AddNode(UPCGSettingsInterface* InSettingsInterface)
 		Node->SetSettingsInterface(InSettingsInterface);
 
 		// Reparent node to this graph
-		Node->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		Node->Rename(nullptr, this, REN_DontCreateRedirectors);
 
 #if WITH_EDITOR
 		const FName DefaultNodeName = InSettingsInterface->GetSettings()->GetDefaultNodeName();
@@ -578,7 +700,7 @@ UPCGNode* UPCGGraph::AddNode(UPCGSettingsInterface* InSettingsInterface)
 		{
 			const FName NodeName = MakeUniqueObjectName(this, UPCGNode::StaticClass(), DefaultNodeName);
 			// Flags added because default flags favor tick/interactive, not load-time renaming.
-			Node->Rename(*NodeName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+			Node->Rename(*NodeName.ToString(), nullptr, REN_DontCreateRedirectors);
 		}
 #endif
 
@@ -603,7 +725,7 @@ UPCGNode* UPCGGraph::AddNodeInstance(UPCGSettings* InSettings)
 
 	if (Node)
 	{
-		SettingsInstance->Rename(nullptr, Node, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		SettingsInstance->Rename(nullptr, Node, REN_DontCreateRedirectors);
 		SettingsInstance->SetFlags(RF_Transactional);
 	}
 
@@ -622,7 +744,7 @@ UPCGNode* UPCGGraph::AddNodeCopy(const UPCGSettings* InSettings, UPCGSettings*& 
 
 	if (SettingsCopy)
 	{
-		SettingsCopy->Rename(nullptr, NewNode, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		SettingsCopy->Rename(nullptr, NewNode, REN_DontCreateRedirectors);
 	}
 
 	DefaultNodeSettings = SettingsCopy;
@@ -784,14 +906,14 @@ void UPCGGraph::AddNodes_Internal(TArrayView<UPCGNode*> InNodes)
 	for (UPCGNode* Node : InNodes)
 	{
 		check(Node);
-		Node->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		Node->Rename(nullptr, this, REN_DontCreateRedirectors);
 
 #if WITH_EDITOR
 		const FName DefaultNodeName = Node->GetSettings()->GetDefaultNodeName();
 		if (DefaultNodeName != NAME_None)
 		{
 			FName NodeName = MakeUniqueObjectName(this, UPCGNode::StaticClass(), DefaultNodeName);
-			Node->Rename(*NodeName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+			Node->Rename(*NodeName.ToString(), nullptr, REN_DontCreateRedirectors);
 		}
 #endif
 
@@ -842,6 +964,9 @@ void UPCGGraph::RemoveNodes_Internal(TArrayView<UPCGNode*> InNodes)
 
 		// We're about to remove InNode, so don't bother triggering updates
 		TouchedNodes.Remove(Node);
+
+		// Add the node to the transaction, to make sure we reconnect everything correctly on Undo/Redo
+		Node->Modify();
 
 		Nodes.Remove(Node);
 	}
@@ -1082,6 +1207,46 @@ void UPCGGraph::GetGridSizes(PCGHiGenGrid::FSizeArray& OutGridSizes, bool& bOutH
 	return;
 }
 
+double UPCGGraph::GetGridGenerationRadiusFromGrid(EPCGHiGenGrid Grid) const
+{
+	if (Grid == EPCGHiGenGrid::Unbounded || Grid == EPCGHiGenGrid::Uninitialized)
+	{
+		return GenerationRadii.GetGenerationRadiusFromGrid(Grid);
+	}
+	// If the queried grid is smaller than the min grid including the exponent, we'll take the min grid and scale it down
+	else if (static_cast<uint32>(Grid) < (static_cast<uint32>(EPCGHiGenGrid::GridMin) << HiGenExponential))
+	{
+		check(static_cast<uint32>(Grid) >= static_cast<uint32>(EPCGHiGenGrid::GridMin));
+		uint32 Multiplier = static_cast<uint32>(Grid) / static_cast<uint32>(EPCGHiGenGrid::GridMin);
+		return GenerationRadii.GetGenerationRadiusFromGrid(EPCGHiGenGrid::GridMin) * Multiplier;
+	}
+	else
+	{
+		EPCGHiGenGrid AdjustedGrid = static_cast<EPCGHiGenGrid>(static_cast<uint32>(Grid) >> HiGenExponential);
+		return GenerationRadii.GetGenerationRadiusFromGrid(AdjustedGrid) * (1ULL << HiGenExponential);
+	}
+}
+
+double UPCGGraph::GetGridCleanupRadiusFromGrid(EPCGHiGenGrid Grid) const
+{
+	if (Grid == EPCGHiGenGrid::Unbounded || Grid == EPCGHiGenGrid::Uninitialized)
+	{
+		return GenerationRadii.GetGenerationRadiusFromGrid(Grid);
+	}
+	// If the queried grid is smaller than the min grid including the exponent, we'll take the min grid and scale it down
+	else if (static_cast<uint32>(Grid) < (static_cast<uint32>(EPCGHiGenGrid::GridMin) << HiGenExponential))
+	{
+		check(static_cast<uint32>(Grid) >= static_cast<uint32>(EPCGHiGenGrid::GridMin));
+		uint32 Multiplier = static_cast<uint32>(Grid) / static_cast<uint32>(EPCGHiGenGrid::GridMin);
+		return GenerationRadii.GetCleanupRadiusFromGrid(EPCGHiGenGrid::GridMin) * Multiplier;
+	}
+	else
+	{
+		EPCGHiGenGrid AdjustedGrid = static_cast<EPCGHiGenGrid>(static_cast<uint32>(Grid) >> HiGenExponential);
+		return GenerationRadii.GetCleanupRadiusFromGrid(AdjustedGrid) * (1ULL << HiGenExponential);
+	}
+}
+
 #if WITH_EDITOR
 void UPCGGraph::DisableNotificationsForEditor()
 {
@@ -1135,7 +1300,8 @@ bool UPCGGraph::PrimeGraphCompilationCache()
 {
 	UPCGSubsystem* Subsystem = UPCGSubsystem::GetActiveEditorInstance();
 	FPCGGraphCompiler* GraphCompiler = Subsystem ? Subsystem->GetGraphCompiler() : nullptr;
-	if (!Subsystem || !GraphCompiler)
+
+	if (!GraphCompiler)
 	{
 		return false;
 	}
@@ -1154,7 +1320,8 @@ bool UPCGGraph::Recompile()
 {
 	UPCGSubsystem* Subsystem = UPCGSubsystem::GetActiveEditorInstance();
 	FPCGGraphCompiler* GraphCompiler = Subsystem ? Subsystem->GetGraphCompiler() : nullptr;
-	if (!Subsystem || !GraphCompiler)
+
+	if (!GraphCompiler)
 	{
 		return true;
 	}
@@ -1446,10 +1613,19 @@ void UPCGGraph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEve
 		OnGraphParametersChanged(EPCGGraphParameterEvent::ValueModifiedLocally, MemberPropertyName);
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraph, HiGenGridSize)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraph, bUseHierarchicalGeneration))
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraph, bUseHierarchicalGeneration)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraph, bUse2DGrid)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraph, HiGenExponential))
 	{
 		// The higen settings change the structure of the graph (presence or absence of links between grid levels).
 		NotifyGraphChanged(EPCGChangeType::Structural | EPCGChangeType::GenerationGrid);
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraphInterface, Title)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraphInterface, bOverrideTitle)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraphInterface, Color)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraphInterface, bOverrideColor))
+	{
+		NotifyGraphChanged(EPCGChangeType::Cosmetic);
 	}
 
 	PreviousPropertyBag = nullptr;
@@ -1587,6 +1763,13 @@ void UPCGGraph::OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, F
 #if WITH_EDITOR
 	NotifyGraphParametersChanged(InChangeType, InChangedPropertyName);
 #endif // WITH_EDITOR
+}
+
+void UPCGGraph::UpdateUserParametersStruct(TFunctionRef<void(FInstancedPropertyBag&)> Callback)
+{
+	Callback(UserParameters);
+	// Since anything could have changed, trigger a refresh like a post load (to compare what changed)
+	OnGraphParametersChanged(EPCGGraphParameterEvent::GraphPostLoad, NAME_None);
 }
 
 FInstancedPropertyBag* UPCGGraph::GetMutableUserParametersStruct()
@@ -1774,6 +1957,11 @@ void UPCGGraphInstance::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 	{
 		OnGraphParametersChanged(this, EPCGGraphParameterEvent::ValueModifiedLocally, PropertyChangedEvent.GetMemberPropertyName());
 	}
+	else
+	{
+		// For other changes, push a cosmetic change
+		OnGraphChangedDelegate.Broadcast(this, EPCGChangeType::Cosmetic);
+	}
 }
 
 void UPCGGraphInstance::PreEditUndo()
@@ -1902,6 +2090,16 @@ void UPCGGraphInstance::NotifyGraphParametersChanged(EPCGGraphParameterEvent InC
 
 	// Also propagates the changes
 	OnGraphChanged(Graph, GetChangeTypeForGraphParameterChange(InChangeType, InChangedPropertyName));
+}
+
+TOptional<FText> UPCGGraphInstance::GetTitleOverride() const
+{
+	return (!bOverrideTitle && Graph) ? Graph->GetTitleOverride() : UPCGGraphInterface::GetTitleOverride();
+}
+
+TOptional<FLinearColor> UPCGGraphInstance::GetColorOverride() const
+{
+	return (!bOverrideColor && Graph) ? Graph->GetColorOverride() : UPCGGraphInterface::GetColorOverride();
 }
 #endif // WITH_EDITOR
 

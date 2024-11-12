@@ -128,7 +128,7 @@ void SAndroidWebBrowserWidget::Construct(const FArguments& Args)
 	FPlatformMisc::LowLevelOutputDebugStringf(TEXT("SAndroidWebBrowserWidget::Construct viewport=%d x %d"), viewportSize.X, viewportSize.Y);
 
 	JavaWebBrowser = MakeShared<FJavaAndroidWebBrowser, ESPMode::ThreadSafe>(false, FAndroidMisc::ShouldUseVulkan(), viewportSize.X, viewportSize.Y,
-		reinterpret_cast<jlong>(this), !(UE_BUILD_SHIPPING || UE_BUILD_TEST), Args._UseTransparency, bEnableDomStorage, bShouldUseBitmapRender);
+		reinterpret_cast<jlong>(this), !(UE_BUILD_SHIPPING || UE_BUILD_TEST), Args._UseTransparency, bEnableDomStorage, bShouldUseBitmapRender, Args._UserAgentApplication);
 
 	TextureSamplePool = new FWebBrowserTextureSamplePool();
 	WebBrowserTextureSamplesQueue = MakeShared<FWebBrowserTextureSampleQueue, ESPMode::ThreadSafe>();
@@ -438,7 +438,7 @@ void SAndroidWebBrowserWidget::Tick(const FGeometry& AllottedGeometry, const dou
 					}
 
 					// write frame into texture
-					FRHITexture2D* Texture = Params.NewTextureSamplePtr->InitializeTexture();
+					FRHITexture* Texture = Params.NewTextureSamplePtr->InitializeTexture();
 
 					if (Texture != nullptr)
 					{

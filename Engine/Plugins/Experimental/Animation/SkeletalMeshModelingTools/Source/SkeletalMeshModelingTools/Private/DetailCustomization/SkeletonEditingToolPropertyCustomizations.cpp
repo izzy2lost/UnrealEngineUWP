@@ -120,9 +120,9 @@ void FSkeletonEditingPropertiesDetailCustomization::CustomizeDetails(IDetailLayo
 						}
 						return MultiValues;
 					})
-					.OnTextCommitted_Lambda([this, NodePropHandle](const FText& NewText, ETextCommit::Type) 
+					.OnTextCommitted_Lambda([this, NodePropHandle](const FText& NewText, ETextCommit::Type InCommitType) 
 					{
-						if (NewText.EqualTo(MultiValues))
+						if (InCommitType == ETextCommit::OnCleared || NewText.EqualTo(MultiValues))
 						{
 							return;
 						}

@@ -4,12 +4,14 @@
 #include "Materials/MaterialInstanceDynamic.h"
 
 #if WITH_EDITOR
+#include "Components/MaterialValuesDynamic/DMMaterialValueFloat3XYZDynamic.h"
 #include "DMDefs.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Model/IDMMaterialBuildStateInterface.h"
 #include "Model/IDMMaterialBuildUtilsInterface.h"
+#include "Utils/DMUtils.h"
 #endif
  
 #define LOCTEXT_NAMESPACE "DMMaterialValueFloat3XYZ"
@@ -36,7 +38,12 @@ void UDMMaterialValueFloat3XYZ::GenerateExpression(const TSharedRef<IDMMaterialB
 		return;
 	}
  
-	UMaterialExpressionVectorParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionVectorParameter>(GetMaterialParameterName(), UE_DM_NodeComment_Default);
+	UMaterialExpressionVectorParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionVectorParameter>(
+		GetMaterialParameterName(),
+		GetParameterGroup(),
+		UE_DM_NodeComment_Default
+	);
+
 	check(NewExpression);
  
 	NewExpression->DefaultValue = FLinearColor(Value.X, Value.Y, Value.Z, 0);
@@ -61,7 +68,43 @@ void UDMMaterialValueFloat3XYZ::ResetDefaultValue()
 	DefaultValue = FVector::ZeroVector;
 }
 
-void UDMMaterialValueFloat3XYZ::SetDefaultValue(FVector InDefaultValue)
+UDMMaterialValueDynamic* UDMMaterialValueFloat3XYZ::ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic)
+{
+	UDMMaterialValueFloat3XYZDynamic* ValueDynamic = UDMMaterialValueDynamic::CreateValueDynamic<UDMMaterialValueFloat3XYZDynamic>(InMaterialModelDynamic, this);
+	ValueDynamic->SetValue(Value);
+
+	return ValueDynamic;
+}
+
+FString UDMMaterialValueFloat3XYZ::GetComponentPathComponent() const
+{
+	return TEXT("Vector3D");
+}
+
+FText UDMMaterialValueFloat3XYZ::GetComponentDescription() const
+{
+	return LOCTEXT("Vector3", "Vector 3");
+}
+
+TSharedPtr<FJsonValue> UDMMaterialValueFloat3XYZ::JsonSerialize() const
+{
+	return FDMJsonUtils::Serialize(Value);
+}
+
+bool UDMMaterialValueFloat3XYZ::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	FVector ValueJson;
+
+	if (FDMJsonUtils::Deserialize(InJsonValue, ValueJson))
+	{
+		SetValue(ValueJson);
+		return true;
+	}
+
+	return false;
+}
+
+void UDMMaterialValueFloat3XYZ::SetDefaultValue(const FVector& InDefaultValue)
 {
 	DefaultValue = InDefaultValue;
 }
@@ -92,7 +135,7 @@ void UDMMaterialValueFloat3XYZ::SetValue(const FVector& InValue)
  
 	Value = ValueClamped;
  
-	OnValueUpdated(/* bForceStructureUpdate */ false);
+	OnValueChanged(EDMUpdateType::Value | EDMUpdateType::AllowParentUpdate);
 }
  
 #if WITH_EDITOR

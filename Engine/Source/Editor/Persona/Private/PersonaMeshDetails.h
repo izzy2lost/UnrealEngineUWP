@@ -18,6 +18,7 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogSkeletalMeshPersonaMeshDetail, Log, All);
 
 struct FAssetData;
+class FNaniteSkeletalMeshLayout;
 class FDetailWidgetRow;
 class FPersonaMeshDetails;
 class IDetailChildrenBuilder;
@@ -356,6 +357,10 @@ public:
 	/** IDetailCustomization interface */
 	virtual void CustomizeDetails( IDetailLayoutBuilder& DetailLayout ) override;
 
+public:
+	void ForceLayoutRebuild();
+	void RequestLayoutUpdate();
+
 private:
 	//Prevent attribute change calling post edit change
 	void OnAttributePreChangePreventPostEditChange(int32 LODIndex, FName LODInfoPropertyName) const;
@@ -442,6 +447,8 @@ private:
 	TSharedRef<SWidget> OnGenerateLodMenuForLodPicker();
 	FText GetCurrentLodName() const;
 	FText GetCurrentLodTooltip() const;
+	static bool GetAutoLod(USkeletalMeshComponent* InMeshComponent);
+	static int32 GetCurrentDisplayLODIndex(USkeletalMeshComponent* InMeshComponent);
 
 	void SetCurrentLOD(int32 NewLodIndex);
 
@@ -608,9 +615,6 @@ private:
 
 	FText GetMaterialSlotNameText(int32 MaterialIndex) const;
 
-	void ForceLayoutRebuild();
-	void RequestLayoutUpdate();
-
 	void OnNoRefStreamingLODBiasChanged(int32 NewValue, FName QualityLevel);
 	void OnNoRefStreamingLODBiasCommitted(int32 InValue, ETextCommit::Type CommitInfo, FName QualityLevel);
 	int32 GetNoRefStreamingLODBias(FName QualityLevel) const;
@@ -721,6 +725,9 @@ private:
 
 	// Reference the persona toolkit
 	TWeakPtr<class IPersonaToolkit> PersonaToolkitPtr;
+
+	/** Nanite settings for the details panel. */
+	TSharedPtr<FNaniteSkeletalMeshLayout> NaniteSettings;
 
 	IDetailLayoutBuilder* MeshDetailLayout;
 

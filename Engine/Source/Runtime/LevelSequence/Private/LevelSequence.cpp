@@ -39,6 +39,7 @@
 #include "Tracks/MovieSceneSlomoTrack.h"
 #include "Tracks/MovieSceneSpawnTrack.h"
 #include "Tracks/MovieSceneSubTrack.h"
+#include "Tracks/MovieSceneTimeWarpTrack.h"
 #include "Tracks/MovieSceneCVarTrack.h"
 #include "Tracks/MovieSceneBindingLifetimeTrack.h"
 #include "Modules/ModuleManager.h"
@@ -49,6 +50,12 @@
 #include "Engine/AssetUserData.h"
 #include "Misc/App.h"
 #include "Misc/DateTime.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
+#include "Bindings/MovieSceneSpawnableDirectorBlueprintBinding.h"
+#include "Bindings/MovieSceneReplaceableDirectorBlueprintBinding.h"
+#include "Bindings/MovieSceneSpawnableActorBinding.h"
+#include "MovieSceneFolder.h"
+#include "Sections/MovieSceneBindingLifetimeSection.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LevelSequence)
 
@@ -58,6 +65,7 @@
 	#include "UObject/ObjectRedirector.h"
 
 ULevelSequence::FPostDuplicateEvent ULevelSequence::PostDuplicateEvent;
+ULevelSequence::FFixupDynamicBindingsEvent ULevelSequence::FixupDynamicBindingsEvent;
 
 #endif
 
@@ -130,13 +138,8 @@ bool ULevelSequence::CanAnimateObject(UObject& InObject) const
 
 #if WITH_EDITOR
 
-ETrackSupport ULevelSequence::IsTrackSupported(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
+ETrackSupport ULevelSequence::IsTrackSupportedImpl(TSubclassOf<class UMovieSceneTrack> InTrackClass) const
 {
-	if (!UMovieScene::IsTrackClassAllowed(InTrackClass))
-	{
-		return ETrackSupport::NotSupported;
-	}
-
 	if (InTrackClass == UMovieScene3DAttachTrack::StaticClass() ||
 		InTrackClass == UMovieScene3DPathTrack::StaticClass() ||
 		InTrackClass == UMovieSceneAudioTrack::StaticClass() ||
@@ -152,12 +155,13 @@ ETrackSupport ULevelSequence::IsTrackSupported(TSubclassOf<class UMovieSceneTrac
 		InTrackClass == UMovieSceneSpawnTrack::StaticClass() ||
 		InTrackClass == UMovieSceneSubTrack::StaticClass() ||
 		InTrackClass == UMovieSceneCVarTrack::StaticClass() ||
-		InTrackClass == UMovieSceneBindingLifetimeTrack::StaticClass())
+		InTrackClass == UMovieSceneBindingLifetimeTrack::StaticClass() ||
+		InTrackClass == UMovieSceneTimeWarpTrack::StaticClass())
 	{
 		return ETrackSupport::Supported;
 	}
 
-	return Super::IsTrackSupported(InTrackClass);
+	return Super::IsTrackSupportedImpl(InTrackClass);
 }
 
 void ULevelSequence::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
@@ -210,12 +214,12 @@ void ULevelSequence::GetAssetRegistryTagMetadata(TMap<FName, FAssetRegistryTagMe
 	Super::GetAssetRegistryTagMetadata(OutMetadata);
 }
 
-void ULevelSequence::PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const
+void ULevelSequence::ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const
 {
-	Super::PostLoadAssetRegistryTags(InAssetData, OutTagsAndValuesToUpdate);
+	Super::ThreadedPostLoadAssetRegistryTagsOverride(Context);
 
-	// GetAssetRegistryTags appends the DirectorBlueprint tags to the World's tags, so we also have to run the Blueprint PostLoadAssetRegistryTags
-	UBlueprint::PostLoadBlueprintAssetRegistryTags(InAssetData, OutTagsAndValuesToUpdate);
+	// GetAssetRegistryTags appends the DirectorBlueprint tags to the World's tags, so we also have to run the Blueprint ThreadedPostLoadAssetRegistryTagsOverride
+	UBlueprint::PostLoadBlueprintAssetRegistryTags(Context);
 }
 
 void PurgeLegacyBlueprints(UObject* InObject, UPackage* Package)
@@ -232,7 +236,7 @@ void PurgeLegacyBlueprints(UObject* InObject, UPackage* Package)
 			BP->RemoveFromRoot();
 
 			FName NewName = MakeUniqueObjectName(TransientPackage, UBlueprint::StaticClass(), *FString::Printf(TEXT("DEAD_SPAWNABLE_BLUEPRINT_%s"), *BP->GetName()));
-			BP->Rename(*NewName.ToString(), GetTransientPackage(), (REN_NonTransactional|REN_ForceNoResetLoaders|REN_DoNotDirty));
+			BP->Rename(*NewName.ToString(), GetTransientPackage(), REN_NonTransactional | REN_DoNotDirty);
 
 			UE_LOG(LogLevelSequence, Log, TEXT("Discarding blueprint '%s' from package '%s'."), *OldName, *Package->GetName());
 		}
@@ -256,7 +260,7 @@ void PurgeLegacyBlueprints(UObject* InObject, UPackage* Package)
 			BP->GeneratedClass->RemoveFromRoot();
 
 			FName NewName = MakeUniqueObjectName(TransientPackage, BP->GeneratedClass, *FString::Printf(TEXT("DEAD_SPAWNABLE_BP_CLASS_%s_C"), *BP->GeneratedClass->ClassGeneratedBy->GetName()));
-			BP->GeneratedClass->Rename(*NewName.ToString(), GetTransientPackage(), (REN_DoNotDirty|REN_NonTransactional|REN_ForceNoResetLoaders));
+			BP->GeneratedClass->Rename(*NewName.ToString(), GetTransientPackage(), REN_DoNotDirty | REN_NonTransactional);
 
 			if (SuperClass)
 			{
@@ -347,9 +351,9 @@ void ULevelSequence::PostLoad()
 		DirectorBlueprint->OnCompiled().RemoveAll(this);
 		DirectorBlueprint->OnCompiled().AddUObject(this, &ULevelSequence::OnDirectorRecompiled);
 
-		if (DirectorBlueprint->Rename(*GetDirectorBlueprintName(), nullptr, (REN_NonTransactional|REN_ForceNoResetLoaders|REN_DoNotDirty|REN_Test|REN_DontCreateRedirectors)))
+		if (DirectorBlueprint->Rename(*GetDirectorBlueprintName(), nullptr, (REN_NonTransactional | REN_DoNotDirty | REN_Test | REN_DontCreateRedirectors)))
 		{
-			DirectorBlueprint->Rename(*GetDirectorBlueprintName(), nullptr, (REN_NonTransactional|REN_ForceNoResetLoaders|REN_DoNotDirty|REN_DontCreateRedirectors));
+			DirectorBlueprint->Rename(*GetDirectorBlueprintName(), nullptr, (REN_NonTransactional | REN_DoNotDirty | REN_DontCreateRedirectors));
 		}
 	}
 
@@ -413,14 +417,168 @@ void ULevelSequence::PostLoad()
 	}
 	ObjectReferences_DEPRECATED.Map.Empty();
 
+	if (GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::LevelSequenceUpgradeDynamicBindings)
+	{
+		bool bConvertedDynamicBinding = ConvertOldSpawnables();
+
+		for (int32 Index = 0; Index < MovieScene->GetPossessableCount(); ++Index)
+		{
+			FMovieScenePossessable& Possessable = MovieScene->GetPossessable(Index);
+			if (Possessable.DynamicBinding_DEPRECATED.Function)
+			{
+				bConvertedDynamicBinding = true;
+				ConvertDynamicBindingPossessable(Possessable);
+			}
+		}
+		if (bConvertedDynamicBinding && FixupDynamicBindingsEvent.IsBound())
+		{
+			FixupDynamicBindingsEvent.Broadcast(this);
+		}
+	}
+
 #endif
 }
+
+#if WITH_EDITOR
+
+bool ULevelSequence::ConvertOldSpawnables()
+{
+	bool bConvertedDynamicBinding = false;
+	while (MovieScene->GetSpawnableCount() > 0)
+	{
+		FMovieSceneSpawnable& Spawnable = MovieScene->GetSpawnable(0);
+
+		FMovieScenePossessable* CreatedPossessable = nullptr;
+
+		UObject* ObjectToConvert = Spawnable.GetObjectTemplate();
+
+		UClass* CustomBindingType = nullptr;
+		if (Spawnable.DynamicBinding_DEPRECATED.Function)
+		{
+			CustomBindingType = UMovieSceneSpawnableDirectorBlueprintBinding::StaticClass();
+		}
+		else
+		{
+			// Search through custom binding types to find one that best supports the template type
+			static TArray<const TSubclassOf<UMovieSceneCustomBinding>> CachedCustomBindingTypes;
+			static bool CustomBindingTypesCached = false;
+			if (!CustomBindingTypesCached)
+			{
+				CustomBindingTypesCached = true;
+				MovieSceneHelpers::GetPrioritySortedCustomBindingTypes(CachedCustomBindingTypes);
+			}
+
+			for (const TSubclassOf<UMovieSceneCustomBinding>& CandidateCustomBindingType : CachedCustomBindingTypes)
+			{
+				if (CandidateCustomBindingType && CandidateCustomBindingType->IsChildOf(UMovieSceneSpawnableBindingBase::StaticClass()) && CandidateCustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->SupportsBindingCreationFromObject(Spawnable.GetObjectTemplate()))
+				{
+					CustomBindingType = CandidateCustomBindingType;
+					break;
+				}
+			}
+		}
+
+		if (!CustomBindingType)
+		{
+			UE_LOG(LogLevelSequence, Warning, TEXT("Could not upgrade Spawnable '%s' with ID '%s'"), *Spawnable.GetName(), *Spawnable.GetGuid().ToString());
+			break;
+		}
+
+		UMovieSceneCustomBinding* NewCustomBinding = CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->CreateNewCustomBinding(ObjectToConvert, *MovieScene);
+
+		if (!NewCustomBinding)
+		{
+			UE_LOG(LogLevelSequence, Warning, TEXT("Could not upgrade Spawnable '%s' with ID '%s'"), *Spawnable.GetName(), *Spawnable.GetGuid().ToString());
+			break;
+		}
+
+		if (UMovieSceneSpawnableDirectorBlueprintBinding* DirectorBlueprintBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(NewCustomBinding))
+		{
+			// Copy over the binding info
+			DirectorBlueprintBinding->DynamicBinding = Spawnable.DynamicBinding_DEPRECATED;
+			bConvertedDynamicBinding = true;
+		}
+		else if (UMovieSceneSpawnableActorBinding* SpawnableActorBinding = Cast<UMovieSceneSpawnableActorBinding>(NewCustomBinding))
+		{
+			SpawnableActorBinding->bNetAddressableName = Spawnable.bNetAddressableName;
+			SpawnableActorBinding->LevelName = Spawnable.LevelName;
+			SpawnableActorBinding->bContinuouslyRespawn = Spawnable.bContinuouslyRespawn;
+			SpawnableActorBinding->SpawnOwnership = Spawnable.GetSpawnOwnership();
+		}
+
+		FString PossessableName = Spawnable.GetName();
+		FGuid SpawnableGuid = Spawnable.GetGuid();
+
+		FMovieScenePossessable NewPossessable(PossessableName, NewCustomBinding->GetBoundObjectClass());
+		// Steal guid
+		NewPossessable.SetGuid(SpawnableGuid);
+
+		if (FMovieSceneBinding* SpawnableBinding = MovieScene->FindBinding(SpawnableGuid))
+		{
+			// Copy binding and track references to be tied to the new possessable
+			FMovieSceneBinding PossessableBinding = *SpawnableBinding;
+			// Add the custom binding. We use the spawnable binding here since it won't have a binding reference yet, and we need to steal the id
+			BindingReferences.AddOrReplaceBinding(SpawnableGuid, NewCustomBinding, 0);
+
+			// Remove the spawnable and all its' sub tracks
+			if (MovieScene->RemoveSpawnable(SpawnableGuid))
+			{
+				// Add the new possessable with the copied binding
+				MovieScene->AddPossessable(NewPossessable, PossessableBinding);
+			}
+		}
+	}
+	return bConvertedDynamicBinding;
+}
+
+void ULevelSequence::ConvertDynamicBindingPossessable(FMovieScenePossessable& Possessable)
+{
+	UMovieSceneReplaceableDirectorBlueprintBinding* NewCustomBinding = nullptr;
+	
+	const FName InstancedBindingName = MakeUniqueObjectName(MovieScene, UObject::StaticClass(), *FString(Possessable.GetName() + TEXT("_CustomBinding")));
+	NewCustomBinding = NewObject<UMovieSceneReplaceableDirectorBlueprintBinding>(MovieScene, UMovieSceneReplaceableDirectorBlueprintBinding::StaticClass(), InstancedBindingName, RF_Transactional);
+	
+	if (!NewCustomBinding)
+	{
+		return;
+	}
+
+	if (UMovieSceneReplaceableDirectorBlueprintBinding* DirectorBlueprintBinding = Cast<UMovieSceneReplaceableDirectorBlueprintBinding>(NewCustomBinding))
+	{
+		// Copy over the binding info
+		DirectorBlueprintBinding->DynamicBinding = Possessable.DynamicBinding_DEPRECATED;
+		Possessable.DynamicBinding_DEPRECATED = FMovieSceneDynamicBinding();
+	}
+
+	// Replace the current binding with the new one. We call RemoveBinding first because if there were multiple bindings for this track,
+	// they would have been overridden with the Dynamic Binding anyway, and so we ensure that stays the same by keeping only one binding
+	BindingReferences.RemoveBinding(Possessable.GetGuid());
+	BindingReferences.AddOrReplaceBinding(Possessable.GetGuid(), NewCustomBinding, 0);
+
+	// Add a binding lifetime track if not present
+	UMovieSceneBindingLifetimeTrack* BindingLifetimeTrack = Cast<UMovieSceneBindingLifetimeTrack>(MovieScene->FindTrack(UMovieSceneBindingLifetimeTrack::StaticClass(), Possessable.GetGuid(), NAME_None));
+	if (!BindingLifetimeTrack)
+	{
+		BindingLifetimeTrack = Cast<UMovieSceneBindingLifetimeTrack>(MovieScene->AddTrack(UMovieSceneBindingLifetimeTrack::StaticClass(), Possessable.GetGuid()));
+	}
+
+	if (BindingLifetimeTrack && BindingLifetimeTrack->GetAllSections().IsEmpty())
+	{
+		UMovieSceneBindingLifetimeSection* BindingLifetimeSection = Cast<UMovieSceneBindingLifetimeSection>(BindingLifetimeTrack->CreateNewSection());
+		BindingLifetimeSection->SetRange(TRange<FFrameNumber>::All());
+		BindingLifetimeTrack->AddSection(*BindingLifetimeSection);
+	}
+}
+
+#endif
 
 #if WITH_EDITORONLY_DATA
 void ULevelSequence::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass)
 {
 	Super::DeclareConstructClasses(OutConstructClasses, SpecificSubclass);
 	OutConstructClasses.Add(FTopLevelAssetPath(UObjectRedirector::StaticClass()));
+	OutConstructClasses.Add(FTopLevelAssetPath(UMovieSceneSpawnableActorBinding::StaticClass()));
+	OutConstructClasses.Add(FTopLevelAssetPath(UMovieSceneSpawnableDirectorBlueprintBinding::StaticClass()));
 }
 #endif
 
@@ -468,12 +626,28 @@ void ULevelSequence::LocateBoundObjects(const FGuid& ObjectId, UObject* Context,
 		InResolveBindingParams.WorldPartitionResolveData ? InResolveBindingParams.WorldPartitionResolveData->SourceWorldAssetPath : InResolveBindingParams.StreamedLevelAssetPath
 		);
 
-	LocateBoundObjects(ObjectId, ResolveParams, OutObjects);
+	LocateBoundObjects(ObjectId, ResolveParams, nullptr, OutObjects);
 }
 
 FGuid ULevelSequence::FindBindingFromObject(UObject* InObject, UObject* Context) const
 {
-	return BindingReferences.FindBindingFromObject(InObject, Context);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return UMovieSceneSequence::FindBindingFromObject(InObject, Context);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+
+FGuid ULevelSequence::FindBindingFromObject(UObject* InObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
+{
+	if (InObject)
+	{
+		if (FMovieSceneEvaluationState* EvaluationState = SharedPlaybackState->FindCapability<FMovieSceneEvaluationState>())
+		{
+			FMovieSceneSequenceID SequenceID = EvaluationState->FindSequenceId(this);
+			return EvaluationState->FindCachedObjectId(*InObject, SequenceID, SharedPlaybackState);
+		}
+	}
+	return FGuid();
 }
 
 void ULevelSequence::GatherExpiredObjects(const FMovieSceneObjectCache& InObjectCache, TArray<FGuid>& OutInvalidIDs) const
@@ -530,12 +704,22 @@ UObject* ULevelSequence::GetParentObject(UObject* Object) const
 
 bool ULevelSequence::AllowsSpawnableObjects() const
 {
-#if WITH_EDITOR
-	if (!UMovieScene::IsTrackClassAllowed(UMovieSceneSpawnTrack::StaticClass()))
+	TArray<const TSubclassOf<UMovieSceneCustomBinding>> CustomBindingTypes;
+
+	MovieSceneHelpers::GetPrioritySortedCustomBindingTypes(CustomBindingTypes);
+	for (const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType : CustomBindingTypes)
 	{
-		return false;
+		const bool bIsCustomSpawnableBinding = CustomBindingType->IsChildOf<UMovieSceneSpawnableBindingBase>();
+		if (bIsCustomSpawnableBinding)
+		{
+			return true;
+		}
 	}
-#endif
+	return false;
+}
+
+bool ULevelSequence::AllowsCustomBindings() const
+{
 	return true;
 }
 
@@ -676,12 +860,6 @@ FGuid ULevelSequence::FindOrAddBinding(UObject* InObject)
 		{
 			ChildPossessable->SetParent(ParentGuid, MovieScene);
 		}
-
-		FMovieSceneSpawnable* ParentSpawnable = MovieScene->FindSpawnable(ParentGuid);
-		if (ParentSpawnable)
-		{
-			ParentSpawnable->AddChildPossessable(NewGuid);
-		}
 	}
 
 	BindPossessableObject(NewGuid, *InObject, BindingContext);
@@ -702,36 +880,16 @@ FGuid ULevelSequence::CreateSpawnable(UObject* ObjectToSpawn)
 		return FGuid();
 	}
 
-	TArray<TSharedRef<IMovieSceneObjectSpawner>> ObjectSpawners;
+	FGuid NewGuid = MovieSceneHelpers::TryCreateCustomSpawnableBinding(this, ObjectToSpawn);
 
-	// In order to create a spawnable, we have to instantiate all the relevant object spawners for level sequences, and try to create a spawnable from each
-	FLevelSequenceModule& LevelSequenceModule = FModuleManager::LoadModuleChecked<FLevelSequenceModule>("LevelSequence");
-	LevelSequenceModule.GenerateObjectSpawners(ObjectSpawners);
-
-	// The first object spawner to return a valid result will win
-	for (TSharedRef<IMovieSceneObjectSpawner> Spawner : ObjectSpawners)
+	UMovieSceneSpawnTrack* NewSpawnTrack = MovieScene->AddTrack<UMovieSceneSpawnTrack>(NewGuid);
+	if (NewSpawnTrack)
 	{
-		TValueOrError<FNewSpawnable, FText> Result = Spawner->CreateNewSpawnableType(*ObjectToSpawn, *MovieScene, nullptr);
-		if (Result.IsValid())
-		{
-			FNewSpawnable& NewSpawnable = Result.GetValue();
+		NewSpawnTrack->Modify();
 
-			NewSpawnable.Name = MovieSceneHelpers::MakeUniqueSpawnableName(MovieScene, NewSpawnable.Name);			
-
-			FGuid NewGuid = MovieScene->AddSpawnable(NewSpawnable.Name, *NewSpawnable.ObjectTemplate);
-
-			UMovieSceneSpawnTrack* NewSpawnTrack = MovieScene->AddTrack<UMovieSceneSpawnTrack>(NewGuid);
-			if (NewSpawnTrack)
-			{
-				NewSpawnTrack->Modify();
-
-				NewSpawnTrack->AddSection(*NewSpawnTrack->CreateNewSection());
-			}
-			return NewGuid;
-		}
+		NewSpawnTrack->AddSection(*NewSpawnTrack->CreateNewSection());
 	}
-
-	return FGuid();
+	return NewGuid;
 }
 
 #endif // WITH_EDITOR
@@ -821,3 +979,35 @@ const TArray<UAssetUserData*>* ULevelSequence::GetAssetUserDataArray() const
 	return &ToRawPtrTArrayUnsafe(AssetUserData);
 }
 
+#if WITH_EDITOR
+void ULevelSequence::IterateDynamicBindings(TFunction<void(const FGuid&, FMovieSceneDynamicBinding&)> InCallback)
+{
+	for (FMovieSceneBindingReference& BindingReference : BindingReferences.GetAllReferences())
+	{
+		if (BindingReference.CustomBinding)
+		{
+			if (UMovieSceneReplaceableDirectorBlueprintBinding* ReplaceableDirectorBlueprintBinding = Cast<UMovieSceneReplaceableDirectorBlueprintBinding>(BindingReference.CustomBinding))
+			{
+				InCallback(BindingReference.ID, ReplaceableDirectorBlueprintBinding->DynamicBinding);
+			}
+
+			// We can't use 'AsSpawnable' here because we don't have playback state and we might not have a world context. 
+			// This should only be called from an editor context though, so we can just check the inner spawnable.
+
+			// If the binding is itself a spawnable director blueprint binding, then iterate over it
+			if (UMovieSceneSpawnableDirectorBlueprintBinding* SpawnableDirectorBlueprintBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(BindingReference.CustomBinding))
+			{
+				InCallback(BindingReference.ID, SpawnableDirectorBlueprintBinding->DynamicBinding);
+			}
+			else if (UMovieSceneReplaceableBindingBase* ReplaceableBinding = Cast<UMovieSceneReplaceableBindingBase>(BindingReference.CustomBinding))
+			{
+				if (UMovieSceneSpawnableDirectorBlueprintBinding* InnerSpawnableDirectorBlueprintBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(ReplaceableBinding->PreviewSpawnable))
+				{
+					InCallback(BindingReference.ID, InnerSpawnableDirectorBlueprintBinding->DynamicBinding);
+				}
+			}
+		}
+	}
+}
+
+#endif

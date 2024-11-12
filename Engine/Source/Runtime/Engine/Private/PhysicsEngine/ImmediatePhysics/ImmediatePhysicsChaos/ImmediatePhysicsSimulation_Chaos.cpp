@@ -16,6 +16,8 @@
 #include "Chaos/Joint/ChaosJointLog.h"
 #include "Chaos/MassConditioning.h"
 #include "Chaos/PBDJointConstraints.h"
+#include "ChaosDebugDraw/ChaosDDScene.h"
+#include "ChaosDebugDraw/ChaosDDTimeline.h"
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "Stats/StatsTrace.h"
 
@@ -78,7 +80,7 @@ Chaos::FRealSingle ChaosImmediate_Collision_MaxDepenetrationVelocity = -1.0f;
 Chaos::FRealSingle ChaosImmediate_Collision_RestitutionThresholdMultiplier = 1.5f;
 int32 ChaosImmediate_Collision_RestitutionEnabled = true;
 int32 ChaosImmediate_Collision_DeferNarrowPhase = 1;
-int32 ChaosImmediate_Collision_UseManifolds = 0;
+int32 ChaosImmediate_Collision_UseManifolds = -1;
 FAutoConsoleVariableRef CVarChaosImmPhysCollisionDisable(TEXT("p.Chaos.ImmPhys.Collision.Enabled"), ChaosImmediate_Collision_Enabled, TEXT("Enable/Disable collisions in Immediate Physics."));
 FAutoConsoleVariableRef CVarChaosImmPhysCollisionPriority(TEXT("p.Chaos.ImmPhys.Collision.Priority"), ChaosImmediate_Collision_Priority, TEXT("Set the Collision constraint sort order (Joints have priority 0)"));
 FAutoConsoleVariableRef CVarChaosImmPhysCollisionCullDistance(TEXT("p.Chaos.ImmPhys.Collision.CullDistance"), ChaosImmediate_Collision_CullDistance, TEXT("Set the collision CullDistance (if >= 0)"));
@@ -86,7 +88,7 @@ FAutoConsoleVariableRef CVarChaosImmPhysCollisionMaxDepenetrationVelocity(TEXT("
 FAutoConsoleVariableRef CVarChaosImmPhysCollisionRestitutionThresholdMultiplier(TEXT("p.Chaos.ImmPhys.Collision.RestitutionThresholdMultiplier"), ChaosImmediate_Collision_RestitutionThresholdMultiplier, TEXT("Collision Restitution Threshold (Acceleration) = Multiplier * Gravity"));
 FAutoConsoleVariableRef CVarChaosImmPhysCollisionRestitutionEnabled(TEXT("p.Chaos.ImmPhys.Collision.RestitutionEnabled"), ChaosImmediate_Collision_RestitutionEnabled, TEXT("Collision Restitution Enable/Disable"));
 FAutoConsoleVariableRef CVarChaosImmPhysCollisionDeferNarrowPhase(TEXT("p.Chaos.ImmPhys.Collision.DeferNarrowPhase"), ChaosImmediate_Collision_DeferNarrowPhase, TEXT("[Legacy Solver] Create contacts for all broadphase pairs, perform NarrowPhase later."));
-FAutoConsoleVariableRef CVarChaosImmPhysCollisionUseManifolds(TEXT("p.Chaos.ImmPhys.Collision.UseManifolds"), ChaosImmediate_Collision_UseManifolds, TEXT("[Legacy Solver] Enable/Disable use of manifoldes in collision."));
+FAutoConsoleVariableRef CVarChaosImmPhysCollisionUseManifolds(TEXT("p.Chaos.ImmPhys.Collision.UseManifolds"), ChaosImmediate_Collision_UseManifolds, TEXT("Override Enable/Disable use of manifoldes in collision (if >= 0)."));
 
 Chaos::FRealSingle ChaosImmediate_Joint_SwingTwistAngleTolerance = 1.0e-6f;
 Chaos::FRealSingle ChaosImmediate_Joint_PositionTolerance = 0.025f;
@@ -155,6 +157,9 @@ FAutoConsoleVariableRef  CVarChaosImmPhysInertiaConditioningMaxInvInertiaCompone
 // Whether to use the linear joint solver which is significantly faster than the non-linear one but less accurate. Only applies to the QuasiPBD Solver
 int32 ChaosImmediate_Joint_UseLinearSolver = -1;
 FAutoConsoleVariableRef CVarChaosImmPhysJointUseCachedSolver(TEXT("p.Chaos.ImmPhys.Joint.UseLinearSolver"), ChaosImmediate_Joint_UseLinearSolver, TEXT("Force use of linear or non-linear joint solver. (-1 to use PhysicsAsset setting)"));
+
+bool bChaosImmediate_UseSimdForLinearSolver = true;
+FAutoConsoleVariableRef  CVarChaosImmPhysUseSimdForLinearSolver(TEXT("p.Chaos.ImmPhys.UseSimd"), bChaosImmediate_UseSimdForLinearSolver, TEXT("Enable/Disable SIMD on the linear joint solver"));
 
 //
 // end remove when finished
@@ -367,7 +372,6 @@ namespace ImmediatePhysics_Chaos
 		DetectorSettings.bFilteringEnabled = false;
 		DetectorSettings.bAllowManifoldReuse = false;
 		DetectorSettings.bDeferNarrowPhase = (ChaosImmediate_Collision_DeferNarrowPhase != 0);
-		DetectorSettings.bAllowManifolds = (ChaosImmediate_Collision_UseManifolds != 0);
 		DetectorSettings.bAllowCCD = false;
 		DetectorSettings.bAllowMACD = false;
 		Implementation->Collisions.SetDetectorSettings(DetectorSettings);
@@ -780,7 +784,7 @@ namespace ImmediatePhysics_Chaos
 		SimSpaceSettings.EulerAlpha = ChaosImmediate_Evolution_SimSpaceEulerAlpha;
 	}
 
-	void FSimulation::SetSolverSettings(const FReal FixedDt, const FReal CullDistance, const FReal MaxDepenetrationVelocity, const int32 UseLinearJointSolver, const int32 PositionIts, const int32 VelocityIts, const int32 ProjectionIts)
+	void FSimulation::SetSolverSettings(const FReal FixedDt, const FReal CullDistance, const FReal MaxDepenetrationVelocity, const int32 UseLinearJointSolver, const int32 PositionIts, const int32 VelocityIts, const int32 ProjectionIts, const int32 bUseManifoilds)
 	{
 		if (FixedDt >= FReal(0))
 		{
@@ -815,11 +819,21 @@ namespace ImmediatePhysics_Chaos
 		if (UseLinearJointSolver >= 0)
 		{
 			Implementation->Joints.SetUseLinearJointSolver(UseLinearJointSolver != 0);
+			Implementation->Joints.SetUseSimd(bChaosImmediate_UseSimdForLinearSolver); // RBAN solver can use safely the SIMD version
+		}
+
+		if (bUseManifoilds >= 0)
+		{
+			Implementation->Collisions.SetAllowManifolds(bUseManifoilds != 0);
 		}
 	}
 
 	void FSimulation::DebugDraw()
 	{
+#if CHAOS_DEBUG_DRAW
+		ChaosDD::Private::FChaosDDScopeTimelineContext DDContext(DDSimulationTimeline, 0.0, 0.0);
+#endif
+
 		DebugDrawStaticParticles();
 		DebugDrawKinematicParticles();
 		DebugDrawDynamicParticles();
@@ -867,7 +881,8 @@ namespace ImmediatePhysics_Chaos
 				ChaosImmediate_Joint_UseLinearSolver,
 				ChaosImmediate_Evolution_PositionIterations,
 				ChaosImmediate_Evolution_VelocityIterations,
-				ChaosImmediate_Evolution_ProjectionIterations);
+				ChaosImmediate_Evolution_ProjectionIterations,
+				ChaosImmediate_Collision_UseManifolds);
 
 			FPBDJointSolverSettings JointsSettings = Implementation->Joints.GetSettings();
 			JointsSettings.SwingTwistAngleTolerance = ChaosImmediate_Joint_SwingTwistAngleTolerance;
@@ -913,7 +928,6 @@ namespace ImmediatePhysics_Chaos
 			FCollisionDetectorSettings DetectorSettings = Implementation->Collisions.GetDetectorSettings();
 			DetectorSettings.bAllowManifoldReuse = false;
 			DetectorSettings.bDeferNarrowPhase = (ChaosImmediate_Collision_DeferNarrowPhase != 0);;
-			DetectorSettings.bAllowManifolds = (ChaosImmediate_Collision_UseManifolds != 0);;
 			Implementation->Collisions.SetDetectorSettings(DetectorSettings);
 
 			if (ChaosImmediate_Evolution_StepTime > 0)
@@ -1144,4 +1158,14 @@ namespace ImmediatePhysics_Chaos
 		}
 #endif
 	}
+
+#if CHAOS_DEBUG_DRAW
+	void FSimulation::SetDebugDrawScene(const FString& SceneName, const ChaosDD::Private::FChaosDDScenePtr& InScene)
+	{
+		if (InScene.IsValid() && !DDSimulationTimeline.IsValid())
+		{
+			DDSimulationTimeline = InScene->CreateTimeline(SceneName);
+		}
+	}
+#endif
 }

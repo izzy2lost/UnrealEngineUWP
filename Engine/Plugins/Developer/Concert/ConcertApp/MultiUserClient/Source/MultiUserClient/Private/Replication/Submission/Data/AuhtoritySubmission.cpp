@@ -4,7 +4,7 @@
 
 #define LOCTEXT_NAMESPACE "EAuthoritySubmissionErrorCode"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FText LexToText(EAuthoritySubmissionResponseErrorCode ErrorCode)
 	{

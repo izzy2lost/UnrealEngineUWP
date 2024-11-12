@@ -23,7 +23,7 @@ class FRecordingMessageHandler : public FProxyMessageHandler, public TSharedFrom
 {
 	struct FRect
 	{
-		FRect() {}
+		FRect() = default;
 
 		FRect(EForceInit)
 			: X(0.0f)

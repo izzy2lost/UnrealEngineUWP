@@ -20,22 +20,22 @@ FReplicationStateStorage::FReplicationStateStorage()
 
 FReplicationStateStorage::~FReplicationStateStorage()
 {
-	Deinit();
 }
 
 void FReplicationStateStorage::Init(FReplicationStateStorageInitParams& InitParams)
 {
-	const uint32 MaxObjectInfoCount = 1U + FPlatformMath::Min(uint32(std::numeric_limits<ObjectInfoIndexType>::max()), FPlatformMath::Min(InitParams.MaxObjectCount, InitParams.MaxDeltaCompressedObjectCount));
+	const uint32 MaxDeltaCompressedObjectInfoCount = 1U + FPlatformMath::Min(uint32(std::numeric_limits<ObjectInfoIndexType>::max()), FPlatformMath::Min(InitParams.MaxObjectCount, InitParams.MaxDeltaCompressedObjectCount));
 
 	// Make sure the MaxObjectInfoCount calculation can't overflow.
-	static_assert(std::numeric_limits<decltype(MaxObjectInfoCount)>::max() > std::numeric_limits<ObjectInfoIndexType>::max(), "");
+	static_assert(std::numeric_limits<decltype(MaxDeltaCompressedObjectInfoCount)>::max() > std::numeric_limits<ObjectInfoIndexType>::max(), "");
 
 	NetRefHandleManager = InitParams.NetRefHandleManager;
 
-	UsedPerObjectInfos.Init(MaxObjectInfoCount);
+	UsedPerObjectInfos.Init(MaxDeltaCompressedObjectInfoCount);
 	UsedPerObjectInfos.SetBit(InvalidObjectInfoIndex);
-	ObjectIndexToObjectInfoIndex.SetNumZeroed(InitParams.MaxObjectCount);
 	
+	ObjectIndexToObjectInfoIndex.SetNumZeroed(InitParams.MaxInternalNetRefIndex);
+
 	InternalSerializationContext = Private::FInternalNetSerializationContext(InitParams.ReplicationSystem);
 	SerializationContext.SetInternalContext(&InternalSerializationContext);
 }
@@ -45,6 +45,11 @@ void FReplicationStateStorage::Deinit()
 #if UE_NET_VALIDATE_DC_BASELINES
 	check(BaselineStorageValidation.Num() == 0);
 #endif
+}
+
+void FReplicationStateStorage::OnMaxInternalNetRefIndexIncreased(UE::Net::Private::FInternalNetRefIndex NewMaxInternalIndex)
+{
+	ObjectIndexToObjectInfoIndex.SetNumZeroed(NewMaxInternalIndex);
 }
 
 const uint8* FReplicationStateStorage::GetState(uint32 ObjectIndex, EReplicationStateType StateType) const
@@ -164,7 +169,7 @@ uint8* FReplicationStateStorage::AllocBaseline(uint32 ObjectIndex, EReplicationS
 void FReplicationStateStorage::FreeBaseline(uint32 ObjectIndex, uint8* Storage)
 {
 	FPerObjectInfo* ObjectInfo = GetPerObjectInfoForObject(ObjectIndex);
-	if (!ensureAlwaysMsgf(ObjectInfo != nullptr, TEXT("Trying to free baseline storage pointer %p for object ( InternalIndex: %u ) with no PerObjectInfo."), Storage, ObjectIndex))
+	if (!ensureMsgf(ObjectInfo != nullptr, TEXT("Trying to free baseline storage pointer %p for object ( InternalIndex: %u ) with no PerObjectInfo."), Storage, ObjectIndex))
 	{
 		return;
 	}
@@ -243,7 +248,7 @@ FReplicationStateStorage::FBaselineReservation FReplicationStateStorage::Reserve
 void FReplicationStateStorage::CancelBaselineReservation(uint32 ObjectIndex, uint8* Storage)
 {
 	FPerObjectInfo* ObjectInfo = GetPerObjectInfoForObject(ObjectIndex);
-	if (!ensureAlwaysMsgf(ObjectInfo != nullptr, TEXT("Trying to cancel a baseline reservation with pointer %p for object ( InternalIndex: %u ) with no PerObjectInfo."), Storage, ObjectIndex))
+	if (!ensureMsgf(ObjectInfo != nullptr, TEXT("Trying to cancel a baseline reservation with pointer %p for object ( InternalIndex: %u ) with no PerObjectInfo."), Storage, ObjectIndex))
 	{
 		return;
 	}
@@ -272,7 +277,7 @@ void FReplicationStateStorage::CommitBaselineReservation(uint32 ObjectIndex, uin
 #endif
 
 	FPerObjectInfo* ObjectInfo = GetPerObjectInfoForObject(ObjectIndex);
-	if (!ensureAlwaysMsgf(ObjectInfo != nullptr, TEXT("Trying to commit baseline storage pointer %p for object ( InternalIndex: %u ) with no PerObjectInfo."), Storage, ObjectIndex))
+	if (!ensureMsgf(ObjectInfo != nullptr, TEXT("Trying to commit baseline storage pointer %p for object ( InternalIndex: %u ) with no PerObjectInfo."), Storage, ObjectIndex))
 	{
 		return;
 	}

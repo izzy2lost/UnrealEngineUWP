@@ -465,8 +465,9 @@ bool SDisplayClusterConfiguratorGraphEditor::CanAddNewViewport() const
 	const TSet<UObject*>& SelectedNodes = GetSelectedNodes();
 	if (SelectedNodes.Num() == 1)
 	{
-		UObject* Node = *SelectedNodes.begin();
-		return Node->IsA<UDisplayClusterConfiguratorWindowNode>() || Node->IsA<UDisplayClusterConfiguratorCanvasNode>();
+		const UObject* Node = *SelectedNodes.begin();
+		return UE::DisplayClusterConfiguratorClusterEditorUtils::CanAddNewViewportToToolkit(ToolkitPtr)
+			&& (Node->IsA<UDisplayClusterConfiguratorWindowNode>() || Node->IsA<UDisplayClusterConfiguratorCanvasNode>());
 	}
 
 	return false;

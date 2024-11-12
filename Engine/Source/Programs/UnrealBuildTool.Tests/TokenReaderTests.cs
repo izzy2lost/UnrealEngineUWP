@@ -132,42 +132,42 @@ namespace UnrealBuildToolTests
 			RunLineNumberTest("first line \\\n+", 2);
 		}
 
-		public static void RunLexerTest(string InputText, string ExpectedOutputText)
+		public static void RunLexerTest(string inputText, string expectedOutputText)
 		{
-			List<Token> Tokens = new List<Token>();
+			List<Token> tokens = new List<Token>();
 
-			using TokenReader Reader = new TokenReader(InputText);
-			while (Reader.MoveNext())
+			using TokenReader reader = new TokenReader(inputText);
+			while (reader.MoveNext())
 			{
-				Tokens.Add(Reader.Current);
+				tokens.Add(reader.Current);
 			}
 
-			string OutputText = String.Join(", ", Tokens.Select(x => FormatToken(x)));
-			Assert.AreEqual(ExpectedOutputText, OutputText);
+			string outputText = String.Join(", ", tokens.Select(x => FormatToken(x)));
+			Assert.AreEqual(expectedOutputText, outputText);
 		}
 
-		static string FormatToken(Token Token)
+		static string FormatToken(Token token)
 		{
-			StringBuilder Result = new StringBuilder();
-			Result.AppendFormat(Token.Type.ToString());
-			if (Token.Type == TokenType.Identifier || Token.Type == TokenType.Number || Token.Type == TokenType.Character || Token.Type == TokenType.String)
+			StringBuilder result = new StringBuilder();
+			result.AppendFormat(token.Type.ToString());
+			if (token.Type == TokenType.Identifier || token.Type == TokenType.Number || token.Type == TokenType.Character || token.Type == TokenType.String)
 			{
-				Result.AppendFormat("({0})", Token.Text);
+				result.AppendFormat("({0})", token.Text);
 			}
-			return Result.ToString();
+			return result.ToString();
 		}
 
-		public static void RunLineNumberTest(string InputText, int ExpectedLineNumber)
+		public static void RunLineNumberTest(string inputText, int expectedLineNumber)
 		{
-			using TokenReader Reader = new TokenReader(InputText);
-			while (Reader.MoveNext())
+			using TokenReader reader = new TokenReader(inputText);
+			while (reader.MoveNext())
 			{
-				if (Reader.Current.Type == TokenType.Plus)
+				if (reader.Current.Type == TokenType.Plus)
 				{
 					break;
 				}
 			}
-			Assert.AreEqual(ExpectedLineNumber, Reader.LineNumber);
+			Assert.AreEqual(expectedLineNumber, reader.LineNumber);
 		}
 	}
 }

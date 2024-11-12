@@ -8,6 +8,7 @@
 #include "USDExporterModule.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDOptionsWindow.h"
 #include "USDPrimConversion.h"
 #include "USDSkeletalDataConversion.h"
@@ -131,8 +132,12 @@ bool UAnimSequenceExporterUSD::ExportBinary(
 	// Export preview mesh if needed
 	USkeletalMesh* SkeletalMesh = nullptr;
 	FString MeshAssetFile;
+	bool bExportAsSkeletal = true;
 	if (Options && Options->bExportPreviewMesh)
 	{
+		// To convert to non-skeletal, need to export the preview mesh in the first place
+		bExportAsSkeletal = !Options->PreviewMeshOptions.bConvertSkeletalToNonSkeletal;
+
 		SkeletalMesh = AnimSequence->GetPreviewMesh();
 		USkeleton* AnimSkeleton = SkeletalMesh ? SkeletalMesh->GetSkeleton() : nullptr;
 
@@ -195,7 +200,7 @@ bool UAnimSequenceExporterUSD::ExportBinary(
 	// Collect the target paths for our SkelAnimation prim and its SkelRoot, if any
 	UE::FSdfPath SkelRootPath;
 	UE::FSdfPath SkelAnimPath;
-	if (MeshAssetFile.IsEmpty())
+	if (MeshAssetFile.IsEmpty() || !bExportAsSkeletal)
 	{
 		SkelAnimPath = UE::FSdfPath::AbsoluteRootPath().AppendChild(*UsdUtils::SanitizeUsdIdentifier(*AnimSequence->GetName()));
 	}
@@ -294,34 +299,50 @@ bool UAnimSequenceExporterUSD::ExportBinary(
 	// Exported a SkeletalMesh prim elsewhere, create a SkelRoot containing this SkelAnimation prim
 	else
 	{
-		SkelRootPrim = AnimationStage.DefinePrim(SkelRootPath, TEXT("SkelRoot"));
-		if (!SkelRootPrim)
+		if (bExportAsSkeletal)
 		{
-			return false;
-		}
+			SkelRootPrim = AnimationStage.DefinePrim(SkelRootPath, TEXT("SkelRoot"));
+			if (!SkelRootPrim)
+			{
+				return false;
+			}
 
-		SkelAnimPrim = AnimationStage.DefinePrim(SkelAnimPath, TEXT("SkelAnimation"));
-		if (!SkelAnimPrim)
+			SkelAnimPrim = AnimationStage.DefinePrim(SkelAnimPath, TEXT("SkelAnimation"));
+			if (!SkelAnimPrim)
+			{
+				return false;
+			}
+
+			UE::FSdfPath SkeletonPath = SkelRootPath.AppendChild(UnrealIdentifiers::ExportedSkeletonPrimName);
+			UE::FUsdPrim SkeletonPrim = AnimationStage.DefinePrim(SkeletonPath, TEXT("Skeleton"));
+			if (!SkeletonPrim)
+			{
+				return false;
+			}
+
+			AnimationStage.SetDefaultPrim(SkelRootPrim);
+
+			// Add a reference to the SkelRoot of the static mesh, which will compose in the Mesh and Skeleton prims
+			UsdUtils::AddReference(SkelRootPrim, *MeshAssetFile);
+
+			// We bind the animation directly to the Skeleton (and not the skel root) because binding it to the SkelRoot
+			// may lead to trouble when we're exporting nested SkeletalMeshComponents, as it will be inherited by
+			// all child Skeletons (even the ones that wouldn't otherwise receive any animation)
+			UsdUtils::BindAnimationSource(SkeletonPrim, SkelAnimPrim);
+		}
+		else
 		{
-			return false;
+			SkelAnimPrim = AnimationStage.DefinePrim(SkelAnimPath, TEXT("Mesh"));
+			if (!SkelAnimPrim)
+			{
+				return false;
+			}
+
+			AnimationStage.SetDefaultPrim(SkelAnimPrim);
+
+			// Add a reference to the static mesh prim on which the time samples will be authored
+			UsdUtils::AddReference(SkelAnimPrim, *MeshAssetFile);
 		}
-
-		UE::FSdfPath SkeletonPath = SkelRootPath.AppendChild(UnrealIdentifiers::ExportedSkeletonPrimName);
-		UE::FUsdPrim SkeletonPrim = AnimationStage.DefinePrim(SkeletonPath, TEXT("Skeleton"));
-		if (!SkeletonPrim)
-		{
-			return false;
-		}
-
-		AnimationStage.SetDefaultPrim(SkelRootPrim);
-
-		// Add a reference to the SkelRoot of the static mesh, which will compose in the Mesh and Skeleton prims
-		UsdUtils::AddReference(SkelRootPrim, *MeshAssetFile);
-
-		// We bind the animation directly to the Skeleton (and not the skel root) because binding it to the SkelRoot
-		// may lead to trouble when we're exporting nested SkeletalMeshComponents, as it will be inherited by
-		// all child Skeletons (even the ones that wouldn't otherwise receive any animation)
-		UsdUtils::BindAnimationSource(SkeletonPrim, SkelAnimPrim);
 	}
 
 	// Configure stage metadata
@@ -339,7 +360,14 @@ bool UAnimSequenceExporterUSD::ExportBinary(
 		AnimationStage.SetTimeCodesPerSecond(AnimSequence->GetSamplingFrameRate().AsDecimal());
 	}
 
-	UnrealToUsd::ConvertAnimSequence(AnimSequence, SkelAnimPrim);
+	if (bExportAsSkeletal)
+	{
+		UnrealToUsd::ConvertAnimSequence(AnimSequence, SkelAnimPrim);
+	}
+	else
+	{
+		UnrealToUsd::ConvertAnimSequenceToAnimatedMesh(AnimSequence, SkeletalMesh, SkelAnimPrim);
+	}
 
 	if (Options->MetadataOptions.bExportAssetInfo)
 	{
@@ -357,7 +385,7 @@ bool UAnimSequenceExporterUSD::ExportBinary(
 
 	if (Options->MetadataOptions.bExportAssetMetadata)
 	{
-		if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(AnimSequence))
+		if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetAssetUserData(AnimSequence))
 		{
 			UnrealToUsd::ConvertMetadata(
 				UserData,

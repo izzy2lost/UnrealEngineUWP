@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGGlobalPool.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersReduceCS.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
@@ -57,7 +59,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (InputTensorDescs[0].GetShape().Rank() != OutputTensorDescs[0].GetShape().Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("GlobalPool operators requires the output to have the same rank as the input."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("GlobalPool: Operators requires the output to have the same rank as the input."));
 				return false;
 			}
 
@@ -65,7 +67,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (InputRank <= FirstReducedDimension)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("GlobalPool operators requires input tensor to be at least 3-D (but got rank %d)"), InputRank);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("GlobalPool: Operators requires input tensor to be at least 3-D (but got rank %d)"), InputRank);
 				return false;
 			}
 
@@ -84,7 +86,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			const FTensorRDG& Input = *InputTensors[0];
 			const FTensorRDG& Output = *OutputTensors[0];
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.GlobalPool");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorGlobalPool, "NNE.Operator.Hlsl.GlobalPool");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorGlobalPool);
 
 			TReduceCS::FParameters* Parameters = GraphBuilder.AllocParameters<TReduceCS::FParameters>();
@@ -121,8 +123,8 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterGlobalPoolOperators(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("GlobalAveragePool"), TEXT("Onnx")}}, CreateGlobalPoolOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Average>, ValidateGlobalPoolOperator);
-		Registry.OpAdd({ {TEXT("GlobalMaxPool"), TEXT("Onnx")} }, CreateGlobalPoolOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Max>, ValidateGlobalPoolOperator);
+		Registry.OpAdd({{TEXT("GlobalAveragePool"), TEXT("Onnx")}, 1}, CreateGlobalPoolOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Average>, ValidateGlobalPoolOperator);
+		Registry.OpAdd({{TEXT("GlobalMaxPool"), TEXT("Onnx")}, 1}, CreateGlobalPoolOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Max>, ValidateGlobalPoolOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

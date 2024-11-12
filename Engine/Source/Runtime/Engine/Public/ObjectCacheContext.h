@@ -15,6 +15,7 @@ class USkinnedMeshComponent;
 class UMaterialInterface;
 class UStaticMesh;
 class UTexture;
+class UTextureCollection;
 class USkeletalMesh;
 class USkinnedAsset;
 
@@ -75,9 +76,11 @@ public:
 	ENGINE_API TObjectCacheIterator<USkinnedMeshComponent> GetSkinnedMeshComponents(USkinnedAsset* InSkinnedAsset);
 	ENGINE_API TObjectCacheIterator<IStaticMeshComponent>  GetStaticMeshComponents(UStaticMesh* InStaticMesh);
 	ENGINE_API TObjectCacheIterator<UMaterialInterface>    GetMaterialsAffectedByTexture(UTexture* InTexture);
+	ENGINE_API TObjectCacheIterator<UMaterialInterface>    GetMaterialsAffectedByTextureCollection(UTextureCollection* InTextureCollection);
 	ENGINE_API TObjectCacheIterator<IPrimitiveComponent>   GetPrimitivesAffectedByMaterial(UMaterialInterface* InMaterial);
 	ENGINE_API TObjectCacheIterator<IPrimitiveComponent>   GetPrimitivesAffectedByMaterials(TArrayView<UMaterialInterface*> InMaterials);
 	ENGINE_API TObjectCacheIterator<UTexture>              GetUsedTextures(UMaterialInterface* InMaterial);
+	ENGINE_API TObjectCacheIterator<UTextureCollection>    GetUsedTextureCollections(UMaterialInterface* InMaterial);
 	ENGINE_API TObjectCacheIterator<UMaterialInterface>    GetUsedMaterials(IPrimitiveComponent* InComponent);	
 	ENGINE_API TObjectCacheIterator<UMaterialInterface>    GetMaterialsAffectedByMaterials(TArrayView<UMaterialInterface*> InMaterials);
 #if WITH_EDITOR
@@ -89,7 +92,9 @@ private:
 	FObjectCacheContext() = default;
 	TMap<IPrimitiveComponent*, TSet<UMaterialInterface*>> PrimitiveComponentToMaterial;
 	TMap<TObjectKey<UMaterialInterface>, TSet<UTexture*>> MaterialUsedTextures;
+	TMap<TObjectKey<UMaterialInterface>, TSet<UTextureCollection*>> MaterialUsedTextureCollections;
 	TOptional<TMap<TObjectKey<UTexture>, TSet<UMaterialInterface*>>> TextureToMaterials;
+	TOptional<TMap<TObjectKey<UTextureCollection>, TSet<UMaterialInterface*>>> TextureCollectionToMaterials;
 #if WITH_EDITOR
 	TOptional<TMap<TObjectKey<UTexture>, TSet<UTexture*>>> TextureToTextures;
 #endif

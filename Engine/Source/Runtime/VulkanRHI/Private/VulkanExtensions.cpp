@@ -1,12 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "VulkanRHIPrivate.h"
 #include "VulkanExtensions.h"
+#include "VulkanDevice.h"
+#include "VulkanRHIPrivate.h"
 
 #include "IHeadMountedDisplayModule.h"
 #include "IHeadMountedDisplayVulkanExtensions.h"
 #include "Misc/CommandLine.h"
 
+#include "RHICore.h"
+#include "RHICoreNvidiaAftermath.h"
 
 // ADDING A NEW EXTENSION:
 // 
@@ -179,10 +182,50 @@ public:
 		ExtensionFlags.HasKHRMaintenance4 = bRequirementsPassed;
 	}
 
+	virtual void PreCreateDevice(VkDeviceCreateInfo& DeviceCreateInfo) override final
+	{
+		if (bRequirementsPassed)
+		{
+			AddToPNext(DeviceCreateInfo, Maintenance4Features);
+		}
+	}
+
 private:
 	VkPhysicalDeviceMaintenance4FeaturesKHR Maintenance4Features;
 };
 
+
+// ***** VK_KHR_maintenance5
+class FVulkanKHRMaintenance5Extension : public FVulkanDeviceExtension
+{
+public:
+
+	FVulkanKHRMaintenance5Extension(FVulkanDevice* InDevice)
+		: FVulkanDeviceExtension(InDevice, VK_KHR_MAINTENANCE_5_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
+	{}
+
+	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final
+	{
+		ZeroVulkanStruct(Maintenance5Features, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES_KHR);
+		AddToPNext(PhysicalDeviceFeatures2, Maintenance5Features);
+	}
+
+	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
+	{
+		bRequirementsPassed = (Maintenance5Features.maintenance5 == VK_TRUE);
+	}
+
+	virtual void PreCreateDevice(VkDeviceCreateInfo& DeviceCreateInfo) override final
+	{
+		if (bRequirementsPassed)
+		{
+			AddToPNext(DeviceCreateInfo, Maintenance5Features);
+		}
+	}
+
+private:
+	VkPhysicalDeviceMaintenance5FeaturesKHR Maintenance5Features;
+};
 
 
 // ***** VK_KHR_driver_properties
@@ -499,9 +542,10 @@ public:
 	FVulkanKHRFragmentShadingRateExtension(FVulkanDevice* InDevice)
 		: FVulkanDeviceExtension(InDevice, VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
 	{
-		int32 VRSFormatPreference = GVulkanVariableRateShadingFormatCVar->GetInt();
-		bEnabledInCode = bEnabledInCode && GRHIVariableRateShadingEnabled;
+		bEnabledInCode &= HardwareVariableRateShadingSupportedByPlatform(GMaxRHIShaderPlatform);
+
 		// FSR should be enabled even if FDM is preferred because it could be not available.
+		int32 VRSFormatPreference = GVulkanVariableRateShadingFormatCVar->GetInt();
 		bEnabledInCode &= (VRSFormatPreference <= (uint8) EVulkanVariableRateShadingPreference::RequireFSR || VRSFormatPreference == (uint8)EVulkanVariableRateShadingPreference::PreferFDM);
 	}
 
@@ -583,9 +627,10 @@ public:
 	FVulkanEXTFragmentDensityMapExtension(FVulkanDevice* InDevice)
 		: FVulkanDeviceExtension(InDevice, VK_EXT_FRAGMENT_DENSITY_MAP_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
 	{
-		int32 VRSFormatPreference = GVulkanVariableRateShadingFormatCVar->GetInt();
-		bEnabledInCode = bEnabledInCode && GRHIVariableRateShadingEnabled;
+		bEnabledInCode &= HardwareVariableRateShadingSupportedByPlatform(GMaxRHIShaderPlatform);
+
 		// FDM should be enabled even if the preferred choice is FSR because that might not be available.
+		int32 VRSFormatPreference = GVulkanVariableRateShadingFormatCVar->GetInt();
 		bEnabledInCode &= (VRSFormatPreference >= (uint8) EVulkanVariableRateShadingPreference::PreferFDM || VRSFormatPreference == (uint8) EVulkanVariableRateShadingPreference::PreferFSR);
 	}
 
@@ -657,7 +702,7 @@ public:
 	FVulkanEXTFragmentDensityMap2Extension(FVulkanDevice* InDevice)
 		: FVulkanDeviceExtension(InDevice, VK_EXT_FRAGMENT_DENSITY_MAP_2_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
 	{
-		bEnabledInCode = bEnabledInCode && GRHIVariableRateShadingEnabled;
+		bEnabledInCode &= HardwareVariableRateShadingSupportedByPlatform(GMaxRHIShaderPlatform);
 	}
 
 	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final
@@ -682,6 +727,96 @@ public:
 		{
 			VkPhysicalDeviceFragmentDensityMap2FeaturesEXT& FragmentDensityMap2Features = GetDeviceExtensionProperties().FragmentDensityMap2Features;
 			AddToPNext(DeviceCreateInfo, FragmentDensityMap2Features);
+		}
+	}
+};
+
+
+
+// ***** VK_KHR_fragment_shader_barycentric
+class FVulkanKHRFragmentShaderBarycentricExtension : public FVulkanDeviceExtension
+{
+public:
+
+	FVulkanKHRFragmentShaderBarycentricExtension(FVulkanDevice* InDevice)
+		: FVulkanDeviceExtension(InDevice, VK_KHR_FRAGMENT_SHADER_BARYCENTRIC_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
+	{
+	}
+
+	virtual void PrePhysicalDeviceProperties(VkPhysicalDeviceProperties2KHR& PhysicalDeviceProperties2) override final
+	{
+		VkPhysicalDeviceFragmentShaderBarycentricPropertiesKHR& FragmentShaderBarycentricProps = GetDeviceExtensionProperties().FragmentShaderBarycentricProps;
+		ZeroVulkanStruct(FragmentShaderBarycentricProps, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_PROPERTIES_KHR);
+		AddToPNext(PhysicalDeviceProperties2, FragmentShaderBarycentricProps);
+	}
+
+	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final
+	{
+		ZeroVulkanStruct(FragmentShaderBarycentricFeatures, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_FEATURES_KHR);
+		AddToPNext(PhysicalDeviceFeatures2, FragmentShaderBarycentricFeatures);
+	}
+
+	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
+	{
+		bRequirementsPassed = (FragmentShaderBarycentricFeatures.fragmentShaderBarycentric == VK_TRUE);
+
+		// Should be runtime guaranteed through SM6 profile
+		ExtensionFlags.HasKHRFragmentShaderBarycentric = bRequirementsPassed;
+		GRHIGlobals.SupportsBarycentricsSemantic = bRequirementsPassed;
+	}
+
+	virtual void PostPhysicalDeviceProperties() override final
+	{
+		VkPhysicalDeviceFragmentShaderBarycentricPropertiesKHR& FragmentShaderBarycentricProps = GetDeviceExtensionProperties().FragmentShaderBarycentricProps;
+		//UE_LOG(LogVulkanRHI, Verbose, TEXT("triStripVertexOrderIndependentOfProvokingVertex is %s"), FragmentShaderBarycentricProps.triStripVertexOrderIndependentOfProvokingVertex ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual void PreCreateDevice(VkDeviceCreateInfo& DeviceCreateInfo) override final
+	{
+		// fragmentShaderBarycentric indicates that the implementation supports the BaryCoordKHR and BaryCoordNoPerspKHR SPIR - V fragment shader built - ins 
+		// and supports the PerVertexKHR SPIR - V decoration on fragment shader input variables.
+		if (bRequirementsPassed)
+		{
+			AddToPNext(DeviceCreateInfo, FragmentShaderBarycentricFeatures);
+		}
+	}
+
+	VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR FragmentShaderBarycentricFeatures;
+};
+
+
+
+// ***** VK_NV_compute_shader_derivatives
+class FVulkanNVComputeShaderDerivatives : public FVulkanDeviceExtension
+{
+public:
+
+	FVulkanNVComputeShaderDerivatives(FVulkanDevice* InDevice)
+		: FVulkanDeviceExtension(InDevice, VK_NV_COMPUTE_SHADER_DERIVATIVES_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
+	{
+	}
+
+	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final
+	{
+		VkPhysicalDeviceComputeShaderDerivativesFeaturesNV& ComputeShaderDerivativesFeatures = GetDeviceExtensionProperties().ComputeShaderDerivativesFeatures;
+		ZeroVulkanStruct(ComputeShaderDerivativesFeatures, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COMPUTE_SHADER_DERIVATIVES_FEATURES_NV);
+		AddToPNext(PhysicalDeviceFeatures2, ComputeShaderDerivativesFeatures);
+	}
+
+	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
+	{
+		VkPhysicalDeviceComputeShaderDerivativesFeaturesNV& ComputeShaderDerivativesFeatures = GetDeviceExtensionProperties().ComputeShaderDerivativesFeatures;
+		bRequirementsPassed = (ComputeShaderDerivativesFeatures.computeDerivativeGroupLinear == VK_TRUE);
+		ComputeShaderDerivativesFeatures.computeDerivativeGroupQuads = VK_FALSE;  // disable the unused quad mode
+		// Should be runtime guaranteed through SM6 profile
+	}
+
+	virtual void PreCreateDevice(VkDeviceCreateInfo& DeviceCreateInfo) override final
+	{
+		if (bRequirementsPassed)
+		{
+			VkPhysicalDeviceComputeShaderDerivativesFeaturesNV& ComputeShaderDerivativesFeatures = GetDeviceExtensionProperties().ComputeShaderDerivativesFeatures;
+			AddToPNext(DeviceCreateInfo, ComputeShaderDerivativesFeatures);
 		}
 	}
 };
@@ -740,7 +875,7 @@ class FVulkanKHRAccelerationStructureExtension : public FVulkanDeviceExtension
 public:
 
 	FVulkanKHRAccelerationStructureExtension(FVulkanDevice* InDevice)
-		: FVulkanDeviceExtension(InDevice, VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VULKAN_RHI_RAYTRACING)
+		: FVulkanDeviceExtension(InDevice, VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
 	{
 		bEnabledInCode = bEnabledInCode && GVulkanRayTracingCVar.GetValueOnAnyThread() && !FParse::Param(FCommandLine::Get(), TEXT("noraytracing"));
 	}
@@ -761,11 +896,9 @@ public:
 
 	virtual void PrePhysicalDeviceProperties(VkPhysicalDeviceProperties2KHR& PhysicalDeviceProperties2) override final
 	{
-#if VULKAN_RHI_RAYTRACING
 		VkPhysicalDeviceAccelerationStructurePropertiesKHR& AccelerationStructure = GetDeviceExtensionProperties().AccelerationStructureProps;
 		ZeroVulkanStruct(AccelerationStructure, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR);
 		AddToPNext(PhysicalDeviceProperties2, AccelerationStructure);
-#endif
 	}
 
 	virtual void PreCreateDevice(VkDeviceCreateInfo& DeviceCreateInfo) override final
@@ -788,7 +921,7 @@ class FVulkanKHRRayTracingPipelineExtension : public FVulkanDeviceExtension
 public:
 
 	FVulkanKHRRayTracingPipelineExtension(FVulkanDevice* InDevice) 
-		: FVulkanDeviceExtension(InDevice, VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, VULKAN_RHI_RAYTRACING)
+		: FVulkanDeviceExtension(InDevice, VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
 	{
 		bEnabledInCode = bEnabledInCode && GVulkanRayTracingCVar.GetValueOnAnyThread() && !FParse::Param(FCommandLine::Get(), TEXT("noraytracing"));
 	}
@@ -809,11 +942,9 @@ public:
 
 	virtual void PrePhysicalDeviceProperties(VkPhysicalDeviceProperties2KHR& PhysicalDeviceProperties2) override final
 	{
-#if VULKAN_RHI_RAYTRACING
 		VkPhysicalDeviceRayTracingPipelinePropertiesKHR& RayTracingPipeline = GetDeviceExtensionProperties().RayTracingPipelineProps;
 		ZeroVulkanStruct(RayTracingPipeline, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR);
 		AddToPNext(PhysicalDeviceProperties2, RayTracingPipeline);
-#endif
 	}
 
 	virtual void PreCreateDevice(VkDeviceCreateInfo& DeviceCreateInfo) override final
@@ -838,7 +969,7 @@ class FVulkanKHRRayQueryExtension : public FVulkanDeviceExtension
 public:
 
 	FVulkanKHRRayQueryExtension(FVulkanDevice* InDevice) 
-		: FVulkanDeviceExtension(InDevice, VK_KHR_RAY_QUERY_EXTENSION_NAME, VULKAN_RHI_RAYTRACING)
+		: FVulkanDeviceExtension(InDevice, VK_KHR_RAY_QUERY_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
 	{
 		bEnabledInCode = bEnabledInCode && GVulkanRayTracingCVar.GetValueOnAnyThread() && !FParse::Param(FCommandLine::Get(), TEXT("noraytracing"));
 	}
@@ -868,6 +999,115 @@ private:
 };
 
 
+// ***** VK_KHR_ray_tracing_position_fetch
+class FVulkanKHRRayTracingPositionFetchExtension : public FVulkanDeviceExtension
+{
+public:
+
+	FVulkanKHRRayTracingPositionFetchExtension(FVulkanDevice* InDevice)
+		: FVulkanDeviceExtension(InDevice, VK_KHR_RAY_TRACING_POSITION_FETCH_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
+	{
+		bEnabledInCode = bEnabledInCode && GVulkanRayTracingCVar.GetValueOnAnyThread() && !FParse::Param(FCommandLine::Get(), TEXT("noraytracing"));
+	}
+
+	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final
+	{
+		ZeroVulkanStruct(RayTracingPositionFetchFeatures, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR);
+		AddToPNext(PhysicalDeviceFeatures2, RayTracingPositionFetchFeatures);
+	}
+
+	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
+	{
+		bRequirementsPassed = (RayTracingPositionFetchFeatures.rayTracingPositionFetch == VK_TRUE);
+	}
+
+	virtual void PreCreateDevice(VkDeviceCreateInfo& DeviceCreateInfo) override final
+	{
+		if (bRequirementsPassed)
+		{
+			AddToPNext(DeviceCreateInfo, RayTracingPositionFetchFeatures);
+		}
+	}
+
+private:
+	VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR  RayTracingPositionFetchFeatures;
+};
+
+// ***** VK_KHR_timeline_semaphore
+class FVulkanKHRTimelineSemaphoreExtension : public FVulkanDeviceExtension
+{
+public:
+
+	FVulkanKHRTimelineSemaphoreExtension(FVulkanDevice* InDevice)
+		: FVulkanDeviceExtension(InDevice, VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
+	{
+	}
+
+	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final
+	{
+		ZeroVulkanStruct(TimelineSemaphoreFeatures, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES);
+		AddToPNext(PhysicalDeviceFeatures2, TimelineSemaphoreFeatures);
+	}
+
+	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
+	{
+		bRequirementsPassed = (TimelineSemaphoreFeatures.timelineSemaphore == VK_TRUE);
+	}
+
+	virtual void PreCreateDevice(VkDeviceCreateInfo& DeviceCreateInfo) override final
+	{
+		if (bRequirementsPassed)
+		{
+			AddToPNext(DeviceCreateInfo, TimelineSemaphoreFeatures);
+		}
+	}
+
+private:
+	VkPhysicalDeviceTimelineSemaphoreFeatures TimelineSemaphoreFeatures;
+};
+
+
+// ***** VK_EXT_mesh_shader
+class FVulkanEXTMeshShaderExtension : public FVulkanDeviceExtension
+{
+public:
+
+	FVulkanEXTMeshShaderExtension(FVulkanDevice* InDevice)
+		: FVulkanDeviceExtension(InDevice, VK_EXT_MESH_SHADER_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
+	{
+	}
+
+	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final
+	{
+		ZeroVulkanStruct(MeshShaderFeatures, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT);
+		AddToPNext(PhysicalDeviceFeatures2, MeshShaderFeatures);
+	}
+
+	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
+	{
+		bRequirementsPassed = (MeshShaderFeatures.meshShader == VK_TRUE) && (MeshShaderFeatures.multiviewMeshShader == VK_TRUE);
+		ExtensionFlags.HasEXTMeshShader = bRequirementsPassed;
+	}
+
+	virtual void PrePhysicalDeviceProperties(VkPhysicalDeviceProperties2KHR& PhysicalDeviceProperties2) override final
+	{
+		VkPhysicalDeviceMeshShaderPropertiesEXT& MeshShaderProperties = GetDeviceExtensionProperties().MeshShaderProperties;
+		ZeroVulkanStruct(MeshShaderProperties, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT);
+		AddToPNext(PhysicalDeviceProperties2, MeshShaderProperties);
+	}
+
+	virtual void PreCreateDevice(VkDeviceCreateInfo& DeviceCreateInfo) override final
+	{
+		if (bRequirementsPassed)
+		{
+			AddToPNext(DeviceCreateInfo, MeshShaderFeatures);
+		}
+	}
+
+private:
+	VkPhysicalDeviceMeshShaderFeaturesEXT MeshShaderFeatures;
+};
+
 
 // ***** VK_AMD_buffer_marker (vendor)
 class FVulkanAMDBufferMarkerExtension : public FVulkanDeviceExtension
@@ -877,8 +1117,7 @@ public:
 	FVulkanAMDBufferMarkerExtension(FVulkanDevice* InDevice)
 		: FVulkanDeviceExtension(InDevice, VK_AMD_BUFFER_MARKER_EXTENSION_NAME, VULKAN_SUPPORTS_AMD_BUFFER_MARKER)
 	{
-		const bool bAllowVendorDevice = !FParse::Param(FCommandLine::Get(), TEXT("novendordevice"));
-		bEnabledInCode = bEnabledInCode && GGPUCrashDebuggingEnabled && bAllowVendorDevice;
+		bEnabledInCode = bEnabledInCode && UE::RHI::UseGPUCrashDebugging() && UE::RHICore::AllowVendorDevice();
 	}
 
 	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
@@ -897,8 +1136,7 @@ public:
 	FVulkanNVDeviceDiagnosticCheckpointsExtension(FVulkanDevice* InDevice)
 		: FVulkanDeviceExtension(InDevice, VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME, VULKAN_SUPPORTS_NV_DIAGNOSTICS)
 	{
-		const bool bAllowVendorDevice = !FParse::Param(FCommandLine::Get(), TEXT("novendordevice"));
-		bEnabledInCode = bEnabledInCode && GGPUCrashDebuggingEnabled && bAllowVendorDevice;
+		bEnabledInCode = bEnabledInCode && UE::RHI::UseGPUCrashDebugging() && UE::RHICore::AllowVendorDevice();
 	}
 
 	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
@@ -917,8 +1155,7 @@ public:
 	FVulkanNVDeviceDiagnosticConfigExtension(FVulkanDevice* InDevice)
 		: FVulkanDeviceExtension(InDevice, VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME, VULKAN_SUPPORTS_NV_DIAGNOSTICS)
 	{
-		const bool bAllowVendorDevice = !FParse::Param(FCommandLine::Get(), TEXT("novendordevice"));
-		bEnabledInCode = bEnabledInCode && GGPUCrashDebuggingEnabled && bAllowVendorDevice;
+		bEnabledInCode = bEnabledInCode && UE::RHI::UseGPUCrashDebugging() && UE::RHICore::AllowVendorDevice();
 	}
 
 
@@ -943,12 +1180,60 @@ public:
 			ZeroVulkanStruct(DeviceDiagnosticsConfigCreateInfoNV, VK_STRUCTURE_TYPE_DEVICE_DIAGNOSTICS_CONFIG_CREATE_INFO_NV);
 			DeviceDiagnosticsConfigCreateInfoNV.flags = VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_DEBUG_INFO_BIT_NV | VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_RESOURCE_TRACKING_BIT_NV | VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_AUTOMATIC_CHECKPOINTS_BIT_NV;
 			AddToPNext(DeviceCreateInfo, DeviceDiagnosticsConfigCreateInfoNV);
+
+#if NV_AFTERMATH && (RHI_NEW_GPU_PROFILER == 0)
+			// Vulkan's breadcrumb / markers implementation differs from the one provided by RHICore.
+			// @todo unify the implementation so this isn't necessary
+			extern void AftermathResolveMarkerCallback(const void* Marker, void** ResolvedMarkerData, uint32_t * MarkerSize);
+			UE::RHICore::Nvidia::Aftermath::InitializeBeforeDeviceCreation([](const void* MarkerData, const uint32_t MarkerDataSize, void* UserData, void** ResolvedMarkerData, uint32_t* ResolvedMarkerDataSize) -> void
+			{
+				AftermathResolveMarkerCallback(MarkerData, ResolvedMarkerData, ResolvedMarkerDataSize);
+			});
+#endif
 		}
 	}
 
 private:
 	VkPhysicalDeviceDiagnosticsConfigFeaturesNV DeviceDiagnosticsConfigFeaturesNV;
 	VkDeviceDiagnosticsConfigCreateInfoNV DeviceDiagnosticsConfigCreateInfoNV;
+};
+
+// ***** VK_NV_ray_tracing_validation (vendor)
+class FVulkanNVRayTracingValidationExtension : public FVulkanDeviceExtension
+{
+public:
+
+	FVulkanNVRayTracingValidationExtension(FVulkanDevice* InDevice)
+		: FVulkanDeviceExtension(InDevice, VK_NV_RAY_TRACING_VALIDATION_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
+	{
+#if VULKAN_HAS_DEBUGGING_ENABLED
+		bEnabledInCode = bEnabledInCode && (GValidationCvar.GetValueOnAnyThread() > 0) && UE::RHICore::AllowVendorDevice();
+#else
+		bEnabledInCode = false;
+#endif
+	}
+
+	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final
+	{
+		ZeroVulkanStruct(RayTracingValidationFeaturesNV, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV);
+		AddToPNext(PhysicalDeviceFeatures2, RayTracingValidationFeaturesNV);
+	}
+
+	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
+	{
+		bRequirementsPassed = (RayTracingValidationFeaturesNV.rayTracingValidation == VK_TRUE);
+	}
+
+	virtual void PreCreateDevice(VkDeviceCreateInfo& DeviceCreateInfo) override final
+	{
+		if (bRequirementsPassed)
+		{
+			AddToPNext(DeviceCreateInfo, RayTracingValidationFeaturesNV);
+		}
+	}
+
+private:
+	VkPhysicalDeviceRayTracingValidationFeaturesNV RayTracingValidationFeaturesNV;
 };
 
 // ***** VK_EXT_device_fault
@@ -1271,6 +1556,23 @@ public:
 	VkPhysicalDeviceShaderFloat16Int8Features  ShaderFloat16Int8Features;
 };
 
+// ***** VK_KHR_depth_stencil_resolve
+class FVulkanKHRDepthStencilResolveExtension : public FVulkanDeviceExtension
+{
+public:
+
+	FVulkanKHRDepthStencilResolveExtension(FVulkanDevice* InDevice)
+		: FVulkanDeviceExtension(InDevice, VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED)
+	{
+	}
+
+	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
+	{
+		ExtensionFlags.HasKHRDepthStencilResolve = 1;
+		GRHISupportsDepthStencilResolve = ExtensionFlags.HasKHRDepthStencilResolve;
+	}
+};
+
 // ***** VK_EXT_pipeline_creation_cache_control
 class FVulkanEXTPipelineCreationCacheControlExtension : public FVulkanDeviceExtension
 {
@@ -1303,6 +1605,40 @@ public:
 	VkPhysicalDevicePipelineCreationCacheControlFeatures PhysicalDevicePipelineCreationCacheControlFeatures;
 };
 
+// ***** VK_KHR_sampler_ycbcr_conversion
+class FVulkanKHRSamplerYcbcrConversionExtension : public FVulkanDeviceExtension
+{
+public:
+
+	FVulkanKHRSamplerYcbcrConversionExtension(FVulkanDevice* InDevice) 
+		: FVulkanDeviceExtension(InDevice, VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED, VK_API_VERSION_1_1)
+	{
+	}
+
+	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final
+	{
+		ZeroVulkanStruct(PhysicalDeviceSamplerYcbcrConversionFeatures, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES);
+		AddToPNext(PhysicalDeviceFeatures2, PhysicalDeviceSamplerYcbcrConversionFeatures);
+	}
+
+	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
+	{
+		bRequirementsPassed = (PhysicalDeviceSamplerYcbcrConversionFeatures.samplerYcbcrConversion == VK_TRUE);
+		ExtensionFlags.HasKHRSamplerYcbcrConversion = bRequirementsPassed;
+	}
+
+	virtual void PreCreateDevice(VkDeviceCreateInfo& DeviceCreateInfo) override final
+	{
+		if (bRequirementsPassed)
+		{
+			AddToPNext(DeviceCreateInfo, PhysicalDeviceSamplerYcbcrConversionFeatures);
+		}
+	}
+
+
+private:
+	VkPhysicalDeviceSamplerYcbcrConversionFeatures PhysicalDeviceSamplerYcbcrConversionFeatures;
+};
 
 template <typename ExtensionType>
 static void FlagExtensionSupport(const TArray<VkExtensionProperties>& ExtensionProperties, TArray<TUniquePtr<ExtensionType>>& UEExtensions, uint32 ApiVersion, const TCHAR* ExtensionTypeName)
@@ -1348,11 +1684,12 @@ FVulkanDeviceExtensionArray FVulkanDeviceExtension::GetUESupportedDeviceExtensio
 	ADD_SIMPLE_EXTENSION(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME,            VULKAN_SUPPORTS_MEMORY_BUDGET,        VULKAN_EXTENSION_NOT_PROMOTED, DEVICE_EXT_FLAG_SETTER(HasMemoryBudget));
 	ADD_SIMPLE_EXTENSION(VK_EXT_MEMORY_PRIORITY_EXTENSION_NAME,          VULKAN_SUPPORTS_MEMORY_PRIORITY,      VULKAN_EXTENSION_NOT_PROMOTED, DEVICE_EXT_FLAG_SETTER(HasMemoryPriority));
 	ADD_SIMPLE_EXTENSION(VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME,      VULKAN_SUPPORTS_RENDERPASS2,          VK_API_VERSION_1_2,            DEVICE_EXT_FLAG_SETTER(HasKHRRenderPass2));
-	ADD_SIMPLE_EXTENSION(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, VULKAN_RHI_RAYTRACING,                VULKAN_EXTENSION_NOT_PROMOTED, DEVICE_EXT_FLAG_SETTER(HasDeferredHostOperations));
-	ADD_SIMPLE_EXTENSION(VK_KHR_SPIRV_1_4_EXTENSION_NAME,                VULKAN_RHI_RAYTRACING,                VK_API_VERSION_1_2,            DEVICE_EXT_FLAG_SETTER(HasSPIRV_14));
-	ADD_SIMPLE_EXTENSION(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME,    VULKAN_RHI_RAYTRACING,                VK_API_VERSION_1_2,            DEVICE_EXT_FLAG_SETTER(HasShaderFloatControls));
+	ADD_SIMPLE_EXTENSION(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED,             VULKAN_EXTENSION_NOT_PROMOTED, DEVICE_EXT_FLAG_SETTER(HasDeferredHostOperations));
+	ADD_SIMPLE_EXTENSION(VK_KHR_SPIRV_1_4_EXTENSION_NAME,				 VULKAN_EXTENSION_ENABLED,             VK_API_VERSION_1_2,            DEVICE_EXT_FLAG_SETTER(HasSPIRV_14));
+	ADD_SIMPLE_EXTENSION(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME,	 VULKAN_EXTENSION_ENABLED,             VK_API_VERSION_1_2,            DEVICE_EXT_FLAG_SETTER(HasShaderFloatControls));
 	ADD_SIMPLE_EXTENSION(VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME,        VULKAN_EXTENSION_ENABLED,             VK_API_VERSION_1_2,            DEVICE_EXT_FLAG_SETTER(HasKHRImageFormatList));
 	ADD_SIMPLE_EXTENSION(VK_EXT_VALIDATION_CACHE_EXTENSION_NAME,         VULKAN_SUPPORTS_VALIDATION_CACHE,     VULKAN_EXTENSION_NOT_PROMOTED, DEVICE_EXT_FLAG_SETTER(HasEXTValidationCache));
+	ADD_SIMPLE_EXTENSION(VK_EXT_LOAD_STORE_OP_NONE_EXTENSION_NAME,       VULKAN_EXTENSION_ENABLED,             VULKAN_EXTENSION_NOT_PROMOTED, DEVICE_EXT_FLAG_SETTER(HasEXTLoadStoreOpNone));
 	ADD_SIMPLE_EXTENSION(VK_QCOM_RENDER_PASS_SHADER_RESOLVE_EXTENSION_NAME, VULKAN_SUPPORTS_QCOM_RENDERPASS_SHADER_RESOLVE, VULKAN_EXTENSION_NOT_PROMOTED, DEVICE_EXT_FLAG_SETTER(HasQcomRenderPassShaderResolve));
 
 	// Externally activated extensions (supported by the engine, but enabled externally by plugin or other) :
@@ -1363,6 +1700,7 @@ FVulkanDeviceExtensionArray FVulkanDeviceExtension::GetUESupportedDeviceExtensio
 
 	ADD_CUSTOM_EXTENSION(FVulkanKHRDriverPropertiesExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanKHRMaintenance4Extension);
+	ADD_CUSTOM_EXTENSION(FVulkanKHRMaintenance5Extension);
 	ADD_CUSTOM_EXTENSION(FVulkanShaderAtomicInt64Extension);
 	ADD_CUSTOM_EXTENSION(FVulkanShaderImageAtomicInt64Extension);
 	ADD_CUSTOM_EXTENSION(FVulkanEXTScalarBlockLayoutExtension);
@@ -1383,18 +1721,26 @@ FVulkanDeviceExtensionArray FVulkanDeviceExtension::GetUESupportedDeviceExtensio
 	ADD_CUSTOM_EXTENSION(FVulkanEXTShaderDemoteToHelperInvocationExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanKHR16BitStorageExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanKHRShaderFloat16Int8Extension);
+	ADD_CUSTOM_EXTENSION(FVulkanKHRDepthStencilResolveExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanEXTPipelineCreationCacheControlExtension);
+	ADD_CUSTOM_EXTENSION(FVulkanKHRFragmentShaderBarycentricExtension);
+	ADD_CUSTOM_EXTENSION(FVulkanNVComputeShaderDerivatives);
+	ADD_CUSTOM_EXTENSION(FVulkanKHRSamplerYcbcrConversionExtension);
+	ADD_CUSTOM_EXTENSION(FVulkanKHRTimelineSemaphoreExtension);
+	ADD_CUSTOM_EXTENSION(FVulkanEXTMeshShaderExtension);
 
 	// Needed for Raytracing
 	ADD_CUSTOM_EXTENSION(FVulkanKHRBufferDeviceAddressExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanKHRAccelerationStructureExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanKHRRayTracingPipelineExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanKHRRayQueryExtension);
+	ADD_CUSTOM_EXTENSION(FVulkanKHRRayTracingPositionFetchExtension);
 
 	// Vendor extensions
 	ADD_CUSTOM_EXTENSION(FVulkanAMDBufferMarkerExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanNVDeviceDiagnosticCheckpointsExtension);
 	ADD_CUSTOM_EXTENSION(FVulkanNVDeviceDiagnosticConfigExtension);
+	ADD_CUSTOM_EXTENSION(FVulkanNVRayTracingValidationExtension);
 
 	// Add in platform specific extensions
 	FVulkanPlatform::GetDeviceExtensions(InDevice, OutUEDeviceExtensions);

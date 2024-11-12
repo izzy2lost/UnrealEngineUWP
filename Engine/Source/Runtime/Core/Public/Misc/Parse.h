@@ -87,10 +87,10 @@ struct FParse
 	 */
 	static CORE_API bool LineExtended(const TCHAR** Stream, FString& Result, int32& LinesConsumed, bool Exact = 0);
 	static CORE_API bool LineExtended(const TCHAR** Stream, FStringBuilderBase& Result, int32& LinesConsumed, bool Exact = 0);
-	/** Grabs the next space-delimited string from the input stream. If quoted, gets entire quoted string. */
-	static CORE_API bool Token( const TCHAR*& Str, TCHAR* Result, int32 MaxLen, bool UseEscape );
-	/** Grabs the next space-delimited string from the input stream. If quoted, gets entire quoted string. */
-	static CORE_API bool Token( const TCHAR*& Str, FString& Arg, bool UseEscape );
+	/** Grabs the next space-delimited (unless SingleCharacterDelimiter is provided) string from the input stream. If quoted, gets entire quoted string. */
+	static CORE_API bool Token( const TCHAR*& Str, TCHAR* Result, int32 MaxLen, bool UseEscape, const TCHAR SingleCharacterDelimiter = TEXT('\0'));
+	/** Grabs the next space-delimited (unless SingleCharacterDelimiter is provided) string from the input stream. If quoted, gets entire quoted string. */
+	static CORE_API bool Token( const TCHAR*& Str, FString& Arg, bool UseEscape, const TCHAR SingleCharacterDelimiter = TEXT('\0'));
 	/** Grabs the next alpha-numeric space-delimited token from the input stream. */
 	static CORE_API bool AlnumToken(const TCHAR*& Str, FString& Arg);
 	/** Grabs the next space-delimited string from the input stream. If quoted, gets entire quoted string. */

@@ -32,7 +32,7 @@ class FBuffer
 {
 public:
 	FBuffer() = default;
-	FBuffer(uint64 InitialSize);
+	explicit FBuffer(uint64 InitialSize);
 	FBuffer(uint64 InitialSize, uint8 Value);
 	FBuffer(std::initializer_list<uint8> Values);
 	FBuffer(const FBuffer&) = delete;
@@ -65,13 +65,13 @@ public:
 
 	uint8& operator[](size_t I)
 	{
-		UNSYNC_ASSERT(I < BufferSize);
+		UNSYNC_ASSERTF(I < BufferSize, L"Buffer index is out of bounds. Index=%llu, BufferSize=%llu.", llu(I), llu(BufferSize));
 		return Buffer[I];
 	}
 
 	const uint8& operator[](size_t I) const
 	{
-		UNSYNC_ASSERT(I < BufferSize);
+		UNSYNC_ASSERTF(I < BufferSize, L"Buffer index is out of bounds. Index=%llu, BufferSize=%llu", llu(I), llu(BufferSize));
 		return Buffer[I];
 	}
 

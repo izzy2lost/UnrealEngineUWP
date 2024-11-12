@@ -57,7 +57,7 @@ namespace Chaos::Softs
 				}
 
 			}
-
+			DmInverseSave = DmInverse;
 			InitColor(InParticles);
 		}
 
@@ -105,7 +105,7 @@ namespace Chaos::Softs
 					Measure[e] = -Measure[e];
 				}
 			}
-
+			DmInverseSave = DmInverse;
 			InitColor(InParticles);
 		}
 
@@ -163,6 +163,7 @@ namespace Chaos::Softs
 					Measure[e] = -Measure[e];
 				}
 			}
+			DmInverseSave = DmInverse;
 			if (bDoColoring) {
 				InitColor(InParticles);
 			}
@@ -199,6 +200,7 @@ namespace Chaos::Softs
 					Measure[e] = -Measure[e];
 				}
 			}
+			DmInverseSave = DmInverse;
 		}
 
 		virtual ~FXPBDCorotatedConstraints() {}
@@ -234,6 +236,16 @@ namespace Chaos::Softs
 			for (int r = 0; r < 3; r++) {
 				for (int c = 0; c < 3; c++) {
 					DmInv.SetAt(r, c, DmInverse[(3 * 3) * e + 3 * r + c]);
+				}
+			}
+			return DmInv;
+		}
+
+		PMatrix<T, 3, 3> ElementDmInvSave(const int e) const {
+			PMatrix<T, 3, 3> DmInv((T)0.);
+			for (int r = 0; r < 3; r++) {
+				for (int c = 0; c < 3; c++) {
+					DmInv.SetAt(r, c, DmInverseSave[(3 * 3) * e + 3 * r + c]);
 				}
 			}
 			return DmInv;
@@ -394,6 +406,24 @@ namespace Chaos::Softs
 			return dC2;
 		}
 
+		void ModifyDmInverseFromFiberLength(const int32 e, const T L, const PMatrix<T, 3, 3>& MFiberDir, const T ContractionVolumeScale) const
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("STAT_ChaosXPBDCorotatedModifyDmInverseFromFiberLength"));
+			PMatrix<T, 3, 3> DmInv = ElementDmInvSave(e);
+			if (L < 1)
+			{
+				PMatrix<T, 3, 3> D(1 / L, FMath::Pow(L, ContractionVolumeScale/T(2)), FMath::Pow(L, ContractionVolumeScale/T(2)));
+				PMatrix<T, 3, 3> Factor = MFiberDir * D * MFiberDir.GetTransposed();
+				DmInv = Factor * DmInv; //Matrix multiplication convention: AB = B*A
+			}
+			for (int r = 0; r < 3; r++) 
+			{
+				for (int c = 0; c < 3; c++) 
+				{
+					DmInverse[(3 * 3) * e + 3 * r + c] = DmInv.GetAt(r, c);
+				}
+			}
+		}
 
 	protected:
 
@@ -587,7 +617,7 @@ namespace Chaos::Softs
 	protected:
 		mutable TArray<T> LambdaArray;
 		mutable TArray<T> DmInverse;
-
+		TArray<T> DmInverseSave;
 		//parallel data:
 		FDeformableXPBDCorotatedParams CorotatedParams;
 

@@ -18,6 +18,8 @@
 #include "NavigationSystemTypes.h"
 #include "EngineDefines.h"
 #include "AI/Navigation/NavigationDataInterface.h"
+#include "Misc/TransactionallySafeScopeLock.h"
+
 #include "NavigationData.generated.h"
 
 class ANavigationData;
@@ -28,6 +30,7 @@ class INavLinkCustomInterface;
 class UNavArea;
 class UPrimitiveComponent;
 class UNavigationQueryFilter;
+struct FNavigationDirtyArea;
 
 USTRUCT()
 struct FSupportedAreaData
@@ -73,6 +76,14 @@ struct FPathFindingResult
 	FORCEINLINE bool IsPartial() const;
 };
 
+struct FNavigationRaycastAdditionalResults
+{
+	/** When the ray is not obstructed, indicates if the projection of RayEnd is located at the end of the explored corridor.
+	 *  When bIsRaytEndInCorridor is false, it means that RayEnd failed to project to the NavigationData or on a navigation node that is not part of the explored corridor (e.g. different height)
+	 */
+	bool bIsRayEndInCorridor = false;
+};
+
 struct FNavigationPath : public TSharedFromThis<FNavigationPath, ESPMode::ThreadSafe>
 {
 	//DECLARE_DELEGATE_OneParam(FPathObserverDelegate, FNavigationPath*);
@@ -80,8 +91,7 @@ struct FNavigationPath : public TSharedFromThis<FNavigationPath, ESPMode::Thread
 
 	NAVIGATIONSYSTEM_API FNavigationPath();
 	NAVIGATIONSYSTEM_API FNavigationPath(const TArray<FVector>& Points, AActor* Base = NULL);
-	virtual ~FNavigationPath()
-	{ }
+	NAVIGATIONSYSTEM_API virtual ~FNavigationPath();
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FNavigationPath(const FNavigationPath&) = default;
@@ -234,8 +244,6 @@ struct FNavigationPath : public TSharedFromThis<FNavigationPath, ESPMode::Thread
 	  * This function will NOT reset setup variables like goal actor, filter, observer, etc */
 	NAVIGATIONSYSTEM_API virtual void ResetForRepath();
 
-	UE_DEPRECATED(5.0, "Use version that takes LifeTime instead.")
-	NAVIGATIONSYSTEM_API virtual void DebugDraw(const ANavigationData* NavData, FColor PathColor, class UCanvas* Canvas, bool bPersistent, const uint32 NextPathPointIndex = 0) const;
 	NAVIGATIONSYSTEM_API virtual void DebugDraw(const ANavigationData* NavData, const FColor PathColor, class UCanvas* Canvas, const bool bPersistent, const float LifeTime, const uint32 NextPathPointIndex = 0) const;
 	
 #if ENABLE_VISUAL_LOG
@@ -617,10 +625,17 @@ public:
 public:
 	FORCEINLINE const FNavDataConfig& GetConfig() const { return NavDataConfig; }
 	FORCEINLINE ERuntimeGenerationType GetRuntimeGenerationMode() const { return RuntimeGeneration; }
-	virtual void SetConfig(const FNavDataConfig& Src) { NavDataConfig = Src; }
+	/** Populates NavDataConfig and sets NavAgentProperties with the Src config
+	 *  Should be used when initially configuring the navdata and not when updating
+	 *  values used in NavDataConfig */
+	NAVIGATIONSYSTEM_API virtual void SetConfig(const FNavDataConfig& Src);
 
 	void SetSupportsDefaultAgent(bool bIsDefault) { bSupportsDefaultAgent = bIsDefault; SetNavRenderingEnabled(bIsDefault); }
 	bool IsSupportingDefaultAgent() const { return bSupportsDefaultAgent; }
+	const FNavAgentProperties& GetNavAgentProperties() const
+	{
+		return NavAgentProperties;
+	}
 
 	NAVIGATIONSYSTEM_API virtual bool DoesSupportAgent(const FNavAgentProperties& AgentProps) const;
 
@@ -639,6 +654,9 @@ public:
 
 	/** Any loading before NavDataGenerator->RebuildAll() */
 	virtual void LoadBeforeGeneratorRebuild() {}
+
+	/** Runs after LoadBeforeGeneratorRebuild but before the rebuild. */
+	virtual void PostLoadPreRebuild() {}
 	
 	/** Triggers rebuild in case navigation supports it */
 	NAVIGATIONSYSTEM_API virtual void RebuildAll();
@@ -723,12 +741,7 @@ protected:
 	/** removes from ActivePaths all paths that no longer have shared references (and are invalid in fact) */
 	NAVIGATIONSYSTEM_API void PurgeUnusedPaths();
 
-	void RegisterActivePath(FNavPathSharedPtr SharedPath)
-	{
-		// Paths can be registered from main thread and async pathfinding thread
-		FScopeLock PathLock(&ActivePathsLock);
-		ActivePaths.Add(SharedPath);
-	}
+	NAVIGATIONSYSTEM_API void RegisterActivePath(FNavPathSharedPtr SharedPath);
 
 public:
 	/** Returns bounding box for the navmesh. */
@@ -743,8 +756,6 @@ public:
 	//----------------------------------------------------------------------//
 	// Debug                                                                
 	//----------------------------------------------------------------------//
-	UE_DEPRECATED(5.0, "Use version that takes LifeTime instead.")
-	NAVIGATIONSYSTEM_API void DrawDebugPath(FNavigationPath* Path, const FColor PathColor, class UCanvas* Canvas, const bool bPersistent, const uint32 NextPathPointIndex) const;
 	NAVIGATIONSYSTEM_API void DrawDebugPath(FNavigationPath* Path, const FColor PathColor = FColor::White, class UCanvas* Canvas = nullptr, const bool bPersistent = true, const float LifeTime = -1.f, const uint32 NextPathPointIndex = 0) const;
 
 	FORCEINLINE bool IsDrawingEnabled() const { return bEnableDrawing; }
@@ -836,9 +847,22 @@ public:
 	 */
 	FORCEINLINE bool Raycast(const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier = NULL) const
 	{
-		check(RaycastImplementation);
+		return Raycast(RayStart, RayEnd, HitLocation, nullptr/*AdditionalResults*/, QueryFilter, Querier);
+	}
+
+	/** 
+	 *	Synchronously makes a raycast on navigation data using QueryFilter
+	 *	@param HitLocation if line was obstructed this will be set to hit location. Otherwise it contains SegmentEnd
+	 *	@param AdditionalResults contains more information about the result of the raycast query. See FNavigationRaycastAdditionalResults description for details
+	 *	@return true if line from RayStart to RayEnd is obstructed
+	 *
+	 *	@note don't make this function virtual! Look at implementation details and its comments for more info.
+	 */
+	FORCEINLINE bool Raycast(const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FNavigationRaycastAdditionalResults* AdditionalResults, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier = NULL) const
+	{
+		check(RaycastImplementationWithAdditionalResults);
 		// this awkward implementation avoids virtual call overhead - it's possible this function will be called a lot
-		return (*RaycastImplementation)(this, RayStart, RayEnd, HitLocation, QueryFilter, Querier);
+		return (*RaycastImplementationWithAdditionalResults)(this, RayStart, RayEnd, HitLocation, AdditionalResults, QueryFilter, Querier);
 	}
 
 	/** Raycasts batched for efficiency */
@@ -893,24 +917,16 @@ public:
 	 *	@note function should assert if item's FNavigationProjectionWork.ProjectionLimit is invalid */
 	NAVIGATIONSYSTEM_API virtual void BatchProjectPoints(TArray<FNavigationProjectionWork>& Workload, FSharedConstNavQueryFilter Filter = NULL, const UObject* Querier = NULL) const PURE_VIRTUAL(ANavigationData::BatchProjectPoints, );
 
-	UE_DEPRECATED(5.2, "Use new version with FVector::FReal")
-	NAVIGATIONSYSTEM_API virtual ENavigationQueryResult::Type CalcPathCost(const FVector& PathStart, const FVector& PathEnd, float& OutPathCost, FSharedConstNavQueryFilter QueryFilter = NULL, const UObject* Querier = NULL) const final;
-
 	/** Calculates path from PathStart to PathEnd and retrieves its cost.
  *	@NOTE this function does not generate string pulled path so the result is an (over-estimated) approximation
  *	@NOTE potentially expensive, so use it with caution */
 	NAVIGATIONSYSTEM_API virtual ENavigationQueryResult::Type CalcPathCost(const FVector& PathStart, const FVector& PathEnd, FVector::FReal& OutPathCost, FSharedConstNavQueryFilter QueryFilter = NULL, const UObject* Querier = NULL) const PURE_VIRTUAL(ANavigationData::CalcPathCost, return ENavigationQueryResult::Invalid;);
-
-	UE_DEPRECATED(5.2, "Use new version with FVector::FReal")
-	NAVIGATIONSYSTEM_API virtual ENavigationQueryResult::Type CalcPathLength(const FVector& PathStart, const FVector& PathEnd, float& OutPathLength, FSharedConstNavQueryFilter QueryFilter = NULL, const UObject* Querier = NULL) const final;
 
 	/** Calculates path from PathStart to PathEnd and retrieves its length.
 	 *	@NOTE this function does not generate string pulled path so the result is an (over-estimated) approximation
 	 *	@NOTE potentially expensive, so use it with caution */
 	NAVIGATIONSYSTEM_API virtual ENavigationQueryResult::Type CalcPathLength(const FVector& PathStart, const FVector& PathEnd, FVector::FReal& OutPathLength, FSharedConstNavQueryFilter QueryFilter = NULL, const UObject* Querier = NULL) const PURE_VIRTUAL(ANavigationData::CalcPathLength, return ENavigationQueryResult::Invalid;);
 
-	UE_DEPRECATED(5.2, "Use new version with FVector::FReal")
-	NAVIGATIONSYSTEM_API virtual ENavigationQueryResult::Type CalcPathLengthAndCost(const FVector& PathStart, const FVector& PathEnd, float& OutPathLength, float& OutPathCost, FSharedConstNavQueryFilter QueryFilter = NULL, const UObject* Querier = NULL) const final;
 	/** Calculates path from PathStart to PathEnd and retrieves its length.
 	 *	@NOTE this function does not generate string pulled path so the result is an (over-estimated) approximation
 	 *	@NOTE potentially expensive, so use it with caution */
@@ -1006,7 +1022,11 @@ protected:
 	FTestPathPtr TestHierarchicalPathImplementation; 
 
 	typedef bool(*FNavRaycastPtr)(const ANavigationData* NavDataInstance, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier);
-	FNavRaycastPtr RaycastImplementation; 
+	UE_DEPRECATED(5.6, "Please use RaycastImplementationWithAdditionalResults instead") 
+	FNavRaycastPtr RaycastImplementation;
+
+	typedef bool(*FNavRaycastWithAdditionalResultsPtr)(const ANavigationData* NavDataInstance, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FNavigationRaycastAdditionalResults* AdditionalResults, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier);
+	FNavRaycastWithAdditionalResultsPtr RaycastImplementationWithAdditionalResults;
 
 protected:
 	TSharedPtr<FNavDataGenerator, ESPMode::ThreadSafe> NavDataGenerator;
@@ -1025,7 +1045,7 @@ protected:
 	TArray<FNavPathWeakPtr> ActivePaths;
 
 	/** Synchronization object for paths registration from main thread and async pathfinding thread */
-	mutable FCriticalSection ActivePathsLock;
+	mutable FTransactionallySafeCriticalSection ActivePathsLock;
 
 	/**
 	 *	Contains paths that requested observing its goal's location. These paths will be 
@@ -1070,6 +1090,17 @@ private:
 	uint16 NavDataUniqueID;
 
 	static NAVIGATIONSYSTEM_API uint16 GetNextUniqueID();
+
+protected:
+	/** The exact nav agent properties used when registering this navdata
+	 *  in the navigation system. If navdata configuration changes are
+	 *  needed, NavDataConfig can be modified and used */
+	FNavAgentProperties NavAgentProperties;
+
+	void SetNavAgentProperties(const FNavAgentProperties& InNavAgentProperties)
+	{
+		NavAgentProperties = InNavAgentProperties;
+	}
 };
 
 struct FAsyncPathFindingQuery : public FPathFindingQuery

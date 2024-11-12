@@ -142,16 +142,25 @@ void SInlineEditableTextBlock::ExitEditingMode()
 	// Clear the error so it will vanish.
 	SetTextBoxError( FText::GetEmpty() );
 
-	// Restore the original widget focus
-	TSharedPtr<SWidget> WidgetToFocusPin = WidgetToFocus.Pin();
-	if(WidgetToFocusPin.IsValid())
+	TSharedPtr<SWidget> CurrentFocus = FSlateApplication::Get().GetKeyboardFocusedWidget();
+	if (CurrentFocus.IsValid())
 	{
-		FSlateApplication::Get().SetKeyboardFocus(WidgetToFocusPin, EFocusCause::SetDirectly);
+		if (CurrentFocus == GetEditableTextWidget())
+		{
+			// Restore the original widget focus
+			TSharedPtr<SWidget> WidgetToFocusPin = WidgetToFocus.Pin();
+			if (WidgetToFocusPin.IsValid())
+			{
+				FSlateApplication::Get().SetKeyboardFocus(WidgetToFocusPin, EFocusCause::SetDirectly);
+			}
+			else
+			{
+				FSlateApplication::Get().ClearKeyboardFocus(EFocusCause::SetDirectly);
+			}
+		}
 	}
-	else
-	{
-		FSlateApplication::Get().ClearKeyboardFocus(EFocusCause::SetDirectly);
-	}
+
+	WidgetToFocus.Reset();
 }
 
 bool SInlineEditableTextBlock::IsInEditMode() const
@@ -178,6 +187,14 @@ void SInlineEditableTextBlock::SetText( const FString& InText )
 	SetEditableText( Text );
 }
 
+FText SInlineEditableTextBlock::GetText() const
+{
+	return
+#if WITH_FANCY_TEXT
+	bIsMultiLine ? MultiLineTextBox->GetText() :
+#endif //WITH_FANCY_TEXT
+				 TextBox->GetText();
+}
 
 void SInlineEditableTextBlock::SetHighlightText( const TAttribute< FText >& InText )
 {

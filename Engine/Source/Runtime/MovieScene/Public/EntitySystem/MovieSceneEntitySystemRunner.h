@@ -79,18 +79,11 @@ public:
 	using FInstanceRegistry = UE::MovieScene::FInstanceRegistry;
 
 public:
-	/** Creates an unbound runner */
-	MOVIESCENE_API FMovieSceneEntitySystemRunner();
+
 	/** Destructor */
 	MOVIESCENE_API ~FMovieSceneEntitySystemRunner();
 
-	/** Attach this runner to a linker */
-	MOVIESCENE_API void AttachToLinker(UMovieSceneEntitySystemLinker* InLinker);
-	/** Returns whether this runner is attached to a linker */
-	MOVIESCENE_API bool IsAttachedToLinker() const;
-	/** Detaches this runner from a linker */
-	MOVIESCENE_API void DetachFromLinker();
-
+	/** Gets how many instances are in the update queue. */
 	MOVIESCENE_API int32 GetQueuedUpdateCount() const;
 	/** Returns whether this runner has any outstanding updates. */
 	MOVIESCENE_API bool HasQueuedUpdates() const;
@@ -168,20 +161,32 @@ public:
 
 public:
 
-	MOVIESCENE_API UMovieSceneEntitySystemLinker* GetLinker() const;
+	UMovieSceneEntitySystemLinker* GetLinker() const { return WeakLinker.Get(); }
+	bool IsValid() const { return WeakLinker.IsValid(); }
+
 	MOVIESCENE_API FEntityManager* GetEntityManager() const;
 	MOVIESCENE_API FInstanceRegistry* GetInstanceRegistry() const;
+
+public:
+
+	UE_DEPRECATED(5.5, "Runners are now owned by linkers, and always attached")
+	void AttachToLinker(UMovieSceneEntitySystemLinker* InLinker) {}
+	UE_DEPRECATED(5.5, "Runners are now owned by linkers, and always attached")
+	bool IsAttachedToLinker() const { return IsValid(); }
+	UE_DEPRECATED(5.5, "Runners are now owned by linkers, and always attached")
+	void DetachFromLinker() {}
 
 public:
 	
 	// Internal API
 
-	MOVIESCENE_API void MarkForUpdate(FInstanceHandle InInstanceHandle, UE::MovieScene::ERunnerUpdateFlags UpdateFlags);
+	void MarkForUpdate(FInstanceHandle InInstanceHandle, UE::MovieScene::ERunnerUpdateFlags UpdateFlags);
 	MOVIESCENE_API FMovieSceneEntitySystemEventTriggers& GetQueuedEventTriggers();
 
-private:
-
-	MOVIESCENE_API void OnLinkerAbandon(UMovieSceneEntitySystemLinker* Linker);
+	/** Creates an unbound runner */
+	FMovieSceneEntitySystemRunner();
+	/** Create a bound runner */
+	FMovieSceneEntitySystemRunner(UMovieSceneEntitySystemLinker* InLinker);
 
 private:
 
@@ -251,7 +256,7 @@ private:
 		UE::MovieScene::ERunnerUpdateFlags UpdateFlags = UE::MovieScene::ERunnerUpdateFlags::None;
 	};
 
-	/** Owner linker */
+	/** Owning linker */
 	TWeakObjectPtr<UMovieSceneEntitySystemLinker> WeakLinker;
 
 	struct FQueuedUpdateParams

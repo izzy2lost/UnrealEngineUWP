@@ -172,6 +172,17 @@ public:
 	/** @return true if Absolute World Snapping mode is Enabled */
 	bool GetAbsoluteWorldSnappingEnabled() const { return bEnableAbsoluteWorldSnapping; }
 
+	/*
+	 * Configure whether tools should shutdown when entering PIE.
+	 * By default, the context will shut down any active tools on PIE start.
+	 * Setting this to true will prevent this, but the system makes no promises about whether tools work properly across PIE start/run/shutdown.
+	 * Therefore, do not use this if you do not know for certain that it is safe to persist tools across PIE start in your situation.
+	 */
+	void SetDeactivateToolsOnPIEStart(bool bDeactivateTools);
+
+	/** @return true if tools should be deactivated when PIE is started */
+	bool GetDeactivateToolsOnPIEStart() const { return bDeactivateOnPIEStart; }
+
 protected:
 
 	// we hide these 
@@ -228,6 +239,8 @@ private:
 	bool bForceCombinedGizmoMode = false;
 	bool bEnableAbsoluteWorldSnapping = false;
 
+	bool bDeactivateOnPIEStart = true;
+
 	bool bIsActive = false;
 };
 
@@ -270,6 +283,9 @@ public:
 	bool StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport);
 	bool CapturedMouseMove(FEditorViewportClient* InViewportClient, FViewport* InViewport, int32 InMouseX, int32 InMouseY);
 	bool EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport);
+
+	/** @return True if the context has overriden the cursor style, false if not. */
+	bool GetCursor(EMouseCursor::Type& OutCursor) const;
 
 	/** @return Ray into 3D scene at last mouse event */
 	virtual FRay GetLastWorldRay() const override;

@@ -96,7 +96,13 @@ bool FAdvancedRenamerActorProvider::CanRename(int32 InIndex) const
 	return true;
 }
 
-bool FAdvancedRenamerActorProvider::ExecuteRename(int32 InIndex, const FString& InNewName)
+bool FAdvancedRenamerActorProvider::BeginRename()
+{
+	ActorToNewNameList.Reserve(Num());
+	return true;
+}
+
+bool FAdvancedRenamerActorProvider::PrepareRename(int32 InIndex, const FString& InNewName)
 {
 	AActor* Actor = GetActor(InIndex);
 
@@ -105,6 +111,21 @@ bool FAdvancedRenamerActorProvider::ExecuteRename(int32 InIndex, const FString& 
 		return false;
 	}
 
-	Actor->SetActorLabel(InNewName, /* bMarkDirty */ true);
+	ActorToNewNameList.Add({ Actor , InNewName });
+	return true;
+}
+
+bool FAdvancedRenamerActorProvider::ExecuteRename()
+{
+	for (const TTuple<AActor*, FString>& ActorToNewName : ActorToNewNameList)
+	{
+		ActorToNewName.Key->SetActorLabel(ActorToNewName.Value, /* bMarkDirty */ true);
+	}
+	return true;
+}
+
+bool FAdvancedRenamerActorProvider::EndRename()
+{
+	ActorToNewNameList.Empty();
 	return true;
 }

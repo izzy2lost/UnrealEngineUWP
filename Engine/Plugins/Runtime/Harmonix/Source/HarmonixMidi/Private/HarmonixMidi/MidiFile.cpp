@@ -96,13 +96,19 @@ FString UMidiFile::GetImportedSrcFilePath() const
 
 #endif
 
-TSharedPtr<Audio::IProxyData> UMidiFile::CreateProxyData(const Audio::FProxyDataInitParams& InitParams)
+TSharedPtr<FMidiFileData> UMidiFile::GetOrCreateRenderableCopy()
 {
 	if (!RenderableCopyOfMidiFileData)
 	{
 		RenderableCopyOfMidiFileData = MakeShared<FMidiFileData>(TheMidiData);
 	}
-	TSharedPtr<FMidiFileProxy> Proxy = MakeShared<FMidiFileProxy>(RenderableCopyOfMidiFileData);
+	return RenderableCopyOfMidiFileData;
+}
+
+TSharedPtr<Audio::IProxyData> UMidiFile::CreateProxyData(const Audio::FProxyDataInitParams& InitParams)
+{
+	TSharedPtr<FMidiFileData> Renderable = GetOrCreateRenderableCopy();
+	TSharedPtr<FMidiFileProxy> Proxy = MakeShared<FMidiFileProxy>(Renderable);
 	return Proxy;
 }
 
@@ -249,27 +255,26 @@ void UMidiFile::BuildConductorTrack()
 		TheMidiData.Tracks[0] = FMidiTrack("Conductor");
 	}
 
-	const FTempoMap& TempoMap = TheMidiData.SongMaps.GetTempoMap();
-
-	int32 numTempoChanges = TempoMap.GetNumTempoChangePoints();
+	int32 numTempoChanges = TheMidiData.SongMaps.GetNumTempoChanges();
 
 	int32 i;
 	for (i = 0; i < numTempoChanges; ++i)
 	{
-		int32 tick = TempoMap.GetTempoChangePointTick(i);
-		float msPerQuarterNote = TempoMap.GetMsPerQuarterNoteAtTick(tick);
+		const FTempoInfoPoint* Point = TheMidiData.SongMaps.GetTempoInfoPoint(i);
+		check(Point);
+		int32 tick = Point->StartTick;
+		float msPerQuarterNote = Point->GetMsPerQuarterNote();
 		int32 usecPerQuarterNote = int32(msPerQuarterNote * 1000);
 		TheMidiData.Tracks[0].AddEvent(FMidiEvent(tick, FMidiMsg(usecPerQuarterNote)));
 	}
 
-	const FBarMap& BarMap = TheMidiData.SongMaps.GetBarMap();
-
-	int32 numTimeSigChanges = BarMap.GetNumTimeSignaturePoints();
+	int32 numTimeSigChanges = TheMidiData.SongMaps.GetNumTimeSignatureChanges();
 
 	for (i = 0; i < numTimeSigChanges; ++i)
 	{
-		const FTimeSignaturePoint& sig = BarMap.GetTimeSignaturePoint(i);
-		TheMidiData.Tracks[0].AddEvent(FMidiEvent(sig.StartTick, FMidiMsg(sig.TimeSignature.Numerator, sig.TimeSignature.Denominator)));
+		const FTimeSignaturePoint* sig = TheMidiData.SongMaps.GetTimeSignaturePoint(i);
+		check(sig);
+		TheMidiData.Tracks[0].AddEvent(FMidiEvent(sig->StartTick, FMidiMsg(sig->TimeSignature.Numerator, sig->TimeSignature.Denominator)));
 	}
 
 	TheMidiData.Tracks[0].Sort();
@@ -520,7 +525,7 @@ void UMidiFile::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEve
 	
 	if (PropertyChangedEvent.Property->GetName() == StartBarPropertyName)
 	{
-		TheMidiData.SongMaps.GetBarMap().SetStartBar(StartBar);
+		TheMidiData.SongMaps.SetStartBar(StartBar);
 	}
 }
 #endif
@@ -671,27 +676,26 @@ void FMidiFileData::PostSerialize(const FArchive& Ar)
 	{
 		UE_LOG(LogMIDI, Warning, TEXT("Empty bar map. Rebuilding."));
 		const FMidiEventList& Events = Tracks[0].GetEvents();
-		FBarMap& BarMap = SongMaps.GetBarMap();
-		BarMap.SetStartBar(1);
+		SongMaps.SetStartBar(1);
 		for (auto& Event : Events)
 		{
 			if (Event.GetMsg().MsgType() == FMidiMsg::EType::TimeSig)
 			{
 				int32 Tick = Event.GetTick();
 				int32 BarIndex;
-				check(Tick == 0 || BarMap.GetNumTimeSignaturePoints() > 0);
+				check(Tick == 0 || SongMaps.GetNumTimeSignatureChanges() > 0);
 				if (Tick == 0)
 				{
 					BarIndex = 0;
 				}
 				else
 				{
-					BarIndex = BarMap.TickToBarIncludingCountIn(Tick);
+					BarIndex = SongMaps.TickToBarIncludingCountIn(Tick);
 				}
-				BarMap.AddTimeSignatureAtBarIncludingCountIn(BarIndex, Event.GetMsg().GetTimeSigNumerator(), Event.GetMsg().GetTimeSigDenominator());
+				SongMaps.AddTimeSignatureAtBarIncludingCountIn(BarIndex, Event.GetMsg().GetTimeSigNumerator(), Event.GetMsg().GetTimeSigDenominator());
 			}
 		}
-		BarMap.Finalize(GetLastEventTick());
+		SongMaps.FinalizeBarMap(GetLastEventTick());
 	}
 }
 
@@ -891,28 +895,25 @@ void FMidiFileData::AddTempoChange(int32 TrackIdx, int32 Tick, float TempoBPM)
 {
 	check(Tracks.IsValidIndex(TrackIdx));
 
-	FTempoMap& TempoMap = SongMaps.GetTempoMap();
 	int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(TempoBPM);
 	Tracks[TrackIdx].AddEvent(FMidiEvent(Tick, FMidiMsg(MidiTempo)));
 	Tracks[TrackIdx].Sort();
-	TempoMap.AddTempoInfoPoint(MidiTempo, Tick);
+	SongMaps.AddTempoInfoPoint(MidiTempo, Tick);
 }
 
 void FMidiFileData::AddTimeSigChange(int32 TrackIdx, int32 Tick, int32 InTimeSigNum, int32 InTimeSigDenom)
 {
 	check(Tracks.IsValidIndex(TrackIdx));
 
-	FBarMap& BarMap = SongMaps.GetBarMap();
-
 	// Time signature changes can only happen at the beginning of a bar,
 	// so round up to the next bar boundary...
 	int32 AbsoluteBar = FMath::CeilToInt32(SongMaps.GetBarIncludingCountInAtTick(Tick));
-	Tick = BarMap.BarBeatTickIncludingCountInToTick(AbsoluteBar, 1, 0);
+	Tick = SongMaps.BarBeatTickIncludingCountInToTick(AbsoluteBar, 1, 0);
 	int32 TimeSigNum = FMath::Clamp(InTimeSigNum, 1, 64);
 	int32 TimeSigDenom = FMath::Clamp(InTimeSigDenom, 1, 64);
 	Tracks[TrackIdx].AddEvent(FMidiEvent(Tick, FMidiMsg((uint8)TimeSigNum, (uint8)TimeSigDenom)));
 	Tracks[TrackIdx].Sort();
-	BarMap.AddTimeSignatureAtBarIncludingCountIn(AbsoluteBar, TimeSigNum, TimeSigDenom);
+	SongMaps.AddTimeSignatureAtBarIncludingCountIn(AbsoluteBar, TimeSigNum, TimeSigDenom);
 }
 
 void FMidiFileData::ScanTracksForSongLengthChange()
@@ -938,7 +939,7 @@ void FMidiFileData::ScanTracksForSongLengthChange()
 	//update length data in song length data if needed 
 	LengthData.LengthTicks = NewLastEventTick + 1;
 	LengthData.LastTick = NewLastEventTick;
-	LengthData.LengthFractionalBars = SongMaps.GetBarMap().TickToFractionalBarIncludingCountIn(LengthData.LengthTicks);
+	LengthData.LengthFractionalBars = SongMaps.TickToFractionalBarIncludingCountIn(LengthData.LengthTicks);
 }
 
 bool FMidiFileData::LengthIsAPerfectSubdivision() const

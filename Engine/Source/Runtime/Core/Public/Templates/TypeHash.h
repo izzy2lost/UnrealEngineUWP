@@ -33,7 +33,7 @@ namespace UE
  * This function cannot change for backward compatibility reasons.
  * You may want to choose HashCombineFast for a better in-memory hash combining function.
  */
-inline uint32 HashCombine(uint32 A, uint32 C)
+[[nodiscard]] inline uint32 HashCombine(uint32 A, uint32 C)
 {
 	uint32 B = 0x9e3779b9;
 	A += B;
@@ -59,12 +59,12 @@ inline uint32 HashCombine(uint32 A, uint32 C)
  *           combined hash values which don't leave the running process,
  *           e.g. GetTypeHash() overloads.
  */
-inline uint32 HashCombineFast(uint32 A, uint32 B)
+[[nodiscard]] inline uint32 HashCombineFast(uint32 A, uint32 B)
 {
 	return A ^ (B + 0x9e3779b9 + (A << 6) + (A >> 2));
 }
 
-inline uint32 PointerHash(const void* Key)
+[[nodiscard]] inline uint32 PointerHash(const void* Key)
 {
 	// Ignoring the lower 4 bits since they are likely zero anyway.
 	// Higher bits are more significant in 64 bit builds.
@@ -72,7 +72,7 @@ inline uint32 PointerHash(const void* Key)
 	return UE::Private::MurmurFinalize32((uint32)PtrInt);
 }
 
-inline uint32 PointerHash(const void* Key, uint32 C)
+[[nodiscard]] inline uint32 PointerHash(const void* Key, uint32 C)
 {
 	// we can use HashCombineFast here because pointers are non-persistent
 	return HashCombineFast(PointerHash(Key), C);
@@ -91,7 +91,7 @@ template <
 	typename ScalarType,
 	std::enable_if_t<std::is_scalar_v<ScalarType> && !std::is_same_v<ScalarType, TCHAR*> && !std::is_same_v<ScalarType, const TCHAR*>>* = nullptr
 >
-inline uint32 GetTypeHash(ScalarType Value)
+[[nodiscard]] inline uint32 GetTypeHash(ScalarType Value)
 {
 	if constexpr (std::is_integral_v<ScalarType>)
 	{
@@ -173,7 +173,7 @@ inline uint32 GetTypeHash(T* Value)
 }
 
 template <typename T>
-inline uint32 GetArrayHash(const T* Ptr, uint64 Size, uint32 PreviousHash = 0)
+[[nodiscard]] inline uint32 GetArrayHash(const T* Ptr, uint64 Size, uint32 PreviousHash = 0)
 {
 	uint32 Result = PreviousHash;
 	while (Size)
@@ -188,4 +188,4 @@ inline uint32 GetArrayHash(const T* Ptr, uint64 Size, uint32 PreviousHash = 0)
 
 // Use this when inside type that has GetTypeHash() (no in-parameters) implemented. It makes GetTypeHash dispatch in global namespace
 template <typename T>
-FORCEINLINE uint32 GetTypeHashHelper(const T& V) { return GetTypeHash(V); }
+[[nodiscard]] FORCEINLINE uint32 GetTypeHashHelper(const T& V) { return GetTypeHash(V); }

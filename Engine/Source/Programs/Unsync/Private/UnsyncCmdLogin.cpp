@@ -55,7 +55,20 @@ CmdLogin(const FCmdLoginOptions& Options)
 			FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Options.Remote);
 
 			FHttpRequest Request;
-			Request.Url			   = "/api/v1/login";
+
+			if (Options.Remote.Protocol == EProtocolFlavor::Unsync)
+			{
+				Request.Url = "/api/v1/login";
+			}
+			if (Options.Remote.Protocol == EProtocolFlavor::Horde)
+			{
+				Request.Url = "/api/v1/projects";
+			}
+			else
+			{
+				Request.Url = "/";
+			}
+
 			Request.Method		   = EHttpMethod::GET;
 			Request.BearerToken	   = AuthTokenResult->Access;
 			FHttpResponse Response = HttpRequest(Connection, Request);
@@ -66,7 +79,7 @@ CmdLogin(const FCmdLoginOptions& Options)
 			}
 			else
 			{
-				LogError(HttpError(Response.Code));
+				LogError(HttpError(Response.Code), L"Failed to authenticate");
 				return -1;
 			}
 		}
@@ -84,7 +97,7 @@ CmdLogin(const FCmdLoginOptions& Options)
 					UNSYNC_ERROR("Failed to Base64-decode access token");
 					return -1;
 				}
-				DecodedTokenData.Append(0);
+				DecodedTokenData.PushBack(0);
 
 				LogPrintf(ELogLevel::MachineReadable, L"%hs\n", (const char*)DecodedTokenData.Data());
 			}
@@ -107,7 +120,7 @@ CmdLogin(const FCmdLoginOptions& Options)
 	}
 	else
 	{
-		LogError(AuthTokenResult.GetError());
+		LogError(AuthTokenResult.GetError(), L"Failed to authenticate");
 		return -1;
 	}
 }

@@ -28,6 +28,7 @@ public:
 	virtual bool IsLoaded(FName OnlineIdentifier) override;
 	virtual FName GetOnlineIdentifier(FWorldContext& WorldContext) override;
 	virtual bool DoesInstanceExist(FName OnlineIdentifier) override;
+	// NOTE: In OnlineServices it destroys all types of OnlineServices instances which contains this identifier
 	virtual void ShutdownOnlineSubsystem(FName OnlineIdentifier) override;
 	virtual void DestroyOnlineSubsystem(FName OnlineIdentifier) override;
 	virtual FName GetDefaultOnlineSubsystemName() const override;

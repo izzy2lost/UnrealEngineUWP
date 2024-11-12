@@ -22,10 +22,10 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode::Tests
 
 		TOptional<FMidiClockWriteRef> Clock = Generator->GetInputWriteReference<FMidiClock>(Inputs::MidiClockName);
 		UTEST_TRUE("Got clock", Clock.IsSet());
+		(*Clock)->SetTransportState(0, EMusicPlayerTransportState::Playing);
 
-		Harmonix::Midi::Ops::FPulseGenerator PulseGenerator;
+		Harmonix::Midi::Ops::FMidiPulseGenerator PulseGenerator;
 		FMidiStream PulseGeneratorMidiOutput;
-		PulseGenerator.SetClock((*Clock)->AsShared());
 
 		// Render for a bit and expect the same output from both the node and the raw processor
 		constexpr int32 NumBlocks = 1000;
@@ -35,12 +35,12 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode::Tests
 		{
 			// Advance the clock, which will advance the play cursor in the pulse generators
 			(*Clock)->PrepareBlock();
-			(*Clock)->WriteAdvance(0, Generator->OperatorSettings.GetNumFramesPerBlock());
+			(*Clock)->Advance(0, Generator->OperatorSettings.GetNumFramesPerBlock());
 
 			// Process
 			Generator->OnGenerateAudio(Buffer.GetData(), Buffer.Num());
 			PulseGeneratorMidiOutput.PrepareBlock();
-			PulseGenerator.Process(PulseGeneratorMidiOutput);
+			PulseGenerator.Process(*Clock.GetValue(), PulseGeneratorMidiOutput);
 
 			// If there are notes in the pulse generator output, expect them in the node output
 			const TArray<FMidiStreamEvent> NodeEvents = (*NodeMidiOutput)->GetEventsInBlock();

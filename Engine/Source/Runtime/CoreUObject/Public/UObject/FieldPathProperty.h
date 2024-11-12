@@ -21,39 +21,23 @@ class UStruct;
 namespace UECodeGen_Private { struct FFieldPathPropertyParams; }
 struct FPropertyTag;
 
-// need to break this out a different type so that the DECLARE_CASTED_CLASS_INTRINSIC macro can digest the comma
-typedef TProperty<FFieldPath, FProperty> FFieldPathProperty_Super;
-
-class FFieldPathProperty : public FFieldPathProperty_Super
+class FFieldPathProperty : public TProperty<FFieldPath, FProperty>
 {
-	DECLARE_FIELD_API(FFieldPathProperty, FFieldPathProperty_Super, CASTCLASS_FFieldPathProperty, COREUOBJECT_API)
+	DECLARE_FIELD_API(FFieldPathProperty, (TProperty<FFieldPath, FProperty>), CASTCLASS_FFieldPathProperty, COREUOBJECT_API)
 
 public:
 
-	typedef FFieldPathProperty_Super::TTypeFundamentals TTypeFundamentals;
+	typedef Super::TTypeFundamentals TTypeFundamentals;
 	typedef TTypeFundamentals::TCppType TCppType;
 
-	FFieldPathProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: FFieldPathProperty_Super(InOwner, InName, InObjectFlags)
-		, PropertyClass(nullptr)
-	{
-	}
-
-	UE_DEPRECATED(5.1, "Compiled-in property constructor is deprecated, use other constructors instead.")
-	COREUOBJECT_API FFieldPathProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, int32 InOffset, EPropertyFlags InFlags, FFieldClass* InPropertyClass)
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		: FFieldPathProperty_Super(InOwner, InName, InObjectFlags, InOffset, InFlags)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		, PropertyClass(InPropertyClass)
-	{
-	}
+	COREUOBJECT_API FFieldPathProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
 	 * @param InOwner Owner of the property
 	 * @param PropBase Pointer to the compiled in structure describing the property
 	 **/
-	FFieldPathProperty(FFieldVariant InOwner, const UECodeGen_Private::FFieldPathPropertyParams& Prop);
+	COREUOBJECT_API FFieldPathProperty(FFieldVariant InOwner, const UECodeGen_Private::FFieldPathPropertyParams& Prop);
 
 #if WITH_EDITORONLY_DATA
 	COREUOBJECT_API explicit FFieldPathProperty(UField* InField);

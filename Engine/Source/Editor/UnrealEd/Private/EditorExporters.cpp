@@ -86,12 +86,24 @@
 #include "Particles/Emitter.h"
 #include "Engine/Brush.h"
 #include "Components/BrushComponent.h"
+#include "Exporters/ActorExporterT3D.h"
 
 #include "Misc/App.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Framework/Notifications/NotificationManager.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogEditorExporters, Log, All);
+
+namespace Private
+{
+	bool bLevelExportT3D_UseActorExporters = true;
+	static FAutoConsoleVariableRef CVarDumpHandlerTick(
+		TEXT("UnrealEd.T3DUseActorExporters"),
+		bLevelExportT3D_UseActorExporters,
+		TEXT(" \n"),
+		ECVF_Default
+	);
+}
 
 struct FScopedFbxExporterInstance
 {
@@ -455,6 +467,109 @@ void ExporterHelper_DumpPackageInners(const FExportObjectInnerContext* Context, 
 	}
 }
 
+UActorExporterT3D::UActorExporterT3D(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	SupportedClass = AActor::StaticClass();
+	bText = true;
+	PreferredFormatIndex = 0;
+	FormatExtension.Add(TEXT("T3D"));
+	FormatExtension.Add(TEXT("COPY"));
+	FormatDescription.Add(TEXT("Unreal Actor text"));
+	FormatDescription.Add(TEXT("Unreal Actor text"));
+}
+
+bool UActorExporterT3D::ExportText(const FExportObjectInnerContext* Context, UObject* Object, const TCHAR* Type, FOutputDevice& Ar, FFeedbackContext* Warn, uint32 PortFlags)
+{
+	AActor* Actor = Cast<AActor>(Object);
+	if (Actor->ShouldExport())
+	{
+		// Temporarily unbind dynamic delegates so we don't export the bindings.
+		UBlueprintGeneratedClass::UnbindDynamicDelegates(Actor->GetClass(), Actor);
+
+		AActor* ParentActor = Actor->GetAttachParentActor();
+		FName SocketName = Actor->GetAttachParentSocketName();
+		FDetachmentTransformRules DetachmentTransformRules = FDetachmentTransformRules::KeepWorldTransform;
+		DetachmentTransformRules.bCallModify = false;
+		Actor->DetachFromActor(DetachmentTransformRules);
+
+		const bool IsUsingActorFolders = Actor->GetLevel() && Actor->GetLevel()->IsUsingActorFolders();
+
+		FString ParentActorString = ( ParentActor ? FString::Printf(TEXT(" ParentActor=%s"), *ParentActor->GetName() ) : TEXT(""));
+		FString SocketNameString = ( (ParentActor && SocketName != NAME_None) ? FString::Printf(TEXT(" SocketName=%s"), *SocketName.ToString() ) : TEXT(""));
+		FString GroupActor = (Actor->GroupActor ? FString::Printf(TEXT(" GroupActor=%s"), *Actor->GroupActor->GetName() ) : TEXT(""));
+		FString GroupFolder = (Actor->GroupActor ? FString::Printf(TEXT(" GroupFolder=%s"), *Actor->GroupActor->GetFolderPath().ToString() ) : TEXT(""));
+		FString ActorFolderPath = (IsUsingActorFolders ? FString::Printf(TEXT(" ActorFolderPath=\"%s\""), *Actor->GetFolderPath().ToString()) : TEXT(""));
+		FString CopyPasteId = (Actor->CopyPasteId != INDEX_NONE) ? FString::Printf(TEXT(" CopyPasteId=%d"), Actor->CopyPasteId ) : TEXT("");
+		FString ContentBundleGuid = (Actor->GetContentBundleGuid().IsValid() ? FString::Printf(TEXT(" ActorContentBundleGuid=%s"), *Actor->GetContentBundleGuid().ToString()) : TEXT(""));
+		FString ExternalDataLayer = (Actor->GetExternalDataLayerAsset() ? FString::Printf(TEXT(" ExternalDataLayerAsset=%s"), *FSoftObjectPath(Actor->GetExternalDataLayerAsset()).ToString()) : TEXT(""));
+
+		Ar.Logf( TEXT("%sBegin Actor Class=%s Name=%s Archetype=%s%s%s%s%s%s%s%s%s"), 
+			FCString::Spc(TextIndent), *Actor->GetClass()->GetPathName(), *Actor->GetName(),
+			*FObjectPropertyBase::GetExportPath(Actor->GetArchetype(), nullptr, nullptr, (PortFlags | PPF_Delimited) & ~PPF_ExportsNotFullyQualified), 
+			*ParentActorString, *SocketNameString, *GroupActor, *GroupFolder, *ActorFolderPath, *CopyPasteId, *ContentBundleGuid, *ExternalDataLayer);
+
+		// When exporting for diffs, export paths can cause false positives. since diff files don't get imported, we can
+		// skip adding this info the file.
+		if (!(PortFlags & PPF_ForDiff))
+		{
+			// Emit the actor path
+			Ar.Logf(TEXT(" ExportPath=%s"), *FObjectPropertyBase::GetExportPath(Actor, nullptr, nullptr, (PortFlags | PPF_Delimited) & ~PPF_ExportsNotFullyQualified));
+		}
+
+		Ar.Logf(LINE_TERMINATOR);
+
+		ExportRootScope = Actor;
+		ExportObjectInner( Context, Actor, Ar, PortFlags | PPF_ExportsNotFullyQualified );
+		ExportRootScope = nullptr;
+
+		Ar.Logf( TEXT("%sEnd Actor\r\n"), FCString::Spc(TextIndent) );
+		Actor->AttachToActor(ParentActor, FAttachmentTransformRules::KeepWorldTransform, SocketName);
+
+		// Restore dynamic delegate bindings.
+		UBlueprintGeneratedClass::BindDynamicDelegates(Actor->GetClass(), Actor);
+	}
+	else if (GEditor)
+	{
+		GEditor->GetSelectedActors()->Deselect(Actor);
+	}
+	return true;
+}
+
+UGroupActorExporterT3D::UGroupActorExporterT3D(const FObjectInitializer& ObjectInitializer)
+{
+	SupportedClass = AGroupActor::StaticClass();
+}
+
+bool UGroupActorExporterT3D::ExportText(const FExportObjectInnerContext* Context, UObject* Object, const TCHAR* Type, FOutputDevice& Ar,
+	FFeedbackContext* Warn, uint32 PortFlags)
+{
+	// Don't export group actors
+	return true;
+}
+
+UPhysicsVolumeExporterT3D::UPhysicsVolumeExporterT3D(const FObjectInitializer& ObjectInitializer)
+{
+	SupportedClass = APhysicsVolume::StaticClass();
+}
+
+bool UPhysicsVolumeExporterT3D::ExportText(const FExportObjectInnerContext* Context, UObject* Object, const TCHAR* Type, FOutputDevice& Ar,
+                                           FFeedbackContext* Warn, uint32 PortFlags)
+{
+	APhysicsVolume* PhysicsVolume = Cast<APhysicsVolume>(Object);
+	if (UWorld* World = PhysicsVolume->GetWorld())
+	{
+		if (World->GetDefaultPhysicsVolume() == PhysicsVolume)
+		{
+			// Don't export the default physics volume, as it doesn't have a UModel associated with it
+			// and thus will not import properly.
+			return true;
+		}
+		return Super::ExportText(Context, Object, Type, Ar, Warn, PortFlags);
+	}
+	return true;
+}
+
 ULevelExporterT3D::ULevelExporterT3D(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -535,67 +650,89 @@ bool ULevelExporterT3D::ExportText( const FExportObjectInnerContext* Context, UO
 		{
 			break;
 		}
-		// Don't export the default physics volume, as it doesn't have a UModel associated with it
-		// and thus will not import properly.
-		if ( Actor == DefaultPhysicsVolume )
+		
+		if (Private::bLevelExportT3D_UseActorExporters)
 		{
-			continue;
-		}
-		// Ensure actor is not a group if grouping is disabled and that the actor is currently selected
-		if( Actor && !Actor->IsA(AGroupActor::StaticClass()) &&
-			( bAllActors || IsObjectSelectedForExport(Context, Actor) ) )
-		{
-			if (Actor->ShouldExport())
+			// Ensure the actor is currently selected
+			if( Actor && ( bAllActors || IsObjectSelectedForExport(Context, Actor) ) )
 			{
-				// Temporarily unbind dynamic delegates so we don't export the bindings.
-				UBlueprintGeneratedClass::UnbindDynamicDelegates(Actor->GetClass(), Actor);
-
-				AActor* ParentActor = Actor->GetAttachParentActor();
-				FName SocketName = Actor->GetAttachParentSocketName();
-				FDetachmentTransformRules DetachmentTransformRules = FDetachmentTransformRules::KeepWorldTransform;
-				DetachmentTransformRules.bCallModify = false;
-				Actor->DetachFromActor(DetachmentTransformRules);
-
-				FString ParentActorString = ( ParentActor ? FString::Printf(TEXT(" ParentActor=%s"), *ParentActor->GetName() ) : TEXT(""));
-				FString SocketNameString = ( (ParentActor && SocketName != NAME_None) ? FString::Printf(TEXT(" SocketName=%s"), *SocketName.ToString() ) : TEXT(""));
-				FString GroupActor = (Actor->GroupActor ? FString::Printf(TEXT(" GroupActor=%s"), *Actor->GroupActor->GetName() ) : TEXT(""));
-				FString GroupFolder = (Actor->GroupActor ? FString::Printf(TEXT(" GroupFolder=%s"), *Actor->GroupActor->GetFolderPath().ToString() ) : TEXT(""));
-				FString ActorFolderPath = (Level->IsUsingActorFolders() ? FString::Printf(TEXT(" ActorFolderPath=\"%s\""), *Actor->GetFolderPath().ToString()) : TEXT(""));
-				FString CopyPasteId = (Actor->CopyPasteId != INDEX_NONE) ? FString::Printf(TEXT(" CopyPasteId=%d"), Actor->CopyPasteId ) : TEXT("");
-				FString ContentBundleGuid = (Actor->GetContentBundleGuid().IsValid() ? FString::Printf(TEXT(" ActorContentBundleGuid=%s"), *Actor->GetContentBundleGuid().ToString()) : TEXT(""));
-				FString ExternalDataLayer = (Actor->GetExternalDataLayerAsset() ? FString::Printf(TEXT(" ExternalDataLayerAsset=%s"), *FSoftObjectPath(Actor->GetExternalDataLayerAsset()).ToString()) : TEXT(""));
-
-				Ar.Logf( TEXT("%sBegin Actor Class=%s Name=%s Archetype=%s%s%s%s%s%s%s%s%s"), 
-					FCString::Spc(TextIndent), *Actor->GetClass()->GetPathName(), *Actor->GetName(),
-					*FObjectPropertyBase::GetExportPath(Actor->GetArchetype(), nullptr, nullptr, (PortFlags | PPF_Delimited) & ~PPF_ExportsNotFullyQualified), 
-					*ParentActorString, *SocketNameString, *GroupActor, *GroupFolder, *ActorFolderPath, *CopyPasteId, *ContentBundleGuid, *ExternalDataLayer);
-
-				// When exporting for diffs, export paths can cause false positives. since diff files don't get imported, we can
-				// skip adding this info the file.
-				if (!(PortFlags & PPF_ForDiff))
+				UExporter* Exporter = UExporter::FindExporter(Actor, Type);
+				if (Exporter)
 				{
-					// Emit the actor path
-					Ar.Logf(TEXT(" ExportPath=%s"), *FObjectPropertyBase::GetExportPath(Actor, nullptr, nullptr, (PortFlags | PPF_Delimited) & ~PPF_ExportsNotFullyQualified));
+					Exporter->TextIndent = TextIndent;
+					Exporter->bSelectedOnly = bSelectedOnly;
+					bool Result = Exporter->ExportText(Context, Actor, Type, Ar, Warn, PortFlags);
+					if (Result == false)
+					{
+						return Result;
+					}
 				}
 
-				Ar.Logf(LINE_TERMINATOR);
-
-				ExportRootScope = Actor;
-				ExportObjectInner( Context, Actor, Ar, PortFlags | PPF_ExportsNotFullyQualified );
-				ExportRootScope = nullptr;
-
-				Ar.Logf( TEXT("%sEnd Actor\r\n"), FCString::Spc(TextIndent) );
-				Actor->AttachToActor(ParentActor, FAttachmentTransformRules::KeepWorldTransform, SocketName);
-
-				// Restore dynamic delegate bindings.
-				UBlueprintGeneratedClass::BindDynamicDelegates(Actor->GetClass(), Actor);
+				SlowTask.EnterProgressFrame();
 			}
-			else if (GEditor)
+		}
+		else
+		{
+			if ( Actor == DefaultPhysicsVolume )
 			{
-				GEditor->GetSelectedActors()->Deselect(Actor);
+				continue;
 			}
+			// Ensure actor is not a group if grouping is disabled and that the actor is currently selected
+			if( Actor && !Actor->IsA(AGroupActor::StaticClass()) &&
+				( bAllActors || IsObjectSelectedForExport(Context, Actor) ) )
+			{
+				if (Actor->ShouldExport())
+				{
+					// Temporarily unbind dynamic delegates so we don't export the bindings.
+					UBlueprintGeneratedClass::UnbindDynamicDelegates(Actor->GetClass(), Actor);
 
-			SlowTask.EnterProgressFrame();
+					AActor* ParentActor = Actor->GetAttachParentActor();
+					FName SocketName = Actor->GetAttachParentSocketName();
+					FDetachmentTransformRules DetachmentTransformRules = FDetachmentTransformRules::KeepWorldTransform;
+					DetachmentTransformRules.bCallModify = false;
+					Actor->DetachFromActor(DetachmentTransformRules);
+
+					FString ParentActorString = ( ParentActor ? FString::Printf(TEXT(" ParentActor=%s"), *ParentActor->GetName() ) : TEXT(""));
+					FString SocketNameString = ( (ParentActor && SocketName != NAME_None) ? FString::Printf(TEXT(" SocketName=%s"), *SocketName.ToString() ) : TEXT(""));
+					FString GroupActor = (Actor->GroupActor ? FString::Printf(TEXT(" GroupActor=%s"), *Actor->GroupActor->GetName() ) : TEXT(""));
+					FString GroupFolder = (Actor->GroupActor ? FString::Printf(TEXT(" GroupFolder=%s"), *Actor->GroupActor->GetFolderPath().ToString() ) : TEXT(""));
+					FString ActorFolderPath = (Level->IsUsingActorFolders() ? FString::Printf(TEXT(" ActorFolderPath=\"%s\""), *Actor->GetFolderPath().ToString()) : TEXT(""));
+					FString CopyPasteId = (Actor->CopyPasteId != INDEX_NONE) ? FString::Printf(TEXT(" CopyPasteId=%d"), Actor->CopyPasteId ) : TEXT("");
+					FString ContentBundleGuid = (Actor->GetContentBundleGuid().IsValid() ? FString::Printf(TEXT(" ActorContentBundleGuid=%s"), *Actor->GetContentBundleGuid().ToString()) : TEXT(""));
+					FString ExternalDataLayer = (Actor->GetExternalDataLayerAsset() ? FString::Printf(TEXT(" ExternalDataLayerAsset=%s"), *FSoftObjectPath(Actor->GetExternalDataLayerAsset()).ToString()) : TEXT(""));
+
+					Ar.Logf( TEXT("%sBegin Actor Class=%s Name=%s Archetype=%s%s%s%s%s%s%s%s%s"), 
+						FCString::Spc(TextIndent), *Actor->GetClass()->GetPathName(), *Actor->GetName(),
+						*FObjectPropertyBase::GetExportPath(Actor->GetArchetype(), nullptr, nullptr, (PortFlags | PPF_Delimited) & ~PPF_ExportsNotFullyQualified), 
+						*ParentActorString, *SocketNameString, *GroupActor, *GroupFolder, *ActorFolderPath, *CopyPasteId, *ContentBundleGuid, *ExternalDataLayer);
+
+					// When exporting for diffs, export paths can cause false positives. since diff files don't get imported, we can
+					// skip adding this info the file.
+					if (!(PortFlags & PPF_ForDiff))
+					{
+						// Emit the actor path
+						Ar.Logf(TEXT(" ExportPath=%s"), *FObjectPropertyBase::GetExportPath(Actor, nullptr, nullptr, (PortFlags | PPF_Delimited) & ~PPF_ExportsNotFullyQualified));
+					}
+
+					Ar.Logf(LINE_TERMINATOR);
+
+					ExportRootScope = Actor;
+					ExportObjectInner( Context, Actor, Ar, PortFlags | PPF_ExportsNotFullyQualified );
+					ExportRootScope = nullptr;
+
+					Ar.Logf( TEXT("%sEnd Actor\r\n"), FCString::Spc(TextIndent) );
+					Actor->AttachToActor(ParentActor, FAttachmentTransformRules::KeepWorldTransform, SocketName);
+
+					// Restore dynamic delegate bindings.
+					UBlueprintGeneratedClass::BindDynamicDelegates(Actor->GetClass(), Actor);
+				}
+				else if (GEditor)
+				{
+					GEditor->GetSelectedActors()->Deselect(Actor);
+				}
+
+				SlowTask.EnterProgressFrame();
+			}
 		}
 	}
 
@@ -2138,6 +2275,25 @@ UFbxExportOption* UExporterFBX::GetAutomatedExportOptionsFbx()
 	return nullptr;
 }
 
+namespace UE::EditorExporters::Private
+{
+	bool SetupExporterForAutomatedFBXExport(FScopedFbxExporterInstance& ScopedExporterInstance, UExporterFBX& CurrentExporter)
+	{
+		if (CurrentExporter.ExportTask && CurrentExporter.ExportTask->bAutomated)
+		{
+			if (UFbxExportOption* AutomatedExportOptions = CurrentExporter.GetAutomatedExportOptionsFbx())
+			{
+				ScopedExporterInstance.GetExporter()->SetExportOptionsOverride(AutomatedExportOptions);
+			}
+
+			CurrentExporter.SetShowExportOption(false);
+			return true;
+		}
+
+		return false;
+	}
+}
+
 /*------------------------------------------------------------------------------
 UStaticMeshExporterFBX implementation.
 ------------------------------------------------------------------------------*/
@@ -2158,12 +2314,7 @@ bool UStaticMeshExporterFBX::ExportBinary( UObject* Object, const TCHAR* Type, F
 {
 	UStaticMesh* StaticMesh = CastChecked<UStaticMesh>( Object );
 	FScopedFbxExporterInstance ScopedExporterInstance;
-	if (UFbxExportOption* AutomatedExportOptions = GetAutomatedExportOptionsFbx())
-	{
-		ScopedExporterInstance.GetExporter()->SetExportOptionsOverride(AutomatedExportOptions);
-		SetShowExportOption(false);
-	}
-	else
+	if (!UE::EditorExporters::Private::SetupExporterForAutomatedFBXExport(ScopedExporterInstance, *this))
 	{
 		//Show the fbx export dialog options
 		bool ExportAll = GetBatchMode() && !GetShowExportOption();
@@ -2205,12 +2356,7 @@ bool USkeletalMeshExporterFBX::ExportBinary( UObject* Object, const TCHAR* Type,
 {
 	USkeletalMesh* SkeletalMesh = CastChecked<USkeletalMesh>( Object );
 	FScopedFbxExporterInstance ScopedExporterInstance;
-	if (UFbxExportOption* AutomatedExportOptions = GetAutomatedExportOptionsFbx())
-	{
-		ScopedExporterInstance.GetExporter()->SetExportOptionsOverride(AutomatedExportOptions);
-		SetShowExportOption(false);
-	}
-	else
+	if (!UE::EditorExporters::Private::SetupExporterForAutomatedFBXExport(ScopedExporterInstance, *this))
 	{
 		//Show the fbx export dialog options
 		bool ExportAll = GetBatchMode() && !GetShowExportOption();
@@ -2256,12 +2402,7 @@ bool UAnimSequenceExporterFBX::ExportBinary( UObject* Object, const TCHAR* Type,
 	if (AnimSkeleton && PreviewMesh)
 	{
 		FScopedFbxExporterInstance ScopedExporterInstance;
-		if (UFbxExportOption* AutomatedExportOptions = GetAutomatedExportOptionsFbx())
-		{
-			ScopedExporterInstance.GetExporter()->SetExportOptionsOverride(AutomatedExportOptions);
-			SetShowExportOption(false);
-		}
-		else
+		if (!UE::EditorExporters::Private::SetupExporterForAutomatedFBXExport(ScopedExporterInstance, *this))
 		{
 			//Show the fbx export dialog options
 			bool ExportAll = GetBatchMode() && !GetShowExportOption();
@@ -2321,6 +2462,11 @@ void UEditorEngine::RebuildStaticNavigableGeometry(ULevel* Level)
 			{
 				FBspNode* Node = &Model->Nodes[i];
 				FBspSurf& Surf = Model->Surfs[Node->iSurf];
+				
+				if (!(Surf.Actor && Surf.Actor->ShouldExportStaticNavigableGeometry()))
+				{
+					continue;
+				}
 
 				const FVector& TextureBase = (FVector)Model->Points[Surf.pBase];
 				const FVector& TextureX = (FVector)Model->Vectors[Surf.vTextureU];

@@ -12,15 +12,21 @@
 
 IMPLEMENT_FIELD(FFieldPathProperty)
 
+FFieldPathProperty::FFieldPathProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+	, PropertyClass(nullptr)
+{
+}
+
 FFieldPathProperty::FFieldPathProperty(FFieldVariant InOwner, const UECodeGen_Private::FFieldPathPropertyParams& Prop)
-	: FFieldPathProperty_Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
 {
 	PropertyClass = Prop.PropertyClassFunc();
 }
 
 #if WITH_EDITORONLY_DATA
 FFieldPathProperty::FFieldPathProperty(UField* InField)
-	: FFieldPathProperty_Super(InField)
+	: Super(InField)
 	, PropertyClass(nullptr)
 {
 	check(InField);

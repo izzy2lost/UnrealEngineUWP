@@ -41,5 +41,13 @@ public:
 	FReply OnSaveAndStopClicked();
 	FReply OnCancelClicked();
 
-	TSharedPtr<STextBlock> Messages;
+private:
+	struct FMessage
+	{
+		ELogVerbosity::Type Severity;
+		FText Text;
+	};
+
+	FMessage Message = {};
+	TSharedPtr<STextBlock> MessageWidget;
 };

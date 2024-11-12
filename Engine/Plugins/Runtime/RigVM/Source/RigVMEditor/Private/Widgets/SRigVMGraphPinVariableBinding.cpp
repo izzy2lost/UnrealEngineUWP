@@ -33,7 +33,11 @@ void SRigVMGraphVariableBinding::Construct(const FArguments& InArgs)
 	BindingArgs.CurrentBindingImage.BindRaw(this, &SRigVMGraphVariableBinding::GetBindingImage);
 	BindingArgs.CurrentBindingColor.BindRaw(this, &SRigVMGraphVariableBinding::GetBindingColor);
 
-	BindingArgs.OnCanBindProperty.BindSP(this, &SRigVMGraphVariableBinding::OnCanBindProperty);
+	BindingArgs.OnCanBindPropertyWithBindingChain = FOnCanBindPropertyWithBindingChain::CreateLambda([this](FProperty* InProperty, TConstArrayView<FBindingChainElement> InBindingChain)
+	{
+		return OnCanBindProperty(InProperty);
+	});
+
 	BindingArgs.OnCanBindToClass.BindSP(this, &SRigVMGraphVariableBinding::OnCanBindToClass);
 
 	BindingArgs.OnAddBinding.BindSP(this, &SRigVMGraphVariableBinding::OnAddBinding);
@@ -96,8 +100,8 @@ FText SRigVMGraphVariableBinding::GetBindingText() const
 
 const FSlateBrush* SRigVMGraphVariableBinding::GetBindingImage() const
 {
-	static FName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
-	static FName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
+	static const FLazyName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
+	static const FLazyName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
 
 	if (ModelPins.Num() > 0)
 	{
@@ -307,7 +311,7 @@ void SRigVMGraphVariableBinding::FillLocalVariableMenu(FMenuBuilder& MenuBuilder
 	
 	MenuBuilder.BeginSection("LocalVariables", LOCTEXT("LocalVariables", "Local Variables"));
 	{
-		static FName PropertyIcon(TEXT("Kismet.VariableList.TypeIcon"));
+		static const FLazyName PropertyIcon(TEXT("Kismet.VariableList.TypeIcon"));
 		const URigVMEdGraphSchema* Schema = GetDefault<URigVMEdGraphSchema>();
 
 		for(const FRigVMGraphVariableDescription& LocalVariable : LocalVariables)

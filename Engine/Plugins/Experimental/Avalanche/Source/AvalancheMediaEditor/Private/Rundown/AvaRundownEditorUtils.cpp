@@ -2,8 +2,6 @@
 
 #include "Rundown/AvaRundownEditorUtils.h"
 
-#include "Backends/JsonStructDeserializerBackend.h"
-#include "Backends/JsonStructSerializerBackend.h"
 #include "Backends/XmlStructSerializerBackend.h"
 #include "ContentBrowserModule.h"
 #include "DesktopPlatformModule.h"
@@ -29,7 +27,7 @@ namespace UE::AvaRundownEditor::Utils::Private
 	static const FString PageEntriesName = TEXT("Pages");
 
 	// Don't serialize the transient properties.
-	static auto TransientPropertyFiler = [](const FProperty* InCurrentProp, const FProperty* InParentProp)
+	static auto TransientPropertyFilter = [](const FProperty* InCurrentProp, const FProperty* InParentProp)
 	{
 		const bool bIsTransient = InCurrentProp && InCurrentProp->HasAnyPropertyFlags(CPF_Transient); 
 		return !bIsTransient; 
@@ -39,7 +37,7 @@ namespace UE::AvaRundownEditor::Utils::Private
 	{
 		FRundownSerializerPolicies()
 		{
-			PropertyFilter = TransientPropertyFiler;
+			PropertyFilter = TransientPropertyFilter;
 		}
 	};
 
@@ -47,7 +45,7 @@ namespace UE::AvaRundownEditor::Utils::Private
 	{
 		FRundownDeserializerPolicies()
 		{
-			PropertyFilter = TransientPropertyFiler;
+			PropertyFilter = TransientPropertyFilter;
 		}
 	};
 	
@@ -126,7 +124,7 @@ namespace UE::AvaRundownEditor::Utils::Private
 			DestinationPage.SetTemplateId(InTemplateId);
 			return true;
 		}
-		UE_LOG(LogAvaRundown, Error, TEXT("Failed to copy page in plage: page id %d is not found in destination rundown."), InPageId);
+		UE_LOG(LogAvaRundown, Error, TEXT("Failed to copy page in place: page id %d is not found in destination rundown."), InPageId);
 		return false;
 	}
 }
@@ -353,79 +351,16 @@ bool UE::AvaRundownEditor::Utils::SaveRundownToXml(const UAvaRundown* InRundown,
 	return false;
 }
 
-bool UE::AvaRundownEditor::Utils::SaveRundownToXml(const UAvaRundown* InRundown, const TCHAR* InFilepath)
+bool UE::AvaRundownEditor::Utils::SaveRundownToXml(const UAvaRundown* InRundown, const TCHAR* InFilepath, EXmlSerializationEncoding InXmlEncoding)
 {
 	if (IsValid(InRundown))
 	{
 		const TUniquePtr<FArchive> FileWriter(IFileManager::Get().CreateFileWriter(InFilepath));
 		if (FileWriter)	
 		{
-			const bool bSaved = SaveRundownToXml(InRundown, *FileWriter, EXmlSerializationEncoding::Utf8);
+			const bool bSaved = SaveRundownToXml(InRundown, *FileWriter, InXmlEncoding);
 			FileWriter->Close();
 			return bSaved;
-		}
-	}
-	return false;
-}
-
-bool UE::AvaRundownEditor::Utils::SaveRundownToJson(const UAvaRundown* InRundown, FArchive& InArchive)
-{
-	if (IsValid(InRundown))
-	{
-		FJsonStructSerializerBackend Backend(InArchive, EStructSerializerBackendFlags::Default);
-		FStructSerializer::Serialize(InRundown, *InRundown->GetClass(), Backend, Private::FRundownSerializerPolicies());
-		return true;
-	}
-	return false;
-}
-
-bool UE::AvaRundownEditor::Utils::SaveRundownToJson(const UAvaRundown* InRundown, const TCHAR* InFilepath)
-{
-	if (IsValid(InRundown))
-	{
-		const TUniquePtr<FArchive> FileWriter(IFileManager::Get().CreateFileWriter(InFilepath));
-		if (FileWriter)
-		{
-			const bool bSerialized = SaveRundownToJson(InRundown, *FileWriter);
-			FileWriter->Close();
-			return bSerialized;
-		}
-	}
-	return false;
-}
-
-bool UE::AvaRundownEditor::Utils::LoadRundownFromJson(UAvaRundown* InRundown, FArchive& InArchive)
-{
-	if (IsValid(InRundown))
-	{
-		// Serializing doesn't reset content, it will add to it, so we need
-		// to explicitly make the rundown empty first.
-		if (!InRundown->Empty())
-		{
-			return false;
-		}
-		
-		FJsonStructDeserializerBackend Backend(InArchive);
-		const bool bLoaded = FStructDeserializer::Deserialize(InRundown, *InRundown->GetClass(), Backend, Private::FRundownDeserializerPolicies());
-		if (bLoaded)
-		{
-			InRundown->PostLoad();
-		}
-		return bLoaded;
-	}
-	return false;
-}
-
-bool UE::AvaRundownEditor::Utils::LoadRundownFromJson(UAvaRundown* InRundown, const TCHAR* InFilepath)
-{
-	if (IsValid(InRundown))
-	{
-		const TUniquePtr<FArchive> FileReader(IFileManager::Get().CreateFileReader(InFilepath));
-		if (FileReader)
-		{
-			const bool bLoaded = LoadRundownFromJson(InRundown, *FileReader);
-			FileReader->Close();
-			return bLoaded;
 		}
 	}
 	return false;
@@ -459,6 +394,7 @@ TArray<int32> UE::AvaRundownEditor::Utils::ImportTemplatePages(UAvaRundown* InRu
 		{
 			OutImportedTemplateIds.Add(SourceTemplateId, ImportedTemplateId);
 			ensure(Private::CopyPageInPlace(InRundown, ImportedTemplateId, SourceTemplate, FAvaRundownPage::InvalidPageId));
+			InRundown->GetPage(ImportedTemplateId).ResetInstancedIds();	// We know this template has no instances yet.
 			OutTemplateIds.Add(ImportedTemplateId);
 		}
 	}
@@ -530,6 +466,7 @@ TArray<int32> UE::AvaRundownEditor::Utils::ImportInstancedPages(
 					const FAvaRundownPage& SourceTemplate = Private::FindPage(InSourceTemplates, SourcePage.GetTemplateId());
 					
 					ensure(Private::CopyPageInPlace(InRundown, ImportedTemplateId, SourceTemplate.IsValidPage() ? SourceTemplate : SourcePage, FAvaRundownPage::InvalidPageId));
+					InRundown->GetPage(ImportedTemplateId).ResetInstancedIds();	// We know this template has no instances yet.
 				}
 				else
 				{
@@ -591,7 +528,7 @@ TArray<int32> UE::AvaRundownEditor::Utils::ImportInstancedPages(
 		check(InstancedPageId != FAvaRundownPage::InvalidPageId);
 
 		// Now we have our instance page reference, add it to the sublist
-		if (InRundown->AddPageToSubList(InPageListReference.SubListIndex, InstancedPageId))
+		if (InRundown->AddPageToSubList(InPageListReference, InstancedPageId))
 		{
 			OutPageIds.Add(InstancedPageId);
 		}

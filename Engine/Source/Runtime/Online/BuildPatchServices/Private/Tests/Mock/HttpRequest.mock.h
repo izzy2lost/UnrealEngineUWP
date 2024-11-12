@@ -71,6 +71,12 @@ namespace BuildPatchServices
 			return FString();
 		}
 
+		virtual FString GetOption(const FName Option) const override
+		{
+			MOCK_FUNC_NOT_IMPLEMENTED("FMockHttpRequest::GetOption");
+			return FString();
+		}
+
 		virtual void SetVerb(const FString& Verb) override
 		{
 			RxSetVerb.Emplace(Verb);
@@ -79,6 +85,11 @@ namespace BuildPatchServices
 		virtual void SetURL(const FString& URL) override
 		{
 			RxSetURL.Emplace(URL);
+		}
+
+		virtual void SetOption(const FName Option, const FString& OptionValue) override
+		{
+			MOCK_FUNC_NOT_IMPLEMENTED("FMockHttpRequest::SetOption");
 		}
 
 		virtual void SetContent(const TArray<uint8>& ContentPayload) override
@@ -134,6 +145,11 @@ namespace BuildPatchServices
 			MOCK_FUNC_NOT_IMPLEMENTED("FMockHttpRequest::ClearTimeout");
 		}
 
+		virtual void ResetTimeoutStatus() override
+		{
+			MOCK_FUNC_NOT_IMPLEMENTED("FMockHttpRequest::ResetTimeoutStatus");
+		}
+
 		virtual TOptional<float> GetTimeout() const override
 		{
 			MOCK_FUNC_NOT_IMPLEMENTED("FMockHttpRequest::GetTimeout");
@@ -158,11 +174,6 @@ namespace BuildPatchServices
 		virtual FHttpRequestCompleteDelegate& OnProcessRequestComplete() override
 		{
 			return HttpRequestCompleteDelegate;
-		}
-
-		virtual FHttpRequestProgressDelegate& OnRequestProgress() override
-		{
-			return HttpRequestProgressDelegate;
 		}
 
 		virtual FHttpRequestProgressDelegate64& OnRequestProgress64() override

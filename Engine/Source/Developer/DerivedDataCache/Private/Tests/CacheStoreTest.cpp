@@ -7,6 +7,7 @@
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
 #include "Containers/Map.h"
+#include "Containers/SharedString.h"
 #include "DerivedDataCache.h"
 #include "DerivedDataRequestOwner.h"
 #include "Hash/Blake3.h"
@@ -19,6 +20,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCacheStoreTest, "System.DerivedDataCache.Cache
 
 bool FCacheStoreTest::RunTest(const FString& Parameters)
 {
+	using namespace UE;
 	using namespace UE::DerivedData;
 	ICache& Cache = GetCache();
 	FStringView TestVersion = TEXTVIEW("D6B05C93623D46D891D354BB22FCB584");

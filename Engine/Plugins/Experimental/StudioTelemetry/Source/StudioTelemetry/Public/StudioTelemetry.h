@@ -15,7 +15,7 @@ class FAnalyticsProviderMulticast;
  * Studio Telemetry Plugin API
  * 
  * Notes:
- * Telemetry for Common Editor and Core Engine is collected automatically.
+ * Telemetry for Common Editor and Core Engine is collected automatically via the EditorTelemetry plugin.
  * Telemetry Sessions are started and ended automatically with the plugin initialization and shutdown. As such telemetry will not be captured prior to the plugin initialization.
  * Developers are encouraged to add their own telemetry via this API or to intercept the event recording via the supplied callback on the SetRecordEventCallback API below.
  * It is strongly recommended that developers implement their own IAnalyticsProviderModule where custom recording of telemetry events is desired.
@@ -26,7 +26,7 @@ class FStudioTelemetry : public IModuleInterface
 {
 public:
 
-	typedef TFunction<void(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attrs)> OnRecordEvent;
+	typedef TFunction<void(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attrs)> OnRecordEventCallback;
 
 	/** Check whether the module is available*/
 	static STUDIOTELEMETRY_API bool IsAvailable() { return FModuleManager::Get().IsModuleLoaded("StudioTelemetry"); }
@@ -58,9 +58,6 @@ public:
 	/** Start a new span specifying the parent*/
 	STUDIOTELEMETRY_API TSharedPtr<IAnalyticsSpan> StartSpan(const FName Name, TSharedPtr<IAnalyticsSpan> ParentSpan, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
 
-	/** Start an existing span*/
-	STUDIOTELEMETRY_API bool StartSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
-
 	/** End an existing span*/
 	STUDIOTELEMETRY_API bool EndSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
 
@@ -70,9 +67,23 @@ public:
 	/** Get an active span by name, non active spans will not be available*/
 	STUDIOTELEMETRY_API TSharedPtr<IAnalyticsSpan> GetSpan(const FName Name);
 
-	/** Callback for interception of telemetry events recording that can be used by Developers to send telemetry events to their own back end, though it is recommended that Developers implement their own IAnalyticsProvider via their own IAnalyticsProviderModule*/
-	STUDIOTELEMETRY_API void SetRecordEventCallback(OnRecordEvent);
+	/** Get the root session span*/
+	STUDIOTELEMETRY_API TSharedPtr<IAnalyticsSpan> GetSessionSpan() const;
 
+	/** Callback for interception of telemetry events recording that can be used by Developers to send telemetry events to their own back end, though it is recommended that Developers implement their own IAnalyticsProvider via their own IAnalyticsProviderModule*/
+	STUDIOTELEMETRY_API void SetRecordEventCallback(OnRecordEventCallback);
+
+	/** Delegates for event callbacks **/
+	DECLARE_MULTICAST_DELEGATE(FOnStartSession);
+	STUDIOTELEMETRY_API FOnStartSession& GetOnStartSession() { return OnStartSession; }
+
+	DECLARE_MULTICAST_DELEGATE(FOnEndSession);
+	STUDIOTELEMETRY_API FOnEndSession& GetOnEndSession() { return OnEndSession; }
+
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnRecordEvent, const FString&, const TArray<FAnalyticsEventAttribute>&);
+	STUDIOTELEMETRY_API FOnRecordEvent& GetOnRecordEvent() { return OnRecordEvent; }
+
+	/** Scoped Span helper class **/
 	class ScopedSpan
 	{
 	public:
@@ -108,13 +119,29 @@ private:
 	/** Ends an existing analytics session*/
 	void EndSession();
 
+	/** Configure the plugin*/
+	void LoadConfiguration();
+
+	struct FConfig
+	{
+		bool bSendTelemetry = true; // Only send telemetry data if we have been requested to
+		bool bSendUserData = false;  // Never send user data unless specifically asked to
+		bool bSendHardwareData = true; // Always send hardware data unless specifically asked not to
+		bool bSendOSData = true; // Always send operating system data unless specifically asked not to
+	};
+	
 	FCriticalSection						CriticalSection;
 	TSharedPtr<FAnalyticsProviderMulticast>	AnalyticsProvider;
 	TSharedPtr<IAnalyticsTracer>			AnalyticsTracer;
-	OnRecordEvent							RecordEventCallback;
+	OnRecordEventCallback					RecordEventCallback;
 	FGuid									SessionGUID;
+	FConfig									Config;
+	FOnStartSession							OnStartSession;
+	FOnEndSession							OnEndSession;
+	FOnRecordEvent							OnRecordEvent;
 };
 
+// Useful macros for scoped spans
 #define STUDIO_TELEMETRY_SPAN_SCOPE(Name) FStudioTelemetry::ScopedSpan PREPROCESSOR_JOIN(ScopedSpan, __LINE__)(TEXT(#Name));
 #define STUDIO_TELEMETRY_START_SPAN(Name) if (FStudioTelemetry::Get().IsAvailable()) { FStudioTelemetry::Get().StartSpan(TEXT(#Name));}
 #define STUDIO_TELEMETRY_END_SPAN(Name) if (FStudioTelemetry::Get().IsAvailable()) { FStudioTelemetry::Get().EndSpan(TEXT(#Name));}

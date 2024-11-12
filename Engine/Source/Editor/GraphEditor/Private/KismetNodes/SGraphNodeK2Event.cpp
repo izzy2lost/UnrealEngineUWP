@@ -31,7 +31,7 @@ void SGraphNodeK2Event::AddPin( const TSharedRef<SGraphPin>& PinToAdd )
 		TitleAreaWidget->AddSlot()
 			.HAlign(HAlign_Right)
 			.VAlign(VAlign_Center)
-			.Padding(FMargin(4))
+			.Padding(4.0f, 0.0f)
 		[
 			PinToAdd
 		];

@@ -12,7 +12,7 @@ class FCurveEditor;
 struct FMovieSceneChannel;
 class UMovieSceneSection;
 struct FCurveModelID;
-
+class UCurveEditorFilterBase;
 
 USTRUCT(BlueprintType)
 struct SEQUENCERSCRIPTINGEDITOR_API FSequencerChannelProxy
@@ -59,6 +59,9 @@ public:
 	/** Close curve editor*/
 	void CloseCurveEditor();
 
+	UFUNCTION(BlueprintCallable, Category = "Sequencer Curve Editor")
+	void ApplyFilter(UCurveEditorFilterBase* Filter);
+
 public:
 
 	/** Gets the channel with selected keys */
@@ -68,6 +71,14 @@ public:
 	/** Gets the selected keys with this channel */
 	UFUNCTION(BlueprintPure, Category = "Sequencer Curve Editor")
 	TArray<int32> GetSelectedKeys(const FSequencerChannelProxy& ChannelProxy);
+
+	/** Show curve  */
+	UFUNCTION(BlueprintCallable, Category = "Sequencer Curve Editor")
+	void ShowCurve(const FSequencerChannelProxy& Channel, bool bShowCurve);
+
+	/** Is the curve displayed*/
+	UFUNCTION(BlueprintCallable, Category = "Sequencer Curve Editor")
+	bool IsCurveShown(const FSequencerChannelProxy& Channel);
 
 	/** Select keys */
 	UFUNCTION(BlueprintCallable, Category = "Sequencer Curve Editor")
@@ -114,9 +125,9 @@ public:
 public:
 
 	/**
-	 * Utility function to get curve from a section and a name
+	 * Utility function to get curve, if it exists,  from a section and a name
 	 */
-	FCurveModelID GetCurve(UMovieSceneSection* InSection, const FName& InName);
+	TOptional<FCurveModelID> GetCurve(UMovieSceneSection* InSection, const FName& InName);
 
 	/**
 	Utility function to get curve editor

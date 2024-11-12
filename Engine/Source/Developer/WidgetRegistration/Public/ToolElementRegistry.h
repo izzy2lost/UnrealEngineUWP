@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "BuilderKey.h"
 #include "Widgets/SWidget.h"
 
 class FToolElementRegistry;
@@ -22,6 +23,7 @@ enum class EToolElement : uint32
 class WIDGETREGISTRATION_API FToolElementRegistrationArgs :
 	public TSharedFromThis<FToolElementRegistrationArgs>
 {
+	
 public:
 
 	/** The constructor, which takes an EToolElement which will define the type of Tool Element*/
@@ -29,12 +31,22 @@ public:
 
 	/** The constructor, which takes an EToolElement which will define the type of Tool Element*/
 	FToolElementRegistrationArgs(FName InStyleClassName);
+	
+	/**
+	 * The constructor, which takes an FBuilderKey which will define the type of Tool Element
+	 *
+	 * @param InBuilderKey the FBuilderKey that provides the Key for this builder
+	 */
+	FToolElementRegistrationArgs( UE::DisplayBuilders::FBuilderKey InBuilderKey );
 
 	/** default destructor in case any subclasses need to provide a destructor*/
 	virtual ~FToolElementRegistrationArgs() = default;
 
 	/** Implements the generation of the TSharedPtr<SWidget> */
 	virtual TSharedPtr<SWidget> GenerateWidget();
+
+	/** Implements the generation of the TSharedRef<SWidget> */
+	TSharedRef<SWidget> GenerateWidgetSharedRef();
 
 	/** Updates/reloads this widget. This should be called after a consumer has changed any Data in this */
 	virtual void UpdateWidget();
@@ -47,6 +59,12 @@ public:
 
 	/** The style class name */
 	const FName StyleClassName;
+	
+	/** 
+	* the FBuilderKey for this. This provides a key into persistence, if any exists for the builder, along 
+	* with other things.
+    */
+	const UE::DisplayBuilders::FBuilderKey BuilderKey;
 };
 
 /** Serves as a key into the FToolElementRegistry of FToolElements */
@@ -75,7 +93,7 @@ FString KeyString;
 };
 
 /** Represents one Tool Element, and is responsible for displaying the UI for that element  */
-class WIDGETREGISTRATION_API FToolElement : public FToolElementRegistrationKey, public TSharedFromThis<FToolElement>
+class WIDGETREGISTRATION_API FToolElement : public FToolElementRegistrationKey
 {
 
 public:

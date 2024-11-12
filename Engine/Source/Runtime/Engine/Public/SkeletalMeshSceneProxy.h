@@ -31,6 +31,8 @@ public:
 	ENGINE_API virtual void DrawStaticElements(FStaticPrimitiveDrawInterface* PDI) override;
 	ENGINE_API virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override;
 
+	ENGINE_API virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
+
 #if RHI_RAYTRACING
 	ENGINE_API virtual bool HasRayTracingRepresentation() const override;
 
@@ -41,9 +43,11 @@ public:
 		return bRenderStatic;
 	}
 
+	ENGINE_API virtual RayTracing::GeometryGroupHandle GetRayTracingGeometryGroupHandle() const override;
+
 	ENGINE_API virtual TArray<FRayTracingGeometry*> GetStaticRayTracingGeometries() const override;
 
-	ENGINE_API virtual void GetDynamicRayTracingInstances(struct FRayTracingMaterialGatheringContext& Context, TArray<struct FRayTracingInstance>& OutRayTracingInstances) override;
+	ENGINE_API virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override;
 #endif // RHI_RAYTRACING
 
 	ENGINE_API virtual FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override;
@@ -111,6 +115,8 @@ public:
 	{
 		return GetCurrentFirstLODIdx_Internal();
 	}
+
+	ENGINE_API virtual FDesiredLODLevel GetDesiredLODLevel_RenderThread(const FSceneView* View) const final override;
 
 	ENGINE_API bool GetCachedGeometry(struct FCachedGeometry& OutCachedGeometry) const;
 
@@ -196,6 +202,10 @@ protected:
 	
 	/** The primitive's pre-skinned local space bounds. */
 	FBoxSphereBounds PreSkinnedLocalBounds;
+
+#if RHI_RAYTRACING
+	RayTracing::GeometryGroupHandle RayTracingGeometryGroupHandle = INDEX_NONE;
+#endif
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	/** The color we draw this component in if drawing debug bones */

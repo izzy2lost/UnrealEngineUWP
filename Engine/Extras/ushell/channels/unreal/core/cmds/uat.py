@@ -7,11 +7,11 @@ import unrealcmd
 class Uat(unrealcmd.MultiPlatformCmd):
     """ Runs an UnrealAutomationTool command """
     command     = unrealcmd.Arg(str, "The UnrealAutomationTool command to run")
-    unprojected = unrealcmd.Opt(False, "No implicit '-project=' please")
     uatargs     = unrealcmd.Arg([str], "Arguments to pass to the UAT command")
+    unprojected = unrealcmd.Opt(False, "No implicit '-project=' please")
+    allscripts  = unrealcmd.Opt(False, "Ask UAT to compile all scripts (default is project-only)");
 
     def complete_command(self, prefix):
-        import os
         import re
 
         def _read_foreach_subdir(dir, func):
@@ -61,9 +61,11 @@ class Uat(unrealcmd.MultiPlatformCmd):
         cmd /= "RunUAT.bat" if os.name == "nt" else "RunUAT.sh"
         args = (self.args.command,)
 
-        if args[0] and not self.args.unprojected:
-            if project := ue_context.get_project():
+        if project := ue_context.get_project():
+            if args[0] and not self.args.unprojected:
                 args = (*args, "-project=" + str(project.get_path()))
+            if not self.args.allscripts:
+                args = (*args, "-ScriptsForProject=" + project.get_name())
 
         exec_context = self.get_exec_context()
         cmd = exec_context.create_runnable(cmd, *args, *self.args.uatargs)

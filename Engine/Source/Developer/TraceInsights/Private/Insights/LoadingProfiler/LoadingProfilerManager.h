@@ -2,15 +2,22 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
 #include "Containers/Ticker.h"
-#include "CoreMinimal.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Logging/LogMacros.h"
+#include "Templates/SharedPointer.h"
 
-// Insights
-#include "Insights/InsightsManager.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/AvailabilityCheck.h"
+
+// TraceInsights
 #include "Insights/IUnrealInsightsModule.h"
 #include "Insights/LoadingProfiler/LoadingProfilerCommands.h"
+
+namespace UE::Insights::LoadingProfiler
+{
 
 class SLoadingProfilerWindow;
 
@@ -180,3 +187,7 @@ private:
 	/** A shared pointer to the global instance of the Loading Profiler manager. */
 	static TSharedPtr<FLoadingProfilerManager> Instance;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::LoadingProfiler

@@ -4,6 +4,7 @@
 #include "K2Node_Variable.h"
 
 #include "BlueprintCompilationManager.h"
+#include "BlueprintEditorSettings.h"
 #include "Components/ActorComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Containers/Set.h"
@@ -640,6 +641,9 @@ FText UK2Node_Variable::GetToolTipHeading() const
 		const UActorComponent* Component = GetActorComponent(VariableProperty);
 		const bool IsEditorOnly = VariableProperty->HasAnyPropertyFlags(CPF_EditorOnly) || (Component && Component->bIsEditorOnly);
 		const bool IsReplicated = VariableProperty->HasAnyPropertyFlags(CPF_Net) || (Component && Component->GetIsReplicated());
+		const bool IsFunctionParameter = VariableProperty->HasAnyPropertyFlags(CPF_Parm);
+		const bool IsLocalFunctionVariable = !VariableProperty->HasAnyPropertyFlags(CPF_Parm) && VariableReference.IsLocalScope();
+		const UBlueprintEditorSettings* EditorSettings = GetDefault<UBlueprintEditorSettings>();
 		if (IsEditorOnly && IsReplicated)
 		{
 			IconTag = LOCTEXT("ReplicatedEditorOnlyVar", "Editor-Only | Replicated");
@@ -651,6 +655,14 @@ FText UK2Node_Variable::GetToolTipHeading() const
 		else if (IsEditorOnly)
 		{
 			IconTag = LOCTEXT("EditorOnlyVar", "Editor-Only");
+		}
+		else if (IsFunctionParameter && EditorSettings->bShowFunctionParameterIcon)
+		{
+			IconTag = LOCTEXT("FunctionParameterVar", "Function parameter");
+		}
+		else if (IsLocalFunctionVariable && EditorSettings->bShowFunctionLocalVariableIcon)
+		{
+			IconTag = LOCTEXT("LocalFunctionVar", "Function local variable");
 		}
 	}
 
@@ -878,13 +890,26 @@ FName UK2Node_Variable::GetCornerIcon() const
 	if (const FProperty* VariableProperty = VariableReference.ResolveMember<FProperty>(GetBlueprintClassFromNode()))
 	{
 		const UActorComponent* Component = GetActorComponent(VariableProperty);
-		if (VariableProperty->HasAllPropertyFlags(CPF_Net) || (Component && Component->GetIsReplicated()))
+		const bool IsEditorOnly = VariableProperty->HasAnyPropertyFlags(CPF_EditorOnly) || (Component && Component->bIsEditorOnly);
+		const bool IsReplicated = VariableProperty->HasAnyPropertyFlags(CPF_Net) || (Component && Component->GetIsReplicated());
+		const bool IsFunctionParameter = VariableProperty->HasAnyPropertyFlags(CPF_Parm);
+		const bool IsLocalFunctionVariable = !VariableProperty->HasAnyPropertyFlags(CPF_Parm) && VariableReference.IsLocalScope();
+		const UBlueprintEditorSettings* EditorSettings = GetDefault<UBlueprintEditorSettings>();
+		if (IsReplicated)
 		{
 			return TEXT("Graph.Replication.Replicated");
 		}
-		else if (VariableProperty->HasAllPropertyFlags(CPF_EditorOnly) || (Component && Component->bIsEditorOnly))
+		else if (IsEditorOnly)
 		{
 			return TEXT("Graph.Editor.EditorOnlyIcon");
+		}
+		else if (IsFunctionParameter && EditorSettings->bShowFunctionParameterIcon)
+		{
+			return TEXT("Graph.Function.FunctionParameterIcon");
+		}
+		else if (IsLocalFunctionVariable && EditorSettings->bShowFunctionLocalVariableIcon)
+		{
+			return TEXT("Graph.Function.FunctionLocalVariableIcon");
 		}
 	}
 
@@ -1140,6 +1165,10 @@ FEdGraphNodeDeprecationResponse UK2Node_Variable::GetDeprecationResponse(EEdGrap
 	{
 		if (FProperty* VariableProperty = VariableReference.ResolveMember<FProperty>(GetBlueprintClassFromNode()))
 		{
+			// Check the deprecation type to override the severity
+			FString MessageType = VariableProperty->GetMetaData(FBlueprintMetadata::MD_DeprecatedProperty);
+			Response.MessageType = FBlueprintEditorUtils::GetDeprecatedMessageType(MessageType);
+
 			FText MemberName = FText::FromName(VariableReference.GetMemberName());
 			FText DetailedMessage = FText::FromString(VariableProperty->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage));
 			Response.MessageText = FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(MemberName, DetailedMessage);

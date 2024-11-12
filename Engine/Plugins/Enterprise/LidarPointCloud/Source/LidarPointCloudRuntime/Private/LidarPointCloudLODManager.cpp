@@ -155,7 +155,7 @@ bool FLidarPointCloudViewData::ComputeFromEditorViewportClient(FViewportClient* 
 		{
 			FSceneViewFamily::ConstructionValues CVS(nullptr, nullptr, FEngineShowFlags(EShowFlagInitMode::ESFIM_Game));
 			CVS.SetTime(FGameTime());
-			FSceneViewFamily ViewFamily(CVS);
+			FSceneViewFamilyContext ViewFamily(CVS);
 			FSceneView* View = Client->CalcSceneView(&ViewFamily);
 
 			const FMatrix& ProjectionMatrix = View->ViewMatrices.GetProjectionMatrix();
@@ -788,7 +788,7 @@ void FLidarPointCloudLODManager::PrepareProxies()
 		// If the SceneProxy has been destroyed, remove it from the list and reiterate
 		if(!bValidProxy)
 		{
-			RegisteredProxies.RemoveAtSwap(i--, 1, EAllowShrinking::No);
+			RegisteredProxies.RemoveAtSwap(i--, EAllowShrinking::No);
 		}
 	}
 

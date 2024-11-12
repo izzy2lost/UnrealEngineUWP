@@ -6,6 +6,9 @@
 
 #pragma once
 
+#include "MetalRHIPrivate.h"
+#include "Shaders/Types/Templates/MetalBaseShader.h"
+
 
 //------------------------------------------------------------------------------
 
@@ -15,8 +18,8 @@
 class FMetalVertexShader : public TMetalBaseShader<FRHIVertexShader, SF_Vertex>
 {
 public:
-	FMetalVertexShader(TArrayView<const uint8> InCode);
-	FMetalVertexShader(TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary);
+	FMetalVertexShader(FMetalDevice& Device, TArrayView<const uint8> InCode);
+	FMetalVertexShader(FMetalDevice& Device, TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary);
 
 	MTLFunctionPtr GetFunction();
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS

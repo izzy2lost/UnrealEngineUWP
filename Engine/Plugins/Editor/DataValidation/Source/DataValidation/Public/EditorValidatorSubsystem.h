@@ -147,6 +147,10 @@ struct DATAVALIDATION_API FValidateAssetsSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Validation")
 	bool bCaptureLogsDuringValidation = true;
 	
+	/** If true, captured log warnings during validation are added to the validation results as errors (requires bCaptureLogsDuringValidation) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Validation")
+	bool bCaptureWarningsDuringValidationAsErrors = true;
+
 	/** Maximum number of assets to attempt to validate */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Validation")
 	int32 MaxAssetsToValidate = MAX_int32;
@@ -160,9 +164,12 @@ struct DATAVALIDATION_API FValidateAssetsSettings
 	 * Defaults to warning, can be disabled by emptying the optional.
 	 */
 	TOptional<EMessageSeverity::Type> ShowMessageLogSeverity;
-	
+
 	/** Title of message log page to use for warnings/errors/etc */
 	FText MessageLogPageTitle;
+
+	/** Show progress window */
+	bool bSilent = false;
 };
 
 /**
@@ -204,7 +211,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Asset Validation")
 	virtual int32 ValidateAssetsWithSettings(
 		const TArray<FAssetData>& AssetDataList,
-		FValidateAssetsSettings& InSettings,
+		const FValidateAssetsSettings& InSettings,
 		FValidateAssetsResults& OutResults) const;
 
 	/**
@@ -338,7 +345,7 @@ public:
 protected:
 	void CleanupValidators();
 	
-	void WaitForAssetCompilationIfNecessary(EDataValidationUsecase InUsecase) const;
+	void WaitForAssetCompilationIfNecessary(EDataValidationUsecase InUsecase, bool bShowProgress = true) const;
 
 	/**
 	 * @return Returns true if the current Path should be skipped for validation. Returns false otherwise.
@@ -380,7 +387,7 @@ protected:
 		const FValidateAssetsSettings& 				InSettings,
 		FValidateAssetsResults& 					OutResults) const;
 	
-	void LogAssetValidationSummary(FMessageLog& DataValidationLog, const FValidateAssetsSettings& InSettings, const FValidateAssetsResults& Results) const;
+	void LogAssetValidationSummary(FMessageLog& DataValidationLog, const FValidateAssetsSettings& InSettings, EDataValidationResult Result, const FValidateAssetsResults& Results) const;
 
 	EDataValidationResult ValidateObjectInternal(
 		const FAssetData& InAssetData,

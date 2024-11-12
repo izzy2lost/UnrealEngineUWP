@@ -20,9 +20,10 @@
 #include "ViewModels/Stack/NiagaraStackInputCategory.h" 
 #include "ViewModels/Stack/NiagaraStackPropertyRow.h"
 #include "ViewModels/Stack/NiagaraStackItemFooter.h"
-#include "ViewModels/Stack/NiagaraStackFunctionInputCollection.h"
+#include "ViewModels/Stack/NiagaraStackValueCollection.h"
 #include "ViewModels/Stack/NiagaraStackModuleItem.h"
 #include "ViewModels/Stack/NiagaraStackSystemSettingsGroup.h"
+#include "ViewModels/Stack/NiagaraStackSimulationStageGroup.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "IContentBrowserSingleton.h"
 #include "ContentBrowserModule.h"
@@ -35,7 +36,7 @@
 #include "IDetailTreeNode.h"
 #include "Stack/NiagaraStackPropertyRowUtilities.h"
 #include "Stack/SNiagaraStackFunctionInputName.h"
-#include "Stack/SNiagaraStackFunctionInputCollection.h"
+#include "Stack/SNiagaraStackValueCollection.h"
 #include "Stack/SNiagaraStackFunctionInputValue.h"
 #include "Stack/SNiagaraStackInlineDynamicInput.h"
 #include "Stack/SNiagaraStackItem.h"
@@ -57,6 +58,7 @@
 #include "Widgets/SNiagaraParameterName.h"
 #include "Styling/StyleColors.h"
 #include "SResetToDefaultPropertyEditor.h"
+#include "Stack/SNiagaraStackScriptHierarchyRoot.h"
 #include "ViewModels/Stack/NiagaraStackNote.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraStack"
@@ -327,7 +329,7 @@ void SNiagaraStack::Construct(const FArguments& InArgs, UNiagaraStackViewModel* 
 			.TreeItemsSource(&StackViewModel->GetRootEntryAsArray())
 			.OnTreeViewScrolled(this, &SNiagaraStack::StackTreeScrolled)
 			.OnSelectionChanged(this, &SNiagaraStack::StackTreeSelectionChanged)
-			.SelectionMode(ESelectionMode::Multi)
+			.SelectionMode(ESelectionMode::Type::Multi)
 			.OnItemToString_Debug_Static(&FNiagaraStackEditorWidgetsUtilities::StackEntryToStringForListDebug)
 		]
 	];
@@ -880,7 +882,13 @@ SNiagaraStack::FRowWidgets SNiagaraStack::ConstructNameAndValueWidgetsForItem(UN
 {
 	if (Item->IsA<UNiagaraStackItemGroup>())
 	{
-		return FRowWidgets(SNew(SNiagaraStackItemGroup, *CastChecked<UNiagaraStackItemGroup>(Item), StackViewModel));
+		TSharedRef<SWidget> GroupWidget = SNew(SNiagaraStackItemGroup, *CastChecked<UNiagaraStackItemGroup>(Item), StackViewModel);
+		if (Item->IsA<UNiagaraStackSimulationStageGroup>())
+		{
+			Container->AddFillRowContextMenuHandler(SNiagaraStackTableRow::FOnFillRowContextMenu::CreateStatic(
+				&FNiagaraStackEditorWidgetsUtilities::AddStackSimulationStageGroupContextMenuActions, CastChecked<UNiagaraStackSimulationStageGroup>(Item), GroupWidget));
+		}
+		return FRowWidgets(GroupWidget);
 	}
 	else if (Item->IsA<UNiagaraStackModuleItem>())
 	{
@@ -968,7 +976,7 @@ SNiagaraStack::FRowWidgets SNiagaraStack::ConstructNameAndValueWidgetsForItem(UN
 		UNiagaraStackItemFooter* ItemExpander = CastChecked<UNiagaraStackItemFooter>(Item);
 		return FRowWidgets(SNew(SNiagaraStackItemFooter, *ItemExpander));
 	}
-	else if (Item->IsA<UNiagaraStackInputCategory>())
+	else if (Item->IsA<UNiagaraStackCategory>())
 	{
 		Container->SetOverrideNameAlignment(HAlign_Left, VAlign_Center);
 		return FRowWidgets(SNew(STextBlock)
@@ -996,7 +1004,12 @@ SNiagaraStack::FRowWidgets SNiagaraStack::ConstructNameAndValueWidgetsForItem(UN
 	else if (Item->IsA<UNiagaraStackValueCollection>())
 	{
 		UNiagaraStackValueCollection* InputCollection = CastChecked<UNiagaraStackValueCollection>(Item);
-		return FRowWidgets(SNew(SNiagaraStackFunctionInputCollection, InputCollection));
+		return FRowWidgets(SNew(SNiagaraStackValueCollection, InputCollection));
+	}
+	else if (Item->IsA<UNiagaraStackScriptHierarchyRoot>())
+	{
+		UNiagaraStackScriptHierarchyRoot* ModuleHierarchyRoot = CastChecked<UNiagaraStackScriptHierarchyRoot>(Item);
+		return FRowWidgets(SNew(SNiagaraStackScriptHierarchyRoot, ModuleHierarchyRoot));
 	}
 	else if (Item->IsA<UNiagaraStackModuleItemOutputCollection>() ||
 		Item->IsA<UNiagaraStackModuleItemLinkedInputCollection>())
@@ -1019,7 +1032,7 @@ SNiagaraStack::FRowWidgets SNiagaraStack::ConstructNameAndValueWidgetsForItem(UN
 		TAttribute<bool> IsEnabled;
 		IsEnabled.BindUObject(Item, &UNiagaraStackEntry::GetIsEnabledAndOwnerIsEnabled);
 		
-		Container->AddFillRowContextMenuHandler(FNiagaraStackPropertyRowUtilities::CreateOnFillRowContextMenu(PropertyRow->GetDetailTreeNode()->CreatePropertyHandle(), PropertyRowWidgets.Actions));
+		Container->AddFillRowContextMenuHandler(FNiagaraStackPropertyRowUtilities::CreateOnFillRowContextMenu(*PropertyRow, PropertyRowWidgets.Actions));
 
 		if (PropertyRowWidgets.WholeRowWidget.IsValid())
 		{

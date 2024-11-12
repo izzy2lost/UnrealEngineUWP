@@ -5,11 +5,17 @@
 #include "VehicleUtility.h"
 
 #if VEHICLE_DEBUGGING_ENABLED
-UE_DISABLE_OPTIMIZATION
+UE_DISABLE_OPTIMIZATION_SHIP
 #endif
 
 namespace Chaos
 {
+	FEngineSimModule::FEngineSimModule(const FEngineSettings& Settings) : TSimModuleSettings<FEngineSettings>(Settings)
+		, EngineIdleSpeed(RPMToOmega(Setup().IdleRPM))
+		, MaxEngineSpeed(RPMToOmega(Setup().MaxRPM))
+		, EngineStarted(true)
+	{
+	}
 
 	void FEngineSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
 	{
@@ -19,7 +25,7 @@ namespace Chaos
 		}
 
 		// TODO: Engine braking effect
-		DriveTorque = GetEngineTorque(Inputs.ControlInputs.Throttle, GetRPM());
+		DriveTorque = GetEngineTorque(Inputs.GetControls().GetMagnitude(ThrottleControlName), GetRPM());
 
 		if (DriveTorque < SMALL_NUMBER)
 		{
@@ -78,7 +84,7 @@ namespace Chaos
 
 	void FEngineOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
 	{
-		check(SimModule->GetSimType() == eSimType::Engine);
+		check(SimModule->IsSimType<class FEngineSimModule>());
 
 		FSimOutputData::FillOutputState(SimModule);
 
@@ -108,5 +114,5 @@ namespace Chaos
 } // namespace Chaos
 
 #if VEHICLE_DEBUGGING_ENABLED
-UE_ENABLE_OPTIMIZATION
+UE_ENABLE_OPTIMIZATION_SHIP
 #endif

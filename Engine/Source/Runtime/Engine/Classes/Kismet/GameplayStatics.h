@@ -28,6 +28,7 @@ class UDialogueWave;
 class UParticleSystem;
 class UParticleSystemComponent;
 class USaveGame;
+class USceneCaptureComponent2D;
 class USceneComponent;
 class USoundAttenuation;
 class USoundBase;
@@ -58,7 +59,7 @@ class UGameplayStatics : public UBlueprintFunctionLibrary
 	// --- Spawning functions ------------------------------
 
 	/** Spawns an instance of a blueprint, but does not automatically run its construction script.  */
-	UFUNCTION(BlueprintCallable, Category="Spawning", meta=(WorldContext="WorldContextObject", UnsafeDuringActorConstruction = "true", BlueprintInternalUseOnly = "true", DeprecatedFunction, DeprecationMessage="Use BeginSpawningActorFromClass"))
+	UFUNCTION(BlueprintCallable, Category="Spawning", meta=(WorldContext="WorldContextObject", UnsafeDuringActorConstruction = "true", BlueprintInternalUseOnly = "true", DeprecatedFunction="Note", DeprecationMessage = "Use BeginSpawningActorFromClass"))
 	static ENGINE_API class AActor* BeginSpawningActorFromBlueprint(const UObject* WorldContextObject, const class UBlueprint* Blueprint, const FTransform& SpawnTransform, bool bNoCollisionFail);
 
 	/** Spawns an instance of an actor class, but does not automatically run its construction script.  */
@@ -81,7 +82,6 @@ class UGameplayStatics : public UBlueprintFunctionLibrary
 	
 	/** 
 	 *	Find the first Actor in the world of the specified class. 
-	 *	This is a slow operation, use with caution e.g. do not use every frame.
 	 *	@param	ActorClass	Class of Actor to find. Must be specified or result will be empty.
 	 *	@return				Actor of the specified class.
 	 */
@@ -90,7 +90,7 @@ class UGameplayStatics : public UBlueprintFunctionLibrary
 
 	/** 
 	 *	Find all Actors in the world of the specified class. 
-	 *	This is a slow operation, use with caution e.g. do not use every frame.
+	 *	This will be slow if there are many actors of the specified class.
 	 *	@param	ActorClass	Class of Actor to find. Must be specified or result array will be empty.
 	 *	@param	OutActors	Output array of Actors of the specified class.
 	 */
@@ -99,7 +99,7 @@ class UGameplayStatics : public UBlueprintFunctionLibrary
 
 	/** 
 	 *	Find all Actors in the world with the specified interface.
-	 *	This is a slow operation, use with caution e.g. do not use every frame.
+	 *	This is a very slow operation, as it will search over every actor in the world.
 	 *	@param	Interface	Interface to find. Must be specified or result array will be empty.
 	 *	@param	OutActors	Output array of Actors of the specified interface.
 	 */
@@ -108,7 +108,7 @@ class UGameplayStatics : public UBlueprintFunctionLibrary
 
 	/**
 	 *	Find all Actors in the world with the specified tag.
-	 *	This is a slow operation, use with caution e.g. do not use every frame.
+	 *	This is a very slow operation, as it will search over every actor in the world.
 	 *	@param	Tag			Tag to find. Must be specified or result array will be empty.
 	 *	@param	OutActors	Output array of Actors of the specified tag.
 	 */
@@ -117,7 +117,7 @@ class UGameplayStatics : public UBlueprintFunctionLibrary
 
 	/**
 	 *	Find all Actors in the world of the specified class with the specified tag.
-	 *	This is a slow operation, use with caution e.g. do not use every frame.
+	 *	This will be slow if there are many actors of the specified class.
 	 *	@param	Tag			Tag to find. Must be specified or result array will be empty.
 	 *	@param	ActorClass	Class of Actor to find. Must be specified or result array will be empty.
 	 *	@param	OutActors	Output array of Actors of the specified tag.
@@ -1445,6 +1445,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Camera", meta = (Keywords = "unproject"))
 	static ENGINE_API bool DeprojectSceneCaptureToWorld(ASceneCapture2D const* SceneCapture2D, const FVector2D& TargetUV, FVector& WorldPosition, FVector& WorldDirection);
 
+	/**
+	 * Transforms the given 2D UV coordinate into a 3D world-space point and direction.
+	 * @param SceneCaptureComponent2D	Deproject using this scene capture component's view.
+	 * @param ScreenPosition			UV in scene capture render target to deproject.
+	 * @param WorldPosition				(out) Corresponding 3D position on camera near plane, in world space.
+	 * @param WorldDirection			(out) World space direction vector away from the camera at the given 2d point.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Camera", meta = (Keywords = "unproject"))
+	static ENGINE_API bool DeprojectSceneCaptureComponentToWorld(USceneCaptureComponent2D* SceneCaptureComponent2D, const FVector2D& TargetUV, FVector& WorldPosition, FVector& WorldDirection);
+
 	/** 
 	 * Transforms the given 3D world-space point into a its 2D screen space coordinate. 
 	 * @param Player			Project using this player's view.
@@ -1454,6 +1464,17 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Camera")
 	static ENGINE_API bool ProjectWorldToScreen(APlayerController const* Player, const FVector& WorldPosition, FVector2D& ScreenPosition, bool bPlayerViewportRelative = false);
+
+	/**
+	 * Transforms a world space location into "first person space". This function mirrors the morphing that is applied to first person primitives
+	 * when they are rendered on the GPU, so it can be used for spawning objects (e.g. projectiles or ejected shell casings) relative to the morphed
+	 * first person geometry on screen.
+	 * @param ViewInfo					FMinimalViewInfo struct holding the first person camera parameters.
+	 * @param WorldPosition				World space position to transform.
+	 * @param bIgnoreFirstPersonScale	Ignores the scaling that is applied to first person primitives which can be useful when spawning full size world space projectiles relative to a first person weapon.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Camera")
+	static ENGINE_API FVector TransformWorldToFirstPerson(const FMinimalViewInfo& ViewInfo, const FVector& WorldPosition, bool bIgnoreFirstPersonScale);
 
 	/**
 	 * Returns the View Matrix, Projection Matrix and the View x Projection Matrix for a given view

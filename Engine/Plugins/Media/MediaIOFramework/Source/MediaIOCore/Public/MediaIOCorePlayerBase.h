@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+#include "Engine/TextureDefines.h"
 #include "IMediaCache.h"
 #include "IMediaControls.h"
 #include "IMediaPlayer.h"
@@ -162,12 +163,25 @@ public:
 	virtual bool SupportsSubFrames() const override;
 
 public:
+	/** Class used to pass information about current frame for sample picking.*/
+	class FFrameInfo
+	{
+	public:
+		FTimecode RequestedTimecode = FTimecode();
+		FTimespan SampleTimespan = FTimespan();
+		double EvaluationOffset = 0.;
+		uint32 FrameNumber = 0.;
+	};
 
+	/** Deprecated in UE5.5. */
+	UE_DEPRECATED("5.5", "Use the overloaded method that takes FFrameInfo instead of proxy sample.")
+	bool JustInTimeSampleRender_RenderThread(FRHICommandListImmediate& RHICmdList, TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample) { return false; };
+	
 	/**
 	 * Just in time sample rendering. This method is responsible for late sample picking,
 	 * then rendering it into the proxy sample provided.
 	 */
-	bool JustInTimeSampleRender_RenderThread(TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample);
+	virtual bool JustInTimeSampleRender_RenderThread(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDestinationTexture, TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample);
 
 protected:
 
@@ -254,16 +268,16 @@ protected:
 	virtual TSharedPtr<FMediaIOCoreTextureSampleConverter> CreateTextureSampleConverter() const;
 
 	/** Pick a sample to render */
-	TSharedPtr<FMediaIOCoreTextureSampleBase> PickSampleToRender_RenderThread(const TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample);
-	TSharedPtr<FMediaIOCoreTextureSampleBase> PickSampleToRenderForLatest_RenderThread(const TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample);
-	TSharedPtr<FMediaIOCoreTextureSampleBase> PickSampleToRenderForTimeSynchronized_RenderThread(const TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample);
-	TSharedPtr<FMediaIOCoreTextureSampleBase> PickSampleToRenderFramelocked_RenderThread(const TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample);
+	virtual TSharedPtr<FMediaIOCoreTextureSampleBase> PickSampleToRender_RenderThread(const FFrameInfo& InFrameInformation);
+	virtual TSharedPtr<FMediaIOCoreTextureSampleBase> PickSampleToRenderForLatest_RenderThread(const FFrameInfo& InFrameInformation);
+	virtual TSharedPtr<FMediaIOCoreTextureSampleBase> PickSampleToRenderForTimeSynchronized_RenderThread(const FFrameInfo& InFrameInformation);
+	virtual TSharedPtr<FMediaIOCoreTextureSampleBase> PickSampleToRenderFramelocked_RenderThread(const FFrameInfo& InFrameInformation);
 
 	/**
 	 * A wrapper method responsible for transferring of the sample textures into GPU memory based
 	 * on the current settings and hardware capabilities.
 	 */
-	void TransferTexture_RenderThread(const TSharedPtr<FMediaIOCoreTextureSampleBase>& Sample, const TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample);
+	void TransferTexture_RenderThread(FRHICommandListImmediate& RHICmdList, const TSharedPtr<FMediaIOCoreTextureSampleBase>& Sample, const TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample);
 
 protected:
 	/** Url used to open the media player. */
@@ -316,6 +330,24 @@ protected:
 
 	/** Open color IO conversion data. */
 	TSharedPtr<struct FOpenColorIOColorConversionSettings> OCIOSettings;
+
+	/** Whether media playback should be framelocked to the engine's timecode */
+	bool bFramelock = false;
+
+	/** Used to ensure that JIT rendering is executed only once per frame */
+	uint64 LastEngineRTFrameThatUpdatedJustInTime = TNumericLimits<uint64>::Max();
+
+	/** Whether to override the source encoding or to use the metadata embedded in the ancillary data of the signal. */
+	bool bOverrideSourceEncoding = true;
+
+	/** Encoding of the source texture. */
+	ETextureSourceEncoding OverrideSourceEncoding = ETextureSourceEncoding::TSE_Linear;
+
+	/** Whether to override the source color space or to use the metadata embedded in the ancillary data of the signal. */
+	bool bOverrideSourceColorSpace = true;
+
+	/** Color space of the source texture. */
+	ETextureColorSpace OverrideSourceColorSpace = ETextureColorSpace::TCS_None;
 
 private:
 	void OnSampleDestroyed(TRefCountPtr<FRHITexture> InTexture);
@@ -378,12 +410,6 @@ private:
 	/** Is Just-In-Time Rendering enabled */
 	bool bJustInTimeRender = false;
 
-	/** Whether media playback should be framelocked to the engine's timecode */
-	bool bFramelock = false;
-
 	/** JITR samples proxy */
 	const TUniquePtr<FJITRMediaTextureSamples> JITRSamples;
-
-	/** Used to ensure that JIT rendering is executed only once per frame */
-	uint64 LastEngineRTFrameThatUpdatedJustInTime = TNumericLimits<uint64>::Max();
 };

@@ -2,10 +2,13 @@
 
 #include "Widgets/SNiagaraDistributionEditor.h"
 
+#include "NiagaraEditorModule.h"
 #include "Curves/CurveOwnerInterface.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "NiagaraEditorStyle.h"
 #include "SColorGradientEditor.h"
+#include "SNiagaraParameterEditor.h"
+#include "TypeEditorUtilities/NiagaraFloatTypeEditorUtilities.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Input/SVectorInputBox.h"
@@ -14,7 +17,6 @@
 #include "Widgets/NiagaraDistributionEditorUtilities.h"
 #include "Widgets/SNiagaraColorEditor.h"
 #include "Widgets/SNiagaraDistributionCurveEditor.h"
-#include "Widgets/SNiagaraExpandedToggle.h"
 #include "Widgets/SNiagaraParameterName.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraDistributionEditor"
@@ -23,15 +25,11 @@ class SNiagaraDistributionModeSelector : public SComboButton
 {
 public:
 	SLATE_BEGIN_ARGS(SNiagaraDistributionModeSelector) { }
-		SLATE_EVENT(FSimpleDelegate, OnDistributionModeChanged)
 	SLATE_END_ARGS();
 
 	void Construct(const FArguments& InArgs, TSharedRef<INiagaraDistributionAdapter> InDistributionAdapter)
 	{
-		
 		DistributionAdapter = InDistributionAdapter;
-		OnDistributionChangedDelegate = InArgs._OnDistributionModeChanged;
-
 		SComboButton::Construct(SComboButton::FArguments()
 			.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
 			.ContentPadding(FMargin(0))
@@ -104,12 +102,10 @@ private:
 	{
 		DistributionAdapter->SetDistributionMode(InSelectedMode);
 		UpdateCachedValues();
-		OnDistributionChangedDelegate.ExecuteIfBound();
 	}
 
 private:
 	TSharedPtr<INiagaraDistributionAdapter> DistributionAdapter;
-	FSimpleDelegate OnDistributionChangedDelegate;
 
 	mutable TOptional<ENiagaraDistributionEditorMode> ModeCache;
 	mutable const FSlateBrush* ModeIconCache = nullptr;
@@ -120,7 +116,6 @@ class SNiagaraDistributionBindingEditor : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SNiagaraDistributionBindingEditor) { }
-		//SLATE_EVENT(FSimpleDelegate, OnDistributionModeChanged)
 	SLATE_END_ARGS();
 
 	void Construct(const FArguments& InArgs, TSharedRef<INiagaraDistributionAdapter> InDistributionAdapter)
@@ -201,7 +196,7 @@ public:
 			TSharedPtr<SWidget> ValueWidget;
 			if (bIsUniform)
 			{
-				ValueWidget = ConstructFloatWidget(0, 0, FText());
+				ValueWidget = ConstructCustomizableFloatWidget(0, 0);
 			}
 			else if (bIsColor)
 			{
@@ -310,7 +305,8 @@ private:
 			: SNew(STextBlock)
 				.TextStyle(FNiagaraEditorStyle::Get(), "NiagaraEditor.ParameterText")
 				.Text(LabelText);
-
+		EUnit DisplayUnit = DistributionAdapter->GetDisplayUnit();
+		
 		return
 			SNew(SNumericEntryBox<float>)
 			.Font(FAppStyle::Get().GetFontStyle("PropertyWindow.NormalFont"))
@@ -325,6 +321,7 @@ private:
 			.MinSliderValue(TOptional<float>())
 			.MaxSliderValue(TOptional<float>())
 			.BroadcastValueChangesPerKey(false)
+			.TypeInterface(MakeShareable(new TNumericUnitTypeInterface<float>(DisplayUnit)))
 			.MinDesiredValueWidth(SNiagaraDistributionEditor::DefaultInputSize - 18)
 			.LabelVAlign(EVerticalAlignment::VAlign_Center)
 			.Label()
@@ -333,12 +330,26 @@ private:
 			];
 	}
 
+	TSharedRef<SWidget> ConstructCustomizableFloatWidget(int32 ChannelIndex, int32 ValueIndex)
+	{
+		FNiagaraEditorModule& NiagaraEditorModule = FNiagaraEditorModule::Get();
+		TSharedPtr<INiagaraEditorTypeUtilities> TypeUtilities = NiagaraEditorModule.GetTypeUtilities(FNiagaraTypeDefinition::GetFloatDef());
+		FNiagaraInputParameterCustomization WidgetCustomization = DistributionAdapter->GetWidgetCustomization();
+		EUnit DisplayUnit = DistributionAdapter->GetDisplayUnit();
+		return SNew(SNiagaraFloatParameterEditor, DisplayUnit, WidgetCustomization)
+			.Value(this, &SNiagaraDistributionValueEditor::GetValueFloat, ChannelIndex, ValueIndex)
+			.OnValueChanged(this, &SNiagaraDistributionValueEditor::ValueChanged, ChannelIndex, ValueIndex)
+			.OnBeginValueChange(this, &SNiagaraDistributionValueEditor::BeginValueChange)
+			.OnEndValueChange(this, &SNiagaraDistributionValueEditor::EndValueChange);
+	}
+
 	typedef SNumericVectorInputBox<float, UE::Math::TVector2<float>, 2> SNumericVectorInputBox2;
 	typedef SNumericVectorInputBox<float, UE::Math::TVector<float>, 3> SNumericVectorInputBox3;
 	typedef SNumericVectorInputBox<float, UE::Math::TVector4<float>, 4> SNumericVectorInputBox4;
 
 	TSharedRef<SWidget> ConstructVectorWidget(int32 ChannelCount, int32 ValueIndex)
 	{
+		const EUnit DisplayUnit = DistributionAdapter->GetDisplayUnit();
 		if (ChannelCount == 2)
 		{
 			return SNew(SBox)
@@ -356,6 +367,7 @@ private:
 					.OnYCommitted(this, &SNiagaraDistributionValueEditor::ValueCommitted, 1, ValueIndex)
 					.OnBeginSliderMovement(this, &SNiagaraDistributionValueEditor::BeginValueChange)
 					.OnEndSliderMovement(this, &SNiagaraDistributionValueEditor::EndValueChange)
+					.TypeInterface(MakeShareable(new TNumericUnitTypeInterface<float>(DisplayUnit)))
 				];
 		}
 		if (ChannelCount == 3)
@@ -378,6 +390,7 @@ private:
 					.OnZCommitted(this, &SNiagaraDistributionValueEditor::ValueCommitted, 2, ValueIndex)
 					.OnBeginSliderMovement(this, &SNiagaraDistributionValueEditor::BeginValueChange)
 					.OnEndSliderMovement(this, &SNiagaraDistributionValueEditor::EndValueChange)
+					.TypeInterface(MakeShareable(new TNumericUnitTypeInterface<float>(DisplayUnit)))
 				];
 		}
 		if (ChannelCount == 4)
@@ -403,6 +416,7 @@ private:
 					.OnWCommitted(this, &SNiagaraDistributionValueEditor::ValueCommitted, 3, ValueIndex)
 					.OnBeginSliderMovement(this, &SNiagaraDistributionValueEditor::BeginValueChange)
 					.OnEndSliderMovement(this, &SNiagaraDistributionValueEditor::EndValueChange)
+					.TypeInterface(MakeShareable(new TNumericUnitTypeInterface<float>(DisplayUnit)))
 				];
 		}
 		return SNullWidget::NullWidget;
@@ -425,6 +439,11 @@ private:
 	}
 
 	TOptional<float> GetValue(int32 ChannelIndex, int32 ValueIndex) const
+	{
+		return DistributionAdapter->GetConstantOrRangeValue(ChannelIndex, ValueIndex);
+	}
+
+	float GetValueFloat(int32 ChannelIndex, int32 ValueIndex) const
 	{
 		return DistributionAdapter->GetConstantOrRangeValue(ChannelIndex, ValueIndex);
 	}
@@ -619,7 +638,7 @@ private:
 void SNiagaraDistributionEditor::Construct(const FArguments& InArgs, TSharedRef<INiagaraDistributionAdapter> InDistributionAdapter)
 {
 	DistributionAdapter = InDistributionAdapter;
-
+	DistributionAdapter->OnDistributionEditorModeChanged().AddSP(this, &SNiagaraDistributionEditor::OnDistributionModeChanged);
 	ChildSlot
 	[
 		SNew(SHorizontalBox)
@@ -628,7 +647,6 @@ void SNiagaraDistributionEditor::Construct(const FArguments& InArgs, TSharedRef<
 		.Padding(0, 0, 5, 0)
 		[
 			SNew(SNiagaraDistributionModeSelector, InDistributionAdapter)
-			.OnDistributionModeChanged(this, &SNiagaraDistributionEditor::OnDistributionModeChanged)
 		]
 		+ SHorizontalBox::Slot()
 		[

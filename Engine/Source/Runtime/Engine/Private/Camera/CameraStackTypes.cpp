@@ -105,6 +105,8 @@ bool FMinimalViewInfo::Equals(const FMinimalViewInfo& OtherInfo) const
 		(Location == OtherInfo.Location) &&
 		(Rotation == OtherInfo.Rotation) &&
 		(FOV == OtherInfo.FOV) &&
+		(FirstPersonFOV == OtherInfo.FirstPersonFOV) &&
+		(FirstPersonScale == OtherInfo.FirstPersonScale) &&
 		(OrthoWidth == OtherInfo.OrthoWidth) &&
 		(OrthoNearClipPlane == OtherInfo.OrthoNearClipPlane) &&
 		(OrthoFarClipPlane == OtherInfo.OrthoFarClipPlane) &&
@@ -112,6 +114,7 @@ bool FMinimalViewInfo::Equals(const FMinimalViewInfo& OtherInfo) const
 			(PerspectiveNearClipPlane <= 0.f && OtherInfo.PerspectiveNearClipPlane <= 0.f)) &&
 		(AspectRatio == OtherInfo.AspectRatio) &&
 		(bConstrainAspectRatio == OtherInfo.bConstrainAspectRatio) &&
+		(bUseFirstPersonParameters == OtherInfo.bUseFirstPersonParameters) &&
 		(bUseFieldOfViewForLOD == OtherInfo.bUseFieldOfViewForLOD) &&
 		(ProjectionMode == OtherInfo.ProjectionMode) &&
 		(OffCenterProjectionOffset == OtherInfo.OffCenterProjectionOffset);
@@ -125,6 +128,8 @@ void FMinimalViewInfo::BlendViewInfo(FMinimalViewInfo& OtherInfo, float OtherWei
 	Rotation = Rotation + OtherWeight * DeltaAng;
 
 	FOV = FMath::Lerp(FOV, OtherInfo.FOV, OtherWeight);
+	FirstPersonFOV = FMath::Lerp(FirstPersonFOV, OtherInfo.FirstPersonFOV, OtherWeight);
+	FirstPersonScale = FMath::Lerp(FirstPersonScale, OtherInfo.FirstPersonScale, OtherWeight);
 	OrthoWidth = FMath::Lerp(OrthoWidth, OtherInfo.OrthoWidth, OtherWeight);
 	OrthoNearClipPlane = FMath::Lerp(OrthoNearClipPlane, OtherInfo.OrthoNearClipPlane, OtherWeight);
 	OrthoFarClipPlane = FMath::Lerp(OrthoFarClipPlane, OtherInfo.OrthoFarClipPlane, OtherWeight);
@@ -133,6 +138,7 @@ void FMinimalViewInfo::BlendViewInfo(FMinimalViewInfo& OtherInfo, float OtherWei
 
 	AspectRatio = FMath::Lerp(AspectRatio, OtherInfo.AspectRatio, OtherWeight);
 	bConstrainAspectRatio |= OtherInfo.bConstrainAspectRatio;
+	bUseFirstPersonParameters |= OtherInfo.bUseFirstPersonParameters;
 	bUseFieldOfViewForLOD |= OtherInfo.bUseFieldOfViewForLOD;
 }
 
@@ -142,6 +148,8 @@ void FMinimalViewInfo::ApplyBlendWeight(const float& Weight)
 	Rotation.Normalize();
 	Rotation *= Weight;
 	FOV *= Weight;
+	FirstPersonFOV *= Weight;
+	FirstPersonScale *= Weight;
 	OrthoWidth *= Weight;
 	OrthoNearClipPlane *= Weight;
 	OrthoFarClipPlane *= Weight;
@@ -158,6 +166,8 @@ void FMinimalViewInfo::AddWeightedViewInfo(const FMinimalViewInfo& OtherView, co
 	Location += OtherViewWeighted.Location;
 	Rotation += OtherViewWeighted.Rotation;
 	FOV += OtherViewWeighted.FOV;
+	FirstPersonFOV += OtherViewWeighted.FirstPersonFOV;
+	FirstPersonScale += OtherViewWeighted.FirstPersonScale;
 	OrthoWidth += OtherViewWeighted.OrthoWidth;
 	OrthoNearClipPlane += OtherViewWeighted.OrthoNearClipPlane;
 	OrthoFarClipPlane += OtherViewWeighted.OrthoFarClipPlane;
@@ -166,6 +176,7 @@ void FMinimalViewInfo::AddWeightedViewInfo(const FMinimalViewInfo& OtherView, co
 	OffCenterProjectionOffset += OtherViewWeighted.OffCenterProjectionOffset;
 
 	bConstrainAspectRatio |= OtherViewWeighted.bConstrainAspectRatio;
+	bUseFirstPersonParameters |= OtherViewWeighted.bUseFirstPersonParameters;
 	bUseFieldOfViewForLOD |= OtherViewWeighted.bUseFieldOfViewForLOD;
 }
 
@@ -173,7 +184,8 @@ FMatrix FMinimalViewInfo::CalculateProjectionMatrix() const
 {
 	FMatrix ProjectionMatrix;
 
-	if (ProjectionMode == ECameraProjectionMode::Orthographic)
+	const bool bOrthographic = ProjectionMode == ECameraProjectionMode::Orthographic;
+	if (bOrthographic)
 	{
 		const float YScale = 1.0f / AspectRatio;
 
@@ -210,8 +222,19 @@ FMatrix FMinimalViewInfo::CalculateProjectionMatrix() const
 		const float Right = Left + 2.0f;
 		const float Bottom = -1.0f + OffCenterProjectionOffset.Y;
 		const float Top = Bottom + 2.0f;
-		ProjectionMatrix.M[2][0] = (Left + Right) / (Left - Right);
-		ProjectionMatrix.M[2][1] = (Bottom + Top) / (Bottom - Top);
+
+		// Make sure you update CalculateProjectionMatrixGivenViewRectangle(...) as well if you change this, as
+		// it may have already modified some fields in the ProjectionMatrix.
+		if (bOrthographic)
+		{
+			ProjectionMatrix.M[3][0] = (Left + Right) / (Left - Right);
+			ProjectionMatrix.M[3][1] = (Bottom + Top) / (Bottom - Top);
+		}
+		else
+		{
+			ProjectionMatrix.M[2][0] = (Left + Right) / (Left - Right);
+			ProjectionMatrix.M[2][1] = (Bottom + Top) / (Bottom - Top);
+		}
 	}
 
 	return ProjectionMatrix;
@@ -334,8 +357,19 @@ void FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(FMinimalViewI
 		const float Right = Left + 2.0f;
 		const float Bottom = -1.0f + ViewInfo.OffCenterProjectionOffset.Y;
 		const float Top = Bottom + 2.0f;
-		InOutProjectionData.ProjectionMatrix.M[2][0] = (Left + Right) / (Left - Right);
-		InOutProjectionData.ProjectionMatrix.M[2][1] = (Bottom + Top) / (Bottom - Top);
+
+		// Make sure you update CalculateProjectionMatrix() as well if you change this, as
+		// it may have already modified some fields in the ProjectionMatrix.
+		if (bOrthographic)
+		{
+			InOutProjectionData.ProjectionMatrix.M[3][0] = (Left + Right) / (Left - Right);
+			InOutProjectionData.ProjectionMatrix.M[3][1] = (Bottom + Top) / (Bottom - Top);
+		}
+		else
+		{
+			InOutProjectionData.ProjectionMatrix.M[2][0] = (Left + Right) / (Left - Right);
+			InOutProjectionData.ProjectionMatrix.M[2][1] = (Bottom + Top) / (Bottom - Top);
+		}
 	}
 }
 
@@ -375,7 +409,7 @@ bool FMinimalViewInfo::AutoCalculateOrthoPlanes(FSceneViewProjectionData& InOutP
 		 * Forcing the absolute value for this means that Up/Down is 1.0f and Forward (90 degrees) is 0.
 		 * We use this to scale the Near Plane, and the far plane if 16 bit scaling is disabled.
 		 */
-		float CosAngle = FMath::Abs((ViewForward.Dot(FVector(0, 0, -1.0f))));
+		float CosAngle = FMath::Abs(ViewForward.Z);
 		
 		/** 
 		 * We still max out at UE_OLD_WORLD_MAX or Max32FP, but we scale the FarPlane depending on ratio of the pixel size to the world unit size.
@@ -384,11 +418,11 @@ bool FMinimalViewInfo::AutoCalculateOrthoPlanes(FSceneViewProjectionData& InOutP
 		 */		
 		float FarPlane;
 		float UnitPerPixelRatio = 1.0f;
-		float ViewportSizeX = InOutProjectionData.GetViewRect().Width();
-		if (bUse16bitDepth && OrthoWidth > 0  && ViewportSizeX > 0)
+		const FIntRect& ViewportSize = InOutProjectionData.GetViewRect();
+		if (bUse16bitDepth && OrthoHeight > 0  && ViewportSize.Area() > 0)
 		{
 			//The CmPerPixelRatio determines the far plane depth scale required for the scene
-			UnitPerPixelRatio = OrthoWidth / (float)ViewportSizeX;
+			UnitPerPixelRatio = FMath::FloorToFloat(OrthoHeight / (float)ViewportSize.Height());
 			if (bScaleIncrementingUnits)
 			{	
 				//This scales the min/max depending on the dynamic scale of the unit to pixel as the ortho width increases at the sacrifice of the max FarPlane, allowing scaling to LWC
@@ -432,4 +466,70 @@ bool FMinimalViewInfo::AutoCalculateOrthoPlanes(FSceneViewProjectionData& InOutP
 		return true;
 	}
 	return false;
+}
+
+FVector FMinimalViewInfo::TransformWorldToFirstPerson(const FVector& WorldPosition, bool bIgnoreFirstPersonScale) const
+{
+	if (ProjectionMode == ECameraProjectionMode::Perspective)
+	{
+		const FVector Forward = Rotation.Vector();
+		const FVector CameraRelativePosition = WorldPosition - Location;
+		const FVector ProjectedPosition = FVector::DotProduct(Forward, CameraRelativePosition) * Forward;
+		const FVector Rejection = CameraRelativePosition - ProjectedPosition;
+		const float FOVCorrectionFactor = CalculateFirstPersonFOVCorrectionFactor() - 1.0f;
+		const FVector FOVCorrectedPosition = CameraRelativePosition + Rejection * FOVCorrectionFactor;
+		const FVector ScaledPosition = FOVCorrectedPosition * FirstPersonScale;
+		const FVector Result = (bIgnoreFirstPersonScale ? FOVCorrectedPosition : ScaledPosition) + Location;
+		return Result;
+	}
+	return WorldPosition;
+}
+
+float FMinimalViewInfo::CalculateFirstPersonFOVCorrectionFactor() const
+{
+	const float HalfTanSceneFOV = FMath::Tan(FMath::DegreesToRadians(FOV) * 0.5f);
+	const float HalfTanFirstPersonFOV = FMath::Tan(FMath::DegreesToRadians(FirstPersonFOV * 0.5f));
+	const float FOVCorrectionFactor = HalfTanSceneFOV / HalfTanFirstPersonFOV;
+	return FOVCorrectionFactor;
+}
+
+void FMinimalViewInfo::ApplyOverscan(float InOverscan, bool bScaleResolutionWithOverscan, bool bCropOverscan)
+{
+	if (!FMath::IsNearlyZero(InOverscan))
+	{
+		// Clamp the incoming overscan so that the new total overscan can never be less than zero
+		const float ClampedOverscan = FMath::Max(InOverscan, -Overscan / (1 + Overscan));
+		
+		// Keep track of the total amount of overscan that has been applied to the view. Mathematically,
+		// this formula is derived from 1 + TotalOverscan = (1 + Overscan) * (1 + InOverscan)
+		Overscan = Overscan * (1.0f + ClampedOverscan) + ClampedOverscan;
+		
+		// By convention, 0.0 means no overscan, so add 1 to compute the scalar needed for altering projection values
+		const float OverscanScalar = 1.0f + ClampedOverscan;
+		
+		// Overscan directly scales the view frustum, but can be accomplished by scaling the FOV.
+		// However, must scale the tangent of the half-FOV to accomplish the same mathematical transform.
+		const float HalfFOVInRadians = FMath::DegreesToRadians(0.5f * FOV);
+		const float OverscannedFOV = FMath::Atan(OverscanScalar * FMath::Tan(HalfFOVInRadians));
+		FOV = 2.0f * FMath::RadiansToDegrees(OverscannedFOV);
+		
+		OrthoWidth *= OverscanScalar;
+
+		OverscanResolutionFraction *= bScaleResolutionWithOverscan ? OverscanScalar : 1.0;
+		CropFraction *= bCropOverscan ? 1.0f / OverscanScalar : 1.0f;
+	}
+}
+
+void FMinimalViewInfo::ClearOverscan()
+{
+	if (Overscan > 0.0f)
+	{
+		// Apply the inverse overscan to the view frustum to obtain the original frustum values (field of view, ortho width, etc)
+		// Inverse overscan derived from (1 + Overscan) * (1 + InverseOverscan) = 1
+		const float InverseOverscan = - Overscan / (1.0f + Overscan);
+		ApplyOverscan(InverseOverscan);
+
+		OverscanResolutionFraction = 1.0f;
+		CropFraction = 1.0f;
+	}
 }

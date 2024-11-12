@@ -184,6 +184,7 @@ namespace Audio
 		AUDIOMIXER_API virtual void StartEnvelopeFollowing(USoundSubmix* InSubmix) override;
 		AUDIOMIXER_API virtual void StopEnvelopeFollowing(USoundSubmix* InSubmix) override;
 		AUDIOMIXER_API virtual void AddEnvelopeFollowerDelegate(USoundSubmix* InSubmix, const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP) override;
+		AUDIOMIXER_API virtual void RemoveEnvelopeFollowerDelegate(USoundSubmix* InSubmix, const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP) override;
 
 		// Submix Spectrum Analysis
 		AUDIOMIXER_API virtual void StartSpectrumAnalysis(USoundSubmix* InSubmix, const FSoundSpectrumAnalyzerSettings& InSettings) override;
@@ -201,6 +202,9 @@ namespace Audio
 		AUDIOMIXER_API virtual void UnregisterSubmixBufferListener(ISubmixBufferListener* InSubmixBufferListener, USoundSubmix* InSubmix = nullptr) override;
 
 		AUDIOMIXER_API virtual void RegisterSubmixBufferListener(TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe> InSubmixBufferListener, USoundSubmix& InSubmix) override;
+
+		// This is optional, and should only be used to manually unregister before the ISubmixBufferListener is getting destroyed
+		// (do not call this in the destructor of ISubmixBufferListener or derived classes)
 		AUDIOMIXER_API virtual void UnregisterSubmixBufferListener(TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe> InSubmixBufferListener, USoundSubmix& InSubmix) override;
 
 		AUDIOMIXER_API virtual FPatchOutputStrongPtr AddPatchForSubmix(uint32 InObjectId, float InPatchGain) override;
@@ -252,6 +256,7 @@ namespace Audio
 		const FAudioPlatformDeviceInfo& GetPlatformDeviceInfo() const { return PlatformInfo; };
 
 		FORCEINLINE int32 GetNumDeviceChannels() const { return PlatformInfo.NumChannels; }
+		FORCEINLINE int32 GetNumDirectOutChannels() const { return PlatformInfo.NumDirectOutChannels; }
 
 		int32 GetNumOutputFrames() const { return PlatformSettings.CallbackBufferFrameSize; }
 
@@ -464,7 +469,7 @@ namespace Audio
 		mutable int32 GameOrAudioThreadId;
 
 		/** ThreadId for the low-level platform audio mixer. */
-		mutable int32 AudioPlatformThreadId;
+		mutable std::atomic<int32> AudioPlatformThreadId;
 
 		/** Command queue to send commands to audio render thread from game thread or audio thread. */
 		TQueue<TFunction<void()>> CommandQueue;

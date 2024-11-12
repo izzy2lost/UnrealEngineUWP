@@ -669,15 +669,20 @@ UAvaFontObject* UAvaFontManagerSubsystem::CreateProjectFont(UFont* InSourceFont,
 					ProjectFontsPackage->AddToRoot();
 				}
 
-				UAvaFontObject* NewAvaFont = NewObject<UAvaFontObject>(ProjectFontsPackage, *SanitizedFontName, RF_Public | RF_Standalone | RF_Transient);
-				NewAvaFont->AddToRoot();
+				// If the font object already exist, early return
+				UAvaFontObject* FontObject = FindObject<UAvaFontObject>(ProjectFontsPackage, *SanitizedFontName);
+				if (!FontObject)
+				{
+					FontObject = NewObject<UAvaFontObject>(ProjectFontsPackage, *SanitizedFontName, RF_Public | RF_Standalone | RF_Transient);
+					FontObject->AddToRoot();
+				}
 
-				NewAvaFont->InitProjectFont(InSourceFont, FontName);
-				UAvaFontManagerSubsystem::SetupMetrics(NewAvaFont);
+				FontObject->InitProjectFont(InSourceFont, FontName);
+				UAvaFontManagerSubsystem::SetupMetrics(FontObject);
 
-				ProjectFontsMap.Add(SanitizedFontName, NewAvaFont);
+				ProjectFontsMap.Add(SanitizedFontName, FontObject);
 
-				return NewAvaFont;
+				return FontObject;
 			}
 			else
 			{

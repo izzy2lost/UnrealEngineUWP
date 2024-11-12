@@ -262,6 +262,7 @@ namespace Audio
 #if ENABLE_AUDIO_DEBUG
 		double GetCPUCoreUtilization(const int32 SourceId) const;
 #endif // ENABLE_AUDIO_DEBUG
+		float GetRelativeRenderCost(const int32 SourceId) const;
 		bool IsUsingHRTFSpatializer(const int32 SourceId) const;
 		bool NeedsSpeakerMap(const int32 SourceId) const;
 		void ComputeNextBlockOfSamples();
@@ -635,6 +636,7 @@ namespace Audio
 #if ENABLE_AUDIO_DEBUG
 			TArray<double> CPUCoreUtilization;
 #endif // #if ENABLE_AUDIO_DEBUG
+			TArray<float> RelativeRenderCost;
 		} GameThreadInfo;
 
 		int32 NumActiveSources;

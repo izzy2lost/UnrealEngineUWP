@@ -4,21 +4,17 @@
 
 #include "Interface/IVCamOutputProviderCreatedWidget.h"
 #include "UI/VCamWidget.h"
-#include "Util/LevelViewportUtils.h"
 #include "Util/ObjectMessageAggregation.h"
 #include "Util/WidgetSnapshotUtils.h"
 #include "Util/WidgetTreeUtils.h"
 #include "VCamComponent.h"
 #include "VCamCoreCustomVersion.h"
 #include "Output/ViewTargetPolicy/FocusFirstPlayerViewTargetPolicy.h"
-#include "Output/ViewTargetPolicy/GameplayViewTargetPolicy.h"
 
-#include "Algo/RemoveIf.h"
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetTree.h"
 #include "CoreGlobals.h"
 #include "Engine/Engine.h"
-#include "Engine/GameEngine.h"
 #include "Framework/Application/SlateApplication.h"
 #include "GameFramework/PlayerController.h"
 #include "Misc/ScopeExit.h"
@@ -30,10 +26,7 @@
 #if WITH_EDITOR
 #include "Editor.h"
 #include "EditorViewportClient.h"
-#include "IAssetViewport.h"
 #include "LevelEditorViewport.h"
-#include "SLevelViewport.h"
-#include "SEditorViewport.h"
 #include "UnrealClient.h"
 #endif
 
@@ -41,7 +34,7 @@ DEFINE_LOG_CATEGORY(LogVCamOutputProvider);
 
 #define LOCTEXT_NAMESPACE "UVCamOutputProviderBase"
 
-namespace UE::VCamCore::Private
+namespace UE::VCamCore
 {
 	static bool ValidateOverlayClassAndLogErrors(const TSubclassOf<UUserWidget>& InUMGClass)
 	{
@@ -87,7 +80,7 @@ void UVCamOutputProviderBase::Initialize()
 		{
 			if (IsOuterComponentEnabledAndInitialized())
 			{
-				OnActivate();
+				HandleCallingOnActivate();
 			}
 		}
 	}
@@ -97,7 +90,7 @@ void UVCamOutputProviderBase::Deinitialize()
 {
 	if (bInitialized)
 	{
-		OnDeactivate();
+		HandleCallingOnDeactivate();
 		bInitialized = false;
 	}
 }
@@ -112,44 +105,44 @@ void UVCamOutputProviderBase::Tick(const float DeltaTime)
 
 void UVCamOutputProviderBase::SetActive(const bool bInActive)
 {
-	bIsActive = bInActive;
-	
-	// E.g. when you drag-drop an actor into the level
-	if (!UE::VCamCore::CanInitVCamOutputProvider(this))
+	const bool bIsPointless = (bIsActive && bInActive) || (!bIsActive && !bInActive);
+	if (!bIsPointless)
 	{
-		return;
-	}
-
-	// Deactivation is a clean up operation that we always allow but ...
-	if (!bIsActive)
-	{
-		OnDeactivate();
-		return;
-	}
-	
-	// ... we enforce that in OnActivate that we be initialized first.
-	// For the VCam connections & modifiers to work with the output widget, the VCamComponent must be initialized.
-	// If this output provider is !bInitialized, the most likely reason is that the owning VCam component is also not initialized.
-	const bool bCanPerformActivationLogic = bInitialized && IsOuterComponentEnabledAndInitialized();
-	if (bCanPerformActivationLogic)
-	{
-		OnActivate();
-	}
-	else
-	{
-		// ... and instead of resolving that here, we defer to the API user to resolve the issue by initializing the owning VCamComponent, e.g. with a SetEnabled(true) call. 
-		UE_LOG(LogVCamOutputProvider,
-			Warning,
-			TEXT("SetActive: Owning VCamComponent is not enabled or initialized. Call SetEnabled(true) on the owning VCamComponent. Output provider bIsActive was set to true but the activation logic was skipped; it will run once you initialize the owning VCamComponent. Output provider: %s"),
-			*GetPathName()
-			);
+		SetActiveInternal(bInActive);
 	}
 }
 
-bool UVCamOutputProviderBase::IsOuterComponentEnabledAndInitialized() const
+bool UVCamOutputProviderBase::IsOuterComponentEnabledAndInitialized(bool bSkipGarbageCheck) const
 {
 	const UVCamComponent* OuterComponent = GetTypedOuter<UVCamComponent>();
-	return OuterComponent && OuterComponent->IsEnabled() && OuterComponent->IsInitialized();
+	const bool bIsSafeToDereference = (bSkipGarbageCheck && OuterComponent)
+		// IsValid will also detect whether the owning VCam is marked as garbage, e.g. VCam could be invalid right now because its deletion was redone (delete, undo, redo).
+		|| (!bSkipGarbageCheck && IsValid(OuterComponent));
+	return bIsSafeToDereference
+		&& OuterComponent->IsEnabled()
+		&& OuterComponent->IsInitialized();
+}
+
+void UVCamOutputProviderBase::HandleCallingOnActivate()
+{
+	if (!bIsActuallyActive)
+	{
+		OnActivate();
+		// Avoid broadcasting in the base OnActivate, as a listener might trigger OnDeactivate.
+		// This would require the subclass to verify if it's still active after calling the base OnActivate.
+		// To prevent this, we broadcast after OnActivate has fully completed.
+		OnActivatedDelegate.Broadcast(true);
+	}
+}
+
+void UVCamOutputProviderBase::HandleCallingOnDeactivate()
+{
+	if (bIsActuallyActive)
+	{
+		OnDeactivate();
+		// Similar as on OnActivate: execute after full virtual call hierarchy of OnDeactivate has been processed.
+		OnActivatedDelegate.Broadcast(false);
+	}
 }
 
 void UVCamOutputProviderBase::SetTargetViewport(EVCamTargetViewportID Value)
@@ -158,9 +151,15 @@ void UVCamOutputProviderBase::SetTargetViewport(EVCamTargetViewportID Value)
 	ReinitializeViewportIfNeeded();
 }
 
+void UVCamOutputProviderBase::InitTargetViewport(EVCamTargetViewportID Value)
+{
+	check(!IsOutputting());
+	TargetViewport = Value;
+}
+
 void UVCamOutputProviderBase::SetUMGClass(const TSubclassOf<UUserWidget> InUMGClass)
 {
-	if (UE::VCamCore::Private::ValidateOverlayClassAndLogErrors(InUMGClass))
+	if (UE::VCamCore::ValidateOverlayClassAndLogErrors(InUMGClass))
 	{
 		UMGClass = InUMGClass;
 	}
@@ -171,46 +170,71 @@ UVCamComponent* UVCamOutputProviderBase::GetVCamComponent() const
 	return GetTypedOuter<UVCamComponent>();
 }
 
-void UVCamOutputProviderBase::ReapplyOverrideResolution()
+void UVCamOutputProviderBase::RequestResolutionRefresh() const
 {
-	if (!IsActiveAndOuterComponentAllowsActivity())
+	UE::VCamCore::FViewportManager& ViewportManager = UE::VCamCore::FVCamCoreModule::Get().GetViewportManager();
+	ViewportManager.RequestResolutionRefresh();
+}
+
+void UVCamOutputProviderBase::SetActiveInternal(const bool bInActive)
+{
+	if (!IsActivationChangeAllowed(bInActive))
 	{
 		return;
 	}
 	
-	if (bUseOverrideResolution)
+	bIsActive = bInActive;
+
+	// E.g. when you drag-drop an actor into the level
+	if (!UE::VCamCore::CanInitVCamOutputProvider(this))
 	{
-		ApplyOverrideResolutionForViewport(TargetViewport);
+		return;
+	}
+
+	// Deactivation is a clean up operation that we always allow but ...
+	if (!bIsActive)
+	{
+		HandleCallingOnDeactivate();
+		return;
+	}
+	
+	// ... we enforce that in OnActivate that we be initialized first.
+	// For the VCam connections & modifiers to work with the output widget, the VCamComponent must be initialized.
+	// If this output provider is !bInitialized, the most likely reason is that the owning VCam component is also not initialized.
+	const bool bCanPerformActivationLogic = bInitialized && IsOuterComponentEnabledAndInitialized();
+	if (bCanPerformActivationLogic)
+	{
+		HandleCallingOnActivate();
 	}
 	else
 	{
-		RestoreOverrideResolutionForViewport(TargetViewport);
+		// ... and instead of resolving that here, we defer to the API user to resolve the issue by initializing the owning VCamComponent, e.g. with a SetEnabled(true) call. 
+		UE_LOG(LogVCamOutputProvider,
+			   Warning,
+			   TEXT("SetActive: Owning VCamComponent is not enabled or initialized. Call SetEnabled(true) on the owning VCamComponent. Output provider bIsActive was set to true but the activation logic was skipped; it will run once you initialize the owning VCamComponent. Output provider: %s"),
+			   *GetPathName()
+		);
 	}
 }
+
 void UVCamOutputProviderBase::OnActivate()
 {
 	check(IsInitialized());
+	check(!bIsActuallyActive);
+	bIsActuallyActive = true;
 
-	ConditionallySetUpGameplayViewTargets();
-	ReapplyOverrideResolution();
-	
+	RequestResolutionRefresh();
 	CreateUMG();
 	DisplayUMG();
-
-	OnActivatedDelegate.Broadcast(true);
 }
 
 void UVCamOutputProviderBase::OnDeactivate()
 {
-	ConditionallyCleanUpGameplayViewTargets();
-	if (bUseOverrideResolution)
-	{
-		RestoreOverrideResolutionForViewport(TargetViewport);
-	}
+	check(bIsActuallyActive);
+	bIsActuallyActive = false;
 	
+	RequestResolutionRefresh();
 	DestroyUMG();
-	
-	OnActivatedDelegate.Broadcast(false);
 }
 
 void UVCamOutputProviderBase::CreateUMG()
@@ -227,7 +251,7 @@ void UVCamOutputProviderBase::CreateUMG()
 	}
 
 	// Warn the user if the viewport is not available ...
-	const TSharedPtr<FSceneViewport> Viewport = GetSceneViewport(TargetViewport);
+	const TSharedPtr<FSceneViewport> Viewport = GetTargetSceneViewport();
 	if (!Viewport)
 	{
 		DisplayNotification_ViewportNotFound();
@@ -302,7 +326,7 @@ void UVCamOutputProviderBase::DisplayUMG()
 
 			if (WidgetSnapshot.HasData())
 			{
-				UE::VCamCore::WidgetSnapshotUtils::Private::ApplyTreeHierarchySnapshot(WidgetSnapshot, *UMGWidget->GetWidget());
+				UE::VCamCore::WidgetSnapshotUtils::ApplyTreeHierarchySnapshot(WidgetSnapshot, *UMGWidget->GetWidget());
 				// Note that NotifyWidgetOfComponentChange will cause InitializeConnections to be called - this is important for the connections to get applied!
 			}
 		}
@@ -327,7 +351,7 @@ void UVCamOutputProviderBase::DestroyUMG()
 			{
 				StopDetectAndSnapshotWhenConnectionsChange();
 				Modify();
-				WidgetSnapshot = UE::VCamCore::WidgetSnapshotUtils::Private::TakeTreeHierarchySnapshot(*Subwidget);
+				WidgetSnapshot = UE::VCamCore::WidgetSnapshotUtils::TakeTreeHierarchySnapshot(*Subwidget);
 			}
 
 			FLevelEditorViewportClient* Client = GetTargetLevelViewportClient();
@@ -386,24 +410,8 @@ void UVCamOutputProviderBase::OnSetTargetCamera(const UCineCameraComponent* InTa
 {
 	if (InTargetCamera != TargetCamera)
 	{
-		TargetCamera = InTargetCamera;
+		TargetCamera = const_cast<UCineCameraComponent*>(InTargetCamera);
 		NotifyAboutComponentChange();
-	}
-}
-
-void UVCamOutputProviderBase::RestoreOverrideResolutionForViewport(EVCamTargetViewportID ViewportToRestore)
-{
-	if (const TSharedPtr<FSceneViewport> TargetSceneViewport = GetSceneViewport(ViewportToRestore))
-	{
-		TargetSceneViewport->SetFixedViewportSize(0, 0);
-	}
-}
-
-void UVCamOutputProviderBase::ApplyOverrideResolutionForViewport(EVCamTargetViewportID Viewport)
-{
-	if (const TSharedPtr<FSceneViewport> TargetSceneViewport = GetSceneViewport(Viewport))
-	{
-		TargetSceneViewport->SetFixedViewportSize(OverrideResolution.X, OverrideResolution.Y);
 	}
 }
 
@@ -460,39 +468,6 @@ void UVCamOutputProviderBase::NotifyAboutComponentChange()
 	}
 }
 
-UVCamOutputProviderBase* UVCamOutputProviderBase::GetOtherOutputProviderByIndex(int32 Index) const
-{
-	if (Index > INDEX_NONE)
-	{
-		if (const UVCamComponent* OuterComponent = GetTypedOuter<UVCamComponent>())
-		{
-			if (UVCamOutputProviderBase* Provider = OuterComponent->GetOutputProviderByIndex(Index))
-			{
-				return Provider;
-			}
-			
-			UE_LOG(LogVCamOutputProvider, Warning, TEXT("GetOtherOutputProviderByIndex - specified index is out of range"));
-		}
-	}
-
-	return nullptr;
-}
-
-int32 UVCamOutputProviderBase::FindOwnIndexInOwner() const
-{
-	if (const UVCamComponent* OuterComponent = GetTypedOuter<UVCamComponent>())
-	{
-		for (int32 Index = 0; Index < OuterComponent->GetNumberOfOutputProviders(); ++Index)
-		{
-			if (OuterComponent->GetOutputProviderByIndex(Index) == this)
-			{
-				return Index;
-			}
-		}
-	}
-	return INDEX_NONE;
-}
-
 void UVCamOutputProviderBase::Serialize(FArchive& Ar)
 {
 	using namespace UE::VCamCore;
@@ -513,7 +488,7 @@ void UVCamOutputProviderBase::PostLoad()
 	Super::PostLoad();
 
 	// Class may have been marked deprecated or abstract since the last time it was set
-	if (!UE::VCamCore::Private::ValidateOverlayClassAndLogErrors(UMGClass))
+	if (!UE::VCamCore::ValidateOverlayClassAndLogErrors(UMGClass))
 	{
 		Modify();
 		SetUMGClass(nullptr);
@@ -524,17 +499,8 @@ void UVCamOutputProviderBase::PostLoad()
 
 void UVCamOutputProviderBase::PreEditUndo()
 {
-	bIsUndoing = true;
 	Super::PreEditUndo();
-
-	if (UE::VCamCore::CanInitVCamOutputProvider(this))
-	{
-		// If bIsActive is about to be set to false, we need to deactivate here because either
-		// - UMGWidget will be null-ed, or
-		// - the UVPFullScreenWidget::CurrentDisplayType will be set to Inactive
-		// Both prevent us from removing the widget from the viewport correctly so we'll just ALWAYS disable and optionally restore in PostEditUndo.
-		OnDeactivate();
-	}
+	bIsUndoing = true;
 }
 
 void UVCamOutputProviderBase::PostEditUndo()
@@ -542,20 +508,22 @@ void UVCamOutputProviderBase::PostEditUndo()
 	ON_SCOPE_EXIT { bIsUndoing = false; };
 	Super::PostEditUndo();
 
-	if (UE::VCamCore::CanInitVCamOutputProvider(this) && IsActiveAndOuterComponentAllowsActivity())
+	if (UE::VCamCore::CanInitVCamOutputProvider(this)
+		// The owning VCam may have deinitialize us as part of the undo - in that case the OnDeactivate() call has already been made.
+		&& IsInitialized())
 	{
-		// Need to restore because we killed the widget in PreEditUndo
-		// The transaction has overwritten our properties, e.g. UMGWidget, which would make OnActivate fail 
-		OnDeactivate();
+		const bool bCurrentActiveState = IsActiveAndOuterComponentAllowsActivity();
+		const bool bWasActiveButNoLongerIs = bIsActuallyActive && !bCurrentActiveState;
+		const bool bWasInActiveButNowIs = !bIsActuallyActive && bCurrentActiveState;
 
-		// Our initialized state may also not line up anymore - in that case we must be initialized before activating.
-		if (!IsInitialized())
+		if (bWasActiveButNoLongerIs)
 		{
-			Initialize();
+			HandleCallingOnDeactivate();
 		}
-		
-		// Now we're in a clean base state to re-activate
-		OnActivate();
+		else if (bWasInActiveButNowIs)
+		{
+			HandleCallingOnActivate();
+		}
 	}
 }
 
@@ -569,13 +537,11 @@ void UVCamOutputProviderBase::PostEditChangeProperty(FPropertyChangedEvent& Prop
 		static FName NAME_IsActive = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, bIsActive);
 		static FName NAME_UMGClass = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, UMGClass);
 		static FName NAME_TargetViewport = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, TargetViewport);
-		static FName NAME_OverrideResolution = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, OverrideResolution);
-		static FName NAME_bUseOverrideResolution = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, bUseOverrideResolution);
 
 		const FName PropertyName = Property->GetFName();
 		if (PropertyName == NAME_IsActive)
 		{
-			SetActive(bIsActive);
+			SetActiveInternal(bIsActive);
 		}
 		else if (PropertyName == NAME_UMGClass)
 		{
@@ -590,16 +556,14 @@ void UVCamOutputProviderBase::PostEditChangeProperty(FPropertyChangedEvent& Prop
 				SetActive(true);
 			}
 		}
-		else if (PropertyName == NAME_TargetViewport)
-		{
-			ReinitializeViewportIfNeeded();
-		}
-		else if (PropertyName == NAME_OverrideResolution || PropertyName == NAME_bUseOverrideResolution)
-		{
-			ReapplyOverrideResolution();
-		}
 	}
-
+	
+	ReinitializeViewportIfNeeded();
+	
+	UE::VCamCore::FViewportManager& ViewportManager = UE::VCamCore::FVCamCoreModule::Get().GetViewportManager();
+	ViewportManager.RequestResolutionRefresh();
+	ViewportManager.RequestLockRefresh();
+	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
@@ -607,120 +571,63 @@ void UVCamOutputProviderBase::PostEditChangeProperty(FPropertyChangedEvent& Prop
 
 TSharedPtr<FSceneViewport> UVCamOutputProviderBase::GetSceneViewport(EVCamTargetViewportID InTargetViewport) const
 {
-	TSharedPtr<FSceneViewport> SceneViewport;
-	
-#if WITH_EDITOR
-	if (GIsEditor)
-	{
-		for (const FWorldContext& Context : GEngine->GetWorldContexts())
-		{
-			if (Context.WorldType == EWorldType::PIE)
-			{
-				FSlatePlayInEditorInfo* SlatePlayInEditorSession = GEditor->SlatePlayInEditorMap.Find(Context.ContextHandle);
-				if (SlatePlayInEditorSession)
-				{
-					if (SlatePlayInEditorSession->DestinationSlateViewport.IsValid())
-					{
-						TSharedPtr<IAssetViewport> DestinationLevelViewport = SlatePlayInEditorSession->DestinationSlateViewport.Pin();
-						return DestinationLevelViewport->GetSharedActiveViewport();
-					}
-					if (SlatePlayInEditorSession->SlatePlayInEditorWindowViewport.IsValid())
-					{
-						return SlatePlayInEditorSession->SlatePlayInEditorWindowViewport;
-					}
-				}
-			}
-			else if (Context.WorldType == EWorldType::Editor)
-			{
-				TSharedPtr<SLevelViewport> Viewport = UE::VCamCore::LevelViewportUtils::Private::GetLevelViewport(InTargetViewport);
-				FLevelEditorViewportClient* LevelViewportClient = Viewport
-					? &Viewport->GetLevelViewportClient()
-					: nullptr;
-				if (LevelViewportClient)
-				{
-					TSharedPtr<SEditorViewport> ViewportWidget = LevelViewportClient->GetEditorViewportWidget();
-					if (ViewportWidget.IsValid())
-					{
-						SceneViewport = ViewportWidget->GetSceneViewport();
-					}
-				}
-			}
-		}
-	}
-#endif
-	
-	// Prefer returning the game viewport whenever it is available, such as when we launch in Standalone mode.
-	UGameEngine* GameEngine = Cast<UGameEngine>(GEngine);
-	return GameEngine ? GameEngine->SceneViewport : SceneViewport;
+	return UE::VCamCore::FVCamCoreModule::Get()
+		.GetViewportManager()
+		.GetSceneViewport(
+			InTargetViewport
+			);
 }
 
 TWeakPtr<SWindow> UVCamOutputProviderBase::GetTargetInputWindow() const
 {
-	TWeakPtr<SWindow> InputWindow;
+	return UE::VCamCore::FVCamCoreModule::Get()
+		.GetViewportManager()
+		.GetInputWindow(
+			GetTargetViewport()
+			);
+}
 
-#if WITH_EDITOR
-	if (GIsEditor)
+bool UVCamOutputProviderBase::IsActivationChangeAllowed(bool bRequestActiveState)
+{
+	FText Dummy;
+	return IsActivationChangeAllowedWithReason(bRequestActiveState, Dummy);
+}
+
+bool UVCamOutputProviderBase::IsActivationChangeAllowedWithReason(bool bRequestActiveState, FText& OutReason)
+{
+	// Deactivation is always allowed.
+	if (!bRequestActiveState)
 	{
-		for (const FWorldContext& Context : GEngine->GetWorldContexts())
-		{
-			if (Context.WorldType == EWorldType::PIE)
-			{
-				FSlatePlayInEditorInfo* SlatePlayInEditorSession = GEditor->SlatePlayInEditorMap.Find(Context.ContextHandle);
-				
-				if (SlatePlayInEditorSession && SlatePlayInEditorSession->DestinationSlateViewport.IsValid())
-				{
-					TSharedPtr<IAssetViewport> DestinationLevelViewport = SlatePlayInEditorSession->DestinationSlateViewport.Pin();
-					return FSlateApplication::Get().FindWidgetWindow(DestinationLevelViewport->AsWidget());
-				}
-				if (SlatePlayInEditorSession && SlatePlayInEditorSession->SlatePlayInEditorWindowViewport.IsValid())
-				{
-					return SlatePlayInEditorSession->SlatePlayInEditorWindow;
-				}
-			}
-			else if (Context.WorldType == EWorldType::Editor)
-			{
-				if (FLevelEditorViewportClient* LevelViewportClient = GetTargetLevelViewportClient())
-				{
-					TSharedPtr<SEditorViewport> ViewportWidget = LevelViewportClient->GetEditorViewportWidget();
-					if (ViewportWidget.IsValid())
-					{
-						InputWindow = FSlateApplication::Get().FindWidgetWindow(ViewportWidget.ToSharedRef());
-					}
-				}
-			}
-		}
+		return true;
 	}
-#endif
 	
-	// Prefer returning the game viewport whenever it is available, such as when we launch in Standalone mode.
-	UGameEngine* GameEngine = Cast<UGameEngine>(GEngine);
-	return GameEngine ? GameEngine->GameViewportWindow : InputWindow;
+	using namespace UE::VCamCore;
+	const TOptional<FVCamCoreChangeActivationResult> Result = ExecuteUntilFailure(IVCamCoreModule::Get().OnCanActivateOutputProvider(), { this });
+	if (!Result || Result->bCanPerformOperation)
+	{
+		return true;
+	}
+	
+	OutReason = Result->Reason;
+	return false;
 }
 
 #if WITH_EDITOR
 
 FLevelEditorViewportClient* UVCamOutputProviderBase::GetTargetLevelViewportClient() const
 {
-	const TSharedPtr<SLevelViewport> LevelViewport = GetTargetLevelViewport();
-	return LevelViewport
-		? &LevelViewport->GetLevelViewportClient()
-		: nullptr;
-}
-
-TSharedPtr<SLevelViewport> UVCamOutputProviderBase::GetTargetLevelViewport() const
-{
-	return UE::VCamCore::LevelViewportUtils::Private::GetLevelViewport(TargetViewport);
+	return UE::VCamCore::FVCamCoreModule::Get()
+		.GetViewportManager()
+		.GetEditorViewportClient(
+			GetTargetViewport()
+			);
 }
 
 #endif
 
 void UVCamOutputProviderBase::ReinitializeViewportIfNeeded()
 {
-	for (int32 i = 0; i < static_cast<int32>(EVCamTargetViewportID::Count); ++i)
-	{
-		RestoreOverrideResolutionForViewport(static_cast<EVCamTargetViewportID>(i));
-	}
-	ReapplyOverrideResolution();
+	RequestResolutionRefresh();
 
 	const TSharedPtr<FSceneViewport> Viewport = GetSceneViewport(TargetViewport);
 	if (!Viewport)
@@ -737,6 +644,11 @@ void UVCamOutputProviderBase::ReinitializeViewportIfNeeded()
 
 void UVCamOutputProviderBase::ReinitializeViewport()
 {
+	// We may change viewports - update at the end of the frame.
+	UE::VCamCore::FViewportManager& ViewportManager = UE::VCamCore::FVCamCoreModule::Get().GetViewportManager();
+	ViewportManager.RequestResolutionRefresh();
+	ViewportManager.RequestLockRefresh();
+	
 	// This new flow is introduced with 5.4.
 	// Before 5.4, changing the target viewport would reinitialize the output provider with the below SetActive(false) SetActive(true) flow.
 	// This is undesirable because SetActive(false) kills current resources, like a connection to an external device (e.g. pixel stream), and then re-initializes them with the new target settings in SetActive(true).
@@ -825,64 +737,15 @@ void UVCamOutputProviderBase::OnConnectionReinitialized(TWeakObjectPtr<UVCamWidg
 		if (WidgetSnapshot.HasData())
 		{
 			Modify();
-			UE::VCamCore::WidgetSnapshotUtils::Private::RetakeSnapshotForWidgetInHierarchy(WidgetSnapshot, *Widget.Get());
+			UE::VCamCore::WidgetSnapshotUtils::RetakeSnapshotForWidgetInHierarchy(WidgetSnapshot, *Widget.Get());
 		}
 		else if (UMGWidget && ensure(UMGWidget->GetWidget()))
 		{
 			Modify();
-			WidgetSnapshot = UE::VCamCore::WidgetSnapshotUtils::Private::TakeTreeHierarchySnapshot(*UMGWidget->GetWidget());
+			WidgetSnapshot = UE::VCamCore::WidgetSnapshotUtils::TakeTreeHierarchySnapshot(*UMGWidget->GetWidget());
 		}
 	}
 }
 #endif
-
-void UVCamOutputProviderBase::ConditionallySetUpGameplayViewTargets()
-{
-	UCineCameraComponent* CineCamera = TargetCamera.Get();
-	const bool bCannotSetupGameplayViewTargets = !GetWorld()->IsGameWorld() || !CineCamera || !GameplayViewTargetPolicy;
-	if (bCannotSetupGameplayViewTargets)
-	{
-		return;
-	}
-	
-	ConditionallyCleanUpGameplayViewTargets();
-
-	constexpr bool bWillBeActive = true;
-	const FDeterminePlayerControllersTargetPolicyParams DeterminePlayersParams{ this, CineCamera, bWillBeActive };
-	TArray<APlayerController*> PlayerControllers = GameplayViewTargetPolicy->DeterminePlayerControllers(DeterminePlayersParams);
-	PlayerControllers.SetNum(Algo::RemoveIf(PlayerControllers, [Owner = CineCamera->GetOwner()](const APlayerController* PC)
-	{
-		return PC == nullptr
-			// Skip this PC if an earlier output provider already set the view target to our camera 
-			|| PC->GetViewTarget() == Owner;
-	}));
-	
-	FUpdateViewTargetPolicyParams UpdateViewTargetParams {{ DeterminePlayersParams }};
-	Algo::Transform(PlayerControllers, UpdateViewTargetParams.PlayerControllers, [](APlayerController* PC){ return PC; });
-	Algo::Transform(PlayerControllers, PlayersWhoseViewTargetsWereSet, [](APlayerController* PC){ return PC; });
-	
-	GameplayViewTargetPolicy->UpdateViewTarget(UpdateViewTargetParams);
-}
-
-void UVCamOutputProviderBase::ConditionallyCleanUpGameplayViewTargets()
-{
-	UCineCameraComponent* CineCamera = TargetCamera.Get();
-	if (!CineCamera
-		|| !IsValid(GameplayViewTargetPolicy)
-		// This happens during GC. Not checking this will a check in UpdateViewTarget because BP events are not valid to run when unreachable.
-		|| GameplayViewTargetPolicy->IsUnreachable())
-	{
-		return;
-	}
-
-	constexpr bool bWillBeActive = false;
-	FUpdateViewTargetPolicyParams Params { { this, CineCamera, bWillBeActive } };
-	Algo::TransformIf(PlayersWhoseViewTargetsWereSet, Params.PlayerControllers,
-		[](TWeakObjectPtr<APlayerController> PC){ return PC.IsValid(); },
-		[](TWeakObjectPtr<APlayerController> PC){ return PC.Get(); }
-	);
-	PlayersWhoseViewTargetsWereSet.Reset();
-	GameplayViewTargetPolicy->UpdateViewTarget(Params);
-}
 
 #undef LOCTEXT_NAMESPACE

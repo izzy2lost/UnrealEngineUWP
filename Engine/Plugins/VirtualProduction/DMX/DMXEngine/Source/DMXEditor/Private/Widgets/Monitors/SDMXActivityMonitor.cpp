@@ -6,25 +6,24 @@
 #include "Containers/UnrealString.h"
 #include "DMXEditorSettings.h"
 #include "DMXEditorStyle.h"
-#include "DMXEditorUtils.h"
 #include "DMXProtocolTypes.h"
+#include "DMXSubsystem.h"
 #include "IO/DMXInputPort.h"
 #include "IO/DMXOutputPort.h"
 #include "IO/DMXPortManager.h"
 #include "IO/DMXRawListener.h"
-#include "Styling/AppStyle.h"
 #include "SlateOptMacros.h"
+#include "Styling/AppStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Layout/SScrollBar.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Layout/SWrapBox.h"
-#include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Monitors/SDMXActivityInUniverse.h"
 #include "Widgets/Monitors/SDMXMonitorSourceSelector.h"
 #include "Widgets/Views/SListView.h"
-
 
 #define LOCTEXT_NAMESPACE "SDMXActivityMonitor"
 
@@ -65,7 +64,7 @@ void SDMXActivityMonitor::Construct(const FArguments& InArgs)
 			[
 				SNew(SWrapBox)
 				.InnerSlotPadding(FVector2D(35.0f, 10.0f))
-				.UseAllottedWidth(true)
+				.UseAllottedSize(true)
 
 				// Source Selector
 				+ SWrapBox::Slot()
@@ -205,7 +204,6 @@ void SDMXActivityMonitor::Construct(const FArguments& InArgs)
 						+ SScrollBox::Slot()				
 						[
 							SAssignNew(UniverseList, SListView<TSharedPtr<SDMXActivityInUniverse>>)
-							.ItemHeight(20.0f)
 							.ListItemsSource(&UniverseListSource)
 							.Visibility(EVisibility::Visible)
 							.OnGenerateRow(this, &SDMXActivityMonitor::OnGenerateUniverseRow)
@@ -232,20 +230,10 @@ void SDMXActivityMonitor::Construct(const FArguments& InArgs)
 	UpdateListenerRegistration();
 
 	FDMXPortManager::Get().OnPortsChanged.AddSP(this, &SDMXActivityMonitor::OnPortsChanged);
+	FDMXPortManager::Get().GetOnBuffersCleared().AddSP(this, &SDMXActivityMonitor::OnPortBuffersCleared);
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
-
-void SDMXActivityMonitor::ClearAllDMXBuffers()
-{
-	FDMXEditorUtils::ClearAllDMXPortBuffers();
-	UniverseToDataMap.Reset();
-
-	for (const TSharedRef<FDMXRawListener>& Input : DMXListeners)
-	{
-		Input->ClearBuffer();
-	}
-}
 
 void SDMXActivityMonitor::ResizeDataMapToUniverseRange()
 {
@@ -456,12 +444,14 @@ void SDMXActivityMonitor::OnPortsChanged()
 	UpdateListenerRegistration();
 }
 
+void SDMXActivityMonitor::OnPortBuffersCleared()
+{
+	ClearDisplay();
+}
+
 FReply SDMXActivityMonitor::OnClearButtonClicked()
 {
-	FDMXEditorUtils::ClearAllDMXPortBuffers();
-	ClearAllDMXBuffers();
-
-	ClearDisplay();
+	UDMXSubsystem::ClearDMXBuffers();
 
 	return FReply::Handled();
 }
@@ -469,6 +459,8 @@ FReply SDMXActivityMonitor::OnClearButtonClicked()
 void SDMXActivityMonitor::ClearDisplay()
 {
 	check(UniverseList.IsValid());
+
+	UniverseToDataMap.Reset();
 
 	UniverseListSource.Reset();
 	UniverseList->RequestListRefresh();

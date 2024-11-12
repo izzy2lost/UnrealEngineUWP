@@ -19,7 +19,7 @@
 #include "ViewModels/NiagaraEmitterHandleViewModel.h"
 #include "ViewModels/NiagaraScriptViewModel.h"
 #include "ViewModels/Stack/NiagaraStackEntry.h"
-#include "ViewModels/Stack/NiagaraStackFunctionInputCollection.h"
+#include "ViewModels/Stack/NiagaraStackValueCollection.h"
 #include "ViewModels/Stack/NiagaraStackInputCategory.h"
 #include "ViewModels/Stack/NiagaraStackFunctionInput.h"
 #include "ViewModels/Stack/NiagaraStackErrorItem.h"
@@ -121,13 +121,14 @@ void FNiagaraStackGraphUtilities::RelayoutGraph(UEdGraph& Graph)
 	TArray<TArray<TArray<UEdGraphNode*>>> OutputNodeTraversalStacks;
 	TArray<UNiagaraNodeOutput*> OutputNodes;
 	Graph.GetNodesOfClass(OutputNodes);
-	TSet<UEdGraphNode*> AllTraversedNodes;
+	TMap<UEdGraphNode*, int32> AllTraversedNodes; // track indentation level per node
 	for (UNiagaraNodeOutput* OutputNode : OutputNodes)
 	{
-		TSet<UEdGraphNode*> TraversedNodes;
+		TMap<UEdGraphNode*, int32> TraversedNodes; // map to track node level
 		TArray<TArray<UEdGraphNode*>> TraversalStack;
 		TArray<UEdGraphNode*> CurrentNodesToTraverse;
 		CurrentNodesToTraverse.Add(OutputNode);
+		int32 NodeLevel = 0;
 		while (CurrentNodesToTraverse.Num() > 0)
 		{
 			TArray<UEdGraphNode*> TraversedNodesThisLevel;
@@ -136,6 +137,11 @@ void FNiagaraStackGraphUtilities::RelayoutGraph(UEdGraph& Graph)
 			{
 				if (TraversedNodes.Contains(CurrentNodeToTraverse))
 				{
+					if (NodeLevel > TraversedNodes[CurrentNodeToTraverse])
+					{
+						// if the node is referenced in a longer chain we pull it back
+						TraversedNodes[CurrentNodeToTraverse] = NodeLevel;
+					}
 					continue;
 				}
 				
@@ -152,18 +158,31 @@ void FNiagaraStackGraphUtilities::RelayoutGraph(UEdGraph& Graph)
 						}
 					}
 				}
-				TraversedNodes.Add(CurrentNodeToTraverse);
+				TraversedNodes.Add(CurrentNodeToTraverse, NodeLevel);
 				TraversedNodesThisLevel.Add(CurrentNodeToTraverse);
 			}
 			TraversalStack.Add(TraversedNodesThisLevel);
+			NodeLevel++;
 			CurrentNodesToTraverse.Empty();
 			CurrentNodesToTraverse.Append(NextNodesToTraverse);
 		}
 		OutputNodeTraversalStacks.Add(TraversalStack);
-		AllTraversedNodes = AllTraversedNodes.Union(TraversedNodes);
+
+		for (const auto& Pair : TraversedNodes)
+		{
+			if (AllTraversedNodes.Contains(Pair.Key))
+			{
+				// if the node was already traversed, update the indentation level to get the longest chain
+				AllTraversedNodes[Pair.Key] = FMath::Max(AllTraversedNodes[Pair.Key], Pair.Value);
+			}
+			else
+			{
+				AllTraversedNodes.Add(Pair);
+			}
+		}
 	}
 
-	// Find all nodes which were not traversed and put them them in a separate traversal stack.
+	// Find all nodes which were not traversed and put them in a separate traversal stack.
 	TArray<UEdGraphNode*> UntraversedNodes;
 	for (UEdGraphNode* Node : Graph.Nodes)
 	{
@@ -180,24 +199,26 @@ void FNiagaraStackGraphUtilities::RelayoutGraph(UEdGraph& Graph)
 		UntraversedNodeStack.Add(UntraversedStackItem);
 	}
 	OutputNodeTraversalStacks.Add(UntraversedNodeStack);
-
+	
 	// Layout the traversed node stacks.
 	float YOffset = 0;
-	float XDistance = 400;
+	float XDistance = -400;
 	float YDistance = 50;
 	float YPinDistance = 50;
 	for (const TArray<TArray<UEdGraphNode*>>& TraversalStack : OutputNodeTraversalStacks)
 	{
-		float CurrentXOffset = 0;
+		
 		float MaxYOffset = YOffset;
 		for (const TArray<UEdGraphNode*>& TraversalLevel : TraversalStack)
 		{
 			float CurrentYOffset = YOffset;
 			for (UEdGraphNode* Node : TraversalLevel)
 			{
+				int32 Level = AllTraversedNodes.FindOrAdd(Node);
+				float CurrentXOffset = Level * XDistance;
 				Node->Modify();
-				Node->NodePosX = CurrentXOffset;
-				Node->NodePosY = CurrentYOffset;
+				Node->NodePosX = FMath::RoundToInt(CurrentXOffset);
+				Node->NodePosY = FMath::RoundToInt(CurrentYOffset);
 				int NumInputPins = 0;
 				int NumOutputPins = 0;
 				for (UEdGraphPin* Pin : Node->GetAllPins())
@@ -215,7 +236,6 @@ void FNiagaraStackGraphUtilities::RelayoutGraph(UEdGraph& Graph)
 				CurrentYOffset += YDistance + (MaxPins * YPinDistance);
 			}
 			MaxYOffset = FMath::Max(MaxYOffset, CurrentYOffset);
-			CurrentXOffset -= XDistance;
 		}
 		YOffset = MaxYOffset + YDistance;
 	}
@@ -911,33 +931,23 @@ DECLARE_DELEGATE_RetVal_OneParam(bool, FInputSelector, UNiagaraStackFunctionInpu
 
 void InitializeStackFunctionInputsInternal(TSharedRef<FNiagaraSystemViewModel> SystemViewModel, TSharedPtr<FNiagaraEmitterViewModel> EmitterViewModel, UNiagaraStackEditorData& StackEditorData, UNiagaraNodeFunctionCall& ModuleNode, UNiagaraNodeFunctionCall& InputFunctionCallNode, FInputSelector InputSelector)
 {
-	UNiagaraStackFunctionInputCollection* FunctionInputCollection = NewObject<UNiagaraStackFunctionInputCollection>(GetTransientPackage()); 
+	UNiagaraStackScriptHierarchyRoot* FunctionHierarchyRoot = NewObject<UNiagaraStackScriptHierarchyRoot>(GetTransientPackage()); 
 	UNiagaraStackEntry::FRequiredEntryData RequiredEntryData(SystemViewModel, EmitterViewModel, NAME_None, NAME_None, StackEditorData);
-	FunctionInputCollection->Initialize(RequiredEntryData, ModuleNode, InputFunctionCallNode, FString());
-	FunctionInputCollection->RefreshChildren();
+	FunctionHierarchyRoot->Initialize(RequiredEntryData, ModuleNode, InputFunctionCallNode, FString());
+	FunctionHierarchyRoot->RefreshChildren();
 
 	// Reset all direct inputs on this function to initialize data interfaces and default dynamic inputs.
-	TArray<UNiagaraStackEntry*> Children;
-	FunctionInputCollection->GetUnfilteredChildren(Children);
-	for (UNiagaraStackEntry* Child : Children)
+	TArray<UNiagaraStackFunctionInput*> StackFunctionInputs;
+	FunctionHierarchyRoot->GetUnfilteredChildrenOfType(StackFunctionInputs);
+	for (UNiagaraStackFunctionInput* StackFunctionInput : StackFunctionInputs)
 	{
-		UNiagaraStackInputCategory* InputCategory = Cast<UNiagaraStackInputCategory>(Child);
-		if (InputCategory != nullptr)
+		if (StackFunctionInput != nullptr && (InputSelector.IsBound() == false || InputSelector.Execute(StackFunctionInput)) && StackFunctionInput->CanReset())
 		{
-			TArray<UNiagaraStackEntry*> CategoryChildren;
-			InputCategory->GetUnfilteredChildren(CategoryChildren);
-			for (UNiagaraStackEntry* CategoryChild : CategoryChildren)
-			{
-				UNiagaraStackFunctionInput* FunctionInput = Cast<UNiagaraStackFunctionInput>(CategoryChild);
-				if (FunctionInput != nullptr && (InputSelector.IsBound() == false || InputSelector.Execute(FunctionInput)) && FunctionInput->CanReset())
-				{
-					FunctionInput->Reset();
-				}
-			}
+			StackFunctionInput->Reset();
 		}
 	}
 
-	FunctionInputCollection->Finalize();
+	FunctionHierarchyRoot->Finalize();
 	SystemViewModel->NotifyDataObjectChanged(TArray<UObject*>(), ENiagaraDataObjectChange::Unknown);
 }
 
@@ -1165,11 +1175,12 @@ void FNiagaraStackGraphUtilities::GatherInputRelationsForStack(FInputDataCollect
 				TOptional<FNiagaraVariableMetaData> VariableMetaData = AssetGraph->GetMetaData(Variable);
 				if(VariableMetaData.IsSet())
 				{
-					if(VariableMetaData.GetValue().ParentAttribute == ThisInputHandle.GetName())
+					// @TODO Handle Deprecated values
+					if(VariableMetaData.GetValue().GetParentAttribute_DEPRECATED() == ThisInputHandle.GetName())
 					{
 						HierarchyInputToChildrenGuidMap.FindOrAdd(Input).Add(VariableMetaData.GetValue().GetVariableGuid());
 						ChildrenGuidToScriptVariablesMap.Add(VariableMetaData->GetVariableGuid(), AssetGraph->GetScriptVariable(Variable));
-						ChildrenGuidSortOrderMap.Add(VariableMetaData->GetVariableGuid(), VariableMetaData->EditorSortPriority);
+						ChildrenGuidSortOrderMap.Add(VariableMetaData->GetVariableGuid(), VariableMetaData->GetEditorSortPriority_DEPRECATED());
 					}
 				}
 			}
@@ -1355,64 +1366,6 @@ UNiagaraNodeAssignment* FNiagaraStackGraphUtilities::FindAssignmentNode(FGuid As
 	return nullptr;
 }
 
-TOptional<FNiagaraStackGraphUtilities::FMatchingFunctionInputData> FNiagaraStackGraphUtilities::FindInputData(FNiagaraHierarchyIdentity ModuleInputIdentity, TSharedRef<FNiagaraEmitterViewModel> EmitterViewModel)
-{
-	FMatchingFunctionInputData Result;
-	
-	UNiagaraNodeFunctionCall* MatchingFunctionCall = FindFunctionCallNode(ModuleInputIdentity.Guids[0], EmitterViewModel);
-	if(MatchingFunctionCall)
-	{
-		return FindInputData(*MatchingFunctionCall, ModuleInputIdentity, EmitterViewModel);
-	}					
-	
-	return TOptional<FMatchingFunctionInputData>();
-}
-
-TOptional<FNiagaraStackGraphUtilities::FMatchingFunctionInputData> FNiagaraStackGraphUtilities::FindInputData(const UNiagaraNodeFunctionCall& FunctionCallNode, FNiagaraHierarchyIdentity InputIdentity, TSharedRef<FNiagaraEmitterViewModel> EmitterViewModel)
-{
-	SCOPE_CYCLE_COUNTER(STAT_NiagaraEditor_StackGraphUtilities_FindInputData)
-	
-	FMatchingFunctionInputData Result;
-	Result.FunctionCallNode = const_cast<UNiagaraNodeFunctionCall*>(&FunctionCallNode);
-	
-	if(const UNiagaraNodeAssignment* AssignmentNode = Cast<UNiagaraNodeAssignment>(&FunctionCallNode))
-	{
-		TOptional<FMatchingFunctionInputData> InputData = FindAssignmentInputData(*AssignmentNode, InputIdentity.Names[0], EmitterViewModel);
-
-		if(InputData.IsSet())
-		{
-			Result.InputName = InputData->InputName;
-			Result.Type = InputData->Type;
-			Result.bIsHidden = InputData->bIsHidden;
-			Result.bIsStatic = InputData->bIsStatic;
-			Result.MetaData = InputData->MetaData;
-			Result.ChildrenInputGuids = InputData->ChildrenInputGuids;
-			Result.HiddenChildrenInputGuids = InputData->HiddenChildrenInputGuids;
-
-			return Result;
-		}
-	}
-	else
-	{
-		TOptional<FMatchingFunctionInputData> InputData = FindModuleInputData(FunctionCallNode, InputIdentity.Guids[1], EmitterViewModel);
-
-		if(InputData.IsSet())
-		{
-			Result.InputName = InputData->InputName;
-			Result.Type = InputData->Type;
-			Result.bIsHidden = InputData->bIsHidden;
-			Result.bIsStatic = InputData->bIsStatic;
-			Result.MetaData = InputData->MetaData;
-			Result.ChildrenInputGuids = InputData->ChildrenInputGuids;
-			Result.HiddenChildrenInputGuids = InputData->HiddenChildrenInputGuids;
-
-			return Result;
-		}
-	}
-
-	return TOptional<FMatchingFunctionInputData>();
-}
-
 TOptional<FNiagaraStackGraphUtilities::FMatchingFunctionInputData> FNiagaraStackGraphUtilities::FindAssignmentInputData(const UNiagaraNodeAssignment& AssignmentNode, FName VariableName, TSharedRef<FNiagaraEmitterViewModel> EmitterViewModel)
 {
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraEditor_StackGraphUtilities_FindAssignmentInputData);
@@ -1469,208 +1422,6 @@ TOptional<FNiagaraStackGraphUtilities::FMatchingFunctionInputData> FNiagaraStack
 	}
 
 	return TOptional<FNiagaraStackGraphUtilities::FMatchingFunctionInputData>();
-}
-
-TOptional<FNiagaraStackGraphUtilities::FMatchingFunctionInputData> FNiagaraStackGraphUtilities::FindModuleInputData(const UNiagaraNodeFunctionCall& FunctionCallNode, FGuid VariableGuid, TSharedRef<FNiagaraEmitterViewModel> EmitterViewModel, bool bIncludeChildrenInputs, TMap<FInputDataCacheKey, FMatchingFunctionInputData>* OptionalCache)
-{
-	SCOPE_CYCLE_COUNTER(STAT_NiagaraEditor_StackGraphUtilities_FindModuleInputData)
-
-	if(OptionalCache != nullptr)
-	{
-		FInputDataCacheKey CacheKey(FunctionCallNode.NodeGuid, VariableGuid);
-		if(OptionalCache->Contains(CacheKey))
-		{
-			return (*OptionalCache)[CacheKey];
-		}
-	}
-	
-	FCompileConstantResolver ConstantResolver(EmitterViewModel->GetEmitter(), GetOutputNodeUsage(FunctionCallNode));
-
-	// our goal is to find the correct variable's metadata from the graph
-	TOptional<FNiagaraVariableMetaData> MetaData;
-				
-	// first, we check the normal module inputs
-	TArray<FNiagaraVariable> InputVariables;
-	TSet<FNiagaraVariable> HiddenVariables;
-
-	FNiagaraStackGraphUtilities::ENiagaraGetStackFunctionInputPinsOptions Options = FNiagaraStackGraphUtilities::ENiagaraGetStackFunctionInputPinsOptions::ModuleInputsOnly;
-	FNiagaraStackGraphUtilities::GetStackFunctionInputs(FunctionCallNode, InputVariables, HiddenVariables, ConstantResolver, Options, false);
-	
-	for(const FNiagaraVariable& InputVariable : InputVariables)
-	{
-		if (InputVariable.GetType().IsValid() == false)
-		{
-			continue;
-		}
-		
-		MetaData = FunctionCallNode.GetCalledGraph()->GetMetaData(InputVariable);
-
-		if(MetaData.IsSet())
-		{
-			FMatchingFunctionInputData PotentialMatchingInputData;
-			PotentialMatchingInputData.FunctionCallNode = const_cast<UNiagaraNodeFunctionCall*>(&FunctionCallNode);
-			PotentialMatchingInputData.InputName = InputVariable.GetName();
-			PotentialMatchingInputData.Type = InputVariable.GetType();
-			PotentialMatchingInputData.MetaData = MetaData.GetValue();
-			PotentialMatchingInputData.bIsStatic = false;
-			PotentialMatchingInputData.bIsHidden = HiddenVariables.Contains(InputVariable);
-
-			if(bIncludeChildrenInputs)
-			{
-				PotentialMatchingInputData.ChildrenInputGuids = GetChildrenInputGuids(FunctionCallNode, PotentialMatchingInputData.InputName);
-
-				// we only care about hidden children if the parent input isn't hidden
-				if(!PotentialMatchingInputData.bIsHidden)
-				{
-					PotentialMatchingInputData.HiddenChildrenInputGuids = GetHiddenChildrenInputGuids(FunctionCallNode, PotentialMatchingInputData.InputName, EmitterViewModel).Array();
-				}
-			}
-
-			if(OptionalCache != nullptr)
-			{
-				OptionalCache->Add(FInputDataCacheKey(FunctionCallNode.NodeGuid, MetaData->GetVariableGuid()), PotentialMatchingInputData);
-			}
-
-			// if we specified an optional cache, we want to keep on creating the cache data even after we've found the result to avoid redundant calls
-			if(OptionalCache == nullptr)
-			{
-				if(MetaData.GetValue().GetVariableGuid() == VariableGuid)
-				{
-					return PotentialMatchingInputData;
-				}
-			}			
-		}
-	}
-
-	// then if we didn't find the input under module inputs, we check the static switch inputs
-	TSet<UEdGraphPin*> HiddenSwitchPins;
-	TArray<UEdGraphPin*> SwitchPins;
-				
-	FNiagaraStackGraphUtilities::GetStackFunctionStaticSwitchPins(FunctionCallNode, SwitchPins, HiddenSwitchPins, ConstantResolver);
-	for (UEdGraphPin* InputPin : SwitchPins)
-	{		
-		FNiagaraVariable InputVariable = UEdGraphSchema_Niagara::PinToNiagaraVariable(InputPin);
-		if (InputVariable.GetType().IsValid() == false)
-		{
-			continue;
-		}
-					
-		if (FunctionCallNode.GetCalledGraph() != nullptr)
-		{
-			MetaData = FunctionCallNode.GetCalledGraph()->GetMetaData(InputVariable);
-
-			if(MetaData.IsSet())
-			{
-				FMatchingFunctionInputData PotentialMatchingInputData;
-				PotentialMatchingInputData.FunctionCallNode = const_cast<UNiagaraNodeFunctionCall*>(&FunctionCallNode);
-				PotentialMatchingInputData.InputName = InputPin->PinName;
-				PotentialMatchingInputData.Type = InputVariable.GetType();
-				PotentialMatchingInputData.MetaData = MetaData.GetValue();
-				PotentialMatchingInputData.bIsStatic = true;
-				PotentialMatchingInputData.bIsHidden = HiddenSwitchPins.Contains(InputPin);
-
-				if(bIncludeChildrenInputs)
-				{
-					PotentialMatchingInputData.ChildrenInputGuids = GetChildrenInputGuids(FunctionCallNode, PotentialMatchingInputData.InputName);
-
-					// we only care about hidden children if the parent input isn't hidden
-					if(!PotentialMatchingInputData.bIsHidden)
-					{
-						PotentialMatchingInputData.HiddenChildrenInputGuids = GetHiddenChildrenInputGuids(FunctionCallNode, PotentialMatchingInputData.InputName, EmitterViewModel).Array();
-					}
-				}
-				
-				if(OptionalCache != nullptr)
-				{
-					OptionalCache->Add(FInputDataCacheKey(FunctionCallNode.NodeGuid, MetaData->GetVariableGuid()), PotentialMatchingInputData);
-				}
-
-				if(OptionalCache == nullptr)
-				{
-					// if metadata is set and the 2nd guid matches the variable, we found the input that our HierarchyModuleInput represents
-					if(MetaData.GetValue().GetVariableGuid() == VariableGuid)
-					{
-						return PotentialMatchingInputData;
-					}
-				}
-			}			
-		}
-	}
-
-	// if we specified a cache, we didn't have an early return. That means when we reach this code, the entire data should be cached now and if it's not, that means the data doesn't exist.
-	if(OptionalCache != nullptr)
-	{
-		FInputDataCacheKey InputDataCacheKey(FunctionCallNode.NodeGuid, VariableGuid);
-		if(OptionalCache->Contains(InputDataCacheKey))
-		{
-			return (*OptionalCache)[InputDataCacheKey];
-		}
-	}
-	
-	return TOptional<FMatchingFunctionInputData>();
-}
-
-TArray<FGuid> FNiagaraStackGraphUtilities::GetChildrenInputGuids(const UNiagaraNodeFunctionCall& FunctionCallNode, FName ParentInputName)
-{
-	TArray<FGuid> Result;
-	
-	TArray<FNiagaraVariable> Variables;
-	FunctionCallNode.GetCalledGraph()->GetAllVariables(Variables);
-	
-	for(FNiagaraVariable& Variable : Variables)
-	{
-		TOptional<FNiagaraVariableMetaData> MetaData = FunctionCallNode.GetCalledGraph()->GetMetaData(Variable);
-
-		if(MetaData.IsSet())
-		{
-			FNiagaraParameterHandle ParentInputHandle(ParentInputName);
-			if(MetaData->ParentAttribute == ParentInputHandle.GetName())
-			{
-				Result.Add(MetaData->GetVariableGuid());
-			}
-		}
-		else
-		{
-			UE_LOG(LogNiagaraEditor, Log, TEXT("Couldn't find metadata for variable"));
-		}
-	}
-
-	return Result;
-}
-
-TSet<FGuid> FNiagaraStackGraphUtilities::GetHiddenChildrenInputGuids(const UNiagaraNodeFunctionCall& FunctionCallNode, FName ParentInput, TSharedRef<FNiagaraEmitterViewModel> EmitterViewModel)
-{
-	TSet<FGuid> Result;
-	
-	FCompileConstantResolver ConstantResolver(EmitterViewModel->GetEmitter(), GetOutputNodeUsage(FunctionCallNode));
-
-	TArray<FGuid> ChildrenInputGuids = GetChildrenInputGuids(FunctionCallNode, ParentInput);
-	// first, we check the normal module inputs
-	TArray<FNiagaraVariable> InputVariables;
-	TSet<FNiagaraVariable> HiddenVariables;
-	FNiagaraStackGraphUtilities::ENiagaraGetStackFunctionInputPinsOptions Options = FNiagaraStackGraphUtilities::ENiagaraGetStackFunctionInputPinsOptions::AllInputs;
-	FNiagaraStackGraphUtilities::GetStackFunctionInputs(FunctionCallNode, InputVariables, HiddenVariables, ConstantResolver, Options, true);
-
-	TArray<FGuid> ChildrenGuids = GetChildrenInputGuids(FunctionCallNode, ParentInput);
-	
-	for(const FNiagaraVariable& Variable : HiddenVariables.Array())
-	{
-		TOptional<FNiagaraVariableMetaData> MetaData = FunctionCallNode.GetCalledGraph()->GetMetaData(Variable);
-
-		if(MetaData.IsSet())
-		{
-			if(ChildrenGuids.Contains(MetaData->GetVariableGuid()))
-			{
-				Result.Add(MetaData->GetVariableGuid());
-			}
-		}
-		else
-		{
-			UE_LOG(LogNiagaraEditor, Log, TEXT("Couldn't find metadata for variable"));
-		}
-	}
-
-	return Result;
 }
 
 TArray<UEdGraphPin*> FNiagaraStackGraphUtilities::GetUnusedFunctionInputPins(const UNiagaraNodeFunctionCall& FunctionCallNode, FCompileConstantResolver ConstantResolver)
@@ -2447,41 +2198,22 @@ bool FNiagaraStackGraphUtilities::RemoveModuleFromStack(UNiagaraScript& OwningSc
 
 	// Traverse all of the nodes in the group to find the nodes to remove.
 	FNiagaraStackGraphUtilities::FStackNodeGroup ModuleGroup = StackNodeGroups[ModuleStackIndex];
-	TArray<UNiagaraNode*> NodesToRemove;
-	TArray<UNiagaraNode*> NodesToCheck;
-	FPinCollectorArray InputPins;
-	NodesToCheck.Add(ModuleGroup.EndNode);
-	while (NodesToCheck.Num() > 0)
-	{
-		UNiagaraNode* NodeToRemove = NodesToCheck[0];
-		NodesToCheck.RemoveAt(0);
-		NodesToRemove.AddUnique(NodeToRemove);
-
-		InputPins.Reset();
-		NodeToRemove->GetInputPins(InputPins);
-		for (UEdGraphPin* InputPin : InputPins)
-		{
-			if (InputPin->LinkedTo.Num() == 1)
-			{
-				UNiagaraNode* LinkedNode = Cast<UNiagaraNode>(InputPin->LinkedTo[0]->GetOwningNode());
-				if (LinkedNode != nullptr)
-				{
-					NodesToCheck.Add(LinkedNode);
-				}
-			}
-		}
-	}
-
+	
 	// Remove the nodes in the group from the graph.
-	UNiagaraGraph* Graph = ModuleNode.GetNiagaraGraph();
-	for (UNiagaraNode* NodeToRemove : NodesToRemove)
+	if (UNiagaraGraph* Graph = ModuleNode.GetNiagaraGraph())
 	{
-		NodeToRemove->Modify();
-		Graph->RemoveNode(NodeToRemove);
-		UNiagaraNodeInput* InputNode = Cast<UNiagaraNodeInput>(NodeToRemove);
-		if (InputNode != nullptr)
+		TArray<UNiagaraNode*> NodesToRemove;
+		Graph->BuildTraversal(NodesToRemove, ModuleGroup.EndNode);
+
+		for (UNiagaraNode* NodeToRemove : NodesToRemove)
 		{
-			OutRemovedInputNodes.Add(InputNode);
+			NodeToRemove->Modify();
+			Graph->RemoveNode(NodeToRemove);
+			UNiagaraNodeInput* InputNode = Cast<UNiagaraNodeInput>(NodeToRemove);
+			if (InputNode != nullptr)
+			{
+				OutRemovedInputNodes.Add(InputNode);
+			}
 		}
 	}
 

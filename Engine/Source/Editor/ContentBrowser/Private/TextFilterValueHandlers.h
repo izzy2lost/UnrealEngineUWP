@@ -16,12 +16,15 @@ class UTextFilterValueHandler;
 struct FContentBrowserItem;
 
 UCLASS(transient, config = Editor)
-class UTextFilterValueHandlers : public UObject
+class UE_DEPRECATED(5.5, "This type has been replaced by IAssetTextFilterHandler which must be manually instantiated and registered and must be implemented in a threadsafe way.")
+UTextFilterValueHandlers : public UObject
 {
 	GENERATED_BODY()
 public:
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UPROPERTY(config)
 	TArray<TSoftClassPtr<UTextFilterValueHandler>> TextFilterValueHandlers;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	static bool HandleTextFilterValue(const FContentBrowserItem& InContentBrowserItem, const FTextFilterString& InValue, const ETextFilterTextComparisonMode InTextComparisonMode, bool& bOutIsMatch);
 };

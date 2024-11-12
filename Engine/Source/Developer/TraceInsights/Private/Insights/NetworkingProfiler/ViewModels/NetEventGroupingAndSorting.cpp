@@ -2,10 +2,13 @@
 
 #include "NetEventGroupingAndSorting.h"
 
-#include "Insights/Table/ViewModels/TableColumn.h"
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/NetworkingProfiler/ViewModels/NetEventNodeHelper.h"
 
-#define LOCTEXT_NAMESPACE "NetEventNode"
+#define LOCTEXT_NAMESPACE "UE::Insights::NetworkingProfiler::FNetEventNode"
 
 #define INSIGHTS_ENSURE ensure
 //#define INSIGHTS_ENSURE(...)
@@ -14,12 +17,15 @@
 #define INSIGHTS_DEFAULT_SORTING_NODES(A, B) return A->GetName().LexicalLess(B->GetName());
 //#define INSIGHTS_DEFAULT_SORTING_NODES(A, B) return A->GetDefaultSortOrder() < B->GetDefaultSortOrder();
 
+namespace UE::Insights::NetworkingProfiler
+{
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Sorting by Event Type
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FNetEventNodeSortingByEventType::FNetEventNodeSortingByEventType(TSharedRef<Insights::FTableColumn> InColumnRef)
-	: Insights::FTableCellValueSorter(
+FNetEventNodeSortingByEventType::FNetEventNodeSortingByEventType(TSharedRef<FTableColumn> InColumnRef)
+	: FTableCellValueSorter(
 		FName(TEXT("ByEventType")),
 		LOCTEXT("Sorting_ByEventType_Name", "By Type"),
 		LOCTEXT("Sorting_ByEventType_Title", "Sort By Type"),
@@ -30,17 +36,17 @@ FNetEventNodeSortingByEventType::FNetEventNodeSortingByEventType(TSharedRef<Insi
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FNetEventNodeSortingByEventType::Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const
+void FNetEventNodeSortingByEventType::Sort(TArray<FBaseTreeNodePtr>& NodesToSort, ESortMode SortMode) const
 {
-	if (SortMode == Insights::ESortMode::Ascending)
+	if (SortMode == ESortMode::Ascending)
 	{
-		NodesToSort.Sort([](const Insights::FBaseTreeNodePtr& A, const Insights::FBaseTreeNodePtr& B) -> bool
+		NodesToSort.Sort([](const FBaseTreeNodePtr& A, const FBaseTreeNodePtr& B) -> bool
 		{
 			INSIGHTS_ENSURE(A.IsValid() && A->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(A);
+			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(A);
 
 			INSIGHTS_ENSURE(B.IsValid() && B->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(B);
+			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(B);
 
 			if (NetEventNodeA->GetType() == NetEventNodeB->GetType())
 			{
@@ -55,13 +61,13 @@ void FNetEventNodeSortingByEventType::Sort(TArray<Insights::FBaseTreeNodePtr>& N
 	}
 	else // if (SortMode == ESortMode::Descending)
 	{
-		NodesToSort.Sort([](const Insights::FBaseTreeNodePtr& A, const Insights::FBaseTreeNodePtr& B) -> bool
+		NodesToSort.Sort([](const FBaseTreeNodePtr& A, const FBaseTreeNodePtr& B) -> bool
 		{
 			INSIGHTS_ENSURE(A.IsValid() && A->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(A);
+			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(A);
 
 			INSIGHTS_ENSURE(B.IsValid() && B->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(B);
+			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(B);
 
 			if (NetEventNodeA->GetType() == NetEventNodeB->GetType())
 			{
@@ -80,8 +86,8 @@ void FNetEventNodeSortingByEventType::Sort(TArray<Insights::FBaseTreeNodePtr>& N
 // Sort by Instance Count
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FNetEventNodeSortingByInstanceCount::FNetEventNodeSortingByInstanceCount(TSharedRef<Insights::FTableColumn> InColumnRef)
-	: Insights::FTableCellValueSorter(
+FNetEventNodeSortingByInstanceCount::FNetEventNodeSortingByInstanceCount(TSharedRef<FTableColumn> InColumnRef)
+	: FTableCellValueSorter(
 		FName(TEXT("ByInstanceCount")),
 		LOCTEXT("Sorting_ByInstanceCount_Name", "By Instance Count"),
 		LOCTEXT("Sorting_ByInstanceCount_Title", "Sort By Instance Count"),
@@ -92,18 +98,18 @@ FNetEventNodeSortingByInstanceCount::FNetEventNodeSortingByInstanceCount(TShared
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FNetEventNodeSortingByInstanceCount::Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const
+void FNetEventNodeSortingByInstanceCount::Sort(TArray<FBaseTreeNodePtr>& NodesToSort, ESortMode SortMode) const
 {
-	if (SortMode == Insights::ESortMode::Ascending)
+	if (SortMode == ESortMode::Ascending)
 	{
-		NodesToSort.Sort([](const Insights::FBaseTreeNodePtr& A, const Insights::FBaseTreeNodePtr& B) -> bool
+		NodesToSort.Sort([](const FBaseTreeNodePtr& A, const FBaseTreeNodePtr& B) -> bool
 		{
 			INSIGHTS_ENSURE(A.IsValid() && A->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(A);
+			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(A);
 			const uint64 ValueA = NetEventNodeA->GetAggregatedStats().InstanceCount;
 
 			INSIGHTS_ENSURE(B.IsValid() && B->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(B);
+			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(B);
 			const uint64 ValueB = NetEventNodeB->GetAggregatedStats().InstanceCount;
 
 			if (ValueA == ValueB)
@@ -119,14 +125,14 @@ void FNetEventNodeSortingByInstanceCount::Sort(TArray<Insights::FBaseTreeNodePtr
 	}
 	else // if (SortMode == ESortMode::Descending)
 	{
-		NodesToSort.Sort([](const Insights::FBaseTreeNodePtr& A, const Insights::FBaseTreeNodePtr& B) -> bool
+		NodesToSort.Sort([](const FBaseTreeNodePtr& A, const FBaseTreeNodePtr& B) -> bool
 		{
 			INSIGHTS_ENSURE(A.IsValid() && A->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(A);
+			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(A);
 			const uint64 ValueA = NetEventNodeA->GetAggregatedStats().InstanceCount;
 
 			INSIGHTS_ENSURE(B.IsValid() && B->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(B);
+			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(B);
 			const uint64 ValueB = NetEventNodeB->GetAggregatedStats().InstanceCount;
 
 			if (ValueA == ValueB)
@@ -146,8 +152,8 @@ void FNetEventNodeSortingByInstanceCount::Sort(TArray<Insights::FBaseTreeNodePtr
 // Sort by Total Inclusive Size
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FNetEventNodeSortingByTotalInclusiveSize::FNetEventNodeSortingByTotalInclusiveSize(TSharedRef<Insights::FTableColumn> InColumnRef)
-	: Insights::FTableCellValueSorter(
+FNetEventNodeSortingByTotalInclusiveSize::FNetEventNodeSortingByTotalInclusiveSize(TSharedRef<FTableColumn> InColumnRef)
+	: FTableCellValueSorter(
 		FName(TEXT("ByTotalInclusiveSize")),
 		LOCTEXT("Sorting_ByTotalInclusiveSize_Name", "By Total Inclusive Size"),
 		LOCTEXT("Sorting_ByTotalInclusiveSize_Title", "Sort By Total Inclusive Size"),
@@ -158,18 +164,18 @@ FNetEventNodeSortingByTotalInclusiveSize::FNetEventNodeSortingByTotalInclusiveSi
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FNetEventNodeSortingByTotalInclusiveSize::Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const
+void FNetEventNodeSortingByTotalInclusiveSize::Sort(TArray<FBaseTreeNodePtr>& NodesToSort, ESortMode SortMode) const
 {
-	if (SortMode == Insights::ESortMode::Ascending)
+	if (SortMode == ESortMode::Ascending)
 	{
-		NodesToSort.Sort([](const Insights::FBaseTreeNodePtr& A, const Insights::FBaseTreeNodePtr& B) -> bool
+		NodesToSort.Sort([](const FBaseTreeNodePtr& A, const FBaseTreeNodePtr& B) -> bool
 		{
 			INSIGHTS_ENSURE(A.IsValid() && A->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(A);
+			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(A);
 			const uint32 ValueA = NetEventNodeA->GetAggregatedStats().TotalInclusive;
 
 			INSIGHTS_ENSURE(B.IsValid() && B->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(B);
+			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(B);
 			const uint32 ValueB = NetEventNodeB->GetAggregatedStats().TotalInclusive;
 
 			if (ValueA == ValueB)
@@ -185,14 +191,14 @@ void FNetEventNodeSortingByTotalInclusiveSize::Sort(TArray<Insights::FBaseTreeNo
 	}
 	else // if (SortMode == ESortMode::Descending)
 	{
-		NodesToSort.Sort([](const Insights::FBaseTreeNodePtr& A, const Insights::FBaseTreeNodePtr& B) -> bool
+		NodesToSort.Sort([](const FBaseTreeNodePtr& A, const FBaseTreeNodePtr& B) -> bool
 		{
 			INSIGHTS_ENSURE(A.IsValid() && A->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(A);
+			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(A);
 			const uint32 ValueA = NetEventNodeA->GetAggregatedStats().TotalInclusive;
 
 			INSIGHTS_ENSURE(B.IsValid() && B->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(B);
+			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(B);
 			const uint32 ValueB = NetEventNodeB->GetAggregatedStats().TotalInclusive;
 
 			if (ValueA == ValueB)
@@ -212,8 +218,8 @@ void FNetEventNodeSortingByTotalInclusiveSize::Sort(TArray<Insights::FBaseTreeNo
 // Sort by Total Exclusive Size
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FNetEventNodeSortingByTotalExclusiveSize::FNetEventNodeSortingByTotalExclusiveSize(TSharedRef<Insights::FTableColumn> InColumnRef)
-	: Insights::FTableCellValueSorter(
+FNetEventNodeSortingByTotalExclusiveSize::FNetEventNodeSortingByTotalExclusiveSize(TSharedRef<FTableColumn> InColumnRef)
+	: FTableCellValueSorter(
 		FName(TEXT("ByTotalExclusiveSize")),
 		LOCTEXT("Sorting_ByTotalExclusiveSize_Name", "By Total Exclusive Size"),
 		LOCTEXT("Sorting_ByTotalExclusiveSize_Title", "Sort By Total Exclusive Size"),
@@ -224,18 +230,18 @@ FNetEventNodeSortingByTotalExclusiveSize::FNetEventNodeSortingByTotalExclusiveSi
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FNetEventNodeSortingByTotalExclusiveSize::Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const
+void FNetEventNodeSortingByTotalExclusiveSize::Sort(TArray<FBaseTreeNodePtr>& NodesToSort, ESortMode SortMode) const
 {
-	if (SortMode == Insights::ESortMode::Ascending)
+	if (SortMode == ESortMode::Ascending)
 	{
-		NodesToSort.Sort([](const Insights::FBaseTreeNodePtr& A, const Insights::FBaseTreeNodePtr& B) -> bool
+		NodesToSort.Sort([](const FBaseTreeNodePtr& A, const FBaseTreeNodePtr& B) -> bool
 		{
 			INSIGHTS_ENSURE(A.IsValid() && A->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(A);
+			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(A);
 			const uint32 ValueA = NetEventNodeA->GetAggregatedStats().TotalExclusive;
 
 			INSIGHTS_ENSURE(B.IsValid() && B->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(B);
+			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(B);
 			const uint32 ValueB = NetEventNodeB->GetAggregatedStats().TotalExclusive;
 
 			if (ValueA == ValueB)
@@ -251,14 +257,14 @@ void FNetEventNodeSortingByTotalExclusiveSize::Sort(TArray<Insights::FBaseTreeNo
 	}
 	else // if (SortMode == ESortMode::Descending)
 	{
-		NodesToSort.Sort([](const Insights::FBaseTreeNodePtr& A, const Insights::FBaseTreeNodePtr& B) -> bool
+		NodesToSort.Sort([](const FBaseTreeNodePtr& A, const FBaseTreeNodePtr& B) -> bool
 		{
 			INSIGHTS_ENSURE(A.IsValid() && A->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(A);
+			const FNetEventNodePtr NetEventNodeA = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(A);
 			const uint32 ValueA = NetEventNodeA->GetAggregatedStats().TotalExclusive;
 
 			INSIGHTS_ENSURE(B.IsValid() && B->Is<FNetEventNode>());
-			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, Insights::FBaseTreeNode>(B);
+			const FNetEventNodePtr NetEventNodeB = StaticCastSharedPtr<FNetEventNode, FBaseTreeNode>(B);
 			const uint32 ValueB = NetEventNodeB->GetAggregatedStats().TotalExclusive;
 
 			if (ValueA == ValueB)
@@ -275,6 +281,8 @@ void FNetEventNodeSortingByTotalExclusiveSize::Sort(TArray<Insights::FBaseTreeNo
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef INSIGHTS_DEFAULT_SORTING_NODES
 #undef INSIGHTS_ENSURE

@@ -354,6 +354,10 @@ int32 FSlateOpenGLRenderer::GetCurrentSceneIndex() const
 	return -1;
 }
 
+void FSlateOpenGLRenderer::SetCurrentSceneIndex(int32 InIndex)
+{
+	// This is a no-op
+}
 
 void FSlateOpenGLRenderer::ClearScenes() 
 {

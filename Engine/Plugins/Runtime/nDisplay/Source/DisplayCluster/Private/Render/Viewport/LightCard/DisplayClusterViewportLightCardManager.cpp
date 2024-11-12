@@ -44,8 +44,11 @@ void FDisplayClusterViewportLightCardManager::Release()
 	check(IsInGameThread());
 
 	// Release UVLightCard
-	ReleaseUVLightCardData();
-	ReleaseUVLightCardResource();
+	ReleaseUVLightCardData(EDisplayClusterUVLightCardType::Under);
+	ReleaseUVLightCardResource(EDisplayClusterUVLightCardType::Under);
+
+	ReleaseUVLightCardData(EDisplayClusterUVLightCardType::Over);
+	ReleaseUVLightCardResource(EDisplayClusterUVLightCardType::Over);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -55,34 +58,141 @@ void FDisplayClusterViewportLightCardManager::OnHandleStartScene()
 
 void FDisplayClusterViewportLightCardManager::OnHandleEndScene()
 {
-	ReleaseUVLightCardData();
+	ReleaseUVLightCardData(EDisplayClusterUVLightCardType::Under);
+	ReleaseUVLightCardData(EDisplayClusterUVLightCardType::Over);
 }
 
 void FDisplayClusterViewportLightCardManager::RenderFrame()
 {
-	UpdateUVLightCardData();
-	RenderUVLightCard();
+	UpdateUVLightCardData(EDisplayClusterUVLightCardType::Under);
+	RenderUVLightCard(EDisplayClusterUVLightCardType::Under);
+
+	UpdateUVLightCardData(EDisplayClusterUVLightCardType::Over);
+	RenderUVLightCard(EDisplayClusterUVLightCardType::Over);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
-FIntPoint FDisplayClusterViewportLightCardManager::GetUVLightCardResourceSize() const
+FIntPoint FDisplayClusterViewportLightCardManager::GetUVLightCardResourceSize(const EDisplayClusterUVLightCardType InUVLightCardType) const
 {
+	const TSharedPtr<FDisplayClusterViewportLightCardResource, ESPMode::ThreadSafe>& UVLightCardResource = GetUVLightCardResource(InUVLightCardType);
 	return UVLightCardResource.IsValid() ? UVLightCardResource->GetSizeXY() : FIntPoint(0, 0);
 }
 
-bool FDisplayClusterViewportLightCardManager::IsUVLightCardEnabled() const
+EDisplayClusterUVLightCardRenderMode FDisplayClusterViewportLightCardManager::GetUVLightCardRenderMode() const
 {
+	// Value should be updated.
+	if (const FDisplayClusterViewportManager* ViewportManager = Configuration->GetViewportManagerImpl())
+	{
+		// Collect all ICVFX flags
+		EDisplayClusterViewportICVFXFlags ICVFXFlags = EDisplayClusterViewportICVFXFlags::None;
+		for (const TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>& ViewportIt : ViewportManager->GetEntireClusterViewports())
+		{
+			if (ViewportIt.IsValid())
+			{
+				ICVFXFlags |= ViewportIt->GetRenderSettingsICVFX().Flags;
+			}
+		}
+
+		if (EnumHasAnyFlags(ICVFXFlags, EDisplayClusterViewportICVFXFlags::DisableLightcard))
+		{
+			return EDisplayClusterUVLightCardRenderMode::Disabled;
+		}
+		else
+		{
+			// Returns the consolidated light card rendering mode for this cluster node:
+			const EDisplayClusterViewportICVFXFlags LightcardRenderModeFlags = ICVFXFlags & EDisplayClusterViewportICVFXFlags::LightcardRenderModeMask;
+			if (LightcardRenderModeFlags == EDisplayClusterViewportICVFXFlags::LightcardAlwaysUnder)
+			{
+				// The lightcard will always be displayed only "Under the In-Camera" for this cluster node.
+				return EDisplayClusterUVLightCardRenderMode::AlwaysUnder;
+			}
+			else if (LightcardRenderModeFlags == EDisplayClusterViewportICVFXFlags::LightcardAlwaysOver)
+			{
+				// The lightcard will always be displayed only "Over the In-Camera" for this cluster node.
+				return EDisplayClusterUVLightCardRenderMode::AlwaysOver;
+			}
+		}
+	}
+	
+	return EDisplayClusterUVLightCardRenderMode::Default;
+}
+
+bool FDisplayClusterViewportLightCardManager::IsUVLightCardEnabled(const EDisplayClusterUVLightCardType InUVLightCardType) const
+{
+	switch (GetUVLightCardRenderMode())
+	{
+	case EDisplayClusterUVLightCardRenderMode::Disabled:
+		return false;
+
+	case EDisplayClusterUVLightCardRenderMode::AlwaysOver:
+		if (InUVLightCardType != EDisplayClusterUVLightCardType::Over)
+		{
+			// Force to render only over
+			return false;
+		}
+		break;
+
+	case EDisplayClusterUVLightCardRenderMode::AlwaysUnder:
+		if (InUVLightCardType != EDisplayClusterUVLightCardType::Under)
+		{
+			// Force to render only under
+			return false;
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	const TArray<UPrimitiveComponent*>& UVLightCardPrimitiveComponents = GetUVLightCardPrimitiveComponents(InUVLightCardType);
 	return !UVLightCardPrimitiveComponents.IsEmpty();
 }
 
-void FDisplayClusterViewportLightCardManager::ReleaseUVLightCardData()
+void FDisplayClusterViewportLightCardManager::ReleaseUVLightCardData(const EDisplayClusterUVLightCardType InUVLightCardType)
 {
+	TArray<UPrimitiveComponent*>& UVLightCardPrimitiveComponents = GetUVLightCardPrimitiveComponents(InUVLightCardType);
 	UVLightCardPrimitiveComponents.Empty();
 }
 
-void FDisplayClusterViewportLightCardManager::UpdateUVLightCardData()
+void FDisplayClusterViewportLightCardManager::UpdateUVLightCardData(const EDisplayClusterUVLightCardType InUVLightCardType)
 {
-	ReleaseUVLightCardData();
+	ReleaseUVLightCardData(InUVLightCardType);
+
+	// Special use-case - when all viewports force to use only over or under, we have to ignore per-light card mode.
+	bool bEnablePerLightcardRenderMode = true;
+	switch (GetUVLightCardRenderMode())
+	{
+	case EDisplayClusterUVLightCardRenderMode::Disabled:
+		return;
+
+	case EDisplayClusterUVLightCardRenderMode::AlwaysOver:
+		bEnablePerLightcardRenderMode = false;
+		if (InUVLightCardType != EDisplayClusterUVLightCardType::Over)
+		{
+			// Force to render only over
+			return;
+		}
+		break;
+
+	case EDisplayClusterUVLightCardRenderMode::AlwaysUnder:
+		bEnablePerLightcardRenderMode = false;
+		if (InUVLightCardType != EDisplayClusterUVLightCardType::Under)
+		{
+			// Force to render only under
+			return;
+		}
+		break;
+
+	default:
+		break;
+	}
+
+
+	const FDisplayClusterConfigurationICVFX_StageSettings* StageSettings = Configuration->GetStageSettings();
+	if (!StageSettings)
+	{
+		return;
+	}
 
 	/** The list of UV light card actors that are referenced by the root actor */
 	TArray<ADisplayClusterLightCardActor*> UVLightCardActors;
@@ -96,7 +206,22 @@ void FDisplayClusterViewportLightCardManager::UpdateUVLightCardData()
 		{
 			if (LightCard->bIsUVLightCard)
 			{
-				UVLightCardActors.Add(LightCard);
+				if (bEnablePerLightcardRenderMode)
+				{
+					// Per-lightcard rules:
+					const EDisplayClusterShaderParametersICVFX_LightCardRenderMode LightCardRenderMode = StageSettings->Lightcard.GetLightCardRenderMode(LightCard->PerLightcardRenderMode, nullptr);
+					const bool bLightCardActorOver = (LightCardRenderMode == EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Over);
+					const bool bLightCardTypeOver = InUVLightCardType == EDisplayClusterUVLightCardType::Over;
+					if (bLightCardTypeOver == bLightCardActorOver)
+					{
+						UVLightCardActors.Add(LightCard);
+					}
+				}
+				else
+				{
+					// Render all UVLC to the one RTT
+					UVLightCardActors.Add(LightCard);
+				}
 			}
 		}
 	}
@@ -112,6 +237,7 @@ void FDisplayClusterViewportLightCardManager::UpdateUVLightCardData()
 		LightCardMeshComponents.Empty(LightCardMeshComponents.Num());
 		LightCard->GetLightCardMeshComponents(LightCardMeshComponents);
 
+		TArray<UPrimitiveComponent*>& UVLightCardPrimitiveComponents = GetUVLightCardPrimitiveComponents(InUVLightCardType);
 		for (UMeshComponent* LightCardMeshComp : LightCardMeshComponents)
 		{
 			if (LightCardMeshComp && LightCardMeshComp->SceneProxy == nullptr)
@@ -122,50 +248,54 @@ void FDisplayClusterViewportLightCardManager::UpdateUVLightCardData()
 	}
 }
 
-void FDisplayClusterViewportLightCardManager::CreateUVLightCardResource(const FIntPoint& InResourceSize)
+void FDisplayClusterViewportLightCardManager::CreateUVLightCardResource(const FIntPoint& InResourceSize, const EDisplayClusterUVLightCardType InUVLightCardType)
 {
+	TSharedPtr<FDisplayClusterViewportLightCardResource, ESPMode::ThreadSafe>& UVLightCardResource = GetUVLightCardResource(InUVLightCardType);
 	UVLightCardResource = MakeShared<FDisplayClusterViewportLightCardResource>(InResourceSize);
-	LightCardManagerProxy->UpdateUVLightCardResource(UVLightCardResource);
+	LightCardManagerProxy->UpdateUVLightCardResource(UVLightCardResource, InUVLightCardType);
 }
 
-void FDisplayClusterViewportLightCardManager::ReleaseUVLightCardResource()
+void FDisplayClusterViewportLightCardManager::ReleaseUVLightCardResource(const EDisplayClusterUVLightCardType InUVLightCardType)
 {
+	TSharedPtr<FDisplayClusterViewportLightCardResource, ESPMode::ThreadSafe>& UVLightCardResource = GetUVLightCardResource(InUVLightCardType);
 	if (UVLightCardResource.IsValid())
 	{
-		LightCardManagerProxy->ReleaseUVLightCardResource();
+		LightCardManagerProxy->ReleaseUVLightCardResource(InUVLightCardType);
 	}
 
 	UVLightCardResource.Reset();
 }
 
-void FDisplayClusterViewportLightCardManager::UpdateUVLightCardResource()
+void FDisplayClusterViewportLightCardManager::UpdateUVLightCardResource(const EDisplayClusterUVLightCardType InUVLightCardType)
 {
 	const uint32 UVLightCardTextureSize = CVarUVLightCardTextureSize.GetValueOnGameThread();
 	const FIntPoint UVLightCardResourceSize = FIntPoint(UVLightCardTextureSize, UVLightCardTextureSize);
 
+	TSharedPtr<FDisplayClusterViewportLightCardResource, ESPMode::ThreadSafe>& UVLightCardResource = GetUVLightCardResource(InUVLightCardType);
 	if (UVLightCardResource.IsValid())
 	{
 		if (UVLightCardResource->GetSizeXY() != UVLightCardResourceSize)
 		{
-			ReleaseUVLightCardResource();
+			ReleaseUVLightCardResource(InUVLightCardType);
 		}
 	}
 
 	if (!UVLightCardResource.IsValid())
 	{
-		CreateUVLightCardResource(UVLightCardResourceSize);
+		CreateUVLightCardResource(UVLightCardResourceSize, InUVLightCardType);
 	}
 }
 
-void FDisplayClusterViewportLightCardManager::RenderUVLightCard()
+void FDisplayClusterViewportLightCardManager::RenderUVLightCard(const EDisplayClusterUVLightCardType InUVLightCardType)
 {
 	// Render UV LightCard:
 	FDisplayClusterViewportManager* ViewportManager = Configuration->GetViewportManagerImpl();
 	UWorld* CurrentWorld = Configuration->GetCurrentWorld();
-	if (IsUVLightCardEnabled() && CurrentWorld && ViewportManager)
+	if (IsUVLightCardEnabled(InUVLightCardType) && CurrentWorld && ViewportManager)
 	{
-		UpdateUVLightCardResource();
+		UpdateUVLightCardResource(InUVLightCardType);
 
+		TSharedPtr<FDisplayClusterViewportLightCardResource, ESPMode::ThreadSafe>& UVLightCardResource = GetUVLightCardResource(InUVLightCardType);
 		if (UVLightCardResource.IsValid())
 		{
 			FDisplayClusterShaderParameters_UVLightCards UVLightCardParameters;
@@ -175,6 +305,7 @@ void FDisplayClusterViewportLightCardManager::RenderUVLightCard()
 
 			// Store any components that were invisible but forced to be visible so they can be set back to invisible after the render
 			TArray<UPrimitiveComponent*> ComponentsToUnload;
+			const TArray<UPrimitiveComponent*>& UVLightCardPrimitiveComponents = GetUVLightCardPrimitiveComponents(InUVLightCardType);
 			for (UPrimitiveComponent* PrimitiveComponent : UVLightCardPrimitiveComponents)
 			{
 				// Set the component's visibility to true and force it to generate its scene proxies
@@ -191,7 +322,7 @@ void FDisplayClusterViewportLightCardManager::RenderUVLightCard()
 				}
 			}
 
-			LightCardManagerProxy->RenderUVLightCard(CurrentWorld->Scene, UVLightCardParameters);
+			LightCardManagerProxy->RenderUVLightCard(CurrentWorld->Scene, UVLightCardParameters, InUVLightCardType);
 
 			for (UPrimitiveComponent* LoadedComponent : ComponentsToUnload)
 			{
@@ -202,7 +333,7 @@ void FDisplayClusterViewportLightCardManager::RenderUVLightCard()
 	}
 	else
 	{
-		ReleaseUVLightCardResource();
+		ReleaseUVLightCardResource(InUVLightCardType);
 	}
 }
 

@@ -175,7 +175,7 @@ class FMotoSynthEnginePreviewer : public ISubmixBufferListener
 {
 public:
 	FMotoSynthEnginePreviewer();
-	virtual ~FMotoSynthEnginePreviewer();
+	virtual ~FMotoSynthEnginePreviewer() override;
 
 	void StartPreviewing();
 	void StopPreviewing();
@@ -248,7 +248,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	// The engine previewer which is using this preset
-	FMotoSynthEnginePreviewer EnginePreviewer;
+	TSharedRef<FMotoSynthEnginePreviewer> EnginePreviewer = MakeShared<FMotoSynthEnginePreviewer>();
 #endif
 };
 

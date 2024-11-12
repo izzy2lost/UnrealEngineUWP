@@ -10,6 +10,13 @@
 #include "MoverLog.h"
 #include "MotionWarpingComponent.h"
 
+#if !UE_BUILD_SHIPPING
+FAutoConsoleVariable CVarLogAnimRootMotionSteps(
+	TEXT("mover.debug.LogAnimRootMotionSteps"),
+	false,
+	TEXT("Whether to log detailed information about anim root motion layered moves. 0: Disable, 1: Enable"),
+	ECVF_Cheat);
+#endif	// !UE_BUILD_SHIPPING
 
 FLayeredMove_AnimRootMotion::FLayeredMove_AnimRootMotion()
 {
@@ -23,9 +30,31 @@ FLayeredMove_AnimRootMotion::FLayeredMove_AnimRootMotion()
 
 bool FLayeredMove_AnimRootMotion::GenerateMove(const FMoverTickStartData& SimState, const FMoverTimeStep& TimeStep, const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard, FProposedMove& OutProposedMove)
 {
+	// Stop this move if the montage is no longer playing on the mesh
+	if (!TimeStep.bIsResimulating)
+	{
+		bool bIsMontageStillPlaying = false;
+
+		if (const USkeletalMeshComponent* MeshComp = Cast<USkeletalMeshComponent>(MoverComp->GetPrimaryVisualComponent()))
+		{
+			if (const UAnimInstance* MeshAnimInstance = MeshComp->GetAnimInstance())
+			{
+				bIsMontageStillPlaying = MeshAnimInstance->Montage_IsPlaying(Montage);
+			}
+		}
+
+		if (!bIsMontageStillPlaying)
+		{
+			DurationMs = 0.f;
+			return false;
+		}
+	}
+
 	const float DeltaSeconds = TimeStep.StepMs / 1000.f;
 
 	const AActor* MoverActor = MoverComp->GetOwner();
+
+	const FMoverDefaultSyncState* SyncState = SimState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 
 	// First pass simply samples based on the duration. For long animations, this has the potential to diverge.
 	// Future improvements could include:
@@ -42,32 +71,30 @@ bool FLayeredMove_AnimRootMotion::GenerateMove(const FMoverTickStartData& SimSta
 	// Read the local transform directly from the montage
 	const FTransform LocalRootMotion = UMotionWarpingUtilities::ExtractRootMotionFromAnimation(Montage, ExtractionStartPosition, ExtractionEndPosition);
 
-	FTransform WorldSpaceRootMotion;
-	
-	if (USkeletalMeshComponent* SkeletalMesh = MoverActor->FindComponentByClass<USkeletalMeshComponent>())
-	{
-		WorldSpaceRootMotion = SkeletalMesh->ConvertLocalRootMotionToWorld(LocalRootMotion);
-	}
-	else
-	{
-		const FTransform ActorToWorldTransform = MoverActor->GetTransform();
-		const FVector DeltaWorldTranslation = LocalRootMotion.GetTranslation() - ActorToWorldTransform.GetTranslation();
+	FMotionWarpingUpdateContext WarpingContext;
+	WarpingContext.Animation = Montage;
+	WarpingContext.CurrentPosition = ExtractionEndPosition;
+	WarpingContext.PreviousPosition = ExtractionStartPosition;
+	WarpingContext.PlayRate = PlayRate;
+	WarpingContext.Weight = 1.f;
 
-		const FQuat NewWorldRotation = ActorToWorldTransform.GetRotation() * LocalRootMotion.GetRotation();
-		const FQuat DeltaWorldRotation = NewWorldRotation * ActorToWorldTransform.GetRotation().Inverse();
-
-		WorldSpaceRootMotion.SetComponents(DeltaWorldRotation, DeltaWorldTranslation, FVector::OneVector);
-	}
+	// Note that we're forcing the use of the sync state's actor transform data. This is necessary when the movement simulation 
+	// is running ahead of the actor's visual representation and may be rotated differently, such as in an async physics sim.
+	const FTransform SimActorTransform = FTransform(SyncState->GetOrientation_WorldSpace().Quaternion(), SyncState->GetLocation_WorldSpace());
+	const FTransform WorldSpaceRootMotion = MoverComp->ConvertLocalRootMotionToWorld(LocalRootMotion, DeltaSeconds, &SimActorTransform, &WarpingContext);
 	
 	OutProposedMove = FProposedMove();
 	OutProposedMove.MixMode = MixMode;
 
 	// Convert the transform into linear and angular velocities
-	const FPlane MovementPlane(FVector::ZeroVector, MoverComp->GetUpDirection());
-
 	OutProposedMove.LinearVelocity    = WorldSpaceRootMotion.GetTranslation() / DeltaSeconds;
-	OutProposedMove.MovePlaneVelocity = UMovementUtils::ConstrainToPlane(OutProposedMove.LinearVelocity, MovementPlane);
 	OutProposedMove.AngularVelocity   = WorldSpaceRootMotion.GetRotation().Rotator() * (1.f / DeltaSeconds);
+
+#if !UE_BUILD_SHIPPING
+	UE_CLOG(CVarLogAnimRootMotionSteps->GetBool(), LogMover, Log, TEXT("AnimRootMotion. SimF %i (dt %.3f) Range [%.3f, %.3f] => LocalT: %s (WST: %s)  Vel: %.3f"),
+	        TimeStep.ServerFrame, DeltaSeconds, ExtractionStartPosition, ExtractionEndPosition, 
+	        *LocalRootMotion.GetTranslation().ToString(), *WorldSpaceRootMotion.GetTranslation().ToString(), OutProposedMove.LinearVelocity.Length());
+#endif // !UE_BUILD_SHIPPING
 
 	return true;
 }

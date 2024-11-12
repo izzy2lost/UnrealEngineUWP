@@ -14,7 +14,7 @@ struct MachineLearnedBehaviorFactory {
     static MachineLearnedBehavior::Pointer create(const Configuration& config,
                                                   const dna::MachineLearnedBehaviorReader* reader,
                                                   MemoryResource* memRes);
-    static MachineLearnedBehavior::Pointer create(const Configuration& config, MemoryResource* memRes);
+    static MachineLearnedBehavior::Pointer create(const Configuration& config, const RigMetrics& metrics, MemoryResource* memRes);
 
 };
 

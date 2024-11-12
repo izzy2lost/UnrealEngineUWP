@@ -765,10 +765,10 @@ void UPaperTerrainComponent::SpawnSegments(const TArray<FTerrainSegment>& Terrai
 				BoxPoints[3] = LocalTransformAtCenter.TransformPosition(FVector(BoxExtents.X, 0, -BoxExtents.Y));
 
 				FVector2D BoxPoints2D[4];
-				BoxPoints2D[0].Set(BoxPoints[0].X, BoxPoints[0].Z);
-				BoxPoints2D[1].Set(BoxPoints[1].X, BoxPoints[1].Z);
-				BoxPoints2D[2].Set(BoxPoints[2].X, BoxPoints[2].Z);
-				BoxPoints2D[3].Set(BoxPoints[3].X, BoxPoints[3].Z);
+				BoxPoints2D[0] = FVector2D(BoxPoints[0].X, BoxPoints[0].Z);
+				BoxPoints2D[1] = FVector2D(BoxPoints[1].X, BoxPoints[1].Z);
+				BoxPoints2D[2] = FVector2D(BoxPoints[2].X, BoxPoints[2].Z);
+				BoxPoints2D[3] = FVector2D(BoxPoints[3].X, BoxPoints[3].Z);
 
 				// If there is a previous polygon, try to merge
 				if (CollisionPolygonPoints.Num() >= 4)

@@ -23,6 +23,7 @@
 #include "SingleLayerWaterRendering.h"
 #include "RenderUtils.h"
 #include "SceneCulling/SceneCullingRenderer.h"
+#include "Froxel/Froxel.h"
 
 #define DEBUG_ALLOW_STATIC_SEPARATE_WITHOUT_CACHING 0
 
@@ -30,6 +31,7 @@ IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(VirtualShadowMapUbSlot);
 
 IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FVirtualShadowMapUniformParameters, "VirtualShadowMap", VirtualShadowMapUbSlot);
 
+// Disabled by default: use either console command "CsvCategory VSM" or command line argument "-CsvCategories=VSM[,...]" to enable.
 CSV_DEFINE_CATEGORY(VSM, false);
 
 DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Nanite Views (Primary)"), STAT_VSMNaniteViewsPrimary, STATGROUP_ShadowRendering);
@@ -40,12 +42,35 @@ extern int32 GForceInvalidateDirectionalVSM;
 extern int32 GVSMMaxPageAgeSinceLastRequest;
 extern TAutoConsoleVariable<float> CVarNaniteMaxPixelsPerEdge;
 extern TAutoConsoleVariable<float> CVarNaniteMinPixelsPerEdgeHW;
+extern float GMinScreenRadiusForShadowCaster;
 
 int32 GVSMShowLightDrawEvents = 0;
 FAutoConsoleVariableRef CVarVSMShowLightDrawEvents(
 	TEXT("r.Shadow.Virtual.ShowLightDrawEvents"),
 	GVSMShowLightDrawEvents,
 	TEXT("Enable Virtual Shadow Maps per-light draw events - may affect performance especially when there are many small lights in the scene."),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarMarkPagesUseFroxels(
+	TEXT("r.Shadow.Virtual.MarkPagesUsingFroxels"),
+	0,
+	TEXT("Experimental: If enabled the virtual shadow map pages are marked using froxels that are generated during HZB build.\n")
+	TEXT("  Higher throughput as it is not bandwidth limited. Is approximate as it only marks the center of each froxel representing 8x8 pixels."),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarDebugDrawFroxels(
+	TEXT("r.Shadow.Virtual.DebugDrawFroxels"),
+	0,
+	TEXT("Render the froxels using shaderprint (which needs to be enabled) r.ShaderPrint.MaxLine also needs to be set to a high value as this produces many lines."),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<float> CVarDebugDrawFroxelRange(
+	TEXT("r.Shadow.Virtual.DebugDrawFroxelRange"),
+	20.0f,
+	TEXT("Range in froxel tiles from the mouse cursor which to draw debug froxels in."),
 	ECVF_RenderThreadSafe
 );
 
@@ -81,6 +106,15 @@ TAutoConsoleVariable<int32> CVarCacheStaticSeparate(
 	ECVF_RenderThreadSafe
 );
 
+TAutoConsoleVariable<int32> CVarBuildDynamicHZB(
+	TEXT("r.Shadow.Virtual.DynamicHZB"),
+	0,
+	TEXT("When enabled, a separate HZB is built for dynamic cached pages.\n")
+	TEXT("This can improve performance in cached scenes with a lot of dynamic overdraw, e.g. a forest with a static sun light.\n")
+	TEXT("Constructing separate HZB doubles the memory cost of the HZB (1/4 of the page pool) and incurs some cost for building the second HZB."),
+	ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarShowStats(
 	TEXT("r.Shadow.Virtual.ShowStats"),
 	0,
@@ -111,7 +145,7 @@ TAutoConsoleVariable<int32> CVarMarkPixelPages(
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarMarkPixelPagesMipModeLocal(
+TAutoConsoleVariable<int32> CVarMarkPixelPagesMipModeLocal(
 	TEXT("r.Shadow.Virtual.MarkPixelPagesMipModeLocal"),
 	0,
 	TEXT("When enabled, this uses a subset of mips to reduce instance duplication in VSMs. Will result in better performance but a harsher falloff on mip transitions.\n")
@@ -209,6 +243,13 @@ TAutoConsoleVariable<int32> CVarDoNonNaniteBatching(
 	ECVF_RenderThreadSafe
 );
 
+TAutoConsoleVariable<int32> CVarNonNaniteUseRadiusThreshold(
+	TEXT("r.Shadow.Virtual.NonNanite.UseRadiusThreshold"),
+	1,
+	TEXT("If enabled (default) the r.Shadow.RadiusThreshold cvar is also used for uncached virtual shadow maps to cull small non-nanite instances."),
+	ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<float> CVarCoarsePagePixelThresholdDynamic(
 	TEXT("r.Shadow.Virtual.CoarsePagePixelThresholdDynamic"),
 	16.0f,
@@ -234,7 +275,7 @@ static TAutoConsoleVariable<float> CVarCoarsePagePixelThresholdDynamicNanite(
 
 static TAutoConsoleVariable<int32> CVarCacheAllocateViaLRU(
 	TEXT("r.Shadow.Virtual.Cache.AllocateViaLRU"),
-	0,
+	1,
 	TEXT("Prioritizes keeping more recently requested cached physical pages when allocating for new requests."),
 	ECVF_RenderThreadSafe
 );
@@ -264,11 +305,19 @@ FAutoConsoleCommand CmdDumpVSMLightNames(
 	FConsoleCommandDelegate::CreateStatic(DumpVSMLightNames)
 );
 
+UPTRINT GVirtualShadowMapLastSelectedVisualizeLightId = 0;
+UPTRINT GVirtualShadowMapVisualizeLightId = 0;
+bool GVirtualShadowMapVisualizeByLightId = false;
+
 FString GVirtualShadowMapVisualizeLightName;
 FAutoConsoleVariableRef CVarVisualizeLightName(
 	TEXT("r.Shadow.Virtual.Visualize.LightName"),
 	GVirtualShadowMapVisualizeLightName,
 	TEXT("Sets the name of a specific light to visualize (for developer use in non-shipping builds)"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Variable)
+	{
+		GVirtualShadowMapVisualizeByLightId = false;
+	}),
 	ECVF_RenderThreadSafe
 );
 
@@ -349,6 +398,123 @@ static TAutoConsoleVariable<int32> CVarVirtualShadowMapPageMarkingPixelStrideY(
 	TEXT("Same as PageMarkingPixelStrideX, but on the vertical axis of the screen."),
 	ECVF_RenderThreadSafe);
 
+
+static TAutoConsoleVariable<float> CVarScreenRayLength(
+	TEXT("r.Shadow.Virtual.ScreenRayLength"),
+	0.015f,
+	TEXT("Length of the screen space shadow trace away from receiver surface (smart shadow bias) before the VSM / SMRT lookup."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> CVarNormalBias(
+	TEXT("r.Shadow.Virtual.NormalBias"),
+	0.5f,
+	TEXT("Receiver offset along surface normal for shadow lookup. Scaled by distance to camera.")
+	TEXT("Higher values avoid artifacts on surfaces nearly parallel to the light, but also visibility offset shadows and increase the chance of hitting unmapped pages."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarSMRTAdaptiveRayCount(
+	TEXT("r.Shadow.Virtual.SMRT.AdaptiveRayCount"),
+	1,
+	TEXT("Shoot fewer rays in fully shadowed and unshadowed regions. Currently only supported with OnePassProjection. "),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarSMRTRayCountLocal(
+	TEXT("r.Shadow.Virtual.SMRT.RayCountLocal"),
+	7,
+	TEXT("Ray count for shadow map tracing of local lights. 0 = disabled."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarSMRTSamplesPerRayLocal(
+	TEXT("r.Shadow.Virtual.SMRT.SamplesPerRayLocal"),
+	8,
+	TEXT("Shadow map samples per ray for local lights"),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> CVarSMRTMaxRayAngleFromLight(
+	TEXT("r.Shadow.Virtual.SMRT.MaxRayAngleFromLight"),
+	0.03f,
+	TEXT("Max angle (in radians) a ray is allowed to span from the light's perspective for local lights.")
+	TEXT("Smaller angles limit the screen space size of shadow penumbra. ")
+	TEXT("Larger angles lead to more noise. "),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<float> CVarSMRTExtrapolateMaxSlopeLocal(
+	TEXT("r.Shadow.Virtual.SMRT.ExtrapolateMaxSlopeLocal"),
+	0.05f,
+	TEXT("Maximum depth slope when extrapolating behind occluders for local lights.\n")
+	TEXT("Higher values allow softer penumbra edges but can introduce light leaks behind second occluders.\n")
+	TEXT("Setting to 0 will disable slope extrapolation slightly improving projection performance, at the cost of reduced penumbra quality."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> CVarSMRTTexelDitherScaleLocal(
+	TEXT("r.Shadow.Virtual.SMRT.TexelDitherScaleLocal"),
+	2.0f,
+	TEXT("Applies a dither to the shadow map ray casts for local lights to help hide aliasing due to insufficient shadow resolution.\n")
+	TEXT("Setting this too high can cause shadows light leaks near occluders."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<float> CVarSMRTMaxSlopeBiasLocal(
+	TEXT("r.Shadow.Virtual.SMRT.MaxSlopeBiasLocal"),
+	50.0f,
+	TEXT("Maximum depth slope. Low values produce artifacts if shadow resolution is insufficient. High values can worsen light leaks near occluders and sparkly pixels in shadowed areas."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarSMRTRayCountDirectional(
+	TEXT("r.Shadow.Virtual.SMRT.RayCountDirectional"),
+	7,
+	TEXT("Ray count for shadow map tracing of directional lights. 0 = disabled."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarSMRTSamplesPerRayDirectional(
+	TEXT("r.Shadow.Virtual.SMRT.SamplesPerRayDirectional"),
+	8,
+	TEXT("Shadow map samples per ray for directional lights"),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<float> CVarSMRTExtrapolateMaxSlopeDirectional(
+	TEXT("r.Shadow.Virtual.SMRT.ExtrapolateMaxSlopeDirectional"),
+	5.0f,
+	TEXT("Maximum depth slope when extrapolating behind occluders for directional lights.\n")
+	TEXT("Higher values allow softer penumbra edges but can introduce light leaks behind second occluders.\n")
+	TEXT("Setting to 0 will disable slope extrapolation slightly improving projection performance, at the cost of reduced penumbra quality."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> CVarSMRTTexelDitherScaleDirectional(
+	TEXT("r.Shadow.Virtual.SMRT.TexelDitherScaleDirectional"),
+	2.0f,
+	TEXT("Applies a dither to the shadow map ray casts for directional lights to help hide aliasing due to insufficient shadow resolution.\n")
+	TEXT("Setting this too high can cause shadows light leaks near occluders."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> CVarSMRTRayLengthScaleDirectional(
+	TEXT("r.Shadow.Virtual.SMRT.RayLengthScaleDirectional"),
+	1.5f,
+	TEXT("Length of ray to shoot for directional lights, scaled by distance to camera.")
+	TEXT("Shorter rays limit the screen space size of shadow penumbra. ")
+	TEXT("Longer rays require more samples to avoid shadows disconnecting from contact points. "),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarSMRTRayCountHair(
+	TEXT("r.Shadow.Virtual.SMRT.SamplesPerRayHair"),
+	1,
+	TEXT("Shadow map samples per ray for hair"),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 namespace Nanite
 {
 	extern bool IsStatFilterActive(const FString& FilterName);
@@ -357,6 +523,14 @@ namespace Nanite
 bool IsVSMTranslucentHighQualityEnabled();
 bool IsLumenFrontLayerHistoryValid(const FViewInfo& View);
 extern bool LightGridUses16BitBuffers(EShaderPlatform Platform);
+
+bool DoesVSMWantFroxels(EShaderPlatform ShaderPlatform)
+{
+	return UseVirtualShadowMaps(ShaderPlatform)
+		&& CVarMarkPagesUseFroxels.GetValueOnRenderThread() != 0
+		// fall back to per-pixel marking if the front layer translucency path is enabled as it doesn't generate froxels.
+		&& !IsVSMTranslucentHighQualityEnabled();
+}
 
 FMatrix CalcTranslatedWorldToShadowUVMatrix(
 	const FMatrix& TranslatedWorldToShadowView,
@@ -375,17 +549,9 @@ FMatrix CalcTranslatedWorldToShadowUVNormalMatrix(
 	return CalcTranslatedWorldToShadowUVMatrix(TranslatedWorldToShadowView, ViewToClip).GetTransposed().Inverse();
 }
 
-
-template <typename ShaderType>
-static bool SetStatsArgsAndPermutation(FRDGBufferUAVRef StatsBufferUAV, typename ShaderType::FParameters *OutPassParameters, typename ShaderType::FPermutationDomain& OutPermutationVector)
+static float GetNormalBiasForShader()
 {
-	bool bGenerateStats = StatsBufferUAV != nullptr;
-	if (bGenerateStats)
-	{
-		OutPassParameters->OutStatsBuffer = StatsBufferUAV;
-	}
-	OutPermutationVector.template Set<typename ShaderType::FGenerateStatsDim>(bGenerateStats);
-	return bGenerateStats;
+	return CVarNormalBias.GetValueOnRenderThread() / 1000.0f;
 }
 
 FVirtualShadowMapArray::FVirtualShadowMapArray(FScene& InScene) 
@@ -412,6 +578,16 @@ void FVirtualShadowMapArray::UpdateNextData(int32 PrevVirtualShadowMapId, int32 
 	NextData[PrevVirtualShadowMapId].PageAddressOffset = FIntVector2(PageOffset.X, PageOffset.Y);
 }
 
+static FVirtualShadowMapPerViewParameters MakeEmptyVirtualShadowMapPerViewParameters(FRDGBuilder& GraphBuilder)
+{
+	FVirtualShadowMapPerViewParameters PerViewData;
+	PerViewData.MaxLightGridEntryIndex = 0u;
+	PerViewData.NumCulledLightsGrid = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32), 0u));
+	PerViewData.LightGridData = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32), 0u));
+
+	return PerViewData;
+}
+
 void FVirtualShadowMapArray::Initialize(
 	FRDGBuilder& GraphBuilder,
 	FVirtualShadowMapArrayCacheManager* InCacheManager,
@@ -425,12 +601,13 @@ void FVirtualShadowMapArray::Initialize(
 	bCullBackfacingPixels = CVarCullBackfacingPixels.GetValueOnRenderThread() != 0;
 	bUseHzbOcclusion = CVarShadowsVirtualUseHZB.GetValueOnRenderThread() != 0;
 	bUseTwoPassHzbOcclusion = CVarShadowsVirtualUseHZB.GetValueOnRenderThread() == 2;
-
+	bNonNaniteUseRadiusThreshold = CVarNonNaniteUseRadiusThreshold.GetValueOnRenderThread() != 0;
 	UniformParameters.NumFullShadowMaps = 0;
 	UniformParameters.NumSinglePageShadowMaps = 0;
 	UniformParameters.NumShadowMapSlots = 0;
 	UniformParameters.MaxPhysicalPages = 0;
 	UniformParameters.StaticCachedArrayIndex = 0;
+	UniformParameters.StaticHZBArrayIndex = 0;
 	// NOTE: Most uniform values don't matter when VSM is disabled
 
 	UniformParameters.bExcludeNonNaniteFromCoarsePages = !CVarCoarsePagesIncludeNonNanite.GetValueOnRenderThread();
@@ -440,15 +617,36 @@ void FVirtualShadowMapArray::Initialize(
 	UniformParameters.bClipmapGreedyLevelSelection = CVarClipmapGreedyLevelSelection.GetValueOnRenderThread();
 
 	UniformParameters.SceneFrameNumber = Scene.GetFrameNumberRenderThread();
+	
+	// Global SMRT settings so they can be shared between different passes that call into them
+	UniformParameters.ScreenRayLength = CVarScreenRayLength.GetValueOnRenderThread();
+	UniformParameters.NormalBias = GetNormalBiasForShader();
+
+	UniformParameters.SMRTAdaptiveRayCount = CVarSMRTAdaptiveRayCount.GetValueOnRenderThread();
+
+	UniformParameters.SMRTRayCountLocal = CVarSMRTRayCountLocal.GetValueOnRenderThread();
+	UniformParameters.SMRTSamplesPerRayLocal = CVarSMRTSamplesPerRayLocal.GetValueOnRenderThread();
+	UniformParameters.SMRTExtrapolateMaxSlopeLocal = CVarSMRTExtrapolateMaxSlopeLocal.GetValueOnRenderThread();
+	UniformParameters.SMRTTexelDitherScaleLocal = CVarSMRTTexelDitherScaleLocal.GetValueOnRenderThread();
+	UniformParameters.SMRTMaxSlopeBiasLocal = CVarSMRTMaxSlopeBiasLocal.GetValueOnRenderThread();
+	UniformParameters.SMRTCotMaxRayAngleFromLight = 1.0f / FMath::Tan(CVarSMRTMaxRayAngleFromLight.GetValueOnRenderThread());
+	
+	UniformParameters.SMRTRayCountDirectional = CVarSMRTRayCountDirectional.GetValueOnRenderThread();
+	UniformParameters.SMRTSamplesPerRayDirectional = CVarSMRTSamplesPerRayDirectional.GetValueOnRenderThread();
+	UniformParameters.SMRTExtrapolateMaxSlopeDirectional = CVarSMRTExtrapolateMaxSlopeDirectional.GetValueOnRenderThread();
+	UniformParameters.SMRTTexelDitherScaleDirectional = CVarSMRTTexelDitherScaleDirectional.GetValueOnRenderThread();
+	UniformParameters.SMRTRayLengthScale = CVarSMRTRayLengthScaleDirectional.GetValueOnRenderThread();
+
+	UniformParameters.SMRTHairRayCount = CVarSMRTRayCountHair.GetValueOnRenderThread();
 
 	// Reference dummy data in the UB initially
 	const uint32 DummyPageTableElement = 0xFFFFFFFF;
 	UniformParameters.PageTable = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(DummyPageTableElement), DummyPageTableElement));
 	UniformParameters.ProjectionData = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, sizeof(FVirtualShadowMapProjectionShaderData)));
 	UniformParameters.PageFlags = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
-	UniformParameters.PageRectBounds = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(FIntVector4)));
-	UniformParameters.LightGridData = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
-	UniformParameters.NumCulledLightsGrid = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
+	UniformParameters.UncachedPageRectBounds = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(FIntVector4)));
+	UniformParameters.AllocatedPageRectBounds = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(FIntVector4)));
+	UniformParameters.PerViewData = MakeEmptyVirtualShadowMapPerViewParameters(GraphBuilder);
 	UniformParameters.CachePrimitiveAsDynamic = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
 
 	if (bEnabled)
@@ -472,6 +670,14 @@ void FVirtualShadowMapArray::Initialize(
 			if (CacheManager->IsCacheEnabled())
 			#endif
 			{
+				// Only set up the dynamic separate HZB build allocation if 
+				// 1. caching is enabled & we cache static separate (otherwise they are combined anyway)
+				// 2. the cvar is enabled
+				if (CVarBuildDynamicHZB.GetValueOnRenderThread() != 0)
+				{
+					UniformParameters.StaticHZBArrayIndex = 1;
+				}
+
 				// Enable separate static caching in the second texture array element
 				UniformParameters.StaticCachedArrayIndex = 1;
 			}
@@ -522,23 +728,30 @@ void FVirtualShadowMapArray::Initialize(
 	}
 	else
 	{
-		CacheManager->FreePhysicalPool(GraphBuilder);
+		if (CacheManager)
+		{
+			CacheManager->FreePhysicalPool(GraphBuilder);
+		}
 		UniformParameters.PhysicalPagePool = GSystemTextures.GetZeroUIntArrayAtomicCompatDummy(GraphBuilder);
 	}
 
 	if (bEnabled && bUseHzbOcclusion)
 	{
-		HZBPhysical = CacheManager->SetHZBPhysicalPoolSize(GraphBuilder, GetHZBPhysicalPoolSize(), PF_R32_FLOAT);
-		HZBPhysicalRDG = GraphBuilder.RegisterExternalTexture(HZBPhysical);
+		const int HZBPoolArraySize = HasSeparateDynamicHZB() ? 2 : 1;
+		HZBPhysicalArray = CacheManager->SetHZBPhysicalPoolSize(GraphBuilder, GetHZBPhysicalPoolSize(), HZBPoolArraySize, PF_R32_FLOAT);
+		HZBPhysicalArrayRDG = GraphBuilder.RegisterExternalTexture(HZBPhysicalArray);
 	}
 	else
 	{
-		CacheManager->FreeHZBPhysicalPool(GraphBuilder);
-		HZBPhysical = nullptr;
-		HZBPhysicalRDG = nullptr;
+		if (CacheManager)
+		{
+			CacheManager->FreeHZBPhysicalPool(GraphBuilder);
+		}
+		HZBPhysicalArray = nullptr;
+		HZBPhysicalArrayRDG = nullptr;
 	}
 
-	UpdateCachedUniformBuffer(GraphBuilder);
+	UpdateCachedUniformBuffers(GraphBuilder);
 }
 
 int32 FVirtualShadowMapArray::Allocate(bool bSinglePageShadowMap, int32 Count)
@@ -616,30 +829,38 @@ TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> FVirtualShadowMapArray:
 	return GraphBuilder.CreateUniformBuffer(VersionedParameters);
 }
 
-void FVirtualShadowMapArray::UpdateCachedUniformBuffer(FRDGBuilder& GraphBuilder)
+void FVirtualShadowMapArray::UpdateCachedUniformBuffers(FRDGBuilder& GraphBuilder)
 {
-	CachedUniformBuffer = GetUncachedUniformBuffer(GraphBuilder);
+	CachedUniformBuffers.Reset();
+
+	// If we haven't yet initialized per-view parameters and are still using dummy data
+	if (PerViewParameters.Num() == 0)
+	{
+		CachedUniformBuffers.Add(GetUncachedUniformBuffer(GraphBuilder));
+}
+	// If per-view parameters are initialized
+	else
+	{
+		CachedUniformBuffers.SetNum(PerViewParameters.Num());
+
+		for (int ViewIndex = 0; ViewIndex < PerViewParameters.Num(); ++ViewIndex)
+		{
+			FVirtualShadowMapUniformParameters* VersionedParameters = GraphBuilder.AllocParameters<FVirtualShadowMapUniformParameters>(&UniformParameters);
+			VersionedParameters->PerViewData = PerViewParameters[ViewIndex];
+			CachedUniformBuffers[ViewIndex] = GraphBuilder.CreateUniformBuffer(VersionedParameters);
+		}
+	}
 }
 
 void FVirtualShadowMapArray::SetShaderDefines(FShaderCompilerEnvironment& OutEnvironment)
 {
 	static_assert(FVirtualShadowMap::Log2Level0DimPagesXY * 2U + NANITE_MAX_VIEWS_PER_CULL_RASTERIZE_PASS_BITS <= 32U, "Page indirection plus view index must fit into 32-bits for page-routing storage!");
 	OutEnvironment.SetDefine(TEXT("ENABLE_NON_NANITE_VSM"), GEnableNonNaniteVSM);
-	OutEnvironment.SetDefine(TEXT("VSM_PAGE_SIZE"), FVirtualShadowMap::PageSize);
-	OutEnvironment.SetDefine(TEXT("VSM_PAGE_SIZE_MASK"), FVirtualShadowMap::PageSizeMask);
-	OutEnvironment.SetDefine(TEXT("VSM_LOG2_PAGE_SIZE"), FVirtualShadowMap::Log2PageSize);
-	OutEnvironment.SetDefine(TEXT("VSM_LEVEL0_DIM_PAGES_XY"), FVirtualShadowMap::Level0DimPagesXY);
-	OutEnvironment.SetDefine(TEXT("VSM_LOG2_LEVEL0_DIM_PAGES_XY"), FVirtualShadowMap::Log2Level0DimPagesXY);
-	OutEnvironment.SetDefine(TEXT("VSM_MAX_MIP_LEVELS"), FVirtualShadowMap::MaxMipLevels);
-	OutEnvironment.SetDefine(TEXT("VSM_VIRTUAL_MAX_RESOLUTION_XY"), FVirtualShadowMap::VirtualMaxResolutionXY);
-	OutEnvironment.SetDefine(TEXT("VSM_RASTER_WINDOW_PAGES"), FVirtualShadowMap::RasterWindowPages);
-	OutEnvironment.SetDefine(TEXT("VSM_PAGE_TABLE_SIZE"), FVirtualShadowMap::PageTableSize);
-	OutEnvironment.SetDefine(TEXT("VSM_NUM_STATS"), NumStats);
 	OutEnvironment.SetDefine(TEXT("MAX_PAGE_AREA_DIAGNOSTIC_SLOTS"), MaxPageAreaDiagnosticSlots);
 	OutEnvironment.SetDefine(TEXT("INDEX_NONE"), INDEX_NONE);
 }
 
-FVirtualShadowMapSamplingParameters FVirtualShadowMapArray::GetSamplingParameters(FRDGBuilder& GraphBuilder) const
+FVirtualShadowMapSamplingParameters FVirtualShadowMapArray::GetSamplingParameters(FRDGBuilder& GraphBuilder, int32 ViewIndex) const
 {
 	// Sanity check: either VSMs are disabled and it's expected to be relying on dummy data, or we should have valid data
 	// If this fires, it is likely because the caller is trying to sample VSMs before they have been rendered by the ShadowDepths pass
@@ -649,7 +870,7 @@ FVirtualShadowMapSamplingParameters FVirtualShadowMapArray::GetSamplingParameter
 	//	TEXT("Attempt to use Virtual Shadow Maps before they have been rendered by ShadowDepths."));
 
 	FVirtualShadowMapSamplingParameters Parameters;
-	Parameters.VirtualShadowMap = GetUniformBuffer();
+	Parameters.VirtualShadowMap = GetUniformBuffer(ViewIndex);
 	return Parameters;
 }
 
@@ -662,11 +883,28 @@ class FPruneLightGridCS : public FVirtualShadowMapPageManagementShader
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualShadowMapUniformParameters, VirtualShadowMap)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
+		SHADER_PARAMETER(uint32, MinLocalLightIndex)
+		SHADER_PARAMETER(uint32, MaxLocalLightIndex)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutPrunedLightGridData)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutPrunedNumCulledLightsGrid)
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FPruneLightGridCS, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapPageMarking.usf", "PruneLightGridCS", SF_Compute);
+
+BEGIN_SHADER_PARAMETER_STRUCT(FBaseGeneratePageFlagsParameters, )
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualShadowMapUniformParameters, VirtualShadowMap)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTexturesStruct)
+	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
+	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutPageRequestFlags)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint >, DirectionalLightIds)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
+	SHADER_PARAMETER(float, PageDilationBorderSizeDirectional)
+	SHADER_PARAMETER(float, PageDilationBorderSizeLocal)
+	SHADER_PARAMETER(uint32, bCullBackfacingPixels)
+	SHADER_PARAMETER(uint32, NumDirectionalLightSmInds)
+	SHADER_PARAMETER(uint32, MipModeLocal)
+END_SHADER_PARAMETER_STRUCT()
 
 class FGeneratePageFlagsFromPixelsCS : public FVirtualShadowMapPageManagementShader
 {
@@ -689,37 +927,48 @@ class FGeneratePageFlagsFromPixelsCS : public FVirtualShadowMapPageManagementSha
 	}
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualShadowMapUniformParameters, VirtualShadowMap)
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTexturesStruct)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FBaseGeneratePageFlagsParameters, Base)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FHairStrandsViewUniformParameters, HairStrands)
-		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint2>, VisBuffer64)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutPageRequestFlags)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint >, DirectionalLightIds)
 		// PERMUTATION_WATER_DEPTH
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, SingleLayerWaterDepthTexture)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint >, SingleLayerWaterTileMask)
 		SHADER_PARAMETER(FIntPoint, SingleLayerWaterTileViewRes)
 		// PERMUTATION_TRANSLUCENCY_DEPTH
+		// FRONT LAYER 
 		SHADER_PARAMETER(uint32, FrontLayerMode)
 		SHADER_PARAMETER(FVector4f, FrontLayerHistoryUVMinMax)
 		SHADER_PARAMETER(FVector4f, FrontLayerHistoryScreenPositionScaleBias)
 		SHADER_PARAMETER(FVector4f, FrontLayerHistoryBufferSizeAndInvSize)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, FrontLayerTranslucencyDepthTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, FrontLayerTranslucencyNormalTexture)
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
+
 		RDG_BUFFER_ACCESS(IndirectBufferArgs, ERHIAccess::IndirectArgs)
-		SHADER_PARAMETER(float, PageDilationBorderSizeDirectional)
-		SHADER_PARAMETER(float, PageDilationBorderSizeLocal)
 		SHADER_PARAMETER(uint32, InputType)
-		SHADER_PARAMETER(uint32, bCullBackfacingPixels)
-		SHADER_PARAMETER(uint32, NumDirectionalLightSmInds)
-		SHADER_PARAMETER(uint32, MipModeLocal)
 		SHADER_PARAMETER(FIntPoint, PixelStride)
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FGeneratePageFlagsFromPixelsCS, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapPageMarking.usf", "GeneratePageFlagsFromPixels", SF_Compute);
+
+class FGeneratePageFlagsFromFroxelsCS : public FVirtualShadowMapPageManagementShader
+{
+	DECLARE_GLOBAL_SHADER(FGeneratePageFlagsFromFroxelsCS);
+	SHADER_USE_PARAMETER_STRUCT(FGeneratePageFlagsFromFroxelsCS, FVirtualShadowMapPageManagementShader)
+
+	class FDebugRenderDim : SHADER_PERMUTATION_BOOL("DEBUG_DRAW_GENERATE_FROM_FROXELS"); 
+	using FPermutationDomain = TShaderPermutationDomain<FDebugRenderDim>;
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_INCLUDE(FBaseGeneratePageFlagsParameters, Base)
+		SHADER_PARAMETER(uint32, bShouldMarkLocaLights)
+		SHADER_PARAMETER(int32, PassId)
+		SHADER_PARAMETER(float, DebugRange)
+		SHADER_PARAMETER_STRUCT_INCLUDE(Froxel::FParameters, FroxelParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE( ShaderPrint::FShaderParameters, ShaderPrintStruct )
+		RDG_BUFFER_ACCESS(IndirectBufferArgs, ERHIAccess::IndirectArgs)
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FGeneratePageFlagsFromFroxelsCS, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapPageMarking.usf", "GeneratePageFlagsFromFroxelsCS", SF_Compute);
+
 
 class FMarkCoarsePagesCS : public FVirtualShadowMapPageManagementShader
 {
@@ -747,7 +996,8 @@ class FGenerateHierarchicalPageFlagsCS : public FVirtualShadowMapPageManagementS
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualShadowMapUniformParameters, VirtualShadowMap)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< FPhysicalPageMetaData >, PhysicalPageMetaData)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutPageFlags)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FIntVector4>, OutPageRectBounds)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FIntVector4>, OutUncachedPageRectBounds)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FIntVector4>, OutAllocatedPageRectBounds)
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FGenerateHierarchicalPageFlagsCS, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapPageManagement.usf", "GenerateHierarchicalPageFlags", SF_Compute);
@@ -758,14 +1008,17 @@ class FUpdatePhysicalPageAddresses : public FVirtualShadowMapPageManagementShade
 	DECLARE_GLOBAL_SHADER(FUpdatePhysicalPageAddresses);
 	SHADER_USE_PARAMETER_STRUCT(FUpdatePhysicalPageAddresses, FVirtualShadowMapPageManagementShader )
 
+	class FHasCacheDataDim : SHADER_PERMUTATION_BOOL("HAS_CACHE_DATA");
 	class FGenerateStatsDim : SHADER_PERMUTATION_BOOL("VSM_GENERATE_STATS");
-	using FPermutationDomain = TShaderPermutationDomain<FGenerateStatsDim>;
+	using FPermutationDomain = TShaderPermutationDomain<FHasCacheDataDim, FGenerateStatsDim>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT( FParameters, )
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualShadowMapUniformParameters, VirtualShadowMap)
-		SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer< FPhysicalPageMetaData >,	OutPhysicalPageMetaData)		
-		SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< FNextVirtualShadowMapData >,	NextVirtualShadowMapData )
-		SHADER_PARAMETER( uint32,														NextVirtualShadowMapDataCount )
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FPhysicalPageMetaData>,		OutPhysicalPageMetaData)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FNextVirtualShadowMapData>,	NextVirtualShadowMapData )
+		SHADER_PARAMETER(uint32,														NextVirtualShadowMapDataCount )		
+		// Required if using FHasCacheDataDim
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>,							PrevPageRequestFlags)
 		// Required if using FGenerateStatsDim
 		SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer< uint >,					OutStatsBuffer )
 	END_SHADER_PARAMETER_STRUCT()
@@ -801,16 +1054,203 @@ class FUpdatePhysicalPages : public FVirtualShadowMapPageManagementShader
 };
 IMPLEMENT_GLOBAL_SHADER(FUpdatePhysicalPages, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapPhysicalPageManagement.usf", "UpdatePhysicalPages", SF_Compute );
 
-class FAllocateNewPageMappingsCS : public FVirtualShadowMapPageManagementShader
+/**
+ * Utility to help schedule kernels that do processing for each page to facilitate not processing mip levels that can't be reached.
+ */
+class FVirtualShadowMapPerPageShader : public FVirtualShadowMapPageManagementShader
+{
+public:
+	FVirtualShadowMapPerPageShader()
+	{
+	}
+
+	FVirtualShadowMapPerPageShader(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+		: FVirtualShadowMapPageManagementShader(Initializer)
+	{
+	}
+
+	static constexpr int32 ThreadGroupSizeX = 64;
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< uint >, VirtualShadowMapIds)
+		SHADER_PARAMETER( uint32, VirtualShadowMapIdsOffset ) 
+		SHADER_PARAMETER( uint32, NumVirtualShadowMapIds ) 
+		SHADER_PARAMETER( uint32, PerPageDispatchDimX ) 
+		SHADER_PARAMETER( uint32, bUseThreadPerId ) 
+	END_SHADER_PARAMETER_STRUCT()
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		OutEnvironment.SetDefine(TEXT("PER_PAGE_THREAD_GROUP_SIZE_X"), ThreadGroupSizeX);
+		OutEnvironment.SetDefine(TEXT("PER_PAGE_DISPATCH_SETUP"), 1);
+		FVirtualShadowMapPageManagementShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+	}
+
+	class FDispatcher
+	{
+	public:
+
+		struct FBinConfig
+		{
+			int32 DispatchDimX;
+		};
+
+		struct FBin
+		{
+			int32 VirtualShadowMapIdsOffset = 0;
+			int32 NumVirtualShadowMapIds = 0;
+		};
+
+		// 1, Small, medium, large
+		static constexpr int32 BinCount = 4;
+		static constexpr int32 BinDispatchDimX[BinCount] = 
+		{
+			4096,
+			512,
+			64,
+			1
+		};
+
+		static int32 CalcBin(int32 VirtualShadowMapId, int32 MinMipLevel)
+		{
+			if (IsSinglePageVirtualShadowMap(VirtualShadowMapId))
+			{
+				// last bin, single thread per shadow map
+				return BinCount - 1;
+			}
+
+			if (MinMipLevel < 6)
+			{
+				return MinMipLevel / 2; 
+			}
+
+			// last bin, single thread per shadow map
+			return BinCount - 1;
+		}
+
+		TStaticArray<FBin, BinCount> Bins;
+		FRDGBufferSRV* VirtualShadowMapIdsSRV = nullptr;
+
+		struct FBuilder
+		{
+			struct FIdBinIndex
+			{
+				uint32 VirtualShadowMapId : 28;
+				uint32 BinIndex : 4;
+			};
+
+			void Add(int32 VirtualShadowMapId, uint32 MinMipLevel)
+			{
+				if (VirtualShadowMapId != INDEX_NONE)
+				{
+					FIdBinIndex IdBinIndex;
+					IdBinIndex.BinIndex = CalcBin(VirtualShadowMapId, MinMipLevel);
+					IdBinIndex.VirtualShadowMapId = VirtualShadowMapId;
+					Tmp.Add(IdBinIndex);
+					Bins[IdBinIndex.BinIndex].NumVirtualShadowMapIds += 1;
+				}
+
+			}
+
+			void Reserve(int32 Num)
+			{
+				Tmp.Reserve(Num);
+			}
+
+			TStaticArray<FBin, BinCount> Bins;
+			TArray<FIdBinIndex,SceneRenderingAllocator> Tmp;
+		};
+
+		void Init(FRDGBuilder& GraphBuilder, const FBuilder& Builder)
+		{
+			Bins = Builder.Bins;
+			// counting sort the temp data into buffer of IDs
+			int32 Offset = 0;
+			for (int32 BinIndex = 0; BinIndex < BinCount; ++BinIndex)
+			{
+				Bins[BinIndex].VirtualShadowMapIdsOffset = Offset;
+				Offset += Bins[BinIndex].NumVirtualShadowMapIds;
+				Bins[BinIndex].NumVirtualShadowMapIds = 0;
+			}
+			TArray<uint32,SceneRenderingAllocator> VirtualShadowMapIds;
+			VirtualShadowMapIds.SetNumUninitialized(Builder.Tmp.Num());
+			for (FBuilder::FIdBinIndex IdBinIndex : Builder.Tmp)
+			{
+				FBin &Bin = Bins[IdBinIndex.BinIndex];
+				VirtualShadowMapIds[Bin.VirtualShadowMapIdsOffset + Bin.NumVirtualShadowMapIds++] = IdBinIndex.VirtualShadowMapId;
+			}
+
+			VirtualShadowMapIdsSRV = GraphBuilder.CreateSRV(CreateStructuredBuffer(GraphBuilder, TEXT("Shadow.Virtual.PerPageBinIds"), MoveTemp(VirtualShadowMapIds)));
+		}
+
+		template <typename TShaderClass>
+		void AddPass(FRDGBuilder& GraphBuilder, FRDGEventName&& PassName, const TShaderRef<TShaderClass>& ComputeShader, typename TShaderClass::FParameters *Parameters)
+		{
+			const FShaderParametersMetadata* ParametersMetadata = TShaderClass::FParameters::FTypeInfo::GetStructMetadata();
+			Parameters->VirtualShadowMapPerPageShader.VirtualShadowMapIds = VirtualShadowMapIdsSRV;
+			ClearUnusedGraphResources(ComputeShader, ParametersMetadata, Parameters);
+
+			GraphBuilder.AddPass(Forward<FRDGEventName>(PassName), ParametersMetadata, Parameters, ERDGPassFlags::Compute,
+			[ParametersMetadata, Parameters, ComputeShader, Bins = Bins](FRHIComputeCommandList& RHICmdList)
+			{
+				for (int32 BinIndex = 0; BinIndex < BinCount; ++BinIndex)
+				{
+					const FBin &Bin = Bins[BinIndex];
+					if (Bins[BinIndex].NumVirtualShadowMapIds > 0)
+					{
+						bool bUseThreadPerId = BinDispatchDimX[BinIndex] == 1;
+						int32 ThreadPerIdDispatchDimX = ThreadGroupSizeX * FMath::DivideAndRoundUp(Bin.NumVirtualShadowMapIds, ThreadGroupSizeX);
+						int32 PerPageDispatchDimX = bUseThreadPerId ? ThreadPerIdDispatchDimX : BinDispatchDimX[BinIndex];
+
+						// Set args for each pass
+						Parameters->VirtualShadowMapPerPageShader.PerPageDispatchDimX = PerPageDispatchDimX; 
+						Parameters->VirtualShadowMapPerPageShader.VirtualShadowMapIdsOffset = Bin.VirtualShadowMapIdsOffset;
+						Parameters->VirtualShadowMapPerPageShader.NumVirtualShadowMapIds = Bin.NumVirtualShadowMapIds;
+						Parameters->VirtualShadowMapPerPageShader.bUseThreadPerId = bUseThreadPerId ? 1 : 0;
+
+						FIntVector GroupCount = FIntVector(0,0,1);
+						int32 NumGroupsY = 1;
+						if (!bUseThreadPerId)
+						{
+							NumGroupsY = Bin.NumVirtualShadowMapIds;
+						}
+
+						FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, ParametersMetadata, *Parameters, FIntVector(FMath::DivideAndRoundUp(PerPageDispatchDimX, ThreadGroupSizeX), NumGroupsY, 1));
+					}
+				}
+
+			});
+
+		}
+	};
+};
+
+class FClearPageTableCS : public FVirtualShadowMapPerPageShader
+{
+	DECLARE_GLOBAL_SHADER(FClearPageTableCS);
+	SHADER_USE_PARAMETER_STRUCT(FClearPageTableCS, FVirtualShadowMapPerPageShader)
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER( FVirtualShadowMapUniformParameters,		VirtualShadowMap )
+		SHADER_PARAMETER_STRUCT_INCLUDE( FVirtualShadowMapPerPageShader::FParameters,	VirtualShadowMapPerPageShader)
+		SHADER_PARAMETER( uint32,														ClearValue )
+		SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer< uint >,					OutDestBuffer )
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FClearPageTableCS, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapPhysicalPageManagement.usf", "ClearPageTableCS", SF_Compute);
+
+
+class FAllocateNewPageMappingsCS : public FVirtualShadowMapPerPageShader
 {
 	DECLARE_GLOBAL_SHADER(FAllocateNewPageMappingsCS);
-	SHADER_USE_PARAMETER_STRUCT(FAllocateNewPageMappingsCS, FVirtualShadowMapPageManagementShader)
+	SHADER_USE_PARAMETER_STRUCT(FAllocateNewPageMappingsCS, FVirtualShadowMapPerPageShader)
 
 	class FGenerateStatsDim : SHADER_PERMUTATION_BOOL("VSM_GENERATE_STATS"); 
 	using FPermutationDomain = TShaderPermutationDomain<FGenerateStatsDim>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER( FVirtualShadowMapUniformParameters,		VirtualShadowMap )
+		SHADER_PARAMETER_STRUCT_INCLUDE( FVirtualShadowMapPerPageShader::FParameters,	VirtualShadowMapPerPageShader)
 		SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< uint >,						PageRequestFlags )
 		SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer< uint >,					OutPageFlags )
 		SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer< uint >,					OutPageTable )
@@ -848,14 +1288,15 @@ class FAppendPhysicalPageListsCS : public FVirtualShadowMapPageManagementShader
 };
 IMPLEMENT_GLOBAL_SHADER(FAppendPhysicalPageListsCS, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapPhysicalPageManagement.usf", "AppendPhysicalPageLists", SF_Compute );
 
-class FPropagateMappedMipsCS : public FVirtualShadowMapPageManagementShader
+class FPropagateMappedMipsCS : public FVirtualShadowMapPerPageShader
 {
 	DECLARE_GLOBAL_SHADER(FPropagateMappedMipsCS);
-	SHADER_USE_PARAMETER_STRUCT(FPropagateMappedMipsCS, FVirtualShadowMapPageManagementShader)
+	SHADER_USE_PARAMETER_STRUCT(FPropagateMappedMipsCS, FVirtualShadowMapPerPageShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER( FVirtualShadowMapUniformParameters,	VirtualShadowMap )
-		SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer< uint >,				OutPageTable )
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER( FVirtualShadowMapUniformParameters,		VirtualShadowMap )
+		SHADER_PARAMETER_STRUCT_INCLUDE( FVirtualShadowMapPerPageShader::FParameters,	VirtualShadowMapPerPageShader)
+		SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer< uint >,					OutPageTable )
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FPropagateMappedMipsCS, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapPageManagement.usf", "PropagateMappedMips", SF_Compute);
@@ -892,44 +1333,6 @@ class FInitializePhysicalPagesIndirectCS : public FVirtualShadowMapPageManagemen
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FInitializePhysicalPagesIndirectCS, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapPhysicalPageManagement.usf", "InitializePhysicalPagesIndirectCS", SF_Compute);
-
-class FClearIndirectDispatchArgs1DCS : public FVirtualShadowMapPageManagementShader
-{
-	DECLARE_GLOBAL_SHADER(FClearIndirectDispatchArgs1DCS);
-	SHADER_USE_PARAMETER_STRUCT(FClearIndirectDispatchArgs1DCS, FVirtualShadowMapPageManagementShader)
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER(uint32, NumIndirectArgs)
-		SHADER_PARAMETER(uint32, IndirectArgStride)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, OutIndirectArgsBuffer)
-	END_SHADER_PARAMETER_STRUCT()
-};
-IMPLEMENT_GLOBAL_SHADER(FClearIndirectDispatchArgs1DCS, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapPhysicalPageManagement.usf", "ClearIndirectDispatchArgs1DCS", SF_Compute);
-
-static void AddClearIndirectDispatchArgs1DPass(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, FRDGBufferRef IndirectArgsRDG, uint32 NumIndirectArgs = 1U, uint32 IndirectArgStride = 4U)
-{
-	FClearIndirectDispatchArgs1DCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FClearIndirectDispatchArgs1DCS::FParameters>();
-	PassParameters->NumIndirectArgs = NumIndirectArgs;
-	PassParameters->IndirectArgStride = IndirectArgStride;
-	PassParameters->OutIndirectArgsBuffer = GraphBuilder.CreateUAV(IndirectArgsRDG);
-
-	auto ComputeShader = GetGlobalShaderMap(FeatureLevel)->GetShader<FClearIndirectDispatchArgs1DCS>();
-
-	FComputeShaderUtils::AddPass(
-		GraphBuilder,
-		RDG_EVENT_NAME("ClearIndirectDispatchArgs"),
-		ComputeShader,
-		PassParameters,
-		FComputeShaderUtils::GetGroupCount(NumIndirectArgs, 64)
-	);
-}
-
-FRDGBufferRef FVirtualShadowMapArray::CreateAndInitializeDispatchIndirectArgs1D(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* Name)
-{
-	FRDGBufferRef IndirectArgsRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(), Name);
-	AddClearIndirectDispatchArgs1DPass(GraphBuilder, FeatureLevel, IndirectArgsRDG);
-	return IndirectArgsRDG;
-}
 
 class FSelectPagesToMergeCS : public FVirtualShadowMapPageManagementShader
 {
@@ -986,7 +1389,7 @@ void FVirtualShadowMapArray::MergeStaticPhysicalPages(FRDGBuilder& GraphBuilder)
 	FRDGBufferRef PhysicalPagesToMergeRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(int32), GetTotalAllocatedPhysicalPages() + 1), TEXT("Shadow.Virtual.PhysicalPagesToMerge"));
 
 	// 1. Initialize the indirect args buffer
-	FRDGBufferRef MergePagesIndirectArgsRDG = CreateAndInitializeDispatchIndirectArgs1D(GraphBuilder, Scene.GetFeatureLevel(), TEXT("Shadow.Virtual.MergePagesIndirectArgs"));
+	FRDGBufferRef MergePagesIndirectArgsRDG = CreateAndClearIndirectDispatchArgs1D(GraphBuilder, Scene.GetFeatureLevel(), TEXT("Shadow.Virtual.MergePagesIndirectArgs"));
 
 	// 2. Filter the relevant physical pages and set up the indirect args
 	{
@@ -997,7 +1400,7 @@ void FVirtualShadowMapArray::MergeStaticPhysicalPages(FRDGBuilder& GraphBuilder)
 		PassParameters->OutPhysicalPagesToMerge = GraphBuilder.CreateUAV(PhysicalPagesToMergeRDG);
 
 		FSelectPagesToMergeCS::FPermutationDomain PermutationVector;
-		SetStatsArgsAndPermutation<FSelectPagesToMergeCS>(StatsBufferUAV, PassParameters, PermutationVector);
+		SetStatsArgsAndPermutation<FSelectPagesToMergeCS>(ShouldGenerateStats(), StatsBufferUAV, PassParameters, PermutationVector);
 
 		auto ComputeShader = GetGlobalShaderMap(Scene.GetFeatureLevel())->GetShader<FSelectPagesToMergeCS>(PermutationVector);
 
@@ -1038,9 +1441,11 @@ class FInitPageRectBoundsCS : public FVirtualShadowMapPageManagementShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualShadowMapUniformParameters, VirtualShadowMap)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FIntVector4>, OutPageRectBounds)
-		SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer< int >, OutPhysicalPageLists)
-		SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer< FPhysicalPageRequest >, OutPhysicalPageAllocationRequests)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FIntVector4>, OutUncachedPageRectBounds)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FIntVector4>, OutAllocatedPageRectBounds)
+		SHADER_PARAMETER(uint32, NumPageRectsToClear)		
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<int>, OutPhysicalPageLists)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FPhysicalPageRequest>, OutPhysicalPageAllocationRequests)
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FInitPageRectBoundsCS, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapPhysicalPageManagement.usf", "InitPageRectBounds", SF_Compute);
@@ -1075,24 +1480,82 @@ void FVirtualShadowMapVisualizeLightSearch::CheckLight(const FLightSceneProxy* C
 		UE_LOG(LogRenderer, Display, TEXT("%s"), *CheckLightName);
 	}
 
-	const ULightComponent* Component = CheckProxy->GetLightComponent();
-	check(Component);
+	const UPTRINT CheckProxyId = (UPTRINT)(CheckProxy->GetLightComponent());
 
-	// Fill out new sort key and compare to our best found so far
-	SortKey CheckKey;
-	CheckKey.Packed = 0;
-	CheckKey.Fields.bExactNameMatch = (CheckLightName == GVirtualShadowMapVisualizeLightName);
-	CheckKey.Fields.bPartialNameMatch = CheckKey.Fields.bExactNameMatch || CheckLightName.Contains(GVirtualShadowMapVisualizeLightName);
-	CheckKey.Fields.bSelected = Component->IsSelected();
-	CheckKey.Fields.bOwnerSelected = Component->IsOwnerSelected();
-	CheckKey.Fields.bDirectionalLight = CheckProxy->GetLightType() == LightType_Directional;
-	CheckKey.Fields.bExists = 1;
+	const int SelectAdjacentVisualizeLight = GetVirtualShadowMapVisualizationData().SelectAdjacentVisualizeLight;
+	const bool SelectNextLight = SelectAdjacentVisualizeLight > 0;
+	const bool SelectPrevLight = SelectAdjacentVisualizeLight < 0;
+	GVirtualShadowMapVisualizeByLightId = GVirtualShadowMapVisualizeByLightId || SelectAdjacentVisualizeLight != 0;
 
-	if (CheckKey.Packed > FoundKey.Packed)		//-V547
+	// When the user clicks a light, visualize the selected light.
+	if (CheckProxy->IsSelected() && CheckProxyId != GVirtualShadowMapLastSelectedVisualizeLightId)
 	{
-		FoundKey = CheckKey;
-		FoundProxy = CheckProxy;
-		FoundVirtualShadowMapId = CheckVirtualShadowMapId;
+		GVirtualShadowMapVisualizeByLightId = false;
+		GVirtualShadowMapLastSelectedVisualizeLightId = CheckProxyId;
+	}
+
+	if (GVirtualShadowMapVisualizeByLightId)
+	{
+		UPTRINT FoundAdjacentLightId = FoundProxy ? (UPTRINT)(FoundProxy->GetLightComponent()) : 0;
+		bool bIsFoundAdjacentLightInvalid = FoundAdjacentLightId == 0;
+
+		if (SelectPrevLight
+			// Light comes before current selection
+			&& CheckProxyId < GVirtualShadowMapVisualizeLightId
+			// Light comes after best match so far
+			&& FoundAdjacentLightId < CheckProxyId)
+		{
+			FoundProxy = CheckProxy;
+			FoundVirtualShadowMapId = CheckVirtualShadowMapId;
+		}
+		else if (SelectNextLight
+			// Light comes after current selection
+			&& GVirtualShadowMapVisualizeLightId < CheckProxyId
+			// Light comes before best match so far
+			&& (CheckProxyId < FoundAdjacentLightId || bIsFoundAdjacentLightInvalid))
+		{
+			FoundProxy = CheckProxy;
+			FoundVirtualShadowMapId = CheckVirtualShadowMapId;
+		}
+		else if (SelectAdjacentVisualizeLight == 0 
+			&& CheckProxyId == GVirtualShadowMapVisualizeLightId)
+		{
+			FoundProxy = CheckProxy;
+			FoundVirtualShadowMapId = CheckVirtualShadowMapId;
+		}
+	}
+	else
+	{
+		// Fill out new sort key and compare to our best found so far
+		SortKey CheckKey;
+		CheckKey.Packed = 0;
+		CheckKey.Fields.bExactNameMatch = (CheckLightName == GVirtualShadowMapVisualizeLightName);
+		CheckKey.Fields.bPartialNameMatch = CheckKey.Fields.bExactNameMatch || (!GVirtualShadowMapVisualizeLightName.IsEmpty() && CheckLightName.Contains(GVirtualShadowMapVisualizeLightName));
+		CheckKey.Fields.bSelected = CheckProxy->IsSelected();
+
+		if (CheckKey.Packed > FoundKey.Packed)		//-V547
+		{
+			FoundKey = CheckKey;
+			FoundProxy = CheckProxy;
+			FoundVirtualShadowMapId = CheckVirtualShadowMapId;
+		}
+	}
+#endif
+}
+
+void FVirtualShadowMapVisualizeLightSearch::ChooseLight()
+{
+#if !UE_BUILD_SHIPPING
+	const int SelectAdjacentVisualizeLight = GetVirtualShadowMapVisualizationData().SelectAdjacentVisualizeLight;
+	GetVirtualShadowMapVisualizationData().SelectAdjacentVisualizeLight = 0;
+
+	if (FoundProxy)
+	{
+		GVirtualShadowMapVisualizeLightId = (UPTRINT)(FoundProxy->GetLightComponent());
+	}
+	else if (SelectAdjacentVisualizeLight) // selected past first or last light, select none
+	{
+		GVirtualShadowMapVisualizeLightId = 0;
 	}
 #endif
 }
@@ -1108,7 +1571,7 @@ static FRDGTextureRef CreateDebugVisualizationTexture(FRDGBuilder& GraphBuilder,
 
 	FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
 		Extent,
-		PF_R8G8B8A8,
+		PF_FloatRGBA,
 		FClearValueBinding(ClearColor),
 		TexCreate_ShaderResource | TexCreate_UAV);
 
@@ -1163,6 +1626,11 @@ void FVirtualShadowMapArray::UpdateVisualizeLight(
 			}
 		}
 	}
+
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	{
+		VisualizeLight[ViewIndex].ChooseLight();
+	}
 #endif
 }
 
@@ -1196,25 +1664,6 @@ void FVirtualShadowMapArray::AppendPhysicalPageList(FRDGBuilder& GraphBuilder, b
 	);
 }
 
-void FVirtualShadowMapArray::UploadProjectionData(FRDGBuilder& GraphBuilder)
-{
-	// Create large enough to hold all the unused elements too (wastes GPU memory but allows direct indexing via the ID)
-	uint32 DataSize = sizeof(FVirtualShadowMapProjectionShaderData) * uint32(GetNumShadowMapSlots());
-	FRDGBufferDesc Desc;
-	Desc.Usage = EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::ShaderResource | EBufferUsageFlags::ByteAddressBuffer | EBufferUsageFlags::StructuredBuffer;
-	Desc.BytesPerElement = 4;
-	Desc.NumElements = DataSize / 4U;
-	ProjectionDataRDG = GraphBuilder.CreateBuffer(Desc, TEXT("Shadow.Virtual.ProjectionData"));
-		
-	FRDGScatterUploadBuffer Uploader;
-	Uploader.Init(GraphBuilder, GetNumShadowMaps(), sizeof(FVirtualShadowMapProjectionShaderData), false, TEXT("Shadow.Virtual.ProjectionData.UploadBuffer"));
-
-	// Upload data for all cached entries, even if they are not referenced this frame
-	CacheManager->UploadProjectionData(Uploader);
-
-	Uploader.ResourceUploadTo(GraphBuilder, ProjectionDataRDG);
-}
-
 void FVirtualShadowMapArray::UpdatePhysicalPageAddresses(FRDGBuilder& GraphBuilder)
 {
 	if (!IsEnabled())
@@ -1232,7 +1681,7 @@ void FVirtualShadowMapArray::UpdatePhysicalPageAddresses(FRDGBuilder& GraphBuild
 	RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
 	FUpdatePhysicalPageAddresses::FParameters* PassParameters = GraphBuilder.AllocParameters<FUpdatePhysicalPageAddresses::FParameters>();
-	PassParameters->VirtualShadowMap		= GetUniformBuffer();
+	PassParameters->VirtualShadowMap		= GetUniformBuffer(0);
 	PassParameters->OutPhysicalPageMetaData = GraphBuilder.CreateUAV(PhysicalPageMetaDataRDG);
 
 	// Upload our prev -> next shadow data mapping (FNextVirtualShadowMapData) to the GPU
@@ -1241,7 +1690,16 @@ void FVirtualShadowMapArray::UpdatePhysicalPageAddresses(FRDGBuilder& GraphBuild
 	PassParameters->NextVirtualShadowMapDataCount = NextData.Num();
 
 	FUpdatePhysicalPageAddresses::FPermutationDomain PermutationVector;
-	SetStatsArgsAndPermutation<FUpdatePhysicalPageAddresses>(StatsBufferUAV, PassParameters, PermutationVector);
+
+	TRefCountPtr<FRDGPooledBuffer> PrevPageRequestFlags = CacheManager->GetPrevBuffers().PageRequestFlags;
+	if (PrevPageRequestFlags != nullptr)
+	{
+		PassParameters->PrevPageRequestFlags = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(PrevPageRequestFlags));
+	}
+	PermutationVector.Set<FUpdatePhysicalPageAddresses::FHasCacheDataDim>(PrevPageRequestFlags != nullptr);
+
+	SetStatsArgsAndPermutation<FUpdatePhysicalPageAddresses>(ShouldGenerateStats(), StatsBufferUAV, PassParameters, PermutationVector);
+
 	auto ComputeShader = GetGlobalShaderMap(Scene.GetFeatureLevel())->GetShader<FUpdatePhysicalPageAddresses>(PermutationVector);
 
 	FComputeShaderUtils::AddPass(
@@ -1253,6 +1711,25 @@ void FVirtualShadowMapArray::UpdatePhysicalPageAddresses(FRDGBuilder& GraphBuild
 	);
 }
 
+bool FVirtualShadowMapArray::ShouldGenerateStats() const
+{
+#if !UE_BUILD_SHIPPING
+	const bool bRunPageAreaDiagnostics = CVarNumPageAreaDiagSlots.GetValueOnRenderThread() != 0;
+#else
+	constexpr bool bRunPageAreaDiagnostics = false;
+#endif
+	return CVarShowStats.GetValueOnRenderThread() || CacheManager->IsAccumulatingStats() || bRunPageAreaDiagnostics || IsCsvLogEnabled();
+}
+
+bool FVirtualShadowMapArray::IsCsvLogEnabled() const
+{
+#if CSV_PROFILER_STATS
+	return FCsvProfiler::Get()->IsCapturing_Renderthread() && FCsvProfiler::Get()->IsCategoryEnabled(CSV_CATEGORY_INDEX(VSM));
+#else
+	return false;
+#endif
+}
+
 void FVirtualShadowMapArray::BuildPageAllocations(
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
@@ -1260,7 +1737,9 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 	const FSortedLightSetSceneInfo& SortedLightsInfo,
 	const TConstArrayView<FVisibleLightInfo>& VisibleLightInfos,
 	const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult,
-	const FFrontLayerTranslucencyData& FrontLayerTranslucencyData)
+	const FFrontLayerTranslucencyData& FrontLayerTranslucencyData,
+	const Froxel::FRenderer& FroxelRenderer,
+	bool bAnyLocalLightsWithVSMs)
 {
 	check(IsEnabled());
 
@@ -1273,8 +1752,11 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 	RDG_EVENT_SCOPE(GraphBuilder, "FVirtualShadowMapArray::BuildPageAllocation");
 	SCOPED_NAMED_EVENT(FVirtualShadowMapArray_BuildPageAllocation, FColor::Emerald);
 
-	VisualizeLight.Reset();
+	VisualizeLight.Reset(Views.Num());
 	VisualizeLight.AddDefaulted(Views.Num());
+
+	PerViewParameters.Reset(Views.Num());
+	PerViewParameters.AddDefaulted(Views.Num());
 
 #if !UE_BUILD_SHIPPING
 	if (GDumpVSMLightNames)
@@ -1302,11 +1784,41 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 	UpdateVisualizeLight(Views, VisibleLightInfos);
 #endif //!UE_BUILD_SHIPPING
 
-	UploadProjectionData(GraphBuilder);
+	FVirtualShadowMapPerPageShader::FDispatcher PerPageShaderDispatcher;
+	{
+		FVirtualShadowMapPerPageShader::FDispatcher::FBuilder Builder;
+
+		// Create large enough to hold all the unused elements too (wastes GPU memory but allows direct indexing via the ID)
+		uint32 DataSize = sizeof(FVirtualShadowMapProjectionShaderData) * uint32(GetNumShadowMapSlots());
+		FRDGBufferDesc Desc;
+		Desc.Usage = EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::ShaderResource | EBufferUsageFlags::ByteAddressBuffer | EBufferUsageFlags::StructuredBuffer;
+		Desc.BytesPerElement = 4;
+		Desc.NumElements = DataSize / 4U;
+		ProjectionDataRDG = GraphBuilder.CreateBuffer(Desc, TEXT("Shadow.Virtual.ProjectionData"));
+		
+		FRDGScatterUploadBuffer Uploader;
+		Uploader.Init(GraphBuilder, GetNumShadowMaps(), sizeof(FVirtualShadowMapProjectionShaderData), false, TEXT("Shadow.Virtual.ProjectionData.UploadBuffer"));
+
+		for (auto It = CacheManager->CreateConstEntryIterator(); It; ++It)
+		{
+			const TSharedPtr<FVirtualShadowMapPerLightCacheEntry>& CacheEntry = It.Value();
+			for (const auto& Entry : CacheEntry->ShadowMapEntries)
+			{
+				Uploader.Add(Entry.CurrentVirtualShadowMapId, &Entry.ProjectionData);
+				Builder.Add(Entry.CurrentVirtualShadowMapId, Entry.ProjectionData.MinMipLevel);
+			}
+		}
+		Uploader.ResourceUploadTo(GraphBuilder, ProjectionDataRDG);
+
+		PerPageShaderDispatcher.Init(GraphBuilder, Builder);
+	}
 
 	// Stats
 	SET_DWORD_STAT(STAT_VSMSinglePageCount, GetNumSinglePageShadowMaps());
 	SET_DWORD_STAT(STAT_VSMFullCount, GetNumFullShadowMaps());
+	// And _other_ stats...
+	CSV_CUSTOM_STAT(VSM, SinglePageCount, GetNumSinglePageShadowMaps(), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT(VSM, FullCount, GetNumFullShadowMaps(), ECsvCustomStatOp::Set);
 
 	UniformParameters.NumFullShadowMaps = GetNumFullShadowMaps();
 	UniformParameters.NumSinglePageShadowMaps = GetNumSinglePageShadowMaps();
@@ -1318,19 +1830,11 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 	UniformParameters.CoarsePagePixelThresholdStatic = CVarCoarsePagePixelThresholdStatic.GetValueOnRenderThread();
 	UniformParameters.CoarsePagePixelThresholdDynamicNanite = CVarCoarsePagePixelThresholdDynamicNanite.GetValueOnRenderThread();
 
-	bool bCsvLogEnabled = false;
-#if !UE_BUILD_SHIPPING
-	const bool bRunPageAreaDiagnostics = CVarNumPageAreaDiagSlots.GetValueOnRenderThread() != 0;
-#if CSV_PROFILER
-	bCsvLogEnabled = FCsvProfiler::Get()->IsCapturing_Renderthread() && FCsvProfiler::Get()->IsCategoryEnabled(CSV_CATEGORY_INDEX(VSM));
-#endif
-#else
-	constexpr bool bRunPageAreaDiagnostics = false;
-#endif
+	bool bCsvLogEnabled = IsCsvLogEnabled();
 
-	if (CVarShowStats.GetValueOnRenderThread() || CacheManager->IsAccumulatingStats() || bRunPageAreaDiagnostics || bCsvLogEnabled)
+	// Stats buffer
 	{
-		StatsBufferRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), NumStats + MaxPageAreaDiagnosticSlots * 2), TEXT("Shadow.Virtual.StatsBuffer"));
+		StatsBufferRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), VSM_STAT_NUM + MaxPageAreaDiagnosticSlots * 2), TEXT("Shadow.Virtual.StatsBuffer"));
 		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(StatsBufferRDG), 0);
 
 		// For the rest of the frame we don't want the stats buffer adding additional barriers that are not otherwise present.
@@ -1341,11 +1845,26 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 	// We potentially over-allocate these to avoid too many different allocation sizes each frame
 	const int32 NumPageFlagsToAllocate = FMath::RoundUpToPowerOfTwo(FMath::Max(128 * 1024, GetNumFullShadowMaps() * int32(FVirtualShadowMap::PageTableSize) + int32(VSM_MAX_SINGLE_PAGE_SHADOW_MAPS)));
 
-	// Create and clear the requested page flags	
-	FRDGBufferRef PageRequestFlagsRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), NumPageFlagsToAllocate), TEXT("Shadow.Virtual.PageRequestFlags"));
-	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(PageRequestFlagsRDG), 0);
+	auto AddClearPageTableUAVPass = [&](FRDGBuilder& GraphBuilder, FRDGBufferUAV* DestUAV, uint32 ClearValue)
+	{
+		FClearPageTableCS::FParameters* PassParameters = GraphBuilder.AllocParameters< FClearPageTableCS::FParameters >();
+		PassParameters->VirtualShadowMap = GetUncachedUniformBuffer(GraphBuilder);
+		PassParameters->ClearValue = ClearValue;
+		PassParameters->OutDestBuffer = DestUAV;
 
-	DirtyPageFlagsRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), GetMaxPhysicalPages() * 3), TEXT("Shadow.Virtual.DirtyPageFlags"));
+		auto ComputeShader = GetGlobalShaderMap(Scene.GetFeatureLevel())->GetShader<FClearPageTableCS>();
+
+		PerPageShaderDispatcher.AddPass(GraphBuilder, RDG_EVENT_NAME("ClearPageTable(%s Size=%ubytes)", DestUAV->GetParent()->Name, DestUAV->GetParent()->Desc.GetSize()), ComputeShader, PassParameters);
+	};
+
+	FRDGBufferRef InitializePagesIndirectArgsRDG = CreateAndClearIndirectDispatchArgs1D(GraphBuilder, Scene.GetFeatureLevel(), TEXT("Shadow.Virtual.InitializePagesIndirectArgs"));
+
+	// Create and clear the requested page flags
+	PageRequestFlagsRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), NumPageFlagsToAllocate), TEXT("Shadow.Virtual.PageRequestFlags"));
+	AddClearPageTableUAVPass(GraphBuilder, GraphBuilder.CreateUAV(PageRequestFlagsRDG), 0);
+
+	const uint32 DirtyFlagsPerPageCount = 4;
+	DirtyPageFlagsRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), GetMaxPhysicalPages() * DirtyFlagsPerPageCount), TEXT("Shadow.Virtual.DirtyPageFlags"));
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(DirtyPageFlagsRDG), 0);
 
 	// One additional element as the last element is used as an atomic counter
@@ -1355,11 +1874,15 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 
 	const uint32 NumPageRects = GetNumShadowMapSlots() * FVirtualShadowMap::MaxMipLevels;
 	const uint32 NumPageRectsToAllocate = FMath::RoundUpToPowerOfTwo(NumPageRects);
-	PageRectBoundsRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FIntVector4), NumPageRectsToAllocate), TEXT("Shadow.Virtual.PageRectBounds"));
+	UncachedPageRectBoundsRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FIntVector4), NumPageRectsToAllocate), TEXT("Shadow.Virtual.PageRectBounds"));
+	AllocatedPageRectBoundsRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FIntVector4), NumPageRectsToAllocate), TEXT("Shadow.Virtual.AllocatedPageRectBounds"));
+	const uint32 NumPageRectsToClear = (GetNumFullShadowMaps() + GetNumSinglePageShadowMaps()) * FVirtualShadowMap::MaxMipLevels;
 	{
 		FInitPageRectBoundsCS::FParameters* PassParameters = GraphBuilder.AllocParameters< FInitPageRectBoundsCS::FParameters >();
 		PassParameters->VirtualShadowMap = GetUncachedUniformBuffer(GraphBuilder);
-		PassParameters->OutPageRectBounds = GraphBuilder.CreateUAV(PageRectBoundsRDG);
+		PassParameters->OutUncachedPageRectBounds = GraphBuilder.CreateUAV(UncachedPageRectBoundsRDG);
+		PassParameters->OutAllocatedPageRectBounds = GraphBuilder.CreateUAV(AllocatedPageRectBoundsRDG);
+		PassParameters->NumPageRectsToClear = NumPageRectsToClear;
 		PassParameters->OutPhysicalPageLists = GraphBuilder.CreateUAV(PhysicalPageListsRDG);
 
 		auto ComputeShader = GetGlobalShaderMap(Scene.GetFeatureLevel())->GetShader<FInitPageRectBoundsCS>();
@@ -1370,7 +1893,7 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 			RDG_EVENT_NAME("InitPageRectBounds"),
 			ComputeShader,
 			PassParameters,
-			FIntVector(FMath::DivideAndRoundUp(NumPageRects, FInitPageRectBoundsCS::DefaultCSGroupX), 1, 1)
+			FIntVector(FMath::DivideAndRoundUp(NumPageRectsToClear, FInitPageRectBoundsCS::DefaultCSGroupX), 1, 1)
 		);
 	}
 
@@ -1379,6 +1902,7 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 		RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Views.Num() > 1, "View%d", ViewIndex);
 
 		const FViewInfo &View = Views[ViewIndex];
+		FVirtualShadowMapPerViewParameters& PerViewData = PerViewParameters[ViewIndex];
 
 		// Gather directional light virtual shadow maps
 		TArray<int32, SceneRenderingAllocator> DirectionalLightIds;
@@ -1399,6 +1923,7 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 		// This view contained no local lights (that were stored in the light grid), and no directional lights, so nothing to do.
 		if (View.ForwardLightingResources.LocalLightVisibleLightInfosIndex.Num() + DirectionalLightIds.Num() == 0)
 		{
+			PerViewData = MakeEmptyVirtualShadowMapPerViewParameters(GraphBuilder);
 			continue;
 		}
 
@@ -1448,19 +1973,39 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 				FRDGBufferRef PrunedNumCulledLightsGridRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), NumLightGridCells), TEXT("Shadow.Virtual.NumCulledLightsGrid"));
 
 				{
+					// TODO: Make this a more dynamic bound rather than just this special case
+					uint32 MinLocalLightIndex = 0;
+					uint32 MaxLocalLightIndex = View.ForwardLightingResources.ForwardLightData->NumLocalLights;
+					if (!bAnyLocalLightsWithVSMs)
+					{
+						MaxLocalLightIndex = 0;
+					}
+
 					FPruneLightGridCS::FParameters* PassParameters = GraphBuilder.AllocParameters< FPruneLightGridCS::FParameters >();
 					PassParameters->VirtualShadowMap = GetUncachedUniformBuffer(GraphBuilder);
 					PassParameters->View = View.ViewUniformBuffer;
 					PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
+					PassParameters->MinLocalLightIndex = MinLocalLightIndex;
+					PassParameters->MaxLocalLightIndex = MaxLocalLightIndex;
 					PassParameters->OutPrunedLightGridData = GraphBuilder.CreateUAV(PrunedLightGridDataRDG);
 					PassParameters->OutPrunedNumCulledLightsGrid = GraphBuilder.CreateUAV(PrunedNumCulledLightsGridRDG);
 					auto ComputeShader = View.ShaderMap->GetShader<FPruneLightGridCS>();
 
-					FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("PruneLightGrid"), ComputeShader, PassParameters, FComputeShaderUtils::GetGroupCount(NumLightGridCells, FPruneLightGridCS::DefaultCSGroupX));
+					FComputeShaderUtils::AddPass(GraphBuilder,
+						RDG_EVENT_NAME("PruneLightGrid(Min=%d,Max=%d)", MinLocalLightIndex, MaxLocalLightIndex),
+						ComputeShader,
+						PassParameters,
+						FComputeShaderUtils::GetGroupCount(NumLightGridCells, FPruneLightGridCS::DefaultCSGroupX));
 				};
 
-				UniformParameters.LightGridData = GraphBuilder.CreateSRV(PrunedLightGridDataRDG);
-				UniformParameters.NumCulledLightsGrid = GraphBuilder.CreateSRV(PrunedNumCulledLightsGridRDG);
+				PerViewData.LightGridData = GraphBuilder.CreateSRV(PrunedLightGridDataRDG);
+				PerViewData.NumCulledLightsGrid = GraphBuilder.CreateSRV(PrunedNumCulledLightsGridRDG);
+				PerViewData.MaxLightGridEntryIndex = NumLightGridCells - 1u;
+
+				// These will be used for subsequent shaders in this view loop
+				// But because they will be overwritten on each loop, any other shaders that want to access
+				// per-view VSM light grid data need to use the cached uniform buffers generated in UpdateCachedUniformBuffers()
+				UniformParameters.PerViewData = PerViewData;
 			}
 
 			// Mark pages based on projected depth buffer pixels
@@ -1469,12 +2014,24 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 				// It's currently safe to overlap these passes that all write to same page request flags
 				FRDGBufferUAVRef PageRequestFlagsUAV = GraphBuilder.CreateUAV(PageRequestFlagsRDG, ERDGUnorderedAccessViewFlags::SkipBarrier);
 
+				FBaseGeneratePageFlagsParameters BaseParameters;
+				BaseParameters.VirtualShadowMap = GetUncachedUniformBuffer(GraphBuilder);
+				BaseParameters.SceneTexturesStruct = SceneTextures.UniformBuffer;
+				BaseParameters.View = View.ViewUniformBuffer;
+				BaseParameters.OutPageRequestFlags = PageRequestFlagsUAV;
+				BaseParameters.ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
+				BaseParameters.DirectionalLightIds = GraphBuilder.CreateSRV(DirectionalLightIdsRDG);
+				BaseParameters.NumDirectionalLightSmInds = uint32(DirectionalLightIds.Num());
+				BaseParameters.PageDilationBorderSizeLocal = CVarPageDilationBorderSizeLocal.GetValueOnRenderThread();
+				BaseParameters.PageDilationBorderSizeDirectional = CVarPageDilationBorderSizeDirectional.GetValueOnRenderThread();
+				BaseParameters.bCullBackfacingPixels = ShouldCullBackfacingPixels() ? 1 : 0;
+				BaseParameters.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
+				BaseParameters.MipModeLocal = CVarMarkPixelPagesMipModeLocal.GetValueOnRenderThread();
+
 				auto GeneratePageFlags = [&](const EVirtualShadowMapProjectionInputType InputType)
 				{
 					FGeneratePageFlagsFromPixelsCS::FParameters* PassParameters = GraphBuilder.AllocParameters< FGeneratePageFlagsFromPixelsCS::FParameters >();
-					PassParameters->VirtualShadowMap = GetUncachedUniformBuffer(GraphBuilder);
-
-					PassParameters->SceneTexturesStruct = SceneTextures.UniformBuffer;
+					PassParameters->Base = BaseParameters;
 
 					const FIntPoint PixelStride(
 						FMath::Clamp(CVarVirtualShadowMapPageMarkingPixelStrideX.GetValueOnRenderThread(), 1, 128),
@@ -1494,7 +2051,7 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 						else if (IsLumenFrontLayerHistoryValid(View))
 						{
 							const FReflectionTemporalState& State = View.ViewState->Lumen.TranslucentReflectionState;
-							const FIntPoint HistoryResolution = State.DepthHistoryRT->GetDesc().Extent;
+							const FIntPoint HistoryResolution = State.LayerSceneDepthHistory->GetDesc().Extent;
 							const FVector2f InvBufferSize(1.0f / SceneTextures.Config.Extent.X, 1.0f / SceneTextures.Config.Extent.Y);
 							PassParameters->FrontLayerMode = 1;
 							PassParameters->FrontLayerHistoryUVMinMax = FVector4f(
@@ -1504,17 +2061,13 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 								(State.HistoryViewRect.Max.Y - 0.5f) * InvBufferSize.Y);
 							PassParameters->FrontLayerHistoryScreenPositionScaleBias = State.HistoryScreenPositionScaleBias;
 							PassParameters->FrontLayerHistoryBufferSizeAndInvSize = FVector4f(HistoryResolution.X, HistoryResolution.Y, 1.f/HistoryResolution.X, 1.f/HistoryResolution.Y);
-							PassParameters->FrontLayerTranslucencyDepthTexture = GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.TranslucentReflectionState.DepthHistoryRT, TEXT("VSM.FrontLayerHistoryDepth"));
-							PassParameters->FrontLayerTranslucencyNormalTexture = GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.TranslucentReflectionState.NormalHistoryRT, TEXT("VSM.FrontLayerHistoryNormal"));
+							PassParameters->FrontLayerTranslucencyDepthTexture = GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.TranslucentReflectionState.LayerSceneDepthHistory, TEXT("VSM.FrontLayerHistoryDepth"));
+							PassParameters->FrontLayerTranslucencyNormalTexture = GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.TranslucentReflectionState.LayerSceneNormalHistory, TEXT("VSM.FrontLayerHistoryNormal"));
 							bFrontLayerEnabled = true;
 						}
 					}
 
 					PassParameters->HairStrands = HairStrands::BindHairStrandsViewUniformParameters(View);
-					PassParameters->View = View.ViewUniformBuffer;
-					PassParameters->OutPageRequestFlags = PageRequestFlagsUAV;
-					PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
-					PassParameters->DirectionalLightIds = GraphBuilder.CreateSRV(DirectionalLightIdsRDG);
 					bool bWaterEnabled = false;
 					if (SingleLayerWaterPrePassResult && InputType == EVirtualShadowMapProjectionInputType::GBuffer)
 					{
@@ -1525,13 +2078,7 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 						PassParameters->SingleLayerWaterTileViewRes = SingleLayerWaterPrePassResult->ViewTileClassification[ViewIndex].TiledViewRes;
 						bWaterEnabled = true;
 					}
-					PassParameters->NumDirectionalLightSmInds = uint32(DirectionalLightIds.Num());
-					PassParameters->PageDilationBorderSizeLocal = CVarPageDilationBorderSizeLocal.GetValueOnRenderThread();
-					PassParameters->PageDilationBorderSizeDirectional = CVarPageDilationBorderSizeDirectional.GetValueOnRenderThread();
-					PassParameters->bCullBackfacingPixels = ShouldCullBackfacingPixels() ? 1 : 0;
-					PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 					PassParameters->PixelStride = PixelStride;
-					PassParameters->MipModeLocal = CVarMarkPixelPagesMipModeLocal.GetValueOnRenderThread();
 					
 					const FIntPoint StridedPixelSize = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), PixelStride);
 					// Note: we use the tile size defined by the water as the group-size - this is needed because the tile mask testing code relies on the size being the same to scalarize efficiently.
@@ -1568,8 +2115,53 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 							FIntVector(GridSize.X, GridSize.Y, 1));
 					}
 				};
+				if (FroxelRenderer.IsEnabled() && CVarMarkPagesUseFroxels.GetValueOnRenderThread() != 0)
+				{
+					auto AddPass_FroxelBuild = [&](const Froxel::FViewData* ViewFroxelData, int32 PassId, bool bShouldMarkLocaLights)
+					{
+						if (ViewFroxelData == nullptr)
+						{
+							return;
+						}
 
-				GeneratePageFlags(EVirtualShadowMapProjectionInputType::GBuffer);
+						FGeneratePageFlagsFromFroxelsCS::FParameters* PassParameters = GraphBuilder.AllocParameters< FGeneratePageFlagsFromFroxelsCS::FParameters >();
+						PassParameters->Base = BaseParameters;
+						PassParameters->PassId = PassId;
+						PassParameters->bShouldMarkLocaLights = bShouldMarkLocaLights ? 1u : 0u;
+						PassParameters->DebugRange = CVarDebugDrawFroxelRange.GetValueOnRenderThread();
+
+						PassParameters->FroxelParameters = ViewFroxelData->GetShaderParameters(GraphBuilder);
+						PassParameters->IndirectBufferArgs = ViewFroxelData->FroxelArgsRDG;
+
+						FGeneratePageFlagsFromFroxelsCS::FPermutationDomain PermutationVector;
+						bool bDebugRender = CVarDebugDrawFroxels.GetValueOnRenderThread() < 0 || CVarDebugDrawFroxels.GetValueOnRenderThread() == (PassId + 1);
+						if (bDebugRender)
+						{
+							PermutationVector.Set<FGeneratePageFlagsFromFroxelsCS::FDebugRenderDim>(true);
+							ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, PassParameters->ShaderPrintStruct);
+						}
+
+						auto ComputeShader = View.ShaderMap->GetShader<FGeneratePageFlagsFromFroxelsCS>(PermutationVector);
+						FComputeShaderUtils::AddPass(
+							GraphBuilder,
+							RDG_EVENT_NAME("GeneratePageFlagsFromFroxels(NumShadowMaps=%d)", GetNumFullShadowMaps()),
+							ComputeShader,
+							PassParameters,
+							ViewFroxelData->FroxelArgsRDG,
+							ViewFroxelData->ArgsOffset);
+					};
+
+					AddPass_FroxelBuild(FroxelRenderer.GetView(ViewIndex), 0, true);
+					if (SingleLayerWaterPrePassResult && SingleLayerWaterPrePassResult->Froxels.GetView(ViewIndex))
+					{
+						// Not marking local lights since SLW does not support sampling shadow for these.
+						AddPass_FroxelBuild(SingleLayerWaterPrePassResult->Froxels.GetView(ViewIndex), 1, false);
+					}
+				}
+				else
+				{
+					GeneratePageFlags(EVirtualShadowMapProjectionInputType::GBuffer);
+				}
 				if (HairStrands::HasViewHairStrandsData(View))
 				{
 					GeneratePageFlags(EVirtualShadowMapProjectionInputType::HairStrands);
@@ -1582,24 +2174,23 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 	PageTableRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), NumPageFlagsToAllocate), TEXT("Shadow.Virtual.PageTable"));		
 	PageFlagsRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), NumPageFlagsToAllocate), TEXT("Shadow.Virtual.PageFlags"));
 
-	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(PageTableRDG), 0);
-	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(PageFlagsRDG), 0);
+	AddClearPageTableUAVPass(GraphBuilder, GraphBuilder.CreateUAV(PageTableRDG), 0);
+	AddClearPageTableUAVPass(GraphBuilder, GraphBuilder.CreateUAV(PageFlagsRDG), 0);
 
 	// Update cached or newly invalidated pages with respect to the new requests
 	{	
-		// Cached data from previous frames is available and valid
+		// Cached data from previous frames is available and valid.  Note that we currently don't support GPUMask varying within
+		// a view family, so just use the first view's GPU mask.
 		const bool bCacheDataAvailable = CacheManager->IsCacheDataAvailable();
+		const bool bCacheDataValid = bCacheDataAvailable && CacheManager->GetCacheValidGPUMask().ContainsAll(Views[0].GPUMask);
 
 		FUpdatePhysicalPages::FParameters* PassParameters = GraphBuilder.AllocParameters<FUpdatePhysicalPages::FParameters>();
 		PassParameters->VirtualShadowMap		= GetUncachedUniformBuffer(GraphBuilder);
 		PassParameters->OutPhysicalPageMetaData = GraphBuilder.CreateUAV(PhysicalPageMetaDataRDG);
 		PassParameters->OutPhysicalPageLists	= GraphBuilder.CreateUAV(PhysicalPageListsRDG);
 
-		if (bCacheDataAvailable)
+		if (bCacheDataValid)
 		{
-			// Upload our prev -> next shadow data mapping (FNextVirtualShadowMapData) to the GPU
-			FRDGBufferRef NextVirtualShadowMapData = CreateStructuredBuffer(GraphBuilder, TEXT("Shadow.Virtual.NextVirtualShadowMapData"), NextData);
-
 			PassParameters->PageRequestFlags		   = GraphBuilder.CreateSRV(PageRequestFlagsRDG);
 			PassParameters->OutPageTable			   = GraphBuilder.CreateUAV(PageTableRDG);
 			PassParameters->OutPageFlags			   = GraphBuilder.CreateUAV(PageFlagsRDG);
@@ -1613,8 +2204,8 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 		}
 
 		FUpdatePhysicalPages::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FUpdatePhysicalPages::FHasCacheDataDim>(bCacheDataAvailable);
-		SetStatsArgsAndPermutation<FUpdatePhysicalPages>(StatsBufferUAV, PassParameters, PermutationVector);
+		PermutationVector.Set<FUpdatePhysicalPages::FHasCacheDataDim>(bCacheDataValid);
+		SetStatsArgsAndPermutation<FUpdatePhysicalPages>(ShouldGenerateStats(), StatsBufferUAV, PassParameters, PermutationVector);
 		auto ComputeShader = Views[0].ShaderMap->GetShader<FUpdatePhysicalPages>(PermutationVector);
 
 		FComputeShaderUtils::AddPass(
@@ -1624,6 +2215,21 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 			PassParameters,
 			FIntVector(FMath::DivideAndRoundUp(GetMaxPhysicalPages(), FUpdatePhysicalPages::DefaultCSGroupX), 1, 1)
 		);
+
+#if WITH_MGPU
+		// Need to propagate previous physical page lists for GPUs we didn't update in the above pass.  This is only a
+		// 64 KB structure, so copying it is cheap.  Ping ponging and independently tracking which is the current buffer
+		// separately per GPU is another option, which avoids the copy, but adds a bunch of complexity.
+		FRHIGPUMask InverseGPUMask;
+		if (CacheManager->GetPrevBuffers().PhysicalPageLists && Views[0].GPUMask.Invert(InverseGPUMask) && InverseGPUMask.Intersects(CacheManager->GetCacheValidGPUMask()))
+		{
+			RDG_GPU_MASK_SCOPE(GraphBuilder, InverseGPUMask);
+			AddCopyBufferPass(GraphBuilder, PhysicalPageListsRDG, GraphBuilder.RegisterExternalBuffer(CacheManager->GetPrevBuffers().PhysicalPageLists));
+		}
+
+		// Track which GPUs the cache has been initialized on.  Merges GPU mask if cache data was already available, otherwise sets mask to initialize it.
+		CacheManager->UpdateCacheValidGPUMask(Views[0].GPUMask, bCacheDataAvailable);
+#endif
 	}
 
 	{
@@ -1653,18 +2259,17 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 		PassParameters->OutPageTable			= GraphBuilder.CreateUAV(PageTableRDG);
 		PassParameters->OutPageFlags			= GraphBuilder.CreateUAV(PageFlagsRDG);
 		PassParameters->OutPhysicalPageLists	= GraphBuilder.CreateUAV(PhysicalPageListsRDG);
-		PassParameters->OutPhysicalPageMetaData = GraphBuilder.CreateUAV(PhysicalPageMetaDataRDG);
+		PassParameters->OutPhysicalPageMetaData	= GraphBuilder.CreateUAV(PhysicalPageMetaDataRDG);
 
 		FAllocateNewPageMappingsCS::FPermutationDomain PermutationVector;
-		SetStatsArgsAndPermutation<FAllocateNewPageMappingsCS>(StatsBufferUAV, PassParameters, PermutationVector);
+		SetStatsArgsAndPermutation<FAllocateNewPageMappingsCS>(ShouldGenerateStats(), StatsBufferUAV, PassParameters, PermutationVector);
 		auto ComputeShader = Views[0].ShaderMap->GetShader<FAllocateNewPageMappingsCS>(PermutationVector);
 
-		FComputeShaderUtils::AddPass(
+		PerPageShaderDispatcher.AddPass(
 			GraphBuilder,
 			RDG_EVENT_NAME("AllocateNewPageMappings"),
 			ComputeShader,
-			PassParameters,
-			FIntVector(FMath::DivideAndRoundUp(FVirtualShadowMap::PageTableSize, FAllocateNewPageMappingsCS::DefaultCSGroupX), GetNumShadowMaps(), 1)
+			PassParameters
 		);
 	}
 
@@ -1674,7 +2279,8 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 		PassParameters->VirtualShadowMap = GetUncachedUniformBuffer(GraphBuilder);
 		PassParameters->PhysicalPageMetaData = GraphBuilder.CreateSRV(PhysicalPageMetaDataRDG);
 		PassParameters->OutPageFlags = GraphBuilder.CreateUAV(PageFlagsRDG);
-		PassParameters->OutPageRectBounds = GraphBuilder.CreateUAV(PageRectBoundsRDG);
+		PassParameters->OutUncachedPageRectBounds = GraphBuilder.CreateUAV(UncachedPageRectBoundsRDG);
+		PassParameters->OutAllocatedPageRectBounds = GraphBuilder.CreateUAV(AllocatedPageRectBoundsRDG);
 
 		auto ComputeShader = Views[0].ShaderMap->GetShader<FGenerateHierarchicalPageFlagsCS>();
 		FComputeShaderUtils::AddPass(
@@ -1695,12 +2301,11 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 		PassParameters->OutPageTable	= GraphBuilder.CreateUAV(PageTableRDG);
 
 		auto ComputeShader = Views[0].ShaderMap->GetShader<FPropagateMappedMipsCS>();
-		FComputeShaderUtils::AddPass(
+		PerPageShaderDispatcher.AddPass(
 			GraphBuilder,
 			RDG_EVENT_NAME("PropagateMappedMips"),
 			ComputeShader,
-			PassParameters,
-			FIntVector(FMath::DivideAndRoundUp(FMath::Square(FVirtualShadowMap::Level0DimPagesXY), FPropagateMappedMipsCS::DefaultCSGroupX), GetNumFullShadowMaps(), 1)
+			PassParameters
 		);
 	}
 
@@ -1712,8 +2317,6 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 		// Note: We use GetTotalAllocatedPhysicalPages() to size the buffer as the selection shader emits both static/dynamic pages separately when enabled.
 		FRDGBufferRef PhysicalPagesToInitializeRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(int32), GetTotalAllocatedPhysicalPages() + 1), TEXT("Shadow.Virtual.PhysicalPagesToInitialize"));
 
-		// 1. Initialize the indirect args buffer
-		FRDGBufferRef InitializePagesIndirectArgsRDG = CreateAndInitializeDispatchIndirectArgs1D(GraphBuilder, Scene.GetFeatureLevel(), TEXT("Shadow.Virtual.InitializePagesIndirectArgs"));
 		// 2. Filter the relevant physical pages and set up the indirect args
 		{
 			FSelectPagesToInitializeCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSelectPagesToInitializeCS::FParameters>();
@@ -1722,7 +2325,7 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 			PassParameters->OutInitializePagesIndirectArgsBuffer = GraphBuilder.CreateUAV(InitializePagesIndirectArgsRDG);
 			PassParameters->OutPhysicalPagesToInitialize = GraphBuilder.CreateUAV(PhysicalPagesToInitializeRDG);
 			FSelectPagesToInitializeCS::FPermutationDomain PermutationVector;
-			SetStatsArgsAndPermutation<FSelectPagesToInitializeCS>(StatsBufferUAV, PassParameters, PermutationVector);
+			SetStatsArgsAndPermutation<FSelectPagesToInitializeCS>(ShouldGenerateStats(), StatsBufferUAV, PassParameters, PermutationVector);
 
 			auto ComputeShader = GetGlobalShaderMap(Scene.GetFeatureLevel())->GetShader<FSelectPagesToInitializeCS>(PermutationVector);
 
@@ -1768,7 +2371,8 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 
 	UniformParameters.PageTable = GraphBuilder.CreateSRV(PageTableRDG);
 	UniformParameters.PageFlags = GraphBuilder.CreateSRV(PageFlagsRDG);
-	UniformParameters.PageRectBounds = GraphBuilder.CreateSRV(PageRectBoundsRDG);
+	UniformParameters.AllocatedPageRectBounds = GraphBuilder.CreateSRV(AllocatedPageRectBoundsRDG);
+	UniformParameters.UncachedPageRectBounds = GraphBuilder.CreateSRV(UncachedPageRectBoundsRDG);
 
 	// Add pass to pipe back important stats
 	{
@@ -1793,7 +2397,7 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 	// NOTE: Must do this *after* feedback status pass
 	AppendPhysicalPageList(GraphBuilder, false);
 
-	UpdateCachedUniformBuffer(GraphBuilder);
+	UpdateCachedUniformBuffers(GraphBuilder);
 
 #if !UE_BUILD_SHIPPING
 	// Only dump one frame of light data
@@ -1855,7 +2459,7 @@ void FVirtualShadowMapArray::RenderDebugInfo(FRDGBuilder& GraphBuilder, TArrayVi
 		FIntPoint DebugTargetExtent = DebugVisualizationOutput[ViewIndex]->Desc.Extent;
 
 		FDebugVisualizeVirtualSmCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FDebugVisualizeVirtualSmCS::FParameters>();
-		PassParameters->ProjectionParameters = GetSamplingParameters(GraphBuilder);
+		PassParameters->ProjectionParameters = GetSamplingParameters(GraphBuilder, ViewIndex);
 		PassParameters->PhysicalPageMetaData = GraphBuilder.CreateSRV(PhysicalPageMetaDataRDG);
 
 		PassParameters->DebugTargetWidth = DebugTargetExtent.X;
@@ -1884,6 +2488,9 @@ class FVirtualSmLogStatsCS : public FVirtualShadowMapPageManagementShader
 	DECLARE_GLOBAL_SHADER(FVirtualSmLogStatsCS);
 	SHADER_USE_PARAMETER_STRUCT(FVirtualSmLogStatsCS, FVirtualShadowMapPageManagementShader)
 
+	class FGenerateStatsDim : SHADER_PERMUTATION_BOOL("VSM_GENERATE_STATS"); 
+	using FPermutationDomain = TShaderPermutationDomain<FGenerateStatsDim>;
+
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualShadowMapUniformParameters, VirtualShadowMap)
 		SHADER_PARAMETER_STRUCT_INCLUDE(GPUMessage::FParameters, GPUMessageParams)
@@ -1891,6 +2498,7 @@ class FVirtualSmLogStatsCS : public FVirtualShadowMapPageManagementShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, InStatsBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FNaniteStats>, NaniteStats)
 		SHADER_PARAMETER(int, ShowStatsValue)
+		SHADER_PARAMETER(uint32, StatusMessageId)
 		SHADER_PARAMETER(uint32, StatsMessageId)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -1909,20 +2517,33 @@ void FVirtualShadowMapArray::LogStats(FRDGBuilder& GraphBuilder, const FViewInfo
 	check(IsEnabled());
 	LLM_SCOPE_BYTAG(Nanite);
 
-	if (StatsBufferRDG)
+	if (!StatsBufferRDG)
+	{
+		return;
+	}
+
+	FVirtualSmLogStatsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVirtualSmLogStatsCS::FParameters>();
+	PassParameters->InStatsBuffer = GraphBuilder.CreateSRV(StatsBufferRDG);
+	PassParameters->VirtualShadowMap = GetUncachedUniformBuffer(GraphBuilder);
+	PassParameters->GPUMessageParams = GPUMessage::GetShaderParameters(GraphBuilder);
+	PassParameters->StatusMessageId = CacheManager->GetStatusFeedbackMessageId();
+
+	// If ShouldGenerateStats() is false, the stats buffer will only have data needed for Status messages (e.g. for overflow tracking)
+	bool bGenerateStats = ShouldGenerateStats();
+
+	FVirtualSmLogStatsCS::FPermutationDomain PermutationVector;
+	PermutationVector.Set<FVirtualSmLogStatsCS::FGenerateStatsDim>(bGenerateStats);
+	
+	if (bGenerateStats)
 	{
 		// Convenience, enable shader print automatically
 		ShaderPrint::SetEnabled(true);
 
-		int ShowStatsValue = CVarShowStats.GetValueOnRenderThread();
-
-		FVirtualSmLogStatsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVirtualSmLogStatsCS::FParameters>();
-
 		ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, PassParameters->ShaderPrintStruct);
-		PassParameters->InStatsBuffer = GraphBuilder.CreateSRV(StatsBufferRDG);
-		PassParameters->VirtualShadowMap = GetUncachedUniformBuffer(GraphBuilder);
+
+		int ShowStatsValue = CVarShowStats.GetValueOnRenderThread();
 		PassParameters->ShowStatsValue = ShowStatsValue;
-		
+
 #if !UE_BUILD_SHIPPING
 		PassParameters->StatsMessageId = CacheManager->GetStatsFeedbackMessageId();
 		bool bBindNaniteStatsBuffer = StatsNaniteBufferRDG != nullptr;
@@ -1930,6 +2551,7 @@ void FVirtualShadowMapArray::LogStats(FRDGBuilder& GraphBuilder, const FViewInfo
 		PassParameters->StatsMessageId = INDEX_NONE;
 		constexpr bool bBindNaniteStatsBuffer = false;
 #endif
+
 		if (bBindNaniteStatsBuffer)
 		{
 			PassParameters->NaniteStats = GraphBuilder.CreateSRV(StatsNaniteBufferRDG);
@@ -1938,18 +2560,17 @@ void FVirtualShadowMapArray::LogStats(FRDGBuilder& GraphBuilder, const FViewInfo
 		{
 			PassParameters->NaniteStats = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(FNaniteStats)));
 		}
-		PassParameters->GPUMessageParams = GPUMessage::GetShaderParameters(GraphBuilder);
-	
-		auto ComputeShader = View.ShaderMap->GetShader<FVirtualSmLogStatsCS>();
-
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("VSM Log Stats"),
-			ComputeShader,
-			PassParameters,
-			FIntVector(1, 1, 1)
-		);
 	}
+	
+	auto ComputeShader = View.ShaderMap->GetShader<FVirtualSmLogStatsCS>(PermutationVector);
+
+	FComputeShaderUtils::AddPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("VSM Log Stats And Status"),
+		ComputeShader,
+		PassParameters,
+		FIntVector(1, 1, 1)
+	);
 }
 
 
@@ -2059,7 +2680,7 @@ class FVirtualSmPrintClipmapStatsCS : public FVirtualShadowMapPageManagementShad
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		//SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualShadowMapUniformParameters, VirtualShadowMap)
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintStruct)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< FIntVector4 >, PageRectBounds)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< FIntVector4 >, AllocatedPageRectBounds)
 		SHADER_PARAMETER(uint32, ShadowMapIdRangeStart)
 		SHADER_PARAMETER(uint32, ShadowMapIdRangeEnd)
 	END_SHADER_PARAMETER_STRUCT()
@@ -2115,7 +2736,7 @@ public:
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint >, HZBPageTable)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint >, HZBPageFlags)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint4 >, HZBPageRectBounds)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HZBTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, HZBTextureArray)
 		SHADER_PARAMETER_SAMPLER(SamplerState, HZBSampler)
 		SHADER_PARAMETER(FVector2f, HZBSize)
 		SHADER_PARAMETER(uint32, HZBMode)
@@ -2128,8 +2749,6 @@ public:
 
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
 
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PrimitiveRevealedMask)
-		SHADER_PARAMETER(uint32, PrimitiveRevealedNum)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer< uint >, OutDirtyPageFlags)
 
 		SHADER_PARAMETER_STRUCT_INCLUDE(FInstanceProcessingGPULoadBalancer::FShaderParameters, LoadBalancerParameters)
@@ -2271,7 +2890,7 @@ static FCullingResult AddCullingPasses(FRDGBuilder& GraphBuilder,
 	const TConstArrayView<uint32>& DrawCommandDescs,
 	const TConstArrayView<uint32>& InstanceIdOffsets,
 	InstanceCullingLoadBalancerType *LoadBalancer,
-	const TConstArrayView<FInstanceCullingMergedContext::FContextBatchInfo> BatchInfos,
+	const TConstArrayView<FInstanceCullingMergedContext::FContextBatchInfoPacked> BatchInfos,
 	const TConstArrayView<FVSMCullingBatchInfo> VSMCullingBatchInfos,
 	const TConstArrayView<uint32> BatchInds,
 	uint32 TotalInstances,
@@ -2281,8 +2900,7 @@ static FCullingResult AddCullingPasses(FRDGBuilder& GraphBuilder,
 	const FCullPerPageDrawCommandsCs::FHZBShaderParameters &HZBShaderParameters,
 	FVirtualShadowMapArray &VirtualShadowMapArray,
 	FSceneUniformBuffer& SceneUniformBuffer,
-	ERHIFeatureLevel::Type FeatureLevel,
-	const TConstArrayView<uint32> PrimitiveRevealedMask)
+	ERHIFeatureLevel::Type FeatureLevel)
 {
 	const bool bUseBatchMode = !BatchInds.IsEmpty();
 
@@ -2321,25 +2939,12 @@ static FCullingResult AddCullingPasses(FRDGBuilder& GraphBuilder,
 	// not using structured buffer as we have to get at it as a vertex buffer 
 	CullingResult.InstanceIdOffsetBufferRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), InstanceIdOffsets.Num()), TEXT("Shadow.Virtual.InstanceIdOffsetBuffer"));
 
-
-	FRDGBufferRef PrimitiveRevealedMaskRdg = GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, 4);
-
-	if (!PrimitiveRevealedMask.IsEmpty())
-	{
-		PrimitiveRevealedMaskRdg = CreateStructuredBuffer(GraphBuilder, TEXT("Shadow.Virtual.RevealedPrimitivesMask"), PrimitiveRevealedMask);
-	}
-
-
 	{
 		FCullPerPageDrawCommandsCs::FParameters* PassParameters = GraphBuilder.AllocParameters<FCullPerPageDrawCommandsCs::FParameters>();
 
-		PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetUniformBuffer();
+		PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetUniformBuffer(0);
 		PassParameters->Scene = SceneUniformBuffer.GetBuffer(GraphBuilder);
 
-		// Make sure there is enough space in the buffer for all the primitive IDs that might be used to index, at least in the first batch...
-		check(PrimitiveRevealedMaskRdg->Desc.NumElements * 32u >= uint32(VSMCullingBatchInfos[0].PrimitiveRevealedNum));
-		PassParameters->PrimitiveRevealedMask = GraphBuilder.CreateSRV(PrimitiveRevealedMaskRdg);
-		PassParameters->PrimitiveRevealedNum = VSMCullingBatchInfos[0].PrimitiveRevealedNum;
 		PassParameters->OutDirtyPageFlags = GraphBuilder.CreateUAV(VirtualShadowMapArray.DirtyPageFlagsRDG, ERDGUnorderedAccessViewFlags::SkipBarrier);
 		PassParameters->DynamicInstanceIdOffset = BatchInfos[0].DynamicInstanceIdOffset;
 		PassParameters->DynamicInstanceIdMax = BatchInfos[0].DynamicInstanceIdMax;
@@ -2371,20 +2976,24 @@ static FCullingResult AddCullingPasses(FRDGBuilder& GraphBuilder,
 
 		PassParameters->HZBShaderParameters = HZBShaderParameters;
 
-		bool bGenerateStats = VirtualShadowMapArray.StatsBufferUAV != nullptr;
+		FCullPerPageDrawCommandsCs::FPermutationDomain PermutationVector;
+
+		bool bGenerateStats = SetStatsArgsAndPermutation<FCullPerPageDrawCommandsCs>(
+			VirtualShadowMapArray.ShouldGenerateStats(), 
+			VirtualShadowMapArray.StatsBufferUAV, 
+			PassParameters, 
+			PermutationVector);
+
 		if (bGenerateStats)
 		{
-			PassParameters->OutStatsBuffer = VirtualShadowMapArray.StatsBufferUAV;
 #if !UE_BUILD_SHIPPING
 			PassParameters->NumPageAreaDiagnosticSlots = CVarNumPageAreaDiagSlots.GetValueOnRenderThread() < 0 ? FVirtualShadowMapArray::MaxPageAreaDiagnosticSlots : FMath::Min(FVirtualShadowMapArray::MaxPageAreaDiagnosticSlots, uint32(CVarNumPageAreaDiagSlots.GetValueOnRenderThread()));
 			PassParameters->LargeInstancePageAreaThreshold = CVarLargeInstancePageAreaThreshold.GetValueOnRenderThread() >= 0 ? CVarLargeInstancePageAreaThreshold.GetValueOnRenderThread() : (VirtualShadowMapArray.GetMaxPhysicalPages() / 8);
 #endif
 		}
 
-		FCullPerPageDrawCommandsCs::FPermutationDomain PermutationVector;
 		PermutationVector.Set< FCullPerPageDrawCommandsCs::FBatchedDim >(bUseBatchMode);
-		PermutationVector.Set< FCullPerPageDrawCommandsCs::FUseHzbDim >(HZBShaderParameters.HZBTexture != nullptr);
-		PermutationVector.Set< FCullPerPageDrawCommandsCs::FGenerateStatsDim >(bGenerateStats);
+		PermutationVector.Set< FCullPerPageDrawCommandsCs::FUseHzbDim >(HZBShaderParameters.HZBTextureArray != nullptr);
 
 		auto ComputeShader = ShaderMap->GetShader<FCullPerPageDrawCommandsCs>(PermutationVector);
 
@@ -2471,23 +3080,25 @@ FVSMRenderViewCount GetRenderViewCount(const FProjectedShadowInfo* ProjectedShad
 static void AddRasterPass(
 	FRDGBuilder& GraphBuilder, 
 	FRDGEventName&& PassName,
-	const FViewInfo * ShadowDepthView, 
-	const TRDGUniformBufferRef<FShadowDepthPassUniformParameters> &ShadowDepthPassUniformBuffer,
+	const FViewInfo* ShadowDepthView, 
+	const TRDGUniformBufferRef<FShadowDepthPassUniformParameters>& ShadowDepthPassUniformBuffer,
 	FVirtualShadowMapArray& VirtualShadowMapArray,
 	FRDGBufferRef VirtualShadowViewsRDG,
-	const FCullingResult &CullingResult, 
+	const FCullingResult& CullingResult, 
 	FParallelMeshDrawCommandPass& MeshCommandPass,
 	FVirtualShadowDepthPassParameters* PassParameters,
-	TRDGUniformBufferRef<FInstanceCullingGlobalUniforms> InstanceCullingUniformBuffer)
+	TRDGUniformBufferRef<FInstanceCullingGlobalUniforms> InstanceCullingUniformBuffer,
+	TRDGUniformBufferRef<FSceneUniformParameters> SceneUB)
 {
 	PassParameters->View = ShadowDepthView->ViewUniformBuffer;
 	PassParameters->ShadowDepthPass = ShadowDepthPassUniformBuffer;
 
-	PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetUniformBuffer();
+	PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetUniformBuffer(0);
 	PassParameters->InViews = GraphBuilder.CreateSRV(VirtualShadowViewsRDG);
 	PassParameters->InstanceCullingDrawParams.DrawIndirectArgsBuffer = CullingResult.DrawIndirectArgsRDG;
 	PassParameters->InstanceCullingDrawParams.InstanceIdOffsetBuffer = CullingResult.InstanceIdOffsetBufferRDG;
 	PassParameters->InstanceCullingDrawParams.InstanceCulling = InstanceCullingUniformBuffer;
+	PassParameters->InstanceCullingDrawParams.Scene = SceneUB;
 
 	FIntRect ViewRect;
 	ViewRect.Max = FVirtualShadowMap::VirtualMaxResolutionXY;
@@ -2496,7 +3107,7 @@ static void AddRasterPass(
 		MoveTemp(PassName),
 		PassParameters,
 		ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-		[&MeshCommandPass, PassParameters, ViewRect](FRHICommandList& RHICmdList)
+		[&MeshCommandPass, PassParameters, ViewRect](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FRHIRenderPassInfo RPInfo;
 			RPInfo.ResolveRect = FResolveRect(ViewRect);
@@ -2504,7 +3115,7 @@ static void AddRasterPass(
 
 			RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, FMath::Min(ViewRect.Max.X, 32767), FMath::Min(ViewRect.Max.Y, 32767), 1.0f);
 
-			MeshCommandPass.DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+			MeshCommandPass.Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 			RHICmdList.EndRenderPass();
 		});
 }
@@ -2513,6 +3124,8 @@ static void AddRasterPass(
 static FCullingVolume GetCullingVolume(const FProjectedShadowInfo* ProjectedShadowInfo)
 {
 	FCullingVolume CullingVolume;
+
+	CullingVolume.WorldToVolumeTranslation = ProjectedShadowInfo->PreShadowTranslation;
 
 	uint32 NumPrimaryViews = 0;
 	if (ProjectedShadowInfo->VirtualShadowMapClipmap)
@@ -2523,6 +3136,8 @@ static FCullingVolume GetCullingVolume(const FProjectedShadowInfo* ProjectedShad
 		if (!bIsCached && !ProjectedShadowInfo->CascadeSettings.ShadowBoundsAccurate.Planes.IsEmpty())
 		{
 			CullingVolume.ConvexVolume = ProjectedShadowInfo->CascadeSettings.ShadowBoundsAccurate;
+			// ShadowBoundsAccurate is in world-space
+			CullingVolume.WorldToVolumeTranslation = FVector3d::ZeroVector;
 		}
 		else
 		{
@@ -2595,10 +3210,7 @@ Nanite::FPackedViewArray* FVirtualShadowMapArray::CreateVirtualShadowMapNaniteVi
 
 void FVirtualShadowMapArray::RenderVirtualShadowMapsNanite(FRDGBuilder& GraphBuilder, FSceneRenderer& SceneRenderer, bool bUpdateNaniteStreaming, const FNaniteVisibilityQuery* VisibilityQuery, Nanite::FPackedViewArray* VirtualShadowMapViews, FSceneInstanceCullingQuery* SceneInstanceCullingQuery)
 {
-	bool bCsvLogEnabled = false;
-#if CSV_PROFILER
-	bCsvLogEnabled = FCsvProfiler::Get()->IsCapturing_Renderthread() && FCsvProfiler::Get()->IsCategoryEnabled(CSV_CATEGORY_INDEX(VSM));
-#endif
+	bool bCsvLogEnabled = IsCsvLogEnabled();
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FVirtualShadowMapArray::RenderVirtualShadowMapsNanite);
 	RDG_EVENT_SCOPE(GraphBuilder, "RenderVirtualShadowMaps(Nanite)");
@@ -2621,6 +3233,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNanite(FRDGBuilder& GraphBui
 		VirtualShadowViewRect,
 		Nanite::EOutputBufferMode::DepthOnly,
 		false,	// Clear entire texture
+		true, // bAsyncCompute
 		nullptr, 0,
 		PhysicalPagePoolRDG,
 		false, // Custom pass
@@ -2637,9 +3250,10 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNanite(FRDGBuilder& GraphBui
 		SET_DWORD_STAT(STAT_VSMNaniteViewsPrimary, VirtualShadowMapViews->NumPrimaryViews);
 
 		// Prev HZB requires previous page tables and similar
-		bool bPrevHZBValid = HZBPhysical != nullptr && CacheManager->GetPrevBuffers().PageTable != nullptr;
+		bool bPrevHZBValid = HZBPhysicalArray != nullptr && CacheManager->GetPrevBuffers().PageTable != nullptr;
 
 		Nanite::FConfiguration CullingConfig = { 0 };
+		CullingConfig.bIsShadowPass = true;
 		CullingConfig.bUpdateStreaming = bUpdateNaniteStreaming;
 		CullingConfig.bTwoPassOcclusion = UseTwoPassHzbOcclusion();
 		CullingConfig.bExtractStats = Nanite::IsStatFilterActive(VirtualFilterName);
@@ -2654,7 +3268,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNanite(FRDGBuilder& GraphBui
 			RasterContext,
 			CullingConfig,
 			VirtualShadowViewRect,
-			bPrevHZBValid ? HZBPhysical : nullptr,
+			bPrevHZBValid ? HZBPhysicalArray : nullptr,
 			this
 		);
 
@@ -2700,7 +3314,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 	{
 		HZBMode = 0; /* Disable HZB culling */
 	}
-	FRDGTextureRef HZBTexture = (HZBMode > 0 && CacheManager->IsHZBDataAvailable()) ? HZBPhysicalRDG : nullptr;
+	FRDGTextureRef HZBTextureArray = (HZBMode > 0 && CacheManager->IsHZBDataAvailable()) ? HZBPhysicalArrayRDG : nullptr;
 
 	TArray<FVSMCullingBatchInfo, SceneRenderingAllocator> UnBatchedVSMCullingBatchInfo;
 	TArray<FProjectedShadowInfo*, SceneRenderingAllocator> BatchedVirtualSmMeshCommandPasses;
@@ -2710,8 +3324,6 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 	UnBatchedVirtualSmMeshCommandPasses.Reserve(VirtualSmMeshCommandPasses.Num());
 
 	TArray<FProjectedShadowInfo*, SceneRenderingAllocator> ShadowsToAddRenderViews;
-
-	TArray<uint32, SceneRenderingAllocator> PrimitiveRevealedMask;
 
 	TArray<FVSMCullingBatchInfo, SceneRenderingAllocator> VSMCullingBatchInfos;
 	VSMCullingBatchInfos.Reserve(VirtualSmMeshCommandPasses.Num());
@@ -2744,16 +3356,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 		VSMCullingBatchInfo.FirstPrimaryView = TotalPrimaryViews;
 		VSMCullingBatchInfo.NumPrimaryViews = 0U;
 
-		VSMCullingBatchInfo.PrimitiveRevealedOffset = uint32(PrimitiveRevealedMask.Num());
-		VSMCullingBatchInfo.PrimitiveRevealedNum = 0U;
-
 		const TSharedPtr<FVirtualShadowMapClipmap>& Clipmap = ProjectedShadowInfo->VirtualShadowMapClipmap;
-		if (Clipmap.IsValid() && !Clipmap->GetRevealedPrimitivesMask().IsEmpty())
-		{
-			PrimitiveRevealedMask.Append(Clipmap->GetRevealedPrimitivesMask().GetData(), Clipmap->GetRevealedPrimitivesMask().Num());
-			VSMCullingBatchInfo.PrimitiveRevealedNum = Clipmap->GetNumRevealedPrimitives();
-		}
-
 		check(Clipmap.IsValid() || ProjectedShadowInfo->HasVirtualShadowMap());
 		{
 			FParallelMeshDrawCommandPass& MeshCommandPass = ProjectedShadowInfo->GetShadowDepthPass();
@@ -2803,7 +3406,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 			GraphBuilder,
 			TotalPrimaryViews,
 			MaxNumMips,
-			[this, Views, ShadowsToAddRenderViews = MoveTemp(ShadowsToAddRenderViews), bHasHZBTexture = (HZBTexture != nullptr)] (Nanite::FPackedViewArray::ArrayType& OutShadowViews)
+			[this, Views, ShadowsToAddRenderViews = MoveTemp(ShadowsToAddRenderViews), bHasHZBTexture = (HZBTextureArray != nullptr)] (Nanite::FPackedViewArray::ArrayType& OutShadowViews)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(AddNonNaniteRenderViews);
 			for (FProjectedShadowInfo* ProjectedShadowInfo : ShadowsToAddRenderViews)
@@ -2832,7 +3435,8 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 
 		ShadowDepthPassParameters->VirtualSmPageTable = GraphBuilder.CreateSRV(PageTableRDG);
 		ShadowDepthPassParameters->PackedNaniteViews = GraphBuilder.CreateSRV(VirtualShadowViewsRDG);
-		ShadowDepthPassParameters->PageRectBounds = GraphBuilder.CreateSRV(PageRectBoundsRDG);
+		ShadowDepthPassParameters->AllocatedPageRectBounds = GraphBuilder.CreateSRV(AllocatedPageRectBoundsRDG);
+		ShadowDepthPassParameters->UncachedPageRectBounds = GraphBuilder.CreateSRV(UncachedPageRectBoundsRDG);
 		ShadowDepthPassParameters->OutDepthBufferArray = GraphBuilder.CreateUAV(PhysicalPagePoolRDG, ERDGUnorderedAccessViewFlags::SkipBarrier);
 		SetupSceneTextureUniformParameters(GraphBuilder, SceneTextures, Scene.GetFeatureLevel(), ESceneTextureSetupMode::None, ShadowDepthPassParameters->SceneTextures);
 		ShadowDepthPassParameters->bClampToNearPlane = bClampToNearPlane;
@@ -2841,35 +3445,37 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 	};
 
 	FCullPerPageDrawCommandsCs::FHZBShaderParameters HZBShaderParameters;
-	if (HZBTexture)
+	if (HZBTextureArray)
 	{
 		if (HZBMode == 2)
 		{
 			// Mode 2 uses the current frame HZB & page table.
 			HZBShaderParameters.HZBPageTable = GraphBuilder.CreateSRV(PageTableRDG);
 			HZBShaderParameters.HZBPageFlags = GraphBuilder.CreateSRV(PageFlagsRDG);
-			HZBShaderParameters.HZBPageRectBounds = GraphBuilder.CreateSRV(PageRectBoundsRDG);	
+			HZBShaderParameters.HZBPageRectBounds = GraphBuilder.CreateSRV(AllocatedPageRectBoundsRDG);	// TODO: Uncached?
 		}
 		else
 		{
 			const FVirtualShadowMapArrayFrameData& PrevBuffers = CacheManager->GetPrevBuffers();
 			HZBShaderParameters.HZBPageTable = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(PrevBuffers.PageTable, TEXT("Shadow.Virtual.PrevPageTable")));
 			HZBShaderParameters.HZBPageFlags = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(PrevBuffers.PageFlags, TEXT("Shadow.Virtual.PrevPageFlags")));
-			HZBShaderParameters.HZBPageRectBounds = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(PrevBuffers.PageRectBounds, TEXT("Shadow.Virtual.PrevPageRectBounds")));
+			HZBShaderParameters.HZBPageRectBounds = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(PrevBuffers.AllocatedPageRectBounds, TEXT("Shadow.Virtual.PrevAllocatedPageRectBounds")));	// TODO: Uncached?
 		}
 		check(HZBShaderParameters.HZBPageTable);
 		check(HZBShaderParameters.HZBPageFlags);
 		check(HZBShaderParameters.HZBPageRectBounds);
 				
-		HZBShaderParameters.HZBTexture = HZBTexture;
-		HZBShaderParameters.HZBSize = HZBTexture->Desc.Extent;
+		HZBShaderParameters.HZBTextureArray = HZBTextureArray;
+		HZBShaderParameters.HZBSize = HZBTextureArray->Desc.Extent;
 		HZBShaderParameters.HZBSampler = TStaticSamplerState< SF_Point, AM_Clamp, AM_Clamp, AM_Clamp >::GetRHI();
 		HZBShaderParameters.HZBMode = HZBMode;
 	}
 	else
 	{
-		HZBShaderParameters.HZBTexture = nullptr;
+		HZBShaderParameters.HZBTextureArray = nullptr;
 	}
+
+	TRDGUniformBufferRef<FSceneUniformParameters> SceneUB = SceneUniformBuffer.GetBuffer(GraphBuilder);
 
 	// Process batched passes
 	if (!InstanceCullingMergedContext.Batches.IsEmpty())
@@ -2878,27 +3484,28 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 
 		InstanceCullingMergedContext.MergeBatches();
 
-		GraphBuilder.BeginEventScope(RDG_EVENT_NAME("CullingPasses"));
-		FCullingResult CullingResult = AddCullingPasses(
-			GraphBuilder,
-			InstanceCullingMergedContext.IndirectArgs,
-			InstanceCullingMergedContext.DrawCommandDescs,
-			InstanceCullingMergedContext.InstanceIdOffsets,
-			&InstanceCullingMergedContext.LoadBalancers[uint32(EBatchProcessingMode::Generic)],
-			InstanceCullingMergedContext.BatchInfos,
-			VSMCullingBatchInfos,
-			InstanceCullingMergedContext.BatchInds[uint32(EBatchProcessingMode::Generic)],
-			InstanceCullingMergedContext.TotalInstances,
-			TotalViewScaledInstanceCount,
-			TotalPrimaryViews,
-			VirtualShadowViewsRDG,
-			HZBShaderParameters,
-			*this,
-			SceneUniformBuffer,
-			GPUScene.GetFeatureLevel(),
-			PrimitiveRevealedMask
-		);
-		GraphBuilder.EndEventScope();
+		FCullingResult CullingResult;
+		{
+		    RDG_EVENT_SCOPE(GraphBuilder, "CullingPasses");
+		    CullingResult = AddCullingPasses(
+			    GraphBuilder,
+			    InstanceCullingMergedContext.IndirectArgs,
+			    InstanceCullingMergedContext.DrawCommandDescs,
+			    InstanceCullingMergedContext.InstanceIdOffsets,
+			    &InstanceCullingMergedContext.LoadBalancers[FInstanceCullingMergedContext::FirstGenericBinIndex],
+			    InstanceCullingMergedContext.BatchInfos,
+			    VSMCullingBatchInfos,
+			    InstanceCullingMergedContext.BatchInds[FInstanceCullingMergedContext::FirstGenericBinIndex],
+			    InstanceCullingMergedContext.TotalInstances,
+			    TotalViewScaledInstanceCount,
+			    TotalPrimaryViews,
+			    VirtualShadowViewsRDG,
+			    HZBShaderParameters,
+			    *this,
+			    SceneUniformBuffer,
+			    GPUScene.GetFeatureLevel()
+		    );
+		}
 
 		TRDGUniformBufferRef<FShadowDepthPassUniformParameters> ShadowDepthPassUniformBuffer = CreateShadowDepthPassUniformBuffer(false);
 
@@ -2919,12 +3526,12 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 				PassParameters->View = ShadowDepthView->ViewUniformBuffer;
 				PassParameters->ShadowDepthPass = ShadowDepthPassUniformBuffer;
 
-				PassParameters->VirtualShadowMap = GetUniformBuffer();
+				PassParameters->VirtualShadowMap = GetUniformBuffer(0);
 				PassParameters->InViews = GraphBuilder.CreateSRV(VirtualShadowViewsRDG);
 				PassParameters->InstanceCullingDrawParams.DrawIndirectArgsBuffer = CullingResult.DrawIndirectArgsRDG;
 				PassParameters->InstanceCullingDrawParams.InstanceIdOffsetBuffer = CullingResult.InstanceIdOffsetBufferRDG;
 				PassParameters->InstanceCullingDrawParams.InstanceCulling = InstanceCullingUniformBuffer;
-				PassParameters->InstanceCullingDrawParams.Scene = SceneUniformBuffer.GetBuffer(GraphBuilder);
+				PassParameters->InstanceCullingDrawParams.Scene = SceneUB;
 				PassParameters->InstanceCullingDrawParams.IndirectArgsByteOffset = 0U;
 				PassParameters->InstanceCullingDrawParams.InstanceDataByteOffset = 0U;
 
@@ -2935,7 +3542,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 					ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
 					[PassParameters, 
 					BatchedPassParameters=MoveTemp(BatchedPassParameters), 
-					BatchedVirtualSmMeshCommandPasses=MoveTemp(BatchedVirtualSmMeshCommandPasses)](FRHICommandList& RHICmdList)
+					BatchedVirtualSmMeshCommandPasses=MoveTemp(BatchedVirtualSmMeshCommandPasses)](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 						FIntRect ViewRect;
 						ViewRect.Min = FIntPoint(0, 0);
@@ -2960,9 +3567,9 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 							{
 								FSceneRenderer::GetLightNameForDrawEvent(ProjectedShadowInfo->GetLightSceneInfo().Proxy, LightNameWithLevel);
 							}
-							SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, BatchedNonNanite, GVSMShowLightDrawEvents != 0, TEXT("%s"), *LightNameWithLevel);
+							SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, BatchedNonNanite, GVSMShowLightDrawEvents != 0, TEXT("%s"), LightNameWithLevel);
 #endif
-							MeshCommandPass.DispatchDraw(nullptr, RHICmdList, &InstanceCullingDrawParams);
+							MeshCommandPass.Draw(RHICmdList, &InstanceCullingDrawParams);
 						}
 
 						RHICmdList.EndRenderPass();
@@ -2980,7 +3587,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 
 					FString LightNameWithLevel;
 					FSceneRenderer::GetLightNameForDrawEvent(ProjectedShadowInfo->GetLightSceneInfo().Proxy, LightNameWithLevel);
-					AddRasterPass(GraphBuilder, RDG_EVENT_NAME("Rasterize[%s]", *LightNameWithLevel), ShadowDepthView, ShadowDepthPassUniformBuffer, *this, VirtualShadowViewsRDG, CullingResult, MeshCommandPass, BatchedPassParameters[Index], InstanceCullingUniformBuffer);
+					AddRasterPass(GraphBuilder, RDG_EVENT_NAME("Rasterize[%s]", *LightNameWithLevel), ShadowDepthView, ShadowDepthPassUniformBuffer, *this, VirtualShadowViewsRDG, CullingResult, MeshCommandPass, BatchedPassParameters[Index], InstanceCullingUniformBuffer, SceneUB);
 			}
 		}
 	}
@@ -2991,7 +3598,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 	{
 		const auto VSMCullingBatchInfo = UnBatchedVSMCullingBatchInfo[Index];
 		FProjectedShadowInfo* ProjectedShadowInfo = UnBatchedVirtualSmMeshCommandPasses[Index];
-		FInstanceCullingMergedContext::FContextBatchInfo CullingBatchInfo = FInstanceCullingMergedContext::FContextBatchInfo{ 0 };
+		FInstanceCullingMergedContext::FContextBatchInfoPacked CullingBatchInfo = FInstanceCullingMergedContext::FContextBatchInfoPacked{ 0 };
 
 		FParallelMeshDrawCommandPass& MeshCommandPass = ProjectedShadowInfo->GetShadowDepthPass();
 		const TSharedPtr<FVirtualShadowMapClipmap> Clipmap = ProjectedShadowInfo->VirtualShadowMapClipmap;
@@ -3018,7 +3625,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 				InstanceCullingContext->IndirectArgs, 
 				InstanceCullingContext->DrawCommandDescs,
 				InstanceCullingContext->InstanceIdOffsets,
-				InstanceCullingContext->LoadBalancers[uint32(EBatchProcessingMode::Generic)],
+				InstanceCullingContext->LoadBalancers[FInstanceCullingMergedContext::FirstGenericBinIndex],
 				MakeArrayView(&CullingBatchInfo, 1),
 				MakeArrayView(&VSMCullingBatchInfo, 1),
 				MakeArrayView<const uint32>(nullptr, 0),
@@ -3029,8 +3636,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 				HZBShaderParameters,
 				*this,
 				SceneUniformBuffer,
-				GPUScene.GetFeatureLevel(),
-				Clipmap->GetRevealedPrimitivesMask()
+				GPUScene.GetFeatureLevel()
 			);
 
 			TRDGUniformBufferRef<FShadowDepthPassUniformParameters> ShadowDepthPassUniformBuffer = CreateShadowDepthPassUniformBuffer(ProjectedShadowInfo->ShouldClampToNearPlane());
@@ -3044,7 +3650,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 			FVirtualShadowDepthPassParameters* DepthPassParams = GraphBuilder.AllocParameters<FVirtualShadowDepthPassParameters>();
 			DepthPassParams->InstanceCullingDrawParams.IndirectArgsByteOffset = 0;
 			DepthPassParams->InstanceCullingDrawParams.InstanceDataByteOffset = 0;
-			AddRasterPass(GraphBuilder, RDG_EVENT_NAME("Rasterize"), ShadowDepthView, ShadowDepthPassUniformBuffer, *this, VirtualShadowViewsRDG, CullingResult, MeshCommandPass, DepthPassParams, InstanceCullingUniformBuffer);
+			AddRasterPass(GraphBuilder, RDG_EVENT_NAME("Rasterize"), ShadowDepthView, ShadowDepthPassUniformBuffer, *this, VirtualShadowViewsRDG, CullingResult, MeshCommandPass, DepthPassParams, InstanceCullingUniformBuffer, SceneUB);
 		}
 
 
@@ -3062,7 +3668,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 			PassParameters->ShadowMapIdRangeStart = Clipmap->GetVirtualShadowMapId();
 			// Note: assumes range!
 			PassParameters->ShadowMapIdRangeEnd = Clipmap->GetVirtualShadowMapId() + Clipmap->GetLevelCount();
-			PassParameters->PageRectBounds = GraphBuilder.CreateSRV(PageRectBoundsRDG);
+			PassParameters->AllocatedPageRectBounds = GraphBuilder.CreateSRV(AllocatedPageRectBoundsRDG);
 
 			auto ComputeShader = View.ShaderMap->GetShader<FVirtualSmPrintClipmapStatsCS>();
 
@@ -3077,6 +3683,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 	}
 
 	// Update the dirty page flags & the page table meta data for invalidations.
+	// TODO: This pass probably needs to run even if there's no non-nanite geometry? Double check the early outs above
 	{
 		FUpdateAndClearDirtyFlagsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FUpdateAndClearDirtyFlagsCS::FParameters>();
 		PassParameters->VirtualShadowMap = GetUncachedUniformBuffer(GraphBuilder);
@@ -3133,7 +3740,7 @@ class FVirtualSmBuildHZBPerPageCS : public FVirtualShadowMapPageManagementShader
 		SHADER_PARAMETER_SAMPLER(SamplerState, PhysicalPagePoolSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray<uint>, PhysicalPagePool)
 
-		SHADER_PARAMETER_RDG_TEXTURE_UAV_ARRAY(RWTexture2D<float>, FurthestHZBOutput, [HZBLevelsBase])
+		SHADER_PARAMETER_RDG_TEXTURE_UAV_ARRAY(RWTexture2DArray<float>, FurthestHZBArrayOutput, [HZBLevelsBase])
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FVirtualSmBuildHZBPerPageCS, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapPhysicalPageManagement.usf", "BuildHZBPerPageCS", SF_Compute);
@@ -3152,10 +3759,10 @@ class FVirtualSmBBuildHZBPerPageTopCS : public FVirtualShadowMapPageManagementSh
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualShadowMapUniformParameters, VirtualShadowMap)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint >, PhysicalPagesForHZB)
 		SHADER_PARAMETER_SAMPLER(SamplerState, ParentTextureMipSampler)
-		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ParentTextureMip)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray, ParentTextureArrayMip)
 		SHADER_PARAMETER(FVector2f, InvHzbInputSize)
 
-		SHADER_PARAMETER_RDG_TEXTURE_UAV_ARRAY(RWTexture2D<float>, FurthestHZBOutput, [HZBLevelsTop])
+		SHADER_PARAMETER_RDG_TEXTURE_UAV_ARRAY(RWTexture2D<float>, FurthestHZBArrayOutput, [HZBLevelsTop])
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FVirtualSmBBuildHZBPerPageTopCS, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapPhysicalPageManagement.usf", "BuildHZBPerPageTopCS", SF_Compute);
@@ -3170,7 +3777,7 @@ void FVirtualShadowMapArray::UpdateHZB(FRDGBuilder& GraphBuilder)
 	FRDGBufferRef PhysicalPagesForHZBRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(int32), GetTotalAllocatedPhysicalPages() + 1), TEXT("Shadow.Virtual.PhysicalPagesForHZB"));
 
 	// 1. Clear the indirect args buffer (note 2x args)
-	AddClearIndirectDispatchArgs1DPass(GraphBuilder, Scene.GetFeatureLevel(), PagesForHZBIndirectArgsRDG, 2U);
+	AddClearIndirectDispatchArgs1DPass(GraphBuilder, Scene.GetFeatureLevel(), PagesForHZBIndirectArgsRDG, 2u, 4u);
 
 	// 2. Filter the relevant physical pages and set up the indirect args
 	{
@@ -3183,7 +3790,7 @@ void FVirtualShadowMapArray::UpdateHZB(FRDGBuilder& GraphBuilder)
 		PassParameters->bFirstBuildThisFrame = !bHZBBuiltThisFrame;
 		PassParameters->bForceFullHZBUpdate = CVarShadowsVirtualForceFullHZBUpdate.GetValueOnRenderThread();
 		FSelectPagesForHZBAndUpdateDirtyFlagsCS::FPermutationDomain PermutationVector;
-		SetStatsArgsAndPermutation<FSelectPagesForHZBAndUpdateDirtyFlagsCS>(StatsBufferUAV, PassParameters, PermutationVector);
+		SetStatsArgsAndPermutation<FSelectPagesForHZBAndUpdateDirtyFlagsCS>(ShouldGenerateStats(), StatsBufferUAV, PassParameters, PermutationVector);
 		auto ComputeShader = GetGlobalShaderMap(Scene.GetFeatureLevel())->GetShader<FSelectPagesForHZBAndUpdateDirtyFlagsCS>(PermutationVector);
 
 		FComputeShaderUtils::AddPass(
@@ -3196,6 +3803,7 @@ void FVirtualShadowMapArray::UpdateHZB(FRDGBuilder& GraphBuilder)
 	}
 
 	bHZBBuiltThisFrame = true;
+	const int HZBPoolArraySize = HasSeparateDynamicHZB() ? 2 : 1;
 		
 	{
 		FVirtualSmBuildHZBPerPageCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVirtualSmBuildHZBPerPageCS::FParameters>();
@@ -3203,7 +3811,7 @@ void FVirtualShadowMapArray::UpdateHZB(FRDGBuilder& GraphBuilder)
 		PassParameters->VirtualShadowMap = GetUncachedUniformBuffer(GraphBuilder);
 		for (int32 DestMip = 0; DestMip < FVirtualSmBuildHZBPerPageCS::HZBLevelsBase; DestMip++)
 		{
-			PassParameters->FurthestHZBOutput[DestMip] = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(HZBPhysicalRDG, DestMip));
+			PassParameters->FurthestHZBArrayOutput[DestMip] = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(HZBPhysicalArrayRDG, DestMip));
 		}
 		PassParameters->PhysicalPagePool = PhysicalPagePoolRDG;
 		PassParameters->PhysicalPagePoolSampler = TStaticSamplerState<SF_Point>::GetRHI();
@@ -3230,11 +3838,11 @@ void FVirtualShadowMapArray::UpdateHZB(FRDGBuilder& GraphBuilder)
 		uint32 StartDestMip = FVirtualSmBuildHZBPerPageCS::HZBLevelsBase;
 		for (int32 DestMip = 0; DestMip < FVirtualSmBBuildHZBPerPageTopCS::HZBLevelsTop; DestMip++)
 		{
-			PassParameters->FurthestHZBOutput[DestMip] = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(HZBPhysicalRDG, StartDestMip + DestMip));
+			PassParameters->FurthestHZBArrayOutput[DestMip] = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(HZBPhysicalArrayRDG, StartDestMip + DestMip));
 		}
-		FIntPoint SrcSize = FIntPoint::DivideAndRoundUp(FIntPoint(HZBPhysicalRDG->Desc.GetSize().X, HZBPhysicalRDG->Desc.GetSize().Y), 1 << int32(StartDestMip - 1));
+		FIntPoint SrcSize = FIntPoint::DivideAndRoundUp(FIntPoint(HZBPhysicalArrayRDG->Desc.GetSize().X, HZBPhysicalArrayRDG->Desc.GetSize().Y), 1 << int32(StartDestMip - 1));
 		PassParameters->InvHzbInputSize = FVector2f(1.0f / SrcSize.X, 1.0f / SrcSize.Y);;
-		PassParameters->ParentTextureMip = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForMipLevel(HZBPhysicalRDG, StartDestMip - 1));
+		PassParameters->ParentTextureArrayMip = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForMipLevel(HZBPhysicalArrayRDG, StartDestMip - 1));
 		PassParameters->ParentTextureMipSampler = TStaticSamplerState<SF_Point>::GetRHI();
 
 		PassParameters->IndirectArgs = PagesForHZBIndirectArgsRDG;
@@ -3270,11 +3878,10 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const TSharedPtr<FVirtualShadowMap
 	BaseParams.TargetMipLevel = 0;
 	BaseParams.TargetMipCount = 1;	// No mips for clipmaps
 	BaseParams.Flags = 0u;
-	
-	Nanite::SetCullingViewOverrides(CullingView, BaseParams);
 
 	if (Clipmap->GetLightSceneInfo().Proxy)
 	{
+		BaseParams.bUseLightingChannelMask = true;
 		BaseParams.LightingChannelMask = Clipmap->GetLightSceneInfo().Proxy->GetLightingChannelMask();
 	}
 
@@ -3286,6 +3893,14 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const TSharedPtr<FVirtualShadowMap
 		// Enable the force-uncaching to remove needless caching overhead if there is nothing to cache (the light is constantly invalidated).
 		BaseParams.Flags |= CacheEntry->IsUncached() ? NANITE_VIEW_FLAG_UNCACHED : 0u;
 	}
+	
+	if (bNonNaniteUseRadiusThreshold && (!CacheEntry.IsValid() || CacheEntry->IsUncached()))
+	{
+		BaseParams.Flags |= NANITE_VIEW_MIN_SCREEN_RADIUS_CULL;
+		BaseParams.MinBoundsRadius = GMinScreenRadiusForShadowCaster;
+	}
+
+	Nanite::SetCullingViewOverrides(CullingView, BaseParams);
 
 	for (int32 ClipmapLevelIndex = 0; ClipmapLevelIndex < Clipmap->GetLevelCount(); ++ClipmapLevelIndex)
 	{
@@ -3349,6 +3964,7 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const FProjectedShadowInfo* Projec
 	BaseParams.Flags = NANITE_VIEW_FLAG_DISTANCE_CULL | (bClampToNearPlane ? 0u : NANITE_VIEW_FLAG_NEAR_CLIP);
 	if (ProjectedShadowInfo->GetLightSceneInfo().Proxy)
 	{
+		BaseParams.bUseLightingChannelMask = true;
 		BaseParams.LightingChannelMask = ProjectedShadowInfo->GetLightSceneInfo().Proxy->GetLightingChannelMask();
 	}
 
@@ -3367,13 +3983,18 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const FProjectedShadowInfo* Projec
 			}
 		}
 	}
-	Nanite::SetCullingViewOverrides(&Views[ClosestCullingViewIndex], BaseParams);
-
 	TSharedPtr<FVirtualShadowMapPerLightCacheEntry> CacheEntry = ProjectedShadowInfo->VirtualShadowMapPerLightCacheEntry;
 	check(CacheEntry.IsValid())
 	CacheEntry->MarkRendered(Scene.GetFrameNumber());
+
+	if (bNonNaniteUseRadiusThreshold && CacheEntry->IsUncached())
+	{
+		BaseParams.Flags |= NANITE_VIEW_MIN_SCREEN_RADIUS_CULL;
+		BaseParams.MinBoundsRadius = GMinScreenRadiusForShadowCaster;
+	}
 	BaseParams.Flags |= CacheEntry->IsUncached() ? NANITE_VIEW_FLAG_UNCACHED : 0U;
 
+	Nanite::SetCullingViewOverrides(&Views[ClosestCullingViewIndex], BaseParams);
 	int32 NumMaps = ProjectedShadowInfo->bOnePassPointLightShadow ? 6 : 1;
 	for (int32 Index = 0; Index < NumMaps; ++Index)
 	{
@@ -3410,32 +4031,83 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const FProjectedShadowInfo* Projec
 	return uint32(NumMaps);
 }
 
-void FVirtualShadowMapArray::AddVisualizePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, FScreenPassTexture Output)
-{
 #if !UE_BUILD_SHIPPING
+class FDesaturatePS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FDesaturatePS);
+	SHADER_USE_PARAMETER_STRUCT(FDesaturatePS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, InputSampler)
+		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FDesaturatePS, "/Engine/Private/VirtualShadowMaps/Desaturate.usf", "DesaturatePS", SF_Pixel);
+
+class FTonemapProjectionDebugTexturePS : public FVirtualShadowMapPageManagementShader
+{
+	DECLARE_GLOBAL_SHADER(FTonemapProjectionDebugTexturePS);
+	SHADER_USE_PARAMETER_STRUCT(FTonemapProjectionDebugTexturePS, FVirtualShadowMapPageManagementShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DebugTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, DebugTextureSampler)
+		SHADER_PARAMETER(uint32, VisualizeModeId)
+		SHADER_PARAMETER(int32, VisualizeVirtualShadowMapId)
+		SHADER_PARAMETER(float, VisualizeNaniteOverdrawScale)
+		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FTonemapProjectionDebugTexturePS, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapDebug.usf", "TonemapProjectionDebugTexturePS", SF_Pixel);
+
+extern int32 GNaniteVisualizeOverdrawScale;
+#endif //!UE_BUILD_SHIPPING
+
+FScreenPassTexture FVirtualShadowMapArray::AddVisualizePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, EVSMVisualizationPostPass Pass, FScreenPassTexture& SceneColor, FScreenPassRenderTarget& OverrideOutput)
+{
+	FScreenPassTexture Output = MoveTemp(SceneColor);
+
+	auto FinalizeOutput = [](FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& Output, FScreenPassRenderTarget& OverrideOutput) -> FScreenPassTexture&
+	{
+		if (OverrideOutput.IsValid())
+		{
+			AddDrawTexturePass(GraphBuilder, View, Output, OverrideOutput);
+			return OverrideOutput;
+		}
+
+		return Output;
+	};
+
+#if !UE_BUILD_SHIPPING
+
 	if (!IsAllocated() || DebugVisualizationOutput.IsEmpty())
 	{
-		return;
+		return MoveTemp(FinalizeOutput(GraphBuilder, View, Output, OverrideOutput));
 	}
 
 	const FVirtualShadowMapVisualizationData& VisualizationData = GetVirtualShadowMapVisualizationData();
-	if (VisualizationData.IsActive() && VisualizeLight[ViewIndex].IsValid())
-	{	
-		FCopyRectPS::FParameters* Parameters = GraphBuilder.AllocParameters<FCopyRectPS::FParameters>();
-		Parameters->InputTexture = DebugVisualizationOutput[ViewIndex];
-		Parameters->InputSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
-		Parameters->RenderTargets[0] = FRenderTargetBinding(Output.Texture, ERenderTargetLoadAction::ENoAction);
+	if (!VisualizationData.IsActive())
+	{
+		return MoveTemp(FinalizeOutput(GraphBuilder, View, Output, OverrideOutput));
+	}
 
-		TShaderMapRef<FCopyRectPS> PixelShader(View.ShaderMap);
+	RDG_EVENT_SCOPE(GraphBuilder, "VirtualShadowMapsVisualization");
 
-		FScreenPassTextureViewport InputViewport(DebugVisualizationOutput[ViewIndex]->Desc.Extent);
-		FScreenPassTextureViewport OutputViewport(Output);
+	FScreenPassTextureViewport InputViewport(DebugVisualizationOutput[ViewIndex]->Desc.Extent);
+	FScreenPassTextureViewport OutputViewport(Output);
+	FScreenPassRenderTarget OutputTarget(Output.Texture, OutputViewport.Rect, ERenderTargetLoadAction::ELoad);
 
+	int ActiveModeId = VisualizationData.GetActiveModeID();
+	int VisualizeVirtualShadowMapId = VisualizeLight[ViewIndex].GetVirtualShadowMapId();
+
+	// Resize viewport for layout
+	const int32 VisualizeLayout = CVarVisualizeLayout.GetValueOnRenderThread();
+	{
 		// See CVarVisualizeLayout documentation
-		const int32 VisualizeLayout = CVarVisualizeLayout.GetValueOnRenderThread();
 		if (VisualizeLayout == 1)		// Thumbnail
 		{
-			const int32 TileWidth  = View.UnscaledViewRect.Width() / 3;
+			const int32 TileWidth = View.UnscaledViewRect.Width() / 3;
 			const int32 TileHeight = View.UnscaledViewRect.Height() / 3;
 
 			OutputViewport.Rect.Max = OutputViewport.Rect.Min + FIntPoint(TileWidth, TileHeight);
@@ -3445,28 +4117,139 @@ void FVirtualShadowMapArray::AddVisualizePass(FRDGBuilder& GraphBuilder, const F
 			InputViewport.Rect.Max.X = InputViewport.Rect.Min.X + (InputViewport.Rect.Width() / 2);
 			OutputViewport.Rect.Max.X = OutputViewport.Rect.Min.X + (OutputViewport.Rect.Width() / 2);
 		}
+	}
 
-		// Use separate input and output viewports w/ bilinear sampling to properly support dynamic resolution scaling
-		AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DrawTexture"), View, OutputViewport, InputViewport, PixelShader, Parameters, EScreenPassDrawFlags::None);
-		
-		// Visualization light name
+	auto DrawDebugVisualizationOutput = [&]()
+	{
+		TShaderMapRef<FScreenPassVS> VertexShader(View.ShaderMap);
+		TShaderMapRef<FTonemapProjectionDebugTexturePS> PixelShader(View.ShaderMap);
+
+		FTonemapProjectionDebugTexturePS::FParameters* Parameters = GraphBuilder.AllocParameters<FTonemapProjectionDebugTexturePS::FParameters>();
+		Parameters->DebugTexture = DebugVisualizationOutput[ViewIndex];
+		// Point sampling as DebugTexture could have non-linear data
+		Parameters->DebugTextureSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		Parameters->VisualizeModeId = ActiveModeId;
+		Parameters->VisualizeVirtualShadowMapId = VisualizeVirtualShadowMapId;
+		Parameters->VisualizeNaniteOverdrawScale = GNaniteVisualizeOverdrawScale;
+		Parameters->RenderTargets[0] = FRenderTargetBinding(Output.Texture, ERenderTargetLoadAction::ENoAction);
+
+		// Blend with scene color if fullscreen, use black background otherwise
+		FRHIBlendState* BlendState = 
+			VisualizeLayout == 0
+			? TStaticBlendState<CW_RGB, BO_Add, BF_SourceAlpha, BF_InverseSourceAlpha, BO_Add, BF_Zero, BF_One>::GetRHI()
+			: TStaticBlendState<>::GetRHI();
+		FRHIDepthStencilState* DepthStencilState = FScreenPassPipelineState::FDefaultDepthStencilState::GetRHI();
+
+		AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DrawTexture"), View, OutputViewport, InputViewport, VertexShader, PixelShader, BlendState, DepthStencilState, Parameters, EScreenPassDrawFlags::None);
+	};
+	
+	if (Pass == EVSMVisualizationPostPass::PreEditorPrimitives)
+	{
+		// Desaturate scene color
 		{
-			FScreenPassRenderTarget OutputTarget(Output.Texture, View.UnscaledViewRect, ERenderTargetLoadAction::ELoad);
+			TShaderMapRef<FScreenPassVS> VertexShader(View.ShaderMap);
+			TShaderMapRef<FDesaturatePS> DesaturatePixelShader(View.ShaderMap);
 
-			AddDrawCanvasPass(GraphBuilder, RDG_EVENT_NAME("Labels"), View, OutputTarget,
-				[&VisualizeLight=VisualizeLight[ViewIndex], &OutputViewport=OutputViewport](FCanvas& Canvas)
-			{
-				const FLinearColor LabelColor(1, 1, 0);
-				Canvas.DrawShadowedString(
-					OutputViewport.Rect.Min.X + 8,
-					OutputViewport.Rect.Max.Y - 19,
-					*VisualizeLight.GetLightName(),
-					GetStatsFont(),
-					LabelColor);
-			});
+			FRDGTextureRef SceneColorCopy = GraphBuilder.CreateTexture(SceneColor.Texture->Desc, TEXT("SceneColorCopy"));
+			AddCopyTexturePass(GraphBuilder, SceneColor.Texture, SceneColorCopy);
+
+			FDesaturatePS::FParameters* Parameters = GraphBuilder.AllocParameters<FDesaturatePS::FParameters>();
+			Parameters->InputTexture = SceneColorCopy;
+			Parameters->InputSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+			Parameters->RenderTargets[0] = FRenderTargetBinding(Output.Texture, ERenderTargetLoadAction::ENoAction);
+			AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("Desaturate"), View, OutputViewport, OutputViewport, VertexShader, DesaturatePixelShader, Parameters, EScreenPassDrawFlags::None);
+		}
+
+		// Render stuff that blends in with scene
+		if (ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_SHADOW_FACTOR
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_CLIPMAP_OR_MIP
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_VIRTUAL_PAGE
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_CACHED_PAGE
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_SMRT_RAY_COUNT
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_DIRTY_PAGE
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_GPU_INVALIDATED_PAGE
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_MERGED_PAGE
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_NANITE_OVERDRAW)
+		{
+			DrawDebugVisualizationOutput();
 		}
 	}
-#endif
+	else if (Pass == EVSMVisualizationPostPass::PostEditorPrimitives)
+	{
+		// Render stuff that is not part of scene, e.g. UI
+		if (ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_CLIPMAP_VIRTUAL_SPACE
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_GENERAL_DEBUG)
+		{
+			DrawDebugVisualizationOutput();
+		}
+
+		AddDrawCanvasPass(GraphBuilder, RDG_EVENT_NAME("Labels"), View, OutputTarget,
+			[&VisualizeLight = VisualizeLight[ViewIndex], &OutputViewport = OutputViewport, VisualizeVirtualShadowMapId=VisualizeVirtualShadowMapId](FCanvas& Canvas)
+			{
+				const float DPIScale = Canvas.GetDPIScale();
+				Canvas.SetBaseTransform(FMatrix(FScaleMatrix(DPIScale) * Canvas.CalcBaseTransform2D(Canvas.GetViewRect().Width(), Canvas.GetViewRect().Height())));
+
+				auto DrawColorTile = [&](float X, float Y, float Width, float Height, const FLinearColor& Color)
+				{
+					Canvas.DrawTile(X/DPIScale, Y/DPIScale, Width/DPIScale, Height/DPIScale, 0, 0, 0, 0, Color);
+				};
+
+				auto DrawShadowedString = [&](float X, float Y, FStringView Text, const FLinearColor& Color = FLinearColor::White)
+				{
+					Canvas.DrawShadowedString(X / DPIScale, Y / DPIScale, Text, GetStatsFont(), Color);
+				};
+
+				const FVirtualShadowMapVisualizationData& VisualizationData = GetVirtualShadowMapVisualizationData();
+				FString ModeName = VisualizationData.GetActiveModeName().ToString();
+				int32 ActiveModeId = VisualizationData.GetActiveModeID();
+
+				// Legend
+				FVector2D LegendSize = FVector2D(300, 30);
+				if (ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_SHADOW_FACTOR)		LegendSize.Y = 60;
+				else if (ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_CACHED_PAGE)	LegendSize.Y = 100;
+
+				FVector2D LegendPosition = FVector2D(OutputViewport.Rect.Min.X + 8, OutputViewport.Rect.Max.Y - LegendSize.Y - 100);
+				DrawColorTile(LegendPosition.X, LegendPosition.Y, LegendSize.X, LegendSize.Y, FLinearColor(0.1f,0.1f,0.1f,0.8f));
+
+				FString HeaderLabel = ModeName;
+				if (VisualizeLight.IsValid())
+				{
+					HeaderLabel = FString::Printf(TEXT("%s (%s)"), *ModeName, *VisualizeLight.GetLightName());
+				}
+
+				DrawShadowedString(LegendPosition.X + 5, LegendPosition.Y + 5, HeaderLabel);
+
+				if (ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_SHADOW_FACTOR)
+				{
+					DrawColorTile(LegendPosition.X + 5, LegendPosition.Y + 25, 10, 10, FLinearColor(1,1,0));
+					DrawShadowedString(LegendPosition.X + 20, LegendPosition.Y + 22, TEXT("Lit"));
+					DrawColorTile(LegendPosition.X + 5, LegendPosition.Y + 45, 10, 10, FLinearColor(0,0,1));
+					DrawShadowedString(LegendPosition.X + 20, LegendPosition.Y + 42, TEXT("Shadow"));
+				}
+				else if (ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_CACHED_PAGE) 
+				{
+					extern int32 GVisualizeCachedPagesOnly;
+					if (VisualizeVirtualShadowMapId != INDEX_NONE || GVisualizeCachedPagesOnly)
+					{
+						DrawColorTile(LegendPosition.X + 5, LegendPosition.Y + 25, 10, 10, FLinearColor(0,1,0));
+						DrawShadowedString(LegendPosition.X + 20, LegendPosition.Y + 22, TEXT("Cached"));
+					}
+					if (!GVisualizeCachedPagesOnly)
+					{
+						DrawColorTile(LegendPosition.X + 5, LegendPosition.Y + 45, 10, 10, FLinearColor(1,0,0));
+						DrawShadowedString(LegendPosition.X + 20, LegendPosition.Y + 42, TEXT("All Invalidated"));
+						DrawColorTile(LegendPosition.X + 5, LegendPosition.Y + 65, 10, 10, FLinearColor(0,0,1));
+						DrawShadowedString(LegendPosition.X + 20, LegendPosition.Y + 62, TEXT("Dynamic Invalidated"));
+						DrawColorTile(LegendPosition.X + 5, LegendPosition.Y + 85, 10, 10, FLinearColor(0.75,1,0));
+						DrawShadowedString(LegendPosition.X + 20, LegendPosition.Y + 82, TEXT("Force cached"));
+					}
+				}
+			});
+	}
+
+#endif //!UE_BUILD_SHIPPING
+
+	return MoveTemp(FinalizeOutput(GraphBuilder, View, Output, OverrideOutput));
 }
 
 float FVirtualShadowMapArray::InterpolateResolutionBias(float BiasNonMoving, float BiasMoving, float LightMobilityFactor)

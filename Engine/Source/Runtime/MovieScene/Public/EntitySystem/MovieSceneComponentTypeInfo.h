@@ -10,6 +10,10 @@
 #include "EntitySystem/MovieSceneComponentDebug.h"
 #include "EntitySystem/MovieSceneEntityIDs.h"
 
+struct FObjectKey;
+template <typename> class TObjectKey;
+template <typename> struct TObjectPtr;
+
 namespace UE
 {
 namespace MovieScene
@@ -109,7 +113,7 @@ struct FComponentTypeInfo
 	uint8 Alignment;
 	/** 1 byte - Type flags for the component type  */
 	uint8 bIsZeroConstructType : 1;       // Whether TIsZeroConstructType<T> is true
-	uint8 bIsTriviallyDestructable : 1;   // Whether TIsTriviallyDestructible<T> is true
+	uint8 bIsTriviallyDestructable : 1;   // Whether std::is_trivially_destructible_v<T> is true
 	uint8 bIsTriviallyCopyAssignable : 1; // Whether TIsTriviallyCopyAssignable<T> is true
 	uint8 bIsPreserved : 1;               // Whether this component should be preserved when an entity containing it is replaced or overwritten
 	uint8 bIsCopiedToOutput : 1;          // Whether this component should be copied to an output entity if there are now multiple contributors to the same property/state

@@ -44,7 +44,7 @@ UMovieSceneControlRigParameterTrack::UMovieSceneControlRigParameterTrack(const F
 	SupportedBlendTypes = FMovieSceneBlendTypeField::None();
 	SupportedBlendTypes.Add(EMovieSceneBlendType::Additive);
 	SupportedBlendTypes.Add(EMovieSceneBlendType::Absolute);
-
+	SupportedBlendTypes.Add(EMovieSceneBlendType::Override);
 }
 
 void UMovieSceneControlRigParameterTrack::BeginDestroy()
@@ -403,9 +403,76 @@ UMovieSceneSection* UMovieSceneControlRigParameterTrack::FindOrAddSection(FFrame
 	return NewSection;
 }
 
+TArray<TWeakObjectPtr<UMovieSceneSection>> UMovieSceneControlRigParameterTrack::GetSectionsToKey() const
+{
+	TArray<TWeakObjectPtr<UMovieSceneSection>> SectionsToKey;
+	if (SectionToKeyPerControl.Num() > 0)
+	{
+		SectionToKeyPerControl.GenerateValueArray(SectionsToKey);
+	}
+	else
+	{
+		SectionsToKey.Add(SectionToKey);
+	}
+	return SectionsToKey;
+}
+
+UMovieSceneSection* UMovieSceneControlRigParameterTrack::GetSectionToKey(const FName& InControlName) const
+{
+	if (const TWeakObjectPtr<UMovieSceneSection>* Section = SectionToKeyPerControl.Find(InControlName))
+	{
+		if (Section->IsValid())
+		{
+			return Section->Get();
+		}
+	}
+	return GetSectionToKey();
+}
+
+void UMovieSceneControlRigParameterTrack::SetSectionToKey(UMovieSceneSection* InSection, const FName& InControlName)
+{
+	if (Sections.Num() < 1 || InSection == nullptr)
+	{
+		return;
+	}
+	Modify();
+	SectionToKeyPerControl.Add(InControlName, InSection);
+	SectionToKey = Sections[0];
+}
+
 void UMovieSceneControlRigParameterTrack::SetSectionToKey(UMovieSceneSection* InSection)
 {
-	SectionToKey = InSection;
+	if (Sections.Num() < 1 || InSection == nullptr)
+	{
+		return;
+	}
+	if (UMovieSceneControlRigParameterSection* CRSection = Cast<UMovieSceneControlRigParameterSection>(InSection))
+	{
+		Modify();
+		if (SectionToKeyPerControl.Num() > 0) //we have sections that are in layers so need to respect them
+		{
+			if (bSetSectionToKeyPerControl)
+			{
+				for (TPair < FName, TWeakObjectPtr<UMovieSceneSection>>& SectionToKeyItem : SectionToKeyPerControl)
+				{
+					//only set it as the section to key if it's in that section, otherwise leave it alone
+					FChannelMapInfo* pChannelIndex = CRSection->ControlChannelMap.Find(SectionToKeyItem.Key);
+					if (pChannelIndex)
+					{
+						if (CRSection->GetControlNameMask(SectionToKeyItem.Key))
+						{
+							SectionToKeyItem.Value = InSection;
+						}
+					}
+				}
+			}
+			SectionToKey = Sections[0];
+		}
+		else
+		{
+			SectionToKey = InSection;
+		}
+	}
 }
 
 UMovieSceneSection* UMovieSceneControlRigParameterTrack::GetSectionToKey() const
@@ -592,27 +659,34 @@ void UMovieSceneControlRigParameterTrack::DeclareConstructClasses(TArray<FTopLev
 #if WITH_EDITOR
 void UMovieSceneControlRigParameterTrack::HandlePackageDone(const FEndLoadPackageContext& Context)
 {
+	if (!ControlRig || ControlRig->GetClass()->IsNative())
+	{
+		// EndLoad is never called for native packages, so skip work
+		FCoreUObjectDelegates::OnEndLoadPackage.RemoveAll(this);
+		return;
+	}
+	
+	// ensure both the track package and the control rig package are fully end-loaded	
 	if (!GetPackage()->GetHasBeenEndLoaded())
 	{
 		return;
 	}
-
-	// ensure both packages are fully end-loaded
-	if (ControlRig && !ControlRig->GetClass()->IsNative())
+	
+	if (const UPackage* ControlRigPackage = Cast<UPackage>(ControlRig->GetClass()->GetOutermost()))
 	{
-		if (const UPackage* ControlRigPackage = Cast<UPackage>(ControlRig->GetClass()->GetOutermost()))
+		if (!ControlRigPackage->GetHasBeenEndLoaded())
 		{
-			if (!ControlRigPackage->GetHasBeenEndLoaded())
-			{
-				return;
-			}
+			return;
 		}
-
-		// Only reconstruct in case it is not a native ControlRig class
-		ReconstructControlRig();
 	}
 
+	// All dependent packages ready, no need to wait/check for any other packages
+	// ReconstructControlRig may trigger loading of packages that we don't care about, so unregister from the delegate
+	// before reconstruction to avoid infinite loop
 	FCoreUObjectDelegates::OnEndLoadPackage.RemoveAll(this);
+
+	// Only reconstruct in case it is not a native ControlRig class
+	ReconstructControlRig();	
 }
 
 void UMovieSceneControlRigParameterTrack::HandleControlRigPackageDone(URigVMHost* InControlRig)
@@ -900,6 +974,24 @@ UControlRig* UMovieSceneControlRigParameterTrack::GetGameWorldControlRig(UWorld*
 		return GameWorldControlRig->Get();
 	}
 	return nullptr;
+}
+
+bool UMovieSceneControlRigParameterTrack::IsAGameInstance(const UControlRig* InControlRig, const bool bCheckValidWorld) const
+{
+	if (!InControlRig || GameWorldControlRigs.IsEmpty())
+	{
+		return false;
+	}
+
+	for (const TPair<TWeakObjectPtr<UWorld>, TObjectPtr<UControlRig>>& WorldAndControlRig: GameWorldControlRigs)
+	{
+		if (WorldAndControlRig.Value == InControlRig)
+		{
+			return bCheckValidWorld ? WorldAndControlRig.Key.IsValid() : true;
+		}
+	}
+	
+	return false;
 }
 
 TArray<FRigControlFBXNodeAndChannels>* UMovieSceneControlRigParameterTrack::GetNodeAndChannelMappings(UMovieSceneSection* InSection )

@@ -27,6 +27,7 @@ class UPCGEditorGraphNodeBase;
 class UPCGMetadata;
 class UPCGParamData;
 class UPCGPointData;
+struct FPCGTableVisualizerColumnInfo;
 struct FPCGDataCollection;
 struct FPCGPoint;
 enum class EPCGMetadataTypes : uint8;
@@ -36,10 +37,14 @@ class SHeaderRow;
 class SSearchBox;
 struct FSlateBrush;
 
+namespace PCGEditorGraphAttributeListView
+{
+	constexpr float MaxColumnWidth = 200.0f;
+}
+
 struct FPCGListViewItem
 {
 	int32 Index = INDEX_NONE;
-	const FPCGPoint* PCGPoint = nullptr;
 };
 
 struct FPCGColumnData
@@ -48,7 +53,7 @@ struct FPCGColumnData
 	TSharedPtr<const IPCGAttributeAccessorKeys> DataKeys;
 };
 
-typedef TSharedPtr<FPCGListViewItem> PCGListviewItemPtr;
+typedef TSharedPtr<FPCGListViewItem> PCGListViewItemPtr;
 
 template <typename T, typename = void>
 struct FTextAsNumberIsValid : std::false_type {};
@@ -62,7 +67,7 @@ class FPCGListViewUpdater : public TSharedFromThis<FPCGListViewUpdater>
 {
 public:
 	FPCGListViewUpdater(
-		const TArray<PCGListviewItemPtr>& InListViewItems,
+		const TArray<PCGListViewItemPtr>& InListViewItems,
 		const TMap<FName, FPCGColumnData>& InColumnData,
 		const EColumnSortMode::Type InSortMode,
 		const FName InSortingColumn,
@@ -77,7 +82,7 @@ public:
 	bool IsCompleted() const;
 	void Launch();
 
-	TArray<PCGListviewItemPtr> ListViewItems;
+	TArray<PCGListViewItemPtr> ListViewItems;
 
 private:
 	void AsyncSort();
@@ -93,12 +98,12 @@ private:
 	UE::Tasks::FTask UpdateTask;
 };
 
-class SPCGListViewItemRow : public SMultiColumnTableRow<PCGListviewItemPtr>
+class SPCGListViewItemRow : public SMultiColumnTableRow<PCGListViewItemPtr>
 {
 public:
 	SLATE_BEGIN_ARGS(SPCGListViewItemRow) {}
 	SLATE_ARGUMENT(TSharedPtr<SPCGEditorGraphAttributeListView>, AttributeListView)
-	SLATE_ARGUMENT(PCGListviewItemPtr, ListViewItem)
+	SLATE_ARGUMENT(PCGListViewItemPtr, ListViewItem)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView);
@@ -107,7 +112,7 @@ public:
 
 private:
 	TWeakPtr<SPCGEditorGraphAttributeListView> AttributeListView;
-	PCGListviewItemPtr InternalItem;
+	PCGListViewItemPtr InternalItem;
 };
 
 class FPCGPointFilterExpressionContext : public ITextFilterExpressionContext
@@ -154,8 +159,6 @@ private:
 
 	void OnGenerateUpdated(UPCGComponent* InPCGComponent);
 
-	const FPCGDataCollection* GetInspectionData() const;
-
 	void RefreshAttributeList();
 	void RefreshPinComboBox();
 	void RefreshDataComboBox();
@@ -176,35 +179,44 @@ private:
 		bool bIsOutputPin = true;
 	};
 
+	const FPCGDataCollection* GetInspectionData(const TSharedPtr<FPinComboBoxItem>& EditorPin) const;
+	const FPCGDataCollection* GetInspectionData() const;
+
 	FText OnGenerateSelectedPinText() const;
 	void OnSelectionChangedPin(TSharedPtr<FPinComboBoxItem> InItem, ESelectInfo::Type InSelectInfo);
 	TSharedRef<SWidget> OnGeneratePinWidget(TSharedPtr<FPinComboBoxItem> InItem) const;
 
 	const FSlateBrush* GetFilterBadgeIcon() const;
 	TSharedRef<SWidget> OnGenerateFilterMenu();
+	TSharedRef<SWidget> OnGenerateAdditionalOperationsMenu();
 	TSharedRef<SWidget> OnGenerateDataWidget(TSharedPtr<FName> InItem) const;
 	void OnSelectionChanged(TSharedPtr<FName> Item, ESelectInfo::Type SelectInfo);
 	FText OnGenerateSelectedDataText() const;
 	int32 GetSelectedDataIndex() const;
-	void GenerateColumnsFromMetadata(const UPCGData* InPCGData, const UPCGMetadata* PCGMetadata);
 
 	void ToggleAllAttributes();
 	void ToggleAttribute(FName InAttributeName);
 	ECheckBoxState GetAnyAttributeEnabledState() const;
 	bool IsAttributeEnabled(FName InAttributeName) const;
 
-	TSharedRef<ITableRow> OnGenerateRow(PCGListviewItemPtr Item, const TSharedRef<STableViewBase>& OwnerTable);
-	void OnItemDoubleClicked(PCGListviewItemPtr Item) const;
+	FPCGDataCollection BuildDataCollectionForSave(bool bUsePinComboIndex, bool bUseDataComboIndex) const;
+	void SaveData(bool bUsePinIndex, bool bUseDataIndex);
+	bool CanSaveData(bool bUsePinIndex, bool bUseDataIndex) const;
+
+	TSharedRef<ITableRow> OnGenerateRow(PCGListViewItemPtr Item, const TSharedRef<STableViewBase>& OwnerTable);
+	void OnItemDoubleClicked(PCGListViewItemPtr Item) const;
+	TSharedPtr<SWidget> OnItemsContextMenu();
 
 	void OnColumnSortModeChanged(const EColumnSortPriority::Type SortPriority, const FName& ColumnId, const EColumnSortMode::Type InSortMode);
 	EColumnSortMode::Type GetColumnSortMode(const FName InColumnId) const;
+	TSharedRef<SWidget> GenerateColumnMenu(FName ColumnId);
 
 	void OnFilterTextChanged(const FText& InFilterText);
 	void OnFilterTextCommitted(const FText& NewText, ETextCommit::Type CommitInfo);
 
 	FReply OnListViewKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) const;
 
-	void AddColumn(const UPCGData* InPCGData, const FName& InColumnId, const FText& ColumnLabel);
+	void AddColumn(const UPCGData* InPCGData, const FPCGTableVisualizerColumnInfo& InColumnInfo, TSharedPtr<const IPCGAttributeAccessorKeys> InAccessorKeys);
 	void AddPointDataColumns(const UPCGPointData* InPCGPointData);
 	void AddMetadataColumn(const UPCGData* InPCGData, const FName& InColumnId, EPCGMetadataTypes InMetadataType, const TCHAR* PostFix = nullptr);
 
@@ -217,11 +229,17 @@ private:
 	FReply OnLockClick();
 	FReply OnNodeNameClicked();
 
+	FReply OnFocusOnDataClicked() const;
+	bool IsFocusOnDataEnabled() const;
+
+	void FocusOnSelection() const;
+	bool CanFocusOnSelection() const;
+
+	/** Returns the current PCG component */
+	TWeakObjectPtr<UPCGComponent> GetPCGComponent() const;
+
 	/** Pointer back to the PCG editor that owns us */
 	TWeakPtr<FPCGEditor> PCGEditorPtr;
-
-	/** Cached PCGComponent being viewed */
-	TWeakObjectPtr<UPCGComponent> PCGComponent;
 
 	/** Cached PCGGraphNode being viewed */
 	TWeakObjectPtr<UPCGEditorGraphNodeBase> PCGEditorGraphNode;
@@ -232,9 +250,9 @@ private:
 
 	TSharedPtr<SSearchBox> SearchBoxWidget;
 	TSharedPtr<SHeaderRow> ListViewHeader;
-	TSharedPtr<SListView<PCGListviewItemPtr>> ListView;
-	TArray<PCGListviewItemPtr> ListViewItems;
-	TArray<PCGListviewItemPtr> FilteredListViewItems;
+	TSharedPtr<SListView<PCGListViewItemPtr>> ListView;
+	TArray<PCGListViewItemPtr> ListViewItems;
+	TArray<PCGListViewItemPtr> FilteredListViewItems;
 
 	TSharedPtr<SComboBox<TSharedPtr<FPinComboBoxItem>>> PinComboBox;
 	TArray<TSharedPtr<FPinComboBoxItem>> PinComboBoxItems;
@@ -244,8 +262,6 @@ private:
 
 	TSharedPtr<STextBlock> NodeNameTextBlock;
 	TSharedPtr<STextBlock> InfoTextBlock;
-	TSharedPtr<SComboButton> FilterButton;
-	TSharedPtr<SButton> LockButton;
 
 	TArray<FName> HiddenAttributes;
 
@@ -255,6 +271,7 @@ private:
 
 	FName SortingColumn = NAME_None;
 	EColumnSortMode::Type SortMode = EColumnSortMode::Type::Ascending;
+	TFunction<void(const UPCGData*, TArrayView<const int>)> FocusOnDataCallback;
 
 	bool bNeedsRefresh : 1 = false;
 
@@ -264,5 +281,5 @@ private:
 	TSharedPtr<FPCGListViewUpdater> CurrentUpdateTask = nullptr;
 
 	/** Used to ensure data collapsed for inspection is kept alive. */
-	TStrongObjectPtr<const UPCGPointData> CollapsedPointData = nullptr;
+	TWeakObjectPtr<const UPCGData> DataPtr = nullptr;
 };

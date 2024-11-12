@@ -6,6 +6,8 @@ namespace UnrealBuildTool.Rules
 	{
 		public SmartObjectsTestSuite(ReadOnlyTargetRules Target) : base(Target)
 		{
+			UnsafeTypeCastWarningLevel = WarningLevel.Warning;
+
 			PublicIncludePaths.AddRange(
 				new string[] {
 				}
@@ -13,15 +15,18 @@ namespace UnrealBuildTool.Rules
 
 			PublicDependencyModuleNames.AddRange(
 				new[] {
-					"AITestSuite",
 					"Core",
 					"CoreUObject",
 					"Engine",
-					"GameplayTags",
 					"SmartObjectsModule",
-					"StructUtils",
+				}
+			);
+
+			PrivateDependencyModuleNames.AddRange(
+				new[] {
+					"AITestSuite",
+					"GameplayTags",
 					"WorldConditions",
-					"NavigationSystem"
 				}
 			);
 

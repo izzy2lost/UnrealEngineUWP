@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "GeometryCollection/GeometryCollectionISMPoolRenderer.h"
 
+#include "Engine/Level.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GeometryCollection/Facades/CollectionInstancedMeshFacade.h"
@@ -13,9 +14,29 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionISMPoolRenderer)
 
-void UGeometryCollectionISMPoolRenderer::OnRegisterGeometryCollection(UGeometryCollectionComponent const& InComponent)
+void UGeometryCollectionISMPoolRenderer::OnRegisterGeometryCollection(UGeometryCollectionComponent& InComponent)
 {
-	OwningLevel = InComponent.GetComponentLevel();
+	OwningLevel = MakeWeakObjectPtr(InComponent.GetComponentLevel());
+
+	// In editor we create our own ISMPool. 
+	// This guarantees the same look in editor/game, and allows editor hit proxies to continue working.
+	if (UWorld* World = InComponent.GetWorld())
+	{
+		if (!World->IsGameWorld())
+		{
+			if (LocalISMPoolComponent)
+			{
+				LocalISMPoolComponent->DestroyComponent();
+			}
+
+			LocalISMPoolComponent = NewObject<UGeometryCollectionISMPoolComponent>(this, NAME_None, RF_Transient | RF_DuplicateTransient);
+			LocalISMPoolComponent->SetTickablePoolManagement(false);
+			LocalISMPoolComponent->SetupAttachment(&InComponent);
+			LocalISMPoolComponent->RegisterComponent();
+		}
+	}
+
+	bIsRegistered = true;
 }
 
 void UGeometryCollectionISMPoolRenderer::OnUnregisterGeometryCollection()
@@ -23,7 +44,15 @@ void UGeometryCollectionISMPoolRenderer::OnUnregisterGeometryCollection()
 	ReleaseGroup(MergedMeshGroup);
 	ReleaseGroup(InstancesGroup);
 
-	ISMPoolActor = nullptr;
+	if (LocalISMPoolComponent)
+	{
+		LocalISMPoolComponent->DestroyComponent();
+		LocalISMPoolComponent = nullptr;
+	}
+
+	CachedISMPoolComponent = nullptr;
+
+	bIsRegistered = false;
 }
 
 void UGeometryCollectionISMPoolRenderer::UpdateState(UGeometryCollection const& InGeometryCollection, FTransform const& InComponentTransform, uint32 InStateFlags)
@@ -65,9 +94,9 @@ void UGeometryCollectionISMPoolRenderer::UpdateRootTransform(UGeometryCollection
 	UpdateMergedMeshTransforms(InRootTransform * ComponentTransform, {});
 }
 
-void UGeometryCollectionISMPoolRenderer::UpdateRootTransforms(UGeometryCollection const& InGeometryCollection, FTransform const& InRootTransform, TArrayView<const FTransform3f> InRootTransforms)
+void UGeometryCollectionISMPoolRenderer::UpdateRootTransforms(UGeometryCollection const& InGeometryCollection, FTransform const& InRootTransform, TArrayView<const FTransform3f> InRootLocalTransforms)
 {
-	UpdateMergedMeshTransforms(InRootTransform * ComponentTransform, InRootTransforms);
+	UpdateMergedMeshTransforms(InRootTransform * ComponentTransform, InRootLocalTransforms);
 }
 
 void UGeometryCollectionISMPoolRenderer::UpdateTransforms(UGeometryCollection const& InGeometryCollection, TArrayView<const FTransform3f> InTransforms)
@@ -75,17 +104,40 @@ void UGeometryCollectionISMPoolRenderer::UpdateTransforms(UGeometryCollection co
 	UpdateInstanceTransforms(InGeometryCollection, ComponentTransform, InTransforms);
 }
 
+UGeometryCollectionISMPoolComponent* UGeometryCollectionISMPoolRenderer::GetISMPoolComponent() const
+{
+	if (!bIsRegistered)
+	{
+		return nullptr;
+	}
+	return LocalISMPoolComponent ? LocalISMPoolComponent : CachedISMPoolComponent;
+}
+
 UGeometryCollectionISMPoolComponent* UGeometryCollectionISMPoolRenderer::GetOrCreateISMPoolComponent()
 {
-	if (ISMPoolActor == nullptr)
+	if (!bIsRegistered)
+	{
+		return nullptr;
+	}
+	if (LocalISMPoolComponent)
+	{
+		return LocalISMPoolComponent;
+	}
+	if (!CachedISMPoolComponent)
 	{
 		if (UGeometryCollectionISMPoolSubSystem* ISMPoolSubSystem = UWorld::GetSubsystem<UGeometryCollectionISMPoolSubSystem>(GetWorld()))
 		{
-			check(OwningLevel);
-			ISMPoolActor = ISMPoolSubSystem->FindISMPoolActor(OwningLevel);
+			if (ULevel* Level = OwningLevel.Get())
+			{
+				if (AGeometryCollectionISMPoolActor* ISMPoolActor = ISMPoolSubSystem->FindISMPoolActor(Level))
+				{
+					CachedISMPoolComponent = ISMPoolActor->GetISMPoolComp();
+				}
+			}
 		}
 	}
-	return ISMPoolActor != nullptr ? ISMPoolActor->GetISMPoolComp() : nullptr;
+
+	return CachedISMPoolComponent;
 }
 
 void UGeometryCollectionISMPoolRenderer::InitMergedMeshFromGeometryCollection(UGeometryCollection const& InGeometryCollection)
@@ -164,7 +216,7 @@ void UGeometryCollectionISMPoolRenderer::InitInstancesFromGeometryCollection(UGe
 	}
 }
 
-void UGeometryCollectionISMPoolRenderer::UpdateMergedMeshTransforms(FTransform const& InBaseTransform, TArrayView<const FTransform3f> LocalTransforms)
+void UGeometryCollectionISMPoolRenderer::UpdateMergedMeshTransforms(FTransform const& InBaseTransform, TArrayView<const FTransform3f> InLocalTransforms)
 {
 	if (MergedMeshGroup.GroupIndex == INDEX_NONE)
 	{
@@ -180,9 +232,9 @@ void UGeometryCollectionISMPoolRenderer::UpdateMergedMeshTransforms(FTransform c
 	TArrayView<const FTransform> InstanceTransforms(&InBaseTransform, 1);
 	for (int32 MeshIndex = 0; MeshIndex < MergedMeshGroup.MeshIds.Num(); MeshIndex++)
 	{
-		if (LocalTransforms.IsValidIndex(MeshIndex))
+		if (InLocalTransforms.IsValidIndex(MeshIndex))
 		{
-			const FTransform CombinedTransform{ FTransform(LocalTransforms[MeshIndex]) * InBaseTransform };
+			const FTransform CombinedTransform{ FTransform(InLocalTransforms[MeshIndex]) * InBaseTransform };
 			ISMPoolComponent->BatchUpdateInstancesTransforms(MergedMeshGroup.GroupIndex, MergedMeshGroup.MeshIds[MeshIndex], 0, MakeArrayView(&CombinedTransform, 1), true/*bWorldSpace*/, false/*bMarkRenderStateDirty*/, false/*bTeleport*/);
 		}
 		else
@@ -233,7 +285,14 @@ void UGeometryCollectionISMPoolRenderer::UpdateInstanceTransforms(UGeometryColle
 
 void UGeometryCollectionISMPoolRenderer::ReleaseGroup(FISMPoolGroup& InOutGroup)
 {
-	UGeometryCollectionISMPoolComponent* ISMPoolComponent = GetOrCreateISMPoolComponent();
+	if (InOutGroup.GroupIndex == INDEX_NONE)
+	{
+		return;
+	}
+
+	// Component and owning actor may already be released safely by a level unload.
+	// Don't want to create a new component here, so don't use GetOrCreateISMPoolComponent().
+	UGeometryCollectionISMPoolComponent* ISMPoolComponent = GetISMPoolComponent();
 	if (ISMPoolComponent != nullptr)
 	{
 		ISMPoolComponent->DestroyMeshGroup(InOutGroup.GroupIndex);

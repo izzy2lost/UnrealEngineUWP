@@ -4,6 +4,7 @@
 
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
+#include "Misc/IntrusiveUnsetOptionalState.h"
 #include "Misc/ReverseIterate.h"
 #include "HAL/UnrealMemory.h"
 #include "Templates/UnrealTypeTraits.h"
@@ -23,6 +24,8 @@
 #include "Templates/IdentityFunctor.h"
 #include "Templates/Invoke.h"
 #include "Templates/Less.h"
+#include "Templates/LosesQualifiersFromTo.h"
+#include "Templates/Requires.h"
 #include "Templates/Sorting.h"
 #include "Templates/AlignmentTemplates.h"
 #include "Traits/ElementType.h"
@@ -290,7 +293,7 @@ private:
 	IteratorType Iter;
 };
 
-namespace UE4Array_Private
+namespace UE::Core::Private
 {
 	// Simply forwards to an unqualified GetData(), but can be called from within a container or view
 	// where GetData() is already a member and so hides any others.
@@ -303,17 +306,22 @@ namespace UE4Array_Private
 	template <typename FromArrayType, typename ToArrayType>
 	constexpr bool CanMoveTArrayPointersBetweenArrayTypes()
 	{
-		typedef typename FromArrayType::AllocatorType FromAllocatorType;
-		typedef typename ToArrayType::AllocatorType ToAllocatorType;
-		typedef typename FromArrayType::ElementType   FromElementType;
-		typedef typename ToArrayType::ElementType   ToElementType;
+		using FromAllocatorType          = typename FromArrayType::AllocatorType;
+		using ToAllocatorType            = typename ToArrayType::AllocatorType;
+		using FromElementType            = typename FromArrayType::ElementType;
+		using ToElementType              = typename ToArrayType::ElementType;
+		using UnqualifiedFromElementType = std::remove_cv_t<FromElementType>;
+		using UnqualifiedToElementType   = std::remove_cv_t<ToElementType>;
 
 		// Allocators must be equal or move-compatible...
 		if constexpr (std::is_same_v<FromAllocatorType, ToAllocatorType> || TCanMoveBetweenAllocators<FromAllocatorType, ToAllocatorType>::Value)
 		{
 			return
-				std::is_same_v         <ToElementType, FromElementType> ||      // The element type of the container must be the same, or...
-				TIsBitwiseConstructible<ToElementType, FromElementType>::Value; // ... the element type of the source container must be bitwise constructible from the element type in the destination container
+				!TLosesQualifiersFromTo<FromElementType, ToElementType>::Value &&
+				(
+					std::is_same_v         <const ToElementType, const FromElementType> ||               // The element type of the container must be the same, or...
+					TIsBitwiseConstructible<UnqualifiedToElementType, UnqualifiedFromElementType>::Value // ... the element type of the source container must be bitwise constructible from the element type in the destination container
+				);
 		}
 		else
 		{
@@ -340,10 +348,7 @@ namespace UE4Array_Private
 
 	template <typename T>
 	constexpr bool TIsTArrayOrDerivedFromTArray_V = sizeof(ResolveIsTArrayPtr((T*)nullptr)) == 2;
-}
 
-namespace UE::Core::Private
-{
 	[[noreturn]] CORE_API void OnInvalidArrayNum(unsigned long long NewNum);
 }
 
@@ -366,9 +371,9 @@ class TArray
 	friend class TArray;
 
 public:
-	typedef typename InAllocatorType::SizeType SizeType;
-	typedef InElementType ElementType;
-	typedef InAllocatorType AllocatorType;
+	using SizeType      = typename InAllocatorType::SizeType ;
+	using ElementType   = InElementType;
+	using AllocatorType = InAllocatorType;
 
 private:
 	using USizeType = typename std::make_unsigned_t<SizeType>;
@@ -432,7 +437,7 @@ public:
 	template <
 		typename OtherElementType,
 		typename OtherAllocator
-		UE_REQUIRES(UE4Array_Private::TArrayElementsAreCompatible_V<ElementType, const OtherElementType&>)
+		UE_REQUIRES(UE::Core::Private::TArrayElementsAreCompatible_V<ElementType, const OtherElementType&>)
 	>
 	FORCEINLINE explicit TArray(const TArray<OtherElementType, OtherAllocator>& Other)
 	{
@@ -534,7 +539,7 @@ private:
 	template <typename FromArrayType, typename ToArrayType>
 	static FORCEINLINE void MoveOrCopy(ToArrayType& ToArray, FromArrayType& FromArray, SizeType PrevMax)
 	{
-		if constexpr (UE4Array_Private::CanMoveTArrayPointersBetweenArrayTypes<FromArrayType, ToArrayType>())
+		if constexpr (UE::Core::Private::CanMoveTArrayPointersBetweenArrayTypes<FromArrayType, ToArrayType>())
 		{
 			// Move
 
@@ -591,7 +596,7 @@ private:
 	template <typename FromArrayType, typename ToArrayType>
 	static FORCEINLINE void MoveOrCopyWithSlack(ToArrayType& ToArray, FromArrayType& FromArray, SizeType PrevMax, SizeType ExtraSlack)
 	{
-		if constexpr (UE4Array_Private::CanMoveTArrayPointersBetweenArrayTypes<FromArrayType, ToArrayType>())
+		if constexpr (UE::Core::Private::CanMoveTArrayPointersBetweenArrayTypes<FromArrayType, ToArrayType>())
 		{
 			// Move
 
@@ -635,7 +640,7 @@ public:
 	template <
 		typename OtherElementType,
 		typename OtherAllocator
-		UE_REQUIRES(UE4Array_Private::TArrayElementsAreCompatible_V<ElementType, OtherElementType&&>)
+		UE_REQUIRES(UE::Core::Private::TArrayElementsAreCompatible_V<ElementType, OtherElementType&&>)
 	>
 	FORCEINLINE explicit TArray(TArray<OtherElementType, OtherAllocator>&& Other)
 	{
@@ -651,7 +656,7 @@ public:
 	 */
 	template <
 		typename OtherElementType
-		UE_REQUIRES(UE4Array_Private::TArrayElementsAreCompatible_V<ElementType, OtherElementType&&>)
+		UE_REQUIRES(UE::Core::Private::TArrayElementsAreCompatible_V<ElementType, OtherElementType&&>)
 	>
 	TArray(TArray<OtherElementType, AllocatorType>&& Other, SizeType ExtraSlack)
 	{
@@ -681,6 +686,26 @@ public:
 		// note ArrayNum, ArrayMax and data pointer are not invalidated
 		// they are left unchanged and use-after-destruct will see them the same as before destruct
 	}
+
+	///////////////////////////////////////////////
+	// Start - intrusive TOptional<TArray> state //
+	///////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TArray;
+
+	explicit TArray(FIntrusiveUnsetOptionalState Tag)
+		: ArrayNum(0)
+		, ArrayMax(-1)
+	{
+		// Use ArrayMax == -1 as our intrusive state so that the destructor still works without change, as it doesn't use ArrayMax.
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return ArrayMax == -1;
+	}
+	/////////////////////////////////////////////
+	// End - intrusive TOptional<TArray> state //
+	/////////////////////////////////////////////
 
 	/**
 	 * Helper function for returning a typed pointer to the first array entry.
@@ -809,6 +834,12 @@ public:
 		return ArrayNum;
 	}
 
+	/** @returns Number of bytes used, excluding slack */
+	FORCEINLINE SIZE_T NumBytes() const
+	{
+		return static_cast<SIZE_T>(ArrayNum) * sizeof(ElementType);
+	}
+
 	/**
 	 * Returns maximum number of elements in array.
 	 *
@@ -896,7 +927,7 @@ public:
 	 * @returns Reference to the top element.
 	 * @see Pop, Push
 	 */
-	FORCEINLINE ElementType& Top()
+	FORCEINLINE ElementType& Top() UE_LIFETIMEBOUND
 	{
 		return Last();
 	}
@@ -909,7 +940,7 @@ public:
 	 * @returns Reference to the top element.
 	 * @see Pop, Push
 	 */
-	FORCEINLINE const ElementType& Top() const
+	FORCEINLINE const ElementType& Top() const UE_LIFETIMEBOUND
 	{
 		return Last();
 	}
@@ -920,7 +951,7 @@ public:
 	 * @param IndexFromTheEnd (Optional) Index from the end of array (default = 0).
 	 * @returns Reference to n-th last element from the array.
 	 */
-	FORCEINLINE ElementType& Last(SizeType IndexFromTheEnd = 0)
+	FORCEINLINE ElementType& Last(SizeType IndexFromTheEnd = 0) UE_LIFETIMEBOUND
 	{
 		RangeCheck(ArrayNum - IndexFromTheEnd - 1);
 		return GetData()[ArrayNum - IndexFromTheEnd - 1];
@@ -934,7 +965,7 @@ public:
 	 * @param IndexFromTheEnd (Optional) Index from the end of array (default = 0).
 	 * @returns Reference to n-th last element from the array.
 	 */
-	FORCEINLINE const ElementType& Last(SizeType IndexFromTheEnd = 0) const
+	FORCEINLINE const ElementType& Last(SizeType IndexFromTheEnd = 0) const UE_LIFETIMEBOUND
 	{
 		RangeCheck(ArrayNum - IndexFromTheEnd - 1);
 		return GetData()[ArrayNum - IndexFromTheEnd - 1];
@@ -1406,7 +1437,7 @@ private:
 			SlackTrackerNumChanged();
 		}
 		ElementType* Data = GetData() + Index;
-		RelocateConstructItems<ElementType>(Data + 1, Data, OldNum - Index);
+		RelocateConstructItems<ElementType>((void*)(Data + 1), Data, OldNum - Index);
 	}
 	template <typename OtherSizeType>
 	void InsertUninitializedImpl(SizeType Index, OtherSizeType Count)
@@ -1436,7 +1467,7 @@ private:
 			SlackTrackerNumChanged();
 		}
 		ElementType* Data = GetData() + Index;
-		RelocateConstructItems<ElementType>(Data + Count, Data, OldNum - Index);
+		RelocateConstructItems<ElementType>((void*)(Data + Count), Data, OldNum - Index);
 	}
 
 public:
@@ -1495,7 +1526,7 @@ public:
 	 * @return A reference to the newly-inserted element.
 	 * @see Insert_GetRef, InsertDefaulted_GetRef
 	 */
-	ElementType& InsertZeroed_GetRef(SizeType Index)
+	ElementType& InsertZeroed_GetRef(SizeType Index) UE_LIFETIMEBOUND
 	{
 		InsertUninitializedImpl(Index, 1);
 		ElementType* Ptr = GetData() + Index;
@@ -1514,12 +1545,12 @@ public:
 	void InsertDefaulted(SizeType Index)
 	{
 		InsertUninitializedImpl(Index);
-		DefaultConstructItems<ElementType>(GetData() + Index, 1);
+		DefaultConstructItems<ElementType>((void*)(GetData() + Index), 1);
 	}
 	void InsertDefaulted(SizeType Index, SizeType Count)
 	{
 		InsertUninitializedImpl(Index, Count);
-		DefaultConstructItems<ElementType>(GetData() + Index, Count);
+		DefaultConstructItems<ElementType>((void*)(GetData() + Index), Count);
 	}
 
 	/**
@@ -1530,11 +1561,11 @@ public:
 	 * @return A reference to the newly-inserted element.
 	 * @see Insert_GetRef, InsertZeroed_GetRef
 	 */
-	ElementType& InsertDefaulted_GetRef(SizeType Index)
+	ElementType& InsertDefaulted_GetRef(SizeType Index) UE_LIFETIMEBOUND
 	{
 		InsertUninitializedImpl(Index, 1);
 		ElementType* Ptr = GetData() + Index;
-		DefaultConstructItems<ElementType>(Ptr, 1);
+		DefaultConstructItems<ElementType>((void*)Ptr, 1);
 		return *Ptr;
 	}
 
@@ -1550,7 +1581,7 @@ public:
 		SizeType NumNewElements = (SizeType)InitList.size();
 
 		InsertUninitializedImpl(InIndex, NumNewElements);
-		ConstructItems<ElementType>(GetData() + InIndex, InitList.begin(), NumNewElements);
+		ConstructItems<ElementType>((void*)(GetData() + InIndex), InitList.begin(), NumNewElements);
 
 		return InIndex;
 	}
@@ -1570,7 +1601,7 @@ public:
 		auto NumNewElements = Items.Num();
 
 		InsertUninitializedImpl(InIndex, NumNewElements);
-		ConstructItems<ElementType>(GetData() + InIndex, Items.GetData(), NumNewElements);
+		ConstructItems<ElementType>((void*)(GetData() + InIndex), Items.GetData(), NumNewElements);
 
 		return InIndex;
 	}
@@ -1590,7 +1621,7 @@ public:
 		auto NumNewElements = Items.Num();
 
 		InsertUninitializedImpl(InIndex, NumNewElements);
-		RelocateConstructItems<ElementType>(GetData() + InIndex, Items.GetData(), NumNewElements);
+		RelocateConstructItems<ElementType>((void*)(GetData() + InIndex), Items.GetData(), NumNewElements);
 		Items.ArrayNum = 0;
 
 		Items.SlackTrackerNumChanged();
@@ -1612,7 +1643,7 @@ public:
 		check(Ptr != nullptr);
 
 		InsertUninitializedImpl(Index, Count);
-		ConstructItems<ElementType>(GetData() + Index, Ptr, Count);
+		ConstructItems<ElementType>((void*)(GetData() + Index), Ptr, Count);
 
 		return Index;
 	}
@@ -1646,7 +1677,7 @@ public:
 		// construct a copy in place at Index (this new operator will insert at 
 		// Index, then construct that memory with Item)
 		InsertUninitializedImpl(Index);
-		new(GetData() + Index) ElementType(MoveTempIfPossible(Item));
+		::new((void*)(GetData() + Index)) ElementType(MoveTempIfPossible(Item));
 		return Index;
 	}
 
@@ -1665,7 +1696,7 @@ public:
 		// construct a copy in place at Index (this new operator will insert at 
 		// Index, then construct that memory with Item)
 		InsertUninitializedImpl(Index);
-		new(GetData() + Index) ElementType(Item);
+		::new((void*)(GetData() + Index)) ElementType(Item);
 		return Index;
 	}
 
@@ -1678,7 +1709,7 @@ public:
 	 * @return A reference to the newly-inserted element.
 	 * @see Add, Remove
 	 */
-	ElementType& Insert_GetRef(ElementType&& Item, SizeType Index)
+	ElementType& Insert_GetRef(ElementType&& Item, SizeType Index) UE_LIFETIMEBOUND
 	{
 		CheckAddress(&Item);
 
@@ -1686,7 +1717,7 @@ public:
 		// Index, then construct that memory with Item)
 		InsertUninitializedImpl(Index);
 		ElementType* Ptr = GetData() + Index;
-		new(Ptr) ElementType(MoveTempIfPossible(Item));
+		::new((void*)Ptr) ElementType(MoveTempIfPossible(Item));
 		return *Ptr;
 	}
 
@@ -1698,7 +1729,7 @@ public:
 	 * @return A reference to the newly-inserted element.
 	 * @see Add, Remove
 	 */
-	ElementType& Insert_GetRef(const ElementType& Item, SizeType Index)
+	ElementType& Insert_GetRef(const ElementType& Item, SizeType Index) UE_LIFETIMEBOUND
 	{
 		CheckAddress(&Item);
 
@@ -1706,7 +1737,7 @@ public:
 		// Index, then construct that memory with Item)
 		InsertUninitializedImpl(Index);
 		ElementType* Ptr = GetData() + Index;
-		new(Ptr) ElementType(Item);
+		::new((void*)Ptr) ElementType(Item);
 		return *Ptr;
 	}
 
@@ -1721,7 +1752,7 @@ private:
 		SizeType NumToMove = (ArrayNum - Index) - 1;
 		if (NumToMove)
 		{
-			RelocateConstructItems<ElementType>(Dest, Dest + 1, NumToMove);
+			RelocateConstructItems<ElementType>((void*)Dest, Dest + 1, NumToMove);
 		}
 		--ArrayNum;
 
@@ -1738,7 +1769,7 @@ private:
 		SizeType NumToMove = (ArrayNum - Index) - Count;
 		if (NumToMove)
 		{
-			RelocateConstructItems<ElementType>(Dest, Dest + Count, NumToMove);
+			RelocateConstructItems<ElementType>((void*)Dest, Dest + Count, NumToMove);
 		}
 		ArrayNum -= Count;
 
@@ -1808,7 +1839,7 @@ private:
 		const SizeType NumElementsToMoveIntoHole = FPlatformMath::Min(1, NumElementsAfterHole);
 		if (NumElementsToMoveIntoHole)
 		{
-			RelocateConstructItems<ElementType>(Dest, Data + (ArrayNum - NumElementsToMoveIntoHole), NumElementsToMoveIntoHole);
+			RelocateConstructItems<ElementType>((void*)Dest, Data + (ArrayNum - NumElementsToMoveIntoHole), NumElementsToMoveIntoHole);
 		}
 		--ArrayNum;
 
@@ -1827,7 +1858,7 @@ private:
 		const SizeType NumElementsToMoveIntoHole = FPlatformMath::Min(Count, NumElementsAfterHole);
 		if (NumElementsToMoveIntoHole)
 		{
-			RelocateConstructItems<ElementType>(Dest, Data + (ArrayNum - NumElementsToMoveIntoHole), NumElementsToMoveIntoHole);
+			RelocateConstructItems<ElementType>((void*)Dest, Data + (ArrayNum - NumElementsToMoveIntoHole), NumElementsToMoveIntoHole);
 		}
 		ArrayNum -= Count;
 
@@ -1958,7 +1989,7 @@ public:
 		{
 			const SizeType Diff = NewNum - ArrayNum;
 			const SizeType Index = AddUninitialized(Diff);
-			DefaultConstructItems<ElementType>((uint8*)AllocatorInstance.GetAllocation() + Index * sizeof(ElementType), Diff);
+			DefaultConstructItems<ElementType>((void*)((uint8*)AllocatorInstance.GetAllocation() + Index * sizeof(ElementType)), Diff);
 		}
 		else if (NewNum < 0)
 		{
@@ -2068,7 +2099,7 @@ public:
 
 		// Allocate memory for the new elements.
 		SizeType Pos = AddUninitialized(SourceCount);
-		ConstructItems<ElementType>(GetData() + Pos, Source.GetData(), SourceCount);
+		ConstructItems<ElementType>((void*)(GetData() + Pos), Source.GetData(), SourceCount);
 	}
 
 	/**
@@ -2092,7 +2123,7 @@ public:
 
 		// Allocate memory for the new elements.
 		SizeType Pos = AddUninitialized(SourceCount);
-		RelocateConstructItems<ElementType>(GetData() + Pos, Source.GetData(), SourceCount);
+		RelocateConstructItems<ElementType>((void*)(GetData() + Pos), Source.GetData(), SourceCount);
 		Source.ArrayNum = 0;
 
 		Source.SlackTrackerNumChanged();
@@ -2108,8 +2139,8 @@ public:
 		typename RangeType
 		UE_REQUIRES(
 			TIsContiguousContainer<RangeType>::Value &&
-			!UE4Array_Private::TIsTArrayOrDerivedFromTArray_V<std::remove_reference_t<RangeType>> &&
-			UE4Array_Private::TArrayElementsAreCompatible_V<ElementType, TElementType_T<RangeType>>
+			!UE::Core::Private::TIsTArrayOrDerivedFromTArray_V<std::remove_reference_t<RangeType>> &&
+			UE::Core::Private::TArrayElementsAreCompatible_V<ElementType, TElementType_T<RangeType>>
 		)
 	>
 	void Append(RangeType&& Source)
@@ -2127,7 +2158,7 @@ public:
 
 		// Allocate memory for the new elements.
 		SizeType Pos = AddUninitialized(SourceCount);
-		ConstructItems<ElementType>(GetData() + Pos, UE4Array_Private::GetDataHelper(Source), SourceCount);
+		ConstructItems<ElementType>((void*)(GetData() + Pos), UE::Core::Private::GetDataHelper(Source), SourceCount);
 	}
 
 	/**
@@ -2142,7 +2173,7 @@ public:
 		check(Ptr != nullptr || Count == 0);
 
 		SizeType Pos = AddUninitialized(Count);
-		ConstructItems<ElementType>(GetData() + Pos, Ptr, Count);
+		ConstructItems<ElementType>((void*)(GetData() + Pos), Ptr, Count);
 	}
 
 	/**
@@ -2156,7 +2187,7 @@ public:
 		SizeType Count = (SizeType)InitList.size();
 
 		SizeType Pos = AddUninitialized(Count);
-		ConstructItems<ElementType>(GetData() + Pos, InitList.begin(), Count);
+		ConstructItems<ElementType>((void*)(GetData() + Pos), InitList.begin(), Count);
 	}
 
 	/**
@@ -2229,7 +2260,7 @@ public:
 		//     // Won't compile if the caller doesn't have access to FMyType::FPrivateToken
 		//     Arr.Emplace(FMyType::FPrivateToken{}, 5, 3.14f, TEXT("Banana"));
 		//
-		new(GetData() + Index) ElementType(Forward<ArgsType>(Args)...);
+		::new((void*)(GetData() + Index)) ElementType(Forward<ArgsType>(Args)...);
 		return Index;
 	}
 
@@ -2240,11 +2271,11 @@ public:
 	 * @return A reference to the newly-inserted element.
 	 */
 	template <typename... ArgsType>
-	FORCEINLINE ElementType& Emplace_GetRef(ArgsType&&... Args)
+	FORCEINLINE ElementType& Emplace_GetRef(ArgsType&&... Args) UE_LIFETIMEBOUND
 	{
 		const SizeType Index = AddUninitialized();
 		ElementType* Ptr = GetData() + Index;
-		new(Ptr) ElementType(Forward<ArgsType>(Args)...);
+		::new((void*)Ptr) ElementType(Forward<ArgsType>(Args)...);
 		return *Ptr;
 	}
 
@@ -2258,7 +2289,7 @@ public:
 	FORCEINLINE void EmplaceAt(SizeType Index, ArgsType&&... Args)
 	{
 		InsertUninitializedImpl(Index, 1);
-		new(GetData() + Index) ElementType(Forward<ArgsType>(Args)...);
+		::new((void*)(GetData() + Index)) ElementType(Forward<ArgsType>(Args)...);
 	}
 
 	/**
@@ -2269,11 +2300,11 @@ public:
 	 * @return A reference to the newly-inserted element.
 	 */
 	template <typename... ArgsType>
-	FORCEINLINE ElementType& EmplaceAt_GetRef(SizeType Index, ArgsType&&... Args)
+	FORCEINLINE ElementType& EmplaceAt_GetRef(SizeType Index, ArgsType&&... Args) UE_LIFETIMEBOUND
 	{
 		InsertUninitializedImpl(Index, 1);
 		ElementType* Ptr = GetData() + Index;
-		new(Ptr) ElementType(Forward<ArgsType>(Args)...);
+		::new((void*)Ptr) ElementType(Forward<ArgsType>(Args)...);
 		return *Ptr;
 	}
 
@@ -2314,7 +2345,7 @@ public:
 	 * @return A reference to the newly-inserted element.
 	 * @see AddDefaulted_GetRef, AddUnique_GetRef, AddZeroed_GetRef, Insert_GetRef
 	 */
-	FORCEINLINE ElementType& Add_GetRef(ElementType&& Item)
+	FORCEINLINE ElementType& Add_GetRef(ElementType&& Item) UE_LIFETIMEBOUND
 	{
 		CheckAddress(&Item);
 		return Emplace_GetRef(MoveTempIfPossible(Item));
@@ -2327,7 +2358,7 @@ public:
 	 * @return A reference to the newly-inserted element.
 	 * @see AddDefaulted_GetRef, AddUnique_GetRef, AddZeroed_GetRef, Insert_GetRef
 	 */
-	FORCEINLINE ElementType& Add_GetRef(const ElementType& Item)
+	FORCEINLINE ElementType& Add_GetRef(const ElementType& Item) UE_LIFETIMEBOUND
 	{
 		CheckAddress(&Item);
 		return Emplace_GetRef(Item);
@@ -2369,7 +2400,7 @@ public:
 	 * @return A reference to the newly-inserted element.
 	 * @see Add_GetRef, AddDefaulted_GetRef, AddUnique_GetRef, Insert_GetRef
 	 */
-	ElementType& AddZeroed_GetRef()
+	ElementType& AddZeroed_GetRef() UE_LIFETIMEBOUND
 	{
 		const SizeType Index = AddUninitialized();
 		ElementType* Ptr = GetData() + Index;
@@ -2388,13 +2419,13 @@ public:
 	SizeType AddDefaulted()
 	{
 		const SizeType Index = AddUninitialized();
-		DefaultConstructItems<ElementType>((uint8*)AllocatorInstance.GetAllocation() + Index * sizeof(ElementType), 1);
+		DefaultConstructItems<ElementType>((void*)((uint8*)AllocatorInstance.GetAllocation() + Index * sizeof(ElementType)), 1);
 		return Index;
 	}
 	SizeType AddDefaulted(SizeType Count)
 	{
 		const SizeType Index = AddUninitialized(Count);
-		DefaultConstructItems<ElementType>((uint8*)AllocatorInstance.GetAllocation() + Index * sizeof(ElementType), Count);
+		DefaultConstructItems<ElementType>((void*)((uint8*)AllocatorInstance.GetAllocation() + Index * sizeof(ElementType)), Count);
 		return Index;
 	}
 
@@ -2405,11 +2436,11 @@ public:
 	 * @return A reference to the newly-inserted element.
 	 * @see Add_GetRef, AddZeroed_GetRef, AddUnique_GetRef, Insert_GetRef
 	 */
-	ElementType& AddDefaulted_GetRef()
+	ElementType& AddDefaulted_GetRef() UE_LIFETIMEBOUND
 	{
 		const SizeType Index = AddUninitialized();
 		ElementType* Ptr = GetData() + Index;
-		DefaultConstructItems<ElementType>(Ptr, 1);
+		DefaultConstructItems<ElementType>((void*)Ptr, 1);
 		return *Ptr;
 	}
 
@@ -2497,7 +2528,7 @@ public:
 		auto NumNewElements = Items.Num();
 
 		InsertUninitializedImpl(InIndex, NumNewElements);
-		ConstructItems<ElementType>(GetData() + InIndex, Items.GetData(), NumNewElements);
+		ConstructItems<ElementType>((void*)(GetData() + InIndex), Items.GetData(), NumNewElements);
 
 		return InIndex;
 	}
@@ -2523,7 +2554,7 @@ public:
 		auto NumNewElements = Items.Num();
 
 		InsertUninitializedImpl(InIndex, NumNewElements);
-		RelocateConstructItems<ElementType>(GetData() + InIndex, Items.GetData(), NumNewElements);
+		RelocateConstructItems<ElementType>((void*)(GetData() + InIndex), Items.GetData(), NumNewElements);
 		Items.ArrayNum = 0;
 
 		Items.SlackTrackerNumChanged();
@@ -2549,7 +2580,7 @@ public:
 		TContainerElementTypeCompatibility<ElementType>::CopyingFromOtherType();
 
 		SizeType Pos = AddUninitialized(Count);
-		ConstructItems<ElementType>(GetData() + Pos, Ptr, Count);
+		ConstructItems<ElementType>((void*)(GetData() + Pos), Ptr, Count);
 	}
 
 private:
@@ -2655,7 +2686,7 @@ public:
 
 		// Destruct items that match the specified Item.
 		DestructItems(RemovePtr, 1);
-		RelocateConstructItems<ElementType>(RemovePtr, RemovePtr + 1, ArrayNum - (Index + 1));
+		RelocateConstructItems<ElementType>((void*)RemovePtr, RemovePtr + 1, ArrayNum - (Index + 1));
 
 		// Update the array count
 		--ArrayNum;
@@ -2718,7 +2749,7 @@ public:
 				// this was a non-matching run, we need to move it
 				if (WriteIndex != RunStartIndex)
 				{
-					RelocateConstructItems<ElementType>(Data + WriteIndex, Data + RunStartIndex, RunLength);
+					RelocateConstructItems<ElementType>((void*)(Data + WriteIndex), Data + RunStartIndex, RunLength);
 				}
 				WriteIndex += RunLength;
 			}
@@ -2754,7 +2785,7 @@ public:
 			if (::Invoke(Predicate, (*this)[ItemIndex]))
 			{
 				bRemoved = true;
-				RemoveAtSwap(ItemIndex, 1, EAllowShrinking::No);
+				RemoveAtSwap(ItemIndex, EAllowShrinking::No);
 			}
 			else
 			{
@@ -2829,7 +2860,7 @@ public:
 			if ((*this)[Index] == Item)
 			{
 				bRemoved = true;
-				RemoveAtSwap(Index--, 1, EAllowShrinking::No);
+				RemoveAtSwap(Index--, EAllowShrinking::No);
 			}
 		}
 
@@ -2915,8 +2946,8 @@ public:
 	}
 
 	// Iterators
-	typedef TIndexedContainerIterator<      TArray,       ElementType, SizeType> TIterator;
-	typedef TIndexedContainerIterator<const TArray, const ElementType, SizeType> TConstIterator;
+	using TIterator      = TIndexedContainerIterator<      TArray,       ElementType, SizeType>;
+	using TConstIterator = TIndexedContainerIterator<const TArray, const ElementType, SizeType>;
 
 	/**
 	 * Creates an iterator for the contents of this array
@@ -2939,15 +2970,15 @@ public:
 	}
 
 	#if TARRAY_RANGED_FOR_CHECKS
-		typedef TCheckedPointerIterator<      ElementType, SizeType, false> RangedForIteratorType;
-		typedef TCheckedPointerIterator<const ElementType, SizeType, false> RangedForConstIteratorType;
-		typedef TCheckedPointerIterator<      ElementType, SizeType, true>  RangedForReverseIteratorType;
-		typedef TCheckedPointerIterator<const ElementType, SizeType, true>  RangedForConstReverseIteratorType;
+		using RangedForIteratorType             = TCheckedPointerIterator<      ElementType, SizeType, false>;
+		using RangedForConstIteratorType        = TCheckedPointerIterator<const ElementType, SizeType, false>;
+		using RangedForReverseIteratorType      = TCheckedPointerIterator<      ElementType, SizeType, true>;
+		using RangedForConstReverseIteratorType = TCheckedPointerIterator<const ElementType, SizeType, true>;
 	#else
-		typedef                               ElementType* RangedForIteratorType;
-		typedef                         const ElementType* RangedForConstIteratorType;
-		typedef TReversePointerIterator<      ElementType> RangedForReverseIteratorType;
-		typedef TReversePointerIterator<const ElementType> RangedForConstReverseIteratorType;
+		using RangedForIteratorType             =                               ElementType*;
+		using RangedForConstIteratorType        =                         const ElementType*;
+		using RangedForReverseIteratorType      = TReversePointerIterator<      ElementType>;
+		using RangedForConstReverseIteratorType = TReversePointerIterator<const ElementType>;
 	#endif
 
 public:
@@ -3176,7 +3207,7 @@ private:
 		if (OtherNum || PrevMax)
 		{
 			ResizeForCopy(NewNum, PrevMax);
-			ConstructItems<ElementType>(GetData(), OtherData, OtherNum);
+			ConstructItems<ElementType>((void*)GetData(), OtherData, OtherNum);
 		}
 		else
 		{
@@ -3213,7 +3244,7 @@ private:
 			}
 
 			ResizeForCopy(NewNum + ExtraSlack, PrevMax);
-			ConstructItems<ElementType>(GetData(), OtherData, OtherNum);
+			ConstructItems<ElementType>((void*)GetData(), OtherData, OtherNum);
 		}
 		else
 		{
@@ -3254,13 +3285,13 @@ public:
 	{
 		if constexpr (TAllocatorTraits<AllocatorType>::SupportsFreezeMemoryImage && THasTypeLayout<ElementType>::Value)
 		{
-			TArray* DstArray = new(Dst) TArray();
+			TArray* DstArray = ::new(Dst) TArray();
 			DstArray->SetNumZeroed(this->ArrayNum);
 			this->AllocatorInstance.CopyUnfrozen(Context, StaticGetTypeLayoutDesc<ElementType>(), this->ArrayNum, DstArray->GetData());
 		}
 		else
 		{
-			new(Dst) TArray();
+			::new(Dst) TArray();
 		}
 	}
 
@@ -3499,7 +3530,7 @@ public:
 	 *
 	 * @returns The reference to the top element from the heap.
 	 */
-	const ElementType& HeapTop() const
+	const ElementType& HeapTop() const UE_LIFETIMEBOUND
 	{
 		return (*this)[0];
 	}
@@ -3509,7 +3540,7 @@ public:
 	 *
 	 * @returns The reference to the top element from the heap.
 	 */
-	ElementType& HeapTop()
+	ElementType& HeapTop() UE_LIFETIMEBOUND
 	{
 		return (*this)[0];
 	}
@@ -3696,7 +3727,7 @@ struct TArrayPrivateFriend
 		A.CountBytes(Ar);
 
 		// For net archives, limit serialization to 16MB, to protect against excessive allocation
-		typedef typename AllocatorType::SizeType SizeType;
+		using SizeType = typename AllocatorType::SizeType;
 		constexpr SizeType MaxNetArraySerialize = (16 * 1024 * 1024) / sizeof(ElementType);
 		SizeType SerializeNum = Ar.IsLoading() ? 0 : A.ArrayNum;
 

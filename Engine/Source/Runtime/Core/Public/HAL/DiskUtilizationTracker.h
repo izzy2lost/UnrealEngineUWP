@@ -13,8 +13,6 @@
 #include "HAL/ThreadSafeBool.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 
-#include <nn/nn_Log.h>
-
 CSV_DECLARE_CATEGORY_EXTERN(DiskIO);
 
 #ifndef SPEW_DISK_UTILIZATION

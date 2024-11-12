@@ -41,6 +41,7 @@ public:
 	 */
 	FMultichannelTcpSocket( FSocket* InSocket, uint64 InBandwidthLatencyProduct )
 		: BandwidthLatencyProduct(InBandwidthLatencyProduct)
+		, RemoteReceiverBytesReceived(0)
 		, Receiver(InSocket, FOnMultichannelTcpReceive::CreateRaw(this, &FMultichannelTcpSocket::HandleReceiverReceive))
 		, Sender(InSocket, FOnMultichannelTcpOkToSend::CreateRaw(this, &FMultichannelTcpSocket::HandleSenderOkToSend))
 		, Socket(InSocket)
@@ -282,11 +283,11 @@ private:
 	/** Holds a critical section to guard the receive buffers. */
 	FCriticalSection ReceiveBuffersCriticalSection;
 
-	/** Holds the receiver thread. */
-	FMultichannelTcpReceiver Receiver;
-
 	/** Holds the total number of bytes received by the client (comes from an 'Ack' on the control channel). */
 	int64 RemoteReceiverBytesReceived;
+
+	/** Holds the receiver thread. */
+	FMultichannelTcpReceiver Receiver;
 
 	/** Holds the sender thread. */
 	FMultichannelTcpSender Sender;

@@ -21,6 +21,9 @@
  * 
  * This is the base version and does not keep a free list. Freed elements will never be
  * reused and will only be freed by Empty() or destructor.
+ * In this base class, destructors for allocated elements are not automatically called;
+ * users of the allocator must call destructor manually or must call DeleteElement on each
+ * element they called NewElement on.
  */
 template <typename ElementType>
 class TTypedBlockAllocatorBase
@@ -102,6 +105,10 @@ protected:
 /**
  * A TTypedAllocatorBase with a freelist. Freed elements are destructed, but their memory
  * is reused and the constructor called again on it in future allocation.
+ *
+ * In this subclass, destructors for allocated elements are not automatically called;
+ * users of the allocator must call destructor manually or must call DeleteElement on each
+ * element they called NewElement on.
  */
 template <typename ElementType>
 class TTypedBlockAllocatorFreeList : public TTypedBlockAllocatorBase<ElementType>
@@ -131,6 +138,9 @@ protected:
  * A TTypedAllocatorBase with a resetlist. Freed elements are not destructed until empty is called. When NewElement is
  * called and the reset list is available, a previously-freed element is returned without having had the destructor and
  * a second call to the constructor called on it.
+ * 
+ * Destructors for elements added via NewElement are called automatically from Empty or from the allocator's
+ * destructor.
  */
 template <typename ElementType>
 class TTypedBlockAllocatorResetList : public TTypedBlockAllocatorBase<ElementType>

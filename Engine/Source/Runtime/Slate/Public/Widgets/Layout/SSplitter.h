@@ -60,7 +60,6 @@ public:
 	DECLARE_DELEGATE_RetVal_OneParam(FVector2D, FOnGetMaxSlotSize, int32);
 
 public:
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	class SLATE_API FSlot : public TSlotBase<FSlot>
 	{
 	public:		
@@ -147,22 +146,16 @@ public:
 		/** A slot can be resize if bIsResizable and the SizeRule is a FractionOfParent or the OnSlotResized delegate is set. */
 		bool CanBeResized() const;
 
-	public:
-		UE_DEPRECATED(5.0, "Direct access to SizingRule is now deprecated. Use the getter.")
+	private:
 		TAttribute<ESizeRule> SizingRule;
-		UE_DEPRECATED(5.0, "Direct access to SizeValue is now deprecated. Use the getter.")
 		TAttribute<float> SizeValue;
-		UE_DEPRECATED(5.0, "Direct access to MinSizeValue is now deprecated. Use the getter.")
 		TAttribute<float> MinSizeValue;
-		UE_DEPRECATED(5.0, "Direct access to OnSlotResized_Handler is now deprecated. Use the getter.")
 		FOnSlotResized OnSlotResized_Handler;
-		UE_DEPRECATED(5.0, "Direct access to bIsResizable is now deprecated. Use the getter.")
 		TOptional<bool> bIsResizable;
 	};
-	SLATE_API PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** @return Add a new FSlot() */
-	static FSlot::FSlotArguments Slot();
+	SLATE_API static FSlot::FSlotArguments Slot();
 	
 	using FScopedWidgetSlotArguments = TPanelChildren<FSlot>::FScopedWidgetSlotArguments;
 	/**

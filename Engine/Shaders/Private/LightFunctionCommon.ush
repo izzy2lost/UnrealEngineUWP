@@ -79,7 +79,7 @@ float3 GetLightFunctionColor(float3 LightVector, float3 TranslatedWorldSpace
 
 #if SUBSTRATE_ENABLED
 
-	// Light function node forces a single unlit BSDF. We get the raw data from light function node from the raw BSDF on the tree.
+	// Light function node forces a single unlit BSDF. We get the raw data from the Substrate light function node from the raw BSDF on the tree.
 	FSubstratePixelHeader SubstratePixelHeader = MaterialParameters.GetFrontSubstrateHeader();
 	FSubstrateBSDF UnlitBSDF = SubstratePixelHeader.SubstrateTree.BSDFs[0];
 	UnlitBSDF.SubstrateSanitizeBSDF(); // required wehen not calling SubstrateUpdateTreeUnlit

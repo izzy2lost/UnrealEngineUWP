@@ -369,6 +369,11 @@ namespace UnrealBuildTool
 			return true;
 		}
 
+		private TelemetryExecutorEvent? telemetryEvent;
+
+		/// <inheritdoc/>
+		public override TelemetryExecutorEvent? GetTelemetryEvent() => telemetryEvent;
+
 		// precompile the Regex needed to parse the XGE output (the ones we want are of the form "File (Duration at +time)"
 		//private static Regex XGEDurationRegex = new Regex(@"(?<Filename>.*) *\((?<Duration>[0-9:\.]+) at [0-9\+:\.]+\)", RegexOptions.ExplicitCapture);
 
@@ -771,8 +776,14 @@ namespace UnrealBuildTool
 					}
 				};
 
+				DateTime startTimeUTC = DateTime.UtcNow;
+
 				// Run through the standard XGE executor
-				return ExecuteTaskFile(TaskFilePath, EventHandlerWrapper, NumActions, Logger);
+				bool result = ExecuteTaskFile(TaskFilePath, EventHandlerWrapper, NumActions, Logger);
+
+				telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, NumActions, -1, -1, 0, 0, DateTime.UtcNow);
+
+				return result;
 			}
 		}
 	}

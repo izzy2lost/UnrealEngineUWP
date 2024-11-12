@@ -125,6 +125,11 @@ FRigVMFunction_MathDoubleToInt_Execute()
 	Result = FMath::FloorToInt(Value);
 }
 
+FRigVMFunction_MathDoubleToFloat_Execute()
+{
+	Result = (float)Value;
+}
+
 FRigVMFunction_MathDoubleSign_Execute()
 {
 	Result = Value < 0.0 ? -1.0 : 1.0;

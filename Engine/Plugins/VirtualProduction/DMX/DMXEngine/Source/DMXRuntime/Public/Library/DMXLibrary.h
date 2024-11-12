@@ -41,6 +41,11 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FDMXOnEntityArrayChangedDelegate, class UDM
 /** DEPRECATED 5.0 */
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnEntitiesUpdated_DEPRECATED, class UDMXLibrary*);
 
+/** 
+ * DMX Library.
+ * 
+ * Holds Fixture Types and Fixture Patches that can be used to send and receive DMX.
+ */
 UCLASS(BlueprintType, Blueprintable, Config = DMXEditor, AutoExpandCategories = DMX)
 class DMXRUNTIME_API UDMXLibrary
 	: public UDMXObjectBase
@@ -57,6 +62,7 @@ public:
 protected:
 	// ~Begin UObject Interface
 	virtual void PostInitProperties() override;
+	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
 	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
 

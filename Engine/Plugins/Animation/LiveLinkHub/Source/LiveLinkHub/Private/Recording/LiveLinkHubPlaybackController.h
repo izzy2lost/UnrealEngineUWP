@@ -14,6 +14,8 @@
 
 #include <atomic>
 
+#include "LiveLinkRecordingRangeHelpers.h"
+
 class ILiveLinkClient;
 struct FLiveLinkRecordingData;
 class FRunnableThread;
@@ -56,6 +58,25 @@ public:
 	/** Stop playback and restore the previous settings. */
 	void Eject(TFunction<void()> CompletionCallback = nullptr);
 
+	/**
+	 * Eject this recording and make sure it is unloaded.
+	 * @param EjectCompletionCallback Callback after ejection occurs.
+	 * @param InRecording The specific recording to eject and unload. If null, the RecordingToPlay is used. 
+	 */
+	void EjectAndUnload(TFunction<void()> EjectCompletionCallback = nullptr, const ULiveLinkRecording* InRecording = nullptr);
+
+	/**
+	 * Completely unload a recording package.
+	 *
+	 * Optionally allow the package to be unloaded on the next tick. This is to help with ensuring the package is fully unloaded, such as if
+	 * the unload was requested during a multistep operation, like renaming the asset. When the asset is saved, the bulk data file archive is
+	 * lost, and a reload is needed to reattach it.
+	 * 
+	 * @param InPackage The package of the recording.
+	 * @param bUnloadNextTick Whether the package should unload on the next tick or now.
+	 */
+	void UnloadRecordingPackage(const TWeakObjectPtr<UPackage>& InPackage, bool bUnloadNextTick = false);
+	
 	/** Go to a specific time. */
 	void GoToTime(FQualifiedFrameTime InTime);
 	
@@ -82,6 +103,9 @@ public:
 
 	/** Retrieve the current framerate. */
 	FFrameRate GetFrameRate() const;
+
+	/** Retrieve buffered frame range. */
+	UE::LiveLinkHub::RangeHelpers::Private::TRangeArray<int32> GetBufferedFrameRanges() const;
 	
 	/** If the controller is ready for commands. */
 	bool IsReady() const
@@ -126,7 +150,7 @@ public:
 	}
 	
 	/** Delegate called when playback is finished (if recording is not set to loop). */
-	FSimpleMulticastDelegate& OnPlaybackFinished()
+	FTSSimpleMulticastDelegate& OnPlaybackFinished()
 	{
 		return PlaybackFinishedDelegate;
 	}
@@ -149,9 +173,6 @@ private:
 
 	/** Handler called when playback is finished on the playback thread. Is responsible for resetting the livelink state to what it was before we started playback. */
 	void OnPlaybackFinished_Internal();
-
-	/** When a source has been removed from Live Link Hub. */
-	void OnSourceRemoved(FGuid Guid);
 	
 	/**
 	 * Send data to the client.
@@ -168,7 +189,7 @@ private:
 	bool SyncToPlayhead();
 
 	/** Force sync to a specific frame. */
-	bool SyncToFrame(const FFrameNumber& InFrameNumber);
+	bool SyncToFrame(const FQualifiedFrameTime& InFrameTime);
 
 	/** Checks if the current playback settings indicates the recording should restart. */
 	bool ShouldRestart() const;
@@ -189,7 +210,9 @@ private:
 	/** Whether we're currently paused. */
 	std::atomic<bool> bIsPaused = false;
 	/** If the recording is playing in reverse. */
-	std::atomic<bool>bIsReverse = false;
+	std::atomic<bool> bIsReverse = false;
+	/** If the controller is destructing. */
+	std::atomic<bool> bIsDestructing = false;
 	/** The timestamp of the animation when first playing. Can be > 0 when running in reverse. */
 	std::atomic<double> StartTimestamp = 0.f;
 	/** Indicates that we're in the process of preparing the playback. Used by the OnSourceRemoved callback to make sure we don't eject during the PreparePlayback step. */
@@ -197,7 +220,7 @@ private:
 	/** LiveLinkRecording to play.  */
 	TStrongObjectPtr<ULiveLinkRecording> RecordingToPlay;
 	/** Delegate called when a recording playback is finished (if it's not looping). */
-	FSimpleMulticastDelegate PlaybackFinishedDelegate;
+	FTSSimpleMulticastDelegate PlaybackFinishedDelegate;
 	/** Preset used to rollback the hub to its previous state after playing a recording. */
 	TStrongObjectPtr<ULiveLinkPreset> RollbackPreset;
 	/** Atomic bool keeping track of whether we should loop the playback. */
@@ -221,9 +244,9 @@ private:
 	/** The playback selection end time. */
 	FQualifiedFrameTime SelectionEndTime;
 
-	/** Current framerate of the recording, sampled from the latest frame. */
-	FFrameRate CurrentFrameRate;
+	/** Packages in the process of unloading. */
+	TSet<TWeakObjectPtr<UPackage>> PackagesUnloading;
 
-	/** Delegate handle for when a source is removed. */
-	FDelegateHandle OnSourceRemovedHandle;
+	/** The last sent static frame index. Used to ensure we only send static data when necessary. */
+	TMap<FLiveLinkSubjectKey, int32> LastStaticFrameIndex;
 };

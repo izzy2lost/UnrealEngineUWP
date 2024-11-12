@@ -6,20 +6,20 @@
 #include "StateTreeEvaluatorBase.h"
 #include "StateTreeConditionBase.h"
 #include "StateTreeExecutionContext.h"
+#include "StateTreeLinker.h"
 #include "StateTreePropertyRef.h"
+#include "StateTreePropertyFunctionBase.h"
 #include "StateTreeTestTypes.generated.h"
 
 class UStateTree;
 struct FStateTreeInstanceData;
 
-
-struct FTestStateTreeExecutionContext : public FStateTreeExecutionContext
+// Test log that can be passed as external data.
+USTRUCT()
+struct FStateTreeTestLog
 {
-	FTestStateTreeExecutionContext(UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData)
-		: FStateTreeExecutionContext(InOwner, InStateTree, InInstanceData)
-	{
-	}
-	
+	GENERATED_BODY()
+
 	struct FLogItem
 	{
 		FLogItem() = default;
@@ -27,16 +27,44 @@ struct FTestStateTreeExecutionContext : public FStateTreeExecutionContext
 		FName Name;
 		FString Message; 
 	};
-	TArray<FLogItem> LogItems;
+	TArray<FLogItem> Items;
 	
 	void Log(const FName& Name, const FString& Message)
 	{
-		LogItems.Emplace(Name, Message);
+		Items.Emplace(Name, Message);
 	}
+};
+
+struct FTestStateTreeExecutionContext : public FStateTreeExecutionContext
+{
+	
+	FTestStateTreeExecutionContext(UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData)
+		: FStateTreeExecutionContext(InOwner, InStateTree, InInstanceData)
+	{
+		// Handle getting pointer to the test log.
+		FStateTreeDataView TestLogView(TBaseStructure<FStateTreeTestLog>::Get(), (uint8*)&Log);
+		
+		CollectExternalDataDelegate = FOnCollectStateTreeExternalData::CreateLambda(
+			[TestLogView](const FStateTreeExecutionContext& Context, const UStateTree* StateTree, TArrayView<const FStateTreeExternalDataDesc> ExternalDataDescs, TArrayView<FStateTreeDataView> OutDataViews)
+			{
+				for (int32 Index = 0; Index < ExternalDataDescs.Num(); Index++)
+				{
+					const FStateTreeExternalDataDesc& ItemDesc = ExternalDataDescs[Index];
+					if (ItemDesc.Struct == TBaseStructure<FStateTreeTestLog>::Get())
+					{
+						OutDataViews[Index] = TestLogView;
+						break;
+					}
+				}
+				return true;
+			});
+	}
+
+	FStateTreeTestLog Log;
 
 	void LogClear()
 	{
-		LogItems.Empty();
+		Log.Items.Empty();
 	}
 
 	struct FLogOrder
@@ -46,9 +74,9 @@ struct FTestStateTreeExecutionContext : public FStateTreeExecutionContext
 		FLogOrder Then(const FName& Name, const FString& Message) const
 		{
 			int32 NextIndex = Index;
-			while (NextIndex < Context.LogItems.Num())
+			while (NextIndex < Context.Log.Items.Num())
 			{
-				const FLogItem& Item = Context.LogItems[NextIndex];
+				const FStateTreeTestLog::FLogItem& Item = Context.Log.Items[NextIndex];
 				if (Item.Name == Name && Item.Message == Message)
 				{
 					break;
@@ -58,7 +86,7 @@ struct FTestStateTreeExecutionContext : public FStateTreeExecutionContext
 			return FLogOrder(Context, NextIndex);
 		}
 
-		operator bool() const { return Index < Context.LogItems.Num(); }
+		operator bool() const { return Index < Context.Log.Items.Num(); }
 		
 		const FTestStateTreeExecutionContext& Context;
 		int32 Index = 0;
@@ -154,10 +182,18 @@ struct FTestTask_B : public FStateTreeTaskBase
 
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override
 	{
-		FTestStateTreeExecutionContext& TestContext = static_cast<FTestStateTreeExecutionContext&>(Context);
-		TestContext.Log(Name,  TEXT("EnterState"));
+		FStateTreeTestLog& TestLog = Context.GetExternalData(LogHandle);
+		TestLog.Log(Name,  TEXT("EnterState"));
 		return EStateTreeRunStatus::Running;
 	}
+
+	virtual bool Link(FStateTreeLinker& Linker) override
+	{
+		Linker.LinkExternalData(LogHandle);
+		return true;
+	}
+	
+	TStateTreeExternalDataHandle<FStateTreeTestLog> LogHandle;
 };
 
 USTRUCT()
@@ -184,26 +220,58 @@ struct FTestTask_PrintValue : public FStateTreeTaskBase
 
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override
 	{
-		FTestStateTreeExecutionContext& TestContext = static_cast<FTestStateTreeExecutionContext&>(Context);
+		FStateTreeTestLog& TestLog = Context.GetExternalData(LogHandle);
 		const FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
-		TestContext.Log(Name,  FString::Printf(TEXT("EnterState%d"), InstanceData.Value));
+		TestLog.Log(Name,  FString::Printf(TEXT("EnterState%d"), InstanceData.Value));
 		return EStateTreeRunStatus::Running;
 	}
 
 	virtual void ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override
 	{
-		FTestStateTreeExecutionContext& TestContext = static_cast<FTestStateTreeExecutionContext&>(Context);
+		FStateTreeTestLog& TestLog = Context.GetExternalData(LogHandle);
 		const FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
-		TestContext.Log(Name,  FString::Printf(TEXT("ExitState%d"), InstanceData.Value));
+		TestLog.Log(Name,  FString::Printf(TEXT("ExitState%d"), InstanceData.Value));
 	}
 
 	virtual EStateTreeRunStatus Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const override
 	{
-		FTestStateTreeExecutionContext& TestContext = static_cast<FTestStateTreeExecutionContext&>(Context);
+		FStateTreeTestLog& TestLog = Context.GetExternalData(LogHandle);
 		const FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
-		TestContext.Log(Name,  FString::Printf(TEXT("Tick%d"), InstanceData.Value));
+		TestLog.Log(Name,  FString::Printf(TEXT("Tick%d"), InstanceData.Value));
 		
 		return EStateTreeRunStatus::Running;
+	};
+
+	virtual bool Link(FStateTreeLinker& Linker) override
+	{
+		Linker.LinkExternalData(LogHandle);
+		return true;
+	}
+	
+	TStateTreeExternalDataHandle<FStateTreeTestLog> LogHandle;
+};
+
+USTRUCT()
+struct FTestTask_PrintAndResetValue : public FTestTask_PrintValue
+{
+	GENERATED_BODY()
+
+	using FTestTask_PrintValue::FTestTask_PrintValue;
+
+	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override
+	{
+		EStateTreeRunStatus Status = Super::EnterState(Context, Transition);
+		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
+		InstanceData.Value = 0;
+		return Status;
+	}
+
+	virtual EStateTreeRunStatus Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const override
+	{
+		EStateTreeRunStatus Status = Super::Tick(Context, DeltaTime);
+		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
+		InstanceData.Value = 0;
+		return Status;
 	};
 };
 
@@ -253,6 +321,14 @@ struct FTestTask_StopTree : public FStateTreeTaskBase
 		return EStateTreeRunStatus::Running;
 	};
 
+	virtual bool Link(FStateTreeLinker& Linker) override
+	{
+		Linker.LinkExternalData(LogHandle);
+		return true;
+	}
+	
+	TStateTreeExternalDataHandle<FStateTreeTestLog> LogHandle;
+	
 	/** Indicates in which phase the call to Stop should be performed. Possible values are EnterStates, ExitStats and TickStateTree */
 	UPROPERTY()
 	EStateTreeUpdatePhase Phase = EStateTreeUpdatePhase::Unset;
@@ -263,6 +339,9 @@ struct FTestTask_StandInstanceData
 {
 	GENERATED_BODY()
 
+	UPROPERTY(EditAnywhere, Category = "Parameter")
+	int32 Value = 0;
+	
 	UPROPERTY()
 	int32 CurrentTick = 0;
 };
@@ -282,8 +361,8 @@ struct FTestTask_Stand : public FStateTreeTaskBase
 
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override
 	{
-		FTestStateTreeExecutionContext& TestContext = static_cast<FTestStateTreeExecutionContext&>(Context);
-		TestContext.Log(Name, TEXT("EnterState"));
+		FStateTreeTestLog& TestLog = Context.GetExternalData(LogHandle);
+		TestLog.Log(Name, TEXT("EnterState"));
 
 		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 		
@@ -296,34 +375,34 @@ struct FTestTask_Stand : public FStateTreeTaskBase
 
 	virtual void ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override
 	{
-		FTestStateTreeExecutionContext& TestContext = static_cast<FTestStateTreeExecutionContext&>(Context);
+		FStateTreeTestLog& TestLog = Context.GetExternalData(LogHandle);
 
 		if (Transition.CurrentRunStatus == EStateTreeRunStatus::Succeeded)
 		{
-			TestContext.Log(Name, TEXT("ExitSucceeded"));
+			TestLog.Log(Name, TEXT("ExitSucceeded"));
 		}
 		else if (Transition.CurrentRunStatus == EStateTreeRunStatus::Failed)
 		{
-			TestContext.Log(Name, TEXT("ExitFailed"));
+			TestLog.Log(Name, TEXT("ExitFailed"));
 		}
 		else if (Transition.CurrentRunStatus == EStateTreeRunStatus::Stopped)
 		{
-			TestContext.Log(Name, TEXT("ExitStopped"));
+			TestLog.Log(Name, TEXT("ExitStopped"));
 		}
 		
-		TestContext.Log(Name, TEXT("ExitState"));
+		TestLog.Log(Name, TEXT("ExitState"));
 	}
 
 	virtual void StateCompleted(FStateTreeExecutionContext& Context, const EStateTreeRunStatus CompletionStatus, const FStateTreeActiveStates& CompletedActiveStates) const override
 	{
-		FTestStateTreeExecutionContext& TestContext = static_cast<FTestStateTreeExecutionContext&>(Context);
-		TestContext.Log(Name, TEXT("StateCompleted"));
+		FStateTreeTestLog& TestLog = Context.GetExternalData(LogHandle);
+		TestLog.Log(Name, TEXT("StateCompleted"));
 	}
 	
 	virtual EStateTreeRunStatus Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const override
 	{
-		FTestStateTreeExecutionContext& TestContext = static_cast<FTestStateTreeExecutionContext&>(Context);
-		TestContext.Log(Name, TEXT("Tick"));
+		FStateTreeTestLog& TestLog = Context.GetExternalData(LogHandle);
+		TestLog.Log(Name, TEXT("Tick"));
 
 		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
 		
@@ -332,6 +411,14 @@ struct FTestTask_Stand : public FStateTreeTaskBase
 		return (InstanceData.CurrentTick >= TicksToCompletion) ? TickCompletionResult : EStateTreeRunStatus::Running;
 	};
 
+	virtual bool Link(FStateTreeLinker& Linker) override
+	{
+		Linker.LinkExternalData(LogHandle);
+		return true;
+	}
+	
+	TStateTreeExternalDataHandle<FStateTreeTestLog> LogHandle;
+	
 	UPROPERTY(EditAnywhere, Category = Parameter)
 	int32 TicksToCompletion = 1;
 
@@ -376,6 +463,15 @@ struct FStateTreeTestRunContext
 	int32 Count = 0;
 };
 
+
+USTRUCT()
+struct FStateTreeTest_PropertyStructA
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "")
+	int32 A = 0;
+};
 
 USTRUCT()
 struct FStateTreeTest_PropertyStructB
@@ -520,4 +616,35 @@ struct FStateTreeTest_PropertyCopyObjects
 
 	UPROPERTY(EditAnywhere, Category = "")
 	TSoftClassPtr<UObject> SoftClass;
+};
+
+USTRUCT()
+struct FTestPropertyFunction_InstanceData
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	int32 Input = 0;
+
+	UPROPERTY()
+	int32 Result = 0;
+};
+
+USTRUCT()
+struct FTestPropertyFunction : public FStateTreePropertyFunctionBase
+{
+	GENERATED_BODY()
+
+	using FInstanceDataType = FTestPropertyFunction_InstanceData;
+
+	FTestPropertyFunction() = default;
+	FTestPropertyFunction(const FName InName) { Name = InName; }
+	
+	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
+
+	virtual void Execute(FStateTreeExecutionContext& Context) const override
+	{
+		FTestPropertyFunction_InstanceData& InstanceData = Context.GetInstanceData<FTestPropertyFunction_InstanceData>(*this);
+		InstanceData.Result = InstanceData.Input + 1;
+	}
 };

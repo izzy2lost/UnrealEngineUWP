@@ -112,41 +112,47 @@ uint32 FLightPrimitiveInteraction::GetMemoryPoolSize()
 	return GLightPrimitiveInteractionAllocator.GetAllocatedSize();
 }
 
-void FLightPrimitiveInteraction::Create(FLightSceneInfo* LightSceneInfo,FPrimitiveSceneInfo* PrimitiveSceneInfo)
+FLightPrimitiveInteraction::FShouldCreateResult FLightPrimitiveInteraction::ShouldCreate(FLightSceneInfo* LightSceneInfo, FPrimitiveSceneInfo* PrimitiveSceneInfo)
 {
-	LLM_SCOPE(ELLMTag::SceneRender);
-
-	// Attach the light to the primitive's static meshes.
-	bool bDynamic = true;
-	bool bRelevant = false;
-	bool bIsLightMapped = true;
-	bool bShadowMapped = false;
+	FShouldCreateResult Result;
 
 	// Determine the light's relevance to the primitive.
 	check(PrimitiveSceneInfo->Proxy && LightSceneInfo->Proxy);
-	PrimitiveSceneInfo->Proxy->GetLightRelevance(LightSceneInfo->Proxy, bDynamic, bRelevant, bIsLightMapped, bShadowMapped);
+	PrimitiveSceneInfo->Proxy->GetLightRelevance(LightSceneInfo->Proxy, Result.bDynamic, Result.bRelevant, Result.bIsLightMapped, Result.bShadowMapped);
 
 	// Mobile renders stationary and dynamic local lights as dynamic
-	bDynamic |= (PrimitiveSceneInfo->Scene->GetShadingPath() == EShadingPath::Mobile && bShadowMapped && LightSceneInfo->Proxy->IsLocalLight());
+	Result.bDynamic |= (PrimitiveSceneInfo->Scene->GetShadingPath() == EShadingPath::Mobile && Result.bShadowMapped && LightSceneInfo->Proxy->IsLocalLight());
 
-	if (bRelevant && bDynamic
+	if (Result.bRelevant && Result.bDynamic
 		// Don't let lights with static shadowing or static lighting affect primitives that should use static lighting, but don't have valid settings (lightmap res 0, etc)
 		// This prevents those components with invalid lightmap settings from causing lighting to remain unbuilt after a build
 		&& !(LightSceneInfo->Proxy->HasStaticShadowing() && PrimitiveSceneInfo->Proxy->HasStaticLighting() && !PrimitiveSceneInfo->Proxy->HasValidSettingsForStaticLighting()))
 	{
-		const bool bTranslucentObjectShadow = LightSceneInfo->Proxy->CastsTranslucentShadows() && PrimitiveSceneInfo->Proxy->CastsVolumetricTranslucentShadow();
-		const bool bInsetObjectShadow = 
+		Result.bTranslucentObjectShadow = LightSceneInfo->Proxy->CastsTranslucentShadows() && PrimitiveSceneInfo->Proxy->CastsVolumetricTranslucentShadow();
+		Result.bInsetObjectShadow = 
 			// Currently only supporting inset shadows on directional lights, but could be made to work with any whole scene shadows
 			LightSceneInfo->Proxy->GetLightType() == LightType_Directional
 			&& PrimitiveSceneInfo->Proxy->CastsInsetShadow();
 
 		// Movable directional lights determine shadow relevance dynamically based on the view and CSM settings. Interactions are only required for per-object cases.
-		if (LightSceneInfo->Proxy->GetLightType() != LightType_Directional || LightSceneInfo->Proxy->HasStaticShadowing() || bTranslucentObjectShadow || bInsetObjectShadow)
+		if (LightSceneInfo->Proxy->GetLightType() != LightType_Directional || LightSceneInfo->Proxy->HasStaticShadowing() || Result.bTranslucentObjectShadow || Result.bInsetObjectShadow)
 		{
-			// Create the light interaction.
-			FLightPrimitiveInteraction* Interaction = new FLightPrimitiveInteraction(LightSceneInfo, PrimitiveSceneInfo, bDynamic, bIsLightMapped, bShadowMapped, bTranslucentObjectShadow, bInsetObjectShadow);
-		} //-V773
+			Result.bShouldCreate = true;
+		}
 	}
+
+	return Result;
+}
+
+void FLightPrimitiveInteraction::Create(FLightSceneInfo* LightSceneInfo,FPrimitiveSceneInfo* PrimitiveSceneInfo)
+{
+	LLM_SCOPE(ELLMTag::SceneRender);
+
+	FShouldCreateResult Result = ShouldCreate(LightSceneInfo, PrimitiveSceneInfo);
+	if (Result.bShouldCreate)
+	{
+		FLightPrimitiveInteraction* Interaction = new FLightPrimitiveInteraction(LightSceneInfo, PrimitiveSceneInfo, Result.bDynamic, Result.bIsLightMapped, Result.bShadowMapped, Result.bTranslucentObjectShadow, Result.bInsetObjectShadow);
+	} //-V773
 }
 
 void FLightPrimitiveInteraction::Destroy(FLightPrimitiveInteraction* LightPrimitiveInteraction)
@@ -158,11 +164,11 @@ extern bool ShouldCreateObjectShadowForStationaryLight(const FLightSceneInfo* Li
 
 static bool MobileRequiresStaticMeshUpdateOnLocalLightChange(const FStaticShaderPlatform Platform)
 {
-	extern bool MobileLocalLightsUseSinglePermutation();
+	extern bool MobileLocalLightsUseSinglePermutation(EShaderPlatform);
 	
 	if (!IsMobileDeferredShadingEnabled(Platform))
 	{
-		return MobileForwardEnableLocalLights(Platform) && !MobileLocalLightsUseSinglePermutation();
+		return MobileForwardEnableLocalLights(Platform) && !MobileLocalLightsUseSinglePermutation(Platform);
 	}
 	return false;
 }
@@ -383,6 +389,7 @@ FExponentialHeightFogSceneInfo::FExponentialHeightFogSceneInfo(const UExponentia
 	Component(InComponent),
 	FogMaxOpacity(InComponent->FogMaxOpacity),
 	StartDistance(InComponent->StartDistance),
+	EndDistance(InComponent->EndDistance),
 	FogCutoffDistance(InComponent->FogCutoffDistance),
 	DirectionalInscatteringExponent(InComponent->DirectionalInscatteringExponent),
 	DirectionalInscatteringStartDistance(InComponent->DirectionalInscatteringStartDistance),
@@ -409,11 +416,13 @@ FExponentialHeightFogSceneInfo::FExponentialHeightFogSceneInfo(const UExponentia
 	VolumetricFogAlbedo = FLinearColor(InComponent->VolumetricFogAlbedo);
 	VolumetricFogEmissive = InComponent->VolumetricFogEmissive;
 
-	// Apply a scale so artists don't have to work with tiny numbers.  
-	const float UnitScale = 1.0f / 10000.0f;
-	VolumetricFogEmissive.R = FMath::Max(VolumetricFogEmissive.R * UnitScale, 0.0f);
-	VolumetricFogEmissive.G = FMath::Max(VolumetricFogEmissive.G * UnitScale, 0.0f);
-	VolumetricFogEmissive.B = FMath::Max(VolumetricFogEmissive.B * UnitScale, 0.0f);
+	// Apply a scale so artists don't have to work with tiny numbers.
+	// The is only needed because emissive is by default not weighted by the height fog density distribution. 
+	// When we run "HeightFog matches FVog" that is no longer needed.
+	const float EmissiveUnitScale = DoesProjectSupportExpFogMatchesVolumetricFog() ? 1.0f : 1.0f / 10000.0f;
+	VolumetricFogEmissive.R = FMath::Max(VolumetricFogEmissive.R * EmissiveUnitScale, 0.0f);
+	VolumetricFogEmissive.G = FMath::Max(VolumetricFogEmissive.G * EmissiveUnitScale, 0.0f);
+	VolumetricFogEmissive.B = FMath::Max(VolumetricFogEmissive.B * EmissiveUnitScale, 0.0f);
 	VolumetricFogExtinctionScale = FMath::Max(InComponent->VolumetricFogExtinctionScale, 0.0f);
 	VolumetricFogDistance = FMath::Max(InComponent->VolumetricFogStartDistance + InComponent->VolumetricFogDistance, 0.0f);
 	VolumetricFogStaticLightingScatteringIntensity = FMath::Max(InComponent->VolumetricFogStaticLightingScatteringIntensity, 0.0f);

@@ -62,7 +62,7 @@ void FElectraSamplesTextureManager::PlatformRemoveSharedTextureRef(TSharedPtr<IV
 }
 
 
-FTexture2DRHIRef FElectraSamplesTextureManager::GetRHITextureFromPlatformTexture(void* PlatformTexture)
+FTextureRHIRef FElectraSamplesTextureManager::GetRHITextureFromPlatformTexture(void* PlatformTexture)
 {
 	FScopeLock Lock(&AccessCS);
 
@@ -75,5 +75,5 @@ FTexture2DRHIRef FElectraSamplesTextureManager::GetRHITextureFromPlatformTexture
 			return PlatformGetTextureRHI(PinnedTexture.Get());
 		}
 	}
-	return FTexture2DRHIRef();
+	return FTextureRHIRef();
 }

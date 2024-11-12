@@ -4,7 +4,10 @@
 
 #include "CineCameraComponent.h"
 #include "EVCamTargetViewportID.h"
+#include "Output/Data/EViewportChangeReply.h"
+#include "Output/Data/VCamStringPrompt.h"
 #include "UI/WidgetSnapshots.h"
+#include "Util/OutputProviderUtils.h"
 #include "Widgets/VPFullScreenUserWidget.h"
 #include "VCamOutputProviderBase.generated.h"
 
@@ -26,24 +29,23 @@ class FLevelEditorViewportClient;
 class ISceneViewExtension;
 #endif
 
-namespace UE::VCamCore
-{
-	/** Result of UVCamOutputProviderBase::PreReapplyViewport */
-	enum class EViewportChangeReply : uint8
-	{
-		/**
-		 * Returned by PreReapplyViewport that the subclass wants the entire output provider to be reinitialized.
-		 * This could be returned e.g. because changing the viewport while outputting is not supported by this implementation.
-		 * Do not call PostReapplyViewport after reinitialization is performed.
-		 */
-		Reinitialize,
-		/** The viewport change will be processed by the implementation. Continue reapplying the output widget to the new target viewport and then call PostReapplyViewport.*/
-		ApplyViewportChange
-	};
-}
-
-
-UCLASS(Abstract, BlueprintType, EditInlineNew)
+/**
+ * Output providers implement methods of overlaying a widget onto a target viewport. The composition of viewport and widget is then usually streamed
+ * to an application outside the engine, e.g. via Pixel Streaming or Remote Session.
+ *
+ * To start outputting, the owning UVCamComponent must be enabled and the output provider activated.
+ *
+ * Output providers are managed by UVCamComponent, which own them and must be attached as a child to a UCineCameraComponent.
+ * Output providers have a target viewport that the widget is overlayed onto. The target viewport can be locked to the target camera, which happens when:
+ *	1. The output provider is outputting IsOutputting() == true
+ *	2. The output provider is configured to do so, either by 2.1 NeedsForceLockToViewport returning true or 2.2 UVCamComponent::ViewportLocker being configured accordingly.
+ * When a viewport is locked, the owning output provider can affect its resolution (see bUseOverrideResolution and OverrideResolution).
+ *
+ * A concept of viewport ownership is implemented in FViewportManager ensuring that at most 1 output provider affects a viewport's lock and resolution at a time;
+ * the first output provider to request lock, gets the ownership over that viewport. When lock, resolution or target viewport change, call RequestResolutionRefresh
+ * to updat the viewport state.
+ */
+UCLASS(Abstract, BlueprintType, EditInlineNew, CollapseCategories)
 class VCAMCORE_API UVCamOutputProviderBase : public UObject
 {
 	GENERATED_BODY()
@@ -80,9 +82,18 @@ public:
 	virtual void Deinitialize();
 	
 	virtual void Tick(const float DeltaTime);
-	
+
 	/** @return Whether this output provider should require the viewport to be locked to the camera in order to function correctly. */
 	virtual bool NeedsForceLockToViewport() const;
+
+	/**
+	 * Request string input from the streaming client.
+	 * Returns true if the request was handled.
+	 */
+	virtual TFuture<FVCamStringPromptResponse> PromptClientForString(const FVCamStringPromptRequest& Request)
+	{
+		return MakeFulfilledPromise<FVCamStringPromptResponse>(EVCamStringPromptResult::Unavailable).GetFuture();
+	}
 	
 	/** Temporarily disable the output.  Caller must eventually call RestoreOutput. */
 	void SuspendOutput();
@@ -107,6 +118,8 @@ public:
 	EVCamTargetViewportID GetTargetViewport() const { return TargetViewport; }
 	UFUNCTION(BlueprintCallable, Category = "Output")
 	void SetTargetViewport(EVCamTargetViewportID Value);
+	/** Uses this version in constructors (e.g. for initializing a CDO). */
+	void InitTargetViewport(EVCamTargetViewportID Value);
 	
 	UFUNCTION(BlueprintPure, Category = "Output")
 	TSubclassOf<UUserWidget> GetUMGClass() const { return UMGClass; }
@@ -118,13 +131,19 @@ public:
 	UVPFullScreenUserWidget* GetUMGWidget() { return UMGWidget; };
 
 	/** Utility that gets the owning VCam component and gets another output provider by its index. */
-	UVCamOutputProviderBase* GetOtherOutputProviderByIndex(int32 Index) const;
-
+	UVCamOutputProviderBase* GetOtherOutputProviderByIndex(int32 Index) const { return UE::VCamCore::GetOtherOutputProviderByIndex(*this, Index); }
 	/** Gets the index of this output provider in the owning UVCamComponent::OutputProviders array. */
-	int32 FindOwnIndexInOwner() const;
+	int32 FindOwnIndexInOwner() const { return UE::VCamCore::FindOutputProviderIndex(*this); }
 
-	/** Reapplies the override resolution or restores back to the viewport settings. */
-	void ReapplyOverrideResolution();
+	UE_DEPRECATED(5.5, "Use RequestResolutionRefresh instead")
+	void ReapplyOverrideResolution() const { RequestResolutionRefresh(); }
+	/**
+	 * Requests that at end of the frame the target viewport's resolution is updated to match this provider's settings.
+	 * 
+	 * The update will have no effect if this output provider does not have ownership over the target viewport; ownership is granted if the
+	 * viewport is locked to this output provider (either NeedsForceLockToViewport returns true or the UVCamComponent::ViewportLocker is configured accordingly).
+	 */
+	void RequestResolutionRefresh() const;
 
 	/** Gets the scene viewport identified by the currently configured TargetViewport. */
 	TSharedPtr<FSceneViewport> GetTargetSceneViewport() const { return GetSceneViewport(TargetViewport); }
@@ -132,8 +151,17 @@ public:
 	TSharedPtr<FSceneViewport> GetSceneViewport(EVCamTargetViewportID InTargetViewport) const;
 	TWeakPtr<SWindow> GetTargetInputWindow() const;
 
+	/** @return Whether it is allowed to change the activation state into bRequestActiveState. */
+	bool IsActivationChangeAllowed(bool bRequestActiveState);
+	/** @return Whether it is allowed to change the activation state into bRequestActiveState. OutReason is only set if the return value is false. */
+	bool IsActivationChangeAllowedWithReason(bool bRequestActiveState, FText& OutReason);
+	/** @return Whether it is allowed to toggle (true -> false, false -> true) the activation state of this output provider. */
+	UFUNCTION(BlueprintPure, Category = "Output")
+	bool CanToggleActivation() { return IsActivationChangeAllowed(!bIsActive); }
+
 	/** @return Whether this output provider is currently outputting (initialized, active, and owning VCam is enabled). */
 	bool IsOutputting() const { return IsActive() && IsInitialized() && IsOuterComponentEnabledAndInitialized(); }
+	UGameplayViewTargetPolicy* GetGameplayViewTargetPolicy() const { return GameplayViewTargetPolicy; }
 
 	//~ Begin UObject Interface
 	virtual void Serialize(FArchive& Ar) override;
@@ -167,6 +195,9 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, Instanced, Category = "Output", meta = (DisplayPriority = "99"))
 	TObjectPtr<UGameplayViewTargetPolicy> GameplayViewTargetPolicy;
+
+	/** Triggers all callbacks without checking whether the bIsActive flag is actually being changed. */
+	void SetActiveInternal(bool bInActive);
 	
 	/** Called when the provider is Activated */
 	virtual void OnActivate();
@@ -182,15 +213,9 @@ protected:
 	
 	/** Called by owning UVCamComponent when the target camera changes. */
 	void OnSetTargetCamera(const UCineCameraComponent* InTargetCamera);
-	
-	/** Removes the override resolution from the given viewport. */
-	void RestoreOverrideResolutionForViewport(EVCamTargetViewportID ViewportToRestore);
-	/** Applies OverrideResolution to the passed in viewport - bUseOverrideResolution was already checked. */
-	void ApplyOverrideResolutionForViewport(EVCamTargetViewportID Viewport);
 
 #if WITH_EDITOR
 	FLevelEditorViewportClient* GetTargetLevelViewportClient() const;
-	TSharedPtr<SLevelViewport> GetTargetLevelViewport() const;
 #endif
 
 	/**
@@ -216,8 +241,18 @@ protected:
 private:
 	
 	/** If set, this output provider will execute every frame */
-	UPROPERTY(EditAnywhere, BlueprintGetter = "IsActive", BlueprintSetter = "SetActive", Category = "Output", meta = (DisplayPriority = "1"))
+	UPROPERTY(EditAnywhere, BlueprintGetter = "IsActive", BlueprintSetter = "SetActive", Category = "Output", meta = (EditCondition = "CanToggleActivation", DisplayPriority = "1"))
 	bool bIsActive = false;
+	
+	/**
+	 * This makes sure that every OnActivate call is matched with exactly one OnDeactivate call, and vice versa.
+	 * These functions allocate external resources (e.g. signalling server in pixel streaming), so the calls must be matched exactly.
+	 * 
+	 * Without this variable, it would be difficult to keep track of whether we're actually active because of the many systems that set  bIsActive directly,
+	 * e.g. undo / redo and Multi-User.
+	 */
+	UPROPERTY(Transient, NonTransactional)
+	bool bIsActuallyActive = false;
 
 	/** Which viewport to use for this VCam */
 	UPROPERTY(EditAnywhere, BlueprintGetter = "GetTargetViewport", BlueprintSetter = "SetTargetViewport", Category = "Output", meta = (DisplayPriority = "2"))
@@ -231,11 +266,11 @@ private:
 	UPROPERTY()
 	FWidgetTreeSnapshot WidgetSnapshot;
 	
-	UPROPERTY(Transient)
+	UPROPERTY(Transient, NonTransactional)
 	bool bInitialized = false;
 
 	/** Valid when active and if UMGClass is valid. */
-	UPROPERTY(Transient)
+	UPROPERTY(Transient, NonTransactional)
 	TObjectPtr<UVPFullScreenUserWidget> UMGWidget = nullptr;
 
 #if WITH_EDITORONLY_DATA
@@ -243,8 +278,8 @@ private:
 	UPROPERTY(Transient)
 	FPostProcessSettings PostProcessSettingsForWidget;
 
-	/** Whether this object is currently being transacted */
-	UPROPERTY(Transient)
+	/** Prevents certain messages from being generated while undoing. */
+	UPROPERTY(Transient, NonTransactional)
 	bool bIsUndoing = false;
 	
 	/** Handle to ModifyViewportPostProcessSettings */
@@ -259,11 +294,16 @@ private:
 	bool bWasOutputSuspendedWhileActive = false;
 
 	/** If in a game world, these player controllers must have their view targets reverted when this output provider is deactivated. */
-	UPROPERTY(Transient)
+	UPROPERTY(Transient, NonTransactional)
 	TSet<TWeakObjectPtr<APlayerController>> PlayersWhoseViewTargetsWereSet; 
 
-	bool IsActiveAndOuterComponentAllowsActivity() const { return bIsActive && IsOuterComponentEnabledAndInitialized(); }
-	bool IsOuterComponentEnabledAndInitialized() const;
+	bool IsActiveAndOuterComponentAllowsActivity(bool bSkipGarbageCheck = false) const { return bIsActive && IsOuterComponentEnabledAndInitialized(bSkipGarbageCheck); }
+	bool IsOuterComponentEnabledAndInitialized(bool bSkipGarbageCheck = false) const;
+
+	/** Calls OnActivate, it it has not yet been.  */
+	void HandleCallingOnActivate();
+	/** Calls OnDeactivate, it it has not yet been.  */
+	void HandleCallingOnDeactivate();
 
 #if WITH_EDITOR
 	/** Passed to FEditorViewportClient::ViewModifiers whenever DisplayType == EVPWidgetDisplayType::PostProcessWithBlendMaterial. */
@@ -275,7 +315,4 @@ private:
 	void StopDetectAndSnapshotWhenConnectionsChange();
 	void OnConnectionReinitialized(TWeakObjectPtr<UVCamWidget> Widget);
 #endif
-
-	void ConditionallySetUpGameplayViewTargets();
-	void ConditionallyCleanUpGameplayViewTargets();
 };

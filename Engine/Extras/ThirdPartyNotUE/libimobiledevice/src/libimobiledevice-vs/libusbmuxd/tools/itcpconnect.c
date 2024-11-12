@@ -142,9 +142,9 @@ static void *run_ctos_loop(void *arg)
 			break;
 		} else {
 			// send to local socket
-			fprintf(stderr, "sending %d bytes >>", recv_len);
-			fwrite(buffer, 1, recv_len, stderr);
-			fprintf(stderr, "<<\n");
+//			fprintf(stderr, "sending %d bytes >>", recv_len);
+//			fwrite(buffer, 1, recv_len, stderr);
+//			fprintf(stderr, "<<\n");
 			sent = socket_send(cdata->sfd, buffer, recv_len);
 			if (sent < recv_len) {
 				if (sent <= 0) {
@@ -167,7 +167,7 @@ static void *run_ctos_loop(void *arg)
 	return NULL;
 }
 
-static void *acceptor_thread()
+static int acceptor_thread(char* send_string)
 {
 	usbmuxd_device_info_t *dev_list = NULL;
 	usbmuxd_device_info_t *dev = NULL;
@@ -183,13 +183,13 @@ static void *acceptor_thread()
 		if ((count = usbmuxd_get_device_list(&dev_list)) < 0) {
 			fprintf(stderr, "Connecting to usbmuxd failed, terminating.\n");
 			free(dev_list);
-			return NULL;
+			return -1;
 		}
 
 		if (dev_list == NULL || dev_list[0].handle == 0) {
 			fprintf(stderr, "No connected device found, terminating.\n");
 			free(dev_list);
-			return NULL;
+			return -1;
 		}
 
 		int i;
@@ -207,7 +207,7 @@ static void *acceptor_thread()
 	if (dev == NULL || dev->handle == 0) {
 		fprintf(stderr, "No connected/matching device found, disconnecting client.\n");
 		free(dev_list);
-		return NULL;
+		return -1;
 	}
 
 	struct client_data cdata;
@@ -227,12 +227,12 @@ static void *acceptor_thread()
 			memcpy(&saddr->sa_data[0], (char*)dev->conn_data+2, 26);
 #else
 			fprintf(stderr, "ERROR: Got an IPv6 address but this system doesn't support IPv6\n");
-			return NULL;
+			return -1;
 #endif
 		}
 		else {
 			fprintf(stderr, "Unsupported address family 0x%02x\n", ((char*)dev->conn_data)[1]);
-			return NULL;
+			return -1;
 		}
 		char addrtxt[48];
 		addrtxt[0] = '\0';
@@ -247,9 +247,21 @@ static void *acceptor_thread()
 		cdata.sfd = usbmuxd_connect(dev->handle, device_port);
 	}
 	free(dev_list);
-	if (cdata.sfd < 0) {
+	if (cdata.sfd <= 0) {
 		fprintf(stderr, "Error connecting to device: %s\n", strerror(-cdata.sfd));
-	} else {
+		return -1;
+	} 
+
+	if (send_string != NULL)
+	{
+		int sent = socket_send(cdata.sfd, send_string, strlen(send_string));
+		if (sent <=0 ) {
+			fprintf(stderr, "send failed: %s\n", strerror(errno));
+			return -1;
+		}
+	}
+	else
+	{
 		cdata.stop_ctos = 0;
 
 #ifdef WIN32
@@ -261,11 +273,9 @@ static void *acceptor_thread()
 #endif
 	}
 
-	if (cdata.sfd > 0) {
-		socket_close(cdata.sfd);
-	}
+	socket_close(cdata.sfd);
 
-	return NULL;
+	return 0;
 }
 
 static void print_usage(int argc, char **argv, int is_error)
@@ -278,6 +288,7 @@ static void print_usage(int argc, char **argv, int is_error)
 	  "  -u, --udid UDID    target specific device by UDID\n" \
 	  "  -n, --network      connect to network device\n" \
 	  "  -l, --local        connect to USB device (default)\n" \
+	  "  -s, --send STRING	send string STRING directly and do not wait for stdin.\n"
 	  "  -h, --help         prints usage information\n" \
 	  "  -d, --debug        increase debug level\n" \
 	  "\n" \
@@ -289,8 +300,19 @@ static void print_usage(int argc, char **argv, int is_error)
 
 int main(int argc, char **argv)
 {
+	char* send_string = NULL;
 	int arg;
 	for (arg = 1; arg < argc; arg++) {
+		if (!strcmp(argv[arg], "-s") || !strcmp(argv[arg], "--send")) {
+			arg++;
+			if (!argv[arg] || !*argv[arg]) {
+				fprintf(stderr, "ERROR: STRING must not be empty!\n");
+				print_usage(argc, argv, 1);
+				return 2;
+			}
+			send_string = argv[arg];
+			continue;
+		}
 		if (!strcmp(argv[arg], "-d") || !strcmp(argv[arg], "--debug")) {
 			libusbmuxd_set_debug_level(++debug_level);
 			continue;
@@ -353,11 +375,11 @@ int main(int argc, char **argv)
 	signal(SIGPIPE, SIG_IGN);
 #endif
 
-	acceptor_thread();
+	int result = acceptor_thread(send_string);
 
 	free(device_udid);
 
-	fprintf(stderr, "Exiting.\n");
+	fprintf(stderr, "Exiting, error code %d.\n", result);
 
-	return 0;
+	return result;
 }

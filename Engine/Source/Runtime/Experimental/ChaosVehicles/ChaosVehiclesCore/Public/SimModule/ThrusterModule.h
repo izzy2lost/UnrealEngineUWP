@@ -44,14 +44,13 @@ namespace Chaos
 	/// A vehicle component that transmits torque from one source to another, i.e. from an engine or differential to wheels
 	///
 	/// </summary>
-	class CHAOSVEHICLESCORE_API FThrusterSimModule : public ISimulationModuleBase, public TSimModuleSettings<FThrusterSettings>
+	class CHAOSVEHICLESCORE_API FThrusterSimModule : public ISimulationModuleBase, public TSimModuleSettings<FThrusterSettings>, public TSimulationModuleTypeable<FThrusterSimModule>
 	{
 	public:
+		DEFINE_CHAOSSIMTYPENAME(FThrusterSimModule);
 		FThrusterSimModule(const FThrusterSettings& Settings);
 
-		virtual TSharedPtr<FModuleNetData> GenerateNetData(int NodeArrayIndex) const { return nullptr; }
-
-		virtual eSimType GetSimType() const { return eSimType::Thruster; }
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(const int32 NodeArrayIndex) const override { return nullptr; }
 
 		virtual const FString GetDebugName() const { return TEXT("Thruster"); }
 

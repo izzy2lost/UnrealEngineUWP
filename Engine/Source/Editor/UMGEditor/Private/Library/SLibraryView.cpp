@@ -156,6 +156,12 @@ TSharedRef<SWidget> SLibraryView::ConstructViewOptions()
 		{
 			for (int32 EnumValue = (int32)EThumbnailSize::Tiny; EnumValue < (int32)EThumbnailSize::MAX; ++EnumValue)
 			{
+#if !UE_CONTENTBROWSER_NEW_STYLE
+				if ((EThumbnailSize)EnumValue == EThumbnailSize::XLarge)
+				{
+					continue;
+				}
+#endif
 				SubMenu.AddMenuEntry(
 					SAssetView::ThumbnailSizeToDisplayName((EThumbnailSize)EnumValue),
 					FText::GetEmpty(),
@@ -202,7 +208,6 @@ void SLibraryView::Construct(const FArguments& InArgs, TSharedPtr<FWidgetBluepri
 	FilterHandler->SetGetChildrenDelegate(LibraryFilterHandler::FOnGetChildren::CreateRaw(this, &SLibraryView::OnGetChildren));
 
 	SAssignNew(WidgetTemplatesView, STreeView< TSharedPtr<FWidgetViewModel> >)
-		.ItemHeight(1.0f)
 		.SelectionMode(ESelectionMode::SingleToggle)
 		.OnGenerateRow(this, &SLibraryView::OnGenerateWidgetTemplateLibrary)
 		.OnGetChildren(FilterHandler.ToSharedRef(), &LibraryFilterHandler::OnGetFilteredChildren)
@@ -216,7 +221,7 @@ void SLibraryView::Construct(const FArguments& InArgs, TSharedPtr<FWidgetBluepri
 		SNew(SVerticalBox)
 
 		+ SVerticalBox::Slot()
-		.Padding(4)
+		.Padding(4.0f)
 		.AutoHeight()
 		[
 			SNew(SHorizontalBox)
@@ -230,10 +235,10 @@ void SLibraryView::Construct(const FArguments& InArgs, TSharedPtr<FWidgetBluepri
 			]
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
-			.Padding(2, 0, 0, 0)
+			.Padding(2.0f, 0.0f, 0.0f, 0.0f)
 			[
 				SNew(SComboButton)
-				.ContentPadding(0)
+				.ContentPadding(0.0f)
 				.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
 				.HasDownArrow(false)
 				.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ViewOptions")))
@@ -255,15 +260,15 @@ void SLibraryView::Construct(const FArguments& InArgs, TSharedPtr<FWidgetBluepri
 		[
 			SNew(SBorder)
 			.BorderImage(FAppStyle::Get().GetBrush("Brushes.Recessed"))
-			.Padding(0)
+			.Padding(0.0f)
 			[
 				SNew(SScrollBox)
-				.ScrollBarPadding(FMargin(2.0, 0))
+				.ScrollBarPadding(FMargin(2.0f, 0.0f))
 				+SScrollBox::Slot()
 				[
 					SNew(SBorder)
 					.BorderImage(FAppStyle::Get().GetBrush("Brushes.Recessed"))
-					.Padding(0)
+					.Padding(0.0f)
 					[
 						WidgetTemplatesView.ToSharedRef()
 					]

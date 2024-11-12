@@ -77,6 +77,7 @@ public:
 	public:
 		SLATE_SLOT_BEGIN_ARGS(FSlot, TBasicLayoutWidgetSlot<FSlot>)
 			SLATE_ARGUMENT(TOptional<FSizeParam>, SizeParam)
+			TAttribute<float> _MinSize;
 			TAttribute<float> _MaxSize;
 
 			/** The widget's DesiredSize will be used as the space required. */
@@ -85,12 +86,33 @@ public:
 				_SizeParam = FAuto();
 				return Me();
 			}
+
 			/** The available space will be distributed proportionately. */
 			FSlotArguments& FillSize(TAttribute<float> InStretchCoefficient)
 			{
 				_SizeParam = FStretch(MoveTemp(InStretchCoefficient));
 				return Me();
 			}
+			
+			/**
+			 * The widget's content size is adjusted proportionally to fit the available space.
+			 * The slots size starts at DesiredSize, and a slot with coefficient of 2 will get adjusted twice as much as slot with coefficient 1 to fit the available space.
+			 * @param InStretchCoefficient Stretch coefficient for this slot.
+			 * @param InShrinkStretchCoefficient If specified, this stretch coefficient is used when the slots is shrinking below desired size. Otherwise InStretchCoefficient is used for both shrink and grow.  
+			 */
+			FSlotArguments& FillContentSize(TAttribute<float> InStretchCoefficient, TAttribute<float> InShrinkStretchCoefficient = TAttribute<float>())
+			{
+				_SizeParam = FStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient));
+				return Me();
+			}
+
+			/** Set the min size in SlateUnit this slot can be. */
+			FSlotArguments& MinSize(TAttribute<float> InMinHeight)
+			{
+				_MinSize = MoveTemp(InMinHeight);
+				return Me();
+			}
+
 			/** Set the max size in SlateUnit this slot can be. */
 			FSlotArguments& MaxSize(TAttribute<float> InMaxHeight)
 			{
@@ -104,6 +126,8 @@ public:
 			: TBasicLayoutWidgetSlot<FSlot>(HAlign_Fill, VAlign_Fill)
 			, SizeRule(FSizeParam::SizeRule_Auto)
 			, SizeValue(*this, 1.f)
+			, ShrinkSizeValue(*this, 1.f)
+			, MinSize(*this, 0.0f)
 			, MaxSize(*this, 0.0f)
 		{ }
 
@@ -122,16 +146,50 @@ public:
 			return SizeValue.Get();
 		}
 
+		/**
+		 * Get the size parameter for the space rule, used when the slot size is shrinking below desired size.
+		 * Used for size rule SizeRule_StretchContent.
+		 */
+		float GetShrinkSizeValue() const
+		{
+			return ShrinkSizeValue.Get();
+		}
+
+		/** Get the min size the slot can be.*/
+		float GetMinSize() const
+		{
+			return MinSize.Get();
+		}
+		
 		/** Get the max size the slot can be.*/
 		float GetMaxSize() const
 		{
 			return MaxSize.Get();
 		}
 
-		/** Set the size Param of the slot, It could be a FStretch or a FAuto. */
+		/** Set the size Param of the slot, It could be a FStretch, FStretchContent, or a FAuto. */
 		void SetSizeParam(FSizeParam InSizeParam)
 		{
 			SizeRule = InSizeParam.SizeRule;
+
+			// ShrinkSizeValue is only used for StretchContent.
+			// If ShrinkValue is not set, make it equal to the Value. 
+			if (SizeRule == FSizeParam::SizeRule_StretchContent)
+			{
+				if (InSizeParam.ShrinkValue.IsSet())
+				{
+					ShrinkSizeValue.Assign(*this, MoveTemp(InSizeParam.ShrinkValue));
+				}
+				else
+				{
+					ShrinkSizeValue.Assign(*this, InSizeParam.Value); // Make copy, let SizeValue use move.
+				}
+			}
+			else
+			{
+				ShrinkSizeValue.Set(*this, 1.f); // Reset
+			}
+
 			SizeValue.Assign(*this, MoveTemp(InSizeParam.Value));
 		}
 
@@ -145,6 +203,23 @@ public:
 		void SetSizeToStretch(TAttribute<float> StretchCoefficient)
 		{
 			SetSizeParam(FStretch(MoveTemp(StretchCoefficient)));
+		}
+
+		/**
+		 * The widget's content size is adjusted proportionally to fit the available space.
+		 * The slots size starts at DesiredSize, and a slot with coefficient of 2 will get adjusted twice as much as slot with coefficient 1 to fit the available space.
+		 * @param InStretchCoefficient Stretch coefficient for this slot.
+		 * @param InShrinkStretchCoefficient If specified, this stretch coefficient is used when the slots is shrinking below desired size. Otherwise InStretchCoefficient is used for both shrink and grow.  
+		 */
+		void SetSizeToStretchContent(TAttribute<float> InStretchCoefficient, TAttribute<float> InShrinkStretchCoefficient = TAttribute<float>())
+		{
+			SetSizeParam(FStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient)));
+		}
+
+		/** Set the min size in SlateUnit this slot can be. */
+		void SetMinSize(TAttribute<float> InMinSize)
+		{
+			MinSize.Assign(*this, MoveTemp(InMinSize));
 		}
 
 		/** Set the max size in SlateUnit this slot can be. */
@@ -165,8 +240,17 @@ public:
 		 /** The sizing rule to use. */
 		FSizeParam::ESizeRule SizeRule;
 
+		/** Flag indicating if the ShrinkSizeValue value is set. */
+		bool bIsShrinkSizeValueSet;
+		
 		/** The actual value this size parameter stores. */
 		typename TBasicLayoutWidgetSlot<FSlot>::template TSlateSlotAttribute<float> SizeValue;
+
+		/** The actual value this size parameter stores, used for shrinking (negative if not defined, use SizeValue). */
+		typename TBasicLayoutWidgetSlot<FSlot>::template TSlateSlotAttribute<float> ShrinkSizeValue;
+
+		/** The min size that this slot can be */
+		typename TBasicLayoutWidgetSlot<FSlot>::template TSlateSlotAttribute<float> MinSize;
 
 		/** The max size that this slot can be (0 if no max) */
 		typename TBasicLayoutWidgetSlot<FSlot>::template TSlateSlotAttribute<float> MaxSize;
@@ -187,7 +271,9 @@ public:
 		, _BackPadScrolling(false)
 		, _FrontPadScrolling(false)
 		, _AnimateWheelScrolling(false)
+		, _ScrollAnimationInterpSpeed(15.f)
 		, _WheelScrollMultiplier(1.f)
+		, _EnableTouchScrolling(true)
 		, _NavigationDestination(EDescendantScrollDestination::IntoView)
 		, _NavigationScrollPadding(0.0f)
 		, _ScrollWhenFocusChanges(EScrollWhenFocusChanges::NoScroll)
@@ -231,7 +317,11 @@ public:
 
 		SLATE_ARGUMENT(bool, AnimateWheelScrolling);
 
+		SLATE_ARGUMENT(float, ScrollAnimationInterpSpeed);
+
 		SLATE_ARGUMENT(float, WheelScrollMultiplier);
+
+		SLATE_ARGUMENT(bool, EnableTouchScrolling);
 
 		SLATE_ARGUMENT(EDescendantScrollDestination, NavigationDestination);
 
@@ -254,6 +344,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SScrollBox();
+	SLATE_API virtual ~SScrollBox();
 
 	/** @return a new slot. Slots contain children for SScrollBox */
 	static SLATE_API FSlot::FSlotArguments Slot();
@@ -264,8 +355,18 @@ public:
 	/** Adds a slot to SScrollBox */
 	SLATE_API FScopedWidgetSlotArguments AddSlot();
 
-	/** Removes a slot at the specified location */
-	SLATE_API void RemoveSlot( const TSharedRef<SWidget>& WidgetToRemove );
+	/** Insert a slot at a given position. */
+	SLATE_API FScopedWidgetSlotArguments InsertSlot(int32 Index);
+
+	/** Returns the slot at the given index. */
+	SLATE_API const FSlot& GetSlot(int32 SlotIndex) const;
+	SLATE_API FSlot& GetSlot(int32 SlotIndex);
+
+	/** Removes the corresponding widget from the set of slots if it exists. */
+	SLATE_API void RemoveSlot(const TSharedRef<SWidget>& WidgetToRemove);
+
+	/** @return the number of slots. */
+	SLATE_API int32 NumSlots() const;
 
 	/** Removes all children from the box */
 	SLATE_API void ClearChildren();
@@ -280,7 +381,12 @@ public:
 
 	SLATE_API void SetAnimateWheelScrolling(bool bInAnimateWheelScrolling);
 
+	SLATE_API void SetScrollingAnimationInterpolationSpeed(float NewScrollingAnimationInterpolationSpeed);
+
 	SLATE_API void SetWheelScrollMultiplier(float NewWheelScrollMultiplier);
+
+	/** Enables/disables being able to scroll using touch input. */
+	SLATE_API void SetIsTouchScrollingEnabled(const bool bInEnableTouchScrolling);
 	
 	SLATE_API void SetScrollWhenFocusChanges(EScrollWhenFocusChanges NewScrollWhenFocusChanges);
 
@@ -439,7 +545,7 @@ protected:
 	/** Scrolls or begins scrolling a widget into view, only valid to call when we have layout geometry. */
 	SLATE_API bool InternalScrollDescendantIntoView(const FGeometry& MyGeometry, const TSharedPtr<SWidget>& WidgetToFind, bool InAnimateScroll = true, EDescendantScrollDestination InDestination = EDescendantScrollDestination::IntoView, float Padding = 0);
 
-	/** returns widget that can receive keyboard focus or nullprt **/
+	/** returns widget that can receive keyboard focus or nullptr **/
 	SLATE_API TSharedPtr<SWidget> GetKeyboardFocusableWidget(TSharedPtr<SWidget> InWidget);
 
 	/** The panel which stacks the child slots */
@@ -468,12 +574,6 @@ protected:
 
 	/** Whether to permit overscroll on this scroll box */
 	EAllowOverscroll AllowOverscroll;
-
-#if WITH_EDITORONLY_DATA
-	/** Padding to the scrollbox */
-	UE_DEPRECATED(5.0, "ScrollBarPadding is deprecated, Use SetScrollBarPadding")
-	FMargin ScrollBarPadding;
-#endif
 
 	/** Whether to back pad this scroll box, allowing user to scroll backward until child contents are no longer visible */
 	bool BackPadScrolling;
@@ -527,6 +627,12 @@ protected:
 	/** Multiplier applied to each click of the scroll wheel (applied alongside the global scroll amount) */
 	float WheelScrollMultiplier = 1.f;
 
+	/** True to allow scrolling by using touch input. */
+	bool bEnableTouchScrolling = true;
+
+	/** The speed of interpolation for the scrolling animation */
+	float ScrollingAnimationInterpolationSpeed = 15.f;
+
 	/** Whether to animate wheel scrolling */
 	bool bAnimateWheelScrolling : 1;
 
@@ -572,9 +678,6 @@ public:
 	: Children(this)
 	{
 	}
-
-	UE_DEPRECATED(5.0, "Direct construction of FSlot is deprecated")
-	void Construct(const FArguments& InArgs, const TArray<SScrollBox::FSlot*>& InSlots);
 
 	void Construct(const FArguments& InArgs, TArray<SScrollBox::FSlot::FSlotArguments> InSlots);
 

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "IESTextureManager.h"
 #include "Shader.h"
@@ -129,6 +129,10 @@ public:
 		ShaderPrint::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 
 		OutEnvironment.SetDefine(TEXT("SHADER_DEBUG"), 1);
+	}
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return EShaderPermutationPrecacheRequest::NotPrecached;
 	}
 };
 
@@ -267,8 +271,6 @@ static void AddSlotsPassCS(
 		const FIntVector DispatchCount = FComputeShaderUtils::GetGroupCount(FIntVector(Parameters->AtlasResolution.X, Parameters->AtlasResolution.Y, SlotCount), FIntVector(8, 8, 1));
 		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("IESAtlas::AddTexture"), ComputeShader, Parameters, DispatchCount);
 	}
-
-	GraphBuilder.UseExternalAccessMode(OutAtlas, ERHIAccess::SRVMask);
 }
 
 class FIESAtlasAddTexturePS : public FGlobalShader
@@ -604,6 +606,12 @@ void UpdateAtlasTexture(FRDGBuilder& GraphBuilder, const FStaticShaderPlatform S
 		FRDGTextureRef AtlasTexture = GraphBuilder.RegisterExternalTexture(GIESTextureManager.AtlasTexture);
 		AddSlotsPass(GraphBuilder, ShaderPlatform, ShaderMap, RefreshSlots, AtlasTexture);
 		GIESTextureManager.bHasPendingRefreshes = false;
+	}
+
+	// If the atlas was registered into RDG make sure it gets transitioned to external access on all pipes.
+	if (FRDGTexture* AtlasTexture = GraphBuilder.FindExternalTexture(GIESTextureManager.AtlasTexture))
+	{
+		GraphBuilder.UseExternalAccessMode(AtlasTexture, ERHIAccess::SRVMask, ERHIPipeline::All);
 	}
 }
 

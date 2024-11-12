@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
 #include "HLOD/HLODProxyDesc.h"
+#include "HLOD/HLODSetup.h"
 #include "Materials/Material.h"
 
 #if WITH_EDITOR
@@ -30,11 +31,13 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(HLODProxy)
 
+DEFINE_LOG_CATEGORY_STATIC(LogHLODProxy, Log, All);
+
 #if WITH_EDITOR
 
 void UHLODProxy::SetMap(const UWorld* InMap)
 {
-	OwningMap = InMap;
+	OwningMap = const_cast<UWorld*>(InMap);
 }
 
 TSoftObjectPtr<UWorld> UHLODProxy::GetMap() const
@@ -442,26 +445,41 @@ uint32 UHLODProxy::GetCRC(UStaticMeshComponent* InComponent, uint32 InCRC, const
 	ComponentLocation = TransformComponents.TransformPosition(ComponentLocation);
 	ComponentRotation = TransformComponents.TransformRotation(ComponentRotation.Quaternion()).Rotator();
 	AppendRoundedTransform(ComponentRotation, ComponentLocation, ComponentScale, Ar);
+	UE_LOG(LogHLODProxy, VeryVerbose, TEXT("         - Transform = %x"), Ar.GetCrc());
 
 	// Include other relevant properties
 	Ar << InComponent->ForcedLodModel;
+	UE_LOG(LogHLODProxy, VeryVerbose, TEXT("         - ForcedLodModel = %x"), Ar.GetCrc());
+
 	Ar << InComponent->HLODBatchingPolicy;
+	UE_LOG(LogHLODProxy, VeryVerbose, TEXT("         - HLODBatchingPolicy = %x"), Ar.GetCrc());
+
 	bool bCastShadow = InComponent->CastShadow;
 	Ar << bCastShadow;
+	UE_LOG(LogHLODProxy, VeryVerbose, TEXT("         - bCastShadow = %x"), Ar.GetCrc());
+
 	bool bCastStaticShadow = InComponent->bCastStaticShadow;
 	Ar << bCastStaticShadow;
+	UE_LOG(LogHLODProxy, VeryVerbose, TEXT("         - bCastStaticShadow = %x"), Ar.GetCrc());
+
 	bool bCastDynamicShadow = InComponent->bCastDynamicShadow;
 	Ar << bCastDynamicShadow;
+	UE_LOG(LogHLODProxy, VeryVerbose, TEXT("         - bCastDynamicShadow = %x"), Ar.GetCrc());
+
 	bool bCastFarShadow = InComponent->bCastFarShadow;
 	Ar << bCastFarShadow;
+	UE_LOG(LogHLODProxy, VeryVerbose, TEXT("         - bCastFarShadow = %x"), Ar.GetCrc());
+
 	int32 Width, Height;
 	InComponent->GetLightMapResolution(Width, Height);
 	Ar << Width;
 	Ar << Height;
+	UE_LOG(LogHLODProxy, VeryVerbose, TEXT("         - LightMapResolution = %x"), Ar.GetCrc());
 
 	if (!InComponent->GetCustomPrimitiveData().Data.IsEmpty())
 	{
 		Ar << InComponent->GetCustomPrimitiveData();
+		UE_LOG(LogHLODProxy, VeryVerbose, TEXT("         - CustomPrimitiveData = %x"), Ar.GetCrc());
 	}
 	
 	// incorporate vertex colors
@@ -470,6 +488,7 @@ uint32 UHLODProxy::GetCRC(UStaticMeshComponent* InComponent, uint32 InCRC, const
 		if(LODInfo.OverrideVertexColors)
 		{
 			Ar.Serialize((uint8*)LODInfo.OverrideVertexColors->GetVertexData(), LODInfo.OverrideVertexColors->GetNumVertices() * LODInfo.OverrideVertexColors->GetStride());
+			UE_LOG(LogHLODProxy, VeryVerbose, TEXT("         - OverrideVertexColors = %x"), Ar.GetCrc());
 		}
 	}
 
@@ -479,15 +498,22 @@ uint32 UHLODProxy::GetCRC(UStaticMeshComponent* InComponent, uint32 InCRC, const
 		for (const FInstancedStaticMeshInstanceData& InstanceData : ISMC->PerInstanceSMData)
 		{
 			AppendRoundedTransform(FTransform(InstanceData.Transform), Ar);
+			UE_LOG(LogHLODProxy, VeryVerbose, TEXT("         - Instance Transform = %x"), Ar.GetCrc());
 		}
 
 		Ar << ISMC->PerInstanceSMCustomData;
+		UE_LOG(LogHLODProxy, VeryVerbose, TEXT("         - PerInstanceSMCustomData = %x"), Ar.GetCrc());
+
 		Ar << ISMC->InstancingRandomSeed;
+		UE_LOG(LogHLODProxy, VeryVerbose, TEXT("         - InstancingRandomSeed = %x"), Ar.GetCrc());
 
 		for (FInstancedStaticMeshRandomSeed& ISMCRandomSeed : ISMC->AdditionalRandomSeeds)
 		{
 			Ar << ISMCRandomSeed.StartInstanceIndex;
+			UE_LOG(LogHLODProxy, VeryVerbose, TEXT("         - StartInstanceIndex = %x"), Ar.GetCrc());
+
 			Ar << ISMCRandomSeed.RandomSeed;
+			UE_LOG(LogHLODProxy, VeryVerbose, TEXT("         - RandomSeed = %x"), Ar.GetCrc());
 		}
 	}
 
@@ -495,7 +521,7 @@ uint32 UHLODProxy::GetCRC(UStaticMeshComponent* InComponent, uint32 InCRC, const
 }
 
 // Key that forms the basis of the HLOD proxy key. Bump this key (i.e. generate a new GUID) when you want to force a rebuild of ALL HLOD proxies
-#define HLOD_PROXY_BASE_KEY		TEXT("136F4B1AD66E47808C62C1F9CC87CC1F")
+#define HLOD_PROXY_BASE_KEY		TEXT("20D42B32B31542FDA1DAF99D4DA83601")
 
 FName UHLODProxy::GenerateKeyForActor(const ALODActor* LODActor, bool bMustUndoLevelTransform)
 {
@@ -647,7 +673,7 @@ FName UHLODProxy::GenerateKeyForActor(const ALODActor* LODActor, bool bMustUndoL
 		// Append all components CRCs
 		for (uint32 ComponentCRC : ComponentsCRCs)
 		{
-			CRC = HashCombine(CRC, ComponentCRC);
+			CRC = HashCombineFast(CRC, ComponentCRC);
 		}
 
 		Key += TEXT("_");

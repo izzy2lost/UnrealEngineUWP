@@ -90,7 +90,7 @@ void FUserGeneratedContentLocalizationDescriptorDetails::CustomizeNativeCulture(
 		]
 		.ValueContent()
 		[
-			SNew(SComboButton)
+			SAssignNew(NativeCulture_ComboButton,SComboButton)
 			.ButtonContent()
 			[
 				SNew(STextBlock)
@@ -141,6 +141,11 @@ bool FUserGeneratedContentLocalizationDescriptorDetails::NativeCulture_IsCulture
 void FUserGeneratedContentLocalizationDescriptorDetails::NativeCulture_OnSelectionChanged(FCulturePtr SelectedCulture, ESelectInfo::Type SelectInfo)
 {
 	NativeCultureHandle->SetValue(SelectedCulture->GetName());
+
+	if (NativeCulture_ComboButton)
+	{
+		NativeCulture_ComboButton->SetIsOpen(false);
+	}
 }
 
 void FUserGeneratedContentLocalizationDescriptorDetails::CustomizeCulturesToGenerate(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)

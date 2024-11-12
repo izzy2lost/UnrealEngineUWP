@@ -11,6 +11,15 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ConversationInstance)
 
+namespace ConversationInstanceCVars
+{
+	static bool bShouldAbortConversationOnInvalidChoice = false;
+	static FAutoConsoleVariableRef CVarShouldAbortConversationOnInvalidChoice(
+		TEXT("Conversation.Instance.AbortConversationOnInvalidChoice"), bShouldAbortConversationOnInvalidChoice,
+		TEXT("About the conversation when an invalid choice is chosen."),
+		ECVF_Default);
+}
+
 //@TODO: CONVERSATION: Assert or otherwise guard all the Server* functions to only execute on the authority
 
 //////////////////////////////////////////////////////////////////////
@@ -295,8 +304,27 @@ void UConversationInstance::ServerAdvanceConversation(const FAdvanceConversation
 
 void UConversationInstance::OnInvalidBranchChoice(const FAdvanceConversationRequest& InChoicePicked)
 {
-	UE_LOG(LogCommonConversationRuntime, Error, TEXT("User picked option %s but it's not a legal output, aborting"), *InChoicePicked.ToString());
-	ServerAbortConversation();
+	if (ConversationInstanceCVars::bShouldAbortConversationOnInvalidChoice)
+	{
+		UE_LOG(LogCommonConversationRuntime, Error, TEXT("User picked option %s but it's not a legal output, aborting"), *InChoicePicked.ToString());
+		ServerAbortConversation();
+	}
+	else
+	{
+		UE_LOG(LogCommonConversationRuntime, Warning, TEXT("User picked option %s but it's not a legal output, ignoring"), *InChoicePicked.ToString());
+
+		// Forces the client to refresh current choices in case it is not aligned with the server
+		FConversationContext Context = FConversationContext::CreateServerContext(this, nullptr);
+		const bool bForceClientRefresh = true;
+
+		for (const FConversationParticipantEntry& ConversationParticipantEntry : GetParticipantListCopy())
+		{
+			if (UConversationParticipantComponent* ParticipantComponent = ConversationParticipantEntry.GetParticipantComponent())
+			{
+				ParticipantComponent->SendClientUpdatedChoices(Context, bForceClientRefresh);
+			}
+		}
+	}
 }
 
 void UConversationInstance::ServerAbortConversation()

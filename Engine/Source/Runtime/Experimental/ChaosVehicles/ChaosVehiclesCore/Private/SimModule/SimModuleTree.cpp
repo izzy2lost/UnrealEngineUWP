@@ -95,9 +95,18 @@ void FSimModuleTree::AppendTreeUpdates(const FSimTreeUpdates& TreeUpdates)
 	for (const FPendingModuleAdds& TreeUpdate : TreeUpdates.GetNewModules())
 	{
 		int AddIndex = -1;
-		if (int* AddIndexPtr = SimTreeMapping.Find(TreeUpdate.ParentIndex))
+		if (LocalIndex == 0)
 		{
-			AddIndex = *AddIndexPtr;
+			// the first tree update contains the actual parent index in the real tree..
+			AddIndex = TreeUpdate.ParentIndex;
+		}
+		else
+		{
+			// all other tree updates have a parent index that is relative to the first
+			if (int* AddIndexPtr = SimTreeMapping.Find(TreeUpdate.ParentIndex))
+			{
+				AddIndex = *AddIndexPtr;
+			}
 		}
 
 		TreeIndex = AddNodeBelow(AddIndex, TreeUpdate.NewSimModule);
@@ -221,40 +230,139 @@ void FSimModuleTree::Simulate(float DeltaTime, FAllInputs& Inputs, FClusterUnion
 		{
 			UpdateVehicleState(PhysicsProxy);
 
-			UpdateModuleVelocites(PhysicsProxy, Inputs.ControlInputs.InputNonZero() || Inputs.bKeepVehicleAwake);
+			UpdateModuleVelocites(PhysicsProxy, Inputs.GetControls().InputsNonZero() || Inputs.bKeepVehicleAwake);
 		}
 
 		TArray<int> RootNodes;
 		GetRootNodes(RootNodes);
 
-		for (int RootIndex : RootNodes)
+		if (SimTreeProcessingOrder == ESimTreeProcessingOrder::LeafFirstBFS)
 		{
-			SimulateNode(DeltaTime, Inputs, RootIndex, PhysicsProxy);
+			SimulateNodeBFS(DeltaTime, Inputs, RootNodes, PhysicsProxy);
 		}
+		else
+		{
+			for (int RootIndex : RootNodes)
+			{
+				SimulateNode(DeltaTime, Inputs, RootIndex, PhysicsProxy);
+			}
+		}
+
 	}
 
+}
+
+void FSimModuleTree::OnContactModification(FCollisionContactModifier& Modifier, FClusterUnionPhysicsProxy* PhysicsProxy)
+{
+	TArray<int> RootNodes;
+	GetRootNodes(RootNodes);
+	for (int RootIndex : RootNodes)
+	{
+		OnContactModificationInternal(RootIndex, Modifier, PhysicsProxy);
+	}
 }
 
 void FSimModuleTree::SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeIndex, FClusterUnionPhysicsProxy* PhysicsProxy)
 {
 	if (ISimulationModuleBase* Module = AccessSimModule(NodeIndex))
 	{
-		if (Module->IsEnabled())
+		if (SimTreeProcessingOrder == ESimTreeProcessingOrder::RootFirst || SimTreeProcessingOrder == ESimTreeProcessingOrder::ManualOverride)
 		{
-			Module->Simulate(DeltaTime, Inputs, *this);
-
-			if (IsAnimationEnabled() && Module->IsAnimationEnabled())
+			if (Module->IsEnabled())
 			{
-				Module->Animate(PhysicsProxy);
+				Module->Simulate(PhysicsProxy, DeltaTime, Inputs, *this);
+
+				if (IsAnimationEnabled() && Module->IsAnimationEnabled())
+				{
+					Module->Animate(PhysicsProxy);
+				}
 			}
 		}
 
-		for (int ChildIdx : GetChildren(NodeIndex))
+		if (SimTreeProcessingOrder != ESimTreeProcessingOrder::ManualOverride)
 		{
-			SimulateNode(DeltaTime, Inputs, ChildIdx, PhysicsProxy);
+			for (int ChildIdx : GetChildren(NodeIndex))
+			{
+				SimulateNode(DeltaTime, Inputs, ChildIdx, PhysicsProxy);
+			}
+		}
+
+		if (SimTreeProcessingOrder == ESimTreeProcessingOrder::LeafFirst)
+		{
+			if (Module->IsEnabled())
+			{
+				Module->Simulate(PhysicsProxy, DeltaTime, Inputs, *this);
+
+				if (IsAnimationEnabled() && Module->IsAnimationEnabled())
+				{
+					Module->Animate(PhysicsProxy);
+				}
+			}
+		}
+
+	}
+}
+
+void FSimModuleTree::SimulateNodeBFS(float DeltaTime, FAllInputs& Inputs, const TArray<int>& RootNodes, FClusterUnionPhysicsProxy* PhysicsProxy)
+{
+	TQueue<int> Queue;
+	TArray<int> Stack;
+
+	for (int Idx : RootNodes)
+	{
+		if (AccessSimModule(Idx))
+		{
+			Queue.Enqueue(Idx);
+		}
+	}
+
+	while (!Queue.IsEmpty())
+	{
+		int OutNode = -1;
+		Queue.Dequeue(OutNode);
+		if (OutNode >= 0)
+		{
+			Stack.Push(OutNode);
+			for (int Idx : GetChildren(OutNode))
+			{
+				if (AccessSimModule(Idx))
+				{
+					Queue.Enqueue(Idx);
+				}
+			}
+		}
+	}
+
+	while (!Stack.IsEmpty())
+	{
+		int Node = Stack.Pop();
+		if (ISimulationModuleBase* Module = AccessSimModule(Node))
+		{
+			if (Module->IsEnabled())
+			{
+				Module->Simulate(PhysicsProxy, DeltaTime, Inputs, *this);
+
+				if (IsAnimationEnabled() && Module->IsAnimationEnabled())
+				{
+					Module->Animate(PhysicsProxy);
+				}
+			}
 		}
 	}
 }
+
+void FSimModuleTree::OnContactModificationInternal(int NodeIndex, FCollisionContactModifier& Modifier, FClusterUnionPhysicsProxy* PhysicsProxy)
+{
+	if (ISimulationModuleBase* Module = AccessSimModule(NodeIndex))
+	{
+		Module->OnContactModification(Modifier, PhysicsProxy);
+	}
+	for (int ChildIdx : GetChildren(NodeIndex))
+	{
+		OnContactModificationInternal(ChildIdx, Modifier, PhysicsProxy);
+	}
+}
+
 
 void FSimModuleTree::DeleteNodesBelow(int AtIndex)
 {

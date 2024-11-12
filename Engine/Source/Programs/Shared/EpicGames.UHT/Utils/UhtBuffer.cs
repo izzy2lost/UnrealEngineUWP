@@ -57,7 +57,7 @@ namespace EpicGames.UHT.Utils
 		/// <summary>
 		/// Return true if we have a pool block
 		/// </summary>
-		public bool IsSet => _block != null;
+		public readonly bool IsSet => _block != null;
 
 		/// <summary>
 		/// Create a pool buffer
@@ -73,7 +73,7 @@ namespace EpicGames.UHT.Utils
 		/// <summary>
 		/// The backing array.  The size of the array will normally be larger than the requested size.
 		/// </summary>
-		public T[] GetBlock()
+		public readonly T[] GetBlock()
 		{
 			return _block ?? Array.Empty<T>();
 		}
@@ -111,7 +111,7 @@ namespace EpicGames.UHT.Utils
 		/// <summary>
 		/// Return the borrowed buffer to the cache
 		/// </summary>
-		public void Dispose()
+		public readonly void Dispose()
 		{
 			UhtPoolBuffers.Return<T>(Buffer);
 		}
@@ -359,7 +359,7 @@ namespace EpicGames.UHT.Utils
 		/// <summary>
 		/// Return the borrowed buffer to the cache
 		/// </summary>
-		public void Dispose()
+		public readonly void Dispose()
 		{
 			UhtBuffer.Return(Buffer);
 		}
@@ -527,7 +527,7 @@ namespace EpicGames.UHT.Utils
 		/// <summary>
 		/// Return the borrowed buffer to the cache
 		/// </summary>
-		public void Dispose()
+		public readonly void Dispose()
 		{
 			UhtByteBuffer.Return(Buffer);
 		}

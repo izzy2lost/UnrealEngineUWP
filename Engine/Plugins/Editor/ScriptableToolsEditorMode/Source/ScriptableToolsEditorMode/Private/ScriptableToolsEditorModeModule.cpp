@@ -5,14 +5,25 @@
 #include "ScriptableToolsEditorModeManagerCommands.h"
 #include "ScriptableToolsEditorModeStyle.h"
 #include "Misc/CoreDelegates.h"
+#include "UI/ScriptableToolGroupSetCustomization.h"
+#include "PropertyEditorModule.h"
 
 #define LOCTEXT_NAMESPACE "FScriptableToolsEditorModeModule"
+
+
+static const FName PropertyEditorModuleName("PropertyEditor");
+static const FName ScriptableToolGroupSetName("ScriptableToolGroupSet");
+
 
 void FScriptableToolsEditorModeModule::StartupModule()
 {
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
 
 	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FScriptableToolsEditorModeModule::OnPostEngineInit);
+
+
+	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>(PropertyEditorModuleName);
+	PropertyModule.RegisterCustomPropertyTypeLayout(ScriptableToolGroupSetName, FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FScriptableToolGroupSetCustomization::MakeInstance));
 }
 
 void FScriptableToolsEditorModeModule::ShutdownModule()

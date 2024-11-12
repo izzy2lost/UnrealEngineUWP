@@ -8,8 +8,10 @@
 #include "RHIBufferTests.h"
 #include "RHITextureTests.h"
 #include "RHIDrawTests.h"
+#include "RHIClearTextureTests.h"
 #include "RHIReadbackTests.h"
 #include "RHIReservedResourceTests.h"
+#include "RHIGraphicsUAVTests.h"
 
 #define LOCTEXT_NAMESPACE "FRHITestsModule"
 
@@ -26,6 +28,7 @@ static bool RunTests_RenderThread(FRHICommandListImmediate& RHICmdList)
 		RUN_TEST(FRHIReservedResourceTests::Test_ReservedResource_DecommitBuffer(RHICmdList));
 		RUN_TEST(FRHIReservedResourceTests::Test_ReservedResource_CreateBuffer(RHICmdList));
 		RUN_TEST(FRHIReservedResourceTests::Test_ReservedResource_CreateTexture(RHICmdList));
+		RUN_TEST(FRHIReservedResourceTests::Test_ReservedResource_CreateTextureWithMips(RHICmdList));
 		RUN_TEST(FRHIReservedResourceTests::Test_ReservedResource_CreateVolumeTexture(RHICmdList));
 	}
 
@@ -89,7 +92,15 @@ static bool RunTests_RenderThread(FRHICommandListImmediate& RHICmdList)
 	// RT Operations
 	// ------------------------------------------------
 	{
-		RUN_TEST(FRHITextureTests::Test_ClearRenderTargets(RHICmdList));
+		RUN_TEST(FRHIClearTextureTests::Test_ClearTexture(RHICmdList));
+	}
+	
+	// ------------------------------------------------
+	// Graphics UAV binding
+	// ------------------------------------------------
+	{
+		RUN_TEST(FRHIGraphicsUAVTests::Test_GraphicsUAV_PixelShader(RHICmdList));
+		RUN_TEST(FRHIGraphicsUAVTests::Test_GraphicsUAV_VertexShader(RHICmdList));
 	}
 
 	// @todo - add more tests

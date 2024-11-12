@@ -105,7 +105,9 @@ static FTransform ExtractBlendSpaceRootMotion(float StartTime, float DeltaTime, 
 {
 	FRootMotionMovementParams RootMotionParams;
 
-	if (DeltaTime != 0.f)
+	// looking for conditions that will calculate an FTransform::Identity to early out
+	const bool bIsTrivial = FMath::IsNearlyZero(DeltaTime) || CachedPlayLength < UE_SMALL_NUMBER || AccumulatedRootTransform.Num() <= 1;
+	if (!bIsTrivial)
 	{
 		bool const bPlayingBackwards = (DeltaTime < 0.f);
 
@@ -195,6 +197,9 @@ static void ProcessRootTransform(const UBlendSpace* BlendSpace, const FVector& B
 			}
 
 			AccumulatedRootTransform[SampleIdx] = RootMotionMovementParams.GetRootMotionTransform() * AccumulatedRootTransform[SampleIdx - 1];
+			
+			// keep numerical errors in check
+			AccumulatedRootTransform[SampleIdx].NormalizeRotation();
 		}
 	}
 }
@@ -217,18 +222,23 @@ static int32 GetHighestWeightSample(const TArray<struct FBlendSampleData>& Sampl
 
 //////////////////////////////////////////////////////////////////////////
 // FAssetSamplerBase
-FAnimationAssetSampler::FAnimationAssetSampler(TObjectPtr<const UAnimationAsset> InAnimationAsset, const FTransform& InRootTransformOrigin, const FVector& InBlendParameters, int32 InRootTransformSamplingRate)
+FAnimationAssetSampler::FAnimationAssetSampler(TObjectPtr<const UAnimationAsset> InAnimationAsset, const FTransform& InRootTransformOrigin, const FVector& InBlendParameters, int32 InRootTransformSamplingRate, bool bPreProcessRootTransform)
 {
-	Init(InAnimationAsset, InRootTransformOrigin, InBlendParameters, InRootTransformSamplingRate);
+	Init(InAnimationAsset, InRootTransformOrigin, InBlendParameters, InRootTransformSamplingRate, bPreProcessRootTransform);
 }
 
-void FAnimationAssetSampler::Init(TObjectPtr<const UAnimationAsset> InAnimationAsset, const FTransform& InRootTransformOrigin, const FVector& InBlendParameters, int32 InRootTransformSamplingRate)
+void FAnimationAssetSampler::Init(TObjectPtr<const UAnimationAsset> InAnimationAsset, const FTransform& InRootTransformOrigin, const FVector& InBlendParameters, int32 InRootTransformSamplingRate, bool bPreProcessRootTransform)
 {
 	AnimationAssetPtr = InAnimationAsset;
 	RootTransformOrigin = InRootTransformOrigin;
 	BlendParameters = InBlendParameters;
 	RootTransformSamplingRate = InRootTransformSamplingRate;
 	CachedPlayLength = GetPlayLength(AnimationAssetPtr.Get(), BlendParameters);
+
+	if (bPreProcessRootTransform)
+	{
+		Process();
+	}
 }
 
 bool FAnimationAssetSampler::IsInitialized() const
@@ -359,6 +369,11 @@ void FAnimationAssetSampler::ExtractPose(const FAnimExtractContext& ExtractionCt
 			BlendSpace->ResetBlendSamples(BlendSamples, ToNormalizedTime(ExtractionCtx.CurrentTime), ExtractionCtx.bLooping, false);
 			BlendSpace->GetAnimationPose(BlendSamples, ExtractionCtx, OutAnimPoseData);
 		}
+		else
+		{
+			UE_LOG(LogPoseSearch, Error, TEXT("FAnimMontageSampler::ExtractPose: UBlendSpace %s couldn't return a valid pose for BlendParameters (%.2f, %.2f, %.2f)"), *BlendSpace->GetName(), BlendParameters.X, BlendParameters.Y, BlendParameters.Z);
+			OutAnimPoseData.GetPose().ResetToRefPose();
+		}
 	}
 	else if (const UAnimMontage* AnimMontage = Cast<UAnimMontage>(AnimationAssetPtr.Get()))
 	{
@@ -393,6 +408,27 @@ void FAnimationAssetSampler::ExtractPose(float Time, FCompactPose& OutPose) cons
 	FDeltaTimeRecord DeltaTimeRecord;
 	DeltaTimeRecord.Set(Time, 0.f);
 	FAnimExtractContext ExtractionCtx(double(Time), false, DeltaTimeRecord, IsLoopable());
+
+#if WITH_EDITOR
+	ExtractionCtx.bExtractWithRootMotionProvider = false;
+#endif // WITH_EDITOR
+
+	ExtractPose(ExtractionCtx, AnimPoseData);
+}
+
+void FAnimationAssetSampler::ExtractPose(float Time, FCompactPose& OutPose, FBlendedCurve& OutCurve) const
+{
+	UE::Anim::FStackAttributeContainer UnusedAtrribute;
+	OutCurve.InitFrom(OutPose.GetBoneContainer());
+	FAnimationPoseData AnimPoseData = { OutPose, OutCurve, UnusedAtrribute };
+
+	FDeltaTimeRecord DeltaTimeRecord;
+	DeltaTimeRecord.Set(Time, 0.f);
+	FAnimExtractContext ExtractionCtx(double(Time), false, DeltaTimeRecord, IsLoopable());
+
+#if WITH_EDITOR
+	ExtractionCtx.bExtractWithRootMotionProvider = false;
+#endif // WITH_EDITOR
 
 	ExtractPose(ExtractionCtx, AnimPoseData);
 }
@@ -541,7 +577,7 @@ void FAnimationAssetSampler::Process()
 	}
 }
 
-void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TFunction<bool(UAnimNotifyState_PoseSearchBase*)> ProcessPoseSearchBase) const
+void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, const TFunction<bool(UAnimNotifyState_PoseSearchBase*)>& ProcessPoseSearchBase) const
 {
 	float SampleTime = Time;
 	FAnimNotifyContext NotifyContext;
@@ -566,7 +602,8 @@ void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TFunction
 					}
 
 					// Get notifies for highest weighted
-					BlendSample.Animation->GetAnimNotifies((SampleTime - (ExtractionInterval * 0.5f)), ExtractionInterval, NotifyContext);
+					const float ExtractionStartTime = FMath::Min(SampleTime, BlendSample.Animation->GetPlayLength()) - (ExtractionInterval * 0.5f);
+					BlendSample.Animation->GetAnimNotifies(ExtractionStartTime, ExtractionInterval, NotifyContext);
 				}
 			}
 		}
@@ -578,7 +615,8 @@ void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TFunction
 	else if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAssetPtr.Get()))
 	{
 		// getting pose search notifies in an interval of size ExtractionInterval, centered on Time
-		SequenceBase->GetAnimNotifies(Time - (ExtractionInterval * 0.5f), ExtractionInterval, NotifyContext);
+		const float ExtractionStartTime = FMath::Min(Time, SequenceBase->GetPlayLength()) - (ExtractionInterval * 0.5f);
+		SequenceBase->GetAnimNotifies(ExtractionStartTime, ExtractionInterval, NotifyContext);
 	}
 	else
 	{
@@ -588,23 +626,14 @@ void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TFunction
 	// check which notifies actually overlap Time and are of the right base type
 	for (const FAnimNotifyEventReference& EventReference : NotifyContext.ActiveNotifies)
 	{
-		const FAnimNotifyEvent* NotifyEvent = EventReference.GetNotify();
-		if (!NotifyEvent)
+		if (const FAnimNotifyEvent* NotifyEvent = EventReference.GetNotify())
 		{
-			continue;
-		}
-
-		// @todo: is this condition necessary? can we just rely on the ExtractionInterval?
-		if (NotifyEvent->GetTime() > SampleTime || (NotifyEvent->GetTime() + NotifyEvent->GetDuration()) < SampleTime)
-		{
-			continue;
-		}
-
-		if (UAnimNotifyState_PoseSearchBase* PoseSearchAnimNotify = Cast<UAnimNotifyState_PoseSearchBase>(NotifyEvent->NotifyStateClass))
-		{
-			if (!ProcessPoseSearchBase(PoseSearchAnimNotify))
+			if (UAnimNotifyState_PoseSearchBase* PoseSearchAnimNotify = Cast<UAnimNotifyState_PoseSearchBase>(NotifyEvent->NotifyStateClass))
 			{
-				break;
+				if (!ProcessPoseSearchBase(PoseSearchAnimNotify))
+				{
+					break;
+				}
 			}
 		}
 	}

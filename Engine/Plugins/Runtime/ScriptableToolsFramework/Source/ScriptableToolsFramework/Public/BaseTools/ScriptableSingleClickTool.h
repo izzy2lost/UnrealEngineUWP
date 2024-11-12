@@ -24,7 +24,7 @@ class UMouseHoverBehavior;
  * Note: Currently these interactions are only supported for mouse devices, or devices remapped to 
  * be a mouse by the UInputRouter. Also currently only the left-mouse-button is supported.
  */
-UCLASS()
+UCLASS(Hidden)
 class SCRIPTABLETOOLSFRAMEWORK_API UScriptableSingleClickTool : public UScriptableInteractiveTool, public IClickBehaviorTarget, public IHoverBehaviorTarget
 {
 	GENERATED_BODY()

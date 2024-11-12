@@ -51,7 +51,15 @@ public:
 
 	/** Allows Toolkits to push widgets to the viewport.  Passing a nullptr for the Viewport will add  or 
 	    remove the OverlayWidget to or from the ActiveViewport */
-	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, TSharedPtr<IAssetViewport> InViewport = nullptr)  {}
+	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, TSharedPtr<IAssetViewport> InViewport = nullptr)
+	{
+		AddViewportOverlayWidget(InOverlaidWidget, INDEX_NONE, InViewport);		
+	}
+
+	/** Allows Toolkits to push widgets to the viewport with a specific Z-Order.  Passing a nullptr for the Viewport will add  or 
+		remove the OverlayWidget to or from the ActiveViewport */
+	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder, TSharedPtr<IAssetViewport> InViewport = nullptr)  {}
+
 	virtual void RemoveViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, TSharedPtr<IAssetViewport> InViewport = nullptr) {}
 
 	/** Return the size of the active viewport, accounting for DPI Scale */

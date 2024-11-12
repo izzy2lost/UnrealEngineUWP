@@ -151,7 +151,6 @@ void SToolInputAssetComboPanel::Construct(const FArguments& InArgs)
 		if ( RecentAssetsProvider.IsValid() && RecentAssetData.Num() > 0 )
 		{
 			TSharedRef<SListView<TSharedPtr<FRecentAssetInfo>>> RecentsListView = SNew(SListView<TSharedPtr<FRecentAssetInfo>>)
-				.ItemHeight(FlyoutTileSize.X)
 				.Orientation(Orient_Horizontal)
 				.ListItemsSource(&RecentAssetData)
 				.OnGenerateRow(this, &SToolInputAssetComboPanel::OnGenerateWidgetForRecentList)

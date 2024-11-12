@@ -456,7 +456,7 @@ class _DetailsTabState extends State<DetailsTab> with GuardedRefreshState {
             nonUVActorPaths,
             modifierFunction: _modifyPositionalPropertyNameBasedOnClass,
           ),
-          minMaxBehaviour: PropertyMinMaxBehaviour.ignore,
+          minMaxBehaviour: PropertyMinMaxBehaviour.clamp,
         ),
         UnrealDeltaSlider(
           key: Key('Longitude'),
@@ -465,7 +465,7 @@ class _DetailsTabState extends State<DetailsTab> with GuardedRefreshState {
             nonUVActorPaths,
             modifierFunction: _modifyPositionalPropertyNameBasedOnClass,
           ),
-          minMaxBehaviour: PropertyMinMaxBehaviour.ignore,
+          minMaxBehaviour: PropertyMinMaxBehaviour.loop,
         ),
       ]);
     } else if (uvActorPaths.isNotEmpty) {

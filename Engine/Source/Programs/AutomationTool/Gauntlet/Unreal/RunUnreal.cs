@@ -16,15 +16,13 @@ namespace Gauntlet
 {
 	/*
 	 	public class RunUnreal<SourceType, OptionType> : BuildCommand
-		where SourceType : UnrealBuildSource, 
+		where SourceType : UnrealBuildSource,
 		where OptionType : UnrealTestOptions
 	 */
 
 	/// <summary>
 	/// Base class for executing Unreal tests.
-	/// 
 	/// For a full list of options see UnrealTestContextOption
-	/// 
 	/// </summary>
 	[Help("Run Unreal tests using Gauntlet")]
 	[ParamHelp("Tests", "List of gauntlet tests to run", Required = true, MultiSelectSeparator = ",")]
@@ -97,7 +95,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Execute all tests according to the provided context
 		/// </summary>
-		/// <param name="Context"></param>
+		/// <param name="ContextOptions"></param>
 		/// <returns></returns>
 		public virtual ExitCode RunTests(UnrealTestOptions ContextOptions)
 		{
@@ -311,8 +309,28 @@ namespace Gauntlet
 			// dispose now, not during shutdown gc, because this runs commands...
 			DevicePool.Instance.Dispose();
 
+			// If only running a single unreal test node, we'll direct the summary artifact link to the specific test
+			string ArtifactPath = Globals.LogDir;
+			if(AllTestNodes.Count == 1)
+			{
+				try
+				{
+					// Can't read UnrealTestNode artifact path without some ugly reflection, attempt dynamic property read instead
+					dynamic UnrealTestNode = AllTestNodes.First();
+					string UnrealArtifactPath = UnrealTestNode.ArtifactPath;
+					if (!string.IsNullOrEmpty(UnrealArtifactPath))
+					{
+						ArtifactPath = UnrealArtifactPath;
+					}
+				}
+				catch
+				{
+					// Type isn't UnrealTestNode, use default behavior
+				}
+			}
+
 			// Generate Horde summary for CIS test (maybe want to use a delegate here)
-			Horde.GenerateSummary();
+			Horde.GenerateSummary(ArtifactPath);
 
 			return AllTestsPassed ? ExitCode.Success : ExitCode.Error_TestFailure;
 		}
@@ -359,6 +377,8 @@ namespace Gauntlet
 		/// Create the list of tests specified by the context. 
 		/// </summary>
 		/// <param name="Context"></param>
+		/// <param name="DefaultParams"></param>
+		/// <param name="PlatformParams"></param>
 		/// <returns></returns>
 		IEnumerable<ITestNode> CreateTestList(UnrealTestContext Context, Params DefaultParams, ArgumentWithParams PlatformParams = null)
 		{
@@ -406,7 +426,10 @@ namespace Gauntlet
 				List<string> ModelArgs = CombinedParams.ParseValues("PerfModel", false);
 				string Model = ModelArgs.Count > 0 ? ModelArgs.Last() : string.Empty;
 
-				TestContext.Constraint = new UnrealDeviceTargetConstraint(UnrealPlatform, PerfSpec, Model);
+				List<string> DeviceNameArgs = Globals.Params.ParseValues("Device", false);
+				string DeviceName = DeviceNameArgs.Count > 0 ? DeviceNameArgs.Last() : string.Empty;
+
+				TestContext.Constraint = new UnrealDeviceTargetConstraint(UnrealPlatform, PerfSpec, Model, DeviceName);
 
 				// parse worker job id
 				List<string> WorkerJobIDArgs = CombinedParams.ParseValues("WorkerJobID", false);

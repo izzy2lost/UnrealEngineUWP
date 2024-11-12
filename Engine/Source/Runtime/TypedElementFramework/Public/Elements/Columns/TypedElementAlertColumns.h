@@ -22,7 +22,7 @@ enum class FTypedElementAlertColumnType : uint8
  * Column containing information a user needs to be alerted of.
  */
 USTRUCT(meta = (DisplayName = "Alert"))
-struct FTypedElementAlertColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementAlertColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -30,11 +30,7 @@ struct FTypedElementAlertColumn final : public FTypedElementDataStorageColumn
 	FText Message;
 
 	// Store a copy of the parent row so it's possible to detect if a row has been reparented.
-	TypedElementDataStorage::RowHandle CachedParent;
-
-	// The cycle id is 64 bits, but this column is only interested in avoiding the same update happening multiple times in the same frame
-	// therefore this is kept small to stay within the padding of the struct. This could even be reduced to a 8 bit value if needed.
-	uint16 RemoveCycleId;
+	UE::Editor::DataStorage::RowHandle CachedParent;
 
 	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
 	FTypedElementAlertColumnType AlertType;
@@ -44,20 +40,23 @@ struct FTypedElementAlertColumn final : public FTypedElementDataStorageColumn
  * Column containing a count for the number of alerts any child rows have.
  */
 USTRUCT(meta = (DisplayName = "Child alert"))
-struct FTypedElementChildAlertColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementChildAlertColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
 	// Store a copy of the parent row so it's possible to detect if a row has been reparented.
-	TypedElementDataStorage::RowHandle CachedParent;
+	UE::Editor::DataStorage::RowHandle CachedParent;
 
 	uint16 Counts[static_cast<size_t>(FTypedElementAlertColumnType::MAX)];
+};
 
-	// The cycle id is 64 bits, but this column is only interested in avoiding the same update happening multiple times in the same frame
-	// therefore this is kept small to stay within the padding of the struct. This could even be reduced to a 8 bit value if needed.
-	uint16 RemoveCycleId;
+/**
+ * Column that can be added to an alert column to have it trigger an action when the alert is clicked.
+ */
+USTRUCT(meta = (DisplayName = "Alert action"))
+struct FTypedElementAlertActionColumn final : public FEditorDataStorageColumn
+{
+	GENERATED_BODY()
 
-	// Indicates if during updating recently, this column has already decremented its parents. This is only needed to avoid repeated
-	// decrements if updating the child alerts takes more than a single frame. It's not used outside updating.
-	bool bHasDecremented;
+	TFunction<void(UE::Editor::DataStorage::RowHandle)> Action;
 };

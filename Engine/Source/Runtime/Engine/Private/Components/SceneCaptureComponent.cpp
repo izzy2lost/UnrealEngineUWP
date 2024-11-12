@@ -24,6 +24,7 @@
 #include "Components/SceneCaptureComponent2D.h"
 #include "Engine/SceneCaptureCube.h"
 #include "Components/SceneCaptureComponentCube.h"
+#include "SceneCapture/SceneCaptureInternal.h"
 #include "Components/DrawFrustumComponent.h"
 #include "Engine/PlanarReflection.h"
 #include "Components/PlanarReflectionComponent.h"
@@ -44,6 +45,9 @@
 
 static TMultiMap<TWeakObjectPtr<UWorld>, TWeakObjectPtr<USceneCaptureComponent> > SceneCapturesToUpdateMap;
 static FCriticalSection SceneCapturesToUpdateMapCS;
+
+// Tracks the latest frame a scene capture was rendered
+static uint64 GSceneCaptureLatestRenderedFrame = INDEX_NONE;
 
 static TAutoConsoleVariable<bool> CVarSCOverrideOrthographicTilingValues(
 	TEXT("r.SceneCapture.OverrideOrthographicTilingValues"),
@@ -168,6 +172,9 @@ USceneCaptureComponent::USceneCaptureComponent(const FObjectInitializer& ObjectI
 	CaptureSource = SCS_SceneColorHDR;
 	bCaptureEveryFrame = true;
 	bCaptureOnMovement = true;
+	bCaptureGpuNextRender = false;
+	bDumpGpuNextRender = false;
+	bSuppressGpuCaptureOrDump = false;
 	bAlwaysPersistRenderingState = false;
 	LODDistanceFactor = 1.0f;
 	MaxViewDistanceOverride = -1;
@@ -213,6 +220,20 @@ void USceneCaptureComponent::PostLoad()
 	{
 		RegisterDelegates();
 	}
+
+	UpdateShowFlags();
+}
+
+const TArray<FEngineShowFlagsSetting>& USceneCaptureComponent::GetShowFlagSettings() const
+{
+	return ShowFlagSettings;
+}
+
+void USceneCaptureComponent::SetShowFlagSettings(const TArray<FEngineShowFlagsSetting>& InShowFlagSettings)
+{
+	ShowFlagSettings = InShowFlagSettings;
+
+	UpdateShowFlags();
 }
 
 void USceneCaptureComponent::BeginDestroy()
@@ -328,7 +349,7 @@ void USceneCaptureComponent::ShowOnlyComponent(UPrimitiveComponent* InComponent)
 	{
 		// Backward compatibility - set PrimitiveRenderMode to PRM_UseShowOnlyList if BP / game code tries to add a ShowOnlyComponent
 		PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
-		ShowOnlyComponents.Add(InComponent);
+		ShowOnlyComponents.AddUnique(InComponent);
 	}
 }
 
@@ -342,7 +363,7 @@ void USceneCaptureComponent::ShowOnlyActorComponents(AActor* InActor, const bool
 		TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents(InActor, bIncludeFromChildActors);
 		for (UPrimitiveComponent* PrimComp : PrimitiveComponents)
 		{
-			ShowOnlyComponents.Add(PrimComp);
+			ShowOnlyComponents.AddUnique(PrimComp);
 		}
 	}
 }
@@ -427,6 +448,17 @@ void USceneCaptureComponent::UpdateShowFlags()
 	}
 }
 
+bool USceneCaptureComponent::SetFrameUpdated()
+{
+	bool bFirstCaptureThisFrame = GFrameCounter != GSceneCaptureLatestRenderedFrame;
+	bool bRepeatOfThisCapture = GFrameCounter == FrameUpdated;
+	GSceneCaptureLatestRenderedFrame = GFrameCounter;
+	FrameUpdated = GFrameCounter;
+
+	// We consider this a "multiple" capture if it's not the first capture this frame, and not a repeat of the same capture.
+	return !bFirstCaptureThisFrame && !bRepeatOfThisCapture;
+}
+
 #if WITH_EDITOR
 
 bool USceneCaptureComponent::CanEditChange(const FProperty* InProperty) const
@@ -461,6 +493,14 @@ void USceneCaptureComponent::PostEditChangeProperty(struct FPropertyChangedEvent
 	{
 		UpdateShowFlags();
 	}
+
+	// The bSuppressGpuCaptureOrDump flag needs to be set to true when bCaptureGpuNextRender or bDumpGpuNextRender are changed, to suppress
+	// GPU capture or dump for the automatic render following component re-registration.  These two properties are the only ones in the
+	// component flagged as non-transactional (so they don't go in the undo/redo stream), so we can detect them based on that flag.
+	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->HasAnyPropertyFlags(CPF_NonTransactional))
+	{
+		bSuppressGpuCaptureOrDump = true;
+	}
 }
 #endif
 
@@ -481,6 +521,12 @@ void USceneCaptureComponent::Serialize(FArchive& Ar)
 
 void USceneCaptureComponent::UpdateDeferredCaptures(FSceneInterface* Scene)
 {
+	TArray<const FSceneViewFamily*> EmptyViewFamilies;
+	SceneCaptureUpdateDeferredCapturesInternal(Scene, EmptyViewFamilies);
+}
+
+void SceneCaptureUpdateDeferredCapturesInternal(FSceneInterface* Scene, TArray<const FSceneViewFamily*>& InOutViewFamilies)
+{
 	FScopeLock ScopeLock(&SceneCapturesToUpdateMapCS);
 	UWorld* World = Scene->GetWorld();
 	if (!World || SceneCapturesToUpdateMap.Num() == 0)
@@ -492,6 +538,37 @@ void USceneCaptureComponent::UpdateDeferredCaptures(FSceneInterface* Scene)
 	// Updating others not associated with the scene would cause invalid data to be rendered into the target
 	TArray< TWeakObjectPtr<USceneCaptureComponent> > SceneCapturesToUpdate;
 	SceneCapturesToUpdateMap.MultiFind(World, SceneCapturesToUpdate);
+
+	const FSceneViewFamily* MainViewFamily = nullptr;
+	for (const FSceneViewFamily* Family : InOutViewFamilies)
+	{
+		if (Family->bIsMainViewFamily)
+		{
+			MainViewFamily = Family;
+			break;
+		}
+	}
+
+	int32 IncrementIfNotRemoved;
+	for (int32 CaptureIndex = 0; CaptureIndex < SceneCapturesToUpdate.Num(); CaptureIndex += IncrementIfNotRemoved)
+	{
+		IncrementIfNotRemoved = 1;
+
+		if (SceneCapturesToUpdate[CaptureIndex].IsValid())
+		{
+			if (USceneCaptureComponent2D* Component = Cast<USceneCaptureComponent2D>(SceneCapturesToUpdate[CaptureIndex].Get()))
+			{
+				// If this is intended to render with the main view family, and we don't have a main view family,
+				// remove it from the array so it can render with the main view family later.
+				if (Component->ShouldRenderWithMainViewFamily() && !MainViewFamily)
+				{
+					SceneCapturesToUpdate.RemoveAtSwap(CaptureIndex);
+					IncrementIfNotRemoved = 0;
+				}
+			}
+		}
+	}
+
 	SceneCapturesToUpdate.Sort([](const TWeakObjectPtr<USceneCaptureComponent>& A, const TWeakObjectPtr<USceneCaptureComponent>& B)
 	{
 		if (!A.IsValid())
@@ -509,7 +586,18 @@ void USceneCaptureComponent::UpdateDeferredCaptures(FSceneInterface* Scene)
 	{
 		if (Component.IsValid())
 		{
+			bool bIsCaptureComponent2D = Component->Is2D();
+			if (bIsCaptureComponent2D)
+			{
+				((USceneCaptureComponent2D*)Component.Get())->MainViewFamily = MainViewFamily;
+			}
+
 			Component->UpdateSceneCaptureContents(Scene);
+
+			if (bIsCaptureComponent2D)
+			{
+				((USceneCaptureComponent2D*)Component.Get())->MainViewFamily = nullptr;
+			}
 		}
 	}
 
@@ -558,7 +646,8 @@ USceneCaptureComponent2D::USceneCaptureComponent2D(const FObjectInitializer& Obj
 	AutoPlaneShift = 0.0f;
 	bUpdateOrthoPlanes = false;
 	bUseCameraHeightAsViewTarget = false;
-
+	Overscan = 0.0;
+	
 	bUseCustomProjectionMatrix = false;
 	bAutoActivate = true;
 	PrimaryComponentTick.bCanEverTick = true;
@@ -574,6 +663,11 @@ USceneCaptureComponent2D::USceneCaptureComponent2D(const FObjectInitializer& Obj
 	ClipPlaneNormal = FVector(0, 0, 1);
 	bCameraCutThisFrame = false;
 	bConsiderUnrenderedOpaquePixelAsFullyTranslucent = false;
+
+	bMainViewFamily = false;
+	bMainViewResolution = false;
+	bMainViewCamera = false;
+	bIgnoreScreenPercentage = false;
 	
 	TileID = 0;
 
@@ -695,6 +789,8 @@ void USceneCaptureComponent2D::GetCameraView(float DeltaTime, FMinimalViewInfo& 
 	OutMinimalViewInfo.bUpdateOrthoPlanes = bUpdateOrthoPlanes;
 	OutMinimalViewInfo.bUseCameraHeightAsViewTarget = bUseCameraHeightAsViewTarget;
 
+	OutMinimalViewInfo.ApplyOverscan(Overscan);
+	
 	if (bAutoCalculateOrthoPlanes)
 	{
 		if(const AActor* ViewTarget = GetOwner())
@@ -721,6 +817,9 @@ void USceneCaptureComponent2D::CaptureScene()
 	UWorld* World = GetWorld();
 	if (World && World->Scene && IsVisible() && !IsCulledByDetailMode())
 	{
+		// Explicit CaptureScene blueprint command should always capture or dump (if capture or dump flag is set)
+		bSuppressGpuCaptureOrDump = false;
+
 		// We must push any deferred render state recreations before causing any rendering to happen, to make sure that deleted resource references are updated
 		World->SendAllEndOfFrameUpdates();
 		UpdateSceneCaptureContents(World->Scene);
@@ -1321,6 +1420,9 @@ void USceneCaptureComponentCube::CaptureScene()
 	UWorld* World = GetWorld();
 	if (World && World->Scene && IsVisible() && !IsCulledByDetailMode())
 	{
+		// Explicit CaptureScene blueprint command should always capture or dump (if capture or dump flag is set)
+		bSuppressGpuCaptureOrDump = false;
+
 		// We must push any deferred render state recreations before causing any rendering to happen, to make sure that deleted resource references are updated
 		World->SendAllEndOfFrameUpdates();
 		UpdateSceneCaptureContents(World->Scene);

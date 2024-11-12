@@ -36,7 +36,7 @@ public:
 	ULearningAgentsManager(FVTableHelper& Helper);
 	virtual ~ULearningAgentsManager();
 
-	virtual void PostInitProperties() override;
+	virtual void OnRegister() override;
 
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 

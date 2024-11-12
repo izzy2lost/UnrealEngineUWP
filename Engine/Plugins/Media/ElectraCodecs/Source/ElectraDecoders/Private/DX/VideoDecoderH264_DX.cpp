@@ -6,6 +6,7 @@
 #include "DX/DecoderErrors_DX.h"
 #include "ElectraDecodersUtils.h"
 #include "Utils/MPEG/ElectraUtilsMPEGVideo.h"
+#include "Utils/MPEG/ElectraUtilsMPEGVideo_H264.h"
 
 #include "IElectraDecoderFeaturesAndOptions.h"
 #include "IElectraDecoderOutputVideo.h"
@@ -76,6 +77,8 @@ public:
 	uint64 GetUserValue() const override
 	{ return UserValue; }
 
+	EOutputType GetOutputType() const
+	{ return EOutputType::Output; }
 	int32 GetWidth() const override
 	{ return Width; }
 	int32 GetHeight() const override
@@ -99,7 +102,7 @@ public:
 	void GetExtraValues(TMap<FString, FVariant>& OutExtraValues) const override
 	{ OutExtraValues = ExtraValues; }
 	void* GetPlatformOutputHandle(EElectraDecoderPlatformOutputHandleType InTypeOfHandle) const override
-	{ 
+	{
 		switch(InTypeOfHandle)
 		{
 #if ELECTRA_HAVE_IMAGEBUFFERS
@@ -114,11 +117,11 @@ public:
 				return nullptr;
 #endif
 			case EElectraDecoderPlatformOutputHandleType::MFSample:
-				return MFSample.GetReference(); 
+				return MFSample.GetReference();
 			case EElectraDecoderPlatformOutputHandleType::DXDevice:
-				return Ctx.DxDevice.GetReference(); 
+				return Ctx.DxDevice.GetReference();
 			case EElectraDecoderPlatformOutputHandleType::DXDeviceContext:
-				return Ctx.DxDeviceContext.GetReference(); 
+				return Ctx.DxDeviceContext.GetReference();
 			default:
 				return nullptr;
 		}
@@ -196,7 +199,7 @@ public:
 		}
 		return EElectraDecoderPlatformPixelEncoding::Native;
 	}
-	
+
 	// Returns the n'th image buffer pitch
 	virtual int32 GetBufferPitchByIndex(int32 InBufferIndex) const override
 	{
@@ -337,7 +340,8 @@ private:
 
 	void PostError(HRESULT ApiReturnValue, FString Message, int32 Code);
 
-	TSharedPtr<ElectraDecodersUtil::MPEG::FISO14496_10_seq_parameter_set_data, ESPMode::ThreadSafe> GetSPSFromOptions(const TMap<FString, FVariant>& InOptions);
+	TSharedPtr<ElectraDecodersUtil::MPEG::H264::FSequenceParameterSet, ESPMode::ThreadSafe> GetSPSFromOptions(const TMap<FString, FVariant>& InOptions);
+	TSharedPtr<ElectraDecodersUtil::MPEG::H264::FSequenceParameterSet, ESPMode::ThreadSafe> GetSPSFromCSD(const TArray<uint8>& InCSD);
 
 	bool InternalDecoderCreate(const TMap<FString, FVariant>& InAdditionalOptions);
 	void InternalDecoderDestroy();
@@ -357,6 +361,7 @@ private:
 	TUniquePtr<FDecoderOutputBuffer> CurrentDecoderOutputBuffer;
 	TArray<FDecoderInput> InDecoderInput;
 	TSharedPtr<FElectraVideoDecoderOutputH264_DX, ESPMode::ThreadSafe> CurrentOutput;
+	TSharedPtr<ElectraDecodersUtil::MPEG::H264::FSequenceParameterSet, ESPMode::ThreadSafe> CurrentSPS;
 
 	EDecodeState DecodeState = EDecodeState::Decoding;
 	bool bRequireDiscontinuity = false;
@@ -395,8 +400,8 @@ FElectraVideoDecoderH264_DX::FElectraVideoDecoderH264_DX(const TMap<FString, FVa
 {
 	ResourceDelegate = InResourceDelegate;
 
-	MaxWidth = (uint32)ElectraDecodersUtil::GetVariantValueSafeU64(InOptions, TEXT("max_width"), 1920);
-	MaxHeight = (uint32)ElectraDecodersUtil::GetVariantValueSafeU64(InOptions, TEXT("max_height"), 1080);
+	MaxWidth = Align((uint32)ElectraDecodersUtil::GetVariantValueSafeU64(InOptions, TEXT("max_width"), 1920), 16u);
+	MaxHeight = Align((uint32)ElectraDecodersUtil::GetVariantValueSafeU64(InOptions, TEXT("max_height"), 1080), 16u);
 
 	MaxOutputBuffers = (uint32)ElectraDecodersUtil::GetVariantValueSafeU64(InOptions, TEXT("max_output_buffers"), 5);
 	MaxOutputBuffers += kElectraDecoderPipelineExtraFrames;
@@ -411,19 +416,18 @@ FElectraVideoDecoderH264_DX::~FElectraVideoDecoderH264_DX()
 	Close();
 }
 
-TSharedPtr<ElectraDecodersUtil::MPEG::FISO14496_10_seq_parameter_set_data, ESPMode::ThreadSafe> FElectraVideoDecoderH264_DX::GetSPSFromOptions(const TMap<FString, FVariant>& InOptions)
+TSharedPtr<ElectraDecodersUtil::MPEG::H264::FSequenceParameterSet, ESPMode::ThreadSafe> FElectraVideoDecoderH264_DX::GetSPSFromCSD(const TArray<uint8>& InCSD)
 {
-	TArray<uint8> SidebandData = ElectraDecodersUtil::GetVariantValueUInt8Array(InOptions, TEXT("csd"));
-	if (SidebandData.Num())
+	if (InCSD.Num())
 	{
-		TArray<ElectraDecodersUtil::MPEG::FNaluInfo> NALUs;
-		ElectraDecodersUtil::MPEG::ParseBitstreamForNALUs(NALUs, SidebandData.GetData(), SidebandData.Num());
+		TArray<ElectraDecodersUtil::MPEG::H264::FNaluInfo> NALUs;
+		ElectraDecodersUtil::MPEG::H264::ParseBitstreamForNALUs(NALUs, InCSD.GetData(), InCSD.Num());
 		for(int32 i=0; i<NALUs.Num(); ++i)
 		{
-			if ((NALUs[i].Type & 0x1f) == 7)
+			if (NALUs[i].Type == 7)
 			{
-				TSharedPtr<ElectraDecodersUtil::MPEG::FISO14496_10_seq_parameter_set_data, ESPMode::ThreadSafe> NewSPS = MakeShared<ElectraDecodersUtil::MPEG::FISO14496_10_seq_parameter_set_data, ESPMode::ThreadSafe>();
-				if (ElectraDecodersUtil::MPEG::ParseH264SPS(*NewSPS, ElectraDecodersUtil::AdvancePointer(SidebandData.GetData(), NALUs[i].Offset + NALUs[i].UnitLength), NALUs[i].Size))
+				TSharedPtr<ElectraDecodersUtil::MPEG::H264::FSequenceParameterSet, ESPMode::ThreadSafe> NewSPS = MakeShared<ElectraDecodersUtil::MPEG::H264::FSequenceParameterSet, ESPMode::ThreadSafe>();
+				if (ElectraDecodersUtil::MPEG::H264::ParseSequenceParameterSet(*NewSPS, ElectraDecodersUtil::AdvancePointer(InCSD.GetData(), NALUs[i].Offset + NALUs[i].UnitLength), NALUs[i].Size))
 				{
 					return NewSPS;
 				}
@@ -432,6 +436,20 @@ TSharedPtr<ElectraDecodersUtil::MPEG::FISO14496_10_seq_parameter_set_data, ESPMo
 					break;
 				}
 			}
+		}
+	}
+	return nullptr;
+}
+
+TSharedPtr<ElectraDecodersUtil::MPEG::H264::FSequenceParameterSet, ESPMode::ThreadSafe> FElectraVideoDecoderH264_DX::GetSPSFromOptions(const TMap<FString, FVariant>& InOptions)
+{
+	TArray<uint8> SidebandData = ElectraDecodersUtil::GetVariantValueUInt8Array(InOptions, TEXT("csd"));
+	if (SidebandData.Num())
+	{
+		auto NewSPS = GetSPSFromCSD(SidebandData);
+		if (NewSPS.IsValid())
+		{
+			return NewSPS;
 		}
 		LastError.Code = ERRCODE_INTERNAL_FAILED_TO_PARSE_CSD;
 		LastError.Message = TEXT("Failed to parse codec specific data");
@@ -470,9 +488,10 @@ bool FElectraVideoDecoderH264_DX::ResetToCleanStart()
 	InternalDecoderDestroy();
 	InDecoderInput.Empty();
 	CurrentOutput.Reset();
+	CurrentSPS.Reset();
 	DecodeState = EDecodeState::Decoding;
 	bRequireDiscontinuity = true;
-	
+
 	return !LastError.IsSet();
 }
 
@@ -489,6 +508,14 @@ IElectraDecoder::ECSDCompatibility FElectraVideoDecoderH264_DX::IsCompatibleWith
 	if (!DecoderTransform.IsValid())
 	{
 		return IElectraDecoder::ECSDCompatibility::Compatible;
+	}
+
+	// We need to check for a change in DPB size. If that happens the MFT needs to be reset, otherwise it may get stuck
+	// in an infinite ProcessOutput() returning MF_E_TRANSFORM_STREAM_CHANGE all the time.
+	TSharedPtr<ElectraDecodersUtil::MPEG::H264::FSequenceParameterSet, ESPMode::ThreadSafe> NewSPS(GetSPSFromOptions(CSDAndAdditionalOptions));
+	if (!CurrentSPS.IsValid() || (NewSPS.IsValid() && CurrentSPS.IsValid() && NewSPS->GetDPBSize() != CurrentSPS->GetDPBSize()))
+	{
+		return IElectraDecoder::ECSDCompatibility::DrainAndReset;
 	}
 	return IElectraDecoder::ECSDCompatibility::Drain;
 }
@@ -628,7 +655,7 @@ IElectraDecoder::EDecoderError FElectraVideoDecoderH264_DX::SendEndOfData()
 	{
 		return IElectraDecoder::EDecoderError::EndOfData;
 	}
-	
+
 	// If there is a transform send an end-of-stream and drain message.
 	if (DecoderTransform.IsValid())
 	{
@@ -666,6 +693,7 @@ IElectraDecoder::EDecoderError FElectraVideoDecoderH264_DX::Flush()
 		bRequireDiscontinuity = true;
 		InDecoderInput.Empty();
 		CurrentOutput.Reset();
+		CurrentSPS.Reset();
 	}
 	return IElectraDecoder::EDecoderError::None;
 }
@@ -714,6 +742,7 @@ IElectraDecoder::EOutputStatus FElectraVideoDecoderH264_DX::HaveOutput()
 					CurrentDecoderOutputBuffer.Reset();
 					bRequireDiscontinuity = true;
 					InDecoderInput.Empty();
+					CurrentSPS.Reset();
 					return IElectraDecoder::EOutputStatus::EndOfData;
 				}
 				else
@@ -923,6 +952,7 @@ bool FElectraVideoDecoderH264_DX::CreateInputSample(TRefCountPtr<IMFSample>& Inp
 	if ((InInputAccessUnit.Flags & EElectraDecoderFlags::IsSyncSample) != EElectraDecoderFlags::None)
 	{
 		CSD = ElectraDecodersUtil::GetVariantValueUInt8Array(InAdditionalOptions, TEXT("csd"));
+		CurrentSPS = GetSPSFromCSD(CSD);
 	}
 	InputDataSize = CSD.Num() + InInputAccessUnit.DataSize;
 	VERIFY_HR(MFCreateSample(InputSample.GetInitReference()), TEXT("Failed to create video decoder input sample"), ERRCODE_INTERNAL_FAILED_TO_CREATE_INPUT_SAMPLE);
@@ -1146,7 +1176,7 @@ bool FElectraVideoDecoderH264_DX::ConvertDecoderOutput()
 		TRefCountPtr D3D12Device(static_cast<ID3D12Device*>(PlatformDevice));
 
 		// Create the resource pool as needed...
-		if (!D3D12ResourcePool)
+		if (!D3D12ResourcePool || !D3D12ResourcePool->IsCompatibleAsBuffer(MaxOutputBuffers, MaxWidth, MaxHeight * 3 / 2, 1))
 		{
 			D3D12ResourcePool = MakeShared<FElectraMediaDecoderOutputBufferPool_DX12, ESPMode::ThreadSafe>(D3D12Device, MaxOutputBuffers, MaxWidth, MaxHeight * 3 / 2, 1);
 		}
@@ -1188,7 +1218,7 @@ bool FElectraVideoDecoderH264_DX::ConvertDecoderOutput()
 		//
 		// Post SDK 22621: direct link from MFSample to DX12 resource
 		//
-		
+
 		TRefCountPtr<IMFDXGIBuffer> DXGIBuffer;
 		if ((Result = Buffer->QueryInterface(__uuidof(IMFDXGIBuffer), (void**)DXGIBuffer.GetInitReference())) != S_OK)
 		{
@@ -1217,8 +1247,8 @@ bool FElectraVideoDecoderH264_DX::ConvertDecoderOutput()
 	{
 		//
 		// Fallback output path for pre- / none-DX12 graphics APIs
-		// 
-		
+		//
+
 		// Retain the IMFSample in the output. It is needed later in converting it for display.
 		NewOutput->Pitch = stride;
 		NewOutput->MFSample = DecodedOutputSample;

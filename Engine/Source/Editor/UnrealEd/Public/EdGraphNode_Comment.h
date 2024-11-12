@@ -48,7 +48,7 @@ public:
 	GENERATED_BODY()
 
 public:
-	UEdGraphNode_Comment(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+	UNREALED_API UEdGraphNode_Comment(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	/** Color to style comment with */
 	UPROPERTY(EditAnywhere, Category=Comment)
@@ -78,16 +78,16 @@ public:
 
 	//~ Begin UObject Interface
 	UNREALED_API static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	virtual bool IsSelectedInEditor() const override;
+	UNREALED_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	UNREALED_API virtual bool IsSelectedInEditor() const override;
 	//~ End UObject Interface
 
 	//~ Begin UEdGraphNode Interface
-	virtual void AllocateDefaultPins() override {}
+	UNREALED_API virtual void AllocateDefaultPins() override {}
 	UNREALED_API virtual FText GetTooltipText() const override;
 	UNREALED_API virtual FLinearColor GetNodeCommentColor() const override;
 	UNREALED_API virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
-	virtual bool ShouldOverridePinNames() const override { return true; }
+	UNREALED_API virtual bool ShouldOverridePinNames() const override { return true; }
 	UNREALED_API virtual FText GetPinNameOverride(const UEdGraphPin& Pin) const override;
 	UNREALED_API virtual void ResizeNode(const FVector2D& NewSize) override;
 	UNREALED_API virtual void PostPlacedNewNode() override;
@@ -111,7 +111,7 @@ public:
 	UNREALED_API const FCommentNodeSet& GetNodesUnderComment() const;
 
 	/** Return the font size of the comment */
-	virtual int32 GetFontSize() const { return FontSize; }
+	UNREALED_API virtual int32 GetFontSize() const { return FontSize; }
 
 	/** Override the default selection state of this graph node */
 	enum class ESelectionState : uint8 { Inherited, Selected, Deselected };

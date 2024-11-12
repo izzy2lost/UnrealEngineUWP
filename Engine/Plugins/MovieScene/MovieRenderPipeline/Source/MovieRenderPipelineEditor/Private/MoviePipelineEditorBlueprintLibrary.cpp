@@ -7,6 +7,7 @@
 #include "FileHelpers.h"
 #include "ObjectTools.h"
 #include "PackageTools.h"
+#include "LevelSequence.h"
 #include "MoviePipelineQueue.h"
 #include "MoviePipelineQueueSubsystem.h"
 #include "MovieRenderPipelineSettings.h"

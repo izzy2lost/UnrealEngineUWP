@@ -21,6 +21,17 @@
 class FPrecomputedLightVolumeData;
 class FPrecomputedVolumetricLightmapData;
 struct FAssetCompileData;
+struct FVolumetricLightMapGridDesc;
+
+DECLARE_LOG_CATEGORY_EXTERN(LogMapBuildDataRegistry, Log, All);
+
+#define UE_LOG_MAPBUILDATA_ENABLED 0
+
+#if UE_LOG_MAPBUILDATA_ENABLED
+#define UE_LOG_MAPBUILDDATA(...) UE_LOG(LogMapBuildDataRegistry, __VA_ARGS__)
+#else
+#define UE_LOG_MAPBUILDDATA(...) 
+#endif
 
 struct FPerInstanceLightmapData
 {
@@ -377,6 +388,32 @@ public:
 		or called by PostLoad for legacy BuildData with old EncodedData
 	*/
 	ENGINE_API void HandleLegacyEncodedCubemapData();
+
+	/** 
+	    Various helpers to access the UUMapBuildDataRegistry, necessary since the access patterns
+		are different in WorldPartition maps than in map. 
+	*/
+
+	/** Returns the associated UUMapBuildDataRegistry for an Actor Component */
+	ENGINE_API static UMapBuildDataRegistry* Get(const UActorComponent* Component);
+
+	/** Returns the associated UUMapBuildDataRegistry for an Actor */
+	ENGINE_API static UMapBuildDataRegistry* Get(const AActor* Actor);
+
+	/** Returns the associated UUMapBuildDataRegistry for a pair of Level/World */
+	ENGINE_API static UMapBuildDataRegistry* Get(ULevel* OwnerLevel, UWorld* World);
+	
+	FVolumetricLightMapGridDesc* GetVolumetricLightMapGridDesc() { return VolumetricLightMapGridDesc; } 
+	ENGINE_API void SetVolumetricLightMapGridDesc(FVolumetricLightMapGridDesc* GridDesc); 
+
+#if WITH_EDITOR
+	void RedirectToRegistry(TArray<FGuid>& ActorInstances, UMapBuildDataRegistry* Registry);
+	void RemoveRedirect(TArray<FGuid>& ActorInstances, UMapBuildDataRegistry* Registry);
+#else
+	void RemoveRegistry(UMapBuildDataRegistry* Registry);
+#endif
+
+
 private:
 #if WITH_EDITOR
 	void HandleAssetPostCompileEvent(const TArray<FAssetCompileData>& CompiledAssets);
@@ -397,6 +434,18 @@ private:
 	TArray<FLightmapResourceCluster> LightmapResourceClusters;
 
 	FRenderCommandFence DestroyFence;
+
+	FVolumetricLightMapGridDesc*	VolumetricLightMapGridDesc;
+
+	UMapBuildDataRegistry* FindRegistryWorldPartition(const AActor* Actor);
+
+#if WITH_EDITOR
+	TMap<FGuid, UMapBuildDataRegistry*> Redirects;
+	TMap<FName, int32> RedirectedRegistriesRefcount;
+#else
+	FCriticalSection PackagesToMapBuildDataLock;
+	TMap<UPackage*, UMapBuildDataRegistry*>	PackagesToMapBuildData;
+#endif
 };
 
 extern ENGINE_API FUObjectAnnotationSparse<FMeshMapBuildLegacyData, true> GComponentsWithLegacyLightmaps;

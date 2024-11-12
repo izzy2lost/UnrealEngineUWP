@@ -3,7 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Engine/MeshMerging.h"
+#include "MeshMerge/MeshProxySettings.h"
+
 
 class USkeletalMeshComponent;
 class UStaticMeshComponent;

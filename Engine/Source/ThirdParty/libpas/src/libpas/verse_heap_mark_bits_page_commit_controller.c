@@ -1,4 +1,27 @@
-/* Copyright Epic Games, Inc. All Rights Reserved. */
+/*
+ * Copyright (c) 2023-2024 Epic Games, Inc. All Rights Reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY EPIC GAMES, INC. ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL EPIC GAMES, INC. OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ */
 
 #include "pas_config.h"
 
@@ -139,8 +162,16 @@ void verse_heap_mark_bits_page_commit_controller_unlock(void)
 
 static void decommit_callback(verse_heap_mark_bits_page_commit_controller* controller)
 {
+    static const bool verbose = false;
+    
 	PAS_TESTING_ASSERT(!verse_heap_mark_bits_page_commit_controller_is_locked);
 	pas_lock_testing_assert_held(&verse_heap_mark_bits_page_commit_controller_commit_lock);
+
+    if (verbose) {
+        pas_log("Decommit looking at controller = %p, chunk_base = %p, is_committed = %s\n",
+                controller, (void*)controller->chunk_base,
+                pas_commit_mode_get_string(controller->is_committed));
+    }
 
 	if (!controller->is_committed)
 		return;
@@ -149,6 +180,10 @@ static void decommit_callback(verse_heap_mark_bits_page_commit_controller* contr
 	pas_atomic_exchange_add_uintptr(&verse_heap_mark_bits_page_commit_controller_num_committed, -1);
 	pas_atomic_exchange_add_uintptr(&verse_heap_mark_bits_page_commit_controller_num_decommitted, 1);
 
+    if (verbose) {
+        pas_log("Decommitting %p with size %zu\n",
+                (void*)controller->chunk_base, (size_t)VERSE_HEAP_PAGE_SIZE);
+    }
 	pas_page_malloc_decommit((void*)controller->chunk_base, VERSE_HEAP_PAGE_SIZE, pas_may_mmap);
 	PAS_ASSERT(!controller->is_committed);
 }

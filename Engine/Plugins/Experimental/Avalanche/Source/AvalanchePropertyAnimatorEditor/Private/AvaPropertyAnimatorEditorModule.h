@@ -18,4 +18,5 @@ protected:
 
 	FDelegateHandle OutlinerProxiesExtensionDelegateHandle;
 	FDelegateHandle OutlinerContextDelegateHandle;
+	FDelegateHandle OutlinerDropHandlerDelegateHandle;
 };

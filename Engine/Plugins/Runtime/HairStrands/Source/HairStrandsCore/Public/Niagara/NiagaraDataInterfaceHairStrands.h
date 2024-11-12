@@ -20,24 +20,17 @@ static const int32 RadiusOffset = 2;
 static const int32 ThicknessOffset = 3;
 
 struct FNDIHairStrandsData;
+struct FNDIHairStrandsInfo;
+
+FHairGroupInstance* GetHairGroupInstance(UGroomComponent* In, int32 InGroupIndex);
 
 /** Render buffers that will be used in hlsl functions */
 struct FNDIHairStrandsBuffer : public FRenderResource
 {
 	/** Set the asset that will be used to affect the buffer */
 	void Initialize(
-		const FHairStrandsRestResource*  HairStrandsRestResource, 
-		const FHairStrandsDeformedResource*  HairStrandsDeformedResource, 
-		const FHairStrandsRestRootResource* HairStrandsRestRootResource, 
-		const FHairStrandsDeformedRootResource* HairStrandsDeformedRootResource,
+		const FNDIHairStrandsInfo& In,
 		const TStaticArray<float, 32 * NumScales>& InParamsScale);
-
-	/** Set the asset that will be used to affect the buffer */
-	void Update(
-		const FHairStrandsRestResource* HairStrandsRestResource,
-		const FHairStrandsDeformedResource* HairStrandsDeformedResource,
-		const FHairStrandsRestRootResource* HairStrandsRestRootResource,
-		const FHairStrandsDeformedRootResource* HairStrandsDeformedRootResource);
 
 	/** Transfer CPU datas to GPU */
 	void Transfer(FRDGBuilder& GraphBuilder, const TStaticArray<float, 32 * NumScales>& InParamsScale);
@@ -51,26 +44,11 @@ struct FNDIHairStrandsBuffer : public FRenderResource
 	/** Get the resource name */
 	virtual FString GetFriendlyName() const override { return TEXT("FNDIHairStrandsBuffer"); }
 
-	/** Deformed position buffer in case no resource are there */
-	TRefCountPtr<FRDGPooledBuffer> DeformedPositionBuffer;
-
 	/** Bounding Box Buffer*/
 	FNiagaraPooledRWBuffer BoundingBoxBuffer;
 
 	/** Params scale buffer */
 	FNiagaraPooledRWBuffer ParamsScaleBuffer;
-
-	/** The strand asset resource from which to sample */
-	const FHairStrandsRestResource* SourceRestResources;
-
-	/** The strand deformed resource to write into */
-	const FHairStrandsDeformedResource* SourceDeformedResources;
-
-	/** The strand root resource to write into */
-	const FHairStrandsRestRootResource* SourceRestRootResources;
-	
-	/** The strand root resource to write into */
-	const FHairStrandsDeformedRootResource* SourceDeformedRootResources;
 
 	/** Scales along the strand */
 	TStaticArray<float, 32 * NumScales> ParamsScale;
@@ -83,6 +61,15 @@ struct FNDIHairStrandsBuffer : public FRenderResource
 
 	/** Mesh LOD that is being used for the root resources */
 	int32 CurrentMeshLOD = INDEX_NONE;
+
+	/** True if the internal resources (BoundingBoxBuffer/ParamsScaleBuffer) needs to be built */
+	bool bNeedResouces = false;
+
+	/** Boolean to trigger the reset */
+	bool bShouldReset = false;
+	
+	/** Counter to reset the simulation once triggered */
+	int32 ResetCount = 0;
 
 	// For debug only
 	//FRHIGPUBufferReadback* ReadbackBuffer = nullptr;
@@ -102,7 +89,10 @@ struct FNDIHairStrandsData
 	void Release();
 
 	/** Update the buffers */
-	void Update(UNiagaraDataInterfaceHairStrands* Interface, FNiagaraSystemInstance* SystemInstance, const FHairStrandsBulkData* HairStrandsDatas, UGroomAsset* GroomAsset, const int32 GroupIndex, const int32 LODIndex, const FTransform& LocalToWorld, const float DeltaSeconds);
+	void Update(
+		UNiagaraDataInterfaceHairStrands* Interface, 
+		const FNDIHairStrandsInfo& InData,
+		const float DeltaSeconds);
 
 	inline void ResetDatas()
 	{
@@ -122,8 +112,8 @@ struct FNDIHairStrandsData
 		bSkinningTransfer = false;
 		HairGroupInstSource = nullptr;
 		HairGroupInstance = nullptr;
+		HairGroupIndex = -1;
 
-		TickCount = 0;
 		ForceReset = true;
 
 		NumStrands = 0;
@@ -191,11 +181,16 @@ struct FNDIHairStrandsData
 			bSkinningTransfer = OtherDatas->bSkinningTransfer;
 			BindingType = OtherDatas->BindingType;
 			HairGroupInstSource = OtherDatas->HairGroupInstSource;
-			HairGroupInstance = OtherDatas->HairGroupInstance;
+			HairGroupInstance = nullptr;
+			HairGroupIndex = OtherDatas->HairGroupIndex;
 
-			TickCount = OtherDatas->TickCount;
+			if (HairGroupInstSource != nullptr)
+			{
+				HairGroupInstance = GetHairGroupInstance(HairGroupInstSource.Get(), HairGroupIndex);
+			}
+
 			ForceReset = OtherDatas->ForceReset;
-
+			
 			NumStrands = OtherDatas->NumStrands;
 			StrandsSize = OtherDatas->StrandsSize;
 
@@ -277,17 +272,17 @@ struct FNDIHairStrandsData
 	/** Strand size */
 	int32 StrandsSize;
 
-	/** Tick Count*/
-	int32 TickCount;
-
 	/** Force reset simulation */
 	bool ForceReset;
 
 	/** Strands Gpu buffer */
-	FNDIHairStrandsBuffer* HairStrandsBuffer;
+	FNDIHairStrandsBuffer* HairStrandsBuffer = nullptr;
+
+	/** Hair group index */
+	int32 HairGroupIndex = -1;
 
 	/** Hair group instance */
-	FHairGroupInstance* HairGroupInstance;
+	FHairGroupInstance* HairGroupInstance = nullptr;
 
 	/** Source component of the hair group instance */
 	TWeakObjectPtr<class UGroomComponent> HairGroupInstSource;
@@ -440,14 +435,7 @@ public:
 	/** Extract datas and resources */
 	void ExtractDatasAndResources(
 		FNiagaraSystemInstance* SystemInstance, 
-		FHairStrandsRestResource*& OutStrandsRestResource, 
-		FHairStrandsDeformedResource*& OutStrandsDeformedResource, 
-		FHairStrandsRestRootResource*& OutStrandsRestRootResource, 
-		FHairStrandsDeformedRootResource*& OutStrandsDeformedRootResource,
-		UGroomAsset*& OutGroomAsset,
-		int32& OutGroupIndex,
-		int32& OutLODIndex, 
-		FTransform& OutLocalToWorld);
+		FNDIHairStrandsInfo& Out);
 
 	/** Get the number of strands */
 	void GetNumStrands(FVectorVMExternalFunctionContext& Context);

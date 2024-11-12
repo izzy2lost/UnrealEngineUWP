@@ -18,9 +18,18 @@ public:
 	//~ End UAvaAttribute
 
 	//~ Begin UAvaTagAttributeBase
+	AVALANCHEATTRIBUTE_API virtual bool SetTagHandle(const FAvaTagHandle& InTagHandle) override;
+	AVALANCHEATTRIBUTE_API virtual bool ClearTagHandle(const FAvaTagHandle& InTagHandle) override;
 	AVALANCHEATTRIBUTE_API virtual bool ContainsTag(const FAvaTagHandle& InTagHandle) const override;
+	AVALANCHEATTRIBUTE_API virtual bool HasValidTagHandle() const override;
 	//~ End UAvaTagAttributeBase
 
-	UPROPERTY(EditAnywhere, Category="Attributes")
+	UFUNCTION()
+	void SetTag(const FAvaTagHandle& InTag)
+	{
+		Tag = InTag;
+	}
+
+	UPROPERTY(EditAnywhere, Setter, Category="Attributes")
 	FAvaTagHandle Tag;
 };

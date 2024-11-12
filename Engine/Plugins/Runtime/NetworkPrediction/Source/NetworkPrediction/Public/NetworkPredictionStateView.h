@@ -34,6 +34,11 @@ struct FNetworkPredictionStateView
 	void* PresentationSyncState = nullptr;
 	void* PresentationAuxState = nullptr;
 
+	// Previous presentation states: these may be used by a smoothing service to represent state that we're smoothing away from.
+	// These will not be fed back into the simulation, and they will be null in cases where there is no smoothing.
+	void* PrevPresentationSyncState = nullptr;
+	void* PrevPresentationAuxState = nullptr;
+
 	// CueDispatcher is exposed so that game code can invoke OOB cues
 	// Future versions may move this / make Invoking OOB cues go through a different API
 	FNetSimCueDispatcher* CueDispatcher = nullptr;
@@ -54,9 +59,17 @@ struct FNetworkPredictionStateView
 		PresentationAuxState = Aux;
 	}
 
+	void UpdatePrevPresentationView(void* Sync, void* Aux)
+	{
+		PrevPresentationSyncState = Sync;
+		PrevPresentationAuxState = Aux;
+	}
+	
 	void ClearPresentationView()
 	{
 		PresentationSyncState = nullptr;
 		PresentationAuxState = nullptr;
+		PrevPresentationSyncState = nullptr;
+		PrevPresentationAuxState = nullptr;
 	}
 };

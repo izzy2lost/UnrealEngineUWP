@@ -87,6 +87,24 @@ public:
 		Owner.Wait();
 	}
 
+	inline bool WaitWithTimeout(float TimeLimitSeconds)
+	{
+		if (bIsWaitingOnMeshCompilation)
+		{
+			if (!WaitForDependenciesAndBeginCacheWithTimeout(TimeLimitSeconds))
+			{
+				return false;
+			}
+		}
+
+		if (BuildTask != nullptr && !BuildTask->WaitCompletionWithTimeout(TimeLimitSeconds))
+		{
+			return false;
+		}
+
+		return Owner.Poll();
+	}
+
 	inline bool Poll()
 	{
 		if (bIsWaitingOnMeshCompilation)
@@ -123,10 +141,11 @@ private:
 
 	void BeginCacheIfDependenciesAreFree();
 	void WaitForDependenciesAndBeginCache();
+	bool WaitForDependenciesAndBeginCacheWithTimeout(float TimeLimitSeconds);
 
 	void BeginCache(const FIoHash& KeyHash);
 	void EndCache(UE::DerivedData::FCacheGetValueResponse&& Response);
-	bool BuildData(const UE::DerivedData::FSharedString& Name, const UE::DerivedData::FCacheKey& Key);
+	bool BuildData(const UE::FSharedString& Name, const UE::DerivedData::FCacheKey& Key);
 
 private:
 	friend class FNaniteDisplacedMeshAsyncBuildWorker;
@@ -154,9 +173,9 @@ FNaniteBuildAsyncCacheTask::FNaniteBuildAsyncCacheTask(
 	, WeakDisplacedMesh(&InDisplacedMesh)
 	, Parameters(InDisplacedMesh.Parameters)
 	// Once we pass the BeginCache throttling gate, we want to finish as fast as possible
-	// to avoid holding on to memory for a long time. We use the highest priority for all
-	// subsequent task.
-	, Owner(UE::DerivedData::EPriority::Highest)
+	// to avoid holding on to memory for a long time. We use the high priority since it will go fast,
+	// but also it will avoid starving the critical threads in the subsequent task.
+	, Owner(UE::DerivedData::EPriority::High)
 	, bIsWaitingOnMeshCompilation(ShouldWaitForBaseMeshCompilation())
 	, KeyHash(InKeyHash)
 {
@@ -237,7 +256,22 @@ void FNaniteBuildAsyncCacheTask::WaitForDependenciesAndBeginCache()
 	{
 		bIsWaitingOnMeshCompilation = false;
 	}
+}
 
+bool FNaniteBuildAsyncCacheTask::WaitForDependenciesAndBeginCacheWithTimeout(float TimeLimitSeconds)
+{
+	if (UNaniteDisplacedMesh* DisplacedMesh = WeakDisplacedMesh.Get())
+	{
+		if (DisplacedMesh->Parameters.BaseMesh->IsCompiling() && !DisplacedMesh->Parameters.BaseMesh->AsyncTask->WaitCompletionWithTimeout(TimeLimitSeconds))
+		{
+			return false;
+		}
+	}
+
+	// Performs any necessary cleanup now that the async task (if any) is complete
+	WaitForDependenciesAndBeginCache();
+
+	return true;
 }
 
 void FNaniteBuildAsyncCacheTask::BeginCache(const FIoHash& InKeyHash)
@@ -320,7 +354,7 @@ static FStaticMeshSourceModel& GetBaseMeshSourceModel(UStaticMesh& BaseMesh)
 	return bHasHiResSourceModel ? BaseMesh.GetHiResSourceModel() : BaseMesh.GetSourceModel(0);
 }
 
-bool FNaniteBuildAsyncCacheTask::BuildData(const UE::DerivedData::FSharedString& Name, const UE::DerivedData::FCacheKey& Key)
+bool FNaniteBuildAsyncCacheTask::BuildData(const UE::FSharedString& Name, const UE::DerivedData::FCacheKey& Key)
 {
 	using namespace UE::DerivedData;
 
@@ -486,13 +520,11 @@ bool FNaniteBuildAsyncCacheTask::BuildData(const UE::DerivedData::FSharedString&
 		InputMeshData.MaterialIndices.Empty();
 	});
 
-	TArrayView<Nanite::IBuilderModule::FOutputMeshData> OutputLODMeshData;
-
 	// Pass displaced mesh over to Nanite to build the bulk data
 	if (!NaniteBuilderModule.Build(
 			*Data->ResourcesPtr.Get(),
 			InputMeshData,
-			OutputLODMeshData,
+			nullptr, // OutFallbackMeshData
 			NaniteSettings,
 			OnFreeInputMeshData)
 		)
@@ -854,6 +886,8 @@ bool UNaniteDisplacedMesh::IsCompiling() const
 
 bool UNaniteDisplacedMesh::TryCancelAsyncTasks()
 {
+	bool bHadCachedTaskForRunningPlatform = CacheTasksByKeyHash.Contains(DataKeyHash);
+	
 	for (auto It = CacheTasksByKeyHash.CreateIterator(); It; ++It)
 	{
 		if (It->Value->Poll())
@@ -872,7 +906,29 @@ bool UNaniteDisplacedMesh::TryCancelAsyncTasks()
 		}
 	}
 	
+
+	if (bHadCachedTaskForRunningPlatform && !CacheTasksByKeyHash.Contains(DataKeyHash))
+	{
+		// Reset the cached Key for the running platform since we won't have any rendering data
+		DataKeyHash = FIoHash();
+	}
+
 	return CacheTasksByKeyHash.IsEmpty();
+}
+
+bool UNaniteDisplacedMesh::WaitForAsyncTasks(float TimeLimitSeconds)
+{
+	double StartTimeSeconds = FPlatformTime::Seconds();
+	for (auto& Pair : CacheTasksByKeyHash)
+	{
+		// Clamp to 0 as it implies polling
+		const float TimeLimit = FMath::Min(0.0f, TimeLimitSeconds - (FPlatformTime::Seconds() - StartTimeSeconds));
+		if (!Pair.Value->WaitWithTimeout(TimeLimit))
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 bool UNaniteDisplacedMesh::IsAsyncTaskComplete() const

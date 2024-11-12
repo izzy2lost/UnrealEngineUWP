@@ -6,6 +6,7 @@
 #include "Layout/Geometry.h"
 #include "MetasoundEditor.h"
 #include "MetasoundEditorGraphBuilder.h"
+#include "MetasoundEditorGraphInputNode.h"
 #include "MetasoundEditorGraphNode.h"
 #include "MetasoundEditorSettings.h"
 #include "MetasoundFrontendDocument.h"
@@ -124,10 +125,10 @@ namespace Metasound
 		{
 			using namespace Frontend;
 
-			FConstOutputHandle OutputHandle = GetReroutedOutputHandle();
-			ColorLiterals = PinValueInspectorPrivate::InitializeLiterals(GetReroutedOutputHandle()->GetDataType());
+			FConstOutputHandle ReroutedOutputHandle = GetReroutedOutputHandle();
+			ColorLiterals = PinValueInspectorPrivate::InitializeLiterals(ReroutedOutputHandle->GetDataType());
 			Update();
-			DisplayName = FGraphBuilder::GetDisplayName(*GetReroutedOutputHandle());
+			DisplayName = FGraphBuilder::GetDisplayName(*ReroutedOutputHandle);
 		}
 
 		FColorPickerArgs FMetasoundNumericDebugLineItem::InitPickerArgs()
@@ -145,7 +146,7 @@ namespace Metasound
 		{
 			if (UEdGraphPin* ReroutedOutputPin = FGraphBuilder::FindReroutedOutputPin(GraphPinObj))
 			{
-				return Cast<UMetasoundEditorGraphNode>(GraphPinObj->GetOwningNode());
+				return Cast<UMetasoundEditorGraphNode>(ReroutedOutputPin->GetOwningNode());
 			}
 
 			return nullptr;
@@ -171,7 +172,7 @@ namespace Metasound
 			return nullptr;
 		}
 
-		Frontend::FConstOutputHandle FMetasoundNumericDebugLineItem::GetReroutedOutputHandle() const
+		Frontend::FConstOutputHandle FMetasoundNumericDebugLineItem::GetConstReroutedOutputHandle() const
 		{
 			return FGraphBuilder::FindReroutedConstOutputHandleFromPin(GraphPinObj);
 		}
@@ -181,9 +182,47 @@ namespace Metasound
 			return FGraphBuilder::FindReroutedOutputHandleFromPin(GraphPinObj);
 		}
 
+		bool FMetasoundNumericDebugLineItem::GetNodeIDAndOutputName(FGuid& OutNodeID, FName& OutName) const
+		{
+			if (UEdGraphPin* ReroutedOutputPin = FGraphBuilder::FindReroutedOutputPin(GraphPinObj))
+			{
+				const UMetasoundEditorGraphNode& OutputsNode = GetReroutedNodeChecked();
+				const FMetaSoundFrontendDocumentBuilder& Builder = OutputsNode.GetBuilderChecked().GetConstBuilder();
+				if (const UMetasoundEditorGraphInputNode* InputNode = Cast<UMetasoundEditorGraphInputNode>(&OutputsNode))
+				{
+					if (const UMetasoundEditorGraphMember* Member = InputNode->GetMember())
+					{
+						OutNodeID = Member->GetMemberID();
+						if (const FMetasoundFrontendNode* RedirectedInputNode = Builder.FindNode(OutNodeID))
+						{
+							OutName = RedirectedInputNode->Interface.Outputs.Last().Name;
+							return true;
+						}
+					}
+				}
+				else
+				{
+					const FMetasoundFrontendVertexHandle VertexHandle = FGraphBuilder::GetPinVertexHandle(Builder, ReroutedOutputPin);
+					if (VertexHandle.IsSet())
+					{
+						OutNodeID = VertexHandle.NodeID;
+						if (const FMetasoundFrontendVertex* Vertex = FGraphBuilder::GetPinVertex(Builder, ReroutedOutputPin))
+						{
+							OutName = Vertex->Name;
+							return true;
+						}
+					}
+				}
+			}
+
+			OutNodeID = { };
+			OutName = { };
+			return false;
+		}
+
 		FLinearColor FMetasoundNumericDebugLineItem::GetEdgeStyleColorAtIndex(int32 InIndex) const
 		{
-			if (const FMetasoundFrontendEdgeStyle* EdgeStyle = GetEdgeStyle())
+			if (const FMetasoundFrontendEdgeStyle* EdgeStyle = FindConstEdgeStyle())
 			{
 				if (ensure(EdgeStyle->LiteralColorPairs.Num() > InIndex))
 				{
@@ -203,19 +242,17 @@ namespace Metasound
 			check(ParentObject);
 			ParentObject->Modify();
 
-			FGraphHandle GraphHandle = GetGraphHandle();
-			FMetasoundFrontendGraphStyle Style = GraphHandle->GetGraphStyle();
-
-			const FConstOutputHandle OutputHandle = GetReroutedOutputHandle();
-			const FGuid NodeID = OutputHandle->GetOwningNodeID();
-			const FName OutputName = OutputHandle->GetName();
-			Style.EdgeStyles.RemoveAllSwap([&NodeID, &OutputName](FMetasoundFrontendEdgeStyle& EdgeStyle)
+			FGuid NodeID;
+			FName OutputName;
+			if (GetNodeIDAndOutputName(NodeID, OutputName))
 			{
-				return EdgeStyle.NodeID == NodeID && EdgeStyle.OutputName == OutputName;
-			});
-
-			GraphHandle->SetGraphStyle(Style);
-			bIsValueColorizationEnabled = false;
+				if (const UMetasoundEditorGraphNode* Node = GetReroutedNode(); ensure(Node))
+				{
+					FMetaSoundFrontendDocumentBuilder& Builder = Node->GetBuilderChecked().GetBuilder();
+					Builder.RemoveEdgeStyle(NodeID, OutputName);
+					bIsValueColorizationEnabled = false;
+				}
+			}
 		}
 
 		void FMetasoundNumericDebugLineItem::EnableValueColorization()
@@ -234,27 +271,11 @@ namespace Metasound
 				{ ColorLiterals[1], FLinearColor::White }
 			};
 
-			FGraphHandle GraphHandle = GetGraphHandle();
-			FMetasoundFrontendGraphStyle Style = GraphHandle->GetGraphStyle();
-			FConstOutputHandle OutputHandle = GetReroutedOutputHandle();
-
-			const FGuid NodeID = OutputHandle->GetOwningNodeID();
-			const FName OutputName = OutputHandle->GetName();
-			FMetasoundFrontendEdgeStyle* EdgeStyle = Style.EdgeStyles.FindByPredicate([&NodeID, &OutputName](FMetasoundFrontendEdgeStyle& EdgeStyle)
-			{
-				return EdgeStyle.NodeID == NodeID && EdgeStyle.OutputName == OutputName;
-			});
-
-			if (EdgeStyle)
+			if (FMetasoundFrontendEdgeStyle* EdgeStyle = FindOrAddEdgeStyle())
 			{
 				EdgeStyle->LiteralColorPairs = MoveTemp(DefaultPairs);
 			}
-			else
-			{
-				Style.EdgeStyles.Emplace(FMetasoundFrontendEdgeStyle{ NodeID, OutputName, MoveTemp(DefaultPairs) });
-			}
 
-			GraphHandle->SetGraphStyle(Style);
 			bIsValueColorizationEnabled = true;
 		}
 
@@ -272,25 +293,13 @@ namespace Metasound
 			check(ParentObject);
 			ParentObject->Modify();
 
-			FGraphHandle GraphHandle = GetGraphHandle();
-			FMetasoundFrontendGraphStyle Style = GraphHandle->GetGraphStyle();
-
-			const FGuid NodeID = OutputHandle->GetOwningNodeID();
-			const FName OutputName = GetReroutedOutputHandle()->GetName();
-			FMetasoundFrontendEdgeStyle* EdgeStyle = Style.EdgeStyles.FindByPredicate([&NodeID, &OutputName](FMetasoundFrontendEdgeStyle& EdgeStyle)
-			{
-				return EdgeStyle.NodeID == NodeID && EdgeStyle.OutputName == OutputName;
-			});
-
-			if (EdgeStyle)
+			if (FMetasoundFrontendEdgeStyle* EdgeStyle = FindOrAddEdgeStyle())
 			{
 				if (ensure(InIndex < EdgeStyle->LiteralColorPairs.Num()))
 				{
 					EdgeStyle->LiteralColorPairs[InIndex].Color = InColor;
 				}
 			}
-
-			GraphHandle->SetGraphStyle(Style);
 		}
 
 		void FMetasoundNumericDebugLineItem::OnValueCommitted(const FText& InValueText, FMetasoundFrontendLiteral& OutNewLiteral, int32 InIndex)
@@ -307,27 +316,15 @@ namespace Metasound
 			check(ParentObject);
 			ParentObject->Modify();
 
-			const FGuid NodeID = OutputHandle->GetOwningNodeID();
-			const FName OutputName = OutputHandle->GetName();
-
-			FGraphHandle OwningGraph = GetGraphHandle();
-			FMetasoundFrontendGraphStyle Style = OwningGraph->GetGraphStyle();
-
-			bool bUpdated = false;
-			for (FMetasoundFrontendEdgeStyle& EdgeStyle : Style.EdgeStyles)
+			if (FMetasoundFrontendEdgeStyle* EdgeStyle = FindOrAddEdgeStyle())
 			{
-				if (EdgeStyle.NodeID == NodeID && EdgeStyle.OutputName == OutputName)
+				if (ensure(EdgeStyle->LiteralColorPairs.Num() > InIndex))
 				{
-					if (ensure(EdgeStyle.LiteralColorPairs.Num() > InIndex))
-					{
-						const FName DataType = OutputHandle->GetDataType();
-						PinValueInspectorPrivate::SetLiteralFromText(DataType, InValueText, OutNewLiteral);
-						EdgeStyle.LiteralColorPairs[InIndex].Value = OutNewLiteral;
-					}
+					const FName DataType = OutputHandle->GetDataType();
+					PinValueInspectorPrivate::SetLiteralFromText(DataType, InValueText, OutNewLiteral);
+					EdgeStyle->LiteralColorPairs[InIndex].Value = OutNewLiteral;
 				}
 			}
-
-			OwningGraph->SetGraphStyle(Style);
 		}
 
 		Frontend::FGraphHandle FMetasoundNumericDebugLineItem::GetGraphHandle()
@@ -336,9 +333,9 @@ namespace Metasound
 			return OutputHandle->GetOwningNode()->GetOwningGraph();
 		}
 
-		Frontend::FConstGraphHandle FMetasoundNumericDebugLineItem::GetGraphHandle() const
+		Frontend::FConstGraphHandle FMetasoundNumericDebugLineItem::GetConstGraphHandle() const
 		{
-			Frontend::FConstOutputHandle OutputHandle = FGraphBuilder::GetOutputHandleFromPin(GraphPinObj);
+			Frontend::FConstOutputHandle OutputHandle = FGraphBuilder::GetConstOutputHandleFromPin(GraphPinObj);
 			return OutputHandle->GetOwningNode()->GetOwningGraph();
 		}
 
@@ -356,25 +353,58 @@ namespace Metasound
 			return nullptr;
 		}
 
-		const FMetasoundFrontendEdgeStyle* FMetasoundNumericDebugLineItem::GetEdgeStyle() const
+		const FMetasoundFrontendEdgeStyle* FMetasoundNumericDebugLineItem::FindConstEdgeStyle() const
 		{
 			using namespace Frontend;
 
-			FConstGraphHandle OwningGraph = GetGraphHandle();
-			if (!OwningGraph->IsValid())
+			FGuid NodeID;
+			FName OutputName;
+			if (GetNodeIDAndOutputName(NodeID, OutputName))
 			{
-				return nullptr;
+				if (const UMetasoundEditorGraphNode* Node = GetReroutedNode())
+				{
+					const FMetaSoundFrontendDocumentBuilder& Builder = Node->GetBuilderChecked().GetConstBuilder();
+					return Builder.FindConstEdgeStyle(NodeID, OutputName);
+				}
 			}
 
-			const FConstOutputHandle OutputHandle = GetReroutedOutputHandle();
-			const FGuid NodeID = OutputHandle->GetOwningNodeID();
-			const FName OutputName = OutputHandle->GetName();
-			const FMetasoundFrontendGraphStyle& Style = OwningGraph->GetGraphStyle();
+			return nullptr;
+		}
 
-			return Style.EdgeStyles.FindByPredicate([&NodeID, &OutputName](FMetasoundFrontendEdgeStyle& EdgeStyle)
+		FMetasoundFrontendEdgeStyle* FMetasoundNumericDebugLineItem::FindEdgeStyle()
+		{
+			using namespace Frontend;
+
+			FGuid NodeID;
+			FName OutputName;
+			if (GetNodeIDAndOutputName(NodeID, OutputName))
+			{
+				if (const UMetasoundEditorGraphNode* Node = GetReroutedNode())
 				{
-					return EdgeStyle.NodeID == NodeID && EdgeStyle.OutputName == OutputName;
-				});
+					FMetaSoundFrontendDocumentBuilder& Builder = Node->GetBuilderChecked().GetBuilder();
+					return Builder.FindEdgeStyle(NodeID, OutputName);
+				}
+			}
+
+			return nullptr;
+		}
+
+		FMetasoundFrontendEdgeStyle* FMetasoundNumericDebugLineItem::FindOrAddEdgeStyle()
+		{
+			using namespace Frontend;
+
+			FGuid NodeID;
+			FName OutputName;
+			if (GetNodeIDAndOutputName(NodeID, OutputName))
+			{
+				if (const UMetasoundEditorGraphNode* Node = GetReroutedNode())
+				{
+					FMetaSoundFrontendDocumentBuilder& Builder = Node->GetBuilderChecked().GetBuilder();
+					return &Builder.FindOrAddEdgeStyle(NodeID, OutputName);
+				}
+			}
+
+			return nullptr;
 		}
 
 		void FMetasoundNumericDebugLineItem::Update()
@@ -383,24 +413,26 @@ namespace Metasound
 
 			bIsValueColorizationEnabled = false;
 
-			const FConstOutputHandle OutputHandle = GetReroutedOutputHandle();
-			const FGuid NodeID = OutputHandle->GetOwningNodeID();
-			const FName OutputName = OutputHandle->GetName();
-			if (const FMetasoundFrontendEdgeStyle* EdgeStyle = GetEdgeStyle())
+			FGuid NodeID;
+			FName OutputName;
+			if (GetNodeIDAndOutputName(NodeID, OutputName))
 			{
-				if (ensure(EdgeStyle->LiteralColorPairs.Num() == 2))
+				if (const FMetasoundFrontendEdgeStyle* EdgeStyle = FindConstEdgeStyle())
 				{
-					const FMetasoundFrontendLiteral& CurrentMin = EdgeStyle->LiteralColorPairs[0].Value;
-					ColorLiterals[0] = CurrentMin;
-					const FMetasoundFrontendLiteral& CurrentMax = EdgeStyle->LiteralColorPairs[1].Value;
-					ColorLiterals[1] = CurrentMax;
-					bIsValueColorizationEnabled = true;
+					if (ensure(EdgeStyle->LiteralColorPairs.Num() == 2))
+					{
+						const FMetasoundFrontendLiteral& CurrentMin = EdgeStyle->LiteralColorPairs[0].Value;
+						ColorLiterals[0] = CurrentMin;
+						const FMetasoundFrontendLiteral& CurrentMax = EdgeStyle->LiteralColorPairs[1].Value;
+						ColorLiterals[1] = CurrentMax;
+						bIsValueColorizationEnabled = true;
+					}
 				}
-			}
 
-			if (FGraphConnectionManager* ConnectionManager = GetConnectionManager())
-			{
-				Message = FString::Format(TEXT("Value: {0}"), { GetValueStringFunction(*ConnectionManager, NodeID, OutputName) });
+				if (FGraphConnectionManager* ConnectionManager = GetConnectionManager())
+				{
+					Message = FString::Format(TEXT("Value: {0}"), { GetValueStringFunction(*ConnectionManager, NodeID, OutputName) });
+				}
 			}
 		}
 
@@ -413,13 +445,7 @@ namespace Metasound
 				return FReply::Unhandled();
 			}
 
-			FGraphHandle OwningGraph = GetGraphHandle();
-			if (!OwningGraph->IsValid())
-			{
-				return FReply::Unhandled();
-			}
-
-			const FMetasoundFrontendEdgeStyle* EdgeStyle = GetEdgeStyle();
+			const FMetasoundFrontendEdgeStyle* EdgeStyle = FindEdgeStyle();
 			if (!EdgeStyle)
 			{
 				return FReply::Unhandled();

@@ -22,13 +22,13 @@
 
 //@UE BEGIN Replacing std::malloc and std::free with macros.	  
 #if EIGEN_UE_OVERRIDE_ALLOCATORS && !FORCE_ANSI_ALLOCATOR
-	void* StdMalloc(std::size_t Size, std::size_t Alignment);
-  void* StdRealloc(void* Original, std::size_t Size, std::size_t Alignment);
-	void StdFree(void *Ptr);
+	void* FMemory_Malloc(std::size_t Size, std::size_t Alignment);
+	void* FMemory_Realloc(void* Original, std::size_t Size, std::size_t Alignment);
+	void FMemory_Free(void *Ptr);
 
-	#define EIGEN_STD_MALLOC(_size)		            StdMalloc(_size, EIGEN_DEFAULT_ALIGN_BYTES)
-	#define EIGEN_STD_REALLOC(_original, _size)		StdRealloc(_original, _size, EIGEN_DEFAULT_ALIGN_BYTES)
-	#define EIGEN_STD_FREE(_p)			              StdFree(_p)
+	#define EIGEN_STD_MALLOC(_size)				FMemory_Malloc(_size, EIGEN_DEFAULT_ALIGN_BYTES)
+	#define EIGEN_STD_REALLOC(_original, _size)	FMemory_Realloc(_original, _size, EIGEN_DEFAULT_ALIGN_BYTES)
+	#define EIGEN_STD_FREE(_p)					FMemory_Free(_p)
 #else
 	#define EIGEN_STD_MALLOC(_size)		            std::malloc(_size)
 	#define EIGEN_STD_REALLOC(_original, _size)		std::realloc(_original, _size)
@@ -506,7 +506,7 @@ EIGEN_DEVICE_FUNC inline Index first_aligned(const Scalar* array, Index size)
   const Index AlignmentSize = Alignment / ScalarSize;
   const Index AlignmentMask = AlignmentSize-1;
 
-  if(AlignmentSize<=1)
+  if constexpr (AlignmentSize<=1)
   {
     // Either the requested alignment if smaller than a scalar, or it exactly match a 1 scalar
     // so that all elements of the array have the same alignment.

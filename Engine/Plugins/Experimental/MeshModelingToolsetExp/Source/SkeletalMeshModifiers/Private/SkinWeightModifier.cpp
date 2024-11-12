@@ -141,8 +141,8 @@ bool USkinWeightModifier::CommitWeightsToSkeletalMesh()
 
 #else
 	ensureMsgf(false, TEXT("Skin Weight Modifier: is an editor only feature."));
+	return false;
 #endif
-		return false;
 }
 
 TMap<FName, float> USkinWeightModifier::GetVertexWeights(int32 VertexID)

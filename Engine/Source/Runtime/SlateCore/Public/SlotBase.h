@@ -25,9 +25,6 @@ public:
 	struct FSlotArguments {};
 
 public:
-	UE_DEPRECATED(5.0, "AttachWidgetParent is not used anymore. Use get SetOwner.")
-	void AttachWidgetParent(SWidget* InParent) { }
-
 	/**
 	 * Access the FChildren that own the slot.
 	 * The owner can be invalid when the slot is not attached.
@@ -116,13 +113,6 @@ private:
 	const FChildren* Owner;
 	/** The content widget of the slot. */
 	TSharedRef<SWidget> Widget;
-
-#if WITH_EDITORONLY_DATA
-protected:
-	/** The parent and owner of the slot. */
-	UE_DEPRECATED(5.0, "RawParentPtr is not used anymore. Use GetOwnerWidget.")
-	SWidget* RawParentPtr;
-#endif
 };
 
 

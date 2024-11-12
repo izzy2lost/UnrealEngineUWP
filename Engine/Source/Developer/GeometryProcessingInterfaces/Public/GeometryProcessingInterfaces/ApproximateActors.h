@@ -253,6 +253,8 @@ public:
 		// Whether the UBodySetup on the Asset will be created
 		bool bCreatePhysicsBody = true;
 
+		/** Required to optimize mesh in mirrored transform. Double index buffer size. */
+		bool bBuildReversedIndexBuffer = true;
 
 		//
 		// Debug settings

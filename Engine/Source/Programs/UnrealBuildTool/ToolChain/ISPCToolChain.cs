@@ -17,26 +17,40 @@ namespace UnrealBuildTool
 		{
 		}
 
+		protected FileReference? ProjectFile = null;
+		protected bool bMergeModules = false;
+		protected bool bAllowUbaCompression = false;
+
+		public override void SetUpGlobalEnvironment(ReadOnlyTargetRules Target)
+		{
+			base.SetUpGlobalEnvironment(Target);
+			ProjectFile = Target.ProjectFile;
+			bMergeModules = Target.bMergeModules;
+			bAllowUbaCompression = Target.bAllowUbaCompression;
+		}
+
 		/// <summary>
 		/// Get CPU Instruction set targets for ISPC.
 		/// </summary>
 		/// <param name="Platform">Which OS platform to target.</param>
 		/// <param name="Arch">Which architecture inside an OS platform to target. Only used for Android currently.</param>
 		/// <returns>List of instruction set targets passed to ISPC compiler</returns>
-		public virtual List<string> GetISPCCompileTargets(UnrealTargetPlatform Platform, UnrealArch? Arch)
+		public virtual List<string> GetISPCCompileTargets(UnrealTargetPlatform Platform, UnrealArch Arch)
 		{
 			List<string> ISPCTargets = new List<string>();
 
-			// @todo this could be simplified for the arm case - but sse has more options
 			if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Windows) ||
-				(UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix) && Platform != UnrealTargetPlatform.LinuxArm64) ||
-				Platform == UnrealTargetPlatform.Mac)
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix) ||
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Apple))
 			{
-				ISPCTargets.AddRange(new string[] { "avx512skx-i32x8", "avx2", "avx", "sse4" });
-			}
-			else if (Platform == UnrealTargetPlatform.LinuxArm64)
-			{
-				ISPCTargets.AddRange(new string[] { "neon" });
+				if (Arch.bIsX64)
+				{
+					ISPCTargets.AddRange(new string[] { "avx512skx-i32x8", "avx2", "avx", "sse4" });
+				}
+				else
+				{
+					ISPCTargets.Add("neon");
+				}
 			}
 			else if (Platform == UnrealTargetPlatform.Android)
 			{
@@ -53,10 +67,6 @@ namespace UnrealBuildTool
 					Logger.LogWarning("Invalid Android architecture for ISPC. At least one architecture (arm64, x64) needs to be selected in the project settings to build");
 				}
 			}
-			else if (Platform == UnrealTargetPlatform.IOS)
-			{
-				ISPCTargets.Add("neon");
-			}
 			else
 			{
 				Logger.LogWarning("Unsupported ISPC platform target!");
@@ -72,34 +82,29 @@ namespace UnrealBuildTool
 		/// <returns>OS string passed to ISPC compiler</returns>
 		public virtual string GetISPCOSTarget(UnrealTargetPlatform Platform)
 		{
-			string ISPCOS = "";
-
 			if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Windows))
 			{
-				ISPCOS += "windows";
+				return "windows";
 			}
 			else if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix))
 			{
-				ISPCOS += "linux";
+				return "linux";
 			}
-			else if (Platform == UnrealTargetPlatform.Android)
+			else if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Android))
 			{
-				ISPCOS += "android";
+				return "android";
 			}
-			else if (Platform == UnrealTargetPlatform.IOS)
+			else if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.IOS))
 			{
-				ISPCOS += "ios";
+				return "ios";
 			}
 			else if (Platform == UnrealTargetPlatform.Mac)
 			{
-				ISPCOS += "macos";
+				return "macos";
 			}
-			else
-			{
-				Logger.LogWarning("Unsupported ISPC platform target!");
-			}
-
-			return ISPCOS;
+			
+			Logger.LogWarning("Unsupported ISPC platform target!");
+			return String.Empty;
 		}
 
 		/// <summary>
@@ -108,45 +113,22 @@ namespace UnrealBuildTool
 		/// <param name="Platform">Which OS platform to target.</param>
 		/// <param name="Arch">Which architecture inside an OS platform to target. Only used for Android currently.</param>
 		/// <returns>Arch string passed to ISPC compiler</returns>
-		public virtual string GetISPCArchTarget(UnrealTargetPlatform Platform, UnrealArch? Arch)
+		public virtual string GetISPCArchTarget(UnrealTargetPlatform Platform, UnrealArch Arch)
 		{
-			string ISPCArch = "";
-
 			if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Windows) ||
-				(UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix) && Platform != UnrealTargetPlatform.LinuxArm64) ||
-				Platform == UnrealTargetPlatform.Mac)
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix) ||
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Apple) ||
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Android))
 			{
-				ISPCArch += "x86-64";
-			}
-			else if (Platform == UnrealTargetPlatform.LinuxArm64)
-			{
-				ISPCArch += "aarch64";
-			}
-			else if (Platform == UnrealTargetPlatform.Android)
-			{
-				if (Arch == UnrealArch.Arm64)
+				if (Arch.bIsX64)
 				{
-					ISPCArch += "aarch64";
+					return "x86-64";
 				}
-				else if (Arch == UnrealArch.X64)
-				{
-					ISPCArch += "x86-64";
-				}
-				else
-				{
-					Logger.LogWarning("Invalid Android architecture for ISPC. At least one architecture (arm64, x64) needs to be selected in the project settings to build");
-				}
+				return "aarch64";
 			}
-			else if (Platform == UnrealTargetPlatform.IOS)
-			{
-				ISPCArch += "aarch64";
-			}
-			else
-			{
-				Logger.LogWarning("Unsupported ISPC platform target!");
-			}
-
-			return ISPCArch;
+			
+			Logger.LogWarning("Unsupported ISPC platform target!");
+			return String.Empty;
 		}
 
 		/// <summary>
@@ -203,31 +185,31 @@ namespace UnrealBuildTool
 			return null;
 		}
 
-		static Dictionary<UnrealTargetPlatform, string> ISPCCompilerVersions = new Dictionary<UnrealTargetPlatform, string>();
+		static readonly Dictionary<string, string> s_ISPCCompilerVersions = new Dictionary<string, string>();
 
 		/// <summary>
 		/// Returns the version of the ISPC compiler for the specified platform. If GetISPCHostCompilerPath() doesn't return a valid path
 		/// this will return a -1 version.
 		/// </summary>
-		/// <param name="Platform">Which OS build platform is running on.</param>
-		/// <returns>Version reported by the ISPC compilerr</returns>
-		public virtual string GetISPCHostCompilerVersion(UnrealTargetPlatform Platform)
+		/// <param name="platform">Which OS build platform is running on.</param>
+		/// <returns>Version reported by the ISPC compiler</returns>
+		public virtual string GetISPCHostCompilerVersion(UnrealTargetPlatform platform)
 		{
-			if (!ISPCCompilerVersions.ContainsKey(Platform))
+			string compilerPath = GetISPCHostCompilerPath(platform);
+			if (!s_ISPCCompilerVersions.ContainsKey(compilerPath))
 			{
-				Version? CompilerVersion = null;
-				string CompilerPath = GetISPCHostCompilerPath(Platform);
-
-				if (!File.Exists(CompilerPath))
+				if (File.Exists(compilerPath))
 				{
-					Logger.LogWarning("No ISPC compiler at {CompilerPath}", CompilerPath);
-					CompilerVersion = new Version(-1, -1);
+					s_ISPCCompilerVersions[compilerPath] = RunToolAndCaptureOutput(new FileReference(compilerPath), "--version", "(.*)")!;
 				}
-
-				ISPCCompilerVersions[Platform] = RunToolAndCaptureOutput(new FileReference(CompilerPath), "--version", "(.*)")!;
+				else
+				{
+					Logger.LogWarning("No ISPC compiler at {CompilerPath}", compilerPath);
+					s_ISPCCompilerVersions[compilerPath] = "-1";
+				}
 			}
 
-			return ISPCCompilerVersions[Platform];
+			return s_ISPCCompilerVersions[compilerPath];
 		}
 
 		/// <summary>
@@ -237,25 +219,16 @@ namespace UnrealBuildTool
 		/// <returns>Object file suffix</returns>
 		public virtual string GetISPCObjectFileFormat(UnrealTargetPlatform Platform)
 		{
-			string Format = "";
-
-			if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Windows))
+			if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Windows) ||
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix) ||
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Apple) ||
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Android))
 			{
-				Format += "obj";
-			}
-			else if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix) ||
-					Platform == UnrealTargetPlatform.Mac ||
-					Platform == UnrealTargetPlatform.IOS ||
-					Platform == UnrealTargetPlatform.Android)
-			{
-				Format += "obj";
-			}
-			else
-			{
-				Logger.LogWarning("Unsupported ISPC platform target!");
+				return "obj";
 			}
 
-			return Format;
+			Logger.LogWarning("Unsupported ISPC platform target!");
+			return String.Empty;
 		}
 
 		/// <summary>
@@ -265,25 +238,19 @@ namespace UnrealBuildTool
 		/// <returns>Object file suffix</returns>
 		public virtual string GetISPCObjectFileSuffix(UnrealTargetPlatform Platform)
 		{
-			string Suffix = "";
-
 			if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Windows))
 			{
-				Suffix += ".obj";
+				return ".obj";
 			}
 			else if (UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Unix) ||
-					Platform == UnrealTargetPlatform.Mac ||
-					Platform == UnrealTargetPlatform.IOS ||
-					Platform == UnrealTargetPlatform.Android)
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Apple) ||
+				UEBuildPlatform.IsPlatformInGroup(Platform, UnrealPlatformGroup.Android))
 			{
-				Suffix += ".o";
-			}
-			else
-			{
-				Logger.LogWarning("Unsupported ISPC platform target!");
+				return ".o";
 			}
 
-			return Suffix;
+			Logger.LogWarning("Unsupported ISPC platform target!");
+			return String.Empty;
 		}
 
 		private string EscapeDefinitionForISPC(string Definition)
@@ -365,13 +332,21 @@ namespace UnrealBuildTool
 		/// <returns>Normalized path as a string</returns>
 		protected virtual string NormalizeCommandLinePath(FileSystemReference Reference)
 		{
+			string path = Reference.FullName;
 			// Try to use a relative path to shorten command line length.
 			if (Reference.IsUnderDirectory(Unreal.RootDirectory))
 			{
-				return Reference.MakeRelativeTo(Unreal.EngineSourceDirectory).Replace("\\", "/");
+				path = Reference.MakeRelativeTo(Unreal.EngineSourceDirectory);
 			}
-
-			return Reference.FullName.Replace("\\", "/");
+			if (Path.DirectorySeparatorChar == '/')
+			{
+				path = path.Replace("\\", "/");
+			}
+			else
+			{
+				path = path.Replace("\\", "\\\\");
+			}
+			return path;
 		}
 
 		/// <summary>
@@ -384,7 +359,27 @@ namespace UnrealBuildTool
 			return NormalizeCommandLinePath(Item.Location);
 		}
 
-		public override CPPOutput GenerateISPCHeaders(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph)
+		protected virtual IEnumerable<DirectoryItem> GetEnvironmentBasePaths(CppCompileEnvironment CompileEnvironment)
+		{
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.EngineDirectory);
+			if (ProjectFile != null && (!CompileEnvironment.bUseSharedBuildEnvironment || CompileEnvironment.AllIncludePath.Any(x => x.IsUnderDirectory(ProjectFile.Directory))))
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(ProjectFile.Directory);
+			}
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.RootDirectory);
+		}
+
+		protected virtual IEnumerable<DirectoryItem> GetEnvironmentBasePaths(LinkEnvironment LinkEnvironment)
+		{
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.EngineDirectory);
+			if (ProjectFile != null && LinkEnvironment.InputFiles.Any(x => x.Location.IsUnderDirectory(ProjectFile.Directory)))
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(ProjectFile.Directory);
+			}
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.RootDirectory);
+		}
+
+		protected override CPPOutput GenerateISPCHeaders(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph)
 		{
 			CPPOutput Result = new CPPOutput();
 
@@ -393,25 +388,14 @@ namespace UnrealBuildTool
 				return Result;
 			}
 
-			List<string> CompileTargets = GetISPCCompileTargets(CompileEnvironment.Platform, null);
+			List<string> CompileTargets = GetISPCCompileTargets(CompileEnvironment.Platform, CompileEnvironment.Architecture);
 
 			List<string> GlobalArguments = new List<string>();
 
 			// Build target string. No comma on last
-			string TargetString = "";
-			foreach (string Target in CompileTargets)
-			{
-				if (Target == CompileTargets[CompileTargets.Count - 1]) // .Last()
-				{
-					TargetString += Target;
-				}
-				else
-				{
-					TargetString += Target + ",";
-				}
-			}
+			string TargetString = String.Join(',', CompileTargets);
 
-			string ISPCArch = GetISPCArchTarget(CompileEnvironment.Platform, null);
+			string ISPCArch = GetISPCArchTarget(CompileEnvironment.Platform, CompileEnvironment.Architecture);
 
 			// Build target triplet
 			GlobalArguments.Add($"--target-os={GetISPCOSTarget(CompileEnvironment.Platform)}");
@@ -425,10 +409,11 @@ namespace UnrealBuildTool
 				GlobalArguments.Add($"--cpu={CpuTarget}");
 			}
 
-			// PIC is needed for modular builds except on Microsoft platforms
+			// PIC is needed for modular builds except on Microsoft platforms, and for android
 			if ((CompileEnvironment.bIsBuildingDLL ||
 				CompileEnvironment.bIsBuildingLibrary) &&
-				!UEBuildPlatform.IsPlatformInGroup(CompileEnvironment.Platform, UnrealPlatformGroup.Microsoft))
+				!UEBuildPlatform.IsPlatformInGroup(CompileEnvironment.Platform, UnrealPlatformGroup.Microsoft) ||
+				UEBuildPlatform.IsPlatformInGroup(CompileEnvironment.Platform, UnrealPlatformGroup.Android))
 			{
 				GlobalArguments.Add("--pic");
 			}
@@ -456,13 +441,18 @@ namespace UnrealBuildTool
 				}
 			}
 
+			List<DirectoryItem> RootPaths = new(GetEnvironmentBasePaths(CompileEnvironment));
+
 			foreach (FileItem ISPCFile in InputFiles)
 			{
 				Action CompileAction = Graph.CreateAction(ActionType.Compile);
+				CompileAction.RootPaths.AddRange(RootPaths);
+
 				CompileAction.CommandDescription = $"Generate Header [{ISPCArch}]";
 				CompileAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 				CompileAction.CommandPath = new FileReference(GetISPCHostCompilerPath(BuildHostPlatform.Current.Platform));
 				CompileAction.StatusDescription = Path.GetFileName(ISPCFile.AbsolutePath);
+				CompileAction.CommandVersion = GetISPCHostCompilerVersion(BuildHostPlatform.Current.Platform).ToString();
 				CompileAction.ArtifactMode = ArtifactMode.Enabled;
 
 				CompileAction.bCanExecuteRemotely = true;
@@ -529,7 +519,7 @@ namespace UnrealBuildTool
 			return Result;
 		}
 
-		public override CPPOutput CompileISPCFiles(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph)
+		protected override CPPOutput CompileISPCFiles(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph)
 		{
 			CPPOutput Result = new CPPOutput();
 
@@ -538,7 +528,7 @@ namespace UnrealBuildTool
 				return Result;
 			}
 
-			List<string> CompileTargets = GetISPCCompileTargets(CompileEnvironment.Platform, null);
+			List<string> CompileTargets = GetISPCCompileTargets(CompileEnvironment.Platform, CompileEnvironment.Architecture);
 
 			List<string> GlobalArguments = new List<string>();
 
@@ -546,7 +536,7 @@ namespace UnrealBuildTool
 			string TargetString = "";
 			foreach (string Target in CompileTargets)
 			{
-				if (Target == CompileTargets[CompileTargets.Count - 1]) // .Last()
+				if (Target == CompileTargets[^1]) // .Last()
 				{
 					TargetString += Target;
 				}
@@ -558,7 +548,7 @@ namespace UnrealBuildTool
 
 			// Build target triplet
 			string PlatformObjectFileFormat = GetISPCObjectFileFormat(CompileEnvironment.Platform);
-			string ISPCArch = GetISPCArchTarget(CompileEnvironment.Platform, null);
+			string ISPCArch = GetISPCArchTarget(CompileEnvironment.Platform, CompileEnvironment.Architecture);
 
 			GlobalArguments.Add($"--target-os={GetISPCOSTarget(CompileEnvironment.Platform)}");
 			GlobalArguments.Add($"--arch={ISPCArch}");
@@ -596,10 +586,11 @@ namespace UnrealBuildTool
 			}
 			GlobalArguments.AddRange(CommonArgs);
 
-			// PIC is needed for modular builds except on Microsoft platforms
+			// PIC is needed for modular builds except on Microsoft platforms, and for android
 			if ((CompileEnvironment.bIsBuildingDLL ||
 				CompileEnvironment.bIsBuildingLibrary) &&
-				!UEBuildPlatform.IsPlatformInGroup(CompileEnvironment.Platform, UnrealPlatformGroup.Microsoft))
+				!UEBuildPlatform.IsPlatformInGroup(CompileEnvironment.Platform, UnrealPlatformGroup.Microsoft) ||
+				UEBuildPlatform.IsPlatformInGroup(CompileEnvironment.Platform, UnrealPlatformGroup.Android))
 			{
 				GlobalArguments.Add("--pic");
 			}
@@ -626,13 +617,21 @@ namespace UnrealBuildTool
 				}
 			}
 
+			List<DirectoryItem> RootPaths = new(GetEnvironmentBasePaths(CompileEnvironment));
+
 			foreach (FileItem ISPCFile in InputFiles)
 			{
 				Action CompileAction = Graph.CreateAction(ActionType.Compile);
+				CompileAction.RootPaths.AddRange(RootPaths);
 				CompileAction.CommandDescription = $"Compile [{ISPCArch}]";
 				CompileAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 				CompileAction.CommandPath = new FileReference(GetISPCHostCompilerPath(BuildHostPlatform.Current.Platform));
 				CompileAction.StatusDescription = Path.GetFileName(ISPCFile.AbsolutePath);
+				CompileAction.CommandVersion = GetISPCHostCompilerVersion(BuildHostPlatform.Current.Platform).ToString();
+				if (bAllowUbaCompression)
+				{
+					CompileAction.CommandVersion = $"{CompileAction.CommandVersion} Compressed";
+				}
 
 				CompileAction.bCanExecuteRemotely = true;
 
@@ -642,12 +641,16 @@ namespace UnrealBuildTool
 				// TODO: Remove, might work
 				CompileAction.bCanExecuteRemotelyWithSNDBS = false;
 
+				CompileAction.ArtifactMode = ArtifactMode.Enabled;
+
 				List<string> Arguments = new List<string>();
 
 				// Add the ISPC file to be compiled.
 				Arguments.Add($"\"{NormalizeCommandLinePath(ISPCFile)}\"");
 
 				List<FileItem> CompiledISPCObjFiles = new List<FileItem>();
+
+				string FileName = Path.GetFileName(ISPCFile.AbsolutePath);
 
 				string CompiledISPCObjFileSuffix = bByteCodeOutput ? ".bc" : GetISPCObjectFileSuffix(CompileEnvironment.Platform);
 				foreach (string Target in CompileTargets)
@@ -667,7 +670,7 @@ namespace UnrealBuildTool
 						CompiledISPCObjFile = FileItem.GetItemByFileReference(
 						FileReference.Combine(
 							OutputDir,
-							Path.GetFileName(ISPCFile.AbsolutePath) + "_" + ObjTarget + CompiledISPCObjFileSuffix
+							FileName + "_" + ObjTarget + CompiledISPCObjFileSuffix
 							)
 						);
 					}
@@ -676,7 +679,7 @@ namespace UnrealBuildTool
 						CompiledISPCObjFile = FileItem.GetItemByFileReference(
 						FileReference.Combine(
 							OutputDir,
-							Path.GetFileName(ISPCFile.AbsolutePath) + CompiledISPCObjFileSuffix
+							FileName + CompiledISPCObjFileSuffix
 							)
 						);
 					}
@@ -689,7 +692,7 @@ namespace UnrealBuildTool
 				FileItem CompiledISPCObjFileNoISA = FileItem.GetItemByFileReference(
 					FileReference.Combine(
 						OutputDir,
-						Path.GetFileName(ISPCFile.AbsolutePath) + CompiledISPCObjFileSuffix
+						FileName + CompiledISPCObjFileSuffix
 						)
 					);
 
@@ -712,7 +715,7 @@ namespace UnrealBuildTool
 				Arguments.AddRange(GlobalArguments);
 
 				// Consume the included header dependency list
-				FileItem DependencyListFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, Path.GetFileName(ISPCFile.AbsolutePath) + ".txt"));
+				FileItem DependencyListFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, FileName + ".txt"));
 				CompileAction.DependencyListFile = DependencyListFile;
 				CompileAction.PrerequisiteItems.Add(DependencyListFile);
 
@@ -720,7 +723,17 @@ namespace UnrealBuildTool
 
 				FileReference ResponseFileName = GetResponseFileName(CompileEnvironment, CompiledISPCObjFileNoISA);
 				FileItem ResponseFileItem = Graph.CreateIntermediateTextFile(ResponseFileName, Arguments.Select(x => Utils.ExpandVariables(x)));
-				CompileAction.CommandArguments = $"@\"{ResponseFileName}\"";
+
+				string AdditionalArguments = "";
+				// Must be added after response file is created just to make sure it ends up on the command line and not in the response file
+				if (!bByteCodeOutput && bMergeModules)
+				{
+					// EXTRACTEXPORTS can only be interpreted by UBA.. so this action won't build outside uba
+					AdditionalArguments = " /EXTRACTEXPORTS";
+					CompileAction.ProducedItems.Add(FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, FileName + ".exi")));
+				}
+
+				CompileAction.CommandArguments = $"@\"{ResponseFileName}\"{AdditionalArguments}";
 				CompileAction.PrerequisiteItems.Add(ResponseFileItem);
 
 				// Add the source file and its included files to the prerequisite item list.
@@ -737,10 +750,11 @@ namespace UnrealBuildTool
 						List<FileItem> FinalObjectFiles = new List<FileItem>();
 						foreach (FileItem CompiledBytecodeObjFile in CompiledISPCObjFiles)
 						{
+							string FileNameWithoutExtension = Path.GetFileNameWithoutExtension(CompiledBytecodeObjFile.AbsolutePath);
 							FileItem FinalCompiledISPCObjFile = FileItem.GetItemByFileReference(
 								FileReference.Combine(
 									OutputDir,
-									Path.GetFileNameWithoutExtension(CompiledBytecodeObjFile.AbsolutePath) + GetISPCObjectFileSuffix(CompileEnvironment.Platform)
+									FileNameWithoutExtension + GetISPCObjectFileSuffix(CompileEnvironment.Platform)
 									)
 								);
 
@@ -752,10 +766,17 @@ namespace UnrealBuildTool
 							PostCompileArgs.AddRange(CommonArgs);
 							PostCompileArgs.Add($"-o \"{NormalizeCommandLinePath(FinalCompiledISPCObjFile)}\"");
 
+							if (bMergeModules)
+							{
+								// EXTRACTEXPORTS can only be interpreted by UBA.. so this action won't build outside uba
+								AdditionalArguments = " /EXTRACTEXPORTS";
+								PostCompileAction.ProducedItems.Add(FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, FileNameWithoutExtension + ".exi")));
+							}
+
 							// Write the args to a response file
 							FileReference PostCompileResponseFileName = GetResponseFileName(CompileEnvironment, FinalCompiledISPCObjFile);
 							FileItem PostCompileResponseFileItem = Graph.CreateIntermediateTextFile(PostCompileResponseFileName, PostCompileArgs.Select(x => Utils.ExpandVariables(x)));
-							PostCompileAction.CommandArguments = $"@\"{PostCompileResponseFileName}\"";
+							PostCompileAction.CommandArguments = $"@\"{PostCompileResponseFileName}\"{AdditionalArguments}";
 							PostCompileAction.PrerequisiteItems.Add(PostCompileResponseFileItem);
 
 							PostCompileAction.PrerequisiteItems.Add(CompiledBytecodeObjFile);
@@ -764,9 +785,17 @@ namespace UnrealBuildTool
 							PostCompileAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 							PostCompileAction.CommandPath = new FileReference(ByteCodeCompilerPath);
 							PostCompileAction.StatusDescription = Path.GetFileName(ISPCFile.AbsolutePath);
+							CompileAction.CommandVersion = GetISPCHostCompilerVersion(BuildHostPlatform.Current.Platform).ToString();
+							if (bAllowUbaCompression)
+							{
+								CompileAction.CommandVersion = $"{CompileAction.CommandVersion} Compressed";
+							}
+
+							PostCompileAction.RootPaths.AddRange(RootPaths);
+							PostCompileAction.ArtifactMode = ArtifactMode.Enabled;
 
 							// Disable remote execution to workaround mismatched case on XGE
-							PostCompileAction.bCanExecuteRemotely = false;
+							PostCompileAction.bCanExecuteRemotelyWithXGE = false;
 
 							FinalObjectFiles.Add(FinalCompiledISPCObjFile);
 							Logger.LogDebug("   ISPC Compiling bytecode {StatusDescription}: \"{CommandPath}\" {CommandArguments} {ProducedItems}", PostCompileAction.StatusDescription, PostCompileAction.CommandPath, PostCompileAction.CommandArguments, PostCompileAction.ProducedItems);

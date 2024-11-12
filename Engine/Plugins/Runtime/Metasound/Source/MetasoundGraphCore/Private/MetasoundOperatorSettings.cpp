@@ -104,4 +104,34 @@ namespace Metasound
 
 		return AlignedNum;
 	}
+
+	bool operator<(const FOperatorSettings& InLHS, const FOperatorSettings& InRHS)
+	{
+		if (InLHS.SampleRate < InRHS.SampleRate)
+		{
+			return true;
+		}
+		else if (InRHS.SampleRate < InLHS.SampleRate)
+		{
+			return false;
+		}
+
+		// Ignore TargetBlockRate in comparison because it is not used in any external calculations
+		// Ignore ActualBlockRate because it is derived from NumFramesPerBlock
+
+		return InLHS.NumFramesPerBlock < InRHS.NumFramesPerBlock;
+	}
+
+	FString FOperatorSettings::ToString() const
+	{
+		return FString::Printf(TEXT("SampleRate:%d BlockSize:%d"), SampleRate, NumFramesPerBlock);
+	}
+
+	bool operator==(const FOperatorSettings& InLHS, const FOperatorSettings& InRHS)
+	{
+		// Ignore TargetBlockRate in comparison because it is not used in any external calculations
+		// Ignore ActualBlockRate because it is derived from NumFramesPerBlock
+		return (InLHS.SampleRate == InRHS.SampleRate) && (InLHS.NumFramesPerBlock == InRHS.NumFramesPerBlock);
+	}
 }
+

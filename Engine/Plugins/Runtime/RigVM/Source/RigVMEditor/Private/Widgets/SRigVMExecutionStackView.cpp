@@ -329,7 +329,6 @@ void SRigVMExecutionStackView::Construct( const FArguments& InArgs, TSharedRef<F
 				.OnSelectionChanged(this, &SRigVMExecutionStackView::OnSelectionChanged)
 				.OnContextMenuOpening(this, &SRigVMExecutionStackView::CreateContextMenu)
 				.OnMouseButtonDoubleClick(this, &SRigVMExecutionStackView::HandleItemMouseDoubleClick)
-				.ItemHeight(28)
 			]
 		]
 	];
@@ -584,6 +583,11 @@ void SRigVMExecutionStackView::PopulateStackView(URigVM* InVM, FRigVMExtendedExe
 					{
 						const FRigVMRunInstructionsOp& Op = ByteCode.GetOpAt<FRigVMRunInstructionsOp>(Instructions[InstructionIndex]);
 						Label = FString::Printf(TEXT("Run Instructions %d-%d"), Op.StartInstruction, Op.EndInstruction);
+						break;
+					}
+					case ERigVMOpCode::SetupTraits:
+					{
+						Label = TEXT("Setup Traits");
 						break;
 					}
 					case ERigVMOpCode::Exit:

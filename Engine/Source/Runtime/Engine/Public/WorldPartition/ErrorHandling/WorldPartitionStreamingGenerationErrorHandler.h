@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "WorldPartition/WorldPartitionActorDescInstanceViewInterface.h"
 
+class AWorldDataLayers;
 class UDataLayerAsset;
 class UDataLayerInstance;
 class UDataLayerInstanceWithAsset;
@@ -49,6 +50,11 @@ public:
 	virtual void OnInvalidReferenceRuntimeGrid(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView) = 0;
 
 	/**
+	 * Called when an actor contains runtime data layers with different types of LoadFilter.
+	 */
+	virtual void OnDataLayersLoadFilterMismatch(const IWorldPartitionActorDescInstanceView& ActorDescView) = 0;
+
+	/**
 	 * Called when the world references a streamed actor.
 	 */
 	enum class EWorldReferenceInvalidReason
@@ -65,9 +71,24 @@ public:
 	virtual void OnInvalidReferenceDataLayerAsset(const UDataLayerInstanceWithAsset* DataLayerInstance) = 0;
 
 	/**
+	 * Used to identify a data layer hierarchy type mismatch error
+	 */
+	enum class EDataLayerHierarchyInvalidReason
+	{
+		ClientOnlyDataLayerCantBeChild,
+		ServerOnlyDataLayerCantBeChild,
+		IncompatibleDataLayerType
+	};
+
+	/**
 	 * Called when a data layer is not of the same type as its parent
 	 */
-	virtual void OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent) = 0;
+	virtual void OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent, EDataLayerHierarchyInvalidReason Reason) = 0;
+
+	/**
+ 	 * Called when there's an error with a data layer used by a WorldDataLayers actor
+ 	 */
+	virtual void OnInvalidWorldDataLayersReference(const AWorldDataLayers* WorldDataLayers, const UDataLayerInstance* DataLayerInstance, const FText& Reason) = 0;
 
 	/**
 	 * Called when two data layer instances share the same asset
@@ -90,8 +111,8 @@ public:
 	enum class ELevelInstanceInvalidReason
 	{
 		WorldAssetNotFound,
-		WorldAssetNotUsingExternalActors,
-		WorldAssetImcompatiblePartitioned,
+		WorldAssetDontContainActorsMetadata,
+		WorldAssetIncompatiblePartitioned,
 		WorldAssetHasInvalidContainer,
 		CirculalReference
 	};

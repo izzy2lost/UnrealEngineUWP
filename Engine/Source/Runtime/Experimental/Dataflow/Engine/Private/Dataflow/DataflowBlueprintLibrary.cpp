@@ -10,15 +10,19 @@ void UDataflowBlueprintLibrary::EvaluateTerminalNodeByName(UDataflow* Dataflow, 
 {
 	if (Dataflow && Dataflow->Dataflow)
 	{
-		TSharedPtr<FDataflowNode> Node = Dataflow->Dataflow->FindTerminalNode(TerminalNodeName);
-		if (Node)
+		if (const TSharedPtr<FDataflowNode> Node = Dataflow->Dataflow->FindFilteredNode(FDataflowTerminalNode::StaticType(), TerminalNodeName))
 		{
 			if (const FDataflowTerminalNode* TerminalNode = Node->AsType<const FDataflowTerminalNode>())
 			{
-				Dataflow::FEngineContext Context(ResultAsset, Dataflow, FPlatformTime::Cycles64());
+				UE_LOG(LogChaosDataflow, Verbose, TEXT("UDataflowBlueprintLibrary::EvaluateTerminalNodeByName(): Node [%s]"), *TerminalNodeName.ToString());
+				UE::Dataflow::FEngineContext Context(ResultAsset);
+				// Note: If the node is deactivated and has any outputs, then these outputs might still need to be forwarded.
+				//       Therefore the Evaluate method has to be called for whichever value of bActive.
+				//       This however isn't the case of SetAssetValue() for which the active state needs to be checked before the call.
 				TerminalNode->Evaluate(Context);
-				if (ResultAsset)
+				if (TerminalNode->bActive && ResultAsset)
 				{
+					UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowTerminalNode::SetAssetValue(): TerminalNode [%s], Asset [%s]"), *TerminalNodeName.ToString(), *ResultAsset->GetName());
 					TerminalNode->SetAssetValue(ResultAsset, Context);
 				}
 			}

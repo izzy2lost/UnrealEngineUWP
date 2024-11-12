@@ -8,58 +8,50 @@
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMFloat.h"
 #include "VerseVM/VVMOption.h"
-#include "VerseVM/VVMUTF8String.h"
 #include "VerseVM/VVMValue.h"
 
 namespace Verse
 {
-template <typename ContextType, typename HandlePlaceholderFunction>
-inline bool VValue::Equal(ContextType Context, VValue Left, VValue Right, HandlePlaceholderFunction HandlePlaceholder)
+template <typename HandlePlaceholderFunction>
+inline bool VValue::Equal(FAllocationContext Context, VValue Left, VValue Right, HandlePlaceholderFunction HandlePlaceholder)
 {
 	if (Left.IsPlaceholder() || Right.IsPlaceholder())
 	{
 		HandlePlaceholder(Left, Right);
 		return true;
 	}
-	else if (Left == Right)
+	if (Left == Right)
 	{
 		return true;
 	}
-	else if (Left.IsFloat() && Right.IsFloat())
+	if (Left.IsFloat() && Right.IsFloat())
 	{
 		return Left.AsFloat() == Right.AsFloat();
 	}
-	else if (Left.IsInt() || Right.IsInt())
+	if (Left.IsInt() || Right.IsInt())
 	{
 		return Left.IsInt() && Right.IsInt() && VInt::Eq(Context, Left.AsInt(), Right.AsInt());
 	}
-	else if (Left.IsLogic() || Right.IsLogic())
+	if (Left.IsLogic() || Right.IsLogic())
 	{
 		return Left.IsLogic() && Right.IsLogic() && Left.AsBool() == Right.AsBool();
 	}
-	else if (Left.IsEnumerator() || Right.IsEnumerator())
+	if (Left.IsEnumerator() || Right.IsEnumerator())
 	{
 		checkSlow(Left != Right);
 		return false;
 	}
-	else if (Left.IsCell() && Right.IsCell())
+	if (Left.IsCell() && Right.IsCell())
 	{
 		VCell* LeftCell = &Left.AsCell();
 		VCell* RightCell = &Right.AsCell();
 
-		if (LeftCell->IsA<VUTF8String>())
-		{
-			return RightCell->IsA<VUTF8String>()
-				&& LeftCell->StaticCast<VUTF8String>() == RightCell->StaticCast<VUTF8String>();
-		}
-		else if (LeftCell->IsA<VOption>())
+		if (LeftCell->IsA<VOption>())
 		{
 			return RightCell->IsA<VOption>()
 				&& Equal(Context, LeftCell->StaticCast<VOption>().GetValue(), RightCell->StaticCast<VOption>().GetValue(), HandlePlaceholder);
 		}
-
-		// This call may do a TLS lookup for the context, calls not requiring one should be inlined above.
-		return LeftCell->Equal(FRunningContext(Context), RightCell, HandlePlaceholder);
+		return LeftCell->Equal(Context, RightCell, HandlePlaceholder);
 	}
 
 	return false;

@@ -114,7 +114,7 @@ public:
 
 	FRigidBody* GetParentBody() const;
 
-	bool IsAllowedToRotate() const;
+	bool IsFullyLocked() const;
 
 	void ApplyPushToRotateBody(const FVector& Push, const FVector& Offset);
 	

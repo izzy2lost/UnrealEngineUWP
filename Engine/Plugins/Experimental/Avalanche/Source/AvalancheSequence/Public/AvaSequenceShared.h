@@ -16,7 +16,7 @@ namespace UE::AvaSequence
 	constexpr double SmallSubFrame = 0.00000005;
 }
 
-UENUM(BlueprintType)
+UENUM(BlueprintType, DisplayName="Motion Design Sequence Play Mode")
 enum class EAvaSequencePlayMode : uint8
 {
 	/** Sequence plays and loops from the beginning to the end. */
@@ -26,7 +26,7 @@ enum class EAvaSequencePlayMode : uint8
 	Reverse,
 };
 
-UENUM(BlueprintType)
+UENUM(BlueprintType, DisplayName="Motion Design Sequence Time Type")
 enum class EAvaSequenceTimeType : uint8
 {
 	None UMETA(Hidden),
@@ -35,7 +35,7 @@ enum class EAvaSequenceTimeType : uint8
 	Mark,
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, DisplayName="Motion Design Sequence Time")
 struct FAvaSequenceTime
 {
 	GENERATED_BODY()
@@ -116,7 +116,7 @@ struct TStructOpsTypeTraits<FAvaSequenceTime> : public TStructOpsTypeTraitsBase2
 	};
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, DisplayName="Motion Design Sequence Play Advanced Settings")
 struct FAvaSequencePlayAdvancedSettings
 {
 	GENERATED_BODY()
@@ -132,7 +132,7 @@ struct FAvaSequencePlayAdvancedSettings
 	bool bRestoreState = false;
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, DisplayName="Motion Design Sequence Play Parameters")
 struct FAvaSequencePlayParams
 {
 	GENERATED_BODY()

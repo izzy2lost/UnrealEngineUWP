@@ -27,12 +27,15 @@ UBTDecorator_KeepInCone::UBTDecorator_KeepInCone(const FObjectInitializer& Objec
 	ConeHalfAngle = 45.0f;
 }
 
+float UBTDecorator_KeepInCone::GetConeHalfAngleDot(const UBehaviorTreeComponent& OwnerComp) const
+{
+	return  FMath::Cos(FMath::DegreesToRadians(ConeHalfAngle.GetValue(OwnerComp)));
+}
+
 void UBTDecorator_KeepInCone::InitializeFromAsset(UBehaviorTree& Asset)
 {
 	Super::InitializeFromAsset(Asset);
 
-	ConeHalfAngleDot = FMath::Cos(FMath::DegreesToRadians(ConeHalfAngle));
-	
 	if (bUseSelfAsOrigin)
 	{
 		ConeOrigin.SelectedKeyName = FBlackboard::KeySelf;
@@ -92,6 +95,7 @@ void UBTDecorator_KeepInCone::TickNode(UBehaviorTreeComponent& OwnerComp, uint8*
 	if (CalculateCurrentDirection(OwnerComp, CurrentDir))
 	{
 		const FVector::FReal Angle = DecoratorMemory->InitialDirection.CosineAngle2D(CurrentDir);
+		const float ConeHalfAngleDot = GetConeHalfAngleDot(OwnerComp);
 		if (Angle < ConeHalfAngleDot || (IsInversed() && Angle > ConeHalfAngleDot))
 		{
 			OwnerComp.RequestExecution(this);
@@ -101,10 +105,10 @@ void UBTDecorator_KeepInCone::TickNode(UBehaviorTreeComponent& OwnerComp, uint8*
 
 FString UBTDecorator_KeepInCone::GetStaticDescription() const
 {
-	return FString::Printf(TEXT("%s: %s in %.2f degree cone of initial direction [%s-%s]"),
+	return FString::Printf(TEXT("%s: %s in +- %s degree cone of initial direction [%s-%s]"),
 		*Super::GetStaticDescription(),
 		*Observed.SelectedKeyName.ToString(),
-		ConeHalfAngle * 2,
+		*ConeHalfAngle.ToString(),
 		*ConeOrigin.SelectedKeyName.ToString(),
 		*Observed.SelectedKeyName.ToString());
 }
@@ -121,7 +125,7 @@ void UBTDecorator_KeepInCone::DescribeRuntimeValues(const UBehaviorTreeComponent
 
 		Values.Add(FString::Printf(TEXT("Angle: %.0f (%s cone)"),
 			FMath::RadiansToDegrees(CurrentAngleRad),
-			CurrentAngleDot < ConeHalfAngleDot ? TEXT("outside") : TEXT("inside")
+			CurrentAngleDot < GetConeHalfAngleDot(OwnerComp) ? TEXT("outside") : TEXT("inside")
 			));
 
 	}

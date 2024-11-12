@@ -57,6 +57,7 @@ public:
 	virtual TConstArrayView<UNiagaraRendererProperties*> GetRenderers() const override;
 	virtual void BindParameters(bool bExternalOnly) override;
 	virtual void UnbindParameters(bool bExternalOnly) override;
+	virtual bool ShouldTick() const override;
 	virtual void PreTick() override;
 	virtual void Tick(float DeltaSeconds) override;
 	// FNiagaraEmitterInstance Impl

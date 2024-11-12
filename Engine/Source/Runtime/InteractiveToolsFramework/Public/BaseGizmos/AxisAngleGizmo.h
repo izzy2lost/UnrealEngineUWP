@@ -26,7 +26,11 @@ class IGizmoStateTarget;
 class UClickDragInputBehavior;
 class UObject;
 struct FToolBuilderState;
-
+namespace UE::GizmoUtil
+{
+	struct FTransformSubGizmoCommonParams;
+	struct FTransformSubGizmoSharedState;
+}
 
 UCLASS(MinimalAPI)
 class UAxisAngleGizmoBuilder : public UInteractiveGizmoBuilder
@@ -47,6 +51,14 @@ class UAxisAngleGizmo : public UInteractiveGizmo, public IClickDragBehaviorTarge
 	GENERATED_BODY()
 
 public:
+	/**
+	 * Helper that initializes AxisSource, AngleSource, HitTarget, and StateTarget for the common case 
+	 *  of being used to control the rotation of a transform. Safe to use for reinitialization.
+	 */
+	INTERACTIVETOOLSFRAMEWORK_API bool InitializeAsRotateGizmo(
+		const UE::GizmoUtil::FTransformSubGizmoCommonParams& InitializationParams,
+		UE::GizmoUtil::FTransformSubGizmoSharedState* SharedState);
+
 	// UInteractiveGizmo overrides
 
 	INTERACTIVETOOLSFRAMEWORK_API virtual void Setup() override;
@@ -69,6 +81,9 @@ public:
 	INTERACTIVETOOLSFRAMEWORK_API virtual void OnUpdateModifierState(int ModifierID, bool bIsOn) override;
 
 public:
+	// The below properties can be manipulated for more fine-grained control, but typically it is sufficient
+	// to use the initialization method above.
+
 	UPROPERTY()
 	TScriptInterface<IGizmoAxisSource> AxisSource;
 

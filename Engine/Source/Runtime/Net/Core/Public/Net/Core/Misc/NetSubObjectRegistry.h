@@ -46,6 +46,7 @@ public:
 	NETCORE_API bool RemoveSubObject(UObject* InSubObject);
 
 	bool IsEmpty() const { return Registry.Num() == 0; }
+	int32 Num() const	 { return Registry.Num(); }
 
 	/**
 	* Remove all the indexes specified by the passed array

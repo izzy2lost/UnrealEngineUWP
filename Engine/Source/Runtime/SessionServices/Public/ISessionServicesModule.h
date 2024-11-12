@@ -7,6 +7,8 @@
 #include "ISessionManager.h"
 #include "ISessionService.h"
 
+class ITraceController;
+
 /**
  * Interface for session core modules.
  */
@@ -30,6 +32,12 @@ public:
 	 * @see GetSessionManager
 	 */
 	virtual TSharedPtr<ISessionService> GetSessionService() = 0;
+
+
+	/**
+	 * Get the trace controller
+	 */
+	virtual TSharedPtr<ITraceController> GetTraceController() = 0; 
 
 public:
 

@@ -7,10 +7,8 @@
 #include "Animation/AnimCurveCompressionSettings.h"
 #include "Animation/AnimData/IAnimationDataModel.h"
 #include "AnimationModifier.h"
-#include "Animation/MirrorDataTable.h"
-#include "Animation/Skeleton.h"
+#include "Animation/AnimCompress.h"
 #include "Engine/SkeletalMesh.h"
-#include "Engine/SkeletalMeshSocket.h"
 #include "Engine/SkinnedAsset.h"
 #include "Engine/StreamableRenderAsset.h"
 #include "Factories/FbxAnimSequenceImportData.h"
@@ -20,6 +18,16 @@
 
 namespace UE::PoseSearch
 {
+
+// log properties and UObjects names
+#ifndef UE_POSE_SEARCH_DERIVED_DATA_LOGGING
+	#define UE_POSE_SEARCH_DERIVED_DATA_LOGGING 0
+#endif
+
+// log properties data
+#ifndef UE_POSE_SEARCH_DERIVED_DATA_LOGGING_VERBOSE
+	#define UE_POSE_SEARCH_DERIVED_DATA_LOGGING_VERBOSE 0
+#endif
 
 FKeyBuilder::FKeyBuilder()
 {
@@ -32,25 +40,45 @@ FKeyBuilder::FKeyBuilder()
 	SetIsSaving(true);
 }
 
-FKeyBuilder::FKeyBuilder(const UObject* Object, bool bUseDataVer, bool bPerformConditionalPostLoadIfRequired)
+FKeyBuilder::FKeyBuilder(const UObject* Object, bool bUseDataVer, bool bPerformConditionalPostLoadIfRequired, FPartialKeyHashes* InPartialKeyHashes, EDebugPartialKeyHashesMode InDebugPartialKeyHashesMode)
 : FKeyBuilder()
 {
 	check(Object);
+
+	// preallocating a reasonable amount of memory to avoid multiple reallocations
+	ObjectsToSerialize.Reserve(256);
+	ObjectBeingSerializedDependencies.Reserve(256);
+	LocalPartialKeyHashes.Reserve(1024);
+
 	bPerformConditionalPostLoad = bPerformConditionalPostLoadIfRequired;
+	PartialKeyHashes = InPartialKeyHashes;
+	DebugPartialKeyHashesMode = InDebugPartialKeyHashesMode;
 
 	if (bUseDataVer)
 	{
 		// used to invalidate the key without having to change POSESEARCHDB_DERIVEDDATA_VER all the times
-		int32 POSESEARCHDB_DERIVEDDATA_VER_SMALL = 247;
+		int32 POSESEARCHDB_DERIVEDDATA_VER_SMALL = 2656;
 		FGuid VersionGuid = FDevSystemGuids::GetSystemGuid(FDevSystemGuids::Get().POSESEARCHDB_DERIVEDDATA_VER);
+		FString AnimationCompressionVersionString = UE::Anim::Compression::AnimationCompressionVersionString;
 
 		*this << VersionGuid;
+		*this << AnimationCompressionVersionString;
 		*this << POSESEARCHDB_DERIVEDDATA_VER_SMALL;
 	}
 
 	// FKeyBuilder is a saving only archiver, and since it doesn't modify the input Object it's safe to do a const_cast 
 	UObject* NonConstObject = const_cast<UObject*>(Object);
 	*this << NonConstObject;
+
+	while (!ObjectsToSerialize.IsEmpty() && !bAnyAssetNotReady)
+	{
+		SerializeObjectInternal(ObjectsToSerialize.Pop(EAllowShrinking::No));
+	}
+}
+
+FKeyBuilder::FKeyBuilder(const UObject* Object, bool bUseDataVer, bool bPerformConditionalPostLoadIfRequired)
+	: FKeyBuilder(Object, bUseDataVer, bPerformConditionalPostLoadIfRequired, nullptr, FKeyBuilder::EDebugPartialKeyHashesMode::DoNotUse)
+{
 }
 
 void FKeyBuilder::Seek(int64 InPos)
@@ -69,7 +97,7 @@ bool FKeyBuilder::ShouldSkipProperty(const FProperty* InProperty) const
 	if (Super::ShouldSkipProperty(InProperty))
 	{
 		#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
-		UE_LOG(LogPoseSearch, Log, TEXT("%s x %s (ShouldSkipProperty)"), *GetIndentation(), *InProperty->GetFullName());
+		UE_LOG(LogPoseSearch, Log, TEXT("  x %s (ShouldSkipProperty)"), *InProperty->GetFullName());
 		#endif
 		return true;
 	}
@@ -77,7 +105,7 @@ bool FKeyBuilder::ShouldSkipProperty(const FProperty* InProperty) const
 	if (InProperty->HasAllPropertyFlags(CPF_Transient))
 	{
 		#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
-		UE_LOG(LogPoseSearch, Log, TEXT("%s x %s (Transient)"), *GetIndentation(), *InProperty->GetFullName());
+		UE_LOG(LogPoseSearch, Log, TEXT("  x %s (Transient)"), *InProperty->GetFullName());
 		#endif
 		return true;
 	}
@@ -85,16 +113,23 @@ bool FKeyBuilder::ShouldSkipProperty(const FProperty* InProperty) const
 	if (InProperty->HasMetaData(ExcludeFromHashName))
 	{
 		#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
-		UE_LOG(LogPoseSearch, Log, TEXT("%s x %s (ExcludeFromHash)"), *GetIndentation(), *InProperty->GetFullName());
+		UE_LOG(LogPoseSearch, Log, TEXT("  x %s (ExcludeFromHash)"), *InProperty->GetFullName());
 		#endif
 		return true;
 	}
-		
-	check(!InProperty->HasMetaData(IgnoreForMemberInitializationTestName));
+	
+	if (InProperty->HasMetaData(IgnoreForMemberInitializationTestName))
+	{
+		#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
+		UE_LOG(LogPoseSearch, Log, TEXT("  x %s (IgnoreForMemberInitializationTest)"), *InProperty->GetFullName());
+		#endif
+		return true;
+	}
+
 	check(!InProperty->HasMetaData(NeverInHashName));
 
 	#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
-	UE_LOG(LogPoseSearch, Log, TEXT("%s - %s"), *GetIndentation(), *InProperty->GetFullName());
+	UE_LOG(LogPoseSearch, Log, TEXT("  - %s"), *InProperty->GetFullName());
 	#endif
 
 	return false;
@@ -106,7 +141,7 @@ void FKeyBuilder::Serialize(void* Data, int64 Length)
 
 	#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING_VERBOSE
 	FString RawBytesString = BytesToString(HasherData, Length);
-	UE_LOG(LogPoseSearch, Log, TEXT("%s  > %s"), *GetIndentation(), *RawBytesString);
+	UE_LOG(LogPoseSearch, Log, TEXT("  > %s"), *RawBytesString);
 	#endif
 
 	Hasher.Update(HasherData, Length);
@@ -124,88 +159,161 @@ FArchive& FKeyBuilder::operator<<(FName& Name)
 	return *this;
 }
 
-FArchive& FKeyBuilder::operator<<(class UObject*& Object)
+FArchive& FKeyBuilder::TryAddDependency(UObject* Object, bool bAddToPartialKeyHashes)
 {
-	if (Object)
+	if (Object->HasAnyFlags(RF_NeedPostLoad))
 	{
-		if (Object->HasAnyFlags(RF_NeedPostLoad))
+		if (bPerformConditionalPostLoad)
 		{
-			if (bPerformConditionalPostLoad)
-			{
-				Object->ConditionalPostLoad();
-			}
-			else
-			{
-				bAnyAssetNotReady = true;
-			}
+			Object->ConditionalPostLoad();
 		}
-		
-		if (!bAnyAssetNotReady)
+		else
 		{
-			#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
-			++Indentation;
-			#endif
-
-			if (Object->HasAnyFlags(RF_Transient))
-			{
-				#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
-				UE_LOG(LogPoseSearch, Log, TEXT("%sTransient '%s' (%s)"), *GetIndentation(), *Object->GetName(), *Object->GetClass()->GetName());
-				#endif
-			}
-			else if (IsExcludedType(Object))
-			{
-				#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
-				UE_LOG(LogPoseSearch, Log, TEXT("%sExcluded '%s' (%s)"), *GetIndentation(), *Object->GetName(), *Object->GetClass()->GetName());
-				#endif
-			}
-			else
-			{
-				bool bAlreadyProcessed = false;
-				Dependencies.Add(Object, &bAlreadyProcessed);
-
-				// If we haven't already serialized this object
-				if (bAlreadyProcessed)
-				{
-					#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
-					UE_LOG(LogPoseSearch, Log, TEXT("%sAlreadyProcessed '%s' (%s)"), *GetIndentation(), *Object->GetName(), *Object->GetClass()->GetName());
-					#endif
-				}
-				// for specific types we only add their names to the hash
-				else if (IsAddNameOnlyType(Object))
-				{
-					#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
-					UE_LOG(LogPoseSearch, Log, TEXT("%sAddingNameOnly '%s' (%s)"), *GetIndentation(), *Object->GetName(), *Object->GetClass()->GetName());
-					#endif
-
-					FString ObjectName = GetFullNameSafe(Object);
-					*this << ObjectName;
-				}
-				else
-				{
-					const UObject* PreviousObjectBeingSerialized = ObjectBeingSerialized;
-					ObjectBeingSerialized = Object;
-
-					#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
-					UE_LOG(LogPoseSearch, Log, TEXT("%sBegin '%s' (%s)"), *GetIndentation(), *Object->GetName(), *Object->GetClass()->GetName());
-					#endif
-
-					const_cast<UObject*>(Object)->Serialize(*this);
-
-					#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
-					UE_LOG(LogPoseSearch, Log, TEXT("%sEnd '%s' (%s)"), *GetIndentation(), *Object->GetName(), *Object->GetClass()->GetName());
-					#endif
-
-					ObjectBeingSerialized = PreviousObjectBeingSerialized;
-				}
-			}
-
-			#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
-			--Indentation;
-			#endif
+			bAnyAssetNotReady = true;
+			return *this;
 		}
 	}
 
+	// @todo: should we WaitOnExistingCompression?
+	//if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(Object))
+	//{
+	//	AnimSequence->WaitOnExistingCompression();
+	//}
+
+	// collecting ALL the dependencies of the object being serialized, so we can then cache it in PartialKeyHashes
+	ObjectBeingSerializedDependencies.Add(Object);
+
+	bool bAlreadyProcessed = false;
+	Dependencies.Add(Object, &bAlreadyProcessed);
+
+	// If we haven't already serialized this object
+	if (bAlreadyProcessed)
+	{
+#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
+		UE_LOG(LogPoseSearch, Log, TEXT("AlreadyProcessed '%s' (%s)"), *Object->GetName(), *Object->GetClass()->GetName());
+#endif
+		return *this;
+	}
+
+	ObjectsToSerialize.Add(Object);
 	return *this;
+}
+
+FArchive& FKeyBuilder::operator<<(class UObject*& Object)
+{
+	if (!Object)
+	{
+		return *this;
+	}
+
+	if (Object->HasAnyFlags(RF_Transient))
+	{
+#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
+		UE_LOG(LogPoseSearch, Log, TEXT("Transient '%s' (%s)"), *Object->GetName(), *Object->GetClass()->GetName());
+#endif
+		return *this;
+	}
+
+	if (IsExcludedType(Object))
+	{
+#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
+		UE_LOG(LogPoseSearch, Log, TEXT("Excluded '%s' (%s)"), *Object->GetName(), *Object->GetClass()->GetName());
+#endif
+		return *this;
+	}
+
+	return TryAddDependency(Object, true);
+}
+
+void FKeyBuilder::SerializeObjectInternal(UObject* Object)
+{
+	Hasher.Reset();
+
+	check(!bAnyAssetNotReady && Object);
+
+	// test to validate the PartialKeyHashes
+	bool bIsValidTestPartialKeyHash = false;
+	FPartialKeyHashes::FEntry TestEntry;
+
+	// adding the LocalCachedHash here to keep the order consistent with Dependencies
+	FLocalPartialKeyHash& LocalCachedHash = LocalPartialKeyHashes.AddDefaulted_GetRef();
+
+	if (PartialKeyHashes)
+	{
+		if (DebugPartialKeyHashesMode == EDebugPartialKeyHashesMode::Validate)
+		{
+			if (const FPartialKeyHashes::FEntry* Entry = PartialKeyHashes->Find(Object))
+			{
+				bIsValidTestPartialKeyHash = true;
+				TestEntry = *Entry;
+			}
+		}
+		else if (DebugPartialKeyHashesMode == EDebugPartialKeyHashesMode::Use)
+		{
+			if (const FPartialKeyHashes::FEntry* Entry = PartialKeyHashes->Find(Object))
+			{
+				for (const TWeakObjectPtr<>& DependencyPtr : Entry->Dependencies)
+				{
+					if (UObject* Dependency = DependencyPtr.Get())
+					{
+						TryAddDependency(Dependency, false);
+					}
+				}
+
+				LocalCachedHash.Object = Object;
+				LocalCachedHash.Hash = Entry->Hash;
+				return;
+			}
+		}
+	}
+
+	// making sure we don't call Object->Serialize recursively!
+	check(ObjectBeingSerialized == nullptr);
+	ObjectBeingSerialized = Object;
+
+	ObjectBeingSerializedDependencies.Reset();
+
+	if (IsAddNameOnlyType(Object))
+	{
+		// for specific types we only add their names to the hash
+#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
+		UE_LOG(LogPoseSearch, Log, TEXT("AddingNameOnly '%s' (%s)"), *Object->GetName(), *Object->GetClass()->GetName());
+#endif
+		FString ObjectName = GetFullNameSafe(Object);
+		*this << ObjectName;
+	}
+	else
+	{
+#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
+		UE_LOG(LogPoseSearch, Log, TEXT("Begin '%s' (%s)"), *Object->GetName(), *Object->GetClass()->GetName());
+#endif
+		Object->Serialize(*this);
+
+#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
+		UE_LOG(LogPoseSearch, Log, TEXT("End '%s' (%s)"), *Object->GetName(), *Object->GetClass()->GetName());
+#endif
+	}
+
+	// making sure we don't call Object->Serialize recursively!
+	check(ObjectBeingSerialized == Object);
+	ObjectBeingSerialized = nullptr;
+
+	if (!bAnyAssetNotReady)
+	{
+		LocalCachedHash.Object = Object;
+		LocalCachedHash.Hash = Hasher.Finalize();
+
+		if (DebugPartialKeyHashesMode != EDebugPartialKeyHashesMode::DoNotUse && PartialKeyHashes)
+		{
+			PartialKeyHashes->Add(LocalCachedHash.Object, LocalCachedHash.Hash, ObjectBeingSerializedDependencies);
+
+			if (bIsValidTestPartialKeyHash)
+			{
+				check(TestEntry.CheckDependencies(ObjectBeingSerializedDependencies));
+				check(LocalCachedHash.Hash == TestEntry.Hash);
+			}
+		}
+	}
 }
 
 FString FKeyBuilder::GetArchiveName() const
@@ -221,8 +329,17 @@ bool FKeyBuilder::AnyAssetNotReady() const
 FIoHash FKeyBuilder::Finalize() const
 {
 	check(!bAnyAssetNotReady); // otherwise key can be non deterministic
+
+	HashBuilderType FinalizeHasher;
+
+	for (const FLocalPartialKeyHash& LocalCachedHash : LocalPartialKeyHashes)
+	{
+		const HashDigestType::ByteArray& LocalHashData = LocalCachedHash.Hash.GetBytes();
+		FinalizeHasher.Update(LocalHashData, sizeof(HashDigestType::ByteArray));
+	}
+
 	// Stores a BLAKE3-160 hash, taken from the first 20 bytes of a BLAKE3-256 hash
-	return FIoHash(Hasher.Finalize());
+	return FIoHash(FinalizeHasher.Finalize());
 }
 
 const TSet<const UObject*>& FKeyBuilder::GetDependencies() const
@@ -247,25 +364,64 @@ bool FKeyBuilder::IsAddNameOnlyType(class UObject* Object)
 		nullptr != Cast<UAnimCurveCompressionSettings>(Object) ||
 		nullptr != Cast<UAssetImportData>(Object) ||
 		nullptr != Cast<UFunction>(Object) ||
-		nullptr != Cast<UMirrorDataTable>(Object) ||
 		nullptr != Cast<USkeletalMesh>(Object) ||
-		nullptr != Cast<USkeletalMeshSocket>(Object) ||
-		nullptr != Cast<USkeleton>(Object) ||
 		nullptr != Cast<UStreamableRenderAsset>(Object);
 }
 
-#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
-FString FKeyBuilder::GetIndentation() const
+bool FKeyBuilder::ValidateAgainst(const FKeyBuilder& Other) const
 {
-	FString IndentationString;
-	for (int32 i = 0; i < Indentation; ++i)
+	if (bAnyAssetNotReady != Other.bAnyAssetNotReady)
 	{
-		IndentationString.Append(" ");
+		return false;
 	}
-	return IndentationString;
-}
-#endif
 
-} // namespace UE::PoseSearch
+	if (Dependencies.Num() != Other.Dependencies.Num())
+	{
+		return false;
+	}
+
+	for (TSet<const UObject*>::TConstIterator Iter = Dependencies.CreateConstIterator(); Iter; ++Iter)
+	{
+		if (!Other.Dependencies.Contains(*Iter))
+		{
+			return false;
+		}
+	}
+
+	if (ObjectsToSerialize.Num() != Other.ObjectsToSerialize.Num())
+	{
+		return false;
+	}
+	
+	for (int32 Index = 0; Index < ObjectsToSerialize.Num(); ++Index)
+	{
+		if (ObjectsToSerialize[Index] != Other.ObjectsToSerialize[Index])
+		{
+			return false;
+		}
+	}
+
+	if (LocalPartialKeyHashes.Num() != Other.LocalPartialKeyHashes.Num())
+	{
+		return false;
+	}
+	
+	for (int32 Index = 0; Index < LocalPartialKeyHashes.Num(); ++Index)
+	{
+		if (LocalPartialKeyHashes[Index].Hash != Other.LocalPartialKeyHashes[Index].Hash)
+		{
+			return false;
+		}
+
+		if (LocalPartialKeyHashes[Index].Object != Other.LocalPartialKeyHashes[Index].Object)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+} // namespace UE::PoseSearch	
 
 #endif // WITH_EDITOR

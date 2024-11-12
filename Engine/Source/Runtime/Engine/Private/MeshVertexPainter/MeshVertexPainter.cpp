@@ -42,7 +42,9 @@ void FMeshVertexPainter::PaintVerticesSingleColor(UStaticMeshComponent* StaticMe
 	StaticMeshComponent->CachePaintedDataIfNecessary();
 #endif
 	StaticMeshComponent->MarkRenderStateDirty();
-	StaticMeshComponent->bDisallowMeshPaintPerInstance = true;
+
+	// Explicitly disable the mesh paint tool on the component to prevent stomping the vertex color.
+	StaticMeshComponent->bEnableVertexColorMeshPainting = false;
 }
 
 void FMeshVertexPainter::PaintVerticesLerpAlongAxis(UStaticMeshComponent* StaticMeshComponent, const FLinearColor& StartColor, const FLinearColor& EndColor, EVertexPaintAxis Axis, bool bConvertToSRGB)
@@ -93,7 +95,9 @@ void FMeshVertexPainter::PaintVerticesLerpAlongAxis(UStaticMeshComponent* Static
 	StaticMeshComponent->CachePaintedDataIfNecessary();
 #endif
 	StaticMeshComponent->MarkRenderStateDirty();
-	StaticMeshComponent->bDisallowMeshPaintPerInstance = true;
+
+	// Explicitly disable the mesh paint tool on the component to prevent stomping the vertex color.
+	StaticMeshComponent->bEnableVertexColorMeshPainting = false;
 }
 
 void FMeshVertexPainter::RemovePaintedVertices(UStaticMeshComponent* StaticMeshComponent)
@@ -112,6 +116,6 @@ void FMeshVertexPainter::RemovePaintedVertices(UStaticMeshComponent* StaticMeshC
 	}
 
 	StaticMeshComponent->MarkRenderStateDirty();
-	StaticMeshComponent->bDisallowMeshPaintPerInstance = false;
+	StaticMeshComponent->bEnableVertexColorMeshPainting = true;
 }
 

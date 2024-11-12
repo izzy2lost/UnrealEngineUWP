@@ -7,6 +7,7 @@
 #include "Common.ush"
 #include "ColorUtils.ush"
 #include "GammaCorrectionCommon.ush"
+#include "TonemapCommon.ush"
 
 /* Vertex shader
 =============================================================================*/
@@ -69,7 +70,11 @@ void BMPConvertPS(
 #define UE_Color_EEncoding_ProTune		15u
 #define UE_Color_EEncoding_VLog			16u
 
-float3 ApplyColorProcessingRGB(float3 Color, float4x4 CSMtx, uint EOTF)
+#define ToneMapMethod_None           0u
+#define ToneMapMethod_Hable          1u
+#define ToneMapMethod_SimpleReinhard 2u
+
+float3 ApplyColorProcessingRGB(float3 Color, float4x4 CSMtx, uint EOTF, uint ToneMapMethod = 0)
 {
 	// Go linear
 	switch(EOTF)
@@ -86,11 +91,18 @@ float3 ApplyColorProcessingRGB(float3 Color, float4x4 CSMtx, uint EOTF)
 	Color.y = dot(CSMtx[1], Col4);
 	Color.z = dot(CSMtx[2], Col4);
 
+	switch(ToneMapMethod)
+	{
+	case ToneMapMethod_Hable:			Color = HableToneMap(Color);  break;
+	case ToneMapMethod_SimpleReinhard:	Color = SimpleReinhardToneMap(Color);  break;
+	default: break;
+	}
+
 	return Color;
 }
 
 
-float3 ApplyColorProcessing(float3 YUV, float4x4 YUVMtx, float4x4 CSMtx, uint EOTF)
+float3 ApplyColorProcessing(float3 YUV, float4x4 YUVMtx, float4x4 CSMtx, uint EOTF, uint ToneMapMethod = 0)
 {
 	float3 Color;
 	float4 YUV4 = float4(YUV, 1);
@@ -101,7 +113,7 @@ float3 ApplyColorProcessing(float3 YUV, float4x4 YUVMtx, float4x4 CSMtx, uint EO
 	// Make sure we safely stay above zero
 	Color = max(Color, 0.0f);
 
-	return ApplyColorProcessingRGB(Color, CSMtx, EOTF);
+	return ApplyColorProcessingRGB(Color, CSMtx, EOTF, ToneMapMethod);
 }
 
 
@@ -119,7 +131,7 @@ void NV12ConvertPS(
 	YUV.yz = NV12ConvertUB.SwapChroma != 0u ? YUV.zy : YUV.yz;
 
 	// Output with solid alpha
-	OutColor = float4(ApplyColorProcessing(YUV, NV12ConvertUB.ColorTransform, NV12ConvertUB.CSTransform, NV12ConvertUB.EOTF), 1.0f); 
+	OutColor = float4(ApplyColorProcessing(YUV, NV12ConvertUB.ColorTransform, NV12ConvertUB.CSTransform, NV12ConvertUB.EOTF, NV12ConvertUB.ToneMapMethod), 1.0f); 
 }
 
 
@@ -146,7 +158,7 @@ void NV12ConvertAsBytesPS(
 	YUV.z = NV12ConvertAsBytesUB.Texture.Sample(NV12ConvertAsBytesUB.SamplerP, float2(VPos, ScaledUV.y)).x;
 	YUV.yz = NV12ConvertAsBytesUB.SwapChroma != 0u ? YUV.zy : YUV.yz;
 
-	OutColor = float4(ApplyColorProcessing(YUV, NV12ConvertAsBytesUB.ColorTransform, NV12ConvertAsBytesUB.CSTransform, NV12ConvertAsBytesUB.EOTF), 1.0f); 
+	OutColor = float4(ApplyColorProcessing(YUV, NV12ConvertAsBytesUB.ColorTransform, NV12ConvertAsBytesUB.CSTransform, NV12ConvertAsBytesUB.EOTF, NV12ConvertAsBytesUB.ToneMapMethod), 1.0f); 
 }
 
 
@@ -184,7 +196,7 @@ void RGBConvertPS(
 	float2 ScaledUV = InUV * RGBConvertUB.UVScale;
 	float4 Color = RGBConvertUB.Texture.Sample(RGBConvertUB.Sampler, ScaledUV);
 
-	OutColor = float4(ApplyColorProcessingRGB(Color.xyz, RGBConvertUB.CSTransform, RGBConvertUB.EOTF),
+	OutColor = float4(ApplyColorProcessingRGB(Color.xyz, RGBConvertUB.CSTransform, RGBConvertUB.EOTF, RGBConvertUB.ToneMapMethod),
 					  dot(RGBConvertUB.CSTransform[3], Color));
 }
 
@@ -208,7 +220,7 @@ void YCoCgConvertPS(
 	float Y = CoCgSY.w;
 	float3 Col = float3(Y + Co - Cg, Y + Cg, Y - Co - Cg);
 
-	OutColor = float4(ApplyColorProcessingRGB(Col, YCoCgConvertUB.CSTransform, YCoCgConvertUB.EOTF), 1.0f);
+	OutColor = float4(ApplyColorProcessingRGB(Col, YCoCgConvertUB.CSTransform, YCoCgConvertUB.EOTF, YCoCgConvertUB.ToneMapMethod), 1.0f);
 }
 
 // shader to convert a luma (Y) and chroma (CbCr) texture to RGBA
@@ -288,7 +300,19 @@ void YUVv216ConvertPS(
 	CbY0CrY1 = (YUVv216ConvertUB.SwapChroma != 0u) ? CbY0CrY1.zyxw : CbY0CrY1;						// Cb/Cr swap
 	float3 YUV = (uint(InUV.x * YUVv216ConvertUB.OutputDimX) & 1u) ? CbY0CrY1.wxz : CbY0CrY1.yxz;	// Decode to YCbCr for odd/even pixels
 
-	OutColor = float4(ApplyColorProcessing(YUV, YUVv216ConvertUB.ColorTransform, YUVv216ConvertUB.CSTransform, YUVv216ConvertUB.EOTF), 1.0f); 
+	// Needed for UYVY to RGB
+	BRANCH
+	if (YUVv216ConvertUB.UseBilinearSampler != 0u)
+	{
+		float4 InSampled = YUVv216ConvertUB.YUVTexture.Sample(YUVv216ConvertUB.SamplerB, InUV);
+		InSampled = (YUVv216ConvertUB.IsARGBFmt != 0u) ? InSampled.zyxw : InSampled;										// PF_ARGB8 vs. PF_ABGR16 ordering
+		float4 CbY0CrY1Sampled = (YUVv216ConvertUB.IsCbY0CrY1 != 0u) ? InSampled : InSampled.yxwz;							// CbY0CrY1 vs. Y0CbY1Cr ordering
+		CbY0CrY1Sampled = (YUVv216ConvertUB.SwapChroma != 0u) ? CbY0CrY1Sampled.zyxw : CbY0CrY1Sampled;						// Cb/Cr swap
+		float3 YUVSampled = (uint(InUV.x * YUVv216ConvertUB.OutputDimX) & 1u) ? CbY0CrY1Sampled.wxz : CbY0CrY1Sampled.yxz;	// Decode to YCbCr for odd/even pixels
+		YUV.yz = YUVSampled.yz;
+	}
+
+	OutColor = float4(ApplyColorProcessing(YUV, YUVv216ConvertUB.ColorTransform, YUVv216ConvertUB.CSTransform, YUVv216ConvertUB.EOTF, YUVv216ConvertUB.ToneMapMethod), 1.0f); 
 }
 
 
@@ -337,7 +361,7 @@ void YUVv210ConvertPS(
 		YUV = float3(In3.z, In2.z, In3.y);
 	}
 
-	OutColor = float4(ApplyColorProcessing(YUV, YUVv210ConvertUB.ColorTransform, YUVv210ConvertUB.CSTransform, YUVv210ConvertUB.EOTF), 1.0f); 
+	OutColor = float4(ApplyColorProcessing(YUV, YUVv210ConvertUB.ColorTransform, YUVv210ConvertUB.CSTransform, YUVv210ConvertUB.EOTF, YUVv210ConvertUB.ToneMapMethod), 1.0f); 
 }
 
 
@@ -350,7 +374,7 @@ void YUVY416ConvertPS(
 	float4 AVYU = YUVY416ConvertUB.SRV_Y.Sample(YUVY416ConvertUB.BilinearClampedSamplerUV, InUV);
 	AVYU = (YUVY416ConvertUB.bIsARGBFmt != 0u) ? AVYU.zyxw : AVYU;	// PF_ARGB8 vs. PF_ABGR16 ordering
 
-	OutColor = float4(ApplyColorProcessing(AVYU.yzw, YUVY416ConvertUB.ColorTransform, YUVY416ConvertUB.CSTransform, YUVY416ConvertUB.EOTF), AVYU.x); 
+	OutColor = float4(ApplyColorProcessing(AVYU.yzw, YUVY416ConvertUB.ColorTransform, YUVY416ConvertUB.CSTransform, YUVY416ConvertUB.EOTF, YUVY416ConvertUB.ToneMapMethod), AVYU.x); 
 }
 
 
@@ -366,7 +390,7 @@ void ARGB16BigConvertPS(
 
 	float3 Color = In.yzw;
 
-	OutColor = float4(ApplyColorProcessingRGB(Color, ARGB16BigConvertUB.CSTransform, ARGB16BigConvertUB.EOTF), In.x);
+	OutColor = float4(ApplyColorProcessingRGB(Color, ARGB16BigConvertUB.CSTransform, ARGB16BigConvertUB.EOTF, ARGB16BigConvertUB.ToneMapMethod), In.x);
 }
 
 
@@ -437,7 +461,7 @@ void P010ConvertPS(
 	YUV.x = P010ConvertUB.SRV_Y.Sample(P010ConvertUB.SamplerB, ScaledUV).x;
 	YUV.yz = P010ConvertUB.SRV_UV.Sample(P010ConvertUB.SamplerP, ScaledUV).xy;
 
-	OutColor = float4(ApplyColorProcessing(YUV, P010ConvertUB.ColorTransform, P010ConvertUB.CSTransform, P010ConvertUB.EOTF), 1.0f); 
+	OutColor = float4(ApplyColorProcessing(YUV, P010ConvertUB.ColorTransform, P010ConvertUB.CSTransform, P010ConvertUB.EOTF, P010ConvertUB.ToneMapMethod), 1.0f); 
 }
 
 // shader to convert a P010 texture to RGBA (P010 data, packed into a G16 texture; manually addressed)
@@ -462,7 +486,7 @@ void P010ConvertAsUINT16sPS(
 	YUV.y = P010ConvertAsUINT16sUB.Texture.Sample(P010ConvertAsUINT16sUB.SamplerP, float2(UPos, ScaledUV.y)).x;
 	YUV.z = P010ConvertAsUINT16sUB.Texture.Sample(P010ConvertAsUINT16sUB.SamplerP, float2(VPos, ScaledUV.y)).x;
 
-	OutColor = float4(ApplyColorProcessing(YUV, P010ConvertAsUINT16sUB.ColorTransform, P010ConvertAsUINT16sUB.CSTransform, P010ConvertAsUINT16sUB.EOTF), 1.0f); 
+	OutColor = float4(ApplyColorProcessing(YUV, P010ConvertAsUINT16sUB.ColorTransform, P010ConvertAsUINT16sUB.CSTransform, P010ConvertAsUINT16sUB.EOTF, P010ConvertAsUINT16sUB.ToneMapMethod), 1.0f); 
 }
 
 
@@ -490,7 +514,7 @@ void P010_2101010ConvertPS(
 	YUV.y = dot(P010_2101010ConvertUB.SRV_U.Sample(P010_2101010ConvertUB.SamplerP, ScaledUV_UV).xyz, SelUV);
 	YUV.z = dot(P010_2101010ConvertUB.SRV_V.Sample(P010_2101010ConvertUB.SamplerP, ScaledUV_UV).xyz, SelUV);
 
-	OutColor = float4(ApplyColorProcessing(YUV, P010_2101010ConvertUB.ColorTransform, P010_2101010ConvertUB.CSTransform, P010_2101010ConvertUB.EOTF), 1.0f); 
+	OutColor = float4(ApplyColorProcessing(YUV, P010_2101010ConvertUB.ColorTransform, P010_2101010ConvertUB.CSTransform, P010_2101010ConvertUB.EOTF, P010_2101010ConvertUB.ToneMapMethod), 1.0f); 
 #else
 	OutColor = float4(1,0,1,1);
 #endif // COMPILER_GLSL_ES3_1
@@ -517,15 +541,17 @@ void RGB8toY8ConvertPS(float4 InPosition : SV_POSITION,
 }
 
 
+TextureExternal InExternalTexture;
+
 // shader to read from TextureExternal source
 void ReadTextureExternalPS(
 	float4 InPosition : SV_POSITION,
 	float2 InUV : TEXCOORD0,
 	out float4 OutColor : SV_Target0)
 {
-    float2 UV = float2(dot(InUV, ReadTextureExternalUB.ScaleRotation.xy), dot(InUV, ReadTextureExternalUB.ScaleRotation.zw)) + ReadTextureExternalUB.Offset;
-	float4 InColor = ReadTextureExternalUB.Texture.Sample(ReadTextureExternalUB.SamplerP, UV);
-    OutColor = float4(sRGBToLinear(InColor.xyz), InColor.w);
+	float2 UV = float2(dot(InUV, ReadTextureExternalUB.ScaleRotation.xy), dot(InUV, ReadTextureExternalUB.ScaleRotation.zw)) + ReadTextureExternalUB.Offset;
+	float4 RGBOut = TextureExternalSample(InExternalTexture, ReadTextureExternalUB.SamplerP, UV).gbra;
+	OutColor = float4(sRGBToLinear(RGBOut.xyz), 1.0);
 }
 
 /* Media Capture Pixel shaders 
@@ -586,6 +612,18 @@ void RGB10toYUVv210ConvertPS(
 	OutColor.xyzw = uint4(W0, W1, W2, W3);
 }
 
+// Shader to convert from Android's VYU to RGBA
+void VYUConvertPS(
+	float4 InPosition : SV_POSITION,
+	float2 InUV : TEXCOORD0,
+	out float4 OutColor : SV_Target0)
+{
+	float2 ScaledUV = InUV * VYUConvertUB.UVScale;
+	float3 YUV = VYUConvertUB.Texture.Sample(VYUConvertUB.Sampler, ScaledUV).gbr;
+
+	// Output with solid alpha
+	OutColor = float4(ApplyColorProcessing(YUV, VYUConvertUB.ColorTransform, VYUConvertUB.CSTransform, VYUConvertUB.EOTF, VYUConvertUB.ToneMapMethod), 1.0f); 
+}
 
 // Following defines must reflect values in EMediaCaptureConversionOperation in MediaOutput
 #define INVERT_ALPHA 3

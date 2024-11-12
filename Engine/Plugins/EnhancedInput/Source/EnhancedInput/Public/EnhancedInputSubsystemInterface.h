@@ -326,141 +326,6 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Input|Mapping Queries")
 	virtual TArray<FEnhancedActionKeyMapping> GetAllPlayerMappableActionKeyMappings() const;
 	
-	/**
-	 * Emplace or replace any currently applied key in the first key slot for mapping of MappingName.
-	 * Requests a rebuild of the player mappings. 
-	 *
-	 * @return The number of mappings that have been replaced
-	 */
-	UE_DEPRECATED(5.2, "AddPlayerMappedKey has been deprecated, please use AddPlayerMappedKeyInSlot instead.")
-	virtual int32 AddPlayerMappedKey(const FName MappingName, const FKey NewKey, const FModifyContextOptions& Options = FModifyContextOptions());
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	/**
-	 * Emplace or replace any currently applied key in KeySlot for mapping of MappingName.
-	 * Requests a rebuild of the player mappings.
-	 *
-	 * @return The number of mappings that have been replaced
-	 */
-	UE_DEPRECATED(5.3, "K2_AddPlayerMappedKeyInSlot has been deprecated, please use UEnhancedInputUserSettings instead.")
-	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Input|PlayerMappable", meta = (
-		DeprecatedFunction,
-		DeprecationMessage="AddPlayerMappedKeyInSlot has been deprecated, please use UEnhancedInputUserSettings instead.",
-		DisplayName = "Add Player Mapped Key In Slot", AutoCreateRefTerm = "KeySlot, Options"))
-	virtual int32 K2_AddPlayerMappedKeyInSlot(const FName MappingName, const FKey NewKey, const FPlayerMappableKeySlot& KeySlot = FPlayerMappableKeySlot(), const FModifyContextOptions& Options = FModifyContextOptions());
-
-	/**
-	 * Emplace or replace any currently applied key in KeySlot for mapping of MappingName.
-	 * Requests a rebuild of the player mappings.
-	 *
-	 * @return The number of mappings that have been replaced
-	 */
-	UE_DEPRECATED(5.3, "AddPlayerMappedKeyInSlot has been deprecated, please use UEnhancedInputUserSettings instead.")
-	virtual int32 AddPlayerMappedKeyInSlot(const FName MappingName, const FKey NewKey, const FPlayerMappableKeySlot& KeySlot = FPlayerMappableKeySlot::FirstKeySlot, const FModifyContextOptions& Options = FModifyContextOptions());
-
-	/**
-	 * Removes player mapped key in the first KeySlot for mapping of MappingName.
-	 * Requests a rebuild of the player mappings. 
-	 *
-	 * @return The number of mappings that have been removed
-	 */
-	UE_DEPRECATED(5.2, "RemovePlayerMappedKey has been deprecated, please use RemovePlayerMappedKeyInSlot instead.")
-	virtual int32 RemovePlayerMappedKey(const FName MappingName, const FModifyContextOptions& Options = FModifyContextOptions());
-
-	/**
-	 * Removes player mapped key in the KeySlot for mapping of MappingName.
-	 * Requests a rebuild of the player mappings.
-	 *
-	 * @return The number of mappings that have been removed
-	 */
-	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Input|PlayerMappable", meta = (DeprecatedFunction,
-		DeprecationMessage="K2_RemovePlayerMappedKeyInSlot has been deprecated, please use UEnhancedInputUserSettings instead.",
-		DisplayName="Remove Player Mapped Key In Slot", AutoCreateRefTerm = "KeySlot, Options"))
-	virtual int32 K2_RemovePlayerMappedKeyInSlot(const FName MappingName, const FPlayerMappableKeySlot& KeySlot = FPlayerMappableKeySlot(), const FModifyContextOptions& Options = FModifyContextOptions());
-
-	/**
-	 * Removes player mapped key in the KeySlot for mapping of MappingName.
-	 * Requests a rebuild of the player mappings.
-	 *
-	 * @return The number of mappings that have been removed
-	 */
-	UE_DEPRECATED(5.3, "RemovePlayerMappedKeyInSlot has been deprecated, please use UEnhancedInputUserSettings instead.")
-	virtual int32 RemovePlayerMappedKeyInSlot(const FName MappingName, const FPlayerMappableKeySlot& KeySlot = FPlayerMappableKeySlot::FirstKeySlot, const FModifyContextOptions& Options = FModifyContextOptions());
-
-	/**
-	 * Removes all player mapped keys for mapping of MappingName.
-	 * Requests a rebuild of the player mappings.
-	 *
-	 * @return The number of mappings that have been removed
-	 */
-	UE_DEPRECATED(5.3, "RemovePlayerMappedKeyInSlot has been deprecated, please use UEnhancedInputUserSettings instead.")
-	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Input|PlayerMappable", meta = (DeprecatedFunction,
-		DeprecationMessage="RemoveAllPlayerMappedKeysForMapping has been deprecated, please use UEnhancedInputUserSettings instead.",
-		AutoCreateRefTerm = "KeySlot, Options"))
-	virtual int32 RemoveAllPlayerMappedKeysForMapping(const FName MappingName, const FModifyContextOptions& Options = FModifyContextOptions());
-
-	/**
-	 * Get the player mapped key in first slot to the given mapping name. If there is not a player mapped key, then this will return
-	 * EKeys::Invalid.
-	 *
-	 * @param MappingName	The FName of the mapped key that would have been set with the AddPlayerMappedKey function.
-	 */
-	UE_DEPRECATED(5.2, "GetPlayerMappedKey has been deprecated, please use GetPlayerMappedKeyInSlot instead.")
-	virtual FKey GetPlayerMappedKey(const FName MappingName) const;
-
-	/**
-	 * Get the player mapped key in first slot to the given mapping name. If there is not a player mapped key, then this will return
-	 * EKeys::Invalid.
-	 *
-	 * @param MappingName	The FName of the mapped key that would have been set with the AddPlayerMappedKey function.
-	 */
-	UE_DEPRECATED(5.3, "RemovePlayerMappedKeyInSlot has been deprecated, please use UEnhancedInputUserSettings instead.")
-	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Input|PlayerMappable", meta = (
-		DeprecatedFunction,
-		DeprecationMessage="K2_GetPlayerMappedKeyInSlot has been deprecated, please use UEnhancedInputUserSettings instead.",
-		DisplayName="Get Player Mapped Key In Slot",AutoCreateRefTerm = "KeySlot"))
-	virtual FKey K2_GetPlayerMappedKeyInSlot(const FName MappingName, const FPlayerMappableKeySlot& KeySlot = FPlayerMappableKeySlot()) const;
-
-	/**
-	 * Get the player mapped key in first slot to the given mapping name. If there is not a player mapped key, then this will return
-	 * EKeys::Invalid.
-	 *
-	 * @param MappingName	The FName of the mapped key that would have been set with the AddPlayerMappedKey function.
-	 */
-	UE_DEPRECATED(5.3, "RemovePlayerMappedKeyInSlot has been deprecated, please use UEnhancedInputUserSettings instead.")
-	virtual FKey GetPlayerMappedKeyInSlot(const FName MappingName, const FPlayerMappableKeySlot& KeySlot = FPlayerMappableKeySlot::FirstKeySlot) const;
-
-	/**
-	 * Get all the player mapped keys to the given mapping name. If there is not a player mapped key, then this will return
-	 * TArray<FKey>().
-	 *
-	 * @param MappingName	The FName of the mapped key that would have been set with the AddPlayerMappedKey function.
-	 */
-	UE_DEPRECATED(5.3, "GetAllPlayerMappedKeys has been deprecated, please use UEnhancedInputUserSettings instead.")
-	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Input|PlayerMappable", meta=(DeprecatedFunction, DeprecationMessage="GetAllPlayerMappedKeys has been deprecated, please use UEnhancedInputUserSettings instead."))
-	virtual TArray<FKey> GetAllPlayerMappedKeys(const FName MappingName) const;
-	
-	/**
-	 * Remove All PlayerMappedKeys
-	 * Requests a rebuild of the player mappings. 
-	 *
-	 */
-	UE_DEPRECATED(5.3, "RemoveAllPlayerMappedKeys has been deprecated, please use UEnhancedInputUserSettings instead.")
-	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Input|PlayerMappable", meta=(AutoCreateRefTerm = "Options", DeprecatedFunction, DeprecationMessage="RemoveAllPlayerMappedKeys has been deprecated, please use UEnhancedInputUserSettings instead."))
-	virtual void RemoveAllPlayerMappedKeys(const FModifyContextOptions& Options = FModifyContextOptions());
-	
-	/** Adds all the input mapping contexts inside of this mappable config. */
-	UE_DEPRECATED(5.3, "RemoveAllPlayerMappedKeys has been deprecated, please use UEnhancedInputUserSettings instead.")
-	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Input|PlayerMappable", meta=(AutoCreateRefTerm = "Options", DeprecatedFunction, DeprecationMessage="AddPlayerMappableConfig has been deprecated, please use UEnhancedInputUserSettings instead."))
-	virtual void AddPlayerMappableConfig(const UPlayerMappableInputConfig* Config, const FModifyContextOptions& Options = FModifyContextOptions());
-
-	/** Removes all the input mapping contexts inside of this mappable config. */
-	UE_DEPRECATED(5.3, "RemoveAllPlayerMappedKeys has been deprecated, please use UEnhancedInputUserSettings instead.")
-	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Input|PlayerMappable", meta=(AutoCreateRefTerm = "Options", DeprecatedFunction, DeprecationMessage="RemovePlayerMappableConfig has been deprecated, please use UEnhancedInputUserSettings instead."))
-	virtual void RemovePlayerMappableConfig(const UPlayerMappableInputConfig* Config, const FModifyContextOptions& Options = FModifyContextOptions());
-	
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	
 protected:
 
 	/**
@@ -520,7 +385,35 @@ private:
 	void ApplyAxisPropertyModifiers(UEnhancedPlayerInput* PlayerInput, struct FEnhancedActionKeyMapping& Mapping) const;
 
 	TMap<TWeakObjectPtr<const UInputAction>, FInputActionValue> ForcedActions;
-	TMap<FKey, FInputActionValue> ForcedKeys;
+
+	/** 
+	* Data storing the state of input values we inject for specific FKeys
+	*/
+	struct FInjectedKeyData
+	{
+		FInjectedKeyData() = default;
+		
+		FInjectedKeyData(const FInputActionValue& Value)
+			: InputValue(Value)
+			, LastInjectedValue(FInputActionValue(FVector::ZeroVector))
+		{}
+		
+		/** 
+		* The desired input action value to inject when we tick.
+		*/
+		FInputActionValue InputValue = FInputActionValue(FVector::ZeroVector);
+
+		/**
+		 * The last input value which was injected for this key. This is
+		 * set on tick after we have injected the input for this key at least once.
+		 */
+		FInputActionValue LastInjectedValue = FInputActionValue(FVector::ZeroVector);
+	};
+
+	/**
+	 * Map of FKey's to any input data that we are injecting to the player right now.
+	 */
+	TMap<FKey, FInjectedKeyData> ForcedKeys;
 
 	/**
 	 * A map of input actions with a Chorded trigger, mapped to the action they are dependent on.

@@ -6,6 +6,7 @@
 #include "NiagaraSystem.h"
 #include "ViewModels/NiagaraSystemViewModel.h"
 #include "Widgets/Layout/SGridPanel.h"
+#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 
 class IDetailTreeNode;

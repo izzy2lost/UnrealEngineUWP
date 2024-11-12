@@ -6975,7 +6975,8 @@ void SSCSEditor::GetCollapsedNodes(const FSCSEditorTreeNodePtrType& InNodePtr, T
 
 EVisibility SSCSEditor::GetPromoteToBlueprintButtonVisibility() const
 {
-	return (UICustomization.IsValid() && UICustomization->HideBlueprintButtons())
+	UObject* ActorContextPtr = GetActorContext();
+	return (UICustomization.IsValid() && UICustomization->HideBlueprintButtons(MakeArrayView(&ActorContextPtr, 1)))
 		|| (EditorMode != EComponentEditorMode::ActorInstance) 
 		|| (GetBlueprint() != nullptr)
 		? EVisibility::Collapsed : EVisibility::Visible;
@@ -6983,7 +6984,8 @@ EVisibility SSCSEditor::GetPromoteToBlueprintButtonVisibility() const
 
 EVisibility SSCSEditor::GetEditBlueprintButtonVisibility() const
 {
-	return (UICustomization.IsValid() && UICustomization->HideBlueprintButtons())
+	UObject* ActorContextPtr = GetActorContext();
+	return (UICustomization.IsValid() && UICustomization->HideBlueprintButtons(MakeArrayView(&ActorContextPtr, 1)))
 		|| (EditorMode != EComponentEditorMode::ActorInstance)
 		|| (GetBlueprint() == nullptr)
 		? EVisibility::Collapsed : EVisibility::Visible;
@@ -6991,20 +6993,23 @@ EVisibility SSCSEditor::GetEditBlueprintButtonVisibility() const
 
 EVisibility SSCSEditor::GetComponentClassComboButtonVisibility() const
 {
+	UObject* ActorContextPtr = GetActorContext();
 	return (HideComponentClassCombo.Get() 
-		|| (UICustomization.IsValid() && UICustomization->HideAddComponentButton())) 
+		|| (UICustomization.IsValid() && UICustomization->HideAddComponentButton(MakeArrayView(&ActorContextPtr, 1))))
 		? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 EVisibility SSCSEditor::GetComponentsTreeVisibility() const
 {
-	return (UICustomization.IsValid() && UICustomization->HideComponentsTree())
+	UObject* ActorContextPtr = GetActorContext();
+	return (UICustomization.IsValid() && UICustomization->HideComponentsTree(MakeArrayView(&ActorContextPtr, 1)))
 		? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 EVisibility SSCSEditor::GetComponentsFilterBoxVisibility() const
 {
-	return (UICustomization.IsValid() && UICustomization->HideComponentsFilterBox())
+	UObject* ActorContextPtr = GetActorContext();
+	return (UICustomization.IsValid() && UICustomization->HideComponentsFilterBox(MakeArrayView(&ActorContextPtr, 1)))
 		? EVisibility::Collapsed : EVisibility::Visible;
 }
 
@@ -7387,7 +7392,8 @@ void SSCSEditor::SetUICustomization(TSharedPtr<ISCSEditorUICustomization> InUICu
 
 TSubclassOf<UActorComponent> SSCSEditor::GetComponentTypeFilterToApply() const
 {
-	TSubclassOf<UActorComponent> ComponentType = UICustomization.IsValid() ? UICustomization->GetComponentTypeFilter() : nullptr;
+	UObject* ActorContextPtr = GetActorContext();
+	TSubclassOf<UActorComponent> ComponentType = UICustomization.IsValid() ? UICustomization->GetComponentTypeFilter(MakeArrayView(&ActorContextPtr, 1)) : nullptr;
 	if (!ComponentType)
 	{
 		ComponentType = ComponentTypeFilter.Get();

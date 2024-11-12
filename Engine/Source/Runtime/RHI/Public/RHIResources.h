@@ -30,6 +30,11 @@ class FHazardPointerCollection;
 class FRHIComputeCommandList;
 class FRHICommandListImmediate;
 class FRHITextureReference;
+class FRHIShaderBindingLayout;
+class FResourceBulkDataInterface;
+class FResourceArrayInterface;
+struct FResourceArrayUploadInterface;
+
 struct FClearValueBinding;
 struct FRHIResourceInfo;
 struct FGenerateMipsStruct;
@@ -37,14 +42,27 @@ enum class EClearBinding;
 
 typedef TArray<FGraphEventRef, TInlineAllocator<4> > FGraphEventArray;
 
-
 /** The base type of RHI resources. */
 class FRHIResource
 {
 public:
 	RHI_API FRHIResource(ERHIResourceType InResourceType);
+
+protected:
+	// RHI resources should only be destructed via the deletion queue,
+	// so this is protected to prevent others from 'delete'ing these directly.
 	RHI_API virtual ~FRHIResource();
 
+private:
+	// Separate function to avoid force inlining this everywhere. Helps both for code size and performance.
+	RHI_API void MarkForDelete() const;
+
+	friend class FDynamicRHI;
+	friend class FRHICommandListExecutor;
+	static RHI_API void DeleteResources(TArray<FRHIResource*> const& Resources);
+	static RHI_API void GatherResourcesToDelete(TArray<FRHIResource*>& OutResources, bool bIncludeExtendedLifetimeResources);
+
+public:
 	FORCEINLINE_DEBUGGABLE uint32 AddRef() const
 	{
 		int32 NewValue = AtomicFlags.AddRef(std::memory_order_acquire);
@@ -52,11 +70,6 @@ public:
 		return uint32(NewValue);
 	}
 
-private:
-	// Separate function to avoid force inlining this everywhere. Helps both for code size and performance.
-	RHI_API void Destroy() const;
-
-public:
 	FORCEINLINE_DEBUGGABLE uint32 Release() const
 	{
 		int32 NewValue = AtomicFlags.Release(std::memory_order_release);
@@ -64,7 +77,7 @@ public:
 
 		if (NewValue == 0)
 		{
-			Destroy();
+			MarkForDelete();
 		}
 		checkSlow(NewValue >= 0);
 		return uint32(NewValue);
@@ -77,21 +90,12 @@ public:
 		return uint32(CurrentValue);
 	}
 
-	UE_DEPRECATED(5.3, "FlushPendingDeletes is deprecated, please use FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources)")
-	RHI_API static int32 FlushPendingDeletes(FRHICommandListImmediate& RHICmdList);
-
+	UE_DEPRECATED(5.5, "Don't call Bypass() on an FRHIResource. Use the Bypass() function on an FRHICommandList instance, or the FRHICommmandListExecutor.")
 	RHI_API static bool Bypass();
 
 	bool IsValid() const
 	{
 		return AtomicFlags.IsValid(std::memory_order_relaxed);
-	}
-
-	void Delete()
-	{
-		verify(!AtomicFlags.MarkForDelete(std::memory_order_acquire));
-		CurrentlyDeleting = this;
-		delete this;
 	}
 
 	void DisableLifetimeExtension()
@@ -160,7 +164,7 @@ private:
 			return OldMarkedForDelete;
 		}
 
-		bool Deleteing()
+		bool Deleting()
 		{
 			uint32 LocalPacked = Packed.load(std::memory_order_acquire);
 			check((LocalPacked & MarkedForDeleteBit) != 0);
@@ -207,7 +211,9 @@ private:
 	FName OwnerName;
 #endif
 
-	RHI_API static FRHIResource* CurrentlyDeleting;
+#if DO_CHECK
+	static thread_local FRHIResource const* CurrentlyDeleting;
+#endif
 
 	friend FRHICommandListImmediate;
 };
@@ -345,69 +351,73 @@ struct FClearValueBinding
 	static RHI_API const FClearValueBinding DefaultNormal8Bit;
 };
 
-class FResourceBulkDataInterface;
-class FResourceArrayInterface;
-
 struct FRHIResourceCreateInfo
 {
 	FRHIResourceCreateInfo(const TCHAR* InDebugName)
-		: BulkData(nullptr)
-		, ResourceArray(nullptr)
-		, ClearValueBinding(FLinearColor::Transparent)
-		, GPUMask(FRHIGPUMask::All())
-		, bWithoutNativeResource(false)
-		, DebugName(InDebugName)
-		, ExtData(0)
+		: DebugName(InDebugName)
 	{
 		check(InDebugName);
 	}
 
 	// for CreateTexture calls
+	UE_DEPRECATED(5.5, "Please use FRHITextureCreateDesc for creating Textures with Bulk Data")
 	FRHIResourceCreateInfo(const TCHAR* InDebugName, FResourceBulkDataInterface* InBulkData)
 		: FRHIResourceCreateInfo(InDebugName)
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		BulkData = InBulkData;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	// for CreateBuffer calls
-	FRHIResourceCreateInfo(const TCHAR* InDebugName, FResourceArrayInterface* InResourceArray)
+	FRHIResourceCreateInfo(const TCHAR* InDebugName, FResourceArrayUploadInterface* InResourceArray)
 		: FRHIResourceCreateInfo(InDebugName)
 	{
 		ResourceArray = InResourceArray;
 	}
 
+	UE_DEPRECATED(5.5, "Please use FRHITextureCreateDesc for creating Textures with a Clear Value Binding")
 	FRHIResourceCreateInfo(const TCHAR* InDebugName, const FClearValueBinding& InClearValueBinding)
 		: FRHIResourceCreateInfo(InDebugName)
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ClearValueBinding = InClearValueBinding;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
+	UE_DEPRECATED(5.5, "Please use FRHITextureCreateDesc for creating Textures with Ext Data")
 	FRHIResourceCreateInfo(uint32 InExtData)
 		: FRHIResourceCreateInfo(TEXT(""))
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ExtData = InExtData;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	FName GetTraceClassName() const									{ const static FLazyName FRHIBufferName(TEXT("FRHIBuffer")); return (ClassName == NAME_None) ? FRHIBufferName : ClassName; }
 
 	// for CreateTexture calls
-	FResourceBulkDataInterface* BulkData;
+	UE_DEPRECATED(5.5, "Please use FRHITextureCreateDesc for creating Textures with Bulk Data")
+	FResourceBulkDataInterface* BulkData = nullptr;
 
 	// for CreateBuffer calls
-	FResourceArrayInterface* ResourceArray;
+	FResourceArrayUploadInterface* ResourceArray = nullptr;
 
 	// for binding clear colors to render targets.
-	FClearValueBinding ClearValueBinding;
+	UE_DEPRECATED(5.5, "Please use FRHITextureCreateDesc for creating Textures with a Clear Value Binding")
+	FClearValueBinding ClearValueBinding = FClearValueBinding(FLinearColor::Transparent);
 
 	// set of GPUs on which to create the resource
-	FRHIGPUMask GPUMask;
+	FRHIGPUMask GPUMask = FRHIGPUMask::All();
 
 	// whether to create an RHI object with no underlying resource
-	bool bWithoutNativeResource;
-	const TCHAR* DebugName;
+	bool bWithoutNativeResource = false;
 
 	// optional data that would have come from an offline cooker or whatever - general purpose
-	uint32 ExtData;
+	UE_DEPRECATED(5.5, "Please use FRHITextureCreateDesc for creating Textures with Ext Data")
+	uint32 ExtData = 0;
+
+	const TCHAR* DebugName;
 
 	FName ClassName = NAME_None;	// The owner class of FRHIBuffer used for Insight asset metadata tracing
 	FName OwnerName = NAME_None;	// The owner name used for Insight asset metadata tracing
@@ -759,11 +769,110 @@ public:
 	#define RHI_IF_SHADER_DEBUG_DATA(...)
 #endif
 
-class FRHIShader : public FRHIResource
+struct FShaderResourceTable
+{
+	/** Bits indicating which resource tables contain resources bound to this shader. */
+	uint32 ResourceTableBits = 0;
+
+	/** Mapping of bound SRVs to their location in resource tables. */
+	TArray<uint32> ShaderResourceViewMap;
+
+	/** Mapping of bound sampler states to their location in resource tables. */
+	TArray<uint32> SamplerMap;
+
+	/** Mapping of bound UAVs to their location in resource tables. */
+	TArray<uint32> UnorderedAccessViewMap;
+
+	/** Hash of the layouts of resource tables at compile time, used for runtime validation. */
+	TArray<uint32> ResourceTableLayoutHashes;
+
+	/** Mapping of bound Textures to their location in resource tables. */
+	TArray<uint32> TextureMap;
+
+	/** Mapping of bound Resource Collections to their location in resource tables. */
+	TArray<uint32> ResourceCollectionMap;
+
+	friend bool operator == (const FShaderResourceTable& A, const FShaderResourceTable& B)
+	{
+		bool bEqual = true;
+		bEqual &= (A.ResourceTableBits == B.ResourceTableBits);
+		bEqual &= (A.ShaderResourceViewMap    .Num() == B.ShaderResourceViewMap    .Num());
+		bEqual &= (A.SamplerMap               .Num() == B.SamplerMap               .Num());
+		bEqual &= (A.UnorderedAccessViewMap   .Num() == B.UnorderedAccessViewMap   .Num());
+		bEqual &= (A.ResourceTableLayoutHashes.Num() == B.ResourceTableLayoutHashes.Num());
+		bEqual &= (A.TextureMap               .Num() == B.TextureMap               .Num());
+		bEqual &= (A.ResourceCollectionMap    .Num() == B.ResourceCollectionMap    .Num());
+
+		if (!bEqual)
+		{
+			return false;
+		}
+
+		bEqual &= (FMemory::Memcmp(A.ShaderResourceViewMap    .GetData(), B.ShaderResourceViewMap    .GetData(), A.ShaderResourceViewMap    .GetTypeSize() * A.ShaderResourceViewMap    .Num()) == 0);
+		bEqual &= (FMemory::Memcmp(A.SamplerMap               .GetData(), B.SamplerMap               .GetData(), A.SamplerMap               .GetTypeSize() * A.SamplerMap               .Num()) == 0);
+		bEqual &= (FMemory::Memcmp(A.UnorderedAccessViewMap   .GetData(), B.UnorderedAccessViewMap   .GetData(), A.UnorderedAccessViewMap   .GetTypeSize() * A.UnorderedAccessViewMap   .Num()) == 0);
+		bEqual &= (FMemory::Memcmp(A.ResourceTableLayoutHashes.GetData(), B.ResourceTableLayoutHashes.GetData(), A.ResourceTableLayoutHashes.GetTypeSize() * A.ResourceTableLayoutHashes.Num()) == 0);
+		bEqual &= (FMemory::Memcmp(A.TextureMap               .GetData(), B.TextureMap               .GetData(), A.TextureMap               .GetTypeSize() * A.TextureMap               .Num()) == 0);
+		bEqual &= (FMemory::Memcmp(A.ResourceCollectionMap    .GetData(), B.ResourceCollectionMap    .GetData(), A.ResourceCollectionMap    .GetTypeSize() * A.ResourceCollectionMap    .Num()) == 0);
+		return bEqual;
+	}
+
+	friend FArchive& operator << (FArchive& Ar, FShaderResourceTable& SRT)
+	{
+		Ar << SRT.ResourceTableBits;
+		Ar << SRT.ShaderResourceViewMap;
+		Ar << SRT.SamplerMap;
+		Ar << SRT.UnorderedAccessViewMap;
+		Ar << SRT.ResourceTableLayoutHashes;
+		Ar << SRT.TextureMap;
+		Ar << SRT.ResourceCollectionMap;
+	
+		return Ar;
+	}
+};
+
+namespace UE
+{
+	namespace RHICore
+	{
+		// Workaround for layering issue. FShaderParametersMetadata is in RenderCore,
+		// so we can't move the logic for initializing the StaticSlots array to the RHI module.
+		void InitStaticUniformBufferSlots(FRHIShaderData* ShaderData);
+	}
+}
+
+class FRHIShaderData
 {
 public:
-	void SetHash(FSHAHash InHash) { Hash = InHash; }
-	FSHAHash GetHash() const { return Hash; }
+	const FShaderResourceTable& GetShaderResourceTable() const
+	{
+		return ShaderResourceTable;
+	}
+
+	const TArray<FUniformBufferStaticSlot>& GetStaticSlots() const
+	{
+		return StaticSlots;
+	}
+
+	void SerializeShaderResourceTable(FArchive& Ar)
+	{
+		Ar << ShaderResourceTable;
+	}
+
+protected:
+	FShaderResourceTable ShaderResourceTable;
+	TArray<FUniformBufferStaticSlot> StaticSlots;
+
+	// Workaround for layering issue. FShaderParametersMetadata is in RenderCore,
+	// so we can't move the logic for initializing the StaticSlots array to the RHI module.
+	friend void UE::RHICore::InitStaticUniformBufferSlots(FRHIShaderData* ShaderData);
+};
+
+class FRHIShader : public FRHIResource, public FRHIShaderData
+{
+public:
+	void SetHash(const FSHAHash& InHash) { Hash = InHash; }
+	const FSHAHash& GetHash() const { return Hash; }
 
 #if RHI_INCLUDE_SHADER_DEBUG_DATA
 
@@ -809,6 +918,11 @@ public:
 	{
 	}
 
+#if PLATFORM_WINDOWS
+	RHI_API virtual ~FRHIShader();	
+	RHI_API void SetInUseByPSOCompilation(bool bInUse);
+#endif // PLATFORM_WINDOWS
+
 	inline EShaderFrequency GetFrequency() const
 	{
 		return Frequency;
@@ -839,6 +953,9 @@ private:
 	EShaderFrequency Frequency;
 	uint8 bNoDerivativeOps : 1;
 	uint8 bHasShaderBundleUsage : 1;
+#if PLATFORM_WINDOWS
+	volatile int16 InUseByPSOCompilation = 0;
+#endif // PLATFORM_WINDOWS
 };
 
 class FRHIGraphicsShader : public FRHIShader
@@ -885,6 +1002,7 @@ public:
 
 	uint32 RayTracingPayloadType = 0; // This corresponds to the ERayTracingPayloadType enum associated with the shader
 	uint32 RayTracingPayloadSize = 0; // The (maximum) size of the payload associated with this shader
+	uint32 LocalBindingDataSize = 0; // Size of the local shader binding data needed for this shader
 };
 
 class FRHIRayGenShader : public FRHIRayTracingShader
@@ -926,6 +1044,27 @@ private:
 	struct FPipelineStateStats* Stats;
 };
 
+class FRHIWorkGraphShader : public FRHIShader
+{
+public:
+	explicit FRHIWorkGraphShader(EShaderFrequency InFrequency)
+		: FRHIShader(RRT_WorkGraphShader, InFrequency)
+	{
+	}
+};
+
+class FRHIWorkGraphRootShader : public FRHIWorkGraphShader
+{
+public:
+	FRHIWorkGraphRootShader() : FRHIWorkGraphShader(SF_WorkGraphRoot) {}
+};
+
+class FRHIWorkGraphComputeNodeShader : public FRHIWorkGraphShader
+{
+public:
+	FRHIWorkGraphComputeNodeShader() : FRHIWorkGraphShader(SF_WorkGraphComputeNode) {}
+};
+
 //
 // Pipeline States
 //
@@ -937,6 +1076,8 @@ public:
 
 	inline void SetSortKey(uint64 InSortKey) { SortKey = InSortKey; }
 	inline uint64 GetSortKey() const { return SortKey; }
+
+	virtual FRHIGraphicsShader* GetShader(EShaderFrequency Frequency) const = 0;
 
 private:
 	uint64 SortKey = 0;
@@ -951,13 +1092,32 @@ private:
 class FRHIComputePipelineState : public FRHIResource
 {
 public:
-	FRHIComputePipelineState() : FRHIResource(RRT_ComputePipelineState) {}
+	FRHIComputePipelineState(FRHIComputeShader* InComputeShader) :
+		FRHIResource(RRT_ComputePipelineState)
+		, ComputeShader(InComputeShader)
+	{
+		check(InComputeShader);
+	}
 
 	inline void SetValid(bool InIsValid) { bIsValid = InIsValid; }
 	inline bool IsValid() const { return bIsValid; }
 
+	FORCEINLINE FRHIComputeShader* GetComputeShader() const
+	{
+		return ComputeShader;
+	}
+
+protected:
+	TRefCountPtr<FRHIComputeShader> ComputeShader;
+
 private:
 	bool bIsValid = true;
+};
+
+class FRHIWorkGraphPipelineState : public FRHIResource
+{
+public:
+	FRHIWorkGraphPipelineState() : FRHIResource(RRT_WorkGraphPipelineState) {}
 };
 
 class FRHIRayTracingPipelineState : public FRHIResource
@@ -1022,7 +1182,7 @@ struct FRHIUniformBufferLayout : public FRHIResource
 
 	inline bool HasExternalOutputs() const
 	{
-		return bHasNonGraphOutputs;
+		return EnumHasAnyFlags(Flags, ERHIUniformBufferFlags::HasNonGraphOutputs);
 	}
 
 	inline bool HasStaticSlot() const
@@ -1064,14 +1224,8 @@ struct FRHIUniformBufferLayout : public FRHIResource
 	/** The binding flags describing how this resource can be bound to the RHI. */
 	const EUniformBufferBindingFlags BindingFlags;
 
-	/** Whether this layout may contain non-render-graph outputs (e.g. RHI UAVs). */
-	const bool bHasNonGraphOutputs;
-
-	/** Used for platforms which use emulated ub's, forces a real uniform buffer instead */
-	const bool bNoEmulatedUniformBuffer;
-
-	/** This struct is a view into uniform buffer object, on platforms that support UBO */
-	const bool bUniformView;
+	/** Flags to signal different Uniform Buffer states. */
+	const ERHIUniformBufferFlags Flags;
 
 	/** Compare two uniform buffer layouts. */
 	friend inline bool operator==(const FRHIUniformBufferLayout& A, const FRHIUniformBufferLayout& B)
@@ -1272,6 +1426,26 @@ protected:
 
 private:
 	FRHIBufferDesc Desc;
+};
+
+/** Represents a simple indirection to a vertex buffer to bind to a source stream. The underlying vertex buffer can be updated dynamically using an RHI command list. */
+class FRHIStreamSourceSlot : public FRHIResource
+{
+	friend FRHICommandListBase;
+	friend FRHICommandList;
+public:
+	static TRefCountPtr<FRHIStreamSourceSlot> Create(FRHIBuffer* InBuffer)
+	{
+		return new FRHIStreamSourceSlot(InBuffer);
+	}
+
+private:
+	FRHIStreamSourceSlot(FRHIBuffer* InBuffer)
+		: FRHIResource(RRT_StreamSourceSlot)
+		, Buffer(InBuffer)
+	{}
+
+	TRefCountPtr<FRHIBuffer> Buffer;
 };
 
 //
@@ -1841,13 +2015,13 @@ public:
 	/// 
 
 	//UE_DEPRECATED(5.1, "FRHITexture2D is deprecated, please use FRHITexture directly")
-	inline FRHITexture2D* GetTexture2D() { return TextureDesc.Dimension == ETextureDimension::Texture2D ? this : nullptr; }
+	inline FRHITexture* GetTexture2D() { return TextureDesc.Dimension == ETextureDimension::Texture2D ? this : nullptr; }
 	//UE_DEPRECATED(5.1, "FRHITexture2DArray is deprecated, please use FRHITexture directly")
-	inline FRHITexture2DArray* GetTexture2DArray() { return TextureDesc.Dimension == ETextureDimension::Texture2DArray ? this : nullptr; }
+	inline FRHITexture* GetTexture2DArray() { return TextureDesc.Dimension == ETextureDimension::Texture2DArray ? this : nullptr; }
 	//UE_DEPRECATED(5.1, "FRHITexture3D is deprecated, please use FRHITexture directly")
-	inline FRHITexture3D* GetTexture3D() { return TextureDesc.Dimension == ETextureDimension::Texture3D ? this : nullptr; }
+	inline FRHITexture* GetTexture3D() { return TextureDesc.Dimension == ETextureDimension::Texture3D ? this : nullptr; }
 	//UE_DEPRECATED(5.1, "FRHITextureCube is deprecated, please use FRHITexture directly")
-	inline FRHITextureCube* GetTextureCube() { return TextureDesc.IsTextureCube() ? this : nullptr; }
+	inline FRHITexture* GetTextureCube() { return TextureDesc.IsTextureCube() ? this : nullptr; }
 
 	//UE_DEPRECATED(5.1, "GetSizeX() is deprecated, please use GetDesc().Extent.X instead")
 	uint32 GetSizeX() const { return GetDesc().Extent.X; }
@@ -2217,8 +2391,15 @@ struct FRHIViewDesc
 		uint8       bAppendBuffer  : 1; // UAV only
 		uint8       /* padding */  : 6;
 		uint32      OffsetInBytes;
-		uint32      NumElements;
-		uint32      Stride;
+		union
+		{
+			struct
+			{
+				uint32 NumElements;
+				uint32 Stride;
+			};
+			FRHIRayTracingScene* RayTracingScene; // only if BufferType == AccelerationStructure
+		};
 
 		struct FViewInfo;
 	protected:
@@ -2377,13 +2558,22 @@ public:
 
 	FInitializer& SetStride(uint32 InStride)
 	{
+		check(Buffer.SRV.BufferType != EBufferType::Unknown && Buffer.SRV.BufferType != EBufferType::AccelerationStructure);
 		Buffer.SRV.Stride = InStride;
 		return *this;
 	}
 
 	FInitializer& SetNumElements(uint32 InNumElements)
 	{
+		check(Buffer.SRV.BufferType != EBufferType::Unknown && Buffer.SRV.BufferType != EBufferType::AccelerationStructure);
 		Buffer.SRV.NumElements = InNumElements;
+		return *this;
+	}
+
+	FInitializer& SetRayTracingScene(FRHIRayTracingScene* InRayTracingScene)
+	{
+		check(Buffer.SRV.BufferType == EBufferType::AccelerationStructure);
+		Buffer.SRV.RayTracingScene = InRayTracingScene;
 		return *this;
 	}
 };
@@ -2674,7 +2864,7 @@ struct FRHIViewDesc::FBuffer::FViewInfo
 	// The format of the data exposed by this view. PF_Unknown for all buffer types except typed buffer views.
 	EPixelFormat Format;
 
-	// When true, the view is refering to a BUF_NullResource, so a null descriptor should be created.
+	// When true, the view is referring to a BUF_NullResource, so a null descriptor should be created.
 	bool bNullView;
 };
 
@@ -2819,32 +3009,6 @@ public:
 	}
 };
 
-/**
- * A type used only for printing a string for debugging/profiling.
- * Adds Number as a suffix to the printed string even if the base name includes a number, so may prints a string like: Base_1_1
- * This type will always store a numeric suffix explicitly inside itself and never in the name table so it will always be at least 12 bytes
- * regardless of the value of UE_FNAME_OUTLINE_NUMBER.
- * It is not comparable or convertible to other name types to encourage its use only for debugging and avoid using more storage than necessary
- * for the primary use cases of FName (names of objects, assets etc which are widely used and therefor deduped in the name table).
- */
-class FDebugName
-{
-public:
-	RHI_API FDebugName();
-	RHI_API FDebugName(FName InName);
-	RHI_API FDebugName(FName InName, int32 InNumber);
-
-	RHI_API FDebugName& operator=(FName Other);
-
-	RHI_API FString ToString() const;
-	bool IsNone() const { return Name.IsNone() && Number == NAME_NO_NUMBER_INTERNAL; }
-	RHI_API void AppendString(FStringBuilderBase& Builder) const;
-
-private:
-	FName Name;
-	uint32 Number;
-};
-
 //
 // Ray tracing resources
 //
@@ -2877,6 +3041,8 @@ struct FRayTracingGeometryInstance
 
 	FRHIRayTracingGeometry* GeometryRHI = nullptr;
 
+	int32 InstanceContributionToHitGroupIndex = INDEX_NONE;
+
 	// A single physical mesh may be duplicated many times in the scene with different transforms and user data.
 	// All copies share the same shader binding table entries and therefore will have the same material and shader resources.
 	TArrayView<const FMatrix> Transforms;
@@ -2887,11 +3053,11 @@ struct FRayTracingGeometryInstance
 	TArrayView<const uint32> InstanceSceneDataOffsets;
 
 	// Optional buffer that stores GPU transforms. Used instead of CPU-side transform data.
+	UE_DEPRECATED(5.5, "GPUTransformsSRV has been deprecated. GPU Scene should be used instead.")
 	FShaderResourceViewRHIRef GPUTransformsSRV = nullptr;
 
 	// Conservative number of instances. Some of the actual instances may be made inactive if GPU transforms are used.
 	// Must be less or equal to number of entries in Transforms view if CPU transform data is used.
-	// Must be less or equal to number of entries in GPUTransformsSRV if it is non-null.
 	uint32 NumTransforms = 0;
 
 	// Each geometry copy can receive a user-provided integer, which can be used to retrieve extra shader parameters or customize appearance.
@@ -2901,17 +3067,16 @@ struct FRayTracingGeometryInstance
 	uint32 DefaultUserData = 0;
 	TArrayView<const uint32> UserData;
 
-	// Each geometry copy can have one bit to make it individually deactivated (removed from TLAS while maintaining hit group indexing). Useful for culling.
-	UE_DEPRECATED(5.4, "ActivationMask has been deprecated.")
-	TArrayView<const uint32> ActivationMask;
-
 	// Whether local bounds scale and center translation should be applied to the instance transform.
 	bool bApplyLocalBoundsTransform = false;
+	// Whether to increment UserData for each instance of this geometry (only applied when using DefaultUserData)
+	bool bIncrementUserDataPerInstance = false;
 
 	// Mask that will be tested against one provided to TraceRay() in shader code.
 	// If binary AND of instance mask with ray mask is zero, then the instance is considered not intersected / invisible.
 	uint8 Mask = 0xFF;
 
+	UE_DEPRECATED(5.5, "Specify layer when adding instances to FRayTracingScene instead.")
 	uint8 LayerIndex = 0;
 
 	// Flags to control triangle back face culling, whether to allow any-hit shaders, etc.
@@ -2934,7 +3099,7 @@ enum ERayTracingGeometryType
 };
 DECLARE_INTRINSIC_TYPE_LAYOUT(ERayTracingGeometryType);
 
-enum class ERayTracingGeometryInitializerType
+enum class ERayTracingGeometryInitializerType : uint8
 {
 	// Fully initializes the RayTracingGeometry object: creates underlying buffer and initializes shader parameters.
 	Rendering,
@@ -2993,26 +3158,87 @@ public:
 	// Total number of primitives in all segments of the geometry. Only used for validation.
 	uint32 TotalPrimitiveCount = 0;
 
+	bool bFastBuild = false;
+	bool bAllowUpdate = false;
+	bool bAllowCompaction = true;
+	ERayTracingGeometryInitializerType Type = ERayTracingGeometryInitializerType::Rendering;
+
 	// Partitions of geometry to allow different shader and resource bindings.
 	// All ray tracing geometries must have at least one segment.
 	TArray<FRayTracingGeometrySegment> Segments;
 
 	// Offline built geometry data. If null, the geometry will be built by the RHI at runtime.
-	FResourceArrayInterface* OfflineData = nullptr;
+	FResourceArrayUploadInterface* OfflineData = nullptr;
 
 	// Pointer to an existing ray tracing geometry which the new geometry is built from.
 	FRHIRayTracingGeometry* SourceGeometry = nullptr;
-
-	bool bFastBuild = false;
-	bool bAllowUpdate = false;
-	bool bAllowCompaction = true;
-	ERayTracingGeometryInitializerType Type = ERayTracingGeometryInitializerType::Rendering;
 
 	// Use FDebugName for auto-generated debug names with numbered suffixes, it is a variation of FMemoryImageName with optional number postfix.
 	FDebugName DebugName;
 	// Store the path name of the owner object for resource tracking. FMemoryImageName allows a conversion to/from FName.
 	FName OwnerName;
 };
+
+#if DO_CHECK
+FORCEINLINE bool operator==(const FRayTracingGeometryInitializer& LHS, const FRayTracingGeometryInitializer& RHS)
+{
+	// Can't compare LHS == RHS directly due to some members not having equality operators
+
+	if (LHS.IndexBuffer != RHS.IndexBuffer
+		|| LHS.IndexBufferOffset != RHS.IndexBufferOffset
+		|| LHS.GeometryType != RHS.GeometryType
+		|| LHS.TotalPrimitiveCount != RHS.TotalPrimitiveCount)
+	{
+		return false;
+	}
+
+	// Can't compare Segments directly due to some members not having equality operators
+	if (LHS.Segments.Num() != RHS.Segments.Num())
+	{
+		return false;
+	}
+
+	for (int32 SegmentIndex = 0; SegmentIndex < LHS.Segments.Num(); ++SegmentIndex)
+	{
+		//if (LHS.Segments[SegmentIndex] != RHS.Segments[SegmentIndex])
+		//{
+		//	return false;
+		//}
+
+		if (LHS.Segments[SegmentIndex].VertexBuffer != RHS.Segments[SegmentIndex].VertexBuffer
+			|| LHS.Segments[SegmentIndex].VertexBufferElementType != RHS.Segments[SegmentIndex].VertexBufferElementType
+			|| LHS.Segments[SegmentIndex].VertexBufferOffset != RHS.Segments[SegmentIndex].VertexBufferOffset
+			|| LHS.Segments[SegmentIndex].VertexBufferStride != RHS.Segments[SegmentIndex].VertexBufferStride
+			|| LHS.Segments[SegmentIndex].MaxVertices != RHS.Segments[SegmentIndex].MaxVertices
+			|| LHS.Segments[SegmentIndex].FirstPrimitive != RHS.Segments[SegmentIndex].FirstPrimitive
+			|| LHS.Segments[SegmentIndex].NumPrimitives != RHS.Segments[SegmentIndex].NumPrimitives
+			|| LHS.Segments[SegmentIndex].bForceOpaque != RHS.Segments[SegmentIndex].bForceOpaque
+			|| LHS.Segments[SegmentIndex].bAllowDuplicateAnyHitShaderInvocation != RHS.Segments[SegmentIndex].bAllowDuplicateAnyHitShaderInvocation
+			|| LHS.Segments[SegmentIndex].bEnabled != RHS.Segments[SegmentIndex].bEnabled)
+		{
+			return false;
+		}
+	}
+
+	if (LHS.OfflineData != RHS.OfflineData
+		|| LHS.SourceGeometry != RHS.SourceGeometry
+		|| LHS.bFastBuild != RHS.bFastBuild
+		|| LHS.bAllowUpdate != RHS.bAllowUpdate
+		|| LHS.bAllowCompaction != RHS.bAllowCompaction
+		|| LHS.Type != RHS.Type)
+	{
+		return false;
+	}
+
+	// Can't compare DebugName directly due to FDebugName not having equality operator
+	if (LHS.OwnerName != RHS.OwnerName)
+	{
+		return false;
+	}
+
+	return true;
+}
+#endif
 
 enum ERayTracingSceneLifetime
 {
@@ -3034,54 +3260,104 @@ enum class ERayTracingAccelerationStructureFlags
 };
 ENUM_CLASS_FLAGS(ERayTracingAccelerationStructureFlags);
 
-struct FRayTracingSceneInitializer2
+enum class ERayTracingShaderBindingMode
 {
-	// Unique list of geometries referenced by all instances in this scene.
-	// Any referenced geometry is kept alive while the scene is alive.
-	TArray<TRefCountPtr<FRHIRayTracingGeometry>> ReferencedGeometries;
-	// One entry per instance
-	TArray<FRHIRayTracingGeometry*> PerInstanceGeometries;
-	// Exclusive prefix sum of `Instance.NumTransforms` for all instances in this scene. Used to emulate SV_InstanceID in hit shaders.
-	TArray<uint32> BaseInstancePrefixSum;
-	// Exclusive prefix sum of instance geometry segments is used to calculate SBT record address from instance and segment indices.
-	TArray<uint32> SegmentPrefixSum;
+	Disabled	= 0,				//< No binding data at all
+	Inline		= 1 << 0,			//< Binding data for inline raytracing
+	RTPSO		= 1 << 1,			//< Binding data for raytracing using RTPSOs
+};
+ENUM_CLASS_FLAGS(ERayTracingShaderBindingMode);
 
-	// Total flattened number of ray tracing geometry instances (a single FRayTracingGeometryInstance may represent many) per layer.
-	TArray<uint32> NumNativeInstancesPerLayer;
+enum class ERayTracingHitGroupIndexingMode
+{
+	Allow,
+	Disallow,
+};
+ENUM_CLASS_FLAGS(ERayTracingHitGroupIndexingMode);
 
-	UE_DEPRECATED(5.1, "Use NumNativeInstancesPerLayer instead.")
-	uint32 NumNativeInstances = 0;
+struct FRayTracingShaderBindingTableInitializer
+{
+	// Defines which types of binding data needs to be stored in the SBT (Inline and/or RTPSO)
+	ERayTracingShaderBindingMode ShaderBindingMode = ERayTracingShaderBindingMode::Disabled;
+	
+	// Allow indexing of the hit group shaders for RTPSO bindings - if disabled then the SBT won't store any hit group data
+	ERayTracingHitGroupIndexingMode HitGroupIndexingMode = ERayTracingHitGroupIndexingMode::Allow;
 
-	uint32 NumTotalSegments = 0;
+	// Local binding data size used for each entry in the SBT (needs to be at least as big as the local binding data size of all shaders used in the SBT) 
+	uint32 LocalBindingDataSize = 0;
 
 	// This value controls how many elements will be allocated in the shader binding table per geometry segment.
 	// Changing this value allows different hit shaders to be used for different effects.
 	// For example, setting this to 2 allows one hit shader for regular material evaluation and a different one for shadows.
 	// Desired hit shader can be selected by providing appropriate RayContributionToHitGroupIndex to TraceRay() function.
 	// Use ShaderSlot argument in SetRayTracingHitGroup() to assign shaders and resources for specific part of the shder binding table record.
-	uint32 ShaderSlotsPerGeometrySegment = 1;
+	uint32 NumShaderSlotsPerGeometrySegment = 1;
 
-	// Defines how many different callable shaders with unique resource bindings can be bound to this scene.
-	// Shaders and resources are assigned to slots in the scene using SetRayTracingCallableShader().
-	uint32 NumCallableShaderSlots = 0;
+	// Maximum number of geometry segments which can be stored in the hit group binding data
+	uint32 NumGeometrySegments = 0;
 
 	// At least one miss shader must be present in a ray tracing scene.
 	// Default miss shader is always in slot 0. Default shader must not use local resources.
 	// Custom miss shaders can be bound to other slots using SetRayTracingMissShader().
 	uint32 NumMissShaderSlots = 1;
 
+	// Defines how many different callable shaders with unique resource bindings can be bound to this scene.
+	// Shaders and resources are assigned to slots in the scene using SetRayTracingCallableShader().
+	uint32 NumCallableShaderSlots = 0;
+};
+
+struct FRayTracingSceneInitializer
+{
+	// Unique list of geometries referenced by all instances in this scene.
+	// Any referenced geometry is kept alive while the scene is alive.
+	UE_DEPRECATED(5.5, "ReferencedGeometries should be provided in FRayTracingSceneBuildParams.")
+	TArray<TRefCountPtr<FRHIRayTracingGeometry>> ReferencedGeometries;
+	// One entry per instance
+	UE_DEPRECATED(5.5, "PerInstanceGeometries should be provided in FRayTracingSceneBuildParams.")
+	TArray<FRHIRayTracingGeometry*> PerInstanceGeometries;
+
+	// Exclusive prefix sum of `Instance.NumTransforms` for all instances in this scene. Used to emulate SV_InstanceID in hit shaders.
+	UE_DEPRECATED(5.5, "Providing BaseInstancePrefixSum is no longer necessary.")
+	TArray<uint32> BaseInstancePrefixSum;
+	// Exclusive prefix sum of instance geometry segments is used to calculate SBT record address from instance and segment indices.
+	UE_DEPRECATED(5.5, "Providing SegmentPrefixSum is no longer necessary.")
+	TArray<uint32> SegmentPrefixSum;
+
+	// Total flattened number of ray tracing geometry instances (a single FRayTracingGeometryInstance may represent many) per layer.
+	UE_DEPRECATED(5.5, "FRHIRayTracingScene layers are deprecated. Use MaxNumInstances and create one FRHIRayTracingScene per layer instead.")
+	TArray<uint32> NumNativeInstancesPerLayer;
+
+	// Maximum number of instances in this scene. Actual number of instances is specified in FRayTracingSceneBuildParams.
+	uint32 MaxNumInstances = 0;
+
+	uint32 NumTotalSegments = 0;
+
+	UE_DEPRECATED(5.5, "Use FRayTracingShaderBindingTableInitializer instead.")
+	uint32 ShaderSlotsPerGeometrySegment = 1;
+
+	UE_DEPRECATED(5.5, "Use FRayTracingShaderBindingTableInitializer instead.")
+	uint32 NumCallableShaderSlots = 0;
+
+	UE_DEPRECATED(5.5, "Use FRayTracingShaderBindingTableInitializer instead.")
+	uint32 NumMissShaderSlots = 1;
+
 	// Defines whether data in this scene should persist between frames.
 	// Currently only single-frame lifetime is supported.
 	ERayTracingSceneLifetime Lifetime = RTSL_SingleFrame;
+	
+	// Controls the flags of the ray tracing scene build.
+	ERayTracingAccelerationStructureFlags BuildFlags = ERayTracingAccelerationStructureFlags::FastTrace;
 
 	FName DebugName;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FRayTracingSceneInitializer2() = default;
-	FRayTracingSceneInitializer2(FRayTracingSceneInitializer2&&) = default;
-	FRayTracingSceneInitializer2& operator=(FRayTracingSceneInitializer2&&) = default;
+	FRayTracingSceneInitializer() = default;
+	FRayTracingSceneInitializer(FRayTracingSceneInitializer&&) = default;
+	FRayTracingSceneInitializer& operator=(FRayTracingSceneInitializer&&) = default;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
+
+using FRayTracingSceneInitializer2 UE_DEPRECATED(5.5, "Use FRayTracingSceneInitializer instead") = FRayTracingSceneInitializer;
 
 struct FRayTracingAccelerationStructureSize
 {
@@ -3117,11 +3393,9 @@ public:
 	FRHIRayTracingGeometry() = default;
 	FRHIRayTracingGeometry(const FRayTracingGeometryInitializer& InInitializer)
 		: Initializer(InInitializer)
-		, InitializedType(InInitializer.Type)
 	{}
 
 	virtual FRayTracingAccelerationStructureAddress GetAccelerationStructureAddress(uint64 GPUIndex) const = 0;
-	virtual void SetInitializer(const FRayTracingGeometryInitializer& Initializer) = 0;
 	virtual bool IsCompressed() const { return false; }
 
 	const FRayTracingGeometryInitializer& GetInitializer() const
@@ -3135,39 +3409,127 @@ public:
 	}
 protected:
 	FRayTracingGeometryInitializer Initializer = {};
-	ERayTracingGeometryInitializerType InitializedType = ERayTracingGeometryInitializerType::Rendering;
 };
 
 /** Top level ray tracing acceleration structure (contains instances of meshes). */
-class FRHIRayTracingScene : public FRHIRayTracingAccelerationStructure
+class FRHIRayTracingScene
+	: public FRHIRayTracingAccelerationStructure
 {
 public:
-	virtual const FRayTracingSceneInitializer2& GetInitializer() const = 0;
+	virtual const FRayTracingSceneInitializer& GetInitializer() const = 0;
 
-	// Returns a buffer view for RHI-specific system parameters associated with this scene.
-	// This may be needed to access ray tracing geometry data in shaders that use ray queries.
-	// Returns NULL if current RHI does not require this buffer.
+	UE_DEPRECATED(5.5, "Use GetOrCreateInlineBufferSRV on the FRHIShaderBindingTable instead of the Scene")
 	virtual FRHIShaderResourceView* GetOrCreateMetadataBufferSRV(FRHICommandListImmediate& RHICmdList)
 	{
 		return nullptr;
 	}
 
-	virtual uint32 GetLayerBufferOffset(uint32 LayerIndex) const = 0;
+	UE_DEPRECATED(5.5, "FRHIRayTracingScene layers are deprecated. Create one FRHIRayTracingScene per layer instead.")
+	virtual uint32 GetLayerBufferOffset(uint32 LayerIndex) const
+	{
+		checkf(LayerIndex == 0, TEXT("FRHIRayTracingScene layers are deprecated. Create one FRHIRayTracingScene per layer instead."));
+		return 0;
+	}
+
+	UE_DEPRECATED(5.5, "Create standalone FRHIShaderBindingTable instead.")
+	virtual FRHIShaderBindingTable* FindOrCreateShaderBindingTable(const FRHIRayTracingPipelineState* Pipeline) = 0;
+};
+
+class FRHIShaderBindingTable
+	: public FRHIResource
+#if ENABLE_RHI_VALIDATION
+	, public RHIValidation::FRayTracingShaderBindingTable
+#endif
+{
+public:
+	FRHIShaderBindingTable(const FRayTracingShaderBindingTableInitializer& InInitializer)
+		: FRHIResource(RRT_RayTracingShaderBindingTable)
+		, Initializer(InInitializer)
+	{}
+
+	const FRayTracingShaderBindingTableInitializer& GetInitializer() const
+	{
+		return Initializer;
+	}
+
+	// Returns a buffer view for RHI-specific system parameters associated with this SBT.
+	// This may be needed to access ray tracing geometry data in shaders that use ray queries.
+	// Returns NULL if current RHI does not require this buffer.
+	virtual FRHIShaderResourceView* GetOrCreateInlineBufferSRV(FRHICommandListBase& RHICmdList)
+	{
+		return nullptr;
+	}
+
+protected:
+	FRayTracingShaderBindingTableInitializer Initializer = {};
+};
+
+enum class ERHIShaderBundleMode : uint8
+{
+	// Compute shaders
+	CS,
+
+	// Mesh and pixel shaders
+	MSPS,
+
+	// Vertex and pixel shaders
+	VSPS,
+
+	MAX
+};
+
+class FShaderBundleCreateInfo
+{
+public:
+	FShaderBundleCreateInfo() = default;
+
+	uint32 NumRecords	= 0u;
+	uint32 ArgOffset	= 0u;
+	uint32 ArgStride	= 0u;
+
+	ERHIShaderBundleMode Mode = ERHIShaderBundleMode::CS;
 };
 
 class FRHIShaderBundle : public FRHIResource
 {
 public:
-	// Dispatch XYZ + Padding
-	static constexpr uint32 ArgumentByteStride = sizeof(uint32) * 4u;
+	const uint32 NumRecords	= 0;
+	const uint32 ArgOffset	= 0;
+	const uint32 ArgStride	= 0;
+	const ERHIShaderBundleMode Mode = ERHIShaderBundleMode::CS;
 
-	const uint32 NumRecords = 0;
+	FName ModeName;
 
 public:
-	FRHIShaderBundle(uint32 InNumRecords)
-		: FRHIResource(RRT_ShaderBundle)
-		, NumRecords(InNumRecords)
+	FRHIShaderBundle(const FShaderBundleCreateInfo& CreateInfo)
+	: FRHIResource(RRT_ShaderBundle)
+	, NumRecords(CreateInfo.NumRecords)
+	, ArgOffset(CreateInfo.ArgOffset)
+	, ArgStride(CreateInfo.ArgStride)
+	, Mode(CreateInfo.Mode)
 	{
+		if (Mode == ERHIShaderBundleMode::CS)
+		{
+			// Load3
+			check(ArgStride >= 12u);
+			ModeName = TEXT("CS");
+		}
+		else if (Mode == ERHIShaderBundleMode::MSPS)
+		{
+			// Load
+			check(ArgStride >= 4u);
+			ModeName = TEXT("MSPS");
+		}
+		else if (Mode == ERHIShaderBundleMode::VSPS)
+		{
+			// Load4
+			check(ArgStride >= 16u);
+			ModeName = TEXT("VSPS");
+		}
+		else
+		{
+			checkNoEntry();
+		}
 	}
 };
 
@@ -3374,6 +3736,8 @@ public:
 
 	// Depth/Stencil Render Target Info
 	FRHIDepthRenderTargetView DepthStencilRenderTarget;	
+	// Used when depth resolve is enabled.
+	FRHIDepthRenderTargetView DepthStencilResolveRenderTarget;
 	bool bClearDepth;
 	bool bClearStencil;
 
@@ -3426,8 +3790,11 @@ public:
 		// Need a separate struct so we can memzero/remove dependencies on reference counts
 		struct FHashableStruct
 		{
-			// *2 for color and resolves, depth goes in the second-to-last slot, shading rate goes in the last slot
-			FRHITexture* Texture[MaxSimultaneousRenderTargets*2 + 2];
+			// *2 for color and resolves
+			// depth goes in the third-to-last slot
+			// depth resolve goes in the second-to-last slot
+			// shading rate goes in the last slot
+			FRHITexture* Texture[MaxSimultaneousRenderTargets*2 + 3];
 			uint32 MipIndex[MaxSimultaneousRenderTargets];
 			uint32 ArraySliceIndex[MaxSimultaneousRenderTargets];
 			ERenderTargetLoadAction LoadAction[MaxSimultaneousRenderTargets];
@@ -3459,8 +3826,9 @@ public:
 					StoreAction[Index] = RTInfo.ColorRenderTarget[Index].StoreAction;
 				}
 
-				Texture[MaxSimultaneousRenderTargets] = RTInfo.DepthStencilRenderTarget.Texture;
-				Texture[MaxSimultaneousRenderTargets + 1] = RTInfo.ShadingRateTexture;
+				Texture[MaxSimultaneousRenderTargets*2] = RTInfo.DepthStencilRenderTarget.Texture;
+				Texture[MaxSimultaneousRenderTargets*2 + 1] = RTInfo.DepthStencilResolveRenderTarget.Texture;
+				Texture[MaxSimultaneousRenderTargets*2 + 2] = RTInfo.ShadingRateTexture;
 				DepthLoadAction = RTInfo.DepthStencilRenderTarget.DepthLoadAction;
 				DepthStoreAction = RTInfo.DepthStencilRenderTarget.DepthStoreAction;
 				StencilLoadAction = RTInfo.DepthStencilRenderTarget.StencilLoadAction;
@@ -3506,10 +3874,19 @@ public:
 
 	// Called from RHI thread to perform custom present.
 	// @param InOutSyncInterval - in out param, indicates if vsync is on (>0) or off (==0).
+	// @param RHICmdContext - the current rhi command context
 	// @return	true if native Present should be also be performed; false otherwise. If it returns
 	// true, then InOutSyncInterval could be modified to switch between VSync/NoVSync for the normal 
 	// Present.  Must match value previously returned by NeedsNativePresent for this frame.
-	virtual bool Present(int32& InOutSyncInterval) = 0;
+	virtual bool Present(IRHICommandContext& RHICmdContext, int32& InOutSyncInterval)
+	{
+	 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	 	return Present(InOutSyncInterval); 
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	 };
+
+	UE_DEPRECATED(5.5, "Please replace with Present(IRHICommandContext& RHICmdContext, int32& InOutSyncInterval).")
+	virtual bool Present(int32& InOutSyncInterval) { check(false); return true; };
 
 	// Called from RHI thread after native Present has been called
 	virtual void PostPresent() {};
@@ -3758,7 +4135,7 @@ public:
 		, bDepthBounds(false)
 		, MultiViewCount(0)
 		, bHasFragmentDensityAttachment(false)
-		, bAllowVariableRateShading(false)
+		, bAllowVariableRateShading(true)
 		, ShadingRate(EVRSShadingRate::VRSSR_1x1)
 		, Flags(0)
 		, StatePrecachePSOHash(0)
@@ -3948,16 +4325,120 @@ public:
 	{
 		struct
 		{
-			uint16					Reserved			: 14;
-			uint16					bPSOPrecache			: 1;
+			uint16					Reserved			: 11;
+			uint16					bPSOPrecache		: 1;
 			uint16					bFromPSOFileCache	: 1;
+			uint16					PrecacheCompileType : 3;
 		};
 		uint16						Flags;
 	};
 
+	enum class EPSOPrecacheCompileType : uint8
+	{
+		NotSet = 0,
+		MinPri = 1,
+		NormalPri = 2,
+		MaxPri = 3,
+
+		NumTypes = 4,
+	};
+	static_assert((int)EPSOPrecacheCompileType::MaxPri < (1<<3) ); // ensure MaxPri fits within PrecacheCompileType
+	void SetPSOPrecacheCompileType(EPSOPrecacheCompileType PrecacheCompileTypeIN) 
+	{ 
+		check(PrecacheCompileTypeIN <= EPSOPrecacheCompileType::MaxPri && PrecacheCompileTypeIN >= EPSOPrecacheCompileType::MinPri);
+		PrecacheCompileType = (uint16)PrecacheCompileTypeIN;
+	}
+	EPSOPrecacheCompileType GetPSOPrecacheCompileType() const {	return (EPSOPrecacheCompileType)PrecacheCompileType; }
+
 	// Cached hash off all state data provided at creation time (Only contains hash of data which influences the PSO precaching for the current platform)
 	// Created from hashing the state data instead of the pointers which are used during fast runtime cache checking and compares
 	uint64							StatePrecachePSOHash;
+};
+
+/** Helper for fast compute of hash for a shader table. */
+template<typename TShaderType>
+inline uint64 ComputeShaderTableHash(const TArrayView<TShaderType*>& ShaderTable, uint64 InitialHash = 5699878132332235837ull)
+{
+	uint64 CombinedHash = InitialHash;
+	for (FRHIShader* ShaderRHI : ShaderTable)
+	{
+		uint64 ShaderHash = 0;
+		if (ShaderRHI)
+		{
+			// 64 bits from the shader SHA1
+			FMemory::Memcpy(&ShaderHash, ShaderRHI->GetHash().Hash, sizeof(ShaderHash));
+		}
+
+		// 64 bit hash combination as per boost::hash_combine_impl
+		CombinedHash ^= ShaderHash + 0x9e3779b9 + (CombinedHash << 6) + (CombinedHash >> 2);
+	}
+
+	return CombinedHash;
+}
+
+class FWorkGraphPipelineStateSignature
+{
+public:
+	bool operator==(const FWorkGraphPipelineStateSignature& Rhs) const
+	{
+		return BaseHash == Rhs.BaseHash && NameHash == Rhs.NameHash && ShaderBundleNodeHash == Rhs.ShaderBundleNodeHash;
+	}
+
+	friend uint32 GetTypeHash(const FWorkGraphPipelineStateSignature& Initializer)
+	{
+		return GetTypeHash(Initializer.BaseHash) ^ GetTypeHash(Initializer.NameHash) ^ GetTypeHash(Initializer.ShaderBundleNodeHash);
+	}
+
+protected:
+	uint64 BaseHash = 0;
+	uint64 NameHash = 0;
+	uint64 ShaderBundleNodeHash = 0;
+};
+
+class FWorkGraphPipelineStateInitializer : public FWorkGraphPipelineStateSignature
+{
+public:
+	FWorkGraphPipelineStateInitializer() = default;
+	FWorkGraphPipelineStateRHIRef BasePipeline;
+
+	void SetProgramName(TCHAR const* InProgramName)
+	{
+		ProgramName = InProgramName;
+		NameHash = ComputeNameHash();
+	}
+
+	FString const& GetProgramName() const { return ProgramName; }
+
+	void SetShader(FRHIWorkGraphShader* InShader)
+	{
+		BaseShader = InShader;
+		FMemory::Memcpy(&BaseHash, InShader->GetHash().Hash, sizeof(BaseHash));	// 64 bits from the shader SHA1
+	}
+
+	FRHIWorkGraphShader* GetShader() const { return BaseShader; }
+
+	void SetShaderBundleNodeTable(const TArrayView<FRHIWorkGraphShader*>& InShaders, TCHAR const* InNodeName, uint64 Hash = 0)
+	{
+		ShaderBundleNodeTable = InShaders;
+		ShaderBundleNodeHash = Hash ? Hash : ComputeShaderTableHash(InShaders);
+
+		ShaderBundleNodeName = InNodeName;
+		NameHash = ComputeNameHash();
+	}
+
+	const TArrayView<FRHIWorkGraphShader*>& GetShaderBundleNodeTable() const { return ShaderBundleNodeTable; }
+	const FString& GetShaderBundleNodeName() const { return ShaderBundleNodeName; }
+
+private:
+	uint64 ComputeNameHash() const
+	{
+		return HashCombineFast(GetTypeHash(ProgramName), GetTypeHash(ShaderBundleNodeName));
+	}
+
+	FRHIWorkGraphShader* BaseShader = nullptr;
+	FString ProgramName;
+	TArrayView<FRHIWorkGraphShader*> ShaderBundleNodeTable;
+	FString ShaderBundleNodeName;
 };
 
 class FRayTracingPipelineStateSignature
@@ -3966,6 +4447,8 @@ public:
 
 	uint32 MaxAttributeSizeInBytes = 8; // sizeof FRayTracingIntersectionAttributes declared in RayTracingCommon.ush
 	uint32 MaxPayloadSizeInBytes = 24; // sizeof FDefaultPayload declared in RayTracingCommon.ush
+
+	UE_DEPRECATED(5.5, "Set bAllowHitGroupIndexing in FRayTracingShaderBindingTableInitializer.")
 	bool bAllowHitGroupIndexing = true;
 
 	// NOTE: GetTypeHash(const FRayTracingPipelineStateInitializer& Initializer) should also be updated when changing this function
@@ -3973,28 +4456,41 @@ public:
 	{
 		return MaxAttributeSizeInBytes == rhs.MaxAttributeSizeInBytes
 			&& MaxPayloadSizeInBytes == rhs.MaxPayloadSizeInBytes
-			&& bAllowHitGroupIndexing == rhs.bAllowHitGroupIndexing
 			&& RayGenHash == rhs.RayGenHash
 			&& MissHash == rhs.MissHash
 			&& HitGroupHash == rhs.HitGroupHash
-			&& CallableHash == rhs.CallableHash;
+			&& CallableHash == rhs.CallableHash
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			&& bAllowHitGroupIndexing == rhs.bAllowHitGroupIndexing;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	friend uint32 GetTypeHash(const FRayTracingPipelineStateSignature& Initializer)
 	{
 		return GetTypeHash(Initializer.MaxAttributeSizeInBytes) ^
 			GetTypeHash(Initializer.MaxPayloadSizeInBytes) ^
-			GetTypeHash(Initializer.bAllowHitGroupIndexing) ^
 			GetTypeHash(Initializer.GetRayGenHash()) ^
 			GetTypeHash(Initializer.GetRayMissHash()) ^
 			GetTypeHash(Initializer.GetHitGroupHash()) ^
-			GetTypeHash(Initializer.GetCallableHash());
+			GetTypeHash(Initializer.GetCallableHash()) ^
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			GetTypeHash(Initializer.bAllowHitGroupIndexing);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	uint64 GetHitGroupHash() const { return HitGroupHash; }
 	uint64 GetRayGenHash()   const { return RayGenHash; }
 	uint64 GetRayMissHash()  const { return MissHash; }
 	uint64 GetCallableHash() const { return CallableHash; }
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FRayTracingPipelineStateSignature() = default;
+	FRayTracingPipelineStateSignature(const FRayTracingPipelineStateSignature&) = default;
+	FRayTracingPipelineStateSignature& operator=(const FRayTracingPipelineStateSignature&) = default;
+	FRayTracingPipelineStateSignature(FRayTracingPipelineStateSignature&&) = default;
+	FRayTracingPipelineStateSignature& operator=(FRayTracingPipelineStateSignature&&) = default;
+	~FRayTracingPipelineStateSignature() = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 protected:
 
@@ -4025,6 +4521,10 @@ public:
 	// Base pipeline will be extended by adding new shaders into it, potentially saving substantial amount of CPU time.
 	// Depends on GRHISupportsRayTracingPSOAdditions support at runtime (base pipeline is simply ignored if it is unsupported).
 	FRayTracingPipelineStateRHIRef BasePipeline;
+
+	// Shader binding table layout used during shader compilation which needs to be the same for all shaders in the RTPSO and defines
+	// how uniform buffers needs to be bound at runtime (global(RayGen) vs local(miss/hit/callable) data)
+	const FRHIShaderBindingLayout* ShaderBindingLayout = nullptr;
 
 	const TArrayView<FRHIRayTracingShader*>& GetRayGenTable()   const { return RayGenTable; }
 	const TArrayView<FRHIRayTracingShader*>& GetMissTable()     const { return MissTable; }
@@ -4063,23 +4563,10 @@ public:
 		CallableHash = Hash ? Hash : ComputeShaderTableHash(CallableTable);
 	}
 
+	// Retrieve the max local binding size of all the raytracing shaders used in the RTPSO
+	RHI_API uint32 GetMaxLocalBindingDataSize() const;
+
 private:
-
-	uint64 ComputeShaderTableHash(const TArrayView<FRHIRayTracingShader*>& ShaderTable, uint64 InitialHash = 5699878132332235837ull)
-	{
-		uint64 CombinedHash = InitialHash;
-		for (FRHIRayTracingShader* ShaderRHI : ShaderTable)
-		{
-			uint64 ShaderHash; // 64 bits from the shader SHA1
-			FMemory::Memcpy(&ShaderHash, ShaderRHI->GetHash().Hash, sizeof(ShaderHash));
-
-			// 64 bit hash combination as per boost::hash_combine_impl
-			CombinedHash ^= ShaderHash + 0x9e3779b9 + (CombinedHash << 6) + (CombinedHash >> 2);
-		}
-
-		return CombinedHash;
-	}
-
 	TArrayView<FRHIRayTracingShader*> RayGenTable;
 	TArrayView<FRHIRayTracingShader*> MissTable;
 	TArrayView<FRHIRayTracingShader*> HitGroupTable;
@@ -4097,25 +4584,28 @@ public:
 	{
 	}
 
+	FRHIGraphicsShader* GetShader(EShaderFrequency Frequency) const override
+	{
+		switch (Frequency)
+		{
+		case SF_Vertex: return Initializer.BoundShaderState.GetVertexShader();
+		case SF_Mesh: return Initializer.BoundShaderState.GetMeshShader();
+		case SF_Amplification: return Initializer.BoundShaderState.GetAmplificationShader();
+		case SF_Pixel: return Initializer.BoundShaderState.GetPixelShader();
+		case SF_Geometry: return Initializer.BoundShaderState.GetGeometryShader();
+		default: return nullptr;
+		}
+	}
+
 	FGraphicsPipelineStateInitializer Initializer;
 };
 
 class FRHIComputePipelineStateFallback : public FRHIComputePipelineState
 {
 public:
-	FRHIComputePipelineStateFallback(FRHIComputeShader* InComputeShader)
-		: ComputeShader(InComputeShader)
+	FRHIComputePipelineStateFallback(FRHIComputeShader* InComputeShader) : FRHIComputePipelineState(InComputeShader)
 	{
-		check(InComputeShader);
 	}
-
-	FRHIComputeShader* GetComputeShader()
-	{
-		return ComputeShader;
-	}
-
-protected:
-	TRefCountPtr<FRHIComputeShader> ComputeShader;
 };
 
 enum class ERenderTargetActions : uint8
@@ -4699,11 +5189,17 @@ struct FRHIBufferSRVCreateInfo
 		, NumElements(InNumElements)
 	{}
 
+	FRHIBufferSRVCreateInfo(FRHIRayTracingScene* InRayTracingScene, uint32 InStartOffsetBytes)
+		: StartOffsetBytes(InStartOffsetBytes)
+		, RayTracingScene(InRayTracingScene)
+	{}
+
 	FORCEINLINE bool operator==(const FRHIBufferSRVCreateInfo& Other)const
 	{
 		return Format == Other.Format
 			&& StartOffsetBytes == Other.StartOffsetBytes
-			&& NumElements == Other.NumElements;
+			&& NumElements == Other.NumElements
+			&& RayTracingScene == Other.RayTracingScene;
 	}
 
 	FORCEINLINE bool operator!=(const FRHIBufferSRVCreateInfo& Other)const
@@ -4714,8 +5210,10 @@ struct FRHIBufferSRVCreateInfo
 	friend uint32 GetTypeHash(const FRHIBufferSRVCreateInfo& Desc)
 	{
 		return HashCombine(
-			HashCombine(GetTypeHash(Desc.Format), GetTypeHash(Desc.StartOffsetBytes)),
-			GetTypeHash(Desc.NumElements)
+			HashCombine(
+				HashCombine(GetTypeHash(Desc.Format), GetTypeHash(Desc.StartOffsetBytes)),
+				GetTypeHash(Desc.NumElements)),
+			GetTypeHash(Desc.RayTracingScene)
 		);
 	}
 
@@ -4727,6 +5225,9 @@ struct FRHIBufferSRVCreateInfo
 
 	/** Number of elements (whole buffer by default) */
 	uint32 NumElements = UINT32_MAX;
+
+	/** Ray tracing scene associated with the SRV (if BUF_AccelerationStructure) */
+	FRHIRayTracingScene* RayTracingScene = nullptr;
 };
 
 struct FRHIBufferUAVCreateInfo
@@ -4769,11 +5270,6 @@ public:
 	// Finds a SRV matching the descriptor in the cache or creates a new one and updates the cache.
 	RHI_API FRHIShaderResourceView* GetOrCreateSRV(FRHICommandListBase& RHICmdList, FRHITexture* Texture, const FRHITextureSRVCreateInfo& CreateInfo);
 
-	UE_DEPRECATED(5.3, "GetOrCreateUAV now requires a command list.")
-	RHI_API FRHIUnorderedAccessView* GetOrCreateUAV(FRHITexture* Texture, const FRHITextureUAVCreateInfo& CreateInfo);
-	UE_DEPRECATED(5.3, "GetOrCreateSRV now requires a command list.")
-	RHI_API FRHIShaderResourceView* GetOrCreateSRV(FRHITexture* Texture, const FRHITextureSRVCreateInfo& CreateInfo);
-
 	// Sets the debug name of the RHI view resources.
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	RHI_API void SetDebugName(FRHICommandListBase& RHICmdList, const TCHAR* DebugName);
@@ -4795,37 +5291,18 @@ public:
 	// Finds a SRV matching the descriptor in the cache or creates a new one and updates the cache.
 	RHI_API FRHIShaderResourceView* GetOrCreateSRV(FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, const FRHIBufferSRVCreateInfo& CreateInfo);
 
-	UE_DEPRECATED(5.3, "GetOrCreateUAV now requires a command list.")
-	RHI_API FRHIUnorderedAccessView* GetOrCreateUAV(FRHIBuffer* Buffer, const FRHIBufferUAVCreateInfo& CreateInfo);
-	UE_DEPRECATED(5.3, "GetOrCreateSRV now requires a command list.")
-	RHI_API FRHIShaderResourceView* GetOrCreateSRV(FRHIBuffer* Buffer, const FRHIBufferSRVCreateInfo& CreateInfo);
-
 	// Sets the debug name of the RHI view resources.
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	RHI_API void SetDebugName(FRHICommandListBase& RHICmdList, const TCHAR* DebugName);
 #else
 	void SetDebugName(FRHICommandListBase& RHICmdList, const TCHAR* DebugName) {}
 #endif
+	FORCEINLINE int32 NumItems() const
+	{
+		return UAVs.Num() + SRVs.Num();
+	}
 
 private:
 	TArray<TPair<FRHIBufferUAVCreateInfo, FUnorderedAccessViewRHIRef>, TInlineAllocator<1>> UAVs;
 	TArray<TPair<FRHIBufferSRVCreateInfo, FShaderResourceViewRHIRef>, TInlineAllocator<1>> SRVs;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Async/TaskGraphInterfaces.h"
-#include "Containers/ClosableMpscQueue.h"
-#include "Containers/ConsumeAllMpmcQueue.h"
-#include "Containers/LockFreeList.h"
-#include "Experimental/Containers/HazardPointer.h"
-#include "Hash/CityHash.h"
-#include "Misc/CoreDelegates.h"
-#include "Misc/SecureHash.h"
-#include "RHIShaderLibrary.h"
-#include "RHITextureReference.h"
-#include "TextureProfiler.h"
-#endif
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
-#include "Serialization/MemoryImage.h"
-#endif

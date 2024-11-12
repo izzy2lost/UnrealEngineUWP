@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AssetRegistry/AssetData.h"
 #include "CoreMinimal.h"
 #include "Stats/Stats.h"
 #include "UObject/ObjectMacros.h"
@@ -10,6 +11,7 @@
 #include "GameplayTagContainer.h"
 #include "Engine/DataTable.h"
 #include "Templates/UniquePtr.h"
+#include "Misc/TransactionallySafeScopeLock.h"
 
 #include "GameplayTagsManager.generated.h"
 
@@ -378,10 +380,15 @@ public:
 	/** Call to flush the list of native tags, once called it is unsafe to add more */
 	GAMEPLAYTAGS_API void DoneAddingNativeTags();
 
+	/** This is a delegate that is called during initialization/initial loading and signals the last chance to add tags before we are considered to be fully loaded (all tags registered). */
 	static GAMEPLAYTAGS_API FSimpleMulticastDelegate& OnLastChanceToAddNativeTags();
 
-
-	GAMEPLAYTAGS_API void CallOrRegister_OnDoneAddingNativeTagsDelegate(FSimpleMulticastDelegate::FDelegate Delegate);
+	/**
+	 * Register a callback for when native tags are done being added (this is also a safe point to consider that the gameplay tags have fully been initialized).
+	 * Or, if the native tags have already been added (and thus we have registered all valid tags), then execute this Delegate immediately.
+	 * This is useful if your code is potentially executed during load time, and therefore any tags in your block of code could be not-yet-loaded, but possibly valid after being loaded.
+	 */
+	GAMEPLAYTAGS_API FDelegateHandle CallOrRegister_OnDoneAddingNativeTagsDelegate(const FSimpleMulticastDelegate::FDelegate& Delegate) const;
 
 	/**
 	 * Gets a Tag Container containing the supplied tag and all of its parents as explicit tags.
@@ -433,7 +440,7 @@ public:
 	 */
 	FORCEINLINE_DEBUGGABLE TSharedPtr<FGameplayTagNode> FindTagNode(const FGameplayTag& GameplayTag) const
 	{
-		FScopeLock Lock(&GameplayTagMapCritical);
+		FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 		const TSharedPtr<FGameplayTagNode>* Node = GameplayTagNodeMap.Find(GameplayTag);
 
@@ -540,15 +547,22 @@ public:
 	}
 
 	/** Should we clear references to invalid tags loaded/saved in the editor */
+	UE_DEPRECATED(5.5, "We should never clear invalid tags as we're not guaranteed the required plugin has loaded")
 	bool ShouldClearInvalidTags() const
 	{
-		return bShouldClearInvalidTags;
+		return false;
 	}
 
 	/** Should use fast replication */
 	bool ShouldUseFastReplication() const
 	{
 		return bUseFastReplication;
+	}
+
+	/** Should use dynamic replication (Gameplay Tags need not match between client/server) */
+	bool ShouldUseDynamicReplication() const
+	{
+		return !bUseFastReplication && bUseDynamicReplication;
 	}
 
 	/** If we are allowed to unload tags */
@@ -670,7 +684,6 @@ public:
 	/** Returns information about tag. If not found return false */
     GAMEPLAYTAGS_API bool GetTagEditorData(FName TagName, FString& OutComment, TArray<FName>& OutTagSources, bool& bOutIsTagExplicit, bool &bOutIsRestrictedTag, bool &bOutAllowNonRestrictedChildren) const;
 
-#if WITH_EDITOR
 	/** This is called after EditorRefreshGameplayTagTree. Useful if you need to do anything editor related when tags are added or removed */
 	static GAMEPLAYTAGS_API FSimpleMulticastDelegate OnEditorRefreshGameplayTagTree;
 
@@ -682,7 +695,6 @@ public:
 
 	/** Resumes EditorRefreshGameplayTagTree requests; triggers a refresh if a request was made while it was suspended */
 	GAMEPLAYTAGS_API void ResumeEditorRefreshGameplayTagTree(FGuid SuspendToken);
-#endif //if WITH_EDITOR
 
 	/** Gets a Tag Container containing all of the tags in the hierarchy that are children of this tag, and were explicitly added to the dictionary */
 	GAMEPLAYTAGS_API FGameplayTagContainer RequestGameplayTagChildrenInDictionary(const FGameplayTag& GameplayTag) const;
@@ -703,17 +715,28 @@ public:
 	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnFilterGameplayTagChildren, const FString&  /** FilterString */, TSharedPtr<FGameplayTagNode>& /* TagNode */, bool& /* OUT OutShouldHide */)
 	FOnFilterGameplayTagChildren OnFilterGameplayTagChildren;
 
+	/*
+	* This is a container to filter out gameplay tags when they are invalid or when they don't meet the filter string
+	* If used from editor to filter out tags when picking them the FilterString is optional and the ReferencingPropertyHandle is required
+	* If used to validate an asset / assets you can provide the TagSourceAssets. The FilterString and ReferencingPropertyHandle is optional
+	*/
 	struct FFilterGameplayTagContext
 	{
 		const FString& FilterString;
 		const TSharedPtr<FGameplayTagNode>& TagNode;
 		const FGameplayTagSource* TagSource;
-		const TSharedPtr<IPropertyHandle>& ReferencingPropertyHandle;
+		const TSharedPtr<IPropertyHandle> ReferencingPropertyHandle;
+		const TArray<FAssetData> TagSourceAssets;
 
 		FFilterGameplayTagContext(const FString& InFilterString, const TSharedPtr<FGameplayTagNode>& InTagNode, const FGameplayTagSource* InTagSource, const TSharedPtr<IPropertyHandle>& InReferencingPropertyHandle)
 			: FilterString(InFilterString), TagNode(InTagNode), TagSource(InTagSource), ReferencingPropertyHandle(InReferencingPropertyHandle)
 		{}
+
+		FFilterGameplayTagContext(const TSharedPtr<FGameplayTagNode>& InTagNode, const FGameplayTagSource* InTagSource, const TArray<FAssetData>& InTagSourceAssets, const FString& InFilterString = FString())
+			: FilterString(InFilterString), TagNode(InTagNode), TagSource(InTagSource), TagSourceAssets(InTagSourceAssets)
+		{}
 	};
+
 	/*
 	 * Allows dynamic hiding of gameplay tags in SGameplayTagWidget. Allows higher order structs to dynamically change which tags are visible based on its own data
 	 * Applies to all tags, and has more context than OnFilterGameplayTagChildren
@@ -725,10 +748,12 @@ public:
 	
 	GAMEPLAYTAGS_API bool ShowGameplayTagAsHyperLinkEditor(FString TagName);
 
-
+	/** Implementation of console command GameplayTags.DumpSources */
+	void DumpSources(FOutputDevice& Out) const;
 #endif //WITH_EDITOR
 
 	GAMEPLAYTAGS_API void PrintReplicationIndices();
+	GAMEPLAYTAGS_API int32 GetNumGameplayTagNodes() const { return GameplayTagNodeMap.Num(); }
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	/** Mechanism for tracking what tags are frequently replicated */
@@ -866,8 +891,6 @@ private:
 	/** Map of all config directories to load tag inis from */
 	TMap<FString, FGameplayTagSearchPathInfo> RegisteredSearchPaths;
 
-
-
 	/** Roots of gameplay tag nodes */
 	TSharedPtr<FGameplayTagNode> GameplayRootTag;
 
@@ -888,11 +911,11 @@ private:
 	/** Cached runtime value for whether we are using fast replication or not. Initialized from config setting. */
 	bool bUseFastReplication;
 
-	/** Cached runtime value for whether we should warn when loading invalid tags */
-	bool bShouldWarnOnInvalidTags;
+	/** Cached runtime value for whether we are using dynamic replication or not. Initialized from the config setting. */
+	bool bUseDynamicReplication;
 
 	/** Cached runtime value for whether we should warn when loading invalid tags */
-	bool bShouldClearInvalidTags;
+	bool bShouldWarnOnInvalidTags;
 
 	/** Cached runtime value for whether we should allow unloading of tags */
 	bool bShouldAllowUnloadingTags;
@@ -914,7 +937,7 @@ private:
 
 	// This critical section is to handle an issue where tag requests come from another thread when async loading from a background thread in FGameplayTagContainer::Serialize.
 	// This class is not generically threadsafe.
-	mutable FCriticalSection GameplayTagMapCritical;
+	mutable FTransactionallySafeCriticalSection GameplayTagMapCritical;
 
 #if WITH_EDITOR
 	// Transient editor-only tags to support quick-iteration PIE workflows

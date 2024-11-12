@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "OSCLog.h"
@@ -9,11 +8,11 @@
 #include "OSCAddress.generated.h"
 
 
-namespace OSC
+namespace UE::OSC
 {
 	extern const FString BundleTag;
 	extern const FString PathSeparator;
-} // namespace OSC
+} // namespace UE::OSC
 
 
 USTRUCT(BlueprintType)
@@ -23,11 +22,9 @@ struct OSC_API FOSCAddress
 
 private:
 	// Ordered array of container names
-	UPROPERTY(Transient)
 	TArray<FString> Containers;
 
 	// Method name of string
-	UPROPERTY(Transient)
 	FString Method;
 
 	/** Cached values for validity and hash */
@@ -53,19 +50,25 @@ public:
 	bool Matches(const FOSCAddress& InAddress) const;
 
 	/** Pushes container onto end of address' ordered array of containers */
-	void PushContainer(const FString& InContainer);
+	bool PushContainer(FString Container);
 
 	/** Pushes containers onto end of address' ordered array of containers */
-	void PushContainers(const TArray<FString>& InContainers);
+	bool PushContainers(TArray<FString> NewContainers);
 
 	/** Pops container from ordered array of containers */
 	FString PopContainer();
 
+	/** Pops container from ordered array of containers */
+	bool PopContainer(FString& OutContainer);
+
 	/** Pops containers off end of address' ordered array of containers */
-	TArray<FString> PopContainers(int32 InNumContainers);
+	TArray<FString> PopContainers(int32 NumToPop);
+
+	/** Pops containers off end of address' ordered array of containers */
+	bool PopContainers(int32 NumToPop, TArray<FString>& OutContainers);
 
 	/** Removes containers from container array at index until count */
-	void RemoveContainers(int32 InIndex, int32 InCount);
+	bool RemoveContainers(int32 InIndex, int32 InCount);
 
 	/** Clears ordered array of containers */
 	void ClearContainers();
@@ -73,8 +76,17 @@ public:
 	/** Get method name of address */
 	const FString& GetMethod() const;
 
+	/** Returns numeric prefix of OSC method if is numeric */
+	bool GetNumericPrefix(int32& OutPrefix) const;
+
+	/** Returns numeric suffix of OSC method if is numeric */
+	bool GetNumericSuffix(int32& OutSuffix) const;
+
+	/** Sets the address to the given array of containers and provided method */
+	bool Set(TArray<FString> NewContainers, FString NewMethod);
+
 	/** Sets the method name of address */
-	void SetMethod(const FString& InMethod);
+	bool SetMethod(FString NewMethod);
 
 	/** Returns container path of OSC address in the form '/Container1/Container2' */
 	FString GetContainerPath() const;
@@ -138,4 +150,7 @@ public:
 	{
 		return InAddress.Hash;
 	}
+
+private:
+	bool PushContainersInternal(TArray<FString>&& InContainers);
 };

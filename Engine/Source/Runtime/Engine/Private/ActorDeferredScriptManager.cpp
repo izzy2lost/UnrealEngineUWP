@@ -9,6 +9,7 @@
 #include "AsyncCompilationHelpers.h"
 #include "AssetCompilingManager.h"
 #include "Engine/Level.h"
+#include "Templates/GuardValueAccessors.h"
 #include "Engine/StaticMesh.h"
 #include "Logging/LogMacros.h"
 #include "ProfilingDebugging/CountersTrace.h"
@@ -188,7 +189,7 @@ void FActorDeferredScriptManager::ProcessAsyncTasks(bool bLimitExecutionTime)
 
 		// Since this deferred run of construction script was supposed to be done during level load
 		// temporarily set the global flag to prevent dirtying the level package.
-		TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+		TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
 
 		int32 CurrentIndex = NextIndexToProcess;
 		UPackage* EnteredPackage = nullptr;

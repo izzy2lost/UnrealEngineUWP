@@ -2,9 +2,9 @@
 
 #pragma once
 
+#include "ChaosVDCollisionDataWrappers.h"
 #include "UObject/ObjectMacros.h"
 #include "HAL/Platform.h"
-#include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 
 #include "ChaosVDParticleDataWrapper.generated.h"
 
@@ -56,6 +56,24 @@ protected:
 	bool bHasValidData = false;
 };
 
+enum class EChaosVDParticlePairIndex : uint8
+{
+	Index_0,
+	Index_1
+};
+
+/** Base struct that declares the interface to be used for any Constraint data to be visualized */
+USTRUCT()
+struct FChaosVDConstraintDataWrapperBase : public FChaosVDWrapperDataBase
+{
+	GENERATED_BODY()
+	virtual ~FChaosVDConstraintDataWrapperBase() override = default;
+
+	CHAOSVDRUNTIME_API virtual int32 GetSolverID() const  { return INDEX_NONE; }
+	CHAOSVDRUNTIME_API virtual int32 GetParticleIDAtSlot (EChaosVDParticlePairIndex IndexSlot) const { return INDEX_NONE;}
+	CHAOSVDRUNTIME_API virtual int32 GetConstraintIndex () const {  return INDEX_NONE; }
+};
+
 USTRUCT()
 struct FChaosVDFRigidParticleControlFlags : public FChaosVDWrapperDataBase 
 {
@@ -67,7 +85,10 @@ struct FChaosVDFRigidParticleControlFlags : public FChaosVDWrapperDataBase
 		  bOneWayInteractionEnabled(false),
 		  bInertiaConditioningEnabled(false), 
 		  GravityGroupIndex(0),
-		  bMACDEnabled(false)
+		  bMACDEnabled(false), 
+		  PositionSolverIterationCount(8),
+		  VelocitySolverIterationCount(1),
+		  ProjectionSolverIterationCount(1)
 	{
 	}
 
@@ -98,6 +119,12 @@ struct FChaosVDFRigidParticleControlFlags : public FChaosVDWrapperDataBase
 	int32 GravityGroupIndex;
 	UPROPERTY(VisibleAnywhere, Category = "Particle Control Flags")
 	bool bMACDEnabled;
+	UPROPERTY(VisibleAnywhere, Category = "Particle Control Flags")
+	uint8 PositionSolverIterationCount;
+	UPROPERTY(VisibleAnywhere, Category = "Particle Control Flags")
+	uint8 VelocitySolverIterationCount;
+	UPROPERTY(VisibleAnywhere, Category = "Particle Control Flags")
+	uint8 ProjectionSolverIterationCount;
 };
 
 inline FArchive& operator<<(FArchive& Ar, FChaosVDFRigidParticleControlFlags& Data)
@@ -556,34 +583,34 @@ struct FChaosVDParticleDataWrapper : public FChaosVDWrapperDataBase
 	{
 	}
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Non Frequent Data")
+	UPROPERTY(VisibleAnywhere, Category= "General")
 	uint32 GeometryHash = 0;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Non Frequent Data")
+	UPROPERTY(VisibleAnywhere, Category= "General")
 	FString DebugName;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Non Frequent Data")
+	UPROPERTY(VisibleAnywhere, Category= "General")
 	int32 ParticleIndex = INDEX_NONE;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Non Frequent Data")
+	UPROPERTY(VisibleAnywhere, Category= "General")
 	int32 SolverID = INDEX_NONE;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Non Frequent Data")
+	UPROPERTY(VisibleAnywhere, Category= "General")
 	EChaosVDParticleType Type = EChaosVDParticleType::Unknown;
 
 	UPROPERTY(VisibleAnywhere, Category= "Particle Position Rotation")
 	FChaosVDParticlePositionRotation ParticlePositionRotation;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Particle Velocities")
+	UPROPERTY(VisibleAnywhere, Category= "Particle Velocities")
 	FChaosVDParticleVelocities ParticleVelocities;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Particle Dynamics")
+	UPROPERTY(VisibleAnywhere, Category= "Particle Dynamics")
 	FChaosVDParticleDynamics ParticleDynamics;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Particle Dynamics Misc")
+	UPROPERTY(VisibleAnywhere, Category= "Particle Dynamics Misc")
 	FChaosVDParticleDynamicMisc ParticleDynamicsMisc;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Particle Mass Props")
+	UPROPERTY(VisibleAnywhere, Category= "Particle Mass Props")
 	FChaosVDParticleMassProps ParticleMassProps;
 
 	UPROPERTY(VisibleAnywhere, Category= "Particle Cluster Data")

@@ -18,7 +18,6 @@ class ULocalPlayer;
 class USocialUser;
 class USocialParty;
 class USocialToolkit;
-class UGameViewportClient;
 class UGameInstance;
 class FOnlineSessionSearchResult;
 class FPartyPlatformSessionManager;
@@ -69,6 +68,9 @@ public:
 
 	DECLARE_EVENT_OneParam(USocialManager, FOnSocialToolkitCreated, USocialToolkit&)
 	FOnSocialToolkitCreated& OnSocialToolkitCreated() const { return OnSocialToolkitCreatedEvent; }
+	DECLARE_EVENT_OneParam(USocialManager, FOnSocialToolkitDestroyed, USocialToolkit&)
+	/** Event triggered when a social toolkit is destroyed. Triggered after it is no longer registered with this social manager. */
+	FOnSocialToolkitDestroyed& OnSocialToolkitDestroyed() const { return OnSocialToolkitDestroyedEvent; }
 	
 	DECLARE_EVENT_OneParam(USocialManager, FOnPartyMembershipChanged, USocialParty&);
 	FOnPartyMembershipChanged& OnPartyJoined() const { return OnPartyJoinedEvent; }
@@ -123,7 +125,7 @@ protected:
 	void JoinParty(const USocialUser& UserToJoin, const FOnlinePartyTypeId& PartyTypeId, const FOnJoinPartyAttemptComplete& OnJoinPartyComplete, const FName& JoinMethod);
 
 protected:
-	struct PARTY_API FRejoinableParty : public TSharedFromThis<FRejoinableParty>
+	struct PARTY_API UE_DEPRECATED(5.5, "Rejoinable Parties is deprecated and will be removed") FRejoinableParty : public TSharedFromThis<FRejoinableParty>
 	{
 		FRejoinableParty(const USocialParty& SourceParty);
 
@@ -135,7 +137,12 @@ protected:
 public:
 	struct PARTY_API FJoinPartyAttempt
 	{
+		UE_DEPRECATED(5.5, "Rejoinable Parties is deprecated and will be removed")
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		FJoinPartyAttempt(TSharedRef<const FRejoinableParty> InRejoinInfo);
+		FJoinPartyAttempt(const FJoinPartyAttempt&) = default;
+		FJoinPartyAttempt(FJoinPartyAttempt&&) = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		FJoinPartyAttempt(const USocialUser* InTargetUser, const FOnlinePartyTypeId& InPartyTypeId, const FName& InJoinMethod, const FOnJoinPartyAttemptComplete& InOnJoinComplete);
 
 		FString ToDebugString() const;
@@ -145,7 +152,10 @@ public:
 		FName JoinMethod = PartyJoinMethod::Unspecified;
 		FUniqueNetIdRepl TargetUserPlatformId;
 
+		UE_DEPRECATED(5.5, "Rejoinable Parties is deprecated and will be removed")
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		TSharedPtr<const FRejoinableParty> RejoinInfo;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		IOnlinePartyJoinInfoConstPtr JoinInfo;
 
 		FOnJoinPartyAttemptComplete OnJoinComplete;
@@ -188,7 +198,10 @@ protected:
 	/** Up to the game to decide whether it wants to allow crossplay (generally based on a user setting of some kind) */
 	virtual ECrossplayPreference GetCrossplayPreference() const;
 
+	UE_DEPRECATED(5.5, "Rejoinable Parties is deprecated and will be removed")
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	virtual bool ShouldTryRejoiningPersistentParty(const FRejoinableParty& InRejoinableParty) const;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	template <typename InteractionT>
 	void RegisterInteraction()
@@ -210,7 +223,10 @@ protected:
 	virtual TSubclassOf<USocialDebugTools> GetSocialDebugToolsClass() const;
 
 	/** Info on the persistent party we were in when losing connection to the party service and want to rejoin when it returns */
+	UE_DEPRECATED(5.5, "Rejoinable Parties is deprecated and will be removed")
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TSharedPtr<FRejoinableParty> RejoinableParty;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** The desired type of SocialToolkit to create for each local player */
 	TSubclassOf<USocialToolkit> ToolkitClass;
@@ -289,6 +305,7 @@ private:
 	FDelegateHandle OnFillJoinRequestInfoHandle;
 
 	mutable FOnSocialToolkitCreated OnSocialToolkitCreatedEvent;
+	mutable FOnSocialToolkitDestroyed OnSocialToolkitDestroyedEvent;
 	mutable FOnPartyMembershipChanged OnPartyJoinedEvent;
 };
 

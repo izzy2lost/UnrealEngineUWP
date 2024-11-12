@@ -1,12 +1,45 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetasoundFrontendDocumentAccessPtr.h"
+
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundFrontendRegistries.h"
+#include "MetasoundFrontendDocumentBuilder.h"
 
 namespace Metasound
 {
 	namespace Frontend
 	{
+		namespace BuilderPrivate
+		{
+			FMetasoundFrontendGraph& FindBuildGraphChecked(FMetasoundFrontendGraphClass& InGraphClass)
+			{
+				if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
+				{
+					if (FMetaSoundFrontendDocumentBuilder* Builder = BuilderRegistry->FindBuilder(InGraphClass.Metadata.GetClassName(), { }))
+					{
+						// Const cast and not exposed to public API to dissuade from direct manipulation of graphs as this can corrupt the internal document cache
+						return const_cast<FMetasoundFrontendGraph&>(Builder->FindConstBuildGraphChecked());
+					}
+				}
+
+				return InGraphClass.GetDefaultGraph();
+			}
+
+			const FMetasoundFrontendGraph& FindConstBuildGraphChecked(const FMetasoundFrontendGraphClass& InGraphClass)
+			{
+				if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
+				{
+					if (FMetaSoundFrontendDocumentBuilder* Builder = BuilderRegistry->FindBuilder(InGraphClass.Metadata.GetClassName(), { }))
+					{
+						return Builder->FindConstBuildGraphChecked();
+					}
+				}
+
+				return InGraphClass.GetConstDefaultGraph();
+			}
+		}
+
 		namespace MetasoundFrontendDocumentAccessPtrPrivate
 		{
 			/** TFindInArray is a callable object for finding child objects with a parent 
@@ -215,22 +248,22 @@ namespace Metasound
 			/** A callable object for accessing arrays of nodes from a graph class. */
 			struct FGetGraphClassNodes
 			{
-			 	TArray<FMetasoundFrontendNode>& operator()(FMetasoundFrontendGraphClass& InGraphClass) const { return InGraphClass.Graph.Nodes; }
-			 	const TArray<FMetasoundFrontendNode>& operator()(const FMetasoundFrontendGraphClass& InGraphClass) const { return InGraphClass.Graph.Nodes; }
+			 	TArray<FMetasoundFrontendNode>& operator()(FMetasoundFrontendGraphClass& InGraphClass) const { return BuilderPrivate::FindBuildGraphChecked(InGraphClass).Nodes; }
+			 	const TArray<FMetasoundFrontendNode>& operator()(const FMetasoundFrontendGraphClass& InGraphClass) const { return BuilderPrivate::FindConstBuildGraphChecked(InGraphClass).Nodes; }
 			};
 
 			/** A callable object for accessing arrays of variables from a graph class. */
 			/*
 			struct FGetGraphClassVariables
 			{
-			 	TMap<FGuid, FMetasoundFrontendVariable>& operator()(FMetasoundFrontendGraphClass& InGraphClass) const { return InGraphClass.Graph.Variables; }
-			 	const TMap<FGuid, FMetasoundFrontendVariable>& operator()(const FMetasoundFrontendGraphClass& InGraphClass) const { return InGraphClass.Graph.Variables; }
+			 	TMap<FGuid, FMetasoundFrontendVariable>& operator()(FMetasoundFrontendGraphClass& InGraphClass) const { return BuilderPrivate::FindBuildGraphChecked(InGraphClass).Variables; }
+			 	const TMap<FGuid, FMetasoundFrontendVariable>& operator()(const FMetasoundFrontendGraphClass& InGraphClass) const { return BuilderPrivate::FindConstBuildGraphChecked(InGraphClass).Variables; }
 			};
 			*/
 			struct FGetGraphClassVariables
 			{
-			 	TArray<FMetasoundFrontendVariable>& operator()(FMetasoundFrontendGraphClass& InGraphClass) const { return InGraphClass.Graph.Variables; }
-			 	const TArray<FMetasoundFrontendVariable>& operator()(const FMetasoundFrontendGraphClass& InGraphClass) const { return InGraphClass.Graph.Variables; }
+			 	TArray<FMetasoundFrontendVariable>& operator()(FMetasoundFrontendGraphClass& InGraphClass) const { return BuilderPrivate::FindBuildGraphChecked(InGraphClass).Variables; }
+			 	const TArray<FMetasoundFrontendVariable>& operator()(const FMetasoundFrontendGraphClass& InGraphClass) const { return BuilderPrivate::FindConstBuildGraphChecked(InGraphClass).Variables; }
 			};
 
 			/** A callable object for accessing arrays of subgraphs from a document. */
@@ -666,7 +699,7 @@ namespace Metasound
 		{
 			auto FindGraph = [](FMetasoundFrontendGraphClass& InGraphClass) -> FMetasoundFrontendGraph* 
 			{ 
-				return &InGraphClass.Graph; 
+				return &BuilderPrivate::FindBuildGraphChecked(InGraphClass); 
 			};
 
 			return GetMemberAccessPtr<FGraphAccessPtr>(FindGraph);
@@ -738,7 +771,7 @@ namespace Metasound
 		{
 			auto FindGraph = [](const FMetasoundFrontendGraphClass& InGraphClass) -> const FMetasoundFrontendGraph* 
 			{ 
-				return &InGraphClass.Graph; 
+				return &BuilderPrivate::FindConstBuildGraphChecked(InGraphClass); 
 			};
 
 			return GetMemberAccessPtr<FConstGraphAccessPtr>(FindGraph);
@@ -810,7 +843,7 @@ namespace Metasound
 		{
 			auto FindGraph = [](const FMetasoundFrontendGraphClass& InGraphClass) -> const FMetasoundFrontendGraph* 
 			{ 
-				return &InGraphClass.Graph; 
+				return &BuilderPrivate::FindConstBuildGraphChecked(InGraphClass); 
 			};
 
 			return GetMemberAccessPtr<FConstGraphAccessPtr>(FindGraph);

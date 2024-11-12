@@ -59,13 +59,13 @@ protected:
 class FOnlineError
 {
 public:
-	FOnlineError(ErrorCodeType InErrorCode, TSharedPtr<const IOnlineErrorDetails, ESPMode::ThreadSafe> InDetails = nullptr, TSharedPtr<const FOnlineError, ESPMode::ThreadSafe> InInner = nullptr)
+	explicit FOnlineError(ErrorCodeType InErrorCode, TSharedPtr<const IOnlineErrorDetails, ESPMode::ThreadSafe> InDetails = nullptr, TSharedPtr<const FOnlineError, ESPMode::ThreadSafe> InInner = nullptr)
 		: Details(InDetails)
 		, Inner(InInner)
 		, ErrorCode(InErrorCode)
 	{
 	}
-
+	explicit FOnlineError(bool) = delete;
 
 	FText GetText() const
 	{
@@ -73,17 +73,13 @@ public:
 		{
 			return Details->GetText(*this); // alternatively could be done via lookup on an error registry
 		}
-		else if (ErrorCode == Errors::ErrorCode::Success)
-		{
-			return LOCTEXT("Success", "Success"); // success message
-		}
 		else
 		{
 			return FText::FromString(GetErrorId()); // generic error message with code
 		}
 	}
 
-	FString GetLogString(bool bIncludePrefix = true, bool bIncludeSuccess = true) const
+	FString GetLogString(bool bIncludePrefix = true) const
 	{
 #if !NO_LOGGING
 		FString MyLogString = TEXT("");
@@ -100,13 +96,6 @@ public:
 			FString LogString = Details->GetLogString(*this);
 			MyLogString = FString::Printf(TEXT("%s%s"), *LogPrefix, *Details->GetLogString(*this));
 		}
-		else if (ErrorCode == Errors::ErrorCode::Success)
-		{
-			if (bIncludeSuccess)
-			{
-				MyLogString = TEXT("Success");
-			}
-		}
 		else
 		{
 			MyLogString = FString::Printf(TEXT("[%s]"), *GetErrorId()); 
@@ -114,7 +103,7 @@ public:
 
 		if (GetInner() != nullptr)
 		{
-			FString InnerLogStr = GetInner()->GetLogString(false, false);
+			FString InnerLogStr = GetInner()->GetLogString(false);
 			if (!InnerLogStr.IsEmpty())
 			{
 				return FString::Printf(TEXT("%s (%s)"), *MyLogString, *InnerLogStr);
@@ -147,11 +136,7 @@ public:
 
 	FString GetFriendlyErrorCode() const
 	{
-		if (ErrorCode == Errors::ErrorCode::Success)
-		{
-			return TEXT("Success");
-		}
-		else if (Details)
+		if (Details)
 		{
 			return Details->GetFriendlyErrorCode(*this);
 		}
@@ -185,6 +170,8 @@ public:
 	{
 		return ErrorCode;
 	}
+
+	ONLINESERVICESINTERFACE_API bool IsSuccess() const;
 
 private:
 	// TSharedPtr instead of TUniquePtr so that we can copy errors easily

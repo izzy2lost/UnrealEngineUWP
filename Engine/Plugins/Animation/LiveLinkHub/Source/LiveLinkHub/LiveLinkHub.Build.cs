@@ -1,19 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-namespace UnrealBuildTool.Rules
+using UnrealBuildTool;
+
+public class LiveLinkHub : ModuleRules
 {
-	public class LiveLinkHub : ModuleRules
+	public LiveLinkHub(ReadOnlyTargetRules Target) : base(Target)
 	{
-		public LiveLinkHub(ReadOnlyTargetRules Target) : base(Target)
-		{
-			PublicDependencyModuleNames.AddRange(
+		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"Core",
 				"CoreUObject",
 			});
 
-			PrivateDependencyModuleNames.AddRange(
+		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"ApplicationCore",
@@ -32,16 +32,41 @@ namespace UnrealBuildTool.Rules
 				"LiveLinkHubMessaging",
 				"LiveLinkInterface",
 				"LiveLinkMessageBusFramework",
+				"Messaging",
+				"ProjectSettingsViewer",
+				"SharedSettingsWidgets",
+				"Settings",
+				"SettingsEditor",
 				"Slate",
 				"SlateCore",
 				"StandaloneRenderer",
-				"StructUtils",
 				"TimeManagement",
 				"ToolMenus",
 				"ToolWidgets",
 				"UnrealEd",
 				"OutputLog",
 			});
+
+		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+		{
+			PrivateIncludePathModuleNames.AddRange(
+				new string[] {
+					"SlateReflector",
+				});
+
+			DynamicallyLoadedModuleNames.AddRange(
+				new string[] {
+					"SlateReflector",
+				});
+
+			if (Target.bBuildTargetDeveloperTools)
+			{
+				PrivateDependencyModuleNames.AddRange(
+					new string[] {
+						"SessionServices",
+						"SessionFrontend",
+					});
+			}
 		}
 	}
 }

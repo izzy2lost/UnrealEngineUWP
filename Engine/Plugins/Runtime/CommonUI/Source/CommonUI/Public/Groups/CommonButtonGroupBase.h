@@ -106,6 +106,14 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FOnSelectionCleared OnSelectionCleared;
 	FNativeOnSelectionCleared NativeOnSelectionCleared;
+		
+	UPROPERTY(BlueprintAssignable)
+	FSimpleButtonBaseGroupDelegate OnButtonBaseLockClicked;
+	FNativeSimpleButtonBaseGroupDelegate NativeOnButtonBaseLockClicked;
+
+	UPROPERTY(BlueprintAssignable)
+	FSimpleButtonBaseGroupDelegate OnButtonBaseLockDoubleClicked;
+	FNativeSimpleButtonBaseGroupDelegate NativeOnButtonBaseLockDoubleClicked;
 
 	UFUNCTION(BlueprintCallable, Category = BaseButtonGroup)
 	UCommonButtonBase* GetButtonBaseAtIndex(int32 Index) const;
@@ -142,6 +150,12 @@ protected:
 
 	UFUNCTION()
 	virtual void OnButtonBaseUnhovered(UCommonButtonBase* BaseButton);
+		
+	UFUNCTION()
+	virtual void OnHandleButtonBaseLockClicked(UCommonButtonBase* BaseButton);
+
+	UFUNCTION()
+	virtual void OnHandleButtonBaseLockDoubleClicked(UCommonButtonBase* BaseButton);
 
 protected:
 

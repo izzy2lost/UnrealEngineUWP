@@ -6,14 +6,14 @@ public class StorageServerClient : ModuleRules
 {
 	public StorageServerClient(ReadOnlyTargetRules Target) : base(Target)
 	{
-        PublicDependencyModuleNames.AddRange(
-            new string[] {
-                "Core",
-                "CoreUObject",
-                "Sockets",
-                "CookOnTheFly",
-                "Json"
-            }
-        );
-    }
+		PrivateDependencyModuleNames.AddRange(
+			new string[] {
+				"Core",
+				"CoreUObject",
+				"Sockets",
+				"CookOnTheFly",
+				"Json"
+			}
+		);
+	}
 }

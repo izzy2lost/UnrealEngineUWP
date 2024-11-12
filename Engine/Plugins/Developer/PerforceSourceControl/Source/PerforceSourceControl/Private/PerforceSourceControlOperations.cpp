@@ -25,8 +25,8 @@
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementPackageColumns.h"
 #include "Elements/Columns/TypedElementRevisionControlColumns.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementIndexHasher.h"
-#include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 
@@ -82,6 +82,7 @@ void IPerforceSourceControlWorker::RegisterWorkers()
 	WorkersMap.Add("DeleteWorkspace", FGetPerforceSourceControlWorker::CreateStatic(&InstantiateWorker<FPerforceDeleteWorkspaceWorker>));
 	WorkersMap.Add("GetFileList", FGetPerforceSourceControlWorker::CreateStatic(&InstantiateWorker<FPerforceGetFileListWorker>));
 	WorkersMap.Add("GetFile", FGetPerforceSourceControlWorker::CreateStatic(&InstantiateWorker<FPerforceGetFileWorker>));
+	WorkersMap.Add("Where", FGetPerforceSourceControlWorker::CreateStatic(&InstantiateWorker<FPerforceWhereWorker>));
 }
 
 TSharedPtr<class IPerforceSourceControlWorker, ESPMode::ThreadSafe> IPerforceSourceControlWorker::CreateWorker(const FName& OperationName, FPerforceSourceControlProvider& SCCProvider)
@@ -267,16 +268,17 @@ static void ParseRecordSet(const FP4RecordSet& InRecords, TArray<FText>& OutResu
 }
 
 /** Simple parsing of a record set to update state */
-static void ParseRecordSetForState(const FP4RecordSet& InRecords, TMap<FString, EPerforceState::Type>& OutResults)
+static void ParseRecordSetForState(const FP4RecordSet& InRecords, TMap<FString, EPerforceState::Type>& OutResults, bool bConsiderDepotFile = false)
 {
 	// Iterate over each record found as a result of the command, parsing it for relevant information
 	for (const FP4Record& ClientRecord : InRecords)
 	{
-		const FString& FileName = ClientRecord(TEXT("clientFile"));
+		const FString& ClientFileName = ClientRecord(TEXT("clientFile"));
+		const FString& DepotFileName = ClientRecord(TEXT("depotFile"));
 		const FString& Action = ClientRecord(TEXT("action"));
 
-		check(FileName.Len());
-		FString FullPath(FileName);
+		check(ClientFileName.Len() || (bConsiderDepotFile ? DepotFileName.Len() : false));
+		FString FullPath = ClientFileName.Len() ? ClientFileName : (bConsiderDepotFile ? DepotFileName : FString());
 		FPaths::NormalizeFilename(FullPath);
 
 		if(Action.Len() > 0)
@@ -390,7 +392,7 @@ static bool CheckWorkspaceRecordSet(const FP4RecordSet& InRecords, TArray<FText>
 		else
 		{
 			const FString& Client = Record(TEXT("Client"));
-			OutNotificationText = FText::Format(LOCTEXT("WorkspaceError", "Workspace '{0}' does not map into this project's directory."), FText::FromString(Client));
+			OutNotificationText = FText::Format(LOCTEXT("WorkspaceError", "Workspace '{0}' does not map into this project's directory '{1}'"), FText::FromString(Client), FText::FromString(ApplicationPath));
 			OutErrorMessages.Add(OutNotificationText);
 			OutErrorMessages.Add(LOCTEXT("WorkspaceHelp", "You should set your workspace up to map to a directory at or above the project's directory."));
 		}
@@ -423,6 +425,8 @@ FName FPerforceConnectWorker::GetName() const
 bool FPerforceConnectWorker::Execute(FPerforceSourceControlCommand& InCommand)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPerforceConnectWorker::Execute);
+
+	GetSCCProvider().ResetPersistentConnection();
 
 	if (InCommand.ConnectionInfo.Workspace.IsEmpty())
 	{
@@ -804,10 +808,18 @@ bool FPerforceGetFileListWorker::Execute(FPerforceSourceControlCommand& InComman
 			Parameters.Add(TEXT("-e"));
 		}
 		Parameters.Append(InCommand.Files);
-		AppendMaskParameter(Parameters);
+		if (Operation->GetMethodUsed() == FGetFileList::FolderSearch)
+		{
+			AppendMaskParameter(Parameters);
+		}
 		FP4RecordSet Records;
 		InCommand.bCommandSuccessful = Connection.RunCommand(TEXT("files"), Parameters, Records, InCommand.ResultInfo, FOnIsCancelled::CreateRaw(&InCommand, &FPerforceSourceControlCommand::IsCanceled), InCommand.bConnectionDropped);
-		ParseRecordSetForState(Records, OutResults);
+		if (Operation->ShouldBeQuiet())
+		{
+			RemoveRedundantErrors(InCommand, TEXT(" - no such file(s)."), false);
+		}
+		bool bConsiderDepotFiles = Operation->GetMethodUsed() == FGetFileList::FileRegexSearch;
+		ParseRecordSetForState(Records, OutResults, bConsiderDepotFiles);
 
 		TArray<FString> FilesList;
 		FilesList.Reserve(OutResults.Num());
@@ -1538,7 +1550,7 @@ static void ParseOpenedResults(const FP4RecordSet& InRecords, const FString& Cli
 
 		// Convert the depot file name to a local file name
 		FString FullPath = ClientFileName;
-		const FString PathRoot = FString::Printf(TEXT("//%s"), *ClientName);
+		const FString PathRoot = FString::Printf(TEXT("//%s/"), *ClientName);
 
 		if (FullPath.StartsWith(PathRoot))
 		{
@@ -1547,7 +1559,7 @@ static void ParseOpenedResults(const FP4RecordSet& InRecords, const FString& Cli
 			{
 				// Null clients use the pattern in PathRoot: //Workspace/FileName
 				// Here we chop off the '//Workspace/' to return the workspace filename
-				FullPath.RightChopInline(PathRoot.Len() + 1, EAllowShrinking::No);
+				FullPath.RightChopInline(PathRoot.Len(), EAllowShrinking::No);
 			}
 			else
 			{
@@ -2019,50 +2031,55 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 
 	auto UpdateDataStorage = [](const FPerforceSourceControlState& State)
 	{
-		using namespace TypedElementQueryBuilder;
-		using DSI = ITypedElementDataStorageInterface;
+		using namespace UE::Editor::DataStorage;
+		using namespace UE::Editor::DataStorage::Queries;
 
-		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-		if (!Registry)
-		{
-			return;
-		}
-
-		DSI* DataStorage = Registry->GetMutableDataStorage();
+		IEditorDataStorageProvider* DataStorage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
 		if (!DataStorage)
 		{
 			return;
 		}
 
-		auto GetRevisionControlRow = [DataStorage](const FString& InFilename) -> TypedElementRowHandle
+		const RowHandle RevisionControlTable = DataStorage->FindTable(FName("Editor_RevisionControlTable"));
+		if (RevisionControlTable == InvalidTableHandle)
+		{
+			return;
+		}
+		
+
+		auto GetRevisionControlRow = [DataStorage, RevisionControlTable](const FString& InFilename) -> RowHandle
 		{
 			FString Filename = FPaths::SetExtension(InFilename, "");
 			FPaths::NormalizeFilename(Filename);
 			Filename = FPaths::ConvertRelativePathToFull(Filename);
 			
-			uint64 Index = TypedElementDataStorage::GenerateIndexHash(Filename);
-			TypedElementRowHandle Row = DataStorage->FindIndexedRow(Index);
+			uint64 Index = GenerateIndexHash(Filename);
+			RowHandle Row = DataStorage->FindIndexedRow(Index);
 
 			if (!DataStorage->IsRowAvailable(Row))
 			{
-				static TypedElementTableHandle Table = DataStorage->FindTable(FName("Editor_RevisionControlTable"));
-				Row = DataStorage->AddRow(Table);
+				Row = DataStorage->AddRow(RevisionControlTable);
 				DataStorage->IndexRow(Index, Row);
 			}
 			return Row;
 		};
 
-		TypedElementRowHandle Row = GetRevisionControlRow(State.GetFilename());
+		RowHandle Row = GetRevisionControlRow(State.GetFilename());
 
 		if (!State.IsSourceControlled())
 		{
 			return;
 		}
 		
-		DataStorage->AddOrGetColumn<FSCCRevisionIdColumn>(Row)->RevisionId.Id[0] = State.LocalRevNumber;
-		DataStorage->AddOrGetColumn<FSCCExternalRevisionIdColumn>(Row)->RevisionId.Id[0] = State.DepotRevNumber;
+		FSCCRevisionIdColumn RevisionId;
+		RevisionId.RevisionId.Id[0] = State.LocalRevNumber;
+		DataStorage->AddColumn(Row, MoveTemp(RevisionId));
+		
+		FSCCExternalRevisionIdColumn ExternalRevisionId;
+		ExternalRevisionId.RevisionId.Id[0] = State.DepotRevNumber;
+		DataStorage->AddColumn(Row, MoveTemp(ExternalRevisionId));
 
-		TArray<UScriptStruct*> ToAdd { FTypedElementSyncFromWorldTag::StaticStruct() };
+		TArray<UScriptStruct*> ToAdd;
 		TArray<UScriptStruct*> ToRemove;
 		auto SyncTagFromState = [&](bool bCondition, UScriptStruct* Tag)
 		{
@@ -2080,7 +2097,7 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		{
 			if (bCondition)
 			{
-				DataStorage->AddOrGetColumn<FSCCStatusColumn>(Row)->Modification = Modification;
+				DataStorage->AddColumn(Row, FSCCStatusColumn{ .Modification = Modification });
 				bAnyStatus = true;
 			}
 		};
@@ -2097,7 +2114,9 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		const bool bIsCheckedOutByOther = State.IsCheckedOutOther(&WhoCheckedOut);
 		if (bIsCheckedOutByOther && State.bExclusiveCheckout)
 		{
-			DataStorage->AddOrGetColumn<FSCCExternallyLockedColumn>(Row)->LockedBy.Name = WhoCheckedOut;
+			FSCCExternallyLockedColumn Locked;
+			Locked.LockedBy.Name = WhoCheckedOut;
+			DataStorage->AddColumn(Row, MoveTemp(Locked));
 		}
 		else
 		{
@@ -2112,6 +2131,13 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		for (UScriptStruct* Column : ToRemove)
 		{
 			DataStorage->RemoveColumn(Row, Column);
+		}
+		
+		// While the backreference via FTypedElementPackageReference isn't reliable because you can have multiple actors referencing a single SCC
+		// row, it at least lets us filter out rows that don't have any actors
+		if (DataStorage->HasColumns<FTypedElementPackageReference>(Row))
+		{
+			DataStorage->ActivateQueries(TEXT("UpdateSCCForActors"));
 		}
 	};
 
@@ -3623,6 +3649,59 @@ bool FPerforceGetFileWorker::Execute(FPerforceSourceControlCommand& InCommand)
 }
 
 bool FPerforceGetFileWorker::UpdateStates() const
+{
+	return false;
+}
+
+FName FPerforceWhereWorker::GetName() const
+{
+	return "Where";
+}
+
+bool FPerforceWhereWorker::Execute(FPerforceSourceControlCommand& InCommand)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPerforceWhereWorker::Execute);
+
+	FScopedPerforceConnection ScopedConnection(InCommand);
+
+	if (!InCommand.IsCanceled() && ScopedConnection.IsValid())
+	{
+		FPerforceConnection& Connection = ScopedConnection.GetConnection();
+		TSharedRef<FWhere, ESPMode::ThreadSafe> Operation = StaticCastSharedRef<FWhere>(InCommand.Operation);
+
+		TArray<FString> Parameters;
+		Parameters.Append(InCommand.Files);
+
+		FP4RecordSet Records;
+		InCommand.bCommandSuccessful = Connection.RunCommand(TEXT("where"), Parameters, Records, InCommand.ResultInfo, FOnIsCancelled::CreateRaw(&InCommand, &FPerforceSourceControlCommand::IsCanceled), InCommand.bConnectionDropped);
+
+		if (InCommand.bCommandSuccessful)
+		{
+			TArray<FWhere::FileInfo> Files;
+			Files.Reserve(Records.Num());
+
+			for (FP4Record& P4Record : Records)
+			{
+				const FString* LocalPath = P4Record.Find("path");
+				const FString* RemotePath = P4Record.Find("depotFile");
+
+				if (ensure(LocalPath) && ensure(RemotePath))
+				{
+					FWhere::FileInfo FileInfo;
+					FileInfo.LocalPath = FPaths::CreateStandardFilename(*LocalPath);
+					FileInfo.RemotePath = *RemotePath;
+					Files.Emplace(MoveTemp(FileInfo));
+				}
+			}
+
+			Operation->SetFiles(MoveTemp(Files));
+		}
+	}
+
+	return InCommand.bCommandSuccessful;
+}
+
+bool FPerforceWhereWorker::UpdateStates() const
 {
 	return false;
 }

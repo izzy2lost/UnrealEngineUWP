@@ -140,8 +140,8 @@ public:
 	void							ReleaseTexture();
 	void							TransferTextureToRT(FRHICommandListImmediate& RHI, UTexture2D** PrevTexture, bool FreeAfterUse);
 	void							TransferVirtualTextureToRT(FRHICommandListImmediate& RHI, UTexture2D** TextureToTransfer, bool FreeAfterUse);
-	void							LoadAsset(FSoftObjectPath& SoftPath, const DesiredImageProperties* Props = nullptr);
-	AsyncActionResultPtr			LoadAsync(const FString& Filename, const DesiredImageProperties* Props = nullptr);
+	bool							LoadAsset(FSoftObjectPath& SoftPath, const DesiredImageProperties* Props = nullptr);
+	bool							LoadFile(const FString& Filename, const DesiredImageProperties* Props = nullptr);
 	AsyncActionResultPtr			LoadFlat();
 	AsyncTiledBlobRef				ToBlob(int32 XTiles, int32 YTiles, uint32 Width = 0, uint32 Height = 0, bool TransferToRT = false); ///There is a visual difference between having material transfer to RT or directly copy from Texture
 	AsyncTiledBlobRef				ToSingleBlob(CHashPtr Hash, bool TransferToRT = false, bool ResolveOnRenderThread = false, bool NoCache = false);
@@ -161,7 +161,7 @@ public:
 	void							GenerateMips();
 
 	virtual bool					IsArray()  { return false; }
-	virtual FRHITexture2D*			GetRHITexture() const;
+	virtual FRHITexture*			GetRHITexture() const;
 	virtual UTexture*				GetTexture() const;
 
 	virtual bool					IsNull() const;
@@ -188,7 +188,7 @@ public:
 	FORCEINLINE FLinearColor		ClearColor() const { return Desc.ClearColor; }
 	FORCEINLINE FLinearColor&		ClearColor() { return Desc.ClearColor; }
 	FORCEINLINE FIntPoint			GetSize() const { return FIntPoint(Desc.Width, Desc.Height); }
-	FORCEINLINE operator			FRHITexture2D*() const { return GetRHITexture(); }
+	FORCEINLINE operator			FRHITexture*() const { return GetRHITexture(); }
 	//FORCEINLINE operator			FTextureRHIRef() const { return RHITextureRef(); }
 	FORCEINLINE operator			UTexture*() const { return GetTexture(); }
 	FORCEINLINE FString				GetName() const { return GetTexture()->GetName(); }

@@ -7,61 +7,12 @@
 #endif
 
 #include "MoviePipelineSetting.h"
+#include "MovieRenderPipelineDataTypes.h"
 #include "HAL/IConsoleManager.h"
 
 #include "MoviePipelineConsoleVariableSetting.generated.h"
 
 class IMovieSceneConsoleVariableTrackInterface;
-
-/**
- * Represents a console variable override within the Console Variable setting.
- */
-USTRUCT(BlueprintType)
-struct FMoviePipelineConsoleVariableEntry
-{
-	GENERATED_BODY()
-	
-	FMoviePipelineConsoleVariableEntry(const FString& InName, const float InValue, const bool bInIsEnabled = true)
-		: Name(InName)
-		, Value(InValue)
-		, bIsEnabled(bInIsEnabled)
-	{
-#if WITH_EDITOR
-		UpdateCommandInfo();
-#endif
-	}
-
-	FMoviePipelineConsoleVariableEntry()
-		: Value(0), bIsEnabled(true)
-	{
-	}
-
-#if WITH_EDITOR
-	/**
-	 * Updates the CommandInfo pointer. Should be called in PostLoad to ensure CommandInfo is properly set. In other
-	 * cases, CommandInfo will be kept up-to-date.
-	 */
-	void UpdateCommandInfo()
-	{
-		FConsoleVariablesEditorModule& ConsoleVariablesEditorModule = FConsoleVariablesEditorModule::Get();
-		CommandInfo = ConsoleVariablesEditorModule.FindCommandInfoByName(Name);
-	}
-
-	TWeakPtr<FConsoleVariablesEditorCommandInfo> CommandInfo;
-#endif
-
-	/* The name of the console variable. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
-	FString Name;
-
-	/* The value of the console variable. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
-	float Value;
-
-	/* Enable state. If disabled, this cvar entry will be ignored when resolving the final value of the cvar. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
-	bool bIsEnabled;
-};
 
 UCLASS(BlueprintType)
 class MOVIERENDERPIPELINESETTINGS_API UMoviePipelineConsoleVariableSetting : public UMoviePipelineSetting
@@ -111,14 +62,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	TArray<TScriptInterface<IMovieSceneConsoleVariableTrackInterface>> ConsoleVariablePresets;
 	
-	/** 
-	* An array of key/value pairs for console variable name and the value you wish to set for that cvar.
-	* The existing value will automatically be cached and restored afterwards.
-	*/
-	UE_DEPRECATED(5.2, "ConsoleVariables has been deprecated. Please use the console variable getters/setters (GetConsoleVariables(), RemoveConsoleVariable(), AddOrUpdateConsoleVariable(), and UpdateConsoleVariableEnableState()) instead. If scripting modifies ConsoleVariables, MRQ must be run in PIE to ensure changes are migrated.")
-	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "ConsoleVariables has been deprecated. Please use the console variable getters/setters (GetConsoleVariables(), RemoveConsoleVariable(), AddOrUpdateConsoleVariable(), and UpdateConsoleVariableEnableState()) instead. If scripting modifies ConsoleVariables, MRQ must be run in PIE to ensure changes are migrated."))
-	TMap<FString, float> ConsoleVariables_DEPRECATED;
-
 	/**
 	* An array of console commands to execute when this shot is started. If you need to restore the value 
 	* after the shot, add a matching entry in the EndConsoleCommands array. Because they are commands
@@ -174,18 +117,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	bool UpdateConsoleVariableEnableState(const FString& Name, const bool bIsEnabled);
 
-	// Begin UObject interface
-	virtual void PostLoad() override;
-
-#if WITH_EDITOR
-	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
-#endif
-	// End UObject interface
-
 private:
-	/** If the (deprecated) ConsoleVariables property contains any data, merge it into the new CVars property. */
-	void MergeInOldConsoleVariables();
-	
 	/** Merge together preset and override cvars into MergedConsoleVariables. Discards result of a prior merge (if any). */
 	void MergeInPresetConsoleVariables();
 

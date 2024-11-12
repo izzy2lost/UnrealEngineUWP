@@ -31,6 +31,7 @@ public class Paper2DEditor : ModuleRules
 				"Projects",
 				"NavigationSystem",
 				"ToolMenus",
+				"ToolWidgets"
             });
 
 		PublicDependencyModuleNames.AddRange(

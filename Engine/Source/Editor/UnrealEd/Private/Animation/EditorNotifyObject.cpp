@@ -2,6 +2,8 @@
 
 #include "Animation/EditorNotifyObject.h"
 #include "Animation/AnimSequenceBase.h"
+#include "Animation/AnimNotifies/AnimNotify.h"
+#include "Animation/AnimNotifies/AnimNotifyState.h"
 
 UEditorNotifyObject::UEditorNotifyObject(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -45,4 +47,15 @@ void UEditorNotifyObject::InitialiseNotify(const FAnimNotifyEvent& InNotify)
 	{
 		Event = InNotify;
 	}
+}
+
+bool UEditorNotifyObject::PropertyChangeRequiresRebuild(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	// We dont need to rebuild the track UI when we change the properties of a notify
+	if(PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(UEditorNotifyObject, Event) && PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FAnimNotifyEvent, Notify))
+	{
+		return false;
+	}
+
+	return Super::PropertyChangeRequiresRebuild(PropertyChangedEvent);
 }

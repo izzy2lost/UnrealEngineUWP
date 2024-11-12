@@ -107,8 +107,8 @@ void ULearningAgentsRecorder::BeginDestroy()
 }
 
 ULearningAgentsRecorder* ULearningAgentsRecorder::MakeRecorder(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor,
+	ULearningAgentsManager*& InManager,
+	ULearningAgentsInteractor*& InInteractor,
 	TSubclassOf<ULearningAgentsRecorder> Class,
 	const FName Name,
 	const FLearningAgentsRecorderPathSettings& RecorderPathSettings,
@@ -143,8 +143,8 @@ ULearningAgentsRecorder* ULearningAgentsRecorder::MakeRecorder(
 }
 
 void ULearningAgentsRecorder::SetupRecorder(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor,
+	ULearningAgentsManager*& InManager,
+	ULearningAgentsInteractor*& InInteractor,
 	const FLearningAgentsRecorderPathSettings& RecorderPathSettings,
 	ULearningAgentsRecording* RecordingAsset,
 	bool bReinitializeRecording)
@@ -196,8 +196,8 @@ void ULearningAgentsRecorder::SetupRecorder(
 
 	// Find Compatibility Hash
 
-	const int32 ObservationCompatibilityHash = UE::Learning::Observation::GetSchemaObjectsCompatibilityHash(Interactor->GetObservationSchema(), Interactor->GetObservationSchemaElement());
-	const int32 ActionCompatibilityHash = UE::Learning::Action::GetSchemaObjectsCompatibilityHash(Interactor->GetActionSchema(), Interactor->GetActionSchemaElement());
+	const int32 ObservationCompatibilityHash = UE::Learning::Observation::GetSchemaObjectsCompatibilityHash(Interactor->GetObservationSchema()->ObservationSchema, Interactor->GetObservationSchemaElement().SchemaElement);
+	const int32 ActionCompatibilityHash = UE::Learning::Action::GetSchemaObjectsCompatibilityHash(Interactor->GetActionSchema()->ActionSchema, Interactor->GetActionSchemaElement().SchemaElement);
 
 	// Create Record Buffers
 
@@ -269,19 +269,19 @@ void ULearningAgentsRecorder::AddExperience()
 
 	for (const int32 AgentId : Manager->GetAllAgentSet())
 	{
-		if (Interactor->ObservationVectorIteration[AgentId] == 0 || Interactor->ActionVectorIteration[AgentId] == 0)
+		if (Interactor->GetObservationIteration(AgentId) == 0 || Interactor->GetActionIteration(AgentId) == 0)
 		{
 			UE_LOG(LogLearning, Warning, TEXT("%s: Agent with id %i has not made observations and taken actions so experience will not be recorded for it."), *GetName(), AgentId);
 			continue;
 		}
 
-		if (Interactor->ObservationVectorIteration[AgentId] != Interactor->ActionVectorIteration[AgentId])
+		if (Interactor->GetObservationIteration(AgentId) != Interactor->GetActionIteration(AgentId))
 		{
 			UE_LOG(LogLearning, Warning, TEXT("%s: Agent with id %i does not have matching iteration numbers for observations and actions so experience will not be recorded for it."), *GetName(), AgentId);
 			continue;
 		}
 
-		RecordBuffers[AgentId].Push(Interactor->ObservationVectors[AgentId], Interactor->ActionVectors[AgentId]);
+		RecordBuffers[AgentId].Push(Interactor->GetObservationVectorArrayView()[AgentId], Interactor->GetActionVectorArrayView()[AgentId]);
 	}
 }
 

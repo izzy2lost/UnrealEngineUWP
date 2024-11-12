@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+// Defines potential output variables, usage in renderers will determine what we actually output
 #define PARTICLE_ATTRIBUTES_OUTPUT \
 	PARTICLE_ATTRIBUTE(int,		UniqueID) \
 	PARTICLE_ATTRIBUTE(float3,	Position) \
@@ -16,9 +17,13 @@
 	PARTICLE_ATTRIBUTE(float,	PreviousSpriteRotation) \
 	PARTICLE_ATTRIBUTE(float3,	PreviousVelocity) \
 
+// Defines transient variables, i.e. ones we will not output
 #define PARTICLE_ATTRIBUTES_TRANSIENT \
 	PARTICLE_ATTRIBUTE(float,	CameraOffset) \
 	PARTICLE_ATTRIBUTE(float4,	DynamicMaterialParameter0) \
+	PARTICLE_ATTRIBUTE(float4,	DynamicMaterialParameter1) \
+	PARTICLE_ATTRIBUTE(float4,	DynamicMaterialParameter2) \
+	PARTICLE_ATTRIBUTE(float4,	DynamicMaterialParameter3) \
 	PARTICLE_ATTRIBUTE(int,		MeshIndex) \
 	PARTICLE_ATTRIBUTE(float4,	MeshOrientation) \
 	PARTICLE_ATTRIBUTE(float3,	SpriteFacing) \
@@ -29,6 +34,7 @@
 	PARTICLE_ATTRIBUTE(float3,	PreviousSpriteFacing) \
 	PARTICLE_ATTRIBUTE(float3,	PreviousSpriteAlignment) \
 
+// Defines modules and order of execution
 #define PARTICLE_MODULES \
 	PARTICLE_MODULE(InitializeParticle) \
 	PARTICLE_MODULE(ShapeLocation) \

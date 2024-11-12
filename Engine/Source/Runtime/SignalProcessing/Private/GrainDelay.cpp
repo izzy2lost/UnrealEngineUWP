@@ -170,7 +170,7 @@ namespace Audio
 					FreeGrains.Add(GrainId);
 
 					// Remove at swap allows us to clean up the active grain list while we loop through it
-					ActiveGrains.RemoveAtSwap(ActiveGrainIndex, 1, EAllowShrinking::No);
+					ActiveGrains.RemoveAtSwap(ActiveGrainIndex, EAllowShrinking::No);
 				}
 			}
 

@@ -360,11 +360,11 @@ public:
 
 	/** Defines the curvature of the widget component when using EWidgetGeometryMode::Cylinder; ignored otherwise.  */
 	UFUNCTION(BlueprintCallable, Category = UserInterface)
-	float GetCylinderArcAngle() const { return CylinderArcAngle; }
+	double GetCylinderArcAngle() const { return CylinderArcAngle; }
 
 	/** Defines the curvature of the widget component when using EWidgetGeometryMode::Cylinder; ignored otherwise.  */
 	UFUNCTION(BlueprintCallable, Category = UserInterface)
-	void SetCylinderArcAngle(const float InCylinderArcAngle) 
+	void SetCylinderArcAngle(const double InCylinderArcAngle) 
 	{ 
 		CylinderArcAngle = InCylinderArcAngle; 
 	}
@@ -429,7 +429,7 @@ protected:
 	UMG_API virtual void DrawWidgetToRenderTarget(float DeltaTime);
 
 	/** Returns the width of the widget component taking GeometryMode into account. */
-	UMG_API float ComputeComponentWidth() const;
+	UMG_API double ComputeComponentWidth() const;
 
 	UMG_API void UpdateMaterialInstance();
 
@@ -622,7 +622,7 @@ protected:
 
 	/** Curvature of a cylindrical widget in degrees. */
 	UPROPERTY(EditAnywhere, Category=UserInterface, meta=(ClampMin=1.0f, ClampMax=180.0f))
-	float CylinderArcAngle;
+	double CylinderArcAngle;
 
 	UPROPERTY(EditAnywhere, Category = UserInterface)
 	ETickMode TickMode;

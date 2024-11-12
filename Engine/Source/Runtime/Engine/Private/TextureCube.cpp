@@ -249,10 +249,13 @@ uint32 UTextureCube::CalcTextureMemorySize( int32 MipCount ) const
 		// Figure out what the first mip to use is.
 		int32 FirstMip	= FMath::Max( 0, NumMips - MipCount );		
 		FIntPoint MipExtents = CalcMipMapExtent(SizeX, SizeY, Format, FirstMip);
-		
-		uint32 TextureAlign = 0;
-		uint64 TextureSize = RHICalcTextureCubePlatformSize(MipExtents.X, Format, FMath::Max( 1, MipCount ), TexCreate_None, FRHIResourceCreateInfo(GetPlatformData()->GetExtData()), TextureAlign);
-		Size = (uint32)TextureSize;
+
+		const FRHITextureDesc Desc =
+			FRHITextureCreateDesc::CreateCube(TEXT("Temp"), MipExtents.X, Format)
+			.SetNumMips(FMath::Max(1, MipCount))
+			.SetExtData(GetPlatformData()->GetExtData());
+
+		Size = RHICalcTexturePlatformSize(Desc).Size;
 	}
 	return Size;
 }
@@ -537,7 +540,7 @@ public:
 	 * Accessor
 	 * @return Texture2DRHI
 	 */
-	FTextureCubeRHIRef GetTextureCubeRHI() const
+	FTextureRHIRef GetTextureCubeRHI() const
 	{
 		return TextureCubeRHI;
 	}
@@ -547,7 +550,7 @@ public:
 	const FTextureCubeResource* GetProxiedResource() const { return ProxiedResource; }
 private:
 	/** A reference to the texture's RHI resource as a cube-map texture. */
-	FTextureCubeRHIRef TextureCubeRHI;
+	FTextureRHIRef TextureCubeRHI;
 
 	/** Local copy/ cache of mip data. Only valid between creation and first call to InitRHI */
 	void* MipData[6][MAX_TEXTURE_MIP_COUNT];

@@ -23,6 +23,9 @@ FSlateStyleSet::FSlateStyleSet(const FName& InStyleSetName)
 	Set(TEXT("Default"), GetDefaultBrush());
 }
 
+FSlateStyleSet::FSlateStyleSet(FSlateStyleSet&&) = default;
+FSlateStyleSet::FSlateStyleSet(const FSlateStyleSet&) = default;
+
 FSlateStyleSet::~FSlateStyleSet()
 {
 	// Delete all allocated brush resources.

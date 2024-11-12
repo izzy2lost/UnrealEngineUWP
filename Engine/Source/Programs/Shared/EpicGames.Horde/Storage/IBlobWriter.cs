@@ -53,7 +53,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="type">Type of the node that was written</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the written node</returns>
-		ValueTask<IBlobRef> CompleteAsync(BlobType type, CancellationToken cancellationToken = default);
+		ValueTask<IHashedBlobRef> CompleteAsync(BlobType type, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Finish writing a blob that has been written into the output buffer.
@@ -61,20 +61,20 @@ namespace EpicGames.Horde.Storage
 		/// <param name="type">Type of the node that was written</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the written node</returns>
-		ValueTask<IBlobRef<T>> CompleteAsync<T>(BlobType type, CancellationToken cancellationToken = default);
+		ValueTask<IHashedBlobRef<T>> CompleteAsync<T>(BlobType type, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Writes a reference to another blob. NOTE: This does not write anything to the underlying output stream, which prevents the data forming a Merkle tree
 		/// unless guaranteed uniqueness via a hash being written separately.
 		/// </summary>
 		/// <param name="handle">Referenced blob</param>
-		void WriteBlobHandleDangerous(IBlobHandle handle);
+		void WriteBlobHandleDangerous(IBlobRef handle);
 
 		/// <summary>
 		/// Writes a reference to another blob. The blob's hash is serialized to the output stream.
 		/// </summary>
 		/// <param name="blobRef">Referenced blob</param>
-		void WriteBlobRef(IBlobRef blobRef);
+		void WriteBlobRef(IHashedBlobRef blobRef);
 	}
 
 	/// <summary>
@@ -92,7 +92,7 @@ namespace EpicGames.Horde.Storage
 	{
 		Memory<byte> _memory;
 		readonly List<AliasInfo> _aliases = new List<AliasInfo>();
-		readonly List<IBlobHandle> _imports = new List<IBlobHandle>();
+		readonly List<IBlobRef> _imports = new List<IBlobRef>();
 		readonly BlobSerializerOptions _options;
 		int _length;
 
@@ -120,7 +120,7 @@ namespace EpicGames.Horde.Storage
 		public IoHash ComputeHash() => IoHash.Compute(_memory.Span.Slice(0, _length));
 
 		/// <inheritdoc/>
-		public void WriteBlobHandleDangerous(IBlobHandle target)
+		public void WriteBlobHandleDangerous(IBlobRef target)
 		{
 			_imports.Add(target);
 		}
@@ -128,7 +128,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Writes a handle to another node
 		/// </summary>
-		public void WriteBlobRef(IBlobRef target)
+		public void WriteBlobRef(IHashedBlobRef target)
 		{
 			this.WriteIoHash(target.Hash);
 			WriteBlobHandleDangerous(target);
@@ -169,7 +169,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="aliases">Aliases for the new blob</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New buffer</returns>
-		public abstract ValueTask<IBlobRef> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> imports, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken);
+		public abstract ValueTask<IHashedBlobRef> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobRef> imports, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken);
 
 		/// <inheritdoc/>
 		public void AddAlias(string name, int rank, ReadOnlyMemory<byte> data)
@@ -182,9 +182,9 @@ namespace EpicGames.Horde.Storage
 		public abstract IBlobWriter Fork();
 
 		/// <inheritdoc/>
-		public async ValueTask<IBlobRef> CompleteAsync(BlobType type, CancellationToken cancellationToken = default)
+		public async ValueTask<IHashedBlobRef> CompleteAsync(BlobType type, CancellationToken cancellationToken = default)
 		{
-			IBlobRef blobRef = await WriteBlobAsync(type, _length, _imports, _aliases, cancellationToken);
+			IHashedBlobRef blobRef = await WriteBlobAsync(type, _length, _imports, _aliases, cancellationToken);
 
 			_memory = default;
 			_length = 0;
@@ -195,11 +195,11 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask<IBlobRef<T>> CompleteAsync<T>(BlobType type, CancellationToken cancellationToken = default)
+		public async ValueTask<IHashedBlobRef<T>> CompleteAsync<T>(BlobType type, CancellationToken cancellationToken = default)
 		{
 			IoHash hash = IoHash.Compute(_memory.Span.Slice(0, _length));
-			IBlobRef blobRef = await CompleteAsync(type, cancellationToken);
-			return BlobRef.Create<T>(hash, blobRef, _options);
+			IHashedBlobRef blobRef = await CompleteAsync(type, cancellationToken);
+			return HashedBlobRef.Create<T>(hash, blobRef, _options);
 		}
 
 		/// <inheritdoc/>
@@ -211,7 +211,7 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public class MemoryBlobWriter : BlobWriter
 	{
-		class BlobRef : IBlobRef
+		class BlobRef : IHashedBlobRef
 		{
 			readonly int _index;
 			readonly IoHash _hash;
@@ -230,7 +230,7 @@ namespace EpicGames.Horde.Storage
 			public int Index
 				=> _index;
 
-			public IBlobHandle Innermost
+			public IBlobRef Innermost
 				=> this;
 
 			public ValueTask FlushAsync(CancellationToken cancellationToken = default)
@@ -282,17 +282,17 @@ namespace EpicGames.Horde.Storage
 			=> _memoryWriter.GetMemory(usedSize, desiredSize);
 
 		/// <inheritdoc/>
-		public override ValueTask<IBlobRef> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> imports, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken)
+		public override ValueTask<IHashedBlobRef> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobRef> imports, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken)
 		{
 			Memory<byte> memory = _memoryWriter.GetMemoryAndAdvance(size);
 			BlobData data = new BlobData(type, memory, imports.ToArray());
-			return new ValueTask<IBlobRef>(new BlobRef(++_nextIndex, data));
+			return new ValueTask<IHashedBlobRef>(new BlobRef(++_nextIndex, data));
 		}
 
 		/// <summary>
 		/// Helper function to get the index of a blob
 		/// </summary>
-		public static int GetIndex(IBlobRef handle)
+		public static int GetIndex(IHashedBlobRef handle)
 			=> ((BlobRef)handle.Innermost).Index;
 	}
 }

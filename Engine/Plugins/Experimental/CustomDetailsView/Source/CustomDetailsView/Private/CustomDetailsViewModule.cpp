@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CustomDetailsViewModule.h"
+#include "CustomDetailsViewRowExtensions.h"
 #include "SCustomDetailsView.h"
 
 class FCustomDetailsViewModule : public ICustomDetailsViewModule
@@ -19,10 +20,16 @@ IMPLEMENT_MODULE(FCustomDetailsViewModule, CustomDetailsView)
 
 void FCustomDetailsViewModule::StartupModule()
 {
+	using namespace UE::CustomDetailsView::Private;
+
+	FCustomDetailsViewRowExtensions::Get().RegisterRowExtensions();
 }
 
 void FCustomDetailsViewModule::ShutdownModule()
 {
+	using namespace UE::CustomDetailsView::Private;
+
+	FCustomDetailsViewRowExtensions::Get().UnregisterRowExtensions();
 }
 
 TSharedRef<ICustomDetailsView> FCustomDetailsViewModule::CreateCustomDetailsView(const FCustomDetailsViewArgs& InArgs)

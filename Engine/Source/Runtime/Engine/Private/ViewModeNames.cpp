@@ -40,6 +40,10 @@ TArray<FText> FillViewModeDisplayNames()
 		{
 			ViewModeDisplayNames.Emplace(LOCTEXT("UViewModeUtils_VMI_Lit_DetailLighting", "Detail Lighting"));
 		}
+		else if (ViewModeIndex == VMI_Lit_Wireframe)
+		{
+			ViewModeDisplayNames.Emplace(LOCTEXT("UViewModeUtils_VMI_Lit_Wireframe", "Lit Wireframe"));
+		}
 		// Lit wo/ materials
 		else if (ViewModeIndex == VMI_LightingOnly)
 		{
@@ -140,6 +144,10 @@ TArray<FText> FillViewModeDisplayNames()
 		{
 			ViewModeDisplayNames.Emplace(LOCTEXT("UViewModeUtils_VMI_VisualizeGPUSkinCache", "GPU Skin Cache"));
 		}
+		else if (ViewModeIndex == VMI_LWCComplexity)
+		{
+			ViewModeDisplayNames.Emplace(LOCTEXT("UViewModeUtils_VMI_VisualizeLWCComplexity", "Material LWC Function Usage"));
+		}
 
 	
 		// Ray tracing modes
@@ -174,6 +182,11 @@ TArray<FText> FillViewModeDisplayNames()
 			ViewModeDisplayNames.Emplace(LOCTEXT("UViewModeUtils_VMI_VisualizeVirtualShadowMap", "Virtual Shadow Map Visualization"));
 		}
 
+		else if (ViewModeIndex == VMI_VisualizeActorColoration)
+		{
+			ViewModeDisplayNames.Emplace(LOCTEXT("UViewModeUtils_VMI_VisualizeActorColoration", "Actor Coloration Visualization"));
+		}
+
 		// VMI_Max
 		else if (ViewModeIndex == VMI_Max)
 		{
@@ -199,7 +212,7 @@ const static TArray<FText> GViewModeDisplayNames = FillViewModeDisplayNames();
 FText UViewModeUtils::GetViewModeDisplayName(const EViewModeIndex ViewModeIndex)
 {
 	const FText ViewModeName = GViewModeDisplayNames[ViewModeIndex];
-	ensureMsgf(!ViewModeName.IsEmpty(), TEXT("Used an unknown value of EViewModeIndex (with value %d). Consider adding this new value in UViewModeUtils::GetViewModeName"), ViewModeIndex);
+	ensureMsgf(!ViewModeName.IsEmpty(), TEXT("Used an unknown value of EViewModeIndex (with value %d). Consider adding this new value in FillViewModeDisplayNames()"), ViewModeIndex);
 	return ViewModeName;
 }
 
@@ -239,6 +252,10 @@ TArray<const FSlateBrush*> FillViewModeDisplayIcons()
 		else if (ViewModeIndex == VMI_Lit_DetailLighting)
 		{
 			ViewModeDisplayIcons.Emplace(FAppStyle::Get().GetBrush("EditorViewport.DetailLightingMode"));
+		}
+		else if (ViewModeIndex == VMI_Lit_Wireframe)
+		{
+			ViewModeDisplayIcons.Emplace(FAppStyle::Get().GetBrush("EditorViewport.LitWireframeMode"));
 		}
 		// Lit wo/ materials
 		else if (ViewModeIndex == VMI_LightingOnly)
@@ -361,6 +378,10 @@ TArray<const FSlateBrush*> FillViewModeDisplayIcons()
 		{
 			ViewModeDisplayIcons.Emplace(FAppStyle::Get().GetBrush("EditorViewport.VisualizeGPUSkinCacheMode"));
 		}
+		else if (ViewModeIndex == VMI_LWCComplexity)
+		{
+			ViewModeDisplayIcons.Emplace(FAppStyle::Get().GetBrush("EditorViewport.LWCComplexityMode"));
+		}
 
 		// Ray tracing modes
 		// Run path tracing pipeline
@@ -378,6 +399,12 @@ TArray<const FSlateBrush*> FillViewModeDisplayIcons()
 		else if (ViewModeIndex == VMI_VirtualTexturePendingMips)
 		{
 			ViewModeDisplayIcons.Emplace(FAppStyle::Get().GetBrush("EditorViewport.VirtualTexturePendingMipsMode"));
+		}
+
+		// Actor Coloration
+		else if (ViewModeIndex == VMI_VisualizeActorColoration)
+		{
+			ViewModeDisplayIcons.Emplace(FAppStyle::Get().GetBrush("EditorViewport.VisualizeActorColorationMode"));
 		}
 
 		// VMI_Max

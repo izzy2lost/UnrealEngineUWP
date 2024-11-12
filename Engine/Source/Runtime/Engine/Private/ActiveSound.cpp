@@ -85,6 +85,7 @@ FActiveSound::FActiveSound()
 	, bWarnedAboutOrphanedLooping(false)
 #endif
 	, bEnableLowPassFilter(false)
+	, bEnableHighPassFilter(false)
 	, bUpdatePlayPercentage(false)
 	, bUpdateSingleEnvelopeValue(false)
 	, bUpdateMultiEnvelopeValue(false)
@@ -112,6 +113,7 @@ FActiveSound::FActiveSound()
 	, VolumeMultiplier(1.0f)
 	, PitchMultiplier(1.0f)
 	, LowPassFilterFrequency(MAX_FILTER_FREQUENCY)
+	, HighPassFilterFrequency(MIN_FILTER_FREQUENCY)
 	, CurrentOcclusionFilterFrequency(MAX_FILTER_FREQUENCY)
 	, CurrentOcclusionVolumeAttenuation(1.0f)
 	, SubtitlePriority(DEFAULT_SUBTITLE_PRIORITY)
@@ -142,6 +144,8 @@ FActiveSound::FActiveSound()
 		ActiveSoundTraceDelegate.BindStatic(&OcclusionTraceDone);
 	}
 }
+
+FActiveSound::FActiveSound(const FActiveSound&) = default;
 
 FActiveSound::~FActiveSound()
 {
@@ -245,6 +249,40 @@ void FActiveSound::AddReferencedObjects(FReferenceCollector& Collector)
 			Collector.AddReferencedObject(const_cast<TObjectPtr<UObject>&>(*Object));
 		}
 	}
+
+	// Adding ref'd objects in AttenuationSettings
+	Collector.AddReferencedObject(AttenuationSettings.AudioLinkSettingsOverride);
+	Collector.AddReferencedObjects(AttenuationSettings.PluginSettings.OcclusionPluginSettingsArray);
+	Collector.AddReferencedObjects(AttenuationSettings.PluginSettings.ReverbPluginSettingsArray);
+	Collector.AddReferencedObjects(AttenuationSettings.PluginSettings.SourceDataOverridePluginSettingsArray);
+	Collector.AddReferencedObjects(AttenuationSettings.PluginSettings.SpatializationPluginSettingsArray);
+
+	for (FAudioVolumeSubmixSendSettings& SendSettings : AudioVolumeSubmixSendSettings)
+	{
+		for (FSoundSubmixSendInfo& SendInfo : SendSettings.SubmixSends)
+		{
+			Collector.AddReferencedObject(SendInfo.SoundSubmix);
+		}
+	}
+
+	for (FAudioVolumeSubmixSendSettings& SendSettings : PreviousAudioVolumeSubmixSendSettings)
+	{
+		for (FSoundSubmixSendInfo& SendInfo : SendSettings.SubmixSends)
+		{
+			Collector.AddReferencedObject(SendInfo.SoundSubmix);
+		}
+	}
+
+	for (TTuple<EBusSendType, FSoundSourceBusSendInfo>& BusSendTuple : NewBusSends)
+	{
+		Collector.AddReferencedObject(BusSendTuple.Value.AudioBus);
+		Collector.AddReferencedObject(BusSendTuple.Value.SoundSourceBus);
+	}
+
+	Collector.AddReferencedObjects(ModulationRouting.VolumeModulationDestination.Modulators);
+	Collector.AddReferencedObjects(ModulationRouting.PitchModulationDestination.Modulators);
+	Collector.AddReferencedObjects(ModulationRouting.HighpassModulationDestination.Modulators);
+	Collector.AddReferencedObjects(ModulationRouting.LowpassModulationDestination.Modulators);
 }
 
 int32 FActiveSound::GetPlayCount() const
@@ -329,6 +367,18 @@ bool FActiveSound::IsPlayWhenSilent() const
 	}
 
 	return Sound && Sound->IsPlayWhenSilent();
+}
+
+float FActiveSound::GetConcurrencyPriority() const
+{
+	if (GetAlwaysPlay())
+	{
+		return GetHighestPriority(true) * Priority + MAX_SOUND_PRIORITY + 1.0f;
+	}
+	else
+	{
+		return GetHighestPriority() * Priority;
+	}
 }
 
 void FActiveSound::ClearAudioComponent()
@@ -464,6 +514,64 @@ void FActiveSound::ResetNewBusSends()
 void FActiveSound::SetNewModulationRouting(const FSoundModulationDefaultRoutingSettings& NewRouting)
 {
 	ModulationRouting = NewRouting;
+	bModulationRoutingUpdated = true;
+}
+
+void FActiveSound::AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination)
+{
+	switch (Destination)
+	{
+		case EModulationDestination::Volume:
+			ModulationRouting.VolumeRouting = EModulationRouting::Union;
+			ModulationRouting.VolumeModulationDestination.Modulators.Append(NewModulators);
+			break;
+		case EModulationDestination::Pitch:
+			ModulationRouting.PitchRouting = EModulationRouting::Union;
+			ModulationRouting.PitchModulationDestination.Modulators.Append(NewModulators);
+			break;
+		case EModulationDestination::Lowpass:
+			ModulationRouting.LowpassRouting = EModulationRouting::Union;
+			ModulationRouting.LowpassModulationDestination.Modulators.Append(NewModulators);
+			break;
+		case EModulationDestination::Highpass:
+			ModulationRouting.HighpassRouting = EModulationRouting::Union;
+			ModulationRouting.HighpassModulationDestination.Modulators.Append(NewModulators);
+			break;
+		default:
+		{
+			static_assert(static_cast<int32>(EModulationDestination::Count) == 4, "Possible missing ELiteralType case coverage.");
+			ensureMsgf(false, TEXT("Failed to set input node default: Literal type not supported"));
+			return;
+		}
+	}
+	
+	bModulationRoutingUpdated = true;
+}
+
+void FActiveSound::RemoveModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination)
+{
+	switch (Destination)
+	{
+		case EModulationDestination::Volume:
+			ModulationRouting.VolumeModulationDestination.Modulators = ModulationRouting.VolumeModulationDestination.Modulators.Difference(NewModulators);
+			break;
+		case EModulationDestination::Pitch:
+			ModulationRouting.PitchModulationDestination.Modulators = ModulationRouting.PitchModulationDestination.Modulators.Difference(NewModulators);
+			break;
+		case EModulationDestination::Lowpass:
+			ModulationRouting.LowpassModulationDestination.Modulators = ModulationRouting.LowpassModulationDestination.Modulators.Difference(NewModulators);
+			break;
+		case EModulationDestination::Highpass:
+			ModulationRouting.HighpassModulationDestination.Modulators = ModulationRouting.HighpassModulationDestination.Modulators.Difference(NewModulators);
+			break;
+		default:
+		{
+			static_assert(static_cast<int32>(EModulationDestination::Count) == 4, "Possible missing ELiteralType case coverage.");
+			ensureMsgf(false, TEXT("Failed to set input node default: Literal type not supported"));
+			return;
+		}
+	}
+
 	bModulationRoutingUpdated = true;
 }
 
@@ -714,6 +822,17 @@ void FActiveSound::UpdateInterfaceParameters(const TArray<FListener>& InListener
 	InstanceTransmitter->SetParameters(MoveTemp(ParamsToUpdate));
 }
 
+int32 FActiveSound::GetClosestListenerIndex() const
+{
+	// If we haven't cached the cloest listener index, just directly query it from the audio device.
+	// This is cached in UpdateWaveInstances.
+	if (ClosestListenerIndex == INDEX_NONE && AudioDevice)
+	{
+		return AudioDevice->FindClosestListenerIndex(Transform);
+	}
+	return ClosestListenerIndex;
+}
+
 void FActiveSound::UpdateWaveInstances(TArray<FWaveInstance*> &InWaveInstances, const float DeltaTime)
 {
 	// Reset whether or not the active sound is playing audio.
@@ -768,6 +887,8 @@ void FActiveSound::UpdateWaveInstances(TArray<FWaveInstance*> &InWaveInstances, 
 	ParseParams.Pitch *= GetPitch() * Sound->GetPitchMultiplier();
 	ParseParams.bEnableLowPassFilter = bEnableLowPassFilter;
 	ParseParams.LowPassFilterFrequency = LowPassFilterFrequency;
+	ParseParams.bEnableHighPassFilter = bEnableHighPassFilter;
+	ParseParams.HighPassFilterFrequency = HighPassFilterFrequency;
 	ParseParams.SoundClass = GetSoundClass();
 	ParseParams.bIsPaused = bIsPaused;
 

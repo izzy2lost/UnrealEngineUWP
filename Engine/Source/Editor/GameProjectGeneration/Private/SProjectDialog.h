@@ -168,12 +168,8 @@ private:
 	bool CanCreateProject() const;
 
 	FReply OnCancel() const;
-
-	ECheckBoxState OnGetRaytracingEnabledCheckState() const { return bEnableRaytracing ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }
 	
 	bool IsStarterContentAvailable() const {return bIsStarterContentAvailable; }
-
-	void OnSetRaytracingEnabled(ECheckBoxState NewState);
 
 	int32 OnGetBlueprintOrCppIndex() const { return bShouldGenerateCode ? 1 : 0; }
 	void OnSetBlueprintOrCppIndex(int32 Index);
@@ -256,9 +252,6 @@ private:
 
 	/** Whether or not to enable XR in the created project. */
 	bool bEnableXR;
-
-	/** Whether or not to enable Raytracing in the created project. */
-	bool bEnableRaytracing;
 
 	/** Whether or not we should use the blueprint or C++ version of this template. */
 	bool bShouldGenerateCode;

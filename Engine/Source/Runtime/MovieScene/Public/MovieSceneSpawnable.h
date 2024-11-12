@@ -22,7 +22,8 @@ UENUM()
 enum class ESpawnOwnership : uint8
 {
 	/** The object's lifetime is managed by the sequence that spawned it */
-	InnerSequence,
+	
+	InnerSequence UMETA(DisplayName = "This Sequence"),
 
 	/** The object's lifetime is managed by the outermost sequence */
 	RootSequence,
@@ -261,9 +262,9 @@ public:
 	UPROPERTY(EditAnywhere, Category=Actor)
 	bool bNetAddressableName;
 
-	/** Optional user-defined spawning information */
-	UPROPERTY(EditAnywhere, Category="Sequencer")
-	FMovieSceneDynamicBinding DynamicBinding;
+	// Property has been deprecated- 'Dynamic Bindings' are now handled by UMovieSceneReplaceableDirectorBlueprintBinding and the custom binding system
+	UPROPERTY()
+	FMovieSceneDynamicBinding DynamicBinding_DEPRECATED;
 
 private:
 

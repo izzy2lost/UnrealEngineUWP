@@ -23,7 +23,7 @@ public:
 	FDMXMVRFixtureActorLibrary();
 
 	/** Returns the Actor that can represent the patch best */
-	UClass* FindMostAppropriateActorClassForPatch(const UDMXEntityFixturePatch* const Patch) const;
+	UClass* FindMostAppropriateActorClassForPatch(const UDMXEntityFixturePatch* Patch) const;
 
 protected:
 	//~ Begin FGCObject interface

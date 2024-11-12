@@ -17,12 +17,12 @@ namespace UnrealBuildTool
 {
 	class IOSToolChainSettings : AppleToolChainSettings
 	{
-		public IOSToolChainSettings(ILogger Logger) 
+		public IOSToolChainSettings(ILogger Logger)
 			: this("iPhoneOS", "iPhoneSimulator", "ios", Logger)
 		{
 		}
 
-		protected IOSToolChainSettings(string DevicePlatformName, string SimulatorPlatformName, string TargetOSName, ILogger Logger) 
+		protected IOSToolChainSettings(string DevicePlatformName, string SimulatorPlatformName, string TargetOSName, ILogger Logger)
 			: base(DevicePlatformName, SimulatorPlatformName, TargetOSName, true, Logger)
 		{
 		}
@@ -76,7 +76,7 @@ namespace UnrealBuildTool
 		{
 			FileReference CompilerPath = FileReference.Combine(Settings.ToolchainDir, IOSCompiler);
 			FileReference ArchiverPath = FileReference.Combine(Settings.ToolchainDir, IOSArchiver);
-			return new AppleToolChainInfo(CompilerPath, ArchiverPath, Logger);
+			return new AppleToolChainInfo(UnrealTargetPlatform.IOS, IOSToolChainSettings.XcodeDeveloperDir, CompilerPath, ArchiverPath, Logger);
 		}
 
 		public override string GetSDKVersion()
@@ -171,7 +171,8 @@ namespace UnrealBuildTool
 		{
 			base.GetCompileArguments_Debugging(CompileEnvironment, Arguments);
 
-			Arguments.Add("-fvisibility=hidden"); // hides the linker warnings with PhysX
+			Arguments.Add("-fvisibility=hidden");
+			Arguments.Add("-fvisibility-inlines-hidden");
 		}
 
 		/// <inheritdoc/>
@@ -207,6 +208,19 @@ namespace UnrealBuildTool
 		protected override void GetCompileArguments_Global(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
 		{
 			base.GetCompileArguments_Global(CompileEnvironment, Arguments);
+
+			if (CompileEnvironment.Configuration == CppConfiguration.Shipping)
+			{
+				Arguments.Add("-ffunction-sections");
+				Arguments.Add("-fdata-sections");
+				Arguments.Add("-fno-unwind-tables");
+				Arguments.Add("-fno-asynchronous-unwind-tables");
+
+				if (!CompileEnvironment.bPGOProfile)
+				{
+					Arguments.Add("-fno-use-cxa-atexit");
+				}
+			}
 
 			// What architecture(s) to build for
 			Arguments.Add(FormatArchitectureArg(CompileEnvironment.Architectures));
@@ -323,6 +337,8 @@ namespace UnrealBuildTool
 			Arguments.Add("-ObjC");
 			// Arguments.Add("-v");
 
+			//Arguments.Add("-Wl,-O3");
+
 			// use LTO if desired (like VCToolchain does)
 			if (LinkEnvironment.bAllowLTCG)
 			{
@@ -398,6 +414,7 @@ namespace UnrealBuildTool
 
 			// Create an action that invokes the linker.
 			Action LinkAction = Graph.CreateAction(ActionType.Link);
+			LinkAction.RootPaths.AddRange(GetEnvironmentBasePaths(LinkEnvironment));
 
 			// RPC utility parameters are in terms of the Mac side
 			LinkAction.WorkingDirectory = GetMacDevSrcRoot();
@@ -724,7 +741,7 @@ namespace UnrealBuildTool
 			return OutputFile;
 		}
 
-		public static void PackageStub(string BinaryPath, string GameName, string ExeName, bool bUseModernXcode, bool bPerformDummySigning=false)
+		public static void PackageStub(string BinaryPath, string GameName, string ExeName, bool bUseModernXcode, bool bPerformDummySigning = false)
 		{
 			// create the ipa
 			string IPAName = BinaryPath + "/" + ExeName + ".stub";
@@ -894,7 +911,7 @@ namespace UnrealBuildTool
 					Dir = file.Replace(Path.Combine(EngineDir, "Build", "TVOS"), IntermediateDir);
 					File.Copy(file, Dir, true);
 					FileInfo DestFileInfo = new FileInfo(Dir);
-					DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+					DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 				}
 				// copy the icons from the game directory if it has any
 				string[][] Images = {
@@ -926,7 +943,7 @@ namespace UnrealBuildTool
 
 						File.Copy(Image, Path.Combine(Dir, Images[Index][1], Images[Index][0]), true);
 						FileInfo DestFileInfo = new FileInfo(Path.Combine(Dir, Images[Index][1], Images[Index][0]));
-						DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+						DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 					}
 				}
 			}
@@ -953,7 +970,7 @@ namespace UnrealBuildTool
 					Dir = file.Replace(Path.Combine(EngineDir, "Build", "IOS"), IntermediateDir);
 					File.Copy(file, Dir, true);
 					FileInfo DestFileInfo = new FileInfo(Dir);
-					DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+					DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 				}
 				// copy the icons from the game directory if it has any
 				string[][] Images = {
@@ -984,7 +1001,7 @@ namespace UnrealBuildTool
 
 						File.Copy(Image, Path.Combine(Dir, Images[Index][0]), true);
 						FileInfo DestFileInfo = new FileInfo(Path.Combine(Dir, Images[Index][0]));
-						DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+						DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 					}
 				}
 
@@ -1235,7 +1252,7 @@ namespace UnrealBuildTool
 			//This chunk looks to be required to pipe output to VS giving information on the status of a remote build.
 			public bool OutputReceivedDataEventHandlerEncounteredError = false;
 			public string OutputReceivedDataEventHandlerEncounteredErrorMessage = "";
-			public void OutputReceivedDataEventHandler(Object Sender, DataReceivedEventArgs Line, ILogger Logger)
+			public void OutputReceivedDataEventHandler(object Sender, DataReceivedEventArgs Line, ILogger Logger)
 			{
 				if ((Line != null) && (Line.Data != null))
 				{
@@ -1253,7 +1270,7 @@ namespace UnrealBuildTool
 				}
 			}
 
-			public void OutputReceivedDataEventLogger(Object Sender, DataReceivedEventArgs Line, ILogger Logger)
+			public void OutputReceivedDataEventLogger(object Sender, DataReceivedEventArgs Line, ILogger Logger)
 			{
 				if ((Line != null) && (Line.Data != null))
 				{
@@ -1731,7 +1748,7 @@ namespace UnrealBuildTool
 
 			{
 				// Copy bundled assets from additional frameworks to the intermediate assets directory (so they can get picked up during staging)
-				String LocalFrameworkAssets = Path.GetFullPath(Target.ProjectDirectory + "/Intermediate/" + (Target.Platform == UnrealTargetPlatform.IOS ? "IOS" : "TVOS") + "/FrameworkAssets");
+				string LocalFrameworkAssets = Path.GetFullPath(Target.ProjectDirectory + "/Intermediate/" + (Target.Platform == UnrealTargetPlatform.IOS ? "IOS" : "TVOS") + "/FrameworkAssets");
 
 				// Clean the local dest directory if it exists
 				CleanIntermediateDirectory(LocalFrameworkAssets);

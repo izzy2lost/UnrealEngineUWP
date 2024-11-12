@@ -13,7 +13,9 @@
 #include "ShaderCore.h"
 #include "Misc/ScopeLock.h"
 #include "UObject/RenderingObjectVersion.h"
+#include "HAL/LowLevelMemTracker.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
 static EShaderPermutationFlags GetCurrentShaderPermutationFlags()
 {
@@ -24,11 +26,88 @@ static EShaderPermutationFlags GetCurrentShaderPermutationFlags()
 	return Result;
 }
 
+#ifndef ALLOW_SHADERMAP_TRACKING
+#define ALLOW_SHADERMAP_TRACKING 0
+#endif
+
+#if ALLOW_SHADERMAP_TRACKING
+static TArray<FShaderMapBase*> GAllShaderMaps;
+static FCriticalSection GAllShaderMapsGuard;
+
+TAutoConsoleVariable<bool> CVarEnableShaderMapTracking(
+	TEXT("r.TrackShaderMaps"),
+	WITH_EDITOR,
+	TEXT("Enables the tracking of every shadermap instantiated. Required to run ListShaderMaps command."),
+	ECVF_ReadOnly);
+
+FAutoConsoleCommandWithArgsAndOutputDevice GListShaderMapsCmd(
+	TEXT("ListShaderMaps"),
+	TEXT("Spits out a csv table containing stats of all shadermaps"),
+	FConsoleCommandWithArgsAndOutputDeviceDelegate::CreateStatic(
+		[](const TArray<FString>& Params, FOutputDevice& Out)
+		{
+			if (!CVarEnableShaderMapTracking.GetValueOnGameThread())
+			{
+				UE_LOG(LogShaders, Warning, TEXT("Enable r.TrackShaderMaps in ini config to enable the functionality"));
+				return;
+			}
+			Out.Logf(TEXT("ShaderMapName,OwnerName,NumShaders,NumPipelines,SizeKb,bUsedForRendering"));
+			FScopeLock SMAccess(&GAllShaderMapsGuard);
+			for (FShaderMapBase* ShaderMap : GAllShaderMaps)
+			{
+				FString FriendlyName = TEXT("Unknown");
+				FString OwnerName = TEXT("Unknown");
+				uint32 CodeSize = ShaderMap->GetFrozenContentSize();
+				bool bUseForRendering = false;
+
+				if (const FShaderMapResource* Resource = ShaderMap->GetResource())
+				{
+					FriendlyName = Resource->GetFriendlyName();
+					OwnerName = Resource->GetOwnerName().ToString();
+					CodeSize += Resource->GetSizeBytes();
+					bUseForRendering = Resource->ContainsAtLeastOneRHIShaderCreated();
+				}
+
+				TMap<FHashedName, TShaderRef<FShader>> Shaders;
+				ShaderMap->GetShaderList(Shaders);
+				TArray<FShaderPipelineRef> Pipelines;
+				ShaderMap->GetShaderPipelineList(Pipelines);
+
+				// Editor doesn't have the size baked, so grab it from shaders themselves.
+				if (CodeSize == 0)
+				{
+					for (auto& [Hash, Shader] : Shaders)
+					{
+						CodeSize += Shader->GetCodeSize();
+					}
+				}
+
+				Out.Logf(TEXT("%s,%s,%d,%d,%.3f,%s"),
+					*FriendlyName,
+					*OwnerName,
+					Shaders.Num(),
+					Pipelines.Num(),
+					CodeSize / 1024.f,
+					bUseForRendering ? TEXT("YES") : TEXT("NO")
+				);
+			}
+		}));
+#endif // ALLOW_SHADERMAP_TRACKING
+
 FShaderMapBase::FShaderMapBase()
 	: PointerTable(nullptr)
 	, NumFrozenShaders(0u)
 {
 	PermutationFlags = GetCurrentShaderPermutationFlags();
+
+#if ALLOW_SHADERMAP_TRACKING
+	if (CVarEnableShaderMapTracking.GetValueOnAnyThread())
+	{
+		LLM_SCOPE_BYNAME(TEXT("Debug/ShaderMapsTracking"));
+		FScopeLock SMAccess(&GAllShaderMapsGuard);
+		GAllShaderMaps.Add(this);
+	}
+#endif // ALLOW_SHADERMAP_TRACKING
 }
 
 FShaderMapBase::~FShaderMapBase()
@@ -38,6 +117,14 @@ FShaderMapBase::~FShaderMapBase()
 	{
 		delete PointerTable;
 	}
+
+#if ALLOW_SHADERMAP_TRACKING
+	if (CVarEnableShaderMapTracking.GetValueOnAnyThread())
+	{
+		FScopeLock SMAccess(&GAllShaderMapsGuard);
+		GAllShaderMaps.RemoveSingleSwap(this, EAllowShrinking::No);
+	}
+#endif // ALLOW_SHADERMAP_TRACKING
 }
 
 FShaderMapResourceCode* FShaderMapBase::GetResourceCode()
@@ -86,6 +173,14 @@ void FShaderMapBase::AssignCopy(const FShaderMapBase& Source)
 	INC_DWORD_STAT_BY(STAT_Shaders_ShaderMemory, Content.FrozenSize);
 	INC_DWORD_STAT_BY(STAT_Shaders_NumShadersLoaded, NumFrozenShaders);
 
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
+	TCsvPersistentCustomStat<float>* CsvStatShaderMemoryMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("ShaderMemoryMB"), CSV_CATEGORY_INDEX(Shaders));
+	TCsvPersistentCustomStat<int>* CsvStatNumShadersLoaded = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersLoaded"), CSV_CATEGORY_INDEX(Shaders));
+
+	CsvStatShaderMemoryMB->Add(float(Content.FrozenSize) / (1024.0f * 1024.f));
+	CsvStatNumShadersLoaded->Add(NumFrozenShaders);
+#endif
+
 	Code = new FShaderMapResourceCode(*Source.Code);
 	InitResource();
 }
@@ -109,6 +204,14 @@ void FShaderMapBase::FinalizeContent()
 		NumFrozenShaders = Content.Object->GetNumShaders();
 		INC_DWORD_STAT_BY(STAT_Shaders_ShaderMemory, Content.FrozenSize);
 		INC_DWORD_STAT_BY(STAT_Shaders_NumShadersLoaded, NumFrozenShaders);
+
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
+		TCsvPersistentCustomStat<float>* CsvStatShaderMemoryMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("ShaderMemoryMB"), CSV_CATEGORY_INDEX(Shaders));
+		TCsvPersistentCustomStat<int>* CsvStatNumShadersLoaded = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersLoaded"), CSV_CATEGORY_INDEX(Shaders));
+
+		CsvStatShaderMemoryMB->Add(float(Content.FrozenSize) / (1024.0f * 1024.f));
+		CsvStatNumShadersLoaded->Add(NumFrozenShaders);
+#endif
 	}
 	InitResource();
 }
@@ -117,14 +220,24 @@ void FShaderMapBase::UnfreezeContent()
 {
 	DEC_DWORD_STAT_BY(STAT_Shaders_ShaderMemory, Content.FrozenSize);
 	DEC_DWORD_STAT_BY(STAT_Shaders_NumShadersLoaded, NumFrozenShaders);
+
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
+	TCsvPersistentCustomStat<float>* CsvStatShaderMemoryMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("ShaderMemoryMB"), CSV_CATEGORY_INDEX(Shaders));
+	TCsvPersistentCustomStat<int>* CsvStatNumShadersLoaded = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersLoaded"), CSV_CATEGORY_INDEX(Shaders));
+
+	CsvStatShaderMemoryMB->Sub(float(Content.FrozenSize) / (1024.0f * 1024.f));
+	CsvStatNumShadersLoaded->Sub(NumFrozenShaders);
+#endif
+
 	Content.Unfreeze(PointerTable);
 	NumFrozenShaders = 0u;
 }
 
 #define CHECK_SHADERMAP_DEPENDENCIES (WITH_EDITOR || !(UE_BUILD_SHIPPING || UE_BUILD_TEST))
 
-bool FShaderMapBase::Serialize(FArchive& Ar, bool bInlineShaderResources, bool bLoadedByCookedMaterial, bool bInlineShaderCode, const FName& SerializingAsset)
+bool FShaderMapBase::Serialize(FShaderSerializeContext& Ctx)
 {
+	FArchive& Ar = Ctx.GetMainArchive();
 	LLM_SCOPE(ELLMTag::Shaders);
 	if (Ar.IsSaving())
 	{
@@ -150,7 +263,7 @@ bool FShaderMapBase::Serialize(FArchive& Ar, bool bInlineShaderResources, bool b
 
 		bool bShareCode = false;
 #if WITH_EDITOR
-		bShareCode = !bInlineShaderCode && FShaderLibraryCooker::IsShaderLibraryEnabled() && Ar.IsCooking();
+		bShareCode = FShaderLibraryCooker::IsShaderLibraryEnabled() && Ar.IsCooking();
 #endif // WITH_EDITOR
 		Ar << bShareCode;
 #if WITH_EDITOR
@@ -176,10 +289,10 @@ bool FShaderMapBase::Serialize(FArchive& Ar, bool bInlineShaderResources, bool b
 			Ar << ResourceHash;
 			FShaderLibraryCooker::AddShaderCode(ShaderPlatform, Code, GetAssociatedAssets());
 		}
-		else
+		else 
 #endif // WITH_EDITOR
 		{
-			Code->Serialize(Ar, bLoadedByCookedMaterial);
+			Code->Serialize(Ctx);
 		}
 	}
 	else
@@ -212,14 +325,14 @@ bool FShaderMapBase::Serialize(FArchive& Ar, bool bInlineShaderResources, bool b
 				{
 					UE_LOG(LogShaders, Error, TEXT("Missing shader resource for hash '%s' for shader platform '%s' in the shader library while serializing asset %s"), *ResourceHash.ToString(),
 						*LexToString(ShaderPlatform),
-						*SerializingAsset.ToString());
+						*Ctx.SerializingAsset.ToString());
 				}
 			}
 		}
 		else
 		{
 			Code = new FShaderMapResourceCode();
-			Code->Serialize(Ar, bLoadedByCookedMaterial);
+			Code->Serialize(Ctx);
 			Resource = new FShaderMapResource_InlineCode(ShaderPlatform, Code);
 		}
 
@@ -238,6 +351,14 @@ bool FShaderMapBase::Serialize(FArchive& Ar, bool bInlineShaderResources, bool b
 			INC_DWORD_STAT_BY(STAT_Shaders_ShaderMemory, Content.FrozenSize);
 			INC_DWORD_STAT_BY(STAT_Shaders_NumShadersLoaded, NumFrozenShaders);
 
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
+			TCsvPersistentCustomStat<float>* CsvStatShaderMemoryMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("ShaderMemoryMB"), CSV_CATEGORY_INDEX(Shaders));
+			TCsvPersistentCustomStat<int>* CsvStatNumShadersLoaded = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersLoaded"), CSV_CATEGORY_INDEX(Shaders));
+
+			CsvStatShaderMemoryMB->Add(float(Content.FrozenSize) / (1024.0f * 1024.f));
+			CsvStatNumShadersLoaded->Add(NumFrozenShaders);
+#endif
+
 			BeginInitResource(Resource);
 			INC_DWORD_STAT_BY(STAT_Shaders_ShaderResourceMemory, Resource->GetSizeBytes());
 		}
@@ -252,6 +373,41 @@ bool FShaderMapBase::Serialize(FArchive& Ar, bool bInlineShaderResources, bool b
 
 	return (bool)Content.Object;
 }
+
+#if WITH_EDITORONLY_DATA
+TArray<FGenericShaderStat> FShaderMapBase::GetShaderStatistics(FShaderType* ShaderType) const
+{
+	TArray<FGenericShaderStat> ShaderStatistics;
+	FShader* Shader = GetContent()->GetShader(ShaderType);
+	if (Shader)
+	{
+		ShaderStatistics = GetShaderStatistics(*Shader);
+	}
+	return ShaderStatistics;
+}
+
+TArray<FGenericShaderStat> FShaderMapBase::GetShaderStatistics(FShader& Shader) const
+{
+	TArray<FGenericShaderStat> ShaderStatistics;
+
+	if (Code)
+	{
+		const int32 ShaderIndex = Code->FindShaderIndex(Shader.GetOutputHash());
+		if (Code->ShaderEditorOnlyDataEntries.IsValidIndex(ShaderIndex))
+		{
+			for (const FGenericShaderStat& Stat : Code->ShaderEditorOnlyDataEntries[ShaderIndex].ShaderStatistics)
+			{
+				if (!EnumHasAnyFlags(Stat.Flags, FGenericShaderStat::EFlags::Hidden))
+				{
+					ShaderStatistics.Add(Stat);
+				}
+			}
+		}
+	}
+
+	return ShaderStatistics;
+}
+#endif // WITH_EDITORONLY_DATA
 
 FString FShaderMapBase::ToString() const
 {
@@ -279,6 +435,15 @@ void FShaderMapBase::DestroyContent()
 {
 	DEC_DWORD_STAT_BY(STAT_Shaders_ShaderMemory, Content.FrozenSize);
 	DEC_DWORD_STAT_BY(STAT_Shaders_NumShadersLoaded, NumFrozenShaders);
+
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING) 
+	TCsvPersistentCustomStat<float>* CsvStatShaderMemoryMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("ShaderMemoryMB"), CSV_CATEGORY_INDEX(Shaders));
+	TCsvPersistentCustomStat<int>* CsvStatNumShadersLoaded = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersLoaded"), CSV_CATEGORY_INDEX(Shaders));
+
+	CsvStatShaderMemoryMB->Sub(float(Content.FrozenSize) / (1024.0f * 1024.f));
+	CsvStatNumShadersLoaded->Sub(NumFrozenShaders);
+#endif
+
 	Content.Destroy(PointerTable);
 	NumFrozenShaders = 0u;
 }
@@ -431,7 +596,7 @@ void FShaderMapContent::RemoveShaderPipelineType(const FShaderPipelineType* Shad
 	{
 		FShaderPipeline* Pipeline = ShaderPipelines[Index];
 		delete Pipeline;
-		ShaderPipelines.RemoveAt(Index, 1, EAllowShrinking::No);
+		ShaderPipelines.RemoveAt(Index, EAllowShrinking::No);
 	}
 }
 
@@ -641,20 +806,20 @@ uint32 FShaderMapContent::GetMaxNumInstructionsForShader(const FShaderMapBase& I
 	return MaxNumInstructions;
 }
 
-#if WITH_EDITOR
-const FShader::FShaderStatisticMap FShaderMapContent::GetShaderStatisticsMapForShader(const FShaderMapBase& InShaderMap, FShaderType* ShaderType) const
+#if WITH_EDITORONLY_DATA
+TArray<FGenericShaderStat> FShaderMapContent::GetShaderStatistics(const FShaderMapBase& InShaderMap, FShaderType* ShaderType) const
 {
-	FShader::FShaderStatisticMap Statistics;
+	TArray<FGenericShaderStat> ShaderStatistics;
 
 	FShader* Shader = GetShader(ShaderType);
 	if (Shader)
 	{
-		Statistics = Shader->GetShaderStatistics();
+		ShaderStatistics = InShaderMap.GetShaderStatistics(*Shader);
 	}
 
-	return Statistics;
+	return ShaderStatistics;
 }
-#endif // WITH_EDITOR
+#endif // WITH_EDITORONLY_DATA
 
 struct FSortedShaderEntry
 {

@@ -25,7 +25,7 @@ namespace UnrealBuildTool
 			public FileReference BreakpadEncoder { get; init; }
 
 			public LinuxToolChainInfo(DirectoryReference? BaseLinuxPath, DirectoryReference? MultiArchRoot, FileReference Clang, FileReference Archiver, FileReference Objcopy, ILogger Logger)
-				: base(Clang, Archiver, Logger)
+				: base(BaseLinuxPath, Clang, Archiver, Logger)
 			{
 				this.BaseLinuxPath = BaseLinuxPath;
 				this.MultiArchRoot = MultiArchRoot;
@@ -44,7 +44,7 @@ namespace UnrealBuildTool
 
 		/** Allows you to override the maximum binary size allowed to be passed to objcopy.exe when cross building on Windows. */
 		/** Max value is 2GB, due to bat file limitation */
-		protected UInt64 MaxBinarySizeOverrideForObjcopy = 0;
+		protected ulong MaxBinarySizeOverrideForObjcopy = 0;
 
 		/** Platform SDK to use */
 		protected LinuxPlatformSDK PlatformSDK;
@@ -55,10 +55,10 @@ namespace UnrealBuildTool
 			: this(UnrealTargetPlatform.Linux, InArchitecture, InSDK, InOptions, InLogger)
 		{
 			// prevent unknown clangs since the build is likely to fail on too old or too new compilers
-			if (CompilerVersionLessThan(15, 0, 0) || CompilerVersionGreaterOrEqual(17, 0, 0))
+			if ((CompilerVersionLessThan(18, 0, 0) || CompilerVersionGreaterOrEqual(19, 0, 0)) && !Options.HasFlag(ClangToolChainOptions.UseAutoRTFMCompiler))
 			{
 				throw new BuildException(
-					String.Format("This version of the Unreal Engine can only be compiled with clang 15.x or 16.x. clang {0} may not build it - please use a different version.",
+					String.Format("This version of the Unreal Engine can only be compiled with clang 18.x. clang {0} may not build it - please use a different version.",
 						Info.ClangVersion)
 					);
 			}
@@ -326,7 +326,7 @@ namespace UnrealBuildTool
 
 		private void AddCompilerLTOFlags(List<string> Arguments)
 		{
-			 AddLTOFlags(Arguments, false);
+			AddLTOFlags(Arguments, false);
 		}
 
 		private void AddLinkerLTOFlags(List<string> Arguments)
@@ -340,43 +340,6 @@ namespace UnrealBuildTool
 			base.GetCompileArguments_Optimizations(CompileEnvironment, Arguments);
 
 			AddCompilerLTOFlags(Arguments);
-
-			// architecture (all but None are AVX)
-			if (CompileEnvironment.Architecture == UnrealArch.X64 && CompileEnvironment.MinCpuArchX64 != MinimumCpuArchitectureX64.None)
-			{
-				// The binary created will be targeting AVX instructions. Machines without AVX support will crash on any AVX instructions if they run this compilation unit.
-
-				// AVX available implies sse4 and sse2 available.
-				Arguments.Add("-DPLATFORM_ENABLE_VECTORINTRINSICS=1");
-
-				if (CompileEnvironment.MinCpuArchX64 >= MinimumCpuArchitectureX64.AVX)
-				{
-					// Apparently MSVC enables (a subset?) of BMI (bit manipulation instructions) when /arch:AVX is set. Some code relies on this, so mirror it by enabling BMI1
-					Arguments.Add("-mavx -mbmi");
-					// Inform Unreal code that we have sse2, sse4, and AVX, both available to compile and available to run
-					Arguments.Add("-DPLATFORM_MAYBE_HAS_AVX=1");
-					// By setting the ALWAYS_HAS defines, we we direct Unreal code to skip cpuid checks to verify that the running hardware supports sse/avx.
-					Arguments.Add("-DPLATFORM_ALWAYS_HAS_AVX=1");
-				}
-
-				if (CompileEnvironment.MinCpuArchX64 >= MinimumCpuArchitectureX64.AVX2)
-				{
-					Arguments.Add("-mavx2");
-					Arguments.Add("-DPLATFORM_ALWAYS_HAS_AVX_2=1");
-				}
-
-				if (CompileEnvironment.MinCpuArchX64 >= MinimumCpuArchitectureX64.AVX512)
-				{
-					// Match MSVC which says (https://learn.microsoft.com/en-us/cpp/build/reference/arch-x64?view=msvc-170):
-					// > The __AVX512F__, __AVX512CD__, __AVX512BW__, __AVX512DQ__ and __AVX512VL__ preprocessor symbols are defined when the /arch:AVX512 compiler option is specified
-					Arguments.Add("-mavx512f");
-					Arguments.Add("-mavx512cd");
-					Arguments.Add("-mavx512bw");
-					Arguments.Add("-mavx512dq");
-					Arguments.Add("-mavx512vl");
-					Arguments.Add("-DPLATFORM_ALWAYS_HAS_AVX_512=1");
-				}
-			}
 
 			if (CompileEnvironment.bCodeCoverage)
 			{
@@ -545,6 +508,12 @@ namespace UnrealBuildTool
 
 			// always select the driver g++ in-case we are using a different binary for clang, such as clang/clang-cl
 			Arguments.Add("--driver-mode=g++");
+
+			if (Options.HasFlag(ClangToolChainOptions.CompressDebugFile))
+			{
+				Arguments.Add("-gz=zlib");
+			}
+
 			if (ShouldUseLibcxx())
 			{
 				Arguments.Add("-nostdinc++");
@@ -625,7 +594,10 @@ namespace UnrealBuildTool
 			string? Key = SplitData.ElementAtOrDefault(0);
 			string? Value = SplitData.ElementAtOrDefault(1);
 
-			if (String.IsNullOrEmpty(Key)) { return ""; }
+			if (String.IsNullOrEmpty(Key))
+			{
+				return "";
+			}
 			if (!String.IsNullOrEmpty(Value))
 			{
 				if (!Value.StartsWith("\"") && (Value.Contains(' ') || Value.Contains('$')))
@@ -683,6 +655,11 @@ namespace UnrealBuildTool
 			Arguments.Add("--driver-mode=g++");
 			Arguments.Add((BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Win64) ? "-fuse-ld=lld.exe" : "-fuse-ld=lld");
 
+			if (Options.HasFlag(ClangToolChainOptions.CompressDebugFile))
+			{
+				Arguments.Add("-Wl,--compress-debug-sections=zlib");
+			}
+
 			// debugging symbols
 			// Applying to all configurations @FIXME: temporary hack for FN to enable callstack in Shipping builds (proper resolution: UEPLAT-205)
 			Arguments.Add("-rdynamic");   // needed for backtrace_symbols()...
@@ -718,6 +695,7 @@ namespace UnrealBuildTool
 				if (Options.HasFlag(ClangToolChainOptions.EnableAddressSanitizer))
 				{
 					Arguments.Add("-fsanitize=address");
+					Arguments.Add("-fsanitize-recover=address"); 
 				}
 				else if (Options.HasFlag(ClangToolChainOptions.EnableThreadSanitizer))
 				{
@@ -835,8 +813,8 @@ namespace UnrealBuildTool
 				//
 				Arguments.Add("-Wno-backend-plugin");
 
-				Log.TraceInformationOnce("Enabling Profile Guided Optimization (PGO). Linking will take a while.");
-				Arguments.Add(String.Format("-fprofile-instr-use=\"{0}\"", Path.Combine(LinkEnvironment.PGODirectory!, LinkEnvironment.PGOFilenamePrefix!)));
+				DirectoryReference? PGODir = DirectoryReference.FromString(LinkEnvironment.PGODirectory!);
+				Arguments.Add($"-fprofile-instr-use=\"{NormalizeCommandLinePath(DirectoryReference.Combine(PGODir!, LinkEnvironment.PGOFilenamePrefix!))}\"");
 			}
 			else if (LinkEnvironment.bPGOProfile)
 			{
@@ -931,6 +909,11 @@ namespace UnrealBuildTool
 				Logger.LogInformation("Using fast way to relink  circularly dependent libraries (no FixDeps).");
 			}
 
+			if (Options.HasFlag(ClangToolChainOptions.CompressDebugFile))
+			{
+				Logger.LogInformation("Compressing debug files");
+			}
+
 			Logger.LogInformation("Targeted minimum CPU architecture: {0}", (CompileEnvironment.Architecture == UnrealArch.X64) ? CompileEnvironment.MinCpuArchX64 : "default");
 
 			if (CompileEnvironment.bPGOOptimize)
@@ -1017,7 +1000,7 @@ namespace UnrealBuildTool
 			ArchiveAction.ProducedItems.Add(OutputFile);
 			ArchiveAction.CommandDescription = "Archive";
 			ArchiveAction.StatusDescription = Path.GetFileName(OutputFile.AbsolutePath);
-			ArchiveAction.CommandArguments += String.Format("{1} \"{2}\"", GetArchiveArguments(LinkEnvironment), OutputFile.AbsolutePath);
+			ArchiveAction.CommandArguments += String.Format("{0} \"{1}\"", GetArchiveArguments(LinkEnvironment), OutputFile.AbsolutePath);
 
 			// Add the input files to a response file, and pass the response file on the command-line.
 			List<string> InputFileNames = new List<string>();
@@ -1134,6 +1117,7 @@ namespace UnrealBuildTool
 
 			// Create an action that invokes the linker.
 			Action LinkAction = Graph.CreateAction(ActionType.Link);
+			LinkAction.RootPaths.AddRange(GetEnvironmentBasePaths(LinkEnvironment));
 			LinkAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 
 			string LinkCommandString;
@@ -1169,11 +1153,10 @@ namespace UnrealBuildTool
 				LinkAction.CommandDescription = "Link";
 			}
 
-			// Saw a 6 hour link time potentially caused by box. Will disable for now and revisit later
-			LinkAction.bCanExecuteInUBA = !LinkEnvironment.bPGOProfile && !LinkEnvironment.bPGOOptimize && !LinkEnvironment.bAllowLTCG;
-
 			if (!OperatingSystem.IsWindows())
+			{
 				LinkAction.bCanExecuteInUBA = false; // Linker on native linux uses vfork/exec which is not handled in uba right now
+			}
 
 			// because the logic choosing between lld and ld is somewhat messy atm (lld fails to link .DSO due to bugs), make the name of the linker clear
 			LinkAction.CommandDescription += (LinkCommandString.Contains("-fuse-ld=lld")) ? " (lld)" : " (ld)";
@@ -1187,7 +1170,14 @@ namespace UnrealBuildTool
 			List<string> ResponseLines = new List<string>();
 			foreach (FileItem InputFile in LinkEnvironment.InputFiles)
 			{
-				ResponseLines.Add(String.Format("\"{0}\"", InputFile.AbsolutePath.Replace("\\", "/")));
+				if (InputFile.HasExtension(".dynlist"))
+				{
+					ResponseLines.Add($"--dynamic-list=\"{NormalizeCommandLinePath(InputFile)}\"");
+				}
+				else
+				{
+					ResponseLines.Add($"\"{NormalizeCommandLinePath(InputFile)}\"");
+				}
 				LinkAction.PrerequisiteItems.Add(InputFile);
 			}
 
@@ -1481,7 +1471,7 @@ namespace UnrealBuildTool
 					LinkWriter.WriteLine(LinkCommandString);
 					LinkWriter.WriteLine(GetDumpEncodeDebugCommand(LinkEnvironment, OutputFile));
 				}
-			};
+			}
 
 			LinkAction.CommandPath = ShellBinary;
 
@@ -1576,6 +1566,7 @@ namespace UnrealBuildTool
 				{
 					// Create the action to relink the library. This actions does not overwrite the source file so it can be executed in parallel
 					Action RelinkAction = Graph.CreateAction(ActionType.Link);
+					RelinkAction.RootPaths.AddRange(GetEnvironmentBasePaths(LinkEnvironment));
 					RelinkAction.WorkingDirectory = LinkAction.WorkingDirectory;
 					RelinkAction.StatusDescription = LinkAction.StatusDescription;
 					RelinkAction.CommandDescription = "Relink";
@@ -1743,6 +1734,11 @@ namespace UnrealBuildTool
 				ExtraArguments.Add(String.Format("-isystem {0}", System.IO.Path.Combine(InternalSdkPath, "lib", "clang", ClangVersionString, "include").Replace("\\", "/")));
 				ExtraArguments.Add(String.Format("-isystem {0}", System.IO.Path.Combine(InternalSdkPath, "usr", "include").Replace("\\", "/")));
 			}
+		}
+
+		public override string GetExtraLinkFileExtension()
+		{
+			return "dynlist";
 		}
 	}
 }

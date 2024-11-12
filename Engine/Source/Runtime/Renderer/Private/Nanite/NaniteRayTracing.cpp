@@ -122,7 +122,8 @@ DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Pending Builds"), STAT_NaniteRayTracingPend
 DECLARE_MEMORY_STAT(TEXT("Auxiliary Data Buffer"), STAT_NaniteRayTracingAuxiliaryDataBuffer, STATGROUP_NaniteRayTracing);
 DECLARE_MEMORY_STAT(TEXT("Staging Auxiliary Data Buffer"), STAT_NaniteRayTracingStagingAuxiliaryDataBuffer, STATGROUP_NaniteRayTracing);
 
-static const uint32 MinAuxiliaryBufferEntries = 4 * 1024 * 1024; // buffer size will be 16MB
+static const uint32 GMinAuxiliaryBufferEntries = 4 * 1024 * 1024; // buffer size will be 16MB
+static const uint32 GDisabledMinAuxiliaryBufferEntries = 8; // used when Nanite Ray Tracing is not enabled
 
 namespace Nanite
 {
@@ -176,23 +177,8 @@ namespace Nanite
 
 	void FRayTracingManager::InitRHI(FRHICommandListBase&)
 	{
-		if (!DoesPlatformSupportNanite(GMaxRHIShaderPlatform))
-		{
-			return;
-		}
-
-		AuxiliaryDataBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 8), TEXT("NaniteRayTracing.AuxiliaryDataBuffer"));
+		AuxiliaryDataBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), GDisabledMinAuxiliaryBufferEntries), TEXT("NaniteRayTracing.AuxiliaryDataBuffer"));
 		SET_MEMORY_STAT(STAT_NaniteRayTracingAuxiliaryDataBuffer, AuxiliaryDataBuffer->GetSize());
-
-		StagingAuxiliaryDataBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 8), TEXT("NaniteRayTracing.StagingAuxiliaryDataBuffer"));
-		SET_MEMORY_STAT(STAT_NaniteRayTracingStagingAuxiliaryDataBuffer, StagingAuxiliaryDataBuffer->GetSize());
-
-		ReadbackBuffers.SetNum(MaxReadbackBuffers);
-
-		for (auto& ReadbackData : ReadbackBuffers)
-		{
-			ReadbackData.MeshDataReadbackBuffer = new FRHIGPUBufferReadback(TEXT("NaniteRayTracing.MeshDataReadbackBuffer"));
-		}
 
 		FNaniteRayTracingUniformParameters Params = {};
 		// Use AuxiliaryDataBuffer as placeholder when creating the uniform buffer
@@ -201,13 +187,32 @@ namespace Nanite
 		Params.HierarchyBuffer = AuxiliaryDataBuffer->GetSRV();
 		Params.RayTracingDataBuffer = AuxiliaryDataBuffer->GetSRV();
 
+		// Always initialize the uniform buffer because it's used in static binding layout.
 		UniformBuffer = TUniformBufferRef<FNaniteRayTracingUniformParameters>::CreateUniformBufferImmediate(Params, UniformBuffer_MultiFrame);
 
+		if (!DoesPlatformSupportNanite(GMaxRHIShaderPlatform))
+		{
+			return;
+		}
+		
+		StagingAuxiliaryDataBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), GDisabledMinAuxiliaryBufferEntries), TEXT("NaniteRayTracing.StagingAuxiliaryDataBuffer"));
+		SET_MEMORY_STAT(STAT_NaniteRayTracingStagingAuxiliaryDataBuffer, StagingAuxiliaryDataBuffer->GetSize());
+
+		ReadbackBuffers.SetNum(MaxReadbackBuffers);
+
+		for (auto& ReadbackData : ReadbackBuffers)
+		{
+			ReadbackData.MeshDataReadbackBuffer = new FRHIGPUBufferReadback(TEXT("NaniteRayTracing.MeshDataReadbackBuffer"));
+		}
+		
 		bInitialized = true;
 	}
 
 	void FRayTracingManager::ReleaseRHI()
 	{
+		UniformBuffer.SafeRelease();
+		AuxiliaryDataBuffer.SafeRelease();
+
 		if (!bInitialized)
 		{
 			return;
@@ -218,8 +223,6 @@ namespace Nanite
 		VertexBuffer.SafeRelease();
 		IndexBuffer.SafeRelease();
 
-		UniformBuffer.SafeRelease();
-
 		for (auto& ReadbackData : ReadbackBuffers)
 		{
 			delete ReadbackData.MeshDataReadbackBuffer;
@@ -227,13 +230,12 @@ namespace Nanite
 		}
 
 		ReadbackBuffers.Empty();
-		StagingAuxiliaryDataBuffer.SafeRelease();
-		AuxiliaryDataBuffer.SafeRelease();
+		StagingAuxiliaryDataBuffer.SafeRelease();		
 	}
 
 	void FRayTracingManager::Add(FPrimitiveSceneInfo* SceneInfo)
 	{
-		if (!IsRayTracingAllowed())
+		if (!IsRayTracingEnabled() || (GetRayTracingMode() == ERayTracingMode::Fallback))
 		{
 			return;
 		}
@@ -244,9 +246,6 @@ namespace Nanite
 		uint32 NaniteHierarchyOffset = INDEX_NONE;
 		uint32 NaniteImposterIndex = INDEX_NONE;
 		NaniteProxy->GetNaniteResourceInfo(NaniteResourceID, NaniteHierarchyOffset, NaniteImposterIndex);
-
-		FUint32Vector2 NaniteMaterialMask;
-		NaniteProxy->GetNaniteMaterialMask(NaniteMaterialMask); // TODO: Implement support
 
 		// TODO: Should use both ResourceID and HierarchyOffset as identifier for raytracing geometry
 		// For example, FNaniteGeometryCollectionSceneProxy can use the same ResourceID with different HierarchyOffsets
@@ -294,12 +293,6 @@ namespace Nanite
 
 		Data->Primitives.Add(SceneInfo);
 
-		if ((GetRayTracingMode() != ERayTracingMode::Fallback) && Data->RayTracingGeometryRHI)
-		{
-			// Patch CachedRayTracingInstance here since CacheRayTracingPrimitives(...) is called before Primitive is added to Nanite::FRayTracingManager
-			SceneInfo->CachedRayTracingInstance.GeometryRHI = Data->RayTracingGeometryRHI;
-		}
-
 		PendingRemoves.Remove(Id);
 
 		NaniteProxy->SetRayTracingId(Id);
@@ -315,15 +308,20 @@ namespace Nanite
 
 		auto NaniteProxy = static_cast<Nanite::FSceneProxyBase*>(SceneInfo->Proxy);
 
-		const uint32 Id = NaniteProxy->GetRayTracingId();
-		check(Id != INDEX_NONE);
+		const uint32 GeometryId = NaniteProxy->GetRayTracingId();
 
-		FInternalData* Data = Geometries[Id];
+		if(GeometryId == INDEX_NONE)
+		{
+			check(NaniteProxy->GetRayTracingDataOffset() == INDEX_NONE);
+			return;
+		}
+
+		FInternalData* Data = Geometries[GeometryId];
 
 		Data->Primitives.Remove(SceneInfo);
 		if (Data->Primitives.IsEmpty())
 		{
-			PendingRemoves.Add(Id);
+			PendingRemoves.Add(GeometryId);
 		}
 
 		NaniteProxy->SetRayTracingId(INDEX_NONE);
@@ -332,7 +330,7 @@ namespace Nanite
 
 	void FRayTracingManager::RequestUpdates(const TMap<uint32, uint32>& InUpdateRequests)
 	{
-		if (!IsRayTracingAllowed())
+		if (!IsRayTracingEnabled() || (GetRayTracingMode() == ERayTracingMode::Fallback))
 		{
 			return;
 		}
@@ -506,7 +504,7 @@ namespace Nanite
 		FRDGBufferRef StagingAuxiliaryDataBufferRDG;
 
 		{
-			const uint32 BufferNumAuxiliaryDataEntries = FMath::Max(NumAuxiliaryDataEntries, MinAuxiliaryBufferEntries);
+			const uint32 BufferNumAuxiliaryDataEntries = FMath::Max(NumAuxiliaryDataEntries, GMinAuxiliaryBufferEntries);
 			const bool bCopy = false;
 			StagingAuxiliaryDataBufferRDG = ResizeBufferIfNeeded(GraphBuilder, StagingAuxiliaryDataBuffer, sizeof(uint32), BufferNumAuxiliaryDataEntries, TEXT("NaniteRayTracing.StagingAuxiliaryDataBuffer"), bCopy, EAllowShrinking::Yes);
 			StagingAuxiliaryDataBuffer = GraphBuilder.ConvertToExternalBuffer(StagingAuxiliaryDataBufferRDG);
@@ -550,7 +548,7 @@ namespace Nanite
 			// readback
 			{
 				AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("NaniteRayTracing::Readback"), MeshDataBuffer,
-					[MeshDataReadbackBuffer = ReadbackData.MeshDataReadbackBuffer, MeshDataBuffer](FRHICommandList& RHICmdList)
+					[MeshDataReadbackBuffer = ReadbackData.MeshDataReadbackBuffer, MeshDataBuffer](FRDGAsyncTask, FRHICommandList& RHICmdList)
 					{
 						MeshDataReadbackBuffer->EnqueueCopy(RHICmdList, MeshDataBuffer->GetRHI(), 0u);
 					});
@@ -644,7 +642,7 @@ namespace Nanite
 				{
 					if (bUsingNaniteRayTracing)
 					{
-						Primitive->CachedRayTracingInstance.GeometryRHI = Data.RayTracingGeometryRHI;
+						Primitive->SetCachedRayTracingInstanceGeometryRHI(Data.RayTracingGeometryRHI);
 					}
 
 					auto NaniteProxy = static_cast<Nanite::FSceneProxyBase*>(Primitive->Proxy);
@@ -752,7 +750,7 @@ namespace Nanite
 						{
 							if (bUsingNaniteRayTracing)
 							{
-								Primitive->CachedRayTracingInstance.GeometryRHI = Data.RayTracingGeometryRHI;
+								Primitive->SetCachedRayTracingInstanceGeometryRHI(Data.RayTracingGeometryRHI);
 							}
 
 							auto NaniteProxy = static_cast<Nanite::FSceneProxyBase*>(Primitive->Proxy);
@@ -796,9 +794,24 @@ namespace Nanite
 		// resize AuxiliaryDataBuffer if necessary
 		FRDGBufferRef AuxiliaryDataBufferRDG;
 		{
+			uint32 MinAuxiliaryBufferEntries;
+			EAllowShrinking AllowShrinking;
+
+			if (GetRayTracingMode() == ERayTracingMode::Fallback)
+			{
+				// when not using Nanite Ray Tracing allow AuxiliaryDataBuffer to shrink to initial size 
+				MinAuxiliaryBufferEntries = GDisabledMinAuxiliaryBufferEntries;
+				AllowShrinking = EAllowShrinking::Yes;
+			}
+			else
+			{
+				MinAuxiliaryBufferEntries = GMinAuxiliaryBufferEntries;
+				AllowShrinking = EAllowShrinking::No;
+			}
+
 			const uint32 NumAuxiliaryDataEntries = FMath::Max((uint32)AuxiliaryDataAllocator.GetMaxSize(), MinAuxiliaryBufferEntries);
 			const bool bCopy = true;
-			AuxiliaryDataBufferRDG = ResizeBufferIfNeeded(GraphBuilder, AuxiliaryDataBuffer, sizeof(uint32), NumAuxiliaryDataEntries, TEXT("NaniteRayTracing.AuxiliaryDataBuffer"), bCopy, EAllowShrinking::No);
+			AuxiliaryDataBufferRDG = ResizeBufferIfNeeded(GraphBuilder, AuxiliaryDataBuffer, sizeof(uint32), NumAuxiliaryDataEntries, TEXT("NaniteRayTracing.AuxiliaryDataBuffer"), bCopy, AllowShrinking);
 			AuxiliaryDataBuffer = GraphBuilder.ConvertToExternalBuffer(AuxiliaryDataBufferRDG);
 
 			SET_MEMORY_STAT(STAT_NaniteRayTracingAuxiliaryDataBuffer, AuxiliaryDataBufferRDG->GetSize());
@@ -821,7 +834,7 @@ namespace Nanite
 
 			BuildParams.Add(Params);
 
-			FRayTracingAccelerationStructureSize SizeInfo = GraphBuilder.RHICmdList.CalcRayTracingGeometrySize(Initializer);
+			FRayTracingAccelerationStructureSize SizeInfo = RHICalcRayTracingGeometrySize(Initializer);
 			BLASScratchSize = Align(BLASScratchSize + SizeInfo.BuildScratchSize, GRHIRayTracingScratchBufferAlignment);
 
 			Data.bUpdating = false;
@@ -845,6 +858,7 @@ namespace Nanite
 
 		if (BuildParams.Num() > 0)
 		{
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, RebuildNaniteBLAS, "RebuildNaniteBLAS");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, RebuildNaniteBLAS);
 
 			FRDGBufferDesc ScratchBufferDesc;
@@ -860,7 +874,7 @@ namespace Nanite
 			PassParams->ScratchBuffer = ScratchBuffer;
 
 			GraphBuilder.AddPass(RDG_EVENT_NAME("NaniteRayTracing::UpdateBLASes"), PassParams, ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
-				[PassParams, BuildParams = MoveTemp(BuildParams)](FRHIComputeCommandList& RHICmdList)
+				[PassParams, BuildParams = MoveTemp(BuildParams)](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
 				FRHIBufferRange ScratchBufferRange;
 				ScratchBufferRange.Buffer = PassParams->ScratchBuffer->GetRHI();

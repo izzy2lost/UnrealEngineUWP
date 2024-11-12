@@ -3,6 +3,7 @@
 #include "GLTFBinaryReader.h"
 
 #include "CoreGlobals.h"
+#include "Internationalization/Internationalization.h"
 
 namespace GLTF
 {
@@ -155,7 +156,7 @@ namespace GLTF
 
 		if (!IsHeaderValid(FileReader))
 		{
-			Messages.Emplace(EMessageSeverity::Error, TEXT("Invalid GLTF header!"));
+			Messages.Emplace(EMessageSeverity::Error, NSLOCTEXT("InterchangeGLTFBinaryReader", "InvalidHeader", "Invalid GLTF header!"));
 			return false;
 		}
 

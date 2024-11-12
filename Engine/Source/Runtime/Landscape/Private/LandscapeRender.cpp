@@ -54,7 +54,7 @@ LandscapeRender.cpp: New terrain rendering
 #include "RenderGraphBuilder.h"
 #include "Scalability.h"
 #include "Rendering/CustomRenderPass.h"
-#include "LandscapeUtils.h"
+#include "LandscapeUtilsPrivate.h"
 #include "SceneRendererInterface.h"
 
 using namespace UE::Landscape;
@@ -196,6 +196,15 @@ FAutoConsoleVariableRef CVarLandscapeNonNaniteVirtualShadowMapInvalidationLODAtt
 	GLandscapeNonNaniteVirtualShadowMapInvalidationLODAttenuationExponent,
 	TEXT("For non-Nanite landscape, controls the shape of the curve of the attenuation of the virtual shadow map pages' invalidation rate (1 - X^N), where X is the relative LOD value (LODValue/NumMips in the [0,1] range) and N, the CVar"),
 	ECVF_RenderThreadSafe | ECVF_Scalability
+);
+
+int32 GLandscapeAllowNanitePerClusterDisplacementDisable = 1;
+static FAutoConsoleVariableRef CLandscapeAllowNanitePerClusterDisplacementDisable(
+	TEXT("r.Landscape.AllowNanitePerClusterDisplacementDisable"),
+	GLandscapeAllowNanitePerClusterDisplacementDisable,
+	TEXT("Allow Nanite landscape to disable displcement on individual clusters in the distance."),
+	FConsoleVariableDelegate::CreateStatic(&OnCVarNeedingRenderStateInvalidationChanged),
+	ECVF_RenderThreadSafe
 );
 
 #if WITH_EDITOR
@@ -1349,6 +1358,9 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 	// They do however have continuous LOD which is problematic, considered static as the LODs (are intended to) represent the same static surface.
 	bHasDeformableMesh = false;
 
+	// Enabled just so the GVarDumpLandscapeLODsCurrentFrame debug feature only runs once per render proxy in GetDynamicMeshElements
+	bSinglePassGDME = true;
+
 	VisibilityHelper.Init(InComponent, this);
 
 	if (!VisibilityHelper.ShouldBeVisible())
@@ -1574,7 +1586,8 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 	}
 
 	// Landscape GPU culling uses VF that requires primitive UB
-	bVFRequiresPrimitiveUniformBuffer |= bUsesLandscapeCulling;
+	// Mobile does not use GPUScene and requires primitive UB for landscape, see FLandscapeVertexFactory::ModifyCompilationEnvironment
+	bVFRequiresPrimitiveUniformBuffer |= (bUsesLandscapeCulling || FeatureLevel == ERHIFeatureLevel::ES3_1);
 
 	ComponentLightInfo = MakeUnique<FLandscapeLCI>(InComponent, FeatureLevel, bVFRequiresPrimitiveUniformBuffer != 0);
 	check(ComponentLightInfo);
@@ -1860,6 +1873,8 @@ FLandscapeRayTracingState* FLandscapeRayTracingImpl::FindOrCreateRayTracingState
 		{
 			const int8 SubSectionIdx = static_cast<int8>(SubX + SubY * NumSubsections);
 
+			FLandscapeSectionRayTracingState& SectionRayTracingState = RayTracingState->Sections[SubSectionIdx];
+
 			FRayTracingGeometryInitializer Initializer;
 			static const FName DebugName("FLandscapeComponentSceneProxy");
 			static int32 DebugNumber = 0;
@@ -1868,18 +1883,20 @@ FLandscapeRayTracingState* FLandscapeRayTracingImpl::FindOrCreateRayTracingState
 			Initializer.GeometryType = RTGT_Triangles;
 			Initializer.bFastBuild = true;
 			Initializer.bAllowUpdate = true;
+
 			FRayTracingGeometrySegment Segment;
 			Segment.VertexBuffer = nullptr;
 			Segment.VertexBufferStride = sizeof(FVector3f);
 			Segment.VertexBufferElementType = VET_Float3;
 			Segment.MaxVertices = FMath::Square(SubsectionSizeVerts);
 			Initializer.Segments.Add(Segment);
-			RayTracingState->Sections[SubSectionIdx].Geometry.SetInitializer(Initializer);
-			RayTracingState->Sections[SubSectionIdx].Geometry.InitResource(RHICmdList);
+
+			SectionRayTracingState.Geometry.SetInitializer(Initializer);
+			SectionRayTracingState.Geometry.InitResource(RHICmdList);
 
 			FLandscapeVertexFactoryMVFParameters UniformBufferParams;
 			UniformBufferParams.SubXY = FIntPoint(SubX, SubY);
-			RayTracingState->Sections[SubSectionIdx].UniformBuffer = FLandscapeVertexFactoryMVFUniformBufferRef::CreateUniformBufferImmediate(UniformBufferParams, UniformBuffer_MultiFrame);
+			SectionRayTracingState.UniformBuffer = FLandscapeVertexFactoryMVFUniformBufferRef::CreateUniformBufferImmediate(UniformBufferParams, UniformBuffer_MultiFrame);
 		}
 	}
 
@@ -2513,6 +2530,17 @@ void FLandscapeComponentSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInter
 		}
 	}
 
+	if (SharedBuffers->GrassIndexBuffer && DoesVFRequirePrimitiveUniformBuffer())
+	{
+		// Assign grass primitive UB here, GrassBatch is initialized too early before UB is even created
+		const int32 NumMips = FMath::CeilLogTwo(SubsectionSizeVerts);
+		for (int32 Mip = 0; Mip < NumMips; ++Mip)
+		{
+			FMeshBatchElement* GrassBatchElement = &GrassMeshBatch.Elements[Mip];
+			GrassBatchElement->PrimitiveUniformBuffer = GetUniformBuffer();
+		}
+	}
+
 	for (int32 LODIndex = FirstLOD; LODIndex <= LastLOD; LODIndex++)
 	{
 		FMeshBatch MeshBatch;
@@ -2571,7 +2599,6 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 	int32 NumPasses = 0;
 	int32 NumTriangles = 0;
 	int32 NumDrawCalls = 0;
-	const bool bIsWireframe = ViewFamily.EngineShowFlags.Wireframe;
 
 	const FLandscapeRenderSystem& RenderSystem = *LandscapeRenderSystems.FindChecked(LandscapeKey);
 
@@ -2583,6 +2610,11 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 			ParameterArray.ElementParams.AddDefaulted(1);
 
 			const FSceneView* View = Views[ViewIndex];
+
+			// With bSinglePassGDME == true, there can be a different view family per active view, so grab a reference to the specific view family
+			const FSceneViewFamily& ViewSpecificFamily = *View->Family;
+
+			const bool bIsWireframe = ViewSpecificFamily.EngineShowFlags.Wireframe;
 
 			int32 LODToRender = static_cast<int32>(RenderSystem.GetSectionLODValue(*View, RenderCoord));
 
@@ -2792,7 +2824,7 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 				else
 #endif
 					// Regular Landscape rendering. Only use the dynamic path if we're rendering a rich view or we've disabled the static path for debugging.
-					if (IsRichView(ViewFamily) ||
+					if (IsRichView(ViewSpecificFamily) ||
 						GLandscapeDebugOptions.bDisableStatic ||
 						bIsWireframe ||
 #if WITH_EDITOR
@@ -2820,7 +2852,7 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 
 #if WITH_EDITOR
 			  // Extra render passes for landscape tools
-			if (GLandscapeEditModeActive)
+			if (GLandscapeEditModeActive && !View->bIsSceneCapture)
 			{
 				// Region selection
 				if (EditToolRenderData.SelectedType)
@@ -2910,9 +2942,9 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 				DrawWireBox(Collector.GetPDI(ViewIndex), GetBounds().GetBox(), FColor(255, 255, 0), SDPG_World);
 			}
 
-			if (ViewFamily.EngineShowFlags.Bounds)
+			if (ViewSpecificFamily.EngineShowFlags.Bounds)
 			{
-				RenderBounds(Collector.GetPDI(ViewIndex), ViewFamily.EngineShowFlags, GetBounds(), IsSelected());
+				RenderBounds(Collector.GetPDI(ViewIndex), ViewSpecificFamily.EngineShowFlags, GetBounds(), IsSelected());
 			}
 		}
 	}
@@ -2930,7 +2962,7 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 		{
 			for (int32 DestinationMipIndex = SourceMipIndex + 1; DestinationMipIndex < NumRelevantMips; ++DestinationMipIndex)
 			{
-				int32 MipToMipDeltaIndex = UE::Landscape::ComputeMipToMipMaxDeltasIndex(SourceMipIndex, DestinationMipIndex, NumRelevantMips);
+				int32 MipToMipDeltaIndex = UE::Landscape::Private::ComputeMipToMipMaxDeltasIndex(SourceMipIndex, DestinationMipIndex, NumRelevantMips);
 				MipToMipInfoString += FString::Printf(TEXT("- %i->%i: %f\n"), SourceMipIndex, DestinationMipIndex, WorldSpaceMipToMipMaxDeltas[MipToMipDeltaIndex]);
 			}
 		}
@@ -2987,14 +3019,14 @@ void FLandscapeComponentSceneProxy::ApplyViewDependentMeshArguments(const FScene
 }
 
 #if RHI_RAYTRACING
-void FLandscapeComponentSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
+void FLandscapeComponentSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	if (!bRegistered || !CVarRayTracingLandscape.GetValueOnRenderThread())
 	{
 		return;
 	}
 
-	const FSceneView& SceneView = *Context.ReferenceView;
+	const FSceneView& SceneView = *Collector.GetReferenceView();
 	const FLandscapeRenderSystem& RenderSystem = *LandscapeRenderSystems.FindChecked(LandscapeKey);
 
 	if (!RayTracingImpl.IsValid())
@@ -3005,7 +3037,7 @@ void FLandscapeComponentSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 
 	int32 LODToRender = static_cast<int32>(RenderSystem.GetSectionLODValue(SceneView, RenderCoord));
 
-	FLandscapeElementParamArray& ParameterArray = Context.RayTracingMeshResourceCollector.AllocateOneFrameResource<FLandscapeElementParamArray>();
+	FLandscapeElementParamArray& ParameterArray = Collector.AllocateOneFrameResource<FLandscapeElementParamArray>();
 	ParameterArray.ElementParams.AddDefaulted(NumSubsections * NumSubsections);
 
 	if (AvailableMaterials.Num() == 0)
@@ -3041,6 +3073,8 @@ void FLandscapeComponentSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 			const int8 SubSectionIdx = static_cast<int8>(SubX + SubY * NumSubsections);
 			const int8 CurrentLOD = static_cast<int8>(LODToRender);
 
+			FLandscapeSectionRayTracingState& SectionRayTracingState = RayTracingState->Sections[SubSectionIdx];
+
 			FMeshBatch MeshBatch = BaseMeshBatch;
 
 			FMeshBatchElement BatchElement;
@@ -3071,72 +3105,73 @@ void FLandscapeComponentSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 
 			MeshBatch.Elements.Add(BatchElement);
 
-			RayTracingState->Sections[SubSectionIdx].Geometry.Initializer.IndexBuffer = BatchElement.IndexBuffer->IndexBufferRHI;
+			SectionRayTracingState.Geometry.Initializer.IndexBuffer = BatchElement.IndexBuffer->IndexBufferRHI;
 
-			BatchElementParams.LandscapeVertexFactoryMVFUniformBuffer = RayTracingState->Sections[SubSectionIdx].UniformBuffer;
+			BatchElementParams.LandscapeVertexFactoryMVFUniformBuffer = SectionRayTracingState.UniformBuffer;
 
-			bool bNeedsRayTracingGeometryUpdate = false;
+			bool bNeedsRayTracingGeometryUpdate = SectionRayTracingState.Geometry.IsEvicted();
 
 			// Detect force update CVar
 			bNeedsRayTracingGeometryUpdate |= (CurrentLOD <= GLandscapeRayTracingGeometryLODsThatUpdateEveryFrame) ? true : false;
 
 			// Detect continuous LOD parameter changes. This is for far-away high LODs - they change rarely yet the BLAS refit time is not ideal, even if they contains tiny amount of triangles
 			{
-				if (RayTracingState->Sections[SubSectionIdx].CurrentLOD != CurrentLOD)
+				if (SectionRayTracingState.CurrentLOD != CurrentLOD)
 				{
 					bNeedsRayTracingGeometryUpdate = true;
-					RayTracingState->Sections[SubSectionIdx].CurrentLOD = CurrentLOD;
-					RayTracingState->Sections[SubSectionIdx].RayTracingDynamicVertexBuffer.Release();
+					SectionRayTracingState.CurrentLOD = CurrentLOD;
+					SectionRayTracingState.RayTracingDynamicVertexBuffer.Release();
 				}
-				if (RayTracingState->Sections[SubSectionIdx].HeightmapLODBias != RenderSystem.GetSectionLODBias(RenderCoord))
+				if (SectionRayTracingState.HeightmapLODBias != RenderSystem.GetSectionLODBias(RenderCoord))
 				{
 					bNeedsRayTracingGeometryUpdate = true;
-					RayTracingState->Sections[SubSectionIdx].HeightmapLODBias = RenderSystem.GetSectionLODBias(RenderCoord);
+					SectionRayTracingState.HeightmapLODBias = RenderSystem.GetSectionLODBias(RenderCoord);
 				}
 
 				const float PendingFractionalLOD = RenderSystem.GetSectionLODValue(SceneView, RenderCoord);
-				const float FractionLODAbsoluteDifference = FMath::Abs(RayTracingState->Sections[SubSectionIdx].FractionalLOD - PendingFractionalLOD);
+				const float FractionLODAbsoluteDifference = FMath::Abs(SectionRayTracingState.FractionalLOD - PendingFractionalLOD);
 				if (FractionLODAbsoluteDifference > GLandscapeRayTracingGeometryFractionalLODUpdateThreshold)
 				{
 					bNeedsRayTracingGeometryUpdate = true;
-					RayTracingState->Sections[SubSectionIdx].FractionalLOD = PendingFractionalLOD;
+					SectionRayTracingState.FractionalLOD = PendingFractionalLOD;
 				}
 			}
 
 			if (GLandscapeRayTracingGeometryDetectTextureStreaming > 0)
 			{
 				const FMaterialRenderProxy* FallbackMaterialRenderProxyPtr = nullptr;
-				const FMaterial& Material = MeshBatch.MaterialRenderProxy->GetMaterialWithFallback(((FSceneInterface*)Context.Scene)->GetFeatureLevel(), FallbackMaterialRenderProxyPtr);
+				const FMaterial& Material = MeshBatch.MaterialRenderProxy->GetMaterialWithFallback(GetScene().GetFeatureLevel(), FallbackMaterialRenderProxyPtr);
 
 				if (Material.GetRenderingThreadShaderMap()->UsesWorldPositionOffset())
 				{
 					const FMaterialRenderProxy* MaterialRenderProxy = FallbackMaterialRenderProxyPtr ? FallbackMaterialRenderProxyPtr : MeshBatch.MaterialRenderProxy;
 
-					FMaterialRenderContext MaterialRenderContext(MaterialRenderProxy, Material, Context.ReferenceView);
+					FMaterialRenderContext MaterialRenderContext(MaterialRenderProxy, Material, Collector.GetReferenceView());
 
 					const FUniformExpressionSet& UniformExpressionSet = Material.GetRenderingThreadShaderMap()->GetUniformExpressionSet();
 					const uint32 Hash = UniformExpressionSet.GetReferencedTexture2DRHIHash(MaterialRenderContext);
 
-					if (RayTracingState->Sections[SubSectionIdx].ReferencedTextureRHIHash != Hash)
+					if (SectionRayTracingState.ReferencedTextureRHIHash != Hash)
 					{
 						bNeedsRayTracingGeometryUpdate = true;
-						RayTracingState->Sections[SubSectionIdx].ReferencedTextureRHIHash = Hash;
+						SectionRayTracingState.ReferencedTextureRHIHash = Hash;
 					}
 				}
 			}
 
+			check(SectionRayTracingState.Geometry.IsValid() || bNeedsRayTracingGeometryUpdate);
+
 			FRayTracingInstance RayTracingInstance;
-			RayTracingInstance.Geometry = &RayTracingState->Sections[SubSectionIdx].Geometry;
+			RayTracingInstance.Geometry = &SectionRayTracingState.Geometry;
 			RayTracingInstance.InstanceTransforms.Add(GetLocalToWorld());
 			RayTracingInstance.Materials.Add(MeshBatch);
-			OutRayTracingInstances.Add(RayTracingInstance);
 
 			if (bNeedsRayTracingGeometryUpdate && VertexFactory->GetType()->SupportsRayTracingDynamicGeometry())
 			{
 				// Use the internal managed vertex buffer because landscape dynamic RT geometries are not updated every frame
 				// which is a requirement for the shared vertex buffer usage
 
-				Context.DynamicRayTracingGeometriesToUpdate.Add(
+				Collector.AddRayTracingGeometryUpdate(
 					FRayTracingDynamicGeometryUpdateParams
 					{
 						RayTracingInstance.Materials,
@@ -3144,12 +3179,14 @@ void FLandscapeComponentSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 						(uint32)FMath::Square(LodSubsectionSizeVerts),
 						FMath::Square(LodSubsectionSizeVerts) * (uint32)sizeof(FVector3f),
 						(uint32)FMath::Square(LodSubsectionSizeVerts - 1) * 2,
-						&RayTracingState->Sections[SubSectionIdx].Geometry,
-						&RayTracingState->Sections[SubSectionIdx].RayTracingDynamicVertexBuffer,
+						&SectionRayTracingState.Geometry,
+						&SectionRayTracingState.RayTracingDynamicVertexBuffer,
 						true
 					}
 				);
 			}
+
+			Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 		}
 	}
 }
@@ -3576,8 +3613,8 @@ void FLandscapeVertexFactory::InitRHI(FRHICommandListBase& RHICmdList)
 	// position decls
 	Elements.Add(AccessStreamComponent(Data.PositionComponent, 0));
 
-	// Use the same attribute on mobile and non-mobile, to enable the GPUScene path on both.
-	AddPrimitiveIdStreamElement(EVertexInputStreamType::Default, Elements, /* AttributeIndex = */ 1, /* AttributeIndex_Mobile = */ 1);
+	// see FLandscapeVertexFactory::ModifyCompilationEnvironment for mobile GPUScene exception
+	AddPrimitiveIdStreamElement(EVertexInputStreamType::Default, Elements, /* AttributeIndex = */ 1, /* AttributeIndex_Mobile = */0xFF);
 	// create the actual device decls
 	InitDeclaration(Elements);
 }
@@ -3598,7 +3635,11 @@ void FLandscapeVertexFactory::ModifyCompilationEnvironment(const FVertexFactoryS
 {
 	FVertexFactory::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 
-	OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), Parameters.VertexFactoryType->SupportsPrimitiveIdStream() && UseGPUScene(Parameters.Platform, GetMaxSupportedFeatureLevel(Parameters.Platform)));
+	const FStaticFeatureLevel MaxSupportedFeatureLevel = GetMaxSupportedFeatureLevel(Parameters.Platform);
+	// TODO: support GPUScene on mobile. We need to pass a correct LODLightmapDataIndex to a batching CS, which we do only for StaticMesh atm only
+	const bool bUseGPUScene = UseGPUScene(Parameters.Platform, MaxSupportedFeatureLevel) && (MaxSupportedFeatureLevel > ERHIFeatureLevel::ES3_1);
+
+	OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), Parameters.VertexFactoryType->SupportsPrimitiveIdStream() && bUseGPUScene);
 
 	// Make sure landscape vertices go back to local space so that we have consistency between the transform on normals and geometry
 	OutEnvironment.SetDefine(TEXT("RAY_TRACING_DYNAMIC_MESH_IN_LOCAL_SPACE"), TEXT("1"));
@@ -3609,7 +3650,7 @@ void FLandscapeVertexFactory::GetPSOPrecacheVertexFetchElements(EVertexInputStre
 	Elements.Add(FVertexElement(0, 0, VET_UByte4, 0, sizeof(FLandscapeVertex), false));
 	
 	if (UseGPUScene(GMaxRHIShaderPlatform, GMaxRHIFeatureLevel)
-		&& !PlatformGPUSceneUsesUniformBufferView(GMaxRHIShaderPlatform))
+		&& GMaxRHIFeatureLevel > ERHIFeatureLevel::ES3_1) // see FLandscapeVertexFactory::ModifyCompilationEnvironment
 	{
 		Elements.Add(FVertexElement(1, 0, VET_UInt, 1, sizeof(uint32), true));
 	}
@@ -3942,26 +3983,10 @@ public:
 			FName(TEXT("TLightMapDensityPSFNoLightMapPolicy")),
 
 			// Mobile
-			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightCSMAndSHIndirectPolicyINT32_MAXHDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightCSMAndSHIndirectPolicyINT32_MAXHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightCSMAndSHIndirectPolicy0HDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightCSMAndSHIndirectPolicy0HDRLinear64")),
-			FName(TEXT("TMobileBasePassVSFMobileDirectionalLightCSMAndSHIndirectPolicyHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightAndSHIndirectPolicyINT32_MAXHDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightAndSHIndirectPolicyINT32_MAXHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightAndSHIndirectPolicy0HDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightAndSHIndirectPolicy0HDRLinear64")),
-			FName(TEXT("TMobileBasePassVSFMobileDirectionalLightAndSHIndirectPolicyHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightAndCSMPolicyINT32_MAXHDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightAndCSMPolicyINT32_MAXHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightAndCSMPolicy0HDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightAndCSMPolicy0HDRLinear64")),
-			FName(TEXT("TMobileBasePassVSFMobileDirectionalLightAndCSMPolicyHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSFNoLightMapPolicyINT32_MAXHDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFNoLightMapPolicyINT32_MAXHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSFNoLightMapPolicy0HDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFNoLightMapPolicy0HDRLinear64")),
-			FName(TEXT("TMobileBasePassVSFNoLightMapPolicyHDRLinear64")),
+			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightAndSHIndirectPolicyLOCAL_LIGHTS_DISABLED")),
+			FName(TEXT("TMobileBasePassVSFMobileDirectionalLightAndSHIndirectPolicy")),
+			FName(TEXT("TMobileBasePassPSFNoLightMapPolicyLOCAL_LIGHTS_DISABLED")),
+			FName(TEXT("TMobileBasePassVSFNoLightMapPolicy")),
 
 			// Forward shading required
 			FName(TEXT("TBasePassPSFCachedPointIndirectLightingPolicySkylight")),
@@ -3972,12 +3997,14 @@ public:
 			FName(TEXT("TVirtualTextureVSBaseColorNormal")),
 			FName(TEXT("TVirtualTextureVSBaseColorNormalSpecular")),
 			FName(TEXT("TVirtualTextureVSBaseColorNormalRoughness")),
+			FName(TEXT("TVirtualTextureVSMask4")),
 			FName(TEXT("TVirtualTextureVSWorldHeight")),
 			FName(TEXT("TVirtualTextureVSDisplacement")),
 			FName(TEXT("TVirtualTexturePSBaseColor")),
 			FName(TEXT("TVirtualTexturePSBaseColorNormal")),
 			FName(TEXT("TVirtualTexturePSBaseColorNormalSpecular")),
 			FName(TEXT("TVirtualTexturePSBaseColorNormalRoughness")),
+			FName(TEXT("TVirtualTexturePSMask4")),
 			FName(TEXT("TVirtualTexturePSWorldHeight")),
 			FName(TEXT("TVirtualTexturePSDisplacement")),
 		};
@@ -4013,31 +4040,18 @@ public:
 			FName(TEXT("FDebugViewModePS")),
 
 			// Mobile
-			FName(TEXT("TMobileBasePassPSFMobileMovableDirectionalLightCSMWithLightmapPolicyINT32_MAXHDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFMobileMovableDirectionalLightCSMWithLightmapPolicyINT32_MAXHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSFMobileMovableDirectionalLightCSMWithLightmapPolicy0HDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFMobileMovableDirectionalLightCSMWithLightmapPolicy0HDRLinear64")),
-			FName(TEXT("TMobileBasePassVSFMobileMovableDirectionalLightCSMWithLightmapPolicyHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSFMobileMovableDirectionalLightWithLightmapPolicyINT32_MAXHDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFMobileMovableDirectionalLightWithLightmapPolicyINT32_MAXHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSFMobileMovableDirectionalLightWithLightmapPolicy0HDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFMobileMovableDirectionalLightWithLightmapPolicy0HDRLinear64")),
-			FName(TEXT("TMobileBasePassVSFMobileMovableDirectionalLightWithLightmapPolicyHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsLightMapAndCSMLightingPolicyINT32_MAXHDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsLightMapAndCSMLightingPolicyINT32_MAXHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsLightMapAndCSMLightingPolicy0HDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsLightMapAndCSMLightingPolicy0HDRLinear64")),
-			FName(TEXT("TMobileBasePassVSFMobileDistanceFieldShadowsLightMapAndCSMLightingPolicyHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyINT32_MAXHDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyINT32_MAXHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicy0HDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicy0HDRLinear64")),
-			FName(TEXT("TMobileBasePassVSFMobileDistanceFieldShadowsAndLQLightMapPolicyHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSTLightMapPolicyLQINT32_MAXHDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSTLightMapPolicyLQINT32_MAXHDRLinear64")),
-			FName(TEXT("TMobileBasePassPSTLightMapPolicyLQ0HDRLinear64Skylight")),
-			FName(TEXT("TMobileBasePassPSTLightMapPolicyLQ0HDRLinear64")),
-			FName(TEXT("TMobileBasePassVSTLightMapPolicyLQHDRLinear64")),
+			FName(TEXT("TMobileBasePassPSFMobileMovableDirectionalLightCSMWithLightmapPolicyLOCAL_LIGHTS_DISABLED")),
+			FName(TEXT("TMobileBasePassVSFMobileMovableDirectionalLightCSMWithLightmapPolicy")),
+			FName(TEXT("TMobileBasePassPSFMobileMovableDirectionalLightWithLightmapPolicyLOCAL_LIGHTS_DISABLED")),
+			FName(TEXT("TMobileBasePassVSFMobileMovableDirectionalLightWithLightmapPolicy")),
+			FName(TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsLightMapAndCSMLightingPolicyLOCAL_LIGHTS_DISABLED")),
+			FName(TEXT("TMobileBasePassVSFMobileDistanceFieldShadowsLightMapAndCSMLightingPolicy")),
+			FName(TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyLOCAL_LIGHTS_DISABLED")),
+			FName(TEXT("TMobileBasePassVSFMobileDistanceFieldShadowsAndLQLightMapPolicy")),
+			FName(TEXT("TMobileBasePassPSTLightMapPolicyLQLOCAL_LIGHTS_DISABLED")),
+			FName(TEXT("TMobileBasePassVSTLightMapPolicyLQ")),
+			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightAndCSMPolicyLOCAL_LIGHTS_DISABLED")),
+			FName(TEXT("TMobileBasePassVSFMobileDirectionalLightAndCSMPolicy")),
 
 			FName(TEXT("TBasePassVSFCachedVolumeIndirectLightingPolicy")),
 			FName(TEXT("TBasePassPSFCachedVolumeIndirectLightingPolicy")),
@@ -4099,8 +4113,7 @@ public:
 			// No Lumen on thumbnails
 			FName(TEXT("FLumenCardCS")),
 			FName(TEXT("FLumenCardVS")),
-			FName(TEXT("FLumenCardPS<true>")),
-			FName(TEXT("FLumenCardPS<false>")),
+			FName(TEXT("FLumenCardPS")),
 		};
 		return ExcludedShaderTypes;
 	}
@@ -4116,6 +4129,8 @@ public:
 			FName(TEXT("FVLMVoxelizationPS")),
 			FName(TEXT("FLightmapGBufferVS")),
 			FName(TEXT("FLightmapGBufferPS")),
+			FName(TEXT("FGPULightmassCHS")),
+			FName(TEXT("FGPULightmassCHS_AHS")),
 		};
 		return ShaderTypes;
 	}
@@ -4140,12 +4155,14 @@ public:
 			FName(TEXT("TVirtualTextureVSBaseColorNormal")),
 			FName(TEXT("TVirtualTextureVSBaseColorNormalSpecular")),
 			FName(TEXT("TVirtualTextureVSBaseColorNormalRoughness")),
+			FName(TEXT("TVirtualTextureVSMask4")),
 			FName(TEXT("TVirtualTextureVSWorldHeight")),
 			FName(TEXT("TVirtualTextureVSDisplacement")),
 			FName(TEXT("TVirtualTexturePSBaseColor")),
 			FName(TEXT("TVirtualTexturePSBaseColorNormal")),
 			FName(TEXT("TVirtualTexturePSBaseColorNormalSpecular")),
 			FName(TEXT("TVirtualTexturePSBaseColorNormalRoughness")),
+			FName(TEXT("TVirtualTexturePSMask4")),
 			FName(TEXT("TVirtualTexturePSWorldHeight")),
 			FName(TEXT("TVirtualTexturePSDisplacement")),
 		};
@@ -4157,8 +4174,7 @@ public:
 		static const TArray<FName> ShaderTypes =
 		{
 			FName(TEXT("FLumenCardVS")),
-			// We only need bMultiViewCapture == false as landscape components are non-Nanite :
-			FName(TEXT("FLumenCardPS<false>")),
+			FName(TEXT("FLumenCardPS")),
 		};
 		return ShaderTypes;
 	}
@@ -4538,13 +4554,13 @@ bool FLandscapeComponentSceneProxy::ShouldInvalidateShadows(const FSceneView& In
 	check(DestinationMipIndex + 1 < NumRelevantMips);
 
 	// Evaluate the max delta for both SourceLODValue and DestinationLODValue against SourceMipIndex :
-	const int32 SourceMipToMipMaxDeltaIndex = UE::Landscape::ComputeMipToMipMaxDeltasIndex(SourceMipIndex, SourceMipIndex + 1, NumRelevantMips);
+	const int32 SourceMipToMipMaxDeltaIndex = UE::Landscape::Private::ComputeMipToMipMaxDeltasIndex(SourceMipIndex, SourceMipIndex + 1, NumRelevantMips);
 	const double SourceMipToMipMaxDelta = WorldSpaceMipToMipMaxDeltas[SourceMipToMipMaxDeltaIndex];
 	// MipToMipMaxDelta represents the maximum delta if we were to transition from SourceMipIndex to SourceMipIndex + 1 but we want to compute the error at SourceLODValue
 	//  so re-scale the delta within that range to evaluate the actual error : 
 	const double SourceMaxDelta = SourceMipToMipMaxDelta * (SourceLODValue - SourceMipIndex);
 
-	const int32 DestinationMipToMipMaxDeltaIndex = UE::Landscape::ComputeMipToMipMaxDeltasIndex(SourceMipIndex, DestinationMipIndex + 1, NumRelevantMips);
+	const int32 DestinationMipToMipMaxDeltaIndex = UE::Landscape::Private::ComputeMipToMipMaxDeltasIndex(SourceMipIndex, DestinationMipIndex + 1, NumRelevantMips);
 	const double DestinationMipToMipMaxDelta = WorldSpaceMipToMipMaxDeltas[DestinationMipToMipMaxDeltaIndex];
 	// MipToMipMaxDelta represents the maximum delta if we were to transition from SourceMipIndex to DestinationMipIndex + 1 but we want to compute the error at DestinationLODValue
 	//  so re-scale the delta within that range to evaluate the actual error : 
@@ -4798,28 +4814,37 @@ public:
 			bAffectDistanceFieldLighting = false;
 		}
 
-		bool bAnySectionMasked = false;
-		bHasProgrammableRaster = false;
-
+		// Remove masking for any materials that are only pixel programmable because of masking
+		bool bMaterialsNeedUpdate = false;
 		for (::Nanite::FSceneProxyBase::FMaterialSection& MaterialSection : MaterialSections)
 		{
 			const bool bWasMasked = MaterialSection.MaterialRelevance.bMasked;
 			MaterialSection.MaterialRelevance.bMasked = false;
 
-			if (MaterialSection.IsProgrammableRaster(bEvaluateWorldPositionOffset))
+			if (MaterialSection.IsPixelProgrammableRaster())
 			{
 				// Don't change bMasked if it is not the sole factor that makes the material section programmable
 				MaterialSection.MaterialRelevance.bMasked = bWasMasked;
-				bAnySectionMasked |= bWasMasked;
-				bHasProgrammableRaster = true;
 			}
-			else
+			else if (bWasMasked)
 			{
-				MaterialSection.ResetToDefaultMaterial(false, true);
+				bMaterialsNeedUpdate = true;
 			}
 		}
 
-		CombinedMaterialRelevance.bMasked = bAnySectionMasked;
+		if (bMaterialsNeedUpdate)
+		{
+			// Update our cumulative state based on new material settings and newly imposed material relevance
+			// NOTE: This will reset any previously masked materials that are now non-programmable to fixed function
+			OnMaterialsUpdated(/* bOverrideMaterialRelevance */ true);
+		}
+
+		// Check to disable per-cluster displacement fallback raster (must be done after updating materials)
+		if (GLandscapeAllowNanitePerClusterDisplacementDisable != 0 &&
+			MaterialDisplacementFadeOutSize > 0.0f)
+		{
+			bHasPerClusterDisplacementFallbackRaster = true;
+		}
 
 		// Overwrite filter flags to specify landscape instead of static mesh
 		FilterFlags = ::Nanite::EFilterFlags::Landscape;

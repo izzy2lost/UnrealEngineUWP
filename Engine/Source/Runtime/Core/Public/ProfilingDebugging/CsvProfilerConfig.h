@@ -18,8 +18,16 @@
 #define CSV_PROFILER_USE_CUSTOM_FRAME_TIMINGS 0
 #endif
 
+// Enable this to run the CSV profiler with near-zero instrumentation overhead. Only a handful of key stats will be captured
+#ifndef CSV_PROFILER_MINIMAL
+#define CSV_PROFILER_MINIMAL 0
+#endif
+
+
 // CSV_PROFILER default enabling rules, if not specified explicitly in <Program>.Target.cs GlobalDefinitions
 #ifndef CSV_PROFILER
 	#define CSV_PROFILER (WITH_ENGINE && (!UE_BUILD_SHIPPING || CSV_PROFILER_ENABLE_IN_SHIPPING))
 #endif
 
+// CSV_PROFILER_STATS is disabled if CSV_PROFILER_MINIMAL is enabled. Profiling subsystems should be predicated on this rather than CSV_PROFILER
+#define CSV_PROFILER_STATS (CSV_PROFILER && !CSV_PROFILER_MINIMAL)

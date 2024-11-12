@@ -12,10 +12,9 @@
 #include "Layout/SeparatorBuilder.h"
 #include "Layout/SeparatorTemplates.h"
 #include "Styling/StyleColors.h"
+#include "Layout/CategoryDrivenContentBuilderBase.h"
 
 #define LOCTEXT_NAMESPACE "ToolkitBuilder"
-
-FToolElementRegistry FToolkitBuilder::ToolRegistry = FToolElementRegistry::Get();
 
 bool FEditablePalette::IsInPalette(const FName CommandName) const
 {
@@ -75,29 +74,35 @@ void FEditablePalette::LoadFromConfig()
 	}
 }
 
+FToolkitBuilderArgs::FToolkitBuilderArgs(const FName InToolbarCustomizationName):
+	FCategoryDrivenContentBuilderArgs(InToolbarCustomizationName)
+	, ToolbarCustomizationName(InToolbarCustomizationName)
+{
+}
+
 FEditablePalette::FEditablePalette(TSharedPtr<FUICommandInfo> InLoadToolPaletteAction,
-	TSharedPtr<FUICommandInfo> InAddToPaletteAction,
-	TSharedPtr<FUICommandInfo> InRemoveFromPaletteAction,
-	FName InEditablePaletteName,
-	FGetEditableToolPaletteConfigManager InGetConfigManager) :
-	FToolPalette(InLoadToolPaletteAction, {}),
-	AddToPaletteAction(InAddToPaletteAction),
-	RemoveFromPaletteAction(InRemoveFromPaletteAction),
-	EditablePaletteName(InEditablePaletteName),
-	GetConfigManager(InGetConfigManager)
+                                   TSharedPtr<FUICommandInfo> InAddToPaletteAction,
+                                   TSharedPtr<FUICommandInfo> InRemoveFromPaletteAction,
+                                   FName InEditablePaletteName,
+                                   FGetEditableToolPaletteConfigManager InGetConfigManager) :
+                                                                                            FToolPalette(InLoadToolPaletteAction, {}),
+                                                                                            AddToPaletteAction(InAddToPaletteAction),
+                                                                                            RemoveFromPaletteAction(InRemoveFromPaletteAction),
+                                                                                            EditablePaletteName(InEditablePaletteName),
+                                                                                            GetConfigManager(InGetConfigManager)
 {
 	LoadFromConfig();
 }
 
-FToolkitBuilder::FToolkitBuilder(const FToolkitBuilderArgs& Args) :
-	FToolElementRegistrationArgs(EToolElement::Toolkit),
-	ToolbarCustomizationName(Args.ToolbarCustomizationName),
-	ToolkitCommandList(Args.ToolkitCommandList),
-	ToolkitSections(Args.ToolkitSections),
-	SelectedCategoryTitleVisibility(Args.SelectedCategoryTitleVisibility),
-	CategoryReclickBehavior(Args.CategoryReclickBehavior)
+
+FToolkitBuilder::FToolkitBuilder(FToolkitBuilderArgs& Args):
+                                                                 FCategoryDrivenContentBuilderBase(Args),
+                                                                 ToolkitCommandList(Args.ToolkitCommandList),
+                                                                 SelectedCategoryTitleVisibility(Args.SelectedCategoryTitleVisibility),
+                                                                 ToolkitSections(Args.ToolkitSections)
 {
-	SetCategoryButtonLabelVisibility(Args.bShowCategoryButtonLabels);
+	const bool bInitLoadToolPaletteMap = true;
+	InitializeCategoryToolbar( bInitLoadToolPaletteMap );
 	ResetWidget();
 }
 
@@ -107,32 +112,18 @@ FToolkitBuilder::~FToolkitBuilder()
 	{
 		ToolRegistry.UnregisterElement(PaletteElement);
 	}
-	if (VerticalToolbarElement.IsValid())
-	{
-		ToolRegistry.UnregisterElement(VerticalToolbarElement.ToSharedRef());
-	}
 }
 
 FToolkitBuilder::FToolkitBuilder(
 	FName InToolbarCustomizationName,
 	TSharedPtr<FUICommandList> InToolkitCommandList,
 	TSharedPtr<FToolkitSections> InToolkitSections) :
-	FToolElementRegistrationArgs(EToolElement::Toolkit),
+	FCategoryDrivenContentBuilderBase("FToolkitBuilder"),
 	ToolbarCustomizationName(InToolbarCustomizationName),
 	ToolkitCommandList(InToolkitCommandList),
 	ToolkitSections(InToolkitSections)
 {
 	ResetWidget();
-}
-
-TSharedPtr<FToolBarBuilder> FToolkitBuilder::GetLoadPaletteToolbar()
-{
-	return LoadPaletteToolBarBuilder;
-}
-
-TSharedRef<SWidget> FToolkitBuilder::CreateToolbarWidget() const
-{
-	return ToolRegistry.GenerateWidget(VerticalToolbarElement.ToSharedRef());
 }
 
 void FToolkitBuilder::GetCommandsForEditablePalette(TSharedRef<FEditablePalette> EditablePalette, TArray<TSharedPtr<const FUICommandInfo>>& OutCommands)
@@ -178,14 +169,16 @@ void FToolkitBuilder::AddPalette(TSharedPtr<FToolPalette> Palette)
 		PaletteCommandNameToButtonArgsMap.Add(Button->Command->GetCommandName().ToString(), Button);
 		PaletteCommandInfos.Add(Button->Command->GetCommandName().ToString(), Button->Command);
 	}
-	LoadCommandNameToToolPaletteMap.Add(Palette->LoadToolPaletteAction->GetCommandName().ToString(), Palette);
+	const FName CommandName = Palette->LoadToolPaletteAction->GetCommandName();
+	LoadCommandNameToToolPaletteMap.Add(CommandName.ToString(), Palette);
+	LoadCommandArray.Add( CommandName ); 
 
 	LoadToolPaletteCommandList->MapAction(
 				Palette->LoadToolPaletteAction,
 				FExecuteAction::CreateSP(SharedThis(this),
 				&FToolkitBuilder::TogglePalette,
 				Palette),
-				FCanExecuteAction::CreateLambda([] { return true; }),
+				FCanExecuteAction(),
 				FGetActionCheckState::CreateSP(SharedThis(this),
 					&FToolkitBuilder::IsActiveToolPalette,
 					Palette->LoadToolPaletteAction->GetCommandName())
@@ -255,15 +248,27 @@ bool FToolkitBuilder::HasActivePalette() const
 	return ActivePalette != nullptr;
 }
 
-void FToolkitBuilder::InitializeCategoryToolbar(bool InitLoadToolPaletteMap)
+void FToolkitBuilder::InitializeCategoryToolbar()
 {
+	const bool bInitializeToolbar = false;
+	InitializeCategoryToolbar( bInitializeToolbar );
+}
+
+void FToolkitBuilder::InitializeCategoryToolbar(bool bInitLoadToolPaletteMap)
+{
+
+	const bool bForceSmallIcons = true; 
 	Style = FToolkitStyle::Get().GetWidgetStyle<FToolkitWidgetStyle>("FToolkitWidgetStyle");
 	LoadToolPaletteCommandList = MakeShareable(new FUICommandList);
-	LoadPaletteToolBarBuilder = MakeShared<FVerticalToolBarBuilder>(LoadToolPaletteCommandList, FMultiBoxCustomization::None, TSharedPtr<FExtender>(), true);
+	LoadPaletteToolBarBuilder = MakeShared<FVerticalToolBarBuilder>(LoadToolPaletteCommandList, FMultiBoxCustomization::None, TSharedPtr<FExtender>(), bForceSmallIcons);
+
 	LoadPaletteToolBarBuilder->SetLabelVisibility( CategoryButtonLabelVisibility );
+	const FName StyleName = GetCategoryToolBarStyleName(); 
+	LoadPaletteToolBarBuilder->SetStyle(&FAppStyle::Get(), StyleName );
+	
 	EditablePalettesArray.Reset();
 
-	if (InitLoadToolPaletteMap)
+	if (bInitLoadToolPaletteMap)
 	{
 		LoadCommandNameToPaletteToolbarBuilderMap.Reset();
 	}
@@ -281,43 +286,6 @@ void FToolkitBuilder::InitializeCategoryToolbar(bool InitLoadToolPaletteMap)
 		}
 	}
 
-}
-
-void FToolkitBuilder::InitCategoryToolbarContainerWidget()
-{
-	if (!CategoryToolbarVBox.IsValid())
-	{
-		CategoryToolbarVBox = SNew(SVerticalBox)
-			.Visibility(CategoryToolbarVisibility);
-	}
-	else
-	{
-		CategoryToolbarVBox->ClearChildren();
-	}
-	CategoryToolbarVBox->AddSlot()
-	.Padding(0.f)
-	[
-		CreateToolbarWidget()
-	];
-}
-
-void FToolkitBuilder::RefreshCategoryToolbarWidget()
-{
-	FToolElementRegistrationKey Key = FToolElementRegistrationKey(ToolbarCustomizationName, EToolElement::Toolbar);
-	VerticalToolbarElement = ToolRegistry.GetToolElementSP(Key);
-	const TSharedRef<FToolbarRegistrationArgs> VerticalToolbarRegistrationArgs = MakeShareable<FToolbarRegistrationArgs>(
-		new FToolbarRegistrationArgs(LoadPaletteToolBarBuilder.ToSharedRef()));
-	
-	if (!VerticalToolbarElement.IsValid())
-	{
-		VerticalToolbarElement = MakeShareable(new FToolElement
-			(ToolbarCustomizationName,
-			VerticalToolbarRegistrationArgs));
-		ToolRegistry.RegisterElement(VerticalToolbarElement.ToSharedRef());
-	}
-
-	VerticalToolbarElement->SetRegistrationArgs(VerticalToolbarRegistrationArgs);
-	InitCategoryToolbarContainerWidget();
 }
 
 void FToolkitBuilder::TogglePalette(TSharedPtr<FToolPalette> Palette)
@@ -394,6 +362,7 @@ void FToolkitBuilder::CreatePalette(TSharedPtr<FToolPalette> Palette)
 		PaletteToolbarBuilder->AddToolBarButton(PaletteButton.Get());
 	}
 	CreatePaletteWidget(*Palette.Get(), *Element.Get());
+	LoadPaletteToolBarBuilder->SetLastSelectedCommandIndex( LoadCommandArray.IndexOfByKey(Palette->LoadToolPaletteAction->GetCommandName()) );
 }
 
 void FToolkitBuilder::CreatePaletteWidget(FToolPalette& Palette, FToolElement& Element)
@@ -459,7 +428,8 @@ TSharedRef<SWidget> FToolkitBuilder::GetContextMenuContent(const FName CommandNa
 
 void FToolkitBuilder::ResetWidget()
 {
-	InitializeCategoryToolbar(true);
+	const bool bInitLoadToolPaletteMap = true;
+	InitializeCategoryToolbar( bInitLoadToolPaletteMap );
 	ToolPaletteWidget = SNew(SVerticalBox);
 }
 
@@ -486,15 +456,6 @@ void FToolkitBuilder::SetActivePaletteOnLoad(const FUICommandInfo* Command)
 	}
 }
 
-TSharedPtr<SWidget> FToolkitBuilder::GenerateWidget()
-{
-	if (!ToolkitWidgetContainerVBox)
-	{
-		DefineWidget();
-	}
-	return ToolkitWidgetContainerVBox.ToSharedRef();
-}
-
 void FToolkitBuilder::SetActiveToolDisplayName(FText InActiveToolDisplayName)
 {
 	ActiveToolDisplayName = InActiveToolDisplayName;
@@ -510,43 +471,18 @@ EVisibility FToolkitBuilder::GetActiveToolTitleVisibility() const
 	return ActiveToolDisplayName.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
-void FToolkitBuilder::DefineWidget()
+void FToolkitBuilder::UpdateContentForCategory( FName InActiveCategoryName, FText InActiveCategoryText )
 {
-	RefreshCategoryToolbarWidget();
-
 	TSharedPtr<SHorizontalBox> ToolNameHeaderBox;
-
-	ToolkitWidgetContainerVBox = SNew(SVerticalBox)
-	+ SVerticalBox::Slot().AutoHeight() [ *FSeparatorTemplates::SmallHorizontalPanelNoBorder()  ]
-	+ SVerticalBox::Slot().AutoHeight() [ *FSeparatorTemplates::SmallHorizontalBackgroundNoBorder() ];
-
-	ToolkitWidgetVBox = SNew(SVerticalBox);
-	TSharedPtr<SWidget> MainSplitter = 
-		SNew(SSplitter)
-		.PhysicalSplitterHandleSize(2.0f)
-		+ SSplitter::Slot()
-		.Resizable(false)
-		.SizeRule(SSplitter::SizeToContent)
-			[
-				CategoryToolbarVBox.ToSharedRef()
-			]
-
-		+ SSplitter::Slot()
-		.SizeRule(SSplitter::FractionOfParent)
-			[
-				ToolkitWidgetVBox->AsShared()
-			];
 	
-	ToolkitWidgetContainerVBox->AddSlot()
-	.VAlign(VAlign_Fill)
-	.FillHeight(1)
-	[
-		MainSplitter->AsShared()
-	];
-
+	if ( !MainContentVerticalBox.IsValid() )
+	{
+		return;
+	}
+	
 	if (ToolkitSections->ModeWarningArea)
 	{
-		ToolkitWidgetVBox->AddSlot()
+		MainContentVerticalBox->AddSlot()
 		.AutoHeight()
 		.HAlign(HAlign_Fill)
 		.Padding(5)
@@ -555,7 +491,7 @@ void FToolkitBuilder::DefineWidget()
 		];
 	}
 	
-	ToolkitWidgetVBox->AddSlot()
+	MainContentVerticalBox->AddSlot()
 	.AutoHeight()
 	.HAlign(HAlign_Fill)
 	.Padding(0)
@@ -563,12 +499,12 @@ void FToolkitBuilder::DefineWidget()
 			GetToolPaletteWidget()
 		];
 
-	ToolkitWidgetVBox->AddSlot()
+	MainContentVerticalBox->AddSlot()
 		.AutoHeight()
 		[ *FSeparatorTemplates::SmallHorizontalBackgroundNoBorder().BindVisibility(
 			TAttribute<EVisibility>::CreateLambda([this] () { return ActivePaletteButtonVisibility; }))];
 	
-	ToolkitWidgetVBox->AddSlot()
+	MainContentVerticalBox->AddSlot()
 		.AutoHeight()
 		.HAlign(HAlign_Fill)
 		.Padding(0)
@@ -612,7 +548,7 @@ void FToolkitBuilder::DefineWidget()
 
 	if (ToolkitSections->ToolWarningArea)
 	{
-		ToolkitWidgetVBox->AddSlot()
+		MainContentVerticalBox->AddSlot()
 		.AutoHeight()
 		.HAlign(HAlign_Fill)
 		.Padding(5)
@@ -623,7 +559,7 @@ void FToolkitBuilder::DefineWidget()
 
 	if (ToolkitSections->DetailsView)
 	{
-		ToolkitWidgetVBox->AddSlot()
+		MainContentVerticalBox->AddSlot()
 		.HAlign(HAlign_Fill)
 		.FillHeight(1.f)
 			[
@@ -638,7 +574,7 @@ void FToolkitBuilder::DefineWidget()
 	}
 	if (ToolkitSections->Footer)
 	{
-		ToolkitWidgetVBox->AddSlot()
+		MainContentVerticalBox->AddSlot()
 			.AutoHeight()
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Bottom)
@@ -649,20 +585,14 @@ void FToolkitBuilder::DefineWidget()
 	}
 }
 
-void FToolkitBuilder::SetCategoryButtonLabelVisibility(EVisibility Visibility)
-{
-	CategoryButtonLabelVisibility = Visibility;
-	InitializeCategoryToolbar();
-}
-
-void FToolkitBuilder::SetCategoryButtonLabelVisibility(bool bIsCategoryButtonLabelVisible)
-{
-	SetCategoryButtonLabelVisibility(bIsCategoryButtonLabelVisible ? EVisibility::Visible : EVisibility::Collapsed);
-}
-
 void FToolkitBuilder::SetActivePaletteCommandsVisibility(EVisibility Visibility)
 {
 	ActivePaletteButtonVisibility = Visibility;
+}
+
+EVisibility FToolkitBuilder::GetActivePaletteCommandsVisibility() const
+{
+	return ActivePaletteButtonVisibility;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -35,8 +35,10 @@ class UnrealDeltaSlider extends UnrealWidget {
     this.softMax,
     this.hardMin,
     this.hardMax,
+    this.exponent = 1.0,
     this.bShowResetButton = true,
     this.fillColor,
+    this.valueMessageOverride,
   });
 
   /// If provided, call this function to build the widget displayed as the slider's label. Otherwise, the label will be
@@ -61,11 +63,18 @@ class UnrealDeltaSlider extends UnrealWidget {
   /// This changes both the max value displayed on the slider and prevents sliding past this value.
   final double? hardMax;
 
+  /// Exponent value applied to the slider's linear position. Higher exponents make the slider's effective delta value
+  /// smaller at smaller slider values.
+  final double exponent;
+
   /// If true, show the reset button.
   final bool bShowResetButton;
 
   /// The color to show in the filled portion of the bar (left of the value indicators).
   final Color? fillColor;
+
+  /// If set, replace the value display with this string.
+  final String? valueMessageOverride;
 
   @override
   _UnrealDeltaSliderState createState() => _UnrealDeltaSliderState();
@@ -90,11 +99,13 @@ class _UnrealDeltaSliderState extends State<UnrealDeltaSlider> with UnrealWidget
         onValuesSet: _onValuesSet,
         onReset: handleOnResetByUser,
         onInteractionFinished: endTransaction,
+        exponent: widget.exponent,
         min: widget.softMin ?? widget.hardMin ?? engineMin,
         max: widget.softMax ?? widget.hardMax ?? engineMax,
         label: propertyLabel,
         buildLabel: widget.buildLabel,
         fillColor: widget.fillColor,
+        valueMessageOverride: widget.valueMessageOverride,
       ),
     );
   }
@@ -124,6 +135,7 @@ class DrivenDeltaSlider extends StatefulWidget {
     this.onReset,
     this.onInteractionFinished,
     this.fillColor,
+    this.valueMessageOverride,
     this.baseSensitivity,
   }) : super(key: key);
 
@@ -176,6 +188,9 @@ class DrivenDeltaSlider extends StatefulWidget {
 
   /// The color to show in the filled portion of the bar (left of the value indicators).
   final Color? fillColor;
+
+  /// If set, replace the value display with this string.
+  final String? valueMessageOverride;
 
   /// How sensitive the slider should be when the user's sensitivity is set to 1.0.
   final double? baseSensitivity;
@@ -267,7 +282,7 @@ class _DrivenDeltaSliderState extends State<DrivenDeltaSlider> with DeltaWidgetS
 
   @override
   Widget build(BuildContext context) {
-    final String? valueString = _singleSharedValueString;
+    final String? valueString = widget.valueMessageOverride ?? _singleSharedValueString;
 
     // Build the list of slider values to pass to the slider widget
     final List<_DeltaSliderUIValue> uiValues = [];
@@ -417,7 +432,7 @@ class _DrivenDeltaSliderState extends State<DrivenDeltaSlider> with DeltaWidgetS
         final double exponentialValue = _exponentiateNormalizedValue(normalizedValue);
         final double exponentialResultValue = (exponentialValue + normalizedDelta).clamp(0, 1);
         final double linearResultValue = exponentiateValue(exponentialResultValue, widget.exponent, false);
-        deltaValues[valueIndex] = linearResultValue - normalizedValue;
+        deltaValues[valueIndex] = (linearResultValue - normalizedValue) * _valueSpan;
       }
     }
 

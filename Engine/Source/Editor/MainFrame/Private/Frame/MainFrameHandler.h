@@ -21,7 +21,11 @@
 #include "LevelEditor.h"
 #include "IAssetViewport.h"
 #include "MainFrameLog.h"
+#include "Editor/EditorPerProjectUserSettings.h"
+#include "Misc/MessageDialog.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+
+#define LOCTEXT_NAMESPACE "MainFrameHandler"
 
 const FText StaticGetApplicationTitle( const bool bIncludeGameName );
 
@@ -67,6 +71,13 @@ public:
 	 */
 	bool CanCloseEditor()
 	{
+		// We don't want to close the editor if we are recreating the mainframe module
+		IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>(TEXT("MainFrame"));
+		if (MainFrameModule.IsRecreatingDefaultMainFrame())
+		{
+			return false;
+		}
+
 		if ( FSlateApplication::IsInitialized() && !FSlateApplication::Get().IsNormalExecution())
 		{
 			// DEBUGGER EXIT PATH
@@ -136,7 +147,6 @@ public:
 			}
 			
 			// Allow Plugins and other systems to prevent close 
-			IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>(TEXT("MainFrame"));
 			bOkToExit = bOkToExit && MainFrameModule.ExecuteCanCloseEditorDelegates();
 
 			// Prompt for save and quit only if we did not launch a gameless rocket exe or are in demo mode or we are asking for a close to recreate the Default Main Frame
@@ -155,12 +165,24 @@ public:
 				}
 
 				// If there were packages to save, or switching project, then the user already had a chance to bail out of exiting.
-				if ( !bOkToExit && !bHadPackagesToSave && FUnrealEdMisc::Get().GetPendingProjectName().IsEmpty() )
+				const bool bPromptedForExit = bHadPackagesToSave || !FUnrealEdMisc::Get().GetPendingProjectName().IsEmpty();
+				if ( !bOkToExit && !bPromptedForExit )
 				{
 					FUnrealEdMisc::Get().ClearPendingProjectName();
 					FUnrealEdMisc::Get().AllowSavingLayoutOnClose(true);
 					FUnrealEdMisc::Get().ForceDeletePreferences(false);
 					FUnrealEdMisc::Get().ClearConfigRestoreFilenames();
+				}
+				else if (bOkToExit && !bPromptedForExit && GetDefault<UEditorPerProjectUserSettings>()->bConfirmEditorClose)
+				{
+					const EAppReturnType::Type Response = FMessageDialog::Open(
+						EAppMsgCategory::Info,
+						EAppMsgType::YesNo,
+						LOCTEXT("ConfirmClose", "Are you sure you want to close the Unreal Editor?"),
+						LOCTEXT("ConfirmCloseTitle", "Close Editor")
+					);
+
+					bOkToExit = (Response == EAppReturnType::Yes);
 				}
 			}
 			
@@ -250,3 +272,5 @@ private:
 	/** The window that all of the editor is parented to. */
 	TWeakPtr<SWindow> RootWindowPtr;
 };
+
+#undef LOCTEXT_NAMESPACE

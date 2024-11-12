@@ -294,17 +294,26 @@ struct TStructOpsTypeTraits<FGameplayAbilityTargetDataHandle> : public TStructOp
 	};
 };
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+struct FGameplayAbilityTargetingLocationInfoFixLayout
+{
+	virtual ~FGameplayAbilityTargetingLocationInfoFixLayout() = default;
+};
+
 /** Structure that stores a location in one of several different formats */
 USTRUCT(BlueprintType)
 struct GAMEPLAYABILITIES_API FGameplayAbilityTargetingLocationInfo
+#if CPP
+	: public FGameplayAbilityTargetingLocationInfoFixLayout
+#endif
 {
 	GENERATED_USTRUCT_BODY()
 
 	FGameplayAbilityTargetingLocationInfo()
-	: LocationType(EGameplayAbilityTargetingLocationType::LiteralTransform)
-	, SourceActor(nullptr)
+	: SourceActor(nullptr)
 	, SourceComponent(nullptr)
 	, SourceAbility(nullptr)
+	, LocationType(EGameplayAbilityTargetingLocationType::LiteralTransform)
 	{ }
 
 	virtual ~FGameplayAbilityTargetingLocationInfo() {}
@@ -328,14 +337,6 @@ struct GAMEPLAYABILITIES_API FGameplayAbilityTargetingLocationInfo
 	/** Initializes new actor list target data, and sets this as the origin */
 	FGameplayAbilityTargetDataHandle MakeTargetDataHandleFromActors(const TArray<TWeakObjectPtr<AActor>>& TargetActors, bool OneActorPerHandle = false) const;
 
-	/** Type of location used - will determine what data is transmitted over the network and what fields are used when calculating position. */
-	UPROPERTY(BlueprintReadWrite, meta = (ExposeOnSpawn = true), Category = Targeting)
-	TEnumAsByte<EGameplayAbilityTargetingLocationType::Type> LocationType;
-
-	/** A literal world transform can be used, if one has been calculated outside of the actor using the ability. */
-	UPROPERTY(BlueprintReadWrite, meta = (ExposeOnSpawn = true), Category = Targeting)
-	FTransform LiteralTransform;
-
 	/** A source actor is needed for Actor-based targeting, but not for Socket-based targeting. */
 	UPROPERTY(BlueprintReadWrite, meta = (ExposeOnSpawn = true), Category = Targeting)
 	TObjectPtr<AActor> SourceActor;
@@ -348,9 +349,17 @@ struct GAMEPLAYABILITIES_API FGameplayAbilityTargetingLocationInfo
 	UPROPERTY(BlueprintReadWrite, meta = (ExposeOnSpawn = true), Category = Targeting)
 	TObjectPtr<UGameplayAbility> SourceAbility;
 
+	/** A literal world transform can be used, if one has been calculated outside of the actor using the ability. */
+	UPROPERTY(BlueprintReadWrite, meta = (ExposeOnSpawn = true), Category = Targeting)
+	FTransform LiteralTransform;
+
 	/** If SourceComponent is valid, this is the name of the socket transform that will be used. If no Socket is provided, SourceComponent's transform will be used. */
 	UPROPERTY(BlueprintReadWrite, meta = (ExposeOnSpawn = true), Category = Targeting)
 	FName SourceSocketName;
+
+	/** Type of location used - will determine what data is transmitted over the network and what fields are used when calculating position. */
+	UPROPERTY(BlueprintReadWrite, meta = (ExposeOnSpawn = true), Category = Targeting)
+	TEnumAsByte<EGameplayAbilityTargetingLocationType::Type> LocationType;
 
 	/** Optimized serialize function */
 	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);

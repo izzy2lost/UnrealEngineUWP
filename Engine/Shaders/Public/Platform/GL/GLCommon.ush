@@ -7,6 +7,6 @@
 #pragma once
 
 // Update this GUID to invalidate shader recompilation for only GL shaders
-#pragma message("UESHADERMETADATA_VERSION 3FB1EB49-0442-40E1-9F1B-0371F7ABB4BB")
+#pragma message("UESHADERMETADATA_VERSION CE7F533A-EFA7-4EA0-B2CF-15B195E67095")
 
 

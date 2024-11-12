@@ -266,7 +266,7 @@ namespace UE::PixelStreamingServers::Utils
 	FString ToString(TArrayView<uint8> UTF8Bytes)
 	{
 		FUTF8ToTCHAR Converted((const ANSICHAR*)UTF8Bytes.GetData(), UTF8Bytes.Num());
-		FString OutString(Converted.Length(), Converted.Get());
+		FString OutString = FString::ConstructFromPtrSize(Converted.Get(), Converted.Length());
 		return OutString;
 	}
 

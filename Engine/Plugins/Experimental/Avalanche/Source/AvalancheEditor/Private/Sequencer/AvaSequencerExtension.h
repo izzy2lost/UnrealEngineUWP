@@ -38,6 +38,7 @@ public:
 	virtual void Activate() override;
 	virtual void Deactivate() override;
 	virtual void Cleanup() override;
+	virtual void OnSceneObjectChanged(UObject* InOldSceneObject, UObject* InNewSceneObject) override;
 	virtual void RegisterTabSpawners(const TSharedRef<IAvaEditor>& InEditor) const override;
 	virtual void ExtendLevelEditorLayout(FLayoutExtender& InExtender) const override;
 	virtual void NotifyOnSelectionChanged(const FAvaEditorSelection& InSelection) override;
@@ -52,8 +53,7 @@ public:
 	virtual TSharedPtr<IToolkitHost> GetSequencerToolkitHost() const override;
 	virtual UObject* GetPlaybackContext() const override;
 	virtual bool CanEditOrPlaySequences() const override;
-	virtual bool CanExportSequences() const override { return true; }
-	virtual void ExportSequences(TConstArrayView<UAvaSequence*> InSequencesToExport);
+	virtual void ExportSequences(TConstArrayView<UAvaSequence*> InSequencesToExport) override;
 	//~ End IAvaSequencerProvider
 
 protected:

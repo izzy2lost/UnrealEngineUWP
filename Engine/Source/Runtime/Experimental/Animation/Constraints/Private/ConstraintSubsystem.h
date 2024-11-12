@@ -26,7 +26,6 @@ public:
 	UPROPERTY(transient)
 	mutable TArray<TWeakObjectPtr<UTickableConstraint>> Constraints;
 
-	CONSTRAINTS_API void Init(UWorld* World);
 	CONSTRAINTS_API void RemoveConstraints(UWorld* World);
 
 	FConstraintsEvaluationGraph& GetEvaluationGraph();
@@ -58,8 +57,8 @@ public:
 		FConstraintTickFunction* InFunctionToTickBefore,
 		FConstraintTickFunction* InFunctionToTickAfter);
 
-	CONSTRAINTS_API TArray<TWeakObjectPtr<UTickableConstraint>> GetConstraints(UWorld* InWorld) const;
-	CONSTRAINTS_API const TArray<TWeakObjectPtr<UTickableConstraint>>& GetConstraintsArray(UWorld* InWorld) const;
+	CONSTRAINTS_API TArray<TWeakObjectPtr<UTickableConstraint>> GetConstraints(const UWorld* InWorld) const;
+	CONSTRAINTS_API const TArray<TWeakObjectPtr<UTickableConstraint>>& GetConstraintsArray(const UWorld* InWorld) const;
 
 	CONSTRAINTS_API void AddConstraint(UWorld* InWorld, UTickableConstraint* InConstraint);
 	CONSTRAINTS_API void RemoveConstraint(UWorld* InWorld, UTickableConstraint* InConstraint, bool bDoNoCompensate);
@@ -100,9 +99,11 @@ private:
 
 	mutable bool bNeedsCleanup = false;
 
-	const FConstraintsInWorld* ConstraintsInWorldFind(UWorld* InWorld) const;
-	FConstraintsInWorld* ConstraintsInWorldFind(UWorld* InWorld);
+	const FConstraintsInWorld* ConstraintsInWorldFind(const UWorld* InWorld) const;
+	FConstraintsInWorld* ConstraintsInWorldFind(const UWorld* InWorld);
 	FConstraintsInWorld& ConstraintsInWorldFindOrAdd(UWorld* InWorld);
+
+	int32 GetConstraintsInWorldIndex(const UWorld* InWorld) const;
 
 	void CleanupInvalidConstraints() const;
 };

@@ -15,7 +15,6 @@ struct FToolBuilderState;
 
 class FEditorComponentSourceFactory;
 class FUICommandList;
-class FStylusStateTracker;		// for stylus events
 class FLevelObjectsObserver;
 class UModelingSceneSnappingManager;
 class UModelingSelectionInteraction;
@@ -47,8 +46,6 @@ public:
 
 	virtual bool CanAutoSave() const override;
 
-	virtual bool ComputeBoundingBoxForViewportFocus(AActor* Actor, UPrimitiveComponent* PrimitiveComponent, FBox& InOutBox) const override;
-
 	virtual bool GetPivotForOrbit(FVector& OutPivot) const override;
 
 	/*
@@ -71,6 +68,11 @@ public:
 	// ILegacyEdModeSelectInterface
 	virtual bool BoxSelect(FBox& InBox, bool InSelect = true) override;
 	virtual bool FrustumSelect(const FConvexVolume& InFrustum, FEditorViewportClient* InViewportClient, bool InSelect) override;
+
+
+	// Manage viewport focus
+	virtual bool HasCustomViewportFocus() const override;
+	virtual FBox ComputeCustomViewportFocus() const override;
 
 
 
@@ -114,9 +116,6 @@ protected:
 
 	FDelegateHandle EditorClosedEventHandle;
 	void OnEditorClosed();
-
-	// Stylus support is currently disabled; this is left in for reference if/when it is brought back
-	//TUniquePtr<FStylusStateTracker> StylusStateTracker;
 
 	TSharedPtr<FLevelObjectsObserver> LevelObjectsObserver;
 
@@ -168,6 +167,8 @@ protected:
 
 	// tracking of unlocked stuff
 	static FDelegateHandle GlobalModelingWorldTeardownEventHandle;
+private:
+	bool bIsToolActive = false;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

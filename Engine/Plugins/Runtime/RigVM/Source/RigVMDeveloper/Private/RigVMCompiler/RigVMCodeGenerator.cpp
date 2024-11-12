@@ -26,9 +26,9 @@ static constexpr TCHAR RigVM_DeclareExternalVariableFormat[] = TEXT("\t{0}* {1} 
 static constexpr TCHAR RigVM_UpdateExternalVariableFormat[] = TEXT("\t{0} = &GetExternalVariableRef<{1}>(Context, TEXT(\"{2}\"), TEXT(\"{1}\"));");
 static constexpr TCHAR RigVM_MemberPropertyFormat[] = TEXT("\t{0} {1} = {2};");
 static constexpr TCHAR RigVM_MemberPropertyFormatNoDefault[] = TEXT("\t{0} {1};");
-static constexpr TCHAR RigVM_DeclareEntryNameFormat[] = TEXT("\tstatic const FName EntryName_{0};");
+static constexpr TCHAR RigVM_DeclareEntryNameFormat[] = TEXT("\tstatic const FLazyName EntryName_{0};");
 static constexpr TCHAR RigVM_DefineEntryNameFormat[] = TEXT("const FName U{0}::EntryName_{1} = TEXT(\"{2}\");");
-static constexpr TCHAR RigVM_DeclareBlockNameFormat[] = TEXT("\tstatic const FName BlockName_{0};");
+static constexpr TCHAR RigVM_DeclareBlockNameFormat[] = TEXT("\tstatic const FLazyName BlockName_{0};");
 static constexpr TCHAR RigVM_DefineBlockNameFormat[] = TEXT("const FName U{0}::BlockName_{1} = TEXT(\"{2}\");");
 static constexpr TCHAR RigVM_DefineConstFormatNoDefault[] = TEXT("\tstatic const {0} {1};");
 static constexpr TCHAR RigVM_StructConstantArrayArrayValue[] = TEXT("URigVMNativized::GetStructArrayArrayConstant<{0}>(TEXT(\"{1}\"))");
@@ -927,7 +927,7 @@ FString FRigVMCodeGenerator::DumpHeader(const FRigVMExtendedExecuteContext& Cont
 	Lines.Emplace();
 	
 	Lines.Add(Format(RigVM_UClassDefinitionFormat, *ModuleName.ToUpper(), *ClassName));
-	Lines.Add(Format(RigVM_GetVMHashFormat, FString::Printf(TEXT("%lu"), VM->GetVMHash())));
+	Lines.Add(Format(RigVM_GetVMHashFormat, FString::Printf(TEXT("%u"), VM->GetVMHash())));
 	Lines.Add(Format(RigVM_GetEntryNamesFormat, *FString::Join(FormattedEntries, RigVM_CommaSeparator)));
 	Lines.Emplace();
 	Lines.Add(FString(RigVM_DeclareInitializeFormat));
@@ -1571,6 +1571,12 @@ void FRigVMCodeGenerator::ParseInstructionGroups(const FRigVMExtendedExecuteCont
 				case ERigVMOpCode::RunInstructions:
 				{
 					const FRigVMRunInstructionsOp& Op = ByteCode.GetOpAt<FRigVMRunInstructionsOp>(Instruction);
+					// todo
+					break;
+				}
+				case ERigVMOpCode::SetupTraits:
+				{
+					const FRigVMSetupTraitsOp& Op = ByteCode.GetOpAt<FRigVMSetupTraitsOp>(Instruction);
 					// todo
 					break;
 				}

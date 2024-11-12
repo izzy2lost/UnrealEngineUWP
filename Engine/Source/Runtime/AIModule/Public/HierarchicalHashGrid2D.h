@@ -536,10 +536,10 @@ public:
 	 */
 	FBox CalcCellBounds(const FCellLocation& CellLocation) const
 	{
-		const float Size = CellSize[CellLocation.Level];
-		const float X = CellLocation.X * Size;
-		const float Y = CellLocation.Y * Size;
-		return FBox(FVector(X, Y, 0.f), FVector(X + Size, Y + Size, 0.f));
+		const FVector::FReal Size = CellSize[CellLocation.Level];
+		const FVector::FReal X = static_cast<FVector::FReal>(CellLocation.X) * Size;
+		const FVector::FReal Y = static_cast<FVector::FReal>(CellLocation.Y) * Size;
+		return FBox(FVector(X, Y, 0.0), FVector(X + Size, Y + Size, 0.0));
 	}
 
 	/** Returns a cell for specific location and level, creates new cell if it does not exist.
@@ -610,7 +610,10 @@ protected:
 	/** @return given int64 clamped in int32 range. */
 	static constexpr int32 ClampInt32(const int64 Value)
 	{
-		return FMath::Clamp(Value, (int64)std::numeric_limits<int32>::lowest(), (int64)std::numeric_limits<int32>::max());
+		return static_cast<int32>(FMath::Clamp(
+			Value,
+			static_cast<int64>(std::numeric_limits<int32>::lowest()),
+			static_cast<int64>(std::numeric_limits<int32>::max())));
 	}
 	
 	TStaticArray<float, NumLevels> CellSize;		/** Lowest level cell size */

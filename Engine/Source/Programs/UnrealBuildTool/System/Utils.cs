@@ -518,6 +518,14 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Retrieve the list of platforms in this group (if any)
+		/// </summary>
+		public static List<UnrealTargetPlatform> GetPlatformsInGroup(UnrealPlatformGroup Group)
+		{
+			return UEBuildPlatform.GetPlatformsInGroup(Group);
+		}
+
+		/// <summary>
 		/// Given a list of supported platforms, returns a list of names of platforms that should not be supported
 		/// </summary>
 		/// <param name="SupportedPlatforms">List of supported platforms</param>
@@ -619,18 +627,12 @@ namespace UnrealBuildTool
 					if (C != UseDirectorySeparatorChar)
 					{
 						C = UseDirectorySeparatorChar;
-						if (CleanPath == null)
-						{
-							CleanPath = new StringBuilder(FilePath.Substring(0, Index), FilePath.Length);
-						}
+						CleanPath ??= new StringBuilder(FilePath.Substring(0, Index), FilePath.Length);
 					}
 
 					if (bCanCheckDoubleSeparators && C == PrevC)
 					{
-						if (CleanPath == null)
-						{
-							CleanPath = new StringBuilder(FilePath.Substring(0, Index), FilePath.Length);
-						}
+						CleanPath ??= new StringBuilder(FilePath.Substring(0, Index), FilePath.Length);
 						continue;
 					}
 				}
@@ -640,10 +642,7 @@ namespace UnrealBuildTool
 					bCanCheckDoubleSeparators = true;
 				}
 
-				if (CleanPath != null)
-				{
-					CleanPath.Append(C);
-				}
+				CleanPath?.Append(C);
 				PrevC = C;
 			}
 			return CleanPath != null ? CleanPath.ToString() : FilePath;
@@ -659,7 +658,7 @@ namespace UnrealBuildTool
 			string LocalString = InPath;
 			bool bHadBackSlashes = false;
 			// look to see what kind of slashes we had
-			if (LocalString.IndexOf("\\") != -1)
+			if (LocalString.Contains("\\", StringComparison.CurrentCulture))
 			{
 				LocalString = LocalString.Replace("\\", "/");
 				bHadBackSlashes = true;
@@ -850,11 +849,8 @@ namespace UnrealBuildTool
 			}
 			finally
 			{
-				if (XmlStream != null)
-				{
-					// Done with the file so close it
-					XmlStream.Close();
-				}
+				// Done with the file so close it
+				XmlStream?.Close();
 			}
 
 			return Instance;
@@ -903,11 +899,8 @@ namespace UnrealBuildTool
 			}
 			finally
 			{
-				if (XmlStream != null)
-				{
-					// Done with the file so close it
-					XmlStream.Close();
-				}
+				// Done with the file so close it
+				XmlStream?.Close();
 			}
 
 			return (bSuccess);
@@ -1088,7 +1081,7 @@ namespace UnrealBuildTool
 
 		// int sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen); // from man page
 		[DllImport("libc")]
-		static extern int sysctlbyname(string name, out int oldp, ref UInt64 oldlenp, IntPtr newp, UInt64 newlen);
+		static extern int sysctlbyname(string name, out int oldp, ref ulong oldlenp, IntPtr newp, ulong newlen);
 
 		/// <summary>
 		/// Gets the number of physical cores, excluding hyper threading.
@@ -1138,7 +1131,7 @@ namespace UnrealBuildTool
 			}
 			else if (RuntimePlatform.IsMac)
 			{
-				UInt64 Size = 4;
+				ulong Size = 4;
 				if (0 == sysctlbyname("hw.physicalcpu", out int Value, ref Size, IntPtr.Zero, 0))
 				{
 					return Value;
@@ -1200,23 +1193,23 @@ namespace UnrealBuildTool
 			/*natural_t*/
 			public int wire_count;              /* # of pages wired down */
 			/*uint64_t */
-			public UInt64 zero_fill_count;      /* # of zero fill pages */
+			public ulong zero_fill_count;      /* # of zero fill pages */
 			/*uint64_t */
-			public UInt64 reactivations;            /* # of pages reactivated */
+			public ulong reactivations;            /* # of pages reactivated */
 			/*uint64_t */
-			public UInt64 pageins;              /* # of pageins */
+			public ulong pageins;              /* # of pageins */
 			/*uint64_t */
-			public UInt64 pageouts;             /* # of pageouts */
+			public ulong pageouts;             /* # of pageouts */
 			/*uint64_t */
-			public UInt64 faults;                   /* # of faults */
+			public ulong faults;                   /* # of faults */
 			/*uint64_t */
-			public UInt64 cow_faults;               /* # of copy-on-writes */
+			public ulong cow_faults;               /* # of copy-on-writes */
 			/*uint64_t */
-			public UInt64 lookups;              /* object cache lookups */
+			public ulong lookups;              /* object cache lookups */
 			/*uint64_t */
-			public UInt64 hits;                 /* object cache hits */
+			public ulong hits;                 /* object cache hits */
 			/*uint64_t */
-			public UInt64 purges;                   /* # of pages purged */
+			public ulong purges;                   /* # of pages purged */
 			/*natural_t*/
 			public int purgeable_count;     /* # of pages purgeable */
 			/*
@@ -1230,13 +1223,13 @@ namespace UnrealBuildTool
 
 			/* added for rev1 */
 			/*uint64_t */
-			public UInt64 decompressions;           /* # of pages decompressed */
+			public ulong decompressions;           /* # of pages decompressed */
 			/*uint64_t */
-			public UInt64 compressions;         /* # of pages compressed */
+			public ulong compressions;         /* # of pages compressed */
 			/*uint64_t */
-			public UInt64 swapins;              /* # of pages swapped in (via compression segments) */
+			public ulong swapins;              /* # of pages swapped in (via compression segments) */
 			/*uint64_t */
-			public UInt64 swapouts;             /* # of pages swapped out (via compression segments) */
+			public ulong swapouts;             /* # of pages swapped out (via compression segments) */
 			/*natural_t*/
 			public int compressor_page_count;   /* # of pages used by the compressed pager to hold all the compressed data */
 			/*natural_t*/
@@ -1246,7 +1239,7 @@ namespace UnrealBuildTool
 			/*natural_t*/
 			public int internal_page_count; /* # of pages that are anonymous */
 			/*uint64_t */
-			public UInt64 total_uncompressed_pages_in_compressor; /* # of pages (uncompressed) held within the compressor. */
+			public ulong total_uncompressed_pages_in_compressor; /* # of pages (uncompressed) held within the compressor. */
 		} // __attribute__((aligned(8))); 
 
 		// kern_return_t host_statistics64(host_t host_priv, host_flavor_t flavor, host_info64_t host_info64_out, mach_msg_type_number_t *host_info64_outCnt); // from <mach/mach_host.h>
@@ -1300,7 +1293,7 @@ namespace UnrealBuildTool
 				host_statistics64(Host, HOST_VM_INFO64, out VMStats, ref StructSize);
 
 				int PageSize = 0;
-				UInt64 OutSize = 4;
+				ulong OutSize = 4;
 				if (0 != sysctlbyname("hw.pagesize", out PageSize, ref OutSize, IntPtr.Zero, 0))
 				{
 					PageSize = 4096; // likely result
@@ -1315,10 +1308,10 @@ namespace UnrealBuildTool
 		static extern int PdhOpenQueryW([MarshalAs(UnmanagedType.LPWStr)] string? szDataSource, UIntPtr dwUserData, out IntPtr phQuery);
 
 		[DllImport("pdh.dll", SetLastError = true, CharSet = CharSet.Auto)]
-		static extern UInt32 PdhAddCounter(IntPtr hQuery, string szFullCounterPath, IntPtr dwUserData, out IntPtr phCounter);
+		static extern uint PdhAddCounter(IntPtr hQuery, string szFullCounterPath, IntPtr dwUserData, out IntPtr phCounter);
 
 		[DllImport("pdh.dll", SetLastError = true)]
-		static extern UInt32 PdhCollectQueryData(IntPtr phQuery);
+		static extern uint PdhCollectQueryData(IntPtr phQuery);
 
 		struct PDH_FMT_COUNTERVALUE
 		{
@@ -1327,7 +1320,7 @@ namespace UnrealBuildTool
 		};
 
 		[DllImport("pdh.dll", SetLastError = true)]
-		static extern UInt32 PdhGetFormattedCounterValue(IntPtr phCounter, uint dwFormat, IntPtr lpdwType, out PDH_FMT_COUNTERVALUE pValue);
+		static extern uint PdhGetFormattedCounterValue(IntPtr phCounter, uint dwFormat, IntPtr lpdwType, out PDH_FMT_COUNTERVALUE pValue);
 
 		static IntPtr CpuQuery;
 		static IntPtr CpuTotal;
@@ -1343,7 +1336,7 @@ namespace UnrealBuildTool
 			Utilization = 0.0f;
 			if (RuntimePlatform.IsWindows)
 			{
-				const UInt32 ERROR_SUCCESS = 0;
+				const uint ERROR_SUCCESS = 0;
 				if (!CpuInitialized)
 				{
 					if (PdhOpenQueryW(null, UIntPtr.Zero, out CpuQuery) == ERROR_SUCCESS)

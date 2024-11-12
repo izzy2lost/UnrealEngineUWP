@@ -9,7 +9,7 @@
 #include "StormSyncCoreUtils.h"
 #include "StormSyncDrivesSettings.h"
 
-BEGIN_DEFINE_SPEC(FStormSyncPackageDescriptorSpec, "StormSync.StormSyncCore", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FStormSyncPackageDescriptorSpec, "StormSync.StormSyncCore", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	FString TestMountPoint = TEXT("/StormSyncTests_Temp");
 	FString TestMountDirectory = FPaths::ProjectSavedDir() / TEXT("StormSyncTests");

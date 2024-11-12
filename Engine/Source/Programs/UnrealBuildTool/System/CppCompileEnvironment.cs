@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
+using System.Linq;
+using System.IO.Enumeration;
 using EpicGames.Core;
 using UnrealBuildBase;
 
@@ -24,12 +26,12 @@ namespace UnrealBuildTool
 	public enum CppStandardVersion
 	{
 		/// <summary>
-		/// Supports C++14. No longer maintained, will be removed in 5.5
+		/// Supports C++14. No longer supported, code may not compile with this version.
 		/// </summary>
 		Cpp14,
 
 		/// <summary>
-		/// Supports C++17
+		/// Supports C++17. No longer supported, code may not compile with this version.
 		/// </summary>
 		Cpp17,
 
@@ -281,9 +283,19 @@ namespace UnrealBuildTool
 		public bool bUseAutoRTFMCompiler = false;
 
 		/// <summary>
-		/// Enables AutoRTFM instrumentation to this cpp file only when AutoRTFMCompiler is enabled
+		/// Disables AutoRTFM instrumentation to this cpp file only when AutoRTFMCompiler is enabled
 		/// </summary>
-		public bool bAllowAutoRTFMInstrumentation = false;
+		public bool bDisableAutoRTFMInstrumentation = false;
+
+		/// <summary>
+		/// Whether AutoRTFM instrumentation is enabled or not.
+		/// </summary>
+		public bool bEnableAutoRTFMInstrumentation => bUseAutoRTFMCompiler && !bDisableAutoRTFMInstrumentation;
+
+		/// <summary>
+		/// Whether AutoRTFM verification is enabled or not.
+		/// </summary>
+		public bool bEnableAutoRTFMVerification = false;
 
 		/// <summary>
 		/// If unity builds are enabled this can be used to override if this specific module will build using Unity.
@@ -350,14 +362,9 @@ namespace UnrealBuildTool
 		public WarningLevel UnsafeTypeCastWarningLevel = WarningLevel.Off;
 
 		/// <summary>
-		/// Whether to warn about the use of undefined identifiers in #if expressions
+		/// Indicates what warning/error level to treat undefined identifiers in conditional expressions.
 		/// </summary>
-		public bool bEnableUndefinedIdentifierWarnings = true;
-
-		/// <summary>
-		/// Whether to treat undefined identifier warnings as errors.
-		/// </summary>
-		public bool bUndefinedIdentifierWarningsAsErrors = false;
+		public WarningLevel UndefinedIdentifierWarningLevel = WarningLevel.Off;
 
 		/// <summary>
 		/// Whether to treat all warnings as errors
@@ -396,6 +403,11 @@ namespace UnrealBuildTool
 		/// The static analyzer non-default checkers that should be enabled. Unused if StaticAnalyzerCheckers is populated. This is only supported for Clang.
 		/// </summary>
 		public HashSet<string> StaticAnalyzerAdditionalCheckers = new HashSet<string>();
+
+		/// <summary>
+		/// The PVS Studio analysis warnings that should be disabled.
+		/// </summary>
+		public HashSet<string> StaticAnalyzerPVSDisabledErrors = new();
 
 		/// <summary>
 		/// True if compiler optimizations should be enabled. This setting is distinct from the configuration (see CPPTargetConfiguration).
@@ -541,6 +553,11 @@ namespace UnrealBuildTool
 		public HashSet<DirectoryReference> SharedSystemIncludePaths;
 
 		/// <summary>
+		/// Enumerable of all possible include paths
+		/// </summary>
+		public IEnumerable<DirectoryReference> AllIncludePath => SharedUserIncludePaths.Concat(UserIncludePaths).Concat(SharedSystemIncludePaths).Concat(SystemIncludePaths);
+
+		/// <summary>
 		/// List of paths to search for compiled module interface (*.ifc) files
 		/// </summary>
 		public HashSet<DirectoryReference> ModuleInterfacePaths;
@@ -564,6 +581,11 @@ namespace UnrealBuildTool
 		/// A dictionary of the source file items and the inlined gen.cpp files contained in it
 		/// </summary>
 		public Dictionary<FileItem, List<FileItem>> FileInlineGenCPPMap = new();
+		
+		/// <summary>
+		/// Non-default naming conventions that generated CPP files can have (this uses a filter to check the file name for matches) 
+		/// </summary>
+		public List<string> ExtraGeneratedCPPFileTypes = new List<string>();
 
 		/// <summary>
 		/// FileItems with colliding names. (Which means they would overwrite each other in intermediate folder
@@ -752,16 +774,19 @@ namespace UnrealBuildTool
 			DeprecationWarningLevel = Other.DeprecationWarningLevel;
 			ShadowVariableWarningLevel = Other.ShadowVariableWarningLevel;
 			UnsafeTypeCastWarningLevel = Other.UnsafeTypeCastWarningLevel;
-			bUndefinedIdentifierWarningsAsErrors = Other.bUndefinedIdentifierWarningsAsErrors;
-			bEnableUndefinedIdentifierWarnings = Other.bEnableUndefinedIdentifierWarnings;
+			UndefinedIdentifierWarningLevel = Other.UndefinedIdentifierWarningLevel;
 			bWarningsAsErrors = Other.bWarningsAsErrors;
 			bDisableStaticAnalysis = Other.bDisableStaticAnalysis;
 			StaticAnalyzerCheckers = new HashSet<string>(Other.StaticAnalyzerCheckers);
 			StaticAnalyzerDisabledCheckers = new HashSet<string>(Other.StaticAnalyzerDisabledCheckers);
 			StaticAnalyzerAdditionalCheckers = new HashSet<string>(Other.StaticAnalyzerAdditionalCheckers);
+			StaticAnalyzerPVSDisabledErrors = new HashSet<string>(Other.StaticAnalyzerPVSDisabledErrors);
+			bStaticAnalyzerExtensions = Other.bStaticAnalyzerExtensions;
+			StaticAnalyzerRulesets = new HashSet<FileReference>(Other.StaticAnalyzerRulesets);
 			bOptimizeCode = Other.bOptimizeCode;
 			bUseAutoRTFMCompiler = Other.bUseAutoRTFMCompiler;
-			bAllowAutoRTFMInstrumentation = Other.bAllowAutoRTFMInstrumentation;
+			bDisableAutoRTFMInstrumentation = Other.bDisableAutoRTFMInstrumentation;
+			bEnableAutoRTFMVerification = Other.bEnableAutoRTFMVerification;
 			bCodeCoverage = Other.bCodeCoverage;
 			OptimizationLevel = Other.OptimizationLevel;
 			FPSemantics = Other.FPSemantics;
@@ -794,6 +819,7 @@ namespace UnrealBuildTool
 			bCheckSystemHeadersForModification = Other.bCheckSystemHeadersForModification;
 			ForceIncludeFiles.AddRange(Other.ForceIncludeFiles);
 			AdditionalPrerequisites.AddRange(Other.AdditionalPrerequisites);
+			ExtraGeneratedCPPFileTypes = Other.ExtraGeneratedCPPFileTypes;
 			CollidingNames = Other.CollidingNames;
 			FileInlineGenCPPMap = new Dictionary<FileItem, List<FileItem>>(Other.FileInlineGenCPPMap);
 			Definitions.AddRange(Other.Definitions);
@@ -827,6 +853,19 @@ namespace UnrealBuildTool
 		private FileItem? GetPrecompiledHeaderFile(PrecompiledHeaderInstance? Instance)
 		{
 			return Instance?.Output.GetPrecompiledHeaderFile(Architectures.SingleArchitecture);
+		}
+		
+		public bool FileMatchesExtraGeneratedCPPTypes(string FileName)
+		{
+			foreach (string fileFilter in ExtraGeneratedCPPFileTypes)
+			{
+				if (FileSystemName.MatchesSimpleExpression(fileFilter, FileName, true))
+				{
+					return true;
+				}
+			}
+
+			return false;
 		}
 	}
 }

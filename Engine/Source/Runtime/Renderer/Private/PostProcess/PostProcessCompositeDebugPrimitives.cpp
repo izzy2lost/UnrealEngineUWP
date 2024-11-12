@@ -70,7 +70,7 @@ FScreenPassTexture AddDebugPrimitivePass(
 		RDG_EVENT_NAME("DrawDebugPrimitives"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[&View, PassParameters, DebugView, OutputViewport](FRHICommandList& RHICmdList)
+		[&View, PassParameters, DebugView, OutputViewport](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		RHICmdList.SetViewport(OutputViewport.Rect.Min.X, OutputViewport.Rect.Min.Y, 0.0f, OutputViewport.Rect.Max.X, OutputViewport.Rect.Max.Y, 1.0f);
 

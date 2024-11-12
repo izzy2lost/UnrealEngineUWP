@@ -31,6 +31,8 @@ namespace UnrealBuildTool.Rules
 			);
 
 			NumIncludedBytesPerUnityCPPOverride = 120 * 1024;
+
+			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }

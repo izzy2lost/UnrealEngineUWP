@@ -63,7 +63,7 @@ public:
 	TSharedPtr<FUICommandInfo> DecreaseBreadth;
 
 	// Set the Breadth LImit
-	TSharedPtr<FUICommandInfo> SetBreadth;;
+	TSharedPtr<FUICommandInfo> SetBreadth;
 
 	// Toggles visiblity of Soft References
 	TSharedPtr<FUICommandInfo> ShowSoftReferences;
@@ -71,8 +71,10 @@ public:
 	// Toggles visiblity of Hard References
 	TSharedPtr<FUICommandInfo> ShowHardReferences;
 
-	// Toggles visiblity of EditorOnly References
-	TSharedPtr<FUICommandInfo> ShowEditorOnlyReferences;
+	// Sets which level of filter type between Game and EditorOnly is visible
+	TSharedPtr<FUICommandInfo> EditorOnlyReferenceFilterTypeGame;
+	TSharedPtr<FUICommandInfo> EditorOnlyReferenceFilterTypePropagation;
+	TSharedPtr<FUICommandInfo> EditorOnlyReferenceFilterTypeEditorOnly;
 
 	// Toggles visiblity of Management References (i.e. PrimaryAssetIDs)
 	TSharedPtr<FUICommandInfo> ShowManagementReferences;
@@ -130,7 +132,10 @@ public:
 
 	/** Zoom in to fit the selected objects in the window */
 	TSharedPtr<FUICommandInfo> ZoomToFit;
-	
+
+	/** Display the list of properties which are referencing the selected node from its referencing node(s) */
+	TSharedPtr<FUICommandInfo> ResolveReferencingProperties;
+
 	/** Start finding objects */
 	TSharedPtr<FUICommandInfo> Find;
 

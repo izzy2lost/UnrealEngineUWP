@@ -7,8 +7,472 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Templates/RefCounting.h"
-#include "RHI.h"
+#include "Misc/TVariant.h"
+#include "ProfilingDebugging/CsvProfiler.h"
+
+#include "RHIBreadcrumbs.h"
+
+#if HAS_GPU_STATS
+CSV_DECLARE_CATEGORY_MODULE_EXTERN(RHI_API, GPU);
+#endif
+
+#if RHI_NEW_GPU_PROFILER
+
+namespace UE::RHI::GPUProfiler
+{
+	struct FQueue
+	{
+		enum class EType : uint8
+		{
+			Graphics,
+			Compute,
+			Copy,
+			SwapChain
+		};
+
+		union
+		{
+			struct
+			{
+				EType Type;
+				uint8 GPU;
+				uint8 Index;
+				uint8 Padding;
+			};
+			uint32 Value = 0;
+		};
+
+		FQueue() = default;
+
+		constexpr FQueue(EType Type, uint8 GPU, uint8 Index)
+			: Type   (Type)
+			, GPU    (GPU)
+			, Index  (Index)
+			, Padding(0)
+		{}
+
+		constexpr bool operator == (FQueue const& RHS) const
+		{
+			return Value == RHS.Value;
+		}
+
+		constexpr bool operator != (FQueue const& RHS) const
+		{
+			return !(*this == RHS);
+		}
+
+		friend uint32 GetTypeHash(FQueue const& Queue)
+		{
+			return GetTypeHash(Queue.Value);
+		}
+
+		TCHAR const* GetTypeString() const
+		{
+			switch (Type)
+			{
+			case EType::Graphics:  return TEXT("Graphics");
+			case EType::Compute:   return TEXT("Compute");
+			case EType::Copy:      return TEXT("Copy");
+			case EType::SwapChain: return TEXT("Swapchain");
+			default:               return TEXT("<unknown>");
+			}
+		}
+	};
+
+	struct FEvent
+	{
+		//
+		// All timestamps are relative to FPlatformTime::Cycles64().
+		// TOP = Top of Pipe. Timestamps written by the GPU's command processor before work begins.
+		// BOP = Bottom of Pipe. Timestamps written after the GPU completes work.
+		//
+		
+		// Inserted on each call to RHIEndFrame. Marks the end of a profiler frame.
+		struct FFrameBoundary
+		{
+			// The index of the frame that just ended.
+			// Very first frame of the engine is frame 0 (from boot to first call to RHIEndFrame).
+			uint32 FrameNumber;
+
+		#if WITH_RHI_BREADCRUMBS
+			// The RHI breadcrumb currently at the top of the stack at the frame boundary.
+			FRHIBreadcrumbNode* Breadcrumb;
+		#endif
+
+			FFrameBoundary(uint32 FrameNumber
+			#if WITH_RHI_BREADCRUMBS
+				, FRHIBreadcrumbNode* Breadcrumb
+			#endif
+				)
+				: FrameNumber(FrameNumber)
+			#if WITH_RHI_BREADCRUMBS
+				, Breadcrumb(Breadcrumb)
+			#endif
+			{}
+		};
+
+	#if WITH_RHI_BREADCRUMBS
+		struct FBeginBreadcrumb
+		{
+			FRHIBreadcrumbNode* const Breadcrumb;
+			uint64 GPUTimestampTOP;
+
+			FBeginBreadcrumb(FRHIBreadcrumbNode* Breadcrumb, uint64 GPUTimestampTOP = 0)
+				: Breadcrumb(Breadcrumb)
+				, GPUTimestampTOP(GPUTimestampTOP)
+			{}
+		};
+
+		struct FEndBreadcrumb
+		{
+			FRHIBreadcrumbNode* const Breadcrumb;
+			uint64 GPUTimestampBOP = 0;
+
+			FEndBreadcrumb(FRHIBreadcrumbNode* Breadcrumb, uint64 GPUTimestampBOP = 0)
+				: Breadcrumb(Breadcrumb)
+				, GPUTimestampBOP(GPUTimestampBOP)
+			{}
+		};
+	#endif
+
+		// Inserted when the GPU starts work on a queue.
+		struct FBeginWork
+		{
+			// CPU timestamp of when the work was submitted to the driver for execution on the GPU.
+			uint64 CPUTimestamp;
+
+			// TOP timestamp of when the work actually started on the GPU.
+			uint64 GPUTimestampTOP;
+
+			FBeginWork(uint64 CPUTimestamp, uint64 GPUTimestampTOP = 0)
+				: CPUTimestamp(CPUTimestamp)
+				, GPUTimestampTOP(GPUTimestampTOP)
+			{}
+		};
+
+		// Inserted when the GPU completes work on a queue and goes idle.
+		struct FEndWork
+		{
+			uint64 GPUTimestampBOP;
+
+			FEndWork(uint64 GPUTimestampBOP = 0)
+				: GPUTimestampBOP(GPUTimestampBOP)
+			{}
+		};
+
+		struct FStats
+		{
+			uint32 NumDraws;
+			uint32 NumPrimitives;
+
+			operator bool() const
+			{
+				return NumDraws > 0 || NumPrimitives > 0;
+			}
+		};
+
+		// Can only be inserted when the GPU is marked "idle", i.e. after an FEndWork event.
+		struct FSignalFence
+		{
+			//
+			// Timestamp when the fence signal was enqueued to the GPU/driver.
+			// 
+			// The signal on the GPU doesn't happen until after the previous FEndWork
+			// event's BOP timestamp, or this CPU timestamp, whichever is later.
+			//
+			uint64 CPUTimestamp;
+
+			// Unique ID of the fence signaled.
+			uint64 ID;
+
+			// The fence value signaled.
+			uint64 Value;
+
+			FSignalFence(uint64 CPUTimestamp, uint64 ID, uint64 Value)
+				: CPUTimestamp(CPUTimestamp)
+				, ID(ID)
+				, Value(Value)
+			{}
+		};
+
+		// Can only be inserted when the GPU is marked "idle", i.e. after an FEndWork event.
+		struct FWaitFence
+		{
+			// Timestamp when the fence wait was enqueued to the GPU/driver.
+			uint64 CPUTimestamp;
+
+			// Unique ID of the fence awaited.
+			uint64 ID;
+
+			// The fence value awaited.
+			uint64 Value;
+
+			FWaitFence(uint64 CPUTimestamp, uint64 ID, uint64 Value)
+				: CPUTimestamp(CPUTimestamp)
+				, ID(ID)
+				, Value(Value)
+			{}
+		};
+
+		struct FFlip
+		{
+			uint64 GPUTimestamp;
+		};
+
+		struct FVsync
+		{
+			uint64 GPUTimestamp;
+		};
+		
+		using FStorage = TVariant<
+			  FFrameBoundary
+		#if WITH_RHI_BREADCRUMBS
+			, FBeginBreadcrumb
+			, FEndBreadcrumb
+		#endif
+			, FBeginWork
+			, FEndWork
+			, FStats
+			, FSignalFence
+			, FWaitFence
+			, FFlip
+			, FVsync
+		>;
+
+		enum class EType
+		{
+			FrameBoundary   = FStorage::IndexOfType<FFrameBoundary  >(),
+		#if WITH_RHI_BREADCRUMBS
+			BeginBreadcrumb = FStorage::IndexOfType<FBeginBreadcrumb>(),
+			EndBreadcrumb   = FStorage::IndexOfType<FEndBreadcrumb  >(),
+		#endif
+			BeginWork       = FStorage::IndexOfType<FBeginWork      >(),
+			EndWork         = FStorage::IndexOfType<FEndWork        >(),
+			Stats           = FStorage::IndexOfType<FStats          >(),
+			SignalFence     = FStorage::IndexOfType<FSignalFence    >(),
+			WaitFence       = FStorage::IndexOfType<FWaitFence      >(),
+			Flip            = FStorage::IndexOfType<FFlip           >(),
+			VSync		    = FStorage::IndexOfType<FVsync          >()
+		};
+
+		FStorage Value;
+
+		EType GetType() const
+		{
+			return static_cast<EType>(Value.GetIndex());
+		}
+
+		template <typename T>
+		FEvent(T const& Value)
+			: Value(TInPlaceType<T>(), Value)
+		{}
+
+		FEvent(FEvent const&) = delete;
+		FEvent(FEvent&&) = delete;
+	};
+
+	class FEventStream
+	{
+	private:
+		struct FChunk
+		{
+			struct FHeader
+			{
+				FChunk* Next = nullptr;
+				uint32 Num = 0;
+
+			#if WITH_RHI_BREADCRUMBS
+				FRHIBreadcrumbAllocatorArray BreadcrumbAllocators;
+			#endif
+			} Header;
+
+			static constexpr uint32 ChunkSizeInBytes = 16 * 1024;
+			static constexpr uint32 RemainingBytes = ChunkSizeInBytes - Align<uint32>(sizeof(FHeader), alignof(FHeader));
+			static constexpr uint32 MaxEventsPerChunk = RemainingBytes / Align<uint32>(sizeof(FEvent), alignof(FEvent));
+
+			TStaticArray<TTypeCompatibleBytes<FEvent>, MaxEventsPerChunk> Elements;
+
+			static RHI_API TLockFreePointerListUnordered<void, PLATFORM_CACHE_LINE_SIZE> MemoryPool;
+
+			void* operator new(size_t Size)
+			{
+				check(Size == sizeof(FChunk));
+
+				void* Memory = MemoryPool.Pop();
+				if (!Memory)
+				{
+					Memory = FMemory::Malloc(sizeof(FChunk), alignof(FChunk));
+				}
+				return Memory;
+			}
+
+			void operator delete(void* Pointer)
+			{
+				MemoryPool.Push(Pointer);
+			}
+
+			FEvent* GetElement(uint32 Index)
+			{
+				return Elements[Index].GetTypedPtr();
+			}
+		};
+
+		static_assert(sizeof(FChunk) <= FChunk::ChunkSizeInBytes, "Incorrect FChunk size.");
+
+		FChunk* First = nullptr;
+		FChunk* Current = nullptr;
+
+	public:
+		FEventStream() = default;
+		FEventStream(FEventStream const&) = delete;
+
+		FEventStream(FEventStream&& Other)
+			: First(Other.First)
+			, Current(Other.Current)
+		{
+			Other.First = nullptr;
+			Other.Current = nullptr;
+		}
+
+		~FEventStream()
+		{
+			while (First)
+			{
+				FChunk* Next = First->Header.Next;
+				delete First;
+				First = Next;
+			}
+		}
+
+		template <typename TEventType, typename... TArgs>
+		TEventType& Emplace(TArgs&&... Args)
+		{
+			static_assert(std::is_trivially_destructible_v<TEventType>, "Destructors are not called on GPU profiler events, so the types must be trivially destructible.");
+
+			if (!Current)
+			{
+				Current = new FChunk;
+				if (!First)
+				{
+					First = Current;
+				}
+			}
+
+			if (Current->Header.Num >= FChunk::MaxEventsPerChunk)
+			{
+				FChunk* NewChunk = new FChunk;
+				Current->Header.Next = NewChunk;
+				Current = NewChunk;
+			}
+
+			FEvent* Event = Current->GetElement(Current->Header.Num++);
+			new (Event) FEvent(TEventType(Forward<TArgs>(Args)...));
+
+			TEventType& Data = Event->Value.Get<TEventType>();
+
+		#if WITH_RHI_BREADCRUMBS
+			if constexpr (
+				std::is_same_v<UE::RHI::GPUProfiler::FEvent::FBeginBreadcrumb, TEventType> ||
+				std::is_same_v<UE::RHI::GPUProfiler::FEvent::FEndBreadcrumb  , TEventType>
+				)
+			{
+				// Attach the breadcrumb allocator for begin/end breadcrumb events.
+				// This keeps the breadcrumbs alive until the events have been consumed by the profilers.
+				Current->Header.BreadcrumbAllocators.AddUnique(Data.Breadcrumb->Allocator);
+			}
+		#endif
+
+			return Data;
+		}
+
+		bool IsEmpty() const
+		{
+			return First == nullptr;
+		}
+
+		void Append(FEventStream&& Other)
+		{
+			if (IsEmpty())
+			{
+				Current = Other.Current;
+				First = Other.First;
+			}
+			else if (!Other.IsEmpty())
+			{
+				Current->Header.Next = Other.First;
+				Current = Other.Current;
+			}
+
+			Other.Current = nullptr;
+			Other.First = nullptr;
+		}
+
+		auto begin() const
+		{
+			class FIterator
+			{
+				friend FEventStream;
+
+				FChunk* Current;
+				uint32 Index = 0;
+
+				FIterator(FChunk* Current)
+					: Current(Current)
+				{}
+
+			public:
+				FIterator& operator++()
+				{
+					++Index;
+
+					while (Current && Index >= Current->Header.Num)
+					{
+						Current = Current->Header.Next;
+						Index = 0;
+					}
+
+					return *this;
+				}
+
+				bool operator != (std::nullptr_t) const
+				{
+					return Current != nullptr;
+				}
+
+				FEvent const* operator*() const
+				{
+					return Current->GetElement(Index);
+				}
+			};
+
+			return FIterator(First);
+		}
+
+		std::nullptr_t end() const
+		{
+			return nullptr;
+		}
+	};
+
+	struct FEventSink
+	{
+	protected:
+		RHI_API FEventSink();
+		RHI_API ~FEventSink();
+
+		FEventSink(FEventSink const&) = delete;
+		FEventSink(FEventSink&&) = delete;
+
+	public:
+		virtual void ProcessEvents(FQueue Queue, FEventStream const& EventStream) = 0;
+		virtual void InitializeQueues(TConstArrayView<FQueue> Queues) = 0;
+	};
+
+	RHI_API void ProcessEvents(FQueue Queue, FEventStream EventStream);
+	RHI_API void InitializeQueues(TConstArrayView<FQueue> Queues);
+}
+
+#else
 
 /** Stats for a single perf event node. */
 class FGPUProfilerEventNodeStats : public FRefCountedObject
@@ -267,7 +731,7 @@ struct FGPUProfiler
 	int32 GPUCrashDataDepth;
 
 	/** Current perf event node frame. */
-	FGPUProfilerEventNodeFrame* CurrentEventNodeFrame;
+	FGPUProfilerEventNodeFrame* CurrentEventNodeFrame = nullptr;
 
 	/** Current perf event node. */
 	FGPUProfilerEventNode* CurrentEventNode;
@@ -326,4 +790,8 @@ struct FGPUProfiler
 
 	RHI_API virtual void PushEvent(const TCHAR* Name, FColor Color);
 	RHI_API virtual void PopEvent();
+
+	bool IsProfilingGPU() const { return bTrackingEvents; }
 };
+
+#endif

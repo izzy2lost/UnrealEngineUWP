@@ -214,6 +214,8 @@ public:
 	FRotator GetOrientation_WorldSpace() const;
 	FRotator GetOrientation_BaseSpace() const;
 
+	FTransform GetTransform_WorldSpace() const;
+	FTransform GetTransform_BaseSpace() const;
 };
 
 template<>

@@ -6,6 +6,7 @@
 #include "IPropertyTypeCustomization.h"
 
 class SButton;
+class SDataflowGraphEditor;
 
 namespace UE::Chaos::ClothAsset
 {
@@ -27,8 +28,9 @@ namespace UE::Chaos::ClothAsset
 		FString HandleFilePathPickerFilePath() const;
 		void HandleFilePathPickerPathPicked(const FString& PickedPath);
 
+		TWeakPtr<const SDataflowGraphEditor> DataflowGraphEditor;
+		TSharedPtr<IPropertyHandle> StructProperty;
 		TSharedPtr<IPropertyHandle> PathStringProperty;
-		TSharedPtr<IPropertyHandle> ForceReimport;
 		bool bLongPackageName;
 		bool bRelativeToGameDir;
 	};

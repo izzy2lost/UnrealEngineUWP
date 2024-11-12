@@ -31,10 +31,23 @@ public:
 
 	/**
 	 * Query information about a Mesh Selection
+	 * Note that NumSelected may double count some polygroups and (non-border) edges due to their internal representation
+	 * Use GetMeshUniqueSelectionInfo for an accurate count of unique mesh elements
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta=(ScriptMethod))
 	static void
 	GetMeshSelectionInfo(
+		FGeometryScriptMeshSelection Selection,
+		EGeometryScriptMeshSelectionType& SelectionType,
+		int& NumSelected);
+
+	/**
+	 * Query information about a Mesh Selection, and get a count of unique selected elements
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta = (ScriptMethod))
+	static void
+	GetMeshUniqueSelectionInfo(
+		const UDynamicMesh* TargetMesh,
 		FGeometryScriptMeshSelection Selection,
 		EGeometryScriptMeshSelectionType& SelectionType,
 		int& NumSelected);
@@ -59,14 +72,38 @@ public:
 		FGeometryScriptMeshSelection& Selection,
 		EGeometryScriptMeshSelectionType SelectionType = EGeometryScriptMeshSelectionType::Triangles );
 
+	/**
+	 * Create a Selection of the SelectionType that contains all mesh elements referencing triangles with the given Material ID
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	SelectMeshElementsByMaterialID(
+		UDynamicMesh* TargetMesh,
+		int MaterialID,
+		FGeometryScriptMeshSelection& Selection,
+		EGeometryScriptMeshSelectionType SelectionType = EGeometryScriptMeshSelectionType::Triangles );
+
+	/**
+	 * Create a Selection of the SelectionType that contains all mesh elements referencing triangles with the given PolyGroup ID in the given GroupLayer
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	SelectMeshElementsByPolygroup(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptGroupLayer GroupLayer,
+		UPARAM(DisplayName = "PolyGroup ID") int PolygroupID,
+		FGeometryScriptMeshSelection& Selection,
+		EGeometryScriptMeshSelectionType SelectionType = EGeometryScriptMeshSelectionType::Triangles );
 
 	/**
 	 * Convert a Mesh Selection to a different Type (eg Vertices to Triangles, etc)
 	 * By default, Vertices map to Triangle one-rings, and Triangles to all contained vertices.
 	 * If bAllowPartialInclusion is disabled, then more restrictive conversions are performed, as follows:
-	 *   For To-Vertices, only include vertices where all one-ring triangles are included in FromSelection.
-	 *   For To-Triangles, only include triangles where all tri vertices are included in FromSelection.
-	 *   For To-PolyGroups, only include groups where all group triangles are included in FromSelection
+	 *   For To-Vertices, only include vertices where all one-ring triangles or edges are included in FromSelection.
+	 *   For To-Edges, only include edges where all adjacent triangles or vertices are included in FromSelection
+	 *   For To-Triangles, only include triangles where all tri vertices or edges are included in FromSelection.
+	 *   For To-PolyGroups, only include groups where all group triangles are touched by FromSelection
+	 * (Note: The To-PolyGroups rule allows vertex and edge selections that miss some vertices or edges, as long as they touch all the polygroup triangles.)
 	 * @param bAllowPartialInclusion if false, perform more limited selection conversion as described above
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta=(ScriptMethod))
@@ -158,7 +195,7 @@ public:
 	/**
 	 * Create a new Mesh Selection of the SelectionType for the TargetMesh by finding all elements contained in the Box.
 	 * @param bInvert return a selection of all elements not in the Box
-	 * @param MinNumTrianglePoints number of vertices of a triangle that must be in the box for it to be selected (1,2, or 3)
+	 * @param MinElementVertices number of vertices of a triangle or edge that must be in the box for it to be selected (clamped to 1-3 for tri; 1-2 for edge)
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta=(ScriptMethod, AdvancedDisplay="MinNumTrianglePoints"))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
@@ -168,14 +205,14 @@ public:
 		FBox Box,
 		EGeometryScriptMeshSelectionType SelectionType = EGeometryScriptMeshSelectionType::Triangles,
 		bool bInvert = false,
-		int MinNumTrianglePoints = 3);
+		UPARAM(DisplayName = "Min Element Vertices") int MinNumTrianglePoints = 3);
 
 	/**
 	* Create a new Mesh Selection of the SelectionType for the TargetMesh by finding all elements contained in the Sphere.
 	* @param SphereOrigin center point of the Sphere
 	* @param SphereRadius radius of the Sphere
 	* @param bInvert return a selection of all elements not in the Sphere
-	* @param MinNumTrianglePoints number of vertices of a triangle that must be in the Sphere for it to be selected (1,2, or 3)
+	* @param MinElementVertices number of vertices of a triangle or edge that must be in the Sphere for it to be selected (clamped to 1-3 for tri; 1-2 for edge)
 	*/
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta=(ScriptMethod, AdvancedDisplay="MinNumTrianglePoints"))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
@@ -186,14 +223,14 @@ public:
 		double SphereRadius = 100.0,
 		EGeometryScriptMeshSelectionType SelectionType = EGeometryScriptMeshSelectionType::Triangles,
 		bool bInvert = false,
-		int MinNumTrianglePoints = 3);
+		UPARAM(DisplayName = "Min Element Vertices") int MinNumTrianglePoints = 3);
 
 	/**
 	* Create a new Mesh Selection of the SelectionType for the TargetMesh by finding all elements on the "positive" side of a Plane
 	* @param PlaneOrigin center point of the Plane
 	* @param PlaneNormal normal vector for the Plane
 	* @param bInvert return a selection of all elements on the other (negative) side of the Plane
-	* @param MinNumTrianglePoints number of vertices of a triangle that must be on the positive Plane side to be selected (1,2, or 3)
+	* @param MinElementVertices number of vertices of a triangle or edge that must be on the positive Plane side to be selected (clamped to 1-3 for tri; 1-2 for edge)
 	*/
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta=(ScriptMethod, AdvancedDisplay="MinNumTrianglePoints"))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
@@ -204,7 +241,7 @@ public:
 		FVector PlaneNormal = FVector::UpVector,
 		EGeometryScriptMeshSelectionType SelectionType = EGeometryScriptMeshSelectionType::Triangles,
 		bool bInvert = false,
-		int MinNumTrianglePoints = 3);
+		UPARAM(DisplayName = "Min Element Vertices") int MinNumTrianglePoints = 3);
 
 	/**
 	* Create a new Mesh Selection of the SelectionType for the TargetMesh by finding all elements that have a normal
@@ -213,7 +250,7 @@ public:
 	* @param Normal normal/direction vector to measure against
 	* @param MaxAngleDeg maximum angular deviation from Normal, in degrees
 	* @param bInvert return a selection of all elements not within the given deviation
-	* @param MinNumTrianglePoints number of vertices of a triangle that must be within the angular deviation for it to be selected (1,2, or 3)
+	* @param MinElementVertices number of vertices of a triangle or edge that must be within the angular deviation for it to be selected  (clamped to 1-3 for tri; 1-2 for edge)
 	*/
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta=(ScriptMethod, AdvancedDisplay="MinNumTrianglePoints"))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
@@ -224,7 +261,41 @@ public:
 		double MaxAngleDeg = 1.0,
 		EGeometryScriptMeshSelectionType SelectionType = EGeometryScriptMeshSelectionType::Triangles,
 		bool bInvert = false,
-		int MinNumTrianglePoints = 3);
+		UPARAM(DisplayName = "Min Element Vertices") int MinNumTrianglePoints = 3);
+
+	/**
+	 * Create a new Selection, for the TargetMesh, of all 'sharp' edges where the edge's adjacent triangle normals differ by at least MinAngleDeg
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	SelectMeshSharpEdges(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptMeshSelection& Selection,
+		double MinAngleDeg = 20.0
+	);
+
+	/**
+	 * Create a new Selection, for the TargetMesh, of all mesh boundary edges
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	SelectMeshBoundaryEdges(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptMeshSelection& Selection
+	);
+
+	/**
+	 * Create a new BoundarySelection, for the TargetMesh, of the edges on the boundary of another Selection
+	 * @param bExcludeMeshBoundaryEdges If true, do not include Selection boundary edges if they are also mesh boundary edges
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	SelectSelectionBoundaryEdges(
+		UDynamicMesh* TargetMesh,
+		const FGeometryScriptMeshSelection& Selection,
+		FGeometryScriptMeshSelection& BoundarySelection,
+		bool bExcludeMeshBoundaryEdges = false
+	);
 
 
 	/**
@@ -234,7 +305,7 @@ public:
 	* @param bInvert return a selection of all elements not within the given deviation
 	* @param ShellDistance If > 0, points within this distance from SelectionMesh will also be considered "inside"
 	* @param WindingThreshold Threshold used for Fast Mesh Winding Number inside/outside test (range is [0,1], with 1 being "inside")
-	* @param MinNumTrianglePoints number of vertices of a triangle that must be within the angular deviation for it to be selected (1,2, or 3)
+	* @param MinElementVertices number of vertices of a triangle or edge that must be within the selection mesh for it to be selected  (clamped to 1-3 for tri; 1-2 for edge)
 	*/
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshSelection", meta=(ScriptMethod, AdvancedDisplay="MinNumTrianglePoints"))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
@@ -247,7 +318,7 @@ public:
 		bool bInvert = false,
 		double ShellDistance = 0.0,
 		double WindingThreshold = 0.5,
-		int MinNumTrianglePoints = 3);
+		UPARAM(DisplayName = "Min Element Vertices") int MinNumTrianglePoints = 3);
 
 
 	/**

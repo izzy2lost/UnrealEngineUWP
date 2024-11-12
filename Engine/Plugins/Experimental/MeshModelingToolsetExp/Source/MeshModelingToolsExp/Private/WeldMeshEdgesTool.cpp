@@ -10,9 +10,11 @@
 
 #include "DynamicMesh/DynamicMesh3.h"
 #include "DynamicMesh/Operations/MergeCoincidentMeshEdges.h"
+#include "DynamicMeshEditor.h"
 #include "Operations/MeshResolveTJunctions.h"
 
 #include "Math/UnrealMathUtility.h"
+#include "Selections/GeometrySelectionUtil.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WeldMeshEdgesTool)
 
@@ -24,7 +26,7 @@ using namespace UE::Geometry;
  * ToolBuilder
  */
 
-USingleSelectionMeshEditingTool* UWeldMeshEdgesToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
+USingleTargetWithSelectionTool* UWeldMeshEdgesToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
 {
 	return NewObject<UWeldMeshEdgesTool>(SceneState.ToolManager);
 }
@@ -48,6 +50,7 @@ public:
 
 	// parameters set by the tool
 	TSharedPtr<FDynamicMesh3, ESPMode::ThreadSafe> SourceMesh;
+	TSet<int32> SelectedEdges;
 	double Tolerance;
 	bool bOnlyUnique;
 	bool bResolveTJunctions;
@@ -56,6 +59,7 @@ public:
 	float SplitTangentsThreshold;
 	float SplitUVThreshold;
 	float SplitColorThreshold; 
+	bool bSplitBowties;
 
 	int32 InitialNumBoundaryEdges = 0;
 	int32 FinalNumBoundaryEdges = 0;
@@ -88,6 +92,28 @@ public:
 
 		ResultMesh->Copy(*SourceMesh, true, true, true, true);
 
+		if (bSplitBowties)
+		{
+			FDynamicMeshEditor Editor(ResultMesh.Get());
+			FDynamicMeshEditResult EditResult;
+			if (SelectedEdges.IsEmpty())
+			{
+				Editor.SplitBowties(EditResult);
+			}
+			else
+			{
+				// Note split bowties should never introduce new edges, just reconnects triangles to a new vertex, so edge IDs should be stable here
+				for (int32 EID : SelectedEdges)
+				{
+					FIndex2i EdgeV = ResultMesh->GetEdgeV(EID);
+					for (int32 SubIdx = 0; SubIdx < 2; ++SubIdx)
+					{
+						Editor.SplitBowties(EdgeV[SubIdx], EditResult);
+					}
+				}
+			}
+		}
+
 		// If we had bowties or broken normals on input, we will probably still have them on output...
 		bool bWasCleanMesh = ResultMesh->CheckValidity(FDynamicMesh3::FValidityOptions(), EValidityCheckFailMode::ReturnOnly);
 
@@ -99,6 +125,10 @@ public:
 		FinalNumBoundaryEdges = InitialNumBoundaryEdges;
 
 		FMergeCoincidentMeshEdges Merger(ResultMesh.Get());
+		if (!SelectedEdges.IsEmpty())
+		{
+			Merger.EdgesToMerge = &SelectedEdges;	
+		}
 		Merger.MergeVertexTolerance = Tolerance;
 		Merger.MergeSearchTolerance = 2 * Merger.MergeVertexTolerance;
 		Merger.OnlyUniquePairs = bOnlyUnique;
@@ -184,8 +214,18 @@ void UWeldMeshEdgesTool::Setup()
 {
 	UInteractiveTool::Setup();
 
+	static FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = true;
+	SourceMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(UE::ToolTarget::GetDynamicMeshCopy(Target, GetMeshParams));
 
-	SourceMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(UE::ToolTarget::GetDynamicMeshCopy(Target, true));
+	// initialize selection if exists
+	if (HasGeometrySelection())
+	{
+		const FGeometrySelection& InputSelection = GetGeometrySelection();
+
+		UE::Geometry::EnumerateSelectionEdges(InputSelection, *SourceMesh,
+			[&](const int32 EdgeID) { SelectedEdges.Add(EdgeID); });
+	}
 
 	FTransform MeshTransform = (FTransform)UE::ToolTarget::GetLocalToWorldTransform(Target);
 
@@ -215,6 +255,7 @@ void UWeldMeshEdgesTool::Setup()
 	Settings->WatchProperty(Settings->Tolerance, [this](float) { PreviewCompute->InvalidateResult(); });
 	Settings->WatchProperty(Settings->bOnlyUnique, [this](bool) { PreviewCompute->InvalidateResult(); });
 	Settings->WatchProperty(Settings->bResolveTJunctions, [this](bool) { PreviewCompute->InvalidateResult(); });
+	Settings->WatchProperty(Settings->bSplitBowties, [this](bool) { PreviewCompute->InvalidateResult(); });
 	Settings->WatchProperty(Settings->AttrWeldingMode, [this](EWeldMeshEdgesAttributeUIMode) { PreviewCompute->InvalidateResult(); });
 	Settings->WatchProperty(Settings->SplitUVThreshold, [this](float) { PreviewCompute->InvalidateResult(); });
 	Settings->WatchProperty(Settings->SplitColorThreshold, [this](float) { PreviewCompute->InvalidateResult(); });
@@ -322,6 +363,7 @@ void UWeldMeshEdgesTool::UpdateOpParameters(FWeldMeshEdgesOp& Op) const
 
 	Op.bOnlyUnique = Settings->bOnlyUnique;
 	Op.bResolveTJunctions = Settings->bResolveTJunctions;
+	Op.bSplitBowties = Settings->bSplitBowties;
 	Op.Tolerance = Settings->Tolerance;
 
 	Op.WeldAttributeMode = GetAttrMergeMode(Settings->AttrWeldingMode);
@@ -331,6 +373,7 @@ void UWeldMeshEdgesTool::UpdateOpParameters(FWeldMeshEdgesOp& Op) const
 	Op.SplitTangentsThreshold = Settings->SplitTangentsThreshold;
 	
 	Op.SourceMesh = SourceMesh;
+	Op.SelectedEdges = SelectedEdges;
 
 	FTransform LocalToWorld = (FTransform)UE::ToolTarget::GetLocalToWorldTransform(Target);
 	Op.SetTransform(LocalToWorld);

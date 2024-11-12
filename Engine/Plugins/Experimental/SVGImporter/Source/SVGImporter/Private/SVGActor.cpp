@@ -20,6 +20,7 @@
 #include "LevelEditor.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "Modules/ModuleManager.h"
+#include "SVGActorEditorComponent.h"
 #include "SVGImporterUtils.h"
 #include "ScopedTransaction.h"
 #include "Widgets/Notifications/SNotificationList.h"
@@ -93,6 +94,11 @@ ASVGActor::ASVGActor()
 
 	FillShapesRoot = CreateDefaultSubobject<USceneComponent>("FillsRoot");
 	FillShapesRoot->SetupAttachment(RootComponent);
+
+#if WITH_EDITOR
+	SVGEditorComponent = CreateDefaultSubobject<USVGActorEditorComponent>("SVGEditorComponent");
+	SVGEditorComponent->SetupAttachment(RootComponent);
+#endif
 
 	bMeshesShouldBeGenerated = true;
 	CurrExtrudeForDepth = 0.0f;

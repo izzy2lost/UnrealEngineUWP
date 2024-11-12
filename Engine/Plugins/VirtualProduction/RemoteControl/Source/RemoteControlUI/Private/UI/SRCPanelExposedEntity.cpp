@@ -89,6 +89,7 @@ TSharedPtr<SWidget> SRCPanelExposedEntity::GetContextMenu()
 	MenuBuilder.BeginSection("Common");
 
 	MenuBuilder.AddMenuEntry(FRemoteControlCommands::Get().RenameEntity, NAME_None, TAttribute<FText>(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("GenericCommands.Rename")));
+	MenuBuilder.AddMenuEntry(FRemoteControlCommands::Get().ChangePropId, NAME_None, TAttribute<FText>(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("Icons.Edit")));
 	MenuBuilder.AddMenuEntry(FRemoteControlCommands::Get().DeleteEntity, NAME_None, TAttribute<FText>(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("GenericCommands.Delete")));
 
 	MenuBuilder.EndSection();
@@ -556,6 +557,8 @@ SRCPanelTreeNode::FMakeNodeWidgetArgs SRCPanelExposedEntity::CreateEntityWidgetI
 			.IsReadOnly_Lambda([this]() { return bLiveMode.Get(); })
 			.HighlightText_Lambda([this]() { return HighlightText.Get().ToString().Len() > 3 ? HighlightText.Get() : FText::GetEmpty(); })
 		];
+
+	Args.PropertyIdWidget = SNullWidget::NullWidget;
 
 	Args.ValueWidget = ValueWidget;
 

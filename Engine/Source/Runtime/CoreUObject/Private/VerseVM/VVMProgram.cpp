@@ -3,8 +3,8 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMProgram.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
+#include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
-#include "VerseVM/VVMMarkStackVisitor.h"
 
 namespace Verse
 {
@@ -15,7 +15,8 @@ TGlobalTrivialEmergentTypePtr<&VProgram::StaticCppClassInfo> VProgram::GlobalTri
 template <typename TVisitor>
 void VProgram::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Map.Visit(Visitor, TEXT("PackageMap"));
+	PackageMap.Visit(Visitor, TEXT("PackageMap"));
+	TupleTypeMap.Visit(Visitor, TEXT("TupleTypeMap"));
 	Visitor.Visit(Intrinsics, TEXT("Intrinsics"));
 }
 

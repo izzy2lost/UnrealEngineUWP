@@ -8,8 +8,6 @@
 #include "Rendering/PositionVertexBuffer.h"
 #include "Rendering/SkinWeightVertexBuffer.h"
 #include "Rendering/StaticMeshVertexBuffer.h"
-#include "Converters/GLTFNormalArray.h"
-#include "Converters/GLTFUVArray.h"
 
 namespace
 {
@@ -49,78 +47,6 @@ namespace
 		}
 	};
 
-	FGLTFJsonAccessor* ConvertVertexBuffer(const FPositionVertexBuffer* VertexBuffer, FGLTFConvertBuilder& Builder, const TArray<uint32>& IndexMap = TArray<uint32>())
-	{
-		if (VertexBuffer == nullptr || VertexBuffer->GetNumVertices() == 0)
-		{
-			return nullptr;
-		}
-
-		const TUniquePtr<IGLTFBufferAdapter> SourceBuffer = IGLTFBufferAdapter::GetPositions(VertexBuffer);
-		const uint8* SourceData = SourceBuffer->GetData();
-
-		if (SourceData == nullptr)
-		{
-			// TODO: report error
-			return nullptr;
-		}
-
-		const uint32 VertexCount = IndexMap.Num() > 0 ? IndexMap.Num() : VertexBuffer->GetNumVertices();
-		const uint32 Stride = VertexBuffer->GetStride();
-
-		TArray<FGLTFVector3> Positions;
-		Positions.AddUninitialized(VertexCount);
-
-		if (IndexMap.Num() > 0)
-		{
-			for (uint32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
-			{
-				const uint32 MappedVertexIndex = IndexMap[VertexIndex];
-				const FVector3f& Position = *reinterpret_cast<const FVector3f*>(SourceData + Stride * MappedVertexIndex);
-				Positions[VertexIndex] = FGLTFCoreUtilities::ConvertPosition(Position, Builder.ExportOptions->ExportUniformScale);
-			}
-		}
-		else
-		{
-			for (uint32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
-			{
-				const FVector3f& Position = *reinterpret_cast<const FVector3f*>(SourceData + Stride * VertexIndex);
-				Positions[VertexIndex] = FGLTFCoreUtilities::ConvertPosition(Position, Builder.ExportOptions->ExportUniformScale);
-			}
-		}
-
-
-		FGLTFJsonAccessor* JsonAccessor = Builder.AddAccessor();
-		JsonAccessor->BufferView = Builder.AddBufferView(Positions, EGLTFJsonBufferTarget::ArrayBuffer);
-		JsonAccessor->ComponentType = EGLTFJsonComponentType::Float;
-		JsonAccessor->Count = VertexCount;
-		JsonAccessor->Type = EGLTFJsonAccessorType::Vec3;
-
-		if (VertexCount > 0)
-		{
-			// Calculate accurate bounding box based on raw vertex values
-			JsonAccessor->MinMaxLength = 3;
-
-			for (int32 ComponentIndex = 0; ComponentIndex < JsonAccessor->MinMaxLength; ComponentIndex++)
-			{
-				JsonAccessor->Min[ComponentIndex] = Positions[0].Components[ComponentIndex];
-				JsonAccessor->Max[ComponentIndex] = Positions[0].Components[ComponentIndex];
-			}
-
-			for (uint32 VertexIndex = 1; VertexIndex < VertexCount; ++VertexIndex)
-			{
-				const FGLTFVector3& Position = Positions[VertexIndex];
-				for (int32 ComponentIndex = 0; ComponentIndex < JsonAccessor->MinMaxLength; ComponentIndex++)
-				{
-					JsonAccessor->Min[ComponentIndex] = FMath::Min(JsonAccessor->Min[ComponentIndex], Position.Components[ComponentIndex]);
-					JsonAccessor->Max[ComponentIndex] = FMath::Max(JsonAccessor->Max[ComponentIndex], Position.Components[ComponentIndex]);
-				}
-			}
-		}
-
-		return JsonAccessor;
-	}
-
 	template <typename IndexType, typename IndexBufferType>
 	FGLTFJsonAccessor* ConvertIndexBuffer(const TArray<IndexBufferType>& IndexBuffer, FGLTFConvertBuilder& Builder)
 	{
@@ -146,21 +72,34 @@ namespace
 
 		return JsonAccessor;
 	}
+
+	template <typename ComponentType, EGLTFJsonAccessorType AccessorType, class ContainerClass>
+	FGLTFJsonAccessor* ConvertToAccessor(FGLTFConvertBuilder& Builder, ContainerClass& Container, bool bNormalized = false)
+	{
+		if (Container.Num() == 0)
+		{
+			return nullptr;
+		}
+
+		FGLTFJsonAccessor* JsonAccessor = Builder.AddAccessor();
+		JsonAccessor->BufferView = Builder.AddBufferView(Container, EGLTFJsonBufferTarget::ArrayBuffer);
+		JsonAccessor->ComponentType = FGLTFCoreUtilities::GetComponentType<ComponentType>();
+		JsonAccessor->Count = Container.Num();
+		JsonAccessor->Type = AccessorType;
+		JsonAccessor->bNormalized = bNormalized;
+
+		return JsonAccessor;
+	}
 }
 
 FGLTFJsonAccessor* FGLTFPositionBufferConverter::Convert(const FGLTFMeshSection* MeshSection, const FPositionVertexBuffer* VertexBuffer)
-{
-	return ConvertVertexBuffer(VertexBuffer, Builder, MeshSection->IndexMap);
-}
-
-FGLTFJsonAccessor* FGLTFColorBufferConverter::Convert(const FGLTFMeshSection* MeshSection, const FColorVertexBuffer* VertexBuffer)
 {
 	if (VertexBuffer == nullptr || VertexBuffer->GetNumVertices() == 0)
 	{
 		return nullptr;
 	}
 
-	const TUniquePtr<IGLTFBufferAdapter> SourceBuffer = IGLTFBufferAdapter::GetColors(VertexBuffer);
+	const TUniquePtr<IGLTFBufferAdapter> SourceBuffer = IGLTFBufferAdapter::GetPositions(VertexBuffer);
 	const uint8* SourceData = SourceBuffer->GetData();
 
 	if (SourceData == nullptr)
@@ -170,18 +109,104 @@ FGLTFJsonAccessor* FGLTFColorBufferConverter::Convert(const FGLTFMeshSection* Me
 	}
 
 	const TArray<uint32>& IndexMap = MeshSection->IndexMap;
-	const uint32 VertexCount = IndexMap.Num();
+	const uint32 VertexCount = IndexMap.Num() > 0 ? IndexMap.Num() : VertexBuffer->GetNumVertices();
 	const uint32 Stride = VertexBuffer->GetStride();
+
+	TArray<FGLTFVector3> Positions;
+	Positions.AddUninitialized(VertexCount);
+
+	if (IndexMap.Num() > 0)
+	{
+		for (uint32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+		{
+			const uint32 MappedVertexIndex = IndexMap[VertexIndex];
+			const FVector3f& Position = *reinterpret_cast<const FVector3f*>(SourceData + Stride * MappedVertexIndex);
+			Positions[VertexIndex] = FGLTFCoreUtilities::ConvertPosition(Position, Builder.ExportOptions->ExportUniformScale);
+		}
+	}
+	else
+	{
+		for (uint32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+		{
+			const FVector3f& Position = *reinterpret_cast<const FVector3f*>(SourceData + Stride * VertexIndex);
+			Positions[VertexIndex] = FGLTFCoreUtilities::ConvertPosition(Position, Builder.ExportOptions->ExportUniformScale);
+		}
+	}
+
+
+	FGLTFJsonAccessor* JsonAccessor = Builder.AddAccessor();
+	JsonAccessor->BufferView = Builder.AddBufferView(Positions, EGLTFJsonBufferTarget::ArrayBuffer);
+	JsonAccessor->ComponentType = EGLTFJsonComponentType::Float;
+	JsonAccessor->Count = VertexCount;
+	JsonAccessor->Type = EGLTFJsonAccessorType::Vec3;
+
+	if (VertexCount > 0)
+	{
+		// Calculate accurate bounding box based on raw vertex values
+		JsonAccessor->MinMaxLength = 3;
+
+		for (int32 ComponentIndex = 0; ComponentIndex < JsonAccessor->MinMaxLength; ComponentIndex++)
+		{
+			JsonAccessor->Min[ComponentIndex] = Positions[0].Components[ComponentIndex];
+			JsonAccessor->Max[ComponentIndex] = Positions[0].Components[ComponentIndex];
+		}
+
+		for (uint32 VertexIndex = 1; VertexIndex < VertexCount; ++VertexIndex)
+		{
+			const FGLTFVector3& Position = Positions[VertexIndex];
+			for (int32 ComponentIndex = 0; ComponentIndex < JsonAccessor->MinMaxLength; ComponentIndex++)
+			{
+				JsonAccessor->Min[ComponentIndex] = FMath::Min(JsonAccessor->Min[ComponentIndex], Position.Components[ComponentIndex]);
+				JsonAccessor->Max[ComponentIndex] = FMath::Max(JsonAccessor->Max[ComponentIndex], Position.Components[ComponentIndex]);
+			}
+		}
+	}
+
+	return JsonAccessor;
+}
+
+FGLTFJsonAccessor* FGLTFColorBufferConverter::Convert(const FGLTFMeshSection* MeshSection, const FColorVertexBuffer* VertexColorBufferBuffer)
+{
+	if (VertexColorBufferBuffer == nullptr || VertexColorBufferBuffer->GetNumVertices() == 0)
+	{
+		return nullptr;
+	}
+
+	const TUniquePtr<IGLTFBufferAdapter> SourceBuffer = IGLTFBufferAdapter::GetColors(VertexColorBufferBuffer);
+	const uint8* SourceData = SourceBuffer->GetData();
+
+	if (SourceData == nullptr)
+	{
+		// TODO: report error
+		return nullptr;
+	}
+
+	const TArray<uint32>& IndexMap = MeshSection->IndexMap;
+	const uint32 VertexCount = IndexMap.Num() > 0 ? IndexMap.Num() : VertexColorBufferBuffer->GetNumVertices();
+	const uint32 Stride = VertexColorBufferBuffer->GetStride();
 
 	TArray<FGLTFUInt8Color4> Colors;
 	Colors.AddUninitialized(VertexCount);
 
-	for (uint32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+	if (IndexMap.Num() > 0)
 	{
-		const uint32 MappedVertexIndex = IndexMap[VertexIndex];
-		const FColor& Color = *reinterpret_cast<const FColor*>(SourceData + Stride * MappedVertexIndex);
-		Colors[VertexIndex] = FGLTFCoreUtilities::ConvertColor(Color);
+		for (uint32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+		{
+			const uint32 MappedVertexIndex = IndexMap[VertexIndex];
+			const FColor& Color = *reinterpret_cast<const FColor*>(SourceData + Stride * MappedVertexIndex);
+			Colors[VertexIndex] = FGLTFCoreUtilities::ConvertColor(Color);
+		}
 	}
+	else
+	{
+		for (uint32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+		{
+			const FColor& Color = *reinterpret_cast<const FColor*>(SourceData + Stride * VertexIndex);
+			Colors[VertexIndex] = FGLTFCoreUtilities::ConvertColor(Color);
+		}
+	}
+
+
 
 	FGLTFJsonAccessor* JsonAccessor = Builder.AddAccessor();
 	JsonAccessor->BufferView = Builder.AddBufferView(Colors, EGLTFJsonBufferTarget::ArrayBuffer);
@@ -398,13 +423,7 @@ FGLTFJsonAccessor* FGLTFUVBufferConverter::Convert(const FGLTFMeshSection* MeshS
 		UVs[VertexIndex] = FGLTFCoreUtilities::ConvertUV(UV);
 	}
 
-	FGLTFJsonAccessor* JsonAccessor = Builder.AddAccessor();
-	JsonAccessor->BufferView = Builder.AddBufferView(UVs, EGLTFJsonBufferTarget::ArrayBuffer);
-	JsonAccessor->ComponentType = EGLTFJsonComponentType::Float;
-	JsonAccessor->Count = VertexCount;
-	JsonAccessor->Type = EGLTFJsonAccessorType::Vec2;
-
-	return JsonAccessor;
+	return ConvertToAccessor<float, EGLTFJsonAccessorType::Vec2>(Builder, UVs);
 }
 
 FGLTFJsonAccessor* FGLTFBoneIndexBufferConverter::Convert(const FGLTFMeshSection* MeshSection, const FSkinWeightVertexBuffer* VertexBuffer, uint32 InfluenceOffset)
@@ -505,13 +524,7 @@ FGLTFJsonAccessor* FGLTFBoneIndexBufferConverter::Convert(const FGLTFMeshSection
 		}
 	}
 
-	FGLTFJsonAccessor* JsonAccessor = Builder.AddAccessor();
-	JsonAccessor->BufferView = Builder.AddBufferView(BoneIndices, EGLTFJsonBufferTarget::ArrayBuffer);
-	JsonAccessor->ComponentType = FGLTFCoreUtilities::GetComponentType<DestinationType>();
-	JsonAccessor->Count = VertexCount;
-	JsonAccessor->Type = EGLTFJsonAccessorType::Vec4;
-
-	return JsonAccessor;
+	return ConvertToAccessor<DestinationType, EGLTFJsonAccessorType::Vec4>(Builder, BoneIndices);
 }
 
 FGLTFJsonAccessor* FGLTFBoneWeightBufferConverter::Convert(const FGLTFMeshSection* MeshSection, const FSkinWeightVertexBuffer* VertexBuffer, uint32 InfluenceOffset)
@@ -602,14 +615,7 @@ FGLTFJsonAccessor* FGLTFBoneWeightBufferConverter::Convert(const FGLTFMeshSectio
 		}
 	}
 
-	FGLTFJsonAccessor* JsonAccessor = Builder.AddAccessor();
-	JsonAccessor->BufferView = Builder.AddBufferView(BoneWeights, EGLTFJsonBufferTarget::ArrayBuffer);
-	JsonAccessor->ComponentType = EGLTFJsonComponentType::UInt8;
-	JsonAccessor->Count = VertexCount;
-	JsonAccessor->Type = EGLTFJsonAccessorType::Vec4;
-	JsonAccessor->bNormalized = true;
-
-	return JsonAccessor;
+	return ConvertToAccessor<uint8, EGLTFJsonAccessorType::Vec4>(Builder, BoneWeights, true);
 }
 
 FGLTFJsonAccessor* FGLTFIndexBufferConverter::Convert(const FGLTFMeshSection* MeshSection)
@@ -632,18 +638,57 @@ FGLTFJsonAccessor* FGLTFIndexBufferConverter::Convert(const FGLTFMeshSection* Me
 }
 
 
-FGLTFJsonAccessor* FGLTFPositionBufferConverterRaw::Convert(const FPositionVertexBuffer* VertexBuffer)
+FGLTFJsonAccessor* FGLTFPositionBufferConverterRaw::Convert(FGLTFPositionArray VertexBuffer)
 {
-	return ConvertVertexBuffer(VertexBuffer, Builder);
+	const uint32 VertexCount = VertexBuffer.Num();
+
+	TArray<FGLTFVector3> Positions;
+	FVector3f Min, Max;
+
+	Positions.AddUninitialized(VertexCount);
+
+	const size_t MinMaxLength = 3;
+	if (VertexCount > 0)
+	{
+		Positions[0] = FGLTFCoreUtilities::ConvertPosition(VertexBuffer[0], Builder.ExportOptions->ExportUniformScale);
+
+		for (size_t ComponentIndex = 0; ComponentIndex < MinMaxLength; ComponentIndex++)
+		{
+			Min[ComponentIndex] = Positions[0].Components[ComponentIndex];
+			Max[ComponentIndex] = Positions[0].Components[ComponentIndex];
+		}
+
+		for (uint32 PositionIndex = 1; PositionIndex < VertexCount; ++PositionIndex)
+		{
+			Positions[PositionIndex] = FGLTFCoreUtilities::ConvertPosition(VertexBuffer[PositionIndex], Builder.ExportOptions->ExportUniformScale);
+
+			for (size_t ComponentIndex = 0; ComponentIndex < MinMaxLength; ComponentIndex++)
+			{
+				Min[ComponentIndex] = FMath::Min(Min[ComponentIndex], Positions[PositionIndex].Components[ComponentIndex]);
+				Max[ComponentIndex] = FMath::Max(Max[ComponentIndex], Positions[PositionIndex].Components[ComponentIndex]);
+			}
+		}
+	}
+
+	FGLTFJsonAccessor* JsonAccessor = ConvertToAccessor<float, EGLTFJsonAccessorType::Vec3>(Builder, Positions);
+
+	JsonAccessor->MinMaxLength = MinMaxLength;
+	for (int32 ComponentIndex = 0; ComponentIndex < JsonAccessor->MinMaxLength; ComponentIndex++)
+	{
+		JsonAccessor->Min[ComponentIndex] = Min[ComponentIndex];
+		JsonAccessor->Max[ComponentIndex] = Max[ComponentIndex];
+	}
+
+	return JsonAccessor;
 }
 
-FGLTFJsonAccessor* FGLTFIndexBufferConverterRaw::Convert(const FGLTFIndexArray* IndexBuffer, FString MeshName)
+FGLTFJsonAccessor* FGLTFIndexBufferConverterRaw::Convert(FGLTFIndexArray IndexBuffer, FString MeshName)
 {
-	const uint32 MaxVertexIndex = IndexBuffer->Num() - 1;
+	const uint32 MaxVertexIndex = IndexBuffer.Num() - 1;
 	// NOTE: Even if a maximum value (i.e. UINT8_MAX or UINT16_MAX) would fit inside the type (i.e. uint8 or uint16), it's not allowed per gltf spec
 	// since the maximum values trigger primitive restart in some graphics APIs and would require client implementations to rebuild the index buffer.
-	if (MaxVertexIndex < UINT8_MAX) return ConvertIndexBuffer<uint8>(*IndexBuffer, Builder);
-	if (MaxVertexIndex < UINT16_MAX) return ConvertIndexBuffer<uint16>(*IndexBuffer, Builder);
+	if (MaxVertexIndex < UINT8_MAX) return ConvertIndexBuffer<uint8>(IndexBuffer, Builder);
+	if (MaxVertexIndex < UINT16_MAX) return ConvertIndexBuffer<uint16>(IndexBuffer, Builder);
 	if (MaxVertexIndex == UINT32_MAX)
 	{
 		Builder.LogWarning(
@@ -652,68 +697,76 @@ FGLTFJsonAccessor* FGLTFIndexBufferConverterRaw::Convert(const FGLTFIndexArray* 
 				*MeshName
 			));
 	}
-	return ConvertIndexBuffer<uint32>(*IndexBuffer, Builder);
+	return ConvertIndexBuffer<uint32>(IndexBuffer, Builder);
 }
 
 
-FGLTFJsonAccessor* FGLTFNormalBufferConverterRaw::Convert(const FGLTFNormalArray* NormalsSource)
+FGLTFJsonAccessor* FGLTFNormalBufferConverterRaw::Convert(FGLTFNormalArray NormalsSource)
 {
-	if (NormalsSource->Num() == 0)
-	{
-		return nullptr;
-	}
-
-	FGLTFJsonAccessor* JsonAccessor = Builder.AddAccessor();
-	JsonAccessor->BufferView = ConvertBufferView(NormalsSource);;
-	JsonAccessor->ComponentType = EGLTFJsonComponentType::Float;
-	JsonAccessor->Count = NormalsSource->Num();
-	JsonAccessor->Type = EGLTFJsonAccessorType::Vec3;
-
-	return JsonAccessor;
-}
-
-FGLTFJsonBufferView* FGLTFNormalBufferConverterRaw::ConvertBufferView(const FGLTFNormalArray* NormalsSource)
-{
-	const uint32 VertexCount = NormalsSource->Num();
+	const uint32 VertexCount = NormalsSource.Num();
 
 	TArray<FGLTFVector3> Normals;
 	Normals.AddUninitialized(VertexCount);
 
 	for (uint32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
 	{
-		Normals[VertexIndex] = FGLTFCoreUtilities::ConvertNormal((*NormalsSource)[VertexIndex]);
+		Normals[VertexIndex] = FGLTFCoreUtilities::ConvertNormal(NormalsSource[VertexIndex]);
 	}
 
-	return Builder.AddBufferView(Normals, EGLTFJsonBufferTarget::ArrayBuffer);
+	return ConvertToAccessor<float, EGLTFJsonAccessorType::Vec3>(Builder, Normals);
 }
 
-FGLTFJsonAccessor* FGLTFUVBufferConverterRaw::Convert(const FGLTFUVArray* UVSource)
+FGLTFJsonAccessor* FGLTFUVBufferConverterRaw::Convert(FGLTFUVArray UVSource)
 {
-	if (UVSource->Num() == 0)
-	{
-		return nullptr;
-	}
-
-	FGLTFJsonAccessor* JsonAccessor = Builder.AddAccessor();
-	JsonAccessor->BufferView = ConvertBufferView(UVSource);;
-	JsonAccessor->ComponentType = EGLTFJsonComponentType::Float;
-	JsonAccessor->Count = UVSource->Num();
-	JsonAccessor->Type = EGLTFJsonAccessorType::Vec2;
-
-	return JsonAccessor;
-}
-
-FGLTFJsonBufferView* FGLTFUVBufferConverterRaw::ConvertBufferView(const FGLTFUVArray* UVSource)
-{
-	const uint32 VertexCount = UVSource->Num();
+	const uint32 VertexCount = UVSource.Num();
 
 	TArray<FGLTFVector2> UVs;
 	UVs.AddUninitialized(VertexCount);
 
 	for (uint32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
 	{
-		UVs[VertexIndex] = FGLTFCoreUtilities::ConvertUV((*UVSource)[VertexIndex]);
+		UVs[VertexIndex] = FGLTFCoreUtilities::ConvertUV(UVSource[VertexIndex]);
 	}
 
-	return Builder.AddBufferView(UVs, EGLTFJsonBufferTarget::ArrayBuffer);
+	return ConvertToAccessor<float, EGLTFJsonAccessorType::Vec2>(Builder, UVs);
+}
+
+FGLTFJsonAccessor* FGLTFColorBufferConverterRaw::Convert(FGLTFColorArray VertexColorBuffer)
+{
+	const uint32 VertexCount = VertexColorBuffer.Num();
+
+	TArray<FGLTFUInt8Color4> Colors;
+	Colors.AddUninitialized(VertexCount);
+
+	for (uint32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+	{
+		Colors[VertexIndex] = FGLTFCoreUtilities::ConvertColor(VertexColorBuffer[VertexIndex]);
+	}
+
+	return ConvertToAccessor<uint8, EGLTFJsonAccessorType::Vec4>(Builder, Colors, true);
+}
+
+FGLTFJsonAccessor* FGLTFTangentBufferConverterRaw::Convert(FGLTFTangentArray TangentsSource)
+{
+	const uint32 VertexCount = TangentsSource.Num();
+
+	TArray<FGLTFVector4> Tangents;
+	Tangents.AddUninitialized(VertexCount);
+
+	for (uint32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+	{
+		Tangents[VertexIndex] = FGLTFCoreUtilities::ConvertTangent(TangentsSource[VertexIndex]);
+	}
+	
+	return ConvertToAccessor<float, EGLTFJsonAccessorType::Vec4>(Builder, Tangents);
+}
+
+FGLTFJsonAccessor* FGLTFBoneIndexBufferConverterRaw::Convert(FGLTFJointInfluenceArray BoneIndices)
+{
+	return ConvertToAccessor<FBoneIndexType, EGLTFJsonAccessorType::Vec4>(Builder, BoneIndices);
+}
+
+FGLTFJsonAccessor* FGLTFBoneWeightBufferConverterRaw::Convert(FGLTFJointWeightArray Weights)
+{
+	return ConvertToAccessor<uint16, EGLTFJsonAccessorType::Vec4>(Builder, Weights, true);
 }

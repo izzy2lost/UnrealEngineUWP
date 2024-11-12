@@ -27,8 +27,11 @@ public:
 	TQuatRotationTranslationMatrix(const TQuat<T>& Q, const TVector<T>& Origin);
 
 	// Conversion to other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
-	explicit TQuatRotationTranslationMatrix(const TQuatRotationTranslationMatrix<FArg>& From) : TMatrix<T>(From) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
+	explicit TQuatRotationTranslationMatrix(const TQuatRotationTranslationMatrix<FArg>& From)
+		: TMatrix<T>(From)
+	{
+	}
 
 	/** Matrix factory. Return an FMatrix so we don't have type conversion issues in expressions. */
 	static TMatrix<T> Make(const TQuat<T>& Q, const TVector<T>& Origin)
@@ -56,8 +59,11 @@ public:
 	}
 
 	// Conversion to other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
-	explicit TQuatRotationMatrix(const TQuatRotationMatrix<FArg>& From) : TQuatRotationTranslationMatrix<T>(From) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
+	explicit TQuatRotationMatrix(const TQuatRotationMatrix<FArg>& From)
+		: TQuatRotationTranslationMatrix<T>(From)
+	{
+	}
 	
 	/** Matrix factory. Return an FMatrix so we don't have type conversion issues in expressions. */
 	static TMatrix<T> Make(const TQuat<T>& Q)

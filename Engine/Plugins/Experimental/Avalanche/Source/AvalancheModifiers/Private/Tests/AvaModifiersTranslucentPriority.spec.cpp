@@ -10,7 +10,7 @@
 #include "Tests/Framework/AvaTestUtils.h"
 
 BEGIN_DEFINE_SPEC(AvalancheModifiersTranslucentPriority, "Avalanche.Modifiers.TranslucentPriority",
-                  EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+                  EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 	AAvaTestDynamicMeshActor* ModifiedActor;
 	TArray<UPrimitiveComponent*> ModifiedActorComponents;
 	int32 ModifierSortPriority;

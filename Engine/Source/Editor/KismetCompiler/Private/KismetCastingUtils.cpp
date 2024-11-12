@@ -158,10 +158,10 @@ FBPTerminal* InsertImplicitCastStatement(FKismetFunctionContext& Context, UEdGra
 	{
 		InsertImplicitCastStatement(Context, *CastParams, RHSTerm);
 
+		Result = CastParams->TargetTerminal;
+
 		// Removal of the pin entry indicates to the compiler that the implicit cast has been processed.
 		Context.ImplicitCastMap.Remove(DestinationPin);
-
-		Result = CastParams->TargetTerminal;
 	}
 
 	return Result;

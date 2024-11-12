@@ -27,7 +27,18 @@ THIRD_PARTY_INCLUDES_START
 // included early on to avoid compiler errors with that.
 #if defined(__clang__) || (defined(_MSC_VER) && (_MSC_VER >= 1900))
 #include <intsafe.h>
+
+// strsafe declares some of the functions as "static inline" which breaks when compiling with header units/modules.. 
+// "static inline" means that function is private to module/header unit.. which causes compile error when used in other modules.
+// The beautiful solution is to redefine static to inline when including strsafe.h to fix this issue.
+// A bug has been filed to fix this but it is likely it will take a while to get a fix (problem exists in latest version which is 10.0.22621.0 today)
+#if defined(_MSC_VER) && (_MSC_VER >= 1940)
+#define static inline
+#endif
+
 #include <strsafe.h>
+
+#undef static
 #endif
 
 #if USING_CODE_ANALYSIS

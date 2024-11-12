@@ -44,6 +44,8 @@ public:
 	/** Request a new pin. */
 	void AddParameter(FNiagaraVariable Parameter, TEnumAsByte<EEdGraphPinDirection> Direction);
 	void AddParameter(const UNiagaraScriptVariable* ScriptVar, TEnumAsByte<EEdGraphPinDirection> Direction);
+	UEdGraphPin* AddParameterPin(FNiagaraVariable Parameter, TEnumAsByte<EEdGraphPinDirection> Direction);
+	UEdGraphPin* AddParameterPin(const UNiagaraScriptVariable* ScriptVar, TEnumAsByte<EEdGraphPinDirection> Direction);
 	void AddExistingParameter(FNiagaraVariable Parameter, const UEdGraphPin* AddPin);
 
 	/** Convenience method to determine whether this Node is a Map Get or Map Set when adding a parameter through the parameter panel. */

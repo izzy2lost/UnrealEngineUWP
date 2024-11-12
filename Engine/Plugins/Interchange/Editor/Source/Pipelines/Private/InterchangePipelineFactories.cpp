@@ -3,11 +3,20 @@
 #include "InterchangePipelineFactories.h"
 
 #include "Engine/BlueprintGeneratedClass.h"
+#include "InterchangeEditorBlueprintPipelineBase.h"
 #include "InterchangeBlueprintPipelineBase.h"
 #include "InterchangePythonPipelineBase.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Kismet2/SClassPickerDialog.h"
 #include "Misc/MessageDialog.h"
+
+namespace UE::Interchange::Private
+{
+	FText GetInterchangeCategoryPath()
+	{
+		return NSLOCTEXT("InterchangeEditorPipeline", "GetInterchangeCategoryPath", "Interchange");
+	}
+}
 
 /**
  * UInterchangeBlueprintPipelineBaseFactory implementation
@@ -63,6 +72,59 @@ UClass* FAssetTypeActions_InterchangeBlueprintPipelineBase::GetSupportedClass() 
 }
 
 /**
+ * UInterchangeEditorBlueprintPipelineBaseFactory implementation
+ */
+
+UInterchangeEditorBlueprintPipelineBaseFactory::UInterchangeEditorBlueprintPipelineBaseFactory()
+{
+	bCreateNew = true;
+	bEditAfterNew = false;
+	SupportedClass = UInterchangeEditorBlueprintPipelineBase::StaticClass();
+	ParentClass = UInterchangeEditorPipelineBase::StaticClass();
+}
+
+UObject* UInterchangeEditorBlueprintPipelineBaseFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn, FName CallingContext)
+{
+	// Make sure we are trying to factory a gameplay ability blueprint, then create and init one
+	check(Class->IsChildOf(UInterchangeEditorBlueprintPipelineBase::StaticClass()));
+
+	// If they selected an interface, force the parent class to be UInterface
+	if (BlueprintType == BPTYPE_Interface)
+	{
+		ParentClass = UInterface::StaticClass();
+	}
+
+	if ((ParentClass == nullptr) || !FKismetEditorUtilities::CanCreateBlueprintOfClass(ParentClass) || !ParentClass->IsChildOf(UInterchangeEditorPipelineBase::StaticClass()))
+	{
+		FFormatNamedArguments Args;
+		Args.Add(TEXT("ClassName"), (ParentClass != nullptr) ? FText::FromString(ParentClass->GetName()) : NSLOCTEXT("UInterchangeEditorBlueprintPipelineBaseFactory", "Null", "(null)"));
+		FMessageDialog::Open(EAppMsgType::Ok, FText::Format(NSLOCTEXT("UInterchangeEditorBlueprintPipelineBaseFactory", "CannotCreateInterchangeEditorBlueprintPipelineBase", "Cannot create an Interchange Editor Blueprint Pipeline based on the class '{ClassName}'."), Args));
+		return nullptr;
+	}
+	else
+	{
+		return CastChecked<UInterchangeEditorBlueprintPipelineBase>(FKismetEditorUtilities::CreateBlueprint(ParentClass, InParent, Name, BlueprintType, UInterchangeEditorBlueprintPipelineBase::StaticClass(), UBlueprintGeneratedClass::StaticClass(), CallingContext));
+	}
+}
+
+UObject* UInterchangeEditorBlueprintPipelineBaseFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
+{
+	return FactoryCreateNew(Class, InParent, Name, Flags, Context, Warn, NAME_None);
+}
+
+UFactory* FAssetTypeActions_InterchangeEditorBlueprintPipelineBase::GetFactoryForBlueprintType(UBlueprint* InBlueprint) const
+{
+	UInterchangeEditorBlueprintPipelineBaseFactory* InterchangeEditorBlueprintPipelineBaseFactory = NewObject<UInterchangeEditorBlueprintPipelineBaseFactory>();
+	InterchangeEditorBlueprintPipelineBaseFactory->ParentClass = TSubclassOf<UInterchangeEditorPipelineBase>(*InBlueprint->GeneratedClass);
+	return InterchangeEditorBlueprintPipelineBaseFactory;
+}
+
+UClass* FAssetTypeActions_InterchangeEditorBlueprintPipelineBase::GetSupportedClass() const
+{
+	return UInterchangeEditorBlueprintPipelineBase::StaticClass();
+}
+
+/**
  * UInterchangePipelineBaseFactory implementation
  */
 
@@ -84,11 +146,6 @@ UObject* UInterchangePipelineBaseFactory::FactoryCreateNew(UClass* Class, UObjec
 	return Pipeline;
 }
 
-uint32 UInterchangePipelineBaseFactory::GetMenuCategories() const
-{
-	return EAssetTypeCategories::Misc;
-}
-
 FText UInterchangePipelineBaseFactory::GetDisplayName() const
 {
 	return NSLOCTEXT("UInterchangePipelineBaseFactory", "MenuEntry", "Interchange Pipeline");
@@ -108,6 +165,7 @@ bool UInterchangePipelineBaseFactory::ConfigureProperties()
 	Filter->AllowedChildrenOfClasses.Add(UInterchangePipelineBase::StaticClass());
 	//Blueprint pipeline have there own factory
 	Filter->DisallowedChildrenOfClasses.Add(UInterchangeBlueprintPipelineBase::StaticClass());
+	Filter->DisallowedChildrenOfClasses.Add(UInterchangeEditorBlueprintPipelineBase::StaticClass());
 
 	const FText TitleText = NSLOCTEXT("UInterchangePipelineBaseFactory", "CreateOptions", "Pick a Pipeline Class");
 	UClass* ChosenClass = nullptr;
@@ -163,11 +221,6 @@ UObject* UInterchangePythonPipelineAssetFactory::FactoryCreateNew(UClass* Class,
 	return Pipeline;
 }
 
-uint32 UInterchangePythonPipelineAssetFactory::GetMenuCategories() const
-{
-	return EAssetTypeCategories::Misc;
-}
-
 FText UInterchangePythonPipelineAssetFactory::GetDisplayName() const
 {
 	return NSLOCTEXT("UInterchangePythonPipelineFactory", "MenuEntry", "Interchange Python Pipeline");
@@ -190,6 +243,7 @@ bool UInterchangePythonPipelineAssetFactory::ConfigureProperties()
 
 	//Blueprint pipeline have there own factory
 	Filter->DisallowedChildrenOfClasses.Add(UInterchangeBlueprintPipelineBase::StaticClass());
+	Filter->DisallowedChildrenOfClasses.Add(UInterchangeEditorBlueprintPipelineBase::StaticClass());
 
 	const FText TitleText = NSLOCTEXT("UInterchangePythonPipelineAssetFactory", "CreateOptions", "Pick a Pipeline Class");
 	UClass* ChosenClass = nullptr;

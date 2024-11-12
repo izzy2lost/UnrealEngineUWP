@@ -38,6 +38,7 @@
 #include "UObject/ObjectVersion.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
+#include "Blueprint/UserWidget.h"
 
 #define LOCTEXT_NAMESPACE "K2Node_InputAction"
 
@@ -236,6 +237,15 @@ void UK2Node_InputAction::ExpandNode(FKismetCompilerContext& CompilerContext, UE
 			CompilerContext.MovePinLinksToIntermediate(*FindPin(TEXT("Key")), *InputActionEvent->FindPin(TEXT("Key")));
 		}
 	}
+
+	// Widget blueprints require the bAutomaticallyRegisterInputOnConstruction to be set to true in order to receive callbacks
+	CompilerContext.AddPostCDOCompiledStep([](const UObject::FPostCDOCompiledContext& Context, UObject* NewCDO)
+	{
+		if (UUserWidget* Widget = Cast<UUserWidget>(NewCDO))
+		{
+			Widget->bAutomaticallyRegisterInputOnConstruction = true;
+		}
+	});
 }
 
 void UK2Node_InputAction::GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const

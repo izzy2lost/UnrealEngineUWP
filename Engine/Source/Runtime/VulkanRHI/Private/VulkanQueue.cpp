@@ -4,8 +4,8 @@
 	VulkanQueue.cpp: Vulkan Queue implementation.
 =============================================================================*/
 
-#include "VulkanRHIPrivate.h"
 #include "VulkanQueue.h"
+#include "VulkanDevice.h"
 #include "VulkanMemory.h"
 #include "VulkanContext.h"
 
@@ -167,6 +167,10 @@ void FVulkanQueue::FillSupportedStageBits()
 		{
 			SupportedStages |= VK_PIPELINE_STAGE_FRAGMENT_DENSITY_PROCESS_BIT_EXT;
 		}
+		if (Device->GetOptionalExtensions().HasEXTMeshShader)
+		{
+			SupportedStages |= VK_PIPELINE_STAGE_TASK_SHADER_BIT_EXT | VK_PIPELINE_STAGE_MESH_SHADER_BIT_EXT;
+		}
 	}
 
 	if (VKHasAnyFlags(QueueProps.queueFlags, VK_QUEUE_COMPUTE_BIT))
@@ -176,9 +180,15 @@ void FVulkanQueue::FillSupportedStageBits()
 			VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT |
 			VK_PIPELINE_STAGE_TRANSFER_BIT;
 
-#if VULKAN_RHI_RAYTRACING
-		SupportedStages |= VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
-#endif
+		if (Device->GetOptionalExtensions().HasAccelerationStructure)
+		{
+			SupportedStages |= VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
+		}
+
+		if (Device->GetOptionalExtensions().HasRayTracingPipeline)
+		{
+			SupportedStages |= VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
+		}
 	}
 
 	if (VKHasAnyFlags(QueueProps.queueFlags, VK_QUEUE_TRANSFER_BIT))

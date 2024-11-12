@@ -37,6 +37,7 @@
 #include "Logging/LogCategory.h"
 #include "Logging/LogMacros.h"
 #include "Misc/AssertionMacros.h"
+#include "ObjectTools.h"
 #include "Serialization/Archive.h"
 #include "Templates/Casts.h"
 #include "Templates/SubclassOf.h"
@@ -404,7 +405,7 @@ void UK2Node_FunctionEntry::AllocateDefaultPins()
 
 	if (FFunctionEntryHelper::RequireWorldContextParameter(this) 
 		&& ensureMsgf(!FindPin(FFunctionEntryHelper::GetWorldContextPinName()), 
-		TEXT("%s: World context parameter pin already exiss on function entry node %s"), 
+		TEXT("%s: World context parameter pin already exists on function entry node %s"), 
 			*GetOutermost()->GetName(),
 			*(CustomGeneratedFunctionName.IsNone() ? FunctionReference.GetMemberName() : CustomGeneratedFunctionName).ToString()
 		))
@@ -664,6 +665,10 @@ FEdGraphNodeDeprecationResponse UK2Node_FunctionEntry::GetDeprecationResponse(EE
 			UFunction* const Function = FunctionReference.ResolveMember<UFunction>(GetBlueprintClassFromNode());
 			if (ensureMsgf(Function != nullptr, TEXT("This node should not be able to report having a deprecated reference if the override function cannot be resolved.")))
 			{
+				// Check the deprecation type to override the severity
+				FString MessageType = Function->GetMetaData(FBlueprintMetadata::MD_DeprecatedFunction);
+				Response.MessageType = FBlueprintEditorUtils::GetDeprecatedMessageType(MessageType);
+
 				FText FunctionName = FText::FromName(FunctionReference.GetMemberName());
 				FText DetailedMessage = FText::FromString(Function->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage));
 				Response.MessageText = FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(FunctionName, DetailedMessage);
@@ -684,7 +689,7 @@ FText UK2Node_FunctionEntry::GetTooltipText() const
 {
 	if (UFunction* const Function = FindSignatureFunction())
 	{
-		return FText::FromString(UK2Node_CallFunction::GetDefaultTooltipForFunction(Function));
+		return FText::FromString(ObjectTools::GetDefaultTooltipForFunction(Function));
 	}
 	return Super::GetTooltipText();
 }
@@ -1075,6 +1080,33 @@ void UK2Node_FunctionEntry::FixupPinStringDataReferences(FArchive* SavingArchive
 	{
 		UpdateUserDefinedPinDefaultValues();
 	}
+}
+
+ERenamePinResult UK2Node_FunctionEntry::RenameUserDefinedPinImpl(FName OldName, FName NewName, bool bTest)
+{
+	ERenamePinResult Result = Super::RenameUserDefinedPinImpl(OldName, NewName, bTest);
+
+	// We don't actually rename our local variables via this method,
+	// but we do need to verify that no name collisions will occur when testing a pin rename.
+
+	const bool bCheckLocalVariablesNameCollision =
+		(Result == ERenamePinResult::ERenamePinResult_Success) &&
+		bTest
+	;
+
+	if (bCheckLocalVariablesNameCollision)
+	{
+		for (const FBPVariableDescription& Entry : LocalVariables)
+		{
+			if (NewName == Entry.VarName)
+			{
+				Result = ERenamePinResult_NameCollision;
+				break;
+			}
+		}
+	}
+
+	return Result;
 }
 
 bool UK2Node_FunctionEntry::ModifyUserDefinedPinDefaultValue(TSharedPtr<FUserPinInfo> PinInfo, const FString& NewDefaultValue)

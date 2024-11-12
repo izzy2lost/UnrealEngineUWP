@@ -28,6 +28,11 @@ namespace UE::NNERuntimeRDG::Internal::CPUHelper::Cast
 				ApplyWithResolvedTypes(Tensor.GetPreparedData<float>(), OutputData);
 				break;
 			}
+			case ENNETensorDataType::Half:
+			{
+				ApplyWithResolvedTypes(Tensor.GetPreparedData<FFloat16>(), OutputData);
+				break;
+			}
 			case ENNETensorDataType::Int32:
 			{
 				ApplyWithResolvedTypes(Tensor.GetPreparedData<int32>(), OutputData);
@@ -59,6 +64,11 @@ namespace UE::NNERuntimeRDG::Internal::CPUHelper::Cast
 				ApplyWithResolvedOutputType<float>(Tensor, OutputTensor);
 				break;
 			}
+			case ENNETensorDataType::Half:
+			{
+				ApplyWithResolvedOutputType<FFloat16>(Tensor, OutputTensor);
+				break;
+			}
 			case ENNETensorDataType::Int32:
 			{
 				ApplyWithResolvedOutputType<int32>(Tensor, OutputTensor);
@@ -72,5 +82,4 @@ namespace UE::NNERuntimeRDG::Internal::CPUHelper::Cast
 			}
 		}
 	}
-	
 } // UE::NNERuntimeRDG::Internal::CPUHelper::Cast

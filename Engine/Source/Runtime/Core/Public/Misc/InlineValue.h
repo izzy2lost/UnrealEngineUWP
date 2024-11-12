@@ -201,7 +201,7 @@ private:
 		bIsValid = true;
 
 		// Placement new our value into the structure
-		new(&GetValue()) T(Forward<ArgsType>(Args)...);
+		::new((void*)&GetValue()) T(Forward<ArgsType>(Args)...);
 
 		checkf((void*)&GetValue() == (BaseType*)((T*)&GetValue()), TEXT("TInlineValue cannot operate with multiple inheritance objects."));
 	}

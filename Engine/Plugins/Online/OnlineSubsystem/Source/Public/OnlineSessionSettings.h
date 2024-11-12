@@ -185,7 +185,7 @@ public:
 	 * @param ID ID of comparison
 	 */
 	template<typename ValueType>
-	void Set(FName Key, const ValueType& Value, EOnlineComparisonOp::Type InType, int32 ID);
+	ONLINESUBSYSTEM_API void Set(FName Key, const ValueType& Value, EOnlineComparisonOp::Type InType, int32 ID);
 
 	/**
 	 *	Sets a key value pair combination that defines a search parameter
@@ -195,7 +195,7 @@ public:
 	 * @param InType type of comparison
 	 */
 	template<typename ValueType>
-	void Set(FName Key, const ValueType& Value, EOnlineComparisonOp::Type InType);
+	ONLINESUBSYSTEM_API void Set(FName Key, const ValueType& Value, EOnlineComparisonOp::Type InType);
 
 	/**
 	 *	Gets a key value pair combination that defines a search parameter
@@ -206,7 +206,7 @@ public:
 	 * @return true if found, false otherwise
 	 */
 	template<typename ValueType>
-	bool Get(FName Key, ValueType& Value) const;
+	ONLINESUBSYSTEM_API bool Get(FName Key, ValueType& Value) const;
 
 	/**
 	 * Retrieve a search parameter comparison op
@@ -221,7 +221,7 @@ public:
 /**
  *	Container for all settings describing a single online session
  */
-class ONLINESUBSYSTEM_API FOnlineSessionSettings
+class FOnlineSessionSettings
 {
 public:
 	/** The number of publicly available connections advertised */
@@ -306,7 +306,7 @@ public:
 	 * @param ID ID for this session setting
 	 */
 	template<typename ValueType>
-	void Set(FName Key, const ValueType& Value, EOnlineDataAdvertisementType::Type InType, int32 InID);
+	ONLINESUBSYSTEM_API void Set(FName Key, const ValueType& Value, EOnlineDataAdvertisementType::Type InType, int32 InID);
 
 	/**
 	 *	Sets a key value pair combination that defines a session setting
@@ -316,7 +316,7 @@ public:
 	 * @param InType type of online advertisement
 	 */
 	template<typename ValueType>
-	void Set(FName Key, const ValueType& Value, EOnlineDataAdvertisementType::Type InType);
+	ONLINESUBSYSTEM_API void Set(FName Key, const ValueType& Value, EOnlineDataAdvertisementType::Type InType);
 
 	/**
 	 *	Sets a key value pair combination that defines a session setting
@@ -325,7 +325,7 @@ public:
 	 * @param Key key for the setting
 	 * @param SrcSetting setting values
 	 */
-	void Set(FName Key, const FOnlineSessionSetting& SrcSetting);
+	ONLINESUBSYSTEM_API void Set(FName Key, const FOnlineSessionSetting& SrcSetting);
 
 	/**
 	 *	Gets a key value pair combination that defines a session setting
@@ -336,7 +336,7 @@ public:
 	 * @return true if found, false otherwise
 	 */
 	template<typename ValueType>
-	bool Get(FName Key, ValueType& Value) const;
+	ONLINESUBSYSTEM_API bool Get(FName Key, ValueType& Value) const;
 
 	/**
 	 *  Removes a key value pair combination
@@ -345,7 +345,7 @@ public:
 	 *
 	 * @return true if found and removed, false otherwise
 	 */
-	bool Remove(FName Key);
+	ONLINESUBSYSTEM_API bool Remove(FName Key);
 
 	/**
 	 * Retrieve a session setting's advertisement type
@@ -354,7 +354,7 @@ public:
 	 *
 	 * @return the advertisement type for the setting
 	 */
-	EOnlineDataAdvertisementType::Type GetAdvertisementType(FName Key) const;
+	ONLINESUBSYSTEM_API EOnlineDataAdvertisementType::Type GetAdvertisementType(FName Key) const;
 
 	/**
 	* Retrieve a session setting's ID
@@ -363,7 +363,7 @@ public:
 	*
 	* @return the ID for the setting
 	*/
-	int32 GetID(FName Key) const;
+	ONLINESUBSYSTEM_API int32 GetID(FName Key) const;
 
 };
 

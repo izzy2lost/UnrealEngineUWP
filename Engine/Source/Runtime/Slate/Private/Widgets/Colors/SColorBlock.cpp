@@ -31,6 +31,8 @@ SColorBlock::SColorBlock()
 {
 }
 
+SColorBlock::~SColorBlock() = default;
+
 /**
  * Construct this widget
  *

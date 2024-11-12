@@ -161,15 +161,6 @@ void UK2Node_UpdateVirtualSubjectDataBase::EarlyValidation(class FCompilerResult
 	}
 }
 
-UEdGraphPin* UK2Node_UpdateVirtualSubjectDataBase::GetThenPin() const
-{
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-
-	UEdGraphPin* Pin = FindPinChecked(UEdGraphSchema_K2::PN_Then);
-	check(Pin->Direction == EGPD_Output);
-	return Pin;
-}
-
 UEdGraphPin* UK2Node_UpdateVirtualSubjectDataBase::GetLiveLinkStructPin() const
 {
 	UEdGraphPin* Pin = FindPinChecked(LiveLinkStructPinName);

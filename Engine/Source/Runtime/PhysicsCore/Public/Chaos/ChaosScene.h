@@ -20,6 +20,8 @@
 
 #include "ChaosVisualDebugger/ChaosVDContextProvider.h"
 
+#include "ChaosDebugDraw/ChaosDDTypes.h"
+
 #ifndef CHAOS_DEBUG_NAME
 #define CHAOS_DEBUG_NAME 0
 #endif
@@ -88,10 +90,8 @@ public:
 	PHYSICSCORE_API FChaosScene(
 		UObject* OwnerPtr
 		, Chaos::FReal InAsyncDt
-#if CHAOS_DEBUG_NAME
-	, const FName& DebugName=NAME_None
-#endif
-);
+		, const FName& DebugName = NAME_None
+	);
 
 	PHYSICSCORE_API virtual ~FChaosScene();
 
@@ -184,6 +184,8 @@ protected:
 	UObject* Owner;
 
 private:
+	/** Get all the physics solvers with the same owner */
+	PHYSICSCORE_API TArray<Chaos::FPhysicsSolverBase*> GetPhysicsSolvers() const;
 
 	PHYSICSCORE_API void SetGravity(const Chaos::FVec3& Acceleration);
 
@@ -204,5 +206,18 @@ public:
 	{
 		return CVDContextData;
 	};
+#endif
+
+#if CHAOS_DEBUG_DRAW
+public:
+	const ChaosDD::Private::FChaosDDScenePtr& GetDebugDrawScene() const
+	{ 
+		return CDDScene;
+	}
+
+	PHYSICSCORE_API void SetDebugDrawScene(const ChaosDD::Private::FChaosDDScenePtr& CDDScene);
+
+private:
+	ChaosDD::Private::FChaosDDScenePtr CDDScene;
 #endif
 };

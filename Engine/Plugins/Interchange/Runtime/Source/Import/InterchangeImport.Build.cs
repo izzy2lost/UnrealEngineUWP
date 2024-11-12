@@ -32,6 +32,7 @@ namespace UnrealBuildTool.Rules
 				{
 					"AssetRegistry",
 					"CinematicCamera",
+					"ClothingSystemRuntimeCommon",
 					"GLTFCore",
 					"IESFile",
 					"ImageCore",
@@ -42,6 +43,9 @@ namespace UnrealBuildTool.Rules
 					"RenderCore",
 					"RHI",
 					"TextureUtilitiesCommon",
+					"UnrealUSDWrapper",
+					"USDClasses",
+					"USDUtilities",
 					"VariantManagerContent",
 				}
 			);
@@ -60,7 +64,15 @@ namespace UnrealBuildTool.Rules
 					}
 				);
 
-				AddEngineThirdPartyPrivateStaticDependencies(Target, "MaterialX");
+				if (Target.Platform == UnrealTargetPlatform.Win64 || Target.LinkType == TargetLinkType.Monolithic)
+				{
+					PrivateDependencyModuleNames.AddRange(
+						new string[]
+						{
+							"MaterialX"
+						}
+					);
+				}
 			}
 		}
 	}

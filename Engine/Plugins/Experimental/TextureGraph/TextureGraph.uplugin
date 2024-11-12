@@ -49,7 +49,7 @@
 		{
 			"Name": "TextureGraphEditor",
 			"Type": "Editor",
-			"LoadingPhase": "Default",
+			"LoadingPhase": "PostEngineInit",
 			"PlatformAllowList": [
 				"Win64"
 			]
@@ -70,6 +70,10 @@
 		},
 		{
 			"Name": "RenderDocPlugin",
+			"Enabled": true
+		},
+		{
+			"Name": "ImageWidgets",
 			"Enabled": true
 		}
 	],

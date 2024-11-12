@@ -18,8 +18,9 @@
 #include "Curves/CurveFloat.h"
 #include "HairStrandsInterface.h"
 #include "Engine/SkeletalMesh.h"
+#include "Async/RecursiveMutex.h"
 #include "Interfaces/Interface_AssetUserData.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "UObject/StrongObjectPtr.h"
 
 #include "GroomAsset.generated.h"
@@ -34,8 +35,9 @@ struct FHairStrandsRaytracingResource;
 
 enum class EHairGroupInfoFlags : uint8
 {
-	HasTrimmedPoint = 1,
-	HasTrimmedCurve = 2
+	HasTrimmedPoint = 1<<0,
+	HasTrimmedCurve = 1<<1,
+	HasInvalidPoint = 1<<2
 };
 
 USTRUCT(BlueprintType)
@@ -453,7 +455,7 @@ private:
 	UPROPERTY(EditAnywhere, Category = "HairLOD", meta = (DisplayName = "LOD Mode", ToolTip = "Define how LOD adapts curves & points for strands geometry. Auto: adapts the curve count based on screen coverage. Manual: use the discrete LOD created for each groups"))
 	EGroomLODMode LODMode = EGroomLODMode::Default;
 
-	UPROPERTY(EditAnywhere, Category = "HairLOD", meta = (DisplayName = "Auto LOD Bias", ToolTip = "When Auto LOD is selected, decrease the screen size at which curves reduction will occur.", ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1.0"))
+	UPROPERTY(EditAnywhere, Category = "HairLOD", meta = (DisplayName = "Auto LOD Bias", ToolTip = "When LOD mode is set to Auto, decrease the screen size at which curves reduction will occur.", ClampMin = "-1", ClampMax = "1", UIMin = "-1.0", UIMax = "1.0"))
 	float AutoLODBias = 0;
 
 public:
@@ -642,6 +644,7 @@ public:
 	FOnGroomAsyncLoadFinished& GetOnGroomAsyncLoadFinished() { return OnGroomAsyncLoadFinished; }
 
 	/**  Part of Uobject interface  */
+	virtual bool Modify(bool bAlwaysMarkDirty = true) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 
 #endif // WITH_EDITOR
@@ -768,6 +771,9 @@ public:
 private:
 	void ApplyStripFlags(uint8 StripFlags, const class ITargetPlatform* CookTarget);
 
+	/** Update the physics system based on the solver settings enum */
+	void UpdatePhysicsSystems();
+
 	// Functions allocating lazily/on-demand resources (guides, interpolation, RT geometry, ...)
 	FHairStrandsRestResource*			AllocateGuidesResources(uint32 GroupIndex);
 	FHairStrandsInterpolationResource*	AllocateInterpolationResources(uint32 GroupIndex);
@@ -829,6 +835,7 @@ private:
 	// Transient HairDescription & HairDescriptionGroups, which are built from HairDescriptionBulkData.
 	// All these data (bulk/desc/groups) needs to be in sync. I.e., when the HairDescription is updated, 
 	// HairDescriptionGroups needs to also be updated
+	UE::FRecursiveMutex InternalLock;
 	TUniquePtr<FHairDescription> CachedHairDescription[EHairDescriptionType::Count];
 	TUniquePtr<FHairDescriptionGroups> CachedHairDescriptionGroups[EHairDescriptionType::Count];
 

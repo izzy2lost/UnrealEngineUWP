@@ -119,6 +119,12 @@ void FInterchangePipelineBaseDetailsCustomization::SetConflictsInfo(TArray<FInte
 	}
 }
 
+static TMap<FString, FString> InterchangeAssetExtraInformation;
+void FInterchangePipelineBaseDetailsCustomization::SetExtraInformation(const TMap<FString, FString>& InExtraInformation)
+{
+	InterchangeAssetExtraInformation = InExtraInformation;
+}
+
 void FInterchangePipelineBaseDetailsCustomization::SetTextComboBoxWidget(IDetailPropertyRow& PropertyRow, const TSharedPtr<IPropertyHandle>& Handle, const TArray<FString>& PossibleValues)
 {
 	if (!Handle.IsValid() || !Handle->IsValidHandle() || PossibleValues.Num() < 1)
@@ -275,7 +281,7 @@ void FInterchangePipelineBaseDetailsCustomization::AddConflictSection()
 		return;
 	}
 
-	TArray<FInterchangeConflictInfo> ConflictInfos = ConflictInfosStack.Pop(false);
+	TArray<FInterchangeConflictInfo> ConflictInfos = ConflictInfosStack.Pop(EAllowShrinking::No);
 	if (!InterchangePipeline->IsReimportContext() || ConflictInfos.Num() == 0)
 	{
 		return;
@@ -335,6 +341,36 @@ void FInterchangePipelineBaseDetailsCustomization::AddConflictSection()
 	}
 }
 
+void FInterchangePipelineBaseDetailsCustomization::AddExtraInformationSection()
+{
+	if (InterchangeAssetExtraInformation.Num() > 0)
+	{
+		const FText ExtraInformationCategoryText = LOCTEXT("ExtraInformationCategoryName", "Extra Information");
+		const FName ExtraInformationCategoryName = FName(TEXT("Extra Information"));
+		IDetailCategoryBuilder& AttributeCategoryBuilder = CachedDetailBuilder->EditCategory(ExtraInformationCategoryName, ExtraInformationCategoryText);
+		
+		for (const TPair<FString, FString>& Pair : InterchangeAssetExtraInformation)
+		{
+			FText AttributeName = FText::FromString(Pair.Key);
+			FText AttributeValue = FText::FromString(Pair.Value);
+			FDetailWidgetRow& CustomRow = AttributeCategoryBuilder.AddCustomRow(AttributeName)
+				.NameContent()
+				[
+					SNew(STextBlock)
+						.Text(AttributeName)
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+				]
+				.ValueContent()
+				[
+					SNew(STextBlock)
+						.Text(AttributeValue)
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+				];
+		}
+
+		InterchangeAssetExtraInformation.Reset();
+	}
+}
 
 void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
@@ -356,13 +392,13 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 
 	const bool bAllowPropertyStatesEdition = InterchangePipeline->CanEditPropertiesStates();
 	const bool bIsReimportContext = InterchangePipeline->IsReimportContext();
-	const bool bISBasicLayout = InterchangePipeline->IsBasicLayout();
+	const bool bIsShowEssentials = InterchangePipeline->IsShowEssentials();
 
 	TArray<FName> AllCategoryNames;
 	CachedDetailBuilder->GetCategoryNames(AllCategoryNames);
 	TMap<FName, TArray<FName>> PropertiesPerCategorys;
 	InternalGetPipelineProperties(InterchangePipeline.Get(), AllCategoryNames, PropertiesPerCategorys);
-
+	
 	AddConflictSection();
 	
 	for (const TPair<FName, TArray<FName>>& CategoryAndProperties : PropertiesPerCategorys)
@@ -473,7 +509,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 				bool IsLocked = false;
 				if (const FInterchangePipelinePropertyStates* PropertyStates = InterchangePipeline->GetPropertyStates(PropertyPath))
 				{
-					if (!PropertyStates->IsPropertyVisible(bIsReimportContext, bISBasicLayout))
+					if (!PropertyStates->IsPropertyVisible(bIsReimportContext, bIsShowEssentials))
 					{
 						continue;
 					}
@@ -536,7 +572,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 					.Padding(3.0f, 1.0f)
 					[
 						SNew(SCheckBox)
-						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::Visible)
 						.CheckedImage(FAppStyle::Get().GetBrush("Icons.Lock"))
 						.CheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Lock"))
 						.CheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Lock"))
@@ -586,32 +622,26 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 					.VAlign(VAlign_Center)
 					[
 						SNew(STextBlock)
-						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::Visible)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
-						.Text(LOCTEXT("ShowWhenBasicLayoutText", "Basic Layout"))
+						.Text(LOCTEXT("ResetPreDialogName", "Reset PreDialog"))
 					]
 					+ SHorizontalBox::Slot()
 					.AutoWidth()
 					.Padding(3.0f, 1.0f)
 					[
 						SNew(SCheckBox)
-						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
-						.CheckedImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
-						.CheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
-						.CheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
-						.UncheckedImage(FAppStyle::Get().GetBrush("Icons.Visible"))
-						.UncheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Visible"))
-						.UncheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Visible"))
-						.ToolTipText(LOCTEXT("VisibleTooltipBasicLayout", "If true this property will be visible when displaying the interchange import dialog with basic layout."))
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::Visible)
+						.ToolTipText(LOCTEXT("ResetPreDialogTooltip", "If true this property will be reset when displaying the interchange import dialog."))
 						.OnCheckStateChanged_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath](ECheckBoxState CheckType)
 						{
 							if (!ensure(InterchangePipelinePtr.IsValid()))
 							{
 								return;
 							}
-							FScopedTransaction ScopedTransaction(LOCTEXT("TransactionvisibilityPropertiesToggleImport", "Toggle property visibility at import"), !GIsTransacting);
+							FScopedTransaction ScopedTransaction(LOCTEXT("TransactionResetPreDialogToggle", "Toggle property reset pre-dialog."), !GIsTransacting);
 							InterchangePipelinePtr->Modify();
-							InterchangePipelinePtr->FindOrAddPropertyStates(PropertyPath).SetPropertyBasicLayoutVisibility((CheckType != ECheckBoxState::Checked));
+							InterchangePipelinePtr->FindOrAddPropertyStates(PropertyPath).SetPropertyPreDialogReset((CheckType == ECheckBoxState::Checked));
 							InterchangePipelinePtr->PostEditChange();
 						})
 						.IsChecked_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath]()
@@ -622,7 +652,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 							}
 							if (const FInterchangePipelinePropertyStates* PropertyStates = InterchangePipelinePtr->GetPropertyStates(PropertyPath))
 							{
-								return PropertyStates->IsPropertyVisibleInBasicLayout() ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
+								return PropertyStates->IsPropertyPreDialogReset() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 							}
 							return ECheckBoxState::Unchecked;
 						})
@@ -633,7 +663,54 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 					.VAlign(VAlign_Center)
 					[
 						SNew(STextBlock)
-						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::Visible)
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+						.Text(LOCTEXT("ShowWhenShowEssentialsText", "Essential Layout"))
+					]
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.Padding(3.0f, 1.0f)
+					[
+						SNew(SCheckBox)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::Visible)
+						.CheckedImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
+						.CheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
+						.CheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
+						.UncheckedImage(FAppStyle::Get().GetBrush("Icons.Visible"))
+						.UncheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Visible"))
+						.UncheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Visible"))
+						.ToolTipText(LOCTEXT("VisibleTooltipShowEssentials", "If true this property will be visible when displaying the interchange import dialog with basic layout."))
+						.OnCheckStateChanged_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath](ECheckBoxState CheckType)
+						{
+							if (!ensure(InterchangePipelinePtr.IsValid()))
+							{
+								return;
+							}
+							FScopedTransaction ScopedTransaction(LOCTEXT("TransactionvisibilityPropertiesToggleImport", "Toggle property visibility at import"), !GIsTransacting);
+							InterchangePipelinePtr->Modify();
+							InterchangePipelinePtr->FindOrAddPropertyStates(PropertyPath).SetPropertyShowEssentialsVisibility((CheckType != ECheckBoxState::Checked));
+							InterchangePipelinePtr->PostEditChange();
+						})
+						.IsChecked_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath]()
+						{
+							if (!InterchangePipelinePtr.IsValid())
+							{
+								return ECheckBoxState::Unchecked;
+							}
+							if (const FInterchangePipelinePropertyStates* PropertyStates = InterchangePipelinePtr->GetPropertyStates(PropertyPath))
+							{
+								return PropertyStates->IsPropertyVisibleInShowEssentials() ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
+							}
+							return ECheckBoxState::Unchecked;
+						})
+					]
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.Padding(6.0f, 1.0f, 3.0f, 1.0f)
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::Visible)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
 						.Text(LOCTEXT("HiddenAtImportText", "Import"))
 					]
@@ -642,7 +719,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 					.Padding(3.0f, 1.0f)
 					[
 						SNew(SCheckBox)
-						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::Visible)
 						.CheckedImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
 						.CheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
 						.CheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
@@ -664,14 +741,14 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 						.IsChecked_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath]()
 						{
 							constexpr bool bIsReimportContextLocal = false;
-							constexpr bool bIsBasicLayoutLocal = false;
+							constexpr bool bIsShowEssentialsLocal = false;
 							if (!InterchangePipelinePtr.IsValid())
 							{
 								return ECheckBoxState::Unchecked;
 							}
 							if (const FInterchangePipelinePropertyStates* PropertyStates = InterchangePipelinePtr->GetPropertyStates(PropertyPath))
 							{
-								return PropertyStates->IsPropertyVisible(bIsReimportContextLocal, bIsBasicLayoutLocal) ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
+								return PropertyStates->IsPropertyVisible(bIsReimportContextLocal, bIsShowEssentialsLocal) ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
 							}
 							return ECheckBoxState::Unchecked;
 						})
@@ -682,7 +759,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 					.VAlign(VAlign_Center)
 					[
 						SNew(STextBlock)
-						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::Visible)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
 						.Text(LOCTEXT("HiddenAtReimportText", "Reimport"))
 					]
@@ -691,7 +768,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 					.Padding(3.0f, 1.0f)
 					[
 						SNew(SCheckBox)
-						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::Visible)
 						.CheckedImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
 						.CheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
 						.CheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
@@ -713,14 +790,14 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 						.IsChecked_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath]()
 						{
 							constexpr bool bIsReimportContextLocal = true;
-							constexpr bool bIsBasicLayoutLocal = false;
+							constexpr bool bIsShowEssentialsLocal = false;
 							if (!InterchangePipelinePtr.IsValid())
 							{
 								return ECheckBoxState::Unchecked;
 							}
 							if (const FInterchangePipelinePropertyStates* PropertyStates = InterchangePipelinePtr->GetPropertyStates(PropertyPath))
 							{
-								return PropertyStates->IsPropertyVisible(bIsReimportContextLocal, bIsBasicLayoutLocal) ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
+								return PropertyStates->IsPropertyVisible(bIsReimportContextLocal, bIsShowEssentialsLocal) ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
 							}
 							return ECheckBoxState::Unchecked;
 						})
@@ -745,6 +822,11 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 				}
 			}
 		}
+	}
+
+	if (!bIsShowEssentials)
+	{
+		AddExtraInformationSection();
 	}
 }
 
@@ -1665,7 +1747,7 @@ void FInterchangeBaseNodeDetailsCustomization::BuildVectorValueContent(IDetailCa
 
 	auto GetValue = [](UInterchangeBaseNode* BaseNode, UE::Interchange::FAttributeKey& Key)->VectorType
 	{
-		VectorType VectorValue;
+		VectorType VectorValue = {};
 		const UE::Interchange::FAttributeStorage::TAttributeHandle<VectorType> AttributeHandle = BaseNode->GetAttributeHandle<VectorType>(Key);
 		if (AttributeHandle.IsValid())
 		{

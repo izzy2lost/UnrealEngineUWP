@@ -51,10 +51,16 @@ static FAutoConsoleCommand DumpStreamingGenerationLog(
 		{
 			if (UWorldPartition* WorldPartition = World->GetWorldPartition())
 			{
-				UWorldPartition::FGenerateStreamingParams Params;
+				UWorldPartition::FGenerateStreamingParams Params = UWorldPartition::FGenerateStreamingParams()
+					.SetOutputLogType(TEXT("DumpStreamingGeneration"));
 				UWorldPartition::FGenerateStreamingContext Context;
 				WorldPartition->GenerateStreaming(Params, Context);
 				WorldPartition->FlushStreaming();
+
+				if (Context.OutputLogFilename.IsSet())
+				{
+					UE_LOG(LogWorldPartition, Display, TEXT("Streaming generation details logged to '%s'"), *FPaths::ConvertRelativePathToFull(Context.OutputLogFilename.GetValue()));
+				}
 			}
 		}
 	})
@@ -190,13 +196,12 @@ bool FStreamingGenerationActorDescView::GetIsSpatiallyLoaded() const
 		return false;
 	}
 
-	bool bIsSpatiallyLoaded = Super::GetIsSpatiallyLoaded();
-	if (bIsSpatiallyLoaded && ParentView)
+	if (ParentView)
 	{
-		bIsSpatiallyLoaded = ParentView->GetIsSpatiallyLoaded();
+		return ParentView->GetIsSpatiallyLoaded();
 	}
 
-	return bIsSpatiallyLoaded;
+	return Super::GetIsSpatiallyLoaded();
 }
 
 FSoftObjectPath FStreamingGenerationActorDescView::GetHLODLayer() const
@@ -206,9 +211,9 @@ FSoftObjectPath FStreamingGenerationActorDescView::GetHLODLayer() const
 		return FSoftObjectPath();
 	}
 
-	if (RuntimedHLODLayer.IsSet())
+	if (RuntimeHLODLayer.IsSet())
 	{
-		return RuntimedHLODLayer.GetValue();
+		return RuntimeHLODLayer.GetValue();
 	}
 
 	return Super::GetHLODLayer();
@@ -369,7 +374,7 @@ void FStreamingGenerationActorDescView::SetForcedNoHLODLayer()
 
 void FStreamingGenerationActorDescView::SetRuntimeHLODLayer(const FSoftObjectPath& InHLODLayer)
 {
-	RuntimedHLODLayer = InHLODLayer;
+	RuntimeHLODLayer = InHLODLayer;
 }
 
 const FDataLayerInstanceNames& FStreamingGenerationActorDescView::GetRuntimeDataLayerInstanceNames() const
@@ -402,9 +407,9 @@ TArray<const FStreamingGenerationActorDescView*> FStreamingGenerationActorDescVi
 	return Result;
 }
 
-FStreamingGenerationActorDescView* FStreamingGenerationActorDescViewMap::Emplace(const FGuid& InGuid, const FStreamingGenerationActorDescView& InActorDescView)
+FStreamingGenerationActorDescView* FStreamingGenerationActorDescViewMap::Emplace(const FGuid& InGuid, FStreamingGenerationActorDescView&& InActorDescView)
 {
-	FStreamingGenerationActorDescView* NewActorDescView = ActorDescViewList.Emplace_GetRef(MakeUnique<FStreamingGenerationActorDescView>(InActorDescView)).Get();
+	FStreamingGenerationActorDescView* NewActorDescView = ActorDescViewList.Emplace_GetRef(MakeUnique<FStreamingGenerationActorDescView>(MoveTemp(InActorDescView))).Get();
 	NewActorDescView->ActorDescViewMap = this;
 
 	const UClass* NativeClass = NewActorDescView->GetActorNativeClass();
@@ -715,7 +720,7 @@ class FWorldPartitionStreamingGenerator
 	{
 		// Only assign the default layer to actors that don't have a valid HLOD layer set. HLOD actors will have their 
 		// parent HLOD layer set during HLOD generation.
-		if (!ActorDescView.GetHLODLayer().IsValid())
+		if (!ActorDescView.GetHLODLayer().IsValid() && ActorDescView.GetIsSpatiallyLoaded())
 		{
 			ActorDescView.SetRuntimeHLODLayer(DefaultHLODLayer);
 		}
@@ -775,23 +780,27 @@ class FWorldPartitionStreamingGenerator
 				{
 					*OutActor = Actor;
 				}
-				return !Actor->IsEditorOnly();
 			}
 
-			return !InActorDescInstance->GetActorIsEditorOnly();
+			return true;
 		};
 
 		// Register the actor descriptor view
-		auto RegisterActorDescView = [this, &OutActorDescViewMap, &OutContainerInstances](FStreamingGenerationActorDescView&& InActorDescView)
+		auto RegisterActorDescView = [this, &OutActorDescViewMap, &OutContainerInstances](FStreamingGenerationActorDescView&& InActorDescView, TSet<FGuid>* OutEditorOnlyActorDescSet = nullptr, AActor* InActor = nullptr)
 		{
 			if (InActorDescView.IsChildContainerInstance())
 			{
 				OutContainerInstances.Add(InActorDescView);
 			}
-			else
+
+			if (!InActorDescView.GetActorIsEditorOnly() || (InActor && !InActor->IsEditorOnly()))
 			{
 				const FGuid ActorGuid = InActorDescView.GetGuid();
 				OutActorDescViewMap.Emplace(ActorGuid, MoveTemp(InActorDescView));
+			}
+			else if (OutEditorOnlyActorDescSet)
+			{
+				OutEditorOnlyActorDescSet->Add(InActorDescView.GetGuid());
 			}
 		};
 
@@ -826,17 +835,13 @@ class FWorldPartitionStreamingGenerator
 					{
 						// Dirty, unsaved actor for PIE
 						TUniquePtr<FStreamingGenerationUnsavedDirtyActorDescInstance>& UnsavedDirtyRef = OutUnsavedDirtyInstances.Add_GetRef(FStreamingGenerationUnsavedDirtyActorDescInstance::Create(Actor, InActorDescCollection));
-						RegisterActorDescView(FStreamingGenerationActorDescView(OutActorDescViewMap, UnsavedDirtyRef.Get(), true));
+						RegisterActorDescView(FStreamingGenerationActorDescView(OutActorDescViewMap, UnsavedDirtyRef.Get(), true), &OutEditorOnlyActorDescSet, Actor);
 						continue;
 					}
 				}
 
 				// Non-dirty actor
-				RegisterActorDescView(FStreamingGenerationActorDescView(OutActorDescViewMap, *Iterator));
-			}
-			else
-			{
-				OutEditorOnlyActorDescSet.Add(Iterator->GetGuid());
+				RegisterActorDescView(FStreamingGenerationActorDescView(OutActorDescViewMap, *Iterator), &OutEditorOnlyActorDescSet);
 			}
 		}
 
@@ -872,7 +877,7 @@ class FWorldPartitionStreamingGenerator
 				// Here, FindHandlingContainer is used to make sure that the actor is handled by the collection
 				// The main reason is that UWorldPartition::CheckForErrors currently builds a collection per ActorDescContainer of the WorldPartition.
 				// This is probably a limitation introduced by ContentBundles. 
-				if (IsValid(Actor) && Actor->IsPackageExternal() && Actor->IsMainPackageActor() && !Actor->IsEditorOnly()
+				if (IsValid(Actor) && Actor->IsPackageExternal() && Actor->IsMainPackageActor()
 					&& InActorDescCollection.FindHandlingContainerInstance(Actor)
 					&& !InActorDescCollection.GetActorDescInstance(Actor->GetActorGuid()))
 				{
@@ -946,9 +951,12 @@ class FWorldPartitionStreamingGenerator
 					if (ActorDescView.GetIsSpatiallyLoaded())
 					{
 						const FBox RuntimeBounds = ActorDescView.GetRuntimeBounds();
-						check(RuntimeBounds.IsValid);
-
-						ContainerCollectionInstanceDescriptor.Bounds += RuntimeBounds;
+						// Test if RuntimeBounds is valid because GetIsSpatiallyLoaded() is affected by a valid ParentView
+						// So the RuntimeBounds can be invalid in the case where its a non-spatial with a spatial parent.
+						if (RuntimeBounds.IsValid)
+						{
+							ContainerCollectionInstanceDescriptor.Bounds += RuntimeBounds;
+						}
 					}
 				});
 
@@ -1099,8 +1107,7 @@ class FWorldPartitionStreamingGenerator
 			if (WorldPartitionContext)
 			{
 				// Gather all references to external actors from the world and make them non-spatially loaded
-				const ActorsReferencesUtils::FGetActorReferencesParams Params = ActorsReferencesUtils::FGetActorReferencesParams(WorldPartitionContext->GetTypedOuter<UWorld>())
-					.SetRequiredFlags(RF_HasExternalPackage);
+				const ActorsReferencesUtils::FGetActorReferencesParams Params = ActorsReferencesUtils::FGetActorReferencesParams(WorldPartitionContext->GetTypedOuter<UWorld>());
 				TArray<ActorsReferencesUtils::FActorReference> WorldExternalActorReferences = ActorsReferencesUtils::GetActorReferences(Params);
 				Algo::Transform(WorldExternalActorReferences, WorldReferences, [](const ActorsReferencesUtils::FActorReference& ActorReference) { return ActorReference.Actor->GetActorGuid(); });
 
@@ -1184,7 +1191,36 @@ class FWorldPartitionStreamingGenerator
 					return RefererActorDescView.GetRuntimeDataLayerInstanceNames().GetExternalDataLayer() == ReferenceActorDescView.GetRuntimeDataLayerInstanceNames().GetExternalDataLayer();
 				};
 
-				// Validate data layers
+				auto GetDataLayerLoadFilter = [](const UDataLayerInstance* DataLayerInstance)
+				{
+					EDataLayerLoadFilter LoadFilter = DataLayerInstance->IsClientOnly() ? EDataLayerLoadFilter::ClientOnly : DataLayerInstance->IsServerOnly() ? EDataLayerLoadFilter::ServerOnly : EDataLayerLoadFilter::None;
+					return LoadFilter;
+				};
+
+				// Validate that all runtime data layers have the same DataLayerLoadFilter
+				auto AreDataLayersLoadFilterValid = [this, GetDataLayerLoadFilter](const FStreamingGenerationActorDescView& ActorDescView)
+				{
+					TArrayView<const FName> DataLayers = ActorDescView.GetRuntimeDataLayerInstanceNames().GetNonExternalDataLayers();
+					if (DataLayers.Num() > 1)
+					{
+						TArray<const UDataLayerInstance*> RuntimeDataLayerInstances = GetRuntimeDataLayerInstances(TArray<FName>(DataLayers));
+						if (RuntimeDataLayerInstances.Num() > 1)
+						{
+							EDataLayerLoadFilter LoadFilter = GetDataLayerLoadFilter(RuntimeDataLayerInstances[0]);
+							for (int32 Index = 1; Index < RuntimeDataLayerInstances.Num(); ++Index)
+							{
+								EDataLayerLoadFilter Current = GetDataLayerLoadFilter(RuntimeDataLayerInstances[Index]);
+								if (LoadFilter != Current)
+								{
+									return false;
+								}
+							}
+						}
+					}
+					return true;
+				};
+
+				// Validate reference actor data layers
 				auto IsReferenceDataLayersValid = [](const FStreamingGenerationActorDescView& RefererActorDescView, const FStreamingGenerationActorDescView& ReferenceActorDescView)
 				{
 					if (RefererActorDescView.GetRuntimeDataLayerInstanceNames().GetNonExternalDataLayers().Num() == ReferenceActorDescView.GetRuntimeDataLayerInstanceNames().GetNonExternalDataLayers().Num())
@@ -1214,6 +1250,19 @@ class FWorldPartitionStreamingGenerator
 					FGuid ReferenceGuid;
 					FStreamingGenerationActorDescView* ReferenceActorDesc;
 				};
+
+				if (!AreDataLayersLoadFilterValid(ActorDescView))
+				{
+					if (PassType == EPassType::ErrorReporting)
+					{
+						ErrorHandler->OnDataLayersLoadFilterMismatch(ActorDescView);
+					}
+					else
+					{
+						ActorDescView.SetForcedNoDataLayers();
+					}
+					NbErrorsDetected++;
+				}
 
 				TArray<FActorReferenceInfo> References;
 
@@ -1528,7 +1577,7 @@ class FWorldPartitionStreamingGenerator
 					NbErrorsDetected++;
 				}
 
-				if (ActorDescView.GetHLODLayer().IsValid() && !IsValidHLODLayer(PerInstanceData.RuntimeGrid, ActorDescView.GetHLODLayer()))
+				if (ActorDescView.GetIsSpatiallyLoaded() && ActorDescView.GetHLODLayer().IsValid() && !IsValidHLODLayer(PerInstanceData.RuntimeGrid, ActorDescView.GetHLODLayer()))
 				{
 					if (PassType == EPassType::ErrorReporting)
 					{
@@ -1673,16 +1722,10 @@ public:
 		}
 	}
 
-	static TUniquePtr<FArchive> CreateDumpStateLogArchive(const TCHAR* Suffix, bool bTimeStamped = true)
+	static TUniquePtr<FArchive> CreateDumpStateLogArchive(const TCHAR* Suffix)
 	{
 		FString StateLogOutputFilename = FPaths::ProjectLogDir() / TEXT("WorldPartition") / FString::Printf(TEXT("StreamingGeneration-%s"), Suffix);
-
-		if (bTimeStamped)
-		{
-			StateLogOutputFilename += FString::Printf(TEXT("-%08x-%s"), FPlatformProcess::GetCurrentProcessId(), *FDateTime::Now().ToIso8601().Replace(TEXT(":"), TEXT(".")));
-		}
-
-		StateLogOutputFilename += TEXT(".log");
+		StateLogOutputFilename += FString::Printf(TEXT("-%08x-%s.log"), FPlatformProcess::GetCurrentProcessId(), *FDateTime::Now().ToIso8601().Replace(TEXT(":"), TEXT(".")));
 		return TUniquePtr<FArchive>(IFileManager::Get().CreateFileWriter(*StateLogOutputFilename));
 	}
 
@@ -1868,16 +1911,16 @@ bool UWorldPartition::GenerateContainerStreaming(const FGenerateStreamingParams&
 	TUniquePtr<FArchive> LogFileAr;
 	TUniquePtr<FHierarchicalLogArchive> HierarchicalLogAr;
 
-	const bool bIsStreamingGenerationLogAllowed = !bIsPIE || FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor").GetEnableStreamingGenerationLogOnPIE();
+	const bool bIsStreamingGenerationLogAllowed = (!bIsPIE || IWorldPartitionEditorModule::Get().GetEnableStreamingGenerationLogOnPIE()) && (!InParams.OutputLogType.IsSet() || !InParams.OutputLogType.GetValue().IsEmpty());
 	const bool bIsStreamingGenerationLogRelevant = IsMainWorldPartition() && (!GIsBuildMachine || GIsAutomationTesting || IsRunningCookCommandlet());
 
 	if (bIsStreamingGenerationLogAllowed && bIsStreamingGenerationLogRelevant)
 	{
 		TStringBuilder<256> StateLogSuffix;
-		StateLogSuffix += bIsPIE ? TEXT("PIE") : (IsRunningGame() ? TEXT("Game") : (IsRunningCookCommandlet() ? TEXT("Cook") : (GIsAutomationTesting ? TEXT("UnitTest") : TEXT("Manual"))));
+		StateLogSuffix += bIsPIE ? TEXT("PIE") : (IsRunningGame() ? TEXT("Game") : (IsRunningCookCommandlet() ? TEXT("Cook") : (GIsAutomationTesting ? TEXT("UnitTest") : (InParams.OutputLogType.IsSet() ? *InParams.OutputLogType.GetValue() : TEXT("Manual")))));
 		StateLogSuffix += TEXT("_");
 		StateLogSuffix += ContainerShortName;
-		LogFileAr = FWorldPartitionStreamingGenerator::CreateDumpStateLogArchive(*StateLogSuffix, !InParams.OutputLogPath);
+		LogFileAr = FWorldPartitionStreamingGenerator::CreateDumpStateLogArchive(*StateLogSuffix);
 
 		if (LogFileAr.IsValid())
 		{
@@ -1890,11 +1933,12 @@ bool UWorldPartition::GenerateContainerStreaming(const FGenerateStreamingParams&
 
 	FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams StreamingGeneratorParams = FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams()
 		.SetWorldPartitionContext(this)
-		.SetHandleUnsavedActors(bIsPIE)
+		.SetHandleUnsavedActors(bIsPIE && !GetTypedOuter<UWorld>()->IsGameWorld())
 		.SetIsValidGrid([this](FName GridName, const UClass* ActorClass) { return RuntimeHash->IsValidGrid(GridName, ActorClass); })
 		.SetIsValidHLODLayer([this](FName GridName, const FSoftObjectPath& HLODLayerPath) { return RuntimeHash->IsValidHLODLayer(GridName, HLODLayerPath); })
 		.SetErrorHandler(ErrorHandlerSelector.Get())
 		.SetEnableStreaming(IsStreamingEnabled())
+		.SetFilteredClasses(InParams.FilteredClasses)
 		.SetCreateContainerResolver(FEditorPathHelper::IsEnabled());
 
 	FWorldPartitionStreamingGenerator StreamingGenerator(StreamingGeneratorParams);
@@ -2020,9 +2064,9 @@ bool UWorldPartition::HasStreamingContent() const
 	return RuntimeHash && RuntimeHash->HasStreamingContent();
 }
 
-URuntimeHashExternalStreamingObjectBase* UWorldPartition::FlushStreamingToExternalStreamingObject(const FString& ExternalStreamingObjectName)
+URuntimeHashExternalStreamingObjectBase* UWorldPartition::FlushStreamingToExternalStreamingObject()
 {
-	URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject = RuntimeHash->StoreStreamingContentToExternalStreamingObject(*ExternalStreamingObjectName);
+	URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject = RuntimeHash->StoreStreamingContentToExternalStreamingObject();
 	check(ExternalStreamingObject);
 
 	StreamingPolicy->StoreStreamingContentToExternalStreamingObject(*ExternalStreamingObject);
@@ -2076,6 +2120,8 @@ void UWorldPartition::SetupHLODActors(const FSetupHLODActorsParams& Params)
 		RuntimeHash->SetupHLODActors(StreamingGenerator.GetStreamingGenerationContext(InContainerInstanceCollection), Params);
 	};
 
+	UWorldPartitionRuntimeHash::ExecutePreSetupHLODActors(this, Params);
+
 	// Process all Content Bundle container instances
 	for (const UActorDescContainerInstance* ContentBundleContainerInstance : ContentBundleContainerInstances)
 	{
@@ -2089,6 +2135,8 @@ void UWorldPartition::SetupHLODActors(const FSetupHLODActorsParams& Params)
 		FStreamingGenerationContainerInstanceCollection Collection(BaseAndEDLContainerInstances, FStreamingGenerationContainerInstanceCollection::ECollectionType::BaseAndEDLs);
 		SetupHLODActorsForCollection(Collection);
 	}
+
+	UWorldPartitionRuntimeHash::ExecutePostSetupHLODActors(this, Params);
 }
 
 FStreamingGenerationContainerInstanceCollection::FStreamingGenerationContainerInstanceCollection(std::initializer_list<TObjectPtr<const UActorDescContainerInstance>> ActorDescContainerInstanceArray, const ECollectionType& InCollectionType)

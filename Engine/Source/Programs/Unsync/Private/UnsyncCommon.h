@@ -24,6 +24,8 @@ using int64 = int64_t;
 using FPath = std::filesystem::path;
 using FPathStringView = std::basic_string_view<FPath::value_type>;
 
+static const char PATH_SEPARATOR = char(FPath::preferred_separator);
+
 #define UNSYNC_DISALLOW_COPY_ASSIGN(T) \
 	T(const T&) = delete;              \
 	T& operator=(const T&) = delete;

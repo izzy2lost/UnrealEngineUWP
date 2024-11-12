@@ -8,6 +8,7 @@
 #include "DynamicMesh/MeshTransforms.h"
 #include "DynamicMeshes/AvaShapeDynMeshBase.h"
 #include "Extensions/AvaTransformUpdateModifierExtension.h"
+#include "GeometryScript/MeshBasicEditFunctions.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Operations/MeshBoolean.h"
@@ -86,8 +87,25 @@ void UAvaBooleanModifier::Apply()
 		return;
 	}
 
-	ApplyInternal();
+	// Update masking material here too to avoid flickering between mask and original materials due to async task
 	UpdateMaskingMaterials();
+
+	// Use async execution since boolean is an heavy operation
+	TWeakObjectPtr<UAvaBooleanModifier> ThisWeak(this);
+	Async(EAsyncExecution::TaskGraphMainThread, [ThisWeak]()
+	{
+		UAvaBooleanModifier* This = ThisWeak.Get();
+
+		if (!IsValid(This))
+		{
+			return;
+		}
+
+		This->ApplyInternal();
+		This->UpdateMaskingMaterials();
+
+		This->Next();
+	});
 }
 
 void UAvaBooleanModifier::OnModifierDisabled(EActorModifierCoreDisableReason InReason)
@@ -298,7 +316,7 @@ void UAvaBooleanModifier::ApplyInternal()
 	UAvaBooleanModifierShared* Shared = GetShared<UAvaBooleanModifierShared>(false);
 	if (!Shared)
 	{
-		Next();
+		Fail(LOCTEXT("InvalidSharedObject", "Invalid boolean modifier shared object"));
 		return;
 	}
 
@@ -312,23 +330,83 @@ void UAvaBooleanModifier::ApplyInternal()
 
 	// find other colliding shapes
 	TSet<TWeakObjectPtr<UAvaBooleanModifier>> OutCollidingModifiersWeak = Shared->GetIntersectingModifiers(this, &ChannelInfo);
-	for (const TWeakObjectPtr<UAvaBooleanModifier>& CollidingModifierWeak : OutCollidingModifiersWeak)
-	{
-		UAvaBooleanModifier* CollidingModifier = CollidingModifierWeak.Get();
-		if (!CollidingModifier)
-		{
-			continue;
-		}
 
+	if (!OutCollidingModifiersWeak.IsEmpty())
+	{
 		if (bIsMasking)
 		{
-			// Mark other dirty to restore and reapply this mask
-			CollidingModifier->MarkModifierDirty();
+			for (const TWeakObjectPtr<UAvaBooleanModifier>& CollidingModifierWeak : OutCollidingModifiersWeak)
+			{
+				UAvaBooleanModifier* CollidingModifier = CollidingModifierWeak.Get();
+				if (!CollidingModifier)
+				{
+					continue;
+				}
+
+				// Mark other dirty to restore and reapply this mask
+				CollidingModifier->MarkModifierDirty();
+			}
 		}
 		else
 		{
-			// Compute colliding mask with this modifier
-			UAvaBooleanModifier::MaskActor(CollidingModifier, this);
+			using namespace UE::Geometry;
+
+			TMap<EAvaBooleanMode, FDynamicMesh3> ModeTools;
+
+			// Build the mode tools
+			for (const TWeakObjectPtr<UAvaBooleanModifier>& CollidingModifierWeak : OutCollidingModifiersWeak)
+			{
+				const UAvaBooleanModifier* CollidingModifier = CollidingModifierWeak.Get();
+				if (!CollidingModifier)
+				{
+					continue;
+				}
+
+				const EAvaBooleanMode ToolMode = CollidingModifier->GetMode();
+				if (ToolMode == EAvaBooleanMode::None)
+				{
+					continue;
+				}
+
+				const UDynamicMeshComponent* ToolMeshComponent = CollidingModifier->GetMeshComponent();
+				if (!ToolMeshComponent)
+				{
+					continue;
+				}
+
+				FDynamicMesh3& ModeTool = ModeTools.FindOrAdd(ToolMode);
+
+				ToolMeshComponent->ProcessMesh([ToolMeshComponent, &ModeTool](const FDynamicMesh3& InToolMesh)
+				{
+					FDynamicMesh3 ToolMesh = InToolMesh;
+					MeshTransforms::ApplyTransform(ToolMesh, ToolMeshComponent->GetComponentTransform());
+
+					FGeometryScriptAppendMeshOptions AppendOptions;
+					AppendOptions.CombineMode = EGeometryScriptCombineAttributesMode::EnableAllMatching;
+					FMeshIndexMappings TmpMappings;
+					AppendOptions.UpdateAttributesForCombineMode(ModeTool, ToolMesh);
+
+					FDynamicMeshEditor Editor(&ModeTool);
+					Editor.AppendMesh(&ToolMesh, TmpMappings);
+				});
+			}
+
+			FDynamicMesh3 OutputMesh;
+			GetMeshComponent()->ProcessMesh([&OutputMesh](const FDynamicMesh3& InEditMesh)
+			{
+				OutputMesh = InEditMesh;
+			});
+
+			// Apply mode tools
+			for (const TPair<EAvaBooleanMode, FDynamicMesh3>& ModeToolPair : ModeTools)
+			{
+				UAvaBooleanModifier::ApplyTool(ModeToolPair.Key, ModeToolPair.Value, this, OutputMesh);
+			}
+
+			GetMeshComponent()->EditMesh([&OutputMesh](FDynamicMesh3& InEditMesh)
+			{
+				InEditMesh = MoveTemp(OutputMesh);
+			});
 		}
 	}
 
@@ -355,8 +433,6 @@ void UAvaBooleanModifier::ApplyInternal()
 	{
 		LastTransform = ActorModified->GetActorTransform();
 	}
-
-	Next();
 }
 
 void UAvaBooleanModifier::OnModeChanged()
@@ -509,65 +585,67 @@ void UAvaBooleanModifier::UpdateMaskVisibility()
 	}
 }
 
-void UAvaBooleanModifier::MaskActor(const UAvaBooleanModifier* InTool, const UAvaBooleanModifier* InTarget)
+void UAvaBooleanModifier::ApplyTool(EAvaBooleanMode InMode, const UE::Geometry::FDynamicMesh3& InModeTool, const UAvaBooleanModifier* InTarget, UE::Geometry::FDynamicMesh3& OutMesh)
 {
-	UDynamicMeshComponent* ToolDynMesh = InTool->GetMeshComponent();
-	UDynamicMeshComponent* TargetDynMesh = InTarget->GetMeshComponent();
-
-	if (!ToolDynMesh || !TargetDynMesh)
-	{
-		return;
-	}
-
-	EAvaBooleanMode ToolMode = InTool->Mode;
-
-	if (ToolMode == EAvaBooleanMode::None || InTarget->GetMode() != EAvaBooleanMode::None)
+	if (!IsValid(InTarget)
+		|| !InTarget->GetMeshComponent()
+		|| InTarget->GetMode() != EAvaBooleanMode::None)
 	{
 		return;
 	}
 
 	using namespace UE::Geometry;
 
-	TargetDynMesh->EditMesh([ToolDynMesh, TargetDynMesh, ToolMode](FDynamicMesh3& TargetMesh)
+	UDynamicMeshComponent* TargetDynMesh = InTarget->GetMeshComponent();
+
+	TargetDynMesh->ProcessMesh([TargetDynMesh, InMode, &InModeTool, &OutMesh](const FDynamicMesh3& InSourceMesh)
 	{
-		FTransformSRT3d TargetTransform(TargetDynMesh->GetComponentTransform());
-		FTransformSRT3d ToolTransform(ToolDynMesh->GetComponentTransform());
+		FTransformSRT3d SourceTransform(TargetDynMesh->GetComponentTransform());
 
-		ToolDynMesh->ProcessMesh([&TargetMesh, ToolMode, TargetTransform, ToolTransform](const FDynamicMesh3& ToolMesh)
+		FMeshBoolean::EBooleanOp Operation;
+		switch (InMode)
 		{
-			FMeshBoolean::EBooleanOp Operation;
-			switch (ToolMode)
+			case EAvaBooleanMode::Intersect:
 			{
-				case EAvaBooleanMode::Intersect:
-					Operation = FMeshBoolean::EBooleanOp::Intersect;
-				break;
-				case EAvaBooleanMode::Subtract:
-					Operation = FMeshBoolean::EBooleanOp::Difference;
-				break;
-				case EAvaBooleanMode::Union:
-					Operation = FMeshBoolean::EBooleanOp::Union;
-				break;
-				default:
-					return;
-				}
+				Operation = FMeshBoolean::EBooleanOp::Intersect;
+			}
+			break;
 
-				FMeshBoolean MeshBoolean(
-				&TargetMesh, TargetTransform,
-				&ToolMesh, ToolTransform,
-					&TargetMesh, Operation);
-				MeshBoolean.bPutResultInInputSpace = true;
-				MeshBoolean.bSimplifyAlongNewEdges = true;
-				MeshBoolean.bWeldSharedEdges = true;
-				MeshBoolean.bCollapseDegenerateEdgesOnCut = true;
-				MeshBoolean.bPreserveTriangleGroups = true;
-				MeshBoolean.bTrackAllNewEdges = false;
-				MeshBoolean.Compute();
-		});
+			case EAvaBooleanMode::Subtract:
+			{
+				Operation = FMeshBoolean::EBooleanOp::Difference;
+			}
+			break;
 
-		if (TargetMesh.TriangleCount() > 0)
+			case EAvaBooleanMode::Union:
+			{
+				Operation = FMeshBoolean::EBooleanOp::Union;
+			}
+			break;
+
+			default: return;
+		}
+
+		FMeshBoolean MeshBoolean(
+		&OutMesh
+			, SourceTransform
+			, &InModeTool
+			, FTransform::Identity
+			, &OutMesh
+			, Operation
+		);
+		MeshBoolean.bPutResultInInputSpace = true;
+		MeshBoolean.bSimplifyAlongNewEdges = true;
+		MeshBoolean.bWeldSharedEdges = true;
+		MeshBoolean.bCollapseDegenerateEdgesOnCut = true;
+		MeshBoolean.bPreserveTriangleGroups = true;
+		MeshBoolean.bTrackAllNewEdges = false;
+		MeshBoolean.Compute();
+
+		if (OutMesh.TriangleCount() > 0)
 		{
 			// Boolean result is in the space of TargetTransform, so invert that
-			MeshTransforms::ApplyTransformInverse(TargetMesh, TargetTransform, true);
+			MeshTransforms::ApplyTransformInverse(OutMesh, SourceTransform, true);
 		}
 	});
 }

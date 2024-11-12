@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "CoreMinimal.h"
-#include "TestHarness.h"
+
 #include "OnlineCatchHelper.h"
  
 #define DEMOTEST_TAG "[Demo]"  

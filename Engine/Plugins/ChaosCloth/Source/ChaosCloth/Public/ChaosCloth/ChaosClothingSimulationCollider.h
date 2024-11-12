@@ -10,6 +10,8 @@ class USkeletalMeshComponent;
 class UClothingAssetCommon;
 class UPhysicsAsset;
 class FClothingSimulationContextCommon;
+class FLevelSetCollisionData;
+class FSkinnedLevelSetCollisionData;
 struct FReferenceSkeleton;
 
 namespace Chaos
@@ -29,15 +31,21 @@ namespace Chaos
 			LODs,  // LODIndex based start slot for LODs collisions
 		};
 
+		struct FLevelSetCollisionData
+		{
+			const TSharedPtr<Chaos::FLevelSet, ESPMode::ThreadSafe> LevelSet;
+			FTransform Transform;
+			int32 BoneIndex;
+		};
+
+		struct FSkinnedLevelSetCollisionData
+		{
+			const TRefCountPtr<Chaos::TWeightedLatticeImplicitObject<Chaos::FLevelSet>> WeightedLevelSet;
+			int32 BoneIndex;
+			TArray<int32> MappedSkinnedBones;
+		};
+
 		CHAOSCLOTH_API FClothingSimulationCollider(const UPhysicsAsset* InPhysicsAsset, const FReferenceSkeleton* InReferenceSkeleton);
-
-		UE_DEPRECATED(5.2, "Use FClothingSimulationCollider(const UPhysicsAsset* InPhysicsAsset, const FReferenceSkeleton* InReferenceSkeleton) instead.")
-		CHAOSCLOTH_API FClothingSimulationCollider(
-			const UClothingAssetCommon* InAsset,  // Cloth asset for collision data, can be nullptr
-			const USkeletalMeshComponent* InSkeletalMeshComponent,  // For asset LODs management, can be nullptr
-			bool bInUseLODIndexOverride,
-			int32 InLODIndexOverride);
-
 		CHAOSCLOTH_API ~FClothingSimulationCollider();
 
 		FClothingSimulationCollider(const FClothingSimulationCollider&) = delete;
@@ -84,23 +92,18 @@ namespace Chaos
 		CHAOSCLOTH_API TConstArrayView<bool> GetCollisionStatus(const FClothingSimulationSolver* Solver, const FClothingSimulationCloth* Cloth, ECollisionDataType CollisionDataType) const;
 		// ---- End of the debugging and visualization functions ----
 
+		// Extract all collisions from the physics asset into a more cloth friendly format
+		CHAOSCLOTH_API static void ExtractPhysicsAssetCollision(
+			const UPhysicsAsset* PhysicsAsset,
+			const FReferenceSkeleton* ReferenceSkeleton,
+			FClothCollisionData& ClothCollisionData,
+			TArray<FLevelSetCollisionData>& LevelSetCollisions,
+			TArray<FSkinnedLevelSetCollisionData>& SkinnedLevelSetCollisions,
+			TArray<int32>& UsedBoneIndices,
+			bool bUseSphylOnly = false,
+			bool bSkipMissingBones = false);
+
 	private:
-		struct FLevelSetCollisionData
-		{
-			const TSharedPtr<Chaos::FLevelSet, ESPMode::ThreadSafe> LevelSet;
-			FTransform Transform;
-			int32 BoneIndex;
-		};
-
-		struct FSkinnedLevelSetCollisionData
-		{
-			const TRefCountPtr<Chaos::TWeightedLatticeImplicitObject<Chaos::FLevelSet>> WeightedLevelSet;
-			int32 BoneIndex;
-			TArray<int32> MappedSkinnedBones;
-		};
-
-		CHAOSCLOTH_API void ExtractPhysicsAssetCollision(FClothCollisionData& ClothCollisionData, TArray<FLevelSetCollisionData>& LevelSetCollisions, TArray<FSkinnedLevelSetCollisionData>& SkinnedLevelSetCollisions, TArray<int32>& UsedBoneIndices);
-
 		CHAOSCLOTH_API int32 GetNumGeometries(int32 InSlotIndex) const;
 
 		// Return the collision particle range ID for the specified slot being LODLess, external, or any of the LODs collision.

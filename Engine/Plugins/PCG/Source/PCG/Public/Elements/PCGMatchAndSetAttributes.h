@@ -45,8 +45,6 @@ class UPCGMatchAndSetAttributesSettings : public UPCGSettings
 	GENERATED_BODY()
 
 public:
-	UPCGMatchAndSetAttributesSettings();
-
 	// ~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override;
@@ -56,6 +54,7 @@ public:
 	virtual bool HasDynamicPins() const { return true; }
 	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins) override;
 #endif // WITH_EDITOR
+	virtual bool UseSeed() const override;
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
@@ -96,7 +95,7 @@ public:
 	FPCGAttributePropertyInputSelector MaxDistanceInputAttribute;
 
 	/** Controls whether we will use the attribute provided in the Input Weight Attribute to perform entry selection. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, InlineEditConditionToggle))
 	bool bUseInputWeightAttribute = false;
 
 	/** Input weight from the points, assumed to be in the [0, 1] range. */
@@ -121,4 +120,5 @@ class FPCGMatchAndSetAttributesElement : public TPCGTimeSlicedElementBase<FPCGMa
 protected:
 	virtual bool PrepareDataInternal(FPCGContext* InContext) const override;
 	virtual bool ExecuteInternal(FPCGContext* InContext) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 };

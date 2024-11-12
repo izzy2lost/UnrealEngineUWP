@@ -85,6 +85,9 @@ ESaveStorageResult SaveStorageResultFromString(FUtf8StringView Text);
  * Reads information from the AssetRegistry to compute the digest.
  */
 FPackageDigest CalculatePackageDigest(IAssetRegistry& AssetRegistry, FName PackageName);
+FPackageDigest CalculatePackageDigest(const FAssetPackageData& PackageData, FName PackageName);
+/** FindOrAdd class digest for the given classpath, and append its hash onto the writer. Returns false if not found. */
+bool TryAppendClassDigests(FBlake3& Writer, TConstArrayView<FTopLevelAssetPath> ClassPaths, FString* OutErrorMessage);
 
 /** For any ClassNames not already in ClassDigests, look up their UStruct and add them. */
 void PrecacheClassDigests(TConstArrayView<FTopLevelAssetPath> ClassNames);
@@ -126,6 +129,9 @@ void UtilsCookInitialize();
  */
 FStringView RemoveConfigComment(FStringView Line);
 
+/** Parse Editor.ini:[TargetDomain]:IterativeClassDenyList */
+TSet<FTopLevelAssetPath> ConstructTargetIterativeClassBlockList();
+
 #if ENABLE_COOK_STATS
 namespace CookStats
 {
@@ -133,4 +139,4 @@ namespace CookStats
 }
 #endif
 
-}
+} // namespace UE::EditorDomain

@@ -59,13 +59,14 @@ namespace EAssetAvailabilityProgressReportingType
 namespace UE::AssetRegistry
 {
 
-	// Please update LexToString when modifying this enum
+// Please update LexToString when modifying this enum
 enum class EScanFlags : uint32
 {
 	None = 0,
 	ForceRescan = 1 << 0,				// the paths will be scanned again, even if they were previously scanned
 	IgnoreDenyListScanFilters = 1 << 1,	// ignore deny list scan filters
 	WaitForInMemoryObjects = 1 << 2,	// update the tags of all assets that have loaded into memory before returning from the scan
+	IgnoreInvalidPathWarning = 1 << 3,  // By default, scans of invalid paths (unmounted, or /Temp) log a warning. Suppress that warning.
 };
 ENUM_CLASS_FLAGS(EScanFlags);
 
@@ -274,6 +275,22 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure=false, Category="AssetRegistry")
 	virtual bool GetAssets(const FARFilter& Filter, TArray<FAssetData>& OutAssetData, bool bSkipARFilteredAssets=true) const = 0;
+	virtual bool GetAssets(const FARCompiledFilter& Filter, TArray<FAssetData>& OutAssetData, bool bSkipARFilteredAssets=true) const = 0;
+
+	/**
+	 * Gets asset data for in-memory assets only, that match the filter.
+	 * Returns assets that would be excluded by calling GetAssets with bIncludeOnlyOnDiskAssets set to true.
+	 * @note This method IGNORES the value of bIncludeOnlyOnDiskAssets on the provided filter. 
+	 * Assets returned must satisfy every filter component if there is at least one element in the component's array.
+	 * Assets will satisfy a component if they match any of the elements in it.
+	 *
+	 * @param Filter filter to apply to the assets in the AssetRegistry
+	 * @param OutAssetData the list of assets in this path
+	 * @param bSkipARFilteredAssets If true, skips Objects that return true for IsAsset but are not assets in the current platform.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure=false, Category="AssetRegistry")
+	virtual bool GetInMemoryAssets(const FARFilter& Filter, TArray<FAssetData>& OutAssetData, bool bSkipARFilteredAssets=true) const = 0;
+	virtual bool GetInMemoryAssets(const FARCompiledFilter& Filter, TArray<FAssetData>& OutAssetData, bool bSkipARFilteredAssets=true) const = 0;
 
 	/**
 	 * Enumerate asset data for all assets that match the filter.
@@ -284,10 +301,30 @@ public:
 	 * @param Callback function to call for each asset data enumerated
 	 * @param bSkipARFilteredAssets If true, skips Objects that return true for IsAsset but are not assets in the current platform.
 	 */
+	UE_DEPRECATED(5.5, "Use EnumerateAssets with InEnumerateFlags instead.")
 	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback,
-		bool bSkipARFilteredAssets = true) const = 0;
+		bool bSkipARFilteredAssets) const = 0;
+	UE_DEPRECATED(5.5, "Use EnumerateAssets with InEnumerateFlags instead.")
 	virtual bool EnumerateAssets(const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback,
-		bool bSkipARFilteredAssets = true) const = 0;
+		bool bSkipARFilteredAssets) const = 0;
+
+	/**
+	 * Enumerate asset data for all assets that match the filter.
+	 * Assets returned must satisfy every filter component if there is at least one element in the component's array.
+	 * Assets will satisfy a component if they match any of the elements in it.
+	 *
+	 * @param Filter filter to apply to the assets in the AssetRegistry
+	 * @param Callback function to call for each asset data enumerated
+	 * @param InEnumerateFlags flags to control enumeration and filtering.
+	 *        @see EEnumerateAssetsFlags.
+	 * @return False if filter is invalid, otherwise true.
+	 */
+	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback) const = 0;
+	virtual bool EnumerateAssets(const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback) const = 0;
+	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback,
+		UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const = 0;
+	virtual bool EnumerateAssets(const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback,
+		UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const = 0;
 
 	/**
 	 * Gets the asset data for the specified object path
@@ -345,6 +382,17 @@ public:
 	virtual UE::AssetRegistry::EExists TryGetAssetPackageData(FName PackageName, FAssetPackageData& OutAssetPackageData) const = 0;
 
 	/**
+	 * Tries to get the package data for the specified package name. If found, OutCorrectCasePackageName
+	 * will be populated with the PackageName that matches the casing used by the filesystem
+	 * 
+	 * @param PackageName name of the package
+	 * @param OutAssetPackageData out FAssetPackageData
+	 * @param OutCorrectCasePackageName out FName matching filesystem casing
+	 * @return Return code enum
+	 */
+	virtual UE::AssetRegistry::EExists TryGetAssetPackageData(FName PackageName, FAssetPackageData& OutAssetPackageData, FName& OutCorrectCasePackageName) const = 0;
+	
+	/**
 	 * Gets asset data for all assets in the registry.
 	 * This method may be slow, use a filter if possible to avoid iterating over the entire registry.
 	 *
@@ -361,8 +409,21 @@ public:
 	 * @param bIncludeOnlyOnDiskAssets If true, use only DiskGatheredData, do not calculate from UObjects.
 	 *        @see IAssetRegistry class header for bIncludeOnlyOnDiskAssets.
 	 */
+	UE_DEPRECATED(5.5, "Use EnumerateAllAssets with InEnumerateFlags instead.")
 	virtual bool EnumerateAllAssets(TFunctionRef<bool(const FAssetData&)> Callback,
-		bool bIncludeOnlyOnDiskAssets = false) const = 0;
+		bool bIncludeOnlyOnDiskAssets) const = 0;
+
+	/**
+	 * Enumerate asset data for all assets currently cached in the asset registry. 
+	 * This method may be slow, use a filter if possible to avoid iterating over the entire registry.
+	 * 
+	 * @param Callback function to call for each asset data enumerated
+	 * @param InEnumerateFlags flags to control enumeration and filtering.
+	 *        @see IAssetRegistry class header for EEnumerateAssetsFlags.
+	 */
+	virtual bool EnumerateAllAssets(TFunctionRef<bool(const FAssetData&)> Callback) const = 0;
+	virtual bool EnumerateAllAssets(TFunctionRef<bool(const FAssetData&)> Callback,
+		UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const = 0;
 
 	/**
 	 * Gets the LongPackageName for all packages with the given PackageName.
@@ -448,12 +509,24 @@ public:
 	/** Finds Package data for a package name. This data is only updated on save and can only be accessed for valid packages */
 	virtual TOptional<FAssetPackageData> GetAssetPackageDataCopy(FName PackageName) const = 0;
 
+	/** Find Package Data for the packages name. This data is only updated on save and can only be accessed for valid packages */
+	virtual TArray<TOptional<FAssetPackageData>> GetAssetPackageDatasCopy(TArrayView<FName> PackageNames) const = 0;
+
 	/**
 	 * Enumerate all PackageDatas in the AssetRegistry. The callback is called from within the AssetRegistry's lock, so it must not call
 	 * arbitrary code that could call back into the AssetRegistry; doing so would deadlock.
 	 */
 	virtual void EnumerateAllPackages(TFunctionRef<void(FName PackageName, const FAssetPackageData& PackageData)> Callback) const = 0;
 
+	/*
+	* Checks if the specified package exists on disk. If the package exists and the optional parameters are provided, 
+	* OutCorrectCasePackageName will be populated with the case matching package name found on disk and 
+	* OutExtension will be populated with the extension for the package (dot included) if the package contains assets
+	* 
+	* @param PackageName				the name of the package to check for existence on disk (eg, /Game/MyFolder/MyAsset)
+	* @param OutCorrectCasePackageName 	out package name matching the case on disk
+	* @param OutExtension				out extension for packages containing assets (dot included)
+	*/
 	virtual bool DoesPackageExistOnDisk(FName PackageName, FString* OutCorrectCasePackageName = nullptr, FString* OutExtension = nullptr) const = 0;
 
 	/** Uses the asset registry to look for ObjectRedirectors. This will follow the chain of redirectors. It will return the original path if no redirectors are found */
@@ -633,6 +706,7 @@ public:
 	/** Forces a rescan of specific filenames, call this when you need to refresh from disk */
 	UFUNCTION(BlueprintCallable, Category = "AssetRegistry")
 	virtual void ScanModifiedAssetFiles(const TArray<FString>& InFilePaths) = 0;
+	virtual void ScanModifiedAssetFiles(const TArray<FString>& InFilePaths, UE::AssetRegistry::EScanFlags ScanFlags) = 0;
 
 	/** Event for when one or more files have been blocked from the registry */
 	DECLARE_EVENT_OneParam( IAssetRegistry, FFilesBlockedEvent, const TArray<FString>& /*Files*/ );
@@ -747,6 +821,12 @@ public:
 	DECLARE_TS_MULTICAST_DELEGATE( FFilesLoadedEvent );
 	virtual FFilesLoadedEvent& OnFilesLoaded() = 0;
 
+	DECLARE_TS_MULTICAST_DELEGATE(FScanStartedEvent);
+	virtual FScanStartedEvent& OnScanStarted() = 0;
+
+	DECLARE_TS_MULTICAST_DELEGATE(FScanEndedEvent);
+	virtual FScanEndedEvent& OnScanEnded() = 0;
+
 	/** Payload data for a file progress update */
 	struct FFileLoadProgressUpdateData
 	{
@@ -756,6 +836,14 @@ public:
 			, NumAssetsPendingDataLoad(InNumAssetsPendingDataLoad)
 			, bIsDiscoveringAssetFiles(InIsDiscoveringAssetFiles)
 		{
+		}
+
+		bool operator==(const FFileLoadProgressUpdateData& Other) const
+		{
+			return NumTotalAssets == Other.NumTotalAssets 
+				&& NumAssetsProcessedByAssetRegistry == Other.NumAssetsProcessedByAssetRegistry
+				&& NumAssetsPendingDataLoad == Other.NumAssetsPendingDataLoad
+				&& bIsDiscoveringAssetFiles == Other.bIsDiscoveringAssetFiles;
 		}
 
 		int32 NumTotalAssets;
@@ -847,7 +935,18 @@ public:
 	 * To avoid copies, the callback is called from within the ReadLock.
 	 * DO NOT CALL AssetRegistry functions from the callback; doing so will create a deadlock.
 	 */
+	UE_DEPRECATED(5.5, "ReadLockEnumerateTagToAssetDatas with TArray has been deprecated. Use ReadLockEnumerateTagToAssetDatas with EnumerateAssets callback instead.")
 	virtual void ReadLockEnumerateTagToAssetDatas(TFunctionRef<void(FName TagName, const TArray<const FAssetData*>& Assets)> Callback) const = 0;
+
+	typedef TFunctionRef<bool(const FAssetData* AssetData)> FAssetDataFunc;
+	typedef TFunctionRef<bool(FAssetDataFunc AssetCallback)> FEnumerateAssetDatasFunc;
+
+	/**
+	 * Enumerate all pairs in State->TagToAssetDataMapAssetRegistry and call a callback on each pair.
+	 * To avoid copies, the callback is called from within the ReadLock.
+	 * DO NOT CALL AssetRegistry functions from the callback; doing so will create a deadlock.
+	 */
+	virtual void ReadLockEnumerateAllTagToAssetDatas(TFunctionRef<bool(FName TagName, FEnumerateAssetDatasFunc EnumerateAssets)> Callback) const = 0;
 
 	/**
 	 * Predicate called to decide whether to recurse into a reference when setting manager references
@@ -868,7 +967,22 @@ public:
 	 */
 	virtual bool IsPathBeautificationNeeded(const FString& InAssetPath) const = 0;
 
+	/** Request to pause background processing of scan results while this object is in scope
+	 *  This can be used to allow a priority thread to perform along sequence of operations
+	 *  without having to contend with the background thread for data access
+	 */
+	struct FPauseBackgroundProcessingScope
+	{
+		FPauseBackgroundProcessingScope() { IAssetRegistry::GetChecked().RequestPauseBackgroundProcessing(); }
+		~FPauseBackgroundProcessingScope() { IAssetRegistry::GetChecked().RequestResumeBackgroundProcessing(); }
+	};
+
 protected:
+
+	// Implementation methods for FPauseBackgroundProcessingScope
+	virtual void RequestPauseBackgroundProcessing() {}
+	virtual void RequestResumeBackgroundProcessing() {}
+
 	// Functions specifically for calling from the asset manager
 	friend class UAssetManager;
 
@@ -887,9 +1001,7 @@ protected:
 	virtual bool SetPrimaryAssetIdForObjectPath(const FSoftObjectPath& ObjectPath, FPrimaryAssetId PrimaryAssetId) = 0;
 };
 
-namespace UE
-{
-namespace AssetRegistry
+namespace UE::AssetRegistry
 {
 	enum EReadPackageDataMainErrorCode
 	{
@@ -929,6 +1041,22 @@ namespace AssetRegistry
 	ASSETREGISTRY_API bool ReadPackageDataMain(FArchive& BinaryArchive, const FString& PackageName, const FPackageFileSummary& PackageFileSummary,
 		int64& OutDependencyDataOffset, TArray<FAssetData*>& OutAssetDataList, EReadPackageDataMainErrorCode& OutError,
 		const TArray<FObjectImport>* InImports = nullptr, const TArray<FObjectExport>* InExports = nullptr);
+	struct FReadPackageDataDependenciesArgs
+	{
+		// Required inputs, must be initialized and non-null
+		FArchive* BinaryNameAwareArchive = nullptr;
+		int64 AssetRegistryDependencyDataOffset = -1;
+		int32 NumImports = -1;
+		int32 NumSoftPackageReferences = -1;
+		FPackageFileVersion PackageVersion;
+
+		// Outputs
+		TBitArray<> ImportUsedInGame;
+		TBitArray<> SoftPackageUsedInGame;
+		TArray<TPair<FName, EExtraDependencyFlags>> ExtraPackageDependencies;
+	};
+	ASSETREGISTRY_API bool ReadPackageDataDependencies(FReadPackageDataDependenciesArgs& Args);
+	UE_DEPRECATED(5.5, "Use version that takes FReadPackageDataArgs")
 	ASSETREGISTRY_API bool ReadPackageDataDependencies(FArchive& BinaryArchive, TBitArray<>& OutImportUsedInGame, TBitArray<>& OutSoftPackageUsedInGame);
 
 	/**
@@ -1002,8 +1130,7 @@ namespace AssetRegistry
 	extern ASSETREGISTRY_API const FName Stage_ChunkInstalledSizeFName;
 	extern ASSETREGISTRY_API const FName Stage_ChunkStreamingSizeFName;
 	extern ASSETREGISTRY_API const FName Stage_ChunkOptionalSizeFName;
-} // namespace AssetRegistry
-} // namespace UE
+} // namespace UE::AssetRegistry
 
 /** Returns the filename without filepath for the DevelopmentAssetRegistry written by the cooker. */
 ASSETREGISTRY_API const TCHAR* GetDevelopmentAssetRegistryFilename();

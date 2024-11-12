@@ -92,13 +92,23 @@ void BinaryStreamReaderImpl::unload(DataLayer layer) {
     if ((layer == DataLayer::All) ||
         (layer == DataLayer::Descriptor)) {
         dna = DNA{dna.layers.unknownPolicy, dna.layers.upgradePolicy, memRes};
+    } else if (layer == DataLayer::TwistSwingBehavior) {
+        dna.unloadTwistSwingBehavior();
+    } else if (layer == DataLayer::RBFBehavior) {
+        dna.unloadRBFBehavior();
+    } else if (layer == DataLayer::JointBehaviorMetadata) {
+        dna.unloadJointBehaviorMetadata();
     } else if (layer == DataLayer::MachineLearnedBehavior) {
         dna.unloadMachineLearnedBehavior();
     } else if ((layer == DataLayer::Geometry) || (layer == DataLayer::GeometryWithoutBlendShapes)) {
         dna.unloadGeometry();
     } else if (layer == DataLayer::Behavior) {
+        dna.unloadRBFBehavior();
         dna.unloadBehavior();
     } else if (layer == DataLayer::Definition) {
+        dna.unloadJointBehaviorMetadata();
+        dna.unloadTwistSwingBehavior();
+        dna.unloadRBFBehavior();
         dna.unloadMachineLearnedBehavior();
         dna.unloadGeometry();
         dna.unloadBehavior();

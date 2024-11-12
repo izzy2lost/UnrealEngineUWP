@@ -15,7 +15,7 @@
 
 #define LOCTEXT_NAMESPACE "FConnectionRemapCustomization_StateSwitcher"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	TSharedRef<IConnectionRemapCustomization> FConnectionRemapCustomization_StateSwitcher::Make()
 	{

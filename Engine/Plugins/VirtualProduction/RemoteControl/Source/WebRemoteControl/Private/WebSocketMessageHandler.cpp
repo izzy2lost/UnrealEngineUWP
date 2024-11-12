@@ -1030,7 +1030,7 @@ void FWebSocketMessageHandler::ProcessChangedProperties()
 				//Check if multiple booleans properties want to be sent and send them since multiple booleans have problem with the common workflow.
 				if (ClassToEventsPair.Key == FBoolProperty::StaticClass())
 				{
-					TrySendMultipleBoolProperties(Preset, ClientToEventsPair.Key, ClassToEventsPair.Value, SequenceNumber);
+					SendBoolProperties(Preset, ClientToEventsPair.Key, ClassToEventsPair.Value, SequenceNumber);
 					continue;
 				}
 
@@ -1870,12 +1870,10 @@ bool FWebSocketMessageHandler::WritePropertyChangeEventPayload(URemoteControlPre
 	return bHasProperty;
 }
 
-bool FWebSocketMessageHandler::TrySendMultipleBoolProperties(URemoteControlPreset* InPreset,
+void FWebSocketMessageHandler::SendBoolProperties(URemoteControlPreset* InPreset,
 	const FGuid& InTargetClientId, const TSet<FGuid>& InModifiedPropertyIds, int64 InSequenceNumber)
 {
-	bool bFound = false;
-	int32 NumberSent = 0;
-	if(InModifiedPropertyIds.Num() > 1)
+	if (!InModifiedPropertyIds.IsEmpty())
 	{
 		if (TSharedPtr<FRemoteControlProperty> RCProperty = InPreset->GetExposedEntity<FRemoteControlProperty>(InModifiedPropertyIds.Array()[0]).Pin())
 		{
@@ -1883,7 +1881,6 @@ bool FWebSocketMessageHandler::TrySendMultipleBoolProperties(URemoteControlPrese
 			{
 				if (Property->IsA<FBoolProperty>())
 				{
-					bFound = true;
 					for (FGuid ModifiedPropertyId : InModifiedPropertyIds)
 					{
 						TArray<uint8> BoolsWorkingBuffer;
@@ -1892,14 +1889,12 @@ bool FWebSocketMessageHandler::TrySendMultipleBoolProperties(URemoteControlPrese
 							TArray<uint8> Payload;
 							WebRemoteControlUtils::ConvertToUTF8(BoolsWorkingBuffer, Payload);
 							Server->Send(InTargetClientId, Payload);
-							++NumberSent;
 						}
 					}
 				}
 			}
 		}
 	}
-	return bFound && (NumberSent == InModifiedPropertyIds.Num());
 }
 
 

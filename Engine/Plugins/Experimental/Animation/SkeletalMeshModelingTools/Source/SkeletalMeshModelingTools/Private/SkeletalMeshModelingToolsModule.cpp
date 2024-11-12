@@ -19,8 +19,10 @@
 #include "SkeletalMeshToolMenuContext.h"
 #include "ToolMenus.h"
 #include "DetailCustomization/SkeletonEditingToolPropertyCustomizations.h"
+#include "DetailCustomization/SkinWeightDetailCustomization.h"
 #include "Misc/ConfigCacheIni.h"
 #include "SkeletalMesh/SkeletonEditingTool.h"
+#include "SkeletalMesh/SkinWeightsPaintTool.h"
 #include "Styling/SlateIconFinder.h"
 #include "WorkflowOrientedApp/ApplicationMode.h"
 
@@ -225,6 +227,8 @@ void FSkeletalMeshModelingToolsModule::RegisterPropertyCustomizations()
 		CustomizedClasses.Add(InStructName);
 	};
 
+	
+	RegisterDetailCustomization(USkinWeightsPaintToolProperties::StaticClass()->GetFName(), &FSkinWeightDetailCustomization::MakeInstance);
 	RegisterDetailCustomization(USkeletonEditingTool::StaticClass()->GetFName(), &FSkeletonEditingToolDetailCustomization::MakeInstance);
 	RegisterDetailCustomization(USkeletonEditingProperties::StaticClass()->GetFName(), &FSkeletonEditingPropertiesDetailCustomization::MakeInstance);
 	RegisterDetailCustomization(UMirroringProperties::StaticClass()->GetFName(), &FMirroringPropertiesDetailCustomization::MakeInstance);

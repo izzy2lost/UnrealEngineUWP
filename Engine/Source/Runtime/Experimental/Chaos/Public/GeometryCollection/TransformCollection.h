@@ -19,6 +19,7 @@ public:
 	typedef FManagedArrayCollection Super;
 
 	CHAOS_API FTransformCollection();
+	CHAOS_API ~FTransformCollection();
 	FTransformCollection(FTransformCollection &) = delete;
 	FTransformCollection& operator=(const FTransformCollection&) = delete;
 	FTransformCollection(FTransformCollection&&) = default;
@@ -69,9 +70,15 @@ public:
 
 	/**
 	* Append Collection and reindex dependencies on this collection.
-	* @param InCollection : Collection to add.
+	* @param InCollection : FManagedArrayCollection to add.
 	*/
-	CHAOS_API virtual void Append(const FManagedArrayCollection& Collection);
+	CHAOS_API virtual void Append(const FManagedArrayCollection& Collection) override;
+
+	/**
+	* Append Collection and reindex dependencies on this collection.
+	* @param InCollection : FTransformCollection to add.
+	*/
+	CHAOS_API void AppendCollection(const FTransformCollection& Collection);
 
 	/*
 	* AppendTransform:
@@ -102,6 +109,13 @@ public:
 	* 
 	*/
 	CHAOS_API virtual void RemoveElements(const FName & Group, const TArray<int32> & SortedDeletionList, FProcessingParameters Params = FProcessingParameters()) override;
+
+	/**
+	* MergeElements
+	*   Merge elements from the transform collection. Updates parent and children hierachy to the remapped index
+	*	Deletes merged elements 
+	*/
+	CHAOS_API virtual void MergeElements(const FName& Group, const TArray<int32>& SortedMergeList, const TArray<int32>& MergeRemapIndex, FProcessingParameters Params = FProcessingParameters()) override;
 
 	/**
 	* reset internal state

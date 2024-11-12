@@ -14,6 +14,7 @@
 #include "Components/TimelineComponent.h"
 #include "Engine/World.h"
 #include "Misc/App.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogTimeline, Log, All);
 
@@ -37,7 +38,8 @@ UEnum* FTimeline::GetTimelineDirectionEnum()
 void FTimeline::Play()
 {
 	bReversePlayback = false;
-	bPlaying = true;
+
+	ChangeMarkPlayingState(/*bIsPlaying=*/ true);
 }
 
 void FTimeline::PlayFromStart()
@@ -49,7 +51,8 @@ void FTimeline::PlayFromStart()
 void FTimeline::Reverse()
 {
 	bReversePlayback = true;
-	bPlaying = true;
+	
+	ChangeMarkPlayingState(/*bIsPlaying=*/ true);
 }
 
 void FTimeline::ReverseFromEnd()
@@ -60,12 +63,13 @@ void FTimeline::ReverseFromEnd()
 
 void FTimeline::Stop()
 {
-	bPlaying = false;
+	ChangeMarkPlayingState(/*bIsPlaying=*/false);
 }
 
 bool FTimeline::IsPlaying() const
 {
-	return bPlaying;
+	// Consider us playing if the first bit is set to 1
+	return PlayingStateTracker & 0x01;
 }
 
 void FTimeline::AddEvent(float Time, FOnTimelineEvent Event)
@@ -496,7 +500,7 @@ bool FTimeline::IsLooping() const
 
 bool FTimeline::IsReversing() const
 {
-	return bPlaying && bReversePlayback;
+	return IsPlaying() && bReversePlayback;
 }
 
 void FTimeline::SetPlayRate(float NewRate)
@@ -513,7 +517,7 @@ void FTimeline::TickTimeline(float DeltaTime)
 {
 	bool bIsFinished = false;
 
-	if(bPlaying)
+	if (IsPlaying())
 	{
 		const float TimelineLength = GetTimelineLength();
 		float EffectiveDeltaTime = DeltaTime * (bReversePlayback ? (-PlayRate) : (PlayRate));
@@ -707,6 +711,27 @@ float FTimeline::GetLastKeyframeTime() const
 	return MaxTime;
 }
 
+void FTimeline::ChangeMarkPlayingState(const bool bIsPlaying)
+{
+	// We will use the upper bits of the PlayingStateTracker as "dirty" bits to ensure that the
+	// value gets replicated properly in case you call "Play" on the same frame as the timeline
+	// finishes.
+	if (bIsPlaying)
+	{
+		// Increment by 2 to "dirty" the number without touching the first bit (2 is 0010)
+        // wrapping it to 255 (max uint8 - 1)
+        PlayingStateTracker = FMath::WrapExclusive(PlayingStateTracker + 2, 2, 255);
+    
+        // Make sure that we always set the 1 bit because we are playing.
+        PlayingStateTracker |= 0x01;
+	}
+	else
+	{
+		// To flag the state as stopped, reset the first bit to zero
+		PlayingStateTracker &= ~0x01;
+	}
+}
+
 void FTimeline::GetAllCurves(TSet<class UCurveBase*>& InOutCurves) const
 {
 	for (auto& Track : InterpVectors)
@@ -720,6 +745,30 @@ void FTimeline::GetAllCurves(TSet<class UCurveBase*>& InOutCurves) const
 	for (auto& Track : InterpLinearColors)
 	{
 		InOutCurves.Add(Track.LinearColorCurve);
+	}
+}
+
+bool FTimeline::Serialize(FArchive& Ar)
+{
+	// Need a custom version to handle the bPlaying deprecation
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+
+	// Returning false will just run the normal serialization
+	return false;
+}
+
+void FTimeline::PostSerialize(const FArchive& Ar)
+{
+	// If we are loading code from before the serialization change...
+	if (Ar.IsLoading() && Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::TimelinePlayingStateTrackerDeprecation)
+	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+		// ...populate the new PlayingStateTracker with the value of the
+		// old bPlaying flag. 
+		ChangeMarkPlayingState(bPlaying_DEPRECATED);
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 

@@ -8,7 +8,7 @@
 #include "AssetDefinition_DataAsset.generated.h"
 
 UCLASS()
-class UAssetDefinition_DataAsset : public UAssetDefinitionDefault
+class ENGINEASSETDEFINITIONS_API UAssetDefinition_DataAsset : public UAssetDefinitionDefault
 {
 	GENERATED_BODY()
 

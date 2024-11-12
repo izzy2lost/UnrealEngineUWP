@@ -30,6 +30,11 @@ namespace Gauntlet
 			string DevicesArg,
 			int ParallelTasks )
 		{
+			if (string.IsNullOrEmpty(ProjectName))
+			{
+				throw new Exception("need -project=<project name>");
+			}
+
 			if (string.IsNullOrEmpty(PlatformParam) || string.IsNullOrEmpty(BuildPath))
 			{
 				throw new Exception("need -platform=<platform> and -path=\"path to build\"");
@@ -50,7 +55,7 @@ namespace Gauntlet
 				throw new AutomationException("No BuildSources found for platform {0}", Platform);
 			}
 
-			IEnumerable<IBuild> Builds = BuildSources.Where(S => S.CanSupportPlatform(Platform)).SelectMany(S => S.GetBuildsAtPath(ProjectName, BuildPath));
+			IReadOnlyCollection<IBuild> Builds = BuildSources.Where(S => S.CanSupportPlatform(Platform)).SelectMany(S => S.GetBuildsAtPath(ProjectName, BuildPath)).ToList();
 
 			if (Builds.Count() == 0)
 			{
@@ -79,7 +84,7 @@ namespace Gauntlet
 					throw new AutomationException("No IDeviceFactory implmenetation that supports {0}", Platform);
 				}
 
-				DeviceList = Devices.Select(D => Factory.CreateDevice(D, string.Empty)).ToArray();
+				DeviceList = Devices.Select(D => Factory.CreateDevice(D, null)).ToArray();
 			}
 
 			if (DeviceList.Count() == 0)
@@ -87,9 +92,15 @@ namespace Gauntlet
 				throw new AutomationException("No devices found for {0}", Platform);
 			}
 
+			if (ParallelTasks == -1)
+			{
+				//If a value is not passed in as a paramter, set ParallelTasks equal to the number of devices, MAX 4
+				ParallelTasks = (DeviceList.Count() > 4) ? 4 : DeviceList.Count();
+			}
+
 			var POptions = new ParallelOptions { MaxDegreeOfParallelism = ParallelTasks };
 
-			// now copy it four builds at a time
+			// now copy it up to four builds at a time
 			Parallel.ForEach(DeviceList, POptions, Device =>
 			{
 				DateTime StartTime = DateTime.Now;
@@ -97,13 +108,79 @@ namespace Gauntlet
 				UnrealAppConfig Config = new UnrealAppConfig();
 
 				Config.CommandLine = CommandLine;
-				Config.Build = Builds.First();
 				Config.ProjectName = ProjectName;
+				Config.Name = ProjectName;
 
-				Log.Info("Installing build on device {0}", Device.Name);
+				string BuildSandbox = Globals.Params.ParseValue("sandbox", string.Empty);
+				Config.Sandbox = string.IsNullOrEmpty(BuildSandbox) ? Config.Sandbox : BuildSandbox;
 
-				IAppInstall Install = Device.InstallApplication(Config);
-				Device.Run(Install);
+				// We always (currently..) need to be able to replace the command line
+				BuildFlags Flags = BuildFlags.CanReplaceCommandLine;
+
+				if (Globals.Params.ParseParam("dev"))
+				{
+					Flags |= BuildFlags.CanReplaceExecutable;
+				}
+				if (Globals.Params.ParseParam("bulk"))
+				{
+					Flags |= BuildFlags.Bulk;
+				}
+				if (Globals.Params.ParseParam("notbulk"))
+				{
+					Flags |= BuildFlags.NotBulk;
+				}
+				if (Globals.Params.ParseParam("packaged"))
+				{
+					Flags |= BuildFlags.Packaged;
+				}
+				if (Globals.Params.ParseParam("staged"))
+				{
+					Flags |= BuildFlags.Loose;
+				}
+
+				IEnumerable<IBuild> FlaggedBuilds = Builds.Where(S => S.Flags.HasFlag(Flags));
+
+				if (FlaggedBuilds.Count() == 0)
+				{
+					throw new AutomationException("Unable to find build at {0} with build flag(s): {1} ", BuildPath, Flags.ToString());
+				}
+
+				string BuildConfiguration = Globals.Params.ParseValue("configuration", String.Empty);
+
+				switch (BuildConfiguration.ToLower())
+				{
+					case "shipping":
+						Config.Build = FlaggedBuilds.Where(S => S.Configuration == UnrealTargetConfiguration.Shipping).FirstOrDefault();
+						break;
+
+					case "test":
+						Config.Build = FlaggedBuilds.Where(S => S.Configuration == UnrealTargetConfiguration.Test).FirstOrDefault();
+						break;
+
+					case "development":
+						Config.Build = FlaggedBuilds.Where(S => S.Configuration == UnrealTargetConfiguration.Development).FirstOrDefault();
+						break;
+
+					default:
+						Log.Info("No build configuration was provided, selecting first available build.");
+						Config.Build = FlaggedBuilds.FirstOrDefault();
+						break;
+				}
+
+				if (!Device.Connect())
+				{
+					throw new AutomationException("Failed to connect to device: {0}", Device);
+				}
+
+				if (Config.Build != null)
+				{
+					Log.Info("Installing build on device {DeviceName}", Device.Name);
+					Device.InstallBuild(Config);
+				}
+				else
+				{
+					throw new AutomationException("Unable to find build at {0} with build flag(s)={1} and configuration type={2} for {3} platform type", BuildPath, Flags, BuildConfiguration, Platform);
+				}
 
 				TimeSpan Elapsed = (DateTime.Now - StartTime);
 				Log.Info("Installed on device {0} in {1:D2}m:{2:D2}s", Device.Name, Elapsed.Minutes, Elapsed.Seconds);

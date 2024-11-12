@@ -15,7 +15,31 @@
 
 #include "../TestHarness.h"
 
-namespace {
+namespace
+{
+	FString GetStringValueToDisplay(FStringView Value)
+	{
+		if (Value.GetData())
+		{
+			return FString::Printf(TEXT("\"%.*s\""), Value.Len(), Value.GetData());
+		}
+		else
+		{
+			return TEXT("nullptr");
+		}
+	}
+
+	FString GetStringValueToDisplay(FUtf8StringView Value)
+	{
+		if (Value.GetData())
+		{
+			return FString::Printf(TEXT("\"%.*hs\""), Value.Len(), Value.GetData());
+		}
+		else
+		{
+			return TEXT("nullptr");
+		}
+	}
 
 	bool TestTrue(const TCHAR* What, bool Value)
 	{
@@ -30,6 +54,21 @@ namespace {
 	bool TestTrue(const FString& What, bool Value)
 	{
 		return TestTrue(*What, Value);
+	}
+
+	bool TestFalse(const TCHAR* What, bool Value)
+	{
+		if (Value)
+		{
+			FAIL_CHECK(FString::Printf(TEXT("Expected '%s' to be false."), What));
+			return false;
+		}
+		return true;
+	}
+
+	bool TestFalse(const FString& What, bool Value)
+	{
+		return TestFalse(*What, Value);
 	}
 
 	bool TestEqual(const TCHAR* What, const int32 Actual, const int32 Expected)
@@ -136,22 +175,76 @@ namespace {
 
 	bool TestEqual(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
 	{
-		if (FCString::Strcmp(Actual, Expected) != 0)
+		bool bAreEqual = (Actual && Expected) ? (FCString::Stricmp(Actual, Expected) == 0) : (Actual == Expected);
+
+		if (!bAreEqual)
 		{
-			FAIL_CHECK(FString::Printf(TEXT("Expected '%s' to be \"%s\", but it was \"%s\"."), What, Expected, Actual));
+			FAIL_CHECK(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)));
+		}
+
+		return bAreEqual;
+	}
+
+	bool TestEqual(const TCHAR* What, FStringView Actual, FStringView Expected)
+	{
+		if (Actual.Compare(Expected, ESearchCase::IgnoreCase) != 0)
+		{
+			FAIL_CHECK(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)));
 			return false;
 		}
+
 		return true;
 	}
 
-	bool TestEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
+	bool TestEqual(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
 	{
-		if (FCString::Stricmp(Actual, Expected) != 0)
+		if (Actual.Compare(Expected, ESearchCase::IgnoreCase) != 0)
 		{
-			FAIL_CHECK(FString::Printf(TEXT("Expected '%s' to be \"%s\", but it was \"%s\"."), What, Expected, Actual));
+			FAIL_CHECK(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)));
 			return false;
 		}
+
 		return true;
+	}
+
+	bool TestEqualSensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
+	{
+		bool bAreEqual = (Actual && Expected) ? (FCString::Strcmp(Actual, Expected) == 0) : (Actual == Expected);
+
+		if (!bAreEqual)
+		{
+			FAIL_CHECK(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)));
+		}
+
+		return bAreEqual;
+	}
+
+	bool TestEqualSensitive(const TCHAR* What, FStringView Actual, FStringView Expected)
+	{
+		if (Actual.Compare(Expected, ESearchCase::CaseSensitive) != 0)
+		{
+			FAIL_CHECK(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)));
+			return false;
+		}
+
+		return true;
+	}
+
+	bool TestEqualSensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
+	{
+		if (Actual.Compare(Expected, ESearchCase::CaseSensitive) != 0)
+		{
+			FAIL_CHECK(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)));
+			return false;
+		}
+
+		return true;
+	}
+
+	UE_DEPRECATED(5.5, "Use TestEqual instead (string tests are case insensitive by default)")
+	bool TestEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
+	{
+		return TestEqual(What, Actual, Expected);
 	}
 
 	bool TestEqual(const FString& What, const int32 Actual, const int32 Expected)
@@ -194,34 +287,14 @@ namespace {
 		return TestEqual(*What, Actual, Expected);
 	}
 
-	bool TestEqual(const TCHAR* What, const FString& Actual, const TCHAR* Expected)
+	bool TestEqual(const FString& What, FStringView Actual, FStringView Expected)
 	{
-		return TestEqualInsensitive(What, *Actual, Expected);
+		return TestEqual(*What, Actual, Expected);
 	}
 
-	bool TestEqual(const FString& What, const FString& Actual, const TCHAR* Expected)
+	bool TestEqual(const FString& What, FUtf8StringView Actual, FUtf8StringView Expected)
 	{
-		return TestEqualInsensitive(*What, *Actual, Expected);
-	}
-
-	bool TestEqual(const TCHAR* What, const TCHAR* Actual, const FString& Expected)
-	{
-		return TestEqualInsensitive(What, Actual, *Expected);
-	}
-
-	bool TestEqual(const FString& What, const TCHAR* Actual, const FString& Expected)
-	{
-		return TestEqualInsensitive(*What, Actual, *Expected);
-	}
-
-	bool TestEqual(const TCHAR* What, const FString& Actual, const FString& Expected)
-	{
-		return TestEqualInsensitive(What, *Actual, *Expected);
-	}
-
-	bool TestEqual(const FString& What, const FString& Actual, const FString& Expected)
-	{
-		return TestEqualInsensitive(*What, *Actual, *Expected);
+		return TestEqual(*What, Actual, Expected);
 	}
 
 	template<typename ValueType>
@@ -241,6 +314,74 @@ namespace {
 		return TestEqual(*What, Actual, Expected);
 	}
 
+	bool TestNotEqual(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
+	{
+		bool bAreDifferent = (Actual && Expected) ? (FCString::Stricmp(Actual, Expected) != 0) : (Actual != Expected);
+
+		if (!bAreDifferent)
+		{
+			FAIL_CHECK(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)));
+		}
+
+		return bAreDifferent;
+	}
+
+	bool TestNotEqual(const TCHAR* What, FStringView Actual, FStringView Expected)
+	{
+		if (Actual.Compare(Expected, ESearchCase::IgnoreCase) == 0)
+		{
+			FAIL_CHECK(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)));
+			return false;
+		}
+
+		return true;
+	}
+
+	bool TestNotEqual(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
+	{
+		if (Actual.Compare(Expected, ESearchCase::IgnoreCase) == 0)
+		{
+			FAIL_CHECK(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)));
+			return false;
+		}
+
+		return true;
+	}
+
+	bool TestNotEqualSensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
+	{
+		bool bAreDifferent = (Actual && Expected) ? (FCString::Strcmp(Actual, Expected) != 0) : (Actual != Expected);
+
+		if (!bAreDifferent)
+		{
+			FAIL_CHECK(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)));
+		}
+
+		return bAreDifferent;
+	}
+
+	bool TestNotEqualSensitive(const TCHAR* What, FStringView Actual, FStringView Expected)
+	{
+		if (Actual.Compare(Expected, ESearchCase::CaseSensitive) == 0)
+		{
+			FAIL_CHECK(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)));
+			return false;
+		}
+
+		return true;
+	}
+
+	bool TestNotEqualSensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected)
+	{
+		if (Actual.Compare(Expected, ESearchCase::CaseSensitive) == 0)
+		{
+			FAIL_CHECK(FString::Printf(TEXT("Expected '%s' to differ from %s, but it was %s."), What, *GetStringValueToDisplay(Expected), *GetStringValueToDisplay(Actual)));
+			return false;
+		}
+
+		return true;
+	}
+
 	template<typename ValueType> bool TestNotEqual(const TCHAR* Description, const ValueType& Actual, const ValueType& Expected)
 	{
 		if (Actual == Expected)
@@ -251,12 +392,44 @@ namespace {
 		return true;
 	}
 
+	bool TestNotEqual(const FString& What, const TCHAR* Actual, const TCHAR* Expected)
+	{
+		return TestNotEqual(*What, Actual, Expected);
+	}
+
+	bool TestNotEqual(const FString& What, FStringView Actual, FStringView Expected)
+	{
+		return TestNotEqual(*What, Actual, Expected);
+	}
+
+	bool TestNotEqual(const FString& What, FUtf8StringView Actual, FUtf8StringView Expected)
+	{
+		return TestNotEqual(*What, Actual, Expected);
+	}
+
+	bool TestNotEqualSensitive(const FString& What, const TCHAR* Actual, const TCHAR* Expected)
+	{
+		return TestNotEqualSensitive(*What, Actual, Expected);
+	}
+
+	bool TestNotEqualSensitive(const FString& What, FStringView Actual, FStringView Expected)
+	{
+		return TestNotEqualSensitive(*What, Actual, Expected);
+	}
+
+	bool TestNotEqualSensitive(const FString& What, FUtf8StringView Actual, FUtf8StringView Expected)
+	{
+		return TestNotEqualSensitive(*What, Actual, Expected);
+	}
+
 	template<typename ValueType> bool TestNotEqual(const FString& Description, const ValueType& Actual, const ValueType& Expected)
 	{
 		return TestNotEqual(*Description, Actual, Expected);
 	}
 
-	#define CHECK_EQUALS(What, X, Y) TestEqual(What, X, Y);
-	#define CHECK_NOT_EQUALS(What, X, Y) TestNotEqual(What, X, Y);
+	#define CHECK_EQUALS(What, X, Y)				TestEqual(What, X, Y);
+	#define CHECK_EQUALS_SENSITIVE(What, X, Y)		TestEqualSensitive(What, X, Y);
+	#define CHECK_NOT_EQUALS(What, X, Y)			TestNotEqual(What, X, Y);
+	#define CHECK_NOT_EQUALS_SENSITIVE(What, X, Y)	TestNotEqualSensitive(What, X, Y);
 
 }

@@ -63,4 +63,5 @@ class UEnvQueryGenerator_Donut : public UEnvQueryGenerator_ProjectedPoints
 protected:
 	AIMODULE_API FVector::FReal GetArcBisectorAngle(FEnvQueryInstance& QueryInstance) const;
 	AIMODULE_API bool IsAngleAllowed(FVector::FReal TestAngleRad, FVector::FReal BisectAngleDeg, FVector::FReal AngleRangeDeg, bool bConstrainAngle) const;
+	AIMODULE_API bool GenerateDonutNavPoints(const TArray<FVector>& CenterPoints, TArray<FNavLocation>& Points, FEnvQueryInstance& QueryInstance) const;
 };

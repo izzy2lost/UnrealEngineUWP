@@ -19,6 +19,8 @@ class FCbObject;
 namespace UE {
 	namespace Zen {
 		struct FZenHttpRequestPool;
+		class FZenHttpRequest;
+		enum class EContentType;
 	}
 
 /**
@@ -32,7 +34,7 @@ public:
 	FZenStoreHttpClient(UE::Zen::FServiceSettings&& InSettings);
 	~FZenStoreHttpClient();
 
-	bool TryCreateProject(FStringView InProjectId, FStringView InOplogId, FStringView ServerRoot, 
+	bool TryCreateProject(FStringView InProjectId, FStringView InParentProjectId, FStringView InOplogId, FStringView ServerRoot, 
 					FStringView EngineRoot, FStringView ProjectRoot,
 					FStringView ProjectFilePath);
 	bool TryCreateOplog(FStringView InProjectId, FStringView InOplogId, FStringView InOplogLifetimeMarkerPath, bool bFullBuild);
@@ -54,11 +56,13 @@ public:
 	const TCHAR* GetHostName() const { return ZenService.GetInstance().GetHostName(); }
 	uint16 GetPort() const { return ZenService.GetInstance().GetPort(); }
 	const UE::Zen::FZenServiceInstance& GetZenServiceInstance() const { return ZenService.GetInstance(); }
+	UE::Zen::FZenServiceInstance& GetZenServiceInstance() { return ZenService.GetInstance(); }
 #else // Default to localhost:8558 for platforms where Zen wouldn't be supported yet
 	const TCHAR* GetHostName() const { return TEXT("localhost"); }
 	uint16 GetPort() const { return 8558; }
 #endif
 
+	TFuture<TIoStatusOr<FCbObject>> GetProjectInfo();
 	TFuture<TIoStatusOr<FCbObject>> GetOplog();
 	TFuture<TIoStatusOr<FCbObject>> GetFiles();
 	TFuture<TIoStatusOr<FCbObject>> GetChunkInfos();
@@ -68,6 +72,11 @@ public:
 
 private:
 	TIoStatusOr<FIoBuffer> ReadOpLogUri(FStringBuilderBase& ChunkUri, uint64 Offset = 0, uint64 Size = ~0ull);
+	bool Download(Zen::FZenHttpRequest& Request, FStringView Uri, TArray64<uint8>* Buffer, Zen::EContentType AcceptType);
+	bool Post(Zen::FZenHttpRequest& Request, FStringView Uri, FCbObjectView Obj);
+	bool Post(Zen::FZenHttpRequest& Request, FStringView Uri, FMemoryView Payload);
+	bool Delete(Zen::FZenHttpRequest& Request, FStringView Uri);
+	bool ShouldRecoverAndRetry(Zen::FZenHttpRequest& Request);
 
 	static const uint32 PoolEntryCount;
 	struct SaltGenerator
@@ -87,6 +96,7 @@ private:
 #endif
 	TUniquePtr<Zen::FZenHttpRequestPool> RequestPool;
 	SaltGenerator SaltGen;
+	FString ProjectPath;
 	FString OplogPath;
 	FString OplogNewEntryPath;
 	FString OplogPrepNewEntryPath;

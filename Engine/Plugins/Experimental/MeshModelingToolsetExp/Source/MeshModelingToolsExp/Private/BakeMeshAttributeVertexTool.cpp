@@ -103,6 +103,15 @@ public:
 			OcclusionEval->MaxDistance = OcclusionSettings.MaxDistance;
 			OcclusionEval->SpreadAngle = OcclusionSettings.SpreadAngle;
 			OcclusionEval->BiasAngleDeg = OcclusionSettings.BiasAngle;
+			switch (OcclusionSettings.NormalSpace)
+			{
+			case EBakeNormalSpace::Tangent:
+				OcclusionEval->NormalSpace = FMeshOcclusionMapEvaluator::ESpace::Tangent;
+				break;
+			case EBakeNormalSpace::Object:
+				OcclusionEval->NormalSpace = FMeshOcclusionMapEvaluator::ESpace::Object;
+				break;
+			}
 		};
 
 		auto InitCurvatureEvaluator = [this] (FMeshCurvatureMapEvaluator* CurvatureEval)
@@ -281,7 +290,9 @@ void UBakeMeshAttributeVertexTool::Setup()
 	// TargetMesh stores the original target mesh. It is intended to remain
 	// const throughout this tool and is used to refresh the PreviewMesh back
 	// to its original state.
-	TargetMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(UE::ToolTarget::GetDynamicMeshCopy(Targets[0], true));
+	static FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = true;
+	TargetMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(UE::ToolTarget::GetDynamicMeshCopy(Targets[0], GetMeshParams));
 	TargetMeshTangents = MakeShared<FMeshTangentsd, ESPMode::ThreadSafe>(TargetMesh.Get());
 	TargetMeshTangents->CopyTriVertexTangents(*TargetMesh);
 
@@ -335,6 +346,7 @@ void UBakeMeshAttributeVertexTool::Setup()
 	OcclusionSettings->WatchProperty(OcclusionSettings->MaxDistance, [this](float) { OpState |= EBakeOpState::Evaluate; });
 	OcclusionSettings->WatchProperty(OcclusionSettings->SpreadAngle, [this](float) { OpState |= EBakeOpState::Evaluate; });
 	OcclusionSettings->WatchProperty(OcclusionSettings->BiasAngle, [this](float) { OpState |= EBakeOpState::Evaluate; });
+	OcclusionSettings->WatchProperty(OcclusionSettings->NormalSpace, [this](EBakeNormalSpace) { OpState |= EBakeOpState::Evaluate; });
 
 	CurvatureSettings = NewObject<UBakeCurvatureMapToolProperties>(this);
 	CurvatureSettings->RestoreProperties(this);
@@ -477,7 +489,9 @@ void UBakeMeshAttributeVertexTool::UpdateDetailMesh()
 	IPrimitiveComponentBackedTarget* DetailComponent = Cast<IPrimitiveComponentBackedTarget>(Targets[bIsBakeToSelf ? 0 : 1]);
 	UToolTarget* DetailTargetMesh = Targets[bIsBakeToSelf ? 0 : 1];
 
-	const FDynamicMesh3 DetailMeshCopy = UE::ToolTarget::GetDynamicMeshCopy(DetailTargetMesh, true);
+	static FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = true;
+	const FDynamicMesh3 DetailMeshCopy = UE::ToolTarget::GetDynamicMeshCopy(DetailTargetMesh, GetMeshParams);
 	DetailMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
 	DetailMesh->Copy(DetailMeshCopy);
 	if (InputMeshSettings->bProjectionInWorldSpace && bIsBakeToSelf == false)

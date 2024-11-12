@@ -138,6 +138,9 @@ public:
 	// [FunctionMetadata] Indicates that the function is deprecated
 	static const FName MD_DeprecatedFunction;
 
+	// [FunctionMetadata] Indicates that the property is deprecated
+	static const FName MD_DeprecatedProperty;
+
 	// [FunctionMetadata] Supplies the custom message to use for deprecation
 	static const FName MD_DeprecationMessage;
 
@@ -275,8 +278,13 @@ public:
 	/** Stub function used internally by animation blueprints */
 	static const FName MD_AnimBlueprintFunction;
 
+	/** Metadata that should be used with UPARAM to specify whether a TSubclassOf argument should use the DisplayName of classes */
+	static const FName MD_ShowDisplayNames;
+	
 	/** Metadata that should be used with UPARAM to specify whether a TSubclassOf argument allows abstract classes */
 	static const FName MD_AllowAbstractClasses;
+	/** Metadata that should be used with UPARAM to specify which classes are allowed in selection */
+	static const FName MD_AllowedClasses;
 
 	/** Metadata that should be used with UPARAM to specify a function name that generates a list of available values */
 	static const FName MD_GetOptions;
@@ -576,7 +584,11 @@ public:
 	virtual bool CanShowDataTooltipForPin(const UEdGraphPin& Pin) const override;
 
 #if WITH_EDITORONLY_DATA
+	virtual float GetActionFilteredWeight(const FEdGraphSchemaAction& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const override;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "FGraphActionListBuilderBase::ActionGroup weight calculation was always performed on the first action, provide that if scoring a FGraphActionListBuilderBase::ActionGroup, or just provide the FEdGraphSchemaAction")
 	virtual float GetActionFilteredWeight(const FGraphActionListBuilderBase::ActionGroup& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const override;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual FGraphSchemaSearchWeightModifiers GetSearchWeightModifiers() const override;
 #endif // WITH_EDITORONLY_DATA	
 

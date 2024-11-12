@@ -30,6 +30,12 @@ public:
 	/** Get the length of a specific segment of the line. */
 	virtual FVector::FReal GetSegmentLength(int SegmentIndex) const PURE_VIRTUAL(UPCGPolyLineData::GetSegmentLength, return 0;);
 
+	/** Get the location of the point at the normalized [0, 1] parameter across the entire the poly line. */
+	virtual FVector GetLocationAtAlpha(float Alpha) const PURE_VIRTUAL(UPCGPolyLine::GetLocationAtAlpha, return FVector::ZeroVector;)
+
+	/** Get the full transform at the normalized [0, 1] parameter across the entire the poly line. */
+	virtual FTransform GetTransformAtAlpha(float Alpha) const PURE_VIRTUAL(UPCGPolyLine::GetTransformAtAlpha, return FTransform::Identity;)
+
 	/** Get the total length of the line. */
 	virtual FVector::FReal GetLength() const;
 
@@ -51,6 +57,9 @@ public:
 	/** Get the input key at a distance along the line. InputKey is a float value in [0, N], where N is the number of control points. Each range [i, i+1] represents an interpolation from 0 to 1 across spline segment i. */
 	virtual float GetInputKeyAtDistance(int SegmentIndex, FVector::FReal Distance) const { return 0; }
 
+	/** Get the input key from the normalized distance of [0, 1] across the entire the poly line. */
+	virtual float GetInputKeyAtAlpha(float Alpha) const;
+
 	/** Get the arrive and leave tangents for a control point via its segment index. */
 	virtual void GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutArriveTangent, FVector& OutLeaveTangent) const;
 
@@ -66,8 +75,3 @@ public:
 	/** True if the line holds custom metadata. */
 	virtual bool HasCustomMetadata() const { return false; }
 };
-
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

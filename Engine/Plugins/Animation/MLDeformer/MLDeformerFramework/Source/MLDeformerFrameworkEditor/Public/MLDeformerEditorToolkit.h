@@ -72,6 +72,8 @@ namespace UE::MLDeformer
 		virtual FText GetToolkitName() const override;
 		virtual FLinearColor GetWorldCentricTabColorScale() const override;
 		virtual FString GetWorldCentricTabPrefix() const override;
+		virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget, int32 ZOrder = INDEX_NONE) override;
+		virtual void RemoveViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget) override;
 		// ~END FAssetEditorToolkit overrides.
 
 		// FGCObject overrides.
@@ -80,7 +82,7 @@ namespace UE::MLDeformer
 		// ~END FGCObject overrides.
 
 		// FTickableEditorObject overrides.
-		virtual void Tick(float DeltaTime) override {};
+		virtual void Tick(float DeltaTime) override;
 		virtual ETickableTickType GetTickableTickType() const override				{ return ETickableTickType::Always; }
 		virtual TStatId GetStatId() const override;
 		// ~END FTickableEditorObject overrides.
@@ -105,10 +107,19 @@ namespace UE::MLDeformer
 		FMLDeformerApplicationMode* GetApplicationMode() const						{ return ApplicationMode; }
 		TSharedPtr<IPersonaViewport> GetViewport() const							{ return PersonaViewport; }
 
+		void SetNeedsPaintModeDisable(bool bNeedsDisable)							{ bNeedsPaintModeDisable = bNeedsDisable; }
+
 		double CalcTimelinePosition() const;
 		void OnTimeSliderScrubPositionChanged(double NewScrubTime, bool bIsScrubbing);
 		void UpdateTimeSliderRange();
 		void SetTimeSliderRange(double StartTime, double EndTime);
+
+		void EnablePaintMode();
+		void DisablePaintMode();
+		bool IsDefaultModeActive() const;
+		bool IsPaintModeActive() const;
+
+		bool IsInitialized() const { return bIsInitialized; }
 
 		/**
 		 * Switch the editor to a given model type.
@@ -175,6 +186,7 @@ namespace UE::MLDeformer
 		TSharedRef<SWidget> GenerateVizModeButtonContents(TSharedRef<FUICommandList> InCommandList);
 		TSharedRef<SWidget> GenerateToolsMenuContents(TSharedRef<FUICommandList> InCommandList);
 
+
 	private:
 		/** The persona toolkit. */	
 		TSharedPtr<IPersonaToolkit> PersonaToolkit;
@@ -208,6 +220,13 @@ namespace UE::MLDeformer
 
 		/** Are we currently in a training process? */
 		bool bIsTraining = false;
+
+		/** 
+		 * When set to true, the paint mode will be disabled automatically.
+		 * This is used to defer the disable of the paint mode to a later stage in the frame, as sometimes this
+		 * can cause issues by deactivating or activating modes while in a loop over all modes.
+		 */
+		bool bNeedsPaintModeDisable = false;
 
 		/** Extenders for Tools menu */
 		static TArray<TUniquePtr<FToolsMenuExtender>> ToolsMenuExtenders;

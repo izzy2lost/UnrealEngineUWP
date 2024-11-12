@@ -407,7 +407,7 @@ namespace EpicGames.UHT.Tokenizer
 	/// <summary>
 	/// Helper struct to disable comment parsing.  Should be used in a using block
 	/// </summary>
-	public struct UhtTokenDisableComments : IDisposable
+	public readonly struct UhtTokenDisableComments : IDisposable
 	{
 		private readonly IUhtTokenReader _tokenReader;
 

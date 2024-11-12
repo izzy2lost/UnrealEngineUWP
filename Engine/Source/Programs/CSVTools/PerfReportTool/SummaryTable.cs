@@ -2,8 +2,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Linq;
 using System.Xml.Linq;
+using CSVStats;
 using PerfReportTool;
 
 namespace PerfSummaries
@@ -64,7 +66,7 @@ namespace PerfSummaries
 
 	class SummaryTableInfo
 	{
-		public SummaryTableInfo(XElement tableElement, Dictionary<string,string> substitutionsDict, string[] appendList, string[] rowSortAppendList, XmlVariableMappings variableMappings )
+		public SummaryTableInfo(XElement tableElement, Dictionary<string,List<string>> substitutionsDict, string[] appendList, string[] rowSortAppendList, XmlVariableMappings variableMappings )
 		{
 			string rowSortStr = tableElement.GetSafeAttribute<string>(variableMappings, "rowSort");
 			if (rowSortStr != null)
@@ -137,7 +139,7 @@ namespace PerfSummaries
 			}
 		}
 
-		private void ApplySubstitutionsToList(List<string> list, Dictionary<string, string> substitutionsDict)
+		private void ApplySubstitutionsToList(List<string> list, Dictionary<string, List<string>> substitutionsDict)
 		{
 			if (substitutionsDict == null)
 			{
@@ -145,19 +147,29 @@ namespace PerfSummaries
 			}
 			for (int i = 0; i < list.Count; i++)
 			{
-				list[i] = ApplySubstitution(list[i], substitutionsDict);
+				if (substitutionsDict.TryGetValue(list[i].ToLowerInvariant(), out List<string> replaceList))
+				{
+					list.RemoveAt(i);
+					list.InsertRange(i, replaceList);
+					i += replaceList.Count - 1;
+				}
 			}
 		}
 
-		private string ApplySubstitution(string str, Dictionary<string, string> substitutionsDict)
+		private string ApplySubstitution(string str, Dictionary<string, List<string>> substitutionsDict)
 		{
 			if (substitutionsDict == null)
 			{
 				return str;
 			}
-			if (substitutionsDict.TryGetValue(str, out string replaceStr))
+			if (substitutionsDict.TryGetValue(str.ToLowerInvariant(), out List<string> replaceList))
 			{
-				return replaceStr;
+				if (replaceList.Count>1 || replaceList.Count == 0)
+				{
+					// This method doesn't support one-to-many remapping, so ignore
+					return str;
+				}
+				return replaceList[0];
 			}
 			return str;
 		}
@@ -255,6 +267,13 @@ namespace PerfSummaries
 		Max
 	};
 
+	enum DiffRowFrequency
+	{
+		None,
+		Alternating,
+		AfterEachPair,
+		All
+	};
 
 	class SummaryTableColumnFormatInfo
 	{
@@ -350,7 +369,8 @@ namespace PerfSummaries
 		public bool isNumeric = false;
 		public string displayName;
 		public bool isRowWeightColumn = false;
-		public bool hasDiffRows = false;
+		public DiffRowFrequency diffRowFrequency = DiffRowFrequency.None;
+		public bool bShowOnlyDiffRows = false;
 		public bool isCountColumn = false;
 		// Column header tooltip. Displayed when hovering over the header.
 		public string tooltip = null;
@@ -415,6 +435,11 @@ namespace PerfSummaries
 			}
 		}
 
+		public string getKey(bool bIncludeTypeQualifier = true)
+		{
+			return bIncludeTypeQualifier ? SummaryTable.GetElementTypeStatPrefix(this.elementType) + name.ToLower() : name.ToLower();
+		}
+
 		public SummaryTableColumn Clone()
 		{
 			SummaryTableColumn newColumn = new SummaryTableColumn(name, isNumeric, displayName, isRowWeightColumn, elementType, formatInfo, tooltip, columnColourModifier);
@@ -423,7 +448,7 @@ namespace PerfSummaries
 			newColumn.colourThresholds.AddRange(colourThresholds);
 			newColumn.toolTips.AddRange(toolTips);
 			newColumn.colourModifiers = colourModifiers.ToDictionary(entry => entry.Key, entry => entry.Value); // Deep copy
-			newColumn.hasDiffRows = hasDiffRows;
+			newColumn.diffRowFrequency = diffRowFrequency;
 			return newColumn;
 		}
 
@@ -453,15 +478,21 @@ namespace PerfSummaries
 			return value == double.MaxValue ? 0.0 : value;
 		}
 
-		public void AddDiffRows(bool bIsFirstColumn=false)
+
+
+		public void AddDiffRows(bool bIsFirstColumn, DiffRowFrequency inDiffRowFrequency, bool bShowOnlyDiffRows)
 		{
-			if (hasDiffRows)
+			if (diffRowFrequency != DiffRowFrequency.None)
 			{
 				throw new Exception("Column already has diff rows!");
 			}
 			// Add a diff row for every row after the first one
 			int oldCount = GetCount();
-			int diffRowCount = oldCount - 1;
+
+			diffRowFrequency = inDiffRowFrequency;
+			bool bDiffRowsAlternating = diffRowFrequency == DiffRowFrequency.Alternating;
+
+			int diffRowCount = bDiffRowsAlternating ? oldCount - 1 : oldCount / 2;
 			int newCount = oldCount + diffRowCount;
 
 			// Create new lists with counts reserved
@@ -472,11 +503,16 @@ namespace PerfSummaries
 
 			bool bComputeDiff = isNumeric && !isCountColumn;
 
+			static bool NeedsDiffColumn(int originalRowIndex, bool bShowIntermediateDiffRows)
+			{
+				return bShowIntermediateDiffRows ? originalRowIndex > 0 : originalRowIndex % 2 == 1;
+			}
+
 			// Add diff rows to each of the arrays
 			for (int i = 0; i < doubleValues.Count; i++)
 			{
 				newDoubleValues.Add(doubleValues[i]);
-				if (i > 0)
+				if (NeedsDiffColumn(i, bDiffRowsAlternating))
 				{
 					if (bComputeDiff)
 					{
@@ -486,22 +522,48 @@ namespace PerfSummaries
 					}
 					else
 					{
-						newDoubleValues.Add(0.0);
+						double valueToShow = 0.0;
+						if (bShowOnlyDiffRows && isCountColumn )
+						{
+							// If we're showing only diff rows then display the count column if the values are equal
+							double thisValue = FilterInvalidValue(doubleValues[i]);
+							double prevValue = FilterInvalidValue(doubleValues[i - 1]);
+							if (thisValue == prevValue)
+							{
+								valueToShow = prevValue;
+							}
+						}
+
+						newDoubleValues.Add(valueToShow);
 					}
 				}
 			}
 			for (int i = 0; i < stringValues.Count; i++)
 			{
 				newStringValues.Add(stringValues[i]);
-				if (i > 0)
+				if (NeedsDiffColumn(i, bDiffRowsAlternating))
 				{
-					newStringValues.Add(bIsFirstColumn ? "Diff" : "");
+					if (bShowOnlyDiffRows)
+					{
+						if (stringValues[i] == stringValues[i-1])
+						{
+							newStringValues.Add(stringValues[i]); 
+						}
+						else
+						{
+							newStringValues.Add("");
+						}
+					}
+					else
+					{
+						newStringValues.Add(bIsFirstColumn ? "Diff" : "");
+					}					
 				}
 			}
 			for (int i = 0; i < toolTips.Count; i++)
 			{
 				newToolTips.Add(toolTips[i]);
-				if (i > 0)
+				if (NeedsDiffColumn(i, bDiffRowsAlternating))
 				{
 					newToolTips.Add("");
 				}
@@ -509,7 +571,7 @@ namespace PerfSummaries
 			for (int i = 0; i < colourThresholds.Count; i++)
 			{
 				newColourThresholds.Add(colourThresholds[i]);
-				if (i > 0)
+				if (NeedsDiffColumn(i, bDiffRowsAlternating))
 				{
 					newColourThresholds.Add(null);
 				}
@@ -519,33 +581,32 @@ namespace PerfSummaries
 			stringValues = newStringValues;
 			toolTips = newToolTips;
 			colourThresholds = newColourThresholds;
-			hasDiffRows = true;
 		}
 
-		public bool IsDiffRow(int rowIndex)
+		bool IsDiffRow(int rowIndex)
 		{
-			if (hasDiffRows == false || rowIndex < 2)
-			{
-				return false;
-			}
-			return ((rowIndex - 2) % 2) == 0;
+			return SummaryTable.IsDiffRow(diffRowFrequency, rowIndex);
 		}
 
 		// Computes a score (significance indicator) for a column based on its diff values. This takes into account the max value. If LowIsBad for this column then the sign is reversed
 		public double GetDiffScore()
 		{
-			if (!hasDiffRows || !isNumeric)
+			if (diffRowFrequency == DiffRowFrequency.None || !isNumeric)
 			{
 				return 0.0;
 			}
 			bool bLowIsBad = formatInfo != null && formatInfo.autoColorizeMode == AutoColorizeMode.LowIsBad;
 
 			// Find the max of all diff values for this column. If LowIsBad then we reverse the sign
+
 			double maxDiffScore = double.MinValue;
-			for (int diffRowIndex = 2; diffRowIndex < GetCount(); diffRowIndex += 2)
+			for (int rowIndex = 0; rowIndex < GetCount(); rowIndex++)
 			{
-				double diffValue = GetValue(diffRowIndex);
-				maxDiffScore = Math.Max(maxDiffScore, bLowIsBad ? -diffValue : diffValue);
+				if (IsDiffRow(rowIndex))
+				{
+					double diffValue = GetValue(rowIndex);
+					maxDiffScore = Math.Max(maxDiffScore, bLowIsBad ? -diffValue : diffValue);
+				}
 			}
 			return maxDiffScore;
 		}
@@ -553,14 +614,17 @@ namespace PerfSummaries
 		// Computes the max of the abs diff values for a column
 		public double GetMaxAbsDiff()
 		{
-			if (!hasDiffRows || !isNumeric)
+			if (diffRowFrequency == DiffRowFrequency.None || !isNumeric)
 			{
 				return 0.0;
 			}
 			double maxAbsDiff = double.MinValue;
-			for (int diffRowIndex = 2; diffRowIndex < GetCount(); diffRowIndex += 2)
+			for (int rowIndex = 0; rowIndex < GetCount(); rowIndex++)
 			{
-				maxAbsDiff = Math.Max(maxAbsDiff, Math.Abs(GetValue(diffRowIndex)));
+				if (IsDiffRow(rowIndex))
+				{
+					maxAbsDiff = Math.Max(maxAbsDiff, Math.Abs(GetValue(rowIndex)));
+				}
 			}
 			return maxAbsDiff;
 		}
@@ -708,7 +772,12 @@ namespace PerfSummaries
 		public string GetTextColor(int index)
 		{
 			const double absoluteIgnoreThreshold = 0.025;
-			if (hasDiffRows && IsDiffRow(index) && isNumeric && index < doubleValues.Count )
+        	if (!bShowOnlyDiffRows && isCountColumn)
+			{
+				// If we're showing only diff rows then don't display the count column's diff row as a diff for formatting
+				return null;
+			}
+			if (IsDiffRow(index) && isNumeric && index < doubleValues.Count )
 			{
 				// For simplicity, just negate the diff value if lowIsBad
 				double diffValue = doubleValues[index];
@@ -835,6 +904,12 @@ namespace PerfSummaries
 			{
 				attributes.Add($"title='{tooltip}'");
 			}
+			else 
+			{
+				string tooltipStr = SummaryTable.GetBaseStatNameWithPrefixAndSuffix(name, out _, out _);
+				tooltipStr += " (" + this.elementType.ToString() + ")";
+				attributes.Add($"title='{tooltipStr}'");
+			}
 			return attributes;
 		}
 
@@ -896,7 +971,13 @@ namespace PerfSummaries
 				double val = doubleValues[index];
 
 				string prefix = "";
-				bool bIsDiffRow = hasDiffRows && IsDiffRow(index);
+				bool bIsDiffRow = IsDiffRow(index);
+	        	if (!bShowOnlyDiffRows && isCountColumn)
+				{
+					// If we're showing only diff rows then don't display the count column's diff row as a diff for formatting
+					bIsDiffRow=false;
+				}
+
 				if (bIsDiffRow)
 				{
 					if ( val == 0.0 )
@@ -1009,6 +1090,130 @@ namespace PerfSummaries
 
 	class SummaryTable
 	{
+		class SummaryTableColumnLookup
+		{
+			public SummaryTableColumnLookup()
+			{
+				Clear();
+			}
+
+			public void Clear()
+			{
+				for (int i = 0; i < (int)SummaryTableElement.Type.COUNT + 1; i++)
+				{
+					columnLookupByType[i] = new Dictionary<string, SummaryTableColumn>();
+				}
+			}
+
+			public List<string> GetSortedKeyList(SummaryTableElement.Type type = SummaryTableElement.Type.ANY)
+			{
+				List<string> listOut = columnLookupByType[(int)type].Keys.ToList();
+				listOut.Sort();
+				return listOut;
+			}
+
+			public void Add(string key, SummaryTableColumn column)
+			{
+				// Is there a type qualifier prefix in the key? If so, determine the type from the qualifier and stip the prefix
+				if (key.StartsWith("["))
+				{
+					throw new Exception("Key can't start with a name qualifier prefix ([)");
+				}
+
+				// Add to the specific type lookup
+				columnLookupByType[(int)column.elementType][key] = column;
+
+				// Try to add to the global lookup, but handle collisions with priority
+				Dictionary<string, SummaryTableColumn> columnLookupAny = columnLookupByType[(int)SummaryTableElement.Type.ANY];
+				if (columnLookupAny.TryGetValue(key, out SummaryTableColumn existingColumn))
+				{
+					// Handle collisions. These are allowed. If we want to be immune from collisions in lookups, we can specify a type
+					// Prioritize summary table metrics over CSV stats, since this matches existing behaviour
+					if (GetElementTypePriority(column.elementType) > GetElementTypePriority(existingColumn.elementType))
+					{
+						columnLookupAny[key] = column;
+					}
+				}
+				else
+				{
+					columnLookupAny[key] = column;
+				}
+			}
+
+			public bool ContainsKey(string key, SummaryTableElement.Type type = SummaryTableElement.Type.ANY)
+			{
+				return Get(key, type) != null;
+			}
+
+			public void Remove(string key, SummaryTableElement.Type type = SummaryTableElement.Type.ANY)
+			{
+				// Is there a type qualifier prefix in the key? If so, determine the type from the qualifier and stip the prefix
+				if (type == SummaryTableElement.Type.ANY && key.StartsWith("["))
+				{
+					type = SummaryTable.GetQualfiedStatType(key, out key);
+				}
+
+				if (type == SummaryTableElement.Type.ANY)
+				{
+					// If a type isn't specified, we have to remove from all lookup tables, since there may be entries with different types and the same key
+					for (int i = 0; i < (int)SummaryTableElement.Type.COUNT + 1; i++)
+					{
+						columnLookupByType[i].Remove(key);
+					}
+				}
+				else
+				{
+					columnLookupByType[(int)type].Remove(key);
+
+					// Only remove from the global column if the type is the same as specified
+					Dictionary<string, SummaryTableColumn> columnLookupAny = columnLookupByType[(int)SummaryTableElement.Type.ANY];
+					if (columnLookupAny.TryGetValue(key, out SummaryTableColumn column))
+					{
+						if (column.elementType == type)
+						{
+							columnLookupAny.Remove(key);
+						}
+					}
+				}
+
+			}
+
+			public SummaryTableColumn Get(string key, SummaryTableElement.Type type = SummaryTableElement.Type.ANY)
+			{
+				// Is there a type qualifier prefix in the key? If so, determine the type from the qualifier and stip the prefix
+				if (type == SummaryTableElement.Type.ANY && key.StartsWith("["))
+				{
+					type = SummaryTable.GetQualfiedStatType(key, out key);
+				}
+
+				if (columnLookupByType[(int)type].TryGetValue(key, out SummaryTableColumn columnOut))
+				{
+					return columnOut;
+				}
+				return null;
+			}
+
+			// Determines the priority in the event of collisions in the ANY lookup (used when no type is specified)
+			public static int GetElementTypePriority(SummaryTableElement.Type type)
+			{
+				switch (type)
+				{
+					case SummaryTableElement.Type.CsvMetadata:
+						return 2;
+					case SummaryTableElement.Type.CsvStatAverage:
+						return 1;
+					case SummaryTableElement.Type.SummaryTableMetric:
+						return 3;
+					case SummaryTableElement.Type.ToolMetadata:
+						return 4;
+					default:
+						return 5;
+				}
+			}
+
+			Dictionary<string, SummaryTableColumn>[] columnLookupByType = new Dictionary<string, SummaryTableColumn>[(int)SummaryTableElement.Type.COUNT + 1];
+		};
+
 		public SummaryTable()
 		{
 		}
@@ -1032,7 +1237,7 @@ namespace PerfSummaries
 				string key = collateBy.ToLower();
 				if (columnLookup.ContainsKey(key))
 				{
-					collateByColumns.Add(columnLookup[key]);
+					collateByColumns.Add(columnLookup.Get(key));
 				}
 			}
 			if (collateByColumns.Count == 0)
@@ -1093,7 +1298,7 @@ namespace PerfSummaries
 			string CurrentRowSortKey = "";
 			foreach (string collateBy in finalSortByList)
 			{
-				CurrentRowSortKey += "{" + columnLookup[collateBy].GetStringValue(0) + "}";
+				CurrentRowSortKey += "{" + columnLookup.Get(collateBy).GetStringValue(0) + "}";
 			}
 
 			int destRowIndex = 0;
@@ -1155,7 +1360,7 @@ namespace PerfSummaries
 				{
 					foreach (string collateBy in finalSortByList)
 					{
-						nextSortKey += "{" + columnLookup[collateBy].GetStringValue(i + 1) + "}";
+						nextSortKey += "{" + columnLookup.Get(collateBy).GetStringValue(i + 1) + "}";
 					}
 				}
 
@@ -1165,7 +1370,7 @@ namespace PerfSummaries
 					for (int j = 0; j < countColumnIndex; j++)
 					{
 						string key = newColumns[j].name.ToLower();
-						newColumns[j].SetStringValue(destRowIndex, columnLookup[key].GetStringValue(i));
+						newColumns[j].SetStringValue(destRowIndex, columnLookup.Get(key).GetStringValue(i));
 					}
 					// Commit the row 
 					newColumns[countColumnIndex].SetValue(destRowIndex, (double)mergedRowsCount);
@@ -1222,100 +1427,156 @@ namespace PerfSummaries
 
 			string prefix = GetBaseStatPrefix(inColumn.name);
 			string lookupKey = ( SummaryTableColumn.getAggregateTypePrefix(aggregateType) + inColumn.name.Substring(prefix.Length) ).ToLower();
-			if ( !columnLookup.TryGetValue(lookupKey, out SummaryTableColumn outColumn) )
+			SummaryTableColumn outColumn = columnLookup.Get(lookupKey);
+			if (outColumn == null)
 			{
 				throw new Exception("Aggregate column "+lookupKey+" not found!");
 			}
 			return outColumn;
 		}
 
-
-		public SummaryTable SortAndFilter(string customFilter, string customRowSort = "buildversion,deviceprofile", bool bReverseSort = false, string weightByColumnName = null)
+		SummaryTableColumnLookup GetColumnLookup()
 		{
-			return SortAndFilter(customFilter.Split(',').ToList(), customRowSort.Split(',').ToList(), bReverseSort, weightByColumnName);
+			return columnLookup;
 		}
 
-		public SummaryTable SortAndFilter(List<string> columnFilterList, List<string> rowSortList, bool bReverseSort, string weightByColumnName, bool showFilteredColumns = false, IEnumerable<ISummaryTableColumnFilter> additionalFilters = null)
+		public static string GetElementTypeStatPrefix(SummaryTableElement.Type type)
 		{
-			SummaryTable newTable = SortRows(rowSortList, bReverseSort);
-
-			// Make a list of all unique keys
-			List<string> allMetadataKeys = new List<string>();
-			Dictionary<string, SummaryTableColumn> nameLookup = new Dictionary<string, SummaryTableColumn>();
-			foreach (SummaryTableColumn col in newTable.columns)
+			switch (type)
 			{
-				string key = col.name.ToLower();
-				if (!nameLookup.ContainsKey(key))
+				case SummaryTableElement.Type.SummaryTableMetric:
+					return "[metric]";
+				case SummaryTableElement.Type.CsvStatAverage:
+					return "[csv]";
+				case SummaryTableElement.Type.CsvMetadata:
+					return "[meta]";
+				case SummaryTableElement.Type.ToolMetadata:
+					return "[toolmeta]";
+				default:
+					return "[invalid]";
+			}
+
+		}
+
+		public static SummaryTableElement.Type GetQualfiedStatType(string fullNameWithQualifier)
+		{
+			if (fullNameWithQualifier.StartsWith("["))
+			{
+				if (fullNameWithQualifier.StartsWith("[metric]"))
 				{
-					nameLookup.Add(key, col);
-					allMetadataKeys.Add(key);
+					return SummaryTableElement.Type.SummaryTableMetric;
+				}
+				else if (fullNameWithQualifier.StartsWith("[csv]"))
+				{
+					return SummaryTableElement.Type.CsvStatAverage;
+				}
+				else if (fullNameWithQualifier.StartsWith("[meta]"))
+				{
+					return SummaryTableElement.Type.CsvMetadata;
+				}
+				else if (fullNameWithQualifier.StartsWith("[toolmeta]"))
+				{
+					return SummaryTableElement.Type.ToolMetadata;
 				}
 			}
-			allMetadataKeys.Sort();
+			return SummaryTableElement.Type.COUNT;
+		}
 
-			// Generate the list of requested metadata keys that this table includes
-			List<string> orderedKeysWithDupes = new List<string>();
+		public static SummaryTableElement.Type GetQualfiedStatType(string fullNameWithQualifier, out string statNameOut)
+		{
+			if (fullNameWithQualifier.StartsWith("["))
+			{
+				int endIdx = fullNameWithQualifier.IndexOf("]");
+				if (endIdx == -1)
+				{
+					throw new Exception("Filter stat " + fullNameWithQualifier + " includes a start bracket but no end bracket");
+				}
+				// Strip off the stat qualifier
+				statNameOut = fullNameWithQualifier.Substring(endIdx+1);
 
-			// Add metadata keys from the column filter list in the order they appear
+				if (fullNameWithQualifier.StartsWith("[metric]"))
+				{
+					return SummaryTableElement.Type.SummaryTableMetric;
+				}
+				else if (fullNameWithQualifier.StartsWith("[csv]"))
+				{
+					return SummaryTableElement.Type.CsvStatAverage;
+				}
+				else if (fullNameWithQualifier.StartsWith("[meta]"))
+				{
+					return SummaryTableElement.Type.CsvMetadata;
+				}
+				else if (fullNameWithQualifier.StartsWith("[toolmeta]"))
+				{
+					return SummaryTableElement.Type.ToolMetadata;
+				}
+			}
+			statNameOut = fullNameWithQualifier;
+			return SummaryTableElement.Type.COUNT;
+		}
+
+		public SummaryTable SortAndFilter(List<string> columnFilterList, List<string> rowSortList, bool bReverseSort, string weightByColumnName, IEnumerable<ISummaryTableColumnFilter> additionalFilters = null, bool bSortTrailingDigitsAsNumeric = false)
+		{
+			SummaryTable newTable = SortRows(rowSortList, bReverseSort, bSortTrailingDigitsAsNumeric);
+
+			// Generate a column lookup 
+			SummaryTableColumnLookup columnLookup = newTable.GetColumnLookup();
+
+			// Make a list of all unique keys for each element type, including ANY
+			List<string>[] allMetadataKeysLists = new List<string>[(int)SummaryTableElement.Type.COUNT + 1];
+			for (int i = 0; i < allMetadataKeysLists.Length; i++)
+			{
+				allMetadataKeysLists[i] = columnLookup.GetSortedKeyList((SummaryTableElement.Type)i);
+			}
+
+			// Add columns from the column filter list in the order they appear
+			List<SummaryTableColumn> newColumnList = new List<SummaryTableColumn>();
 			foreach (string filterStr in columnFilterList)
 			{
 				string filterStrLower = filterStr.Trim().ToLower();
+
+				// Check for a qualifier which specifies the stat type
 				bool startWild = filterStrLower.StartsWith("*");
 				bool endWild = filterStrLower.EndsWith("*");
-				filterStrLower = filterStrLower.Trim('*');
-				if (startWild && endWild)
-                {
-					orderedKeysWithDupes.AddRange(allMetadataKeys.Where(x => x.Contains(filterStrLower)));
-                }
-				else if(startWild)
+				if (startWild || endWild)
 				{
-					orderedKeysWithDupes.AddRange(allMetadataKeys.Where(x => x.EndsWith(filterStrLower)));
-				}
-				else if(endWild)
-				{
-					// Linear search through the sorted key list
-					bool bFound = false;
-					for (int wildcardSearchIndex = 0; wildcardSearchIndex < allMetadataKeys.Count; wildcardSearchIndex++)
+					// Use the qualified list for wildcard matching if this entry was qualified with a type
+					SummaryTableElement.Type statType = GetQualfiedStatType(filterStrLower, out string unqualifiedKey);
+
+					List<string> allKeysList = allMetadataKeysLists[(int)statType];
+					List<string> keyList = CsvStats.WildcardMatchStringList(allKeysList, unqualifiedKey, false, true);
+
+					// Resolve the keyList and output the columns 
+					foreach (string key in keyList)
 					{
-						if (allMetadataKeys[wildcardSearchIndex].StartsWith(filterStrLower))
+						SummaryTableColumn column = columnLookup.Get(key, statType);
+						if (column != null)
 						{
-							orderedKeysWithDupes.Add(allMetadataKeys[wildcardSearchIndex]);
-							bFound = true;
-						}
-						else if (bFound)
-						{
-							// Early exit: already found one key. If the pattern no longer matches then we must be done
-							break;
+							newColumnList.Add(column);
 						}
 					}
 				}
 				else
 				{
-					string key = filterStrLower;
-					orderedKeysWithDupes.Add(key);
+					SummaryTableColumn column = columnLookup.Get(filterStrLower);
+					if (column != null)
+					{
+						newColumnList.Add(column);
+					}
 				}
+
 			}
+			// Remove duplicates
+			newColumnList = newColumnList.Distinct().ToList();
 
 			// Compute row weights
-			if (weightByColumnName != null && nameLookup.ContainsKey(weightByColumnName))
+			if (weightByColumnName != null && columnLookup.ContainsKey(weightByColumnName))
 			{
-				SummaryTableColumn rowWeightColumn = nameLookup[weightByColumnName];
+				SummaryTableColumn rowWeightColumn = columnLookup.Get(weightByColumnName);
 				newTable.rowWeightings = new List<double>(rowWeightColumn.GetCount());
 				for (int i = 0; i < rowWeightColumn.GetCount(); i++)
 				{
 					newTable.rowWeightings.Add(rowWeightColumn.GetValue(i));
-				}
-			}
-
-			List<SummaryTableColumn> newColumnList = new List<SummaryTableColumn>();
-			// Add all the ordered keys that exist, ignoring duplicates
-			foreach (string key in orderedKeysWithDupes)
-			{
-				if (nameLookup.ContainsKey(key))
-				{
-					newColumnList.Add(nameLookup[key]);
-					// Remove from the list so it doesn't get counted again
-					nameLookup.Remove(key);
 				}
 			}
 
@@ -1325,28 +1586,9 @@ namespace PerfSummaries
 				var filteredColumns = new HashSet<string>();
 				foreach (ISummaryTableColumnFilter filter in additionalFilters)
 				{
-					if (showFilteredColumns)
-					{
-						// Run the filter so we can populate which columns would have been filtered, but don't actually remove them from the list.
-						newColumnList.ForEach(column =>
-						{
-							// If it's already filtered then skip it so we don't overwrite the filter reason.
-							if (!filteredColumns.Contains(column.name))
-							{
-								if (filter.ShouldFilter(column, this))
-								{
-									filteredColumns.Add(column.name);
-								}
-							}
-						});
-					}
-					else
-					{
-						newColumnList = newColumnList.Where(column => !filter.ShouldFilter(column, this)).ToList();
-					}
+					newColumnList = newColumnList.Where(column => !filter.ShouldFilter(column, this)).ToList();
 				}
 			}
-
 			newTable.columns = newColumnList;
 			newTable.rowCount = rowCount;
 			newTable.InitColumnLookup();
@@ -1354,14 +1596,23 @@ namespace PerfSummaries
 			return newTable;
 		}
 
-		public void AddDiffRows(bool bSortColumnsByDiff, double columnDiffDisplayThreshold)
+		public void AddDiffRows(bool bSortColumnsByDiff, double columnDiffDisplayThreshold, bool bInShowOnlyDiffRows, bool bDiffRowsAlternating)
 		{
+			diffRowFrequency = bDiffRowsAlternating ? DiffRowFrequency.Alternating : DiffRowFrequency.AfterEachPair;
+			bShowOnlyDiffRows = bInShowOnlyDiffRows;
 			for (int i=0; i<columns.Count; i++)
 			{
-				columns[i].AddDiffRows(i == 0);
+				columns[i].AddDiffRows(i == 0, diffRowFrequency, bInShowOnlyDiffRows);
 			}
-			rowCount += rowCount - 1;
 
+			if (bDiffRowsAlternating)
+			{
+				rowCount += rowCount - 1;
+			}
+			else
+			{
+				rowCount += rowCount / 2;
+			}
 			if ( columnDiffDisplayThreshold > 0.0 )
 			{
 				FilterColumnsByDiffThreshold(columnDiffDisplayThreshold);
@@ -1756,7 +2007,7 @@ namespace PerfSummaries
 				// Add the special columns (up to Count) to the lower header row
 				for (int i = 0; i < firstStatColumnIndex; i++)
 				{
-					headerRow.AddCell(columns[i].GetDisplayName(hideStatPrefix, bAddStatNameSpacing, bGreyOutStatPrefixes));
+					headerRow.AddCell(columns[i].GetDisplayName(hideStatPrefix, bAddStatNameSpacing, bGreyOutStatPrefixes), String.Join(" ", columns[i].GetHeaderAttributes()));
 				}
 
 				if (bAddMinMaxColumns)
@@ -1826,14 +2077,14 @@ namespace PerfSummaries
 						{
 							// Work out the section name if we have section boundary info. When it changes, apply the sectionStart CSS class
 							string sectionName = "";
-							if (sectionBoundaryInfo != null && columnLookup.ContainsKey(sectionBoundaryInfo.statName))
+							if (sectionBoundaryInfo != null && columnLookup.ContainsKey(sectionBoundaryInfo.statName)) 
 							{
 								// Get the section name
 								if (!columnLookup.ContainsKey(sectionBoundaryInfo.statName))
 								{
 									continue;
 								}
-								SummaryTableColumn col = columnLookup[sectionBoundaryInfo.statName];
+								SummaryTableColumn col = columnLookup.Get(sectionBoundaryInfo.statName);
 								sectionName = col.GetStringValue(i);
 
 								// if we have a start token then strip before it
@@ -1876,6 +2127,10 @@ namespace PerfSummaries
 			// Add the rows to the table
 			for (int rowIndex = 0; rowIndex < rowCount; rowIndex++)
 			{
+				if (!IsRowVisible(rowIndex))
+				{
+					continue;
+				}
 				string rowClassStr = "";
 
 				// Is this a major/minor section boundary
@@ -2025,7 +2280,7 @@ namespace PerfSummaries
 			htmlFile.Close();
 		}
 
-		public SummaryTable SortRows(List<string> rowSortList, bool reverseSort)
+		public SummaryTable SortRows(List<string> rowSortList, bool reverseSort, bool sortTrailingDigitsAsNumeric = false)
 		{
 			List<KeyValuePair<string, int>> columnRemapping = new List<KeyValuePair<string, int>>();
 			for (int i = 0; i < rowCount; i++)
@@ -2033,10 +2288,30 @@ namespace PerfSummaries
 				string key = "";
 				foreach (string s in rowSortList)
 				{
-					if (columnLookup.ContainsKey(s.ToLower()))
+					SummaryTableColumn column = columnLookup.Get(s.ToLower());
+					if (column != null)
 					{
-						SummaryTableColumn column = columnLookup[s.ToLower()];
-						key += "{" + column.GetStringValue(i,false,"0000000000.0000000000") + "}";
+						string columnKey = column.GetStringValue(i, false, "0000000000.0000000000");
+						if (sortTrailingDigitsAsNumeric && !column.isNumeric)
+						{
+							// If there's an integer suffix in the column value, pad it with zeroes for sorting purposes
+							int integerSuffixStartIndex = -1;
+							for (int ci = columnKey.Length-1; ci>0; ci-- )
+							{
+								char c = columnKey[ci];
+								if (c < '0' || c > '9')
+								{
+									break;
+								}
+								integerSuffixStartIndex = ci;
+							}
+							if (integerSuffixStartIndex >= 0)
+							{
+								string integerSuffixPadded = columnKey.Substring(integerSuffixStartIndex).PadLeft(12,'0');
+								columnKey = columnKey.Substring(0, integerSuffixStartIndex) + integerSuffixPadded;
+							}
+						}
+						key += "{" + columnKey + "}";
 					}
 					else
 					{
@@ -2051,7 +2326,7 @@ namespace PerfSummaries
 				return m1.Key.CompareTo(m2.Key);
 			});
 
-			// Reorder the metadata rows
+			// Reorder the columns
 			List<SummaryTableColumn> newColumns = new List<SummaryTableColumn>();
 			foreach (SummaryTableColumn srcCol in columns)
 			{
@@ -2114,7 +2389,7 @@ namespace PerfSummaries
 				}
 				else
 				{
-					column = columnLookup[key];
+					column = columnLookup.Get(key);
 				}
 
 				if (value.isNumeric)
@@ -2138,20 +2413,54 @@ namespace PerfSummaries
 
 		public SummaryTableColumn GetColumnByName(string name)
 		{
-			if (columnLookup.ContainsKey(name))
-			{
-				return columnLookup[name];
-			}
-			return null;
+			return columnLookup.Get(name);
 		}
 
-		Dictionary<string, SummaryTableColumn> columnLookup = new Dictionary<string, SummaryTableColumn>();
+		public bool IsRowVisible(int rowIndex)
+		{
+			return SummaryTable.IsRowVisible(diffRowFrequency, bShowOnlyDiffRows, rowIndex);
+		}
+
+		public static bool IsRowVisible(DiffRowFrequency diffRowFrequency, bool bShowOnlyDiffRows, int rowIndex)
+		{
+			if (bShowOnlyDiffRows)
+			{
+				return IsDiffRow(diffRowFrequency, rowIndex);
+			}
+			else
+			{
+				return true;
+			}
+		}
+
+		public static bool IsDiffRow(DiffRowFrequency diffRowFrequency, int rowIndex)
+		{
+			if (rowIndex < 2)
+			{
+				return false;
+			}
+			switch (diffRowFrequency)
+			{
+				case DiffRowFrequency.Alternating:
+					return ((rowIndex - 2) % 2) == 0;
+				case DiffRowFrequency.AfterEachPair:
+					return ((rowIndex - 2) % 3) == 0;
+				case DiffRowFrequency.None:
+				default:
+					return false;
+			}
+		}
+
+
+		SummaryTableColumnLookup columnLookup = new SummaryTableColumnLookup();
 		List<SummaryTableColumn> columns = new List<SummaryTableColumn>();
 		List<double> rowWeightings = null;
 		int rowCount = 0;
 		int firstStatColumnIndex = 0;
 		bool isCollated = false;
 		bool hasMinMaxColumns = false;
+		DiffRowFrequency diffRowFrequency = DiffRowFrequency.None;
+		bool bShowOnlyDiffRows = false;
 	};
 
 	class HtmlTable

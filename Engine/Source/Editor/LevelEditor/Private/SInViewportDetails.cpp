@@ -309,7 +309,6 @@ TSharedRef<SWidget> SInViewportDetails::MakeDetailsWidget()
 	{
 		NodeList = SNew(SListView< TSharedPtr<IDetailTreeNode> >)
 			.ListViewStyle(&FAppStyle::Get().GetWidgetStyle<FTableViewStyle>("PropertyTable.InViewport.ListView"))
-			.ItemHeight(24)
 			.ListItemsSource(&Nodes)
 			.OnGenerateRow(this, &SInViewportDetails::GenerateListRow);
 
@@ -337,10 +336,18 @@ void SInViewportDetails::SetObjects(const TArray<UObject*>& InObjects, bool bFor
 		GenerateWidget();
 		if (!Nodes.Num())
 		{
-			// Do this on a delay so that we are are not caught in a loop of creating and hiding the menu
-			GEditor->GetTimerManager()->SetTimerForNextTick([this]()
+			TWeakPtr<SInViewportDetails> ThisWeak = SharedThis(this);
+
+			// Do this on a delay so that we are not caught in a loop of creating and hiding the menu
+			GEditor->GetTimerManager()->SetTimerForNextTick([ThisWeak]()
 				{
-					OwningViewport.Pin()->HideInViewportContextMenu();
+					if (TSharedPtr<SInViewportDetails> This = ThisWeak.Pin())
+					{
+						if (TSharedPtr<SEditorViewport> Viewport = This->OwningViewport.Pin())
+						{
+							Viewport->HideInViewportContextMenu();
+						}
+					}
 				});
 		}
 	}

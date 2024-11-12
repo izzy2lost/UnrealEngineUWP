@@ -7,7 +7,9 @@ public class NiagaraShader : ModuleRules
 {
     public NiagaraShader(ReadOnlyTargetRules Target) : base(Target)
     {
-        PrivateDependencyModuleNames.AddRange(
+		PublicIncludePaths.Add(Path.Combine(ModuleDirectory, "../../Shaders/Shared"));
+
+		PrivateDependencyModuleNames.AddRange(
             new string[] {
                 "CoreUObject",
                 "Engine",

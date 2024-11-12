@@ -75,11 +75,7 @@ public:
 	/** The name of the method used within each rig unit */
 	static FName GetMethodName()
 	{
-		static FName MethodName = FName(NAME_None);
-		if(MethodName.IsNone())
-		{
-			MethodName = FRigVMStruct::ExecuteName;
-		}
+		static const FLazyName MethodName = FRigVMStruct::ExecuteName;
 		return MethodName;
 	}
 

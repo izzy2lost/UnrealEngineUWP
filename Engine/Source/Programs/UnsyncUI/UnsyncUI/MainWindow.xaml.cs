@@ -207,7 +207,7 @@ namespace UnsyncUI
 
 		public string LoggedInUser
 		{
-			get => Config.loggedInUser;
+			get => Config?.loggedInUser;
 			set 
 			{
 				App.Current.UserConfig.LogInOnStartup = (value != null);
@@ -227,7 +227,7 @@ namespace UnsyncUI
 				return;
 			}
 
-			UnsyncQueryUtil queryUtil = new UnsyncQueryUtil(Config.UnsyncPath, Config.RootProxy.Path);
+			UnsyncQueryUtil queryUtil = new UnsyncQueryUtil(Config.UnsyncPath, Config.RootProxy.Path, Config.RootProxy.Protocol);
 
 			try
 			{
@@ -236,7 +236,6 @@ namespace UnsyncUI
 			}
 			catch (Exception ex)
 			{
-				// TODO: add global status/log window
 				App.Current.LogError($"Login failed with exception: {ex}");
 			}
 		}
@@ -308,12 +307,11 @@ namespace UnsyncUI
 				{
 					Tabs.Add(new ProjectModel(p, OnBuildsSelected));
 				}
-			}
 
-			if (Config.EnableUserAuthentication
-				&& App.Current.UserConfig.LogInOnStartup)
-			{
-				LogIn();
+				if (Config.EnableUserAuthentication && App.Current.UserConfig.LogInOnStartup)
+				{
+					LogIn();
+				}
 			}
 
 			Tabs.Add(new CustomModel(OnBuildsSelected));
@@ -347,7 +345,7 @@ namespace UnsyncUI
 					build.Config.DstPath,
 					build.Config.ScavengePath,
 					build.Config.DryRun, 
-					SelectedProxy?.Path,
+					SelectedProxy?.GetServerConfig(),
 					AdditionalArgs, 
 					build.Config.Exclusions, 
 					OnJobCompleted, 

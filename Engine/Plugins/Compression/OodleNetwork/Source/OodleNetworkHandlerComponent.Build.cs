@@ -44,11 +44,20 @@ public class OodleNetworkHandlerComponent : ModuleRules
 
 		bool bSkipLibrarySetup = false;
 
-        if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
+		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
 		{
-			ReleaseLib = "oo2net_win64.lib";
-			DebugLib = "oo2net_win64_debug.lib";
-			PlatformDir = "Win64";
+			if (Target.Architecture == UnrealArch.Arm64)
+			{
+				ReleaseLib = "oo2net_winuwparm64.lib";
+				DebugLib = "oo2net_winuwparm64_debug.lib";
+				PlatformDir = "WinArm64";
+			}
+			else
+			{
+				ReleaseLib = "oo2net_win64.lib";
+				DebugLib = "oo2net_win64_debug.lib";
+				PlatformDir = "Win64";
+			}
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{

@@ -168,7 +168,7 @@ void SEventParameter::SetSelectedField(const FMVVMLinkedPinValue& Path)
 	}
 }
 
-void SEventParameter::HandleFieldSelectionChanged(FMVVMLinkedPinValue Value)
+void SEventParameter::HandleFieldSelectionChanged(FMVVMLinkedPinValue Value, SFieldSelectorMenu::ESelectionType SelectionType)
 {
 	SetSelectedField(Value);
 }

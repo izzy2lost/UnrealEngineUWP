@@ -277,7 +277,7 @@ FIntRect ComputeProjectedScreenRect(const FBox& B, const FViewInfo& View)
 }
 
 
-FIntRect ComputeVisibleHairStrandsMacroGroupsRect(const FIntRect& ViewRect, const FHairStrandsMacroGroupDatas& Datas)
+FIntRect ComputeVisibleHairStrandsMacroGroupsRect(const FViewInfo& View, const FIntRect& ViewRect, const FHairStrandsMacroGroupDatas& Datas)
 {
 	FIntRect TotalRect(INT_MAX, INT_MAX, -INT_MAX, -INT_MAX);
 	if (IsHairStrandsViewRectOptimEnable())
@@ -285,6 +285,15 @@ FIntRect ComputeVisibleHairStrandsMacroGroupsRect(const FIntRect& ViewRect, cons
 		for (const FHairStrandsMacroGroupData& Data : Datas)
 		{
 			TotalRect.Union(Data.ScreenRect);
+		}
+
+		// For stereo rendering we don't compute FHairStrandsMacroGroupDatas for each view, but reuse MacroGroup data from View0 to View1. 
+		// See RenderHairPrePass() in Renderer\Private\HairStrands\HairStrandsRendering.cpp for more details.
+		// In order to correct the view rect for the secondary view, we add the view.min value.
+		if (IStereoRendering::IsASecondaryView(View))
+		{
+			TotalRect.Min += View.ViewRect.Min;
+			TotalRect.Max += View.ViewRect.Min;
 		}
 
 		// In case bounds are not initialized correct for some reason, return view rect

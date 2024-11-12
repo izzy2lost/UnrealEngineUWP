@@ -43,7 +43,6 @@ private:
 	void HandleToggleLocationGridSnap(ECheckBoxState InState);
 	FText GetLocationGridLabel() const;
 	TSharedRef<SWidget> FillLocationGridSnapMenu();
-	TSharedRef<SWidget> BuildLocationGridCheckBoxList(FName InExtentionHook, const FText& InHeading, const TArray<int32>& InGridSizes) const;
 	static void SetGridSize(int32 InGridSize);
 	static bool IsGridSizeChecked(int32 InGridSnapSize);
 	// End Grid Snapping

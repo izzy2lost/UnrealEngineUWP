@@ -298,6 +298,11 @@ bool FParse::Value(
 
 	if (OptStreamGotTo)
 	{
+		if (bArgumentsQuoted && *ValueEndInStream == '"')
+		{
+			++ValueEndInStream;
+		}
+
 		*OptStreamGotTo = ValueEndInStream;
 	}
 
@@ -580,11 +585,14 @@ bool FParse::Value(	const TCHAR* Stream, const TCHAR* Match, FName& Name )
 //
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, uint32& Value )
 {
-	const TCHAR* Temp = FCString::Strifind(Stream,Match);
-	TCHAR* End;
-	if( Temp==NULL )
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Value = FCString::Strtoi( Temp + FCString::Strlen(Match), &End, 10 );
+	}
+	TCHAR* End_NotUsed;
+
+	Value = FCString::Strtoi(Temp, &End_NotUsed, 10 );
 
 	return true;
 }
@@ -594,10 +602,12 @@ bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, uint32& Value )
 //
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, uint8& Value )
 {
-	const TCHAR* Temp = FCString::Strifind(Stream,Match);
-	if( Temp==NULL )
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Temp += FCString::Strlen( Match );
+	}
+
 	Value = (uint8)FCString::Atoi( Temp );
 	return Value!=0 || FChar::IsDigit(Temp[0]);
 }
@@ -607,10 +617,12 @@ bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, uint8& Value )
 //
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, int8& Value )
 {
-	const TCHAR* Temp = FCString::Strifind(Stream,Match);
-	if( Temp==NULL )
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Temp += FCString::Strlen( Match );
+	}
+
 	Value = (int8)FCString::Atoi( Temp );
 	return Value!=0 || FChar::IsDigit(Temp[0]);
 }
@@ -620,10 +632,12 @@ bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, int8& Value )
 //
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, uint16& Value )
 {
-	const TCHAR* Temp = FCString::Strifind( Stream, Match );
-	if( Temp==NULL )
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Temp += FCString::Strlen( Match );
+	}
+
 	Value = (uint16)FCString::Atoi( Temp );
 	return Value!=0 || FChar::IsDigit(Temp[0]);
 }
@@ -633,10 +647,12 @@ bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, uint16& Value )
 //
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, int16& Value )
 {
-	const TCHAR* Temp = FCString::Strifind( Stream, Match );
-	if( Temp==NULL )
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Temp += FCString::Strlen( Match );
+	}
+
 	Value = (int16)FCString::Atoi( Temp );
 	return Value!=0 || FChar::IsDigit(Temp[0]);
 }
@@ -646,10 +662,13 @@ bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, int16& Value )
 //
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, float& Value )
 {
-	const TCHAR* Temp = FCString::Strifind( Stream, Match );
-	if( Temp==NULL )
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Value = FCString::Atof( Temp+FCString::Strlen(Match) );
+	}
+
+	Value = FCString::Atof( Temp );
 	return true;
 }
 
@@ -658,10 +677,13 @@ bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, float& Value )
 //
 bool FParse::Value(const TCHAR* Stream, const TCHAR* Match, double& Value)
 {
-	const TCHAR* Temp = FCString::Strifind(Stream, Match);
-	if (Temp == NULL)
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Value = FCString::Atod(Temp + FCString::Strlen(Match));
+	}
+
+	Value = FCString::Atod(Temp);
 	return true;
 }
 
@@ -671,20 +693,23 @@ bool FParse::Value(const TCHAR* Stream, const TCHAR* Match, double& Value)
 //
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, int32& Value )
 {
-	const TCHAR* Temp = FCString::Strifind( Stream, Match );
-	if( Temp==NULL )
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Value = FCString::Atoi( Temp + FCString::Strlen(Match) );
+	}
+
+	Value = FCString::Atoi( Temp );
 	return true;
 }
 
 //
 // Get a boolean value.
 //
-bool FParse::Bool( const TCHAR* Stream, const TCHAR* Match, bool& OnOff )
+bool FParse::Bool(const TCHAR* Stream, const TCHAR* Match, bool& OnOff)
 {
 	TCHAR TempStr[16];
-	if( FParse::Value( Stream, Match, TempStr, 16 ) )
+	if (FParse::Value(Stream, Match, TempStr, UE_ARRAY_COUNT(TempStr)))
 	{
 		OnOff = FCString::ToBool(TempStr);
 		return true;
@@ -701,8 +726,10 @@ bool FParse::Bool( const TCHAR* Stream, const TCHAR* Match, bool& OnOff )
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, struct FGuid& Guid )
 {
 	TCHAR Temp[256];
-	if( !FParse::Value( Stream, Match, Temp, UE_ARRAY_COUNT(Temp) ) )
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
+	}
 
 	Guid.A = Guid.B = Guid.C = Guid.D = 0;
 	if( FCString::Strlen(Temp)==32 )
@@ -792,15 +819,16 @@ void FParse::Next( const TCHAR** Stream )
 }
 
 //
-// Grab the next space-delimited string from the input stream.
+// Grab the next space-delimited (or SingleCharacterDelimiter-delimited) string from the input stream.
 // If quoted, gets entire quoted string.
 //
-bool FParse::Token( const TCHAR*& Str, TCHAR* Result, int32 MaxLen, bool UseEscape )
+bool FParse::Token( const TCHAR*& Str, TCHAR* Result, int32 MaxLen, bool UseEscape, const TCHAR SingleCharacterDelimiter/* = TEXT('\0')*/)
 {
 	int32 Len=0;
 
-	// Skip preceeding spaces and tabs.
-	while( FChar::IsWhitespace(*Str) )
+	// Skip preceeding delimiters (either spaces and tabs or custom delimiters)
+	while((SingleCharacterDelimiter == TEXT('\0') && (FChar::IsWhitespace(*Str)))
+		|| ((SingleCharacterDelimiter != TEXT('\0') && *Str == SingleCharacterDelimiter)))
 	{
 		Str++;
 	}
@@ -840,9 +868,17 @@ bool FParse::Token( const TCHAR*& Str, TCHAR* Result, int32 MaxLen, bool UseEsca
 		while (1)
 		{
 			TCHAR Character = *Str;
-			if ((Character == 0) || (FChar::IsWhitespace(Character) && !bInQuote))
+			if (Character == 0)
 			{
 				break;
+			}
+			if (!bInQuote)
+			{
+				if ((SingleCharacterDelimiter != TEXT('\0') && Character == SingleCharacterDelimiter)
+					|| (SingleCharacterDelimiter == TEXT('\0') && (FChar::IsWhitespace(Character))))
+				{
+					break;
+				}
 			}
 			Str++;
 
@@ -876,7 +912,7 @@ bool FParse::Token( const TCHAR*& Str, TCHAR* Result, int32 MaxLen, bool UseEsca
 	return Len != 0;
 }
 
-bool FParse::Token( const TCHAR*& Str, FString& Arg, bool UseEscape )
+bool FParse::Token( const TCHAR*& Str, FString& Arg, bool UseEscape, const TCHAR SingleCharacterDelimiter/* = TEXT('\0')*/)
 {
 	Arg.Reset();
 
@@ -920,9 +956,20 @@ bool FParse::Token( const TCHAR*& Str, FString& Arg, bool UseEscape )
 		while (1)
 		{
 			TCHAR Character = *Str;
-			if ((Character == 0) || (FChar::IsWhitespace(Character) && !bInQuote))
+			if (Character == 0)
 			{
 				break;
+			}
+			if (!bInQuote)
+			{
+				if ((SingleCharacterDelimiter != TEXT('\0') && Character == SingleCharacterDelimiter)
+					|| (SingleCharacterDelimiter == TEXT('\0') && (FChar::IsWhitespace(Character))))
+				{
+					// Consume the delimiter. If it's whitespace this isn't critical since we'll consume it at the start
+					// of the next call to Token() but if it's not whitespace we won't, so we better do it now.
+					Str++;
+					break;
+				}
 			}
 			Str++;
 
@@ -1305,7 +1352,7 @@ bool FParse::SchemeNameFromURI(const TCHAR* URI, FString& OutSchemeName)
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
 #include "Misc/AutomationTest.h"
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FParseLineExtendedTest, "System.Core.Misc.ParseLineExtended", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FParseLineExtendedTest, "System.Core.Misc.ParseLineExtended", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FParseLineExtendedTest::RunTest(const FString& Parameters)
 {
 	const TCHAR* Tests[] = {

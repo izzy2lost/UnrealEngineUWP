@@ -250,6 +250,7 @@ FGuid UNiagaraStackEntry::GetSelectionId() const
 
 UNiagaraStackEditorData& UNiagaraStackEntry::GetStackEditorData() const
 {
+	checkf(StackEditorData, TEXT("StackEditorData is nullptr the calling code needs to check for finalized or not"));
 	return *StackEditorData;
 }
 
@@ -276,6 +277,11 @@ bool UNiagaraStackEntry::GetCanExpandInOverview() const
 bool UNiagaraStackEntry::IsExpandedByDefault() const
 {
 	return true;
+}
+
+bool UNiagaraStackEntry::KeepExpanderIndentation() const
+{
+	return false;
 }
 
 bool UNiagaraStackEntry::GetIsExpanded() const
@@ -772,9 +778,19 @@ void UNiagaraStackEntry::RefreshChildren()
 		}
 	}
 
-	Children.Empty();	
-	Children.Append(NewChildren);
-	
+	Children.Empty(NewChildren.Num());
+	TSet<UNiagaraStackEntry*> HandledChildren;
+	for (UNiagaraStackEntry* NewChild : NewChildren)
+	{
+		bool bAlreadyHandled = false;
+		HandledChildren.Add(NewChild, &bAlreadyHandled);
+		if (ensureMsgf(bAlreadyHandled == false, TEXT("Duplicate child %s (%s) in entry %s (%s)."),
+			*NewChild->GetDisplayName().ToString(), *NewChild->GetClass()->GetName(), *GetDisplayName().ToString(), *GetClass()->GetName()))
+		{
+			Children.Add(NewChild);
+		}
+	}
+
 	for (UNiagaraStackEntry* Child : Children)
 	{
 		UNiagaraStackEntry* OuterOwner = Cast<UNiagaraStackEntry>(Child->GetOuter());

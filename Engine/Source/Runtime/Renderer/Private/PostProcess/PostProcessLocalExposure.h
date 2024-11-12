@@ -36,3 +36,11 @@ void AddApplyLocalExposurePass(
 	FScreenPassTextureSlice Input,
 	FScreenPassTextureSlice Output,
 	ERDGPassFlags PassFlags);
+
+FScreenPassTexture AddLocalExposureFusionPass(
+	FRDGBuilder& GraphBuilder,
+	const FViewInfo& View,
+	const FEyeAdaptationParameters& EyeAdaptationParameters,
+	FRDGBufferRef EyeAdaptationBuffer,
+	const FLocalExposureParameters& LocalExposureParamaters,
+	FScreenPassTextureSlice Input);

@@ -567,7 +567,7 @@ public class IOSPlatform : ApplePlatform
 
 	public override string GetPlatformPakCommandLine(ProjectParams Params, DeploymentContext SC)
 	{
-		string PakParams = "";
+		string PakParams = " -patchpaddingalign=0";
 
 		string OodleDllPath = DirectoryReference.Combine(SC.ProjectRoot, "Binaries/ThirdParty/Oodle/Mac/libUnrealPakPlugin.dylib").FullName;
 		if (File.Exists(OodleDllPath))
@@ -1388,7 +1388,7 @@ public class IOSPlatform : ApplePlatform
 							(SC.IsCodeBasedProject ? TargetName : "UnrealGame"),
 							SC.IsCodeBasedProject ? false : Params.Client, // Code based projects will have Client in their executable name already
 							SC.ShortProjectName, DirectoryReference.Combine(SC.LocalRoot, "Engine"),
-							DirectoryReference.Combine((SC.IsCodeBasedProject ? SC.ProjectRoot : DirectoryReference.Combine(SC.LocalRoot, "Engine")), "Binaries", PlatformName, "Payload", (SC.IsCodeBasedProject ? SC.ShortProjectName : "UnrealGame") + ".app"),
+							DirectoryReference.Combine((SC.IsCodeBasedProject ? SC.ProjectRoot : DirectoryReference.Combine(SC.LocalRoot, "Engine")), "Binaries", PlatformName, AppleExports.UseModernXcode(SC.RawProjectPath) ? "" : "Payload", (SC.IsCodeBasedProject ? SC.ShortProjectName : "UnrealGame") + ".app"),
 							SC.StageExecutables[0]);
 
 					if (!AppleExports.UseModernXcode(SC.RawProjectPath))
@@ -1870,7 +1870,7 @@ public class IOSPlatform : ApplePlatform
 			if (!SC.IsCodeBasedProject)
 			{
 				TargetReceipt Target = SC.StageTargets[0].Receipt;
-				AppBaseName = AppleExports.MakeBinaryFileName(SC.ShortProjectName, Target.Platform, Target.Configuration, Target.Architectures, UnrealTargetConfiguration.Development, null);
+				AppBaseName = AppleExports.MakeBinaryFileName(SC.ShortProjectName, "-", Target.Platform, Target.Configuration, Target.Architectures, UnrealTargetConfiguration.Development, null);
 			}
 			AppToDeploy = FileReference.Combine(SC.StageDirectory, AppBaseName + ".app").FullName;
 
@@ -2059,27 +2059,42 @@ public class IOSPlatform : ApplePlatform
 				BundleIdentifier = Contents.Substring(Pos, EndPos - Pos);
 			}
 
-			string Program = GetPathToLibiMobileDeviceTool("idevicedebug"); ;
-			string Arguments = " -u '" + Params.DeviceNames[0] + "'";
-			Arguments += " --detach";
-			Arguments = GetLibimobileDeviceNetworkedArgument(Arguments, Params.DeviceNames[0]);
-			Arguments += " run '" + BundleIdentifier + "'";
-			
-			// ClientCmdLine is only relevant when running on a Mac
+			string Program;
+			string Arguments;
 			if (OperatingSystem.IsMacOS())
 			{
+				// As of iOS17, Apple changed the remote debugger protocol and libimobiledevice has stopped working for launching apps.
+				// Instead, as of Xcode14(ish), Apple added a new "xcrun devicectl" cli to do pretty much everything libimobiledevice/ios-deploy did.
+				// For now, update the app launch implementation to use devicectl. Windows may need to switch to a different 3rd party implementation.
+				Program = "xcrun";
+				Arguments = "devicectl device process launch";
+				Arguments += " --terminate-existing";	// if it's already running on device, kill it first
+				Arguments += " --console";	// attach to the console so we can get log output
+				Arguments += " --device " + Params.DeviceNames[0];
+				Arguments += " \"" + BundleIdentifier + "\"";
+				
+				// ClientCmdLine is only relevant when running on a Mac
 				Arguments += " " + ClientCmdLine;
+			}
+			else
+			{
+				Program = GetPathToLibiMobileDeviceTool("idevicedebug");
+				Arguments = " -u '" + Params.DeviceNames[0] + "'";
+				Arguments += " --detach";
+				Arguments = GetLibimobileDeviceNetworkedArgument(Arguments, Params.DeviceNames[0]);
+				Arguments += " run '" + BundleIdentifier + "'";
 			}
 
 			IProcessResult ClientProcess = Run(Program, Arguments, null, ClientRunFlags);
-			if (ClientProcess.ExitCode == -1)
+			
+			// This failure mode is now valid only for use of libimobiledevice on Windows.
+			if (OperatingSystem.IsWindows() && ClientProcess.ExitCode == -1)
 			{
 				Console.WriteLine("The application {0} has been installed on the device {1} but it cannot be launched automatically because the device does not contain the required developer software. You can launch {0} the manually by clicking its icon on the device.", BundleIdentifier, Params.DeviceNames[0]);
 				Console.WriteLine("To install the developer software tools, connect it to a Mac running Xcode, open the Devices and Simulators window and wait for the tools to be installed.");
 				IProcessResult Result = new ProcessResult("DummyApp", null, false);
 				Result.ExitCode = 0;
 				return Result;
-
 			}
 			return ClientProcess;
 
@@ -2101,12 +2116,12 @@ public class IOSPlatform : ApplePlatform
 
 	private static string GetChunkPakManifestListFilename(ProjectParams Params, DeploymentContext SC)
 	{
-		return CombinePaths(GetTmpPackagingPath(Params, SC), "pakchunklist.txt");
+		return CombinePaths(GetChunkManifestPath(Params, SC), "pakchunklist.txt");
 	}
 
-	private static string GetTmpPackagingPath(ProjectParams Params, DeploymentContext SC)
+	private static string GetChunkManifestPath(ProjectParams Params, DeploymentContext SC)
 	{
-		return CombinePaths(Path.GetDirectoryName(Params.RawProjectPath.FullName), "Saved", "TmpPackaging", SC.StageTargetPlatform.GetCookPlatform(SC.DedicatedServer, false));
+		return CombinePaths(SC.MetadataDir.FullName, "ChunkManifest");
 	}
 
 	private static StringBuilder AppendKeyValue(StringBuilder Text, string Key, object Value, int Level)

@@ -8,12 +8,14 @@
 #include "Trace/ChaosVDTraceProvider.h"
 
 FChaosVDSerializedNameEntryDataProcessor::FChaosVDSerializedNameEntryDataProcessor()
-	: IChaosVDDataProcessor(Chaos::VisualDebugger::FChaosVDSerializedNameEntry::WrapperTypeName)
+	: FChaosVDDataProcessorBase(Chaos::VisualDebugger::FChaosVDSerializedNameEntry::WrapperTypeName)
 {
 }
 
 bool FChaosVDSerializedNameEntryDataProcessor::ProcessRawData(const TArray<uint8>& InData)
 {
+	FChaosVDDataProcessorBase::ProcessRawData(InData);
+	
 	const TSharedPtr<FChaosVDTraceProvider> ProviderSharedPtr = TraceProvider.Pin();
 	if (!ensure(ProviderSharedPtr.IsValid()))
 	{

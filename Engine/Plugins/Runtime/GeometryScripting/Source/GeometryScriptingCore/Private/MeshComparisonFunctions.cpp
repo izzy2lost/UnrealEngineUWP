@@ -21,6 +21,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshComparisonFunctions::IsSameMeshAs(
 	UDynamicMesh* OtherMesh,
 	FGeometryScriptIsSameMeshOptions Options,
 	bool &bIsSameMesh,
+	FGeometryScriptMeshDifferenceInfo& DifferenceInfo,
 	UGeometryScriptDebug* Debug)
 {
 	bIsSameMesh = false;
@@ -36,11 +37,13 @@ UDynamicMesh* UGeometryScriptLibrary_MeshComparisonFunctions::IsSameMeshAs(
 		return TargetMesh;
 	}
 
-	TargetMesh->ProcessMesh([&](const FDynamicMesh3& ReadMesh) 
+
+	TargetMesh->ProcessMesh([&](const FDynamicMesh3& ReadMesh)
 	{
 		OtherMesh->ProcessMesh([&](const FDynamicMesh3& OtherMesh)
 		{
 			FDynamicMesh3::FSameAsOptions CompareOptions;
+			FDynamicMesh3::FMeshDifferenceInfo Difference;
 			CompareOptions.bCheckConnectivity = Options.bCheckConnectivity;
 			CompareOptions.bCheckEdgeIDs = Options.bCheckEdgeIDs;
 			CompareOptions.bCheckNormals = Options.bCheckNormals;
@@ -49,13 +52,77 @@ UDynamicMesh* UGeometryScriptLibrary_MeshComparisonFunctions::IsSameMeshAs(
 			CompareOptions.bCheckGroups = Options.bCheckGroups;
 			CompareOptions.bCheckAttributes = Options.bCheckAttributes;
 			CompareOptions.Epsilon = Options.Epsilon;
-			bIsSameMesh = ReadMesh.IsSameAs(OtherMesh, CompareOptions);
+			bIsSameMesh = ReadMesh.IsSameAs(OtherMesh, CompareOptions, Difference);
+			auto ConvertIDType = [](FDynamicMesh3::FMeshDifferenceInfo::EIDType IDType)
+			{
+				switch (IDType)
+				{
+				case FDynamicMesh3::FMeshDifferenceInfo::EIDType::Vertex:
+					return EGeometryScriptIndexType::Vertex;
+				case FDynamicMesh3::FMeshDifferenceInfo::EIDType::Triangle:
+					return EGeometryScriptIndexType::Triangle;
+				case FDynamicMesh3::FMeshDifferenceInfo::EIDType::Edge:
+					return EGeometryScriptIndexType::Edge;
+				}
+				return EGeometryScriptIndexType::Any;
+			};
+			auto ConvertReason = [](FDynamicMesh3::FMeshDifferenceInfo::EReason Reason) -> EGeometryScriptMeshDifferenceReason
+			{
+				switch (Reason)
+				{
+				case FDynamicMesh3::FMeshDifferenceInfo::EReason::VertexCount:
+					return EGeometryScriptMeshDifferenceReason::VertexCount;
+				case FDynamicMesh3::FMeshDifferenceInfo::EReason::TriangleCount:
+					return EGeometryScriptMeshDifferenceReason::TriangleCount;
+				case FDynamicMesh3::FMeshDifferenceInfo::EReason::EdgeCount:
+					return EGeometryScriptMeshDifferenceReason::EdgeCount;
+				case FDynamicMesh3::FMeshDifferenceInfo::EReason::Vertex:
+					return EGeometryScriptMeshDifferenceReason::Vertex;
+				case FDynamicMesh3::FMeshDifferenceInfo::EReason::Triangle:
+					return EGeometryScriptMeshDifferenceReason::Triangle;
+				case FDynamicMesh3::FMeshDifferenceInfo::EReason::Edge:
+					return EGeometryScriptMeshDifferenceReason::Edge;
+				case FDynamicMesh3::FMeshDifferenceInfo::EReason::Connectivity:
+					return EGeometryScriptMeshDifferenceReason::Connectivity;
+				case FDynamicMesh3::FMeshDifferenceInfo::EReason::Normal:
+					return EGeometryScriptMeshDifferenceReason::Normal;
+				case FDynamicMesh3::FMeshDifferenceInfo::EReason::Color:
+					return EGeometryScriptMeshDifferenceReason::Color;
+				case FDynamicMesh3::FMeshDifferenceInfo::EReason::UV:
+					return EGeometryScriptMeshDifferenceReason::UV;
+				case FDynamicMesh3::FMeshDifferenceInfo::EReason::Group:
+					return EGeometryScriptMeshDifferenceReason::Group;
+				case FDynamicMesh3::FMeshDifferenceInfo::EReason::Attribute:
+					return EGeometryScriptMeshDifferenceReason::Attribute;
+				}
+				return EGeometryScriptMeshDifferenceReason::Unknown;
+			};
+			if (!bIsSameMesh)
+			{
+				DifferenceInfo.ElementIDType = ConvertIDType(Difference.IDType);
+				DifferenceInfo.Reason = ConvertReason(Difference.Reason);
+				DifferenceInfo.Detail = MoveTemp(Difference.Detail);
+				DifferenceInfo.TargetMeshElementID = Difference.ID;
+				DifferenceInfo.OtherMeshElementID = Difference.OtherID;
+			}
 		});
 	});
 
 	return TargetMesh;
 }
 
+
+UDynamicMesh* UGeometryScriptLibrary_MeshComparisonFunctions::IsSameMeshAs(
+	UDynamicMesh* TargetMesh,
+	UDynamicMesh* OtherMesh,
+	FGeometryScriptIsSameMeshOptions Options,
+	bool& bIsSameMesh,
+	UGeometryScriptDebug* Debug)
+{
+	FGeometryScriptMeshDifferenceInfo DifferenceInfo_Unused;
+	return IsSameMeshAs(TargetMesh, OtherMesh, Options, bIsSameMesh, DifferenceInfo_Unused, Debug);
+
+}
 
 
 UDynamicMesh* UGeometryScriptLibrary_MeshComparisonFunctions::IsIntersectingMesh(

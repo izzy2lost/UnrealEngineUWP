@@ -2,6 +2,7 @@
 
 #include "Playable/Transition/AvaPlayableTransitionScene.h"
 
+#include "AvaTransitionContext.h"
 #include "IAvaSceneInterface.h"
 #include "Playable/AvaPlayable.h"
 #include "Playable/Transition/AvaPlayableTransition.h"
@@ -12,17 +13,46 @@ namespace UE::AvaMedia::Private
 	/** Controllers aren't applied to the Preset, instead, this compares the latest remote control values for a given playable */
 	class FAvaRCTransitionPlayableExtension : public IAvaRCTransitionExtension
 	{
-		virtual EAvaTransitionComparisonResult CompareControllers(const FGuid& InControllerId, const FAvaTransitionScene& InMyScene, const FAvaTransitionScene& InOtherScene) const override
+		virtual EAvaTransitionComparisonResult CompareControllers(const FGuid& InControllerId, const FAvaTransitionContext& InMyContext, const FAvaTransitionContext& InOtherContext) const override
 		{
-			const UAvaPlayable* MyPlayable = InMyScene.GetDataView().GetPtr<UAvaPlayable>();
-			const UAvaPlayable* OtherPlayable = InOtherScene.GetDataView().GetPtr<UAvaPlayable>();
+			const FAvaTransitionScene* MyScene = InMyContext.GetTransitionScene();
+			const FAvaTransitionScene* OtherScene = InOtherContext.GetTransitionScene();
+
+			if (!MyScene || !OtherScene)
+			{
+				return EAvaTransitionComparisonResult::None;
+			}
+
+			const UAvaPlayable* MyPlayable = MyScene->GetDataView().GetPtr<UAvaPlayable>();
+			const UAvaPlayable* OtherPlayable = OtherScene->GetDataView().GetPtr<UAvaPlayable>();
+
 			if (!MyPlayable || !OtherPlayable)
 			{
 				return EAvaTransitionComparisonResult::None;
 			}
 
-			const FAvaPlayableRemoteControlValue* MyValue = MyPlayable->GetLatestRemoteControlValues().ControllerValues.Find(InControllerId);
-			const FAvaPlayableRemoteControlValue* OtherValue = OtherPlayable->GetLatestRemoteControlValues().ControllerValues.Find(InControllerId);
+			UAvaPlayableTransition* MyTransition = static_cast<const FAvaPlayableTransitionScene*>(MyScene)->PlayableTransitionWeak.Get();
+			UAvaPlayableTransition* OtherTransition = static_cast<const FAvaPlayableTransitionScene*>(OtherScene)->PlayableTransitionWeak.Get();
+
+			if (!MyTransition || !OtherTransition)
+			{
+				return EAvaTransitionComparisonResult::None;
+			}
+
+			const bool bIsMyPlayableEnter = InMyContext.GetTransitionType() == EAvaTransitionType::In;
+			const bool bIsOtherPlayableEnter = InOtherContext.GetTransitionType() == EAvaTransitionType::In;
+
+			TSharedPtr<const FAvaPlayableRemoteControlValues> MyValues = MyTransition->GetValuesForPlayable(MyPlayable, bIsMyPlayableEnter);
+			TSharedPtr<const FAvaPlayableRemoteControlValues> OtherValues = OtherTransition->GetValuesForPlayable(OtherPlayable, bIsOtherPlayableEnter);
+
+			if (!MyValues.IsValid() || !OtherValues.IsValid())
+			{
+				return EAvaTransitionComparisonResult::None;
+			}
+
+			const FAvaPlayableRemoteControlValue* MyValue = MyValues->ControllerValues.Find(InControllerId);
+			const FAvaPlayableRemoteControlValue* OtherValue = OtherValues->ControllerValues.Find(InControllerId);
+
 			if (!MyValue || !OtherValue)
 			{
 				return EAvaTransitionComparisonResult::None;

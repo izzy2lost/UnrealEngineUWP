@@ -6,6 +6,7 @@ using Gauntlet;
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using UnrealBuildBase;
 using UnrealBuildTool;
 
@@ -25,7 +26,7 @@ namespace LowLevelTests
 
 		public LowLevelTestsSession LowLevelTestsApp { get; private set; }
 
-		private int LastStdoutSeekPos = 0;
+		private ILogStreamReader LogReader = null;
 		private string[] CurrentProcessedLines;
 
 		public LowLevelTests(LowLevelTestContext InContext)
@@ -110,6 +111,7 @@ namespace LowLevelTests
 			if (TestInstance != null)
 			{
 				MarkTestStarted();
+				LogReader = TestInstance.GetLogBufferReader();
 			}
 
 			return TestInstance != null;
@@ -132,13 +134,7 @@ namespace LowLevelTests
 					ParseLowLevelTestsLog();
 
 					// Print stdout when -captureoutput, certain platforms don't always redirect stdout
-					if (CurrentProcessedLines != null && Context.Options.CaptureOutput)
-					{
-						foreach (string OutputLine in CurrentProcessedLines)
-						{
-							Console.WriteLine(OutputLine);
-						}
-					}
+					PrintLogIfCaptureOutput();
 
 					if (CheckForTimeout())
 					{
@@ -177,47 +173,59 @@ namespace LowLevelTests
 			{
 				base.StopTest(InReason);
 
+				ParseLowLevelTestsLog();
+				PrintLogIfCaptureOutput();
+
 				if (TestInstance != null && !TestInstance.HasExited)
 				{
 					TestInstance.Kill();
 				}
 
-				string StdOut;
-				if (TestInstance is IWithUnfilteredStdOut)
-				{
-					StdOut = ((IWithUnfilteredStdOut)TestInstance).UnfilteredStdOut;
-				}
-				else
-				{
-					StdOut = TestInstance.StdOut;
-				}
-
+				// Save log artifact
+				const string ClientLogFile = "ClientOutput.log";
+				string ClientOutputLog = Path.Combine(ArtifactPath, ClientLogFile);
 				string LogDir = Path.Combine(Unreal.EngineDirectory.FullName, "Programs", "AutomationTool", "Saved", "Logs");
-
-				if (StdOut == null || string.IsNullOrEmpty(StdOut.Trim()))
+				if (!TestInstance.WriteOutputToFile(ClientOutputLog))
 				{
 					Log.Warning("No StdOut returned from low level test app.");
 				}
-				else // Save log artifact
+				else
 				{
-					const string ClientLogFile = "ClientOutput.log";
-					string ClientOutputLog = Path.Combine(ArtifactPath, ClientLogFile);
-
-					using (var ClientOutputWriter = File.CreateText(ClientOutputLog))
-					{
-						ClientOutputWriter.Write(StdOut);
-					}
-
+					// Copy to UAT artifacts
 					string DestClientLogFile = Path.Combine(LogDir, ClientLogFile);
-					if (DestClientLogFile != ClientOutputLog)
-					{
-						File.Copy(ClientOutputLog, DestClientLogFile, true);
-					}
+					TestInstance.WriteOutputToFile(DestClientLogFile);
 				}
 
 				bool? ReportCopied = null;
 				string ReportPath = null;
-				if (!string.IsNullOrEmpty(Context.Options.ReportType))
+
+				int? ExitCodeOverride = null;
+
+				// No reports from Android tests yet. Since adb shell doesn't forward exit code, we look for it in the log output.
+				if (Context.Options.Platform == UnrealTargetPlatform.Android)
+				{
+					ILogStreamReader AndroidLogReader = TestInstance.GetLogReader();
+					string ExitCodeLine = AndroidLogReader.EnumerateNextLines().Where(Line => Line.Contains("Tests finished with exit code")).FirstOrDefault();
+					if (!string.IsNullOrEmpty(ExitCodeLine))
+					{
+						ExitCodeOverride = int.Parse(Regex.Match(ExitCodeLine, @"\d+").Value);
+					}
+					else
+					{
+						ExitCodeOverride = -1;
+						AndroidLogReader.SetLineIndex(0); // Reset reader
+						string CrashLine = AndroidLogReader.EnumerateNextLines().Where(Line => Line.Contains("beginning of crash")).FirstOrDefault();
+						if (!string.IsNullOrEmpty(CrashLine))
+						{
+							Log.Info("Crash occurred during test.");
+						}
+						else
+						{
+							Log.Error("Could not find exit code in Android log, assuming failure.");
+						}
+					}
+				}
+				else if (!string.IsNullOrEmpty(Context.Options.ReportType))
 				{
 					ILowLevelTestsReporting LowLevelTestsReporting = Gauntlet.Utils.InterfaceHelpers.FindImplementations<ILowLevelTestsReporting>(true)
 						.Where(B => B.CanSupportPlatform(Context.Options.Platform))
@@ -235,8 +243,8 @@ namespace LowLevelTests
 					}
 				}
 
-
 				string ExitReason = "";
+				int ExitCode = ExitCodeOverride.HasValue ? ExitCodeOverride.Value : TestInstance.ExitCode;
 				if (TestInstance.WasKilled)
 				{
 					if (InReason == StopReason.MaxDuration || LowLevelTestResult == TestResult.TimedOut)
@@ -250,15 +258,15 @@ namespace LowLevelTests
 						ExitReason = $"Process was killed by Gauntlet with reason {InReason.ToString()}.";
 					}
 				}
-				else if (TestInstance.ExitCode != 0)
+				else if (ExitCode != 0)
 				{
 					LowLevelTestResult = TestResult.Failed;
-					ExitReason = $"Process exited with exit code {TestInstance.ExitCode}";
+					ExitReason = $"Process exited with exit code {ExitCode}";
 				}
 				else if (ReportCopied.HasValue && !ReportCopied.Value)
 				{
 					LowLevelTestResult = TestResult.Failed;
-					ExitReason = "Uabled to read test report";
+					ExitReason = "Unable to read test report";
 				}
 				else if (ReportPath != null)
 				{
@@ -299,7 +307,7 @@ namespace LowLevelTests
 				}
 				else // ReportPath == null
 				{
-					if (TestInstance.ExitCode != 0)
+					if (ExitCode != 0)
 					{
 						LowLevelTestResult = TestResult.Failed;
 						ExitReason = "Tests failed (no report to parse)";
@@ -310,7 +318,7 @@ namespace LowLevelTests
 						ExitReason = "Tests passed (no report to parse)";
 					}
 				}
-				Log.Info($"Low level test exited with code {TestInstance.ExitCode} and reason: {ExitReason}");
+				Log.Info($"Low level test exited with code {ExitCode} and reason: {ExitReason}");
 			}
 			catch
 			{
@@ -336,15 +344,18 @@ namespace LowLevelTests
 
 		private void ParseLowLevelTestsLog()
 		{
-			// Parse new lines from Stdout, if any
-			if (LastStdoutSeekPos < TestInstance.StdOut.Length)
+			// Parse new lines from log, if any
+			CurrentProcessedLines = LogReader?.EnumerateNextLines().Where(Line => !string.IsNullOrWhiteSpace(Line)).ToArray();
+		}
+
+		private void PrintLogIfCaptureOutput()
+		{
+			if (CurrentProcessedLines != null && Context.Options.CaptureOutput)
 			{
-				CurrentProcessedLines = TestInstance.StdOut
-					.Substring(LastStdoutSeekPos)
-					.Split("\n")
-					.Where(Line => Line.Contains("LogLowLevelTests"))
-					.ToArray();
-				LastStdoutSeekPos = TestInstance.StdOut.Length - 1;
+				foreach (string OutputLine in CurrentProcessedLines)
+				{
+					Console.WriteLine(OutputLine);
+				}
 			}
 		}
 

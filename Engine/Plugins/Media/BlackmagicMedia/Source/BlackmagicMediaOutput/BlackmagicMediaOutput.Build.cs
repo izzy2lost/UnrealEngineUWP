@@ -18,7 +18,6 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"BlackmagicCore",
-					"ColorManagement",
 					"Core",
 					"CoreUObject",
 					"Engine",

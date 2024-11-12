@@ -4,10 +4,6 @@
 
 // HEADER_UNIT_SKIP - Deprecated
 
-#ifdef _MSC_VER
-#pragma message(__FILE__"(9): warning: use Interfaces/MetasoundFrontendInterfaceRegistry.h instead instead of MetasoundFrontendArchetypeRegistry.h")
-#else
-#pragma message("#include Interfaces/MetasoundFrontendInterfaceRegistry.h instead of MetasoundFrontendArchetypeRegistry.h")
-#endif
+UE_DEPRECATED_HEADER(5.3, "Use Interfaces/MetasoundFrontendInterfaceRegistry.h instead instead of MetasoundFrontendArchetypeRegistry.h.")
 
 #include "Interfaces/MetasoundFrontendInterfaceRegistry.h"

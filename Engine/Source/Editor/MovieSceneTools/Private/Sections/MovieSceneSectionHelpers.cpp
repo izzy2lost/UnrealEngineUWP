@@ -6,6 +6,7 @@
 #include "Channels/MovieSceneChannelProxy.h"
 #include "Channels/MovieSceneFloatChannel.h"
 
+#include "ISequencer.h"
 #include "Misc/FrameNumber.h"
 #include "Widgets/Colors/SColorPicker.h"
 #include "ScopedTransaction.h"
@@ -63,7 +64,7 @@ void MovieSceneSectionHelpers::ConsolidateColorCurves( TArray< TTuple<float, FLi
 		{
 			if (ChannelTimes[Index].Num() == 0)
 			{
-				ChannelTimes.RemoveAt(Index, 1, EAllowShrinking::No);
+				ChannelTimes.RemoveAt(Index, EAllowShrinking::No);
 			}
 		}
 
@@ -87,7 +88,7 @@ FFrameNumber FMovieSceneKeyColorPicker::KeyTime = FFrameNumber();
 FLinearColor FMovieSceneKeyColorPicker::InitialColor = FLinearColor();
 bool FMovieSceneKeyColorPicker::bColorPickerWasCancelled = false;
 
-FMovieSceneKeyColorPicker::FMovieSceneKeyColorPicker(UMovieSceneSection* Section, FMovieSceneFloatChannel* RChannel, FMovieSceneFloatChannel* GChannel, FMovieSceneFloatChannel* BChannel, FMovieSceneFloatChannel* AChannel, const TArray<FKeyHandle>& KeyHandles)
+FMovieSceneKeyColorPicker::FMovieSceneKeyColorPicker(UMovieSceneSection* Section, FMovieSceneFloatChannel* RChannel, FMovieSceneFloatChannel* GChannel, FMovieSceneFloatChannel* BChannel, FMovieSceneFloatChannel* AChannel, const TArray<FKeyHandle>& KeyHandles, TWeakPtr<ISequencer> InSequencer)
 {
 	// One key was clicked on, find which from the channels
 	int32 KeyIndex = INDEX_NONE;
@@ -139,10 +140,11 @@ FMovieSceneKeyColorPicker::FMovieSceneKeyColorPicker(UMovieSceneSection* Section
 	PickerArgs.DisplayGamma = TAttribute<float>::Create(TAttribute<float>::FGetter::CreateUObject(GEngine, &UEngine::GetDisplayGamma));
 	PickerArgs.InitialColor = InitialColor;
 	PickerArgs.ParentWidget = FSlateApplication::Get().GetActiveTopLevelWindow();
+	PickerArgs.OptionalOwningDetailsView = PickerArgs.ParentWidget;
 
-	PickerArgs.OnColorCommitted = FOnLinearColorValueChanged::CreateRaw(this, &FMovieSceneKeyColorPicker::OnColorPickerPicked, RChannel, GChannel, BChannel, AChannel);
-	PickerArgs.OnColorPickerWindowClosed = FOnWindowClosed::CreateRaw(this, &FMovieSceneKeyColorPicker::OnColorPickerClosed, Section, RChannel, GChannel, BChannel, AChannel);
-	PickerArgs.OnColorPickerCancelled = FOnColorPickerCancelled::CreateRaw(this, &FMovieSceneKeyColorPicker::OnColorPickerCancelled, RChannel, GChannel, BChannel, AChannel);
+	PickerArgs.OnColorCommitted = FOnLinearColorValueChanged::CreateRaw(this, &FMovieSceneKeyColorPicker::OnColorPickerPicked, Section, RChannel, GChannel, BChannel, AChannel, InSequencer);
+	PickerArgs.OnColorPickerWindowClosed = FOnWindowClosed::CreateRaw(this, &FMovieSceneKeyColorPicker::OnColorPickerClosed, Section, RChannel, GChannel, BChannel, AChannel, InSequencer);
+	PickerArgs.OnColorPickerCancelled = FOnColorPickerCancelled::CreateRaw(this, &FMovieSceneKeyColorPicker::OnColorPickerCancelled, Section, RChannel, GChannel, BChannel, AChannel, InSequencer);
 
 	OpenColorPicker(PickerArgs);
 }
@@ -160,15 +162,23 @@ void UpdateOrAddKey(FMovieSceneFloatChannel* Channel, FFrameNumber KeyTime, floa
 	}
 }
 
-void FMovieSceneKeyColorPicker::OnColorPickerPicked(FLinearColor NewColor, FMovieSceneFloatChannel* RChannel, FMovieSceneFloatChannel* GChannel, FMovieSceneFloatChannel* BChannel, FMovieSceneFloatChannel* AChannel)
+void FMovieSceneKeyColorPicker::OnColorPickerPicked(FLinearColor NewColor, UMovieSceneSection* Section, FMovieSceneFloatChannel* RChannel, FMovieSceneFloatChannel* GChannel, FMovieSceneFloatChannel* BChannel, FMovieSceneFloatChannel* AChannel, TWeakPtr<ISequencer> WeakSequencer)
 {
+	Section->Modify();
+
 	UpdateOrAddKey(RChannel, KeyTime, NewColor.R);
 	UpdateOrAddKey(GChannel, KeyTime, NewColor.G);
 	UpdateOrAddKey(BChannel, KeyTime, NewColor.B);
 	UpdateOrAddKey(AChannel, KeyTime, NewColor.A);
+
+	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+	if (Sequencer)
+	{
+		Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
+	}
 }
 
-void FMovieSceneKeyColorPicker::OnColorPickerClosed(const TSharedRef<SWindow>& Window, UMovieSceneSection* Section, FMovieSceneFloatChannel* RChannel, FMovieSceneFloatChannel* GChannel, FMovieSceneFloatChannel* BChannel, FMovieSceneFloatChannel* AChannel)
+void FMovieSceneKeyColorPicker::OnColorPickerClosed(const TSharedRef<SWindow>& Window, UMovieSceneSection* Section, FMovieSceneFloatChannel* RChannel, FMovieSceneFloatChannel* GChannel, FMovieSceneFloatChannel* BChannel, FMovieSceneFloatChannel* AChannel, TWeakPtr<ISequencer> WeakSequencer)
 {
 	// Under Unreal UX terms, closing the Color Picker (via the UI) is the same as confirming it since we've been live updating
 	// the color. The track already has the latest color change so we undo the change before calling Modify so that Undo sets us
@@ -194,16 +204,30 @@ void FMovieSceneKeyColorPicker::OnColorPickerClosed(const TSharedRef<SWindow>& W
 		UpdateOrAddKey(GChannel, KeyTime, G);
 		UpdateOrAddKey(BChannel, KeyTime, B);
 		UpdateOrAddKey(AChannel, KeyTime, A);
+
+		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+		if (Sequencer)
+		{
+			Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
+		}
 	}
 }
 
-void FMovieSceneKeyColorPicker::OnColorPickerCancelled(FLinearColor NewColor, FMovieSceneFloatChannel* RChannel, FMovieSceneFloatChannel* GChannel, FMovieSceneFloatChannel* BChannel, FMovieSceneFloatChannel* AChannel)
+void FMovieSceneKeyColorPicker::OnColorPickerCancelled(FLinearColor NewColor, UMovieSceneSection* Section, FMovieSceneFloatChannel* RChannel, FMovieSceneFloatChannel* GChannel, FMovieSceneFloatChannel* BChannel, FMovieSceneFloatChannel* AChannel, TWeakPtr<ISequencer> WeakSequencer)
 {
 	bColorPickerWasCancelled = true;
 	
+	Section->Modify();
+
 	// Restore the original color. No transaction will be created when the OnColorPickerClosed callback is called.
 	UpdateOrAddKey(RChannel, KeyTime, InitialColor.R);
 	UpdateOrAddKey(GChannel, KeyTime, InitialColor.G);
 	UpdateOrAddKey(BChannel, KeyTime, InitialColor.B);
 	UpdateOrAddKey(AChannel, KeyTime, InitialColor.A);
+
+	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+	if (Sequencer)
+	{
+		Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
+	}
 }

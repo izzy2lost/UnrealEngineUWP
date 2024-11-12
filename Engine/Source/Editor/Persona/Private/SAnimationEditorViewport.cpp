@@ -29,15 +29,13 @@
 #include "BufferVisualizationMenuCommands.h"
 #include "UICommandList_Pinnable.h"
 #include "IPersonaEditorModeManager.h"
-#include "AssetViewerSettings.h"
-#include "Editor/EditorPerProjectUserSettings.h"
+#include "PreviewProfileController.h"
 #include "Materials/Material.h"
 #include "EditorFontGlyphs.h"
 #include "EdModeInteractiveToolsContext.h"
 #include "ContextObjectStore.h"
 #include "IPersonaEditMode.h"
 
-#include "SkeletalMeshTypes.h"
 #include "IPersonaToolkit.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "SNameComboBox.h"
@@ -141,6 +139,7 @@ TSharedPtr<SWidget> SAnimationEditorViewport::MakeViewportToolbar()
 		.Cursor(EMouseCursor::Default)
 		.Extenders(Extenders)
 		.ContextName(ContextName)
+		.PreviewProfileController(MakeShared<FPreviewProfileController>())
 		.ShowShowMenu(bShowShowMenu)
 		.ShowLODMenu(bShowLODMenu)
 		.ShowPlaySpeedMenu(bShowPlaySpeedMenu)
@@ -483,9 +482,9 @@ void SAnimationEditorViewportTabBody::AddToolbarExtender(FName MenuToExtend, FMe
 	return ViewportWidget->ViewportToolbar->AddMenuExtender(MenuToExtend, MenuBuilderDelegate);
 }
 
-void SAnimationEditorViewportTabBody::AddOverlayWidget(TSharedRef<SWidget> InOverlaidWidget)
+void SAnimationEditorViewportTabBody::AddOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder)
 {
-	ViewportWidget->ViewportOverlay->AddSlot()
+	ViewportWidget->ViewportOverlay->AddSlot(ZOrder)
 	[
 		InOverlaidWidget
 	];
@@ -755,12 +754,6 @@ void SAnimationEditorViewportTabBody::BindCommands()
 	const FAnimViewportShowCommands& ViewportShowMenuCommands = FAnimViewportShowCommands::Get();
 
 	CommandList.MapAction(
-		ViewportShowMenuCommands.ShowRetargetBasePose,
-		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::ShowRetargetBasePose),
-		FCanExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::CanShowRetargetBasePose),
-		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsShowRetargetBasePoseEnabled));
-
-	CommandList.MapAction(
 		ViewportShowMenuCommands.ShowBound,
 		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::ShowBound),
 		FCanExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::CanShowBound),
@@ -801,6 +794,12 @@ void SAnimationEditorViewportTabBody::BindCommands()
 		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::OnShowBoneNames),
 		FCanExecuteAction(),
 		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsShowingBoneNames));
+
+	CommandList.MapAction( 
+		ViewportShowMenuCommands.ShowBoneColors,
+		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::OnShowBoneColors),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsShowingBoneColors));
 
 	CommandList.MapAction( 
 		ViewportShowMenuCommands.ShowRawAnimation,
@@ -1008,6 +1007,16 @@ void SAnimationEditorViewportTabBody::BindCommands()
 
 	CommandList.EndGroup();
 
+	CommandList.BeginGroup(TEXT("TimecodeSettings"));
+
+	CommandList.MapAction(
+		ViewportShowMenuCommands.ShowTimecode,
+		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::OnToggleShowTimecode),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsShowTimecode));
+
+	CommandList.EndGroup();
+
 
 	GetPreviewScene()->RegisterOnSelectedLODChanged(FOnSelectedLODChanged::CreateSP(this, &SAnimationEditorViewportTabBody::OnLODModelChanged));
 	//Bind LOD preview menu commands
@@ -1103,6 +1112,36 @@ void SAnimationEditorViewportTabBody::BindCommands()
 		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::CanUseProcessRootMotionMode, EProcessRootMotionMode::Loop),
 		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsProcessRootMotionModeSet, EProcessRootMotionMode::Loop));
 
+	CommandList.MapAction(
+		ViewportShowMenuCommands.DoNotVisualizeRootMotion,
+		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::SetVisualizeRootMotionMode, EVisualizeRootMotionMode::None),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::CanVisualizeRootMotion),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsVisualizeRootMotionModeSet, EVisualizeRootMotionMode::None));
+
+	CommandList.MapAction(
+		ViewportShowMenuCommands.VisualizeRootMotionTrajectory,
+		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::SetVisualizeRootMotionMode, EVisualizeRootMotionMode::Trajectory),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::CanVisualizeRootMotion),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsVisualizeRootMotionModeSet, EVisualizeRootMotionMode::Trajectory));
+
+	CommandList.MapAction(
+		ViewportShowMenuCommands.VisualizeRootMotionTrajectoryAndOrientation,
+		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::SetVisualizeRootMotionMode, EVisualizeRootMotionMode::TrajectoryAndOrientation),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::CanVisualizeRootMotion),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsVisualizeRootMotionModeSet, EVisualizeRootMotionMode::TrajectoryAndOrientation));
+
+	CommandList.MapAction(
+		ViewportShowMenuCommands.ShowNotificationVisualizations,
+		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::ToggleNotificationVisualizations),
+		FIsActionChecked(),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsNotificationVisualizationsEnabled));
+
+	CommandList.MapAction(
+		ViewportShowMenuCommands.ShowAssetUserDataVisualizations,
+		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::ToggleAssetUserDataVisualizations),
+		FIsActionChecked(),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsAssetUserDataVisualizationsEnabled));
+
 	CommandList.EndGroup();
 
 	CommandList.MapAction(
@@ -1182,12 +1221,7 @@ void SAnimationEditorViewportTabBody::OnSetTurnTableMode(int32 ModeIndex)
 	UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent();
 	if (PreviewComponent)
 	{
-		PreviewComponent->TurnTableMode = SelectedTurnTableMode;
-
-		if (SelectedTurnTableMode == EPersonaTurnTableMode::Stopped)
-		{
-			PreviewComponent->SetRelativeRotation(FRotator::ZeroRotator);
-		}
+		PreviewComponent->SetTurnTableMode(SelectedTurnTableMode);
 	}
 }
 
@@ -1224,6 +1258,8 @@ void SAnimationEditorViewportTabBody::OnShowBoneNames()
 		InMesh->MarkRenderStateDirty();
 	});
 	RefreshViewport();
+
+	GetAnimationViewportClient()->UpdateBonesToDraw();
 }
 
 void SAnimationEditorViewportTabBody::OnShowRawAnimation()
@@ -1294,6 +1330,23 @@ bool SAnimationEditorViewportTabBody::IsShowingBoneNames() const
 	return PreviewComponent != NULL && PreviewComponent->bShowBoneNames;
 }
 
+void SAnimationEditorViewportTabBody::OnShowBoneColors()
+{
+	ForEachDebugMesh([](UDebugSkelMeshComponent* InMesh)
+	{
+		UPersonaOptions* Settings = GetMutableDefault<UPersonaOptions>();
+		Settings->bShowBoneColors = !Settings->bShowBoneColors;
+		InMesh->MarkRenderStateDirty();
+	});
+	RefreshViewport();
+}
+
+bool SAnimationEditorViewportTabBody::IsShowingBoneColors() const
+{
+	const UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent();
+	return PreviewComponent && GetDefault<UPersonaOptions>()->bShowBoneColors;
+}
+
 bool SAnimationEditorViewportTabBody::IsShowingRawAnimation() const
 {
 	UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent();
@@ -1310,12 +1363,12 @@ void SAnimationEditorViewportTabBody::OnToggleDisablePostProcess()
 	AddPostProcessNotification();
 }
 
-bool SAnimationEditorViewportTabBody::CanDisablePostProcess()
+bool SAnimationEditorViewportTabBody::CanDisablePostProcess() const
 {
-	TArray<UDebugSkelMeshComponent*> PreviewMeshComponents = GetPreviewScene()->GetAllPreviewMeshComponents();
-	for (UDebugSkelMeshComponent* PreviewMeshComponent : PreviewMeshComponents)
+	const TArray<UDebugSkelMeshComponent*> PreviewMeshComponents = GetPreviewScene()->GetAllPreviewMeshComponents();
+	for (const UDebugSkelMeshComponent* PreviewMeshComponent : PreviewMeshComponents)
 	{
-		if (PreviewMeshComponent->PostProcessAnimInstance)
+		if (PreviewMeshComponent->PostProcessAnimInstance && PreviewMeshComponent->IsVisible())
 		{
 			return true;
 		}
@@ -1544,41 +1597,6 @@ bool SAnimationEditorViewportTabBody::IsPlaybackSpeedSelected(int32 PlaybackSpee
 	return PlaybackSpeedMode == AnimViewportClient->GetPlaybackSpeedMode();
 }
 
-void SAnimationEditorViewportTabBody::ShowRetargetBasePose()
-{
-	ForEachDebugMesh([](UDebugSkelMeshComponent* PreviewMeshComponent)
-	{
-		PreviewMeshComponent->PreviewInstance->SetForceRetargetBasePose(!PreviewMeshComponent->PreviewInstance->GetForceRetargetBasePose());
-	});
-}
-
-bool SAnimationEditorViewportTabBody::CanShowRetargetBasePose() const
-{
-	TArray<UDebugSkelMeshComponent*> PreviewMeshComponents = GetPreviewScene()->GetAllPreviewMeshComponents();
-	for (UDebugSkelMeshComponent* PreviewMeshComponent : PreviewMeshComponents)
-	{
-		if (PreviewMeshComponent->PreviewInstance)
-		{
-			return true;
-		}
-	}
-	
-	return false;
-}
-
-bool SAnimationEditorViewportTabBody::IsShowRetargetBasePoseEnabled() const
-{
-	TArray<UDebugSkelMeshComponent*> PreviewMeshComponents = GetPreviewScene()->GetAllPreviewMeshComponents();
-	for (UDebugSkelMeshComponent* PreviewMeshComponent : PreviewMeshComponents)
-	{
-		if (PreviewMeshComponent && PreviewMeshComponent->PreviewInstance)
-		{
-			return PreviewMeshComponent->PreviewInstance->GetForceRetargetBasePose();
-		}
-	}
-	return false;
-}
-
 void SAnimationEditorViewportTabBody::ShowBound()
 {
 	TSharedRef<FAnimationViewportClient> AnimViewportClient = StaticCastSharedRef<FAnimationViewportClient>(LevelViewportClient.ToSharedRef());	
@@ -1628,6 +1646,16 @@ bool SAnimationEditorViewportTabBody::IsShowPreviewMeshEnabled() const
 	}
 	
 	return false;
+}
+
+void SAnimationEditorViewportTabBody::OnToggleShowTimecode()
+{
+	GetPreviewScene()->ToggleShowTimecode();
+}
+
+bool SAnimationEditorViewportTabBody::IsShowTimecode() const
+{
+	return GetPreviewScene()->IsShowTimecode();
 }
 
 void SAnimationEditorViewportTabBody::UseInGameBound()
@@ -2139,6 +2167,68 @@ bool SAnimationEditorViewportTabBody::CanUseProcessRootMotionMode(EProcessRootMo
 	return false;
 }
 
+void SAnimationEditorViewportTabBody::SetVisualizeRootMotionMode(EVisualizeRootMotionMode Mode)
+{
+	if(UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		return PreviewComponent->SetVisualizeRootMotionMode(Mode);
+	}
+}
+
+bool SAnimationEditorViewportTabBody::IsVisualizeRootMotionModeSet(EVisualizeRootMotionMode Mode) const
+{
+	if(const UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		return PreviewComponent->IsVisualizeRootMotionMode(Mode);
+	}
+
+	return false;
+}
+
+bool SAnimationEditorViewportTabBody::CanVisualizeRootMotion() const
+{
+	if(const UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		return PreviewComponent->DoesCurrentAssetHaveRootMotion();
+	}
+
+	return false;
+}
+
+void SAnimationEditorViewportTabBody::ToggleNotificationVisualizations()
+{
+	if (UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		PreviewComponent->SetShowNotificationVisualizations(!PreviewComponent->IsNotificationVisualizationsEnabled());
+	}
+}
+
+bool SAnimationEditorViewportTabBody::IsNotificationVisualizationsEnabled() const
+{
+	if (const UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		return PreviewComponent->IsNotificationVisualizationsEnabled();
+	}
+	return false;
+}
+
+void SAnimationEditorViewportTabBody::ToggleAssetUserDataVisualizations()
+{
+	if (UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		PreviewComponent->SetShowAssetUserDataVisualizations(!PreviewComponent->IsAssetUserDataVisualizationsEnabled());
+	}
+}
+
+bool SAnimationEditorViewportTabBody::IsAssetUserDataVisualizationsEnabled() const
+{
+	if (const UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		return PreviewComponent->IsAssetUserDataVisualizationsEnabled();
+	}
+	return false;
+}
+
 bool SAnimationEditorViewportTabBody::IsClothSimulationEnabled() const
 {
 	UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent();
@@ -2494,7 +2584,7 @@ void SAnimationEditorViewportTabBody::AddPostProcessNotification()
 	{
 		if (UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
 		{
-			if(PreviewComponent->GetSkeletalMeshAsset() && PreviewComponent->GetSkeletalMeshAsset()->GetPostProcessAnimBlueprint())
+			if(PreviewComponent->GetSkeletalMeshAsset() && !PreviewComponent->GetSkeletalMeshAsset()->IsCompiling() && PreviewComponent->GetSkeletalMeshAsset()->GetPostProcessAnimBlueprint())
 			{
 				GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAssets(TArray<UObject*>({ PreviewComponent->GetSkeletalMeshAsset()->GetPostProcessAnimBlueprint()->ClassGeneratedBy }));
 			}
@@ -2712,7 +2802,6 @@ void SAnimationEditorViewportTabBody::AddSkinWeightProfileNotification()
 void SAnimationEditorViewportTabBody::HandleFocusCamera()
 {
 	TSharedRef<FAnimationViewportClient> AnimViewportClient = StaticCastSharedRef<FAnimationViewportClient>(LevelViewportClient.ToSharedRef());
-	// AnimViewportClient->SetCameraFollowMode(EAnimationViewportCameraFollowMode::None);
 	AnimViewportClient->FocusViewportOnPreviewMesh(false);
 }
 

@@ -42,11 +42,11 @@ class FDataprepSCSEditorUICustomization : public ISCSEditorUICustomization
 public:
 	void SetHideComponentsTree(bool bInHide) { bHideComponentsTree = bInHide; }
 
-	virtual bool HideAddComponentButton() const override { return true; }
+	virtual bool HideAddComponentButton(TArrayView<UObject*> Context) const override { return true; }
 
-	virtual bool HideBlueprintButtons() const override { return true; }
+	virtual bool HideBlueprintButtons(TArrayView<UObject*> Context) const override { return true; }
 
-	virtual bool HideComponentsTree() const override { return bHideComponentsTree; }
+	virtual bool HideComponentsTree(TArrayView<UObject*> Context) const override { return bHideComponentsTree; }
 
 private:
 	bool bHideComponentsTree = false;

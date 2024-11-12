@@ -101,6 +101,16 @@ enum class ECachePolicy : uint32
 
 ENUM_CLASS_FLAGS(ECachePolicy);
 
+/**
+ * Returns a cache policy that encompasses the operations requested by the both arguments.
+ *
+ * Examples:
+ * - (Local, Remote | SkipData) -> Default
+ * - (Default, Local | SkipMeta) -> Default
+ * - (Query, StoreRemote) -> Query | StoreRemote
+ */
+UE_API ECachePolicy CombineCachePolicy(ECachePolicy A, ECachePolicy B);
+
 /** Append a non-empty text version of the policy to the builder. */
 UE_API FAnsiStringBuilderBase& operator<<(FAnsiStringBuilderBase& Builder, ECachePolicy Policy);
 UE_API FWideStringBuilderBase& operator<<(FWideStringBuilderBase& Builder, ECachePolicy Policy);

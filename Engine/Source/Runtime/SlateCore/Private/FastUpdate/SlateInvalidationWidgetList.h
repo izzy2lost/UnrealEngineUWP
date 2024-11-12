@@ -232,8 +232,12 @@ public:
 		check(IsValidIndex(BellowWidgetIndex));
 		const InvalidationWidgetType& BeginInvalidationWidget = (*this)[BellowWidgetIndex];
 		const FSlateInvalidationWidgetIndex EndWidgetIndex = BeginInvalidationWidget.LeafMostChildIndex;
-		const FSlateInvalidationWidgetIndex BeginWidgetIndex = IncrementIndex(BellowWidgetIndex);
+		if (BellowWidgetIndex == EndWidgetIndex)
+		{
+			return;
+		}
 
+		const FSlateInvalidationWidgetIndex BeginWidgetIndex = IncrementIndex(BellowWidgetIndex);
 		if (BeginWidgetIndex != FSlateInvalidationWidgetIndex::Invalid)
 		{
 			const bool bSameWidgetArrayIndex = BeginWidgetIndex.ArrayIndex == EndWidgetIndex.ArrayIndex;
@@ -454,7 +458,7 @@ public:
 	 * (1) be in the same order
 	 * (2) point the same SWidget (itself, parent, leaf)
 	 */
-	bool DeapCompare(const FSlateInvalidationWidgetList& Other) const;
+	bool DeepCompare(const FSlateInvalidationWidgetList& Other) const;
 
 	/** For testing purposes. Log the tree. */
 	void LogWidgetsList(bool bOnlyVisible) const;

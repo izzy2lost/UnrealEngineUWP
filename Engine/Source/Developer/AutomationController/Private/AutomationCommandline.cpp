@@ -96,7 +96,9 @@ public:
 		FilterMaps.Add("Stress", EAutomationTestFlags::StressFilter);
 		FilterMaps.Add("Perf", EAutomationTestFlags::PerfFilter);
 		FilterMaps.Add("Product", EAutomationTestFlags::ProductFilter);
-		FilterMaps.Add("All", EAutomationTestFlags::FilterMask);
+		FilterMaps.Add("Standard", EAutomationTestFlags::SmokeFilter | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ProductFilter | EAutomationTestFlags::PerfFilter);
+		FilterMaps.Add("Negative", EAutomationTestFlags::NegativeFilter);
+		FilterMaps.Add("All", EAutomationTestFlags_FilterMask);
 	}
 	
 	void Shutdown()
@@ -262,6 +264,24 @@ public:
 		}
 	}
 
+
+	void ApplyCVarTagFilter(TSharedPtr <AutomationFilterCollection> AutomationFilters)
+	{
+		if (IConsoleVariable* TagCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Automation.TestTagGlobalFilter")))
+		{
+			FString TagFilterValue = TagCVar->GetString();
+			if (!TagFilterValue.IsEmpty())
+			{
+				UE_LOG(LogAutomationCommandLine, Display, TEXT("Applying Automation Test tag filter '%s'"), *TagFilterValue);
+				FAutomationGroupFilter* FilterTags = new FAutomationGroupFilter();
+				TArray<FAutomatedTestTagFilter> TagList;
+				TagList.Add(FAutomatedTestTagFilter(TagFilterValue));
+				FilterTags->SetTagFilter(TagList);
+				AutomationFilters->Add(MakeShareable(FilterTags));
+			}
+		}
+	}
+
 	void HandleRefreshTestCallback()
 	{
 		TArray<FString> FilteredTestNames;
@@ -277,6 +297,7 @@ public:
 		// We have found some workers
 		// Create a filter to add to the automation controller, otherwise we don't get any reports
 		TSharedPtr <AutomationFilterCollection> AutomationFilters = MakeShareable(new AutomationFilterCollection());
+		ApplyCVarTagFilter(AutomationFilters);
 		AutomationController->SetFilter(AutomationFilters);
 		AutomationController->SetVisibleTestsEnabled(true);
 		AutomationController->GetEnabledTestNames(FilteredTestNames);
@@ -581,15 +602,15 @@ protected:
 					Ar.Logf(TEXT("Automation: Setting minimum priority of cases to run to: %s"), *FlagToUse);
 					if (FlagToUse.Contains(TEXT("Low")))
 					{
-						AutomationController->SetRequestedTestFlags(EAutomationTestFlags::PriorityMask);
+						AutomationController->SetRequestedTestFlags(EAutomationTestFlags_PriorityMask);
 					}
 					else if (FlagToUse.Contains(TEXT("Medium")))
 					{
-						AutomationController->SetRequestedTestFlags(EAutomationTestFlags::MediumPriorityAndAbove);
+						AutomationController->SetRequestedTestFlags(EAutomationTestFlags_MediumPriorityAndAbove);
 					}
 					else if (FlagToUse.Contains(TEXT("High")))
 					{
-						AutomationController->SetRequestedTestFlags(EAutomationTestFlags::HighPriorityAndAbove);
+						AutomationController->SetRequestedTestFlags(EAutomationTestFlags_HighPriorityAndAbove);
 					}
 					else if (FlagToUse.Contains(TEXT("Critical")))
 					{
@@ -597,7 +618,7 @@ protected:
 					}
 					else if (FlagToUse.Contains(TEXT("None")))
 					{
-						AutomationController->SetRequestedTestFlags(0);
+						AutomationController->SetRequestedTestFlags(EAutomationTestFlags::None);
 					}
 					else
 					{
@@ -626,7 +647,7 @@ protected:
 					}
 					else if (FlagToUse.Contains(TEXT("None")))
 					{
-						AutomationController->SetRequestedTestFlags(0);
+						AutomationController->SetRequestedTestFlags(EAutomationTestFlags::None);
 					}
 
 					else
@@ -669,6 +690,7 @@ protected:
 						continue;
 					}
 					AutomationCommandQueue.Add(EAutomationCommand::RunAll);
+					AutomationController->SetRequestedTestFlags(FilterMaps["All"]);
 					Ar.Logf(TEXT("Automation: RunAll Queued. NOTE: This may take a while."));
 				}
 				else if (FParse::Command(&TempCmd, TEXT("Quit")))
@@ -707,6 +729,15 @@ protected:
 						CVar->Set(true);
 					}
 				}
+				else if (FParse::Command(&TempCmd, TEXT("SetTagFilter")))
+				{
+					if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Automation.TestTagGlobalFilter")))
+					{
+						FString FilterValue(TempCmd);
+						Ar.Logf(TEXT("Automation: Setting test tag global filter to: '%s'"), *FilterValue);
+						CVar->Set(*FilterValue);
+					}
+				}
 				else if (FParse::Command(&TempCmd, TEXT("Help")))
 				{
 					Ar.Logf(TEXT("Supported commands are: "));
@@ -723,6 +754,7 @@ protected:
 					Ar.Logf(TEXT("\tAutomation SoftQuit"));
 					Ar.Logf(TEXT("\tAutomation IgnoreLogEvents"));
 					Ar.Logf(TEXT("\tAutomation EnableStereoTests"));
+					Ar.Logf(TEXT("\tAutomation SetTagFilter"));
 					bHandled = false;
 				}
 				else
@@ -783,7 +815,7 @@ private:
 	int32 TestCount;
 
 	//Dictionary that maps flag names to flag values.
-	TMap<FString, int32> FilterMaps;
+	TMap<FString, EAutomationTestFlags> FilterMaps;
 
 	// Any that we encountered during processing. Used in 'Quit' to determine error code
 	TArray<FString> Errors;

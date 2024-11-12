@@ -7,7 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
-using System.Text.Json;
+using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using OpenTracing.Util;
@@ -24,19 +24,29 @@ namespace UnrealBuildTool
 		public static DateTime StartTimeUtc { get; } = DateTime.UtcNow;
 
 		/// <summary>
+		/// Whether this is a recursive run of of the application
+		/// </summary>
+		public static bool IsRecursive = false;
+
+		/// <summary>
+		/// Unique id to track this session
+		/// </summary>
+		public static string SessionIdentifier = Guid.NewGuid().ToString("B");
+
+		/// <summary>
+		///  The mode of this instance
+		/// </summary>
+		public static string BuildMode = "BuildMode";
+
+		/// <summary>
+		/// The result of running the application
+		/// </summary>
+		private static CompilationResult ApplicationResult = CompilationResult.Unknown;
+
+		/// <summary>
 		/// The environment at boot time.
 		/// </summary>
 		public static System.Collections.IDictionary? InitialEnvironment;
-
-		/// <summary>
-		/// Whether we're running with an installed project
-		/// </summary>
-		private static bool? bIsProjectInstalled;
-
-		/// <summary>
-		/// If we are running with an installed project, specifies the path to it
-		/// </summary>
-		static FileReference? InstalledProjectFile;
 
 		/// <summary>
 		/// The full name of the Engine/Source directory
@@ -120,58 +130,23 @@ namespace UnrealBuildTool
 		/// Returns true if UnrealBuildTool is running using an installed project (ie. a mod kit)
 		/// </summary>
 		/// <returns>True if running using an installed project</returns>
-		public static bool IsProjectInstalled()
-		{
-			if (!bIsProjectInstalled.HasValue)
-			{
-				FileReference InstalledProjectLocationFile = FileReference.Combine(Unreal.RootDirectory, "Engine", "Build", "InstalledProjectBuild.txt");
-				if (FileReference.Exists(InstalledProjectLocationFile))
-				{
-					InstalledProjectFile = FileReference.Combine(Unreal.RootDirectory, File.ReadAllText(InstalledProjectLocationFile.FullName).Trim());
-					bIsProjectInstalled = true;
-				}
-				else
-				{
-					InstalledProjectFile = null;
-					bIsProjectInstalled = false;
-				}
-			}
-			return bIsProjectInstalled.Value;
-		}
+		[Obsolete("Deprecated in UE5.5 - use Unreal.IsProjectInstalled")]
+		public static bool IsProjectInstalled() => Unreal.IsProjectInstalled();
 
 		/// <summary>
 		/// Gets the installed project file
 		/// </summary>
 		/// <returns>Location of the installed project file</returns>
-		public static FileReference? GetInstalledProjectFile()
-		{
-			if (IsProjectInstalled())
-			{
-				return InstalledProjectFile;
-			}
-			else
-			{
-				return null;
-			}
-		}
+		[Obsolete("Deprecated in UE5.5 - use Unreal.GetInstalledProjectFile")]
+		public static FileReference? GetInstalledProjectFile() => Unreal.GetInstalledProjectFile();
 
 		/// <summary>
 		/// Checks whether the given file is under an installed directory, and should not be overridden
 		/// </summary>
 		/// <param name="File">File to test</param>
 		/// <returns>True if the file is part of the installed distribution, false otherwise</returns>
-		public static bool IsFileInstalled(FileReference File)
-		{
-			if (Unreal.IsEngineInstalled() && File.IsUnderDirectory(Unreal.EngineDirectory))
-			{
-				return true;
-			}
-			if (IsProjectInstalled() && File.IsUnderDirectory(InstalledProjectFile!.Directory))
-			{
-				return true;
-			}
-			return false;
-		}
+		[Obsolete("Deprecated in UE5.5 - use Unreal.IsFileInstalled")]
+		public static bool IsFileInstalled(FileReference File) => Unreal.IsFileInstalled(File);
 
 		/// <summary>
 		/// Gets the absolute path to the UBT assembly.
@@ -276,7 +251,7 @@ namespace UnrealBuildTool
 
 			[CommandLine("-ProjectFiles", Value = "GenerateProjectFiles", Description = "Generate project files based on IDE preference. Equivalent to -Mode=GenerateProjectFiles")]
 			[CommandLine("-ProjectFileFormat=", Value = "GenerateProjectFiles", Description = "Generate project files in specified format. May be used multiple times.")]
-			[CommandLine("-Makefile", Value = "GenerateProjectFiles", Description = "Generate Linux Makefile")]
+			[CommandLine("-Makefile", Value = "GenerateProjectFiles", Description = "Generate Makefile")]
 			[CommandLine("-CMakefile", Value = "GenerateProjectFiles", Description = "Generate project files for CMake")]
 			[CommandLine("-QMakefile", Value = "GenerateProjectFiles", Description = "Generate project files for QMake")]
 			[CommandLine("-KDevelopfile", Value = "GenerateProjectFiles", Description = "Generate project files for KDevelop")]
@@ -318,6 +293,24 @@ namespace UnrealBuildTool
 			/// </summary>
 			[XmlConfigFile(Category = "BuildConfiguration")]
 			public bool bDeleteTempDirectory = false;
+
+			/// <summary>
+			/// Providers to load opt-in telemetry connection information from ini. If unset, or the provider categories do not contain connection info, no telemetry will be sent.
+			/// </summary>
+			[XmlConfigFile(Category = "Telemetry", Name = "Providers")]
+			public string[] TelemetryProviders = Array.Empty<string>();
+
+			/// <summary>
+			/// Additional command line providers to load opt-in telemetry connection information from ini.
+			/// </summary>
+			[CommandLine(Prefix = "-TelemetryProvider", Description = "List of ini providers for telemetry", ListSeparator = '+')]
+			public List<string> CmdTelemetryProviders = new();
+
+			/// <summary>
+			/// Session identifier for this run of UBT, if unset defaults to a random Guid
+			/// </summary>
+			[CommandLine(Prefix = "-Session", Description = "Session identifier for this run of UBT, if unset defaults to a random Guid")]
+			public string? TelemetrySession = null;
 
 			/// <summary>
 			/// Initialize the options with the given command line arguments
@@ -407,12 +400,42 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
-		/// Main entry point. Parses any global options and initializes the logging system, then invokes the appropriate command.
-		/// NB: That the entry point is deliberately NOT async, since we have a single-instance mutex that cannot be disposed from a different thread.
+		/// Read extra command-line arguments from an environment variable
+		/// Double-quote any argument containing whitespace, as they are split by just that.
 		/// </summary>
-		/// <param name="ArgumentsArray">Command line arguments</param>
-		/// <returns>Zero on success, non-zero on error</returns>
-		private static int Main(string[] ArgumentsArray)
+		/// <returns>Extra arguments</returns>
+		private static string[] GetExtraArgsFromEnvVar()
+		{
+			string? extraArgs = Environment.GetEnvironmentVariable("UBT_EXTRA_ARGS");
+			return String.IsNullOrEmpty(extraArgs) ? Array.Empty<string>() : CommandLineArguments.Split(extraArgs);
+		}
+
+        /// <summary>
+        /// Event handler for the Console.CancelKeyPress event
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private static async void CancelKeyPressAsync(object? sender, ConsoleCancelEventArgs e)
+        {
+			Console.CancelKeyPress -= CancelKeyPressAsync;
+			Console.WriteLine($"UnrealBuildTool: Ctrl-{(e.SpecialKey == ConsoleSpecialKey.ControlC ? "C" : "Break")} pressed. Exiting...");
+
+            // Delay a few seconds to allow for the process to exit normally
+            await Task.Delay(2000);
+
+			// While the Ctrl-C handler fixes most instances of a zombie process, we still need to 
+			// force an exit from the process to handle _all_ cases.  Ctrl-C should not be a regular event! 
+			// Note: this could be a dotnet (6.0.302) on macOS issue.  Recheck with next release if this is still required.
+			Environment.Exit(-1);
+        }
+
+        /// <summary>
+        /// Main entry point. Parses any global options and initializes the logging system, then invokes the appropriate command.
+        /// NB: That the entry point is deliberately NOT async, since we have a single-instance mutex that cannot be disposed from a different thread.
+        /// </summary>
+        /// <param name="ArgumentsArray">Command line arguments</param>
+        /// <returns>Zero on success, non-zero on error</returns>
+        private static int Main(string[] ArgumentsArray)
 		{
 			FileReference? RunFile = null;
 			DirectoryReference? TempDirectory = null;
@@ -426,22 +449,15 @@ namespace UnrealBuildTool
 			// By putting this in, the Ctrl-C may not be handled immediately, but it shouldn't leave a blocking zombie process
 			if (OperatingSystem.IsMacOS())
 			{
-				Console.CancelKeyPress += delegate
-				{
-					Console.WriteLine("UnrealBuildTool: Ctrl-C pressed. Exiting...");
-
-					// While the Ctrl-C handler fixes most instances of a zombie process, we still need to 
-					// force an exit from the process to handle _all_ cases.  Ctrl-C should not be a regular event! 
-					// Note: this could be a dotnet (6.0.302) on macOS issue.  Recheck with next release if this is still required.
-					Environment.Exit(-1);
-				};
-			}
+                Console.CancelKeyPress += CancelKeyPressAsync;
+            }
 
 			try
 			{
 				// Start capturing performance info
 				Timeline.Start();
 				Tracer = JsonTracer.TryRegisterAsGlobalTracer();
+				ArgumentsArray = ArgumentsArray.Concat(GetExtraArgsFromEnvVar()).ToArray();
 
 				// Parse the command line arguments
 				CommandLineArguments Arguments = new CommandLineArguments(ArgumentsArray);
@@ -512,6 +528,7 @@ namespace UnrealBuildTool
 						return 1;
 					}
 				}
+				BuildMode = ModeType.Name;
 
 				// Get the options for which systems have to be initialized for this mode
 				ToolModeOptions ModeOptions = ModeType.GetCustomAttribute<ToolModeAttribute>()!.Options;
@@ -556,6 +573,16 @@ namespace UnrealBuildTool
 					Log.AddFileWriter("LogTraceListener", Options.LogFileName);
 				}
 
+				// Initialize the telemetry service
+				if (!String.IsNullOrEmpty(Options.TelemetrySession))
+				{
+					IsRecursive = true;
+					SessionIdentifier = Options.TelemetrySession;
+				}
+
+				TelemetryService.Get().AddTelemetryConfigProviders(Options.TelemetryProviders.Concat(Options.CmdTelemetryProviders));
+				TelemetryService.Get().AddEndpointsFromConfig();
+
 				// Create a UbtRun file
 				try
 				{
@@ -566,7 +593,7 @@ namespace UnrealBuildTool
 					{
 						ModuleFileName = Path.GetFullPath(ModuleFileName);
 					}
-					FileReference RunFileTemp = FileReference.Combine(RunsDir, $"{Process.GetCurrentProcess().Id}_{ContentHash.MD5(Encoding.UTF8.GetBytes(ModuleFileName.ToUpperInvariant()))}");
+					FileReference RunFileTemp = FileReference.Combine(RunsDir, $"{Environment.ProcessId}_{ContentHash.MD5(Encoding.UTF8.GetBytes(ModuleFileName.ToUpperInvariant()))}");
 					File.WriteAllLines(RunFileTemp.FullName, new string[] { ModuleFileName });
 					RunFile = RunFileTemp;
 				}
@@ -659,10 +686,6 @@ namespace UnrealBuildTool
 				{
 					Result = Mode.ExecuteAsync(Arguments, Logger).GetAwaiter().GetResult();
 				}
-				catch (AggregateException AggEx) when (AggEx.InnerExceptions.Count == 1 && AggEx.InnerExceptions.FirstOrDefault() != null)
-				{
-					throw AggEx.InnerExceptions.First();
-				}
 				finally
 				{
 					if ((ModeOptions & ToolModeOptions.ShowExecutionTime) != 0)
@@ -671,40 +694,15 @@ namespace UnrealBuildTool
 					}
 				}
 
+				ApplicationResult = (CompilationResult)Result;
 				return Result;
-			}
-			catch (CompilationResultException Ex)
-			{
-				// Used to return a propagate a specific exit code after an error has occurred.
-				Ex.LogException(Logger);
-				return (int)Ex.Result;
-			}
-			catch (BuildLogEventException Ex)
-			{
-				// BuildExceptions should have nicely formatted messages.
-				Ex.LogException(Logger);
-				return (int)CompilationResult.OtherCompilationError;
-			}
-			catch (JsonException Ex)
-			{
-				FileReference source = new FileReference(Ex.Source ?? "unknown");
-				LogValue FileValue = LogValue.SourceFile(source, source.GetFileName());
-				Logger.LogError(KnownLogEvents.Compiler, "{File}({Line}): error:{Message}", FileValue, Ex.LineNumber ?? 0, ExceptionUtils.FormatException(Ex));
-				Logger.LogDebug(KnownLogEvents.Compiler, "{File}({Line}): error:{Message}", FileValue, Ex.LineNumber ?? 0, ExceptionUtils.FormatExceptionDetails(Ex));
-				return (int)CompilationResult.OtherCompilationError;
-			}
-			catch (BuildException Ex)
-			{
-				// BuildExceptions should have nicely formatted messages.
-				Ex.LogException(Logger);
-				return (int)CompilationResult.OtherCompilationError;
 			}
 			catch (Exception Ex)
 			{
-				// Unhandled exception.
-				Logger.LogError(Ex, "Unhandled exception: {Ex}", ExceptionUtils.FormatException(Ex));
-				Logger.LogDebug(Ex, "Unhandled exception: {Ex}", ExceptionUtils.FormatExceptionDetails(Ex));
-				return (int)CompilationResult.OtherCompilationError;
+				Ex.LogException(Logger);
+				// CompilationResultException is used to return a propagate a specific exit code after an error has occurred.
+				ApplicationResult = Ex.GetCompilationResult();
+				return (int)ApplicationResult;
 			}
 			finally
 			{
@@ -724,6 +722,14 @@ namespace UnrealBuildTool
 				// Useful when investigating why UBT takes time.
 				//DirectoryItem.WriteDebugFileWithAllEnumeratedFiles(@"c:\temp\AllFiles.txt");
 
+				if (!IsRecursive)
+				{
+					TelemetryService.Get().RecordEvent(new TelemetryCompletedEvent(ArgumentsArray, StartTimeUtc, ApplicationResult, DateTime.UtcNow));
+				}
+
+				// Flush any remaining telemetry events
+				TelemetryService.Get().FlushEvents();
+
 				Utils.LogWriteFileIfChangedActivity(Logger);
 
 				// Print out all the performance info
@@ -733,10 +739,7 @@ namespace UnrealBuildTool
 				Trace.Close();
 
 				// Write any trace logs
-				if (Tracer != null)
-				{
-					Tracer.Flush();
-				}
+				Tracer?.Flush();
 
 				// Delete the ubt run file
 				if (RunFile != null)
@@ -763,10 +766,7 @@ namespace UnrealBuildTool
 				}
 
 				// Dispose of the mutex. Must be done last to ensure that another process does not startup and start trying to write to the same log file.
-				if (Mutex != null)
-				{
-					Mutex.Dispose();
-				}
+				Mutex?.Dispose();
 			}
 		}
 	}

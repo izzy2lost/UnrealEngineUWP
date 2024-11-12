@@ -3,7 +3,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "UObject/NameTypes.h"
 
 namespace UE
 {
@@ -12,11 +13,7 @@ namespace Geometry
 
 // forward
 class FDynamicMesh3;
-
-template<typename AttribValueType, int AttribDimension, typename ParentType>
-class TDynamicVertexAttribute;
-
-typedef  TDynamicVertexAttribute<int32, 1, FDynamicMesh3> FDynamicMeshVertexInt32Attribute;
+class FNonManifoldSourceVertexIdAttribute;
 
 
 /*
@@ -113,7 +110,7 @@ public:
 
 protected:
 
-	const FDynamicMeshVertexInt32Attribute*  NonManifoldSrcVIDsAttribute = nullptr;
+	const FNonManifoldSourceVertexIdAttribute*  NonManifoldSrcVIDsAttribute = nullptr;
 	const FDynamicMesh3* DynamicMesh = nullptr;
 };
 

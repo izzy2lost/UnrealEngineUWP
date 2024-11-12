@@ -39,8 +39,8 @@ namespace EpicGames.UHT.Types
 		/// <summary>
 		/// Construct a new instance of the object
 		/// </summary>
-		/// <param name="session">Session of the object</param>
-		protected UhtObject(UhtSession session) : base(session)
+		/// <param name="module">Owning module</param>
+		protected UhtObject(UhtModule module) : base(module)
 		{
 			ObjectTypeIndex = Session.GetNextObjectTypeIndex();
 		}
@@ -48,9 +48,10 @@ namespace EpicGames.UHT.Types
 		/// <summary>
 		/// Construct a new instance of the object
 		/// </summary>
+		/// <param name="headerFile">Header file being compiled</param>
 		/// <param name="outer">Outer object</param>
 		/// <param name="lineNumber">Line number where object is defined</param>
-		protected UhtObject(UhtType outer, int lineNumber) : base(outer, lineNumber)
+		protected UhtObject(UhtHeaderFile headerFile, UhtType outer, int lineNumber) : base(headerFile, outer, lineNumber)
 		{
 			ObjectTypeIndex = Session.GetNextObjectTypeIndex();
 		}

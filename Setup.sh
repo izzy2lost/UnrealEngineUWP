@@ -66,11 +66,11 @@ else
 	if [ -d "$GIT_DIR/hooks" ]; then
 		echo "Registering git hooks... (this will override existing ones!)"
 		echo \#!/bin/sh > "$GIT_DIR/hooks/post-checkout"
-		echo Engine/Build/BatchFiles/Linux/GitDependencies.sh >> "$GIT_DIR/hooks/post-checkout"
+		echo Engine/Build/BatchFiles/Linux/GitDependencies.sh "$@" >> "$GIT_DIR/hooks/post-checkout"
 		chmod +x "$GIT_DIR/hooks/post-checkout"
 
 		echo \#!/bin/sh > "$GIT_DIR/hooks/post-merge"
-		echo Engine/Build/BatchFiles/Linux/GitDependencies.sh >> "$GIT_DIR/hooks/post-merge"
+		echo Engine/Build/BatchFiles/Linux/GitDependencies.sh "$@" >> "$GIT_DIR/hooks/post-merge"
 		chmod +x "$GIT_DIR/hooks/post-merge"
 	fi
 

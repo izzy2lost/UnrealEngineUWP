@@ -2,15 +2,14 @@
 
 #pragma once
 
-
 #include "Widgets/Views/SHeaderRow.h"
 
 template <typename ItemType> class SListView;
 template <typename ItemType> class STreeView;
 
-namespace Insights { class ITimingViewSession; }
-namespace Insights { enum class ETimeChangedFlags; }
 namespace TraceServices { class IAnalysisSession; }
+namespace UE::Insights::Timing { class ITimingViewSession; }
+namespace UE::Insights::Timing { enum class ETimeChangedFlags; }
 class FAnimationSharedData;
 class IInsightsManager;
 class ITableRow;
@@ -39,7 +38,7 @@ public:
 
 	void Construct(const FArguments& InArgs);
 
-	void SetSession(Insights::ITimingViewSession* InTimingViewSession, const TraceServices::IAnalysisSession* InAnalysisSession);
+	void SetSession(UE::Insights::Timing::ITimingViewSession* InTimingViewSession, const TraceServices::IAnalysisSession* InAnalysisSession);
 
 	bool IsSessionSet() const;
 
@@ -47,8 +46,8 @@ private:
 	TSharedRef<ITableRow> HandleUniqueInvalidatedMakeTreeRowWidget(TSharedPtr<Private::FWidgetUniqueInvalidatedInfo> InInfo, const TSharedRef<STableViewBase>& OwnerTable);
 	void HandleUniqueInvalidatedChildrenForInfo(TSharedPtr<Private::FWidgetUniqueInvalidatedInfo> InInfo, TArray<TSharedPtr<Private::FWidgetUniqueInvalidatedInfo>>& OutChildren);
 	TSharedRef<ITableRow> HandleWidgetUpdateInfoGenerateWidget(TSharedPtr<Private::FWidgetUpdateInfo> Item, const TSharedRef<STableViewBase>& OwnerTable);
-	void HandleTimeMarkerChanged(Insights::ETimeChangedFlags InFlags, double InTimeMarker);
-	void HandleSelectionChanged(Insights::ETimeChangedFlags InFlags, double StartTime, double EndTime);
+	void HandleTimeMarkerChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InTimeMarker);
+	void HandleSelectionChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double StartTime, double EndTime);
 	void HandleSelectionEventChanged(const TSharedPtr<const ITimingEvent> InEvent);
 
 	TSharedPtr<SWidget> HandleWidgetInvalidateListContextMenu();
@@ -75,7 +74,7 @@ private:
 
 private:
 	const TraceServices::IAnalysisSession* AnalysisSession;
-	Insights::ITimingViewSession* TimingViewSession;
+	UE::Insights::Timing::ITimingViewSession* TimingViewSession;
 
 	TSharedPtr<STreeView<TSharedPtr<Private::FWidgetUniqueInvalidatedInfo>>> WidgetInvalidateInfoListView;
 	TArray<TSharedPtr<Private::FWidgetUniqueInvalidatedInfo>> WidgetInvalidationInfos;

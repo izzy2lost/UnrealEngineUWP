@@ -2,8 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "ProfilingDebugging/TraceAuxiliary.h"
+#include "CoreTypes.h"
+
+#include "Containers/UnrealString.h"
+#include "ProfilingDebugging/TraceAuxiliary.h" // for FTraceAuxiliary::EConnectionType
 
 class FAutomationTestBase;
 
@@ -21,6 +23,7 @@ public:
 	bool IsTraceHasLiveStatus(const FString& TraceName, const TCHAR* Host = TEXT("localhost"), int32 Port = 0U) const;
 	void ResetSession() const;
 	FString GetLiveTrace(const TCHAR* Host = TEXT("localhost"), int32 Port = 0U) const;
+	FString GetUTSPath() const;
 
 private:
 	FAutomationTestBase* Test;

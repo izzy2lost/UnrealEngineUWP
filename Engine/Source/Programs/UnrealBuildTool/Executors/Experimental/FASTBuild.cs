@@ -20,6 +20,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Versioning;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
@@ -69,7 +70,7 @@ namespace UnrealBuildTool
 
 	///////////////////////////////////////////////////////////////////////
 
-	class FASTBuild : ActionExecutor
+	sealed class FASTBuild : ActionExecutor
 	{
 		/// <summary>
 		/// Executor to use for local actions
@@ -151,7 +152,7 @@ namespace UnrealBuildTool
 		/// Which MSVC CRT Redist version to use
 		/// </summary>
 		[XmlConfigFile]
-		public static String MsvcCRTRedistVersion = "";
+		public static string MsvcCRTRedistVersion = "";
 
 		/// <summary>
 		/// Which MSVC Compiler version to use
@@ -169,6 +170,13 @@ namespace UnrealBuildTool
 			XmlConfig.ApplyTo(this);
 
 			LocalExecutor = new ParallelExecutor(MaxLocalActions, bAllCores, bCompactOutput, Logger);
+		}
+
+		/// <inheritdoc/>
+		public new void Dispose()
+		{
+			LocalExecutor.Dispose();
+			base.Dispose();
 		}
 
 		public override string Name => "FASTBuild";
@@ -309,15 +317,24 @@ namespace UnrealBuildTool
 			return false;
 		}
 
+		private TelemetryExecutorEvent? telemetryEvent;
+
+		/// <inheritdoc/>
+		public override TelemetryExecutorEvent? GetTelemetryEvent() => telemetryEvent ?? LocalExecutor.GetTelemetryEvent();
+
 		//////////////////////////////////////////
 		// Action Helpers
 
-		private ObjectIDGenerator objectIDGenerator = new ObjectIDGenerator();
+		private readonly Dictionary<LinkedAction, long>  _actionToId = new();
+		private long _actionIdIndex = 0;
 
 		private long GetActionID(LinkedAction Action)
 		{
-			bool bFirstTime = false;
-			return objectIDGenerator.GetId(Action, out bFirstTime);
+			if (!_actionToId.ContainsKey(Action))
+			{
+				_actionToId.Add(Action, ++_actionIdIndex);
+			}
+			return _actionToId[Action];
 		}
 
 		private string ActionToActionString(LinkedAction Action)
@@ -325,12 +342,12 @@ namespace UnrealBuildTool
 			return ActionToActionString(GetActionID(Action));
 		}
 
-		private string ActionToActionString(long UniqueId)
+		private static string ActionToActionString(long UniqueId)
 		{
 			return $"Action_{UniqueId}";
 		}
 
-		private string ActionToDependencyString(long UniqueId, string StatusDescription, string? CommandDescription = null, ActionType? ActionType = null)
+		private static string ActionToDependencyString(long UniqueId, string StatusDescription, string? CommandDescription = null, ActionType? ActionType = null)
 		{
 			string? ExtraInfoString = null;
 			if ((CommandDescription != null) && String.IsNullOrEmpty(CommandDescription))
@@ -476,13 +493,15 @@ namespace UnrealBuildTool
 			IEnumerable<LinkedAction> CompileActions = Actions.Where(Action => Action.ActionType == ActionType.Compile && Action.bCanExecuteRemotely && Action.bCanExecuteRemotelyWithSNDBS);
 			if (CompileActions.Any() && DetectBuildType(CompileActions, Logger))
 			{
+				DateTime startTimeUTC = DateTime.UtcNow;
 				string FASTBuildFilePath = Path.Combine(Unreal.EngineDirectory.FullName, "Intermediate", "Build", "fbuild.bff");
 				if (!CreateBffFile(Actions, FASTBuildFilePath, Logger))
 				{
 					return false;
 				}
 
-				return ExecuteBffFile(FASTBuildFilePath, Logger);
+				bool result = ExecuteBffFile(FASTBuildFilePath, Logger);
+				telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, Actions.Count(), -1, -1, 0, 0, DateTime.UtcNow);
 			}
 
 			return await LocalExecutor.ExecuteActionsAsync(Actions, Logger, actionArtifactCache);
@@ -743,7 +762,8 @@ namespace UnrealBuildTool
 					(Token == "-weak_framework") ||
 					(Token == "-framework") ||
 					(Token == "/sourceDependencies") ||
-					(Token == "/sourceDependencies:directives"))
+					(Token == "/sourceDependencies:directives") ||
+					(Token.Contains("/experimental")))
 				{
 					++i;
 				}
@@ -792,7 +812,7 @@ namespace UnrealBuildTool
 			string? Value = String.Empty;
 			if (OptionsDictionary.TryGetValue(Key, out Value))
 			{
-				return Value.Trim(new Char[] { '\"' });
+				return Value.Trim(new char[] { '\"' });
 			}
 
 			if (ProblemIfNotFound)
@@ -990,14 +1010,14 @@ namespace UnrealBuildTool
 				AddText($"\t\t'$Root$/msobj{platformVersionNumber}.dll'\n");
 				AddText($"\t\t'$Root$/mspdb{platformVersionNumber}.dll'\n");
 
-				List<String> PotentialMSVCRedistPaths = new List<String>(Directory.EnumerateDirectories(String.Format("{0}/Redist/MSVC", VCEnv.GetVCInstallDirectory())));
+				List<string> PotentialMSVCRedistPaths = new List<string>(Directory.EnumerateDirectories(String.Format("{0}/Redist/MSVC", VCEnv.GetVCInstallDirectory())));
 				string? PrefferedMSVCRedistPath = null;
 				string? FinalMSVCRedistPath = "";
 
 				if (MsvcCRTRedistVersion.Length > 0)
 				{
 					PrefferedMSVCRedistPath = PotentialMSVCRedistPaths.Find(
-						delegate (String str)
+						delegate (string str)
 						{
 							return str.Contains(MsvcCRTRedistVersion);
 						});
@@ -1005,7 +1025,7 @@ namespace UnrealBuildTool
 
 				if (PrefferedMSVCRedistPath == null)
 				{
-					PrefferedMSVCRedistPath = PotentialMSVCRedistPaths[PotentialMSVCRedistPaths.Count - 2];
+					PrefferedMSVCRedistPath = PotentialMSVCRedistPaths[^2];
 
 					if (MsvcCRTRedistVersion.Length > 0)
 					{
@@ -1019,7 +1039,7 @@ namespace UnrealBuildTool
 					}
 				}
 
-				PotentialMSVCRedistPaths = new List<String>(Directory.EnumerateDirectories(String.Format("{0}/{1}", PrefferedMSVCRedistPath, VCEnv.Architecture)));
+				PotentialMSVCRedistPaths = new List<string>(Directory.EnumerateDirectories(String.Format("{0}/{1}", PrefferedMSVCRedistPath, VCEnv.Architecture)));
 
 				FinalMSVCRedistPath = PotentialMSVCRedistPaths.Find(x => x.Contains(".CRT"));
 

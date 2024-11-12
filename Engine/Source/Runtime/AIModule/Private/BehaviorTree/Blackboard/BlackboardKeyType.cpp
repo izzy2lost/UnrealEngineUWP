@@ -25,7 +25,7 @@ void UBlackboardKeyType::InitializeKey(UBlackboardComponent& OwnerComp, FBlackbo
 	if (bCreateKeyInstance)
 	{
 		FBlackboardInstancedKeyMemory* MyMemory = (FBlackboardInstancedKeyMemory*)RawData;
-		UBlackboardKeyType* KeyInstance = NewObject<UBlackboardKeyType>(&OwnerComp, GetClass());
+		UBlackboardKeyType* KeyInstance = DuplicateObject<UBlackboardKeyType>(this, &OwnerComp);
 		KeyInstance->bIsInstanced = true;
 		MyMemory->KeyIdx = KeyID;
 		OwnerComp.KeyInstances[KeyID] = KeyInstance;
@@ -64,7 +64,7 @@ void UBlackboardKeyType::WrappedFree(UBlackboardComponent& OwnerComp, uint8* Mem
 	{
 		UBlackboardKeyType* InstancedKey = GetKeyInstance(OwnerComp, MemoryBlock);
 		uint8* InstanceMemoryBlock = MemoryBlock + sizeof(FBlackboardInstancedKeyMemory);
-		InstancedKey->FreeMemory(OwnerComp, InstanceMemoryBlock);
+		return InstancedKey->FreeMemory(OwnerComp, InstanceMemoryBlock);
 	}
 
 	return FreeMemory(OwnerComp, MemoryBlock);

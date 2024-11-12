@@ -148,10 +148,6 @@ public:
 	/** User Cloud interface pointer */
 	FOnlineUserCloudEOSPtr UserCloudInterfacePtr;
 
-	bool bWasLaunchedByEGS;
-	bool bIsDefaultOSS;
-	bool bIsPlatformOSS;
-
 	TSharedPtr<FSocketSubsystemEOS, ESPMode::ThreadSafe> SocketSubsystem;
 
 	static FPlatformEOSHelpersPtr EOSHelpersPtr;

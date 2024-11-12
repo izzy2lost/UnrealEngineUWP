@@ -1,25 +1,53 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "WorldPartition/ContentBundle/ContentBundleEditorSubsystem.h"
 #include "WorldPartition/ContentBundle/ContentBundleEngineSubsystem.h"
-#include "WorldPartition/ContentBundle/ContentBundle.h"
-#include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
-#include "WorldPartition/ContentBundle/ContentBundle.h"
-#include "WorldPartition/ContentBundle/ContentBundleEditor.h"
-#include "WorldPartition/WorldPartition.h"
-#include "Subsystems/ActorEditorContextSubsystem.h"
-#include "Engine/Selection.h"
 #include "WorldPartition/ContentBundle/ContentBundleWorldSubsystem.h"
+#include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
+#include "WorldPartition/ContentBundle/ContentBundleEditor.h"
 #include "WorldPartition/ContentBundle/ContentBundleLog.h"
+#include "WorldPartition/ContentBundle/ContentBundle.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerManager.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
+#include "WorldPartition/WorldPartition.h"
+#include "GameFramework/ActorPrimitiveColorHandler.h"
+#include "Subsystems/ActorEditorContextSubsystem.h"
+#include "DataLayer/DataLayerEditorSubsystem.h"
+#include "Engine/Selection.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Editor.h"
 
+#define LOCTEXT_NAMESPACE "ContentBundle"
+
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+static FName NAME_ContentBundleColor(TEXT("ContentBundleColor"));
+#endif
+
 void UContentBundleEditingSubmodule::DoInitialize()
 {
 	check(GEditor);
 	UActorEditorContextSubsystem::Get()->RegisterClient(this);
+	// For backward compatibility, Content Bundle will be applied right when LevelActorAdded is called
+	GEditor->OnLevelActorAdded().AddUObject(this, &UContentBundleEditingSubmodule::ApplyContext);
+
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+	FActorPrimitiveColorHandler::Get().RegisterPrimitiveColorHandler(NAME_ContentBundleColor, LOCTEXT("ContentBundleColor", "Content Bundle Color"), [](const UPrimitiveComponent* InPrimitiveComponent) -> FLinearColor
+	{
+		if (AActor* Actor = InPrimitiveComponent->GetOwner())
+		{
+			if (Actor->GetContentBundleGuid().IsValid())
+			{
+				return FLinearColor::MakeRandomSeededColor(GetTypeHash(Actor->GetContentBundleGuid()));
+			}
+		}
+		return FLinearColor::Gray;
+	},
+	[](){}, 
+	LOCTEXT("ContentBundleColor_ToolTip", "Colorize actor using a random color per content bundle, the rest is Gray.") );
+#endif
 }
 
 void UContentBundleEditingSubmodule::DoDenitialize()
@@ -27,6 +55,7 @@ void UContentBundleEditingSubmodule::DoDenitialize()
 	if (GEditor)
 	{
 		UActorEditorContextSubsystem::Get()->UnregisterClient(this);
+		GEditor->OnLevelActorAdded().RemoveAll(this);
 	}
 
 	EditingContentBundleGuid.Invalidate();
@@ -36,6 +65,10 @@ void UContentBundleEditingSubmodule::DoDenitialize()
 	}
 
 	EditingContentBundlesStack.Empty();
+
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+	FActorPrimitiveColorHandler::Get().UnregisterPrimitiveColorHandler(NAME_ContentBundleColor);
+#endif
 }
 
 void UContentBundleEditingSubmodule::PreEditUndo()
@@ -66,15 +99,31 @@ void UContentBundleEditingSubmodule::PostEditUndo()
 	PreUndoRedoEditingContentBundleGuid.Invalidate();
 }
 
+void UContentBundleEditingSubmodule::ApplyContext(AActor* InActor)
+{
+	if (GIsReinstancing || !InActor || (InActor->GetWorld() != GetWorld()) || InActor->HasAnyFlags(RF_Transient) || InActor->IsChildActor() || !EditingContentBundleGuid.IsValid() || (InActor->GetContentBundleGuid() == EditingContentBundleGuid))
+	{
+		return;
+	}
+
+	// Prefer override spawning External Data Layer over Content Bundles
+	if (const UExternalDataLayerInstance* SpawningExternalDataLayerInstance = ULevel::GetOverrideSpawningLevelMountPointObject() ? UDataLayerEditorSubsystem::Get()->GetActorSpawningExternalDataLayerInstance(InActor) : nullptr)
+	{
+		return;
+	}
+
+	if (TSharedPtr<FContentBundleEditor> EditingContentBundle = GetEditorContentBundle(EditingContentBundleGuid))
+	{
+		EditingContentBundle->AddActor(InActor);
+	}
+}
+
 void UContentBundleEditingSubmodule::OnExecuteActorEditorContextAction(UWorld* InWorld, const EActorEditorContextAction& InType, AActor* InActor /* = nullptr */)
 {
 	switch (InType)
 	{
 	case EActorEditorContextAction::ApplyContext:
-		if (TSharedPtr<FContentBundleEditor> EditingContentBundle = GetEditorContentBundle(EditingContentBundleGuid))
-		{
-			EditingContentBundle->AddActor(InActor);
-		}
+		// For backward compatibility, Content Bundle will only apply context trough OnLevelActorAdded
 		break;
 	case EActorEditorContextAction::ResetContext:
 		if (TSharedPtr<FContentBundleEditor> EditingContentBundle = GetEditorContentBundle(EditingContentBundleGuid))
@@ -163,7 +212,6 @@ TSharedRef<SWidget> UContentBundleEditingSubmodule::GetActorEditorContextWidget(
 			]
 		];
 	}
-
 
 	return OutWidget;
 }
@@ -441,3 +489,4 @@ void UContentBundleEditorSubsystem::SelectActorsInternal(FContentBundleEditor& E
 
 	GEditor->NoteSelectionChange();
 }
+#undef LOCTEXT_NAMESPACE

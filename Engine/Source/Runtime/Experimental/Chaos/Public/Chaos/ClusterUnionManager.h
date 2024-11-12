@@ -78,6 +78,7 @@ namespace Chaos
 		{}
 		// An auxiliary particle will be removed from the cluster union if FRigidClustering::HandleConnectivityOnReleaseClusterParticle detects an island made up of only auxiliary particles.
 		uint8 bIsAuxiliaryParticle: 1;
+		// Really just a protection for external users accidentally incurring a perf cost if they try to manually generate edges. We will never do this more than once per particle per cluster union.
 		uint8 bEdgesAreGenerated: 1;
 	};
 
@@ -213,7 +214,10 @@ namespace Chaos
 		// Update the cluster union's properties after its set of particle changes.
 		CHAOS_API void UpdateAllClusterUnionProperties(FClusterUnion& ClusterUnion, EUpdateClusterUnionPropertiesFlags Flags = EUpdateClusterUnionPropertiesFlags::All);
 
-		CHAOS_API  void AddParticleToConnectionGraphInCluster(FClusterUnion& ClusterUnion, FPBDRigidParticleHandle* Particle);
+		CHAOS_API void AddParticleToConnectionGraphInCluster(FClusterUnion& ClusterUnion, FPBDRigidParticleHandle* Particle);
+
+		CHAOS_API void GenerateInterclusterEdgesForParticle(FClusterUnion& ClusterUnion, FPBDRigidParticleHandle* Particle);
+		CHAOS_API void GenerateInterclusterEdgesBetweenParticles(FClusterUnion& ClusterUnion, FPBDRigidParticleHandle* Particle, FPBDRigidParticleHandle* OtherParticle);
 
 		// Returns all cluster unions. Really meant only to be used for debugging.
 		const TMap<FClusterUnionIndex, FClusterUnion>& GetAllClusterUnions() const { return ClusterUnions; }
@@ -397,28 +401,64 @@ namespace Chaos
 			return;
 		}
 
-		check(AllChildParticles.Num() == ClusterParticle->ShapesArray().Num());
-		
-		TArray<int32> ShapeIndicesToRemove;
-		ShapeIndicesToRemove.Reserve(ShapeParticles.Num());
-		for(TParticle* ShapeParticle : ShapeParticles)
+		// Don't try to remove anything if the shape array is already empty 
+		if (!ClusterParticle->ShapesArray().IsEmpty() && !AllChildParticles.IsEmpty())
 		{
-			check(ShapeParticle != nullptr);
-			const int32 Index = AllChildParticles.Find(ShapeParticle);
-			if (Index != INDEX_NONE)
+#if WITH_EDITOR
+			ensureMsgf(
+				AllChildParticles.Num() == ClusterParticle->ShapesArray().Num(),
+				TEXT("RemoveParticlesFromClusterUnionGeometry : More than one shape per child particle : ShapeArray=[%d] AllChildParticles=[%d] ShapeParticles=[%d]"),
+				ClusterParticle->ShapesArray().Num(),
+				AllChildParticles.Num(),
+				ShapeParticles.Num()
+			);
+#else
+			checkf(
+				AllChildParticles.Num() == ClusterParticle->ShapesArray().Num(),
+				TEXT("RemoveParticlesFromClusterUnionGeometry : More than one shape per child particle : ShapeArray=[%d] AllChildParticles=[%d] ShapeParticles=[%d]"),
+				ClusterParticle->ShapesArray().Num(),
+				AllChildParticles.Num(),
+				ShapeParticles.Num()
+			);
+#endif
+			
+
+			TArray<int32> ShapeIndicesToRemove;
+			ShapeIndicesToRemove.Reserve(ShapeParticles.Num());
+			for (TParticle* ShapeParticle : ShapeParticles)
 			{
-				ShapeIndicesToRemove.Add(Index);
+				check(ShapeParticle != nullptr);
+				const int32 Index = AllChildParticles.Find(ShapeParticle);
+				if (Index != INDEX_NONE)
+				{
+					ShapeIndicesToRemove.Add(Index);
+				}
 			}
+
+			ShapeIndicesToRemove.Sort();
+
+			ClusterParticle->RemoveShapesAtSortedIndices(ShapeIndicesToRemove);
+
+			RemoveArrayItemsAtSortedIndices(AllChildParticles, ShapeIndicesToRemove);
+
+#if WITH_EDITOR
+			ensureMsgf(
+				AllChildParticles.Num() == ClusterParticle->ShapesArray().Num(),
+				TEXT("RemoveParticlesFromClusterUnionGeometry : More than one shape per child particle : ShapeArray=[%d] AllChildParticles=[%d] ShapeParticles=[%d]"),
+				ClusterParticle->ShapesArray().Num(),
+				AllChildParticles.Num(),
+				ShapeParticles.Num()
+			);
+#else
+			checkf(
+				AllChildParticles.Num() == ClusterParticle->ShapesArray().Num(),
+				TEXT("RemoveParticlesFromClusterUnionGeometry : More than one shape per child particle : ShapeArray=[%d] AllChildParticles=[%d] ShapeParticles=[%d]"),
+				ClusterParticle->ShapesArray().Num(),
+				AllChildParticles.Num(),
+				ShapeParticles.Num()
+			);
+#endif
 		}
-
-		ShapeIndicesToRemove.Sort();
-
-		ClusterParticle->RemoveShapesAtSortedIndices(ShapeIndicesToRemove);
-
-		RemoveArrayItemsAtSortedIndices(AllChildParticles, ShapeIndicesToRemove);
-
-		check(AllChildParticles.Num() == ClusterParticle->ShapesArray().Num());
-
 		// If we remove particles from the cluster union geometry then we need to switch the geometry back to a FImplicitObjectUnionClustered to avoid errors with empty unions.
 		if (ClusterParticle->ShapesArray().IsEmpty())
 		{

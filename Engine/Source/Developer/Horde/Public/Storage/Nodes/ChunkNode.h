@@ -62,7 +62,16 @@ public:
 	operator bool() const;
 
 private:
-	struct FStackEntry;
+	struct FStackEntry
+	{
+		FBlob Blob;
+		size_t Position;
+
+		FStackEntry(FBlob InBlob)
+			: Blob(MoveTemp(InBlob))
+			, Position(0)
+		{ }
+	};
 	TArray<FStackEntry> Stack;
 };
 

@@ -2,10 +2,10 @@
 
 #pragma once
 
-#include "Animation/AnimNodeMessages.h"
 #include "BonePose.h"
 #include "Containers/RingBuffer.h"
 #include "DrawDebugHelpers.h"
+#include "PoseSearch/PoseHistoryProvider.h"
 #include "PoseSearch/PoseSearchDefines.h"
 #include "PoseSearch/PoseSearchTrajectoryLibrary.h"
 #include "UObject/ObjectKey.h"
@@ -33,15 +33,17 @@ struct FPoseHistoryEntry
 	TArray<FQuat4f> ComponentSpaceRotations;
 	TArray<FVector> ComponentSpacePositions;
 	TArray<FVector3f> ComponentSpaceScales;
+	TArray<float> CurveValues;
 	float AccumulatedSeconds = 0.f;
 
-	void Update(float Time, FCSPose<FCompactPose>& ComponentSpacePose, const FBoneToTransformMap& BoneToTransformMap, bool bStoreScales);
+	void Update(float Time, FCSPose<FCompactPose>& ComponentSpacePose, const FBoneToTransformMap& BoneToTransformMap, bool bStoreScales, const FBlendedCurve& Curves, const TConstArrayView<FName>& CollectedCurves);
 
-	void SetNum(int32 Num, bool bStoreScales);
+	POSESEARCH_API void SetNum(int32 Num, bool bStoreScales);
 	int32 Num() const;
 
-	void SetComponentSpaceTransform(int32 Index, const FTransform& Transform);
+	POSESEARCH_API void SetComponentSpaceTransform(int32 Index, const FTransform& Transform);
 	FTransform GetComponentSpaceTransform(int32 Index) const;
+	float GetCurveValue(int32 Index) const;
 };
 FArchive& operator<<(FArchive& Ar, FPoseHistoryEntry& Entry);
 
@@ -55,6 +57,8 @@ public:
 	// if ReferenceBoneIndexType is FBoneIndexType(-1) (ComponentSpaceIndexType), OutBoneTransform is in component space
 	// if ReferenceBoneIndexType is FBoneIndexType(-2) (WorldSpaceIndexType), OutBoneTransform is in world space
 	virtual bool GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton = nullptr, FBoneIndexType BoneIndexType = RootBoneIndexType, FBoneIndexType ReferenceBoneIndexType = ComponentSpaceIndexType, bool bExtrapolate = false) const = 0;
+	// @todo: consider consolidating into a (templated?) get X value at time once we add custom attributes to pose history.
+	virtual bool GetCurveValueAtTime(float Time, const FName& CurveName, float& OutCurveValue, bool bExtrapolate = false) const = 0;
 	virtual const FPoseSearchQueryTrajectory& GetTrajectory() const = 0;
 	
 	// @todo: deprecate this API. TrajectorySpeedMultiplier should be a global query scaling value passed as input parameter of FSearchContext during config BuildQuery
@@ -62,6 +66,7 @@ public:
 	virtual bool IsEmpty() const = 0;
 
 	virtual const FBoneToTransformMap& GetBoneToTransformMap() const = 0;
+	virtual const TConstArrayView<FName> GetCollectedCurves() const = 0;
 	virtual int32 GetNumEntries() const = 0;
 	virtual const FPoseHistoryEntry& GetEntry(int32 EntryIndex) const = 0;
 
@@ -78,11 +83,12 @@ struct POSESEARCH_API FArchivedPoseHistory : public IPoseHistory
 
 	// IPoseHistory interface
 	virtual bool GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton = nullptr, FBoneIndexType BoneIndexType = RootBoneIndexType, FBoneIndexType ReferenceBoneIndexType = ComponentSpaceIndexType, bool bExtrapolate = false) const override;
+	virtual bool GetCurveValueAtTime(float Time, const FName& CurveName, float& outcurvevalue, bool bExtrapolate = false) const override;
 	virtual const FPoseSearchQueryTrajectory& GetTrajectory() const override { return Trajectory; }
 	virtual float GetTrajectorySpeedMultiplier() const override { return 1.f; }
 	virtual bool IsEmpty() const override { return Entries.IsEmpty(); }
 	virtual const FBoneToTransformMap& GetBoneToTransformMap() const override { return BoneToTransformMap; }
-	
+	virtual const TConstArrayView<FName> GetCollectedCurves() const override { return CollectedCurves; }
 	virtual int32 GetNumEntries() const override { return Entries.Num(); }
 	virtual const FPoseHistoryEntry& GetEntry(int32 EntryIndex) const override { return Entries[EntryIndex]; }
 
@@ -93,12 +99,14 @@ struct POSESEARCH_API FArchivedPoseHistory : public IPoseHistory
 	// End of IPoseHistory interface
 
 	FBoneToTransformMap BoneToTransformMap;
+	// @todo: Make this a map if this is expected to be big.
+	TArray<FName> CollectedCurves;
 	TArray<FPoseHistoryEntry> Entries;
 	FPoseSearchQueryTrajectory Trajectory;
 };
 FArchive& operator<<(FArchive& Ar, FArchivedPoseHistory& Entry);
 
-struct FPoseHistory : public IPoseHistory
+struct POSESEARCH_API FPoseHistory : public IPoseHistory
 {
 	FPoseHistory() = default;
 	FPoseHistory(const FPoseHistory& Other);
@@ -106,18 +114,25 @@ struct FPoseHistory : public IPoseHistory
 	FPoseHistory& operator=(const FPoseHistory& Other);
 	FPoseHistory& operator=(FPoseHistory&& Other);
 
-	void PreUpdate(const UAnimInstance* AnimInstance, float DeltaTime, bool bGenerateTrajectory, const FPoseSearchTrajectoryData& TrajectoryData, const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling, bool bNeedsReset);
+	void GenerateTrajectory(const UAnimInstance* AnimInstance, float DeltaTime, const FPoseSearchTrajectoryData& TrajectoryData, const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling);
+	void PreUpdate();
 
 	void Initialize_AnyThread(int32 InNumPoses, float InSamplingInterval);
-	void CacheBones_AnyThread(const TArray<FBoneIndexType>& RequiredBones);
-	void EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales, float RootBoneRecoveryTime);
+	void EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales,
+		float RootBoneRecoveryTime, float RootBoneTranslationRecoveryRatio, float RootBoneRotationRecoveryRatio,
+		bool bNeedsReset, bool bCacheBones, const TArray<FBoneIndexType>& RequiredBones);
+	void EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales,
+		float RootBoneRecoveryTime, float RootBoneTranslationRecoveryRatio, float RootBoneRotationRecoveryRatio,
+		bool bNeedsReset, bool bCacheBones, const TArray<FBoneIndexType>& RequiredBones, const FBlendedCurve& Curves, const TConstArrayView<FName>& CollectedCurves);
 
 	// IPoseHistory interface
 	virtual bool GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton = nullptr, FBoneIndexType BoneIndexType = RootBoneIndexType, FBoneIndexType ReferenceBoneIndexType = ComponentSpaceIndexType, bool bExtrapolate = false) const override;
+	virtual bool GetCurveValueAtTime(float Time, const FName& CurveName, float& outcurvevalue, bool bExtrapolate = false) const override;
 	virtual const FPoseSearchQueryTrajectory& GetTrajectory() const override;
 	virtual float GetTrajectorySpeedMultiplier() const override;
 	virtual bool IsEmpty() const override;
 	virtual const FBoneToTransformMap& GetBoneToTransformMap() const override;
+	virtual const TConstArrayView<FName> GetCollectedCurves() const override;
 	
 	void SetTrajectory(const FPoseSearchQueryTrajectory& InTrajectory, float InTrajectorySpeedMultiplier = 1.f);
 	virtual int32 GetNumEntries() const override;
@@ -129,6 +144,9 @@ struct FPoseHistory : public IPoseHistory
 #endif
 	// End of IPoseHistory interface
 	
+	int32 GetMaxNumPoses() const { return MaxNumPoses; }
+	float GetSamplingInterval() const { return SamplingInterval; }
+
 private:
 
 	// caching MaxNumPoses, since FData::Entries.Max() is a padded number
@@ -141,40 +159,54 @@ private:
 	// @todo: deprecate this member and expose it via blue print logic or as global query scaling multiplier
 	float TrajectorySpeedMultiplier = 1.f;
 
-	struct FData
+	struct FPoseData
 	{
 		// skeleton from the last Update, to keep tracking skeleton changes, and support compatible skeletons
 		TWeakObjectPtr<const USkeleton> LastUpdateSkeleton;
 
 		// map of FBoneIndexType(s) to collect. If Empty all the bones get collected
 		FBoneToTransformMap BoneToTransformMap;
+		
+		// list of curves that we want to collect into our history.
+		TArray<FName> CollectedCurves;
+
+		// GetTypeHash for BoneToTransformMap
+		uint32 BoneToTransformMapTypeHash = 0;
 
 		// ring buffer of collected bones
 		TRingBuffer<FPoseHistoryEntry> Entries;
 	};
 
-	FData ReadData;
-	FData WriteData;
+	
+	typedef TStaticArray<FPoseData, 2> FDoubleBufferedPoseData;
+	FDoubleBufferedPoseData DoubleBufferedPoseData;
+	int32 ReadPoseDataIndex = 0;
+
+	int32 GetWritePoseDataIndex() const { return (ReadPoseDataIndex + 1) % 2; }
+	const FPoseData& GetReadPoseData() const { return DoubleBufferedPoseData[ReadPoseDataIndex]; }
+	FPoseData& EditWritePoseData() { return DoubleBufferedPoseData[GetWritePoseDataIndex()]; }
 
 #if ENABLE_ANIM_DEBUG
 	
 	// used to analyze thread safety
-	mutable FThreadSafeCounter ReadDataThreadSafeCounter = 0;
-	mutable FThreadSafeCounter WriteDataThreadSafeCounter = 0;
+	mutable FThreadSafeCounter ReadPoseDataThreadSafeCounter = 0;
+	mutable FThreadSafeCounter WritePoseDataThreadSafeCounter = 0;
 
 #endif // ENABLE_ANIM_DEBUG
 };
 
-struct FMemStackPoseHistory : public IPoseHistory
+struct POSESEARCH_API FMemStackPoseHistory : public IPoseHistory
 {
 	void Init(const IPoseHistory* InPoseHistory);
 
 	// IPoseHistory interface
 	virtual bool GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton = nullptr, FBoneIndexType BoneIndexType = RootBoneIndexType, FBoneIndexType ReferenceBoneIndexType = ComponentSpaceIndexType, bool bExtrapolate = false) const override;
+	virtual bool GetCurveValueAtTime(float Time, const FName& CurveName, float& outcurvevalue, bool bExtrapolate = false) const override;
 	virtual const FPoseSearchQueryTrajectory& GetTrajectory() const override { check(PoseHistory); return PoseHistory->GetTrajectory(); }
 	virtual float GetTrajectorySpeedMultiplier() const override { check(PoseHistory); return PoseHistory->GetTrajectorySpeedMultiplier(); }
 	virtual bool IsEmpty() const override { check(PoseHistory); return PoseHistory->IsEmpty() && FutureEntries.IsEmpty(); }
 	virtual const FBoneToTransformMap& GetBoneToTransformMap() const override { check(PoseHistory); return PoseHistory->GetBoneToTransformMap(); }
+	virtual const TConstArrayView<FName> GetCollectedCurves() const override { check(PoseHistory); return PoseHistory->GetCollectedCurves(); }
 	
 	virtual int32 GetNumEntries() const override;
 	virtual const FPoseHistoryEntry& GetEntry(int32 EntryIndex) const override;
@@ -187,19 +219,13 @@ struct FMemStackPoseHistory : public IPoseHistory
 
 	void AddFutureRootBone(float Time, const FTransform& FutureRootBoneTransform, bool bStoreScales);
 	void AddFuturePose(float Time, FCSPose<FCompactPose>& ComponentSpacePose);
+	void AddFuturePose(float Time, FCSPose<FCompactPose>& ComponentSpacePose, const FBlendedCurve& Curves);
 
 	const IPoseHistory* GetThisOrPoseHistory() const { return FutureEntries.IsEmpty() ? PoseHistory : this; }
 
 private:
 	const IPoseHistory* PoseHistory = nullptr;
 	TArray<FPoseHistoryEntry, TInlineAllocator<4, TMemStackAllocator<>>> FutureEntries;
-};
-
-class IPoseHistoryProvider : public UE::Anim::IGraphMessage
-{
-	DECLARE_ANIMGRAPH_MESSAGE(IPoseHistoryProvider);
-public:
-	virtual const IPoseHistory& GetPoseHistory() const = 0;
 };
 
 struct FHistoricalPoseIndex

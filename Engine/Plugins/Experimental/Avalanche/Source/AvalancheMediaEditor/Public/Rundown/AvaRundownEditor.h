@@ -9,7 +9,6 @@
 
 class FAvaRundownEditorInputProcessor;
 class FAvaRundownManagedInstance;
-class FAvaRundownPageTextFilter;
 class SAvaRundownInstancedPageList;
 class SAvaRundownPageList;
 class SAvaRundownReadPage;
@@ -42,6 +41,11 @@ public:
 
 	bool IsRundownValid() const { return AvaRundown.IsValid(); }
 	AVALANCHEMEDIAEDITOR_API UAvaRundown* GetRundown() const;
+
+	/** Begin transaction buffer, but don't mark as dirty yet. */
+	void BeginModify();
+	
+	/** Mark the rundown as dirty. */
 	void MarkAsModified();
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPageEvent, const TArray<int32>&, UE::AvaRundown::EPageEvent);
@@ -104,13 +108,11 @@ public:
 	bool CanRemoveSelectedPages() const;
 	void RemoveSelectedPages();
 
-	void RefreshTemplateVisibility();
-	void RefreshInstancedVisibility();
+	void RefreshSubListTabs();
 
-	bool IsTemplatePageVisible(const FAvaRundownPage& InPage) const;
-	bool IsInstancedPageVisible(const FAvaRundownPage& InPage) const;
+	bool RequestCloseDocumentTab(const FName& InDocumentTabId);
 
-	void SetSearchText(const FText& InText, EAvaRundownSearchListType& InPageListType);
+	void UnregisterDocumentTabFactory(const FName& InDocumentTabId);
 
 protected:
 	void RegisterApplicationModes();
@@ -141,19 +143,6 @@ protected:
 	using FBindableMacroCommands = TMap<FName, FMacroCommandFunction>;
 	const FBindableMacroCommands& GetBindableMacroCommands();
 
-private:
-	void SetTemplateSearchText(const FText& InText);
-
-	void SetInstancedSearchText(const FText& InText);
-
-	void OnTemplateFilterChanged();
-
-	void OnInstancedFilterChanged();
-
-	void InitVisibilityTemplatePages();
-
-	void InitVisibilityInstancedPages();
-
 protected:
 	/**
 	 *	Tickable object that keeps track of the play time of a page and will automatically
@@ -181,28 +170,23 @@ protected:
 	};
 	TUniquePtr<FAutoPlayTicker> AutoPlayTicker;
 
-	TSharedPtr<SDockTab> CreateSubListTab(int32 InSubListIndex);
-	void CreateSubListTabs();
+	TSharedPtr<SDockTab> CreateSubListTab(const FAvaRundownPageListReference& InSubListReference);
 
-	void OnActiveSubListChanged();
+	void RefreshSubListTab(const FAvaRundownPageListReference& InSubListReference, bool bInSetActive = false);
+
+	void OnPageListChanged(const FAvaRundownPageListChangeParams& InParams);
+	void OnActiveListChanged();
 	void HandleOnPagePlayerAdded(UAvaRundown* InRundown, UAvaRundownPagePlayer* InPagePlayer);
+	void OnCanClosePlaybackContext(const UAvaRundown* InRundown, bool& bOutResult) const;
 
 	TWeakObjectPtr<UAvaRundown> AvaRundown;
 
 	FOnPageEvent OnPageEvent;
 
-	TMap<FName, TWeakPtr<SDockTab>> SubListTabs;
-
 private:
 	TSharedPtr<SAvaRundownReadPage> ReadPageWidget;
 
 	TSharedPtr<FAvaRundownEditorInputProcessor> InputProcessor;
-
-	TSharedRef<FAvaRundownPageTextFilter> TextFilterTemplatePage;
-	TArray<int32> VisibleTemplatePageIds;
-
-	TSharedRef<FAvaRundownPageTextFilter> TextFilterInstancedPage;
-	TArray<int32> VisibleInstancedPageIds;
 
 	/**
 	 * All rundown editor instances share the same command handlers.

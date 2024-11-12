@@ -39,7 +39,6 @@ public class RemoteControlUI : ModuleRules
 				"Serialization",
 				"Slate",
 				"SlateCore",
-				"StructUtils",
 				"ToolMenus",
 				"ToolWidgets",
 				"TypedElementFramework",

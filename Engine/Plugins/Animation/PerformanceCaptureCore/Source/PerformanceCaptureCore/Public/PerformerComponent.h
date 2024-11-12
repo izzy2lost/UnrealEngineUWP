@@ -11,7 +11,7 @@
 class ULiveLinkInstance;
 
 UCLASS(BlueprintType, DisplayName="Performer Component",  ClassGroup=("Performance Capture"), meta=(BlueprintSpawnableComponent))
-class UPerformerComponent : public UActorComponent
+class PERFORMANCECAPTURECORE_API UPerformerComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
@@ -47,28 +47,28 @@ public:
 	* Set the LiveLink Subject Name. Subject must have the Animation Role Type.
 	* @param Subject New LiveLink Subject.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Performance Capture")
+	UFUNCTION(BlueprintCallable, Category = "Performance Capture|Performer")
 	void SetLiveLinkSubject(FLiveLinkSubjectName Subject);
 	
 	/**
 	* Get the LiveLink Subject Name.
 	* @return FLiveLinkSubjectName Current LiveLink Subject.
 	*/
-	UFUNCTION(BlueprintCallable, Category ="Performance Capture")
+	UFUNCTION(BlueprintCallable, Category ="Performance Capture|Performer")
 	FLiveLinkSubjectName GetLiveLinkSubject() const;
 	
 	/**
 	* Set the LiveLink data to update the Skeletal Mesh pose.
 	* @param bEvaluateLinkLink Drive or pause the Skeletal Mesh from LiveLink Subject data.
 	*/
-	UFUNCTION(BlueprintCallable, Category ="Performance Capture")
+	UFUNCTION(BlueprintCallable, Category ="Performance Capture|Performer")
 	void SetEvaluateLiveLinkData(bool bEvaluateLinkLink);
 	
 	/**
-	* Get the LiveLink Subject Name. Subject must have the Animation Role Type.
+	* Get the LiveLink Evaluation State. Subject must have the Animation Role Type.
 	* @return bool Is LiveLink data being evaluated.
 	*/
-	UFUNCTION(BlueprintPure, Category ="Performance Capture")
+	UFUNCTION(BlueprintPure, Category ="Performance Capture|Performer")
 	bool GetEvaluateLiveLinkData();
 
 protected:

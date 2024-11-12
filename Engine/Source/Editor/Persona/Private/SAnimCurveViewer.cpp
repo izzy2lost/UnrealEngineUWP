@@ -632,7 +632,6 @@ void SAnimCurveViewer::Construct(const FArguments& InArgs,  const TSharedRef<IPe
 			.OnContextMenuOpening( this, &SAnimCurveViewer::OnGetContextMenuContent )
 			.ListItemsSource( &AnimCurveList )
 			.OnGenerateRow( this, &SAnimCurveViewer::GenerateAnimCurveRow )
-			.ItemHeight( 18.0f )
 			.SelectionMode(ESelectionMode::Multi)
 			.HeaderRow
 			(

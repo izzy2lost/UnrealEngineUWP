@@ -38,8 +38,11 @@ public:
 	}
 
 	// Conversion to other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
-	explicit TDualQuat(const TDualQuat<FArg>& From) : TDualQuat<T>(TQuat<T>(From.R), TQuat<T>(From.D)) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
+	explicit TDualQuat(const TDualQuat<FArg>& From)
+		: TDualQuat<T>(TQuat<T>(From.R), TQuat<T>(From.D))
+	{
+	}
 
 	/** Dual quat addition */
 	TDualQuat<T> operator+(const TDualQuat<T> &B) const

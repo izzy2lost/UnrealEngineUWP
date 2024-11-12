@@ -3,7 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "Widgets/SWidget.h"
-#include "Engine/MeshMerging.h"
+#include "MeshMerge/MeshApproximationSettings.h"
 #include "MergeActorsTool.h"
 
 #include "MeshApproximationTool.generated.h"

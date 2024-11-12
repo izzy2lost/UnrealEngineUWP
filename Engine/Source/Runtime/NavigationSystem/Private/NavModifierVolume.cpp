@@ -18,12 +18,15 @@ namespace UE::Navigation::ModVolume::Private
 {
 	void OnNavAreaRegistrationChanged(ANavModifierVolume& ModifierVolume, const UWorld& World, const UClass* NavAreaClass)
 	{
-		if (NavAreaClass && NavAreaClass == ModifierVolume.GetAreaClass() && &World == ModifierVolume.GetWorld())
+		if (NavAreaClass
+			&& (NavAreaClass == ModifierVolume.GetAreaClass() || NavAreaClass == ModifierVolume.GetAreaClassToReplace())
+			&& &World == ModifierVolume.GetWorld()
+			&& ModifierVolume.HasActorRegisteredAllComponents()) // Update only required after initial registration was completed
 		{
 			FNavigationSystem::UpdateActorData(ModifierVolume);
 		}
 	}
-} // UE::Navigation::ModVolumne::Private
+} // UE::Navigation::ModVolume::Private
 #endif // WITH_EDITOR
 
 //----------------------------------------------------------------------//
@@ -32,6 +35,7 @@ namespace UE::Navigation::ModVolume::Private
 ANavModifierVolume::ANavModifierVolume(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, AreaClass(UNavArea_Null::StaticClass())
+	, AreaClassToReplace(nullptr)
 	, NavMeshResolution(ENavigationDataResolution::Invalid)
 {
 	if (GetBrushComponent())
@@ -107,9 +111,13 @@ void ANavModifierVolume::OnNavAreaUnregistered(const UWorld& World, const UClass
 
 void ANavModifierVolume::GetNavigationData(FNavigationRelevantData& Data) const
 {
-	if (Brush && AreaClass && AreaClass != FNavigationSystem::GetDefaultWalkableArea())
+	if (Brush && AreaClass)
 	{
-		Data.Modifiers.CreateAreaModifiers(GetBrushComponent(), AreaClass);
+		// No need to create modifiers if the AreaClass we want to set is the default one unless we want to replace a NavArea to default.
+		if (AreaClass != FNavigationSystem::GetDefaultWalkableArea() || AreaClassToReplace)
+		{
+			Data.Modifiers.CreateAreaModifiers(GetBrushComponent(), AreaClass, AreaClassToReplace);
+		}
 	}
 
 	if (GetBrushComponent()->Brush != nullptr)
@@ -117,7 +125,12 @@ void ANavModifierVolume::GetNavigationData(FNavigationRelevantData& Data) const
 		if (bMaskFillCollisionUnderneathForNavmesh)
 		{
 			const FBox& Box = GetBrushComponent()->Brush->Bounds.GetBox();
-			const FAreaNavModifier AreaMod(Box, GetBrushComponent()->GetComponentTransform(), AreaClass);
+			FAreaNavModifier AreaMod(Box, GetBrushComponent()->GetComponentTransform(), AreaClass);
+			if (AreaClassToReplace)
+			{
+				AreaMod.SetAreaClassToReplace(AreaClassToReplace);
+				AreaMod.SetApplyMode(ENavigationAreaMode::Replace);
+			}
 			Data.Modifiers.SetMaskFillCollisionUnderneathForNavmesh(true);
 			Data.Modifiers.Add(AreaMod);
 		}
@@ -144,6 +157,16 @@ void ANavModifierVolume::SetAreaClass(TSubclassOf<UNavArea> NewAreaClass)
 	}
 }
 
+void ANavModifierVolume::SetAreaClassToReplace(TSubclassOf<UNavArea> NewAreaClassToReplace)
+{
+	if (NewAreaClassToReplace != AreaClassToReplace)
+	{
+		AreaClassToReplace = NewAreaClassToReplace;
+
+		FNavigationSystem::UpdateActorData(*this);
+	}
+}
+
 void ANavModifierVolume::RebuildNavigationData()
 {
 	FNavigationSystem::UpdateActorData(*this);
@@ -165,13 +188,14 @@ void ANavModifierVolume::PostEditUndo()
 void ANavModifierVolume::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	static const FName NAME_AreaClass = GET_MEMBER_NAME_CHECKED(ANavModifierVolume, AreaClass);
+	static const FName NAME_AreaClassToReplace = GET_MEMBER_NAME_CHECKED(ANavModifierVolume, AreaClassToReplace);
 	static const FName NAME_BrushComponent = TEXT("BrushComponent");
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 	
 	const FName PropName = PropertyChangedEvent.Property ? PropertyChangedEvent.Property->GetFName() : NAME_None;
 
-	if (PropName == NAME_AreaClass)
+	if (PropName == NAME_AreaClass || PropName == NAME_AreaClassToReplace)
 	{
 		FNavigationSystem::UpdateActorData(*this);
 	}

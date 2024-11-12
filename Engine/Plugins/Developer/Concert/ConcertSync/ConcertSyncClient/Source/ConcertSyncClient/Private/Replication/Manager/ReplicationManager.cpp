@@ -4,15 +4,20 @@
 
 #include "IConcertSession.h"
 #include "ReplicationManagerState_Disconnected.h"
-#include "ReplicationManagerUtils.h"
+#include "Replication/Manager/Utils/ReplicationManagerUtils.h"
 
 #include "Replication/Messages/Handshake.h"
 
 namespace UE::ConcertSyncClient::Replication
 {
-	FReplicationManager::FReplicationManager(TSharedRef<IConcertClientSession> InLiveSession, IConcertClientReplicationBridge* InBridge)
+	FReplicationManager::FReplicationManager(
+		TSharedRef<IConcertClientSession> InLiveSession,
+		IConcertClientReplicationBridge& InBridge,
+		EConcertSyncSessionFlags SessionFlags
+		)
 		: Session(MoveTemp(InLiveSession))
 		, Bridge(InBridge)
+		, SessionFlags(SessionFlags)
 	{}
 
 	FReplicationManager::~FReplicationManager()
@@ -21,7 +26,7 @@ namespace UE::ConcertSyncClient::Replication
 	void FReplicationManager::StartAcceptingJoinRequests()
 	{
 		checkSlow(!CurrentState.IsValid());
-		CurrentState = MakeShared<FReplicationManagerState_Disconnected>(Session, Bridge, *this);
+		CurrentState = MakeShared<FReplicationManagerState_Disconnected>(Session, Bridge, *this, SessionFlags);
 	}
 
 	TFuture<FJoinReplicatedSessionResult> FReplicationManager::JoinReplicationSession(FJoinReplicatedSessionArgs Args)
@@ -99,32 +104,110 @@ namespace UE::ConcertSyncClient::Replication
 			: TSet<FGuid>{}; 
 	}
 
-	IConcertClientReplicationManager::FOnPreStreamsChanged& FReplicationManager::OnPreStreamsChanged()
+	IConcertClientReplicationManager::ESyncControlEnumerationResult FReplicationManager::ForEachSyncControlledObject(TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID& Object)> Callback) const
 	{
 		// Check() to avoid returning some dummy static variable
+		ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		return CurrentState
+			? CurrentState->ForEachSyncControlledObject(Callback)
+			: ESyncControlEnumerationResult::NoneAvailable;
+	}
+
+	uint32 FReplicationManager::NumSyncControlledObjects() const
+	{
+		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
+			? CurrentState->NumSyncControlledObjects()
+			: 0;
+	}
+
+	bool FReplicationManager::HasSyncControl(const FConcertObjectInStreamID& Object) const
+	{
+		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
+			&& CurrentState->HasSyncControl(Object);
+	}
+
+	TFuture<FConcertReplication_ChangeMuteState_Response> FReplicationManager::ChangeMuteState(FConcertReplication_ChangeMuteState_Request Request)
+	{
+		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
+			? CurrentState->ChangeMuteState(MoveTemp(Request))
+			: MakeFulfilledPromise<FConcertReplication_ChangeMuteState_Response>().GetFuture(); 
+	}
+
+	TFuture<FConcertReplication_QueryMuteState_Response> FReplicationManager::QueryMuteState(FConcertReplication_QueryMuteState_Request Request)
+	{
+		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
+			? CurrentState->QueryMuteState(MoveTemp(Request))
+			: MakeFulfilledPromise<FConcertReplication_QueryMuteState_Response>().GetFuture(); 
+	}
+
+	TFuture<FConcertReplication_RestoreContent_Response> FReplicationManager::RestoreContent(FConcertReplication_RestoreContent_Request Request)
+	{
+		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
+			? CurrentState->RestoreContent(MoveTemp(Request))
+			: MakeFulfilledPromise<FConcertReplication_RestoreContent_Response>().GetFuture(); 
+	}
+
+	TFuture<FConcertReplication_PutState_Response> FReplicationManager::PutClientState(FConcertReplication_PutState_Request Request)
+	{
+		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
+			? CurrentState->PutClientState(MoveTemp(Request))
+			: MakeFulfilledPromise<FConcertReplication_PutState_Response>().GetFuture(); 
+	}
+
+	IConcertClientReplicationManager::FOnPreStreamsChanged& FReplicationManager::OnPreStreamsChanged()
+	{
+		// checkf() to avoid returning some dummy static variable
 		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
 		return CurrentState->OnPreStreamsChanged();
 	}
 
 	IConcertClientReplicationManager::FOnPostStreamsChanged& FReplicationManager::OnPostStreamsChanged()
 	{
-		// Check() to avoid returning some dummy static variable
+		// checkf() to avoid returning some dummy static variable
 		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
 		return CurrentState->OnPostStreamsChanged();
 	}
 
 	IConcertClientReplicationManager::FOnPreAuthorityChanged& FReplicationManager::OnPreAuthorityChanged()
 	{
-		// Check() to avoid returning some dummy static variable
+		// checkf() to avoid returning some dummy static variable
 		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
 		return CurrentState->OnPreAuthorityChanged();
 	}
 
 	IConcertClientReplicationManager::FOnPostAuthorityChanged& FReplicationManager::OnPostAuthorityChanged()
 	{
-		// Check() to avoid returning some dummy static variable
+		// checkf() to avoid returning some dummy static variable
 		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
 		return CurrentState->OnPostAuthorityChanged();
+	}
+	
+	IConcertClientReplicationManager::FSyncControlChanged& FReplicationManager::OnPreSyncControlChanged()
+	{
+		// checkf() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		return CurrentState->OnPreSyncControlChanged();
+	}
+
+	IConcertClientReplicationManager::FSyncControlChanged& FReplicationManager::OnPostSyncControlChanged()
+	{
+		// checkf() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		return CurrentState->OnPostSyncControlChanged();
+	}
+
+	IConcertClientReplicationManager::FOnRemoteEditApplied& FReplicationManager::OnPreRemoteEditApplied()
+	{
+		// checkf() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		return CurrentState->OnPreRemoteEditApplied();
+	}
+
+	IConcertClientReplicationManager::FOnRemoteEditApplied& FReplicationManager::OnPostRemoteEditApplied()
+	{
+		// checkf() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		return CurrentState->OnPostRemoteEditApplied();
 	}
 
 	void FReplicationManager::OnChangeState(TSharedRef<FReplicationManagerState> NewState)

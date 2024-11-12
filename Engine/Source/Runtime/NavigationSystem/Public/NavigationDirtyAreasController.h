@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "AI/Navigation/NavigationTypes.h"
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Containers/Array.h"
 #include "HAL/Platform.h"
 #include "Logging/LogMacros.h"
@@ -11,12 +13,13 @@
 #include "UObject/UnrealNames.h"
 
 class UObject;
-
-
-NAVIGATIONSYSTEM_API DECLARE_LOG_CATEGORY_EXTERN(LogNavigationDirtyArea, Warning, All);
-
 class ANavigationData;
 struct FNavigationDirtyElement;
+struct FNavigationElement;
+struct FNavigationDirtyArea;
+enum class ENavigationDirtyFlag : uint8;
+
+NAVIGATIONSYSTEM_API DECLARE_LOG_CATEGORY_EXTERN(LogNavigationDirtyArea, Warning, All);
 
 struct FNavigationDirtyAreasController
 {
@@ -56,27 +59,33 @@ public:
 	NAVIGATIONSYSTEM_API void Tick(float DeltaSeconds, const TArray<ANavigationData*>& NavDataSet, bool bForceRebuilding = false);
 
 	/** Add a dirty area to the queue based on the provided bounds and flags.
-	 * Bounds must be valid and non empty otherwise the request will be ignored and a warning reported.
+	 * Bounds must be valid and non-empty otherwise the request will be ignored and a warning reported.
 	 * Accumulation must be allowed and flags valid otherwise the add is ignored.
 	 * @param NewArea Bounding box of the affected area
 	 * @param Flags Indicates the type of modification applied to the area
-	 * @param ObjectProviderFunc Optional function to retrieve source object that can be use for error reporting and navmesh exclusion
+	 * @param ElementProviderFunc Optional function to retrieve source element that can be used for error reporting and navmesh exclusion
 	 * @param DirtyElement Optional dirty element
 	 * @param DebugReason Source of the new area
 	 */
+	NAVIGATIONSYSTEM_API void AddArea(const FBox& NewArea, const ENavigationDirtyFlag Flags, const TFunction<const TSharedPtr<const FNavigationElement>()>& ElementProviderFunc = nullptr,
+		const FNavigationDirtyElement* DirtyElement = nullptr, const FName& DebugReason = NAME_None);
+	UE_DEPRECATED(5.5, "Use the version taking ENavigationDirtyFlag and FNavigationElement instead.")
 	NAVIGATIONSYSTEM_API void AddArea(const FBox& NewArea, const int32 Flags, const TFunction<UObject*()>& ObjectProviderFunc = nullptr,
 		const FNavigationDirtyElement* DirtyElement = nullptr, const FName& DebugReason = NAME_None);
 
-	/** Add non empty list of dirty areas to the queue based on the provided bounds and flags.
-	 * Bounds must be valid and non empty otherwise the request will be ignored and a warning reported.
+	/** Add non-empty list of dirty areas to the queue based on the provided bounds and flags.
+	 * Bounds must be valid and non-empty otherwise the request will be ignored and a warning reported.
 	 * Accumulation must be allowed and flags valid otherwise the add is ignored.
 	 * A check will be triggered if an empty array is provided.
 	 * @param NewAreas Array of bounding boxes of the affected areas
 	 * @param Flags Indicates the type of modification applied to the area
-	 * @param ObjectProviderFunc Optional function to retrieve source object that can be use for error reporting and navmesh exclusion
+	 * @param ElementProviderFunc Optional function to retrieve source element that can be used for error reporting and navmesh exclusion
 	 * @param DirtyElement Optional dirty element
 	 * @param DebugReason Source of the new area
 	 */
+	NAVIGATIONSYSTEM_API void AddAreas(const TConstArrayView<FBox> NewAreas, const ENavigationDirtyFlag Flags, const TFunction<const TSharedPtr<const FNavigationElement>()>& ElementProviderFunc = nullptr,
+		const FNavigationDirtyElement* DirtyElement = nullptr, const FName& DebugReason = NAME_None);
+	UE_DEPRECATED(5.5, "Use the version taking ENavigationDirtyFlag and FNavigationElement instead.")
 	NAVIGATIONSYSTEM_API void AddAreas(const TConstArrayView<FBox> NewAreas, const int32 Flags, const TFunction<UObject*()>& ObjectProviderFunc = nullptr,
 		const FNavigationDirtyElement* DirtyElement = nullptr, const FName& DebugReason = NAME_None);
 	
@@ -94,6 +103,6 @@ public:
 	bool HadDirtyAreasReportedWhileAccumulationLocked() const { return bCanAccumulateDirtyAreas == false && bDirtyAreasReportedWhileAccumulationLocked; }
 #endif // UE_BUILD_SHIPPING
 
-	DECLARE_DELEGATE_RetVal_OneParam(bool, FSkipObjectSignature, UObject& /*Object*/);
-	FSkipObjectSignature ShouldSkipObjectPredicate;  
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FSkipObjectSignature, const UObject& /*Object*/);
+	FSkipObjectSignature ShouldSkipObjectPredicate;
 };

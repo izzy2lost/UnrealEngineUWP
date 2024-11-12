@@ -3,6 +3,7 @@
 #include "DSP/LinearInterpFractionalDelay.h"
 #include "DSP/Dsp.h"
 #include "DSP/BufferVectorOperations.h"
+#include "DSP/FloatArrayMath.h"
 
 namespace Audio
 {
@@ -106,52 +107,7 @@ namespace Audio
 		const float* DelayData = DelayLine->InspectSamples(InNum + MaxDelay + 1);
 		const int32* IntegerDelayOffsetData = IntegerDelayOffsets.GetData();
 
-		const VectorRegister4Float VMaxDelay = MakeVectorRegister((float)MaxDelay, (float)MaxDelay, (float)MaxDelay, (float)MaxDelay);
-		for (int32 i = 0; i < InNum; i += 4)
-		{
-			
-			VectorRegister4Float VFractionalDelays = VectorLoad(&InDelays[i]);
-			// Ensure fractional delays are positive
-			VFractionalDelays = VectorMax(VFractionalDelays, GlobalVectorConstants::FloatZero);
-			VFractionalDelays = VectorMin(VFractionalDelays, VMaxDelay);
-
-			// Separate integer from fraction
-			VectorRegister4Float VFloorDelays = VectorFloor(VFractionalDelays);
-
-			// Determine linear weights
-			VectorRegister4Float VUpperCoefficients = VectorSubtract(VFractionalDelays, VFloorDelays);
-			VectorRegister4Float VLowerCoefficients = VectorSubtract(GlobalVectorConstants::FloatOne, VUpperCoefficients);
-
-
-			// Make integer locations relative to block
-			VectorRegister4Int VIntegerDelays = VectorFloatToInt(VFloorDelays);
-			VectorRegister4Int VIntegerDelayOffset = VectorIntLoadAligned(&IntegerDelayOffsetData[i]);
-			VIntegerDelays = VectorIntSubtract(VIntegerDelayOffset, VIntegerDelays);
-
-			// Lookup samples for interpolation
-			VectorIntStoreAligned(VIntegerDelays, UpperDelayPos);
-			VectorIntStoreAligned(VectorIntAdd(VIntegerDelays, GlobalVectorConstants::IntOne), LowerDelayPos);
-			
-			VectorRegister4Float VLowerSamples = MakeVectorRegister(
-				DelayData[LowerDelayPos[0]],
-				DelayData[LowerDelayPos[1]],
-				DelayData[LowerDelayPos[2]],
-				DelayData[LowerDelayPos[3]]
-			);
-			VectorRegister4Float VUpperSamples = MakeVectorRegister(
-				DelayData[UpperDelayPos[0]],
-				DelayData[UpperDelayPos[1]],
-				DelayData[UpperDelayPos[2]],
-				DelayData[UpperDelayPos[3]]
-			);
-
-			// Interpolate samples
-			VectorRegister4Float VOut = VectorMultiplyAdd(
-				VLowerSamples,
-				VLowerCoefficients,
-				VectorMultiply(VUpperSamples, VUpperCoefficients));
-			VectorStore(VOut, &OutSamples[i]);
-		}
+		ArrayLerpFractionalDelay(InSamples, InDelays, DelayData, IntegerDelayOffsetData, UpperDelayPos, LowerDelayPos, InNum, OutSamples, (float)MaxDelay);
 
 		// Remove unneeded delay line.
 		DelayLine->RemoveSamples(InNum);

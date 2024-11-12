@@ -5,6 +5,7 @@
 #include "RHIDefinitions.h"
 #include "Containers/IndirectArray.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
+#include "Rendering/NaniteInterface.h"
 
 struct FMeshUVChannelInfo;
 class USkeletalMesh;
@@ -18,6 +19,9 @@ class FSkeletalMeshRenderData
 public:
 	/** Per-LOD render data. */
 	TIndirectArray<FSkeletalMeshLODRenderData> LODRenderData;
+
+	/** Nanite resource data. */
+	TPimplPtr<Nanite::FResources> NaniteResourcesPtr;
 
 	/** True if rhi resources are initialized */
 	bool bReadyForStreaming;
@@ -39,6 +43,10 @@ public:
 
 	/** Whether ray tracing acceleration structures should be created for this mesh. Derived from owner USkinnedAsset. */
 	bool bSupportRayTracing;
+
+#if RHI_RAYTRACING
+	RayTracing::GeometryGroupHandle RayTracingGeometryGroupHandle = INDEX_NONE;
+#endif
 
 #if WITH_EDITORONLY_DATA
 	/** UV data used for streaming accuracy debug view modes. In sync for rendering thread */
@@ -107,7 +115,7 @@ public:
 		return GetFirstValidLODIdx(FMath::Max<int32>(PendingFirstLODIdx, MinLODIdx));
 	}
 
-	/** Check if any rendersection casts shadows */
+	/** Check if any render section casts shadows */
 	ENGINE_API bool AnyRenderSectionCastsShadows(int32 MinLODIdx) const;
 
 	/** 
@@ -125,6 +133,8 @@ public:
 	{
 		return bInitialized;
 	}
+
+	ENGINE_API bool HasValidNaniteData() const;
 
 private:
 

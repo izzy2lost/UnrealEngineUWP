@@ -669,15 +669,6 @@ void FLevelEditorContextMenu::RegisterMenuBarEmptyContextMenu()
 
 	const FText EmptySelectionInformationalMessage = LOCTEXT("EmptySelectionInformationalMessage", "Select an object to view actions.");
 
-#if PLATFORM_MAC
-	// Can't include arbitrary widgets in a main menu on Mac, so display the informational message using a disabled entry.
-	Section.AddMenuEntry(
-		NAME_None,
-		EmptySelectionInformationalMessage,
-		TAttribute<FText>(),
-		TAttribute<FSlateIcon>(),
-		FUIAction(FExecuteAction(), FCanExecuteAction::CreateLambda([]() { return false; })));
-#else
 	Section.AddEntry(FToolMenuEntry::InitWidget(
 		NAME_None,
 		SNew(SBox)
@@ -688,7 +679,6 @@ void FLevelEditorContextMenu::RegisterMenuBarEmptyContextMenu()
 			.TextStyle(FAppStyle::Get(), "HintText")
 		],
 		FText::GetEmpty(), /*bNoIndent*/ true, /*bSearchable*/ false));
-#endif
 }
 
 void FLevelEditorContextMenu::RegisterEmptySelectionContextMenu()
@@ -1190,6 +1180,10 @@ private:
 
 void FLevelEditorContextMenuImpl::FillActorMenu(UToolMenu* Menu)
 {
+	// The contents of this menu are added as a custom widget with its own search field so we
+	// disable searching in this parent menu to avoid displaying two search fields to the user.
+	Menu->bSearchable = false;
+
 	struct Local
 	{
 		static FReply OnInteractiveActorPickerClicked()

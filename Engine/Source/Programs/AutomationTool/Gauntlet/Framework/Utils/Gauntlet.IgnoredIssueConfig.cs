@@ -43,14 +43,14 @@ namespace Gauntlet
 		/// Load from the provided JOSN file.
 		/// [
 		///		{
-		//			"TestName" : "Game.AbilityTests",
-		//			"IgnoredWarnings" : [
-		//				"PNG Error: Duplicate ICCP"
-		//			],
-		//			"IgnoredEnsures" : [
-		//				"Ensure condition failed: GlobalAbilityTaskCount < 1000",
-		//			]
-		//		}
+		///			"TestName" : "Game.AbilityTests",
+		///			"IgnoredWarnings" : [
+		///				"PNG Error: Duplicate ICCP"
+		///			],
+		///			"IgnoredEnsures" : [
+		///				"Ensure condition failed: GlobalAbilityTaskCount < 1000",
+		///			]
+		///		}
 		/// ]
 		/// </summary>
 		/// <param name="InPath"></param>
@@ -112,7 +112,7 @@ namespace Gauntlet
 		/// Returns true if the provided error should be ignored for the specified test name
 		/// </summary>
 		/// <param name="InTestName"></param>
-		/// <param name="InError"></param>
+		/// <param name="InEntry"></param>
 		/// <returns></returns>
 		public bool IsLogEntryIgnored(string InTestName, UnrealLog.LogEntry InEntry)
 		{

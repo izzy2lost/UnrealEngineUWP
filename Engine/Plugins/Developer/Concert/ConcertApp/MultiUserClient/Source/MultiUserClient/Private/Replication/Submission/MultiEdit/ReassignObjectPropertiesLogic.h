@@ -3,9 +3,8 @@
 #pragma once
 
 #include "Replication/IToken.h"
+#include "Replication/Misc/Util/SynchronizedRequestUtils.h"
 #include "Replication/Submission/Queue/DeferredSubmitter.h"
-#include "Replication/Util/StreamRequestUtils.h"
-#include "Replication/Util/SynchronizedRequestUtils.h"
 
 #include "Misc/OptionalFwd.h"
 #include "Templates/Function.h"
@@ -14,9 +13,9 @@
 enum class EBreakBehavior : uint8;
 struct FConcertPropertyChain;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
-	class FReplicationClientManager;
+	class FOnlineClientManager;
 	class IParallelSubmissionOperation;
 	
 	/**
@@ -42,11 +41,9 @@ namespace UE::MultiUserClient
 		};
 		using FProcessClientOwnership = TFunctionRef<EBreakBehavior(const FGuid& ClientId, EOwnershipState Ownership)>;
 		
-		FReassignObjectPropertiesLogic(FReplicationClientManager& InClientManager);
+		FReassignObjectPropertiesLogic(FOnlineClientManager& InClientManager);
 		virtual ~FReassignObjectPropertiesLogic() override;
 
-		/** Enumerates every client that has registered properties to this object. */
-		void EnumerateClientOwnershipState(const FSoftObjectPath& ObjectPath, FProcessClientOwnership Callback) const;
 		/** @return Whether ClientId has ownership over at least one */
 		bool OwnsAnyOf(TConstArrayView<FSoftObjectPath> Objects, const FGuid& TargetClientId) const;
 		/** @return Whether any of the following objects has at least one owner */
@@ -62,16 +59,13 @@ namespace UE::MultiUserClient
 		/** @return The local time at which reassignment operation was started. Useful for UI showing throbber but only if operation takes long.*/
 		TOptional<FDateTime> GetTimeReassignmentWasStarted() const;
 
-		/** Broadcast when the result of EnumerateClientOwnershipState may have changed. */
-		FSimpleMulticastDelegate& OnOwnershipChanged() { return OnOwnershipChangedDelegate; }
-
 	private:
 
 		/** Detects when "this" is destroyed to avoid dereferencing it in latent actions. */
 		const TSharedRef<FToken> DestructionToken = FToken::Make();
 
 		/** Used to get info about clients and register to client list changing. */
-		FReplicationClientManager& ClientManager;
+		FOnlineClientManager& ClientManager;
 
 		struct FOperationData
 		{
@@ -108,8 +102,6 @@ namespace UE::MultiUserClient
 		FSimpleMulticastDelegate OnOwnershipChangedDelegate;
 
 		void OnRemoteClientsChanged();
-		void OnClientCacheChanged(const FGuid&) const { BroadcastOwnershipChanged(); }
-		void BroadcastOwnershipChanged() const { OnOwnershipChangedDelegate.Broadcast(); }
 
 		/** Called once all clients being reassigned have remove their object bindings. The target client will now receive all the previous bindings. */
 		void OnAssignedFromClientsCompleted(FParallelExecutionResult ParallelResult);

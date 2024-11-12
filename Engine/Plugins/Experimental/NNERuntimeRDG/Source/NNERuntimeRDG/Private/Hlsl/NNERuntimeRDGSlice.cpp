@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGSlice.h"
+
 #include "Helper/NNERuntimeRDGOperatorHelper.h"
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersSliceCS.h"
 #include "NNERuntimeRDGHelperSlice.h"
 #include "NNERuntimeRDGHlslHelper.h"
@@ -26,76 +28,118 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	private:
 
-		mutable TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> AxesAttr;
-		mutable TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> EndsAttr;
-		mutable TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> StartsAttr;
+		TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> AxesAttr;
+		TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> EndsAttr;
+		TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> StartsAttr;
+		TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> StepsAttr;
 
-		mutable TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> Start;
-		mutable TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> End;
+		TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> Start;
+		TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> End;
+		TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> Step;
 
-		bool TryGetAttributesFromConstantTensors(TConstArrayView<NNE::Internal::FTensorRef> InputTensors) const
+		bool TryGetAttributesFromConstantTensors(TConstArrayView<NNE::Internal::FTensorRef> InputTensors)
 		{
 			check(InputTensors.Num() >= 3 && InputTensors.Num() <= 5);
 
-			if (!OperatorHelper::GetInt32ArrayFromConstTensor(StartsAttr, InputTensors[1]))
-			{
-				UE_LOG(LogNNE, Warning, TEXT("Error: Slice op 'Starts' input at index 1 is only supported as a constant integer tensor but it is not."));
-				return false;
-			}
-			if (!OperatorHelper::GetInt32ArrayFromConstTensor(EndsAttr, InputTensors[2]))
-			{
-				UE_LOG(LogNNE, Warning, TEXT("Error: Slice op 'Ends' input at index 2 is only supported as a constant integer tensor but it is not."));
-				return false;
-			}
 			if (InputTensors.Num() >= 4)
 			{
 				if (!OperatorHelper::GetInt32ArrayFromConstTensor(AxesAttr, InputTensors[3]))
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Error: Slice op 'Axes' input at index 3 is only supported as a constant integer tensor but it is not."));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Axes' input tensor (%s) is only supported as a constant integer tensor but it is not."), *InputTensors[3]->GetName());
+					return false;
+				}
+				if(AxesAttr.Num() > InputTensors[0]->GetShape().Rank() || AxesAttr.Num() < 1)
+				{
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Axes' input tensor (%s) contains %d elements but input rank is %d."), *InputTensors[3]->GetName(), AxesAttr.Num(), InputTensors[0]->GetShape().Rank());
 					return false;
 				}
 			}
 			else
 			{
-				for (int32 i = 0; i < StartsAttr.Num(); ++i)
+				for (int32 Idx = 0; Idx < InputTensors[0]->GetShape().Rank(); ++Idx)
 				{
-					AxesAttr.Add(i);
+					AxesAttr.Add(Idx);
 				}
 			}
+
+			const int32 NumAxes = AxesAttr.Num();
+
+			if (!OperatorHelper::GetInt32ArrayFromConstTensor(StartsAttr, InputTensors[1]))
+			{
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Starts' input tensor (%s) is only supported as a constant integer tensor but it is not."), *InputTensors[1]->GetName());
+				return false;
+			}
+			if(StartsAttr.Num() != NumAxes)
+			{
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Starts' input tensor (%s) contains %d elements but number of axes is %d."), *InputTensors[1]->GetName(), StartsAttr.Num(), NumAxes);
+				return false;
+			}
+
+			if (!OperatorHelper::GetInt32ArrayFromConstTensor(EndsAttr, InputTensors[2]))
+			{
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Ends' input tensor (%s) is only supported as a constant integer tensor but it is not."), *InputTensors[2]->GetName());
+				return false;
+			}
+			if(EndsAttr.Num() != NumAxes)
+			{
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Ends' input tensor (%s) contains %d elements but number of axes is %d."), *InputTensors[2]->GetName(), EndsAttr.Num(), NumAxes);
+				return false;
+			}
+
+			
+
 			if (InputTensors.Num() == 5)
 			{
-				TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> StepsAttr;
-				OperatorHelper::GetInt32ArrayFromConstTensor(StepsAttr, InputTensors[4]);
-				for (int32 Value : StepsAttr)
+				if (!OperatorHelper::GetInt32ArrayFromConstTensor(StepsAttr, InputTensors[4]))
 				{
-					if (Value != 1)
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Steps' input tensor (%s) is only supported as a constant integer tensor but it is not."), *InputTensors[4]->GetName());
+					return false;
+				}
+				if(StepsAttr.Num() != NumAxes)
+				{
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Steps' input tensor (%s) contains %d elements but number of axes is %d."), *InputTensors[4]->GetName(), StepsAttr.Num(), NumAxes);
+					return false;
+				}
+				for(const int32 Value : StepsAttr)
+				{
+					if(Value == 0)
 					{
-						UE_LOG(LogNNE, Warning, TEXT("Error: Slice op 'Steps' optional input at index 4 is only supported as a constant tensor will all values as 1."));
+						UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: 'Steps' tensor (%s) can only contain non-0 integers."), *InputTensors[4]->GetName());
 						return false;
 					}
 				}
+			}
+			else
+			{
+				StepsAttr.Init(1, AxesAttr.Num()); // Default for steps is all 1s
 			}
 
 			return true;
 		}
 
-		void ComputeStartAndEndFromInputShape(TConstArrayView<uint32> InputShapeData) const
+		void ComputeStartAndEndFromInputShape(TConstArrayView<uint32> InputShapeData)
 		{
-			check(AxesAttr.Num() == EndsAttr.Num());
-			check(AxesAttr.Num() == StartsAttr.Num());
-
 			const int32 InputRank = InputShapeData.Num();
-			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> Axes(AxesAttr);
-			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> Ends(EndsAttr);
-			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> Starts(StartsAttr);
+
+			check(AxesAttr.Num() <= InputRank);
+			check(AxesAttr.Num() == StartsAttr.Num());
+			check(AxesAttr.Num() == EndsAttr.Num());
+			check(AxesAttr.Num() == StepsAttr.Num());
+
+			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>>& Axes(AxesAttr);
+			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>>& Starts(StartsAttr);
+			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>>& Ends(EndsAttr);
+			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>>& Steps(StepsAttr);
 
 			//see https://github.com/onnx/onnx/blob/main/docs/Operators.md#slice for algorithm
 			Start.SetNum(InputRank);
 			End.SetNum(InputRank);
+			Step.SetNum(InputRank);
 			for (int32 i = 0; i < InputRank; ++i)
 			{
 				Start[i] = 0;
 				End[i] = InputShapeData[i];
+				Step[i] = 1;
 			}
 			for (int32 i = 0; i < Axes.Num(); ++i)
 			{
@@ -120,8 +164,17 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			}
 			for (int32 i = 0; i < Axes.Num(); ++i)
 			{
-				Start[Axes[i]] = FMath::Clamp(Starts[i], 0, InputShapeData[Axes[i]]);
-				End[Axes[i]] = FMath::Clamp(Ends[i], 0, InputShapeData[Axes[i]]);
+				if(Steps[i] > 0)
+				{
+					Start[Axes[i]] = FMath::Clamp(Starts[i], 0, InputShapeData[Axes[i]]);
+					End[Axes[i]] = FMath::Clamp(Ends[i], 0, InputShapeData[Axes[i]]);
+				}
+				else
+				{
+					Start[Axes[i]] = FMath::Clamp(Starts[i], 0, InputShapeData[Axes[i]] - 1);
+					End[Axes[i]] = FMath::Clamp(Ends[i], -1, InputShapeData[Axes[i]] - 1);
+				}
+				Step[Axes[i]] = Steps[i];
 			}
 		}
 
@@ -152,20 +205,27 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			TArray<uint32> OutputShapeData;
 
 			OutputShapeData.Reserve(InputRank);
-			for (int32 i = 0; i < InputRank; ++i)
+			for (int32 Idx = 0; Idx < InputRank; ++Idx)
 			{
-				OutputShapeData.Add(End[i] - Start[i]);
+				int32 RangeSize = Step[Idx] > 0 ? End[Idx] - Start[Idx] : Start[Idx] - End[Idx];
+				if(RangeSize < 1)
+				{
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: Start (tensor: %s) and end (tensor: %s) indices are incompatible with step direction for dimension %d."), *InputTensors[1]->GetName(), *InputTensors[2]->GetName(), Idx);
+					return -1;
+				}
+				uint32 OutDimSize = FMath::DivideAndRoundUp(RangeSize, FMath::Abs(Step[Idx]));
+				OutputShapeData.Add(OutDimSize);
 			}
 			
 			NNE::FTensorShape OutputShape = NNE::FTensorShape::Make(OutputShapeData);
 
 			OutputTensors[0]->SetShape(OutputShape);
 			
-			Internal::CPUHelper::Slice::Apply(*InputTensors[0], *OutputTensors[0], Start);
+			Internal::CPUHelper::Slice::Apply(*InputTensors[0], *OutputTensors[0], Start, Step);
 
-			if (OutputTensors[0]->GetDataType() != ENNETensorDataType::Float && !OutputTensors[0]->HasPreparedData())
+			if (InputTensors[0]->HasPreparedData() && !OutputTensors[0]->HasPreparedData())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Error: Slice op output tensor could not be made constant nor it was of float type. Only floats are supported at the moment on the HLSL compute path."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: Output tensor (%s) could not be constant-folded from input."), *OutputTensors[0]->GetName());
 				return -1;
 			}
 
@@ -194,14 +254,17 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 				if (EndsAttr.Num() != StartsAttr.Num() || AxesAttr.Num() != StartsAttr.Num())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Slice: Starts, Ends and Axes must be of the same size."));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Slice: Starts, Ends and Axes must be of the same size."));
 					return false;
 				}
+
+				StepsAttr.Init(1, AxesAttr.Num()); // Default for steps is all 1s
 			}
 			else
 			{
 				check(InputTensorDescs.Num() >= 3 && InputTensorDescs.Num() <= 5);
 			}
+
 			
 			return true;
 		}
@@ -231,16 +294,10 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			FillTensorStrideShaderParameters(Output, Params->TensorInfo, 1);
 			static_assert(NNE::FTensorShape::MaxRank <= NXRT_TENSORSTRIDEINFO_MAX_NUM_DIMENSIONS);
 			check(Start.Num() == Input.GetShape().Rank());
-			for (int32 i = 0; i < NXRT_TENSORSTRIDEINFO_MAX_NUM_DIMENSIONS; ++i)
+			for (int32 DimIdx = 0; DimIdx < Input.GetShape().Rank(); ++DimIdx)
 			{
-				if (i < Start.Num())
-				{
-					Params->TensorInfo[i][2] = static_cast<uint32>(Start[i]);
-				}
-				else
-				{
-					Params->TensorInfo[i][2] = 0;
-				}
+				Params->TensorInfo[DimIdx][/*SlotIdx*/ 2] = static_cast<uint32>(Start[DimIdx]);
+				Params->TensorInfo[DimIdx][/*SlotIdx*/ 3] = BitCast<uint32>(Step[DimIdx]);
 			}
 
 			FSliceCS::FPermutationDomain PermutationVector;
@@ -248,7 +305,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			TShaderMapRef<FSliceCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Slice");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorSlice, "NNE.Operator.Hlsl.Slice");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorSlice);
 
 			FComputeShaderUtils::AddPass(

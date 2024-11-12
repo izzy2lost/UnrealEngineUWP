@@ -146,7 +146,7 @@ struct FConcertManager
 		
 		SubSystem->OnSessionClientChanged.Broadcast(
 			MultiUserClientLibrary::ConvertClientStatus(Status),
-			MultiUserClientLibrary::ConvertClientInfo(ClientInfo.ClientEndpointId, ClientInfo.ClientInfo)
+			FMultiUserClientInfo(ClientInfo.ClientEndpointId, ClientInfo.ClientInfo)
 			);
 	}
 

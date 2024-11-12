@@ -37,13 +37,10 @@ public:
 	virtual ~FEOSSDKManager();
 
 	// Begin IEOSSDKManager
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	virtual EOS_EResult Initialize() override;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual bool IsInitialized() const override { return bInitialized; }
 
 	virtual const FEOSSDKPlatformConfig* GetPlatformConfig(const FString& PlatformConfigName, bool bLoadIfMissing = false) override;
-	virtual bool AddPlatformConfig(const FEOSSDKPlatformConfig& PlatformConfig) override;
+	virtual bool AddPlatformConfig(const FEOSSDKPlatformConfig& PlatformConfig, bool bOverwriteExistingConfig = false) override;
 	virtual const FString& GetDefaultPlatformConfigName() override;
 	virtual void SetDefaultPlatformConfigName(const FString& PlatformConfigName) override;
 
@@ -68,6 +65,7 @@ public:
 	virtual void AddCallbackObject(TUniquePtr<class FCallbackBase> CallbackObj) override;
 	// End IEOSSDKManager
 
+	EOS_EResult Initialize();
 	void Shutdown();
 
 protected:
@@ -83,7 +81,7 @@ protected:
 
 #if WITH_ENGINE
 	/** Provided to `OnBackBufferReadyToPresent` to get access to the render thread. */
-	virtual void OnBackBufferReady_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& BackBuffer);
+	virtual void OnBackBufferReady_RenderThread(SWindow& SlateWindow, const FTextureRHIRef& BackBuffer);
 	/**
 	 * Check that the overlay is ready to be rendered.
 	 * This will also add the Back Buffer Ready To Present handler.
@@ -91,7 +89,11 @@ protected:
 	virtual bool IsRenderReady();
 #endif
 
+	static void OnDisplaySettingsUpdated(const EOS_UI_OnDisplaySettingsUpdatedCallbackInfo* Data);
+	void RegisterDisplaySettingsUpdatedCallback(const EOS_HPlatform PlatformHandle);
+
 	void SetInvokeOverlayButton(const EOS_HPlatform PlatformHandle);
+	void ApplyOverlayPlatformOptions(EOS_Platform_Options& PlatformOptions);
 	EOS_HIntegratedPlatformOptionsContainer CreateIntegratedPlatformOptionsContainer();
 	void ApplyIntegratedPlatformOptions(EOS_HIntegratedPlatformOptionsContainer& Container);
 	virtual void ApplySystemSpecificOptions(const void*& SystemSpecificOptions);
@@ -108,7 +110,7 @@ protected:
 	void LoadConfig();
 	void ReleasePlatform(EOS_HPlatform PlatformHandle);
 	void ReleaseReleasedPlatforms();
-	void SetupTicker();
+	void SetupTicker(bool bIgnoreConfigTickInterval = false);
 	void OnLogVerbosityChanged(const FLogCategoryName& CategoryName, ELogVerbosity::Type OldVerbosity, ELogVerbosity::Type NewVerbosity);
 
 #if EOSSDK_RUNTIME_LOAD_REQUIRED

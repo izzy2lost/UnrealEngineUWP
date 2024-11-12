@@ -64,8 +64,7 @@ public:
 			.SelectionMode(ESelectionMode::Single)
 			.ListItemsSource(&PlacementList)
 			.OnGenerateRow(this, &SMediaPlacementPalette::MakeListViewWidget)
-			.OnSelectionChanged(this, &SMediaPlacementPalette::OnSelectionChanged)
-			.ItemHeight(35);
+			.OnSelectionChanged(this, &SMediaPlacementPalette::OnSelectionChanged);
 
 		ChildSlot
 		[
@@ -86,7 +85,7 @@ public:
 
 		TSharedRef< STableRow<TSharedPtr<FMediaPlacementListItem>> > TableRowWidget =
 			SNew(STableRow<TSharedPtr<FMediaPlacementListItem>>, OwnerTable)
-			.Style(FAppStyle::Get(), "ContentBrowser.AssetListView.TableRow")
+			.Style(FAppStyle::Get(), "PlacementBrowser.PlaceableItemRow")
 			.OnDragDetected(this, &SMediaPlacementPalette::OnDraggingListViewWidget);
 
 		// Get the MediaSource thumbnail or the MediaBundle is not loaded

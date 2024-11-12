@@ -4,6 +4,7 @@
 #include "Engine/GameInstance.h"
 #include "MoviePipeline.h"
 #include "Engine/World.h"
+#include "LevelSequence.h"
 #include "MoviePipelineQueue.h"
 #include "MoviePipelineInProcessExecutorSettings.h"
 #include "MoviePipelineGameOverrideSetting.h"

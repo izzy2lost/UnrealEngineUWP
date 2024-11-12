@@ -64,6 +64,7 @@
 #include "Interfaces/ISlate3DRenderer.h"
 #include "Rendering/SlateDrawBuffer.h"
 #include "Slate/WidgetRenderer.h"
+#include "UMGEditorModule.h"
 #include "Widgets/SVirtualWindow.h"
 #include "GraphEditorActions.h"
 #include "WidgetEditingProjectSettings.h"
@@ -1516,6 +1517,90 @@ TArray<UWidget*> FWidgetBlueprintEditorUtils::DuplicateWidgets(TSharedRef<FWidge
 	return DuplicatedWidgets;
 }
 
+UUserWidget* FWidgetBlueprintEditorUtils::CreateUserWidgetFromBlueprint(UObject* Outer, UWidgetBlueprint* BP, const FCreateWidgetFromBlueprintParams& Params)
+{
+	check(Outer);
+	check(BP);
+
+	UUserWidget* CreatedUserWidget = nullptr;
+
+	// Create the Widget, we have to do special swapping out of the widget tree.
+	{
+		// Assign the outer to the game instance if it exists, otherwise use the world
+		{
+			FMakeClassSpawnableOnScope TemporarilySpawnable(BP->GeneratedClass);
+			CreatedUserWidget = NewObject<UUserWidget>(Outer, BP->GeneratedClass);
+		}
+
+		// The preview widget should not be transactional.
+		CreatedUserWidget->ClearFlags(RF_Transactional);
+
+		// Establish the widget as being in design time before initializing and before duplication
+        // (so that IsDesignTime is reliable within both calls to Initialize)
+        // The preview widget is also the outer widget that will update all child flags
+		CreatedUserWidget->SetDesignerFlags(Params.FlagsToApply);
+
+		if (ULocalPlayer* Player = Params.LocalPlayer)
+		{
+			CreatedUserWidget->SetPlayerContext(FLocalPlayerContext(Player));
+		}
+
+		UWidgetTree* LatestWidgetTree = FWidgetBlueprintEditorUtils::FindLatestWidgetTree(BP, CreatedUserWidget);
+
+		TMap<FName, UWidget*> SortedNamedSlotContentToMerge;
+		UWidgetBlueprint* WidgetBlueprintIterator = BP;
+		TArray<TTuple<FName, UWidget*>> NamedSlotContentToMergeArray;
+
+		while (WidgetBlueprintIterator)
+		{
+			TArray<FName> SlotNames;
+			WidgetBlueprintIterator->WidgetTree->GetSlotNames(SlotNames);
+
+			// We iterate widget blueprints from child to parent, but we need the final namedslot array to be sorted from parent to child.
+			// Here, we iterate the slot names in reverse to maintain the order of namedslots per widget blueprint once the final array is reversed.
+			for (int32 Index = SlotNames.Num() - 1; Index >= 0; Index--)
+			{
+				FName SlotName = SlotNames[Index];
+				if (UWidget* Content = WidgetBlueprintIterator->WidgetTree->GetContentForSlot(SlotName))
+				{
+					NamedSlotContentToMergeArray.Add(TTuple<FName, UWidget*>(SlotName, Content));
+				}
+			}
+
+			WidgetBlueprintIterator = Cast<UWidgetBlueprint>(WidgetBlueprintIterator->GeneratedClass->GetSuperClass()->ClassGeneratedBy);
+		}
+
+		// We iterate the array in reverse so that the final SortedNamedSlotContentToMerge map ends up sorted from outermost namedslot to innermost.
+		for (int32 Index = NamedSlotContentToMergeArray.Num() - 1; Index >= 0; Index--)
+		{
+			TTuple<FName, UWidget*>& Element = NamedSlotContentToMergeArray[Index];
+			SortedNamedSlotContentToMerge.Add(Element.Key, Element.Value);
+		}
+		 
+		// Update the widget tree directly to match the blueprint tree.  That way the preview can update
+		// without needing to do a full recompile.
+		CreatedUserWidget->DuplicateAndInitializeFromWidgetTree(LatestWidgetTree, SortedNamedSlotContentToMerge);
+
+		// Establish the widget as being in design time before initializing (so that IsDesignTime is reliable within Initialize)
+        // We have to call it to make sure that all the WidgetTree had the DesignerFlags set correctly
+		CreatedUserWidget->SetDesignerFlags(Params.FlagsToApply);
+	}
+
+	return CreatedUserWidget;
+}
+
+void FWidgetBlueprintEditorUtils::DestroyUserWidget(UUserWidget* UserWidget)
+{
+	check(UserWidget);
+
+	TWeakPtr<SWidget> SlateWidgetWeak = UserWidget->GetCachedWidget();
+
+	UserWidget->MarkAsGarbage();
+	UserWidget->ReleaseSlateResources(true);
+
+	ensure(!SlateWidgetWeak.IsValid());
+}
+
 bool FWidgetBlueprintEditorUtils::IsAnySelectedWidgetLocked(TSet<FWidgetReference> SelectedWidgets)
 {
 	for (const FWidgetReference& Widget : SelectedWidgets)
@@ -1526,6 +1611,34 @@ bool FWidgetBlueprintEditorUtils::IsAnySelectedWidgetLocked(TSet<FWidgetReferenc
 		}
 	}
 	return false;
+}
+
+bool FWidgetBlueprintEditorUtils::CanPasteWidgetsExtension(TSet<FWidgetReference> SelectedWidgets)
+{
+	if (!SelectedWidgets.IsEmpty())
+	{
+		IUMGEditorModule& EditorModule = FModuleManager::LoadModuleChecked<IUMGEditorModule>("UMGEditor");
+		const TArrayView<const TSharedPtr<IClipboardExtension>> ClipboardExtensions = EditorModule.GetClipboardExtensibilityManager()->GetExtensions();
+
+		for (const TSharedPtr<IClipboardExtension>& ClipboardExtension : ClipboardExtensions)
+		{
+			if (ensure(ClipboardExtension.IsValid()))
+			{
+				for (const FWidgetReference& SelectedWidget : SelectedWidgets)
+				{
+					if (UWidget* TemplateWidget = SelectedWidget.GetTemplate())
+					{
+						if (!ClipboardExtension->CanWidgetAcceptPaste(TemplateWidget))
+						{
+							return false;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return true;
 }
 
 UWidget* FWidgetBlueprintEditorUtils::GetWidgetTemplateFromDragDrop(UWidgetBlueprint* Blueprint, UWidgetTree* RootWidgetTree, TSharedPtr<FDragDropOperation>& DragDropOp)
@@ -1584,6 +1697,26 @@ UWidget* FWidgetBlueprintEditorUtils::GetWidgetTemplateFromDragDrop(UWidgetBluep
 	return Widget;
 }
 
+bool FWidgetBlueprintEditorUtils::ShouldPreventDropOnTargetExtensions(const UWidget* Target, const TSharedPtr<FDragDropOperation>& DragDropOp, FText& OutFailureText)
+{
+	if (Target)
+	{
+		IUMGEditorModule& EditorModule = FModuleManager::LoadModuleChecked<IUMGEditorModule>("UMGEditor");
+		const TArrayView<const TSharedPtr<IWidgetDragDropExtension>> DragDropExtensions = EditorModule.GetWidgetDragDropExtensibilityManager()->GetExtensions();
+
+		for (const TSharedPtr<IWidgetDragDropExtension>& DragDropExtension : DragDropExtensions)
+		{
+			if (ensure(DragDropExtension.IsValid()) && DragDropExtension->ShouldPreventDropOnTarget(Target, DragDropOp))
+			{
+				OutFailureText = DragDropExtension->GetDropFailureText(Target, DragDropOp);
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 void FWidgetBlueprintEditorUtils::ExportWidgetsToText(TArray<UWidget*> WidgetsToExport, /*out*/ FString& ExportedText)
 {
 	// Clear the mark state for saving.
@@ -1613,6 +1746,17 @@ void FWidgetBlueprintEditorUtils::ExportWidgetsToText(TArray<UWidget*> WidgetsTo
 	}
 
 	const FExportObjectInnerContext Context(WidgetsToIgnore);
+
+	IUMGEditorModule& EditorModule = FModuleManager::LoadModuleChecked<IUMGEditorModule>("UMGEditor");
+	const TArrayView<const TSharedPtr<IClipboardExtension>> ClipboardExtensions = EditorModule.GetClipboardExtensibilityManager()->GetExtensions();
+
+	// Get the widget blueprint containing the exported widgets
+	UWidgetBlueprint* WidgetBlueprint = nullptr;
+	if (WidgetsToExport.Num() > 0)
+	{
+		WidgetBlueprint = FWidgetBlueprintEditorUtils::GetWidgetBlueprintFromWidget(WidgetsToExport[0]);
+	}
+
 	// Export each of the selected nodes
 	for ( UWidget* Widget : WidgetsToExport )
 	{
@@ -1640,6 +1784,26 @@ void FWidgetBlueprintEditorUtils::ExportWidgetsToText(TArray<UWidget*> WidgetsTo
 			SlotMetaData->SetWidget(Widget);
 
 			UExporter::ExportToOutputDevice(&Context, SlotMetaData, nullptr, Archive, TEXT("copy"), 0, PPF_ExportsNotFullyQualified | PPF_Copy | PPF_Delimited, false, nullptr);
+		}
+
+		if (WidgetBlueprint)
+		{
+			for (const TSharedPtr<IClipboardExtension>& ClipboardExtension : ClipboardExtensions)
+			{
+				if (ClipboardExtension->CanAppendToClipboard(Widget))
+				{
+					IClipboardExtension::FExportArgs ExportArgs;
+					ExportArgs.Context = &Context;
+					ExportArgs.Exporter = nullptr;
+					ExportArgs.FileType = TEXT("copy");
+					ExportArgs.Indent = 0;
+					ExportArgs.PortFlags = PPF_ExportsNotFullyQualified | PPF_Copy | PPF_Delimited;
+					ExportArgs.bSelectedOnly = false;
+					ExportArgs.ExportRootScope = nullptr;
+					ExportArgs.Out = &Archive;
+					ClipboardExtension->AppendToClipboard(Widget, ExportArgs);
+				}
+			}
 		}
 	}
 
@@ -1989,6 +2153,13 @@ void FWidgetBlueprintEditorUtils::ImportWidgetsFromText(UWidgetBlueprint* BP, co
 	FWidgetObjectTextFactory Factory = ProcessImportedText(BP, TextToImport, TempPackage);
 	TGCObjectScopeGuard<UPackage> TempPackageGCGuard(TempPackage);
 
+	IUMGEditorModule& EditorModule = FModuleManager::LoadModuleChecked<IUMGEditorModule>("UMGEditor");
+	const TArrayView<const TSharedPtr<IClipboardExtension>> ClipboardExtensions = EditorModule.GetClipboardExtensibilityManager()->GetExtensions();
+	for (const TSharedPtr<IClipboardExtension>& ClipboardExtension : ClipboardExtensions)
+	{
+		ClipboardExtension->ProcessImportedText(BP, TextToImport, TempPackage);
+	}
+
 	PastedExtraSlotData = Factory.MissingSlotData;
 
 	for ( auto& Entry : Factory.NewWidgetMap )
@@ -2040,6 +2211,14 @@ void FWidgetBlueprintEditorUtils::ImportWidgetsFromText(UWidgetBlueprint* BP, co
 		else
 		{
 			Widget->Rename(*WidgetOldName, BP->WidgetTree);
+		}
+
+		for (const TSharedPtr<IClipboardExtension>& Extension : ClipboardExtensions)
+		{
+			if (Extension->CanImportFromClipboard(Widget))
+			{
+				Extension->ImportDataToWidget(Widget, FName(WidgetOldName));
+			}
 		}
 	}
 }
@@ -2469,7 +2648,7 @@ FString RemoveSuffixFromName(const FString OldName)
 			}
 		}
 	}
-	return FString(NameLen, *OldName);
+	return FString::ConstructFromPtrSize(*OldName, NameLen);
 }
 
 FString FWidgetBlueprintEditorUtils::FindNextValidName(UWidgetTree* WidgetTree, const FString& Name)
@@ -2894,6 +3073,30 @@ FText FWidgetBlueprintEditorUtils::GetPaletteCategory(const FAssetData& WidgetAs
 	{
 		return GetMutableDefault<UWidget>()->GetPaletteCategory();
 	}
+}
+
+UWidgetBlueprint* FWidgetBlueprintEditorUtils::GetWidgetBlueprintFromWidget(const UWidget* Widget)
+{
+	if (Widget)
+	{
+		if (UObject* WidgetTree = Widget->GetOuter())
+		{
+			UWidgetBlueprint* WidgetBlueprint = Cast<UWidgetBlueprint>(WidgetTree->GetOuter());
+			if (WidgetBlueprint)
+			{
+				return WidgetBlueprint;
+			}
+			else if (WidgetTree->GetOuter())
+			{
+				WidgetBlueprint = Cast<UWidgetBlueprint>(WidgetTree->GetOuter()->GetClass()->ClassGeneratedBy);
+				if (WidgetBlueprint)
+				{
+					return WidgetBlueprint;
+				}
+			}
+		}
+	}
+	return nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE

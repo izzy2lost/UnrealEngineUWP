@@ -68,6 +68,6 @@ void AddMobileSeparateTranslucencyPass(FRDGBuilder& GraphBuilder, FScene* Scene,
 		}
 		// Set the view family's render target/viewport.
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
-		View.ParallelMeshDrawCommandPasses[EMeshPass::TranslucencyAfterDOF].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+		View.ParallelMeshDrawCommandPasses[EMeshPass::TranslucencyAfterDOF].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 	});
 }

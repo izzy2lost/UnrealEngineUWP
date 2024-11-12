@@ -210,12 +210,9 @@ export type AgentData = GetAgentResponse
 export type LeaseData = GetAgentLeaseResponse
 export type SessionData = GetAgentSessionResponse
 export type PoolData = GetPoolResponse
-export type GroupData = GetGroupResponse
-export type NodeData = GetNodeResponse
 export type BatchData = GetBatchResponse
 export type EventData = GetLogEventResponse
 export type LogData = GetLogFileResponse
-export type ArtifactData = GetArtifactResponse
 export type AclData = GetAclResponse
 export type AclEntryData = GetAclEntryResponse
 export type SoftwareData = GetSoftwareResponse
@@ -231,10 +228,6 @@ export type IssueData = GetIssueResponse & {
 	events?: GetLogEventResponse[];
 }
 
-export type LabelData = GetLabelResponse & {
-	defaultLabel?: GetDefaultLabelStateResponse;
-}
-
 export type ProjectData = GetProjectResponse & {
 	streams?: StreamData[];
 }
@@ -246,9 +239,7 @@ export type StreamData = GetStreamResponse & {
 
 }
 
-export type JobData = GetJobResponse & {
-	graphRef?: GetGraphResponse;
-}
+export type JobData = GetJobResponse;
 
 export type StepData = GetStepResponse & {
 
@@ -304,6 +295,7 @@ export type AgentQuery = {
 	modifiedAfter?: string;
 	poolId?: string;
 	includeDeleted?: boolean;
+	invalidateCache?: boolean;
 	condition?: string;
 	filter?: string;
 }
@@ -462,8 +454,11 @@ export type GetDashboardConfigResponse = {
 	/** Categories to display on the pools page */
 	poolCategories: GetDashboardPoolCategoryResponse[];
 
+	/** Categories to display on the pools page */
+	artifactTypes: string[];
+
 	/** Telemetry views */
-	telemetryViews: GetTelemetryViewResponse[];
+	telemetryViews: any[];
 }
 
 /**Parameters to register a new agent */
@@ -1144,6 +1139,15 @@ export type CreateJobRequest = {
 
 	/** Arguments for the job */
 	arguments?: string[];
+
+	/** Parameters for the job */
+	parameters?: Record<string, string>
+
+	/** Additional arguments for the job, job dialog v2 */
+	additionalArguments?: string[];
+
+	/** Custom list of targets for the job, will take precedence over all argument and parameter targets */
+	targets?: string[];
 }
 
 /**Response from creating a new job */
@@ -1167,6 +1171,9 @@ export type UpdateJobRequest = {
 
 	/** Mark this job as aborted */
 	aborted?: boolean;
+
+	/** Reason job was canceled */
+	cancellationReason?: string;
 
 	/** New list of arguments for the job. Only -Target= arguments can be modified after the job has started.  */
 	arguments?: string[];
@@ -1210,6 +1217,10 @@ export type GetJobArtifactResponse = {
 	description?: string;
 	/// Step producing the artifact
 	stepId: string;
+	/// Keys for the artifact	
+	keys: string[];
+	/// Metadata for the artifact
+	metadata: string[];
 }
 
 /**Information about a job */
@@ -1240,13 +1251,16 @@ export type GetJobResponse = {
 	templateHash?: string;
 
 	/** Hash of the graph for this job */
-	graphHash?: string;
+	// graphHash?: string;
 
 	/** The user that started this job */
 	startedByUserInfo?: GetThinUserInfoResponse;
 
 	/** The user that started this job */
 	abortedByUserInfo?: GetThinUserInfoResponse;
+
+	/** The reason the job was canceled */
+	cancellationReason?: string;
 
 	/** Whether job was created by a bisect task */
 	startedByBisectTaskId?: string;
@@ -1279,7 +1293,7 @@ export type GetJobResponse = {
 	labels?: GetLabelStateResponse[];
 
 	/** The default label, containing the state of all steps that are otherwise not matched. */
-	defaultLabel?: GetDefaultLabelStateResponse;
+	defaultLabel?: GetLabelStateResponse;
 
 	/** List of reports */
 	reports?: GetReportResponse[];
@@ -1287,20 +1301,25 @@ export type GetJobResponse = {
 	/**  Parameters for the job */
 	arguments: string[];
 
+	/** Parameters for the job */
+	parameters: Record<string, string>;
+
 	/**The last update time for this job*/
 	updateTime: Date | string;
 
 	/** Whether to update issues based on the outcome of this job */
 	updateIssues?: boolean;
 
-	/** Whether to use the V2 artifacts endpoint */
-	useArtifactsV2?: boolean;
-
 	artifacts?: GetJobArtifactResponse[];
 
 	/**  Custom permissions for this object */
 	acl?: GetAclResponse;
 
+	/** Additional arguments for the job, job dialog v2 */
+	additionalArguments?: string[];
+
+	/** Custom list of targets for the job, will take precedence over all argument and parameter targets */
+	targets?: string[];
 }
 
 /**Request used to update a jobstep */
@@ -1315,6 +1334,9 @@ export type UpdateStepRequest = {
 	/**If the step has been requested to abort */
 	abortRequested?: boolean;
 
+	/** The reason the step was canceled */
+	cancellationReason?: string;
+
 	/**Specifies the log file id for this step */
 	logId?: string;
 
@@ -1327,6 +1349,17 @@ export type UpdateStepRequest = {
 	/**Properties to set. Any entries with a null value will be removed. */
 	properties?: { [key: string]: string | null };
 }
+
+
+/** Reference to the output of a step within the job */
+export type JobStepOutputRef = {
+	// Step producing the output
+	stepId: string;
+	// <param name="OutputIdx">Index of the output from this step</param>
+	outputIdx: number;
+}
+
+export type JobStepId = string;
 
 /**Returns information about a jobstep */
 export type GetStepResponse = {
@@ -1355,6 +1388,9 @@ export type GetStepResponse = {
 	/* The user that retried this step */
 	retriedByUserInfo?: GetThinUserInfoResponse;
 
+	/** The reason the job step canceled */
+	cancellationReason?: string;
+
 	/**The log id for this step */
 	logId?: string;
 
@@ -1373,6 +1409,35 @@ export type GetStepResponse = {
 	/**User-defined properties for this jobstep. */
 	properties: { [key: string]: string };
 
+	/// The name of this node 
+	name: string;
+
+	/// References to inputs for this node
+	inputs?: JobStepOutputRef[];
+
+	/// List of output names
+	outputNames?: string[];
+
+	/// Indices of nodes which must have succeeded for this node to run
+	inputDependencies?: JobStepId[];
+
+	/// Indices of nodes which must have completed for this node to run
+	orderDependencies?: JobStepId[];
+
+	/// Whether this node can be run multiple times
+	allowRetry: boolean;
+
+	/// This node can start running early, before dependencies of other nodes in the same group are complete
+	runEarly: boolean;
+
+	/// Whether to include warnings in the output (defaults to true)
+	warnings: boolean;
+
+	/// List of credentials required for this node. Each entry maps an environment variable name to a credential in the form "CredentialName.PropertyName".
+	credentials?: Record<string, string>;
+
+	/// Annotations for this node
+	annotations?: Record<string, string>;
 }
 
 //**Returns information about test data */
@@ -1442,6 +1507,9 @@ export type GetBatchResponse = {
 	/**The agent assigned to execute this group */
 	agentId?: string;
 
+	/// The agent type
+	agentType: string;
+
 	/** The USD rate of an agent hour */
 	agentRate?: number;
 
@@ -1462,7 +1530,6 @@ export type GetBatchResponse = {
 
 	/**Time at which the group finished (UTC) */
 	finishTime?: Date | string;
-
 }
 
 /**Describes the history of a step */
@@ -1559,35 +1626,6 @@ export type GetLogFileResponse = {
 
 }
 
-/**Response describing an artifact */
-export type GetArtifactResponse = {
-
-	/**Unique id of the artifact */
-	id: string;
-
-	/** Unique id of the job for this artifact */
-	jobId: string;
-
-	/** Unique id of the job for this artifact */
-	stepId?: string;
-
-	/** Download code for this artifact */
-	code?: string;
-
-	/** Name of the artifact */
-	name: string;
-
-	/** MimeType of the artifact	*/
-	mimeType: string;
-
-	/** Length of the artifact, in bytes */
-	length: number;
-
-	/**Per-object permissions */
-	acl?: GetAclResponse;
-
-}
-
 /**Parameters request a zip file for artifacts */
 export type GetArtifactZipRequest = {
 
@@ -1618,24 +1656,26 @@ export type ArtifactContextType = "step-trace" | "step-output" | "step-saved" | 
 /// Request to create a zip file with artifact data
 export type CreateZipRequest = {
 	/// Filter lines for the zip. Uses standard <see cref="FileFilter"/> syntax.
-	filter: string[];
+	filter?: string[];
 }
 
 
 /** Describes an artifact */
-export type GetArtifactResponseV2 = {
-
+export type GetArtifactResponse = {
 	id: string;
 	type: ArtifactContextType;
 	keys: string[]
 	name: string;
 	description?: string;
+	streamId?: string;
+	change?: number;
+	metadata?: string[];
 }
 
 /** Result of an artifact search */
 export type FindArtifactsResponse = {
 	/** List of artifacts matching the search criteria*/
-	artifacts: GetArtifactResponseV2[];
+	artifacts: GetArtifactResponse[];
 }
 
 /** Describes a file within an artifact */
@@ -1712,54 +1752,6 @@ export type CreateGroupRequest = {
 	/**Nodes in the group */
 	nodes: CreateNodeRequest[];
 
-}
-
-/**Information required to create a node */
-export type GetNodeResponse = {
-
-	/**The name of this node  */
-	name: string;
-
-	/**Indices of nodes which must have succeeded for this node to run */
-	inputDependencies: string[];
-
-	/**Indices of nodes which must have completed for this node to run */
-	orderDependencies: string[];
-
-	/**The priority of this node */
-	priority: Priority;
-
-	/**Whether this node can be retried */
-	allowRetry: boolean;
-
-	/**This node can start running early, before dependencies of other nodes in the same group are complete */
-	runEarly: boolean;
-
-	/**Sets this node as a target to be built */
-	target: boolean;
-
-	/**Expected time to execute this node based on historical trends */
-	averageDuration: number;
-
-	/**Aggregates that this node belongs do */
-	aggregates?: string[];
-
-	/**Properties for this node */
-	properties: { [key: string]: string };
-
-}
-
-/**Information about a group of nodes */
-export type GetGroupResponse = {
-
-	/**The executor to use for this group */
-	executor: string;
-
-	/**The type of agent to execute this group */
-	agentType: string;
-
-	/**Nodes in the group */
-	nodes: GetNodeResponse[];
 }
 
 /**Request to update a node */
@@ -2105,6 +2097,18 @@ export type GetAgentTypeResponse = {
 
 }
 
+export type GetAgentTelemetrySampleResponse = {
+	time: Date;
+	userCpu: number;
+	idleCpu: number;
+	systemCpu: number;
+	freeRam: number;
+	usedRam: number;
+	totalRam: number;
+	freeDisk: number;
+	totalDisk: number;
+}
+
 /**Information about a workspace type */
 export type GetWorkspaceTypeResponse = {
 
@@ -2399,6 +2403,9 @@ export type GroupParameterData = ParameterData & {
 /**Free-form text entry parameter */
 export type TextParameterData = ParameterData & {
 
+	// Unique id for this parameter
+	id: string;
+
 	/**Name of the parameter associated with this parameter. */
 	label: string;
 
@@ -2424,6 +2431,9 @@ export type TextParameterData = ParameterData & {
 
 /**Possible option for a list parameter */
 export type ListParameterItemData = ParameterData & {
+
+	// Unique id for this parameter
+	id: string;
 
 	/**Optional group heading to display this entry under, if the picker style supports it. */
 	group?: string;
@@ -2473,6 +2483,10 @@ export type ListParameterData = ParameterData & {
 
 /**Allows the user to toggle an option on or off */
 export type BoolParameterData = ParameterData & {
+
+	// Unique id for this parameter
+	id: string;
+
 	/**Name of the parameter associated with this parameter. */
 	label: string;
 
@@ -2691,6 +2705,8 @@ export type GetStreamTabResponse = {
 	type: TabType;
 
 	style: TabStyle;
+
+	showNames?: boolean;
 };
 
 /**Describes a job page */
@@ -2754,60 +2770,6 @@ export enum JobState {
 }
 
 
-/**Information about a label */
-export type GetLabelResponse = {
-
-	/**Category of the aggregate */
-	category: string;
-
-	/**Label for this aggregate */
-	name: string;
-
-	/**Label for this aggregate, currently mapped to name property on server */
-	dashboardName?: string;
-
-	/**Name to show for this label in UGS */
-	ugsName?: string;
-
-	/** Project to display this label for in UGS */
-	ugsProject?: string;
-
-	/**Nodes which must be part of the job for the aggregate to be shown */
-	requiredNodes: string[];
-
-	/**Nodes to include in the status of this aggregate, if present in the job */
-	includedNodes: string[];
-}
-
-
-/**Information about an aggregate */
-export type GetAggregateResponse = {
-
-	/**Name of the aggregate */
-	name: string;
-
-	/**Nodes which must be part of the job for the aggregate to be shown */
-	nodes: string[];
-
-}
-
-/**Information about a graph */
-export type GetGraphResponse = {
-
-	/**The hash of the graph */
-	hash: string;
-
-	/**Array of nodes for this job */
-	groups?: GetGroupResponse[];
-
-	/**List of aggregates */
-	namedAggregates?: GetAggregateResponse[];
-
-	/**List of labels for the graph */
-	labels?: GetLabelResponse[];
-
-}
-
 /**The timing info for a job*/
 export type GetJobTimingResponse = {
 
@@ -2837,20 +2799,28 @@ export type GetLabelTimingInfoResponse = GetTimingInfoResponse &
 
 /**State of an label within a job */
 export type GetLabelStateResponse = {
+
+	// Name to show for this label on the dashboard
+	dashboardName?: string;
+
+	// Category to show this label in on the dashboard
+	dashboardCategory?: string;
+
+	// Name to show for this label in UGS
+	ugsName?: string;
+
+	// Project to display this label for in UGS
+	ugsProject?: string;
+
+	// Steps to include in the status of this label
+	steps: JobStepId[];
+
 	/**State of the label */
 	state?: LabelState;
 
 	/**Outcome of the label */
 	outcome?: LabelOutcome;
 }
-
-/**Information about the default label (ie. with inlined list of nodes) */
-export type GetDefaultLabelStateResponse = GetLabelStateResponse &
-{
-	/**List of nodes covered by default label */
-	nodes: string[];
-}
-
 
 /**Information about the timing info for a particular target */
 export type GetTimingInfoResponse = {
@@ -3157,6 +3127,9 @@ export type GetIssueResponse = {
 	/**Description of the issue*/
 	description?: string;
 
+	/**Description of the fingerprint used to identify this issue*/
+	fingerprintDescription?: string;
+
 	/** Severity of this issue	*/
 	severity: IssueSeverity;
 
@@ -3296,136 +3269,6 @@ export type GetUtilizationTelemetryResponse = {
 	numAgents: number;
 }
 
-export type MetricsQuery = {
-	id: string[];
-	minTime?: string;
-	maxTime?: string;
-	group?: string;
-	results?: number;
-}
-
-/// Metrics matching a particular query
-export type GetTelemetryMetricsResponse = {
-
-	metricId: string;
-
-	groupBy: string;
-
-	/// Metrics matching the search terms	
-	metrics: GetTelemetryMetricResponse[];
-}
-
-/// Information about a particular metric
-export type GetTelemetryMetricResponse = {
-
-	/// Start time for the sample	
-	time: Date;
-
-	/// Name of the group	
-	group?: string;
-
-	/// Value for the metric	
-	value: number;
-
-	// Added locally in the dashboard
-	// GetTelemetryMetricsResponse id
-	id: string;
-
-	// added locally by dashboard
-	key: string;
-
-	// added locally by dashboard
-	keyElements: string[];
-
-	threshold?: number;
-
-	// calculated on dashboard, group name => value
-	groupValues?: Record<string, string>;
-}
-
-export type TelemetryDisplayType = "Time" | "Ratio" | "Value";
-export type TelemetryGraphType = "Line" | "Indicator";
-
-/// Metric attached to a telemetry chart	
-export type GetTelemetryChartMetricResponse = {
-
-	/// Associated metric id	
-	metricId: string;
-
-	/// The threshold for KPI values	
-	threshold?: number;
-
-	/// The metric alias for display purposes	
-	alias?: string;
-
-}
-
-/// Telemetry chart configuraton
-export type GetTelemetryChartResponse = {
-
-	/// The name of the chart, will be displayed on the dashboard	
-	name: string;
-
-	/// The unit to display	
-	display: TelemetryDisplayType;
-
-	/// The graph type 	
-	graph: TelemetryGraphType;
-
-	/// List of configured metrics	
-	metrics: GetTelemetryChartMetricResponse[];
-
-	/// The min unit value for clamping chart	
-	min?: number;
-
-	/// The max unit value for clamping chart	
-	max?: number;
-}
-
-/// A chart categody, will be displayed on the dashbord under an associated pivot
-export type GetTelemetryCategoryResponse = {
-
-	/// The name of the category
-	name: string;
-
-	/// The charts contained within the category
-	charts: GetTelemetryChartResponse[];
-}
-
-/// A telemetry view variable used for filtering the charting data
-export type GetTelemetryVariableResponse = {
-	/// The name of the variable for display purposes
-	name: string;
-
-	/// The associated data group attached to the variable 
-	group: string;
-
-	/// default values to select
-	defaults: string[];
-
-	/// Populated on dashboard
-	values: string[];
-}
-
-/// A telemetry view of related metrics, divided into categofies
-export type GetTelemetryViewResponse = {
-
-	/// Identifier for the view
-	id: string;
-
-	/// The name of the view
-	name: string;
-
-	/// The telemetry store id the view uses
-	telemetryStoreId: string;
-
-	///  The variables used to filter the view data
-	variables: GetTelemetryVariableResponse[];
-
-	/// The categories contained within the view
-	categories: GetTelemetryCategoryResponse[];
-}
-
 export type UserClaim = {
 
 	type: string;
@@ -3472,6 +3315,9 @@ export type GetDashboardFeaturesResponse = {
 
 	/** Show the landing page by default */
 	showLandingPage?: boolean;
+
+	/** Custom landing page route to direct users to */
+	landingPageRoute?: string;
 
 	/** Enable CI functionality */
 	showCI?: boolean;
@@ -4509,6 +4355,13 @@ export type UpdateGlobalConfigRequest = {
 
 }
 
+export type ServerPluginInfoResponse = {
+	name: string;
+	description?: string;
+	loaded: boolean,
+	version?: string;
+};
+
 export type GetServerInfoResponse = {
 
 	/// Server version info
@@ -4517,11 +4370,8 @@ export type GetServerInfoResponse = {
 	/// The current agent version
 	agentVersion?: string;
 
-	/// The operating system server is hosted on
-	osDescription: string;
-
-	/// whether the server is running in single instance mode
-	singleInstance: boolean;
+	/// The plugins on the server
+	plugins: ServerPluginInfoResponse[];
 }
 
 /// Information about a span within an issue
@@ -5047,29 +4897,98 @@ export type GetTestDataRefResponse = {
 
 	/// The number of suite tests swith errors
 	suiteSuccessCount?: number;
+}
 
+/** Current state of a tool's deployment */
+export enum ToolDeploymentState {
+	/** The deployment is ongoing */
+	Active = "Active",
+
+	/** The deployment should be paused at its current state */
+	Paused = "Paused",
+
+	/** Deployment of this version is complete */
+	Complete = "Complete",
+
+	/** The deployment has been cancelled. */
+	Cancelled = "Cancelled"
 }
 
 /** Summary for a particular tool */
 export type GetToolSummaryResponse = {
 
-	/** Unique id of tool */
+	/** Unique identifier for the tool */
 	id: string;
 
-	/** Name of tool */
+	/** Name of the tool */
 	name: string;
 
-	/** Category of the tool */
+	/** Description of the tool */
+	description: string;
+
+	/** Category to display the tool in on the dashboard */
 	category?: string;
 
-	/** Description of tool */
-	description: string;
+	/** Grouping key to control how different tools should be merged on the dashboard */
+	group?: string;
+
+	/** List of platforms that this tool supports, as NET runtime identifiers */
+	platforms?: string;
 
 	/** Version of tool */
 	version?: string;
 
+	/** Identifier for the current deployment */
+	deploymentId?: string;
+
+	/** State of the current deployment */
+	deploymentState?: ToolDeploymentState;
+
+	/** Progress of the current deployment */
+	deploymentProgress?: number;
+
+	/** Whether the tool is bundled with the server */
+	bundled?: boolean;
+
+	/** Whether to show this tool for download inside UGS */
+	showInUGS: boolean;
+
+	/**Whether to show this tool for download on the dashboard */
 	showInDashboard: boolean;
 }
+
+export type GetToolDeploymentResponse = {
+	id: string;
+	version: string;
+	state: ToolDeploymentState;
+	progress: number;
+	startedAt: Date | string;
+	duration: any;
+	refName: string;
+	locator: any;
+}
+
+export type GetToolResponse = {
+	id: string;
+	name: string;
+	description: string;
+	category?: string;
+	group?: string;
+	platforms?: string[];
+	deployments: GetToolDeploymentResponse[];
+	public: boolean;
+	bundled?: boolean;
+	showInUgs: boolean;	
+	showInDashboard: boolean;
+};
+
+/**  Update an existing deployment */
+export type UpdateDeploymentRequest = {
+
+	/** New state for the deployment */
+	state?: ToolDeploymentState;
+}
+
 
 /** Job Bisect */
 

@@ -2,9 +2,12 @@
 
 #include "Modifiers/ActorModifierCoreBase.h"
 
+#include "Async/TaskGraphInterfaces.h"
+#include "Modifiers/ActorModifierCoreComponent.h"
 #include "Modifiers/ActorModifierCoreSharedObject.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Subsystems/ActorModifierCoreSubsystem.h"
+#include "UObject/Package.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogActorModifierCoreBase, Log, All);
 
@@ -108,17 +111,39 @@ void UActorModifierCoreBase::Apply()
 
 void UActorModifierCoreBase::Next()
 {
-	if (!bModifierIdle && ApplyPromise.IsValid())
+	auto ExecuteNext = [this]()
 	{
-		// Success
-		Status = FActorModifierCoreStatus(EActorModifierCoreStatus::Success, FText::GetEmpty());
+		if (!bModifierIdle && ApplyPromise.IsValid())
+		{
+			// Success
+			Status = FActorModifierCoreStatus(EActorModifierCoreStatus::Success, FText::GetEmpty());
+			ApplyPromise->SetValue(true);
+		}
+		else
+		{
+			LogModifier(TEXT("Next is called again after execution is done"), true);
+			checkNoEntry()
+		}
+	};
 
-		ApplyPromise->SetValue(true);
+	if (!IsInGameThread())
+	{
+		TWeakObjectPtr<UActorModifierCoreBase> ThisWeak(this);
+		FFunctionGraphTask::CreateAndDispatchWhenReady([ThisWeak, ExecuteNext]()
+		{
+			const UActorModifierCoreBase* This = ThisWeak.Get();
+
+			if (!This)
+			{
+				return;
+			}
+
+			ExecuteNext();
+		}, {}, nullptr, ENamedThreads::GameThread);
 	}
 	else
 	{
-		LogModifier(TEXT("Next is called again after execution is done"), true);
-		checkNoEntry()
+		ExecuteNext();
 	}
 }
 
@@ -149,13 +174,14 @@ void UActorModifierCoreBase::Unapply()
 	if (bModifierApplied)
 	{
 		RestorePreState();
+
 		bModifierApplied = false;
 	}
 }
 
 void UActorModifierCoreBase::OnModifierDirty(UActorModifierCoreBase* DirtyModifier, bool bExecute)
 {
-	if (ModifierStack.IsValid())
+	if (UActorModifierCoreStack* ModifierStack = GetModifierStack())
 	{
 		ModifierStack->OnModifierDirty(DirtyModifier, bExecute);
 	}
@@ -185,9 +211,14 @@ AActor* UActorModifierCoreBase::GetModifiedActor() const
 {
 	if (!ModifiedActor.IsValid())
 	{
-		const_cast<UActorModifierCoreBase*>(this)->ModifiedActor = Cast<AActor>(GetOuter());
+		const_cast<UActorModifierCoreBase*>(this)->ModifiedActor = GetTypedOuter<AActor>();
 	}
 	return ModifiedActor.Get();
+}
+
+UActorModifierCoreStack* UActorModifierCoreBase::GetModifierStack() const
+{
+	return GetTypedOuter<UActorModifierCoreStack>();
 }
 
 UActorModifierCoreStack* UActorModifierCoreBase::GetRootModifierStack() const
@@ -420,6 +451,31 @@ bool UActorModifierCoreBase::ProcessFunction(TFunctionRef<bool(const UActorModif
 	return InFunction(this);
 }
 
+void UActorModifierCoreBase::DeferInitializeModifier()
+{
+	if (IsModifierInitialized())
+	{
+		return;
+	}
+
+	// Begin batch operation to avoid updating every time a modifier is loaded
+	UActorModifierCoreStack* Stack = GetRootModifierStack();
+
+	if (!Stack)
+	{
+		return;
+	}
+
+	if (!Stack->IsModifierExecutionLocked() && !Stack->IsModifierStackInitialized())
+	{
+		Stack->LockModifierExecution();
+	}
+
+	// Bind to world delegate, tick will be called when all actors have been loaded, unbind when actors have been loaded
+	FWorldDelegates::OnWorldPostActorTick.RemoveAll(this);
+	FWorldDelegates::OnWorldPostActorTick.AddUObject(this, &UActorModifierCoreBase::PostModifierWorldLoad);
+}
+
 UActorModifierCoreBase::UActorModifierCoreBase()
 {
 	// Copy metadata from CDO
@@ -434,16 +490,47 @@ void UActorModifierCoreBase::PostLoad()
 {
 	Super::PostLoad();
 
-	// Begin batch operation to avoid updating every time a modifier is loaded
-	UActorModifierCoreStack* Stack = GetRootModifierStack();
-	if (!Stack->IsModifierExecutionLocked() && !Stack->IsModifierStackInitialized())
+	const AActor* OwningActor = GetModifiedActor();
+	const UObject* Outer = GetOuter();
+	const UActorModifierCoreComponent* OwningComponent = OwningActor ? OwningActor->FindComponentByClass<UActorModifierCoreComponent>() : nullptr;
+
+	if (OwningActor
+		&& OwningComponent
+		&& Outer
+		&& Outer->IsA<AActor>())
 	{
-		Stack->LockModifierExecution();
+		constexpr int32 RenameFlags = REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional;
+
+		// Migrate modifiers to component stack instead and discard this stack
+		if (const UActorModifierCoreStack* ThisStack = Cast<UActorModifierCoreStack>(this))
+		{
+			UActorModifierCoreStack* ComponentStack = OwningComponent->ModifierStack;
+
+			if (ComponentStack && ComponentStack != this)
+			{
+				const FString ThisStackName = GetName();
+				const EObjectFlags ThisStackFlags = GetFlags();
+
+				LogModifier(FString::Printf(TEXT("Modifier stack migrated to component stack %s %s with %i modifiers"), *OwningComponent->GetName(), *ComponentStack->GetName(), ThisStack->Modifiers.Num()), true);
+				Rename(nullptr, GetTransientPackage(), RenameFlags);
+
+				ComponentStack->Rename(*ThisStackName, nullptr, RenameFlags);
+				ComponentStack->Modifiers = ThisStack->Modifiers;
+				ComponentStack->bModifierProfiling = ThisStack->bModifierProfiling;
+				ComponentStack->SetFlags(ThisStackFlags);
+
+				return;
+			}
+		}
+		// Change outer of modifier to component stack instead of actor
+		else
+		{
+			const bool bSuccess = Rename(nullptr, OwningComponent->GetModifierStack(), RenameFlags);
+			LogModifier(FString::Printf(TEXT("Modifier outer renamed to stack %s : %s"), *OwningComponent->GetModifierStack()->GetName(), bSuccess ? TEXT("OK") : TEXT("Fail")), true);
+		}
 	}
 
-	// Bind to world delegate, tick will be called when all actors have been loaded, unbind when actors have been loaded
-	FWorldDelegates::OnWorldPostActorTick.RemoveAll(this);
-	FWorldDelegates::OnWorldPostActorTick.AddUObject(this, &UActorModifierCoreBase::PostModifierWorldLoad);
+	DeferInitializeModifier();
 }
 
 void UActorModifierCoreBase::PostEditImport()
@@ -486,9 +573,11 @@ void UActorModifierCoreBase::PostEditUndo()
 {
 	Super::PostEditUndo();
 
+	UActorModifierCoreStack* ModifierStack = GetModifierStack();
+
 	// is it an undo remove or undo add operation ?
-	const bool bModifierInStack = ModifierStack.IsValid() && ModifierStack->Modifiers.Contains(this);
-	const bool bStackRegistered = IsModifierStack() && !ModifierStack.IsValid() && ModifiedActor.IsValid();
+	const bool bModifierInStack = ModifierStack && ModifierStack->Modifiers.Contains(this);
+	const bool bStackRegistered = IsModifierStack() && !ModifierStack && ModifiedActor.IsValid();
 	const bool bModifierValid = bModifierInStack || bStackRegistered;
 
 	if (!bModifierValid)
@@ -550,37 +639,24 @@ void UActorModifierCoreBase::LogModifier(const FString& InLog, bool bInForce) co
 {
 	if (IsModifierProfiling() || bInForce)
 	{
-		const FString ActorLabel = ModifiedActor.IsValid() ? *GetModifiedActor()->GetActorNameOrLabel() : TEXT("Invalid actor");
+		const FString ActorLabel = GetModifiedActor() ? *GetModifiedActor()->GetActorNameOrLabel() : TEXT("Invalid actor");
 		const FString ModifierLabel = GetModifierName().ToString();
+		const FString ClassLabel = GetClass()->GetName();
 
-		UE_LOG(LogActorModifierCoreBase, Log, TEXT("[%s][%s] %s"), *ActorLabel, *ModifierLabel, *InLog);
-	}
-}
-
-void UActorModifierCoreBase::TickModifier(float InDeltaTime)
-{
-	if (!Metadata->IsTickAllowed())
-	{
-		return;
-	}
-
-	if (IsModifierDirtyable())
-	{
-		MarkModifierDirty();
+		UE_LOG(LogActorModifierCoreBase, Log, TEXT("[%s][%s][%s] %s"), *ActorLabel, *ClassLabel, *ModifierLabel, *InLog);
 	}
 }
 
 void UActorModifierCoreBase::PostModifierCreation(UActorModifierCoreStack* InStack)
 {
 	// initialize once, called by the subsystem itself
-	if (!ModifierStack.IsValid())
+	if (GetModifierStack() == InStack)
 	{
 		if (const UActorModifierCoreBase* CDO = GetClass()->GetDefaultObject<UActorModifierCoreBase>())
 		{
 			Metadata = CDO->Metadata;
 		}
 
-		ModifierStack = InStack;
 		ModifiedActor = GetModifiedActor();
 		bModifierInitialized = false;
 	}
@@ -602,7 +678,7 @@ void UActorModifierCoreBase::PostModifierWorldLoad(UWorld* InWorld, ELevelTick I
 	// Check actor is in the world loaded and does not need post load and is not in async loading
 	if (Actor
 		&& InWorld == Actor->GetWorld()
-		&& !Actor->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading)
+		&& !Actor->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading)
 		&& !Actor->HasAnyFlags(EObjectFlags::RF_NeedPostLoad)
 		&& !Actor->HasAnyFlags(EObjectFlags::RF_NeedPostLoadSubobjects))
 	{
@@ -628,7 +704,7 @@ void UActorModifierCoreBase::PostModifierWorldLoad(UWorld* InWorld, ELevelTick I
 		InitializeModifier(EActorModifierCoreEnableReason::Load);
 
 		// End batch operation and execute all modifiers at once if all stack is initialized
-		if (IsModifierStack() && !ModifierStack.IsValid())
+		if (GetRootModifierStack() == this)
 		{
 			if (IsModifierExecutionLocked())
 			{
@@ -686,7 +762,13 @@ void UActorModifierCoreBase::InitializeModifier(EActorModifierCoreEnableReason I
 #endif
 
 		// set new actor
-		ModifiedActor = Cast<AActor>(GetOuter());
+		ModifiedActor = GetModifiedActor();
+
+		// if the metadata is not initialized, reload it from CDO
+		if (!Metadata.IsValid())
+		{
+			PostModifierCreation(GetModifierStack());
+		}
 
 		// Initialize profiler
 		if (!Profiler.IsValid())
@@ -736,7 +818,7 @@ void UActorModifierCoreBase::UninitializeModifier(EActorModifierCoreDisableReaso
 		OnModifierRemoved(InReason);
 
 		// set new actor
-		ModifiedActor = Cast<AActor>(GetOuter());
+		ModifiedActor = GetModifiedActor();
 
 		// recover old enabled state
 		bModifierEnabled = bWasModifierEnabled;

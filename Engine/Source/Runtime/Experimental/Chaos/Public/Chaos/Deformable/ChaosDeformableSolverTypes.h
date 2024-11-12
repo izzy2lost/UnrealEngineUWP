@@ -23,24 +23,32 @@ namespace Chaos::Softs
 			bool InCacheToFile = false,
 			bool InbEnableKinematics = true,
 			bool InbUseFloor = true,
-			bool InbDoSelfCollision = false,
 			bool InbUseGridBasedConstraints = false,
-			FSolverReal InGridDx = (FSolverReal)1. ,
+			FSolverReal InGridDx = (FSolverReal)1.,
 			bool InbDoQuasistatics = false,
 			FSolverReal InEMesh = (FSolverReal)100000.,
 			bool InbDoBlended = false,
 			FSolverReal InBlendedZeta = (FSolverReal).1,
 			FSolverReal InDamping = (FSolverReal)0,
-			bool InbEnableGravity = true, 
-			bool InbEnableCorotatedConstraints = true, 
-			bool InbEnablePositionTargets = true, 
-			bool InbUseGaussSeidelConstraints = false, 
+			bool InbEnableGravity = true,
+			bool InbEnableCorotatedConstraints = true,
+			bool InbEnablePositionTargets = true,
+			bool InbUseGaussSeidelConstraints = false,
 			bool InbUseSOR = true,
-			FSolverReal InOmegaSOR = (FSolverReal)1.6, 
+			FSolverReal InOmegaSOR = (FSolverReal)1.6,
 			bool InbUseGSNeohookean = false,
-			FSolverReal InCollisionSearchRadius = (FSolverReal)10.,
-			FSolverReal InCollisionSpringStiffness = (FSolverReal)500.,
-			bool InbAllowSliding = true)
+			bool InbDoSpringCollision = false,
+			bool InbDoInComponentSpringCollision = false,
+			int32 InNRingExcluded = 1,
+			FSolverReal InSpringCollisionSearchRadius = (FSolverReal)0,
+			FSolverReal InSpringCollisionStiffness = (FSolverReal)500.,
+			bool InbAllowSliding = true,
+			bool InbDoSphereRepulsion = false,
+			FSolverReal InSphereRepulsionRadius = (FSolverReal)0,
+			FSolverReal InSphereRepulsionStiffness = (FSolverReal)500.,
+			bool InbDoMuscleActivation = false,
+			bool InbCollideWithFullMesh = false, 
+			bool InbEnableDynamicSprings = true)
 			: NumSolverSubSteps(InNumSolverSubSteps)
 			, NumSolverIterations(InNumSolverIterations)
 			, FixTimeStep(InFixTimeStep)
@@ -48,7 +56,6 @@ namespace Chaos::Softs
 			, CacheToFile(InCacheToFile)
 			, bEnableKinematics(InbEnableKinematics)
 			, bUseFloor(InbUseFloor)
-			, bDoSelfCollision(InbDoSelfCollision)
 			, bUseGridBasedConstraints(InbUseGridBasedConstraints)
 			, GridDx(InGridDx)
 			, bDoQuasistatics(InbDoQuasistatics)
@@ -63,9 +70,18 @@ namespace Chaos::Softs
 			, bUseSOR(InbUseSOR)
 			, OmegaSOR(InOmegaSOR)
 			, bUseGSNeohookean(InbUseGSNeohookean)
-			, CollisionSearchRadius(InCollisionSearchRadius)
-			, CollisionSpringStiffness(InCollisionSpringStiffness)
+			, bDoSpringCollision(InbDoSpringCollision)
+			, bDoInComponentSpringCollision(InbDoInComponentSpringCollision)
+			, NRingExcluded(InNRingExcluded)
+			, SpringCollisionSearchRadius(InSpringCollisionSearchRadius)
+			, SpringCollisionStiffness(InSpringCollisionStiffness)
 			, bAllowSliding(InbAllowSliding)
+			, bDoSphereRepulsion(InbDoSphereRepulsion)
+			, SphereRepulsionRadius(InSphereRepulsionRadius)
+			, SphereRepulsionStiffness(InSphereRepulsionStiffness)
+			, bDoMuscleActivation(InbDoMuscleActivation)
+			, bCollideWithFullMesh(InbCollideWithFullMesh)
+			, bEnableDynamicSprings(InbEnableDynamicSprings)
 		{}
 
 		int32 NumSolverSubSteps = 5;
@@ -75,7 +91,6 @@ namespace Chaos::Softs
 		bool CacheToFile = false;
 		bool bEnableKinematics = true;
 		bool bUseFloor = true;
-		bool bDoSelfCollision = false;
 		bool bUseGridBasedConstraints = false;
 		FSolverReal GridDx = (FSolverReal)1.;
 		bool bDoQuasistatics = false;
@@ -90,9 +105,18 @@ namespace Chaos::Softs
 		bool bUseSOR = true;
 		FSolverReal OmegaSOR = (FSolverReal)1.6;
 		bool bUseGSNeohookean = false;
-		FSolverReal CollisionSearchRadius = (FSolverReal)10.;
-		FSolverReal CollisionSpringStiffness = (FSolverReal)500.;
+		bool bDoSpringCollision = false;
+		bool bDoInComponentSpringCollision = false;
+		int32 NRingExcluded = 1;
+		FSolverReal SpringCollisionSearchRadius = (FSolverReal)0;
+		FSolverReal SpringCollisionStiffness = (FSolverReal)500.;
 		bool bAllowSliding = true;
+		bool bDoSphereRepulsion = false;
+		FSolverReal SphereRepulsionRadius = (FSolverReal)0;
+		FSolverReal SphereRepulsionStiffness = (FSolverReal)500.;
+		bool bDoMuscleActivation = false;
+		bool bCollideWithFullMesh = false;
+		bool bEnableDynamicSprings = true; 
 	};
 
 
@@ -145,7 +169,7 @@ namespace Chaos::Softs
 		bool bDoDrawKinematicParticles = false;
 		bool bDoDrawTransientKinematicParticles = false;
 		bool bDoDrawRigidCollisionGeometry = false;
-
+		FSolverReal ParticleRadius = 5.f;
 
 		bool IsDebugDrawingEnabled()
 		{ 

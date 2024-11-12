@@ -345,7 +345,7 @@ inline void ConvertRawDepthStencil64DataToFColor(uint32 Width, uint32 Height, ui
 	}
 }
 
-inline void ConvertRawR16G16B16A16DataToFColor(uint32 Width, uint32 Height, uint8 *In, uint32 SrcPitch, FColor* Out)
+inline void ConvertRawR16G16B16A16DataToFColor(uint32 Width, uint32 Height, uint8 *In, uint32 SrcPitch, FColor* Out, bool bLinearToGamma = false)
 {
 	for (uint32 Y = 0; Y < Height; Y++)
 	{
@@ -353,12 +353,12 @@ inline void ConvertRawR16G16B16A16DataToFColor(uint32 Width, uint32 Height, uint
 		FColor* DestPtr = Out + Y * Width;
 		for (uint32 X = 0; X < Width; X++)
 		{
-			*DestPtr = FColor(
-				FColor::Requantize16to8(SrcPtr->R),
-				FColor::Requantize16to8(SrcPtr->G),
-				FColor::Requantize16to8(SrcPtr->B),
-				FColor::Requantize16to8(SrcPtr->A)
-			);
+			*DestPtr = FLinearColor(
+				FColor::DequantizeUNorm16ToFloat(SrcPtr->R),
+				FColor::DequantizeUNorm16ToFloat(SrcPtr->G),
+				FColor::DequantizeUNorm16ToFloat(SrcPtr->B),
+				FColor::DequantizeUNorm16ToFloat(SrcPtr->A)
+			).ToFColor(bLinearToGamma);
 			++SrcPtr;
 			++DestPtr;
 		}
@@ -968,7 +968,7 @@ static bool ConvertDXGIToFColor(DXGI_FORMAT Format, uint32 Width, uint32 Height,
 		ConvertRawDepthStencil64DataToFColor(Width, Height, In, SrcPitch, Out, InFlags);
 		return true;
 	case DXGI_FORMAT_R16G16B16A16_UNORM:
-		ConvertRawR16G16B16A16DataToFColor(Width, Height, In, SrcPitch, Out);
+		ConvertRawR16G16B16A16DataToFColor(Width, Height, In, SrcPitch, Out, bLinearToGamma);
 		return true;
 	case DXGI_FORMAT_R16G16_UNORM:
 		ConvertRawR16G16DataToFColor(Width, Height, In, SrcPitch, Out);

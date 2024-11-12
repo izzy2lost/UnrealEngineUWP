@@ -4,6 +4,7 @@
 #include "UObject/NameTypes.h"
 #include "Stats/Stats.h"
 #include "Misc/CommandLine.h"
+#include "Misc/CoreDelegates.h"
 #include "Misc/CoreStats.h"
 #include "Misc/EventPool.h"
 #include "Misc/LazySingleton.h"
@@ -182,7 +183,9 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		bool newValue = FTaskTagScope::IsCurrentTag(ETaskTag::EGameThread) || FTaskTagScope::IsRunningDuringStaticInit();
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
 		if (!LowLevelTasks::FSchedulerTls::IsBusyWaiting() &&
+#if WITH_CPP_COROUTINES
 			!CoroTask_Detail::FCoroLocalState::IsCoroLaunchedTask() &&
+#endif
 			!UE::Tasks::Private::IsThreadRetractingTask())
 		{
 			const uint32 CurrentThreadId = FPlatformTLS::GetCurrentThreadId();
@@ -210,7 +213,9 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	bool newValue = FTaskTagScope::IsCurrentTag(ETaskTag::ESlateThread);
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
 	if (!LowLevelTasks::FSchedulerTls::IsBusyWaiting() &&
+#if WITH_CPP_COROUTINES
 		!CoroTask_Detail::FCoroLocalState::IsCoroLaunchedTask() &&
+#endif
 		!UE::Tasks::Private::IsThreadRetractingTask())
 	{
 		bool oldValue = GSlateLoadingThreadId != 0 && FPlatformTLS::GetCurrentThreadId() == GSlateLoadingThreadId;
@@ -239,8 +244,6 @@ CORE_API bool IsInAudioThread()
 	return (GIsAudioThreadRunning.load(std::memory_order_acquire) && !GIsAudioThreadSuspended.load(std::memory_order_acquire)) ? GAudioPipe.IsInContext() : IsInGameThread();
 }
 
-CORE_API TAtomic<int32> GIsRenderingThreadSuspended(0);
-
 CORE_API FRunnableThread* GRenderingThread = nullptr;
 
 CORE_API bool IsInActualRenderingThread()
@@ -248,7 +251,11 @@ CORE_API bool IsInActualRenderingThread()
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	bool newValue = FTaskTagScope::IsCurrentTag(ETaskTag::ERenderingThread);
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
-	if (!LowLevelTasks::FSchedulerTls::IsBusyWaiting() && !CoroTask_Detail::FCoroLocalState::IsCoroLaunchedTask())
+	if (!LowLevelTasks::FSchedulerTls::IsBusyWaiting() 
+#if WITH_CPP_COROUTINES
+		&& !CoroTask_Detail::FCoroLocalState::IsCoroLaunchedTask()
+#endif
+		)
 	{
 		bool oldValue = FPlatformTLS::GetCurrentThreadId() == GRenderThreadId;
 		ensureMsgf(oldValue == newValue, TEXT("oldValue(%i) newValue(%i) If this check fails make sure that there is a FTaskTagScope(ETaskTag::ERenderingThread) as deep as possible on the current callstack, you can see the current value in ActiveNamedThreads(%x)"), oldValue, newValue, FTaskTagScope::GetCurrentTag());
@@ -262,20 +269,20 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 CORE_API bool IsInRenderingThread()
 {
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	const bool bLocalIsLoadingThreadSuspended = GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed) != 0;
-
-	bool newValue = (GRenderThreadId == 0) || bLocalIsLoadingThreadSuspended
+	bool newValue = (GRenderThreadId == 0)
 		? FTaskTagScope::IsCurrentTag(ETaskTag::EGameThread) || FTaskTagScope::IsCurrentTag(ETaskTag::ERenderingThread) || FTaskTagScope::IsRunningDuringStaticInit()
 		: FTaskTagScope::IsCurrentTag(ETaskTag::ERenderingThread);
 
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
 	if (!LowLevelTasks::FSchedulerTls::IsBusyWaiting() && 
+#if WITH_CPP_COROUTINES
 		!CoroTask_Detail::FCoroLocalState::IsCoroLaunchedTask() && 
+#endif
 		!UE::Tasks::Private::IsThreadRetractingTask())
 	{
 		const uint32 CurrentThreadId = FPlatformTLS::GetCurrentThreadId();
-		bool oldValue = ((GRenderThreadId == 0) || bLocalIsLoadingThreadSuspended) ? (CurrentThreadId == GGameThreadId) || FTaskTagScope::IsRunningDuringStaticInit() : (CurrentThreadId == GRenderThreadId);
-		ensureMsgf(oldValue == newValue, TEXT("oldValue(%i) newValue(%i) If this check fails make sure that there is a FTaskTagScope(ETaskTag::ERenderingThread) as deep as possible on the current callstack, you can see the current value in ActiveNamedThreads(%x), GRenderingThread(%x), GIsRenderingThreadSuspended(%d)"), oldValue, newValue, FTaskTagScope::GetCurrentTag(), GRenderingThread, bLocalIsLoadingThreadSuspended);
+		bool oldValue = (GRenderThreadId == 0) ? (CurrentThreadId == GGameThreadId) || FTaskTagScope::IsRunningDuringStaticInit() : (CurrentThreadId == GRenderThreadId);
+		ensureMsgf(oldValue == newValue, TEXT("oldValue(%i) newValue(%i) If this check fails make sure that there is a FTaskTagScope(ETaskTag::ERenderingThread) as deep as possible on the current callstack, you can see the current value in ActiveNamedThreads(%x), GRenderingThread(%x)"), oldValue, newValue, FTaskTagScope::GetCurrentTag(), GRenderingThread);
 		newValue = oldValue;
 	}
 #endif
@@ -286,10 +293,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 CORE_API bool IsInParallelRenderingThread()
 {
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	const bool bLocalIsLoadingThreadSuspended = GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed) != 0;
-
 	bool newValue = false;
-	if ((GRenderThreadId == 0) || bLocalIsLoadingThreadSuspended)
+	if (GRenderThreadId == 0)
 	{
 		newValue = FTaskTagScope::IsCurrentTag(ETaskTag::ERenderingThread) || FTaskTagScope::IsCurrentTag(ETaskTag::EGameThread) || FTaskTagScope::IsCurrentTag(ETaskTag::EParallelRenderingThread);
 	}
@@ -303,12 +308,14 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
 	if (!LowLevelTasks::FSchedulerTls::IsBusyWaiting() &&
+#if WITH_CPP_COROUTINES
 		!CoroTask_Detail::FCoroLocalState::IsCoroLaunchedTask() &&
+#endif
 		!UE::Tasks::Private::IsThreadRetractingTask())
 	{
 		const uint32 CurrentThreadId = FPlatformTLS::GetCurrentThreadId();
-		bool oldValue = ((GRenderThreadId == 0) || bLocalIsLoadingThreadSuspended) ?  true : CurrentThreadId != GGameThreadId;
-		ensureMsgf(oldValue == newValue, TEXT("oldValue(%i) newValue(%i) If this check fails make sure that there is a FTaskTagScope(ETaskTag::EParallelRenderingThread) as deep as possible on the current callstack, you can see the current value in ActiveNamedThreads(%x), GRenderingThread(%x), GIsRenderingThreadSuspended(%d)"), oldValue, newValue, FTaskTagScope::GetCurrentTag(), GRenderingThread, bLocalIsLoadingThreadSuspended);
+		bool oldValue = (GRenderThreadId == 0) ?  true : CurrentThreadId != GGameThreadId;
+		ensureMsgf(oldValue == newValue, TEXT("oldValue(%i) newValue(%i) If this check fails make sure that there is a FTaskTagScope(ETaskTag::EParallelRenderingThread) as deep as possible on the current callstack, you can see the current value in ActiveNamedThreads(%x), GRenderingThread(%x)"), oldValue, newValue, FTaskTagScope::GetCurrentTag(), GRenderingThread);
 		newValue = oldValue;
 	}
 #endif
@@ -316,33 +323,25 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-CORE_API uint32 GRHIThreadId = 0;
-CORE_API FRunnableThread* GRHIThread_InternalUseOnly = nullptr;
+CORE_API bool GIsRunningRHIInSeparateThread_InternalUseOnly  = false;
+CORE_API bool GIsRunningRHIInDedicatedThread_InternalUseOnly = false;
+CORE_API bool GIsRunningRHIInTaskThread_InternalUseOnly      = false;
 
 CORE_API bool IsRHIThreadRunning()
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	return GRHIThreadId != 0;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	return GIsRunningRHIInDedicatedThread_InternalUseOnly;
 }
 
 CORE_API bool IsInRHIThread()
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	bool newValue = FTaskTagScope::IsCurrentTag(ETaskTag::ERhiThread);
-#if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
-	bool oldValue = GRHIThreadId && FPlatformTLS::GetCurrentThreadId() == GRHIThreadId;	
-	ensureMsgf(oldValue == newValue, TEXT("oldValue(%i) newValue(%i) If this check fails make sure that there is a FTaskTagScope(ETaskTag::ERhiThread) as deep as possible on the current callstack, you can see the current value in ActiveNamedThreads(%x)"), oldValue, newValue, FTaskTagScope::GetCurrentTag());
-	newValue = oldValue;
-#endif
-	return newValue;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	return FTaskTagScope::IsCurrentTag(ETaskTag::ERhiThread);
 }
 
 CORE_API bool IsInParallelRHIThread()
 {
-	return FTaskTagScope::IsCurrentTag(ETaskTag::EParallelRhiThread);
+	return (FTaskTagScope::GetCurrentTag() & ETaskTag::ERhiThread) == ETaskTag::ERhiThread;
 }
+
 // Fake threads
 
 // Core version of IsInAsyncLoadingThread
@@ -451,6 +450,16 @@ public:
 	}
 };
 uint32 FFakeThread::ThreadIdCounter = 0xffff;
+
+FThreadManager::FThreadManager()
+{
+	FCoreDelegates::OnParentPreFork.AddRaw(this, &FThreadManager::HandleOnParentPreFork);
+}
+
+FThreadManager::~FThreadManager()
+{
+	FCoreDelegates::OnParentPreFork.RemoveAll(this);
+}
 
 bool FThreadManager::CheckThreadListSafeToContinueIteration()
 {
@@ -670,6 +679,16 @@ TArray<FRunnableThread*> FThreadManager::GetForkableThreads()
 	);
 
 	return ForkableThreads;
+}
+
+void FThreadManager::HandleOnParentPreFork()
+{
+	// Use a local list of forkable threads so we don't keep a lock on the global list during thread creation
+	TArray<FRunnableThread*> ForkableThreads = GetForkableThreads();
+	for (FRunnableThread* ForkableThread : ForkableThreads)
+	{
+		ForkableThread->OnPreFork();
+	}
 }
 
 /*-----------------------------------------------------------------------------
@@ -943,7 +962,7 @@ IQueuedWork* FThreadPoolPriorityQueue::Dequeue(EQueuedWorkPriority* OutDequeuedW
 			// queued and never done
 			Work = QueuedWork[0];
 			// Remove it from the list so no one else grabs it
-			QueuedWork.RemoveAt(0, 1, EAllowShrinking::No);
+			QueuedWork.RemoveAt(0, EAllowShrinking::No);
 
 			FirstNonEmptyQueueIndex = QueueIndex;
 			NumQueuedWork--;
@@ -1035,6 +1054,17 @@ protected:
 	 */
 	virtual uint32 Run() override;
 
+	/** Common code use by Create functions */
+	FString SetupForCreate(class FQueuedThreadPoolBase* InPool, const TCHAR* ThreadName)
+	{
+		static int32 PoolThreadIndex = 0;
+		const FString PoolThreadName = ThreadName ? FString(ThreadName) : FString::Printf(TEXT("PoolThread %d"), PoolThreadIndex++);
+
+		OwningThreadPool = InPool;
+		DoWorkEvent = FPlatformProcess::GetSynchEventFromPool();
+		return PoolThreadName;
+	}
+
 public:
 
 	/** Default constructor **/
@@ -1051,14 +1081,31 @@ public:
 	 */
 	virtual bool Create(class FQueuedThreadPoolBase* InPool,uint32 InStackSize = 0, EThreadPriority ThreadPriority=TPri_Normal, const TCHAR* ThreadName = nullptr)
 	{
-		static int32 PoolThreadIndex = 0;
-		const FString PoolThreadName = ThreadName ? FString(ThreadName) : FString::Printf( TEXT( "PoolThread %d" ), PoolThreadIndex++ );
+		const FString PoolThreadName = SetupForCreate(InPool, ThreadName);
 
-		OwningThreadPool = InPool;
-		DoWorkEvent = FPlatformProcess::GetSynchEventFromPool();
 		Thread = FRunnableThread::Create(this, *PoolThreadName, InStackSize, ThreadPriority, FPlatformAffinity::GetPoolThreadMask());
 		check(Thread);
 		return true;
+	}
+
+	/**
+	 * Attempts to creates a forkable thread (see FForkProcessHelper) with the specified stack size and creates the various
+	 * events to be able to communicate with it.
+	 * 
+	 * Currently only works after the process has been forked because GetSingleThreadInterface() isn't implemented
+	 *
+	 * @param InPool The thread pool interface used to place this thread back into the pool of available threads when its work is done
+	 * @param InStackSize The size of the stack to create. 0 means use the current thread's stack size
+	 * @param ThreadPriority priority of new thread
+	 * @return True if the thread and all of its initialization was successful, false otherwise
+	 */
+	virtual bool CreateForkable(class FQueuedThreadPoolBase* InPool, uint32 InStackSize = 0, EThreadPriority ThreadPriority = TPri_Normal, const TCHAR* ThreadName = nullptr)
+	{
+		const FString PoolThreadName = SetupForCreate(InPool, ThreadName);
+
+		// Currently no single threaded support, so this is expected to fail before forking
+		Thread = FForkProcessHelper::CreateForkableThread(this, *PoolThreadName, InStackSize, ThreadPriority, FPlatformAffinity::GetPoolThreadMask());
+		return !!Thread;
 	}
 	
 	/**
@@ -1143,7 +1190,7 @@ public:
 		Destroy();
 	}
 
-	virtual bool Create(uint32 InNumQueuedThreads, uint32 StackSize, EThreadPriority ThreadPriority, const TCHAR* Name) override
+	bool CreateInternal(bool bForkable, uint32 InNumQueuedThreads, uint32 StackSize, EThreadPriority ThreadPriority, const TCHAR* Name)
 	{
 		UE::Trace::ThreadGroupBegin(Name);
 
@@ -1170,7 +1217,10 @@ public:
 			FQueuedThread* pThread = new FQueuedThread();
 			// Now create the thread and add it if ok
 			const FString ThreadName = FString::Printf(TEXT("%s #%d"), Name, Count);
-			if (pThread->Create(this, StackSize, ThreadPriority, *ThreadName) == true)
+			const bool bCreateSuccess = bForkable ?
+				pThread->CreateForkable(this, StackSize, ThreadPriority, *ThreadName) :
+				pThread->Create(this, StackSize, ThreadPriority, *ThreadName);
+			if (bCreateSuccess)
 			{
 				QueuedThreads.Add(pThread);
 				AllThreads.Add(pThread);
@@ -1190,6 +1240,16 @@ public:
 
 		UE::Trace::ThreadGroupEnd();
 		return bWasSuccessful;
+	}
+
+	virtual bool Create(uint32 InNumQueuedThreads, uint32 StackSize, EThreadPriority ThreadPriority, const TCHAR* Name) override
+	{
+		return CreateInternal(false, InNumQueuedThreads, StackSize, ThreadPriority, Name);
+	}
+
+	virtual bool CreateForkable(uint32 InNumQueuedThreads, uint32 StackSize, EThreadPriority ThreadPriority, const TCHAR* Name) override
+	{
+		return CreateInternal(true, InNumQueuedThreads, StackSize, ThreadPriority, Name);
 	}
 
 	virtual void Destroy() override final
@@ -1286,7 +1346,7 @@ public:
 
 			Thread = QueuedThreads[ThreadIndex];
 			// Remove it from the list so no one else grabs it
-			QueuedThreads.RemoveAt(ThreadIndex, 1, EAllowShrinking::No);
+			QueuedThreads.RemoveAt(ThreadIndex, EAllowShrinking::No);
 		}
 
 		// Tell our chosen thread to do the work
@@ -1397,7 +1457,7 @@ FQueuedThread::Run()
 FTlsAutoCleanup* FThreadSingletonInitializer::Get( TFunctionRef<FTlsAutoCleanup*()> CreateInstance, uint32& InOutTlsSlot )
 {
 	uint32 TlsSlot;
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN
 	{
 		TlsSlot = (uint32)FPlatformAtomics::AtomicRead_Relaxed((int32*)&InOutTlsSlot);
 		if (TlsSlot == FPlatformTLS::InvalidTlsSlot)
@@ -1415,20 +1475,19 @@ FTlsAutoCleanup* FThreadSingletonInitializer::Get( TFunctionRef<FTlsAutoCleanup*
 				TlsSlot = ThisTlsSlot;
 			}
 		}
-	});
+	};
 
 	FTlsAutoCleanup* ThreadSingleton = nullptr;
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN
 	{
 		ThreadSingleton = (FTlsAutoCleanup*)FPlatformTLS::GetTlsValue( TlsSlot );
 		if( !ThreadSingleton )
 		{
-			// these are generally left open and only get cleaned up on thread exit so avoiding dealing with an OPENABORT here to clean this up
 			ThreadSingleton = CreateInstance();
 			ThreadSingleton->Register();
 			FPlatformTLS::SetTlsValue( TlsSlot, ThreadSingleton );
 		}
-	});
+	};
 	return ThreadSingleton;
 }
 
@@ -1475,6 +1534,7 @@ void FTlsAutoCleanup::Register()
  * This thread starts as a fake thread and gets ticked like it was in a single-threaded environment.
  * Once it receives the OnPostFork event it creates and holds a real thread that
  * will cause the RunnableObject to be executed in it's own thread.
+ * Optionally, it can create the real thread immediately, but it also asserts that the real thread has exited by the fork point.
  */
 class FForkableThread : public FFakeThread
 {
@@ -1490,6 +1550,10 @@ private:
 	uint32 CachedStackSize = 0;
 
 public:
+
+	FForkableThread(bool InAllowPreForkRealThread)
+		: bAllowPreForkRealThread(InAllowPreForkRealThread)
+	{}
 
 	virtual ~FForkableThread()
 	{
@@ -1560,8 +1624,20 @@ public:
 		checkf(FForkProcessHelper::SupportsMultithreadingPostFork(), TEXT("ForkableThreads should only be created when -PostForkThreading is enabled"));
 		checkf(FForkProcessHelper::IsForkedMultithreadInstance() == false, TEXT("Once forked we create a real runnable thread instead of a ForkableThread"));
 
-		// Call the fake thread creator
-		bool bCreated = Super::CreateInternal(InRunnable, InThreadName, InStackSize, InThreadPri, InThreadAffinityMask, InCreateFlags);
+		bool bCreated = false;
+		if (bAllowPreForkRealThread)
+		{
+			ThreadName = InThreadName;
+			ThreadAffinityMask = InThreadAffinityMask;
+			Runnable = InRunnable;
+			InRunnable->Init();
+			bCreated = CreateRealThread();
+		}
+		else
+		{
+			// Call the fake thread creator
+			bCreated = Super::CreateInternal(InRunnable, InThreadName, InStackSize, InThreadPri, InThreadAffinityMask, InCreateFlags);
+		}
 
 		// Cache the target values until we create the real thread
 		CachedStackSize = InStackSize;
@@ -1572,10 +1648,19 @@ public:
 
 protected:
 
+	virtual void OnPreFork() override
+	{
+		checkf(!bAllowPreForkRealThread, TEXT("A forkable thread that allows real threading before the fork point was left alive. You must delete all forkable threads that were created with bAllowPrefork == true before forking. ThreadName:%s ThreadID:%d"), *GetThreadName(), GetThreadID());
+	}
+
 	virtual void OnPostFork() override
 	{
 		check(FForkProcessHelper::IsForkedMultithreadInstance());
+		CreateRealThread();
+	}
 
+	bool CreateRealThread()
+	{
 		check(RealThread == nullptr);
 		RealThread = FPlatformProcess::CreateRunnableThread();
 		bool bCreated = RealThread->CreateInternal(Runnable, *GetThreadName(), CachedStackSize, CachedPriority, ThreadAffinityMask, EThreadCreateFlags::None);
@@ -1596,10 +1681,14 @@ protected:
 			delete RealThread;
 			RealThread = nullptr;
 		}
+
+		return bCreated;
 	}
+
+	bool bAllowPreForkRealThread;
 };
 
-FRunnableThread* FForkProcessHelper::CreateForkableThread(class FRunnable* InRunnable, const TCHAR* InThreadName, uint32 InStackSize, EThreadPriority InThreadPri, uint64 InThreadAffinityMask, EThreadCreateFlags InCreateFlags)
+FRunnableThread* FForkProcessHelper::CreateForkableThread(class FRunnable* InRunnable, const TCHAR* InThreadName, uint32 InStackSize, EThreadPriority InThreadPri, uint64 InThreadAffinityMask, EThreadCreateFlags InCreateFlags, bool bAllowPrefork)
 {
 	bool bCreateRealThread = FPlatformProcess::SupportsMultithreading();
 	bool bCreateForkableThread(false);
@@ -1631,9 +1720,13 @@ FRunnableThread* FForkProcessHelper::CreateForkableThread(class FRunnable* InRun
 	}
 	else if (bCreateForkableThread)
 	{
-		if( InRunnable->GetSingleThreadInterface() )
+		if (bAllowPrefork)
 		{
-			NewThread = new FForkableThread();
+			NewThread = new FForkableThread(true);
+		}
+		else if( InRunnable->GetSingleThreadInterface() )
+		{
+			NewThread = new FForkableThread(false);
 		}
 	}
 	else

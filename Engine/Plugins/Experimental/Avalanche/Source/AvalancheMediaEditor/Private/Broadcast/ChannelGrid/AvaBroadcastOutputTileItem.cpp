@@ -197,9 +197,10 @@ void FAvaBroadcastOutputTileItem::OnBroadcastChanged(EAvaBroadcastChange InChang
 void FAvaBroadcastOutputTileItem::UpdateInfo()
 {
 	MediaOutputDisplayText = FindLatestDisplayText();
-	
-	const EAvaBroadcastOutputState OutputState = GetChannel().GetMediaOutputState(MediaOutput.Get());
-	const EAvaBroadcastIssueSeverity Severity = GetChannel().GetMediaOutputIssueSeverity(OutputState, MediaOutput.Get());
+
+	const FAvaBroadcastOutputChannel& Channel = GetChannel();
+	const EAvaBroadcastOutputState OutputState = Channel.GetMediaOutputState(MediaOutput.Get());
+	const EAvaBroadcastIssueSeverity Severity = Channel.GetMediaOutputIssueSeverity(OutputState, MediaOutput.Get());
 	switch(OutputState)
 	{
 	case EAvaBroadcastOutputState::Offline:
@@ -235,6 +236,26 @@ void FAvaBroadcastOutputTileItem::UpdateInfo()
 	}
 
 	FString AllMessages;
+
+	// Include the status of the server in the tooltip.
+	const FAvaBroadcastMediaOutputInfo& OutputInfo = Channel.GetMediaOutputInfo(MediaOutput.Get());
+	if (OutputInfo.IsValid())
+	{
+		if (OutputInfo.IsRemote())
+		{
+			AllMessages.Append(FString::Printf(TEXT("Remote Output on server \"%s\".\n"), *OutputInfo.ServerName));
+		}
+		else
+		{
+			AllMessages.Append(TEXT("Local Output.\n"));
+		}
+	}
+	else
+	{
+		AllMessages.Append(TEXT("Invalid Output Info.\n"));
+	}
+	
+	
 	switch(Severity)
 	{
 	case EAvaBroadcastIssueSeverity::Errors:
@@ -244,7 +265,14 @@ void FAvaBroadcastOutputTileItem::UpdateInfo()
 		AllMessages.Append(TEXT("Warning: \n"));
 		break;
 	default:
-		AllMessages.Append(TEXT("Healthy\n"));
+		if (OutputState == EAvaBroadcastOutputState::Offline)
+		{
+			AllMessages.Append(TEXT("Offline\n"));
+		}
+		else
+		{
+			AllMessages.Append(TEXT("Healthy\n"));
+		}
 		break;
 	}
 	
@@ -260,8 +288,27 @@ void FAvaBroadcastOutputTileItem::UpdateInfo()
 FText FAvaBroadcastOutputTileItem::FindLatestDisplayText() const
 {
 	check(MediaOutput.IsValid());
-	const FString DeviceName = UE::AvaBroadcastOutputUtils::GetDeviceName(MediaOutput.Get());
-	return !DeviceName.IsEmpty() ? FText::FromString(DeviceName) : FText::FromName(MediaOutput->GetFName());
+
+	FString ServerName;
+	
+	const FAvaBroadcastOutputChannel& Channel = GetChannel();
+	if (Channel.IsValidChannel())
+	{
+		const FAvaBroadcastMediaOutputInfo& OutputInfo = Channel.GetMediaOutputInfo(MediaOutput.Get());
+		if (OutputInfo.IsValid() && OutputInfo.IsRemote())
+		{
+			ServerName = OutputInfo.ServerName + TEXT(": ");
+		}
+	}
+
+	FString DeviceName = UE::AvaBroadcastOutputUtils::GetDeviceName(MediaOutput.Get());
+	
+	if (DeviceName.IsEmpty())
+	{
+		DeviceName = MediaOutput->GetFName().ToString();
+	}
+
+	return ServerName.IsEmpty() ? FText::FromString(DeviceName) : FText::FromString(ServerName + DeviceName);
 }
 
 #undef LOCTEXT_NAMESPACE

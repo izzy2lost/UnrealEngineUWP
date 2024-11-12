@@ -5,8 +5,8 @@
 #include "Components/DMMaterialStageBlendFunction.h"
 #include "DMMSBMultiply.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageBlendMultiply : public UDMMaterialStageBlendFunction
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialStageBlendMultiply : public UDMMaterialStageBlendFunction
 {
 	GENERATED_BODY()
 

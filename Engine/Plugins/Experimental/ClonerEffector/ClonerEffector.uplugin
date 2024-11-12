@@ -23,6 +23,11 @@
 			"Name": "ClonerEffectorEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "ClonerEffectorMeshBuilder",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [
@@ -39,11 +44,11 @@
 			"Enabled": true
 		},
 		{
-			"Name": "StructUtils",
+			"Name": "Niagara",
 			"Enabled": true
 		},
 		{
-			"Name": "Niagara",
+			"Name": "NiagaraSimCaching",
 			"Enabled": true
 		}
 	]

@@ -95,7 +95,7 @@ FString UPCGMetadataBooleanSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataBooleanOperation>())
 	{
-		return FString("Boolean: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
+		return FText::Format(NSLOCTEXT("PCGMetadataBooleanSettings", "BooleanOperation", "Boolean: {0}"), EnumPtr->GetDisplayNameTextByValue(static_cast<int64>(Operation))).ToString();
 	}
 	else
 	{
@@ -144,12 +144,10 @@ bool FPCGMetadataBooleanElement::DoOperation(PCGMetadataOps::FOperationData& Ope
 
 	if (Settings->Operation == EPCGMetadataBooleanOperation::Not)
 	{
-		DoUnaryOp<bool>(OperationData, [](const bool& Value) -> bool { return PCGMetadataBooleanSettings::UnaryOp(Value); });
+		return DoUnaryOp<bool>(OperationData, [](const bool& Value) -> bool { return PCGMetadataBooleanSettings::UnaryOp(Value); });
 	}
 	else
 	{
-		DoBinaryOp<bool, bool>(OperationData, [Operation = Settings->Operation](const bool& Value1, const bool& Value2) -> bool { return PCGMetadataBooleanSettings::BinaryOp(Value1, Value2, Operation); });
+		return DoBinaryOp<bool, bool>(OperationData, [Operation = Settings->Operation](const bool& Value1, const bool& Value2) -> bool { return PCGMetadataBooleanSettings::BinaryOp(Value1, Value2, Operation); });
 	}
-
-	return true;
 }

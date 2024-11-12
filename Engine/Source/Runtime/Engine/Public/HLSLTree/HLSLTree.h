@@ -664,6 +664,7 @@ public:
 	const FExpression* NewMul(const FExpression* Lhs, const FExpression* Rhs) { return NewBinaryOp(EOperation::Mul, Lhs, Rhs); }
 	const FExpression* NewDiv(const FExpression* Lhs, const FExpression* Rhs) { return NewBinaryOp(EOperation::Div, Lhs, Rhs); }
 	const FExpression* NewFmod(const FExpression* Lhs, const FExpression* Rhs) { return NewBinaryOp(EOperation::Fmod, Lhs, Rhs); }
+	const FExpression* NewModulo(const FExpression* Lhs, const FExpression* Rhs) { return NewBinaryOp(EOperation::Modulo, Lhs, Rhs); }
 	const FExpression* NewStep(const FExpression* Lhs, const FExpression* Rhs) { return NewBinaryOp(EOperation::Step, Lhs, Rhs); }
 	const FExpression* NewPowClamped(const FExpression* Lhs, const FExpression* Rhs) { return NewBinaryOp(EOperation::PowPositiveClamped, Lhs, Rhs); }
 	const FExpression* NewMin(const FExpression* Lhs, const FExpression* Rhs) { return NewBinaryOp(EOperation::Min, Lhs, Rhs); }

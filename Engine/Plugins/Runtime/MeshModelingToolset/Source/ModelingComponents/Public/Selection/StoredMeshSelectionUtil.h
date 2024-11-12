@@ -42,6 +42,16 @@ namespace Geometry
 		FGeometrySelection& SelectionOut);
 
 	/**
+	 * Find the frame and bounds representative of the current selection, if there is one.
+	 * @param SceneState				Scene state info, including current selection
+	 * @param OutWorldFrame				Frame centered on the current selection and (when sensible) aligned to the selected elements
+	 * @param OutWorldBounds			Bounds of the current selection
+	 * @param bOutIsElementSelection	Whether the selection is a mesh element selection, or a regular editor/actor selection
+	 * @return	true if a selection was found, false otherwise.
+	 */
+	MODELINGCOMPONENTS_API bool GetCurrentSelectionWorldFrameBounds(const FToolBuilderState& SceneState, FFrame3d& OutWorldFrame, FAxisAlignedBox3d& OutWorldBounds, bool& bOutIsElementSelection);
+
+	/**
 	 * Allow a Tool to return an "output" FGeometrySelection for the given ToolTarget (presumably on Tool Shutdown)
 	 * Target must be an "active" selection target in the current UGeometrySelectionManager.
 	 * This function will emit a selection-change transaction and should in most cases be nested inside a tool-shutdown transaction.

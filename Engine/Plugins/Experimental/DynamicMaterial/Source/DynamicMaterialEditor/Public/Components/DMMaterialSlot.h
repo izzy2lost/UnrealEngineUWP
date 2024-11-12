@@ -3,7 +3,9 @@
 #pragma once
 
 #include "Components/DMMaterialComponent.h"
+
 #include "DMEDefs.h"
+
 #include "DMMaterialSlot.generated.h"
 
 class FScopedTransaction;
@@ -22,83 +24,109 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FDMOnMaterialSlotLayersUpdated, UDMMaterialS
 /**
  * A list of operations/inputs daisy chained together to produce an output.
  */
-UCLASS(BlueprintType, ClassGroup = "Material Designer", Meta = (DisplayName = "Material Designer Slot"))
-class DYNAMICMATERIALEDITOR_API UDMMaterialSlot : public UDMMaterialComponent
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer", Meta = (DisplayName = "Material Designer Slot"))
+class UDMMaterialSlot : public UDMMaterialComponent
 {
 	friend class SDMMaterialSlot;
-	friend class SDMSlot;
+	friend class SDMMaterialSlotEditor;
 
 	GENERATED_BODY()
 
 public:
-	static const FString LayersPathToken;
+	DYNAMICMATERIALEDITOR_API static const FString LayersPathToken;
 
-	UDMMaterialSlot();
+	DYNAMICMATERIALEDITOR_API UDMMaterialSlot();
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDynamicMaterialModelEditorOnlyData* GetMaterialModelEditorOnlyData() const;
+	DYNAMICMATERIALEDITOR_API UDynamicMaterialModelEditorOnlyData* GetMaterialModelEditorOnlyData() const;
 
+	/** Returns the index of this slot in the model. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	int32 GetIndex() const { return Index; }
 
 	void SetIndex(int32 InNewIndex) { Index = InNewIndex; }
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	FText GetDescription() const;
+	DYNAMICMATERIALEDITOR_API FText GetDescription() const;
 
+	/** Returns the output types for the last layer with the given material property. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	const TArray<EDMValueType>& GetOutputConnectorTypesForMaterialProperty(EDMMaterialPropertyType InMaterialProperty) const;
+	DYNAMICMATERIALEDITOR_API const TArray<EDMValueType>& GetOutputConnectorTypesForMaterialProperty(EDMMaterialPropertyType InMaterialProperty) const;
 
+	/** Returns all possible output connector types. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	TSet<EDMValueType> GetAllOutputConnectorTypes() const;
+	DYNAMICMATERIALEDITOR_API TSet<EDMValueType> GetAllOutputConnectorTypes() const;
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer", meta = (DisplayName = "Get Layer"))
-	UDMMaterialLayerObject* GetLayer(int32 InLayerIndex) const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialLayerObject* GetLayer(int32 InLayerIndex) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialLayerObject* FindLayer(const UDMMaterialStage* InBaseOrMask) const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialLayerObject* FindLayer(const UDMMaterialStage* InBaseOrMask) const;
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer", meta = (DisplayName = "Get Layers"))
-	TArray<UDMMaterialLayerObject*> BP_GetLayers() const;
+	DYNAMICMATERIALEDITOR_API TArray<UDMMaterialLayerObject*> BP_GetLayers() const;
 
 	const TArray<TObjectPtr<UDMMaterialLayerObject>>& GetLayers() const { return LayerObjects; }
 
+	/** Adds the default layer type for this slot based on the given material property. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialLayerObject* AddLayer(EDMMaterialPropertyType InMaterialProperty, UDMMaterialStage* InNewBase);
+	DYNAMICMATERIALEDITOR_API UDMMaterialLayerObject* AddDefaultLayer(EDMMaterialPropertyType InMaterialProperty);
 
+	/** Adds the default layer (with specified base) based on the given material property. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialLayerObject* AddLayerWithMask(EDMMaterialPropertyType InMaterialProperty, UDMMaterialStage* InNewBase, UDMMaterialStage* InNewMask);
+	DYNAMICMATERIALEDITOR_API UDMMaterialLayerObject* AddLayer(EDMMaterialPropertyType InMaterialProperty, UDMMaterialStage* InNewBase);
 
-	// Adds the specified layer to the end of the layer list
+	/** Adds a new layer with the specified base and mask layers. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API UDMMaterialLayerObject* AddLayerWithMask(EDMMaterialPropertyType InMaterialProperty, UDMMaterialStage* InNewBase,
+		UDMMaterialStage* InNewMask);
+
+	/** Adds the specified layer to the end of the layer list. */
 	bool PasteLayer(UDMMaterialLayerObject* InLayer);
 
+	/** Can't be removed if it is the last remaining layer. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool RemoveLayer(UDMMaterialLayerObject* InLayer);
+	DYNAMICMATERIALEDITOR_API bool CanRemoveLayer(UDMMaterialLayerObject* InLayer) const;
+
+	/** Removes the layer, if possible. */
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API bool RemoveLayer(UDMMaterialLayerObject* InLayer);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool MoveLayer(UDMMaterialLayerObject* InLayer, int32 InNewIndex);
+	DYNAMICMATERIALEDITOR_API bool MoveLayer(UDMMaterialLayerObject* InLayer, int32 InNewIndex);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool MoveLayerBefore(UDMMaterialLayerObject* InLayer, UDMMaterialLayerObject* InBeforeLayer = nullptr);
+	DYNAMICMATERIALEDITOR_API bool MoveLayerBefore(UDMMaterialLayerObject* InLayer, UDMMaterialLayerObject* InBeforeLayer = nullptr);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool MoveLayerAfter(UDMMaterialLayerObject* InLayer, UDMMaterialLayerObject* InAfterLayer = nullptr);
+	DYNAMICMATERIALEDITOR_API bool MoveLayerAfter(UDMMaterialLayerObject* InLayer, UDMMaterialLayerObject* InAfterLayer = nullptr);
 
+	/** Useful for determining output types. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialLayerObject* GetLastLayerForMaterialProperty(EDMMaterialPropertyType InMaterialProperty) const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialLayerObject* GetLastLayerForMaterialProperty(EDMMaterialPropertyType InMaterialProperty) const;
 
 	void UpdateOutputConnectorTypes();
+
 	void UpdateMaterialProperties();
 
-	FDMOnMaterialSlotConnectorsUpdated& GetOnConnectorsUpdateDelegate() { return OnConnectorsUpdateDelegate; }
-	FDMOnMaterialSlotPropertiesUpdated& GetOnPropertiesUpdateDelegate() { return OnPropertiesUpdateDelegate; }
-	FDMOnMaterialSlotLayersUpdated& GetOnLayersUpdateDelegate() { return OnLayersUpdateDelegate; }
+	/** Called when the output connectors for this slot change. */
+	FDMOnMaterialSlotConnectorsUpdated::RegistrationType& GetOnConnectorsUpdateDelegate() { return OnConnectorsUpdateDelegate; }
 
-	void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
+	/** Called when properties of this slot change. */
+	FDMOnMaterialSlotPropertiesUpdated::RegistrationType& GetOnPropertiesUpdateDelegate() { return OnPropertiesUpdateDelegate; }
 
+	/** Called whenever the properties of a layer change or when one is added, removed or moved. */
+	FDMOnMaterialSlotLayersUpdated::RegistrationType& GetOnLayersUpdateDelegate() { return OnLayersUpdateDelegate; }
+
+	/** Calls OnPropertiesUpdateDelegate when the property for this slot is updated. */
+	void OnPropertiesUpdated();
+
+	DYNAMICMATERIALEDITOR_API void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
+
+	/** Return a map of the slots referencing this slot and how many times that reference exists. */
 	const TMap<TWeakObjectPtr<UDMMaterialSlot>, int32>& GetSlotsReferencedBy() const { return SlotsReferencedBy; }
 
+	/** Returns an array of the slots referencing this slot. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer", Meta = (DisplayName="Get Slots Referenced By"))
 	TArray<UDMMaterialSlot*> K2_GetSlotsReferencedBy() const;
 
@@ -108,29 +136,26 @@ public:
 	/** Returns true if all associations have been removed */
 	bool UnreferencedBySlot(UDMMaterialSlot* InOtherSlot);
 
-	bool IsEditingLayers() const { return bIsEditingLayers; }
-	void SetEditingLayers(bool bInIsEditing) { bIsEditingLayers = bInIsEditing; }
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UMaterial* GetPreviewMaterial(EDMMaterialLayerStage InLayerStage);
-
+	/** Sets the material property of the given layer and changes all other layers matching that property to a different one. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool SetLayerMaterialPropertyAndReplaceOthers(UDMMaterialLayerObject* InLayer, EDMMaterialPropertyType InMaterialProperty, 
-		EDMMaterialPropertyType InReplaceWithProperty);
+	DYNAMICMATERIALEDITOR_API bool SetLayerMaterialPropertyAndReplaceOthers(UDMMaterialLayerObject* InLayer, EDMMaterialPropertyType InPropertyFrom,
+		EDMMaterialPropertyType InPropertyTo);
+
+	/** Changes the material property of all matching layers to another. */
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API bool ChangeMaterialProperty(EDMMaterialPropertyType InPropertyFrom, EDMMaterialPropertyType InPropertyTo);
 
 	//~ Begin UDMMaterialComponent
-	virtual void Update(EDMUpdateType InUpdateType) override;
-	virtual void DoClean() override;
-	virtual bool IsRootComponent() const override { return true; }
-	virtual FString GetComponentPathComponent() const override;
+	DYNAMICMATERIALEDITOR_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;
+	DYNAMICMATERIALEDITOR_API virtual FString GetComponentPathComponent() const override;
 	virtual UDMMaterialComponent* GetParentComponent() const override { return nullptr; }
-	virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 	//~ End UDMMaterialComponent
 
 	//~ Begin UObject
-	virtual bool Modify(bool bInAlwaysMarkDirty = true) override;
-	virtual void PostEditUndo() override;
-	virtual void PostLoad() override;
+	DYNAMICMATERIALEDITOR_API virtual bool Modify(bool bInAlwaysMarkDirty = true) override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditUndo() override;
+	DYNAMICMATERIALEDITOR_API virtual void PostLoad() override;
 	//~ End UObject
 
 protected:
@@ -146,33 +171,14 @@ protected:
 	UPROPERTY()
 	TMap<TWeakObjectPtr<UDMMaterialSlot>, int32> SlotsReferencedBy;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, DuplicateTransient, TextExportTransient, Category = "Material Designer")
-	bool bIsEditingLayers;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, DuplicateTransient, TextExportTransient, Category = "Material Designer")
-	TObjectPtr<UMaterial> BasePreviewMaterial;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, DuplicateTransient, TextExportTransient, Category = "Material Designer")
-	TObjectPtr<UMaterial> MaskPreviewMaterial;
-
 	FDMOnMaterialSlotConnectorsUpdated OnConnectorsUpdateDelegate;
 	FDMOnMaterialSlotPropertiesUpdated OnPropertiesUpdateDelegate;
 	FDMOnMaterialSlotLayersUpdated OnLayersUpdateDelegate;
 
-	void CreatePreviewMaterial(EDMMaterialLayerStage InLayerStage);
-	void UpdatePreviewMaterial(EDMMaterialLayerStage InLayerStage);
-	void UpdateBasePreviewMaterial(const TSharedRef<FDMMaterialBuildState>& InBuildState);
-	void UpdateBasePreviewMaterialProperty(const TSharedRef<FDMMaterialBuildState>& InBuildState, EDMMaterialPropertyType InBaseProperty);
-	void UpdateBasePreviewMaterialFull(const TSharedRef<FDMMaterialBuildState>& InBuildState);
-	void UpdateMaskPreviewMaterial(const TSharedRef<FDMMaterialBuildState>& InBuildState);
-	void UpdateMaskPreviewMaterialProperty(const TSharedRef<FDMMaterialBuildState>& InBuildState, EDMMaterialPropertyType InMaskProperty);
-	void UpdateMaskPreviewMaterialMaskCombination(const TSharedRef<FDMMaterialBuildState>& InBuildState, EDMMaterialPropertyType InMaskProperty);
-	void UpdatePreviewMaterialProperty(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterial* InPreviewMaterial, EDMMaterialPropertyType InProperty);
-
 	//~ Begin UDMMaterialComponent
-	virtual void OnComponentAdded() override;
-	virtual void OnComponentRemoved() override;
-	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentAdded() override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentRemoved() override;
+	DYNAMICMATERIALEDITOR_API virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
 	//~ End UDMMaterialComponent
 
 private:

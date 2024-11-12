@@ -127,6 +127,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category=Wrapping)
 	uint8 AutoWrapText:1;
 
+	/** Whether to leave extra space below the last line due to line height. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category=Appearance, AdvancedDisplay)
+	bool ApplyLineHeightToBottomLine;
+
 	/** Whether text wraps onto a new line when it's length exceeds this width; if this value is zero or negative, no wrapping occurs. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category=Wrapping)
 	float WrapTextAt;
@@ -139,7 +143,4 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category=Appearance, AdvancedDisplay)
 	float LineHeightPercentage;
 
-	/** Whether to leave extra space below the last line due to line height. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category=Appearance, AdvancedDisplay)
-	bool ApplyLineHeightToBottomLine;
 };

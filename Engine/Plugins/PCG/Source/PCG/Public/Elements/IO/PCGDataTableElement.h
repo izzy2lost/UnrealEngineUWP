@@ -21,11 +21,11 @@ public:
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("LoadDataTable")); }
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual FText GetNodeTooltipText() const override;
-	virtual bool HasDynamicPins() const override { return true; }
 	virtual void GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
 	virtual bool CanDynamicallyTrackKeys() const override { return true; }
 #endif
 
+	virtual bool HasDynamicPins() const override { return true; }
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 
 protected:

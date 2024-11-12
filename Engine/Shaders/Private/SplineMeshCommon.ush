@@ -244,13 +244,16 @@ float3 SplineMeshDeformLocalNormal(FSplineMeshShaderParams Params, half SplineDi
 }
 
 /** Deforms local-space position and normal along a spline, and retrieves the spline length */
-half SplineMeshDeformLocalPosAndNormal(FSplineMeshShaderParams Params, inout float3 Pos, inout half3 Normal)
+half SplineMeshDeformLocalPosNormalTangent(FSplineMeshShaderParams Params, inout float3 Pos, inout half3 Normal, inout half3 Tangent)
 {
 	const half SplineDist = SplineMeshCalcSplineDistance(Params, Pos);
 	const FSplineMeshSlice Slice = SplineMeshCalcSlice(Params, SplineDist);
 	
 	Pos = mul(float4(Pos, 1), SplineMeshCalcSliceTransform(Params, Slice)).xyz;
-	Normal = mul(Normal, SplineMeshCalcSliceRot(Params, Slice));
+
+	const half3x3 SliceRot = SplineMeshCalcSliceRot(Params, Slice);
+	Normal = mul(Normal, SliceRot);
+	Tangent = mul(Tangent, SliceRot);
 	
 	return SplineDist;
 }
@@ -417,7 +420,7 @@ FSplineMeshDeformedLocalBounds SplineMeshDeformLocalBounds(FSplineMeshDeformBoun
 
 	// Sample at evenly-spaced intervals from min->max, accumulating the convex combination of slice bounds
 	LOOP
-	for (int i = 0; i < NUM_SLICE_SAMPLES; ++i)
+	for (uint i = 0; i < NUM_SLICE_SAMPLES; ++i)
 	{
 		SplineMeshDeformLocalBoundsStep(Context, CurSplineDist);
 		CurSplineDist += SplineDistStep;

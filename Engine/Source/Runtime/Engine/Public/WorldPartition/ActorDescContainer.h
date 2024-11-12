@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
+#include "UObject/UObjectAnnotation.h"
 #include "WorldPartition/ActorDescList.h"
 #include "WorldPartition/WorldPartitionHandle.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
@@ -11,7 +12,27 @@
 #include "ActorDescContainer.generated.h"
 
 class FLinkerInstancingContext;
+class UDeletedObjectPlaceholder;
 class UWorldPartition;
+
+#if WITH_EDITOR
+struct FDeletedObjectPlaceholderAnnotation
+{
+public:
+	FDeletedObjectPlaceholderAnnotation(const UDeletedObjectPlaceholder* InDeletedObjectPlaceholder = nullptr, const FString& InActorDescContainerName = FString());
+	bool IsDefault() const { return DeletedObjectPlaceholder.IsExplicitlyNull() && ActorDescContainerName.IsEmpty(); }
+	bool IsValid() const { return DeletedObjectPlaceholder.IsValid() && !ActorDescContainerName.IsEmpty(); }
+	const UDeletedObjectPlaceholder* GetDeletedObjectPlaceholder() const { return DeletedObjectPlaceholder.Get(); }
+	UActorDescContainer* GetActorDescContainer() const;
+
+private:
+	TWeakObjectPtr<const UDeletedObjectPlaceholder> DeletedObjectPlaceholder;
+	// We store the container name instead of keeping a WeakObjectPtr to properly handle the case where the container 
+	// is unregistered/re-registered between usage of annotation (this can happen if a plugin is unregistered/re-registered).
+	FString ActorDescContainerName;
+};
+#endif
+
 
 UCLASS(MinimalAPI)
 class UActorDescContainer : public UObject, public FActorDescList
@@ -21,6 +42,7 @@ class UActorDescContainer : public UObject, public FActorDescList
 #if WITH_EDITOR
 	friend struct FWorldPartitionHandleUtils;
 	friend class FWorldPartitionActorDesc;
+	friend class UActorDescContainerInstance;
 
 	using FNameActorDescMap = TMap<FName, TUniquePtr<FWorldPartitionActorDesc>*>;
 
@@ -53,15 +75,21 @@ public:
 		/** The associated Content Bundle Guid */
 		FGuid ContentBundleGuid;
 
+		/** If the container should bind to editor events */
+		bool bShouldRegisterEditorDeletages = true;
+
 		/** The associated External Data Layer Asset */
 		const UExternalDataLayerAsset* ExternalDataLayerAsset = nullptr;
+
+		/* Custom pre-init function that is called before calling Initialize on the new container */
+		TUniqueFunction<void(UActorDescContainer*)> PreInitialize;
 
 		/* Custom filter function used to filter actors descriptors. */
 		TUniqueFunction<bool(const FWorldPartitionActorDesc*)> FilterActorDesc;
 	};
 
-	ENGINE_API void Initialize(const FInitializeParams& InitParams);
-	ENGINE_API void Uninitialize();
+	ENGINE_API virtual void Initialize(const FInitializeParams& InitParams);
+	ENGINE_API virtual void Uninitialize();
 
 	bool IsInitialized() const { return bContainerInitialized; }
 
@@ -115,11 +143,12 @@ public:
 
 	ENGINE_API bool ShouldHandleActorEvent(const AActor* Actor);
 
-	ENGINE_API const FWorldPartitionActorDesc* GetActorDescByPath(const FString& ActorPath) const;
-	ENGINE_API const FWorldPartitionActorDesc* GetActorDescByPath(const FSoftObjectPath& ActorPath) const;
-	ENGINE_API const FWorldPartitionActorDesc* GetActorDescByName(FName ActorName) const;
+	virtual ENGINE_API const FWorldPartitionActorDesc* GetActorDescByPath(const FString& ActorPath) const;
+	virtual ENGINE_API const FWorldPartitionActorDesc* GetActorDescByPath(const FSoftObjectPath& ActorPath) const;
+	virtual ENGINE_API const FWorldPartitionActorDesc* GetActorDescByName(FName ActorName) const;
 
 	bool bContainerInitialized;
+	bool bRegisteredDelegates;
 
 	FName ContainerPackageName;
 	FGuid ContentBundleGuid;
@@ -162,14 +191,23 @@ protected:
 	ENGINE_API virtual void BeginDestroy() override;
 	//~ End UObject Interface
 
+	ENGINE_API virtual bool ShouldRegisterDelegates() const;
+
+	ENGINE_API bool ShouldHandleActorEvent(const AActor* Actor, bool bInUseLoadedPath) const;
+	ENGINE_API bool IsActorDescHandled(const AActor* InActor, bool bInUseLoadedPath) const;
 private:
 	// GetWorld() should never be called on an ActorDescContainer to avoid any confusion as it can be used as a template
 	UWorld* GetWorld() const override { return nullptr; }
 
-	ENGINE_API bool ShouldRegisterDelegates();
+	bool ShouldHandleDeletedObjectPlaceholderEvent(const UDeletedObjectPlaceholder* InDeletedObjectPlaceholder) const;
+	void OnDeletedObjectPlaceholderCreated(const UDeletedObjectPlaceholder* InDeletedObjectPlaceholder);
+
 	ENGINE_API void RegisterEditorDelegates();
 	ENGINE_API void UnregisterEditorDelegates();
 
+	static FUObjectAnnotationSparse<FDeletedObjectPlaceholderAnnotation, true> DeletedObjectPlaceholdersAnnotation;
+
+protected:
 	TObjectPtr<const UExternalDataLayerAsset> ExternalDataLayerAsset;
 #endif
 };

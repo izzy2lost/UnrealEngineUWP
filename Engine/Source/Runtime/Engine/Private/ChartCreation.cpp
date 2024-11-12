@@ -186,7 +186,7 @@ void FDumpFPSChartToEndpoint::HandleBasicStats()
 	PrintToEndpoint(FString::Printf(TEXT("\tWindow Mode: %s"), *WindowMode));
 	PrintToEndpoint(FString::Printf(TEXT("\tResolution: %dx%d"), GameResolution.X, GameResolution.Y));
 
-	PrintToEndpoint(FString::Printf(TEXT("%i frames collected over %4.2f seconds, disregarding %4.2f seconds (%d frames) for a %4.2f FPS average"),
+	PrintToEndpoint(FString::Printf(TEXT("%" INT64_FMT " frames collected over %4.2f seconds, disregarding %4.2f seconds (%d frames) for a %4.2f FPS average"),
 		Chart.GetNumFrames(),
 		WallClockTimeFromStartOfCharting,
 		Chart.TimeDisregarded,
@@ -646,6 +646,9 @@ void FPerformanceTrackingChart::Reset(const FDateTime& InStartTime)
 		}
 	}
 
+	// ignore zero since we can infer that from the frame counter
+	AsyncPackageQueueHistogram.InitFromArray({ 1.0, 250.0, 500.0 });
+
 	StartTemperatureLevel = -1.0f;
 	StopTemperatureLevel = -1.0f;
 
@@ -661,6 +664,7 @@ void FPerformanceTrackingChart::AccumulateWith(const FPerformanceTrackingChart& 
 	FrametimeHistogram += Chart.FrametimeHistogram;
 	HitchTimeHistogram += Chart.HitchTimeHistogram;
 	DynamicResHistogram += Chart.DynamicResHistogram;
+	AsyncPackageQueueHistogram += Chart.AsyncPackageQueueHistogram;
 	NumFramesBound_GameThread += Chart.NumFramesBound_GameThread;
 	NumFramesBound_RenderThread += Chart.NumFramesBound_RenderThread;
 	NumFramesBound_RHIThread += Chart.NumFramesBound_RHIThread;
@@ -794,6 +798,11 @@ void FPerformanceTrackingChart::ProcessFrame(const FFrameData& FrameData)
 		MaxFlushAsyncLoadingTime = FMath::Max(MaxFlushAsyncLoadingTime, FrameData.FlushAsyncLoadingTime);
 		TotalSyncLoadCount += FrameData.SyncLoadCount;
 
+		if (FrameData.NumAsyncPackages > 0)
+		{
+			AsyncPackageQueueHistogram.AddMeasurement(FrameData.NumAsyncPackages);
+		}
+
 		// Track draw calls
 		// Multi-GPU support : ChartCreation doesn't support MGPU yet
 		MaxDrawCalls = FMath::Max(MaxDrawCalls, GNumDrawCallsRHI[0]);
@@ -846,6 +855,30 @@ void FPerformanceTrackingChart::ProcessFrame(const FFrameData& FrameData)
 		TimeDisregarded += FrameData.DeltaSeconds;
 		FramesDisregarded++;
 	}
+}
+
+double FPerformanceTrackingChart::GetPercentFramesIOBusy(int32 StartingBin) const
+{
+	const int64 NumFrames = GetNumFrames();
+	if (NumFrames > 0)
+	{
+		int32 NumFramesBusy = 0;
+		if (StartingBin == 0)
+		{
+			NumFramesBusy = AsyncPackageQueueHistogram.GetNumMeasurements();
+		}
+		else
+		{
+			for (int32 i = StartingBin; i < AsyncPackageQueueHistogram.GetNumBins(); ++i)
+			{
+				NumFramesBusy += AsyncPackageQueueHistogram.GetBinObservationsCount(i);
+			}
+		}		
+
+		return (NumFramesBusy / (double)NumFrames) * 100.f;
+	}
+
+	return 0.f;
 }
 
 void FPerformanceTrackingChart::DumpFPSChart(const FString& InMapName)
@@ -1256,6 +1289,7 @@ IPerformanceDataConsumer::FFrameData FPerformanceTrackingSystem::AnalyzeFrame(fl
 	FrameData.FlushAsyncLoadingTime = GFlushAsyncLoadingTime;
 	FrameData.FlushAsyncLoadingCount = GFlushAsyncLoadingCount;
 	FrameData.SyncLoadCount = GSyncLoadCount;
+	FrameData.NumAsyncPackages = GetNumAsyncPackages();
 
 	// Optionally disregard frames that took too long when accumulating data.
 	FrameData.bBinThisFrame = (DeltaSeconds < GMaximumFrameTimeToConsiderForHitchesAndBinning) || (GMaximumFrameTimeToConsiderForHitchesAndBinning <= 0.0f);

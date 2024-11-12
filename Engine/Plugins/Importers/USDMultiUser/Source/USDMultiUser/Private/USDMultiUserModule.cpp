@@ -15,28 +15,26 @@ namespace UE
 	{
 		namespace Private
 		{
-			ETransactionFilterResult TransactionFilterFunction( UObject* ObjectToFilter, UPackage* ObjectsPackage )
+			ETransactionFilterResult TransactionFilterFunction( const FConcertTransactionFilterArgs& FilterArgs )
 			{
-				if ( UUsdTransactor* Transactor = Cast<UUsdTransactor>( ObjectToFilter ) )
+				const UObject* ObjectToFilter = FilterArgs.ObjectToFilter;
+				if ( const UUsdTransactor* Transactor = Cast<UUsdTransactor>( ObjectToFilter ); Transactor && Transactor->IsInA( AUsdStageActor::StaticClass() ) )
 				{
-					if ( Transactor->IsInA( AUsdStageActor::StaticClass() ) )
-					{
-						return ETransactionFilterResult::IncludeObject;
-					}
+					return ETransactionFilterResult::IncludeObject;
 				}
 
 				// Allow transient objects only if they have the enable tag
 				// Having this tag means they are attached to and owned by an AUsdStageActor's hierarchy
-				if ( ObjectToFilter->HasAnyFlags( RF_Transient ) )
+				if ( ObjectToFilter && ObjectToFilter->HasAnyFlags( RF_Transient ) )
 				{
-					if ( AActor* Actor = Cast<AActor>( ObjectToFilter ) )
+					if ( const AActor* Actor = Cast<AActor>( ObjectToFilter ) )
 					{
 						if ( Actor->Tags.Contains( UE::UsdTransactor::ConcertSyncEnableTag ) )
 						{
 							return ETransactionFilterResult::IncludeObject;
 						}
 					}
-					else if ( UActorComponent* Component = Cast<UActorComponent>( ObjectToFilter ) )
+					else if ( const UActorComponent* Component = Cast<UActorComponent>( ObjectToFilter ) )
 					{
 						if ( Component->ComponentTags.Contains( UE::UsdTransactor::ConcertSyncEnableTag ) )
 						{
@@ -51,7 +49,7 @@ namespace UE
 			void EnableTransactorFilters()
 			{
 				IConcertClientTransactionBridge& TransactionBridge = IConcertSyncClientModule::Get().GetTransactionBridge();
-				TransactionBridge.RegisterTransactionFilter( TEXT( "USD-Main-Filters" ), FTransactionFilterDelegate::CreateStatic( &TransactionFilterFunction ) );
+				TransactionBridge.RegisterTransactionFilter( TEXT( "USD-Main-Filters" ), FOnFilterTransactionDelegate::CreateStatic( &TransactionFilterFunction ) );
 
 				UE_LOG( LogUsd, Log, TEXT( "Added ConcertSync filters for UUsdTransactor" ) );
 			}

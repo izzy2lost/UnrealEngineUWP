@@ -2,20 +2,12 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "SRCPanelExposedEntity.h"
 #include "SRCPanelTreeNode.h"
+#include "UI/RCFieldGroupType.h"
 #include "Widgets/SCompoundWidget.h"
 
-/** Grouping type available */
-enum class EFieldGroupType
-{
-	None,
-	PropertyId,
-	Owner
-};
-
-ENUM_CLASS_FLAGS(EFieldGroupType)
+struct FRemoteControlProperty;
 
 /** Delegate called when the PropertyId of a group change */
 DECLARE_DELEGATE(FOnGroupPropertyIdChanged)
@@ -23,6 +15,7 @@ DECLARE_DELEGATE(FOnGroupPropertyIdChanged)
 /** Widget that is used as a parent for field widget */
 class SRCPanelExposedEntitiesGroup : public SRCPanelTreeNode
 {
+public:
 	SLATE_BEGIN_ARGS(SRCPanelExposedEntitiesGroup)
 	{}
 
@@ -38,7 +31,11 @@ class SRCPanelExposedEntitiesGroup : public SRCPanelTreeNode
 
 	//~ End SRCPanelTreeNode interface
 
-	void Construct(const FArguments& InArgs, EFieldGroupType InFieldGroupType, URemoteControlPreset* Preset);
+	void Construct(const FArguments& InArgs, ERCFieldGroupType InFieldGroupType, URemoteControlPreset* Preset);
+
+	//~ Begin SRCPanelTreeNode interface
+	virtual TSharedRef<SWidget> GetWidget(const FName ForColumnName, const FName InActiveProtocol) override;
+	//~ End SRCPanelTreeNode interface
 
 	/**
 	 * Take the current fields in RC and assign them to its child widgets based on the group key
@@ -53,7 +50,7 @@ class SRCPanelExposedEntitiesGroup : public SRCPanelTreeNode
 	virtual bool HasChildren() const override { return true; }
 
 	/** Get the group type of this group */
-	EFieldGroupType GetGroupType() const { return GroupType; }
+	ERCFieldGroupType GetGroupType() const { return GroupType; }
 
 	/** Get the field key of this group */
 	FName GetFieldKey() const { return FieldKey; }
@@ -69,15 +66,23 @@ private:
 	 */
 	void OnPropertyIdTextCommitted(const FText& InText, ETextCommit::Type InTextCommitType);
 
-private:
+	/** Returns the properties that are children of this group */
+	TArray<TSharedRef<FRemoteControlProperty>> GetChildProperties() const;
+
 	/** Child widgets of this group */
 	TArray<TSharedPtr<SRCPanelTreeNode>> ChildWidgets;
 
 	/** Field key value of this group */
 	FName FieldKey;
 
+	/** Shared owner of the entity group */
+	FName OwnerName;
+
+	/** Shared property id of the entity group */
+	FName PropertyIdName;
+
 	/** Field group type of this group */
-	EFieldGroupType GroupType = EFieldGroupType::None;
+	ERCFieldGroupType GroupType = ERCFieldGroupType::None;
 
 	/** Weak ptr to the preset where this group reside */
 	TWeakObjectPtr<URemoteControlPreset> PresetWeak;

@@ -48,3 +48,30 @@ void FMovementSettingsInputs::ToString(FAnsiStringBuilderBase& Out) const
 	Out.Appendf("MaxSpeed=%.2f\n", MaxSpeed);
 	Out.Appendf("Acceleration=%.2f\n", Acceleration);
 }
+
+
+//////////////////////////////////////////////////////////////////////////
+// FMoverAIInputs
+
+FMoverDataStructBase* FMoverAIInputs::Clone() const
+{
+	FMoverAIInputs* CopyPtr = new FMoverAIInputs(*this);
+	return CopyPtr;
+}
+
+bool FMoverAIInputs::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess)
+{
+	Super::NetSerialize(Ar, Map, bOutSuccess);
+
+	Ar << RVOVelocityDelta;
+
+	bOutSuccess = true;
+	return true;
+}
+
+void FMoverAIInputs::ToString(FAnsiStringBuilderBase& Out) const
+{
+	Super::ToString(Out);
+
+	Out.Appendf("ROVVelDelta: X=%.2f Y=%.2f Z=%.2f\n", RVOVelocityDelta.X, RVOVelocityDelta.Y, RVOVelocityDelta.Z);
+}

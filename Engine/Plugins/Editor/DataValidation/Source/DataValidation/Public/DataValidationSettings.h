@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Engine/DeveloperSettings.h"
+#include "EditorValidator_Material.h"
 
 #include "DataValidationSettings.generated.h"
 
@@ -19,10 +20,16 @@ public:
 	UDataValidationSettings();
 
 	/** Whether or not to validate assets on save */
-	UPROPERTY(EditAnywhere, config, Category="Data Validation")
+	UPROPERTY(EditAnywhere, Config, Category="Data Validation")
 	uint32 bValidateOnSave : 1 = true;
 	
 	/** Whether or not to load & validate assets in changelists by default */
-	UPROPERTY(EditAnywhere, config, Category="Data Validation")
+	UPROPERTY(EditAnywhere, Config, Category="Data Validation")
 	uint32 bLoadAssetsWhenValidatingChangelists : 1 = true;
+
+	UPROPERTY(EditAnywhere, Config, Category="Data Validation")
+	bool bEnableMaterialValidation = true;
+
+	UPROPERTY(EditAnywhere, Config, Category="Data Validation", meta=(EditCondition="bEnableMaterialValidation"))
+	TArray<FMaterialEditorValidationPlatform> MaterialValidationPlatforms;
 };

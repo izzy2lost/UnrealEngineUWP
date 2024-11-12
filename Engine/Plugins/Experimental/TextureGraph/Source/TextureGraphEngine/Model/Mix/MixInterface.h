@@ -43,7 +43,7 @@ protected:
 	int32								Priority;			/// The priority of this mix in terms of update cycle
 
 	UPROPERTY()
-	UMixSettings*						Settings = nullptr;/// The settings for this mix interface
+	TObjectPtr<UMixSettings>						Settings = nullptr;/// The settings for this mix interface
 
 	UPROPERTY()
 	bool								bInvalidateTextures;/// Invalidate the scene textures or not
@@ -60,9 +60,6 @@ public:
 	virtual								~UMixInterface() override;
 
 
-	/** The mesh used by the TS editor to preview.*/
-	UPROPERTY(EditAnywhere, Category = Previewing, meta = (AllowedClasses = "/Script/Engine.StaticMesh,/Script/Engine.SkeletalMesh", ExactClass = "true"))
-	FSoftObjectPath						PreviewMesh;  // Adding it here because this will be the base class for TS_Script and TS_ScriptInstance.
 
 	DECLARE_DELEGATE_TwoParams(FOnRenderDone, UMixInterface*, const FInvalidationDetails*);
 	FOnRenderDone						OnRenderDone;

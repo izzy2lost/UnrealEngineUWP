@@ -51,9 +51,12 @@
 #include "Algo/MaxElement.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "DragAndDrop/AssetDragDropOp.h"
+#include "Editor/RigVMEditorTools.h"
 #include "Kismet2/SClassPickerDialog.h"
 #include "RigVMFunctions/Math/RigVMMathLibrary.h"
 #include "Preferences/PersonaOptions.h"
+#include "Widgets/SRigVMBulkEditDialog.h"
+#include "Widgets/SRigVMSwapAssetReferencesWidget.h"
 
 #define LOCTEXT_NAMESPACE "SModularRigModel"
 
@@ -78,6 +81,11 @@ void SModularRigModel::Construct(const FArguments& InArgs, TSharedRef<FControlRi
 	ControlRigBlueprint->OnModularRigPreCompiled().AddRaw(this, &SModularRigModel::HandlePreCompileModularRigs);
 	ControlRigBlueprint->OnModularRigCompiled().AddRaw(this, &SModularRigModel::HandlePostCompileModularRigs);
 
+	if(UModularRigController* ModularRigController = ControlRigBlueprint->GetModularRigController())
+	{
+		ModularRigController->OnModified().AddSP(this, &SModularRigModel::OnModularRigModified);
+	}
+
 	// for deleting, renaming, dragging
 	CommandList = MakeShared<FUICommandList>();
 
@@ -88,6 +96,11 @@ void SModularRigModel::Construct(const FArguments& InArgs, TSharedRef<FControlRi
 	}
 
 	BindCommands();
+
+	bShowSecondaryConnectors = false;
+	bShowOptionalConnectors = false;
+	bShowUnresolvedConnectors = true;
+	bIsPerformingSelection = false;
 
 	// setup all delegates for the modular rig model widget
 	FModularRigTreeDelegates Delegates;
@@ -103,6 +116,7 @@ void SModularRigModel::Construct(const FArguments& InArgs, TSharedRef<FControlRi
 	Delegates.OnVerifyModuleNameChanged = FOnModularRigTreeVerifyElementNameChanged::CreateSP(this, &SModularRigModel::HandleVerifyNameChanged);
 	Delegates.OnResolveConnector = FOnModularRigTreeResolveConnector::CreateSP(this, &SModularRigModel::HandleConnectorResolved);
 	Delegates.OnDisconnectConnector = FOnModularRigTreeDisconnectConnector::CreateSP(this, &SModularRigModel::HandleConnectorDisconnect);
+	Delegates.OnSelectionChanged = FOnModularRigTreeSelectionChanged::CreateSP(this, &SModularRigModel::HandleSelectionChanged);
 
 	HeaderRowWidget = SNew(SHeaderRow)
 		.Visibility(EVisibility::Visible);
@@ -113,6 +127,14 @@ void SModularRigModel::Construct(const FArguments& InArgs, TSharedRef<FControlRi
 		.HAlignCell(HAlign_Left)
 		.HAlignHeader(HAlign_Left)
 		.VAlignCell(VAlign_Fill)
+	);
+	HeaderRowWidget->AddColumn(
+		SHeaderRow::Column(SModularRigTreeView::Column_Tags)
+		.DefaultLabel(FText())
+		.HAlignCell(HAlign_Fill)
+		.HAlignHeader(HAlign_Fill)
+		.FixedWidth(16.f)
+		.VAlignCell(VAlign_Center)
 	);
 	HeaderRowWidget->AddColumn(
 		SHeaderRow::Column(SModularRigTreeView::Column_Connector)
@@ -133,6 +155,41 @@ void SModularRigModel::Construct(const FArguments& InArgs, TSharedRef<FControlRi
 	ChildSlot
 	[
 		SNew(SVerticalBox)
+		
+		+SVerticalBox::Slot()
+		.Padding(0.0f, 0.0f)
+		.AutoHeight()
+		[
+			SNew(SHorizontalBox)
+			
+			+SHorizontalBox::Slot()
+			.Padding(0.0f, 0.0f)
+			.HAlign(HAlign_Left)
+			.AutoWidth()
+			[
+				SNew(SComboButton)
+			   .ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButtonWithIcon"))
+			   .ForegroundColor(FSlateColor::UseStyle())
+			   .ToolTipText(LOCTEXT("OptionsToolTip", "Open the Options Menu ."))
+			   .OnGetMenuContent(this, &SModularRigModel::OnGetOptionsMenu)
+			   .ContentPadding(FMargin(1, 0))
+			   .ButtonContent()
+			   [
+					SNew(SImage)
+					.Image(FAppStyle::Get().GetBrush("Icons.Filter"))
+					.ColorAndOpacity(FSlateColor::UseForeground())
+			   ]
+			]
+
+			+SHorizontalBox::Slot()
+			.Padding(4.0f, 0.0f, 0.0f, 0.0f)
+			.HAlign(HAlign_Fill)
+			[
+				SAssignNew(FilterBox, SSearchBox)
+				.OnTextChanged(this, &SModularRigModel::OnFilterTextChanged)
+			]
+		]
+		
 		+SVerticalBox::Slot()
 		.Padding(0.0f, 0.0f)
 		[
@@ -148,6 +205,10 @@ void SModularRigModel::Construct(const FArguments& InArgs, TSharedRef<FControlRi
 					.HeaderRow(HeaderRowWidget)
 					.RigTreeDelegates(Delegates)
 					.AutoScrollEnabled(true)
+					.FilterText_Lambda([this]() { return FilterText; })
+					.ShowSecondaryConnectors_Lambda([this]() { return bShowSecondaryConnectors; })
+					.ShowOptionalConnectors_Lambda([this]() { return bShowOptionalConnectors; })
+					.ShowUnresolvedConnectors_Lambda([this]() { return bShowUnresolvedConnectors; })
 				]
 			]
 		]
@@ -191,6 +252,10 @@ void SModularRigModel::OnEditorClose(const FRigVMEditor* InEditor, URigVMBluepri
 		InBlueprint->OnSetObjectBeingDebugged().RemoveAll(this);
 		BP->OnModularRigPreCompiled().RemoveAll(this);
 		BP->OnModularRigCompiled().RemoveAll(this);
+		if(UModularRigController* ModularRigController = BP->GetModularRigController())
+		{
+			ModularRigController->OnModified().RemoveAll(this);
+		}
 	}
 
 	if(const UModularRig* Rig = GetModularRigForTreeView())
@@ -229,6 +294,10 @@ void SModularRigModel::BindCommands()
 	CommandList->MapAction(Commands.ReresolveModuleItem,
 		FExecuteAction::CreateSP(this, &SModularRigModel::HandleReresolveModules),
 		FCanExecuteAction());
+
+	CommandList->MapAction(Commands.SwapModuleClassItem,
+		FExecuteAction::CreateSP(this, &SModularRigModel::HandleSwapClassForModules),
+		FCanExecuteAction::CreateSP(this, &SModularRigModel::CanSwapModules));
 }
 
 FReply SModularRigModel::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
@@ -237,6 +306,48 @@ FReply SModularRigModel::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent&
 	{
 		return FReply::Handled();
 	}
+	return FReply::Unhandled();
+}
+
+FReply SModularRigModel::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	const FReply Reply = SCompoundWidget::OnMouseButtonDown(MyGeometry, MouseEvent);
+	if(Reply.IsEventHandled())
+	{
+		return Reply;
+	}
+
+	if(MouseEvent.GetEffectingButton() == EKeys::MiddleMouseButton)
+	{
+		if(const TSharedPtr<FModularRigTreeElement>* ItemPtr = TreeView->FindItemAtPosition(MouseEvent.GetScreenSpacePosition()))
+		{
+			if(const TSharedPtr<FModularRigTreeElement>& Item = *ItemPtr)
+			{
+				if (ControlRigBlueprint.IsValid())
+				{
+					UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
+					check(Controller);
+
+					if(const FRigModuleReference* Module = Controller->FindModule(Item->ModulePath))
+					{
+						TArray<const FRigModuleReference*> ModulesToSelect = {Module};
+						TArray<FString> ModulePaths;
+						for(int32 Index = 0; Index < ModulesToSelect.Num(); Index++)
+						{
+							ModulePaths.Add(ModulesToSelect[Index]->GetPath());
+							for(const FRigModuleReference* ChildModule : ModulesToSelect[Index]->CachedChildren)
+							{
+								ModulesToSelect.AddUnique(ChildModule);
+							}
+						}
+						
+						Controller->SetModuleSelection(ModulePaths);
+					}
+				}
+			}
+		}
+	}
+
 	return FReply::Unhandled();
 }
 
@@ -253,9 +364,16 @@ void SModularRigModel::RefreshTreeView(bool bRebuildContent)
 	TreeView->RefreshTreeView(bRebuildContent);
 }
 
-TArray<FString> SModularRigModel::GetSelectedKeys() const
+TArray<TSharedPtr<FModularRigTreeElement>> SModularRigModel::GetSelectedItems() const
 {
 	TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = TreeView->GetSelectedItems();
+	SelectedItems.Remove(TSharedPtr<FModularRigTreeElement>(nullptr));
+	return SelectedItems;
+}
+
+TArray<FString> SModularRigModel::GetSelectedKeys() const
+{
+	const TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = GetSelectedItems();
 	
 	TArray<FString> SelectedKeys;
 	for (const TSharedPtr<FModularRigTreeElement>& SelectedItem : SelectedItems)
@@ -327,6 +445,82 @@ void SModularRigModel::HandleSetObjectBeingDebugged(UObject* InObject)
 	RefreshTreeView();
 }
 
+TSharedRef<SWidget> SModularRigModel::OnGetOptionsMenu()
+{
+	FMenuBuilder MenuBuilder(true, nullptr);
+
+	const FCanExecuteAction CanExecuteAction = FCanExecuteAction::CreateLambda([]() { return true; });
+
+	MenuBuilder.BeginSection("FilterOptions", LOCTEXT("FilterOptions", "Filter Options"));
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("SecondaryConnectors", "Secondary Connectors"),
+			LOCTEXT("SecondaryConnectorsToolTip", "Toggle the display of secondary connectors"),
+			FSlateIcon(FControlRigEditorStyle::Get().GetStyleSetName(), TEXT("ControlRig.ConnectorSecondary")),
+			FUIAction(
+				FExecuteAction::CreateLambda([this](){
+					bShowSecondaryConnectors = !bShowSecondaryConnectors;
+					RefreshTreeView(true);
+				}),
+				CanExecuteAction,
+				FIsActionChecked::CreateLambda([this]()
+				{
+					return bShowSecondaryConnectors;
+				})
+			),
+			NAME_None,
+			EUserInterfaceActionType::Check
+		);
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("OptionalConnectors", "Optional Connectors"),
+			LOCTEXT("OptionalConnectorsToolTip", "Toggle the display of secondary connectors"),
+			FSlateIcon(FControlRigEditorStyle::Get().GetStyleSetName(), TEXT("ControlRig.ConnectorOptional")),
+			FUIAction(
+				FExecuteAction::CreateLambda([this](){
+					bShowOptionalConnectors = !bShowOptionalConnectors;
+					RefreshTreeView(true);
+				}),
+				CanExecuteAction,
+				FIsActionChecked::CreateLambda([this]()
+				{
+					return bShowOptionalConnectors;
+				})
+			),
+			NAME_None,
+			EUserInterfaceActionType::Check
+		);
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("UnresolvedConnectors", "Unresolved Connectors"),
+			LOCTEXT("UnresolvedConnectorsToolTip", "Toggle the display of unresolved connectors"),
+			FSlateIcon(FControlRigEditorStyle::Get().GetStyleSetName(), TEXT("ControlRig.ConnectorWarning")),
+			FUIAction(
+				FExecuteAction::CreateLambda([this](){
+					bShowUnresolvedConnectors = !bShowUnresolvedConnectors;
+					RefreshTreeView(true);
+				}),
+				CanExecuteAction,
+				FIsActionChecked::CreateLambda([this]()
+				{
+					return bShowUnresolvedConnectors;
+				})
+			),
+			NAME_None,
+			EUserInterfaceActionType::Check
+		);
+	}
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+void SModularRigModel::OnFilterTextChanged(const FText& SearchText)
+{
+	FilterText = SearchText;
+	RefreshTreeView(true);
+}
+
 TSharedPtr< SWidget > SModularRigModel::CreateContextMenuWidget()
 {
 	UToolMenus* ToolMenus = UToolMenus::Get();
@@ -341,13 +535,6 @@ TSharedPtr< SWidget > SModularRigModel::CreateContextMenuWidget()
 
 void SModularRigModel::OnItemClicked(TSharedPtr<FModularRigTreeElement> InItem)
 {
-	UModularRig* Rig = GetModularRig();
-	check(Rig);
-
-	if (ControlRigEditor.IsValid() && InItem.IsValid())
-	{
-		ControlRigEditor.Pin()->SetDetailViewForRigModules(TreeView->GetSelectedKeys());
-	}
 }
 
 void SModularRigModel::OnItemDoubleClicked(TSharedPtr<FModularRigTreeElement> InItem)
@@ -395,6 +582,7 @@ void SModularRigModel::CreateContextMenu()
 					ModulesSection.AddMenuEntry(Commands.DeleteModuleItem);
 					ModulesSection.AddMenuEntry(Commands.MirrorModuleItem);
 					ModulesSection.AddMenuEntry(Commands.ReresolveModuleItem);
+					ModulesSection.AddMenuEntry(Commands.SwapModuleClassItem);
 				}
 			})
 		);
@@ -513,7 +701,11 @@ void SModularRigModel::HandleNewItem()
 	FString ParentPath;
 	if (IsSingleSelected())
 	{
-		ParentPath = GetSelectedKeys()[0];
+		const TSharedPtr<FModularRigTreeElement> ParentElement = TreeView->FindElement(GetSelectedKeys()[0]);
+		if (ParentElement.IsValid())
+		{
+			ParentPath = ParentElement->ModulePath;
+		}
 	}
 	
 	FClassViewerInitializationOptions Options;
@@ -582,7 +774,7 @@ void SModularRigModel::HandleRenameModule()
 	{
 		FScopedTransaction Transaction(LOCTEXT("ModularRigModelRenameSelected", "Rename selected module"));
 
-		TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = TreeView->GetSelectedItems();
+		const TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = GetSelectedItems();
 		if (SelectedItems.Num() == 1)
 		{
 			SelectedItems[0]->RequestRename();
@@ -649,7 +841,7 @@ void SModularRigModel::HandleDeleteModules()
 	{
 		FScopedTransaction Transaction(LOCTEXT("ModularRigModelDeleteSelected", "Delete selected modules"));
 
-		TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = TreeView->GetSelectedItems();
+		const TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = GetSelectedItems();
 		TArray<FString> SelectedPaths;
 		Algo::Transform(SelectedItems, SelectedPaths, [](const TSharedPtr<FModularRigTreeElement>& Element)
 		{
@@ -710,7 +902,7 @@ void SModularRigModel::HandleMirrorModules()
 	UModularRig* Rig = GetDefaultModularRig();
 	if (Rig)
 	{
-		TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = TreeView->GetSelectedItems();
+		const TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = GetSelectedItems();
 		TArray<FString> SelectedPaths;
 		Algo::Transform(SelectedItems, SelectedPaths, [](const TSharedPtr<FModularRigTreeElement>& Element)
 		{
@@ -772,7 +964,7 @@ void SModularRigModel::HandleReresolveModules()
 	UModularRig* Rig = GetDefaultModularRig();
 	if (Rig)
 	{
-		TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = TreeView->GetSelectedItems();
+		const TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = GetSelectedItems();
 		TArray<FString> SelectedPaths;
 		Algo::Transform(SelectedItems, SelectedPaths, [](const TSharedPtr<FModularRigTreeElement>& Element)
 		{
@@ -814,7 +1006,7 @@ void SModularRigModel::HandleReresolveModules(const TArray<FString>& InPaths)
 		{
 			FString ModulePath = PathAndConnector;
 			FString ConnectorName;
-			(void)PathAndConnector.Split(TEXT("|"), &ModulePath, &ConnectorName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			(void)PathAndConnector.Split(TEXT("|"), &ModulePath, &ConnectorName, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
 
 			const FRigModuleReference* Module = Controller->Model->FindModule(ModulePath);
 			if (!Module)
@@ -828,7 +1020,7 @@ void SModularRigModel::HandleReresolveModules(const TArray<FString>& InPaths)
 				// if we are executing this on a primary connector we want to re-resolve all secondaries
 				const FRigConnectorElement* PrimaryConnector = Module->FindPrimaryConnector(Hierarchy);
 				const FName DesiredName = Hierarchy->GetNameMetadata(PrimaryConnector->GetKey(), URigHierarchy::DesiredNameMetadataName, NAME_None);
-				if(!DesiredName.IsNone() && DesiredName.ToString().Equals(ConnectorName, ESearchCase::CaseSensitive))
+				if(!DesiredName.IsNone() && DesiredName.ToString().Equals(ConnectorName, ESearchCase::IgnoreCase))
 				{
 					ConnectorName.Reset();
 				}
@@ -846,7 +1038,7 @@ void SModularRigModel::HandleReresolveModules(const TArray<FString>& InPaths)
 					else
 					{
 						const FName DesiredName = Hierarchy->GetNameMetadata(Connector->GetKey(), URigHierarchy::DesiredNameMetadataName, NAME_None);
-						if(!DesiredName.IsNone() && DesiredName.ToString().Equals(ConnectorName, ESearchCase::CaseSensitive))
+						if(!DesiredName.IsNone() && DesiredName.ToString().Equals(ConnectorName, ESearchCase::IgnoreCase))
 						{
 							ConnectorKeys.AddUnique(Connector->GetKey());
 							break;
@@ -860,6 +1052,139 @@ void SModularRigModel::HandleReresolveModules(const TArray<FString>& InPaths)
 	}
 }
 
+bool SModularRigModel::CanSwapModules() const
+{
+	// Only if all modules selected have the same module class
+	if(!ControlRigEditor.IsValid())
+	{
+		return false;
+	}
+
+	UModularRig* Rig = GetDefaultModularRig();
+	if (Rig)
+	{
+		TSoftClassPtr<UControlRig> CommonClass = nullptr;
+		const TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = GetSelectedItems();
+		for (const TSharedPtr<FModularRigTreeElement>& SelectedItem : SelectedItems)
+		{
+			if(!SelectedItem.IsValid())
+			{
+				continue;
+			}
+			TSoftClassPtr<UControlRig> ModuleClass;
+			if (const FRigModuleReference* Module = ControlRigBlueprint->ModularRigModel.FindModule(SelectedItem->ModulePath))
+			{
+				if (Module->Class.IsValid())
+				{
+					ModuleClass = Module->Class;
+				}
+			}
+			if(!ModuleClass)
+			{
+				return false;
+			}
+			if(!CommonClass)
+			{
+				CommonClass = ModuleClass;
+			}
+			if(ModuleClass != CommonClass)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+	return false;
+}
+
+void SModularRigModel::HandleSwapClassForModules()
+{
+	if(!ControlRigEditor.IsValid())
+	{
+		return;
+	}
+
+	UModularRig* Rig = GetDefaultModularRig();
+	if (Rig)
+	{
+		const TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = GetSelectedItems();
+		TArray<FString> SelectedPaths;
+		Algo::Transform(SelectedItems, SelectedPaths, [](const TSharedPtr<FModularRigTreeElement>& Element)
+		{
+			if (Element.IsValid())
+			{
+				return Element->ModulePath;
+			}
+			return FString();
+		});
+		HandleSwapClassForModules(SelectedPaths);
+	}
+}
+
+void SModularRigModel::HandleSwapClassForModules(const TArray<FString>& InPaths)
+{
+	TArray<FSoftObjectPath> ModulePaths;
+	Algo::Transform(InPaths, ModulePaths, [this](const FString& Path)
+	{
+		FSoftObjectPath ModulePath(ControlRigBlueprint->GetPathName());
+		ModulePath.SetSubPathString(Path);
+		return ModulePath;
+	});
+
+	TSoftClassPtr<UControlRig> SourceClass = nullptr;
+	if (FRigModuleReference* Module = ControlRigBlueprint->ModularRigModel.FindModule(InPaths[0]))
+	{
+		SourceClass = Module->Class;
+	}
+
+	if (!SourceClass)
+	{
+		return;
+	}
+
+	const FAssetData SourceAsset = UE::RigVM::Editor::Tools::FindAssetFromAnyPath(SourceClass.GetLongPackageName(), true);
+	
+	SRigVMSwapAssetReferencesWidget::FArguments WidgetArgs;
+	FRigVMAssetDataFilter FilterModules = FRigVMAssetDataFilter::CreateLambda([](const FAssetData& AssetData)
+		{
+			return UControlRigBlueprint::GetRigType(AssetData) == EControlRigType::RigModule;
+		});
+	TArray<FRigVMAssetDataFilter> SourceFilters = {FilterModules};
+	TArray<FRigVMAssetDataFilter> TargetFilters = {FilterModules};
+	
+	WidgetArgs
+		.EnableUndo(true)
+		.CloseOnSuccess(true)
+		.Source(SourceAsset)
+		.ReferencePaths(ModulePaths)
+		.SkipPickingRefs(true)
+		.OnSwapReference_Lambda([](const FSoftObjectPath& ModulePath, const FAssetData& NewModuleAsset) -> bool
+		{
+			TSubclassOf<UControlRig> NewModuleClass = nullptr;
+			if (const UControlRigBlueprint* ModuleBlueprint = Cast<UControlRigBlueprint>(NewModuleAsset.GetAsset()))
+			{
+				NewModuleClass = ModuleBlueprint->GetRigVMBlueprintGeneratedClass();
+			}
+			if (NewModuleClass)
+			{
+				if (UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(ModulePath.GetWithoutSubPath().ResolveObject()))
+				{
+					return RigBlueprint->GetModularRigController()->SwapModuleClass(ModulePath.GetSubPathString(), NewModuleClass);
+				}
+			}
+			return false;
+		})
+		.SourceAssetFilters(SourceFilters)
+		.TargetAssetFilters(TargetFilters);
+
+	const TSharedRef<SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>> SwapModulesDialog =
+		SNew(SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>)
+		.WindowSize(FVector2D(800.0f, 640.0f))
+		.WidgetArgs(WidgetArgs);
+	
+	SwapModulesDialog->ShowNormal();
+}
+
 void SModularRigModel::HandleConnectorResolved(const FRigElementKey& InConnector, const FRigElementKey& InTarget)
 {
 	if (ControlRigBlueprint.IsValid())
@@ -869,9 +1194,9 @@ void SModularRigModel::HandleConnectorResolved(const FRigElementKey& InConnector
 		UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
 		check(Controller);
 
-		if (ControlRigBeingDebuggedPtr.IsValid())
+		if (const UModularRig* ModularRig = GetModularRig())
 		{
-			Controller->ConnectConnectorToElement(InConnector, InTarget, true, ControlRigBeingDebuggedPtr->GetModularRigSettings().bAutoResolve);
+			Controller->ConnectConnectorToElement(InConnector, InTarget, true, ModularRig->GetModularRigSettings().bAutoResolve);
 		}
 	}
 }
@@ -889,8 +1214,74 @@ void SModularRigModel::HandleConnectorDisconnect(const FRigElementKey& InConnect
 	}
 }
 
-void SModularRigModel::OnSelectionChanged(TSharedPtr<FModularRigTreeElement> Selection, ESelectInfo::Type SelectInfo)
+void SModularRigModel::HandleSelectionChanged(TSharedPtr<FModularRigTreeElement> Selection, ESelectInfo::Type SelectInfo)
 {
+	if(bIsPerformingSelection)
+	{
+		return;
+	}
+
+	TreeView->ClearHighlightedItems();
+	
+	if (ControlRigBlueprint.IsValid())
+	{
+		UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
+		check(Controller);
+
+		const TGuardValue<bool> GuardSelection(bIsPerformingSelection, true);
+		const TArray<FString> NewSelection = TreeView->GetSelectedKeys();
+		Controller->SetModuleSelection(NewSelection);
+	}
+}
+
+void SModularRigModel::OnModularRigModified(EModularRigNotification InNotif, const FRigModuleReference* InModule)
+{
+	if (!ControlRigBlueprint.IsValid())
+	{
+		return;
+	}
+
+	switch(InNotif)
+	{
+		case EModularRigNotification::ModuleSelected:
+		case EModularRigNotification::ModuleDeselected:
+		{
+			if(!bIsPerformingSelection)
+			{
+				const TGuardValue<bool> GuardSelection(bIsPerformingSelection, true);
+				if(const UModularRigController* ModularRigController = ControlRigBlueprint->GetModularRigController())
+				{
+					const TArray<FString> SelectedModulePaths = ModularRigController->GetSelectedModules();
+					TArray<TSharedPtr<FModularRigTreeElement>> NewSelection;
+					for(const FString& SelectedModulePath : SelectedModulePaths)
+					{
+						if(const TSharedPtr<FModularRigTreeElement> Module = TreeView->FindElement(SelectedModulePath))
+						{
+							NewSelection.Add(Module);
+						}
+					}
+					TreeView->SetSelection(NewSelection);
+				}
+			}
+			break;
+		}
+		case EModularRigNotification::ModuleAdded:
+		case EModularRigNotification::ModuleRenamed:
+		case EModularRigNotification::ModuleRemoved:
+		case EModularRigNotification::ModuleReparented:
+		case EModularRigNotification::ConnectionChanged:
+		case EModularRigNotification::ModuleConfigValueChanged:
+		case EModularRigNotification::ModuleShortNameChanged:
+		case EModularRigNotification::ModuleClassChanged:
+		{
+			TreeView->RefreshTreeView();
+			break;
+		}
+		default:
+		{
+			break;
+		}
+	}
 }
 
 void SModularRigModel::OnHierarchyModified(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement)
@@ -905,38 +1296,24 @@ void SModularRigModel::OnHierarchyModified(ERigHierarchyNotification InNotif, UR
 		case ERigHierarchyNotification::ElementSelected:
 		case ERigHierarchyNotification::ElementDeselected:
 		{
-			const FRigConnectorElement* Connector = Cast<FRigConnectorElement>(InElement);
-			if(Connector == nullptr)
+			FString ModulePathOrConnectorName = InHierarchy->GetModulePath(InElement->GetKey());
+
+			if(const FRigConnectorElement* Connector = Cast<FRigConnectorElement>(InElement))
 			{
-				for(const FModularRigSingleConnection& Connection : ControlRigBlueprint->ModularRigModel.Connections)
+				if(Connector->IsPrimary())
+            	{
+					ModulePathOrConnectorName = Connector->GetName();
+            	}
+			}
+
+			if(!ModulePathOrConnectorName.IsEmpty())
+			{
+				if(TSharedPtr<FModularRigTreeElement> Item = TreeView->FindElement(ModulePathOrConnectorName))
 				{
-					check(Connection.Connector.Type == ERigElementType::Connector);
-					if(Connection.Target == InElement->GetKey())
-					{
-						if(const FRigConnectorElement* TargetConnector = InHierarchy->Find<FRigConnectorElement>(Connection.Connector))
-						{
-							OnHierarchyModified(InNotif, InHierarchy, TargetConnector);
-						}
-					}
+					const bool bSelected = InNotif == ERigHierarchyNotification::ElementSelected;
+					TreeView->SetItemHighlighted(Item, bSelected);
+					TreeView->RequestScrollIntoView(Item);
 				}
-				return;
-			}
-
-			FString ModulePathOrConnectorName;
-			if(Connector->IsPrimary())
-			{
-				ModulePathOrConnectorName = InHierarchy->GetModulePath(Connector->GetKey());
-			}
-			else
-			{
-				ModulePathOrConnectorName = Connector->GetName();
-			}
-
-			TSharedPtr<FModularRigTreeElement> Item = TreeView->FindElement(ModulePathOrConnectorName);
-			if(Item.IsValid())
-			{
-				const bool bSelected = InNotif == ERigHierarchyNotification::ElementSelected;
-				TreeView->SetItemSelection(Item, bSelected);
 			}
 		}
 		default:
@@ -973,6 +1350,10 @@ UModularRig* SModularRigModel::GetModularRig() const
 		{
 			return Cast<UModularRig>(DebuggedRig);
 		}
+		if(UControlRig* DebuggedRig = ControlRigBlueprint->GetDebuggedControlRig())
+		{
+			return Cast<UModularRig>(DebuggedRig);
+		}
 	}
 	if (ControlRigEditor.IsValid())
 	{
@@ -988,7 +1369,13 @@ UModularRig* SModularRigModel::GetDefaultModularRig() const
 {
 	if (ControlRigBlueprint.IsValid())
 	{
-		if (UControlRig* DebuggedRig = ControlRigBeingDebuggedPtr.Get())
+		UControlRig* DebuggedRig = ControlRigBeingDebuggedPtr.Get();
+		if (!DebuggedRig)
+		{
+			DebuggedRig = ControlRigBlueprint->GetDebuggedControlRig();
+		}
+		
+		if (DebuggedRig)
 		{
 			return Cast<UModularRig>(DebuggedRig);
 		}

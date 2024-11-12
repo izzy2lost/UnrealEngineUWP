@@ -4,6 +4,7 @@
 
 #include "CoreTypes.h"
 #include "MVVM/SharedViewModelData.h"
+#include "MVVM/ViewModels/EditorViewModel.h"
 
 namespace UE::Sequencer
 {

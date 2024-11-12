@@ -54,7 +54,7 @@ namespace Gauntlet
 		public abstract class EngineTestBase<TConfigClass> : UnrealTestNode<TConfigClass>
 		where TConfigClass : EngineTestConfig, new()
 		{
-			private int LastAutomationEntryCount = 0;
+			private UnrealLogStreamParser LogParser = null;
 
 			private DateTime LastAutomationEntryTime = DateTime.MinValue;
 
@@ -75,7 +75,7 @@ namespace Gauntlet
 				{
 					if (Role.Artifacts.SessionRole.RoleType == UnrealTargetRole.Editor)
 					{
-						AutomationLogParser Parser = new AutomationLogParser(Role.LogSummary.FullLogContent);
+						AutomationLogParser Parser = new AutomationLogParser(Role.LogSummary);
 						AllErrors.AddRange(
 							Parser.GetResults().Where(R => R.HasFailed)
 							.SelectMany(R => R.Entries
@@ -138,19 +138,17 @@ namespace Gauntlet
 			{
 				const float IdleTimeout = 30 * 60;
 
-				List<string> ChannelEntries = new List<string>();
-
-				var AppInstance = TestInstance.EditorApp;
-
-				UnrealLogParser Parser = new UnrealLogParser(AppInstance.StdOut);
-				ChannelEntries.AddRange(Parser.GetEditorBusyChannels());
-
-				if (ChannelEntries.Count > LastAutomationEntryCount)
+				if (LogParser == null)
+				{
+					LogParser = new UnrealLogStreamParser(TestInstance.EditorApp.GetLogBufferReader());
+				}
+				LogParser.ReadStream();
+				IEnumerable<string> ChannelEntries = LogParser.GetLogFromEditorBusyChannels();
+				if (ChannelEntries.Any())
 				{
 					// log new entries so people have something to look at
-					ChannelEntries.Skip(LastAutomationEntryCount).ToList().ForEach(S => Log.Info("{0}", S));
+					ChannelEntries.ToList().ForEach(S => Log.Info("{0}", S));
 					LastAutomationEntryTime = DateTime.Now;
-					LastAutomationEntryCount = ChannelEntries.Count;
 				}
 				else
 				{
@@ -204,8 +202,11 @@ namespace Gauntlet
 			/// <summary>
 			/// Override GetExitCodeAndReason to provide additional checking of success / failure based on what occurred
 			/// </summary>
+			/// <param name="InReason"></param>
+			/// <param name="InLog"></param>
 			/// <param name="InArtifacts"></param>
 			/// <param name="ExitReason"></param>
+			/// <param name="ExitCode"></param>
 			/// <returns></returns>
 			protected override UnrealProcessResult GetExitCodeAndReason(StopReason InReason, UnrealLog InLog, UnrealRoleArtifacts InArtifacts, out string ExitReason, out int ExitCode)
 			{
@@ -218,7 +219,7 @@ namespace Gauntlet
 					// if no fatal errors, check test results
 					if (InLog.FatalError == null)
 					{
-						AutomationLogParser Parser = new AutomationLogParser(InLog.FullLogContent);
+						AutomationLogParser Parser = new AutomationLogParser(InLog);
 
 						IEnumerable<UnrealAutomatedTestResult> TotalTests = Parser.GetResults();
 						IEnumerable<UnrealAutomatedTestResult> FailedTests = TotalTests.Where(R => R.HasFailed);
@@ -256,7 +257,7 @@ namespace Gauntlet
 
 				if (EditorRole != null)
 				{
-					AutomationLogParser Parser = new AutomationLogParser(EditorRole.LogSummary.FullLogContent);
+					AutomationLogParser Parser = new AutomationLogParser(EditorRole.LogSummary);
 
 					IEnumerable<UnrealAutomatedTestResult> AllTests = Parser.GetResults();
 					IEnumerable<UnrealAutomatedTestResult> FailedTests = AllTests.Where(R => R.IsComplete && R.HasFailed);

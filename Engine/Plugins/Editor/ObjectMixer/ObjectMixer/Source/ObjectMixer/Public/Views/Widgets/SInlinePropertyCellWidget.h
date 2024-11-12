@@ -6,6 +6,8 @@
 #include "Templates/SharedPointer.h"
 #include "UObject/NameTypes.h"
 
+class IPropertyHandle;
+
 struct FObjectMixerEditorListRowData;
 
 class SInlinePropertyCellWidget : public SCompoundWidget

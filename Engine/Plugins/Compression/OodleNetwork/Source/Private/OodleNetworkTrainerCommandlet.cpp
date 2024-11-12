@@ -817,7 +817,7 @@ bool FOodleNetworkDictionaryGenerator::ReadPackets(const TArray<FString>& InputC
 	}
 
 	// Now translate the randomized index, back into a sequential index, which maps random packets to each list-type (from type 0-4)
-	int32 ListSplitCount = 3 + (bCompressionTest ? 1 : 0);
+	uint8 ListSplitCount = 3 + (bCompressionTest ? 1 : 0);
 	TArray<uint8> PacketToListMap;
 
 	PacketToListMap.SetNum(PacketCount);
@@ -837,7 +837,7 @@ bool FOodleNetworkDictionaryGenerator::ReadPackets(const TArray<FString>& InputC
 	{
 		for (int32 i=0; i<RandIndex.Num(); i++)
 		{
-			PacketToListMap[RandIndex[i]] = (i % ListSplitCount);
+			PacketToListMap[RandIndex[i]] = static_cast<uint8>(i % ListSplitCount);
 		}
 
 		// Now step through the packets, and randomly assign them to the appropriate list
@@ -867,8 +867,18 @@ bool FOodleNetworkDictionaryGenerator::ReadPackets(const TArray<FString>& InputC
 
 	for (TUniquePtr<FPacketCaptureArchive>& CurArc : BoundArchives)
 	{
-		while (CurArc->Tell() < CurArc->TotalSize() && PacketIdx < (uint32)PacketCount)
+		const uint32 PacketCountInCurArc = CurArc->GetPacketCount();
+
+		// We go by the packet count in the header if present.
+		// In some cases captures can contain extra packets past that point,
+		// but stay with the "official" (properly flushed) count in the header.
+		// Files that don't have the header did an earlier pass over the file
+		// contents to count complete packets.
+		for (uint32 PacketInCurArcIndex = 0; PacketInCurArcIndex < PacketCountInCurArc; ++PacketInCurArcIndex)
 		{
+			// PacketCount was determined from the sum of GetPacketCount() values earlier,
+			// so we should be in bounds unless something went badly wrong.
+			check(PacketIdx < (uint32)PacketCount);
 			uint32 PacketSize = BufferSize;
 
 			CurArc->SerializePacket(ReadBuffer, PacketSize);
@@ -1044,7 +1054,7 @@ bool FOodleNetworkDictionaryGenerator::GenerateAndWriteDictionary()
 			bSuccess = bSuccess && OutputFile.SerializeOodleCompressData(OutputFile.Header.DictionaryData, NewDictionaryData, DictionarySize);
 
 			bSuccess = bSuccess && OutputFile.SerializeOodleCompressData(OutputFile.Header.CompressorData, (uint8*)CompactCompressorState,
-																			CompactCompressorStateBytes);
+																			static_cast<uint32>(CompactCompressorStateBytes));
 
 
 			// Important warning for unusually small dictionary files - if they compress down this much, something is usually wrong.

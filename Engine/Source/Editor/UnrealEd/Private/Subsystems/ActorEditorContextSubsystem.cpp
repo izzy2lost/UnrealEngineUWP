@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Subsystems/ActorEditorContextSubsystem.h"
+#include "Editor/UnrealEdEngine.h"
 #include "GameFramework/Actor.h"
 #include "IActorEditorContextClient.h"
 #include "ScopedTransaction.h"
+#include "UnrealEdGlobals.h"
 #include "Editor.h"
 
 #define LOCTEXT_NAMESPACE "ActorEditorContext"
@@ -19,13 +21,40 @@ void UActorEditorContextSubsystem::Initialize(FSubsystemCollectionBase& Collecti
 	Super::Initialize(Collection);
 
 	GEditor->OnLevelActorAdded().AddUObject(this, &UActorEditorContextSubsystem::ApplyContext);
+	if (GUnrealEd)
+	{
+		GUnrealEd->OnPasteActorsBegin().AddUObject(this, &UActorEditorContextSubsystem::OnPasteActorsBegin);
+		GUnrealEd->OnPasteActorsEnd().AddUObject(this, &UActorEditorContextSubsystem::OnPasteActorsEnd);
+	}
 }
 
 void UActorEditorContextSubsystem::Deinitialize()
 {
 	GEditor->OnLevelActorAdded().RemoveAll(this);
 
+	if (GUnrealEd)
+	{
+		GUnrealEd->OnPasteActorsBegin().RemoveAll(this);
+		GUnrealEd->OnPasteActorsEnd().RemoveAll(this);
+	}
+
 	Super::Deinitialize();
+}
+
+void UActorEditorContextSubsystem::OnPasteActorsBegin()
+{
+	// Disable ApplyContext while UUnrealEdEngine::PasteActors is executing as ImportObjectProperties is called after OnLevelActorAdded anyways
+	bIsApplyEnabled = false;
+}
+
+void UActorEditorContextSubsystem::OnPasteActorsEnd(const TArray<AActor*>& InActors)
+{
+	// Enable and run ApplyContext now that UUnrealEdEngine::PasteActors is done executing
+	bIsApplyEnabled = true;
+	for (AActor* Actor : InActors)
+	{
+		ApplyContext(Actor);
+	}
 }
 
 void UActorEditorContextSubsystem::RegisterClient(IActorEditorContextClient* Client)
@@ -44,13 +73,18 @@ void UActorEditorContextSubsystem::UnregisterClient(IActorEditorContextClient* C
 		if (Clients.Remove(Client))
 		{
 			Client->GetOnActorEditorContextClientChanged().RemoveAll(this);
+
+			for (TArray<IActorEditorContextClient*>& PushedClients : PushedContextsStack)
+			{
+				PushedClients.Remove(Client);
+			}
 		}
 	}
 }
 
 void UActorEditorContextSubsystem::ApplyContext(AActor* InActor)
 {
-	if (GIsReinstancing)
+	if (GIsReinstancing || !bIsApplyEnabled)
 	{
 		return;
 	}
@@ -116,6 +150,9 @@ void UActorEditorContextSubsystem::PushContext(bool bDuplicateContext)
 	{
 		Client->OnExecuteActorEditorContextAction(World, bDuplicateContext ? EActorEditorContextAction::PushDuplicateContext : EActorEditorContextAction::PushContext);
 	}
+
+	PushedContextsStack.Push(Clients);
+
 	ActorEditorContextSubsystemChanged.Broadcast();
 }
 
@@ -127,7 +164,7 @@ void UActorEditorContextSubsystem::PopContext()
 		return;
 	}
 
-	for (IActorEditorContextClient* Client : Clients)
+	for (IActorEditorContextClient* Client : PushedContextsStack.Pop(EAllowShrinking::No))
 	{
 		Client->OnExecuteActorEditorContextAction(World, EActorEditorContextAction::PopContext);
 	}

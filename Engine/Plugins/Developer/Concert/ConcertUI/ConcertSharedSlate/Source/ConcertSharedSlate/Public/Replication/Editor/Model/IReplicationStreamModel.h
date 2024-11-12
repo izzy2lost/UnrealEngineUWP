@@ -42,6 +42,9 @@ namespace UE::ConcertSharedSlate
 		 */
 		virtual bool ForEachProperty(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const = 0;
 
+		/** Gets the number of properties assigned to Object. */
+		virtual uint32 GetNumProperties(const FSoftObjectPath& Object) const = 0;
+
 		/** @return Gets all replicated objects */
 		TSet<FSoftObjectPath> GetReplicatedObjects() const
 		{
@@ -105,6 +108,13 @@ namespace UE::ConcertSharedSlate
 		TSet<FConcertPropertyChain> GetAllProperties(const FSoftObjectPath& Object) const
 		{
 			TSet<FConcertPropertyChain> Result;
+			const uint32 NumProperties = GetNumProperties(Object);
+			if (NumProperties == 0)
+			{
+				return Result;
+			}
+
+			Result.Reserve(NumProperties);
 			ForEachProperty(Object, [&Result](const FConcertPropertyChain& Property)
 			{
 				Result.Add(Property);
@@ -148,6 +158,21 @@ namespace UE::ConcertSharedSlate
 				return EBreakBehavior::Continue;
 			});
 			return Subobjects;
+		}
+
+		/** @return Whether the predicate holds true for any of Root's subobjects. */
+		template<typename TLambda> requires std::is_invocable_r_v<bool, TLambda, const FSoftObjectPath&>
+		bool AnyOfSubobjects(const FSoftObjectPath& Root, TLambda&& Lambda)
+		{
+			bool bResult = false;
+			ForEachSubobject(
+				Root,
+				[&Lambda, &bResult](const FSoftObjectPath& Child)
+				{
+					bResult = Lambda(Child);
+					return bResult ? EBreakBehavior::Break : EBreakBehavior::Continue;
+				});
+			return bResult;
 		}
 		
 		virtual ~IReplicationStreamModel() = default;

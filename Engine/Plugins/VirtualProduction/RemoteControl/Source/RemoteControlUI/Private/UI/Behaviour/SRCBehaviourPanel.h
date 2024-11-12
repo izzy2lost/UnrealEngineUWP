@@ -9,7 +9,9 @@ struct FRCPanelStyle;
 class FRCBehaviourModel;
 class FRCControllerModel;
 class SBox;
+class SComboButton;
 class SRCBehaviourPanel;
+class SRCMinorPanel;
 class URCController;
 
 /*
@@ -26,7 +28,7 @@ public:
 		}
 
 	SLATE_END_ARGS()
-	
+
 	/** Constructs this widget with InArgs */
 	void Construct(const FArguments& InArgs, const TSharedRef<SRemoteControlPanel>& InPanel);
 
@@ -67,7 +69,7 @@ protected:
 
 private:
 	/** Get a Helper widget for behavior details. */
-	static TSharedRef<SBox> CreateNoneSelectedWidget();
+	static TSharedRef<SBox> GetNoneSelectedWidget();
 
 	/** Duplicates a given Behaviour object*/
 	void DuplicateBehaviour(URCBehaviour* InBehaviour);
@@ -76,10 +78,13 @@ private:
 	* Controller list selection change listener.
 	* Updates the list of behaviours from newly selected Controller
 	*/
-	void OnControllerSelectionChanged(TSharedPtr<FRCControllerModel> InControllerItem);
+	void OnControllerSelectionChanged(TSharedPtr<FRCControllerModel> InControllerItem, ESelectInfo::Type InSelectInfo);
+
+	/** Called when a controller value is changed */
+	void OnControllerValueChanged(TSharedPtr<FRCControllerModel> InController);
 
 	/* Rebuilds the Behaviour Panel for a newly selected Controller*/
-	void UpdateWrappedWidget(TSharedPtr<FRCControllerModel> InControllerItem = nullptr);
+	void UpdateWrappedWidget(const TSharedPtr<FRCControllerModel>& InControllerItem = nullptr);
 
 	/** Builds a menu containing the list of all possible Behaviours */
 	TSharedRef<SWidget> GetBehaviourMenuContentWidget();
@@ -93,6 +98,12 @@ private:
 	/** Handles click event for "Empty" button; clears all Behaviours from the panel*/
 	FReply OnClickEmptyButton();
 
+	/** Check the validity of the panel widgets and if not valid will create them */
+	void CreateBehaviorPanelWidgets();
+
+	/** Return whether or not all panel widgets are valid */
+	bool AreBehaviorPanelWidgetsValid() const;
+
 private:
 	/** The parent Controller that this Behaviour panel is associated with */
 	TWeakPtr<FRCControllerModel> SelectedControllerItemWeakPtr = nullptr;
@@ -102,6 +113,12 @@ private:
 
 	/** Widget representing List of Behaviours */
 	TSharedPtr<class SRCBehaviourPanelList> BehaviourPanelList;
+
+	/** ComboButton to add new behavior */
+	TSharedPtr<SComboButton> AddNewBehaviorComboButton;
+
+	/** Behavior Minor Panel */
+	TSharedPtr<SRCMinorPanel> BehaviourDockPanel;
 
 	/** Panel Style reference. */
 	const FRCPanelStyle* RCPanelStyle = nullptr;

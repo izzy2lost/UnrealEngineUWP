@@ -19,6 +19,8 @@
 class UCameraComponent;
 class UWorld;
 struct FMinimalViewInfo;
+struct FOpenColorIOColorConversionSettings;
+
 
 /**
  * nDisplay: Viewport (interface for GameThread)
@@ -99,7 +101,7 @@ public:
 	 * 
 	 * @return - true if there is an internal viewpoint for the given viewport.
 	 */
-	virtual bool SetupViewPoint(struct FMinimalViewInfo& InOutViewInfo) = 0;
+	virtual bool SetupViewPoint(const uint32 InContextNum, struct FMinimalViewInfo& InOutViewInfo) = 0;
 
 	/** Return view point camera component for this viewport.
 	* @param InRootActorType - the root type
@@ -134,6 +136,13 @@ public:
 	 * @return Clipping planes as FVector2D(ZNear, ZFar)
 	 */
 	virtual FVector2D GetClippingPlanes() const = 0;
+
+	/**
+	 * Returns OCIO configuration if any set
+	 * 
+	 * @return true if OCIO is configured
+	 */
+	virtual bool GetOCIOConversionSettings(FOpenColorIOColorConversionSettings& OutOCIOConversionSettings) const = 0;
 
 	/**
 	* [const] Get custom postprocess settings for this viewport.
@@ -264,4 +273,17 @@ public:
 	{
 		return false;
 	}
+
+	/** Setup viewpoint for this viewport
+	 *
+	 * @param InOutViewInfo - [in\out] viewinfo
+	 *
+	 * @return - true if there is an internal viewpoint for the given viewport.
+	 */
+	UE_DEPRECATED(5.5, "This function has been deprecated. Please use 'SetupViewPoint()'.")
+	virtual bool SetupViewPoint(struct FMinimalViewInfo& InOutViewInfo)
+	{
+		return false;
+	}
+
 };

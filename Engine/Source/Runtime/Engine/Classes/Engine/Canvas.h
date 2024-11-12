@@ -256,7 +256,6 @@ public:
 	 * @param V Vertical position of the upper left corner of the portion of the texture to be shown(texels).
 	 * @param UL The width of the portion of the texture to be drawn(texels).
 	 * @param VL The height of the portion of the texture to be drawn(texels).
-	 * @param ClipTile true to clip tile.
 	 * @param BlendMode Blending mode of texture.
 	 */
 	ENGINE_API void DrawTile(UTexture* Tex, float X, float Y, float XL, float YL, float U, float V, float UL, float VL, EBlendMode BlendMode=BLEND_Translucent);
@@ -271,7 +270,7 @@ public:
 	 * @param YL out Vertical length of string.
 	 * @param Text String to calculate for.
 	 */
-	static ENGINE_API void ClippedStrLen(const UFont* Font, float ScaleX, float ScaleY, int32& XL, int32& YL, const TCHAR* Text);
+	static ENGINE_API void ClippedStrLen(const UFont* Font, float ScaleX, float ScaleY, int32& XL, int32& YL, FStringView Text);
 
 	/**	
 	 * Calculate the size of a string built from a font, word wrapped to a specified region.
@@ -281,7 +280,7 @@ public:
 	/**
 	 * Compute size and optionally print text with word wrap.
 	 */
-	ENGINE_API int32 WrappedPrint(bool Draw, float X, float Y, int32& out_XL, int32& out_YL, const UFont* Font, float ScaleX, float ScaleY, bool bCenterTextX, bool bCenterTextY, const TCHAR* Text, const FFontRenderInfo& RenderInfo) ;
+	ENGINE_API int32 WrappedPrint(bool Draw, float X, float Y, int32& out_XL, int32& out_YL, const UFont* Font, float ScaleX, float ScaleY, bool bCenterTextX, bool bCenterTextY, FStringView Text, const FFontRenderInfo& RenderInfo) ;
 	
 	/**
 	 * Draws a string of text to the screen.
@@ -295,9 +294,15 @@ public:
 	 * @param RenderInfo Optional. The FontRenderInfo to use when drawing the text.
 	 * @return The Y extent of the rendered text.
 	 */
-	ENGINE_API float DrawText(const UFont* InFont, const FString& InText, float X, float Y, float XScale = 1.f, float YScale = 1.f, const FFontRenderInfo& RenderInfo = FFontRenderInfo());
-
+	ENGINE_API float DrawText(const UFont* InFont, FStringView InText, float X, float Y, float XScale = 1.f, float YScale = 1.f, const FFontRenderInfo& RenderInfo = FFontRenderInfo());
 	ENGINE_API float DrawText(const UFont* InFont, const FText& InText, float X, float Y, float XScale = 1.f, float YScale = 1.f, const FFontRenderInfo& RenderInfo = FFontRenderInfo());
+
+#if !PLATFORM_TCHAR_IS_UTF8CHAR
+
+	UE_DEPRECATED(5.5, "Passing an ANSI string to DrawText has been deprecated outside of UTF-8 mode. Please use the overload that takes a TCHAR string.")
+	ENGINE_API float DrawText(const UFont* InFont, FAnsiStringView InText, float X, float Y, float XScale = 1.f, float YScale = 1.f, const FFontRenderInfo& RenderInfo = FFontRenderInfo());
+
+#endif // !PLATFORM_TCHAR_IS_UTF8CHAR
 
 	enum ELastCharacterIndexFormat
 	{
@@ -317,14 +322,16 @@ public:
 	 *							DrawYL:		[out] will be set to the height of the string
 	 *							DrawFont:	[in] specifies the font to use for retrieving the size of the characters in the string
 	 *							Scale:		[in] specifies the amount of scaling to apply to the string
-	 * @param	pText		the string to calculate the size for
-	 * @param	TextLength	the number of code units in pText
+	 * @param	Text		The string to calculate the size for
 	 * @param	StopAfterHorizontalOffset  Offset horizontally into the string to stop measuring characters after, in pixels (or INDEX_NONE)
 	 * @param	CharIndexFormat  Behavior to use for StopAfterHorizontalOffset
-	 * @param	OutCharacterIndex  The index of the last character processed (used with StopAfterHorizontalOffset)
+	 * @param	OutLastCharacterIndex  The index of the last character processed (used with StopAfterHorizontalOffset)
 	 *
 	 */
-	static ENGINE_API void MeasureStringInternal( FTextSizingParameters& Parameters, const TCHAR* const pText, const int32 TextLength, const int32 StopAfterHorizontalOffset, const ELastCharacterIndexFormat CharIndexFormat, int32& OutLastCharacterIndex );
+	static ENGINE_API void MeasureStringInternal(FTextSizingParameters& Parameters, FStringView Text, const int32 StopAfterHorizontalOffset, const ELastCharacterIndexFormat CharIndexFormat, int32& OutLastCharacterIndex);
+
+	UE_DEPRECATED(5.4, "Use MeasureStringInternal with FStringView instead.")
+	static ENGINE_API void MeasureStringInternal(FTextSizingParameters& Parameters, const TCHAR* const Text, const int32 TextLength, const int32 StopAfterHorizontalOffset, const ELastCharacterIndexFormat CharIndexFormat, int32& OutLastCharacterIndex);
 
 	/**
 	 * Calculates the size of the specified string.
@@ -334,9 +341,9 @@ public:
 	 *							DrawYL:		[out] will be set to the height of the string
 	 *							DrawFont:	[in] specifies the font to use for retrieving the size of the characters in the string
 	 *							Scale:		[in] specifies the amount of scaling to apply to the string
-	 * @param	pText		the string to calculate the size for
+	 * @param	Text		the string to calculate the size for
 	 */
-	static ENGINE_API void CanvasStringSize( FTextSizingParameters& Parameters, const TCHAR* pText );
+	static ENGINE_API void CanvasStringSize(FTextSizingParameters& Parameters, FStringView Text);
 
 	/**
 	 * Parses a single string into an array of strings that will fit inside the specified bounding region.
@@ -354,14 +361,14 @@ public:
 	 *							Scale:		[in] specifies the amount of scaling to apply to the string
 	 * @param	CurX			specifies the pixel location to begin the wrapping; usually equal to the X pos of the bounding region, unless wrapping is initiated
 	 *								in the middle of the bounding region (i.e. indentation)
-	 * @param	pText			the text that should be wrapped
+	 * @param	Text			the text that should be wrapped
 	 * @param	out_Lines		[out] will contain an array of strings which fit inside the bounding region specified.  Does
 	 *							not clear the array first.
 	 * @param	OutWrappedLineData An optional array to fill with the indices from the source string marking the begin and end points of the wrapped lines
 	 */
-	static ENGINE_API void WrapString( FCanvasWordWrapper& Wrapper, FTextSizingParameters& Parameters, const float InCurX, const TCHAR* const pText, TArray<FWrappedStringElement>& out_Lines, FCanvasWordWrapper::FWrappedLineData* const OutWrappedLineData = nullptr);
+	static ENGINE_API void WrapString(FCanvasWordWrapper& Wrapper, FTextSizingParameters& Parameters, const float InCurX, FStringView Text, TArray<FWrappedStringElement>& out_Lines, FCanvasWordWrapper::FWrappedLineData* const OutWrappedLineData = nullptr);
 
-	ENGINE_API void WrapString( FTextSizingParameters& Parameters, const float InCurX, const TCHAR* const pText, TArray<FWrappedStringElement>& out_Lines, FCanvasWordWrapper::FWrappedLineData* const OutWrappedLineData = nullptr);
+	ENGINE_API void WrapString(FTextSizingParameters& Parameters, const float InCurX, FStringView Text, TArray<FWrappedStringElement>& out_Lines, FCanvasWordWrapper::FWrappedLineData* const OutWrappedLineData = nullptr);
 
 	/**
 	 * Transforms a 3D world-space vector into 2D screen coordinates.
@@ -385,39 +392,66 @@ public:
 	 * Calculate the length of a string, taking text wrapping into account.
 	 *
 	 * @param InFont The Font use.
-	 * @param Text The string to calculate for.
+	 * @param InText The string to calculate for.
 	 * @param XL out Horizontal length of string.
 	 * @param YL out Vertical length of string.
 	 * @param bDPIAware If true measures text considering the current DPI scale factor of the canvas.  Defaults to false for backwards compatibility
-	 * @param Canvas Canvas state object
+	 * @param InCanvas Canvas state object
 	 */
-	static ENGINE_API void StrLen(const UFont* InFont, const FString& InText, float& XL, float& YL, bool bDPIAware, FCanvas* InCanvas);
-	static ENGINE_API void StrLen(const UFont* InFont, const FString& InText, double& XL, double& YL, bool bDPIAware, FCanvas* InCanvas);
+	static ENGINE_API void StrLen(const UFont* InFont, FStringView InText, float& XL, float& YL, bool bDPIAware, FCanvas* InCanvas);
+	static ENGINE_API void StrLen(const UFont* InFont, FStringView InText, double& XL, double& YL, bool bDPIAware, FCanvas* InCanvas);
+	
+#if !PLATFORM_TCHAR_IS_UTF8CHAR
+
+	UE_DEPRECATED(5.5, "Passing an ANSI string to StrLen has been deprecated outside of UTF-8 mode. Please use the overload that takes a TCHAR string.")
+	static ENGINE_API void StrLen(const UFont* InFont, FAnsiStringView InText, float& XL, float& YL, bool bDPIAware, FCanvas* InCanvas);
+	UE_DEPRECATED(5.5, "Passing an ANSI string to StrLen has been deprecated outside of UTF-8 mode. Please use the overload that takes a TCHAR string.")
+	static ENGINE_API void StrLen(const UFont* InFont, FAnsiStringView InText, double& XL, double& YL, bool bDPIAware, FCanvas* InCanvas);
+
+#endif // !PLATFORM_TCHAR_IS_UTF8CHAR
 
 	/**
 	 * Calculate the length of a string, taking text wrapping into account.
 	 *
 	 * @param InFont The Font use.
-	 * @param Text The string to calculate for.
+	 * @param InText The string to calculate for.
 	 * @param XL out Horizontal length of string.
 	 * @param YL out Vertical length of string.
 	 * @param bDPIAware If true measures text considering the current DPI scale factor of the canvas.  Defaults to false for backwards compatibility
 	 */
-	ENGINE_API void StrLen(const UFont* InFont, const FString& InText, float& XL, float& YL, bool bDPIAware = false);
-	ENGINE_API void StrLen(const UFont* InFont, const FString& InText, double& XL, double& YL, bool bDPIAware = false);
+	ENGINE_API void StrLen(const UFont* InFont, FStringView InText, float& XL, float& YL, bool bDPIAware = false);
+	ENGINE_API void StrLen(const UFont* InFont, FStringView InText, double& XL, double& YL, bool bDPIAware = false);
+	
+#if !PLATFORM_TCHAR_IS_UTF8CHAR
+
+	UE_DEPRECATED(5.5, "Passing an ANSI string to StrLen has been deprecated outside of UTF-8 mode. Please use the overload that takes a TCHAR string.")
+	ENGINE_API void StrLen(const UFont* InFont, FAnsiStringView InText, float& XL, float& YL, bool bDPIAware = false);
+	UE_DEPRECATED(5.5, "Passing an ANSI string to StrLen has been deprecated outside of UTF-8 mode. Please use the overload that takes a TCHAR string.")
+	ENGINE_API void StrLen(const UFont* InFont, FAnsiStringView InText, double& XL, double& YL, bool bDPIAware = false);
+
+#endif // !PLATFORM_TCHAR_IS_UTF8CHAR
 
 	/** 
 	 * Calculates the horizontal and vertical size of a given string. This is used for clipped text as it does not take wrapping into account.
 	 *
-	 * @param Font The font to use.
-	 * @param Text String to calculate for.
+	 * @param InFont The font to use.
+	 * @param InText String to calculate for.
 	 * @param XL out Horizontal length of string.
 	 * @param YL out Vertical length of string.
 	 * @param ScaleX Scale that the string is expected to draw at horizontally.
 	 * @param ScaleY Scale that the string is expected to draw at vertically.
 	 */
-	ENGINE_API void TextSize( const UFont* InFont, const FString& InText, float& XL, float& YL, float ScaleX=1.f, float ScaleY=1.f);
-	ENGINE_API void TextSize( const UFont* InFont, const FString& InText, double& XL, double& YL, double ScaleX=1.f, double ScaleY=1.f);
+	ENGINE_API void TextSize( const UFont* InFont, FStringView InText, float& XL, float& YL, float ScaleX=1.f, float ScaleY=1.f);
+	ENGINE_API void TextSize( const UFont* InFont, FStringView InText, double& XL, double& YL, double ScaleX=1.f, double ScaleY=1.f);
+	
+#if !PLATFORM_TCHAR_IS_UTF8CHAR
+
+	UE_DEPRECATED(5.5, "Passing an ANSI string to TextSize has been deprecated outside of UTF-8 mode. Please use the overload that takes a TCHAR string.")
+	ENGINE_API void TextSize( const UFont* InFont, FAnsiStringView InText, float& XL, float& YL, float ScaleX=1.f, float ScaleY=1.f);
+	UE_DEPRECATED(5.5, "Passing an ANSI string to TextSize has been deprecated outside of UTF-8 mode. Please use the overload that takes a TCHAR string.")
+	ENGINE_API void TextSize( const UFont* InFont, FAnsiStringView InText, double& XL, double& YL, double ScaleX=1.f, double ScaleY=1.f);
+
+#endif // !PLATFORM_TCHAR_IS_UTF8CHAR
 
 	/** Set DrawColor with a FLinearColor and optional opacity override */
 	ENGINE_API void SetLinearDrawColor(FLinearColor InColor, float OpacityOverride=-1.f);
@@ -583,6 +617,7 @@ public:
 	 * @param ScreenPosition			Screen space position to render the text.
 	 * @param ScreenSize				Screen space size to render the texture.
 	 * @param Thickness					How many pixels thick the box lines should be.
+	 * @param RenderColor				Color to tint the box.
 	 */
 	UFUNCTION(BlueprintCallable, Category=Canvas, meta=(DisplayName="Draw Box", ScriptName="DrawBox"))
 	ENGINE_API void K2_DrawBox(FVector2D ScreenPosition, FVector2D ScreenSize, float Thickness=1.0f, FLinearColor RenderColor=FLinearColor::White);

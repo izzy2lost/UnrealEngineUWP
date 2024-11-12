@@ -47,6 +47,7 @@ private:
 
 	TSharedPtr<class SButton> ButtonApplyToPreview;
 
+	TSharedPtr<class STextBlock> MaterialBudgetTextBlock;
 	TSharedPtr<class STextBlock> DescriptionTextBlock;
 
 	TSharedPtr<class SBox> MaterialBox;

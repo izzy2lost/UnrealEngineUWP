@@ -29,9 +29,9 @@ namespace Metasound
 	FEnumBufferTriggerType, FEnumBufferTriggerTypeInfo, FBufferTriggerTypeReadRef, FEnumBufferTriggerTypeWriteRef);
 
 	DEFINE_METASOUND_ENUM_BEGIN(EBufferTriggerType, FEnumBufferTriggerType, "BufferTriggerType")
-		DEFINE_METASOUND_ENUM_ENTRY(EBufferTriggerType::RisingEdge, "RisingEdgeDescription", "Rising Edge", "RisingEdgeDescriptionTT", ""),
-		DEFINE_METASOUND_ENUM_ENTRY(EBufferTriggerType::FallingEdge, "FallingEdgeDescription", "Falling Edge", "FallingEdgeDescriptionTT", ""),
-		DEFINE_METASOUND_ENUM_ENTRY(EBufferTriggerType::AbsThreshold, "AbsThresholdDescription", "Abs Threshold", "AbsThresholdDescriptionTT", "")
+		DEFINE_METASOUND_ENUM_ENTRY_NOTOOLTIP(EBufferTriggerType::RisingEdge, "RisingEdgeDescription", "Rising Edge"),
+		DEFINE_METASOUND_ENUM_ENTRY_NOTOOLTIP(EBufferTriggerType::FallingEdge, "FallingEdgeDescription", "Falling Edge"),
+		DEFINE_METASOUND_ENUM_ENTRY_NOTOOLTIP(EBufferTriggerType::AbsThreshold, "AbsThresholdDescription", "Abs Threshold")
 	DEFINE_METASOUND_ENUM_END()
 
 	namespace TriggerOnThresholdVertexNames
@@ -92,7 +92,7 @@ namespace Metasound
 
 			static const FVertexInterface Interface(
 				FInputVertexInterface(
-					TInputDataVertex<ValueType>(METASOUND_GET_PARAM_NAME_AND_METADATA(InPin), 0),
+					TInputDataVertex<ValueType>(METASOUND_GET_PARAM_NAME_AND_METADATA(InPin), static_cast<ValueType>(0)),
 					TInputDataVertex<ThresholdType>(METASOUND_GET_PARAM_NAME_AND_METADATA(InThresholdPin), DefaultThreshold),
 					TInputDataVertex<FEnumBufferTriggerType>(METASOUND_GET_PARAM_NAME_AND_METADATA(InTriggerType), (int32)EBufferTriggerType::RisingEdge)
 				),

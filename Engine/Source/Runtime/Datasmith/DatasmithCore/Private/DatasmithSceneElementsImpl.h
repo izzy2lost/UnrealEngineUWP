@@ -200,6 +200,9 @@ public:
 	virtual void SetCastShadow(bool bInCastShadow) override { bCastShadow = bInCastShadow; }
 	virtual bool GetCastShadow() const override { return bCastShadow; }
 
+	virtual void SetMobility(EDatasmithActorMobilityType InMobility) override { Mobility = InMobility; }
+	virtual EDatasmithActorMobilityType GetMobility() const override { return Mobility; }
+
 protected:
 	/** Converts all children's transforms to relative */
 	void ConvertChildsToRelative();
@@ -227,6 +230,7 @@ private:
 
 	TReflected<EActorFlags, uint8> Flags;
 	TReflected<bool> bCastShadow;
+	TReflected<EDatasmithActorMobilityType, uint8> Mobility;
 };
 
 template< typename InterfaceType >
@@ -240,6 +244,7 @@ inline FDatasmithActorElementImpl<T>::FDatasmithActorElementImpl(const TCHAR* In
 	, Rotation(FQuat::Identity)
 	, Flags(EActorFlags::IsVisible)
 	, bCastShadow(true)
+	, Mobility(EDatasmithActorMobilityType::Static)
 {
 	this->RegisterReferenceProxy(Children, "Children");
 	this->RegisterReferenceProxy(Parent,   "Parent"  );
@@ -251,6 +256,7 @@ inline FDatasmithActorElementImpl<T>::FDatasmithActorElementImpl(const TCHAR* In
 	Store.RegisterParameter(Tags,         "Tags"         ); // reflect as low prio for directlink
 	Store.RegisterParameter(Flags,        "Flags"        );
 	Store.RegisterParameter(bCastShadow,  "CastShadow"   );
+	Store.RegisterParameter(Mobility,     "Mobility"     );
 }
 
 template< typename T >
@@ -390,7 +396,10 @@ private:
 /*
  * Experimental Element that describes a cloth asset.
  */
-class FDatasmithClothElementImpl : public FDatasmithElementImpl< IDatasmithClothElement >
+class UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") FDatasmithClothElementImpl
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+ : public FDatasmithElementImpl< IDatasmithClothElement >
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 public:
 	explicit FDatasmithClothElementImpl(const TCHAR* InName);
@@ -1023,7 +1032,9 @@ private:
 };
 
 
-class FDatasmithClothActorElementImpl : public FDatasmithActorElementImpl<IDatasmithClothActorElement>
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+class UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") FDatasmithClothActorElementImpl
+	: public FDatasmithActorElementImpl<IDatasmithClothActorElement>
 {
 public:
 	FDatasmithClothActorElementImpl(const TCHAR* InName);
@@ -1034,6 +1045,7 @@ public:
 private:
 	TReflected<FString> Cloth;
 };
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
 class FDatasmithEnvironmentElementImpl : public FDatasmithLightActorElementImpl< IDatasmithEnvironmentElement >
@@ -1575,7 +1587,9 @@ private:
 	int32 MaterialPropertyIndex;
 };
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS  // For Clothes - UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 class DATASMITHCORE_API FDatasmithSceneImpl : public FDatasmithElementImpl< IDatasmithScene >
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 public:
 	explicit FDatasmithSceneImpl(const TCHAR* InName);
@@ -1625,13 +1639,22 @@ public:
 	virtual void RemoveMeshAt(int32 InIndex) override;
 	virtual void EmptyMeshes() override { Meshes.Empty(); }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual void AddCloth(const TSharedPtr< IDatasmithClothElement >& InElement) override;
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual int32 GetClothesCount() const override;
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual TSharedPtr< IDatasmithClothElement > GetCloth(int32 InIndex) override;
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual const TSharedPtr< IDatasmithClothElement >& GetCloth(int32 InIndex) const override;
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual void RemoveCloth(const TSharedPtr< IDatasmithClothElement >& InElement) override;
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual void RemoveClothAt(int32 InIndex) override;
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	virtual void EmptyClothes() override;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	virtual void AddActor(const TSharedPtr< IDatasmithActorElement >& InActor) override { Actors.Add(InActor);  }
 	virtual int32 GetActorsCount() const override { return Actors.Num(); }
@@ -1693,7 +1716,10 @@ private:
 
 	TDatasmithReferenceArrayProxy<IDatasmithActorElement>            Actors;
 	TDatasmithReferenceArrayProxy<IDatasmithMeshElement>             Meshes;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	TDatasmithReferenceArrayProxy<IDatasmithClothElement>            Clothes;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	TDatasmithReferenceArrayProxy<IDatasmithBaseMaterialElement>     Materials;
 	TDatasmithReferenceArrayProxy<IDatasmithTextureElement>          Textures;
 	TDatasmithReferenceArrayProxy<IDatasmithMetaDataElement>         MetaData;

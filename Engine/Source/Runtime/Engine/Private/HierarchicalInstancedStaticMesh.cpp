@@ -19,6 +19,7 @@
 #include "UObject/UObjectIterator.h"
 #include "RenderUtils.h"
 #include "UnrealEngine.h"
+#include "Containers/Ticker.h"
 #include "InstancedStaticMeshDelegates.h"
 #include "UObject/ReleaseObjectVersion.h"
 #include "ComponentRecreateRenderStateContext.h"
@@ -98,8 +99,8 @@ TAutoConsoleVariable<float> CVarFoliageLODDistanceScale(
 	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
 		{
 			FGlobalComponentRecreateRenderStateContext Context;
-		})
-	);
+		}),
+	ECVF_Scalability);
 
 TAutoConsoleVariable<float> CVarRandomLODRange(
 	TEXT("foliage.RandomLODRange"),
@@ -805,6 +806,10 @@ FHierarchicalStaticMeshSceneProxy::FHierarchicalStaticMeshSceneProxy(UHierarchic
 	UserData_AllInstances.LODDistanceScale = LODDistanceScale;
 	UserData_SelectedInstances.LODDistanceScale = LODDistanceScale;
 	UserData_DeselectedInstances.LODDistanceScale = LODDistanceScale;
+
+	UserData_AllInstances.AverageInstancesScale = 
+		UserData_SelectedInstances.AverageInstancesScale = 
+		UserData_DeselectedInstances.AverageInstancesScale = InComponent->GetAverageScale();
 }
 
 void FHierarchicalStaticMeshSceneProxy::SetupOcclusion(UHierarchicalInstancedStaticMeshComponent* InComponent)
@@ -2192,7 +2197,7 @@ void UHierarchicalInstancedStaticMeshComponent::RemoveInstancesInternal(TConstAr
 		{
 			// Due to scalability it's possible that we try to remove an instance that is not valid in the reorder table as it was removed already from render
 			int32 RenderIndex = InstanceReorderTable[InstanceIndex];
-			InstanceReorderTable.RemoveAtSwap(InstanceIndex, 1, EAllowShrinking::No);
+			InstanceReorderTable.RemoveAtSwap(InstanceIndex, EAllowShrinking::No);
 		}
 	}
 
@@ -2489,12 +2494,12 @@ TArray<int32> UHierarchicalInstancedStaticMeshComponent::AddInstances(const TArr
 		for (const int32 InstanceIndex : InstanceIndices)
 		{
 			InstanceReorderTable.Add(InitialBufferOffset + InstanceIndex);
+			++InstanceCountToRender;
 
 			const FBox NewInstanceBounds = GetStaticMesh()->GetBounds().GetBox().TransformBy(PerInstanceSMData[InstanceIndex].Transform);
 			UnbuiltInstanceBounds += NewInstanceBounds;
 			UnbuiltInstanceBoundsList.Add(NewInstanceBounds);
 		}
-		InstanceCountToRender = InstanceReorderTable.Num();
 
 		if (bAutoRebuildTreeOnInstanceChanges)
 		{
@@ -2867,11 +2872,25 @@ void UHierarchicalInstancedStaticMeshComponent::BuildTreeAsync()
 
 		// add a dependent task to run on the main thread when build is complete
 		FGraphEventRef PostBuildTreeAsyncResult(
-			FDelegateGraphTask::CreateAndDispatchWhenReady(
-			FDelegateGraphTask::FDelegate::CreateUObject(this, &UHierarchicalInstancedStaticMeshComponent::ApplyBuildTreeAsync, Builder, StartTime), GET_STATID(STAT_FoliageBuildTime),
-			BuildTreeAsyncResult, ENamedThreads::GameThread, ENamedThreads::GameThread
+			FFunctionGraphTask::CreateAndDispatchWhenReady(
+				[WeakPtr = TWeakObjectPtr(this), Builder, StartTime]()
+				{
+					ExecuteOnGameThread(
+						TEXT("ApplyBuildTreeAsync_GameThread"),
+						[WeakPtr, Builder, StartTime]()
+						{
+							if (UHierarchicalInstancedStaticMeshComponent* Ptr = WeakPtr.Get())
+							{
+								FGraphEventRef Dummy;
+								Ptr->ApplyBuildTreeAsync(ENamedThreads::GameThread, Dummy, Builder, StartTime);
+							}
+						}
+					);
+				},
+				GET_STATID(STAT_FoliageBuildTime),
+				BuildTreeAsyncResult
 			)
-			);
+		);
 
 		BuildTreeAsyncTasks.Add(PostBuildTreeAsyncResult);
 	}

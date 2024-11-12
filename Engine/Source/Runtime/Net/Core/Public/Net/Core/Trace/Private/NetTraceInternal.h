@@ -73,6 +73,7 @@ union FNetTraceBunchInfo
 		uint64 ChannelCloseReason : 4;
 		uint64 bPartial : 1;
 		uint64 bPartialInitial : 1;
+		uint64 bPartialCustomExportsFinal : 1;
 		uint64 bPartialFinal : 1;
 		UE_DEPRECATED(5.3, "Replication pausing is deprecated")
 		uint64 bIsReplicationPaused : 1;
@@ -81,7 +82,7 @@ union FNetTraceBunchInfo
 		uint64 bReliable : 1;
 		uint64 bHasPackageMapExports : 1;
 		uint64 bHasMustBeMappedGUIDs : 1;
-		uint64 Padding : 19;
+		uint64 Padding : 18;
 	};
 	uint64 Value;
 };
@@ -299,6 +300,7 @@ FNetTraceBunchInfo MakeBunchInfo(const T& Bunch)
 	BunchInfo.ChannelCloseReason = uint64(Bunch.CloseReason);
 	BunchInfo.bPartial = Bunch.bPartial;
 	BunchInfo.bPartialInitial = Bunch.bPartialInitial;
+	BunchInfo.bPartialCustomExportsFinal = Bunch.bPartialCustomExportsFinal;
 	BunchInfo.bPartialFinal = Bunch.bPartialFinal;
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	BunchInfo.bIsReplicationPaused = Bunch.bIsReplicationPaused;

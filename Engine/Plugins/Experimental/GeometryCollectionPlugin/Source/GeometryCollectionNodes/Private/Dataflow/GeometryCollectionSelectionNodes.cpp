@@ -31,7 +31,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionSelectionNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	void GeometryCollectionSelectionNodes()
@@ -56,6 +56,7 @@ namespace Dataflow
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCollectionTransformSelectionContactDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCollectionTransformSelectionLeafDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCollectionTransformSelectionClusterDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCollectionTransformSelectionClusterDataflowNode_v2);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCollectionTransformSelectionBySizeDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCollectionTransformSelectionByVolumeDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCollectionTransformSelectionInBoxDataflowNode);
@@ -69,14 +70,15 @@ namespace Dataflow
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCollectionFaceSelectionInvertDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCollectionVertexSelectionByPercentageDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCollectionVertexSelectionSetOperationDataflowNode);
-
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCollectionSelectionByAttrDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGeometrySelectionToVertexSelectionDataflowNode);
 		// GeometryCollection|Selection
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY_NODE_COLORS_BY_CATEGORY("GeometryCollection|Selection", FLinearColor(1.f, 1.f, 0.05f), CDefaultNodeBodyTintColor);
 	}
 }
 
 
-void FCollectionTransformSelectionAllDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionAllDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -93,13 +95,12 @@ void FCollectionTransformSelectionAllDataflowNode::Evaluate(Dataflow::FContext& 
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionSetOperationDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionSetOperationDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -228,7 +229,7 @@ static void BuildHierarchicalOutput(const TManagedArray<int32>& Parents,
 }
 
 
-void FCollectionTransformSelectionInfoDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionInfoDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FString>(&String))
 	{
@@ -277,7 +278,7 @@ void FCollectionTransformSelectionInfoDataflowNode::Evaluate(Dataflow::FContext&
 }
 
 
-void FCollectionTransformSelectionNoneDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionNoneDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -294,13 +295,12 @@ void FCollectionTransformSelectionNoneDataflowNode::Evaluate(Dataflow::FContext&
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionInvertDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionInvertDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -313,7 +313,7 @@ void FCollectionTransformSelectionInvertDataflowNode::Evaluate(Dataflow::FContex
 }
 
 
-void FCollectionTransformSelectionRandomDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionRandomDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -333,13 +333,12 @@ void FCollectionTransformSelectionRandomDataflowNode::Evaluate(Dataflow::FContex
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionRootDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionRootDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -356,13 +355,12 @@ void FCollectionTransformSelectionRootDataflowNode::Evaluate(Dataflow::FContext&
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionCustomDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionCustomDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -377,10 +375,10 @@ void FCollectionTransformSelectionCustomDataflowNode::Evaluate(Dataflow::FContex
 
 			const FString InBoneIndices = GetValue<FString>(Context, &BoneIndicies);
 
-			TArray<FString> Indicies;
-			InBoneIndices.ParseIntoArray(Indicies, TEXT(" "), true);
+			TArray<FString> Indices;
+			InBoneIndices.ParseIntoArray(Indices, TEXT(" "), true);
 
-			for (FString IndexStr : Indicies)
+			for (FString IndexStr : Indices)
 			{
 				if (IndexStr.IsNumeric())
 				{
@@ -407,12 +405,12 @@ void FCollectionTransformSelectionCustomDataflowNode::Evaluate(Dataflow::FContex
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionFromIndexArrayDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionFromIndexArrayDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&TransformSelection))
 	{
@@ -447,13 +445,12 @@ void FCollectionTransformSelectionFromIndexArrayDataflowNode::Evaluate(Dataflow:
 	}
 	else if (Out->IsA(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionParentDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionParentDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -470,13 +467,12 @@ void FCollectionTransformSelectionParentDataflowNode::Evaluate(Dataflow::FContex
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionByPercentageDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionByPercentageDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -495,7 +491,7 @@ void FCollectionTransformSelectionByPercentageDataflowNode::Evaluate(Dataflow::F
 }
 
 
-void FCollectionTransformSelectionChildrenDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionChildrenDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -512,13 +508,12 @@ void FCollectionTransformSelectionChildrenDataflowNode::Evaluate(Dataflow::FCont
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionSiblingsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionSiblingsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -535,13 +530,12 @@ void FCollectionTransformSelectionSiblingsDataflowNode::Evaluate(Dataflow::FCont
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionLevelDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionLevelDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -558,13 +552,12 @@ void FCollectionTransformSelectionLevelDataflowNode::Evaluate(Dataflow::FContext
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionTargetLevelDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionTargetLevelDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&TransformSelection))
 	{
@@ -583,13 +576,12 @@ void FCollectionTransformSelectionTargetLevelDataflowNode::Evaluate(Dataflow::FC
 	}
 	else if (Out->IsA(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionContactDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionContactDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -599,20 +591,19 @@ void FCollectionTransformSelectionContactDataflowNode::Evaluate(Dataflow::FConte
 		GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
 		TArray<int32> SelectionArr = InTransformSelection.AsArray();
 
-		TransformSelectionFacade.SelectLevel(SelectionArr);
+		TransformSelectionFacade.SelectContact(SelectionArr, bAllowContactInParentLevels);
 		InTransformSelection.SetFromArray(SelectionArr);
 
 		SetValue(Context, MoveTemp(InTransformSelection), &TransformSelection);
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionLeafDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionLeafDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -629,20 +620,22 @@ void FCollectionTransformSelectionLeafDataflowNode::Evaluate(Dataflow::FContext&
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionClusterDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionClusterDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
-	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
+	if (Out->IsA(&TransformSelection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+		const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
 
 		GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
-		const TArray<int32>& SelectionArr = TransformSelectionFacade.SelectCluster();
+		// this node used to use SelectCluster() but this was buggy and woudl select the leaves instead
+		// for this reason this node is now deprecated and we need to keep it doing what it sued to : SelectLeaf()
+		// version 2 of the node properly use the right way 
+		const TArray<int32>& SelectionArr = TransformSelectionFacade.SelectLeaf(); // used to be buggy SelectCluster() - see comment above 
 
 		FDataflowTransformSelection NewTransformSelection;
 		NewTransformSelection.Initialize(InCollection.NumElements(FGeometryCollection::TransformGroup), false);
@@ -650,15 +643,34 @@ void FCollectionTransformSelectionClusterDataflowNode::Evaluate(Dataflow::FConte
 
 		SetValue(Context, MoveTemp(NewTransformSelection), &TransformSelection);
 	}
-	else if (Out->IsA<FManagedArrayCollection>(&Collection))
+	else if (Out->IsA(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
+void FCollectionTransformSelectionClusterDataflowNode_v2::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&TransformSelection))
+	{
+		const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
 
-void FCollectionTransformSelectionBySizeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+		GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
+		const TArray<int32>& SelectionArr = TransformSelectionFacade.SelectCluster(); 
+
+		FDataflowTransformSelection NewTransformSelection;
+		NewTransformSelection.Initialize(InCollection.NumElements(FGeometryCollection::TransformGroup), false);
+		NewTransformSelection.SetFromArray(SelectionArr);
+
+		SetValue(Context, MoveTemp(NewTransformSelection), &TransformSelection);
+	}
+	else if (Out->IsA(&Collection))
+	{
+		SafeForwardInput(Context, &Collection, &Collection);
+	}
+}
+
+void FCollectionTransformSelectionBySizeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -678,13 +690,12 @@ void FCollectionTransformSelectionBySizeDataflowNode::Evaluate(Dataflow::FContex
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionByVolumeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionByVolumeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -704,13 +715,12 @@ void FCollectionTransformSelectionByVolumeDataflowNode::Evaluate(Dataflow::FCont
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionInBoxDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionInBoxDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -742,13 +752,12 @@ void FCollectionTransformSelectionInBoxDataflowNode::Evaluate(Dataflow::FContext
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionInSphereDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionInSphereDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -780,13 +789,12 @@ void FCollectionTransformSelectionInSphereDataflowNode::Evaluate(Dataflow::FCont
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionTransformSelectionByFloatAttrDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionByFloatAttrDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -806,12 +814,11 @@ void FCollectionTransformSelectionByFloatAttrDataflowNode::Evaluate(Dataflow::FC
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
-void FSelectFloatArrayIndicesInRangeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSelectFloatArrayIndicesInRangeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Indices))
 	{
@@ -843,7 +850,7 @@ void FSelectFloatArrayIndicesInRangeDataflowNode::Evaluate(Dataflow::FContext& C
 	}
 }
 
-void FCollectionTransformSelectionByIntAttrDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionTransformSelectionByIntAttrDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
 	{
@@ -863,13 +870,12 @@ void FCollectionTransformSelectionByIntAttrDataflowNode::Evaluate(Dataflow::FCon
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionVertexSelectionCustomDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionVertexSelectionCustomDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowVertexSelection>(&VertexSelection))
 	{
@@ -882,12 +888,12 @@ void FCollectionVertexSelectionCustomDataflowNode::Evaluate(Dataflow::FContext& 
 			FDataflowVertexSelection NewVertexSelection;
 			NewVertexSelection.Initialize(NumVertices, false);
 
-			const FString InVertexIndicies = GetValue<FString>(Context, &VertexIndicies);
+			const FString InVertexIndices = GetValue<FString>(Context, &VertexIndicies);
 
-			TArray<FString> Indicies;
-			InVertexIndicies.ParseIntoArray(Indicies, TEXT(" "), true);
+			TArray<FString> Indices;
+			InVertexIndices.ParseIntoArray(Indices, TEXT(" "), true);
 
-			for (FString IndexStr : Indicies)
+			for (FString IndexStr : Indices)
 			{
 				if (IndexStr.IsNumeric())
 				{
@@ -914,35 +920,34 @@ void FCollectionVertexSelectionCustomDataflowNode::Evaluate(Dataflow::FContext& 
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionFaceSelectionCustomDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionFaceSelectionCustomDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowFaceSelection>(&FaceSelection))
 	{
 		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
 
-		if (InCollection.HasGroup(FGeometryCollection::GeometryGroup))
+		if (InCollection.HasGroup(FGeometryCollection::FacesGroup))
 		{
 			const int32 NumFaces = InCollection.NumElements(FGeometryCollection::FacesGroup);
 
 			FDataflowFaceSelection NewFaceSelection;
 			NewFaceSelection.Initialize(NumFaces, false);
 
-			const FString InFaceIndicies = GetValue<FString>(Context, &FaceIndicies);
+			const FString InFaceIndices = GetValue<FString>(Context, &FaceIndicies);
 
-			TArray<FString> Indicies;
-			InFaceIndicies.ParseIntoArray(Indicies, TEXT(" "), true);
+			TArray<FString> Indices;
+			InFaceIndices.ParseIntoArray(Indices, TEXT(" "), true);
 
-			for (FString IndexStr : Indicies)
+			for (FString& IndexStr : Indices)
 			{
 				if (IndexStr.IsNumeric())
 				{
-					int32 Index = FCString::Atoi(*IndexStr);
+					const int32 Index = FCString::Atoi(*IndexStr);
 					if (Index >= 0 && Index < NumFaces)
 					{
 						NewFaceSelection.SetSelected(Index);
@@ -950,8 +955,7 @@ void FCollectionFaceSelectionCustomDataflowNode::Evaluate(Dataflow::FContext& Co
 					else
 					{
 						// ERROR: INVALID INDEX
-						FString ErrorStr = "Invalid specified index found.";
-						UE_LOG(LogTemp, Error, TEXT("[Dataflow ERROR] %s"), *ErrorStr);
+						UE_LOG(LogTemp, Error, TEXT("[Dataflow ERROR] Invalid specified index found."));
 					}
 				}
 			}
@@ -965,20 +969,19 @@ void FCollectionFaceSelectionCustomDataflowNode::Evaluate(Dataflow::FContext& Co
 	}
 	else if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionSelectionConvertDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionSelectionConvertDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
-	if (Out->IsA<FDataflowTransformSelection>(&TransformSelection))
+	if (Out->IsA(&TransformSelection))
 	{
-		if (IsConnected<FDataflowVertexSelection>(&VertexSelection))
+		if (IsConnected(&VertexSelection))
 		{
-			const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-			const FDataflowVertexSelection& InVertexSelection = GetValue<FDataflowVertexSelection>(Context, &VertexSelection);
+			const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
+			const FDataflowVertexSelection& InVertexSelection = GetValue(Context, &VertexSelection);
 
 			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
 			const TArray<int32>& SelectionArr = TransformSelectionFacade.ConvertVertexSelectionToTransformSelection(InVertexSelection.AsArray(), bAllElementsMustBeSelected);
@@ -989,10 +992,10 @@ void FCollectionSelectionConvertDataflowNode::Evaluate(Dataflow::FContext& Conte
 
 			SetValue(Context, MoveTemp(NewTransformSelection), &TransformSelection);
 		}
-		else if (IsConnected<FDataflowFaceSelection>(&FaceSelection))
+		else if (IsConnected(&FaceSelection))
 		{
-			const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-			const FDataflowFaceSelection& InFaceSelection = GetValue<FDataflowFaceSelection>(Context, &FaceSelection);
+			const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
+			const FDataflowFaceSelection& InFaceSelection = GetValue(Context, &FaceSelection);
 
 			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
 			const TArray<int32>& SelectionArr = TransformSelectionFacade.ConvertFaceSelectionToTransformSelection(InFaceSelection.AsArray(), bAllElementsMustBeSelected);
@@ -1003,19 +1006,18 @@ void FCollectionSelectionConvertDataflowNode::Evaluate(Dataflow::FContext& Conte
 
 			SetValue(Context, MoveTemp(NewTransformSelection), &TransformSelection);
 		}
-		else if (IsConnected<FDataflowTransformSelection>(&TransformSelection))
+		else
 		{
 			// Passthrough
-			const FDataflowTransformSelection& InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
-			SetValue(Context, InTransformSelection, &TransformSelection);
+			SafeForwardInput(Context, &TransformSelection, &TransformSelection);
 		}
 	}
-	else if (Out->IsA<FDataflowFaceSelection>(&FaceSelection))
+	else if (Out->IsA(&FaceSelection))
 	{
-		if (IsConnected<FDataflowVertexSelection>(&VertexSelection))
+		if (IsConnected(&VertexSelection))
 		{
-			const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-			const FDataflowVertexSelection& InVertexSelection = GetValue<FDataflowVertexSelection>(Context, &VertexSelection);
+			const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
+			const FDataflowVertexSelection& InVertexSelection = GetValue(Context, &VertexSelection);
 
 			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
 			const TArray<int32>& SelectionArr = TransformSelectionFacade.ConvertVertexSelectionToFaceSelection(InVertexSelection.AsArray(), bAllElementsMustBeSelected);
@@ -1026,16 +1028,10 @@ void FCollectionSelectionConvertDataflowNode::Evaluate(Dataflow::FContext& Conte
 
 			SetValue(Context, MoveTemp(NewFaceSelection), &FaceSelection);
 		}
-		else if (IsConnected<FDataflowFaceSelection>(&FaceSelection))
+		else if (IsConnected(&TransformSelection))
 		{
-			// Passthrough
-			const FDataflowFaceSelection& InFaceSelection = GetValue<FDataflowFaceSelection>(Context, &FaceSelection);
-			SetValue(Context, InFaceSelection, &FaceSelection);
-		}
-		else if (IsConnected<FDataflowTransformSelection>(&TransformSelection))
-		{
-			const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-			const FDataflowTransformSelection& InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
+			const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
+			const FDataflowTransformSelection& InTransformSelection = GetValue(Context, &TransformSelection);
 
 			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
 			const TArray<int32>& SelectionArr = TransformSelectionFacade.ConvertTransformSelectionToFaceSelection(InTransformSelection.AsArray());
@@ -1046,19 +1042,18 @@ void FCollectionSelectionConvertDataflowNode::Evaluate(Dataflow::FContext& Conte
 
 			SetValue(Context, MoveTemp(NewFaceSelection), &FaceSelection);
 		}
-	}
-	else if (Out->IsA<FDataflowVertexSelection>(&VertexSelection))
-	{
-		if (IsConnected<FDataflowVertexSelection>(&VertexSelection))
+		else
 		{
 			// Passthrough
-			const FDataflowVertexSelection& InVertexSelection = GetValue<FDataflowVertexSelection>(Context, &VertexSelection);
-			SetValue(Context, InVertexSelection, &VertexSelection);
+			SafeForwardInput(Context, &FaceSelection, &FaceSelection);
 		}
-		else if (IsConnected<FDataflowFaceSelection>(&FaceSelection))
+	}
+	else if (Out->IsA(&VertexSelection))
+	{
+		if (IsConnected(&FaceSelection))
 		{
-			const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-			const FDataflowFaceSelection& InFaceSelection = GetValue<FDataflowFaceSelection>(Context, &FaceSelection);
+			const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
+			const FDataflowFaceSelection& InFaceSelection = GetValue(Context, &FaceSelection);
 
 			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
 			const TArray<int32>& SelectionArr = TransformSelectionFacade.ConvertFaceSelectionToVertexSelection(InFaceSelection.AsArray());
@@ -1069,10 +1064,10 @@ void FCollectionSelectionConvertDataflowNode::Evaluate(Dataflow::FContext& Conte
 
 			SetValue(Context, MoveTemp(NewVertexSelection), &VertexSelection);
 		}
-		else if (IsConnected<FDataflowTransformSelection>(&TransformSelection))
+		else if (IsConnected(&TransformSelection))
 		{
-			const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-			const FDataflowTransformSelection& InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
+			const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
+			const FDataflowTransformSelection& InTransformSelection = GetValue(Context, &TransformSelection);
 
 			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
 			const TArray<int32>& SelectionArr = TransformSelectionFacade.ConvertTransformSelectionToVertexSelection(InTransformSelection.AsArray());
@@ -1083,16 +1078,20 @@ void FCollectionSelectionConvertDataflowNode::Evaluate(Dataflow::FContext& Conte
 
 			SetValue(Context, MoveTemp(NewVertexSelection), &VertexSelection);
 		}
+		else
+		{
+			// Passthrough
+			SafeForwardInput(Context, &VertexSelection, &VertexSelection);
+		}
 	}
-	else if (Out->IsA<FManagedArrayCollection>(&Collection))
+	else if (Out->IsA(&Collection))
 	{
-		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		SetValue(Context, InCollection, &Collection);
+		SafeForwardInput(Context, &Collection, &Collection);
 	}
 }
 
 
-void FCollectionFaceSelectionInvertDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionFaceSelectionInvertDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowFaceSelection>(&FaceSelection))
 	{
@@ -1105,7 +1104,7 @@ void FCollectionFaceSelectionInvertDataflowNode::Evaluate(Dataflow::FContext& Co
 }
 
 
-void FCollectionVertexSelectionByPercentageDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionVertexSelectionByPercentageDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowVertexSelection>(&VertexSelection))
 	{
@@ -1124,7 +1123,7 @@ void FCollectionVertexSelectionByPercentageDataflowNode::Evaluate(Dataflow::FCon
 }
 
 
-void FCollectionVertexSelectionSetOperationDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionVertexSelectionSetOperationDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowVertexSelection>(&VertexSelection))
 	{
@@ -1163,3 +1162,227 @@ void FCollectionVertexSelectionSetOperationDataflowNode::Evaluate(Dataflow::FCon
 	}
 }
 
+static void CreateSelectionFromAttr(const FManagedArrayCollection& InCollection,
+	const FName InGroup,
+	const FName InAttribute,
+	const FString InValue,
+	const ESelectionByAttrOperation InOperation,
+	FDataflowSelection& OutSelection)
+{
+	const FManagedArrayCollection::EArrayType ArrayType = InCollection.GetAttributeType(InAttribute, InGroup);
+	const int32 NumElements = InCollection.NumElements(InGroup);
+
+	if (ArrayType == FManagedArrayCollection::EArrayType::FFloatType)
+	{
+		const TManagedArray<float>* const Array = InCollection.FindAttributeTyped<float>(InAttribute, InGroup);
+		if (InValue.IsNumeric())
+		{
+			float FloatValue = FCString::Atof(*InValue);
+
+			for (int32 Idx = 0; Idx < NumElements; ++Idx)
+			{
+				if ((InOperation == ESelectionByAttrOperation::Equal && (*Array)[Idx] == FloatValue) ||
+					(InOperation == ESelectionByAttrOperation::NotEqual && (*Array)[Idx] != FloatValue) ||
+					(InOperation == ESelectionByAttrOperation::Greater && (*Array)[Idx] > FloatValue) ||
+					(InOperation == ESelectionByAttrOperation::GreaterOrEqual && (*Array)[Idx] >= FloatValue) ||
+					(InOperation == ESelectionByAttrOperation::Smaller && (*Array)[Idx] < FloatValue) ||
+					(InOperation == ESelectionByAttrOperation::SmallerOrEqual && (*Array)[Idx] <= FloatValue))
+				{
+					OutSelection.SetSelected(Idx);
+				}
+			}
+		}
+		else
+		{
+			// Error: Invalid Value specified
+			return;
+		}
+	}
+	else if (ArrayType == FManagedArrayCollection::EArrayType::FInt32Type)
+	{
+		const TManagedArray<int32>* const Array = InCollection.FindAttributeTyped<int32>(InAttribute, InGroup);
+		if (InValue.IsNumeric())
+		{
+			float IntValue = FCString::Atoi(*InValue);
+
+			for (int32 Idx = 0; Idx < NumElements; ++Idx)
+			{
+				if ((InOperation == ESelectionByAttrOperation::Equal && (*Array)[Idx] == IntValue) ||
+					(InOperation == ESelectionByAttrOperation::NotEqual && (*Array)[Idx] != IntValue) ||
+					(InOperation == ESelectionByAttrOperation::Greater && (*Array)[Idx] > IntValue) ||
+					(InOperation == ESelectionByAttrOperation::GreaterOrEqual && (*Array)[Idx] >= IntValue) ||
+					(InOperation == ESelectionByAttrOperation::Smaller && (*Array)[Idx] < IntValue) ||
+					(InOperation == ESelectionByAttrOperation::SmallerOrEqual && (*Array)[Idx] <= IntValue))
+				{
+					OutSelection.SetSelected(Idx);
+				}
+			}
+		}
+		else
+		{
+			// Error: Invalid Value specified
+			return;
+		}
+	}
+	else if (ArrayType == FManagedArrayCollection::EArrayType::FStringType)
+	{
+		const TManagedArray<FString>* const Array = InCollection.FindAttributeTyped<FString>(InAttribute, InGroup);
+
+		for (int32 Idx = 0; Idx < NumElements; ++Idx)
+		{
+			if ((InOperation == ESelectionByAttrOperation::Equal && (*Array)[Idx] == InValue) ||
+				(InOperation == ESelectionByAttrOperation::NotEqual && !((*Array)[Idx] == InValue)))
+			{
+				OutSelection.SetSelected(Idx);
+			}
+		}
+	}
+	else if (ArrayType == FManagedArrayCollection::EArrayType::FBoolType)
+	{
+		const TManagedArray<bool>* const Array = InCollection.FindAttributeTyped<bool>(InAttribute, InGroup);
+		bool BoolValue = false;
+		if (InValue.IsNumeric())
+		{
+			float FloatValue = FCString::Atof(*InValue);
+
+			if (FloatValue > 0.f)
+			{
+				BoolValue = true;
+			}
+		}
+		else
+		{
+			if (InValue == FString("true") || InValue == FString("True"))
+			{
+				BoolValue = true;
+			}
+		}
+
+		for (int32 Idx = 0; Idx < NumElements; ++Idx)
+		{
+			if ((InOperation == ESelectionByAttrOperation::Equal && (*Array)[Idx] == BoolValue) ||
+				(InOperation == ESelectionByAttrOperation::NotEqual && !((*Array)[Idx] == BoolValue)))
+			{
+				OutSelection.SetSelected(Idx);
+			}
+		}
+	}
+}
+
+
+void FCollectionSelectionByAttrDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA<FDataflowVertexSelection>(&VertexSelection) ||
+		Out->IsA<FDataflowFaceSelection>(&FaceSelection) ||
+		Out->IsA<FDataflowTransformSelection>(&TransformSelection) ||
+		Out->IsA<FDataflowGeometrySelection>(&GeometrySelection) ||
+		Out->IsA<FDataflowMaterialSelection>(&MaterialSelection))
+	{
+		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+		FCollectionAttributeKey InAttributeKey = GetValue<FCollectionAttributeKey>(Context, &AttributeKey);
+		FName GroupName = UE::Dataflow::Private::GetAttributeFromEnumAsName(Group);
+		FName AttributeName = FName(Attribute);
+		if (IsConnected(&AttributeKey))
+		{
+			GroupName = FName(InAttributeKey.Group);
+			AttributeName = FName(InAttributeKey.Attribute);
+		}
+
+		if (InCollection.HasGroup(GroupName))
+		{
+			if (InCollection.HasAttribute(AttributeName, GroupName))
+			{
+				const int32 NumFaces = InCollection.NumElements(GroupName);
+
+				FDataflowSelection NewSelection;
+				NewSelection.Initialize(NumFaces, false);
+
+				CreateSelectionFromAttr(InCollection,
+					GroupName,
+					AttributeName,
+					Value,
+					Operation,
+					NewSelection);
+
+				SetValue(Context, GroupName == UE::Dataflow::Private::GetAttributeFromEnumAsName(ESelectionByAttrGroup::Vertices) ? MoveTemp(NewSelection) : FDataflowSelection(), &VertexSelection);
+				SetValue(Context, GroupName == UE::Dataflow::Private::GetAttributeFromEnumAsName(ESelectionByAttrGroup::Faces) ? MoveTemp(NewSelection) : FDataflowSelection(), &FaceSelection);
+				SetValue(Context, GroupName == UE::Dataflow::Private::GetAttributeFromEnumAsName(ESelectionByAttrGroup::Transform) ? MoveTemp(NewSelection) : FDataflowSelection(), &TransformSelection);
+				SetValue(Context, GroupName == UE::Dataflow::Private::GetAttributeFromEnumAsName(ESelectionByAttrGroup::Geometry) ? MoveTemp(NewSelection) : FDataflowSelection(), &GeometrySelection);
+				SetValue(Context, GroupName == UE::Dataflow::Private::GetAttributeFromEnumAsName(ESelectionByAttrGroup::Material) ? MoveTemp(NewSelection) : FDataflowSelection(), &MaterialSelection);
+
+				return;
+			}
+		}
+
+		SetValue(Context, FDataflowSelection(), &VertexSelection);
+		SetValue(Context, FDataflowSelection(), &FaceSelection);
+		SetValue(Context, FDataflowSelection(), &TransformSelection);
+		SetValue(Context, FDataflowSelection(), &GeometrySelection);
+		SetValue(Context, FDataflowSelection(), &MaterialSelection);
+	}
+	else if (Out->IsA<FManagedArrayCollection>(&Collection))
+	{
+		SafeForwardInput(Context, &Collection, &Collection);
+	}
+}
+
+void FGeometrySelectionToVertexSelectionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA<FDataflowVertexSelection>(&VertexSelection))
+	{
+		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+		const int32 NumVertices = InCollection.NumElements(FGeometryCollection::VerticesGroup);
+		const int32 NumGeometries = InCollection.NumElements(FGeometryCollection::GeometryGroup);
+		
+		FDataflowVertexSelection InVertexSelection;
+		InVertexSelection.Initialize(NumVertices, false);
+		const TManagedArray<int32>* VertexStart = InCollection.FindAttributeTyped<int32>("VertexStart", FGeometryCollection::GeometryGroup);
+		const TManagedArray<int32>* VertexCount = InCollection.FindAttributeTyped<int32>("VertexCount", FGeometryCollection::GeometryGroup);
+		TArray<int32> InGeometryIndexArray;
+		if (IsConnected(&GeometrySelection))
+		{
+			InGeometryIndexArray = GetValue<FDataflowGeometrySelection>(Context, &GeometrySelection).AsArray();
+		}
+		else
+		{
+			const FString InGeometryIndices = GetValue<FString>(Context, &GeometryIndices);
+			TArray<FString> Indices;
+			InGeometryIndices.ParseIntoArray(Indices, TEXT(" "), true);
+			for (FString IndexStr : Indices)
+			{
+				if (IndexStr.IsNumeric())
+				{
+					int32 Index = FCString::Atoi(*IndexStr);
+					if (Index >= 0 && Index < NumGeometries)
+					{
+						InGeometryIndexArray.Add(Index);
+					}
+					else
+					{
+						// ERROR: INVALID INDEX
+						FString ErrorStr = "Invalid geometry index found.";
+						UE_LOG(LogTemp, Error, TEXT("[Dataflow ERROR] %s"), *ErrorStr);
+					}
+				}
+			}
+		}
+		if (VertexStart && VertexCount)
+		{
+			TArray<int32> VertexIndices;
+			for (int32 GeometryIdx : InGeometryIndexArray)
+			{
+				if (ensure(VertexStart->IsValidIndex(GeometryIdx)))
+				{
+					const int32 Start = (*VertexStart)[GeometryIdx];
+					const int32 Count = (*VertexCount)[GeometryIdx];
+					for (int32 VertexIdx = Start; VertexIdx < Start + Count; ++VertexIdx)
+					{
+						VertexIndices.Add(VertexIdx);
+					}
+				}
+			}
+			InVertexSelection.SetFromArray(VertexIndices);
+		}
+		SetValue(Context, MoveTemp(InVertexSelection), &VertexSelection);
+	}
+}

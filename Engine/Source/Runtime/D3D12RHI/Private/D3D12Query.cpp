@@ -4,6 +4,7 @@
 	D3D12Query.cpp: D3D query RHI implementation.
 =============================================================================*/
 
+#include "D3D12Query.h"
 #include "D3D12RHIPrivate.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 
@@ -14,14 +15,6 @@ namespace D3D12RHI
 	*/
 	namespace RHIConsoleVariables
 	{
-		int32 bStablePowerState = 0;
-		static FAutoConsoleVariableRef CVarStablePowerState(
-			TEXT("D3D12.StablePowerState"),
-			bStablePowerState,
-			TEXT("If true, enable stable power state. This increases GPU timing measurement accuracy but may decrease overall GPU clock rate."),
-			ECVF_Default
-			);
-
 		int32 GInsertOuterOcclusionQuery = 0;
 		static FAutoConsoleVariableRef CVarInsertOuterOcclusionQuery(
 			TEXT("D3D12.InsertOuterOcclusionQuery"),
@@ -160,27 +153,28 @@ uint32 FD3D12QueryHeap::Release()
 FRenderQueryRHIRef FD3D12DynamicRHI::RHICreateRenderQuery(ERenderQueryType QueryType)
 {
 	check(QueryType == RQT_Occlusion || QueryType == RQT_AbsoluteTime);
-	return GetAdapter().CreateLinkedObject<FD3D12RenderQuery>(FRHIGPUMask::All(), [QueryType](FD3D12Device* Device)
+	return GetAdapter().CreateLinkedObject<FD3D12RenderQuery>(FRHIGPUMask::All(), [QueryType](FD3D12Device* Device, FD3D12RenderQuery* FirstLinkedObject)
 	{
 		return new FD3D12RenderQuery(Device, QueryType);
 	});
 }
 
-void FD3D12DynamicRHI::RHIBeginOcclusionQueryBatch_TopOfPipe(FRHICommandListBase& RHICmdList, uint32 NumQueriesInBatch)
+void FD3D12DynamicRHI::RHIBeginRenderQueryBatch_TopOfPipe(FRHICommandListBase& RHICmdList, ERenderQueryType QueryType)
 {
-	// Each occlusion query batch uses a single sync point to signal when the results are ready (one per active GPU).
+	// Each query batch uses a single sync point to signal when the results are ready (one per active GPU).
 	for (uint32 GPUIndex : RHICmdList.GetGPUMask())
 	{
-		checkf(RHICmdList.QueryBatchData[GPUIndex] == nullptr, TEXT("An occlusion query batch has already begun on this command list."));
+		auto& QueryBatchData = RHICmdList.GetQueryBatchData(QueryType);
+		checkf(QueryBatchData[GPUIndex] == nullptr, TEXT("A query batch for this type has already begun on this command list."));
 
 		FD3D12SyncPointRef SyncPoint = FD3D12SyncPoint::Create(ED3D12SyncPointType::GPUAndCPU);
 
 		// Keep a reference on the RHI command list, so we can retrieve it later in BeginQuery/EndQuery/EndBatch.
-		RHICmdList.QueryBatchData[GPUIndex] = SyncPoint.GetReference();
+		QueryBatchData[GPUIndex] = SyncPoint.GetReference();
 		SyncPoint->AddRef();
 	}
 
-	if (RHIConsoleVariables::GInsertOuterOcclusionQuery)
+	if (QueryType == RQT_Occlusion && RHIConsoleVariables::GInsertOuterOcclusionQuery)
 	{
 		// Insert an outer query that encloses the whole batch
 		RHICmdList.EnqueueLambda([](FRHICommandListBase& ExecutingCmdList)
@@ -199,22 +193,6 @@ void FD3D12DynamicRHI::RHIBeginOcclusionQueryBatch_TopOfPipe(FRHICommandListBase
 	}
 }
 
-void FD3D12DynamicRHI::RHIBeginRenderQuery_TopOfPipe(FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery)
-{
-	// Set the current occlusion query batch sync point into each query object.
-	for (uint32 GPUIndex : RHICmdList.GetGPUMask())
-	{
-		FD3D12RenderQuery* Query = ResourceCast(RenderQuery, GPUIndex);
-		checkf(Query->Type == RQT_Occlusion, TEXT("Only occlusion queries support RHIBeginRenderQuery()."));
-
-		checkf(RHICmdList.QueryBatchData[GPUIndex], TEXT("Cannot use an occlusion query outside of an occlusion query batch."));
-		Query->SyncPoint = static_cast<FD3D12SyncPoint*>(RHICmdList.QueryBatchData[GPUIndex]);
-	}
-
-	// Enqueue the RHI command to record the BeginQuery() call on the context.
-	FDynamicRHI::RHIBeginRenderQuery_TopOfPipe(RHICmdList, RenderQuery);
-}
-
 void FD3D12CommandContext::RHIBeginRenderQuery(FRHIRenderQuery* QueryRHI)
 {
 	FD3D12RenderQuery* Query = RetrieveObject<FD3D12RenderQuery>(QueryRHI);
@@ -231,14 +209,16 @@ void FD3D12DynamicRHI::RHIEndRenderQuery_TopOfPipe(FRHICommandListBase& RHICmdLi
 	for (uint32 GPUIndex : RHICmdList.GetGPUMask())
 	{
 		FD3D12RenderQuery* Query = ResourceCast(RenderQuery, GPUIndex);
-		if (Query->Type == RQT_Occlusion)
+		auto& QueryBatchData = RHICmdList.GetQueryBatchData(Query->Type);
+
+		if (QueryBatchData[GPUIndex])
 		{
-			// Occlusion query sync points are allocated by BeginOcclusionQueryBatch().
-			checkf(RHICmdList.QueryBatchData[GPUIndex], TEXT("Cannot use an occlusion query outside of an occlusion query batch."));
+			// This query belongs to a batch. Use the sync point we created earlier
+			Query->SyncPoint = static_cast<FD3D12SyncPoint*>(QueryBatchData[0]);
 		}
 		else
 		{
-			// All other query types use one sync point per query.
+			// Queries issued outside of a batch use one sync point per query.
 			Query->SyncPoint = FD3D12SyncPoint::Create(ED3D12SyncPointType::GPUAndCPU);
 
 			RHICmdList.EnqueueLambda([SyncPoint = Query->SyncPoint, GPUIndex](FRHICommandListBase& ExecutingCmdList) mutable
@@ -276,29 +256,33 @@ void FD3D12CommandContext::RHIEndRenderQuery(FRHIRenderQuery* QueryRHI)
 	}
 }
 
-void FD3D12DynamicRHI::RHIEndOcclusionQueryBatch_TopOfPipe(FRHICommandListBase& RHICmdList)
+void FD3D12DynamicRHI::RHIEndRenderQueryBatch_TopOfPipe(FRHICommandListBase& RHICmdList, ERenderQueryType QueryType)
 {
 	for (uint32 GPUIndex : RHICmdList.GetGPUMask())
 	{
-		checkf(RHICmdList.QueryBatchData[GPUIndex], TEXT("An occlusion query batch is not open on this command list."));
-		FD3D12SyncPointRef SyncPoint = static_cast<FD3D12SyncPoint*>(RHICmdList.QueryBatchData[GPUIndex]);
+		auto& QueryBatchData = RHICmdList.GetQueryBatchData(QueryType);
+		checkf(QueryBatchData[GPUIndex], TEXT("A query batch for this type is not open on this command list."));
+
+		FD3D12SyncPointRef SyncPoint = static_cast<FD3D12SyncPoint*>(QueryBatchData[GPUIndex]);
 
 		// Clear the sync point reference on the RHI command list
 		SyncPoint->Release();
-		RHICmdList.QueryBatchData[GPUIndex] = nullptr;
+		QueryBatchData[GPUIndex] = nullptr;
 
-		RHICmdList.EnqueueLambda([GPUIndex, SyncPoint = MoveTemp(SyncPoint)](FRHICommandListBase& ExecutingCmdList)
+		RHICmdList.EnqueueLambda([GPUIndex, SyncPoint = MoveTemp(SyncPoint), QueryType](FRHICommandListBase& ExecutingCmdList)
 		{
 			FD3D12CommandContext& Context = FD3D12CommandContext::Get(ExecutingCmdList, GPUIndex);
-
-			// End the outer query
-			if (Context.bOuterOcclusionQuerySubmitted)
-			{
-				Context.RHIEndRenderQuery(Context.OuterOcclusionQuery);
-				Context.bOuterOcclusionQuerySubmitted = false;
-			}
-
 			Context.BatchedSyncPoints.ToSignal.Add(SyncPoint);
+
+			if (QueryType == RQT_Occlusion)
+			{
+				// End the outer query
+				if (Context.bOuterOcclusionQuerySubmitted)
+				{
+					Context.RHIEndRenderQuery(Context.OuterOcclusionQuery);
+					Context.bOuterOcclusionQuerySubmitted = false;
+				}
+			}
 		});
 	}
 }
@@ -363,124 +347,3 @@ bool FD3D12DynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint64
  * class FD3D12BufferedGPUTiming
  *=============================================================================*/
 
- /**
-  * Constructor.
-  *
-  * @param InD3DRHI			RHI interface
-  * @param InBufferSize		Number of buffered measurements
-  */
-FD3D12BufferedGPUTiming::FD3D12BufferedGPUTiming(FD3D12Device* InParent)
-	: FD3D12DeviceChild(InParent)
-{
-}
-
-void FD3D12BufferedGPUTiming::Initialize(FD3D12Adapter* ParentAdapter)
-{
-	StaticInitialize(ParentAdapter, [](void* UserData)
-	{
-		// Are the static variables initialized?
-		check(!GAreGlobalsInitialized);
-
-		FD3D12Adapter* ParentAdapter = (FD3D12Adapter*)UserData;
-		CalibrateTimers(ParentAdapter);
-	});
-}
-
-void FD3D12BufferedGPUTiming::CalibrateTimers(FD3D12Adapter* ParentAdapter)
-{
-	for (uint32 GPUIndex : FRHIGPUMask::All())
-	{
-		FD3D12Device* Device = ParentAdapter->GetDevice(GPUIndex);
-
-		uint64 TimingFrequency = Device->GetTimestampFrequency(ED3D12QueueType::Direct);
-		SetTimingFrequency(TimingFrequency, GPUIndex);
-
-		FGPUTimingCalibrationTimestamp CalibrationTimestamp = Device->GetCalibrationTimestamp(ED3D12QueueType::Direct);
-		SetCalibrationTimestamp(CalibrationTimestamp, GPUIndex);
-	}
-}
-
-void FD3D12DynamicRHI::RHICalibrateTimers()
-{
-	check(IsInRenderingThread());
-
-	FScopedRHIThreadStaller StallRHIThread(FRHICommandListExecutor::GetImmediateCommandList());
-
-	FD3D12Adapter& Adapter = GetAdapter();
-	FD3D12BufferedGPUTiming::CalibrateTimers(&Adapter);
-}
-
-/**
- * Start a GPU timing measurement.
- */
-void FD3D12BufferedGPUTiming::StartTiming()
-{
-	FD3D12Device* Device = GetParentDevice();
-	ID3D12Device* D3DDevice = Device->GetDevice();
-
-	// Issue a timestamp query for the 'start' time.
-	if (GIsSupported && !bIsTiming)
-	{
-		// Check to see if stable power state cvar has changed
-		const bool bStablePowerStateCVar = RHIConsoleVariables::bStablePowerState != 0;
-		if (bStablePowerState != bStablePowerStateCVar)
-		{
-			if (SUCCEEDED(D3DDevice->SetStablePowerState(bStablePowerStateCVar)))
-			{
-				// SetStablePowerState succeeded. Update timing frequency.
-				uint64 TimingFrequency = Device->GetTimestampFrequency(ED3D12QueueType::Direct);
-				SetTimingFrequency(TimingFrequency, Device->GetGPUIndex());
-				bStablePowerState = bStablePowerStateCVar;
-			}
-			else
-			{
-				// SetStablePowerState failed. This can occur if SDKLayers is not present on the system.
-				RHIConsoleVariables::CVarStablePowerState->Set(0, ECVF_SetByConsole);
-			}
-		}
-
-		FD3D12CommandContext& CmdContext = Device->GetDefaultCommandContext();
-		CmdContext.InsertTimestamp(ED3D12Units::Raw, &Begin.Result);
-
-		Begin.SyncPoint = CmdContext.GetContextSyncPoint();
-
-		bIsTiming = true;
-	}
-}
-
-/**
- * End a GPU timing measurement.
- * The timing for this particular measurement will be resolved at a later time by the GPU.
- */
-void FD3D12BufferedGPUTiming::EndTiming()
-{
-	// Issue a timestamp query for the 'end' time.
-	if (GIsSupported && bIsTiming)
-	{
-		FD3D12CommandContext& CmdContext = GetParentDevice()->GetDefaultCommandContext();
-		CmdContext.InsertTimestamp(ED3D12Units::Raw, &End.Result);
-
-		End.SyncPoint = CmdContext.GetContextSyncPoint();
-
-		bIsTiming = false;
-	}
-}
-
-/**
- * Retrieves the most recently resolved timing measurement.
- * The unit is the same as for FPlatformTime::Cycles(). Returns 0 if there are no resolved measurements.
- *
- * @return	Value of the most recently resolved timing, or 0 if no measurements have been resolved by the GPU yet.
- */
-uint64 FD3D12BufferedGPUTiming::GetTiming()
-{
-	if (End.SyncPoint)
-		End.SyncPoint->Wait();
-
-	if (Begin.SyncPoint)
-		Begin.SyncPoint->Wait();
-
-	return End.Result >= Begin.Result
-		? End.Result - Begin.Result
-		: 0;
-}

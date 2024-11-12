@@ -8,7 +8,9 @@
 #include "Algo/Find.h"
 #include "DMXProtocolConstants.h"
 #include "IO/DMXOutputPort.h"
+#include "DMXStats.h"
 
+DECLARE_CYCLE_STAT(TEXT("DMX Conflict Monitor"), STAT_DMXConflictMonitor, STATGROUP_DMX);
 
 namespace UE::DMX
 {
@@ -109,7 +111,10 @@ namespace UE::DMX
 
 	void FDMXConflictMonitor::MonitorOutboundDMX(const TSharedRef<FDMXOutputPort>& InOutputPort, int32 InLocalUniverseID, const TMap<int32, uint8>& InChannelToValueMap)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_DMXConflictMonitor)
+
 		check(IsInGameThread());
+		const double StartTime = FPlatformTime::Seconds();
 
 		// Only do work when the frame switched
 		if (FrameNumber != GFrameNumber)
@@ -168,13 +173,18 @@ namespace UE::DMX
 		}
 
 		FrameNumber = GFrameNumber;
+
+		const double EndTime = FPlatformTime::Seconds();
+		TimeGameThread = (EndTime - StartTime) * 1000.0;
 	}
 
 	void FDMXConflictMonitor::RemoveUser(const FName& UserName)
 	{
 		UserNames.Remove(UserName);
-		if (UserNames.IsEmpty())
+		if (UserNames.IsEmpty() &&
+			ensureMsgf(Instance.IsValid(), TEXT("Unexpected tried to remove a user from conflict monitor, but the conflict monitor instance is invalid.")))
 		{
+			Instance->MonitoredOutboundData.Reset();
 			Instance.Reset();
 		}
 	}

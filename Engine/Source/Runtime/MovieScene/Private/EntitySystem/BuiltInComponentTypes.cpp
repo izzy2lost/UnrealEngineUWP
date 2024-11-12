@@ -58,9 +58,10 @@ FHierarchicalBlendTarget& FHierarchicalBlendTarget::operator=(const FHierarchica
 	if (RHS.Capacity != InlineCapacity)
 	{
 		int16* NewAllocation = new int16[RHS.Capacity];
-		Capacity = RHS.Capacity;
 		*reinterpret_cast<int16**>(Data) = NewAllocation;
 	}
+
+	Capacity = RHS.Capacity;
 
 	// Copy the data
 	FMemory::Memcpy(this->GetMemory(), RHS.GetMemory(), sizeof(int16)*Capacity);
@@ -106,6 +107,10 @@ void FHierarchicalBlendTarget::FreeAllocation()
 	if (Capacity != InlineCapacity)
 	{
 		delete[] GetMemory();
+		// Reset the capacity to be on the safe side.
+		// Note: this does not reinitialize the inline array to the default state
+		//       since we leave that to the caller to do if necessary
+		Capacity = InlineCapacity;
 	}
 }
 
@@ -289,7 +294,10 @@ FBuiltInComponentTypes::FBuiltInComponentTypes()
 
 	ComponentRegistry->NewComponentType(&PropertyBinding,         TEXT("Property Binding"), EComponentTypeFlags::CopyToOutput);
 	ComponentRegistry->NewComponentType(&GenericObjectBinding,    TEXT("Generic Object Binding ID"));
-	ComponentRegistry->NewComponentType(&SceneComponentBinding,   TEXT("USceneComponent Binding ID"));
+	ComponentRegistry->NewComponentType(&BoundObjectResolver,     TEXT("Bound Object Resolver"));
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	ComponentRegistry->NewComponentType(&SceneComponentBinding,   TEXT("[DEPRECATED] USceneComponent Binding ID"));
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	ComponentRegistry->NewComponentType(&SpawnableBinding,        TEXT("Spawnable Binding"));
 	ComponentRegistry->NewComponentType(&TrackInstance,           TEXT("Track Instance"));
 	ComponentRegistry->NewComponentType(&BoolChannel,             TEXT("Bool Channel"));
@@ -335,6 +343,7 @@ FBuiltInComponentTypes::FBuiltInComponentTypes()
 	ComponentRegistry->NewComponentType(&HierarchicalEasingProvider, TEXT("Hierarchical Easing Provider"));
 
 	ComponentRegistry->NewComponentType(&BlenderType,           TEXT("Blender System Type"), EComponentTypeFlags::CopyToChildren);
+	ComponentRegistry->NewComponentType(&BlendingOrder,			TEXT("Blending Order"));
 	ComponentRegistry->NewComponentType(&BlendChannelInput,     TEXT("Blend Channel Input"));
 	ComponentRegistry->NewComponentType(&HierarchicalBias,      TEXT("Hierarchical Bias"));
 	ComponentRegistry->NewComponentType(&BlendChannelOutput,    TEXT("Blend Channel Output"));
@@ -381,6 +390,7 @@ FBuiltInComponentTypes::FBuiltInComponentTypes()
 
 	ComponentRegistry->NewComponentType(&EvaluationHook,        TEXT("Evaluation Hook"));
 	ComponentRegistry->NewComponentType(&EvaluationHookFlags,   TEXT("Evaluation Hook Flags"), EComponentTypeFlags::Preserved);
+	ComponentRegistry->NewComponentType(&Condition, TEXT("Condition"));
 
 	ComponentRegistry->NewComponentType(&Interrogation.InputKey,  TEXT("Interrogation Input"));
 	ComponentRegistry->NewComponentType(&Interrogation.Instance,  TEXT("Interrogation Instance"));
@@ -396,22 +406,23 @@ FBuiltInComponentTypes::FBuiltInComponentTypes()
 	Tags.RelativeBlend           = ComponentRegistry->NewTag(TEXT("Is Relative Blend"));
 	Tags.AdditiveBlend           = ComponentRegistry->NewTag(TEXT("Is Additive Blend"));
 	Tags.AdditiveFromBaseBlend   = ComponentRegistry->NewTag(TEXT("Is Additive From Base Blend"));
+	Tags.OverrideBlend			 = ComponentRegistry->NewTag(TEXT("Is Override Blend"));
 
 	Tags.NeedsLink               = ComponentRegistry->NewTag(TEXT("Needs Link"));
 	Tags.NeedsUnlink             = ComponentRegistry->NewTag(TEXT("Needs Unlink"));
 	Tags.HasUnresolvedBinding    = ComponentRegistry->NewTag(TEXT("Has Unresolved Binding"));
 	Tags.HasAssignedInitialValue = ComponentRegistry->NewTag(TEXT("Has Assigned Initial Value"));
 	Tags.Root                    = ComponentRegistry->NewTag(TEXT("Root"));
-	Tags.SubInstance             = ComponentRegistry->NewTag(TEXT("Sub Instance"));
+	Tags.SubInstance             = ComponentRegistry->NewTag(TEXT("Sub Instance"), EComponentTypeFlags::CopyToChildren);
 	Tags.ImportedEntity          = ComponentRegistry->NewTag(TEXT("Imported Entity"));
 	Tags.Finished                = ComponentRegistry->NewTag(TEXT("Finished Evaluating"));
 	Tags.Ignored                 = ComponentRegistry->NewTag(TEXT("Ignored"));
 	Tags.DontOptimizeConstants   = ComponentRegistry->NewTag(TEXT("Don't Optimize Constants"));
-	Tags.RemoveHierarchicalBlendTarget = ComponentRegistry->NewTag(TEXT("Remove Hierarchical Blend Target"));
 	Tags.FixedTime               = ComponentRegistry->NewTag(TEXT("Fixed Time"));
 	Tags.PreRoll                 = ComponentRegistry->NewTag(TEXT("Pre Roll"));
 	Tags.SectionPreRoll          = ComponentRegistry->NewTag(TEXT("Section Pre Roll"));
 	Tags.AlwaysCacheInitialValue = ComponentRegistry->NewTag(TEXT("Always Cache Initial Value"));
+	Tags.OldStyleSpawnable		= ComponentRegistry->NewTag(TEXT("Old Style Spawnable"));
 
 	SymbolicTags.CreatesEntities = ComponentRegistry->NewTag(TEXT("~~ SYMBOLIC ~~ Creates Entities"));
 
@@ -435,6 +446,7 @@ FBuiltInComponentTypes::FBuiltInComponentTypes()
 	ComponentRegistry->Factories.DefineChildComponent(Tags.AbsoluteBlend, Tags.AbsoluteBlend);
 	ComponentRegistry->Factories.DefineChildComponent(Tags.RelativeBlend, Tags.RelativeBlend);
 	ComponentRegistry->Factories.DefineChildComponent(Tags.AdditiveBlend, Tags.AdditiveBlend);
+	ComponentRegistry->Factories.DefineChildComponent(Tags.OverrideBlend, Tags.OverrideBlend);
 	ComponentRegistry->Factories.DefineChildComponent(Tags.AdditiveFromBaseBlend, Tags.AdditiveFromBaseBlend);
 	ComponentRegistry->Factories.DefineChildComponent(Tags.FixedTime,     Tags.FixedTime);
 	ComponentRegistry->Factories.DefineChildComponent(Tags.PreRoll,       Tags.PreRoll);
@@ -453,7 +465,11 @@ FBuiltInComponentTypes::FBuiltInComponentTypes()
 	ComponentRegistry->Factories.DuplicateChildComponent(RootInstanceHandle);
 	ComponentRegistry->Factories.DuplicateChildComponent(PropertyBinding);
 	ComponentRegistry->Factories.DuplicateChildComponent(HierarchicalBias);
+	ComponentRegistry->Factories.DuplicateChildComponent(BlendingOrder);
+	ComponentRegistry->Factories.DuplicateChildComponent(BindingLifetime);
+	ComponentRegistry->Factories.ConditionallyDuplicateChildComponent(GenericObjectBinding, FComponentMask({BindingLifetime}));
 
+	
 	// Children always need a Parent - these are initialized by the tasks that create them
 	{
 		ComponentRegistry->Factories.DefineChildComponent(FComponentTypeID::Invalid(), ParentEntity);

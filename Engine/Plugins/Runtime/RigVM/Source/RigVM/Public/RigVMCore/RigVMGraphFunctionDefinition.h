@@ -8,13 +8,15 @@
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
+#include "RigVMVariant.h"
+#include "RigVMNodeLayout.h"
 #include "RigVMGraphFunctionDefinition.generated.h"
 
 class IRigVMGraphFunctionHost;
 struct FRigVMGraphFunctionData;
 
 USTRUCT()
-struct FRigVMFunctionCompilationPropertyDescription
+struct RIGVM_API FRigVMFunctionCompilationPropertyDescription
 {
 	GENERATED_BODY()
 
@@ -52,6 +54,9 @@ struct FRigVMFunctionCompilationPropertyDescription
 		Ar << Data.DefaultValue;
 		return Ar;
 	}
+
+	FRigVMPropertyDescription ToPropertyDescription() const;
+	static TArray<FRigVMPropertyDescription> ToPropertyDescription(const TArray<FRigVMFunctionCompilationPropertyDescription>& InDescriptions);
 };
 
 USTRUCT()
@@ -330,8 +335,8 @@ struct RIGVM_API FRigVMGraphFunctionArgument
 
 	friend uint32 GetTypeHash(const FRigVMGraphFunctionArgument& Argument)
 	{
-		uint32 Hash = HashCombine(GetTypeHash(Argument.Name), GetTypeHash(Argument.DisplayName));
-		Hash = HashCombine(Hash, GetTypeHash(Argument.CPPType));
+		uint32 Hash = HashCombine(GetTypeHash(Argument.Name.ToString()), GetTypeHash(Argument.DisplayName.ToString()));
+		Hash = HashCombine(Hash, GetTypeHash(Argument.CPPType.ToString()));
 		Hash = HashCombine(Hash, GetTypeHash(Argument.CPPTypeObject));
 		Hash = HashCombine(Hash, GetTypeHash(Argument.bIsArray));
 		Hash = HashCombine(Hash, GetTypeHash(Argument.Direction));
@@ -370,35 +375,119 @@ struct RIGVM_API FRigVMGraphFunctionIdentifier
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionIdentifier)
-	FSoftObjectPath LibraryNode;
+	UPROPERTY(meta=(DeprecatedProperty))
+	FSoftObjectPath LibraryNode_DEPRECATED;
+
+private:
+	UPROPERTY(VisibleAnywhere, Category=FunctionIdentifier)
+	mutable FString LibraryNodePath;
+
+public:
 
 	// A path to the IRigVMGraphFunctionHost that stores the function information, and compilation data (e.g. RigVMBlueprintGeneratedClass)
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionIdentifier)
 	FSoftObjectPath HostObject;
 
 	FRigVMGraphFunctionIdentifier()
-		: LibraryNode(nullptr), HostObject(nullptr) {}
+		: LibraryNodePath(FString()), HostObject(nullptr) {}
 	
-	FRigVMGraphFunctionIdentifier(FSoftObjectPath InHostObject, FSoftObjectPath InLibraryNode)
-		: LibraryNode(InLibraryNode), HostObject(InHostObject) {}
+	FRigVMGraphFunctionIdentifier(FSoftObjectPath InHostObject, FString InLibraryNodePath)
+		: LibraryNodePath(InLibraryNodePath), HostObject(InHostObject) {}
 
 	friend uint32 GetTypeHash(const FRigVMGraphFunctionIdentifier& Pointer)
 	{
-		return HashCombine(GetTypeHash(Pointer.LibraryNode), GetTypeHash(Pointer.HostObject));
+		return HashCombine(GetTypeHash(Pointer.GetLibraryNodePath()), GetTypeHash(Pointer.HostObject.ToString()));
 	}
 
 	bool operator==(const FRigVMGraphFunctionIdentifier& Other) const
 	{
-		return HostObject == Other.HostObject && LibraryNode == Other.LibraryNode;
+		return HostObject == Other.HostObject && GetNodeSoftPath().GetSubPathString() == Other.GetNodeSoftPath().GetSubPathString();
+	}
+
+	bool IsValid() const
+	{
+		return !HostObject.IsNull() && (!GetLibraryNodePath().IsEmpty());
+	}
+
+	FString GetFunctionName() const
+	{
+		if(IsValid())
+		{
+			const FString Path = GetLibraryNodePath();
+			FString NodeName;
+			if(Path.Split(TEXT("."), nullptr, &NodeName, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
+			{
+				return NodeName;
+			}
+		}
+		return FString();
+	}
+	
+	FName GetFunctionFName() const
+	{
+		if(!IsValid())
+		{
+			return NAME_None;
+		}
+		return *GetFunctionName();
+	}
+
+	FString& GetLibraryNodePath() const
+	{
+		if (LibraryNodePath.IsEmpty() && LibraryNode_DEPRECATED.IsValid())
+		{
+			LibraryNodePath = LibraryNode_DEPRECATED.ToString();
+		}
+		return LibraryNodePath;
+	}
+
+	void SetLibraryNodePath(const FString& InPath)
+	{
+		LibraryNodePath = InPath;
+	}
+
+	FSoftObjectPath GetNodeSoftPath() const
+	{
+		return GetLibraryNodePath();
 	}
 
 	friend FArchive& operator<<(FArchive& Ar, FRigVMGraphFunctionIdentifier& Data)
 	{
-		Ar << Data.LibraryNode;
+		Ar.UsingCustomVersion(FRigVMObjectVersion::GUID);
+
+		if(Ar.IsSaving())
+		{
+			if(Data.LibraryNodePath.IsEmpty() && Data.LibraryNode_DEPRECATED.IsValid())
+			{
+				Data.LibraryNodePath = Data.GetLibraryNodePath();
+			}
+		}
+		
+		if (Ar.IsLoading() && Ar.CustomVer(FRigVMObjectVersion::GUID) < FRigVMObjectVersion::RemoveLibraryNodeReferenceFromFunctionIdentifier)
+		{
+			FSoftObjectPath SoftPath;
+			Ar << SoftPath;
+			Data.LibraryNodePath = SoftPath.ToString();
+		}
+		else
+		{
+			Ar << Data.LibraryNodePath;
+		}
+		
 		Ar << Data.HostObject;
 		return Ar;
 	}
+
+	bool IsVariant() const;
+	TArray<FRigVMVariantRef> GetVariants(bool bIncludeSelf = false) const;
+	TArray<FRigVMGraphFunctionIdentifier> GetVariantIdentifiers(bool bIncludeSelf = false) const;
+	bool IsVariantOf(const FRigVMGraphFunctionIdentifier& InOther) const;
+
+protected:
+	
+	static TFunction<TArray<FRigVMVariantRef>(const FGuid& InGuid)> GetVariantRefsByGuidFunc;
+
+	friend class URigVMBuildData;
 };
 
 USTRUCT(BlueprintType)
@@ -407,12 +496,15 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 	GENERATED_BODY()
 
 	FRigVMGraphFunctionHeader()
-		: LibraryPointer(nullptr, nullptr)
+		: LibraryPointer(nullptr, FString())
 		, Name(NAME_None)
 	{}
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
 	FRigVMGraphFunctionIdentifier LibraryPointer;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionIdentifier)
+	FRigVMVariant Variant;
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
 	FName Name;
@@ -444,9 +536,12 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 	UPROPERTY()
 	TArray<FRigVMExternalVariable> ExternalVariables;
 
+	UPROPERTY()
+	FRigVMNodeLayout Layout;
+
 	bool IsMutable() const;
 
-	bool IsValid() const { return !LibraryPointer.HostObject.IsNull(); }
+	bool IsValid() const { return LibraryPointer.IsValid(); }
 
 	FString GetHash() const
 	{
@@ -470,8 +565,8 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 	FText GetTooltip() const
 	{
 		FString TooltipStr = FString::Printf(TEXT("%s (%s)\n%s"),
-		*NodeTitle,
-		*LibraryPointer.LibraryNode.GetAssetPathString(),
+		*Name.ToString(),
+		*LibraryPointer.GetNodeSoftPath().GetAssetPathString(),
 		*Description);
 		return FText::FromString(TooltipStr);
 	}
@@ -481,6 +576,12 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 		Ar.UsingCustomVersion(FRigVMObjectVersion::GUID);
 		
 		Ar << Data.LibraryPointer;
+
+		if (!Ar.IsLoading() || Ar.CustomVer(FRigVMObjectVersion::GUID) >= FRigVMObjectVersion::AddVariantToFunctionIdentifier)
+		{
+			Ar << Data.Variant;
+		}
+		
 		Ar << Data.Name;
 		Ar << Data.NodeTitle;
 		Ar << Data.NodeColor;
@@ -506,10 +607,40 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 		Ar << Data.Arguments;
 		Ar << Data.Dependencies;
 		Ar << Data.ExternalVariables;
+
+		if (Ar.IsLoading())
+		{
+			if (Ar.CustomVer(FRigVMObjectVersion::GUID) >= FRigVMObjectVersion::FunctionHeaderStoresLayout)
+			{
+				Ar << Data.Layout;
+			}
+			else
+			{
+				Data.Layout.Reset();
+			}
+		}
+		else
+		{
+			Ar << Data.Layout;
+		}
+		
 		return Ar;
 	}
 
-	void PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName);
+	static FRigVMGraphFunctionHeader FindGraphFunctionHeader(const FSoftObjectPath& InFunctionObjectPath, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);
+
+	static FRigVMGraphFunctionHeader FindGraphFunctionHeader(const FSoftObjectPath& InHostObjectPath, const FName& InFunctionName, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);
+
+	static FRigVMGraphFunctionHeader FindGraphFunctionHeader(const FRigVMGraphFunctionIdentifier& InIdentifier, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);
+
+protected:
+
+	static FName GetFunctionNameFromObjectPath(const FString& InObjectPath, const FName& InOptionalFunctionName = NAME_None);
+	
+	static TFunction<FRigVMGraphFunctionHeader(const FSoftObjectPath&, const FName&, bool*)> FindFunctionHeaderFromPathFunc;
+
+	friend class URigVMBuildData;
+	friend struct FRigVMGraphFunctionData;
 };
 
 USTRUCT(BlueprintType)
@@ -554,9 +685,9 @@ struct RIGVM_API FRigVMGraphFunctionData
 		return Ar;
 	}
 
-	void PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName);
+	static FRigVMGraphFunctionData* FindFunctionData(const FSoftObjectPath& InHostObjectPath, const FName& InFunctionName, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);	
 
-	static FRigVMGraphFunctionData* FindFunctionData(const FRigVMGraphFunctionIdentifier& InIdentifier, bool* bOutIsPublic = nullptr);	
+	static FRigVMGraphFunctionData* FindFunctionData(const FRigVMGraphFunctionIdentifier& InIdentifier, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);	
 
 	static FString GetArgumentNameFromPinHash(const FString& InPinHash);
 	
@@ -566,6 +697,9 @@ struct RIGVM_API FRigVMGraphFunctionData
 
 	bool PatchSharedArgumentOperandsIfRequired();
 
-	static const FString EntryString;
-	static const FString ReturnString;
+	static const inline TCHAR* EntryString = TEXT("Entry");
+	static const inline TCHAR* ReturnString = TEXT("Return");
+	static TFunction<IRigVMGraphFunctionHost*(UObject*)> GetFunctionHostFromObjectFunc;
+
+	friend class URigVMBuildData;
 };

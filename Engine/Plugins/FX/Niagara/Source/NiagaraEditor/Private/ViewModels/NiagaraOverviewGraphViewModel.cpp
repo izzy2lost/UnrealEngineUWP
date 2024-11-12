@@ -192,7 +192,7 @@ void FNiagaraOverviewGraphViewModel::DeleteSelectedNodes()
 		const FScopedTransaction Transaction(FGenericCommands::Get().Delete->GetDescription());
 		Graph->Modify();
 
-		TArray<UObject*> ObjectsToDelete = NodeSelection->GetSelectedObjects().Array();
+		TSet<UObject*> ObjectsToDelete = NodeSelection->GetSelectedObjectsResolved();
 		NodeSelection->ClearSelectedObjects();
 
 		TSet<FGuid> EmitterGuidsToDelete;
@@ -225,7 +225,7 @@ bool FNiagaraOverviewGraphViewModel::CanDeleteNodes() const
 	UEdGraph* Graph = GetGraph();
 	if (Graph != nullptr)
 	{
-		for (UObject* SelectedNode : NodeSelection->GetSelectedObjects())
+		for (UObject* SelectedNode : NodeSelection->GetSelectedObjectsResolved())
 		{
 			UEdGraphNode* SelectedGraphNode = Cast<UEdGraphNode>(SelectedNode);
 			if (SelectedGraphNode != nullptr && SelectedGraphNode->CanUserDeleteNode())
@@ -242,7 +242,7 @@ void FNiagaraOverviewGraphViewModel::CutSelectedNodes()
 	// Collect nodes which can not be delete or duplicated so they can be reselected.
 	TSet<UObject*> CanBeDuplicatedAndDeleted;
 	TSet<UObject*> CanNotBeDuplicatedAndDeleted;
-	for (UObject* SelectedNode : NodeSelection->GetSelectedObjects())
+	for (UObject* SelectedNode : NodeSelection->GetSelectedObjectsResolved())
 	{
 		UEdGraphNode* SelectedGraphNode = Cast<UEdGraphNode>(SelectedNode);
 		if (SelectedGraphNode != nullptr)
@@ -273,7 +273,7 @@ bool FNiagaraOverviewGraphViewModel::CanCutNodes() const
 void FNiagaraOverviewGraphViewModel::CopySelectedNodes()
 {
 	TSet<UObject*> NodesToCopy;
-	for (UObject* SelectedNode : NodeSelection->GetSelectedObjects())
+	for (UObject* SelectedNode : NodeSelection->GetSelectedObjectsResolved())
 	{
 		UEdGraphNode* SelectedGraphNode = Cast<UEdGraphNode>(SelectedNode);
 		if (SelectedGraphNode != nullptr)
@@ -305,7 +305,7 @@ bool FNiagaraOverviewGraphViewModel::CanCopyNodes() const
 
 	if (Graph != nullptr)
 	{
-		for (UObject* SelectedNode : NodeSelection->GetSelectedObjects())
+		for (UObject* SelectedNode : NodeSelection->GetSelectedObjectsResolved())
 		{
 			UEdGraphNode* SelectedGraphNode = Cast<UEdGraphNode>(SelectedNode);
 			if (SelectedGraphNode != nullptr && SelectedGraphNode->CanDuplicateNode())
@@ -400,20 +400,15 @@ bool FNiagaraOverviewGraphViewModel::CanDuplicateNodes() const
 
 void FNiagaraOverviewGraphViewModel::RenameNode()
 {
-	UEdGraph* Graph = GetGraph();
-	if (Graph != nullptr)
+	if (GetGraph())
 	{
-		const TSet<UObject*>& SelectedNodes = NodeSelection->GetSelectedObjects();
-		if (SelectedNodes.Num() > 0)
+		for (UObject* SelectedNode : NodeSelection->GetSelectedObjectsResolved())
 		{
-			for (UObject* SelectedNode : SelectedNodes)
+			UNiagaraOverviewNode* SelectedOverviewNode = Cast<UNiagaraOverviewNode>(SelectedNode);
+			if (SelectedOverviewNode != nullptr)
 			{
-				UNiagaraOverviewNode* SelectedOverviewNode = Cast<UNiagaraOverviewNode>(SelectedNode);
-				if (SelectedOverviewNode != nullptr)
-				{
-					SelectedOverviewNode->RequestRename();
-					return;
-				}
+				SelectedOverviewNode->RequestRename();
+				return;
 			}
 		}
 	}
@@ -421,10 +416,9 @@ void FNiagaraOverviewGraphViewModel::RenameNode()
 
 bool FNiagaraOverviewGraphViewModel::CanRenameNode() const
 {
-	UEdGraph* Graph = GetGraph();
-	if (Graph != nullptr)
+	if (GetGraph())
 	{
-		const TSet<UObject*>& SelectedNodes = NodeSelection->GetSelectedObjects();
+		TSet<UObject*> SelectedNodes = NodeSelection->GetSelectedObjectsResolved();
 		if (SelectedNodes.Num() == 1)
 		{
 			for (UObject* SelectedNode : SelectedNodes)
@@ -491,7 +485,7 @@ void FNiagaraOverviewGraphViewModel::GraphSelectionChanged()
 		TArray<FGuid> SelectedGuids;
 		TArray<TObjectPtr<UNiagaraStackObject>> NewTempEntries;
 
-		for (UObject* SelectedObject : NodeSelection->GetSelectedObjects())
+		for (UObject* SelectedObject : NodeSelection->GetSelectedObjectsResolved())
 		{
 			if (UNiagaraOverviewNode* SelectedOverviewNode = Cast<UNiagaraOverviewNode>(SelectedObject))
 			{

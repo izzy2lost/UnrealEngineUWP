@@ -32,6 +32,12 @@ FVector::FReal UPCGPolyLineData::GetLength() const
 	return Length;
 }
 
+float UPCGPolyLineData::GetInputKeyAtAlpha(float Alpha) const
+{
+	Alpha = FMath::Clamp(Alpha, 0, 1);
+	return static_cast<float>(GetNumSegments()) * Alpha;
+}
+
 void UPCGPolyLineData::GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutArriveTangent, FVector& OutLeaveTangent) const
 {
 	OutArriveTangent = FVector::Zero();

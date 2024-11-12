@@ -14,6 +14,8 @@ namespace UnrealBuildTool.Rules
                     "WmfMedia",
 					"ImageWriteQueue",
 					"MovieRenderPipelineCore",
+					"OpenColorIO",
+					"SlateCore",
                 });
 
 			PrivateDependencyModuleNames.AddRange(

@@ -24,6 +24,7 @@
 #include "ComponentRecreateRenderStateContext.h"
 #include "Engine/World.h"
 #include "NaniteVertexFactory.h"
+#include "StaticMeshComponentLODInfo.h"
 
 #if WITH_EDITOR
 #include "IHierarchicalLODUtilities.h"
@@ -215,7 +216,9 @@ void FSplineMeshVertexFactoryShaderParameters::GetElementShaderBindings(
 	}
 	if (LocalVertexFactory->SupportsManualVertexFetch(FeatureLevel) || bUseGPUScene)
 	{
-		ShaderBindings.Add(Shader->GetUniformBufferParameter<FLocalVertexFactoryUniformShaderParameters>(), LocalVertexFactory->GetUniformBuffer());
+		FRHIUniformBuffer* VertexFactoryUniformBuffer = static_cast<FRHIUniformBuffer*>(BatchElement.VertexFactoryUserData);
+
+		ShaderBindings.Add(Shader->GetUniformBufferParameter<FLocalVertexFactoryUniformShaderParameters>(), VertexFactoryUniformBuffer != nullptr ? VertexFactoryUniformBuffer : LocalVertexFactory->GetUniformBuffer());
 	}
 
 	// If we can't use GPU Scene instance data, we have to bind the params to the VS loosely
@@ -826,7 +829,10 @@ bool USplineMeshComponent::Modify(bool bAlwaysMarkDirty)
 
 	if (BodySetup != nullptr)
 	{
-		BodySetup->Modify(bAlwaysMarkDirty);
+		// BodySetup shares the same package as its component.
+		// Rely on the above call to Super::Modify(bAlwaysMarkDirty) to dirty the package if necessary.
+		// Note that UActorComponent::Modify can force bAlwaysMarkDirty to false in some cases (like if the Actor is transient).
+		BodySetup->Modify(false);
 	}
 
 	return bSavedToTransactionBuffer;
@@ -843,10 +849,9 @@ void USplineMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& Base
 	const FVertexFactoryType* VertexFactoryType = &FSplineMeshVertexFactory::StaticType;
 	int32 LightMapCoordinateIndex = GetStaticMesh()->GetLightMapCoordinateIndex();
 
-	auto SMC_GetElements = [LightMapCoordinateIndex](const FStaticMeshLODResources& LODRenderData, int32 LODIndex, bool bSupportsManualVertexFetch, FVertexDeclarationElementList& Elements)
+	auto SMC_GetElements = [LightMapCoordinateIndex, &LODData = this->LODData](const FStaticMeshLODResources& LODRenderData, int32 LODIndex, bool bSupportsManualVertexFetch, FVertexDeclarationElementList& Elements)
 	{
-		// FIXME: This will miss when SM component overrides vertex colors and source StaticMesh does not have vertex colors
-		constexpr bool bOverrideColorVertexBuffer = false;
+		bool bOverrideColorVertexBuffer = LODIndex < LODData.Num() && LODData[LODIndex].OverrideVertexColors != nullptr;
 		FLocalVertexFactory::FDataType Data;
 		InitSplineMeshVertexFactoryComponents(LODRenderData.VertexBuffers, nullptr /*VertexFactory*/, LightMapCoordinateIndex, bOverrideColorVertexBuffer, Data);
 		FLocalVertexFactory::GetVertexElements(GMaxRHIFeatureLevel, EVertexInputStreamType::Default, bSupportsManualVertexFetch, Data, Elements);
@@ -857,15 +862,7 @@ void USplineMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& Base
 
 	if (ShouldCreateNaniteProxy())
 	{
-		if (NaniteLegacyMaterialsSupported())
-		{
-			CollectPSOPrecacheDataImpl(&Nanite::FVertexFactory::StaticType, SplineMeshPSOParams, SMC_GetElements, OutParams);
-		}
-
-		if (NaniteComputeMaterialsSupported())
-		{
-			CollectPSOPrecacheDataImpl(&FNaniteVertexFactory::StaticType, SplineMeshPSOParams, SMC_GetElements, OutParams);
-		}
+		CollectPSOPrecacheDataImpl(&FNaniteVertexFactory::StaticType, SplineMeshPSOParams, SMC_GetElements, OutParams);
 	}
 	else
 	{
@@ -895,7 +892,7 @@ FBoxSphereBounds USplineMeshComponent::CalcBounds(const FTransform& LocalToWorld
 	const UStaticMesh* Mesh = GetStaticMesh();
 	if (Mesh == nullptr)
 	{
-		return FBox();
+		return FBoxSphereBounds(LocalToWorld.GetLocation(), FVector::ZeroVector, 0.f);;
 	}
 
 	const FBox ComputedBounds = ComputeDistortedBounds(LocalToWorld, Mesh->GetBounds());
@@ -1104,13 +1101,13 @@ FTransform USplineMeshComponent::CalcSliceTransformAtSplineOffset(const float Al
 	if (Alpha < MinT)
 	{
 		const FVector3f StartTangent(SplineEvalTangent(SplineParams, MinT));
-		SplinePos = FVector3f(SplineParams.StartPos) + (StartTangent * (Alpha - MinT));
+		SplinePos = SplineEvalPos(SplineParams, MinT) + (StartTangent * (Alpha - MinT));
 		SplineDir = StartTangent.GetSafeNormal();
 	}
 	else if (Alpha > MaxT)
 	{
 		const FVector3f EndTangent(SplineEvalTangent(SplineParams, MaxT));
-		SplinePos = FVector3f(SplineParams.EndPos) + (EndTangent * (Alpha - MaxT));
+		SplinePos = SplineEvalPos(SplineParams, MaxT) + (EndTangent * (Alpha - MaxT));
 		SplineDir = EndTangent.GetSafeNormal();
 	}
 	else

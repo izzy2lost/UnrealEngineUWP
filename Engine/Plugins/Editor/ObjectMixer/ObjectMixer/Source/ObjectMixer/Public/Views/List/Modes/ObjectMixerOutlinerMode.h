@@ -5,6 +5,7 @@
 #include "ActorMode.h"
 #include "Containers/Map.h"
 #include "EditorConfigBase.h"
+#include "ISceneOutlinerTreeItem.h"
 #include "ObjectFilter/ObjectMixerEditorObjectFilter.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/UObjectGlobals.h"
@@ -13,35 +14,46 @@
 #include "ObjectMixerOutlinerMode.generated.h"
 
 class FObjectMixerEditorList;
+class FObjectMixerOutlinerMode;
 class IWorldPartitionEditorModule;
 
 namespace ObjectMixerOutliner
 {
+	/** A row selector that depends on whether hybrid rows are allowed */
+	struct FHybridRowSelector
+	{
+		FHybridRowSelector(const FObjectMixerOutlinerMode* Mode);
+
+		bool ShouldAllowHybridRows() const { return bAllowHybridRows; }
+
+	private:
+		bool bAllowHybridRows = true;
+	};
+
 	struct FWeakActorSelectorAcceptingComponents
 	{
 		bool operator()(const TWeakPtr<ISceneOutlinerTreeItem>& Item, TWeakObjectPtr<AActor>& DataOut) const;
 	};
 
-	struct FComponentSelector
+	struct FComponentSelector : FHybridRowSelector
 	{
+		using FHybridRowSelector::FHybridRowSelector;
+
 		bool operator()(const TWeakPtr<ISceneOutlinerTreeItem>& Item, UActorComponent*& DataOut) const;
 	};
 
 	/** Functor which can be used to get weak actor pointers from a selection */
-	struct FWeakActorSelector
+	struct FWeakActorSelector 
 	{
 		bool operator()(const TWeakPtr<ISceneOutlinerTreeItem>& Item, TWeakObjectPtr<AActor>& DataOut) const;
 	};
 
 	/** Functor which can be used to get actors from a selection including component parents */
-	struct FActorSelector
+	struct FActorSelector : FHybridRowSelector
 	{
+		using FHybridRowSelector::FHybridRowSelector;
+
 		bool operator()(const TWeakPtr<ISceneOutlinerTreeItem>& Item, AActor*& ActorPtrOut) const;
-	};
-		
-	struct UE_DEPRECATED(5.4, "Use FActorHandleSelector instead") FActorDescSelector
-	{
-		bool operator()(const TWeakPtr<ISceneOutlinerTreeItem>& Item, FWorldPartitionActorDesc*& ActorDescPtrOut) const { return false; }
 	};
 
 	/** Functor which can be used to get actor descriptors from a selection  */
@@ -274,6 +286,9 @@ public:
 	
 	/** Function called by the Outliner Filter Bar to compare an item with Type Filters*/
 	virtual bool CompareItemWithClassName(SceneOutliner::FilterBarType InItem, const TSet<FTopLevelAssetPath>&) const override;
+
+	/** Check whether hybrid rows are allowed for the associated object list */
+	bool ShouldAllowHybridRows() const;
 	
 protected:
 
@@ -282,7 +297,7 @@ protected:
 	void OnMapChange(uint32 MapFlags);
 	void OnNewCurrentLevel();
 
-	void OnLevelSelectionChanged(UObject* Obj);
+	void OnEditorSelectionChanged();
 	void OnActorLabelChanged(AActor* ChangedActor);
 	void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap);
 	void OnLevelActorRequestsRename(const AActor* Actor);
@@ -293,8 +308,16 @@ protected:
 	void SynchronizeAllSelectionsToEditor();
 	bool HasActorSelectionChanged(TArray<AActor*>& OutSelectedActors, bool& bOutAreAnyInPIE);
 	bool HasComponentSelectionChanged(TArray<UActorComponent*>& OutSelectedComponents, bool& bOutAreAnyInPIE);
-	static void SelectActorsInEditor(const TArray<AActor*>& InSelectedActors);
-	static void SelectComponentsInEditor(const TArray<UActorComponent*>& InSelectedComponents);
+	void SelectActorsInEditor(const TArray<AActor*>& InSelectedActors, bool bShouldSelect, bool bSelectEvenIfHidden);
+	void SelectComponentsInEditor(const TArray<UActorComponent*>& InSelectedComponents, bool bShouldSelect, bool bSelectEvenIfHidden);
+	void SelectActorsInMixer(const TArray<AActor*>& InSelectedActors, bool bShouldSelect, bool bSelectEvenIfHidden);
+	void SelectComponentsInMixer(const TArray<UActorComponent*>& InSelectedComponents, bool bShouldSelect, bool bSelectEvenIfHidden);
+
+	/** Get the list of actors selected in the editor */
+	TArray<AActor*> GetSelectedActorsInEditor() const;
+
+	/** Get the list of components selected in the editor */
+	TArray<UActorComponent*> GetSelectedComponentsInEditor() const;
 	
 	/** Build and up the context menu */
 	TSharedPtr<SWidget> BuildContextMenu();
@@ -305,7 +328,8 @@ protected:
 	bool GetFolderNamesFromPayload(const FSceneOutlinerDragDropPayload& InPayload, TArray<FName>& OutFolders, FFolder::FRootObject& OutCommonRootObject) const;
 	FFolder GetWorldDefaultRootFolder() const;
 
-	void SynchronizeComponentSelection();
+	/** Synchronize both the actor and component selection with the editor, with components taking priority over actors */
+	void SynchronizeComponentAndActorSelection();
 	void SynchronizeSelectedActorDescs();
 
 	void OnActorEditorContextSubsystemChanged();
@@ -364,4 +388,7 @@ protected:
 	
 	bool bShouldTemporarilyForceSelectionSyncFromEditor = false;
 	bool bShouldTemporarilyForceSelectionSyncToEditor = false;
+
+	/** The last selected tree item IDs, stored here so we can maintain the selection across refreshes when not synced with the editor. */
+	TArray<FSceneOutlinerTreeItemID> SelectedIDs;
 };

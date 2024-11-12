@@ -5,11 +5,7 @@
 #include "VulkanDescriptorSets.h"
 #include "VulkanLLM.h"
 #include "ClearReplacementShaders.h"
-
-#if VULKAN_RHI_RAYTRACING
 #include "VulkanRayTracing.h"
-#endif // VULKAN_RHI_RAYTRACING
-
 
 FVulkanView::FVulkanView(FVulkanDevice& InDevice, VkDescriptorType InDescriptorType)
 	: Device(InDevice)
@@ -41,7 +37,7 @@ void FVulkanView::Invalidate()
 
 	case EType::TypedBuffer:
 		DEC_DWORD_STAT(STAT_VulkanNumBufferViews);
-		Device.GetDeferredDeletionQueue().EnqueueResource(FDeferredDeletionQueue2::EType::BufferView, Storage.Get<FTypedBufferView>().View);
+		Device.GetDeferredDeletionQueue().EnqueueResource(VulkanRHI::FDeferredDeletionQueue2::EType::BufferView, Storage.Get<FTypedBufferView>().View);
 		break;
 
 	case EType::Texture:
@@ -53,11 +49,9 @@ void FVulkanView::Invalidate()
 		// Nothing to do
 		break;
 
-#if VULKAN_RHI_RAYTRACING
 	case EType::AccelerationStructure:
 		Device.GetDeferredDeletionQueue().EnqueueResource(VulkanRHI::FDeferredDeletionQueue2::EType::AccelerationStructure, Storage.Get<FAccelerationStructureView>().Handle);
 		break;
-#endif
 	}
 
 	Storage.Emplace<FInvalidatedState>();
@@ -85,13 +79,7 @@ FVulkanView* FVulkanView::InitAsTypedBufferView(FVulkanResourceMultiBuffer* Buff
 	ViewInfo.offset = TotalOffset;
 	ViewInfo.format = Format;
 
-	// :todo-jn: Volatile buffers use temporary allocations that can be smaller than the buffer creation size.  Check if the savings are still worth it.
-	if (Buffer->IsVolatile())
-	{
-		InSize = FMath::Min<uint64>(InSize, Buffer->GetCurrentSize());
-	}
-
-	const uint32 TypeSize = GetNumBitsPerPixel(Format) / 8u;
+	const uint32 TypeSize =  VulkanRHI::GetNumBitsPerPixel(Format) / 8u;
 	// View size has to be a multiple of element size
 	// Commented out because there are multiple places in the high level rendering code which re-purpose buffers for a new format while there are still
 	// views with the old format lying around, and then lock them with a size computed based on the new stride, triggering this assert when the old views
@@ -134,7 +122,8 @@ FVulkanView* FVulkanView::InitAsTextureView(
 	, uint32 ArraySliceIndex
 	, uint32 NumArraySlices
 	, bool bUseIdentitySwizzle
-	, VkImageUsageFlags ImageUsageFlags)
+	, VkImageUsageFlags ImageUsageFlags
+	, VkSamplerYcbcrConversion SamplerYcbcrConversion)
 {
 	// We will need a deferred update if the descriptor was already in use
 	const bool bImmediateUpdate = !IsInitialized();
@@ -161,6 +150,15 @@ FVulkanView* FVulkanView::InitAsTextureView(
 		ViewInfo.pNext = &DecodeMode;
 	}
 #endif
+
+	VkSamplerYcbcrConversionInfo SamplerYcbcrConversionInfo;
+	if (SamplerYcbcrConversion)
+	{
+		ZeroVulkanStruct(SamplerYcbcrConversionInfo, VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO);
+		SamplerYcbcrConversionInfo.conversion = SamplerYcbcrConversion;
+		SamplerYcbcrConversionInfo.pNext = ViewInfo.pNext;
+		ViewInfo.pNext = &SamplerYcbcrConversionInfo;
+	}
 
 	if (bUseIdentitySwizzle)
 	{
@@ -248,7 +246,6 @@ FVulkanView* FVulkanView::InitAsStructuredBufferView(FVulkanResourceMultiBuffer*
 	return this;
 }
 
-#if VULKAN_RHI_RAYTRACING
 FVulkanView* FVulkanView::InitAsAccelerationStructureView(FVulkanResourceMultiBuffer* Buffer, uint32 Offset, uint32 Size)
 {
 	check(GetViewType() == EType::Null);
@@ -268,7 +265,6 @@ FVulkanView* FVulkanView::InitAsAccelerationStructureView(FVulkanResourceMultiBu
 
 	return this;
 }
-#endif
 
 
 
@@ -424,11 +420,9 @@ void FVulkanShaderResourceView::UpdateView()
 				InitAsTypedBufferView(Buffer, Info.Format, Info.OffsetInBytes, Info.SizeInBytes);
 				break;
 
-#if VULKAN_RHI_RAYTRACING
 			case FRHIViewDesc::EBufferType::AccelerationStructure:
 				InitAsAccelerationStructureView(Buffer, Info.OffsetInBytes, Info.SizeInBytes);
 				break;
-#endif
 
 			default:
 				checkNoEntry();
@@ -514,11 +508,9 @@ void FVulkanUnorderedAccessView::UpdateView()
 				InitAsTypedBufferView(Buffer, Info.Format, Info.OffsetInBytes, Info.SizeInBytes);
 				break;
 
-#if VULKAN_RHI_RAYTRACING
 			case FRHIViewDesc::EBufferType::AccelerationStructure:
 				checkNoEntry(); // @todo implement
 				break;
-#endif
 
 			default:
 				checkNoEntry();

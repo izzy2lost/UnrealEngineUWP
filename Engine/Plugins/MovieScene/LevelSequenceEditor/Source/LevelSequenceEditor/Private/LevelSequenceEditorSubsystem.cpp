@@ -55,12 +55,414 @@
 #include "KeyParams.h"
 #include "Sections/MovieSceneBindingLifetimeSection.h"
 #include "Tracks/MovieSceneBindingLifetimeTrack.h"
+#include "Bindings/MovieSceneSpawnableBindingCustomization.h"
+#include "Bindings/MovieSceneSpawnableBinding.h"
+#include "Bindings/MovieSceneSpawnableActorBinding.h"
+#include "Bindings/MovieSceneSpawnableActorBindingCustomization.h"
+#include "Bindings/MovieSceneCustomBinding.h"
+#include "DetailWidgetRow.h"
+#include "IPropertyTypeCustomization.h"
+#include "IDetailChildrenBuilder.h"
+#include "Widgets/Input/SComboBox.h"
+#include "DetailLayoutBuilder.h"
+#include "IPropertyTypeCustomization.h"
+#include "IPropertyUtilities.h"
+#include "MovieSceneDynamicBindingCustomization.h"
+#include "Conditions/MovieSceneConditionCustomization.h"
+#include "Conditions/MovieSceneDirectorBlueprintConditionCustomization.h"
+#include "MVVM/Selection/Selection.h"
+#include "UnrealEdGlobals.h"
+#include "Misc/FeedbackContext.h"
+#include "Variants/MovieSceneTimeWarpVariant.h"
+#include "Variants/MovieSceneTimeWarpGetter.h"
+#include "UObject/UObjectIterator.h"
+#include "ObjectTools.h"
+#include "Bindings/MovieSceneSpawnableDirectorBlueprintBinding.h"
+#include "Bindings/MovieSceneReplaceableDirectorBlueprintBinding.h"
+#include "Bindings/MovieSceneReplaceableActorBinding.h"
+#include "AssetToolsModule.h"
+#include "Kismet2/KismetEditorUtilities.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "MovieSceneSequencePlayer.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LevelSequenceEditorSubsystem)
 
 DEFINE_LOG_CATEGORY(LogLevelSequenceEditor);
 
 #define LOCTEXT_NAMESPACE "LevelSequenceEditor"
+
+class FMovieSceneBindingPropertyInfoListCustomization : public IDetailCustomization
+{
+public:
+
+	FMovieSceneBindingPropertyInfoListCustomization(TWeakPtr<ISequencer> InSequencer, UMovieScene* InMovieScene, FGuid InBindingGuid, ULevelSequenceEditorSubsystem* InLevelSequenceEditorSubsystem);
+
+	static TSharedRef<IDetailCustomization> MakeInstance(TWeakPtr<ISequencer> InSequencer, UMovieScene* InMovieScene, FGuid InBindingGuid, ULevelSequenceEditorSubsystem* InLevelSequenceEditorSubsystem);
+	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+
+
+private:
+
+	TSharedRef<SWidget> OnGetConvertMenuContent(IDetailLayoutBuilder& DetailBuilder);
+
+	TSharedRef<SWidget> GenerateBindingTypePicker(IDetailLayoutBuilder& DetailBuilder);
+	const FSlateBrush* GetBindingTypeIcon() const;
+	FText GetBindingTypeValueAsString() const;
+
+	TWeakPtr<ISequencer> SequencerPtr;
+	TObjectPtr<UMovieScene> MovieScene = nullptr;
+	TObjectPtr<ULevelSequenceEditorSubsystem> LevelSequenceEditorSubsystem;
+	FGuid BindingGuid;
+	TObjectPtr<UMovieSceneBindingPropertyInfoList> BindingList;
+
+	TArray<TSharedPtr<FText>> BindingTypeNames;
+};
+
+FMovieSceneBindingPropertyInfoListCustomization::FMovieSceneBindingPropertyInfoListCustomization(TWeakPtr<ISequencer> InSequencer, UMovieScene* InMovieScene, FGuid InBindingGuid, ULevelSequenceEditorSubsystem* InLevelSequenceEditorSubsystem)
+	: SequencerPtr(InSequencer)
+	, MovieScene(InMovieScene)
+	, LevelSequenceEditorSubsystem(InLevelSequenceEditorSubsystem)
+	, BindingGuid(InBindingGuid)
+{
+
+}
+
+TSharedRef<IDetailCustomization> FMovieSceneBindingPropertyInfoListCustomization::MakeInstance(TWeakPtr<ISequencer> InSequencer, UMovieScene* InMovieScene, FGuid InBindingGuid, ULevelSequenceEditorSubsystem* InLevelSequenceEditorSubsystem)
+{
+	return MakeShareable(new FMovieSceneBindingPropertyInfoListCustomization(InSequencer, InMovieScene, InBindingGuid, InLevelSequenceEditorSubsystem));
+}
+
+void FMovieSceneBindingPropertyInfoListCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
+{
+	IDetailCategoryBuilder& SectionCategory = DetailBuilder.EditCategory("Binding Properties", FText(), ECategoryPriority::Important);
+
+	TArray<TWeakObjectPtr<UObject>> Objects;
+	DetailBuilder.GetObjectsBeingCustomized(Objects);
+	TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
+
+	if (Objects.Num() > 0)
+	{
+		BindingList = Cast<UMovieSceneBindingPropertyInfoList>(Objects[0].Get());
+		if (BindingList)
+		{
+			if (Sequencer.IsValid())
+			{
+				UMovieSceneSequence* Sequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
+				if (BindingList->Bindings.Num() > 0)
+				{
+					// Grab the first one- we guarantee the binding types are the same.
+					bool bShowConvert = true;
+					if (FMovieScenePossessable* Possessable = MovieScene->FindPossessable(BindingGuid))
+					{
+						if (Possessable && Possessable->GetParent().IsValid())
+						{
+							bShowConvert = false;
+						}
+					}
+					bool bHasBoundObject = MovieSceneHelpers::GetSingleBoundObject(Sequence, BindingGuid, Sequencer->GetSharedPlaybackState(), 0) != nullptr;
+
+					FDetailWidgetRow& BindingTypeRow = SectionCategory.AddCustomRow(FText::GetEmpty());
+					BindingTypeRow.NameContent()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("BindingPropertyType", "Binding Type"))
+						.ToolTipText(LOCTEXT("BindingPropertyType_Tooltip", "The type of binding for this object binding track entry"))
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+						];
+					BindingTypeRow.ValueContent()
+						[
+							SNew(SComboButton)
+							.OnGetMenuContent(FOnGetContent::CreateLambda([this, &DetailBuilder]() { return GenerateBindingTypePicker(DetailBuilder);}))
+							.ContentPadding(0.0f)
+							.ButtonContent()
+							[
+								SNew(SHorizontalBox)
+								+ SHorizontalBox::Slot()
+								.AutoWidth()
+								.VAlign(VAlign_Center)
+								.Padding(0.0f, 0.0f, 4.0f, 0.0f)
+								[
+									SNew(SImage)
+									.Image(this, &FMovieSceneBindingPropertyInfoListCustomization::GetBindingTypeIcon)
+								]
+							+ SHorizontalBox::Slot()
+								.VAlign(VAlign_Center)
+								[
+									SNew(STextBlock)
+									.Text(this, &FMovieSceneBindingPropertyInfoListCustomization::GetBindingTypeValueAsString)
+								]
+							]
+							.IsEnabled(!bHasBoundObject)
+						];
+
+					// Only show certain menus if we have a currently bound object
+					if (bShowConvert && bHasBoundObject)
+					{
+						FDetailWidgetRow& ConvertToRow = SectionCategory.AddCustomRow(LOCTEXT("ConvertBindingTo", "Convert Binding(s) To..."));
+						ConvertToRow.WholeRowContent()
+							[
+								SNew(SComboButton)
+								.OnGetMenuContent(FOnGetContent::CreateLambda([this, &DetailBuilder]() { return OnGetConvertMenuContent(DetailBuilder); }))
+							.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
+							.ButtonContent()
+							[
+								SNew(STextBlock).Text(LOCTEXT("ConvertBindingTo", "Convert Binding(s) To..."))
+							]
+							];
+					}
+				}
+			}
+		}
+	}
+}
+
+TSharedRef<SWidget> FMovieSceneBindingPropertyInfoListCustomization::GenerateBindingTypePicker(IDetailLayoutBuilder& DetailBuilder)
+{
+	FMenuBuilder MenuBuilder(true, nullptr, nullptr, true);
+	if (SequencerPtr.IsValid())
+	{
+		TSharedRef<ISequencer> Sequencer = SequencerPtr.Pin().ToSharedRef();
+
+		TArray<FSequencerChangeBindingInfo> Bindings;
+		for (int32 BindingIndex = 0; BindingIndex < BindingList->Bindings.Num(); ++BindingIndex)
+		{
+			Bindings.Add({ BindingGuid, BindingIndex });
+		}
+		LevelSequenceEditorSubsystem->AddChangeBindingTypeMenu(MenuBuilder, Sequencer, Bindings, false, [this, Sequencer, &DetailBuilder]()
+			{
+				if (IDetailsView* DetailsView = DetailBuilder.GetDetailsView())
+				{
+					LevelSequenceEditorSubsystem->RefreshBindingDetails(DetailsView, BindingGuid);
+					LevelSequenceEditorSubsystem->OnFinishedChangingLocators(FPropertyChangedEvent(nullptr), StaticCastSharedRef<IDetailsView>(DetailsView->AsShared()), BindingGuid);
+				}
+			});
+	}
+	return MenuBuilder.MakeWidget();
+}
+
+FText FMovieSceneBindingPropertyInfoListCustomization::GetBindingTypeValueAsString() const
+{
+	TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
+	if (BindingList)
+	{
+		if (Sequencer.IsValid())
+		{
+			UMovieSceneSequence* Sequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
+			if (BindingList->Bindings.Num() > 0)
+			{
+				// All bindings will be the same type
+				if (!BindingList->Bindings[0].CustomBinding)
+				{
+					// Possessable
+					return LOCTEXT("BindingType_Possessable", "Possessable");
+				}
+				else
+				{
+					 return BindingList->Bindings[0].CustomBinding->GetBindingTypePrettyName();
+				}
+			}
+		}
+	}
+	return FText();
+}
+
+const FSlateBrush* FMovieSceneBindingPropertyInfoListCustomization::GetBindingTypeIcon() const
+{
+	TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
+	if (BindingList)
+	{
+		if (Sequencer.IsValid())
+		{
+			UMovieSceneSequence* Sequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
+			if (BindingList->Bindings.Num() > 0)
+			{
+				// All bindings will be the same type
+				if (!BindingList->Bindings[0].CustomBinding)
+				{
+					// Possessable
+					return nullptr;
+				}
+				else
+				{
+					return BindingList->Bindings[0].CustomBinding->GetBindingTrackCustomIconOverlay().GetIcon();
+				}
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+TSharedRef<SWidget> FMovieSceneBindingPropertyInfoListCustomization::OnGetConvertMenuContent(IDetailLayoutBuilder& DetailBuilder)
+{
+	FMenuBuilder MenuBuilder(true, nullptr, nullptr, true);
+
+
+	if (SequencerPtr.IsValid() && BindingList)
+	{
+		TSharedRef<ISequencer> Sequencer = SequencerPtr.Pin().ToSharedRef();
+		TArray<FSequencerChangeBindingInfo> Bindings;
+		for (int32 BindingIndex = 0; BindingIndex < BindingList->Bindings.Num(); ++BindingIndex)
+		{
+			Bindings.Add({ BindingGuid, BindingIndex });
+		}
+
+		LevelSequenceEditorSubsystem->AddChangeBindingTypeMenu(MenuBuilder, Sequencer, Bindings, true, [this, &DetailBuilder]()
+			{
+				if (IDetailsView* DetailsView = DetailBuilder.GetDetailsView())
+				{
+					LevelSequenceEditorSubsystem->RefreshBindingDetails(DetailsView, BindingGuid);
+				}
+			});
+	}
+	return MenuBuilder.MakeWidget();
+}
+
+
+class FMovieSceneBindingPropertyInfoDetailCustomization : public IPropertyTypeCustomization
+{
+public:
+	FMovieSceneBindingPropertyInfoDetailCustomization(TWeakPtr<ISequencer> InSequencer, UMovieScene* InMovieScene, FGuid InBindingGuid, ULevelSequenceEditorSubsystem* InLevelSequenceEditorSubsystem);
+
+	// Begin IDetailCustomization interface
+	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
+	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
+	//~ End IDetailCustomization interface
+
+private:
+
+	TSharedRef<SWidget> OnGetChangeClassMenuContent(IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils);
+
+	TWeakPtr<ISequencer> SequencerPtr;
+	TObjectPtr<UMovieScene> MovieScene = nullptr;
+	TObjectPtr<ULevelSequenceEditorSubsystem> LevelSequenceEditorSubsystem;
+	FGuid BindingGuid;
+	int32 BindingIndex = 0;
+
+	TSharedPtr<IPropertyHandle> StructPropertyHandle;
+};
+
+FMovieSceneBindingPropertyInfoDetailCustomization::FMovieSceneBindingPropertyInfoDetailCustomization(TWeakPtr<ISequencer> InSequencer, UMovieScene* InMovieScene, FGuid InBindingGuid, ULevelSequenceEditorSubsystem* InLevelSequenceEditorSubsystem)
+	: SequencerPtr(InSequencer)
+	, MovieScene(InMovieScene)
+	, LevelSequenceEditorSubsystem(InLevelSequenceEditorSubsystem)
+	, BindingGuid(InBindingGuid)
+{
+
+}
+
+void FMovieSceneBindingPropertyInfoDetailCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> InStructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
+{
+	HeaderRow.ShouldAutoExpand(true);
+
+	HeaderRow.NameContent()
+		[
+			InStructPropertyHandle->CreatePropertyNameWidget()
+		]
+		.ValueContent()
+		[
+			InStructPropertyHandle->CreatePropertyValueWidget()
+		];
+
+	StructPropertyHandle = InStructPropertyHandle;
+}
+
+void FMovieSceneBindingPropertyInfoDetailCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> InStructPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
+{
+	TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
+	if (Sequencer.IsValid() && InStructPropertyHandle->IsValidHandle())
+	{
+		UMovieSceneSequence* Sequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
+		TArray<void*> StructPtrs;
+		StructPropertyHandle->AccessRawData(StructPtrs);
+		FMovieSceneBindingPropertyInfo* BindingPropertyInfo = (StructPtrs.Num() == 1) ? reinterpret_cast<FMovieSceneBindingPropertyInfo*>(StructPtrs[0]) : nullptr;
+		if (BindingPropertyInfo)
+		{
+			BindingIndex = InStructPropertyHandle->GetArrayIndex();
+
+			// Show Change class and save default state menus for spawnables
+			if (MovieSceneHelpers::SupportsObjectTemplate(Sequence, BindingGuid, Sequencer->GetSharedPlaybackState(), BindingIndex))
+			{
+				FDetailWidgetRow& ChangeClassRow = StructBuilder.AddCustomRow(LOCTEXT("ChangeClass", "Change Class..."));
+				ChangeClassRow.WholeRowContent()
+					[
+						SNew(SComboButton)
+						.OnGetMenuContent(FOnGetContent::CreateLambda([this, &StructBuilder, &CustomizationUtils]() { return OnGetChangeClassMenuContent(StructBuilder, CustomizationUtils); }))
+					.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
+					.ButtonContent()
+					[
+						SNew(STextBlock).Text(LOCTEXT("ChangeClass", "Change Class..."))
+					]
+					];
+
+				// Save Default State
+				FDetailWidgetRow& SaveDefaultStateRow = StructBuilder.AddCustomRow(LOCTEXT("SaveDefaultState", "Save Default State"));
+				SaveDefaultStateRow.WholeRowContent()
+					[
+						SNew(SButton)
+						.Text(LOCTEXT("SaveDefaultState", "Save Default State"))
+					.ToolTipText(LOCTEXT("SaveDefaultState_Tooltip", "Save the current state of this spawnable as default properties"))
+					.OnClicked_Lambda([this]()
+						{
+							TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
+							if (Sequencer.IsValid())
+							{
+								Sequencer->GetSpawnRegister().SaveDefaultSpawnableState(BindingGuid, BindingIndex, Sequencer->GetFocusedTemplateID(), Sequencer->GetSharedPlaybackState());
+							}
+							return FReply::Handled();
+						})
+					];
+			}
+
+			if (!BindingPropertyInfo->CustomBinding)
+			{
+				// Show locator property
+				TSharedPtr<IPropertyHandle> LocatorProperty = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMovieSceneBindingPropertyInfo, Locator));
+				if (LocatorProperty.IsValid())
+				{
+					StructBuilder.AddProperty(LocatorProperty.ToSharedRef());
+				}
+			}
+			else
+			{
+				// Show instanced binding type property
+				TSharedPtr<IPropertyHandle> CustomBindingProperty = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMovieSceneBindingPropertyInfo, CustomBinding));
+				if (CustomBindingProperty.IsValid())
+				{
+					StructBuilder.AddProperty(CustomBindingProperty.ToSharedRef()).CustomWidget(true)
+						.NameContent()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("BindingProperties", "Binding Properties"))
+							.Font(IDetailLayoutBuilder::GetDetailFont())
+						];
+				}
+			}
+		}
+	}
+}
+
+
+TSharedRef<SWidget> FMovieSceneBindingPropertyInfoDetailCustomization::OnGetChangeClassMenuContent(IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
+{
+	FMenuBuilder MenuBuilder(true, nullptr, nullptr, true);
+
+	TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
+	if (Sequencer.IsValid() && StructPropertyHandle->IsValidHandle())
+	{
+		TArray<FSequencerChangeBindingInfo> Bindings;
+		Bindings.Add(FSequencerChangeBindingInfo(BindingGuid, BindingIndex));
+
+		FSequencerUtilities::AddChangeClassMenu(MenuBuilder, Sequencer.ToSharedRef(), Bindings, [this, &StructBuilder, &CustomizationUtils]()
+			{
+				if (IDetailsView* DetailsView = StructBuilder.GetParentCategory().GetParentLayout().GetDetailsView())
+				{
+					LevelSequenceEditorSubsystem->RefreshBindingDetails(DetailsView, BindingGuid);
+				}
+			});
+	}
+	return MenuBuilder.MakeWidget();
+}
 
 void ULevelSequenceEditorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -157,8 +559,8 @@ void ULevelSequenceEditorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 
 	AssignActorMenuExtender = MakeShareable(new FExtender);
 	AssignActorMenuExtender->AddMenuExtension("Possessable", EExtensionHook::First, CommandList, FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder) {
-		// Only add menu entries where the focused sequence is a ULevelSequence
-		if (!GetActiveSequencer())
+
+		if (!IsSelectedBindingRootPossessable())
 		{
 			return;
 		}
@@ -175,17 +577,12 @@ void ULevelSequenceEditorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 	// For now we have the binding properties being a separate menu. When the UX is worked out we will likely merge the AssignActor menu away.
 	BindingPropertiesMenuExtender = MakeShareable(new FExtender);
 	BindingPropertiesMenuExtender->AddMenuExtension("Possessable", EExtensionHook::First, CommandList, FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder) {
-		// Only add menu entries where the focused sequence is a ULevelSequence
-		if (!GetActiveSequencer())
-		{
-			return;
-		}
-		
+
 		FFormatNamedArguments Args;
 		MenuBuilder.AddSubMenu(
 			FText::Format(LOCTEXT("BindingProperties", "Binding Properties"), Args),
 			FText::Format(LOCTEXT("BindingPropertiesTooltip", "Modify the actor and object bindings for this track"), Args),
-			FNewMenuDelegate::CreateLambda([this](FMenuBuilder& SubMenuBuilder) { AddBindingPropertiesMenu(SubMenuBuilder); } ));
+			FNewMenuDelegate::CreateLambda([this](FMenuBuilder& SubMenuBuilder) { AddBindingPropertiesMenu(SubMenuBuilder); }));
 		}));
 
 	SequencerModule.GetObjectBindingContextMenuExtensibilityManager()->AddExtender(BindingPropertiesMenuExtender);
@@ -197,7 +594,7 @@ void ULevelSequenceEditorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 		{
 			return;
 		}
-		
+
 		TArray<FName> ComponentNames;
 		GetRebindComponentNames(ComponentNames);
 		if (ComponentNames.Num() > 0)
@@ -206,11 +603,52 @@ void ULevelSequenceEditorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 			MenuBuilder.AddSubMenu(
 				FText::Format(LOCTEXT("RebindComponent", "Rebind Component"), Args),
 				FText::Format(LOCTEXT("RebindComponentTooltip", "Rebind component by moving the tracks from one component to another component."), Args),
-				FNewMenuDelegate::CreateLambda([this](FMenuBuilder& SubMenuBuilder) { RebindComponentMenu(SubMenuBuilder); } ));
+				FNewMenuDelegate::CreateLambda([this](FMenuBuilder& SubMenuBuilder) { RebindComponentMenu(SubMenuBuilder); }));
 		}
-	}));
+		}));
+
+	BindingPropertiesMenuExtender->AddMenuExtension("CustomBinding", EExtensionHook::First, CommandList, FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder) {
+
+		FFormatNamedArguments Args;
+		MenuBuilder.AddSubMenu(
+			FText::Format(LOCTEXT("BindingProperties", "Binding Properties"), Args),
+			FText::Format(LOCTEXT("BindingPropertiesTooltip", "Modify the actor and object bindings for this track"), Args),
+			FNewMenuDelegate::CreateLambda([this](FMenuBuilder& SubMenuBuilder) { AddBindingPropertiesMenu(SubMenuBuilder); }));
+		}));
+
+	BindingPropertiesMenuExtender->AddMenuExtension("ConvertBinding", EExtensionHook::First, CommandList, FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder) {
+		 AddConvertBindingsMenu(MenuBuilder);
+		}));
 
 	SequencerModule.GetObjectBindingContextMenuExtensibilityManager()->AddExtender(RebindComponentMenuExtender);
+
+	SidebarMenuExtender = MakeShared<FExtender>();
+
+	SidebarMenuExtender->AddMenuExtension(TEXT("Possessable"), EExtensionHook::First, CommandList,
+		FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+			{
+				// Only add menu entries where the focused sequence is a ULevelSequence
+				if (!GetActiveSequencer())
+				{
+					return;
+				}
+
+				AddBindingPropertiesSidebar(MenuBuilder);
+			}));
+
+	SidebarMenuExtender->AddMenuExtension(TEXT("CustomBinding"), EExtensionHook::First, CommandList,
+		FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+			{
+				AddBindingPropertiesMenu(MenuBuilder);
+			}));
+
+	SidebarMenuExtender->AddMenuExtension(TEXT("TrackRowMetadata"), EExtensionHook::First, CommandList,
+		FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+			{
+				AddTrackRowMetadataMenu(MenuBuilder);
+			}));
+
+	SequencerModule.GetSidebarExtensibilityManager()->AddExtender(SidebarMenuExtender);
 }
 
 void ULevelSequenceEditorSubsystem::Deinitialize()
@@ -223,6 +661,13 @@ void ULevelSequenceEditorSubsystem::Deinitialize()
 		SequencerModulePtr->UnregisterOnSequencerCreated(OnSequencerCreatedHandle);
 	}
 
+	BindingPropertyInfoList = nullptr;
+	TrackRowMetadataHelperList.Empty();
+	if (FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().OnMenuBeingDestroyed().RemoveAll(this);
+	}
+
 }
 
 void ULevelSequenceEditorSubsystem::OnSequencerCreated(TSharedRef<ISequencer> InSequencer)
@@ -230,6 +675,89 @@ void ULevelSequenceEditorSubsystem::OnSequencerCreated(TSharedRef<ISequencer> In
 	UE_LOG(LogLevelSequenceEditor, VeryVerbose, TEXT("ULevelSequenceEditorSubsystem::OnSequencerCreated"));
 
 	Sequencers.Add(TWeakPtr<ISequencer>(InSequencer));
+	InSequencer->OnCloseEvent().AddUObject(this, &ULevelSequenceEditorSubsystem::OnSequencerClosed);
+}
+
+void ULevelSequenceEditorSubsystem::OnSequencerClosed(TSharedRef<ISequencer> InSequencer)
+{
+	BindingPropertyInfoList = nullptr;
+	TrackRowMetadataHelperList.Empty();
+}
+
+void ULevelSequenceEditorSubsystem::AddBindingDetailCustomizations(TSharedRef<IDetailsView> DetailsView, TSharedPtr<ISequencer> ActiveSequencer, FGuid BindingGuid)
+{
+	// TODO: Do we want to create a generalized way for folks to add instanced property layouts for other custom binding types so they can have access to sequencer context?
+	if (ActiveSequencer.IsValid())
+	{
+		UMovieSceneSequence* Sequence = ActiveSequencer->GetFocusedMovieSceneSequence();
+		UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
+		if (MovieScene)
+		{
+			FPropertyEditorModule& PropertyEditor = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
+
+			DetailsView->RegisterInstancedCustomPropertyLayout(UMovieSceneBindingPropertyInfoList::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FMovieSceneBindingPropertyInfoListCustomization::MakeInstance, ActiveSequencer.ToWeakPtr(), MovieScene, BindingGuid, this));
+			
+			DetailsView->RegisterInstancedCustomPropertyTypeLayout(FMovieSceneBindingPropertyInfo::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateLambda([](TWeakPtr<ISequencer> InSequencer, UMovieScene* InMovieScene, FGuid InBindingGuid, ULevelSequenceEditorSubsystem* LevelSequenceEditorSubsystem)
+				{
+					return MakeShared<FMovieSceneBindingPropertyInfoDetailCustomization>(InSequencer, InMovieScene, InBindingGuid, LevelSequenceEditorSubsystem);
+				}, ActiveSequencer.ToWeakPtr(), MovieScene, BindingGuid, this));
+
+			DetailsView->RegisterInstancedCustomPropertyTypeLayout(FMovieSceneDynamicBinding::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneDynamicBindingCustomization::MakeInstance, MovieScene, BindingGuid, 0));
+			
+			DetailsView->RegisterInstancedCustomPropertyLayout(UMovieSceneSpawnableActorBinding::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FMovieSceneSpawnableActorBindingBaseCustomization::MakeInstance, ActiveSequencer.ToWeakPtr(), MovieScene, BindingGuid));
+		}
+	}
+}
+
+void ULevelSequenceEditorSubsystem::AddTrackRowMetadataCustomizations(TSharedRef<IDetailsView> DetailsView, TSharedPtr<ISequencer> ActiveSequencer, UMovieSceneSequence* Sequence)
+{
+	if (ActiveSequencer.IsValid())
+	{
+		UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
+		if (MovieScene)
+		{
+			// Although we normally customize this type, we need to do it instanced here to pass in the sequence information, as it won't be part of an outer sequence UObject
+			DetailsView->RegisterInstancedCustomPropertyTypeLayout("MovieSceneConditionContainer", FOnGetPropertyTypeCustomizationInstance::CreateLambda([Sequence, WeakSequencer=ActiveSequencer.ToWeakPtr()]() {
+				return FMovieSceneConditionCustomization::MakeInstance(Sequence, WeakSequencer); }));
+
+			DetailsView->RegisterInstancedCustomPropertyTypeLayout("MovieSceneDirectorBlueprintConditionData", FOnGetPropertyTypeCustomizationInstance::CreateLambda([=]() {
+				return FMovieSceneDirectorBlueprintConditionCustomization::MakeInstance(MovieScene); }));
+		}
+	}
+}
+
+void ULevelSequenceEditorSubsystem::OnBindingPropertyMenuBeingDestroyed(const TSharedRef<IMenu>& Menu, TSharedRef<IDetailsView> DetailsView)
+{
+	TSharedPtr<SWidget> ContentWidget = Menu->GetContent();
+	TSharedPtr<SWidget> ParentWidget = DetailsView;
+	while (ParentWidget)
+	{
+		if (ParentWidget == ContentWidget)
+		{
+			// Binding Properties Menu has closed, clear the binding property list
+			BindingPropertyInfoList = nullptr;
+			FSlateApplication::Get().OnMenuBeingDestroyed().RemoveAll(this);
+			break;
+		}
+		ParentWidget = ParentWidget->GetParentWidget();
+	}
+}
+
+void ULevelSequenceEditorSubsystem::OnTrackRowMetadataMenuBeingDestroyed(const TSharedRef<IMenu>& Menu, TSharedRef<IDetailsView> DetailsView)
+{
+	TSharedPtr<SWidget> ContentWidget = Menu->GetContent();
+	TSharedPtr<SWidget> ParentWidget = DetailsView;
+	while (ParentWidget)
+	{
+		if (ParentWidget == ContentWidget)
+		{
+			// Track Row Metadata menu has closed, clear the metadata helper list
+			TrackRowMetadataHelperList.Empty();
+			FSlateApplication::Get().OnMenuBeingDestroyed().RemoveAll(this);
+			break;
+		}
+		ParentWidget = ParentWidget->GetParentWidget();
+	}
 }
 
 TSharedPtr<ISequencer> ULevelSequenceEditorSubsystem::GetActiveSequencer()
@@ -348,13 +876,20 @@ TArray<FMovieSceneBindingProxy> ULevelSequenceEditorSubsystem::ConvertToSpawnabl
 		return SpawnableProxies;
 	}
 
-	TArray<FMovieSceneSpawnable*> Spawnables = FSequencerUtilities::ConvertToSpawnable(Sequencer.ToSharedRef(), ObjectBinding.BindingID);
-	for (FMovieSceneSpawnable* Spawnable : Spawnables)
+	FMovieScenePossessable* NewPossessable = nullptr;
+
+	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
 	{
-		if (Spawnable)
+		int32 NumBindings = BindingReferences->GetReferences(ObjectBinding.BindingID).Num();
+		for (int32 BindingIndex = 0; BindingIndex < NumBindings; BindingIndex++)
 		{
-			SpawnableProxies.Add(FMovieSceneBindingProxy(Spawnable->GetGuid(), Sequence));
+			NewPossessable = FSequencerUtilities::ConvertToCustomBinding(Sequencer.ToSharedRef(), ObjectBinding.BindingID, UMovieSceneSpawnableActorBinding::StaticClass(), BindingIndex);
 		}
+	}
+
+	if (NewPossessable)
+	{
+		SpawnableProxies.Add(FMovieSceneBindingProxy(NewPossessable->GetGuid(), Sequence));
 	}
 
 	return SpawnableProxies;
@@ -376,12 +911,189 @@ FMovieSceneBindingProxy ULevelSequenceEditorSubsystem::ConvertToPossessable(cons
 		return PossessableProxy;
 	}
 
-	if (FMovieScenePossessable* Possessable = FSequencerUtilities::ConvertToPossessable(Sequencer.ToSharedRef(), ObjectBinding.BindingID))
+	FMovieScenePossessable* NewPossessable = nullptr;
+
+	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
 	{
-		PossessableProxy = FMovieSceneBindingProxy(Possessable->GetGuid(), Sequence);
+		int32 NumBindings = BindingReferences->GetReferences(ObjectBinding.BindingID).Num();
+		for (int32 BindingIndex = 0; BindingIndex < NumBindings; BindingIndex++)
+		{
+			NewPossessable = FSequencerUtilities::ConvertToPossessable(Sequencer.ToSharedRef(), ObjectBinding.BindingID, BindingIndex);
+		}
+	}
+
+	if (NewPossessable)
+	{
+		PossessableProxy = FMovieSceneBindingProxy(NewPossessable->GetGuid(), Sequence);
 	}
 
 	return PossessableProxy;
+}
+
+
+FMovieSceneBindingProxy ULevelSequenceEditorSubsystem::ConvertToCustomBinding(const FMovieSceneBindingProxy& ObjectBinding, TSubclassOf<UMovieSceneCustomBinding> BindingType)
+{
+	FMovieSceneBindingProxy PossessableProxy;
+
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return PossessableProxy;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return PossessableProxy;
+	}
+
+	FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
+	if (!BindingReferences)
+	{
+		return PossessableProxy;
+	}
+
+	FMovieScenePossessable* NewPossessable = nullptr;
+
+	if (FSequencerUtilities::CanConvertToCustomBinding(Sequencer.ToSharedRef(), ObjectBinding.BindingID, BindingType))
+	{
+		int32 NumBindings = BindingReferences->GetReferences(ObjectBinding.BindingID).Num();
+		for (int32 BindingIndex = 0; BindingIndex < NumBindings; BindingIndex++)
+		{
+			NewPossessable = FSequencerUtilities::ConvertToCustomBinding(Sequencer.ToSharedRef(), ObjectBinding.BindingID, BindingType, BindingIndex);
+		}
+
+		if (NewPossessable)
+		{
+			PossessableProxy = FMovieSceneBindingProxy(NewPossessable->GetGuid(), Sequence);
+		}
+	}
+
+	return PossessableProxy;
+}
+
+TArray<UMovieSceneCustomBinding*> ULevelSequenceEditorSubsystem::GetCustomBindingObjects(const FMovieSceneBindingProxy& ObjectBinding)
+{
+	TArray<UMovieSceneCustomBinding*> CustomBindings;
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return CustomBindings;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return CustomBindings;
+	}
+
+	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+	{
+		for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetReferences(ObjectBinding.BindingID))
+		{
+			if (BindingReference.CustomBinding)
+			{
+				CustomBindings.Add(BindingReference.CustomBinding);
+			}
+		}
+	}
+
+	return CustomBindings;
+}
+
+TArray<FMovieSceneBindingProxy> ULevelSequenceEditorSubsystem::GetCustomBindingsOfType(TSubclassOf<UMovieSceneCustomBinding> CustomBindingType)
+{
+	TArray<FMovieSceneBindingProxy> Bindings;
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return Bindings;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return Bindings;
+	}
+
+	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+	{
+		for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetAllReferences())
+		{
+			if (BindingReference.CustomBinding && BindingReference.CustomBinding->IsA(CustomBindingType))
+			{
+				Bindings.AddUnique(FMovieSceneBindingProxy(BindingReference.ID, Sequence));
+			}
+		}
+	}
+
+	return Bindings;
+}
+
+TSubclassOf<UMovieSceneCustomBinding> ULevelSequenceEditorSubsystem::GetCustomBindingType(const FMovieSceneBindingProxy& ObjectBinding)
+{
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return nullptr;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return nullptr;
+	}
+
+	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+	{
+		if (UMovieSceneCustomBinding* CustomBinding = BindingReferences->GetCustomBinding(ObjectBinding.BindingID, 0))
+		{
+			return CustomBinding->GetClass();
+		}
+	}
+
+	return nullptr;
+}
+
+bool ULevelSequenceEditorSubsystem::ChangeActorTemplateClass(const FMovieSceneBindingProxy& ObjectBinding, TSubclassOf<AActor> ActorClass)
+{
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return false;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return false;
+	}
+
+	bool bSuccess = false;
+
+	TArray<FSequencerChangeBindingInfo> Bindings;
+	Bindings.Add(FSequencerChangeBindingInfo(ObjectBinding.BindingID, 0));
+
+	FSequencerUtilities::HandleTemplateActorClassPicked(ActorClass, Sequencer.ToSharedRef(), Bindings, [&bSuccess]() {bSuccess = true; });
+
+	return bSuccess;
+}
+
+void ULevelSequenceEditorSubsystem::SaveDefaultSpawnableState(const FMovieSceneBindingProxy& ObjectBinding)
+{
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return;
+	}
+
+	Sequencer->GetSpawnRegister().SaveDefaultSpawnableState(ObjectBinding.BindingID, 0, Sequencer->GetFocusedTemplateID(), Sequencer->GetSharedPlaybackState());
 }
 
 void ULevelSequenceEditorSubsystem::CopyFolders(const TArray<UMovieSceneFolder*>& Folders, FString& ExportedText)
@@ -1081,16 +1793,25 @@ bool ULevelSequenceEditorSubsystem::BakeTransformWithSettings(const TArray<FMovi
 	}
 	CalculateFramesPerGuid(Sequencer, SettingsInTick, BakeDataMap, TotalFrameMap);
 
-	FMovieSceneSequenceTransform RootToLocalTransform = Sequencer->GetFocusedMovieSceneSequenceTransform();
+	FMovieSceneInverseSequenceTransform LocalToRootTransform = Sequencer->GetFocusedMovieSceneSequenceTransform().Inverse();
 	
 	TArray<FFrameNumber> AllFrames;
 	TotalFrameMap.GenerateKeyArray(AllFrames);
 
+	UWorld* PlaybackContext = Sequencer->GetPlaybackContext()->GetWorld();
+	ensure(PlaybackContext);
+	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(PlaybackContext);
+
 	for (FFrameNumber KeyTime: AllFrames)
 	{
-		FMovieSceneEvaluationRange Range(KeyTime * RootToLocalTransform.InverseNoLooping(), TickResolution);
+		TOptional<FFrameTime> NewGlobalTime = LocalToRootTransform.TryTransformTime(KeyTime);
+		if (!NewGlobalTime)
+		{
+			continue;
+		}
 
-		Sequencer->SetGlobalTime(Range.GetTime());
+		Sequencer->SetGlobalTime(NewGlobalTime.GetValue());
+		Controller.EvaluateAllConstraints();
 
 		for (const FMovieSceneBindingProxy& ObjectBinding : ObjectBindings)
 		{
@@ -1795,12 +2516,15 @@ void ULevelSequenceEditorSubsystem::AddAssignActorMenu(FMenuBuilder& MenuBuilder
 		InitOptions.Filters->AddFilterPredicate<FActorTreeItem>(FActorTreeItem::FFilterPredicate::CreateLambda( IsActorValidForAssignment ) );
 	}
 
+	const float WidthOverride = Sequencer.IsValid() ? Sequencer->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+	const float HeightOverride = Sequencer.IsValid() ? Sequencer->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
 	// actor selector to allow the user to choose an actor
 	FSceneOutlinerModule& SceneOutlinerModule = FModuleManager::LoadModuleChecked<FSceneOutlinerModule>("SceneOutliner");
 	TSharedRef< SWidget > MiniSceneOutliner =
 		SNew( SBox )
-		.MaxDesiredHeight(400.0f)
-		.WidthOverride(300.0f)
+		.WidthOverride(WidthOverride)
+		.HeightOverride(HeightOverride)
 		[
 			SceneOutlinerModule.CreateActorPicker(
 				InitOptions,
@@ -1838,13 +2562,6 @@ void ULevelSequenceEditorSubsystem::AddBindingPropertiesMenu(FMenuBuilder& MenuB
 	}
 	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
 	{
-		TSharedRef<FStructOnScope> LocatorsStruct = MakeShareable(new FStructOnScope(FMovieSceneUniversalLocatorList::StaticStruct()));
-		FMovieSceneUniversalLocatorList* Locators = (FMovieSceneUniversalLocatorList*)LocatorsStruct->GetStructMemory();
-		Algo::Transform(BindingReferences->GetReferences(ObjectBindings[0]), Locators->Bindings, [](const FMovieSceneBindingReference& Reference) 
-			{ 
-				return FMovieSceneUniversalLocatorInfo{ Reference.Locator, Reference.ResolveFlags };
-			});
-
 		MenuBuilder.AddMenuSeparator();
 
 		NotifyHook = FBindingPropertiesNotifyHook(Sequence);
@@ -1863,27 +2580,128 @@ void ULevelSequenceEditorSubsystem::AddBindingPropertiesMenu(FMenuBuilder& MenuB
 			DetailsViewArgs.bShowScrollBar = false;
 			DetailsViewArgs.bAllowMultipleTopLevelObjects = false;
 			DetailsViewArgs.NotifyHook = &NotifyHook;
+			DetailsViewArgs.DefaultsOnlyVisibility = EEditDefaultsOnlyNodeVisibility::Automatic;
 		}
 
-		FStructureDetailsViewArgs StructureViewArgs;
+		TSharedRef<IDetailsView> DetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreateDetailView(DetailsViewArgs);
+
+		AddBindingDetailCustomizations(DetailsView, Sequencer, ObjectBindings[0]);
+
+		RefreshBindingDetails(&DetailsView.Get(), ObjectBindings[0]);
+		DetailsView->OnFinishedChangingProperties().AddUObject(this, &ULevelSequenceEditorSubsystem::OnFinishedChangingLocators, DetailsView, ObjectBindings[0]);
+
+		if (FSlateApplication::IsInitialized())
 		{
-			StructureViewArgs.bShowObjects = true;
-			StructureViewArgs.bShowAssets = true;
-			StructureViewArgs.bShowClasses = true;
-			StructureViewArgs.bShowInterfaces = true;
+			FSlateApplication::Get().OnMenuBeingDestroyed().AddUObject(this, &ULevelSequenceEditorSubsystem::OnBindingPropertyMenuBeingDestroyed, DetailsView);
 		}
-
-		TSharedRef<IStructureDetailsView> StructureDetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor")
-			.CreateStructureDetailView(DetailsViewArgs, StructureViewArgs, nullptr);
-
-		StructureDetailsView->SetStructureData(LocatorsStruct);
-		StructureDetailsView->GetOnFinishedChangingPropertiesDelegate().AddUObject(this, &ULevelSequenceEditorSubsystem::OnFinishedChangingLocators, StructureDetailsView,  LocatorsStruct, ObjectBindings[0]);
-
-		MenuBuilder.AddWidget(StructureDetailsView->GetWidget().ToSharedRef(), FText::GetEmpty(), true);
+		MenuBuilder.AddWidget(DetailsView, FText::GetEmpty(), true);
 	}
 }
 
+void ULevelSequenceEditorSubsystem::AddConvertBindingsMenu(FMenuBuilder& MenuBuilder)
+{
+	// Binding conversion
+	
+	MenuBuilder.AddSubMenu(
+		LOCTEXT("ConvertBindingLabel", "Convert Selected Binding(s) To..."),
+		LOCTEXT("ConvertBindingLabelTooltip", "Convert selected bindings into another binding type"),
+		FNewMenuDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+			{
+				TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+				if (Sequencer == nullptr)
+				{
+					return;
+				}
 
+				UMovieSceneSequence* const Sequence = Sequencer->GetFocusedMovieSceneSequence();
+				if (!IsValid(Sequence))
+				{
+					return;
+				}
+
+				TArray<FGuid> ObjectBindings;
+				Sequencer->GetSelectedObjects(ObjectBindings);
+				if (ObjectBindings.Num() == 0)
+				{
+					return;
+				}
+
+				TArray<FSequencerChangeBindingInfo> Bindings;
+				const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
+				for (FGuid ObjectGuid : ObjectBindings)
+				{
+					int32 BindingIndex = 0;
+					for (const FMovieSceneBindingReference& Reference : BindingReferences->GetReferences(ObjectGuid))
+					{
+						Bindings.Add({ Reference.ID, BindingIndex++ });
+					}
+				}
+
+				AddChangeBindingTypeMenu(MenuBuilder, Sequencer.ToSharedRef(), Bindings, true, TFunction<void()>());
+			}));
+}
+
+void ULevelSequenceEditorSubsystem::AddBindingPropertiesSidebar(FMenuBuilder& MenuBuilder)
+{
+	AddBindingPropertiesMenu(MenuBuilder);
+}
+
+void ULevelSequenceEditorSubsystem::AddTrackRowMetadataMenu(FMenuBuilder& MenuBuilder)
+{
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return;
+	}
+
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return;
+	}
+
+	TArray<TPair<UMovieSceneTrack*, int32>> SelectedTrackRows;
+
+	Sequencer->GetSelectedTrackRows(SelectedTrackRows);
+
+	if (SelectedTrackRows.IsEmpty())
+	{
+		return;
+	}
+
+	NotifyHook = FBindingPropertiesNotifyHook(Sequence);
+
+	// Set up a details panel for the list of selected track row metadata
+	FDetailsViewArgs DetailsViewArgs;
+	{
+		DetailsViewArgs.bAllowSearch = false;
+		DetailsViewArgs.bCustomFilterAreaLocation = false;
+		DetailsViewArgs.bCustomNameAreaLocation = false;
+		DetailsViewArgs.bHideSelectionTip = true;
+		DetailsViewArgs.bLockable = false;
+		DetailsViewArgs.bSearchInitialKeyFocus = true;
+		DetailsViewArgs.bUpdatesFromSelection = false;
+		DetailsViewArgs.bShowOptions = false;
+		DetailsViewArgs.bShowModifiedPropertiesOption = false;
+		DetailsViewArgs.bShowScrollBar = false;
+		DetailsViewArgs.bAllowMultipleTopLevelObjects = false;
+		DetailsViewArgs.NotifyHook = &NotifyHook;
+	}
+
+	TSharedRef<IDetailsView> DetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreateDetailView(DetailsViewArgs);
+
+	AddTrackRowMetadataCustomizations(DetailsView, Sequencer, Sequence);
+
+	RefreshTrackRowMetadataDetails(&DetailsView.Get());
+	DetailsView->OnFinishedChangingProperties().AddUObject(this, &ULevelSequenceEditorSubsystem::OnFinishedChangingTrackRowMetadata, DetailsView);
+
+	if (FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().OnMenuBeingDestroyed().AddUObject(this, &ULevelSequenceEditorSubsystem::OnTrackRowMetadataMenuBeingDestroyed, DetailsView);
+	}
+	MenuBuilder.AddWidget(DetailsView, FText::GetEmpty(), true);
+}
 
 void ULevelSequenceEditorSubsystem::FBindingPropertiesNotifyHook::NotifyPreChange(FProperty* PropertyAboutToChange)
 {
@@ -1901,11 +2719,15 @@ void ULevelSequenceEditorSubsystem::FBindingPropertiesNotifyHook::NotifyPostChan
 }
 
 
-void ULevelSequenceEditorSubsystem::OnFinishedChangingLocators(const FPropertyChangedEvent& PropertyChangedEvent, TSharedRef<IStructureDetailsView> StructDetailsView, TSharedRef<FStructOnScope> LocatorsStruct, FGuid ObjectBindingID)
+void ULevelSequenceEditorSubsystem::OnFinishedChangingLocators(const FPropertyChangedEvent& PropertyChangedEvent, TSharedRef<IDetailsView> DetailsView, FGuid ObjectBindingID)
 {
 	const FScopedTransaction Transaction(LOCTEXT("ChangeBindingProperties", "Change Binding Properties"));
 
-	auto Locators = (FMovieSceneUniversalLocatorList*)LocatorsStruct->GetStructMemory();
+	if (!BindingPropertyInfoList)
+	{
+		return;
+	}
+
 	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
 	if (Sequencer == nullptr)
 	{
@@ -1924,30 +2746,34 @@ void ULevelSequenceEditorSubsystem::OnFinishedChangingLocators(const FPropertyCh
 	}
 	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
 	{
+		// A bit hacky, but saves a complicated detail customization. If the change we've just made is to add a new entry, ensure the new entry is initialized
+		// to the same binding type as previous entries.
+		TArrayView<const FMovieSceneBindingReference> PreviousReferences = BindingReferences->GetReferences(ObjectBindingID);
+		if (PreviousReferences.Num() > 0 && PreviousReferences.Num() == BindingPropertyInfoList->Bindings.Num() - 1)
+		{
+			if (UMovieSceneCustomBinding* PreviousCustomBinding = BindingPropertyInfoList->Bindings[BindingPropertyInfoList->Bindings.Num() - 2].CustomBinding)
+			{
+				BindingPropertyInfoList->Bindings[BindingPropertyInfoList->Bindings.Num() - 1].CustomBinding = NewObject<UMovieSceneCustomBinding>(MovieScene, PreviousCustomBinding->GetClass());
+			}
+		}
+
 		MovieScene->Modify();
 		Sequence->Modify();
 		// Clear the previous binding
-		if (FMovieSceneObjectCache* Cache = Sequencer->State.FindObjectCache(Sequencer->GetFocusedTemplateID()))
-		{
-			Cache->UnloadBinding(ObjectBindingID, Sequencer->GetSharedPlaybackState());
-		}
 		BindingReferences->RemoveBinding(ObjectBindingID);
 
 		// Add the new updated bindings
-		for (FMovieSceneUniversalLocatorInfo& LocatorInfo : Locators->Bindings)
+		for (FMovieSceneBindingPropertyInfo& LocatorInfo : BindingPropertyInfoList->Bindings)
 		{
-			if (PropertyChangedEvent.Property != nullptr && PropertyChangedEvent.Property->GetFName() == TEXT("Locator"))
+			UMovieSceneCustomBinding* CopiedBinding = nullptr;
+			if (LocatorInfo.CustomBinding)
 			{
-				// Ensure flags are initialized from scratch
-				const FMovieSceneBindingReference* NewRef = BindingReferences->AddBinding(ObjectBindingID, MoveTemp(LocatorInfo.Locator));
-				if (NewRef)
-				{
-					LocatorInfo.ResolveFlags = NewRef->ResolveFlags;
-				}
+				CopiedBinding = Cast<UMovieSceneCustomBinding>(StaticDuplicateObject(LocatorInfo.CustomBinding, MovieScene));
 			}
-			else
+			BindingReferences->AddBinding(ObjectBindingID, MoveTemp(LocatorInfo.Locator), LocatorInfo.ResolveFlags, CopiedBinding);
+			if (CopiedBinding)
 			{
-				BindingReferences->AddBinding(ObjectBindingID, MoveTemp(LocatorInfo.Locator), LocatorInfo.ResolveFlags);
+				CopiedBinding->OnBindingAddedOrChanged(*MovieScene);
 			}
 		}
 
@@ -1998,6 +2824,12 @@ void ULevelSequenceEditorSubsystem::OnFinishedChangingLocators(const FPropertyCh
 
 		Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
 
+		// Destroy any previous spawnables- they'll get recreated on the force evaluate below
+		for (int32 BindingIndex = 0; BindingIndex < BindingPropertyInfoList->Bindings.Num(); ++BindingIndex)
+		{
+			Sequencer->GetSpawnRegister().DestroySpawnedObject(ObjectBindingID, Sequencer->GetFocusedTemplateID(), Sequencer->GetSharedPlaybackState(), BindingIndex);
+		}
+
 		// Force evaluate the Sequencer after clearing the cache (which the above will do) so that any newly loaded actors will be loaded as part of the transaction
 		Sequencer->ForceEvaluate();
 
@@ -2005,16 +2837,82 @@ void ULevelSequenceEditorSubsystem::OnFinishedChangingLocators(const FPropertyCh
 		Sequencer->OnAddBinding(ObjectBindingID, MovieScene);
 
 		// Re-copy the locator info back into the struct details
-		Locators->Bindings.Empty();
-		Algo::Transform(BindingReferences->GetReferences(ObjectBindingID), Locators->Bindings, [](const FMovieSceneBindingReference& Reference)
+		BindingPropertyInfoList->Bindings.Empty();
+		Algo::Transform(BindingReferences->GetReferences(ObjectBindingID), BindingPropertyInfoList->Bindings, [this](const FMovieSceneBindingReference& Reference)
 			{
-				return FMovieSceneUniversalLocatorInfo{ Reference.Locator, Reference.ResolveFlags };
+				UMovieSceneCustomBinding* CopiedBinding = nullptr;
+				if (Reference.CustomBinding)
+				{
+					CopiedBinding = Cast<UMovieSceneCustomBinding>(StaticDuplicateObject(Reference.CustomBinding, this));
+				}
+
+				return FMovieSceneBindingPropertyInfo{ Reference.Locator, Reference.ResolveFlags, CopiedBinding };
 			});
 
 
 		// Force the struct details view to refresh
-		StructDetailsView->GetDetailsView()->InvalidateCachedState();
+		DetailsView->InvalidateCachedState();
 	}
+}
+
+void ULevelSequenceEditorSubsystem::OnFinishedChangingTrackRowMetadata(const FPropertyChangedEvent& PropertyChangedEvent, TSharedRef<IDetailsView> DetailsView)
+{
+	const FScopedTransaction Transaction(LOCTEXT("ChangeTrackRowMetadata", "Change Track Row Metadata"));
+
+	if (TrackRowMetadataHelperList.IsEmpty())
+	{
+		return;
+	}
+
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return;
+	}
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return;
+	}
+
+	UMovieScene* MovieScene = Sequence->GetMovieScene();
+	if (!MovieScene)
+	{
+		return;
+	}
+
+	MovieScene->Modify();
+	Sequence->Modify();
+
+	TArray<TPair<UMovieSceneTrack*, int32>> SelectedTrackRows;
+
+	Sequencer->GetSelectedTrackRows(SelectedTrackRows);
+
+	ensure(SelectedTrackRows.Num() == TrackRowMetadataHelperList.Num());
+	
+	// Copy over the new metadata, but duplicate any condition trees over to new ownership in the sequence
+	for (int32 Index = 0; Index < TrackRowMetadataHelperList.Num(); ++Index)
+	{
+		UMovieSceneTrack* Track = SelectedTrackRows[Index].Key;
+		UMovieSceneTrackRowMetadataHelper* Helper = TrackRowMetadataHelperList[Index];
+		if (Track && Helper)
+		{
+			FMovieSceneTrackRowMetadata& Metadata = Track->FindOrAddTrackRowMetadata(SelectedTrackRows[Index].Value);
+			Metadata = Helper->TrackRowMetadata;
+			if (Helper->TrackRowMetadata.ConditionContainer.Condition)
+			{
+				Metadata.ConditionContainer.Condition = Cast<UMovieSceneCondition>(StaticDuplicateObject(Helper->TrackRowMetadata.ConditionContainer.Condition, MovieScene));
+			}
+		}
+	}
+
+	Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+
+	// Re-copy the metadata info back into the struct details
+	RefreshTrackRowMetadataDetails(&DetailsView.Get());
+
+	// Force the struct details view to refresh
+	DetailsView->InvalidateCachedState();
 }
 
 void ULevelSequenceEditorSubsystem::GetRebindComponentNames(TArray<FName>& OutComponentNames)
@@ -2203,6 +3101,623 @@ void ULevelSequenceEditorSubsystem::RebindComponent(const TArray<FMovieSceneBind
 	if (bAnythingChanged)
 	{
 		Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+	}
+}
+
+bool ULevelSequenceEditorSubsystem::IsSelectedBindingRootPossessable()
+{
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer)
+	{
+		TArray<FGuid> ObjectBindings;
+		Sequencer->GetSelectedObjects(ObjectBindings);
+		if (ObjectBindings.Num() > 0)
+		{
+			UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+			UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
+			if (MovieScene)
+			{
+				if (FMovieScenePossessable* Possessable = MovieScene->FindPossessable(ObjectBindings[0]))
+				{
+					if (!Possessable->GetParent().IsValid() && !Possessable->GetSpawnableObjectBindingID().IsValid())
+					{
+						return true;
+					}
+				}
+			}
+		}
+	}
+	return false;
+}
+
+void ULevelSequenceEditorSubsystem::RefreshBindingDetails(IDetailsView* DetailsView, FGuid ObjectBindingID)
+{
+	if (DetailsView == nullptr)
+	{
+		return;
+	}
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return;
+	}
+	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+	{
+		BindingPropertyInfoList = NewObject<UMovieSceneBindingPropertyInfoList>(this);
+		Algo::Transform(BindingReferences->GetReferences(ObjectBindingID), BindingPropertyInfoList->Bindings, [this](const FMovieSceneBindingReference& Reference)
+			{
+				UMovieSceneCustomBinding* CopiedBinding = nullptr;
+				if (Reference.CustomBinding)
+				{
+					CopiedBinding = Cast<UMovieSceneCustomBinding>(StaticDuplicateObject(Reference.CustomBinding, this));
+				}
+				return FMovieSceneBindingPropertyInfo{ Reference.Locator, Reference.ResolveFlags, CopiedBinding };
+			});
+
+		DetailsView->SetObject(BindingPropertyInfoList.Get(), true);
+	}
+}
+
+void ULevelSequenceEditorSubsystem::RefreshTrackRowMetadataDetails(IDetailsView* DetailsView)
+{
+	if (DetailsView == nullptr)
+	{
+		return;
+	}
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return;
+	}
+
+
+	TArray<TPair<UMovieSceneTrack*, int32>> SelectedTrackRows;
+
+	Sequencer->GetSelectedTrackRows(SelectedTrackRows);
+
+	TrackRowMetadataHelperList.Empty();
+
+	// Copy over the metadata, but duplicate any condition trees over to new ownership
+	for (int32 Index = 0; Index < SelectedTrackRows.Num(); ++Index)
+	{
+		UMovieSceneTrack* Track = SelectedTrackRows[Index].Key;
+		UMovieSceneTrackRowMetadataHelper* Helper = TrackRowMetadataHelperList.Add_GetRef(NewObject<UMovieSceneTrackRowMetadataHelper>(this));
+		if (Track && Helper)
+		{
+			Helper->OwnerTrack = Track;
+			if (const FMovieSceneTrackRowMetadata* Metadata = Track->FindTrackRowMetadata(SelectedTrackRows[Index].Value))
+			{
+				Helper->TrackRowMetadata = *Metadata;
+				if (Metadata->ConditionContainer.Condition)
+				{
+					Helper->TrackRowMetadata.ConditionContainer.Condition = Cast<UMovieSceneCondition>(StaticDuplicateObject(Metadata->ConditionContainer.Condition, this));
+				}
+			}
+		}
+	}
+	TArray<TWeakObjectPtr<UObject>> WeakHelpers;
+	Algo::Transform(TrackRowMetadataHelperList, WeakHelpers, [](TObjectPtr<UMovieSceneTrackRowMetadataHelper> HelperPtr) { return HelperPtr;});
+	DetailsView->SetObjects(WeakHelpers, true);
+}
+
+
+void ULevelSequenceEditorSubsystem::AddChangeBindingTypeMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToChange, bool bConvert, TFunction<void()> OnBindingChanged)
+{
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
+
+	if (!MovieScene || BindingsToChange.IsEmpty())
+	{
+		return;
+	}
+
+	// Can convert to possessable
+	if (!bConvert || Algo::AllOf(BindingsToChange, [this, Sequencer, Sequence, MovieScene](const FSequencerChangeBindingInfo& BindingInfo) {
+		return FSequencerUtilities::CanConvertToPossessable(Sequencer, BindingInfo.BindingID, BindingInfo.BindingIndex);
+		}))
+	{
+		const TWeakPtr<ISequencer> WeakSequencer = Sequencer;
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("ConvertToPossessable", "Possessable"),
+			bConvert ? LOCTEXT("ConvertToPossessableTooltip", "Convert selected binding(s) to a possessable") : LOCTEXT("ChangeToPossessableTooltip", "Reset selected binding(s) to a new possessable"),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateLambda([this, WeakSequencer, Sequence, BindingsToChange, bConvert, OnBindingChanged]()
+				{
+					const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+					if (!Sequencer)
+					{
+						return;
+					}
+
+					const TSharedRef<ISequencer> SequencerRef = Sequencer.ToSharedRef();
+
+					ChangeBindingTypes(SequencerRef, BindingsToChange, [SequencerRef, Sequence, bConvert](FGuid BindingID, int32 BindingIndex)
+						{
+							if (bConvert)
+							{
+								return FSequencerUtilities::ConvertToPossessable(SequencerRef, BindingID, BindingIndex);
+							}
+							else if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+							{
+								BindingReferences->AddOrReplaceBinding(BindingID, FUniversalObjectLocator(), BindingIndex);
+								return Sequence->GetMovieScene()->FindPossessable(BindingID);
+							}
+							return (FMovieScenePossessable*)nullptr;
+						},
+						OnBindingChanged);
+
+				})));
+	}
+
+
+	// Sort custom binding types by engine types vs. non-engine (custom user types)
+	TArrayView<const TSubclassOf<UMovieSceneCustomBinding>> PrioritySortedCustomBindingTypes = Sequencer->GetSupportedCustomBindingTypes();
+	TArray<const TSubclassOf<UMovieSceneCustomBinding>> EngineClasses;
+	TArray<const TSubclassOf<UMovieSceneCustomBinding>> UserClasses;
+	for (const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType : PrioritySortedCustomBindingTypes)
+	{
+		FString PackagePathName = CustomBindingType->GetPackage()->GetPathName();
+		if (PackagePathName.StartsWith(TEXT("/Engine")) || PackagePathName.StartsWith(TEXT("/Script")))
+		{
+			EngineClasses.Add(CustomBindingType);
+		}
+		else
+		{
+			UserClasses.Add(CustomBindingType);
+		}
+	}
+
+	// Show built-in classes first
+	for (const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType : EngineClasses)
+	{
+		FString BindingTypePath = CustomBindingType->GetPathName();
+		FString OtherPath = CustomBindingType->GetPackage()->GetPathName();
+
+		// Can convert to custom bindings
+		if (!bConvert || Algo::AllOf(BindingsToChange, [this, &Sequence, &MovieScene, CustomBindingType, Sequencer](const FSequencerChangeBindingInfo& BindingInfo)
+			{
+				return FSequencerUtilities::CanConvertToCustomBinding(Sequencer, BindingInfo.BindingID, CustomBindingType, BindingInfo.BindingIndex);
+			}))
+		{
+			const TWeakPtr<ISequencer> WeakSequencer = Sequencer;
+
+			// Special case director blueprint bindings to show sub-menu for setting endpoints
+			if (CustomBindingType == UMovieSceneSpawnableDirectorBlueprintBinding::StaticClass()
+				|| CustomBindingType == UMovieSceneReplaceableDirectorBlueprintBinding::StaticClass())
+			{
+				// Option to use a director blueprint condition and create or quick bind to an endpoint
+				MenuBuilder.AddSubMenu(
+					FText::Format(LOCTEXT("ConvertToDirectorBlueprintBinding", "{0}..."), CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName()),
+					bConvert ? FText::Format(LOCTEXT("ConvertToCustomBindingTooltip", "Convert selected binding to {0}"), CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName())
+					: FText::Format(LOCTEXT("ChangeToCustomBindingTooltip", "Reset selected binding to a new {0}"), CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName()),
+					FNewMenuDelegate::CreateLambda([this, Sequencer, BindingsToChange, bConvert, OnBindingChanged, CustomBindingType](FMenuBuilder& SubMenuBuilder) { FillDirectorBlueprintBindingSubMenu(SubMenuBuilder, Sequencer, BindingsToChange, bConvert, OnBindingChanged, CustomBindingType); }),
+					false,
+					CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTrackCustomIconOverlay()
+				);
+			}
+			else
+			{
+				MenuBuilder.AddMenuEntry(
+					CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName(),
+					bConvert ? FText::Format(LOCTEXT("ConvertToCustomBindingTooltip", "Convert selected binding to {0}"), CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName())
+					: FText::Format(LOCTEXT("ChangeToCustomBindingTooltip", "Reset selected binding to a new {0}"), CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName()),
+					CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTrackCustomIconOverlay(),
+					FUIAction(FExecuteAction::CreateLambda([this, WeakSequencer, CustomBindingType, Sequence, bConvert, BindingsToChange, OnBindingChanged]()
+						{
+							const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+							if (!Sequencer)
+							{
+								return;
+							}
+
+							const TSharedRef<ISequencer> SequencerRef = Sequencer.ToSharedRef();
+							ChangeBindingTypes(SequencerRef, BindingsToChange, [SequencerRef, Sequence, bConvert, CustomBindingType](FGuid BindingID, int32 BindingIndex)
+								{
+									if (bConvert)
+									{
+										return FSequencerUtilities::ConvertToCustomBinding(SequencerRef, BindingID, CustomBindingType, BindingIndex);
+									}
+									else if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+									{
+										BindingReferences->AddOrReplaceBinding(BindingID,
+											NewObject<UMovieSceneCustomBinding>(Sequence->GetMovieScene(), CustomBindingType),
+											BindingIndex);
+										return Sequence->GetMovieScene()->FindPossessable(BindingID);
+									}
+									return (FMovieScenePossessable*)nullptr;
+								},
+								OnBindingChanged);
+						})));
+			}
+		}
+	}
+
+	MenuBuilder.AddSeparator();
+
+	// Custom classes
+	MenuBuilder.AddSubMenu(
+		LOCTEXT("CustomBindings", "Custom Bindings..."),
+		LOCTEXT("CustomBindingsTooltip", "Choose or create a custom binding type"),
+		FNewMenuDelegate::CreateLambda([this, Sequencer, BindingsToChange, bConvert, OnBindingChanged, UserClasses](FMenuBuilder& SubMenuBuilder) { FillBindingClassSubMenu(SubMenuBuilder, Sequencer, BindingsToChange, bConvert, OnBindingChanged, UserClasses); }),
+		false
+	);
+
+}
+
+void ULevelSequenceEditorSubsystem::FillDirectorBlueprintBindingSubMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToChange, bool bConvert, TFunction<void()> OnBindingChanged, const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType)
+{
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
+	const TWeakPtr<ISequencer> WeakSequencer = Sequencer;
+	if (Sequence)
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("CreateBindingEndpoint_Text", "Create New Binding Endpoint"),
+			LOCTEXT("CreateBindingEndpoint_Tooltip", "Creates a new binding endpoint in this sequence's blueprint."),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Sequencer.CreateEventBinding"),
+			FUIAction(
+				FExecuteAction::CreateLambda([this, WeakSequencer, CustomBindingType, Sequence, bConvert, BindingsToChange, OnBindingChanged]()
+					{
+						const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+						if (!Sequencer)
+						{
+							return;
+						}
+
+						const TSharedRef<ISequencer> SequencerRef = Sequencer.ToSharedRef();
+
+						if (Sequence)
+						{
+							// Change or convert the binding
+							ChangeBindingTypes(SequencerRef, BindingsToChange, [SequencerRef, Sequence, bConvert, CustomBindingType](FGuid BindingID, int32 BindingIndex)
+								{
+									FMovieScenePossessable* NewPossessable = nullptr;
+									if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+									{
+										if (bConvert)
+										{
+											NewPossessable = FSequencerUtilities::ConvertToCustomBinding(SequencerRef, BindingID, CustomBindingType, BindingIndex);
+										}
+										else
+										{
+											BindingReferences->AddOrReplaceBinding(BindingID,
+												NewObject<UMovieSceneCustomBinding>(Sequence->GetMovieScene(), CustomBindingType),
+												BindingIndex);
+											NewPossessable = Sequence->GetMovieScene()->FindPossessable(BindingID);
+										}
+
+										UMovieSceneCustomBinding* NewCustomBinding = BindingReferences->GetCustomBinding(BindingID, BindingIndex);
+
+										TArray<void*> RawData;
+										if (UMovieSceneReplaceableDirectorBlueprintBinding* ReplaceableBinding = Cast<UMovieSceneReplaceableDirectorBlueprintBinding>(NewCustomBinding))
+										{
+											RawData.Add(&ReplaceableBinding->DynamicBinding);
+										}
+										else if (UMovieSceneSpawnableDirectorBlueprintBinding* SpawnableBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(NewCustomBinding))
+										{
+											RawData.Add(&SpawnableBinding->DynamicBinding);
+										}
+
+										// Create temporary director blueprint binding customization for use in creating the endpoint
+										TSharedRef<FMovieSceneDynamicBindingCustomization> BlueprintBindingCustomization = StaticCastSharedRef<FMovieSceneDynamicBindingCustomization>(FMovieSceneDynamicBindingCustomization::MakeInstance(Sequence->GetMovieScene(), BindingID, BindingIndex));
+										BlueprintBindingCustomization->SetRawData(RawData);
+										BlueprintBindingCustomization->CreateEndpoint();
+									}
+
+									return NewPossessable;
+								},
+								OnBindingChanged);
+						}
+					}
+				)
+			));
+
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("CreateQuickBinding_Text", "Quick Bind"),
+			LOCTEXT("CreateQuickBinding_Tooltip", "Shows a list of functions in this sequence's blueprint that can be used for bindings."),
+			FNewMenuDelegate::CreateLambda([this, Sequencer, BindingsToChange, bConvert, OnBindingChanged, CustomBindingType](FMenuBuilder& SubMenuBuilder) { PopulateQuickBindSubMenu(SubMenuBuilder, Sequencer, BindingsToChange, bConvert, OnBindingChanged, CustomBindingType); }),
+			false /* bInOpenSubMenuOnClick */,
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Sequencer.CreateQuickBinding"),
+			false /* bInShouldWindowAfterMenuSelection */
+		);
+	}
+}
+
+void ULevelSequenceEditorSubsystem::PopulateQuickBindSubMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToChange, bool bConvert, TFunction<void()> OnBindingChanged, const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType)
+{
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
+
+	if (!MovieScene || BindingsToChange.IsEmpty())
+	{
+		return;
+	}
+
+	TSharedRef<FMovieSceneDynamicBindingCustomization> BlueprintBindingCustomization = StaticCastSharedRef<FMovieSceneDynamicBindingCustomization>(FMovieSceneDynamicBindingCustomization::MakeInstance(Sequence->GetMovieScene(), BindingsToChange[0].BindingID, BindingsToChange[0].BindingIndex));
+
+	BlueprintBindingCustomization->PopulateQuickBindSubMenu(MenuBuilder,
+		Sequence,
+		FOnQuickBindActionSelected::CreateLambda([this, Sequencer, BindingsToChange, Sequence, bConvert, OnBindingChanged, CustomBindingType]
+		(
+			const TArray<TSharedPtr<FEdGraphSchemaAction>>& SelectedAction,
+			ESelectInfo::Type InSelectionType,
+			UBlueprint* Blueprint,
+			FMovieSceneDirectorBlueprintEndpointDefinition EndpointDefinition
+			)
+			{
+				if (!SelectedAction.IsEmpty())
+				{
+					// Change or convert the binding
+					ChangeBindingTypes(Sequencer, BindingsToChange, [Sequencer, Sequence, bConvert, OnBindingChanged, CustomBindingType, &SelectedAction, InSelectionType, Blueprint, EndpointDefinition](FGuid BindingID, int32 BindingIndex)
+						{
+							FMovieScenePossessable* NewPossessable = nullptr;
+							if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+							{
+								if (bConvert)
+								{
+									NewPossessable = FSequencerUtilities::ConvertToCustomBinding(Sequencer, BindingID, CustomBindingType, BindingIndex);
+								}
+								else
+								{
+									BindingReferences->AddOrReplaceBinding(BindingID,
+										NewObject<UMovieSceneCustomBinding>(Sequence->GetMovieScene(), CustomBindingType),
+										BindingIndex);
+									NewPossessable = Sequence->GetMovieScene()->FindPossessable(BindingID);
+								}
+
+								UMovieSceneCustomBinding* NewCustomBinding = BindingReferences->GetCustomBinding(BindingID, BindingIndex);
+
+								TArray<void*> RawData;
+								if (UMovieSceneReplaceableDirectorBlueprintBinding* ReplaceableBinding = Cast<UMovieSceneReplaceableDirectorBlueprintBinding>(NewCustomBinding))
+								{
+									RawData.Add(&ReplaceableBinding->DynamicBinding);
+								}
+								else if (UMovieSceneSpawnableDirectorBlueprintBinding* SpawnableBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(NewCustomBinding))
+								{
+									RawData.Add(&SpawnableBinding->DynamicBinding);
+								}
+
+								// Create temporary director blueprint binding customization for use in creating the endpoint
+								TSharedRef<FMovieSceneDynamicBindingCustomization> BlueprintBindingCustomization = StaticCastSharedRef<FMovieSceneDynamicBindingCustomization>(FMovieSceneDynamicBindingCustomization::MakeInstance(Sequence->GetMovieScene(), BindingID, BindingIndex));
+								BlueprintBindingCustomization->SetRawData(RawData);
+								BlueprintBindingCustomization->HandleQuickBindActionSelected(SelectedAction, InSelectionType, Blueprint, EndpointDefinition);
+
+							}
+							return NewPossessable;
+						},
+						OnBindingChanged);
+				}
+			}));
+}
+
+void ULevelSequenceEditorSubsystem::FillBindingClassSubMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToChange, bool bConvert, TFunction<void()> OnBindingsChanged, const TArray<const TSubclassOf<UMovieSceneCustomBinding>>& UserCustomBindingTypes)
+{
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
+
+	if (!MovieScene || BindingsToChange.IsEmpty())
+	{
+		return;
+	}
+
+	// If we allow creating binding classes from this replaceable actor binding...
+	if (MovieScene->IsCustomBindingClassAllowed(UMovieSceneReplaceableActorBinding_BPBase::StaticClass()))
+	{
+		// Create a new custom binding Class
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("CreateNewCustomBindingClass", "Create new Replaceable Binding Class"),
+			LOCTEXT("CreateNewCustomBindingClassTooltip", "Creates a new replaceable binding blueprint class"),
+			UMovieSceneReplaceableActorBinding_BPBase::StaticClass()->GetDefaultObject<UMovieSceneReplaceableActorBinding_BPBase>()->GetBindingTrackCustomIconOverlay(),
+			FUIAction(FExecuteAction::CreateLambda([this, Sequencer, Sequence, bConvert, BindingsToChange, OnBindingsChanged]()
+				{
+					FAssetToolsModule& AssetToolsModule = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools");
+
+					FString NewBindingPath = Sequence->GetPathName();
+					FString NewBindingName = Sequence->GetName() + TEXT("_BindingType");
+					AssetToolsModule.Get().CreateUniqueAssetName(NewBindingPath + TEXT("/") + NewBindingName, TEXT(""), NewBindingPath, NewBindingName);
+
+					UBlueprint* Blueprint = FKismetEditorUtilities::CreateBlueprintFromClass(LOCTEXT("CreateNewBindingClass", "Create New Replaceable Binding Class"), UMovieSceneReplaceableActorBinding_BPBase::StaticClass(), NewBindingName);
+
+					if (Blueprint != NULL && Blueprint->GeneratedClass)
+					{
+						GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(Blueprint);
+
+						// Implement the ResolveRuntimeBindingInternal function
+
+						UFunction* OverrideFunc = FindUField<UFunction>(UMovieSceneReplaceableActorBinding_BPBase::StaticClass(), GET_FUNCTION_NAME_CHECKED(UMovieSceneReplaceableActorBinding_BPBase, BP_ResolveRuntimeBinding));
+						check(OverrideFunc);
+						Blueprint->Modify();
+						// Implement the function graph
+						UEdGraph* const NewGraph = FBlueprintEditorUtils::CreateNewGraph(Blueprint, TEXT("BP_ResolveRuntimeBinding"), UEdGraph::StaticClass(), UEdGraphSchema_K2::StaticClass());
+						FBlueprintEditorUtils::AddFunctionGraph(Blueprint, NewGraph, /*bIsUserCreated=*/ false, UMovieSceneReplaceableActorBinding_BPBase::StaticClass());
+						NewGraph->Modify();
+						FKismetEditorUtilities::CompileBlueprint(Blueprint);
+
+						// Change or convert the binding
+						ChangeBindingTypes(Sequencer, BindingsToChange, [Blueprint, Sequencer, Sequence, bConvert, OnBindingsChanged](FGuid BindingID, int32 BindingIndex)
+							{
+								FMovieScenePossessable* NewPossessable = nullptr;
+								if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+								{
+									if (bConvert)
+									{
+										NewPossessable = FSequencerUtilities::ConvertToCustomBinding(Sequencer, BindingID, TSubclassOf<UMovieSceneCustomBinding>(Blueprint->GeneratedClass), BindingIndex);
+									}
+									else
+									{
+										BindingReferences->AddOrReplaceBinding(BindingID,
+											NewObject<UMovieSceneCustomBinding>(Sequence->GetMovieScene(), Blueprint->GeneratedClass),
+											BindingIndex);
+										NewPossessable = Sequence->GetMovieScene()->FindPossessable(BindingID);
+									}
+								}
+								return NewPossessable;
+							},
+							OnBindingsChanged);
+
+
+						FKismetEditorUtilities::BringKismetToFocusAttentionOnObject(NewGraph);
+						Sequencer->RefreshSupportedCustomBindingTypes();
+					}
+				}
+		)));
+
+		class FUserCustomBindingFilter : public IClassViewerFilter
+		{
+		public:
+
+			TArray<const TSubclassOf<UMovieSceneCustomBinding>> UserCustomBindingTypes;
+
+			virtual bool IsClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const UClass* InClass, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs) override
+			{
+				return UserCustomBindingTypes.Contains(InClass);
+			}
+
+			virtual bool IsUnloadedClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const TSharedRef< const IUnloadedBlueprintData > InBlueprint, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs) override
+			{
+				return InBlueprint->GetNativeParent() && InBlueprint->GetNativeParent()->IsChildOf(UMovieSceneReplaceableActorBinding_BPBase::StaticClass());
+			}
+		};
+
+		MenuBuilder.BeginSection(TEXT("ChooseCustomBindingClass"), LOCTEXT("ChooseCustomBindingClass", "Choose Custom Binding Class"));
+		{
+			TSharedPtr<FUserCustomBindingFilter> BindingClassFilter = MakeShared<FUserCustomBindingFilter>();
+			BindingClassFilter->UserCustomBindingTypes = UserCustomBindingTypes;
+
+			FClassViewerInitializationOptions Options;
+			Options.bShowBackgroundBorder = false;
+			Options.bShowUnloadedBlueprints = true;
+			Options.NameTypeToDisplay = EClassViewerNameTypeToDisplay::DisplayName;
+
+			Options.ClassFilters.Add(BindingClassFilter.ToSharedRef());
+
+			MenuBuilder.AddWidget(FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer").CreateClassViewer(Options,
+				FOnClassPicked::CreateLambda([this, Sequencer, Sequence, bConvert, BindingsToChange, OnBindingsChanged](UClass* Class)
+					{
+						// Change or convert the binding
+						ChangeBindingTypes(Sequencer, BindingsToChange, [Sequencer, Sequence, Class, bConvert, OnBindingsChanged](FGuid BindingID, int32 BindingIndex)
+							{
+								FMovieScenePossessable* NewPossessable = nullptr;
+								if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+								{
+									if (bConvert)
+									{
+										NewPossessable = FSequencerUtilities::ConvertToCustomBinding(Sequencer, BindingID, TSubclassOf<UMovieSceneCustomBinding>(Class), BindingIndex);
+									}
+									else
+									{
+										BindingReferences->AddOrReplaceBinding(BindingID,
+											NewObject<UMovieSceneCustomBinding>(Sequence->GetMovieScene(), Class),
+											BindingIndex);
+										NewPossessable = Sequence->GetMovieScene()->FindPossessable(BindingID);
+									}
+								}
+								return NewPossessable;
+							},
+							OnBindingsChanged);
+						FSlateApplication::Get().DismissAllMenus();
+					})), FText::GetEmpty(), true);
+		}
+		MenuBuilder.EndSection();
+	}
+}
+
+void ULevelSequenceEditorSubsystem::ChangeBindingTypes(const TSharedRef<ISequencer>& InSequencer
+	, const TArray<FSequencerChangeBindingInfo>& InBindingsToChange
+	, TFunction<FMovieScenePossessable* (FGuid, int32)> InDoChangeType
+	, TFunction<void()> InOnBindingChanged)
+{
+	using namespace UE::Sequencer;
+
+	UMovieSceneSequence* const Sequence = InSequencer->GetFocusedMovieSceneSequence();
+	if (!IsValid(Sequence))
+	{
+		return;
+	}
+
+	UMovieScene* const MovieScene = Sequence->GetMovieScene();
+	if (!IsValid(MovieScene))
+	{
+		return;
+	}
+
+	if (InBindingsToChange.Num() == 0)
+	{
+		return;
+	}
+
+	if (MovieScene->IsReadOnly())
+	{
+		FSequencerUtilities::ShowReadOnlyError();
+		return;
+	}
+
+	const FScopedTransaction Transaction(LOCTEXT("ConvertSelectedNodes", "Convert Selected Nodes Binding Type"));
+	MovieScene->Modify();
+
+	FScopedSlowTask SlowTask(InBindingsToChange.Num(), LOCTEXT("ConvertProgress", "Converting Selected Nodes Binding Type"));
+	SlowTask.MakeDialog(true);
+
+	TArray<AActor*> PossessedActors;
+	for (const FSequencerChangeBindingInfo& BindingInfo : InBindingsToChange)
+	{
+		SlowTask.EnterProgressFrame();
+
+		if (FMovieScenePossessable* Possessable = InDoChangeType(BindingInfo.BindingID, BindingInfo.BindingIndex))
+		{
+			InSequencer->ForceEvaluate();
+
+			for (TWeakObjectPtr<> WeakObject : InSequencer->FindBoundObjects(Possessable->GetGuid(), InSequencer->GetFocusedTemplateID()))
+			{
+				if (AActor* PossessedActor = Cast<AActor>(WeakObject.Get()))
+				{
+					PossessedActors.Add(PossessedActor);
+				}
+			}
+
+			if (GWarn->ReceivedUserCancel())
+			{
+				break;
+			}
+		}
+	}
+
+	if (PossessedActors.Num())
+	{
+		const bool bNotifySelectionChanged = true;
+		const bool bDeselectBSP = true;
+		const bool bWarnAboutTooManyActors = false;
+		const bool bSelectEvenIfHidden = false;
+
+		GEditor->GetSelectedActors()->Modify();
+		GEditor->GetSelectedActors()->BeginBatchSelectOperation();
+		GEditor->SelectNone(bNotifySelectionChanged, bDeselectBSP, bWarnAboutTooManyActors);
+		for (auto PossessedActor : PossessedActors)
+		{
+			GEditor->SelectActor(PossessedActor, true, bNotifySelectionChanged, bSelectEvenIfHidden);
+		}
+		GEditor->GetSelectedActors()->EndBatchSelectOperation();
+		GEditor->NoteSelectionChange();
+
+		InSequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+	}
+
+	if (InOnBindingChanged != nullptr)
+	{
+		InOnBindingChanged();
 	}
 }
 

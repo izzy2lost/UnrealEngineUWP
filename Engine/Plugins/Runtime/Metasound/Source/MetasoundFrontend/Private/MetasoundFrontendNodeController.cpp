@@ -134,7 +134,7 @@ namespace Metasound
 						if (ClassInput)
 						{
 							// Check if setting back to class default literal
-							const FMetasoundFrontendLiteral& ClassDefaultLiteral = ClassInput->DefaultLiteral;
+							const FMetasoundFrontendLiteral& ClassDefaultLiteral = ClassInput->FindConstDefaultChecked(Frontend::DefaultPageID);
 							bSettingToClassDefaultLiteral = ClassDefaultLiteral.IsEqual(InVertexLiteral.Value);
 
 							// Check if setting from class default literal (which may have a None type) to an appropriate type 
@@ -961,17 +961,12 @@ namespace Metasound
 				}
 			}
 
-			Algo::Transform(OutInterfaceUpdates.RegistryClass.Interface.Inputs, OutInterfaceUpdates.AddedInputs, [&](const FMetasoundFrontendClassInput& Input) { return &Input; });
+			Algo::Transform(OutInterfaceUpdates.RegistryClass.Interface.Inputs, OutInterfaceUpdates.AddedInputs, [](const FMetasoundFrontendClassInput& Input) { return &Input; });
 			for (const FMetasoundFrontendClassInput& Input : NodeClassInterface.Inputs)
 			{
-				auto IsEquivalent = [NodeClassInput = &Input](const FMetasoundFrontendClassInput* Iter)
+				auto IsEquivalent = [&Input](const FMetasoundFrontendClassInput* RegistryInput)
 				{
-					const bool bDefaultEquivalent = Iter->DefaultLiteral.IsEqual(NodeClassInput->DefaultLiteral);
-					if (bDefaultEquivalent)
-					{
-						return FMetasoundFrontendClassVertex::IsFunctionalEquivalent(*NodeClassInput, *Iter);
-					}
-					return false;
+					return FMetasoundFrontendClassInput::IsFunctionalEquivalent(Input, *RegistryInput);
 				};
 
 				const int32 Index = OutInterfaceUpdates.AddedInputs.FindLastByPredicate(IsEquivalent);
@@ -981,16 +976,17 @@ namespace Metasound
 				}
 				else
 				{
-					OutInterfaceUpdates.AddedInputs.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					OutInterfaceUpdates.AddedInputs.RemoveAtSwap(Index, EAllowShrinking::No);
 				}
 			}
 
-			Algo::Transform(OutInterfaceUpdates.RegistryClass.Interface.Outputs, OutInterfaceUpdates.AddedOutputs, [&](const FMetasoundFrontendClassOutput& Output) { return &Output; });
+
+			Algo::Transform(OutInterfaceUpdates.RegistryClass.Interface.Outputs, OutInterfaceUpdates.AddedOutputs, [](const FMetasoundFrontendClassOutput& Output) { return &Output; });
 			for (const FMetasoundFrontendClassOutput& Output : NodeClassInterface.Outputs)
 			{
-				auto IsFunctionalEquivalent = [NodeClassOutput = &Output](const FMetasoundFrontendClassOutput* Iter)
+				auto IsFunctionalEquivalent = [&Output](const FMetasoundFrontendClassOutput* Iter)
 				{
-					return FMetasoundFrontendClassVertex::IsFunctionalEquivalent(*NodeClassOutput, *Iter);
+					return FMetasoundFrontendClassVertex::IsFunctionalEquivalent(Output, *Iter);
 				};
 
 				const int32 Index = OutInterfaceUpdates.AddedOutputs.FindLastByPredicate(IsFunctionalEquivalent);
@@ -1000,7 +996,7 @@ namespace Metasound
 				}
 				else
 				{
-					OutInterfaceUpdates.AddedOutputs.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					OutInterfaceUpdates.AddedOutputs.RemoveAtSwap(Index, EAllowShrinking::No);
 				}
 			}
 
@@ -1014,12 +1010,9 @@ namespace Metasound
 			OutInterfaceUpdates = { };
 
 			const FMetasoundFrontendClassMetadata& NodeClassMetadata = GetClassMetadata();
-			if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
+			if (!IMetaSoundAssetManager::GetChecked().CanAutoUpdate(NodeClassMetadata.GetClassName()))
 			{
-				if (!AssetManager->CanAutoUpdate(NodeClassMetadata.GetClassName()))
-				{
-					return false;
-				}
+				return false;
 			}
 
 			FMetasoundFrontendClass RegistryClass;

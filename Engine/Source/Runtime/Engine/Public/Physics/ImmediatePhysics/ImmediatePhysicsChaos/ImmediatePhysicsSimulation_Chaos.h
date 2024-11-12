@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ChaosDebugDraw/ChaosDDTypes.h"
 #include "ChaosVisualDebugger/ChaosVDContextProvider.h"
 #include "Physics/ImmediatePhysics/ImmediatePhysicsChaos/ImmediatePhysicsCore_Chaos.h"
 
@@ -106,7 +107,8 @@ namespace ImmediatePhysics_Chaos
 			const int32 UseLinearJointSolver,
 			const int32 PositionIts,
 			const int32 VelocityIts,
-			const int32 ProjectionIts);
+			const int32 ProjectionIts,
+			const int32 bUseManifolds);
 
 		/** Explicit debug draw path if the use case needs it to happen at a point outside of the simulation **/
 		ENGINE_API void DebugDraw();
@@ -145,16 +147,29 @@ namespace ImmediatePhysics_Chaos
 	FName DebugName;
 #endif
 
+	private:
+
 #if WITH_CHAOS_VISUAL_DEBUGGER
 	private:
 		FChaosVDContext CVDContextData;
 
 	public:
+		int32 GetCVDFrameNumber() const { return INDEX_NONE; }
+
 		FChaosVDContext& GetChaosVDContextData()
 		{
 			return CVDContextData;
 		};
 #endif
+
+#if CHAOS_DEBUG_DRAW
+	public:
+		ENGINE_API void SetDebugDrawScene(const FString& SceneName, const ChaosDD::Private::FChaosDDScenePtr& InScene);
+
+	private:
+		ChaosDD::Private::FChaosDDTimelinePtr DDSimulationTimeline;
+#endif
+
 	};
 
 }

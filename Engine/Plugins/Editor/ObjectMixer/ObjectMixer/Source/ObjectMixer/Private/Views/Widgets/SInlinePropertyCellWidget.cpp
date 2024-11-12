@@ -2,17 +2,44 @@
 
 #include "Views/Widgets/SInlinePropertyCellWidget.h"
 
+#include "ObjectMixerEditorModule.h"
 #include "Views/List/ObjectMixerEditorListRowData.h"
 #include "Views/List/ObjectMixerUtils.h"
 
+#include "ISequencer.h"
+#include "ISinglePropertyView.h"
+#include "KeyParams.h"
+#include "KeyPropertyParams.h"
+#include "SSimpleButton.h"
 #include "Framework/Application/MenuStack.h"
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/PlatformApplicationMisc.h"
-#include "ISinglePropertyView.h"
 #include "Layout/WidgetPath.h"
 #include "Modules/ModuleManager.h"
 
 #define LOCTEXT_NAMESPACE "ObjectMixerEditor"
+
+namespace UE::ObjectMixer
+{
+	void CreateKey(UObject* InObject, TSharedPtr<IPropertyHandle> InPropertyHandle)
+	{
+		if (!IsValid(InObject) || !InPropertyHandle.IsValid() || !InPropertyHandle->IsValidHandle())
+		{
+			return;
+		}
+
+		for (TWeakPtr<ISequencer> Sequencer : FObjectMixerEditorModule::Get().GetSequencers())
+		{
+			if (!Sequencer.IsValid())
+			{
+				continue;
+			}
+
+			const FKeyPropertyParams KeyPropertyParams({InObject}, *InPropertyHandle, ESequencerKeyMode::ManualKeyForced);
+			Sequencer.Pin()->KeyProperty(KeyPropertyParams);
+		}
+	}
+}
 	
 void SInlinePropertyCellWidget::Construct(
 	const FArguments& InArgs, const FName InColumnName, const TSharedRef<ISceneOutlinerTreeItem> RowPtr)
@@ -37,7 +64,9 @@ void SInlinePropertyCellWidget::Construct(
 
 	if (SinglePropertyView)
 	{
-		if (const TSharedPtr<IPropertyHandle> Handle = SinglePropertyView->GetPropertyHandle())
+		const TSharedPtr<IPropertyHandle> Handle = SinglePropertyView->GetPropertyHandle();
+		
+		if (Handle && Handle->IsValidHandle())
 		{
 			FObjectMixerUtils::GetRowData(RowPtr)->PropertyNamesToHandles.Add(InColumnName, Handle);
 				
@@ -50,12 +79,28 @@ void SInlinePropertyCellWidget::Construct(
 
 			ChildSlot
 			[
-				SNew(SBox)
-				.Visibility(EVisibility::Visible)
+				SNew(SHorizontalBox)
+
+				+ SHorizontalBox::Slot()
 				.HAlign(HAlign_Fill)
 				.VAlign(VAlign_Center)
 				[
 					SinglePropertyView.ToSharedRef()
+				]
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					SNew(SSimpleButton)
+					.ToolTipText(LOCTEXT("CreateKeyToolTip", "Add a keyframe for this property."))
+					.OnClicked_Lambda([ObjectRef, Handle]()
+					{
+						UE::ObjectMixer::CreateKey(ObjectRef, Handle);
+						return FReply::Handled();
+					})
+					.Visibility(FObjectMixerEditorModule::Get().GetSequencers().Num() > 0 ? EVisibility::Visible : EVisibility::Collapsed)
+					.Icon(FAppStyle::Get().GetBrush("Sequencer.AddKey.Details"))
 				]
 			];
 		}

@@ -24,7 +24,7 @@ AWorldPartitionMiniMap::AWorldPartitionMiniMap(const FObjectInitializer& ObjectI
 	, MiniMapTexture(nullptr)
 	, WorldUnitsPerPixel(50)
 	, BuilderCellSize(102400)
-	, CaptureSource(ESceneCaptureSource::SCS_BaseColor)
+	, CaptureSource(ESceneCaptureSource::SCS_SceneColorHDR)
 	, CaptureWarmupFrames(5)
 {
 }
@@ -79,8 +79,7 @@ void AWorldPartitionMiniMap::CheckForErrors()
 		int32 EffectiveWorldUnitsPerPixel = 0;
 		GetMiniMapResolution(EffectiveMinimapImageSizeX, EffectiveMinimapImageSizeY, EffectiveWorldUnitsPerPixel);
 
-		IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-		if (EffectiveWorldUnitsPerPixel > WorldPartitionEditorModule.GetMinimapLowQualityWorldUnitsPerPixelThreshold())
+		if (EffectiveWorldUnitsPerPixel > IWorldPartitionEditorModule::Get().GetMinimapLowQualityWorldUnitsPerPixelThreshold())
 		{
 			FMessageLog("MapCheck").Warning()
 				->AddToken(FUObjectToken::Create(this))

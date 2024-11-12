@@ -48,8 +48,13 @@ public class ScriptableToolsEditorMode : ModuleRules
 				"EditorInteractiveToolsFramework",
 				"ScriptableToolsFramework",
 				"EditorScriptableToolsFramework",
+				"ModelingComponentsEditorOnly",
 
-				"ModelingComponents"
+				"ModelingComponents",
+
+				"WidgetRegistration"
+
+
 			}
 			);
 
@@ -57,7 +62,10 @@ public class ScriptableToolsEditorMode : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Engine"
+				"Engine",
+				"AssetRegistry",
+				"KismetWidgets"
+
 			}
 			);
 

@@ -72,6 +72,10 @@
 #include "UnrealEngine.h"
 #include "IlluminanceMeter.h"
 #include "SparseVolumeTexture/SparseVolumeTextureStreamingVisualize.h"
+#include "CanvasItem.h"
+#include "MobileSSR.h"
+#include "Materials/MaterialRenderProxy.h"
+#include "CustomRenderPassSceneCapture.h"
 
 bool IsMobileEyeAdaptationEnabled(const FViewInfo& View);
 
@@ -101,14 +105,20 @@ TAutoConsoleVariable<bool> CVarBloomApplyLocalExposure(
 	TEXT("Whether to apply local exposure when calculating bloom, default: true"),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
-TAutoConsoleVariable<int32> CVarPostProcessingPropagateAlpha(
+static bool GPostProcessingPropagateAlpha = false;
+/**
+* NOTE (5.5):
+* r.PostProcessing.PropagateAlpha has been converted back to a boolean. In order to prevent silent failures
+* with IConsoleManager::Get().FindTConsoleVariableDataInt returning 0 with a boolean cvar set to True, we now use
+* a FAutoConsoleVariableRef which will warn licensees with typed-access at runtime, see IConsoleObject::AsVariableBool()
+* or IConsoleObject::AsVariableInt(). However both CVar->GetBool() & CVar->GetInt() will continue to work, assuming > 0
+* or EAlphaChannelMode::Type comparisons were used.
+*/
+FAutoConsoleVariableRef CVarPostProcessingPropagateAlpha(
 	TEXT("r.PostProcessing.PropagateAlpha"),
-	0,
-	TEXT("0 to disable scene alpha channel support in the post processing.\n")
-	TEXT(" 0: disabled (default);\n")
-	TEXT(" 1: enabled in linear color space;\n")
-	TEXT(" 2: same as 1, but also enable it through the tonemapper. Compositing after the tonemapper is incorrect, as their is no meaning to tonemap the alpha channel. This is only meant to be use exclusively for broadcasting hardware that does not support linear color space compositing and tonemapping."),
-	ECVF_ReadOnly);
+	GPostProcessingPropagateAlpha,
+	TEXT("Enforce alpha in scene color (overriding r.SceneColorFormat if necessary) and propagate it through the renderer's post-processing chain, default: false"),
+	ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<int32> CVarPostProcessingPreferCompute(
 	TEXT("r.PostProcessing.PreferCompute"),
@@ -149,6 +159,18 @@ TAutoConsoleVariable<int32> CVarPostProcessingForceAsyncDispatch(
 TAutoConsoleVariable<int32> CVarGBufferPicking(
 	TEXT("r.PostProcessing.GBufferPicking"), 0,
 	TEXT("Evaluate GBuffer value for debugging purpose."),
+	ECVF_RenderThreadSafe);
+#endif
+
+#if !(UE_BUILD_SHIPPING)
+TAutoConsoleVariable<int32> CVarUserSceneTextureDebug(
+	TEXT("r.PostProcessing.UserSceneTextureDebug"),
+	2,
+	TEXT("Enable debug display of post process UserSceneTexture inputs and outputs.\n")
+	TEXT(" 0: disabled\n")
+	TEXT(" 1: enabled\n")
+	TEXT(" 2: enable on error -- missing input or unused output (default).  Suppressed by DisableAllScreenMessages.\n")
+	TEXT(" 3: enable only for view with texture visualized through Vis / VisualizeTexture command, to avoid debug clutter in other views.\n"),
 	ECVF_RenderThreadSafe);
 #endif
 }
@@ -196,13 +218,16 @@ bool IsPostProcessingEnabled(const FViewInfo& View)
 
 bool IsPostProcessingWithAlphaChannelSupported()
 {
-	return CVarPostProcessingPropagateAlpha.GetValueOnAnyThread() != 0;
+	return CVarPostProcessingPropagateAlpha->GetBool();
 }
 
 #if DEBUG_POST_PROCESS_VOLUME_ENABLE
 FScreenPassTexture AddFinalPostProcessDebugInfoPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& ScreenPassSceneColor);
 #endif
 
+#if !UE_BUILD_SHIPPING
+static void AddUserSceneTextureDebugPass(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, FScreenPassTexture Output);
+#endif
 
 FDefaultTemporalUpscaler::FOutputs AddThirdPartyTemporalUpscalerPasses(
 	FRDGBuilder& GraphBuilder,
@@ -285,7 +310,7 @@ void AddPostProcessingPasses(
 	int32 ViewIndex,
 	FSceneUniformBuffer& SceneUniformBuffer,
 	bool bAnyLumenActive,
-	bool bLumenGIEnabled,
+	EDiffuseIndirectMethod DiffuseIndirectMethod,
 	EReflectionsMethod ReflectionsMethod,
 	const FPostProcessingInputs& Inputs,
 	const Nanite::FRasterResults* NaniteRasterResults,
@@ -310,6 +335,7 @@ void AddPostProcessingPasses(
 	const FSceneTextureParameters SceneTextureParameters = GetSceneTextureParameters(GraphBuilder, Inputs.SceneTextures);
 
 	const FScreenPassRenderTarget ViewFamilyOutput = FScreenPassRenderTarget::CreateViewFamilyOutput(Inputs.ViewFamilyTexture, View);
+	const FScreenPassRenderTarget ViewFamilyDepthOutput = FScreenPassRenderTarget::CreateViewFamilyOutput(Inputs.ViewFamilyDepthTexture, View);
 	const FScreenPassTexture SceneDepth(SceneTextureParameters.SceneDepthTexture, PrimaryViewRect);
 	const FScreenPassTexture CustomDepth(Inputs.CustomDepthTexture, PrimaryViewRect);
 	const FScreenPassTexture Velocity(SceneTextureParameters.GBufferVelocityTexture, PrimaryViewRect);
@@ -337,13 +363,17 @@ void AddPostProcessingPasses(
 	FRDGBufferRef LastEyeAdaptationBuffer = GetEyeAdaptationBuffer(GraphBuilder, View);
 	FRDGBufferRef EyeAdaptationBuffer = LastEyeAdaptationBuffer;
 
+	const FIntRect ExposureIlluminanceRect = GetDownscaledRect(PrimaryViewRect, GetAutoExposureIlluminanceDownscaleFactor());
+	FScreenPassTexture ExposureIlluminance = FScreenPassTexture(Inputs.ExposureIlluminance, ExposureIlluminanceRect);
+
 	FLocalExposureParameters LocalExposureParameters;
 
 	// Histogram defaults to black because the histogram eye adaptation pass is used for the manual metering mode.
 	FRDGTextureRef HistogramTexture = BlackDummy.Texture;
 
-	FRDGTextureRef LocalExposureTexture = nullptr;
+	FRDGTextureRef LocalExposureBilateralGridTexture = nullptr;
 	FRDGTextureRef LocalExposureBlurredLogLumTexture = BlackDummy.Texture;
+	FScreenPassTexture ExposureFusion;
 
 	FVisualizeTemporalUpscalerInputs VisualizeTemporalUpscalerInputs;
 
@@ -357,7 +387,11 @@ void AddPostProcessingPasses(
 	const int32 LumenVisualizeMode = GetLumenVisualizeMode(View);
 	const bool bPostProcessingEnabled = IsPostProcessingEnabled(View);
 
-	const FPaniniProjectionConfig PaniniConfig(View);
+	// Temporal Anti-aliasing. Also may perform a temporal upsample from primary to secondary view rect.
+	const EMainTAAPassConfig TAAConfig = GetMainTAAPassConfig(View);
+
+	const bool bApplyLensDistortion = View.LensDistortionLUT.IsEnabled();
+	const bool bApplyLensDistortionInTSR = (LensDistortion::GetPassLocation(View) == LensDistortion::EPassLocation::TSR);
 
 	enum class EPass : uint32
 	{
@@ -377,8 +411,10 @@ void AddPostProcessingPasses(
 		VisualizeSkyLightIlluminanceMeter,
 		VisualizeLightFunctionAtlas,
 		VisualizeLevelInstance,
+		VisualizeVirtualShadowMaps_PreEditorPrimitives,
 		SelectionOutline,
 		EditorPrimitive,
+		VisualizeVirtualShadowMaps_PostEditorPrimitives,
 		VisualizeShadingModels,
 		VisualizeGBufferHints,
 		VisualizeSubsurface,
@@ -432,8 +468,10 @@ void AddPostProcessingPasses(
 		TEXT("VisualizeSkyLightIlluminanceMeter"),
 		TEXT("VisualizeLightFunctionAtlas"),
 		TEXT("VisualizeLevelInstance"),
+		TEXT("VisualizeVirtualShadowMaps_PreEditorPrimitives"),
 		TEXT("SelectionOutline"),
 		TEXT("EditorPrimitive"),
+		TEXT("VisualizeVirtualShadowMaps_PostEditorPrimitives"),
 		TEXT("VisualizeShadingModels"),
 		TEXT("VisualizeGBufferHints"),
 		TEXT("VisualizeSubsurface"),
@@ -483,6 +521,15 @@ void AddPostProcessingPasses(
 	PassSequence.SetEnabled(EPass::SelectionOutline, false);
 	PassSequence.SetEnabled(EPass::EditorPrimitive, false);
 #endif
+
+#if WITH_EDITOR || !UE_BUILD_SHIPPING
+	PassSequence.SetEnabled(EPass::VisualizeVirtualShadowMaps_PreEditorPrimitives, EngineShowFlags.VisualizeVirtualShadowMap && VirtualShadowMapArray != nullptr);
+	PassSequence.SetEnabled(EPass::VisualizeVirtualShadowMaps_PostEditorPrimitives, EngineShowFlags.VisualizeVirtualShadowMap && VirtualShadowMapArray != nullptr);
+#else
+	PassSequence.SetEnabled(EPass::VisualizeVirtualShadowMaps_PreEditorPrimitives, false);
+	PassSequence.SetEnabled(EPass::VisualizeVirtualShadowMaps_PostEditorPrimitives, false);
+#endif
+
 	PassSequence.SetEnabled(EPass::VisualizeShadingModels, EngineShowFlags.VisualizeShadingModels);
 	PassSequence.SetEnabled(EPass::VisualizeGBufferHints, EngineShowFlags.GBufferHints);
 	PassSequence.SetEnabled(EPass::VisualizeSubsurface, EngineShowFlags.VisualizeSSS);
@@ -501,7 +548,7 @@ void AddPostProcessingPasses(
 #if UE_ENABLE_DEBUG_DRAWING
 	PassSequence.SetEnabled(EPass::DebugPrimitive, FSceneRenderer::ShouldCompositeDebugPrimitivesInPostProcess(View));
 #endif
-	PassSequence.SetEnabled(EPass::PrimaryUpscale, PaniniConfig.IsEnabled() || (View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale && PrimaryViewRect.Size() != View.GetSecondaryViewRectSize()));
+	PassSequence.SetEnabled(EPass::PrimaryUpscale, (bApplyLensDistortion && !bApplyLensDistortionInTSR) || (View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale && PrimaryViewRect.Size() != View.GetSecondaryViewRectSize()));
 	PassSequence.SetEnabled(EPass::SecondaryUpscale, View.RequiresSecondaryUpscale() || View.Family->GetSecondarySpatialUpscalerInterface() != nullptr);
 
 	const auto GetPostProcessMaterialInputs = [&](FScreenPassTexture InSceneColor)
@@ -578,9 +625,6 @@ void AddPostProcessingPasses(
 
 	if (bPostProcessingEnabled)
 	{
-		// Temporal Anti-aliasing. Also may perform a temporal upsample from primary to secondary view rect.
-		EMainTAAPassConfig TAAConfig = GetMainTAAPassConfig(View);
-
 		const bool bPrimaryView = IStereoRendering::IsAPrimaryView(View);
 		const bool bHasViewState = View.ViewState != nullptr;
 		const bool bDepthOfFieldEnabled = DiaphragmDOF::IsEnabled(View);
@@ -649,7 +693,7 @@ void AddPostProcessingPasses(
 
 		for (int32 ViewExt = 0; ViewExt < View.Family->ViewExtensions.Num(); ++ViewExt)
 		{
-			View.Family->ViewExtensions[ViewExt]->SubscribeToPostProcessingPass(ISceneViewExtension::EPostProcessingPass::SSRInput, SSRInputDelegates, true);
+			View.Family->ViewExtensions[ViewExt]->SubscribeToPostProcessingPass(ISceneViewExtension::EPostProcessingPass::SSRInput, View, SSRInputDelegates, true);
 
 			for (int32 SceneViewPassId = static_cast<int32>(ISceneViewExtension::EPostProcessingPass::MotionBlur); SceneViewPassId != static_cast<int32>(ISceneViewExtension::EPostProcessingPass::MAX); SceneViewPassId++)
 			{
@@ -658,6 +702,7 @@ void AddPostProcessingPasses(
 
 				View.Family->ViewExtensions[ViewExt]->SubscribeToPostProcessingPass(
 					SceneViewPass,
+					View,
 					PassSequence.GetAfterPassCallbacks(PostProcessingPass),
 					PassSequence.IsEnabled(PostProcessingPass));
 			}
@@ -669,7 +714,7 @@ void AddPostProcessingPasses(
 		const bool bFFTBloomEnabled = bBloomEnabled && IsFFTBloomEnabled(View);
 
 		const bool bBasicEyeAdaptationEnabled = bEyeAdaptationEnabled && (AutoExposureMethod == EAutoExposureMethod::AEM_Basic);
-		const bool bLocalExposureBlurredLum = bLocalExposureEnabled && View.FinalPostProcessSettings.LocalExposureBlurredLuminanceBlend > 0.0f;
+		const bool bLocalExposureBlurredLum = bLocalExposureEnabled && View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Bilateral && View.FinalPostProcessSettings.LocalExposureBlurredLuminanceBlend > 0.0f;
 
 		const bool bProcessQuarterResolution = CVarPostProcessingQuarterResolutionDownsample.GetValueOnRenderThread() == 1;
 		const bool bProcessEighthResolution = CVarPostProcessingQuarterResolutionDownsample.GetValueOnRenderThread() == 2;
@@ -695,7 +740,7 @@ void AddPostProcessingPasses(
 		// Post Process Material Chain - BL_SceneColorBeforeDOF
 		if (MaterialChainSceneColorBeforeDOF.Num())
 		{
-			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, GetPostProcessMaterialInputs(SceneColor), MaterialChainSceneColorBeforeDOF);
+			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, ViewIndex, GetPostProcessMaterialInputs(SceneColor), MaterialChainSceneColorBeforeDOF);
 		}
 
 		// Diaphragm Depth of Field
@@ -730,7 +775,7 @@ void AddPostProcessingPasses(
 		// Post Process Material Chain - BL_SceneColorAfterDOF
 		if (MaterialChainSceneColorAfterDOF.Num())
 		{
-			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, GetPostProcessMaterialInputs(SceneColor), MaterialChainSceneColorAfterDOF);
+			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, ViewIndex, GetPostProcessMaterialInputs(SceneColor), MaterialChainSceneColorAfterDOF);
 		}
 
 		// Post Process Material Chain - BL_TranslucencyAfterDOF
@@ -744,7 +789,7 @@ void AddPostProcessingPasses(
 			if (MaterialChainTranslucencyAfterDOF.Num())
 			{
 				FScreenPassTexture PostDOFTranslucency = AddPostProcessMaterialChain(
-					GraphBuilder, View,
+					GraphBuilder, View, ViewIndex,
 					GetPostProcessMaterialInputs(SceneColor),
 					MaterialChainTranslucencyAfterDOF,
 					EPostProcessMaterialInput::SeparateTranslucency);
@@ -800,7 +845,7 @@ void AddPostProcessingPasses(
 				else
 				{
 					UpscalerPassInputs.bGenerateOutputMip1 = bMotionBlurNeedsHalfResInput;
-					UpscalerPassInputs.bGenerateVelocityFlattenTextures = FVelocityFlattenTextures::AllowExternal(View) && !bVisualizeMotionBlur;
+					UpscalerPassInputs.bGenerateVelocityFlattenTextures = FVelocityFlattenTextures::AllowExternal(View) && !bVisualizeMotionBlur && !bApplyLensDistortionInTSR;
 				}
 			}
 			else if (PostProcessMaterialBeforeBloomChain.Num() > 0)
@@ -825,6 +870,10 @@ void AddPostProcessingPasses(
 			UpscalerPassInputs.DownsampleOverrideFormat = DownsampleOverrideFormat;
 			UpscalerPassInputs.PostDOFTranslucencyResources = PostDOFTranslucencyResources;
 			UpscalerPassInputs.FlickeringInputTexture = TSRFlickeringInput;
+			if (bApplyLensDistortionInTSR)
+			{
+				UpscalerPassInputs.LensDistortionLUT = View.LensDistortionLUT;
+			}
 			check(UpscalerPassInputs.SceneColor.ViewRect == View.ViewRect);
 
 			FDefaultTemporalUpscaler::FOutputs Outputs;
@@ -899,7 +948,7 @@ void AddPostProcessingPasses(
 			if (MaterialChain.Num())
 			{
 				InOutPassInputs = GetPostProcessMaterialInputs(FScreenPassTexture::CopyFromSlice(GraphBuilder, SceneColorSlice));
-				PassOutput = AddPostProcessMaterialChain(GraphBuilder, View, InOutPassInputs, MaterialChain);
+				PassOutput = AddPostProcessMaterialChain(GraphBuilder, View, ViewIndex, InOutPassInputs, MaterialChain);
 			}
 
 			for (FAfterPassCallbackDelegate& PassCallback : SSRInputDelegates)
@@ -938,6 +987,10 @@ void AddPostProcessingPasses(
 			PassInputs.Quality = GetMotionBlurQuality();
 			PassInputs.Filter = GetMotionBlurFilter();
 			PassInputs.VelocityFlattenTextures = VelocityFlattenTextures;
+			if (bApplyLensDistortionInTSR)
+			{
+				PassInputs.LensDistortionLUT = View.LensDistortionLUT;
+			}
 
 			// Motion blur visualization replaces motion blur when enabled.
 			if (bVisualizeMotionBlur)
@@ -960,6 +1013,10 @@ void AddPostProcessingPasses(
 			TranslucencyComposition.SceneColor = SceneColorSlice;
 			TranslucencyComposition.OutputViewport = FScreenPassTextureViewport(SceneColorSlice);
 			TranslucencyComposition.OutputPixelFormat = SceneColorFormat;
+			if (bApplyLensDistortionInTSR)
+			{
+				TranslucencyComposition.LensDistortionLUT = View.LensDistortionLUT;
+			}
 
 			SceneColorSlice = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, TranslucencyComposition.AddPass(
 				GraphBuilder, View, PostMotionBlurTranslucencyResources));
@@ -986,7 +1043,7 @@ void AddPostProcessingPasses(
 			PassSequence.AcceptOverrideIfLastPass(EPass::PostProcessMaterialBeforeBloom, PostProcessMaterialInputs.OverrideOutput);
 			PostProcessMaterialInputs.SetInput(EPostProcessMaterialInput::SceneColor, SceneColorSlice);
 
-			SceneColorSlice = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, AddPostProcessMaterialChain(GraphBuilder, View, PostProcessMaterialInputs, PostProcessMaterialBeforeBloomChain));
+			SceneColorSlice = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, AddPostProcessMaterialChain(GraphBuilder, View, ViewIndex, PostProcessMaterialInputs, PostProcessMaterialBeforeBloomChain));
 		}
 
 		// Generate before bloom lower res scene color if they have not been generated.
@@ -1038,9 +1095,9 @@ void AddPostProcessingPasses(
 		{
 			FScreenPassTextureSlice LocalExposureSceneColor = bProcessEighthResolution ? EighthResSceneColor : (bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor);
 
-			if (bLocalExposureEnabled)
+			if (bLocalExposureEnabled && View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Bilateral)
 			{
-				LocalExposureTexture = AddLocalExposurePass(
+				LocalExposureBilateralGridTexture = AddLocalExposurePass(
 					GraphBuilder, View,
 					EyeAdaptationParameters,
 					LocalExposureSceneColor);
@@ -1055,11 +1112,9 @@ void AddPostProcessingPasses(
 
 			if (IsAutoExposureUsingIlluminanceEnabled(View))
 			{
-				if (Inputs.ExposureIlluminance)
+				if (ExposureIlluminance.IsValid())
 				{
-					const FIntRect IlluminanceRect = GetDownscaledRect(PrimaryViewRect, GetAutoExposureIlluminanceDownscaleFactor());
-
-					HistogramSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, FScreenPassTexture(Inputs.ExposureIlluminance, IlluminanceRect));
+					HistogramSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, ExposureIlluminance);
 				}
 				else
 				{
@@ -1104,7 +1159,7 @@ void AddPostProcessingPasses(
 				LocalExposureParameters,
 				SceneDownsampleChain.GetLastTexture(),
 				LastEyeAdaptationBuffer,
-				bLocalExposureEnabled);
+				bLocalExposureEnabled && View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Bilateral);
 		}
 		// Add histogram eye adaptation pass even if no histogram exists to support the manual clamping mode.
 		else if (bEyeAdaptationEnabled)
@@ -1114,7 +1169,18 @@ void AddPostProcessingPasses(
 				EyeAdaptationParameters,
 				LocalExposureParameters,
 				HistogramTexture,
-				bLocalExposureEnabled);
+				bLocalExposureEnabled && View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Bilateral);
+		}
+
+		if (bLocalExposureEnabled && View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Fusion)
+		{
+			ExposureFusion = AddLocalExposureFusionPass(
+				GraphBuilder, View,
+				EyeAdaptationParameters,
+				EyeAdaptationBuffer,
+				LocalExposureParameters,
+				//bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor);
+				SceneColorSlice);
 		}
 
 		FScreenPassTexture Bloom;
@@ -1161,7 +1227,7 @@ void AddPostProcessingPasses(
 					EyeAdaptationParameters,
 					EyeAdaptationBuffer,
 					LocalExposureParameters,
-					CVarBloomApplyLocalExposure.GetValueOnRenderThread() ? LocalExposureTexture : nullptr,
+					CVarBloomApplyLocalExposure.GetValueOnRenderThread() ? LocalExposureBilateralGridTexture : nullptr,
 					LocalExposureBlurredLogLumTexture);
 
 				Bloom = Outputs.BloomTexture;
@@ -1169,7 +1235,7 @@ void AddPostProcessingPasses(
 			}
 			else
 			{
-				const bool bBloomSetupRequiredEnabled = View.FinalPostProcessSettings.BloomThreshold > -1.0f || LocalExposureTexture != nullptr;
+				const bool bBloomSetupRequiredEnabled = View.FinalPostProcessSettings.BloomThreshold > -1.0f || (LocalExposureBilateralGridTexture != nullptr && View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Bilateral);
 
 				// Reuse the main scene downsample chain if setup isn't required for gaussian bloom.
 				if (SceneDownsampleChain.IsInitialized() && !bBloomSetupRequiredEnabled)
@@ -1189,7 +1255,7 @@ void AddPostProcessingPasses(
 						SetupPassInputs.EyeAdaptationBuffer = EyeAdaptationBuffer;
 						SetupPassInputs.EyeAdaptationParameters = &EyeAdaptationParameters;
 						SetupPassInputs.LocalExposureParameters = &LocalExposureParameters;
-						SetupPassInputs.LocalExposureTexture = CVarBloomApplyLocalExposure.GetValueOnRenderThread() ? LocalExposureTexture : nullptr;
+						SetupPassInputs.LocalExposureTexture = CVarBloomApplyLocalExposure.GetValueOnRenderThread() && View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Bilateral ? LocalExposureBilateralGridTexture : nullptr;
 						SetupPassInputs.BlurredLogLuminanceTexture = LocalExposureBlurredLogLumTexture;
 						SetupPassInputs.Threshold = BloomThreshold;
 
@@ -1260,8 +1326,9 @@ void AddPostProcessingPasses(
 				PassInputs.SceneColor = SceneColorSlice;
 				PassInputs.Bloom = Bloom;
 				PassInputs.SceneColorApplyParamaters = SceneColorApplyParameters;
-				PassInputs.LocalExposureTexture = LocalExposureTexture;
+				PassInputs.LocalExposureBilateralGridTexture = LocalExposureBilateralGridTexture;
 				PassInputs.BlurredLogLuminanceTexture = LocalExposureBlurredLogLumTexture;
+				PassInputs.ExposureFusion = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, ExposureFusion);
 				PassInputs.LocalExposureParameters = &LocalExposureParameters;
 				PassInputs.EyeAdaptationParameters = &EyeAdaptationParameters;
 				PassInputs.EyeAdaptationBuffer = EyeAdaptationBuffer;
@@ -1302,7 +1369,7 @@ void AddPostProcessingPasses(
 			PassInputs.SetInput(GraphBuilder, EPostProcessMaterialInput::PostTonemapHDRColor, SceneColorAfterTonemap);
 			PassInputs.SceneTextures = GetSceneTextureShaderParameters(Inputs.SceneTextures);
 
-			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, PassInputs, PostProcessMaterialAfterTonemappingChain);
+			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, ViewIndex, PassInputs, PostProcessMaterialAfterTonemappingChain);
 		}
 
 		if (PassSequence.IsEnabled(EPass::VisualizeLumenScene))
@@ -1315,7 +1382,7 @@ void AddPostProcessingPasses(
 			PassInputs.EyeAdaptationBuffer = GetEyeAdaptationBuffer(GraphBuilder, View);
 			PassInputs.SceneTextures.SceneTextures = Inputs.SceneTextures;
 
-			SceneColor = AddVisualizeLumenScenePass(GraphBuilder, View, bAnyLumenActive, bLumenGIEnabled, PassInputs, LumenFrameTemporaries);
+			SceneColor = AddVisualizeLumenScenePass(GraphBuilder, View, bAnyLumenActive, DiffuseIndirectMethod, PassInputs, LumenFrameTemporaries);
 		}
 
 		if (PassSequence.IsEnabled(EPass::VisualizeDepthOfField))
@@ -1475,6 +1542,7 @@ void AddPostProcessingPasses(
 		}
 	}
 
+
 	if (PassSequence.IsEnabled(EPass::VisualizeLevelInstance))
 	{
 		FVisualizeLevelInstanceInputs PassInputs;
@@ -1485,7 +1553,23 @@ void AddPostProcessingPasses(
 
 		SceneColor = AddVisualizeLevelInstancePass(GraphBuilder, View, SceneUniformBuffer, PassInputs, NaniteRasterResults);
 	}
+#endif //WITH_EDITOR
+	
+	if (PassSequence.IsEnabled(EPass::VisualizeVirtualShadowMaps_PreEditorPrimitives))
+	{
+		FScreenPassRenderTarget OverrideOutput;
+		PassSequence.AcceptOverrideIfLastPass(EPass::VisualizeVirtualShadowMaps_PreEditorPrimitives, OverrideOutput);
+		SceneColor = VirtualShadowMapArray->AddVisualizePass(GraphBuilder, View, ViewIndex, EVSMVisualizationPostPass::PreEditorPrimitives, SceneColor, OverrideOutput);
+	}
+	
+#if WITH_EDITOR || !UE_BUILD_SHIPPING
+ 	if (EngineShowFlags.VisualizeNanite && NaniteRasterResults != nullptr)
+ 	{
+ 		AddVisualizeNanitePass(GraphBuilder, View, SceneColor, *NaniteRasterResults);
+ 	}
+#endif
 
+#if WITH_EDITOR
 	if (PassSequence.IsEnabled(EPass::SelectionOutline))
 	{
 		FSelectionOutlineInputs PassInputs;
@@ -1493,21 +1577,38 @@ void AddPostProcessingPasses(
 		PassInputs.SceneColor = SceneColor;
 		PassInputs.SceneDepth = SceneDepth;
 		PassInputs.SceneTextures.SceneTextures = Inputs.SceneTextures;
-
+		if (bApplyLensDistortionInTSR)
+		{
+			PassInputs.LensDistortionLUT = View.LensDistortionLUT;
+		}
 		SceneColor = AddSelectionOutlinePass(GraphBuilder, View, SceneUniformBuffer, PassInputs, NaniteRasterResults, InstancedEditorDepthTexture);
 	}
 
 	if (PassSequence.IsEnabled(EPass::EditorPrimitive))
 	{
 		FCompositePrimitiveInputs PassInputs;
-		PassSequence.AcceptOverrideIfLastPass(EPass::EditorPrimitive, PassInputs.OverrideOutput);
+		if (PassSequence.AcceptOverrideIfLastPass(EPass::EditorPrimitive, PassInputs.OverrideOutput))
+		{
+			PassInputs.OverrideDepthOutput = ViewFamilyDepthOutput;
+		}
 		PassInputs.SceneColor = SceneColor;
 		PassInputs.SceneDepth = SceneDepth;
 		PassInputs.BasePassType = FCompositePrimitiveInputs::EBasePassType::Deferred;
-
+		if (bApplyLensDistortionInTSR)
+		{
+			PassInputs.LensDistortionLUT = View.LensDistortionLUT;
+		}
 		SceneColor = AddEditorPrimitivePass(GraphBuilder, View, PassInputs, InstanceCullingManager);
 	}
-#endif
+#endif //WITH_EDITOR
+	
+	if (PassSequence.IsEnabled(EPass::VisualizeVirtualShadowMaps_PostEditorPrimitives))
+	{
+		FScreenPassRenderTarget OverrideOutput;
+		PassSequence.AcceptOverrideIfLastPass(EPass::VisualizeVirtualShadowMaps_PostEditorPrimitives, OverrideOutput);
+		SceneColor = VirtualShadowMapArray->AddVisualizePass(GraphBuilder, View, ViewIndex, EVSMVisualizationPostPass::PostEditorPrimitives, SceneColor, OverrideOutput);
+	}
+
 
 	if (PassSequence.IsEnabled(EPass::VisualizeShadingModels))
 	{
@@ -1581,7 +1682,7 @@ void AddPostProcessingPasses(
 		PassInputs.EyeAdaptationBuffer = GetEyeAdaptationBuffer(GraphBuilder, View);
 		PassInputs.SceneTextures.SceneTextures = Inputs.SceneTextures;
 
-		SceneColor = AddVisualizeLumenScenePass(GraphBuilder, View, bAnyLumenActive, bLumenGIEnabled, PassInputs, LumenFrameTemporaries);
+		SceneColor = AddVisualizeLumenScenePass(GraphBuilder, View, bAnyLumenActive, DiffuseIndirectMethod, PassInputs, LumenFrameTemporaries);
 	}
 
 	if (PassSequence.IsEnabled(EPass::VisualizeHDR))
@@ -1590,6 +1691,7 @@ void AddPostProcessingPasses(
 		PassSequence.AcceptOverrideIfLastPass(EPass::VisualizeHDR, PassInputs.OverrideOutput);
 		PassInputs.SceneColor = SceneColor;
 		PassInputs.SceneColorBeforeTonemap = FScreenPassTexture::CopyFromSlice(GraphBuilder, SceneColorBeforeTonemapSlice);
+		PassInputs.Luminance = ExposureIlluminance;
 		PassInputs.HistogramTexture = HistogramTexture;
 		PassInputs.EyeAdaptationBuffer = GetEyeAdaptationBuffer(GraphBuilder, View);
 		PassInputs.EyeAdaptationParameters = &EyeAdaptationParameters;
@@ -1603,7 +1705,7 @@ void AddPostProcessingPasses(
 		PassSequence.AcceptOverrideIfLastPass(EPass::VisualizeLocalExposure, PassInputs.OverrideOutput);
 		PassInputs.SceneColor = SceneColor;
 		PassInputs.HDRSceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, SceneColorBeforeTonemapSlice);
-		PassInputs.LumBilateralGridTexture = LocalExposureTexture;
+		PassInputs.LumBilateralGridTexture = LocalExposureBilateralGridTexture;
 		PassInputs.BlurredLumTexture = LocalExposureBlurredLogLumTexture;
 		PassInputs.LocalExposureParameters = &LocalExposureParameters;
 		PassInputs.EyeAdaptationBuffer = GetEyeAdaptationBuffer(GraphBuilder, View);
@@ -1619,6 +1721,10 @@ void AddPostProcessingPasses(
 		PassInputs.SceneColor = SceneColor;
 		PassInputs.SceneDepth = SceneDepth;
 		PassInputs.SceneVelocity = Velocity;
+		if (bApplyLensDistortionInTSR)
+		{
+			PassInputs.LensDistortionLUT = View.LensDistortionLUT;
+		}
 
 		SceneColor = AddVisualizeMotionVectorsPass(GraphBuilder, View, PassInputs, EVisualizeMotionVectors::ReprojectionAlignment);
 	}
@@ -1710,7 +1816,7 @@ void AddPostProcessingPasses(
 		{
 			EUpscaleMethod Method = GetUpscaleMethod();
 
-			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method, PaniniConfig);
+			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method, View.LensDistortionLUT);
 		}
 	}
 
@@ -1740,7 +1846,7 @@ void AddPostProcessingPasses(
 				? EUpscaleMethod::SmoothStep
 				: EUpscaleMethod::Nearest;
 
-			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method, FPaniniProjectionConfig());
+			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method);
 		}
 	}
 
@@ -1748,19 +1854,11 @@ void AddPostProcessingPasses(
 	{
 		// Draw debug stuff directly onto the back buffer
 
+		RDG_EVENT_SCOPE(GraphBuilder, "Debug Drawing");
+
 		if (EngineShowFlags.TestImage)
 		{
 			AddTestImagePass(GraphBuilder, View, SceneColor);
-		}
-
-		if (EngineShowFlags.VisualizeNanite && NaniteRasterResults != nullptr)
-		{
-			AddVisualizeNanitePass(GraphBuilder, View, SceneColor, *NaniteRasterResults);
-		}
-
-		if (EngineShowFlags.VisualizeVirtualShadowMap && VirtualShadowMapArray != nullptr)
-		{
-			VirtualShadowMapArray->AddVisualizePass(GraphBuilder, View, ViewIndex, SceneColor);
 		}
 
 		#if WITH_EDITOR
@@ -1796,6 +1894,61 @@ void AddPostProcessingPasses(
 		}
 	}
 	#endif
+
+	#if !UE_BUILD_SHIPPING
+	{
+		int32 UserSceneTextureDebug = CVarUserSceneTextureDebug.GetValueOnRenderThread();
+		bool bEnableUserSceneTextureDebug = false;
+
+		if (UserSceneTextureDebug == 1)
+		{
+			// Enable always
+			bEnableUserSceneTextureDebug = true;
+		}
+		else if (UserSceneTextureDebug == 2 && GAreScreenMessagesEnabled)
+		{
+			// Enable conditionally if there are errors
+			const FSceneTextures& SceneTextures = View.GetSceneTextures();
+			for (const FUserSceneTextureEventData& EventData : SceneTextures.UserSceneTextureEvents)
+			{
+				if (EventData.Event == EUserSceneTextureEvent::MissingInput || EventData.Event == EUserSceneTextureEvent::CollidingInput)
+				{
+					bEnableUserSceneTextureDebug = true;
+					break;
+				}
+			}
+
+			for (auto& UserSceneTextureElement : SceneTextures.UserSceneTextures)
+			{
+				if (bEnableUserSceneTextureDebug)
+				{
+					break;
+				}
+				for (FTransientUserSceneTexture& UserSceneTexture : UserSceneTextureElement.Value)
+				{
+					if (!UserSceneTexture.bUsed)
+					{
+						bEnableUserSceneTextureDebug = true;
+						break;
+					}
+				}
+			}
+		}
+		else if (UserSceneTextureDebug == 3)
+		{
+			// Enable conditionally for view with texture being visualized
+			if (GVisualizeTexture.IsRequestedView())
+			{
+				bEnableUserSceneTextureDebug = true;
+			}
+		}
+
+		if (bEnableUserSceneTextureDebug)
+		{
+			AddUserSceneTextureDebugPass(GraphBuilder, View, ViewIndex, SceneColor);
+		}
+	}
+	#endif
 }
 
 void AddDebugViewPostProcessingPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FSceneUniformBuffer &SceneUniformBuffer, const FPostProcessingInputs& Inputs, const Nanite::FRasterResults* NaniteRasterResults)
@@ -1812,6 +1965,7 @@ void AddDebugViewPostProcessingPasses(FRDGBuilder& GraphBuilder, const FViewInfo
 	const FSceneTextureParameters SceneTextureParameters = GetSceneTextureParameters(GraphBuilder, Inputs.SceneTextures);
 
 	const FScreenPassRenderTarget ViewFamilyOutput = FScreenPassRenderTarget::CreateViewFamilyOutput(Inputs.ViewFamilyTexture, View);
+	const FScreenPassRenderTarget ViewFamilyDepthOutput = FScreenPassRenderTarget::CreateViewFamilyOutput(Inputs.ViewFamilyDepthTexture, View);
 	const FScreenPassTexture SceneDepth(SceneTextureParameters.SceneDepthTexture, PrimaryViewRect);
 	FScreenPassTexture SceneColor((*Inputs.SceneTextures)->SceneColorTexture, PrimaryViewRect);
 
@@ -1889,6 +2043,7 @@ void AddDebugViewPostProcessingPasses(FRDGBuilder& GraphBuilder, const FViewInfo
 		case DVSM_ShaderComplexity:
 		case DVSM_ShaderComplexityContainedQuadOverhead:
 		case DVSM_ShaderComplexityBleedingQuadOverhead:
+		case DVSM_LWCComplexity:
 		{
 			FVisualizeComplexityInputs PassInputs;
 			PassInputs.OverrideOutput = OverrideOutput;
@@ -2002,7 +2157,7 @@ void AddDebugViewPostProcessingPasses(FRDGBuilder& GraphBuilder, const FViewInfo
 		{
 			EUpscaleMethod Method = GetUpscaleMethod();
 
-			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method, FPaniniProjectionConfig());
+			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method);
 		}
 	}
 
@@ -2031,7 +2186,7 @@ void AddDebugViewPostProcessingPasses(FRDGBuilder& GraphBuilder, const FViewInfo
 				? EUpscaleMethod::SmoothStep
 				: EUpscaleMethod::Nearest;
 
-			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method, FPaniniProjectionConfig());
+			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, Method);
 		}
 	}
 }
@@ -2097,7 +2252,7 @@ static bool IsGaussianActive(const FViewInfo& View)
 	return true;
 }
 
-void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, const FViewInfo& View, FSceneUniformBuffer &SceneUniformBuffer, const FMobilePostProcessingInputs& Inputs, FInstanceCullingManager& InstanceCullingManager)
+void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, const FViewInfo& View, int32 ViewIndex, FSceneUniformBuffer &SceneUniformBuffer, const FMobilePostProcessingInputs& Inputs, FInstanceCullingManager& InstanceCullingManager)
 {
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderPostProcessing);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_PostProcessing_Process);
@@ -2108,6 +2263,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 	const FIntRect FinalOutputViewRect = View.ViewRect;
 
 	const FScreenPassRenderTarget ViewFamilyOutput = FScreenPassRenderTarget::CreateViewFamilyOutput(Inputs.ViewFamilyTexture, View);
+	const FScreenPassRenderTarget ViewFamilyDepthOutput = FScreenPassRenderTarget::CreateViewFamilyOutput(Inputs.ViewFamilyDepthTexture, View);
 	const FScreenPassTexture SceneDepth((*Inputs.SceneTextures)->SceneDepthTexture, FinalOutputViewRect);
 	const FScreenPassTexture CustomDepth((*Inputs.SceneTextures)->CustomDepthTexture, FinalOutputViewRect);
 	const FScreenPassTexture Velocity((*Inputs.SceneTextures)->SceneVelocityTexture, FinalOutputViewRect);
@@ -2120,8 +2276,6 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 	// Default the new eye adaptation to the last one in case it's not generated this frame.
 	const FEyeAdaptationParameters EyeAdaptationParameters = GetEyeAdaptationParameters(View);
 	FRDGBufferRef LastEyeAdaptationBuffer = GetEyeAdaptationBuffer(GraphBuilder, View);
-
-	const FPaniniProjectionConfig PaniniConfig(View);
 
 	enum class EPass : uint32
 	{
@@ -2207,11 +2361,13 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 	bool bUseDof = GetMobileDepthOfFieldScale(View) > 0.0f && View.Family->EngineShowFlags.DepthOfField && !View.Family->EngineShowFlags.VisualizeDOF;
 	bool bUseMobileDof = bUseDof && !View.FinalPostProcessSettings.bMobileHQGaussian;
 
-	bool bUseToneMapper = !View.Family->EngineShowFlags.ShaderComplexity && (IsMobileHDR() || IsMobileColorsRGB());
+	// Do not use the tonemapper if output texture is sRGB cause the conversion will be performed by HW.
+	const bool bIsOutputTexsRGB = EnumHasAnyFlags(Inputs.ViewFamilyTexture->Desc.Flags, TexCreate_SRGB);
+	bool bUseToneMapper = !View.Family->EngineShowFlags.ShaderComplexity && (IsMobileHDR() || (IsMobileColorsRGB() && !bIsOutputTexsRGB));
 
 	bool bUseHighResolutionScreenshotMask = IsHighResolutionScreenshotMaskEnabled(View);
 
-	bool bShouldPrimaryUpscale = (View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale && View.UnscaledViewRect != View.ViewRect) || PaniniConfig.IsEnabled();
+	bool bShouldPrimaryUpscale = (View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale && View.UnscaledViewRect != View.ViewRect) || View.LensDistortionLUT.IsEnabled();
 	bShouldPrimaryUpscale |= View.Family->GetPrimarySpatialUpscalerInterface() != nullptr;
 
 	PassSequence.SetEnabled(EPass::Tonemap, bUseToneMapper);
@@ -2238,13 +2394,18 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 	// The scene color will be decoded at the first post-process material and output linear color space for the following passes
 	// bMetalMSAAHDRDecode will be set to false if there is any post-process material exist
 
-	auto AddPostProcessMaterialPass = [&GraphBuilder, &View, &Inputs, &SceneColor, &CustomDepth, &bMetalMSAAHDRDecode, &PassSequence](EBlendableLocation BlendableLocation, bool bLastPass)
+	auto AddPostProcessMaterialPass = [&GraphBuilder, &View, ViewIndex, &Inputs, &SceneColor, &CustomDepth, &bMetalMSAAHDRDecode, &PassSequence](EBlendableLocation BlendableLocation, bool bLastPass)
 	{
 		FPostProcessMaterialInputs PostProcessMaterialInputs;
 
 		if (BlendableLocation == BL_SceneColorAfterTonemapping && PassSequence.IsEnabled(EPass::PostProcessMaterialAfterTonemapping))
 		{
 			PassSequence.AcceptOverrideIfLastPass(EPass::PostProcessMaterialAfterTonemapping, PostProcessMaterialInputs.OverrideOutput);
+		}
+
+		if(BlendableLocation == BL_ReplacingTonemapper && PassSequence.IsEnabled(EPass::Tonemap))
+		{
+			PassSequence.AcceptOverrideIfLastPass(EPass::Tonemap, PostProcessMaterialInputs.OverrideOutput);
 		}
 
 		PostProcessMaterialInputs.SetInput(GraphBuilder, EPostProcessMaterialInput::SceneColor, SceneColor);
@@ -2259,7 +2420,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 
 		if (MaterialChain.Num())
 		{
-			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, PostProcessMaterialInputs, MaterialChain);
+			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, ViewIndex, PostProcessMaterialInputs, MaterialChain);
 
 			// For solid material, we decode the input color and output the linear color
 			// For blend material, we force it rendering to an intermediate render target and decode there
@@ -2631,7 +2792,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 			EMainTAAPassConfig TAAConfig = GetMainTAAPassConfig(View);
 			checkSlow(TAAConfig != EMainTAAPassConfig::Disabled);
 
-			FDefaultTemporalUpscaler::FInputs UpscalerPassInputs;
+			FDefaultTemporalUpscaler::FInputs UpscalerPassInputs{};
 			UpscalerPassInputs.SceneColor = FScreenPassTexture(SceneColor.Texture, View.ViewRect);
 			UpscalerPassInputs.SceneDepth = FScreenPassTexture(SceneDepth.Texture, View.ViewRect);
 			UpscalerPassInputs.SceneVelocity = FScreenPassTexture(Velocity.Texture, View.ViewRect);
@@ -2657,6 +2818,24 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 			}
 			SceneColor = FScreenPassTexture(Outputs.FullRes);
 		}
+		else if (IsMobileSSREnabled(View))
+		{
+			// If we need SSR, and TAA is enabled, then AddTemporalAAPass() has already handled the scene history.
+			// If we need SSR, and TAA is not enabled, then we just need to extract the history.
+			if (!View.bStatePrevViewInfoIsReadOnly)
+			{
+				check(View.ViewState);
+				FTemporalAAHistory& OutputHistory = View.ViewState->PrevFrameViewInfo.TemporalAAHistory;
+				GraphBuilder.QueueTextureExtraction(SceneColor.Texture, &OutputHistory.RT[0]);
+
+				// For SSR, we still fill up the rest of the OutputHistory data using shared math from FTAAPassParameters.
+				FTAAPassParameters TAAInputs(View);
+				TAAInputs.SceneColorInput = SceneColor.Texture;
+				TAAInputs.SetupViewRect(View);
+				OutputHistory.ViewportRect = TAAInputs.OutputViewRect;
+				OutputHistory.ReferenceBufferSize = TAAInputs.GetOutputExtent() * TAAInputs.ResolutionDivisor;
+			}
+		}
 	}
 	else
 	{
@@ -2676,64 +2855,74 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 	
 	if (PassSequence.IsEnabled(EPass::Tonemap))
 	{
-		bool bHDRTonemapperOutput = false;
+		const FPostProcessMaterialChain MaterialChain = GetPostProcessMaterialChain(View, BL_ReplacingTonemapper);
 
-		if (!BloomOutput.IsValid())
+		if (MaterialChain.Num())
 		{
-			BloomOutput = BlackAlphaOneDummy;
-		}
-
-		bool bDoGammaOnly = !IsMobileHDR();
-
-		FRDGTextureRef ColorGradingTexture = nullptr;
-
-		if (IStereoRendering::IsAPrimaryView(View) && !bDoGammaOnly)
-		{
-			ColorGradingTexture = AddCombineLUTPass(GraphBuilder, View);
-		}
-		// We can re-use the color grading texture from the primary view.
-		else if (View.GetTonemappingLUT())
-		{
-			ColorGradingTexture = TryRegisterExternalTexture(GraphBuilder, View.GetTonemappingLUT());
+			AddPostProcessMaterialPass(BL_ReplacingTonemapper, false);
 		}
 		else
 		{
-			const FViewInfo* PrimaryView = static_cast<const FViewInfo*>(View.Family->Views[0]);
-			ColorGradingTexture = TryRegisterExternalTexture(GraphBuilder, PrimaryView->GetTonemappingLUT());
-		}
+			bool bHDRTonemapperOutput = false;
 
-		FTonemapInputs TonemapperInputs;
-		PassSequence.AcceptOverrideIfLastPass(EPass::Tonemap, TonemapperInputs.OverrideOutput);
-
-		// This is the view family render target.
-		if (TonemapperInputs.OverrideOutput.Texture)
-		{
-			FIntRect OutputViewRect;
-			if (View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::RawOutput)
+			if (!BloomOutput.IsValid())
 			{
-				OutputViewRect = View.ViewRect;
+				BloomOutput = BlackAlphaOneDummy;
+			}
+
+			bool bDoGammaOnly = !IsMobileHDR();
+
+			FRDGTextureRef ColorGradingTexture = nullptr;
+
+			if (IStereoRendering::IsAPrimaryView(View) && !bDoGammaOnly)
+			{
+				ColorGradingTexture = AddCombineLUTPass(GraphBuilder, View);
+			}
+			// We can re-use the color grading texture from the primary view.
+			else if (View.GetTonemappingLUT())
+			{
+				ColorGradingTexture = TryRegisterExternalTexture(GraphBuilder, View.GetTonemappingLUT());
 			}
 			else
 			{
-				OutputViewRect = View.UnscaledViewRect;
+				const FViewInfo* PrimaryView = static_cast<const FViewInfo*>(View.Family->Views[0]);
+				ColorGradingTexture = TryRegisterExternalTexture(GraphBuilder, PrimaryView->GetTonemappingLUT());
 			}
-			ERenderTargetLoadAction  OutputLoadAction = View.IsFirstInFamily() ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad;
 
-			TonemapperInputs.OverrideOutput.ViewRect = OutputViewRect;
-			TonemapperInputs.OverrideOutput.LoadAction = OutputLoadAction;
+			FTonemapInputs TonemapperInputs;
+			PassSequence.AcceptOverrideIfLastPass(EPass::Tonemap, TonemapperInputs.OverrideOutput);
+
+			// This is the view family render target.
+			if (TonemapperInputs.OverrideOutput.Texture)
+			{
+				FIntRect OutputViewRect;
+				if (View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::RawOutput)
+				{
+					OutputViewRect = View.ViewRect;
+				}
+				else
+				{
+					OutputViewRect = View.UnscaledViewRect;
+				}
+				ERenderTargetLoadAction  OutputLoadAction = View.IsFirstInFamily() ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad;
+
+				TonemapperInputs.OverrideOutput.ViewRect = OutputViewRect;
+				TonemapperInputs.OverrideOutput.LoadAction = OutputLoadAction;
+				TonemapperInputs.OverrideOutput.UpdateVisualizeTextureExtent();
+			}
+
+			TonemapperInputs.SceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, SceneColor);
+			TonemapperInputs.Bloom = BloomOutput;
+			TonemapperInputs.EyeAdaptationParameters = &EyeAdaptationParameters;
+			TonemapperInputs.ColorGradingTexture = ColorGradingTexture;
+			TonemapperInputs.bWriteAlphaChannel = View.AntiAliasingMethod == AAM_FXAA || IsPostProcessingWithAlphaChannelSupported() || bUseMobileDof || IsMobilePropagateAlphaEnabled(View.GetShaderPlatform());
+			TonemapperInputs.bOutputInHDR = bHDRTonemapperOutput;
+			TonemapperInputs.bGammaOnly = bDoGammaOnly;
+			TonemapperInputs.bMetalMSAAHDRDecode = bMetalMSAAHDRDecode;
+			TonemapperInputs.EyeAdaptationBuffer = bUseEyeAdaptation ? LastEyeAdaptationBuffer : nullptr;
+
+			SceneColor = AddTonemapPass(GraphBuilder, View, TonemapperInputs);
 		}
-			
-		TonemapperInputs.SceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, SceneColor);
-		TonemapperInputs.Bloom = BloomOutput;
-		TonemapperInputs.EyeAdaptationParameters = &EyeAdaptationParameters;
-		TonemapperInputs.ColorGradingTexture = ColorGradingTexture;
-		TonemapperInputs.bWriteAlphaChannel = View.AntiAliasingMethod == AAM_FXAA || IsPostProcessingWithAlphaChannelSupported() || bUseMobileDof || IsMobilePropagateAlphaEnabled(View.GetShaderPlatform());
-		TonemapperInputs.bOutputInHDR = bHDRTonemapperOutput;
-		TonemapperInputs.bGammaOnly = bDoGammaOnly;
-		TonemapperInputs.bMetalMSAAHDRDecode = bMetalMSAAHDRDecode;
-		TonemapperInputs.EyeAdaptationBuffer = bUseEyeAdaptation ? LastEyeAdaptationBuffer : nullptr;
-
-		SceneColor = AddTonemapPass(GraphBuilder, View, TonemapperInputs);
 
 		//The output color should been decoded to linear space after tone mapper apparently
 		bMetalMSAAHDRDecode = false;
@@ -2792,6 +2981,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 	{
 		FCompositePrimitiveInputs PassInputs;
 		PassSequence.AcceptOverrideIfLastPass(EPass::EditorPrimitive, PassInputs.OverrideOutput);
+		PassInputs.OverrideDepthOutput = ViewFamilyDepthOutput;
 		PassInputs.SceneColor = SceneColor;
 		PassInputs.SceneDepth = SceneDepth;
 		PassInputs.BasePassType = FCompositePrimitiveInputs::EBasePassType::Mobile;
@@ -2846,7 +3036,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 		}
 		else
 		{
-			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, EUpscaleMethod::Bilinear, PaniniConfig);
+			SceneColor = ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, EUpscaleMethod::Bilinear, View.LensDistortionLUT);
 		}
 	}
 
@@ -2868,7 +3058,15 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 				View.UnscaledViewRect.Width(), View.UnscaledViewRect.Height());
 
 			SceneColor = CustomUpscaler->AddPasses(GraphBuilder, View, PassInputs);
-			check(SceneColor == ViewFamilyOutput);
+
+			if (PassSequence.IsLastPass(EPass::SecondaryUpscale))
+			{
+				check(SceneColor == ViewFamilyOutput);
+			}
+			else
+			{
+				check(SceneColor.ViewRect.Size() == View.UnscaledViewRect.Size());
+			}
 		}
 	}
 
@@ -2935,7 +3133,8 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 	// Copy the scene color to back buffer in case there is no post process, such as LDR MSAA.
 	if (SceneColor.Texture != ViewFamilyOutput.Texture)
 	{
-		AddDrawTexturePass(GraphBuilder, View, SceneColor, ViewFamilyOutput);
+		const uint32 RTMultiViewCount = (View.bIsMobileMultiViewEnabled) ? 2 : (View.Aspects.IsMobileMultiViewEnabled() ? 1 : 0);
+		AddDrawTexturePass(GraphBuilder, View, SceneColor, ViewFamilyOutput, RTMultiViewCount);
 	}
 }
 
@@ -3045,6 +3244,238 @@ FScreenPassTexture AddFinalPostProcessDebugInfoPasses(FRDGBuilder& GraphBuilder,
 	return MoveTemp(ScreenPassSceneColor);
 }
 #endif
+
+#if !UE_BUILD_SHIPPING
+
+// Canvas.DrawShadowedString returns height -- this variation returns width
+static float CanvasDrawShadowedStringReturnWidth(FCanvas& Canvas, float PrintX, float PrintY, const FString& Text, const UFont* Font, FLinearColor TextColor)
+{
+	FCanvasTextStringViewItem TextItem(FVector2D(PrintX, PrintY), Text, Font, TextColor);
+	if (Font && Font->ImportOptions.bUseDistanceFieldAlpha)
+	{
+		TextItem.BlendMode = SE_BLEND_MaskedDistanceFieldShadowed;
+	}
+	else
+	{
+		TextItem.EnableShadow(FLinearColor::Black);
+	}
+	Canvas.DrawItem(TextItem);
+	return TextItem.DrawnSize.X / Canvas.GetDPIScale();
+}
+
+static void AddUserSceneTextureDebugPass(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, FScreenPassTexture Output)
+{
+	const FSceneTextures& SceneTextures = View.GetSceneTextures();
+	if (!SceneTextures.UserSceneTextureEvents.IsEmpty())
+	{
+		FScreenPassRenderTarget OutputTarget = FScreenPassRenderTarget(Output, ERenderTargetLoadAction::ELoad);
+		AddDrawCanvasPass(GraphBuilder, RDG_EVENT_NAME("UserSceneTextureDebug"), View, OutputTarget, [&View, ViewIndex, &SceneTextures](FCanvas& Canvas)
+		{
+			FLinearColor TextColor(FLinearColor::White);
+			FLinearColor GrayTextColor(FLinearColor::Gray);
+			FLinearColor GreenTextColor(FLinearColor::Green);
+			FLinearColor RedTextColor(FLinearColor::Red);
+			FLinearColor YellowTextColor(FLinearColor::Yellow);
+			FLinearColor MagentaTextColor(1.f, 0.f, 1.f);
+			FString Text;
+
+			const UFont* Font = GetStatsFont();
+
+			const float ViewPortWidth = float(View.ViewRect.Width());
+			const float ViewPortHeight = float(View.ViewRect.Height());
+
+			const float CRHeight = 20.0f;
+			const float OffsetFromLeft = 0.05f;
+			const float OffsetFromTop = 0.2f;
+			const float OffsetFromHeader = CRHeight * 1.5f;
+
+			float PrintX_CR = ViewPortWidth * OffsetFromLeft;
+
+			float PrintX = PrintX_CR;
+			float PrintY = ViewPortHeight * OffsetFromTop;
+
+			int32 NumPasses = 0;
+			for (const FUserSceneTextureEventData& EventData : SceneTextures.UserSceneTextureEvents)
+			{
+				if (EventData.ViewIndex == ViewIndex && EventData.Event == EUserSceneTextureEvent::Pass)
+				{
+					NumPasses++;
+				}
+			}
+
+			// Draw header
+			Text = FString::Printf(TEXT("User Scene Texture Passes (count = %i)"), NumPasses);
+			PrintX += CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, *Text, Font, GreenTextColor);
+			if (CVarUserSceneTextureDebug.GetValueOnRenderThread() == 2)
+			{
+				CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, TEXT(" - enabled on error via \"r.PostProcessing.UserSceneTextureDebug 2\""), Font, GreenTextColor);
+			}
+			PrintX = PrintX_CR;
+			PrintY += CRHeight;
+
+			// Draw column description
+			CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, TEXT("Location [Priority]  Material:   Inputs   -->  Output"), Font, GrayTextColor);
+			PrintY += OffsetFromHeader;
+
+			// Draw blendable locations and priorities
+			static_assert(BL_MAX == 7);
+			static const TCHAR* GBlendableLocationShortNames[BL_MAX + 1] = {};
+			if (!GBlendableLocationShortNames[0])
+			{
+				// One time init -- enum in header isn't in numerical order, so it's simpler to initialize this way
+				GBlendableLocationShortNames[BL_SceneColorBeforeDOF] = TEXT("BeforeDOF");
+				GBlendableLocationShortNames[BL_SceneColorAfterDOF] = TEXT("AfterDOF");
+				GBlendableLocationShortNames[BL_TranslucencyAfterDOF] = TEXT("Translucent");
+				GBlendableLocationShortNames[BL_SSRInput] = TEXT("SSRInput");
+				GBlendableLocationShortNames[BL_SceneColorBeforeBloom] = TEXT("BeforeBloom");
+				GBlendableLocationShortNames[BL_ReplacingTonemapper] = TEXT("ReplaceTonemap");
+				GBlendableLocationShortNames[BL_SceneColorAfterTonemapping] = TEXT("AfterTonemap");
+				GBlendableLocationShortNames[BL_MAX] = TEXT("MAX");
+			}
+
+			static_assert((int32)FCustomRenderPassBase::ERenderOutput::MAX == 7);
+			static const TCHAR* GCustomRenderPassOutputShortNames[(int32)FCustomRenderPassBase::ERenderOutput::MAX] =
+			{
+				TEXT("Depth"),			// SceneDepth
+				TEXT("Devdepth"),		// DeviceDepth
+				TEXT("ColDepth"),		// SceneColorAndDepth
+				TEXT("Color"),			// SceneColorAndAlpha
+				TEXT("ColorNoA"),		// SceneColorNoAlpha
+				TEXT("Base"),			// BaseColor
+				TEXT("Norm"),			// Normal
+			};
+
+			float MaxBlendableInfoWidth = 0.0f;
+			for (const FUserSceneTextureEventData& EventData : SceneTextures.UserSceneTextureEvents)
+			{
+				if (EventData.ViewIndex == ViewIndex && EventData.Event == EUserSceneTextureEvent::Pass)
+				{
+					const FMaterialRenderProxy* RenderProxy = EventData.MaterialInterface->GetRenderProxy();
+					const FMaterial* Material = RenderProxy->GetMaterialNoFallback(View.FeatureLevel);
+
+					Text = FString::Printf(TEXT("%s [%d]"), GBlendableLocationShortNames[FMath::Min((uint32)RenderProxy->GetBlendableLocation(Material), (uint32)BL_MAX)], RenderProxy->GetBlendablePriority(Material));
+
+					float BlendableInfoWidth = CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, Text, Font, TextColor);
+					MaxBlendableInfoWidth = FMath::Max(MaxBlendableInfoWidth, BlendableInfoWidth);
+					PrintY += CRHeight;
+				}
+				else if (EventData.ViewIndex == ViewIndex && EventData.Event == EUserSceneTextureEvent::CustomRenderPass)
+				{
+					const FCustomRenderPassBase* RenderPass = (const FCustomRenderPassBase*)EventData.MaterialInterface;
+					const FSceneCaptureCustomRenderPassUserData& UserData = FSceneCaptureCustomRenderPassUserData::Get(RenderPass);
+
+					// EventData.AllocationOrder stores the ERenderOutput enum
+					Text = FString::Printf(TEXT("%s (CRP:%s)"), *UserData.CaptureActorName, GCustomRenderPassOutputShortNames[EventData.AllocationOrder]);
+
+					float BlendableInfoWidth = CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, Text, Font, TextColor);
+					MaxBlendableInfoWidth = FMath::Max(MaxBlendableInfoWidth, BlendableInfoWidth);
+					PrintY += CRHeight;
+				}
+			}
+
+			PrintX_CR = PrintX_CR + MaxBlendableInfoWidth + 10.0f;
+			PrintX = PrintX_CR;
+			PrintY = ViewPortHeight * OffsetFromTop + CRHeight + OffsetFromHeader;
+
+			// Draw material names
+			float MaxNameWidth = 0.0f;
+			for (const FUserSceneTextureEventData& EventData : SceneTextures.UserSceneTextureEvents)
+			{
+				if (EventData.ViewIndex == ViewIndex && EventData.Event == EUserSceneTextureEvent::Pass)
+				{
+					const UMaterialInterface* MaterialInterface = EventData.MaterialInterface;
+
+					// Skip over runtime generated dynamic instance when producing name
+					while (MaterialInterface->IsA<UMaterialInstanceDynamic>())
+					{
+						MaterialInterface = ((const UMaterialInstanceDynamic*)MaterialInterface)->Parent;
+					}
+
+					Text = FString::Printf(TEXT("%s:"), *MaterialInterface->GetName());
+
+					float NameWidth = CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, Text, Font, TextColor);
+					MaxNameWidth = FMath::Max(MaxNameWidth, NameWidth);
+					PrintY += CRHeight;
+				}
+			}
+
+			PrintX_CR = PrintX_CR + MaxNameWidth + 10.0f;
+			PrintX = PrintX_CR;
+			PrintY = ViewPortHeight * OffsetFromTop + CRHeight + OffsetFromHeader;
+
+			// Draw everything else (inputs and outputs)
+			bool bAnyMissing = false;
+			bool bAnyUnused = false;
+			bool bAnyColliding = false;
+
+			for (const FUserSceneTextureEventData& EventData : SceneTextures.UserSceneTextureEvents)
+			{
+				if (EventData.ViewIndex == ViewIndex)
+				{
+					switch (EventData.Event)
+					{
+					case EUserSceneTextureEvent::MissingInput:
+						Text = FString::Printf(TEXT("  %s"), *EventData.Name.ToString());
+						PrintX += CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, Text, Font, RedTextColor);
+						bAnyMissing = true;
+						break;
+					case EUserSceneTextureEvent::CollidingInput:
+						Text = FString::Printf(TEXT("  %s"), *EventData.Name.ToString());
+						PrintX += CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, Text, Font, MagentaTextColor);
+						bAnyColliding = true;
+						break;
+					case EUserSceneTextureEvent::FoundInput:
+						Text = FString::Printf(TEXT("  %s"), *EventData.Name.ToString());
+						PrintX += CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, Text, Font, GrayTextColor);
+						break;
+					case EUserSceneTextureEvent::Output:
+						{
+							const FTransientUserSceneTexture* UserTexture = SceneTextures.FindUserSceneTextureByEvent(EventData);
+							check(UserTexture);
+
+							Text = FString::Printf(TEXT("  --> %s [%dx%d]"), *EventData.Name.ToString(), EventData.RectSize.X, EventData.RectSize.Y);
+							PrintX += CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, *Text, Font, UserTexture->bUsed ? GrayTextColor : YellowTextColor);
+							bAnyUnused = bAnyUnused || !UserTexture->bUsed;
+
+							// MaterialInterface can be null if this output was generated by a CustomRenderPass
+							if (EventData.MaterialInterface && EventData.MaterialInterface->GetBlendMode() != BLEND_Opaque)
+							{
+								PrintX += CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, TEXT("  Blend"), Font, GrayTextColor);
+							}
+						}
+						break;
+					case EUserSceneTextureEvent::Pass:
+					case EUserSceneTextureEvent::CustomRenderPass:
+						// End of line
+						PrintY += CRHeight;
+						PrintX = PrintX_CR;
+						break;
+					}
+				}
+			}
+
+			// Print color codings for warnings if present
+			PrintX = ViewPortWidth * OffsetFromLeft;
+			PrintY += CRHeight * 0.5f;
+			if (bAnyUnused)
+			{
+				CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, TEXT("Yellow:  Unused Output"), Font, YellowTextColor);
+				PrintY += CRHeight;
+			}
+			if (bAnyMissing)
+			{
+				CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, TEXT("Red:  Missing Input"), Font, RedTextColor);
+				PrintY += CRHeight;
+			}
+			if (bAnyColliding)
+			{
+				CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, TEXT("Magenta:  Input collides with Output"), Font, MagentaTextColor);
+				PrintY += CRHeight;
+			}
+		});
+	}
+}
+#endif  // !UE_BUILD_SHIPPING
 
 // Shader for visualizing GBuffer values
 class FGBufferPickingCS : public FGlobalShader

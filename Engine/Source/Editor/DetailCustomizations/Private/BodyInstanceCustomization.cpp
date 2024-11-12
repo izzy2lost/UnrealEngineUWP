@@ -117,23 +117,85 @@ void FBodyInstanceCustomization::RefreshCollisionProfiles()
 		CollisionProfileComboList.Add(MakeShareable(new FString(CollisionProfile->GetProfileByIndex(ProfileId)->Name.ToString())));
 	}
 
-	if(CollsionProfileComboBox.IsValid())
+	if(CollisionProfileComboBox.IsValid())
 	{
-		CollsionProfileComboBox->RefreshOptions();
+		CollisionProfileComboBox->RefreshOptions();
 	}
 }
 
-void FBodyInstanceCustomization::AddCollisionCategory(TSharedRef<class IPropertyHandle> StructPropertyHandle, class IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
+BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
+void FBodyInstanceCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> StructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
 {
+	BodyInstanceHandle = StructPropertyHandle;
+
+	// copy all bodyinstances I'm accessing right now
+	TArray<void*> StructPtrs;
+	StructPropertyHandle->AccessRawData(StructPtrs);
+	check(StructPtrs.Num() != 0);
+
+	BodyInstances.AddZeroed(StructPtrs.Num());
+	for (auto Iter = StructPtrs.CreateIterator(); Iter; ++Iter)
+	{
+		check(*Iter);
+		BodyInstances[Iter.GetIndex()] = (FBodyInstance*)(*Iter);
+	}
+
+	TArray<UObject*> OwningObjects;
+	StructPropertyHandle->GetOuterObjects(OwningObjects);
+
+	PrimComponents.Empty(OwningObjects.Num());
+	for (UObject* Obj : OwningObjects)
+{
+		if (UPrimitiveComponent* PrimComponent = Cast<UPrimitiveComponent>(Obj))
+		{
+			PrimComponents.Add(PrimComponent);
+
+			if (FBodyInstance* BI = PrimComponent->GetBodyInstance())
+			{
+				BodyInstanceToPrimComponent.Add(BI, PrimComponent);
+			}
+		}
+	}
+
+	// get all parent instances
+	TSharedPtr<IPropertyHandle> CollisionCategoryHandle = StructPropertyHandle->GetParentHandle();
+	TSharedPtr<IPropertyHandle> StaticMeshComponentHandle = CollisionCategoryHandle->GetParentHandle();
+
+	if (CollisionCategoryHandle.IsValid())
+	{
+		UseDefaultCollisionHandle = CollisionCategoryHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(UStaticMeshComponent, bUseDefaultCollision));
+	}
+
+	if (StaticMeshComponentHandle.IsValid())
+	{
+		StaticMeshHandle = StaticMeshComponentHandle->GetChildHandle(UStaticMeshComponent::GetMemberNameChecked_StaticMesh());
+		if (StaticMeshHandle.IsValid())
+		{
+			FSimpleDelegate OnStaticMeshChangedDelegate = FSimpleDelegate::CreateSP(this, &FBodyInstanceCustomization::RefreshCollisionProfiles);
+			StaticMeshHandle->SetOnPropertyValueChanged(OnStaticMeshChangedDelegate);
+		}
+	}
+
+	TSharedPtr<IPropertyHandle> SimulatePhysicsPropertyHandle = BodyInstanceHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FBodyInstance, bSimulatePhysics));
+	if (SimulatePhysicsPropertyHandle.IsValid())
+	{
+		FSimpleDelegate OnSimulatePhysicsChangedDelegate = FSimpleDelegate::CreateSP(this, &FBodyInstanceCustomization::OnSimulatePhysicsChanged);
+		SimulatePhysicsPropertyHandle->SetOnPropertyValueChanged(OnSimulatePhysicsChangedDelegate);
+	}
+
+	// The selection of BodyInstances modifies the collision profiles available, refresh them now : 
+	RefreshCollisionProfiles();
+
 	CollisionProfileNameHandle = StructPropertyHandle->GetChildHandle(TEXT("CollisionProfileName"));
+	check(CollisionProfileNameHandle.IsValid());
+
 	CollisionEnabledHandle = StructPropertyHandle->GetChildHandle(TEXT("CollisionEnabled"));
+	check(CollisionEnabledHandle.IsValid());
+
 	ObjectTypeHandle = StructPropertyHandle->GetChildHandle(TEXT("ObjectType"));
+	check(ObjectTypeHandle.IsValid());
 
 	CollisionResponsesHandle = StructPropertyHandle->GetChildHandle(TEXT("CollisionResponses"));
-
-	check (CollisionProfileNameHandle.IsValid());
-	check (CollisionEnabledHandle.IsValid());
-	check (ObjectTypeHandle.IsValid());
 	check (CollisionResponsesHandle.IsValid());
 	
 	// Expensive to validate
@@ -156,8 +218,7 @@ void FBodyInstanceCustomization::AddCollisionCategory(TSharedRef<class IProperty
 	const FString PresetsDocLink = TEXT("Shared/Collision");
 	TSharedPtr<SToolTip> ProfileTooltip = IDocumentation::Get()->CreateToolTip(LOCTEXT("SelectCollisionPreset", "Select collision presets. You can set this data in Project settings."), NULL, PresetsDocLink, TEXT("PresetDetail"));
 
-	IDetailGroup& CollisionGroup = StructBuilder.AddGroup( TEXT("Collision"), LOCTEXT("CollisionPresetsLabel", "Collision Presets") );
-	CollisionGroup.HeaderRow()
+	HeaderRow
 	.OverrideResetToDefault(FResetToDefaultOverride::Create(
 		TAttribute<bool>::Create([this]() { return ShouldShowResetToDefaultProfile(); }),
 		FSimpleDelegate::CreateLambda([this]() { SetToDefaultProfile(); })
@@ -181,10 +242,10 @@ void FBodyInstanceCustomization::AddCollisionCategory(TSharedRef<class IProperty
 		+ SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
 		[
-			SAssignNew(CollsionProfileComboBox, SComboBox< TSharedPtr<FString> >)
+					SAssignNew(CollisionProfileComboBox, SComboBox< TSharedPtr<FString> >)
 			.OptionsSource(&CollisionProfileComboList)
 			.OnGenerateWidget(this, &FBodyInstanceCustomization::MakeCollisionProfileComboWidget)
-			.OnSelectionChanged(this, &FBodyInstanceCustomization::OnCollisionProfileChanged, &CollisionGroup)
+						.OnSelectionChanged(this, &FBodyInstanceCustomization::OnCollisionProfileChanged)
 			.OnComboBoxOpening(this, &FBodyInstanceCustomization::OnCollisionProfileComboOpening)
 			.InitiallySelectedItem(DisplayName)
 			.Content()
@@ -195,76 +256,17 @@ void FBodyInstanceCustomization::AddCollisionCategory(TSharedRef<class IProperty
 				.ToolTipText(this, &FBodyInstanceCustomization::GetCollisionProfileComboBoxToolTip)
 			]
 		]
-	];
-
-	CollisionGroup.ToggleExpansion(bDisplayAdvancedCollisionSettings);
-	// now create custom set up
-	CreateCustomCollisionSetup( StructPropertyHandle, CollisionGroup );
+		]
+		.ShouldAutoExpand(bDisplayAdvancedCollisionSettings);
 }
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void FBodyInstanceCustomization::CustomizeChildren( TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils )
 {
-	BodyInstanceHandle = StructPropertyHandle;
+	IDetailCategoryBuilder& CatBuilder = StructBuilder.GetParentCategory();
+	DetailBuilder = &CatBuilder.GetParentLayout();
 
-	// copy all bodyinstances I'm accessing right now
-	TArray<void*> StructPtrs;
-	StructPropertyHandle->AccessRawData(StructPtrs);
-	check(StructPtrs.Num() != 0);
-
-	BodyInstances.AddZeroed(StructPtrs.Num());
-	for (auto Iter = StructPtrs.CreateIterator(); Iter; ++Iter)
-	{
-		check(*Iter);
-		BodyInstances[Iter.GetIndex()] = (FBodyInstance*)(*Iter);
-	}
-
-	TArray<UObject*> OwningObjects;
-	StructPropertyHandle->GetOuterObjects(OwningObjects);
-
-	PrimComponents.Empty(OwningObjects.Num());
-	for (UObject* Obj : OwningObjects)
-	{
-		if(UPrimitiveComponent* PrimComponent = Cast<UPrimitiveComponent>(Obj))
-		{
-			PrimComponents.Add(PrimComponent);	
-
-			if(FBodyInstance* BI = PrimComponent->GetBodyInstance())
-			{
-				BodyInstanceToPrimComponent.Add(BI, PrimComponent);
-			}
-		}
-	}
-
-	RefreshCollisionProfiles();
-	
-	// get all parent instances
-	TSharedPtr<IPropertyHandle> CollisionCategoryHandle = StructPropertyHandle->GetParentHandle();
-	TSharedPtr<IPropertyHandle> StaticMeshComponentHandle = CollisionCategoryHandle->GetParentHandle();
-
-	if(CollisionCategoryHandle.IsValid())
-	{
-		UseDefaultCollisionHandle = CollisionCategoryHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(UStaticMeshComponent, bUseDefaultCollision));
-	}
-
-	if (StaticMeshComponentHandle.IsValid())
-	{
-		StaticMeshHandle = StaticMeshComponentHandle->GetChildHandle(UStaticMeshComponent::GetMemberNameChecked_StaticMesh());
-		if(StaticMeshHandle.IsValid())
-		{
-			FSimpleDelegate OnStaticMeshChangedDelegate = FSimpleDelegate::CreateSP(this, &FBodyInstanceCustomization::RefreshCollisionProfiles);
-			StaticMeshHandle->SetOnPropertyValueChanged(OnStaticMeshChangedDelegate);
-		}
-	}
-	
-	TSharedPtr<IPropertyHandle> SimulatePhysicsPropertyHandle = BodyInstanceHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FBodyInstance, bSimulatePhysics));
-	if (SimulatePhysicsPropertyHandle.IsValid())
-	{
-		FSimpleDelegate OnSimulatePhysicsChangedDelegate = FSimpleDelegate::CreateSP(this, &FBodyInstanceCustomization::OnSimulatePhysicsChanged);
-		SimulatePhysicsPropertyHandle->SetOnPropertyValueChanged(OnSimulatePhysicsChangedDelegate);
-	}
-
-	AddCollisionCategory(StructPropertyHandle, StructBuilder, StructCustomizationUtils);
+	// now create custom set up
+	CreateCustomCollisionSetup(StructPropertyHandle, StructBuilder);
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
@@ -395,7 +397,7 @@ void FBodyInstanceCustomization::UpdateValidCollisionChannels()
 }
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-void FBodyInstanceCustomization::CreateCustomCollisionSetup( TSharedRef<class IPropertyHandle> StructPropertyHandle, class IDetailGroup& CollisionGroup )
+void FBodyInstanceCustomization::CreateCustomCollisionSetup(TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& StructBuilder)
 {
 	UpdateValidCollisionChannels();
 
@@ -412,14 +414,13 @@ void FBodyInstanceCustomization::CreateCustomCollisionSetup( TSharedRef<class IP
 	// initialize ObjectTypeComboList
 	// we only display things that has "DisplayName"
 	int32 IndexSelected = InitializeObjectTypeComboList();
-
-	CollisionGroup.AddPropertyRow(CollisionEnabledHandle.ToSharedRef())
+	StructBuilder.AddProperty(CollisionEnabledHandle.ToSharedRef())
 	.IsEnabled(CustomCollisionEnabled)
 	.Visibility(CustomCollisionVisibility);
 
 	if (!StructPropertyHandle->GetProperty()->GetBoolMetaData(TEXT("HideObjectType")))
 	{
-		CollisionGroup.AddWidgetRow()
+		StructBuilder.AddCustomRow(LOCTEXT("ObjectType", "Object Type"))
 		.Visibility(CustomCollisionVisibility)
 		.IsEnabled(CustomCollisionEnabled)
 		.NameContent()
@@ -444,7 +445,7 @@ void FBodyInstanceCustomization::CreateCustomCollisionSetup( TSharedRef<class IP
 	}
 
 	// Add Title
-	CollisionGroup.AddWidgetRow()
+	StructBuilder.AddCustomRow(LOCTEXT("CustomCollision", "Custom Collision"))
 	.IsEnabled(CustomCollisionEnabled)
 	.Visibility(CustomCollisionVisibility)
 	.ValueContent()
@@ -488,7 +489,7 @@ void FBodyInstanceCustomization::CreateCustomCollisionSetup( TSharedRef<class IP
 	];
 
 	// Add All check box
-	CollisionGroup.AddWidgetRow()
+	StructBuilder.AddCustomRow(LOCTEXT("All", "All"))
 	.IsEnabled(CustomCollisionEnabled)
 	.Visibility(CustomCollisionVisibility)
 	.NameContent()
@@ -556,7 +557,7 @@ void FBodyInstanceCustomization::CreateCustomCollisionSetup( TSharedRef<class IP
 
 	// add header
 	// Add Title
-	CollisionGroup.AddWidgetRow()
+	StructBuilder.AddCustomRow(LOCTEXT("TraceResponses", "Trace Responses"))
 	.IsEnabled(CustomCollisionEnabled)
 	.Visibility(CustomCollisionVisibility)
 	.NameContent()
@@ -581,7 +582,7 @@ void FBodyInstanceCustomization::CreateCustomCollisionSetup( TSharedRef<class IP
 			FString DisplayName = ValidCollisionChannels[Index].DisplayName;
 			EVisibility Visibility = EVisibility::Visible;
 
-			CollisionGroup.AddWidgetRow()
+			StructBuilder.AddCustomRow(LOCTEXT("CollisionChannel", "Collision Channel"))
 			.IsEnabled(CustomCollisionEnabled)
 			.Visibility(CustomCollisionVisibility)
 			.OverrideResetToDefault(FResetToDefaultOverride::Create(
@@ -642,7 +643,7 @@ void FBodyInstanceCustomization::CreateCustomCollisionSetup( TSharedRef<class IP
 	}
 
 	// Add Title
-	CollisionGroup.AddWidgetRow()
+	StructBuilder.AddCustomRow(LOCTEXT("ObjectResponses", "Object Responses"))
 	.IsEnabled(CustomCollisionEnabled)
 	.Visibility(CustomCollisionVisibility)
 	.NameContent()
@@ -664,7 +665,7 @@ void FBodyInstanceCustomization::CreateCustomCollisionSetup( TSharedRef<class IP
 			FString DisplayName = ValidCollisionChannels[Index].DisplayName;
 			EVisibility Visibility = EVisibility::Visible;
 
-			CollisionGroup.AddWidgetRow()
+			StructBuilder.AddCustomRow(LOCTEXT("CollisionChannel", "Collision Channel"))
 			.IsEnabled(CustomCollisionEnabled)
 			.Visibility(CustomCollisionVisibility)
 			.OverrideResetToDefault(FResetToDefaultOverride::Create(
@@ -796,7 +797,7 @@ void FBodyInstanceCustomization::OnCollisionProfileComboOpening()
 		TSharedPtr<FString> ComboStringPtr = CollisionProfileComboList[GetDefaultIndex()];
 		if (ComboStringPtr.IsValid())
 		{
-			CollsionProfileComboBox->SetSelectedItem(ComboStringPtr);
+			CollisionProfileComboBox->SetSelectedItem(ComboStringPtr);
 			return;
 		}
 	}
@@ -807,15 +808,13 @@ void FBodyInstanceCustomization::OnCollisionProfileComboOpening()
 		TSharedPtr<FString> ComboStringPtr = GetProfileString(ProfileName);
 		if( ComboStringPtr.IsValid() )
 		{
-			CollsionProfileComboBox->SetSelectedItem(ComboStringPtr);
+			CollisionProfileComboBox->SetSelectedItem(ComboStringPtr);
 		}
 	}
 }
 
 void FBodyInstanceCustomization::MarkAllBodiesDefaultCollision(bool bUseDefaultCollision)
 {
-	CollisionResponsesHandle->NotifyPreChange();
-
 	if(PrimComponents.Num() && UseDefaultCollisionHandle.IsValid())	//If we have prim components we might be coming from bp editor which needs to propagate all instances
 	{
 		for(UPrimitiveComponent* PrimComp : PrimComponents)
@@ -842,11 +841,9 @@ void FBodyInstanceCustomization::MarkAllBodiesDefaultCollision(bool bUseDefaultC
 			}
 		}
 	}
-
-	CollisionResponsesHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
 }
 
-void FBodyInstanceCustomization::OnCollisionProfileChanged( TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo, IDetailGroup* CollisionGroup )
+void FBodyInstanceCustomization::OnCollisionProfileChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
 {
 	// if it's set from code, we did that on purpose
 	if (SelectInfo != ESelectInfo::Direct)
@@ -872,7 +869,9 @@ void FBodyInstanceCustomization::OnCollisionProfileChanged( TSharedPtr<FString> 
 		{
 			if(NewSelection == CollisionProfileComboList[GetDefaultIndex()])
 			{
+				CollisionResponsesHandle->NotifyPreChange();
 				MarkAllBodiesDefaultCollision(true);
+				CollisionResponsesHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
 				return;
 			}
 		}
@@ -880,14 +879,13 @@ void FBodyInstanceCustomization::OnCollisionProfileChanged( TSharedPtr<FString> 
 		if( NewSelection == CollisionProfileComboList[GetCustomIndex()])
 		{
 			// Force expansion when the user chooses the selected item
-			CollisionGroup->ToggleExpansion( true );
+			DetailBuilder->EditPropertyFromRoot(BodyInstanceHandle)->ShouldAutoExpand(true);
 		}
 
 		// if none of them found, clear it
 		FName Name=UCollisionProfile::CustomCollisionProfileName;
-		ensure ( CollisionProfileNameHandle->SetValue(Name) ==  FPropertyAccess::Result::Success );
-
 		MarkAllBodiesDefaultCollision(false);
+		ensure(CollisionProfileNameHandle->SetValue(Name) == FPropertyAccess::Result::Success);
 	}
 }
 
@@ -913,7 +911,7 @@ void FBodyInstanceCustomization::UpdateCollisionProfile()
 				SetCollisionResponseContainer(CurProfile->ResponseToChannels);
 
 				// now update combo box
-				CollsionProfileComboBox.Get()->SetSelectedItem(CollisionProfileComboList[ProfileId+NumSpecialProfiles]);
+				CollisionProfileComboBox.Get()->SetSelectedItem(CollisionProfileComboList[ProfileId+NumSpecialProfiles]);
 				if (ObjectTypeComboBox.IsValid())
 				{
 					for (auto Iter = ObjectTypeValues.CreateConstIterator(); Iter; ++Iter)
@@ -931,7 +929,7 @@ void FBodyInstanceCustomization::UpdateCollisionProfile()
 		}
 	}
 
-	CollsionProfileComboBox.Get()->SetSelectedItem(CollisionProfileComboList[AreAllCollisionUsingDefault() ? GetDefaultIndex() : GetCustomIndex()]);
+	CollisionProfileComboBox.Get()->SetSelectedItem(CollisionProfileComboList[AreAllCollisionUsingDefault() ? GetDefaultIndex() : GetCustomIndex()]);
 }
 
 void FBodyInstanceCustomization::SetToDefaultProfile()
@@ -1318,7 +1316,13 @@ void FBodyInstanceCustomizationHelper::UpdateFilters()
 	}
 }
 
-void FBodyInstanceCustomizationHelper::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> BodyInstanceHandler)
+
+void FBodyInstanceCustomizationHelper::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> BodyInstanceHandler)
+{
+	CustomizeDetails(DetailBuilder, BodyInstanceHandler, TFunction<void(TSharedRef<IPropertyHandle>)>());
+}
+
+void FBodyInstanceCustomizationHelper::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> BodyInstanceHandler, TFunction<void(TSharedRef<IPropertyHandle>)> CustomizeCoMNudge)
 {
 	if( BodyInstanceHandler->IsValidHandle() )
 	{
@@ -1365,7 +1369,16 @@ void FBodyInstanceCustomizationHelper::CustomizeDetails( IDetailLayoutBuilder& D
 			.Visibility(TAttribute<EVisibility>(this, &FBodyInstanceCustomizationHelper::IsAutoWeldVisible));
 
 		EnablePhysicsProperty(GET_MEMBER_NAME_CHECKED(FBodyInstance, bStartAwake), bDisplayStartAwake);
-		EnablePhysicsProperty(GET_MEMBER_NAME_CHECKED(FBodyInstance, COMNudge), bDisplayCOMNudge);
+
+		if (CustomizeCoMNudge && bDisplayCOMNudge)
+		{
+			CustomizeCoMNudge(BodyInstanceHandler);
+		}
+		else
+		{
+			EnablePhysicsProperty(GET_MEMBER_NAME_CHECKED(FBodyInstance, COMNudge), bDisplayCOMNudge);
+		}
+
 		EnablePhysicsProperty(GET_MEMBER_NAME_CHECKED(FBodyInstance, MassScale), bDisplayMassScale);
 
 		if (bDisplayMaxAngularVelocity)
@@ -1383,8 +1396,6 @@ void FBodyInstanceCustomizationHelper::CustomizeDetails( IDetailLayoutBuilder& D
 		BodyInstanceHandler->GetChildHandle(GET_MEMBER_NAME_CHECKED(FBodyInstance, bLockXRotation))->MarkHiddenByCustomization();
 		BodyInstanceHandler->GetChildHandle(GET_MEMBER_NAME_CHECKED(FBodyInstance, bLockYRotation))->MarkHiddenByCustomization();
 		BodyInstanceHandler->GetChildHandle(GET_MEMBER_NAME_CHECKED(FBodyInstance, bLockZRotation))->MarkHiddenByCustomization();
-		BodyInstanceHandler->GetChildHandle(GET_MEMBER_NAME_CHECKED(FBodyInstance, PositionSolverIterationCount))->MarkHiddenByCustomization();
-		BodyInstanceHandler->GetChildHandle(GET_MEMBER_NAME_CHECKED(FBodyInstance, VelocitySolverIterationCount))->MarkHiddenByCustomization();
 		BodyInstanceHandler->GetChildHandle(GET_MEMBER_NAME_CHECKED(FBodyInstance, CustomDOFPlaneNormal))->MarkHiddenByCustomization();
 
 		//Add the rest

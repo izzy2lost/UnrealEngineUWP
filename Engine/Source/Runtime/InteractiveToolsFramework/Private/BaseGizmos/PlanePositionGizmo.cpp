@@ -5,9 +5,31 @@
 #include "BaseBehaviors/ClickDragBehavior.h"
 #include "BaseBehaviors/MouseHoverBehavior.h"
 #include "BaseGizmos/GizmoMath.h"
+#include "BaseGizmos/GizmoPrivateUtil.h" // SetCommonSubGizmoProperties
+#include "BaseGizmos/TransformSubGizmoUtil.h" // FTransformSubGizmoCommonParams
+#include "Components/PrimitiveComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PlanePositionGizmo)
 
+namespace PlanePositionGizmoLocals
+{
+	bool UpdateCameraAxisSource(UGizmoConstantFrameAxisSource& CameraAxisSource, UInteractiveGizmoManager* GizmoManager, const FVector3d& AxisOrigin)
+	{
+		if (!GizmoManager || !GizmoManager->GetContextQueriesAPI())
+		{
+			return false;
+		}
+
+		FViewCameraState CameraState;
+		GizmoManager->GetContextQueriesAPI()->GetCurrentViewState(CameraState);
+
+		CameraAxisSource.Origin = AxisOrigin;
+		CameraAxisSource.Direction = -CameraState.Forward();
+		CameraAxisSource.TangentX = CameraState.Right();
+		CameraAxisSource.TangentY = CameraState.Up();
+		return true;
+	}
+}
 
 
 UInteractiveGizmo* UPlanePositionGizmoBuilder::BuildGizmo(const FToolBuilderState& SceneState) const
@@ -39,6 +61,160 @@ void UPlanePositionGizmo::Setup()
 	StateTarget = NewObject<UGizmoNilStateTarget>(this);
 
 	bInInteraction = false;
+}
+
+bool UPlanePositionGizmo::InitializeAsTranslateGizmo(
+	const UE::GizmoUtil::FTransformSubGizmoCommonParams& Params,
+	UE::GizmoUtil::FTransformSubGizmoSharedState* SharedState)
+{
+	if (!Params.Component
+		|| !Params.TransformProxy
+		|| Params.Axis == EAxis::None)
+	{
+		return false;
+	}
+
+	UGizmoScaledAndUnscaledTransformSources* TransformSource;
+	if (!UE::GizmoUtil::SetCommonSubGizmoProperties(this, Params, SharedState, TransformSource))
+	{
+		return false;
+	}
+
+	UObject* Owner = Params.OuterForSubobjects ? Params.OuterForSubobjects : GetTransientPackage();
+
+	// Parameter source maps axis-parameter-change to translation of TransformSource's transform
+	ParameterSource = UGizmoPlaneTranslationParameterSource::Construct(
+		AxisSource.GetInterface(), TransformSource, Owner);
+
+	return true;
+}
+
+bool UPlanePositionGizmo::InitializeAsScaleGizmo(
+	const UE::GizmoUtil::FTransformSubGizmoCommonParams& Params, bool bDisallowNegativeScaling,
+	UE::GizmoUtil::FTransformSubGizmoSharedState* SharedState)
+{
+	if (!Params.Component
+		|| !Params.TransformProxy
+		|| Params.Axis == EAxis::None)
+	{
+		return false;
+	}
+
+	int AxisIndex = Params.GetClampedAxisIndex();
+
+	UGizmoScaledAndUnscaledTransformSources* TransformSource;
+	if (!UE::GizmoUtil::SetCommonSubGizmoProperties(this, Params, SharedState, TransformSource))
+	{
+		return false;
+	}
+
+	UObject* Owner = Params.OuterForSubobjects ? Params.OuterForSubobjects : GetTransientPackage();
+	bEnableSignedAxis = true;
+
+	// Although the normal axis source gets used for detecting interactions, the parameter application has
+	//  to happen along unrotated axes because the scaling gets applied before rotation. In other words if we
+	//  tried to apply scaling measured along a rotated vector, we would end up incorrectly scaling along
+	//  multiple axes.
+	UGizmoComponentAxisSource* UnitCardinalAxisSource = nullptr;
+	// See if we already have it in our shared state
+	if (SharedState && SharedState->UnitCardinalAxisSources[AxisIndex])
+	{
+		UnitCardinalAxisSource = SharedState->UnitCardinalAxisSources[AxisIndex];
+	}
+	else
+	{
+		// Create new and add to shared state.
+		USceneComponent* RootComponent = Params.Component->GetOwner()->GetRootComponent();
+		UGizmoComponentAxisSource* CastAxisSource = UGizmoComponentAxisSource::Construct(RootComponent, AxisIndex,
+			// bUseLocalAxes, not important because we're going to be updating this value every tick
+			true,
+			Owner);
+		UnitCardinalAxisSource = CastAxisSource;
+		if (SharedState)
+		{
+			SharedState->UnitCardinalAxisSources[AxisIndex] = UnitCardinalAxisSource;
+		}
+	}
+
+	// Parameter source maps axis-parameter-change to scale of TransformSource's transform
+	UGizmoPlaneScaleParameterSource* CastParameterSource = UGizmoPlaneScaleParameterSource::Construct(
+		UnitCardinalAxisSource, TransformSource, Owner);
+	ParameterSource = CastParameterSource;
+	CastParameterSource->bClampToZero = bDisallowNegativeScaling;
+	CastParameterSource->bUseEqualScaling = true;
+
+	return true;
+}
+
+bool UPlanePositionGizmo::InitializeAsUniformScaleGizmo(
+	const UE::GizmoUtil::FTransformSubGizmoCommonParams& Params,
+	bool bDisallowNegativeScaling,
+	UE::GizmoUtil::FTransformSubGizmoSharedState* SharedState)
+{
+	using namespace PlanePositionGizmoLocals;
+
+	if (!Params.Component
+		|| !Params.TransformProxy)
+	{
+		return false;
+	}
+
+	UGizmoScaledAndUnscaledTransformSources* TransformSource;
+
+	// Make sure axis index is invalid so that the SetCommonSubGizmoProperties call below doesn't create
+	// an axis source for us.
+	if (!ensureMsgf(Params.Axis == EAxis::None, TEXT("InitializeAsUniformScaleGizmo uses a camera axis source.")))
+	{
+		UE::GizmoUtil::FTransformSubGizmoCommonParams ParamsCopy = Params;
+		ParamsCopy.Axis = EAxis::None;
+		if (!UE::GizmoUtil::SetCommonSubGizmoProperties(this, ParamsCopy, SharedState, TransformSource))
+		{
+			return false;
+		}
+	}
+	else if (!UE::GizmoUtil::SetCommonSubGizmoProperties(this, Params, SharedState, TransformSource))
+	{
+		return false;
+	}
+
+	UObject* Owner = Params.OuterForSubobjects ? Params.OuterForSubobjects : GetTransientPackage();
+
+	UGizmoConstantFrameAxisSource* CameraAxisSource = nullptr;
+
+	// See if we already have it in our shared state
+	if (SharedState && SharedState->CameraAxisSource)
+	{
+		CameraAxisSource = SharedState->CameraAxisSource;
+	}
+	else
+	{
+		// Create new and add to shared state.
+		CameraAxisSource = NewObject<UGizmoConstantFrameAxisSource>(Owner);
+		TWeakObjectPtr<AActor> OwnerActor = Params.Component->GetOwner();
+		CustomTickFunction = [this, OwnerActor](float DeltaTime)
+		{
+			if (UGizmoConstantFrameAxisSource* FrameAxisSource = Cast<UGizmoConstantFrameAxisSource>(AxisSource.GetObject()))
+			{
+				UpdateCameraAxisSource(
+					*FrameAxisSource,
+					GetGizmoManager(),
+					OwnerActor.IsValid() ? OwnerActor->GetTransform().GetLocation() : FVector3d::ZeroVector);
+			}
+		};
+
+		if (SharedState)
+		{
+			SharedState->CameraAxisSource = CameraAxisSource;
+		}
+	}
+	AxisSource = CameraAxisSource;
+
+	// Parameter source maps axis-parameter-change to scale of TransformSource's transform
+	UGizmoUniformScaleParameterSource* CastParameterSource = UGizmoUniformScaleParameterSource::Construct(
+		CameraAxisSource, TransformSource, Owner);
+	ParameterSource = CastParameterSource;
+
+	return true;
 }
 
 FInputRayHit UPlanePositionGizmo::CanBeginClickDragSequence(const FInputDeviceRay& PressPos)
@@ -113,6 +289,10 @@ void UPlanePositionGizmo::OnClickPress(const FInputDeviceRay& PressPos)
 	{
 		StateTarget->BeginUpdate();
 	}
+	if (ensure(HitTarget))
+	{
+		HitTarget->UpdateInteractingState(bInInteraction);
+	}
 }
 
 void UPlanePositionGizmo::OnClickDrag(const FInputDeviceRay& DragPos)
@@ -175,6 +355,10 @@ void UPlanePositionGizmo::OnClickRelease(const FInputDeviceRay& ReleasePos)
 		StateTarget->EndUpdate();
 	}
 	bInInteraction = false;
+	if (ensure(HitTarget))
+	{
+		HitTarget->UpdateInteractingState(bInInteraction);
+	}
 }
 
 
@@ -191,6 +375,10 @@ void UPlanePositionGizmo::OnTerminateDragSequence()
 		StateTarget->EndUpdate();
 	}
 	bInInteraction = false;
+	if (ensure(HitTarget))
+	{
+		HitTarget->UpdateInteractingState(bInInteraction);
+	}
 }
 
 
@@ -224,3 +412,11 @@ void UPlanePositionGizmo::OnEndHover()
 	HitTarget->UpdateHoverState(false);
 }
 
+
+void UPlanePositionGizmo::Tick(float DeltaTime)
+{
+	if (CustomTickFunction)
+	{
+		CustomTickFunction(DeltaTime);
+	}
+}

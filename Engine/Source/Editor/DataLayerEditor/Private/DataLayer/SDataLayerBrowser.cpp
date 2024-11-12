@@ -9,6 +9,7 @@
 #include "DataLayerActorTreeItem.h"
 #include "DataLayerMode.h"
 #include "DataLayerOutlinerDeleteButtonColumn.h"
+#include "DataLayerOutlinerDebugColorColumn.h"
 #include "DataLayerOutlinerHasErrorColumn.h"
 #include "DataLayerOutlinerIsLoadedInEditorColumn.h"
 #include "DataLayerOutlinerIsVisibleColumn.h"
@@ -101,7 +102,7 @@ void SDataLayerBrowser::Construct(const FArguments& InArgs)
 		{
 			if (const FWorldPartitionActorDescInstance* ActorDescInstance = *ActorDescItem->ActorDescHandle)
 			{
-				return ActorDescInstance->GetActorName().ToString();
+				return ActorDescInstance->GetActorNameString();
 			}
 		}
 		return FString();
@@ -131,6 +132,7 @@ void SDataLayerBrowser::Construct(const FArguments& InArgs)
 		.Visibility_Lambda([]() { return UDataLayerEditorSubsystem::Get()->HasDeprecatedDataLayers() ? EVisibility::Visible : EVisibility::Collapsed; });
 
 	FSceneOutlinerInitializationOptions InitOptions;
+	InitOptions.OutlinerIdentifier = TEXT("DataLayerEditorOutliner");
 	InitOptions.bShowHeaderRow = true;
 	InitOptions.bShowParentTree = true;
 	InitOptions.bShowCreateNewFolder = false;
@@ -143,6 +145,7 @@ void SDataLayerBrowser::Construct(const FArguments& InArgs)
 	InitOptions.ColumnMap.Add("ID Name", FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Invisible, 20, FCreateSceneOutlinerColumn::CreateStatic(&FTextInfoColumn::CreateTextInfoColumn, FName("ID Name"), InternalNameInfoText, FText::GetEmpty())));
 	InitOptions.ColumnMap.Add("Initial State", FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Invisible, 20, FCreateSceneOutlinerColumn::CreateStatic(&FTextInfoColumn::CreateTextInfoColumn, FName("Initial State"), InternalInitialRuntimeStateInfoText, FText::FromString("Initial Runtime State"))));
 	InitOptions.ColumnMap.Add(FDataLayerOutlinerHasErrorsColumn::GetID(), FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 100, FCreateSceneOutlinerColumn::CreateLambda([](ISceneOutliner& InSceneOutliner) { return MakeShareable(new FDataLayerOutlinerHasErrorsColumn(InSceneOutliner)); }), false));
+	InitOptions.ColumnMap.Add(FDataLayerOutlinerDebugColorColumn::GetID(), FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Invisible, 100, FCreateSceneOutlinerColumn::CreateLambda([](ISceneOutliner& InSceneOutliner) { return MakeShareable(new FDataLayerOutlinerDebugColorColumn(InSceneOutliner)); })));
 	DataLayerOutliner = SNew(SDataLayerOutliner, InitOptions).IsEnabled(FSlateApplication::Get().GetNormalExecutionAttribute());
 
 	SAssignNew(DataLayerContentsSection, SBorder)

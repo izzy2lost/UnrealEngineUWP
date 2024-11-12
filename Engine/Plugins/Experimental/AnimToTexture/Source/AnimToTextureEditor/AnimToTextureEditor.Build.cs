@@ -25,6 +25,7 @@ public class AnimToTextureEditor : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"AssetDefinition",
 				"Core",
 				"MaterialEditor",
 				"MessageLog"
@@ -36,6 +37,8 @@ public class AnimToTextureEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"AssetTools",
+				"ContentBrowser",
 				"CoreUObject",
 				"Engine",
 				"Slate",
@@ -44,6 +47,7 @@ public class AnimToTextureEditor : ModuleRules
 				"RawMesh",
 				"MeshDescription",
 				"StaticMeshDescription",
+				"ToolMenus",
 				"UnrealEd",
 			}
 			);

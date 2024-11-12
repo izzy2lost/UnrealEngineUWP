@@ -46,7 +46,7 @@ namespace UE
 		//
 
 		/** How to update a boolean build setting */
-		enum class MODELINGCOMPONENTS_API EBuildSettingBoolChange
+		enum class EBuildSettingBoolChange
 		{
 			Disable,
 			Enable,

@@ -6,8 +6,10 @@
 
 #include "../Common.ush"
 #include "../BRDF.ush"
+#include "LumenFloatQuantization.ush"
 #include "LumenCardCommon.ush"
 #include "LumenCardTile.ush"
+#include "LumenCardTileShadowDownsampleFactor.ush"
 #include "LumenSceneLighting.ush"
 #include "SurfaceCache/LumenSurfaceCacheSampling.ush"
 #include "Radiosity/LumenRadiosity.ush"
@@ -321,6 +323,7 @@ void BuildCardsUpdateListCS(
 				RWDirectLightingCardPageIndexData))
 			{
 				CardPage.LastDirectLightingUpdateFrameIndex = SurfaceCacheUpdateFrameIndex;
+				CardPage.DirectLightingTemporalIndex += 1;
 				bUpdatedCardPage = true;
 			}
 
@@ -370,7 +373,7 @@ void SetCardPageIndexIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID
 			RWDirectLightingDrawCardPageIndicesIndirectArgs[3] = 0;
 
 			// Thread per page
-			WriteDispatchIndirectArgs(RWDirectLightingDispatchCardPageIndicesIndirectArgs, 0, (NumPageIndices + 63) / 64, 1, 1);
+			WriteDispatchIndirectArgs(RWDirectLightingDispatchCardPageIndicesIndirectArgs, 0, DivideAndRoundUp64(NumPageIndices), 1, 1);
 
 			// Thread per tile
 			WriteDispatchIndirectArgs(RWDirectLightingDispatchCardPageIndicesIndirectArgs, 1, 4 * NumPageIndices, 1, 1);
@@ -386,7 +389,7 @@ void SetCardPageIndexIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID
 			RWIndirectLightingDrawCardPageIndicesIndirectArgs[3] = 0;
 
 			// Thread per page
-			WriteDispatchIndirectArgs(RWIndirectLightingDispatchCardPageIndicesIndirectArgs, 0, (NumPageIndices + 63) / 64, 1, 1);
+			WriteDispatchIndirectArgs(RWIndirectLightingDispatchCardPageIndicesIndirectArgs, 0, DivideAndRoundUp64(NumPageIndices), 1, 1);
 
 			// Thread per tile
 			WriteDispatchIndirectArgs(RWIndirectLightingDispatchCardPageIndicesIndirectArgs, 1, 4 * NumPageIndices, 1, 1);
@@ -449,18 +452,6 @@ void RasterizeToCardsVS(
 	}
 }
 
-float3 CombineFinalLighting(float3 Albedo, float3 Emissive, float3 DirectLighting, float3 IndirectLighting)
-{
-	Albedo = DecodeSurfaceCacheAlbedo(Albedo);
-
-	float3 FinalLighting = (DirectLighting + IndirectLighting) * Diffuse_Lambert(Albedo) + Emissive;
-
-	// Secure against strange values, as we are writing it to a persistent atlas with a feedback loop
-	FinalLighting = max(MakeFinite(FinalLighting), float3(0.0f, 0.0f, 0.0f));
-
-	return FinalLighting;
-}
-
 SamplerState BilinearClampedSampler;
 StructuredBuffer<uint> CardTiles;
 RWTexture2D<float3> RWFinalLightingAtlas;
@@ -496,7 +487,7 @@ void CombineLumenSceneLightingCS(
 	float3 IndirectLighting = Texture2DSampleLevel(IndirectLightingAtlas, BilinearClampedSampler, IndirectLightingAtlasUV, 0).xyz;
 
 	float3 FinalLighting = CombineFinalLighting(Albedo, Emissive, DirectLighting, IndirectLighting);
-	RWFinalLightingAtlas[AtlasCoord] = FinalLighting;
+	RWFinalLightingAtlas[AtlasCoord] = QuantizeForFloatRenderTarget(FinalLighting, int3(AtlasCoord, View.StateFrameIndexMod8 + 2));
 }
 
 void ClearLumenCardsPS(
@@ -524,30 +515,47 @@ void ClearLumenCardCapturePS(
 	OutEmissive = float4(0.0f, 0.0f, 0.0f, 0.0f);
 }
 
+#ifdef ResampleLightingHistoryToCardCaptureAtlasCS
+
+#define RESAMPLE_TILE_SHADOW_DOWNSAMPLE_FACTOR (FEATURE_LEVEL >= FEATURE_LEVEL_SM6 || PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS)
+
+Buffer<uint> NewCardTileResampleData;
 Buffer<uint4> NewCardPageResampleData;
+Buffer<uint4> RectCoordBuffer;
 Texture2D RadiosityNumFramesAccumulatedAtlas;
 
+RWTexture2D<float4> RWDirectLightingCardCaptureAtlas;
+RWTexture2D<float4> RWRadiosityCardCaptureAtlas;
+RWTexture2D<UNORM float> RWRadiosityNumFramesAccumulatedCardCaptureAtlas;
 
-void ResampleLightingHistoryToCardCaptureAtlasPS(
-	float4 SvPosition : SV_POSITION,
-	float2 InUV : TEXCOORD0,
-	float2 InRectUV : TEXCOORD1,
-	float InRectIndex : RECT_INDEX,
-	out float3 OutDirectLightingCardCaptureAtlas : SV_Target0,
-	out float3 OutRadiosityCardCaptureAtlas : SV_Target1,
-	out float OutRadiosityNumFramesAccumulatedCardCaptureAtlas : SV_Target2)
+uint CardCaptureAtlasWidthInTiles;
+
+[numthreads(CARD_TILE_SIZE, CARD_TILE_SIZE, 1)]
+void ResampleLightingHistoryToCardCaptureAtlasCS(uint3 GroupId : SV_GroupID, uint3 GroupThreadId : SV_GroupThreadID, uint GroupThreadIndex : SV_GroupIndex)
 {
-	OutDirectLightingCardCaptureAtlas = 0;
-	OutRadiosityCardCaptureAtlas = 0;
-	OutRadiosityNumFramesAccumulatedCardCaptureAtlas = 0;
+	const uint TileIndex = GroupId.x;
+	const uint PackedTileData = NewCardTileResampleData[TileIndex];
+	const uint2 TileCoordInRect = uint2(BitFieldExtractU32(PackedTileData, 4, 0), BitFieldExtractU32(PackedTileData, 4, 4));
+	const uint RectIndex = BitFieldExtractU32(PackedTileData, 24, 8);
+	const uint4 RectCoord = RectCoordBuffer[RectIndex];
+	
+	const uint2 TexelCoordInRect = TileCoordInRect * CARD_TILE_SIZE + GroupThreadId.xy;
+	const uint2 RectSize = RectCoord.zw - RectCoord.xy;
+	const float2 RectUV = (TexelCoordInRect + float2(0.5, 0.5)) / RectSize;
 
-	uint CardIndex = NewCardPageResampleData[InRectIndex * 2 + 0].x;
+	float3 OutDirectLightingCardCaptureAtlas = 0;
+	float3 OutRadiosityCardCaptureAtlas = 0;
+	float OutRadiosityNumFramesAccumulatedCardCaptureAtlas = 0;
+	uint4 ShadowDownsampleFactorLow = 0;
+	uint4 ShadowDownsampleFactorHigh = 0;
+
+	uint CardIndex = NewCardPageResampleData[RectIndex * 2 + 0].x;
 
 	if (CardIndex != LUMEN_INVALID_CARD_INDEX)
 	{
 		// Load new card attributes manually
-		float4 NewCardUVRect = asfloat(NewCardPageResampleData[InRectIndex * 2 + 1]);
-		float2 NewCardUV = InRectUV * (NewCardUVRect.zw - NewCardUVRect.xy) + NewCardUVRect.xy;
+		float4 NewCardUVRect = asfloat(NewCardPageResampleData[RectIndex * 2 + 1]);
+		float2 NewCardUV = RectUV * (NewCardUVRect.zw - NewCardUVRect.xy) + NewCardUVRect.xy;
 
 		// LumenCardScene contains the old card structure during the resample
 		FLumenCardData OldCard = GetLumenCardData(CardIndex);
@@ -561,15 +569,42 @@ void ResampleLightingHistoryToCardCaptureAtlasPS(
 			OutDirectLightingCardCaptureAtlas = Texture2DSampleLevel(DirectLightingAtlas, GlobalBilinearClampedSampler, CardSample.PhysicalAtlasUV, 0.0f).xyz;
 			OutRadiosityCardCaptureAtlas = Texture2DSampleLevel(IndirectLightingAtlas, GlobalBilinearClampedSampler, CardSample.IndirectLightingPhysicalAtlasUV, 0.0f).xyz;
 			OutRadiosityNumFramesAccumulatedCardCaptureAtlas = Texture2DSampleLevel(RadiosityNumFramesAccumulatedAtlas, GlobalBilinearClampedSampler, CardSample.IndirectLightingPhysicalAtlasUV, 0.0f).x;
+			
+		#if RESAMPLE_TILE_SHADOW_DOWNSAMPLE_FACTOR
+			const uint2 TileCoord = CardSample.PhysicalAtlasUV * LumenCardScene.PhysicalAtlasSize / CARD_TILE_SIZE;
+			const uint PhysicalAtlasWidthInTiles = LumenCardScene.PhysicalAtlasSize.x / CARD_TILE_SIZE;
+			LoadLumenCardTileShadowDownsampleFactor(ShadowDownsampleFactorLow, ShadowDownsampleFactorHigh, TileCoord, PhysicalAtlasWidthInTiles);
+		#endif
 		}
 	}
+
+	const uint2 WriteTexelCoord = RectCoord.xy + TexelCoordInRect;
+	const uint2 WriteTileCoord = WriteTexelCoord / CARD_TILE_SIZE;
+
+	RWDirectLightingCardCaptureAtlas[WriteTexelCoord] = float4(OutDirectLightingCardCaptureAtlas, 0.f);
+	RWRadiosityCardCaptureAtlas[WriteTexelCoord] = float4(OutRadiosityCardCaptureAtlas, 0.f);
+	RWRadiosityNumFramesAccumulatedCardCaptureAtlas[WriteTexelCoord] = OutRadiosityNumFramesAccumulatedCardCaptureAtlas;
+
+#if RESAMPLE_TILE_SHADOW_DOWNSAMPLE_FACTOR
+	ShadowDownsampleFactorLow = WaveActiveBitAnd(ShadowDownsampleFactorLow);
+	ShadowDownsampleFactorHigh = WaveActiveBitAnd(ShadowDownsampleFactorHigh);
+#endif
+	
+	if (GroupThreadIndex == 0)
+	{
+		WriteLumenCardTileShadowDownsampleFactor(ShadowDownsampleFactorLow, ShadowDownsampleFactorHigh, WriteTileCoord, CardCaptureAtlasWidthInTiles);
+	}
 }
+
+#endif
 
 Texture2D AlbedoCardCaptureAtlas;
 Texture2D EmissiveCardCaptureAtlas;
 Texture2D DirectLightingCardCaptureAtlas;
 Texture2D RadiosityCardCaptureAtlas;
 Texture2D RadiosityNumFramesAccumulatedCardCaptureAtlas;
+uint2 CardCaptureAtlasSizeInTiles;
+uint OutputAtlasWidthInTiles;
 
 void CopyCardCaptureLightingToAtlasPS(
 	float4 SvPosition : SV_POSITION,
@@ -587,6 +622,8 @@ void CopyCardCaptureLightingToAtlasPS(
 	float3 DirectLighting = 0.0f;
 	float3 IndirectLighting = 0.0f;
 	float RadiosityNumFramesAccumulated = 0.0f;
+	uint4 ShadowDownsampleFactorLow = 0;
+	uint4 ShadowDownsampleFactorHigh = 0;
 
 	#if RESAMPLE
 	{
@@ -595,6 +632,9 @@ void CopyCardCaptureLightingToAtlasPS(
 		DirectLighting = Texture2DSampleLevel(DirectLightingCardCaptureAtlas, GlobalPointClampedSampler, AtlasUV, 0).xyz;
 		IndirectLighting = Texture2DSampleLevel(RadiosityCardCaptureAtlas, GlobalPointClampedSampler, AtlasUV, 0).xyz;
 		RadiosityNumFramesAccumulated = Texture2DSampleLevel(RadiosityNumFramesAccumulatedCardCaptureAtlas, GlobalPointClampedSampler, AtlasUV, 0).x;
+
+		const uint2 TileCoord = AtlasUV * CardCaptureAtlasSizeInTiles;
+		LoadLumenCardTileShadowDownsampleFactor(ShadowDownsampleFactorLow, ShadowDownsampleFactorHigh, TileCoord, CardCaptureAtlasSizeInTiles.x);
 	}
 	#endif
 
@@ -607,4 +647,6 @@ void CopyCardCaptureLightingToAtlasPS(
 		OutRadiosityNumFramesAccumulatedAtlas = RadiosityNumFramesAccumulated;
 	}
 	#endif
+
+	WriteLumenCardTileShadowDownsampleFactor(ShadowDownsampleFactorLow, ShadowDownsampleFactorHigh, SvPosition.xy / CARD_TILE_SIZE, OutputAtlasWidthInTiles);
 }

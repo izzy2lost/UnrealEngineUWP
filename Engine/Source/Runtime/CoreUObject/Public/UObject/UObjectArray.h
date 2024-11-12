@@ -6,10 +6,13 @@
 
 #pragma once
 
+#include "AutoRTFM/AutoRTFM.h"
 #include "HAL/ThreadSafeCounter.h"
 #include "Containers/LockFreeList.h"
+#include "Misc/TransactionallySafeCriticalSection.h"
 #include "UObject/GarbageCollectionGlobals.h"
 #include "UObject/UObjectBase.h"
+#include "Misc/TransactionallySafeScopeLock.h"
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 namespace Verse
@@ -26,6 +29,11 @@ namespace Verse
 #define UE_GC_TRACK_OBJ_AVAILABLE UE_DEPRECATED_MACRO(5.2, "The UE_GC_TRACK_OBJ_AVAILABLE macro has been deprecated because it is no longer necessary.") 1
 #endif
 
+namespace UE::GC::Private
+{
+	class FGCFlags;
+}
+
 /**
 * Single item in the UObject array.
 */
@@ -37,6 +45,7 @@ struct
 	FUObjectItem
 {
 	friend class FUObjectArray;
+	friend class UE::GC::Private::FGCFlags;
 
 	// Pointer to the allocated object
 	class UObjectBase* Object;
@@ -48,6 +57,8 @@ public:
 	int32 ClusterRootIndex;	
 	// Weak Object Pointer Serial number associated with the object
 	int32 SerialNumber;
+	// RefCount associated with the object preventing its destruction.
+	int32 RefCount;
 
 #if STATS || ENABLE_STATNAMEDEVENTS_UOBJECT
 	/** Stat id of this object, 0 if nobody asked for it yet */
@@ -63,6 +74,7 @@ public:
 		, Flags(0)
 		, ClusterRootIndex(0)
 		, SerialNumber(0)
+		, RefCount(0)
 #if ENABLE_STATNAMEDEVENTS_UOBJECT
 		, StatIDStringStorage(nullptr)
 #endif
@@ -71,8 +83,11 @@ public:
 	~FUObjectItem()
 	{
 #if ENABLE_STATNAMEDEVENTS_UOBJECT
-		delete[] StatIDStringStorage;
-		StatIDStringStorage = nullptr;
+		if (PROFILER_CHAR* Storage = StatIDStringStorage)
+		{
+			AutoRTFM::PopOnAbortHandler(Storage);
+			delete[] Storage;
+		}
 #endif
 	}
 
@@ -112,7 +127,6 @@ public:
 
 	FORCEINLINE void SetFlags(EInternalObjectFlags FlagsToSet)
 	{
-		check((int32(FlagsToSet) & ~int32(EInternalObjectFlags_AllFlags)) == 0);
 		ThisThreadAtomicallySetFlag(FlagsToSet);
 	}
 
@@ -123,7 +137,6 @@ public:
 
 	FORCEINLINE void ClearFlags(EInternalObjectFlags FlagsToClear)
 	{
-		check((int32(FlagsToClear) & ~int32(EInternalObjectFlags_AllFlags)) == 0);
 		ThisThreadAtomicallyClearedFlag(FlagsToClear);
 	}
 
@@ -132,25 +145,10 @@ public:
 	 * @param FlagsToClear
 	 * @return True if this call cleared the flag, false if it has been cleared by another thread.
 	 */
+	UE_DEPRECATED(5.5, "ThisThreadAtomicallyClearedFlag_ForGC() can only be used by the garbage collector. Use ThisThreadAtomicallyClearedFlag instead.")
 	FORCEINLINE bool ThisThreadAtomicallyClearedFlag_ForGC(EInternalObjectFlags FlagToClear)
 	{
-		static_assert(sizeof(int32) == sizeof(Flags), "Flags must be 32-bit for atomics.");
-		bool bIChangedIt = false;
-		while (1)
-		{
-			int32 StartValue = GetFlagsInternal();
-			if (!(StartValue & int32(FlagToClear)))
-			{
-				break;
-			}
-			int32 NewValue = StartValue & ~int32(FlagToClear);
-			if ((int32)FPlatformAtomics::InterlockedCompareExchange((int32*)&Flags, NewValue, StartValue) == StartValue)
-			{
-				bIChangedIt = true;
-				break;
-			}
-		}
-		return bIChangedIt;
+		return AtomicallyClearFlag_ForGC(FlagToClear);
 	}
 
 	/**
@@ -160,15 +158,23 @@ public:
 	 */
 	FORCEINLINE bool ThisThreadAtomicallyClearedFlag(EInternalObjectFlags FlagToClear)
 	{
-		FlagToClear &= ~UE::GC::GReachableObjectFlag; // reachability bit can only be cleared by GC through *_ForGC functions
-		if (!!(FlagToClear & EInternalObjectFlags_RootFlags))
+		checkf((int32(FlagToClear) & ~int32(EInternalObjectFlags_AllFlags)) == 0, TEXT("%d is not a valid internal flag value"), int32(FlagToClear));
+		bool Result = false;
+		UE_AUTORTFM_OPEN
 		{
-			return ClearRootFlags(FlagToClear);
-		}
-		else
-		{
-			return ThisThreadAtomicallyClearedFlag_ForGC(FlagToClear);
-		}
+			FlagToClear &= ~EInternalObjectFlags_ReachabilityFlags; // reachability flags can only be cleared by GC through *_ForGC functions
+			FlagToClear &= ~EInternalObjectFlags::RefCounted; // refcounted flag is internal and must only be cleared internally by AddRef/ReleaseRef.
+			if (!!(FlagToClear & EInternalObjectFlags_RootFlags))
+			{
+				Result = ClearRootFlags(FlagToClear);
+			}
+			else
+			{
+				Result = AtomicallyClearFlag_ForGC(FlagToClear);
+			}
+		};
+
+		return Result;
 	}
 
 	/**
@@ -176,25 +182,10 @@ public:
 	 * @param FlagToSet
 	 * @return True if this call set the flag, false if it has been set by another thread.
 	 */
+	UE_DEPRECATED(5.5, "ThisThreadAtomicallySetFlag_ForGC() can only be used by the garbage collector. Use ThisThreadAtomicallySetFlag instead.")
 	FORCEINLINE bool ThisThreadAtomicallySetFlag_ForGC(EInternalObjectFlags FlagToSet)
 	{
-		static_assert(sizeof(int32) == sizeof(Flags), "Flags must be 32-bit for atomics.");
-		bool bIChangedIt = false;
-		while (1)
-		{
-			int32 StartValue = GetFlagsInternal();
-			if ((StartValue & int32(FlagToSet)) == int32(FlagToSet))
-			{
-				break;
-			}
-			int32 NewValue = StartValue | int32(FlagToSet);
-			if ((int32)FPlatformAtomics::InterlockedCompareExchange((int32*)&Flags, NewValue, StartValue) == StartValue)
-			{
-				bIChangedIt = true;
-				break;
-			}
-		}
-		return bIChangedIt;
+		return AtomicallySetFlag_ForGC(FlagToSet);
 	}
 
 	/**
@@ -203,15 +194,23 @@ public:
 	 * @return True if this call set the flag, false if it has been set by another thread.
 	 */
 	FORCEINLINE bool ThisThreadAtomicallySetFlag(EInternalObjectFlags FlagToSet)
-	{		
-		if (!!(FlagToSet & EInternalObjectFlags_RootFlags))
+	{
+		checkf((int32(FlagToSet) & ~int32(EInternalObjectFlags_AllFlags)) == 0, TEXT("%d is not a valid internal flag value"), int32(FlagToSet));
+		bool Result = false;
+		UE_AUTORTFM_OPEN
 		{
-			return SetRootFlags(FlagToSet);
-		}
-		else
-		{
-			return ThisThreadAtomicallySetFlag_ForGC(FlagToSet);
-		}
+			FlagToSet &= ~EInternalObjectFlags_ReachabilityFlags; // reachability flags can only be cleared by GC through *_ForGC functions
+			FlagToSet &= ~EInternalObjectFlags::RefCounted; // refcounted flag is internal and must only be set by AddRef/ReleaseRef.
+			if (!!(FlagToSet & EInternalObjectFlags_RootFlags))
+			{
+				Result = SetRootFlags(FlagToSet);
+			}
+			else
+			{
+				Result = AtomicallySetFlag_ForGC(FlagToSet);
+			}
+		};
+		return Result;
 	}
 
 	FORCEINLINE bool HasAnyFlags(EInternalObjectFlags InFlags) const
@@ -224,44 +223,39 @@ public:
 		return (GetFlagsInternal() & int32(InFlags)) == int32(InFlags);
 	}
 
+	UE_DEPRECATED(5.5, "SetUnreachable() can only be used by the garbage collector.")
 	FORCEINLINE void SetUnreachable()
 	{
-		ThisThreadAtomicallyClearedFlag_ForGC(UE::GC::GReachableObjectFlag);
-		ThisThreadAtomicallySetFlag_ForGC(UE::GC::GUnreachableObjectFlag);
+		AtomicallySetFlag_ForGC(EInternalObjectFlags::Unreachable);
 	}
-	FORCEINLINE void SetMaybeUnreachable()
-	{
-		ThisThreadAtomicallyClearedFlag_ForGC(UE::GC::GReachableObjectFlag);
-		ThisThreadAtomicallySetFlag_ForGC(UE::GC::GMaybeUnreachableObjectFlag);
-	}
+	UE_DEPRECATED(5.5, "SetMaybeUnreachable() can only be used by the garbage collector.")
+	COREUOBJECT_API void SetMaybeUnreachable();
+
+	UE_DEPRECATED(5.5, "ClearUnreachable() can only be used by the garbage collector.")
 	FORCEINLINE void ClearUnreachable()
 	{
-		ThisThreadAtomicallyClearedRFUnreachable();
+		AtomicallyClearFlag_ForGC(EInternalObjectFlags::Unreachable);
 	}
 	FORCEINLINE bool IsUnreachable() const
 	{
-		return !!(GetFlagsInternal() & int32(UE::GC::GUnreachableObjectFlag));
+		return !!(GetFlagsInternal() & int32(EInternalObjectFlags::Unreachable));
 	}
-	FORCEINLINE bool IsMaybeUnreachable() const
-	{
-		return !!(GetFlagsInternal() & int32(UE::GC::GMaybeUnreachableObjectFlag));
-	}
+
+	UE_DEPRECATED(5.5, "IsMaybeUnreachable() can only be used by the garbage collector.")
+	COREUOBJECT_API bool IsMaybeUnreachable() const;
+
+	UE_DEPRECATED(5.5, "ThisThreadAtomicallyClearedRFUnreachable() can only be used by the garbage collector.")
 	FORCEINLINE bool ThisThreadAtomicallyClearedRFUnreachable()
 	{
-		if (ThisThreadAtomicallyClearedFlag_ForGC(UE::GC::GUnreachableObjectFlag))
-		{
-			ThisThreadAtomicallySetFlag_ForGC(UE::GC::GReachableObjectFlag);
-			return true;
-		}
-		return false;
+		return AtomicallyClearFlag_ForGC(EInternalObjectFlags::Unreachable);
 	}
 	FORCEINLINE void SetGarbage()
 	{
-		ThisThreadAtomicallySetFlag_ForGC(EInternalObjectFlags::Garbage);
+		AtomicallySetFlag_ForGC(EInternalObjectFlags::Garbage);
 	}
 	FORCEINLINE void ClearGarbage()
 	{
-		ThisThreadAtomicallyClearedFlag_ForGC(EInternalObjectFlags::Garbage);
+		AtomicallyClearFlag_ForGC(EInternalObjectFlags::Garbage);
 	}
 	FORCEINLINE bool IsGarbage() const
 	{
@@ -297,43 +291,58 @@ public:
 		return !!(GetFlagsInternal() & int32(EInternalObjectFlags::RootSet));
 	}
 
+	FORCEINLINE int32 GetRefCount() const
+	{
+		return RefCount;
+	}
+
+	void AddRef()
+	{
+		UE_AUTORTFM_OPEN
+		{
+			FPlatformAtomics::InterlockedIncrement(&RefCount);
+			if ((GetFlags() & EInternalObjectFlags::RefCounted) != EInternalObjectFlags::RefCounted)
+			{
+				SetRootFlags(EInternalObjectFlags::RefCounted);
+			}
+		};
+	}
+
+	void ReleaseRef()
+	{
+		UE_AUTORTFM_OPEN
+		{
+			// This alone is not thread-safe as we may race with AddRef and in that case we don't want ClearRootFlags to apply.
+			// We fix this by validating that the refcount is still 0 while inside the root locks in ClearRootFlags.
+			const int32 NewRefCount = FPlatformAtomics::InterlockedDecrement(&RefCount);
+			check(NewRefCount >= 0);
+			if (NewRefCount == 0)
+			{
+				ClearRootFlags(EInternalObjectFlags::RefCounted);
+			}
+		};
+	}
+
 #if STATS || ENABLE_STATNAMEDEVENTS_UOBJECT
 	COREUOBJECT_API void CreateStatID() const;
 #endif
 
 	// Mark this object item as Reachable and clear MaybeUnreachable flag. For GC use only.
-	FORCEINLINE void FastMarkAsReachableInterlocked_ForGC()
-	{
-		using namespace UE::GC;
-		FPlatformAtomics::InterlockedAnd(&Flags, ~int32(GMaybeUnreachableObjectFlag));
-		FPlatformAtomics::InterlockedOr(&Flags, int32(GReachableObjectFlag));
-	}
+	UE_DEPRECATED(5.5, "FastMarkAsReachableInterlocked_ForGC() can only be used by the garbage collector.")
+	COREUOBJECT_API void FastMarkAsReachableInterlocked_ForGC();
 
 	// Mark this object item as Reachable and clear ReachableInCluster and MaybeUnreachable flags. For GC use only.
-	FORCEINLINE void FastMarkAsReachableAndClearReachaleInClusterInterlocked_ForGC()
-	{
-		using namespace UE::GC;
-		FPlatformAtomics::InterlockedAnd(&Flags, ~int32(GMaybeUnreachableObjectFlag | EInternalObjectFlags::ReachableInCluster));
-		FPlatformAtomics::InterlockedOr(&Flags, int32(GReachableObjectFlag));
-	}
+	UE_DEPRECATED(5.5, "FastMarkAsReachableAndClearReachaleInClusterInterlocked_ForGC() can only be used by the garbage collector.")
+	COREUOBJECT_API void FastMarkAsReachableAndClearReachaleInClusterInterlocked_ForGC();
 
 	/**
 	 * Mark this object item as Reachable and clear MaybeUnreachable flag. Only thread-safe for concurrent clear, not concurrent set+clear. Don't use during mark phase. For GC use only.
 	 * @return True if this call cleared MaybeUnreachable flag, false if it has been cleared by another thread.
 	 */
-	FORCEINLINE bool MarkAsReachableInterlocked_ForGC()
-	{
-		using namespace UE::GC;
-		const int32 FlagToClear = int32(UE::GC::GMaybeUnreachableObjectFlag);
-		if (FPlatformAtomics::AtomicRead_Relaxed(&Flags) & FlagToClear)
-		{
-			int32 Old = FPlatformAtomics::InterlockedAnd(&Flags, ~FlagToClear);
-			FPlatformAtomics::InterlockedOr(&Flags, int32(GReachableObjectFlag));
-			return Old & FlagToClear;
-		}
-		return false;
-	}
+	UE_DEPRECATED(5.5, "MarkAsReachableInterlocked_ForGC() can only be used by the garbage collector.")
+	COREUOBJECT_API bool MarkAsReachableInterlocked_ForGC();
 
+	UE_DEPRECATED(5.5, "OffsetOfFlags() can only be used by the garbage collector.")
 	FORCEINLINE static constexpr ::size_t OffsetOfFlags()
 	{
 		return offsetof(FUObjectItem, Flags);
@@ -344,8 +353,66 @@ private:
 	{
 		return FPlatformAtomics::AtomicRead_Relaxed((int32*)&Flags);
 	}
+	
+	FORCEINLINE int32 GetRefCountInternal() const
+	{
+		return FPlatformAtomics::AtomicRead_Relaxed((int32*)&RefCount);
+	}
+
 	COREUOBJECT_API bool SetRootFlags(EInternalObjectFlags FlagsToSet);
 	COREUOBJECT_API bool ClearRootFlags(EInternalObjectFlags FlagsToClear);
+
+	/**
+	 * Uses atomics to set the specified flag(s). GC internal version.
+	 * @param FlagToSet
+	 * @return True if this call set the flag, false if it has been set by another thread.
+	 */
+	FORCEINLINE bool AtomicallySetFlag_ForGC(EInternalObjectFlags FlagToSet)
+	{
+		static_assert(sizeof(int32) == sizeof(Flags), "Flags must be 32-bit for atomics.");
+		bool bIChangedIt = false;
+		while (1)
+		{
+			int32 StartValue = GetFlagsInternal();
+			if ((StartValue & int32(FlagToSet)) == int32(FlagToSet))
+			{
+				break;
+			}
+			int32 NewValue = StartValue | int32(FlagToSet);
+			if ((int32)FPlatformAtomics::InterlockedCompareExchange((int32*)&Flags, NewValue, StartValue) == StartValue)
+			{
+				bIChangedIt = true;
+				break;
+			}
+		}
+		return bIChangedIt;
+	}
+
+	/**
+	 * Uses atomics to clear the specified flag(s). GC internal version
+	 * @param FlagsToClear
+	 * @return True if this call cleared the flag, false if it has been cleared by another thread.
+	 */
+	FORCEINLINE bool AtomicallyClearFlag_ForGC(EInternalObjectFlags FlagToClear)
+	{
+		static_assert(sizeof(int32) == sizeof(Flags), "Flags must be 32-bit for atomics.");
+		bool bIChangedIt = false;
+		while (1)
+		{
+			int32 StartValue = GetFlagsInternal();
+			if (!(StartValue & int32(FlagToClear)))
+			{
+				break;
+			}
+			int32 NewValue = StartValue & ~int32(FlagToClear);
+			if ((int32)FPlatformAtomics::InterlockedCompareExchange((int32*)&Flags, NewValue, StartValue) == StartValue)
+			{
+				bIChangedIt = true;
+				break;
+			}
+		}
+		return bIChangedIt;
+	}
 };
 
 namespace UE::UObjectArrayPrivate
@@ -782,6 +849,14 @@ public:
 		 * Called when UObject Array is being shut down, this is where all listeners should be removed from it
 		 */
 		virtual void OnUObjectArrayShutdown() = 0;
+
+		/**
+		 * Returns the size of heap memory allocated internally by this listener
+		 */
+		virtual SIZE_T GetAllocatedSize() const
+		{
+			return 0;
+		}
 	};
 
 	/**
@@ -901,7 +976,7 @@ public:
 	{
 		if (ObjectItem)
 		{
-			return bEvenIfGarbage ? !ObjectItem->IsUnreachable() : !(ObjectItem->HasAnyFlags(UE::GC::GUnreachableObjectFlag | EInternalObjectFlags::Garbage));
+			return bEvenIfGarbage ? !ObjectItem->IsUnreachable() : !(ObjectItem->HasAnyFlags(EInternalObjectFlags::Unreachable | EInternalObjectFlags::Garbage));
 		}
 		return false;
 	}
@@ -922,7 +997,7 @@ public:
 	FORCEINLINE bool IsStale(FUObjectItem* ObjectItem, bool bIncludingGarbage)
 	{
 		// This method assumes ObjectItem is valid.
-		return bIncludingGarbage ? (ObjectItem->HasAnyFlags(UE::GC::GUnreachableObjectFlag | EInternalObjectFlags::Garbage)) : (ObjectItem->IsUnreachable());
+		return bIncludingGarbage ? (ObjectItem->HasAnyFlags(EInternalObjectFlags::Unreachable | EInternalObjectFlags::Garbage)) : (ObjectItem->IsUnreachable());
 	}
 
 	FORCEINLINE bool IsStale(int32 Index, bool bIncludingGarbage)
@@ -1234,7 +1309,7 @@ private:
 	/** Array of all live objects.											*/
 	TUObjectArray ObjObjects;
 	/** Synchronization object for all live objects.											*/
-	mutable FCriticalSection ObjObjectsCritical;
+	mutable FTransactionallySafeCriticalSection ObjObjectsCritical;
 	/** Available object indices.											*/
 	TArray<int32> ObjAvailableList;
 
@@ -1247,7 +1322,7 @@ private:
 	 */
 	TArray<FUObjectDeleteListener* > UObjectDeleteListeners;
 #if THREADSAFE_UOBJECTS
-	FCriticalSection UObjectDeleteListenersCritical;
+	mutable FTransactionallySafeCriticalSection UObjectDeleteListenersCritical;
 #endif
 
 	/** Current primary serial number **/
@@ -1269,10 +1344,31 @@ public:
 		return ObjObjects;
 	}
 
-    int64 GetAllocatedSize() const
+    SIZE_T GetAllocatedSize() const
     {
-        return ObjObjects.GetAllocatedSize();
+		FTransactionallySafeScopeLock ObjListLock(&ObjObjectsCritical);
+#if THREADSAFE_UOBJECTS
+		FTransactionallySafeScopeLock ListenersLock(&UObjectDeleteListenersCritical);
+#endif
+        return ObjObjects.GetAllocatedSize() + ObjAvailableList.GetAllocatedSize() + UObjectCreateListeners.GetAllocatedSize() + UObjectDeleteListeners.GetAllocatedSize();
     }
+
+	SIZE_T GetDeleteListenersAllocatedSize(int32* OutNumListeners = nullptr) const
+	{
+#if THREADSAFE_UOBJECTS
+		FTransactionallySafeScopeLock ListenersLock(&UObjectDeleteListenersCritical);
+#endif
+		SIZE_T AllocatedSize = 0;
+		for (FUObjectDeleteListener* Listener : UObjectDeleteListeners)
+		{
+			AllocatedSize += Listener->GetAllocatedSize();
+		}
+		if (OutNumListeners)
+		{
+			*OutNumListeners = UObjectDeleteListeners.Num();
+		}
+		return AllocatedSize;
+	}
 
 	COREUOBJECT_API void DumpUObjectCountsToLog() const;
 };
@@ -1403,3 +1499,8 @@ struct FIndexToObject
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"
 #endif
+
+namespace verse
+{
+COREUOBJECT_API bool CanAllocateUObjects();
+}

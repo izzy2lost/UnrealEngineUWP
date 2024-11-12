@@ -6,13 +6,16 @@
 #include "AvaInteractiveToolsDelegates.h"
 #include "Cloner/AvaClonerActorTool.h"
 #include "Cloner/AvaClonerActorVis.h"
+#include "Cloner/AvaClonerEditorOutlinerContextMenu.h"
 #include "Cloner/CEClonerComponent.h"
 #include "ComponentVisualizers.h"
 #include "Effector/AvaEffectorActorTool.h"
 #include "Effector/AvaEffectorActorVis.h"
+#include "Effector/AvaEffectorEditorOutlinerContextMenu.h"
 #include "Effector/CEEffectorComponent.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IAvalancheComponentVisualizersModule.h"
+#include "IAvaOutlinerModule.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 
@@ -23,6 +26,8 @@ void FAvalancheEffectorsEditorModule::StartupModule()
 	FAvaEffectorsEditorCommands::Register();
 
 	FAvaInteractiveToolsDelegates::GetRegisterToolsDelegate().AddRaw(this, &FAvalancheEffectorsEditorModule::RegisterTools);
+
+	RegisterOutlinerItems();
 }
 
 void FAvalancheEffectorsEditorModule::ShutdownModule()
@@ -32,6 +37,8 @@ void FAvalancheEffectorsEditorModule::ShutdownModule()
 	FAvaEffectorsEditorCommands::Unregister();
 
 	FAvaInteractiveToolsDelegates::GetRegisterToolsDelegate().RemoveAll(this);
+
+	UnregisterOutlinerItems();
 }
 
 void FAvalancheEffectorsEditorModule::PostEngineInit()
@@ -59,6 +66,31 @@ void FAvalancheEffectorsEditorModule::RegisterComponentVisualizers()
 {
 	IAvalancheComponentVisualizersModule::RegisterComponentVisualizer<UCEEffectorComponent, FAvaEffectorActorVisualizer>(&Visualizers);
 	IAvalancheComponentVisualizersModule::RegisterComponentVisualizer<UCEClonerComponent, FAvaClonerActorVisualizer>(&Visualizers);
+}
+
+void FAvalancheEffectorsEditorModule::RegisterOutlinerItems()
+{
+	IAvaOutlinerModule& OutlinerModule = IAvaOutlinerModule::Get();
+
+	OutlinerContextClonerDelegateHandle = OutlinerModule.GetOnExtendOutlinerItemContextMenu()
+		.AddStatic(&FAvaClonerEditorOutlinerContextMenu::OnExtendOutlinerContextMenu);
+
+	OutlinerContextEffectorDelegateHandle = OutlinerModule.GetOnExtendOutlinerItemContextMenu()
+		.AddStatic(&FAvaEffectorEditorOutlinerContextMenu::OnExtendOutlinerContextMenu);
+}
+
+void FAvalancheEffectorsEditorModule::UnregisterOutlinerItems()
+{
+	if (IAvaOutlinerModule::IsLoaded())
+	{
+		IAvaOutlinerModule& OutlinerModule = IAvaOutlinerModule::Get();
+
+		OutlinerModule.GetOnExtendOutlinerItemContextMenu().Remove(OutlinerContextClonerDelegateHandle);
+        OutlinerContextClonerDelegateHandle.Reset();
+
+		OutlinerModule.GetOnExtendOutlinerItemContextMenu().Remove(OutlinerContextEffectorDelegateHandle);
+		OutlinerContextEffectorDelegateHandle.Reset();
+	}
 }
 
 IMPLEMENT_MODULE(FAvalancheEffectorsEditorModule, AvalancheEffectorsEditor)

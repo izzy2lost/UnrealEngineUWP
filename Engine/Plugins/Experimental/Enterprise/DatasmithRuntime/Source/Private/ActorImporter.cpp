@@ -533,7 +533,7 @@ namespace DatasmithRuntime
 
 		// Since deletion can be delayed, rename to avoid future name collision
 		// Call UObject::Rename directly on actor to avoid AActor::Rename which unnecessarily sunregister and re-register components
-		Actor->UObject::Rename( nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders );
+		Actor->UObject::Rename( nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 	}
 
 	void HideSceneComponent(USceneComponent* SceneComponent)

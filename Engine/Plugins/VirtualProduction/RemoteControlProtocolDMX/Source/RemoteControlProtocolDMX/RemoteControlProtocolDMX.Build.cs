@@ -17,19 +17,10 @@ public class RemoteControlProtocolDMX : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"DMXProtocol",
+				"Engine",
 				"RemoteControl",
 				"RemoteControlProtocol",
 			}
 		);
-		
-		if (Target.bBuildEditor)
-		{
-			PrivateDependencyModuleNames.AddRange(
-				new string[] {
-					"InputCore",
-					"RemoteControlProtocolWidgets",
-				}
-			);
-		}
 	}
 }

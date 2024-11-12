@@ -4,9 +4,10 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "Templates/TypeHash.h"
+#include "UObject/VerseValueProperty.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMShape.h"
-#include "VerseVM/VVMUTF8String.h"
+#include "VerseVM/VVMUniqueString.h"
 #include "VerseVM/VVMUnreachable.h"
 #include "VerseVM/VVMWriteBarrier.h"
 
@@ -20,6 +21,11 @@ inline VShape::VEntry::VEntry(const VShape::VEntry& Other)
 		case EFieldType::Offset:
 			Index = Other.Index;
 			break;
+		case EFieldType::FProperty:
+		case EFieldType::FPropertyVar:
+		case EFieldType::FVerseProperty:
+			UProperty = Other.UProperty;
+			break;
 		case EFieldType::Constant:
 			new (&Value) TWriteBarrier<VValue>(Other.Value);
 			break;
@@ -29,6 +35,10 @@ inline VShape::VEntry::VEntry(const VShape::VEntry& Other)
 inline VShape::VEntry::VEntry()
 	: Index(0)
 	, Type(EFieldType::Offset) {}
+
+inline VShape::VEntry::VEntry(FProperty* InProperty, EFieldType InType)
+	: UProperty(InProperty)
+	, Type(InProperty->IsA<FVRestValueProperty>() ? EFieldType::FVerseProperty : InType) {}
 
 inline VShape::VEntry::VEntry(FAccessContext Context, VValue InConstant)
 	: Value(Context, InConstant)
@@ -45,9 +55,11 @@ inline bool VShape::VEntry::operator==(const VShape::VEntry& Other) const
 		case EFieldType::Offset:
 			return Index == Other.Index;
 		case EFieldType::FProperty:
-			return Property == Other.Property;
+		case EFieldType::FPropertyVar:
+		case EFieldType::FVerseProperty:
+			return UProperty == Other.UProperty;
 		case EFieldType::Constant:
-			return VValue::Equal(FRunningContextPromise(), Value.Get(), Other.Value.Get(),
+			return VValue::Equal(FAllocationContext(FRunningContextPromise()), Value.Get(), Other.Value.Get(),
 				[](VValue Left, VValue Right) {
 					checkSlow(!Left.IsPlaceholder());
 					checkSlow(!Right.IsPlaceholder());
@@ -75,7 +87,7 @@ inline uint32 VShape::FFieldsMapKeyFuncs::GetKeyHash(const VUniqueString& Key)
 	return GetTypeHash(Key);
 }
 
-inline const VShape::VEntry* VShape::GetField(FAllocationContext Context, const VUniqueString& Name) const
+inline const VShape::VEntry* VShape::GetField(const VUniqueString& Name) const
 {
 	return Fields.FindByHash(GetTypeHash(Name), Name);
 }

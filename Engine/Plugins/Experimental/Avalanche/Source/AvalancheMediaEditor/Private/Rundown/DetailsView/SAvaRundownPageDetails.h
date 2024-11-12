@@ -13,9 +13,12 @@ class FReply;
 class FText;
 class SAvaRundownPageRemoteControlProps;
 class SAvaRundownRCControllerPanel;
+class UAvaRundown;
+enum class EAvaRundownPageChanges : uint8;
 struct FAvaRundownPage;
-struct FSoftObjectPath;
+struct FAvaRundownPageListChangeParams;
 struct FSlateBrush;
+struct FSoftObjectPath;
 
 class SAvaRundownPageDetails : public SCompoundWidget
 {
@@ -29,7 +32,6 @@ public:
 	virtual ~SAvaRundownPageDetails() override;
 
 	void OnPageEvent(const TArray<int32>& InSelectedPageIds, UE::AvaRundown::EPageEvent InPageEvent);
-	void OnPageSelectionChanged(const TArray<int32>& InSelectedPageIds);
 	void OnManagedInstanceCacheEntryInvalidated(const FSoftObjectPath& InAssetPath);
 
 protected:
@@ -40,7 +42,8 @@ protected:
 	const FAvaRundownPage& GetSelectedPage() const;
 	FAvaRundownPage& GetMutableSelectedPage() const;
 
-	void RefreshSelectedPage();
+	void QueueRefreshSelectedPage();
+	void QueueUpdateAndRefreshSelectedPage();
 
 	bool HasSelectedPage() const;
 
@@ -56,6 +59,9 @@ protected:
 
 	FReply DuplicateSelectedPage();
 
+	void OnPagesChanged(const UAvaRundown* InRundown, const FAvaRundownPage& InPage, const EAvaRundownPageChanges InChanges);
+	void OnPageListChanged(const FAvaRundownPageListChangeParams& InParams);
+	
 private:
 	TWeakPtr<FAvaRundownEditor> RundownEditorWeak;
 
@@ -64,6 +70,7 @@ private:
 	TSharedPtr<SAvaRundownRCControllerPanel> RCControllerPanel;
 
 	bool bRefreshSelectedPageQueued = false;
+	bool bUpdateAndRefreshSelectedPageQueued = false;
 
 	int32 ActivePageId;
 };

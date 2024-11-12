@@ -1284,7 +1284,7 @@ namespace UnrealBuildTool
 			// Add an empty variable argument if one was not specified
 			if (macro.HasVariableArgumentList && arguments.Count == macro.Parameters!.Count - 1)
 			{
-				arguments.Add(new List<Token> { new Token(TokenType.Placemarker, TokenFlags.None) });
+				arguments.Add(new List<Token> { new(TokenType.Placemarker, TokenFlags.None) });
 			}
 
 			// Validate the argument list
@@ -1400,7 +1400,7 @@ namespace UnrealBuildTool
 		/// <param name="inputIdx">First token index in the input token list. Set to the last uncopied token index on return.</param>
 		/// <param name="outputTokens">List to recieve the output tokens</param>
 		/// <returns>True if a balanced expression was read, or false if the end of the list was encountered before finding a matching token</returns>
-		bool ReadBalancedToken(List<Token> inputTokens, ref int inputIdx, List<Token> outputTokens)
+		static bool ReadBalancedToken(List<Token> inputTokens, ref int inputIdx, List<Token> outputTokens)
 		{
 			// Copy a single token to the output list
 			Token token = inputTokens[inputIdx++];
@@ -1440,7 +1440,7 @@ namespace UnrealBuildTool
 		/// <param name="outputTokens">List to recieve the output tokens</param>
 		/// <param name="context">The context that the parser is in</param>
 		/// <returns>True if a balanced expression was read, or false if the end of the list was encountered before finding a matching token</returns>
-		bool ReadBalancedToken(IEnumerator<Token> inputEnumerator, List<Token> outputTokens, PreprocessorContext context)
+		static bool ReadBalancedToken(IEnumerator<Token> inputEnumerator, List<Token> outputTokens, PreprocessorContext context)
 		{
 			// Copy a single token to the output list
 			Token token = inputEnumerator.Current;

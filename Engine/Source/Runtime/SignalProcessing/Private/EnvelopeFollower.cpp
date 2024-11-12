@@ -21,7 +21,7 @@ namespace Audio
 				Value = (InReleaseSamples * Diff) + InSample;
 			}
 
-			return Audio::UnderflowClamp(Value);
+			return Value;
 		}
 	}
 
@@ -327,7 +327,6 @@ namespace Audio
 			for (int32 SampleIndex = ChannelIndex; SampleIndex < NumSamples; SampleIndex += NumChannels)
 			{
 				Value = Beta * OutBuffer[SampleIndex] + Alpha * Value;
-				Value = Audio::UnderflowClamp(Value);
 				OutBuffer[SampleIndex] = Value;
 			}
 

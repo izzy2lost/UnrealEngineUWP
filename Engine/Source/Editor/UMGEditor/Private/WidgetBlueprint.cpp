@@ -6,7 +6,7 @@
 #include "Blueprint/UserWidget.h"
 #include "MovieScene.h"
 
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "EdGraph/EdGraph.h"
 #include "Blueprint/WidgetTree.h"
 #include "Animation/WidgetAnimation.h"
@@ -554,19 +554,6 @@ FDelegateRuntimeBinding FDelegateEditorBinding::ToRuntimeBinding(UWidgetBlueprin
 	return Binding;
 }
 
-bool FWidgetAnimation_DEPRECATED::SerializeFromMismatchedTag(struct FPropertyTag const& Tag, FStructuredArchive::FSlot Slot)
-{
-	static FName AnimationDataName("AnimationData");
-	if(Tag.Type == NAME_StructProperty && Tag.Name == AnimationDataName)
-	{
-		FStructuredArchive::FRecord Record = Slot.EnterRecord();
-		Record << SA_VALUE(TEXT("MovieScene"), MovieScene);
-		Record << SA_VALUE(TEXT("AnimationBindings"), AnimationBindings);
-		return true;
-	}
-
-	return false;
-}
 /////////////////////////////////////////////////////
 // UWidgetBlueprint
 
@@ -798,7 +785,7 @@ bool UWidgetBlueprint::DetectSlateWidgetLeaks(FDataValidationContext& Context) c
 
 	// The detection relies on instantiation of the class: don't try to create an abstract class. 
 	// The validation will have to be run on the WBP inheriting from abstract ones.
-	if (GeneratedClass->HasAnyClassFlags(CLASS_Abstract))
+	if (GeneratedClass == nullptr || GeneratedClass->HasAnyClassFlags(CLASS_Abstract))
 	{
 		return false;
 	}
@@ -1021,29 +1008,6 @@ void UWidgetBlueprint::PostLoad()
 	WidgetTree->ForEachWidget([&] (UWidget* Widget) {
 		Widget->ConnectEditorData();
 	});
-
-	if( GetLinkerUEVersion() < VER_UE4_FIXUP_WIDGET_ANIMATION_CLASS )
-	{
-		// Fixup widget animations.
-		for( auto& OldAnim : AnimationData_DEPRECATED )
-		{
-			FName AnimName = OldAnim.MovieScene->GetFName();
-
-			// Rename the old movie scene so we can reuse the name
-			OldAnim.MovieScene->Rename( *MakeUniqueObjectName( this, UMovieScene::StaticClass(), "MovieScene").ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional);
-
-			UWidgetAnimation* NewAnimation = NewObject<UWidgetAnimation>(this, AnimName, RF_Transactional);
-
-			OldAnim.MovieScene->Rename(*AnimName.ToString(), NewAnimation, REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional );
-
-			NewAnimation->MovieScene = OldAnim.MovieScene;
-			NewAnimation->AnimationBindings = OldAnim.AnimationBindings;
-			
-			Animations.Add( NewAnimation );
-		}	
-
-		AnimationData_DEPRECATED.Empty();
-	}
 
 	if ( GetLinkerUEVersion() < VER_UE4_RENAME_WIDGET_VISIBILITY )
 	{
@@ -1278,6 +1242,47 @@ bool HasCircularReferences(const UClass* CurrentClass, TArray<const UClass*, TIn
 
 	return false;
 }
+
+const UWidgetBlueprint* GetGeneratedWidgetBlueprintFromClass(const UClass* CurrentClass)
+{
+	if (const UWidgetBlueprintGeneratedClass* GeneratedClass = Cast<const UWidgetBlueprintGeneratedClass>(CurrentClass))
+	{
+		return Cast<const UWidgetBlueprint>(GeneratedClass->ClassGeneratedBy);
+	}
+	return nullptr;
+}
+
+bool TryBuildSetNameForWidgets(const UClass* CurrentClass, TSet<FName>& InOutWidgetNames, TSet<UWidget*>& InOutConflictingWidgets)
+{
+	if (const UWidgetBlueprint* WidgetBP = GetGeneratedWidgetBlueprintFromClass(CurrentClass))
+	{
+		// only search in parent class if this class isn't overwriting the root
+		if (WidgetBP->WidgetTree->RootWidget == nullptr)
+		{
+			if (!TryBuildSetNameForWidgets(WidgetBP->ParentClass, InOutWidgetNames, InOutConflictingWidgets))
+			{
+				return false;
+			}
+		}
+
+		if (WidgetBP->WidgetTree)
+		{
+			WidgetBP->WidgetTree->ForEachWidget([&InOutWidgetNames,&InOutConflictingWidgets](UWidget* Widget) {
+				FName WidgetName = Widget->GetFName();
+				if (InOutWidgetNames.Contains(WidgetName))
+				{
+					InOutConflictingWidgets.Add(Widget);
+				}
+				else
+				{
+					InOutWidgetNames.Add(Widget->GetFName());
+				}
+				});
+		}
+	}
+	return InOutConflictingWidgets.IsEmpty();
+}
+
 }
 
 TValueOrError<void, UWidget*> UWidgetBlueprint::HasCircularReferences() const
@@ -1289,6 +1294,28 @@ TValueOrError<void, UWidget*> UWidgetBlueprint::HasCircularReferences() const
 		if (UE::UMG::Private::HasCircularReferences(GeneratedClass, DiscoveredBlueprint, Result))
 		{
 			return MakeError(Result);
+		}
+	}
+	return MakeValue();
+}
+
+TValueOrError<void, TSet<UWidget*>> UWidgetBlueprint::HasConflictingWidgetNamesFromInheritance() const
+{
+	if (GeneratedClass)
+	{
+		// we search for conflicting widget names when the parent is also a generated widgetblueprint
+		// this allows bailing out early on most compilations
+		if (const UWidgetBlueprint* WidgetBP = UE::UMG::Private::GetGeneratedWidgetBlueprintFromClass(GeneratedClass) )
+		{
+			if (Cast<const UWidgetBlueprintGeneratedClass>(WidgetBP->ParentClass) != nullptr)
+			{
+				TSet<FName> WidgetNames;
+				TSet<UWidget*> Result;
+				if (!UE::UMG::Private::TryBuildSetNameForWidgets(GeneratedClass, WidgetNames, Result))
+				{
+					return MakeError(Result);
+				}
+			}
 		}
 	}
 	return MakeValue();
@@ -1460,6 +1487,16 @@ TArray<FName> UWidgetBlueprint::GetInheritedAvailableNamedSlots() const
 	}
 	
 	return TArray<FName>();
+}
+
+TSet<FName> UWidgetBlueprint::GetInheritedNamedSlotsWithContentInSameTree() const
+{
+	if (const UWidgetBlueprintGeneratedClass* GeneratedBPClass = Cast<UWidgetBlueprintGeneratedClass>(GeneratedClass->GetSuperClass()))
+	{
+		return GeneratedBPClass->NamedSlotsWithContentInSameTree;
+	}
+
+	return TSet<FName>();
 }
 
 UWidgetEditingProjectSettings* UWidgetBlueprint::GetRelevantSettings()

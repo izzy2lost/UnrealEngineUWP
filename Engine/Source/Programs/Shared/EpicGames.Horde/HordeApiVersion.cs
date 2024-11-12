@@ -32,6 +32,16 @@ namespace EpicGames.Horde
 		AddLengthsToInteriorNodes = 2,
 
 		/// <summary>
+		/// Add support for last modified timestamps to file entries in directory nodes
+		/// </summary>
+		AddFileModTimes = 3,
+
+		/// <summary>
+		/// Interior nodes in chunked data now include the rolling hash of any leaf nodes
+		/// </summary>
+		AddRollingHashesForLeafNodes = 4,
+
+		/// <summary>
 		/// One past the latest known version number. Add new version numbers above this point.
 		/// </summary>
 		LatestPlusOne,

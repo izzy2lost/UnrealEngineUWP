@@ -846,7 +846,9 @@ void FOnlineAsyncTaskSteamFindLobbiesBase::CreateQuery()
 		const FOnlineSessionSearchParam& SearchParam = It.Value();
 
 		// Game server keys are skipped
-		if (Key == SEARCH_DEDICATED_ONLY || Key == SETTING_MAPNAME || Key == SEARCH_EMPTY_SERVERS_ONLY || Key == SEARCH_SECURE_SERVERS_ONLY || Key == SEARCH_PRESENCE)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		if (Key == SEARCH_DEDICATED_ONLY || Key == SETTING_MAPNAME || Key == SEARCH_EMPTY_SERVERS_ONLY || Key == SEARCH_SECURE_SERVERS_ONLY || Key == SEARCH_PRESENCE || Key == SEARCH_LOBBIES)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			continue;
 		}

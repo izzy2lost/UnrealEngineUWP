@@ -2,6 +2,7 @@
 
 #include "SOutputLog.h"
 #include "ConsoleSettings.h"
+#include "Framework/Commands/UICommandInfo.h"
 #include "Framework/Text/IRun.h"
 #include "Framework/Text/TextLayout.h"
 #include "Misc/ConfigCacheIni.h"
@@ -13,6 +14,7 @@
 #include "Framework/Text/SlateTextLayout.h"
 #include "Framework/Text/SlateTextRun.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Internationalization/BreakIterator.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SMenuAnchor.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -22,6 +24,8 @@
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SNumericEntryBox.h"
+#include "Widgets/Layout/SSpacer.h"
 #include "Features/IModularFeatures.h"
 #include "Misc/CoreDelegates.h"
 #include "HAL/PlatformOutputDevices.h"
@@ -227,6 +231,7 @@ void SConsoleInputBox::Construct(const FArguments& InArgs)
 					.OnIsTypedCharValid(FOnIsTypedCharValid::CreateLambda([](const TCHAR InCh) { return true; })) // allow tabs to be typed into the field
 					.ClearKeyboardFocusOnCommit(false)
 					.ModiferKeyForNewLine(EModifierKey::Shift)
+					.ToolTipText(this, &SConsoleInputBox::GetInputHelpText)
 				]
 			]
 		]
@@ -241,16 +246,19 @@ void SConsoleInputBox::Construct(const FArguments& InArgs)
 				.MinDesiredWidth(300.f)
 				.MaxDesiredWidth(this, &SConsoleInputBox::GetSelectionListMaxWidth)
 				[
-					SAssignNew(SuggestionListView, SListView< TSharedPtr<FString> >)
+					SAssignNew(SuggestionListView, SListView< TSharedPtr<FConsoleSuggestion> >)
 					.ListItemsSource(&Suggestions.SuggestionsList)
 					.SelectionMode( ESelectionMode::Single )							// Ideally the mouse over would not highlight while keyboard controls the UI
 					.OnGenerateRow(this, &SConsoleInputBox::MakeSuggestionListItemWidget)
 					.OnSelectionChanged(this, &SConsoleInputBox::SuggestionSelectionChanged)
-					.ItemHeight(18)
 				]
 			]
 		)
 	];
+
+	// Don't let tooltips appear on top of the text box since it hampers visibility while typing the command : 
+	InputText->EnableToolTipForceField(true);
+	SuggestionListView->EnableToolTipForceField(true);
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
@@ -269,14 +277,14 @@ void SConsoleInputBox::Tick( const FGeometry& AllottedGeometry, const double InC
 }
 
 
-void SConsoleInputBox::SuggestionSelectionChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo)
+void SConsoleInputBox::SuggestionSelectionChanged(TSharedPtr<FConsoleSuggestion> NewValue, ESelectInfo::Type SelectInfo)
 {
 	if(bIgnoreUIUpdate)
 	{
 		return;
 	}
 
-	Suggestions.SelectedSuggestion = Suggestions.SuggestionsList.IndexOfByPredicate([&NewValue](const TSharedPtr<FString>& InSuggestion)
+	Suggestions.SelectedSuggestion = Suggestions.SuggestionsList.IndexOfByPredicate([&NewValue](const TSharedPtr<FConsoleSuggestion>& InSuggestion)
 	{
 		return InSuggestion == NewValue;
 	});
@@ -309,11 +317,11 @@ FOptionalSize SConsoleInputBox::GetSelectionListMaxWidth() const
 	return FMath::Max(300.0f, WidgetWorkArea.GetSize().X - 12.0f);
 }
 
-TSharedRef<ITableRow> SConsoleInputBox::MakeSuggestionListItemWidget(TSharedPtr<FString> Text, const TSharedRef<STableViewBase>& OwnerTable)
+TSharedRef<ITableRow> SConsoleInputBox::MakeSuggestionListItemWidget(TSharedPtr<FConsoleSuggestion> Suggestion, const TSharedRef<STableViewBase>& OwnerTable)
 {
-	check(Text.IsValid());
+	check(Suggestion.IsValid());
 
-	FString SanitizedText = *Text;
+	FString SanitizedText = Suggestion->Name;
 	SanitizedText.ReplaceInline(TEXT("\r\n"), TEXT("\n"), ESearchCase::CaseSensitive);
 	SanitizedText.ReplaceInline(TEXT("\r"), TEXT(" "), ESearchCase::CaseSensitive);
 	SanitizedText.ReplaceInline(TEXT("\n"), TEXT(" "), ESearchCase::CaseSensitive);
@@ -326,6 +334,7 @@ TSharedRef<ITableRow> SConsoleInputBox::MakeSuggestionListItemWidget(TSharedPtr<
 			.TextStyle(FOutputLogStyle::Get(), "Log.Normal")
 			.HighlightText(Suggestions.SuggestionsHighlight)
 			.ColorAndOpacity(FSlateColor::UseForeground())
+			.ToolTipText(FText::FromString(Suggestion->Help))
 		];
 }
 
@@ -339,52 +348,43 @@ void SConsoleInputBox::OnTextChanged(const FText& InText)
 	const FString& InputTextStr = InputText->GetText().ToString();
 	if(!InputTextStr.IsEmpty())
 	{
-		TArray<FString> AutoCompleteList;
+		TArray<FConsoleSuggestion> AutoCompleteList;
 		
 		if (ActiveCommandExecutor)
 		{
-			ActiveCommandExecutor->GetAutoCompleteSuggestions(*InputTextStr, AutoCompleteList);
+			ActiveCommandExecutor->GetSuggestedCompletions(*InputTextStr, AutoCompleteList);
 		}
 		else
 		{
 			auto OnConsoleVariable = [&AutoCompleteList](const TCHAR *Name, IConsoleObject* CVar)
 			{
-#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-				if (CVar->TestFlags(ECVF_Cheat))
+				if (CVar->IsEnabled())
 				{
-					return;
+					AutoCompleteList.Add(FConsoleSuggestion(Name, CVar->GetDetailedHelp().ToString()));
 				}
-#endif // (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-				if (CVar->TestFlags(ECVF_Unregistered))
-				{
-					return;
-				}
-
-				AutoCompleteList.Add(Name);
 			};
 
 			IConsoleManager::Get().ForEachConsoleObjectThatContains(FConsoleObjectVisitor::CreateLambda(OnConsoleVariable), *InputTextStr);
-			AutoCompleteList.Append(GetDefault<UConsoleSettings>()->GetFilteredManualAutoCompleteCommands(InputTextStr));
+			//AutoCompleteList.Append(GetDefault<UConsoleSettings>()->GetFilteredManualAutoCompleteCommands(InputTextStr));
 		}
-		AutoCompleteList.Sort([InputTextStr](const FString& A, const FString& B)
+		AutoCompleteList.Sort([InputTextStr](const FConsoleSuggestion& A, const FConsoleSuggestion& B)
 		{ 
-			if (A.StartsWith(InputTextStr))
+			if (A.Name.StartsWith(InputTextStr))
 			{
-				if (!B.StartsWith(InputTextStr))
+				if (!B.Name.StartsWith(InputTextStr))
 				{
 					return true;
 				}
 			}
 			else
 			{
-				if (B.StartsWith(InputTextStr))
+				if (B.Name.StartsWith(InputTextStr))
 				{
 					return false;
 				}
 			}
 
-			return A < B;
-
+			return A.Name < B.Name;
 		});
 
 
@@ -479,14 +479,28 @@ FReply SConsoleInputBox::OnPreviewKeyDown(const FGeometry& MyGeometry, const FKe
 			const bool bShowHistory = InputText->GetText().IsEmpty() || KeyEvent.IsControlDown();
 			if (bShowHistory)
 			{
-				TArray<FString> History;
+				IConsoleManager& ConsoleManager = IConsoleManager::Get();
+				TArray<FString> HistoryNames;
 				if (ActiveCommandExecutor)
 				{
-					ActiveCommandExecutor->GetExecHistory(History);
+					ActiveCommandExecutor->GetExecHistory(HistoryNames);
 				}
 				else
 				{
-					IConsoleManager::Get().GetConsoleHistory(TEXT(""), History);
+					ConsoleManager.GetConsoleHistory(TEXT(""), HistoryNames);
+				}
+				TArray<FConsoleSuggestion> History;
+				for (const FString& Name : HistoryNames)
+				{
+					FString HelpString;
+					// Try to find a console object for this history entry in order to retrieve a help string if possible :
+					const TCHAR* NamePtr = *Name;
+					if (IConsoleObject* CObj = ConsoleManager.FindConsoleObject(*FParse::Token(NamePtr, /*UseEscape = */false), /*bTrackFrequentCalls = */false); CObj && CObj->IsEnabled())
+					{
+						HelpString = CObj->GetDetailedHelp().ToString();
+					}
+
+					History.Add(FConsoleSuggestion(Name, HelpString));
 				}
 				SetSuggestions(History, FText::GetEmpty());
 				
@@ -531,12 +545,12 @@ FReply SConsoleInputBox::OnPreviewKeyDown(const FGeometry& MyGeometry, const FKe
 	return FReply::Unhandled();
 }
 
-void SConsoleInputBox::SetSuggestions(TArray<FString>& Elements, FText Highlight)
+void SConsoleInputBox::SetSuggestions(TArray<FConsoleSuggestion>& Elements, FText Highlight)
 {
 	FString SelectionText;
 	if (Suggestions.HasSelectedSuggestion())
 	{
-		SelectionText = *Suggestions.GetSelectedSuggestion();
+		SelectionText = Suggestions.GetSelectedSuggestion()->Name;
 	}
 
 	Suggestions.Reset();
@@ -544,9 +558,9 @@ void SConsoleInputBox::SetSuggestions(TArray<FString>& Elements, FText Highlight
 
 	for(int32 i = 0; i < Elements.Num(); ++i)
 	{
-		Suggestions.SuggestionsList.Add(MakeShared<FString>(Elements[i]));
+		Suggestions.SuggestionsList.Add(MakeShared<FConsoleSuggestion>(Elements[i]));
 
-		if (Elements[i] == SelectionText)
+		if (Elements[i].Name == SelectionText)
 		{
 			Suggestions.SelectedSuggestion = i;
 		}
@@ -582,12 +596,12 @@ void SConsoleInputBox::MarkActiveSuggestion()
 	bIgnoreUIUpdate = true;
 	if (Suggestions.HasSelectedSuggestion())
 	{
-		TSharedPtr<FString> SelectedSuggestion = Suggestions.GetSelectedSuggestion();
+		TSharedPtr<FConsoleSuggestion> SelectedSuggestion = Suggestions.GetSelectedSuggestion();
 
 		SuggestionListView->SetSelection(SelectedSuggestion);
 		SuggestionListView->RequestScrollIntoView(SelectedSuggestion);	// Ideally this would only scroll if outside of the view
 
-		InputText->SetText(FText::FromString(*SelectedSuggestion));
+		InputText->SetText(FText::FromString(SelectedSuggestion->Name));
 	}
 	else
 	{
@@ -671,6 +685,22 @@ bool SConsoleInputBox::GetActiveCommandExecutorAllowMultiLine() const
 		return ActiveCommandExecutor->AllowMultiLine();
 	}
 	return false;
+}
+
+FText SConsoleInputBox::GetInputHelpText() const
+{
+	const FString& InputTextStr = InputText->GetText().ToString();
+	if (!InputTextStr.IsEmpty())
+	{
+		// Try to find a console object for this entry in order to retrieve a help string if possible :
+		IConsoleManager& ConsoleManager = IConsoleManager::Get();
+		const TCHAR* InputTextStrPtr = *InputTextStr;
+		if (IConsoleObject* CObj = ConsoleManager.FindConsoleObject(*FParse::Token(InputTextStrPtr, /*UseEscape = */false), /*bTrackFrequentCalls = */false); CObj && CObj->IsEnabled())
+		{
+			return CObj->GetDetailedHelp();
+		}
+	}
+	return FText::GetEmpty();
 }
 
 bool SConsoleInputBox::IsCommandExecutorMenuEnabled() const
@@ -1025,6 +1055,7 @@ void FOutputLogTextLayoutMarshaller::ClearMessages()
 {
 	NextPendingMessageIndex = 0;
 	Messages.Empty();
+	bNumMessagesCacheDirty = true;
 	MakeDirty();
 }
 
@@ -1074,6 +1105,17 @@ int32 FOutputLogTextLayoutMarshaller::GetNumFilteredMessages()
 	return CachedNumMessages;
 }
 
+int32 FOutputLogTextLayoutMarshaller::GetNumCachedMessages()
+{
+	// Re-count messages if filter changed before we refresh
+	if (bNumMessagesCacheDirty)
+	{
+		CountMessages();
+	}
+
+	return CachedNumMessages;
+}
+
 void FOutputLogTextLayoutMarshaller::MarkMessagesCacheAsDirty()
 {
 	bNumMessagesCacheDirty = true;
@@ -1081,9 +1123,44 @@ void FOutputLogTextLayoutMarshaller::MarkMessagesCacheAsDirty()
 
 FName FOutputLogTextLayoutMarshaller::GetCategoryForLocation(const FTextLocation Location) const
 {
-	if (Messages.IsValidIndex(Location.GetLineIndex()))
+	if (TextLayout)
 	{
-		return Messages[Location.GetLineIndex()]->Category;
+		TSharedRef<IBreakIterator> WordBreakIterator{ FBreakIterator::CreateWordBreakIterator() };
+
+		int32 LineIndex = Location.GetLineIndex();
+
+		// A Message may be split across multiple lines in the TextLayout, so work backwards to find the Category on the first line of the message.
+		while (TextLayout->GetLineModels().IsValidIndex(LineIndex))
+		{
+			const FTextLayout::FLineModel& LineModel = TextLayout->GetLineModels()[LineIndex];	
+
+			WordBreakIterator->SetStringRef(&LineModel.Text.Get());
+
+			int32 PreviousBreak = WordBreakIterator->ResetToBeginning();
+			int32 CurrentBreak = 0;
+
+			// Iterate words starting from the beginning of the line, as the Category is one of the first words in a message.
+			while ((CurrentBreak = WordBreakIterator->MoveToNext()) != INDEX_NONE)
+			{
+				FTextSelection Selection{ FTextLocation(LineIndex, CurrentBreak), FTextLocation(LineIndex, PreviousBreak) };
+
+				FString SelectedText;
+				TextLayout->GetSelectionAsText(SelectedText, Selection);
+
+				FName PossibleCategory(SelectedText, FNAME_Find);
+
+				if (!PossibleCategory.IsNone() && Filter->IsLogCategoryAvailable(PossibleCategory))
+				{
+					return PossibleCategory;
+				}
+
+				PreviousBreak = CurrentBreak;
+			}
+
+			WordBreakIterator->ClearString();
+
+			LineIndex--;
+		}
 	}
 
 	return NAME_None;
@@ -1124,6 +1201,10 @@ void SOutputLog::Construct( const FArguments& InArgs, bool bCreateDrawerDockButt
 {
 	bShouldCreateDrawerDockButton = bCreateDrawerDockButton;
 	BuildInitialLogCategoryFilter(InArgs);
+
+	bShouldShowLoggingLimitMenu = InArgs._EnableLoggingLimitMenu;
+	bEnableLoggingLimit = InArgs._LoggingLineLimit.IsSet();
+	LoggingLineLimit = InArgs._LoggingLineLimit.Get(10000);
 
 	MessagesTextMarshaller = FOutputLogTextLayoutMarshaller::Create(InArgs._Messages, &Filter);
 
@@ -1189,6 +1270,22 @@ void SOutputLog::Construct( const FArguments& InArgs, bool bCreateDrawerDockButt
 				]
 			]
 			+SHorizontalBox::Slot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.Padding(4, 0)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("LogLineLimitReached", "Log line limit reached. Clear log to continue."))
+				.ColorAndOpacity(FSlateColor(FLinearColor::Yellow))
+				.Visibility(MakeAttributeLambda([this]() {
+					if (!bEnableLoggingLimit || MessagesTextMarshaller->GetNumCachedMessages() < LoggingLineLimit)
+					{
+						return EVisibility::Hidden;
+					}
+					return EVisibility::Visible;
+				}))
+			]
+			+SHorizontalBox::Slot()
 			.HAlign(HAlign_Right)
 			.VAlign(VAlign_Center)
 			.Padding(4, 0)
@@ -1238,7 +1335,9 @@ void SOutputLog::Construct( const FArguments& InArgs, bool bCreateDrawerDockButt
 		.AutoHeight()
 		[
 			SAssignNew(ConsoleInputBox, SConsoleInputBox)
-			.Visibility(MakeAttributeLambda([]() { return  FOutputLogModule::Get().ShouldHideConsole() ? EVisibility::Collapsed : EVisibility::Visible; }))
+			.Visibility(MakeAttributeLambda([]() {
+				return FOutputLogModule::Get().ShouldHideConsole() ? EVisibility::Collapsed : EVisibility::Visible;
+			}))
 			.OnConsoleCommandExecuted(this, &SOutputLog::OnConsoleCommandExecuted)
 			.OnCloseConsole(InArgs._OnCloseConsole)
 			// Always place suggestions above the input line for the output log widget
@@ -1256,6 +1355,8 @@ void SOutputLog::Construct( const FArguments& InArgs, bool bCreateDrawerDockButt
 
 	bIsUserScrolled = false;
 	RequestForceScroll();
+
+	OnClearLogDelegate = InArgs._OnClearLog;
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
@@ -1379,7 +1480,44 @@ bool SOutputLog::CreateLogMessages( const TCHAR* V, ELogVerbosity::Type Verbosit
 
 void SOutputLog::Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category)
 {
-	MessagesTextMarshaller->AppendPendingMessage(V, Verbosity, Category);
+	if (!bEnableLoggingLimit || MessagesTextMarshaller->GetNumCachedMessages() < LoggingLineLimit)
+	{
+		MessagesTextMarshaller->AppendPendingMessage(V, Verbosity, Category);
+	}
+}
+
+TSharedRef<SWidget> SOutputLog::MakeLogLimitMenuItem()
+{
+	return SNew(SHorizontalBox)
+		+SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.HAlign(HAlign_Center)
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("LimitLog", "Logging Limit"))
+		]
+		+SHorizontalBox::Slot()
+		.FillWidth(1.f)
+		[
+			SNew(SSpacer)
+		]
+		+SHorizontalBox::Slot()
+		.HAlign(HAlign_Right)
+		[
+			SNew(SNumericEntryBox<int32>)
+			.AllowSpin(true)
+			.Justification(ETextJustify::Right)
+			.MinDesiredValueWidth(100)
+			.MaxSliderValue(100000)
+			.OnValueChanged_Lambda([this](int32 NewValue){
+				if (NewValue > 100)
+				{
+					LoggingLineLimit = NewValue;
+				}
+			})
+			.Value_Lambda([this](){ return LoggingLineLimit; })
+		];
 }
 
 void SOutputLog::ExtendTextBoxMenu(FMenuBuilder& Builder)
@@ -1395,6 +1533,18 @@ void SOutputLog::ExtendTextBoxMenu(FMenuBuilder& Builder)
 		FSlateIcon(), 
 		ClearOutputLogAction
 		);
+
+	Builder.AddMenuEntry(
+		FUIAction(
+			FExecuteAction::CreateLambda([this](){ bEnableLoggingLimit = !bEnableLoggingLimit; }),
+			FCanExecuteAction::CreateLambda([] { return true; }),
+			FIsActionChecked::CreateLambda([this] { return bEnableLoggingLimit; }),
+			FIsActionButtonVisible::CreateLambda([this] { return bShouldShowLoggingLimitMenu; })
+		),
+		MakeLogLimitMenuItem(),
+		NAME_None,
+		LOCTEXT("LimitLogToolTip", "Limits Logging to specified number of lines."),
+		EUserInterfaceActionType::ToggleButton);
 
 	const FVector2D CursorPos = FSlateApplication::Get().GetCursorPos();
 	const FVector2D RelativeCursorPos = MessagesTextBox->GetTickSpaceGeometry().AbsoluteToLocal(CursorPos);
@@ -1448,6 +1598,8 @@ void SOutputLog::OnClearLog()
 	MessagesTextMarshaller->ClearMessages();
 	MessagesTextBox->Refresh();
 	bIsUserScrolled = false;
+
+	[[maybe_unused]] bool bOnClearLogDelegateExecuted = OnClearLogDelegate.ExecuteIfBound();
 }
 
 void SOutputLog::OnHighlightCategory(FName NewCategoryToHighlight)
@@ -1801,25 +1953,37 @@ ECheckBoxState SOutputLog::VerbosityErrors_IsChecked() const
 	return ECheckBoxState::Unchecked;
 }
 
-void SOutputLog::VerbosityLogs_Execute()
-{ 
-	// Rotate through: showing the verbosity, showing the verbosity while ignoring filter categories, and hiding the verbosity
-	if (Filter.bShowLogs)
+static void VerbosityGeneric_Execute(bool& Flag, TSet<ELogVerbosity::Type>& Filter, ELogVerbosity::Type Verbosity)
+{
+	if (FSlateApplication::Get().GetModifierKeys().IsShiftDown())
 	{
-		if (Filter.IgnoreFilterVerbosities.Contains(ELogVerbosity::Log))
-		{
-			Filter.bShowLogs = false;
-			Filter.IgnoreFilterVerbosities.Remove(ELogVerbosity::Log);
-		}
-		else
-		{
-			Filter.IgnoreFilterVerbosities.Emplace(ELogVerbosity::Log);
-		}
+		Flag = !Flag;
 	}
 	else
 	{
-		Filter.bShowLogs = true;
+		// Rotate through: showing the verbosity, showing the verbosity while ignoring filter categories, and hiding the verbosity
+		if (Flag)
+		{
+			if (Filter.Contains(Verbosity))
+			{
+				Flag = false;
+				Filter.Remove(Verbosity);
+			}
+			else
+			{
+				Filter.Emplace(Verbosity);
+			}
+		}
+		else
+		{
+			Flag = true;
+		}
 	}
+}
+
+void SOutputLog::VerbosityLogs_Execute()
+{ 
+	VerbosityGeneric_Execute(Filter.bShowLogs, Filter.IgnoreFilterVerbosities, ELogVerbosity::Log);
 
 	// Flag the messages count as dirty
 	MessagesTextMarshaller->MarkMessagesCacheAsDirty();
@@ -1829,23 +1993,7 @@ void SOutputLog::VerbosityLogs_Execute()
 
 void SOutputLog::VerbosityWarnings_Execute()
 {
-	// Rotate through: showing the verbosity, showing the verbosity while ignoring filter categories, and hiding the verbosity
-	if (Filter.bShowWarnings)
-	{
-		if (Filter.IgnoreFilterVerbosities.Contains(ELogVerbosity::Warning))
-		{
-			Filter.bShowWarnings = false;
-			Filter.IgnoreFilterVerbosities.Remove(ELogVerbosity::Warning);
-		}
-		else
-		{
-			Filter.IgnoreFilterVerbosities.Emplace(ELogVerbosity::Warning);
-		}
-	}
-	else
-	{
-		Filter.bShowWarnings = true;
-	}
+	VerbosityGeneric_Execute(Filter.bShowWarnings, Filter.IgnoreFilterVerbosities, ELogVerbosity::Warning);
 
 	// Flag the messages count as dirty
 	MessagesTextMarshaller->MarkMessagesCacheAsDirty();
@@ -1855,23 +2003,7 @@ void SOutputLog::VerbosityWarnings_Execute()
 
 void SOutputLog::VerbosityErrors_Execute()
 {
-	// Rotate through: showing the verbosity, showing the verbosity while ignoring filter categories, and hiding the verbosity
-	if (Filter.bShowErrors)
-	{
-		if (Filter.IgnoreFilterVerbosities.Contains(ELogVerbosity::Error))
-		{
-			Filter.bShowErrors = false;
-			Filter.IgnoreFilterVerbosities.Remove(ELogVerbosity::Error);
-		}
-		else
-		{
-			Filter.IgnoreFilterVerbosities.Emplace(ELogVerbosity::Error);
-		}
-	}
-	else
-	{
-		Filter.bShowErrors = true;
-	}
+	VerbosityGeneric_Execute(Filter.bShowErrors, Filter.IgnoreFilterVerbosities, ELogVerbosity::Error);
 
 	// Flag the messages count as dirty
 	MessagesTextMarshaller->MarkMessagesCacheAsDirty();
@@ -2309,7 +2441,7 @@ bool FOutputLogFilter::IsMessageAllowed(const TSharedPtr<FOutputLogMessage>& Mes
 
 	// Filter by Category
 	{
-		if (!bShowAllCategories && !IgnoreFilterVerbosities.Contains(Message->Verbosity) && !IsLogCategoryEnabled(Message->Category))
+		if (!IgnoreFilterVerbosities.Contains(Message->Verbosity) && !IsLogCategoryEnabled(Message->Category))
 		{
 			return false;
 		}
@@ -2348,6 +2480,11 @@ void FOutputLogFilter::AddAvailableLogCategory(const FName& LogCategory)
 	{
 		ToggleLogCategory(LogCategory);
 	}
+}
+
+bool FOutputLogFilter::IsLogCategoryAvailable(const FName& LogCategory) const
+{
+	return AvailableLogCategories.Contains(LogCategory);
 }
 
 void FOutputLogFilter::ToggleLogCategory(const FName& LogCategory)

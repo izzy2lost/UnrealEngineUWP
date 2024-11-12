@@ -30,7 +30,7 @@ public class Expat : ModuleRules
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(ExpatPackagePath, Target.Platform.ToString(), ConfigName, "libexpat.a"));
+			PublicAdditionalLibraries.Add(Path.Combine(PlatformModuleDirectory, ExpatVersion, PlatformSubdirectoryName, ConfigName, "libexpat.a"));
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
 		{

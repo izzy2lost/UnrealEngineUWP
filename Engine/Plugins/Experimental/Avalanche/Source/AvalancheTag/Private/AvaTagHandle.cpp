@@ -2,23 +2,20 @@
 
 #include "AvaTagHandle.h"
 #include "AvaTagCollection.h"
+#include "AvaTagList.h"
 
-const FAvaTag* FAvaTagHandle::GetTag() const
+FAvaTagList FAvaTagHandle::GetTags() const
 {
 	if (::IsValid(Source))
 	{
-		return Source->GetTag(TagId);
+		return Source->GetTags(TagId);
 	}
-	return nullptr;
+	return FAvaTagList();
 }
 
 FString FAvaTagHandle::ToString() const
 {
-	if (const FAvaTag* Tag = GetTag())
-	{
-		return Tag->ToString();
-	}
-	return FString();
+	return ToName().ToString();
 }
 
 FString FAvaTagHandle::ToDebugString() const
@@ -28,9 +25,9 @@ FString FAvaTagHandle::ToDebugString() const
 
 FName FAvaTagHandle::ToName() const
 {
-	if (const FAvaTag* Tag = GetTag())
+	if (::IsValid(Source))
 	{
-		return Tag->TagName;
+		return Source->GetTagName(TagId);
 	}
 	return NAME_None;
 }
@@ -43,17 +40,39 @@ void FAvaTagHandle::PostSerialize(const FArchive& Ar)
 	}
 }
 
-bool FAvaTagHandle::MatchesTag(const FAvaTagHandle& InOther) const
+bool FAvaTagHandle::Overlaps(const FAvaTagHandle& InOther) const
 {
-	const FAvaTag* ThisTag  = GetTag();
-	const FAvaTag* OtherTag = InOther.GetTag();
-
-	if (ThisTag && OtherTag)
+	if (MatchesExact(InOther))
 	{
-		return *ThisTag == *OtherTag;
+		return true;
 	}
 
-	return MatchesExact(InOther);
+	// No Overlap if this has no Tags
+	FAvaTagList ThisTagList = GetTags();
+	if (ThisTagList.Tags.IsEmpty())
+	{
+		return false;
+	}
+
+	// No Overlap if other is empty
+	FAvaTagList OtherTagList = InOther.GetTags();
+	if (OtherTagList.Tags.IsEmpty())
+	{
+		return false;
+	}
+
+	for (const FAvaTag* ThisTag : ThisTagList)
+	{
+		for (const FAvaTag* OtherTag : OtherTagList)
+		{
+			if (*ThisTag == *OtherTag)
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 bool FAvaTagHandle::MatchesExact(const FAvaTagHandle& InOther) const

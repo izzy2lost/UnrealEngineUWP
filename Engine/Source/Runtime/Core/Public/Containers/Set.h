@@ -160,7 +160,7 @@ class TSetElementBase
 public:
 	typedef InElementType ElementType;
 
-	FORCEINLINE TSetElementBase() {}
+	TSetElementBase() = default;
 
 	/** Initialization constructor. */
 	template <
@@ -194,7 +194,7 @@ class TSetElementBase<InElementType, true>
 public:
 	typedef InElementType ElementType;
 
-	FORCEINLINE TSetElementBase() {}
+	TSetElementBase() = default;
 
 	/** Initialization constructor. */
 	template <
@@ -228,8 +228,7 @@ class TSetElement : public TSetElementBase<InElementType, THasTypeLayout<InEleme
 	using Super = TSetElementBase<InElementType, THasTypeLayout<InElementType>::Value>;
 public:
 	/** Default constructor. */
-	FORCEINLINE TSetElement()
-	{}
+	TSetElement() = default;
 
 	/** Initialization constructor. */
 	template <
@@ -307,24 +306,21 @@ private:
 public:
 	/** Initialization constructor. */
 	FORCEINLINE TSet()
-	:	HashSize(0)
-	{}
+	{
+	}
 
 	/** Copy constructor. */
 	FORCEINLINE TSet(const TSet& Copy)
-	:	HashSize(0)
 	{
 		*this = Copy;
 	}
 
-	FORCEINLINE explicit TSet(const TArray<ElementType>& InArray)
-		: HashSize(0)
+	FORCEINLINE explicit TSet(TArrayView<const ElementType> InArrayView)
 	{
-		Append(InArray);
+		Append(InArrayView);
 	}
 
 	FORCEINLINE explicit TSet(TArray<ElementType>&& InArray)
-		: HashSize(0)
 	{
 		Append(MoveTemp(InArray));
 	}
@@ -334,6 +330,24 @@ public:
 	{
 		HashSize = 0;
 	}
+
+	/////////////////////////////////////////////
+	// Start - intrusive TOptional<TSet> state //
+	/////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TSet;
+
+	explicit TSet(FIntrusiveUnsetOptionalState Tag)
+		: Elements(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Elements == Tag;
+	}
+	///////////////////////////////////////////
+	// End - intrusive TOptional<TSet> state //
+	///////////////////////////////////////////
 
 	/** Assignment operator. */
 	TSet& operator=(const TSet& Copy)
@@ -774,28 +788,7 @@ public:
 		return FSetElementId(NewHashIndex);
 	}
 
-	template<typename ViewSizeType>
-	void Append(TArrayView<ElementType, ViewSizeType> InElements)
-	{
-		Reserve(Elements.Num() + InElements.Num());
-		for (const ElementType& Element : InElements)
-		{
-			Add(Element);
-		}
-	}
-
-	template<typename ViewSizeType>
-	void Append(TArrayView<const ElementType, ViewSizeType> InElements)
-	{
-		Reserve(Elements.Num() + InElements.Num());
-		for (const ElementType& Element : InElements)
-		{
-			Add(Element);
-		}
-	}
-
-	template<typename ArrayAllocator>
-	void Append(const TArray<ElementType, ArrayAllocator>& InElements)
+	void Append(TArrayView<const ElementType> InElements)
 	{
 		Reserve(Elements.Num() + InElements.Num());
 		for (const ElementType& Element : InElements)
@@ -921,6 +914,23 @@ private:
 	}
 
 public:
+	/**
+	 * Finds any element in the set and returns a pointer to it.
+	 * Callers should not depend on particular patterns in the behaviour of this function.
+	 * @return A pointer to an arbitrary element, or nullptr if the container is empty.
+	 */
+	ElementType* FindArbitraryElement()
+	{
+		// The goal of this function is to be fast, and so the implementation may be improved at any time even if it gives different results.
+
+		int32 Result = Elements.FindArbitraryElementIndex();
+		return (Result != INDEX_NONE) ? &Elements[Result].Value : nullptr;
+	}
+	const ElementType* FindArbitraryElement() const
+	{
+		return const_cast<TSet*>(this)->FindArbitraryElement();
+	}
+
 	/**
 	 * Finds an element with the given key in the set.
 	 * @param Key - The key to search for.
@@ -1411,8 +1421,8 @@ private:
 
 	ElementArrayType Elements;
 
-	mutable HashType Hash;
-	mutable int32	 HashSize;
+	HashType Hash;
+	int32	 HashSize = 0;
 
 public:
 	void WriteMemoryImage(FMemoryImageWriter& Writer) const
@@ -1437,14 +1447,14 @@ public:
 			TSet* DstObject = static_cast<TSet*>(Dst);
 			this->Elements.CopyUnfrozen(Context, &DstObject->Elements);
 
-			new(&DstObject->Hash) HashType();
+			::new((void*)&DstObject->Hash) HashType();
 			DstObject->Hash.ResizeAllocation(0, this->HashSize, sizeof(FSetElementId));
 			FMemory::Memcpy(DstObject->Hash.GetAllocation(), this->Hash.GetAllocation(), sizeof(FSetElementId) * this->HashSize);
 			DstObject->HashSize = this->HashSize;
 		}
 		else
 		{
-			new(Dst) TSet();
+			::new(Dst) TSet();
 		}
 	}
 
@@ -1521,7 +1531,7 @@ private:
 	 * @param AllowShrinking - If the hash is allowed to shrink.
 	 * @return true if the set was rehashed.
 	 */
-	bool ConditionalRehash(int32 NumHashedElements, EAllowShrinking AllowShrinking) const
+	bool ConditionalRehash(int32 NumHashedElements, EAllowShrinking AllowShrinking)
 	{
 		// Calculate the desired hash size for the specified number of elements.
 		const int32 DesiredHashSize = Allocator::GetNumberOfHashBuckets(NumHashedElements);
@@ -1537,7 +1547,7 @@ private:
 	}
 
 	/** Resizes the hash. */
-	void Rehash() const
+	void Rehash()
 	{
 		// Free the old hash.
 		Hash.ResizeAllocation(0,0,sizeof(FSetElementId));
@@ -1643,8 +1653,6 @@ private:
 			, Key  (InKey) //-V1041
 			, Index(INDEX_NONE)
 		{
-			// The set's hash needs to be initialized to find the elements with the specified key.
-			Set.ConditionalRehash(Set.Elements.Num(), EAllowShrinking::No);
 			if (Set.HashSize)
 			{
 				NextIndex = Set.GetTypedHash(KeyFuncs::GetKeyHash(Key)).Index;
@@ -1809,6 +1817,9 @@ public:
 	FORCEINLINE TRangedForConstIterator end() const   { return TRangedForConstIterator(Elements.end());   }
 };
 
+template <typename RangeType>
+TSet(RangeType&&) -> TSet<TElementType_T<RangeType>>;
+
 namespace Freeze
 {
 	template<typename ElementType, typename KeyFuncs, typename Allocator>
@@ -1874,6 +1885,24 @@ public:
 	{
 	}
 
+	///////////////////////////////////////////////////
+	// Start - intrusive TOptional<TScriptSet> state //
+	///////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TScriptSet;
+
+	explicit TScriptSet(FIntrusiveUnsetOptionalState Tag)
+		: Elements(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Elements == Tag;
+	}
+	/////////////////////////////////////////////////
+	// End - intrusive TOptional<TScriptSet> state //
+	/////////////////////////////////////////////////
+
 	bool IsValidIndex(int32 Index) const
 	{
 		return Elements.IsValidIndex(Index);
@@ -1887,6 +1916,11 @@ public:
 	int32 Num() const
 	{
 		return Elements.Num();
+	}
+
+	int32 NumUnchecked() const
+	{
+		return Elements.NumUnchecked();
 	}
 
 	int32 GetMaxIndex() const
@@ -2122,8 +2156,8 @@ private:
 	typedef typename Allocator::HashAllocator::template ForElementType<FSetElementId> HashType;
 
 	ElementArrayType Elements;
-	mutable HashType Hash;
-	mutable int32    HashSize;
+	HashType         Hash;
+	int32            HashSize;
 
 	FORCEINLINE FSetElementId& GetTypedHash(int32 HashIndex) const
 	{
@@ -2190,6 +2224,14 @@ class FScriptSet : public TScriptSet<FDefaultSetAllocator, FScriptSet>
 
 public:
 	using Super::Super;
+
+	///////////////////////////////////////////////////
+	// Start - intrusive TOptional<FScriptSet> state //
+	///////////////////////////////////////////////////
+	using IntrusiveUnsetOptionalStateType = FScriptSet;
+	/////////////////////////////////////////////////
+	// End - intrusive TOptional<FScriptSet> state //
+	/////////////////////////////////////////////////
 };
 
 struct TSetPrivateFriend
@@ -2201,7 +2243,7 @@ struct TSetPrivateFriend
 		// Load the set's new elements.
 		Ar << Set.Elements;
 
-		if(Ar.IsLoading() || Ar.IsModifyingWeakAndStrongReferences())
+		if(Ar.IsLoading() || (Ar.IsModifyingWeakAndStrongReferences() && !Ar.IsSaving()))
 		{
 			// Free the old hash.
 			Set.Hash.ResizeAllocation(0,0,sizeof(FSetElementId));
@@ -2220,7 +2262,7 @@ struct TSetPrivateFriend
  	{
 		Slot << Set.Elements;
 
-		if (Slot.GetUnderlyingArchive().IsLoading() || Slot.GetUnderlyingArchive().IsModifyingWeakAndStrongReferences())
+		if (Slot.GetUnderlyingArchive().IsLoading() || (Slot.GetUnderlyingArchive().IsModifyingWeakAndStrongReferences() && !Slot.GetUnderlyingArchive().IsSaving()))
 		{
 			// Free the old hash.
 			Set.Hash.ResizeAllocation(0, 0, sizeof(FSetElementId));

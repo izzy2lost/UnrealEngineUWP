@@ -3,7 +3,7 @@
 #pragma once
 
 #include "IDetailCustomization.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "TickableEditorObject.h"
 
 class IDetailsView;

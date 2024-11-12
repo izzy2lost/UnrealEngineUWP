@@ -3,8 +3,10 @@
 #include "NNERuntimeIREEMetaData.h"
 
 #include "Containers/Array.h"
-#include "Serialization/CustomVersion.h"
+#include "Internationalization/Regex.h"
 #include "NNE.h"
+#include "NNERuntimeIREELog.h"
+#include "Serialization/CustomVersion.h"
 
 namespace UE::NNERuntimeIREE::ModuleMetaData::Private
 {
@@ -31,6 +33,10 @@ namespace UE::NNERuntimeIREE::ModuleMetaData::Private
 		else if (TypeString.StartsWith("half"))
 		{
 			return ENNETensorDataType::Half;
+		}
+		else if (TypeString.StartsWith("bf16"))
+		{
+			return ENNETensorDataType::BFloat16;
 		}
 		else if (TypeString.StartsWith("f"))
 		{
@@ -92,149 +98,158 @@ namespace UE::NNERuntimeIREE::ModuleMetaData::Private
 		return ENNETensorDataType::None;
 	}
 
-	bool ParseTensorDescFromString(const FString& ArgumentString, FString& Name, TArray<int32>& Shape, ENNETensorDataType& Type)
+	int32 FindCorrespondingClosingSymbol(const FString& String, int32 Offset, const FString& OpenSymbol, const FString& CloseSymbol)
 	{
-		FString Argument = ArgumentString;
-		int32 AttributeStartIndex = Argument.Find("{");
-		if (AttributeStartIndex > 0)
+		int32 OpenedSymbols = 1;
+		int32 NextClose = String.Find(CloseSymbol, ESearchCase::IgnoreCase, ESearchDir::FromStart, Offset);
+		if (NextClose == INDEX_NONE)
 		{
-			Argument = Argument.Mid(0, AttributeStartIndex).TrimStartAndEnd();
+			return INDEX_NONE;
 		}
 
-		Name = "";
-		int32 NameEnd = Argument.Find(":");
-		if (NameEnd > 0)
+		int32 NextOpen = String.Find(OpenSymbol, ESearchCase::IgnoreCase, ESearchDir::FromStart, Offset);
+		while (OpenedSymbols > 0)
 		{
-			Name = Argument.Mid(0, NameEnd).TrimStartAndEnd();
-			Argument = Argument.Mid(NameEnd + 1).TrimStartAndEnd();
-		}
-		else
-		{
-			Argument = Argument.TrimStartAndEnd();
-		}
-
-		Shape.Empty();
-		if (Argument.StartsWith("tensor"))
-		{
-			int32 ShapeOpenBracket = Argument.Find("<");
-			int32 ShapeCloseBracket = Argument.Find(">");
-			if (ShapeOpenBracket < 1 || ShapeCloseBracket <= ShapeOpenBracket)
+			if (NextOpen == INDEX_NONE || NextClose < NextOpen)
 			{
-				return false;
-			}
-			FString ShapeTypeString = Argument.Mid(ShapeOpenBracket + 1, ShapeCloseBracket - (ShapeOpenBracket + 1)).TrimStartAndEnd();
-
-			TArray<FString> Dims;
-			FString Dim;
-			while (ShapeTypeString.Split("x", &Dim, &ShapeTypeString))
-			{
-				Dims.Add(Dim);
-			}
-			Type = ConvertTypeString(ShapeTypeString);
-
-			for (int32 i = 0; i < Dims.Num(); i++)
-			{
-				if (Dims[i].Contains("?"))
+				OpenedSymbols--;
+				if (OpenedSymbols > 0)
 				{
-					Shape.Add(-1);
-				}
-				else
-				{
-					int32 DimVal = FCString::Atoi(*Dims[i]);
-					Shape.Add(DimVal > 0 ? DimVal : -1);
+					NextClose = String.Find(CloseSymbol, ESearchCase::IgnoreCase, ESearchDir::FromStart, NextClose + 1);
+					if (NextClose == INDEX_NONE)
+					{
+						return INDEX_NONE;
+					}
 				}
 			}
+			else
+			{
+				OpenedSymbols++;
+				NextOpen = String.Find(OpenSymbol, ESearchCase::IgnoreCase, ESearchDir::FromStart, NextOpen + 1);
+			}
 		}
-		else
-		{
-			Shape.Add(1);
-			Type = ConvertTypeString(Argument);
-		}
-
-		return Type != ENNETensorDataType::None;
+		return NextClose;
 	}
 
-	bool ParseFunctionMetaDataFromString(const FString& FunctionString, UE::NNERuntimeIREE::FFunctionMetaData& FunctionMetaData)
+	bool ParseArgumentType(const FString& ArgumentType, UE::NNE::FSymbolicTensorShape& Shape, ENNETensorDataType& Type)
 	{
-		FString ResultPattern = "->";
-		int32 ArgumentsOpenBracket = FunctionString.Find("(");
-		int32 ArgumentsCloseBracket = FunctionString.Find(")");
-		int32 ResultStart = FunctionString.Find(ResultPattern);
-		if (ArgumentsOpenBracket < 1 || ArgumentsCloseBracket <= ArgumentsOpenBracket)
+		int32 ShapeStart = ArgumentType.Find("<");
+		if (ShapeStart != INDEX_NONE)
 		{
-			return false;
-		}
-
-		FunctionMetaData.Name = FunctionString.Mid(0, ArgumentsOpenBracket).TrimStartAndEnd();
-		if (FunctionMetaData.Name.IsEmpty())
-		{
-			return false;
-		}
-		FunctionMetaData.InputDescs.Empty();
-		FunctionMetaData.OutputDescs.Empty();
-
-		FString ArgumentsString = FunctionString.Mid(ArgumentsOpenBracket + 1, ArgumentsCloseBracket - (ArgumentsOpenBracket + 1)).TrimStartAndEnd();
-		while (ArgumentsString.Len() > 0)
-		{
-			int32 SeparatorIndex = ArgumentsString.Find(",");
-			FString ArgumentString;
-			if (SeparatorIndex > 0)
+			int32 ShapeEnd = ArgumentType.Find(">", ESearchCase::IgnoreCase, ESearchDir::FromStart, ShapeStart);
+			check(ShapeStart != INDEX_NONE);
+			FString ShapeString = ArgumentType.Mid(ShapeStart + 1, ShapeEnd - ShapeStart - 1).TrimStartAndEnd();
+			TArray<FString> ShapeList;
+			ShapeString.ParseIntoArray(ShapeList, TEXT(","));
+			if (ShapeList.Num() < 2)
 			{
-				ArgumentString = ArgumentsString.Mid(0, SeparatorIndex).TrimStartAndEnd();
-				ArgumentsString = ArgumentsString.Mid(SeparatorIndex + 1).TrimStartAndEnd();
+				ShapeString.ParseIntoArray(ShapeList, TEXT("x"));
 			}
-			else
+			TArray<int32> ShapeArray;
+			for (int32 i = 0; i < ShapeList.Num() - 1; i++)
 			{
-				ArgumentString = ArgumentsString;
-				ArgumentsString = "";
+				if (ShapeList[i].Contains("?"))
+				{
+					ShapeArray.Emplace(-1);
+				}
+				else
+				{
+					// Match any integer possibly starting with a sign
+					// [-+]?: Matches 0 or 1 or optional times plus or minus
+					// \\d+: Matches one or more digits
+					const FRegexPattern Pattern(TEXT("[-+]?\\d+"));
+					FRegexMatcher Matcher(Pattern, ShapeList[i]);
+					if (Matcher.FindNext())
+					{
+						int32 IntegerStart = Matcher.GetMatchBeginning();
+						int32 IntegerEnd = Matcher.GetMatchEnding();
+						check(IntegerStart != INDEX_NONE && IntegerEnd != INDEX_NONE);
+						ShapeArray.Emplace(FCString::Atoi(*ShapeList[i].Mid(IntegerStart, IntegerEnd - IntegerStart)));
+					}
+				}
+
 			}
+			Shape = UE::NNE::FSymbolicTensorShape::Make(ShapeArray);
+			Type = ConvertTypeString(ShapeList[ShapeList.Num() - 1]);
+		}
+		else
+		{
+			Type = ConvertTypeString(ArgumentType);
+		}
+		return true;
+	}
+
+	bool ParseArguments(const FString& Arguments, TArray<UE::NNE::FTensorDesc>& TensorDescs)
+	{
+		FString ReducedArguments = "";
+		int32 LastStart = 0;
+		int32 NextOpenSymbol = Arguments.Find("{", ESearchCase::IgnoreCase, ESearchDir::FromStart, LastStart);
+		while (NextOpenSymbol != INDEX_NONE)
+		{
+			ReducedArguments += Arguments.Mid(LastStart, NextOpenSymbol - LastStart);
+			LastStart = FindCorrespondingClosingSymbol(Arguments, NextOpenSymbol + 1, "{", "}") + 1;
+			check(LastStart != INDEX_NONE);
+			NextOpenSymbol = Arguments.Find("{", ESearchCase::IgnoreCase, ESearchDir::FromStart, LastStart);
+		}
+		ReducedArguments += Arguments.Mid(LastStart);
+
+		FString FinalArguments = "";
+		LastStart = 0;
+		NextOpenSymbol = ReducedArguments.Find("(", ESearchCase::IgnoreCase, ESearchDir::FromStart, LastStart);
+		while (NextOpenSymbol != INDEX_NONE)
+		{
+			FinalArguments += ReducedArguments.Mid(LastStart, NextOpenSymbol - LastStart);
+			LastStart = FindCorrespondingClosingSymbol(ReducedArguments, NextOpenSymbol + 1, "(", ")") + 1;
+			check(LastStart != INDEX_NONE);
+			NextOpenSymbol = ReducedArguments.Find("(", ESearchCase::IgnoreCase, ESearchDir::FromStart, LastStart);
+		}
+		FinalArguments += ReducedArguments.Mid(LastStart);
+
+		TArray<FString> ArgumentList;
+		int32 LastIndex = 0;
+		int32 InsideShape = 0;
+		for (int32 i = 0; i < FinalArguments.Len(); i++)
+		{
+			if (FinalArguments[i] == *TEXT(",") && InsideShape == 0)
+			{
+				ArgumentList.Add(FinalArguments.Mid(LastIndex, i - LastIndex).TrimStartAndEnd());
+				LastIndex = i + 1;
+			}
+			else if (FinalArguments[i] == *TEXT("<"))
+			{
+				InsideShape++;
+			}
+			else if (FinalArguments[i] == *TEXT(">"))
+			{
+				InsideShape--;
+			}
+		}
+		ArgumentList.Add(FinalArguments.Mid(LastIndex).TrimStartAndEnd());
+
+		for (const FString& Argument : ArgumentList)
+		{
+			TArray<FString> ArgumentPartList;
+			Argument.ParseIntoArray(ArgumentPartList, TEXT(":"));
 
 			FString Name;
-			TArray<int32> Shape;
-			ENNETensorDataType Type;
-			if (ParseTensorDescFromString(ArgumentString, Name, Shape, Type))
+			UE::NNE::FSymbolicTensorShape Shape;
+			ENNETensorDataType Type = ENNETensorDataType::None;
+			if (ArgumentPartList.Num() > 1)
 			{
-				FunctionMetaData.InputDescs.Add(UE::NNE::FTensorDesc::Make(Name, UE::NNE::FSymbolicTensorShape::Make(Shape), Type));
-			}
-			else
-			{
-				return false;
-			}
-		}
-
-		if (ResultStart > ArgumentsCloseBracket)
-		{
-			FString ResultsString = FunctionString.Mid(ResultStart + ResultPattern.Len()).TrimStartAndEnd();
-			ResultsString.RemoveFromStart("(");
-			ResultsString.RemoveFromEnd(")");
-			ResultsString = ResultsString.TrimStartAndEnd();
-			while (ResultsString.Len() > 0)
-			{
-				int32 SeparatorIndex = ResultsString.Find(",");
-				FString ResultString;
-				if (SeparatorIndex > 0)
-				{
-					ResultString = ResultsString.Mid(0, SeparatorIndex).TrimStartAndEnd();
-					ResultsString = ResultsString.Mid(SeparatorIndex + 1).TrimStartAndEnd();
-				}
-				else
-				{
-					ResultString = ResultsString;
-					ResultsString = "";
-				}
-
-				FString Name;
-				TArray<int32> Shape;
-				ENNETensorDataType Type;
-				if (ParseTensorDescFromString(ResultString, Name, Shape, Type))
-				{
-					FunctionMetaData.OutputDescs.Add(UE::NNE::FTensorDesc::Make(Name, UE::NNE::FSymbolicTensorShape::Make(Shape), Type));
-				}
-				else
+				Name = ArgumentPartList[0].TrimStartAndEnd();
+				if (!ParseArgumentType(ArgumentPartList[1].TrimStartAndEnd(), Shape, Type))
 				{
 					return false;
 				}
 			}
+			else
+			{
+				if (!ParseArgumentType(ArgumentPartList[0].TrimStartAndEnd(), Shape, Type))
+				{
+					return false;
+				}
+			}
+			TensorDescs.Add(UE::NNE::FTensorDesc::Make(Name, Shape, Type));
 		}
 
 		return true;
@@ -326,7 +341,7 @@ void UNNERuntimeIREEModuleMetaData::Serialize(FArchive& Ar)
 			}
 			break;
 		default:
-			UE_LOG(LogNNE, Error, TEXT("UNNERuntimeIREEModuleMetaData: Unknown asset version %d: Deserialisation failed, please reimport the original model."), Ar.CustomVer(UE::NNERuntimeIREE::ModuleMetaData::Private::GUID));
+			UE_LOG(LogNNERuntimeIREE, Error, TEXT("UNNERuntimeIREEModuleMetaData: Unknown asset version %d: Deserialisation failed, please reimport the original model."), Ar.CustomVer(UE::NNERuntimeIREE::ModuleMetaData::Private::GUID));
 			break;
 		}
 	}
@@ -337,46 +352,81 @@ bool UNNERuntimeIREEModuleMetaData::ParseFromString(const FString& ModuleString)
 	using namespace UE::NNERuntimeIREE::ModuleMetaData::Private;
 
 	TArray<UE::NNERuntimeIREE::FFunctionMetaData> Result;
-	FString SearchString = ModuleString;
-	FString Pattern = "func.func";
-	int32 MatchStart = -1;
-	while ((MatchStart = SearchString.Find(Pattern)) > 0)
-	{
-		MatchStart += Pattern.Len();
-		SearchString = SearchString.Mid(MatchStart).TrimStartAndEnd();
-		if (SearchString.StartsWith("@"))
-		{
-			SearchString = SearchString.Mid(1);
 
-			int32 ArgumentsEnd = SearchString.Find(")");
-			FString TempString = SearchString.Mid(ArgumentsEnd + 1).TrimStartAndEnd();
-			if (TempString.StartsWith("->"))
+	// Match func.func [access modifier] @<function_name> (
+	// func\.func: Exact match of the word
+	// [^@]*: Skip zero or more characters not being @
+	// @: Have exactly one @
+	// [^(]*: Skip zero or more characters not being (
+	// (: Have exactly one (
+	const FRegexPattern FunctionNamePattern(TEXT("func\\.func[^@]*@[^(]*\\("));
+	FRegexMatcher FunctionNameMatcher(FunctionNamePattern, *ModuleString);
+	while (FunctionNameMatcher.FindNext())
+	{
+		int32 FunctionStart = FunctionNameMatcher.GetMatchBeginning();
+		int32 InputArgumentsStart = FunctionNameMatcher.GetMatchEnding();
+		check(FunctionStart != INDEX_NONE && InputArgumentsStart != INDEX_NONE);
+
+		FString MatchedFunctionPattern = ModuleString.Mid(FunctionStart, InputArgumentsStart - FunctionStart - 1);
+		bool bIsPrivate = MatchedFunctionPattern.Find("private") != INDEX_NONE;
+		bool bIsProtected = MatchedFunctionPattern.Find("protected") != INDEX_NONE;
+		if (bIsPrivate || bIsProtected)
+		{
+			continue;
+		}
+		int32 FunctionNameStart = MatchedFunctionPattern.Find("@");
+		check(FunctionNameStart != INDEX_NONE);
+
+		UE::NNERuntimeIREE::FFunctionMetaData MetaData;
+		MetaData.Name = MatchedFunctionPattern.Mid(FunctionNameStart+1).TrimStartAndEnd();
+		check(MetaData.Name.Len() > 0);
+
+		// Regex does not support recursive matching but mlir can contain paranthesis inside arguments
+		int32 InputArgumentsEnd = FindCorrespondingClosingSymbol(ModuleString, InputArgumentsStart, "(", ")");
+		check(InputArgumentsEnd != INDEX_NONE);
+
+		FString InputArguments = ModuleString.Mid(InputArgumentsStart, InputArgumentsEnd - InputArgumentsStart);
+		if (!ParseArguments(InputArguments, MetaData.InputDescs))
+		{
+			return false;
+		}
+
+		// Match [white spaces] -> [white spaces]
+		// ^: Match start of the string to make sure that there are any non white space characters at the beginning
+		// [\\s]*: Match zero or more white spaces
+		// ->: Exact match of ->
+		// [\\s]*: Match zero or more white spaces
+		const FRegexPattern OutputArgumentsStartPattern(TEXT("^[\\s]*->[\\s]*"));
+		FString Rest = ModuleString.Mid(InputArgumentsEnd+1);
+		FRegexMatcher OutputArgumentsStartMatcher(OutputArgumentsStartPattern, Rest);
+		if (OutputArgumentsStartMatcher.FindNext())
+		{
+			int32 OutputArgumentsStart = OutputArgumentsStartMatcher.GetMatchEnding();
+			int32 OutputArgumentsEnd = INDEX_NONE;
+			Rest = Rest.Mid(OutputArgumentsStart);
+			if (Rest.StartsWith("("))
 			{
-				TempString = TempString.Mid(3).TrimStartAndEnd();
-				if (TempString.StartsWith("("))
-				{
-					MatchStart = SearchString.Find(")", ESearchCase::IgnoreCase, ESearchDir::FromStart, ArgumentsEnd + 1);
-				}
-				else
-				{
-					int32 AttribtueStart = SearchString.Find("attributes", ESearchCase::IgnoreCase, ESearchDir::FromStart, ArgumentsEnd + 1);
-					int32 BracketStart = SearchString.Find("{", ESearchCase::IgnoreCase, ESearchDir::FromStart, ArgumentsEnd + 1);
-					MatchStart = AttribtueStart <= ArgumentsEnd ? BracketStart : FMath::Min(AttribtueStart, BracketStart);
-				}
+				OutputArgumentsStart = 1;
+				OutputArgumentsEnd = FindCorrespondingClosingSymbol(Rest, OutputArgumentsStart, "(", ")");
 			}
 			else
 			{
-				MatchStart = ArgumentsEnd;
+				OutputArgumentsStart = 0;
+				int32 ClosestParanthesis = Rest.Find("(");
+				int32 ClosestBraces = Rest.Find("{");
+				OutputArgumentsEnd = (ClosestParanthesis == INDEX_NONE || ClosestBraces < ClosestParanthesis) ? ClosestBraces : ClosestParanthesis;
 			}
-
-			UE::NNERuntimeIREE::FFunctionMetaData MetaData;
-			if (!ParseFunctionMetaDataFromString(SearchString.Mid(0, MatchStart), MetaData))
+			check(OutputArgumentsEnd != INDEX_NONE);
+			FString OutputArguments = Rest.Mid(OutputArgumentsStart, OutputArgumentsEnd - OutputArgumentsStart);
+			if (!ParseArguments(OutputArguments, MetaData.OutputDescs))
 			{
 				return false;
 			}
-			Result.Add(MetaData);
 		}
+
+		Result.Add(MetaData);
 	}
+	
 	if (!Result.IsEmpty())
 	{
 		FunctionMetaData = Result;

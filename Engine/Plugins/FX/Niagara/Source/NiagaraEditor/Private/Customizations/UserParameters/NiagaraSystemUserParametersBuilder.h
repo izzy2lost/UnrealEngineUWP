@@ -53,6 +53,8 @@ private:
 	void RequestRename(FNiagaraVariable UserParameter);
 	void RenameParameter(FNiagaraVariable UserParameter, FName NewName) const;
 
+	void RequestDuplication(FNiagaraVariable NiagaraVariable);
+
 	FReply GenerateParameterDragDropOp(const FGeometry& Geometry, const FPointerEvent& MouseEvent, FNiagaraVariable UserParameter) const;
 private:
 	FString GetObjectAssetPathForUserParameter(FNiagaraVariable UserParameter) const;

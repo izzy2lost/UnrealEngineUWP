@@ -13,7 +13,7 @@
 #include "UObject/ObjectPtr.h"
 #endif
 
-namespace UE::VCamCore::CookingUtils::Private
+namespace UE::VCamCore::CookingUtils
 {
 #if WITH_EDITOR
 	static UClass& FindFirstNativeClass(UObject& Object)

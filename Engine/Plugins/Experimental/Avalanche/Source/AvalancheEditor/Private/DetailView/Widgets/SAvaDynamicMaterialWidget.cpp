@@ -1,17 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaDynamicMaterialWidget.h"
-#include "AssetRegistry/AssetRegistryModule.h"
-#include "AssetToolsModule.h"
+#include "Components/DynamicMeshComponent.h"
 #include "DetailLayoutBuilder.h"
-#include "IAssetTools.h"
+#include "DMObjectMaterialProperty.h"
+#include "DynamicMeshes/AvaShapeDynMeshBase.h"
+#include "IDynamicMaterialEditorModule.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Material/DynamicMaterialInstanceFactory.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyHandle.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
 #include "Widgets/Input/SButton.h"
-#include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SAvaDynamicMaterialWidget"
@@ -170,7 +170,7 @@ FReply SAvaDynamicMaterialWidget::CreateDynamicMaterialInstance()
 		UDynamicMaterialInstance::StaticClass(),
 		OuterObjects[0],
 		"DynamicMaterialInstance",
-		RF_NoFlags,
+		RF_Transactional,
 		nullptr,
 		GWarn
 	));
@@ -205,9 +205,47 @@ FReply SAvaDynamicMaterialWidget::OpenDynamicMaterialInstanceTab()
 		return FReply::Unhandled();
 	}
 
-	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	AssetTools.OpenEditorForAssets({Instance});
+	const IDynamicMaterialEditorModule& MaterialDesignerModule = IDynamicMaterialEditorModule::Get();
+	constexpr bool bInvokeTab = true;
 
+	TArray<UObject*> Outers;
+	PropertyHandle->GetOuterObjects(Outers);
+
+	if (Outers.Num() == 0)
+	{
+		MaterialDesignerModule.OpenMaterialModel(Instance->GetMaterialModelBase(), nullptr, bInvokeTab);
+		return FReply::Handled();
+	}
+
+	UWorld* OuterWorld = Outers[0]->GetWorld();
+	UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Outers[0]);
+
+	if (!PrimitiveComponent)
+	{
+		if (UAvaShapeDynamicMeshBase* ShapeMesh = Cast<UAvaShapeDynamicMeshBase>(Outers[0]))
+		{
+			PrimitiveComponent = ShapeMesh->GetShapeMeshComponent();
+		}
+
+		if (!PrimitiveComponent)
+		{
+			MaterialDesignerModule.OpenMaterialModel(Instance->GetMaterialModelBase(), nullptr, bInvokeTab);
+			return FReply::Handled();
+		}
+	}
+
+	const int32 NumMaterials = PrimitiveComponent->GetNumMaterials();
+
+	for (int32 Index = 0; Index < NumMaterials; ++Index)
+	{
+		if (PrimitiveComponent->GetMaterial(Index) == Instance)
+		{
+			MaterialDesignerModule.OpenMaterialObjectProperty({PrimitiveComponent, Index}, OuterWorld, bInvokeTab);
+			return FReply::Handled();
+		}
+	}
+
+	MaterialDesignerModule.OpenMaterialModel(Instance->GetMaterialModelBase(), OuterWorld, bInvokeTab);
 	return FReply::Handled();
 }
 

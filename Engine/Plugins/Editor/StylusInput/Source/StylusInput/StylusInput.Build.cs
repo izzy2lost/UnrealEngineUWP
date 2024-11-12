@@ -9,26 +9,21 @@ namespace UnrealBuildTool.Rules
 			PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
+					"Core",
 					"CoreUObject",
 					"EditorSubsystem",
 					"Engine",
-					"EditorFramework",
-					"UnrealEd"
-					// ... add other public dependencies that you statically link with here ...
+					"Slate",
+					"UnrealEd",
 				}
-				);
+			);
 
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
-					"Core",
-					"MainFrame",
 					"SlateCore",
-					"Slate",
-					"WorkspaceMenuStructure"
-					// ... add private dependencies that you statically link with here ...
 				}
-				);
+			);
 		}
 	}
 }

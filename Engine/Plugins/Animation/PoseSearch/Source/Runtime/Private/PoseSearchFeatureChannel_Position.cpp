@@ -69,7 +69,7 @@ void UPoseSearchFeatureChannel_Position::AddDependentChannels(UPoseSearchSchema*
 
 	if (Schema->bInjectAdditionalDebugChannels)
 	{
-		if (SchemaOriginBoneIdx != RootSchemaBoneIdx)
+		if (SchemaOriginBoneIdx != RootSchemaBoneIdx || PermutationTimeType == EPermutationTimeType::UsePermutationTime)
 		{
 			const EPermutationTimeType DependentChannelsPermutationTimeType = PermutationTimeType == EPermutationTimeType::UsePermutationTime ? EPermutationTimeType::UseSampleToPermutationTime : EPermutationTimeType::UseSampleTime;
 			UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, 0.f, OriginBone.BoneName, OriginRole, DependentChannelsPermutationTimeType);
@@ -159,6 +159,18 @@ void UPoseSearchFeatureChannel_Position::DebugDraw(const UE::PoseSearch::FDebugD
 {
 	using namespace UE::PoseSearch;
 
+#if WITH_EDITORONLY_DATA
+	bool bDrawInjectAdditionalDebugChannels = false;
+	if (const UPoseSearchSchema* Schema = GetSchema())
+	{
+		bDrawInjectAdditionalDebugChannels = Schema->bDrawInjectAdditionalDebugChannels;
+	}
+	if (!bDrawInjectAdditionalDebugChannels && Weight <= 0.f)
+	{
+		return;
+	}
+#endif // WITH_EDITORONLY_DATA
+
 	FColor Color;
 #if WITH_EDITORONLY_DATA
 	Color = DebugColor.ToFColor(true);
@@ -166,10 +178,14 @@ void UPoseSearchFeatureChannel_Position::DebugDraw(const UE::PoseSearch::FDebugD
 	Color = FLinearColor::Blue.ToFColor(true);
 #endif // WITH_EDITORONLY_DATA
 
+	float PermutationSampleTimeOffset = 0.f;
+	float PermutationOriginTimeOffset = 0.f;
+	UPoseSearchFeatureChannel::GetPermutationTimeOffsets(PermutationTimeType, DrawParams.ExtractPermutationTime(PoseVector), PermutationSampleTimeOffset, PermutationOriginTimeOffset);
+	const EPermutationTimeType OriginPermutationTimeType = PermutationTimeType == EPermutationTimeType::UsePermutationTime ? EPermutationTimeType::UseSampleToPermutationTime : EPermutationTimeType::UseSampleTime;
+
 	const FVector FeaturesVector = FFeatureVectorHelper::DecodeVector(PoseVector, ChannelDataOffset, ComponentStripping);
-	const EPermutationTimeType TimeType = PermutationTimeType == EPermutationTimeType::UsePermutationTime ? EPermutationTimeType::UseSampleToPermutationTime : EPermutationTimeType::UseSampleTime;
-	const FVector OriginBonePos = DrawParams.ExtractPosition(PoseVector, OriginTimeOffset, SchemaOriginBoneIdx, OriginRole, TimeType);
-	const FVector DeltaPos = DrawParams.GetRootBoneTransform(OriginRole).TransformVector(FeaturesVector);
+	const FVector OriginBonePos = DrawParams.ExtractPosition(PoseVector, OriginTimeOffset, SchemaOriginBoneIdx, OriginRole, OriginPermutationTimeType, INDEX_NONE, PermutationOriginTimeOffset);
+	const FVector DeltaPos = DrawParams.ExtractRotation(PoseVector, OriginTimeOffset, RootSchemaBoneIdx, OriginRole, OriginPermutationTimeType, INDEX_NONE, PermutationOriginTimeOffset).RotateVector(FeaturesVector);
 	const FVector BonePos = OriginBonePos + DeltaPos;
 	DrawParams.DrawPoint(BonePos, Color);
 
@@ -231,7 +247,7 @@ UE::PoseSearch::TLabelBuilder& UPoseSearchFeatureChannel_Position::GetLabel(UE::
 
 	const UPoseSearchSchema* Schema = GetSchema();
 	check(Schema);
-	if (SchemaBoneIdx != RootSchemaBoneIdx)
+	if (SchemaBoneIdx > RootSchemaBoneIdx)
 	{
 		LabelBuilder.Append(TEXT("_"));
 		LabelBuilder.Append(Schema->GetBoneReferences(SampleRole)[SchemaBoneIdx].BoneName.ToString());
@@ -244,10 +260,19 @@ UE::PoseSearch::TLabelBuilder& UPoseSearchFeatureChannel_Position::GetLabel(UE::
 		LabelBuilder.Append(TEXT("]"));
 	}
 
-	if (SchemaOriginBoneIdx != RootSchemaBoneIdx)
+	if (SchemaOriginBoneIdx > RootSchemaBoneIdx)
 	{
 		LabelBuilder.Append(TEXT("_"));
 		LabelBuilder.Append(Schema->GetBoneReferences(OriginRole)[SchemaOriginBoneIdx].BoneName.ToString());
+	}
+
+	if (PermutationTimeType == EPermutationTimeType::UsePermutationTime)
+	{
+		LabelBuilder.Append(TEXT("_PT"));
+	}
+	else if (PermutationTimeType == EPermutationTimeType::UseSampleToPermutationTime)
+	{
+		LabelBuilder.Append(TEXT("_SPT"));
 	}
 
 	if (OriginRole != DefaultRole)

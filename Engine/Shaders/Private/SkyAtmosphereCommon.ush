@@ -55,6 +55,12 @@ float4 GetAerialPerspectiveLuminanceTransmittance(
 	{
 		return float4(0.0f, 0.0f, 0.0f, 1.0f);
 	}
+
+	if (IsOrthoProjection())
+	{
+		float2 SvPosXY = (((NDC.xy * float2(0.5f, -0.5f)) + 0.5f) * View.ViewSizeAndInvSize.xy) + ResolvedView.ViewRectMin.xy;		
+		WorldPositionRelativeToCamera += (GetTranslatedWorldCameraPosFromView(SvPosXY, true) * CM_TO_SKY_UNIT) + WorldPositionRelativeToCamera;
+	}
 	
 	float2 ScreenUv = (NDC.xy / NDC.ww) * float2(0.5f, -0.5f) + 0.5f;
 
@@ -333,3 +339,14 @@ MediumSampleRGB SampleAtmosphereMediumRGB(in float3 WorldPos)
 	return s;
 }
 #endif //AP_SUPPORT_SAMPLE_ATMOSHPERE
+
+float3 GetViewDistanceSkyLightColor()
+{
+#if SHADING_PATH_MOBILE && VERTEXSHADER
+	// Some mobile platforms cannot sample structured buffer in vertex shaders (height fog) so in this case a regular buffer is used.
+	return View.MobileDistantSkyLightLutBufferSRV[0].rgb;
+#else
+	// Use a structured buffer for scalar loads.
+	return View.DistantSkyLightLutBufferSRV[0].rgb; 
+#endif
+}

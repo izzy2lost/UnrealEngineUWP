@@ -36,11 +36,11 @@ namespace Electra
 	//! (bool) true to optimize seeking for faster frame scrubbing, false to optimize for playback.
 	const FName OptionKeyFrameOptimizeSeekForScrubbing(TEXT("optimize_seek_for_scrubbing"));
 
-	//! (bool) true to allow a new scrubbing seek to cancel an ongoing scrubbing seek. Non-scrubbing seeks always cancel pending seeks.
-	const FName OptionKeyNewScrubbingSeekCancelsCurrent(TEXT("new_scrubbing_seek_cancels_current"));
-
 	//! (bool) true to emit the first decoded video frame while prerolling so it can be displayed while scrubbing.
 	const FName OptionKeyDoNotHoldBackFirstVideoFrame(TEXT("do_not_hold_back_first_frame"));
+
+	//! (bool) true to always emit decoded samples when the player is paused. Supersedes `OptionKeyDoNotHoldBackFirstVideoFrame`.
+	const FName OptionKeyAlwaysEmitSamplesWhenPaused(TEXT("always_emit_samples_when_paused"));
 
 	//! (bool) true to not truncate the media segment access units at the end of the presentation. Must only be used without a set playback range end!
 	const FName OptionKeyDoNotTruncateAtPresentationEnd(TEXT("do_not_truncate_at_presentation_end"));
@@ -60,6 +60,10 @@ namespace Electra
 	const FName OptionKeyPreferredCodecsAudio(TEXT("preferred_codecs_audio"));
 	const FName OptionKeyPreferredCodecsSubtitles(TEXT("preferred_codecs_subtitles"));
 
+	const FName OptionKeyResponseCacheMaxEntries(TEXT("httpcache_max_entries"));
+	const FName OptionKeyResponseCacheMaxByteSize(TEXT("httpcache_max_bytesize"));
+
+	const FName OptionKeyParseTimecodeInfo(TEXT("parse_timecode_info"));
 } // namespace Electra
 
 

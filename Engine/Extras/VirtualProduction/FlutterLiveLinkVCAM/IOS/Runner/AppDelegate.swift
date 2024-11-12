@@ -3,6 +3,7 @@
 import UIKit
 import Flutter
 import WebRTC
+import SpriteKit
 
 @UIApplicationMain
 @objc class AppDelegate: FlutterAppDelegate {
@@ -21,25 +22,13 @@ import WebRTC
     
     GeneratedPluginRegistrant.register(with: self)
     
-    // Register RtcVideoView platform view
-    let videoViewRegistrar: FlutterPluginRegistrar? = self.registrar(forPlugin: "RtcVideoView")
-    if (videoViewRegistrar == nil) {
-      fatalError("Failed to register RtcVideoView plugin")
-    }
-    
-    videoViewRegistrar?.register(
-      RtcVideoViewFactory(
-        messenger: videoViewRegistrar!.messenger()
-      ),
-      withId: "com.epicgames.live_link_vcam.view.RtcVideoView"
-    )
-    
     // Register Pigeon APIs
-    let binaryMessenger = (window?.rootViewController as! FlutterViewController).binaryMessenger
+    let flutterViewController = (window?.rootViewController as! FlutterViewController)
+    let binaryMessenger = flutterViewController.binaryMessenger
     
     peerConnectionApi = FlutterRtcPeerConnectionApi(binaryMessenger: binaryMessenger)
     dataChannelApi = FlutterRtcDataChannelApi(binaryMessenger: binaryMessenger)
-    videoViewControllerApi = FlutterRtcVideoViewControllerApi(binaryMessenger: binaryMessenger)
+    videoViewControllerApi = FlutterRtcVideoViewControllerApi(binaryMessenger: binaryMessenger, textureRegistry: flutterViewController)
     arSessionApi = FlutterArSessionApi(binaryMessenger: binaryMessenger)
     tentacleApi = FlutterTentacleApi(binaryMessenger: binaryMessenger)
     gamepadApi = FlutterGamepadApi(binaryMessenger: binaryMessenger)

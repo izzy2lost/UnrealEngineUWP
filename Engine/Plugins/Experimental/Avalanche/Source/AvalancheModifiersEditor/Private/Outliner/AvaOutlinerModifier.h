@@ -13,11 +13,11 @@ class AVALANCHEMODIFIERSEDITOR_API FAvaOutlinerModifier : public FAvaOutlinerObj
 {
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerModifier, FAvaOutlinerObject);
-	
+
 	FAvaOutlinerModifier(IAvaOutliner& InOutliner, UActorModifierCoreBase* InObject);
-	
+
 	UActorModifierCoreBase* GetModifier() const { return Modifier.Get(); }
-	
+
 	//~ Begin IAvaOutlinerItem
 	virtual void Select(FAvaOutlinerScopedSelection& InSelection) const override;
 	virtual FText GetDisplayName() const override;
@@ -26,8 +26,10 @@ public:
 	virtual bool ShowVisibility(EAvaOutlinerVisibilityType InVisibilityType) const override;
 	virtual bool GetVisibility(EAvaOutlinerVisibilityType InVisibilityType) const override;
 	virtual void OnVisibilityChanged(EAvaOutlinerVisibilityType InVisibilityType, bool bInNewVisibility) override;
+	virtual bool CanDelete() const override;
+	virtual bool Delete() override;
 	//~ End IAvaOutlinerItem
-	
+
 protected:
 	//~ Begin FAvaOutlinerObjectItem
 	virtual void SetObject_Impl(UObject* InObject) override;

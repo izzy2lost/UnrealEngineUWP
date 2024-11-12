@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "Async/TaskGraphInterfaces.h"
 #include "CoreMinimal.h"
+#include "InterchangeTaskSystem.h"
 #include "Stats/Stats.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "Nodes/InterchangeBaseNode.h"
@@ -17,7 +17,7 @@ namespace UE
 	{
 		class FImportAsyncHelper;
 
-		class FTaskCreateSceneObjects
+		class FTaskCreateSceneObjects_GameThread : public FInterchangeTaskBase
 		{
 		private:
 			FString PackageBasePath;
@@ -27,28 +27,14 @@ namespace UE
 			const UClass* FactoryClass;
 
 		public:
-			explicit FTaskCreateSceneObjects(const FString& InPackageBasePath, const int32 InSourceIndex, TWeakPtr<FImportAsyncHelper> InAsyncHelper, TArrayView<UInterchangeFactoryBaseNode*> InNodes, const UClass* InFactoryClass);
+			explicit FTaskCreateSceneObjects_GameThread(const FString& InPackageBasePath, const int32 InSourceIndex, TWeakPtr<FImportAsyncHelper> InAsyncHelper, TArrayView<UInterchangeFactoryBaseNode*> InNodes, const UClass* InFactoryClass);
 
-			ENamedThreads::Type GetDesiredThread()
+			virtual EInterchangeTaskThread GetTaskThread() const override
 			{
-				// We are creating the factories in this task so it must execute on the GameThread.
-				// Also, there are no "CreatePackage Task" equivalent for scene objects right now, so the factories must create those on the game thread.
-				return ENamedThreads::GameThread;
+				return EInterchangeTaskThread::GameThread;
 			}
 
-			static ESubsequentsMode::Type GetSubsequentsMode()
-			{
-				return ESubsequentsMode::TrackSubsequents;
-			}
-
-			TStatId GetStatId() const
-			{
-				RETURN_QUICK_DECLARE_CYCLE_STAT(FTaskCreateSceneObjects, STATGROUP_TaskGraphTasks);
-			}
-
-			void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
+			virtual void Execute() override;
 		};
-
-
 	} //ns Interchange
 }//ns UE

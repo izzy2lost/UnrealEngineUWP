@@ -7,6 +7,7 @@
 #include "Templates/UnrealTypeTraits.h"
 #include "Templates/IsSigned.h"
 #include "Templates/IsIntegral.h"
+#include "Templates/Requires.h"
 
 /**
  * This file defines a few macros which can be used to restrict (via deprecation) ambiguous calls to functions expecting float params/return type.

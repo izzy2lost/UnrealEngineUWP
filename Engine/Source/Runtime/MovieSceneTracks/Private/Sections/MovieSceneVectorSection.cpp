@@ -209,6 +209,11 @@ void UMovieSceneFloatVectorSection::RecreateChannelProxy()
 
 TSharedPtr<FStructOnScope> UMovieSceneFloatVectorSection::GetKeyStruct(TArrayView<const FKeyHandle> KeyHandles)
 {
+	if (!ChannelProxy)
+	{
+		GetChannelProxy();
+	}
+
 	TSharedPtr<FStructOnScope> KeyStruct;
 	if (ChannelsUsed == 2)
 	{
@@ -324,6 +329,11 @@ void UMovieSceneDoubleVectorSection::RecreateChannelProxy()
 
 TSharedPtr<FStructOnScope> UMovieSceneDoubleVectorSection::GetKeyStruct(TArrayView<const FKeyHandle> KeyHandles)
 {
+	if (!ChannelProxy)
+	{
+		GetChannelProxy();
+	}
+
 	TSharedPtr<FStructOnScope> KeyStruct;
 	if (ChannelsUsed == 2)
 	{

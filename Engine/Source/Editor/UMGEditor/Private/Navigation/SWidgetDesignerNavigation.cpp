@@ -262,25 +262,25 @@ void SWidgetDesignerNavigation::Construct(const FArguments& InArgs, TSharedPtr<F
 			SNew(SVerticalBox)
 
 			+ SVerticalBox::Slot()
-			.Padding(4)
+			.Padding(4.0f)
 			.FillHeight(1.f)
 			[
 				NavigationEventSimulationView.ToSharedRef()
 			]
 			
 			+ SVerticalBox::Slot()
-			.Padding(4)
+			.Padding(4.0f)
 			.AutoHeight()
 			[
 				DetailView->GetWidget().ToSharedRef()
 			]
 
 			+ SVerticalBox::Slot()
-			.Padding(4)
+			.Padding(4.0f)
 			.AutoHeight()
 			[
 				SNew(SButton)
-				.ContentPadding(3)
+				.ContentPadding(3.0f)
 				.OnClicked(this, &SWidgetDesignerNavigation::HandleRefreshClicked)
 				.IsEnabled(this, &SWidgetDesignerNavigation::HandleRefreshEnabled)
 				.Content()

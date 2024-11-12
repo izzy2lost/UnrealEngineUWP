@@ -72,7 +72,7 @@ public:
 	virtual FLinearColor GetWorldCentricTabColorScale() const override;
 	virtual void InitToolMenuContext(FToolMenuContext& MenuContext) override;
 
-	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget) override;
+	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder = INDEX_NONE) override;
 	virtual void RemoveViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget) override;
 	
 	/** FBaseToolkit overrides */
@@ -127,13 +127,24 @@ private:
 	
 	void HandleSelectionChanged(const TArrayView<TSharedPtr<ISkeletonTreeItem>>& InSelectedItems, ESelectInfo::Type InSelectInfo);
 
-	void HandleReimportMesh(int32 SourceFileIndex = INDEX_NONE);
-	void HandleReimportMeshWithNewFile(int32 SourceFileIndex = INDEX_NONE);
-	TFuture<bool> HandleReimportMeshInternal(int32 SourceFileIndex = INDEX_NONE, bool bWithNewFile = false);
+	struct FReimportParameters
+	{
+		FReimportParameters(int32 InSourceFileIndex, bool bInWithNewFile, bool bInReimportWithDialog)
+			: SourceFileIndex(InSourceFileIndex)
+			, bWithNewFile(bInWithNewFile)
+			, bReimportWithDialog(bInReimportWithDialog)
+		{}
 
-	void HandleReimportAllMesh(int32 SourceFileIndex = INDEX_NONE);
-	void HandleReimportAllMeshWithNewFile(int32 SourceFileIndex = INDEX_NONE);
-	void HandleReimportAllMeshInternal(int32 SourceFileIndex, bool bWithNewFile);
+		int32 SourceFileIndex = INDEX_NONE;
+		bool bWithNewFile = false;
+		bool bReimportWithDialog = false;
+	};
+
+	void HandleReimportMesh(const FReimportParameters ReimportParameters);
+	TFuture<bool> HandleReimportMeshInternal(const FReimportParameters& ReimportParameters);
+
+	void HandleReimportAllMesh(const FReimportParameters ReimportParameters);
+	void HandleReimportAllMeshInternal(const FReimportParameters& ReimportParameters);
 
 	void HandleOnPreviewSceneSettingsCustomized(IDetailLayoutBuilder& DetailBuilder);
 
@@ -163,7 +174,7 @@ private:
 	void OnRemoveSectionFromLodAndBelowMenuItemClicked(int32 LodIndex, int32 SectionIndex);
 	//////////////////////////////////////////////////////////////////////////
 
-	void RegisterReimportContextMenu(const FName InBaseMenuName);
+	void RegisterReimportContextMenu(const FName InBaseMenuName, bool bWithDialog);
 
 	static TSharedPtr<FSkeletalMeshEditor> GetSkeletalMeshEditor(const FToolMenuContext& InMenuContext);
 

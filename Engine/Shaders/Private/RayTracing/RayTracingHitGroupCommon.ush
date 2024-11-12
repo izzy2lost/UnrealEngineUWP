@@ -113,21 +113,13 @@ uint GetHitGroupUserData()
 	return HitGroupSystemRootConstants.UserData;
 }
 
-uint GetBaseInstanceIndex()
-{
-	return HitGroupSystemRootConstants.BaseInstanceIndex;
-}
-
 float3 GetGeometryNormalFromTriangleBaseAttributes(uint PrimitiveIndex)
 {
 #if NANITE_RAY_TRACING
-	const int ScenePrimitiveIndex = GetInstanceUserData();
-	const int SceneInstanceIndex = InstanceIndex() - GetBaseInstanceIndex();
-
-	const uint GPUSceneInstanceIndex = GetGPUSceneInstanceIndex(ScenePrimitiveIndex, SceneInstanceIndex);
+	const uint GPUSceneInstanceIndex = GetInstanceUserData();
 
 	FInstanceSceneData InstanceData = GetInstanceSceneData(GPUSceneInstanceIndex, Scene.GPUScene.InstanceDataSOAStride);
-	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(ScenePrimitiveIndex);
+	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
 
 	const uint FirstTriangle = HitGroupSystemRootConstants.FirstPrimitive;
 	const uint PackedTriangleData = RayTracingDataBuffer[PrimitiveData.NaniteRayTracingDataOffset + FirstTriangle + PrimitiveIndex];
@@ -151,10 +143,6 @@ float3 GetGeometryNormalFromTriangleBaseAttributes(uint PrimitiveIndex)
 		PointLocalNoWPO[1] - PointLocalNoWPO[0],
 		PointLocalNoWPO[2] - PointLocalNoWPO[0]
 	};
-	float3 LocalNormal = cross(LocalEdges[1], LocalEdges[0]);
-
-	float3x3 InverseTranspose3x3 = transpose((float3x3)WorldToObject4x3());
-	float3 WorldNormal = normalize(mul(LocalNormal, InverseTranspose3x3));
 #else
 	FTriangleBaseAttributes Tri = LoadTriangleBaseAttributes(PrimitiveIndex);
 
@@ -162,11 +150,12 @@ float3 GetGeometryNormalFromTriangleBaseAttributes(uint PrimitiveIndex)
 		Tri.LocalPositions[1] - Tri.LocalPositions[0],
 		Tri.LocalPositions[2] - Tri.LocalPositions[0]
 	};
-	float3 LocalNormal = cross(LocalEdges[1], LocalEdges[0]);
-
-	float3x3 InverseTranspose3x3 = transpose((float3x3)WorldToObject4x3());
-	float3 WorldNormal = normalize(mul(LocalNormal, InverseTranspose3x3));
 #endif
+	
+	float3x3 InverseTranspose3x3 = (float3x3)WorldToObject4x3();
+	float3 LocalNormal = cross(LocalEdges[1], LocalEdges[0]);
+	float3 WorldNormal = normalize(mul(InverseTranspose3x3, LocalNormal));
+
 	return WorldNormal;
 }
 

@@ -30,7 +30,7 @@ void FMassMovementParameters::Update()
 		}
 		else
 		{
-			const float Scale = 1.0f / Style.DesiredSpeeds.Num();
+			const float Scale = 1.0f / static_cast<float>(Style.DesiredSpeeds.Num());
 			float Sum = 0.0f;
 			for (FMassMovementStyleSpeedParameters& Speed : Style.DesiredSpeeds)
 			{

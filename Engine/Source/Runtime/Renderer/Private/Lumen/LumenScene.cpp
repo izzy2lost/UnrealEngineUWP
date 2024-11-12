@@ -52,14 +52,6 @@ static TAutoConsoleVariable<float> CVarLumenFarFieldReferencePosZ(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-int32 GLumenSceneUploadEveryFrame = 0;
-FAutoConsoleVariableRef CVarLumenSceneUploadEveryFrame(
-	TEXT("r.LumenScene.UploadEveryFrame"),
-	GLumenSceneUploadEveryFrame,
-	TEXT("Whether to upload the entire Lumen Scene's data every frame. Useful for debugging."),
-	ECVF_RenderThreadSafe
-);
-
 TAutoConsoleVariable<int32> CVarLumenSceneUpdateViewOrigin(
 	TEXT("r.LumenScene.UpdateViewOrigin"),
 	1,
@@ -209,7 +201,9 @@ public:
 		OutData[4].X = *(float*)&LastUpdateFrame;
 		OutData[4].Y = *(float*)&LastUpdateFrame;
 		OutData[4].Z = *(float*)&LastUpdateFrame;
-		OutData[4].W = 0.0f;
+		// This is only used to rotate through the texels in a quad when using adaptive direct lighting shadow rays.
+		// So we can store a TemporalIndexMod4 and use only 2 bits if needed.
+		OutData[4].W = *(float*)&LastUpdateFrame;
 
 		static_assert(DataStrideInFloat4s == 5, "Data stride doesn't match");
 	}
@@ -424,7 +418,7 @@ void FLumenSceneData::UploadPageTable(FRDGBuilder& GraphBuilder, FLumenSceneFram
 	RDG_EVENT_SCOPE(GraphBuilder, "LumenUploadPageTable");
 	RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
-	if (GLumenSceneUploadEveryFrame != 0)
+	if (bReuploadSceneRequest)
 	{
 		PageTableIndicesToUpdateInBuffer.SetNum(PageTable.Num());
 
@@ -766,7 +760,7 @@ void UpdateLumenScenePrimitives(FRHIGPUMask GPUMask, FScene* Scene)
 				{
 					if (PrimitiveGroup.Primitives[PrimitiveIndex] == RemoveInfo.Primitive)
 					{
-						PrimitiveGroup.Primitives.RemoveAtSwap(PrimitiveIndex, 1, EAllowShrinking::No);
+						PrimitiveGroup.Primitives.RemoveAtSwap(PrimitiveIndex, EAllowShrinking::No);
 						break;
 					}
 				}
@@ -823,6 +817,10 @@ void UpdateLumenScenePrimitives(FRHIGPUMask GPUMask, FScene* Scene)
 
 			const int32 NumInstances = ScenePrimitiveInfo->GetNumInstanceSceneDataEntries();
 			const FInstanceSceneDataBuffers *InstanceData = ScenePrimitiveInfo->GetInstanceSceneDataBuffers();
+
+			// Instance data must be available on CPU.
+			check(!InstanceData || !InstanceData->IsInstanceDataGPUOnly());
+
 			bool bAnyInstanceValid = false;
 			{
 				const FMatrix& PrimitiveToWorld = SceneProxy->GetLocalToWorld();
@@ -1046,6 +1044,9 @@ void UpdateLumenScenePrimitives(FRHIGPUMask GPUMask, FScene* Scene)
 
 				const FInstanceSceneDataBuffers *InstanceData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers();
 
+				// Instance data must be available on CPU.
+				check(!InstanceData || !InstanceData->IsInstanceDataGPUOnly());
+
 				for (int32 PrimitiveGroupIndex : PrimitiveSceneInfo->LumenPrimitiveGroupIndices)
 				{
 					FLumenPrimitiveGroup& PrimitiveGroup = LumenSceneData->PrimitiveGroups[PrimitiveGroupIndex];
@@ -1118,6 +1119,9 @@ void FLumenSceneData::ReleaseAtlas()
 	IndirectLightingAtlas.SafeRelease();
 	RadiosityNumFramesAccumulatedAtlas.SafeRelease();
 	FinalLightingAtlas.SafeRelease();
+	TileShadowDownsampleFactorAtlas.SafeRelease();
+	DiffuseLightingAndSecondMomentHistoryAtlas.SafeRelease();
+	NumFramesAccumulatedHistoryAtlas.SafeRelease();
 
 	RadiosityTraceRadianceAtlas.SafeRelease();
 	RadiosityTraceHitDistanceAtlas.SafeRelease();
@@ -1154,13 +1158,16 @@ bool FLumenSceneData::UpdateAtlasSize()
 		NewCompression = ESurfaceCacheCompression::CopyTextureRegion;
 	}
 
-	if (PhysicalAtlasSize != GetDesiredPhysicalAtlasSize(SurfaceCacheResolution) || PhysicalAtlasCompression != NewCompression)
+	if (PhysicalAtlasSize != GetDesiredPhysicalAtlasSize(SurfaceCacheResolution)
+		|| PhysicalAtlasCompression != NewCompression
+		|| CurrentLightingDataFormat != Lumen::GetLightingDataFormat())
 	{
 		RemoveAllMeshCards();
 
 		PhysicalAtlasSize = GetDesiredPhysicalAtlasSize(SurfaceCacheResolution);
 		SurfaceCacheAllocator.Init(GetDesiredPhysicalAtlasSizeInPages(SurfaceCacheResolution));
 		PhysicalAtlasCompression = NewCompression;
+		CurrentLightingDataFormat = Lumen::GetLightingDataFormat();
 
 		return true;
 	}
@@ -1543,10 +1550,13 @@ void FLumenSceneData::UpdateGPUMask(FRDGBuilder& GraphBuilder, const FLumenScene
 			ADD_LUMEN_FRAME_TEMPORARY(RadiosityNumFramesAccumulatedAtlas);
 			ADD_LUMEN_FRAME_TEMPORARY(FinalLightingAtlas);
 
+			ADD_LUMEN_FRAME_TEMPORARY(DiffuseLightingAndSecondMomentHistoryAtlas);
+			ADD_LUMEN_FRAME_TEMPORARY(NumFramesAccumulatedHistoryAtlas);
+
 			#undef ADD_LUMEN_FRAME_TEMPORARY
 
 			AddPass(GraphBuilder, RDG_EVENT_NAME("LumenCrossGPUTransfer"),
-				[LumenSceneData, LumenView = &LumenViewState, FrameTemporaryTextures, SourceGPUMask, DestGPUMask](FRHICommandListImmediate& RHICmdList)
+				[LumenSceneData, LumenView = &LumenViewState, FrameTemporaryTextures, SourceGPUMask, DestGPUMask](FRHICommandList& RHICmdList)
 			{
 				uint32 SourceGPUIndex = SourceGPUMask.GetFirstIndex();
 
@@ -1577,6 +1587,10 @@ void FLumenSceneData::UpdateGPUMask(FRDGBuilder& GraphBuilder, const FLumenScene
 						TRANSFER_LUMEN_RESOURCE(IndirectLightingAtlas);
 						TRANSFER_LUMEN_RESOURCE(RadiosityNumFramesAccumulatedAtlas);
 						TRANSFER_LUMEN_RESOURCE(FinalLightingAtlas);
+						TRANSFER_LUMEN_RESOURCE(TileShadowDownsampleFactorAtlas);
+
+						TRANSFER_LUMEN_RESOURCE(DiffuseLightingAndSecondMomentHistoryAtlas);
+						TRANSFER_LUMEN_RESOURCE(NumFramesAccumulatedHistoryAtlas);
 
 						TRANSFER_LUMEN_RESOURCE(RadiosityTraceRadianceAtlas);
 						TRANSFER_LUMEN_RESOURCE(RadiosityTraceHitDistanceAtlas);

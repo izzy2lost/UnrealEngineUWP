@@ -22,6 +22,9 @@
 #include "Toolkits/IToolkitHost.h"
 #include "UObject/ObjectSaveContext.h"
 #include "SSubobjectEditor.h"
+#include "EditorViewportSelectability.h"
+#include "EditorViewportSelectabilityBridge.h"
+#include "SequencerCommands.h"
 
 #define LOCTEXT_NAMESPACE "ActorSequenceEditorSummoner"
 
@@ -55,7 +58,6 @@ public:
 			.OnGenerateRow(this, &SComponentSelectionTree::GenerateRow)
 			.OnGetChildren(this, &SComponentSelectionTree::OnGetChildNodes)
 			.OnSelectionChanged(this, &SComponentSelectionTree::OnSelectionChanged)
-			.ItemHeight(24)
 		];
 
 		BuildTree(InPreviewActor);
@@ -209,6 +211,13 @@ public:
 			{
 				Sequencer->GetSelectionChangedObjectGuids().Remove(OnSelectionChangedHandle);
 			}
+			if (OnSelectionLimitedChangedHandle.IsValid())
+			{
+				Sequencer->OnViewportSelectionLimitedChanged().Remove(OnSelectionLimitedChangedHandle);
+			}
+
+			// Turn off selection limiting if this tab is closed to avoid user confusion
+			Sequencer->SetViewportSelectionLimited(false);
 
 			FLevelEditorSequencerIntegration::Get().RemoveSequencer(Sequencer.ToSharedRef());
 			Sequencer->Close();
@@ -225,13 +234,23 @@ public:
 			Content->SetContent(SNew(STextBlock).Text(LOCTEXT("NothingSelected", "Select a sequence")));
 		}
 
-		if (WeakBlueprintEditor.IsValid() && WeakBlueprintEditor.Pin()->IsHosted())
+		if (const TSharedPtr<FBlueprintEditor> BlueprintEditor = WeakBlueprintEditor.Pin())
 		{
-			const FName CurveEditorTabName = FName(TEXT("SequencerGraphEditor"));
-			TSharedPtr<SDockTab> ExistingTab = WeakBlueprintEditor.Pin()->GetToolkitHost()->GetTabManager()->FindExistingLiveTab(CurveEditorTabName);
-			if (ExistingTab)
+			if (BlueprintEditor->IsHosted())
 			{
-				ExistingTab->RequestCloseTab();
+				const FName CurveEditorTabName = FName(TEXT("SequencerGraphEditor"));
+				TSharedPtr<SDockTab> ExistingTab = WeakBlueprintEditor.Pin()->GetToolkitHost()->GetTabManager()->FindExistingLiveTab(CurveEditorTabName);
+				if (ExistingTab)
+				{
+					ExistingTab->RequestCloseTab();
+				}
+			}
+
+			if (FEditorViewportSelectabilityBridge* SelectabilityBridge = BlueprintEditor->GetViewportSelectabilityBridge())
+			{
+				SelectabilityBridge->OnIsViewportSelectionLimited().Unbind();
+				SelectabilityBridge->OnGetIsObjectSelectableInViewport().Unbind();
+				SelectabilityBridge->OnGetViewportSelectionLimitedText().Unbind();
 			}
 		}
 
@@ -382,6 +401,8 @@ public:
 			{
 				SequencerInitParams.ToolkitHost = WeakBlueprintEditor.Pin()->GetToolkitHost();
 				SequencerInitParams.HostCapabilities.bSupportsCurveEditor = true;
+				SequencerInitParams.HostCapabilities.bSupportsSidebar = true;
+				SequencerInitParams.HostCapabilities.bSupportsViewportSelectability = true;
 			}
 
 			TSharedRef<FExtender> AddMenuExtender = MakeShareable(new FExtender);
@@ -413,6 +434,7 @@ public:
 
 		OnGlobalTimeChangedHandle = Sequencer->OnGlobalTimeChanged().AddSP(this, &SActorSequenceEditorWidgetImpl::OnGlobalTimeChanged);
 		OnSelectionChangedHandle = Sequencer->GetSelectionChangedObjectGuids().AddSP(this, &SActorSequenceEditorWidgetImpl::OnSelectionChanged);
+		OnSelectionLimitedChangedHandle = Sequencer->OnViewportSelectionLimitedChanged().AddSP(this, &SActorSequenceEditorWidgetImpl::OnViewportSelectionLimitedChanged);
 
 		FLevelEditorSequencerIntegrationOptions Options;
 		Options.bRequiresLevelEvents = true;
@@ -423,6 +445,16 @@ public:
 	
 		FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
 		LevelEditorModule.OnMapChanged().AddRaw(this, &SActorSequenceEditorWidgetImpl::HandleMapChanged);
+
+		if (const TSharedPtr<FBlueprintEditor> BlueprintEditor = WeakBlueprintEditor.Pin())
+		{
+			if (FEditorViewportSelectabilityBridge* SelectabilityBridge = BlueprintEditor->GetViewportSelectabilityBridge())
+			{
+				SelectabilityBridge->OnIsViewportSelectionLimited().BindSP(this, &SActorSequenceEditorWidgetImpl::IsViewportSelectionLimited);
+				SelectabilityBridge->OnGetIsObjectSelectableInViewport().BindSP(this, &SActorSequenceEditorWidgetImpl::IsObjectSelectableInViewport);
+				SelectabilityBridge->OnGetViewportSelectionLimitedText().BindSP(this, &SActorSequenceEditorWidgetImpl::GetViewportSelectionLimitedText);
+			}
+		}
 	}
 
 	void HandleMapChanged(UWorld* NewWorld, EMapChangeType MapChangeType)
@@ -630,6 +662,75 @@ public:
 		OnModifiedIndirectly(Object);
 	}
 
+	bool IsViewportSelectionLimited() const
+	{
+		if (Sequencer.IsValid())
+		{
+			return Sequencer->IsViewportSelectionLimited();
+		}
+		return true;
+	}
+
+	bool IsObjectSelectableInViewport(UObject* const InObject) const
+	{
+		if (Sequencer.IsValid())
+		{
+			return Sequencer->IsObjectSelectableInViewport(InObject);
+		}
+		return true;
+	}
+
+	void OnViewportSelectionLimitedChanged(const bool bInSelectionLimited)
+	{
+		const TSharedPtr<FBlueprintEditor> BlueprintEditor = WeakBlueprintEditor.Pin();
+		if (!BlueprintEditor.IsValid())
+		{
+			return;
+		}
+
+		const TSharedPtr<SSubobjectEditor> SubojectEditor = BlueprintEditor->GetSubobjectEditor();
+		if (!SubojectEditor.IsValid())
+		{
+			return;
+		}
+
+		if (FEditorViewportSelectabilityBridge* SelectabilityBridge = BlueprintEditor->GetViewportSelectabilityBridge())
+		{
+			if (SelectabilityBridge->IsViewportSelectionLimited())
+			{
+				// Filter out non-selectable nodes from the selection
+				TSet<FSubobjectEditorTreeNodePtrType> NewSelectedNodes;
+				for (const FSubobjectEditorTreeNodePtrType& Node : SubojectEditor->GetSelectedNodes())
+				{
+					const FSubobjectData* const Data = Node->GetDataSource();
+					const UActorComponent* const Component = Data ? Data->FindComponentInstanceInActor(GetPreviewActor()) : nullptr;
+					if (IsValid(Component) && IsObjectSelectableInViewport(const_cast<UActorComponent*>(Component)))
+					{
+						NewSelectedNodes.Add(Node);
+					}
+				}
+
+				// Clear selection and select the new nodes
+				SubojectEditor->ClearSelection();
+				for (const FSubobjectEditorTreeNodePtrType& Node : NewSelectedNodes)
+				{
+					SubojectEditor->SelectNode(Node, false);
+				}
+			}
+		}
+	}
+
+	FText GetViewportSelectionLimitedText() const
+	{
+		if (Sequencer.IsValid())
+		{
+			const FSequencerCommands& SequencerCommands = FSequencerCommands::Get();
+			return FEditorViewportSelectability::GetLimitedSelectionText(SequencerCommands.ToggleLimitViewportSelection
+				, LOCTEXT("SequencerSelectionLimitHelpText", "Sequencer Selection Limited"));
+		}
+		return FText();
+	}
+
 private:
 	TWeakObjectPtr<UActorSequence> WeakSequence;
 
@@ -643,6 +744,7 @@ private:
 
 	FDelegateHandle OnSelectionChangedHandle;
 	FDelegateHandle OnGlobalTimeChangedHandle;
+	FDelegateHandle OnSelectionLimitedChangedHandle;
 };
 
 void SActorSequenceEditorWidget::Construct(const FArguments&, TWeakPtr<FBlueprintEditor> InBlueprintEditor)

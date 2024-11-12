@@ -6,6 +6,8 @@
 
 namespace uba
 {
+	struct StringView;
+
 	bool StartsWith(const tchar* data, const tchar* str, bool ignoreCase = true);
 	bool EndsWith(const tchar* str, u64 strLen, const tchar* value, bool ignoreCase = true);
 	bool Contains(const tchar* str, const tchar* sub, bool ignoreCase = true, const tchar** pos = nullptr);
@@ -13,6 +15,7 @@ namespace uba
 	bool Equals(const tchar* str1, const tchar* str2, u64 count, bool ignoreCase = true);
 	void Replace(tchar* str, tchar from, tchar to);
 	void FixPathSeparators(tchar* str);
+	bool Parse(u64& out, const tchar* str, u64 strLen);
 	inline void ToLower(tchar* str) { while (tchar c = *str) { if (c >= 'A' && c <= 'Z') *str = c - 'A' + 'a'; ++str; } }
 	inline tchar ToLower(tchar c) { return (c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c;}
 	inline tchar ToUpper(tchar c) { return (c >= 'a' && c <= 'z') ? (c - 'a' + 'A') : c;}
@@ -25,6 +28,7 @@ namespace uba
 		StringBufferBase& Append(const tchar* str);
 		StringBufferBase& Append(const tchar c) { return Append(&c, 1); }
 		StringBufferBase& Append(const tchar* str, u64 charCount);
+		StringBufferBase& Append(const StringView& view);
 		StringBufferBase& Appendf(const tchar* format, ...);
 		StringBufferBase& AppendDir(const StringBufferBase& str);
 		StringBufferBase& AppendDir(const tchar* dir);
@@ -37,6 +41,7 @@ namespace uba
 
 		#if PLATFORM_WINDOWS
 		StringBufferBase& Append(const char* str);
+		StringBufferBase& Append(const char* str, u32 charCount);
 		#endif
 
 		tchar operator[](u64 i) const { return data[i]; }
@@ -46,7 +51,7 @@ namespace uba
 		bool StartsWith(const tchar* str, bool ignoreCase = true) const { return uba::StartsWith(data, str, ignoreCase); }
 		bool EndsWith(const tchar* value, bool ignoreCase = true) const { return uba::EndsWith(data, count, value, ignoreCase); }
 		bool Contains(tchar c) const;
-		bool Contains(const tchar* str, bool ignoreCase = true) const { return uba::Contains(data, str, ignoreCase); }
+		bool Contains(const tchar* str, bool ignoreCase = true, const tchar** pos = nullptr) const { return uba::Contains(data, str, ignoreCase, pos); }
 		bool Equals(const tchar* str, bool ignoreCase = true) const { return uba::Equals(data, str, ignoreCase); }
 		const tchar* First(tchar c, u64 offset = 0) const;
 		const tchar* Last(tchar c, u64 offset = 0) const;
@@ -61,6 +66,7 @@ namespace uba
 		bool Parse(u32& out);
 		bool Parse(u16& out);
 		bool Parse(float& out);
+		u32 Parse(char* out, u64 outCapacity); // Note, return value contains length + null termination.. zero if failed
 
 		u32 count;
 		u32 capacity;
@@ -82,6 +88,24 @@ namespace uba
 	private:
 		tchar buf[Capacity];
 	};
+
+	struct StringView
+	{
+		StringView() : data(TC("")), count(0) {}
+		StringView(const tchar* d, u32 c) : data(d), count(c) {}
+		StringView(const StringBufferBase& sb) : data(sb.data), count(sb.count) {}
+		StringView(const TString& str) : data(str.data()), count(u32(str.size())) {}
+		bool IsEmpty() const { return count == 0; }
+		bool StartsWith(const tchar* str, bool ignoreCase = true) const { return uba::StartsWith(data, str, ignoreCase); }
+		bool EndsWith(const tchar* value, bool ignoreCase = true) const { return uba::EndsWith(data, count, value, ignoreCase); }
+		bool Contains(const tchar* str, bool ignoreCase = true) const { return uba::Contains(data, str, ignoreCase); }
+		bool Equals(const tchar* str, bool ignoreCase = true) const { return uba::Equals(data, str, ignoreCase); }
+
+		const tchar* data;
+		u32 count;
+	};
+
+	StringView ToView(const tchar* s);
 
 	struct LastErrorToText : StringBuffer<256>
 	{

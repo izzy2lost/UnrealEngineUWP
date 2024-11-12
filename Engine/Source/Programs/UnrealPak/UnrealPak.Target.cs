@@ -34,6 +34,7 @@ public class UnrealPakTarget : TargetRules
 		bIsBuildingConsoleApplication		= true;
 		bForceBuildTargetPlatforms			= true;
 		bNeedsExtraShaderFormats			= true;
+		bAreTargetSDKVersionsRelevantOverride = false;
 
 		WindowsPlatform.bUseBundledDbgHelp = false;
 		WindowsPlatform.bPixProfilingEnabled = false;

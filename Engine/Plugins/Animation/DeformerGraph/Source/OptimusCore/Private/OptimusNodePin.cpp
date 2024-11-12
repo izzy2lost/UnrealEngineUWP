@@ -109,8 +109,10 @@ FName UOptimusNodePin::GetUniqueName() const
 
 FText UOptimusNodePin::GetDisplayName() const
 {
-	// So bool.
-	const bool bIsBool = (CastField<FBoolProperty>(GetPropertyFromPin()) != nullptr);
+	
+	const FOptimusDataTypeHandle BoolType = FOptimusDataTypeRegistry::Get().FindType(*FBoolProperty::StaticClass());
+	const bool bIsBool = GetDataType() == BoolType;
+	
 	return FText::FromString(FName::NameToDisplayString(GetName(), bIsBool));
 }
 

@@ -26,5 +26,6 @@ public:
 		
 		return Categories;
 	}
+	virtual EAssetCommandResult PerformAssetDiff(const FAssetDiffArgs& DiffArgs) const override;
 	// UAssetDefinition End
 };

@@ -89,6 +89,7 @@ struct FAvaRundownPageIdGeneratorParams
 struct FAvaRundownPageListChangeParams
 {
 	UAvaRundown* Rundown;
+	FAvaRundownPageListReference PageListReference;
 	EAvaRundownPageListChange ChangeType;
 	TArray<int32> AffectedPages;
 };
@@ -106,9 +107,7 @@ struct FAvaRundownPageCollection
 
 	/** Cache mapping the Page Id to the index where the Page with such Page Id is at */
 	TMap<int32, int32> PageIndices;
-
-	FOnAvaRundownPageListChanged OnPageListChanged;
-
+	
 	int32 GetPageIndex(const int32 InPageId) const
 	{
 		if (InPageId != FAvaRundownPage::InvalidPageId)
@@ -119,7 +118,7 @@ struct FAvaRundownPageCollection
 		return INDEX_NONE;
 	}
 
-	AVALANCHEMEDIA_API void Empty(UAvaRundown* InRundown);
+	AVALANCHEMEDIA_API void Empty(UAvaRundown* InRundown, const FAvaRundownPageListReference& InPageListReference);
 
 	/** Complete refresh of the page indices. */
 	void RefreshPageIndices()
@@ -146,13 +145,21 @@ struct FAvaRundownSubList
 {
 	GENERATED_BODY()
 
+	/** Unique identifier for the page list. */
+	UPROPERTY()
+	FGuid Id;
+
 	UPROPERTY()
 	TArray<int32> PageIds;
 
+	/** Display Name */
 	UPROPERTY()
 	FText Name;
 
-	FOnAvaRundownPageListChanged OnPageListChanged;
+	bool IsValid() const
+	{
+		return Id.IsValid();
+	}
 };
 
 namespace UE::AvaRundown
@@ -298,7 +305,15 @@ public:
 	static const FAvaRundownPageListReference TemplatePageList;
 	static const FAvaRundownPageListReference InstancePageList;
 
-	static FAvaRundownPageListReference CreateSubListReference(int32 InSubListIndex) { return {EAvaRundownPageListType::View, InSubListIndex}; }
+	static FAvaRundownPageListReference CreateSubListReference(const FGuid& InSubListId)
+	{
+		return {EAvaRundownPageListType::View, InSubListId};
+	}
+
+	static FAvaRundownPageListReference CreateSubListReference(const FAvaRundownSubList& InSubList)
+	{
+		return CreateSubListReference(InSubList.Id);
+	}
 
 protected:
 	bool IsPageIdUnique(int32 InPageId) const { return !TemplatePages.PageIndices.Contains(InPageId) && !InstancedPages.PageIndices.Contains(InPageId); }
@@ -307,14 +322,18 @@ protected:
 	
 	/** Caches the Page's Id to its Index in the Pages Array*/
 	void RefreshPageIndices();
+
+	void RefreshSubListIndices();
 	
 public:
 	static const FAvaRundownSubList InvalidSubList;
+	static FAvaRundownSubList InvalidSubListMutable;
 
 	//~ Begin UObject Interface
 	virtual void BeginDestroy() override;
 	virtual void PostLoad() override;
 #if WITH_EDITOR
+	virtual void PreEditUndo() override;
 	virtual void PostEditUndo() override;
 #endif
 	//~ End UObject Interface
@@ -375,6 +394,7 @@ public:
 	int32 RemovePages(const TArray<int32>& InPageIds);
 	bool CanRemovePages(const TArray<int32>& InPageIds) const;
 
+	bool RenumberPageIds(const TArray<int32>& InPageIds, const FAvaRundownPageIdGeneratorParams& InIdParams);
 	bool RenumberPageId(int32 InPageId, int32 InNewPageId);
 	bool CanRenumberPageId(int32 InPageId) const;
 	bool CanRenumberPageId(int32 InPageId, int32 InNewPageId) const;
@@ -382,6 +402,10 @@ public:
 	bool SetRemoteControlEntityValue(int32 InPageId, const FGuid& InId, const FAvaPlayableRemoteControlValue& InValue);
 	bool SetRemoteControlControllerValue(int32 InPageId, const FGuid& InId,const FAvaPlayableRemoteControlValue& InValue);
 	EAvaPlayableRemoteControlChanges UpdateRemoteControlValues(int32 InPageId, const FAvaPlayableRemoteControlValues& InRemoteControlValues, bool bInUpdateDefaults);
+	
+	EAvaPlayableRemoteControlChanges ResetRemoteControlValues(int32 InPageId, bool bInUseTemplateValues, bool bInIsDefault);
+	EAvaPlayableRemoteControlChanges ResetRemoteControlControllerValue(int32 InPageId, const FGuid& InControllerId, bool bInUseTemplateValues, bool bInIsDefault);
+	EAvaPlayableRemoteControlChanges ResetRemoteControlEntityValue(int32 InPageId, const FGuid& InEntityId, bool bInUseTemplateValues, bool bInIsDefault);
 
 	void InvalidateManagedInstanceCacheForPages(const TArray<int32>& InPageIds) const;
 
@@ -413,9 +437,12 @@ public:
 	/** Gets the page following the page with the given page id. Using current active page list. */
 	FAvaRundownPage& GetNextPage(int32 InPageId)  { return GetNextPage(InPageId, ActivePageList);}
 	
-	FOnAvaRundownPageListChanged& GetOnTemplatePageListChanged() { return TemplatePages.OnPageListChanged; }
-	FOnAvaRundownPageListChanged& GetOnInstancedPageListChanged() { return InstancedPages.OnPageListChanged; }
+	FOnAvaRundownPageListChanged& GetOnPageListChanged() { return OnPageListChanged; }
 	FOnAvaRundownPagesChanged& GetOnPagesChanged() { return OnPagesChanged; }
+
+	/** Delegate called to determine if the playback context can be closed. */
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnCanClosePlaybackContext, const UAvaRundown*, bool& /*bOutResult*/);
+	FOnCanClosePlaybackContext::RegistrationType& GetOnCanClosePlaybackContext() const { return OnCanClosePlaybackContext; }
 
 	/**
 	 * Since the playback context is part of the asset for now, there is an explicit call to initialize it.
@@ -425,6 +452,11 @@ public:
 	 */
 	void InitializePlaybackContext();
 
+	/**
+	 * Determines if the playback context can be closed.  
+	 */
+	bool CanClosePlaybackContext() const;
+	
 	/**
 	 * Similarly, when the editor is done, it can close the playback context. 
 	 * This will clean up the internal structures for playback and optionally stop all the pages.
@@ -506,7 +538,11 @@ public:
 	/** Used to reconcile playing state with a remote playback if connection was lost. */
 	bool RestorePlaySubPage(int32 InPageId, int32 InSubPageIndex, const FGuid& InExistingInstanceId, bool bInIsPreview, const FName& InPreviewChannelName);
 
-	int32 AddSubList();
+	FAvaRundownPageListReference AddSubList();
+	
+	bool RemoveSubList(const FAvaRundownPageListReference& InPageListReference);
+	
+	bool RenameSubList(const FAvaRundownPageListReference& InPageListReference, const FText& InNewName);
 
 	/**
 	 * Return the current playing Page Ids on the specified program channel.
@@ -527,22 +563,35 @@ public:
 	/** Returns true only if a sub list, not the main list, is active. */
 	bool HasActiveSubList() const;
 
-	const FAvaRundownSubList& GetActiveSubList() const { return GetSubList(ActivePageList.SubListIndex); }
-	FAvaRundownSubList& GetActiveSubList() { return GetSubList(ActivePageList.SubListIndex); }
+	const FAvaRundownSubList& GetActiveSubList() const { return GetSubList(ActivePageList.SubListId); }
+	FAvaRundownSubList& GetActiveSubList() { return GetSubList(ActivePageList.SubListId); }
 
 	const FAvaRundownSubList& GetSubList(int32 InSubListIndex) const;
-
 	FAvaRundownSubList& GetSubList(int32 InSubListIndex);
 
-	bool IsValidSubListIndex(int32 InIndex) const { return SubLists.IsValidIndex(InIndex); }
+	const FAvaRundownSubList& GetSubList(const FGuid& InSubListId) const;
+	FAvaRundownSubList& GetSubList(const FGuid& InSubListId);
+
+	const FAvaRundownSubList& GetSubList(const FAvaRundownPageListReference& InPageListReference) const
+	{
+		return InPageListReference.Type == EAvaRundownPageListType::View ? GetSubList(InPageListReference.SubListId) : InvalidSubList;
+	}
+	
+	FAvaRundownSubList& GetSubList(const FAvaRundownPageListReference& InPageListReference)
+	{
+		return InPageListReference.Type == EAvaRundownPageListType::View ? GetSubList(InPageListReference.SubListId) : InvalidSubListMutable;
+	}
+
+	int32 GetSubListIndex(const FAvaRundownSubList& InSubList) const;
+
 	bool IsValidSubList(const FAvaRundownPageListReference& InPageListReference) const;
 
 	const TArray<FAvaRundownSubList>& GetSubLists() const { return SubLists; }
 
-	bool AddPageToSubList(int32 InSubListIndex, int32 InPageId, const FAvaRundownPageInsertPosition& InInsertPosition = FAvaRundownPageInsertPosition());
-	bool AddPagesToSubList(int32 InSubListIndex, const TArray<int32>& InPages);
+	bool AddPageToSubList(const FAvaRundownPageListReference& InPageListReference, int32 InPageId, const FAvaRundownPageInsertPosition& InInsertPosition = FAvaRundownPageInsertPosition());
+	bool AddPagesToSubList(const FAvaRundownPageListReference& InPageListReference, const TArray<int32>& InPages);
 
-	int32 RemovePagesFromSubList(int32 InSubListIndex, const TArray<int32>& InPages);
+	int32 RemovePagesFromSubList(const FAvaRundownPageListReference& InPageListReference, const TArray<int32>& InPages);
 
 	DECLARE_MULTICAST_DELEGATE(FOnActiveListChanged)
 	FOnActiveListChanged& GetOnActiveListChanged() { return OnActiveListChanged; }
@@ -609,7 +658,7 @@ private:
 	FAvaRundownPage& GetNextFromPages(TArray<FAvaRundownPage>& InPages, int32 InStartingIndex) const;
 
 	const FAvaRundownPage& GetNextFromSubList(const TArray<int32>& InSubListIds, int32 InStartingIndex) const;
-	FAvaRundownPage& GetNextFromSubList(TArray<int32>& InSubListIds, int32 InStartingIndex);
+	FAvaRundownPage& GetNextFromSubList(const TArray<int32>& InSubListIds, int32 InStartingIndex);
 
 protected:
 	UPROPERTY()
@@ -669,16 +718,35 @@ public:
 
 	FOnPagePlayerEvent& GetOnPagePlayerAdded() { return OnPagePlayerAdded; }
 	FOnPagePlayerEvent& GetOnPagePlayerRemoving() { return OnPagePlayerRemoving; }
+
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPageTransitionEvent, UAvaRundown*, UAvaRundownPageTransition*);
+
+	/**
+	 * Rundown Transition Event - Called when a new page transition is added to the playback context.
+	 */
+	FOnPageTransitionEvent OnPageTransitionAdded;
+
+	/**
+	 * Rundown Transition Event - Called when a completed page transition is about to be removed from the playback context.
+	 */
+	FOnPageTransitionEvent OnPageTransitionRemoving;
+
+	FOnPageTransitionEvent& GetOnPageTransitionAdded() { return OnPageTransitionAdded; }
+	FOnPageTransitionEvent& GetOnPageTransitionRemoving() { return OnPageTransitionRemoving; }
 	
 	void AddPageTransition(UAvaRundownPageTransition* InPageTransition)
 	{
 		PageTransitions.Add(InPageTransition);
+		OnPageTransitionAdded.Broadcast(this, InPageTransition);
 	}
 
 	void RemovePageTransition(UAvaRundownPageTransition* InPageTransition)
 	{
+		OnPageTransitionRemoving.Broadcast(this, InPageTransition);
 		PageTransitions.Remove(InPageTransition);
 	}
+
+	UAvaRundownPageTransition* GetPageTransition(const FGuid& InTransitionId) const;
 
 	bool CanStartTransitionForPage(const FAvaRundownPage& InPage, bool bInIsPreview, const FName& InPreviewChannelName) const;
 
@@ -694,6 +762,9 @@ public:
 	{
 		return bInIsPreview ?  FindPlayerForPreviewPage(InPageId, InPreviewChannelName) : FindPlayerForProgramPage(InPageId);
 	}
+
+	/** Finds the page player for the given pageId and channel name. */
+	UAvaRundownPagePlayer* FindPagePlayer(int32 InPageId, FName InChannelName) const;
 
 	void RemoveStoppedPagePlayers();
 
@@ -714,5 +785,14 @@ public:
 
 protected:
 	FOnAvaRundownPagesChanged OnPagesChanged;
+	FOnAvaRundownPageListChanged OnPageListChanged;
 	FOnActiveListChanged OnActiveListChanged;
+	mutable FOnCanClosePlaybackContext OnCanClosePlaybackContext;
+
+	TMap<FGuid, int32> SubListIndices;
+
+#if WITH_EDITOR
+	class FPreUndoBackup;
+	TPimplPtr<FPreUndoBackup> PreUndoBackup;
+#endif
 };

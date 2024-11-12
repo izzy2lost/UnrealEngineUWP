@@ -2,10 +2,14 @@
 
 #include "UbaStorage.h"
 #include "UbaBottleneck.h"
+#include "UbaCompressedObjFileHeader.h"
+#include "UbaConfig.h"
 #include "UbaFileAccessor.h"
 #include "UbaBinaryReaderWriter.h"
 #include "UbaDirectoryIterator.h"
+#include "UbaStorageUtils.h"
 #include "UbaWorkManager.h"
+#include <oodle2.h>
 
 namespace uba
 {
@@ -23,55 +27,90 @@ namespace uba
 		out.Append('^').AppendHex(mappingHandle.ToU64()).Append('-').AppendHex(offset);
 	}
 
-	void StorageImpl::CasEntryAccessed(CasEntry& entry)
+	u8* BufferSlots::Pop()
+	{
+		SCOPED_WRITE_LOCK(m_slotsLock, lock);
+		if (!m_slots.empty())
+		{
+			auto back = m_slots.back();
+			m_slots.pop_back();
+			return back;
+		}
+		return (u8*)malloc(BufferSlotSize);
+	}
+
+	void BufferSlots::Push(u8* slot)
+	{
+		if (!slot)
+			return;
+		SCOPED_WRITE_LOCK(m_slotsLock, lock);
+		m_slots.push_back(slot);
+	}
+
+	BufferSlots::~BufferSlots()
+	{
+		for (u8* slot : m_slots)
+			free(slot);
+	}
+
+	void StorageCreateInfo::Apply(Config& config)
+	{
+		const ConfigTable* tablePtr = config.GetTable(TC("Storage"));
+		if (!tablePtr)
+			return;
+		const ConfigTable& table = *tablePtr;
+		table.GetValueAsString(rootDir, TC("RootDir"));
+	}
+
+	void StorageImpl::CasEntryAccessed(CasEntry& casEntry)
 	{
 		bool hasMapping;
 		{
-			SCOPED_READ_LOCK(entry.lock, l); // Note, this lock is taken again outside CasEntryAccessed.. so if this takes a long time it won't help to remove this lock
-			hasMapping = entry.mappingHandle.IsValid();
+			SCOPED_READ_LOCK(casEntry.lock, l); // Note, this lock is taken again outside CasEntryAccessed.. so if this takes a long time it won't help to remove this lock
+			hasMapping = casEntry.mappingHandle.IsValid();
 		}
 		if (hasMapping)
 			return;
 
 		SCOPED_WRITE_LOCK(m_accessLock, lock);
 
-		CasEntry* prevAccessed = entry.prevAccessed;
+		CasEntry* prevAccessed = casEntry.prevAccessed;
 		if (prevAccessed == nullptr)
 		{
-			if (m_newestAccessed == &entry) // We are already first
+			if (m_newestAccessed == &casEntry) // We are already first
 				return;
 		}
 		else
-			prevAccessed->nextAccessed = entry.nextAccessed;
+			prevAccessed->nextAccessed = casEntry.nextAccessed;
 
-		if (entry.nextAccessed)
-			entry.nextAccessed->prevAccessed = prevAccessed;
+		if (casEntry.nextAccessed)
+			casEntry.nextAccessed->prevAccessed = prevAccessed;
 		else if (prevAccessed)
 			m_oldestAccessed = prevAccessed;
 		else if (!m_oldestAccessed)
-			m_oldestAccessed = &entry;
+			m_oldestAccessed = &casEntry;
 
 		if (m_newestAccessed)
-			m_newestAccessed->prevAccessed = &entry;
-		entry.nextAccessed = m_newestAccessed;
-		entry.prevAccessed = nullptr;
-		m_newestAccessed = &entry;
+			m_newestAccessed->prevAccessed = &casEntry;
+		casEntry.nextAccessed = m_newestAccessed;
+		casEntry.prevAccessed = nullptr;
+		m_newestAccessed = &casEntry;
 	}
 
-	void StorageImpl::CasEntryWritten(CasEntry& entry, u64 size)
+	void StorageImpl::CasEntryWritten(CasEntry& casEntry, u64 size)
 	{
 		SCOPED_WRITE_LOCK(m_accessLock, lock);
 
-		m_casTotalBytes += size - entry.size;
+		m_casTotalBytes += size - casEntry.size;
 		m_casMaxBytes = Max(m_casTotalBytes, m_casMaxBytes);
 
-		entry.size = size;
+		casEntry.size = size;
 
 #if !UBA_USE_SPARSEFILE
-		UBA_ASSERT(!entry.mappingHandle.IsValid());
+		UBA_ASSERT(!casEntry.mappingHandle.IsValid());
 #endif
 
-		if (!m_casCapacityBytes || m_overflowReported || m_casTotalBytes <= m_casCapacityBytes)
+		if (!m_casCapacityBytes || m_overflowReported || m_casTotalBytes <= m_casCapacityBytes || m_manuallyHandleOverflow)
 			return;
 
 		#if UBA_USE_SPARSEFILE
@@ -82,7 +121,7 @@ namespace uba
 		UBA_ASSERT(!m_newestAccessed || !m_newestAccessed->prevAccessed);
 		UBA_ASSERT(!m_oldestAccessed || !m_oldestAccessed->nextAccessed);
 
-		struct Rec { CasEntry& entry; u64 size; };
+		struct Rec { CasEntry& casEntry; u64 size; };
 		Vector<Rec> toDelete;
 
 		for (CasEntry* it = m_oldestAccessed; it;)
@@ -122,7 +161,7 @@ namespace uba
 		{
 #if !UBA_USE_SPARSEFILE
 			StringBuffer<> casFile;
-			StorageImpl::GetCasFileName(casFile, rec.entry.key);
+			StorageImpl::GetCasFileName(casFile, rec.casEntry.key);
 
 			if (!DeleteFileW(casFile.data))
 			{
@@ -130,9 +169,9 @@ namespace uba
 				if (error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND)
 				{
 					m_logger.Error(TC("Failed to delete %s while handling overflow (%s)"), casFile.data, LastErrorToText(error).data);
-					rec.entry.exists = true;
-					rec.entry.size = rec.size;
-					rec.entry.lock.LeaveWrite();
+					rec.casEntry.exists = true;
+					rec.casEntry.size = rec.size;
+					rec.casEntry.lock.LeaveWrite();
 
 					// TODO: Should this instead set some overflow
 					/*
@@ -140,7 +179,7 @@ namespace uba
 					m_casEvictedBytes -= rec.size;
 					--m_casEvictedCount;
 					m_casTotalBytes += rec.size;
-					AttachEntry(&rec.entry); // TODO: This should be re-added in the end
+					AttachEntry(&rec.casEntry); // TODO: This should be re-added in the end
 					*/
 					continue;
 				}
@@ -150,46 +189,46 @@ namespace uba
 			//UBA_ASSERT(false);
 #endif
 
-			entry.verified = true; // Verified to be deleted
+			casEntry.verified = true; // Verified to be deleted
 
-			rec.entry.lock.LeaveWrite();
+			rec.casEntry.lock.LeaveWrite();
 		}
 	}
 
-	void StorageImpl::CasEntryDeleted(CasEntry& entry, u64 size)
+	void StorageImpl::CasEntryDeleted(CasEntry& casEntry, u64 size)
 	{
 		SCOPED_WRITE_LOCK(m_accessLock, lock);
 		m_casTotalBytes -= size;
-		entry.size = 0;
-		DetachEntry(entry);
+		casEntry.size = 0;
+		DetachEntry(casEntry);
 	}
 
-	void StorageImpl::AttachEntry(CasEntry& entry)
+	void StorageImpl::AttachEntry(CasEntry& casEntry)
 	{
 		if (m_oldestAccessed)
-			m_oldestAccessed->nextAccessed = &entry;
-		entry.prevAccessed = m_oldestAccessed;
-		entry.nextAccessed = nullptr;
+			m_oldestAccessed->nextAccessed = &casEntry;
+		casEntry.prevAccessed = m_oldestAccessed;
+		casEntry.nextAccessed = nullptr;
 		if (!m_newestAccessed)
-			m_newestAccessed = &entry;
-		m_oldestAccessed = &entry;
+			m_newestAccessed = &casEntry;
+		m_oldestAccessed = &casEntry;
 	}
 
-	void StorageImpl::DetachEntry(CasEntry& entry)
+	void StorageImpl::DetachEntry(CasEntry& casEntry)
 	{
-		CasEntry* prevAccessed = entry.prevAccessed;
+		CasEntry* prevAccessed = casEntry.prevAccessed;
 		if (prevAccessed)
-			prevAccessed->nextAccessed = entry.nextAccessed;
-		else if (m_newestAccessed == &entry)
-			m_newestAccessed = entry.nextAccessed;
+			prevAccessed->nextAccessed = casEntry.nextAccessed;
+		else if (m_newestAccessed == &casEntry)
+			m_newestAccessed = casEntry.nextAccessed;
 
-		if (entry.nextAccessed)
-			entry.nextAccessed->prevAccessed = prevAccessed;
-		else if (m_oldestAccessed == &entry)
+		if (casEntry.nextAccessed)
+			casEntry.nextAccessed->prevAccessed = prevAccessed;
+		else if (m_oldestAccessed == &casEntry)
 			m_oldestAccessed = prevAccessed;
 
-		entry.prevAccessed = nullptr;
-		entry.nextAccessed = nullptr;
+		casEntry.prevAccessed = nullptr;
+		casEntry.nextAccessed = nullptr;
 	}
 
 	bool StorageImpl::WriteCompressed(WriteResult& out, const tchar* from, const tchar* to)
@@ -206,16 +245,16 @@ namespace uba
 		if (!uba::GetFileSizeEx(fileSize, readHandle))
 			return m_logger.Error(TC("GetFileSize failed for %s (%s)"), from, LastErrorToText().data);
 
-		return WriteCompressed(out, from, readHandle, 0, fileSize, to);
+		return WriteCompressed(out, from, readHandle, 0, fileSize, to, nullptr, 0);
 	}
 
-	bool StorageImpl::WriteCompressed(WriteResult& out, const tchar* from, FileHandle readHandle, u8* readMem, u64 fileSize, const tchar* to)
+	bool StorageImpl::WriteCompressed(WriteResult& out, const tchar* from, FileHandle readHandle, u8* readMem, u64 fileSize, const tchar* to, const void* header, u64 headerSize, u64 lastWriteTime)
 	{
 		StorageStats& stats = Stats();
 
 		u64 totalWritten = 0;
 
-		u64 diff = (u64)OodleLZ_GetCompressedBufferSizeNeeded(m_sendCasCompressor, BufferSlotHalfSize) - BufferSlotHalfSize;
+		u64 diff = (u64)OodleLZ_GetCompressedBufferSizeNeeded((OodleLZ_Compressor)m_casCompressor, BufferSlotHalfSize) - BufferSlotHalfSize;
 		u64 maxUncompressedBlock = BufferSlotHalfSize - diff - 8; // 8 bytes for the little header
 		u32 workCount = u32((fileSize + maxUncompressedBlock - 1) / maxUncompressedBlock);
 
@@ -223,6 +262,9 @@ namespace uba
 		FileAccessor destinationFile(m_logger, to);
 		if (!destinationFile.CreateWrite(false, DefaultAttributes(), 0, m_tempPath.data))
 			return false;
+		if (headerSize)
+			if (!destinationFile.Write(header, headerSize))
+				return false;
 		if (!destinationFile.Write(&fileSize, sizeof(u64))) // Store file size first in compressed file
 			return false;
 #else
@@ -278,8 +320,8 @@ namespace uba
 		}
 		else
 		{
-			u8* slot = PopBufferSlot();
-			auto _ = MakeGuard([&](){ PushBufferSlot(slot); });
+			u8* slot = m_bufferSlots.Pop();
+			auto _ = MakeGuard([&](){ m_bufferSlots.Push(slot); });
 			u8* uncompressedData = slot;
 			u8* compressBuffer = slot + BufferSlotHalfSize;
 
@@ -299,7 +341,7 @@ namespace uba
 				OO_SINTa compressedBlockSize;
 				{
 					TimerScope cts(stats.compressWrite);
-					compressedBlockSize = OodleLZ_Compress(m_createCasCompressor, uncompressedData, (OO_SINTa)uncompressedBlockSize, destBuf + 8, m_createCasCompressionLevel);
+					compressedBlockSize = OodleLZ_Compress((OodleLZ_Compressor)m_casCompressor, uncompressedData, (OO_SINTa)uncompressedBlockSize, destBuf + 8, (OodleLZ_CompressionLevel)m_casCompressionLevel);
 					if (compressedBlockSize == OODLELZ_FAILED)
 						return m_logger.Error(TC("Failed to compress %llu bytes for %s"), uncompressedBlockSize, from);
 				}
@@ -312,6 +354,7 @@ namespace uba
 				if (!destinationFile.Write(destBuf, writeBytes))
 					return false;
 #else
+				TimerScope cts(stats.memoryCopy);
 				memcpy(toMem + totalWritten, destBuf, writeBytes);
 #endif
 
@@ -322,6 +365,9 @@ namespace uba
 		}
 
 #if !UBA_USE_SPARSEFILE
+		if (lastWriteTime)
+			if (!SetFileLastWriteTime(destinationFile.GetHandle(), lastWriteTime))
+				return m_logger.Error(TC("Failed to set file time on filehandle for %s"), to);
 		if (!destinationFile.Close())
 			return false;
 #endif
@@ -399,8 +445,8 @@ namespace uba
 
 		auto work = [this, rec, &stats]()
 		{
-			u8* slot = PopBufferSlot();
-			auto _ = MakeGuard([&](){ PushBufferSlot(slot); });
+			u8* slot = m_bufferSlots.Pop();
+			auto _ = MakeGuard([&](){ m_bufferSlots.Push(slot); });
 			u8* compressSlotBuffer = slot + BufferSlotHalfSize;
 			while (true)
 			{
@@ -417,7 +463,7 @@ namespace uba
 				OO_SINTa compressedBlockSize;
 				{
 					TimerScope cts(stats.compressWrite);
-					compressedBlockSize = OodleLZ_Compress(m_createCasCompressor, uncompressedDataSlot, uncompressedBlockSize, compressSlotBuffer + 8, m_createCasCompressionLevel);
+					compressedBlockSize = OodleLZ_Compress((OodleLZ_Compressor)m_casCompressor, uncompressedDataSlot, uncompressedBlockSize, compressSlotBuffer + 8, (OodleLZ_CompressionLevel)m_casCompressionLevel);
 					if (compressedBlockSize == OODLELZ_FAILED)
 					{
 						m_logger.Error(TC("Failed to compress %llu bytes for %s"), u64(uncompressedBlockSize), rec->destination->GetFileName());
@@ -437,6 +483,7 @@ namespace uba
 				if (!rec->destination->Write(compressSlotBuffer, writeBytes))
 					rec->error = true;
 #else
+				TimerScope cts(stats.memoryCopy);
 				memcpy(rec->mem + rec->memPos, compressSlotBuffer, writeBytes);
 				rec->memPos += writeBytes;
 #endif
@@ -466,18 +513,22 @@ namespace uba
 		return true;
 	}
 
-	bool StorageImpl::WriteCasFileNoCheck(WriteResult& out, const tchar* fileName, const tchar* casFile, bool storeCompressed)
+	bool StorageImpl::WriteCasFileNoCheck(WriteResult& out, const tchar* fileName, bool fileIsCompressed, const tchar* casFile, bool storeCompressed)
 	{
-		if (storeCompressed)
+		if (storeCompressed && !fileIsCompressed)
 		{
 			if (!WriteCompressed(out, fileName, casFile))
 				return false;
 		}
 		else
 		{
+			if (!storeCompressed)
+				return m_logger.Error(TC("Write compressed file to uncompressed store not implemented"));
+
 			FileHandle readHandle;
 			if (!OpenFileSequentialRead(m_logger, fileName, readHandle))
 				return m_logger.Error(TC("Failed to open file %s for read (%s)"), fileName, LastErrorToText().data);
+			auto fileGuard = MakeGuard([&](){ CloseFile(fileName, readHandle); });
 
 			u64 fileSize;
 			if (!uba::GetFileSizeEx(fileSize, readHandle))
@@ -487,9 +538,18 @@ namespace uba
 			if (!destinationFile.CreateWrite(false, DefaultAttributes(), 0, m_tempPath.data))
 				return false;
 
-			u8* slot= PopBufferSlot();
-			auto _ = MakeGuard([&](){ PushBufferSlot(slot); });
+			if (fileIsCompressed)
+			{
+				CompressedObjFileHeader header(CasKeyZero);
+				if (!ReadFile(m_logger, fileName, readHandle, &header, sizeof(header)))
+					return false;
+				fileSize -= sizeof(header);
+			}
+
+			u8* slot= m_bufferSlots.Pop();
+			auto _ = MakeGuard([&](){ m_bufferSlots.Push(slot); });
 			u64 left = fileSize;
+
 			while (left)
 			{
 				u32 toRead = u32(Min(left, BufferSlotSize));
@@ -510,7 +570,7 @@ namespace uba
 		return true;
 	}
 
-	bool StorageImpl::WriteCasFile(WriteResult& out, const tchar* fileName, const CasKey& casKey)
+	bool StorageImpl::WriteCasFile(WriteResult& out, const tchar* fileName, bool fileIsCompressed, const CasKey& casKey)
 	{
 		UBA_ASSERT(IsCompressed(casKey) == m_storeCompressed);
 		StringBuffer<> casFile;
@@ -523,7 +583,7 @@ namespace uba
 		//UBA_ASSERT(false);
 #endif
 
-		return WriteCasFileNoCheck(out, fileName, casFile.data, IsCompressed(casKey));
+		return WriteCasFileNoCheck(out, fileName, fileIsCompressed, casFile.data, IsCompressed(casKey));
 	}
 
 	void StorageImpl::CasEntryAccessed(const CasKey& casKey)
@@ -542,7 +602,7 @@ namespace uba
 		return false;
 	}
 
-	bool StorageImpl::DecompressMemoryToMemory(u8* compressedData, u8* writeData, u64 decompressedSize, const tchar* readHint)
+	bool StorageImpl::DecompressMemoryToMemory(u8* compressedData, u8* writeData, u64 decompressedSize, const tchar* readHint, const tchar* writeHint)
 	{
 		UBA_ASSERT(compressedData);
 		UBA_ASSERT(writeData);
@@ -620,7 +680,7 @@ namespace uba
 						{
 							bool f = false;
 							if (rec->error.compare_exchange_strong(f, true))
-								rec->logger->Error(TC("Expecting to be able to decompress to %u bytes but got %llu (%s)"), decompressedBlockSize, decompLen, rec->hint);
+								rec->logger->Error(TC("Expecting to be able to decompress %u bytes to %u bytes but got %llu (%s)"), compressedBlockSize, decompressedBlockSize, decompLen, rec->hint);
 							if (!--rec->refCount)
 								delete rec;
 							rec->done.Set();
@@ -664,13 +724,13 @@ namespace uba
 					break;
 				u32 decompressedBlockSize = ((u32*)readPos)[1];
 				if (decompressedBlockSize == 0 || decompressedBlockSize > left)
-					return m_logger.Error(TC("Decompressed block size %u is invalid. Decompressed file is %u (%s)"), decompressedBlockSize, decompressedSize, readHint);
+					return m_logger.Error(TC("Decompressed block size %u is invalid. Decompressed file is %u (%s -> %s)"), decompressedBlockSize, decompressedSize, readHint, writeHint);
 				readPos += sizeof(u32) * 2;
 
 				TimerScope ts(stats.decompressToMem);
 				OO_SINTa decompLen = OodleLZ_Decompress(readPos, (OO_SINTa)compressedBlockSize, writePos, (OO_SINTa)decompressedBlockSize); (void)decompLen;
 				if (decompLen != decompressedBlockSize)
-					return m_logger.Error(TC("Expecting to be able to decompress to %u bytes but got %llu (%s)"), decompressedBlockSize, decompLen, readHint);
+					return m_logger.Error(TC("Expecting to be able to decompress to %u bytes but got %llu (%s -> %s)"), decompressedBlockSize, decompLen, readHint, writeHint);
 				writePos += decompressedBlockSize;
 				readPos += compressedBlockSize;
 				left -= decompressedBlockSize;
@@ -684,8 +744,8 @@ namespace uba
 		StorageStats& stats = Stats();
 		u8* readPos = compressedData;
 
-		u8* slot = PopBufferSlot();
-		auto _ = MakeGuard([&](){ PushBufferSlot(slot); });
+		u8* slot = m_bufferSlots.Pop();
+		auto _ = MakeGuard([&](){ m_bufferSlots.Push(slot); });
 
 		u64 left = decompressedSize;
 		u64 overflow = 0;
@@ -773,7 +833,7 @@ namespace uba
 			{
 				outReturnValue = false;
 				m_logger.Error(TC("Failed to delete %s. Clean cas folder and restart"), casFile.data);
-				return true;
+				return false;
 			}
 		}
 		else
@@ -791,7 +851,7 @@ namespace uba
 	}
 
 
-	bool StorageImpl::AddCasFile(const tchar* fileName, const CasKey& casKey, bool deferCreation)
+	bool StorageImpl::AddCasFile(StringKey fileNameKey, const tchar* fileName, const CasKey& casKey, bool deferCreation, bool fileIsCompressed)
 	{
 		UBA_ASSERTF(IsCompressed(casKey) == m_storeCompressed, TC("CasKey compress mode must match storage compress mode (%s)"), fileName);
 		SCOPED_WRITE_LOCK(m_casLookupLock, lookupLock);
@@ -825,9 +885,11 @@ namespace uba
 			auto res = m_deferredCasCreationLookup.try_emplace(casKey);
 			if (res.second)
 			{
-				res.first->second = fileName;
-				auto res2 = m_deferredCasCreationLookupByName.try_emplace(res.first->second.c_str(), casKey);
-				UBA_ASSERT(res2.second); (void)res2;
+				DeferedCasCreation& dcc = res.first->second;
+				dcc.fileName = fileName;
+				dcc.fileIsCompressed = fileIsCompressed;
+				auto res2 = m_deferredCasCreationLookupByName.try_emplace(fileNameKey, casKey);
+				UBA_ASSERTF(res2.second, TC("%s - existing: %s added: %s"), dcc.fileName.c_str(), CasKeyString(res2.first->second).str, CasKeyString(casKey).str); (void)res2;
 			}
 			return true;
 		}
@@ -837,7 +899,7 @@ namespace uba
 
 		WriteResult res;
 #if !UBA_USE_SPARSEFILE
-		if (!WriteCasFileNoCheck(res, fileName, casFile.data, IsCompressed(casKey)))
+		if (!WriteCasFileNoCheck(res, fileName, fileIsCompressed, casFile.data, IsCompressed(casKey)))
 			return false;
 #else
 
@@ -850,96 +912,188 @@ namespace uba
 		return true;
 	}
 
-	void StorageImpl::TraverseAllCasFiles(const tchar* dir, u32 recursion, const Function<void(const StringBufferBase& fullPath, const DirectoryEntry& e)>& func)
+	void StorageImpl::TraverseAllCasFiles(const tchar* dir, const Function<void(const StringBufferBase& fullPath, const DirectoryEntry& e)>& func, bool allowParallel)
 	{
+		Atomic<u32> workLeft;
+
+		auto traverseCasFileDir = [&func, &workLeft, this](const tchar* casFileDir)
+			{
+				TraverseDir(m_logger, casFileDir,
+					[&](const DirectoryEntry& e)
+					{
+						UBA_ASSERT(!IsDirectory(e.attributes));
+						StringBuffer<> fullPath(casFileDir);
+						fullPath.EnsureEndsWithSlash().Append(e.name);
+						func(fullPath, e);
+					});
+				--workLeft;
+			};
+
 		TraverseDir(m_logger, dir,
 			[&](const DirectoryEntry& e)
 			{
+				if (!IsDirectory(e.attributes))
+					return;
 				StringBuffer<> fullPath(dir);
 				fullPath.EnsureEndsWithSlash().Append(e.name);
-				if (IsDirectory(e.attributes))
+				++workLeft;
+
+				if (allowParallel && m_workManager)
 				{
-					TraverseAllCasFiles(fullPath.data, recursion + 1, func);
+					m_workManager->AddWork([&traverseCasFileDir, p = TString(fullPath.data)]() { traverseCasFileDir(p.data()); }, 1, TC("TraverseCasFiles"));
 				}
-				else if (recursion != 0)
+				else
 				{
-					func(fullPath, e);
+					traverseCasFileDir(fullPath.data);
 				}
 			});
+
+		while (workLeft)
+			m_workManager->DoWork();
 	}
 
-	void StorageImpl::TraverseAllCasFiles(const Function<void(const CasKey& key)>& func)
+	void StorageImpl::TraverseAllCasFiles(const Function<void(const CasKey& key, u64 size)>& func, bool allowParallel)
 	{
 		StringBuffer<> casRoot;
 		casRoot.Append(m_rootDir.data, m_rootDir.count - 1);
-		TraverseAllCasFiles(casRoot.data, 0, [&](const StringBufferBase& fullPath, const DirectoryEntry& e)
+		TraverseAllCasFiles(casRoot.data, [&](const StringBufferBase& fullPath, const DirectoryEntry& e)
 			{
-				func(CasKeyFromString(e.name));
-			});
+				func(CasKeyFromString(e.name), e.size);
+			}, allowParallel);
 	}
 
-	void StorageImpl::CheckAllCasFiles()
+	bool StorageImpl::CheckAllCasFiles(u64 checkContentOfFilesNewerThanTime)
 	{
 #if !UBA_USE_SPARSEFILE
+		u64 startTime = GetTime();
 		u64 before = m_casTotalBytes;
 		m_casTotalBytes = 0;
 		// Need to scan all files to see so there are no orphans in the folders
 		StringBuffer<> casRoot;
 		casRoot.Append(m_rootDir.data, m_rootDir.count - 1);
 
-		m_logger.Info(TC("Previous run was not gracefully shutdown. Reparsing cas directory %s to check for added/missing files"), casRoot.data);
-
-		TraverseAllCasFiles(casRoot.data, 0, [this](const StringBufferBase& fullPath, const DirectoryEntry& e)
+		Atomic<bool> success = true;
+		TraverseAllCasFiles(casRoot.data, [&](const StringBufferBase& fullPath, const DirectoryEntry& e)
 			{
 				CasKey casKey = CasKeyFromString(e.name);
-				auto insres = m_casLookup.try_emplace(casKey);
-				CasEntry& entry = insres.first->second;
+				bool deleteFile = false;
 				u64 size = e.size;
-				entry.verified = true;
-				entry.exists = true;
+
+				// Do quick check on new files so the have good content (ignore files with zero size, they are tested further down)
+				if (size && e.lastWritten >= checkContentOfFilesNewerThanTime)
+				{
+					FileAccessor fa(m_logger, fullPath.data);
+					if (fa.OpenMemoryRead())
+					{
+						if (IsCompressed(casKey))
+						{
+							BinaryReader reader(fa.GetData(), 0, fa.GetSize());
+							if (reader.GetLeft() < 12)
+							{
+								m_logger.Detail(TC("Corrupt cas. Is %llu, must be at least 12 bytes (%s)"), reader.GetLeft(), e.name);
+								deleteFile = true;
+							}
+							else
+							{
+								reader.ReadU64(); // Decompressed size
+								while (true)
+								{
+									if (reader.GetLeft() <= 8)
+									{
+										m_logger.Detail(TC("Corrupt cas. Missing beginning of block (%s)"), e.name);
+										deleteFile = true;
+										break;
+									}
+
+									u32 compressedBlockSize = reader.ReadU32();
+									reader.ReadU32();
+
+									if (!compressedBlockSize || compressedBlockSize > reader.GetLeft())
+									{
+										m_logger.Detail(TC("Corrupt cas. Bad block (%s)"), e.name);
+										deleteFile = true;
+										break;
+									}
+
+									reader.Skip(compressedBlockSize);
+
+									if (!reader.GetLeft())
+										break;
+								}
+							}
+						}
+						else
+						{
+							// TODO: Some simple validation of uncompressed file.. maybe even rehash and check? (since it is not many uncompressed files.. zero on server and a few on client)
+						}
+					}
+					else
+					{
+						deleteFile = true;
+					}
+				}
+
+
+				SCOPED_WRITE_LOCK(m_casLookupLock, lookupLock);
+				auto insres = m_casLookup.try_emplace(casKey);
+				CasEntry& casEntry = insres.first->second;
+				casEntry.verified = true;
+				casEntry.exists = true;
 
 				m_casTotalBytes += size;
 				if (insres.second)
 				{
-					entry.key = casKey;
-					entry.size = size;
-					AttachEntry(entry);
+					casEntry.key = casKey;
+					casEntry.size = size;
+					AttachEntry(casEntry);
 				}
 				else
 				{
-					UBA_ASSERT(entry.key == casKey);
+					UBA_ASSERT(casEntry.key == casKey);
 					// We should probably delete this one.. something is wrong
-					if (entry.size != 0 && entry.size != size)
-						m_logger.Detail(TC("Found cas entry which has a different size than what the table thought! Was %llu, is %llu (%s)"), entry.size, size, e.name);
-					entry.size = size;
+					if (casEntry.size != 0 && casEntry.size != size && !deleteFile)
+						m_logger.Detail(TC("Found cas entry which has a different size than what the table thought! Was %llu, is %llu (%s)"), casEntry.size, size, e.name);
+					casEntry.size = size;
 				}
 
-				if (!size)
+				if (!size && casKey != ToCasKey(CasKeyHasher(), IsCompressed(casKey)))
 				{
-					CasKeyHasher hasher;
-					if (casKey != ToCasKey(hasher, IsCompressed(casKey)))
-					{
-						m_logger.Detail(TC("Found file that has size 0 but does not have correct caskey (%s)"), e.name);
-						DeleteFileW(fullPath.data);
-						DetachEntry(entry);
-						m_casLookup.erase(insres.first);
-					}
+					m_logger.Detail(TC("Found file that has size 0 but does not have correct caskey (%s)"), e.name);
+					deleteFile = true;
 				}
-			});
+
+				if (!deleteFile)
+					return;
+
+				DetachEntry(casEntry);
+				m_casLookup.erase(insres.first);
+				m_casTotalBytes -= size;
+				lookupLock.Leave();
+
+				if (DeleteFileW(fullPath.data))
+					return;
+
+				m_logger.Error(TC("Failed to delete file %s (%s)"), fullPath.data, LastErrorToText().data);
+				success = false;
+
+			}, true);
+
+		if (!success)
+			return false;
 
 		u32 didNotExistCount = 0;
 		// All files we saw is tagged as "handled") so let's see if there are cas entries we didn't find
 		for (auto it = m_casLookup.begin(); it!=m_casLookup.end();)
 		{
-			CasEntry& entry = it->second;
-			if (entry.verified)
+			CasEntry& casEntry = it->second;
+			if (casEntry.verified)
 			{
 				++it;
-				entry.verified = false; // Unhandle the entries to be able to evict later
+				casEntry.verified = false; // Unhandle the entries to be able to evict later
 				continue;
 			}
-			entry.size = 0;
-			DetachEntry(entry);
+			casEntry.size = 0;
+			DetachEntry(casEntry);
 			it = m_casLookup.erase(it);
 			didNotExistCount++;
 		}
@@ -947,36 +1101,44 @@ namespace uba
 		if (didNotExistCount)
 			m_logger.Info(TC("Found %u cas entries that didn't have a file"), didNotExistCount);
 
+		u64 duration = GetTime() - startTime;
+
 		u64 after = m_casTotalBytes;
 		if (before != after)
-			m_logger.Info(TC("Corrected storage size from %s to %s"), BytesToText(before).str, BytesToText(after).str);
+			m_logger.Info(TC("Corrected storage size from %s to %s in %s"), BytesToText(before).str, BytesToText(after).str, TimeToText(duration).str);
+		else
+			m_logger.Info(TC("Validated storage (size %s) in %s"), BytesToText(after).str, TimeToText(duration).str);
 		m_casMaxBytes = m_casTotalBytes;
 #else
 		UBA_ASSERT(false); // not implemented
 #endif
+		return true;
 	}
 
-	void StorageImpl::HandleOverflow()
+	void StorageImpl::HandleOverflow(UnorderedSet<CasKey>* outDeletedFiles)
 	{
 		if (!m_casCapacityBytes)
 			return;
+		u64 startTime = GetTime();
 		u64 before = m_casTotalBytes;
 		while (m_casTotalBytes > m_casCapacityBytes)
 		{
-			CasEntry* entry = m_oldestAccessed;
-			if (!entry)
+			CasEntry* casEntry = m_oldestAccessed;
+			if (!casEntry)
 			{
 				UBA_ASSERT(m_casLookup.empty());
 				m_casTotalBytes = 0;
 				break;
 			}
-			DropCasFile(entry->key, true, TC("HandleOverflow"));
-			DetachEntry(*entry);
-			m_casLookup.erase(entry->key);
+			DropCasFile(casEntry->key, true, TC("HandleOverflow"));
+			if (outDeletedFiles)
+				outDeletedFiles->insert(casEntry->key);
+			DetachEntry(*casEntry);
+			m_casLookup.erase(casEntry->key);
 		}
 		u64 after = m_casTotalBytes;
 		if (before != after)
-			m_logger.Info(TC("Evicted %s from storage. Estimated new storage is now %s (there might be files db is not aware of)"), BytesToText(before - after).str, BytesToText(after).str);
+			m_logger.Info(TC("Evicted %s from storage (%s). Estimated new storage is now %s (there might be files db is not aware of)"), BytesToText(before - after).str, TimeToText(GetTime() - startTime).str, BytesToText(after).str);
 	}
 
 	bool StorageImpl::OpenCasDataFile(u32 index, u64 size)
@@ -989,19 +1151,19 @@ namespace uba
 		FileHandle sparseFile = uba::CreateFileW(sparseFileName.data, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, createDisposition, DefaultAttributes());
 		auto sparseFileGuard = MakeGuard([&](){ CloseFile(sparseFile); });
 		if (sparseFile == InvalidFileHandle)
-			return m_logger.Error(TC("Failed to create database file %s (%s)"), sparseFileName.data, LastErrorToText());
+			return m_logger.Error(TC("Failed to create database file %s (%s)"), sparseFileName.data, LastErrorToText().data);
 		
 		if (createFile)
 		{
 			DWORD dwTemp;
 			if (!::DeviceIoControl(sparseFile, FSCTL_SET_SPARSE, NULL, 0, NULL, 0, &dwTemp, NULL))
-				return m_logger.Error(TC("Failed to make file %s sparse (%s)"), sparseFileName.data, LastErrorToText());
+				return m_logger.Error(TC("Failed to make file %s sparse (%s)"), sparseFileName.data, LastErrorToText().data);
 		}
 		else
 		{
 			u64 fileSize;
 			if (!uba::GetFileSizeEx(fileSize, sparseFile))
-				return m_logger.Error(TC("GetFileSize failed for %s (%s)"), fileName, LastErrorToText());
+				return m_logger.Error(TC("GetFileSize failed for %s (%s)"), fileName, LastErrorToText().data);
 
 			if (fileSize < size)
 				return m_logger.Error(TC("Sparse file size is smaller than what cas db think it is. Expected %llu, was %llu (%s)"), size, fileSize, sparseFileName.data);
@@ -1057,6 +1219,7 @@ namespace uba
 	{
 		m_casCapacityBytes = info.casCapacityBytes;
 		m_storeCompressed = info.storeCompressed;
+		m_manuallyHandleOverflow = info.manuallyHandleOverflow;
 		m_rootDir.count = GetFullPathNameW(info.rootDir, m_rootDir.capacity, m_rootDir.data, NULL);
 		m_rootDir.Replace('/', PathSeparator).EnsureEndsWithSlash();
 
@@ -1071,6 +1234,9 @@ namespace uba
 
 		m_maxParallelCopyOrLink = info.maxParallelCopyOrLink;
 
+		m_casCompressor = DefaultCompressor;
+		m_casCompressionLevel = DefaultCompressionLevel;
+
 		#if UBA_USE_MIMALLOC
 		OodleCore_Plugins_SetAllocators(Oodle_MallocAligned, Oodle_Free);
 		#endif
@@ -1079,8 +1245,6 @@ namespace uba
 	StorageImpl::~StorageImpl()
 	{
 		SaveCasTable(true, true);
-		for (u8* slot : m_compSlots)
-			free(slot);
 	}
 
 	bool CheckExclusive(Logger& logger, const StringBufferBase& rootDir)
@@ -1092,7 +1256,13 @@ namespace uba
 		return logger.Error(TC("Needs exclusive access to storage %s. Another process is running"), rootDir.data);
 	}
 
-	bool StorageImpl::LoadCasTable(bool logStats)
+	StorageImpl::FileEntry& StorageImpl::GetOrCreateFileEntry(StringKey fileNameKey)
+	{
+		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lock);
+		return m_fileTableLookup.try_emplace(fileNameKey).first->second;
+	}
+
+	bool StorageImpl::LoadCasTable(bool logStats, bool alwaysCheckAllFiles)
 	{
 		static bool isExclusive = CheckExclusive(m_logger, m_rootDir);
 		if (!isExclusive)
@@ -1184,20 +1354,26 @@ namespace uba
 		for (u32 i=0; i!=fileTableSize; ++i)
 		{
 			StringKey fileNameKey = reader.ReadStringKey();
-			auto insres = m_fileTableLookup.try_emplace(fileNameKey);
-			FileEntry& entry = insres.first->second;
-			entry.verified = false;
 			if (reader.GetPosition() + 24 > fileSize)
 			{
 				m_fileTableLookup.clear();
 				m_logger.Warning(TC("CasTable file %s is corrupt"), fileName.data);
 				return false;
 			}
-			entry.size = reader.ReadU64();
-			entry.lastWritten = reader.ReadU64();
-			CasKey key = reader.ReadCasKey();
-			if (key != CasKeyZero)
-				entry.casKey = AsCompressed(key, m_storeCompressed);
+			u64 size = reader.ReadU64();
+			u64 lastWritten = reader.ReadU64();
+			CasKey casKey = reader.ReadCasKey();
+			if (casKey != CasKeyZero)
+				casKey = AsCompressed(casKey, m_storeCompressed);
+			else if (size || lastWritten)
+				continue; // This should not happen
+
+			auto insres = m_fileTableLookup.try_emplace(fileNameKey);
+			FileEntry& fileEntry = insres.first->second;
+			fileEntry.verified = false;
+			fileEntry.size = size;
+			fileEntry.lastWritten = lastWritten;
+			fileEntry.casKey = casKey;
 		}
 
 
@@ -1226,11 +1402,11 @@ namespace uba
 				m_newestAccessed = nullptr;
 				return false;
 			}
-			CasEntry& entry = insres.first->second;
-			entry.key = casKey;
-			entry.size = reader.ReadU64();
-			entry.exists = true;
-			m_casTotalBytes += entry.size;
+			CasEntry& casEntry = insres.first->second;
+			casEntry.key = casKey;
+			casEntry.size = reader.ReadU64();
+			casEntry.exists = true;
+			m_casTotalBytes += casEntry.size;
 
 
 #if UBA_USE_SPARSEFILE
@@ -1238,32 +1414,48 @@ namespace uba
 			u64 mappingOffset = reader.ReadU64();
 			u64 mappingSize = reader.ReadU64();
 
-			entry.mappingHandle = m_casDataBuffer.GetPersistentHandle(mappingFileIndex);
-			entry.mappingOffset = mappingOffset;
-			entry.mappingSize = mappingSize;
-			entry.verified = true;
-			entry.exists = true;
+			casEntry.mappingHandle = m_casDataBuffer.GetPersistentHandle(mappingFileIndex);
+			casEntry.mappingOffset = mappingOffset;
+			casEntry.mappingSize = mappingSize;
+			casEntry.verified = true;
+			casEntry.exists = true;
 #endif
 
 
 			if (prev)
 			{
-				prev->nextAccessed = &entry;
-				entry.prevAccessed = prev;
+				prev->nextAccessed = &casEntry;
+				casEntry.prevAccessed = prev;
 			}
 			else
-				m_newestAccessed = &entry;
-			prev = &entry;
+				m_newestAccessed = &casEntry;
+			prev = &casEntry;
 		}
 		m_oldestAccessed = prev;
 
 		bool resave = false;
 		if (wasTerminated)
 		{
-			CheckAllCasFiles();
+			u64 fileTime = 0;
+			FileHandle fh = uba::CreateFileW(isRunningName, 0, 0x00000007, 0x00000003, FILE_FLAG_BACKUP_SEMANTICS);
+			auto fhg = MakeGuard([&]() { uba::CloseFile(isRunningName, fh); });
+			if (fh != InvalidFileHandle)
+				GetFileLastWriteTime(fileTime, fh);
+
+			m_logger.Info(TC("Previous run was not gracefully shutdown. Reparsing cas directory %s to check for added/missing files"), m_rootDir.data);
+
+			if (!CheckAllCasFiles(fileTime))
+				return false;
 			resave = true;
+
+			if (fh != InvalidFileHandle)
+				SetFileLastWriteTime(fh, GetSystemTimeAsFileTime());
 		}
-		HandleOverflow();
+		else if (alwaysCheckAllFiles)
+			CheckAllCasFiles();
+
+		if (!m_manuallyHandleOverflow)
+			HandleOverflow(nullptr);
 
 		if (resave)
 		{
@@ -1275,7 +1467,7 @@ namespace uba
 		if (logStats)
 		{
 			u64 duration = GetTime() - startTime;
-			m_logger.Detail(TC("Database loaded from %s in %s (contained %llu entries)"), fileName.data, TimeToText(duration).str, m_casLookup.size());
+			m_logger.Detail(TC("Database loaded from %s (v%u) in %s (contained %llu entries estimated to %s)"), fileName.data, version, TimeToText(duration).str, m_casLookup.size(), BytesToText(m_casTotalBytes).str);
 		}
 
 		return true;
@@ -1301,7 +1493,7 @@ namespace uba
 			FILE_ALLOCATED_RANGE_BUFFER allocRanges[1024];
 			DWORD nbytes;
 			if (!DeviceIoControl(m_casDataBuffer.GetPersistentFile(0), FSCTL_QUERY_ALLOCATED_RANGES, &queryRange, sizeof(queryRange), allocRanges, sizeof(allocRanges), &nbytes, NULL))
-				return m_logger.Error(TC("Failed to make file %s sparse (%s)"), TC("FOO"), LastErrorToText());
+				return m_logger.Error(TC("Failed to make file %s sparse (%s)"), TC("FOO"), LastErrorToText().data);
 			DWORD dwAllocRangeCount = nbytes / sizeof(FILE_ALLOCATED_RANGE_BUFFER);
 			printf("Range count: %u"), dwAllocRangeCount);
 		}
@@ -1326,95 +1518,91 @@ namespace uba
 			SCOPED_READ_LOCK(m_casLookupLock, casLookupLock);
 			SCOPED_READ_LOCK(m_accessLock, accessLock);
 
-			u8 buffer[1024];
-			{
-				BinaryWriter writer(buffer);
-				writer.WriteU32(CasTableVersion);
-				writer.WriteU32(u32(m_fileTableLookup.size()));
-				writer.WriteU32(u32(m_casLookup.size()));
-				if (!tempFile.Write(buffer, writer.GetPosition()))
-					return false;
-			}
+			Vector<u8> buffer;
 
+			u64 casLookupEntrySize = sizeof(CasKey) + sizeof(u64);
+
+			u64 headerSize = sizeof(u32)*3;
+			u64 fileTableMaxWriteSize = m_fileTableLookup.size() * (sizeof(StringKey) + sizeof(u64) * 2 + sizeof(CasKey));
+			u64 casLookupMaxWriteSize = m_casLookup.size() * casLookupEntrySize + sizeof(CasKey);
+
+			buffer.reserve(headerSize + fileTableMaxWriteSize + casLookupMaxWriteSize);
+			BinaryWriter writer(buffer.data(), 0, buffer.capacity());
+
+			// Header
+			writer.WriteU32(CasTableVersion);
+			auto fileTableSizePtr = (u32*)writer.AllocWrite(4);
+			auto casLookupSizePtr = (u32*)writer.AllocWrite(4);
+
+			// File table
+			u32 fileTableSize = 0;
+			for (auto& pair : m_fileTableLookup)
 			{
-				constexpr u64 entrySize = sizeof(StringKey) + sizeof(u64) * 2 + sizeof(CasKey);
-				u64 fileTableWriteSize = m_fileTableLookup.size() * entrySize;
-				Vector<u8> fileTableData;
-				fileTableData.resize(fileTableWriteSize);
-				BinaryWriter writer(fileTableData.data(), 0, fileTableData.size());
-				for (auto& pair : m_fileTableLookup)
+				FileEntry& fileEntry = pair.second;
+				SCOPED_READ_LOCK(fileEntry.lock, entryLock);
+				if (fileEntry.casKey == CasKeyZero)
+					continue;
+				writer.WriteStringKey(pair.first);
+				writer.WriteU64(fileEntry.size);
+				writer.WriteU64(fileEntry.lastWritten);
+				writer.WriteCasKey(fileEntry.casKey);
+				++fileTableSize;
+			}
+			*fileTableSizePtr = fileTableSize;
+
+			// Cas table
+			u32 casTableSize = 0;
+			CasEntry* last = nullptr;
+			for (CasEntry* it = m_newestAccessed; it; it = it->nextAccessed)
+			{
+				last = it;
+				CasEntry& casEntry = *it;
+				if (casEntry.verified && !casEntry.exists)
+					continue;
+				if (casEntry.dropped)
 				{
-					writer.WriteStringKey(pair.first);
-					writer.WriteU64(pair.second.size);
-					writer.WriteU64(pair.second.lastWritten);
-					writer.WriteCasKey(pair.second.casKey);
-				}
-				if (!tempFile.Write(fileTableData.data(), writer.GetPosition()))
-					return false;
-			}
-
-#if UBA_USE_SPARSEFILE
-			{
-				BinaryWriter writer(buffer);
-				for (u32 i=0; i!=CasDbDataFileCount; ++i)
-					writer.Write7BitEncoded(m_casDataBuffer.GetPersistentSize(i));
-				WriteFile(m_logger, tempFileName.data, fileHandle, buffer, writer.GetPosition());
-			}
-#endif
-
-			{
-				constexpr u64 entrySize = sizeof(CasKey) + sizeof(u64); // TODO: Wrong for sparse file
-				u64 casLookupWriteSize = m_casLookup.size() * entrySize;
-				Vector<u8> casLookupBuffer;
-				casLookupBuffer.resize(casLookupWriteSize + sizeof(CasKey)); // Add terminator
-				BinaryWriter writer(casLookupBuffer.data(), 0, casLookupBuffer.size());
-
-				CasEntry* last = nullptr;
-				for (CasEntry* it = m_newestAccessed; it; it = it->nextAccessed)
-				{
-					last = it;
-					CasEntry& entry = *it;
-					if (entry.verified && !entry.exists)
-						continue;
-					if (entry.dropped)
-					{
 #if !UBA_USE_SPARSEFILE
-						StringBuffer<512> casFileName;
-						if (!StorageImpl::GetCasFileName(casFileName, entry.key))
-							continue;
-						DeleteFileW(casFileName.data);
+					StringBuffer<512> casFileName;
+					if (!StorageImpl::GetCasFileName(casFileName, casEntry.key))
+						continue;
+					DeleteFileW(casFileName.data);
 #else
-						// TODO!  UBA_ASSERT(false);
+					// TODO!  UBA_ASSERT(false);
 #endif
-						continue;
-					}
-
-#if UBA_USE_SPARSEFILE
-					auto findIt = handleToIndex.find(entry.mappingHandle);
-					if (findIt == handleToIndex.end())
-					{
-						if (m_deferredCasCreationLookup.find(entry.key) != m_deferredCasCreationLookup.end())
-							continue;
-						m_logger.Error(TC("Can't find cas database file with mappingHandle %llu"), uintptr_t(entry.mappingHandle));
-						continue;
-					}
-#endif
-
-					UBA_ASSERT(entry.key != CasKeyZero);
-					writer.WriteCasKey(entry.key);
-					writer.WriteU64(entry.size);
-
-#if UBA_USE_SPARSEFILE
-					writer.WriteU32(findIt->second);
-					writer.WriteU64(entry.mappingOffset);
-					writer.WriteU64(entry.mappingSize);
-#endif
+					continue;
 				}
-				writer.WriteCasKey(CasKeyZero);
-				if (!tempFile.Write(casLookupBuffer.data(), writer.GetPosition()))
-					return false;
-				UBA_ASSERT(m_oldestAccessed == last); (void)last;
+
+#if UBA_USE_SPARSEFILE
+				auto findIt = handleToIndex.find(casEntry.mappingHandle);
+				if (findIt == handleToIndex.end())
+				{
+					if (m_deferredCasCreationLookup.find(casEntry.key) != m_deferredCasCreationLookup.end())
+						continue;
+					m_logger.Error(TC("Can't find cas database file with mappingHandle %llu"), uintptr_t(casEntry.mappingHandle));
+					continue;
+				}
+#endif
+
+				if (writer.GetCapacityLeft() < casLookupEntrySize + sizeof(CasKey))
+					return m_logger.Error(TC("This should not happen, somehow there are more valid entries in access list than lookup. (Lookup has %llu entries)"), m_casLookup.size());
+
+				UBA_ASSERT(casEntry.key != CasKeyZero);
+				writer.WriteCasKey(casEntry.key);
+				writer.WriteU64(casEntry.size);
+				++casTableSize;
+
+#if UBA_USE_SPARSEFILE
+				writer.WriteU32(findIt->second);
+				writer.WriteU64(casEntry.mappingOffset);
+				writer.WriteU64(casEntry.mappingSize);
+#endif
 			}
+			writer.WriteCasKey(CasKeyZero);
+			*casLookupSizePtr = casTableSize;
+
+			if (!tempFile.Write(buffer.data(), writer.GetPosition()))
+				return false;
+			UBA_ASSERT(m_oldestAccessed == last); (void)last;
 			if (!tempFile.Close())
 				return false;
 		}
@@ -1461,7 +1649,7 @@ namespace uba
 		u32 errorCount = 0;
 		u64 newestWrittenError = 0;
 		ReaderWriterLock lock;
-		TraverseAllCasFiles(casRoot.data, 0, [&](const StringBufferBase& fullPath, const DirectoryEntry& e)
+		TraverseAllCasFiles(casRoot.data, [&](const StringBufferBase& fullPath, const DirectoryEntry& e)
 			{
 				++entryCount;
 				workManager.AddWork([&, filePath = TString(fullPath.data), name = TString(e.name), lastWritten = e.lastWritten]()
@@ -1494,7 +1682,7 @@ namespace uba
 								mem += sizeof(u64);
 								u8* dest = new u8[decompressedSize];
 								auto g = MakeGuard([dest]() { delete[] dest; });
-								if (!DecompressMemoryToMemory(mem, dest, decompressedSize, TC("")))
+								if (!DecompressMemoryToMemory(mem, dest, decompressedSize, filePath.c_str(), TC("Memory")))
 									return;
 								checkedKey = CalculateCasKey(dest, decompressedSize, true);
 							}
@@ -1526,6 +1714,82 @@ namespace uba
 		else
 			m_logger.Info(TC("Done. Found %u errors out of %u entries (Last written bad entry was %s)"), errorCount, entryCount, newestLastWrittenStr.data);
 		return true;
+	}
+
+	bool StorageImpl::CheckFileTable(const tchar* searchPath, u32 workerCount)
+	{
+		m_logger.Info(TC("Searching %s to check files against file table..."), searchPath);
+		WorkManagerImpl workManager(workerCount);
+
+		List<TString> directories;
+		directories.push_back(searchPath);
+
+		Atomic<u32> foundFiles;
+		Atomic<u32> trackedFiles;
+		Atomic<u32> testedFiles;
+		Atomic<u32> errorCount;
+
+		u64 startTime = GetTime();
+		
+		while (!directories.empty())
+		{
+			TString dir = directories.front();
+			directories.pop_front();
+			TraverseDir(m_logger, dir.data(), [&](const DirectoryEntry& e)
+				{
+					StringBuffer<> path(dir);
+					path.EnsureEndsWithSlash().Append(e.name);
+					if (CaseInsensitiveFs)
+						path.MakeLower();
+
+					if (IsDirectory(e.attributes))
+					{
+						if (Equals(e.name, TC("Content")))
+							return;
+						directories.push_back(path.data);
+						return;
+					}
+					u64 lastWritten = e.lastWritten;
+					u64 size = e.size;
+
+					workManager.AddWork([&, p = TString(path.data), lastWritten, size]()
+						{
+							++foundFiles;
+							StringKey key = ToStringKey(p.data(), p.size());
+							
+							auto findIt = m_fileTableLookup.find(key);
+							if (findIt == m_fileTableLookup.end())
+								return;
+							++trackedFiles;
+
+							FileEntry& fe = findIt->second;
+							if (fe.lastWritten != lastWritten || fe.size != size)
+								return;
+							++testedFiles;
+
+							CasKey casKey;
+							if (!CalculateCasKey(casKey, p.data()))
+								m_logger.Warning(TC("Failed to calculate cas key for %s"), p.data());
+
+							if (casKey != fe.casKey)
+							{
+								++errorCount;
+								m_logger.Error(TC("CasKey mismatch for %s even though size and lastwritten were the same. Corrupt path table! (Correct: %s. Wrong: %s)"), p.data(), CasKeyString(casKey).str, CasKeyString(fe.casKey).str);
+							}
+
+						}, 1, TC(""));
+				});
+		}
+		workManager.FlushWork();
+
+		m_logger.Info(TC("Done. %u errors found. Searched %u files where %u was tracked and %u matched table."), errorCount.load(), foundFiles.load(), trackedFiles.load(), testedFiles.load(), TimeToText(GetTime() - startTime).str);
+
+		return errorCount == 0;
+	}
+
+	const tchar* StorageImpl::GetTempPath()
+	{
+		return m_tempPath.data;
 	}
 
 	u64 StorageImpl::GetStorageCapacity()
@@ -1570,7 +1834,7 @@ namespace uba
 			Atomic<u32> atomicDeleteCount;
 			TraverseDir(m_logger, m_rootDir.data, [&](const DirectoryEntry& e)
 				{
-					if (!IsDirectory(e.attributes))
+					if (IsDirectory(e.attributes))
 						return;
 					workManager.AddWork([&, name = TString(e.name)]()
 						{
@@ -1608,14 +1872,31 @@ namespace uba
 		lookupLock.Leave();
 
 		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
-		fileEntry.verified = fileEntry.lastWritten == verifiedLastWriteTime && fileEntry.size == verifiedSize;
+		
+		fileEntry.verified = fileEntry.lastWritten == verifiedLastWriteTime && fileEntry.size == verifiedSize && fileEntry.casKey != CasKeyInvalid;
+
 		if (!fileEntry.verified)
 			return false;
 		out.casKey = fileEntry.casKey;
 		return true;
 	}
 
-	bool StorageImpl::StoreCasFile(CasKey& out, const tchar* fileName, const CasKey& casKeyOverride, bool deferCreation)
+	bool StorageImpl::InvalidateCachedFileInfo(StringKey fileNameKey)
+	{
+		SCOPED_READ_LOCK(m_fileTableLookupLock, lookupLock);
+		auto findIt = m_fileTableLookup.find(fileNameKey);
+		if (findIt == m_fileTableLookup.end())
+			return false;
+		FileEntry& fileEntry = findIt->second;
+		lookupLock.Leave();
+
+		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
+		fileEntry.verified = false;
+		fileEntry.casKey = CasKeyInvalid;
+		return true;
+	}
+
+	bool StorageImpl::StoreCasFile(CasKey& out, const tchar* fileName, const CasKey& casKeyOverride, bool deferCreation, bool fileIsCompressed)
 	{
 		StringBuffer<> forKey;
 		forKey.Append(fileName);
@@ -1623,19 +1904,17 @@ namespace uba
 			forKey.MakeLower();
 		StringKey fileNameKey = ToStringKey(forKey);
 
-		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lookupLock);
-		auto insres = m_fileTableLookup.try_emplace(fileNameKey);
-		FileEntry& fileEntry = insres.first->second;
-		lookupLock.Leave();
-
+		FileEntry& fileEntry = GetOrCreateFileEntry(fileNameKey);
 		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
 	
 		if (fileEntry.verified)
 		{
+			UBA_ASSERT(fileEntry.casKey != CasKeyInvalid);
+
 			if (fileEntry.casKey != CasKeyZero)
 			{
 				UBA_ASSERT(casKeyOverride == CasKeyZero || casKeyOverride == fileEntry.casKey);
-				if (!AddCasFile(fileName, fileEntry.casKey, deferCreation))
+ 				if (!AddCasFile(fileNameKey, fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
 					return false;
 			}
 			out = fileEntry.casKey;
@@ -1643,6 +1922,7 @@ namespace uba
 		}
 		fileEntry.verified = true;
 
+		// Use OpenFile+GetFileInformationByHandle+close instead of Getting file attributes because it is actually faster on cloud setups (weirdly enough)
 		FileHandle fileHandle;
 		if (!OpenFileSequentialRead(m_logger, fileName, fileHandle))
 		{
@@ -1667,14 +1947,14 @@ namespace uba
 			if (casKeyOverride != CasKeyZero && casKeyOverride != fileEntry.casKey)
 			{
 				fileEntry.casKey = casKeyOverride;
-				if (!AddCasFile(fileName, fileEntry.casKey, deferCreation))
+				if (!AddCasFile(fileNameKey, fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
 					return false;
 				out = fileEntry.casKey;
 				return true;
 			}
-			if (fileSize == fileEntry.size && lastWritten == fileEntry.lastWritten)
+			if (fileSize == fileEntry.size && lastWritten == fileEntry.lastWritten && fileEntry.casKey != CasKeyInvalid)
 			{
-				if (!AddCasFile(fileName, fileEntry.casKey, deferCreation))
+				if (!AddCasFile(fileNameKey, fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
 					return false;
 				out = fileEntry.casKey;
 				return true;
@@ -1684,14 +1964,136 @@ namespace uba
 		fileEntry.size = fileSize;
 		fileEntry.lastWritten = lastWritten;
 		if (casKeyOverride == CasKeyZero)
-			fileEntry.casKey = CalculateCasKey(fileName, fileHandle, fileSize, m_storeCompressed);
+		{
+			if (fileIsCompressed)
+			{
+				CompressedObjFileHeader header(CasKeyZero);
+				if (!ReadFile(m_logger, fileName, fileHandle, &header, sizeof(header)))
+					return m_logger.Error(TC("Failed to read header of compressed file %s (%s)"), fileName, LastErrorToText().data);
+				fileEntry.casKey = AsCompressed(header.casKey, m_storeCompressed);
+			}
+			else
+			{
+				fileEntry.casKey = CalculateCasKey(fileName, fileHandle, fileSize, m_storeCompressed);
+			}
+		}
 		else
 			fileEntry.casKey = casKeyOverride;
 
 		if (fileEntry.casKey == CasKeyZero)
 			return false;
 
-		if (!AddCasFile(fileName, fileEntry.casKey, deferCreation))
+		if (!AddCasFile(fileNameKey, fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
+			return false;
+
+		out = fileEntry.casKey;
+		return true;
+	}
+
+	bool StorageImpl::IsFileVerified(const StringKey& fileNameKey)
+	{
+		SCOPED_READ_LOCK(m_fileTableLookupLock, lookupLock);
+		auto findIt = m_fileTableLookup.find(fileNameKey);
+		if (findIt == m_fileTableLookup.end())
+			return false;
+		FileEntry& fileEntry = findIt->second;
+		lookupLock.Leave();
+		SCOPED_READ_LOCK(fileEntry.lock, entryLock);
+		return fileEntry.verified;
+	}
+
+	void StorageImpl::ReportFileInfoWeak(const StringKey& fileNameKey, u64 verifiedLastWriteTime, u64 verifiedSize)
+	{
+		SCOPED_READ_LOCK(m_fileTableLookupLock, lookupLock);
+		auto findIt = m_fileTableLookup.find(fileNameKey);
+		if (findIt == m_fileTableLookup.end())
+			return;
+		FileEntry& fileEntry = findIt->second;
+		lookupLock.Leave();
+
+		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
+		if (fileEntry.verified)
+			return;
+		fileEntry.verified = fileEntry.lastWritten == verifiedLastWriteTime && fileEntry.size == verifiedSize && fileEntry.casKey != CasKeyInvalid;
+	}
+
+	bool StorageImpl::StoreCasKey(CasKey& out, const tchar* fileName, const CasKey& casKeyOverride, bool fileIsCompressed)
+	{
+		StringBuffer<> forKey;
+		forKey.Append(fileName);
+		if (CaseInsensitiveFs)
+			forKey.MakeLower();
+		StringKey fileNameKey = ToStringKey(forKey);
+		return StoreCasKey(out, fileNameKey, fileName, casKeyOverride, fileIsCompressed);
+	}
+
+	bool StorageImpl::StoreCasKey(CasKey& out, const StringKey& fileNameKey, const tchar* fileName, const CasKey& casKeyOverride, bool fileIsCompressed)
+	{
+		FileEntry& fileEntry = GetOrCreateFileEntry(fileNameKey);
+		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
+	
+		if (fileEntry.verified)
+		{
+			out = fileEntry.casKey;
+			return true;
+		}
+		fileEntry.verified = true;
+
+		// Use OpenFile+GetFileInformationByHandle+close instead of Getting file attributes because it is actually faster on cloud setups (weirdly enough)
+		FileHandle fileHandle;
+		if (!OpenFileSequentialRead(m_logger, fileName, fileHandle))
+		{
+			fileEntry.casKey = CasKeyZero;
+			out = CasKeyZero;
+			return true;
+		}
+		auto fileGuard = MakeGuard([&](){ CloseFile(fileName, fileHandle); });
+
+		FileInformation info;
+		if (!GetFileInformationByHandle(info, m_logger, fileName, fileHandle))
+		{
+			fileEntry.casKey = CasKeyZero;
+			return m_logger.Error(TC("GetFileInformationByHandle failed on %s"), fileName);
+		}
+
+		u64 fileSize = info.size;
+		u64 lastWritten = info.lastWriteTime;
+
+		if (fileEntry.casKey != CasKeyZero)
+		{
+			if (casKeyOverride != CasKeyZero && casKeyOverride != fileEntry.casKey)
+			{
+				fileEntry.casKey = casKeyOverride;
+				out = fileEntry.casKey;
+				return true;
+			}
+			if (fileSize == fileEntry.size && lastWritten == fileEntry.lastWritten && fileEntry.casKey != CasKeyInvalid)
+			{
+				out = fileEntry.casKey;
+				return true;
+			}
+		}
+
+		fileEntry.size = fileSize;
+		fileEntry.lastWritten = lastWritten;
+		if (casKeyOverride == CasKeyZero)
+		{
+			if (fileIsCompressed)
+			{
+				CompressedObjFileHeader header(CasKeyZero);
+				if (!ReadFile(m_logger, fileName, fileHandle, &header, sizeof(header)))
+					return m_logger.Error(TC("Failed to read header of compressed file %s (%s)"), fileName, LastErrorToText().data);
+				fileEntry.casKey = AsCompressed(header.casKey, m_storeCompressed);
+			}
+			else
+			{
+				fileEntry.casKey = CalculateCasKey(fileName, fileHandle, fileSize, m_storeCompressed);
+			}
+		}
+		else
+			fileEntry.casKey = casKeyOverride;
+
+		if (fileEntry.casKey == CasKeyZero)
 			return false;
 
 		out = fileEntry.casKey;
@@ -1719,19 +2121,22 @@ namespace uba
 
 		SCOPED_WRITE_LOCK(casEntry.lock, entryLock);
 
-		if (casEntry.verified)
-			return casEntry.exists;
+		if (casEntry.verified && casEntry.exists)
+			return true;
+
 		SCOPED_WRITE_LOCK(m_deferredCasCreationLookupLock, deferredLock);
 		auto findIt = m_deferredCasCreationLookup.find(casKey);
 		if (findIt == m_deferredCasCreationLookup.end())
 			return false;
 		casEntry.verified = true;
-		StringBuffer<> deferredCreation(findIt->second);
-		m_deferredCasCreationLookupByName.erase(deferredCreation.data);
+		StringKey fileNameKey = findIt->second.fileNameKey;
+		StringBuffer<> deferredCreation(findIt->second.fileName);
+		bool fileIsCompressed = findIt->second.fileIsCompressed;
+		m_deferredCasCreationLookupByName.erase(fileNameKey);
 		m_deferredCasCreationLookup.erase(findIt);
 		deferredLock.Leave();
 		WriteResult res;
-		if (!WriteCasFile(res, deferredCreation.data, casKey))
+		if (!WriteCasFile(res, deferredCreation.data, fileIsCompressed, casKey))
 			return false;
 #if UBA_USE_SPARSEFILE
 		casEntry.mappingHandle = res.mappingHandle;
@@ -1779,7 +2184,8 @@ namespace uba
 		if (!fileName)
 			return false;
 		WriteResult res;
-		if (!WriteCasFile(res, fileName, casKey))
+		bool fileIsCompressed = false; // TODO: This needs to be supported
+		if (!WriteCasFile(res, fileName, fileIsCompressed, casKey))
 			return false;
 		casEntry.exists = true;
 		entryLock.Leave();
@@ -1790,7 +2196,7 @@ namespace uba
 #if !UBA_USE_SPARSEFILE
 	bool StorageImpl::GetCasFileName(StringBufferBase& out, const CasKey& casKey)
 	{
-		out.Appendf(TC("%s%02x"), m_rootDir.data, ((const u8*)&casKey)[0]);
+		out.Append(m_rootDir.data).AppendHex(((const u8*)&casKey)[0]);
 		if (!CreateDirectory(out.data))
 			return false;
 		out.Append(PathSeparator).Append(CasKeyString(casKey).str);
@@ -1838,7 +2244,25 @@ namespace uba
 		auto findIt = m_casLookup.find(casKey);
 		bool foundEntry = findIt != m_casLookup.end();
 		if (!foundEntry)
+		{
+			if (forceDelete)
+			{
+				StringBuffer<> casFile;
+				#if !UBA_USE_SPARSEFILE
+				if (!StorageImpl::GetCasFileName(casFile, casKey))
+					return false;
+				#else
+				UBA_ASSERT(false);
+				#endif
+				if (DeleteFileW(casFile.data) == 0)
+				{
+					u32 lastError = GetLastError();
+					if (lastError != ERROR_FILE_NOT_FOUND && lastError != ERROR_PATH_NOT_FOUND)
+						return m_logger.Error(TC("Failed to drop cas %s (%s) (%s)"), casFile.data, hint, LastErrorToText(lastError).data);
+				}
+			}
 			return true;
+		}
 		CasEntry& casEntry = findIt->second;
 		lookupLock.Leave();
 	
@@ -1847,12 +2271,13 @@ namespace uba
 		if (forceDelete)
 		{
 			StringBuffer<> casFile;
-#if !UBA_USE_SPARSEFILE
+			#if !UBA_USE_SPARSEFILE
 			if (!StorageImpl::GetCasFileName(casFile, casKey))
 				return false;
-#else
+			#else
 			UBA_ASSERT(false);
-#endif
+			#endif
+
 			u64 sizeDeleted = 0;
 			if (DeleteFileW(casFile.data) == 0)
 			{
@@ -1881,6 +2306,12 @@ namespace uba
 		return true;
 	}
 
+	bool StorageImpl::ReportBadCasFile(const CasKey& casKey)
+	{
+		DropCasFile(casKey, true, TC("BadCasFile"));
+		return true;
+	}
+
 	bool StorageImpl::CalculateCasKey(CasKey& out, const tchar* fileName)
 	{
 		FileHandle fileHandle;
@@ -1896,7 +2327,7 @@ namespace uba
 		return out != CasKeyZero;
 	}
 
-	bool StorageImpl::CopyOrLink(const CasKey& casKey, const tchar* destination, u32 fileAttributes)
+	bool StorageImpl::CopyOrLink(const CasKey& casKey, const tchar* destination, u32 fileAttributes, bool writeCompressed)
 	{
 		UBA_ASSERT(casKey != CasKeyZero);
 		UBA_ASSERT(fileAttributes);
@@ -1931,16 +2362,13 @@ namespace uba
 		if (CaseInsensitiveFs)
 			forKey.MakeLower();
 		StringKey key = ToStringKey(forKey);
-		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lock);
-		auto insres = m_fileTableLookup.try_emplace(key);
-		FileEntry& entry = insres.first->second;
-		lock.Leave();
+		FileEntry& fileEntry = GetOrCreateFileEntry(key);
 
 		TimerScope ts(stats.copyOrLink);
 
-		CasKey actualKey = AsCompressed(casKey, false);
+		CasKey actualKey = AsCompressed(casKey, writeCompressed);
 
-		bool testCompressed = true;
+		bool testCompressed = !writeCompressed;
 		while (true)
 		{
 			CasEntry* casEntry = nullptr;
@@ -1994,7 +2422,7 @@ namespace uba
 						return m_logger.Error(TC("Failed to open file %s for read (%s)"), casFile.data, LastErrorToText().data);
 
 					if (!ReadFile(m_logger, casFile.data, readHandle, &decompressedSize, sizeof(u64)))
-						return m_logger.Error(TC("Failed to read first bytes from file %s (%s)"), casFile.data, LastErrorToText().data);
+						return m_logger.Error(TC("Failed to read first 8 bytes from compressed file %s (%s)"), casFile.data, LastErrorToText().data);
 				}
 
 				bool writeDirectlyToFile = casEntry->mappingHandle.IsValid() && false; // Experiment to try to fix bottlenecks on cloud
@@ -2005,8 +2433,8 @@ namespace uba
 
 				FileAccessor destinationFile(m_logger, destination);
 
-				SCOPED_WRITE_LOCK(entry.lock, entryLock);
-				entry.verified = false;
+				SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
+				fileEntry.verified = false;
 
 				// This is to reduce number of active CreateFiles.. seems like machines don't like tons of CreateFile at the same time
 				#if PLATFORM_WINDOWS
@@ -2015,7 +2443,38 @@ namespace uba
 				BottleneckScope scope(bottleneck);
 				#endif
 
-				if (writeDirectlyToFile || !decompressedSize)
+				u64 sizeOnDisk = decompressedSize;
+
+				if (writeCompressed)
+				{
+					u64 compressedFileSize = mappedView.size;
+					if (!mappedView.memory)
+						if (!GetFileSizeEx(compressedFileSize, readHandle))
+							return m_logger.Error(TC("Failed to get file size of compressed file %s (%s)"), casFile.data, LastErrorToText().data);
+						
+					sizeOnDisk = compressedFileSize + sizeof(CompressedObjFileHeader);
+
+					if (!destinationFile.CreateMemoryWrite(false, fileAttributes, sizeOnDisk, m_tempPath.data))
+						return false;
+					u8* writePos = destinationFile.GetData();
+					*(CompressedObjFileHeader*)writePos = CompressedObjFileHeader(casKey);
+					writePos += sizeof(CompressedObjFileHeader);
+
+					if (mappedView.memory)
+					{
+						TimerScope cts(stats.memoryCopy);
+						MapMemoryCopy(writePos, mappedView.memory, compressedFileSize);
+					}
+					else
+					{
+						*(u64*)writePos = decompressedSize;
+						writePos += sizeof(u64);
+						if (!ReadFile(m_logger, casFile.data, readHandle, writePos, compressedFileSize - sizeof(u64)))
+							return m_logger.Error(TC("Failed to read compressed file %s (%s)"), casFile.data, LastErrorToText().data);
+					}
+						
+				}
+				else if (writeDirectlyToFile || !decompressedSize)
 				{
 					if (!destinationFile.CreateWrite(allowRead, writeFlags | fileAttributes, decompressedSize, m_tempPath.data))
 						return false;
@@ -2030,12 +2489,12 @@ namespace uba
 
 					if (casEntry->mappingHandle.IsValid())
 					{
-						if (!DecompressMemoryToMemory(readData, destinationFile.GetData(), decompressedSize, casFile.data))
+						if (!DecompressMemoryToMemory(readData, destinationFile.GetData(), decompressedSize, casFile.data, destination))
 							return false;
 					}
 					else
 					{
-						if (!DecompressFileToMemory(CasKeyString(actualKey).str, readHandle, destinationFile.GetData(), decompressedSize))
+						if (!DecompressFileToMemory(CasKeyString(actualKey).str, readHandle, destinationFile.GetData(), decompressedSize, destination))
 							return false;
 					}
 				}
@@ -2043,13 +2502,13 @@ namespace uba
 				u64 lastWriteTime = 0;
 				if (!destinationFile.Close(&lastWriteTime))
 					return false;
-
+				UBA_ASSERT(lastWriteTime);
 				if (lastWriteTime)
 				{
-					entry.casKey = casKey;
-					entry.lastWritten = lastWriteTime;
-					entry.size = decompressedSize;
-					entry.verified = true;
+					fileEntry.casKey = casKey;
+					fileEntry.lastWritten = lastWriteTime;
+					fileEntry.size = sizeOnDisk;
+					fileEntry.verified = true;
 				}
 				return true;
 			}
@@ -2062,15 +2521,21 @@ namespace uba
 			UBA_ASSERT(false);
 			#endif
 
-			SCOPED_WRITE_LOCK(entry.lock, entryLock);
-			entry.verified = false;
+			SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
+			fileEntry.verified = false;
 
 			bool firstTry = true;
 			while (true)
 			{
-				bool success = true;
-				if (CreateHardLinkW(destination, casFile.data) == 0)
+				bool success = false;
+
+				#if !PLATFORM_MAC // For some reason creating links on macos causes trouble when they are exec/dylibs and being executed.. sometimes it is like the link behaves like a symlink.. but not always
+				success = CreateHardLinkW(destination, casFile.data);
+				#endif
+
+				if (!success)
 					success = uba::CopyFileW(casFile.data, destination, true) != 0;
+
 				if (success)
 				{
 					#if !PLATFORM_WINDOWS
@@ -2101,31 +2566,30 @@ namespace uba
 
 	}
 
-	bool StorageImpl::FakeCopy(const CasKey& casKey, const tchar* destination)
+	bool StorageImpl::FakeCopy(const CasKey& casKey, const tchar* destination, u64 size, u64 lastWritten, bool deleteExisting)
 	{
-		// Delete existing file to make sure it is not picked up (since it is out of date)
-		DeleteFileW(destination);
+		if (deleteExisting) 
+			DeleteFileW(destination);
 
 		StringBuffer<> forKey;
 		forKey.Append(destination);
 		if (CaseInsensitiveFs)
 			forKey.MakeLower();
 		StringKey key = ToStringKey(forKey);
-		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lock);
-		auto insres = m_fileTableLookup.try_emplace(key);
-		FileEntry& entry = insres.first->second;
-		entry.casKey = casKey;
-		entry.lastWritten = 0;
-		entry.size = 0;
-		entry.verified = true;
+		FileEntry& fileEntry = GetOrCreateFileEntry(key);
+		SCOPED_WRITE_LOCK(fileEntry.lock, lock2);
+		fileEntry.casKey = casKey;
+		fileEntry.lastWritten = lastWritten;
+		fileEntry.size = size;
+		fileEntry.verified = true;
 		return true;
 	}
 
-	void StorageImpl::ReportFileWrite(const tchar* fileName)
+	void StorageImpl::ReportFileWrite(StringKey fileNameKey, const tchar* fileName)
 	{
 		// If a defered cas creation is queued up while the source file is about to be modified we need to flush out the cas creation before modifying the file
 		SCOPED_READ_LOCK(m_deferredCasCreationLookupLock, deferredLock);
-		auto findIt = m_deferredCasCreationLookupByName.find(fileName);
+		auto findIt = m_deferredCasCreationLookupByName.find(fileNameKey);
 		if (findIt == m_deferredCasCreationLookupByName.end())
 			return;
 		deferredLock.Leave();
@@ -2172,14 +2636,14 @@ namespace uba
 
 	void StorageImpl::PrintSummary(Logger& logger)
 	{
-		logger.Info(TC("  ----- Uba storage stats summary -----"));
+		logger.Info(TC("  ------- Storage stats summary -------"));
 		if (m_casLookup.empty())
 		{
 			logger.Info(TC("  Storage not loaded"));
 			return;
 		}
 		
-		logger.Info(TC("  WorkMemoryBuffers    %6u %9s"), u32(m_compSlots.size()), BytesToText(m_compSlots.size() * BufferSlotSize).str);
+		logger.Info(TC("  WorkMemoryBuffers    %6u %9s"), u32(m_bufferSlots.m_slots.size()), BytesToText(m_bufferSlots.m_slots.size() * BufferSlotSize).str);
 		logger.Info(TC("  FileTable            %6u"), u32(m_fileTableLookup.size()));
 
 		StorageStats& stats = Stats();
@@ -2202,94 +2666,7 @@ namespace uba
 	{
 		StorageStats& stats = Stats();
 		TimerScope ts(stats.calculateCasKey);
-
-		CasKeyHasher hasher;
-
-		if (fileSize == 0)
-			return ToCasKey(hasher, storeCompressed);
-
-		#ifndef __clang_analyzer__
-
-		if (fileSize > BufferSlotSize)
-		{
-			struct WorkRec
-			{
-				Atomic<u64> refCount;
-				Atomic<u64> counter;
-				Atomic<u64> doneCounter;
-				u8* fileMem = nullptr;
-				u64 workCount = 0;
-				u64 fileSize = 0;
-				bool error = false;
-				Vector<CasKey> keys;
-				Event done;
-			};
-
-			u32 workCount = u32((fileSize + BufferSlotSize - 1) / BufferSlotSize);
-
-			WorkRec* rec = new WorkRec();
-			rec->fileMem = fileMem;
-			rec->workCount = workCount;
-			rec->fileSize = fileSize;
-			rec->keys.resize(workCount);
-			rec->done.Create(true);
-			rec->refCount = 2;
-
-			auto work = [rec]()
-			{
-				while (true)
-				{
-					u64 index = rec->counter++;
-					if (index >= rec->workCount)
-					{
-						if (!--rec->refCount)
-							delete rec;
-						return 0;
-					}
-
-					u64 startOffset = BufferSlotSize*index;
-					u64 toRead = Min(BufferSlotSize, rec->fileSize - startOffset);
-					u8* slot = rec->fileMem + startOffset;
-					CasKeyHasher hasher;
-					hasher.Update(slot, toRead);
-					rec->keys[index] = ToCasKey(hasher, false);
-
-					if (++rec->doneCounter == rec->workCount)
-						rec->done.Set();
-				}
-				return 0;
-			};
-
-			u32 workerCount = 0;
-			if (m_workManager)
-			{
-				workerCount = Min(workCount, m_workManager->GetWorkerCount()-1); // We are a worker ourselves
-				workerCount = Min(workerCount, MaxWorkItemsPerAction); // Cap this to not starve other things
-				rec->refCount += workerCount;
-				m_workManager->AddWork(work, workerCount, TC("CalculateKey"));
-			}
-
-			work();
-			rec->done.IsSet();
-
-			hasher.Update(rec->keys.data(), rec->keys.size()*sizeof(CasKey));
-
-			bool error = rec->error;
-
-			if (!--rec->refCount)
-				delete rec;
-
-			if (error)
-				return CasKeyZero;
-		}
-		else
-		{
-			hasher.Update(fileMem, fileSize);
-		}
-
-		#endif // __clang_analyzer__
-
-		return ToCasKey(hasher, storeCompressed);
+		return uba::CalculateCasKey(fileMem, fileSize, storeCompressed, m_workManager, nullptr);
 	}
 
 
@@ -2298,11 +2675,7 @@ namespace uba
 		StorageStats& stats = Stats();
 		TimerScope ts(stats.calculateCasKey);
 
-		CasKeyHasher hasher;
-
-		#ifndef __clang_analyzer__
-
-		if (m_workManager && fileSize > BufferSlotSize)
+		if (fileSize > BufferSlotSize) // Note that when filesize is larger than BufferSlotSize the hash becomes a hash of hashes
 		{
 			FileMappingHandle fileMapping = uba::CreateFileMappingW(fileHandle, PAGE_READONLY, fileSize, fileName);
 			if (!fileMapping.IsValid())
@@ -2319,100 +2692,33 @@ namespace uba
 			}
 			auto udg = MakeGuard([&]() { 
 					#if UBA_EXPERIMENTAL
-					m_workManager->AddWork([=, fn = TString(fileName)]() { UnmapViewOfFile(fileData, fileSize, fn.c_str()); }, 1, TC("UnmapFile"));
-					#else
-					UnmapViewOfFile(fileData, fileSize, fileName);
+					if (m_workManager
+						m_workManager->AddWork([=, fn = TString(fileName)]() { UnmapViewOfFile(fileData, fileSize, fn.c_str()); }, 1, TC("UnmapFile"));
+					else
 					#endif
+						UnmapViewOfFile(fileData, fileSize, fileName);
 				});
 
-			struct WorkRec
-			{
-				Atomic<u64> refCount;
-				Atomic<u64> counter;
-				Atomic<u64> doneCounter;
-				u8* fileData = nullptr;
-				u64 workCount = 0;
-				u64 fileSize = 0;
-				bool error = false;
-				Vector<CasKey> keys;
-				const tchar* fileName = nullptr;
-				Event done;
-			};
-
-			u32 workCount = u32((fileSize + BufferSlotSize - 1) / BufferSlotSize);
-
-			WorkRec* rec = new WorkRec();
-			rec->fileData = fileData;
-			rec->workCount = workCount;
-			rec->fileSize = fileSize;
-			rec->fileName = fileName;
-			rec->keys.resize(workCount);
-			rec->done.Create(true);
-
-			auto work = [rec]()
-			{
-				while (true)
-				{
-					u64 index = rec->counter++;
-					if (index >= rec->workCount)
-					{
-						if (!--rec->refCount)
-							delete rec;
-						return 0;
-					}
-
-					u64 startOffset = BufferSlotSize*index;
-					u64 toRead = Min(BufferSlotSize, rec->fileSize - startOffset);
-					u8* slot = rec->fileData + startOffset;
-					CasKeyHasher hasher;
-					hasher.Update(slot, toRead);
-					rec->keys[index] = ToCasKey(hasher, false);
-
-					if (++rec->doneCounter == rec->workCount)
-						rec->done.Set();
-				}
-				return 0;
-			};
-
-			u32 workerCount = Min(workCount, m_workManager->GetWorkerCount());
-			workerCount = Min(workerCount, MaxWorkItemsPerAction); // Cap this to not starve other things
-
-			rec->refCount = workerCount + 1; // We need to keep refcount up 1 to make sure it is not deleted before we read rec->written
-			m_workManager->AddWork(work, workerCount-1, TC("CalculateKey")); // We are a worker ourselves
-			work();
-			rec->done.IsSet();
-
-			hasher.Update(rec->keys.data(), rec->keys.size()*sizeof(CasKey));
-
-			bool error = rec->error;
-
-			if (!--rec->refCount)
-				delete rec;
-
-			if (error)
-				return CasKeyZero;
+			return uba::CalculateCasKey(fileData, fileSize, storeCompressed, m_workManager, fileName);
 		}
-		else
+
+		CasKeyHasher hasher;
+		u8* slot = m_bufferSlots.Pop();
+		auto _ = MakeGuard([&](){ m_bufferSlots.Push(slot); });
+		u64 left = fileSize;
+		while (left)
 		{
-			u8* slot = PopBufferSlot();
-			auto _ = MakeGuard([&](){ PushBufferSlot(slot); });
-			u64 left = fileSize;
-			while (left)
-			{
-				u32 toRead = u32(Min(left, BufferSlotSize));
-				if (!ReadFile(m_logger, fileName, fileHandle, slot, toRead))
-					return CasKeyZero;
-				hasher.Update(slot, toRead);
-				left -= toRead;
-			}
+			u32 toRead = u32(Min(left, BufferSlotSize));
+			if (!ReadFile(m_logger, fileName, fileHandle, slot, toRead))
+				return CasKeyZero;
+			hasher.Update(slot, toRead);
+			left -= toRead;
 		}
-
-		#endif // __clang_analyzer__
 
 		return ToCasKey(hasher, storeCompressed);
 	}
 
-	bool StorageImpl::DecompressFileToMemory(const tchar* fileName, FileHandle fileHandle, u8* dest, u64 decompressedSize)
+	bool StorageImpl::DecompressFileToMemory(const tchar* fileName, FileHandle fileHandle, u8* dest, u64 decompressedSize, const tchar* writeHint)
 	{
 		if (m_workManager && decompressedSize > BufferSlotSize*4) // Arbitrary size threshold. We want to at least catch the pch here
 		{
@@ -2428,14 +2734,16 @@ namespace uba
 				return m_logger.Error(TC("Failed to map view of file mapping for %s (%s)"), fileName, LastErrorToText().data);
 			auto udg = MakeGuard([&]() { UnmapViewOfFile(fileData, compressedSize, fileName); });
 			
-			if (!DecompressMemoryToMemory(fileData + 8, dest, decompressedSize, fileName))
+			if (!DecompressMemoryToMemory(fileData + 8, dest, decompressedSize, fileName, writeHint))
 				return false;
 		}
 		else
 		{
 			StorageStats& stats = Stats();
-			u8* slot = PopBufferSlot();
-			auto _ = MakeGuard([&]() { PushBufferSlot(slot); });
+			u8* slot = m_bufferSlots.Pop();
+			auto _ = MakeGuard([&]() { m_bufferSlots.Push(slot); });
+
+			u64 bytesRead = 8; // We know size has already been read
 
 			u8* readBuffer = slot;
 			u8* writePos = dest;
@@ -2443,41 +2751,40 @@ namespace uba
 			while (left)
 			{
 				u32 sizes[2];
-				if (!ReadFile(m_logger, TC(""), fileHandle, sizes, sizeof(u32) * 2))
+				if (!ReadFile(m_logger, fileName, fileHandle, sizes, sizeof(u32) * 2))
+				{
+					u64 compressedSize;
+					if (!uba::GetFileSizeEx(compressedSize, fileHandle))
+						return m_logger.Error(TC("GetFileSize failed for %s (%s)"), fileName, LastErrorToText().data);
+					if (bytesRead + 8 > compressedSize)
+						return m_logger.Error(TC("File %s corrupt. Tried to read 8 bytes. File is smaller than expected (Read: %llu, Size: %llu)"), fileName, bytesRead, compressedSize);
 					return false;
+				}
 				u32 compressedBlockSize = sizes[0];
 				u32 decompressedBlockSize = sizes[1];
 
-				if (!ReadFile(m_logger, TC(""), fileHandle, readBuffer, compressedBlockSize))
+				bytesRead += 8;
+
+				if (!ReadFile(m_logger, fileName, fileHandle, readBuffer, compressedBlockSize))
+				{
+					u64 compressedSize;
+					if (!uba::GetFileSizeEx(compressedSize, fileHandle))
+						return m_logger.Error(TC("GetFileSize failed for %s (%s)"), fileName, LastErrorToText().data);
+					if (bytesRead + compressedBlockSize > compressedSize)
+						return m_logger.Error(TC("File %s corrupt. Compressed block size (%u) is larger than what is left of file (%llu)"), fileName, compressedBlockSize, compressedSize - bytesRead);
 					return false;
+				}
+				bytesRead += compressedBlockSize;
+
 				TimerScope ts(stats.decompressToMem);
 				OO_SINTa decompLen = OodleLZ_Decompress(readBuffer, (OO_SINTa)compressedBlockSize, writePos, (OO_SINTa)decompressedBlockSize);
-				UBA_ASSERT(decompLen == decompressedBlockSize); (void)decompLen;
+				if (decompLen != decompressedBlockSize)
+					return m_logger.Error(TC("Failed to decompress data from file %s at pos %llu"), fileName, decompressedSize - left);
 				writePos += decompressedBlockSize;
 				left -= decompressedBlockSize;
 			}
 		}
 		return true;
-	}
-
-	u8* StorageImpl::PopBufferSlot()
-	{
-		SCOPED_WRITE_LOCK(m_compSlotsLock, lock);
-		if (!m_compSlots.empty())
-		{
-			auto back = m_compSlots.back();
-			m_compSlots.pop_back();
-			return back;
-		}
-		return (u8*)malloc(BufferSlotSize);
-	}
-
-	void StorageImpl::PushBufferSlot(u8* slot)
-	{
-		if (!slot)
-			return;
-		SCOPED_WRITE_LOCK(m_compSlotsLock, lock);
-		m_compSlots.push_back(slot);
 	}
 
 	bool StorageImpl::CreateDirectory(const tchar* dir)

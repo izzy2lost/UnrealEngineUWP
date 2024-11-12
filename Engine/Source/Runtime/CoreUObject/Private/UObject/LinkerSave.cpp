@@ -5,6 +5,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Optional.h"
+#include "Misc/PackageName.h"
 #include "Serialization/BulkData.h"
 #include "Serialization/LargeMemoryWriter.h"
 #include "UObject/Package.h"
@@ -243,6 +244,7 @@ FPackageIndex FLinkerSave::MapObject(TObjectPtr<const UObject> Object) const
 	if (Object)
 	{
 		const FPackageIndex *Found = ObjectIndicesMap.Find(Object);
+
 		if (Found)
 		{
 			if (IsCooking() && CurrentlySavingExport.IsExport() &&
@@ -280,10 +282,15 @@ FPackageIndex FLinkerSave::MapObject(TObjectPtr<const UObject> Object) const
 				}
 				if (!bFoundDep)
 				{
-					UE_LOG(LogLinker, Fatal, TEXT("Attempt to map an object during save that was not listed as a dependency. Saving Export %d %s in %s. Missing Dep on %s %s."),
-						CurrentlySavingExport.ForDebugging(), *SavingExport.ObjectName.ToString(), *GetArchiveName(),
-						Found->IsExport() ? TEXT("Export") : TEXT("Import"), *ImpExp(*Found).ObjectName.ToString()
-						);
+					const FString ImpExpObjectNameString = ImpExp(*Found).ObjectName.ToString();
+					const bool IsNativeDep = FPackageName::IsScriptPackage(ImpExpObjectNameString);
+					if (!IsNativeDep)
+					{
+						UE_LOG(LogLinker, Fatal, TEXT("Attempt to map an object during save that was not listed as a dependency. Saving Export %d %s in %s. Missing Dep on %s %s."),
+							CurrentlySavingExport.ForDebugging(), *SavingExport.ObjectName.ToString(), *GetArchiveName(),
+							Found->IsExport() ? TEXT("Export") : TEXT("Import"), *ImpExpObjectNameString
+							);
+					}
 				}
 			}
 
@@ -370,8 +377,6 @@ FArchive& FLinkerSave::operator<<( FName& InName )
 {
 	int32 Save = MapName(InName.GetDisplayIndex());
 
-	check(GetSerializeContext());
-
 	bool bNameMapped = Save != INDEX_NONE;
 	if (!bNameMapped)
 	{
@@ -380,7 +385,7 @@ FArchive& FLinkerSave::operator<<( FName& InName )
 		FString ErrorMessage = FString::Printf(TEXT("Name \"%s\" is not mapped when saving %s (object: %s, property: %s). This can mean that this object serialize function is not deterministic between reference harvesting and serialization."),
 			*InName.ToString(),
 			*GetArchiveName(),
-			*GetSerializeContext()->SerializedObject->GetFullName(),
+			*FUObjectThreadContext::Get().GetSerializeContext()->SerializedObject->GetFullName(),
 			*GetFullNameSafe(GetSerializedProperty()));
 		ensureMsgf(false, TEXT("%s"), *ErrorMessage);
 		if (LogOutput)
@@ -397,7 +402,7 @@ FArchive& FLinkerSave::operator<<( FName& InName )
 			FString ErrorMessage = FString::Printf(TEXT("Name \"%s\" is referenced from an export but not mapped in the export data names region when saving %s (object: %s, property: %s)."),
 				*InName.ToString(),
 				*GetArchiveName(),
-				*GetSerializeContext()->SerializedObject->GetFullName(),
+				*FUObjectThreadContext::Get().GetSerializeContext()->SerializedObject->GetFullName(),
 				*GetFullNameSafe(GetSerializedProperty()));
 			ensureMsgf(false, TEXT("%s"), *ErrorMessage);
 			if (LogOutput)
@@ -437,7 +442,7 @@ FArchive& FLinkerSave::operator<<(FSoftObjectPath& SoftObjectPath)
 			FString ErrorMessage = FString::Printf(TEXT("SoftObjectPath \"%s\" is not mapped when saving %s (object: %s, property: %s). This can mean that this object serialize function is not deterministic between reference harvesting and serialization."),
 				*SoftObjectPath.ToString(),
 				*GetArchiveName(),
-				*GetSerializeContext()->SerializedObject->GetFullName(),
+				*FUObjectThreadContext::Get().GetSerializeContext()->SerializedObject->GetFullName(),
 				*GetFullNameSafe(GetSerializedProperty()));
 			ensureMsgf(false, TEXT("%s"), *ErrorMessage);
 			if (LogOutput)
@@ -473,18 +478,9 @@ bool FLinkerSave::ShouldSkipProperty(const FProperty* InProperty) const
 	return false;
 }
 
-void FLinkerSave::SetSerializeContext(FUObjectSerializeContext* InLoadContext)
-{
-	SaveContext = InLoadContext;
-	if (Saver)
-	{
-		Saver->SetSerializeContext(InLoadContext);
-	}
-}
-
 FUObjectSerializeContext* FLinkerSave::GetSerializeContext()
 {
-	return SaveContext;
+	return FUObjectThreadContext::Get().GetSerializeContext();
 }
 
 void FLinkerSave::UsingCustomVersion(const struct FGuid& Guid)
@@ -718,27 +714,46 @@ bool FLinkerSave::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 
 		if (bSaveBulkDataToSeparateFiles && FBulkData::HasFlags(SerializedMeta.Flags, BULKDATA_OptionalPayload))
 		{
-			SerializedMeta.Offset = OptionalBulkDataAr.Tell();
-			SerializedMeta.SizeOnDisk = BulkData.SerializePayload(OptionalBulkDataAr, SerializedMeta.Flags, RegionToUse);
+			FFileRegionMemoryWriter& Ar = GetOptionalBulkDataArchive(Params.CookedIndex);
+
+			SerializedMeta.Offset = Ar.Tell();
+			SerializedMeta.SizeOnDisk = BulkData.SerializePayload(Ar, SerializedMeta.Flags, RegionToUse);
 		}
 		else if (bSaveBulkDataToSeparateFiles && FBulkData::HasFlags(SerializedMeta.Flags, BULKDATA_MemoryMappedPayload) && bSupportsMemoryMapping)
 		{
-			if (int64 Padding = Align(MemoryMappedBulkDataAr.Tell(), MemoryMappingAlignment) - MemoryMappedBulkDataAr.Tell(); Padding > 0)
+#if UE_DISABLE_COOKEDINDEX_FOR_MEMORYMAPPED
+			UE_CLOG(!Params.CookedIndex.IsDefault(), LogLinker, Warning, TEXT("%s: Cooked Index is not supported for MemoryMappedPayloads, value will be ignored"), *LinkerRoot->GetName());
+
+			FFileRegionMemoryWriter& Ar = GetMemoryMappedBulkDataArchive(FBulkDataCookedIndex::Default);
+#else
+			FFileRegionMemoryWriter& Ar = GetMemoryMappedBulkDataArchive(Params.CookedIndex);
+#endif // UE_DISABLE_COOKEDINDEX_FOR_MEMORYMAPPED
+
+			if (int64 Padding = Align(Ar.Tell(), MemoryMappingAlignment) - Ar.Tell(); Padding > 0)
 			{
 				TArray<uint8> Zeros;
 				Zeros.SetNumZeroed(int32(Padding));
-				MemoryMappedBulkDataAr.Serialize(Zeros.GetData(), Padding);
+				Ar.Serialize(Zeros.GetData(), Padding);
 			}
-			SerializedMeta.Offset = MemoryMappedBulkDataAr.Tell();
-			SerializedMeta.SizeOnDisk = BulkData.SerializePayload(MemoryMappedBulkDataAr, SerializedMeta.Flags, RegionToUse);
+			SerializedMeta.Offset = Ar.Tell();
+			SerializedMeta.SizeOnDisk = BulkData.SerializePayload(Ar, SerializedMeta.Flags, RegionToUse);
 		}
 		else
 		{
 			if (bSaveBulkDataToSeparateFiles && FBulkData::HasFlags(SerializedMeta.Flags, BULKDATA_DuplicateNonOptionalPayload))
 			{
+#if UE_DISABLE_COOKEDINDEX_FOR_NONDUPLICATE
+				UE_CLOG(!Params.CookedIndex.IsDefault(), LogLinker, Warning, TEXT("%s: Cooked Index is not supported for DuplicateNonOptionalPayloads, value will be ignored"), *LinkerRoot->GetName());
+
+				FFileRegionMemoryWriter& OptionalAr = GetOptionalBulkDataArchive(FBulkDataCookedIndex::Default);
+#else
+				FFileRegionMemoryWriter& OptionalAr = GetOptionalBulkDataArchive(Params.CookedIndex);
+#endif // UE_DISABLE_COOKEDINDEX_FOR_NONDUPLICATE
+
+
 				SerializedMeta.DuplicateFlags = SerializedMeta.Flags;
-				SerializedMeta.DuplicateOffset = OptionalBulkDataAr.Tell();
-				SerializedMeta.DuplicateSizeOnDisk = BulkData.SerializePayload(OptionalBulkDataAr, SerializedMeta.Flags, RegionToUse);
+				SerializedMeta.DuplicateOffset = OptionalAr.Tell();
+				SerializedMeta.DuplicateSizeOnDisk = BulkData.SerializePayload(OptionalAr, SerializedMeta.Flags, RegionToUse);
 
 				FBulkData::ClearBulkDataFlagsOn(SerializedMeta.DuplicateFlags, BULKDATA_DuplicateNonOptionalPayload);
 				FBulkData::SetBulkDataFlagsOn(SerializedMeta.DuplicateFlags, BULKDATA_OptionalPayload);
@@ -751,8 +766,10 @@ bool FLinkerSave::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 			}
 			else
 			{
-				SerializedMeta.Offset = BulkDataAr.Tell();
-				SerializedMeta.SizeOnDisk = BulkData.SerializePayload(BulkDataAr, SerializedMeta.Flags, RegionToUse);
+				FFileRegionMemoryWriter& Ar = GetBulkDataArchive(Params.CookedIndex);
+				
+				SerializedMeta.Offset = Ar.Tell();
+				SerializedMeta.SizeOnDisk = BulkData.SerializePayload(Ar, SerializedMeta.Flags, RegionToUse);
 			}
 		}
 
@@ -774,6 +791,7 @@ bool FLinkerSave::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 	}
 
 	FObjectDataResource& DataResource = DataResourceMap.AddDefaulted_GetRef();
+	DataResource.CookedIndex			= Params.CookedIndex;
 	DataResource.RawSize				= PayloadSize;
 	DataResource.SerialSize				= SerializedMeta.SizeOnDisk;
 	DataResource.SerialOffset			= SerializedMeta.Offset;
@@ -781,24 +799,104 @@ bool FLinkerSave::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 	DataResource.LegacyBulkDataFlags	= SerializedMeta.Flags;
 	DataResource.OuterIndex				= ObjectIndicesMap.FindRef(Params.Owner);
 
-	SerializedBulkData.Add(&BulkData, ResourceIndex);
+#if WITH_EDITOR
+	if (bUpdatingLoadedPath)
+	{
+		SerializedBulkData.Add(&BulkData, ResourceIndex);
+	}
+#endif //WITH_EDITOR
 
 	return true;
+}
+
+void FLinkerSave::ForEachBulkDataCookedIndex(TUniqueFunction<void(FBulkDataCookedIndex, FFileRegionMemoryWriter&)>&& Func, EBulkDataPayloadType Type) const
+{
+	const TMap<FBulkDataCookedIndex, TUniquePtr<FFileRegionMemoryWriter>>& Map = GetArchives(Type);
+	for (const TPair<FBulkDataCookedIndex, TUniquePtr<FFileRegionMemoryWriter>>& It : Map)
+	{
+		check(It.Value);
+		Func(It.Key, *It.Value);
+	}
+}
+
+FFileRegionMemoryWriter& FLinkerSave::GetBulkDataArchive(FBulkDataCookedIndex CookedIndex)
+{
+	TUniquePtr<FFileRegionMemoryWriter>& Ar = BulkDataAr.FindOrAdd(CookedIndex);
+	if (!Ar.IsValid())
+	{
+		Ar = MakeUnique<FFileRegionMemoryWriter>();
+	}
+	return *Ar.Get();
+}
+
+FFileRegionMemoryWriter& FLinkerSave::GetOptionalBulkDataArchive(FBulkDataCookedIndex CookedIndex)
+{
+	TUniquePtr<FFileRegionMemoryWriter>& Ar = OptionalBulkDataAr.FindOrAdd(CookedIndex);
+	if (!Ar.IsValid())
+	{
+		Ar = MakeUnique<FFileRegionMemoryWriter>();
+	}
+	return *Ar.Get();
+}
+
+FFileRegionMemoryWriter& FLinkerSave::GetMemoryMappedBulkDataArchive(FBulkDataCookedIndex CookedIndex)
+{
+	TUniquePtr<FFileRegionMemoryWriter>& Ar = MemoryMappedBulkDataAr.FindOrAdd(CookedIndex);
+	if (!Ar.IsValid())
+	{
+		Ar = MakeUnique<FFileRegionMemoryWriter>();
+	}
+	return *Ar.Get();
+}
+
+bool FLinkerSave::HasCookedIndexBulkData() const
+{
+	for (const TPair<FBulkDataCookedIndex, TUniquePtr<FFileRegionMemoryWriter>>& Iter : BulkDataAr)
+	{
+		if (!Iter.Key.IsDefault())
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+const TMap<FBulkDataCookedIndex, TUniquePtr<FFileRegionMemoryWriter>>& FLinkerSave::GetArchives(EBulkDataPayloadType Type) const
+{
+	switch (Type)
+	{
+		case EBulkDataPayloadType::Inline:
+		case EBulkDataPayloadType::AppendToExports:
+		case EBulkDataPayloadType::MemoryMapped:
+			return MemoryMappedBulkDataAr;
+			break;
+		case EBulkDataPayloadType::BulkSegment:
+			return BulkDataAr;
+			break;
+		case EBulkDataPayloadType::Optional:
+			return OptionalBulkDataAr;
+			break;
+		default:
+			checkNoEntry();
+	}
+
+	static TMap<FBulkDataCookedIndex, TUniquePtr<FFileRegionMemoryWriter>> NoData;
+	return NoData;
 }
 
 void FLinkerSave::OnPostSaveBulkData()
 {
 #if WITH_EDITOR
-	if (bUpdatingLoadedPath)
+	ensure(SerializedBulkData.IsEmpty() || bUpdatingLoadedPath == true);
+ 
+	for (TPair<FBulkData*, int32>& Kv : SerializedBulkData)
 	{
-		for (TPair<FBulkData*, int32>& Kv : SerializedBulkData)
-		{
-			FBulkData& BulkData = *Kv.Key;
-			const FObjectDataResource& DataResource = DataResourceMap[Kv.Value];
-			BulkData.SetFlagsFromDiskWrittenValues(static_cast<EBulkDataFlags>(DataResource.LegacyBulkDataFlags), DataResource.SerialOffset, DataResource.SerialSize, Summary.BulkDataStartOffset);
-		}
+		FBulkData& BulkData = *Kv.Key;
+		const FObjectDataResource& DataResource = DataResourceMap[Kv.Value];
+		BulkData.SetFlagsFromDiskWrittenValues(static_cast<EBulkDataFlags>(DataResource.LegacyBulkDataFlags), DataResource.SerialOffset, DataResource.SerialSize, Summary.BulkDataStartOffset);
 	}
-#endif
-
+	
 	SerializedBulkData.Empty();
+#endif //WITH_EDITOR
 }

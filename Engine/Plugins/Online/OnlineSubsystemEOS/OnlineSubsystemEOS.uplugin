@@ -20,17 +20,19 @@
 				"Win64",
 				"Mac",
 				"Linux",
+				"LinuxArm64",
 				"Android"
 			]
 		},
 		{
 			"Name": "OnlineSubsystemEOSPlus",
 			"Type": "Runtime",
-			"LoadingPhase": "Default",
+			"LoadingPhase": "None",
 			"PlatformAllowList": [
 				"Win64",
 				"Mac",
 				"Linux",
+				"LinuxArm64",
 				"Android"
 			]
 		}

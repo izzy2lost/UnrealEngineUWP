@@ -198,7 +198,7 @@ FPolygonEdgeMeshGenerator::FPolygonEdgeMeshGenerator(const TArray<FFrame3d>& InP
 	check(Polygon.Num() == OffsetScaleFactors.Num());
 }
 
-
+FPolygonEdgeMeshGenerator::~FPolygonEdgeMeshGenerator() = default;
 
 // Given a piecewise linear path, replace each corner with a discretized arc
 void FPolygonEdgeMeshGenerator::CurvePath(const TArray<FVector3d>& InPath,

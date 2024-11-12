@@ -341,10 +341,20 @@ namespace EpicGames.Horde.Storage.Nodes
 
 	class DirectoryNodeConverter : BlobConverter<DirectoryNode>
 	{
+		readonly HordeApiVersion _writeVersion;
+
 		/// <summary>
-		/// Type of serialized directory node blobs
+		/// Constructor
 		/// </summary>
-		public static BlobType BlobType { get; } = new BlobType(DirectoryNode.BlobTypeGuid, 2);
+		public DirectoryNodeConverter()
+			: this(HordeApiVersion.AddRollingHashesForLeafNodes)
+		{ }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public DirectoryNodeConverter(HordeApiVersion writeVersion)
+			=> _writeVersion = writeVersion;
 
 		/// <inheritdoc/>
 		public override DirectoryNode Read(IBlobReader reader, BlobSerializerOptions options)
@@ -354,34 +364,45 @@ namespace EpicGames.Horde.Storage.Nodes
 			int fileCount = (int)reader.ReadUnsignedVarInt();
 			for (int idx = 0; idx < fileCount; idx++)
 			{
-				IBlobRef<ChunkedDataNode> targetHandle = reader.ReadBlobRef<ChunkedDataNode>();
+				IHashedBlobRef<ChunkedDataNode> targetHandle = reader.ReadBlobRef<ChunkedDataNode>();
 
 				ChunkedDataNodeType targetType = ChunkedDataNodeType.Unknown;
-				if (reader.Version >= 2)
+				if (reader.Version >= 2) // Pre-unification with HordeApiVersion
 				{
 					targetType = (ChunkedDataNodeType)reader.ReadUnsignedVarInt();
+				}
+
+				uint rollingHash = 0;
+				if (targetType == ChunkedDataNodeType.Leaf && reader.Version >= (int)HordeApiVersion.AddRollingHashesForLeafNodes)
+				{
+					rollingHash = reader.ReadUInt32();
 				}
 
 				string name = reader.ReadString();
 				FileEntryFlags flags = (FileEntryFlags)reader.ReadUnsignedVarInt();
 				long length = (long)reader.ReadUnsignedVarInt();
 				IoHash streamHash = reader.ReadIoHash();
-				ChunkedDataNodeRef target = new ChunkedDataNodeRef(targetType, length, targetHandle);
+				ChunkedDataNodeRef target = new ChunkedDataNodeRef(targetType, length, rollingHash, targetHandle);
+
+				DateTime modTime = default;
+				if ((flags & FileEntryFlags.HasModTime) != 0)
+				{
+					modTime = new DateTime((long)reader.ReadUnsignedVarInt());
+				}
 
 				ReadOnlyMemory<byte> customData = default;
 				if ((flags & FileEntryFlags.HasCustomData) != 0)
 				{
 					customData = reader.ReadVariableLengthBytes();
-					flags &= ~FileEntryFlags.HasCustomData;
 				}
 
-				directoryNode.AddFile(new FileEntry(name, flags, length, streamHash, target, customData));
+				directoryNode.AddFile(new FileEntry(name, flags, length, streamHash, target, modTime, customData));
 			}
 
 			int directoryCount = (int)reader.ReadUnsignedVarInt();
 			for (int idx = 0; idx < directoryCount; idx++)
 			{
-				IBlobRef<DirectoryNode> directoryHandle = reader.ReadBlobRef<DirectoryNode>();
+				IHashedBlobRef<DirectoryNode> directoryHandle = reader.ReadBlobRef<DirectoryNode>();
 				long length = (long)reader.ReadUnsignedVarInt();
 				string name = reader.ReadString();
 
@@ -402,12 +423,30 @@ namespace EpicGames.Horde.Storage.Nodes
 				writer.WriteBlobRef(fileEntry.Target.Handle);
 				writer.WriteUnsignedVarInt((int)fileEntry.Target.Type);
 
-				FileEntryFlags flags = (fileEntry.CustomData.Length > 0) ? (fileEntry.Flags | FileEntryFlags.HasCustomData) : (fileEntry.Flags & ~FileEntryFlags.HasCustomData);
+				if (_writeVersion >= HordeApiVersion.AddRollingHashesForLeafNodes && fileEntry.Target.Type == ChunkedDataNodeType.Leaf)
+				{
+					writer.WriteUInt32(fileEntry.Target.RollingHash);
+				}
+
+				FileEntryFlags flags = fileEntry.Flags & ~(FileEntryFlags.HasCustomData | FileEntryFlags.HasModTime);
+				if (fileEntry.CustomData.Length > 0)
+				{
+					flags |= FileEntryFlags.HasCustomData;
+				}
+				if (_writeVersion >= HordeApiVersion.AddFileModTimes && fileEntry.ModTime != default)
+				{
+					flags |= FileEntryFlags.HasModTime;
+				}
 
 				writer.WriteString(fileEntry.Name);
 				writer.WriteUnsignedVarInt((ulong)flags);
 				writer.WriteUnsignedVarInt((ulong)fileEntry.Length);
 				writer.WriteIoHash(fileEntry.StreamHash);
+
+				if ((flags & FileEntryFlags.HasModTime) != 0)
+				{
+					writer.WriteUnsignedVarInt((ulong)fileEntry.ModTime.Ticks);
+				}
 
 				if ((flags & FileEntryFlags.HasCustomData) != 0)
 				{
@@ -423,7 +462,25 @@ namespace EpicGames.Horde.Storage.Nodes
 				writer.WriteString(directoryEntry.Name);
 			}
 
-			return BlobType;
+			return GetBlobType(_writeVersion);
+		}
+
+		static BlobType GetBlobType(HordeApiVersion version)
+		{
+			int blobVersion;
+			if (version >= HordeApiVersion.AddRollingHashesForLeafNodes)
+			{
+				blobVersion = (int)HordeApiVersion.AddRollingHashesForLeafNodes;
+			}
+			else if (version >= HordeApiVersion.AddFileModTimes)
+			{
+				blobVersion = (int)HordeApiVersion.AddFileModTimes;
+			}
+			else
+			{
+				blobVersion = 2;
+			}
+			return new BlobType(DirectoryNode.BlobTypeGuid, blobVersion);
 		}
 	}
 
@@ -432,13 +489,13 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// </summary>
 	/// <param name="Length">Sum total of all the file lengths in this directory tree</param>
 	/// <param name="Handle">Handle to the target node</param>
-	public record class DirectoryNodeRef(long Length, IBlobRef<DirectoryNode> Handle);
+	public record class DirectoryNodeRef(long Length, IHashedBlobRef<DirectoryNode> Handle);
 
 	/// <summary>
 	/// Entry for a directory within a directory node
 	/// </summary>
 	[DebuggerDisplay("{Name}")]
-	public record class DirectoryEntry(string Name, long Length, IBlobRef<DirectoryNode> Handle) : DirectoryNodeRef(Length, Handle)
+	public record class DirectoryEntry(string Name, long Length, IHashedBlobRef<DirectoryNode> Handle) : DirectoryNodeRef(Length, Handle)
 	{
 	}
 }

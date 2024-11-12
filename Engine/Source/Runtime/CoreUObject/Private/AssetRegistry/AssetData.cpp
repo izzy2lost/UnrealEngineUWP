@@ -11,6 +11,7 @@
 #include "HAL/CriticalSection.h"
 #include "HAL/PlatformMath.h"
 #include "Misc/AsciiSet.h"
+#include "Misc/AssetRegistryInterface.h"
 #include "Misc/PathViews.h"
 #include "Misc/ScopeRWLock.h"
 #include "Serialization/CompactBinary.h"
@@ -76,6 +77,20 @@ bool LoadFromCompactBinary(FCbFieldView Field, FAssetIdentifier& Identifier)
 		}
 	}
 	return true;
+}
+
+void SerializeForLog(FCbWriter& Writer, const FAssetIdentifier& Value)
+{
+	Writer.BeginObject();
+	Writer.AddString(ANSITEXTVIEW("$type"), ANSITEXTVIEW("AssetIdentifier"));
+	TStringBuilder<256> Text;
+	Value.AppendString(Text);
+	Writer.AddString(ANSITEXTVIEW("$text"), Text);
+	Writer.AddString(ANSITEXTVIEW("PackageName"), WriteToUtf8String<256>(Value.PackageName));
+	Writer.AddString(ANSITEXTVIEW("PrimaryAssetType"), WriteToUtf8String<256>(Value.PrimaryAssetType.GetName()));
+	Writer.AddString(ANSITEXTVIEW("ObjectName"), WriteToUtf8String<256>(Value.ObjectName));
+	Writer.AddString(ANSITEXTVIEW("ValueName"), WriteToUtf8String<256>(Value.ValueName));
+	Writer.EndObject();
 }
 
 namespace UE::AssetRegistry::Private
@@ -383,7 +398,7 @@ FSoftObjectPath FAssetData::GetSoftObjectPath() const
 {
 	if (IsTopLevelAsset())
 	{
-		return FSoftObjectPath(PackageName, AssetName, FString());
+		return FSoftObjectPath::ConstructFromPackageAsset(PackageName, AssetName);
 	}
 	else
 	{
@@ -818,8 +833,7 @@ void FAssetData::SerializeForCacheOldVersionWithTagsAndBundles(FArchive& Ar, FAs
 
 bool FAssetData::IsRedirectorClassName(FTopLevelAssetPath ClassPathName)
 {
-	static const FTopLevelAssetPath ObjectRedirectorClassPathName = UObjectRedirector::StaticClass()->GetClassPathName();
-	return ClassPathName == ObjectRedirectorClassPathName;
+	return ClassPathName == UE::AssetRegistry::GetClassPathObjectRedirector();
 }
 
 FTopLevelAssetPath FAssetData::TryConvertShortClassNameToPathName(FName InClassName, ELogVerbosity::Type FailureMessageVerbosity /*= ELogVerbosity::Warning*/)
@@ -890,6 +904,27 @@ bool FAssetRegistryVersion::SerializeVersion(FArchive& Ar, FAssetRegistryVersion
 	}
 
 	return !Ar.IsError();
+}
+
+namespace UE::AssetRegistry
+{
+
+FCbWriter& FPackageCustomVersion::Write(FCbWriter& Writer) const
+{
+	Writer.BeginArray();
+	Writer << Key << Version;
+	Writer.EndArray();
+	return Writer;
+}
+
+bool FPackageCustomVersion::TryRead(const FCbFieldView& Field)
+{
+	FCbFieldViewIterator Iter = Field.CreateViewIterator();
+	bool bOk = LoadFromCompactBinary(*Iter++, Key);
+	bOk = LoadFromCompactBinary(*Iter++, Version) & bOk;
+	return bOk;
+}
+
 }
 
 void FAssetPackageData::SerializeForCacheInternal(FArchive& Ar, FAssetPackageData& PackageData, FAssetRegistryVersion::Type Version)
@@ -980,6 +1015,107 @@ void FAssetPackageData::SetPackageSavedHash(const FIoHash& InHash)
 	FMemory::Memcpy(&PackageGuid, &InHash.GetBytes(),
 		FMath::Min(sizeof(PackageGuid), sizeof(decltype(InHash.GetBytes()))));
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+inline FCbWriter& operator<<(FCbWriter& Writer, const TPair<FIoChunkId, FIoHash>& Value)
+{
+	Writer.BeginArray();
+	Writer << Value.Key << Value.Value;
+	Writer.EndArray();
+	return Writer;
+}
+
+inline bool LoadFromCompactBinary(FCbFieldView Field, TPair<FIoChunkId, FIoHash>& Value)
+{
+	FCbFieldViewIterator Iter = Field.CreateViewIterator();
+	bool bOk = LoadFromCompactBinary(*Iter++, Value.Key);
+	bOk = LoadFromCompactBinary(*Iter++, Value.Value) & bOk;
+	return bOk;
+}
+
+void FAssetPackageData::NetworkWrite(FCbWriter& Writer) const
+{
+	Writer.BeginArray();
+	bool bCookedHash = CookedHash.IsValid();
+	Writer << bCookedHash;
+	if (bCookedHash)
+	{
+		Writer << CookedHash;
+	}
+	FIoHash PackageSavedHash = GetPackageSavedHash();
+	bool bPackageSavedHash = !PackageSavedHash.IsZero();
+	Writer << bPackageSavedHash;
+	if (bPackageSavedHash)
+	{
+		Writer << PackageSavedHash;
+	}
+	Writer << ChunkHashes.Array();
+	Writer << ImportedClasses;
+	Writer << DiskSize;
+	Writer << FileVersionUE;
+	Writer << FileVersionLicenseeUE;
+	TArray<UE::AssetRegistry::FPackageCustomVersion> LocalCustomVersions;
+	LocalCustomVersions.Append(GetCustomVersions());
+	Writer << LocalCustomVersions;
+	Writer << Flags;
+	Writer << static_cast<uint8>(Extension);
+	Writer.EndArray();
+}
+
+bool FAssetPackageData::TryNetworkRead(FCbFieldView Field)
+{
+	FCbFieldViewIterator Iter = Field.CreateViewIterator();
+	bool bCookedHash = false;
+	bool bOk = LoadFromCompactBinary(*Iter++, bCookedHash);
+	if (bCookedHash)
+	{
+		bOk = LoadFromCompactBinary(*Iter++, CookedHash) & bOk;
+	}
+	else
+	{
+		CookedHash = FMD5Hash();
+	}
+	bool bPackageSavedHash = false;
+	FIoHash PackageSavedHash;
+	bOk = LoadFromCompactBinary(*Iter++, bPackageSavedHash) & bOk;
+	if (bPackageSavedHash)
+	{
+		bOk = LoadFromCompactBinary(*Iter++, PackageSavedHash) & bOk;
+	}
+	SetPackageSavedHash(PackageSavedHash);
+	TArray<TPair<FIoChunkId, FIoHash>> ChunkHashesArray;
+	if (LoadFromCompactBinary(*Iter++, ChunkHashesArray))
+	{
+		ChunkHashes.Empty(ChunkHashesArray.Num());
+		for (TPair<FIoChunkId, FIoHash>& Pair : ChunkHashesArray)
+		{
+			ChunkHashes.Add(Pair.Key, Pair.Value);
+		}
+	}
+	else
+	{
+		bOk = false;
+	}
+	bOk = LoadFromCompactBinary(*Iter++, ImportedClasses) & bOk;
+	bOk = LoadFromCompactBinary(*Iter++, DiskSize) & bOk;
+	bOk = LoadFromCompactBinary(*Iter++, FileVersionUE) & bOk;
+	bOk = LoadFromCompactBinary(*Iter++, FileVersionLicenseeUE) & bOk;
+	TArray<UE::AssetRegistry::FPackageCustomVersion> LocalCustomVersions;
+	if (LoadFromCompactBinary(*Iter++, LocalCustomVersions))
+	{
+		SetCustomVersions(LocalCustomVersions);
+	}
+	bOk = LoadFromCompactBinary(*Iter++, Flags) & bOk;
+	uint8 ExtensionInt = 0;
+	if (LoadFromCompactBinary(*Iter++, ExtensionInt) && ExtensionInt < static_cast<uint8>(EPackageExtension::Count))
+	{
+		Extension = static_cast<EPackageExtension>(ExtensionInt);
+	}
+	else
+	{
+		bOk = false;
+	}
+	return bOk;
 }
 
 void FARFilter::PostSerialize(const FArchive& Ar)
@@ -1135,7 +1271,7 @@ FAssetIdentifier::FAssetIdentifier(UObject* SourceObject, FName InValueName)
 #if WITH_DEV_AUTOMATION_TESTS 
 
 #include "Misc/AutomationTest.h"
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAssetDataTests, "System.CoreUObject.AssetData", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAssetDataTests, "System.CoreUObject.AssetData", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAssetDataTests::RunTest(const FString& Parameters)
 {
 	FAssetData EmptyAssetData;

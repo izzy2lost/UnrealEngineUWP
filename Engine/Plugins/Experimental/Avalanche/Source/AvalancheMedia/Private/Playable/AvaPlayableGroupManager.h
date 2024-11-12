@@ -5,11 +5,14 @@
 #include "UObject/Object.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/SoftObjectPtr.h"
+
 #include "AvaPlayableGroupManager.generated.h"
 
+class IAvaMediaSynchronizedEventDispatcher;
 class UAvaGameInstance;
 class UAvaPlayableGroup;
 class UAvaPlayableGroupManager;
+class UGameInstance;
 
 /**
  * Manager for the shared playable groups per channel.
@@ -20,9 +23,13 @@ class UAvaPlayableGroupChannelManager : public UObject
 	GENERATED_BODY()
 
 public:
-	UAvaPlayableGroup* GetOrCreateSharedLevelGroup(bool bInIsRemoteProxy);
+	UAvaPlayableGroup* GetOrCreatePlayableGroup(UGameInstance* InExistingGameInstance, bool bInIsRemoteProxy);
 
 	UAvaPlayableGroupManager* GetPlayableGroupManager() const;
+
+	void GetPlayableGroups(TArray<TWeakObjectPtr<UAvaPlayableGroup>>& OutGroups) const;
+
+	UAvaPlayableGroup* FindPlayableGroupForWorld(const UWorld* InWorld) const;
 	
 protected:
 	//~ Begin UObject
@@ -35,20 +42,11 @@ protected:
 	FName ChannelName;
 
 	/**
-	 * This is the shared playable group for this channel.
-	 * 
-	 * For now all the levels go in the same group for a given channel.
-	 * This a weak ptr because it is only a cache. The ownership
-	 * of the group is with the playable objects.
+	 * Shared playable groups for this channel.
+	 * The manager only keeps weak pointers.
+	 * Groups are owned by their respective playables. 
 	 */
-	TWeakObjectPtr<UAvaPlayableGroup> SharedLevelGroupWeak;
-
-	/**
-	 * For remote proxy playables, we need a specialized group
-	 * that doesn't implement the local game instance but still
-	 * provides the correct logic to emulate functionality.
-	 */
-	TWeakObjectPtr<UAvaPlayableGroup> SharedRemoteProxyLevelGroupWeak;
+	TArray<TWeakObjectPtr<UAvaPlayableGroup>> PlayableGroupsWeak;
 
 	friend class UAvaPlayableGroupManager;
 };
@@ -70,6 +68,10 @@ public:
 
 	void Tick(double InDeltaSeconds);
 
+	void PushSynchronizedEvent(FString&& InEventSignature, TUniqueFunction<void()> InFunction);
+
+	bool IsSynchronizedEventPushed(const FString& InEventSignature) const;
+
 	UAvaPlayableGroupChannelManager* FindChannelManager(const FName& InChannelName) const
 	{
 		const TObjectPtr<UAvaPlayableGroupChannelManager>* ChannelManager = ChannelManagers.Find(InChannelName);
@@ -78,11 +80,13 @@ public:
 
 	UAvaPlayableGroupChannelManager* FindOrAddChannelManager(const FName& InChannelName);
 
-	UAvaPlayableGroup* GetOrCreateSharedLevelGroup(const FName& InChannelName, bool bInIsRemoteProxy)
-	{
-		UAvaPlayableGroupChannelManager* ChannelManager = FindOrAddChannelManager(InChannelName);
-		return ChannelManager ? ChannelManager->GetOrCreateSharedLevelGroup(bInIsRemoteProxy) : nullptr;
-	}
+	/**
+	 * @brief Returns the playable group for the given channel.
+	 * @param InChannelName Channel name, should correspond to a configured broadcast channel.
+	 * @param bInIsRemoteProxy Indicate if the implementation is local or remote.
+	 * @return Playable group.
+	 */
+	UAvaPlayableGroup* GetOrCreateSharedPlayableGroup(const FName& InChannelName, bool bInIsRemoteProxy);
 
 	void RegisterForLevelStreamingUpdate(UAvaPlayableGroup* InPlayableGroup);
 	void UnregisterFromLevelStreamingUpdate(UAvaPlayableGroup* InPlayableGroup);
@@ -90,17 +94,28 @@ public:
 	void RegisterForTransitionTicking(UAvaPlayableGroup* InPlayableGroup);
 	void UnregisterFromTransitionTicking(UAvaPlayableGroup* InPlayableGroup);
 
+	/**
+	 * Returns playable groups part of the given channel, or all playable groups if channel is None.
+	 */
+	TArray<TWeakObjectPtr<UAvaPlayableGroup>> GetPlayableGroups(FName InChannelName = NAME_None) const;
+
+	/**
+	 * Return the playable group corresponding to the given world.
+	 */
+	UAvaPlayableGroup* FindPlayableGroupForWorld(const UWorld* InWorld) const;
+
 protected:
 	//~ Begin UObject
 	virtual void BeginDestroy() override;
 	//~ End UObject
 
+	// Move to UAvaGameInstancePlayableGroup
 	void OnGameInstanceEndPlay(UAvaGameInstance* InGameInstance, FName InChannelName);
 
 	void UpdateLevelStreaming();
 	
 	void TickTransitions(double InDeltaSeconds);
-	
+
 protected:
 	UPROPERTY(Transient)
 	TMap<FName, TObjectPtr<UAvaPlayableGroupChannelManager>> ChannelManagers;
@@ -110,4 +125,8 @@ protected:
 
 	bool bIsTickingTransitions = false;
 	TSet<TWeakObjectPtr<UAvaPlayableGroup>> GroupsToTickTransitions;
+
+	TArray<TWeakObjectPtr<UAvaPlayableGroup>> GroupsToTickEvents;
+	
+	TSharedPtr<IAvaMediaSynchronizedEventDispatcher> SynchronizedEventDispatcher;
 };

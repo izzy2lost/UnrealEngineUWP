@@ -34,14 +34,31 @@ void FTransaction::AbortWithoutThrowing()
     Stats.Collect<EStatsKind::Abort>();
     CollectStats();
 
+    // Call the destructors of all the OnCommit functors before undoing the transactional memory and
+    // calling the OnAbort callbacks. This is important as the callback functions may have captured
+    // variables that are depending on the allocated memory. 
+    CommitTasks.Reset();
+
+    Undo();
+	AbortTasks.ForEachBackward([&](TFunction<void()>& Task) -> bool 
+    { 
+        // Call and then reset each of the tasks in reverse order.
+        // This ensures that the task and its destructor are called in reverse chronological order,
+        // which is important if the function has captures with non-trivial destructors.
+        Task();
+        Task.Reset();
+        return true; 
+    });
+
     if (IsNested())
     {
-        AbortNested();
+		ASSERT(Parent);
     }
     else
     {
-        AbortOuterNest();
+		ASSERT(Context->IsAborting());
     }
+
     Reset();
 }
 
@@ -82,17 +99,13 @@ void FTransaction::Undo()
 	for(auto Iter = WriteLog.rbegin(); Iter != WriteLog.rend(); ++Iter)
     {
 		FWriteLogEntry& Entry = *Iter;
+		void* const Original = Entry.GetOriginal();
 
-        // Skip writes to our current transaction nest if we're scoped. We're about to
-		// leave so the changes don't matter. 
-        if (IsScopedTransaction() && Context->IsInnerTransactionStack(Entry.OriginalAndSize.Get()))
-        {
-            continue;
-        }
+        // No write records should be within the transaction's stack range.
+        ensure(!IsOnStack(Original));
 
-        void* const Original = Entry.OriginalAndSize.Get();
-        const size_t Size = Entry.OriginalAndSize.GetTopTag();
-        void* const Copy = Entry.Copy;
+		const size_t Size = Entry.GetSize();
+        void* const Copy = Entry.GetCopy();
 
 		if (UE_LOG_ACTIVE(LogAutoRTFM, Verbose))
 		{
@@ -128,46 +141,26 @@ void FTransaction::Undo()
 	UE_LOG(LogAutoRTFM, Verbose, TEXT("Undone a transaction!"));
 }
 
-void FTransaction::AbortNested()
-{
-    ASSERT(Parent);
-
-    Undo();
-
-	// We need to add the abort tasks in reverse order to the parent, as they need to be run in the reverse order.
-	AbortTasks.ForEachBackward([&](const TFunction<void()>& Task) -> bool { Parent->CommitTasks.Add(Task); return true; });
-
-    Parent->AbortTasks.AddAll(MoveTemp(AbortTasks));
-}
-
-void FTransaction::AbortOuterNest()
-{
-    Undo();
-
-    AbortTasks.ForEachBackward([] (const TFunction<void()>& Task) -> bool { Task(); return true; });
-
-	ASSERT(Context->IsAborting());
-}
-
 void FTransaction::CommitNested()
 {
     ASSERT(Parent);
 
-    // We need to pass our write log to our parent transaction, but with care!
-    // We need to discard any writes to locations within the stack of our
-    // current transaction, which could be placed there if a child of the
-    // current transaction had written to stack local memory in the parent.
+	// We need to pass our write log to our parent transaction, but with care!
+	// We need to discard any writes if the memory location is on the parent
+	// transaction's stack range.
+	for (FWriteLogEntry& Write : WriteLog)
+	{
+		if (Parent->IsOnStack(Write.GetOriginal()))
+		{
+			continue;
+		}
 
-    for (FWriteLogEntry& Write : WriteLog)
-    {
-        // Skip writes that are into our current transactions stack.
-        if (IsScopedTransaction() && Context->IsInnerTransactionStack(Write.OriginalAndSize.Get()))
-        {
-            continue;
-        }
+		Parent->WriteLog.Push(Write);
 
-        Parent->WriteLog.Push(Write);
-        Parent->HitSet.Insert(Write.OriginalAndSize);
+		FHitSet::Key HitSetEntry(Write.GetOriginal());
+		HitSetEntry.SetTopTag(static_cast<uint16_t>(Write.GetSize()));
+
+        Parent->HitSet.Insert(HitSetEntry);
     }
 
     Parent->WriteLogBumpAllocator.Merge(MoveTemp(WriteLogBumpAllocator));
@@ -186,7 +179,14 @@ bool FTransaction::AttemptToCommitOuterNest()
 	Context->DumpState();
 	UE_LOG(LogAutoRTFM, Verbose, TEXT("Running commit tasks..."));
 
-    CommitTasks.ForEachForward([] (const TFunction<void()>& Task) -> bool { Task(); return true; });
+    AbortTasks.Reset();
+
+    CommitTasks.ForEachForward([] (TFunction<void()>& Task) -> bool
+    { 
+        Task(); 
+        Task.Reset();
+        return true; 
+    });
 
     return true;
 }

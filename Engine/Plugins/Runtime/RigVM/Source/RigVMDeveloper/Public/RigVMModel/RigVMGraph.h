@@ -144,6 +144,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = RigVMGraph)
     TArray<FRigVMGraphVariableDescription> GetOutputArguments() const;
 
+	// Returns the schema used by this graph
+	UFUNCTION(BlueprintCallable, Category = RigVMGraph)
+	URigVMSchema* GetSchema() const;
+
+	// Returns the schema class used by this graph
+	UFUNCTION(BlueprintCallable, Category = RigVMGraph)
+	TSubclassOf<URigVMSchema> GetSchemaClass() const { return SchemaClass; }
+
+	// Sets the schema class on the graph
+	UFUNCTION(BlueprintCallable, Category = RigVMGraph)
+	void SetSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass);
+
 	// Returns the modified event, which can be used to 
 	// subscribe to changes happening within the Graph.
 	FRigVMGraphModifiedEvent& OnModified();
@@ -205,13 +217,17 @@ private:
 	UPROPERTY()
 	TArray<FRigVMGraphVariableDescription> LocalVariables;
 
+	UPROPERTY()
+	TSubclassOf<URigVMSchema> SchemaClass;
+
 	bool IsNameAvailable(const FString& InName) const;
 
 	friend class URigVMController;
 	friend class URigVMBlueprint;
 	friend class FRigVMControllerCompileBracketScope;
 	friend class URigVMCompiler;
-	friend struct FRigVMControllerObjectFactory;
 	friend class URigVMSchema;
+	friend struct FRigVMClient;
+	friend struct FRigVMControllerObjectFactory;
 };
 

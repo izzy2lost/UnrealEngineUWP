@@ -26,6 +26,7 @@ float3 Light_Direction;
 float3 Light_Tangent;
 float2 Light_SpotAngles;
 float  Light_SpecularScale;
+float  Light_DiffuseScale;
 float  Light_SourceRadius;
 float  Light_SoftSourceRadius;
 float  Light_SourceLength;
@@ -34,6 +35,9 @@ float  Light_RectLightBarnLength;
 float2 Light_RectLightAtlasUVOffset;
 float2 Light_RectLightAtlasUVScale;
 float  Light_RectLightAtlasMaxLevel;
+float  Light_IESAtlasIndex;
+uint   Light_LightFunctionAtlasLightIndex;
+uint   Light_bAffectsTranslucentLighting;
 
 /** Returns the FLightShaderParameters from the root shader parameters. */
 FLightShaderParameters GetRootLightShaderParameters()
@@ -48,6 +52,7 @@ FLightShaderParameters GetRootLightShaderParameters()
 	Out.Tangent					= Light_Tangent;
 	Out.SpotAngles				= Light_SpotAngles;
 	Out.SpecularScale			= Light_SpecularScale;
+	Out.DiffuseScale			= Light_DiffuseScale;
 	Out.SourceRadius			= Light_SourceRadius;
 	Out.SoftSourceRadius		= Light_SoftSourceRadius;
 	Out.SourceLength			= Light_SourceLength;
@@ -56,5 +61,8 @@ FLightShaderParameters GetRootLightShaderParameters()
 	Out.RectLightAtlasUVOffset	= Light_RectLightAtlasUVOffset;
 	Out.RectLightAtlasUVScale	= Light_RectLightAtlasUVScale;
 	Out.RectLightAtlasMaxLevel	= Light_RectLightAtlasMaxLevel;
+	Out.IESAtlasIndex			= Light_IESAtlasIndex;
+	Out.LightFunctionAtlasLightIndex = Light_LightFunctionAtlasLightIndex;
+	Out.bAffectsTranslucentLighting = Light_bAffectsTranslucentLighting;
 	return Out;
 }

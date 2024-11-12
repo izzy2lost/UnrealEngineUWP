@@ -30,6 +30,42 @@ namespace UE::Anim::OffsetRootBone
 		Halflife = FMath::Max(Halflife, DeltaTime);
 		return FMath::Clamp((1.0f - FMath::InvExpApprox((0.69314718056f * DeltaTime) / (Halflife + Epsilon))), 0.0f, 1.0f);
 	}
+
+	static bool ShouldExtractRootMotion(const EOffsetRootBoneMode OffsetMode)
+	{
+		switch (OffsetMode)
+		{
+		case EOffsetRootBoneMode::Accumulate:
+		case EOffsetRootBoneMode::Interpolate:
+		case EOffsetRootBoneMode::LockOffsetAndConsumeAnimation:
+		case EOffsetRootBoneMode::LockOffsetIncreaseAndConsumeAnimation:
+			return true;
+			break;
+		case EOffsetRootBoneMode::LockOffsetAndIgnoreAnimation:
+		case EOffsetRootBoneMode::Release:
+		default:
+			return false;
+			break;
+		}
+	}
+
+	static bool ShouldCounterComponentDelta(const EOffsetRootBoneMode OffsetMode)
+	{
+		switch (OffsetMode)
+		{
+		case EOffsetRootBoneMode::Accumulate:
+		case EOffsetRootBoneMode::Interpolate:
+			return false;
+			break;
+		case EOffsetRootBoneMode::LockOffsetAndConsumeAnimation:
+		case EOffsetRootBoneMode::LockOffsetIncreaseAndConsumeAnimation:
+		case EOffsetRootBoneMode::LockOffsetAndIgnoreAnimation:
+		case EOffsetRootBoneMode::Release:
+		default:
+			return true;
+			break;
+		}
+	}
 }
 
 void FAnimNode_OffsetRootBone::GatherDebugData(FNodeDebugData& DebugData)
@@ -71,7 +107,8 @@ void FAnimNode_OffsetRootBone::Update_AnyThread(const FAnimationUpdateContext& C
 	GetEvaluateGraphExposedInputs().Execute(Context);
 
 	// If we just became relevant and haven't been initialized yet, then reset.
-	if (!bIsFirstUpdate && UpdateCounter.HasEverBeenUpdated() && !UpdateCounter.WasSynchronizedCounter(Context.AnimInstanceProxy->GetUpdateCounter()))
+	if (GetResetEveryFrame() || 
+		(!bIsFirstUpdate && UpdateCounter.HasEverBeenUpdated() && !UpdateCounter.WasSynchronizedCounter(Context.AnimInstanceProxy->GetUpdateCounter())))
 	{
 		Reset(Context);
 	}
@@ -111,10 +148,11 @@ void FAnimNode_OffsetRootBone::Evaluate_AnyThread(FPoseContext& Output)
 	const FTransform LastComponentTransform = ComponentTransform;
 	ComponentTransform = AnimInstanceProxy->GetComponentTransform();
 
-	const bool bShouldConsumeTranslationOffset = GetTranslationMode() == EOffsetRootBoneMode::Accumulate ||
-										GetTranslationMode() == EOffsetRootBoneMode::Interpolate;
-	const bool bShouldConsumeRotationOffset = GetRotationMode() == EOffsetRootBoneMode::Accumulate ||
-										GetRotationMode() == EOffsetRootBoneMode::Interpolate;
+	const EOffsetRootBoneMode CurrentTranslationMode = GetTranslationMode();
+	const EOffsetRootBoneMode CurrentRotationMode = GetRotationMode();
+
+	bool bShouldConsumeTranslationOffset = UE::Anim::OffsetRootBone::ShouldExtractRootMotion(CurrentTranslationMode);
+	bool bShouldConsumeRotationOffset = UE::Anim::OffsetRootBone::ShouldExtractRootMotion(CurrentRotationMode);
 
 	FTransform RootMotionTransformDelta = FTransform::Identity;
 	if (bGraphDriven)
@@ -183,23 +221,53 @@ void FAnimNode_OffsetRootBone::Evaluate_AnyThread(FPoseContext& Output)
 		// Grab root motion translation from the root motion attribute
 		ConsumedRootMotionDelta.SetTranslation(RootMotionTransformDelta.GetTranslation());
 	}
-	else
-	{
-		// Accumulate the translation frame delta into the simulated translation, to keep it in place
-		const FVector ComponentTranslationDelta = ComponentTransform.GetLocation() - LastComponentTransform.GetLocation();
-		SimulatedTranslation += ComponentTranslationDelta;
-	}
-
 	if (bShouldConsumeRotationOffset)
 	{
 		// Grab root motion rotation from the root motion attribute
 		ConsumedRootMotionDelta.SetRotation(RootMotionTransformDelta.GetRotation());
 	}
-	else
+
+	if (UE::Anim::OffsetRootBone::ShouldCounterComponentDelta(CurrentRotationMode))
 	{
-		// Accumulate the rotation frame delta into the simulated translation, to keep it in place
+		// Accumulate the rotation component delta into the simulated rotation, to keep component and offset in sync.
 		const FQuat ComponentRotationDelta = LastComponentTransform.GetRotation().Inverse() * ComponentTransform.GetRotation();
 		SimulatedRotation = ComponentRotationDelta * SimulatedRotation;
+	}
+	if (UE::Anim::OffsetRootBone::ShouldCounterComponentDelta(CurrentTranslationMode))
+	{
+		// Accumulate the translation component delta into the simulated translation, to keep component and offset in sync.
+		const FVector ComponentTranslationDelta = ComponentTransform.GetLocation() - LastComponentTransform.GetLocation();
+		SimulatedTranslation += ComponentTranslationDelta;
+	}
+
+	if (CurrentTranslationMode == EOffsetRootBoneMode::LockOffsetIncreaseAndConsumeAnimation)
+	{
+		FVector DeltaDir = (SimulatedTranslation - ComponentTransform.GetLocation()).GetSafeNormal();
+		DeltaDir = SimulatedRotation.UnrotateVector(DeltaDir).GetSafeNormal();
+		// Only allow root motion to steer us towards an position that will make the offset smaller.
+		ConsumedRootMotionDelta.SetTranslation(DeltaDir * ConsumedRootMotionDelta.GetTranslation().Dot(DeltaDir));
+	}
+
+	if (CurrentRotationMode == EOffsetRootBoneMode::LockOffsetIncreaseAndConsumeAnimation)
+	{
+		FQuat DeltaRot = ComponentTransform.GetRotation() * SimulatedRotation.Inverse();
+
+		FVector DeltaAxis;
+		float DeltaAngle;
+		DeltaRot.ToAxisAndAngle(DeltaAxis, DeltaAngle);
+
+		float RootMotionAngle = ConsumedRootMotionDelta.GetRotation().GetTwistAngle(DeltaAxis);
+		if (DeltaAngle >= 0.0f)
+		{
+			RootMotionAngle = FMath::Clamp(RootMotionAngle, 0.0f, DeltaAngle);
+		}
+		else
+		{
+			RootMotionAngle = FMath::Clamp(RootMotionAngle, DeltaAngle, 0.0f);
+		}
+
+		// Only allow root motion to steer us towards an orientation that will make the offset smaller.
+		ConsumedRootMotionDelta.SetRotation(FQuat(DeltaAxis, RootMotionAngle));
 	}
 
 	FTransform SimulatedTransform(SimulatedRotation, SimulatedTranslation);
@@ -320,6 +388,7 @@ void FAnimNode_OffsetRootBone::Evaluate_AnyThread(FPoseContext& Output)
 		{
 			RotationOffset = FQuat(OffsetAxis, MaxAngleRadians);
 			SimulatedRotation = RotationOffset * ComponentTransform.GetRotation();
+			SimulatedRotation.Normalize();
 		}
 	}
 
@@ -327,10 +396,15 @@ void FAnimNode_OffsetRootBone::Evaluate_AnyThread(FPoseContext& Output)
 	SimulatedTransform.SetLocation(SimulatedTranslation);
 	SimulatedTransform.SetRotation(SimulatedRotation);
 
-	// Combine with the input pose's bone transform, to preserve any adjustments done before this node in the graph
-	FTransform TargetBoneTransform = SimulatedTransform * ComponentTransform.Inverse();
-	// Accumulate the input bone transform to keep the offset independent from any previous adjustments to the root
-	TargetBoneTransform.Accumulate(InputBoneTransform);
+	// Start with the input pose's bone transform, to preserve any adjustments done before this node in the graph
+	FTransform TargetBoneTransform = InputBoneTransform;
+	// Accumulate the simulated transform in, and counter current component transform.
+	TargetBoneTransform.Accumulate(SimulatedTransform * ComponentTransform.Inverse());
+
+	// Offset root bone should not affect scale so take the input
+	TargetBoneTransform.SetScale3D(InputBoneTransform.GetScale3D());
+
+	TargetBoneTransform.NormalizeRotation();
 
 	Output.Pose[TargetBoneIndex] = TargetBoneTransform;
 
@@ -427,6 +501,11 @@ void FAnimNode_OffsetRootBone::Evaluate_AnyThread(FPoseContext& Output)
 EWarpingEvaluationMode FAnimNode_OffsetRootBone::GetEvaluationMode() const
 {
 	return GET_ANIM_NODE_DATA(EWarpingEvaluationMode, EvaluationMode);
+}
+
+bool FAnimNode_OffsetRootBone::GetResetEveryFrame() const
+{
+	return GET_ANIM_NODE_DATA(bool, bResetEveryFrame);
 }
 
 const FVector& FAnimNode_OffsetRootBone::GetTranslationDelta() const

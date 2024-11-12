@@ -17,6 +17,7 @@
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "PlayerMappableInputConfig.h"
+#include "UserSettings/EnhancedInputUserSettings.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "Engine/Engine.h"
 
@@ -389,22 +390,57 @@ bool FOpenXRInputPlugin::FOpenXRInput::BuildActions(XrSession Session)
 	Profiles.Add("OculusTouch", FInteractionProfile(FOpenXRPath("/interaction_profiles/oculus/touch_controller"), true));
 	Profiles.Add("ValveIndex", FInteractionProfile(FOpenXRPath("/interaction_profiles/valve/index_controller"), true));
 
-	// Query extension plugins for interaction profiles
+	// Query extension plugins for input key overrides
 	for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
 	{
-		FString KeyPrefix;
-		XrPath Path = XR_NULL_PATH;
-		bool HasHaptics = false;
-		if (Plugin->GetInteractionProfile(Instance, KeyPrefix, Path, HasHaptics) && Path != XR_NULL_PATH)
+		TArray<FInputKeyOpenXRProperties> PluginInputOverrides;
+		if (Plugin->GetInputKeyOverrides(PluginInputOverrides))
 		{
-			Profiles.Add(KeyPrefix, FInteractionProfile(Path, HasHaptics));
+			for (const FInputKeyOpenXRProperties& PluginInputOverride : PluginInputOverrides)
+			{
+				InputsKeysToPropertiesMap.FindOrAdd(PluginInputOverride.InputKey).Add(PluginInputOverride);
+			}
 		}
 	}
+
+	// Query extension plugins for interaction profiles
+	{
+		TArray<FString> KeyPrefixes;
+		TArray<XrPath> Paths;
+		TArray<bool> Haptics;
+		for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
+		{
+			FString KeyPrefix;
+			XrPath Path = XR_NULL_PATH;
+			bool HasHaptics = false;
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			if (Plugin->GetInteractionProfile(Instance, KeyPrefix, Path, HasHaptics) && Path != XR_NULL_PATH)
+			{
+				Profiles.Add(KeyPrefix, FInteractionProfile(Path, HasHaptics));
+			}
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
+			KeyPrefixes.Reset();
+			Paths.Reset();
+			Haptics.Reset();
+			if (Plugin->GetInteractionProfiles(Instance, KeyPrefixes, Paths, Haptics) && Paths.Num() != 0)
+			{
+				for (int i = 0; i < Paths.Num(); i++)
+				{
+					if (Paths[i] != XR_NULL_PATH)
+					{
+						Profiles.Add(KeyPrefixes[i], FInteractionProfile(Paths[i], Haptics[i]));
+					}
+				}
+			}
+		}
+	}
+
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// Attempt to load the default input config from the OpenXR input settings.
 	const UEnhancedInputDeveloperSettings* InputSettings = GetDefault<UEnhancedInputDeveloperSettings>();
-	if (InputSettings)
+	if (InputSettings && InputSettings->bEnableDefaultMappingContexts)
 	{
 		for (const auto& Context : InputSettings->DefaultMappingContexts)
 		{
@@ -523,16 +559,6 @@ bool FOpenXRInputPlugin::FOpenXRInput::BuildActions(XrSession Session)
 	// Bind plugin action sets exposed through a query
 	for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
 	{
-		TArray<XrActiveActionSet> PluginAttachArray_Deprecated;
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-		// TODO?: Log deprecation warning at runtime, since overridden deprecated interface methods don't warn at compile time?
-		Plugin->AddActionSets(PluginAttachArray_Deprecated);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-		for (const XrActiveActionSet& ActiveSet : PluginAttachArray_Deprecated)
-		{
-			AttachSet.Add(ActiveSet.actionSet);
-		}
-
 		TSet<XrActionSet> PluginAttachSet;
 		Plugin->AttachActionSets(PluginAttachSet);
 		AttachSet.Append(PluginAttachSet);
@@ -586,22 +612,6 @@ void FOpenXRInputPlugin::FOpenXRInput::BuildLegacyActions(TMap<FString, FInterac
 		}
 	}
 
-	// Query extension plugins for actions
-	for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-		Plugin->AddActions(Instance,
-			[this, &ActionSet](XrActionType InActionType, const FName& InName, const TArray<XrPath>& InSubactionPaths)
-			{
-				// TODO?: Log deprecation warning at runtime, since overridden deprecated interface methods don't warn at compile time?
-				FOpenXRAction Action(ActionSet.Handle, InActionType, InName, InName.ToString(), InSubactionPaths);
-				LegacyActions.Add(Action);
-				return Action.Handle;
-			}
-		);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-	}
-
 	ActionSets.Emplace(MoveTemp(ActionSet));
 }
 
@@ -613,10 +623,36 @@ void FOpenXRInputPlugin::FOpenXRInput::BuildEnhancedActions(TMap<FString, FInter
 		return;
 	}
 
+	// OpenXR does not allow duplicated localized names for mapping contexts.  In order to have good warnings and allow input to function even with bad localization setup we will detect duplicates ourselves.
+	TMap<FString, FName> MappingContextDescriptionMap;
+
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	for (const auto& MappingContext : InputMappingContextToPriorityMap)
 	{
-		FOpenXRActionSet ActionSet(Instance, MappingContext.Key->GetFName(), MappingContext.Key->ContextDescription.ToString(), MappingContext.Value, MappingContext.Key.Get());
+		FName NewMappingContextName = MappingContext.Key->GetFName();
+		FString NewMappingContextDescription = MappingContext.Key->ContextDescription.ToString();
+
+		// Handle any description string duplicates
+		{
+			FName* ExistingMappingContextName = MappingContextDescriptionMap.Find(NewMappingContextDescription);
+			if (ExistingMappingContextName != nullptr)
+			{
+				UE_LOG(LogHMD, Warning, TEXT("Input Mapping Context %s has a Description, \"%s\", which exactly matches the Description already used by Input Mapping Context %s.  Identical localized descriptions are not allowed by OpenXR.  The FName of this mapping context %s, which is unique, will replace the duplicated localized string so the Input Mapping Context functions but it will not localize correctly.")
+					, *NewMappingContextName.ToString(), *NewMappingContextDescription, *ExistingMappingContextName->ToString(), *NewMappingContextName.ToString());
+				NewMappingContextDescription = NewMappingContextName.ToString();
+			}
+			else
+			{
+				MappingContextDescriptionMap.Add(NewMappingContextDescription, NewMappingContextName);
+			}
+		}
+
+		FOpenXRActionSet ActionSet(Instance, NewMappingContextName, NewMappingContextDescription, MappingContext.Value, MappingContext.Key.Get());
+
+
+		// OpenXR does not allow duplicated localized names for actions.  In order to have good warnings allow input to function even with bad localization setup we will detect duplicates ourselves.
+		TMap<FString, FName> ActionDescriptionMap;
+
 		TMap<FName, int32> ActionMap;
 
 		for (const FEnhancedActionKeyMapping& Mapping : MappingContext.Key->GetMappings())
@@ -627,12 +663,28 @@ void FOpenXRInputPlugin::FOpenXRInput::BuildEnhancedActions(TMap<FString, FInter
 			}
 
 			// Try to find an existing action within the current action set
-			FName ActionName = Mapping.Action->GetFName();
-			int32& ActionIndex = ActionMap.FindOrAdd(ActionName, INDEX_NONE);
+			FName NewActionName = Mapping.Action->GetFName();
+			int32& ActionIndex = ActionMap.FindOrAdd(NewActionName, INDEX_NONE);
 			if (ActionIndex == INDEX_NONE)
 			{
 				// No action found, create a new one
-				FString LocalizedName = Mapping.Action->ActionDescription.ToString();
+				FString NewActionDescription = Mapping.Action->ActionDescription.ToString();
+
+				// Handle any description string duplicates
+				{
+					FName* ExistingActionName = ActionDescriptionMap.Find(NewActionDescription);
+					if (ExistingActionName != nullptr)
+					{
+						UE_LOG(LogHMD, Warning, TEXT("Input Action %s has a Description, \"%s\", which exactly matches the Description already used by Action %s.  Identical localized descriptions are not allowed by OpenXR.  The FName of this action %s, which is unique, will replace the localized string so that the input Action functions but it will not localize correctly.")
+							, *NewActionName.ToString(), *NewActionDescription, *ExistingActionName->ToString(), *NewActionName.ToString());
+						NewActionDescription = NewActionName.ToString();
+					}
+					else
+					{
+						ActionDescriptionMap.Add(NewActionDescription, NewActionName);
+					}
+				}
+
 				XrActionType ActionType = ToActionType(Mapping.Action->ValueType);
 				if (!ActionType)
 				{
@@ -640,7 +692,7 @@ void FOpenXRInputPlugin::FOpenXRInput::BuildEnhancedActions(TMap<FString, FInter
 				}
 
 				// Create the action and write the index to the reference in the actions map
-				ActionIndex = EnhancedActions.Emplace(ActionSet.Handle, ActionType, ActionName, LocalizedName, SubactionPaths, Mapping.Action);
+				ActionIndex = EnhancedActions.Emplace(ActionSet.Handle, ActionType, NewActionName, NewActionDescription, SubactionPaths, Mapping.Action);
 			}
 
 			SuggestBindingForKey(Profiles, EnhancedActions[ActionIndex], Mapping.Key, Mapping.Modifiers, Mapping.Triggers);
@@ -689,6 +741,22 @@ int32 FOpenXRInputPlugin::FOpenXRInput::SuggestBindings(TMap<FString, FInteracti
 
 bool FOpenXRInputPlugin::FOpenXRInput::SuggestBindingForKey(TMap<FString, FInteractionProfile>& Profiles, FOpenXRAction& Action, const FKey& InFKey, const TArray<UInputModifier*>& Modifiers, const TArray<UInputTrigger*>& Triggers)
 {
+	// Use profiles and path from overrides, if an entry exists for the key
+	FString InputKey = InFKey.ToString();
+	if (InputsKeysToPropertiesMap.Contains(InputKey))
+	{
+		for (const FInputKeyOpenXRProperties& InputProperties : InputsKeysToPropertiesMap[InputKey])
+		{
+			FInteractionProfile* Profile = Profiles.Find(InputProperties.InteractionProfile);
+			if (Profile == nullptr)
+			{
+				continue;
+			}
+			Profile->Bindings.Add(XrActionSuggestedBinding{ Action.Handle, FOpenXRPath(InputProperties.OpenXRPath) });
+		}
+		return true;
+	}
+
 	// Key names that are parseable into an OpenXR path have exactly 4 tokens
 	TArray<FString> Tokens;
 	if (InFKey.ToString().ParseIntoArray(Tokens, TEXT("_")) != EKeys::NUM_XR_KEY_TOKENS)
@@ -1282,8 +1350,6 @@ bool FOpenXRInputPlugin::FOpenXRInput::GetControllerOrientationAndPositionForTim
 
 	if (GetInfo.action == XR_NULL_HANDLE)
 	{
-		UE_LOG(LogHMD, Warning, TEXT("GetControllerOrientationAndPositionForTime called with motion source %s which is unknown.  Cannot get pose."), *MotionSource.ToString());
-
 		return false;
 	}
 
@@ -1352,7 +1418,6 @@ ETrackingStatus FOpenXRInputPlugin::FOpenXRInput::GetControllerTrackingStatus(co
 		XrResult Result = xrGetActionStatePose(Session, &GetInfo, &State);
 		if (XR_SUCCEEDED(Result) && State.isActive)
 		{
-			FQuat Orientation;
 			bool bIsTracked = OpenXRHMD->GetIsTracked(GetDeviceIDForMotionSource(MotionSource));
 			return bIsTracked ? ETrackingStatus::Tracked : ETrackingStatus::NotTracked;
 		}
@@ -1477,6 +1542,24 @@ bool FOpenXRInputPlugin::FOpenXRInput::SetPlayerMappableInputConfig(TObjectPtr<c
 	return AttachInputMappingContexts(MappingContexts);
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+bool FOpenXRInputPlugin::FOpenXRInput::SetEnhancedInputUserSettings(TObjectPtr<class UEnhancedInputUserSettings> InputSettings)
+{
+	if (bActionsAttached)
+	{
+		UE_LOG(LogHMD, Error, TEXT("Attempted to attach a set of enhanced user input settings when actions are already attached for the current session."));
+
+		return false;
+	}
+
+	const TSet<TObjectPtr<const UInputMappingContext>>& MappingContexts = InputSettings->GetRegisteredInputMappingContexts();
+
+	for (const auto& Context : MappingContexts)
+	{
+		InputMappingContextToPriorityMap.Add(TStrongObjectPtr<const UInputMappingContext>(Context), 0);
+	}
+	return true;
+}
 
 bool FOpenXRInputPlugin::FOpenXRInput::AttachInputMappingContexts(const TSet<TObjectPtr<UInputMappingContext>>& MappingContexts)
 {

@@ -44,12 +44,14 @@
 #include "UnrealEdGlobals.h"
 #include "Materials/MaterialExpressionTextureSample.h"
 #include "EditorSupportDelegates.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Elements/Framework/TypedElementCommonActions.h"
 #include "Elements/Framework/TypedElementListObjectUtil.h"
 #include "Elements/Framework/TypedElementViewportInteraction.h"
 #include "Elements/Interfaces/TypedElementObjectInterface.h"
+#include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
 #include "Elements/Actor/ActorElementLevelEditorViewportInteractionCustomization.h"
 #include "Elements/Component/ComponentElementLevelEditorViewportInteractionCustomization.h"
 #include "AudioDevice.h"
@@ -80,6 +82,7 @@
 #include "DragAndDrop/BrushBuilderDragDropOp.h"
 #include "DynamicMeshBuilder.h"
 #include "Editor/ActorPositioning.h"
+#include "Editor/ObjectPositioning.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Settings/EditorProjectSettings.h"
@@ -1462,7 +1465,7 @@ static bool IsDroppingOn2DLayer()
 	return ViewportSettings->bEnableLayerSnap && Settings2D->SnapLayers.IsValidIndex(ViewportSettings->ActiveSnapLayerIndex);
 }
 
-static FActorPositionTraceResult TraceForPositionOn2DLayer(const FViewportCursorLocation& Cursor)
+static UE::Positioning::FObjectPositioningTraceResult TraceForPositionOn2DLayer(const FViewportCursorLocation& Cursor)
 {
 	const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
 	const ULevelEditor2DSettings* Settings2D = GetDefault<ULevelEditor2DSettings>();
@@ -1479,16 +1482,16 @@ static FActorPositionTraceResult TraceForPositionOn2DLayer(const FViewportCursor
 	case ELevelEditor2DAxis::Z: PlaneCenter.Z = Offset; PlaneNormal.Z = -1; break;
 	}
 
-	FActorPositionTraceResult Result;
+	UE::Positioning::FObjectPositioningTraceResult Result;
 	const double Numerator = FVector::DotProduct(PlaneCenter - Cursor.GetOrigin(), PlaneNormal);
 	const double Denominator = FVector::DotProduct(PlaneNormal, Cursor.GetDirection());
 	if (FMath::Abs(Denominator) < SMALL_NUMBER)
 	{
-		Result.State = FActorPositionTraceResult::Failed;
+		Result.State = UE::Positioning::FObjectPositioningTraceResult::Failed;
 	}
 	else
 	{
-		Result.State = FActorPositionTraceResult::HitSuccess;
+		Result.State = UE::Positioning::FObjectPositioningTraceResult::HitSuccess;
 		Result.SurfaceNormal = PlaneNormal;
 		double D = Numerator / Denominator;
 		Result.Location = Cursor.GetOrigin() + D * Cursor.GetDirection();
@@ -1561,16 +1564,11 @@ bool FLevelEditorViewportClient::UpdateDropPreviewElements(int32 MouseX, int32 M
 	// Finish the calculation of the actors origin now that we know we are not dividing by zero
 	CombinedOrigin /= Count;
 
-	// TODO: Swap to ignored items instead of actors
-	TArray<AActor*> IgnoreActors;
-	DropPreviewElements->ForEachElement<ITypedElementObjectInterface>(
-	[&IgnoreActors](const TTypedElement<ITypedElementObjectInterface>& InElement)
+	FCollisionQueryParams CollisionQueryParams;
+	DropPreviewElements->ForEachElement<ITypedElementWorldInterface>(
+	[&CollisionQueryParams](const TTypedElement<ITypedElementWorldInterface>& InElement)
 	{
-		if (AActor* Actor = InElement.GetObjectAs<AActor>())
-		{
-			IgnoreActors.Add(Actor);
-			Actor->GetAllChildActors(IgnoreActors);
-		}
+		InElement.AddIgnoredElementToCollisionQueryParams(InElement, CollisionQueryParams);
 
 		// true means continue
 		return true;
@@ -1584,7 +1582,9 @@ bool FLevelEditorViewportClient::UpdateDropPreviewElements(int32 MouseX, int32 M
 	FSceneView* View = CalcSceneView(&ViewFamily);
 	FViewportCursorLocation Cursor(View, this, MouseX, MouseY);
 
-	const FActorPositionTraceResult TraceResult = IsDroppingOn2DLayer() ? TraceForPositionOn2DLayer(Cursor) : FActorPositioning::TraceWorldForPositionWithDefault(Cursor, *View, &IgnoreActors);
+	const UE::Positioning::FObjectPositioningTraceResult TraceResult = IsDroppingOn2DLayer() 
+		? TraceForPositionOn2DLayer(Cursor) 
+		: UE::Positioning::TraceWorldForPositionWithDefault(Cursor, *View, &CollisionQueryParams);
 
 	GEditor->UnsnappedClickLocation = TraceResult.Location;
 	GEditor->ClickLocation = TraceResult.Location;
@@ -1593,7 +1593,7 @@ bool FLevelEditorViewportClient::UpdateDropPreviewElements(int32 MouseX, int32 M
 	// Snap the new location if snapping is enabled
 	FSnappingUtils::SnapPointToGrid(GEditor->ClickLocation, FVector::ZeroVector);
 
-	AActor* DroppedOnActor = TraceResult.HitActor.Get();
+	AActor* DroppedOnActor = Cast<AActor>(TraceResult.HitObject.Get());
 
 	if (DroppedOnActor)
 	{
@@ -1661,30 +1661,31 @@ bool FLevelEditorViewportClient::UpdateDropPreviewElements(int32 MouseX, int32 M
 void FLevelEditorViewportClient::DestroyDropPreviewElements()
 {
 	using namespace LevelEditorViewportLocals;
+	using namespace UE::Editor::DataStorage;
 
 	if (!HasDropPreviewElements())
 	{
 		return;
 	}
 
-	// TODO: This code to remove the object from TEDS should not be necessary, beause the element
+	// TODO: This code to remove the object from TEDS should not be necessary, because the element
 	// deletion code further below should include TEDS deregistration. However, the code path for
 	// deleting preview actors in UUnrealEdEngine::DeleteActors skips explicit handle deregistration,
 	// and although it does still happen in the immediately triggered garbage cleanup, that feels
 	// potentially brittle.
-	DropPreviewElements->ForEachElement<ITypedElementObjectInterface>([this](const TTypedElement<ITypedElementObjectInterface>& InElement)
+	if (IEditorDataStorageCompatibilityProvider* TedsCompat = GetMutableDataStorageFeature<IEditorDataStorageCompatibilityProvider>(CompatibilityFeatureName))
 	{
-		UObject* PreviewObject = InElement.GetObject();
-		if (PreviewObject && PreviewObject != GetWorld()->GetDefaultBrush())
-		{
-			UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
-			if (ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibilityInterface = TypedElementRegistry->GetMutableDataStorageCompatibility())
+		DropPreviewElements->ForEachElement<ITypedElementObjectInterface>(
+			[this, TedsCompat](const TTypedElement<ITypedElementObjectInterface>& InElement)
 			{
-				DataStorageCompatibilityInterface->RemoveCompatibleObject(PreviewObject);
-			}
-		}
-		return true; // true means continue
-	});
+				UObject* PreviewObject = InElement.GetObject();
+				if (PreviewObject && PreviewObject != GetWorld()->GetDefaultBrush())
+				{
+					TedsCompat->RemoveCompatibleObject(PreviewObject);
+				}
+				return true; // true means continue
+			});
+	}
 
 	// Used for special casing BSP backwards compatibility: the builder brush is used as a preview object, and
 	// we don't want to delete it.
@@ -1847,7 +1848,9 @@ bool FLevelEditorViewportClient::DropObjectsAtCoordinates(int32 MouseX, int32 Mo
 
 		HHitProxy* HitProxy = Viewport->GetHitProxy(Cursor.GetCursorPos().X, Cursor.GetCursorPos().Y);
 
-		const FActorPositionTraceResult TraceResult = IsDroppingOn2DLayer() ? TraceForPositionOn2DLayer(Cursor) : FActorPositioning::TraceWorldForPositionWithDefault(Cursor, *View);
+		const UE::Positioning::FObjectPositioningTraceResult TraceResult = IsDroppingOn2DLayer() 
+			? TraceForPositionOn2DLayer(Cursor) 
+			: UE::Positioning::TraceWorldForPositionWithDefault(Cursor, *View, nullptr);
 		
 		GEditor->UnsnappedClickLocation = TraceResult.Location;
 		GEditor->ClickLocation = TraceResult.Location;
@@ -3460,7 +3463,7 @@ bool FLevelEditorViewportClient::InputKey(const FInputKeyEventArgs& InEventArgs)
 		return true;
 	}
 
-	
+
 	const int32	HitX = InEventArgs.Viewport->GetMouseX();
 	const int32	HitY = InEventArgs.Viewport->GetMouseY();
 
@@ -3563,11 +3566,40 @@ bool FLevelEditorViewportClient::InputKey(const FInputKeyEventArgs& InEventArgs)
 		GEditor->SetPreviewMeshMode(false);
 	}
 
-	// Clear Duplicate Actors mode when ALT and all mouse buttons are released
-	if ( !InputState.IsAltButtonPressed() && !InputState.IsAnyMouseButtonDown() )
+	const bool bAltIsBeingPressed = (InEventArgs.Event == IE_Pressed) && (InEventArgs.Key == EKeys::LeftAlt || InEventArgs.Key == EKeys::RightAlt);
+
+	// Clear Duplicate Actors mode when mouse buttons are released
+	if ( !InputState.IsAnyMouseButtonDown() )
 	{
 		bDuplicateActorsInProgress = false;
 	}
+	// Stamp a duplicate at the current position during a drag when ALT is pressed and we're dragging with a transaction open, and there is no component visualizer
+	else if ( bAltIsBeingPressed && bDraggingByHandle && TrackingTransaction.IsActive() && GUnrealEd->ComponentVisManager.GetActiveComponentVis() == nullptr )
+	{
+		TSharedPtr<ILevelEditor> LevelEditor = ParentLevelEditor.Pin();
+		UTypedElementCommonActions* CommonActions = LevelEditor ? LevelEditor->GetCommonActions() : nullptr;
+		if (CommonActions)
+		{
+			FTypedElementListConstRef ElementsToManipulate = GetElementsToManipulate();
+			TArray<FTypedElementHandle> DuplicatedElements;
+			{
+				// Do not used the cached manipulation list here here, as it will have removed attachments, and we do want to duplicate those
+				DuplicatedElements = CommonActions->DuplicateSelectedElements(GetSelectionSet(), GetWorld(), FVector::ZeroVector);
+			}
+
+			// Do not select the duplicate actors so that the drag operation can continue freely
+			if (DuplicatedElements.Num() > 0)
+			{
+				// Although we did not change the selection, we still need to notify legacy mode tools of the duplication
+				TArray<AActor*> SelectedActors = GetSelectionSet()->GetSelectedObjects<AActor>();
+				constexpr bool bDidOffsetDuplicate = false;
+				ModeTools->ActorsDuplicatedNotify(SelectedActors, SelectedActors, bDidOffsetDuplicate);
+			}
+
+			RedrawAllViewportsIntoThisScene();
+		}
+	}
+
 	
 	return bHandled;
 }
@@ -4190,7 +4222,7 @@ bool FLevelEditorViewportClient::HaveSelectedObjectsBeenChanged() const
 }
 
 FTypedElementListConstRef FLevelEditorViewportClient::GetElementsToManipulate(const bool bForceRefresh)
-{
+{ 
 	CacheElementsToManipulate(bForceRefresh);
 	return CachedElementsToManipulate;
 }
@@ -5035,8 +5067,9 @@ void FLevelEditorViewportClient::Draw(const FSceneView* View,FPrimitiveDrawInter
 
 void FLevelEditorViewportClient::DrawBrushDetails(const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
-	// Draw translucent polygons on brushes and volumes
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLevelEditorViewportClient::DrawBrushDetails);
 
+	// Draw translucent polygons on brushes and volumes
 	for (TActorIterator<ABrush> It(GetWorld()); It; ++It)
 	{
 		ABrush* Brush = *It;

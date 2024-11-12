@@ -122,11 +122,6 @@ public:
 		DetailTextureMaps[Mesh] = Map;
 	}
 
-	virtual void SetNormalMap(const void* Mesh, const FBakeDetailTexture& Map) override
-	{
-		DetailNormalMaps[Mesh] = FBakeDetailNormalTexture(Map.Key, Map.Value, EBakeDetailNormalSpace::Tangent);
-	}
-
 	virtual void SetNormalTextureMap(const void* Mesh, const FBakeDetailNormalTexture& Map) override
 	{
 		DetailNormalMaps[Mesh] = Map;
@@ -135,11 +130,6 @@ public:
 	virtual const FBakeDetailTexture* GetTextureMap(const void* Mesh) const override
 	{
 		return DetailTextureMaps.Find(Mesh);
-	}
-	
-	virtual const FBakeDetailTexture* GetNormalMap(const void* Mesh) const override
-	{
-		return nullptr;
 	}
 
 	virtual const FBakeDetailNormalTexture* GetNormalTextureMap(const void* Mesh) const override
@@ -232,6 +222,12 @@ public:
 		// TODO
 		checkSlow(false);
 		return FVector3d::Zero();
+	}
+
+	virtual bool GetTriUVs(const void* Mesh, int TriId, int UVLayer, FVector2f& UV0, FVector2f& UV1, FVector2f& UV2) const override
+	{
+		checkSlow(false);
+		return false;
 	}
 
 	virtual int32 GetMaterialID(const void* Mesh, const int TriId) const override

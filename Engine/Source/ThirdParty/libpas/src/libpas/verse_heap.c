@@ -1,4 +1,27 @@
-/* Copyright Epic Games, Inc. All Rights Reserved. */
+/*
+ * Copyright (c) 2023-2024 Epic Games, Inc. All Rights Reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY EPIC GAMES, INC. ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL EPIC GAMES, INC. OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ */
 
 #include "pas_config.h"
 
@@ -264,7 +287,7 @@ static pas_allocation_result try_allocate_large_in_transaction(
     
     pas_large_free_heap_config config;
     verse_heap_large_entry* large_entry;
-    verse_heap_chunk_map_entry chunk_map_entry;
+    verse_heap_chunk_map_entry_header entry_header;
     pas_allocation_result chunk_result;
     pas_allocation_result result;
     uintptr_t address;
@@ -304,7 +327,7 @@ static pas_allocation_result try_allocate_large_in_transaction(
             transaction, pas_physical_memory_is_locked_by_virtual_range_common_lock,
             VERSE_HEAP_CONFIG.mmap_capability)) {
         pas_fast_large_free_heap_deallocate(
-            &heap->large_heap.free_heap, chunk_result.begin, chunk_result.begin + chunked_size, result.zero_mode,
+            &heap->large_heap.free_heap, chunk_result.begin, chunk_result.begin + chunked_size, chunk_result.zero_mode,
             &config);
         return pas_allocation_result_create_failure();
     }
@@ -317,7 +340,7 @@ static pas_allocation_result try_allocate_large_in_transaction(
     if (verbose)
         pas_log("size = %zu, chunked_size = %zu\n", size, chunked_size);
     large_entry = verse_heap_large_entry_create(result.begin, result.begin + size, heap);
-    chunk_map_entry = verse_heap_chunk_map_entry_create_large(large_entry);
+    entry_header = verse_heap_chunk_map_entry_header_create_large(large_entry);
 
     verse_heap_set_is_marked(
         (void*)result.begin, verse_heap_page_header_should_allocate_black(&verse_heap_large_objects_header));
@@ -336,10 +359,8 @@ static pas_allocation_result try_allocate_large_in_transaction(
        large objects efficiently. */
     for (address = chunk_result.begin;
          address < chunk_result.begin + chunked_size;
-         address += VERSE_HEAP_CHUNK_SIZE) {
-        verse_heap_chunk_map_entry_copy_atomically(
-            verse_heap_get_chunk_map_entry_ptr(address), &chunk_map_entry);
-    }
+         address += VERSE_HEAP_CHUNK_SIZE)
+        verse_heap_chunk_map_entry_store_header(verse_heap_get_chunk_map_entry_ptr(address), entry_header);
 
     verse_heap_object_set_set_add_large_entry(
         &((verse_heap_runtime_config*)heap->segregated_heap.runtime_config)->object_sets, large_entry);
@@ -784,7 +805,7 @@ static bool sweep_large_filter_and_deallocate_callback(verse_heap_large_entry* e
     size_t chunk_begin;
     size_t chunk_end;
     uintptr_t address;
-    verse_heap_chunk_map_entry empty_entry;
+    verse_heap_chunk_map_entry_header empty_entry_header;
     pas_large_free_heap_config config;
     
     data = (sweep_data*)arg;
@@ -801,9 +822,11 @@ static bool sweep_large_filter_and_deallocate_callback(verse_heap_large_entry* e
     
     PAS_ASSERT(chunk_end > chunk_begin);
 
-    empty_entry = verse_heap_chunk_map_entry_create_empty();
-    for (address = chunk_begin; address < chunk_end; address += VERSE_HEAP_CHUNK_SIZE)
-        verse_heap_chunk_map_entry_copy_atomically(verse_heap_get_chunk_map_entry_ptr(address), &empty_entry);
+    empty_entry_header = verse_heap_chunk_map_entry_header_create_empty();
+    for (address = chunk_begin; address < chunk_end; address += VERSE_HEAP_CHUNK_SIZE) {
+        verse_heap_chunk_map_entry_store_header(
+            verse_heap_get_chunk_map_entry_ptr(address), empty_entry_header);
+    }
 
     pas_large_sharing_pool_free(
         pas_range_create(chunk_begin, chunk_end),
@@ -1009,7 +1032,7 @@ uintptr_t verse_heap_get_allocation_size(uintptr_t inner_ptr)
 
 bool verse_heap_owns_address(uintptr_t ptr)
 {
-    return !verse_heap_chunk_map_entry_is_empty(verse_heap_get_chunk_map_entry(ptr));
+    return !verse_heap_chunk_map_entry_header_is_empty(verse_heap_get_chunk_map_entry_header(ptr));
 }
 
 bool verse_heap_object_is_allocated(void* ptr)

@@ -312,7 +312,7 @@ void FSplineMeshSceneExtension::ClearAllCache()
 }
 
 
-void FSplineMeshSceneUpdater::PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet)
+void FSplineMeshSceneUpdater::PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet, FSceneUniformBuffer& SceneUniforms)
 {
 	for (FPrimitiveSceneInfo* PrimitiveSceneInfo : ChangeSet.RemovedPrimitiveSceneInfos)
 	{
@@ -338,23 +338,20 @@ void FSplineMeshSceneUpdater::PostSceneUpdate(FRDGBuilder& GraphBuilder, const F
 		}
 	};
 
-	// First, register any new primitives
-	for (FPrimitiveSceneInfo* PrimitiveSceneInfo : ChangeSet.AddedPrimitiveSceneInfos)
+	ChangeSet.PrimitiveUpdates.ForEachUpdateCommand(ESceneUpdateCommandFilter::AddedUpdated, FUpdateInstanceCommand::IdBit | FUpdateTransformCommand::IdBit, [&](const FPrimitiveUpdateCommand& Cmd)
 	{
-		if (PrimitiveSceneInfo->Proxy->IsSplineMesh())
+		if (Cmd.GetSceneInfo()->Proxy->IsSplineMesh())
 		{
-			RequestUpdate(SceneData->Register(*PrimitiveSceneInfo));
+			if (Cmd.IsAdd())
+			{
+				RequestUpdate(SceneData->Register(*Cmd.GetSceneInfo()));
+			}
+			else
+			{
+				RequestUpdate(SceneData->RegisteredPrimitives.FindChecked(Cmd.GetSceneInfo()));
+			}
 		}
-	}
-
-	// Request updates from any updated primitives
-	for (FPrimitiveSceneInfo* PrimitiveSceneInfo : ChangeSet.UpdatedPrimitiveSceneInfos)
-	{
-		if (PrimitiveSceneInfo->Proxy->IsSplineMesh())
-		{
-			RequestUpdate(SceneData->RegisteredPrimitives.FindChecked(PrimitiveSceneInfo));
-		}
-	}
+	});
 
 	if (SceneData->NumRegisteredPrimitives() > 0)
 	{

@@ -8,9 +8,9 @@
 
 #include "CoreMinimal.h"
 #include "Engine/EngineTypes.h"
-#include "Engine/MeshMerging.h"
 #include "Engine/StaticMesh.h"
-#include "PerPlatformProperties.h"
+#include "MeshReductionSettings.h"
+#include "UObject/PerPlatformProperties.h"
 #include "PerQualityLevelProperties.h"
 
 struct FMeshDescription;

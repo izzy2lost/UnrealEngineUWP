@@ -54,7 +54,16 @@ void UPixelStreamingStreamerComponent::StartStreaming()
 
 	Streamer->SetCoupleFramerate(CoupleFramerate);
 	Streamer->SetStreamFPS(StreamFPS);
-	Streamer->SetSignallingServerURL(SignallingServerURL);
+	if (UsePixelStreamingURL)
+	{
+		FString ServerURL;
+		FParse::Value(FCommandLine::Get(), TEXT("PixelStreamingURL="), ServerURL);
+		Streamer->SetSignallingServerURL(ServerURL);
+	}
+	else
+	{
+		Streamer->SetSignallingServerURL(SignallingServerURL);
+	}
 	Streamer->StartStreaming();
 }
 

@@ -325,7 +325,8 @@ FLinearColor UMaterialGraphNode::GetNodeTitleColor() const
 			return FColor( 0, 128, 128 );
 		}
 	}
-	else if (const UMaterialExpressionSubstrateBSDF* SubstrateBSDF = Cast<UMaterialExpressionSubstrateBSDF>(MaterialExpression))
+	else if (MaterialExpression->IsA<UMaterialExpressionSubstrateBSDF>() 
+		|| MaterialExpression->IsA<UMaterialExpressionSubstrateUtilityBase>())
 	{
 		return FColor(181, 29, 230);
 	}
@@ -664,15 +665,14 @@ void UMaterialGraphNode::CreateInputPins()
 		NewPin->PinFriendlyName = SpaceText;
 	}
 
-	TArrayView<FExpressionInput*> ExpressionInputs = MaterialExpression->GetInputsView();
-	const int32 NumExpressionInputs = ExpressionInputs.Num();
-	for (int32 Index = 0; Index < NumExpressionInputs; ++Index)
+	int32 InputIndex = 0;
+	while (FExpressionInput* Input = MaterialExpression->GetInput(InputIndex))
 	{
-		FName InputName = MaterialExpression->GetInputName(Index);
+		FName InputName = MaterialExpression->GetInputName(InputIndex);
 		InputName = GetShortenPinName(InputName);
 
 		FName PinCategory;
-		if (MaterialExpression->IsInputConnectionRequired(Index))
+		if (MaterialExpression->IsInputConnectionRequired(InputIndex))
 		{
 			PinCategory = UMaterialGraphSchema::PC_Required;
 		}
@@ -681,18 +681,20 @@ void UMaterialGraphNode::CreateInputPins()
 			PinCategory = UMaterialGraphSchema::PC_Optional;
 		}
 
-		FName PinSubCategory = MaterialExpression->GetInputPinSubCategory(Index);
-		UObject* PinSubCategoryObject = MaterialExpression->GetInputPinSubCategoryObject(Index);
+		FName PinSubCategory = MaterialExpression->GetInputPinSubCategory(InputIndex);
+		UObject* PinSubCategoryObject = MaterialExpression->GetInputPinSubCategoryObject(InputIndex);
 
 		UEdGraphPin* NewPin = CreatePin(EGPD_Input, PinCategory, PinSubCategory, PinSubCategoryObject, InputName);
-		NewPin->SourceIndex = Index;
-		NewPin->DefaultValue = MaterialExpression->GetInputPinDefaultValue(Index);
+		NewPin->SourceIndex = InputIndex;
+		NewPin->DefaultValue = MaterialExpression->GetInputPinDefaultValue(InputIndex);
 		if (NewPin->PinName.IsNone())
 		{
 			// Makes sure pin has a name for lookup purposes but user will never see it
 			NewPin->PinName = CreateUniquePinName(TEXT("Input"));
 			NewPin->PinFriendlyName = SpaceText;
 		}
+
+		InputIndex += 1;
 	}
 
 	// Next create pins for property inputs
@@ -705,7 +707,7 @@ void UMaterialGraphNode::CreateInputPins()
 		FString InputName = Property->GetDisplayNameText().ToString();
 		FName PinCategory = UMaterialGraphSchema::PC_Optional;
 
-		int32 PinIndex = NumExpressionInputs + i;
+		int32 PinIndex = InputIndex + i;
 		FName PinSubCategory = MaterialExpression->GetInputPinSubCategory(PinIndex);
 		UObject* PinSubCategoryObject = MaterialExpression->GetInputPinSubCategoryObject(PinIndex);
 
@@ -815,7 +817,13 @@ void UMaterialGraphNode::CreateOutputPins()
 
 void UMaterialGraphNode::PropagatePropertyChange()
 {
-	MaterialExpression->bNeedToUpdatePreview = 1;
+	// If we've already propagated an update to this node return
+	if (MaterialExpression->bNeedToUpdatePreview)
+	{
+		return;
+	}
+
+	MaterialExpression->bNeedToUpdatePreview = true;
 
 	// Loop through all the output pins.
 	for (UEdGraphPin* Pin : Pins)

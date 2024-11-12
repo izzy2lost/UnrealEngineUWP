@@ -79,6 +79,8 @@
 #include "ViewModels/NiagaraEmitterHandleViewModel.h"
 #include "ViewModels/NiagaraEmitterViewModel.h"
 #include "ViewModels/NiagaraParameterPanelViewModel.h"
+#include "Widgets/SNiagaraHierarchyEditor.h"
+#include "ViewModels/HierarchyEditor/NiagaraHierarchyScriptParametersViewModel.h"
 #include "Widgets/SToolTip.h"
 
 #define LOCTEXT_NAMESPACE "FNiagaraEditorUtilities"
@@ -2121,7 +2123,12 @@ const FGuid FNiagaraEditorUtilities::AddEmitterToSystem(UNiagaraSystem& InSystem
 		InSystem.AddEmitterHandleDirect(EmitterHandle);		
 	}
 
-	Cast<UNiagaraEmitterEditorData>(EmitterHandle.GetEmitterData()->GetEditorData())->SetShowSummaryView(InEmitterToAdd.GetEmitterData(EmitterVersion)->AddEmitterDefaultViewState == ENiagaraEmitterDefaultSummaryState::Summary ? true : false);
+	// We only want to use the default view state when actually adding an emitter to a system asset, not when opening up an emitter which adds said emitter to a transient system
+	if (SystemEditorData->GetOwningSystemIsPlaceholder() == false)
+	{
+		Cast<UNiagaraEmitterEditorData>(EmitterHandle.GetEmitterData()->GetEditorData())->SetShowSummaryView(InEmitterToAdd.GetEmitterData(EmitterVersion)->AddEmitterDefaultViewState == ENiagaraEmitterDefaultSummaryState::Summary ? true : false);
+	}
+	
 	FNiagaraStackGraphUtilities::RebuildEmitterNodes(InSystem);
 	SystemEditorData->SynchronizeOverviewGraphWithSystem(InSystem);
 
@@ -2427,22 +2434,22 @@ TArray<TPair<FNiagaraVariableAttributeBinding*, ENiagaraRendererSourceDataMode>>
 	return AttributeBindings;
 }
 
-TObjectPtr<UNiagaraScriptVariable> FNiagaraEditorUtilities::GetScriptVariableForUserParameter(const FNiagaraVariable& UserParameter, TSharedPtr<FNiagaraSystemViewModel> SystemViewModel)
+TObjectPtr<UNiagaraScriptVariable> FNiagaraEditorUtilities::UserParameters::GetScriptVariableForUserParameter(const FNiagaraVariable& UserParameter, TSharedPtr<FNiagaraSystemViewModel> SystemViewModel)
 {
 	return Cast<UNiagaraSystemEditorData>(SystemViewModel->GetSystem().GetEditorData())->FindOrAddUserScriptVariable(UserParameter, SystemViewModel->GetSystem());
 }
 
-TObjectPtr<UNiagaraScriptVariable> FNiagaraEditorUtilities::GetScriptVariableForUserParameter(const FNiagaraVariable& UserParameter, UNiagaraSystem& System)
+TObjectPtr<UNiagaraScriptVariable> FNiagaraEditorUtilities::UserParameters::GetScriptVariableForUserParameter(const FNiagaraVariable& UserParameter, UNiagaraSystem& System)
 {
 	return Cast<UNiagaraSystemEditorData>(System.GetEditorData())->FindOrAddUserScriptVariable(UserParameter, System);
 }
 
-const UNiagaraScriptVariable* FNiagaraEditorUtilities::FindScriptVariableForUserParameter(const FGuid& UserParameterGuid, const UNiagaraSystem& System)
+const UNiagaraScriptVariable* FNiagaraEditorUtilities::UserParameters::FindScriptVariableForUserParameter(const FGuid& UserParameterGuid, const UNiagaraSystem& System)
 {
 	return Cast<UNiagaraSystemEditorData>(System.GetEditorData())->FindUserScriptVariable(UserParameterGuid);
 }
 
-void FNiagaraEditorUtilities::ReplaceUserParameterReferences(TSharedRef<FNiagaraEmitterViewModel> EmitterViewModel,	FNiagaraVariable OldUserParameter, FNiagaraVariable NewUserParameter)
+void FNiagaraEditorUtilities::UserParameters::ReplaceUserParameterReferences(TSharedRef<FNiagaraEmitterViewModel> EmitterViewModel,	FNiagaraVariable OldUserParameter, FNiagaraVariable NewUserParameter)
 {
 	TArray<FNiagaraUserParameterBinding*> ReferencingBindings = FNiagaraEditorUtilities::GetUserParameterBindingsForUserParameter(EmitterViewModel, OldUserParameter);
 
@@ -3310,12 +3317,18 @@ void FNiagaraEditorUtilities::RefreshAllScriptsFromExternalChanges(FRefreshAllSc
 TArray<UNiagaraPythonScriptModuleInput*> GetFunctionCallInputs(UNiagaraClipboardContent* ClipboardContent)
 {
 	TArray<UNiagaraPythonScriptModuleInput*> ScriptInputs;
-	for (const UNiagaraClipboardFunctionInput* FunctionInput : ClipboardContent->FunctionInputs)
+
+	TArray<const UNiagaraClipboardFunctionInput*> FunctionInputsWorkingSet = ClipboardContent->FunctionInputs;
+	for(auto It = FunctionInputsWorkingSet.CreateIterator(); It; ++It)
 	{
 		UNiagaraPythonScriptModuleInput* ScriptInput = NewObject<UNiagaraPythonScriptModuleInput>();
-		ScriptInput->Input = FunctionInput;
+		ScriptInput->Input = *It;
 		ScriptInputs.Add(ScriptInput);
+
+		FunctionInputsWorkingSet.Append((*It)->ChildrenInputs);
+		It.RemoveCurrent();
 	}
+	
 	return ScriptInputs;
 }
 
@@ -4638,6 +4651,77 @@ UNiagaraDataInterface* FNiagaraEditorUtilities::GetResolvedRuntimeInstanceForEdi
 	return nullptr;
 }
 
+FNiagaraVariable FNiagaraEditorUtilities::UserParameters::DuplicateUserParameter(FNiagaraVariable ParameterToDuplicate, UNiagaraSystem& System)
+{
+	FScopedTransaction AddTransaction(LOCTEXT("DuplicateUserParameter", "Duplicate User Parameter"));
+	System.Modify();
+
+	FNiagaraUserRedirectionParameterStore::MakeUserVariable(ParameterToDuplicate);
+
+	TSet<FName> ExistingParameterStoreNames;
+	TArray<FNiagaraVariable> ParameterStoreVariables;
+	System.GetExposedParameters().GetParameters(ParameterStoreVariables);
+	for (const FNiagaraVariable& Var : ParameterStoreVariables)
+	{
+		ExistingParameterStoreNames.Add(Var.GetName());
+	}
+
+	FNiagaraVariable DuplicatedParameter = ParameterToDuplicate;
+	DuplicatedParameter.SetName(FNiagaraUtilities::GetUniqueName(ParameterToDuplicate.GetName(), ExistingParameterStoreNames));
+
+	bool bSuccess = System.GetExposedParameters().AddParameter(DuplicatedParameter);
+
+	if(bSuccess)
+	{
+		System.GetExposedParameters().CopyParameterData(System.GetExposedParameters(), ParameterToDuplicate, DuplicatedParameter);
+		TObjectPtr<UNiagaraScriptVariable> ScriptVariableToDuplicate = FNiagaraEditorUtilities::UserParameters::GetScriptVariableForUserParameter(ParameterToDuplicate, System);
+		TObjectPtr<UNiagaraScriptVariable> DuplicatedScriptVariable = FNiagaraEditorUtilities::UserParameters::GetScriptVariableForUserParameter(DuplicatedParameter, System);
+		
+		for(TFieldIterator<FProperty> It(UNiagaraScriptVariable::StaticClass()); It; ++It)
+		{
+			uint8* Source = It->ContainerPtrToValuePtr<uint8>(ScriptVariableToDuplicate);
+			uint8* Target = It->ContainerPtrToValuePtr<uint8>(DuplicatedScriptVariable);
+			It->CopyCompleteValue(Target, Source);
+		}
+
+		DuplicatedScriptVariable->Metadata.CreateNewGuid();
+		DuplicatedScriptVariable->Variable.SetName(DuplicatedParameter.GetName());
+		
+		System.GetExposedParameters().TriggerOnLayoutChanged();
+		return DuplicatedParameter;
+	}
+	
+	return FNiagaraVariable();
+}
+
+TSharedRef<SWidget> FNiagaraEditorUtilities::HierarchyEditor::Scripts::GenerateRowContentForScriptParameterHierarchyEditor(TSharedRef<FNiagaraHierarchyItemViewModelBase> HierarchyItem)
+{
+	if(HierarchyItem->GetDataMutable()->IsA<UNiagaraHierarchyCategory>())
+	{
+		TSharedRef<FNiagaraHierarchyCategoryViewModel> TreeViewCategory = StaticCastSharedRef<FNiagaraHierarchyCategoryViewModel>(HierarchyItem);
+		return SNew(SNiagaraHierarchyCategory, TreeViewCategory);
+	}
+	else if(const UNiagaraHierarchyScriptParameter* ScriptParameter = Cast<UNiagaraHierarchyScriptParameter>(HierarchyItem->GetData()))
+	{
+		FNiagaraParameterUtilities::FNiagaraParameterWidgetOptions WidgetOptions;
+		WidgetOptions.bAddTypeIcon = true;
+		WidgetOptions.bShowEditConditionIcon = true;
+		WidgetOptions.bShowVisibilityConditionIcon = true;
+		WidgetOptions.bShowAdvanced = true;
+		TSharedRef<SWidget> ParameterWidget = FNiagaraParameterUtilities::GetParameterWidget(ScriptParameter->GetVariable(), ScriptParameter->GetScriptVariable()->Metadata, WidgetOptions);
+		const UNiagaraScriptVariable* ScriptVariable = ScriptParameter->GetScriptVariable();
+
+		ParameterWidget->SetToolTipText(TAttribute<FText>::CreateLambda([ScriptVariable]()
+		{
+			return ScriptVariable->Metadata.Description;
+		}));
+		
+		return ParameterWidget;
+	}
+
+	return SNullWidget::NullWidget;
+}
+
 TSharedRef<SToolTip> FNiagaraEditorUtilities::Tooltips::CreateStackNoteTooltip(UNiagaraStackNote& StackNote)
 {
 	if(StackNote.GetTargetStackNoteData().IsSet() == false)
@@ -4696,6 +4780,27 @@ TSharedRef<SToolTip> FNiagaraEditorUtilities::Tooltips::CreateStackNoteTooltip(U
 			TooltipContent
 		]
 	];
+}
+
+FText FNiagaraEditorUtilities::Tooltips::GetMinimalEmitterCreationTooltip()
+{
+	FText EmitterDescription = LOCTEXT("TrueEmptyEmitterTooltip", "Add a completely empty emitter.");
+	FSoftObjectPath DefaultEmptyEmitter = GetDefault<UNiagaraEditorSettings>()->DefaultEmptyEmitter;
+	if(DefaultEmptyEmitter.IsValid() && DefaultEmptyEmitter.IsAsset())
+	{
+		if(UNiagaraEmitter* Emitter = Cast<UNiagaraEmitter>(DefaultEmptyEmitter.TryLoad()))
+		{
+			EmitterDescription =  Emitter->TemplateAssetDescription;
+		}
+	}
+
+	FText TooltipText = LOCTEXT("AddMinimalEmitterTooltip", "Adds a minimal emitter as specified in the Niagara Settings");
+	if(EmitterDescription.IsEmpty())
+	{
+		return TooltipText;
+	}
+			
+	return FText::FormatOrdered( FText::AsCultureInvariant("{0}\n\n{1}."), TooltipText, EmitterDescription);
 }
 
 TMap<FGuid, TArray<FNiagaraVariableBase>> FNiagaraEditorUtilities::Scripts::Validation::ValidateScriptVariableIds(UNiagaraScript* Script, FGuid VersionGuid)
@@ -4832,8 +4937,14 @@ TArray<FNiagaraEditorUtilities::AssetBrowser::FStructuredAssetTagDefinitionLooku
 	TArray<FAssetData> FilteredTagDefinitionAssets;
 	AssetRegistryModule.Get().GetAssets(Filter, FilteredTagDefinitionAssets);
 
+	FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
 	for(const FAssetData& AssetData : FilteredTagDefinitionAssets)
 	{
+		if(AssetToolsModule.Get().IsAssetVisible(AssetData, true) == false)
+		{
+			continue;
+		}
+		
 		UNiagaraAssetTagDefinitions* TagDefinitions = Cast<UNiagaraAssetTagDefinitions>(AssetData.GetAsset());
 		FStructuredAssetTagDefinitionLookupData TagDefinitionData;
 		TagDefinitionData.DefinitionsAsset = TagDefinitions;

@@ -25,6 +25,7 @@ UIOSRuntimeSettings::UIOSRuntimeSettings(const FObjectInitializer& ObjectInitial
 	, MinSampleRate(8000)
 	, CompressionQualityModifier(1)
 {
+	bEnableStoreKitSupport = true;
 	bEnableGameCenterSupport = true;
 	bEnableCloudKitSupport = false;
 	bUserSwitching = false;
@@ -46,6 +47,8 @@ UIOSRuntimeSettings::UIOSRuntimeSettings(const FObjectInitializer& ObjectInitial
 	bGeneratedSYMFile = false;
 	bGeneratedSYMBundle = false;
 	bGenerateXCArchive = false;
+	bUsesNonExemptEncryption = false;
+	ITSEncryptionExportComplianceCode = TEXT("");
 	bSupportSecondaryMac = false;
 	bUseRSync = true;
 	bCustomLaunchscreenStoryboard = false;

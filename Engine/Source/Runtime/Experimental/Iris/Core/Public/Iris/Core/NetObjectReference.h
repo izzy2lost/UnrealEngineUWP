@@ -4,7 +4,7 @@
 
 #include "CoreTypes.h"
 #include "Iris/ReplicationSystem/NetRefHandle.h"
-#include "Iris/ReplicationSystem/NetToken.h"
+#include "Net/Core/NetToken/NetToken.h"
 #include "Misc/EnumClassFlags.h"
 #include "Templates/IsPODType.h"
 

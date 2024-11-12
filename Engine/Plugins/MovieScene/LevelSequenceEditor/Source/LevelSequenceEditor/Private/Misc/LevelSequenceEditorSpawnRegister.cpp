@@ -1,5 +1,4 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
 #include "Misc/LevelSequenceEditorSpawnRegister.h"
 #include "Modules/ModuleManager.h"
 #include "ISequencer.h"
@@ -12,6 +11,11 @@
 #include "UObject/ObjectSaveContext.h"
 #include "Selection.h"
 #include "TransformData.h"
+#include "Bindings/MovieSceneSpawnableBinding.h"
+#include "MovieSceneBindingReferences.h"
+#include "UObject/UObjectIterator.h"
+#include "MovieSceneCommonHelpers.h"
+
 
 #define LOCTEXT_NAMESPACE "LevelSequenceEditorSpawnRegister"
 
@@ -66,11 +70,11 @@ FLevelSequenceEditorSpawnRegister::~FLevelSequenceEditorSpawnRegister()
 /* FLevelSequenceSpawnRegister interface
  *****************************************************************************/
 
-UObject* FLevelSequenceEditorSpawnRegister::SpawnObject(FMovieSceneSpawnable& Spawnable, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState)
+UObject* FLevelSequenceEditorSpawnRegister::SpawnObject(const FGuid& BindingId, UMovieScene& MovieScene, FMovieSceneSequenceIDRef Template, TSharedRef<const FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex/* = 0*/)
 {
 	TGuardValue<bool> Guard(bShouldClearSelectionCache, false);
 
-	UObject* NewObject = FLevelSequenceSpawnRegister::SpawnObject(Spawnable, TemplateID, SharedPlaybackState);
+	UObject* NewObject = FMovieSceneSpawnRegister::SpawnObject(BindingId, MovieScene, Template, SharedPlaybackState, BindingIndex);
 	
 	if (AActor* NewActor = Cast<AActor>(NewObject))
 	{
@@ -78,7 +82,7 @@ UObject* FLevelSequenceEditorSpawnRegister::SpawnObject(FMovieSceneSpawnable& Sp
 		NewActor->bReplayRewindable = true;
 
 		// Add an entry to the tracked objects map to keep track of this object (so that it can be saved when modified)
-		TrackedObjects.Add(NewActor, FTrackedObjectState(TemplateID, Spawnable.GetGuid()));
+		TrackedObjects.Add(NewActor, FTrackedObjectState(Template, BindingId, BindingIndex));
 
 		if (ULayersSubsystem* Layers = GEditor->GetEditorSubsystem<ULayersSubsystem>())
 		{
@@ -86,7 +90,7 @@ UObject* FLevelSequenceEditorSpawnRegister::SpawnObject(FMovieSceneSpawnable& Sp
 		}
 
 		// Select the actor if we think it should be selected
-		if (SelectedSpawnedObjects.Contains(FMovieSceneSpawnRegisterKey(TemplateID, Spawnable.GetGuid())))
+		if (SelectedSpawnedObjects.Contains(FMovieSceneSpawnRegisterKey(Template, BindingId, BindingIndex)))
 		{
 			GEditor->SelectActor(NewActor, true /*bSelected*/, true /*bNotify*/);
 		}
@@ -96,25 +100,28 @@ UObject* FLevelSequenceEditorSpawnRegister::SpawnObject(FMovieSceneSpawnable& Sp
 }
 
 
-void FLevelSequenceEditorSpawnRegister::PreDestroyObject(UObject& Object, const FGuid& BindingId, FMovieSceneSequenceIDRef TemplateID)
+void FLevelSequenceEditorSpawnRegister::PreDestroyObject(UObject& Object, const FGuid& BindingId, int32 BindingIndex, FMovieSceneSequenceIDRef TemplateID)
 {
 	TGuardValue<bool> Guard(bShouldClearSelectionCache, false);
 
 	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
 
 	UMovieSceneSequence*  Sequence      = Sequencer.IsValid() ? Sequencer->GetEvaluationTemplate().GetSequence(TemplateID) : nullptr;
-	FMovieSceneSpawnable* Spawnable     = Sequence && Sequence->GetMovieScene() ? Sequence->GetMovieScene()->FindSpawnable(BindingId) : nullptr;
-	UObject*              SpawnedObject = FindSpawnedObject(BindingId, TemplateID).Get();
+	UObject*              SpawnedObject = FindSpawnedObject(BindingId, TemplateID, BindingIndex).Get();
 
-	if (SpawnedObject && Spawnable)
+
+	if (SpawnedObject)
 	{
 		const FTrackedObjectState* TrackedState = TrackedObjects.Find(&Object);
 		if (TrackedState && TrackedState->bHasBeenModified)
 		{
 			// SaveDefaultSpawnableState will reset bHasBeenModified to false
-			SaveDefaultSpawnableStateImpl(*Spawnable, Sequence, SpawnedObject, Sequencer->GetSharedPlaybackState());
+			SaveDefaultSpawnableStateImpl(BindingId, BindingIndex, Sequence, SpawnedObject, Sequencer->GetSharedPlaybackState());
 
-			Sequence->MarkPackageDirty();
+			if (Sequence)
+			{
+				Sequence->MarkPackageDirty();
+			}
 		}
 	}
 
@@ -122,62 +129,31 @@ void FLevelSequenceEditorSpawnRegister::PreDestroyObject(UObject& Object, const 
 	AActor* Actor = Cast<AActor>(&Object);
 	if (Actor && GEditor->GetSelectedActors()->IsSelected(Actor))
 	{
-		SelectedSpawnedObjects.Add(FMovieSceneSpawnRegisterKey(TemplateID, BindingId));
+		SelectedSpawnedObjects.Add(FMovieSceneSpawnRegisterKey(TemplateID, BindingId, BindingIndex));
 		GEditor->SelectActor(Actor, false /*bSelected*/, true /*bNotify*/);
 	}
 
 	FObjectKey ThisObject(&Object);
 	TrackedObjects.Remove(ThisObject);
 
-	FLevelSequenceSpawnRegister::PreDestroyObject(Object, BindingId, TemplateID);
+	FLevelSequenceSpawnRegister::PreDestroyObject(Object, BindingId, BindingIndex, TemplateID);
 }
 
-void FLevelSequenceEditorSpawnRegister::SaveDefaultSpawnableState(FMovieSceneSpawnable& Spawnable, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
+#if WITH_EDITOR
+void FLevelSequenceEditorSpawnRegister::SaveDefaultSpawnableState(const FGuid& BindingId, int32 BindingIndex, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
-	UMovieSceneSequence* Sequence = SharedPlaybackState->GetSequence(TemplateID);
-
-	UObject* Object = FindSpawnedObject(Spawnable.GetGuid(), TemplateID).Get();
-	if (Object && Sequence)
+	if (UMovieSceneSequence* Sequence = SharedPlaybackState->GetSequence(TemplateID))
 	{
-		SaveDefaultSpawnableStateImpl(Spawnable, Sequence, Object, SharedPlaybackState);
-		Sequence->MarkPackageDirty();
-	}
-}
-
-void FLevelSequenceEditorSpawnRegister::SaveDefaultSpawnableState(const FGuid& BindingId, FMovieSceneSequenceIDRef TemplateID)
-{
-	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
-	if (!Sequencer.IsValid())
-	{
-		return;
-	}
-
-	UMovieSceneSequence* Sequence = Sequencer->GetEvaluationTemplate().GetSequence(TemplateID);
-	if (!Sequence)
-	{
-		return;
-	}
-
-	UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
-	if (!MovieScene)
-	{
-		return;
-	}
-
-	FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(BindingId);
-
-	if (Spawnable)
-	{
-		UObject* Object = FindSpawnedObject(Spawnable->GetGuid(), TemplateID).Get();
-		if (Object)
+		if (UObject* Object = FindSpawnedObject(BindingId, TemplateID, BindingIndex).Get())
 		{
-			SaveDefaultSpawnableStateImpl(*Spawnable, Sequence, Object, Sequencer->GetSharedPlaybackState());
+			SaveDefaultSpawnableStateImpl(BindingId, BindingIndex, Sequence, Object, SharedPlaybackState);
 			Sequence->MarkPackageDirty();
 		}
 	}
 }
+#endif
 
-void FLevelSequenceEditorSpawnRegister::SaveDefaultSpawnableStateImpl(FMovieSceneSpawnable& Spawnable, UMovieSceneSequence* Sequence, UObject* SpawnedObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
+void FLevelSequenceEditorSpawnRegister::SaveDefaultSpawnableStateImpl(const FGuid& BindingId, int32 BindingIndex, UMovieSceneSequence* Sequence, UObject* SpawnedObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
 	IMovieScenePlayer* Player = UE::MovieScene::FPlayerIndexPlaybackCapability::GetPlayer(SharedPlaybackState);
 
@@ -199,8 +175,9 @@ void FLevelSequenceEditorSpawnRegister::SaveDefaultSpawnableStateImpl(FMovieScen
 	// Restore state on the object itself
 	Player->PreAnimatedState.RestorePreAnimatedState(*SpawnedObject, RestorePredicate);
 
+
 	// Copy the template
-	Spawnable.CopyObjectTemplate(*SpawnedObject, *Sequence);
+	MovieSceneHelpers::CopyObjectTemplate(Sequence, BindingId ,SpawnedObject, SharedPlaybackState, BindingIndex);
 
 	if (FTrackedObjectState* TrackedState = TrackedObjects.Find(SpawnedObject))
 	{
@@ -322,11 +299,10 @@ void FLevelSequenceEditorSpawnRegister::OnPreObjectSaved(UObject* Object, FObjec
 			{
 				UObject* SpawnedObject = Pair.Key.ResolveObjectPtr();
 				UMovieSceneSequence*  ThisSequence = Sequencer->GetEvaluationTemplate().GetSequence(Pair.Value.TemplateID);
-				FMovieSceneSpawnable* Spawnable    = MovieSceneBeingSaved->FindSpawnable(Pair.Value.ObjectBindingID);
 
-				if (SpawnedObject && Spawnable && ThisSequence == SequenceBeingSaved)
+				if (SpawnedObject && ThisSequence == SequenceBeingSaved)
 				{
-					SaveDefaultSpawnableStateImpl(*Spawnable, ThisSequence, SpawnedObject, Sequencer->GetSharedPlaybackState());
+					SaveDefaultSpawnableStateImpl(Pair.Value.ObjectBindingID, Pair.Value.BindingIndex, ThisSequence, SpawnedObject, Sequencer->GetSharedPlaybackState());
 				}
 			}
 		}

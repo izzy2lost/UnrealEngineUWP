@@ -110,6 +110,10 @@ EReplicationStateTraits FGameplayEffectContextNetSerializer::HitResultStateTrait
 
 void FGameplayEffectContextNetSerializer::Serialize(FNetSerializationContext& Context, const FNetSerializeArgs& Args)
 {
+	//!!!!!!!!!!!!!!!! Warning !!!!!!!!!!!!!!!
+	// Any changes to this function also need to be done to FGameplayEffectContext::NetSerialize to support generic replication
+	//!!!!!!!!!!!!!!!! Warning !!!!!!!!!!!!!!!
+
 	const QuantizedType& Value = *reinterpret_cast<QuantizedType*>(Args.Source);
 
 	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();

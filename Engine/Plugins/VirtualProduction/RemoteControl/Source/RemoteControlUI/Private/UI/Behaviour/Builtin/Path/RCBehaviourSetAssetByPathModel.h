@@ -24,7 +24,7 @@ namespace SetAssetByPathModelHelper
 class FRCSetAssetByPathBehaviourModel : public FRCBehaviourModel
 {
 public:
-	FRCSetAssetByPathBehaviourModel(URCSetAssetByPathBehaviour* SetAssetByPathBehaviour);
+	FRCSetAssetByPathBehaviourModel(URCSetAssetByPathBehaviour* SetAssetByPathBehaviour, const TSharedPtr<SRemoteControlPanel> InRemoteControlPanel);
 
 	/** Returns true if this behaviour have a details widget or false if not*/
 	virtual bool HasBehaviourDetailsWidget() override;
@@ -42,10 +42,25 @@ public:
 	/** Builds the Combobox which the Behaviour will use to select and and apply it's Asset Setting on. */
 	TSharedRef<SWidget> GetSelectorWidget(TWeakPtr<const FRemoteControlEntity> InInitialSelected);
 
+	/** Called when a controller value changed */
+	virtual void NotifyControllerValueChanged(TSharedPtr<FRCControllerModel> InControllerModel) override;
+
+	/** Refresh the PreviewPath */
+	void RefreshPreview() const;
+
 protected:
 	/** Gets the currently selected Entities Name, or a failure Text in case it fails. */
 	FText GetSelectedEntityText() const;
+
+private:
+	/** Callback called when the AssetPath properties change to either refresh or reconstruct it updating the path values */
+	void OnAssetPathFinishedChangingProperties(const FPropertyChangedEvent& InEvent);
+
+	/** Reconstruct the PropertyRow Generator */
+	void RegenerateWeakPtrInternal();
 	
+	/** Regenerates and creates a new PathArray Widget if changed */
+	void RefreshPathAndPreview();
 private:
 	/** The SetAssetByPath Behaviour associated with this Model */
 	TWeakObjectPtr<URCSetAssetByPathBehaviour> SetAssetByPathBehaviourWeakPtr;
@@ -73,12 +88,4 @@ private:
 	
 	/** Array of Exposed Entities from the Preset to help create a Widget to choose the Target */
 	TArray<TWeakPtr<const FRemoteControlEntity>> ExposedEntities;
-	
-private:
-	void RegenerateWeakPtrInternal();
-	
-	/** Regenerates and creates a new PathArray Widget if changed */
-	void RefreshPathAndPreview();
-
-	void RefreshPreview() const;
 };

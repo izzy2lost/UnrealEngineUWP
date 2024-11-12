@@ -17,6 +17,8 @@
 #include "Engine/HLODProxy.h"
 #include "Serialization/ArchiveCrc32.h"
 
+#include "WorldPartition/HLOD/HLODEditorSubsystem.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(HLODBuilderMeshMerge)
 
 
@@ -34,6 +36,20 @@ UHLODBuilderMeshMergeSettings::UHLODBuilderMeshMergeSettings(const FObjectInitia
 		HLODMaterial = GEngine->DefaultHLODFlattenMaterial;
 	}
 #endif
+
+	if (IsTemplate())
+	{
+		HLOD_ADD_STRUCT_SETTING_FILTER(BasicSettings, FMaterialProxySettings, bNormalMap);
+		HLOD_ADD_STRUCT_SETTING_FILTER(BasicSettings, FMaterialProxySettings, bTangentMap);
+		HLOD_ADD_STRUCT_SETTING_FILTER(BasicSettings, FMaterialProxySettings, bMetallicMap);
+		HLOD_ADD_STRUCT_SETTING_FILTER(BasicSettings, FMaterialProxySettings, bRoughnessMap);
+		HLOD_ADD_STRUCT_SETTING_FILTER(BasicSettings, FMaterialProxySettings, bSpecularMap);
+		HLOD_ADD_STRUCT_SETTING_FILTER(BasicSettings, FMaterialProxySettings, bEmissiveMap);
+
+		HLOD_ADD_STRUCT_SETTING_FILTER(BasicSettings, FMeshMergingSettings, MaterialSettings);
+
+		HLOD_ADD_CLASS_SETTING_FILTER(BasicSettings, UHLODBuilderMeshMergeSettings, MeshMergeSettings);
+	}
 }
 
 uint32 UHLODBuilderMeshMergeSettings::GetCRC() const
@@ -43,7 +59,7 @@ uint32 UHLODBuilderMeshMergeSettings::GetCRC() const
 	FArchiveCrc32 Ar;
 
 	// Base mesh merge key, changing this will force a rebuild of all HLODs from this builder
-	FString HLODBaseKey = "B8DB9CB1780C4EE1B80A36D9E205AA0F";
+	FString HLODBaseKey = "F906DCC49BCB4102A821B20D64C6E93B";
 	Ar << HLODBaseKey;
 
 	Ar << This.MeshMergeSettings;
@@ -66,7 +82,7 @@ uint32 UHLODBuilderMeshMergeSettings::GetCRC() const
 	{
 		uint32 MaterialCRC = UHLODProxy::GetCRC(HLODMaterial);
 		UE_LOG(LogHLODBuilder, VeryVerbose, TEXT(" - Material = %d"), MaterialCRC);
-		Hash = HashCombine(Hash, MaterialCRC);
+		Hash = HashCombineFast(Hash, MaterialCRC);
 	}
 
 	return Hash;

@@ -79,65 +79,36 @@ namespace Metasound
 #endif // METASOUND_EDITOR_DEBUG_CONNECTIONS
 
 			template<typename TAnalyzerType>
-			bool DetermineWiringStyle_Envelope(TSharedPtr<FEditor> MetasoundEditor, UEdGraphPin* OutputPin, UEdGraphPin* InputPin, FConnectionParams& OutParams)
+			void DetermineWiringStyle_Envelope(bool bIsPlaying, FGraphConnectionManager& ConnectionManager, const FGuid& NodeID, FName OutputName, UEdGraphPin* InputPin, FConnectionParams& OutParams)
 			{
 				using namespace Frontend;
 
 				OutParams.bDrawBubbles = false;
 
-				if (MetasoundEditor.IsValid())
+				if (bIsPlaying)
 				{
-					FConstOutputHandle OutputHandle = FGraphBuilder::FindReroutedConstOutputHandleFromPin(OutputPin);
-					const FGuid NodeId = OutputHandle->GetOwningNodeID();
-					FName OutputName = OutputHandle->GetName();
-
-					OutParams.bDrawBubbles = MetasoundEditor->GetConnectionManager().IsTracked(NodeId, OutputName, TAnalyzerType::GetAnalyzerName());
+					OutParams.bDrawBubbles = ConnectionManager.IsTracked(NodeID, OutputName, TAnalyzerType::GetAnalyzerName());
 					if (OutParams.bDrawBubbles)
 					{
-						float WindowValue = MetasoundEditor->GetConnectionManager().UpdateValueWindow<TAnalyzerType>(NodeId, OutputName);
+						const float WindowValue = ConnectionManager.UpdateValueWindow<TAnalyzerType>(NodeID, OutputName);
 						OutParams.WireThickness = FMath::Clamp(WindowValue, 0.0f, 1.0f);
 						FLinearColor HSV = OutParams.WireColor.LinearRGBToHSV();
 						HSV.G = FMath::Lerp(HSV.G, 1.0f, WindowValue);
 						OutParams.WireColor = HSV.HSVToLinearRGB();
 					}
-
-					return true;
 				}
-
-				return false;
 			}
 
 			template<typename TNumericType>
-			void DrawConnectionSpline_Numeric(FGraphConnectionDrawingPolicy& InDrawingPolicy, int32 InLayerId, const FDrawConnectionData& InData, TNumericType InDefaultValue)
+			void DrawConnectionSpline_Numeric(FGraphConnectionDrawingPolicy& InDrawingPolicy, const FEditor& InEditor, int32 InLayerId, const FDrawConnectionData& InData, TNumericType InDefaultValue)
 			{
-				if (!InData.OutputPin)
+				if (!InData.OutputVertex || !InData.OutputNode)
 				{
 					return;
 				}
 
-				const UMetasoundEditorGraphNode* Node = Cast<UMetasoundEditorGraphNode>(InData.OutputPin->GetOwningNode());
-				if (!ensureMsgf(Node, TEXT("Expected MetaSound pin to be member of MetaSound node")))
-				{
-					return;
-				}
-
-				const UMetasoundEditorGraph* Graph = Cast<UMetasoundEditorGraph>(Node->GetGraph());
-				if (!ensureMsgf(Graph, TEXT("Expected MetaSound node to be member of MetaSound graph")))
-				{
-					return;
-				}
-
-				const TSharedPtr<const FEditor> Editor = static_cast<const FGraphConnectionDrawingPolicy&>(InDrawingPolicy).GetEditor();
-				if (!Editor)
-				{
-					return;
-				}
-
-				Frontend::FConstOutputHandle OutputHandle = Frontend::FindReroutedOutput(InData.OutputHandle);
-				const FGuid NodeID = OutputHandle->GetOwningNodeID();
 				TNumericType Value = InDefaultValue;
-				FName OutputName = OutputHandle->GetName();
-				Editor->GetConnectionManager().GetValue(NodeID, OutputName, Value);
+				InEditor.GetConnectionManager().GetValue(InData.OutputNode->GetID(), InData.OutputVertex->Name, Value);
 
 				FLinearColor InnerColor = Frontend::DisplayStyle::EdgeAnimation::DefaultColor;
 
@@ -188,18 +159,16 @@ namespace Metasound
 			}
 		} // namespace DrawingPolicyPrivate
 
-		FDrawConnectionData::FDrawConnectionData(const FVector2D& InStart, const FVector2D& InEnd, const FVector2D& InSplineTangent, const FConnectionParams& InParams, const UGraphEditorSettings& InSettings, const FVector2D& InMousePosition)
+		FDrawConnectionData::FDrawConnectionData(const FVector2D& InStart, const FVector2D& InEnd, const FEditor& Editor, const FVector2D& InSplineTangent, const FConnectionParams& InParams, const UGraphEditorSettings& InSettings, const FVector2D& InMousePosition)
 			: P0(InStart)
 			, P0Tangent(InParams.StartDirection == EGPD_Output ? InSplineTangent : -InSplineTangent)
 			, P1(InEnd)
 			, P1Tangent(InParams.EndDirection == EGPD_Input ? InSplineTangent : -InSplineTangent)
 			, Params(InParams)
-			, OutputHandle(Frontend::IOutputController::GetInvalidHandle())
 		{
 			if (Params.AssociatedPin1)
 			{
 				OutputPin = Params.AssociatedPin1->Direction == EGPD_Output ? Params.AssociatedPin1 : Params.AssociatedPin2;
-				OutputHandle = FGraphBuilder::FindReroutedConstOutputHandleFromPin(OutputPin);
 			}
 
 			// The curve will include the endpoints but can extend out of a tight bounds because of the tangents
@@ -245,7 +214,15 @@ namespace Metasound
 				}
 			}
 
-			EdgeStyle = FGraphBuilder::GetOutputEdgeStyle(OutputHandle);
+			if (const FMetaSoundFrontendDocumentBuilder* Builder = Editor.GetFrontendBuilder())
+			{
+				if (const UEdGraphPin* ReroutePin = FGraphBuilder::FindReroutedOutputPin(OutputPin))
+				{
+					OutputVertex = FGraphBuilder::GetPinVertex(*Builder, ReroutePin, &OutputNode);
+					check(OutputNode);
+					EdgeStyle = Builder->FindConstEdgeStyle(OutputNode->GetID(), OutputVertex->Name);
+				}
+			}
 		}
 
 		void FDrawConnectionData::UpdateSplineOverlap(FGraphSplineOverlapResult& OutResult) const
@@ -336,6 +313,8 @@ namespace Metasound
 		{
 			using namespace Frontend;
 
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Editor::FGraphConnectionDrawingPolicy::DetermineWiringStyle);
+
 			TSharedPtr<FEditor> EditorPtr = MetasoundEditor.Pin();
 			if (!EditorPtr)
 			{
@@ -379,37 +358,50 @@ namespace Metasound
 				OutParams.WireColor = FGraphBuilder::GetPinCategoryColor(AnyPin->PinType);
 			}
 
+			bool bThicknessSet = false;
 			if (AnyPin && AnalyzerSettings.bAnimateConnections)
 			{
-				if (AnyPin->PinType.PinCategory == FGraphBuilder::PinCategoryTrigger)
+				if (const UEdGraphPin* ReroutePin = FGraphBuilder::FindReroutedOutputPin(OutputPin))
 				{
-					DrawingPolicyPrivate::DetermineWiringStyle_Envelope<FVertexAnalyzerTriggerDensity>(EditorPtr, OutputPin, InputPin, OutParams);
-					ScaleEnvelopeWireThickness(OutParams);
-				}
-				else if (AnyPin->PinType.PinCategory == FGraphBuilder::PinCategoryAudio)
-				{
-					DrawingPolicyPrivate::DetermineWiringStyle_Envelope<FVertexAnalyzerEnvelopeFollower>(EditorPtr, OutputPin, InputPin, OutParams);
-					ScaleEnvelopeWireThickness(OutParams);
-				}
-				else if (FGraphBuilder::CanInspectPin(AnyPin))
-				{
-					bool bEdgeStyleValid = false;
-					if (const FMetasoundFrontendEdgeStyle* Style = FGraphBuilder::GetOutputEdgeStyle(OutputPin))
+					if (const FMetaSoundFrontendDocumentBuilder* Builder = EditorPtr->GetFrontendBuilder())
 					{
-						bEdgeStyleValid = !Style->LiteralColorPairs.IsEmpty();
-					}
-
-					if (bEdgeStyleValid && EditorPtr->IsPlaying())
-					{
-						OutParams.WireThickness = AnalyzerSettings.NumericWireThickness;
-					}
-					else
-					{
-						OutParams.WireThickness = Settings->TraceReleaseWireThickness;
+						const FMetasoundFrontendNode* OutputNode = nullptr;
+						if (const FMetasoundFrontendVertex* OutputVertex = FGraphBuilder::GetPinVertex(*Builder, ReroutePin, &OutputNode))
+						{
+							check(OutputNode);
+							const bool bIsPlaying = EditorPtr->IsPlaying();
+							const FGuid& NodeID = OutputNode->GetID();
+							if (AnyPin->PinType.PinCategory == FGraphBuilder::PinCategoryTrigger)
+							{
+								FGraphConnectionManager& ConnectionManager = EditorPtr->GetConnectionManager();
+								DrawingPolicyPrivate::DetermineWiringStyle_Envelope<FVertexAnalyzerTriggerDensity>(bIsPlaying, ConnectionManager, NodeID, OutputVertex->Name, InputPin, OutParams);
+								ScaleEnvelopeWireThickness(OutParams);
+								bThicknessSet = true;
+							}
+							else if (AnyPin->PinType.PinCategory == FGraphBuilder::PinCategoryAudio)
+							{
+								FGraphConnectionManager& ConnectionManager = EditorPtr->GetConnectionManager();
+								DrawingPolicyPrivate::DetermineWiringStyle_Envelope<FVertexAnalyzerEnvelopeFollower>(bIsPlaying, ConnectionManager, NodeID, OutputVertex->Name, InputPin, OutParams);
+								ScaleEnvelopeWireThickness(OutParams);
+								bThicknessSet = true;
+							}
+							else if (FGraphBuilder::CanInspectPin(AnyPin))
+							{
+								if (const FMetasoundFrontendEdgeStyle* EdgeStyle = Builder->FindConstEdgeStyle(NodeID, OutputVertex->Name))
+								{
+									if (!EdgeStyle->LiteralColorPairs.IsEmpty())
+									{
+										OutParams.WireThickness = AnalyzerSettings.NumericWireThickness;
+										bThicknessSet = true;
+									}
+								}
+							}
+						}
 					}
 				}
 			}
-			else
+
+			if (!bThicknessSet)
 			{
 				OutParams.WireThickness = Settings->TraceReleaseWireThickness;
 			}
@@ -417,7 +409,7 @@ namespace Metasound
 			const bool bDeemphasizeUnhoveredPins = HoveredPins.Num() > 0;
 			if (bDeemphasizeUnhoveredPins)
 			{
-				const bool bIsPlaying = GetEditor()->IsPlaying();
+				const bool bIsPlaying = EditorPtr->IsPlaying();
 				ApplyHoverDeemphasisMetaSound(OutputPin, InputPin, bIsPlaying, /*inout*/ OutParams.WireThickness, /*inout*/ OutParams.WireColor);
 			}
 		}
@@ -452,7 +444,7 @@ namespace Metasound
 
 		void FGraphConnectionDrawingPolicy::DrawConnection(int32 LayerId, const FVector2D& Start, const FVector2D& End, const FConnectionParams& Params)
 		{
-			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FGraphConnectionDrawingPolicy::DrawConnection);
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Editor::FGraphConnectionDrawingPolicy::DrawConnection);
 
 			using namespace Frontend;
 
@@ -469,7 +461,7 @@ namespace Metasound
 				return;
 			}
 
-			const FDrawConnectionData ConnectionData(Start, End, FGraphConnectionDrawingPolicy::ComputeSplineTangent(Start, End), Params, *Settings, LocalMousePosition);
+			const FDrawConnectionData ConnectionData(Start, End, *EditorPtr, FGraphConnectionDrawingPolicy::ComputeSplineTangent(Start, End), Params, *Settings, LocalMousePosition);
 			if (Settings->bTreatSplinesLikePins)
 			{
 #if METASOUND_EDITOR_DEBUG_CONNECTIONS
@@ -491,7 +483,13 @@ namespace Metasound
 				{
 					const float AppTime = FPlatformTime::Seconds() - GStartTime;
 					FDrawConnectionSignalData SignalParams = { AppTime, LayerId, SplineReparamTable, SplineLength, ConnectionData };
-					const FName DataType = SignalParams.ConnectionData.OutputHandle->GetDataType();
+
+					FName DataType;
+					if (const FMetasoundFrontendVertex* OutputVertex = SignalParams.ConnectionData.OutputVertex)
+					{
+						DataType = OutputVertex->TypeName;
+					}
+						
 					if (DataType == GetMetasoundDataTypeName<FAudioBuffer>())
 					{
 						SignalParams.SpacingFactor = DrawingPolicyPrivate::EnvelopeConnectionSpacingCVar;
@@ -520,20 +518,20 @@ namespace Metasound
 			}
 
 			// Draw other types
-			if (ConnectionData.OutputHandle->IsValid() && MetasoundEditor.IsValid())
+			if (ConnectionData.OutputVertex && MetasoundEditor.IsValid())
 			{
-				const FName DataType = ConnectionData.OutputHandle->GetDataType();
+				const FName DataType = ConnectionData.OutputVertex->TypeName;
 				if (DataType == GetMetasoundDataTypeName<float>())
 				{
-					DrawingPolicyPrivate::DrawConnectionSpline_Numeric<float>(*this, LayerId, ConnectionData, 0.0f);
+					DrawingPolicyPrivate::DrawConnectionSpline_Numeric<float>(*this, *EditorPtr, LayerId, ConnectionData, 0.0f);
 				}
 				else if (DataType == GetMetasoundDataTypeName<int32>())
 				{
-					DrawingPolicyPrivate::DrawConnectionSpline_Numeric<int32>(*this, LayerId, ConnectionData, 0);
+					DrawingPolicyPrivate::DrawConnectionSpline_Numeric<int32>(*this, *EditorPtr, LayerId, ConnectionData, 0);
 				}
 				else if (DataType == GetMetasoundDataTypeName<bool>())
 				{
-					DrawingPolicyPrivate::DrawConnectionSpline_Numeric<bool>(*this, LayerId, ConnectionData, 0);
+					DrawingPolicyPrivate::DrawConnectionSpline_Numeric<bool>(*this, *EditorPtr, LayerId, ConnectionData, 0);
 				}
 				else 
 				{

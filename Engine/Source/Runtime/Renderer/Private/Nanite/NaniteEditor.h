@@ -19,11 +19,14 @@ void DrawHitProxies(
 	FRDGTextureRef HitProxyDeptTexture
 );
 
+FRDGBufferSRVRef GetEditorSelectedHitProxyIdsSRV(FRDGBuilder& GraphBuilder, const FViewInfo& View);
+
 #if WITH_EDITOR
 
 void DrawEditorSelection(
 	FRDGBuilder& GraphBuilder,
 	FRDGTextureRef DepthTarget,
+	FRDGTextureRef OverlayTarget,
 	FScene& Scene,
 	const FViewInfo& SceneView,
 	const FViewInfo& EditorView,
@@ -40,7 +43,7 @@ void DrawEditorVisualizeLevelInstance(
 	FSceneUniformBuffer &SceneUniformBuffer,
 	const FRasterResults* NaniteRasterResults
 );
-
+	
 #endif
 
 } // namespace Nanite

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "IndexedHandle.h"
 #include "Delegates/Delegate.h"
 #include "MassCommonTypes.h"
@@ -77,7 +77,10 @@ public:
 	/** Delegate that will be called just before the spawning an actor, giving the chance to the processor to prepare it */
 	FMassActorPreSpawnDelegate ActorPreSpawnDelegate;
 
-	/** Delegate that will be called once the spawning is done */
+	/** 
+	 * Delegate that will be called once the spawning is done. Note that it will be called regardless of whether 
+	 * the spawning was successful. 
+	 */
 	FMassActorPostSpawnDelegate ActorPostSpawnDelegate;
 
 	/** The current status of the spawn request */
@@ -165,7 +168,7 @@ public:
 	 * @param SpawnRequestHandle [IN/OUT] the spawn request handle to remove
 	 * @return true if successfully removed the request
 	 */
-	 bool RemoveActorSpawnRequest(FMassActorSpawnRequestHandle& SpawnRequestHandle);
+	bool RemoveActorSpawnRequest(FMassActorSpawnRequestHandle& SpawnRequestHandle);
 
 	/**
 	 * Returns the stored spawn request from the handle, useful to update the transform
@@ -203,7 +206,7 @@ public:
 	 * @param Actor to destroy
 	 * @param bImmediate to do the destruction immediately, otherwise will be queued up for later
 	 */
-	void DestroyActor(AActor* Actor, bool bImmediate = false);
+	virtual void DestroyActor(AActor* Actor, bool bImmediate = false);
 	
 	void EnableActorPooling();
 	void DisableActorPooling();

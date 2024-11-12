@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#pragma once
+
 #include "UnsyncCommon.h"
 #include "UnsyncRemote.h"
 
@@ -21,6 +23,7 @@ struct FMirrorInfo
 {
 	std::string Name;
 	std::string Address;
+	std::string Description;
 	uint16		Port = UNSYNC_DEFAULT_PORT;
 	double		Ping = 0;
 };

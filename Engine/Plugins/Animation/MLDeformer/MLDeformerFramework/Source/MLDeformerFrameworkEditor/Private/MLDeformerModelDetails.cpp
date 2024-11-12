@@ -127,11 +127,10 @@ namespace UE::MLDeformer
 			];
 
 		AddTrainingInputAnims();
-
-		InputOutputCategoryBuilder->AddProperty(UMLDeformerModel::GetAlignmentTransformPropertyName(), UMLDeformerModel::StaticClass());
-
 		AddTrainingInputFlags();
 		AddTrainingInputErrors();
+
+		InputOutputCategoryBuilder->AddProperty(UMLDeformerModel::GetAlignmentTransformPropertyName(), UMLDeformerModel::StaticClass());
 
 		FDetailWidgetRow& ErrorRow = InputOutputCategoryBuilder->AddCustomRow(FText::FromString("InputsError"))
 			.Visibility(TAttribute<EVisibility>::CreateLambda(
@@ -192,8 +191,13 @@ namespace UE::MLDeformer
 			}
 		}
 
+		TrainingSettingsCategoryBuilder->AddProperty(UMLDeformerModel::GetTrainingDevicePropertyName(), UMLDeformerModel::StaticClass())
+			.Visibility(TAttribute<EVisibility>::CreateLambda(
+				[this]()
+				{
+					return Model->GetTrainingDeviceList().IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible;
+				}));
 		TrainingSettingsCategoryBuilder->AddProperty(UMLDeformerModel::GetMaxTrainingFramesPropertyName(), UMLDeformerModel::StaticClass());
-		TrainingSettingsCategoryBuilder->AddProperty(UMLDeformerModel::GetDeltaCutoffLengthPropertyName(), UMLDeformerModel::StaticClass());
 		AddTrainingSettingsErrors();
 
 		LODSettingsCategoryBuilder->AddProperty(UMLDeformerModel::GetMaxNumLODsPropertyName(), UMLDeformerModel::StaticClass());

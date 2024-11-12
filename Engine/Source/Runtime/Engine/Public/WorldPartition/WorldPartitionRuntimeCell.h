@@ -25,6 +25,7 @@ class UDataLayerManager;
 class UExternalDataLayerAsset;
 class FStreamingGenerationActorDescView;
 struct FHierarchicalLogArchive;
+struct FWorldPartitionStreamingContext;
 
 enum class EWorldPartitionDataLayersLogicOperator : uint8;
 
@@ -32,6 +33,38 @@ enum class EWorldPartitionRuntimeCellVisualizeMode
 {
 	StreamingPriority,
 	StreamingStatus
+};
+
+USTRUCT()
+struct FWorldPartitionRuntimeCellPropertyOverride
+{
+	GENERATED_USTRUCT_BODY()
+
+	FWorldPartitionRuntimeCellPropertyOverride()
+	{}
+
+	FWorldPartitionRuntimeCellPropertyOverride(const FActorContainerID& InOwnerContainerID, const FString& InAssetPath, FName InPackageName, const FActorContainerPath& InContainerPath)
+#if WITH_EDITORONLY_DATA
+		: OwnerContainerID(InOwnerContainerID)
+		, AssetPath(InAssetPath)
+		, PackageName(InPackageName)
+		, ContainerPath(InContainerPath)
+#endif
+	{}
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FActorContainerID OwnerContainerID;
+
+	UPROPERTY()
+	FString AssetPath;
+
+	UPROPERTY()
+	FName PackageName;
+
+	UPROPERTY()
+	FActorContainerPath ContainerPath;
+#endif
 };
 
 USTRUCT()
@@ -149,6 +182,9 @@ struct FWorldPartitionRuntimeCellObjectMapping
 
 	UPROPERTY()
 	bool bIsEditorOnly;
+		
+	UPROPERTY()
+	TArray<FWorldPartitionRuntimeCellPropertyOverride> PropertyOverrides;
 #endif
 };
 
@@ -213,10 +249,6 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, p
 	ENGINE_API virtual bool CanUnload() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::CanUnload, return true;);
 	ENGINE_API virtual void Activate() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::Activate,);
 	ENGINE_API virtual void Deactivate() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::Deactivate,);
-	UE_DEPRECATED(5.4, "IsAddedToWorld is deprecated.")
-	ENGINE_API virtual bool IsAddedToWorld() const { return false; }
-	UE_DEPRECATED(5.4, "CanAddToWorld is deprecated.")
-	ENGINE_API virtual bool CanAddToWorld() const { return false; }
 	ENGINE_API virtual ULevel* GetLevel() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::GetLevel, return nullptr;);
 	ENGINE_API virtual EWorldPartitionRuntimeCellState GetCurrentState() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::GetCurrentState, return EWorldPartitionRuntimeCellState::Unloaded;);
 	virtual FLinearColor GetDebugColor(EWorldPartitionRuntimeCellVisualizeMode VisualizeMode) const { static const FLinearColor DefaultColor = FLinearColor::Black.CopyWithNewOpacity(0.25f); return DefaultColor; }
@@ -224,8 +256,6 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, p
 	virtual void SetIsAlwaysLoaded(bool bInIsAlwaysLoaded) { bIsAlwaysLoaded = bInIsAlwaysLoaded; }
 	ENGINE_API virtual void SetStreamingPriority(int32 InStreamingPriority) const PURE_VIRTUAL(UWorldPartitionRuntimeCell::SetStreamingPriority,);
 	virtual EStreamingStatus GetStreamingStatus() const { return LEVEL_Unloaded; }
-	UE_DEPRECATED(5.3, "IsLoading is deprecated.")
-	virtual bool IsLoading() const { return false; }
 	void SetClientOnlyVisible(bool bInClientOnlyVisible) { bClientOnlyVisible = bInClientOnlyVisible; }
 	bool GetClientOnlyVisible() const { return bClientOnlyVisible; }
 	virtual FGuid const& GetContentBundleID() const { return ContentBundleID; }
@@ -237,7 +267,7 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, p
 	ENGINE_API virtual bool ContainsDataLayer(const UDataLayerAsset* DataLayerAsset) const override;
 	ENGINE_API virtual bool ContainsDataLayer(const UDataLayerInstance* DataLayerInstance) const override;
 	ENGINE_API virtual bool HasContentBundle() const override;
-	virtual const TArray<FName>& GetDataLayers() const override { return DataLayers.ToArray(); }
+	virtual const TArray<FName>& GetDataLayers() const override { return GetDataLayersInline(); }
 	virtual FName GetExternalDataLayer() const override { return DataLayers.GetExternalDataLayer(); }
 	virtual bool HasAnyDataLayer(const TSet<FName>& InDataLayers) const override
 	{
@@ -250,7 +280,21 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, p
 	//~End IWorldPartitionCell Interface
 
 	ENGINE_API UDataLayerManager* GetDataLayerManager() const;
-	ENGINE_API EDataLayerRuntimeState GetCellEffectiveWantedState() const;
+	ENGINE_API EDataLayerRuntimeState GetCellEffectiveWantedState(const FWorldPartitionStreamingContext& Context) const;
+	FORCEINLINE bool HasDataLayers() const { return !DataLayers.IsEmpty(); }
+
+	//~Begin Deprecation
+	UE_DEPRECATED(5.3, "IsLoading is deprecated.")
+	virtual bool IsLoading() const { return false; }
+	UE_DEPRECATED(5.4, "IsAddedToWorld is deprecated.")
+	ENGINE_API virtual bool IsAddedToWorld() const { return false; }
+	UE_DEPRECATED(5.4, "CanAddToWorld is deprecated.")
+	ENGINE_API virtual bool CanAddToWorld() const { return false; }
+	UE_DEPRECATED(5.5, "Use version that takes FWorldPartitionStreamingContext instead.")
+	EDataLayerRuntimeState GetCellEffectiveWantedState(int32 InDataLayersStateEpoch) const { return EDataLayerRuntimeState::Unloaded; }
+	UE_DEPRECATED(5.5, "Use version that takes FWorldPartitionStreamingContext instead.")
+	EDataLayerRuntimeState GetCellEffectiveWantedState() const { return EDataLayerRuntimeState::Unloaded; }
+	//~End Deprecation
 
 	void SetBlockOnSlowLoading(bool bInBlockOnSlowLoading) { bBlockOnSlowLoading = bInBlockOnSlowLoading; }
 	bool GetBlockOnSlowLoading() const { return bBlockOnSlowLoading; }
@@ -277,19 +321,21 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, p
 	ENGINE_API virtual int32 GetActorCount() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::GetActorCount, return 0;);
 
 	// Cook methods
-	virtual bool PrepareCellForCook(UPackage* InPackage) { return OnPopulateGeneratorPackageForCook(InPackage); }
+	UE_DEPRECATED(5.5, "Use version with IWorldPartitionCookPackageContext")
+	virtual bool PrepareCellForCook(UPackage* InPackage) { return false; }
+	ENGINE_API virtual bool PrepareCellForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InGeneratedPackage = nullptr) { return true; }
 	UE_DEPRECATED(5.4, "PopulateGeneratorPackageForCook is deprecated, it was replaced by OnPrepareGeneratorPackageForCook")
 	ENGINE_API virtual bool PopulateGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages) { return OnPrepareGeneratorPackageForCook(OutModifiedPackages); }
 	UE_DEPRECATED(5.4, "PopulateGeneratedPackageForCook is deprecated, it was replaced by OnPopulateGeneratedPackageForCook")
-	ENGINE_API virtual bool PopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) { return OnPopulateGeneratedPackageForCook(InPackage, OutModifiedPackages); }
+	ENGINE_API virtual bool PopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) { return false; }
 
 	//~Begin IWorldPartitionCookPackageObject
 	ENGINE_API virtual bool IsLevelPackage() const override { return true; }
 	ENGINE_API virtual const UExternalDataLayerAsset* GetExternalDataLayerAsset() const override { return ExternalDataLayerAsset; }
 	ENGINE_API virtual FString GetPackageNameToCreate() const { return FString(); }
 	ENGINE_API virtual bool OnPrepareGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages) override { return true; }
-	ENGINE_API virtual bool OnPopulateGeneratorPackageForCook(UPackage* InPackage) override { return true; }
-	ENGINE_API virtual bool OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) override { return true; }
+	ENGINE_API virtual bool OnPopulateGeneratorPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InPackage) override { return true; }
+	ENGINE_API virtual bool OnPopulateGeneratedPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) override { return true; }
 	//~End IWorldPartitionCookPackageObject
 
 	ENGINE_API virtual void DumpStateLog(FHierarchicalLogArchive& Ar) const;
@@ -317,6 +363,8 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, p
 #endif
 
 protected:
+	FORCEINLINE const TArray<FName>& GetDataLayersInline() const { return DataLayers.ToArray(); }
+
 	//@todo_ow: Implement ServerOnlyVisible and refactor ClientOnlyVisible.
 	//          Instead of this function, server would not not wait for client level visibility 
 	//          for server-only visible cells.
@@ -324,6 +372,8 @@ protected:
 	//          world partition initialization to avoid visiting them at runtime.
 	//          The same should be done for injected external streaming objects.
 	ENGINE_API virtual bool ShouldServerWaitForClientLevelVisibility() const { return true; }
+
+	ENGINE_API EDataLayerRuntimeState GetCellEffectiveWantedStateRaw() const { return !HasDataLayers() ? EDataLayerRuntimeState::Activated : EffectiveWantedState; }
 
 	UPROPERTY()
 	bool bIsAlwaysLoaded;
@@ -374,7 +424,7 @@ protected:
 
 public:
 	//~Begin UWorldPartitionRuntimeCellData Proxy
-	inline void AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape) const { RuntimeCellData->AppendStreamingSourceInfo(Source, SourceShape); }
+	inline void AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape, const FWorldPartitionStreamingContext& Context) const { RuntimeCellData->AppendStreamingSourceInfo(Source, SourceShape, Context); }
 	inline void MergeStreamingSourceInfo() const { RuntimeCellData->MergeStreamingSourceInfo(); }
 	ENGINE_API int32 SortCompare(const UWorldPartitionRuntimeCell* Other) const;
 	
@@ -390,8 +440,14 @@ public:
 	ENGINE_API virtual bool IsDebugShown() const;
 	//~End UWorldPartitionRuntimeCellData Proxy
 
+	//~Begin Deprecation
+	UE_DEPRECATED(5.5, "Use version that takes FWorldPartitionStreamingContext instead.")
+	inline void AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape) {}
+	//~End Deprecation
+
 	UPROPERTY()
 	TObjectPtr<UWorldPartitionRuntimeCellData> RuntimeCellData;
 
 	friend class UWorldPartitionStreamingPolicy;
+	friend struct FSpatialHashStreamingGrid;
 };

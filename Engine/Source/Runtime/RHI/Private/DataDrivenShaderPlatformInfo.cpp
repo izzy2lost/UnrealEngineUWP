@@ -52,6 +52,13 @@ static inline FString GetSectionString(const FConfigSection& Section, FName Key)
 	return Value ? Value->GetValue() : FString();
 }
 
+// Gets a string from a section, or default string if it didn't exist
+static inline FName GetSectionString(const FConfigSection& Section, FName Key, FName DefaultValue)
+{
+	const FConfigValue* Value = Section.Find(Key);
+	return Value ? *Value->GetValue() : DefaultValue;
+}
+
 // Gets a bool from a section.  It returns the original value if the setting does not exist
 static inline bool GetSectionBool(const FConfigSection& Section, FName Key, bool OriginalValue)
 {
@@ -135,15 +142,44 @@ static inline uint32 GetSectionBindlessSupport(const FConfigSection& Section, FN
 	return OriginalValue;
 }
 
+static inline uint32 GetSectionStaticShaderBindingLayoutSupport(const FConfigSection& Section, FName Key, uint32 OriginalValue)
+{
+	const FConfigValue* ConfigValue = Section.Find(Key);
+	if (ConfigValue != nullptr)
+	{
+		FString Value = ConfigValue->GetValue();
+		if (Value == TEXT("Unsupported"))
+		{
+			return uint32(ERHIStaticShaderBindingLayoutSupport::Unsupported);
+		}
+		if (Value == TEXT("RayTracingOnly"))
+		{
+			return uint32(ERHIStaticShaderBindingLayoutSupport::RayTracingOnly);
+		}
+		else if (Value == TEXT("AllShaderTypes"))
+		{
+			return uint32(ERHIStaticShaderBindingLayoutSupport::AllShaderTypes);
+		}
+		else
+		{
+			checkf(false, TEXT("Unknown ERHIStaticShaderBindingLayoutSupport value \"%s\" for %s"), *Value, *Key.ToString());
+		}
+	}
+
+	return OriginalValue;
+}
+
 void FGenericDataDrivenShaderPlatformInfo::SetDefaultValues()
 {
 	MaxFeatureLevel = ERHIFeatureLevel::Num;
 	bSupportsMSAA = true;
+	bSupportsUnrestrictedHalfFloatBuffers = true;
 	bSupportsDOFHybridScattering = true;
 	bSupportsHZBOcclusion = true;
 	bSupportsWaterIndirectDraw = true;
 	bSupportsAsyncPipelineCompilation = true;
 	bSupportsVertexShaderSRVs = true; // Explicitly overriden to false for ES 3.1 platforms via DDPI ini
+	bSupportsVertexShaderUAVs = uint32(ERHIFeatureSupport::Unsupported);
 	bSupportsManualVertexFetch = true;
 	bSupportsVolumeTextureAtomics = true;
 	bSupportsClipDistance = true;
@@ -155,11 +191,15 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 {
 	FGenericDataDrivenShaderPlatformInfo& Info = Infos[Index];
 
-	Info.Language = *GetSectionString(Section, "Language");
-	Info.ShaderFormat = *GetSectionString(Section, "ShaderFormat");
+	Info.Language = GetSectionString(Section, "Language", Info.Language);
+	Info.ShaderFormat = GetSectionString(Section, "ShaderFormat", Info.ShaderFormat);
 	checkf(!Info.ShaderFormat.IsNone(), TEXT("Missing ShaderFormat for ShaderPlatform %s  ShaderFormat %s"), *Info.Name.ToString(), *Info.ShaderFormat.ToString());
 
-	GetFeatureLevelFromName(GetSectionString(Section, "MaxFeatureLevel"), Info.MaxFeatureLevel);
+	const FConfigValue* MaxFeatureLevelValue = Section.Find("MaxFeatureLevel");
+	if (MaxFeatureLevelValue)
+	{
+		GetFeatureLevelFromName(MaxFeatureLevelValue->GetValue(), Info.MaxFeatureLevel);
+	}
 
 	Info.ShaderPropertiesHash = 0;
 	FString ShaderPropertiesString = Info.Name.GetPlainNameString();
@@ -190,6 +230,10 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 #define GET_SECTION_BINDLESS_SUPPORT_HELPER(SettingName) \
 	Info.SettingName = GetSectionBindlessSupport(Section, #SettingName, Info.SettingName); \
 	ADD_TO_PROPERTIES_STRING(SettingName, Info.SettingName)
+		
+#define GET_SECTION_STATIC_SHADER_BINDING_LAYOUT_SUPPORT_HELPER(SettingName) \
+	Info.SettingName = GetSectionStaticShaderBindingLayoutSupport(Section, #SettingName, Info.SettingName); \
+	ADD_TO_PROPERTIES_STRING(SettingName, Info.SettingName)
 
 	// These properties will be exposed to the MaterialEditor that use the ShaderPlatformInfo Node
 	// If you remove/rename a property be sure to address this in UMaterialExpressionDataDrivenShaderPlatformInfoSwitch serialization
@@ -209,7 +253,6 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 	GET_SECTION_BOOL_HELPER(bSupportsDistanceFields);
 	GET_SECTION_BOOL_HELPER(bSupportsDiaphragmDOF);
 	GET_SECTION_BOOL_HELPER(bSupportsRGBColorBuffer);
-	GET_SECTION_BOOL_HELPER(bSupportsCapsuleShadows);
 	GET_SECTION_BOOL_HELPER(bSupportsPercentageCloserShadows);
 	GET_SECTION_BOOL_HELPER(bSupportsIndexBufferUAVs);
 	GET_SECTION_BOOL_HELPER(bSupportsInstancedStereo);
@@ -228,6 +271,7 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 	GET_SECTION_BOOL_HELPER(bSupportsRayTracingIndirectInstanceData);
 	GET_SECTION_BOOL_HELPER(bSupportsPathTracing);
 	GET_SECTION_BOOL_HELPER(bSupportsHighEndRayTracingEffects);
+	GET_SECTION_BOOL_HELPER(bSupportsUnrestrictedHalfFloatBuffers)
 	GET_SECTION_BOOL_HELPER(bSupportsByteBufferComputeShaders);
 	GET_SECTION_BOOL_HELPER(bSupportsGPUScene);
 	GET_SECTION_BOOL_HELPER(bSupportsPrimitiveShaders);
@@ -275,12 +319,14 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 	GET_SECTION_BOOL_HELPER(bSupportsWaterIndirectDraw);
 	GET_SECTION_BOOL_HELPER(bSupportsAsyncPipelineCompilation);
 	GET_SECTION_BOOL_HELPER(bSupportsVertexShaderSRVs);
+	GET_SECTION_SUPPORT_HELPER(bSupportsVertexShaderUAVs);
 	GET_SECTION_BOOL_HELPER(bSupportsManualVertexFetch);
 	GET_SECTION_BOOL_HELPER(bRequiresReverseCullingOnMobile);
 	GET_SECTION_BOOL_HELPER(bOverrideFMaterial_NeedsGBufferEnabled);
 	GET_SECTION_BOOL_HELPER(bSupportsFFTBloom);
 	GET_SECTION_BOOL_HELPER(bSupportsVertexShaderLayer);
 	GET_SECTION_BINDLESS_SUPPORT_HELPER(BindlessSupport);
+	GET_SECTION_STATIC_SHADER_BINDING_LAYOUT_SUPPORT_HELPER(StaticShaderBindingLayoutSupport);
 	GET_SECTION_BOOL_HELPER(bSupportsVolumeTextureAtomics);
 	GET_SECTION_BOOL_HELPER(bSupportsROV);
 	GET_SECTION_BOOL_HELPER(bSupportsOIT);
@@ -297,6 +343,11 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 	GET_SECTION_BOOL_HELPER(SupportsBarycentricsIntrinsics);
 	GET_SECTION_SUPPORT_HELPER(SupportsBarycentricsSemantic);
 	GET_SECTION_BOOL_HELPER(bSupportsWave64);
+	GET_SECTION_BOOL_HELPER(bSupportsIndependentSamplers);
+	GET_SECTION_BOOL_HELPER(bSupportsWorkGraphs);
+#if WITH_EDITOR
+	GET_SECTION_BOOL_HELPER(bCanUsePreviewPlatformForMaterialValidation);
+#endif
 #undef GET_SECTION_BOOL_HELPER
 #undef GET_SECTION_INT_HELPER
 #undef GET_SECTION_SUPPORT_HELPER
@@ -360,6 +411,7 @@ void FGenericDataDrivenShaderPlatformInfo::Initialize()
 
 				// at this point, we can start pulling information out
 				Infos[ShaderPlatform].Name = *SectionName.Mid(15);
+				Infos[ShaderPlatform].PlatformName = FName(*PlatformName);
 				PlatformNameToShaderPlatformMap.FindOrAdd(Infos[ShaderPlatform].Name) = ShaderPlatform;
 				ParseDataDrivenShaderInfo(SectionSettings, ShaderPlatform);
 				Infos[ShaderPlatform].bContainsValidPlatformInfo = true;
@@ -376,6 +428,7 @@ void FGenericDataDrivenShaderPlatformInfo::Initialize()
 							const EShaderPlatform PreviewShaderPlatform = EShaderPlatform(CustomShaderPlatform++);
 							FGenericDataDrivenShaderPlatformInfo& PreviewInfo = Infos[PreviewShaderPlatform];
 							PreviewInfo.Name = Item.PreviewShaderPlatformName;
+							PreviewInfo.PlatformName = Infos[ShaderPlatform].PlatformName;
 							ParseDataDrivenShaderInfo(SectionSettings, PreviewShaderPlatform);
 							PreviewInfo.bIsPreviewPlatform = true;
 							PreviewInfo.bContainsValidPlatformInfo = true;
@@ -399,6 +452,42 @@ void FGenericDataDrivenShaderPlatformInfo::Initialize()
 				}
 #endif
 			}
+#if WITH_EDITOR
+			else if (Section.Key.StartsWith(TEXT("PreviewShaderPlatform ")))
+			{
+				const FString& SectionName = Section.Key;
+				const FConfigSection& SectionSettings = Section.Value;
+
+				const FString ParentShaderPlatformName = GetSectionString(SectionSettings, "ParentShaderPlatform");
+				const EShaderPlatform ParentShaderPlatform = ParseShaderPlatform(*ParentShaderPlatformName);
+
+				// get enum value for the string name
+				const EShaderPlatform ShaderPlatform = EShaderPlatform(CustomShaderPlatform++);
+
+				FGenericDataDrivenShaderPlatformInfo& Info = Infos[ShaderPlatform];
+				if (IsValid(ParentShaderPlatform))
+				{
+					const FGenericDataDrivenShaderPlatformInfo& ParentInfo = Infos[ParentShaderPlatform];
+					Info = ParentInfo;
+				}
+				Info.Name = *SectionName.Mid(22);
+				
+				ParseDataDrivenShaderInfo(SectionSettings, ShaderPlatform);
+				Info.bContainsValidPlatformInfo = true;
+				Info.bIsPreviewPlatform = true;
+
+				ERHIFeatureLevel::Type PreviewFeatureLevel = ERHIFeatureLevel::Num;
+				if (GetFeatureLevelFromName(GetSectionString(SectionSettings, "PreviewFeatureLevel"), PreviewFeatureLevel))
+				{
+					Info.MaxFeatureLevel = PreviewFeatureLevel;
+				}
+
+				PlatformNameToShaderPlatformMap.FindOrAdd(Info.Name) = ShaderPlatform;
+
+				FDataDrivenShaderPlatformInfoEditorOnly& PreviewEditorInfo = DataDrivenShaderPlatformInfoEditorOnlyInfos[ShaderPlatform];
+				PreviewEditorInfo.PreviewShaderPlatformParent = ShaderPlatform;
+			}
+#endif
 		}
 	}
 	bInitialized = true;
@@ -437,6 +526,7 @@ void FGenericDataDrivenShaderPlatformInfo::UpdatePreviewPlatforms()
 				PREVIEW_USE_RUNTIME_VALUE(Language);
 				PREVIEW_USE_RUNTIME_VALUE(bIsHlslcc);
 				PREVIEW_USE_RUNTIME_VALUE(bSupportsDxc);
+				PREVIEW_USE_RUNTIME_VALUE(bIsSPIRV);
 
 				// Editor is always PC, never console and always supports debug view shaders
 				PREVIEW_FORCE_SETTING(bIsPC, true);
@@ -454,6 +544,7 @@ void FGenericDataDrivenShaderPlatformInfo::UpdatePreviewPlatforms()
 				else
 				{
 					PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsInstancedStereo);
+					PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsVertexShaderLayer);
 				}
 
 				// Settings that should be kept true if the runtime also supports it.
@@ -462,8 +553,6 @@ void FGenericDataDrivenShaderPlatformInfo::UpdatePreviewPlatforms()
 				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsPrimitiveShaders);
 				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsUInt64ImageAtomics);
 				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsGen5TemporalAA);
-				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsInlineRayTracing);
-				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsRayTracingShaders);
 				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsMeshShadersTier0);
 				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsMeshShadersTier1);
 				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsMobileMultiView);
@@ -473,9 +562,13 @@ void FGenericDataDrivenShaderPlatformInfo::UpdatePreviewPlatforms()
 				PREVIEW_USE_RUNTIME_VALUE(MaxMeshShaderThreadGroupSize);
 				PREVIEW_USE_RUNTIME_VALUE(bSupportsSceneDataCompressedTransforms);
 				PREVIEW_USE_RUNTIME_VALUE(bSupportsVertexShaderSRVs);
+				PREVIEW_USE_RUNTIME_VALUE(bSupportsVertexShaderUAVs);
 				PREVIEW_USE_RUNTIME_VALUE(bSupportsManualVertexFetch);
 				PREVIEW_USE_RUNTIME_VALUE(bSupportsRealTypes);
 				PREVIEW_USE_RUNTIME_VALUE(bSupportsUniformBufferObjects);
+
+				PREVIEW_USE_RUNTIME_VALUE(bSupportsInlineRayTracing);
+				PREVIEW_USE_RUNTIME_VALUE(bSupportsRayTracingShaders);
 
 				// Settings that will never be supported in preview
 				PREVIEW_FORCE_DISABLE(bSupportsShaderRootConstants);

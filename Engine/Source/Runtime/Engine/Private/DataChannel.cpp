@@ -11,12 +11,15 @@
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
+#if UE_WITH_IRIS
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
+#endif
 #include "Misc/MemStack.h"
 #include "Misc/ScopeExit.h"
 #include "Net/Core/Trace/Private/NetTraceInternal.h"
 #include "Net/Core/Misc/GuidReferences.h"
 #include "Net/Core/NetCoreModule.h"
+#include "Net/Core/Connection/NetEnums.h"
 #include "UObject/UObjectIterator.h"
 #include "EngineStats.h"
 #include "Engine/Engine.h"
@@ -299,7 +302,7 @@ int64 UChannel::Close(EChannelCloseReason Reason)
 
 	int64 NumBits = 0;
 
-	if ( !Closing && ( Connection->GetConnectionState() == USOCK_Open || Connection->GetConnectionState() == USOCK_Pending ) && !SentClosingBunch)
+	if ( !Closing && ( Connection->GetConnectionState() == USOCK_Open || Connection->GetConnectionState() == USOCK_Pending || (Connection->GetConnectionState() == USOCK_Closing && ChIndex == 0)) && !SentClosingBunch)
 	{
 		if ( ChIndex == 0 )
 		{
@@ -641,6 +644,14 @@ void UChannel::ReceivedRawBunch( FInBunch & Bunch, bool & bOutSkipAck )
 		// Verify that UConnection::ReceivedPacket has passed us a valid bunch.
 		check(Bunch.ChSequence>Connection->InReliable[ChIndex]);
 
+		// Pessimistic NAK so that the other side doesn't think we have processed the export
+		// In practice, this would only happen if we split an export bunch into multiple bunches
+		if (Bunch.bPartialCustomExportsFinal)
+		{
+			UE_LOG(LogNetPartialBunch, Warning, TEXT("New Pessimistic Nak Performed on %s"), *Bunch.ToString());
+			bOutSkipAck = true;
+		}
+
 		// Find the place for this item, sorted in sequence.
 		UE_LOG(LogNetTraffic, Log, TEXT("      Queuing bunch with unreceived dependency: %d / %d"), Bunch.ChSequence, Connection->InReliable[ChIndex]+1 );
 		FInBunch** InPtr;
@@ -809,7 +820,8 @@ bool UChannel::ReceivedNextBunch( FInBunch & Bunch, bool & bOutSkipAck )
 			{		
 				if ( !Bunch.bHasPackageMapExports && Bunch.GetBitsLeft() > 0 )
 				{
-					if ( Bunch.GetBitsLeft() % 8 != 0 )
+					// If we're an extensions bunch, we're not byte aligned
+					if ( !Bunch.bPartialCustomExportsFinal && Bunch.GetBitsLeft() % 8 != 0 )
 					{
 						UE_LOG(LogNetPartialBunch, Warning, TEXT("Corrupt partial bunch. Initial partial bunches are expected to be byte-aligned. BitsLeft = %u. %s"), Bunch.GetBitsLeft(), *Describe());
 
@@ -852,7 +864,8 @@ bool UChannel::ReceivedNextBunch( FInBunch & Bunch, bool & bOutSkipAck )
 			if ( InPartialBunch && !InPartialBunch->bPartialFinal && bSequenceMatches && InPartialBunch->bReliable == Bunch.bReliable )
 			{
 				// Merge.
-				UE_LOG(LogNetPartialBunch, Verbose, TEXT("Merging Partial Bunch: %d Bytes"), Bunch.GetBytesLeft() );
+				UE_LOG(LogNetPartialBunch, Verbose, TEXT("Merging Partial Bunch: %d Bits."), Bunch.GetBitsLeft() );
+				UE_LOG(LogNetPartialBunch, VeryVerbose, TEXT(" %s"), *Bunch.ToString() );
 
 				if ( !Bunch.bHasPackageMapExports && Bunch.GetBitsLeft() > 0 )
 				{
@@ -861,7 +874,7 @@ bool UChannel::ReceivedNextBunch( FInBunch & Bunch, bool & bOutSkipAck )
 
 				// Only the final partial bunch should ever be non byte aligned. This is enforced during partial bunch creation
 				// This is to ensure fast copies/appending of partial bunches. The final partial bunch may be non byte aligned.
-				if (!Bunch.bHasPackageMapExports && !Bunch.bPartialFinal && (Bunch.GetBitsLeft() % 8 != 0))
+				if (!Bunch.bHasPackageMapExports && !Bunch.bPartialCustomExportsFinal && !Bunch.bPartialFinal && (Bunch.GetBitsLeft() % 8 != 0))
 				{
 					UE_LOG(LogNetPartialBunch, Warning, TEXT("Corrupt partial bunch. Non-final partial bunches are expected to be byte-aligned. bHasPackageMapExports = %d, bPartialFinal = %d, BitsLeft = %u. %s"),
 						Bunch.bHasPackageMapExports ? 1 : 0, Bunch.bPartialFinal ? 1 : 0, Bunch.GetBitsLeft(), *Describe());
@@ -961,7 +974,35 @@ bool UChannel::ReceivedNextBunch( FInBunch & Bunch, bool & bOutSkipAck )
 
 			return false;
 		}
-	}
+
+		// This flag denotes that the previous partial data has now fully reassembled the exports data, and we should now reconstruct it
+		// The reading of the exports data is guaranteed to occur in the same frame it's received (and therefore ack'd).  This is so an ack 
+		// guarantees that the export data has been read (so we can change our representation to a fully ack'd representation).
+		if (!bOutSkipAck && Bunch.bPartialCustomExportsFinal)
+		{
+			UE_LOG(LogNetPartialBunch, Verbose, TEXT("Partial CustomExports Bunch (ChSequence %d PacketId %d) is being processed."), Bunch.ChSequence, Bunch.PacketId);
+
+			ensureMsgf(!HandleBunch, TEXT("Code logic error:  CustomExports Bunch is going to be read as if it contains other data"));
+			ensureMsgf(!Bunch.bPartialFinal, TEXT("CustomExports Bunch was also marked as the final bunch (therefore no data depended on this)"));
+			ensureMsgf(InPartialBunch, TEXT("CustomExports Bunch was not properly merged into a Partial Bunch"));
+			if (InPartialBunch && !Connection->IsInternalAck())
+			{
+				InPartialBunch->bPartialCustomExportsFinal = Bunch.bPartialCustomExportsFinal;
+				CastChecked<UPackageMapClient>(Connection->PackageMap)->ReceiveCustomExportsBunch(*InPartialBunch);
+
+				if (InPartialBunch->IsError())
+				{
+					AddToChainResultPtr(InPartialBunch->ExtendedError, ENetCloseResult::ReceivedNetGUIDBunchFail);
+					UE_LOG(LogNetTraffic, Error, TEXT("UChannel::ReceivedRawBunch: Bunch.IsError() after ReceiveCustomExportsBunch. ChIndex: %i"), ChIndex);
+					return false;
+				}
+
+				// Reset the partial bunch so that it only contains data (not the exports, which we just processed)...
+				InPartialBunch->ResetData(*InPartialBunch, 0, InPartialBunch->GetNumBits());
+				InPartialBunch->bPartialCustomExportsFinal = false;
+			}
+		}
+	} // bPartial
 
 	if ( HandleBunch != NULL )
 	{
@@ -1039,12 +1080,20 @@ bool UChannel::ReceivedNextBunch( FInBunch & Bunch, bool & bOutSkipAck )
 	return false;
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void UChannel::AppendExportBunches( TArray<FOutBunch *>& OutExportBunches )
 {
 	UPackageMapClient * PackageMapClient = CastChecked< UPackageMapClient >( Connection->PackageMap );
 
 	// Let the package map add any outgoing bunches it needs to send
 	PackageMapClient->AppendExportBunches( OutExportBunches );
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+TArray<FOutBunch*> UChannel::GetAdditionalRequiredBunches(const FOutBunch& OutgoingBunch, EChannelGetAdditionalRequiredBunchesFlags Flags)
+{
+	UPackageMapClient* PackageMapClient = CastChecked< UPackageMapClient >(Connection->PackageMap);
+	return PackageMapClient->GetAdditionalRequiredBunches(OutgoingBunch, Flags);
 }
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -1105,12 +1154,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void UActorChannel::AppendExportBunches( TArray<FOutBunch *>& OutExportBunches )
 {
+	ensureMsgf(false, TEXT("%hs is deprecated. Use GetAdditionalRequiredBunches"), __func__);
+
 	if (bHoldQueuedExportBunchesAndGUIDs)
 	{
 		return;
 	}
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Super::AppendExportBunches( OutExportBunches );
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// We don't want to append QueuedExportBunches to these bunches, since these were for queued RPC's, and we don't want to record RPC's during bResendAllDataSinceOpen
 	if ( Connection->ResendAllDataState == EResendAllDataState::None )
@@ -1130,6 +1183,38 @@ void UActorChannel::AppendExportBunches( TArray<FOutBunch *>& OutExportBunches )
 			QueuedExportBunches.Empty();
 		}
 	}
+}
+
+TArray<FOutBunch*> UActorChannel::GetAdditionalRequiredBunches(const FOutBunch& OutgoingBunch, EChannelGetAdditionalRequiredBunchesFlags Flags)
+{
+	TArray<FOutBunch*> AdditionalBunches;
+
+	// Tell super to skip appending NetGUID export bunches. 
+	// This is used from fastpath to disallow NetGUID exports but since we now allow "stable" exports we need to get the additional bunches for that type of exportdata.
+	Flags |= bHoldQueuedExportBunchesAndGUIDs ? EChannelGetAdditionalRequiredBunchesFlags::SkipNetGUIDExports : EChannelGetAdditionalRequiredBunchesFlags::None;
+
+	AdditionalBunches = Super::GetAdditionalRequiredBunches(OutgoingBunch, Flags);
+
+	// We don't want to append QueuedExportBunches to these bunches, since these were for queued RPC's, and we don't want to record RPC's during bResendAllDataSinceOpen
+	if (Connection->ResendAllDataState == EResendAllDataState::None)
+	{
+		// Let the profiler know about exported GUID bunches
+		for (const FOutBunch* ExportBunch : QueuedExportBunches)
+		{
+			if (ExportBunch != nullptr)
+			{
+				NETWORK_PROFILER(GNetworkProfiler.TrackExportBunch(ExportBunch->GetNumBits(), Connection));
+			}
+		}
+
+		if (QueuedExportBunches.Num())
+		{
+			AdditionalBunches.Append(QueuedExportBunches);
+			QueuedExportBunches.Empty();
+		}
+	}
+
+	return AdditionalBunches;
 }
 
 void UActorChannel::AppendMustBeMappedGuids( FOutBunch* Bunch )
@@ -1220,7 +1305,7 @@ FPacketIdRange UChannel::SendBunch( FOutBunch* Bunch, bool Merge )
 	// Replay connections will manage export bunches separately.
 	if (!Connection->IsInternalAck())
 	{
-		AppendExportBunches( OutgoingBunches );
+		OutgoingBunches = GetAdditionalRequiredBunches(*Bunch);
 	}
 
 	if ( OutgoingBunches.Num() )
@@ -1265,7 +1350,6 @@ FPacketIdRange UChannel::SendBunch( FOutBunch* Bunch, bool Merge )
 		Connection->LastOut.SerializeBits( Bunch->GetData(), Bunch->GetNumBits() );
 		Connection->LastOut.bOpen     |= Bunch->bOpen;
 		Connection->LastOut.bClose    |= Bunch->bClose;
-
 #if UE_NET_TRACE_ENABLED		
 		SetTraceCollector(Connection->LastOut, GetTraceCollector(*Bunch));
 		SetTraceCollector(*Bunch, nullptr);
@@ -1375,7 +1459,7 @@ FPacketIdRange UChannel::SendBunch( FOutBunch* Bunch, bool Merge )
 		NextBunch->ChIndex = Bunch->ChIndex;
 		NextBunch->ChName = Bunch->ChName;
 
-		if ( !NextBunch->bHasPackageMapExports )
+		if ( !(NextBunch->bHasPackageMapExports || NextBunch->bPartialCustomExportsFinal))
 		{
 			NextBunch->bHasMustBeMappedGUIDs |= Bunch->bHasMustBeMappedGUIDs;
 		}
@@ -1388,12 +1472,14 @@ FPacketIdRange UChannel::SendBunch( FOutBunch* Bunch, bool Merge )
 			NextBunch->bOpen &= (PartialNum == 0);											// Only the first bunch should have the bOpen bit set
 			NextBunch->bClose = (Bunch->bClose && (OutgoingBunches.Num()-1 == PartialNum)); // Only last bunch should have bClose bit set
 		}
+		ensureMsgf(!NextBunch->bPartialCustomExportsFinal || NextBunch->bPartial, TEXT("Can't have PackageMapExtensions without being part of a partial bunch"));
 
 		FOutBunch *ThisOutBunch = PrepBunch(NextBunch, OutBunch, Merge); // This handles queuing reliable bunches into the ack list
 
 		if (UE_LOG_ACTIVE(LogNetPartialBunch,Verbose) && (OutgoingBunches.Num() > 1)) // Don't want to call appMemcrc unless we need to
 		{
-			UE_LOG(LogNetPartialBunch, Verbose, TEXT("	Bunch[%d]: Bytes: %d Bits: %d ChSequence: %d 0x%X"), PartialNum, ThisOutBunch->GetNumBytes(), ThisOutBunch->GetNumBits(), ThisOutBunch->ChSequence, FCrc::MemCrc_DEPRECATED(ThisOutBunch->GetData(), ThisOutBunch->GetNumBytes()));
+			UE_LOG(LogNetPartialBunch, Verbose, TEXT("	Bunch[%d]: Bytes: %d Bits: %d ChSequence: %d NetGUIDs: %d CustomExports: %d 0x%X"), PartialNum, ThisOutBunch->GetNumBytes(), ThisOutBunch->GetNumBits(), ThisOutBunch->ChSequence, ThisOutBunch->bHasPackageMapExports, ThisOutBunch->bPartialCustomExportsFinal, FCrc::MemCrc_DEPRECATED(ThisOutBunch->GetData(), ThisOutBunch->GetNumBytes()));
+			UE_LOG(LogNetPartialBunch, VeryVerbose, TEXT("	 %s"), *ThisOutBunch->GetDebugString());
 		}
 
 		// Update Packet Range
@@ -1616,11 +1702,17 @@ void UChannel::AddedToChannelPool()
 	NumOutRec = 0;
 }
 
+bool UChannel::HasAcknowledgedAllReliableData() const
+{
+	return NumOutRec == 0;
+}
+
 /*-----------------------------------------------------------------------------
 	UControlChannel implementation.
 -----------------------------------------------------------------------------*/
 
 const TCHAR* FNetControlMessageInfo::Names[256];
+bool FNetControlMessageInfo::bInitialized = false;
 
 // control channel message implementation
 IMPLEMENT_CONTROL_CHANNEL_MESSAGE(Hello);
@@ -1865,21 +1957,21 @@ void UControlChannel::ReceivedBunch( FInBunch& Bunch )
 #if UE_WITH_IRIS
 				if (UReplicationSystem* IrisRepSystem = Connection->Driver->GetReplicationSystem())
 				{
-					IrisRepSystem->ReportProtocolMismatch(NetRefHandleId, Connection->GetConnectionId());
+					IrisRepSystem->ReportProtocolMismatch(NetRefHandleId, Connection->GetConnectionHandle().GetParentConnectionId());
 				}
 #endif
 			}
 		}
 		else if (MessageType == NMT_IrisNetRefHandleError)
 		{
-			uint32 ErrorType = 0; //TBD
+			UE::Net::ENetRefHandleError NetRefHandleError = UE::Net::ENetRefHandleError::None;
 			uint64 NetRefHandleId = 0;
-			if (FNetControlMessage<NMT_IrisNetRefHandleError>::Receive(Bunch, ErrorType, NetRefHandleId))
+			if (FNetControlMessage<NMT_IrisNetRefHandleError>::Receive(Bunch, NetRefHandleError, NetRefHandleId))
 			{
 #if UE_WITH_IRIS
 				if (UReplicationSystem* IrisRepSystem = Connection->Driver->GetReplicationSystem())
 				{
-					IrisRepSystem->ReportErrorWithNetRefHandle(ErrorType, NetRefHandleId, Connection->GetConnectionId());
+					IrisRepSystem->ReportErrorWithNetRefHandle(NetRefHandleError, NetRefHandleId, Connection->GetConnectionHandle().GetParentConnectionId());
 				}
 #endif
 			}
@@ -2348,7 +2440,6 @@ void UActorChannel::CleanupReplicators(const bool bKeepReplicators)
 			//		While the channel is on this list, we also re-open a new channel using the same actor
 			//		KeepProcessingActorChannelBunchesMap will get in here, then when the channel closes a second time, we'll hit this assert
 			//		It should be okay to just set the most recent replicator
-			//check( Connection->DormantReplicatorMap.Find( CompIt.Value()->GetObject() ) == NULL );
 			Connection->StoreDormantReplicator(Actor, ObjectReplicatorRef->GetObject(), ObjectReplicatorRef);
 			ObjectReplicatorRef->StopReplicating(this);		// Stop replicating on this channel
 		}
@@ -2876,7 +2967,7 @@ bool UActorChannel::ProcessQueuedBunches()
 
 			if (UPackageMapClient * PackageMapClient = Cast< UPackageMapClient >(Connection->PackageMap))
 			{
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 				FNetGUIDCache::FIsOwnerOrPawnHelper Helper(Connection->Driver->GuidCache.Get(), Connection->OwningActor, Actor);
 #endif
 
@@ -2966,7 +3057,7 @@ void UActorChannel::ReceivedBunch( FInBunch & Bunch )
 
 			FNetGUIDCache* GuidCache = Connection->Driver->GuidCache.Get();
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 			FNetGUIDCache::FIsOwnerOrPawnHelper Helper(GuidCache, Connection->OwningActor, Actor);
 #endif
 
@@ -3403,7 +3494,11 @@ int64 UActorChannel::ReplicateActor()
 	check(nullptr != Cast<UPackageMapClient>(Connection->PackageMap));
 
 	const UWorld* const ActorWorld = Actor->GetWorld();
-	checkf(ActorWorld, TEXT("ActorWorld for Actor [%s] is Null"), *GetPathNameSafe(Actor));
+	ensureMsgf(ActorWorld, TEXT("ActorWorld for Actor [%s] is Null"), *GetPathNameSafe(Actor));
+	if (ActorWorld == nullptr)
+	{
+		return 0;
+	}
 
 #if STATS || ENABLE_STATNAMEDEVENTS
 	UClass* ParentNativeClass = GetParentNativeClass(Actor->GetClass());
@@ -3514,6 +3609,9 @@ int64 UActorChannel::ReplicateActor()
 	// Create an outgoing bunch, and skip this actor if the channel is saturated.
 	FOutBunch Bunch( this, 0 );
 
+	// Create export scope to capture NetToken exports and store them in Bunch.NetTokensPendingExport
+	UE::Net::FNetTokenExportScope NetTokenExportScope(Bunch, Connection->GetDriver()->GetNetTokenStore(), Bunch.NetTokensPendingExport, "ReplicateActor");
+	
 	if( Bunch.IsError() )
 	{
 		return 0;
@@ -5291,7 +5389,7 @@ TSharedRef<FObjectReplicator>& UActorChannel::FindOrCreateReplicator(UObject* Ob
 	TSharedRef<FObjectReplicator>* ReplicatorRefPtr = FindReplicator(Obj);
 
 	// This should only be false if we found the replicator in the ReplicationMap
-	// If we pickup the replicator from the DormantReplicatorMap we treat it as it has been created.
+	// If we pickup the replicator from the DormantReplicatorSet we treat it as it has been created.
 	if (bOutCreated != nullptr)
 	{
 		*bOutCreated = (ReplicatorRefPtr == nullptr);

@@ -16,9 +16,6 @@ public:
 	/** Reset the stored data. */
 	void Reset();
 
-	/** Associated VertexFactoryUserData set to point at this object. */
-	FSkinBatchVertexFactoryUserData VertexFactoryUserData;
-
 	// Frame numbers of last update.
 	uint32 PositionUpdatedFrame = 0;
 	uint32 TangentUpdatedFrame = 0;

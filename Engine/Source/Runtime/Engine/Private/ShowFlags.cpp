@@ -311,6 +311,9 @@ void ApplyViewMode(EViewModeIndex ViewModeIndex, bool bPerspective, FEngineShowF
 		case VMI_Lit_DetailLighting:
 			bPostProcessing = true;
 			break;
+		case VMI_Lit_Wireframe:
+			bPostProcessing = true;
+			break;
 		case VMI_LightingOnly:
 			bPostProcessing = true;
 			break;
@@ -357,6 +360,9 @@ void ApplyViewMode(EViewModeIndex ViewModeIndex, bool bPerspective, FEngineShowF
 			bPostProcessing = true;
 			break;
 		case VMI_VisualizeGPUSkinCache:
+			bPostProcessing = false;
+			break;
+		case VMI_LWCComplexity:
 			bPostProcessing = false;
 			break;
 		case VMI_ReflectionOverride:
@@ -410,6 +416,9 @@ void ApplyViewMode(EViewModeIndex ViewModeIndex, bool bPerspective, FEngineShowF
 	EngineShowFlags.SetRayTracingDebug(ViewModeIndex == VMI_RayTracingDebug);
 	EngineShowFlags.SetPathTracing(ViewModeIndex == VMI_PathTracing);
 	EngineShowFlags.SetVisualizeGPUSkinCache(ViewModeIndex == VMI_VisualizeGPUSkinCache);
+	EngineShowFlags.SetVisualizeLWCComplexity(ViewModeIndex == VMI_LWCComplexity);
+	EngineShowFlags.SetMeshEdges(ViewModeIndex == VMI_Lit_Wireframe);
+	EngineShowFlags.SetActorColoration(ViewModeIndex == VMI_VisualizeActorColoration);
 }
 
 void EngineShowFlagOverride(EShowFlagInitMode ShowFlagInitMode, EViewModeIndex ViewModeIndex, FEngineShowFlags& EngineShowFlags, bool bCanDisableTonemapper)
@@ -536,6 +545,7 @@ void EngineShowFlagOverride(EShowFlagInitMode ShowFlagInitMode, EViewModeIndex V
 			ViewModeIndex == VMI_LODColoration ||
 			ViewModeIndex == VMI_HLODColoration ||
 			ViewModeIndex == VMI_VisualizeGPUSkinCache ||
+			ViewModeIndex == VMI_LWCComplexity ||
 			ViewModeIndex == VMI_LightmapDensity)
 		{
 			EngineShowFlags.SetLighting(false);
@@ -544,8 +554,10 @@ void EngineShowFlagOverride(EShowFlagInitMode ShowFlagInitMode, EViewModeIndex V
 		}
 
 		if( ViewModeIndex == VMI_Lit ||
+			ViewModeIndex == VMI_Lit_Wireframe ||
 			ViewModeIndex == VMI_LightingOnly ||
-			ViewModeIndex == VMI_LitLightmapDensity)
+			ViewModeIndex == VMI_LitLightmapDensity ||
+			ViewModeIndex == VMI_VisualizeVirtualShadowMap )
 		{
 			EngineShowFlags.SetLighting(true);
 		}
@@ -617,6 +629,14 @@ void EngineShowFlagOverride(EShowFlagInitMode ShowFlagInitMode, EViewModeIndex V
 	{
 		EngineShowFlags.SetTonemapper(false);
 	}
+	
+	if (EngineShowFlags.MeshEdges)
+	{
+		// TAA-induced jittering causes a mismatch between the sampled positions for wireframe and lit-view pixels, resulting in z-fighting and flickering.
+		// Enabling jittering on the wireframe means also enabling TAA, which doesn't need it (MSAA) and causes ghosting artifacts.
+		EngineShowFlags.SetTemporalAA(false);
+	}
+
 
 	if (EngineShowFlags.Bones)
 	{
@@ -787,6 +807,10 @@ EViewModeIndex FindViewMode(const FEngineShowFlags& EngineShowFlags)
 	{
 		return VMI_ReflectionOverride;
 	}
+	else if (EngineShowFlags.MeshEdges)
+	{
+		return VMI_Lit_Wireframe;
+	}
 	else if (EngineShowFlags.Wireframe)
 	{
 		if (EngineShowFlags.Brushes)
@@ -830,6 +854,10 @@ EViewModeIndex FindViewMode(const FEngineShowFlags& EngineShowFlags)
 	{
 		return VMI_VisualizeGPUSkinCache;
 	}
+	else if (EngineShowFlags.VisualizeLWCComplexity)
+	{
+		return VMI_LWCComplexity;
+	}
 
 	return EngineShowFlags.Lighting ? VMI_Lit : VMI_Unlit;
 }
@@ -844,6 +872,7 @@ const TCHAR* GetViewModeName(EViewModeIndex ViewModeIndex)
 		case VMI_Unlit:						return TEXT("Unlit");
 		case VMI_Lit:						return TEXT("Lit");
 		case VMI_Lit_DetailLighting:		return TEXT("Lit_DetailLighting");
+		case VMI_Lit_Wireframe:				return TEXT("Lit_Wireframe");
 		case VMI_LightingOnly:				return TEXT("LightingOnly");
 		case VMI_LightComplexity:			return TEXT("LightComplexity");
 		case VMI_ShaderComplexity:			return TEXT("ShaderComplexity");
@@ -871,6 +900,7 @@ const TCHAR* GetViewModeName(EViewModeIndex ViewModeIndex)
 		case VMI_LODColoration:				return TEXT("LODColoration");
 		case VMI_HLODColoration:			return TEXT("HLODColoration");
 		case VMI_VisualizeGPUSkinCache:		return TEXT("VisualizeGPUSkinCache");
+		case VMI_LWCComplexity:				return TEXT("LWCComplexity");
 	}
 	return TEXT("");
 }

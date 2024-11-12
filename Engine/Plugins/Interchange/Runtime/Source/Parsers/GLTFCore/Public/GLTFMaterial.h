@@ -146,6 +146,16 @@ namespace GLTF
 			bool bHasIridescence = false;
 		};
 
+		struct FAnisotropy
+		{
+			FTextureMap Texture;
+
+			float Strength = 0.0;
+			float Rotation = 0.0;
+
+			bool bHasAnisotropy = false;
+		};
+
 		FString Name;
 
 		// PBR properties
@@ -184,7 +194,9 @@ namespace GLTF
 		bool            bHasSpecular;
 		bool            bHasEmissiveStrength;
 		FIridescence    Iridescence;
+		FAnisotropy		Anisotropy;
 
+		TMap<FString, FString> Extras;
 
 		FString UniqueId; //will be generated in FAsset::GenerateNames
 

@@ -47,9 +47,6 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		WidgetStyle = UE::Slate::Private::FDefaultStyleCache::GetEditor().GetScrollBoxStyle();
 		WidgetBarStyle = UE::Slate::Private::FDefaultStyleCache::GetEditor().GetScrollBarStyle();
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-		// The CDO isn't an editor widget and thus won't use the editor style, call post edit change to mark difference from CDO
-		PostEditChange();
 	}
 #endif // WITH_EDITOR
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -105,7 +102,9 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		.BackPadScrolling(BackPadScrolling)
 		.FrontPadScrolling(FrontPadScrolling)
 		.AnimateWheelScrolling(bAnimateWheelScrolling)
+		.ScrollAnimationInterpSpeed(ScrollAnimationInterpolationSpeed)
 		.WheelScrollMultiplier(WheelScrollMultiplier)
+		.EnableTouchScrolling(bEnableTouchScrolling)
 		.OnUserScrolled(BIND_UOBJECT_DELEGATE(FOnUserScrolled, SlateHandleUserScrolled))
 		.OnScrollBarVisibilityChanged(BIND_UOBJECT_DELEGATE(FOnScrollBarVisibilityChanged, SlateHandleScrollBarVisibilityChanged));
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -142,7 +141,9 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	MyScrollBox->SetScrollBarRightClickDragAllowed(bAllowRightClickDragScrolling);
 	MyScrollBox->SetConsumeMouseWheel(ConsumeMouseWheel);
 	MyScrollBox->SetAnimateWheelScrolling(bAnimateWheelScrolling);
+	MyScrollBox->SetScrollingAnimationInterpolationSpeed(ScrollAnimationInterpolationSpeed);
 	MyScrollBox->SetWheelScrollMultiplier(WheelScrollMultiplier);
+	MyScrollBox->SetIsTouchScrollingEnabled(bEnableTouchScrolling);
 	MyScrollBox->SetStyle(&WidgetStyle);
 	MyScrollBox->InvalidateStyle();
 	MyScrollBox->SetScrollBarStyle(&WidgetBarStyle);
@@ -432,6 +433,20 @@ bool UScrollBox::IsAnimateWheelScrolling() const
 	return bAnimateWheelScrolling;
 }
 
+void UScrollBox::SetScrollAnimationInterpolationSpeed(float NewScrollAnimationInterpolationSpeed)
+{
+	ScrollAnimationInterpolationSpeed = NewScrollAnimationInterpolationSpeed;
+	if (MyScrollBox)
+	{
+		MyScrollBox->SetScrollingAnimationInterpolationSpeed(ScrollAnimationInterpolationSpeed);
+	}
+}
+
+float UScrollBox::GetScrollAnimationInterpolationSpeed() const
+{
+	return ScrollAnimationInterpolationSpeed;
+}
+
 void UScrollBox::SetWheelScrollMultiplier(float NewWheelScrollMultiplier)
 {
 	WheelScrollMultiplier = NewWheelScrollMultiplier;
@@ -444,6 +459,20 @@ void UScrollBox::SetWheelScrollMultiplier(float NewWheelScrollMultiplier)
 float UScrollBox::GetWheelScrollMultiplier() const
 {
 	return WheelScrollMultiplier;
+}
+
+void UScrollBox::SetIsTouchScrollingEnabled(bool bInEnableTouchScrolling)
+{
+	bEnableTouchScrolling = bInEnableTouchScrolling;
+	if (MyScrollBox)
+	{
+		MyScrollBox->SetIsTouchScrollingEnabled(bInEnableTouchScrolling);
+	}
+}
+
+bool UScrollBox::GetIsTouchScrollingEnabled() const
+{
+	return bEnableTouchScrolling;
 }
 
 void UScrollBox::SetScrollWhenFocusChanges(EScrollWhenFocusChanges NewScrollWhenFocusChanges)

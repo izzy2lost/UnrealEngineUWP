@@ -34,6 +34,7 @@ public class BlueprintGraph : ModuleRules
 				"ToolMenus",
 				"AssetTools",
 				"EditorSubsystem",
+				"UMG",
 			}
 		);
 

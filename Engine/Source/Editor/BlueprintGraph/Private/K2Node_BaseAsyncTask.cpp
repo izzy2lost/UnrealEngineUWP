@@ -34,6 +34,7 @@
 #include "Misc/AssertionMacros.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Parse.h"
+#include "ObjectTools.h"
 #include "Templates/Casts.h"
 #include "Trace/Detail/Channel.h"
 #include "UObject/Class.h"
@@ -62,7 +63,7 @@ UK2Node_BaseAsyncTask::UK2Node_BaseAsyncTask(const FObjectInitializer& ObjectIni
 FText UK2Node_BaseAsyncTask::GetTooltipText() const
 {
 	FFormatNamedArguments Args;
-	Args.Add(TEXT("FunctionTooltip"), FText::FromString(UK2Node_CallFunction::GetDefaultTooltipForFunction(GetFactoryFunction())));
+	Args.Add(TEXT("FunctionTooltip"), FText::FromString(ObjectTools::GetDefaultTooltipForFunction(GetFactoryFunction())));
 	Args.Add(TEXT("LatentString"), NSLOCTEXT("K2Node", "LatentFunction", "Latent. This node will complete at a later time. Latent nodes can only be placed in event graphs."));
 	
 	return FText::Format(LOCTEXT("AsyncTaskTooltip", "{FunctionTooltip}\n\n{LatentString}"), Args);
@@ -74,7 +75,7 @@ FText UK2Node_BaseAsyncTask::GetNodeTitle(ENodeTitleType::Type TitleType) const
 	{
 		return FText(LOCTEXT("UK2Node_BaseAsyncTaskGetNodeTitle", "Async Task: Missing Function"));
 	}
-	const FText FunctionToolTipText = UK2Node_CallFunction::GetUserFacingFunctionName(GetFactoryFunction());
+	const FText FunctionToolTipText = ObjectTools::GetUserFacingFunctionName(GetFactoryFunction());
 	return FunctionToolTipText;
 }
 

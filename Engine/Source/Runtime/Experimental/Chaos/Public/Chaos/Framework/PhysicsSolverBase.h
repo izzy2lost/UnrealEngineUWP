@@ -11,12 +11,15 @@
 #include "Async/ParallelFor.h"
 #include "Containers/Queue.h"
 #include "Chaos/ChaosMarshallingManager.h"
+#include "Chaos/AsyncInitBodyHelper.h"
 #include "Stats/Stats2.h"
 #include "ChaosSolversModule.h"
 
 #if WITH_CHAOS_VISUAL_DEBUGGER
 #include "ChaosVisualDebugger/ChaosVDContextProvider.h"
 #endif
+
+#include "ChaosDebugDraw/ChaosDDTypes.h"
 
 class FChaosSolversModule;
 class FPhysicsReplicationAsync;
@@ -323,38 +326,43 @@ namespace Chaos
 		void AddDirtyProxy(IPhysicsProxyBase * ProxyBaseIn)
 		{
 			check(ProxyBaseIn->GetMarkedDeleted() == false);
-			MarshallingManager.GetProducerData_External()->DirtyProxiesDataBuffer.Add(ProxyBaseIn);
+			MarshallingManager.AddDirtyProxy(ProxyBaseIn);
 		}
 		void RemoveDirtyProxy(IPhysicsProxyBase * ProxyBaseIn)
 		{
-			MarshallingManager.GetProducerData_External()->DirtyProxiesDataBuffer.Remove(ProxyBaseIn);
+			MarshallingManager.RemoveDirtyProxy(ProxyBaseIn);
 		}
 
 		void RemoveDirtyProxyIfNoShapesAreDirty(IPhysicsProxyBase* ProxyBaseIn)
 		{
-			MarshallingManager.GetProducerData_External()->DirtyProxiesDataBuffer.RemoveIfNoShapesAreDirty(ProxyBaseIn);
+			MarshallingManager.RemoveDirtyProxyIfNoShapesAreDirty(ProxyBaseIn);
 		}
 
 		const FDirtyProxiesBucketInfo& GetDirtyProxyBucketInfo_External()
 		{
-			return MarshallingManager.GetProducerData_External()->DirtyProxiesDataBuffer.GetDirtyProxyBucketInfo();
+			return MarshallingManager.GetDirtyProxyBucketInfo_External();
+		}
+
+		int32 GetDirtyProxyBucketInfoNum_External(EPhysicsProxyType Type)
+		{
+			return MarshallingManager.GetDirtyProxyBucketInfoNum_External(Type);
 		}
 
 		// Batch dirty proxies without checking DirtyIdx.
 		template <typename TProxiesArray>
 		void AddDirtyProxiesUnsafe(TProxiesArray& ProxiesArray)
 		{
-			MarshallingManager.GetProducerData_External()->DirtyProxiesDataBuffer.AddMultipleUnsafe(ProxiesArray);
+			MarshallingManager.AddDirtyProxiesUnsafe(ProxiesArray);
 		}
 
 		void AddDirtyProxyShape(IPhysicsProxyBase* ProxyBaseIn, int32 ShapeIdx)
 		{
-			MarshallingManager.GetProducerData_External()->DirtyProxiesDataBuffer.AddShape(ProxyBaseIn,ShapeIdx);
+			MarshallingManager.AddDirtyProxyShape(ProxyBaseIn, ShapeIdx);
 		}
 
 		void SetNumDirtyShapes(IPhysicsProxyBase* Proxy, int32 NumShapes)
 		{
-			MarshallingManager.GetProducerData_External()->DirtyProxiesDataBuffer.SetNumDirtyShapes(Proxy,NumShapes);
+			MarshallingManager.SetNumDirtyShapes(Proxy, NumShapes);
 		}
 
 		/** Creates a new sim callback object of the type given. Caller expected to free using FreeSimCallbackObject_External*/
@@ -416,7 +424,7 @@ namespace Chaos
 		void EnqueueCommandImmediate(Lambda&& Func)
 		{
 			//TODO: remove this check. Need to rename with _External
-			check(IsInGameThread());
+			check(Chaos::CVars::bEnableAsyncInitBody || IsInGameThread());
 			RegisterSimOneShotCallback(MoveTemp(Func));
 		}
 
@@ -435,6 +443,20 @@ namespace Chaos
 		bool ShouldApplyRewindCallbacks()
 		{
 			return MRewindCallback.IsValid() && MRewindData.IsValid();
+		}
+
+		/** Enable or disable an additional resim cache based on IResimCacheBase (FEvolutionResimCache by default) that also caches particle collision constraints
+		* this is disabled by default since cached collisions will be wrong during a resimulation for particles that are desynced
+		* and particles that are in sync doesn't need collision data since we just step through their states in history." */
+		void SetUseCollisionResimCache(bool InUseCollisionResimCache)
+		{
+			bUseCollisionResimCache = InUseCollisionResimCache;
+		}
+
+		/** Check if an additional resim cache based on IResimCacheBase (FEvolutionResimCache by default) is being used. Read FPhysicsSolverBase.SetUseCollisionResimCache() for more info. */
+		bool GetUseCollisionResimCache() const
+		{
+			return bUseCollisionResimCache;
 		}
 
 		void SetPhysicsReplication(FPhysicsReplicationAsync* InPhysicsReplication)
@@ -532,6 +554,10 @@ namespace Chaos
 		
 		virtual void ConditionalApplyRewind_Internal(){}
 		virtual bool IsResimming() const {return false;}
+
+#if WITH_CHAOS_VISUAL_DEBUGGER
+		virtual int32 GetCVDFrameNumber() const { return INDEX_NONE; }
+#endif
 
 		FChaosMarshallingManager& GetMarshallingManager() { return MarshallingManager; }
 		FChaosResultsManager& GetResultsManager() { return *PullResultsManager; }
@@ -726,6 +752,14 @@ namespace Chaos
 			return NetworkPhysicsEnabled;
 		}
 
+		/** Get the time length to cache physics history for, based on Project Settings -> Physics -> Physics Prediction -> MaxSupportedLatencyPrediction */
+		static float GetPhysicsHistoryTimeLength()
+		{
+			const float PhysicsHistoryTimeLength = FChaosSolversModule::GetModule()->GetSettingsProvider().GetPhysicsHistoryTimeLength();
+			return PhysicsHistoryTimeLength;
+		}
+
+
 		/** Get the number of physics history frames to cache */
 		static int32 GetPhysicsHistoryCount()
 		{
@@ -733,11 +767,59 @@ namespace Chaos
 			return PhysicsHistoryCount;
 		}
 
+		UE_DEPRECATED(5.5, "ResimulationErrorThreshold has been renamed, please use GetResimulationErrorPositionThreshold.")
 		static float ResimulationErrorThreshold()
 		{
-			const float ResimulationErrorThreshold = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorThreshold();
+			const float ResimulationErrorThreshold = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorPositionThreshold();
 			return ResimulationErrorThreshold;
+		}
 
+		static bool GetResimulationErrorPositionThresholdEnabled()
+		{
+			const bool ResimulationErrorPositionThresholdEnabled = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorPositionThresholdEnabled();
+			return ResimulationErrorPositionThresholdEnabled;
+		}
+
+		static float GetResimulationErrorPositionThreshold()
+		{
+			const float ResimulationErrorPositionThreshold = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorPositionThreshold();
+			return ResimulationErrorPositionThreshold;
+		}
+
+		static bool GetResimulationErrorRotationThresholdEnabled()
+		{
+			const bool ResimulationErrorRotationThresholdEnabled = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorRotationThresholdEnabled();
+			return ResimulationErrorRotationThresholdEnabled;
+		}
+
+		static float GetResimulationErrorRotationThreshold()
+		{
+			const float ResimulationErrorRotationThreshold = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorRotationThreshold();
+			return ResimulationErrorRotationThreshold;
+		}
+
+		static bool GetResimulationErrorLinearVelocityThresholdEnabled()
+		{
+			const bool ResimulationErrorLinearVelocityThresholdEnabled = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorLinearVelocityThresholdEnabled();
+			return ResimulationErrorLinearVelocityThresholdEnabled;
+		}
+
+		static float GetResimulationErrorLinearVelocityThreshold()
+		{
+			const float ResimulationErrorLinearVelocityThreshold = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorLinearVelocityThreshold();
+			return ResimulationErrorLinearVelocityThreshold;
+		}
+
+		static bool GetResimulationErrorAngularVelocityThresholdEnabled()
+		{
+			const bool ResimulationErrorAngularVelocityThresholdEnabled = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorAngularVelocityThresholdEnabled();
+			return ResimulationErrorAngularVelocityThresholdEnabled;
+		}
+
+		static float GetResimulationErrorAngularVelocityThreshold()
+		{
+			const float ResimulationErrorAngularVelocityThreshold = FChaosSolversModule::GetModule()->GetSettingsProvider().GetResimulationErrorAngularVelocityThreshold();
+			return ResimulationErrorAngularVelocityThreshold;
 		}
 
 		/** Return the interpolation lerp in case the resim is off */
@@ -749,7 +831,17 @@ namespace Chaos
 			return NetworkPhysicsPredictionInterpLerp;
 		}
 
+		/** Get the standalone solver flag */
+		bool IsStandaloneSolver() const { return bIsStandaloneSolver;}
+		
+		/** Set the standalone solver flag */
+		void SetStandaloneSolver(const bool bStandaloneSolver) {bIsStandaloneSolver = bStandaloneSolver;}
+
 	protected:
+
+		/** Boolean to check if the solver is a standalone solver responsible to spawn its own task */
+		bool bIsStandaloneSolver = false;
+		
 		/** Mode that the results buffers should be set to (single, double, triple) */
 		EMultiBufferMode BufferMode;
 		
@@ -894,6 +986,11 @@ namespace Chaos
 		{
 			return CVDContextData;
 		};
+#endif
+
+#if CHAOS_DEBUG_DRAW
+	public:
+		virtual void SetDebugDrawScene(const ChaosDD::Private::FChaosDDScenePtr& InCDDScene) = 0;
 #endif
 	};
 }

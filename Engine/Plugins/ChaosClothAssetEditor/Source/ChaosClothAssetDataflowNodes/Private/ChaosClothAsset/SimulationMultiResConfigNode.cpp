@@ -5,12 +5,16 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationMultiResConfigNode)
 
-FChaosClothAssetSimulationMultiResConfigNode::FChaosClothAssetSimulationMultiResConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetSimulationMultiResConfigNode::FChaosClothAssetSimulationMultiResConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
-	RegisterInputConnection(&MultiResStiffness.WeightMap);
-	RegisterInputConnection(&MultiResVelocityTargetStiffness.WeightMap);
+	RegisterInputConnection(&MultiResStiffness.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&MultiResVelocityTargetStiffness.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
 }
 
 void FChaosClothAssetSimulationMultiResConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const

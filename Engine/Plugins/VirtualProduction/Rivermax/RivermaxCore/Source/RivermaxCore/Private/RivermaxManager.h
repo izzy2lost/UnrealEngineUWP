@@ -90,6 +90,9 @@ namespace UE::RivermaxCore::Private
 
 		/** List of function pointers to the rivermax DLL. */
 		RIVERMAX_API_FUNCTION_LIST FuncList;
+
+		/** Delegate handle. Used to remove the delegate from subscribed module initialization delegate collection. */
+		FDelegateHandle InitHandle;
 	};
 }
 

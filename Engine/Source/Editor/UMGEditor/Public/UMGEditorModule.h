@@ -4,8 +4,10 @@
 
 #include "Modules/ModuleInterface.h"
 #include "Toolkits/AssetEditorToolkit.h"
+#include "IHasClipboardExtensibility.h"
 #include "IHasDesignerExtensibility.h"
 #include "IHasPropertyBindingExtensibility.h"
+#include "IHasWidgetDragDropExtensibility.h"
 #include "UObject/TopLevelAssetPath.h"
 
 extern const FName UMGEditorAppIdentifier;
@@ -22,7 +24,9 @@ class IUMGEditorModule :
 	public IHasMenuExtensibility, 
 	public IHasToolBarExtensibility, 
 	public IHasDesignerExtensibility,
-	public IHasPropertyBindingExtensibility
+	public IHasPropertyBindingExtensibility,
+	public IHasClipboardExtensibility,
+	public IHasWidgetDragDropExtensibility
 {
 public:
 	virtual class FWidgetBlueprintCompiler* GetRegisteredCompiler() = 0;

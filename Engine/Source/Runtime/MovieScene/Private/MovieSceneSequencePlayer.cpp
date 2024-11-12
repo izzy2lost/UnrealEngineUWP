@@ -6,6 +6,7 @@
 #include "MovieSceneTimeHelpers.h"
 #include "MovieSceneSequence.h"
 #include "MovieSceneSequenceTickManager.h"
+#include "Channels/MovieSceneTimeWarpChannel.h"
 #include "Engine/Engine.h"
 #include "UObject/Stack.h"
 #include "Internationalization/Text.h"
@@ -67,6 +68,13 @@ static FAutoConsoleVariableRef CVarSequencerSmoothedNetSyncDeviationThreshold(
 	GSequencerSmoothedNetSyncDeviationThreshold,
 	TEXT("(Default: 200ms. Defines the acceptable deviation for smoothed net sync samples. Samples outside this deviation will be discarded.")
 	);
+
+int32 GSequencerApplyDisplayRateToDynResFrameTimeBudget = 0;
+static FAutoConsoleVariableRef CVarSequencerApplyDisplayRateToDynResFrameTimeBudget(
+	TEXT("Sequencer.ApplyDisplayRateToDynamicResolutionFrameTimeBudget"),
+	GSequencerApplyDisplayRateToDynResFrameTimeBudget,
+	TEXT("(Whether to override r.DynamicRes.FrameTimeBudget based on sequence display rate when using 'Lock to Display Rate at Runtime'.")
+);
 
 bool FMovieSceneSequenceLoopCount::SerializeFromMismatchedTag( const FPropertyTag& Tag, FStructuredArchive::FSlot Slot )
 {
@@ -191,6 +199,14 @@ UMovieSceneSequencePlayer::~UMovieSceneSequencePlayer()
 	{
 		GEngine->SetMaxFPS(OldMaxTickRate.GetValue());
 	}
+
+	if (bOverridingDynResFrameTimeBudget)
+	{
+		static IConsoleVariable* CVarDynResFrameTimeBudget = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DynamicRes.FrameTimeBudget"));
+		CVarDynResFrameTimeBudget->Unset(ECVF_SetByCode);
+
+		bOverridingDynResFrameTimeBudget = false;
+	}
 }
 
 void UMovieSceneSequencePlayer::UpdateNetworkSyncProperties()
@@ -234,7 +250,7 @@ void UMovieSceneSequencePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::
 
 	if (bAllowDefault)
 	{
-		InSequence.LocateBoundObjects(InBindingId, ResolveParams, OutObjects);
+		InSequence.LocateBoundObjects(InBindingId, ResolveParams, FindSharedPlaybackState(), OutObjects);
 	}
 }
 
@@ -343,6 +359,16 @@ void UMovieSceneSequencePlayer::PlayInternal()
 			}
 
 			GEngine->SetMaxFPS(1.f / PlayPosition.GetInputRate().AsInterval());
+
+			if (GSequencerApplyDisplayRateToDynResFrameTimeBudget)
+			{
+				const float DyResFrameTimeBudget = PlayPosition.GetInputRate().AsInterval() * 1000.0f;
+
+				static IConsoleVariable* CVarDynResFrameTimeBudget = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DynamicRes.FrameTimeBudget"));
+				CVarDynResFrameTimeBudget->Set(DyResFrameTimeBudget, ECVF_SetByCode);
+
+				bOverridingDynResFrameTimeBudget = true;
+			}
 		}
 
 		if (!PlayPosition.GetLastPlayEvalPostition().IsSet() || PlayPosition.GetLastPlayEvalPostition() != PlayPosition.GetCurrentPosition())
@@ -412,8 +438,14 @@ void UMovieSceneSequencePlayer::Pause()
 		if (TSharedPtr<FMovieSceneEntitySystemRunner> Runner = RootTemplateInstance.GetRunner())
 		{
 			FMovieSceneEvaluationRange CurrentTimeRange = PlayPosition.GetCurrentPositionAsRange();
-			const FMovieSceneContext Context(CurrentTimeRange, EMovieScenePlayerStatus::Stopped);
 
+			if (PlaybackClient)
+			{
+				PlaybackClient->WarpEvaluationRange(CurrentTimeRange);
+			}
+			
+			const FMovieSceneContext Context(CurrentTimeRange, EMovieScenePlayerStatus::Stopped);
+			
 			Runner->QueueUpdate(Context, RootTemplateInstance.GetRootInstanceHandle(), FSimpleDelegate::CreateWeakLambda(this, FinishPause));
 		}
 		else
@@ -491,6 +523,14 @@ void UMovieSceneSequencePlayer::StopInternal(FFrameTime TimeToResetTo)
 			{
 				GEngine->SetMaxFPS(OldMaxTickRate.GetValue());
 				this->OldMaxTickRate.Reset();
+			}
+
+			if (bOverridingDynResFrameTimeBudget)
+			{
+				static IConsoleVariable* CVarDynResFrameTimeBudget = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DynamicRes.FrameTimeBudget"));
+				CVarDynResFrameTimeBudget->Unset(ECVF_SetByCode);
+
+				bOverridingDynResFrameTimeBudget = false;
 			}
 
 			this->UpdateNetworkSyncProperties();
@@ -763,6 +803,16 @@ void UMovieSceneSequencePlayer::SetPlayRate(float PlayRate)
 	PlaybackSettings.PlayRate = PlayRate;
 }
 
+bool UMovieSceneSequencePlayer::GetHideHud() const
+{
+	return PlaybackSettings.bHideHud;
+}
+
+void UMovieSceneSequencePlayer::SetHideHud(bool HideHud)
+{
+	PlaybackSettings.bHideHud = HideHud;
+}
+
 FFrameTime UMovieSceneSequencePlayer::GetLastValidTime() const
 {
 	if (DurationFrames > 0)
@@ -1004,15 +1054,7 @@ void UMovieSceneSequencePlayer::Initialize(UMovieSceneSequence* InSequence)
 
 	RegisteredTickInterval = TickInterval;
 
-	TSharedPtr<FMovieSceneEntitySystemRunner> RunnerToUse = TickManager->GetRunner(RegisteredTickInterval.GetValue());
-	if (EnumHasAnyFlags(Sequence->GetFlags(), EMovieSceneSequenceFlags::BlockingEvaluation))
-	{
-		SynchronousRunner = MakeShared<FMovieSceneEntitySystemRunner>();
-		RunnerToUse = SynchronousRunner;
-	}
-
-	check(RunnerToUse);
-	RootTemplateInstance.Initialize(*Sequence, *this, nullptr, RunnerToUse);
+	RootTemplateInstance.Initialize(*Sequence, *this, nullptr);
 
 	if (!PlaybackSettings.bDynamicWeighting)
 	{
@@ -1153,6 +1195,18 @@ void UMovieSceneSequencePlayer::UpdateTimeCursorPosition_Internal(FFrameTime New
 	{
 		OnStartedPlaying();
 		bPendingOnStartedPlaying = false;
+	}
+
+	if (Method == EUpdatePositionMethod::Play)
+	{
+		const FMovieSceneSequenceHierarchy* Hierarchy = RootTemplateInstance.GetHierarchy();
+
+		if (Hierarchy && Hierarchy->GetRootTransform().FindFirstWarpDomain() == UE::MovieScene::ETimeWarpChannelDomain::PlayRate)
+		{
+			NewPosition = ConvertFrameTime(NewPosition, PlayPosition.GetInputRate(), PlayPosition.GetOutputRate());
+			NewPosition = Hierarchy->GetRootTransform().TransformTime(NewPosition);
+			NewPosition = ConvertFrameTime(NewPosition, PlayPosition.GetOutputRate(), PlayPosition.GetInputRate());
+		}
 	}
 
 	// If we should pause during this evaluation, we'll handle that below.
@@ -1441,7 +1495,7 @@ FString UMovieSceneSequencePlayer::GetSequenceName(bool bAddClientInfo) const
 			AActor* Actor = GetTypedOuter<AActor>();
 			if (Actor && Actor->GetWorld() && Actor->GetWorld()->GetNetMode() == NM_Client)
 			{
-				SequenceName += FString::Printf(TEXT(" (client %d)"), GPlayInEditorID - 1);
+				SequenceName += FString::Printf(TEXT(" (client %d)"), UE::GetPlayInEditorID() - 1);
 			}
 		}
 		return SequenceName;
@@ -1501,6 +1555,11 @@ TArray<FMovieSceneObjectBindingID> UMovieSceneSequencePlayer::GetObjectBindings(
 	TArray<FMovieSceneObjectBindingID> Bindings;
 	State.FilterObjectBindings(InObject, GetSharedPlaybackState(), &Bindings);
 	return Bindings;
+}
+
+void UMovieSceneSequencePlayer::RequestInvalidateBinding(FMovieSceneObjectBindingID ObjectBinding)
+{
+	State.Invalidate(ObjectBinding.GetGuid(), ObjectBinding.GetRelativeSequenceID());
 }
 
 UWorld* UMovieSceneSequencePlayer::GetPlaybackWorld() const
@@ -1617,7 +1676,7 @@ FFrameTime UMovieSceneSequencePlayer::UpdateServerTimeSamples()
 			const double ThisSample = ServerTimeSamples[SampleIndex].ServerTime + (CurrentWallClock - ServerTimeSamples[SampleIndex].ReceivedTime) * PlaybackMultiplier * LastEffectiveTimeDilation;
 			if (FMath::Abs(ThisSample - MeanTime) > StandardDeviation)
 			{
-				ServerTimeSamples.RemoveAt(SampleIndex, 1, EAllowShrinking::No);
+				ServerTimeSamples.RemoveAt(SampleIndex, EAllowShrinking::No);
 			}
 			else
 			{

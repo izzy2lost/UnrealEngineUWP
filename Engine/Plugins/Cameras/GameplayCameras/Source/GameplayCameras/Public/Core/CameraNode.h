@@ -2,97 +2,77 @@
 
 #pragma once
 
-#include "Core/CameraInstantiableObject.h"
-#include "Core/CameraPose.h"
-#include "Core/CameraNodeChildrenView.h"
+#include "Core/CameraNodeEvaluatorBuilder.h"
+#include "Core/ObjectChildrenView.h"
+#include "Core/ObjectTreeGraphObject.h"
 #include "CoreTypes.h"
 #include "UObject/Object.h"
 
 #include "CameraNode.generated.h"
 
-class UCameraSystemEvaluator;
-
-/**
- * Parameter structure for running a camera node.
- */
-struct FCameraNodeRunParams
+namespace UE::Cameras
 {
-	/** The evaluation running this evaluation.*/
-	TObjectPtr<UCameraSystemEvaluator> Evaluator;
-	/** The time interval for the evaluation. */
-	float DeltaTime = 0.f;
-	/** Whether this is the first evaluation of this camera node hierarchy. */
-	bool bIsFirstFrame = false;
-};
+	class FCameraBuildLog;
+	struct FCameraRigBuildContext;
+}
 
-/**
- * Input/output result structure for running a camera node.
- */
-struct FCameraNodeRunResult
-{
-	/** The camera pose. */
-	FCameraPose CameraPose;
-	/** Whether the current frame is a camera cut. */
-	bool bIsCameraCut = false;
-	/** Whether this result is valid. */
-	bool bIsValid = false;
-
-	/** Reset this result to its default (non-valid) state. */
-	void Reset();
-};
-
-UENUM()
-enum class ECameraNodeFlags
-{
-	None = 0,
-	RequiresReset = 1
-};
-ENUM_CLASS_FLAGS(ECameraNodeFlags);
-
-struct FCameraNodeResetParams
-{
-};
+/** View on a camera node's children. */
+using FCameraNodeChildrenView = UE::Cameras::TObjectChildrenView<TObjectPtr<UCameraNode>>;
 
 /**
  * The base class for a camera node.
  */
-UCLASS(Abstract, DefaultToInstanced, EditInlineNew, MinimalAPI)
-class UCameraNode : public UCameraInstantiableObject
+UCLASS(Abstract, DefaultToInstanced, EditInlineNew, meta=(CameraNodeCategories="Miscellaneous"))
+class GAMEPLAYCAMERAS_API UCameraNode 
+	: public UObject
+	, public IObjectTreeGraphObject
 {
 	GENERATED_BODY()
 
 public:
+	
+	using FCameraBuildLog = UE::Cameras::FCameraBuildLog;
+	using FCameraRigBuildContext = UE::Cameras::FCameraRigBuildContext;
+	using FCameraNodeEvaluatorBuilder = UE::Cameras::FCameraNodeEvaluatorBuilder;
 
 	/** Get the list of children under this node. */
 	FCameraNodeChildrenView GetChildren();
 
-	/** Get the flags for this node. */
-	ECameraNodeFlags GetNodeFlags() const { return Flags; }
+	/** Optional build step executed at the beginning of the build process. */
+	void PreBuild(FCameraBuildLog& BuildLog);
 
-	/** Resets this node. */
-	void Reset(const FCameraNodeResetParams& Params);
+	/** Gets optional info about this node's required allocations at runtime. */
+	void Build(FCameraRigBuildContext& BuildContext);
 
-	/** Run this node. */
-	void Run(const FCameraNodeRunParams& Params, FCameraNodeRunResult& OutResult);
+	/** Builds the evaluator for this node. */
+	FCameraNodeEvaluatorPtr BuildEvaluator(FCameraNodeEvaluatorBuilder& Builder) const;
 
 protected:
-
-	/** Sets the flags for this node. Should only be called once during construction. */
-	void SetNodeFlags(ECameraNodeFlags InFlags) { Flags = InFlags; }
 
 	/** Get the list of children under this node. */
 	virtual FCameraNodeChildrenView OnGetChildren() { return FCameraNodeChildrenView(); }
 
-	/** Resets this node. */
-	virtual void OnReset(const FCameraNodeResetParams& Params) {}
+	/** Optional build step executed at the beginning of the build process. */
+	virtual void OnPreBuild(FCameraBuildLog& BuildLog) {}
 
-	/** Run this node. */
-	virtual void OnRun(const FCameraNodeRunParams& Params, FCameraNodeRunResult& OutResult) {}
+	/** Gets optional info about this node's required allocations at runtime. */
+	virtual void OnBuild(FCameraRigBuildContext& BuildContext) {}
 
+	/** Builds the evaluator for this node. */
+	virtual FCameraNodeEvaluatorPtr OnBuildEvaluator(FCameraNodeEvaluatorBuilder& Builder) const { return nullptr; }
+
+protected:
+
+	// UObject interface.
+	virtual void PostLoad() override;
+
+	// IObjectTreeGraphObject interface.
 #if WITH_EDITOR
-
-	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-
+	virtual void GetGraphNodePosition(FName InGraphName, int32& NodePosX, int32& NodePosY) const override;
+	virtual void OnGraphNodeMoved(FName InGraphName, int32 NodePosX, int32 NodePosY, bool bMarkDirty) override;
+	virtual EObjectTreeGraphObjectSupportFlags GetSupportFlags(FName InGraphName) const override { return EObjectTreeGraphObjectSupportFlags::CommentText; }
+	virtual const FString& GetGraphNodeCommentText(FName InGraphName) const override;
+	virtual void OnUpdateGraphNodeCommentText(FName InGraphName, const FString& NewComment) override;
 #endif
 
 public:
@@ -101,9 +81,24 @@ public:
 	UPROPERTY(EditAnywhere, Category=Common)
 	bool bIsEnabled = true;
 
-private:
+#if WITH_EDITORONLY_DATA
 
-	/** The flags for this node. Should only be set once during construction. */
-	ECameraNodeFlags Flags = ECameraNodeFlags::None;
+	/** Position of the camera node in the node graph editor. */
+	UPROPERTY()
+	FIntVector2 GraphNodePos = FIntVector2::ZeroValue;
+
+	/** User-written comment in the node graph editor. */
+	UPROPERTY()
+	FString GraphNodeComment;
+
+
+	// Deprecated properties.
+
+	UPROPERTY()
+	int32 GraphNodePosX_DEPRECATED = 0;
+	UPROPERTY()
+	int32 GraphNodePosY_DEPRECATED = 0;
+
+#endif  // WITH_EDITORONLY_DATA
 };
 

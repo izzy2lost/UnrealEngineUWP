@@ -30,6 +30,7 @@ ShaderCodeLibrary.cpp: Bound shader state cache implementation.
 #include "Misc/SecureHash.h"
 #include "Misc/StringBuilder.h"
 #include "PipelineFileCache.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "ProfilingDebugging/LoadTimeTracker.h"
 #include "RenderingThread.h"
 #include "Shader.h"
@@ -39,6 +40,7 @@ ShaderCodeLibrary.cpp: Bound shader state cache implementation.
 #include "String/ParseTokens.h"
 #include "IO/IoChunkId.h"
 #include "IO/IoDispatcher.h"
+#include "IO/IoDispatcherInternal.h"
 
 #if WITH_EDITORONLY_DATA
 #include "Interfaces/IShaderFormat.h"
@@ -53,6 +55,7 @@ ShaderCodeLibrary.cpp: Bound shader state cache implementation.
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryWriter.h"
 #include "RHIStrings.h"
+#include "CookArtifactReader.h"
 #endif
 
 // allow introspection (e.g. dumping the contents) for easier debugging
@@ -80,6 +83,23 @@ static FAutoConsoleVariableRef CVarShaderCodeLibrarySeparateLoadingCache(
 	TEXT("r.ShaderCodeLibrary.SeparateLoadingCache"),
 	GShaderCodeLibrarySeparateLoadingCache,
 	TEXT("if > 0, each shader code library has it's own loading cache."),
+	ECVF_Default
+);
+
+int32 GPreloadShaderMaps = 1;
+static FAutoConsoleVariableRef CVarShaderCodeLibraryPreloadShaderMaps(
+	TEXT("r.ShaderCodeLibrary.PreloadShaderMaps"),
+	GPreloadShaderMaps,
+	TEXT("If > 0, shader maps will be preloaded at package/resource load time."),
+	ECVF_Default
+);
+
+bool GShaderMapResourceRef = false;
+static FAutoConsoleVariableRef CVarShaderMapResourceRef(
+	TEXT("r.ShaderCodeLibrary.ShaderMapResourceRef"),
+	GShaderMapResourceRef,
+	TEXT("Track reference to the shader group for different shadermaps.\n")
+	TEXT("Normally used when dynamic shader preloading is enable to make sure we dont unload a shader group shared by two different shadermaps"),
 	ECVF_Default
 );
 
@@ -123,8 +143,7 @@ namespace UE
 			bool IsRunningWithIoStore()
 			{
 				static const bool bRunningWithIoStore =
-					FIoDispatcher::IsInitialized()
-					&& FIoDispatcher::Get().DoesChunkExist(CreateIoChunkId(0, 0, EIoChunkType::ScriptObjects));
+					FIoDispatcher::IsInitialized() && FIoDispatcherInternal::HasPackageData();
 				return bRunningWithIoStore;
 			}
 			bool IsRunningWithZenStore()
@@ -228,17 +247,15 @@ namespace UE
 					return Components.Num();
 				}
 
-				void OnPakFileMounted(const FMountedPakFileInfo& MountInfo)
+				void OnPakFileMounted(const FMountedPakFileInfo& MountInfo, const FString& Directory)
 				{
 					if (!PresentChunks.Contains(MountInfo.ChunkId))
 					{
 						FString ChunkLibraryName = GetShaderLibraryNameForChunk(LogicalName, MountInfo.ChunkId);
 
-						// Ignore chunk mount point as it's useless in locating the actual library directory. For instance, chunks can
-						// have mount points like ../../../ProjectName, while the actual library file is still stored in Content subdirectory.
-						// Just use the base directory always and expect the library to be placed in the same location for all chunks
-						// (which is the current behavior).
-						if (OpenShaderCode(BaseDirectory, ChunkLibraryName))
+						// Parts of shader library might be in the UFS (e.g. .metallibs), hence we need to look for them in the
+						// appropriate directory.
+						if (OpenShaderCode(Directory, ChunkLibraryName))
 						{
 							PresentChunks.Add(MountInfo.ChunkId);
 						}
@@ -257,6 +274,10 @@ namespace UE
 	}
 }
 
+#if WITH_EDITOR
+static ICookArtifactReader* CookArtifactReader = nullptr;
+#endif // WITH_EDITOR
+
 TSet<UE::ShaderLibrary::Private::FMountedPakFileInfo> UE::ShaderLibrary::Private::FMountedPakFileInfo::KnownPakFiles;
 FCriticalSection UE::ShaderLibrary::Private::FMountedPakFileInfo::KnownPakFilesAccessLock;
 
@@ -272,21 +293,60 @@ public:
 	virtual void ReleaseResource() override
 	{
 		FShaderMapResource::ReleaseResource();
-		ensureMsgf(!bShaderMapPreloaded && !LibraryInstance, TEXT("FShaderMapResource_SharedCode::ReleaseRHI() was not called on a shadermap resource owned by %s"), *GetOwnerName().ToString());
+		ensureMsgf(!bEntireShaderMapPreloaded && !LibraryInstance, TEXT("FShaderMapResource_SharedCode::ReleaseRHI() was not called on a shadermap resource owned by %s"), *GetOwnerName().ToString());
 	}
 	virtual void ReleaseRHI() override;
 
 	// FShaderMapResource interface
 	virtual FSHAHash GetShaderHash(int32 ShaderIndex) override;
-	virtual FRHIShader* CreateRHIShaderOrCrash(int32 ShaderIndex) override;
+	virtual FRHIShader* CreateRHIShaderOrCrash(int32 ShaderIndex, bool bRequired) override;
 	virtual void ReleasePreloadedShaderCode(int32 ShaderIndex) override;
+	virtual void PreloadShader(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents) override;
+	virtual void PreloadShaderMap(FGraphEventArray& OutCompletionEvents) override;
 	virtual bool TryRelease() override;
 	virtual uint32 GetSizeBytes() const override { return sizeof(*this) + GetAllocatedSize(); }
+	virtual FString GetFriendlyName() const override;
+	virtual int32 GetGroupIndexForShader(int32 ShaderIndex) const override;
+	virtual int32 GetLibraryId() const override;
+	virtual int32 GetLibraryShaderIndex(int32 ShaderIndex) const override;
 
 	class FShaderLibraryInstance* LibraryInstance;
 	int32 ShaderMapIndex;
-	bool bShaderMapPreloaded;
+	bool bEntireShaderMapPreloaded;
 };
+
+static FArchive* CreateShaderFileReader(const TCHAR* Filename)
+{
+#if WITH_EDITOR
+	if (CookArtifactReader)
+	{
+		return CookArtifactReader->CreateFileReader(Filename);
+	}
+#endif
+	return IFileManager::Get().CreateFileReader(Filename);
+}
+
+static void ShaderFindFiles(TArray<FString>& FoundFiles, const TCHAR* Directory, const TCHAR* FileExtension)
+{
+#if WITH_EDITOR
+	if (CookArtifactReader)
+	{
+		return CookArtifactReader->FindFiles(FoundFiles, Directory, FileExtension);
+	}
+#endif
+	return IFileManager::Get().FindFiles(FoundFiles, Directory, FileExtension);
+}
+
+static void ShaderFindFiles(TArray<FString>& Result, const TCHAR* Filename, bool Files, bool Directories)
+{
+#if WITH_EDITOR
+	if (CookArtifactReader)
+	{
+		return CookArtifactReader->FindFiles(Result, Filename, Files, Directories);
+	}
+#endif
+	return IFileManager::Get().FindFiles(Result, Filename, Files, Directories);
+}
 
 static FString GetCodeArchiveFilename(const FString& BaseDir, const FString& LibraryName, FName Platform)
 {
@@ -875,6 +935,9 @@ class FShaderLibraryInstance
 public:
 	static FShaderLibraryInstance* Create(EShaderPlatform InShaderPlatform, const FString& ShaderCodeDir, FString const& InLibraryName)
 	{
+		LLM_SCOPE(ELLMTag::Shaders);
+		UE_TRACE_METADATA_SCOPE_ASSET_FNAME(FName(*InLibraryName), FName(TEXT("ShaderLibraryInstance")),  FName(*TStringBuilder<520>(InPlace, ShaderCodeDir, TEXT("/"), InLibraryName)));
+
 		FRHIShaderLibraryRef Library;
 		FString ShaderCodeDirectory;
 		if (RHISupportsNativeShaderLibraries(InShaderPlatform))
@@ -897,7 +960,7 @@ public:
 			FString ShaderFormatAndPlatform = ShaderFormatName.ToString() + TEXT("-") + PlatformName.ToString();
 
 			const FString DestFilePath = GetCodeArchiveFilename(ShaderCodeDir, InLibraryName, FName(ShaderFormatAndPlatform));
-			TUniquePtr<FArchive> Ar(IFileManager::Get().CreateFileReader(*DestFilePath));
+			TUniquePtr<FArchive> Ar(CreateShaderFileReader(*DestFilePath));
 			if (Ar)
 			{
 				uint32 Version = 0;
@@ -973,6 +1036,20 @@ public:
 		return sizeof(*this) + ShaderBucketsSize + Resources.GetAllocatedSize();
 	}
 
+	uint32 GetShaderMapsSizeBytes()
+	{
+		uint32 ShaderMapsSize = 0;
+		FRWScopeLock Locker(ResourceLock, SLT_ReadOnly);
+		for (FShaderMapResource_SharedCode* Resource : Resources)
+		{
+			if (Resource)
+			{
+				ShaderMapsSize += Resource->GetSizeBytes();
+			}
+		}
+		return ShaderMapsSize;
+	}
+
 	const int32 GetNumShadersForShaderMap(int32 ShaderMapIndex) const
 	{
 		return Library->GetNumShadersForShaderMap(ShaderMapIndex);
@@ -990,6 +1067,28 @@ public:
 				return this->OnExternalReadCallback(PreloadCompletionEvents, ReaminingTime);
 			};
 			Ar->AttachExternalReadDependency(ExternalReadCallback);
+		}
+	}
+
+	void PreloadShader(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents)
+	{
+		LLM_SCOPE(ELLMTag::Shaders);
+		SCOPED_LOADTIMER(FShaderLibraryInstance_PreloadShader);
+		
+		const int32 BucketIndex = ShaderIndex % NumShaderLocks;
+
+		// Don't preload if we already have the shader or we already preloaded it.
+		FRWScopeLock Locker(ShaderLocks[BucketIndex], SLT_Write);
+		FCachedRHIShader& Shader = RHIShaders[BucketIndex].FindOrAdd(ShaderIndex, FCachedRHIShader());
+		if (Shader.PreloadingState == EPreloadingState::NotPreloaded)
+		{
+			Library->PreloadShader(ShaderIndex, OutCompletionEvents);
+			Shader.PreloadingState = EPreloadingState::Preloaded;
+		}
+		else if (Shader.PreloadingState == EPreloadingState::Preloaded)
+		{
+			// Check if still preloading, which will get the completion events if they are still outstanding.
+			Library->IsPreloading(ShaderIndex, OutCompletionEvents);
 		}
 	}
 
@@ -1016,7 +1115,7 @@ public:
 			if (!PrevResource)
 			{
 				Resources[ShaderMapIndex] = Resource;
-				bPreload = !GRHILazyShaderCodeLoading;
+				bPreload = !GRHILazyShaderCodeLoading && GPreloadShaderMaps;
 			}
 			else
 			{
@@ -1028,7 +1127,7 @@ public:
 		{
 			SCOPED_LOADTIMER(FShaderLibraryInstance_PreloadShaderMap);
 			FGraphEventArray PreloadCompletionEvents;
-			Resource->bShaderMapPreloaded = Library->PreloadShaderMap(ShaderMapIndex, PreloadCompletionEvents);
+			Resource->bEntireShaderMapPreloaded = Library->PreloadShaderMap(ShaderMapIndex, PreloadCompletionEvents);
 			if (Ar && PreloadCompletionEvents.Num() > 0)
 			{
 				FExternalReadCallback ExternalReadCallback = [this, PreloadCompletionEvents = MoveTemp(PreloadCompletionEvents)](double ReaminingTime)
@@ -1058,42 +1157,62 @@ public:
 		return false;
 	}
 
-	TRefCountPtr<FRHIShader> GetOrCreateShader(int32 ShaderIndex)
+	TRefCountPtr<FRHIShader> GetOrCreateShader(int32 ShaderIndex, bool bRequired = true)
 	{
 		const int32 BucketIndex = ShaderIndex % NumShaderLocks;
-		TRefCountPtr<FRHIShader> Shader;
+		TRefCountPtr<FRHIShader> RHIShader;
 		{
 			FRWScopeLock Locker(ShaderLocks[BucketIndex], SLT_ReadOnly);
-			TRefCountPtr<FRHIShader>* ShaderPtr = RHIShaders[BucketIndex].Find(ShaderIndex);
+			FCachedRHIShader* ShaderPtr = RHIShaders[BucketIndex].Find(ShaderIndex);
 			if (ShaderPtr)
 			{
-				Shader = *ShaderPtr;
+				RHIShader = ShaderPtr->RHIShader;
 			}
 		}
-		if (!Shader)
+		if (!RHIShader)
 		{
-			Shader = Library->CreateShader(ShaderIndex);
-
-			FRWScopeLock Locker(ShaderLocks[BucketIndex], SLT_Write);
-			TRefCountPtr<FRHIShader>* ShaderPtr = RHIShaders[BucketIndex].Find(ShaderIndex);
-			if (LIKELY(ShaderPtr == nullptr))
+			// We're going to create the shader now. Disallow preloading from this point on.
 			{
-				RHIShaders[BucketIndex].Add(ShaderIndex, Shader);
+				FRWScopeLock Locker(ShaderLocks[BucketIndex], SLT_Write);
+				FCachedRHIShader& Shader = RHIShaders[BucketIndex].FindOrAdd(ShaderIndex, FCachedRHIShader());
+				if (Shader.PreloadingState == EPreloadingState::NotPreloaded)
+				{
+					Shader.PreloadingState = EPreloadingState::CannotPreload;
+				}
 			}
-			else
+
+			RHIShader = Library->CreateShader(ShaderIndex, bRequired);
+
+			if (RHIShader)
 			{
-				Shader = *ShaderPtr;
+				FRWScopeLock Locker(ShaderLocks[BucketIndex], SLT_Write);
+				FCachedRHIShader& Shader = RHIShaders[BucketIndex].FindOrAdd(ShaderIndex, FCachedRHIShader());
+				if (LIKELY(Shader.RHIShader == nullptr))
+				{
+					Shader.RHIShader = RHIShader;
+
+					if (Shader.PreloadingState == EPreloadingState::Preloaded)
+					{
+						ReleasePreloadedShader(ShaderIndex);
+						Shader.PreloadingState = EPreloadingState::PreloadedAndCreated;
+					}
+				}
+				else
+				{
+					RHIShader = Shader.RHIShader;
+				}
 			}
 		}
-		return Shader;
+
+		return RHIShader;
 	}
 
 	void ReleaseShader(int32 ShaderIndex)
 	{
 		const int32 BucketIndex = ShaderIndex % NumShaderLocks;
 		FRWScopeLock Locker(ShaderLocks[BucketIndex], SLT_Write);
-		TRefCountPtr<FRHIShader>* ShaderPtr = RHIShaders[BucketIndex].Find(ShaderIndex);
-		FRHIShader* Shader = ShaderPtr ? ShaderPtr->GetReference() : nullptr;
+		FCachedRHIShader* ShaderPtr = RHIShaders[BucketIndex].Find(ShaderIndex);
+		FRHIShader* Shader = ShaderPtr ? ShaderPtr->RHIShader.GetReference() : nullptr;
 		if (Shader)
 		{
 			// The library instance is holding one ref
@@ -1108,6 +1227,20 @@ public:
 		}
 	}
 
+	void ReleasePreloadedShaderIfNecessary(int32 ShaderIndex)
+	{
+		const int32 BucketIndex = ShaderIndex % NumShaderLocks;
+		FRWScopeLock Locker(ShaderLocks[BucketIndex], SLT_Write);
+		FCachedRHIShader* ShaderPtr = RHIShaders[BucketIndex].Find(ShaderIndex);
+		if (ShaderPtr && ShaderPtr->PreloadingState == EPreloadingState::Preloaded)
+		{
+			// We should only be here when we preload the shader but don't end up actually creating it.
+			check(!ShaderPtr->RHIShader.IsValid());
+			Library->ReleasePreloadedShader(ShaderIndex);
+			RHIShaders[BucketIndex].Remove(ShaderIndex);
+		}
+	}
+
 	void PreloadPackageShaderMap(int32 ShaderMapIndex, FCoreDelegates::FAttachShaderReadRequestFunc AttachShaderReadRequestFunc)
 	{
 		FRWScopeLock Locker(ResourceLock, SLT_Write);
@@ -1115,7 +1248,10 @@ public:
 		if (!Resource)
 		{
 			Resource = new FShaderMapResource_SharedCode(this, ShaderMapIndex);
-			Resource->bShaderMapPreloaded = Library->PreloadShaderMap(ShaderMapIndex, AttachShaderReadRequestFunc);
+			if (GPreloadShaderMaps)
+			{
+				Resource->bEntireShaderMapPreloaded = Library->PreloadShaderMap(ShaderMapIndex, AttachShaderReadRequestFunc);
+			}
 			BeginInitResource(Resource);
 		}
 		Resource->AddRef();
@@ -1171,9 +1307,21 @@ private:
 		return true;
 	}
 
+	enum class EPreloadingState : uint8 {
+		NotPreloaded = 0, // Not preloaded.
+		Preloaded = 1, // Preloaded but RHI shader not yet created (preloaded memory is still allocated).
+		PreloadedAndCreated = 2, // Preloaded and RHI shader created (preloaded memory has been freed).
+		CannotPreload = 3 // Not preloaded and cannot preload because the RHI shader is now being created.
+	};
+
+	struct FCachedRHIShader {
+		EPreloadingState PreloadingState = EPreloadingState::NotPreloaded;
+		TRefCountPtr<FRHIShader> RHIShader;
+	};
+
 	/** Number of shaders can be pretty large (several hundred thousands). Do not allocate memory for them upfront, but instead store them in a map. 
 	    There's number of maps to reduce the lock contention. */
-	TMap<int32, TRefCountPtr<FRHIShader>> RHIShaders[NumShaderLocks];
+	TMap<int32, FCachedRHIShader> RHIShaders[NumShaderLocks];
 
 	TArray<FShaderMapResource_SharedCode*> Resources;
 
@@ -1189,8 +1337,24 @@ FShaderMapResource_SharedCode::FShaderMapResource_SharedCode(FShaderLibraryInsta
 	: FShaderMapResource(InLibraryInstance->GetPlatform(), InLibraryInstance->GetNumShadersForShaderMap(InShaderMapIndex))
 	, LibraryInstance(InLibraryInstance)
 	, ShaderMapIndex(InShaderMapIndex)
-	, bShaderMapPreloaded(false)
+	, bEntireShaderMapPreloaded(false)
 {
+	if (GShaderMapResourceRef)
+	{
+		TArray<int32> ShaderGroupIndexes;
+		const int32 NumShaders = GetNumShaders();
+		for (int32 i = 0; i < NumShaders; ++i)
+		{
+			const int32 LibraryShaderIndex = LibraryInstance->Library->GetShaderIndex(ShaderMapIndex, i);
+			const int32 ShaderGroupIndex = LibraryInstance->Library->GetGroupIndexForShader(LibraryShaderIndex);
+			ShaderGroupIndexes.AddUnique(ShaderGroupIndex);
+		}
+
+		for (int32 ShaderGroupIndex : ShaderGroupIndexes)
+		{
+			LibraryInstance->Library->AddRefPreloadedShaderGroup(ShaderGroupIndex);
+		}
+	}
 }
 
 FShaderMapResource_SharedCode::~FShaderMapResource_SharedCode()
@@ -1203,24 +1367,19 @@ FSHAHash FShaderMapResource_SharedCode::GetShaderHash(int32 ShaderIndex)
 	return LibraryInstance->Library->GetShaderHash(ShaderMapIndex, ShaderIndex);
 }
 
-FRHIShader* FShaderMapResource_SharedCode::CreateRHIShaderOrCrash(int32 ShaderIndex)
+FRHIShader* FShaderMapResource_SharedCode::CreateRHIShaderOrCrash(int32 ShaderIndex, bool bRequired)
 {
 	SCOPED_LOADTIMER(FShaderMapResource_SharedCode_InitRHI);
-#if STATS
-	double TimeFunctionEntered = FPlatformTime::Seconds();
-	ON_SCOPE_EXIT
-	{
-		double ShaderCreationTime = FPlatformTime::Seconds() - TimeFunctionEntered;
-		INC_FLOAT_STAT_BY(STAT_Shaders_TotalRTShaderInitForRenderingTime, ShaderCreationTime);
-	};
-#endif
 
 	const int32 LibraryShaderIndex = LibraryInstance->Library->GetShaderIndex(ShaderMapIndex, ShaderIndex);
-	TRefCountPtr<FRHIShader> CreatedShader = LibraryInstance->GetOrCreateShader(LibraryShaderIndex);
+	TRefCountPtr<FRHIShader> CreatedShader = LibraryInstance->GetOrCreateShader(LibraryShaderIndex, bRequired);
 	if (UNLIKELY(CreatedShader == nullptr))
 	{
-		UE_LOG(LogShaders, Fatal, TEXT("FShaderMapResource_SharedCode::InitRHI is unable to create a shader"));
-		// unreachable
+		if (bRequired)
+		{
+			UE_LOG(LogShaders, Fatal, TEXT("FShaderMapResource_SharedCode::InitRHI is unable to create a shader"));
+		}
+
 		return nullptr;
 	}
 
@@ -1232,10 +1391,38 @@ void FShaderMapResource_SharedCode::ReleasePreloadedShaderCode(int32 ShaderIndex
 {
 	SCOPED_LOADTIMER(FShaderMapResource_SharedCode_InitRHI);	// part of shader initialization in a way
 
-	if (bShaderMapPreloaded)
+	if (bEntireShaderMapPreloaded)
 	{
 		const int32 LibraryShaderIndex = LibraryInstance->Library->GetShaderIndex(ShaderMapIndex, ShaderIndex);
 		LibraryInstance->Library->ReleasePreloadedShader(LibraryShaderIndex);
+	}
+}
+
+int32 FShaderMapResource_SharedCode::GetLibraryShaderIndex(int32 ShaderIndex) const
+{
+	return LibraryInstance->Library->GetShaderIndex(ShaderMapIndex, ShaderIndex);
+}
+
+void FShaderMapResource_SharedCode::PreloadShader(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents)
+{
+	// Don't preload if we already preloaded the full shader map, or we already created the RHI shader.
+	if (bEntireShaderMapPreloaded || HasShader(ShaderIndex))
+	{		
+		return;
+	}
+
+	const int32 LibraryShaderIndex = LibraryInstance->Library->GetShaderIndex(ShaderMapIndex, ShaderIndex);
+	LibraryInstance->PreloadShader(LibraryShaderIndex, OutCompletionEvents);
+}
+
+void FShaderMapResource_SharedCode::PreloadShaderMap(FGraphEventArray& OutCompletionEvents)
+{
+	TArray<int32> ShaderIndices;
+	LibraryInstance->Library->GetAllShaderIndices(ShaderMapIndex, ShaderIndices);
+
+	for (int32 ShaderIndex : ShaderIndices)
+	{
+		LibraryInstance->PreloadShader(ShaderIndex, OutCompletionEvents);
 	}
 }
 
@@ -1244,6 +1431,8 @@ void FShaderMapResource_SharedCode::ReleaseRHI()
 	if (LibraryInstance && ensureMsgf(LibraryInstance->Library, TEXT("LibraryInstance->Library pointer is expected to be valid as long as library's FShaderMapResource are alive.")))
 	{
 		const int32 NumShaders = GetNumShaders();
+		TArray<int32> ShaderGroupIndexes;
+
 		for (int32 i = 0; i < NumShaders; ++i)
 		{
 			const int32 LibraryShaderIndex = LibraryInstance->Library->GetShaderIndex(ShaderMapIndex, i);
@@ -1251,15 +1440,34 @@ void FShaderMapResource_SharedCode::ReleaseRHI()
 			{
 				LibraryInstance->ReleaseShader(LibraryShaderIndex);
 			}
-			else if (bShaderMapPreloaded)
+			else if (bEntireShaderMapPreloaded)
 			{
-				// Release the preloaded memory if it was preloaded, but not created yet
+				// Release the preloaded memory if the entire shader map was preloaded, but not created yet.
 				LibraryInstance->Library->ReleasePreloadedShader(LibraryShaderIndex);
+			}
+			else
+			{
+				// Release preloaded memory if we individually preloaded that shader.
+				LibraryInstance->ReleasePreloadedShaderIfNecessary(LibraryShaderIndex);
+			}
+
+			if (GShaderMapResourceRef)
+			{
+				const int32 ShaderGroupIndex = LibraryInstance->Library->GetGroupIndexForShader(LibraryShaderIndex);
+				ShaderGroupIndexes.AddUnique(ShaderGroupIndex);
+			}
+		}
+
+		if (GShaderMapResourceRef)
+		{
+			for (int32 ShaderGroupIndex : ShaderGroupIndexes)
+			{
+				LibraryInstance->Library->ReleasePreloadedShaderGroup(ShaderGroupIndex);
 			}
 		}
 	}
 
-	bShaderMapPreloaded = false;
+	bEntireShaderMapPreloaded = false;
 
 	FShaderMapResource::ReleaseRHI();
 
@@ -1286,6 +1494,24 @@ bool FShaderMapResource_SharedCode::TryRelease()
 
 	return false;
 }
+
+FString FShaderMapResource_SharedCode::GetFriendlyName() const
+{
+	return LibraryInstance->Library->GetName();
+}
+
+int32 FShaderMapResource_SharedCode::GetGroupIndexForShader(int32 ShaderIndex) const
+{
+	const int32 LibraryShaderIndex = LibraryInstance->Library->GetShaderIndex(ShaderMapIndex, ShaderIndex);
+	const int32 ShaderGroupIndex = LibraryInstance->Library->GetGroupIndexForShader(LibraryShaderIndex);
+	return ShaderGroupIndex;
+}
+
+int32 FShaderMapResource_SharedCode::GetLibraryId() const
+{
+	return LibraryInstance->Library->GetLibraryId();
+}
+
 
 #if WITH_EDITOR
 struct FShaderCodeStats
@@ -1360,7 +1586,7 @@ struct FEditorShaderCodeArchive
 
 		if (SerializedShaders.FindOrAddShaderMap(Code->ResourceHash, ShaderMapIndex, &AssociatedAssets))
 		{
-			const int32 NumShaders = Code->ShaderEntries.Num();
+			const int32 NumShaders = Code->ShaderCodeResources.Num();
 			FShaderMapEntry& ShaderMapEntry = SerializedShaders.ShaderMapEntries[ShaderMapIndex];
 			ShaderMapEntry.NumShaders = NumShaders;
 			ShaderMapEntry.ShaderIndicesOffset = SerializedShaders.ShaderIndices.AddZeroed(NumShaders);
@@ -1370,25 +1596,26 @@ struct FEditorShaderCodeArchive
 				int32 ShaderIndex = INDEX_NONE;
 				if (SerializedShaders.FindOrAddShader(Code->ShaderHashes[i], ShaderIndex))
 				{
-					const FShaderMapResourceCode::FShaderEntry& SourceShaderEntry = Code->ShaderEntries[i];
+					const FShaderCodeResource& SourceShaderResource = Code->ShaderCodeResources[i];
 					FShaderCodeEntry& SerializedShaderEntry = SerializedShaders.ShaderEntries[ShaderIndex];
-					SerializedShaderEntry.Frequency = SourceShaderEntry.Frequency;
-					SerializedShaderEntry.Size = SourceShaderEntry.Code.Num();
-					SerializedShaderEntry.UncompressedSize = SourceShaderEntry.UncompressedSize;
-					check(!SourceShaderEntry.Code.IsEmpty());
-					ShaderCode.Add(SourceShaderEntry.Code);
+					SerializedShaderEntry.Frequency = SourceShaderResource.GetFrequency();
+					FSharedBuffer CodeBuffer = SourceShaderResource.GetCodeBuffer();
+					SerializedShaderEntry.Size = CodeBuffer.GetSize();
+					SerializedShaderEntry.UncompressedSize = SourceShaderResource.GetUncompressedSize();
+					check(SerializedShaderEntry.Size > 0);
+					ShaderCode.Add(CodeBuffer);
 					check(ShaderCode.Num() == SerializedShaders.ShaderEntries.Num());
 
 					CodeStats.NumUniqueShaders++;
-					CodeStats.ShadersUniqueSize += SourceShaderEntry.Code.Num();
+					CodeStats.ShadersUniqueSize += CodeBuffer.GetSize();
 				}
-				CodeStats.ShadersSize += Code->ShaderEntries[i].Code.Num();
+				CodeStats.ShadersSize += Code->ShaderCodeResources[i].GetCodeView().NumBytes();
 				SerializedShaders.ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i] = ShaderIndex;
 			}
 
 			// for total shaders, only count shaders when we're adding a new shadermap. AddShaderCode() for the same shadermap can be called several times during
 			// the cook because of serialization path being reused for other purposes than actual saving, so counting them every time artificially inflates number of shaders.
-			CodeStats.NumShaders += Code->ShaderEntries.Num();
+			CodeStats.NumShaders += Code->ShaderCodeResources.Num();
 			CodeStats.NumShaderMaps++;
 		}
 		// always mark the shadermap dirty, because it might have gotten new asset associations
@@ -1462,7 +1689,7 @@ struct FEditorShaderCodeArchive
 		int32 NumShadersSentWithCode = 0;
 
 		const FSerializedShaderArchive& SourceArchive = this->SerializedShaders;
-		TArray<TArray<uint8>>& SourceShaderCodes = this->ShaderCode;
+		TArray<FSharedBuffer>& SourceShaderCodes = this->ShaderCode;
 		for (int32 SourceShaderMapIndex : LocalShaderMapsToCopy)
 		{
 			const FSHAHash& SourceShaderMapHash = SourceArchive.ShaderMapHashes[SourceShaderMapIndex];
@@ -1496,15 +1723,15 @@ struct FEditorShaderCodeArchive
 					check(TargetShaderIndex == TargetArchive.ShaderEntries.Num() - 1);
 
 					const FShaderCodeEntry& SourceShaderEntry = SourceArchive.ShaderEntries[SourceShaderIndex];
-					TArray<uint8>& SourceShaderCode = SourceShaderCodes[SourceShaderIndex];
+					FSharedBuffer& SourceShaderCode = SourceShaderCodes[SourceShaderIndex];
 					FShaderCodeEntry& TargetShaderEntry = TargetArchive.ShaderEntries[TargetShaderIndex];
 
 					TargetShaderEntry = SourceShaderEntry;
-					if (!SourceShaderCode.IsEmpty())
+					if (SourceShaderCode.GetSize() > 0)
 					{
 						TargetShaderEntry.Offset = TargetFlatShaderCode.Num();
-						check(SourceShaderEntry.Size == SourceShaderCode.Num());
-						if ((MaxShaderSize > 0 && TargetFlatShaderCode.Num() + SourceShaderCode.Num() > MaxShaderSize) ||
+						check(SourceShaderEntry.Size == SourceShaderCode.GetSize());
+						if ((MaxShaderSize > 0 && TargetFlatShaderCode.Num() + (int64)SourceShaderCode.GetSize() > MaxShaderSize) ||
 							(MaxShaderCount > 0 && NumShadersSentWithCode > MaxShaderCount))
 						{
 							// We have to stop here to avoid overflowing the shader limit. Send the shaders we have accumulated
@@ -1521,11 +1748,11 @@ struct FEditorShaderCodeArchive
 						}
 						++NumShadersSentWithCode;
 
-						TargetFlatShaderCode.Append(SourceShaderCode);
+						TargetFlatShaderCode.Append(MakeArrayView(reinterpret_cast<const uint8*>(SourceShaderCode.GetData()), SourceShaderCode.GetSize()));
 
-						// Empty the ShaderCode to save memory in the local process. The consumer of the TargetArchive and
+						// Reset the ShaderCode reference to (potentially) save memory in the local process. The consumer of the TargetArchive and
 						// TargetFlatShaderCode will be the only one that needs to read it.
-						SourceShaderCode.Empty();
+						SourceShaderCode.Reset();
 					}
 					else
 					{
@@ -1546,7 +1773,7 @@ struct FEditorShaderCodeArchive
 	{
 		bool bOk = true;
 		FSerializedShaderArchive& TargetArchive = this->SerializedShaders;
-		TArray<TArray<uint8>>& TargetShaderCodes = this->ShaderCode;
+		TArray<FSharedBuffer>& TargetShaderCodes = this->ShaderCode;
 
 		// Add all the shaders; we can sometimes get messages that send the shaders in advance without sending the shadermaps that use them
 		for (int32 SourceShaderIndex = 0; SourceShaderIndex < SourceArchive.ShaderHashes.Num(); ++SourceShaderIndex)
@@ -1560,7 +1787,6 @@ struct FEditorShaderCodeArchive
 			}
 			check(TargetShaderIndex == TargetArchive.ShaderEntries.Num() - 1 &&
 				TargetShaderCodes.Num() == TargetArchive.ShaderEntries.Num() - 1);
-			TArray<uint8>& TargetShaderCode = TargetShaderCodes.Emplace_GetRef();
 
 			const FShaderCodeEntry& SourceShaderEntry = SourceArchive.ShaderEntries[SourceShaderIndex];
 			FShaderCodeEntry& TargetShaderEntry = TargetArchive.ShaderEntries[TargetShaderIndex];
@@ -1590,8 +1816,8 @@ struct FEditorShaderCodeArchive
 			}
 			else
 			{
-				const TConstArrayView<uint8> SourceShaderCode(SourceFlatShaderCode.GetData() + SourceShaderEntry.Offset, SourceShaderEntry.Size);
-				TargetShaderCode = SourceShaderCode; // Copy from source's flat list to the target's separate TArray<uint8> for each shader
+				// Copy from source's flat list to the target's separate FSharedBuffer for each shader
+				TargetShaderCodes.Add(FSharedBuffer::Clone(SourceFlatShaderCode.GetData() + SourceShaderEntry.Offset, SourceShaderEntry.Size));
 			}
 		}
 
@@ -1653,8 +1879,8 @@ struct FEditorShaderCodeArchive
 		NewChunk->ShaderCode.Empty();
 		for (int32 NewArchiveIdx = 0, NumIndices = ShaderCodeEntriesNeeded.Num(); NewArchiveIdx < NumIndices; ++NewArchiveIdx)
 		{
-			TArray<uint8>& SourceShaderCodeEntry = ShaderCode[ShaderCodeEntriesNeeded[NewArchiveIdx]];
-			check(!SourceShaderCodeEntry.IsEmpty());
+			FSharedBuffer& SourceShaderCodeEntry = ShaderCode[ShaderCodeEntriesNeeded[NewArchiveIdx]];
+			check(SourceShaderCodeEntry.GetSize() > 0);
 			NewChunk->ShaderCode.Add(SourceShaderCodeEntry);
 		}
 
@@ -1684,8 +1910,8 @@ struct FEditorShaderCodeArchive
 					const FShaderCodeEntry& OtherShaderEntry = OtherArchive.SerializedShaders.ShaderEntries[OtherShaderIndex];
 					SerializedShaders.ShaderEntries[ShaderIndex] = OtherShaderEntry;
 
-					const TArray<uint8>& OtherShaderCodeEntry = OtherArchive.ShaderCode[OtherShaderIndex];
-					check(!OtherShaderCodeEntry.IsEmpty());
+					const FSharedBuffer& OtherShaderCodeEntry = OtherArchive.ShaderCode[OtherShaderIndex];
+					check(OtherShaderCodeEntry.GetSize() > 0);
 					ShaderCode.Add(OtherShaderCodeEntry);
 					check(ShaderCode.Num() == SerializedShaders.ShaderEntries.Num());
 				}
@@ -1722,16 +1948,16 @@ struct FEditorShaderCodeArchive
 					const FShaderCodeEntry& OtherShaderEntry = OtherShaders.ShaderEntries[OtherShaderIndex];
 					SerializedShaders.ShaderEntries[ShaderIndex] = OtherShaderEntry;
 
-					TArray<uint8>& Code = ShaderCode.AddDefaulted_GetRef();
-					check(ShaderCode.Num() == SerializedShaders.GetNumShaders());
+					check(ShaderCode.Num() == SerializedShaders.GetNumShaders() - 1);
 
 					// Read shader code from archive and add shader to set
 					const int64 ReadSize = OtherShaderEntry.Size;
 					check(ReadSize > 0);
 					const int64 ReadOffset = OtherShaderCodeOffset + OtherShaderEntry.Offset;
-					Code.SetNumUninitialized(ReadSize);
+					FUniqueBuffer Code = FUniqueBuffer::Alloc(ReadSize);
 					Ar.Seek(ReadOffset);
 					Ar.Serialize(Code.GetData(), ReadSize);
+					ShaderCode.Add(Code.MoveToShared());
 				}
 				SerializedShaders.ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i] = ShaderIndex;
 			}
@@ -1744,7 +1970,7 @@ struct FEditorShaderCodeArchive
 	bool LoadExistingShaderCodeLibrary(FString const& MetaDataDir)
 	{
 		FString IntermediateFormatPath = GetCodeArchiveFilename(MetaDataDir / TEXT("ShaderLibrarySource"), LibraryName, FormatName);
-		FArchive* PrevCookedAr = IFileManager::Get().CreateFileReader(*IntermediateFormatPath);
+		FArchive* PrevCookedAr = CreateShaderFileReader(*IntermediateFormatPath);
 		bool bOK = true;
 		if (PrevCookedAr)
 		{
@@ -1760,16 +1986,18 @@ struct FEditorShaderCodeArchive
 				for (int32 Index = 0; Index < ShaderCode.Num(); ++Index)
 				{
 					const FShaderCodeEntry& Entry = SerializedShaders.ShaderEntries[Index];
-					TArray<uint8>& Code = ShaderCode[Index];
 					check(Entry.Size > 0);
-					Code.SetNumUninitialized(Entry.Size);
+					FUniqueBuffer Code = FUniqueBuffer::Alloc(Entry.Size);
 					PrevCookedAr->Serialize(Code.GetData(), Entry.Size);
+
 					bOK = !PrevCookedAr->GetError();
 					if (!bOK)
 					{
 						UE_LOG(LogShaderLibrary, Error, TEXT("Failed to deserialize shader code for %s from %s"), *SerializedShaders.ShaderHashes[Index].ToString(), *IntermediateFormatPath);
 						break;
 					}
+
+					ShaderCode[Index] = Code.MoveToShared();
 				}
 			}
 			else
@@ -1792,7 +2020,7 @@ struct FEditorShaderCodeArchive
 
 	void AddShaderCodeLibraryByName(const FString& BaseDir, const FString& InLibraryName)
 	{
-		if (FArchive* PrevCookedAr = IFileManager::Get().CreateFileReader(*GetCodeArchiveFilename(BaseDir, InLibraryName, FormatName)))
+		if (FArchive* PrevCookedAr = CreateShaderFileReader(*GetCodeArchiveFilename(BaseDir, InLibraryName, FormatName)))
 		{
 			uint32 Version = 0;
 			*PrevCookedAr << Version;
@@ -1804,7 +2032,8 @@ struct FEditorShaderCodeArchive
 				*PrevCookedAr << PrevCookedShaders;
 
 				// check if it also contains the asset info file
-				if (PrevCookedShaders.LoadAssetInfo(GetShaderAssetInfoFilename(BaseDir, InLibraryName, FormatName)))
+				TUniquePtr<FArchive> ShaderAssetInfoReader(CreateShaderFileReader(*GetShaderAssetInfoFilename(BaseDir, InLibraryName, FormatName)));
+				if (PrevCookedShaders.LoadAssetInfo(ShaderAssetInfoReader.Get()))
 				{
 					UE_LOG(LogShaderLibrary, Display, TEXT("Loaded asset info %s for the shader library %s: %d entries"),
 						*GetShaderAssetInfoFilename(BaseDir, InLibraryName, FormatName),
@@ -1846,7 +2075,7 @@ struct FEditorShaderCodeArchive
 		const FString ShaderIntermediateLocation = FPaths::ProjectSavedDir() / TEXT("Shaders") / FormatNameStr;
 
 		TArray<FString> ShaderFiles;
-		IFileManager::Get().FindFiles(ShaderFiles, *ShaderIntermediateLocation, *ShaderExtension);
+		ShaderFindFiles(ShaderFiles, *ShaderIntermediateLocation, *ShaderExtension);
 
 		for (const FString& ShaderFileName : ShaderFiles)
 		{
@@ -1916,8 +2145,8 @@ struct FEditorShaderCodeArchive
 					*FileWriter << SerializedShaders;
 					for (auto& Code : ShaderCode)
 					{
-						check(!Code.IsEmpty());
-						FileWriter->Serialize(Code.GetData(), Code.Num());
+						check(Code.GetSize() > 0);
+						FileWriter->Serialize(const_cast<void*>(Code.GetData()), Code.GetSize());
 					}
 
 					FileWriter->Close();
@@ -2194,7 +2423,7 @@ private:
 	 * The element at index N holds the ShaderCode for the element of SerializedShaders.ShaderEntries at index N.
 	 * In MultiprocessCooking elements can be empty if they have been transferred to the Director (bHasCopiedAndCleared will be true in this case).
 	 */
-	TArray<TArray<uint8>> ShaderCode;
+	TArray<FSharedBuffer> ShaderCode;
 	/** A list of ShaderMaps that have not yet been copied to the CookDirector. Used only by MultiprocessCookWorkers. */
 	TSet<int32> ShaderMapsToCopy;
 	/** True if CopyToArchiveAndClear has been called, otherwise false. If false we avoid doing some tracking since it might never be used. */
@@ -2285,7 +2514,7 @@ struct FEditorShaderStableInfo
 		{
 			const FString ShaderIntermediateLocation = FPaths::ProjectSavedDir() / TEXT("Shaders") / FormatName.ToString();
 			TArray<FString> ShaderFiles;
-			IFileManager::Get().FindFiles(ShaderFiles, *ShaderIntermediateLocation, *StableExtension);
+			ShaderFindFiles(ShaderFiles, *ShaderIntermediateLocation, *StableExtension);
 			FString ExpectedFileNameText = LibraryName + TEXT("-") + FormatName.ToString() + TEXT(".");
 
 			for (const FString& ShaderFileName : ShaderFiles)
@@ -2646,7 +2875,7 @@ public:
 					FScopeLock KnownPakFilesLocker(&FMountedPakFileInfo::KnownPakFilesAccessLock);
 					for (TSet<FMountedPakFileInfo>::TConstIterator Iter(FMountedPakFileInfo::KnownPakFiles); Iter; ++Iter)
 					{
-						Library->OnPakFileMounted(*Iter);
+						Library->OnPakFileMounted(*Iter, Directory);
 					}
 				}
 				NewComponentIDs = Library->PresentChunks.Difference(PrevComponentSet);
@@ -2662,8 +2891,13 @@ public:
 						UE_LOG(LogShaderLibrary, Display, TEXT("Running without a pakfile/IoStore and did not find a monolithic library '%s' - attempting disk search for its chunks"), *Name);
 
 						TArray<FString> UshaderbytecodeFiles;
+#if PLATFORM_APPLE
+						// Metal doesn't support ushaderbytecode
+						FString SearchMask = Directory / FString::Printf(TEXT("%s*.metallib"), *Name);
+#else
 						FString SearchMask = Directory / FString::Printf(TEXT("ShaderArchive-*%s*.ushaderbytecode"), *Name);
-						IFileManager::Get().FindFiles(UshaderbytecodeFiles, *SearchMask, true, false);
+#endif
+						ShaderFindFiles(UshaderbytecodeFiles, *SearchMask, true, false);
 
 						if (UshaderbytecodeFiles.Num() > 0)
 						{
@@ -2681,7 +2915,7 @@ public:
 									{
 										// create a fake FPakFileMountedInfo
 										FMountedPakFileInfo PakFileInfo(Directory, ChunkID);
-										Library->OnPakFileMounted(PakFileInfo);
+										Library->OnPakFileMounted(PakFileInfo, Directory);
 									}
 								}
 							}
@@ -2743,7 +2977,7 @@ public:
 			{
 				if (bAddNewNamedLibrary)
 				{
-					UE_LOG(LogShaderLibrary, Display, TEXT("Tried to open shader library '%s', but could not find it%s"), *Name, 
+					UE_LOG(LogShaderLibrary, Verbose, TEXT("Tried to open shader library '%s', but could not find it%s"), *Name,
 						bMonolithicOnly ? TEXT(" (only tried to open it as a monolithic library).") : TEXT(" neither as a monolithic library nor as a chunked one."));
 
 					check(Library->GetNumComponents() == 0);
@@ -2823,16 +3057,28 @@ public:
 	}
 
 	void OnPakFileMounted(const UE::ShaderLibrary::Private::FMountedPakFileInfo& MountInfo)
-	{		
+	{
 		if (IsLibraryInitializedForRuntime())
 		{
+			LLM_SCOPE(ELLMTag::Shaders);
 			TArray<TUniqueFunction<void()>> ShaderLibraryStateChanges;
 			{
 				FRWScopeLock WriteLock(NamedLibrariesMutex, SLT_Write);
 				for (TTuple<FString, TUniquePtr<UE::ShaderLibrary::Private::FNamedShaderLibrary>>& NamedLibraryPair : NamedLibrariesStack)
 				{
 					TSet<int32> PrevComponentSet = NamedLibraryPair.Value->PresentChunks;
-					NamedLibraryPair.Value->OnPakFileMounted(MountInfo);
+
+#if PLATFORM_APPLE
+					//@TODO properly fix this by making sure FMountedPakFileInfo has the proper path
+					FString RestOfPath;
+					FString CorrectPath;
+					MountInfo.PakFilename.Split(TEXT("/content"), &CorrectPath, &RestOfPath);
+					CorrectPath = CorrectPath + TEXT("/content");
+#else
+					FString CorrectPath = NamedLibraryPair.Value->BaseDirectory;
+#endif
+
+					NamedLibraryPair.Value->OnPakFileMounted(MountInfo, CorrectPath);
 					for (int32 ComponentID : NamedLibraryPair.Value->PresentChunks.Difference(PrevComponentSet))
 					{
 						// Defer these for outside of the lock, ShaderPipelineCache may want to inspect shader library.
@@ -3428,6 +3674,15 @@ public:
 		}
 	}
 
+	template<typename F>
+	void IterateNamedShaderLibrariesSafe(F&& Func)
+	{
+		FRWScopeLock NamedReadLock(NamedLibrariesMutex, SLT_ReadOnly);
+		for (auto& [LogicalName, NamedShaderLibrary] : NamedLibrariesStack)
+		{
+			Invoke(Forward<F>(Func), LogicalName, *NamedShaderLibrary);
+		}
+	}
 };
 
 static FSharedShaderCodeRequest OnSharedShaderCodeRequest;
@@ -3595,6 +3850,11 @@ void FShaderCodeLibrary::Shutdown()
 bool FShaderCodeLibrary::IsEnabled()
 {
 	return FShaderLibrariesCollection::Impl != nullptr;
+}
+
+bool FShaderCodeLibrary::AreShaderMapsPreloadedAtLoadTime()
+{
+	return GPreloadShaderMaps > 0;
 }
 
 bool FShaderCodeLibrary::ContainsShaderCode(const FSHAHash& Hash)
@@ -3776,8 +4036,9 @@ void FShaderCodeLibrary::CloseLibrary(FString const& Name)
 
 #if WITH_EDITOR
 // for now a lot of FShaderLibraryCooker code is aliased with the runtime code, but this will be refactored (UE-103486)
-void FShaderLibraryCooker::InitForCooking(bool bNativeFormat)
+void FShaderLibraryCooker::InitForCooking(bool bNativeFormat, ICookArtifactReader* InCookArtifactReader)
 {
+	CookArtifactReader = InCookArtifactReader;
 	FShaderLibrariesCollection::Impl = new FShaderLibrariesCollection(SP_NumPlatforms, bNativeFormat);
 }
 
@@ -3893,7 +4154,7 @@ bool FShaderLibraryCooker::CreatePatchLibrary(TArray<FString> const& OldMetaData
 {
 	TMap<FName, TSet<FString>> FormatLibraryMap;
 	TArray<FString> LibraryFiles;
-	IFileManager::Get().FindFiles(LibraryFiles, *(NewMetaDataDir / TEXT("ShaderLibrarySource")), *ShaderExtension);
+	ShaderFindFiles(LibraryFiles, *(NewMetaDataDir / TEXT("ShaderLibrarySource")), *ShaderExtension);
 	
 	for (FString const& Path : LibraryFiles)
 	{
@@ -3962,7 +4223,7 @@ bool FShaderLibraryCooker::MergeShaderCodeArchive(const TArray<FString>& CookedM
 		const FString ShaderStableInfoDir = MetadataDir / TEXT("PipelineCaches");
 
 		TArray<FString> ShaderBytecodeFiles;
-		IFileManager::Get().FindFiles(ShaderBytecodeFiles, *ShaderCodeDir, *ShaderExtension);
+		ShaderFindFiles(ShaderBytecodeFiles, *ShaderCodeDir, *ShaderExtension);
 		for (const FString& ByteCodeFile : ShaderBytecodeFiles)
 		{
 			if (ShaderCodeArchives.Contains(ByteCodeFile))
@@ -3985,7 +4246,7 @@ bool FShaderLibraryCooker::MergeShaderCodeArchive(const TArray<FString>& CookedM
 		}
 
 		TArray<FString> StableInfoFiles;
-		IFileManager::Get().FindFiles(StableInfoFiles, *ShaderStableInfoDir, *StableExtension);
+		ShaderFindFiles(StableInfoFiles, *ShaderStableInfoDir, *StableExtension);
 		for (const FString& StableInfoFile : StableInfoFiles)
 		{
 			if (ShaderStableInfos.Contains(StableInfoFile))
@@ -4156,6 +4417,7 @@ void FShaderCodeLibrary::OpenPluginShaderLibrary(IPlugin& Plugin, bool bMonolith
 // At runtime, open shader code collection for specified shader platform. Returns true if new code was opened
 bool UE::ShaderLibrary::Private::FNamedShaderLibrary::OpenShaderCode(const FString& ShaderCodeDir, FString const& Library)
 {
+	LLM_SCOPE(ELLMTag::Shaders);
 	// check if any of the components has this content
 	{
 		FRWScopeLock ReadLock(ComponentsMutex, SLT_Write);
@@ -4263,3 +4525,48 @@ void UE::ShaderLibrary::Private::FNamedShaderLibrary::DumpLibraryContents(const 
 	}
 }
 #endif
+
+FAutoConsoleCommandWithArgsAndOutputDevice GListShaderLibrariesCmd(
+	TEXT("ListShaderLibraries"),
+	TEXT("Spits out a csv table containing stats of all shader libraries"),
+	FConsoleCommandWithArgsAndOutputDeviceDelegate::CreateStatic(
+		[](const TArray<FString>& Params, FOutputDevice& Out)
+		{
+			auto Iter = [&](const FString& LogicalName, UE::ShaderLibrary::Private::FNamedShaderLibrary& NamedShaderLibrary)
+			{
+				FRWScopeLock ComponentReadLock(NamedShaderLibrary.ComponentsMutex, SLT_ReadOnly);
+				for (const TUniquePtr<FShaderLibraryInstance>& ShaderLibrary : NamedShaderLibrary.Components)
+				{
+					const FString& Name = ShaderLibrary->Library->GetName();
+					const FString OwnerName = ShaderLibrary->Library->GetOwnerName().ToString();
+					uint32 Id = ShaderLibrary->Library->GetId();
+					int32 NumShaders = ShaderLibrary->GetNumShaders();
+					int32 NumShaderMaps = ShaderLibrary->GetNumResources();
+					uint32 LibrarySize = ShaderLibrary->GetSizeBytes();
+					uint32 RHILibrarySize = ShaderLibrary->Library->GetSizeBytes();
+					uint32 MapsSize = ShaderLibrary->GetShaderMapsSizeBytes();
+
+					Out.Logf(TEXT("%s,%s,%s,%x,%d,%d,%.3f,%.3f,%.3f"),
+						*Name,
+						*LogicalName,
+						*OwnerName,
+						Id,
+						NumShaders,
+						NumShaderMaps,
+						LibrarySize / 1024.f,
+						RHILibrarySize / 1024.f,
+						MapsSize / 1024.f
+					);
+				}
+			};
+
+			if (FShaderLibrariesCollection* Collection = FShaderLibrariesCollection::Impl)
+			{
+				Out.Logf(TEXT("ShaderLibraryName,LogicalName,OwnerName,Id,NumShaders,NumShaderMaps,LibrarySizeKb,RHILibrarySizeKb,ShaderMapsSizeKb"));
+				Collection->IterateNamedShaderLibrariesSafe(Iter);
+			}
+			else
+			{
+				UE_LOG(LogShaderLibrary, Warning, TEXT("ShaderLibrariesCollection is not available."));
+			}
+		}));

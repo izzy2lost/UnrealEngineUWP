@@ -5,6 +5,21 @@
 #include "Editor/EditorPerProjectUserSettings.h"
 #include "Editor.h"
 
+FName UDefaultEditorProfiles::DefaultProfileName = FName("Epic Headquarters");
+FName UDefaultEditorProfiles::EditingProfileName = FName("Grey Wireframe");
+
+const FPreviewSceneProfile* UDefaultEditorProfiles::GetProfile(const FString& ProfileName)
+{
+	for (const FPreviewSceneProfile& Profile : Profiles)
+	{
+		if (Profile.ProfileName == ProfileName)
+		{
+			return &Profile;
+		}
+	}
+
+	return nullptr;
+}
 
 UAssetViewerSettings::UAssetViewerSettings()
 {
@@ -42,6 +57,11 @@ UAssetViewerSettings* UAssetViewerSettings::Get()
 	}
 
 	return DefaultSettings;
+}
+
+FPreviewSceneProfile& UAssetViewerSettings::GetCurrentUserProjectProfile()
+{
+	return Get()->Profiles[GetMutableDefault<UEditorPerProjectUserSettings>()->AssetViewerProfileIndex];
 }
 
 void UAssetViewerSettings::Save(bool bWarnIfFail)
@@ -116,13 +136,30 @@ void UAssetViewerSettings::PostInitProperties()
 	{
 		Profiles.Add(Profile);
 	}
+	
+	TArray<FPreviewSceneProfile>& DefaultEditorProfiles = GetMutableDefault<UDefaultEditorProfiles>()->Profiles;
+	for (FPreviewSceneProfile& ProfileToAdd : DefaultEditorProfiles)
+	{
+		// add the default profile if it's not already stored
+		// default editor profiles should be marked as "shared" profiles to allow user overrides
+		// therefore, they are only added once and maintained by the user thereafter
+		if (!Profiles.ContainsByPredicate([&ProfileToAdd](const FPreviewSceneProfile& Profile)
+			{
+				return Profile.ProfileName == ProfileToAdd.ProfileName;
+			}))
+		{
+			Profiles.Add(ProfileToAdd);
+		}
+	}
 
-	if (Profiles.Num() == 0)
+	// the UDefaultEditorProfiles should always add at least one default profile
+	if (!ensure(!Profiles.IsEmpty()))
 	{
 		// Make sure there always is one profile as default
 		Profiles.AddDefaulted(1);
 		Profiles[0].ProfileName = TEXT("Profile_0");
 	}
+
 	NumProfiles = Profiles.Num();
 
 	UEditorPerProjectUserSettings* ProjectSettings = GetMutableDefault<UEditorPerProjectUserSettings>();

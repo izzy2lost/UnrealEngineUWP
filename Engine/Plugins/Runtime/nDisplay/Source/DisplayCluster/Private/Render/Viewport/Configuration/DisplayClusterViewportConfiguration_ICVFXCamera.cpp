@@ -76,17 +76,34 @@ void FDisplayClusterViewportConfiguration_ICVFXCamera::Update()
 	{
 		if (CameraViewport.IsValid())
 		{
-			FDisplayClusterShaderParameters_ICVFX::FCameraSettings ShaderParametersCameraSettings = FDisplayClusterViewportConfigurationHelpers_ICVFX::GetShaderParametersCameraSettings(*CameraViewport, CameraComponent, GetCameraSettings());
+			ADisplayClusterRootActor* SceneRootActor = CameraViewport->Configuration->GetRootActor(EDisplayClusterRootActorType::Scene);
+			ADisplayClusterRootActor* ConfigurationRootActor = CameraViewport->Configuration->GetRootActor(EDisplayClusterRootActorType::Configuration);
+			const FDisplayClusterConfigurationICVFX_StageSettings* StageSettings = CameraViewport->Configuration->GetStageSettings();
 
-			// Add this camera data to all visible targets:
-			for (TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& ViewportIt : VisibleTargets)
+			if (SceneRootActor && ConfigurationRootActor && StageSettings)
 			{
-				if (ViewportIt.IsValid())
-				{
-					// Gain direct access to internal settings of the viewport:
-					FDisplayClusterViewport_RenderSettingsICVFX& InOutRenderSettingsICVFX = ViewportIt->GetRenderSettingsICVFXImpl();
+				const FDisplayClusterConfigurationICVFX_CameraSettings& CameraSettings = GetCameraSettings();
 
-					InOutRenderSettingsICVFX.ICVFX.Cameras.Add(ShaderParametersCameraSettings);
+				FDisplayClusterShaderParameters_ICVFX::FCameraSettings ShaderParametersCameraSettings =
+					CameraComponent.GetICVFXCameraShaderParameters(*StageSettings, CameraSettings);
+
+				ShaderParametersCameraSettings.Resource.ViewportId = CameraViewport->GetId();
+
+				// Rendering order for camera overlap
+				const FString InnerFrustumID = CameraComponent.GetCameraUniqueId();
+				const int32 CameraRenderOrder = ConfigurationRootActor->GetInnerFrustumPriority(InnerFrustumID);
+				ShaderParametersCameraSettings.RenderOrder = (CameraRenderOrder < 0) ? CameraSettings.RenderSettings.RenderOrder : CameraRenderOrder;
+
+				// Add this camera data to all visible targets:
+				for (TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& ViewportIt : VisibleTargets)
+				{
+					if (ViewportIt.IsValid())
+					{
+						// Gain direct access to internal settings of the viewport:
+						FDisplayClusterViewport_RenderSettingsICVFX& InOutRenderSettingsICVFX = ViewportIt->GetRenderSettingsICVFXImpl();
+
+						InOutRenderSettingsICVFX.ICVFX.Cameras.Add(ShaderParametersCameraSettings);
+					}
 				}
 			}
 		}
@@ -105,17 +122,11 @@ bool FDisplayClusterViewportConfiguration_ICVFXCamera::Initialize()
 		return false;
 	}
 
-	ADisplayClusterRootActor* SceneRootActor = Configuration.GetRootActor(EDisplayClusterRootActorType::Scene);
-	if (!SceneRootActor)
-	{
-		return false;
-	}
-
 	// Applying the correct sequence of steps to use the projection policy math:
 	// SetupProjectionViewPoint()->CalculateView()->GetProjectionMatrix()
 	FMinimalViewInfo CameraViewInfo;
 	float CustomNearClippingPlane = -1; // a value less than zero means ignoring.
-	CameraProjectionPolicy->SetupProjectionViewPoint(nullptr, SceneRootActor->GetWorldDeltaSeconds(), CameraViewInfo, &CustomNearClippingPlane);
+	CameraProjectionPolicy->SetupProjectionViewPoint(nullptr, Configuration.GetRootActorWorldDeltaSeconds(), CameraViewInfo, &CustomNearClippingPlane);
 
 	CameraContext.ViewLocation = CameraViewInfo.Location;
 	CameraContext.ViewRotation = CameraViewInfo.Rotation;

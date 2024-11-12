@@ -570,9 +570,8 @@ ProResFormatDescriptionFieldDetail UAppleProResEncoderProtocol::GetFieldDetail()
 
 bool UAppleProResEncoderProtocol::HasAlpha() const
 {
-	static const auto CVarPropagateAlpha = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PostProcessing.PropagateAlpha"));
-	const EAlphaChannelMode::Type PropagateAlpha = EAlphaChannelMode::FromInt(CVarPropagateAlpha->GetValueOnAnyThread());
-	return EAlphaChannelMode::AllowThroughTonemapper == PropagateAlpha;
+	static const auto CVarPropagateAlpha = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha"));
+	return CVarPropagateAlpha->GetBool();
 }
 
 void UAppleProResEncoderProtocol::ConvertFColorToRGBA4444(const TArray<FColor>& InColorbuffer)

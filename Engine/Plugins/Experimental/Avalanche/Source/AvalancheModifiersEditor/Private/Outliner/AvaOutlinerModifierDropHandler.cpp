@@ -1,6 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaOutlinerModifierDropHandler.h"
+
+#include "Framework/Application/SlateApplication.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Item/AvaOutlinerActor.h"
 #include "Modifiers/ActorModifierCoreStack.h"
@@ -171,7 +173,7 @@ bool FAvaOutlinerModifierDropHandler::DropModifiersInActor(AActor* InActor, EIte
 		return false;
 	}
 
-	UE_LOG(LogAvaOutlinerModifierDropHandler, Log, TEXT("Dropping %i modifier(s) on actor %s")
+	UE_LOG(LogAvaOutlinerModifierDropHandler, Log, TEXT("Dropping %i modifier(s) on actor %s (Clone)")
 		, CloneModifiers.Num()
 		, *InActor->GetActorNameOrLabel());
 
@@ -186,16 +188,24 @@ bool FAvaOutlinerModifierDropHandler::DropModifiersInActor(AActor* InActor, EIte
 
 		bSuccess = ModifierSubsystem->CloneModifiers(CloneModifiers, Stack, CloneOp).Num() == CloneModifiers.Num();
 
-		if (!bSuccess)
+		// When ALT is not pressed : perform a move operation between actors (copy + delete)
+		// When ALT is pressed : perform a clone operation between actors
+		if (bSuccess && !FSlateApplication::Get().GetModifierKeys().IsAltDown())
 		{
-			UE_LOG(LogAvaOutlinerModifierDropHandler, Warning, TEXT("Clone %i modifier(s) on actor %s failed : %s"),
-				CloneModifiers.Num(),
-				*InActor->GetActorNameOrLabel(),
-				*FailReason.ToString());
+			FActorModifierCoreStackRemoveOp RemoveOp;
+			RemoveOp.bShouldTransact = true;
+			RemoveOp.FailReason = &FailReason;
+
+			bSuccess = ModifierSubsystem->RemoveModifiers(TSet<UActorModifierCoreBase*>(CloneModifiers), RemoveOp);
 		}
 
 		if (!FailReason.IsEmpty())
 		{
+			UE_LOG(LogAvaOutlinerModifierDropHandler, Warning, TEXT("Dropping %i modifier(s) on actor %s (Clone) failed with reason : %s"),
+				CloneModifiers.Num(),
+				*InActor->GetActorNameOrLabel(),
+				*FailReason.ToString());
+
 			FNotificationInfo NotificationInfo(FailReason);
 			NotificationInfo.ExpireDuration = 3.f;
 			NotificationInfo.bFireAndForget = true;
@@ -258,10 +268,29 @@ bool FAvaOutlinerModifierDropHandler::DropModifiersInModifier(UActorModifierCore
 		CloneOp.ClonePositionContext = InTargetModifier;
 
 		bSuccess = ModifierSubsystem->CloneModifiers(CloneModifiers, InTargetModifier->GetModifierStack(), CloneOp).Num() == CloneModifiers.Num();
+
+		// When ALT is not pressed : perform a move operation between actors (copy + delete)
+		// When ALT is pressed : perform a clone operation between actors
+		if (bSuccess && !FSlateApplication::Get().GetModifierKeys().IsAltDown())
+		{
+			FActorModifierCoreStackRemoveOp RemoveOp;
+			RemoveOp.bShouldTransact = true;
+			RemoveOp.FailReason = &FailReason;
+
+			bSuccess = ModifierSubsystem->RemoveModifiers(TSet<UActorModifierCoreBase*>(CloneModifiers), RemoveOp);
+		}
 	}
 
 	if (!FailReason.IsEmpty())
 	{
+		UE_LOG(LogAvaOutlinerModifierDropHandler, Warning, TEXT("Dropping %i modifier(s) %s modifier %s on actor %s (%s) failed with reason : %s")
+			, MoveModifiers.IsEmpty() ? CloneModifiers.Num() : MoveModifiers.Num()
+			, Position == EActorModifierCoreStackPosition::After ? TEXT("after") : TEXT("before")
+			, *InTargetModifier->GetModifierName().ToString()
+			, *TargetActor->GetActorNameOrLabel()
+			, MoveModifiers.IsEmpty() ? TEXT("Clone") : TEXT("Move")
+			, *FailReason.ToString());
+
 		FNotificationInfo NotificationInfo(FailReason);
 		NotificationInfo.ExpireDuration = 3.f;
 		NotificationInfo.bFireAndForget = true;

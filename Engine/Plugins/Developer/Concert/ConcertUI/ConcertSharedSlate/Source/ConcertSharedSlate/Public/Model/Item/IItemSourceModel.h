@@ -2,20 +2,38 @@
 
 #pragma once
 
+#include "Misc/EBreakBehavior.h"
+
 #include "Containers/Array.h"
+#include "Internationalization/Text.h"
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
 #include "Textures/SlateIcon.h"
-#include "Misc/EBreakBehavior.h"
 
 namespace UE::ConcertSharedSlate
 {
 	enum class ESourceType : uint8
 	{
-		/** Display EnumerateSelectableItems in a drop-down or menu list. Example: User wants to search from a list of actors. */
+		/**
+		 * Display EnumerateSelectableItems in a drop-down or menu list. Each entry is a button that closes the menu.
+		 * Example: User wants to search from a list of actors.
+		 */
 		ShowAsList,
-		/** When this option is clicked, instantly add all of EnumerateSelectableItems. Example: User wants to add all actors selected in the world outliner. */
-		AddOnClick
+		/**
+		 * When this option is clicked, instantly add all of EnumerateSelectableItems.
+		 * Example: User wants to add all actors selected in the world outliner.
+		 */
+		AddOnClick,
+		/**
+		 * Display EnumerateSelectableItems in a drop-down or menu list.
+		 *
+		 * Each entry contains a checkbox:
+		 * - FSourceModelBuilders::OnItemsSelected is called when the checkbox is toggled (since you provide IsItemSelected, you can determine whether to add or remove the items).
+		 * - FSourceModelBuilders::IsItemSelected determines whether the checkbox is checked
+		 * 
+		 * Example: User wants to search from a list of actors.
+		 */
+		ShowAsToggleButtonList,
 	};
 
 	struct FBaseDisplayInfo
@@ -58,16 +76,25 @@ namespace UE::ConcertSharedSlate
 		virtual FSourceDisplayInfo GetDisplayInfo() const = 0;
 
 		/** @return The number of selectable objects. */
-		virtual uint32 GetNumSelectableItems() const = 0;
+		UE_DEPRECATED(5.5, "No longer in use")
+		virtual uint32 GetNumSelectableItems() const { return 0; }
 		
 		/** Enumerates ALL objects from this source. This can be a LOT of objects (e.g. 2000 actors). Intended to be placed in a searchable drop-down menu. */
 		virtual void EnumerateSelectableItems(TFunctionRef<EBreakBehavior(const TItemType& SelectableOption)> Delegate) const = 0;
 
+		/** @return Whether there are any options. */
+		virtual bool HasOptions() const
+		{
+			bool bHasAnItem = false;
+			EnumerateSelectableItems([&bHasAnItem](const auto&){ bHasAnItem = true; return EBreakBehavior::Break; });
+			return bHasAnItem;
+		}
+		
 		/** Util that converts EnumerateSelectableItems into an array. */
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		TArray<TItemType> GetSelectableItems()
 		{
 			TArray<TItemType> Result;
-			Result.Reserve(GetNumSelectableItems());
 			EnumerateSelectableItems([&Result](const TItemType& SelectableOption)
 			{
 				Result.Add(SelectableOption);
@@ -75,6 +102,7 @@ namespace UE::ConcertSharedSlate
 			});
 			return Result;
 		}
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		virtual ~IItemSourceModel() = default;
 	};

@@ -364,6 +364,9 @@ protected:
 	uint32 bInSpawnPhase : 1;
 	uint32 bIsSolo : 1;
 
+	uint32 bRunSpawnScript : 1 = true;
+	uint32 bRunUpdateScript : 1 = true;
+
 	/** System instance per state. */
 	TArray<FNiagaraSystemInstance*> SystemInstancesPerState[int32(ENiagaraSystemInstanceState::Num)];
 
@@ -433,6 +436,4 @@ protected:
 	float FixedDeltaTickAge = 0;
 
 	FNiagaraTickInfo TickInfo;
-
-	bool bSystemStateFastPathEnabled = true;
 };

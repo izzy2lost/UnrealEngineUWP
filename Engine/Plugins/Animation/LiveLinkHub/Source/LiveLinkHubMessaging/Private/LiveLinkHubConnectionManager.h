@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Engine/World.h"
+#include "EngineAnalytics.h"
 #include "Features/IModularFeatures.h"
 #include "ILiveLinkClient.h"
 #include "ILiveLinkModule.h"
@@ -16,6 +17,8 @@
 #include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
 #include "TimerManager.h"
+#include "UObject/UObjectGlobals.h"
+
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -25,17 +28,34 @@ DEFINE_LOG_CATEGORY_STATIC(LogLiveLinkHubConnectionManager, Log, All);
 
 #if WITH_LIVELINK_DISCOVERY_MANAGER_THREAD
 
+namespace LiveLinkHubConnectionManager
+{
+	static void SendAnalyticsConnectionEstablished()
+	{
+		if (!FEngineAnalytics::IsAvailable())
+		{
+			return;
+		}
+
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Usage.LiveLinkHub.ConnectionEstablished"), {});
+	}
+}
+
+
 /** This utitlity is meant to be run on an unreal engine instance to look for livelink hub connections and to automatically create the message bus source for it. */
 class FLiveLinkHubConnectionManager
 {
 public:
 	FLiveLinkHubConnectionManager()
 	{
+		FCoreUObjectDelegates::PostLoadMapWithWorld.AddRaw(this, &FLiveLinkHubConnectionManager::PostLoadMap);
 		FCoreDelegates::OnPostEngineInit.AddRaw(this, &FLiveLinkHubConnectionManager::StartDiscovery);
 	}
 
 	~FLiveLinkHubConnectionManager()
 	{
+		FCoreUObjectDelegates::PostLoadMapWithWorld.RemoveAll(this);
+
 		if (FTimerManager* TimerManager = GetTimerManager())
 		{
 			TimerManager->ClearTimer(ConnectionUpdateTimer);
@@ -51,11 +71,13 @@ private:
 	/** Add a discovery request and start polling for results. */
 	void StartDiscovery()
 	{
-		ILiveLinkModule::Get().GetMessageBusDiscoveryManager().AddDiscoveryMessageRequest();
-
-		if (FTimerManager* TimerManager = GetTimerManager())
+		if (!ConnectionUpdateTimer.IsValid())
 		{
-			TimerManager->SetTimer(ConnectionUpdateTimer, FTimerDelegate::CreateRaw(this, &FLiveLinkHubConnectionManager::LookForLiveLinkHubConnection), GetDefault<ULiveLinkSettings>()->MessageBusPingRequestFrequency, true);
+			if (FTimerManager* TimerManager = GetTimerManager())
+			{
+				TimerManager->SetTimer(ConnectionUpdateTimer, FTimerDelegate::CreateRaw(this, &FLiveLinkHubConnectionManager::LookForLiveLinkHubConnection), GetDefault<ULiveLinkSettings>()->MessageBusPingRequestFrequency, true);
+				ILiveLinkModule::Get().GetMessageBusDiscoveryManager().AddDiscoveryMessageRequest();
+			}
 		}
 	}
 
@@ -138,11 +160,18 @@ private:
 			LastAddedSource = TPair<FMessageAddress, TWeakPtr<ILiveLinkSource>>{ PollResult->Address, LiveLinkSource };
 			ILiveLinkHubMessagingModule& HubMessagingModule = FModuleManager::GetModuleChecked<ILiveLinkHubMessagingModule>("LiveLinkHubMessaging");
 			HubMessagingModule.OnConnectionEstablished().Broadcast(SourceId);
+			LiveLinkHubConnectionManager::SendAnalyticsConnectionEstablished();
 		}
 		else
 		{
 			UE_LOG(LogLiveLinkHubConnectionManager, Warning, TEXT("LiveLink modular feature was unavailable."));
 		}
+	}
+
+	/** Handler called when a map changes, used to register the ConnectionUpdateTimer. */
+	void PostLoadMap(UWorld*)
+	{
+		StartDiscovery();
 	}
 	
 private:

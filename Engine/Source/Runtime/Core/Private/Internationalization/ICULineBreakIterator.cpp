@@ -81,8 +81,11 @@ FICULineBreakIterator::FICULineBreakIterator()
 
 FICULineBreakIterator::~FICULineBreakIterator()
 {
-	// This assumes that FICULineBreakIterator owns the iterators, and that nothing ever copies an FICULineBreakIterator instance
-	FICUBreakIteratorManager::Get().DestroyIterator(ICULineBreakIteratorHandle);
+	if (FICUBreakIteratorManager::IsInitialized())
+	{
+		// This assumes that FICULineBreakIterator owns the iterators, and that nothing ever copies an FICULineBreakIterator instance
+		FICUBreakIteratorManager::Get().DestroyIterator(ICULineBreakIteratorHandle);
+	}
 }
 
 void FICULineBreakIterator::SetString(FString&& InString)

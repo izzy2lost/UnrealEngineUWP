@@ -50,7 +50,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogPropertyPathHelpersTest, Log, All);
 
 // Begin Tests
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetPrimitivesTest, "System.PropertyPath.SetPrimitivesTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetPrimitivesTest, "System.PropertyPath.SetPrimitivesTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetPrimitivesTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -97,7 +97,7 @@ bool FSetPrimitivesTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetInvalidInputIsNoOp, "System.PropertyPath.SetInvalidInputIsNoOp", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetInvalidInputIsNoOp, "System.PropertyPath.SetInvalidInputIsNoOp", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetInvalidInputIsNoOp::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -147,7 +147,7 @@ bool FSetInvalidInputIsNoOp::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStringTest, "System.PropertyPath.SetStringTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStringTest, "System.PropertyPath.SetStringTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetStringTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -168,7 +168,7 @@ bool FSetStringTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetEnumTest, "System.PropertyPath.SetEnumTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetEnumTest, "System.PropertyPath.SetEnumTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetEnumTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -245,7 +245,7 @@ bool FSetEnumTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStructTest, "System.PropertyPath.SetStructTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStructTest, "System.PropertyPath.SetStructTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetStructTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -292,7 +292,7 @@ bool FSetStructTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetInnerObjectTest, "System.PropertyPath.SetInnerObjectTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetInnerObjectTest, "System.PropertyPath.SetInnerObjectTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetInnerObjectTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -313,7 +313,7 @@ bool FSetInnerObjectTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStructDataTest, "System.PropertyPath.SetStructDataTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStructDataTest, "System.PropertyPath.SetStructDataTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetStructDataTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -363,7 +363,7 @@ bool FSetStructDataTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStructMemberTest, "System.PropertyPath.SetStructMemberTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStructMemberTest, "System.PropertyPath.SetStructMemberTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetStructMemberTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -422,7 +422,7 @@ bool FSetStructMemberTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStructInnerObjectMemberTest, "System.PropertyPath.SetStructInnerObjectMemberTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStructInnerObjectMemberTest, "System.PropertyPath.SetStructInnerObjectMemberTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetStructInnerObjectMemberTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -481,7 +481,7 @@ bool FSetStructInnerObjectMemberTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetInnerStructMemberTest, "System.PropertyPath.SetInnerStructMemberTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetInnerStructMemberTest, "System.PropertyPath.SetInnerStructMemberTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetInnerStructMemberTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -506,7 +506,7 @@ bool FSetInnerStructMemberTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetPrimitivesInnerObjectTest, "System.PropertyPath.SetPrimitivesInnerObjectTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetPrimitivesInnerObjectTest, "System.PropertyPath.SetPrimitivesInnerObjectTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetPrimitivesInnerObjectTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -562,7 +562,7 @@ bool FSetPrimitivesInnerObjectTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStringInnerObjectTest, "System.PropertyPath.SetStringInnerObjectTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStringInnerObjectTest, "System.PropertyPath.SetStringInnerObjectTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetStringInnerObjectTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -586,7 +586,7 @@ bool FSetStringInnerObjectTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStructInnerObjectTest, "System.PropertyPath.SetStructInnerObjectTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStructInnerObjectTest, "System.PropertyPath.SetStructInnerObjectTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetStructInnerObjectTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -609,7 +609,7 @@ bool FSetStructInnerObjectTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStructMemberInnerObjectTest, "System.PropertyPath.SetStructMemberInnerObjectTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetStructMemberInnerObjectTest, "System.PropertyPath.SetStructMemberInnerObjectTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetStructMemberInnerObjectTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -636,7 +636,7 @@ bool FSetStructMemberInnerObjectTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetInnerStructMemberInnerObjectTest, "System.PropertyPath.SetInnerStructMemberInnerObjectTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetInnerStructMemberInnerObjectTest, "System.PropertyPath.SetInnerStructMemberInnerObjectTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetInnerStructMemberInnerObjectTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -663,7 +663,7 @@ bool FSetInnerStructMemberInnerObjectTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetInnerStructMemberEnumInnerObjectTest, "System.PropertyPath.SetInnerStructMemberEnumInnerObjectTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSetInnerStructMemberEnumInnerObjectTest, "System.PropertyPath.SetInnerStructMemberEnumInnerObjectTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FSetInnerStructMemberEnumInnerObjectTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -690,7 +690,7 @@ bool FSetInnerStructMemberEnumInnerObjectTest::RunTest(const FString& Parameters
 	return GPassing;
 }
 
- IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetPrimitivesTest, "System.PropertyPath.GetPrimitivesTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetPrimitivesTest, "System.PropertyPath.GetPrimitivesTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
  bool FGetPrimitivesTest::RunTest(const FString& Parameters)
  {
 	 bool GPassing = true;
@@ -738,7 +738,7 @@ bool FSetInnerStructMemberEnumInnerObjectTest::RunTest(const FString& Parameters
  }
 
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetStringTest, "System.PropertyPath.GetStringTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetStringTest, "System.PropertyPath.GetStringTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FGetStringTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -759,7 +759,7 @@ bool FGetStringTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetEnumTest, "System.PropertyPath.GetEnumTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetEnumTest, "System.PropertyPath.GetEnumTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FGetEnumTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -780,7 +780,7 @@ bool FGetEnumTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetStructTest, "System.PropertyPath.GetStructTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetStructTest, "System.PropertyPath.GetStructTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FGetStructTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -827,7 +827,7 @@ bool FGetStructTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetInnerObjectTest, "System.PropertyPath.GetInnerObjectTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetInnerObjectTest, "System.PropertyPath.GetInnerObjectTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FGetInnerObjectTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -848,7 +848,7 @@ bool FGetInnerObjectTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetStructMemberTest, "System.PropertyPath.GetStructMemberTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetStructMemberTest, "System.PropertyPath.GetStructMemberTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FGetStructMemberTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -898,7 +898,7 @@ bool FGetStructMemberTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetStructInnerObjectMemberTest, "System.PropertyPath.GetStructInnerObjectMemberTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetStructInnerObjectMemberTest, "System.PropertyPath.GetStructInnerObjectMemberTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FGetStructInnerObjectMemberTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -948,7 +948,7 @@ bool FGetStructInnerObjectMemberTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetInnerStructMemberTest, "System.PropertyPath.GetInnerStructMemberTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetInnerStructMemberTest, "System.PropertyPath.GetInnerStructMemberTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FGetInnerStructMemberTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -970,7 +970,7 @@ bool FGetInnerStructMemberTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetPrimitivesInnerObjectTest, "System.PropertyPath.GetPrimitivesInnerObjectTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetPrimitivesInnerObjectTest, "System.PropertyPath.GetPrimitivesInnerObjectTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FGetPrimitivesInnerObjectTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -1026,7 +1026,7 @@ bool FGetPrimitivesInnerObjectTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetStringInnerObjectTest, "System.PropertyPath.GetStringInnerObjectTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetStringInnerObjectTest, "System.PropertyPath.GetStringInnerObjectTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FGetStringInnerObjectTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -1050,7 +1050,7 @@ bool FGetStringInnerObjectTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetStructInnerObjectTest, "System.PropertyPath.GetStructInnerObjectTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetStructInnerObjectTest, "System.PropertyPath.GetStructInnerObjectTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FGetStructInnerObjectTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -1073,7 +1073,7 @@ bool FGetStructInnerObjectTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetStructMemberInnerObjectTest, "System.PropertyPath.GetStructMemberInnerObjectTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetStructMemberInnerObjectTest, "System.PropertyPath.GetStructMemberInnerObjectTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FGetStructMemberInnerObjectTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -1096,7 +1096,7 @@ bool FGetStructMemberInnerObjectTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetInnerStructMemberInnerObjectTest, "System.PropertyPath.GetInnerStructMemberInnerObjectTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetInnerStructMemberInnerObjectTest, "System.PropertyPath.GetInnerStructMemberInnerObjectTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FGetInnerStructMemberInnerObjectTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;
@@ -1119,7 +1119,7 @@ bool FGetInnerStructMemberInnerObjectTest::RunTest(const FString& Parameters)
 	return GPassing;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetInnerStructMemberEnumInnerObjectTest, "System.PropertyPath.GetInnerStructMemberEnumInnerObjectTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetInnerStructMemberEnumInnerObjectTest, "System.PropertyPath.GetInnerStructMemberEnumInnerObjectTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FGetInnerStructMemberEnumInnerObjectTest::RunTest(const FString& Parameters)
 {
 	bool GPassing = true;

@@ -20,6 +20,9 @@ public:
 
 	TSharedPtr<FDocumentTabFactory> GetDocumentTabFactory(const FName& InName) const;
 
+	void RegisterDocumentTabFactory(const TSharedPtr<FDocumentTabFactory>& InDocumentTabFactory, const TSharedPtr<FTabManager>& InTabManager = nullptr);
+	void UnregisterDocumentTabFactory(const FName& InTabId, const TSharedPtr<FTabManager>& InTabManager);
+
 protected:
 	
 	static FText GetLocalizedMode(const FName InMode);

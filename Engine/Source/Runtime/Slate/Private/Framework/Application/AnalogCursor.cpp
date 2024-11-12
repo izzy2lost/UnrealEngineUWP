@@ -23,6 +23,9 @@ FAnalogCursor::FAnalogCursor()
 	AnalogValues[ static_cast< uint8 >( EAnalogStick::Right ) ] = FVector2D::ZeroVector;
 }
 
+FAnalogCursor::FAnalogCursor(const FAnalogCursor&) = default;
+FAnalogCursor::~FAnalogCursor() = default;
+
 void FAnalogCursor::Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor>)
 {
 	if (TSharedPtr<FSlateUser> SlateUser = SlateApp.GetUser(GetOwnerUserIndex()))
@@ -61,7 +64,7 @@ bool FAnalogCursor::HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEv
 						FSlateApplication::CursorPointerIndex,
 						SlateUser->GetCursorPosition(),
 						SlateUser->GetPreviousCursorPosition(),
-						bIsPrimaryUser ? SlateApp.GetPressedMouseButtons() : TSet<FKey>(),
+						bIsPrimaryUser ? SlateApp.GetPressedMouseButtons() : FTouchKeySet::EmptySet,
 						EKeys::LeftMouseButton,
 						0,
 						bIsPrimaryUser ? SlateApp.GetModifierKeys() : FModifierKeysState()
@@ -101,13 +104,12 @@ bool FAnalogCursor::HandleKeyUpEvent(FSlateApplication& SlateApp, const FKeyEven
 			{
 				const bool bIsPrimaryUser = FSlateApplication::CursorUserIndex == SlateUser->GetUserIndex();
 
-				TSet<FKey> EmptySet;
 				FPointerEvent MouseEvent(
 					SlateUser->GetUserIndex(),
 					FSlateApplication::CursorPointerIndex,
 					SlateUser->GetCursorPosition(),
 					SlateUser->GetPreviousCursorPosition(),
-					bIsPrimaryUser ? SlateApp.GetPressedMouseButtons() : EmptySet,
+					bIsPrimaryUser ? SlateApp.GetPressedMouseButtons() : FTouchKeySet::EmptySet,
 					EKeys::LeftMouseButton,
 					0,
 					bIsPrimaryUser ? SlateApp.GetModifierKeys() : FModifierKeysState()
@@ -238,7 +240,7 @@ void FAnalogCursor::UpdateCursorPosition(FSlateApplication& SlateApp, TSharedRef
 				SlateApp.CursorPointerIndex,
 				UpdatedPosition,
 				OldPosition,
-				bIsPrimaryUser ? SlateApp.GetPressedMouseButtons() : TSet<FKey>(),
+				bIsPrimaryUser ? SlateApp.GetPressedMouseButtons() : FTouchKeySet::EmptySet,
 				EKeys::Invalid,
 				0,
 				bIsPrimaryUser ? SlateApp.GetModifierKeys() : FModifierKeysState()
@@ -273,7 +275,7 @@ void FAnalogCursor::UpdateCursorPosition(FSlateApplication& SlateApp, TSharedRef
 			FSlateApplication::CursorPointerIndex,
 			UpdatedPosition,
 			OldPosition,
-			bIsPrimaryUser ? SlateApp.GetPressedMouseButtons() : TSet<FKey>(),
+			bIsPrimaryUser ? SlateApp.GetPressedMouseButtons() : FTouchKeySet::EmptySet,
 			EKeys::Invalid,
 			0,
 			bIsPrimaryUser ? SlateApp.GetModifierKeys() : FModifierKeysState()

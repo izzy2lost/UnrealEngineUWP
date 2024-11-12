@@ -45,7 +45,7 @@ namespace GeometryCollection::Facades
 	FKinematicBindingFacade::SetBoneBindings(const int32 InBoneIndex, const TArray<int32>& InBoneVerts, const TArray<float>& InBoneWeights)
 	{
 		check(!IsConst());
-		return GeometryCollection::Facades::FSelectionFacade(*Collection).AddSelection(InBoneIndex, InBoneVerts, InBoneWeights, FGeometryCollection::VerticesGroup);
+		return GeometryCollection::Facades::FSelectionFacade(*Collection).AddSelection(InBoneIndex, InBoneVerts, InBoneWeights, FGeometryCollection::VerticesGroup, FTransformCollection::TransformGroup);
 	}
 
 	void FKinematicBindingFacade::GetBoneBindings(const FKinematicBindingFacade::FBindingKey& Key, int32& OutBoneIndex, TArray<int32>& OutBoneVerts, TArray<float>& OutBoneWeights) const

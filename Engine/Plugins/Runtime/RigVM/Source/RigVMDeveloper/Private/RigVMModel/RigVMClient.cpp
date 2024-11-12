@@ -7,6 +7,7 @@
 #include "UnrealExporter.h"
 #include "UObject/ObjectSaveContext.h"
 #include "RigVMModel/RigVMControllerActions.h"
+#include "RigVMModel/Nodes/RigVMDispatchNode.h"
 #include "EdGraph/RigVMEdGraph.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMClient)
@@ -20,30 +21,20 @@ UObject* IRigVMClientHost::ResolveUserDefinedTypeById(const FString& InTypeName)
 	return nullptr;
 }
 
-void FRigVMClient::SetSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass)
+void FRigVMClient::SetDefaultSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass)
 {
 	check(InSchemaClass);
-	
-	if(InSchemaClass == SchemaClass)
+
+	if(InSchemaClass == DefaultSchemaClass)
 	{
 		return;
 	}
-	
-	if(SchemaPtr)
-	{
-		if(!SchemaPtr->HasAnyFlags(RF_ClassDefaultObject))
-		{
-			DestroyObject(SchemaPtr);
-		}
-		SchemaPtr = nullptr;
-	}
 
-	SchemaClass = InSchemaClass;
+	DefaultSchemaClass = InSchemaClass;
 
-	URigVMSchema* Schema = GetOrCreateSchema();
-	for(auto& Pair : Controllers)
+	for(TPair<FSoftObjectPath, TObjectPtr<URigVMController>>& ObjectControllerPair : Controllers)
 	{
-		Pair.Value->SetSchema(Schema);
+		ObjectControllerPair.Value->SetSchemaClass(InSchemaClass);
 	}
 }
 
@@ -56,7 +47,7 @@ void FRigVMClient::SetControllerClass(TSubclassOf<URigVMController> InController
 		return;
 	}
 
-	for (URigVMGraph* Model : Models)
+	for (URigVMGraph* Model : GetModels())
 	{
 		RemoveController(Model);
 	}
@@ -109,9 +100,17 @@ void FRigVMClient::SetFromDeprecatedData(URigVMGraph* InDefaultGraph, URigVMFunc
 	}
 }
 
+void FRigVMClient::SetExternalModelHost(IRigVMClientExternalModelHost* InExternalModelHost)
+{
+	// We dont allow this to be set dynamically, assume it is set once at creation time
+	check(ExternalModelHost == nullptr);
+
+	ExternalModelHost = InExternalModelHost;
+}
+
 void FRigVMClient::Reset()
 {
-	for(URigVMGraph* Model : Models)
+	for(URigVMGraph* Model : GetModels())
 	{
 		DestroyObject(Model);
 	}
@@ -126,43 +125,33 @@ void FRigVMClient::Reset()
 	FunctionLibrary = nullptr;
 
 	ResetActionStack();
-
-	if(SchemaPtr)
-	{
-		if(!SchemaPtr->HasAnyFlags(RF_ClassDefaultObject))
-		{
-			DestroyObject(SchemaPtr);
-		}
-		SchemaPtr = nullptr;
-	}
 }
 
-URigVMSchema* FRigVMClient::GetOrCreateSchema()
+URigVMSchema* FRigVMClient::GetDefaultSchema() const
 {
-	check(SchemaClass);
-	if(SchemaPtr && !IsValid(SchemaPtr))
-	{
-		SchemaPtr = nullptr;
-	}
-	if(SchemaPtr && SchemaPtr->GetClass() != SchemaClass)
-	{
-		SchemaPtr = nullptr;
-	}
-	if(SchemaPtr == nullptr)
-	{
-		SchemaPtr = CastChecked<URigVMSchema>(SchemaClass->GetDefaultObject(true));
-	}
-	return SchemaPtr;
+	check(DefaultSchemaClass);
+	return DefaultSchemaClass->GetDefaultObject<URigVMSchema>();
 }
 
 URigVMGraph* FRigVMClient::GetDefaultModel() const
 {
-	if(Models.IsEmpty())
+	if(GetModels().IsEmpty())
 	{
 		return nullptr;
 	}
 	return GetModel(0);
 }
+
+URigVMGraph* FRigVMClient::GetModel(int32 InIndex) const
+{
+	const TArray<TObjectPtr<URigVMGraph>>& LocalModels = GetModels();
+	if(LocalModels.IsValidIndex(InIndex))
+	{
+		return LocalModels[InIndex];
+	}
+	return nullptr;
+}
+
 
 URigVMGraph* FRigVMClient::GetModel(const UEdGraph* InEdGraph) const
 {
@@ -226,12 +215,180 @@ URigVMGraph* FRigVMClient::GetModel(const UObject* InEditorSideObject) const
 	return nullptr;
 }
 
+void FRigVMClient::RefreshAllModels(ERigVMLoadType InLoadType, bool bEnablePostLoadHashing, bool& bIsCompiling)
+{
+	const bool bIsPostLoad = InLoadType == ERigVMLoadType::PostLoad;
+
+	// avoid any compute if the current structure hashes match with the serialized ones
+	if (bEnablePostLoadHashing && GetStructureHash() == GetSerializedStructureHash())
+	{
+		if (bIsPostLoad)
+		{
+			TArray<URigVMGraph*> ModelGraphs = GetAllModels(true, true);
+			Algo::Reverse(ModelGraphs);
+			for (URigVMGraph* ModelGraph : ModelGraphs)
+			{
+				URigVMController* Controller = GetOrCreateController(ModelGraph);
+				URigVMController::FRestoreLinkedPathSettings Settings;
+				Settings.bFollowCoreRedirectors = true;
+				Settings.bRelayToOrphanPins = true;
+				Controller->ProcessDetachedLinks(Settings);
+			}
+		}
+		return;
+	}
+
+	TGuardValue<bool> IsCompilingGuard(bIsCompiling, true);
+	TGuardValue<bool> ClientIgnoreModificationsGuard(bIgnoreModelNotifications, true);
+
+	TArray<URigVMGraph*> AllModelsLeavesFirst = GetAllModelsLeavesFirst(true);
+	TMap<const URigVMGraph*, TArray<URigVMController::FLinkedPath>> LinkedPaths;
+
+	if (ensure(IsInGameThread()))
+	{
+		TArray<URigVMController::FRepopulatePinsNodeData> RepopulatePinsNodesData;
+		constexpr int32 REPOPULATE_NODES_NUM_RESERVED = 800;
+		RepopulatePinsNodesData.Reserve(REPOPULATE_NODES_NUM_RESERVED);
+
+		for (URigVMGraph* Graph : AllModelsLeavesFirst)
+		{
+			URigVMController* Controller = GetOrCreateController(Graph);
+			// temporarily disable default value validation during load time, serialized values should always be accepted
+			TGuardValue<bool> PerGraphDisablePinDefaultValueValidation(Controller->bValidatePinDefaults, false);
+			TGuardValue<bool> GuardEditGraph(Graph->bEditable, true);
+			FRigVMControllerNotifGuard NotifGuard(Controller, true);
+			LinkedPaths.Add(Graph, Controller->GetLinkedPaths());
+
+			const TArray<URigVMNode*> Nodes = Graph->GetNodes();
+			if (Nodes.Num() > 0)
+			{
+				RepopulatePinsNodesData.Reset();
+
+				for (URigVMNode* Node : Nodes)
+				{
+					Controller->GenerateRepopulatePinsNodeData(RepopulatePinsNodesData, Node, true, true);
+				}
+
+#if UE_RIGVMCONTROLLER_VERBOSE_REPOPULATE
+				UE_LOG(LogRigVMDeveloper, Display, TEXT("--- Graph: [%s/%s]  - NumNodes : [%d]"), *Graph->GetOuter()->GetName(), *Graph->GetName(), RepopulatePinsNodesData.Num());
+#endif
+
+				Controller->OrphanPins(RepopulatePinsNodesData);
+				Controller->FastBreakLinkedPaths(LinkedPaths.FindChecked(Graph));
+				Controller->RepopulatePins(RepopulatePinsNodesData);
+			}
+		}
+
+		if (IRigVMClientHost* ClientHost = Cast<IRigVMClientHost>(GetOuter()))
+		{
+			ClientHost->SetupPinRedirectorsForBackwardsCompatibility();
+		}
+	}
+
+	for (URigVMGraph* Graph : AllModelsLeavesFirst)
+	{
+		URigVMController* Controller = GetOrCreateController(Graph);
+		TGuardValue<bool> GuardEditGraph(Graph->bEditable, true);
+		FRigVMControllerNotifGuard NotifGuard(Controller, true);
+		{
+			URigVMController::FRestoreLinkedPathSettings Settings;
+			Settings.bFollowCoreRedirectors = true;
+			Settings.bRelayToOrphanPins = true;
+			Controller->RestoreLinkedPaths(LinkedPaths.FindChecked(Graph), Settings);
+		}
+
+		for (URigVMNode* ModelNode : Graph->GetNodes())
+		{
+			Controller->RemoveUnusedOrphanedPins(ModelNode);
+		}
+
+		if (bIsPostLoad)
+		{
+			for (URigVMNode* ModelNode : Graph->GetNodes())
+			{
+				if (URigVMTemplateNode* TemplateNode = Cast<URigVMTemplateNode>(ModelNode))
+				{
+					TemplateNode->InvalidateCache();
+					TemplateNode->PostLoad();
+				}
+			}
+		}
+
+#if WITH_EDITOR
+
+		if (bIsPostLoad)
+		{
+			for (URigVMNode* ModelNode : Graph->GetNodes())
+			{
+				if (URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(ModelNode))
+				{
+					if (!UnitNode->HasWildCardPin())
+					{
+						UScriptStruct* ScriptStruct = UnitNode->GetScriptStruct();
+						if (ScriptStruct == nullptr)
+						{
+							Controller->FullyResolveTemplateNode(UnitNode, INDEX_NONE, false);
+						}
+
+						// Try to find a deprecated template
+						if (UnitNode->GetScriptStruct() == nullptr && !UnitNode->TemplateNotation.IsNone())
+						{
+							const FRigVMTemplate* Template = FRigVMRegistry::Get().FindTemplate(UnitNode->TemplateNotation, true);
+							FRigVMTemplate::FTypeMap TypeMap = UnitNode->GetTemplatePinTypeMap();
+
+							int32 Permutation;
+							if (Template->FullyResolve(TypeMap, Permutation))
+							{
+								const FRigVMFunction* Function = Template->GetPermutation(Permutation);
+								UnitNode->ResolvedFunctionName = Function->GetName();
+							}
+						}
+
+						if (UnitNode->GetScriptStruct() == nullptr)
+						{
+							static const TCHAR UnresolvedUnitNodeMessage[] = TEXT("Node %s could not be resolved.");
+							Controller->ReportErrorf(UnresolvedUnitNodeMessage, *ModelNode->GetNodePath(true));
+						}
+					}
+				}
+				if (URigVMDispatchNode* DispatchNode = Cast<URigVMDispatchNode>(ModelNode))
+				{
+					if (DispatchNode->GetFactory() == nullptr)
+					{
+						static const TCHAR UnresolvedDispatchNodeMessage[] = TEXT("Dispatch node %s has no factory..");
+						Controller->ReportErrorf(UnresolvedDispatchNodeMessage, *ModelNode->GetNodePath(true));
+					}
+					else if (!DispatchNode->HasWildCardPin())
+					{
+						if (DispatchNode->GetResolvedFunction() == nullptr)
+						{
+							Controller->FullyResolveTemplateNode(DispatchNode, INDEX_NONE, false);
+						}
+						if (DispatchNode->GetResolvedFunction() == nullptr)
+						{
+							static const TCHAR UnresolvedDispatchNodeMessage[] = TEXT("Node %s could not be resolved.");
+							Controller->ReportErrorf(UnresolvedDispatchNodeMessage, *ModelNode->GetNodePath(true));
+						}
+					}
+				}
+			}
+		}
+#endif
+
+	}
+}
+
+const TArray<TObjectPtr<URigVMGraph>>& FRigVMClient::GetModels() const
+{
+	return ExternalModelHost != nullptr ? ExternalModelHost->GetExternalModels() : Models;
+}
+
 TArray<URigVMGraph*> FRigVMClient::GetAllModels(bool bIncludeFunctionLibrary, bool bRecursive) const
 {
-	TArray<URigVMGraph*> AllModels = Models;
+	TArray<URigVMGraph*> AllModels = GetModels();
 	if(bRecursive)
 	{
-		for(URigVMGraph* Model : Models)
+		for(URigVMGraph* Model : GetModels())
 		{
 			AllModels.Append(Model->GetContainedGraphs(true /* recursive */));
 		}
@@ -366,7 +523,7 @@ bool FRigVMClient::RemoveController(const URigVMGraph* InModel)
 	if(Controller)
 	{
 		Controller->SetActionStack(nullptr);
-		Controller->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		Controller->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		Controller->RemoveFromRoot();
 		Controller->MarkAsGarbage();
 	}
@@ -381,12 +538,30 @@ URigVMGraph* FRigVMClient::AddModel(const FString InName, bool bSetupUndoRedo, b
 
 URigVMGraph* FRigVMClient::AddModel(const FName& InName, bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer, bool bCreateController)
 {
+	check(DefaultSchemaClass);
+
+	URigVMGraph* NewModel = CreateModel(InName, DefaultSchemaClass, bSetupUndoRedo, GetOuter(), ObjectInitializer, bCreateController);
+	AddModel(NewModel, bCreateController);
+	return NewModel;
+}
+
+URigVMGraph* FRigVMClient::AddModel(const FName& InName, TSubclassOf<URigVMSchema> InSchemaClass, bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer, bool bCreateController)
+{
+	URigVMGraph* NewModel = CreateModel(InName, InSchemaClass, bSetupUndoRedo, GetOuter(), ObjectInitializer, bCreateController);
+	AddModel(NewModel, bCreateController);
+	return NewModel;
+}
+
+URigVMGraph* FRigVMClient::CreateModel(const FName& InName, TSubclassOf<URigVMSchema> InSchemaClass, bool bSetupUndoRedo, UObject* InOuter, const FObjectInitializer* ObjectInitializer, bool bCreateController)
+{
+	check(InSchemaClass);
+
 #if WITH_EDITOR
 	TSharedPtr<FScopedTransaction> Transaction;
 	if(bSetupUndoRedo)
 	{
 		Transaction = MakeShared<FScopedTransaction>(NSLOCTEXT("RigVMClient", "AddModel", "Add new root graph"));
-		GetOuter()->Modify();
+		InOuter->Modify();
 	}
 #endif
 
@@ -394,17 +569,18 @@ URigVMGraph* FRigVMClient::AddModel(const FName& InName, bool bSetupUndoRedo, co
 	URigVMGraph* Model = nullptr;
 	if(ObjectInitializer)
 	{
-		Model = ObjectInitializer->CreateDefaultSubobject<URigVMGraph>(GetOuter(), SafeGraphName);
+		Model = ObjectInitializer->CreateDefaultSubobject<URigVMGraph>(InOuter, SafeGraphName);
 	}
 	else
 	{
-		Model = NewObject<URigVMGraph>(GetOuter(), SafeGraphName);
+		Model = NewObject<URigVMGraph>(InOuter, SafeGraphName);
 	}
-	AddModel(Model, bCreateController);
+
+	Model->SetSchemaClass(InSchemaClass);
 
 	if(bSetupUndoRedo)
 	{
-		GetOuter()->Modify();
+		InOuter->Modify();
 		UndoRedoIndex++;
 
 		FRigVMClientAction Action;
@@ -413,6 +589,34 @@ URigVMGraph* FRigVMClient::AddModel(const FName& InName, bool bSetupUndoRedo, co
 		UndoStack.Push(Action);
 		RedoStack.Reset();
 	}
+	return Model;
+}
+
+TObjectPtr<URigVMGraph> FRigVMClient::CreateContainedGraphModel(URigVMCollapseNode* CollapseNode, const FName& Name)
+{
+	TObjectPtr<URigVMGraph> Model = nullptr;
+
+	check(CollapseNode);
+
+	if (ExternalModelHost != nullptr)
+	{
+		Model = ExternalModelHost->CreateContainedGraphModel(CollapseNode, Name);
+	}
+	else
+	{
+		Model = NewObject<URigVMGraph>(CollapseNode, Name);
+
+		// keep schema from collapse node graph, if exists
+		if (CollapseNode->GetGraph() != nullptr && CollapseNode->GetGraph()->GetSchema() != nullptr)
+		{
+			Model->SetSchemaClass(CollapseNode->GetGraph()->GetSchema()->GetClass());
+		}
+		else
+		{
+			Model->SetSchemaClass(GetDefaultSchemaClass());
+		}
+	}
+
 	return Model;
 }
 
@@ -427,10 +631,18 @@ void FRigVMClient::AddModel(URigVMGraph* InModel, bool bCreateController)
 	}
 	else
 	{
-		Models.Add(InModel);
+		if(ExternalModelHost == nullptr)
+		{
+			Models.Add(InModel);
+		}
 	}
 
-	InModel->SetExecuteContextStruct(GetOrCreateSchema()->GetExecuteContextStruct());
+	if(InModel->GetSchemaClass() == nullptr)
+	{
+		InModel->SetSchemaClass(GetDefaultSchemaClass());
+	}
+
+	InModel->SetExecuteContextStruct(InModel->GetSchema()->GetExecuteContextStruct());
 
 	if(bCreateController)
 	{
@@ -439,7 +651,7 @@ void FRigVMClient::AddModel(URigVMGraph* InModel, bool bCreateController)
 
 	if(InModel->IsA<URigVMFunctionLibrary>())
 	{
-		for(URigVMGraph* Model : Models)
+		for(URigVMGraph* Model : GetModels())
 		{
 			Model->SetDefaultFunctionLibrary(FunctionLibrary);
 		}
@@ -462,8 +674,40 @@ void FRigVMClient::AddModel(URigVMGraph* InModel, bool bCreateController)
 
 URigVMFunctionLibrary* FRigVMClient::GetOrCreateFunctionLibrary(bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer, bool bCreateController)
 {
+	check(DefaultSchemaClass);
+	return GetOrCreateFunctionLibrary(DefaultSchemaClass, bSetupUndoRedo, ObjectInitializer, bCreateController);
+}
+
+static void SetGetFunctionHostObjectPathDelegate(FRigVMClient* RigVMClient, URigVMFunctionLibrary* FunctionLibrary)
+{
+	if (RigVMClient->GetOuter()->Implements<URigVMClientHost>())
+	{
+		if (IRigVMClientHost* ClientHost = Cast<IRigVMClientHost>(RigVMClient->GetOuter()))
+		{
+			TWeakObjectPtr<UObject> WeakClientHost = Cast<UObject>(ClientHost);
+			FunctionLibrary->GetFunctionHostObjectPathDelegate.BindLambda([WeakClientHost]() -> const FSoftObjectPath
+				{
+					if (WeakClientHost.IsValid())
+					{
+						if (IRigVMClientHost* ClientHost = Cast<IRigVMClientHost>(WeakClientHost.Get()))
+						{
+							return Cast<UObject>(ClientHost->GetRigVMGraphFunctionHost());
+						}
+					}
+					return nullptr;
+				});
+		}
+	}
+};
+
+URigVMFunctionLibrary* FRigVMClient::GetOrCreateFunctionLibrary(TSubclassOf<URigVMSchema> InSchemaClass, bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer, bool bCreateController)
+{
 	if(FunctionLibrary)
 	{
+		if (!FunctionLibrary->GetFunctionHostObjectPathDelegate.IsBound())
+		{
+			SetGetFunctionHostObjectPathDelegate(this, FunctionLibrary);
+		}
 		return FunctionLibrary;
 	}
 	
@@ -488,16 +732,13 @@ URigVMFunctionLibrary* FRigVMClient::GetOrCreateFunctionLibrary(bool bSetupUndoR
 		NewFunctionLibrary = NewObject<URigVMFunctionLibrary>(GetOuter(), SafeGraphName);
 	}
 
-	NewFunctionLibrary->GetFunctionHostObjectPathDelegate.BindLambda([this]() -> const FSoftObjectPath 
-		{
-			if (GetOuter()->Implements<URigVMClientHost>())
-			{
-				IRigVMClientHost* ClientHost = Cast<IRigVMClientHost>(GetOuter());
-				return Cast<UObject>(ClientHost->GetRigVMGraphFunctionHost());				
-			}
-			return nullptr;
-		});
-	
+	NewFunctionLibrary->SetSchemaClass(InSchemaClass);
+
+	if (!NewFunctionLibrary->GetFunctionHostObjectPathDelegate.IsBound())
+	{
+		SetGetFunctionHostObjectPathDelegate(this, NewFunctionLibrary);
+	}
+
 	AddModel(NewFunctionLibrary, bCreateController);
 	return NewFunctionLibrary;
 }
@@ -505,7 +746,7 @@ URigVMFunctionLibrary* FRigVMClient::GetOrCreateFunctionLibrary(bool bSetupUndoR
 TArray<FName> FRigVMClient::GetEntryNames() const
 {
 	TArray<FName> EntryNames;
-	for(const URigVMGraph* Model : Models)
+	for(const URigVMGraph* Model : GetModels())
 	{
 		for(const URigVMNode* Node : Model->GetNodes())
 		{
@@ -519,15 +760,15 @@ TArray<FName> FRigVMClient::GetEntryNames() const
 	return EntryNames;
 }
 
-UScriptStruct* FRigVMClient::GetExecuteContextStruct() const
+UScriptStruct* FRigVMClient::GetDefaultExecuteContextStruct() const
 {
-	check(SchemaPtr);
-	return SchemaPtr->GetExecuteContextStruct();
+	check(GetDefaultSchema());
+	return GetDefaultSchema()->GetExecuteContextStruct();
 }
 
-void FRigVMClient::SetExecuteContextStruct(UScriptStruct* InExecuteContextStruct)
+void FRigVMClient::SetDefaultExecuteContextStruct(UScriptStruct* InExecuteContextStruct)
 {
-	GetOrCreateSchema()->SetExecuteContextStruct(InExecuteContextStruct);
+	GetDefaultSchema()->SetExecuteContextStruct(InExecuteContextStruct);
 }
 
 URigVMGraph* FRigVMClient::GetFocusedModel() const
@@ -551,6 +792,9 @@ bool FRigVMClient::RemoveModel(const FString& InNodePathOrName, bool bSetupUndoR
 {
 	if(URigVMGraph* Model = GetModel(InNodePathOrName))
 	{
+		UObject* ModelOuter = Model->GetOuter();
+		check(ModelOuter);
+		
 		if(Model == GetDefaultModel() && !bDefaultModelCanBeRemoved)
 		{
 #if WITH_EDITOR
@@ -574,7 +818,7 @@ bool FRigVMClient::RemoveModel(const FString& InNodePathOrName, bool bSetupUndoR
 		if(bSetupUndoRedo)
 		{
 			Transaction = MakeShared<FScopedTransaction>(NSLOCTEXT("RigVMClient", "RemoveModel", "Remove a root graph"));
-			GetOuter()->Modify();
+			ModelOuter->Modify();
 		}
 #endif
 
@@ -586,7 +830,7 @@ bool FRigVMClient::RemoveModel(const FString& InNodePathOrName, bool bSetupUndoR
 
 		if(bSetupUndoRedo)
 		{
-			GetOuter()->Modify();
+			ModelOuter->Modify();
 			UndoRedoIndex++;
 
 			FRigVMClientAction Action;
@@ -597,10 +841,15 @@ bool FRigVMClient::RemoveModel(const FString& InNodePathOrName, bool bSetupUndoR
 		}
 
 		// clean up the model
-		Models.Remove(Model);
-		
-		// remove the controller
-		verify(RemoveController(Model));
+		if(ExternalModelHost == nullptr)
+		{
+			verify(Models.Remove(Model));
+		}
+		else
+		{
+			// Should have already been removed from external models
+			verify(!ExternalModelHost->GetExternalModels().Contains(Model));
+		}
 
 		NotifyOuterOfPropertyChange();
 		return true;
@@ -637,7 +886,7 @@ FName FRigVMClient::RenameModel(const FString& InNodePathOrName, const FName& In
 		TObjectPtr<URigVMController>* Controller = Controllers.Find(Model);
 		const FString OldNodePath = Model->GetNodePath();
 		const FName SafeNewName = GetUniqueName(InNewName);
-		Model->Rename(*SafeNewName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		Model->Rename(*SafeNewName.ToString(), nullptr, REN_DontCreateRedirectors);
 		const FString NewNodePath = Model->GetNodePath();
 		if (Controller)
 		{
@@ -784,7 +1033,7 @@ void FRigVMClient::OnCollapseNodeRemoved(const URigVMCollapseNode* InCollapseNod
 
 URigVMNode* FRigVMClient::FindNode(const FString& InNodePathOrName) const
 {
-	for(const URigVMGraph* Model : Models)
+	for(const URigVMGraph* Model : GetModels())
 	{
 		if(URigVMNode* Node = Model->FindNode(InNodePathOrName))
 		{
@@ -800,7 +1049,7 @@ URigVMNode* FRigVMClient::FindNode(const FString& InNodePathOrName) const
 
 URigVMPin* FRigVMClient::FindPin(const FString& InPinPath) const
 {
-	for(const URigVMGraph* Model : Models)
+	for(const URigVMGraph* Model : GetModels())
 	{
 		if(URigVMPin* Pin = Model->FindPin(InPinPath))
 		{
@@ -843,7 +1092,16 @@ URigVMController* FRigVMClient::CreateController(const URigVMGraph* InModel)
 	const FName SafeControllerName = GetUniqueName(*FString::Printf(TEXT("%s_Controller"), *ModelName));
 	URigVMController* Controller = NewObject<URigVMController>(GetOuter(), ControllerClass, SafeControllerName);
 	Controllers.Add(InModel, Controller);
-	Controller->SetSchema(GetOrCreateSchema());
+	if(InModel && InModel->GetSchemaClass() != nullptr)
+	{
+		Controller->SetSchemaClass(InModel->GetSchemaClass());
+	}
+	else
+	{
+		check(DefaultSchemaClass);
+		Controller->SetSchemaClass(DefaultSchemaClass);
+	}
+
 	Controller->SetActionStack(GetOrCreateActionStack());
 	if(InModel)
 	{
@@ -890,13 +1148,6 @@ void FRigVMClient::ResetActionStack()
 	ActionStack = nullptr;
 }
 
-void FRigVMClient::SetSchema(URigVMSchema* InSchema)
-{
-	check(InSchema);
-	SchemaPtr = InSchema;
-	SchemaClass = InSchema->GetClass();
-}
-
 FName FRigVMClient::GetUniqueName(const FName& InDesiredName) const
 {
 	return GetUniqueName(GetOuter(), InDesiredName);
@@ -917,7 +1168,7 @@ void FRigVMClient::DestroyObject(UObject* InObject)
 		static int32 ObjectIndexToBeDestroyed = 0;
 		static constexpr TCHAR ObjectNameFormat[] = TEXT("RigVMClient_ObjectToBeDestroyed_%d");
 		const FString NewObjectName = FString::Printf(ObjectNameFormat, ObjectIndexToBeDestroyed++);
-		InObject->Rename(*NewObjectName, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		InObject->Rename(*NewObjectName, GetTransientPackage(), REN_DontCreateRedirectors);
 		if(!InObject->IsRooted())
 		{
 			InObject->MarkAsGarbage();
@@ -956,26 +1207,175 @@ FRigVMClientPatchResult FRigVMClient::PatchModelsOnLoad()
 	for(URigVMGraph* Model : AllModels)
 	{
 		Model->PostLoad();
+		Model->SetSchemaClass(GetDefaultSchemaClass());
 		
 		URigVMController* Controller = GetOrCreateController(Model);
 		TGuardValue<bool> GuardSuspendTemplateComputation(Controller->bSuspendTemplateComputation, true);
 		TGuardValue<bool> GuardIsTransacting(Controller->bIsTransacting, true);
-
-		Result.Merge(Controller->PatchRerouteNodesOnLoad());
-		Result.Merge(Controller->PatchUnitNodesOnLoad());
-		Result.Merge(Controller->PatchDispatchNodesOnLoad());
-		Result.Merge(Controller->PatchBranchNodesOnLoad());
-		Result.Merge(Controller->PatchIfSelectNodesOnLoad());
-		Result.Merge(Controller->PatchArrayNodesOnLoad());
-		Result.Merge(Controller->PatchReduceArrayFloatDoubleConvertsionsOnLoad());
-		Result.Merge(Controller->PatchInvalidLinksOnWildcards());
-		Result.Merge(Controller->PatchExecutePins());
-		Result.Merge(Controller->PatchLazyPins());
-
-		if (URigVMCollapseNode* CollapseNode = Model->GetTypedOuter<URigVMCollapseNode>())
 		{
-			Result.Merge(Controller->PatchFunctionsWithInvalidReturnPaths());	
+			FRigVMDefaultValueTypeGuard DefaultValueTypeGuard(Controller, ERigVMPinDefaultValueType::KeepValueType);
+			Result.Merge(Controller->PatchRerouteNodesOnLoad());
+			Result.Merge(Controller->PatchUnitNodesOnLoad());
+			Result.Merge(Controller->PatchDispatchNodesOnLoad());
+			Result.Merge(Controller->PatchBranchNodesOnLoad());
+			Result.Merge(Controller->PatchIfSelectNodesOnLoad());
+			Result.Merge(Controller->PatchArrayNodesOnLoad());
+			Result.Merge(Controller->PatchReduceArrayFloatDoubleConvertsionsOnLoad());
+			Result.Merge(Controller->PatchInvalidLinksOnWildcards());
+			Result.Merge(Controller->PatchExecutePins());
+			Result.Merge(Controller->PatchLazyPins());
+		
+			if (URigVMCollapseNode* CollapseNode = Model->GetTypedOuter<URigVMCollapseNode>())
+			{
+				Result.Merge(Controller->PatchFunctionsWithInvalidReturnPaths());	
+			}
 		}
+		Result.Merge(Controller->PatchPinDefaultValues());
+	}
+
+	return Result;
+}
+
+#if WITH_EDITOR
+void FRigVMClient::PatchFunctionReferencesOnLoad()
+{
+	// If the asset was copied from one project to another, the function referenced might have a different
+	// path, even if the function is internal to the contorl rig. In that case, let's try to find the function
+	// in the local function library.
+
+	for (URigVMGraph* Model : *this)
+	{
+		TArray<URigVMNode*> Nodes = Model->GetNodes();
+		for (URigVMLibraryNode* Library : GetFunctionLibrary()->GetFunctions())
+		{
+			Nodes.Append(Library->GetContainedNodes());
+		}
+
+		for (int32 i = 0; i < Nodes.Num(); ++i)
+		{
+			URigVMNode* Node = Nodes[i];
+			if (URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(Node))
+			{
+				if (!FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.IsValid())
+				{
+					(void)FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.LoadSynchronous();
+				}
+				if (!FunctionReferenceNode->ReferencedNodePtr_DEPRECATED)
+				{
+					if (FunctionLibrary)
+					{
+						FString FunctionPath = FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.ToSoftObjectPath().GetSubPathString();
+
+						FString Left, Right;
+						if (FunctionPath.Split(TEXT("."), &Left, &Right))
+						{
+							FString LibraryNodePath = FunctionLibrary->GetNodePath();
+							if (Left == FunctionLibrary->GetName())
+							{
+								if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(FunctionLibrary->FindNode(Right)))
+								{
+									FunctionReferenceNode->ReferencedNodePtr_DEPRECATED = LibraryNode;
+								}
+							}
+						}
+					}
+				}
+
+				if (FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.IsValid())
+				{
+					FunctionReferenceNode->ReferencedFunctionHeader = FunctionReferenceNode->ReferencedNodePtr_DEPRECATED->GetFunctionHeader();
+				}
+				else if (!FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.IsNull())
+				{
+					// At least lets make sure we store the path in the header
+					FunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer.SetLibraryNodePath(FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.ToSoftObjectPath().ToString());
+				}
+
+				if (FunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer.LibraryNode_DEPRECATED.IsValid())
+				{
+					FunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer.SetLibraryNodePath(FunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer.LibraryNode_DEPRECATED.ToString());
+				}
+			}
+
+			if (URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Node))
+			{
+				Nodes.Append(CollapseNode->GetContainedNodes());
+			}
+		}
+	}
+}
+
+#endif // WITH_EDITOR
+
+void FRigVMClient::PatchFunctionsOnLoad(IRigVMGraphFunctionHost* FunctionHost, TArray<FName>& BackwardsCompatiblePublicFunctions, TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader>& OldHeaders)
+{
+	if (FRigVMGraphFunctionStore* Store = FunctionHost->GetRigVMGraphFunctionStore())
+	{
+		// Lets rebuild the FunctionStore from the model
+		if (FunctionLibrary)
+		{
+			Store->PublicFunctions.Reset();
+			Store->PrivateFunctions.Reset();
+
+			for (URigVMLibraryNode* LibraryNode : FunctionLibrary->GetFunctions())
+			{
+				bool bIsPublic = FunctionLibrary->IsFunctionPublic(LibraryNode->GetFName());
+				if (!bIsPublic)
+				{
+					bIsPublic = BackwardsCompatiblePublicFunctions.Contains(LibraryNode->GetFName());
+					if (bIsPublic)
+					{
+						FunctionLibrary->PublicFunctionNames.Add(LibraryNode->GetFName());
+					}
+				}
+
+				FRigVMGraphFunctionHeader Header = LibraryNode->GetFunctionHeader(FunctionHost);
+				if (FRigVMGraphFunctionHeader* OldHeader = OldHeaders.Find(LibraryNode))
+				{
+					Header.ExternalVariables = OldHeader->ExternalVariables;
+					Header.Dependencies = OldHeader->Dependencies;
+					Header.Layout = OldHeader->Layout;
+				}
+
+				const FRigVMVariant* Variant = FunctionLibrary->GetFunctionVariant(LibraryNode->GetFName());
+				if (!Variant)
+				{
+					Header.Variant.Guid = FRigVMVariant::GenerateGUID(Header.LibraryPointer.GetLibraryNodePath());
+					FunctionLibrary->FunctionToVariant.FindOrAdd(Header.Name) = Header.Variant;
+				}
+				else
+				{
+					Header.Variant = *Variant;
+				}
+
+				Store->AddFunction(Header, bIsPublic);
+				if (bIsPublic)
+				{
+					UpdateGraphFunctionSerializedGraph(LibraryNode);
+				}
+			}
+
+			// Update dependencies and external variables if needed
+			for (URigVMLibraryNode* LibraryNode : FunctionLibrary->GetFunctions())
+			{
+				UpdateExternalVariablesForFunction(LibraryNode);
+				UpdateDependenciesForFunction(LibraryNode);
+			}
+		}
+	}
+}
+
+FRigVMClientPatchResult FRigVMClient::PatchPinDefaultValues()
+{
+	FRigVMClientPatchResult Result;
+	
+	TArray<URigVMGraph*> AllModels = GetAllModelsLeavesFirst(true);
+	TGuardValue<bool> ClientIgnoreModificationsGuard(bIgnoreModelNotifications, true);
+	for(URigVMGraph* Model : AllModels)
+	{
+		URigVMController* Controller = GetOrCreateController(Model);
+		TGuardValue<bool> GuardIsTransacting(Controller->bIsTransacting, true);
+		Result.Merge(Controller->PatchPinDefaultValues());
 	}
 
 	return Result;
@@ -988,20 +1388,6 @@ void FRigVMClient::ProcessDetachedLinks()
 	{
 		URigVMController* Controller = GetOrCreateController(Model);
 		Controller->ProcessDetachedLinks();
-	}
-}
-
-void FRigVMClient::PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName)
-{
-	// this also takes care of wiping invalid schemas on the client
-	URigVMSchema* Schema = GetOrCreateSchema();
-	
-	TArray<URigVMGraph*> AllModels = GetAllModels(true, true);
-	for(URigVMGraph* Model : AllModels)
-	{
-		URigVMController* Controller = GetOrCreateController(Model);
-		Controller->SetSchema(Schema);
-		Controller->PostDuplicateHost(InOldPathName, InNewPathName);
 	}
 }
 
@@ -1093,7 +1479,7 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 					{
 						if (FunctionStore && FunctionHost)
 						{
-							FunctionStore->RemoveFunction(FRigVMGraphFunctionIdentifier (Cast<UObject>(FunctionHost), CollapseNode));
+							FunctionStore->RemoveFunction(FRigVMGraphFunctionIdentifier (Cast<UObject>(FunctionHost), CollapseNode->GetPathName()));
 						}
 					}
 				}
@@ -1122,7 +1508,7 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 			}
 			break;
 		}
-		case ERigVMGraphNotifType::NodeRenamed: // A node has been renamed in the graph (Subject == URigVMNode)
+		case ERigVMGraphNotifType::FunctionRenamed: // A node has been renamed in the graph (Subject == URigVMNode)
 		{
 			if(InSubject->GetOuter()->IsA<URigVMFunctionLibrary>())
 			{
@@ -1134,7 +1520,9 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 						if (FRigVMGraphFunctionData* Data = Host->GetRigVMGraphFunctionStore()->FindFunctionByName(CollapseNode->GetPreviousFName()))
 						{
 							const FRigVMGraphFunctionIdentifier PreviousFunctionId = Data->Header.LibraryPointer;
+							const FRigVMVariant Variant = Data->Header.Variant;
 							Data->Header = CollapseNode->GetFunctionHeader();
+							Data->Header.Variant = Variant;
 
 							if (const FRigVMFunctionReferenceArray* FunctionReferencesPtr = BuildData->GraphFunctionReferences.Find(PreviousFunctionId))
 							{
@@ -1170,6 +1558,7 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 		case ERigVMGraphNotifType::NodeCategoryChanged: // A node's category has changed (Subject == URigVMNode)
 		case ERigVMGraphNotifType::NodeKeywordsChanged: // A node's keywords have changed (Subject == URigVMNode)
 		case ERigVMGraphNotifType::NodeDescriptionChanged: // A node's description has changed (Subject == URigVMNode)
+		case ERigVMGraphNotifType::VariantTagsChanged: // The tags in the header of this function variant have changed (Subject == URigVMLibraryNode)
 		{
 			if(InSubject->GetOuter()->IsA<URigVMFunctionLibrary>())
 			{
@@ -1190,27 +1579,46 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 		case ERigVMGraphNotifType::PinTypeChanged: // A pin's data type has changed (Subject == URigVMPin)
 		case ERigVMGraphNotifType::PinIndexChanged: // A pin's index has changed (Subject == URigVMPin)
 		case ERigVMGraphNotifType::PinWatchedChanged: // A pin's watch state has changed (Subject == URigVMPin)
+		case ERigVMGraphNotifType::PinDisplayNameChanged: // A pin's display name / UI label has changed (Subject == URigVMPin)
+		case ERigVMGraphNotifType::PinCategoryChanged: // A pin's category has changed (Subject == URigVMPin)
+		case ERigVMGraphNotifType::PinCategoryExpansionChanged: // A pin category has been collapsed / expanded on the function node (Subject == URigVMNode)
+		case ERigVMGraphNotifType::FunctionVariantGuidChanged: // A function has changed its guid (Subject == URigVMLibraryNode)
 		{
-			if (URigVMPin* Pin = Cast<URigVMPin>(InSubject))
+			URigVMNode* Node = Cast<URigVMNode>(InSubject);
+			if (const URigVMPin* Pin = Cast<URigVMPin>(InSubject))
 			{
-				if (URigVMNode* Node = Cast<URigVMNode>(Pin->GetNode()))
+				Node = Cast<URigVMNode>(Pin->GetNode());
+			}
+			if(Node)
+			{
+				if (URigVMLibraryNode* LibraryNode = Node->FindFunctionForNode())
 				{
-					if (URigVMLibraryNode* LibraryNode = Node->FindFunctionForNode())
+					DirtyGraphFunctionCompilationData(LibraryNode);
+				}
+				if(Node->GetOuter()->IsA<URigVMFunctionLibrary>())
+				{
+					if (const URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Node))
 					{
-						DirtyGraphFunctionCompilationData(LibraryNode);
-					}
-					if(Node->GetOuter()->IsA<URigVMFunctionLibrary>())
-					{
-						if (URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Node))
-						{
-							UpdateGraphFunctionData(CollapseNode);
-						}
+						UpdateGraphFunctionData(CollapseNode);
 					}
 				}
 			}
 			break;
 		}
-
+		case ERigVMGraphNotifType::PinCategoriesChanged: // A node's category list has changed (Subject == URigVMNode)
+		{
+			if (URigVMNode* Node = Cast<URigVMNode>(InSubject))
+			{
+				if(Node->GetOuter()->IsA<URigVMFunctionLibrary>())
+				{
+					if (const URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Node))
+					{
+						UpdateGraphFunctionData(CollapseNode);
+					}
+				}
+			}
+			break;
+		}
 		case ERigVMGraphNotifType::LinkAdded: // A link has been added (Subject == URigVMLink)
 		case ERigVMGraphNotifType::LinkRemoved: // A link has been removed (Subject == URigVMLink)
 		{
@@ -1243,7 +1651,6 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 			}
 			break;
 		}
-		
 		
 		default:
 		{
@@ -1283,6 +1690,7 @@ bool FRigVMClient::UpdateFunctionReferences(const FRigVMGraphFunctionHeader& Hea
 
 				Node->Modify();
 				Node->ReferencedFunctionHeader = Header;
+				Node->InvalidateCache();
 
 				if (bUpdateDependencies || bUpdateExternalVariables)
 				{
@@ -1308,14 +1716,17 @@ bool FRigVMClient::UpdateFunctionReferences(const FRigVMGraphFunctionHeader& Hea
 
 bool FRigVMClient::UpdateGraphFunctionData(const URigVMLibraryNode* InLibraryNode)
 {
-	if (GetOuter()->Implements<URigVMClientHost>())
+	if (IRigVMClientHost* ClientHost = InLibraryNode->GetImplementingOuter<IRigVMClientHost>())
 	{
-		if (FRigVMGraphFunctionStore* Store = FindFunctionStore(InLibraryNode))
+		if (IRigVMGraphFunctionHost* FunctionHost = ClientHost->GetRigVMGraphFunctionHost())
 		{
-			if (FRigVMGraphFunctionData* Data = Store->UpdateFunctionInterface(InLibraryNode->GetFunctionHeader()))
+			if (FRigVMGraphFunctionStore* Store = FindFunctionStore(InLibraryNode))
 			{
-				UpdateFunctionReferences(Data->Header, false, false);
-				return true;
+				if (FRigVMGraphFunctionData* Data = Store->UpdateFunctionInterface(InLibraryNode->GetFunctionHeader(FunctionHost)))
+				{
+					UpdateFunctionReferences(Data->Header, false, false);
+					return true;
+				}
 			}
 		}
 	}	

@@ -24,6 +24,7 @@
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SSearchBox.h"
+#include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/Text/SRichTextBlock.h"
@@ -198,7 +199,7 @@ void SConsoleVariablesEditorList::Construct(const FArguments& InArgs, TSharedRef
 			
 			+ SWidgetSwitcher::Slot()
 			.HAlign(HAlign_Fill)
-			.Padding(2.0f, 2.0f, 2.0f, 2.0f)
+			.Padding(0.0f, 2.0f, 0.0f, 2.0f)
 			[
 				SAssignNew(TreeViewPtr, STreeView<FConsoleVariablesEditorListRowPtr>)
 				.HeaderRow(HeaderRow)
@@ -226,7 +227,7 @@ void SConsoleVariablesEditorList::Construct(const FArguments& InArgs, TSharedRef
 			// For when no rows exist in view
 			+ SWidgetSwitcher::Slot()
 			.HAlign(HAlign_Fill)
-			.Padding(2.0f, 24.0f, 2.0f, 2.0f)
+			.Padding(0.0f, 24.0f, 0.0f, 2.0f)
 			[
 				SNew(SRichTextBlock)
 				.DecoratorStyleSet(&FAppStyle::Get())
@@ -876,7 +877,12 @@ TSharedPtr<SHeaderRow> SConsoleVariablesEditorList::GenerateHeaderRow()
 			.ShouldGenerateWidget(true)
 			.HeaderContent()
 			[
-				SNew(SBox)
+				SNew(SScaleBox)
+				[
+					SNew(SImage)
+						.Image(this, &SConsoleVariablesEditorList::GetActionColumnImage)
+						.ColorAndOpacity(FSlateColor::UseForeground())
+				]
 			]
 	);
 
@@ -1298,6 +1304,22 @@ void SConsoleVariablesEditorList::SetChildExpansionRecursively(const FConsoleVar
 			SetChildExpansionRecursively(Child, bNewIsExpanded);
 		}
 	}
+}
+
+
+const FSlateBrush* SConsoleVariablesEditorList::GetActionColumnImage() const
+{
+	const FConsoleVariablesEditorList::EConsoleVariablesEditorListMode ListMode =
+		ListModelPtr.IsValid()
+		? ListModelPtr.Pin()->GetListMode()
+		: FConsoleVariablesEditorList::EConsoleVariablesEditorListMode::Preset;
+
+	if (ListMode == FConsoleVariablesEditorList::EConsoleVariablesEditorListMode::GlobalSearch)
+	{
+		return FAppStyle::Get().GetBrush("Icons.Star");
+	}
+
+	return FAppStyle::Get().GetBrush("Icons.Delete");
 }
 
 #undef LOCTEXT_NAMESPACE

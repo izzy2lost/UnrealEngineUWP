@@ -9,8 +9,19 @@
 #include "UObject/ObjectRedirector.h"
 #include "UObject/Package.h"
 #include "IUniversalObjectLocatorModule.h"
+#include "AssetRegistry/AssetData.h"
 
 UE::UniversalObjectLocator::TFragmentTypeHandle<FAssetLocatorFragment> FAssetLocatorFragment::FragmentType;
+
+FAssetLocatorFragment::FAssetLocatorFragment(const FAssetData& InAssetData)
+	: Path(InAssetData.PackageName, InAssetData.AssetName)
+{
+}
+
+FAssetLocatorFragment::FAssetLocatorFragment(const FTopLevelAssetPath& InPath)
+	: Path(InPath)
+{
+}
 
 UE::UniversalObjectLocator::FResolveResult FAssetLocatorFragment::Resolve(const UE::UniversalObjectLocator::FResolveParams& Params) const
 {

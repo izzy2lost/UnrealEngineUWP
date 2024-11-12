@@ -25,6 +25,7 @@ public:
 		, _NamePlacement( EPropertyNamePlacement::Left )
 		, _NameOverride()
 		, _bShouldHideAssetThumbnail(false)
+		, _bShouldHideResetToDefault(false)
 	{}
 
 		SLATE_ARGUMENT( UObject*, Object )
@@ -35,6 +36,7 @@ public:
 		SLATE_ARGUMENT( EPropertyNamePlacement::Type, NamePlacement )
 		SLATE_ARGUMENT( FText, NameOverride )
 		SLATE_ARGUMENT( bool, bShouldHideAssetThumbnail )
+		SLATE_ARGUMENT( bool, bShouldHideResetToDefault )
 	SLATE_END_ARGS()	
 
 	void Construct( const FArguments& InArgs );
@@ -43,7 +45,7 @@ public:
 	virtual bool HasValidProperty() const override { return (RootPropertyNode.IsValid() || RootPropertyNode) && ValueNode.IsValid(); }
 	virtual void SetObject( UObject* InObject ) override;
 	virtual void SetStruct( const TSharedPtr<IStructureDataProvider>& InStruct ) override;
-	virtual void SetOnPropertyValueChanged( FSimpleDelegate& InOnPropertyValueChanged ) override;
+	virtual void SetOnPropertyValueChanged( const FSimpleDelegate& InOnPropertyValueChanged ) override;
 
 	/**
 	 * Replaces objects being observed by the view with new objects
@@ -99,4 +101,6 @@ private:
 	/** Location of the name in the view */
 	EPropertyNamePlacement::Type NamePlacement;
 	TSharedPtr<class IPropertyHandle> PropertyHandle;
+	/** Whether the 'reset to default' button should be hidden */
+	bool bShouldHideResetToDefault;
 };

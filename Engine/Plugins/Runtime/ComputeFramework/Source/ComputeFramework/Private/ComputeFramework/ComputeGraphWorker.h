@@ -42,6 +42,10 @@ public:
 		ERHIFeatureLevel::Type InFeatureLevel ) override;
 
 private:
+	/** Poll active readbacks and execute callbacks for ready ones. */
+	void UpdateReadbacks();
+
+private:
 	/** Description of each graph that is enqueued. */
 	struct FGraphInvocation
 	{
@@ -97,4 +101,18 @@ private:
 	TArray<TShaderRef<FComputeKernelShader>> Shaders;
 	TArray<int32> PermutationIds;
 	TArray<FIntVector> ThreadCounts;
+	TArray<FComputeDataProviderRenderProxy::FReadbackData> ReadbackDatas;
+
+	/** Data for tracking active asynchronous readbacks. */
+	struct FAsyncReadback
+	{
+		~FAsyncReadback();
+
+		class FRHIGPUBufferReadback* Readback = nullptr;
+		uint32 NumBytes = 0;
+		const UObject* OwnerPointer = nullptr;
+		FComputeDataProviderRenderProxy::FReadbackCallback OnDataAvailable;
+	};
+
+	TArray<FAsyncReadback> ActiveAsyncReadbacks;
 };

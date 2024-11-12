@@ -83,7 +83,7 @@ class SbEnvBuilder(venv.EnvBuilder):
 
 class SbSetup:
     @classmethod
-    def build_parser(cls):
+    def build_parser(cls) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser()
 
         # Global options
@@ -122,13 +122,13 @@ class SbSetup:
 
         if not (CWRSYNC_FSTAB_PATH).exists():
             logging.info('Writing cwrsync fstab')
-            with open(CWRSYNC_FSTAB_PATH, 'wt') as fstab:
+            with open(CWRSYNC_FSTAB_PATH, 'wt', encoding='utf-8') as fstab:
                 fstab.write(CWRSYNC_FSTAB_CONTENTS)
 
     @staticmethod
-    def is_venv(dir: pathlib.Path) -> bool:
+    def is_venv(checkdir: pathlib.Path) -> bool:
         ''' Conservative estimate of whether `dir` contains a Python venv. '''
-        if not dir.is_dir():
+        if not checkdir.is_dir():
             return False
 
         # These lowercase names are canonical for non-Windows OSes, while
@@ -143,7 +143,7 @@ class SbSetup:
         existing_files: Set[str] = set()
         existing_dirs: Set[str] = set()
 
-        with os.scandir(dir) as scan:
+        with os.scandir(checkdir) as scan:
             for entry in scan:
                 name: str = entry.name
                 if sys.platform.startswith('win'):
@@ -266,7 +266,8 @@ class SbSetup:
 
         if options.action == 'install':
             install_result = self.run_install(options)
-            with open(options.venv_dir / 'provision.log', 'wt+') as logfile:
+            with open(options.venv_dir / 'provision.log', 'wt+',
+                      encoding='utf-8') as logfile:
                 logfile.write(log_buffer.getvalue())
             return install_result
         elif options.action == 'verify':

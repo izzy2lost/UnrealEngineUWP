@@ -4,7 +4,7 @@
 
 #include "Templates/SharedPointer.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/**
 	 * The token "pattern" used by systems that start non-cancellable, latent operations (like TFutures from Concert responses):

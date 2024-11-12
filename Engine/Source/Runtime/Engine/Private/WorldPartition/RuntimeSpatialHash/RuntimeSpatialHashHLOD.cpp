@@ -5,6 +5,7 @@
 
 #if WITH_EDITOR
 #include "HAL/PlatformFile.h"
+#include "WorldPartition/ActorDescContainerInstanceCollection.h"
 #include "WorldPartition/RuntimeSpatialHash/RuntimeSpatialHashGridHelper.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/HLOD/HLODActor.h"
@@ -17,7 +18,6 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "WorldPartition/ContentBundle/ContentBundleActivationScope.h"
-#include "ActorEditorContext/ScopedActorEditorContextSetExternalDataLayerAsset.h"
 
 #include "UObject/GCObjectScopeGuard.h"
 #include "UObject/SavePackage.h"
@@ -356,32 +356,23 @@ static TMap<FName, FSpatialHashRuntimeGrid> CreateHLODGrids(TMap<UHLODLayer*, in
 	return HLODGrids;
 }
 
+// Actor tag used to mark ASpatialHashRuntimeGridInfo actors as being valid for the current grid setup.
+static const FName HLODGridActorInUseTag = TEXT("HLODGridActorInUse");
+
 // Create/destroy HLOD grid actors
 static void UpdateHLODGridsActors(UWorld* World, const UActorDescContainerInstance* ContainerInstance, const TMap<FName, FSpatialHashRuntimeGrid>& HLODGrids, ISourceControlHelper* SourceControlHelper)
 {
-	static const FName HLODGridTag = TEXT("HLOD");
-	static const uint32 HLODGridTagLen = HLODGridTag.ToString().Len();
-
-	// Gather all existing HLOD grid actors, see if some are unused and needs to be deleted
+	// Gather all existing HLOD grid actors
 	TMap<FName, ASpatialHashRuntimeGridInfo*> ExistingGridActors;
-	for (UActorDescContainerInstance::TConstIterator<> Iterator(ContainerInstance); Iterator; ++Iterator)
+	for (UActorDescContainerInstance::TConstIterator<ASpatialHashRuntimeGridInfo> Iterator(ContainerInstance); Iterator; ++Iterator)
 	{
-		if(Iterator->GetActorNativeClass()->IsChildOf<ASpatialHashRuntimeGridInfo>())
+		if (ASpatialHashRuntimeGridInfo* GridActor = CastChecked<ASpatialHashRuntimeGridInfo>(Iterator->GetActor()))
 		{
-			ASpatialHashRuntimeGridInfo* GridActor = CastChecked<ASpatialHashRuntimeGridInfo>(Iterator->GetActor());
-			if (GridActor->ActorHasTag(HLODGridTag))
+			const FSpatialHashRuntimeGrid* HLODGrid = HLODGrids.Find(GridActor->GridSettings.GridName);
+			if (HLODGrid && GridActor->GridSettings.Priority && GridActor->GridSettings.HLODLayer)
 			{
-				const FSpatialHashRuntimeGrid* HLODGrid = HLODGrids.Find(GridActor->GridSettings.GridName);
-				if (HLODGrid && GridActor->GridSettings.Priority && GridActor->GridSettings.HLODLayer)
-				{
-					check(GridActor->GetContentBundleGuid() == ContainerInstance->GetContentBundleGuid());
-					ExistingGridActors.Emplace(GridActor->GridSettings.GridName, GridActor);
-				}
-				else
-				{
-					World->DestroyActor(GridActor);
-					DeletePackage(GridActor->GetPackage(), SourceControlHelper);
-				}
+				check(GridActor->GetContentBundleGuid() == ContainerInstance->GetContentBundleGuid());
+				ExistingGridActors.Emplace(GridActor->GridSettings.GridName, GridActor);
 			}
 		}
 	}
@@ -398,17 +389,19 @@ static void UpdateHLODGridsActors(UWorld* World, const UActorDescContainerInstan
 		if (!GridActor)
 		{
 			FContentBundleActivationScope ContentBndleScope(ContainerInstance->GetContentBundleGuid());
-			FScopedActorEditorContextSetExternalDataLayerAsset EDLScope(ContainerInstance->GetExternalDataLayerAsset());
+			FScopedOverrideSpawningLevelMountPointObject EDLScope(ContainerInstance->GetExternalDataLayerAsset());
 
 			FActorSpawnParameters SpawnParams;
 			SpawnParams.bCreateActorPackage = true;
 			GridActor = World->SpawnActor<ASpatialHashRuntimeGridInfo>(SpawnParams);
-			GridActor->Tags.Add(HLODGridTag);
 			bDirty = true;
 
 			check(GridActor->GetContentBundleGuid() == ContainerInstance->GetContentBundleGuid());
 			check(GridActor->GetExternalDataLayerAsset() == ContainerInstance->GetExternalDataLayerAsset());
 		}
+
+		// Flag this ASpatialHashRuntimeGridInfo actor as being in-use
+		GridActor->Tags.Add(HLODGridActorInUseTag);
 
 		const FString ActorLabel = GridSettings.GridName.ToString();
 		if (GridActor->GetActorLabel() != ActorLabel)
@@ -611,7 +604,7 @@ bool UWorldPartitionRuntimeSpatialHash::SetupHLODActors(const IStreamingGenerati
 	{
 		BaseContainerInstanceCollection->ForEachActorDescContainerInstance([this, &HLODGrids, &SourceControlHelper](const UActorDescContainerInstance* ActorDescContainerInstance)
 		{
-		// Create/destroy HLOD grid actors
+			// Create/destroy HLOD grid actors
 			UpdateHLODGridsActors(GetWorld(), ActorDescContainerInstance, HLODGrids, SourceControlHelper);
 		});
 	}
@@ -632,6 +625,48 @@ bool UWorldPartitionRuntimeSpatialHash::SetupHLODActors(const IStreamingGenerati
 	DumpActorsStats(TEXT("Deleted"), DeletedActors);
 
 	return true;
+}
+
+void UWorldPartitionRuntimeSpatialHash::PreSetupHLODActors(const UWorldPartition* InWorldPartition, const UWorldPartition::FSetupHLODActorsParams& InParams) const
+{
+	if (!InParams.bReportOnly)
+	{
+		// Clear "in-use" tag on all ASpatialHashRuntimeGridInfo actors
+		for (FActorDescContainerInstanceCollection::TConstIterator<ASpatialHashRuntimeGridInfo> Iterator(InWorldPartition); Iterator; ++Iterator)
+		{
+			if (ASpatialHashRuntimeGridInfo* SpatialHashRuntimeGridInfo = Cast<ASpatialHashRuntimeGridInfo>(Iterator->GetActor()))
+			{
+				SpatialHashRuntimeGridInfo->Tags.Remove(HLODGridActorInUseTag);
+			}
+		}
+	}
+}
+
+void UWorldPartitionRuntimeSpatialHash::PostSetupHLODActors(const UWorldPartition* InWorldPartition, const UWorldPartition::FSetupHLODActorsParams& InParams) const
+{
+	if (!InParams.bReportOnly)
+	{
+		// Delete all ASpatialHashRuntimeGridInfo actors that don't have the "in-use" tag
+		for (FActorDescContainerInstanceCollection::TConstIterator<ASpatialHashRuntimeGridInfo> Iterator(InWorldPartition); Iterator; ++Iterator)
+		{
+			if (ASpatialHashRuntimeGridInfo* SpatialHashRuntimeGridInfo = Cast<ASpatialHashRuntimeGridInfo>(Iterator->GetActor()))
+			{
+				if (!SpatialHashRuntimeGridInfo->ActorHasTag(HLODGridActorInUseTag))
+				{
+					FString PackageName = Iterator->GetActorPackage().ToString();
+					bool bDeleted = InParams.SourceControlHelper->Delete(SpatialHashRuntimeGridInfo->GetPackage());
+					if (bDeleted)
+					{
+						UE_LOG(LogWorldPartitionRuntimeSpatialHashHLOD, Display, TEXT("Deleting %s..."), *PackageName);
+					}
+					else
+					{
+						UE_LOG(LogWorldPartitionRuntimeSpatialHashHLOD, Error, TEXT("Failed to delete %s"), *PackageName);
+					}
+				}
+			}
+		}
+	}
 }
 
 #endif // #if WITH_EDITOR

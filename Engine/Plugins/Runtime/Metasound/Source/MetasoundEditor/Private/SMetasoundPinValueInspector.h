@@ -61,17 +61,17 @@ namespace Metasound
 
 			UObject* GetOutermostObject();
 
-			Frontend::FConstOutputHandle GetReroutedOutputHandle() const;
+			Frontend::FConstOutputHandle GetConstReroutedOutputHandle() const;
 
 			Frontend::FOutputHandle GetReroutedOutputHandle();
 
 			Frontend::FGraphHandle GetGraphHandle();
 
-			Frontend::FConstGraphHandle GetGraphHandle() const;
+			Frontend::FConstGraphHandle GetConstGraphHandle() const;
 
 			FGraphConnectionManager* GetConnectionManager();
 
-			const FMetasoundFrontendEdgeStyle* GetEdgeStyle() const;
+			const FMetasoundFrontendEdgeStyle* FindConstEdgeStyle() const;
 
 			void Update();
 
@@ -92,6 +92,9 @@ namespace Metasound
 
 		private:
 			FLinearColor GetEdgeStyleColorAtIndex(int32 InIndex) const;
+			FMetasoundFrontendEdgeStyle* FindOrAddEdgeStyle();
+			FMetasoundFrontendEdgeStyle* FindEdgeStyle();
+			bool GetNodeIDAndOutputName(FGuid& OutNodeID, FName& OutName) const;
 
 			void DisableValueColorization();
 			void EnableValueColorization();

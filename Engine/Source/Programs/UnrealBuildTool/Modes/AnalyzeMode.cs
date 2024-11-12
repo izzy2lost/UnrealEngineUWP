@@ -88,7 +88,7 @@ namespace UnrealBuildTool.Modes
 			{
 				ModuleToInfo[Module] = new ModuleInfo(Module, CurrentChain.ToArray());
 			}
-			
+
 			if (ModuleToInfo[Module].IncludeChain.Count > CurrentChain.Count)
 			{
 				// Now we need to recheck all downstream dependencies again because the chain may be shorter

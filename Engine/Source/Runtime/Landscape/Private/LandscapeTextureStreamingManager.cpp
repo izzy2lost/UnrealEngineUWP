@@ -3,6 +3,7 @@
 #include "LandscapeTextureStreamingManager.h"
 #include "Engine/Texture.h"
 #include "TextureCompiler.h"
+#include "LandscapePrivate.h"
 
 namespace UE::Landscape
 {
@@ -18,6 +19,8 @@ namespace UE::Landscape
 		}
 	}
 }
+
+TArray<FLandscapeTextureStreamingManager*> FLandscapeTextureStreamingManager::AllStreamingManagers;
 
 bool FLandscapeTextureStreamingManager::RequestTextureFullyStreamedIn(UTexture* Texture, bool bWaitForStreaming)
 {
@@ -79,11 +82,19 @@ void FLandscapeTextureStreamingManager::UnrequestTextureFullyStreamedIn(UTexture
 		if (State->RequestCount > 0)
 		{
 			State->RequestCount--;
-			if (!State->bForever && State->RequestCount <= 0)
+			if (!State->WantsTextureStreamedIn())
 			{
-				// allow stream out, remove tracking
-				Texture->bForceMiplevelsToBeResident = false;
+				// remove state tracking for this texture
 				TextureStates.Remove(TexturePtr);
+				if ((AllStreamingManagers.Num() == 1) || !AnyStreamingManagerWantsTextureStreamedIn(TexturePtr))
+				{
+					// allow stream out
+					Texture->bForceMiplevelsToBeResident = false;
+				}
+				else
+				{
+					UE::Landscape::EnsureTextureForcedResident(Texture);
+				}
 			}
 			else
 			{
@@ -92,9 +103,7 @@ void FLandscapeTextureStreamingManager::UnrequestTextureFullyStreamedIn(UTexture
 		}
 		else
 		{
-			// only way the request count should get to zero is if the texture is flagged as forever streamed.
-			ensure(State->bForever);
-			UE::Landscape::EnsureTextureForcedResident(Texture);
+			UE_LOG(LogLandscape, Warning, TEXT("Texture Streaming Manager received more Unrequests than Requests to stream texture %s"), *Texture->GetName());
 		}
 	}
 }
@@ -128,14 +137,23 @@ bool FLandscapeTextureStreamingManager::WaitForTextureStreaming()
 	return bFullyStreamed;
 }
 
-void FLandscapeTextureStreamingManager::CleanupInvalidEntries()
+void FLandscapeTextureStreamingManager::CleanupPostGarbageCollect()
 {
 	for (auto It = TextureStates.CreateIterator(); It; ++It)
 	{
-		TWeakObjectPtr<UTexture>& TexPtr = It.Key();
-		if (!TexPtr.IsValid())
+		UTexture* Texture = It.Key().Get();
+		if (Texture == nullptr)
 		{
 			It.RemoveCurrent();
+		}
+		else
+		{
+			// reset the texture force resident after garbage collection (which clears it sometimes)
+			FTextureState& State = It.Value();
+			if (State.WantsTextureStreamedIn())
+			{
+				Texture->bForceMiplevelsToBeResident = true;
+			}
 		}
 	}
 }
@@ -152,7 +170,7 @@ void FLandscapeTextureStreamingManager::CheckRequestedTextures()
 			if (UTexture* Texture = It.Key().Get())
 			{
 				FTextureState& State = It.Value();
-				if (State.bForever || State.RequestCount > 0)
+				if (State.WantsTextureStreamedIn())
 				{
 					if (!Texture->bForceMiplevelsToBeResident)
 					{
@@ -175,18 +193,53 @@ bool FLandscapeTextureStreamingManager::IsTextureFullyStreamedIn(UTexture* InTex
 		!InTexture->HasPendingInitOrStreaming() && InTexture->IsFullyStreamedIn();
 }
 
+bool FLandscapeTextureStreamingManager::AnyStreamingManagerWantsTextureStreamedIn(TWeakObjectPtr<UTexture> TexturePtr)
+{
+	for (FLandscapeTextureStreamingManager* Manager : AllStreamingManagers)
+	{
+		if (FTextureState* State = Manager->TextureStates.Find(TexturePtr))
+		{
+			if (State->WantsTextureStreamedIn())
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+FLandscapeTextureStreamingManager::FLandscapeTextureStreamingManager()
+{
+	AllStreamingManagers.Add(this);
+}
+
 FLandscapeTextureStreamingManager::~FLandscapeTextureStreamingManager()
 {
-	if (!ensure(TextureStates.IsEmpty()))
+	AllStreamingManagers.RemoveSwap(this, EAllowShrinking::No);
+
+	// there could be some textures still requested, if they were requested "forever".
+	// since the world is going away, we can re-evaluate whether they should remain streamed or not.
+	int32 RemainingRequests = 0;
+	for (auto It = TextureStates.CreateIterator(); It; ++It)
 	{
-		// clear force stream flag on all textures, just in case
-		for (auto It = TextureStates.CreateIterator(); It; ++It)
+		FTextureState& State = It.Value();
+		if (State.RequestCount > 0)
 		{
-			UTexture* Texture = It.Key().Get();
-			if (Texture)
+			RemainingRequests++;
+		}
+
+		if (UTexture* Texture = It.Key().Get())
+		{
+			if (!AnyStreamingManagerWantsTextureStreamedIn(It.Key()))
 			{
+				// none of the remaining streaming managers request this texture, we can disable the mip requests
 				Texture->bForceMiplevelsToBeResident = false;
 			}
 		}
+	}
+
+	if (RemainingRequests > 0)
+	{
+		UE_LOG(LogLandscape, Display, TEXT("At destruction, the Landscape Texture Streaming Manager still has streaming requests for %d Textures, this may indicate failure to clean them up."), RemainingRequests);
 	}
 }

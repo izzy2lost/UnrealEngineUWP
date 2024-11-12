@@ -87,9 +87,6 @@ protected:
 
 private:
 	FAppEventPacket DequeueAppEvent();
-	void PauseRendering();
-	void ResumeRendering();
-
 
 	void ExecWindowCreated();
 	void ExecWindowResized();

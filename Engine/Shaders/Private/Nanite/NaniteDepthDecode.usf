@@ -16,16 +16,11 @@ uint4 HTileConfig;
 Texture2D<float> SceneDepth;
 
 Texture2D<uint>   ShadingMask;
-ByteAddressBuffer MaterialDepthTable;
 
 StructuredBuffer<uint> SceneHTileBuffer;
-StructuredBuffer<uint> MaterialHTileBuffer;
 
 RWTexture2D<float> SceneZDecoded;
 RWTexture2D<uint4> SceneZLayout;
-
-RWTexture2D<float> MaterialZDecoded;
-RWTexture2D<uint4> MaterialZLayout;
 
 // TODO: Need to adjust this to properly support dynamic res scaling on SceneDepth
 
@@ -49,22 +44,6 @@ void DepthDecode(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 
 	// Reverse Z Clear Value
 	const float ClearValue = 0.0f;
-	
-	// Material Depth
-	{
-		const uint  MaterialHTileEnc		= MaterialHTileBuffer[TileIndex];
-		const uint2 MaterialTileMinMaxFP	= DecodeTileMinMax(MaterialHTileEnc, HiStencil, CompareMinZ);
-		const float2 MaterialTileMinMax		= MaterialTileMinMaxFP / (float2)((1 << 14) - 1); // 14bit fixed point
-		const uint MaterialTileZMask		= BitFieldExtractU32(MaterialHTileEnc, 4u, 0u);
-
-		FShadingMask UnpackedMask = UnpackShadingMask(ShadingMask[PixelPos.xy]);
-
-		const uint MaterialDepthId = GetMaterialDepthId(UnpackedMask.ShadingBin, MaterialDepthTable);
-		MaterialZDecoded[PixelPos.xy] = asfloat(MaterialDepthId);
-
-		// Raw, Packed Min/Max, ZMask, TileIndex
-		MaterialZLayout[PixelPos.xy] = uint4(MaterialHTileEnc, f32tof16(MaterialTileMinMax.x) | (f32tof16(MaterialTileMinMax.y) << 16), MaterialTileZMask, TileIndex);
-	}
 
 	// Scene Depth
 	{

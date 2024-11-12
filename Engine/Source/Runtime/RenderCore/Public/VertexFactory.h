@@ -34,6 +34,8 @@
 
 #include <atomic>
 
+class FCbFieldView;
+class FCbWriter;
 class FMaterial;
 class FMeshDrawSingleShaderBindings;
 class FPrimitiveSceneProxy;
@@ -46,17 +48,46 @@ struct FVertexFactoryShaderPermutationParameters;
 struct FVertexInputStream
 {
 	uint32 StreamIndex : 4;
-	uint32 Offset : 28;
-	FRHIBuffer* VertexBuffer;
+	uint32 Offset : 27;
+	uint32 bStreamSourceSlot : 1;
+
+	union
+	{
+		// Contains the direct vertex buffer pointer
+		FRHIBuffer* VertexBuffer;
+
+		// Contains the stream source slot
+		FRHIStreamSourceSlot* StreamSourceSlot;
+
+		// Represents either ptr type as an opaque int for comparisons.
+		void* Pointer;
+	};
+
+	RENDERCORE_API void SetOnRHICommandList(FRHICommandList& RHICmdList) const;
 
 	FVertexInputStream() :
 		StreamIndex(0),
 		Offset(0),
+		bStreamSourceSlot(0),
 		VertexBuffer(nullptr)
 	{}
+	
+	FVertexInputStream(uint32 InStreamIndex, uint32 InOffset, nullptr_t)
+		: StreamIndex(InStreamIndex), Offset(InOffset), bStreamSourceSlot(0), VertexBuffer(nullptr)
+	{
+		// Verify no overflow
+		checkSlow(InStreamIndex == StreamIndex && InOffset == Offset);
+	}
+
+	FVertexInputStream(uint32 InStreamIndex, uint32 InOffset, FRHIStreamSourceSlot* InStreamSourceSlot)
+		: StreamIndex(InStreamIndex), Offset(InOffset), bStreamSourceSlot(1), StreamSourceSlot(InStreamSourceSlot)
+	{
+		// Verify no overflow
+		checkSlow(InStreamIndex == StreamIndex && InOffset == Offset);
+	}
 
 	FVertexInputStream(uint32 InStreamIndex, uint32 InOffset, FRHIBuffer* InVertexBuffer)
-		: StreamIndex(InStreamIndex), Offset(InOffset), VertexBuffer(InVertexBuffer)
+		: StreamIndex(InStreamIndex), Offset(InOffset), bStreamSourceSlot(0), VertexBuffer(InVertexBuffer)
 	{
 		// Verify no overflow
 		checkSlow(InStreamIndex == StreamIndex && InOffset == Offset);
@@ -65,8 +96,8 @@ struct FVertexInputStream
 	inline bool operator==(const FVertexInputStream& rhs) const
 	{
 		if (StreamIndex != rhs.StreamIndex ||
-			Offset != rhs.Offset || 
-			VertexBuffer != rhs.VertexBuffer) 
+			Offset != rhs.Offset ||
+			Pointer != rhs.Pointer)
 		{
 			return false;
 		}
@@ -86,10 +117,10 @@ struct FVertexInputStream
 
 /** 
  * Number of vertex input bindings to allocate inline within a FMeshDrawCommand.
- * This is tweaked so that the bindings for FLocalVertexFactory fit into the inline storage.
+ * This is tweaked so that the bindings for commonly cached factories (FLocalVertexFactory, FGPUBaseSkinVertexFactory) fit into the inline storage.
  * Overflow of the inline storage will cause a heap allocation per draw (and corresponding cache miss on traversal)
  */
-typedef TArray<FVertexInputStream, TInlineAllocator<4>> FVertexInputStreamArray;
+typedef TArray<FVertexInputStream, TInlineAllocator<7>> FVertexInputStreamArray;
 
 ENUM_CLASS_FLAGS(EVertexStreamUsage);
 
@@ -216,6 +247,8 @@ static const FTypeLayoutDesc* GetVertexFactoryParametersLayout(EShaderFrequency 
 	case SF_RayMiss: return TVertexFactoryParameterTraits<SF_RayMiss, VertexFactoryType>::GetLayout();
 	case SF_RayHitGroup: return TVertexFactoryParameterTraits<SF_RayHitGroup, VertexFactoryType>::GetLayout();
 	case SF_RayCallable: return TVertexFactoryParameterTraits<SF_RayCallable, VertexFactoryType>::GetLayout();
+	case SF_WorkGraphRoot: return TVertexFactoryParameterTraits<SF_WorkGraphRoot, VertexFactoryType>::GetLayout();
+	case SF_WorkGraphComputeNode: return TVertexFactoryParameterTraits<SF_WorkGraphComputeNode, VertexFactoryType>::GetLayout();
 	default: checkNoEntry(); return nullptr;
 	}
 }
@@ -235,6 +268,8 @@ static FVertexFactoryShaderParameters* ConstructVertexFactoryParameters(EShaderF
 	case SF_RayMiss: return TVertexFactoryParameterTraits<SF_RayMiss, VertexFactoryType>::Create(ParameterMap);
 	case SF_RayHitGroup: return TVertexFactoryParameterTraits<SF_RayHitGroup, VertexFactoryType>::Create(ParameterMap);
 	case SF_RayCallable: return TVertexFactoryParameterTraits<SF_RayCallable, VertexFactoryType>::Create(ParameterMap);
+	case SF_WorkGraphRoot: return TVertexFactoryParameterTraits<SF_WorkGraphRoot, VertexFactoryType>::Create(ParameterMap);
+	case SF_WorkGraphComputeNode: return TVertexFactoryParameterTraits<SF_WorkGraphComputeNode, VertexFactoryType>::Create(ParameterMap);
 	default: checkNoEntry(); return nullptr;
 	}
 }
@@ -264,6 +299,8 @@ static void GetVertexFactoryParametersElementShaderBindings(EShaderFrequency Sha
 	case SF_RayMiss: TVertexFactoryParameterTraits<SF_RayMiss, VertexFactoryType>::GetElementShaderBindings(Parameters, Scene, View, Shader, InputStreamType, FeatureLevel, VertexFactory, BatchElement, ShaderBindings, VertexStreams); break;
 	case SF_RayHitGroup: TVertexFactoryParameterTraits<SF_RayHitGroup, VertexFactoryType>::GetElementShaderBindings(Parameters, Scene, View, Shader, InputStreamType, FeatureLevel, VertexFactory, BatchElement, ShaderBindings, VertexStreams); break;
 	case SF_RayCallable: TVertexFactoryParameterTraits<SF_RayCallable, VertexFactoryType>::GetElementShaderBindings(Parameters, Scene, View, Shader, InputStreamType, FeatureLevel, VertexFactory, BatchElement, ShaderBindings, VertexStreams); break;
+	case SF_WorkGraphRoot: TVertexFactoryParameterTraits<SF_WorkGraphRoot, VertexFactoryType>::GetElementShaderBindings(Parameters, Scene, View, Shader, InputStreamType, FeatureLevel, VertexFactory, BatchElement, ShaderBindings, VertexStreams); break;
+	case SF_WorkGraphComputeNode: TVertexFactoryParameterTraits<SF_WorkGraphComputeNode, VertexFactoryType>::GetElementShaderBindings(Parameters, Scene, View, Shader, InputStreamType, FeatureLevel, VertexFactory, BatchElement, ShaderBindings, VertexStreams); break;
 	default: checkNoEntry(); break;
 	}
 }
@@ -312,9 +349,6 @@ public:
 
 	/** Initialize FVertexFactoryType static members, this must be called before any VF types are created. */
 	static void Initialize(const TMap<FString, TArray<const TCHAR*> >& ShaderFileToUniformBufferVariables);
-
-	/** Uninitializes FVertexFactoryType cached data. */
-	static void Uninitialize();
 
 	RENDERCORE_API FVertexFactoryType(
 		const TCHAR* InName,
@@ -432,18 +466,19 @@ public:
 	/** Adds include statements for uniform buffers that this shader type references, and builds a prefix for the shader file with the include statements. */
 	RENDERCORE_API void AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, EShaderPlatform Platform) const;
 
-	UE_DEPRECATED(5.2, "AddReferencedUniformBufferIncludes has moved to AddUniformBufferIncludesToEnvironment and no longer takes a prefix argument.")
-	inline void AddReferencedUniformBufferIncludes(FShaderCompilerEnvironment& OutEnvironment, FString& OutSourceFilePrefix, EShaderPlatform Platform) const
+	UE_DEPRECATED(5.5, "GetReferencedUniformBufferNames is deprecated; call GetReferencedUniformBuffers instead.")
+	inline const TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>>& GetReferencedUniformBufferNames() const 
 	{
-		AddUniformBufferIncludesToEnvironment(OutEnvironment, Platform);
+		static TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>> EmptySet;
+		return EmptySet; 
+	};
+
+	const TSet<const FShaderParametersMetadata*>& GetReferencedUniformBuffers() const
+	{
+		return ReferencedUniformBuffers;
 	}
 
 	RENDERCORE_API void UpdateReferencedUniformBufferNames(const TMap<FString, TArray<const TCHAR*>>& ShaderFileToUniformBufferVariables);
-
-	UE_DEPRECATED(5.2, "FlushShaderFileCache is deprecated. UpdateReferencedUniformBufferNames should be used to flush any uniform buffer changes")
-	RENDERCORE_API void FlushShaderFileCache(const TMap<FString, TArray<const TCHAR*> >& ShaderFileToUniformBufferVariables);
-
-	inline const TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>>& GetReferencedUniformBufferNames() const { return ReferencedUniformBufferNames; };
 #endif // WITH_EDITOR
 
 private:
@@ -471,11 +506,11 @@ private:
 
 #if WITH_EDITOR
 	/** 
-	 * Cache of referenced uniform buffer includes.  
+	 * Cache of referenced uniform buffer structs.
 	 * These are derived from source files so they need to be flushed when editing and recompiling shaders on the fly. 
 	 * FShaderType::Initialize will add the referenced uniform buffers, but this set may be updated by FlushShaderFileCache
 	 */
-	TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>> ReferencedUniformBufferNames;
+	TSet<const FShaderParametersMetadata*> ReferencedUniformBuffers;
 #endif // WITH_EDITOR
 };
 
@@ -568,6 +603,22 @@ public:
 	{
 		return !(*this == Reference);
 	}
+
+	/** Call GetShaderFileHash to get the cached value for the filename's hash in the current process. */
+	RENDERCORE_API void RefreshCachedSourceHash(EShaderPlatform ShaderPlatform);
+
+private:
+#if WITH_EDITOR
+	// Compact binary API with hidden friend operator<<
+	RENDERCORE_API void Save(FCbWriter& Writer) const;
+	bool TryLoad(FCbFieldView Field);
+	friend inline FCbWriter& operator<<(FCbWriter& Writer, const FVertexFactoryTypeDependency& Value)
+	{
+		Value.Save(Writer);
+		return Writer;
+	}
+	friend RENDERCORE_API bool LoadFromCompactBinary(FCbFieldView Field, FVertexFactoryTypeDependency& OutValue);
+#endif
 };
 
 /** Used to compare two Vertex Factory types by name. */

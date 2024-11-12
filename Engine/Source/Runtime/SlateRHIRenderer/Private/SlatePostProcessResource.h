@@ -5,9 +5,6 @@
 #include "CoreMinimal.h"
 #include "Textures/SlateShaderResource.h"
 #include "RenderResource.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RenderingThread.h"
-#endif
 #include "RenderDeferredCleanup.h"
 
 /**
@@ -19,7 +16,7 @@ public:
 	FSlatePostProcessResource(int32 InRenderTargetCount);
 	~FSlatePostProcessResource();
 
-	const FTexture2DRHIRef& GetRenderTarget(int32 Index)
+	const FTextureRHIRef& GetRenderTarget(int32 Index)
 	{
 		return RenderTargets[Index]; 
 	}
@@ -46,7 +43,7 @@ private:
 	void ResizeTargets(const FIntPoint& NewSize, EPixelFormat RequestedPixelFormat);
 
 private:
-	TArray<FTexture2DRHIRef, TInlineAllocator<2>> RenderTargets;
+	TArray<FTextureRHIRef, TInlineAllocator<2>> RenderTargets;
 	EPixelFormat PixelFormat;
 	FIntPoint RenderTargetSize;
 	int32 RenderTargetCount;

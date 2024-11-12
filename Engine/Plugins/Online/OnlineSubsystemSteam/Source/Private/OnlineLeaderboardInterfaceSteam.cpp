@@ -13,9 +13,9 @@
  * @param LeaderboardName name of leaderboard 
  * @param StatName name of stat
  */
-inline FName GetLeaderboardStatName(const FName& LeaderboardName, const FName& StatName)
+inline FString GetLeaderboardStatName(const FString& LeaderboardName, const FString& StatName)
 {
-	return TCHAR_TO_ANSI((*FString::Printf(TEXT("%s_%s"), *LeaderboardName.ToString(), *StatName.ToString())));
+	return FString::Printf(TEXT("%s_%s"), *LeaderboardName, *StatName);
 }
 
 /** Helper function to convert enums */
@@ -265,7 +265,7 @@ public:
 					for (FStatPropertyArray::TConstIterator It(Stats); It; ++It)
 					{
 						bool bSuccess = false;
-						const FString StatName = It.Key().ToString();
+						const FString StatName = It.Key();
 						const FVariantData& Stat = It.Value();
 
 						switch (Stat.GetType())
@@ -419,8 +419,8 @@ public:
 				for (int32 StatIdx = 0; StatIdx < ReadObject->ColumnMetadata.Num(); StatIdx++)
 				{
 					const FColumnMetaData& ColumnMeta = ReadObject->ColumnMetadata[StatIdx];
-					FName LeaderboardStat = GetLeaderboardStatName(ReadObject->LeaderboardName, ColumnMeta.ColumnName);
-					const FString StatName = LeaderboardStat.ToString();
+					const FString LeaderboardStat = GetLeaderboardStatName(ReadObject->LeaderboardName, ColumnMeta.ColumnName);
+					const FString StatName = LeaderboardStat;
 
 					bool bSuccess = false;
 					FVariantData* LastColumn = NULL;
@@ -592,7 +592,7 @@ private:
 	/** Has this request been started */
 	bool bInit;
 	/** Name of requested leaderboard */
-	FName LeaderboardName;
+	FString LeaderboardName;
 	/** Method of sorting the scores on the leaderboard */
 	ELeaderboardSort::Type SortMethod;
 	/** Method of displaying the data on the leaderboard */
@@ -609,17 +609,17 @@ private:
 	 * @param SortMethod method the leaderboard scores will be sorted, ignored if leaderboard exists
 	 * @param DisplayFormat type of data the leaderboard represents, ignored if leaderboard exists
 	 */
-	void CreateOrFindLeaderboard(const FName& InLeaderboardName, ELeaderboardSort::Type InSortMethod, ELeaderboardFormat::Type InDisplayFormat)
+	void CreateOrFindLeaderboard(const FString& InLeaderboardName, ELeaderboardSort::Type InSortMethod, ELeaderboardFormat::Type InDisplayFormat)
 	{
 		if (bFindOnly)
 		{
-			CallbackHandle = SteamUserStats()->FindLeaderboard(TCHAR_TO_UTF8(*InLeaderboardName.ToString()));
+			CallbackHandle = SteamUserStats()->FindLeaderboard(TCHAR_TO_UTF8(*InLeaderboardName));
 		}
 		else
 		{
 			ELeaderboardSortMethod SortMethodSteam = ToSteamLeaderboardSortMethod(InSortMethod);
 			ELeaderboardDisplayType DisplayTypeSteam = ToSteamLeaderboardDisplayType(InDisplayFormat);
-			CallbackHandle = SteamUserStats()->FindOrCreateLeaderboard(TCHAR_TO_UTF8(*InLeaderboardName.ToString()), SortMethodSteam, DisplayTypeSteam);
+			CallbackHandle = SteamUserStats()->FindOrCreateLeaderboard(TCHAR_TO_UTF8(*InLeaderboardName), SortMethodSteam, DisplayTypeSteam);
 		}
 	}
 
@@ -627,7 +627,6 @@ private:
 	FOnlineAsyncTaskSteamRetrieveLeaderboard() :
 		FOnlineAsyncTaskSteam(NULL, k_uAPICallInvalid),
 		bInit(false),
-		LeaderboardName(NAME_None),
 		SortMethod(ELeaderboardSort::Ascending),
 		DisplayFormat(ELeaderboardFormat::Number),
 		bFindOnly(true)
@@ -636,7 +635,7 @@ private:
 
 public:
 	/** Create a leaderboard implementation */
-	FOnlineAsyncTaskSteamRetrieveLeaderboard(FOnlineSubsystemSteam* InSteamSubsystem, const FName& InLeaderboardName, ELeaderboardSort::Type InSortMethod, ELeaderboardFormat::Type InDisplayFormat) :
+	FOnlineAsyncTaskSteamRetrieveLeaderboard(FOnlineSubsystemSteam* InSteamSubsystem, const FString& InLeaderboardName, ELeaderboardSort::Type InSortMethod, ELeaderboardFormat::Type InDisplayFormat) :
 		FOnlineAsyncTaskSteam(InSteamSubsystem, k_uAPICallInvalid),
 		bInit(false),
 		LeaderboardName(InLeaderboardName),
@@ -647,7 +646,7 @@ public:
 	}
 
 	/** Find a leaderboard implementation */
-	FOnlineAsyncTaskSteamRetrieveLeaderboard(FOnlineSubsystemSteam* InSteamSubsystem, const FName& InLeaderboardName) :
+	FOnlineAsyncTaskSteamRetrieveLeaderboard(FOnlineSubsystemSteam* InSteamSubsystem, const FString& InLeaderboardName) :
 		FOnlineAsyncTaskSteam(InSteamSubsystem, k_uAPICallInvalid),
 		bInit(false),
 		LeaderboardName(InLeaderboardName),
@@ -723,7 +722,7 @@ public:
 		if (bWasSuccessful)
 		{
 			ISteamUserStats* SteamUserPtr = SteamUserStats();
-			check(LeaderboardName.ToString() == FString(SteamUserPtr->GetLeaderboardName(CallbackResults.m_hSteamLeaderboard)));
+			check(LeaderboardName == FString(SteamUserPtr->GetLeaderboardName(CallbackResults.m_hSteamLeaderboard)));
 
 			Leaderboard->LeaderboardHandle = CallbackResults.m_hSteamLeaderboard;
 			Leaderboard->TotalLeaderboardRows = SteamUserPtr->GetLeaderboardEntryCount(CallbackResults.m_hSteamLeaderboard);
@@ -1074,9 +1073,9 @@ private:
 	/** Has this request been started */
 	bool bInit;
 	/** Name of leaderboard to update */
-	FName LeaderboardName;
+	FString LeaderboardName;
 	/** Name of stat that will replace/update the existing value on the leaderboard */
-	FName RatedStat;
+	FString RatedStat;
 	/** Score that will replace/update the existing value on the leaderboard */
 	int32 NewScore;
 	/** Method of update against the previous score */
@@ -1089,8 +1088,6 @@ private:
 	FOnlineAsyncTaskSteamUpdateLeaderboard() :
 		FOnlineAsyncTaskSteam(NULL, k_uAPICallInvalid),
 		bInit(false),
-		LeaderboardName(NAME_None),
-		RatedStat(NAME_None),
 		NewScore(0),
 		UpdateMethod(ELeaderboardUpdateMethod::KeepBest),
 		bShouldTriggerDelegates(false)
@@ -1098,7 +1095,7 @@ private:
 	}
 
 public:
-	FOnlineAsyncTaskSteamUpdateLeaderboard(FOnlineSubsystemSteam* InSteamSubsystem, const FName& InLeaderboardName, const FName& InRatedStat, ELeaderboardUpdateMethod::Type InUpdateMethod, bool bInShouldTriggerDelegates) :
+	FOnlineAsyncTaskSteamUpdateLeaderboard(FOnlineSubsystemSteam* InSteamSubsystem, const FString& InLeaderboardName, const FString& InRatedStat, ELeaderboardUpdateMethod::Type InUpdateMethod, bool bInShouldTriggerDelegates) :
 		FOnlineAsyncTaskSteam(InSteamSubsystem, k_uAPICallInvalid),
 		bInit(false),
 		LeaderboardName(InLeaderboardName),
@@ -1114,7 +1111,7 @@ public:
 	 */
 	virtual FString ToString() const override
 	{
-		return FString::Printf(TEXT("FOnlineAsyncTaskSteamUpdateLeaderboard bWasSuccessful: %d Leaderboard: %s Score: %d"), WasSuccessful(), *LeaderboardName.ToString(), NewScore);
+		return FString::Printf(TEXT("FOnlineAsyncTaskSteamUpdateLeaderboard bWasSuccessful: %d Leaderboard: %s Score: %d"), WasSuccessful(), *LeaderboardName, NewScore);
 	}
 
 	/**
@@ -1157,7 +1154,7 @@ public:
 					break;
 				}
 
-				const FString RatedStatName = GetLeaderboardStatName(LeaderboardName, RatedStat).ToString();
+				const FString RatedStatName = GetLeaderboardStatName(LeaderboardName, RatedStat);
 				if (SteamUserStats()->GetStat(TCHAR_TO_UTF8(*RatedStatName), &NewScore))
 				{
 					CallbackHandle = SteamUserStatsPtr->UploadLeaderboardScore(LeaderboardHandle, UpdateMethodSteam, NewScore, NULL, 0);
@@ -1505,7 +1502,7 @@ bool FOnlineLeaderboardsSteam::WriteLeaderboards(const FName& SessionName, const
 		for (FStatPropertyArray::TConstIterator It(WriteObject.Properties); It; ++It)
 		{
 			const FVariantData& Stat = It.Value();
-			FName LeaderboardStatName = GetLeaderboardStatName(WriteObject.LeaderboardNames[LeaderboardIdx], It.Key());
+			const FString LeaderboardStatName = GetLeaderboardStatName(WriteObject.LeaderboardNames[LeaderboardIdx], It.Key());
 			LeaderboardStats.Add(LeaderboardStatName, Stat);
 		}
 	}
@@ -1546,7 +1543,7 @@ bool FOnlineLeaderboardsSteam::WriteOnlinePlayerRatings(const FName& SessionName
 	return false;
 }
 
-FLeaderboardMetadataSteam* FOnlineLeaderboardsSteam::GetLeaderboardMetadata(const FName& LeaderboardName)
+FLeaderboardMetadataSteam* FOnlineLeaderboardsSteam::GetLeaderboardMetadata(const FString& LeaderboardName)
 {
 	FScopeLock ScopeLock(&LeaderboardMetadataLock);
 	for (int32 LeaderboardIdx = 0; LeaderboardIdx < Leaderboards.Num(); LeaderboardIdx++)
@@ -1561,7 +1558,7 @@ FLeaderboardMetadataSteam* FOnlineLeaderboardsSteam::GetLeaderboardMetadata(cons
 	return NULL;
 }
 
-void FOnlineLeaderboardsSteam::CreateLeaderboard(const FName& LeaderboardName, ELeaderboardSort::Type SortMethod, ELeaderboardFormat::Type DisplayFormat)
+void FOnlineLeaderboardsSteam::CreateLeaderboard(const FString& LeaderboardName, ELeaderboardSort::Type SortMethod, ELeaderboardFormat::Type DisplayFormat)
 {
 	FScopeLock ScopeLock(&LeaderboardMetadataLock);
 	FLeaderboardMetadataSteam* LeaderboardMetadata = GetLeaderboardMetadata(LeaderboardName);
@@ -1580,7 +1577,7 @@ void FOnlineLeaderboardsSteam::CreateLeaderboard(const FName& LeaderboardName, E
 	// else request already in flight or already found
 }
 
-void FOnlineLeaderboardsSteam::FindLeaderboard(const FName& LeaderboardName)
+void FOnlineLeaderboardsSteam::FindLeaderboard(const FString& LeaderboardName)
 {
 	FScopeLock ScopeLock(&LeaderboardMetadataLock);
 	FLeaderboardMetadataSteam* LeaderboardMetadata = GetLeaderboardMetadata(LeaderboardName);

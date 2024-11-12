@@ -71,6 +71,53 @@ public:
 
 };
 
+/**
+ * Similar to FMeshResolveTJunctions, but does not add any vertices to the mesh.
+ * Supports running multiple snapping iterations, because snapped-to edges may move in subsequent snaps.
+ */
+class FMeshSnapOpenBoundaries
+{
+public:
+	/** default tolerance is float ZeroTolerance */
+	DYNAMICMESH_API static const double DEFAULT_TOLERANCE;  // = FMathf::ZeroTolerance;
+
+	/** The mesh that we are modifying */
+	FDynamicMesh3* Mesh;
+
+	/** Subset of mesh boundary edges (otherwise all boundary edges are processed) */
+	TSet<int32> BoundaryEdges;
+
+	/** Distance threshold used for various checks (eg is vertex on edge, end endpoint tolerance, etc) */
+	double DistanceTolerance = DEFAULT_TOLERANCE;
+
+	/** Scalar multiple of DistanceTolerance at which we snap a vertex directly to another vertex, rather than an edge */
+	double VertexSnapToleranceFactor = 1.0;
+
+	/** Number of vertex snaps performed (cumulative over iterations) */
+	int32 NumVertexSnaps = 0;
+
+	/** Maximum number of snapping iterations to perform */
+	int32 MaxIterations = 1;
+
+	/** Whether vertices can be snapped to edges; otherwise, vertices are only snapped to other vertices */
+	bool bSnapToEdges = true;
+
+	/** Whether to avoid snapping in cases where doing so would locally flip a triangle */
+	bool bPreventFlips = true;
+
+
+public:
+	FMeshSnapOpenBoundaries(FDynamicMesh3* MeshIn) : Mesh(MeshIn)
+	{
+	}
+
+	/**
+	 * Run the resolve operation and modify .Mesh
+	 * @return true if the algorithm succeeds
+	 */
+	DYNAMICMESH_API bool Apply();
+
+};
 
 } // end namespace UE::Geometry
 } // end namespace UE

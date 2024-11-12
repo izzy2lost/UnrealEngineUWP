@@ -246,7 +246,6 @@ MONOLITHIC_HEADER_BOILERPLATE()
 #include "Exporters/TextureExporterBMP.h"
 #include "Exporters/TextureExporterHDR.h"
 #include "Exporters/RenderTargetExporterHDR.h"
-#include "Exporters/TextureExporterPCX.h"
 #include "Exporters/TextureExporterTGA.h"
 #include "ThumbnailRendering/ThumbnailRenderer.h"
 #include "ThumbnailRendering/DefaultSizedThumbnailRenderer.h"

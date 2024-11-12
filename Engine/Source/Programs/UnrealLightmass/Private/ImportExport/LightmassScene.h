@@ -23,6 +23,7 @@ class FBSPSurfaceStaticLighting;
 class FFluidSurfaceStaticLightingTextureMapping;
 class FLandscapeStaticLightingTextureMapping;
 class FStaticLightingGlobalVolumeMapping;
+class FLandscapeStaticLightingGlobalVolumeMapping;
 
 /** A sample of a light's surface. */
 class FLightSurfaceSample
@@ -774,6 +775,7 @@ public:
 	TArray<FFluidSurfaceStaticLightingTextureMapping>	FluidMappings;
 	TArray<FLandscapeStaticLightingTextureMapping>		LandscapeMappings;
 	TArray<FStaticLightingGlobalVolumeMapping>			VolumeMappings;
+	TArray<FLandscapeStaticLightingGlobalVolumeMapping> LandscapeVolumeMappings;
 
 	TArray<FGuid> VisibilityBucketGuids;
 	TArray<FGuid> VolumetricLightmapTaskGuids;

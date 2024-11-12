@@ -6,7 +6,7 @@
 #include "Async/UniqueLock.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
-#include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/VVMNativeAllocationGuard.h"
 #include "VerseVM/VVMWriteBarrier.h"
 
@@ -65,12 +65,12 @@ void VWeakCellMap::VisitReferencesImpl(TVisitor& Visitor)
 		Visitor.BeginMap(TEXT("Values"), ScratchNumElements);
 		for (auto It = Map.CreateIterator(); It; ++It)
 		{
-			Visitor.BeginObject();
-			if (Visitor.IsMarked(It->Key, TEXT("Key")))
-			{
-				Visitor.VisitNonNull(It->Value, TEXT("Value"));
-			}
-			Visitor.EndObject();
+			Visitor.VisitPair([&Visitor, &It] {
+				if (Visitor.IsMarked(It->Key, TEXT("Key")))
+				{
+					Visitor.VisitNonNull(It->Value, TEXT("Value"));
+				}
+			});
 		}
 		Visitor.EndMap();
 	}

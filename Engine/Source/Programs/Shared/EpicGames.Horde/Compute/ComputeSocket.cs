@@ -6,6 +6,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -377,12 +378,13 @@ namespace EpicGames.Horde.Compute
 		readonly object _lockObject = new object();
 
 		bool _complete;
+		bool _isClosing;
 
 		readonly ComputeTransport _transport;
 		readonly ComputeProtocol _protocol;
 		readonly ILogger _logger;
 
-		readonly BackgroundTask _recvTask;
+		BackgroundTask? _recvTask;
 		readonly Dictionary<int, RecvBuffer> _recvBuffers = new Dictionary<int, RecvBuffer>();
 
 		readonly SemaphoreSlim _sendSemaphore = new SemaphoreSlim(1, 1);
@@ -414,16 +416,34 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		public async ValueTask CloseAsync(CancellationToken cancellationToken)
 		{
-			// Close the transport layer, freeing the remote end to shutdown.
-			await _transport.MarkCompleteAsync(cancellationToken);
-
-			// Close all the buffers
-			await DetachAllBuffersAsync(true, true, cancellationToken);
-
-			// Wait for the reader to stop
-			if (_recvTask != null)
+			lock (_lockObject)
 			{
-				await _recvTask.DisposeAsync();
+				if (_isClosing)
+				{
+					return;
+				}
+				
+				_isClosing = true;
+			}
+			
+			try
+			{
+				// Close the transport layer, freeing the remote end to shutdown.
+				await _transport.MarkCompleteAsync(cancellationToken);
+				
+				// Close all the buffers
+				await DetachAllBuffersAsync(true, true, cancellationToken);
+				
+				// Wait for the reader to stop
+				if (_recvTask != null)
+				{
+					await _recvTask.DisposeAsync();
+					_recvTask = null;
+				}
+			}
+			catch (SocketException se) when (se.SocketErrorCode is SocketError.ConnectionReset or SocketError.ConnectionAborted)
+			{
+				_logger.LogInformation("Socket already closed. Ignoring exception");
 			}
 		}
 
@@ -518,7 +538,7 @@ namespace EpicGames.Horde.Compute
 			}
 			catch (Exception e)
 			{
-				_logger.LogInformation(e, "Error in background receive");
+				_logger.LogInformation(e, "Exception in background receive");
 				throw;
 			}
 		}
@@ -579,6 +599,12 @@ namespace EpicGames.Horde.Compute
 						for (int offset = 0; offset < size;)
 						{
 							int read = await transport.RecvAsync(memory.Slice(offset, size - offset), cancellationToken);
+							if (read == 0)
+							{
+								// Return true to avoid logic in ReadPacketAsync() from trying to read the whole message from a closed stream
+								_logger.LogDebug("Unexpected end of stream while parsing message for channel {Id}; discarding message.", id);
+								return true;
+							}
 							offset += read;
 						}
 
@@ -661,7 +687,7 @@ namespace EpicGames.Horde.Compute
 				_recvBuffers.Add(channelId, new RecvBuffer(recvBuffer.CreateWriter()));
 
 				// Only start the receive task once we have a buffer to receive data, otherwise we discard data from the remote
-				if (_recvTask.Task == null)
+				if (_recvTask is { Task: null })
 				{
 					_recvTask.Start();
 				}
@@ -853,7 +879,7 @@ namespace EpicGames.Horde.Compute
 			}
 			catch (Exception ex)
 			{
-				_logger.LogInformation(ex, "Error in background send: {Message}", ex.Message);
+				_logger.LogInformation(ex, "Exception in background send: {Message}", ex.Message);
 			}
 		}
 	}

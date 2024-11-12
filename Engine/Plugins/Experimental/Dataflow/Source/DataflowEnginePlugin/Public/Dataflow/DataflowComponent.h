@@ -10,6 +10,7 @@
 
 #include "DataflowComponent.generated.h"
 
+namespace UE::Dataflow { class IDataflowConstructionViewMode; }
 
 /**
 *	UDataflowComponent
@@ -28,7 +29,6 @@ public:
 
 
 	//~ USceneComponent Interface.
-	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const override;
 
 	//~ UPrimitiveComponent Interface.
@@ -45,14 +45,12 @@ public:
 	const TArray<const UDataflowEdNode*>& GetRenderTargets() const {return RenderTargets;}
 
 	/** Context */
-	void SetContext(TSharedPtr<Dataflow::FContext> InContext) { Context = InContext; }
+	void SetContext(TSharedPtr<UE::Dataflow::FContext> InContext) { Context = InContext; }
 
 	/** RenderCollection */
 	void SetRenderingCollection(FManagedArrayCollection&& InCollection);
 	const FManagedArrayCollection& GetRenderingCollection() const;
 	      FManagedArrayCollection& ModifyRenderingCollection();
-	void BuildRenderCollection();
-
 
 	/** Dataflow */
 	void SetDataflow(const UDataflow* InDataflow) { Dataflow = InDataflow; }
@@ -66,9 +64,16 @@ public:
 		SelectionState = InState; 
 	}
 
+	/* View mode */
+	// NOTE: Currently UDataflowComponent is not used in the Dataflow Editor. Instead the FDataflowConstructionScene converts the FRenderingFacade to a UDynamicMeshComponent.
+	// If we do start using UDataflowComponent we will need to update the current View Mode as it's changed using this function.
+	void SetViewMode(const UE::Dataflow::IDataflowConstructionViewMode* InViewMode)
+	{
+		ViewMode = InViewMode;
+	}
 
 private:
-	TSharedPtr<Dataflow::FContext> Context;
+	TSharedPtr<UE::Dataflow::FContext> Context;
 	TArray<const UDataflowEdNode*> RenderTargets;
 	TObjectPtr< const UDataflow> Dataflow;
 	FManagedArrayCollection RenderCollection;
@@ -78,5 +83,6 @@ private:
 	bool bBoundsNeedsUpdate = true;
 	FBoxSphereBounds BoundingBox = FBoxSphereBounds(ForceInitToZero);
 	FDataflowSelectionState SelectionState = FDataflowSelectionState(FDataflowSelectionState::EMode::DSS_Dataflow_None);
+	const UE::Dataflow::IDataflowConstructionViewMode* ViewMode;
 };
 

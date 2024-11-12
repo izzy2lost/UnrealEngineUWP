@@ -2,6 +2,7 @@
 
 #include "BuoyancyAlgorithms.h"
 #include "BuoyancyStats.h"
+#include "BuoyancyParticleData.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "Chaos/ParticleHandle.h"
@@ -18,6 +19,9 @@
 //
 
 extern bool bBuoyancyDebugDraw;
+
+bool bBuoyancyAlgorithmsAllowVolRatioOverOne = false;
+FAutoConsoleVariableRef CVarBuoyancyAlgorithmsAllowVolRatioOverOne(TEXT("p.Buoyancy.Algorithms.AllowVolRatioOverOne"), bBuoyancyAlgorithmsAllowVolRatioOverOne, TEXT(""));
 
 
 //
@@ -245,10 +249,15 @@ namespace BuoyancyAlgorithms
 		}
 
 		// Adjust the output volume based on the ratio of the material volume and the shape volume.
-		// We expect the shape volume to have overestimated the submerged volume for most shapes,
-		// especially those which are hollow.
+		//
+		// In most cases, we expect the shape volume to have overestimated the submerged volume for
+		// most shapes, especially those which are hollow.
+		//
+		// In some cases, if the mass of the submerged object has been changed independently of the
+		// density, which increases		
 		if (ParticleVol > UE_SMALL_NUMBER &&
-			ParticleVol < ShapeVol)
+			ShapeVol > UE_SMALL_NUMBER &&
+			(bBuoyancyAlgorithmsAllowVolRatioOverOne || ParticleVol < ShapeVol))
 		{
 			const float VolRatio = ParticleVol / ShapeVol;
 			SubmergedVol *= VolRatio;
@@ -256,12 +265,12 @@ namespace BuoyancyAlgorithms
 	}
 
 
-	bool ComputeSubmergedVolume(const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const FVector& WaterX, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM, float& TotalVol)
+	bool ComputeSubmergedVolume(FBuoyancyParticleData& ParticleData, const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const FVector& WaterX, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, float& SubmergedVol, FVec3& SubmergedCoM, float& TotalVol)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_ComputeSubmergedVolume)
 
-		if (ComputeSubmergedVolume(SubmergedParticle, WaterParticle, WaterX, WaterN, NumSubdivisions, MinVolume, SubmergedShapes, SubmergedVol, SubmergedCoM))
-		{
+		if (ComputeSubmergedVolume(ParticleData, SubmergedParticle, WaterParticle, WaterX, WaterN, NumSubdivisions, MinVolume, SubmergedVol, SubmergedCoM))
+		{			
 			ScaleSubmergedVolume(Evolution, SubmergedParticle, SubmergedVol, TotalVol);
 
 
@@ -279,14 +288,16 @@ namespace BuoyancyAlgorithms
 		return false;
 	}
 
-	bool ComputeSubmergedVolume(const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const FVector& WaterX, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM)
+
+	bool ComputeSubmergedVolume(FBuoyancyParticleData& ParticleData, const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const FVector& WaterX, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, float& SubmergedVol, FVec3& SubmergedCoM)
 	{
 		// Get some initial data about the submerged particle
 		const FImplicitObject* RootImplicit = SubmergedParticle->GetGeometry();
 		const FShapeInstanceArray& ShapeInstances = SubmergedParticle->ShapeInstances();
 		const FConstGenericParticleHandle SubmergedGeneric = SubmergedParticle;
 		const FRigidTransform3 ParticleWorldTransform = SubmergedGeneric->GetTransformPQ();
-		const int32 ParticleIndex = SubmergedParticle->UniqueIdx().Idx;
+		const int32 ParticleIndex = ParticleData.GetIndex(*SubmergedParticle);
+		TSparseArray<TBitArray<>>& SubmergedShapes = ParticleData.SubmergedShapes;
 
 		// Some info about the water
 		const FImplicitObject* WaterRootImplicit = WaterParticle->GetGeometry();
@@ -338,14 +349,14 @@ namespace BuoyancyAlgorithms
 			const FAABB3 WorldBox = LocalBox.TransformedAABB(ShapeWorldTransform);
 
 #if ENABLE_DRAW_DEBUG
-			if (bBuoyancyDebugDraw)
-			{
-				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(
-					ShapeWorldTransform.TransformPosition(LocalBox.GetCenter()),
-					LocalBox.Extents() * .5f,
-					ShapeWorldTransform.GetRotation(),
-					FColor::Green, false, -1.f, SDPG_Foreground, 1.f);
-			}
+			//if (bBuoyancyDebugDraw)
+			//{
+			//	Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(
+			//		ShapeWorldTransform.TransformPosition(LocalBox.GetCenter()),
+			//		LocalBox.Extents() * .5f,
+			//		ShapeWorldTransform.GetRotation(),
+			//		FColor::Green, false, -1.f, SDPG_Foreground, 1.f);
+			//}
 #endif
 
 			// Get the world space position of the shape
@@ -391,11 +402,11 @@ namespace BuoyancyAlgorithms
 #if ENABLE_DRAW_DEBUG
 					if (bBuoyancyDebugDraw)
 					{
-						Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(
-							ShapeWorldTransform.TransformPosition(SubmergedBox.GetCenter()),
-							SubmergedBox.Extents() * .5f,
-							ShapeWorldTransform.GetRotation(),
-							FColor::Red, false, -1.f, SDPG_Foreground, 1.f);
+						//Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(
+//							ShapeWorldTransform.TransformPosition(SubmergedBox.GetCenter()),
+							//SubmergedBox.Extents() * .5f,
+							//ShapeWorldTransform.GetRotation(),
+							//FColor::Red, false, -1.f, SDPG_Foreground, 1.f);
 					}
 #endif
 				}
@@ -592,7 +603,7 @@ namespace BuoyancyAlgorithms
 		// Compute water drag force
 		//
 		// NOTE: This is a very approximate "ether drag" style model here, probably 
-		// we should scale the model with submerged volume for more accuracy,
+		// we should scale the model with submerged volume for more accuracy,WorldBox
 		// and apply the drag force in opposition to the linear motion of the submerged
 		// center of mass.
 		const float DragFactor = FMath::Max(0.f, 1.f - (WaterDrag * DeltaSeconds));
@@ -604,4 +615,649 @@ namespace BuoyancyAlgorithms
 		//
 		return true;
 	}
+		
+	void ComputeSubmergedVolumeAndForcesForParticle(FBuoyancyParticleData& ParticleData, 
+		const Chaos::FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, 
+		const FShallowWaterSimulationGrid& ShallowWaterGrid,
+		const Chaos::FPBDRigidsEvolution& Evolution, const float DeltaSeconds, const float WaterDensity, const float WaterDrag,
+		float &OutTotalSubmergedVol, Chaos::FVec3 &OutTotalSubmergedCoM, Chaos::FVec3 &OutTotalForce, Chaos::FVec3 &OutTotalTorque)
+	{		
+		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_ComputeSubmergedVolumeAndForcesForParticle)
+
+		// Initialize cumulative values
+		OutTotalSubmergedVol = 0;
+		OutTotalSubmergedCoM = FVec3::ZeroVector;
+		OutTotalForce = FVec3::ZeroVector;
+		OutTotalTorque = FVec3::ZeroVector;
+			
+		// Get some initial data about the submerged particle
+		const FImplicitObject* RootImplicit = SubmergedParticle->GetGeometry();
+		const FShapeInstanceArray& ShapeInstances = SubmergedParticle->ShapeInstances();
+		const FConstGenericParticleHandle SubmergedGeneric = SubmergedParticle;
+		const FRigidTransform3 ParticleWorldTransform = SubmergedGeneric->GetTransformPQ();
+		const int32 ParticleIndex = ParticleData.GetIndex(*SubmergedParticle);
+		TSparseArray<TBitArray<>>& SubmergedShapes = ParticleData.SubmergedShapes;
+
+		// Some info about the water
+		const FImplicitObject* WaterRootImplicit = WaterParticle->GetGeometry();
+		const EImplicitObjectType WaterShapeType = Chaos::Private::GetImplicitCollisionType(WaterParticle, WaterRootImplicit);
+		const FShapeInstanceArray& WaterShapeInstances = WaterParticle->ShapeInstances();
+		const FShapeInstance* WaterShapeInstance = WaterShapeInstances[0].Get();
+
+		// Traverse the submerged particle's leaves
+		RootImplicit->VisitLeafObjects(
+			[&Evolution, DeltaSeconds, WaterDensity, WaterDrag, SubmergedParticle, &ShallowWaterGrid, 
+			ParticleIndex, &ShapeInstances, WaterShapeType, WaterShapeInstance, &ParticleWorldTransform, 
+			&SubmergedShapes, &OutTotalSubmergedVol, &OutTotalSubmergedCoM,
+			&OutTotalForce, &OutTotalTorque]
+			(const FImplicitObject* Implicit, const FRigidTransform3& RelativeTransform, const int32 RootObjectIndex, const int32 ObjectIndex, const int32 LeafObjectIndex)
+			{				
+				const FAABB3 RelativeBounds = Implicit->CalculateTransformedBounds(RelativeTransform);
+				const int32 ShapeIndex = (ShapeInstances.IsValidIndex(RootObjectIndex)) ? RootObjectIndex : 0;
+				const FShapeInstance* ShapeInstance = ShapeInstances[ShapeIndex].Get();
+				const EImplicitObjectType ShapeType = Chaos::Private::GetImplicitCollisionType(SubmergedParticle, Implicit);
+
+				// If this shape pair doesn't pass a narrow phase test then skip it
+				if (!ShapePairNarrowPhaseFilter(ShapeType, ShapeInstance, WaterShapeType, WaterShapeInstance))
+				{
+					return;
+				}
+
+				// If this shape has already been submerged, skip it to avoid double-counting
+				// any buoyancy contributions.
+				if (IsShapeSubmerged_Internal(SubmergedShapes, ParticleIndex, ObjectIndex))
+				{
+					return;
+				}
+				
+				FVec3 OutWaterP, OutWaterN;
+				float OutSubmergedVol;
+				FVec3 OutSubmergedCoM;
+				FVec3 OutForce, OutTorque;
+				ComputeSubmergedVolumeAndForcesForShape(SubmergedParticle,
+					Evolution, DeltaSeconds, WaterDensity, WaterDrag,
+					Implicit, RelativeTransform, RootObjectIndex, ObjectIndex, LeafObjectIndex,
+					ShallowWaterGrid,
+					OutWaterP, OutWaterN,
+					OutSubmergedVol, OutSubmergedCoM,
+					OutForce, OutTorque);
+
+				// mark the shape as submerged
+				if (OutSubmergedVol > SMALL_NUMBER)
+				{
+					OutTotalForce += OutForce;
+					OutTotalTorque += OutTorque;
+					OutTotalSubmergedCoM += OutSubmergedCoM * OutSubmergedVol;
+
+					OutTotalSubmergedVol += OutSubmergedVol;
+
+					SubmergeShape_Internal(SubmergedShapes, ParticleIndex, ObjectIndex);
+				}
+			});
+
+		// compute final force and torque for particle as weighted average of all the shapes
+		OutTotalSubmergedCoM /= OutTotalSubmergedVol;
+	}
+
+	void ComputeSubmergedVolumeAndForcesForShape(const Chaos::FGeometryParticleHandle* SubmergedParticle,
+		const Chaos::FPBDRigidsEvolution& Evolution, float DeltaSeconds, const float WaterDensity, const float WaterDrag,
+		const Chaos::FImplicitObject* Implicit, const Chaos::FRigidTransform3& RelativeTransform, const int32 RootObjectIndex, const int32 ObjectIndex, const int32 LeafObjectIndex,
+		const FShallowWaterSimulationGrid& ShallowWaterGrid,		
+		Chaos::FVec3& OutWaterP, Chaos::FVec3& OutWaterN,
+		float& OutSubmergedVol, Chaos::FVec3& OutSubmergedCoM,
+		Chaos::FVec3& OutForce, Chaos::FVec3& OutTorque)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_ComputeSubmergedVolumeAndForcesForShape)
+
+		const FConstGenericParticleHandle SubmergedGeneric = SubmergedParticle;
+		const FRigidTransform3 ParticleWorldTransform = SubmergedGeneric->GetTransformPQ();
+
+		const FPBDRigidParticleHandle* RigidParticle = SubmergedParticle->CastToRigidParticle();
+
+		// Get the world-space bounds of shape A
+		FRigidTransform3 ShapeWorldTransform = RelativeTransform * ParticleWorldTransform;
+		FAABB3 LocalBox = Implicit->BoundingBox();
+		if (const FImplicitSphere3* Sphere = Implicit->AsA<FImplicitSphere3>())
+		{
+			// If we have a sphere, ignore rotation because submerged volume is independent of rotation
+			// and also we don't want to apply any torques on the wheel.			
+			const FVec3 SphereCenter = ShapeWorldTransform.TransformPosition(Sphere->GetCenter());
+			const FVec3 SphereExtent = FVec3(Sphere->GetRadius());
+			LocalBox = FAABB3(-SphereExtent, SphereExtent);
+			ShapeWorldTransform.SetTranslation(SphereCenter);
+
+			// #todo(dmp): at this point, we haven't figured out the water normal so we use up vector for now
+			FVec3 TmpWaterN = {0, 0, 1};
+			ShapeWorldTransform.SetRotation(FRotationMatrix::MakeFromZ(TmpWaterN).ToQuat());
+		}
+				
+		// water plane parameters for the body.  Note we have 1 plane per box
+		OutWaterP = FVec3(0, 0, 0);
+		OutWaterN = FVec3(0, 0, 1);
+
+		// Compute submerged volume and CoM
+		OutSubmergedVol = 0;
+		OutSubmergedCoM = FVec3(0, 0, 0);
+
+		// output forces
+		OutForce = FVec3(0, 0, 0);
+		OutTorque = FVec3(0, 0, 0);
+
+		float SubmergedCOMTotalWeight = 0;
+		
+		FVector WorldBoxCenter = ShapeWorldTransform.TransformPosition(LocalBox.GetCenter());
+
+		// #todo(dmp): just store normals in the shallow water texture and avoid all this
+		// water plane position is computed from the centroid of the box		
+		FVector CenterVelocity;
+		float CenterHeight;
+		float CenterDepth;
+		ShallowWaterGrid.SampleShallowWaterSimulationAtPosition(WorldBoxCenter, CenterVelocity, CenterHeight, CenterDepth);
+
+		// no water at shape centroid of shape so we return
+		if (CenterDepth < SMALL_NUMBER)
+		{
+			return;
+		}
+
+		// #todo(dmp): lift normal computation out of this to make function more generic
+		// water plane is based on the shape's centroid
+		OutWaterP = WorldBoxCenter;
+		OutWaterP.Z = CenterHeight;
+		OutWaterN = ShallowWaterGrid.ComputeShallowWaterSimulationNormalAtPosition(OutWaterP);
+
+		// #todo(dmp): generalize to convex shapes and remove box assumption
+		const int TotalNumVertices = 8;
+
+		FVector WorldVertexPosition[TotalNumVertices];
+		bool VertexIsUnderwater[TotalNumVertices];
+
+		// keep track of a reference point inside the clipped geometry that is the average of all the 
+		// submerged vertices and intersection points this will jump around because it isn't weighted by the area/volume
+		// but is sufficient for tet volume computations since we only need an interior point
+		FVector InteriorRefPoint(0, 0, 0);
+		int InteriorRefPointCount = 0;
+
+		// cache water values for each vertex and determine broadphase of shape interacting with the water	
+		for (int i = 0; i < TotalNumVertices; ++i)
+		{
+			// compute world space position of vertex
+			const FVector CurrWorldVertexPosition = ShapeWorldTransform.TransformPosition(LocalBox.GetVertex(i));
+			WorldVertexPosition[i] = CurrWorldVertexPosition;
+
+			if ((CurrWorldVertexPosition - OutWaterP).Dot(OutWaterN) < 0)
+			{
+				VertexIsUnderwater[i] = true;
+				InteriorRefPoint += WorldVertexPosition[i];
+				InteriorRefPointCount++;
+			}
+			else
+			{
+				VertexIsUnderwater[i] = false;
+			}
+		}
+
+		// find intersection points of the box and water plane
+		FVector IntersectionCenter;			
+		TArray<FVector> OrderedIntersectionPoints;
+		TMap<int, FVector> AllIntersectionPoints;		
+		BuoyancyAlgorithms::FindAllIntersectionPoints(OutWaterP, OutWaterN, LocalBox, WorldVertexPosition, AllIntersectionPoints, OrderedIntersectionPoints, IntersectionCenter);
+		const int NumIntersectionPoints = AllIntersectionPoints.Num();
+		
+		// Add intersection points to interior reference point
+		// values are already accumulated into the intersection center
+		InteriorRefPoint += IntersectionCenter * NumIntersectionPoints;
+		InteriorRefPointCount += NumIntersectionPoints;
+		InteriorRefPoint /= InteriorRefPointCount;
+
+		float AccumulatedForceWeight = 0;
+		
+		const FVec3 WorldCoM = SubmergedGeneric->PCom();
+
+		// Sum up submerged areas and volumes for each face
+		const int NumFaces = 6;
+		for (int FaceIdx = 0; FaceIdx < NumFaces; ++FaceIdx)
+		{
+			const Chaos::FAABBFace CurrFace = LocalBox.GetFace(FaceIdx);
+
+			// compute area of unsubmerged face	
+			// #todo(dmp): precompute edge lengths
+			const FVector Pos0 = WorldVertexPosition[CurrFace.VertexIndex[0]];
+			const FVector Pos1 = WorldVertexPosition[CurrFace.VertexIndex[1]];
+			const FVector Pos2 = WorldVertexPosition[CurrFace.VertexIndex[2]];
+			const float FaceArea = (Pos1 - Pos0).Length() * (Pos2 - Pos1).Length();
+
+			// skip small faces from degenerate bodies
+			if (FaceArea < SMALL_NUMBER)
+			{
+				continue;
+			}
+
+			FVector IntersectedFaceCenter(0, 0, 0);
+
+			// we know that a given face can have at most 5 points below the surface
+			// #todo(dmp): we need to remove this assumption if we support convex hulls or other types of geometry
+			static constexpr int32 MaxNumVerticesBelowWater = 5;
+			TArray<FVector, TInlineAllocator<MaxNumVerticesBelowWater>> FaceIntersectionPoints;
+
+			// walk vertices for the current face in counter clockwise order and find intersections and
+			// submerged vertices
+			const int NumVerticesForFace = 4;
+			for (int i = 0; i < NumVerticesForFace; ++i)
+			{
+				// get the current edge index belonging to the i and i+1 vertices
+				// note this is a bit weird...we could just ask the edge for the vertices but they
+				// might be in the wrong order for correctly constructing the intersected face
+				const int CurrEdgeIdx = CurrFace.EdgeIndex[i];
+
+				// get the indices of the two vertices for the current edge
+				const int Edge0Idx = CurrFace.VertexIndex[i];
+				const int Edge1Idx = CurrFace.VertexIndex[(i + 1) % 4];
+				const FVector V0 = WorldVertexPosition[Edge0Idx];
+				const FVector V1 = WorldVertexPosition[Edge1Idx];
+
+				// if there is an intersection for this edge, add it to the list for the current face
+				const FVector* EdgeIntersection = AllIntersectionPoints.Find(CurrEdgeIdx);
+				if (EdgeIntersection)
+				{
+					FaceIntersectionPoints.Add(*EdgeIntersection);
+					IntersectedFaceCenter += *EdgeIntersection;
+				}
+
+				// add the second endpoint if it is underwater
+				if (VertexIsUnderwater[Edge1Idx])
+				{
+					FaceIntersectionPoints.Add(V1);
+					IntersectedFaceCenter += V1;
+				}
+			}
+			
+			const int NumFaceIntersectionPts = FaceIntersectionPoints.Num();
+
+			// if the face intersects the water or is fully submerged, compute face coverage
+			if (NumFaceIntersectionPts > 0)
+			{
+				IntersectedFaceCenter /= NumFaceIntersectionPts;
+
+				// we have a list of the intersection points for a face in correct counterclockwise order
+				// fan layout for points on face, sum up areas and volume for the current face
+				for (int i = 0; i < NumFaceIntersectionPts; i++)
+				{
+					const FVector V0 = FaceIntersectionPoints[i];
+					const FVector V1 = FaceIntersectionPoints[(i + 1) % NumFaceIntersectionPts];
+					const FVector V2 = IntersectedFaceCenter;
+
+					FVector TriBaryCenter;
+					float TriArea;
+					float TetVolume;
+					FVector TriNormal;
+					BuoyancyAlgorithms::ComputeTriangleAreaAndVolume(V0, V1, V2, InteriorRefPoint, TriBaryCenter, TriNormal, TriArea, TetVolume, bBuoyancyDebugDraw);
+
+					// skip degenerate triangles with 0 area
+					if (TriArea < SMALL_NUMBER)
+					{
+						continue;
+					}
+
+					OutSubmergedCoM += TriBaryCenter * TriArea;
+					SubmergedCOMTotalWeight += TriArea;
+					OutSubmergedVol += TetVolume;
+
+					/////
+					// sum up forces/torques on the triangle
+					/////								
+
+					// sample velocity at center of triangle
+					// #todo(dmp): this should just be interpolated from vertex velocities to avoid so many samples	
+					// #todo(dmp): split arrays out to store velocity separate from other values
+					FVector CurrWaterVelocity;
+					float TmpWaterVal;
+					ShallowWaterGrid.SampleShallowWaterSimulationAtPosition(TriBaryCenter,
+						CurrWaterVelocity, TmpWaterVal, TmpWaterVal);
+
+					FVector TotalWorldForce;
+					FVector TotalWorldTorque;
+
+					// #todo(dmp): we scale drag to make it closer to the old algorithm for now
+					const float DragFactor = .1 * WaterDrag;
+					BuoyancyAlgorithms::ComputeFluidForceForTriangle(
+						DragFactor, DeltaSeconds, RigidParticle, WorldCoM, TriBaryCenter, TriNormal, TriArea, TetVolume,
+						CurrWaterVelocity, OutWaterP, OutWaterN, TotalWorldForce, TotalWorldTorque);
+
+					OutForce += TotalWorldForce * TriArea;
+					OutTorque += TotalWorldTorque * TriArea;
+					AccumulatedForceWeight += TriArea;
+
+#if ENABLE_DRAW_DEBUG
+					if (bBuoyancyDebugDraw)
+					{
+						FVector CurrWaterVelocityViz = CurrWaterVelocity;
+						CurrWaterVelocityViz.Normalize();
+						Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(TriBaryCenter, TriBaryCenter + CurrWaterVelocityViz * 20, 20, FColor::Red, false, -1.f, -1, 2.f);
+						Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(TriBaryCenter, TriBaryCenter + TotalWorldForce * .01, 20, FColor::Green, false, -1.f, -1, 2.f);
+					}
+#endif					
+				}
+			}
+		}
+
+		// Sum up tet volumes from the fan of triangles across the intersection face
+		int NumOrderedIntersectionPoints = OrderedIntersectionPoints.Num();
+		for (int i = 0; i < NumOrderedIntersectionPoints; i++)
+		{
+			FVector V0 = OrderedIntersectionPoints[i];
+			FVector V1 = OrderedIntersectionPoints[(i + 1) % NumOrderedIntersectionPoints];
+			FVector V2 = IntersectionCenter;
+
+			FVector TriBaryCenter;
+			float TriArea;
+			float TetVolume;
+			FVector TriNormal;
+			BuoyancyAlgorithms::ComputeTriangleAreaAndVolume(V0, V1, V2, InteriorRefPoint, TriBaryCenter, TriNormal, TriArea, TetVolume, bBuoyancyDebugDraw);
+
+			// skip degenerate triangles with 0 area
+			if (TriArea < SMALL_NUMBER)
+			{
+				continue;
+			}
+
+			OutSubmergedCoM += TriBaryCenter * TriArea;
+			SubmergedCOMTotalWeight += TriArea;
+			OutSubmergedVol += TetVolume;
+		}
+
+		// normalize weighted average of contributions to world submerged COM
+		// return if nothing has contributed to CoM
+		if (SubmergedCOMTotalWeight > SMALL_NUMBER)
+		{
+			OutSubmergedCoM /= SubmergedCOMTotalWeight;
+		}
+		else
+		{
+			return;
+		}
+
+		// #todo(dmp): is it correct to normalize by the accumulated area over which the force is done?  Seems wrong...
+		if (AccumulatedForceWeight > SMALL_NUMBER)
+		{
+			OutForce /= AccumulatedForceWeight;
+			OutTorque /= AccumulatedForceWeight;
+		}
+
+		// compute buoyancy force and delta velocity for solver
+		Chaos::FVec3 WorldBuoyantForce, WorldBuoyantTorque;
+		BuoyancyAlgorithms::ComputeBuoyantForceForShape(Evolution, RigidParticle, DeltaSeconds,
+			WaterDensity, OutSubmergedCoM, OutSubmergedVol, OutWaterN, WorldBuoyantForce, WorldBuoyantTorque);
+
+		// Total force acting on the particle is the buoyant force plus all the forces due to matching the fluid velocity
+		OutForce += WorldBuoyantForce;
+		OutTorque += WorldBuoyantTorque;
+
+#if ENABLE_DRAW_DEBUG
+		if (bBuoyancyDebugDraw)
+		{
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(WorldBoxCenter, 10, 10, FColor::Green, false, -1.f, -1, 2.0f);
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(InteriorRefPoint, 10, 10, FColor::Yellow, false, -1.f, -1, 2.0f);
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(OutWaterP, 10, 10, FColor::Orange, false, -1.f, -1, 2.0f);
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(OutWaterP, OutWaterP + OutWaterN * 100, 20, FColor::Orange, false, -1.f, -1, 6.f);
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(OutSubmergedCoM, 10, 10, FColor::Magenta, false, -1.f, -1, 2.0f);
+
+			//float SubmergedVol1;
+			//Chaos::FVec3 SubmergedCoM1;
+			//float TotalVol1;
+			//if (BuoyancyAlgorithms::ComputeSubmergedVolume(BuoyancyParticleData, Evolution, Interaction.RigidParticle, Interaction.WaterParticle, Interaction.ClosestPoint, WaterN, BuoyancySettings->MaxNumBoundsSubdivisions, BuoyancySettings->MinBoundsSubdivisionVol, SubmergedVol1, SubmergedCoM1, TotalVol1))
+			//{
+			//}
+			//Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(SubmergedCoM1, 10, 10, FColor::Black, false, -1.f, -1, 2.0f);
+
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(
+				ShapeWorldTransform.TransformPosition(LocalBox.GetCenter()),
+				LocalBox.Extents() * .5f,
+				ShapeWorldTransform.GetRotation(),
+				FColor::Red, false, -1.f, SDPG_Foreground, 3.f);
+		}
+#endif	
+
+	}
+
+	void FindAllIntersectionPoints(const Chaos::FVec3& WaterP, const Chaos::FVec3& WaterN, const Chaos::FAABB3& LocalBox, const FVector WorldVertexPosition[8],
+		TMap<int, FVector>& OutEdgeToIntersectionPointMap, TArray<FVector>& OutOrderedIntersectionPoints, FVector &OutIntersectionCenter)
+	{		
+		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_FindAllIntersectionPoints)
+
+		OutIntersectionCenter = FVector(0, 0, 0);
+
+		// loop over all edges and compute intersection points
+		for (int CurrEdgeIdx = 0; CurrEdgeIdx < 12; ++CurrEdgeIdx)
+		{
+			const FAABBEdge CurrEdge = LocalBox.GetEdge(CurrEdgeIdx);
+
+			// edge plane intersection for each edge in counterclockwise order
+			const FVector RayOrigin = WorldVertexPosition[CurrEdge.VertexIndex0];
+			const FVector RayEndPoint = WorldVertexPosition[CurrEdge.VertexIndex1];			
+			const FVector RayDir = RayEndPoint - RayOrigin;
+
+			// if the water plane intersects the current edge, add intersection point it to the list
+			const float DirDotN = RayDir.Dot(WaterN);
+			if (FMath::Abs(DirDotN) > SMALL_NUMBER)
+			{
+				const float t = (WaterP - RayOrigin).Dot(WaterN) / DirDotN;
+				if (t >= 0 && t <= 1)
+				{
+					const FVector IntersectionPoint = RayOrigin + RayDir * t;
+
+					OutEdgeToIntersectionPointMap.Add(CurrEdgeIdx, IntersectionPoint);
+
+					OutIntersectionCenter += IntersectionPoint;
+				}
+			}
+		}
+
+		if (OutEdgeToIntersectionPointMap.Num() > 0)
+		{
+			OutIntersectionCenter /= OutEdgeToIntersectionPointMap.Num();
+
+			// Sort intersection points by angle around reference point
+			BuoyancyAlgorithms::SortIntersectionPointsByAngle(WaterP, WaterN, OutIntersectionCenter, OutEdgeToIntersectionPointMap, OutOrderedIntersectionPoints);
+		}
+	}
+
+	void SortIntersectionPointsByAngle(const Chaos::FVec3& WaterP, const Chaos::FVec3& WaterN, const Chaos::FVec3& IntersectionCenter, const TMap<int, FVector>& EdgeToIntersectionPointMap, TArray<FVector>& OutOrderedIntersectionPoints)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_SortIntersectionPointsByAngle)
+
+		// Order intersection points around intersection center
+		TMap<float, FVector> IntersectionPointAngleToCenter;
+
+		auto IntersectionPointMapIt = EdgeToIntersectionPointMap.CreateConstIterator();
+		
+		// first element is assigned to be angle 0
+		FVector CurrPoint = IntersectionPointMapIt.Value();
+		FVector CurrVector = CurrPoint - IntersectionCenter;
+		CurrVector.Normalize();
+
+		const FVector AngleStart = CurrVector;
+		IntersectionPointAngleToCenter.Add(0, CurrPoint);
+
+		// loop over remaining points and compute angles to the first point
+		++IntersectionPointMapIt;
+		for (; IntersectionPointMapIt; ++IntersectionPointMapIt)
+		{
+			CurrPoint = IntersectionPointMapIt.Value();
+			
+			CurrVector = CurrPoint - IntersectionCenter;
+			CurrVector.Normalize();
+			
+			float CurrAngle = FMath::Acos(AngleStart.Dot(CurrVector));
+
+			if (AngleStart.Cross(CurrVector).Dot(WaterN) < 0)
+			{
+				CurrAngle = 2.f * PI - CurrAngle;
+			}
+
+			IntersectionPointAngleToCenter.Add(CurrAngle, CurrPoint);
+		}
+
+		// #todo(dmp): replace this sort with something faster since we only have between 3-6 points to sort (and index 0 is already sorted)
+		// order intersection points by the angle it makes so we have a correct winding order
+		// for tesselation
+		IntersectionPointAngleToCenter.KeySort([](const float& A, const float& B) {
+			return A < B;
+			});
+
+		// Generate an array of all intersection points		
+		IntersectionPointAngleToCenter.GenerateValueArray(OutOrderedIntersectionPoints);
+	}
+
+	void ComputeTriangleAreaAndVolume(const FVector &V0, const FVector &V1, const FVector &V2, const FVector &MeshCenterPoint, FVector &OutTriangleBaryCenter, FVector &OutNormal, float& OutArea, float& OutVolume, bool DebugDraw /*= false*/)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_ComputeTriangleAreaAndVolume)
+
+		// compute center of triangle
+		OutTriangleBaryCenter = (V0 + V1 + V2) / 3.;
+
+		// add up the area of this triangle for all the faces		 
+		OutArea = .5 * (V2 - V0).Cross(V1 - V0).Length();
+
+		// add up the volume of the tet created by this triangle and the center of the box
+		const FVector A = V0 - MeshCenterPoint;
+		const FVector B = V1 - MeshCenterPoint;
+		const FVector C = V2 - MeshCenterPoint;
+		const FVector N = A.Cross(B);
+
+		OutVolume = FMath::Abs((N.Dot(C)) / 6.f);
+
+		OutNormal = (V1 - V0).Cross(V2 - V0);
+		OutNormal.Normalize();
+
+#if ENABLE_DRAW_DEBUG
+		if (DebugDraw)
+		{
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugLine(V0, V1, FColor::Orange, false, -1.f, 0, 1.f);
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugLine(V1, V2, FColor::Orange, false, -1.f, 0, 1.f);
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugLine(V2, V0, FColor::Orange, false, -1.f, 0, 1.f);
+
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(OutTriangleBaryCenter, 5, 10, FColor::Cyan, false, -1.f, -1, 1.f);
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(OutTriangleBaryCenter, OutTriangleBaryCenter + OutNormal * 20, 20, FColor::Cyan, false, -1.f, -1, 2.f);
+		}
+#endif
+	}
+
+	// #todo(dmp): optimization- precalculate particle v, w, m given they never change between calls to compute forces
+	void ComputeFluidForceForTriangle(const float WaterDrag,
+		const float DeltaSeconds,
+		const Chaos::FPBDRigidParticleHandle* RigidParticle, const FVector WorldCoM,
+		const FVector &TriBaryCenter, const FVector &TriNormal, const float TriArea, const float TetVolume,
+		const FVector &WaterVelocity, const FVector &WaterP, const FVector &WaterN,
+		FVector &OutTotalWorldForce, FVector &OutTotalWorldTorque)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_ComputeFluidForceForTriangle)
+
+		OutTotalWorldForce = FVector(0, 0, 0);
+		OutTotalWorldTorque = FVector(0, 0, 0);
+
+		const FVec3 WorldForcePosition = TriBaryCenter;
+		const FVec3 WorldCOMToForcePos = WorldForcePosition - WorldCoM;
+
+		// project velocity sample onto water plane to support waterfalls and flowing rivers more accurately
+		const FVector WaterVelocityOnPlane = WaterVelocity - WaterVelocity.Dot(WaterN) * WaterN;
+
+		// Get world space particle linear velocity at current point
+		// note we are including the linear velocity from torque so objects spin properly in flow
+		const FVec3 SubmergedParticleVelocity = RigidParticle->GetV() + FVec3::CrossProduct(RigidParticle->GetW(), WorldCOMToForcePos);
+
+		// compute force and torque to set linear velocity to fluid velocity				
+		const FVec3 RelativeVelocity = WaterVelocityOnPlane - SubmergedParticleVelocity;
+		const float RelativeVelocityMag = RelativeVelocity.Length();
+
+		if (RelativeVelocityMag < SMALL_NUMBER)
+		{
+			return;
+		}
+		
+		const FVec3 AccelerationToSetVelocity = RelativeVelocity / DeltaSeconds;
+		FVec3 ForceFromWaterVelocity = AccelerationToSetVelocity * RigidParticle->M();
+
+		// #todo(dmp): make friction/drag/other properties more of a material property
+
+		// attenuate based on angle to inward facing tri normal					
+		// we reject angles > 90 since that would mean we are hitting a backface and no force should be applied					
+		// default to 1 if we have a still pool of water, we still want this to have a valid response so we don't have
+		// a discontinuity.
+		float FacingTest = 1.f;
+
+		FacingTest = RelativeVelocity.Dot(-TriNormal) / RelativeVelocityMag;
+		FacingTest = FacingTest > 0.f ? FacingTest : 0.f;
+
+		// apply some drag based on facing ratio...could make this more complex
+		ForceFromWaterVelocity *= FacingTest;
+
+		// #todo(dmp): drag should include a term based on relative velocity?
+		// ForceFromWaterVelocity *= RelativeVelocity.Length();
+
+		// drag coefficient			
+		ForceFromWaterVelocity *= WaterDrag;
+
+		// compute torque based on the linear force we apply
+		const FVec3 TorqueFromWaterVelocity = Chaos::FVec3::CrossProduct(WorldCOMToForcePos, ForceFromWaterVelocity);
+
+		OutTotalWorldForce += ForceFromWaterVelocity;
+		OutTotalWorldTorque += TorqueFromWaterVelocity;
+	}
+
+	void ComputeBuoyantForceForShape(const Chaos::FPBDRigidsEvolution& Evolution, const Chaos::FPBDRigidParticleHandle* RigidParticle, const float DeltaSeconds, const float WaterDensity,
+		const Chaos::FVec3& SubmergedCoM, const float SubmergedVol, const Chaos::FVec3& WaterN, Chaos::FVec3& OutWorldBuoyantForce, Chaos::FVec3& OutWorldBuoyantTorque)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_ComputeBuoyantForceForShape)
+
+		// Get perparticle gravity rule, for figuring out the effective gravity on buoyant objects
+		const Chaos::FPerParticleGravity* PerParticleGravity = &Evolution.GetGravityForces();
+
+		// Figure out the gravity level of the particle
+		const int32 GravityGroupIndex = RigidParticle->GravityGroupIndex();
+		const Chaos::FVec3 GravityAccelVec
+			= PerParticleGravity != nullptr && GravityGroupIndex != INDEX_NONE
+			? (Chaos::FVec3)PerParticleGravity->GetAcceleration(GravityGroupIndex)
+			: Chaos::FVec3::DownVector * 980.f; // Default to "regular" gravity
+								
+		// NOTE: We assume gravity is -Z for perf... If we want to support buoyancy for
+		// weird gravity setups, this is where we'd have to fix it up.
+		const FVec3 GravityDir = FVec3::DownVector;
+		const float GravityAccel = FVec3::DotProduct(GravityDir, GravityAccelVec);
+
+		// Scale submerged volume
+		float ScaledSubmergedVol = SubmergedVol;
+		float TotalVol;
+		ScaleSubmergedVolume(Evolution, RigidParticle, ScaledSubmergedVol, TotalVol);
+
+		// Compute buoyant force
+		//
+		// NOTE: This is easy to compute with Archimedes' principle
+		// https://en.wikipedia.org/wiki/Buoyancy
+		//
+		const float BuoyantForceMagnitude = WaterDensity * ScaledSubmergedVol * GravityAccel;
+		//                       = [ kg / cm^3 ] * [ cm^3 ]    * [cm / s^2]
+		//                       = [ kg * cm / s^2 ]
+		//                       = [ force ]
+
+		// Only proceed if buoyant force isn't vanishingly small
+		if (BuoyantForceMagnitude < SMALL_NUMBER)
+		{
+			return;
+		}
+
+		// Get a generic particle wrapper
+		FConstGenericParticleHandle RigidGeneric(RigidParticle);
+
+		const FVec3 WorldCoM = RigidGeneric->PCom();
+		const FVec3 CoMDiff = SubmergedCoM - WorldCoM;
+
+		// #todo(dmp): should we push water along normal or -gravity
+		OutWorldBuoyantForce = WaterN * BuoyantForceMagnitude;
+				
+		// Compute world buoyant force and torque	
+		// buoyancy is computed at the submerged center of mass		
+		OutWorldBuoyantTorque = Chaos::FVec3::CrossProduct(CoMDiff, OutWorldBuoyantForce);				
+	}
 }
+

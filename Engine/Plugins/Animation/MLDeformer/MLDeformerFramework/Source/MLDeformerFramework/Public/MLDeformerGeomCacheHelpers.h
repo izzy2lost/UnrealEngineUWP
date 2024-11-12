@@ -22,6 +22,7 @@ namespace UE::MLDeformer
 		int32 TrackIndex = INDEX_NONE;	// The geometry cache track that this mesh is mapped to.
 		TArray<int32> SkelMeshToTrackVertexMap;	// This maps imported model individual meshes to the geomcache track's mesh data.
 		TArray<int32> ImportedVertexToRenderVertexMap; // Map the imported DCC vertex number to a render vertex. This is just one of the duplicates, which shares the same position.
+		TArray<int32> MaterialIndices;	// List of material indices that point inside the SkelMesh. These materials are used on parts of the mesh that are modified by the ML Deformer.
 	};
 
 	/**
@@ -77,20 +78,30 @@ namespace UE::MLDeformer
 	 */
 	MLDEFORMERFRAMEWORK_API void GenerateGeomCacheMeshMappings(USkeletalMesh* SkelMesh, UGeometryCache* GeomCache, TArray<FMLDeformerGeomCacheMeshMapping>& OutMeshMappings, TArray<FString>& OutFailedImportedMeshNames, TArray<FString>& OutVertexMisMatchNames, bool bSuppressLog = false);
 
+	UE_DEPRECATED(5.5, "Please use SampleGeomCachePositionsAtFrame instead.")
+	MLDEFORMERFRAMEWORK_API void SampleGeomCachePositions(
+		int32 InLODIndex,
+		float InSampleTime,
+		const TArray<FMLDeformerGeomCacheMeshMapping>& InMeshMappings,
+		const USkeletalMesh* InSkelMesh,
+		const UGeometryCache* InGeometryCache,
+		const FTransform& InAlignmentTransform,
+		TArray<FVector3f>& OutPositions);
+
 	/**
 	 * Sample the vertex position data of a geometry cache, at a given time stamp.
 	 * This basically allows you to sample ground truth or training target vertex positions.
 	 * @param InLODIndex The LOD level to sample for.
-	 * @param InSampleTime The time to take the sample at, in seconds.
-	 * @param InMeshMappings The geometry cache to skeletal mesh mappings, which can be generated using the GenerateGeomCacheMeshMapings method.
+	 * @param FrameIndex The frame number to sample.
+	 * @param InMeshMappings The geometry cache to skeletal mesh mappings, which can be generated using the GenerateGeomCacheMeshMappings method.
 	 * @param InSkelMesh The skeletal mesh object.
 	 * @param InGeometryCache The geometry cache object.
 	 * @param InAlignmentTransform This is the transformation that will be applied on the sampled positions, as post process. This can be used to rotate or scale the position data.
-	 * @param OutPosiitons The resulting positions, as sampled at the specified time. This array will be resized internally.
+	 * @param OutPositions The resulting positions, as sampled at the specified time. This array will be resized internally.
 	 */
-	MLDEFORMERFRAMEWORK_API void SampleGeomCachePositions(
+	MLDEFORMERFRAMEWORK_API void SampleGeomCachePositionsAtFrame(
 		int32 InLODIndex,
-		float InSampleTime,
+		int32 FrameIndex,
 		const TArray<FMLDeformerGeomCacheMeshMapping>& InMeshMappings,
 		const USkeletalMesh* InSkelMesh,
 		const UGeometryCache* InGeometryCache,

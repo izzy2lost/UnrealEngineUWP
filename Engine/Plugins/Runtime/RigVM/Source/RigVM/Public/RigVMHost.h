@@ -334,6 +334,11 @@ protected:
 	/** true if we should increase the AbsoluteTime */
 	bool bAccumulateTime;
 
+#if WITH_EDITOR
+	/** true if the instance is being debugged in an asset editor */
+	bool bIsBeingDebugged;
+#endif
+
 	UPROPERTY(Transient)
 	TObjectPtr<URigVM> VM;
 
@@ -365,7 +370,7 @@ protected:
 	
 	void HandleExecutionReachedExit(const FName& InEventName);
 	
-	TArray<FRigVMExternalVariable> GetExternalVariablesImpl(bool bFallbackToBlueprint) const;
+	virtual TArray<FRigVMExternalVariable> GetExternalVariablesImpl(bool bFallbackToBlueprint) const;
 
 	FProperty* GetPublicVariableProperty(const FName& InVariableName) const
 	{

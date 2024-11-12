@@ -3,6 +3,7 @@
 #pragma once
 
 #include "IPropertyTypeCustomization.h"
+#include "Input/Reply.h"
 
 class IPropertyHandle;
 class IPropertyUtilities;
@@ -10,6 +11,8 @@ class IDetailChildrenBuilder;
 class FDetailWidgetRow;
 class UStateTreeEditorData;
 enum class EStateTreeTransitionTrigger : uint8;
+class SBorder;
+class SWidget;
 
 /**
  * Type customization for FStateTreeTransition.
@@ -37,15 +40,24 @@ private:
 	void OnCopyTransition() const;
 	void OnPasteTransition() const;
 
+	FReply OnRowMouseDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
+	FReply OnRowMouseUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
+	TSharedRef<SWidget> GenerateOptionsMenu();
+	void OnDeleteTransition() const;
+	void OnDeleteAllTransitions() const;
+	void OnDuplicateTransition() const;
+	
 	TSharedPtr<IPropertyHandle> TriggerProperty;
 	TSharedPtr<IPropertyHandle> PriorityProperty;
-	TSharedPtr<IPropertyHandle> EventTagProperty;
+	TSharedPtr<IPropertyHandle> RequiredEventProperty;
 	TSharedPtr<IPropertyHandle> StateProperty;
 	TSharedPtr<IPropertyHandle> DelayTransitionProperty;
 	TSharedPtr<IPropertyHandle> DelayDurationProperty;
 	TSharedPtr<IPropertyHandle> DelayRandomVarianceProperty;
 	TSharedPtr<IPropertyHandle> ConditionsProperty;
 	TSharedPtr<IPropertyHandle> IDProperty;
+	
+	TSharedPtr<SBorder> RowBorder; 
 
 	TSharedPtr<IPropertyUtilities> PropUtils;
 	TSharedPtr<IPropertyHandle> StructProperty;

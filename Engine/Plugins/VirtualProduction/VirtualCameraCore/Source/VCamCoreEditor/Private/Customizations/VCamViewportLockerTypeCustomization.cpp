@@ -9,7 +9,7 @@
 
 #define LOCTEXT_NAMESPACE "FVCamViewportLockerTypeCustomization"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	static FText GetViewportDisplayNameByIndex(int32 ViewportIndex)
 	{

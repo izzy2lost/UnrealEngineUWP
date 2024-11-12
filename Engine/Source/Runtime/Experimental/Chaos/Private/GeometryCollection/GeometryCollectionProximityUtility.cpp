@@ -469,13 +469,12 @@ void BuildProximityFromConvexHulls(FGeometryCollection* Collection, const UE::Ge
 					//	const VectorRegister4Float InitialDirSimd = MakeVectorRegisterFloat(1.f, 0.f, 0.f, 0.f);
 					//	if (GJKIntersectionSameSpaceSimd(Hull, CandidateHull, DistanceThreshold, InitialDirSimd))
 
-					const Chaos::FRigidTransform3 IdentityTransform = Chaos::FRigidTransform3::Identity;
 					Chaos::FReal Distance;
 					Chaos::TVec3<Chaos::FReal> NearestA, NearestB, Normal; // All unused
 					Chaos::EGJKDistanceResult Result = Chaos::GJKDistance<Chaos::FReal>(
 						Chaos::TGJKShape(Hull),
 						Chaos::TGJKShape(CandidateHull),
-						Chaos::GJKDistanceInitialV(Hull, CandidateHull, IdentityTransform),
+						Chaos::GJKDistanceInitialVFromDirection(Hull, CandidateHull, CandidateHull.GetCenterOfMass() - Hull.GetCenterOfMass()),
 						Distance, NearestA, NearestB, Normal);
 					if (Result == Chaos::EGJKDistanceResult::Contact || Result == Chaos::EGJKDistanceResult::DeepContact
 						|| (Result == Chaos::EGJKDistanceResult::Separated && Distance <= DistanceThreshold))
@@ -528,6 +527,65 @@ void FGeometryCollectionProximityUtility::ClearConnectionGraph()
 {
 	GeometryCollection::Facades::FCollectionConnectionGraphFacade ConnectionsFacade(*Collection);
 	ConnectionsFacade.ClearAttributes();
+}
+
+void FGeometryCollectionProximityUtility::EnumerateNeighbors(const Chaos::Facades::FCollectionHierarchyFacade& Hierarchy, 
+	int32 TransformIdx, TFunctionRef<void(int32)> NeighborFunc, bool bIncludeNeighborsInParentLevels, bool bFilterDuplicates)
+{
+	if (!ensureMsgf(Collection->HasAttribute("Proximity", FGeometryCollection::GeometryGroup),
+		TEXT("Attempted to enumerate geometry collection neighbors, but proximity graph was not available")))
+	{
+		return;
+	}
+	if (!Hierarchy.IsValid() || !Hierarchy.HasLevelAttribute())
+	{
+		ensureMsgf(false, TEXT("Must have a valid hierarchy with a level attribute to enumerate geometry collection neighbors"));
+	}
+
+	TSet<int32> AlreadyProcessed;
+
+	int32 Level = Hierarchy.GetInitialLevel(TransformIdx);
+
+	const TManagedArray<TSet<int32>>& Proximity = Collection->GetAttribute<TSet<int32>>("Proximity", FGeometryCollection::GeometryGroup);
+	const TManagedArray<int32>& GeoToTransformIndex = Collection->GetAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
+	const TManagedArray<int32>& TransformToGeometryIndex = Collection->GetAttribute<int32>("TransformToGeometryIndex", FGeometryCollection::TransformGroup);
+	const TManagedArray<int32>& SimulationType = Collection->GetAttribute<int32>("SimulationType", FGeometryCollection::TransformGroup);
+	Hierarchy.EnumerateChildTransforms(TransformIdx, 
+		[&SimulationType](int32 TransformIndex)
+		{
+			return SimulationType[TransformIndex] == (int32)FGeometryCollection::ESimulationTypes::FST_Rigid;
+		}, 
+		[&Hierarchy, TransformIdx, &NeighborFunc, bIncludeNeighborsInParentLevels, bFilterDuplicates, &AlreadyProcessed, Level, &Proximity, &GeoToTransformIndex, &TransformToGeometryIndex, &SimulationType]
+		(int32 ChildTransformIndex)
+		{
+			int32 GeoIdx = TransformToGeometryIndex[ChildTransformIndex];
+			for (int32 ProxGeoIndex : Proximity[GeoIdx])
+			{
+				int32 ProxTransformIndex = GeoToTransformIndex[ProxGeoIndex];
+				int32 ProxLevel = Hierarchy.GetInitialLevel(ProxTransformIndex);
+				if (bIncludeNeighborsInParentLevels && ProxLevel < Level)
+				{
+					NeighborFunc(ProxTransformIndex);
+				}
+				while (ProxLevel > Level && ProxTransformIndex != INDEX_NONE)
+				{
+					ProxTransformIndex = Hierarchy.GetParent(ProxTransformIndex);
+					ProxLevel--;
+				}
+				if (ProxTransformIndex != TransformIdx && ProxTransformIndex != INDEX_NONE)
+				{
+					if (bFilterDuplicates)
+					{
+						if (AlreadyProcessed.Contains(ProxTransformIndex))
+						{
+							continue;
+						}
+						AlreadyProcessed.Add(ProxTransformIndex);
+					}
+					NeighborFunc(ProxTransformIndex);
+				}
+			}
+		});
 }
 
 void FGeometryCollectionProximityUtility::CopyProximityToConnectionGraph(const TArray<FGeometryContactEdge>* ContactEdges)

@@ -9,7 +9,6 @@ using System.Linq;
 using UnrealBuildTool;
 using EpicGames.Core;
 using Log = Gauntlet.Log;
-using Microsoft.Extensions.Logging;
 
 namespace UE
 {
@@ -20,7 +19,7 @@ namespace UE
 	public class AutomationTestConfig : UnrealTestConfiguration
 	{
 		/// <summary>
-		/// Run with specify RHI
+		/// Run with specific RHI
 		/// </summary>
 		[AutoParam]
 		public string RHI = "";
@@ -42,6 +41,11 @@ namespace UE
 			public enum Mac
 			{
 				metal
+			}
+			public enum ShaderModel
+			{
+				sm5,
+				sm6
 			}
 		}
 
@@ -272,40 +276,67 @@ namespace UE
 				{
 					AppConfig.CommandLine += " -dpcvars=r.RayTracing=0";
 				}
-
-				// Options specific to windows
-				if (ConfigRole.Platform != null && ((UnrealTargetPlatform)ConfigRole.Platform).IsInGroup(UnrealPlatformGroup.Windows))
+				
+				// Options specific to Desktop platforms
+				if (ConfigRole.Platform != null && ((UnrealTargetPlatform)ConfigRole.Platform).IsInGroup(UnrealPlatformGroup.Desktop))
 				{
-					if (AttachRenderDoc && !RayTracing)
+					Type RHIType = null;
+					UnrealTargetPlatform TargetPlatform = (UnrealTargetPlatform)ConfigRole.Platform;
+
+					// Set our options by platform
+					if (TargetPlatform.IsInGroup(UnrealPlatformGroup.Windows))
 					{
-						AppConfig.CommandLine += " -attachRenderDoc";
+						RHIType = typeof(ValidRHI.Win64);
+						if (AttachRenderDoc && !RayTracing)
+						{
+							AppConfig.CommandLine += " -attachRenderDoc";
+						}
+
+						if (PreferNvidia)
+						{
+							AppConfig.CommandLine += " -preferNvidia";
+						}
+
+						if (D3DDebug)
+						{
+							AppConfig.CommandLine += " -d3ddebug";
+						}
+
+						if (StompMalloc)
+						{
+							AppConfig.CommandLine += " -stompmalloc";
+						}
+					}
+					else if (TargetPlatform.IsInGroup(UnrealPlatformGroup.Apple))
+					{
+						RHIType = typeof(ValidRHI.Mac);
+					}
+					else if (TargetPlatform.IsInGroup(UnrealPlatformGroup.Linux))
+					{
+						RHIType = typeof(ValidRHI.Linux);
 					}
 
-					if (PreferNvidia)
-					{
-						AppConfig.CommandLine += " -preferNvidia";
-					}
-
+					// RHI can specify both RHI and ShaderModel (SM) for Windows, Mac, and Linux platforms
 					if (!string.IsNullOrEmpty(RHI))
 					{
-						if (Enum.IsDefined(typeof(ValidRHI.Win64), RHI.ToLower()))
+						if (RHIType == null)
 						{
-							AppConfig.CommandLine += string.Format(" -{0}", RHI);
+							throw new AutomationException(string.Format("Unknown target platform '{0}' for RHI '{1}'", TargetPlatform, RHI));
 						}
-						else
+
+						// The RHI can include the Shader Model version to go along with it and should be split out e.g d3d12-sm6
+						string[] RHIArguments = RHI.Split('-');
+						foreach (string Argument in RHIArguments)
 						{
-							throw new AutomationException(string.Format("Unknown RHI target '{0}' for Win64", RHI));
+							if (Enum.IsDefined(RHIType, Argument.ToLower()) || Enum.IsDefined(typeof(ValidRHI.ShaderModel), Argument.ToLower()))
+							{
+								AppConfig.CommandLine += string.Format(" -{0}", Argument);
+							}
+							else
+							{
+								throw new AutomationException(string.Format("Unknown RHI target or Shader Model '{0}' for {1}", Argument, RHIType.Name));
+							}
 						}
-					}
-
-					if (D3DDebug)
-					{
-						AppConfig.CommandLine += " -d3ddebug";
-					}
-
-					if (StompMalloc)
-					{
-						AppConfig.CommandLine += " -stompmalloc";
 					}
 				}
 			}
@@ -421,11 +452,13 @@ namespace UE
 		where TConfigClass : UnrealTestConfiguration, new()
 	{
 		// used to track stdout from the processes 
-		private int LastAutomationEntryCount = 0;
+		private UnrealLogStreamParser LogReader = null;
 
 		private UnrealAutomatedTestPassResults TestPassResults = null;
 
 		private DateTime LastAutomationEntryTime = DateTime.MinValue;
+
+		private float IdleTimeoutSec = 30 * 60;
 
 		/// Maximum of events display per test
 		protected virtual int MaxEventsDisplayPerTest { get; set; } = 10;
@@ -523,12 +556,12 @@ namespace UE
 		public override bool StartTest(int Pass, int InNumPasses)
 		{
 			LastAutomationEntryTime = DateTime.MinValue;
-			LastAutomationEntryCount = 0;
+			LogReader = null;
 			TestPassResults = null;
 
 			if (GetConfiguration() is AutomationTestConfig Config)
 			{
-				if (Config.ResumeOnCriticalFailure && string.IsNullOrEmpty(Config.ReportExportPath))
+				if ((Config.WriteTestResultsForHorde || Config.ResumeOnCriticalFailure) && string.IsNullOrEmpty(Config.ReportExportPath))
 				{
 					Config.ReportExportPath = Path.Combine(Globals.TempDir, "TestReport");
 				}
@@ -542,6 +575,10 @@ namespace UE
 						ReportDirInfo.Delete(true);
 					}
 				}
+				if (Config.LogIdleTimeout > 0)
+				{
+					IdleTimeoutSec = Config.LogIdleTimeout;
+				}
 			}
 
 			return base.StartTest(Pass, InNumPasses);
@@ -550,7 +587,7 @@ namespace UE
 		public override bool RestartTest()
 		{
 			LastAutomationEntryTime = DateTime.MinValue;
-			LastAutomationEntryCount = 0;
+			LogReader = null;
 			TestPassResults = null;
 
 			if (GetConfiguration() is AutomationTestConfig Config)
@@ -566,20 +603,15 @@ namespace UE
 		/// </summary>
 		public override void TickTest()
 		{
-			float IdleTimeout = 30 * 60;
-			if (GetConfiguration() is AutomationTestConfig Config && Config.LogIdleTimeout > 0)
-			{
-				IdleTimeout = Config.LogIdleTimeout;
-			}
-
 			// We are primarily interested in what the editor is doing
 			var AppInstance = TestInstance.EditorApp;
+			if (LogReader == null)
+			{
+				LogReader = new UnrealLogStreamParser(AppInstance.GetLogBufferReader());
+			}
+			LogReader.ReadStream();
 
-			UnrealLogStreamParser Parser = new UnrealLogStreamParser();
-			LastAutomationEntryCount += Parser.ReadStream(AppInstance.StdOut, LastAutomationEntryCount);
-
-			IEnumerable<string> ChannelEntries = Parser.GetLogFromEditorBusyChannels();
-
+			IEnumerable<string> ChannelEntries = LogReader.GetLogFromEditorBusyChannels();
 			// Any new entries?
 			if (ChannelEntries.Any())
 			{
@@ -598,9 +630,9 @@ namespace UE
 				double ElapsedTime = (DateTime.Now - LastAutomationEntryTime).TotalSeconds;
 
 				// Check for timeout
-				if (ElapsedTime > IdleTimeout)
+				if (ElapsedTime > IdleTimeoutSec)
 				{
-					Log.Warning(KnownLogEvents.Gauntlet_TestEvent, "No activity observed in last {Time:0.00} minutes. Aborting test", IdleTimeout / 60);
+					Log.Warning(KnownLogEvents.Gauntlet_TestEvent, "No activity observed in last {Time:0.00} minutes. Aborting test", IdleTimeoutSec / 60);
 					MarkTestComplete();
 					SetUnrealTestResult(TestResult.TimedOut);
 				}
@@ -638,7 +670,7 @@ namespace UE
 				{
 					// Parse automaton info from the log then
 					TestPassResults = new UnrealAutomatedTestPassResults();
-					AutomationLogParser LogParser = new AutomationLogParser(InLog.FullLogContent);
+					AutomationLogParser LogParser = new AutomationLogParser(InLog);
 					IEnumerable<UnrealAutomatedTestResult> LogTestResults = LogParser.GetResults();
 					if (LogTestResults.Any())
 					{
@@ -654,10 +686,10 @@ namespace UE
 							switch (Entry.Level)
 							{
 								case UnrealLog.LogLevel.Error:
-									Events.Add(new UnrealAutomationEvent(EventType.Error, Entry.Message));
+									TestNodeEvents.Add(new UnrealTestEvent(EventSeverity.Error, Entry.Message, Enumerable.Empty<string>()));
 									break;
 								case UnrealLog.LogLevel.Warning:
-									Events.Add(new UnrealAutomationEvent(EventType.Warning, Entry.Message));
+									TestNodeEvents.Add(new UnrealTestEvent(EventSeverity.Warning, Entry.Message, Enumerable.Empty<string>()));
 									break;
 							}
 						}
@@ -761,14 +793,14 @@ namespace UE
 						}
 						else
 						{
-							ErrorMessage = "No callstack found in the log.";
+							ErrorMessage = "Engine crashed. No callstack could be found in the log.";
 						}
 					}
 					if (LastTestInProgress != null)
 					{
 						if (!String.IsNullOrEmpty(ErrorMessage))
 						{
-							LastTestInProgress.AddError(ErrorMessage, !HasTimeout);
+							LastTestInProgress.AddError(ErrorMessage, !HasTimeout && FatalError != null);
 						}
 						if (!CanRetry() || JsonTestPassResults.NotRun == 0)
 						{
@@ -829,12 +861,12 @@ namespace UE
 							TempReport.SetOutputArtifactPath(HordeArtifactPath);
 							foreach (UnrealRoleArtifacts Artifact in SessionArtifacts)
 							{
-								string LogName = Path.GetFullPath(Artifact.LogPath).Replace(Path.GetFullPath(Context.Options.LogDir), "").TrimStart(Path.DirectorySeparatorChar);
-								TempReport.AttachArtifact(Artifact.LogPath, LogName);
-								// Reference last run instance log
-								if (Artifact.SessionRole.RoleType == MainRole.Type)
+								if (string.IsNullOrEmpty(Artifact.LogPath)) continue;
+								string LogName = Path.GetRelativePath(Path.GetFullPath(Context.Options.LogDir), Path.GetFullPath(Artifact.LogPath));
+								if (TempReport.AttachArtifact(Artifact.LogPath, LogName) && Artifact.SessionRole.RoleType == MainRole.Type)
 								{
-									JsonTestPassResults.Devices.Last().AppInstanceLog = LogName.Replace("\\", "/");
+									// Reference last run instance log
+									JsonTestPassResults.Devices.Last().AppInstanceLog = Gauntlet.FileUtils.ConvertPathToUri(Path.GetRelativePath(Globals.UnrealRootDir, Path.Combine(HordeArtifactPath, LogName)));
 								}
 							}
 							JsonTestPassResults.WriteToJson();
@@ -901,15 +933,18 @@ namespace UE
 		/// <summary>
 		/// Override GetExitCodeAndReason to provide additional checking of success / failure based on what occurred
 		/// </summary>
+		/// <param name="InReason"></param>
+		/// <param name="InLog"></param>
 		/// <param name="InArtifacts"></param>
 		/// <param name="ExitReason"></param>
+		/// <param name="ExitCode"></param>
 		/// <returns></returns>
 		protected override UnrealProcessResult GetExitCodeAndReason(StopReason InReason, UnrealLog InLog, UnrealRoleArtifacts InArtifacts, out string ExitReason, out int ExitCode)
 		{
 			UnrealProcessResult UnrealResult = base.GetExitCodeAndReason(InReason, InLog, InArtifacts, out ExitReason, out ExitCode);
 
 			// The editor is an additional arbiter of success
-			if (InArtifacts.SessionRole.RoleType == UnrealTargetRole.Editor
+			if (InArtifacts.SessionRole.RoleType.IsEditor()
 				&& InLog.HasAbnormalExit == false)
 			{
 				// if no fatal errors, check test results
@@ -970,7 +1005,7 @@ namespace UE
 							if (Report != null)
 							{
 								var MainRolePlatform = Context.GetRoleContext(Config.GetMainRequiredRole().Type).Platform;
-								Report.SetMetadata("RHI", string.IsNullOrEmpty(Config.RHI) || !MainRolePlatform.IsInGroup(UnrealPlatformGroup.Windows) ? "default" : Config.RHI.ToLower());
+								Report.SetMetadata("RHI", string.IsNullOrEmpty(Config.RHI) || !MainRolePlatform.IsInGroup(UnrealPlatformGroup.Desktop) ? "default" : Config.RHI.ToLower());
 							}
 						}
 					}
@@ -1003,7 +1038,7 @@ namespace UE
 			base.LogTestSummaryHeader();
 
 			// Everything we need is in the editor artifacts
-			var EditorRole = RoleResults.Where(R => R.Artifacts.SessionRole.RoleType == UnrealTargetRole.Editor).FirstOrDefault();
+			var EditorRole = RoleResults.Where(R => R.Artifacts.SessionRole.RoleType.IsEditor()).FirstOrDefault();
 
 			if (EditorRole != null)
 			{
@@ -1015,15 +1050,7 @@ namespace UE
 				IEnumerable<UnrealAutomatedTestResult> FailedTests = AllTests.Where(T => T.IsComplete && T.HasFailed);
 				IEnumerable<UnrealAutomatedTestResult> TestsWithWarnings = AllTests.Where(T => T.HasSucceeded && T.HasWarnings);
 
-				Func<IEnumerable<UnrealAutomationEvent>, IEnumerable<UnrealAutomationEvent>> CapErrorOrWarningList = (E) =>
-				{
-					if (E.Count() > MaxEventsDisplayPerTest)
-					{
-						E = E.Take(MaxEventsDisplayPerTest);
-					}
-					return E;
-				};
-				Action<IEnumerable<UnrealAutomationEvent>> NotifyMoreIfNeeded = E =>
+				Action<IEnumerable<object>> NotifyMoreIfNeeded = E =>
 				{
 					if (E.Count() > MaxEventsDisplayPerTest)
 					{
@@ -1048,14 +1075,13 @@ namespace UE
 							{
 								string Message = !Result.IsComplete ? " * Test '{Name}' did not complete." : " * Test '{Name}' failed.";
 								Log.Error(KnownLogEvents.Gauntlet_UnrealEngineTestEvent, Message, Result.FullTestPath);
-								var Errors = CapErrorOrWarningList(Result.ErrorEvents.Distinct());
-								foreach (var Error in Errors)
+								var Errors = Result.GetErrorEntries().Distinct().Select(E => E.AsLogEvent());
+								foreach (LogEvent Error in Errors.Take(MaxEventsDisplayPerTest))
 								{
-									EventId ErrorEventType = Error.IsCriticalFailure ? KnownLogEvents.Gauntlet_FatalEvent : KnownLogEvents.Gauntlet_UnrealEngineTestEvent;
-									Log.Error(ErrorEventType, "    " + Error.FormatToString());
+									Log.Error(Error.Id, "    " + (Error.Format ?? Error.Message), Args: Error.Properties?.Select(P => P.Value).ToArray());
 								}
-								NotifyMoreIfNeeded(Result.ErrorEvents);
-								var Warnings = CapErrorOrWarningList(Result.WarningEvents.Distinct());
+								NotifyMoreIfNeeded(Errors);
+								var Warnings = Result.WarningEvents.Distinct();
 								foreach (var Warning in Warnings)
 								{
 									Log.Warning(KnownLogEvents.Gauntlet_UnrealEngineTestEvent, "    " + Warning.FormatToString());
@@ -1084,19 +1110,19 @@ namespace UE
 					{
 						Log.Error(KnownLogEvents.Gauntlet_TestEvent, " * No tests were executed.");
 
-						IEnumerable<UnrealAutomationEvent> Errors = Events.Where(E => E.IsError).Distinct();
-						IEnumerable<UnrealAutomationEvent> Warnings = Events.Where(E => E.IsWarning).Distinct();
+						IEnumerable<UnrealTestEvent> Errors = TestNodeEvents.Where(E => E.IsError).Distinct();
+						IEnumerable<UnrealTestEvent> Warnings = TestNodeEvents.Where(E => E.IsWarning).Distinct();
 						if (Errors.Any() || Warnings.Any())
 						{
 							Log.Info("   See log above for details.");
-							foreach (var Error in CapErrorOrWarningList(Errors))
+							foreach (var Error in Errors.Take(MaxEventsDisplayPerTest))
 							{
-								Log.Error(KnownLogEvents.Gauntlet_UnrealEngineTestEvent, "    " + Error.FormatToString());
+								Log.Error(KnownLogEvents.Gauntlet_UnrealEngineTestEvent, "    " + Error.Summary);
 							}
 							NotifyMoreIfNeeded(Errors);
-							foreach (var Warning in CapErrorOrWarningList(Warnings))
+							foreach (var Warning in Warnings.Take(MaxEventsDisplayPerTest))
 							{
-								Log.Warning(KnownLogEvents.Gauntlet_UnrealEngineTestEvent, "    " + Warning.FormatToString());
+								Log.Warning(KnownLogEvents.Gauntlet_UnrealEngineTestEvent, "    " + Warning.Summary);
 							}
 							NotifyMoreIfNeeded(Warnings);
 							Log.Info("");
@@ -1116,11 +1142,10 @@ namespace UE
 							foreach (UnrealAutomatedTestResult Result in FailedTests)
 							{
 								Log.Error(KnownLogEvents.Gauntlet_UnrealEngineTestEvent, " * Test '{Name}' failed.", Result.FullTestPath);
-								IEnumerable<UnrealAutomationEvent> Events = Result.ErrorEvents.Distinct();
-								foreach (var Event in CapErrorOrWarningList(Events))
+								var Events = Result.GetErrorEntries().Distinct().Select(E => E.AsLogEvent());
+								foreach (LogEvent Error in Events.Take(MaxEventsDisplayPerTest))
 								{
-									EventId ErrorEventType = Event.IsCriticalFailure ? KnownLogEvents.Gauntlet_FatalEvent : KnownLogEvents.Gauntlet_UnrealEngineTestEvent;
-									Log.Error(ErrorEventType, "    " + Event.FormatToString());
+									Log.Error(Error.Id, "    " + (Error.Format ?? Error.Message), Args: Error.Properties?.Select(P => P.Value).ToArray());
 								}
 								NotifyMoreIfNeeded(Events);
 								Log.Info("");
@@ -1136,7 +1161,7 @@ namespace UE
 								Log.Warning(KnownLogEvents.Gauntlet_UnrealEngineTestEvent, " * Test '{Name}' completed with warnings.", Result.FullTestPath);
 								// only show the first N items
 								IEnumerable<UnrealAutomationEvent> WarningEvents = Result.WarningEvents.Distinct();
-								foreach (var Event in CapErrorOrWarningList(WarningEvents))
+								foreach (var Event in WarningEvents.Take(MaxEventsDisplayPerTest))
 								{
 									Log.Warning(KnownLogEvents.Gauntlet_UnrealEngineTestEvent, "    " + Event.FormatToString());
 								}
@@ -1154,7 +1179,7 @@ namespace UE
 								Log.Error(KnownLogEvents.Gauntlet_UnrealEngineTestEvent, " * Test '{Name}' did not run or complete.", Result.FullTestPath);
 								// only show the first N items
 								IEnumerable<UnrealAutomationEvent> ErrorAndWarningEvents = Result.WarningAndErrorEvents.Distinct();
-								foreach (var Event in CapErrorOrWarningList(ErrorAndWarningEvents))
+								foreach (var Event in ErrorAndWarningEvents.Take(MaxEventsDisplayPerTest))
 								{
 									Log.Error(KnownLogEvents.Gauntlet_UnrealEngineTestEvent, "    " + Event.FormatToString());
 								}
@@ -1236,9 +1261,9 @@ namespace UE
 
 			foreach (var Role in GetRolesThatFailed())
 			{
-				if (Role.Artifacts.SessionRole.RoleType == UnrealTargetRole.Editor)
+				if (Role.Artifacts.SessionRole.RoleType.IsEditor())
 				{
-					AutomationLogParser Parser = new AutomationLogParser(Role.LogSummary.FullLogContent);
+					AutomationLogParser Parser = new AutomationLogParser(Role.LogSummary);
 					AllErrors.AddRange(
 						Parser.GetResults().Where(R => R.HasFailed)
 							.SelectMany(R => R.Entries
@@ -1269,7 +1294,7 @@ namespace UE
 			{
 				if (Role.Artifacts.SessionRole.RoleType == UnrealTargetRole.Editor)
 				{
-					AutomationLogParser Parser = new AutomationLogParser(Role.LogSummary.FullLogContent);
+					AutomationLogParser Parser = new AutomationLogParser(Role.LogSummary);
 					AllWarnings.AddRange(
 						Parser.GetResults()
 							.SelectMany(R => R.Entries

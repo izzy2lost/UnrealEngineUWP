@@ -8,6 +8,9 @@ AsyncTextureStreaming.cpp: Definitions of classes used for texture streaming asy
 #include "RHI.h"
 #include "Streaming/StreamingManagerTexture.h"
 #include "Engine/Level.h"
+#include "ProfilingDebugging/CsvProfiler.h"
+
+CSV_DECLARE_CATEGORY_EXTERN(TextureStreaming);
 
 void FAsyncRenderAssetStreamingData::Init(
 	TArray<FStreamingViewInfo> InViewInfos,
@@ -121,6 +124,7 @@ void FAsyncRenderAssetStreamingData::UpdatePerfectWantedMips_Async(FStreamingRen
 	bool bLooksLowRes = false;
 
 	const float MaxAllowedSize = StreamingRenderAsset.GetMaxAllowedSize(MaxScreenSizeOverAllViews);
+	const float MaxAssetSize = StreamingRenderAsset.IsMesh() ? MAX_TEXTURE_SIZE : MaxAllowedSize;
 
 #if !UE_BUILD_SHIPPING
 	if (Settings.bStressTest)
@@ -149,7 +153,7 @@ void FAsyncRenderAssetStreamingData::UpdatePerfectWantedMips_Async(FStreamingRen
 	else
 	{
 		const EStreamableRenderAssetType AssetType = StreamingRenderAsset.RenderAssetType;
-		DynamicInstancesView.GetRenderAssetScreenSize(AssetType, RenderAsset, MaxSize, MaxSize_VisibleOnly, MaxNumForcedLODs, bOutputToLog ? TEXT("Dynamic") : nullptr);
+		DynamicInstancesView.GetRenderAssetScreenSize(AssetType, RenderAsset, MaxSize, MaxSize_VisibleOnly, MaxNumForcedLODs, MaxAssetSize, bOutputToLog ? TEXT("Dynamic") : nullptr);
 
 		bool bCulled = false;
 		if (Settings.bMipCalculationEnablePerLevelList)
@@ -183,7 +187,7 @@ void FAsyncRenderAssetStreamingData::UpdatePerfectWantedMips_Async(FStreamingRen
 				}
 
 				// No need to iterate more if render asset is already at maximum resolution.
-				if (MaxSize_VisibleOnly >= MAX_TEXTURE_SIZE || MaxNumForcedLODs >= StreamingRenderAsset.MaxAllowedMips)
+				if (MaxSize_VisibleOnly >= MaxAssetSize || MaxNumForcedLODs >= StreamingRenderAsset.MaxAllowedMips)
 				{
 					break;
 				}
@@ -192,7 +196,7 @@ void FAsyncRenderAssetStreamingData::UpdatePerfectWantedMips_Async(FStreamingRen
 				float TmpMaxVisibleOnly = MaxSize_VisibleOnly;
 				int32 TmpMaxNumForcedLODs = MaxNumForcedLODs;
 				
-				StaticInstancesView.GetRenderAssetScreenSize(AssetType, RenderAsset, TmpMaxSize, TmpMaxVisibleOnly, TmpMaxNumForcedLODs, bOutputToLog ? TEXT("Static") : nullptr);
+				StaticInstancesView.GetRenderAssetScreenSize(AssetType, RenderAsset, TmpMaxSize, TmpMaxVisibleOnly, TmpMaxNumForcedLODs, MaxAssetSize, bOutputToLog ? TEXT("Static") : nullptr);
 
 				MaxSize = FMath::Max(TmpMaxSize, MaxSize);
 				MaxSize_VisibleOnly = FMath::Max(TmpMaxVisibleOnly, MaxSize_VisibleOnly);
@@ -214,7 +218,7 @@ void FAsyncRenderAssetStreamingData::UpdatePerfectWantedMips_Async(FStreamingRen
 					break;
 				}
 
-				StaticInstancesView.GetRenderAssetScreenSize(AssetType, RenderAsset, MaxSize, MaxSize_VisibleOnly, MaxNumForcedLODs, bOutputToLog ? TEXT("Static") : nullptr);
+				StaticInstancesView.GetRenderAssetScreenSize(AssetType, RenderAsset, MaxSize, MaxSize_VisibleOnly, MaxNumForcedLODs, MaxAssetSize, bOutputToLog ? TEXT("Static") : nullptr);
 			}
 		}
 
@@ -908,14 +912,24 @@ void FRenderAssetStreamingMipCalcTask::DoWork()
 	
 	ApplyPakStateChanges_Async();
 
-	for (FStreamingRenderAsset& StreamingRenderAsset : StreamingRenderAssets)
 	{
-		if (IsAborted()) break;
+		uint64 StartTime = FPlatformTime::Cycles64();
 
-		StreamingRenderAsset.UpdateOptionalMipsState_Async();
-		
-		StreamingData.UpdatePerfectWantedMips_Async(StreamingRenderAsset, Settings);
-		StreamingRenderAsset.DynamicBoostFactor = 1.f; // Reset after every computation.
+		for (FStreamingRenderAsset& StreamingRenderAsset : StreamingRenderAssets)
+		{
+			if (IsAborted()) break;
+
+			StreamingRenderAsset.UpdateOptionalMipsState_Async();
+
+			StreamingData.UpdatePerfectWantedMips_Async(StreamingRenderAsset, Settings);
+			StreamingRenderAsset.DynamicBoostFactor = 1.f; // Reset after every computation.
+		}
+
+		uint64 LenghtCycles64 = (FPlatformTime::Cycles64() - StartTime);
+		double ElapsedMSTime = FPlatformTime::ToMilliseconds64(LenghtCycles64);
+
+		// use of a custom stat to have the elapsed time as a global stat and not a stat split accross multiple threads
+		CSV_CUSTOM_STAT(TextureStreaming, RenderAssetStreamingUpdate, float(ElapsedMSTime), ECsvCustomStatOp::Set);
 	}
 
 	// According to budget, make relevant sacrifices and keep possible unwanted mips
@@ -1091,6 +1105,7 @@ void FRenderAssetStreamingMipCalcTask::UpdateCSVOnlyStats_Async()
 	Stats.RequiredPool = 0;
 	Stats.CachedMips = 0;
 	Stats.WantedMips = 0;
+	Stats.PendingRequests = 0;
 
 	Stats.NumStreamedMeshes = 0;
 	Stats.AvgNumStreamedLODs = 0.f;
@@ -1122,6 +1137,11 @@ void FRenderAssetStreamingMipCalcTask::UpdateCSVOnlyStats_Async()
 
 		Stats.WantedMips += UsedSize;
 		Stats.CachedMips += FMath::Max<int64>(ResidentSize - UsedSize, 0);
+
+		if (StreamingRenderAsset.RequestedMips > StreamingRenderAsset.ResidentMips)
+		{
+			Stats.PendingRequests += StreamingRenderAsset.GetSize(StreamingRenderAsset.RequestedMips) - ResidentSize;
+		}
 
 		if (StreamingRenderAsset.IsMesh())
 		{

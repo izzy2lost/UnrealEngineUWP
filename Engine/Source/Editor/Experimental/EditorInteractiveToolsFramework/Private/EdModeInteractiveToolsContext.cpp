@@ -40,9 +40,6 @@
 
 //#define ENABLE_DEBUG_PRINTING
 
-
-
-
 class FEdModeToolsContextQueriesImpl : public IToolsContextQueriesAPI
 {
 public:
@@ -169,6 +166,8 @@ public:
 		Config.PositionGridDimensions = FVector(EditorGridSize, EditorGridSize, EditorGridSize);
 		Config.bEnableRotationGridSnapping = (GetDefault<ULevelEditorViewportSettings>()->RotGridEnabled != 0);
 		Config.RotationGridAngles = GEditor->GetRotGridSize();
+		Config.bEnableScaleGridSnapping = (GetDefault<ULevelEditorViewportSettings>()->SnapScaleEnabled != 0);
+		Config.ScaleGridSize = GEditor->GetScaleGridSize();
 		Config.bEnableAbsoluteWorldSnapping = ToolsContext->GetAbsoluteWorldSnappingEnabled();
 		return Config;
 	}
@@ -315,6 +314,13 @@ void UEditorInteractiveToolsContext::Initialize(IToolsContextQueriesAPI* Queries
 
 	// This gets set up in UInteractiveToolsContext::Initialize;
 	GizmoViewContext = ToolManager->GetContextObjectStore()->FindContext<UGizmoViewContext>();
+
+	UToolsContextCursorAPI* ToolsContextCursorAPI = ToolManager->GetContextObjectStore()->FindContext<UToolsContextCursorAPI>();
+	if (!ToolsContextCursorAPI)
+	{
+		ToolsContextCursorAPI = NewObject< UToolsContextCursorAPI >();
+		ToolManager->GetContextObjectStore()->AddContextObject(ToolsContextCursorAPI);
+	}
 }
 
 void UEditorInteractiveToolsContext::Shutdown()
@@ -390,7 +396,10 @@ void UEditorInteractiveToolsContext::ShutdownContext()
 
 void UEditorInteractiveToolsContext::TerminateActiveToolsOnPIEStart()
 {
-	DeactivateAllActiveTools(EToolShutdownType::Accept);
+	if (bDeactivateOnPIEStart)
+	{
+		DeactivateAllActiveTools(EToolShutdownType::Accept);	
+	}
 }
 void UEditorInteractiveToolsContext::TerminateActiveToolsOnSaveWorld()
 {
@@ -842,6 +851,11 @@ void UEditorInteractiveToolsContext::SetAbsoluteWorldSnappingEnabled(bool bEnabl
 	bEnableAbsoluteWorldSnapping = bEnabled;
 }
 
+void UEditorInteractiveToolsContext::SetDeactivateToolsOnPIEStart(bool bDeactivateTools)
+{
+	bDeactivateOnPIEStart = bDeactivateTools;
+}
+
 void UModeManagerInteractiveToolsContext::Tick(FEditorViewportClient* ViewportClient, float DeltaTime)
 {
 	UEditorInteractiveToolsContext::Tick(ViewportClient, DeltaTime);
@@ -929,7 +943,7 @@ bool UModeManagerInteractiveToolsContext::InputKey(FEditorViewportClient* Viewpo
 	// Update the current state, then route result
 	UpdateStateWithoutRoutingInputKey(ViewportClient, Viewport, Key, Event);
 
-	if (Event == IE_Pressed || Event == IE_Released)
+	if (Event == IE_Pressed || Event == IE_Released || Event == IE_DoubleClick)
 	{
 		if (Key.IsMouseButton())
 		{
@@ -956,20 +970,23 @@ bool UModeManagerInteractiveToolsContext::InputKey(FEditorViewportClient* Viewpo
 					ModifierKeys.IsShiftDown(), ModifierKeys.IsAltDown(),
 					ModifierKeys.IsControlDown(), ModifierKeys.IsCommandDown());
 
+				// DoubleClick replaces a Press event. Include DoubleClick in Pressed/Down events so
+				// that it can still be processed by single click behaviors. For explicit double click
+				// handling, clients can listen for the DoubleClick event with a higher capture priority.
+				const bool bIsPressed = (Event == IE_Pressed || Event == IE_DoubleClick);
+				const bool bIsReleased = (Event == IE_Released);
+				const bool bIsDoubleClick = (Event == IE_DoubleClick);
 				if (bIsLeftMouse)
 				{
-					InputState.Mouse.Left.SetStates(
-						(Event == IE_Pressed), (Event == IE_Pressed), (Event == IE_Released));
+					InputState.Mouse.Left.SetStates(bIsPressed, bIsPressed, bIsReleased, bIsDoubleClick);
 				}
 				else if (bIsMiddleMouse)
 				{
-					InputState.Mouse.Middle.SetStates(
-						(Event == IE_Pressed), (Event == IE_Pressed), (Event == IE_Released));
+					InputState.Mouse.Middle.SetStates(bIsPressed, bIsPressed, bIsReleased, bIsDoubleClick);
 				}
 				else
 				{
-					InputState.Mouse.Right.SetStates(
-						(Event == IE_Pressed), (Event == IE_Pressed), (Event == IE_Released));
+					InputState.Mouse.Right.SetStates(bIsPressed, bIsPressed, bIsReleased, bIsDoubleClick);
 				}
 				if (InputRouter->PostInputEvent(InputState))
 				{
@@ -1134,6 +1151,25 @@ bool UModeManagerInteractiveToolsContext::EndTracking(FEditorViewportClient* InV
 			InViewportClient->Invalidate(bForceChildViewportRedraw, bInvalidateHitProxies);
 		}
 		bIsTrackingMouse = false;
+		return true;
+	}
+
+	return false;
+}
+
+bool UModeManagerInteractiveToolsContext::GetCursor(EMouseCursor::Type& OutCursor) const
+{	
+	UToolsContextCursorAPI* ToolsContextCursorAPI = ToolManager->GetContextObjectStore()->FindContext<UToolsContextCursorAPI>();
+
+	if (ToolsContextCursorAPI && ToolsContextCursorAPI->IsCursorOverridden())
+	{
+		OutCursor = ToolsContextCursorAPI->GetCurrentCursorOverride();
+		return true;
+	}
+
+	if (bIsTrackingMouse)
+	{
+		OutCursor = EMouseCursor::SlashedCircle;				
 		return true;
 	}
 

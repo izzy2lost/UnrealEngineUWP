@@ -2,15 +2,17 @@
 
 #pragma once
 
-#include "Containers/Ticker.h"
-#include "CoreMinimal.h"
-#include "Framework/Commands/UICommandList.h"
+#include "CoreTypes.h"
 
-// Insights
+#include "Containers/Ticker.h"
+#include "Framework/Commands/UICommandList.h"
+#include "Templates/SharedPointer.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/IUnrealInsightsModule.h"
 
-namespace Insights
+namespace UE::Insights::CookProfiler
 {
 
 class SPackageTableTreeView;
@@ -92,5 +94,5 @@ private:
 	TSharedPtr<SPackageTableTreeView> PackageTableTreeView;
 };
 
-} // namespace Insights
+} // namespace UE::Insights::CookProfiler
 

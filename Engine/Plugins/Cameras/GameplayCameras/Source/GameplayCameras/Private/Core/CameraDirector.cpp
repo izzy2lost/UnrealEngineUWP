@@ -4,8 +4,25 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CameraDirector)
 
-void UCameraDirector::Run(const FCameraDirectorRunParams& Params, FCameraDirectorRunResult& OutResult)
+FCameraDirectorEvaluatorPtr UCameraDirector::BuildEvaluator(FCameraDirectorEvaluatorBuilder& Builder) const
 {
-	OnRun(Params, OutResult);
+	using namespace UE::Cameras;
+	FCameraDirectorEvaluator* NewEvaluator = OnBuildEvaluator(Builder);
+	NewEvaluator->SetPrivateCameraDirector(this);
+	return NewEvaluator;
 }
+
+void UCameraDirector::BuildCameraDirector(UE::Cameras::FCameraBuildLog& BuildLog)
+{
+	OnBuildCameraDirector(BuildLog);
+}
+
+#if WITH_EDITOR
+
+void UCameraDirector::FactoryCreateAsset(const FCameraDirectorFactoryCreateParams& InParams)
+{
+	OnFactoryCreateAsset(InParams);
+}
+
+#endif
 

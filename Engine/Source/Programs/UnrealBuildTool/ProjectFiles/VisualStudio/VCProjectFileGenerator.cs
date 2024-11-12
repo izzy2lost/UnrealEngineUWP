@@ -11,7 +11,6 @@ using System.Xml.Linq;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
-using Newtonsoft.Json.Linq;
 
 namespace UnrealBuildTool
 {
@@ -303,7 +302,7 @@ namespace UnrealBuildTool
 		}
 
 		/// <inheritdoc/>
-		protected override void ConfigureProjectFileGeneration(String[] Arguments, ref bool IncludeAllPlatforms, ILogger Logger)
+		protected override void ConfigureProjectFileGeneration(string[] Arguments, ref bool IncludeAllPlatforms, ILogger Logger)
 		{
 			// Call parent implementation first
 			base.ConfigureProjectFileGeneration(Arguments, ref IncludeAllPlatforms, Logger);
@@ -426,7 +425,7 @@ namespace UnrealBuildTool
 
 			public override string ToString()
 			{
-				return String.Format("{0}={1} {2} {3}{4}", VCSolutionConfigAndPlatformName, Configuration, Platform, TargetConfigurationName, Architecture != null ? " " + Architecture : string.Empty);
+				return String.Format("{0}={1} {2} {3}{4}", VCSolutionConfigAndPlatformName, Configuration, Platform, TargetConfigurationName, Architecture != null ? " " + Architecture : String.Empty);
 			}
 
 			public VCSolutionConfigCombination(string VCSolutionConfigAndPlatformName)
@@ -633,14 +632,15 @@ namespace UnrealBuildTool
 						new XElement(NS + "Target",
 							new XAttribute("Name", "CleanUpStaleDlls"),
 							new XAttribute("AfterTargets", "Build"),
-							AutomationProjectFiles.SelectMany(AutomationProject => {
-									string BaseFilename = FileReference.Combine(AutomationToolBinariesDir, AutomationProject.ProjectFilePath.GetFileNameWithoutExtension()).FullName;
-									return new List<XElement>() {
-										new XElement(NS + "Delete",	new XAttribute("Files", BaseFilename + ".dll")),
-										new XElement(NS + "Delete",	new XAttribute("Files", BaseFilename + ".dll.config")),
-										new XElement(NS + "Delete",	new XAttribute("Files", BaseFilename + ".pdb"))
+							AutomationProjectFiles.SelectMany(AutomationProject =>
+							{
+								string BaseFilename = FileReference.Combine(AutomationToolBinariesDir, AutomationProject.ProjectFilePath.GetFileNameWithoutExtension()).FullName;
+								return new List<XElement>() {
+										new XElement(NS + "Delete", new XAttribute("Files", BaseFilename + ".dll")),
+										new XElement(NS + "Delete", new XAttribute("Files", BaseFilename + ".dll.config")),
+										new XElement(NS + "Delete", new XAttribute("Files", BaseFilename + ".pdb"))
 									};
-								}
+							}
 							)
 						)
 					)
@@ -793,11 +793,13 @@ namespace UnrealBuildTool
 
 				// Get the path to the visualizers file. Try to make it relative to the solution directory, but fall back to a full path if it's a foreign project.
 				FileReference VisualizersFile = FileReference.Combine(Unreal.EngineDirectory, "Extras", "VisualStudioDebugging", "Unreal.natvis");
+				FileReference VisualizersStepFile = FileReference.Combine(Unreal.EngineDirectory, "Extras", "VisualStudioDebugging", "Unreal.natstepfilter");
 
 				// Add the visualizers at the solution level. Doesn't seem to be picked up from a makefile project in VS2017 15.8.5.
 				VCSolutionFileContent.AppendLine(String.Format("Project(\"{0}\") = \"Visualizers\", \"Visualizers\", \"{{1CCEC849-CC72-4C59-8C36-2F7C38706D4C}}\"", SolutionFolderEntryGUID));
 				VCSolutionFileContent.AppendLine("\tProjectSection(SolutionItems) = preProject");
 				VCSolutionFileContent.AppendLine("\t\t{0} = {0}", VisualizersFile.MakeRelativeTo(PrimaryProjectPath));
+				VCSolutionFileContent.AppendLine("\t\t{0} = {0}", VisualizersStepFile.MakeRelativeTo(PrimaryProjectPath));
 				VCSolutionFileContent.AppendLine("\tEndProjectSection");
 				VCSolutionFileContent.AppendLine("EndProject");
 			}
@@ -1079,7 +1081,7 @@ namespace UnrealBuildTool
 					{
 						ProjectTarget ProjectTarget = SolutionConfigKeyValue.Value.Item2.Item1;
 
-						var AddSolutionConfig = (UnrealArch? Arch, List<VCSolutionConfigCombination> OutSolutionConfigs) =>
+						Action<UnrealArch?, List<VCSolutionConfigCombination>> AddSolutionConfig = (UnrealArch? Arch, List<VCSolutionConfigCombination> OutSolutionConfigs) =>
 						{
 							// e.g.  "Development|Win64 = Development|Win64"
 							string SolutionConfigName = SolutionConfigKeyValue.Key;
@@ -1141,10 +1143,7 @@ namespace UnrealBuildTool
 			foreach (UnrealTargetPlatform SupportedPlatform in SupportedPlatforms)
 			{
 				PlatformProjectGenerator? ProjGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(SupportedPlatform, true);
-				if (ProjGenerator != null)
-				{
-					ProjGenerator.GetUnrealVSConfigurationEntries(UnrealVSContent);
-				}
+				ProjGenerator?.GetUnrealVSConfigurationEntries(UnrealVSContent);
 			}
 			if (UnrealVSContent.Length > 0)
 			{

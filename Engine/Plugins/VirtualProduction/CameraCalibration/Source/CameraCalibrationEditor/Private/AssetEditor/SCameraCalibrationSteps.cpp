@@ -14,9 +14,12 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "IContentBrowserSingleton.h"
 #include "LensFile.h"
+#include "MediaSource.h"
+#include "MediaTexture.h"
 #include "PropertyCustomizationHelpers.h"
 #include "SSimulcamViewport.h"
 #include "Styling/CoreStyle.h"
+#include "Profile/MediaProfile.h"
 #include "Styling/SlateStyle.h"
 #include "UI/CameraCalibrationEditorStyle.h"
 #include "UI/CameraCalibrationWidgetHelpers.h"
@@ -239,6 +242,7 @@ void SCameraCalibrationSteps::Construct(const FArguments& InArgs, TWeakPtr<FCame
 				SNew(SSimulcamViewport, CalibrationStepsController.Pin()->GetRenderTarget())
 				.OnSimulcamViewportClicked_Raw(CalibrationStepsController.Pin().Get(), &FCameraCalibrationStepsController::OnSimulcamViewportClicked)
 				.OnSimulcamViewportInputKey_Raw(CalibrationStepsController.Pin().Get(), &FCameraCalibrationStepsController::OnSimulcamViewportInputKey)
+				.OnSimulcamViewportMarqueeSelect_Raw(CalibrationStepsController.Pin().Get(), &FCameraCalibrationStepsController::OnSimulcamViewportMarqueeSelect)
 			]
 
 			+ SVerticalBox::Slot() // Media playback buttons
@@ -316,8 +320,8 @@ void SCameraCalibrationSteps::Construct(const FArguments& InArgs, TWeakPtr<FCame
 				.MaxHeight(FCameraCalibrationWidgetHelpers::DefaultRowHeight)
 				[ FCameraCalibrationWidgetHelpers::BuildLabelWidgetPair(LOCTEXT("Camera", "Camera"), BuildCameraPickerWidget())]
 				
-				+ SVerticalBox::Slot() // Media Source picker
-				.MaxHeight(FCameraCalibrationWidgetHelpers::DefaultRowHeight)
+				+ SVerticalBox::Slot()
+				.AutoHeight()// Media Source picker
 				[FCameraCalibrationWidgetHelpers::BuildLabelWidgetPair(LOCTEXT("MediaSource", "Media Source"), BuildMediaSourceWidget())]
 
 				+ SVerticalBox::Slot() // Overlay picker
@@ -425,83 +429,229 @@ TSharedRef<SWidget> SCameraCalibrationSteps::BuildSimulcamWiperWidget()
 		})
 		.MinValue(0.0f)
 		.MaxValue(1.0f)
-		.MinSliderValue(0.0f)
-		.MaxSliderValue(1.0f)
-		.ClearKeyboardFocusOnCommit(true)
-		.Delta(0.1f);
+		.Delta(0.01f);
 }
 
-void SCameraCalibrationSteps::UpdateMediaSourcesOptions()
+TSharedRef<SWidget> SCameraCalibrationSteps::BuildMediaSourceTypeWidget()
 {
-	CurrentMediaSources.Empty();
-
-	if (CalibrationStepsController.IsValid())
+	static TArray<TSharedPtr<EMediaSourceType>> MediaSourceTypes =
 	{
-		CalibrationStepsController.Pin()->FindMediaSourceUrls(CurrentMediaSources);
-	}
+		MakeShared<EMediaSourceType>(EMediaSourceType::MediaSource),
+		MakeShared<EMediaSourceType>(EMediaSourceType::MediaTexture),
+		MakeShared<EMediaSourceType>(EMediaSourceType::MediaProfile),
+		MakeShared<EMediaSourceType>(EMediaSourceType::None),
+	};
 
-	// Add a "None" option
-	CurrentMediaSources.Add(MakeShared<FString>(TEXT("None")));
-
-	check(MediaSourcesComboBox.IsValid());
-
-	// Ask the ComboBox to refresh its options from its source (that we just updated)
-	MediaSourcesComboBox->RefreshOptions();
-
-	// Make sure we show the item that is selected
-	const FString MediaSourceUrl = CalibrationStepsController.Pin()->GetMediaSourceUrl();
-
-	for (const TSharedPtr<FString>& MediaSourceUrlItem: CurrentMediaSources)
+	static auto ToDisplayText = [](EMediaSourceType Type)
 	{
-		check(MediaSourceUrlItem.IsValid());
-
-		if (*MediaSourceUrlItem == MediaSourceUrl)
+		switch (Type)
 		{
-			MediaSourcesComboBox->SetSelectedItem(MediaSourceUrlItem);
-			return;
+		case EMediaSourceType::MediaSource: return LOCTEXT("MediaSourceTypeLabel", "Media Source");
+		case EMediaSourceType::MediaTexture: return LOCTEXT("MediaTextureTypeLabel", "Media Texture");
+		case EMediaSourceType::MediaProfile: return LOCTEXT("MediaProfileTypeLabel", "Media Profile");
+		case EMediaSourceType::None: return LOCTEXT("MediaNoneTypeLabel", "None");
+		default: return FText::GetEmpty();
 		}
-	}
+	};
+	
+	return SNew(SComboBox<TSharedPtr<EMediaSourceType>>)
+	.OptionsSource(&MediaSourceTypes)
+	.OnGenerateWidget_Lambda([](TSharedPtr<EMediaSourceType> Type)
+	{
+		return SNew(STextBlock).Text(ToDisplayText(*Type));
+	})
+	.OnSelectionChanged_Lambda([this](TSharedPtr<EMediaSourceType> SelectedType, ESelectInfo::Type SelectType)
+	{
+		MediaSourceType = *SelectedType;
 
-	// If we arrived here, we fall back to "None"
-	MediaSourcesComboBox->SetSelectedItem(CurrentMediaSources[CurrentMediaSources.Num() - 1]);
-
-	return;
+		// Clear out any selected media sources
+		if (MediaSourceType == EMediaSourceType::None)
+		{
+			if (CalibrationStepsController.IsValid())
+			{
+				CalibrationStepsController.Pin()->ClearMedia();
+				MediaProfileSourcesComboBox->SetSelectedItem(nullptr);
+			}
+		}
+	})
+	[
+		SNew(STextBlock)
+		.Text_Lambda([this]()
+		{
+			return ToDisplayText(MediaSourceType);
+		})
+	];
 }
 
 TSharedRef<SWidget> SCameraCalibrationSteps::BuildMediaSourceWidget()
 {
-	MediaSourcesComboBox = SNew(SComboBox<TSharedPtr<FString>>)
-		.OptionsSource(&CurrentMediaSources)
-		.OnSelectionChanged_Lambda([&](TSharedPtr<FString> NewValue, ESelectInfo::Type Type) -> void
+	return SNew(SVerticalBox)
+
+	+SVerticalBox::Slot()
+	.AutoHeight()
+	.Padding(0.0, 2.0)
+	[
+		BuildMediaSourceTypeWidget()
+	]
+
+	+SVerticalBox::Slot()
+	.AutoHeight()
+	.Padding(0.0, 2.0)
+	[
+		SNew(SWidgetSwitcher)
+		.Visibility_Lambda([this]() { return MediaSourceType != EMediaSourceType::None ? EVisibility::Visible : EVisibility::Collapsed; })
+		.WidgetIndex_Lambda([this]() { return (int32)MediaSourceType; })
+
+		+SWidgetSwitcher::Slot()
+		[
+			BuildMediaSourceAssetPicker()
+		]
+
+		+SWidgetSwitcher::Slot()
+		[
+			BuildMediaTextureAssetPicker()
+		]
+
+		+SWidgetSwitcher::Slot()
+		[
+			BuildMediaProfileSourcePicker()
+		]
+	];
+}
+
+TSharedRef<SWidget> SCameraCalibrationSteps::BuildMediaSourceAssetPicker()
+{
+	return SNew(SObjectPropertyEntryBox)
+		.AllowedClass(UMediaSource::StaticClass())
+		.ThumbnailPool(UThumbnailManager::Get().GetSharedThumbnailPool())
+		.AllowCreate(false)
+		.AllowClear(true)
+		.ObjectPath_Lambda([this]()
 		{
+			if (!CalibrationStepsController.IsValid())
+			{
+				return FString();
+			}
+
+			UMediaSource* MediaSource = CalibrationStepsController.Pin()->GetMediaSource();
+			if (!MediaSource)
+			{
+				return FString();
+			}
+
+			return MediaSource->GetPathName();
+		})
+		.OnObjectChanged_Lambda([this](const FAssetData& InAssetData)
+		{
+			if (!CalibrationStepsController.IsValid())
+			{
+				return;
+			}
+
+			CalibrationStepsController.Pin()->SetMediaSource(Cast<UMediaSource>(InAssetData.GetAsset()));
+			MediaProfileSourcesComboBox->SetSelectedItem(nullptr);
+		});
+}
+
+TSharedRef<SWidget> SCameraCalibrationSteps::BuildMediaTextureAssetPicker()
+{
+	return SNew(SObjectPropertyEntryBox)
+		.AllowedClass(UMediaTexture::StaticClass())
+		.ThumbnailPool(UThumbnailManager::Get().GetSharedThumbnailPool())
+		.AllowCreate(false)
+		.AllowClear(true)
+		.ObjectPath_Lambda([this]()
+		{
+			if (!CalibrationStepsController.IsValid())
+			{
+				return FString();
+			}
+
+			UMediaTexture* MediaTexture = CalibrationStepsController.Pin()->GetMediaTexture();
+			if (!MediaTexture)
+			{
+				return FString();
+			}
+
+			return MediaTexture->GetPathName();
+		})
+		.OnObjectChanged_Lambda([this](const FAssetData& InAssetData)
+		{
+			if (!CalibrationStepsController.IsValid())
+			{
+				return;
+			}
+			
+			CalibrationStepsController.Pin()->SetMediaTexture(Cast<UMediaTexture>(InAssetData.GetAsset()));
+			MediaProfileSourcesComboBox->SetSelectedItem(nullptr);
+		});
+}
+
+TSharedRef<SWidget> SCameraCalibrationSteps::BuildMediaProfileSourcePicker()
+{
+	return SAssignNew(MediaProfileSourcesComboBox, SComboBox<TWeakObjectPtr<UMediaSource>>)
+		.OptionsSource(&MediaProfileSources)
+		.OnComboBoxOpening_Lambda([this]()
+		{
+			MediaProfileSources.Empty();
+
+			if (!CalibrationStepsController.IsValid())
+			{
+				MediaProfileSourcesComboBox->RefreshOptions();
+				return;
+			}
+
+			CalibrationStepsController.Pin()->GetMediaProfileSources(MediaProfileSources);
+			MediaProfileSourcesComboBox->RefreshOptions();
+		})
+		.OnSelectionChanged_Lambda([&](TWeakObjectPtr<UMediaSource> NewValue, ESelectInfo::Type Type) -> void
+		{
+			if (Type == ESelectInfo::Direct)
+			{
+				return;
+			}
+			
 			if (!CalibrationStepsController.IsValid() || !NewValue.IsValid())
 			{
 				return;
 			}
 
-			CalibrationStepsController.Pin()->SetMediaSourceUrl(*NewValue);
+			CalibrationStepsController.Pin()->SetMediaSource(NewValue.Get());
 		})
-		.OnGenerateWidget_Lambda([&](TSharedPtr<FString> InOption) -> TSharedRef<SWidget>
+		.OnGenerateWidget_Lambda([&](TWeakObjectPtr<UMediaSource> InMediaSource) -> TSharedRef<SWidget>
 		{
-			return SNew(STextBlock).Text(FText::FromString(*InOption));
+			FText MediaSourceUrl = FText::GetEmpty();
+			if (InMediaSource.IsValid())
+			{
+				MediaSourceUrl = FText::FromString(InMediaSource->GetUrl());
+			}
+			
+			return SNew(STextBlock).Text(MediaSourceUrl);
 		})
-		.InitiallySelectedItem(nullptr)
 		[
 			SNew(STextBlock)
 			.Text_Lambda([&]() -> FText
 			{
-				if (MediaSourcesComboBox.IsValid() && MediaSourcesComboBox->GetSelectedItem().IsValid())
+				const FText None = LOCTEXT("NoneComboOption", "None");
+				if (!CalibrationStepsController.IsValid())
 				{
-					return FText::FromString(*MediaSourcesComboBox->GetSelectedItem());
+					return None;
 				}
 
-				return LOCTEXT("InvalidComboOption", "Invalid");
+				UMediaSource* MediaSource = CalibrationStepsController.Pin()->GetMediaSource();
+				if (!MediaSource)
+				{
+					return None;
+				}
+
+				if (!MediaSource->GetOuter()->IsA<UMediaProfile>())
+				{
+					return None;
+				}
+
+				return FText::FromString(MediaSource->GetUrl());
 			})
 		];
-
-	UpdateMediaSourcesOptions();
-
-	return MediaSourcesComboBox.ToSharedRef();
 }
 
 TSharedRef<SWidget> SCameraCalibrationSteps::BuildOverlayWidget()

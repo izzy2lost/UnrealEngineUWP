@@ -85,7 +85,7 @@ void FTexture2DDynamicResource::ReleaseRHI()
 }
 
 /** Returns the Texture2DRHI, which can be used for locking/unlocking the mips. */
-FTexture2DRHIRef FTexture2DDynamicResource::GetTexture2DRHI()
+FTextureRHIRef FTexture2DDynamicResource::GetTexture2DRHI()
 {
 	return Texture2DRHI;
 }

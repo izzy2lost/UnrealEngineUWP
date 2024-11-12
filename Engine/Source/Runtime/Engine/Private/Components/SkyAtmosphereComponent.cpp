@@ -17,6 +17,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Components/DirectionalLightComponent.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
+#include "ColorManagement/ColorSpace.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SkyAtmosphereComponent)
 
@@ -205,6 +206,12 @@ void USkyAtmosphereComponent::UpdateStaticLightingGUIDs()
 	bStaticLightingBuiltGUID = FGuid::NewGuid();
 }
 
+void USkyAtmosphereComponent::SetDummyStaticLightingGUIDs()
+{
+	// Dummy GUID just to make sure the value is initialized and not random.
+	bStaticLightingBuiltGUID = FGuid(1, 0, 0, 0);
+}
+
 #if WITH_EDITOR
 
 void USkyAtmosphereComponent::CheckForErrors()
@@ -259,7 +266,7 @@ void USkyAtmosphereComponent::PostEditChangeProperty(FPropertyChangedEvent& Prop
 	{
 		if (SkyAtmosphereComponentStaticLightingBuilt(this))
 		{
-			// If we have changed an atmosphere property and the lighyting has already been built, we need to ask for a rebuild by updating the static lighting GUIDs.
+			// If we have changed an atmosphere property and the lighting has already been built, we need to ask for a rebuild by updating the static lighting GUIDs.
 			UpdateStaticLightingGUIDs();
 		}
 
@@ -417,6 +424,14 @@ FLinearColor USkyAtmosphereComponent::GetAtmosphereTransmitanceOnGroundAtPlanetT
 		return TransmittanceAtDirLight;
 	}
 	return FLinearColor::White;
+}
+
+float USkyAtmosphereComponent::GetAtmosphericLightToMatchIlluminanceOnGround(FVector LightDirection, float IlluminanceOnGround)
+{
+	FAtmosphereSetup AtmosphereSetup(*this);
+	const FLinearColor TransmittanceAtDirLight = AtmosphereSetup.GetTransmittanceAtGroundLevel(LightDirection);
+	const float OuterSpaceIlluminance = IlluminanceOnGround / FMath::Max(UE_SMALL_NUMBER, UE::Color::FColorSpace::GetWorking().GetLuminance(TransmittanceAtDirLight));
+	return OuterSpaceIlluminance;
 }
 
 /*=============================================================================

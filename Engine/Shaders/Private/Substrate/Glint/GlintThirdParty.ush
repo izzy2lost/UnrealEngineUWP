@@ -44,10 +44,17 @@ FGlintLutParams GetGlintParams()
 	return GlintLutParams;
 }
 
-#define USE_GLINT_AA (!RAYCALLABLESHADER && !RAYHITGROUPSHADER && !RAYGENSHADER && !RAYMISSSHADER)
+#ifndef FORCE_DISABLE_GLINTS_AA
+#define FORCE_DISABLE_GLINTS_AA 0
+#endif
+
+// GLINT AA must be skipped for some shaders who do not support ddx/ddy, such as ray tracing shaders.
+// It is also skiped for Compute shader (MegaLights). (available on SM6.6 but not on the Metal API yet).
+// The good news is that the visual difference is minimal.
+#define USE_GLINT_AA (!RAYCALLABLESHADER && !RAYHITGROUPSHADER && !RAYGENSHADER && !RAYMISSSHADER && !FORCE_DISABLE_GLINTS_AA)
 
 // Geometric Glint Anti-Aliasing parameters
-#define KernelSize						0.5
+#define GGAAKernelSize						0.5
 #define GGAAFilter						1
 #define UseHemisDerivatives				true
 
@@ -285,8 +292,8 @@ float P22_M(
 		float2 transformed_slope_dy = mul(slope_dy, invM);
 
 		// Scale the kernel by user parameter
-		transformed_slope_dx *= KernelSize;
-		transformed_slope_dy *= KernelSize;
+		transformed_slope_dx *= GGAAKernelSize;
+		transformed_slope_dy *= GGAAKernelSize;
 
 		P_20_o = View.GlintTexture.SampleGrad(
 			View.GlintSampler,

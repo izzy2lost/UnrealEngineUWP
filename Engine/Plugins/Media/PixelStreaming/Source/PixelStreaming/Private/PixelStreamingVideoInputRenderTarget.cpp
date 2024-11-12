@@ -25,7 +25,7 @@ void FPixelStreamingVideoInputRenderTarget::OnEndFrameRenderThread()
 {
 	if (Target)
 	{
-		if (FTexture2DRHIRef Texture = Target->GetResource()->GetTexture2DRHI())
+		if (FTextureRHIRef Texture = Target->GetResource()->GetTexture2DRHI())
 		{
 			OnFrame(FPixelCaptureInputFrameRHI(Texture));
 		}

@@ -292,10 +292,14 @@ namespace UnrealBuildTool
 			public void PatchProperty(string PropertyName, bool bPreserveExistingValue = false)
 			{
 				if (!PropertiesToPatchContainer.Contains(PropertyName))
+				{
 					PropertiesToPatchContainer.Add(PropertyName);
+				}
 
 				if (bPreserveExistingValue && !PropertiesToPatchOrderButPreserveValueContainer.Contains(PropertyName))
+				{
 					PropertiesToPatchOrderButPreserveValueContainer.Add(PropertyName);
+				}
 			}
 
 			private HashSet<string> PropertiesToPatchContainer = new();
@@ -317,7 +321,7 @@ namespace UnrealBuildTool
 		/// <returns>The string to append to the user file</returns>
 		public virtual string GetVisualStudioUserFileStrings(VisualStudioUserFileSettings VCUserFileSettings, VSSettings InVSSettings, string InConditionString, TargetRules InTargetRules, FileReference TargetRulesPath, FileReference ProjectFilePath, FileReference? NMakeOutputPath, string ProjectName, string? ForeignUProjectPath)
 		{
-			return string.Empty;
+			return String.Empty;
 		}
 
 		/// <summary>

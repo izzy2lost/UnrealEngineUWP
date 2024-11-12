@@ -66,7 +66,6 @@ public class MovieRenderPipelineEditor : ModuleRules
 				"AutomationMessages",
 				"ToolWidgets",
 				"ConsoleVariablesEditor",
-				"StructUtils",
 				"GraphEditor",
 				"StructUtilsEditor",
 				"ApplicationCore",

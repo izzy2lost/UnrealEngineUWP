@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AssetDefinition_DynamicMaterialModel.h"
+#include "Model/AssetDefinition_DynamicMaterialModel.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Engine/World.h"
 #include "Model/DynamicMaterialModel.h"
@@ -15,7 +15,7 @@ FText UAssetDefinition_DynamicMaterialModel::GetAssetDisplayName() const
 
 FText UAssetDefinition_DynamicMaterialModel::GetAssetDisplayName(const FAssetData& InAssetData) const
 {
-	return FText::FromName(InAssetData.AssetName);
+	return GetAssetDisplayName();
 }
 
 TSoftClassPtr<> UAssetDefinition_DynamicMaterialModel::GetAssetClass() const
@@ -52,7 +52,7 @@ EAssetCommandResult UAssetDefinition_DynamicMaterialModel::OpenAssets(const FAss
 			World = InOpenArgs.ToolkitHost->GetWorld();
 		}
 
-		FDynamicMaterialEditorModule::Get().SetDynamicMaterialModel(
+		FDynamicMaterialEditorModule::Get().OpenMaterialModel(
 			MaterialModel,
 			World,
 			/* Invoke Tab */ true

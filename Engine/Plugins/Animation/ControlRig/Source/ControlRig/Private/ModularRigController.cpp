@@ -243,7 +243,8 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 
 #if WITH_EDITOR
 	FName TargetModulePathName = NAME_None;
-	if (UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged()))
+	UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged());
+	if(ModularRig)
 	{
 		if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
 		{
@@ -260,19 +261,34 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 #endif 
 
 	// First disconnect before connecting to anything else. This might disconnect other secondary/optional connectors.
+	TMap<FRigElementKey, FRigElementKey> PreviousConnections;
 	if (CurrentTarget.IsValid())
 	{
 		const TGuardValue<bool> DisableAutomaticReparenting(bAutomaticReparenting, false);
-		DisconnectConnector(InConnectorKey, false, bSetupUndo);
+		DisconnectConnector_Internal(InConnectorKey, false, &PreviousConnections, bSetupUndo);
 	}
 	
 	Model->Connections.AddConnection(InConnectorKey, InTargetKey);
+
+	// restore previous connections if possible
+	for(const TPair<FRigElementKey, FRigElementKey>& PreviousConnection : PreviousConnections)
+	{
+		if(!Model->Connections.HasConnection(PreviousConnection.Key))
+		{
+			FText ErrorMessageForPreviousConnection;
+			if(CanConnectConnectorToElement(PreviousConnection.Key, PreviousConnection.Value, ErrorMessageForPreviousConnection))
+			{
+				(void)ConnectConnectorToElement(PreviousConnection.Key, PreviousConnection.Value, bSetupUndo, false, false);
+			}
+		}
+	}
+	
 	Notify(EModularRigNotification::ConnectionChanged, Module);
 
 #if WITH_EDITOR
 	if (UControlRig* RigCDO = Module->Class->GetDefaultObject<UControlRig>())
 	{
-		if (UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged()))
+		if (ModularRig)
 		{
 			if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
 			{
@@ -320,6 +336,12 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 }
 
 bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnectorKey, bool bDisconnectSubModules, bool bSetupUndo)
+{
+	return DisconnectConnector_Internal(InConnectorKey, bDisconnectSubModules, nullptr, bSetupUndo);
+};
+
+bool UModularRigController::DisconnectConnector_Internal(const FRigElementKey& InConnectorKey, bool bDisconnectSubModules,
+	TMap<FRigElementKey, FRigElementKey>* OutRemovedConnections, bool bSetupUndo)
 {
 	FString ConnectorModulePath, ConnectorName;
 	if (!URigHierarchy::SplitNameSpace(InConnectorKey.Name.ToString(), &ConnectorModulePath, &ConnectorName))
@@ -369,6 +391,10 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 	}
 #endif 
 
+	if(OutRemovedConnections)
+	{
+		OutRemovedConnections->Add(InConnectorKey, Model->Connections.FindTargetFromConnector(InConnectorKey));
+	}
 	Model->Connections.RemoveConnection(InConnectorKey);
 
 	if (ModuleConnector->IsPrimary())
@@ -377,13 +403,17 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 		TArray<FRigElementKey> ConnectionsToRemove;
 		for (const FModularRigSingleConnection& Connection : Model->Connections)
 		{
-			if (Connection.Connector.Name.ToString().StartsWith(ConnectorModulePath, ESearchCase::CaseSensitive))
+			if (Connection.Connector.Name.ToString().StartsWith(ConnectorModulePath, ESearchCase::IgnoreCase))
 			{
 				ConnectionsToRemove.Add(Connection.Connector);
 			}
 		}
 		for (const FRigElementKey& ToRemove : ConnectionsToRemove)
 		{
+			if(OutRemovedConnections)
+			{
+				OutRemovedConnections->Add(ToRemove, Model->Connections.FindTargetFromConnector(ToRemove));
+			}
 			Model->Connections.RemoveConnection(ToRemove);
 		}
 	}
@@ -395,13 +425,17 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 		{
 			FString OtherConnectorModulePath, OtherConnectorName;
 			(void)URigHierarchy::SplitNameSpace(Connection.Connector.Name.ToString(), &OtherConnectorModulePath, &OtherConnectorName);
-			if (OtherConnectorModulePath.StartsWith(ConnectorModulePath, ESearchCase::CaseSensitive) && OtherConnectorModulePath.Len() > ConnectorModulePath.Len())
+			if (OtherConnectorModulePath.StartsWith(ConnectorModulePath, ESearchCase::IgnoreCase) && OtherConnectorModulePath.Len() > ConnectorModulePath.Len())
 			{
 				ConnectionsToRemove.Add(Connection.Connector);
 			}
 		}
 		for (const FRigElementKey& ToRemove : ConnectionsToRemove)
 		{
+			if(OutRemovedConnections)
+			{
+				OutRemovedConnections->Add(ToRemove, Model->Connections.FindTargetFromConnector(ToRemove));
+			}
 			Model->Connections.RemoveConnection(ToRemove);
 		}
 	}
@@ -587,7 +621,7 @@ bool UModularRigController::AutoConnectSecondaryConnectors(const TArray<FRigElem
 		const UModularRigRuleManager* RuleManager = Hierarchy->GetRuleManager();
 		const FRigModuleInstance* ModuleInstance = ModularRig->FindModule(Module->GetPath());
 		
-		if (!Model->Connections.HasConnection(ConnectorKey) || bReplaceExistingConnections)
+		if (bReplaceExistingConnections || !Model->Connections.HasConnection(ConnectorKey))
 		{
 			if (const FRigConnectorElement* OtherConnectorElement = Cast<FRigConnectorElement>(Hierarchy->Find(ConnectorKey)))
 			{
@@ -794,7 +828,7 @@ TArray<FString> UModularRigController::GetPossibleBindings(const FString& InModu
 	Model->ForEachModule([this, &PossibleBindings, InModulePath, InVariableName, InvalidModulePrefix](const FRigModuleReference* InModule) -> bool
 	{
 		const FString CurModulePath = InModule->GetPath();
-		if (InModulePath != CurModulePath && !CurModulePath.StartsWith(InvalidModulePrefix, ESearchCase::CaseSensitive))
+		if (InModulePath != CurModulePath && !CurModulePath.StartsWith(InvalidModulePrefix, ESearchCase::IgnoreCase))
 		{
 			if (!InModule->Class.IsValid())
 			{
@@ -861,7 +895,7 @@ bool UModularRigController::CanBindModuleVariable(const FString& InModulePath, c
 			return false;
 		}
 
-		if (SourceModulePath.StartsWith(InModulePath, ESearchCase::CaseSensitive))
+		if (SourceModulePath.StartsWith(InModulePath, ESearchCase::IgnoreCase))
 		{
 			OutErrorMessage = FText::FromString(FString::Printf(TEXT("Cannot bind variable of module %s to a variable of module %s because the source module is a child of the target module"), *InModulePath, *SourceModulePath));
 			return false;
@@ -1016,11 +1050,14 @@ bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetu
 	}
 #endif
 
-	// Unparent children (add them to root)
-	TArray<FRigModuleReference*> PreviousChildren = Module->CachedChildren;
-	for (const FRigModuleReference* Child : PreviousChildren)
+	(void)DeselectModule(Module->GetPath());
+
+	// Delete children
+	TArray<FString> ChildrenPaths;
+	Algo::Transform(Module->CachedChildren, ChildrenPaths, [](const FRigModuleReference* Child){ return Child->GetPath(); });
+	for (const FString& ChildPath : ChildrenPaths)
 	{
-		ReparentModule(Child->GetPath(), FString(), bSetupUndo);
+		DeleteModule(ChildPath, bSetupUndo);
 	}
 
 	Model->DeletedModules.Add(*Module);
@@ -1117,6 +1154,13 @@ FString UModularRigController::RenameModule(const FString& InModulePath, const F
 	
 	const FString OldPath = (Module->ParentPath.IsEmpty()) ? OldName : URigHierarchy::JoinNameSpace(Module->ParentPath, OldName);
 	const FString NewPath = (Module->ParentPath.IsEmpty()) ? *NewName :  URigHierarchy::JoinNameSpace(Module->ParentPath, NewName);
+
+	const int32 SelectionIndex = Model->SelectedModulePaths.Find(OldPath);
+	if(SelectionIndex != INDEX_NONE)
+	{
+		Notify(EModularRigNotification::ModuleDeselected, Module);
+	}
+
 	Module->PreviousName = Module->Name;
 	Module->Name = InNewName;
 	TArray<FRigModuleReference*> Children;
@@ -1135,11 +1179,11 @@ FString UModularRigController::RenameModule(const FString& InModulePath, const F
 		const FString NewNamespace = NewPath + TEXT(":");
 		for (FModularRigSingleConnection& Connection : Model->Connections)
 		{
-			if (Connection.Connector.Name.ToString().StartsWith(OldNamespace, ESearchCase::CaseSensitive))
+			if (Connection.Connector.Name.ToString().StartsWith(OldNamespace, ESearchCase::IgnoreCase))
 			{
 				Connection.Connector.Name = *FString::Printf(TEXT("%s%s"), *NewNamespace, *Connection.Connector.Name.ToString().RightChop(OldNamespace.Len()));
 			}
-			if (Connection.Target.Name.ToString().StartsWith(OldNamespace, ESearchCase::CaseSensitive))
+			if (Connection.Target.Name.ToString().StartsWith(OldNamespace, ESearchCase::IgnoreCase))
 			{
 				Connection.Target.Name = *FString::Printf(TEXT("%s%s"), *NewNamespace, *Connection.Target.Name.ToString().RightChop(OldNamespace.Len()));
 			}
@@ -1163,6 +1207,12 @@ FString UModularRigController::RenameModule(const FString& InModulePath, const F
 
 	UpdateShortNames();
 	Notify(EModularRigNotification::ModuleRenamed, Module);
+
+	if(SelectionIndex != INDEX_NONE)
+	{
+		Model->SelectedModulePaths[SelectionIndex] = NewPath;
+		Notify(EModularRigNotification::ModuleSelected, Module);
+	}
 
 #if WITH_EDITOR
 	TransactionPtr.Reset();
@@ -1213,7 +1263,7 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 	const FRigModuleReference* NewParentModule = FindModule(InNewParentModulePath);
 	const FString PreviousParentPath = Module->ParentPath;
 	const FString ParentPath = (NewParentModule) ? NewParentModule->GetPath() : FString();
-	if(PreviousParentPath.Equals(ParentPath, ESearchCase::CaseSensitive))
+	if(PreviousParentPath.Equals(ParentPath, ESearchCase::IgnoreCase))
 	{
 		return Module->GetPath();
 	}
@@ -1232,6 +1282,13 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 
 	// Reparent or unparent children
 	const FString OldPath = Module->GetPath();
+
+	const int32 SelectionIndex = Model->SelectedModulePaths.Find(OldPath);
+	if(SelectionIndex != INDEX_NONE)
+	{
+		Notify(EModularRigNotification::ModuleDeselected, Module);
+	}
+	
 	Module->PreviousParentPath = Module->ParentPath;
 	Module->PreviousName = Module->Name;
 	Module->ParentPath = (NewParentModule) ? NewParentModule->GetPath() : FString();
@@ -1246,7 +1303,6 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 		SubTree.Append(SubTree[Index]->CachedChildren);
 	}
 
-
 	Model->UpdateCachedChildren();
 	UpdateShortNames();
 
@@ -1254,11 +1310,11 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 	{
 		for (FModularRigSingleConnection& Connection : Model->Connections)
 		{
-			if (Connection.Connector.Name.ToString().StartsWith(OldPath, ESearchCase::CaseSensitive))
+			if (Connection.Connector.Name.ToString().StartsWith(OldPath, ESearchCase::IgnoreCase))
 			{
 				Connection.Connector.Name = *FString::Printf(TEXT("%s%s"), *NewPath, *Connection.Connector.Name.ToString().RightChop(OldPath.Len()));
 			}
-			if (Connection.Target.Name.ToString().StartsWith(OldPath, ESearchCase::CaseSensitive))
+			if (Connection.Target.Name.ToString().StartsWith(OldPath, ESearchCase::IgnoreCase))
 			{
 				Connection.Target.Name = *FString::Printf(TEXT("%s%s"), *NewPath, *Connection.Target.Name.ToString().RightChop(OldPath.Len()));
 			}
@@ -1301,7 +1357,13 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 	(void)DisconnectCyclicConnectors(bSetupUndo);
 
 	Notify(EModularRigNotification::ModuleReparented, Module);
-	
+
+	if(SelectionIndex != INDEX_NONE)
+	{
+		Model->SelectedModulePaths[SelectionIndex] = NewPath;
+		Notify(EModularRigNotification::ModuleSelected, Module);
+	}
+
 #if WITH_EDITOR
  	TransactionPtr.Reset();
 #endif
@@ -1324,16 +1386,22 @@ FString UModularRigController::MirrorModule(const FString& InModulePath, const F
 		NewModuleName = GetSafeNewName(OriginalModule->ParentPath, FRigName(NewModuleName)).ToString();
 	}
 
+	// Before any changes, gather all the information we need from the OriginalModule, as the pointer might become invalid afterwards
+	const TMap<FRigElementKey, FRigElementKey> OriginalConnectionMap = Model->Connections.GetModuleConnectionMap(InModulePath);
+	const TMap<FName, FString> OriginalBindings = OriginalModule->Bindings;
+	const TSubclassOf<UControlRig> OriginalClass = OriginalModule->Class.Get();
+	const FString OriginalParentPath = OriginalModule->ParentPath;
+	const TMap<FName, FString> OriginalConfigValues = OriginalModule->ConfigValues;
+
 	FModularRigControllerCompileBracketScope CompileBracketScope(this);
 
-	FString NewModulePath = AddModule(*NewModuleName, OriginalModule->Class.Get(), OriginalModule->ParentPath, bSetupUndo);
+	FString NewModulePath = AddModule(*NewModuleName, OriginalClass, OriginalParentPath, bSetupUndo);
 	FRigModuleReference* NewModule = FindModule(NewModulePath);
 	if (!NewModule)
 	{
 		return FString();
 	}
 
-	const TMap<FRigElementKey, FRigElementKey> OriginalConnectionMap = Model->Connections.GetModuleConnectionMap(InModulePath);
 	for (const TPair<FRigElementKey, FRigElementKey>& Pair : OriginalConnectionMap)
 	{
 		FString OriginalTargetPath = Pair.Value.Name.ToString();
@@ -1348,7 +1416,7 @@ FString UModularRigController::MirrorModule(const FString& InModulePath, const F
 		NewModulePath = NewModule->GetPath();
 	}
 
-	for (const TPair<FName, FString>& Pair : OriginalModule->Bindings)
+	for (const TPair<FName, FString>& Pair : OriginalBindings)
 	{
 		FString NewSourcePath = Pair.Value.Replace(*InSettings.SearchString, *InSettings.ReplaceString, ESearchCase::CaseSensitive);
 		BindModuleVariable(NewModulePath, Pair.Key, NewSourcePath, bSetupUndo);
@@ -1356,7 +1424,7 @@ FString UModularRigController::MirrorModule(const FString& InModulePath, const F
 
 	TSet<FName> ConfigValueSet;
 #if WITH_EDITOR
-	for (TFieldIterator<FProperty> PropertyIt(OriginalModule->Class.Get()); PropertyIt; ++PropertyIt)
+	for (TFieldIterator<FProperty> PropertyIt(OriginalClass); PropertyIt; ++PropertyIt)
 	{
 		const FProperty* Property = *PropertyIt;
 		
@@ -1390,7 +1458,7 @@ FString UModularRigController::MirrorModule(const FString& InModulePath, const F
 		}
 
 		FString NewValueStr;
-		if (const FString* OriginalValue = OriginalModule->ConfigValues.Find(Property->GetFName()))
+		if (const FString* OriginalValue = OriginalConfigValues.Find(Property->GetFName()))
 		{
 			if (bIsVector)
 			{
@@ -1409,7 +1477,7 @@ FString UModularRigController::MirrorModule(const FString& InModulePath, const F
 		}
 		else
 		{
-			if (UControlRig* CDO = OriginalModule->Class->GetDefaultObject<UControlRig>())
+			if (UControlRig* CDO = OriginalClass->GetDefaultObject<UControlRig>())
 			{
 				if (bIsVector)
 				{
@@ -1432,7 +1500,7 @@ FString UModularRigController::MirrorModule(const FString& InModulePath, const F
 #endif
 
 	// Add any other config value that was set in the original module, but was not mirrored
-	for (const TPair<FName, FString>& Pair : OriginalModule->ConfigValues)
+	for (const TPair<FName, FString>& Pair : OriginalConfigValues)
 	{
 		if (!ConfigValueSet.Contains(Pair.Key))
 		{
@@ -1502,6 +1570,313 @@ bool UModularRigController::CanSetModuleShortName(const FString& InModulePath, c
 		return false;
 	}
 	return true;
+}
+
+bool UModularRigController::SwapModuleClass(const FString& InModulePath, TSubclassOf<UControlRig> InNewClass, bool bSetupUndo)
+{
+	FRigModuleReference* Module = FindModule(InModulePath);
+	if (!Module)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *InModulePath);
+		return false;
+	}
+
+	if (!InNewClass)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Invalid InClass"));
+		return false;
+	}
+
+	UControlRig* ClassDefaultObject = InNewClass->GetDefaultObject<UControlRig>();
+	if (!ClassDefaultObject->IsRigModule())
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Class %s is not a rig module"), *InNewClass->GetClassPathName().ToString());
+		return false;
+	}
+
+	if (Module->Class.Get() == InNewClass)
+	{
+		// Nothing to do here
+		return true;
+	}
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if (bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "SwapModuleClassTransaction", "Swap Module Class"), !GIsTransacting);
+		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
+		{
+			Blueprint->Modify();
+		}
+	}
+#endif
+
+	Module->Class = InNewClass;
+
+	// Remove invalid connectors/connections
+	{
+		const TArray<FModularRigSingleConnection>& Connections = Model->Connections.GetConnectionList();
+		const UControlRig* CDO = InNewClass->GetDefaultObject<UControlRig>();
+		const TArray<FRigModuleConnector>& ExposedConnectors = CDO->GetRigModuleSettings().ExposedConnectors;
+
+		TArray<FRigElementKey> ConnectionsToRemove;
+		for (const FModularRigSingleConnection& Connection : Connections)
+		{
+			FString Namespace, ConnectorName;
+			URigHierarchy::SplitNameSpace(Connection.Connector.Name.ToString(), &Namespace, &ConnectorName);
+			if (Namespace.Equals(InModulePath))
+			{
+				if (!ExposedConnectors.ContainsByPredicate([ConnectorName](const FRigModuleConnector& Exposed)
+				{
+				   return Exposed.Name == ConnectorName;
+				}))
+				{
+					ConnectionsToRemove.Add(Connection.Connector);
+					continue;
+				}
+
+				FText ErrorMessage;
+				if (!CanConnectConnectorToElement(Connection.Connector, Connection.Target, ErrorMessage))
+				{
+					ConnectionsToRemove.Add(Connection.Connector);
+				}
+			}
+		}
+
+		for (const FRigElementKey& ToRemove : ConnectionsToRemove)
+		{
+			DisconnectConnector(ToRemove, false, bSetupUndo);
+		}
+	}
+
+	// Remove config values and bindings that are not supported anymore
+	RefreshModuleVariables();
+
+	Notify(EModularRigNotification::ModuleClassChanged, Module);
+	
+#if WITH_EDITOR
+	TransactionPtr.Reset();
+#endif
+
+	return true;
+}
+
+bool UModularRigController::SwapModulesOfClass(TSubclassOf<UControlRig> InOldClass, TSubclassOf<UControlRig> InNewClass, bool bSetupUndo)
+{
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if (bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "SwapModulesOfClassTransaction", "Swap Modules of Class"), !GIsTransacting);
+		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
+		{
+			Blueprint->Modify();
+		}
+	}
+#endif
+	
+	Model->ForEachModule([this, InOldClass, InNewClass, bSetupUndo](const FRigModuleReference* Module) -> bool
+	{
+		if (Module->Class.Get() == InOldClass)
+		{
+			SwapModuleClass(Module->GetPath(), InNewClass, bSetupUndo);
+		}
+		return true;
+	});
+	
+#if WITH_EDITOR
+	TransactionPtr.Reset();
+#endif
+	
+	return true;
+}
+
+bool UModularRigController::SelectModule(const FString& InModulePath, const bool InSelected)
+{
+	const bool bCurrentlySelected = Model->SelectedModulePaths.Contains(InModulePath);
+	if(bCurrentlySelected == InSelected)
+	{
+		return false;
+	}
+
+	const FRigModuleReference* Module = FindModule(InModulePath);
+	if(Module == nullptr)
+	{
+		return false;
+	}
+
+	if(InSelected)
+	{
+		Model->SelectedModulePaths.Add(InModulePath);
+	}
+	else
+	{
+		Model->SelectedModulePaths.Remove(InModulePath);
+	}
+
+	Notify(InSelected ? EModularRigNotification::ModuleSelected : EModularRigNotification::ModuleDeselected, Module);
+	return true;
+}
+
+bool UModularRigController::DeselectModule(const FString& InModulePath)
+{
+	return SelectModule(InModulePath, false);
+}
+
+bool UModularRigController::SetModuleSelection(const TArray<FString>& InModulePaths)
+{
+	bool bResult = false;
+	const TArray<FString> OldSelection = GetSelectedModules();
+
+	for(const FString& PreviouslySelectedModule : OldSelection)
+	{
+		if(!InModulePaths.Contains(PreviouslySelectedModule))
+		{
+			if(DeselectModule(PreviouslySelectedModule))
+			{
+				bResult = true;
+			}
+		}
+	}
+	for(const FString& NewModuleToSelect : InModulePaths)
+	{
+		if(!OldSelection.Contains(NewModuleToSelect))
+		{
+			if(SelectModule(NewModuleToSelect))
+			{
+				bResult = true;
+			}
+		}
+	}
+
+	return bResult;
+}
+
+TArray<FString> UModularRigController::GetSelectedModules() const
+{
+	return Model->SelectedModulePaths;
+}
+
+void UModularRigController::RefreshModuleVariables(bool bSetupUndo)
+{
+	Model->ForEachModule([this, bSetupUndo](const FRigModuleReference* Element) -> bool
+	{
+		TGuardValue<bool> NotificationsGuard(bSuspendNotifications, true);
+		RefreshModuleVariables(Element, bSetupUndo);
+		return true;
+	});
+}
+
+void UModularRigController::RefreshModuleVariables(const FRigModuleReference* InModule, bool bSetupUndo)
+{
+	if (!InModule)
+	{
+		return;
+	}
+	
+	// avoid dead class pointers
+	const UClass* ModuleClass = InModule->Class.Get();
+	if(ModuleClass == nullptr)
+	{
+		return;
+	}
+
+	// Make sure the provided module belongs to our ModularRigModel
+	const FString& ModulePath = InModule->GetPath();
+	FRigModuleReference* Module = FindModule(ModulePath);
+	if (Module != InModule)
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if (bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "RefreshModuleVariablesTransaction", "Refresh Module Variables"), !GIsTransacting);
+		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
+		{
+			Blueprint->Modify();
+		}
+	}
+#endif
+
+	for (TFieldIterator<FProperty> PropertyIt(ModuleClass); PropertyIt; ++PropertyIt)
+	{
+		const FProperty* Property = *PropertyIt;
+		
+		// remove advanced, private or not editable properties
+		const bool bIsAdvanced = Property->HasAnyPropertyFlags(CPF_AdvancedDisplay);
+		const bool bIsPublic = Property->HasAnyPropertyFlags(CPF_Edit | CPF_EditConst);
+		const bool bIsInstanceEditable = !Property->HasAnyPropertyFlags(CPF_DisableEditOnInstance);
+		if (bIsAdvanced || !bIsPublic || !bIsInstanceEditable)
+		{
+			Module->ConfigValues.Remove(Property->GetFName());
+			Module->Bindings.Remove(Property->GetFName());
+		}
+	}
+
+	// Make sure all the types are valid
+	const TMap<FName, FString> ConfigValues = Module->ConfigValues;
+	const TMap<FName, FString> Bindings = Module->Bindings;
+	Module->ConfigValues.Reset();
+	Module->Bindings.Reset();
+	for (const TPair<FName, FString>& Pair : ConfigValues)
+	{
+		SetConfigValueInModule(ModulePath, Pair.Key, Pair.Value, false);
+	}
+	for (const TPair<FName, FString>& Pair : Bindings)
+	{
+		BindModuleVariable(ModulePath, Pair.Key, Pair.Value, false);
+	}
+
+	// If the module is the source of another module's binding, make sure it is still a valid binding
+	Model->ForEachModule([this, InModule, ModulePath, ModuleClass](const FRigModuleReference* OtherModule) -> bool
+	{
+		if (InModule == OtherModule)
+		{
+			return true;
+		}
+		TArray<FName> BindingsToRemove;
+		for (const TPair<FName, FString>& Binding : OtherModule->Bindings)
+		{
+			FString BindingModulePath, VariableName = Binding.Value;
+			(void)URigHierarchy::SplitNameSpace(Binding.Value, &BindingModulePath, &VariableName);
+			if (BindingModulePath == ModulePath)
+			{
+				if (const FProperty* Property = ModuleClass->FindPropertyByName(*VariableName))
+				{
+					// remove advanced, private or not editable properties
+					const bool bIsAdvanced = Property->HasAnyPropertyFlags(CPF_AdvancedDisplay);
+					const bool bIsPublic = Property->HasAnyPropertyFlags(CPF_Edit | CPF_EditConst);
+					const bool bIsInstanceEditable = !Property->HasAnyPropertyFlags(CPF_DisableEditOnInstance);
+					if (bIsAdvanced || !bIsPublic || !bIsInstanceEditable)
+					{
+						BindingsToRemove.Add(Binding.Key);
+					}
+					else 
+					{
+						FText ErrorMessage;
+						if (!CanBindModuleVariable(OtherModule->GetPath(), Binding.Key, Binding.Value, ErrorMessage))
+						{
+							BindingsToRemove.Add(Binding.Key);
+						}
+					}
+				}
+			}
+		}
+
+		for (const FName& ToRemove : BindingsToRemove)
+		{
+			UnBindModuleVariable(OtherModule->GetPath(), ToRemove);
+		}
+		return true;
+	});
+	
+#if WITH_EDITOR
+	TransactionPtr.Reset();
+#endif
 }
 
 void UModularRigController::SanitizeName(FRigName& InOutName, bool bAllowNameSpaces)
@@ -1714,7 +2089,7 @@ void UModularRigController::UpdateShortNames()
 				}
 			}
 
-			if(!Module.ShortName.Equals(ShortPath, ESearchCase::CaseSensitive))
+			if(!Module.ShortName.Equals(ShortPath, ESearchCase::IgnoreCase))
 			{
 				Module.ShortName = ShortPath;
 				Notify(EModularRigNotification::ModuleShortNameChanged, &Module);

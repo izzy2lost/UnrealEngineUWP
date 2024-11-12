@@ -68,4 +68,18 @@ void UK2Node_AsyncAction::GetMenuActions(FBlueprintActionDatabaseRegistrar& Acti
 	}) );
 }
 
+void UK2Node_AsyncAction::InitializeProxyFromFunction(const UFunction* ProxyFunction)
+{
+	if (ensure(ProxyFunction))
+	{
+		const FObjectProperty* ReturnProp = CastField<FObjectProperty>(ProxyFunction->GetReturnProperty());
+		if (ensure(ReturnProp))
+		{
+			ProxyFactoryFunctionName = ProxyFunction->GetFName();
+			ProxyFactoryClass = ProxyFunction->GetOuterUClass();
+			ProxyClass = ReturnProp->PropertyClass;
+		}
+	}
+}
+
 #undef LOCTEXT_NAMESPACE

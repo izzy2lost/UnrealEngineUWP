@@ -27,7 +27,7 @@ struct MASSNAVIGATION_API FMassSmoothOrientationWeights : public FMassSharedFrag
 };
 
 USTRUCT()
-struct MASSNAVIGATION_API FMassSmoothOrientationParameters : public FMassSharedFragment
+struct MASSNAVIGATION_API FMassSmoothOrientationParameters : public FMassConstSharedFragment
 {
 	GENERATED_BODY()
 

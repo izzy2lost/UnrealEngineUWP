@@ -19,7 +19,7 @@ class FGLTFDelayedMaterialTask : public FGLTFDelayedTask
 {
 public:
 
-	FGLTFDelayedMaterialTask(FGLTFConvertBuilder& Builder, FGLTFUVOverlapChecker& UVOverlapChecker, FGLTFUVBoundsCalculator& UVBoundsCalculator, const UMaterialInterface* Material, const FGLTFMeshData* MeshData, FGLTFIndexArray SectionIndices, FGLTFJsonMaterial* JsonMaterial)
+	FGLTFDelayedMaterialTask(FGLTFConvertBuilder& Builder, FGLTFUVOverlapChecker& UVOverlapChecker, FGLTFUVBoundsCalculator& UVBoundsCalculator, const UMaterialInterface* Material, const FGLTFMeshData* MeshData, FGLTFIndexArray& SectionIndices, FGLTFJsonMaterial* JsonMaterial)
 		: FGLTFDelayedTask(EGLTFTaskPriority::Material)
 		, Builder(Builder)
 		, UVOverlapChecker(UVOverlapChecker)
@@ -45,7 +45,7 @@ private:
 	FGLTFUVBoundsCalculator& UVBoundsCalculator;
 	const UMaterialInterface* Material;
 	const FGLTFMeshData* MeshData;
-	const FGLTFIndexArray SectionIndices;
+	const FGLTFIndexArray SectionIndices; //We copy because the received value can be temporary value.
 	FGLTFJsonMaterial* JsonMaterial;
 
 	FString GetMaterialName() const;

@@ -25,7 +25,7 @@ public:
 	*   Template type is the platform specific symbol data structure.
 	*/
 	template<typename TPlatformShaderSymbolData>
-	void NotifyShaderCompiled(const TConstArrayView<uint8>& PlatformSymbolData);
+	void NotifyShaderCompiled(const TConstArrayView<uint8>& PlatformSymbolData, const FString& DebugInfo = FString());
 
 	/** Called at the end of a cook to free resources and finalize artifacts created during the cook. */
 	void NotifyShaderCompilersShutdown();
@@ -61,7 +61,7 @@ private:
 };
 
 template<typename TPlatformShaderSymbolData>
-inline void FShaderSymbolExport::NotifyShaderCompiled(const TConstArrayView<uint8>& PlatformSymbolData)
+inline void FShaderSymbolExport::NotifyShaderCompiled(const TConstArrayView<uint8>& PlatformSymbolData, const FString& DebugInfo)
 {
 	static bool bFirst = true;
 	if (bFirst)
@@ -82,7 +82,6 @@ inline void FShaderSymbolExport::NotifyShaderCompiled(const TConstArrayView<uint
 		for (const auto& SymbolData : FullSymbolData.GetAllSymbolData())
 		{
 			const FString FileName = SymbolData.GetFilename();
-			const FString DebugInfo = SymbolData.GetDebugInfo();
 			TConstArrayView<uint8> Contents = SymbolData.GetContents();
 
 			WriteSymbolData(FileName, DebugInfo, Contents);

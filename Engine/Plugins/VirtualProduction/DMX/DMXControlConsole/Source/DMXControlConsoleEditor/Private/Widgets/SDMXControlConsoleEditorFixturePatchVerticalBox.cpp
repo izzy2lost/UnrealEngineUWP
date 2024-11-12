@@ -11,6 +11,7 @@
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXLibrary.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
@@ -53,7 +54,6 @@ namespace UE::DMX::Private
 				]
 
 				+ SVerticalBox::Slot()
-				.AutoHeight()
 				[
 					SAssignNew(FixturePatchList, SDMXControlConsoleFixturePatchList, EditorModel.Get())
 					.DMXLibrary(DMXLibrary)
@@ -248,8 +248,15 @@ namespace UE::DMX::Private
 		ActiveLayout->PreEditChange(nullptr);
 
 		const TArray<UDMXControlConsoleFaderGroupRow*>& FaderGroupRows = ControlConsoleData->GetFaderGroupRows();
+
+		const float NumSteps = FaderGroupRows.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("AddAllPatchesSlowTask", "Updating Control Console..."));
+		Task.MakeDialogDelayed(.5f);
+
 		for (const UDMXControlConsoleFaderGroupRow* FaderGroupRow : FaderGroupRows)
 		{
+			Task.EnterProgressFrame();
+
 			if (!FaderGroupRow)
 			{
 				continue;

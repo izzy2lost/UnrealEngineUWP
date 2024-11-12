@@ -152,6 +152,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | SkeletalMesh")
 	bool SetCustomBoneInfluenceLimit(const int32& AttributeValue, bool bAddApplyDelegate = true);
 
+	/** Query whether the skeletal mesh factory should merge morph target shape with the same name under one morph target. Return false if the attribute was not set.*/
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | SkeletalMesh")
+	bool GetCustomMergeMorphTargetShapeWithSameName(bool& AttributeValue) const;
+
+	/** Set whether the skeletal mesh factory should merge morph target shape with the same name under one morph target. Return false if the attribute could not be set.*/
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | SkeletalMesh")
+	bool SetCustomMergeMorphTargetShapeWithSameName(const bool& AttributeValue);
+
 	/**
 	 * The skeletal mesh thumbnail can have an overlay if the last reimport was geometry only. This thumbnail overlay feature uses the metadata to find out if the last import was geometry only.
 	 */
@@ -160,6 +168,12 @@ public:
 	virtual void AppendAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 
 	virtual void CopyWithObject(const UInterchangeFactoryBaseNode* SourceNode, UObject* Object) override;
+
+	/** Return if the import of the class is allowed at runtime.*/
+	virtual bool IsRuntimeImportAllowed () const override
+	{
+		return false;
+	}
 private:
 
 	virtual void FillAssetClassFromAttribute() override;
@@ -178,6 +192,7 @@ private:
 	const UE::Interchange::FAttributeKey Macro_CustomThresholdUVKey = UE::Interchange::FAttributeKey(TEXT("ThresholdUV"));
 	const UE::Interchange::FAttributeKey Macro_CustomMorphThresholdPositionKey = UE::Interchange::FAttributeKey(TEXT("MorphThresholdPosition"));
 	const UE::Interchange::FAttributeKey Macro_CustomBoneInfluenceLimitKey = UE::Interchange::FAttributeKey(TEXT("BoneInfluenceLimit"));
+	const UE::Interchange::FAttributeKey Macro_CustomMergeMorphTargetShapeWithSameNameKey = UE::Interchange::FAttributeKey(TEXT("MergeMorphTargetShapeWithSameName"));
 
 	bool ApplyCustomUseHighPrecisionSkinWeightsToAsset(UObject* Asset) const;
 	bool FillCustomUseHighPrecisionSkinWeightsFromAsset(UObject* Asset);

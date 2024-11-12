@@ -1,15 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.BuildGraph;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
+using EpicGames.BuildGraph;
 using EpicGames.Core;
-using UnrealBuildBase;
 using UnrealBuildTool;
 
 namespace AutomationTool.Tasks
@@ -23,31 +20,31 @@ namespace AutomationTool.Tasks
 		/// The commandlet name to execute.
 		/// </summary>
 		[TaskParameter]
-		public string Name;
+		public string Name { get; set; }
 
 		/// <summary>
 		/// The project to run the editor with.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Project;
+		public string Project { get; set; }
 
 		/// <summary>
 		/// Arguments to be passed to the commandlet.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// The editor executable to use. Defaults to the development UnrealEditor executable for the current platform.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference EditorExe;
+		public FileReference EditorExe { get; set; }
 
 		/// <summary>
 		/// The minimum exit code, which is treated as an error.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int ErrorLevel = 1;
+		public int ErrorLevel { get; set; } = 1;
 	}
 
 	/// <summary>
@@ -56,73 +53,62 @@ namespace AutomationTool.Tasks
 	[TaskElement("Commandlet", typeof(CommandletTaskParameters))]
 	public class CommandletTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		CommandletTaskParameters Parameters;
+		readonly CommandletTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a new CommandletTask.
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public CommandletTask(CommandletTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public CommandletTask(CommandletTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Get the full path to the project file
-			FileReference ProjectFile = null;
-			if(!String.IsNullOrEmpty(Parameters.Project))
+			FileReference projectFile = null;
+			if (!String.IsNullOrEmpty(_parameters.Project))
 			{
-				if(Parameters.Project.EndsWith(".uproject", StringComparison.OrdinalIgnoreCase))
+				if (_parameters.Project.EndsWith(".uproject", StringComparison.OrdinalIgnoreCase))
 				{
-					ProjectFile = ResolveFile(Parameters.Project);
+					projectFile = ResolveFile(_parameters.Project);
 				}
 				else
 				{
-					ProjectFile = NativeProjects.EnumerateProjectFiles(Log.Logger).FirstOrDefault(x => x.GetFileNameWithoutExtension().Equals(Parameters.Project, StringComparison.OrdinalIgnoreCase));
+					projectFile = NativeProjects.EnumerateProjectFiles(Log.Logger).FirstOrDefault(x => x.GetFileNameWithoutExtension().Equals(_parameters.Project, StringComparison.OrdinalIgnoreCase));
 				}
 
-				if(ProjectFile == null || !FileReference.Exists(ProjectFile))
+				if (projectFile == null || !FileReference.Exists(projectFile))
 				{
-					throw new BuildException("Unable to resolve project '{0}'", Parameters.Project);
+					throw new BuildException("Unable to resolve project '{0}'", _parameters.Project);
 				}
 			}
 
 			// Get the path to the editor, and check it exists
-			FileSystemReference EditorExe;
-			if(Parameters.EditorExe == null)
+			FileSystemReference editorExe = _parameters.EditorExe;
+			if (editorExe == null)
 			{
-				EditorExe = ProjectUtils.GetProjectTarget(ProjectFile, UnrealBuildTool.TargetType.Editor, BuildHostPlatform.Current.Platform, UnrealTargetConfiguration.Development, true);
-				if (EditorExe == null)
-				{
-					EditorExe = new FileReference(HostPlatform.Current.GetUnrealExePath("UnrealEditor-Cmd.exe"));
-				}
-			}
-			else
-			{
-				EditorExe = Parameters.EditorExe;
+				editorExe = ProjectUtils.GetEditorForProject(projectFile);
 			}
 
 			// Run the commandlet
-			CommandUtils.RunCommandlet(ProjectFile, EditorExe.FullName, Parameters.Name, Parameters.Arguments, Parameters.ErrorLevel);
+			CommandUtils.RunCommandlet(projectFile, editorExe.FullName, _parameters.Name, _parameters.Arguments, _parameters.ErrorLevel);
 			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -152,21 +138,23 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Task which runs a UE commandlet
 		/// </summary>
-		/// <param name="State"></param>
-		/// <param name="Name">The commandlet name to execute.</param>
-		/// <param name="Project">The project to run the editor with.</param>
-		/// <param name="Arguments">Arguments to be passed to the commandlet.</param>
-		/// <param name="EditorExe">The editor executable to use. Defaults to the development UnrealEditor executable for the current platform.</param>
-		/// <param name="ErrorLevel">The minimum exit code, which is treated as an error.</param>
-		public static async Task CommandletAsync(this BgContext State, string Name, FileReference Project = null, string Arguments = null, FileReference EditorExe = null, int ErrorLevel = 1)
+		/// <param name="state"></param>
+		/// <param name="name">The commandlet name to execute.</param>
+		/// <param name="project">The project to run the editor with.</param>
+		/// <param name="arguments">Arguments to be passed to the commandlet.</param>
+		/// <param name="editorExe">The editor executable to use. Defaults to the development UnrealEditor executable for the current platform.</param>
+		/// <param name="errorLevel">The minimum exit code, which is treated as an error.</param>
+		public static async Task CommandletAsync(this BgContext state, string name, FileReference project = null, string arguments = null, FileReference editorExe = null, int errorLevel = 1)
 		{
-			CommandletTaskParameters Parameters = new CommandletTaskParameters();
-			Parameters.Name = Name;
-			Parameters.Project = Project?.FullName;
-			Parameters.Arguments = Arguments;
-			Parameters.EditorExe = EditorExe;
-			Parameters.ErrorLevel = ErrorLevel;
-			await ExecuteAsync(new CommandletTask(Parameters));
+			_ = state;
+
+			CommandletTaskParameters parameters = new CommandletTaskParameters();
+			parameters.Name = name;
+			parameters.Project = project?.FullName;
+			parameters.Arguments = arguments;
+			parameters.EditorExe = editorExe;
+			parameters.ErrorLevel = errorLevel;
+			await ExecuteAsync(new CommandletTask(parameters));
 		}
 	}
 }

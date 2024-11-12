@@ -2,7 +2,7 @@
 
 #include "Dataflow/DataflowObjectInterface.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	template class TEngineContext<FContextSingle>;
 	template class TEngineContext<FContextThreaded>;

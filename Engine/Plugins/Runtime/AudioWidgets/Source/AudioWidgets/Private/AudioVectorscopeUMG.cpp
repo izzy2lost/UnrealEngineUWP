@@ -33,8 +33,6 @@ void UAudioVectorscope::CreateDummyVectorscopeWidget()
 
 void UAudioVectorscope::CreateDataProvider()
 {
-	constexpr float MaxDisplayPersistenceMs = 500.0f; // TODO alex.perez: should we expose this as a UPROPERTY?
-
 	UWorld* World = GetWorld();
 	if (!World)
 	{
@@ -67,12 +65,14 @@ void UAudioVectorscope::CreateVectorscopeWidget()
 
 	if (PanelLayoutType == EAudioPanelLayoutType::Advanced)
 	{
-		VectorscopePanelWidget->OnTimeWindowValueChanged.AddSP(AudioSamplesDataProvider.Get(), &FWaveformAudioSamplesDataProvider::SetTimeWindow);
+		VectorscopePanelWidget->OnDisplayPersistenceValueChanged.AddSP(AudioSamplesDataProvider.Get(), &FWaveformAudioSamplesDataProvider::SetTimeWindow);
 	}
 }
 
 TSharedRef<SWidget> UAudioVectorscope::RebuildWidget()
 {
+	DisplayPersistenceMs = FMath::Clamp(DisplayPersistenceMs, 10.0f, MaxDisplayPersistenceMs);
+
 	if (!AudioBus)
 	{
 		CreateDummyVectorscopeWidget();
@@ -89,6 +89,8 @@ TSharedRef<SWidget> UAudioVectorscope::RebuildWidget()
 void UAudioVectorscope::SynchronizeProperties()
 {
 	Super::SynchronizeProperties();
+
+	DisplayPersistenceMs = FMath::Clamp(DisplayPersistenceMs, 10.0f, MaxDisplayPersistenceMs);
 
 	if (!AudioBus)
 	{
@@ -107,6 +109,18 @@ void UAudioVectorscope::SynchronizeProperties()
 		}
 	}
 
+	if (AudioSamplesDataProvider.IsValid())
+	{
+		if (MaxDisplayPersistenceMs != AudioSamplesDataProvider->GetMaxTimeWindowMs())
+		{
+			AudioSamplesDataProvider->SetMaxTimeWindowMs(MaxDisplayPersistenceMs);
+		}
+
+		AudioSamplesDataProvider->SetTimeWindow(DisplayPersistenceMs);
+
+		AudioSamplesDataProvider->RequestSequenceView(TRange<double>::Inclusive(0, 1));
+	}
+
 	if (VectorscopePanelWidget.IsValid())
 	{
 		if (PanelLayoutType != VectorscopePanelWidget->GetPanelLayoutType() && AudioSamplesDataProvider.IsValid())
@@ -118,6 +132,10 @@ void UAudioVectorscope::SynchronizeProperties()
 		VectorscopePanelWidget->SetValueGridOverlayMaxNumDivisions(GridDivisions);
 
 		VectorscopePanelWidget->UpdateSequenceVectorViewerStyle(VectorscopeStyle.VectorViewerStyle);
+
+		VectorscopePanelWidget->SetMaxDisplayPersistence(MaxDisplayPersistenceMs);
+
+		VectorscopePanelWidget->SetDisplayPersistence(DisplayPersistenceMs);
 		VectorscopePanelWidget->SetVectorViewerScaleFactor(Scale);
 
 		VectorscopePanelWidget->SetGridVisibility(bShowGrid);

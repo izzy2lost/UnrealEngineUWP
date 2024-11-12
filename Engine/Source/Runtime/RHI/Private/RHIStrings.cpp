@@ -321,9 +321,6 @@ FString GetBufferUsageFlagsName(EBufferUsageFlags BufferUsage)
 		case BUF_UnorderedAccess:		return TEXT("BUF_UnorderedAccess");
 		case BUF_ByteAddressBuffer:		return TEXT("BUF_ByteAddressBuffer");
 		case BUF_SourceCopy:			return TEXT("BUF_SourceCopy");
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		case BUF_StreamOutput:			return TEXT("BUF_StreamOutput");
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		case BUF_DrawIndirect:			return TEXT("BUF_DrawIndirect");
 		case BUF_ShaderResource:		return TEXT("BUF_ShaderResource");
 		case BUF_KeepCPUAccessible:		return TEXT("BUF_KeepCPUAccessible");
@@ -362,7 +359,6 @@ FString GetTextureCreateFlagsName(ETextureCreateFlags TextureCreateFlags)
 		case ETextureCreateFlags::Foveation:						return TEXT("Foveation");
 		case ETextureCreateFlags::Tiling3D:							return TEXT("Tiling3D");
 		case ETextureCreateFlags::Memoryless:						return TEXT("Memoryless");
-		case ETextureCreateFlags::GenerateMipCapable:				return TEXT("GenerateMipCapable");
 		case ETextureCreateFlags::FastVRAMPartialAlloc:				return TEXT("FastVRAMPartialAlloc");
 		case ETextureCreateFlags::DisableSRVCreation:				return TEXT("DisableSRVCreation");
 		case ETextureCreateFlags::DisableDCC:						return TEXT("DisableDCC");
@@ -439,6 +435,7 @@ static const FRHIResourceTypeName GRHIResourceTypeNames[] =
 	RHI_RESOURCE_TYPE_DEF(CustomPresent),
 	RHI_RESOURCE_TYPE_DEF(ShaderLibrary),
 	RHI_RESOURCE_TYPE_DEF(PipelineBinaryLibrary),
+	RHI_RESOURCE_TYPE_DEF(StreamSourceSlot)
 };
 
 ERHIResourceType RHIResourceTypeFromString(const FString& InString)
@@ -478,7 +475,8 @@ FString GetRHIAccessName(ERHIAccess Access)
 		case ERHIAccess::IndirectArgs:        return TEXT("IndirectArgs");
 		case ERHIAccess::VertexOrIndexBuffer: return TEXT("VertexOrIndexBuffer");
 		case ERHIAccess::SRVCompute:          return TEXT("SRVCompute");
-		case ERHIAccess::SRVGraphics:         return TEXT("SRVGraphics");
+		case ERHIAccess::SRVGraphicsPixel:    return TEXT("SRVGraphicsPixel");
+		case ERHIAccess::SRVGraphicsNonPixel: return TEXT("SRVGraphicsNonPixel");
 		case ERHIAccess::CopySrc:             return TEXT("CopySrc");
 		case ERHIAccess::ResolveSrc:          return TEXT("ResolveSrc");
 		case ERHIAccess::DSVRead:             return TEXT("DSVRead");
@@ -488,10 +486,10 @@ FString GetRHIAccessName(ERHIAccess Access)
 		case ERHIAccess::CopyDest:            return TEXT("CopyDest");
 		case ERHIAccess::ResolveDst:          return TEXT("ResolveDst");
 		case ERHIAccess::DSVWrite:            return TEXT("DSVWrite");
-		case ERHIAccess::ShadingRateSource:	  return TEXT("ShadingRateSource");
 		case ERHIAccess::BVHRead:             return TEXT("BVHRead");
 		case ERHIAccess::BVHWrite:            return TEXT("BVHWrite");
 		case ERHIAccess::Discard:             return TEXT("Discard");
+		case ERHIAccess::ShadingRateSource:	  return TEXT("ShadingRateSource");
 		}
 	});
 }
@@ -574,8 +572,6 @@ const TCHAR* GetTextureCreateFlagString(ETextureCreateFlags TextureCreateFlag)
 		return TEXT("Tiling3D");
 	case ETextureCreateFlags::Memoryless:
 		return TEXT("Memoryless");
-	case ETextureCreateFlags::GenerateMipCapable:
-		return TEXT("GenerateMipCapable");
 	case ETextureCreateFlags::FastVRAMPartialAlloc:
 		return TEXT("FastVRAMPartialAlloc");
 	case ETextureCreateFlags::DisableSRVCreation:
@@ -640,10 +636,6 @@ const TCHAR* GetBufferUsageFlagString(EBufferUsageFlags BufferUsage)
 		return TEXT("ByteAddressBuffer");
 	case EBufferUsageFlags::SourceCopy:
 		return TEXT("SourceCopy");
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	case EBufferUsageFlags::StreamOutput:
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		return TEXT("StreamOutput");
 	case EBufferUsageFlags::DrawIndirect:
 		return TEXT("DrawIndirect");
 	case EBufferUsageFlags::ShaderResource:
@@ -696,6 +688,8 @@ const TCHAR* GetUniformBufferBaseTypeString(EUniformBufferBaseType BaseType)
 		return TEXT("UBMT_RDG_TEXTURE_ACCESS_ARRAY");
 	case UBMT_RDG_TEXTURE_SRV:
 		return TEXT("UBMT_RDG_TEXTURE_SRV");
+	case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
+		return TEXT("UBMT_RDG_TEXTURE_NON_PIXEL_SRV");
 	case UBMT_RDG_TEXTURE_UAV:
 		return TEXT("UBMT_RDG_TEXTURE_UAV");
 	case UBMT_RDG_BUFFER_ACCESS:

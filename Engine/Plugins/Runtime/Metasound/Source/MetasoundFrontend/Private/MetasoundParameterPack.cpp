@@ -11,6 +11,12 @@ DEFINE_LOG_CATEGORY_STATIC(LogMetasoundParamPack, Log, All);
 
 REGISTER_METASOUND_DATATYPE(FMetasoundParameterStorageWrapper, "MetasoundParameterPack", Metasound::ELiteralType::UObjectProxy, UMetasoundParameterPack);
 
+template<>
+struct Metasound::TEnableArrayNodes<FMetasoundParameterStorageWrapper>
+{
+	static constexpr bool Value = false;
+};
+
 namespace MetasoundParameterPack
 {
 	FName RoutingName("ParamPack");
@@ -23,17 +29,20 @@ TSharedPtr<Audio::IProxyData> UMetasoundParameterPack::CreateProxyData(const Aud
 
 Metasound::FSendAddress UMetasoundParameterPack::CreateSendAddressFromEnvironment(const Metasound::FMetasoundEnvironment& InEnvironment)
 {
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return Metasound::FMetaSoundParameterTransmitter::CreateSendAddressFromEnvironment(InEnvironment, MetasoundParameterPack::RoutingName, Metasound::GetMetasoundDataTypeName<FMetasoundParameterStorageWrapper>());
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 FMetasoundFrontendClassInput UMetasoundParameterPack::GetClassInput()
 {
 	FMetasoundFrontendClassInput ClassInput;
 	ClassInput.Name = MetasoundParameterPack::RoutingName;
-	ClassInput.DefaultLiteral = FMetasoundFrontendLiteral({ MetasoundParameterPack::RoutingName, nullptr });
 	ClassInput.TypeName = Metasound::GetMetasoundDataTypeName<FMetasoundParameterStorageWrapper>();
+
+	constexpr UObject* NullObjectPtr = nullptr;
+	ClassInput.InitDefault() = FAudioParameter { MetasoundParameterPack::RoutingName, NullObjectPtr };
+
 	return ClassInput;
 }
 

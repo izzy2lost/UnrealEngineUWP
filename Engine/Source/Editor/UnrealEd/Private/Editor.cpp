@@ -138,6 +138,7 @@ FEditorDelegates::FOnAssetPostImport					FEditorDelegates::OnAssetPostImport;
 FEditorDelegates::FOnAssetReimport						FEditorDelegates::OnAssetReimport;
 FEditorDelegates::FOnNewActorsDropped					FEditorDelegates::OnNewActorsDropped;
 FEditorDelegates::FOnNewActorsPlaced					FEditorDelegates::OnNewActorsPlaced;
+FEditorDelegates::FOnEditorActorReplaced				FEditorDelegates::OnEditorActorReplaced;
 FEditorDelegates::FOnGridSnappingChanged				FEditorDelegates::OnGridSnappingChanged;
 FSimpleMulticastDelegate								FEditorDelegates::OnLightingBuildStarted;
 FSimpleMulticastDelegate								FEditorDelegates::OnLightingBuildKept;
@@ -153,6 +154,7 @@ FSimpleMulticastDelegate								FEditorDelegates::OnShutdownPostPackagesSaved;
 FEditorDelegates::FOnPackageDeleted						FEditorDelegates::OnPackageDeleted;
 FEditorDelegates::FOnAssetsCanDelete					FEditorDelegates::OnAssetsCanDelete;
 FEditorDelegates::FOnAssetsAddExtraObjectsToDelete		FEditorDelegates::OnAssetsAddExtraObjectsToDelete;
+FEditorDelegates::FOnAddExtraObjectsToDelete			FEditorDelegates::OnAddExtraObjectsToDelete;
 FEditorDelegates::FOnAssetsPreDelete					FEditorDelegates::OnAssetsPreDelete;
 FEditorDelegates::FOnAssetsDeleted						FEditorDelegates::OnAssetsDeleted;
 FEditorDelegates::FOnAssetDragStarted					FEditorDelegates::OnAssetDragStarted;
@@ -277,9 +279,9 @@ void FReimportManager::UpdateReimportPath(UObject* Obj, const FString& Filename,
 }
 
 
-bool FReimportManager::Reimport(UObject* Obj, bool bAskForNewFileIfMissing, bool bShowNotification, FString PreferredReimportFile, FReimportHandler* SpecifiedReimportHandler, int32 SourceFileIndex, bool bForceNewFile /*= false*/, bool bAutomated /*= false*/)
+bool FReimportManager::Reimport(UObject* Obj, bool bAskForNewFileIfMissing, bool bShowNotification, FString PreferredReimportFile, FReimportHandler* SpecifiedReimportHandler, int32 SourceFileIndex, bool bForceNewFile /*= false*/, bool bAutomated /*= false*/, bool bInForceShowDialog /*= false*/)
 {
-	UE::Interchange::FAssetImportResultRef ImportResult = ReimportAsync(Obj, bAskForNewFileIfMissing, bShowNotification, PreferredReimportFile, SpecifiedReimportHandler, SourceFileIndex, bForceNewFile, bAutomated);
+	UE::Interchange::FAssetImportResultRef ImportResult = ReimportAsync(Obj, bAskForNewFileIfMissing, bShowNotification, PreferredReimportFile, SpecifiedReimportHandler, SourceFileIndex, bForceNewFile, bAutomated, bInForceShowDialog);
 	ImportResult->WaitUntilDone();
 	const TArray<UInterchangeResult*>& Results = ImportResult->GetResults()->GetResults();
 	for (const UInterchangeResult* InterchangeResult : Results)
@@ -292,7 +294,7 @@ bool FReimportManager::Reimport(UObject* Obj, bool bAskForNewFileIfMissing, bool
 	return true;
 }
 
-UE::Interchange::FAssetImportResultRef FReimportManager::ReimportAsync(UObject* Obj, bool bAskForNewFileIfMissing, bool bShowNotification, FString PreferredReimportFile, FReimportHandler* SpecifiedReimportHandler, int32 SourceFileIndex, bool bForceNewFile /*= false*/, bool bAutomated /*= false*/)
+UE::Interchange::FAssetImportResultRef FReimportManager::ReimportAsync(UObject* Obj, bool bAskForNewFileIfMissing, bool bShowNotification, FString PreferredReimportFile, FReimportHandler* SpecifiedReimportHandler, int32 SourceFileIndex, bool bForceNewFile /*= false*/, bool bAutomated /*= false*/, bool bInForceShowDialog /*= false*/)
 {
 	UE::Interchange::FAssetImportResultRef ImportResultSynchronous = MakeShared< UE::Interchange::FImportResult, ESPMode::ThreadSafe >();
 	// Warn that were about to reimport, so prep for it
@@ -468,6 +470,7 @@ UE::Interchange::FAssetImportResultRef FReimportManager::ReimportAsync(UObject* 
 							ImportAssetParameters.bIsAutomated = GIsAutomationTesting || FApp::IsUnattended() || IsRunningCommandlet() || GIsRunningUnattendedScript;
 							ImportAssetParameters.ReimportAsset = Obj;
 							ImportAssetParameters.ReimportSourceIndex = SourceFileIndex;
+							ImportAssetParameters.bForceShowDialog = bInForceShowDialog;
 							UE::Interchange::FAssetImportResultRef ImportResult = InterchangeManager.ImportAssetAsync(FString(), ScopedSourceData.GetSourceData(), ImportAssetParameters);
 
 							TFunction<void(UE::Interchange::FImportResult&)> AppendAndBroadcastImportResultIfNeeded =
@@ -490,7 +493,13 @@ UE::Interchange::FAssetImportResultRef FReimportManager::ReimportAsync(UObject* 
 				// Do the reimport
 				const bool bOriginalAutomated = CanReimportHandler->IsAutomatedReimport();
 				CanReimportHandler->SetAutomatedReimport(bAutomated);
+				const bool bOriginalForceShowDialog = CanReimportHandler->IsForceShowDialog();
+				CanReimportHandler->SetForceShowDialog(bInForceShowDialog);
+				
+				//Reimport the asset
 				EReimportResult::Type Result = CanReimportHandler->Reimport( Obj, SourceFileIndex );
+				
+				CanReimportHandler->SetForceShowDialog(bOriginalForceShowDialog);
 				CanReimportHandler->SetAutomatedReimport(bOriginalAutomated);
 				// Even if the reimport has been successful, check that the originating object is still valid
 				// The reimport might be a reimport to level which triggered the deletion of the object
@@ -826,39 +835,32 @@ void FReimportManager::GetNewReimportPath(UObject* Obj, TArray<FString>& InOutFi
 
 	// Append the Interchange supported translator formats for this object
 	TMultiMap<uint32, UFactory*> DummyFilterIndexToFactory;
+	// Get the list of valid factories
+	for (TObjectIterator<UClass> It; It; ++It)
+	{
+		UClass* CurrentClass = (*It);
+
+		if (CurrentClass->IsChildOf(UFactory::StaticClass()) && !(CurrentClass->HasAnyClassFlags(CLASS_Abstract)))
+		{
+			UFactory* Factory = Cast<UFactory>(CurrentClass->GetDefaultObject());
+			if (Factory->bEditorImport && Factory->DoesSupportClass(Obj->GetClass()))
+			{
+				Factories.Add(Factory);
+			}
+		}
+	}
+	//We now add all the factory extensions
+	if (Factories.Num() > 0)
+	{
+		// Generate the file types and extensions represented by the selected factories
+		ObjectTools::GenerateFactoryFileExtensions(Factories, FileTypes, AllExtensions, DummyFilterIndexToFactory);
+	}
+
 	if (UInterchangeManager::IsInterchangeImportEnabled())
 	{
 		//Get the extension interchange can translate for this object
-		TArray<FString> TranslatorFormats = UInterchangeManager::GetInterchangeManager().GetSupportedFormatsForObject(Obj);
+		TArray<FString> TranslatorFormats = UInterchangeManager::GetInterchangeManager().GetSupportedFormatsForObject(Obj, RealSourceFileIndex);
 		ObjectTools::AppendFormatsFileExtensions(TranslatorFormats, FileTypes, AllExtensions, DummyFilterIndexToFactory);
-	}
-
-	// Interchange is either disabled or do not support the given object, check with the legacy factories
-	if (AllExtensions.IsEmpty())
-	{
-		// Get the list of valid factories
-		for (TObjectIterator<UClass> It; It; ++It)
-		{
-			UClass* CurrentClass = (*It);
-
-			if (CurrentClass->IsChildOf(UFactory::StaticClass()) && !(CurrentClass->HasAnyClassFlags(CLASS_Abstract)))
-			{
-				UFactory* Factory = Cast<UFactory>(CurrentClass->GetDefaultObject());
-				if (Factory->bEditorImport && Factory->DoesSupportClass(Obj->GetClass()))
-				{
-					Factories.Add(Factory);
-				}
-			}
-		}
-
-		if (Factories.Num() <= 0)
-		{
-			// No matching factories for this asset, fail
-			return;
-		}
-
-		// Generate the file types and extensions represented by the selected factories
-		ObjectTools::GenerateFactoryFileExtensions(Factories, FileTypes, AllExtensions, DummyFilterIndexToFactory);
 	}
 
 	FString DefaultFolder;
@@ -1043,7 +1045,7 @@ UWorld* SetPlayInEditorWorld( UWorld* PlayInEditorWorld )
 
 	if (FWorldContext* WorldContext = GEngine->GetWorldContextFromWorld(PlayInEditorWorld))
 	{
-		GPlayInEditorID = WorldContext->PIEInstance;
+		UE::SetPlayInEditorID(WorldContext->PIEInstance);
 		UpdatePlayInEditorWorldDebugString(WorldContext);
 	}
 
@@ -1061,7 +1063,7 @@ void RestoreEditorWorld( UWorld* EditorWorld )
 	check(GIsPlayInEditorWorld);
 	GIsPlayInEditorWorld = false;
 	GWorld = EditorWorld;
-	GPlayInEditorID = INDEX_NONE;
+	UE::SetPlayInEditorID(INDEX_NONE);
 	UpdatePlayInEditorWorldDebugString(nullptr);
 }
 

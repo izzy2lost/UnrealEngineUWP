@@ -87,6 +87,10 @@ struct FColorMaterialParameterInfoAndCurves
 	/** Name of parameter asset, if applicable */
 	UPROPERTY()
 	FString ParameterAssetName;
+
+	/* Optional UI names for parameter channels, if applicable */
+	UPROPERTY()
+	FParameterChannelNames ParameterChannelNames;
 #endif
 };
 
@@ -107,7 +111,7 @@ public:
 
 	/** Adds a a key for a specific color parameter at the specified time with the specified value. */
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Section")
-	MOVIESCENETRACKS_API void AddColorParameterKey(const FMaterialParameterInfo& InParameterInfo, FFrameNumber InTime, FLinearColor InValue, const FString& InLayerName, const FString& InAssetName);
+	MOVIESCENETRACKS_API void AddColorParameterKey(const FMaterialParameterInfo& InParameterInfo, FFrameNumber InTime, FLinearColor InValue, const FString& InLayerName, const FString& InAssetName, const FParameterChannelNames& InChannelNames=FParameterChannelNames());
 
 	/** 
 	 * Removes a scalar parameter from this section. 

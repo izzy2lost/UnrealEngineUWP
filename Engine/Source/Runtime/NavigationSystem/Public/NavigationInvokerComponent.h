@@ -21,10 +21,10 @@ class UNavigationInvokerComponent : public UActorComponent
 
 protected:
 
-	UPROPERTY(EditAnywhere, Category = Navigation, meta = (ClampMin = "0.1", UIMin = "0.1"))
+	UPROPERTY(EditAnywhere, Category = Navigation, meta = (ClampMin = "0.1", ClampMax = "6400000", UIMin = "0.1", UIMax = "6400000"))
 	float TileGenerationRadius;
 
-	UPROPERTY(EditAnywhere, Category = Navigation, meta = (ClampMin = "0.1", UIMin = "0.1"))
+	UPROPERTY(EditAnywhere, Category = Navigation, meta = (ClampMin = "0.1", ClampMax = "6400000", UIMin = "0.1", UIMax = "6400000"))
 	float TileRemovalRadius;
 
 	/** restrict navigation generation to specific agents */

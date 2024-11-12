@@ -93,7 +93,7 @@ public:
 		DeltaTime = InDeltaTime;
 	}
 
-	virtual void SubscribeToPostProcessingPass(EPostProcessingPass PassId, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled)
+	virtual void SubscribeToPostProcessingPass(EPostProcessingPass PassId, const FSceneView& View, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled)
 	{
 		if (!bIsOcioEnabledRenderThread)
 		{

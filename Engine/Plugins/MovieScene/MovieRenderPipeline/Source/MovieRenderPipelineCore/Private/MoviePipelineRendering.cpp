@@ -39,6 +39,19 @@
 #include "Materials/MaterialInterface.h"
 #include "ContentStreaming.h"
 
+static TAutoConsoleVariable<bool> CVarMoviePipelineDisableShaderFlushing(
+	TEXT("MoviePipeline.DisableShaderFlushingDebug"), false,
+	TEXT("If true, the Movie Pipeline won't wait for any outstanding shader or asset compilation.")
+	TEXT("If false (default), any outstanding shaders and assets will be flushed each frame before rendering.")
+	TEXT("If true, rendered frames may be missing objects (meshes, particles, etc.) or objects may show the default checkerboard material."),
+	ECVF_Default);
+
+static TAutoConsoleVariable<int> CVarMoviePipelineThrottleFrameCount(
+	TEXT("MoviePipeline.ThrottleFrameCount"), 2,
+	TEXT("Number of rendered frames that can be submitted to the rendering thread before waiting. A value of 0 will allow the CPU to submit all work without waiting on the GPU.\n")
+	TEXT("The default value of 2 tries to balance between performance and memory usage. The maximum value is 4.\n")
+	TEXT("This option only applies to path traced renders, as deferred rendering is synchronized through pixel readbacks.\n"),
+	ECVF_Default);
 
 #define LOCTEXT_NAMESPACE "MoviePipeline"
 
@@ -62,9 +75,24 @@ void UMoviePipeline::SetupRenderingPipelineForShot(UMoviePipelineExecutorShot* I
 	UMoviePipelineOutputSetting* OutputSettings = GetPipelinePrimaryConfig()->FindSetting<UMoviePipelineOutputSetting>();
 	check(OutputSettings);
 
+	// Reset cached camera overscan
+	CameraOverscanCache.Empty();
+	bHasWarnedAboutAnimatedOverscan = false;
+	
+	// TODO: Not much support here for multi-camera, so simply get the player controller camera and use its overscan value
+	float CameraOverscan = 0.0f;
+	if (UCameraComponent* BoundCamera = MovieSceneHelpers::CameraComponentFromRuntimeObject(GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetViewTarget()))
+	{
+		FMinimalViewInfo CameraViewInfo;
+		BoundCamera->GetCameraView(GetWorld()->GetDeltaSeconds(), CameraViewInfo);
+		CameraOverscan = CameraViewInfo.GetOverscan();
+	}
 
+	// Cache the default camera overscan at INDEX_NONE to ensure anything that doesn't have multi-camera support still has an overscan value to utilize
+	CameraOverscanCache.Add(INDEX_NONE, CameraOverscan);
+	
 	FIntPoint BackbufferTileCount = FIntPoint(HighResSettings->TileCount, HighResSettings->TileCount);
-	FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(GetPipelinePrimaryConfig(), InShot);
+	FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(GetPipelinePrimaryConfig(), InShot, CameraOverscan);
 
 	// Figure out how big each sub-region (tile) is.
 	FIntPoint BackbufferResolution = FIntPoint(
@@ -179,9 +207,13 @@ void UMoviePipeline::RenderFrame()
 	check(HighResSettings);
 	check(OutputSettings);
 
+	// TODO: Not much support here for multi-camera, so simply get the player controller camera and use its overscan value
+	// Use the cache to get the overscan value for resolution scaling so that it doesn't vary between frames
+	const float CameraOverscan  = CameraOverscanCache[INDEX_NONE];
+	
 	FIntPoint TileCount = FIntPoint(HighResSettings->TileCount, HighResSettings->TileCount);
 	FIntPoint OriginalTileCount = TileCount;
-	FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(GetPipelinePrimaryConfig(), ActiveShotList[CurrentShotIndex]);
+	FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(GetPipelinePrimaryConfig(), ActiveShotList[CurrentShotIndex], CameraOverscan);
 
 	int32 NumSpatialSamples = AntiAliasingSettings->SpatialSampleCount;
 	int32 NumTemporalSamples = AntiAliasingSettings->TemporalSampleCount;
@@ -284,6 +316,19 @@ void UMoviePipeline::RenderFrame()
 	}
 #endif
 
+	constexpr int FenceBufferMax = 4;
+	int FrameThrotteCount = 0;
+	for (const UMoviePipelineRenderPass* RenderPass : InputBuffers)
+	{
+		if (RenderPass->NeedsFrameThrottle())
+		{
+			FrameThrotteCount = FMath::Clamp(CVarMoviePipelineThrottleFrameCount.GetValueOnGameThread(), 0, FenceBufferMax);
+			break;
+		}
+	}
+	FGPUFenceRHIRef MRQThrottleFence[FenceBufferMax];
+	int FenceIndex = 0;
+	
 	for (int32 TileY = 0; TileY < TileCount.Y; TileY++)
 	{
 		for (int32 TileX = 0; TileX < TileCount.X; TileX++)
@@ -374,7 +419,37 @@ void UMoviePipeline::RenderFrame()
 				SampleState.TextureSharpnessBias = HighResSettings->TextureSharpnessBias;
 				SampleState.OCIOConfiguration = ColorSettings ? &ColorSettings->OCIOConfiguration : nullptr;
 				SampleState.GlobalScreenPercentageFraction = FLegacyScreenPercentageDriver::GetCVarResolutionFraction();
+				SampleState.bOverrideCameraOverscan = CameraSettings->bOverrideCameraOverscan;
 				SampleState.OverscanPercentage = FMath::Clamp(CameraSettings->OverscanPercentage, 0.0f, 1.0f);
+
+				if (FrameThrotteCount > 0)
+				{
+					// Before we render, wait for previous samples to have completed so the GPU command list doesn't get too far behind
+					if (MRQThrottleFence[FenceIndex] && !MRQThrottleFence[FenceIndex]->Poll())
+					{
+						TRACE_CPUPROFILER_EVENT_SCOPE(MRQFrameThrottle);
+						for (;;)
+						{
+							FPlatformProcess::SleepNoStats(0.001f);
+							if (MRQThrottleFence[FenceIndex]->Poll())
+							{
+								break;
+							}
+						}
+					}
+
+					// Create a fence for this frame and insert a signal to it
+					MRQThrottleFence[FenceIndex] = RHICreateGPUFence(TEXT("MRQThrottleFence"));
+					ENQUEUE_RENDER_COMMAND(MRQFrameThrottle)([Fence = MRQThrottleFence[FenceIndex]]
+						(FRHICommandListImmediate& RHICmdList)
+						{
+							RHICmdList.WriteGPUFence(Fence);
+							RHICmdList.SubmitCommandsHint();
+						});
+
+					// Switch fences for the next frame (this makes us wait on a different frame than what we just made the signal for)
+					FenceIndex = (FenceIndex + 1) % FrameThrotteCount;
+				}
 
 				// Render each output pass
 				FMoviePipelineRenderPassMetrics SampleStateForCurrentResolution = UE::MoviePipeline::GetRenderPassMetrics(GetPipelinePrimaryConfig(), ActiveShotList[CurrentShotIndex], SampleState, OutputResolution);
@@ -509,13 +584,17 @@ void UMoviePipeline::FlushAsyncEngineSystems()
 		GetWorld()->BlockTillLevelStreamingCompleted();
 	}
 
-	// Ensure we have complete shader maps for all materials used by primitives in the world.
-	// This way we will never render with the default material.
-	UMaterialInterface::SubmitRemainingJobsForWorld(GetWorld());
+	const bool bDisableShaderFlushing = CVarMoviePipelineDisableShaderFlushing.GetValueOnGameThread();
+	if (!bDisableShaderFlushing)
+	{
+		// Ensure we have complete shader maps for all materials used by primitives in the world.
+		// This way we will never render with the default material.
+		UMaterialInterface::SubmitRemainingJobsForWorld(GetWorld());
 
-	// Flush all assets still being compiled asynchronously.
-	// A progressbar is already in place so the user can get feedback while waiting for everything to settle.
-	FAssetCompilingManager::Get().FinishAllCompilation();
+		// Flush all assets still being compiled asynchronously.
+		// A progressbar is already in place so the user can get feedback while waiting for everything to settle.
+		FAssetCompilingManager::Get().FinishAllCompilation();
+	}
 
 	// Flush streaming managers
 	{

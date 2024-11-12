@@ -219,7 +219,6 @@ namespace ChaosTest {
 						}
 
 						// reverse ray to test double sided
-						FVec3 ReversePosition;
 						FReal ReverseTOI;
 						const bool bReverseResult = Heightfield.Raycast(RayEnd, -RayDir, RayLength, 0, ReverseTOI, Position, Normal, FaceIdx);
 						if (Row + 1 == Rows)
